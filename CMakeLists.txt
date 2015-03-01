@@ -198,3 +198,4 @@ add_subdirectory(units)
 configure_file( include/seahorn/config.h.cmake
                 ${CMAKE_BINARY_DIR}/include/seahorn/config.h )
 
+add_subdirectory(py)

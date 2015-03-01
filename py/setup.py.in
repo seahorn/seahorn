@@ -1,0 +1,15 @@
+from distutils.core import setup
+from os.path import join
+
+setup(name='seahorn',
+      version='1.0',
+      description='SeaHorn Verification Framework (python)',
+      author='SeaHorn Team',
+      url='http://github.com/seahorn',
+      package_dir = {'': '${CMAKE_CURRENT_SOURCE_DIR}'},
+      py_modules = ['stats'],
+      scripts = map (lambda x : join ('${CMAKE_CURRENT_SOURCE_DIR}', x), 
+                     ['seahorn_inter.py',
+                      'only_z3.py',
+                      'gcc_seahorn.py'])
+      )

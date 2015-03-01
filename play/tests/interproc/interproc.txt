@@ -1,0 +1,50 @@
+Inter-procedural encoding.
+
+Each summary predicate is extended with 3 Bool variables
+
+  en   - true if the predicate is enabled
+  ein  - value of the error flag on entry 
+  eout - value of the error flag on exit
+
+The rules for summary predicate S(en, ein, eout, V), where V are the
+other variables of S are:
+  
+  ; propagate error (even if disabled)
+  S (en, true, true, V). 
+  ; if not enabled, error is false, and the rest is non-deterministic
+  S (false, false, false, V).
+  
+Special error summary VerifierError(en, ein, eout) defined as:
+
+ ; generate error when enabled
+ VerifierError (true, ein, true).
+ ; propagate error when do not
+ VerifierError (false, ein, ein).
+ 
+Each basic block is extended with one Bool variable
+  
+  err - true if error is true
+  
+Addition edges for every bb predicate
+
+  ; error jumps to end of function
+  bb (true, V) -> bb_exit (true, V)
+
+  ; regular summary
+  bb_exit (false, V) -> S(true, false, false, V)
+  
+  ; error exit
+  bb_exit (true, V) -> S(true, false, true, V)
+  
+  ; regular edges
+  bb1 (false, V) & !err_0 &
+    S1(bbV1, err_0, err_1) & ... & Sk(bbVk, err_{k-1}, err_k) &
+    tau (bbV1,...,bbVk, V, U) -> bb2(err_k, U) 
+           
+    
+Query is
+  main@bb_exit (true)
+
+ 
+Need one local variable `error.flag' to indicate whether error was
+tripped.

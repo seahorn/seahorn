@@ -1,0 +1,14 @@
+#ifndef _SEAHORN_CONFIG_H
+#define _SEAHORN_CONFIG_H
+
+/* Define whether ikos-core is available */
+#cmakedefine HAVE_IKOS ${HAVE_IKOS}
+
+/** Define whether ikos-llvm is available */
+#cmakedefine HAVE_IKOS_LLVM ${HAVE_IKOS_LLVM}
+
+/** Define whether DSA library is available */
+#cmakedefine HAVE_DSA ${HAVE_DSA}
+
+
+#endif

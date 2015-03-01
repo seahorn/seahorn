@@ -1,0 +1,25 @@
+set (USED_LIBS 
+  seahorn.LIB
+  SeaHornPasses  
+  avy
+  ${Z3_LIBRARY}
+  ${Boost_SYSTEM_LIBRARY}
+  ${GMPXX_LIB}
+  ${GMP_LIB}
+  ${RT_LIB}
+  )
+
+
+set(LLVM_LINK_COMPONENTS irreader ipo scalaropts instrumentation core)
+add_executable(seahorn seahorn.cpp)
+target_link_libraries (seahorn ${USED_LIBS})
+llvm_config (seahorn ${LLVM_LINK_COMPONENTS})
+link_system_libs (seahorn)
+install(TARGETS seahorn RUNTIME DESTINATION bin)
+
+if (SEAHORN_STATIC_EXE)
+  set (CMAKE_EXE_LINKER_FLAGS "-static -static-libgcc -static-libstdc++")
+  set_target_properties (seahorn PROPERTIES LINK_SEARCH_START_STATIC ON)
+  set_target_properties (seahorn PROPERTIES LINK_SEARCH_END_STATIC ON)
+endif()
+

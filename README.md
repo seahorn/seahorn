@@ -8,6 +8,8 @@ An LLVM based verification framework.
 
 #Compilation#
 
+* download [dsa-seahorn](https://github.com/seahorn/dsa-seahorn): ``` git clone https://github.com/seahorn/dsa-seahorn.git ```
+* download [ikos-llvm](https://github.com/seahorn/ikos-llvm): ``` git clone https://github.com/seahorn/ikos-llvm.git```
 * ``` mkdir build ```
 * ``` cd build ```
 * ``` cmake -DCMAKE_BUILD_TYPE=Release ../ ``` or ```cmake -DCMAKE_BUILD_TYPE=Release ../ -GNinja```

@@ -332,7 +332,7 @@ def runSpacer (in_name, engine, cpu=-1, extra_args=[]):
                    'fixedpoint.xform.inline_linear=false',
                    'fixedpoint.xform.inline_eager=false',
                    'fixedpoint.use_heavy_mev=true',
-	           'pdr.flexible_trace=true',
+	           'fixedpoint.pdr.flexible_trace=true',
 	           'fixedpoint.reset_obligation_queue=true',
                    run_engine, in_name ]
     if verbose: print ' '.join (spacer_args)
@@ -412,7 +412,7 @@ def main (argv):
     opt_out = defOPTName (in_name, args.L, workdir)
     with stats.timer ('Opt'):
         llvmOpt (in_name, opt_out,
-                 opt_level=opt.L, time_passes=args.time_passes)
+                 opt_level=args.L, time_passes=args.time_passes)
     stat ('Progress', 'OPT')
 
     in_name = opt_out

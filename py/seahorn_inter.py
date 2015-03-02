@@ -60,6 +60,58 @@ def loadEnv (filename):
 
         os.environ [key] = os.path.expandvars (val.rstrip ())
 
+        
+def parseArgs (argv):
+    import argparse as a
+    p = a.ArgumentParser (description='SeaHorn Verification Framework')
+    p.add_argument ('-o', dest='out_name', metavar='FILE',
+                       help='Output file name')
+    p.add_argument ("--save-temps", dest="save_temps",
+                       help="Do not delete temporary files",
+                       action="store_true",
+                       default=False)
+    p.add_argument ("--temp-dir", dest="temp_dir",
+                       help="Temporary directory",
+                       default=None)
+    p.add_argument ("--time-passes", dest="time_passes",
+                       help="Time LLVM passes",
+                       default=False, action='store_true')
+    p.add_argument ('--no-seahorn', action='store_false',
+                       dest='do_seahorn', help='Only pre-process the files',
+                       default=True)
+    p.add_argument ('--no-opt', action='store_false', dest='do_opt',
+                       help='Do not do final optimization', default=True)
+    p.add_argument ('-O', type=int, dest='L',
+                       help='Optimization level L:[0,1,2,3]', default=3)
+    p.add_argument ('-m', type=int, dest='machine',
+                       help='Machine architecture MACHINE:[32,64]', default=32)
+    p.add_argument ('-e', type=int, dest='engine',
+                       help='Verification engine 0=PDR, 1=SPACER', default=1)
+    p.add_argument ('--cpu', type=int, dest='cpu',
+                       help='CPU time limit (seconds)', default=-1)
+    p.add_argument ('--mem', type=int, dest='mem',
+                       help='MEM limit (MB)', default=-1)
+    p.add_argument ('--cex', dest='cex', help='Destination for a cex',
+                       default=None)
+    p.add_argument ('--use-z3-script', dest='use_z3_script',
+                       help='Use the python script in spacer repo to run z3',
+                       default=False, action='store_true')
+    p.add_argument ('--z3root', dest='z3root', help='Root directory of z3',
+                       default=None)
+    p.add_argument ('--run-z3', dest='run_z3', help='Run Z3 after generating smt2 file',
+                       default=False, action='store_true')
+
+    args = p.parse_args (argv)
+    
+    if args.L < 0 or args.L > 3:
+        p.error ("Unknown option: -O%s" % args.L)
+
+    if args.machine != 32 and args.machine != 64:
+        p.error ("Unknown option -m%s" % args.machine)
+
+    if options.engine != 0 and options.engine != 1:
+        p.error ("Unknown option -m%s" % args.engine)
+    
 def parseOpt (argv):
     from optparse import OptionParser
 
@@ -390,16 +442,16 @@ def main (argv):
     #if '-m64' in argv: seahorn_args.append ('--horn-sem-lvl=ptr')
 
     (opt, args) = parseOpt (argv)
+    args  = parseArgs (argv[1:])
 
-    workdir = createWorkDir (opt.temp_dir, opt.save_temps)
+    workdir = createWorkDir (args.temp_dir, args.save_temps)
 
-    #assert len(args) == 1
-    in_name = args [0]
+    in_name = args.file
 
     bc_out = defBCName (in_name, workdir)
     assert bc_out != in_name
     with stats.timer ('Clang'):
-        clang (in_name, bc_out, arch=opt.machine)
+        clang (in_name, bc_out, arch=args.machine)
     stat ('Progress', 'CLANG')
 
     in_name = bc_out
@@ -407,7 +459,7 @@ def main (argv):
     pp_out = defPPName (in_name, workdir)
     assert pp_out != in_name
     with stats.timer ('Seapp'):
-        seapp (in_name, pp_out, arch=opt.machine)
+        seapp (in_name, pp_out, arch=args.machine)
     stat ('Progress', 'SEAPP')
 
     in_name = pp_out
@@ -415,32 +467,32 @@ def main (argv):
     ms_out = defMSName (in_name, workdir)
     assert ms_out != in_name
     with stats.timer ('Mixed'):
-        mixSem (in_name, ms_out, build_dir=opt.build_dir, arch=opt.machine)
+        mixSem (in_name, ms_out, build_dir=args.build_dir, arch=args.machine)
     stat ('Progress', 'MIXED')
 
     in_name = ms_out
 
-    opt_out = defOPTName (in_name, opt.L, workdir)
+    opt_out = defOPTName (in_name, args.L, workdir)
     with stats.timer ('Opt'):
         llvmOpt (in_name, opt_out,
-                 opt_level=opt.L, time_passes=opt.time_passes)
+                 opt_level=opt.L, time_passes=args.time_passes)
     stat ('Progress', 'OPT')
 
     in_name = opt_out
 
     smt_out = defSMTName(in_name, workdir)
     with stats.timer ('Seahorn'):
-        seahorn (in_name, smt_out, seahorn_args, cex=opt.cex, cpu=opt.cpu, mem=opt.mem)
+        seahorn (in_name, smt_out, seahorn_args, cex=args.cex, cpu=args.cpu, mem=args.mem)
     stat ('Progress', 'SMT2')
 
-    if opt.out_name is not None and opt.out_name != smt_out:
-        shutil.copy2 (smt_out, opt.out_name)
+    if args.out_name is not None and args.out_name != smt_out:
+        shutil.copy2 (smt_out, args.out_name)
 
-    if (opt.run_z3):
-        if opt.use_z3_script:
-            runZ3(smt_out, opt.z3root, opt.build_dir, z3_args)
+    if (args.run_z3):
+        if args.use_z3_script:
+            runZ3(smt_out, args.z3root, args.build_dir, z3_args)
         else:
-            runSpacer(smt_out, opt.engine, cpu=opt.cpu)
+            runSpacer(smt_out, args.engine, cpu=args.cpu)
 
     return 0
 

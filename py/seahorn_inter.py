@@ -88,11 +88,9 @@ def parseArgs (argv):
                        help='MEM limit (MB)', default=-1)
     p.add_argument ('--cex', dest='cex', help='Destination for a cex',
                        default=None, metavar='FILE')
-    p.add_argument ('--use-z3-script', dest='use_z3_script',
-                       help='Use the python script in spacer repo to run z3',
+    p.add_argument ('--use-z3-smt2', dest='use_z3_smt2',
+                       help='Use z3_smt2.py to run spacer',
                        default=False, action='store_true')
-    p.add_argument ('--z3-root', dest='z3root', help='Root directory of z3',
-                       default=None)
     p.add_argument ('--run-z3', dest='run_z3', help='Run Z3 after generating smt2 file',
                        default=False, action='store_true')
     p.add_argument ('file', metavar='FILE', help='Input file')
@@ -175,13 +173,16 @@ def getSpacer ():
         raise IOError ("Cannot find spacer")
     return spacer
 
-def getZ3Frontend (z3root, build_dir):
-    raise IOError ('No z3 front-end')
-    # z3fe = None
-    # if z3root is None:
-    #     z3root = os.path.join (root, build_dir + '/z3-prefix/src/z3')
-    # z3fe = os.path.join (z3root, 'stats/scripts/z3_smt2.py')
-    # return z3fe
+def getZ3Smt2():
+    f = None
+    if 'Z3_SMT2' in os.environ:
+        f = os.environ ['Z3_SMT2']
+    if not isexec (f):
+        f = os.path.join (root, 'bin/z3_smt2.py')
+    if not isexec (f): f = which ('z3_smt2.py')
+    if not isexec (f):
+        raise IOError ('Cannot find z3_smt2.py')
+    return f
 
 ### Passes
 def defBCName (name, wd=None):
@@ -238,7 +239,7 @@ def sharedLib (base):
     return base + ext
 
 # Run Mixed Semantics
-def mixSem (in_name, out_name, build_dir, arch=32, extra_args=[]):
+def mixSem (in_name, out_name, arch=32, extra_args=[]):
     if out_name == '' or out_name == None:
         out_name = defMSName (in_name)
 
@@ -348,8 +349,8 @@ def runSpacer (in_name, engine, cpu=-1, extra_args=[]):
     elif 'sat' in result:
         stat('Result', 'CEX')
 
-def runZ3 (in_name, z3root, build_dir, z3_args):
-    z3fe = getZ3Frontend (z3root, build_dir)
+def runZ3 (in_name, z3_args):
+    z3fe = getZ3Smt2 ()
     args = [z3fe]
     # strip of '--z3-' prefix
     for arg in z3_args:
@@ -403,7 +404,7 @@ def main (argv):
     ms_out = defMSName (in_name, workdir)
     assert ms_out != in_name
     with stats.timer ('Mixed'):
-        mixSem (in_name, ms_out, build_dir=args.build_dir, arch=args.machine)
+        mixSem (in_name, ms_out, arch=args.machine)
     stat ('Progress', 'MIXED')
 
     in_name = ms_out
@@ -425,10 +426,8 @@ def main (argv):
         shutil.copy2 (smt_out, args.out_name)
 
     if (args.run_z3):
-        if args.use_z3_script:
-            runZ3(smt_out, args.z3root, args.build_dir, z3_args)
-        else:
-            runSpacer(smt_out, args.engine, cpu=args.cpu)
+        if args.use_z3_smt2: runZ3 (smt_out, z3_args)
+        else: runSpacer (smt_out, args.engine, cpu=args.cpu)
 
     return 0
 

@@ -423,6 +423,7 @@ def main (argv):
     stat ('Progress', 'SMT2')
 
     if args.out_name is not None and args.out_name != smt_out:
+        if verbose: print 'cp {0} {1}'.format (smt_out, args.out_name)
         shutil.copy2 (smt_out, args.out_name)
 
     if (args.run_z3):

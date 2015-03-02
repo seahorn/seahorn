@@ -8,12 +8,19 @@ An LLVM based verification framework.
 
 #Compilation#
 
-* download [dsa-seahorn](https://github.com/seahorn/dsa-seahorn): ``` git clone https://github.com/seahorn/dsa-seahorn.git ```
-* download [ikos-llvm](https://github.com/seahorn/ikos-llvm): ``` git clone https://github.com/seahorn/ikos-llvm.git```
+* (optional) download [dsa-seahorn](https://github.com/seahorn/dsa-seahorn): ``` git clone https://github.com/seahorn/dsa-seahorn.git ```
+* (optional) download [ikos-llvm](https://github.com/seahorn/ikos-llvm): ``` git clone https://github.com/seahorn/ikos-llvm.git```
 * ``` mkdir build ```
 * ``` cd build ```
 * ``` cmake -DCMAKE_BUILD_TYPE=Release ../ ``` or ```cmake -DCMAKE_BUILD_TYPE=Release ../ -GNinja```
 * ```make``` or ```ninja```
+
+Note that both [dsa-seahorn](https://github.com/seahorn/dsa-seahorn)
+and [ikos-llvm](https://github.com/seahorn/ikos-llvm) are
+optional. Nevertheless both are highly recommended. The former is
+needed when reasoning about memory contents while the latter provides
+inductive invariants using abstract interpretation techniques to the
+rest of SeaHorn's backends.
 
 #Usage#
 TBD

@@ -70,36 +70,32 @@ def parseArgs (argv):
                        help="Do not delete temporary files",
                        action="store_true",
                        default=False)
-    p.add_argument ("--temp-dir", dest="temp_dir",
+    p.add_argument ("--temp-dir", dest="temp_dir", metavar='DIR',
                        help="Temporary directory",
                        default=None)
     p.add_argument ("--time-passes", dest="time_passes",
                        help="Time LLVM passes",
                        default=False, action='store_true')
-    p.add_argument ('--no-seahorn', action='store_false',
-                       dest='do_seahorn', help='Only pre-process the files',
-                       default=True)
-    p.add_argument ('--no-opt', action='store_false', dest='do_opt',
-                       help='Do not do final optimization', default=True)
-    p.add_argument ('-O', type=int, dest='L',
+    p.add_argument ('-O', type=int, dest='L', metavar='INT',
                        help='Optimization level L:[0,1,2,3]', default=3)
     p.add_argument ('-m', type=int, dest='machine',
                        help='Machine architecture MACHINE:[32,64]', default=32)
-    p.add_argument ('-e', type=int, dest='engine',
-                       help='Verification engine 0=PDR, 1=SPACER', default=1)
-    p.add_argument ('--cpu', type=int, dest='cpu',
+    p.add_argument ('--engine', '-e', type=str, dest='engine', metavar='STR',
+                       help='Verification engine', default='spacer')
+    p.add_argument ('--cpu', type=int, dest='cpu', metavar='SEC',
                        help='CPU time limit (seconds)', default=-1)
-    p.add_argument ('--mem', type=int, dest='mem',
+    p.add_argument ('--mem', type=int, dest='mem', metavar='MB',
                        help='MEM limit (MB)', default=-1)
     p.add_argument ('--cex', dest='cex', help='Destination for a cex',
-                       default=None)
+                       default=None, metavar='FILE')
     p.add_argument ('--use-z3-script', dest='use_z3_script',
                        help='Use the python script in spacer repo to run z3',
                        default=False, action='store_true')
-    p.add_argument ('--z3root', dest='z3root', help='Root directory of z3',
+    p.add_argument ('--z3-root', dest='z3root', help='Root directory of z3',
                        default=None)
     p.add_argument ('--run-z3', dest='run_z3', help='Run Z3 after generating smt2 file',
                        default=False, action='store_true')
+    p.add_argument ('file', metavar='FILE', help='Input file')
 
     args = p.parse_args (argv)
     
@@ -109,76 +105,13 @@ def parseArgs (argv):
     if args.machine != 32 and args.machine != 64:
         p.error ("Unknown option -m%s" % args.machine)
 
-    if options.engine != 0 and options.engine != 1:
-        p.error ("Unknown option -m%s" % args.engine)
-    
-def parseOpt (argv):
-    from optparse import OptionParser
-
-    parser = OptionParser ()
-    parser.add_option ('-o', dest='out_name',
-                       help='Output file name')
-    parser.add_option ("--save-temps", dest="save_temps",
-                       help="Do not delete temporary files",
-                       action="store_true",
-                       default=False)
-    parser.add_option ('--build-dir', dest='build_dir',
-                       help='Build directory name',
-                       default='debug')
-    parser.add_option ("--temp-dir", dest="temp_dir",
-                       help="Temporary directory",
-                       default=None)
-    parser.add_option ("--time-passes", dest="time_passes",
-                       help="Time LLVM passes",
-                       default=False, action='store_true')
-    parser.add_option ('--no-seahorn', action='store_false',
-                       dest='do_seahorn',
-                       help='Only pre-process the files',
-                       default=True)
-    parser.add_option ('--no-opt', action='store_false', dest='do_opt',
-                       help='Do not do final optimization', default=True)
-    parser.add_option ('-O', type='int', dest='L',
-                       help='Optimization level L:[0,1,2,3]', default=3)
-    parser.add_option ('-m', type='int', dest='machine',
-                       help='Machine architecture MACHINE:[32,64]', default=32)
-    parser.add_option ('-e', type='int', dest='engine',
-                       help='Verification engine 0=PDR, 1=SPACER', default=1)
-    parser.add_option ('--cpu', type='int', dest='cpu',
-                       help='CPU time limit (seconds)', default=-1)
-    parser.add_option ('--mem', type='int', dest='mem',
-                       help='MEM limit (MB)', default=-1)
-    parser.add_option ('--cex', dest='cex',
-                       help='Destination for a cex',
-                       default=None)
-    parser.add_option ('--use-z3-script', dest='use_z3_script',
-                       help='Use the python script in spacer repo to run z3',
-                       default=False, action='store_true')
-    parser.add_option ('--z3root', dest='z3root',
-                       help='Root directory of z3',
-                       default=None)
-    parser.add_option ('--run-z3', dest='run_z3',
-                       help='Run Z3 after generating smt2 file',
-                       default=False, action='store_true')
-
-    (options, args) = parser.parse_args (argv)
-
-
-    if options.L < 0 or options.L > 3:
-        parser.error ("Unknown option: -O%s" % options.L)
-
-    if options.machine != 32 and options.machine != 64:
-        parser.error ("Unknown option -m%s" % options.machine)
-
-    if options.engine != 0 and options.engine != 1:
-        parser.error ("Unknown option -m%s" % options.engine)
-
-    if options.cex != None:
-        if os.path.isfile (options.cex): os.remove (options.cex)
-
-    return (options, args)
+    if args.engine != 'pdr' and args.engine != 'spacer':
+        p.error ("Unknown option --engine=%s" % args.engine)
+        
+    return args
 
 def createWorkDir (dname = None, save = False):
-    if dname == None:
+    if dname is None:
         workdir = tempfile.mkdtemp (prefix='seahorn-')
     else:
         workdir = dname
@@ -197,6 +130,7 @@ def getOpt ():
         opt = os.environ ['OPT']
     if not isexec (opt):
         opt = os.path.join (root, "bin/opt")
+    if not isexec (opt): opt = which ('opt')
     if not isexec (opt):
         raise IOError ("Cannot find opt")
     return opt
@@ -206,6 +140,7 @@ def getSeahorn ():
     if 'SEAHORN' in os.environ: seahorn = os.environ ['SEAHORN']
     if not isexec (seahorn):
         seahorn = os.path.join (root, "bin/seahorn")
+    if not isexec (seahorn): seahorn = which ('seahorn')
     if not isexec (seahorn):
         raise IOError ("Cannot find seahorn")
     return seahorn
@@ -216,17 +151,16 @@ def getSeaPP ():
         seapp = os.environ ['SEAPP']
     if not isexec (seapp):
         seapp = os.path.join (root, "bin/seapp")
+    if not isexec (seapp): seapp = which ('seapp')
     if not isexec (seapp):
         raise IOError ("Cannot find seahorn pre-processor")
     return seapp
 
 def getClang ():
-
-    if sys.platform.startswith ('darwin'):
-        clang = which ("clang-mp-3.4")
-    else:
-        clang = which ("clang")
-    if clang == None:
+    clang = which ('clang-mp-3.4')
+    if clang is None: which ('clang-3.4')
+    if clang is None: which ('clang')
+    if clang is None:
         raise IOError ("Cannot find clang")
     return clang
 
@@ -236,16 +170,18 @@ def getSpacer ():
         spacer = os.environ ['SPACER']
     if not isexec (spacer):
         spacer = os.path.join (root, "bin/z3")
+    if not isexec (spacer): spacer = which ('z3')
     if not isexec (spacer):
         raise IOError ("Cannot find spacer")
     return spacer
 
 def getZ3Frontend (z3root, build_dir):
-    z3fe = None
-    if z3root is None:
-        z3root = os.path.join (root, build_dir + '/z3-prefix/src/z3')
-    z3fe = os.path.join (z3root, 'stats/scripts/z3_smt2.py')
-    return z3fe
+    raise IOError ('No z3 front-end')
+    # z3fe = None
+    # if z3root is None:
+    #     z3root = os.path.join (root, build_dir + '/z3-prefix/src/z3')
+    # z3fe = os.path.join (z3root, 'stats/scripts/z3_smt2.py')
+    # return z3fe
 
 ### Passes
 def defBCName (name, wd=None):
@@ -307,9 +243,8 @@ def mixSem (in_name, out_name, build_dir, arch=32, extra_args=[]):
         out_name = defMSName (in_name)
 
     opt = getOpt ()
-    mixLib = sharedLib (build_dir + '/lib/shadow')
-    mixLib = os.path.join (root, mixLib)
-
+    mixLib = sharedLib (os.path.join (root, 'lib/shadow'))
+    
     ms_args = [opt, "-load", mixLib, '-lowerswitch',
                '-mixed-semantics', '-o', out_name, in_name]
     ms_args.extend (extra_args)
@@ -319,14 +254,14 @@ def mixSem (in_name, out_name, build_dir, arch=32, extra_args=[]):
 
 # Run Opt
 def llvmOpt (in_name, out_name, opt_level=3, time_passes=False, cpu=-1):
-    if out_name == '' or out_name == None:
+    if out_name == '' or out_name is None:
         out_name = defOPTName (in_name, opt_level)
     import resource as r
     def set_limits ():
         if cpu > 0: r.setrlimit (r.RLIMIT_CPU, [cpu, cpu])
 
     opt = getOpt ()
-    opt_args = [opt, "--stats", "-f", "-funit-at-a-time"]
+    opt_args = [opt, '--stats', '-f', '-funit-at-a-time']
     if opt_level > 0 and opt_level <= 3:
         opt_args.append ('-O{}'.format (opt_level))
     opt_args.extend (['-o', out_name ])
@@ -355,7 +290,7 @@ def seahorn (in_name, out_name, opts, cex = None, cpu = -1, mem = -1):
                     '-horn-step=large',
                     '-o', out_name]
     seahorn_cmd.extend (opts)
-    if cex != None: seahorn_cmd.append ('--horn-svcomp-cex={}'.format (cex))
+    if cex is not None: seahorn_cmd.append ('--horn-svcomp-cex={}'.format (cex))
     if verbose: print ' '.join (seahorn_cmd)
 
     p = sub.Popen (seahorn_cmd, preexec_fn=set_limits)
@@ -390,14 +325,14 @@ def is_non_seahorn_opt (x): return not (is_seahorn_opt (x) or is_z3_opt (x))
 
 
 def runSpacer (in_name, engine, cpu=-1, extra_args=[]):
-    run_engine = "fixedpoint.engine=spacer" if engine==1 else "fixedpoint.engine=pdr"
+    run_engine = 'fixedpoint.engine=' + engine
     spacer_args = [getSpacer (),
-                   "fixedpoint.xform.slice=false",
-                   "fixedpoint.xform.inline_linear=false",
-                   "fixedpoint.xform.inline_eager=false",
-                   "fixedpoint.use_heavy_mev=true",
-	           "pdr.flexible_trace=true",
-	           "fixedpoint.reset_obligation_queue=true",
+                   'fixedpoint.xform.slice=false',
+                   'fixedpoint.xform.inline_linear=false',
+                   'fixedpoint.xform.inline_eager=false',
+                   'fixedpoint.use_heavy_mev=true',
+	           'pdr.flexible_trace=true',
+	           'fixedpoint.reset_obligation_queue=true',
                    run_engine, in_name ]
     if verbose: print ' '.join (spacer_args)
     stat ('Result', 'UNKNOWN')
@@ -407,10 +342,11 @@ def runSpacer (in_name, engine, cpu=-1, extra_args=[]):
         result,_ = p.communicate()
     except Exception as e:
         print str(e)
-    if "unsat" in result:
-        stat("Result", "SAFE")
-    elif "sat" in result:
-        stat("Result", "CEX")
+        
+    if 'unsat' in result:
+        stat('Result', 'SAFE')
+    elif 'sat' in result:
+        stat('Result', 'CEX')
 
 def runZ3 (in_name, z3root, build_dir, z3_args):
     z3fe = getZ3Frontend (z3root, build_dir)
@@ -434,15 +370,15 @@ def main (argv):
     os.setpgrp ()
     loadEnv (os.path.join (root, "env.common"))
 
+    ## add directory containing this file to the PATH
+    os.environ ['PATH'] =  os.path.dirname (os.path.realpath (__file__)) + \
+                           os.pathsep + os.environ['PATH']
+    
     seahorn_args = filter (is_seahorn_opt, argv [1:])
     z3_args = filter (is_z3_opt, argv [1:])
     argv = filter (is_non_seahorn_opt, argv [1:])
 
-    ### XXX Make sure this does not clash with other options we have
-    #if '-m64' in argv: seahorn_args.append ('--horn-sem-lvl=ptr')
-
-    (opt, args) = parseOpt (argv)
-    args  = parseArgs (argv[1:])
+    args  = parseArgs (argv)
 
     workdir = createWorkDir (args.temp_dir, args.save_temps)
 

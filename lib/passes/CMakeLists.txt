@@ -1,4 +1,4 @@
-add_llvm_library (SeaHornPasses
+add_llvm_library(SeaHornPasses 
   SeahornMain.cpp
   NameValues.cpp
   TopologicalOrder.cc
@@ -21,4 +21,6 @@ add_llvm_library (SeaHornPasses
   DummyExitBlock.cc
   )
 
-target_link_libraries (SeaHornPasses ${DSA_LIBS})
+if (HAVE_DSA)
+  target_link_libraries (SeaHornPasses ${DSA_LIBS})
+endif()

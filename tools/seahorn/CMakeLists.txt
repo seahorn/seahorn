@@ -14,7 +14,6 @@ set(LLVM_LINK_COMPONENTS irreader ipo scalaropts instrumentation core)
 add_executable(seahorn seahorn.cpp)
 target_link_libraries (seahorn ${USED_LIBS})
 llvm_config (seahorn ${LLVM_LINK_COMPONENTS})
-link_system_libs (seahorn)
 install(TARGETS seahorn RUNTIME DESTINATION bin)
 
 if (SEAHORN_STATIC_EXE)

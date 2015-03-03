@@ -12,7 +12,6 @@ set(LLVM_LINK_COMPONENTS irreader bitwriter ipo scalaropts instrumentation core)
 add_executable(seapp seapp.cc)
 target_link_libraries (seapp ${USED_LIBS})
 llvm_config (seapp ${LLVM_LINK_COMPONENTS})
-link_system_libs (seapp)
 install(TARGETS seapp RUNTIME DESTINATION bin)
 
 if (SEAHORN_STATIC_EXE)

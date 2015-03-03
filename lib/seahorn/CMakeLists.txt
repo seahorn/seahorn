@@ -1,4 +1,4 @@
-add_llvm_library(seahorn.LIB 
+add_llvm_library (seahorn.LIB 
   SymStore.cc SortTopo.cc LiveSymbols.cc 
   SymExec.cc UfoSymExec.cc HornifyFunction.cc 
   HornifyModule.cc 

@@ -32,7 +32,7 @@ endif ()
 include(ExternalProject)
 set_property(DIRECTORY PROPERTY EP_STEP_TARGETS configure build test)
 
-set (Z3_TAG "spacer" CACHE STRING "Z3 git tag to use")
+set (Z3_TAG "origin/spacer" CACHE STRING "Z3 git tag to use")
 set (Z3_REPO "https://bitbucket.org/spacer/code.git" CACHE STRING "Z3 repo") 
 if (CMAKE_BUILD_TYPE STREQUAL "Debug")
   set (Z3_DEBUG "-d")

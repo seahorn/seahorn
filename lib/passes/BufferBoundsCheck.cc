@@ -68,8 +68,12 @@ namespace seahorn
   {
     if (const GlobalVariable *GV = dyn_cast<GlobalVariable>(V)) 
     {
-      return (GV->getType ()->getContainedType (0)->isPrimitiveType () ||
-              GV->getType ()->getContainedType (0)->isIntegerTy ());
+      return (GV->getType ()->getContainedType (0)->isSingleValueType ());
+      // XXX AG: primitiveType has been removed. I think singleValue
+      // is what was meant here
+      
+      // return (GV->getType ()->getContainedType (0)->isPrimitiveType () ||
+      //         GV->getType ()->getContainedType (0)->isIntegerTy ());
     }
     else return false;
   }

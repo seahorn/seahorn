@@ -93,6 +93,8 @@ def parseArgs (argv):
                        default=False, action='store_true')
     p.add_argument ('--run-z3', dest='run_z3', help='Run Z3 after generating smt2 file',
                        default=False, action='store_true')
+    p.add_argument ('--inline', dest='inline', help='Inline all functions',
+                    default=False, action='store_true')
     p.add_argument ('file', metavar='FILE', help='Input file')
 
     args = p.parse_args (argv)
@@ -223,11 +225,12 @@ def clang (in_name, out_name, arch=32, extra_args=[]):
     sub.check_call (clang_args)
 
 # Run seapp
-def seapp (in_name, out_name, arch=32, extra_args=[]):
+def seapp (in_name, out_name, arch, args, extra_args=[]):
     if out_name == '' or out_name == None:
         out_name = defPPName (in_name)
 
     seapp_args = [getSeaPP (), '-o', out_name, in_name ]
+    if args.inline: seapp_args.append ('--horn-inline-all')
     seapp_args.extend (extra_args)
 
     if verbose: print ' '.join (seapp_args)
@@ -262,7 +265,7 @@ def llvmOpt (in_name, out_name, opt_level=3, time_passes=False, cpu=-1):
         if cpu > 0: r.setrlimit (r.RLIMIT_CPU, [cpu, cpu])
 
     opt = getOpt ()
-    opt_args = [opt, '--stats', '-f', '-funit-at-a-time']
+    opt_args = [opt, '-f', '-funit-at-a-time']
     if opt_level > 0 and opt_level <= 3:
         opt_args.append ('-O{}'.format (opt_level))
     opt_args.extend (['-o', out_name ])
@@ -396,7 +399,7 @@ def main (argv):
     pp_out = defPPName (in_name, workdir)
     assert pp_out != in_name
     with stats.timer ('Seapp'):
-        seapp (in_name, pp_out, arch=args.machine)
+        seapp (in_name, pp_out, arch=args.machine, args=args)
     stat ('Progress', 'SEAPP')
 
     in_name = pp_out

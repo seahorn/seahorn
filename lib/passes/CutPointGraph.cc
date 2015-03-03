@@ -4,6 +4,8 @@
 #include "llvm/Support/CFG.h"
 #include "boost/range.hpp"
 #include "seahorn/Support/CFG.hh"
+
+#include "avy/AvyDebug.h"
 namespace seahorn
 {
   char CutPointGraph::ID = 0;
@@ -12,6 +14,7 @@ namespace seahorn
   void CutPointGraph::getAnalysisUsage (AnalysisUsage &AU) const
   {
     AU.setPreservesAll ();
+    AU.addRequired<UnifyFunctionExitNodes> ();
     AU.addRequiredTransitive<TopologicalOrder> ();
   }
 
@@ -40,14 +43,29 @@ namespace seahorn
       if (isCutPoint (*bb)) continue;
       
       // entry
-      if (pred_begin (bb) == pred_end (bb)) newCp (*bb);
+      if (pred_begin (bb) == pred_end (bb))
+      {
+        LOG ("cpg", errs () << "entry cp: " << bb->getName () << "\n");
+        newCp (*bb);
+      }
+      
       // exit
-      if (succ_begin (bb) == succ_end (bb)) newCp (*bb);
+      if (succ_begin (bb) == succ_end (bb))
+      {
+        LOG ("cpg", errs () << "exit cp: " << bb->getName () << "\n");
+        newCp (*bb);
+      }
+      
 
       // has incoming back-edge
       for (const BasicBlock *pred :
              boost::make_iterator_range (pred_begin (bb), pred_end (bb)))
-        if (topo.isBackEdge (*pred, *bb)) newCp (*bb);
+        if (topo.isBackEdge (*pred, *bb))
+        {
+          LOG ("cpg", errs () << "back-edge cp: " << bb->getName () << "\n");
+          newCp (*bb);
+        }
+      
     }
 
   }

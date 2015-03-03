@@ -8,7 +8,7 @@
 #include "llvm/IR/Module.h"
 #include "llvm/IR/Function.h"
 #include "llvm/Transforms/Utils/UnifyFunctionExitNodes.h"
-#include "llvm/Support/CFG.h"
+#include "llvm/IR/CFG.h"
 #include "llvm/Analysis/CFG.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Analysis/CallGraph.h"

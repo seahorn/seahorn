@@ -1,7 +1,7 @@
 #include "seahorn/Transforms/Utils/Local.hh"
 
 #include "llvm/IR/Module.h"
-#include "llvm/Support/CFG.h"
+#include "llvm/IR/CFG.h"
 
 using namespace llvm;
 

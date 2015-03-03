@@ -32,7 +32,7 @@ namespace seahorn
     UfoSmallSymExec (ExprFactory &efac, Pass &pass, TrackLevel trackLvl = MEM) : 
       SmallStepSymExec (efac), m_pass (pass), m_trackLvl (trackLvl)
     {
-      m_td = &pass.getAnalysis<DataLayout> ();
+      m_td = &pass.getAnalysis<DataLayoutPass> ().getDataLayout ();
       m_canFail = pass.getAnalysisIfAvailable<CanFail> ();
     }
     UfoSmallSymExec (const UfoSmallSymExec& o) : 

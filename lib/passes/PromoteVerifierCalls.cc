@@ -1,6 +1,6 @@
 #include "seahorn/Transforms/PromoteVerifierCalls.hh"
-#include "llvm/Support/CallSite.h"
-#include "llvm/Support/InstIterator.h"
+#include "llvm/IR/CallSite.h"
+#include "llvm/IR/InstIterator.h"
 
 #include "llvm/IR/IRBuilder.h"
 
@@ -54,8 +54,8 @@ namespace seahorn
                               as,
                               Type::getVoidTy (Context), NULL));
     
-    CallGraph *cg = getAnalysisIfAvailable<CallGraph> ();
-    if (cg)
+    CallGraphWrapperPass *cgwp = getAnalysisIfAvailable<CallGraphWrapperPass> ();
+    if (CallGraph *cg = cgwp ? &cgwp->getCallGraph () : nullptr)
     {
       cg->getOrInsertFunction (m_assumeFn);
       cg->getOrInsertFunction (m_assertFn);
@@ -68,7 +68,8 @@ namespace seahorn
   
   bool PromoteVerifierCalls::runOnFunction (Function &F)
   {
-    CallGraph* cg = getAnalysisIfAvailable<CallGraph> ();
+    CallGraphWrapperPass *cgwp = getAnalysisIfAvailable<CallGraphWrapperPass> ();
+    CallGraph* cg = cgwp ? &cgwp->getCallGraph () : nullptr;
     
     SmallVector<Instruction*, 16> toKill;
     

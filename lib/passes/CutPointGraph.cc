@@ -1,7 +1,7 @@
 #include "seahorn/Analysis/CutPointGraph.hh"
 #include "llvm/Transforms/Utils/UnifyFunctionExitNodes.h"
 #include "llvm/Support/raw_ostream.h"
-#include "llvm/Support/CFG.h"
+#include "llvm/IR/CFG.h"
 #include "boost/range.hpp"
 #include "seahorn/Support/CFG.hh"
 

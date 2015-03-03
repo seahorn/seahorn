@@ -1,6 +1,6 @@
 #include "seahorn/Analysis/CanAccessMemory.hh"
 
-#include "llvm/Support/InstIterator.h"
+#include "llvm/IR/InstIterator.h"
 #include "llvm/Analysis/CallGraph.h"
 #include "llvm/ADT/SCCIterator.h"
 #include "llvm/Support/raw_ostream.h"
@@ -52,7 +52,7 @@ namespace seahorn
     // -- no error function found at all
     if (m_must.empty ()) return false;
     
-    CallGraph &CG = getAnalysis<CallGraph> ();
+    CallGraph &CG = getAnalysis<CallGraphWrapperPass> ().getCallGraph ();
     for (auto it = scc_begin (&CG); !it.isAtEnd (); ++it)
     {
       auto &scc = *it;
@@ -85,8 +85,8 @@ namespace seahorn
   void CanAccessMemory::getAnalysisUsage (AnalysisUsage &AU) const
   {
     AU.setPreservesAll ();
-    AU.addRequired<CallGraph> ();
-    AU.addPreserved<CallGraph> ();
+    AU.addRequired<CallGraphWrapperPass> ();
+    AU.addPreserved<CallGraphWrapperPass> ();
   }
 }
 

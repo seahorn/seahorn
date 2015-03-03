@@ -25,7 +25,7 @@ namespace seahorn
 
     typedef boost::unordered_set< const Value *> ValueSet;
 
-    DataLayout *m_dl;
+    const DataLayout *m_dl;
     TargetLibraryInfo *m_tli;
     //DataStructures *m_dsa;
     //ObjectSizeOffsetEvaluator *m_obj_size_eval;

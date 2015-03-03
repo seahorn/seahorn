@@ -38,8 +38,8 @@
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 #include "llvm/Transforms/Utils/Cloning.h"
 #include "llvm/ADT/SmallVector.h"
-#include "llvm/Support/InstIterator.h"
-#include "llvm/Support/CallSite.h"
+#include "llvm/IR/InstIterator.h"
+#include "llvm/IR/CallSite.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/CommandLine.h"
 
@@ -864,7 +864,7 @@ namespace seahorn
   {
     if (M.begin () == M.end ()) return false;
       
-    m_dl = &getAnalysis<DataLayout>();
+    m_dl = &getAnalysis<DataLayoutPass>().getDataLayout ();
 
     m_tli = &getAnalysis<TargetLibraryInfo>();
 
@@ -929,7 +929,7 @@ namespace seahorn
     AU.setPreservesAll ();
     //AU.addRequiredTransitive<llvm::SteensgaardDataStructures> ();
 
-    AU.addRequired<llvm::DataLayout>();
+    AU.addRequired<llvm::DataLayoutPass>();
     AU.addRequired<llvm::TargetLibraryInfo>();
     AU.addRequired<llvm::UnifyFunctionExitNodes> ();
     AU.addRequired<ShadowBufferBoundsCheckFuncPars>();

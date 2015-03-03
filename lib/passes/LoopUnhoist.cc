@@ -150,7 +150,7 @@ namespace seahorn
     SmallVector<Use*, 16> uses;
     for (auto it = Old.use_begin (), end = Old.use_end (); it != end; ++it)
     {
-      Use &U = it.getUse ();
+      Use &U = *it;
       
       if (Constant *C = dyn_cast<Constant> (U.getUser ()))
         if (!isa<GlobalValue> (C)) continue;

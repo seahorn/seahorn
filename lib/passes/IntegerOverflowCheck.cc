@@ -7,7 +7,7 @@
 
 #include "llvm/Transforms/Utils/UnifyFunctionExitNodes.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
-#include "llvm/Support/InstIterator.h"
+#include "llvm/IR/InstIterator.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/CommandLine.h"
 

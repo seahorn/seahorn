@@ -17,7 +17,7 @@ namespace llvm
     
     bool insert (const BasicBlock *bb)
     {
-      return m_set.insert (bb);
+      return m_set.insert (bb).second;
     }
     
     bool isBlockedEdge (const BasicBlock *src, const BasicBlock *dst)

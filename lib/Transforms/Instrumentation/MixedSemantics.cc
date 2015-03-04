@@ -1,6 +1,6 @@
-#include "seahorn/Transforms/MixedSemantics.hh"
+#include "seahorn/Transforms/Instrumentation/MixedSemantics.hh"
 #include "seahorn/Analysis/CanFail.hh"
-#include "seahorn/Transforms/PromoteVerifierCalls.hh"
+#include "seahorn/Transforms/Scalar/PromoteVerifierCalls.hh"
 #include "seahorn/Transforms/Utils/Local.hh"
 
 #include "llvm/Analysis/CallGraph.h"

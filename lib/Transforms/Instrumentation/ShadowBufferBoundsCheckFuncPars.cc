@@ -1,4 +1,4 @@
-#include "seahorn/Transforms/ShadowBufferBoundsCheckFuncPars.hh"
+#include "seahorn/Transforms/Instrumentation/ShadowBufferBoundsCheckFuncPars.hh"
 
 #include "seahorn/Analysis/CanAccessMemory.hh"
 #include "llvm/IR/IRBuilder.h"

@@ -12,13 +12,14 @@
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Analysis/CallGraph.h"
 #include "llvm/ADT/SCCIterator.h"
-#include "seahorn/BoostLlvmGraphTraits.hh"
+#include "seahorn/Support/BoostLlvmGraphTraits.hh"
 
 #include "boost/range.hpp"
 #include "boost/scoped_ptr.hpp"
 
+#include "seahorn/Support/SortTopo.hh"
+
 #include "seahorn/SymStore.hh"
-#include "seahorn/SortTopo.hh"
 #include "seahorn/LiveSymbols.hh"
 
 #include "seahorn/Analysis/CutPointGraph.hh"

@@ -1,4 +1,4 @@
-#include "seahorn/SortTopo.hh"
+#include "seahorn/Support/SortTopo.hh"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Analysis/CFG.h"
 namespace llvm

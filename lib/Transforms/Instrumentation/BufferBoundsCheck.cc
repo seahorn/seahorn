@@ -30,8 +30,8 @@
      - instrument loads that return memory addresses .
 */
 
-#include "seahorn/Transforms/BufferBoundsCheck.hh"
-#include "seahorn/Transforms/ShadowBufferBoundsCheckFuncPars.hh"
+#include "seahorn/Transforms/Instrumentation/BufferBoundsCheck.hh"
+#include "seahorn/Transforms/Instrumentation/ShadowBufferBoundsCheckFuncPars.hh"
 
 #include "llvm/Analysis/AliasAnalysis.h"
 #include "llvm/Transforms/Utils/UnifyFunctionExitNodes.h"

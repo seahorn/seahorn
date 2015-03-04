@@ -1,7 +1,7 @@
 #include "seahorn/HornifyFunction.hh"
 #include "seahorn/LiveSymbols.hh"
 #include "seahorn/Support/CFG.hh"
-#include "seahorn/ExprSeahorn.hh"
+#include "seahorn/Support/ExprSeahorn.hh"
 
 namespace seahorn
 {

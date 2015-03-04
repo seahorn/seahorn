@@ -30,16 +30,16 @@
 
 #include "seahorn/Passes.hh"
 
-#include "seahorn/Transforms/PromoteVerifierCalls.hh"
-#include "seahorn/Transforms/RemoveUnreachableBlocksPass.hh"
-#include "seahorn/Transforms/LowerGvInitializers.hh"
+#include "seahorn/Transforms/Scalar/PromoteVerifierCalls.hh"
+#include "seahorn/Transforms/Utils/RemoveUnreachableBlocksPass.hh"
+#include "seahorn/Transforms/Scalar/LowerGvInitializers.hh"
 
 #include "seahorn/Analysis/CanAccessMemory.hh"
-#include "seahorn/Transforms/LowerCstExpr.hh"
-#include "seahorn/Transforms/ShadowBufferBoundsCheckFuncPars.hh"
-#include "seahorn/Transforms/BufferBoundsCheck.hh"
-#include "seahorn/Transforms/IntegerOverflowCheck.hh"
-#include "seahorn/Transforms/MixedSemantics.hh"
+#include "seahorn/Transforms/Scalar/LowerCstExpr.hh"
+#include "seahorn/Transforms/Instrumentation/ShadowBufferBoundsCheckFuncPars.hh"
+#include "seahorn/Transforms/Instrumentation/BufferBoundsCheck.hh"
+#include "seahorn/Transforms/Instrumentation/IntegerOverflowCheck.hh"
+#include "seahorn/Transforms/Instrumentation/MixedSemantics.hh"
 //#include "seahorn/Transforms/IkosIndVarSimplify.hh"
 
 #include "ufo/Smt/EZ3.hh"

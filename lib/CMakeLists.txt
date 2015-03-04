@@ -1,16 +1,18 @@
-add_subdirectory(passes)
 add_subdirectory(avy)
 add_subdirectory(seahorn)
+add_subdirectory(Analysis)
+add_subdirectory(Transforms)
+add_subdirectory(Support)
 
 add_llvm_loadable_module (shadow 
-  passes/ShadowMemDsa.cc 
-  passes/NondetInit.cc
-  passes/PromoteVerifierCalls.cc
-  passes/LowerGvInitializers.cc
-  passes/CanFail.cc
-  passes/MixedSemantics.cc
-  passes/Local.cc
-  passes/LoopUnhoist.cc
+  Transforms/Instrumentation/ShadowMemDsa.cc 
+  Transforms/Instrumentation/MixedSemantics.cc
+  Transforms/Instrumentation/NondetInit.cc
+  Transforms/Scalar/PromoteVerifierCalls.cc
+  Transforms/Scalar/LowerGvInitializers.cc
+  Transforms/Scalar/LoopUnhoist.cc
+  Analysis/CanFail.cc
+  Transforms/Utils/Local.cc
   )
 
 target_link_libraries (shadow avy)
@@ -20,11 +22,11 @@ endif()
 install (TARGETS shadow LIBRARY DESTINATION lib)
 
 add_llvm_loadable_module (checks
-  passes/LowerCstExpr.cc
-  passes/CanAccessMemory.cc
-  passes/ShadowBufferBoundsCheckFuncPars.cc
-  passes/BufferBoundsCheck.cc
-  passes/IntegerOverflowCheck.cc
+  Transforms/Scalar/LowerCstExpr.cc
+  Transforms/Instrumentation/ShadowBufferBoundsCheckFuncPars.cc
+  Transforms/Instrumentation/BufferBoundsCheck.cc
+  Transforms/Instrumentation/IntegerOverflowCheck.cc
+  Analysis/CanAccessMemory.cc
 )
 
 target_link_libraries (checks avy)

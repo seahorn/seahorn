@@ -25,9 +25,9 @@
 #include "seahorn/HornifyModule.hh"
 #include "seahorn/HornSolver.hh"
 #include "seahorn/HornCex.hh"
-#include "seahorn/Transforms/PromoteVerifierCalls.hh"
-#include "seahorn/Transforms/RemoveUnreachableBlocksPass.hh"
-#include "seahorn/Transforms/LowerGvInitializers.hh"
+#include "seahorn/Transforms/Scalar/PromoteVerifierCalls.hh"
+#include "seahorn/Transforms/Scalar/LowerGvInitializers.hh"
+#include "seahorn/Transforms/Utils/RemoveUnreachableBlocksPass.hh"
 
 #include "ufo/Smt/EZ3.hh"
 #include "ufo/Stats.hh"

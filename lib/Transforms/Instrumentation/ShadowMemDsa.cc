@@ -1,4 +1,4 @@
-#include "seahorn/Transforms/ShadowMemDsa.hh"
+#include "seahorn/Transforms/Instrumentation/ShadowMemDsa.hh"
 
 #ifdef HAVE_DSA
 #include "llvm/IR/DataLayout.h"

@@ -1,4 +1,4 @@
-#include "seahorn/Transforms/RemoveUnreachableBlocksPass.hh"
+#include "seahorn/Transforms/Utils/RemoveUnreachableBlocksPass.hh"
 #include "llvm/Transforms/Utils/Local.h"
 
 using namespace llvm;

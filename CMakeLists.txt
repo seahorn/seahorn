@@ -151,6 +151,7 @@ install(DIRECTORY include/
   DESTINATION include
   FILES_MATCHING
   PATTERN "*.hpp"
+  PATTERN "*.hh"
   PATTERN ".svn" EXCLUDE
   )
 
@@ -158,6 +159,7 @@ install(DIRECTORY ${CMAKE_BINARY_DIR}/include/
   DESTINATION include
   FILES_MATCHING
   PATTERN "*.hpp"
+  PATTERN "*.hh"
   PATTERN "CMakeFiles" EXCLUDE
   PATTERN ".svn" EXCLUDE
   )

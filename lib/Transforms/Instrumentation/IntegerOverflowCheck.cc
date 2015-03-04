@@ -3,7 +3,7 @@
  * checks.  
  */
 
-#include "seahorn/Transforms/IntegerOverflowCheck.hh"
+#include "seahorn/Transforms/Instrumentation/IntegerOverflowCheck.hh"
 
 #include "llvm/Transforms/Utils/UnifyFunctionExitNodes.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"

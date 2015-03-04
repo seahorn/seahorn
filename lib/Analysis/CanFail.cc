@@ -1,5 +1,5 @@
 #include "seahorn/Analysis/CanFail.hh"
-#include "seahorn/Transforms/PromoteVerifierCalls.hh"
+#include "seahorn/Transforms/Scalar/PromoteVerifierCalls.hh"
 
 #include "llvm/Analysis/CallGraph.h"
 #include "llvm/ADT/SCCIterator.h"

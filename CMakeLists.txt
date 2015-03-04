@@ -193,6 +193,14 @@ else()
   set (DSA_LIBS "")
 endif()
 
+if (IS_DIRECTORY ${CMAKE_SOURCE_DIR}/llvm-seahorn AND
+    EXISTS ${CMAKE_SOURCE_DIR}/llvm-seahorn/lib/Transforms/InstCombine/CMakeLists.txt)
+  include_directories (BEFORE llvm-seahorn/include)
+  add_subdirectory(llvm-seahorn/lib/Transforms/InstCombine)
+  set (HAVE_LLVM_SEAHORN TRUE)
+  set (LLVM_SEAHORN_LIBS SeaInstCombine)
+endif()
+
 add_subdirectory(lib)
 add_subdirectory(tools)
 add_subdirectory(units)

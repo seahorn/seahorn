@@ -10,7 +10,9 @@ set (USED_LIBS
   )
 
 
-set(LLVM_LINK_COMPONENTS irreader ipo scalaropts instrumentation core)
+set(LLVM_LINK_COMPONENTS irreader ipo scalaropts instrumentation core
+  # XXX not clear why these last two are required
+  codegen objcarcopts)
 add_executable(seahorn seahorn.cpp)
 target_link_libraries (seahorn ${USED_LIBS})
 llvm_config (seahorn ${LLVM_LINK_COMPONENTS})

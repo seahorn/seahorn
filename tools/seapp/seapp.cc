@@ -179,7 +179,7 @@ int main(int argc, char **argv) {
   pass_manager.add (seahorn::createNondetInitPass ());
   
   // -- cleanup after SSA
-  pass_manager.add (llvm::createInstructionCombiningPass ());
+  pass_manager.add (seahorn::createInstCombine ());
   pass_manager.add (llvm::createCFGSimplificationPass ());
   
   // -- break aggregates
@@ -192,7 +192,7 @@ int main(int argc, char **argv) {
   pass_manager.add (seahorn::createNondetInitPass ());
   
   // -- cleanup after break aggregates
-  pass_manager.add (llvm::createInstructionCombiningPass ());
+  pass_manager.add (seahorn::createInstCombine ());
   pass_manager.add (llvm::createCFGSimplificationPass ());
   
   // eliminate unused calls to verifier.nondet() functions

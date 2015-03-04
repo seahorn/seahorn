@@ -20,11 +20,13 @@
 #include "llvm/Support/SourceMgr.h"
 #include "llvm/Support/ToolOutputFile.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/Support/FileSystem.h"
 
 #include "llvm/Transforms/IPO.h"
 #include "llvm/Bitcode/ReaderWriter.h"
+#include "llvm/Bitcode/BitcodeWriterPass.h"
 
-#include "llvm/Analysis/Verifier.h"
+#include "llvm/IR/Verifier.h"
 
 #include "seahorn/Passes.hh"
 
@@ -112,15 +114,14 @@ int main(int argc, char **argv) {
   llvm::PrettyStackTraceProgram PSTP(argc, argv);
   llvm::EnableDebugBuffering = true;
 
-  std::string error_msg;
+  std::error_code error_code;
   llvm::SMDiagnostic err;
   llvm::LLVMContext &context = llvm::getGlobalContext();
-  llvm::OwningPtr<llvm::Module> module;
-  llvm::OwningPtr<llvm::tool_output_file> output;
+  std::unique_ptr<llvm::Module> module;
+  std::unique_ptr<llvm::tool_output_file> output;
   
-
-  module.reset(llvm::ParseIRFile(InputFilename, err, context));
-  if (module.get() == 0)
+  module = llvm::parseIRFile(InputFilename, err, context);
+  if (!module)
   {
     if (llvm::errs().has_colors()) llvm::errs().changeColor(llvm::raw_ostream::RED);
     llvm::errs() << "error: "
@@ -130,11 +131,13 @@ int main(int argc, char **argv) {
   }
 
   if (!OutputFilename.empty ())
-    output.reset(new llvm::tool_output_file(OutputFilename.c_str(), error_msg));
-  
-  if (!error_msg.empty()) {
+    output = llvm::make_unique<llvm::tool_output_file>
+      (OutputFilename.c_str(), error_code, llvm::sys::fs::F_None);
+      
+  if (error_code) {
     if (llvm::errs().has_colors()) llvm::errs().changeColor(llvm::raw_ostream::RED);
-    llvm::errs() << "error: " << error_msg << "\n";
+    llvm::errs() << "error: Could not open " << OutputFilename << ": " 
+                 << error_code.message () << "\n";
     if (llvm::errs().has_colors()) llvm::errs().resetColor();
     return 3;
   }
@@ -151,13 +154,13 @@ int main(int argc, char **argv) {
   llvm::initializeIPA (Registry);
   
   // add an appropriate DataLayout instance for the module
-  llvm::DataLayout *dl = 0;
-  const std::string &moduleDataLayout = module.get()->getDataLayout();
-  if (!moduleDataLayout.empty())
-    dl = new llvm::DataLayout(moduleDataLayout);
-  else if (!DefaultDataLayout.empty())
-    dl = new llvm::DataLayout(moduleDataLayout);
-  if (dl) pass_manager.add(dl);
+  const llvm::DataLayout *dl = module->getDataLayout ();
+  if (!dl && !DefaultDataLayout.empty ())
+  {
+    module->setDataLayout (DefaultDataLayout);
+    dl = module->getDataLayout ();
+  }
+  if (dl) pass_manager.add (new llvm::DataLayoutPass ());
 
   // -- promote verifier specific functions to special names
   pass_manager.add (new seahorn::PromoteVerifierCalls ());
@@ -247,7 +250,7 @@ int main(int argc, char **argv) {
   if (!OutputFilename.empty ()) 
   {
     if (OutputAssembly)
-      pass_manager.add (createPrintModulePass (&output->os ()));
+      pass_manager.add (createPrintModulePass (output->os ()));
     else 
       pass_manager.add (createBitcodeWriterPass (output->os ()));
   }

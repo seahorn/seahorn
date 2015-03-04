@@ -18,6 +18,7 @@
 
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/ToolOutputFile.h"
+#include "llvm/Support/FileSystem.h"
 
 
 static llvm::cl::opt<std::string>
@@ -234,11 +235,11 @@ namespace seahorn
   {
     if (SvCompCexFile.empty ()) return;
     
-    std::string error_msg;
-    llvm::tool_output_file out (SvCompCexFile.c_str (), error_msg);
-    if (!error_msg.empty ())
+    std::error_code ec;
+    llvm::tool_output_file out (SvCompCexFile.c_str (), ec, llvm::sys::fs::F_Text);
+    if (ec)
     {
-      errs () << "ERROR: Cannot open CEX file: " << error_msg << "\n";
+      errs () << "ERROR: Cannot open CEX file: " << ec.message () << "\n";
       return;
     }
     
@@ -527,7 +528,7 @@ namespace seahorn
   void HornCex::getAnalysisUsage (AnalysisUsage &AU) const
   {
     AU.setPreservesAll ();
-    AU.addRequired<DataLayout> ();
+    AU.addRequired<DataLayoutPass> ();
     AU.addRequired<CutPointGraph> ();
     AU.addRequired<HornifyModule> ();
     AU.addRequired<HornSolver> ();

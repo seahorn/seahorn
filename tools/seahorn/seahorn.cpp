@@ -17,6 +17,7 @@
 #include "llvm/Support/SourceMgr.h"
 #include "llvm/Support/ToolOutputFile.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/Support/FileSystem.h"
 #include "llvm/Transforms/IPO.h"
 
 #include "seahorn/Passes.hh"
@@ -121,15 +122,15 @@ int main(int argc, char **argv) {
   llvm::PrettyStackTraceProgram PSTP(argc, argv);
   llvm::EnableDebugBuffering = true;
 
-  std::string error_msg;
+  std::error_code error_code;
   llvm::SMDiagnostic err;
   llvm::LLVMContext &context = llvm::getGlobalContext();
-  llvm::OwningPtr<llvm::Module> module;
-  llvm::OwningPtr<llvm::tool_output_file> output;
-  llvm::OwningPtr<llvm::tool_output_file> asmOutput;
+  std::unique_ptr<llvm::Module> module;
+  std::unique_ptr<llvm::tool_output_file> output;
+  std::unique_ptr<llvm::tool_output_file> asmOutput;
   
 
-  module.reset(llvm::ParseIRFile(InputFilename, err, context));
+  module = llvm::parseIRFile(InputFilename, err, context);
   if (module.get() == 0)
   {
     if (llvm::errs().has_colors()) llvm::errs().changeColor(llvm::raw_ostream::RED);
@@ -138,23 +139,27 @@ int main(int argc, char **argv) {
     if (llvm::errs().has_colors()) llvm::errs().resetColor();
     return 3;
   }
-
-  if (!OutputFilename.empty ())
-    output.reset(new llvm::tool_output_file(OutputFilename.c_str(), error_msg));
-  
-  if (!error_msg.empty()) {
-    if (llvm::errs().has_colors()) llvm::errs().changeColor(llvm::raw_ostream::RED);
-    llvm::errs() << "error: " << error_msg << "\n";
+  if (!AsmOutputFilename.empty ())
+    asmOutput = 
+      llvm::make_unique<llvm::tool_output_file>(AsmOutputFilename.c_str(), error_code, 
+                                                llvm::sys::fs::F_Text);
+  if (error_code) {
+    if (llvm::errs().has_colors()) 
+      llvm::errs().changeColor(llvm::raw_ostream::RED);
+    llvm::errs() << "error: Could not open " << AsmOutputFilename << ": " 
+                 << error_code.message () << "\n";
     if (llvm::errs().has_colors()) llvm::errs().resetColor();
     return 3;
   }
-  
-  if (!AsmOutputFilename.empty ())
-    asmOutput.reset(new llvm::tool_output_file(AsmOutputFilename.c_str(), error_msg));
-  
-  if (!error_msg.empty()) {
+
+  if (!OutputFilename.empty ())
+    output = llvm::make_unique<llvm::tool_output_file>
+      (OutputFilename.c_str(), error_code, llvm::sys::fs::F_None);
+      
+  if (error_code) {
     if (llvm::errs().has_colors()) llvm::errs().changeColor(llvm::raw_ostream::RED);
-    llvm::errs() << "error: " << error_msg << "\n";
+    llvm::errs() << "error: Could not open " << OutputFilename << ": " 
+                 << error_code.message () << "\n";
     if (llvm::errs().has_colors()) llvm::errs().resetColor();
     return 3;
   }
@@ -172,13 +177,12 @@ int main(int argc, char **argv) {
   llvm::initializeIPA (Registry);
   
   // add an appropriate DataLayout instance for the module
-  llvm::DataLayout *dl = 0;
-  const std::string &moduleDataLayout = module.get()->getDataLayout();
-  if (!moduleDataLayout.empty())
-    dl = new llvm::DataLayout(moduleDataLayout);
-  else if (!DefaultDataLayout.empty())
-    dl = new llvm::DataLayout(moduleDataLayout);
-  if (dl) pass_manager.add(dl);
+  const llvm::DataLayout *dl = module->getDataLayout ();
+  if (!dl && !DefaultDataLayout.empty ())
+  {
+    module->setDataLayout (DefaultDataLayout);
+    dl = module->getDataLayout ();
+  }
 
   // turn all functions internal so that we can inline them if requested
   pass_manager.add (llvm::createInternalizePass (llvm::ArrayRef<const char*>("main")));
@@ -208,7 +212,7 @@ int main(int argc, char **argv) {
   pass_manager.add (new seahorn::RemoveUnreachableBlocksPass ());
   pass_manager.add (new seahorn::HornifyModule ());
   if (!AsmOutputFilename.empty ()) 
-    pass_manager.add (createPrintModulePass (&asmOutput->os ()));
+    pass_manager.add (createPrintModulePass (asmOutput->os ()));
   if (!OutputFilename.empty ()) pass_manager.add (new seahorn::HornWrite (output->os ()));
   if (Ikos) pass_manager.add (seahorn::createLoadIkosPass ()); 
   if (Solve) pass_manager.add (new seahorn::HornSolver ());

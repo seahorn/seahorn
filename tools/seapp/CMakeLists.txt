@@ -1,11 +1,11 @@
 set (USED_LIBS 
   seahorn.LIB
-  avy
   SeaInstrumentation
   SeaTransformsScalar
   SeaTransformsUtils
   SeaAnalysis
   SeaSupport
+  avy
   ${Z3_LIBRARY}
   ${Boost_SYSTEM_LIBRARY}
   ${GMPXX_LIB}

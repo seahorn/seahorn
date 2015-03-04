@@ -1,5 +1,4 @@
 add_llvm_library(SeaHornPasses 
-  SeahornMain.cpp
   NameValues.cpp
   TopologicalOrder.cc
   CutPointGraph.cc

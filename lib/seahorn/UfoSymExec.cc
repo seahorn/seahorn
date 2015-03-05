@@ -262,7 +262,20 @@ namespace
       if (!m_sem.isTracked (I)) return;
       Expr lhs = havoc (I);
       Expr op0 = lookup (*I.getOperand (0));
-      if (op0) m_side.push_back (mk<EQ> (havoc (I), op0));
+      
+      if (!op0) return;
+      if (I.getType ()->isIntegerTy (1))
+      {
+        Expr zero = mkTerm<mpz_class> (0, m_efac);
+        Expr one = mkTerm<mpz_class> (1, m_efac);
+      
+        // truncation to 1 bit amounts to 'is_even' predicate.
+        // We handle the two most common cases: 0 -> false, 1 -> true
+        m_side.push_back (mk<IMPL> (mk<EQ> (op0, zero), mk<NEG> (lhs)));
+        m_side.push_back (mk<IMPL> (mk<EQ> (op0, one), lhs));
+      }
+      else
+        m_side.push_back (mk<EQ> (havoc (I), op0));
     }
     
     void visitZExtInst (ZExtInst &I) {doExtCast (I);}

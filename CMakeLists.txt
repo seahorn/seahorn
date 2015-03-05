@@ -18,7 +18,7 @@ if (GIT_FOUND)
     CACHE STRING "seahorn-llvm repo")
   set (DSA_SEAHORN_REPO "https://github.com/seahorn/dsa-seahorn"
     CACHE STRING "dsa-seahorn repo")
-  set (IKSO_LLVM_REPO "https://github.com/seahorn/dsa-seahorn"
+  set (IKOS_LLVM_REPO "https://github.com/seahorn/dsa-seahorn"
     CACHE STRING "ikos-llvm repo")
   add_custom_target (seahorn-llvm-git
     ${GIT_EXECUTABLE} clone ${SEAHORN_LLVM_REPO} ${CMAKE_SOURCE_DIR}/seahorn-llvm)

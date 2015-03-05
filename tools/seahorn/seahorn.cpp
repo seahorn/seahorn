@@ -183,6 +183,8 @@ int main(int argc, char **argv) {
     module->setDataLayout (DefaultDataLayout);
     dl = module->getDataLayout ();
   }
+  
+  if (dl) pass_manager.add (new llvm::DataLayoutPass ());
 
   // turn all functions internal so that we can inline them if requested
   pass_manager.add (llvm::createInternalizePass (llvm::ArrayRef<const char*>("main")));

@@ -137,9 +137,9 @@ namespace seahorn
       args [0] = bind::boolConst (mkTerm (std::string ("arg.0"), m_efac));
       args [1] = bind::boolConst (mkTerm (std::string ("arg.1"), m_efac));
       args [2] = bind::boolConst (mkTerm (std::string ("arg.2"), m_efac));
-      m_db.addCover (bind::fapp (fi.sumPred, args),
-                     mk<AND> (mk<OR> (mk<NEG> (args [0]), args [2]),
-                              mk<OR> (args [0], mk<EQ> (args [1], args [2]))));
+      m_db.addConstraint (bind::fapp (fi.sumPred, args),
+                          mk<AND> (mk<OR> (mk<NEG> (args [0]), args [2]),
+                                   mk<OR> (args [0], mk<EQ> (args [1], args [2]))));
     }
 
 

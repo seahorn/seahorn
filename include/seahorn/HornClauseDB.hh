@@ -49,7 +49,7 @@ namespace seahorn
     RuleVector m_rules;
     Expr m_query;
     
-    std::map<Expr, ExprVector> m_covers;
+    std::map<Expr, ExprVector> m_constraints;
     
     const ExprVector &getVars ()
     {
@@ -83,35 +83,35 @@ namespace seahorn
     void addQuery (Expr q) {m_query = q;}
     Expr getQuery () {return m_query;}
 
-    /// Add cover to a predicate
+    /// Add constraint to a predicate
     /// Adds constraint Forall V . pred -> lemma
-    void addCover (Expr pred, Expr lemma)
+    void addConstraint (Expr pred, Expr lemma)
     {
+      assert (bind::isFapp (pred));
+      if (isOpX<TRUE> (lemma)) return;
+      
       Expr reln = bind::fname (pred);
-      // JN: I'm not sure why we need to rename variables 
-      /*
       ExprMap sub;
       unsigned idx = 0;
-      for (auto it = ++reln->args_begin (), end = reln->args_end (); it != end; ++it)
+
+      for (auto it = ++/*reln*/pred->args_begin (), end = /*reln*/pred->args_end (); it != end; ++it)
         sub [*it] = bind::bvar (idx++, bind::typeOf (*it));
       
-      m_covers [reln].push_back (replace (lemma, sub));
-      */
-      m_covers [reln].push_back (lemma);
+      m_constraints [reln].push_back (replace (lemma, sub));
     }
     
-    /// Returns the current cover for the predicate
-    const Expr getCover (Expr pred) 
+    /// Returns the current constraints for the predicate
+    const Expr getConstraints (Expr pred) 
     {
+      assert (bind::isFapp (pred));
       Expr reln = bind::fname (pred);
       Expr lemma = mknary<AND> (mk<TRUE> (pred->efac ()),
-                                m_covers [reln /*pred*/].begin (), 
-                                m_covers [reln /*pred*/].end ());
-      return lemma;
-      /*      
+                                m_constraints [reln /*pred*/].begin (), 
+                                m_constraints [reln /*pred*/].end ());
+
       ExprMap sub;
       unsigned idx = 0;
-      for (auto it = ++reln->args_begin (), end = reln->args_end (); 
+      for (auto it = ++/*reln*/pred->args_begin (), end = /*reln*/pred->args_end (); 
            it != end; ++it)
       {
         Expr k = bind::bvar (idx++, bind::typeOf (*it));
@@ -119,7 +119,6 @@ namespace seahorn
       }
           
       return replace (lemma, sub);
-      */
     }
 
     raw_ostream& write (raw_ostream& o) const

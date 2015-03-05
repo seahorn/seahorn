@@ -24,13 +24,14 @@ namespace seahorn
     HornifyModule &hm = getAnalysis<HornifyModule> ();
     //auto &ctx = fp.getContext ();
 
-    // Load the horn clause database
+    // Load the Horn clause database
     auto &db = hm.getHornClauseDB ();
     auto &fp = hm.getZFixedPoint ();
     for (auto &p: db.getRelations ())
     { 
       fp.registerRelation (p); 
-      fp.addCover (p, db.getCover (p)); 
+      if (bind::isFapp (p))
+        fp.addCover (p, db.getConstraints (p)); 
     }
     for (auto &r: db.getRules ())
     { fp.addRule (r.vars (), r.body ()); }

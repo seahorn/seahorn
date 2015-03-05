@@ -207,7 +207,7 @@ namespace seahorn
       Expr inv = Convert (ikos, &BB, live, hm.getExprFactory ());
       LOG ("ikos", errs () << "Loading invariant at " << *bind::fname (pred) 
            << ":"  << *inv << "\n";);
-      db.addCover (bind::fapp (pred, live), inv);
+      db.addConstraint (bind::fapp (pred, live), inv);
       
     }
     return true;

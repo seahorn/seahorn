@@ -19,6 +19,8 @@ namespace seahorn
     // - ignore (abstract) any constraint that is not supported by
     //   standard CLP (e.g., nonlinear)
 
+    //llvm::errs () << db << "\n";
+
     for (auto & rule : db.getRules ())
     {
       Expr f =  rule.body ();

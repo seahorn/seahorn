@@ -50,7 +50,7 @@ namespace seahorn
         for (auto &p: db.getRelations ())
         { 
           fp.registerRelation (p); 
-          fp.addCover (p, db.getCover (p)); 
+          fp.addCover (p, db.getConstraints (p)); 
         }
         for (auto &r: db.getRules ())
         { fp.addRule (r.vars (), r.body ()); }

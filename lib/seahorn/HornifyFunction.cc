@@ -128,10 +128,10 @@ namespace seahorn
     postArgs [0] = bind::boolConst (mkTerm (std::string ("arg.0"), m_efac));
     postArgs [1] = bind::boolConst (mkTerm (std::string ("arg.1"), m_efac));
     postArgs [2] = bind::boolConst (mkTerm (std::string ("arg.2"), m_efac));
-    m_db.addCover (bind::fapp (fi.sumPred, postArgs), 
-                   mk<AND> (mk<OR> (postArgs [0], mk<EQ> (postArgs [1], postArgs [2])),
-                            mk<OR> (mk<NEG> (postArgs [0]),
-                                    mk<NEG> (postArgs [1]), postArgs [2])));
+    m_db.addConstraint (bind::fapp (fi.sumPred, postArgs), 
+                        mk<AND> (mk<OR> (postArgs [0], mk<EQ> (postArgs [1], postArgs [2])),
+                                 mk<OR> (mk<NEG> (postArgs [0]),
+                                         mk<NEG> (postArgs [1]), postArgs [2])));
   }
   
   

@@ -9,6 +9,7 @@ add_llvm_library (seahorn.LIB
   HornWrite.cc
   HornSolver.cc
   HornCex.cc
+  HornClp.cc
   ZOption.cc
   )
 

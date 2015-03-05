@@ -193,7 +193,8 @@ namespace seahorn
     HornifyModule &hm = getAnalysis<HornifyModule> ();
     llvm_ikos::LlvmIkos &ikos = getAnalysis<llvm_ikos::LlvmIkos> ();
     
-    auto &fp = hm.getZFixedPoint ();
+    //auto &fp = hm.getZFixedPoint ();
+    auto &db = hm.getHornClauseDB ();
     
     for (auto &BB : F)
     {
@@ -206,7 +207,7 @@ namespace seahorn
       Expr inv = Convert (ikos, &BB, live, hm.getExprFactory ());
       LOG ("ikos", errs () << "Loading invariant at " << *bind::fname (pred) 
            << ":"  << *inv << "\n";);
-      fp.addCover (bind::fapp (pred, live), inv);
+      db.addCover (bind::fapp (pred, live), inv);
       
     }
     return true;

@@ -22,21 +22,19 @@ namespace seahorn
     Stats::sset ("Result", "UNKNOWN");
     
     HornifyModule &hm = getAnalysis<HornifyModule> ();
-    auto &fp = hm.getZFixedPoint ();
     //auto &ctx = fp.getContext ();
 
-    {
-      //LOG ("seahorn", errs() << "... pre-processing is disabled \n");
-      // parameters reset pdr::context. Cannot set more than once
-      // ZParams<EZ3> params (ctx);
-      // params.set (":use-farkas", true);
-      // params.set (":generate-proof-trace", false);
-      // params.set (":slice", false);
-      // params.set (":inline-linear", false);
-      // params.set (":inline-eager", false);
-      // fp.set (params);
+    // Load the horn clause database
+    auto &db = hm.getHornClauseDB ();
+    auto &fp = hm.getZFixedPoint ();
+    for (auto &p: db.getRelations ())
+    { 
+      fp.registerRelation (p); 
+      fp.addCover (p, db.getCover (p)); 
     }
-
+    for (auto &r: db.getRules ())
+    { fp.addRule (r.vars (), r.body ()); }
+    fp.addQuery (db.getQuery ());
     
     Stats::resume ("Horn");
     m_result = fp.query ();

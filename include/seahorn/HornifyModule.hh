@@ -30,7 +30,8 @@ namespace seahorn
     ExprFactory m_efac;
     EZ3 m_zctx;
     ZFixedPoint<EZ3> m_fp;
-    
+    HornClauseDB m_db;
+
     const DataLayout *m_td;
     boost::scoped_ptr<SmallStepSymExec> m_sem;
     
@@ -44,6 +45,7 @@ namespace seahorn
     ExprFactory& getExprFactory () {return m_efac;} 
     EZ3 &getZContext () {return m_zctx;}
     ZFixedPoint<EZ3> &getZFixedPoint () {return m_fp;}
+    HornClauseDB& getHornClauseDB () {return m_db;}
     virtual bool runOnModule (Module &M);
     virtual bool runOnFunction (Function &F);
     virtual void getAnalysisUsage (AnalysisUsage &AU) const;

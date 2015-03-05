@@ -35,6 +35,7 @@ namespace seahorn
     
     SmallStepSymExec &m_sem;
     ZFixedPoint<EZ3> &m_fp;
+    HornClauseDB &m_db;
     EZ3 &m_zctx;
     ExprFactory &m_efac;
     
@@ -46,13 +47,16 @@ namespace seahorn
   public:
     HornifyFunction (HornifyModule &parent, bool interproc = false) :
       m_parent (parent), m_sem (m_parent.symExec ()), 
-      m_fp (m_parent.getZFixedPoint ()), m_zctx (m_fp.getContext ()),
+      m_fp (m_parent.getZFixedPoint ()), 
+      m_db (m_parent.getHornClauseDB ()),
+      m_zctx (m_fp.getContext ()),
       m_efac (m_zctx.getExprFactory ()), m_interproc (interproc) {}
 
     virtual ~HornifyFunction () {}
     ZFixedPoint<EZ3> &getZFixedPoint () {return m_fp;}
+    HornClauseDB &getHornClauseDB () {return m_db;}
     virtual void runOnFunction (Function &F) = 0;
-    bool checkProperty(ExprVector prop, Expr &inv);
+    // bool checkProperty(ExprVector prop, Expr &inv);
   };
 
   class SmallHornifyFunction : public HornifyFunction

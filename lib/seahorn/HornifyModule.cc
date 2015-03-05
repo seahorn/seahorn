@@ -109,7 +109,7 @@ namespace seahorn
       Expr boolSort = sort::boolTy (m_efac);
       ExprVector sorts (4, boolSort);
       fi.sumPred = bind::fdecl (mkTerm<const Function*> (errorFn, m_efac), sorts);
-      m_fp.registerRelation (fi.sumPred);
+      m_db.registerRelation (fi.sumPred);
 
       // basic rules for error
       // error (false, false, false)
@@ -123,21 +123,21 @@ namespace seahorn
       ExprSet allVars;
 
       ExprVector args {falseE, falseE, falseE};
-      m_fp.addRule (allVars, bind::fapp (fi.sumPred, args));
+      m_db.addRule (allVars, bind::fapp (fi.sumPred, args));
 
       args = {falseE, trueE, trueE} ;
-      m_fp.addRule (allVars, bind::fapp (fi.sumPred, args));
+      m_db.addRule (allVars, bind::fapp (fi.sumPred, args));
 
       args = {trueE, falseE, trueE} ;
-      m_fp.addRule (allVars, bind::fapp (fi.sumPred, args));
+      m_db.addRule (allVars, bind::fapp (fi.sumPred, args));
 
       args = {trueE, trueE, trueE} ;
-      m_fp.addRule (allVars, bind::fapp (fi.sumPred, args));
+      m_db.addRule (allVars, bind::fapp (fi.sumPred, args));
 
       args [0] = bind::boolConst (mkTerm (std::string ("arg.0"), m_efac));
       args [1] = bind::boolConst (mkTerm (std::string ("arg.1"), m_efac));
       args [2] = bind::boolConst (mkTerm (std::string ("arg.2"), m_efac));
-      m_fp.addCover (bind::fapp (fi.sumPred, args),
+      m_db.addCover (bind::fapp (fi.sumPred, args),
                      mk<AND> (mk<OR> (mk<NEG> (args [0]), args [2]),
                               mk<OR> (args [0], mk<EQ> (args [1], args [2]))));
     }

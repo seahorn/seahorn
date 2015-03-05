@@ -4,7 +4,6 @@
 #include <vector>
 #include "seahorn/HornClauseDB.hh"
 #include "ufo/Expr.hpp"
-#include <llvm/Support/raw_ostream.h>
 
 namespace seahorn
 {
@@ -22,20 +21,28 @@ namespace seahorn
 
       ClpRule (Expr head): m_head (head) { }
       
-      void addLiteral (Expr lit) { m_body.push_back (lit); }
+      void addBodyLiteral (Expr lit) { m_body.push_back (lit); }
 
       bool isFact () const { return m_body.empty (); }
       
       void write (ostream &o) const
       {        
+        assert (m_head);
+
         if (isFact())
-        { o << *m_head << "."; }
+        { o << *m_head << ".\n"; }
         else
         {
           o << *m_head << " :- ";
-          for (auto const &e : m_body)
-          { o << "\n\t" << *e << ","; }
-          o << ".";
+          for (auto it = m_body.begin (), et = m_body.end (); it!=et;  )
+          {
+            Expr e = *it;
+            o << "\n\t" << *e;
+            ++it;
+            if (it != et)
+              o << ","; 
+          }
+          o << ".\n";
         }
       }
 
@@ -46,18 +53,14 @@ namespace seahorn
       }
     };
 
-    raw_ostream& m_os;
     Expr m_query;
     vector<ClpRule> m_rules;
 
    public:
 
-    ClpHornify (HornClauseDB &db, raw_ostream &OS);
+    ClpHornify (HornClauseDB &db);
 
-    // In the future, we might want to support different CLP
-    // dialects. In that case, ClpHornify can have the method dump as
-    // virtual.
-    void write () const;
+    string toString () const;
 
   };
 }

@@ -97,7 +97,7 @@ namespace seahorn
     sorts.push_back (mk<BOOL_TY> (m_efac));
     fi.sumPred = bind::fdecl (mkTerm<const Function*>(&F, m_efac), sorts);
     
-    m_fp.registerRelation (fi.sumPred);
+    m_db.registerRelation (fi.sumPred);
     
     // basic rules
     // if error.flag is on, it remains on, even if S is disabled
@@ -115,20 +115,20 @@ namespace seahorn
                   std::inserter (allVars, allVars.begin ()),
                   bind::IsConst());
     
-    m_fp.addRule (allVars, bind::fapp (fi.sumPred, postArgs));
+    m_db.addRule (allVars, bind::fapp (fi.sumPred, postArgs));
     
     postArgs[0] = falseE;
-    m_fp.addRule (allVars, bind::fapp (fi.sumPred, postArgs));
+    m_db.addRule (allVars, bind::fapp (fi.sumPred, postArgs));
     
     postArgs[1] = falseE;
     postArgs[2] = falseE;
-    m_fp.addRule (allVars, bind::fapp (fi.sumPred, postArgs));
+    m_db.addRule (allVars, bind::fapp (fi.sumPred, postArgs));
 
     // -- expose basic properties of the summary
     postArgs [0] = bind::boolConst (mkTerm (std::string ("arg.0"), m_efac));
     postArgs [1] = bind::boolConst (mkTerm (std::string ("arg.1"), m_efac));
     postArgs [2] = bind::boolConst (mkTerm (std::string ("arg.2"), m_efac));
-    m_fp.addCover (bind::fapp (fi.sumPred, postArgs), 
+    m_db.addCover (bind::fapp (fi.sumPred, postArgs), 
                    mk<AND> (mk<OR> (postArgs [0], mk<EQ> (postArgs [1], postArgs [2])),
                             mk<OR> (mk<NEG> (postArgs [0]),
                                     mk<NEG> (postArgs [1]), postArgs [2])));
@@ -155,7 +155,7 @@ namespace seahorn
       // create predicate for the basic block
       Expr decl = m_parent.bbPredicate (BB);
       // register with fixedpoint
-      m_fp.registerRelation (decl);
+      m_db.registerRelation (decl);
       
       // -- attempt to extract FunctionInfo record from the current basic block
       // -- only succeeds if the current basic block is the last one
@@ -169,7 +169,7 @@ namespace seahorn
     for (const Expr& v : ls.live (&F.getEntryBlock ())) allVars.insert (s.read (v));
     Expr rule = s.eval (bind::fapp (m_parent.bbPredicate (entry), ls.live (&entry)));
     rule = boolop::limp (boolop::lneg (s.read (m_sem.errorFlag (entry))), rule);
-    m_fp.addRule (allVars, rule);
+    m_db.addRule (allVars, rule);
     allVars.clear ();
       
     ExprVector side;
@@ -200,7 +200,7 @@ namespace seahorn
         
         LOG("seahorn", errs() << "Adding rule : " 
             << *mk<IMPL> (boolop::land (pre, tau), post) << "\n";);
-        m_fp.addRule (allVars, boolop::limp (boolop::land (pre, tau), post));
+        m_db.addRule (allVars, boolop::limp (boolop::land (pre, tau), post));
       }
     }
 
@@ -229,13 +229,13 @@ namespace seahorn
       for (const Expr &v : ls.live (exit)) allVars.insert (s.read (v));
       Expr post = 
         s.eval (bind::fapp (m_parent.bbPredicate (*exit), ls.live (exit)));
-      m_fp.addRule (allVars, boolop::limp (pre, post));
+      m_db.addRule (allVars, boolop::limp (pre, post));
     }
     
     if (F.getName ().equals ("main") && ls.live(exit).size () == 1)
-      m_fp.addQuery (bind::fapp (m_parent.bbPredicate(*exit), mk<TRUE> (m_efac)));
+      m_db.addQuery (bind::fapp (m_parent.bbPredicate(*exit), mk<TRUE> (m_efac)));
     else if (F.getName ().equals ("main") && ls.live (exit).size () == 0)
-      m_fp.addQuery (bind::fapp (m_parent.bbPredicate(*exit)));
+      m_db.addQuery (bind::fapp (m_parent.bbPredicate(*exit)));
     else if (m_interproc)
     {
       // the summary rule
@@ -255,14 +255,14 @@ namespace seahorn
                     std::inserter (allVars, allVars.begin ()),
                     bind::IsConst());
       Expr post = bind::fapp (fi.sumPred, postArgs);
-      m_fp.addRule (allVars, boolop::limp (pre, post));
+      m_db.addRule (allVars, boolop::limp (pre, post));
       
       // the error rule
       // bb_exit (true, V) -> S(true, false, true, V)
       pre = boolop::land (pre->arg (0), s.read (m_sem.errorFlag (*exit)));
       postArgs [2] = mk<TRUE> (m_efac);
       post = bind::fapp (fi.sumPred, postArgs);
-      m_fp.addRule (allVars, boolop::limp (pre, post));
+      m_db.addRule (allVars, boolop::limp (pre, post));
     }
     else if (!exit & m_interproc) assert (0);
     
@@ -287,7 +287,7 @@ namespace seahorn
     for (const CutPoint &cp : cpg)
     {
       Expr decl = m_parent.bbPredicate (cp.bb ());
-      m_fp.registerRelation (decl);
+      m_db.registerRelation (decl);
       if (m_interproc) extractFunctionInfo (cp.bb ());
     }
           
@@ -301,7 +301,7 @@ namespace seahorn
     
     Expr rule = bind::fapp (m_parent.bbPredicate (entry), args);
     rule = boolop::limp (boolop::lneg (s.read (m_sem.errorFlag (entry))), rule);
-    m_fp.addRule (allVars, rule);
+    m_db.addRule (allVars, rule);
     allVars.clear ();
     
     UfoLargeSymExec lsem (m_sem);
@@ -334,7 +334,7 @@ namespace seahorn
           allVars.insert (args.begin (), args.end ());
           
           Expr post = bind::fapp (m_parent.bbPredicate (dst), args);
-          m_fp.addRule (allVars, boolop::limp (boolop::land (pre, tau), post));
+          m_db.addRule (allVars, boolop::limp (boolop::land (pre, tau), post));
         }
       }
     
@@ -368,13 +368,13 @@ namespace seahorn
       allVars.insert (args.begin (), args.end ());
       
       Expr post = bind::fapp (m_parent.bbPredicate (*exit), args);
-      m_fp.addRule (allVars, boolop::limp (pre, post));
+      m_db.addRule (allVars, boolop::limp (pre, post));
     }   
     
     if (F.getName ().equals ("main") && ls.live (exit).size () == 1)
-      m_fp.addQuery (bind::fapp (m_parent.bbPredicate(*exit), mk<TRUE> (m_efac)));
+      m_db.addQuery (bind::fapp (m_parent.bbPredicate(*exit), mk<TRUE> (m_efac)));
     else if (F.getName ().equals ("main") && ls.live (exit).size () == 0)
-      m_fp.addQuery (bind::fapp (m_parent.bbPredicate(*exit)));
+      m_db.addQuery (bind::fapp (m_parent.bbPredicate(*exit)));
     else if (m_interproc)
     {
       // the summary rule
@@ -399,47 +399,47 @@ namespace seahorn
                     std::inserter (allVars, allVars.begin ()),
                     bind::IsConst());
       Expr post = bind::fapp (fi.sumPred, postArgs);
-      m_fp.addRule (allVars, boolop::limp (pre, post));
+      m_db.addRule (allVars, boolop::limp (pre, post));
       
       // the error rule
       // bb_exit (true, V) -> S(true, false, true, V)
       pre = boolop::land (pre->arg (0), s.read (m_sem.errorFlag (*exit)));
       postArgs [2] = mk<TRUE> (m_efac);
       post = bind::fapp (fi.sumPred, postArgs);
-      m_fp.addRule (allVars, boolop::limp (pre, post));
+      m_db.addRule (allVars, boolop::limp (pre, post));
     }
     else if (!exit & m_interproc) assert (0);
   
   }
 
-  bool HornifyFunction::checkProperty(ExprVector predicates, Expr &cex){
-    tribool res  = m_fp.query();
-    std::vector<std::string> invariants;
-    if (res){
-      errs() << "UNSAFE";
-      LOG("seahorn", errs() << "\nCEX\n");
-      //cex = m_fp.getCex();
-      LOG("seahorn", errs() << "\t" << m_zctx.toSmtLib(cex) << "\n");
+  // bool HornifyFunction::checkProperty(ExprVector predicates, Expr &cex){
+  //   tribool res  = m_fp.query();
+  //   std::vector<std::string> invariants;
+  //   if (res){
+  //     errs() << "UNSAFE";
+  //     LOG("seahorn", errs() << "\nCEX\n");
+  //     //cex = m_fp.getCex();
+  //     LOG("seahorn", errs() << "\t" << m_zctx.toSmtLib(cex) << "\n");
 
-      return false;
-    }else if (!res){
-      errs() << "SAFE";
-      LOG("seahorn", errs() << "\nINVARIANTS");
-      for (Expr p: predicates){
-        Expr delta = m_fp.getCoverDelta(p);
-        if (!(isOpX<TRUE> (delta))) {
-          LOG("seahorn", errs() << "\t- BLOCK : " << m_zctx.toSmtLib(p) << "\n");
-          std::string inv = m_zctx.toSmtLib(delta);
-          invariants.push_back (inv);
-          LOG("seahorn", errs() << "\t\t" << inv << "\n");
-        }
-      }
-      return true;
-    }else{
-      errs() <<"ERROR\n";
-      exit (1);
-    }
-  }
+  //     return false;
+  //   }else if (!res){
+  //     errs() << "SAFE";
+  //     LOG("seahorn", errs() << "\nINVARIANTS");
+  //     for (Expr p: predicates){
+  //       Expr delta = m_fp.getCoverDelta(p);
+  //       if (!(isOpX<TRUE> (delta))) {
+  //         LOG("seahorn", errs() << "\t- BLOCK : " << m_zctx.toSmtLib(p) << "\n");
+  //         std::string inv = m_zctx.toSmtLib(delta);
+  //         invariants.push_back (inv);
+  //         LOG("seahorn", errs() << "\t\t" << inv << "\n");
+  //       }
+  //     }
+  //     return true;
+  //   }else{
+  //     errs() <<"ERROR\n";
+  //     exit (1);
+  //   }
+  // }
   
 
 }

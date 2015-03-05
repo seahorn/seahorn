@@ -1,6 +1,6 @@
 #include "seahorn/Analysis/TopologicalOrder.hh"
 
-#include "seahorn/SortTopo.hh"
+#include "seahorn/Support/SortTopo.hh"
 #include "llvm/Analysis/CFG.h"
 
 #include "boost/range/algorithm/reverse.hpp"

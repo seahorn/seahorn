@@ -1,5 +1,5 @@
 /// Symbolic execution (loosely) based on semantics used in UFO
-#include "llvm/Support/GetElementPtrTypeIterator.h"
+#include "llvm/IR/GetElementPtrTypeIterator.h"
 
 #include "seahorn/UfoSymExec.hh"
 #include "seahorn/Support/CFG.hh"

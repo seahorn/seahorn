@@ -12,6 +12,10 @@ include (CTest)
 list (APPEND CMAKE_MODULE_PATH
   "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 
+include_directories(
+  ${CMAKE_CURRENT_SOURCE_DIR}/include
+  ${CMAKE_CURRENT_BINARY_DIR}/include)
+
 option (SEAHORN_STATIC_EXE "Static executable." OFF)
 
 set (CUSTOM_BOOST_ROOT "" CACHE PATH "Path to custom boost installation.")
@@ -60,55 +64,57 @@ if (NOT Z3_FOUND)
   message(WARNING "No Z3 found. Run \n\tcmake --build . && cmake ${CMAKE_SOURCE_DIR}")
 else()
   set_target_properties(z3 PROPERTIES EXCLUDE_FROM_ALL ON)
+  include_directories(${Z3_INCLUDE_DIR})
 endif()
 
 ExternalProject_Add (llvm
-  SVN_REPOSITORY http://llvm.org/svn/llvm-project/llvm/tags/RELEASE_342/final/
+  SVN_REPOSITORY http://llvm.org/svn/llvm-project/llvm/tags/RELEASE_360/final/
   SOURCE_DIR ${CMAKE_SOURCE_DIR}/ext/llvm
   INSTALL_DIR ${CMAKE_BINARY_DIR}/run
   CMAKE_ARGS
   -DCMAKE_C_COMPILER=${CMAKE_C_COMPILER} -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}
   -DCMAKE_BUILD_TYPE:STRING=${CMAKE_BUILD_TYPE}
   -DCMAKE_INSTALL_PREFIX:PATH=<INSTALL_DIR>
-  -DLLVM_TARGETS_TO_BUILD:STRING=X86 -DLLVM_BUILD_POLLY:BOOL=OFF
+  -DLLVM_TARGETS_TO_BUILD:STRING=X86 -DWITH_POLY:BOOL=OFF
   -DLLVM_ENABLE_PEDANTIC=OFF 
-  -DLLVM_ENABLE_PIC=OFF -DLLVM_REQUIRES_RTTI:BOOL=TRUE
+  -DLLVM_ENABLE_PIC=ON -DLLVM_REQUIRES_RTTI:BOOL=TRUE
   LOG_CONFIGURE 1
   LOG_BUILD 1
   LOG_INSTALL 1)
 
-find_package (LLVM)
+find_package (LLVM 3.6.0 CONFIG NO_DEFAULT_PATH)
 if (NOT LLVM_FOUND)
   ExternalProject_Get_Property (llvm INSTALL_DIR)
   set (LLVM_ROOT ${INSTALL_DIR})
-  set (LLVM_CONFIG_EXECUTABLE ${LLVM_ROOT}/bin/llvm-config CACHE FILEPATH
-    "Forced location of llvm-config" FORCE)
+  set (LLVM_DIR ${LLVM_ROOT}/share/llvm/cmake CACHE PATH
+    "Forced location of LLVM cmake config" FORCE)
   message (WARNING "No llvm found. Run \n\tcmake --build . && cmake ${CMAKE_SOURCE_DIR}")
-  # if no LLVM found, do not generate other targets
   return()
 else()
   set_target_properties(llvm PROPERTIES EXCLUDE_FROM_ALL ON)
+  
+  message(STATUS "Found LLVM ${LLVM_PACKAGE_VERSION}")
+  message(STATUS "Using LLVMConfig.cmake in: ${LLVM_DIR}")
+
+  # We incorporate the CMake features provided by LLVM:
+  list(APPEND CMAKE_MODULE_PATH "${LLVM_CMAKE_DIR}")
+  include(AddLLVM)
+  include(HandleLLVMOptions)
+  set(LLVM_RUNTIME_OUTPUT_INTDIR ${CMAKE_BINARY_DIR}/${CMAKE_CFG_INTDIR}/bin)
+  set(LLVM_LIBRARY_OUTPUT_INTDIR ${CMAKE_BINARY_DIR}/${CMAKE_CFG_INTDIR}/lib)
+
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${LLVM_CXXFLAGS}")
+  set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${LLVM_LDFLAGS}")
+
+  set(LLVM_REQUIRES_RTTI TRUE)
+  set(LLVM_REQUIRES_EH TRUE)
+
+  include_directories(${LLVM_INCLUDE_DIRS})
+  link_directories(${LLVM_LIBRARY_DIRS})
+  add_definitions(${LLVM_DEFINITIONS})
 endif()
 
 
-
-include_directories(${Z3_INCLUDE_DIR})
-
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${LLVM_CXXFLAGS}")
-set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${LLVM_LDFLAGS}")
-
-set(LLVM_REQUIRES_RTTI TRUE)
-set(LLVM_REQUIRES_EH TRUE)
-include_directories(${LLVM_INCLUDE_DIR})
-link_directories(${LLVM_LIBRARY_DIR})
-
-# We incorporate the CMake features provided by LLVM:
-set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${LLVM_ROOT}/share/llvm/cmake")
-include(LLVMConfig)
-include(AddLLVM)
-add_definitions(${LLVM_DEFINITIONS})
-include_directories(${LLVM_INCLUDE_DIRS})
-link_directories(${LLVM_LIBRARY_DIRS})
 
 # check for rt lib. Not needed on OSX.
 find_library(RT_LIB NAMES rt)
@@ -141,14 +147,11 @@ if (IS_DIRECTORY ${CMAKE_SOURCE_DIR}/ikos-llvm AND
   endif()
 endif()
 
-include_directories(
-  ${CMAKE_CURRENT_SOURCE_DIR}/include
-  ${CMAKE_CURRENT_BINARY_DIR}/include)
-
 install(DIRECTORY include/
   DESTINATION include
   FILES_MATCHING
   PATTERN "*.hpp"
+  PATTERN "*.hh"
   PATTERN ".svn" EXCLUDE
   )
 
@@ -156,6 +159,7 @@ install(DIRECTORY ${CMAKE_BINARY_DIR}/include/
   DESTINATION include
   FILES_MATCHING
   PATTERN "*.hpp"
+  PATTERN "*.hh"
   PATTERN "CMakeFiles" EXCLUDE
   PATTERN ".svn" EXCLUDE
   )
@@ -175,8 +179,6 @@ if (DEFINED IkosLlvm_SOURCE_DIR)
   message (STATUS "Using ikos-llvm from: ${IkosLlvm_SOURCE_DIR}/lib/LlvmIkos")
   set (HAVE_IKOS TRUE)
   set (HAVE_IKOS_LLVM TRUE)
-else()
-  message (STATUS "What?!")
 endif()
 
 if (IS_DIRECTORY ${CMAKE_SOURCE_DIR}/dsa-seahorn AND
@@ -189,6 +191,14 @@ if (IS_DIRECTORY ${CMAKE_SOURCE_DIR}/dsa-seahorn AND
 else()
   message (WARNING "No DSA found in ${CMAKE_SOURCE_DIR}/dsa-seahorn")
   set (DSA_LIBS "")
+endif()
+
+if (IS_DIRECTORY ${CMAKE_SOURCE_DIR}/llvm-seahorn AND
+    EXISTS ${CMAKE_SOURCE_DIR}/llvm-seahorn/lib/Transforms/InstCombine/CMakeLists.txt)
+  include_directories (BEFORE llvm-seahorn/include)
+  add_subdirectory(llvm-seahorn/lib/Transforms/InstCombine)
+  set (HAVE_LLVM_SEAHORN TRUE)
+  set (LLVM_SEAHORN_LIBS SeaInstCombine)
 endif()
 
 add_subdirectory(lib)

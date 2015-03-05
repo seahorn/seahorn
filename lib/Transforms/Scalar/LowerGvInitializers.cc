@@ -1,4 +1,4 @@
-#include "seahorn/Transforms/LowerGvInitializers.hh"
+#include "seahorn/Transforms/Scalar/LowerGvInitializers.hh"
 
 #include "boost/range.hpp"
 

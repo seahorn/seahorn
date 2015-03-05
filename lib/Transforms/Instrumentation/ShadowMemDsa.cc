@@ -1,4 +1,4 @@
-#include "seahorn/Transforms/ShadowMemDsa.hh"
+#include "seahorn/Transforms/Instrumentation/ShadowMemDsa.hh"
 
 #ifdef HAVE_DSA
 #include "llvm/IR/DataLayout.h"
@@ -373,7 +373,7 @@ namespace seahorn
     AU.setPreservesAll ();
     // AU.addRequiredTransitive<llvm::EQTDDataStructures>();
     AU.addRequiredTransitive<llvm::SteensgaardDataStructures> ();
-    AU.addRequired<llvm::DataLayout>();
+    AU.addRequired<llvm::DataLayoutPass>();
     AU.addRequired<llvm::UnifyFunctionExitNodes> ();
   } 
     

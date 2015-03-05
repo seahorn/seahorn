@@ -31,7 +31,7 @@ namespace seahorn
     EZ3 m_zctx;
     ZFixedPoint<EZ3> m_fp;
     
-    DataLayout *m_td;
+    const DataLayout *m_td;
     boost::scoped_ptr<SmallStepSymExec> m_sem;
     
     LiveSymbolsMap m_ls;

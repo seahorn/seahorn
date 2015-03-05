@@ -1,12 +1,15 @@
-add_llvm_library(seahorn.LIB 
-  SymStore.cc SortTopo.cc LiveSymbols.cc 
-  SymExec.cc UfoSymExec.cc HornifyFunction.cc 
+add_llvm_library (seahorn.LIB 
+  LoadIkos.cc
+  LiveSymbols.cc 
+  SymStore.cc
+  SymExec.cc
+  UfoSymExec.cc
   HornifyModule.cc 
+  HornifyFunction.cc 
+  HornWrite.cc
   HornSolver.cc
-  Stats.cc
   HornCex.cc
   ZOption.cc
-  LoadIkos.cc
   )
 
 # no need to link with static libraries

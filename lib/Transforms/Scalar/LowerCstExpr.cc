@@ -1,4 +1,4 @@
-#include "seahorn/Transforms/LowerCstExpr.hh"
+#include "seahorn/Transforms/Scalar/LowerCstExpr.hh"
 
 #include "boost/range.hpp"
 #include "llvm/ADT/SmallPtrSet.h"

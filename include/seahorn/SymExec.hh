@@ -1,7 +1,7 @@
 #ifndef __SYM_EXEC__HH_
 #define __SYM_EXEC__HH_
 
-#include "llvm/InstVisitor.h"
+#include "llvm/IR/InstVisitor.h"
 #include "ufo/Expr.hpp"
 #include "ufo/ExprLlvm.hpp"
 #include "seahorn/SymStore.hh"

@@ -1,4 +1,4 @@
-#include "seahorn/SortTopo.hh"
+#include "seahorn/Support/SortTopo.hh"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Analysis/CFG.h"
 namespace llvm
@@ -17,7 +17,7 @@ namespace llvm
     
     bool insert (const BasicBlock *bb)
     {
-      return m_set.insert (bb);
+      return m_set.insert (bb).second;
     }
     
     bool isBlockedEdge (const BasicBlock *src, const BasicBlock *dst)

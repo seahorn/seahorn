@@ -1,6 +1,6 @@
-#include "seahorn/Transforms/MixedSemantics.hh"
+#include "seahorn/Transforms/Instrumentation/MixedSemantics.hh"
 #include "seahorn/Analysis/CanFail.hh"
-#include "seahorn/Transforms/PromoteVerifierCalls.hh"
+#include "seahorn/Transforms/Scalar/PromoteVerifierCalls.hh"
 #include "seahorn/Transforms/Utils/Local.hh"
 
 #include "llvm/Analysis/CallGraph.h"
@@ -11,7 +11,7 @@
 #include "llvm/Transforms/Utils/Local.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 #include "llvm/ADT/PostOrderIterator.h"
-#include "llvm/Support/CFG.h"
+#include "llvm/IR/CFG.h"
 #include "llvm/Transforms/Scalar.h"
 
 #include "boost/range.hpp"
@@ -206,7 +206,7 @@ namespace seahorn
   void MixedSemantics::getAnalysisUsage (AnalysisUsage &AU) const
   {
     AU.addRequiredID (LowerSwitchID);
-    AU.addRequired<CallGraph> ();
+    AU.addRequired<CallGraphWrapperPass> ();
     AU.addRequired<CanFail> ();
     AU.addRequired<PromoteVerifierCalls> ();
   }

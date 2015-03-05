@@ -5,7 +5,7 @@
 #include "avy/AvyDebug.h"
 
 #include "llvm/Analysis/CFG.h"
-#include "seahorn/SortTopo.hh"
+#include "seahorn/Support/SortTopo.hh"
 
 
 namespace seahorn

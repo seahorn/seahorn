@@ -2,7 +2,7 @@
 #define IKOSINDVARSIMPLIFY 
 
 #include "llvm/ADT/SmallVector.h"
-#include "llvm/Analysis/Dominators.h"
+#include "llvm/IR/Dominators.h"
 #include "llvm/Analysis/LoopInfo.h"
 #include "llvm/Analysis/LoopPass.h"
 #include "llvm/Analysis/ScalarEvolutionExpander.h"
@@ -19,7 +19,7 @@ namespace seahorn {
     LoopInfo        *LI;
     ScalarEvolution *SE;
     DominatorTree   *DT;
-    DataLayout      *TD;
+    const DataLayout      *TD;
     TargetLibraryInfo *TLI;
 
     SmallVector<WeakVH, 16> DeadInsts;
@@ -36,7 +36,7 @@ namespace seahorn {
     virtual bool runOnLoop(Loop *L, LPPassManager &LPM);
 
     virtual void getAnalysisUsage(AnalysisUsage &AU) const {
-      AU.addRequired<DominatorTree>();
+      AU.addRequired<DominatorTreeWrapperPass>();
       AU.addRequired<LoopInfo>();
       AU.addRequired<ScalarEvolution>();
       //AU.addRequiredID(LoopSimplifyID);

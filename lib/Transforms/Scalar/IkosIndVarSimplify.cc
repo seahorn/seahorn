@@ -1,4 +1,5 @@
-#include "seahorn/Transforms/IkosIndVarSimplify.hh"
+#define DEBUG_TYPE "ikos-indvar"
+#include "seahorn/Transforms/Scalar/IkosIndVarSimplify.hh"
 
 #include "llvm/Transforms/Scalar.h"
 #include "llvm/ADT/DenseMap.h"
@@ -8,7 +9,7 @@
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/Type.h"
-#include "llvm/Support/CFG.h"
+#include "llvm/IR/CFG.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/raw_ostream.h"
@@ -175,10 +176,10 @@ void IkosIndVarSimplify::HandleFloatingPointIV(Loop *L, PHINode *PN) {
   if (!Compare)
     Compare = dyn_cast<FCmpInst>(U2);
   if (Compare == 0 || !Compare->hasOneUse() ||
-      !isa<BranchInst>(Compare->use_back()))
+      !isa<BranchInst>(Compare->user_back()))
     return;
 
-  BranchInst *TheBr = cast<BranchInst>(Compare->use_back());
+  BranchInst *TheBr = cast<BranchInst>(Compare->user_back());
 
   // We need to verify that the branch actually controls the iteration count
   // of the loop.  If not, the new IV can overflow and no one will notice.
@@ -889,7 +890,7 @@ void WidenIV::pushNarrowIVUsers(Instruction *NarrowDef, Instruction *WideDef) {
     Instruction *NarrowUse = cast<Instruction>(*UI);
 
     // Handle data flow merges and bizarre phi cycles.
-    if (!Widened.insert(NarrowUse))
+    if (!Widened.insert(NarrowUse).second)
       continue;
 
     NarrowIVUsers.push_back(NarrowIVDefUse(NarrowDef, NarrowUse, WideDef));
@@ -1040,7 +1041,7 @@ void IkosIndVarSimplify::SimplifyAndExtend(Loop *L,
 static bool isHighCostExpansion(const SCEV *S, BranchInst *BI,
                                 SmallPtrSet<const SCEV*, 8> &Processed,
                                 ScalarEvolution *SE) {
-  if (!Processed.insert(S))
+  if (!Processed.insert(S).second)
     return false;
 
   // If the backedge-taken count is a UDiv, it's very likely a UDiv that
@@ -1231,7 +1232,7 @@ static bool hasConcreteDefImpl(Value *V, SmallPtrSet<Value*, 8> &Visited,
 
   // Optimistically handle other instructions.
   for (User::op_iterator OI = I->op_begin(), E = I->op_end(); OI != E; ++OI) {
-    if (!Visited.insert(*OI))
+    if (!Visited.insert(*OI).second)
       continue;
     if (!hasConcreteDefImpl(*OI, Visited, Depth+1))
       return false;
@@ -1594,7 +1595,7 @@ void IkosIndVarSimplify::SinkUnusedInvariants(Loop *L) {
     // Determine if there is a use in or before the loop (direct or
     // otherwise).
     bool UsedInLoop = false;
-    for (Value::use_iterator UI = I->use_begin(), UE = I->use_end();
+    for (Value::user_iterator UI = I->user_begin(), UE = I->user_end();
          UI != UE; ++UI) {
       User *U = *UI;
       BasicBlock *UseBB = cast<Instruction>(U)->getParent();
@@ -1654,8 +1655,10 @@ bool IkosIndVarSimplify::runOnLoop(Loop *L, LPPassManager &LPM)
 
   LI = &getAnalysis<LoopInfo>();
   SE = &getAnalysis<ScalarEvolution>();
-  DT = &getAnalysis<DominatorTree>();
-  TD = getAnalysisIfAvailable<DataLayout>();
+  DT = &getAnalysis<DominatorTreeWrapperPass>().getDomTree ();
+  DataLayoutPass *dlp = 
+  dlp = getAnalysisIfAvailable<DataLayoutPass>();
+  if (dlp) TD = &dlp->getDataLayout ();
   TLI = getAnalysisIfAvailable<TargetLibraryInfo>();
 
   DeadInsts.clear();

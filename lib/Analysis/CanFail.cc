@@ -1,5 +1,5 @@
 #include "seahorn/Analysis/CanFail.hh"
-#include "seahorn/Transforms/PromoteVerifierCalls.hh"
+#include "seahorn/Transforms/Scalar/PromoteVerifierCalls.hh"
 
 #include "llvm/Analysis/CallGraph.h"
 #include "llvm/ADT/SCCIterator.h"
@@ -28,7 +28,7 @@ namespace seahorn
     // -- no error function found at all
     if (m_must.empty ()) return false;
     
-    CallGraph &CG = getAnalysis<CallGraph> ();
+    CallGraph &CG = getAnalysis<CallGraphWrapperPass> ().getCallGraph ();
     for (auto it = scc_begin (&CG); !it.isAtEnd (); ++it)
     {
       auto &scc = *it;
@@ -62,8 +62,8 @@ namespace seahorn
   {
     AU.setPreservesAll ();
     AU.addRequired<PromoteVerifierCalls> ();
-    AU.addRequired<CallGraph> ();
-    AU.addPreserved<CallGraph> ();
+    AU.addRequired<CallGraphWrapperPass> ();
+    AU.addPreserved<CallGraphWrapperPass> ();
   }
 }
 

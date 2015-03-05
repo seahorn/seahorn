@@ -1,25 +1,25 @@
 #include "seahorn/HornifyModule.hh"
 
 
-#include "seahorn/SeahornMain.hpp"
 #include "ufo/Passes/NameValues.hpp"
 
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/Function.h"
 #include "llvm/Transforms/Utils/UnifyFunctionExitNodes.h"
-#include "llvm/Support/CFG.h"
+#include "llvm/IR/CFG.h"
 #include "llvm/Analysis/CFG.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Analysis/CallGraph.h"
 #include "llvm/ADT/SCCIterator.h"
-#include "seahorn/BoostLlvmGraphTraits.hh"
+#include "seahorn/Support/BoostLlvmGraphTraits.hh"
 
 #include "boost/range.hpp"
 #include "boost/scoped_ptr.hpp"
 
+#include "seahorn/Support/SortTopo.hh"
+
 #include "seahorn/SymStore.hh"
-#include "seahorn/SortTopo.hh"
 #include "seahorn/LiveSymbols.hh"
 
 #include "seahorn/Analysis/CutPointGraph.hh"
@@ -98,7 +98,7 @@ namespace seahorn
     ScopedStats _st ("HornifyModule");
 
     bool Changed = false;
-    m_td = &getAnalysis<DataLayout> ();
+    m_td = &getAnalysis<DataLayoutPass> ().getDataLayout ();
 
     m_sem.reset (new UfoSmallSymExec (m_efac, *this, TL));
 
@@ -143,10 +143,10 @@ namespace seahorn
     }
 
 
-    CallGraph &CG = getAnalysis<CallGraph> ();
+    CallGraph &CG = getAnalysis<CallGraphWrapperPass> ().getCallGraph ();
     for (auto it = scc_begin (&CG); !it.isAtEnd (); ++it)
     {
-      std::vector<CallGraphNode*> &scc = *it;
+      const std::vector<CallGraphNode*> &scc = *it;
       CallGraphNode *cgn = scc.front ();
       Function *f = cgn->getFunction ();
       if (it.hasLoop () || scc.size () > 1)
@@ -238,13 +238,13 @@ namespace seahorn
   void HornifyModule::getAnalysisUsage (llvm::AnalysisUsage &AU) const
   {
     AU.setPreservesAll ();
-    AU.addRequired<llvm::DataLayout>();
+    AU.addRequired<llvm::DataLayoutPass>();
 
     AU.addRequired<seahorn::CanFail> ();
     AU.addRequired<ufo::NameValues>();
 
-    AU.addRequired<llvm::CallGraph> ();
-    AU.addPreserved<llvm::CallGraph> ();
+    AU.addRequired<llvm::CallGraphWrapperPass> ();
+    AU.addPreserved<llvm::CallGraphWrapperPass> ();
 
     AU.addRequired<seahorn::TopologicalOrder>();
     AU.addRequired<seahorn::CutPointGraph>();

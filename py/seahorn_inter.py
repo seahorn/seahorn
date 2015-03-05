@@ -158,8 +158,8 @@ def getSeaPP ():
 
 def getClang ():
     clang = which ('clang-mp-3.4')
-    if clang is None: which ('clang-3.4')
-    if clang is None: which ('clang')
+    if clang is None: clang = which ('clang-3.4')
+    if clang is None: clang = which ('clang')
     if clang is None:
         raise IOError ("Cannot find clang")
     return clang

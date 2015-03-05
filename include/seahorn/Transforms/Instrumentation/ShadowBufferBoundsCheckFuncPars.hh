@@ -101,8 +101,8 @@ namespace seahorn
       
       assert (ShadowOff->hasOneUse ());
       assert (ShadowSize->hasOneUse ());
-      (*ShadowOff->use_begin  ())->setOperand(0, Offset);
-      (*ShadowSize->use_begin ())->setOperand(0, Size);
+      (*ShadowOff->user_begin  ())->setOperand(0, Offset);
+      (*ShadowSize->user_begin ())->setOperand(0, Size);
       return true;
     }
      

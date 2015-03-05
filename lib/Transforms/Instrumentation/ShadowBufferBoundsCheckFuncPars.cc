@@ -1,4 +1,4 @@
-#include "seahorn/Transforms/ShadowBufferBoundsCheckFuncPars.hh"
+#include "seahorn/Transforms/Instrumentation/ShadowBufferBoundsCheckFuncPars.hh"
 
 #include "seahorn/Analysis/CanAccessMemory.hh"
 #include "llvm/IR/IRBuilder.h"
@@ -6,8 +6,8 @@
 #include "llvm/Transforms/Utils/Cloning.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/ADT/SmallVector.h"
-#include "llvm/Support/InstIterator.h"
-#include "llvm/Support/CallSite.h"
+#include "llvm/IR/InstIterator.h"
+#include "llvm/IR/CallSite.h"
 
 #include "avy/AvyDebug.h"
 
@@ -208,7 +208,7 @@ namespace seahorn
     while (!F->use_empty ())
     {
       // here we know all uses are call instructions
-      CallSite CS (cast<Value>(F->use_back ()));
+      CallSite CS (cast<Value>(F->user_back ()));
 
       Instruction *Call = CS.getInstruction ();
       // Copy the existing arguments

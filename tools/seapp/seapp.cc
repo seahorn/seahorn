@@ -20,24 +20,26 @@
 #include "llvm/Support/SourceMgr.h"
 #include "llvm/Support/ToolOutputFile.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/Support/FileSystem.h"
 
 #include "llvm/Transforms/IPO.h"
 #include "llvm/Bitcode/ReaderWriter.h"
+#include "llvm/Bitcode/BitcodeWriterPass.h"
 
-#include "llvm/Analysis/Verifier.h"
+#include "llvm/IR/Verifier.h"
 
 #include "seahorn/Passes.hh"
 
-#include "seahorn/Transforms/PromoteVerifierCalls.hh"
-#include "seahorn/Transforms/RemoveUnreachableBlocksPass.hh"
-#include "seahorn/Transforms/LowerGvInitializers.hh"
+#include "seahorn/Transforms/Scalar/PromoteVerifierCalls.hh"
+#include "seahorn/Transforms/Utils/RemoveUnreachableBlocksPass.hh"
+#include "seahorn/Transforms/Scalar/LowerGvInitializers.hh"
 
 #include "seahorn/Analysis/CanAccessMemory.hh"
-#include "seahorn/Transforms/LowerCstExpr.hh"
-#include "seahorn/Transforms/ShadowBufferBoundsCheckFuncPars.hh"
-#include "seahorn/Transforms/BufferBoundsCheck.hh"
-#include "seahorn/Transforms/IntegerOverflowCheck.hh"
-#include "seahorn/Transforms/MixedSemantics.hh"
+#include "seahorn/Transforms/Scalar/LowerCstExpr.hh"
+#include "seahorn/Transforms/Instrumentation/ShadowBufferBoundsCheckFuncPars.hh"
+#include "seahorn/Transforms/Instrumentation/BufferBoundsCheck.hh"
+#include "seahorn/Transforms/Instrumentation/IntegerOverflowCheck.hh"
+#include "seahorn/Transforms/Instrumentation/MixedSemantics.hh"
 //#include "seahorn/Transforms/IkosIndVarSimplify.hh"
 
 #include "ufo/Smt/EZ3.hh"
@@ -112,15 +114,14 @@ int main(int argc, char **argv) {
   llvm::PrettyStackTraceProgram PSTP(argc, argv);
   llvm::EnableDebugBuffering = true;
 
-  std::string error_msg;
+  std::error_code error_code;
   llvm::SMDiagnostic err;
   llvm::LLVMContext &context = llvm::getGlobalContext();
-  llvm::OwningPtr<llvm::Module> module;
-  llvm::OwningPtr<llvm::tool_output_file> output;
+  std::unique_ptr<llvm::Module> module;
+  std::unique_ptr<llvm::tool_output_file> output;
   
-
-  module.reset(llvm::ParseIRFile(InputFilename, err, context));
-  if (module.get() == 0)
+  module = llvm::parseIRFile(InputFilename, err, context);
+  if (!module)
   {
     if (llvm::errs().has_colors()) llvm::errs().changeColor(llvm::raw_ostream::RED);
     llvm::errs() << "error: "
@@ -130,11 +131,13 @@ int main(int argc, char **argv) {
   }
 
   if (!OutputFilename.empty ())
-    output.reset(new llvm::tool_output_file(OutputFilename.c_str(), error_msg));
-  
-  if (!error_msg.empty()) {
+    output = llvm::make_unique<llvm::tool_output_file>
+      (OutputFilename.c_str(), error_code, llvm::sys::fs::F_None);
+      
+  if (error_code) {
     if (llvm::errs().has_colors()) llvm::errs().changeColor(llvm::raw_ostream::RED);
-    llvm::errs() << "error: " << error_msg << "\n";
+    llvm::errs() << "error: Could not open " << OutputFilename << ": " 
+                 << error_code.message () << "\n";
     if (llvm::errs().has_colors()) llvm::errs().resetColor();
     return 3;
   }
@@ -151,13 +154,13 @@ int main(int argc, char **argv) {
   llvm::initializeIPA (Registry);
   
   // add an appropriate DataLayout instance for the module
-  llvm::DataLayout *dl = 0;
-  const std::string &moduleDataLayout = module.get()->getDataLayout();
-  if (!moduleDataLayout.empty())
-    dl = new llvm::DataLayout(moduleDataLayout);
-  else if (!DefaultDataLayout.empty())
-    dl = new llvm::DataLayout(moduleDataLayout);
-  if (dl) pass_manager.add(dl);
+  const llvm::DataLayout *dl = module->getDataLayout ();
+  if (!dl && !DefaultDataLayout.empty ())
+  {
+    module->setDataLayout (DefaultDataLayout);
+    dl = module->getDataLayout ();
+  }
+  if (dl) pass_manager.add (new llvm::DataLayoutPass ());
 
   // -- promote verifier specific functions to special names
   pass_manager.add (new seahorn::PromoteVerifierCalls ());
@@ -176,7 +179,7 @@ int main(int argc, char **argv) {
   pass_manager.add (seahorn::createNondetInitPass ());
   
   // -- cleanup after SSA
-  pass_manager.add (llvm::createInstructionCombiningPass ());
+  pass_manager.add (seahorn::createInstCombine ());
   pass_manager.add (llvm::createCFGSimplificationPass ());
   
   // -- break aggregates
@@ -189,7 +192,7 @@ int main(int argc, char **argv) {
   pass_manager.add (seahorn::createNondetInitPass ());
   
   // -- cleanup after break aggregates
-  pass_manager.add (llvm::createInstructionCombiningPass ());
+  pass_manager.add (seahorn::createInstCombine ());
   pass_manager.add (llvm::createCFGSimplificationPass ());
   
   // eliminate unused calls to verifier.nondet() functions
@@ -247,7 +250,7 @@ int main(int argc, char **argv) {
   if (!OutputFilename.empty ()) 
   {
     if (OutputAssembly)
-      pass_manager.add (createPrintModulePass (&output->os ()));
+      pass_manager.add (createPrintModulePass (output->os ()));
     else 
       pass_manager.add (createBitcodeWriterPass (output->os ()));
   }

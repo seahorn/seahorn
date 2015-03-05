@@ -8,8 +8,10 @@ An LLVM based verification framework.
 
 #Compilation#
 
+* ```cd seahorn```
 * (optional) download [dsa-seahorn](https://github.com/seahorn/dsa-seahorn): ``` git clone https://github.com/seahorn/dsa-seahorn.git ```
 * (optional) download [ikos-llvm](https://github.com/seahorn/ikos-llvm): ``` git clone https://github.com/seahorn/ikos-llvm.git```
+* (optional) download [llvm-seahorn](https://github.com/seahorn/llvm-seahorn): ``` git clone https://github.com/seahorn/llvm-seahorn.git```
 * ``` mkdir build ```
 * ``` cd build ```
 * ``` cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=run ../ ``` 

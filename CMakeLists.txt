@@ -12,6 +12,10 @@ include (CTest)
 list (APPEND CMAKE_MODULE_PATH
   "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 
+include_directories(
+  ${CMAKE_CURRENT_SOURCE_DIR}/include
+  ${CMAKE_CURRENT_BINARY_DIR}/include)
+
 option (SEAHORN_STATIC_EXE "Static executable." OFF)
 
 set (CUSTOM_BOOST_ROOT "" CACHE PATH "Path to custom boost installation.")
@@ -142,10 +146,6 @@ if (IS_DIRECTORY ${CMAKE_SOURCE_DIR}/ikos-llvm AND
     include_directories (${IKOS_INCLUDE_DIR})
   endif()
 endif()
-
-include_directories(
-  ${CMAKE_CURRENT_SOURCE_DIR}/include
-  ${CMAKE_CURRENT_BINARY_DIR}/include)
 
 install(DIRECTORY include/
   DESTINATION include

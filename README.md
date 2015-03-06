@@ -12,7 +12,7 @@ An LLVM based verification framework.
 * `cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=run ../ `
 * (optional) `cmake --build . --target extra` to download extra packages
 * `cmake --build .` to build dependencies (Z3 and LLVM)
-* `cmake --build .` to build extra packages (llvm-ikos)
+* (optional) `cmake --build .` to build extra packages (llvm-ikos)
 * `cmake --build .` to build seahorn
 * `cmake --build . --target install` to install everything in `run` directory
 

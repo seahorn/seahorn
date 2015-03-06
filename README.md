@@ -19,9 +19,9 @@ An LLVM based verification framework.
 SeaHorn and dependencies are installed in `build/run`
 
 Optional components can be installed individually as well:
-* (optional) download [dsa-seahorn](https://github.com/seahorn/dsa-seahorn): ``` git clone https://github.com/seahorn/dsa-seahorn.git ```
-* (optional) download [ikos-llvm](https://github.com/seahorn/ikos-llvm): ``` git clone https://github.com/seahorn/ikos-llvm.git```
-* (optional) download [llvm-seahorn](https://github.com/seahorn/llvm-seahorn): ``` git clone https://github.com/seahorn/llvm-seahorn.git```
+* [dsa-seahorn](https://github.com/seahorn/dsa-seahorn): ``` git clone https://github.com/seahorn/dsa-seahorn.git ```
+* [ikos-llvm](https://github.com/seahorn/ikos-llvm): ``` git clone https://github.com/seahorn/ikos-llvm.git```
+* [llvm-seahorn](https://github.com/seahorn/llvm-seahorn): ``` git clone https://github.com/seahorn/llvm-seahorn.git```
 
 Note that both [dsa-seahorn](https://github.com/seahorn/dsa-seahorn)
 and [ikos-llvm](https://github.com/seahorn/ikos-llvm) are

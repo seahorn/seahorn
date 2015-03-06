@@ -34,10 +34,11 @@ namespace seahorn
   bool HornWrite::runOnModule (Module &M)
   {
     HornifyModule &hm = getAnalysis<HornifyModule> ();
-    HornClauseDB &db = hm.getHornClauseDB ();
+    HornClauseDB &db  = hm.getHornClauseDB ();
     if (HornClauseFormat == CLP)
     {
-      ClpHornify writer (db);
+      ExprFactory &efac = hm.getExprFactory ();
+      ClpHornify writer (db, efac);
       m_out << writer.toString ();
     }
     else 

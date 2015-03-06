@@ -10,58 +10,40 @@ namespace seahorn
   using namespace std;
   using namespace llvm;
 
+  class ClpRule
+  {
+    Expr m_head;
+    Expr m_body;
+    ExprFactory &m_efac;
+    
+   public:
+    
+    ClpRule (Expr head, ExprFactory &efac): 
+        m_head (head), m_efac (efac) { }
+
+    ClpRule (Expr head, Expr body, ExprFactory &efac): 
+        m_head (head), m_body (body), m_efac (efac) { }
+    
+    void addBody (Expr body) { m_body = body; }
+    
+    bool isFact () const { return !m_body; }
+      
+    void normalize ();
+
+    void print (ostream &o) const;
+  };
+
   class ClpHornify 
   {
-    class ClpRule
-    {
-      Expr m_head;
-      vector<Expr> m_body;
-
-     public:
-
-      ClpRule (Expr head): m_head (head) { }
-      
-      void addBodyLiteral (Expr lit) { m_body.push_back (lit); }
-
-      bool isFact () const { return m_body.empty (); }
-      
-      void write (ostream &o) const
-      {        
-        assert (m_head);
-
-        if (isFact())
-        { o << *m_head << ".\n"; }
-        else
-        {
-          o << *m_head << " :- ";
-          for (auto it = m_body.begin (), et = m_body.end (); it!=et;  )
-          {
-            Expr e = *it;
-            o << "\n\t" << *e;
-            ++it;
-            if (it != et)
-              o << ","; 
-          }
-          o << ".\n";
-        }
-      }
-
-      friend ostream& operator<< (ostream &o, const ClpRule &r) 
-      {
-        r.write (o);
-        return o;
-      }
-    };
-
     Expr m_query;
     vector<ClpRule> m_rules;
+    ExprFactory &m_efac;
 
    public:
 
-    ClpHornify (HornClauseDB &db);
+    ClpHornify (HornClauseDB &db, ExprFactory &efac);
 
     string toString () const;
-
   };
 }
 

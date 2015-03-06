@@ -12,6 +12,26 @@ include (CTest)
 list (APPEND CMAKE_MODULE_PATH
   "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 
+find_package (Git)
+if (GIT_FOUND)
+  set (SEAHORN_LLVM_REPO "https://github.com/seahorn/llvm-seahorn"
+    CACHE STRING "seahorn-llvm repo")
+  set (DSA_SEAHORN_REPO "https://github.com/seahorn/dsa-seahorn"
+    CACHE STRING "dsa-seahorn repo")
+  set (IKOS_LLVM_REPO "https://github.com/seahorn/ikos-llvm"
+    CACHE STRING "ikos-llvm repo")
+  add_custom_target (seahorn-llvm-git
+    ${GIT_EXECUTABLE} clone ${SEAHORN_LLVM_REPO} ${CMAKE_SOURCE_DIR}/seahorn-llvm)
+   add_custom_target (dsa-seahorn-git
+    ${GIT_EXECUTABLE} clone ${DSA_SEAHORN_REPO} ${CMAKE_SOURCE_DIR}/dsa-seahorn)
+   add_custom_target (ikos-llvm-git
+    ${GIT_EXECUTABLE} clone ${IKOS_LLVM_REPO} ${CMAKE_SOURCE_DIR}/ikos-llvm)
+
+  add_custom_target (extra DEPENDS seahorn-llvm-git dsa-seahorn-git ikos-llvm-git)
+else()
+  message (STATUS "Could not find git. Not adding 'extra' target.")
+endif()
+
 include_directories(
   ${CMAKE_CURRENT_SOURCE_DIR}/include
   ${CMAKE_CURRENT_BINARY_DIR}/include)

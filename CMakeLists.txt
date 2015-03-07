@@ -1,5 +1,15 @@
 cmake_minimum_required(VERSION 2.8.11)
 
+project (SeaHorn)
+set (SeaHorn_VERSION_MAJOR 1)
+set (SeaHorn_VERSION_MINOR 0)
+set (SeaHorn_VERSION_PATCH 0)
+
+if (NOT PACKAGE_VERSION)
+  set(PACKAGE_VERSION "${SeaHorn_VERSION_MAJOR}.${SeaHorn_VERSION_MINOR}.${SeaHorn_VERSION_PATCH}")
+endif()
+
+
 if (CMAKE_SOURCE_DIR STREQUAL CMAKE_BINARY_DIR )
   message (FATAL_ERROR
     "In-source builds are not allowed. Please clean your source tree and try again.")
@@ -135,8 +145,29 @@ else()
   include_directories(${LLVM_INCLUDE_DIRS})
   link_directories(${LLVM_LIBRARY_DIRS})
   add_definitions(${LLVM_DEFINITIONS})
+
 endif()
 
+set (PACKAGE_NAME SeaHorn)
+set(PACKAGE_STRING "${PACKAGE_NAME} ${PACKAGE_VERSION}")
+
+# Configure CPack.
+set(CPACK_PACKAGE_INSTALL_DIRECTORY "SeaHorn")
+set(CPACK_PACKAGE_VENDOR "SeaHorn")
+set(CPACK_PACKAGE_VERSION_MAJOR ${SeaHorn_VERSION_MAJOR})
+set(CPACK_PACKAGE_VERSION_MINOR ${SeaHorn_VERSION_MINOR})
+set(CPACK_PACKAGE_VERSION_PATCH ${SeaHorn_VERSION_PATCH})
+set(CPACK_PACKAGE_VERSION ${PACKAGE_VERSION})
+set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_CURRENT_SOURCE_DIR}/license.txt")
+if(WIN32 AND NOT UNIX)
+  set(CPACK_NSIS_MODIFY_PATH "ON")
+  set(CPACK_NSIS_ENABLE_UNINSTALL_BEFORE_INSTALL "ON")
+  set(CPACK_NSIS_EXTRA_INSTALL_COMMANDS
+    "ExecWait '$INSTDIR/tools/msbuild/install.bat'")
+  set(CPACK_NSIS_EXTRA_UNINSTALL_COMMANDS
+    "ExecWait '$INSTDIR/tools/msbuild/uninstall.bat'")
+endif()
+include(CPack)
 
 
 # check for rt lib. Not needed on OSX.

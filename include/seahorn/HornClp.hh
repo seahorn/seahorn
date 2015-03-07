@@ -35,7 +35,6 @@ namespace seahorn
 
   class ClpHornify 
   {
-    Expr m_query;
     vector<ClpRule> m_rules;
     ExprFactory &m_efac;
 

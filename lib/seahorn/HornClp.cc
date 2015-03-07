@@ -1,5 +1,6 @@
 #include "seahorn/HornClp.hh"
 #include "llvm/Support/CommandLine.h"
+#include "boost/algorithm/string/replace.hpp"
 
 namespace seahorn
 {
@@ -17,16 +18,36 @@ namespace seahorn
     }
   };
 
+  
   template <typename M>    
   struct ExprNormalizer
   {
+    static Expr negate (Expr e, ExprFactory &efac)
+    {
+      if (isOpX<TRUE>(e))
+        return mk<FALSE>(efac);
+      else if (isOpX<FALSE>(e))
+        return mk<TRUE>(efac);
+      else if (isOpX<EQ>(e))
+        return mk<NEQ>(e->left (), e->right ());
+      else if (isOpX<NEQ>(e))
+        return mk<EQ>(e->left (), e->right ());
+      else if (isOpX<LEQ>(e))
+        return mk<GT>(e->left (), e->right ());
+      else if (isOpX<GEQ>(e))
+        return mk<LT>(e->left (), e->right ());
+      else if (isOpX<LT>(e))
+        return mk<GEQ>(e->left (), e->right ());
+      else if (isOpX<GT>(e))
+        return mk<LEQ>(e->left (), e->right ());
+      return NULL;
+    }
+
     template <typename C>
     static Expr normalize (Expr e, ExprFactory &efac, C &cache, expr_expr_map &seen)
     {
       assert (e);
 
-      if (isOpX<AND>(e))  return e;
-      
       if (isOpX<TRUE>(e) || isOpX<FALSE>(e))  return e;
       
       /** check the cache */
@@ -47,9 +68,11 @@ namespace seahorn
       else if (isOpX<MPZ>(e)) { res = e; }
       else if (isOpX<MPQ>(e))
       { return M::normalize (e, efac, cache, seen); }
-      else if (bind::isBoolVar (e) || (bind::isIntVar (e) || bind::isIntConst(e) )) 
+      else if (bind::isBoolConst (e))
       { res = e; }
-      else if (bind::isRealVar (e) || bind::isRealConst(e))
+      else if (bind::isIntConst(e) ) 
+      { res = e; }
+      else if (bind::isRealConst(e))
       { return M::normalize (e, efac, cache, seen); }
       // we don't need to normalize arguments 
       else if (bind::isFapp (e)) { res = e; } 
@@ -71,7 +94,11 @@ namespace seahorn
         if (isOpX<UN_MINUS>(e))
         { res = mk<UN_MINUS> (normalize (e->left(), efac, cache, seen)); }
         else if (isOpX<NEG>(e))
-        { res = op::boolop::lneg (normalize (e->left(), efac, cache, seen)); }
+        {
+          Expr e1 = normalize (e->left(), efac, cache, seen);
+          res = negate (e1, efac); 
+          if (!res) res = op::boolop::lneg (e1);
+        }
         else 
           return M::normalize (e, efac, cache, seen);
       }
@@ -89,11 +116,7 @@ namespace seahorn
         else if (isOpX<IMPL>(e))
         { return M::normalize (e, efac, cache, seen); }
         else if (isOpX<IFF>(e))
-        { 
-          res = op::boolop::lor (op::boolop::land (op::boolop::lneg (t1), 
-                                                   op::boolop::lneg (t2)), 
-                                 op::boolop::land (t1,t2)); 
-        }
+        { return M::normalize (e, efac, cache, seen); }
         else if (isOpX<XOR>(e))
         { return M::normalize (e, efac, cache, seen); }
         /** NumericOp */
@@ -175,7 +198,15 @@ namespace seahorn
    public:
 
     ExprStr () {} ;
-    ExprStr (string s): m_s (s) {} 
+    ExprStr (string s, bool isVar=false): m_s (s) 
+    {
+      boost::replace_all(m_s, "%", "");
+      boost::replace_all(m_s, "@", "_");
+      boost::replace_all(m_s, ".", "_");
+
+      if (isVar && !m_s.empty ())
+        m_s [0] = std::toupper(m_s [0]);
+    } 
 
     static ExprStr True ()  { return ExprStr ("true"); }
     static ExprStr False () { return ExprStr ("false"); }
@@ -198,7 +229,7 @@ namespace seahorn
     ExprStr  operator-()
     { return ExprStr ("-(" + m_s + ")"); }
     ExprStr  operator~()
-    { return ExprStr ("!(" + m_s + ")"); }
+    { return ExprStr ("\\+(" + m_s + ")"); }
     ExprStr  operator&&(ExprStr e)
     { return ExprStr ("(" + m_s + "," + e.m_s + ")"); }
     ExprStr  operator||(ExprStr e)
@@ -245,6 +276,8 @@ namespace seahorn
   template <typename M>    
   struct ExprPrettyPrinter
   {
+
+
     template <typename C>
     static ExprStr print (Expr e, ExprFactory &efac, C &cache, expr_str_map &seen)
     {
@@ -273,37 +306,39 @@ namespace seahorn
       }
       else if (isOpX<MPQ>(e))
       { return M::print (e, efac, cache, seen); }
-      else if (bind::isBoolVar (e))
+      else if (bind::isBoolConst (e))
       {
-        Expr t = bind::name (e);    
-        // -- for variables with string names, use the names
-        if (isOpX<STRING> (t))
-          res = ExprStr (getTerm<std::string> (t));
-        else // -- for non-string named variables use address
-          res = ExprStr ("E" + boost::lexical_cast<std::string,void*> (t.get()));
+        ENode *fname = *(e->args_begin());
+        if (isOpX<FDECL> (fname)) 
+          fname = fname->arg (0);
+        res = ExprStr (boost::lexical_cast<std::string> (fname));
       }
-      else if (bind::isIntVar (e) || bind::isIntConst (e) )
+      else if (bind::isIntConst (e) )
       {
         Expr name = bind::name (e);
         std::string sname;
         if (isOpX<STRING> (name)) 
-        {  res = ExprStr (getTerm<std::string> (name)); }
+        {  res = ExprStr (getTerm<std::string> (name), 
+                          (bind::isIntVar ? true : false)); }
         else 
         {
           ENode *fname = *(e->args_begin());
-          if (isOpX<FDECL> (fname)) fname = fname->arg (0);
-          res = ExprStr (boost::lexical_cast<std::string> (fname));              
-          // -- for non-string named variables use address
-          //res = "I" + lexical_cast<std::string,void*> (name.get ());
+          if (isOpX<FDECL> (fname)) fname = fname->arg (0);         
+          res = ExprStr (boost::lexical_cast<std::string> (fname), 
+                         (bind::isIntVar ? true : false));              
         }
       }
-      else if (bind::isRealVar (e) || bind::isRealConst (e))
+      else if (bind::isRealConst (e))
       { return M::print (e, efac, cache, seen); }
       else if (bind::isFapp (e))
       {
+        
         ENode *fname = *(e->args_begin());
-        if (isOpX<FDECL> (fname)) fname = fname->arg (0);
-        string fapp = boost::lexical_cast<std::string> (fname);              
+        if (isOpX<FDECL> (fname)) 
+          fname = fname->arg (0);
+
+        //string fapp = "'" + boost::lexical_cast<std::string> (fname) + "'";              
+        string fapp = boost::lexical_cast<std::string> (fname) ;              
         ENode::args_iterator it = ++ (e->args_begin ());
         ENode::args_iterator end = e->args_end ();
         if (it != end)
@@ -355,7 +390,7 @@ namespace seahorn
         else if (isOpX<IMPL>(e))
         { return M::print (e, efac, cache, seen); }
         else if (isOpX<IFF>(e))
-        { res = (~s1 && ~s2) || (s1 && s2); }
+        { return M::print (e, efac, cache, seen); }
         else if (isOpX<XOR>(e))
         { return M::print (e, efac, cache, seen); }
         /** NumericOp */
@@ -442,13 +477,13 @@ namespace seahorn
   }    
 
   ClpHornify::ClpHornify (HornClauseDB &db, ExprFactory &efac): 
-      m_query (db.getQuery ()), m_efac (efac)
+      m_efac (efac)
   { 
-    // TODO:
-    // - Remove operator!
-    // - All variables must start with uppercase or '_'
-    // - All fapp names either start with lowercase or anything
-    //   enclose between single quotes ' '.
+
+    // Added false <- query as another rule
+    ClpRule query (mk<FALSE> (m_efac) , m_efac);
+    query.addBody (db.getQuery ());
+    m_rules.push_back (query);
 
     for (auto & rule : db.getRules ())
     {
@@ -476,13 +511,8 @@ namespace seahorn
   string ClpHornify::toString () const
   {
     std::ostringstream oss;
-
-    oss << "false :- " 
-        << *m_query << ".\n";
-
     for (auto &rule : m_rules)
     { rule.print (oss); }
-
     return oss.str ();
   }
 }

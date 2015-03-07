@@ -6,6 +6,9 @@
 
 An LLVM based verification framework.
 
+#License#
+SeaHorn is distributed under a modified BSD license. See [license.txt](license.txt) for details.
+
 #Compilation#
 
 * `cd seahorn ; mkdir build ; cd build`

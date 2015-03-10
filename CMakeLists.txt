@@ -31,7 +31,7 @@ if (GIT_FOUND)
   set (IKOS_LLVM_REPO "https://github.com/seahorn/ikos-llvm"
     CACHE STRING "ikos-llvm repo")
   add_custom_target (seahorn-llvm-git
-    ${GIT_EXECUTABLE} clone ${SEAHORN_LLVM_REPO} ${CMAKE_SOURCE_DIR}/seahorn-llvm)
+    ${GIT_EXECUTABLE} clone ${SEAHORN_LLVM_REPO} ${CMAKE_SOURCE_DIR}/llvm-seahorn)
    add_custom_target (dsa-seahorn-git
     ${GIT_EXECUTABLE} clone ${DSA_SEAHORN_REPO} ${CMAKE_SOURCE_DIR}/dsa-seahorn)
    add_custom_target (ikos-llvm-git

@@ -15,6 +15,16 @@ namespace seahorn
   using namespace llvm;
   using namespace expr;
 
+  /// degree of precision of symbolic execution
+  enum TrackLevel {
+    /// numeric registers only
+    REG, 
+    /// registers and pointer addresses (but not content)
+    PTR, 
+    /// memory content
+    MEM
+  };
+  
   class SmallStepSymExec;
   
   /// Information about a function for VC-generation

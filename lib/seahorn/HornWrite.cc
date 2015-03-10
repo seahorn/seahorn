@@ -35,33 +35,35 @@ namespace seahorn
   {
     HornifyModule &hm = getAnalysis<HornifyModule> ();
     HornClauseDB &db  = hm.getHornClauseDB ();
+    ExprFactory &efac = hm.getExprFactory ();
+
     if (HornClauseFormat == CLP)
     {
-      ExprFactory &efac = hm.getExprFactory ();
       ClpHornify writer (db, efac);
       m_out << writer.toString ();
     }
     else 
     {
-      // FIXME: when HornWrite is called hm.getZFixedPoint () is still
-      // empty because the content of HornClauseDB is not loaded until
-      // HornSolver is called.
+      // We use ZFixedPoint to translate to SMT2. 
+      //
+      // When HornWrite is called hm.getZFixedPoint () might be still
+      // empty so we need to dump first the content of HornClauseDB
+      // into fp.
       ZFixedPoint<EZ3> fp (hm.getZContext ());
       {
         for (auto &p: db.getRelations ())
-        { 
-          fp.registerRelation (p); 
-          fp.addCover (p, db.getConstraints (p)); 
-        }
+        { fp.registerRelation (p); }
+
         for (auto &r: db.getRules ())
         { fp.addRule (r.vars (), r.body ()); }
+
         fp.addQuery (db.getQuery ());
       }
 
       if (InternalWriter)
-        m_out << fp /*hm.getZFixedPoint ()*/ << "\n";
+        m_out << fp << "\n";
       else
-        m_out << fp.toString () /*hm.getZFixedPoint ().toString ()*/ << "\n";
+        m_out << fp.toString () << "\n";
     }
     
     m_out.flush ();

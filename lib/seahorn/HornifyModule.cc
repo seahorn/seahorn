@@ -65,6 +65,11 @@ Step("horn-step",
      cl::init (hm_detail::SMALL_STEP));
 
 static llvm::cl::opt<bool>
+ClpSem("horn-clp-sem",
+           llvm::cl::desc ("Use CLP-based semantics for the encoding"),
+           cl::init (false));
+
+static llvm::cl::opt<bool>
 InterProc("horn-inter-proc",
           llvm::cl::desc ("Use inter-procedural encoding"),
           cl::init (false));
@@ -100,7 +105,10 @@ namespace seahorn
     bool Changed = false;
     m_td = &getAnalysis<DataLayoutPass> ().getDataLayout ();
 
-    m_sem.reset (new UfoSmallSymExec (m_efac, *this, TL));
+    if (ClpSem)
+      m_sem.reset (new ClpSmallSymExec (m_efac, *this, TL));
+    else
+      m_sem.reset (new UfoSmallSymExec (m_efac, *this, TL));
 
     // create FunctionInfo for verifier.error() function
     if (Function* errorFn = M.getFunction ("verifier.error"))

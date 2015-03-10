@@ -1,4 +1,8 @@
 /// Symbolic execution based on semantics used in CLP
+///
+/// Most variables are integer except errorFlag and variables
+/// originated from basic blocks which are Boolean. This semantics also
+/// tries to minimize the number of auxiliary variables.
 
 #include "llvm/IR/GetElementPtrTypeIterator.h"
 
@@ -24,6 +28,7 @@ namespace
     
     Expr trueE;
     Expr falseE;
+    Expr zero;
     
     /// -- current read memory
     Expr m_inMem;
@@ -36,8 +41,9 @@ namespace
     SymExecBase (SymStore &s, ClpSmallSymExec &sem, ExprVector &side) : 
       m_s(s), m_efac (m_s.getExprFactory ()), m_sem (sem), m_side (side) 
     {
-      trueE = mk<TRUE> (m_efac);
+      trueE  = mk<TRUE> (m_efac);
       falseE = mk<FALSE> (m_efac);
+      zero   = mkTerm<mpz_class> (0, m_efac);
       // -- first two arguments are reserved for error flag
       m_fparams.push_back (falseE);
       m_fparams.push_back (falseE);
@@ -46,15 +52,58 @@ namespace
     Expr symb (const Value &I) {return m_sem.symb (I);}
     
     Expr read (const Value &v)
-    {
-      return m_sem.isTracked (v) ? m_s.read (symb (v)) : Expr (0);
-    }
+    { return m_sem.isTracked (v) ? m_s.read (symb (v)) : Expr (0); }
 
     Expr lookup (const Value &v) {return m_sem.lookup (m_s, v);}
+
     Expr havoc (const Value &v) 
     {return m_sem.isTracked (v) ? m_s.havoc (symb (v)) : Expr (0);}
+
     void write (const Value &v, Expr val) 
     { if (m_sem.isTracked (v)) m_s.write (symb (v), val); }
+
+    Expr negate_rec (Expr e) 
+    {
+      // pre: e is in nnf.
+
+      if (isOpX<TRUE>(e))  return mk<FALSE>(m_efac);
+      if (isOpX<FALSE>(e)) return mk<TRUE>(m_efac);
+
+      if (isOpX<EQ>(e))
+        return mk<OR> (mk<LT>(e->left (), e->right ()), 
+                       mk<GT>(e->left (), e->right ()));
+      else if (isOpX<NEQ>(e))
+        return mk<EQ>(e->left (), e->right ());
+      else if (isOpX<LEQ>(e))
+        return mk<GT>(e->left (), e->right ());
+      else if (isOpX<GEQ>(e))
+        return mk<LT>(e->left (), e->right ());
+      else if (isOpX<LT>(e))
+        return mk<GEQ>(e->left (), e->right ());
+      else if (isOpX<GT>(e))
+        return mk<LEQ>(e->left (), e->right ());
+      else if (isOpX<AND>(e))
+      {
+        Expr e1 = negate_rec (e->left ());
+        Expr e2 = negate_rec (e->right ());
+        return mk<AND>(e1, e2);
+      }
+      else if (isOpX<OR>(e))
+      {
+        Expr e1 = negate_rec (e->left ());
+        Expr e2 = negate_rec (e->right ());
+        return mk<OR>(e1, e2);
+      }
+
+      //std::cout << "Cannot negate: " << *e << "\n";
+      //assert (false && "negate: unreachable");
+      return mk<NEG> (e);
+    }
+
+    // returned expression is equivalent to mk<NEG> (e)
+    Expr negate (Expr e)
+    { return negate_rec (op::boolop::nnf (e)); }
+
   };
   
   struct SymExecVisitor : public InstVisitor<SymExecVisitor>, 
@@ -87,39 +136,31 @@ namespace
       switch (I.getPredicate ())
       {
       case CmpInst::ICMP_EQ:
-        //res = mk<IFF>(lhs, mk<EQ>(op0,op1));
-        res = mk<EQ>(op0,op1);
+        res = mk<EQ>(op0,op1); 
         break;
       case CmpInst::ICMP_NE:
-        //res = mk<IFF>(lhs, mk<NEQ>(op0,op1));
         res = mk<NEQ>(op0,op1);
         break;
       case CmpInst::ICMP_UGT:
       case CmpInst::ICMP_SGT:
-        //res = mk<IFF>(lhs,mk<GT>(op0,op1));
-        res = mk<GT>(op0,op1);
+        res = mk<GT>(op0,op1); 
         break;
       case CmpInst::ICMP_UGE:
       case CmpInst::ICMP_SGE:
-        //res = mk<IFF>(lhs,mk<GEQ>(op0,op1));
         res = mk<GEQ>(op0,op1);
         break;
       case CmpInst::ICMP_ULT:
-      case CmpInst::ICMP_SLT:
-        //res = mk<IFF>(lhs,mk<LT>(op0,op1));
-        res = mk<LT>(op0,op1);
+      case CmpInst::ICMP_SLT:        
+        res = mk<LT>(op0,op1); 
         break; 
       case CmpInst::ICMP_ULE:
       case CmpInst::ICMP_SLE:
-        //res = mk<IFF>(lhs,mk<LEQ>(op0,op1));
         res = mk<LEQ>(op0,op1);
         break;
       default:
         break;
-      }       
-      
-      //if (res) m_side.push_back (res);
-      if (res) write (I, res);
+      }             
+      if (res) write (I, res); 
     }
     
     void visitSelectInst(SelectInst &I)
@@ -130,10 +171,13 @@ namespace
       Expr cond = lookup (*I.getCondition ());
       Expr op0 = lookup (*I.getTrueValue ());
       Expr op1 = lookup (*I.getFalseValue ());
-     
+
+      
       if (cond && op0 && op1)
-        //m_side.push_back (mk<EQ> (lhs, mk<ITE> (cond, op0, op1)));
-      { write (I, mk<ITE> (cond, op0, op1)); }
+      { 
+        m_side.push_back (mk<OR> (mk<AND> (cond, mk<EQ>(lhs, op0)), 
+                                  mk<AND> (negate (cond), mk<EQ> (lhs, op1)))); 
+      }
     }
     
     void visitBinaryOperator(BinaryOperator &I)
@@ -182,25 +226,22 @@ namespace
       Expr res;
       
       switch(i.getOpcode())
-	{
-	case BinaryOperator::And:
-	  //res = mk<IFF>(lhs, mk<AND>(op0,op1));
-            res = mk<AND>(op0,op1);
+      {
+        case BinaryOperator::And:
+          res = boolop::land (op0,op1);
           break;
-	case BinaryOperator::Or:
-	  //res = mk<IFF>(lhs, mk<OR>(op0,op1));
-            res = mk<OR>(op0,op1);
+        case BinaryOperator::Or:
+          res = boolop::lor (op0,op1); 
           break;
         case BinaryOperator::Xor:
-            //res = mk<IFF>(lhs, mk<XOR>(op0,op1));
-            res = mk<XOR>(op0,op1);
+          res = boolop::lor (boolop::land (op0, negate (op1)), 
+                             boolop::land (negate (op0), op1));
           break;
         default:
           break;
-	}
-
-      //if (res) m_side.push_back (res);
-      if (res) write (i, res);
+      }
+      
+      if (res) write (i, res); 
     }
 
     Expr doLeftShift (Expr op1, const ConstantInt *op2)
@@ -227,22 +268,18 @@ namespace
       Expr res;
       switch(i.getOpcode())
       {
-        case BinaryOperator::Add:
-          //res = mk<EQ>(lhs ,mk<PLUS>(op1, op2));
-          res = mk<PLUS>(op1, op2);
+        case BinaryOperator::Add:          
+          res = mk<PLUS>(op1, op2); 
           break;
-        case BinaryOperator::Sub:
-          //res = mk<EQ>(lhs ,mk<MINUS>(op1, op2));
+        case BinaryOperator::Sub:          
           res = mk<MINUS>(op1, op2);
           break;
-        case BinaryOperator::Mul:
-          //res = mk<EQ>(lhs ,mk<MULT>(op1, op2));
-          res = mk<MULT>(op1, op2);
+        case BinaryOperator::Mul:          
+          res = mk<MULT>(op1, op2); 
           break;
         case BinaryOperator::SDiv:
-        case BinaryOperator::UDiv:
-          //res = mk<EQ>(lhs ,mk<DIV>(op1, op2));
-          res = mk<DIV>(op1, op2);
+        case BinaryOperator::UDiv:          
+          res = mk<DIV>(op1, op2);  
           break;
         case BinaryOperator::Shl:
           if (const ConstantInt *ci = dyn_cast<ConstantInt> (&v2))
@@ -253,9 +290,7 @@ namespace
         default:
           break;
       }
-
-      //if (res) m_side.push_back (res);
-      if (res) write (i, res);
+      if (res) write (i, res); 
     }
     
     void visitReturnInst (ReturnInst &I)
@@ -279,18 +314,8 @@ namespace
       Expr op0 = lookup (*I.getOperand (0));
       
       if (!op0) return;
-      if (I.getType ()->isIntegerTy (1))
-      {
-        Expr zero = mkTerm<mpz_class> (0, m_efac);
-        Expr one = mkTerm<mpz_class> (1, m_efac);
-      
-        // truncation to 1 bit amounts to 'is_even' predicate.
-        // We handle the two most common cases: 0 -> false, 1 -> true
-        m_side.push_back (mk<IMPL> (mk<EQ> (op0, zero), mk<NEG> (lhs)));
-        m_side.push_back (mk<IMPL> (mk<EQ> (op0, one), lhs));
-      }
-      else
-        m_side.push_back (mk<EQ> (havoc (I), op0));
+
+      write (I, op0);
     }
     
     void visitZExtInst (ZExtInst &I) {doExtCast (I);}
@@ -313,6 +338,7 @@ namespace
       Expr op = m_sem.ptrArith (m_s, *gep.getPointerOperand (), ps, ts);
       if (op) m_side.push_back (mk<EQ> (lhs, op));
     }
+
     
     void doExtCast (CastInst &I)
     {
@@ -325,13 +351,20 @@ namespace
       if (v0.getType ()->isIntegerTy (1))
       {
         if (const ConstantInt *ci = dyn_cast<ConstantInt> (&v0))
-          op0 = mkTerm<mpz_class> (ci->isOne () ? 1 : 0, m_efac);
+        {
+          if (ci->isOne ())
+            m_side.push_back (mk<GT> (lhs, zero));
+          else
+            m_side.push_back (mk<LEQ> (lhs, zero));
+        }
         else
-          op0 = mk<ITE> (op0, 
-                         mkTerm<mpz_class>(1, m_efac), mkTerm<mpz_class> (0, m_efac));
+        {
+          m_side.push_back (mk<OR> (mk<AND> (op0, mk<GT>(lhs, zero)), 
+                                    mk<AND> (negate (op0), mk<LEQ> (lhs, zero)))); 
+        }
       }
-      
-      m_side.push_back (mk<EQ> (lhs, op0));
+      else
+      { write (I, op0); }
     }
     
     void visitCallSite (CallSite CS)
@@ -490,40 +523,40 @@ namespace
     
     void visitLoadInst (LoadInst &I)
     {
-      if (!m_inMem || !m_sem.isTracked (I))  return;
-      Expr lhs = havoc (I);
-      Expr op0 = lookup (*I.getPointerOperand ());
+      // if (!m_inMem || !m_sem.isTracked (I))  return;
+      // Expr lhs = havoc (I);
+      // Expr op0 = lookup (*I.getPointerOperand ());
       
-      if (op0)
-      {
-        Expr rhs = op::array::select (m_inMem, op0);
-        if (I.getType ()->isIntegerTy (1))
-          // -- convert to Boolean
-          rhs = mk<NEQ> (rhs, mkTerm (mpz_class(0), m_efac));
+      // if (op0)
+      // {
+      //   Expr rhs = op::array::select (m_inMem, op0);
+      //   if (I.getType ()->isIntegerTy (1))
+      //     // -- convert to Boolean
+      //     rhs = mk<NEQ> (rhs, mkTerm (mpz_class(0), m_efac));
         
-        m_side.push_back (mk<EQ> (lhs, rhs));
-      }
+      //   m_side.push_back (mk<EQ> (lhs, rhs));
+      // }
       
-      m_inMem.reset ();
+      // m_inMem.reset ();
     }
     
     void visitStoreInst (StoreInst &I)
     {
-      if (!m_inMem || !m_outMem || !m_sem.isTracked (*I.getOperand (0))) return;
+      // if (!m_inMem || !m_outMem || !m_sem.isTracked (*I.getOperand (0))) return;
       
-      Expr idx = lookup (*I.getPointerOperand ());
-      Expr v = lookup (*I.getOperand (0));
+      // Expr idx = lookup (*I.getPointerOperand ());
+      // Expr v = lookup (*I.getOperand (0));
       
-      if (v && I.getOperand (0)->getType ()->isIntegerTy (1))
-        // -- convert to int
-        v = boolop::lite (v, mkTerm (mpz_class (1), m_efac),
-                          mkTerm (mpz_class (0), m_efac));
+      // if (v && I.getOperand (0)->getType ()->isIntegerTy (1))
+      //   // -- convert to int
+      //   v = boolop::lite (v, mkTerm (mpz_class (1), m_efac),
+      //                     mkTerm (mpz_class (0), m_efac));
       
-      if (idx && v)
-        m_side.push_back (mk<EQ> (m_outMem, 
-                                  op::array::store (m_inMem, idx, v)));
-      m_inMem.reset ();
-      m_outMem.reset ();
+      // if (idx && v)
+      //   m_side.push_back (mk<EQ> (m_outMem, 
+      //                             op::array::store (m_inMem, idx, v)));
+      // m_inMem.reset ();
+      // m_outMem.reset ();
     }
     
     
@@ -535,7 +568,8 @@ namespace
       const Value &v0 = *I.getOperand (0);
       
       Expr u = lookup (v0);
-      if (u) m_side.push_back (mk<EQ> (lhs, u));
+      if (u) //m_side.push_back (mk<EQ> (lhs, u));
+        write (I, u);
     }
     
     void initGlobals (const BasicBlock &BB)
@@ -581,7 +615,7 @@ namespace
       // -- must first lookup the value of the argument, and only then
       // -- havoc the register.
       Expr lhs = havoc (I);
-      if (op0) m_side.push_back (mk<EQ> (lhs, op0));
+      write (I, op0);
     }
 
   };
@@ -694,7 +728,7 @@ namespace seahorn
       if (const ConstantInt *c = dyn_cast<const ConstantInt> (&I))
       {
         if (c->getType ()->isIntegerTy (1))
-          return c->isOne () ? mk<TRUE> (m_efac) : mk<FALSE> (m_efac);
+          return c->isOne () ? trueE : falseE;
         mpz_class k = toMpz (c->getValue ());
         return mkTerm<mpz_class> (k, m_efac);
       }
@@ -729,10 +763,8 @@ namespace seahorn
       Expr ty = sort::arrayTy (intTy, intTy);
       return bind::mkConst (v, ty);
     }
-      
-    if (isTracked (I))
-      return I.getType ()->isIntegerTy (1) ? 
-        bind::boolConst (v) : bind::intConst (v);
+
+    if (isTracked (I)) return bind::intConst (v);
     
     return Expr(0);
   }
@@ -796,19 +828,16 @@ namespace seahorn
               (ci->isZero () && br->getSuccessor (1) != &dst))
           {
             side.clear ();
-            //        side.push_back (mk<FALSE> (s.getExprFactory ()));
             side.push_back (s.read (errorFlag (src)));
           }
         }
         else if (Expr target = lookup (s, c))
-        {
-          
-          Expr cond = br->getSuccessor (0) == &dst ? target : mk<NEG> (target);
+        {          
+          SymExecBase sym (s, *this, side); 
+          Expr cond = br->getSuccessor (0) == &dst ? target : sym.negate (target);
           cond = boolop::lor (s.read (errorFlag (src)), cond);
           side.push_back (cond);
         }
-        
-            
       }
     }   
   }

@@ -15,14 +15,17 @@ namespace seahorn
     Expr m_head;
     Expr m_body;
     ExprFactory &m_efac;
-    
+    const ExprVector &m_rels;
+
    public:
     
-    ClpRule (Expr head, ExprFactory &efac): 
-        m_head (head), m_efac (efac) { }
+    ClpRule (Expr head, Expr constraints, ExprFactory &efac, const ExprVector &rels): 
+        m_head (head), m_body (constraints), 
+        m_efac (efac), m_rels (rels) { }
 
-    ClpRule (Expr head, Expr body, ExprFactory &efac): 
-        m_head (head), m_body (body), m_efac (efac) { }
+    ClpRule (Expr head, Expr body, Expr constraints, ExprFactory &efac, const ExprVector &rels): 
+        m_head (head), m_body (mk<AND> (body, constraints)), 
+        m_efac (efac), m_rels (rels) { }
     
     void addBody (Expr body) { m_body = body; }
     
@@ -35,6 +38,7 @@ namespace seahorn
 
   class ClpHornify 
   {
+    const ExprVector &m_rels;
     vector<ClpRule> m_rules;
     ExprFactory &m_efac;
 

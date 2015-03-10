@@ -24,7 +24,7 @@ namespace seahorn
     class Rule
     {
       ExprVector m_vars;
-      Expr m_body;
+      Expr m_body; //! body => head or head
 
     public:
       template <typename Range>
@@ -39,17 +39,19 @@ namespace seahorn
 
       Expr body () const {return m_body;}
       ExprVector &vars () {return m_vars;} 
+
     };
       
     typedef std::vector<Rule> RuleVector;
     
   private:
+
     ExprVector m_rels;
     ExprVector m_vars;
     RuleVector m_rules;
     Expr m_query;
-    
     std::map<Expr, ExprVector> m_constraints;
+
     
     const ExprVector &getVars ()
     {
@@ -63,6 +65,7 @@ namespace seahorn
     typedef HornClauseDB this_type;
     
   public:
+
     HornClauseDB () {}
     
     void registerRelation (Expr fdecl) {m_rels.push_back (fdecl);}
@@ -79,7 +82,7 @@ namespace seahorn
     }
     
     RuleVector &getRules () {return m_rules;}
-    
+
     void addQuery (Expr q) {m_query = q;}
     Expr getQuery () {return m_query;}
 
@@ -87,7 +90,9 @@ namespace seahorn
     /// Adds constraint Forall V . pred -> lemma
     void addConstraint (Expr pred, Expr lemma)
     {
+
       assert (bind::isFapp (pred));
+
       if (isOpX<TRUE> (lemma)) return;
       
       Expr reln = bind::fname (pred);
@@ -103,7 +108,9 @@ namespace seahorn
     /// Returns the current constraints for the predicate
     const Expr getConstraints (Expr pred) 
     {
+
       assert (bind::isFapp (pred));
+
       Expr reln = bind::fname (pred);
       Expr lemma = mknary<AND> (mk<TRUE> (pred->efac ()),
                                 m_constraints [reln /*pred*/].begin (), 
@@ -145,8 +152,4 @@ namespace seahorn
     
   };
 }
-
-
-
-
 #endif /* _HORN_CLAUSE_DB__H_ */

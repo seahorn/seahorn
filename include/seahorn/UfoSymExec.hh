@@ -8,16 +8,6 @@
 
 namespace seahorn
 {
-  /// degree of precision of symbolic execution
-  enum TrackLevel {
-    /// numeric registers only
-    REG, 
-    /// registers and pointer addresses (but not content)
-    PTR, 
-    /// memory content
-    MEM
-  };
-  
   /// Small step symbolic execution for integers based on UFO semantics
   class UfoSmallSymExec : public SmallStepSymExec
   { 

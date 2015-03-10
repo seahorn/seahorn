@@ -22,20 +22,29 @@ namespace seahorn
     Stats::sset ("Result", "UNKNOWN");
     
     HornifyModule &hm = getAnalysis<HornifyModule> ();
-    //auto &ctx = fp.getContext ();
 
     // Load the Horn clause database
     auto &db = hm.getHornClauseDB ();
     auto &fp = hm.getZFixedPoint ();
-    for (auto &p: db.getRelations ())
-    { 
-      fp.registerRelation (p); 
-      if (bind::isFapp (p))
-        fp.addCover (p, db.getConstraints (p)); 
+    {
+      auto &efac = hm.getExprFactory ();
+
+      for (auto &p: db.getRelations ())
+      { fp.registerRelation (p); }
+    
+      for (auto &r: db.getRules ())
+      { 
+        fp.addRule (r.vars (), r.body ()); 
+
+        Expr f = r.body ();
+        if ((f->arity () == 2) && isOpX<IMPL> (f))
+        { f = f->right (); }
+        assert (bind::isFapp (f));
+        fp.addCover (f, db.getConstraints (f));
+      }
+      
+      fp.addQuery (db.getQuery ());
     }
-    for (auto &r: db.getRules ())
-    { fp.addRule (r.vars (), r.body ()); }
-    fp.addQuery (db.getQuery ());
     
     Stats::resume ("Horn");
     m_result = fp.query ();

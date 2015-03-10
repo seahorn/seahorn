@@ -1,6 +1,8 @@
 #include "seahorn/HornClp.hh"
 #include "llvm/Support/CommandLine.h"
 #include "boost/algorithm/string/replace.hpp"
+#include "boost/algorithm/string/predicate.hpp"
+#include "avy/AvyDebug.h"
 
 namespace seahorn
 {
@@ -22,27 +24,6 @@ namespace seahorn
   template <typename M>    
   struct ExprNormalizer
   {
-    static Expr negate (Expr e, ExprFactory &efac)
-    {
-      if (isOpX<TRUE>(e))
-        return mk<FALSE>(efac);
-      else if (isOpX<FALSE>(e))
-        return mk<TRUE>(efac);
-      else if (isOpX<EQ>(e))
-        return mk<NEQ>(e->left (), e->right ());
-      else if (isOpX<NEQ>(e))
-        return mk<EQ>(e->left (), e->right ());
-      else if (isOpX<LEQ>(e))
-        return mk<GT>(e->left (), e->right ());
-      else if (isOpX<GEQ>(e))
-        return mk<LT>(e->left (), e->right ());
-      else if (isOpX<LT>(e))
-        return mk<GEQ>(e->left (), e->right ());
-      else if (isOpX<GT>(e))
-        return mk<LEQ>(e->left (), e->right ());
-      return NULL;
-    }
-
     template <typename C>
     static Expr normalize (Expr e, ExprFactory &efac, C &cache, expr_expr_map &seen)
     {
@@ -94,13 +75,9 @@ namespace seahorn
         if (isOpX<UN_MINUS>(e))
         { res = mk<UN_MINUS> (normalize (e->left(), efac, cache, seen)); }
         else if (isOpX<NEG>(e))
-        {
-          Expr e1 = normalize (e->left(), efac, cache, seen);
-          res = negate (e1, efac); 
-          if (!res) res = op::boolop::lneg (e1);
-        }
+        { res = op::boolop::lneg (normalize (e->left(), efac, cache, seen)); }
         else 
-          return M::normalize (e, efac, cache, seen);
+        { return M::normalize (e, efac, cache, seen); }
       }
       else if (arity == 2)
       {
@@ -166,9 +143,10 @@ namespace seahorn
         { res = mknary<MINUS> (args.begin (), args.end ()); }
         else if (isOp<MULT>(e))
         { res = mknary<MULT> (args.begin (), args.end ());  }
-        else
-        {  return M::normalize (e, efac, cache, seen); }
       }
+
+      if (!res)
+        return M::normalize (e, efac, cache, seen);
       
       assert (res);
       seen.insert (expr_expr_map::value_type (e, res ));
@@ -227,7 +205,7 @@ namespace seahorn
     ExprStr  operator/(ExprStr e)
     { return ExprStr ("(" + m_s + "/" + e.m_s + ")"); }
     ExprStr  operator-()
-    { return ExprStr ("-(" + m_s + ")"); }
+    { return ExprStr ("(0 - " + m_s + ")"); }
     ExprStr  operator~()
     { return ExprStr ("\\+(" + m_s + ")"); }
     ExprStr  operator&&(ExprStr e)
@@ -267,7 +245,8 @@ namespace seahorn
   struct FailPrettyPrinter
   {
     template <typename C>
-    static ExprStr print (Expr e, ExprFactory &efac, C &cache, expr_str_map &seen)
+    static ExprStr print (Expr e, Expr parent, const ExprVector &rels, 
+                          ExprFactory &efac, C &cache, expr_str_map &seen)
     { std::cout << "Cannot print: " << *e << "\n";
       assert (0);
     }
@@ -277,19 +256,52 @@ namespace seahorn
   struct ExprPrettyPrinter
   {
 
+    static bool isTopLevelExpr (Expr e, Expr parent)
+    {
+      if (!parent) 
+        return true;
+
+      if (bind::isFapp (parent)) 
+        return false;
+      
+      if (parent->arity () >= 2)
+      {
+        if (isOpX <AND> (parent) || isOpX<OR> (parent)) 
+          return true;
+      }
+
+      return false;
+    }
+
 
     template <typename C>
-    static ExprStr print (Expr e, ExprFactory &efac, C &cache, expr_str_map &seen)
+    static ExprStr print (Expr e, Expr parent, const ExprVector &rels, 
+                          ExprFactory &efac, C &cache, expr_str_map &seen)
+                          
     {
       assert (e);
 
-      if (isOpX<TRUE>(e))  return ExprStr::True ();
-      if (isOpX<FALSE>(e)) return ExprStr::False ();
-            
-      { /** check the cache */
-        typename C::const_iterator it = cache.find (e);
-        if (it != cache.end ()) return it->second;
+      if (isOpX<TRUE>(e))
+      { 
+        if (!isTopLevelExpr (e, parent))
+        { return ExprStr ("1"); }
+        else 
+        { return ExprStr::True ();}
       }
+
+      if (isOpX<FALSE>(e)) 
+      {
+        if (!isTopLevelExpr (e, parent))
+        { return ExprStr ("0"); }
+        else
+        { return ExprStr::False (); }
+      }
+            
+      // { /** check the cache */
+      //   typename C::const_iterator it = cache.find (e);
+      //   if (it != cache.end ()) return it->second;
+      // }
+
       { /** check computed table */
         typename expr_str_map::const_iterator it = seen.find (e);
          if (it != seen.end ()) return it->second;
@@ -297,21 +309,30 @@ namespace seahorn
        
       ExprStr res;
       
-      if (isOpX<INT>(e)) 
-      { res = ExprStr (boost::lexical_cast<std::string>(e.get())); }
-      else if (isOpX<MPZ>(e)) 
+      if (isOpX<MPZ>(e)) 
       { 
         const MPZ& op = dynamic_cast<const MPZ&>(e->op ());
-        res = ExprStr (boost::lexical_cast<std::string>(op.get()));
+        if (op.get () < 0)
+          res = ExprStr ("(" + boost::lexical_cast<std::string>(op.get()) + ")");
+        else
+          res = ExprStr (boost::lexical_cast<std::string>(op.get()));
       }
       else if (isOpX<MPQ>(e))
-      { return M::print (e, efac, cache, seen); }
+      { return M::print (e, parent, rels, efac, cache, seen); }      
       else if (bind::isBoolConst (e))
-      {
+      { // e can be positive or negative
+        
         ENode *fname = *(e->args_begin());
         if (isOpX<FDECL> (fname)) 
           fname = fname->arg (0);
-        res = ExprStr (boost::lexical_cast<std::string> (fname));
+        std::string sname = boost::lexical_cast<std::string> (fname);
+
+        if (isTopLevelExpr (e, parent) &&
+            std::find (rels.begin (), rels.end (), *(e->args_begin())) == rels.end ())
+        { res = (ExprStr (sname, true) == ExprStr ("1")); }
+        else
+        { res = ExprStr (sname, false); }
+
       }
       else if (bind::isIntConst (e) )
       {
@@ -329,7 +350,7 @@ namespace seahorn
         }
       }
       else if (bind::isRealConst (e))
-      { return M::print (e, efac, cache, seen); }
+      { return M::print (e, parent, rels, efac, cache, seen); }
       else if (bind::isFapp (e))
       {
         
@@ -337,50 +358,58 @@ namespace seahorn
         if (isOpX<FDECL> (fname)) 
           fname = fname->arg (0);
 
-        //string fapp = "'" + boost::lexical_cast<std::string> (fname) + "'";              
         string fapp = boost::lexical_cast<std::string> (fname) ;              
         ENode::args_iterator it = ++ (e->args_begin ());
         ENode::args_iterator end = e->args_end ();
-        if (it != end)
+
+        if (std::distance (it, end) > 0)
         {
           fapp += "(";
           for (; it != end; )
           {
-            ExprStr arg = print (*it, efac, cache, seen);
-            fapp += arg.str (); 
-            ++it;
-            if (it != end)
-              fapp += ",";
+            ExprStr arg = print (*it, e, rels, efac, cache, seen);
+              fapp += arg.str (); 
+              ++it;
+              if (it != end)
+                fapp += ",";
           }
           fapp += ")";
         }
-        res = ExprStr (fapp);
+        res = ExprStr (fapp);          
       }
 
       if (!res.empty ())
       { // -- cache the result for pretty printing
-        cache.insert (typename C::value_type (e, res));
+        // cache.insert (typename C::value_type (e, res));
         return res;
       }
       
       int arity = e->arity ();
       /** other terminal expressions */
       if (arity == 0) 
-      {  return M::print (e, efac, cache, seen); }
+      {  return M::print (e, parent, rels, efac, cache, seen); }
       else if (arity == 1)
       {
         if (isOpX<UN_MINUS> (e))
-        { res = -print (e->left(), efac, cache, seen); }
+        { res = -print (e->left(), e, rels, efac, cache, seen); }
         else if (isOpX<NEG> (e))
-        { res = ~print (e->left(), efac, cache, seen); }
+        { 
+          ExprStr e1 = print (e->left(), e, rels, efac, cache, seen);           
+          if (isTopLevelExpr (e, parent))
+          { res = (e1 == ExprStr ("0")); }
+          else
+          // This will probably cause problems to the CLP engine
+          // { res = ~e1; }          
+          { return M::print (e, parent, rels, efac, cache, seen); }
+        }
         else 
-        { return M::print (e, efac, cache, seen); }
+        { return M::print (e, parent, rels, efac, cache, seen); }
       }
       else if (arity == 2)
       {
         
-        ExprStr s1 = print (e->left(), efac, cache, seen);
-        ExprStr s2 = print (e->right(), efac, cache, seen);
+        ExprStr s1 = print (e->left(), e, rels, efac, cache, seen);
+        ExprStr s2 = print (e->right(), e, rels, efac, cache, seen);
         
         /** BoolOp */
         if (isOpX<AND> (e)) 
@@ -388,11 +417,11 @@ namespace seahorn
         else if (isOpX<OR>(e))
         { res = s1 || s2; }
         else if (isOpX<IMPL>(e))
-        { return M::print (e, efac, cache, seen); }
+        { return M::print (e, parent, rels, efac, cache, seen); }
         else if (isOpX<IFF>(e))
-        { return M::print (e, efac, cache, seen); }
+        { return M::print (e, parent, rels, efac, cache, seen); }
         else if (isOpX<XOR>(e))
-        { return M::print (e, efac, cache, seen); }
+        { return M::print (e, parent, rels, efac, cache, seen); }
         /** NumericOp */
         else if (isOpX<PLUS>(e))
         { res = s1 + s2; }
@@ -416,7 +445,7 @@ namespace seahorn
         else if (isOpX<GT>(e))
         { res = s1 > s2; }
         else
-        { return M::print (e, efac, cache, seen); }
+        { return M::print (e, parent, rels, efac, cache, seen); }
       }
       else if (isOpX<AND> (e) || isOpX<OR> (e) ||
                isOpX<PLUS> (e) || isOpX<MINUS> (e) ||
@@ -426,7 +455,7 @@ namespace seahorn
         for (ENode::args_iterator it = e->args_begin(), end = e->args_end();
              it != end; ++it)
         {
-          ExprStr a = print (*it, efac, cache, seen);
+          ExprStr a = print (*it, e, rels, efac, cache, seen);
           args.push_back (a);
         }
         
@@ -441,7 +470,7 @@ namespace seahorn
         else if (isOp<MULT>(e))
         { res = ExprStr::mknary (_MULT, args);  }
         else
-        {  return M::print (e, efac, cache, seen); }
+        {  return M::print (e, parent, rels, efac, cache, seen); }
       }
       
       assert (!res.empty());
@@ -453,7 +482,8 @@ namespace seahorn
   void ClpRule::normalize () 
   {
     expr_expr_map seen, cache;
-    Expr norm_body = ExprNormalizer<FailNormalizer>::normalize (m_body, m_efac, cache, seen);
+    Expr norm_body = ExprNormalizer<FailNormalizer>::
+        normalize (m_body, m_efac, cache, seen);
     m_body = op::boolop::gather (op::boolop::nnf (norm_body));
   }
 
@@ -461,49 +491,69 @@ namespace seahorn
   {        
 
     expr_str_map seen, cache;
-    ExprStr str_head = ExprPrettyPrinter<FailPrettyPrinter>::print (m_head, m_efac, cache, seen);    
+    ExprStr str_head = ExprPrettyPrinter<FailPrettyPrinter>::
+        print (m_head, NULL, m_rels, m_efac, cache, seen);    
     str_head.print (o); 
 
-    if (isFact())
-    { o << ".\n"; }
+    if (isFact()) 
+    { o << ".\n";  }
     else
     {
-      o << " :-\n";
+      o << " :- ";
       seen.clear ();
-      ExprStr str_body = ExprPrettyPrinter<FailPrettyPrinter>::print (m_body, m_efac, cache, seen);
+      ExprStr str_body = ExprPrettyPrinter<FailPrettyPrinter>::
+          print (m_body, NULL, m_rels, m_efac, cache, seen);
       str_body.print (o);
       o << ".\n";
     }
   }    
 
+  // // replace all arguments with fresh variables
+  // Expr replace_args_with_vars (Expr f)
+  // {
+  //   assert (bind::isFapp (f));
+
+  //   Expr reln = bind::fname (f);
+  //   unsigned idx = 0;
+  //   ExprVector args;
+  //   for (auto it = ++reln->args_begin (), end = reln->args_end (); 
+  //        it != end; ++it)
+  //   {
+  //     Expr k = bind::bvar (idx++, *it);
+  //     args.push_back (k);
+  //   }
+  //   return bind::fapp (reln, args);
+  // }
+
+
   ClpHornify::ClpHornify (HornClauseDB &db, ExprFactory &efac): 
-      m_efac (efac)
-  { 
+      m_rels (db.getRelations ()), m_efac (efac)
+  {     
 
     // Added false <- query as another rule
-    ClpRule query (mk<FALSE> (m_efac) , m_efac);
+    ClpRule query (mk<FALSE> (m_efac) , mk<TRUE> (m_efac), m_efac, m_rels);
     query.addBody (db.getQuery ());
     m_rules.push_back (query);
 
     for (auto & rule : db.getRules ())
     {
       Expr f =  rule.body ();
-
       if (bind::isFapp (f))
-        m_rules.push_back (ClpRule (f, m_efac));
+      {  
+        // TODO: add constraints
+        Expr inv = mk<TRUE> (m_efac); //db.getConstraints (replace_args_with_vars (f));
+        m_rules.push_back (ClpRule (f, inv, m_efac, m_rels)); 
+      }
       else
       {
-        if (!((f->arity () == 2) && isOpX<IMPL> (f)))
-        { 
-          cout << "Warning: hornClp ignoring clause " << *f << "\n"; 
-          continue; 
-        }
-
         assert (((f->arity () == 2) && isOpX<IMPL> (f)));
-        ClpRule r (f->right (), f->left (), m_efac);      
+
+        // TODO: add constraints
+        Expr inv = mk<TRUE> (m_efac); // db.getConstraints (replace_args_with_vars (f->right ()));
+
+        ClpRule r (f->right (), f->left (),  inv, m_efac, m_rels);      
         r.normalize ();
         m_rules.push_back (r);
-
       }
     }
   }
@@ -511,8 +561,7 @@ namespace seahorn
   string ClpHornify::toString () const
   {
     std::ostringstream oss;
-    for (auto &rule : m_rules)
-    { rule.print (oss); }
+    for (auto &rule : m_rules) { rule.print (oss); }
     return oss.str ();
   }
 }

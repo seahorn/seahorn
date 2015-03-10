@@ -327,11 +327,11 @@ namespace seahorn
           fname = fname->arg (0);
         std::string sname = boost::lexical_cast<std::string> (fname);
 
-        if (isTopLevelExpr (e, parent) &&
-            std::find (rels.begin (), rels.end (), *(e->args_begin())) == rels.end ())
+        bool isVar = (std::find (rels.begin (), rels.end (), *(e->args_begin())) == rels.end ());
+        if (isTopLevelExpr (e, parent) && isVar)
         { res = (ExprStr (sname, true) == ExprStr ("1")); }
-        else
-        { res = ExprStr (sname, false); }
+        else 
+        { res = ExprStr (sname, isVar ? true: false); }
 
       }
       else if (bind::isIntConst (e) )

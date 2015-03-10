@@ -29,6 +29,7 @@ namespace
     Expr trueE;
     Expr falseE;
     Expr zero;
+    Expr one;
     
     /// -- current read memory
     Expr m_inMem;
@@ -44,6 +45,7 @@ namespace
       trueE  = mk<TRUE> (m_efac);
       falseE = mk<FALSE> (m_efac);
       zero   = mkTerm<mpz_class> (0, m_efac);
+      one    = mkTerm<mpz_class> (1, m_efac);
       // -- first two arguments are reserved for error flag
       m_fparams.push_back (falseE);
       m_fparams.push_back (falseE);
@@ -353,14 +355,14 @@ namespace
         if (const ConstantInt *ci = dyn_cast<ConstantInt> (&v0))
         {
           if (ci->isOne ())
-            m_side.push_back (mk<GT> (lhs, zero));
+            m_side.push_back (mk<EQ> (lhs, one));
           else
-            m_side.push_back (mk<LEQ> (lhs, zero));
+            m_side.push_back (mk<EQ> (lhs, zero));
         }
         else
         {
-          m_side.push_back (mk<OR> (mk<AND> (op0, mk<GT>(lhs, zero)), 
-                                    mk<AND> (negate (op0), mk<LEQ> (lhs, zero)))); 
+          m_side.push_back (mk<OR> (mk<AND> (op0, mk<EQ>(lhs, one)), 
+                                    mk<AND> (negate (op0), mk<EQ> (lhs, zero)))); 
         }
       }
       else

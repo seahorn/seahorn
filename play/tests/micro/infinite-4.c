@@ -6,6 +6,7 @@ int main(){
   i=0; 
   a=0;
   b=0;
+  n = __VERIFIER_NONDET();
   if (n > 0){ 
     while (i < n){
       if (__VERIFIER_NONDET()){     	

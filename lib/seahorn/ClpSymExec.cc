@@ -226,6 +226,12 @@ namespace
       if (!(op0 && op1)) return;
 
       Expr res;
+
+      if (bind::isBoolConst (op0) || bind::isIntConst (op0))
+      { op0 = mk<GT>(op0, zero); }
+      
+      if (bind::isBoolConst (op1) || bind::isIntConst (op1))
+      { op1 = mk<GT>(op1, zero); }
       
       switch(i.getOpcode())
       {

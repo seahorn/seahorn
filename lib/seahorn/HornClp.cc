@@ -215,7 +215,7 @@ namespace seahorn
     ExprStr  operator<(ExprStr e)
     { return ExprStr ("(" + m_s + "<" + e.m_s + ")"); }
     ExprStr  operator<=(ExprStr e)
-    { return ExprStr ("(" + m_s + "<=" + e.m_s + ")"); }
+    { return ExprStr ("(" + m_s + "=<" + e.m_s + ")"); }
     ExprStr  operator==(ExprStr e)
     { return ExprStr ("(" + m_s + "=" + e.m_s + ")"); }
     ExprStr  operator>(ExprStr e)

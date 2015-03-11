@@ -274,6 +274,28 @@ namespace seahorn
     }
 
 
+    // negate e if it is a literal otherwise return null
+    static Expr negate (Expr e, ExprFactory &efac)
+    {
+      if (bind::isBoolConst (e) || bind::isIntConst (e))
+        return mk<EQ>(e, mkTerm<mpz_class> (0, efac)); 
+      if (isOpX<GT> (e))
+        return mk<LEQ> (e->left (), e->right ());
+      if (isOpX<GEQ> (e))
+        return mk<LT> (e->left (), e->right ());
+      if (isOpX<LT> (e))
+        return mk<GEQ> (e->left (), e->right ());
+      if (isOpX<LEQ> (e))
+        return mk<GT> (e->left (), e->right ());
+      if (isOpX<EQ> (e))
+        return mk<OR> (mk<LT> (e->left (), e->right ()),
+                       mk<GT> (e->left (), e->right ()));
+      if (isOpX<NEQ> (e))
+        return mk<EQ> (e->left (), e->right ());
+      
+      return NULL;
+    }
+
     template <typename C>
     static ExprStr print (Expr e, Expr parent, const ExprVector &rels, 
                           ExprFactory &efac, C &cache, expr_str_map &seen)
@@ -394,17 +416,13 @@ namespace seahorn
         { res = -print (e->left(), e, rels, efac, cache, seen); }
         else if (isOpX<NEG> (e))
         { 
-          ExprStr e1 = print (e->left(), e, rels, efac, cache, seen);           
-          if (isTopLevelExpr (e, parent))
-          { res = (e1 == ExprStr ("0")); }
+          Expr not_e = negate (e->left (), efac);
+          if (not_e) 
+          { res = print (not_e, e, rels, efac, cache, seen); }          
           else
-          // This will probably cause problems to the CLP engine
-          // { res = ~e1; }          
-          { return M::print (e, parent, rels, efac, cache, seen); }
+          { res = ~print (e->left(), e, rels, efac, cache, seen); }
         }
-        else 
-        { return M::print (e, parent, rels, efac, cache, seen); }
-      }
+      }          
       else if (arity == 2)
       {
         

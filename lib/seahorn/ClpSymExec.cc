@@ -64,47 +64,8 @@ namespace
     void write (const Value &v, Expr val) 
     { if (m_sem.isTracked (v)) m_s.write (symb (v), val); }
 
-    Expr negate_rec (Expr e) 
-    {
-      // pre: e is in nnf.
-
-      if (isOpX<TRUE>(e))  return mk<FALSE>(m_efac);
-      if (isOpX<FALSE>(e)) return mk<TRUE>(m_efac);
-
-      if (isOpX<EQ>(e))
-        return mk<OR> (mk<LT>(e->left (), e->right ()), 
-                       mk<GT>(e->left (), e->right ()));
-      else if (isOpX<NEQ>(e))
-        return mk<EQ>(e->left (), e->right ());
-      else if (isOpX<LEQ>(e))
-        return mk<GT>(e->left (), e->right ());
-      else if (isOpX<GEQ>(e))
-        return mk<LT>(e->left (), e->right ());
-      else if (isOpX<LT>(e))
-        return mk<GEQ>(e->left (), e->right ());
-      else if (isOpX<GT>(e))
-        return mk<LEQ>(e->left (), e->right ());
-      else if (isOpX<AND>(e))
-      {
-        Expr e1 = negate_rec (e->left ());
-        Expr e2 = negate_rec (e->right ());
-        return mk<AND>(e1, e2);
-      }
-      else if (isOpX<OR>(e))
-      {
-        Expr e1 = negate_rec (e->left ());
-        Expr e2 = negate_rec (e->right ());
-        return mk<OR>(e1, e2);
-      }
-
-      //std::cout << "Cannot negate: " << *e << "\n";
-      //assert (false && "negate: unreachable");
-      return mk<NEG> (e);
-    }
-
-    // returned expression is equivalent to mk<NEG> (e)
     Expr negate (Expr e)
-    { return negate_rec (op::boolop::nnf (e)); }
+    { return op::boolop::nnf (boolop::lneg (e)); }
 
   };
   

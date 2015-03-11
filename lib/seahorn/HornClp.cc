@@ -223,7 +223,8 @@ namespace seahorn
     ExprStr  operator>=(ExprStr e)
     { return ExprStr ("(" + m_s + ">=" + e.m_s + ")"); }
     ExprStr  operator!=(ExprStr e)
-    { return ExprStr ("(" + m_s + "<>" + e.m_s + ")"); }
+    //{ return ExprStr ("(" + m_s + "<>" + e.m_s + ")"); }
+    { return ExprStr (m_s + "<" + e.m_s) || ExprStr (m_s + ">" + e.m_s); }
 
     static ExprStr mknary (exprStrOp op, std::vector<ExprStr> args)
     {

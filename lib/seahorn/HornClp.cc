@@ -183,7 +183,18 @@ namespace seahorn
       boost::replace_all(m_s, ".", "_");
 
       if (isVar && !m_s.empty ())
-        m_s [0] = std::toupper(m_s [0]);
+      { m_s [0] = std::toupper(m_s [0]); }
+
+      if (!isVar && !m_s.empty ())
+      {
+        m_s [0] = std::tolower(m_s [0]);
+        if (m_s [0] == '_') 
+        {
+          // some unlikely prefix
+          boost::replace_first(m_s, "_", "p___");
+        }
+      }
+
     } 
 
     static ExprStr True ()  { return ExprStr ("true"); }
@@ -223,7 +234,6 @@ namespace seahorn
     ExprStr  operator>=(ExprStr e)
     { return ExprStr ("(" + m_s + ">=" + e.m_s + ")"); }
     ExprStr  operator!=(ExprStr e)
-    //{ return ExprStr ("(" + m_s + "<>" + e.m_s + ")"); }
     { return ExprStr (m_s + "<" + e.m_s) || ExprStr (m_s + ">" + e.m_s); }
 
     static ExprStr mknary (exprStrOp op, std::vector<ExprStr> args)

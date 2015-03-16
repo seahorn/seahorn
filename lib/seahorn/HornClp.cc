@@ -9,151 +9,6 @@ namespace seahorn
   using namespace expr;
   using namespace std;
 
-  typedef boost::unordered_map<Expr,Expr> expr_expr_map;
-
-  struct FailNormalizer
-  {
-    template <typename C>
-    static Expr normalize (Expr e, ExprFactory &efac, C &cache, expr_expr_map &seen)
-    { std::cout << "Cannot normalize: " << *e << "\n";
-      assert (0);
-    }
-  };
-
-  
-  template <typename M>    
-  struct ExprNormalizer
-  {
-    template <typename C>
-    static Expr normalize (Expr e, ExprFactory &efac, C &cache, expr_expr_map &seen)
-    {
-      assert (e);
-
-      if (isOpX<TRUE>(e) || isOpX<FALSE>(e))  return e;
-      
-      /** check the cache */
-      {
-        typename C::const_iterator it = cache.find (e);
-        if (it != cache.end ()) return it->second;
-      }
-      
-      /** check computed table */
-      {
-        typename expr_expr_map::const_iterator it = seen.find (e);
-         if (it != seen.end ()) return it->second;
-      }
-       
-      Expr res;
-      
-      if      (isOpX<INT>(e)) { res = e; }
-      else if (isOpX<MPZ>(e)) { res = e; }
-      else if (isOpX<MPQ>(e))
-      { return M::normalize (e, efac, cache, seen); }
-      else if (bind::isBoolConst (e))
-      { res = e; }
-      else if (bind::isIntConst(e) ) 
-      { res = e; }
-      else if (bind::isRealConst(e))
-      { return M::normalize (e, efac, cache, seen); }
-      // we don't need to normalize arguments 
-      else if (bind::isFapp (e)) { res = e; } 
-      
-      // -- cache the result for normalization
-      if (res)
-      {
-        cache.insert (typename C::value_type (e, res));
-        return res;
-      }
-      
-      int arity = e->arity ();
-      
-      /** other terminal expressions */
-      if (arity == 0) 
-      {  return M::normalize (e, efac, cache, seen); }
-      else if (arity == 1)
-      {
-        if (isOpX<UN_MINUS>(e))
-        { res = mk<UN_MINUS> (normalize (e->left(), efac, cache, seen)); }
-        else if (isOpX<NEG>(e))
-        { res = op::boolop::lneg (normalize (e->left(), efac, cache, seen)); }
-        else 
-        { return M::normalize (e, efac, cache, seen); }
-      }
-      else if (arity == 2)
-      {
-        
-        Expr t1 = normalize (e->left(), efac, cache, seen);
-        Expr t2 = normalize (e->right(), efac, cache, seen);
-        
-        /** BoolOp */
-        if (isOpX<AND>(e)) 
-        { res = op::boolop::land (t1,t2); }
-        else if (isOpX<OR>(e))
-        { res = op::boolop::lor (t1,t2); }
-        else if (isOpX<IMPL>(e))
-        { return M::normalize (e, efac, cache, seen); }
-        else if (isOpX<IFF>(e))
-        { return M::normalize (e, efac, cache, seen); }
-        else if (isOpX<XOR>(e))
-        { return M::normalize (e, efac, cache, seen); }
-        /** NumericOp */
-        else if (isOpX<PLUS>(e))
-        { res = mk<PLUS> (t1,t2); }
-        else if (isOpX<MINUS>(e))
-        { res = mk<MINUS> (t1,t2); }
-        else if (isOpX<MULT>(e))
-        { res = mk<MULT> (t1,t2); }
-        else if (isOpX<DIV>(e))
-        { res = mk<DIV> (t1,t2);}
-        /** Comparisson Op */
-        else if (isOpX<EQ>(e))
-        { res = mk<EQ> (t1,t2); }
-        else if (isOpX<NEQ>(e))
-        { res = mk<NEQ> (t1,t2);}
-        else if (isOpX<LEQ>(e))
-        { res = mk<LEQ> (t1,t2); }
-        else if (isOpX<GEQ>(e))
-        { res = mk<GEQ> (t1,t2); }
-        else if (isOpX<LT>(e))
-        { res = mk<LT> (t1,t2); }
-        else if (isOpX<GT>(e))
-        { res = mk<GT> (t1,t2); }
-        else
-        { return M::normalize (e, efac, cache, seen); }
-      }
-      else if (isOpX<AND> (e) || isOpX<OR> (e) ||
-               isOpX<PLUS> (e) || isOpX<MINUS> (e) ||
-               isOpX<MULT> (e))
-      {
-        vector<Expr> args;
-        for (ENode::args_iterator it = e->args_begin(), end = e->args_end();
-              it != end; ++it)
-        {
-          Expr a = normalize (*it, efac, cache, seen);
-          args.push_back (a);
-        }
-        
-        if (isOp<AND>(e))
-        { res = mknary<AND> (args.begin (), args.end ()); }
-        else if (isOp<OR>(e))
-        { res = mknary<OR> (args.begin (), args.end ()); }
-        else if (isOp<PLUS>(e))
-        { res = mknary<PLUS> (args.begin (), args.end ()); }
-        else if (isOp<MINUS>(e))
-        { res = mknary<MINUS> (args.begin (), args.end ()); }
-        else if (isOp<MULT>(e))
-        { res = mknary<MULT> (args.begin (), args.end ());  }
-      }
-
-      if (!res)
-        return M::normalize (e, efac, cache, seen);
-      
-      assert (res);
-      seen.insert (expr_expr_map::value_type (e, res ));
-      return res;
-    }
-  }; 
-
   enum exprStrOp { _AND, _OR, _PLUS, _MINUS, _MULT};
 
   class ExprStr
@@ -508,15 +363,10 @@ namespace seahorn
     }
   }; 
 
-  void ClpRule::normalize () 
-  {
-    expr_expr_map seen, cache;
-    Expr norm_body = ExprNormalizer<FailNormalizer>::
-        normalize (m_body, m_efac, cache, seen);
-    m_body = op::boolop::gather (op::boolop::nnf (norm_body));
-  }
+  void ClpHornify::ClpRule::normalize () 
+  { m_body = op::boolop::gather (op::boolop::nnf (m_body)); }
 
-  void ClpRule::print (ostream &o) const 
+  void ClpHornify::ClpRule::print (ostream &o) const 
   {        
 
     expr_str_map seen, cache;
@@ -566,24 +416,11 @@ namespace seahorn
 
     for (auto & rule : db.getRules ())
     {
-      Expr f =  rule.body ();
-      if (bind::isFapp (f))
-      {  
-        // TODO: add constraints
-        Expr inv = mk<TRUE> (m_efac); //db.getConstraints (replace_args_with_vars (f));
-        m_rules.push_back (ClpRule (f, inv, m_efac, m_rels)); 
-      }
-      else
-      {
-        assert (((f->arity () == 2) && isOpX<IMPL> (f)));
-
-        // TODO: add constraints
-        Expr inv = mk<TRUE> (m_efac); // db.getConstraints (replace_args_with_vars (f->right ()));
-
-        ClpRule r (f->right (), f->left (),  inv, m_efac, m_rels);      
-        r.normalize ();
-        m_rules.push_back (r);
-      }
+      // TODO: add constraints
+      Expr inv = mk<TRUE> (m_efac); // db.getConstraints (replace_args_with_vars (f->right ()));
+      ClpRule r (rule.head (), rule.body (), inv, m_efac, m_rels);      
+      r.normalize ();
+      m_rules.push_back (r);
     }
   }
 

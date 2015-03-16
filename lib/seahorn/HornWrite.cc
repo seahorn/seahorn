@@ -1,5 +1,6 @@
 #include "seahorn/HornWrite.hh"
 #include "seahorn/HornifyModule.hh"
+#include "seahorn/HornClauseDBTransf.hh"
 #include "seahorn/HornClp.hh"
 
 #include "llvm/Support/CommandLine.h"
@@ -35,6 +36,9 @@ namespace seahorn
   {
     HornifyModule &hm = getAnalysis<HornifyModule> ();
     HornClauseDB &db  = hm.getHornClauseDB ();
+    // this will have effect only if -horn-clp-sem is enabled.
+    normalizeHornClauseHeads (db);
+
     ExprFactory &efac = hm.getExprFactory ();
 
     if (HornClauseFormat == CLP)
@@ -55,7 +59,7 @@ namespace seahorn
         { fp.registerRelation (p); }
 
         for (auto &r: db.getRules ())
-        { fp.addRule (r.vars (), r.body ()); }
+        { fp.addRule (r.vars (), r.get ()); }
 
         fp.addQuery (db.getQuery ());
       }

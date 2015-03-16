@@ -33,7 +33,4 @@ namespace seahorn
 
 }
 
-
-
-
 #endif /* HORN_SOLVER__HH_ */

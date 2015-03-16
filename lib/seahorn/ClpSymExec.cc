@@ -537,8 +537,7 @@ namespace
       const Value &v0 = *I.getOperand (0);
       
       Expr u = lookup (v0);
-      if (u) //m_side.push_back (mk<EQ> (lhs, u));
-        write (I, u);
+      if (u) write (I, u);
     }
     
     void initGlobals (const BasicBlock &BB)
@@ -780,6 +779,7 @@ namespace seahorn
     // an edge into a basic block that does not return includes the block itself
     const TerminatorInst *term = dst.getTerminator ();
     if (term && isa<const UnreachableInst> (term)) exec (s, dst, side);
+
   }
   
   void ClpSmallSymExec::execBr (SymStore &s, const BasicBlock &src, const BasicBlock &dst, 

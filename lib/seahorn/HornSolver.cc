@@ -1,5 +1,6 @@
 #include "seahorn/HornSolver.hh"
 #include "seahorn/HornifyModule.hh"
+#include "seahorn/HornClauseDBTransf.hh"
 
 #include "llvm/IR/Function.h"
 #include "llvm/Support/CommandLine.h"
@@ -25,6 +26,9 @@ namespace seahorn
 
     // Load the Horn clause database
     auto &db = hm.getHornClauseDB ();
+    // this will have effect only if -horn-clp-sem is enabled.
+    normalizeHornClauseHeads (db);
+
     auto &fp = hm.getZFixedPoint ();
     {
       auto &efac = hm.getExprFactory ();
@@ -34,13 +38,8 @@ namespace seahorn
     
       for (auto &r: db.getRules ())
       { 
-        fp.addRule (r.vars (), r.body ()); 
-
-        Expr f = r.body ();
-        if ((f->arity () == 2) && isOpX<IMPL> (f))
-        { f = f->right (); }
-        assert (bind::isFapp (f));
-        fp.addCover (f, db.getConstraints (f));
+        fp.addRule (r.vars (), r.get ()); 
+        fp.addCover (r.head (), db.getConstraints (r.head ()));
       }
       
       fp.addQuery (db.getQuery ());

@@ -1,5 +1,5 @@
-#ifndef _HORN_CLP__HH_
-#define _HORN_CLP__HH_
+#ifndef _HORN_CLP_WRITE__HH_
+#define _HORN_CLP_WRITE__HH_
 
 #include <vector>
 #include "seahorn/HornClauseDB.hh"
@@ -10,7 +10,7 @@ namespace seahorn
   using namespace std;
   using namespace llvm;
 
-  class ClpHornify 
+  class ClpWrite 
   {
    public:
 
@@ -48,7 +48,7 @@ namespace seahorn
 
    public:
 
-    ClpHornify (HornClauseDB &db, ExprFactory &efac);
+    ClpWrite (HornClauseDB &db, ExprFactory &efac);
 
     string toString () const;
   };

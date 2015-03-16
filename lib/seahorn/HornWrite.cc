@@ -1,7 +1,7 @@
 #include "seahorn/HornWrite.hh"
 #include "seahorn/HornifyModule.hh"
 #include "seahorn/HornClauseDBTransf.hh"
-#include "seahorn/HornClp.hh"
+#include "seahorn/ClpWrite.hh"
 
 #include "llvm/Support/CommandLine.h"
 
@@ -43,7 +43,7 @@ namespace seahorn
 
     if (HornClauseFormat == CLP)
     {
-      ClpHornify writer (db, efac);
+      ClpWrite writer (db, efac);
       m_out << writer.toString ();
     }
     else 

@@ -1,4 +1,4 @@
-#include "seahorn/HornClp.hh"
+#include "seahorn/ClpWrite.hh"
 #include "llvm/Support/CommandLine.h"
 #include "boost/algorithm/string/replace.hpp"
 #include "boost/algorithm/string/predicate.hpp"
@@ -363,10 +363,10 @@ namespace seahorn
     }
   }; 
 
-  void ClpHornify::ClpRule::normalize () 
+  void ClpWrite::ClpRule::normalize () 
   { m_body = op::boolop::gather (op::boolop::nnf (m_body)); }
 
-  void ClpHornify::ClpRule::print (ostream &o) const 
+  void ClpWrite::ClpRule::print (ostream &o) const 
   {        
 
     expr_str_map seen, cache;
@@ -405,7 +405,7 @@ namespace seahorn
   // }
 
 
-  ClpHornify::ClpHornify (HornClauseDB &db, ExprFactory &efac): 
+  ClpWrite::ClpWrite (HornClauseDB &db, ExprFactory &efac): 
       m_rels (db.getRelations ()), m_efac (efac)
   {     
 
@@ -424,7 +424,7 @@ namespace seahorn
     }
   }
 
-  string ClpHornify::toString () const
+  string ClpWrite::toString () const
   {
     std::ostringstream oss;
     for (auto &rule : m_rules) { rule.print (oss); }

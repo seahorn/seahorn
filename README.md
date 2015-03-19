@@ -6,22 +6,25 @@
 
 An LLVM based verification framework.
 
+#License#
+SeaHorn is distributed under a modified BSD license. See [license.txt](license.txt) for details.
+
 #Compilation#
 
-* ```cd seahorn```
-* (optional) download [dsa-seahorn](https://github.com/seahorn/dsa-seahorn): ``` git clone https://github.com/seahorn/dsa-seahorn.git ```
-* (optional) download [ikos-llvm](https://github.com/seahorn/ikos-llvm): ``` git clone https://github.com/seahorn/ikos-llvm.git```
-* (optional) download [llvm-seahorn](https://github.com/seahorn/llvm-seahorn): ``` git clone https://github.com/seahorn/llvm-seahorn.git```
-* ``` mkdir build ```
-* ``` cd build ```
-* ``` cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=run ../ ``` 
-* ```cmake --build .``` to build llvm and z3 dependencies
-* ```cmake ../``` to configure with dependencies from the previous step
-* (optional) ```cmake --build . --target ikos-core```to build ikos-core dependency
-* (optional) ```cmake ../``` to configure with ikos enabled
-* ```cmake --build . --target install``` to build and install
+* `cd seahorn ; mkdir build ; cd build`
+* `cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=run ../ `
+* (optional) `cmake --build . --target extra` to download extra packages
+* `cmake --build .` to build dependencies (Z3 and LLVM)
+* (optional) `cmake --build .` to build extra packages (llvm-ikos)
+* `cmake --build .` to build seahorn
+* `cmake --build . --target install` to install everything in `run` directory
 
-SeaHorn and dependencies are installed in ```build/run```
+SeaHorn and dependencies are installed in `build/run`
+
+Optional components can be installed individually as well:
+* [dsa-seahorn](https://github.com/seahorn/dsa-seahorn): ``` git clone https://github.com/seahorn/dsa-seahorn.git ```
+* [ikos-llvm](https://github.com/seahorn/ikos-llvm): ``` git clone https://github.com/seahorn/ikos-llvm.git```
+* [llvm-seahorn](https://github.com/seahorn/llvm-seahorn): ``` git clone https://github.com/seahorn/llvm-seahorn.git```
 
 Note that both [dsa-seahorn](https://github.com/seahorn/dsa-seahorn)
 and [ikos-llvm](https://github.com/seahorn/ikos-llvm) are
@@ -29,6 +32,7 @@ optional. Nevertheless both are highly recommended. The former is
 needed when reasoning about memory contents while the latter provides
 inductive invariants using abstract interpretation techniques to the
 rest of SeaHorn's backends.
+
 
 #Usage#
 TBD

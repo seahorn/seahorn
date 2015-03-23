@@ -30,7 +30,6 @@ namespace seahorn
     
     ExprFactory m_efac;
     EZ3 m_zctx;
-    ZFixedPoint<EZ3> m_fp;
     HornClauseDB m_db;
 
     const DataLayout *m_td;
@@ -45,7 +44,6 @@ namespace seahorn
     virtual ~HornifyModule () {}
     ExprFactory& getExprFactory () {return m_efac;} 
     EZ3 &getZContext () {return m_zctx;}
-    ZFixedPoint<EZ3> &getZFixedPoint () {return m_fp;}
     HornClauseDB& getHornClauseDB () {return m_db;}
     virtual bool runOnModule (Module &M);
     virtual bool runOnFunction (Function &F);

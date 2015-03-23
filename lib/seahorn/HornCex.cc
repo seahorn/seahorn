@@ -277,7 +277,7 @@ namespace seahorn
     HornifyModule &hm = getAnalysis<HornifyModule> ();
     CutPointGraph &cpg = getAnalysis<CutPointGraph> (F);
     
-    auto &fp = hm.getZFixedPoint ();
+    auto &fp = hs.getZFixedPoint ();
     ExprVector rules;
     fp.getCexRules (rules);
     boost::reverse (rules);

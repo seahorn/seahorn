@@ -94,7 +94,11 @@ namespace seahorn
     
     void registerRelation (Expr fdecl) {m_rels.push_back (fdecl);}
     
-    const ExprVector& getRelations () {return m_rels;}
+    const ExprVector& getRelations () const {return m_rels;}
+    bool hasRelation (Expr fdecl) const
+    {return std::find
+        (m_rels.begin (), m_rels.end (), fdecl) != m_rels.end ();}
+    
     
     template <typename Range>
     void addRule (const Range &vars, Expr rule)
@@ -119,9 +123,10 @@ namespace seahorn
       if (isOpX<TRUE> (lemma)) return;
       
       Expr reln = bind::fname (pred);
+      assert (hasRelation (reln));
+      
       ExprMap sub;
       unsigned idx = 0;
-
       for (auto it = ++pred->args_begin (), end = pred->args_end (); it != end; ++it)
         sub [*it] = bind::bvar (idx++, bind::typeOf (*it));
       
@@ -134,10 +139,11 @@ namespace seahorn
       assert (bind::isFapp (pred));
 
       Expr reln = bind::fname (pred);
+      assert (hasRelation (reln));
+
       Expr lemma = mknary<AND> (mk<TRUE> (pred->efac ()),
                                 m_constraints [reln].begin (), 
                                 m_constraints [reln].end ());
-
       ExprMap sub;
       unsigned idx = 0;
       for (auto it = ++pred->args_begin (), end = pred->args_end (); it != end; ++it)

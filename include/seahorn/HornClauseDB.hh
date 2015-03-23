@@ -3,11 +3,9 @@
 /// Horn Clause Database
 
 #include "llvm/Support/raw_ostream.h"
+
 #include <boost/range.hpp>
-#include <boost/range/algorithm/sort.hpp>
 #include <boost/range/algorithm/copy.hpp>
-#include <vector>
-#include <sstream>
 
 #include "ufo/Expr.hpp"
 
@@ -77,23 +75,12 @@ namespace seahorn
     Expr m_query;
     std::map<Expr, ExprVector> m_constraints;
     
-    const ExprVector &getVars ()
-    {
-      boost::sort (m_vars);
-      m_vars.resize (std::distance (m_vars.begin (),
-                                    std::unique (m_vars.begin (),
-                                                 m_vars.end ())));
-      return m_vars;
-    }
-    
-    typedef HornClauseDB this_type;
+    const ExprVector &getVars ();
     
   public:
 
     HornClauseDB () {}
-    
     void registerRelation (Expr fdecl) {m_rels.push_back (fdecl);}
-    
     const ExprVector& getRelations () const {return m_rels;}
     bool hasRelation (Expr fdecl) const
     {return std::find
@@ -115,62 +102,13 @@ namespace seahorn
 
     /// Add constraint to a predicate
     /// Adds constraint Forall V . pred -> lemma
-    void addConstraint (Expr pred, Expr lemma)
-    {
-
-      assert (bind::isFapp (pred));
-
-      if (isOpX<TRUE> (lemma)) return;
-      
-      Expr reln = bind::fname (pred);
-      assert (hasRelation (reln));
-      
-      ExprMap sub;
-      unsigned idx = 0;
-      for (auto it = ++pred->args_begin (), end = pred->args_end (); it != end; ++it)
-        sub [*it] = bind::bvar (idx++, bind::typeOf (*it));
-      
-      m_constraints [reln].push_back (replace (lemma, sub));
-    }
+    void addConstraint (Expr pred, Expr lemma);
     
     /// Returns the current constraints for the predicate
-    const Expr getConstraints (Expr pred) 
-    {
-      assert (bind::isFapp (pred));
+    Expr getConstraints (Expr pred) const;
+    
 
-      Expr reln = bind::fname (pred);
-      assert (hasRelation (reln));
-
-      Expr lemma = mknary<AND> (mk<TRUE> (pred->efac ()),
-                                m_constraints [reln].begin (), 
-                                m_constraints [reln].end ());
-      ExprMap sub;
-      unsigned idx = 0;
-      for (auto it = ++pred->args_begin (), end = pred->args_end (); it != end; ++it)
-      {
-        Expr k = bind::bvar (idx++, bind::typeOf (*it));
-        sub [k] = pred->arg (idx);
-      }
-          
-      return replace (lemma, sub);
-    }
-
-    raw_ostream& write (raw_ostream& o) const
-    {
-      std::ostringstream oss;
-      oss << "Predicates:\n;";
-      for (auto &p : m_rels)
-      { oss << p << "\n"; }
-      oss << "Clauses:\n;";
-      for (auto &r : m_rules)
-      { oss << r.body () << "\n"; }
-      oss << "Query:\n;";
-      oss << m_query << "\n";
-      o << oss.str ();
-      o.flush ();
-      return o;
-    }
-        
+    raw_ostream& write (raw_ostream& o) const;
   };
 
   inline raw_ostream& operator <<(raw_ostream& o, const HornClauseDB &db)

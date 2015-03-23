@@ -122,8 +122,7 @@ namespace seahorn
       ExprMap sub;
       unsigned idx = 0;
 
-      for (auto it = ++/*reln*/pred->args_begin (), 
-               end = /*reln*/pred->args_end (); it != end; ++it)
+      for (auto it = ++pred->args_begin (), end = pred->args_end (); it != end; ++it)
         sub [*it] = bind::bvar (idx++, bind::typeOf (*it));
       
       m_constraints [reln].push_back (replace (lemma, sub));
@@ -136,14 +135,12 @@ namespace seahorn
 
       Expr reln = bind::fname (pred);
       Expr lemma = mknary<AND> (mk<TRUE> (pred->efac ()),
-                                m_constraints [reln /*pred*/].begin (), 
-                                m_constraints [reln /*pred*/].end ());
+                                m_constraints [reln].begin (), 
+                                m_constraints [reln].end ());
 
       ExprMap sub;
       unsigned idx = 0;
-      for (auto it = ++/*reln*/pred->args_begin (), 
-               end = /*reln*/pred->args_end (); 
-           it != end; ++it)
+      for (auto it = ++pred->args_begin (), end = pred->args_end (); it != end; ++it)
       {
         Expr k = bind::bvar (idx++, bind::typeOf (*it));
         sub [k] = pred->arg (idx);

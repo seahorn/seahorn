@@ -8,7 +8,7 @@
 
 namespace seahorn
 {
-  const ExprVector &HornClauseDB::getVars ()
+  const ExprVector &HornClauseDB::getVars () const
   {
     boost::sort (m_vars);
     m_vars.resize (std::distance (m_vars.begin (),

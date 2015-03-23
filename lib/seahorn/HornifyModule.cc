@@ -79,7 +79,7 @@ namespace seahorn
   char HornifyModule::ID = 0;
 
   HornifyModule::HornifyModule () :
-    ModulePass (ID), m_zctx (m_efac), m_fp (m_zctx),
+    ModulePass (ID), m_zctx (m_efac), m_fp (m_zctx), m_db (m_efac),
     m_td(0)
   {
     if (PdrVerbose > 0)

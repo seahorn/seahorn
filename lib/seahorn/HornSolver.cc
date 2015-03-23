@@ -37,10 +37,22 @@ namespace seahorn
       { fp.registerRelation (p); }
     
       for (auto &r: db.getRules ())
-      { 
         fp.addRule (r.vars (), r.get ()); 
-        fp.addCover (r.head (), db.getConstraints (r.head ()));
-      }
+      
+      for (auto &r : db.getRelations ())
+        if (db.hasConstraints (r))
+        {
+          ExprVector args;
+          for (unsigned i = 0, sz = bind::domainSz (r); i < sz; ++i)
+          {
+            Expr argName = mkTerm<std::string>
+              ("arg_" + boost::lexical_cast<std::string> (i), efac);
+            args.push_back (bind::mkConst (argName, bind::domainTy (r, i)));
+          }
+          Expr pred;
+          pred = bind::fapp (r, args);
+          fp.addCover (pred, db.getConstraints (pred));
+        }
       
       fp.addQuery (db.getQuery ());
     }

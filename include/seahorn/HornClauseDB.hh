@@ -100,6 +100,8 @@ namespace seahorn
     void addQuery (Expr q) {m_query = q;}
     Expr getQuery () {return m_query;}
 
+    bool hasConstraints (Expr reln) {return m_constraints.count (reln) > 0;}
+    
     /// Add constraint to a predicate
     /// Adds constraint Forall V . pred -> lemma
     void addConstraint (Expr pred, Expr lemma);

@@ -48,21 +48,15 @@ namespace seahorn
     }
     else 
     {
-      // We use ZFixedPoint to translate to SMT2. 
+      // Use local ZFixedPoint object to translate to SMT2. 
       //
       // When HornWrite is called hm.getZFixedPoint () might be still
       // empty so we need to dump first the content of HornClauseDB
       // into fp.
       ZFixedPoint<EZ3> fp (hm.getZContext ());
-      {
-        for (auto &p: db.getRelations ())
-        { fp.registerRelation (p); }
-
-        for (auto &r: db.getRules ())
-        { fp.addRule (r.vars (), r.get ()); }
-
-        fp.addQuery (db.getQuery ());
-      }
+      // -- skip constraints since they are not supported.
+      // -- do not skip the query
+      db.loadZFixedPoint (fp, true, false);
 
       if (InternalWriter)
         m_out << fp << "\n";

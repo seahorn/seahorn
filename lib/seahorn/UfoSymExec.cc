@@ -668,6 +668,8 @@ namespace seahorn
   
   Expr UfoSmallSymExec::symb (const Value &I)
   {
+    assert (!isa<UndefValue>(&I));
+
     // -- basic blocks are mapped to Bool constants
     if (const BasicBlock *bb = dyn_cast<const BasicBlock> (&I))
       return bind::boolConst 

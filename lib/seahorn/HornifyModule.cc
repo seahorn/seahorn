@@ -32,17 +32,6 @@
 using namespace llvm;
 using namespace seahorn;
 
-static llvm::cl::opt<std::string>
-PdrEngine ("horn-pdr-engine",
-           llvm::cl::desc ("Pdr engine to use"),
-           cl::init ("spacer"),
-           cl::Hidden);
-
-static llvm::cl::opt<int>
-PdrVerbose("horn-pdr-verbose",
-           llvm::cl::desc ("Verbosity of the PDR engine"),
-           cl::init (0),
-           cl::Hidden);
 
 static llvm::cl::opt<enum TrackLevel>
 TL("horn-sem-lvl",
@@ -79,23 +68,9 @@ namespace seahorn
   char HornifyModule::ID = 0;
 
   HornifyModule::HornifyModule () :
-    ModulePass (ID), m_zctx (m_efac), m_fp (m_zctx),
+    ModulePass (ID), m_zctx (m_efac),  m_db (m_efac),
     m_td(0)
   {
-    if (PdrVerbose > 0)
-      z3n_set_param ("verbose", PdrVerbose);
-
-    ZParams<EZ3> params (m_zctx);
-    params.set (":engine", PdrEngine);
-    // -- disable slicing so that we can use cover
-    params.set (":xform.slice", false);
-    params.set (":use_heavy_mev", true);
-    params.set (":reset_obligation_queue", true);
-    //params.set (":pdr.flexible_trace", true);
-    params.set (":xform.inline-linear", false);
-    params.set (":xform.inline-eager", false);
-
-    m_fp.set (params);
   }
 
   bool HornifyModule::runOnModule (Module &M)

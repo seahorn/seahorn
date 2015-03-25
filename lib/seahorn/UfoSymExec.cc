@@ -278,8 +278,8 @@ namespace
         m_side.push_back (mk<EQ> (havoc (I), op0));
     }
     
-    void visitZExtInst (ZExtInst &I) {doExtCast (I);}
-    void visitSExtInst (SExtInst &I) {doExtCast (I);}
+    void visitZExtInst (ZExtInst &I) {doExtCast (I, false);}
+    void visitSExtInst (SExtInst &I) {doExtCast (I, true);}
     
     void visitGetElementPtrInst (GetElementPtrInst &gep)
     {
@@ -299,7 +299,7 @@ namespace
       if (op) m_side.push_back (mk<EQ> (lhs, op));
     }
     
-    void doExtCast (CastInst &I)
+    void doExtCast (CastInst &I, bool is_signed = false)
     {
       Expr lhs = havoc (I);
       const Value& v0 = *I.getOperand (0);
@@ -307,13 +307,16 @@ namespace
       
       if (!op0) return;
       
+      // sext maps (i1 1) to -1
+      Expr one = mkTerm<mpz_class> (is_signed ? -1 : 1, m_efac);
+      Expr zero = mkTerm<mpz_class> (0, m_efac);
+      
       if (v0.getType ()->isIntegerTy (1))
       {
         if (const ConstantInt *ci = dyn_cast<ConstantInt> (&v0))
-          op0 = mkTerm<mpz_class> (ci->isOne () ? 1 : 0, m_efac);
+          op0 = ci->isOne () ? one : zero;
         else
-          op0 = mk<ITE> (op0, 
-                         mkTerm<mpz_class>(1, m_efac), mkTerm<mpz_class> (0, m_efac));
+          op0 = mk<ITE> (op0, one, zero);
       }
       
       m_side.push_back (mk<EQ> (lhs, op0));

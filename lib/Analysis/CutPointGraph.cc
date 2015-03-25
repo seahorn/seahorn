@@ -30,6 +30,8 @@ namespace seahorn
     computeFwdReach (F, topo);
     computeBwdReach (F, topo);
     computeEdges (F, topo);
+
+    LOG ("cpg", print (errs (), F.getParent ()));
     return false;
   }
 

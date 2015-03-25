@@ -1,5 +1,8 @@
 #include "seahorn/ClpWrite.hh"
 #include "llvm/Support/CommandLine.h"
+#include "llvm/IR/Value.h"
+#include "llvm/IR/Constants.h"
+#include "ufo/ExprLlvm.hpp"
 #include "boost/algorithm/string/replace.hpp"
 #include "boost/algorithm/string/predicate.hpp"
 #include "avy/AvyDebug.h"
@@ -8,6 +11,7 @@ namespace seahorn
 {
   using namespace expr;
   using namespace std;
+  using namespace llvm;
 
   enum exprStrOp { _AND, _OR, _PLUS, _MINUS, _MULT};
 
@@ -209,13 +213,10 @@ namespace seahorn
       { return M::print (e, parent, rels, efac, cache, seen); }      
       else if (bind::isBoolConst (e))
       { // e can be positive or negative
-        
-        ENode *fname = *(e->args_begin());
-        if (isOpX<FDECL> (fname)) 
-          fname = fname->arg (0);
+        Expr fname = bind::fname (bind::fname (e));
         std::string sname = boost::lexical_cast<std::string> (fname);
 
-        bool isVar = (std::find (rels.begin (), rels.end (), *(e->args_begin())) == rels.end ());
+        bool isVar = (std::find (rels.begin (), rels.end (), fname) == rels.end ());
         if (isTopLevelExpr (e, parent) && isVar)
         { res = (ExprStr (sname, true) == ExprStr ("1")); }
         else 
@@ -224,28 +225,14 @@ namespace seahorn
       }
       else if (bind::isIntConst (e) )
       {
-        Expr name = bind::name (e);
-        std::string sname;
-        if (isOpX<STRING> (name)) 
-        {  res = ExprStr (getTerm<std::string> (name), 
-                          (bind::isIntVar ? true : false)); }
-        else 
-        {
-          ENode *fname = *(e->args_begin());
-          if (isOpX<FDECL> (fname)) fname = fname->arg (0);         
-          res = ExprStr (boost::lexical_cast<std::string> (fname), 
-                         (bind::isIntVar ? true : false));              
-        }
+        Expr fname = bind::fname (bind::fname (e));        
+        res = ExprStr (boost::lexical_cast<std::string> (fname), true); 
       }
       else if (bind::isRealConst (e))
       { return M::print (e, parent, rels, efac, cache, seen); }
       else if (bind::isFapp (e))
       {
-        
-        ENode *fname = *(e->args_begin());
-        if (isOpX<FDECL> (fname)) 
-          fname = fname->arg (0);
-
+        Expr fname = bind::fname (bind::fname (e));
         string fapp = boost::lexical_cast<std::string> (fname) ;              
         ENode::args_iterator it = ++ (e->args_begin ());
         ENode::args_iterator end = e->args_end ();

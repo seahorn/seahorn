@@ -24,28 +24,60 @@ namespace seahorn
       return;
     }
 
-
     CutPointGraph &cpg = m_parent.getCpg (F);
     const LiveSymbols &ls = m_parent.getLiveSybols (F);
-    
-    ExprVector sorts;
 
+    DenseMap<const BasicBlock*, unsigned> cpgOrder;
+    // globally live
+    ExprSet glive;
+    
+    unsigned idx = 0;
     for (const CutPoint &cp : cpg)
     {
-      Expr decl = m_parent.bbPredicate (cp.bb ());
-      m_fp.registerRelation (decl);
+      cpgOrder [&cp.bb ()] = idx++;
+      
+      auto &live = ls.live (&cp.bb ());
+      glive.insert (live.begin (), live.end ());
+      
       if (m_interproc) extractFunctionInfo (cp.bb ());
     }
+
+    // -- process counter
+    Expr pc = bind::intConst (mkTerm<std::string> ("flat.pc", m_efac));
+    
+    // -- step predicate. First argument is pc
+    Expr step;
+    
+    {
+      ExprVector sorts;
+      sorts.reserve (glive.size () + 2);
+      sorts.push_back (bind::typeOf (pc));
+      for (auto &v : glive) sorts.push_back (bind::typeOf (v));
+      sorts.push_back (mk<BOOL_TY> (m_efac));
+      
+      // the step function is
+      Expr name = mkTerm<const Function*> (&F, m_efac);
+      // avoid clash with the names of summaries
+      if (m_interproc) name = variant::prime (name);
+      
+      step = bind::fdecl (name, sorts);
+      m_fp.registerRelation (step);
+    }
+    
           
     const BasicBlock &entry = F.getEntryBlock ();
     
     ExprSet allVars;
     ExprVector args;
     SymStore s (m_efac);
-    for (const Expr& v : ls.live (&entry)) args.push_back (s.read (v));
-    allVars.insert (args.begin (), args.end ());
     
-    Expr rule = bind::fapp (m_parent.bbPredicate (entry), args);
+    
+    s.write (pc, mkTerm<mpz_class> (cpgOrder [&entry], m_efac));
+    args.push_back (s.read (pc));
+    for (const Expr& v : glive) args.push_back (s.read (v));
+    allVars.insert (++args.begin (), args.end ());
+    
+    Expr rule = bind::fapp (step, args);
     rule = boolop::limp (boolop::lneg (s.read (m_sem.errorFlag (entry))), rule);
     m_fp.addRule (allVars, rule);
     allVars.clear ();
@@ -60,12 +92,13 @@ namespace seahorn
           allVars.clear ();
           args.clear ();
           s.reset ();
-          const ExprVector &live = ls.live (&cp.bb ());
-
-          for (const Expr &v : live) args.push_back (s.read (v));
-          allVars.insert (args.begin (), args.end ());
           
-          Expr pre = bind::fapp (m_parent.bbPredicate (cp.bb ()), args);
+          s.write (pc, mkTerm<mpz_class> (cpgOrder [&cp.bb ()], m_efac));
+          args.push_back (s.read (pc));
+          for (const Expr &v : glive) args.push_back (s.read (v));
+          allVars.insert (++args.begin (), args.end ());
+          
+          Expr pre = bind::fapp (step, args);
           
           ExprVector side;
           side.push_back (boolop::lneg ((s.read (m_sem.errorFlag (cp.bb ())))));
@@ -76,10 +109,13 @@ namespace seahorn
 
           const BasicBlock &dst = edge->target ().bb ();
           args.clear ();
-          for (const Expr &v : ls.live (&dst)) args.push_back (s.read (v));
-          allVars.insert (args.begin (), args.end ());
           
-          Expr post = bind::fapp (m_parent.bbPredicate (dst), args);
+          s.write (pc, mkTerm<mpz_class> (cpgOrder [&dst], m_efac));
+          args.push_back (s.read (pc));
+          for (const Expr &v : glive) args.push_back (s.read (v));
+          allVars.insert (++args.begin (), args.end ());
+          
+          Expr post = bind::fapp (step, args);
           m_fp.addRule (allVars, boolop::limp (boolop::land (pre, tau), post));
         }
       }
@@ -102,25 +138,38 @@ namespace seahorn
       allVars.clear ();
       args.clear ();
       
-      const ExprVector &live = ls.live (&cp.bb ());
-      for (const Expr &v : live) args.push_back (s.read (v));
-      allVars.insert (args.begin (), args.end ());
+      s.write (pc, mkTerm<mpz_class> (cpgOrder [&cp.bb ()], m_efac));
+      args.push_back (s.read (pc));
+      for (const Expr &v : glive) args.push_back (s.read (v));
+      allVars.insert (++args.begin (), args.end ());
       
-      Expr pre = bind::fapp (m_parent.bbPredicate (cp.bb ()), args);
+      Expr pre = bind::fapp (step, args);
       pre = boolop::land (pre, s.read (m_sem.errorFlag (cp.bb ())));
       
       args.clear ();
-      for (const Expr &v : ls.live (exit)) args.push_back (s.read (v));
-      allVars.insert (args.begin (), args.end ());
       
-      Expr post = bind::fapp (m_parent.bbPredicate (*exit), args);
+      s.write (pc, mkTerm<mpz_class> (cpgOrder [exit], m_efac));
+      args.push_back (s.read (pc));
+      for (const Expr &v : glive) args.push_back (s.read (v));
+      allVars.insert (++args.begin (), args.end ());
+      
+      Expr post = bind::fapp (step, args);
       m_fp.addRule (allVars, boolop::limp (pre, post));
     }   
     
-    if (F.getName ().equals ("main") && ls.live (exit).size () == 1)
-      m_fp.addQuery (bind::fapp (m_parent.bbPredicate(*exit), mk<TRUE> (m_efac)));
-    else if (F.getName ().equals ("main") && ls.live (exit).size () == 0)
-      m_fp.addQuery (bind::fapp (m_parent.bbPredicate(*exit)));
+    if (F.getName ().equals ("main") && ls.live (exit).size () == 0)
+    {
+      args.clear ();
+      s.reset ();
+      
+      s.write (pc, mkTerm<mpz_class> (cpgOrder [exit], m_efac));
+      args.push_back (s.read (pc));
+      if (ls.live (exit).size () == 1)
+        s.write (m_sem.errorFlag (*exit), mk<TRUE> (m_efac));
+      for (const Expr &v : glive) args.push_back (s.read (v));
+      
+      m_fp.addQuery (bind::fapp (step , args));
+    }
     else if (m_interproc)
     {
       // the summary rule
@@ -130,11 +179,12 @@ namespace seahorn
       args.clear ();
       allVars.clear ();
       
-      const ExprVector &live = ls.live (exit);
-      for (const Expr &v : live) args.push_back (s.read (v)); 
-      allVars.insert (args.begin (), args.end ());
+      s.write (pc, mkTerm<mpz_class> (cpgOrder [exit], m_efac));
+      args.push_back (s.read (pc));
+      for (const Expr &v : glive) args.push_back (s.read (v)); 
+      allVars.insert (++args.begin (), args.end ());
       
-      Expr pre = bind::fapp (m_parent.bbPredicate (*exit), args);
+      Expr pre = bind::fapp (step, args);
       pre = boolop::land (pre, boolop::lneg (s.read (m_sem.errorFlag (*exit))));
       
       Expr falseE = mk<FALSE> (m_efac);

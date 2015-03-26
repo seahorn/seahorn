@@ -6,6 +6,7 @@ add_llvm_library (seahorn.LIB
   UfoSymExec.cc
   HornifyModule.cc 
   HornifyFunction.cc 
+  FlatHornifyFunction.cc
   HornWrite.cc
   HornSolver.cc
   HornCex.cc

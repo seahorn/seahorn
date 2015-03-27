@@ -118,8 +118,8 @@ namespace seahorn
     static ExprStr print (Expr e, Expr parent, const ExprVector &rels, 
                           ExprFactory &efac, C &cache, expr_str_map &seen)
     { std::cout << "Cannot print: " << *e << "\n";
-      assert (0);
-      return e;
+      assert (false);
+      return ExprStr ();
     }
   };
 

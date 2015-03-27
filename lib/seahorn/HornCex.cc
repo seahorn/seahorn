@@ -20,6 +20,8 @@
 #include "llvm/Support/ToolOutputFile.h"
 #include "llvm/Support/FileSystem.h"
 
+#include "llvm/IR/DebugLoc.h"
+#include "llvm/IR/DebugInfo.h"
 
 static llvm::cl::opt<std::string>
 SvCompCexFile("horn-svcomp-cex", llvm::cl::desc("Counterexample in SV-COMP XML format"),
@@ -223,6 +225,21 @@ namespace seahorn
                  line->getSExtValue (), 
                  constAsString (scope).c_str ());
   }
+
+  template <typename O>
+  static void printDebugLoc (const DebugLoc& dloc,
+                             SvCompCex<O> &svcomp)
+  {
+    if (dloc.isUnknown ()) return;
+    std::string file;
+    
+    DIScope Scope (dloc.getScope ());
+    if (Scope) file = Scope.getFilename ();
+    else file = "<unknown>";
+    
+    svcomp.edge (file, (int)dloc.getLine (), "");
+  }
+  
   
   // static void printDecl (const CallInst &ci)
   // {
@@ -251,6 +268,8 @@ namespace seahorn
     {
       for (auto &I : *bb)
       {
+        printDebugLoc (I.getDebugLoc (), svcomp);
+        
         if (const CallInst *ci = dyn_cast<const CallInst> (&I))
         {
           Function *f = ci->getCalledFunction ();

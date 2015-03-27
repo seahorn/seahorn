@@ -129,6 +129,8 @@ def getOpt ():
     if 'OPT' in os.environ:
         opt = os.environ ['OPT']
     if not isexec (opt):
+        opt = os.path.join (root, 'bin/seaopt')
+    if not isexec (opt):
         opt = os.path.join (root, "bin/opt")
     if not isexec (opt): opt = which ('opt')
     if not isexec (opt):

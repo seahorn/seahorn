@@ -119,6 +119,7 @@ namespace seahorn
                           ExprFactory &efac, C &cache, expr_str_map &seen)
     { std::cout << "Cannot print: " << *e << "\n";
       assert (0);
+      return e;
     }
   };
 

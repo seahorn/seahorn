@@ -159,12 +159,13 @@ def getSeaPP ():
     return seapp
 
 def getClang ():
-    clang = which ('clang-mp-3.4')
-    if clang is None: clang = which ('clang-3.4')
-    if clang is None: clang = which ('clang')
-    if clang is None:
-        raise IOError ("Cannot find clang")
-    return clang
+    names = ['clang-mp-3.6', 'clang-3.6', 'clang', 'clang-mp-3.5', 'clang-mp-3.4']
+    
+    for n in names:
+        clang = which (n)
+        if clang is not None:
+            return clang
+    raise IOError ('Cannot find clang (required)')    
 
 def getSpacer ():
     spacer = None

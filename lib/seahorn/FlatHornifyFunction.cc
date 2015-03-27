@@ -157,7 +157,7 @@ namespace seahorn
       m_fp.addRule (allVars, boolop::limp (pre, post));
     }   
     
-    if (F.getName ().equals ("main") && ls.live (exit).size () == 0)
+    if (F.getName ().equals ("main"))
     {
       args.clear ();
       s.reset ();

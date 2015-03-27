@@ -78,6 +78,8 @@ def parseArgs (argv):
                        default=False, action='store_true')
     p.add_argument ('-O', type=int, dest='L', metavar='INT',
                        help='Optimization level L:[0,1,2,3]', default=3)
+    p.add_argument ('-g', default=False, action='store_true', dest='debug_info',
+                    help='Compile with debug information')
     p.add_argument ('-m', type=int, dest='machine',
                        help='Machine architecture MACHINE:[32,64]', default=32)
     p.add_argument ('--engine', '-e', type=str, dest='engine', metavar='STR',
@@ -129,6 +131,8 @@ def getOpt ():
     if 'OPT' in os.environ:
         opt = os.environ ['OPT']
     if not isexec (opt):
+        opt = os.path.join (root, 'bin/seaopt')
+    if not isexec (opt):
         opt = os.path.join (root, "bin/opt")
     if not isexec (opt): opt = which ('opt')
     if not isexec (opt):
@@ -157,12 +161,13 @@ def getSeaPP ():
     return seapp
 
 def getClang ():
-    clang = which ('clang-mp-3.4')
-    if clang is None: clang = which ('clang-3.4')
-    if clang is None: clang = which ('clang')
-    if clang is None:
-        raise IOError ("Cannot find clang")
-    return clang
+    names = ['clang-mp-3.6', 'clang-3.6', 'clang', 'clang-mp-3.5', 'clang-mp-3.4']
+    
+    for n in names:
+        clang = which (n)
+        if clang is not None:
+            return clang
+    raise IOError ('Cannot find clang (required)')    
 
 def getSpacer ():
     spacer = None
@@ -391,7 +396,10 @@ def main (argv):
     bc_out = defBCName (in_name, workdir)
     assert bc_out != in_name
     with stats.timer ('Clang'):
-        clang (in_name, bc_out, arch=args.machine)
+        extra_args = []
+        if args.debug_info:
+            extra_args.append ('-g')
+        clang (in_name, bc_out, arch=args.machine, extra_args=extra_args)
     stat ('Progress', 'CLANG')
 
     in_name = bc_out

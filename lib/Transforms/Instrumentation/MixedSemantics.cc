@@ -13,6 +13,7 @@
 #include "llvm/ADT/PostOrderIterator.h"
 #include "llvm/IR/CFG.h"
 #include "llvm/Transforms/Scalar.h"
+#include "llvm/IR/GlobalValue.h"
 
 #include "boost/range.hpp"
 
@@ -84,6 +85,9 @@ namespace seahorn
                                        main->getLinkage (),
                                        "main", &M);
     newM->copyAttributesFrom (main);
+
+    // -- mark old main as private
+    main->setLinkage (GlobalValue::LinkageTypes::PrivateLinkage);
     
     BasicBlock *entry = BasicBlock::Create (M.getContext (),
                                             "entry", newM);

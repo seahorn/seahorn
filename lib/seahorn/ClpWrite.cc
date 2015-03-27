@@ -215,13 +215,11 @@ namespace seahorn
       { // e can be positive or negative
         Expr fname = bind::fname (bind::fname (e));
         std::string sname = boost::lexical_cast<std::string> (fname);
-
-        bool isVar = (std::find (rels.begin (), rels.end (), fname) == rels.end ());
+        bool isVar = (std::find (rels.begin (), rels.end (), bind::fname (e)) == rels.end ());
         if (isTopLevelExpr (e, parent) && isVar)
         { res = (ExprStr (sname, true) == ExprStr ("1")); }
         else 
-        { res = ExprStr (sname, isVar ? true: false); }
-
+        { res = ExprStr (sname, isVar); }
       }
       else if (bind::isIntConst (e) )
       {

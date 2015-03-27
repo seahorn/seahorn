@@ -78,6 +78,8 @@ def parseArgs (argv):
                        default=False, action='store_true')
     p.add_argument ('-O', type=int, dest='L', metavar='INT',
                        help='Optimization level L:[0,1,2,3]', default=3)
+    p.add_argument ('-g', default=False, action='store_true', dest='debug_info',
+                    help='Compile with debug information')
     p.add_argument ('-m', type=int, dest='machine',
                        help='Machine architecture MACHINE:[32,64]', default=32)
     p.add_argument ('--engine', '-e', type=str, dest='engine', metavar='STR',
@@ -394,7 +396,10 @@ def main (argv):
     bc_out = defBCName (in_name, workdir)
     assert bc_out != in_name
     with stats.timer ('Clang'):
-        clang (in_name, bc_out, arch=args.machine)
+        extra_args = []
+        if args.debug_info:
+            extra_args.append ('-g')
+        clang (in_name, bc_out, arch=args.machine, extra_args=extra_args)
     stat ('Progress', 'CLANG')
 
     in_name = bc_out

@@ -13,15 +13,20 @@ def isexec (fpath):
     return os.path.isfile(fpath) and os.access(fpath, os.X_OK)
 
 def which(program):
-    fpath, fname = os.path.split(program)
-    if fpath:
-        if isexec (program):
-            return program
+    if isinstance (program, str):
+        choices = [program]
     else:
-        for path in os.environ["PATH"].split(os.pathsep):
-            exe_file = os.path.join(path, program)
-            if isexec (exe_file):
-                return exe_file
+        choices = program
+
+    for p in choices:
+        fpath, fname = os.path.split(p)
+        if fpath:
+            if isexec (p): return p
+        else:
+            for path in os.environ["PATH"].split(os.pathsep):
+                exe_file = os.path.join(path, p)
+                if isexec (exe_file):
+                    return exe_file
     return None
     
 # inspired from:

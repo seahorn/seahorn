@@ -4,6 +4,12 @@ import argparse
 
 import util
 
+def add_in_out_args (ap):
+    ap.add_argument ('-o', dest='out_file',
+                     metavar='FILE', help='Output file name', default=None)
+    ap.add_argument ('in_file',  metavar='FILE', help='Input file')
+    return ap
+
 class CliCmd (object):
     def __init__ (self, name='', allow_extra=False):
         self.name = name
@@ -67,11 +73,7 @@ class SeqCmd (AgregateCmd):
         super (SeqCmd, self).__init__ (name, cmds)
 
     def mk_arg_parser (self, ap):
-        ap.add_argument ('-o', dest='out_file',
-                         metavar='FILE', help='Output file name', default=None)
-        ap.add_argument ('file', dest='in_file',
-                         metavar='FILE', help='Input file')
-        
+        add_in_out_args (ap)
         ap.add_argument ("--save-temps", dest="save_temps",
                          help="Do not delete temporary files",
                          action="store_true",

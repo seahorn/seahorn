@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 2.8.11)
+cmake_minimum_required(VERSION 2.8.7)
 
 project (SeaHorn)
 set (SeaHorn_VERSION_MAJOR 1)
@@ -67,7 +67,7 @@ include(ExternalProject)
 set_property(DIRECTORY PROPERTY EP_STEP_TARGETS configure build test)
 
 set (Z3_TAG "origin/spacer" CACHE STRING "Z3 git tag to use")
-set (Z3_REPO "https://bitbucket.org/spacer/code.git" CACHE STRING "Z3 repo") 
+set (Z3_REPO "https://bitbucket.org/spacer/code.git" CACHE STRING "Z3 repo")
 if (CMAKE_BUILD_TYPE STREQUAL "Debug")
   set (Z3_DEBUG "-d")
 else()
@@ -107,7 +107,7 @@ ExternalProject_Add (llvm
   -DCMAKE_BUILD_TYPE:STRING=${CMAKE_BUILD_TYPE}
   -DCMAKE_INSTALL_PREFIX:PATH=<INSTALL_DIR>
   -DLLVM_TARGETS_TO_BUILD:STRING=X86 -DWITH_POLY:BOOL=OFF
-  -DLLVM_ENABLE_PEDANTIC=OFF 
+  -DLLVM_ENABLE_PEDANTIC=OFF
   -DLLVM_ENABLE_PIC=ON -DLLVM_REQUIRES_RTTI:BOOL=TRUE
   TEST_AFTER_INSTALL 1
   TEST_COMMAND ${CMAKE_COMMAND} -E touch ${CMAKE_CURRENT_LIST_FILE}
@@ -125,7 +125,7 @@ if (NOT LLVM_FOUND)
   return()
 else()
   set_target_properties(llvm PROPERTIES EXCLUDE_FROM_ALL ON)
-  
+
   message(STATUS "Found LLVM ${LLVM_PACKAGE_VERSION}")
   message(STATUS "Using LLVMConfig.cmake in: ${LLVM_DIR}")
 

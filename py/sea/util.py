@@ -4,6 +4,9 @@ import os.path
 import threading
 import subprocess
 
+import atexit
+import tempfile
+import shutil
 
 def isexec (fpath):
     if fpath == None: return False
@@ -70,3 +73,14 @@ class TimeLimitedExec(threading.Thread):
 
         return self.p.returncode
 
+    
+def createWorkDir (dname=None, save=False, prefix='tmp-'):
+    if dname is None:
+        workdir = tempfile.mkdtemp (prefix=prefix)
+    else:
+        if not os.path.isdir (dname): os.mkdir (dname)
+        workdir = dname
+
+    if not save:
+        atexit.register (shutil.rmtree, path=workdir)
+    return workdir

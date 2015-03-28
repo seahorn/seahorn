@@ -113,7 +113,7 @@ class SeqCmd (AgregateCmd):
     
 class ExtCmd (LimitedCmd):
     def __init__ (self, name, quiet=False):
-        super (ExtCmd, self).__init__ (name)
+        super (ExtCmd, self).__init__ (name, allow_extra=True)
         self.cmd = None
         self.quiet = quiet
 
@@ -125,14 +125,9 @@ class ExtCmd (LimitedCmd):
         
         self.cmd = util.TimeLimitedExec (argv, args.cpu, args.mem)
         return self.cmd.Run ()
-        
-    def main (self, argv):
-        import argparse
-        ap = argparse.ArgumentParser ()
-        ap = self.mk_arg_parser (ap)
-        
-        args, extra = ap.parse_known_args (argv)
-        return self.run (args, extra)        
+    
+    @property    
+    def stdout (self): return self.cmd.stdout
         
 
         

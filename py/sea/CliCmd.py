@@ -5,8 +5,9 @@ import argparse
 import util
 
 class CliCmd (object):
-    def __init__ (self, name=""):
+    def __init__ (self, name='', allow_extra=False):
         self.name = name
+        self.allow_extra = allow_extra
         
     def mk_arg_parser (self, argp):
         return argp
@@ -25,11 +26,15 @@ class CliCmd (object):
         ap = argparse.ArgumentParser ()
         ap = self.mk_arg_parser (ap)
         
-        args = ap.parse_args (argv)
-        return self.run (args)
+        if self.allow_extra:
+            args, extra = ap.parse_known_args (argv)
+        else:
+            args = ap.parse_args (argv)
+            extra = []
+        return self.run (args, extra)
     
 class LimitedCmd (CliCmd):
-    def __init__ (self, name=""):
+    def __init__ (self, name=''):
         super (LimitedCmd, self).__init__ (name)
 
     def mk_arg_parser (self, argp):
@@ -43,7 +48,7 @@ class LimitedCmd (CliCmd):
 
 class AgregateCmd (CliCmd):
     def __init__ jself, name='', cmds=[]):
-        super(AgregateCmd, self).__init__(name)
+        super(AgregateCmd, self).__init__(name, allow_extra=True)
         self.cmds = cmds
     
     def mk_arg_parser (self, argp):
@@ -56,15 +61,7 @@ class AgregateCmd (CliCmd):
             
     def run (self, args=None, extra=[]):
         return args.func (args, extra)
-        
-    def main (self, argv):
-        import argparse
-        ap = argparse.ArgumentParser ()
-        ap = self.mk_arg_parser (ap)
-        
-        args, extra = ap.parse_known_args (argv)
-        return args.func (args, extra)
-        
+    
 class SeqCmd (AgregateCmd):
     def __init__ (self, name='', cmds=[]):
         super (SeqCmd, self).__init__ (name, cmds)

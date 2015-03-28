@@ -55,14 +55,16 @@ class AgregateCmd (CliCmd):
         
 class ExtCmd (LimitedCmd):
     def __init__ (self, name):
-        super (ExitCmd, self).__init__ (name)
-
+        super (ExtCmd, self).__init__ (name)
+        self.cmd = None
 
     def run (self, args, extra):
+        argv = [self.name]
+        argv.extend (extra)
         
-        cmd = util.TimeLimitedExec ([self.name].extend (extra), 
-                                    args.cpu, args.mem, verbose=1)
-        return cmd.Run ()
+        import util
+        self.cmd = util.TimeLimitedExec (argv, args.cpu, args.mem, verbose=1)
+        return self.cmd.Run ()
         
     def main (self, argv):
         import argparse

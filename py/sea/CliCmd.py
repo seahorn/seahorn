@@ -15,7 +15,7 @@ class CliCmd (object):
     def run (self, args=None, extra=[]):
         return 0
 
-    def name_out_file (self, in_file, work_dir=None):
+    def name_out_file (self, in_file, args=None, work_dir=None):
         out_file = 'out'
         if work_dir is not None:
             out_file = os.path.join (work_dir, out_file)
@@ -93,7 +93,7 @@ class SeqCmd (AgregateCmd):
         for c in self.cmd[:-1]:
             argv = list()
             argv.extend (extra)
-            out_file = cmd.name_out_file (in_file, work_dir)
+            out_file = cmd.name_out_file (in_file, args, work_dir)
             argv.extend (['-o', out_file])
             argv.append (in_file)
             res = c.main (argv)

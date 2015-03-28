@@ -19,22 +19,21 @@ matrix:
    # D2. g++-mp-4.8     | RELEASE    
    - CMAKE_CXX_COMPILER=g++-mp-4.8
      CMAKE_BUILD_TYPE=RELEASE
-   
-
-script:
-  - mkdir -p build
-  - cd build
-  - GENERATOR=-GNinja;
-  - /usr/bin/cmake -DIGNORE_SORRY=ON  -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE} -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER} ${GENERATOR} -DCMAKE_PROGRAM_PATH=/usr/bin ../
-  - cd ..
-after_script:
-  - cd build
-  - ninja -j 1
-  - cd ..
+ 
 
 os:
   - linux
   - osx
+  
+script:
+  - mkdir -p build
+  - cd build
+  - GENERATOR=-GNinja;
+  - /usr/bin/cmake -DIGNORE_SORRY=ON  -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE} -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER} ${GENERATOR} ../
+after_script:
+  - /usr/bin/cmake . --build
+  - ninja -j 1
+  - cd ..
 
 notifications:
   email:

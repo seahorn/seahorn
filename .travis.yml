@@ -29,10 +29,10 @@ script:
   - mkdir -p build
   - cd build
   - GENERATOR=-GNinja;
-  - /usr/bin/cmake -DIGNORE_SORRY=ON  -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE} -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER} ${GENERATOR} ../
+  - /usr/bin/cmake -DIGNORE_SORRY=ON  -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE} -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER} ../
 after_script:
   - /usr/bin/cmake . --build
-  - ninja -j 1
+  - make
   - cd ..
 
 notifications:

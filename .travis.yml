@@ -20,7 +20,11 @@ matrix:
    - CMAKE_CXX_COMPILER=g++-mp-4.8
      CMAKE_BUILD_TYPE=RELEASE
  
-
+install:
+  - until sudo apt-get install ninja-build; do echo retry; done
+  - until sudo apt-get -qq update; do echo retry; done
+  - until sudo apt-get -qq install libboost-dev; do echo retry; done
+ 
 os:
   - linux
   - osx
@@ -29,10 +33,10 @@ script:
   - mkdir -p build
   - cd build
   - GENERATOR=-GNinja;
-  - /usr/bin/cmake -DIGNORE_SORRY=ON  -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE} -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER} ../
+  - /usr/bin/cmake -DIGNORE_SORRY=ON  -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE} -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER} ${GENERATOR} ../
 after_script:
   - /usr/bin/cmake . --build
-  - make
+  - ninja -j 1
   - cd ..
 
 notifications:

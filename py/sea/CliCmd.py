@@ -34,8 +34,8 @@ class CliCmd (object):
         return self.run (args, extra)
     
 class LimitedCmd (CliCmd):
-    def __init__ (self, name=''):
-        super (LimitedCmd, self).__init__ (name)
+    def __init__ (self, name='', allow_extra=False):
+        super (LimitedCmd, self).__init__ (name, allow_extra)
 
     def mk_arg_parser (self, argp):
         argp = super(LimitedCmd, self).mk_arg_parser (argp)
@@ -47,7 +47,7 @@ class LimitedCmd (CliCmd):
         
 
 class AgregateCmd (CliCmd):
-    def __init__ jself, name='', cmds=[]):
+    def __init__ (self, name='', cmds=[]):
         super(AgregateCmd, self).__init__(name, allow_extra=True)
         self.cmds = cmds
     
@@ -67,18 +67,18 @@ class SeqCmd (AgregateCmd):
         super (SeqCmd, self).__init__ (name, cmds)
 
     def mk_arg_parser (self, ap):
-        p.add_argument ('-o', dest='out_file',
-                        metavar='FILE', help='Output file name', default=None)
-        p.add_argument ('file', dest='in_file',
-                        metavar='FILE', help='Input file')
+        ap.add_argument ('-o', dest='out_file',
+                         metavar='FILE', help='Output file name', default=None)
+        ap.add_argument ('file', dest='in_file',
+                         metavar='FILE', help='Input file')
         
-        p.add_argument ("--save-temps", dest="save_temps",
-                        help="Do not delete temporary files",
-                        action="store_true",
-                        default=False)
-        p.add_argument ("--temp-dir", dest="temp_dir", metavar='DIR',
-                        help="Temporary directory",
-                        default=None)
+        ap.add_argument ("--save-temps", dest="save_temps",
+                         help="Do not delete temporary files",
+                         action="store_true",
+                         default=False)
+        ap.add_argument ("--temp-dir", dest="temp_dir", metavar='DIR',
+                         help="Temporary directory",
+                         default=None)
         
         return ap
     
@@ -121,7 +121,7 @@ class ExtCmd (LimitedCmd):
         argv = [self.name]
         argv.extend (extra)
         
-        if not self.quiet: print argv.join (' ')
+        if not self.quiet: print ' '.join (argv)
         
         self.cmd = util.TimeLimitedExec (argv, args.cpu, args.mem)
         return self.cmd.Run ()

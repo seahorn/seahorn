@@ -25,14 +25,7 @@ script:
   - mkdir -p build
   - cd build
   - GENERATOR=-GNinja;
-  - /usr/bin/cmake -DIGNORE_SORRY=ON  -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE} -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER} ${GENERATOR} -DCMAKE_PROGRAM_PATH=/usr/bin ../;
-  - if [[ $CMAKE_BUILD_TYPE == DEBUG || $CMAKE_BUILD_TYPE == RELEASE ]]; then
-       SITE=Ubuntu12.04@Travis;
-       if [[ $CMAKE_BUILD_TYPE == RELEASE ]]; then
-           BUILD_TYPE=Release;
-       else
-           BUILD_TYPE=Debug;
-       fi;
+  - /usr/bin/cmake -DIGNORE_SORRY=ON  -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE} -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER} ${GENERATOR} -DCMAKE_PROGRAM_PATH=/usr/bin ../
   - cd ..
 after_script:
   - cd build

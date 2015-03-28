@@ -44,8 +44,8 @@ class TimeLimitedExec(threading.Thread):
                 
         if self.verbose > 0: print self.cmd
         self.p = subprocess.Popen(self.cmd, 
-                stdout=subprocess.PIPE,
-                preexec_fn=set_limits)
+                                  stdout=subprocess.PIPE,
+                                  preexec_fn=set_limits)
         self.stdout, unused = self.p.communicate()
 
     def Run(self):
@@ -56,6 +56,9 @@ class TimeLimitedExec(threading.Thread):
         else:
             self.join()
 
+        if self.p is None:
+            return -1
+        
         if self.is_alive():
             print 'still alive, terminating'
             self.p.terminate()      

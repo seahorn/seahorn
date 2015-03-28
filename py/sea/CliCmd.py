@@ -29,7 +29,7 @@ class CliCmd (object):
         
     def main (self, argv):
         import argparse
-        ap = argparse.ArgumentParser ()
+        ap = argparse.ArgumentParser (prog=self.name)
         ap = self.mk_arg_parser (ap)
         
         if self.allow_extra:

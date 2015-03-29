@@ -94,7 +94,7 @@ class Seapp(sea.LimitedCmd):
         argv.append (args.in_file)
         return self.seappCmd.run (args, argv)
         
-class MixedSem(sea.CliCmd):
+class MixedSem(sea.LimitedCmd):
     def __init__(self, quiet=False):
         super(MixedSem, self).__init__('ms', allow_extra=True)
 
@@ -162,6 +162,13 @@ class Seaopt(sea.LimitedCmd):
         if args.llvm_asm: argv.append ('-S')
         return self.seappCmd.run (args, argv)
 
+def _is_seahorn_opt (x):
+    if x.startswith ('-'):
+        y = x.strip ('-')
+        return y.startswith ('horn') or \
+            y.startswith ('ikos') or y.startswith ('log')
+    return False
+
 class Seahorn(sea.LimitedCmd):
     def __init__ (self, quiet=False):
         super (Seahorn, self).__init__ ('horn', allow_extra=True)
@@ -191,11 +198,6 @@ class Seahorn(sea.LimitedCmd):
         ### TODO: expose options for semantic level, inter-procedural
         ### encoding, step, flat, etc.
         return ap
-    def _is_seahorn_opt (x):
-        if x.startswith ('-'):
-            y = x.strip ('-')
-            return y.startswith ('horn') or y.startswith ('ikos') or y.startswith ('log')
-        return False
 
     def run (self, args, extra):
         cmd_name = which ('seahorn')
@@ -222,12 +224,12 @@ class Seahorn(sea.LimitedCmd):
         
         if args.out_file is not None: argv.extend (['-o', args.out_file])
         argv.append (args.in_file)
-        
+
         # pick out extra seahorn options
         argv.extend (filter (_is_seahorn_opt, extra))
         
             
-        return seahornCmd.run (args, argv)
+        return self.seahornCmd.run (args, argv)
 
 class SeaGen(sea.SeqCmd):
     def __init__(self):

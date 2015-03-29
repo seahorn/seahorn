@@ -12,6 +12,9 @@ if (PYTHON)
     seahorn_inter.py
     gcc_seahorn.py
     only_z3.py
+    sea/__init__.py
+    sea/__main__.py
+    sea/commands.py
     ${SETUP_PY_IN})
   
   configure_file(${SETUP_PY_IN} ${SETUP_PY})

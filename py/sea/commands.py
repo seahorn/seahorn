@@ -37,7 +37,7 @@ class Clang(sea.LimitedCmd):
     
     def name_out_file (self, in_file, args=None, work_dir=None):
         ext = '.bc'
-        if args.llvm_asm: ext = '.ll'
+        # if args.llvm_asm: ext = '.ll'
         return _remap_file_name (in_file, ext, work_dir)
         
     def run (self, args, extra):
@@ -71,7 +71,7 @@ class Seapp(sea.LimitedCmd):
         
     def name_out_file (self, in_file, args=None, work_dir=None):
         ext = '.pp.bc'
-        if args.llvm_asm: ext = '.pp.ll'
+        # if args.llvm_asm: ext = '.pp.ll'
         return _remap_file_name (in_file, ext, work_dir)
 
     def mk_arg_parser (self, ap):
@@ -104,7 +104,7 @@ class MixedSem(sea.LimitedCmd):
         
     def name_out_file (self, in_file, args=None, work_dir=None):
         ext = '.ms.bc'
-        if args.llvm_asm: ext = '.ms.ll'
+        # if args.llvm_asm: ext = '.ms.ll'
         return _remap_file_name (in_file, ext, work_dir)
 
     def mk_arg_parser (self, ap):
@@ -136,8 +136,9 @@ class Seaopt(sea.LimitedCmd):
         return self.seaoptCmd.stdout
         
     def name_out_file (self, in_file, args, work_dir=None):
-        ext = 'o{0}.bc'.format(args.opt_level)
-        if args.llvm_asm: ext = 'o{0}.ll'.format(args.opt_level)
+        ext = '.o.bc'
+        # ext = 'o{0}.bc'.format(args.opt_level)
+        # if args.llvm_asm: ext = 'o{0}.ll'.format(args.opt_level)
         return _remap_file_name (in_file, ext, work_dir)
 
     def mk_arg_parser (self, ap):
@@ -153,14 +154,14 @@ class Seaopt(sea.LimitedCmd):
         if cmd_name is None: raise IOError ('niether seaopt nor opt where found')
         self.seaoptCmd = sea.ExtCmd (cmd_name)
 
-        argv = ['-f', '-funit-at-a-atime']
+        argv = ['-f', '-funit-at-a-time']
         if args.out_file is not None:
             argv.extend (['-o', args.out_file])
         if args.opt_level > 0 and args.opt_level <= 3:
-            argv.extend (['-O', str(args.opt_level)])
+            argv.append('-O{0}'.format (args.opt_level))
         argv.append (args.in_file)
         if args.llvm_asm: argv.append ('-S')
-        return self.seappCmd.run (args, argv)
+        return self.seaoptCmd.run (args, argv)
 
 def _is_seahorn_opt (x):
     if x.startswith ('-'):
@@ -205,11 +206,10 @@ class Seahorn(sea.LimitedCmd):
         self.seahornCmd = sea.ExtCmd (cmd_name)
         
         argv = list()
-        if args.solve:
-            argv.append ('-horn-solve')
+        if args.solve: argv.append ('--horn-solve')
         if args.cex is not None and args.solve:
             argv.append ('-horn-cex')
-            argv.append ('--honr-svcomp-cex={0}'.format (cex))
+            argv.append ('-horn-svcomp-cex={0}'.format (cex))
             argv.extend (['-log', 'cex'])
         if args.asm_out_file is not None: argv.extend (['-oll', args.asm_out_file])
         

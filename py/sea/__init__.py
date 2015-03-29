@@ -150,7 +150,7 @@ class AgregateCmd (CliCmd):
         for c in self.cmds:
             sp = sb.add_parser (c.name)
             sp = c.mk_arg_parser (sp)
-            sp.set_defaults (func = lambda x, e : c.run (x, e))
+            sp.set_defaults (func = c.run)
         return argp
             
     def run (self, args=None, extra=[]):
@@ -177,7 +177,7 @@ class SeqCmd (AgregateCmd):
         in_file = args.in_file
         out_file = None
         
-        work_dir = util.createWorkDir (args.temp_dir, args.save_temps, 'sea-')
+        work_dir = createWorkDir (args.temp_dir, args.save_temps, 'sea-')
         
         # all but last command
         for c in self.cmd[:-1]:
@@ -213,7 +213,7 @@ class ExtCmd (LimitedCmd):
         
         if not self.quiet: print ' '.join (argv)
         
-        self.cmd = util.TimeLimitedExec (argv, args.cpu, args.mem)
+        self.cmd = TimeLimitedExec (argv, args.cpu, args.mem)
         return self.cmd.Run ()
     
     @property    

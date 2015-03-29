@@ -90,6 +90,7 @@ class Seapp(sea.LimitedCmd):
         argv = list()
         if args.out_file is not None: argv.extend (['-o', args.out_file])
         if args.inline: argv.append ('--horn-inline-all')
+        if args.llvm_asm: argv.append ('-S')
         argv.append (args.in_file)
         return self.seappCmd.run (args, argv)
         
@@ -122,6 +123,7 @@ class MixedSem(sea.CliCmd):
         argv = list()
         if args.out_file is not None: argv.extend (['-o', args.out_file])
         if not args.ms_skip: argv.append ('--horn-mixed-sem')
+        if args.llvm_asm: argv.append ('-S')
         argv.append (args.in_file)
         return self.seappCmd.run (args, argv)
 
@@ -157,6 +159,7 @@ class Seaopt(sea.LimitedCmd):
         if args.opt_level > 0 and args.opt_level <= 3:
             argv.extend (['-O', str(args.opt_level)])
         argv.append (args.in_file)
+        if args.llvm_asm: argv.append ('-S')
         return self.seappCmd.run (args, argv)
 
 class Seahorn(sea.LimitedCmd):

@@ -23,10 +23,6 @@ def _add_S_arg (ap):
 class Clang(sea.LimitedCmd):
     def __init__ (self, quiet=False):
         super (Clang, self).__init__('clang', allow_extra=True)
-        cmd_name = which (['clang-mp-3.6', 'clang-3.6', 'clang',
-                                'clang-mp-3.5', 'clang-mp-3.4'])
-        if cmd_name is None: raise IOError ('clang not found')
-        self.clangCmd = sea.ExtCmd (cmd_name)
 
 
     def mk_arg_parser (self, ap):
@@ -45,6 +41,11 @@ class Clang(sea.LimitedCmd):
         return _remap_file_name (in_file, ext, work_dir)
         
     def run (self, args, extra):
+        cmd_name = which (['clang-mp-3.6', 'clang-3.6', 'clang',
+                                'clang-mp-3.5', 'clang-mp-3.4'])
+        if cmd_name is None: raise IOError ('clang not found')
+        clangCmd = sea.ExtCmd (cmd_name)
+        
         argv = ['-c', '-emit-llvm']
         if args.llvm_asm: argv.append ('-S')
         if args.machine == 32: argv.extend (['-arch', 'i386'])
@@ -63,9 +64,6 @@ class Clang(sea.LimitedCmd):
 class Seapp(sea.LimitedCmd):
     def __init__(self, quiet=False):
         super(Seapp, self).__init__('pp', allow_extra=True)
-        cmd_name = which ('seapp')
-        if cmd_name is None: raise IOError ('seapp not found')
-        self.seappCmd = sea.ExtCmd (cmd_name)
 
     @property
     def stdout (self):
@@ -85,6 +83,10 @@ class Seapp(sea.LimitedCmd):
         return ap
     
     def run (self, args, extra):
+        cmd_name = which ('seapp')
+        if cmd_name is None: raise IOError ('seapp not found')
+        seappCmd = sea.ExtCmd (cmd_name)
+        
         argv = list()
         if args.out_file is not None: argv.extend (['-o', args.out_file])
         if args.inline: argv.append ('--horn-inline-all')
@@ -94,9 +96,6 @@ class Seapp(sea.LimitedCmd):
 class MixedSem(sea.CliCmd):
     def __init__(self, quiet=False):
         super(MixedSem, self).__init__('ms', allow_extra=True)
-        cmd_name = which ('seapp')
-        if cmd_name is None: raise IOError ('seapp not found')
-        self.seappCmd = sea.ExtCmd (cmd_name)
 
     @property
     def stdout (self):
@@ -116,6 +115,10 @@ class MixedSem(sea.CliCmd):
         return ap
     
     def run (self, args, extra):
+        cmd_name = which ('seapp')
+        if cmd_name is None: raise IOError ('seapp not found')
+        seappCmd = sea.ExtCmd (cmd_name)
+        
         argv = list()
         if args.out_file is not None: argv.extend (['-o', args.out_file])
         if not args.ms_skip: argv.append ('--horn-mixed-sem')
@@ -125,9 +128,6 @@ class MixedSem(sea.CliCmd):
 class Seaopt(sea.LimitedCmd):
     def __init__(self, quiet=False):
         super(Seaopt, self).__init__('opt', allow_extra=True)
-        cmd_name = which (['seaopt', 'opt-mp-3.6', 'opt-3.6', 'opt'])
-        if cmd_name is None: raise IOError ('niether seaopt nor opt where found')
-        self.seaoptCmd = sea.ExtCmd (cmd_name)
 
     @property
     def stdout (self):
@@ -147,6 +147,10 @@ class Seaopt(sea.LimitedCmd):
         return ap
     
     def run (self, args, extra):
+        cmd_name = which (['seaopt', 'opt-mp-3.6', 'opt-3.6', 'opt'])
+        if cmd_name is None: raise IOError ('niether seaopt nor opt where found')
+        seaoptCmd = sea.ExtCmd (cmd_name)
+
         argv = ['-f', '-funit-at-a-atime']
         if args.out_file is not None:
             argv.extend (['-o', args.out_file])
@@ -158,9 +162,6 @@ class Seaopt(sea.LimitedCmd):
 class Seahorn(sea.LimitedCmd):
     def __init__ (self, quiet=False):
         super (Seahorn, self).__init__ ('horn', allow_extra=True)
-        cmd_name = which ('seahorn')
-        if cmd_name is None: raise IOError ('seahorn not found')
-        self.seahornCmd = sea.ExtCmd (cmd_name)
         
     @property
     def stdout (self):
@@ -194,6 +195,10 @@ class Seahorn(sea.LimitedCmd):
         return False
 
     def run (self, args, extra):
+        cmd_name = which ('seahorn')
+        if cmd_name is None: raise IOError ('seahorn not found')
+        seahornCmd = sea.ExtCmd (cmd_name)
+        
         argv = list()
         if args.solve:
             argv.append ('-horn-solve')

@@ -1,6 +1,14 @@
+import sys
+import os
+path = os.path.dirname(sys.modules[__name__].__file__)
+path = os.path.join(path, '..')
+sys.path.insert(0, path)
+
+## update system PATH to location of the package
+os.environ['PATH'] = path + os.pathsep + os.environ['PATH']
+
 import sea
 import sea.commands
-import sys
 
 cmds = [sea.commands.Clang(),
         sea.commands.Seapp(),

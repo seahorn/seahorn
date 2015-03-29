@@ -23,7 +23,7 @@ def _add_S_arg (ap):
 class Clang(sea.LimitedCmd):
     def __init__ (self, quiet=False):
         super (Clang, self).__init__('clang', allow_extra=True)
-
+        self.clangCmd = None
 
     def mk_arg_parser (self, ap):
         ap = super (Clang, self).mk_arg_parser (ap)
@@ -44,7 +44,7 @@ class Clang(sea.LimitedCmd):
         cmd_name = which (['clang-mp-3.6', 'clang-3.6', 'clang',
                                 'clang-mp-3.5', 'clang-mp-3.4'])
         if cmd_name is None: raise IOError ('clang not found')
-        clangCmd = sea.ExtCmd (cmd_name)
+        self.clangCmd = sea.ExtCmd (cmd_name)
         
         argv = ['-c', '-emit-llvm']
         if args.llvm_asm: argv.append ('-S')
@@ -64,7 +64,7 @@ class Clang(sea.LimitedCmd):
 class Seapp(sea.LimitedCmd):
     def __init__(self, quiet=False):
         super(Seapp, self).__init__('pp', allow_extra=True)
-
+        
     @property
     def stdout (self):
         return self.seappCmd.stdout
@@ -85,7 +85,7 @@ class Seapp(sea.LimitedCmd):
     def run (self, args, extra):
         cmd_name = which ('seapp')
         if cmd_name is None: raise IOError ('seapp not found')
-        seappCmd = sea.ExtCmd (cmd_name)
+        self.seappCmd = sea.ExtCmd (cmd_name)
         
         argv = list()
         if args.out_file is not None: argv.extend (['-o', args.out_file])
@@ -117,7 +117,7 @@ class MixedSem(sea.CliCmd):
     def run (self, args, extra):
         cmd_name = which ('seapp')
         if cmd_name is None: raise IOError ('seapp not found')
-        seappCmd = sea.ExtCmd (cmd_name)
+        self.seappCmd = sea.ExtCmd (cmd_name)
         
         argv = list()
         if args.out_file is not None: argv.extend (['-o', args.out_file])
@@ -149,7 +149,7 @@ class Seaopt(sea.LimitedCmd):
     def run (self, args, extra):
         cmd_name = which (['seaopt', 'opt-mp-3.6', 'opt-3.6', 'opt'])
         if cmd_name is None: raise IOError ('niether seaopt nor opt where found')
-        seaoptCmd = sea.ExtCmd (cmd_name)
+        self.seaoptCmd = sea.ExtCmd (cmd_name)
 
         argv = ['-f', '-funit-at-a-atime']
         if args.out_file is not None:
@@ -197,7 +197,7 @@ class Seahorn(sea.LimitedCmd):
     def run (self, args, extra):
         cmd_name = which ('seahorn')
         if cmd_name is None: raise IOError ('seahorn not found')
-        seahornCmd = sea.ExtCmd (cmd_name)
+        self.seahornCmd = sea.ExtCmd (cmd_name)
         
         argv = list()
         if args.solve:
@@ -224,7 +224,7 @@ class Seahorn(sea.LimitedCmd):
         argv.extend (filter (_is_seahorn_opt, extra))
         
             
-        return self.seahornCmd.run (args, argv)
+        return seahornCmd.run (args, argv)
 
 class SeaGen(sea.SeqCmd):
     def __init__(self):

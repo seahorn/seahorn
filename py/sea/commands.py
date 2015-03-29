@@ -1,9 +1,8 @@
-import util
-import CliCmd
+import sea 
 
 import os.path
 
-from CliCmd import add_in_out_args 
+from sea import add_in_out_args, which
 
 # remaps a file based on working dir and a new extension
 def _remap_file_name (in_file, ext, work_dir):
@@ -21,13 +20,13 @@ def _add_S_arg (ap):
                      help='Write output as LLVM assembly')
     return ap
 
-class Clang(CliCmd.LimitedCmd):
+class Clang(sea.LimitedCmd):
     def __init__ (self, quiet=False):
         super (Clang, self).__init__('clang', allow_extra=True)
-        cmd_name = util.which (['clang-mp-3.6', 'clang-3.6', 'clang',
+        cmd_name = which (['clang-mp-3.6', 'clang-3.6', 'clang',
                                 'clang-mp-3.5', 'clang-mp-3.4'])
         if cmd_name is None: raise IOError ('clang not found')
-        self.clangCmd = CliCmd.ExtCmd (cmd_name)
+        self.clangCmd = sea.ExtCmd (cmd_name)
 
 
     def mk_arg_parser (self, ap):
@@ -61,12 +60,12 @@ class Clang(CliCmd.LimitedCmd):
     def stdout (self):
         return self.clangCmd.stdout
 
-class Seapp(CliCmd.LimitedCmd):
+class Seapp(sea.LimitedCmd):
     def __init__(self, quiet=False):
         super(Seapp, self).__init__('pp', allow_extra=True)
-        cmd_name = util.which ('seapp')
+        cmd_name = which ('seapp')
         if cmd_name is None: raise IOError ('seapp not found')
-        self.seappCmd = CliCmd.ExtCmd (cmd_name)
+        self.seappCmd = sea.ExtCmd (cmd_name)
 
     @property
     def stdout (self):
@@ -92,12 +91,12 @@ class Seapp(CliCmd.LimitedCmd):
         argv.append (args.in_file)
         return self.seappCmd.run (args, argv)
         
-class MixedSem(CliCmd.CliCmd):
+class MixedSem(sea.CliCmd):
     def __init__(self, quiet=False):
         super(MixedSem, self).__init__('ms', allow_extra=True)
-        cmd_name = util.which ('seapp')
+        cmd_name = which ('seapp')
         if cmd_name is None: raise IOError ('seapp not found')
-        self.seappCmd = CliCmd.ExtCmd (cmd_name)
+        self.seappCmd = sea.ExtCmd (cmd_name)
 
     @property
     def stdout (self):
@@ -123,12 +122,12 @@ class MixedSem(CliCmd.CliCmd):
         argv.append (args.in_file)
         return self.seappCmd.run (args, argv)
 
-class Seaopt(CliCmd.LimitedCmd):
+class Seaopt(sea.LimitedCmd):
     def __init__(self, quiet=False):
         super(Seaopt, self).__init__('opt', allow_extra=True)
-        cmd_name = util.which (['seaopt', 'opt-mp-3.6', 'opt-3.6', 'opt'])
+        cmd_name = which (['seaopt', 'opt-mp-3.6', 'opt-3.6', 'opt'])
         if cmd_name is None: raise IOError ('niether seaopt nor opt where found')
-        self.seaoptCmd = CliCmd.ExtCmd (cmd_name)
+        self.seaoptCmd = sea.ExtCmd (cmd_name)
 
     @property
     def stdout (self):
@@ -156,12 +155,12 @@ class Seaopt(CliCmd.LimitedCmd):
         argv.append (args.in_file)
         return self.seappCmd.run (args, argv)
 
-class Seahorn(CliCmd.LimitedCmd):
+class Seahorn(sea.LimitedCmd):
     def __init__ (self, quiet=False):
         super (Seahorn, self).__init__ ('horn', allow_extra=True)
-        cmd_name = util.which ('seahorn')
+        cmd_name = which ('seahorn')
         if cmd_name is None: raise IOError ('seahorn not found')
-        self.seahornCmd = CliCmd.ExtCmd (cmd_name)
+        self.seahornCmd = sea.ExtCmd (cmd_name)
         
     @property
     def stdout (self):
@@ -222,7 +221,7 @@ class Seahorn(CliCmd.LimitedCmd):
             
         return self.seahornCmd.run (args, argv)
 
-class SeaGen(CliCmd.SeqCmd):
+class SeaGen(sea.SeqCmd):
     def __init__(self):
         cmds = [Clang (),
                 Seapp (),

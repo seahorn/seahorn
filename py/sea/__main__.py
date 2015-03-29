@@ -1,14 +1,14 @@
-import CliCmd
-import seacmds
+import sea
+import sea.commands
 import sys
 
-cmds = [seacmds.Clang(),
-        seacmds.Seapp(),
-        seacmds.MixedSem(),
-        seacmds.Seaopt(),
-        seacmds.Seahorn(),
-        seacmds.SeaGen ()]
+cmds = [sea.commands.Clang(),
+        sea.commands.Seapp(),
+        sea.commands.MixedSem(),
+        sea.commands.Seaopt(),
+        sea.commands.Seahorn(),
+        sea.commands.SeaGen ()]
         
     
-cmd = CliCmd.AgregateCmd('sea', cmds)
+cmd = sea.AgregateCmd('sea', cmds)
 sys.exit (cmd.main (sys.argv[1:]))

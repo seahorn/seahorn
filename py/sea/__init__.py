@@ -163,13 +163,12 @@ class SeqCmd (AgregateCmd):
 
     def mk_arg_parser (self, ap):
         add_in_out_args (ap)
-        ap.add_argument ("--save-temps", dest="save_temps",
+        ap.add_argument ('--save-temps', '--keep-temps',
+                         dest="save_temps",
                          help="Do not delete temporary files",
-                         action="store_true",
-                         default=False)
-        ap.add_argument ("--temp-dir", dest="temp_dir", metavar='DIR',
-                         help="Temporary directory",
-                         default=None)
+                         action="store_true", default=False)
+        ap.add_argument ('--temp-dir', dest='temp_dir', metavar='DIR',
+                         help="Temporary directory", default=None)
         
         return ap
     

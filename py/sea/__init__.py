@@ -41,9 +41,10 @@ class TimeLimitedExec(threading.Thread):
         self.mem = mem
         self.p = None
         self.stdout = None
+        self.stderr = None
         self.verbose = verbose
 
-    def run(self):
+    def run(self, **popen_args):
         def set_limits ():
             import resource as r    
             if self.cpu > 0:
@@ -54,9 +55,9 @@ class TimeLimitedExec(threading.Thread):
                 
         if self.verbose > 0: print self.cmd
         self.p = subprocess.Popen(self.cmd, 
-                                  stdout=subprocess.PIPE,
-                                  preexec_fn=set_limits)
-        self.stdout, unused = self.p.communicate()
+                                  preexec_fn=set_limits,
+                                  **popen_args)
+        self.stdout, self.stderr = self.p.communicate()
 
     def Run(self):
         self.start()

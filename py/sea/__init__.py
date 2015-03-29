@@ -180,10 +180,10 @@ class SeqCmd (AgregateCmd):
         work_dir = createWorkDir (args.temp_dir, args.save_temps, 'sea-')
         
         # all but last command
-        for c in self.cmd[:-1]:
+        for c in self.cmds[:-1]:
             argv = list()
             argv.extend (extra)
-            out_file = cmd.name_out_file (in_file, args, work_dir)
+            out_file = c.name_out_file (in_file, args, work_dir)
             argv.extend (['-o', out_file])
             argv.append (in_file)
             res = c.main (argv)
@@ -193,7 +193,7 @@ class SeqCmd (AgregateCmd):
             out_file = None
         
         # last command
-        c = self.cmd [len (self.cmd) - 1]
+        c = self.cmds [len (self.cmds) - 1]
         argv = list()
         argv.extend (extra)
         argv.extend (['-o', args.out_file])

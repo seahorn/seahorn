@@ -15,5 +15,6 @@ setup(name='seahorn',
       url='http://github.com/seahorn',
       package_dir = {'': '${CMAKE_CURRENT_SOURCE_DIR}'},
       py_modules = ['stats'],
+      packages = ['sea'],
       scripts = scripts 
       )

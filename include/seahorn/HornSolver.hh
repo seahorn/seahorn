@@ -3,8 +3,10 @@
 
 #include "llvm/Pass.h"
 #include "llvm/IR/Module.h"
-
 #include "boost/logic/tribool.hpp"
+
+#include "ufo/Smt/EZ3.hh"
+
 namespace seahorn
 {
   using namespace llvm;
@@ -12,6 +14,8 @@ namespace seahorn
   class HornSolver : public llvm::ModulePass
   {
     boost::tribool m_result;
+    std::unique_ptr<ufo::ZFixedPoint <ufo::EZ3> >  m_fp;
+    
     
     void printInvars (Function &F);
     void printInvars (Module &M);
@@ -26,14 +30,12 @@ namespace seahorn
     virtual bool runOnModule (Module &M);
     virtual void getAnalysisUsage (AnalysisUsage &AU) const;
     virtual const char* getPassName () const {return "HornSolver";}
+    ufo::ZFixedPoint<ufo::EZ3>& getZFixedPoint () {return *m_fp;}
     
     boost::tribool getResult () {return m_result;}
     
   };
 
 }
-
-
-
 
 #endif /* HORN_SOLVER__HH_ */

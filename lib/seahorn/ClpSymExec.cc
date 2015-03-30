@@ -1,7 +1,12 @@
-/// Symbolic execution (loosely) based on semantics used in UFO
+/// Symbolic execution based on semantics used in CLP
+///
+/// Most variables are integer except errorFlag and variables
+/// originated from basic blocks which are Boolean. This semantics also
+/// tries to minimize the number of auxiliary variables.
+
 #include "llvm/IR/GetElementPtrTypeIterator.h"
 
-#include "seahorn/UfoSymExec.hh"
+#include "seahorn/ClpSymExec.hh"
 #include "seahorn/Support/CFG.hh"
 
 #include "ufo/ufo_iterators.hpp"
@@ -12,19 +17,19 @@ using namespace seahorn;
 using namespace llvm;
 using namespace ufo;
 
-
-
 namespace
 {
   struct SymExecBase
   {
     SymStore &m_s;
     ExprFactory &m_efac;
-    UfoSmallSymExec &m_sem;
+    ClpSmallSymExec &m_sem;
     ExprVector &m_side;
     
     Expr trueE;
     Expr falseE;
+    Expr zero;
+    Expr one;
     
     /// -- current read memory
     Expr m_inMem;
@@ -34,11 +39,13 @@ namespace
     /// -- parameters for a function call
     ExprVector m_fparams;
     
-    SymExecBase (SymStore &s, UfoSmallSymExec &sem, ExprVector &side) : 
+    SymExecBase (SymStore &s, ClpSmallSymExec &sem, ExprVector &side) : 
       m_s(s), m_efac (m_s.getExprFactory ()), m_sem (sem), m_side (side) 
     {
-      trueE = mk<TRUE> (m_efac);
+      trueE  = mk<TRUE> (m_efac);
       falseE = mk<FALSE> (m_efac);
+      zero   = mkTerm<mpz_class> (0, m_efac);
+      one    = mkTerm<mpz_class> (1, m_efac);
       // -- first two arguments are reserved for error flag
       m_fparams.push_back (falseE);
       m_fparams.push_back (falseE);
@@ -47,20 +54,25 @@ namespace
     Expr symb (const Value &I) {return m_sem.symb (I);}
     
     Expr read (const Value &v)
-    {
-      return m_sem.isTracked (v) ? m_s.read (symb (v)) : Expr (0);
-    }
+    { return m_sem.isTracked (v) ? m_s.read (symb (v)) : Expr (0); }
 
     Expr lookup (const Value &v) {return m_sem.lookup (m_s, v);}
+
     Expr havoc (const Value &v) 
     {return m_sem.isTracked (v) ? m_s.havoc (symb (v)) : Expr (0);}
+
+    void write (const Value &v, Expr val) 
+    { if (m_sem.isTracked (v)) m_s.write (symb (v), val); }
+
+    Expr negate (Expr e)
+    { return op::boolop::nnf (boolop::lneg (e)); }
 
   };
   
   struct SymExecVisitor : public InstVisitor<SymExecVisitor>, 
                           SymExecBase
   {
-    SymExecVisitor (SymStore &s, UfoSmallSymExec &sem, ExprVector &side) : 
+    SymExecVisitor (SymStore &s, ClpSmallSymExec &sem, ExprVector &side) : 
       SymExecBase (s, sem, side) {}
     
     /// base case. if all else fails.
@@ -87,32 +99,31 @@ namespace
       switch (I.getPredicate ())
       {
       case CmpInst::ICMP_EQ:
-        res = mk<IFF>(lhs, mk<EQ>(op0,op1));
+        res = mk<EQ>(op0,op1); 
         break;
       case CmpInst::ICMP_NE:
-        res = mk<IFF>(lhs, mk<NEQ>(op0,op1));
+        res = mk<NEQ>(op0,op1);
         break;
       case CmpInst::ICMP_UGT:
       case CmpInst::ICMP_SGT:
-        res = mk<IFF>(lhs,mk<GT>(op0,op1));
+        res = mk<GT>(op0,op1); 
         break;
       case CmpInst::ICMP_UGE:
       case CmpInst::ICMP_SGE:
-        res = mk<IFF>(lhs,mk<GEQ>(op0,op1));
+        res = mk<GEQ>(op0,op1);
         break;
       case CmpInst::ICMP_ULT:
-      case CmpInst::ICMP_SLT:
-        res = mk<IFF>(lhs,mk<LT>(op0,op1));
+      case CmpInst::ICMP_SLT:        
+        res = mk<LT>(op0,op1); 
         break; 
       case CmpInst::ICMP_ULE:
       case CmpInst::ICMP_SLE:
-        res = mk<IFF>(lhs,mk<LEQ>(op0,op1));
+        res = mk<LEQ>(op0,op1);
         break;
       default:
         break;
-      }       
-      
-      if (res) m_side.push_back (res);
+      }             
+      if (res) write (I, res); 
     }
     
     void visitSelectInst(SelectInst &I)
@@ -123,9 +134,13 @@ namespace
       Expr cond = lookup (*I.getCondition ());
       Expr op0 = lookup (*I.getTrueValue ());
       Expr op1 = lookup (*I.getFalseValue ());
-     
+
+      
       if (cond && op0 && op1)
-        m_side.push_back (mk<EQ> (lhs, mk<ITE> (cond, op0, op1)));
+      { 
+        m_side.push_back (mk<OR> (mk<AND> (cond, mk<EQ>(lhs, op0)), 
+                                  mk<AND> (negate (cond), mk<EQ> (lhs, op1)))); 
+      }
     }
     
     void visitBinaryOperator(BinaryOperator &I)
@@ -172,34 +187,39 @@ namespace
       if (!(op0 && op1)) return;
 
       Expr res;
+
+      if (bind::isBoolConst (op0) || bind::isIntConst (op0))
+      { op0 = mk<GT>(op0, zero); }
+      
+      if (bind::isBoolConst (op1) || bind::isIntConst (op1))
+      { op1 = mk<GT>(op1, zero); }
       
       switch(i.getOpcode())
-	{
-	case BinaryOperator::And:
-	  res = mk<IFF>(lhs, mk<AND>(op0,op1));
+      {
+        case BinaryOperator::And:
+          res = boolop::land (op0,op1);
           break;
-	case BinaryOperator::Or:
-	  res = mk<IFF>(lhs, mk<OR>(op0,op1));
+        case BinaryOperator::Or:
+          res = boolop::lor (op0,op1); 
           break;
         case BinaryOperator::Xor:
-	  res = mk<IFF>(lhs, mk<XOR>(op0,op1));
+          res = boolop::lor (boolop::land (op0, negate (op1)), 
+                             boolop::land (negate (op0), op1));
           break;
         default:
           break;
-	}
-
-      if (res) m_side.push_back (res);
+      }
+      
+      if (res) write (i, res); 
     }
 
-    Expr doLeftShift(Expr lhs, Expr op1, const ConstantInt *op2)
+    Expr doLeftShift (Expr op1, const ConstantInt *op2)
     {
       mpz_class shift = expr::toMpz (op2->getValue ());
       mpz_class factor = 1;
       for (unsigned long i = 0; i < shift.get_ui (); ++i) 
-      {
-          factor = factor * 2;
-      }
-      Expr res = mk<EQ>(lhs ,mk<MULT>(op1, mkTerm<mpz_class> (factor, m_efac)));        
+      { factor = factor * 2; }
+      Expr res = mk<MULT>(op1, mkTerm<mpz_class> (factor, m_efac));        
       return res;
     }
 
@@ -217,30 +237,29 @@ namespace
       Expr res;
       switch(i.getOpcode())
       {
-        case BinaryOperator::Add:
-          res = mk<EQ>(lhs ,mk<PLUS>(op1, op2));
-            break;
-        case BinaryOperator::Sub:
-          res = mk<EQ>(lhs ,mk<MINUS>(op1, op2));
+        case BinaryOperator::Add:          
+          res = mk<PLUS>(op1, op2); 
           break;
-        case BinaryOperator::Mul:
-          res = mk<EQ>(lhs ,mk<MULT>(op1, op2));
+        case BinaryOperator::Sub:          
+          res = mk<MINUS>(op1, op2);
+          break;
+        case BinaryOperator::Mul:          
+          res = mk<MULT>(op1, op2); 
           break;
         case BinaryOperator::SDiv:
-        case BinaryOperator::UDiv:
-          res = mk<EQ>(lhs ,mk<DIV>(op1, op2));
+        case BinaryOperator::UDiv:          
+          res = mk<DIV>(op1, op2);  
           break;
         case BinaryOperator::Shl:
           if (const ConstantInt *ci = dyn_cast<ConstantInt> (&v2))
           {
-            res = doLeftShift(lhs, op1, ci);
+            res = doLeftShift (op1, ci);
             break;
           }
         default:
           break;
       }
-
-      if (res) m_side.push_back (res);
+      if (res) write (i, res); 
     }
     
     void visitReturnInst (ReturnInst &I)
@@ -264,22 +283,12 @@ namespace
       Expr op0 = lookup (*I.getOperand (0));
       
       if (!op0) return;
-      if (I.getType ()->isIntegerTy (1))
-      {
-        Expr zero = mkTerm<mpz_class> (0, m_efac);
-        Expr one = mkTerm<mpz_class> (1, m_efac);
-      
-        // truncation to 1 bit amounts to 'is_even' predicate.
-        // We handle the two most common cases: 0 -> false, 1 -> true
-        m_side.push_back (mk<IMPL> (mk<EQ> (op0, zero), mk<NEG> (lhs)));
-        m_side.push_back (mk<IMPL> (mk<EQ> (op0, one), lhs));
-      }
-      else
-        m_side.push_back (mk<EQ> (havoc (I), op0));
+
+      write (I, op0);
     }
     
-    void visitZExtInst (ZExtInst &I) {doExtCast (I, false);}
-    void visitSExtInst (SExtInst &I) {doExtCast (I, true);}
+    void visitZExtInst (ZExtInst &I) {doExtCast (I);}
+    void visitSExtInst (SExtInst &I) {doExtCast (I);}
     
     void visitGetElementPtrInst (GetElementPtrInst &gep)
     {
@@ -298,8 +307,9 @@ namespace
       Expr op = m_sem.ptrArith (m_s, *gep.getPointerOperand (), ps, ts);
       if (op) m_side.push_back (mk<EQ> (lhs, op));
     }
+
     
-    void doExtCast (CastInst &I, bool is_signed = false)
+    void doExtCast (CastInst &I)
     {
       Expr lhs = havoc (I);
       const Value& v0 = *I.getOperand (0);
@@ -307,19 +317,23 @@ namespace
       
       if (!op0) return;
       
-      // sext maps (i1 1) to -1
-      Expr one = mkTerm<mpz_class> (is_signed ? -1 : 1, m_efac);
-      Expr zero = mkTerm<mpz_class> (0, m_efac);
-      
       if (v0.getType ()->isIntegerTy (1))
       {
         if (const ConstantInt *ci = dyn_cast<ConstantInt> (&v0))
-          op0 = ci->isOne () ? one : zero;
+        {
+          if (ci->isOne ())
+            m_side.push_back (mk<EQ> (lhs, one));
+          else
+            m_side.push_back (mk<EQ> (lhs, zero));
+        }
         else
-          op0 = mk<ITE> (op0, one, zero);
+        {
+          m_side.push_back (mk<OR> (mk<AND> (op0, mk<EQ>(lhs, one)), 
+                                    mk<AND> (negate (op0), mk<EQ> (lhs, zero)))); 
+        }
       }
-      
-      m_side.push_back (mk<EQ> (lhs, op0));
+      else
+      { write (I, op0); }
     }
     
     void visitCallSite (CallSite CS)
@@ -478,40 +492,40 @@ namespace
     
     void visitLoadInst (LoadInst &I)
     {
-      if (!m_inMem || !m_sem.isTracked (I))  return;
-      Expr lhs = havoc (I);
-      Expr op0 = lookup (*I.getPointerOperand ());
+      // if (!m_inMem || !m_sem.isTracked (I))  return;
+      // Expr lhs = havoc (I);
+      // Expr op0 = lookup (*I.getPointerOperand ());
       
-      if (op0)
-      {
-        Expr rhs = op::array::select (m_inMem, op0);
-        if (I.getType ()->isIntegerTy (1))
-          // -- convert to Boolean
-          rhs = mk<NEQ> (rhs, mkTerm (mpz_class(0), m_efac));
+      // if (op0)
+      // {
+      //   Expr rhs = op::array::select (m_inMem, op0);
+      //   if (I.getType ()->isIntegerTy (1))
+      //     // -- convert to Boolean
+      //     rhs = mk<NEQ> (rhs, mkTerm (mpz_class(0), m_efac));
         
-        m_side.push_back (mk<EQ> (lhs, rhs));
-      }
+      //   m_side.push_back (mk<EQ> (lhs, rhs));
+      // }
       
-      m_inMem.reset ();
+      // m_inMem.reset ();
     }
     
     void visitStoreInst (StoreInst &I)
     {
-      if (!m_inMem || !m_outMem || !m_sem.isTracked (*I.getOperand (0))) return;
+      // if (!m_inMem || !m_outMem || !m_sem.isTracked (*I.getOperand (0))) return;
       
-      Expr idx = lookup (*I.getPointerOperand ());
-      Expr v = lookup (*I.getOperand (0));
+      // Expr idx = lookup (*I.getPointerOperand ());
+      // Expr v = lookup (*I.getOperand (0));
       
-      if (v && I.getOperand (0)->getType ()->isIntegerTy (1))
-        // -- convert to int
-        v = boolop::lite (v, mkTerm (mpz_class (1), m_efac),
-                          mkTerm (mpz_class (0), m_efac));
+      // if (v && I.getOperand (0)->getType ()->isIntegerTy (1))
+      //   // -- convert to int
+      //   v = boolop::lite (v, mkTerm (mpz_class (1), m_efac),
+      //                     mkTerm (mpz_class (0), m_efac));
       
-      if (idx && v)
-        m_side.push_back (mk<EQ> (m_outMem, 
-                                  op::array::store (m_inMem, idx, v)));
-      m_inMem.reset ();
-      m_outMem.reset ();
+      // if (idx && v)
+      //   m_side.push_back (mk<EQ> (m_outMem, 
+      //                             op::array::store (m_inMem, idx, v)));
+      // m_inMem.reset ();
+      // m_outMem.reset ();
     }
     
     
@@ -523,7 +537,7 @@ namespace
       const Value &v0 = *I.getOperand (0);
       
       Expr u = lookup (v0);
-      if (u) m_side.push_back (mk<EQ> (lhs, u));
+      if (u) write (I, u);
     }
     
     void initGlobals (const BasicBlock &BB)
@@ -554,7 +568,7 @@ namespace
   {
     const BasicBlock &m_dst;
     
-    SymExecPhiVisitor (SymStore &s, UfoSmallSymExec &sem, 
+    SymExecPhiVisitor (SymStore &s, ClpSmallSymExec &sem, 
                        ExprVector &side, const BasicBlock &dst) : 
       SymExecBase (s, sem, side), m_dst (dst) {}
     
@@ -569,7 +583,7 @@ namespace
       // -- must first lookup the value of the argument, and only then
       // -- havoc the register.
       Expr lhs = havoc (I);
-      if (op0) m_side.push_back (mk<EQ> (lhs, op0));
+      write (I, op0);
     }
 
   };
@@ -577,34 +591,34 @@ namespace
 
 namespace seahorn
 {
-  Expr UfoSmallSymExec::errorFlag (const BasicBlock &BB)
+  Expr ClpSmallSymExec::errorFlag (const BasicBlock &BB)
   {
     // -- if BB belongs to a function that cannot fail, errorFlag is always false
     if (m_canFail && !m_canFail->canFail (BB.getParent ())) return falseE;
     return this->SmallStepSymExec::errorFlag (BB);
   }
   
-  void UfoSmallSymExec::exec (SymStore &s, const BasicBlock &bb, ExprVector &side)
+  void ClpSmallSymExec::exec (SymStore &s, const BasicBlock &bb, ExprVector &side)
   {
     SymExecVisitor v(s, *this, side);
     v.visit (const_cast<BasicBlock&>(bb));
   }
     
-  void UfoSmallSymExec::exec (SymStore &s, const Instruction &inst, ExprVector &side)
+  void ClpSmallSymExec::exec (SymStore &s, const Instruction &inst, ExprVector &side)
   {
     SymExecVisitor v (s, *this, side);
     v.visit (const_cast<Instruction&>(inst));
   }
     
   
-  void UfoSmallSymExec::execPhi (SymStore &s, const BasicBlock &bb, 
+  void ClpSmallSymExec::execPhi (SymStore &s, const BasicBlock &bb, 
                 const BasicBlock &from, ExprVector &side)
   {
     SymExecPhiVisitor v(s, *this, side, from);
     v.visit (const_cast<BasicBlock&>(bb));
   }
 
-  Expr UfoSmallSymExec::ptrArith (SymStore &s, 
+  Expr ClpSmallSymExec::ptrArith (SymStore &s, 
                                   const Value &base,
                                   SmallVectorImpl<const Value*> &ps,
                                   SmallVectorImpl<const Type*> &ts)
@@ -632,15 +646,15 @@ namespace seahorn
     return res;
   }
   
-  unsigned UfoSmallSymExec::storageSize (const llvm::Type *t) 
+  unsigned ClpSmallSymExec::storageSize (const llvm::Type *t) 
   {return m_td->getTypeStoreSize (const_cast<Type*> (t));}
   
-  unsigned UfoSmallSymExec::fieldOff (const StructType *t, unsigned field)
+  unsigned ClpSmallSymExec::fieldOff (const StructType *t, unsigned field)
   {
     return m_td->getStructLayout (const_cast<StructType*>(t))->getElementOffset (field);
   }
   
-  bool UfoSmallSymExec::isShadowMem (const Value &V)
+  bool ClpSmallSymExec::isShadowMem (const Value &V)
   {
     // work list
     std::queue<const Value*> wl;
@@ -669,10 +683,8 @@ namespace seahorn
     return false;
   }
   
-  Expr UfoSmallSymExec::symb (const Value &I)
+  Expr ClpSmallSymExec::symb (const Value &I)
   {
-    assert (!isa<UndefValue>(&I));
-
     // -- basic blocks are mapped to Bool constants
     if (const BasicBlock *bb = dyn_cast<const BasicBlock> (&I))
       return bind::boolConst 
@@ -684,7 +696,7 @@ namespace seahorn
       if (const ConstantInt *c = dyn_cast<const ConstantInt> (&I))
       {
         if (c->getType ()->isIntegerTy (1))
-          return c->isOne () ? mk<TRUE> (m_efac) : mk<FALSE> (m_efac);
+          return c->isOne () ? trueE : falseE;
         mpz_class k = toMpz (c->getValue ());
         return mkTerm<mpz_class> (k, m_efac);
       }
@@ -719,15 +731,13 @@ namespace seahorn
       Expr ty = sort::arrayTy (intTy, intTy);
       return bind::mkConst (v, ty);
     }
-      
-    if (isTracked (I))
-      return I.getType ()->isIntegerTy (1) ? 
-        bind::boolConst (v) : bind::intConst (v);
+
+    if (isTracked (I)) return bind::intConst (v);
     
     return Expr(0);
   }
   
-  const Value &UfoSmallSymExec::conc (Expr v)
+  const Value &ClpSmallSymExec::conc (Expr v)
   {
     assert (isOpX<FAPP> (v));
     // name of the app
@@ -739,7 +749,7 @@ namespace seahorn
   }
   
   
-  bool UfoSmallSymExec::isTracked (const Value &v) 
+  bool ClpSmallSymExec::isTracked (const Value &v) 
   {
     // -- shadow values represent memory regions
     // -- only track them when memory is tracked
@@ -751,7 +761,7 @@ namespace seahorn
     return v.getType ()->isIntegerTy ();
   }
   
-  Expr UfoSmallSymExec::lookup (SymStore &s, const Value &v)
+  Expr ClpSmallSymExec::lookup (SymStore &s, const Value &v)
   {
     Expr u = symb (v);
     // if u is defined it is either an fapp or a constant
@@ -759,7 +769,7 @@ namespace seahorn
     return Expr (0);
   }
 
-  void UfoSmallSymExec::execEdg (SymStore &s, const BasicBlock &src,
+  void ClpSmallSymExec::execEdg (SymStore &s, const BasicBlock &src,
                                  const BasicBlock &dst, ExprVector &side)
   {
     exec (s, src, side);
@@ -769,9 +779,10 @@ namespace seahorn
     // an edge into a basic block that does not return includes the block itself
     const TerminatorInst *term = dst.getTerminator ();
     if (term && isa<const UnreachableInst> (term)) exec (s, dst, side);
+
   }
   
-  void UfoSmallSymExec::execBr (SymStore &s, const BasicBlock &src, const BasicBlock &dst, 
+  void ClpSmallSymExec::execBr (SymStore &s, const BasicBlock &src, const BasicBlock &dst, 
                                 ExprVector &side)
   {
     // the branch condition
@@ -786,194 +797,18 @@ namespace seahorn
               (ci->isZero () && br->getSuccessor (1) != &dst))
           {
             side.clear ();
-            //        side.push_back (mk<FALSE> (s.getExprFactory ()));
             side.push_back (s.read (errorFlag (src)));
           }
         }
         else if (Expr target = lookup (s, c))
-        {
-          
-          Expr cond = br->getSuccessor (0) == &dst ? target : mk<NEG> (target);
+        {          
+          SymExecBase sym (s, *this, side); 
+          Expr cond = br->getSuccessor (0) == &dst ? target : sym.negate (target);
           cond = boolop::lor (s.read (errorFlag (src)), cond);
           side.push_back (cond);
         }
-        
-            
       }
     }   
   }
-  
-  
-  Expr mkCond (Expr cond, Expr v)
-  {
-    if (bind::isFapp (v) && isOpX<FUNCTION> (bind::fname (bind::fname (v))))
-    {
-      // For summary predicates, push condition into the first argument
-      ExprVector args (v->args_begin (), v->args_end ());
-      args [1] = cond;
-      return mknary<FAPP> (args);
-    }
-    
-    return boolop::limp (cond, v);
-  }
-  
-  template<typename OutputIterator, typename Range>
-  static void mkCond (Expr cond, const Range &in, OutputIterator out)
-  {
-    for (Expr e : in) *out++ = mkCond (cond, e);
-  }
-  
-  
-  void UfoLargeSymExec::execCpEdg (SymStore &s, const CpEdge &edge, 
-                                   ExprVector &side)
-  {
-    const CutPoint &target = edge.target ();
-    
-    bool first = true;
-    for (const BasicBlock& bb : edge) 
-    {
-      if (first)
-      {
-        s.havoc (m_sem.symb (bb));
-        m_sem.exec (s, bb, side);  
-      }
-      else execEdgBb (s, edge, bb, side);
-      first = false;
-    }
-    
-    execEdgBb (s, edge, target.bb (), side, true);
-  }
-  
-  namespace sem_detail
-  {
-    struct FwdReachPred : public std::unary_function<const BasicBlock&,bool>
-    {
-      const CutPointGraph &m_cpg;
-      const CutPoint &m_cp;
       
-      FwdReachPred (const CutPointGraph &cpg, const CutPoint &cp) : 
-        m_cpg (cpg), m_cp (cp) {}
-      
-      bool operator() (const BasicBlock &bb) const 
-      {return m_cpg.isFwdReach (m_cp, bb);}
-      bool operator() (const BasicBlock *bb) const
-      {return this->operator() (*bb);} 
-    };
-  }
-  
-  void UfoLargeSymExec::execEdgBb (SymStore &s, const CpEdge &edge, 
-                                   const BasicBlock &bb, 
-                                   ExprVector &side, bool last)
-  {
-    ExprVector edges;
-    
-    if (last) assert (&bb == &(edge.target ().bb ()));
-    
-    // -- predicate for reachable from source
-    sem_detail::FwdReachPred reachable (edge.parent (), edge.source ());
-    
-    // compute predecessors, relative to the source cut-point
-    llvm::SmallVector<const BasicBlock*, 4> preds;
-    for (const BasicBlock* p : seahorn::preds (bb)) 
-      if (reachable (p)) preds.push_back (p);
-    
-    // -- compute source of all the edges
-    for (const BasicBlock *pred : preds)
-      edges.push_back (s.read (m_sem.symb (*pred)));
-      
-    // -- update constant representing current bb
-    Expr bbV = s.havoc (m_sem.symb (bb));
-    // -- update destination of all the edges
-    // -- b_i & e_{i,j}
-    for (Expr &e : edges) e = mk<AND> (e, bind::boolConst (mk<TUPLE> (e, bbV)));
-     
-
-    // -- encode control flow
-    // -- b_i -> (b1 & e_{1,i} | b2 & e_{2,i} | ...)
-    if (!preds.empty ())
-      side.push_back (mk<IMPL> (bbV, 
-                                mknary<OR> 
-                                (mk<FALSE> (m_sem.getExprFactory ()), edges)));
-      
-    // unique node with no successors is asserted to always be reachable
-    if (last) side.push_back (bbV);
-      
-    /// -- generate constraints from the phi-nodes (keep them separate for now)
-    std::vector<ExprVector> phiConstraints (preds.size ());
-    
-    unsigned idx = 0;
-    for (const BasicBlock *pred : preds)
-    {
-      // clone s
-      SymStore es(s);
-        
-      /// edge side-condition
-      ExprVector eside;
-      
-      // -- branch condition
-      m_sem.execBr (es, *pred, bb, eside);
-      // -- definition of phi nodes
-      m_sem.execPhi (es, bb, *pred, eside);
-      s.uses (es.uses ());
-        
-      // edge_ij -> phi_ij
-      mkCond (edges[idx], eside, std::back_inserter (side));
-        
-      for (const Instruction &inst : bb)
-      {
-        if (!isa<PHINode> (&inst)) break;
-        if (!m_sem.isTracked (inst)) continue;
-        
-        phiConstraints [idx].push_back (es.read (m_sem.symb (inst)));
-      }
-      
-      idx++;
-    }
-      
-    // create new values for phi-node variables
-    ExprVector newPhi;
-    for (const Instruction &inst : bb)
-    {
-      if (!isa<PHINode> (inst)) break;
-      if (!m_sem.isTracked (inst)) continue;
-      newPhi.push_back (s.havoc (m_sem.symb (inst)));
-    }
-      
-    // connect new phi-node variables with constructed phi-node constraints
-    for (unsigned j = 0; j < edges.size (); ++j)
-      for (unsigned i = 0; i < newPhi.size (); ++i)
-        side.push_back (boolop::limp (edges[j], mk<EQ> (newPhi [i], 
-                                                        phiConstraints[j][i])));
-        
-      
-    // actions of the block. The side-conditions are not guarded by
-    // the basic-block variable because it does not matter.
-    if (!last) 
-    {
-      ExprVector bside;
-      m_sem.exec (s, bb, bside);
-      mkCond (bbV, bside, std::back_inserter (side));
-    }
-    else if (const TerminatorInst *term = bb.getTerminator ())
-      if (isa<UnreachableInst> (term)) m_sem.exec (s, bb, side);
-    
-    
-     
-  }
-    
-    // 1. execute all basic blocks using small-step semantics in topological order
-    
-    
-    // 2. when a block executes, it updates a special variable for the block
-    
-    // 3. allocate a Boolean variable for each edge: these are unique
-    // if named using bb variables
-    
-    // 4. side condition: edge -> branchCond & execPhi  
-    
-    // actions: optionally conditional on the block
-    // bb_i -> e_i1 | e_i2 | e_i3
-    // e_i1 -> bb_1
-    // e_i1 -> brcond (i, 1)
-    // e_i1 -> phi_1(i)
 }

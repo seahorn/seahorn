@@ -32,17 +32,6 @@
 using namespace llvm;
 using namespace seahorn;
 
-static llvm::cl::opt<std::string>
-PdrEngine ("horn-pdr-engine",
-           llvm::cl::desc ("Pdr engine to use"),
-           cl::init ("spacer"),
-           cl::Hidden);
-
-static llvm::cl::opt<int>
-PdrVerbose("horn-pdr-verbose",
-           llvm::cl::desc ("Verbosity of the PDR engine"),
-           cl::init (0),
-           cl::Hidden);
 
 static llvm::cl::opt<enum TrackLevel>
 TL("horn-sem-lvl",
@@ -65,6 +54,11 @@ Step("horn-step",
      cl::init (hm_detail::SMALL_STEP));
 
 static llvm::cl::opt<bool>
+ClpSem("horn-clp-sem",
+           llvm::cl::desc ("Use CLP-based semantics for the encoding"),
+           cl::init (false));
+
+static llvm::cl::opt<bool>
 InterProc("horn-inter-proc",
           llvm::cl::desc ("Use inter-procedural encoding"),
           cl::init (false));
@@ -74,23 +68,9 @@ namespace seahorn
   char HornifyModule::ID = 0;
 
   HornifyModule::HornifyModule () :
-    ModulePass (ID), m_zctx (m_efac), m_fp (m_zctx),
+    ModulePass (ID), m_zctx (m_efac),  m_db (m_efac),
     m_td(0)
   {
-    if (PdrVerbose > 0)
-      z3n_set_param ("verbose", PdrVerbose);
-
-    ZParams<EZ3> params (m_zctx);
-    params.set (":engine", PdrEngine);
-    // -- disable slicing so that we can use cover
-    params.set (":xform.slice", false);
-    params.set (":use_heavy_mev", true);
-    params.set (":reset_obligation_queue", true);
-    //params.set (":pdr.flexible_trace", true);
-    params.set (":xform.inline-linear", false);
-    params.set (":xform.inline-eager", false);
-
-    m_fp.set (params);
   }
 
   bool HornifyModule::runOnModule (Module &M)
@@ -100,7 +80,10 @@ namespace seahorn
     bool Changed = false;
     m_td = &getAnalysis<DataLayoutPass> ().getDataLayout ();
 
-    m_sem.reset (new UfoSmallSymExec (m_efac, *this, TL));
+    if (ClpSem)
+      m_sem.reset (new ClpSmallSymExec (m_efac, *this, TL));
+    else
+      m_sem.reset (new UfoSmallSymExec (m_efac, *this, TL));
 
     // create FunctionInfo for verifier.error() function
     if (Function* errorFn = M.getFunction ("verifier.error"))
@@ -109,7 +92,7 @@ namespace seahorn
       Expr boolSort = sort::boolTy (m_efac);
       ExprVector sorts (4, boolSort);
       fi.sumPred = bind::fdecl (mkTerm<const Function*> (errorFn, m_efac), sorts);
-      m_fp.registerRelation (fi.sumPred);
+      m_db.registerRelation (fi.sumPred);
 
       // basic rules for error
       // error (false, false, false)
@@ -123,23 +106,23 @@ namespace seahorn
       ExprSet allVars;
 
       ExprVector args {falseE, falseE, falseE};
-      m_fp.addRule (allVars, bind::fapp (fi.sumPred, args));
+      m_db.addRule (allVars, bind::fapp (fi.sumPred, args));
 
       args = {falseE, trueE, trueE} ;
-      m_fp.addRule (allVars, bind::fapp (fi.sumPred, args));
+      m_db.addRule (allVars, bind::fapp (fi.sumPred, args));
 
       args = {trueE, falseE, trueE} ;
-      m_fp.addRule (allVars, bind::fapp (fi.sumPred, args));
+      m_db.addRule (allVars, bind::fapp (fi.sumPred, args));
 
       args = {trueE, trueE, trueE} ;
-      m_fp.addRule (allVars, bind::fapp (fi.sumPred, args));
+      m_db.addRule (allVars, bind::fapp (fi.sumPred, args));
 
       args [0] = bind::boolConst (mkTerm (std::string ("arg.0"), m_efac));
       args [1] = bind::boolConst (mkTerm (std::string ("arg.1"), m_efac));
       args [2] = bind::boolConst (mkTerm (std::string ("arg.2"), m_efac));
-      m_fp.addCover (bind::fapp (fi.sumPred, args),
-                     mk<AND> (mk<OR> (mk<NEG> (args [0]), args [2]),
-                              mk<OR> (args [0], mk<EQ> (args [1], args [2]))));
+      m_db.addConstraint (bind::fapp (fi.sumPred, args),
+                          mk<AND> (mk<OR> (mk<NEG> (args [0]), args [2]),
+                                   mk<OR> (args [0], mk<EQ> (args [1], args [2]))));
     }
 
 

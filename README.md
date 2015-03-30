@@ -1,4 +1,5 @@
 # SeaHorn #
+[![SeaHorn Build Status](https://travis-ci.org/seahorn/seahorn.svg)](https://travis-ci.org/seahorn/seahorn)
 
 ![18093415-vector-illustration-of-seahorse-cartoon--coloring-book.jpg](https://bitbucket.org/repo/gngGo9/images/174701276-18093415-vector-illustration-of-seahorse-cartoon--coloring-book.jpg)
 
@@ -42,4 +43,3 @@ TBD
 * [Arie Gurfinkel](arieg.bitbucket.org)
 * [Jorge Navas](http://ti.arc.nasa.gov/profile/jorge/)
 * [Temesghen Kahsai](http://www.lememta.info/)
-

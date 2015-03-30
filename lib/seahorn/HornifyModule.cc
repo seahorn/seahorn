@@ -43,20 +43,16 @@ TL("horn-sem-lvl",
    cl::init (seahorn::REG));
 
 
-namespace hm_detail {enum Step {SMALL_STEP, LARGE_STEP};}
+namespace hm_detail {enum Step {SMALL_STEP, LARGE_STEP, CLP_SMALL_STEP};}
 
 static llvm::cl::opt<enum hm_detail::Step>
 Step("horn-step",
      llvm::cl::desc ("Step to use for the encoding"),
      cl::values (clEnumValN (hm_detail::SMALL_STEP, "small", "Small Step"),
                  clEnumValN (hm_detail::LARGE_STEP, "large", "Large Step"),
+                 clEnumValN (hm_detail::CLP_SMALL_STEP, "clpsmall", "CLP Small Step"),
                  clEnumValEnd),
      cl::init (hm_detail::SMALL_STEP));
-
-static llvm::cl::opt<bool>
-ClpSem("horn-clp-sem",
-           llvm::cl::desc ("Use CLP-based semantics for the encoding"),
-           cl::init (false));
 
 static llvm::cl::opt<bool>
 InterProc("horn-inter-proc",
@@ -80,7 +76,7 @@ namespace seahorn
     bool Changed = false;
     m_td = &getAnalysis<DataLayoutPass> ().getDataLayout ();
 
-    if (ClpSem)
+    if (Step == hm_detail::CLP_SMALL_STEP)
       m_sem.reset (new ClpSmallSymExec (m_efac, *this, TL));
     else
       m_sem.reset (new UfoSmallSymExec (m_efac, *this, TL));

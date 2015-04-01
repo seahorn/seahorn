@@ -196,6 +196,13 @@ if (EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/ext/llvm/LICENSE.TXT)
     RENAME llvm_license.txt)
 endif()
   
+if (EXISTS ikos-core/src/ikos-core/LICENSE.pdf)
+  install (
+    FILES
+    ${CMAKE_CURRENT_BINARY_DIR}/ikos-core/src/ikos-core/LICENSE.pdf
+    DESTINATION share/doc/seahorn
+    RENAME ikos_license.pdf)
+endif()
     
 # check for rt lib. Not needed on OSX.
 find_library(RT_LIB NAMES rt)

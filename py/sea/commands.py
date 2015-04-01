@@ -119,6 +119,9 @@ class MixedSem(sea.LimitedCmd):
         ap = super (MixedSem, self).mk_arg_parser (ap)
         ap.add_argument ('--ms-skip', dest='ms_skip', help='Skip mixed semantics',
                          default=False, action='store_true')
+        ap.add_argument ('--no-reduce-main', dest='reduce_main',
+                         help='Do not reduce main to return paths only',
+                         default=True, action='store_false')
         add_in_out_args (ap)
         _add_S_arg (ap)
         return ap
@@ -131,6 +134,7 @@ class MixedSem(sea.LimitedCmd):
         argv = list()
         if args.out_file is not None: argv.extend (['-o', args.out_file])
         if not args.ms_skip: argv.append ('--horn-mixed-sem')
+        if args.reduce_main: argv.append ('--ms-reduce-main')
         if args.llvm_asm: argv.append ('-S')
         argv.append (args.in_file)
         return self.seappCmd.run (args, argv)

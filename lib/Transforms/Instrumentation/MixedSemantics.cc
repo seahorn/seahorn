@@ -17,6 +17,11 @@
 
 #include "boost/range.hpp"
 
+static llvm::cl::opt<bool>
+ReduceMain("ms-reduce-main",
+             llvm::cl::desc ("Reduce main to return paths"),
+             llvm::cl::init (false));
+
 namespace seahorn
 {
   using namespace llvm;
@@ -72,7 +77,14 @@ namespace seahorn
     if (!main) return false;
     
     CanFail &CF = getAnalysis<CanFail> ();
-    if (!CF.canFail (main)) return false;
+    if (!CF.canFail (main)) 
+    {
+      // -- this benefits the legacy front-end. 
+      // -- it might create issues in some applications where mixed-semantics is applied
+      if (ReduceMain) reduceToReturnPaths (*main);
+      return false;
+    }
+    
     
     main->setName ("orig.main");
     FunctionType *mainTy = main->getFunctionType ();

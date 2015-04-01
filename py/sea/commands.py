@@ -292,6 +292,45 @@ class SeahornClp(sea.LimitedCmd):
             
         return self.seahornCmd.run (args, argv)
     
+class LegacyFrontEnd (sea.LimitedCmd):
+    def __init__ (self, quiet=False):
+        super (LegacyFrontEnd, self).__init__ ('lfe', allow_extra=True)
+
+    @property
+    def stdout (self):
+        return self.lfeCmd.stdout
+
+    def name_out_file (self, in_file, args, work_dir=None):
+        ext = 'lfe.ll'
+        return _remap_file_name (in_file, ext, work_dir)
+
+    def mk_arg_parser (self, ap):
+        ap = super (LegacyFrontEnd, self).mk_arg_parser (ap)
+        ap.add_argument ('-m', type=int, dest='machine',
+                         help='Machine architecture MACHINE:[32,64]', 
+                         default=32)
+        ap.add_argument ('-g', default=False, action='store_true',
+                         dest='debug_info', help='Compile with debug info')
+        add_in_out_args (ap)
+        return ap
+
+    def run (self, args, extra):
+        import sys
+        cmd_name = os.path.join (os.path.dirname (sys.argv[0]), 
+                                 '..', 'legacy', 'bin', 'seahorn.py')
+        if not sea.isexec (cmd_name):
+            print 'No legacy front-end found at:', cmd_name
+            print 'Download from https://bitbucket.org/arieg/seahorn-gh/downloads/seahorn-svcomp15-r1.tar.bz2 and extract into `legacy` sub-directory'
+            return 1
+
+        import subprocess
+        self.lfeCmd = sea.ExtCmd (cmd_name)
+
+        argv = ['--no-seahorn', args.in_file, '-o', args.out_file]
+        argv.append ('-m{0}'.format (args.machine))
+        if args.debug_info: argv.append ('--mark-lines')
+
+        return self.lfeCmd.run (args, argv)
 
 FrontEnd = sea.SeqCmd ('fe', [Clang(), Seapp(), MixedSem(), Seaopt ()])
 Smt = sea.SeqCmd ('smt', FrontEnd.cmds + [Seahorn()])

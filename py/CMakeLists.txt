@@ -2,20 +2,33 @@
 
 find_program(PYTHON "python")
 
-if (PYTHON)
+set (SRC
+  sea/__init__.py
+  sea/__main__.py
+  sea/commands.py
+  )
+
+
+option (USE_PY_SETUP "Use python distutils to install python modules" OFF)
+
+if (PYTHON AND NOT USE_PY_SETUP)
+  install (DIRECTORY sea DESTINATION lib/seapy
+    FILES_MATCHING PATTERN "*.py")
+  install (PROGRAMS seapy DESTINATION bin RENAME sea)
+endif()
+
+if (PYTHON AND USE_PY_SETUP)
   set(SETUP_PY_IN "${CMAKE_CURRENT_SOURCE_DIR}/setup.py.in")
   set(SETUP_PY    "${CMAKE_CURRENT_BINARY_DIR}/setup.py")
   set(OUTPUT      "${CMAKE_CURRENT_BINARY_DIR}/build/timestamp")
 
-  set(DEPS        
+  set(DEPS  ${SRC}
     stats.py
     seahorn_inter.py
     gcc_seahorn.py
     only_z3.py
-    sea/__init__.py
-    sea/__main__.py
-    sea/commands.py
-    ${SETUP_PY_IN})
+    ${SETUP_PY_IN}
+    )
   
   configure_file(${SETUP_PY_IN} ${SETUP_PY})
 

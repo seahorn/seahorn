@@ -177,7 +177,26 @@ if(WIN32 AND NOT UNIX)
 endif()
 include(CPack)
 
+# install all the licenses 
+install (FILES  ${CMAKE_CURRENT_SOURCE_DIR}/license.txt 
+  DESTINATION share/doc/seahorn
+  RENAME seahorn_license.txt)
 
+if (EXISTS z3-prefix/src/z3/LICENSE.txt)
+  install (
+    FILES 
+    ${CMAKE_CURRENT_BINARY_DIR}/z3-prefix/src/z3/LICENSE.txt 
+    DESTINATION share/doc/seahorn
+    RENAME z3_license.txt)
+endif()
+
+if (EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/ext/llvm/LICENSE.TXT)
+  install (FILES ext/llvm/LICENSE.TXT
+    DESTINATION share/doc/seahorn
+    RENAME llvm_license.txt)
+endif()
+  
+    
 # check for rt lib. Not needed on OSX.
 find_library(RT_LIB NAMES rt)
 if (NOT RT_LIB)

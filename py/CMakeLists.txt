@@ -15,6 +15,12 @@ if (PYTHON AND NOT USE_PY_SETUP)
   install (DIRECTORY sea DESTINATION lib/seapy
     FILES_MATCHING PATTERN "*.py")
   install (PROGRAMS seapy DESTINATION bin RENAME sea)
+  
+  install (FILES stats.py DESTINATION bin)
+  set (Z3_SMT2 ${CMAKE_BINARY_DIR}/z3-prefix/src/z3/stats/scripts/z3_smt2.py)
+  if (EXISTS ${Z3_SMT2})
+    install (PROGRAMS ${Z3_SMT2} DESTINATION bin)
+  endif()
 endif()
 
 if (PYTHON AND USE_PY_SETUP)

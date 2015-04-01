@@ -27,7 +27,6 @@ if __name__ == '__main__':
     path = os.path.abspath (sys.argv[0])
     path = os.path.dirname(path)
 
-    print 'The path is', path
     ## update system PATH to location of the package
     if os.path.isdir (path):
         os.environ['PATH'] = path + os.pathsep + os.environ['PATH']

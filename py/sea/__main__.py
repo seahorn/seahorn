@@ -15,8 +15,10 @@ cmds = [sea.commands.Clang(),
         sea.commands.MixedSem(),
         sea.commands.Seaopt(),
         sea.commands.Seahorn(),
+        sea.commands.SeahornClp(),
         sea.commands.Smt,
-        sea.commands.FrontEnd]
+        sea.commands.FrontEnd,
+        sea.commands.Clp]
         
     
 cmd = sea.AgregateCmd('sea', cmds)

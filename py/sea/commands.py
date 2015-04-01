@@ -231,6 +231,12 @@ class Seahorn(sea.LimitedCmd):
             
         return self.seahornCmd.run (args, argv)
 
+class FrontEnd (sea.SeqCmd):
+    def __init__(self):
+        cmds = [Clang(), Seapp (),
+                MixedSem (), Seaopt ()]
+        super (FrontEnd, sefl).__init ('fe', cmds)
+    
 class SeaGen(sea.SeqCmd):
     def __init__(self):
         cmds = [Clang (),

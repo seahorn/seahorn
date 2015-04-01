@@ -232,5 +232,5 @@ class Seahorn(sea.LimitedCmd):
         return self.seahornCmd.run (args, argv)
 
 FrontEnd = sea.SeqCmd ('fe', [Clang(), Seapp(), MixedSem(), Seaopt ()])
-SeaGen = sea.SeqCmd ('gen', FrontEnd.cmds + [Seahorn()])
+Smt = sea.SeqCmd ('smt', FrontEnd.cmds + [Seahorn()])
     

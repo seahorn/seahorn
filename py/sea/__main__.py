@@ -15,7 +15,7 @@ cmds = [sea.commands.Clang(),
         sea.commands.MixedSem(),
         sea.commands.Seaopt(),
         sea.commands.Seahorn(),
-        sea.commands.SeaGen,
+        sea.commands.Smt,
         sea.commands.FrontEnd]
         
     

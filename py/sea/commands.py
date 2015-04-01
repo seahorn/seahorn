@@ -20,6 +20,10 @@ def _add_S_arg (ap):
                      help='Write output as LLVM assembly')
     return ap
 
+def _bc_or_ll_file (name):
+    ext = os.path.splitext (name)[1]
+    return ext == '.bc' or ext == '.ll'
+    
 class Clang(sea.LimitedCmd):
     def __init__ (self, quiet=False):
         super (Clang, self).__init__('clang', allow_extra=True)
@@ -36,11 +40,15 @@ class Clang(sea.LimitedCmd):
         return ap
     
     def name_out_file (self, in_file, args=None, work_dir=None):
+        if _bc_or_ll_file (in_file): return in_file
         ext = '.bc'
         # if args.llvm_asm: ext = '.ll'
         return _remap_file_name (in_file, ext, work_dir)
         
     def run (self, args, extra):
+        # do nothing on .bc and .ll files
+        if _bc_or_ll_file (args.in_file): return 0
+
         cmd_name = which (['clang-mp-3.6', 'clang-3.6', 'clang',
                                 'clang-mp-3.5', 'clang-mp-3.4'])
         if cmd_name is None: raise IOError ('clang not found')

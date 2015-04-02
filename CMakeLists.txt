@@ -1,8 +1,8 @@
 cmake_minimum_required(VERSION 2.8.11)
 
 project (SeaHorn)
-set (SeaHorn_VERSION_MAJOR 1)
-set (SeaHorn_VERSION_MINOR 0)
+set (SeaHorn_VERSION_MAJOR 0)
+set (SeaHorn_VERSION_MINOR 1)
 set (SeaHorn_VERSION_PATCH 0)
 
 if (NOT PACKAGE_VERSION)

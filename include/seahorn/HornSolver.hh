@@ -33,6 +33,8 @@ namespace seahorn
     ufo::ZFixedPoint<ufo::EZ3>& getZFixedPoint () {return *m_fp;}
     
     boost::tribool getResult () {return m_result;}
+    void releaseMemory () {m_fp.reset (nullptr);}
+    
     
   };
 

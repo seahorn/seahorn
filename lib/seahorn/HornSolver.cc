@@ -82,8 +82,6 @@ namespace seahorn
     else if (PrintAnswer && m_result)
       printCex ();
     
-    // release the solver
-    m_fp.reset (nullptr);
     return false;
   }
 

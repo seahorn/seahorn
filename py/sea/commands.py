@@ -183,8 +183,9 @@ def _is_seahorn_opt (x):
     return False
 
 class Seahorn(sea.LimitedCmd):
-    def __init__ (self, quiet=False):
+    def __init__ (self, solve=False, quiet=False):
         super (Seahorn, self).__init__ ('horn', allow_extra=True)
+        self.solve = solve
         
     @property
     def stdout (self):
@@ -199,7 +200,7 @@ class Seahorn(sea.LimitedCmd):
         ap.add_argument ('--cex', dest='cex', help='Destination for a cex',
                          default=None, metavar='FILE')
         ap.add_argument ('--solve', dest='solve', action='store_true',
-                         help='Solve', default=False)
+                         help='Solve', default=self.solve)
         ap.add_argument ('--ztrace', dest='ztrace', metavar='STR',
                          default=None, help='Z3 trace levels')
         ap.add_argument ('--verbose', '-v', dest='verbose', type=int, default=0,
@@ -347,3 +348,4 @@ class LegacyFrontEnd (sea.LimitedCmd):
 FrontEnd = sea.SeqCmd ('fe', [Clang(), Seapp(), MixedSem(), Seaopt ()])
 Smt = sea.SeqCmd ('smt', FrontEnd.cmds + [Seahorn()])
 Clp = sea.SeqCmd ('clp', FrontEnd.cmds + [SeahornClp()])
+Pf = sea.SeqCmd ('pf', FrontEnd.cmds + [Seahorn(solve=True)])

@@ -17,7 +17,8 @@ def main (argv):
             sea.commands.FrontEnd,
             sea.commands.LegacyFrontEnd(),
             sea.commands.Smt,
-            sea.commands.Clp]
+            sea.commands.Clp,
+            sea.commands.Pf]
 
 
     cmd = sea.AgregateCmd('sea', cmds)

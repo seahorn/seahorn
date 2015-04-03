@@ -38,8 +38,6 @@ namespace seahorn
 
     // Load the Horn clause database
     auto &db = hm.getHornClauseDB ();
-    // this will have effect only if -horn-clp-sem is enabled.
-    normalizeHornClauseHeads (db);
 
     m_fp.reset (new ZFixedPoint<EZ3> (hm.getZContext ()));
     ZFixedPoint<EZ3> &fp = *m_fp;

@@ -36,13 +36,11 @@ namespace seahorn
   {
     HornifyModule &hm = getAnalysis<HornifyModule> ();
     HornClauseDB &db  = hm.getHornClauseDB ();
-    // this will have effect only if -horn-clp-sem is enabled.
-    normalizeHornClauseHeads (db);
-
     ExprFactory &efac = hm.getExprFactory ();
 
     if (HornClauseFormat == CLP)
     {
+      normalizeHornClauseHeads (db);
       ClpWrite writer (db, efac);
       m_out << writer.toString ();
     }

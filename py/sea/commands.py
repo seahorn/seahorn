@@ -331,3 +331,6 @@ FrontEnd = sea.SeqCmd ('fe', [Clang(), Seapp(), MixedSem(), Seaopt ()])
 Smt = sea.SeqCmd ('smt', FrontEnd.cmds + [Seahorn()])
 Clp = sea.SeqCmd ('clp', FrontEnd.cmds + [SeahornClp()])
 Pf = sea.SeqCmd ('pf', FrontEnd.cmds + [Seahorn(solve=True)])
+LfeSmt = sea.SeqCmd ('lfe-smt', [LegacyFrontEnd(), Seahorn()])
+LfeClp= sea.SeqCmd ('lfe-clp', [LegacyFrontEnd(), SeahornClp()])
+

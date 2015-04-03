@@ -56,8 +56,7 @@ class Clang(sea.LimitedCmd):
         
         argv = ['-c', '-emit-llvm']
         if args.llvm_asm: argv.append ('-S')
-        if args.machine == 32: argv.extend (['-arch', 'i386'])
-        elif args.machine == 64: argv.extend (['-arch', 'x86_64'])
+        argv.append ('-m{0}'.format (args.machine))
         
         if args.debug_info: argv.append ('-g')
         if args.out_file is not None:

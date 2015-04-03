@@ -31,7 +31,6 @@ namespace seahorn
     //  1. enabled flag
     //  2. incoming value of error.flag
     //  3. outgoing value of error.flag
-    // the first two arguments are for the error flag
     Expr boolSort = sort::boolTy (m_efac);
     ExprVector sorts {boolSort, boolSort, boolSort};
     

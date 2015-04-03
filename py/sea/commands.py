@@ -252,19 +252,11 @@ class SeahornClp(sea.LimitedCmd):
         return self.seahornCmd.stdout
 
     def name_out_file (self, in_file, args=None, work_dir=None):
-        return _remap_file_name (in_file, '.smt2', work_dir)
+        return _remap_file_name (in_file, '.clp', work_dir)
 
     def mk_arg_parser (self, ap):
         ap = super (SeahornClp, self).mk_arg_parser (ap)
         add_in_out_args (ap)
-        ap.add_argument ('--cex', dest='cex', help='Destination for a cex',
-                         default=None, metavar='FILE')
-        ap.add_argument ('--solve', dest='solve', action='store_true',
-                         help='Solve', default=False)
-        ap.add_argument ('--ztrace', dest='ztrace', metavar='STR',
-                         default=None, help='Z3 trace levels')
-        ap.add_argument ('--verbose', '-v', dest='verbose', type=int, default=0,
-                         help='Verbosity level', metavar='N')
         ap.add_argument ('--log', dest='log', default=None,
                          metavar='STR', help='Log level')
         ap.add_argument ('--oll', dest='asm_out_file', default=None,
@@ -279,21 +271,12 @@ class SeahornClp(sea.LimitedCmd):
         self.seahornCmd = sea.ExtCmd (cmd_name)
         
         argv = list()
-        if args.solve: argv.append ('--horn-solve')
-        if args.cex is not None and args.solve:
-            argv.append ('-horn-cex')
-            argv.append ('-horn-svcomp-cex={0}'.format (cex))
-            argv.extend (['-log', 'cex'])
         if args.asm_out_file is not None: argv.extend (['-oll', args.asm_out_file])
         
-        argv.extend (['-horn-inter-proc', '-horn-sem-lvl=mem', '-horn-step=large'])
+        argv.extend (['-horn-format=clp', '-horn-sem-lvl=reg', '-horn-step=clpsmall'])
         
-        if args.verbose > 0: argv.extend (['-zverbose', str(args.verbose)])
-
         if args.log is not None:
             for l in args.log.split (':'): argv.extend (['-log', l])
-        if args.ztrace is not None:
-            for l in args.ztrace.split (':'): argv.extend (['-ztrace', l])
         
         if args.out_file is not None: argv.extend (['-o', args.out_file])
         argv.append (args.in_file)

@@ -208,6 +208,11 @@ class Seahorn(sea.LimitedCmd):
                          metavar='STR', help='Log level')
         ap.add_argument ('--oll', dest='asm_out_file', default=None,
                          help='LLVM assembly output file')
+        ap.add_argument ('--step',
+                         help='Step to use for encoding',
+                         choices=['small', 'large', 'flarge'],
+                         dest='step', default='large')
+                         
         ### TODO: expose options for semantic level, inter-procedural
         ### encoding, step, flat, etc.
         return ap
@@ -225,7 +230,7 @@ class Seahorn(sea.LimitedCmd):
             argv.extend (['-log', 'cex'])
         if args.asm_out_file is not None: argv.extend (['-oll', args.asm_out_file])
         
-        argv.extend (['-horn-inter-proc', '-horn-sem-lvl=mem', '-horn-step=large'])
+        argv.extend (['-horn-inter-proc', '-horn-sem-lvl=mem', '--horn-step={0}'.format (args.step)])
         
         if args.verbose > 0: argv.extend (['-zverbose', str(args.verbose)])
 

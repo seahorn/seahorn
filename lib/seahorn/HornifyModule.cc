@@ -28,6 +28,7 @@
 #include "ufo/Stats.hh"
 
 #include "seahorn/HornifyFunction.hh"
+#include "seahorn/FlatHornifyFunction.hh"
 
 using namespace llvm;
 using namespace seahorn;
@@ -43,13 +44,14 @@ TL("horn-sem-lvl",
    cl::init (seahorn::REG));
 
 
-namespace hm_detail {enum Step {SMALL_STEP, LARGE_STEP, CLP_SMALL_STEP};}
+namespace hm_detail {enum Step {SMALL_STEP, LARGE_STEP, CLP_SMALL_STEP, FLAT_LARGE_STEP};}
 
 static llvm::cl::opt<enum hm_detail::Step>
 Step("horn-step",
      llvm::cl::desc ("Step to use for the encoding"),
      cl::values (clEnumValN (hm_detail::SMALL_STEP, "small", "Small Step"),
                  clEnumValN (hm_detail::LARGE_STEP, "large", "Large Step"),
+                 clEnumValN (hm_detail::FLAT_LARGE_STEP, "flarge", "Flat Large Step"),
                  clEnumValN (hm_detail::CLP_SMALL_STEP, "clpsmall", "CLP Small Step"),
                  clEnumValEnd),
      cl::init (hm_detail::SMALL_STEP));
@@ -200,6 +202,8 @@ namespace seahorn
                                            (*this, InterProc));
     if (Step == hm_detail::LARGE_STEP)
       hf.reset (new LargeHornifyFunction (*this, InterProc));
+    else if (Step == hm_detail::FLAT_LARGE_STEP)
+      hf.reset (new FlatLargeHornifyFunction (*this, InterProc));
 
 
     /// -- allocate LiveSymbols

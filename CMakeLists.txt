@@ -252,6 +252,9 @@ install(DIRECTORY ${CMAKE_BINARY_DIR}/include/
   PATTERN ".svn" EXCLUDE
   )
 
+install(FILES ${CMAKE_SOURCE_DIR}/README.md
+  DESTINATION .)
+
 add_definitions(-std=c++11)
 add_definitions(-Wno-redeclared-class-member -Wno-sometimes-uninitialized)
 add_definitions(-Wno-covered-switch-default)

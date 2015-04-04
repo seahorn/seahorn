@@ -94,28 +94,30 @@ To see all the options, type `sea --help`.
 ##Annotating C programs##
 
 This is an example of a C program annotated with a safety property:
-
-    extern int __VERIFIER_NONDET();
+``` c
+    extern int nd();
     extern void __VERIFIER_error() __attribute__((noreturn));
-
+    void assert (int cond) { if (!cond) __VERIFIER_error (); }
     int main(){
       int x,y;
       x=1; y=0;
-      while (__VERIFIER_NONDET())
+      while (nd ())
       {
         x=x+y;
         y++;
       }
-     if (!(x>=y)) __VERIFIER_error (); // assert (x>=y);
+      assert (x>=y);
      return 0;
     }
-
-SeaHorn tries to prove that the program location where is defined
-`__VERIFIER_error()` is reachable. If SeaHorn returns `unsat` then the
-location is unreachable, and the program is considered safe. If `sat`
-then SeaHorn proves that the location is reachable, and therefore the
+```
+SeaHorn follows [SV-COMP][svcomp] convention of encoding error locations by a call
+to the designated error function 
+`__VERIFIER_error()`. SeaHorn returns `unsat` when `__VERIFIER_error()`
+is unreachable, and the program is considered safe. SeaHorn returns `sat`
+when `__VERIFIER_error()` is reachable and the
 program is unsafe.
 
+[svcomp]: (http://sv-comp.sosy-lab.org)
 
 #People#
 

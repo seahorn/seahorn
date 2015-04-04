@@ -100,8 +100,9 @@ def add_in_out_args (ap):
     return ap
 
 class CliCmd (object):
-    def __init__ (self, name='', allow_extra=False):
+    def __init__ (self, name='', help='', allow_extra=False):
         self.name = name
+        self.help = help
         self.allow_extra = allow_extra
         
     def mk_arg_parser (self, argp):
@@ -129,8 +130,8 @@ class CliCmd (object):
         return self.run (args, extra)
     
 class LimitedCmd (CliCmd):
-    def __init__ (self, name='', allow_extra=False):
-        super (LimitedCmd, self).__init__ (name, allow_extra)
+    def __init__ (self, name='', help='', allow_extra=False):
+        super (LimitedCmd, self).__init__ (name, help, allow_extra)
 
     def mk_arg_parser (self, argp):
         argp = super(LimitedCmd, self).mk_arg_parser (argp)
@@ -142,14 +143,14 @@ class LimitedCmd (CliCmd):
         
 
 class AgregateCmd (CliCmd):
-    def __init__ (self, name='', cmds=[]):
-        super(AgregateCmd, self).__init__(name, allow_extra=True)
+    def __init__ (self, name='', help='', cmds=[]):
+        super(AgregateCmd, self).__init__(name, help, allow_extra=True)
         self.cmds = cmds
     
     def mk_arg_parser (self, argp):
         sb = argp.add_subparsers ()
         for c in self.cmds:
-            sp = sb.add_parser (c.name)
+            sp = sb.add_parser (c.name, help=c.help)
             sp = c.mk_arg_parser (sp)
             sp.set_defaults (func = c.run)
         return argp
@@ -158,8 +159,8 @@ class AgregateCmd (CliCmd):
         return args.func (args, extra)
     
 class SeqCmd (AgregateCmd):
-    def __init__ (self, name='', cmds=[]):
-        super (SeqCmd, self).__init__ (name, cmds)
+    def __init__ (self, name='', help='', cmds=[]):
+        super (SeqCmd, self).__init__ (name, help, cmds)
 
     def mk_arg_parser (self, ap):
         add_in_out_args (ap)
@@ -202,8 +203,8 @@ class SeqCmd (AgregateCmd):
         return res
     
 class ExtCmd (LimitedCmd):
-    def __init__ (self, name, quiet=False):
-        super (ExtCmd, self).__init__ (name, allow_extra=True)
+    def __init__ (self, name, help='', quiet=False):
+        super (ExtCmd, self).__init__ (name, help, allow_extra=True)
         self.cmd = None
         self.quiet = quiet
 

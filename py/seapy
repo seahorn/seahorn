@@ -8,7 +8,14 @@ def main (argv):
     import sea
     import sea.commands
 
-    cmds = [sea.commands.Clang(),
+    
+    cmds = [
+            sea.commands.Pf,
+            sea.commands.Smt,
+            sea.commands.Clp,
+            sea.commands.LfeSmt,
+            sea.commands.LfeClp,
+            sea.commands.Clang(),
             sea.commands.Seapp(),
             sea.commands.MixedSem(),
             sea.commands.Seaopt(),
@@ -16,14 +23,10 @@ def main (argv):
             sea.commands.SeahornClp(),
             sea.commands.FrontEnd,
             sea.commands.LegacyFrontEnd(),
-            sea.commands.Smt,
-            sea.commands.Clp,
-            sea.commands.Pf,
-            sea.commands.LfeSmt,
-            sea.commands.LfeClp]
+    ]
 
 
-    cmd = sea.AgregateCmd('sea', cmds)
+    cmd = sea.AgregateCmd('sea', 'SeaHorn commands', cmds)
     return cmd.main (argv)
 
 if __name__ == '__main__':

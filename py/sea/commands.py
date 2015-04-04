@@ -26,7 +26,7 @@ def _bc_or_ll_file (name):
     
 class Clang(sea.LimitedCmd):
     def __init__ (self, quiet=False):
-        super (Clang, self).__init__('clang', allow_extra=True)
+        super (Clang, self).__init__('clang', 'Compile', allow_extra=True)
         self.clangCmd = None
 
     def mk_arg_parser (self, ap):
@@ -70,7 +70,7 @@ class Clang(sea.LimitedCmd):
 
 class Seapp(sea.LimitedCmd):
     def __init__(self, quiet=False):
-        super(Seapp, self).__init__('pp', allow_extra=True)
+        super(Seapp, self).__init__('pp', 'Pre-processing', allow_extra=True)
         
     @property
     def stdout (self):
@@ -103,7 +103,8 @@ class Seapp(sea.LimitedCmd):
         
 class MixedSem(sea.LimitedCmd):
     def __init__(self, quiet=False):
-        super(MixedSem, self).__init__('ms', allow_extra=True)
+        super(MixedSem, self).__init__('ms', 'Mixed semantics transformation',
+                                       allow_extra=True)
 
     @property
     def stdout (self):
@@ -140,7 +141,7 @@ class MixedSem(sea.LimitedCmd):
 
 class Seaopt(sea.LimitedCmd):
     def __init__(self, quiet=False):
-        super(Seaopt, self).__init__('opt', allow_extra=True)
+        super(Seaopt, self).__init__('opt', 'Compiler optimizations', allow_extra=True)
 
     @property
     def stdout (self):
@@ -183,7 +184,9 @@ def _is_seahorn_opt (x):
 
 class Seahorn(sea.LimitedCmd):
     def __init__ (self, solve=False, quiet=False):
-        super (Seahorn, self).__init__ ('horn', allow_extra=True)
+        super (Seahorn, self).__init__ ('horn', 'Generate (and solve) ' +
+                                        'Constrained Horn Clauses in SMT-LIB format',
+                                        allow_extra=True)
         self.solve = solve
         
     @property
@@ -216,8 +219,6 @@ class Seahorn(sea.LimitedCmd):
                          help='Track registers, pointers, and memory',
                          choices=['reg', 'ptr', 'mem'], default='mem')
                          
-        ### TODO: expose options for semantic level, inter-procedural
-        ### encoding, step, flat, etc.
         return ap
 
     def run (self, args, extra):
@@ -256,6 +257,7 @@ class Seahorn(sea.LimitedCmd):
 class SeahornClp(sea.LimitedCmd):
     def __init__ (self, quiet=False):
         super (SeahornClp, self).__init__ ('horn-clp', allow_extra=True)
+        self.help = 'Generate Constrained Horn Clauses in CLP format'
         
     @property
     def stdout (self):
@@ -300,6 +302,7 @@ class SeahornClp(sea.LimitedCmd):
 class LegacyFrontEnd (sea.LimitedCmd):
     def __init__ (self, quiet=False):
         super (LegacyFrontEnd, self).__init__ ('lfe', allow_extra=True)
+        self.help = "Legacy front-end (used in SV-COMP'15)"
 
     @property
     def stdout (self):
@@ -326,6 +329,7 @@ class LegacyFrontEnd (sea.LimitedCmd):
         if not sea.isexec (cmd_name):
             print 'No legacy front-end found at:', cmd_name
             print 'Download from https://bitbucket.org/arieg/seahorn-gh/downloads/seahorn-svcomp15-r1.tar.bz2 and extract into `legacy` sub-directory'
+            print 'Only supported on Linux'
             return 1
 
         import subprocess
@@ -337,10 +341,12 @@ class LegacyFrontEnd (sea.LimitedCmd):
 
         return self.lfeCmd.run (args, argv)
 
-FrontEnd = sea.SeqCmd ('fe', [Clang(), Seapp(), MixedSem(), Seaopt ()])
-Smt = sea.SeqCmd ('smt', FrontEnd.cmds + [Seahorn()])
-Clp = sea.SeqCmd ('clp', FrontEnd.cmds + [SeahornClp()])
-Pf = sea.SeqCmd ('pf', FrontEnd.cmds + [Seahorn(solve=True)])
-LfeSmt = sea.SeqCmd ('lfe-smt', [LegacyFrontEnd(), Seahorn()])
-LfeClp= sea.SeqCmd ('lfe-clp', [LegacyFrontEnd(), SeahornClp()])
+FrontEnd = sea.SeqCmd ('fe', 'Front end: alias for clang|pp|ms|opt',
+                       [Clang(), Seapp(), MixedSem(), Seaopt ()])
+Smt = sea.SeqCmd ('smt', 'alias for fe|horn', FrontEnd.cmds + [Seahorn()])
+Clp = sea.SeqCmd ('clp', 'alias for fe|horn-clp', FrontEnd.cmds + [SeahornClp()])
+Pf = sea.SeqCmd ('pf', 'alias for fe|horn --solve',
+                 FrontEnd.cmds + [Seahorn(solve=True)])
+LfeSmt = sea.SeqCmd ('lfe-smt', 'alias for lfe|horn', [LegacyFrontEnd(), Seahorn()])
+LfeClp= sea.SeqCmd ('lfe-clp', 'alias for lfe|horn-clp', [LegacyFrontEnd(), SeahornClp()])
 

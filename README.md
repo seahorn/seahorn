@@ -49,20 +49,37 @@ translate `file.c` into LLVM bitecode, generate a set of verification
 conditions (VCs), and finally, solve them. This command uses as main
 default options:
 
-- `--step=large`: block-large encoding
+- `--step=large`: large-step encoding. Each step corresponds to a
+loop-free program block.
 
-- `--horn-inter-proc`: inter-procedural encoding
+- `--step=small`: small-step encoding. Each step corresponds to a
+  basic block.
 
-- `--horn-sem-lvl=mem`: model both scalars, pointers, and memory contents
+- `--track=mem`: model both scalars, pointers, and memory contents
 
-The above command can divided into several parts.
+- `--track=ptr` : model registers and pointers (but not memory content)
+
+- `--track=reg` : model registers only
+
+- `--inline` : inlines the program before verification
+
+- `--cex=FILE` : stores a counter-example in `FILE`
+
+- `--horn-ikos` : generates invariants using the IKOS abstract
+  interpreter
+
+- `-g` : compiles with debug information for more trackable
+  counterexamples.
+
+`sea-pf` is a pipeline that runs multiple commands. Individual parts
+of the pipeline can be ran separately as well:
 
 1. `sea fe file.c -o file.bc`: SeaHorn frontend translates a C program
-  into optimized LLVM bitecode including mixed-semantics
+  into optimized LLVM bitcode including mixed-semantics
   transformation.
 
 2. `sea horn file.bc -o file.smt2`: SeaHorn generates the verification
-  conditions from `file.bc` and outputs them into smt2 format. Users
+  conditions from `file.bc` and outputs them into SMT-LIB v2 format. Users
   can choose between different encoding styles with several levels of
   precision by adding:
 
@@ -71,23 +88,17 @@ The above command can divided into several parts.
       block-large encoding producing flat Horn clauses (i.e., it
       generates a transition system with only one predicate).
 
-   - `--horn-sem-lvl={reg,ptr,mem}` where `reg` only models integer
+   - `--track={reg,ptr,mem}` where `reg` only models integer
       scalars, `ptr` models `reg` and pointer addresses, and `mem`
       models `ptr` and memory contents.
 
-3. `sea smt file.smt2`: Seahorn tries to solve the VCs
-   generated in 2.
+3. `sea smt file.c -o file.smt2`: Generates CHC in SMT-LIB2 format. Is
+   an alias for `sea fe` followed by `sea horn`. The command `sea pf`
+   is an alias for `sea smt --prove`.
 
-4. `sea horn --solve file.bc`: performs steps 2 and 3 together.
+4.  `sea clp file.c -o file.clp`: Generates CHC in CLP format.
 
-   This command can be augmented with option `--horn-ikos` to add the
-   Ikos abstract intepreter as another back-end solver.
-      
-5. `sea horn --solve --cex FILE file.bc`: as 4 but it outputs to
-   `FILE` the counterexample if the answer is `sat`.
-
-6.  `sea horn-clp file.bc -o file.clp`: similar to 2 but it generates
-     the verification conditions in CLP format.
+5. `sea lfe file.c -o file.ll` : runs the legacy front-end
 
 To see all the options, type `sea --help`.
 

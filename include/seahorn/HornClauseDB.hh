@@ -35,11 +35,30 @@ namespace seahorn
       else 
       { assert (bind::isFapp (b)); }      
     }
+
+    template <typename Range>
+    HornRule (Range &v, Expr head, Expr body) : 
+        m_vars (boost::begin (v), boost::end (v)), 
+        m_head (head), m_body (body) 
+    { }
     
     HornRule (const HornRule &r) : 
-        m_vars (r.m_vars), m_head (r.m_head), m_body (r.m_body) 
+        m_vars (r.m_vars), 
+        m_head (r.m_head), m_body (r.m_body) 
     {} 
     
+    size_t hash () const
+    {
+      size_t res = expr::hash_value (m_head);
+      boost::hash_combine (res, m_body);
+      boost::hash_combine (res, boost::hash_range (m_vars.begin (), 
+                                                   m_vars.end ()));
+      return res;
+    }
+
+    bool operator==(const HornRule & other) const
+    { return hash() == other.hash ();}
+
     // return only the body of the horn clause
     Expr body () const {return m_body;}
 
@@ -57,18 +76,17 @@ namespace seahorn
 
     const ExprVector &vars () const {return m_vars;} 
         
-    void setHead (Expr head) { m_head = head; }
-
-    void setBody (Expr body) { m_body = body; }
-
   };
 
 
   class HornClauseDB 
   {
 
-   private:
+   public:
+
     typedef std::vector<HornRule> RuleVector;
+
+   private:
     
     ExprFactory &m_efac;
     ExprVector m_rels;
@@ -97,7 +115,16 @@ namespace seahorn
       m_rules.push_back (HornRule (vars, rule));
       boost::copy (vars, std::back_inserter (m_vars));
     }
-    
+
+    void addRule (HornRule rule)
+    {
+      m_rules.push_back (rule);
+      boost::copy (rule.vars (), std::back_inserter (m_vars));
+    }
+
+    void removeRule (const HornRule &r)
+    { m_rules.erase (std::remove (m_rules.begin(), m_rules.end(), r)); }
+
     const RuleVector &getRules () const {return m_rules;}
     RuleVector &getRules () {return m_rules;}
 

@@ -22,8 +22,11 @@ SeaHorn is distributed under a modified BSD license. See [license.txt](license.t
 SeaHorn and dependencies are installed in `build/run`
 
 Optional components can be installed individually as well:
+
 * [dsa-seahorn](https://github.com/seahorn/dsa-seahorn): ``` git clone https://github.com/seahorn/dsa-seahorn.git ```
+
 * [ikos-llvm](https://github.com/seahorn/ikos-llvm): ``` git clone https://github.com/seahorn/ikos-llvm.git```
+
 * [llvm-seahorn](https://github.com/seahorn/llvm-seahorn): ``` git clone https://github.com/seahorn/llvm-seahorn.git```
 
 Note that both [dsa-seahorn](https://github.com/seahorn/dsa-seahorn)

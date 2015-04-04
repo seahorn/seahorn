@@ -162,7 +162,7 @@ class Seaopt(sea.LimitedCmd):
     
     def run (self, args, extra):
         cmd_name = which (['seaopt', 'opt-mp-3.6', 'opt-3.6', 'opt'])
-        if cmd_name is None: raise IOError ('niether seaopt nor opt where found')
+        if cmd_name is None: raise IOError ('neither seaopt nor opt where found')
         self.seaoptCmd = sea.ExtCmd (cmd_name)
 
         argv = ['-f', '-funit-at-a-time']

@@ -212,6 +212,9 @@ class Seahorn(sea.LimitedCmd):
                          help='Step to use for encoding',
                          choices=['small', 'large', 'flarge'],
                          dest='step', default='large')
+        ap.add_argument ('--track',
+                         help='Track registers, pointers, and memory',
+                         choices=['reg', 'ptr', 'mem'], default='mem')
                          
         ### TODO: expose options for semantic level, inter-procedural
         ### encoding, step, flat, etc.
@@ -230,7 +233,9 @@ class Seahorn(sea.LimitedCmd):
             argv.extend (['-log', 'cex'])
         if args.asm_out_file is not None: argv.extend (['-oll', args.asm_out_file])
         
-        argv.extend (['-horn-inter-proc', '-horn-sem-lvl=mem', '--horn-step={0}'.format (args.step)])
+        argv.extend (['-horn-inter-proc',
+                      '-horn-sem-lvl={0}'.format (args.track),
+                      '--horn-step={0}'.format (args.step)])
         
         if args.verbose > 0: argv.extend (['-zverbose', str(args.verbose)])
 

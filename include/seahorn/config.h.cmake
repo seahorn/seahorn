@@ -1,6 +1,8 @@
 #ifndef _SEAHORN_CONFIG_H
 #define _SEAHORN_CONFIG_H
 
+#define SEAHORN_VERSION_INFO "${SeaHorn_VERSION_INFO}"
+
 /* Define whether ikos-core is available */
 #cmakedefine HAVE_IKOS ${HAVE_IKOS}
 

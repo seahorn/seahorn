@@ -12,6 +12,7 @@ if (NOT PACKAGE_VERSION)
   if (DEFINED SeaHorn_VERSION_TWEAK)
     set (PACKAGE_VERSION "${PACKAGE_VERSION}-${SeaHorn_VERSION_TWEAK}")
   endif()
+  set (SeaHorn_VERSION_INFO ${PACKAGE_VERSION})
 endif()
 
 

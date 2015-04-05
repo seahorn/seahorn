@@ -45,6 +45,15 @@
 #include "ufo/Smt/EZ3.hh"
 #include "ufo/Stats.hh"
 
+#include "seahorn/config.h"
+
+void print_seapp_version()
+{
+  llvm::outs () << "SeaHorn (http://seahorn.github.io/):\n"
+                << "  SeaPP version " << SEAHORN_VERSION_INFO << "\n";
+}
+
+
 static llvm::cl::opt<std::string>
 InputFilename(llvm::cl::Positional, llvm::cl::desc("<input LLVM bitcode file>"),
               llvm::cl::Required, llvm::cl::value_desc("filename"));
@@ -107,6 +116,7 @@ std::string getFileName(const std::string &str) {
 
 int main(int argc, char **argv) {
   llvm::llvm_shutdown_obj shutdown;  // calls llvm_shutdown() on exit
+  llvm::cl::AddExtraVersionPrinter (print_seapp_version);
   llvm::cl::ParseCommandLineOptions(argc, argv,
                                     "SeaPP-- LLVM bitcode Pre-Processor for Verification\n");
 

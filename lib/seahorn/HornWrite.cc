@@ -10,7 +10,7 @@ InternalWriter("horn-fp-internal-writer",
                llvm::cl::desc("Use internal writer for Horn SMT2 format. (Default)"),
                llvm::cl::init(true),llvm::cl::Hidden);
 
-enum HCFormat { SMT2, CLP};
+enum HCFormat { SMT2, CLP, PURESMT2};
 static llvm::cl::opt<HCFormat>
 HornClauseFormat("horn-format",
        llvm::cl::desc ("Specify the format for Horn Clauses"),
@@ -19,6 +19,8 @@ HornClauseFormat("horn-format",
                     "SMT2 (default)"),
         clEnumValN (CLP, "clp",
                     "CLP (Constraint Logic Programming)"),
+        clEnumValN (PURESMT2, "pure-smt2",
+                    "Pure SMT-LIB2 compliant format"),
         clEnumValEnd),
        llvm::cl::init (SMT2));
 
@@ -56,10 +58,18 @@ namespace seahorn
       // -- do not skip the query
       db.loadZFixedPoint (fp, true, false);
 
-      if (InternalWriter)
-        m_out << fp << "\n";
-      else
+      if (HornClauseFormat == PURESMT2)
+      {
+        // -- disable fixedpoint extension
+        ZParams<EZ3> params (hm.getZContext ());
+        params.set (":print_fixedpoint_extensions", false);
+        fp.set (params);
+      }
+      
+      if (HornClauseFormat == PURESMT2 || !InternalWriter)
         m_out << fp.toString () << "\n";
+      else
+        m_out << fp << "\n";
     }
     
     m_out.flush ();

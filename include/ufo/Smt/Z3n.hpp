@@ -603,8 +603,28 @@ namespace ufo
     {
       if (q) m_query = q;
 
-
       z3::ast ast (z3.toAst (m_query));
+
+      // -- existentially quantify all variables
+      if (!m_vars.empty ())
+      {
+        // getVars() removes duplicates
+        const ExprVector &vars = getVars ();
+        z3::ast_vector pinned(ctx);
+        pinned.resize (vars.size ());
+        std::vector<Z3_app> bound (vars.size ());
+
+        unsigned cnt = 0;
+        for (Expr v : vars)
+        {
+          z3::ast zv (z3.toAst (v));
+          pinned.push_back (zv);
+          bound [cnt++] = Z3_to_app (ctx, zv);
+        }
+        ast = z3::ast (ctx, Z3_mk_exists_const (ctx, 0, bound.size (),
+                                                &bound [0], 0, NULL, ast));
+      }
+      
       tribool res = z3l_to_tribool (Z3_fixedpoint_query (ctx, fp, ast));
       ctx.check_error ();
       return res;
@@ -614,9 +634,30 @@ namespace ufo
     {
       if (!query) query = m_query;
 
-      z3::ast qast (z3.toAst (query));
-      Z3_ast qptr = static_cast<Z3_ast> (qast);
+      z3::ast ast (z3.toAst (query));
 
+      // -- existentially quantify all variables
+      if (!m_vars.empty ())
+      {
+        // getVars() removes duplicates
+        const ExprVector &vars = getVars ();
+        z3::ast_vector pinned(ctx);
+        pinned.resize (vars.size ());
+        std::vector<Z3_app> bound (vars.size ());
+
+        unsigned cnt = 0;
+        for (Expr v : vars)
+        {
+          z3::ast zv (z3.toAst (v));
+          pinned.push_back (zv);
+          bound [cnt++] = Z3_to_app (ctx, zv);
+        }
+        ast = z3::ast (ctx, Z3_mk_exists_const (ctx, 0, bound.size (),
+                                                &bound [0], 0, NULL, ast));
+      }
+      
+      
+      Z3_ast qptr = static_cast<Z3_ast> (ast);
       Z3_string str = Z3_fixedpoint_to_string (ctx, fp, 1, &qptr);
       return std::string (str);
     }

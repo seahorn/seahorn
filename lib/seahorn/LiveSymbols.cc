@@ -209,14 +209,14 @@ namespace seahorn
   
   void LiveSymbols::symExec (SymStore &s, const BasicBlock &bb) 
   {
-    m_semantics.exec (s, bb, m_side);
+    m_semantics.exec (s, bb, m_side, trueE);
     m_side.clear ();
   }
     
   void LiveSymbols::symExecPhi (SymStore &s, const BasicBlock &bb, 
                                 const BasicBlock &from)
   {
-    m_semantics.execPhi (s, bb, from, m_side);
+    m_semantics.execPhi (s, bb, from, m_side, trueE);
     m_side.clear ();
   }
   

@@ -34,11 +34,14 @@ namespace
     /// -- parameters for a function call
     ExprVector m_fparams;
     
+    Expr m_activeLit;
+    
     SymExecBase (SymStore &s, UfoSmallSymExec &sem, ExprVector &side) : 
       m_s(s), m_efac (m_s.getExprFactory ()), m_sem (sem), m_side (side) 
     {
       trueE = mk<TRUE> (m_efac);
       falseE = mk<FALSE> (m_efac);
+      resetActiveLit ();
       // -- first two arguments are reserved for error flag
       m_fparams.push_back (falseE);
       m_fparams.push_back (falseE);
@@ -55,6 +58,12 @@ namespace
     Expr havoc (const Value &v) 
     {return m_sem.isTracked (v) ? m_s.havoc (symb (v)) : Expr (0);}
 
+    void resetActiveLit () {m_activeLit = trueE;}
+    void setActiveLit (Expr act) {m_activeLit = act;}
+    
+    // -- add conditional side condition
+    void addCondSide (Expr c) {m_side.push_back (boolop::limp (m_activeLit, c));}
+    
   };
   
   struct SymExecVisitor : public InstVisitor<SymExecVisitor>, 
@@ -346,12 +355,14 @@ namespace
       if (F.isIntrinsic ()) { assert (m_fparams.size () == 3); return;}
     
       
-      if (F.getName ().equals ("verifier.assume"))
+      if (F.getName ().startswith ("verifier.assume"))
       {
+        Expr c = lookup (*CS.getArgument (0));
+        if (F.getName ().equals ("verifier.assume.not")) c = boolop::lneg (c);
+        
         assert (m_fparams.size () == 3);
         // -- assumption is only active when error flag is false
-        m_side.push_back (boolop::lor (m_s.read (m_sem.errorFlag (BB)),
-                                       lookup (*CS.getArgument (0))));
+        addCondSide (boolop::lor (m_s.read (m_sem.errorFlag (BB)), c));
       }
       // else if (F.getName ().equals ("verifier.assert"))
       // {
@@ -364,18 +375,12 @@ namespace
       // }
       // else if (F.getName ().equals ("verifier.error"))
       //   m_side.push_back (m_s.havoc (m_sem.errorFlag ()));
-      else if (F.getName ().equals ("verifier.assume.not"))
-      {
-        assert (m_fparams.size () == 3);
-        m_side.push_back (boolop::lor (m_s.read (m_sem.errorFlag (BB)), 
-                                       boolop::lneg (lookup (*CS.getArgument (0)))));
-      }
       else if (m_sem.hasFunctionInfo (F))
       {
         const FunctionInfo &fi = m_sem.getFunctionInfo (F);
         
         // enabled
-        m_fparams [0] = trueE;
+        m_fparams [0] = m_activeLit; // activation literal
         // error flag in
         m_fparams [1] = (m_s.read (m_sem.errorFlag (BB)));
         // error flag out
@@ -584,10 +589,13 @@ namespace seahorn
     return this->SmallStepSymExec::errorFlag (BB);
   }
   
-  void UfoSmallSymExec::exec (SymStore &s, const BasicBlock &bb, ExprVector &side)
+  void UfoSmallSymExec::exec (SymStore &s, const BasicBlock &bb, ExprVector &side,
+                              Expr act)
   {
     SymExecVisitor v(s, *this, side);
+    v.setActiveLit (act);
     v.visit (const_cast<BasicBlock&>(bb));
+    v.resetActiveLit ();
   }
     
   void UfoSmallSymExec::exec (SymStore &s, const Instruction &inst, ExprVector &side)
@@ -598,8 +606,9 @@ namespace seahorn
     
   
   void UfoSmallSymExec::execPhi (SymStore &s, const BasicBlock &bb, 
-                const BasicBlock &from, ExprVector &side)
+                                 const BasicBlock &from, ExprVector &side, Expr act)
   {
+    // act is ignored since phi node only introduces a definition
     SymExecPhiVisitor v(s, *this, side, from);
     v.visit (const_cast<BasicBlock&>(bb));
   }
@@ -762,17 +771,17 @@ namespace seahorn
   void UfoSmallSymExec::execEdg (SymStore &s, const BasicBlock &src,
                                  const BasicBlock &dst, ExprVector &side)
   {
-    exec (s, src, side);
-    execBr (s, src, dst, side);
-    execPhi (s, dst, src, side);
+    exec (s, src, side, trueE);
+    execBr (s, src, dst, side, trueE);
+    execPhi (s, dst, src, side, trueE);
     
     // an edge into a basic block that does not return includes the block itself
     const TerminatorInst *term = dst.getTerminator ();
-    if (term && isa<const UnreachableInst> (term)) exec (s, dst, side);
+    if (term && isa<const UnreachableInst> (term)) exec (s, dst, side, trueE);
   }
   
   void UfoSmallSymExec::execBr (SymStore &s, const BasicBlock &src, const BasicBlock &dst, 
-                                ExprVector &side)
+                                ExprVector &side, Expr act)
   {
     // the branch condition
     if (const BranchInst *br = dyn_cast<const BranchInst> (src.getTerminator ()))
@@ -786,8 +795,7 @@ namespace seahorn
               (ci->isZero () && br->getSuccessor (1) != &dst))
           {
             side.clear ();
-            //        side.push_back (mk<FALSE> (s.getExprFactory ()));
-            side.push_back (s.read (errorFlag (src)));
+            side.push_back (boolop::limp (act, s.read (errorFlag (src))));
           }
         }
         else if (Expr target = lookup (s, c))
@@ -795,6 +803,7 @@ namespace seahorn
           
           Expr cond = br->getSuccessor (0) == &dst ? target : mk<NEG> (target);
           cond = boolop::lor (s.read (errorFlag (src)), cond);
+          cond = boolop::limp (act, cond);
           side.push_back (cond);
         }
         
@@ -835,7 +844,7 @@ namespace seahorn
       if (first)
       {
         s.havoc (m_sem.symb (bb));
-        m_sem.exec (s, bb, side);  
+        m_sem.exec (s, bb, side, trueE);  
       }
       else execEdgBb (s, edge, bb, side);
       first = false;
@@ -911,9 +920,9 @@ namespace seahorn
       ExprVector eside;
       
       // -- branch condition
-      m_sem.execBr (es, *pred, bb, eside);
+      m_sem.execBr (es, *pred, bb, eside, trueE);
       // -- definition of phi nodes
-      m_sem.execPhi (es, bb, *pred, eside);
+      m_sem.execPhi (es, bb, *pred, eside, trueE);
       s.uses (es.uses ());
         
       // edge_ij -> phi_ij
@@ -951,11 +960,11 @@ namespace seahorn
     if (!last) 
     {
       ExprVector bside;
-      m_sem.exec (s, bb, bside);
+      m_sem.exec (s, bb, bside, trueE);
       mkCond (bbV, bside, std::back_inserter (side));
     }
     else if (const TerminatorInst *term = bb.getTerminator ())
-      if (isa<UnreachableInst> (term)) m_sem.exec (s, bb, side);
+      if (isa<UnreachableInst> (term)) m_sem.exec (s, bb, side, trueE);
     
     
      

@@ -39,19 +39,19 @@ namespace seahorn
     Expr errorFlag (const BasicBlock &BB) override;
     
     virtual void exec (SymStore &s, const BasicBlock &bb, 
-                       ExprVector &side);
+                       ExprVector &side, Expr act);
     
     virtual void exec (SymStore &s, const Instruction &inst, 
                        ExprVector &side);
     
     virtual void execPhi (SymStore &s, const BasicBlock &bb, 
-                          const BasicBlock &from, ExprVector &side);
+                          const BasicBlock &from, ExprVector &side, Expr act);
     
     virtual void execEdg (SymStore &s, const BasicBlock &src,
                           const BasicBlock &dst, ExprVector &side);
     
     virtual void execBr (SymStore &s, const BasicBlock &src, const BasicBlock &dst,
-                         ExprVector &side);
+                         ExprVector &side, Expr act);
     
     virtual Expr symb (const Value &v);
     virtual const Value &conc (Expr v);

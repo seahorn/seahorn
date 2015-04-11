@@ -81,6 +81,21 @@ namespace seahorn
     virtual void exec (SymStore &s, const BasicBlock &bb, 
                        ExprVector &side) = 0;
     
+    /// Executes all instructions in the basic block. Modifies the
+    /// store s and returns a side condition. The side-constraints are
+    /// optionally conditioned on the activation literal
+    virtual void exec (SymStore &s, const BasicBlock &bb,
+                       ExprVector &side, Expr act)
+    {
+      assert (act);
+      if (isOpX<FALSE> (act)) return;
+      
+      // dummy implementation for a special case
+      assert (isOpX<TRUE> (act));
+      exec (s, bb, side);
+    }
+    
+    
     /// Executes a single instruction
     virtual void exec (SymStore &s, const Instruction &inst, 
                        ExprVector &side) = 0;
@@ -89,12 +104,40 @@ namespace seahorn
     virtual void execPhi (SymStore &s, const BasicBlock &bb, 
                           const BasicBlock &from, ExprVector &side) = 0;
     
+    /// Executes all phi-instructions on the (from,bb)-edge.
+    /// act is an optional activation literal
+    virtual void execPhi (SymStore &s, const BasicBlock &bb, 
+                          const BasicBlock &from, ExprVector &side, Expr act)
+    {
+    
+      assert (act);
+      if (isOpX<FALSE> (act)) return;
+      
+      // dummy implementation for a special case
+      assert (isOpX<TRUE> (act));
+      execPhi (s, bb, from, side);
+    }
+    
     /// Executes a (src,dst) CFG edge
     virtual void execEdg (SymStore &s, const BasicBlock &src,
                           const BasicBlock &dst, ExprVector &side) = 0;
     /// Executes the branch instruction in src that leads to dst
     virtual void execBr (SymStore &s, const BasicBlock &src, const BasicBlock &dst,
                          ExprVector &side) = 0;
+    
+    /// Executes the branch instruction in src that leads to dst
+    /// act is an optional activation literal
+    virtual void execBr (SymStore &s, const BasicBlock &src, const BasicBlock &dst,
+                         ExprVector &side, Expr act)
+    {
+      assert (act);
+      if (isOpX<FALSE> (act)) return;
+      
+      // dummy implementation for a special case
+      assert (isOpX<TRUE> (act));
+      execBr (s, src, dst, side);
+    }
+    
     /// symbolic constant corresponding to the value  
     virtual Expr symb (const Value& v) = 0;
     /// value corresponding to the symbolic constant

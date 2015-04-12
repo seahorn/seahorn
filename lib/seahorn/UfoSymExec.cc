@@ -5,6 +5,7 @@
 #include "seahorn/Support/CFG.hh"
 
 #include "ufo/ufo_iterators.hpp"
+#include "llvm/Support/CommandLine.h"
 
 #include <queue>
 
@@ -12,6 +13,12 @@ using namespace seahorn;
 using namespace llvm;
 using namespace ufo;
 
+static llvm::cl::opt<bool>
+GlobalConstraints("horn-global-constraints",
+                  llvm::cl::desc
+                  ("Maximize the use of global (i.e., unguarded) constraints"),
+                  cl::init (false),
+                  cl::Hidden);
 
 
 namespace
@@ -120,8 +127,11 @@ namespace
       default:
         break;
       }       
-      
-      if (res) m_side.push_back (res);
+
+      // -- optionally guard branch conditions by activation literals
+      Expr activeLit = GlobalConstraints ? trueE : m_activeLit;
+      if (res)
+        m_side.push_back (boolop::limp (activeLit, res));
     }
     
     void visitSelectInst(SelectInst &I)

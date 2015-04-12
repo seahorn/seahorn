@@ -822,27 +822,6 @@ namespace seahorn
     }   
   }
   
-  
-  Expr mkCond (Expr cond, Expr v)
-  {
-    if (bind::isFapp (v) && isOpX<FUNCTION> (bind::fname (bind::fname (v))))
-    {
-      // For summary predicates, push condition into the first argument
-      ExprVector args (v->args_begin (), v->args_end ());
-      args [1] = cond;
-      return mknary<FAPP> (args);
-    }
-    
-    return boolop::limp (cond, v);
-  }
-  
-  template<typename OutputIterator, typename Range>
-  static void mkCond (Expr cond, const Range &in, OutputIterator out)
-  {
-    for (Expr e : in) *out++ = mkCond (cond, e);
-  }
-  
-  
   void UfoLargeSymExec::execCpEdg (SymStore &s, const CpEdge &edge, 
                                    ExprVector &side)
   {
@@ -926,17 +905,13 @@ namespace seahorn
       // clone s
       SymStore es(s);
         
-      /// edge side-condition
-      ExprVector eside;
-      
+      // edge_ij -> phi_ij, 
       // -- branch condition
-      m_sem.execBr (es, *pred, bb, eside, trueE);
+      m_sem.execBr (es, *pred, bb, side, edges[idx]);
       // -- definition of phi nodes
-      m_sem.execPhi (es, bb, *pred, eside, trueE);
+      m_sem.execPhi (es, bb, *pred, side, edges[idx]);
       s.uses (es.uses ());
         
-      // edge_ij -> phi_ij
-      mkCond (edges[idx], eside, std::back_inserter (side));
         
       for (const Instruction &inst : bb)
       {
@@ -967,12 +942,8 @@ namespace seahorn
       
     // actions of the block. The side-conditions are not guarded by
     // the basic-block variable because it does not matter.
-    if (!last) 
-    {
-      ExprVector bside;
-      m_sem.exec (s, bb, bside, trueE);
-      mkCond (bbV, bside, std::back_inserter (side));
-    }
+    if (!last)
+      m_sem.exec (s, bb, side, bbV);
     else if (const TerminatorInst *term = bb.getTerminator ())
       if (isa<UnreachableInst> (term)) m_sem.exec (s, bb, side, trueE);
     

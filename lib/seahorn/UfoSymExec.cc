@@ -410,7 +410,7 @@ namespace
         for (const GlobalVariable *gv : fi.globals)
           m_fparams.push_back (m_s.read (symb (*gv)));
         
-        if (fi.ret) m_fparams.push_back (m_s.read (symb (I)));
+        if (fi.ret) m_fparams.push_back (m_s.havoc (symb (I)));
         
         LOG ("arg_error", 
              if (m_fparams.size () != bind::domainSz (fi.sumPred))

@@ -238,7 +238,7 @@ namespace seahorn
 
         if (std::distance (it, end) > 0)
         {
-          fapp += "(";
+          fapp += "-[";
           for (; it != end; )
           {
             ExprStr arg = print (*it, e, rels, efac, cache, seen);
@@ -247,7 +247,7 @@ namespace seahorn
               if (it != end)
                 fapp += ",";
           }
-          fapp += ")";
+          fapp += "]";
         }
         res = ExprStr (fapp);          
       }

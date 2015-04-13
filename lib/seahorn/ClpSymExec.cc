@@ -732,7 +732,13 @@ namespace seahorn
       return bind::mkConst (v, ty);
     }
 
-    if (isTracked (I)) return bind::intConst (v);
+    if (isTracked (I))
+    {
+      if (I.getType ()->isIntegerTy (1))
+        return bind::boolConst (v); 
+      else
+        return bind::intConst (v);
+    }
     
     return Expr(0);
   }

@@ -598,8 +598,10 @@ namespace seahorn
     return this->SmallStepSymExec::errorFlag (BB);
   }
   
-  void ClpSmallSymExec::exec (SymStore &s, const BasicBlock &bb, ExprVector &side)
+  void ClpSmallSymExec::exec (SymStore &s, const BasicBlock &bb, ExprVector &side,
+                              Expr act)
   {
+    assert (isOpX<TRUE> (act));
     SymExecVisitor v(s, *this, side);
     v.visit (const_cast<BasicBlock&>(bb));
   }
@@ -612,8 +614,9 @@ namespace seahorn
     
   
   void ClpSmallSymExec::execPhi (SymStore &s, const BasicBlock &bb, 
-                const BasicBlock &from, ExprVector &side)
+                                 const BasicBlock &from, ExprVector &side, Expr act)
   {
+    assert (isOpX<TRUE> (act));
     SymExecPhiVisitor v(s, *this, side, from);
     v.visit (const_cast<BasicBlock&>(bb));
   }
@@ -778,19 +781,21 @@ namespace seahorn
   void ClpSmallSymExec::execEdg (SymStore &s, const BasicBlock &src,
                                  const BasicBlock &dst, ExprVector &side)
   {
-    exec (s, src, side);
-    execBr (s, src, dst, side);
-    execPhi (s, dst, src, side);
+    Expr trueE = mk<TRUE> (m_efac);
+    exec (s, src, side, trueE);
+    execBr (s, src, dst, side, trueE);
+    execPhi (s, dst, src, side, trueE);
     
     // an edge into a basic block that does not return includes the block itself
     const TerminatorInst *term = dst.getTerminator ();
-    if (term && isa<const UnreachableInst> (term)) exec (s, dst, side);
+    if (term && isa<const UnreachableInst> (term)) exec (s, dst, side, trueE);
 
   }
   
   void ClpSmallSymExec::execBr (SymStore &s, const BasicBlock &src, const BasicBlock &dst, 
-                                ExprVector &side)
+                                ExprVector &side, Expr act)
   {
+    assert (isOpX<TRUE> (act));
     // the branch condition
     if (const BranchInst *br = dyn_cast<const BranchInst> (src.getTerminator ()))
     {

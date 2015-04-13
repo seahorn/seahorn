@@ -63,9 +63,14 @@ endif()
 # put static libraries first
 set(CMAKE_FIND_LIBRARY_SUFFIXES ".a" ${CMAKE_FIND_LIBRARY_SUFFIXES})
 
+option (UNIT_TESTS "Compile unit tests" OFF)
 set (Boost_USE_STATIC_LIBS ON)
-find_package (Boost 1.55 REQUIRED COMPONENTS system unit_test_framework)
-IF (Boost_FOUND)
+set (BOOST_COMPONENTS system)
+if (UNIT_TESTS)
+  set (BOOST_COMPONENTS ${BOOST_COMPONENTS} unit_test_framework)
+endif()
+  find_package (Boost 1.55 REQUIRED COMPONENTS ${BOOST_COMPONENTS})
+if (Boost_FOUND)
   include_directories (${Boost_INCLUDE_DIRS})
 endif ()
 
@@ -307,7 +312,9 @@ endif()
 
 add_subdirectory(lib)
 add_subdirectory(tools)
-add_subdirectory(units)
+if (UNIT_TESTS)
+  add_subdirectory(units)
+endif()
 
 configure_file( include/seahorn/config.h.cmake
                 ${CMAKE_BINARY_DIR}/include/seahorn/config.h )

@@ -16,12 +16,6 @@ PdrEngine ("horn-pdr-engine",
            cl::init ("spacer"),
            cl::Hidden);
 
-static llvm::cl::opt<int>
-PdrVerbose("horn-pdr-verbose",
-           llvm::cl::desc ("Verbosity of the PDR engine"),
-           cl::init (0),
-           cl::Hidden);
-
 static llvm::cl::opt<bool>
 PrintAnswer ("horn-answer",
              cl::desc ("Print Horn answer"), cl::init (false));
@@ -41,9 +35,6 @@ namespace seahorn
 
     m_fp.reset (new ZFixedPoint<EZ3> (hm.getZContext ()));
     ZFixedPoint<EZ3> &fp = *m_fp;
-    
-    if (PdrVerbose > 0)
-      z3n_set_param ("verbose", PdrVerbose);
 
     ZParams<EZ3> params (hm.getZContext ());
     params.set (":engine", PdrEngine);

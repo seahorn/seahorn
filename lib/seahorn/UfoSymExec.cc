@@ -129,9 +129,9 @@ namespace
       }       
 
       // -- optionally guard branch conditions by activation literals
-      Expr activeLit = GlobalConstraints ? trueE : m_activeLit;
+      Expr act = GlobalConstraints ? trueE : m_activeLit;
       if (res)
-        m_side.push_back (boolop::limp (activeLit, res));
+        m_side.push_back (boolop::limp (act, res));
     }
     
     void visitSelectInst(SelectInst &I)
@@ -142,9 +142,11 @@ namespace
       Expr cond = lookup (*I.getCondition ());
       Expr op0 = lookup (*I.getTrueValue ());
       Expr op1 = lookup (*I.getFalseValue ());
-     
+      
+      
+      Expr act = GlobalConstraints ? trueE : m_activeLit;
       if (cond && op0 && op1)
-        m_side.push_back (mk<EQ> (lhs, mk<ITE> (cond, op0, op1)));
+        m_side.push_back (boolop::limp (act, mk<EQ> (lhs, mk<ITE> (cond, op0, op1))));
     }
     
     void visitBinaryOperator(BinaryOperator &I)
@@ -207,7 +209,8 @@ namespace
           break;
 	}
 
-      if (res) m_side.push_back (res);
+      Expr act = GlobalConstraints ? trueE : m_activeLit;
+      if (res) m_side.push_back (boolop::limp (act, res));
     }
 
     Expr doLeftShift(Expr lhs, Expr op1, const ConstantInt *op2)
@@ -259,7 +262,8 @@ namespace
           break;
       }
 
-      if (res) m_side.push_back (res);
+      Expr act = GlobalConstraints ? trueE : m_activeLit;
+      if (res) m_side.push_back (boolop::limp (act, res));
     }
     
     void visitReturnInst (ReturnInst &I)
@@ -283,6 +287,8 @@ namespace
       Expr op0 = lookup (*I.getOperand (0));
       
       if (!op0) return;
+
+      Expr act = GlobalConstraints ? trueE : m_activeLit;
       if (I.getType ()->isIntegerTy (1))
       {
         Expr zero = mkTerm<mpz_class> (0, m_efac);
@@ -290,11 +296,13 @@ namespace
       
         // truncation to 1 bit amounts to 'is_even' predicate.
         // We handle the two most common cases: 0 -> false, 1 -> true
-        m_side.push_back (mk<IMPL> (mk<EQ> (op0, zero), mk<NEG> (lhs)));
-        m_side.push_back (mk<IMPL> (mk<EQ> (op0, one), lhs));
+        m_side.push_back (boolop::limp (act,
+                                        mk<IMPL> (mk<EQ> (op0, zero), mk<NEG> (lhs))));
+        m_side.push_back (boolop::limp (act,
+                                        mk<IMPL> (mk<EQ> (op0, one), lhs)));
       }
       else
-        m_side.push_back (mk<EQ> (havoc (I), op0));
+        m_side.push_back (boolop::limp (act, mk<EQ> (lhs, op0)));
     }
     
     void visitZExtInst (ZExtInst &I) {doExtCast (I, false);}
@@ -315,7 +323,8 @@ namespace
       }
       
       Expr op = m_sem.ptrArith (m_s, *gep.getPointerOperand (), ps, ts);
-      if (op) m_side.push_back (mk<EQ> (lhs, op));
+      Expr act = GlobalConstraints ? trueE : m_activeLit;
+      if (op) m_side.push_back (boolop::limp (act, mk<EQ> (lhs, op)));
     }
     
     void doExtCast (CastInst &I, bool is_signed = false)
@@ -338,7 +347,8 @@ namespace
           op0 = mk<ITE> (op0, one, zero);
       }
       
-      m_side.push_back (mk<EQ> (lhs, op0));
+      Expr act = GlobalConstraints ? trueE : m_activeLit;
+      m_side.push_back (boolop::limp (act, mk<EQ> (lhs, op0)));
     }
     
     void visitCallSite (CallSite CS)
@@ -503,8 +513,10 @@ namespace
         if (I.getType ()->isIntegerTy (1))
           // -- convert to Boolean
           rhs = mk<NEQ> (rhs, mkTerm (mpz_class(0), m_efac));
-        
-        m_side.push_back (mk<EQ> (lhs, rhs));
+
+        Expr act = GlobalConstraints ? trueE : m_activeLit;
+        m_side.push_back (boolop::limp (act,
+                                        mk<EQ> (lhs, rhs)));
       }
       
       m_inMem.reset ();
@@ -522,9 +534,11 @@ namespace
         v = boolop::lite (v, mkTerm (mpz_class (1), m_efac),
                           mkTerm (mpz_class (0), m_efac));
       
+      Expr act = GlobalConstraints ? trueE : m_activeLit;
       if (idx && v)
-        m_side.push_back (mk<EQ> (m_outMem, 
-                                  op::array::store (m_inMem, idx, v)));
+        m_side.push_back (boolop::limp (act,
+                                        mk<EQ> (m_outMem, 
+                                                op::array::store (m_inMem, idx, v))));
       m_inMem.reset ();
       m_outMem.reset ();
     }
@@ -537,8 +551,9 @@ namespace
       Expr lhs = havoc (I);
       const Value &v0 = *I.getOperand (0);
       
+      Expr act = GlobalConstraints ? trueE : m_activeLit;
       Expr u = lookup (v0);
-      if (u) m_side.push_back (mk<EQ> (lhs, u));
+      if (u) m_side.push_back (boolop::limp (act, mk<EQ> (lhs, u)));
     }
     
     void initGlobals (const BasicBlock &BB)
@@ -584,7 +599,8 @@ namespace
       // -- must first lookup the value of the argument, and only then
       // -- havoc the register.
       Expr lhs = havoc (I);
-      if (op0) m_side.push_back (mk<EQ> (lhs, op0));
+      Expr act = GlobalConstraints ? trueE : m_activeLit;
+      if (op0) m_side.push_back (boolop::limp (act, mk<EQ> (lhs, op0)));
     }
 
   };
@@ -620,7 +636,9 @@ namespace seahorn
   {
     // act is ignored since phi node only introduces a definition
     SymExecPhiVisitor v(s, *this, side, from);
+    v.setActiveLit (act);
     v.visit (const_cast<BasicBlock&>(bb));
+    v.resetActiveLit ();
   }
 
   Expr UfoSmallSymExec::ptrArith (SymStore &s, 

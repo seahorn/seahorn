@@ -503,8 +503,11 @@ namespace
     
     void visitLoadInst (LoadInst &I)
     {
-      if (!m_inMem || !m_sem.isTracked (I))  return;
+      if (!m_sem.isTracked (I)) return;
+      // -- define (i.e., use) the value of the instruction
       Expr lhs = havoc (I);
+      if (!m_inMem) return;
+      
       Expr op0 = lookup (*I.getPointerOperand ());
       
       if (op0)

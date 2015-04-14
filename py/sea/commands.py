@@ -285,7 +285,8 @@ class SeahornClp(sea.LimitedCmd):
         argv = list()
         if args.asm_out_file is not None: argv.extend (['-oll', args.asm_out_file])
         
-        argv.extend (['-horn-format=clp', '-horn-sem-lvl=reg', '-horn-step=clpsmall'])
+        argv.extend (['-horn-inter-proc',
+                      '-horn-format=clp', '-horn-sem-lvl=reg', '-horn-step=clpsmall'])
         
         if args.log is not None:
             for l in args.log.split (':'): argv.extend (['-log', l])

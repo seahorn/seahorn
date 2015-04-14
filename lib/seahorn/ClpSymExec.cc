@@ -399,7 +399,7 @@ namespace
         for (const GlobalVariable *gv : fi.globals)
           m_fparams.push_back (m_s.read (symb (*gv)));
         
-        if (fi.ret) m_fparams.push_back (m_s.read (symb (I)));
+        if (fi.ret) m_fparams.push_back (m_s.havoc (symb (I)));
         
         LOG ("arg_error", 
              if (m_fparams.size () != bind::domainSz (fi.sumPred))
@@ -492,6 +492,7 @@ namespace
     
     void visitLoadInst (LoadInst &I)
     {
+      if (m_sem.isTracked (I)) havoc (I);
       // if (!m_inMem || !m_sem.isTracked (I))  return;
       // Expr lhs = havoc (I);
       // Expr op0 = lookup (*I.getPointerOperand ());

@@ -90,10 +90,16 @@ namespace seahorn
       
         
       if (fn && (fn->getName ().equals ("__VERIFIER_assume") || 
-                 fn->getName ().equals ("DISABLED__VERIFIER_assert")))
+                 fn->getName ().equals ("DISABLED__VERIFIER_assert") ||
+                 /** pagai embedded invariants */
+                 fn->getName ().equals ("llvm.invariant") ||
+                 /** my suggested name for pagai invariants */
+                 fn->getName ().equals ("pagai.invariant")))
       {
         Function *nfn;
         if (fn->getName ().equals ("__VERIFIER_assume")) nfn = m_assumeFn;
+        else if (fn->getName ().equals ("llvm.invariant")) nfn = m_assumeFn;
+        else if (fn->getName ().equals ("pagai.invariant")) nfn = m_assumeFn;
         else if (fn->getName().equals ("__VERIFIER_assert")) nfn = m_assertFn;
         else continue;
         

@@ -1,5 +1,5 @@
-#ifndef __HORNIFY_MODULE_HH_
-#define __HORNIFY_MODULE_HH_
+#ifndef __BMC_MODULE_HH_
+#define __BMC_MODULE_HH_
 
 #include "llvm/Pass.h"
 #include "llvm/IR/Module.h"
@@ -7,7 +7,6 @@
 #include "ufo/Expr.hpp"
 #include "ufo/Smt/EZ3.hh"
 #include "seahorn/UfoSymExec.hh"
-#include "seahorn/ClpSymExec.hh"
 
 #include "boost/smart_ptr/scoped_ptr.hpp"
 
@@ -15,13 +14,14 @@
 
 #include "seahorn/HornClauseDB.hh"
 
-namespace seahorn
+namespace seabmc
 {
-  using namespace expr;
-  using namespace llvm;
-  using namespace ufo;
+    using namespace expr;
+    using namespace llvm;
+    using namespace ufo;
+    using namespace seahorn;
 
-  class HornifyModule : public llvm::ModulePass
+  class BMCModule : public llvm::ModulePass
   {
     typedef llvm::DenseMap<const Function*, LiveSymbols> LiveSymbolsMap;
     typedef llvm::DenseMap<const BasicBlock*, Expr> PredDeclMap;
@@ -30,9 +30,9 @@ namespace seahorn
 
     ExprFactory m_efac;
     EZ3 m_zctx;
-    HornClauseDB m_db;
+    ZFixedPoint<EZ3> m_fp;
 
-      const DataLayout *m_td;
+    const DataLayout *m_td;
     boost::scoped_ptr<SmallStepSymExec> m_sem;
 
     LiveSymbolsMap m_ls;
@@ -40,15 +40,15 @@ namespace seahorn
 
   public:
     static char ID;
-    HornifyModule ();
-    virtual ~HornifyModule () {}
+    BMCModule ();
+    virtual ~BMCModule () {}
     ExprFactory& getExprFactory () {return m_efac;}
     EZ3 &getZContext () {return m_zctx;}
-    HornClauseDB& getHornClauseDB () {return m_db;}
+    ZFixedPoint<EZ3> &getZFixedPoint () {return m_fp;}
     virtual bool runOnModule (Module &M);
     virtual bool runOnFunction (Function &F);
     virtual void getAnalysisUsage (AnalysisUsage &AU) const;
-    virtual const char* getPassName () const {return "HornifyModule";}
+    virtual const char* getPassName () const {return "BMCModule";}
 
     /// --- live symbols for a function
     const LiveSymbols& getLiveSybols (const Function &F) const;

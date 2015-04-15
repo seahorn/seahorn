@@ -13,7 +13,7 @@ namespace seahorn
   llvm::Pass* createLoadIkosPass ();
   llvm::Pass* createShadowMemDsaPass ();
 
-  llvm::Pass* createKillLoopsPass ();
+  llvm::Pass* createCutLoopsPass ();
 }
 
 #ifdef HAVE_LLVM_SEAHORN

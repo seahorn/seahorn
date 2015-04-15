@@ -75,7 +75,7 @@ InlineAll ("horn-inline-all", llvm::cl::desc ("Inline all functions"),
            llvm::cl::init (false));
 
 static llvm::cl::opt<bool>
-KillLoops ("horn-kill-loops", llvm::cl::desc ("Delete all loops"),
+CutLoops ("horn-cut-loops", llvm::cl::desc ("Cut all natural loops"),
            llvm::cl::init (false));
 
 static llvm::cl::opt<bool>
@@ -259,11 +259,11 @@ int main(int argc, char **argv) {
     pass_manager.add (new seahorn::RemoveUnreachableBlocksPass ());
   }
 
-  if (KillLoops)
+  if (CutLoops)
   {
     pass_manager.add (llvm::createLoopSimplifyPass ());
     pass_manager.add (llvm::createLCSSAPass ());
-    pass_manager.add (seahorn::createKillLoopsPass ());
+    pass_manager.add (seahorn::createCutLoopsPass ());
     // pass_manager.add (new seahorn::RemoveUnreachableBlocksPass ());
   }
   

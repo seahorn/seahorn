@@ -17,7 +17,8 @@ namespace
     
     bool runOnLoop (Loop *L, LPPassManager &LPM) override;
 
-    void getAnalysisUsage(AnalysisUsage &AU) const override {
+    void getAnalysisUsage(AnalysisUsage &AU) const override
+    {
       AU.addRequired<DominatorTreeWrapperPass>();
       AU.addRequired<LoopInfo>();
       AU.addRequired<ScalarEvolution>();

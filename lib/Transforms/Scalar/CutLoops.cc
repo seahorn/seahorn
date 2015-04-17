@@ -101,7 +101,7 @@ bool CutLoops::runOnLoop (Loop *L, LPPassManager &LPM)
       P->removeIncomingValue (latch);
   
   ScalarEvolution *SE = getAnalysisIfAvailable<ScalarEvolution> ();
-  SE->forgetLoop (L);
+  if (SE) SE->forgetLoop (L);
   
   LoopInfo &loopInfo = getAnalysis<LoopInfo>();
   SmallPtrSet<BasicBlock*, 8> blocks;

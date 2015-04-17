@@ -75,6 +75,10 @@ InlineAll ("horn-inline-all", llvm::cl::desc ("Inline all functions"),
            llvm::cl::init (false));
 
 static llvm::cl::opt<bool>
+CutLoops ("horn-cut-loops", llvm::cl::desc ("Cut all natural loops"),
+           llvm::cl::init (false));
+
+static llvm::cl::opt<bool>
 BOC ("boc", 
      llvm::cl::desc ("Insert array bounds checks"), 
      llvm::cl::init (false));
@@ -255,6 +259,15 @@ int main(int argc, char **argv) {
     pass_manager.add (new seahorn::RemoveUnreachableBlocksPass ());
   }
 
+  if (CutLoops)
+  {
+    pass_manager.add (llvm::createLoopSimplifyPass ());
+    pass_manager.add (llvm::createLCSSAPass ());
+    pass_manager.add (seahorn::createCutLoopsPass ());
+    // pass_manager.add (new seahorn::RemoveUnreachableBlocksPass ());
+  }
+  
+  
   pass_manager.add (llvm::createVerifierPass());
     
   if (!OutputFilename.empty ()) 

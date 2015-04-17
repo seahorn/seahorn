@@ -1,4 +1,19 @@
 /** Cut back-edges of all natural loops */
+
+/**
+ * Loops can be marked to be unrolled in clang using unroll pragma
+ * e.g., #pragma unroll 10 
+ *
+ * Clang does not unroll the loops itself, but marks the requested
+ * unrolling depth in meta-data. The actual unrolling is done by some
+ * optimization pass. For example, seaopt -O3 does the trick.
+ *
+ * After unrolling, CutLoops can be used to actually cut
+ * back-edges. It is wired into seapp --horn-cut-loops for simplicity.
+ *
+ * After the loops are cut, it is helpful to optimize once more with
+ * seaopt -O3
+ */
 #include "llvm/Transforms/Scalar.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/Statistic.h"

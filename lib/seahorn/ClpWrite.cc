@@ -7,6 +7,12 @@
 #include "boost/algorithm/string/predicate.hpp"
 #include "avy/AvyDebug.h"
 
+
+static llvm::cl::opt<bool>
+PrintClpFapp ("horn-clp-fapp",
+              llvm::cl::desc ("Print function applications in CLP format"), 
+              llvm::cl::init (false));
+
 namespace seahorn
 {
   using namespace expr;
@@ -93,7 +99,7 @@ namespace seahorn
     ExprStr  operator>=(ExprStr e)
     { return ExprStr ("(" + m_s + ">=" + e.m_s + ")"); }
     ExprStr  operator!=(ExprStr e)
-    { return ExprStr (m_s + "<" + e.m_s) || ExprStr (m_s + ">" + e.m_s); }
+    { return (*this < e) || (*this > e); }
 
     static ExprStr mknary (exprStrOp op, std::vector<ExprStr> args)
     {
@@ -238,7 +244,7 @@ namespace seahorn
 
         if (std::distance (it, end) > 0)
         {
-          fapp += "-[";
+          fapp += (PrintClpFapp ? "(" : "-[");
           for (; it != end; )
           {
             ExprStr arg = print (*it, e, rels, efac, cache, seen);
@@ -247,7 +253,7 @@ namespace seahorn
               if (it != end)
                 fapp += ",";
           }
-          fapp += "]";
+          fapp += (PrintClpFapp ? ")" : "]");
         }
         res = ExprStr (fapp);          
       }

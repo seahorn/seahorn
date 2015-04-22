@@ -8,8 +8,9 @@ def main (argv):
     import sea
     import sea.commands
 
-    
+
     cmds = [
+            sea.commands.BMC,
             sea.commands.Pf,
             sea.commands.Smt,
             sea.commands.Clp,
@@ -22,7 +23,7 @@ def main (argv):
             sea.commands.Seahorn(),
             sea.commands.SeahornClp(),
             sea.commands.FrontEnd,
-            sea.commands.LegacyFrontEnd(),
+            sea.commands.LegacyFrontEnd()
     ]
 
 
@@ -39,5 +40,5 @@ if __name__ == '__main__':
 
     path = os.path.abspath (os.path.join(path, '..', 'lib', 'seapy'))
     if os.path.isdir (path): sys.path.insert(0, path)
-    
+
     sys.exit (main (sys.argv[1:]))

@@ -1,14 +1,13 @@
 #include "seahorn/BMCModule.hh"
 
 
-
 #include "ufo/Passes/NameValues.hpp"
 
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/Function.h"
 #include "llvm/Transforms/Utils/UnifyFunctionExitNodes.h"
-
+#include "llvm/IR/CFG.h"
 #include "llvm/Analysis/CFG.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Analysis/CallGraph.h"
@@ -18,40 +17,41 @@
 #include "boost/range.hpp"
 #include "boost/scoped_ptr.hpp"
 
-#include "seahorn/SymStore.hh"
 #include "seahorn/Support/SortTopo.hh"
+
+#include "seahorn/SymStore.hh"
 #include "seahorn/LiveSymbols.hh"
 
 #include "seahorn/Analysis/CutPointGraph.hh"
 #include "seahorn/Analysis/CanFail.hh"
 #include "ufo/Smt/EZ3.hh"
+#include "ufo/Stats.hh"
 
 #include "seahorn/BMCFunction.hh"
 
 using namespace llvm;
-using namespace seahorn;
 using namespace seabmc;
+
+
+namespace hm_detail {enum Step {SMALL_STEP, LARGE_STEP};}
+
+static llvm::cl::opt<enum hm_detail::Step>
+Step("horn-step",
+     llvm::cl::desc ("Step to use for the encoding"),
+     cl::values (clEnumValN (hm_detail::SMALL_STEP, "small", "Small Step"),
+                 clEnumValN (hm_detail::LARGE_STEP, "large", "Large Step"),
+                 clEnumValEnd),
+     cl::init (hm_detail::SMALL_STEP));
+
 
 static llvm::cl::opt<enum TrackLevel>
 TL("horn-sem-lvl",
-   llvm::cl::desc ("Track level for symbolic execution"),
-   cl::values (clEnumValN (REG, "reg", "Primitive registers only"),
-               clEnumValN (PTR, "ptr", "REG + pointers"),
-               clEnumValN (MEM, "mem", "PTR + memory content"),
-               clEnumValEnd),
-   cl::init (seahorn::REG));
-
-
-//namespace hm_detail {enum Step {SMALL_STEP, LARGE_STEP};}
-
-// static llvm::cl::opt<enum hm_detail::Step>
-// Step("horn-step",
-//      llvm::cl::desc ("Step to use for the encoding"),
-//      cl::values (clEnumValN (hm_detail::SMALL_STEP, "small", "Small Step"),
-//                  clEnumValN (hm_detail::LARGE_STEP, "large", "Large Step"),
-//                  clEnumValEnd),
-//      cl::init (hm_detail::SMALL_STEP));
-
+       llvm::cl::desc ("Track level for symbolic execution"),
+       cl::values (clEnumValN (REG, "reg", "Primitive registers only"),
+                       clEnumValN (PTR, "ptr", "REG + pointers"),
+                       clEnumValN (MEM, "mem", "PTR + memory content"),
+                       clEnumValEnd),
+       cl::init (seahorn::REG));
 
 namespace seabmc
 {
@@ -77,10 +77,11 @@ namespace seabmc
     bool BMCModule::runOnModule (Module &M)
     {
         LOG("bmc", errs () << "BMCModule: runOnModule\n");
-        //ScopedStats _st ("HornifyModule");
 
+        ScopedStats _st ("BMCModule");
         bool Changed = false;
         m_td = &getAnalysis<DataLayoutPass> ().getDataLayout ();
+        m_sem.reset (new UfoSmallSymExec (m_efac, *this, TL));
 
         CallGraph &CG = getAnalysis<CallGraphWrapperPass> ().getCallGraph ();
         for (auto it = scc_begin (&CG); !it.isAtEnd (); ++it)
@@ -101,11 +102,12 @@ namespace seabmc
   {
     // -- skip functions without a body
     if (F.isDeclaration () || F.empty ()) return false;
-    LOG("bmc", errs () << "runOnFunction: " << F.getName () << "\n");
+    LOG("bmc", errs () << "BMCModule: runOnFunction: " << F.getName () << "\n");
 
-    //CutPointGraph &cpg = getAnalysis<CutPointGraph> (F);
-    boost::scoped_ptr<BMCFunction> hf;
-    hf.reset (new LargeBMCFunction (*this));
+    boost::scoped_ptr<BMCFunction> hf (new SmallBMCFunction (*this));
+
+    if (Step == hm_detail::LARGE_STEP)
+        hf.reset (new LargeBMCFunction (*this));
 
     /// -- allocate LiveSymbols
     auto r = m_ls.insert (std::make_pair (&F, LiveSymbols (F, m_efac, *m_sem)));

@@ -12,7 +12,6 @@
 
 #include "seahorn/LiveSymbols.hh"
 
-#include "seahorn/HornClauseDB.hh"
 
 namespace seabmc
 {

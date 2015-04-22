@@ -16,6 +16,11 @@ namespace seabmc
   }
 
 
+   void SmallBMCFunction::runOnFunction (Function &F)
+  {
+    errs() << "Still to be implemented";
+    return;
+  }
 
   void LargeBMCFunction::runOnFunction (Function &F)
   {

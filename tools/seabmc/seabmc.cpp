@@ -34,7 +34,6 @@
 #include "ufo/Stats.hh"
 
 #include "seahorn/BMCModule.hh"
-//#include "seahorn/LoopUnroll.hh"
 
 void print_seahorn_version()
 {
@@ -98,19 +97,11 @@ static llvm::cl::opt<bool>
 InlineAll ("horn-inline-all", llvm::cl::desc ("Inline all functions"),
            llvm::cl::init (false));
 
-// static llvm::cl::opt<bool>
-// Solve ("horn-solve", llvm::cl::desc ("Run Horn solver"), llvm::cl::init (false));
-
-// static llvm::cl::opt<bool>
-// Ikos ("horn-ikos", llvm::cl::desc ("Use Ikos invariants"), llvm::cl::init (false));
 
 static llvm::cl::opt<bool>
 PrintStats ("horn-stats",
             llvm::cl::desc ("Print statistics"), llvm::cl::init(false));
 
-// static llvm::cl::opt<bool>
-// Cex ("horn-cex", llvm::cl::desc ("Produce detailed counterexample"),
-//      llvm::cl::init (false));
 
 // removes extension from filename if there is one
 std::string getFileName(const std::string &str) {
@@ -224,7 +215,6 @@ int main(int argc, char **argv) {
 
   pass_manager.add (new seahorn::RemoveUnreachableBlocksPass ());
 
-  //pass_manager.add (new seabmc::LoopUnroll());
   pass_manager.add (new seabmc::BMCModule ());
 
   if (!AsmOutputFilename.empty ())

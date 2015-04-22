@@ -53,6 +53,17 @@ namespace seabmc
 
   };
 
+    class SmallBMCFunction : public BMCFunction
+    {
+
+
+    public:
+        SmallBMCFunction (BMCModule &parent) :
+            BMCFunction (parent) {}
+
+        virtual void runOnFunction (Function &F);
+    } ;
+
     class LargeBMCFunction : public BMCFunction
     {
     public:

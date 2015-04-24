@@ -256,6 +256,21 @@ namespace seahorn
           unsigned idx = 0;
           for (const DSNode* n : reach)
           {
+            LOG("global_shadow", n->print (errs (), n->getParentGraph ());
+                errs () << "global: " << n->isGlobalNode () << "\n";
+                errs () << "#globals: " << n->numGlobals () << "\n";
+                svset<const GlobalValue*> gv;
+                if (n->numGlobals () == 1) n->addFullGlobalsSet (gv);
+                errs () << "gv-size: " << gv.size () << "\n";
+                if (gv.size () == 1) errs () << "Global: " << *(*gv.begin ()) << "\n";
+                const Value *v = n->getUniqueScalar ();
+                if (v) 
+                  errs () << "value: " << *n->getUniqueScalar () << "\n";
+                else
+                  errs () << "no unique scalar\n";
+                );
+            
+            
             // skip nodes that are not read/written by the callee
             if (!n->isReadNode () && !n->isModifiedNode ()) continue;
             AllocaInst *v = allocaForNode (nodeMap [n].getNode ());

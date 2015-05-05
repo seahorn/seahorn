@@ -63,7 +63,7 @@ class Clang(sea.LimitedCmd):
             argv.extend (['-o', args.out_file])
         argv.append (args.in_file)
         return self.clangCmd.run (args, argv)
-        SVN
+
     @property
     def stdout (self):
         return self.clangCmd.stdout

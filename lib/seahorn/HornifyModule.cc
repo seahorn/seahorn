@@ -8,6 +8,7 @@
 #include "llvm/IR/Function.h"
 #include "llvm/Transforms/Utils/UnifyFunctionExitNodes.h"
 #include "llvm/IR/CFG.h"
+#include "llvm/IR/InstIterator.h"
 #include "llvm/Analysis/CFG.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Analysis/CallGraph.h"
@@ -67,7 +68,7 @@ namespace seahorn
 
   HornifyModule::HornifyModule () :
     ModulePass (ID), m_zctx (m_efac),  m_db (m_efac),
-    m_td(0)
+    m_td(0), m_canFail(0)
   {
   }
 
@@ -77,7 +78,42 @@ namespace seahorn
 
     bool Changed = false;
     m_td = &getAnalysis<DataLayoutPass> ().getDataLayout ();
+    m_canFail = getAnalysisIfAvailable<CanFail> ();
 
+    // Initially the program is safe. It error is possible the query
+    // will be overwritten
+    m_db.addQuery (mk<FALSE> (m_efac));
+
+    // Check syntactically if error is possible. If not the program is
+    // trivially safe.
+    Function *main = M.getFunction ("main");
+    if (!main) return Changed;
+ 
+    bool canFail = false;
+    Function* failureFn = M.getFunction ("seahorn.fail");
+    for (auto &I : boost::make_iterator_range (inst_begin(*main), inst_end (*main)))
+    {
+      if (!isa<CallInst> (&I)) continue;
+      // -- look through pointer casts
+      Value *v = I.stripPointerCasts ();
+      CallSite CS (const_cast<Value*> (v));
+      const Function *fn = CS.getCalledFunction ();
+      if (fn == failureFn)
+        canFail = true;
+    }
+    
+    if (!canFail)
+    {
+      Function* errorFn = M.getFunction ("verifier.error");
+      for (auto &f : M)
+      { 
+        if (&f == errorFn || &f == failureFn) continue; 
+        if (m_canFail->canFail (&f)) 
+          canFail = true; 
+      }
+    }
+    if (!canFail) return Changed;
+    
     if (Step == hm_detail::CLP_SMALL_STEP)
       m_sem.reset (new ClpSmallSymExec (m_efac, *this, TL));
     else

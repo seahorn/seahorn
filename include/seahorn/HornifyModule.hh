@@ -33,6 +33,7 @@ namespace seahorn
     HornClauseDB m_db;
 
     const DataLayout *m_td;
+    const CanFail *m_canFail;
     boost::scoped_ptr<SmallStepSymExec> m_sem;
     
     LiveSymbolsMap m_ls;

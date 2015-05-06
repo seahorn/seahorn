@@ -126,6 +126,14 @@ namespace seahorn
     
     IRBuilder<> enBldr (M.getContext ());
     enBldr.SetInsertPoint (entry, entry->begin ());
+
+    AttrBuilder B;
+    AttributeSet as = AttributeSet::get (M.getContext (), 
+                                         AttributeSet::FunctionIndex, B);
+    auto m_failureFn = dyn_cast<Function>
+        (M.getOrInsertFunction ("seahorn.fail",
+                                as,
+                                Type::getVoidTy (M.getContext ()), NULL));
     
     for (Function &F : M)
     {
@@ -159,6 +167,7 @@ namespace seahorn
       }
       else
       {
+        Builder.CreateCall (m_failureFn);
         Builder.CreateRet (Builder.getInt32 (42));
         errBlocks.push_back (bb);
       }

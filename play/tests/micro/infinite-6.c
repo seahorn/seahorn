@@ -1,4 +1,8 @@
-extern int __VERIFIER_NONDET();
+extern int  __VERIFIER_NONDET();
+extern void __VERIFIER_assume(int);
+extern void __VERIFIER_error(void);
+void assert (int v) {if (!v) __VERIFIER_error ();}
+
 int main(){
   int x=0;
   int y=0;
@@ -12,12 +16,7 @@ int main(){
       y = y+1; 
     }
   }
-  if (x>=0) 
-    goto SAFE;
-  else 
-    goto ERROR;
-  
-SAFE: goto SAFE;
-ERROR: return 0;
+  assert (x>=0);
+  return 42;
 }
 

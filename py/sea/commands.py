@@ -248,12 +248,8 @@ class Seahorn(sea.LimitedCmd):
             argv.extend (['-log', 'cex'])
         if args.asm_out_file is not None: argv.extend (['-oll', args.asm_out_file])
         
-        if args.step  == 'fsmall' or args.step == 'flarge':
-            argv.append ('--horn-inline-all')
-        else:
-            argv.append ('--horn-inter-proc')
-
-        argv.extend (['-horn-sem-lvl={0}'.format (args.track),
+        argv.extend (['-horn-inter-proc',
+                      '-horn-sem-lvl={0}'.format (args.track),
                       '--horn-step={0}'.format (args.step)])
         
         if args.verbose > 0: argv.extend (['-zverbose', str(args.verbose)])
@@ -311,13 +307,9 @@ class SeahornClp(sea.LimitedCmd):
         
         argv = list()
         if args.asm_out_file is not None: argv.extend (['-oll', args.asm_out_file])
-     
-        if args.step == 'clpsmall':
-            argv.append ('--horn-inter-proc')
-        else:
-            argv.append ('--horn-inline-all')
-
-        argv.extend (['-horn-format=clp', '-horn-sem-lvl=reg', 
+        
+        argv.extend (['-horn-inter-proc',
+                      '-horn-format=clp', '-horn-sem-lvl=reg', 
                       '--horn-step={0}'.format (args.step)])
 
         if args.clp_fapp:

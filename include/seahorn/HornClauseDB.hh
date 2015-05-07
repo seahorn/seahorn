@@ -2,109 +2,186 @@
 #define _HORN_CLAUSE_DB__H_
 /// Horn Clause Database
 
+#include "llvm/Support/raw_ostream.h"
 
 #include <boost/range.hpp>
-#include <boost/range/algorithm/sort.hpp>
 #include <boost/range/algorithm/copy.hpp>
-#include <vector>
+#include <boost/lexical_cast.hpp>
 
 #include "ufo/Expr.hpp"
 
 namespace seahorn
 {
+  using namespace llvm;
+  using namespace expr;
+
+  class HornRule
+  { 
+    ExprVector m_vars;
+    Expr m_head;
+    Expr m_body; 
+    
+   public:
+    template <typename Range>
+    HornRule (Range &v, Expr b) : 
+        m_vars (boost::begin (v), boost::end (v)), 
+        m_head (b), m_body (mk<TRUE>(b->efac ())) 
+    {
+      if ((b->arity () == 2) && isOpX<IMPL> (b))
+      { 
+        m_body = b->left ();
+        m_head = b->right ();
+      }
+      else 
+      { assert (bind::isFapp (b)); }      
+    }
+
+    template <typename Range>
+    HornRule (Range &v, Expr head, Expr body) : 
+        m_vars (boost::begin (v), boost::end (v)), 
+        m_head (head), m_body (body) 
+    { }
+    
+    HornRule (const HornRule &r) : 
+        m_vars (r.m_vars), 
+        m_head (r.m_head), m_body (r.m_body) 
+    {} 
+    
+    size_t hash () const
+    {
+      size_t res = expr::hash_value (m_head);
+      boost::hash_combine (res, m_body);
+      boost::hash_combine (res, boost::hash_range (m_vars.begin (), 
+                                                   m_vars.end ()));
+      return res;
+    }
+
+    bool operator==(const HornRule & other) const
+    { return hash() == other.hash ();}
+
+    // return only the body of the horn clause
+    Expr body () const {return m_body;}
+
+    // return only the head of the horn clause
+    Expr head () const {return m_head;}
+    
+    // return the implication body => head
+    Expr get () const 
+    { 
+      if (isOpX<TRUE> (m_body)) 
+        return m_head;
+      else 
+        return mk<IMPL> (m_body, m_head);
+    }
+
+    const ExprVector &vars () const {return m_vars;} 
+        
+  };
+
+
   class HornClauseDB 
   {
-  public:
-    class Rule
-    {
-      ExprVector m_vars;
-      Expr m_body;
-      template <typename Range>
-      Rule (Range &v, Expr b) : 
-        m_vars (boost::begin (v), boost::end (v)), m_body(b) {}
-      Rule (const Rule &r) : m_vars (r.m_vars), m_body (r.m_body) {} 
-    public:
-      Expr body () {return m_body;}
-      ExprVector &vars () {return m_vars;} 
-    };
-      
-    typedef std::vector<Rule> RuleVector;
+
+   public:
+
+    typedef std::vector<HornRule> RuleVector;
+
+   private:
     
-  private:
+    ExprFactory &m_efac;
     ExprVector m_rels;
-    ExprVector m_vars;
+    mutable ExprVector m_vars;
     RuleVector m_rules;
     Expr m_query;
+    std::map<Expr, ExprVector> m_constraints;
     
-    std::map<Expr, ExprVector> m_covers;
-    
-    const ExprVector &getVars ()
-    {
-      boost::sort (m_vars);
-      m_vars.resize (std::distance (m_vars.begin (),
-				    std::unique (m_vars.begin (),
-						 m_vars.end ())));
-      return m_vars;
-    }
-    
-    typedef HornClauseDB this_type;
+    const ExprVector &getVars () const;
     
   public:
-    HornClauseDB () {}
+
+    HornClauseDB (ExprFactory &efac) : m_efac (efac) {}
     
     void registerRelation (Expr fdecl) {m_rels.push_back (fdecl);}
+    const ExprVector& getRelations () const {return m_rels;}
+    bool hasRelation (Expr fdecl) const
+    {return std::find
+        (m_rels.begin (), m_rels.end (), fdecl) != m_rels.end ();}
     
-    const ExprVector& getRelations () {return m_rels;}
     
     template <typename Range>
-    void addRule (const Range &vars, Expr body)
+    void addRule (const Range &vars, Expr rule)
     {
-      m_rules.push_back (Rule (vars, body));
+      if (isOpX<TRUE> (rule)) return;
+      m_rules.push_back (HornRule (vars, rule));
       boost::copy (vars, std::back_inserter (m_vars));
     }
-    
-    RuleVector &getRules () {return m_rules;}
-    
-    void addQuery (Expr q) {m_query = q;}
-    Expr getQuery () {return m_query;}
 
-    /// Add cover to a predicate
-    /// Adds constraint Forall V . pred -> lemma
-    void addCover (Expr pred, Expr lemma)
+    void addRule (HornRule rule)
     {
-      Expr reln = bind::fname (pred);
-      ExprMap sub;
-      unsigned idx = 0;
-      for (auto it = ++reln->args_begin (), end = reln->args_end (); it != end; ++it)
-        sub [*it] = bind::bvar (idx++, bind::typeOf (*it));
-      
-      m_covers [reln].push_back (replace (lemma, sub));
+      m_rules.push_back (rule);
+      boost::copy (rule.vars (), std::back_inserter (m_vars));
     }
+
+    void removeRule (const HornRule &r)
+    { m_rules.erase (std::remove (m_rules.begin(), m_rules.end(), r)); }
+
+    const RuleVector &getRules () const {return m_rules;}
+    RuleVector &getRules () {return m_rules;}
+
+    void addQuery (Expr q) {m_query = q;}
+    Expr getQuery () const {return m_query;}
+    bool hasQuery () const {return m_query.get () != nullptr;}
     
-    /// Returns the current cover for the predicate
-    const Expr getCover (Expr pred) 
+
+    bool hasConstraints (Expr reln) const {return m_constraints.count (reln) > 0;}
+    
+    /// Add constraint to a predicate
+    /// Adds constraint Forall V . pred -> lemma
+    void addConstraint (Expr pred, Expr lemma);
+    
+    /// Returns the current constraints for the predicate
+    Expr getConstraints (Expr pred) const;
+    
+
+    raw_ostream& write (raw_ostream& o) const;
+
+    /// load current HornClauseDB to a given FixedPoint object
+    template <typename FP>
+    void loadZFixedPoint (FP &fp,
+                          bool skipConstraints = false,
+                          bool skipQuery = false) const
     {
-      Expr reln = bind::fname (pred);
-      Expr lemma = mknary<AND> (mk<TRUE> (pred->efac ()),
-                                m_covers [pred].begin (), 
-                                m_covers [pred].end ());
+      for (auto &p: getRelations ())
+       fp.registerRelation (p); 
       
-      ExprMap sub;
-      unsigned idx = 0;
-      for (auto it = ++reln->args_begin (), end = reln->args_end (); 
-           it != end; ++it)
-      {
-        Expr k = bind::bvar (idx++, bind::typeOf (*it));
-        sub [k] = pred->arg (idx);
-      }
-          
-      return replace (lemma, sub);
+      for (auto &rule: getRules ())
+        fp.addRule (rule.vars (), rule.get ()); 
+      
+      for (auto &r : getRelations ())
+        if (!skipConstraints && hasConstraints (r))
+        {
+          ExprVector args;
+          for (unsigned i = 0, sz = bind::domainSz (r); i < sz; ++i)
+          {
+            Expr argName = mkTerm<std::string>
+              ("arg_" + boost::lexical_cast<std::string> (i), m_efac);
+            args.push_back (bind::mkConst (argName, bind::domainTy (r, i)));
+          }
+          Expr pred;
+          pred = bind::fapp (r, args);
+          fp.addCover (pred, getConstraints (pred));
+        }
+      
+      if (!skipQuery && hasQuery ()) fp.addQuery (getQuery ());
     }
     
   };
+
+  inline raw_ostream& operator <<(raw_ostream& o, const HornClauseDB &db)
+  {
+    db.write (o);
+    return o;
+  }
+
 }
-
-
-
-
 #endif /* _HORN_CLAUSE_DB__H_ */

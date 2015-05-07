@@ -24,6 +24,17 @@ namespace seahorn
 
     virtual void runOnFunction (Function &F);
   };
+
+  class FlatSmallHornifyFunction : public HornifyFunction
+  {
+  public:
+    FlatSmallHornifyFunction (HornifyModule &parent,
+                              bool interproc = false) :
+      HornifyFunction (parent, interproc) {}
+
+    virtual void runOnFunction (Function &F);
+  };
+
 }
 
 

@@ -1,12 +1,18 @@
 cmake_minimum_required(VERSION 2.8.11)
 
 project (SeaHorn)
-set (SeaHorn_VERSION_MAJOR 1)
-set (SeaHorn_VERSION_MINOR 0)
+set (SeaHorn_VERSION_MAJOR 0)
+set (SeaHorn_VERSION_MINOR 1)
 set (SeaHorn_VERSION_PATCH 0)
+set (SeaHorn_VERSION_TWEAK "rc1")
 
 if (NOT PACKAGE_VERSION)
-  set(PACKAGE_VERSION "${SeaHorn_VERSION_MAJOR}.${SeaHorn_VERSION_MINOR}.${SeaHorn_VERSION_PATCH}")
+  set(PACKAGE_VERSION
+    "${SeaHorn_VERSION_MAJOR}.${SeaHorn_VERSION_MINOR}.${SeaHorn_VERSION_PATCH}")
+  if (DEFINED SeaHorn_VERSION_TWEAK)
+    set (PACKAGE_VERSION "${PACKAGE_VERSION}-${SeaHorn_VERSION_TWEAK}")
+  endif()
+  set (SeaHorn_VERSION_INFO ${PACKAGE_VERSION})
 endif()
 
 
@@ -57,9 +63,14 @@ endif()
 # put static libraries first
 set(CMAKE_FIND_LIBRARY_SUFFIXES ".a" ${CMAKE_FIND_LIBRARY_SUFFIXES})
 
+option (UNIT_TESTS "Compile unit tests" OFF)
 set (Boost_USE_STATIC_LIBS ON)
-find_package (Boost 1.55 REQUIRED COMPONENTS system unit_test_framework)
-IF (Boost_FOUND)
+set (BOOST_COMPONENTS system)
+if (UNIT_TESTS)
+  set (BOOST_COMPONENTS ${BOOST_COMPONENTS} unit_test_framework)
+endif()
+  find_package (Boost 1.55 REQUIRED COMPONENTS ${BOOST_COMPONENTS})
+if (Boost_FOUND)
   include_directories (${Boost_INCLUDE_DIRS})
 endif ()
 
@@ -67,7 +78,7 @@ include(ExternalProject)
 set_property(DIRECTORY PROPERTY EP_STEP_TARGETS configure build test)
 
 set (Z3_TAG "origin/spacer" CACHE STRING "Z3 git tag to use")
-set (Z3_REPO "https://bitbucket.org/spacer/code.git" CACHE STRING "Z3 repo") 
+set (Z3_REPO "https://bitbucket.org/spacer/code.git" CACHE STRING "Z3 repo")
 if (CMAKE_BUILD_TYPE STREQUAL "Debug")
   set (Z3_DEBUG "-d")
 else()
@@ -96,6 +107,9 @@ if (NOT Z3_FOUND)
 else()
   set_target_properties(z3 PROPERTIES EXCLUDE_FROM_ALL ON)
   include_directories(${Z3_INCLUDE_DIR})
+  message ("Found Z3 at ${Z3_EXECUTABLE}")
+  # indicate that we want z3 binary to be included in the binary distribution
+  install (PROGRAMS ${Z3_EXECUTABLE} DESTINATION bin)
 endif()
 
 ExternalProject_Add (llvm
@@ -107,7 +121,7 @@ ExternalProject_Add (llvm
   -DCMAKE_BUILD_TYPE:STRING=${CMAKE_BUILD_TYPE}
   -DCMAKE_INSTALL_PREFIX:PATH=<INSTALL_DIR>
   -DLLVM_TARGETS_TO_BUILD:STRING=X86 -DWITH_POLY:BOOL=OFF
-  -DLLVM_ENABLE_PEDANTIC=OFF 
+  -DLLVM_ENABLE_PEDANTIC=OFF
   -DLLVM_ENABLE_PIC=ON -DLLVM_REQUIRES_RTTI:BOOL=TRUE
   TEST_AFTER_INSTALL 1
   TEST_COMMAND ${CMAKE_COMMAND} -E touch ${CMAKE_CURRENT_LIST_FILE}
@@ -125,7 +139,7 @@ if (NOT LLVM_FOUND)
   return()
 else()
   set_target_properties(llvm PROPERTIES EXCLUDE_FROM_ALL ON)
-  
+
   message(STATUS "Found LLVM ${LLVM_PACKAGE_VERSION}")
   message(STATUS "Using LLVMConfig.cmake in: ${LLVM_DIR}")
 
@@ -152,6 +166,9 @@ set (PACKAGE_NAME SeaHorn)
 set(PACKAGE_STRING "${PACKAGE_NAME} ${PACKAGE_VERSION}")
 
 # Configure CPack.
+include(TargetArch)
+target_architecture(CMAKE_TARGET_ARCH)
+message ("arch: ${CMAKE_TARGET_ARCH}")
 set(CPACK_PACKAGE_INSTALL_DIRECTORY "SeaHorn")
 set(CPACK_PACKAGE_VENDOR "SeaHorn")
 set(CPACK_PACKAGE_VERSION_MAJOR ${SeaHorn_VERSION_MAJOR})
@@ -159,6 +176,15 @@ set(CPACK_PACKAGE_VERSION_MINOR ${SeaHorn_VERSION_MINOR})
 set(CPACK_PACKAGE_VERSION_PATCH ${SeaHorn_VERSION_PATCH})
 set(CPACK_PACKAGE_VERSION ${PACKAGE_VERSION})
 set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_CURRENT_SOURCE_DIR}/license.txt")
+set(CPACK_RESOURCE_FILE_README "${CMAKE_CURRENT_SOURCE_DIR}/README.md")
+set(CPACK_PACKAGE_DESCRIPTION_FILE "${CMAKE_CURRENT_SOURCE_DIR}/README.md")
+if(CMAKE_BUILD_TYPE STREQUAL Release)
+  set(CPACK_PACKAGE_FILE_NAME
+    "${CMAKE_PROJECT_NAME}-${CPACK_PACKAGE_VERSION}-${CMAKE_SYSTEM_NAME}-${CMAKE_TARGET_ARCH}")
+else()
+  set(CPACK_PACKAGE_FILE_NAME
+    "${CMAKE_PROJECT_NAME}-${CPACK_PACKAGE_VERSION}-${CMAKE_SYSTEM_NAME}-${CMAKE_TARGET_ARCH}-${CMAKE_BUILD_TYPE}")
+endif()
 if(WIN32 AND NOT UNIX)
   set(CPACK_NSIS_MODIFY_PATH "ON")
   set(CPACK_NSIS_ENABLE_UNINSTALL_BEFORE_INSTALL "ON")
@@ -169,7 +195,34 @@ if(WIN32 AND NOT UNIX)
 endif()
 include(CPack)
 
+install (FILES ${CMAKE_CURRENT_SOURCE_DIR}/README.md DESTINATION .)
+# install all the licenses 
+install (FILES  ${CMAKE_CURRENT_SOURCE_DIR}/license.txt 
+  DESTINATION share/doc/seahorn
+  RENAME seahorn_license.txt)
 
+if (EXISTS z3-prefix/src/z3/LICENSE.txt)
+  install (
+    FILES 
+    ${CMAKE_CURRENT_BINARY_DIR}/z3-prefix/src/z3/LICENSE.txt 
+    DESTINATION share/doc/seahorn
+    RENAME z3_license.txt)
+endif()
+
+if (EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/ext/llvm/LICENSE.TXT)
+  install (FILES ext/llvm/LICENSE.TXT
+    DESTINATION share/doc/seahorn
+    RENAME llvm_license.txt)
+endif()
+  
+if (EXISTS ikos-core/src/ikos-core/LICENSE.pdf)
+  install (
+    FILES
+    ${CMAKE_CURRENT_BINARY_DIR}/ikos-core/src/ikos-core/LICENSE.pdf
+    DESTINATION share/doc/seahorn
+    RENAME ikos_license.pdf)
+endif()
+    
 # check for rt lib. Not needed on OSX.
 find_library(RT_LIB NAMES rt)
 if (NOT RT_LIB)
@@ -218,6 +271,7 @@ install(DIRECTORY ${CMAKE_BINARY_DIR}/include/
   PATTERN ".svn" EXCLUDE
   )
 
+
 add_definitions(-std=c++11)
 add_definitions(-Wno-redeclared-class-member -Wno-sometimes-uninitialized)
 add_definitions(-Wno-covered-switch-default)
@@ -258,7 +312,9 @@ endif()
 
 add_subdirectory(lib)
 add_subdirectory(tools)
-add_subdirectory(units)
+if (UNIT_TESTS)
+  add_subdirectory(units)
+endif()
 
 configure_file( include/seahorn/config.h.cmake
                 ${CMAKE_BINARY_DIR}/include/seahorn/config.h )

@@ -45,6 +45,15 @@
 #include "ufo/Smt/EZ3.hh"
 #include "ufo/Stats.hh"
 
+#include "seahorn/config.h"
+
+void print_seapp_version()
+{
+  llvm::outs () << "SeaHorn (http://seahorn.github.io/):\n"
+                << "  SeaPP version " << SEAHORN_VERSION_INFO << "\n";
+}
+
+
 static llvm::cl::opt<std::string>
 InputFilename(llvm::cl::Positional, llvm::cl::desc("<input LLVM bitcode file>"),
               llvm::cl::Required, llvm::cl::value_desc("filename"));
@@ -63,6 +72,10 @@ DefaultDataLayout("default-data-layout",
 
 static llvm::cl::opt<bool>
 InlineAll ("horn-inline-all", llvm::cl::desc ("Inline all functions"),
+           llvm::cl::init (false));
+
+static llvm::cl::opt<bool>
+CutLoops ("horn-cut-loops", llvm::cl::desc ("Cut all natural loops"),
            llvm::cl::init (false));
 
 static llvm::cl::opt<bool>
@@ -107,6 +120,7 @@ std::string getFileName(const std::string &str) {
 
 int main(int argc, char **argv) {
   llvm::llvm_shutdown_obj shutdown;  // calls llvm_shutdown() on exit
+  llvm::cl::AddExtraVersionPrinter (print_seapp_version);
   llvm::cl::ParseCommandLineOptions(argc, argv,
                                     "SeaPP-- LLVM bitcode Pre-Processor for Verification\n");
 
@@ -245,6 +259,15 @@ int main(int argc, char **argv) {
     pass_manager.add (new seahorn::RemoveUnreachableBlocksPass ());
   }
 
+  if (CutLoops)
+  {
+    pass_manager.add (llvm::createLoopSimplifyPass ());
+    pass_manager.add (llvm::createLCSSAPass ());
+    pass_manager.add (seahorn::createCutLoopsPass ());
+    // pass_manager.add (new seahorn::RemoveUnreachableBlocksPass ());
+  }
+  
+  
   pass_manager.add (llvm::createVerifierPass());
     
   if (!OutputFilename.empty ()) 

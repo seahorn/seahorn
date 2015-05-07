@@ -1,5 +1,6 @@
 #include "seahorn/HornSolver.hh"
 #include "seahorn/HornifyModule.hh"
+#include "seahorn/HornClauseDBTransf.hh"
 
 #include "llvm/IR/Function.h"
 #include "llvm/Support/CommandLine.h"
@@ -8,6 +9,12 @@
 #include "boost/range/algorithm/reverse.hpp"
 
 using namespace llvm;
+
+static llvm::cl::opt<std::string>
+PdrEngine ("horn-pdr-engine",
+           llvm::cl::desc ("Pdr engine to use"),
+           cl::init ("spacer"),
+           cl::Hidden);
 
 static llvm::cl::opt<bool>
 PrintAnswer ("horn-answer",
@@ -22,21 +29,26 @@ namespace seahorn
     Stats::sset ("Result", "UNKNOWN");
     
     HornifyModule &hm = getAnalysis<HornifyModule> ();
-    auto &fp = hm.getZFixedPoint ();
-    //auto &ctx = fp.getContext ();
 
-    {
-      //LOG ("seahorn", errs() << "... pre-processing is disabled \n");
-      // parameters reset pdr::context. Cannot set more than once
-      // ZParams<EZ3> params (ctx);
-      // params.set (":use-farkas", true);
-      // params.set (":generate-proof-trace", false);
-      // params.set (":slice", false);
-      // params.set (":inline-linear", false);
-      // params.set (":inline-eager", false);
-      // fp.set (params);
-    }
+    // Load the Horn clause database
+    auto &db = hm.getHornClauseDB ();
 
+    m_fp.reset (new ZFixedPoint<EZ3> (hm.getZContext ()));
+    ZFixedPoint<EZ3> &fp = *m_fp;
+
+    ZParams<EZ3> params (hm.getZContext ());
+    params.set (":engine", PdrEngine);
+    // -- disable slicing so that we can use cover
+    params.set (":xform.slice", false);
+    params.set (":use_heavy_mev", true);
+    params.set (":reset_obligation_queue", true);
+    //params.set (":pdr.flexible_trace", true);
+    params.set (":xform.inline-linear", false);
+    params.set (":xform.inline-eager", false);
+
+    fp.set (params);
+    
+    db.loadZFixedPoint (fp);
     
     Stats::resume ("Horn");
     m_result = fp.query ();
@@ -70,8 +82,7 @@ namespace seahorn
 
   void HornSolver::printCex ()
   {
-    HornifyModule &hm = getAnalysis<HornifyModule> ();
-    auto &fp = hm.getZFixedPoint ();
+    ZFixedPoint<EZ3> fp = *m_fp;
     //outs () << *fp.getCex () << "\n";
     
     ExprVector rules;
@@ -116,12 +127,12 @@ namespace seahorn
     if (F.isDeclaration ()) return;
 
     HornifyModule &hm = getAnalysis<HornifyModule> ();
-    auto &fp = hm.getZFixedPoint ();
-
     outs () << "Function: " << F.getName () << "\n";
 
     // -- not used for now
     Expr summary = hm.summaryPredicate (F);
+    
+    ZFixedPoint<EZ3> fp = *m_fp;
 
     for (auto &BB : F)
     {

@@ -1,5 +1,7 @@
-#ifndef __UFO_SYM_EXEC_HH_
-#define __UFO_SYM_EXEC_HH_
+#ifndef __CLP_SYM_EXEC_HH_
+#define __CLP_SYM_EXEC_HH_
+
+/* Based on a copy-and-paste version of UfoSymExec */
 
 #include "llvm/Pass.h"
 #include "llvm/IR/DataLayout.h"
@@ -8,24 +10,30 @@
 
 namespace seahorn
 {
-  /// Small step symbolic execution for integers based on UFO semantics
-  class UfoSmallSymExec : public SmallStepSymExec
+  
+  /// Small step symbolic execution for integers based on CLP semantics
+  class ClpSmallSymExec : public SmallStepSymExec
   { 
     Pass &m_pass;
     TrackLevel m_trackLvl;
    
     const DataLayout *m_td;
     const CanFail *m_canFail;
-    
+
+    Expr zero;
+    Expr one;
     
   public:
-    UfoSmallSymExec (ExprFactory &efac, Pass &pass, TrackLevel trackLvl = MEM) : 
+    ClpSmallSymExec (ExprFactory &efac, Pass &pass, TrackLevel trackLvl = MEM) : 
       SmallStepSymExec (efac), m_pass (pass), m_trackLvl (trackLvl)
     {
       m_td = &pass.getAnalysis<DataLayoutPass> ().getDataLayout ();
       m_canFail = pass.getAnalysisIfAvailable<CanFail> ();
+      zero = mkTerm<mpz_class> (0, m_efac);
+      one  = mkTerm<mpz_class> (1, m_efac);
     }
-    UfoSmallSymExec (const UfoSmallSymExec& o) : 
+
+    ClpSmallSymExec (const ClpSmallSymExec& o) : 
       SmallStepSymExec (o), m_pass (o.m_pass), m_trackLvl (o.m_trackLvl) {}
     
     Expr errorFlag (const BasicBlock &BB) override;
@@ -59,23 +67,6 @@ namespace seahorn
     
   }; 
   
-
-  class UfoLargeSymExec : public LargeStepSymExec
-  {
-    SmallStepSymExec &m_sem;
-    Expr trueE;
-    
-    void execEdgBb (SymStore &s, const CpEdge &edge, 
-                    const BasicBlock &bb, ExprVector &side, bool last = false);
-    
-  public:
-    UfoLargeSymExec (SmallStepSymExec &sem)
-      : m_sem (sem) { trueE = mk<TRUE> (m_sem.getExprFactory ()); }
-    
-    virtual void execCpEdg (SymStore &s, const CpEdge &edge, ExprVector &side);
-    
-    
-  };  
 }
 
 #endif

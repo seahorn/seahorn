@@ -21,6 +21,9 @@ namespace seahorn
     
     if (const Function *errorFn = M.getFunction ("verifier.error"))
       m_must.insert (errorFn);
+
+    if (const Function *failureFn = M.getFunction ("seahorn.fail"))
+      m_must.insert (failureFn);
     
     LOG ("canfail", errs () << "Number of must_fail: " << m_must.size () << "\n";);
     

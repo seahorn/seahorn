@@ -53,6 +53,11 @@ namespace seahorn
       (M.getOrInsertFunction ("verifier.error",
                               as,
                               Type::getVoidTy (Context), NULL));
+
+    m_failureFn = dyn_cast<Function>
+      (M.getOrInsertFunction ("seahorn.fail",
+                              as,
+                              Type::getVoidTy (Context), NULL));
     
     CallGraphWrapperPass *cgwp = getAnalysisIfAvailable<CallGraphWrapperPass> ();
     if (CallGraph *cg = cgwp ? &cgwp->getCallGraph () : nullptr)
@@ -60,6 +65,7 @@ namespace seahorn
       cg->getOrInsertFunction (m_assumeFn);
       cg->getOrInsertFunction (m_assertFn);
       cg->getOrInsertFunction (m_errorFn);
+      cg->getOrInsertFunction (m_failureFn);
     }
     
     for (auto &F : M) runOnFunction (F);
@@ -77,14 +83,29 @@ namespace seahorn
     for (auto &I : boost::make_iterator_range (inst_begin(F), inst_end (F)))
     {
       if (!isa<CallInst> (&I)) continue;
-      CallSite CS (&I);
+      // -- look through pointer casts
+      Value *v = I.stripPointerCasts ();
+      CallSite CS (const_cast<Value*> (v));
+      
       
       const Function *fn = CS.getCalledFunction ();
+      
+      // -- check if this is a call through a pointer cast
+      if (!fn && CS.getCalledValue ())
+        fn = dyn_cast<const Function> (CS.getCalledValue ()->stripPointerCasts ());
+      
+        
       if (fn && (fn->getName ().equals ("__VERIFIER_assume") || 
-                 fn->getName ().equals ("DISABLED__VERIFIER_assert")))
+                 fn->getName ().equals ("DISABLED__VERIFIER_assert") ||
+                 /** pagai embedded invariants */
+                 fn->getName ().equals ("llvm.invariant") ||
+                 /** my suggested name for pagai invariants */
+                 fn->getName ().equals ("pagai.invariant")))
       {
         Function *nfn;
         if (fn->getName ().equals ("__VERIFIER_assume")) nfn = m_assumeFn;
+        else if (fn->getName ().equals ("llvm.invariant")) nfn = m_assumeFn;
+        else if (fn->getName ().equals ("pagai.invariant")) nfn = m_assumeFn;
         else if (fn->getName().equals ("__VERIFIER_assert")) nfn = m_assertFn;
         else continue;
         
@@ -120,6 +141,25 @@ namespace seahorn
         
         toKill.push_back (&I);
       }
+      else if (fn && fn->getName ().equals ("__SEAHORN_fail"))
+      {
+        Function *main = F.getParent ()->getFunction ("main");        
+        if (!main  || main != &F)
+        {
+          errs () << "__SEAHORN_fail can only be called from the main function.\n";
+          return false;
+        }
+
+        IRBuilder<> Builder (F.getContext ());
+        Builder.SetInsertPoint (&I);
+        CallInst *ci = Builder.CreateCall (m_failureFn);
+        if (cg)
+          (*cg)[&F]->addCalledFunction (CallSite (ci),
+                                        (*cg)[ci->getCalledFunction ()]);
+        
+        toKill.push_back (&I);
+      }
+
     }
     
     for (auto *I : toKill) I->eraseFromParent ();

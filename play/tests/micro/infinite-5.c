@@ -1,4 +1,7 @@
-extern int __VERIFIER_NONDET();
+extern int  __VERIFIER_NONDET();
+extern void __VERIFIER_assume(int);
+extern void __VERIFIER_error(void);
+void assert (int v) {if (!v) __VERIFIER_error ();}
 
 int main(){
   int e, s;
@@ -14,12 +17,10 @@ int main(){
       s=4;
     }
     else if (s == 4){
-      if (e == 3)
-        goto ERROR;
+      assert (e != 3);
       s=5;
      }
   }
-SAFE: goto SAFE;
-ERROR: return 0;
+  return 42;
 }
 

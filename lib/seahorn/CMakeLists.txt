@@ -4,12 +4,16 @@ add_llvm_library (seahorn.LIB
   SymStore.cc
   SymExec.cc
   UfoSymExec.cc
+  ClpSymExec.cc
   HornifyModule.cc 
   HornifyFunction.cc 
   FlatHornifyFunction.cc
   HornWrite.cc
   HornSolver.cc
   HornCex.cc
+  ClpWrite.cc
+  HornClauseDB.cc
+  HornClauseDBTransf.cc
   ZOption.cc
   )
 

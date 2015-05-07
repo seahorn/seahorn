@@ -22,8 +22,11 @@ SeaHorn is distributed under a modified BSD license. See [license.txt](license.t
 SeaHorn and dependencies are installed in `build/run`
 
 Optional components can be installed individually as well:
+
 * [dsa-seahorn](https://github.com/seahorn/dsa-seahorn): ``` git clone https://github.com/seahorn/dsa-seahorn.git ```
+
 * [ikos-llvm](https://github.com/seahorn/ikos-llvm): ``` git clone https://github.com/seahorn/ikos-llvm.git```
+
 * [llvm-seahorn](https://github.com/seahorn/llvm-seahorn): ``` git clone https://github.com/seahorn/llvm-seahorn.git```
 
 Note that both [dsa-seahorn](https://github.com/seahorn/dsa-seahorn)
@@ -35,11 +38,100 @@ rest of SeaHorn's backends.
 
 
 #Usage#
-TBD
+
+SeaHorn provides a python script called `sea` to interact with
+users. Given a C program annotated with assertions, users just need to
+type: `sea pf file.c`
+
+This will output `unsat` if all assertions hold or otherwise `sat` if
+any of the assertions is violated. The option `pf` tells SeaHorn to
+translate `file.c` into LLVM bitecode, generate a set of verification
+conditions (VCs), and finally, solve them. This command uses as main
+default options:
+
+- `--step=large`: large-step encoding. Each step corresponds to a
+loop-free program block.
+
+- `--step=small`: small-step encoding. Each step corresponds to a
+  basic block.
+
+- `--track=mem`: model both scalars, pointers, and memory contents
+
+- `--track=ptr` : model registers and pointers (but not memory content)
+
+- `--track=reg` : model registers only
+
+- `--inline` : inlines the program before verification
+
+- `--cex=FILE` : stores a counter-example in `FILE`
+
+- `--horn-ikos` : generates invariants using the IKOS abstract
+  interpreter
+
+- `-g` : compiles with debug information for more trackable
+  counterexamples.
+
+`sea-pf` is a pipeline that runs multiple commands. Individual parts
+of the pipeline can be ran separately as well:
+
+1. `sea fe file.c -o file.bc`: SeaHorn frontend translates a C program
+  into optimized LLVM bitcode including mixed-semantics
+  transformation.
+
+2. `sea horn file.bc -o file.smt2`: SeaHorn generates the verification
+  conditions from `file.bc` and outputs them into SMT-LIB v2 format. Users
+  can choose between different encoding styles with several levels of
+  precision by adding:
+
+   - `--step={small,large,flarge}` where `small` is small step
+      encoding, `large` is block-large encoding, and `flarge`:
+      block-large encoding producing flat Horn clauses (i.e., it
+      generates a transition system with only one predicate).
+
+   - `--track={reg,ptr,mem}` where `reg` only models integer
+      scalars, `ptr` models `reg` and pointer addresses, and `mem`
+      models `ptr` and memory contents.
+
+3. `sea smt file.c -o file.smt2`: Generates CHC in SMT-LIB2 format. Is
+   an alias for `sea fe` followed by `sea horn`. The command `sea pf`
+   is an alias for `sea smt --prove`.
+
+4.  `sea clp file.c -o file.clp`: Generates CHC in CLP format.
+
+5. `sea lfe file.c -o file.ll` : runs the legacy front-end
+
+To see all the options, type `sea --help`.
+
+##Annotating C programs##
+
+This is an example of a C program annotated with a safety property:
+``` c
+    extern int nd();
+    extern void __VERIFIER_error() __attribute__((noreturn));
+    void assert (int cond) { if (!cond) __VERIFIER_error (); }
+    int main(){
+      int x,y;
+      x=1; y=0;
+      while (nd ())
+      {
+        x=x+y;
+        y++;
+      }
+      assert (x>=y);
+     return 0;
+    }
+```
+SeaHorn follows [SV-COMP][svcomp] convention of encoding error locations by a call
+to the designated error function 
+`__VERIFIER_error()`. SeaHorn returns `unsat` when `__VERIFIER_error()`
+is unreachable, and the program is considered safe. SeaHorn returns `sat`
+when `__VERIFIER_error()` is reachable and the
+program is unsafe.
+
+[svcomp]: (http://sv-comp.sosy-lab.org)
 
 #People#
 
 * [Arie Gurfinkel](arieg.bitbucket.org)
 * [Jorge Navas](http://ti.arc.nasa.gov/profile/jorge/)
 * [Temesghen Kahsai](http://www.lememta.info/)
-

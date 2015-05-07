@@ -20,6 +20,7 @@
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Transforms/IPO.h"
 
+#include "seahorn/config.h"
 #include "seahorn/Passes.hh"
 #include "seahorn/HornWrite.hh"
 #include "seahorn/HornifyModule.hh"
@@ -31,6 +32,12 @@
 
 #include "ufo/Smt/EZ3.hh"
 #include "ufo/Stats.hh"
+
+void print_seahorn_version()
+{
+  llvm::outs () << "SeaHorn (http://seahorn.github.io/):\n"
+                << "  SeaHorn version " << SEAHORN_VERSION_INFO << "\n";
+}
 
 /// XXX HACK to force compiler to link this in
 namespace seahorn
@@ -115,6 +122,7 @@ int main(int argc, char **argv) {
   ufo::ScopedStats _st ("seahorn_total");
   
   llvm::llvm_shutdown_obj shutdown;  // calls llvm_shutdown() on exit
+  llvm::cl::AddExtraVersionPrinter (print_seahorn_version);
   llvm::cl::ParseCommandLineOptions(argc, argv,
                                     "SeaHorn -- LLVM bitcode to Horn/SMT2 transformation\n");
 

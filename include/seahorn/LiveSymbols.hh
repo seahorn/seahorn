@@ -63,6 +63,7 @@ namespace seahorn
   class LiveSymbols
   {
     const Function &m_f;
+    ExprFactory &m_efac;
     
     SmallStepSymExec& m_semantics;
     ExprVector m_side;
@@ -71,6 +72,7 @@ namespace seahorn
     
     SymStore m_gstore;
     DenseMap<const BasicBlock*, LiveInfo> m_liveInfo;
+    Expr trueE;
     
    
     void symExec (SymStore &s, const BasicBlock &bb);
@@ -86,11 +88,13 @@ namespace seahorn
   public:
     LiveSymbols (const Function &F, ExprFactory &efac, 
                  SmallStepSymExec &semantics) : 
-      m_f (F), m_semantics (semantics), m_gstore (efac) {}
+      m_f (F), m_efac (efac), m_semantics (semantics), m_gstore (efac)
+    { trueE = mk<TRUE> (m_efac); }
     
     LiveSymbols (const LiveSymbols &o) : 
-      m_f(o.m_f), m_semantics (o.m_semantics),
-      m_side(), m_rtopo (o.m_rtopo), m_gstore(o.m_gstore), m_liveInfo(o.m_liveInfo) {}
+      m_f(o.m_f), m_efac (o.m_efac), m_semantics (o.m_semantics),
+      m_side(), m_rtopo (o.m_rtopo), m_gstore(o.m_gstore), m_liveInfo(o.m_liveInfo),
+      trueE(o.trueE) {}
     
     
     void run ();

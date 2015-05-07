@@ -80,15 +80,16 @@ namespace seahorn
     m_td = &getAnalysis<DataLayoutPass> ().getDataLayout ();
     m_canFail = getAnalysisIfAvailable<CanFail> ();
 
-    // Initially the program is safe. It error is possible the query
+    // Initially the program is safe. It error is possible then query
     // will be overwritten
     m_db.addQuery (mk<FALSE> (m_efac));
 
+#if 0
     // Check syntactically if error is possible. If not the program is
     // trivially safe.
     Function *main = M.getFunction ("main");
     if (!main) return Changed;
- 
+    
     bool canFail = false;
     Function* failureFn = M.getFunction ("seahorn.fail");
     for (auto &I : boost::make_iterator_range (inst_begin(*main), inst_end (*main)))
@@ -104,15 +105,16 @@ namespace seahorn
     
     if (!canFail)
     {
-      Function* errorFn = M.getFunction ("verifier.error");
       for (auto &f : M)
       { 
         if (&f == errorFn || &f == failureFn) continue; 
+        
         if (m_canFail->canFail (&f)) 
-          canFail = true; 
+            canFail = true; 
       }
     }
     if (!canFail) return Changed;
+#endif 
     
     if (Step == hm_detail::CLP_SMALL_STEP)
       m_sem.reset (new ClpSmallSymExec (m_efac, *this, TL));

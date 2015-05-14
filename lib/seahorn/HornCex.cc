@@ -512,15 +512,34 @@ namespace seahorn
         if (it != edge->begin () && 
             implicant.count (s.eval (sem.symb (BB))) <= 0) continue;
         
-        // -- print the counterexample is debug format
+        // -- print the counterexample in debug format
         LOG ("cex",
              errs () << BB.getName () << ": \n";
         
              for (auto &I : BB)
              {
-               if (!isa<PHINode> (I) && sem.isTracked (I))
-                 errs () << "  %" << I.getName () << " " 
-                         << *mdl.eval (s.eval (sem.symb (I)), true);
+               if (!sem.isTracked (I)) continue;
+               
+               SymStore *store = &s;
+               // -- phi-node at the cut-point
+               if (isa<PHINode> (I) && it == edge->begin ())
+               {
+                 // -- there must be a previous state, otherwise phi-node is undefined
+                 if (st == states.begin ()) 
+                 {
+                   LOG ("verbose_cex", errs () << "Skipping: " << I << "\n";);
+                   continue;
+                 }
+                 else
+                   // -- the value of the phi-node is based on the
+                   // -- value at entry of the block. Hence we have to
+                   // -- use the symbolic state of the previous edge.
+                   store = & *(st-1);
+               }
+               
+               Expr symb = store->eval (sem.symb (I));
+               errs () << "  %" << I.getName () << " " 
+                       << *mdl.eval (symb);
                errs () << "\n";
              });
         cex.push_back (&BB);

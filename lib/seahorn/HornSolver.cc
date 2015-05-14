@@ -42,9 +42,12 @@ namespace seahorn
     params.set (":xform.slice", false);
     params.set (":use_heavy_mev", true);
     params.set (":reset_obligation_queue", true);
-    //params.set (":pdr.flexible_trace", true);
+    params.set (":pdr.flexible_trace", false);
     params.set (":xform.inline-linear", false);
     params.set (":xform.inline-eager", false);
+    // -- disable utvpi. It is unstable.
+    params.set (":pdr.utvpi", false);
+    
 
     fp.set (params);
     

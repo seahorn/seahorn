@@ -171,6 +171,8 @@ class Seaopt(sea.LimitedCmd):
         ap = super (Seaopt, self).mk_arg_parser (ap)
         ap.add_argument ('-O', type=int, dest='opt_level', metavar='INT',
                          help='Optimization level L:[0,1,2,3]', default=3)
+        ap.add_argument ('--enable-indvar', dest='enable_indvar', default=False,
+                         action='store_true')
         add_in_out_args (ap)
         _add_S_arg (ap)
         return ap
@@ -185,6 +187,10 @@ class Seaopt(sea.LimitedCmd):
             argv.extend (['-o', args.out_file])
         if args.opt_level > 0 and args.opt_level <= 3:
             argv.append('-O{0}'.format (args.opt_level))
+            
+        if not args.enable_indvar:
+            argv.append ('--enable-indvar=false')
+            
         argv.append (args.in_file)
         if args.llvm_asm: argv.append ('-S')
         return self.seaoptCmd.run (args, argv)

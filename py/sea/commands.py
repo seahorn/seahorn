@@ -55,6 +55,9 @@ class Clang(sea.LimitedCmd):
         self.clangCmd = sea.ExtCmd (cmd_name)
         
         argv = ['-c', '-emit-llvm']
+
+        argv.extend (filter (lambda s : s.startswith ('-D'), extra))
+        
         if args.llvm_asm: argv.append ('-S')
         argv.append ('-m{0}'.format (args.machine))
         

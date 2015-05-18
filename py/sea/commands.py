@@ -245,6 +245,13 @@ class Seahorn(sea.LimitedCmd):
         ap.add_argument ('--track',
                          help='Track registers, pointers, and memory',
                          choices=['reg', 'ptr', 'mem'], default='mem')
+        ap.add_argument ('--ikos',
+                         help='Enable IKOS abstract interpreter',
+                         dest='ikos', default=False, action='store_true')
+        ap.add_argument ('--show-invars',
+                         help='Display computed invariants',
+                         dest='show_invars', default=False, action='store_true')
+                         
                          
         return ap
 
@@ -254,7 +261,12 @@ class Seahorn(sea.LimitedCmd):
         self.seahornCmd = sea.ExtCmd (cmd_name)
         
         argv = list()
-        if args.solve: argv.append ('--horn-solve')
+        if args.solve:
+            argv.append ('--horn-solve')
+            if args.ikos:
+                argv.append ('--horn-ikos')
+            if args.show_invars:
+                argv.append ('--horn-answer')
         if args.cex is not None and args.solve:
             argv.append ('-horn-cex')
             argv.append ('-horn-svcomp-cex={0}'.format (args.cex))

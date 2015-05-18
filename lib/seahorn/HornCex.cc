@@ -317,6 +317,10 @@ namespace seahorn
       else dst = r;
       if (src && !bind::isFapp (src)) src.reset (0);
       
+      LOG ("cex_crash",
+           if (src) errs () << "src " << *src << " ";
+           else errs () << "src: nil ";
+           errs () << " dst " << *dst << "\n";);
       // -- if there is a src, then it was dst in previous iteration
       assert (bbTrace.empty () || bbTrace.back () == &hm.predicateBb (src));
       const BasicBlock *bb = &hm.predicateBb (dst);

@@ -163,13 +163,13 @@ namespace
       case BinaryOperator::UDiv:
       case BinaryOperator::SDiv:
       case BinaryOperator::Shl:
+      case BinaryOperator::AShr:
         doArithmetic (lhs, I);
         break;
           
       case BinaryOperator::And:
       case BinaryOperator::Or:
       case BinaryOperator::Xor:
-      case BinaryOperator::AShr:
       case BinaryOperator::LShr:
         doLogic(lhs, I);
         break;
@@ -224,6 +224,18 @@ namespace
       Expr res = mk<EQ>(lhs ,mk<MULT>(op1, mkTerm<mpz_class> (factor, m_efac)));        
       return res;
     }
+    Expr doAShr (Expr lhs, Expr op1, const ConstantInt *op2)
+    {
+      mpz_class shift = expr::toMpz (op2->getValue ());
+      mpz_class factor = 1;
+      for (unsigned long i = 0; i < shift.get_ui (); ++i) 
+      {
+          factor = factor * 2;
+      }
+      Expr res = mk<EQ>(lhs ,mk<DIV>(op1, mkTerm<mpz_class> (factor, m_efac)));        
+      return res;      
+    }
+    
 
 
     void doArithmetic (Expr lhs, BinaryOperator &i)
@@ -258,6 +270,12 @@ namespace
             res = doLeftShift(lhs, op1, ci);
             break;
           }
+      case BinaryOperator::AShr:
+        if (const ConstantInt *ci = dyn_cast<ConstantInt> (&v2))
+        {
+          res = doAShr (lhs, op1, ci);
+          break;
+        }
         default:
           break;
       }

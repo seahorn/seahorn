@@ -134,7 +134,7 @@ class MixedSem(sea.LimitedCmd):
 
     def mk_arg_parser (self, ap):
         ap = super (MixedSem, self).mk_arg_parser (ap)
-        ap.add_argument ('--ms-skip', dest='ms_skip', help='Skip mixed semantics',
+        ap.add_argument ('--no-ms', dest='ms_skip', help='Skip mixed semantics',
                          default=False, action='store_true')
         ap.add_argument ('--no-reduce-main', dest='reduce_main',
                          help='Do not reduce main to return paths only',

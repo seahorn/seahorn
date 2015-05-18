@@ -54,7 +54,7 @@ class Clang(sea.LimitedCmd):
         if cmd_name is None: raise IOError ('clang not found')
         self.clangCmd = sea.ExtCmd (cmd_name)
         
-        argv = ['-c', '-emit-llvm']
+        argv = ['-c', '-emit-llvm', '-D__SEAHORN__']
 
         argv.extend (filter (lambda s : s.startswith ('-D'), extra))
         

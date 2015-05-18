@@ -176,6 +176,8 @@ class Seaopt(sea.LimitedCmd):
                          help='Optimization level L:[0,1,2,3]', default=3)
         ap.add_argument ('--enable-indvar', dest='enable_indvar', default=False,
                          action='store_true')
+        ap.add_argument ('--enable-loop-idiom', dest='enable_loop_idiom', default=False,
+                         action='store_true')
         add_in_out_args (ap)
         _add_S_arg (ap)
         return ap
@@ -193,6 +195,8 @@ class Seaopt(sea.LimitedCmd):
             
         if not args.enable_indvar:
             argv.append ('--enable-indvar=false')
+        if not args.enable_loop_idiom:
+            argv.append ('--enable-loop-idiom=false')
             
         argv.append (args.in_file)
         if args.llvm_asm: argv.append ('-S')

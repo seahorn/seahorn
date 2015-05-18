@@ -283,6 +283,15 @@ namespace seahorn
     out.keep ();
   }
   
+  static bool isVoidFn (const llvm::Instruction &I)
+  {
+    if (const CallInst *ci = dyn_cast<const CallInst> (&I))
+      if (const Function *fn = ci->getCalledFunction ())
+        return fn->getReturnType ()->isVoidTy ();
+    
+    return false;
+  }
+  
   bool HornCex::runOnFunction (Function &F)
   {
     HornSolver &hs = getAnalysis<HornSolver> ();
@@ -523,6 +532,11 @@ namespace seahorn
              for (auto &I : BB)
              {
                if (!sem.isTracked (I)) continue;
+               
+               // -- skip void functions
+               // -- these are intrinsics that we use for memory encoding
+               // -- they are tracked, but do not have a value
+               if (isVoidFn (I)) continue;
                
                SymStore *store = &s;
                // -- phi-node at the cut-point

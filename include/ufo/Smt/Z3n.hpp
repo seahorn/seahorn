@@ -29,6 +29,7 @@
 #include <boost/lexical_cast.hpp>
 
 #include "ufo/Expr.hpp"
+#include "ufo/ExprInterp.hh"
 
 namespace z3
 {
@@ -328,6 +329,40 @@ namespace ufo
 
     ExprFactory &efac;
 
+    bool isAsArray (const z3::ast &v)
+    {
+      if (v.kind () != Z3_APP_AST) return false;
+      
+      Z3_app app = Z3_to_app (ctx, v);
+      Z3_func_decl fdecl = Z3_get_app_decl (ctx, app);
+      return Z3_get_decl_kind (ctx, fdecl) == Z3_OP_AS_ARRAY;
+    }
+
+    Expr finterpToExpr (const z3::func_interp &zfunc)
+    {
+      ExprVector entries;
+      for (unsigned i = 0, sz = zfunc.num_entries (); i < sz; ++i)
+        entries.push_back (fentryToExpr (zfunc.entry (i)));
+
+      z3::ast elseV (ctx, Z3_func_interp_get_else (ctx, zfunc));
+      Expr res = mdl::ftable (entries, z3.toExpr (elseV));
+      return res;
+    }
+    
+    Expr fentryToExpr (const z3::func_entry &zentry)
+    {
+      ExprVector args;
+      for (unsigned i = 0, sz = zentry.num_args(); i < sz; ++i)
+      {
+        z3::ast arg (ctx, Z3_func_entry_get_arg (ctx, zentry, i));
+        args.push_back (z3.toExpr (arg));
+      }
+      z3::ast zval (ctx, Z3_func_entry_get_value (ctx, zentry));
+      Expr res = mdl::fentry (args, z3.toExpr (zval));
+      return res;
+    }
+    
+    
 
   public:
 
@@ -348,7 +383,13 @@ namespace ufo
 	{
 	  z3::ast val (ctx, raw_val);
 	  ctx.check_error ();
-	  return z3.toExpr (val);
+          if (!isAsArray (val)) return z3.toExpr (val);
+          
+          
+          Z3_func_decl fdecl = Z3_get_as_array_func_decl (ctx, val);
+          z3::func_interp zfunc (ctx, Z3_model_get_func_interp (ctx, model, fdecl));
+          ctx.check_error ();
+          return finterpToExpr (zfunc);
 	}
       ctx.check_error ();
       return mk<NONDET> (efac);
@@ -356,6 +397,8 @@ namespace ufo
 
     ExprFactory &getExprFactory () { return z3.getExprFactory (); }
     Expr operator() (Expr e) { return eval (e); }
+
+    
   };
 
   template <typename Z>

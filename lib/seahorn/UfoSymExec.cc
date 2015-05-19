@@ -164,6 +164,8 @@ namespace
       case BinaryOperator::SDiv:
       case BinaryOperator::Shl:
       case BinaryOperator::AShr:
+      case BinaryOperator::SRem:
+      case BinaryOperator::URem:
         doArithmetic (lhs, I);
         break;
           
@@ -264,12 +266,16 @@ namespace
         case BinaryOperator::UDiv:
           res = mk<EQ>(lhs ,mk<DIV>(op1, op2));
           break;
-        case BinaryOperator::Shl:
-          if (const ConstantInt *ci = dyn_cast<ConstantInt> (&v2))
-          {
-            res = doLeftShift(lhs, op1, ci);
-            break;
-          }
+      case BinaryOperator::SRem:
+      case BinaryOperator::URem:
+        res = mk<EQ> (lhs, mk<REM> (op1, op2));
+        break;
+      case BinaryOperator::Shl:
+        if (const ConstantInt *ci = dyn_cast<ConstantInt> (&v2))
+        {
+          res = doLeftShift(lhs, op1, ci);
+          break;
+        }
       case BinaryOperator::AShr:
         if (const ConstantInt *ci = dyn_cast<ConstantInt> (&v2))
         {

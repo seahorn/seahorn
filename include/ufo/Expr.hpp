@@ -1920,7 +1920,8 @@ namespace expr
     NOP(MULT,"*",INFIX,NumericOp)
     NOP(DIV,"/",INFIX,NumericOp)
     NOP(IDIV,"/",INFIX,NumericOp);
-    NOP(MOD,"%",INFIX,NumericOp)
+    NOP(MOD,"mod",INFIX,NumericOp)
+    NOP(REM,"%",INFIX,NumericOp)
     NOP(UN_MINUS,"-",PREFIX,NumericOp)
     NOP(ABS,"abs",FUNCTIONAL,NumericOp)
     

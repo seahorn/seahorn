@@ -8,6 +8,7 @@ add_llvm_library (seahorn.LIB
   HornifyModule.cc 
   HornifyFunction.cc 
   FlatHornifyFunction.cc
+  FeasibleHornifyFunction.cc
   HornWrite.cc
   HornSolver.cc
   HornCex.cc

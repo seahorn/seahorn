@@ -19,7 +19,7 @@ namespace seahorn{
 
   // WARNING: there is a similar m_bbPreds preserved for the whole
   // module in HornifyModule but it cannot be used here because it
-  // would ignore the reachability Boolean variables. 
+  // would ignore the reachability Boolean variables.
   const Expr FeasibleHornifyFunction::bbPredicate (const BasicBlock &BB)
   {
     const BasicBlock *bb = &BB;
@@ -27,8 +27,8 @@ namespace seahorn{
     assert (it != m_bbPreds.end ());
     return it->second;
   }
-  
-  const Expr FeasibleHornifyFunction::declarePredicate (const BasicBlock &BB, 
+
+  const Expr FeasibleHornifyFunction::declarePredicate (const BasicBlock &BB,
                                                         const ExprVector &lv)
   {
     const BasicBlock *bb = &BB;
@@ -76,11 +76,11 @@ namespace seahorn{
     ExprVector rflags;
     for (auto &BB : F)
     {
-      rflags.push_back (bind::boolConst (mkTerm (std::string ("r") + 
-                                                 boost::lexical_cast<std::string> (idx), 
+      rflags.push_back (bind::boolConst (mkTerm (std::string ("__r") +
+                                                 boost::lexical_cast<std::string> (idx),
                                                  m_efac)));
       bbOrder [&BB] = idx++;
-    }    
+    }
 
     for (auto &BB : F)
     {
@@ -91,7 +91,7 @@ namespace seahorn{
 
       // register with fixedpoint
       m_db.registerRelation (decl);
-      
+
       // -- attempt to extract FunctionInfo record from the current basic block
       // -- only succeeds if the current basic block is the last one
       // -- also constructs summary predicates
@@ -101,9 +101,9 @@ namespace seahorn{
     BasicBlock &entry = F.getEntryBlock ();
     ExprSet allVars;
     SymStore s(m_efac);
-    for (const Expr& v : ls.live (&F.getEntryBlock ())) 
+    for (const Expr& v : ls.live (&F.getEntryBlock ()))
       allVars.insert (s.read (v));
-              
+
     ExprVector lv;
     Expr trueE = mk<TRUE> (m_efac);
     Expr falseE = mk<FALSE> (m_efac);
@@ -113,18 +113,18 @@ namespace seahorn{
       s.write (rflags [i], ((i == bbOrder [&entry]) ? trueE : falseE));
       lv.push_back (s.read (rflags[i]));
     }
-    lv.insert (lv.end (), 
+    lv.insert (lv.end (),
                ls.live (&entry).begin (), ls.live (&entry).end ());
 
     Expr rule = s.eval (bind::fapp (bbPredicate (entry), lv));
     rule = boolop::limp (boolop::lneg (s.read (m_sem.errorFlag (entry))), rule);
     rule = boolop::limp (trueE, rule);
 
-    LOG("seahorn", errs() << "Adding rule : " << *rule << "\n";); 
+    LOG("seahorn", errs() << "Adding rule : " << *rule << "\n";);
 
     m_db.addRule (allVars, rule);
     allVars.clear ();
-      
+
     ExprVector side;
     for (auto &BB : F)
     {
@@ -137,15 +137,15 @@ namespace seahorn{
 
         for (const Expr& v : rflags) allVars.insert (s.read (v));
         for (const Expr &v : ls.live (bb)) allVars.insert (s.read (v));
-        
+
         ExprVector pre_live = append (rflags, ls.live (bb));
-        Expr pre = s.eval (bind::fapp (bbPredicate (BB), pre_live)); 
+        Expr pre = s.eval (bind::fapp (bbPredicate (BB), pre_live));
         side.push_back (boolop::lneg ((s.read (m_sem.errorFlag (BB)))));
         m_sem.execEdg (s, BB, *dst, side);
 
         Expr tau = mknary<AND> (trueE, side);
 
-        expr::filter (tau, bind::IsConst(), 
+        expr::filter (tau, bind::IsConst(),
                       std::inserter (allVars, allVars.begin ()));
 
         for (const Expr &v : ls.live (dst)) allVars.insert (s.read (v));
@@ -155,14 +155,14 @@ namespace seahorn{
         {
           if (i == bbOrder [dst])
             s.write (rflags [i], trueE);
-          post_live.push_back (s.read (rflags [i]));            
+          post_live.push_back (s.read (rflags [i]));
         }
-        post_live.insert (post_live.end (), 
+        post_live.insert (post_live.end (),
                           ls.live (dst).begin (), ls.live (dst).end ());
 
         Expr post = s.eval (bind::fapp (bbPredicate (*dst), post_live));
-        
-        LOG("seahorn", errs() << "Adding rule : " 
+
+        LOG("seahorn", errs() << "Adding rule : "
             << *mk<IMPL> (boolop::land (pre, tau), post) << "\n";);
         m_db.addRule (allVars, boolop::limp (boolop::land (pre, tau), post));
       }
@@ -173,7 +173,7 @@ namespace seahorn{
     s.reset ();
 
     if (m_interproc)
-    {       
+    {
       // Add error flag exit rules
       // bb (err, V) & err -> bb_exit (err , V)
       assert(exit);
@@ -184,17 +184,17 @@ namespace seahorn{
         // error flag (directly or indirectly)
         s.reset ();
         allVars.clear ();
-        
+
         const ExprVector &live = ls.live (&BB);
         for (const Expr& v : rflags) allVars.insert (s.read (v));
         for (const Expr &v : live) allVars.insert (s.read (v));
-        
+
         ExprVector pre_live = append (rflags, live);
         Expr pre = s.eval (bind::fapp (bbPredicate (BB), pre_live));
         pre = boolop::land (pre, s.read (m_sem.errorFlag (BB)));
-        
+
         for (const Expr &v : ls.live (exit)) allVars.insert (s.read (v));
-        
+
         ExprVector post_live;
         for (unsigned i=0; i< bbOrder.size (); i++)
         {
@@ -202,14 +202,14 @@ namespace seahorn{
             s.write (rflags [i], trueE);
           post_live.push_back (s.read (rflags[i]));
         }
-        post_live.insert (post_live.end (), 
+        post_live.insert (post_live.end (),
                           ls.live (exit).begin (), ls.live (exit).end ());
-        
+
         Expr post = s.eval (bind::fapp (bbPredicate (*exit), post_live));
         m_db.addRule (allVars, boolop::limp (pre, post));
       }
     }
-    
+
     if (F.getName ().equals ("main"))
     {
         ExprVector lv;
@@ -220,11 +220,11 @@ namespace seahorn{
           lv.push_back (s.read (rflags[i]));
         }
 
-        lv.insert (lv.end (), 
+        lv.insert (lv.end (),
                    ls.live (exit).begin (), ls.live (exit).end ());
         m_db.addQuery (bind::fapp (bbPredicate (*exit), lv));
-        LOG("seahorn", errs() << "Adding query : " << 
-            *(bind::fapp (bbPredicate (*exit), lv)) << "\n";); 
+        LOG("seahorn", errs() << "Adding query : " <<
+            *(bind::fapp (bbPredicate (*exit), lv)) << "\n";);
     }
 
     if ((!F.getName ().equals ("main")) && m_interproc)
@@ -234,18 +234,18 @@ namespace seahorn{
       //                  summary(true, false, false, regions, arguments, globals, return)
 
       allVars.clear ();
-      
+
       const ExprVector &live = ls.live (exit);
       for (const Expr &v : live) allVars.insert (s.read (v));
 
       ExprVector pre_live = append (rflags, live);
       Expr pre = s.eval (bind::fapp (bbPredicate (*exit), pre_live));
       pre = boolop::land (pre, boolop::lneg (s.read (m_sem.errorFlag (*exit))));
-      
+
       ExprVector postArgs {trueE, falseE, falseE};
       const FunctionInfo &fi = m_sem.getFunctionInfo (F);
       fi.evalArgs (m_sem, s, std::back_inserter (postArgs));
-      std::copy_if (postArgs.begin () + 3, postArgs.end (), 
+      std::copy_if (postArgs.begin () + 3, postArgs.end (),
                     std::inserter (allVars, allVars.begin ()),
                     bind::IsConst());
       Expr post = bind::fapp (fi.sumPred, postArgs);
@@ -258,7 +258,7 @@ namespace seahorn{
       post = bind::fapp (fi.sumPred, postArgs);
       m_db.addRule (allVars, boolop::limp (pre, post));
     }
-    
+
   }
 
 } // end namespace

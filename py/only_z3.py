@@ -109,12 +109,11 @@ def is_z3_opt (x):
 def runSpacer (in_name, engine, cpu=-1, extra_args=[]):
     run_engine = "fixedpoint.engine=spacer" if engine==1 else "fixedpoint.engine=pdr"
     spacer_args = [getSpacer (),
-                    "fixedpoint.slice=false",
+                    "fixedpoint.xform.slice=false",
                    "fixedpoint.use_heavy_mev=true",
-	           "fixedpoint.flexible_trace=true",
+	           "fixedpoint.pdr.flexible_trace=true",
 	           "fixedpoint.reset_obligation_queue=true",
-		   "fixedpoint.init_reach_facts=true",
-                   "fixedpoint.print_statistics=true",
+
                    "-v:1",
                    run_engine, in_name ]
     if verbose: print ' '.join (spacer_args)

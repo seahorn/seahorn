@@ -56,8 +56,11 @@ class Feas(object):
                 res = self.fp.query (expr_query)
                 if res == z3.sat:
                     self.log.info("STILL FEASIBLE: More work")
-                    expr_query = self.cex(expr_query)
-                    #TBD TERMINATION CONDITION
+                    expr_query, done, path = self.cex(expr_query)
+                    if done:
+                        self.log.info("CODE IS FEASIBLE")
+                        print path
+                        #TBD TERMINATION CONDITION
                 elif res == z3.unsat:
                     self.log.info("INFEASIBLE BLOCK FOUND: Set of Invariants:")
                     for p in self.preds:
@@ -77,8 +80,13 @@ class Feas(object):
         var_flags = self.getFlags(ground_sat[1])
         failing_flag_idx = self.getIndexFlag(ground_sat[1], len(var_flags)+1) # get the index of the failing flag
         self.log.info("Failing Flag index is : " + str(var_flags[failing_flag_idx]))
-        new_query = self.mkNewQuery(qr,failing_flag_idx)
-        return new_query
+        if failing_flag_idx:
+            if verbose: self.log.debug("Found Failing Flag")
+            new_query = self.mkNewQuery(qr,failing_flag_idx)
+            return new_query, False, None
+        else:
+            if versboe: self.log.debug("No Failing Flag")
+            return None, True, ground_sat
 
 
     def getIndexFlag(self, pred, flags_len):

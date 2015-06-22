@@ -55,10 +55,11 @@ class Feas(object):
             with stats.timer ('Query'):
                 res = self.fp.query (expr_query)
                 if res == z3.sat:
-                    self.log.info("CEX: More work")
+                    self.log.info("STILL FEASIBLE: More work")
                     expr_query = self.cex(expr_query)
+                    #TBD TERMINATION CONDITION
                 elif res == z3.unsat:
-                    self.log.info("UNSAT: Set of Invariants:")
+                    self.log.info("INFEASIBLE BLOCK FOUND: Set of Invariants:")
                     for p in self.preds:
                         lemmas = fp_get_cover_delta (self.fp, p)
                         print "Predicate: ", p.decl()

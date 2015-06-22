@@ -58,7 +58,7 @@ class Feas(object):
                     self.log.info("STILL FEASIBLE: More work")
                     expr_query, done, path = self.cex(expr_query)
                     if done:
-                        self.log.info("CODE IS FEASIBLE")
+                        self.log.info("CODE IS FEASIBLE, PATH: ")
                         print path
                         #TBD TERMINATION CONDITION
                 elif res == z3.unsat:
@@ -78,14 +78,13 @@ class Feas(object):
         ground_sat = get_conjuncts(raw_cex)
         if verbose: print "RAW CEX:", ground_sat
         var_flags = self.getFlags(ground_sat[1])
-        failing_flag_idx = self.getIndexFlag(ground_sat[1], len(var_flags)+1) # get the index of the failing flag
-        self.log.info("Failing Flag index is : " + str(var_flags[failing_flag_idx]))
+        failing_flag_idx = self.getIndexFlag(ground_sat[1], len(var_flags)) # get the index of the failing flag
         if failing_flag_idx:
-            if verbose: self.log.debug("Found Failing Flag")
+            self.log.info("Failing Flag index is : " + str(var_flags[failing_flag_idx]))
             new_query = self.mkNewQuery(qr,failing_flag_idx)
             return new_query, False, None
         else:
-            if versboe: self.log.debug("No Failing Flag")
+            self.log.info("No Failing Flag")
             return None, True, ground_sat
 
 
@@ -99,7 +98,6 @@ class Feas(object):
             if z3.is_false(val):
                 return i
             i+=1
-        self.log.error("No Index found Failing Flag")
         return None
 
     def getFlags(self, pred):

@@ -87,6 +87,7 @@ class Feas(object):
         if failing_flag_idx:
             self.log.info("Failing Flag index is : " + str(failing_flag_idx))
             new_query = self.mkNewQuery(qr,failing_flag_idx)
+            assert new_query is not None, ground_sat # new and old query are the same
             return new_query, ground_sat
         else:
             self.log.info("No Failing Flag")
@@ -146,9 +147,8 @@ class Feas(object):
         new_query = z3.Exists(exists_var, new_body)
         merda = expr.eq(new_query) # Check if new and old query are the same, if they are the same you are done
         if merda:
-            self.log.warning("Old and New Horn Query are the same, no idea what to do :(. More info with --verbose")
-
-            assert False
+            self.log.warning("Old and New Horn Query are the same.")
+            return None
         return new_query
 
 

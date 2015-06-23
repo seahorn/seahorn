@@ -56,11 +56,11 @@ class Feas(object):
                 res = self.fp.query (expr_query)
                 if res == z3.sat:
                     self.log.info("STILL FEASIBLE: More work")
-                    expr_query, done, path = self.cex(expr_query)
-                    if done:
+                    expr_query, path = self.cex(expr_query)
+                    if expr_query is None:
+                        done = True
                         self.log.info("CODE IS FEASIBLE, PATH: ")
                         print path
-                        #TBD TERMINATION CONDITION
                 elif res == z3.unsat:
                     self.log.info("INFEASIBLE BLOCK FOUND: Set of Invariants:")
                     for p in self.preds:
@@ -72,7 +72,11 @@ class Feas(object):
 
 
     def cex(self, qr):
-        """ Create a new query """
+        """
+        It returns
+          * new horn query if we have to continue checking for feasibility
+          * None if we are done, plus return the path
+        """
         self.log.info("Creating a new query ...")
         raw_cex = self.fp.get_ground_sat_answer()
         ground_sat = get_conjuncts(raw_cex)
@@ -83,10 +87,10 @@ class Feas(object):
         if failing_flag_idx:
             self.log.info("Failing Flag index is : " + str(failing_flag_idx))
             new_query = self.mkNewQuery(qr,failing_flag_idx)
-            return new_query, False, None
+            return new_query, ground_sat
         else:
             self.log.info("No Failing Flag")
-            return None, True, ground_sat
+            return None, ground_sat
 
 
     def getIndexFlag(self, pred, flags_len):
@@ -139,7 +143,13 @@ class Feas(object):
             if z3.is_var(arg):
                 v_name = z3.Const("__n"+str(i), z3.BoolSort())
                 exists_var.append(v_name)
-        return z3.Exists(exists_var, new_body)
+        new_query = z3.Exists(exists_var, new_body)
+        merda = expr.eq(new_query) # Check if new and old query are the same, if they are the same you are done
+        if merda:
+            self.log.warning("Old and New Horn Query are the same, no idea what to do :(. More info with --verbose")
+
+            assert False
+        return new_query
 
 
 

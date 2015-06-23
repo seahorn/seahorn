@@ -78,9 +78,10 @@ class Feas(object):
         ground_sat = get_conjuncts(raw_cex)
         if verbose: print "RAW CEX:", ground_sat
         var_flags = self.getFlags(ground_sat[1])
-        failing_flag_idx = self.getIndexFlag(ground_sat[1], len(var_flags)) # get the index of the failing flag
+        flags_number = len(var_flags) + 1 # This is because i only inspect the flags at that particular predicate. TODO Jorge
+        failing_flag_idx = self.getIndexFlag(ground_sat[1], flags_number)
         if failing_flag_idx:
-            self.log.info("Failing Flag index is : " + str(var_flags[failing_flag_idx]))
+            self.log.info("Failing Flag index is : " + str(failing_flag_idx))
             new_query = self.mkNewQuery(qr,failing_flag_idx)
             return new_query, False, None
         else:
@@ -92,12 +93,13 @@ class Feas(object):
         """
         return the index of the flag to be changed
         """
+        if verbose: print "Get Index Failing Flag: ", pred
         ch = pred.children()
         i=0
         for val in ch[0:flags_len]:
             if z3.is_false(val):
                 return i
-            i+=1
+            else: i+=1
         return None
 
     def getFlags(self, pred):
@@ -130,7 +132,7 @@ class Feas(object):
             if i != index: sub.append ((arg, arg))
             else: sub.append((arg,new_value))
         new_body = z3.substitute(body, sub)
-        if verbose: print 'Original Body: ', body, '\n Modified Body:', new_body
+        if verbose: print 'Old Predicate: ', body, '\nNew Predicate: ', new_body
         exists_var = []
         for i in range (0, new_body.num_args ()):
             arg = new_body.arg (i)

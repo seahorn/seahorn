@@ -86,6 +86,42 @@ namespace
     void visitPHINode (PHINode &I) { /* do nothing */ }
     
      
+    Expr geq (Expr op0, Expr op1)
+    {
+      if (op0 == op1) return trueE;
+      if (isOpX<MPZ> (op0) && isOpX<MPZ> (op1))
+        return
+          getTerm<mpz_class> (op0) >=
+          getTerm<mpz_class> (op1) ? trueE : falseE;
+      
+      return mk<GEQ> (op0, op1);
+    }
+
+    Expr lt (Expr op0, Expr op1)
+    {
+      if (op0 == op1) return falseE;
+      if (isOpX<MPZ> (op0) && isOpX<MPZ> (op1))
+        return
+          getTerm<mpz_class> (op0) <
+          getTerm<mpz_class> (op1) ? trueE : falseE;
+      
+      return mk<LT> (op0, op1);
+    }
+    
+    Expr mkUnsignedLT (Expr op0, Expr op1)
+    {
+      Expr zero = mkTerm<mpz_class> (0, m_efac);
+      using namespace expr::op::boolop;
+      
+      return lite (geq (op0, zero),
+                      lite (geq (op1, zero),
+                            lt (op0, op1),
+                            trueE),
+                      lite (lt (op1, zero),
+                            lt (op0, op1),
+                            falseE));
+    }
+    
     void visitCmpInst (CmpInst &I)
     {
       Expr lhs = havoc (I);
@@ -109,18 +145,28 @@ namespace
         res = mk<IFF>(lhs, mk<NEQ>(op0,op1));
         break;
       case CmpInst::ICMP_UGT:
+        res = mk<IFF> (lhs, mkUnsignedLT (op1, op0));
+        break;
       case CmpInst::ICMP_SGT:
         res = mk<IFF>(lhs,mk<GT>(op0,op1));
         break;
       case CmpInst::ICMP_UGE:
+        res = mk<OR> (mk<IFF> (lhs, mk<EQ> (op0, op1)),
+                      mk<IFF> (lhs, mkUnsignedLT (op1, op0)));
+        break;
       case CmpInst::ICMP_SGE:
         res = mk<IFF>(lhs,mk<GEQ>(op0,op1));
         break;
       case CmpInst::ICMP_ULT:
+        res = mk<IFF> (lhs, mkUnsignedLT (op0, op1));
+        break;
       case CmpInst::ICMP_SLT:
         res = mk<IFF>(lhs,mk<LT>(op0,op1));
         break; 
       case CmpInst::ICMP_ULE:
+        res = mk<OR> (mk<IFF> (lhs, mk<EQ> (op0, op1)),
+                      mk<IFF> (lhs, mkUnsignedLT (op0, op1)));
+        break;
       case CmpInst::ICMP_SLE:
         res = mk<IFF>(lhs,mk<LEQ>(op0,op1));
         break;
@@ -133,6 +179,7 @@ namespace
       if (res)
         m_side.push_back (boolop::limp (act, res));
     }
+    
     
     void visitSelectInst(SelectInst &I)
     {

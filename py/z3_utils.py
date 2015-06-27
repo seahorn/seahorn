@@ -52,7 +52,7 @@ def mk_nary (op_fn, base, *args):
   """
   if len (args) == 0: return base
   if len (args) == 1: return args [0]
-  print "here"
+  print args
   return op_fn (*args)
 
 def mk_true (ctx=None): return z3.BoolVal (True, ctx)
@@ -343,7 +343,8 @@ def stripQuantifierBlock (expr) :
   # outside-in order of variables; z3 numbers variables inside-out but
   # substitutes outside-in
   for i in reversed (range (expr.num_vars ())) :
-    v_name = expr.var_name (i) + "!" + str(qb_counter)
+    #v_name = expr.var_name (i) + "!" + str(qb_counter)
+    v_name = expr.var_name (i)
     qb_counter+=1
     v_sort = expr.var_sort (i)
     consts.append (z3.Const (v_name, z3_translate (v_sort, z3ctx)))

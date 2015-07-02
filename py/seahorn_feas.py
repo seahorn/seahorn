@@ -3,17 +3,207 @@
 import z3
 import z3core
 import stats
-
+import tempfile
+import atexit
 from z3_utils import *
 from LogManager import LoggingManager
 import os,subprocess,sys
 import shutil
 import stats
-
+import threading
+import signal
 
 root = os.path.dirname (os.path.dirname (os.path.realpath (__file__)))
 verbose=False
 xml=False
+
+
+def isexec (fpath):
+    if fpath == None: return False
+    return os.path.isfile(fpath) and os.access(fpath, os.X_OK)
+
+def which(program):
+    fpath, fname = os.path.split(program)
+    if fpath:
+        if isexec (program):
+            return program
+    else:
+        for path in os.environ["PATH"].split(os.pathsep):
+            exe_file = os.path.join(path, program)
+            if isexec (exe_file):
+                return exe_file
+    return None
+
+def kill (proc):
+    try:
+        proc.terminate ()
+        proc.kill ()
+        proc.wait ()
+        global running_process
+        running_process = None
+    except OSError:
+        pass
+
+def createWorkDir (dname = None, save = False):
+    if dname is None:
+        workdir = tempfile.mkdtemp (prefix='seahorn-')
+    else:
+        workdir = dname
+
+    if verbose:
+        print "Working directory", workdir
+
+    if not save:
+        atexit.register (shutil.rmtree, path=workdir)
+    return workdir
+
+
+def getOpt ():
+    opt = None
+    if 'OPT' in os.environ:
+        opt = os.environ ['OPT']
+    if not isexec (opt):
+        opt = os.path.join (root, 'bin/seaopt')
+    if not isexec (opt):
+        opt = os.path.join (root, "bin/opt")
+    if not isexec (opt): opt = which ('opt')
+    if not isexec (opt):
+        raise IOError ("Cannot find opt. Set OPT variable")
+    return opt
+
+def getSeahorn ():
+    seahorn = None
+    if 'SEAHORN' in os.environ: seahorn = os.environ ['SEAHORN']
+    if not isexec (seahorn):
+        seahorn = os.path.join (root, "bin/seahorn")
+    if not isexec (seahorn): seahorn = which ('seahorn')
+    if not isexec (seahorn):
+        raise IOError ("Cannot find seahorn. Set SEAHORN variable.")
+    return seahorn
+
+def getSeaPP ():
+    seapp = None
+    if 'SEAPP' in os.environ:
+        seapp = os.environ ['SEAPP']
+    if not isexec (seapp):
+        seapp = os.path.join (root, "bin/seapp")
+    if not isexec (seapp): seapp = which ('seapp')
+    if not isexec (seapp):
+        raise IOError ("Cannot find seahorn pre-processor. Set SEAPP variable")
+    return seapp
+
+def getClang ():
+    names = ['clang-mp-3.6', 'clang-3.6', 'clang', 'clang-mp-3.5', 'clang-mp-3.4']
+    
+    for n in names:
+        clang = which (n)
+        if clang is not None:
+            return clang
+    raise IOError ('Cannot find clang (required)')    
+
+### Passes
+def defBCName (name, wd=None):
+    base = os.path.basename (name)
+    if wd == None: wd = os.path.dirname  (name)
+    fname = os.path.splitext (base)[0] + '.bc'
+    return os.path.join (wd, fname)
+def defPPName (name, wd=None):
+    base = os.path.basename (name)
+    if wd == None: wd = os.path.dirname  (name)
+    fname = os.path.splitext (base)[0] + '.pp.bc'
+    return os.path.join (wd, fname)
+def defOPTName (name, optLevel=3, wd=None):
+    base = os.path.basename (name)
+    if wd == None: wd = os.path.dirname  (name)
+    fname = os.path.splitext (base)[0] + '.o{}.bc'.format (optLevel)
+    return os.path.join (wd, fname)
+def defSMTName (name, wd=None):
+    base = os.path.basename (name)
+    if wd == None: wd = os.path.dirname  (name)
+    fname = os.path.splitext (base)[0] + '.smt2'
+    return os.path.join (wd, fname)
+
+# Run Clang
+def clang (in_name, out_name, arch=32, extra_args=[]):
+    if out_name == '' or out_name == None:
+        out_name = defBCName (in_name)
+
+    clang_args = [getClang (), '-emit-llvm', '-o', out_name, '-c', in_name ]
+    clang_args.extend (extra_args)
+
+    if verbose: print ' '.join (clang_args)
+    subprocess.check_call (clang_args)
+
+# Run seapp
+def seapp (in_name, out_name, arch, args, extra_args=[]):
+    if out_name == '' or out_name == None:
+        out_name = defPPName (in_name)
+
+    seapp_args = [getSeaPP (), '-o', out_name, in_name ]
+    seapp_args.extend (extra_args)
+
+    if verbose: print ' '.join (seapp_args)
+    subprocess.check_call (seapp_args)
+
+
+# Run Opt
+def llvmOpt (in_name, out_name, opt_level=3, time_passes=False, cpu=-1):
+    if out_name == '' or out_name is None:
+        out_name = defOPTName (in_name, opt_level)
+    import resource as r
+    def set_limits ():
+        if cpu > 0: r.setrlimit (r.RLIMIT_CPU, [cpu, cpu])
+
+    opt = getOpt ()
+    opt_args = [opt, '-f', '-funit-at-a-time']
+    if opt_level > 0 and opt_level <= 3:
+        opt_args.append ('-O{}'.format (opt_level))
+    opt_args.extend (['-o', out_name ])
+
+    if time_passes: opt_args.append ('-time-passes')
+
+    if verbose: print ' '.join (opt_args)
+
+    opt = subprocess.Popen (opt_args, stdin=open (in_name),
+                     stdout=subprocess.PIPE, preexec_fn=set_limits)
+    output = opt.communicate () [0]
+
+    if opt.returncode != 0:
+        raise subprocess.CalledProcessError (opt.returncode, opt_args)
+
+# Run SeaHorn
+def seahorn (in_name, out_name, opts, cex = None, cpu = -1, mem = -1):
+    def set_limits ():
+        if mem > 0:
+            mem_bytes = mem * 1024 * 1024
+            resource.setrlimit (resource.RLIMIT_AS, [mem_bytes, mem_bytes])
+
+    seahorn_cmd = [ getSeahorn(), in_name,
+                    '-horn-sem-lvl=mem',
+                    '-horn-step=feasiblesmall',
+                    '-o', out_name]
+    seahorn_cmd.extend (opts)
+    #if cex is not None: seahorn_cmd.append ('--horn-svcomp-cex={}'.format (cex))
+    if verbose: print ' '.join (seahorn_cmd)
+
+    p = subprocess.Popen (seahorn_cmd, preexec_fn=set_limits)
+
+    global running_process
+    running_process = p
+
+    timer = threading.Timer (cpu, kill, [p])
+    if cpu > 0: timer.start ()
+
+    try:
+        (pid, returnvalue, ru_child) = os.wait4 (p.pid, 0)
+        running_process = None
+    finally:
+        ## kill the timer if the process has terminated already
+        if timer.isAlive (): timer.cancel ()
+
+    ## if seahorn did not terminate properly, propagate this error code
+    if returnvalue != 0: sys.exit (returnvalue)
+
 
 class Feas(object):
     def __init__(self, args, ctx, fp):
@@ -300,14 +490,28 @@ def parseArgs (argv):
     import argparse as a
     p = a.ArgumentParser (description='Feasibility check with SeaHorn')
 
-    p.add_argument ('file', metavar='BENCHMARK', help='Benchmark file')
-    p.add_argument ('--pp',
-                    help='Enable default pre-processing',
+    p.add_argument ('file', metavar='BENCHMARK', help='Benchmark file (by default in C)')
+    p.add_argument ('--smt2', dest='is_smt2',
+                    help='Benchmark file is in smt2 format',
                     action='store_true', default=False)
-
+    p.add_argument ('--seapp', dest='seapp',
+                    help='Enable Seahorn preprocessor',
+                    action='store_true', default=False)
+    p.add_argument ('--opt', dest='opt',
+                    help='Enable LLVM optimizer',
+                    action='store_true', default=False)
+    p.add_argument ('--pp',
+                    help='Enable default pre-processing in the solver',
+                    action='store_true', default=False)
+    p.add_argument ("--save-temps", dest="save_temps",
+                       help="Do not delete temporary files",
+                       action="store_true",
+                       default=False)
+    p.add_argument ("--temp-dir", dest="temp_dir", metavar='DIR',
+                       help="Temporary directory",
+                       default=None)
     p.add_argument ('--stop', help='stop after n iterations', dest="stop",
                     default=None, type=int)
-
     p.add_argument ('--all', help='assert all failing flags', dest="all",
                     default=False,action='store_true')
     p.add_argument ('--stat', help='Print statistics', dest="stat",
@@ -324,11 +528,39 @@ def stat (key, val): stats.put (key, val)
 
 def main (argv):
     args = parseArgs (argv[1:])
+
+    in_name = args.file
+    if not args.is_smt2:
+        workdir = createWorkDir (args.temp_dir, args.save_temps)
+
+        bc_out = defBCName (in_name, workdir)
+        assert bc_out != in_name
+        extra_args = []
+        clang (in_name, bc_out, arch=32, extra_args=extra_args)
+
+        in_name = bc_out
+
+        if args.seapp:
+            pp_out = defPPName (in_name, workdir)
+            assert pp_out != in_name
+            seapp (in_name, pp_out, arch=32, args=args)        
+            in_name = pp_out
+
+        if args.opt:
+            opt_out = defOPTName (in_name, 0, workdir)
+            llvmOpt (in_name, opt_out, opt_level=0)
+            in_name = opt_out
+
+        smt_out = defSMTName(in_name, workdir)
+        seahorn_args = []
+        seahorn (in_name, smt_out, seahorn_args)
+        in_name = smt_out
+
     stat ('Result', 'UNKNOWN')
     ctx = z3.Context ()
     fp = z3.Fixedpoint (ctx=ctx)
     feas = Feas(args,ctx,fp)
-    feas.solve(args.file)
+    feas.solve(in_name)
 
 
 if __name__ == '__main__':

@@ -61,16 +61,22 @@ class Feas(object):
                     expr_query, path = self.cex(expr_query)
                     rounds += 1
                     if expr_query is None:
+                        stat('Result', 'Feasible')
+                        stat('Rounds', str(rounds))
                         done = True
-                        self.log.info("FEASIBLE CODE, PATH: ")
-                        print path
+                        self.log.info("ALL CODE is FEASIBLE")
                 elif res == z3.unsat:
-                    self.log.info("INFEASIBLE BLOCK FOUND: Set of Invariants:")
+                    stat('Result', 'Infeasible')
+                    stat('Rounds', str(rounds))
+                    msg = "EXIT is not FEASIBLE" if rounds==0 else "INFEASIBLE BLOCK FOUND"
+                    self.log.info(msg)
+                    print "\n\t ========  Set of Invariants  ======== "
                     for p in self.preds:
                         lemmas = fp_get_cover_delta (self.fp, p)
-                        print "Predicate / Basic Block: ", p.decl()
+                        print  "Basic Block: ", p.decl()
                         print "Invariant: ", lemmas
                         print "-----------"
+                    print "\t ======================================"
                     done = True
             # debugging purpose
             if self.args.stop != None:
@@ -83,24 +89,42 @@ class Feas(object):
           * new horn query if we have to continue checking for feasibility
           * None if we are done, plus return the path
         """
-        self.log.info("Creating a new query ...")
+        self.log.info("Inspecting the CEX ... ")
         raw_cex = self.fp.get_ground_sat_answer()
         ground_sat = get_conjuncts(raw_cex)
         if verbose: print "RAW CEX:", ground_sat
+        ee_idx = self.ee_vars(qr)
+        if verbose: print "EE VARS INDEX:", ee_idx
         fpred = ground_sat[0] # inspecting the first predicate
-        var_flags = self.getFlags(fpred)
+        var_flags = self.getListFlags(fpred)
         flags_number = len(var_flags) + 1 # TODO Jorge
-        idxs = self.getIndexFlag(fpred, flags_number)
-        if idxs != []:
-            self.log.info("List of Failing Flags : " + str(idxs))
-            new_query = self.mkNewQuery(qr, fpred, idxs)
-            return new_query, ground_sat
-        else:
-            self.log.info("No Failing Flags")
+        true_idxs, false_idxs = self.tfFlags(fpred, flags_number)
+        t_flags = [t for t in true_idxs if t not in ee_idx] # filter  entry/exit flags
+        f_flags = [t for t in false_idxs if t not in ee_idx] # filter entry/exit flags
+        if verbose: print "TRUE FLAGS:" + str(t_flags) ,  "\nFALSE FLAGS:" + str(f_flags)
+        if f_flags == []:
+            self.log.info("No failing flags ...")
             return None, ground_sat
+        else:
+            new_query = self.mkNewQuery(qr, fpred, t_flags, f_flags)
+            return new_query, ground_sat
+
+    def ee_vars(self, qr):
+        """
+        Given a query get exit vars
+        """
+        body = qr.body()
+        ch = body.children()
+        i = 0
+        true_vars = []
+        for c in ch:
+            if z3.is_true(c):
+                true_vars.append(i)
+            i+=1
+        return true_vars
 
 
-    def mkNewQuery(self, qr, fpred, idxs):
+    def mkNewQuery(self, qr, fpred, t_flags, f_flags):
         """
         Create a new query by adding
          * qr old query
@@ -113,15 +137,32 @@ class Feas(object):
         for p in self.preds:
             if fpred.decl().eq(p.decl()): pred = p
         pred_vars = pred.children()
-        failing_vars = [pred_vars[ix] for ix in idxs]
-        failing_vars_ctx = failing_vars+[qr.ctx] if self.args.all else [pred_vars[idxs[0]]]+[qr.ctx]
+        false_vars = self.getVars(f_flags, pred_vars, qr)
+        true_vars = self.getVars(t_flags, pred_vars, qr)
+        not_vars = [z3.Not(ix) for ix in false_vars]
         exist_vars, body = stripQuantifierBlock(qr)
-        blocking_predicate = z3.Or(*failing_vars_ctx)
-        and_predicate = z3.And(*[body,blocking_predicate,qr.ctx])
-        new_exist_vars = self.existVars(exist_vars, failing_vars)
+        true_false_vars = not_vars + true_vars + [qr.ctx]
+        new_vars_conjunct = z3.Not(z3.And(*true_false_vars))
+        and_predicate = z3.And(*[body,new_vars_conjunct,qr.ctx])
+        if verbose: print "New Conjunct:", and_predicate
+        new_exist_vars = self.existVars(exist_vars, true_false_vars)
         new_query = z3.Exists(new_exist_vars,and_predicate)
         if verbose: print "NEW Query:\n", new_query
         return new_query
+
+    def getVars(self, idxs, pred_vars, qr):
+        """
+        given a list of indexes return var names
+        """
+        vars = list()
+        for idx in idxs:
+            v = pred_vars[idx]
+            if z3.is_true(v):
+                new_v = z3.Bool("__r"+str(idx)+"_0", qr.ctx)
+                vars.append(new_v)
+            else:
+                vars.append(v)
+        return vars
 
 
     def existVars(self, v1, v2):
@@ -129,51 +170,43 @@ class Feas(object):
         create a list of variables to be bound
         """
         v1_str = [str(v) for v in v1]
+        v2_filtered = list()
         for v in v2:
+            if z3.is_not(v):
+                v2_filtered.append(v.children()[0])
+            elif z3.is_app(v) and not z3.is_not(v):
+                v2_filtered.append(v)
+        for v in v2_filtered:
             if str(v) not in v1_str : v1.append(v)
         return v1
 
 
-    # def cex(self, qr):
-    #     """
-    #     It returns
-    #       * new horn query if we have to continue checking for feasibility
-    #       * None if we are done, plus return the path
-    #     """
-    #     self.log.info("Creating a new query ...")
-    #     raw_cex = self.fp.get_ground_sat_answer()
-    #     ground_sat = get_conjuncts(raw_cex)
-    #     if verbose: print "RAW CEX:", ground_sat
-    #     var_flags = self.getFlags(ground_sat[1])
-    #     flags_number = len(var_flags) + 1 # This is because i only inspect the flags at that particular predicate. TODO Jorge
-    #     failing_flag_idx = self.getIndexFlag(ground_sat[1], flags_number)
-    #     if failing_flag_idx:
-    #         self.log.info("Failing Flag index is : " + str(failing_flag_idx))
-    #         new_query = self.mkNewQuery(qr,failing_flag_idx)
-    #         assert new_query is not None, ground_sat # new and old query are the same
-    #         return new_query, ground_sat
-    #     else:
-    #         self.log.info("No Failing Flag")
-    #         return None, ground_sat
+    def filterFlags(self, t_flags, f_flags, ee_flags):
+
+        print t_flags, f_flags
+        return
 
 
-
-    def getIndexFlag(self, pred, flags_len):
+    def tfFlags(self, pred, flags_len):
         """
-        return a list of indexes of failing flags
+        return two lists, one for true and one false flags
         """
-        idxs = list()
+        false_idxs = list()
+        true_idxs = list ()
         if verbose: print "Get list of failing flags from : ", pred
         ch = pred.children()
         i=0
         for val in ch[0:flags_len]:
             if z3.is_false(val):
-                idxs.append(i)
+                false_idxs.append(i)
+                i+=1
+            elif z3.is_true(val):
+                true_idxs.append(i)
                 i+=1
             else: i+=1
-        return idxs
+        return true_idxs, false_idxs
 
-    def getFlags(self, pred):
+    def getListFlags(self, pred):
         """
         Return a list of the flags variable
         """
@@ -186,36 +219,6 @@ class Feas(object):
                         flags.append(var)
         return flags
 
-
-    # def mkNewQuery(self,expr,index):
-    #     """
-    #     assign True to the variables at position index of expr
-    #     return an expr
-    #     """
-    #     z3ctx = expr.ctx
-    #     new_value = z3.BoolVal(True, z3ctx)
-    #     body = expr.body()
-    #     pred_name = body.decl()
-    #     sub = []
-    #     for i in range (0, body.num_args ()):
-    #         arg = body.arg (i)
-    #         if i != index: sub.append ((arg, arg))
-    #         else: sub.append((arg,new_value))
-    #     new_body = z3.substitute(body, sub)
-    #     if verbose: print 'Old Predicate: ', body, '\nNew Predicate: ', new_body
-    #     exists_var = []
-    #     for i in range (0, new_body.num_args ()):
-    #         arg = new_body.arg (i)
-    #         if z3.is_var(arg):
-    #             v_name = z3.Const("__n"+str(i), z3.BoolSort())
-    #             exists_var.append(v_name)
-    #     new_query = z3.Exists(exists_var, new_body)
-    #     merda = expr.eq(new_query) # Check if new and old query are the same, if they are the same you are done
-
-    #     if merda:
-    #         self.log.warning("Old and New Horn Query are the same.")
-    #         return None
-    #     return new_query
 
 
 
@@ -334,4 +337,6 @@ if __name__ == '__main__':
         main (sys.argv)
     except Exception as e:
         print str(e)
+    finally:
+        stats.brunch_print ()
     sys.exit (res)

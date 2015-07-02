@@ -15,7 +15,7 @@ import signal
 
 root = os.path.dirname (os.path.dirname (os.path.realpath (__file__)))
 verbose=False
-xml=False
+bench=False
 
 
 def isexec (fpath):
@@ -213,6 +213,8 @@ class Feas(object):
         self.ctx = ctx
         self.preds = []
         self.ee_idx = [] #entry/exit vars
+        self.feasible_flag = [] # keep track of the  feasible path
+        self.non_feasible_flag = [] # keep track of the infesible path
         return
 
     def solve(self, smt2_file):
@@ -222,11 +224,15 @@ class Feas(object):
         self.log.info("Start solving...")
         self.fp.set (engine='spacer')
         if self.args.stat:
-            self.fp.set('print.statistics',True)
+            self.fp.set('print_statistics',True)
+        if self.args.z3_verbose:
+            z3.set_option (verbose=1)
         self.fp.set('use_heavy_mev',True)
         self.fp.set('pdr.flexible_trace',True)
         self.fp.set('reset_obligation_queue',False)
         self.fp.set('spacer.elim_aux',False)
+
+
         if not self.args.pp:
             self.log.info("No pre-processing")
             self.fp.set ('xform.slice', False)
@@ -235,9 +241,13 @@ class Feas(object):
         with stats.timer ('Parse'):
             self.log.info('Parsing  ... ' + str(smt2_file))
             q = self.fp.parse_file (smt2_file)
+            stats.stop('Parse')
             self.preds = get_preds(self.fp)
             self.checkFeasibility(q[0])
 
+
+    def getLvl(self, stats):
+        return
 
     def checkFeasibility(self, expr_query):
         self.log.info("Check Feasibility .... ")
@@ -247,11 +257,12 @@ class Feas(object):
         if verbose: print "EE VARS INDEX:", self.ee_idx
         while not done:
             with stats.timer ('Query'):
-                res = self.fp.query (expr_query)
+                res = self.fp.query (expr_query) #if round == 0 else self.fp.query_from_lvl(12,expr_query)
                 if res == z3.sat:
                     msg = "ENTRY -> EXIT is FEASIBLE" if rounds==0 else "STILL FEASIBLE: Continue checking ..."
                     self.log.info(msg)
                     expr_query, path = self.cex(expr_query)
+                    self.feasible_flag = self.ee_idx
                     rounds += 1
                     if expr_query is None:
                         stat('Result', 'Feasible')
@@ -262,6 +273,9 @@ class Feas(object):
                     stat('Result', 'Infeasible')
                     stat('Rounds', str(rounds))
                     msg = "EXIT is not FEASIBLE" if rounds==0 else "INFEASIBLE BLOCK FOUND"
+                    if rounds == 0:
+                        self.feasible_flag.append(self.ee_idx[0])
+                        self.non_feasible_flag.append(self.ee_idx[1])
                     self.log.info(msg)
                     print "\n\t ========  Set of Invariants  ======== "
                     for p in self.preds:
@@ -270,7 +284,14 @@ class Feas(object):
                         print "Invariant: ", lemmas
                         print "-----------"
                     print "\t ======================================"
+
+                    print "\t FEASIBLE BLOCKS:", self.feasible_flag
+                    print "\t INFEASIBLE BLOCKS:", self.non_feasible_flag
+                    print "\t ======================================"
+                    stat('Feasible_blocks', str(self.feasible_flag))
+                    stat('Infeasible_blocks', str(self.non_feasible_flag))
                     done = True
+                stats.stop('Query')
             # debugging purpose
             if self.args.stop != None:
                 self.args.stop -=1
@@ -292,6 +313,8 @@ class Feas(object):
         true_idxs, false_idxs = self.tfFlags(fpred, flags_number)
         t_flags = [t for t in true_idxs if t not in self.ee_idx] # filter  entry/exit flags
         f_flags = [t for t in false_idxs if t not in self.ee_idx] # filter entry/exit flags
+        self.feasible_flag +=  t_flags
+        self.non_feasible_flag = f_flags
         if verbose: print "TRUE FLAGS:" + str(t_flags) ,  "\nFALSE FLAGS:" + str(f_flags)
         if f_flags == []:
             self.log.info("No failing flags ...")
@@ -519,9 +542,15 @@ def parseArgs (argv):
                     default=False, action='store_true')
     p.add_argument ('--verbose', help='Verbose', action='store_true',
                     default=False, dest="verbose")
+    p.add_argument ('--spacer_verbose', help='Spacer Verbose', action='store_true',
+                    default=False, dest="z3_verbose")
+    p.add_argument ('--bench', help='Output Benchmarking Info', action='store_true',
+                    default=False, dest="bench")
     pars = p.parse_args (argv)
     global verbose
     verbose = pars.verbose
+    global bench
+    bench = pars.bench
     return pars
 
 
@@ -571,5 +600,5 @@ if __name__ == '__main__':
     except Exception as e:
         print str(e)
     finally:
-        stats.brunch_print ()
+        if bench: stats.brunch_print ()
     sys.exit (res)

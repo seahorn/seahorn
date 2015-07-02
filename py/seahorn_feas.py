@@ -94,12 +94,12 @@ def getSeaPP ():
 
 def getClang ():
     names = ['clang-mp-3.6', 'clang-3.6', 'clang', 'clang-mp-3.5', 'clang-mp-3.4']
-    
+
     for n in names:
         clang = which (n)
         if clang is not None:
             return clang
-    raise IOError ('Cannot find clang (required)')    
+    raise IOError ('Cannot find clang (required)')
 
 ### Passes
 def defBCName (name, wd=None):
@@ -212,6 +212,7 @@ class Feas(object):
         self.fp = fp
         self.ctx = ctx
         self.preds = []
+        self.ee_idx = [] #entry/exit vars
         return
 
     def solve(self, smt2_file):
@@ -242,6 +243,8 @@ class Feas(object):
         self.log.info("Check Feasibility .... ")
         done = False
         rounds = 0 # counter for feasibility check
+        self.ee_idx = self.ee_vars(expr_query)
+        if verbose: print "EE VARS INDEX:", self.ee_idx
         while not done:
             with stats.timer ('Query'):
                 res = self.fp.query (expr_query)
@@ -283,14 +286,12 @@ class Feas(object):
         raw_cex = self.fp.get_ground_sat_answer()
         ground_sat = get_conjuncts(raw_cex)
         if verbose: print "RAW CEX:", ground_sat
-        ee_idx = self.ee_vars(qr)
-        if verbose: print "EE VARS INDEX:", ee_idx
         fpred = ground_sat[0] # inspecting the first predicate
         var_flags = self.getListFlags(fpred)
         flags_number = len(var_flags) + 1 # TODO Jorge
         true_idxs, false_idxs = self.tfFlags(fpred, flags_number)
-        t_flags = [t for t in true_idxs if t not in ee_idx] # filter  entry/exit flags
-        f_flags = [t for t in false_idxs if t not in ee_idx] # filter entry/exit flags
+        t_flags = [t for t in true_idxs if t not in self.ee_idx] # filter  entry/exit flags
+        f_flags = [t for t in false_idxs if t not in self.ee_idx] # filter entry/exit flags
         if verbose: print "TRUE FLAGS:" + str(t_flags) ,  "\nFALSE FLAGS:" + str(f_flags)
         if f_flags == []:
             self.log.info("No failing flags ...")
@@ -543,7 +544,7 @@ def main (argv):
         if args.seapp:
             pp_out = defPPName (in_name, workdir)
             assert pp_out != in_name
-            seapp (in_name, pp_out, arch=32, args=args)        
+            seapp (in_name, pp_out, arch=32, args=args)
             in_name = pp_out
 
         if args.opt:

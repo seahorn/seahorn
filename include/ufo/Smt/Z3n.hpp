@@ -586,7 +586,7 @@ namespace ufo
     ExprVector m_rels;
     ExprVector m_vars;
     ExprVector m_rules;
-    Expr m_query;
+    ExprVector m_queries;
 
   public:
 
@@ -640,13 +640,23 @@ namespace ufo
       Z3_fixedpoint_add_rule (ctx, fp, qexpr, static_cast<Z3_symbol>(0));
     }
 
-    void addQuery (Expr q) {m_query = q;}
+    void addQuery (Expr q) {m_queries.push_back (q);}
+
+    void addQueries (ExprVector qs) 
+    {
+      std::copy (qs.begin (), qs.end (), 
+                 std::back_inserter (m_queries));
+    }
 
     boost::tribool query (Expr q = Expr())
     {
-      if (q) m_query = q;
+      if (q) m_queries.push_back (q);
 
-      z3::ast ast (z3.toAst (m_query));
+      std::vector<Z3_ast> qs;
+      for (Expr e : m_queries)
+        qs.push_back (z3.toAst (e));
+
+      z3::ast ast = z3::ast (ctx, Z3_mk_and (ctx, qs.size (), &qs [0]));
 
       // -- existentially quantify all variables
       if (!m_vars.empty ())
@@ -675,9 +685,13 @@ namespace ufo
 
     std::string toString (Expr query = Expr())
     {
-      if (!query) query = m_query;
+      if (query) m_queries.push_back (query);
 
-      z3::ast ast (z3.toAst (query));
+      std::vector<Z3_ast> qs;
+      for (Expr e : m_queries)
+        qs.push_back (z3.toAst (e));
+
+      z3::ast ast = z3::ast (ctx, Z3_mk_and (ctx, qs.size (), &qs [0]));
 
       // -- existentially quantify all variables
       if (!m_vars.empty ())
@@ -770,8 +784,8 @@ namespace ufo
       forall (Expr &rule, fp.m_rules)
 	out << "(rule " << fp.z3.toSmtLib (rule) << ")\n";
 
-      if (fp.m_query)
-	out << "(query " << fp.z3.toSmtLib (fp.m_query) << ")\n";
+      for (auto q: fp.m_queries)
+	out << "(query " << fp.z3.toSmtLib (q) << ")\n";
       return out;
     }
 

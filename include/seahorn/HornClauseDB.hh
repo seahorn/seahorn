@@ -92,7 +92,7 @@ namespace seahorn
     ExprVector m_rels;
     mutable ExprVector m_vars;
     RuleVector m_rules;
-    Expr m_query;
+    ExprVector m_queries;
     std::map<Expr, ExprVector> m_constraints;
     
     const ExprVector &getVars () const;
@@ -128,9 +128,9 @@ namespace seahorn
     const RuleVector &getRules () const {return m_rules;}
     RuleVector &getRules () {return m_rules;}
 
-    void addQuery (Expr q) {m_query = q;}
-    Expr getQuery () const {return m_query;}
-    bool hasQuery () const {return m_query.get () != nullptr;}
+    void addQuery (Expr q) {m_queries.push_back (q);}
+    ExprVector getQueries () const {return m_queries;}
+    bool hasQuery () const {return !m_queries.empty ();}
     
 
     bool hasConstraints (Expr reln) const {return m_constraints.count (reln) > 0;}
@@ -172,7 +172,7 @@ namespace seahorn
           fp.addCover (pred, getConstraints (pred));
         }
       
-      if (!skipQuery && hasQuery ()) fp.addQuery (getQuery ());
+      if (!skipQuery) fp.addQueries (getQueries ());
     }
     
   };

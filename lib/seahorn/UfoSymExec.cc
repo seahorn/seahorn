@@ -17,8 +17,13 @@ static llvm::cl::opt<bool>
 GlobalConstraints("horn-global-constraints",
                   llvm::cl::desc
                   ("Maximize the use of global (i.e., unguarded) constraints"),
-                  cl::init (false),
-                  cl::Hidden);
+                  cl::init (false));
+
+static llvm::cl::opt<bool>
+StrictlyLinear ("horn-strictly-la",
+                llvm::cl::desc ("Generate strictly Linear Arithmetic constraints"),
+                cl::init (true));
+
 
 
 namespace
@@ -86,6 +91,42 @@ namespace
     void visitPHINode (PHINode &I) { /* do nothing */ }
     
      
+    Expr geq (Expr op0, Expr op1)
+    {
+      if (op0 == op1) return trueE;
+      if (isOpX<MPZ> (op0) && isOpX<MPZ> (op1))
+        return
+          getTerm<mpz_class> (op0) >=
+          getTerm<mpz_class> (op1) ? trueE : falseE;
+      
+      return mk<GEQ> (op0, op1);
+    }
+
+    Expr lt (Expr op0, Expr op1)
+    {
+      if (op0 == op1) return falseE;
+      if (isOpX<MPZ> (op0) && isOpX<MPZ> (op1))
+        return
+          getTerm<mpz_class> (op0) <
+          getTerm<mpz_class> (op1) ? trueE : falseE;
+      
+      return mk<LT> (op0, op1);
+    }
+    
+    Expr mkUnsignedLT (Expr op0, Expr op1)
+    {
+      Expr zero = mkTerm<mpz_class> (0, m_efac);
+      using namespace expr::op::boolop;
+      
+      return lite (geq (op0, zero),
+                      lite (geq (op1, zero),
+                            lt (op0, op1),
+                            trueE),
+                      lite (lt (op1, zero),
+                            lt (op0, op1),
+                            falseE));
+    }
+    
     void visitCmpInst (CmpInst &I)
     {
       Expr lhs = havoc (I);
@@ -109,18 +150,28 @@ namespace
         res = mk<IFF>(lhs, mk<NEQ>(op0,op1));
         break;
       case CmpInst::ICMP_UGT:
+        res = mk<IFF> (lhs, mkUnsignedLT (op1, op0));
+        break;
       case CmpInst::ICMP_SGT:
         res = mk<IFF>(lhs,mk<GT>(op0,op1));
         break;
       case CmpInst::ICMP_UGE:
+        res = mk<OR> (mk<IFF> (lhs, mk<EQ> (op0, op1)),
+                      mk<IFF> (lhs, mkUnsignedLT (op1, op0)));
+        break;
       case CmpInst::ICMP_SGE:
         res = mk<IFF>(lhs,mk<GEQ>(op0,op1));
         break;
       case CmpInst::ICMP_ULT:
+        res = mk<IFF> (lhs, mkUnsignedLT (op0, op1));
+        break;
       case CmpInst::ICMP_SLT:
         res = mk<IFF>(lhs,mk<LT>(op0,op1));
         break; 
       case CmpInst::ICMP_ULE:
+        res = mk<OR> (mk<IFF> (lhs, mk<EQ> (op0, op1)),
+                      mk<IFF> (lhs, mkUnsignedLT (op0, op1)));
+        break;
       case CmpInst::ICMP_SLE:
         res = mk<IFF>(lhs,mk<LEQ>(op0,op1));
         break;
@@ -133,6 +184,7 @@ namespace
       if (res)
         m_side.push_back (boolop::limp (act, res));
     }
+    
     
     void visitSelectInst(SelectInst &I)
     {
@@ -163,13 +215,15 @@ namespace
       case BinaryOperator::UDiv:
       case BinaryOperator::SDiv:
       case BinaryOperator::Shl:
+      case BinaryOperator::AShr:
+      case BinaryOperator::SRem:
+      case BinaryOperator::URem:
         doArithmetic (lhs, I);
         break;
           
       case BinaryOperator::And:
       case BinaryOperator::Or:
       case BinaryOperator::Xor:
-      case BinaryOperator::AShr:
       case BinaryOperator::LShr:
         doLogic(lhs, I);
         break;
@@ -224,6 +278,18 @@ namespace
       Expr res = mk<EQ>(lhs ,mk<MULT>(op1, mkTerm<mpz_class> (factor, m_efac)));        
       return res;
     }
+    Expr doAShr (Expr lhs, Expr op1, const ConstantInt *op2)
+    {
+      mpz_class shift = expr::toMpz (op2->getValue ());
+      mpz_class factor = 1;
+      for (unsigned long i = 0; i < shift.get_ui (); ++i) 
+      {
+          factor = factor * 2;
+      }
+      Expr res = mk<EQ>(lhs ,mk<DIV>(op1, mkTerm<mpz_class> (factor, m_efac)));        
+      return res;      
+    }
+    
 
 
     void doArithmetic (Expr lhs, BinaryOperator &i)
@@ -239,27 +305,43 @@ namespace
       Expr res;
       switch(i.getOpcode())
       {
-        case BinaryOperator::Add:
-          res = mk<EQ>(lhs ,mk<PLUS>(op1, op2));
-            break;
-        case BinaryOperator::Sub:
-          res = mk<EQ>(lhs ,mk<MINUS>(op1, op2));
-          break;
-        case BinaryOperator::Mul:
+      case BinaryOperator::Add:
+        res = mk<EQ>(lhs ,mk<PLUS>(op1, op2));
+        break;
+      case BinaryOperator::Sub:
+        res = mk<EQ>(lhs ,mk<MINUS>(op1, op2));
+        break;
+      case BinaryOperator::Mul:
+        // if StrictlyLinear, then require that at least one
+        // argument is a constant
+        if (!StrictlyLinear || 
+            isOpX<MPZ> (op1) || isOpX<MPZ> (op2) || 
+            isOpX<MPQ> (op1) || isOpX<MPQ> (op2))
           res = mk<EQ>(lhs ,mk<MULT>(op1, op2));
-          break;
-        case BinaryOperator::SDiv:
-        case BinaryOperator::UDiv:
+        break;
+      case BinaryOperator::SDiv:
+      case BinaryOperator::UDiv:
+        // if StrictlyLinear then require that divisor is a constant
+        if (!StrictlyLinear || 
+            isOpX<MPZ> (op2) || isOpX<MPQ> (op2))
           res = mk<EQ>(lhs ,mk<DIV>(op1, op2));
-          break;
-        case BinaryOperator::Shl:
-          if (const ConstantInt *ci = dyn_cast<ConstantInt> (&v2))
-          {
-            res = doLeftShift(lhs, op1, ci);
-            break;
-          }
-        default:
-          break;
+        break;
+      case BinaryOperator::SRem:
+      case BinaryOperator::URem:
+        // if StrictlyLinear then require that divisor is a constant
+        if (StrictlyLinear || isOpX<MPZ> (op2) || isOpX<MPQ> (op2))
+          res = mk<EQ> (lhs, mk<REM> (op1, op2));
+        break;
+      case BinaryOperator::Shl:
+        if (const ConstantInt *ci = dyn_cast<ConstantInt> (&v2))
+          res = doLeftShift(lhs, op1, ci);
+        break;
+      case BinaryOperator::AShr:
+        if (const ConstantInt *ci = dyn_cast<ConstantInt> (&v2))
+          res = doAShr (lhs, op1, ci);
+        break;
+      default:
+        break;
       }
 
       Expr act = GlobalConstraints ? trueE : m_activeLit;

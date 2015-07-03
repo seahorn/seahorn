@@ -51,7 +51,8 @@ namespace seahorn
                               NULL));
    
     B.addAttribute (Attribute::NoReturn);
-    B.addAttribute (Attribute::ReadNone);
+    // XXX LLVM optimizer removes ReadNone functions even if they do not return!
+    // B.addAttribute (Attribute::ReadNone);
     
     as = AttributeSet::get (Context, 
                            AttributeSet::FunctionIndex, B);

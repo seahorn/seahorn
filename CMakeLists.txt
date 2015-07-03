@@ -4,7 +4,7 @@ project (SeaHorn)
 set (SeaHorn_VERSION_MAJOR 0)
 set (SeaHorn_VERSION_MINOR 1)
 set (SeaHorn_VERSION_PATCH 0)
-set (SeaHorn_VERSION_TWEAK "rc1")
+set (SeaHorn_VERSION_TWEAK "rc2")
 
 if (NOT PACKAGE_VERSION)
   set(PACKAGE_VERSION

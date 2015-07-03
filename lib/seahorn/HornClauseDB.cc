@@ -65,9 +65,10 @@ namespace seahorn
     { oss << p << "\n"; }
     oss << "Clauses:\n;";
     for (auto &r : m_rules)
-    { oss << r.body () << "\n"; }
-    oss << "Query:\n;";
-    oss << m_query << "\n";
+    { oss << r.head () << " <- " << r.body () << ".\n"; }
+    oss << "Queries:\n;";
+    for (auto &q : m_queries)
+    { oss << q << "\n"; }
     o << oss.str ();
     o.flush ();
     return o;

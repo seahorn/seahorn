@@ -1,3 +1,21 @@
+/**
+SeaHorn Verification Framework
+Copyright (c) 2015 Carnegie Mellon University.
+All Rights Reserved.
+
+THIS SOFTWARE IS PROVIDED "AS IS," WITH NO WARRANTIES
+WHATSOEVER. CARNEGIE MELLON UNIVERSITY EXPRESSLY DISCLAIMS TO THE
+FULLEST EXTENT PERMITTEDBY LAW ALL EXPRESS, IMPLIED, AND STATUTORY
+WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, AND
+NON-INFRINGEMENT OF PROPRIETARY RIGHTS.
+
+Released under a modified BSD license, please see license.txt for full
+terms.
+
+DM-0002198
+*/
+
 #define DEBUG_TYPE "name-values"
 
 #include "ufo/Passes/NameValues.hpp"
@@ -61,7 +79,7 @@ namespace ufo
 	    std::string bb_line = *line_iter;
 	    tokenizer names (bb_line, sp_sep);
 	    std::string bb_name = *names.begin ();
-            if (bb_name == ";") bb_name = "un";
+            if (bb_name == ";") bb_name = "bb";
             LOG ("nv", errs () << "Found BB name: " << bb_name << "\n";);
             
 	    BB.setName ("_" + bb_name);

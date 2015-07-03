@@ -45,15 +45,19 @@ TL("horn-sem-lvl",
    cl::init (seahorn::REG));
 
 
-namespace hm_detail {enum Step {SMALL_STEP, LARGE_STEP, CLP_SMALL_STEP, FLAT_LARGE_STEP};}
+namespace hm_detail {enum Step {SMALL_STEP, LARGE_STEP, 
+                                CLP_SMALL_STEP, CLP_FLAT_SMALL_STEP,
+                                FLAT_SMALL_STEP, FLAT_LARGE_STEP};}
 
 static llvm::cl::opt<enum hm_detail::Step>
 Step("horn-step",
      llvm::cl::desc ("Step to use for the encoding"),
      cl::values (clEnumValN (hm_detail::SMALL_STEP, "small", "Small Step"),
                  clEnumValN (hm_detail::LARGE_STEP, "large", "Large Step"),
+                 clEnumValN (hm_detail::FLAT_SMALL_STEP, "fsmall", "Flat Small Step"),
                  clEnumValN (hm_detail::FLAT_LARGE_STEP, "flarge", "Flat Large Step"),
                  clEnumValN (hm_detail::CLP_SMALL_STEP, "clpsmall", "CLP Small Step"),
+                 clEnumValN (hm_detail::CLP_FLAT_SMALL_STEP, "clpfsmall","CLP Flat Small Step"),
                  clEnumValEnd),
      cl::init (hm_detail::SMALL_STEP));
 
@@ -80,14 +84,16 @@ namespace seahorn
     m_td = &getAnalysis<DataLayoutPass> ().getDataLayout ();
     m_canFail = getAnalysisIfAvailable<CanFail> ();
 
-    // Initially the program is safe. It error is possible then query
-    // will be overwritten
-    m_db.addQuery (mk<FALSE> (m_efac));
-
+#if 0
     // Check syntactically if error is possible. If not the program is
     // trivially safe.
     Function *main = M.getFunction ("main");
-    if (!main) return Changed;
+    if (!main)
+    {
+      // program trivially safe
+      m_db.addQuery (mk<FALSE> (m_efac));
+      return Changed;
+    }
     
     bool canFail = false;
     Function* failureFn = M.getFunction ("seahorn.fail");
@@ -115,9 +121,16 @@ namespace seahorn
             canFail = true; 
       }
     }
-    if (!canFail) return Changed;
+    if (!canFail)
+    {
+      // program trivially safe
+      m_db.addQuery (mk<FALSE> (m_efac));
+      return Changed;
+    }
+#endif 
     
-    if (Step == hm_detail::CLP_SMALL_STEP)
+    if (Step == hm_detail::CLP_SMALL_STEP || 
+        Step == hm_detail::CLP_FLAT_SMALL_STEP)
       m_sem.reset (new ClpSmallSymExec (m_efac, *this, TL));
     else
       m_sem.reset (new UfoSmallSymExec (m_efac, *this, TL));
@@ -176,6 +189,11 @@ namespace seahorn
       if (f) Changed = (runOnFunction (*f) || Changed);
     }
 
+    if (!m_db.hasQuery ())
+    {
+      // program trivially safe
+      m_db.addQuery (mk<FALSE> (m_efac));
+    }
 
     /**
        TODO:
@@ -241,6 +259,9 @@ namespace seahorn
                                            (*this, InterProc));
     if (Step == hm_detail::LARGE_STEP)
       hf.reset (new LargeHornifyFunction (*this, InterProc));
+    else if (Step == hm_detail::FLAT_SMALL_STEP || 
+             Step == hm_detail::CLP_FLAT_SMALL_STEP)
+      hf.reset (new FlatSmallHornifyFunction (*this, InterProc));
     else if (Step == hm_detail::FLAT_LARGE_STEP)
       hf.reset (new FlatLargeHornifyFunction (*this, InterProc));
 

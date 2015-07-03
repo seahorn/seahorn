@@ -71,7 +71,7 @@ loop-free program block.
 - `-g` : compiles with debug information for more trackable
   counterexamples.
 
-`sea-pf` is a pipeline that runs multiple commands. Individual parts
+`sea pf` is a pipeline that runs multiple commands. Individual parts
 of the pipeline can be ran separately as well:
 
 1. `sea fe file.c -o file.bc`: SeaHorn frontend translates a C program

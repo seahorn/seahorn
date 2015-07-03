@@ -129,8 +129,9 @@ namespace seahorn
           if (std::distance (e.begin (), e.end ()) != 1) return nullptr; 
           auto t = *(e.begin ());
           varname_t v = t.second.name();
-          if (v.get ()->getType ()->isIntegerTy (1))
-            return v.get (); 
+          assert (v.get () && "Cannot have shadow vars");
+          if ( (*(v.get ()))->getType ()->isIntegerTy (1))
+            return *(v.get ()); 
           else return nullptr; 
         }
         
@@ -142,7 +143,8 @@ namespace seahorn
 
           auto e = cst.expression() - cst.expression().constant();
           auto t = *(e.begin ());
-          m_var  = t.second.name ().get ();
+          assert (t.second.name ().get () && "Cannot have shadow vars");
+          m_var  = *(t.second.name ().get ());
           m_coef = t.first;
           m_rhs  = -cst.expression().constant();
           
@@ -216,7 +218,8 @@ namespace seahorn
        
       Expr unmarshal_int_var( varname_t v, ExprFactory &efac)
       {
-        Expr e = mkTerm<const Value*>(v.get(), efac);
+        assert (v.get () && "Cannot have shadow vars");
+        Expr e = mkTerm<const Value*>(*(v.get()), efac);
         return bind::intConst (e);
       }
        
@@ -244,7 +247,7 @@ namespace seahorn
         }
         
         // integers
-        ZLinearExpression e = cst.expression() - cst.expression().constant();
+        auto e = cst.expression() - cst.expression().constant();
         Expr ee = unmarshal_num ( ikos::z_number ("0"), efac);
         for (auto t : e)
         {

@@ -83,10 +83,11 @@ of the pipeline can be ran separately as well:
   can choose between different encoding styles with several levels of
   precision by adding:
 
-   - `--step={small,large,flarge}` where `small` is small step
-      encoding, `large` is block-large encoding, and `flarge`:
-      block-large encoding producing flat Horn clauses (i.e., it
-      generates a transition system with only one predicate).
+   - `--step={small,large,fsmall,flarge}` where `small` is small step
+      encoding, `large` is block-large encoding, `fsmall` is small
+      step encoding producing flat Horn clauses (i.e., it generates a
+      transition system with only one predicate), and `flarge`:
+      block-large encoding producing flat Horn clauses.
 
    - `--track={reg,ptr,mem}` where `reg` only models integer
       scalars, `ptr` models `reg` and pointer addresses, and `mem`

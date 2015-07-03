@@ -205,6 +205,15 @@ def seahorn (in_name, out_name, opts, cex = None, cpu = -1, mem = -1):
     if returnvalue != 0: sys.exit (returnvalue)
 
 
+
+out_message = ("""
+FUNCTION NAME = %s
+RESULT = %s
+SET OF INVARIANTS = %s
+FEASIBLE FLAGS  = %s
+INFEASIBLE FLAGS = %s
+""")
+
 class Feas(object):
     def __init__(self, args, ctx, fp):
         self.log = LoggingManager.get_logger(__name__)
@@ -231,8 +240,6 @@ class Feas(object):
         self.fp.set('pdr.flexible_trace',True)
         self.fp.set('reset_obligation_queue',False)
         self.fp.set('spacer.elim_aux',False)
-
-
         if not self.args.pp:
             self.log.info("No pre-processing")
             self.fp.set ('xform.slice', False)
@@ -240,62 +247,71 @@ class Feas(object):
             self.fp.set ('xform.inline_eager',False)
         with stats.timer ('Parse'):
             self.log.info('Parsing  ... ' + str(smt2_file))
-            q = self.fp.parse_file (smt2_file)
+            queries = self.fp.parse_file (smt2_file)
             stats.stop('Parse')
             self.preds = get_preds(self.fp)
-            self.checkFeasibility(q[0])
+            n_function = len(queries)
+            self.log.info("How many functions? " + str(n_function))
+            stat("Function_Numbers", n_function)
+            # TODO: Put them in a multithreading function
+            all_results = ""
+            for q in queries:
+                decl = q.body().decl()
+                function_name = str(decl).split("@")[0]
+                self.log.info("Check Feasibility : "+ str(function_name))
+                try:
+                    out = self.checkFeasibility(q, function_name)
+                    all_results += out + "\n-----------------------\n"
+                except Exception as e:
+                    self.log.exception("Solving " + function_name)
+            print "\n\t ========= FEASIBILITY RESULTS ========"
+            print all_results
 
-
-    def getLvl(self, stats):
-        return
-
-    def checkFeasibility(self, expr_query):
-        self.log.info("Check Feasibility .... ")
+    def checkFeasibility(self, expr_query, function_name):
         done = False
         rounds = 0 # counter for feasibility check
         self.ee_idx = self.ee_vars(expr_query)
         if verbose: print "EE VARS INDEX:", self.ee_idx
+        out = ""
         while not done:
             with stats.timer ('Query'):
                 res = self.fp.query (expr_query) #if round == 0 else self.fp.query_from_lvl(12,expr_query)
                 if res == z3.sat:
                     msg = "ENTRY -> EXIT is FEASIBLE" if rounds==0 else "STILL FEASIBLE: Continue checking ..."
-                    self.log.info(msg)
+                    self.log.info("( " + function_name + " ) " + msg)
                     expr_query, path = self.cex(expr_query)
                     self.feasible_flag = self.ee_idx
                     rounds += 1
                     if expr_query is None:
-                        stat('Result', 'Feasible')
+                        result = "[%s], Feasible" % function_name
+                        stat('Result', result)
                         stat('Rounds', str(rounds))
+                        out += out_message % (function_name, "FEASIBLE", "", str(self.feasible_flag),  str(self.non_feasible_flag))
                         done = True
-                        self.log.info("ALL CODE is FEASIBLE")
                 elif res == z3.unsat:
-                    stat('Result', 'Infeasible')
+                    result = "[%s], Infeasible" % function_name
+                    stat('Result', result)
                     stat('Rounds', str(rounds))
                     msg = "EXIT is not FEASIBLE" if rounds==0 else "INFEASIBLE BLOCK FOUND"
                     if rounds == 0:
                         self.feasible_flag.append(self.ee_idx[0])
                         self.non_feasible_flag.append(self.ee_idx[1])
-                    self.log.info(msg)
-                    print "\n\t ========  Set of Invariants  ======== "
+                    self.log.info(" ( " + function_name + " ) " + msg)
+                    inv =  "\n"
                     for p in self.preds:
                         lemmas = fp_get_cover_delta (self.fp, p)
-                        print  "Basic Block: ", p.decl()
-                        print "Invariant: ", lemmas
-                        print "-----------"
-                    print "\t ======================================"
-
-                    print "\t FEASIBLE BLOCKS:", self.feasible_flag
-                    print "\t INFEASIBLE BLOCKS:", self.non_feasible_flag
-                    print "\t ======================================"
-                    stat('Feasible_blocks', str(self.feasible_flag))
-                    stat('Infeasible_blocks', str(self.non_feasible_flag))
+                        inv += "Basic Block: " + str(p.decl())
+                        inv += "\nInvariant: " + str(lemmas)
+                        inv += "\n-----------\n"
+                    inv_info = inv if self.args.inv else "(set --inv to get invariants info)"
+                    out += out_message % (function_name, "INFEASIBLE", inv_info, str(self.feasible_flag),  str(self.non_feasible_flag))
                     done = True
                 stats.stop('Query')
             # debugging purpose
             if self.args.stop != None:
                 self.args.stop -=1
                 done = self.args.stop==0
+        return out
 
     def cex(self, qr):
         """
@@ -523,6 +539,8 @@ def parseArgs (argv):
                     default=False, dest="z3_verbose")
     p.add_argument ('--bench', help='Output Benchmarking Info', action='store_true',
                     default=False, dest="bench")
+    p.add_argument ('--inv', help='Outpu Invariants', action='store_true',
+                    default=False, dest="inv")
     pars = p.parse_args (argv)
     global verbose
     verbose = pars.verbose

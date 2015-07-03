@@ -210,7 +210,7 @@ namespace seahorn{
       }
     }
 
-    if (F.getName ().equals ("main"))
+    //if (F.getName ().equals ("main"))
     {
         ExprVector lv;
         for (unsigned i=0; i< bbOrder.size (); i++)

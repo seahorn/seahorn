@@ -307,7 +307,7 @@ class Feas(object):
         raw_cex = self.fp.get_ground_sat_answer()
         ground_sat = get_conjuncts(raw_cex)
         if verbose: print "RAW CEX:", ground_sat
-        fpred = ground_sat[0] # inspecting the first predicate
+        fpred = ground_sat[0] if len(ground_sat[0].children()) != 0 else ground_sat[1] # inspecting the first predicate
         var_flags = self.getListFlags(fpred)
         flags_number = len(var_flags) + 1 # TODO Jorge
         true_idxs, false_idxs = self.tfFlags(fpred, flags_number)
@@ -395,12 +395,6 @@ class Feas(object):
         return v1
 
 
-    def filterFlags(self, t_flags, f_flags, ee_flags):
-
-        print t_flags, f_flags
-        return
-
-
     def tfFlags(self, pred, flags_len):
         """
         return two lists, one for true and one false flags
@@ -435,23 +429,6 @@ class Feas(object):
 
 
 
-
-
-
-
-def split_body (body):
-  """ Splits body into Pred and Tail, where Pred is the only
-  uninterpreted predicate (instance), and tail is all interpreted"""
-  pred = getFirstConjunct (body)
-  if pred.decl ().kind () != z3.Z3_OP_UNINTERPRETED:
-    pred = None
-    tail = body.children ()
-  else:
-    assert body.num_args () > 0
-    tail = []
-    if z3.is_and (body):
-      tail.extend (body.children ()[1:])
-  return pred, tail
 
 
 def fp_add_cover (fp, pred, lemma, level=-1):

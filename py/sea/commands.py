@@ -54,7 +54,10 @@ class Clang(sea.LimitedCmd):
         if cmd_name is None: raise IOError ('clang not found')
         self.clangCmd = sea.ExtCmd (cmd_name)
         
-        argv = ['-c', '-emit-llvm']
+        argv = ['-c', '-emit-llvm', '-D__SEAHORN__']
+
+        argv.extend (filter (lambda s : s.startswith ('-D'), extra))
+        
         if args.llvm_asm: argv.append ('-S')
         argv.append ('-m{0}'.format (args.machine))
         
@@ -131,7 +134,7 @@ class MixedSem(sea.LimitedCmd):
 
     def mk_arg_parser (self, ap):
         ap = super (MixedSem, self).mk_arg_parser (ap)
-        ap.add_argument ('--ms-skip', dest='ms_skip', help='Skip mixed semantics',
+        ap.add_argument ('--no-ms', dest='ms_skip', help='Skip mixed semantics',
                          default=False, action='store_true')
         ap.add_argument ('--no-reduce-main', dest='reduce_main',
                          help='Do not reduce main to return paths only',
@@ -171,6 +174,10 @@ class Seaopt(sea.LimitedCmd):
         ap = super (Seaopt, self).mk_arg_parser (ap)
         ap.add_argument ('-O', type=int, dest='opt_level', metavar='INT',
                          help='Optimization level L:[0,1,2,3]', default=3)
+        ap.add_argument ('--enable-indvar', dest='enable_indvar', default=False,
+                         action='store_true')
+        ap.add_argument ('--enable-loop-idiom', dest='enable_loop_idiom', default=False,
+                         action='store_true')
         add_in_out_args (ap)
         _add_S_arg (ap)
         return ap
@@ -185,6 +192,12 @@ class Seaopt(sea.LimitedCmd):
             argv.extend (['-o', args.out_file])
         if args.opt_level > 0 and args.opt_level <= 3:
             argv.append('-O{0}'.format (args.opt_level))
+            
+        if not args.enable_indvar:
+            argv.append ('--enable-indvar=false')
+        if not args.enable_loop_idiom:
+            argv.append ('--enable-loop-idiom=false')
+            
         argv.append (args.in_file)
         if args.llvm_asm: argv.append ('-S')
         return self.seaoptCmd.run (args, argv)
@@ -232,6 +245,13 @@ class Seahorn(sea.LimitedCmd):
         ap.add_argument ('--track',
                          help='Track registers, pointers, and memory',
                          choices=['reg', 'ptr', 'mem'], default='mem')
+        ap.add_argument ('--ikos',
+                         help='Enable IKOS abstract interpreter',
+                         dest='ikos', default=False, action='store_true')
+        ap.add_argument ('--show-invars',
+                         help='Display computed invariants',
+                         dest='show_invars', default=False, action='store_true')
+                         
                          
         return ap
 
@@ -241,7 +261,12 @@ class Seahorn(sea.LimitedCmd):
         self.seahornCmd = sea.ExtCmd (cmd_name)
         
         argv = list()
-        if args.solve: argv.append ('--horn-solve')
+        if args.solve:
+            argv.append ('--horn-solve')
+            if args.ikos:
+                argv.append ('--horn-ikos')
+            if args.show_invars:
+                argv.append ('--horn-answer')
         if args.cex is not None and args.solve:
             argv.append ('-horn-cex')
             argv.append ('-horn-svcomp-cex={0}'.format (args.cex))

@@ -84,15 +84,16 @@ namespace seahorn
     m_td = &getAnalysis<DataLayoutPass> ().getDataLayout ();
     m_canFail = getAnalysisIfAvailable<CanFail> ();
 
-    // Initially the program is safe. It error is possible then query
-    // will be overwritten
-    m_db.addQuery (mk<FALSE> (m_efac));
-
 #if 0
     // Check syntactically if error is possible. If not the program is
     // trivially safe.
     Function *main = M.getFunction ("main");
-    if (!main) return Changed;
+    if (!main)
+    {
+      // program trivially safe
+      m_db.addQuery (mk<FALSE> (m_efac));
+      return Changed;
+    }
     
     bool canFail = false;
     Function* failureFn = M.getFunction ("seahorn.fail");
@@ -117,7 +118,12 @@ namespace seahorn
             canFail = true; 
       }
     }
-    if (!canFail) return Changed;
+    if (!canFail)
+    {
+      // program trivially safe
+      m_db.addQuery (mk<FALSE> (m_efac));
+      return Changed;
+    }
 #endif 
     
     if (Step == hm_detail::CLP_SMALL_STEP || 
@@ -180,6 +186,11 @@ namespace seahorn
       if (f) Changed = (runOnFunction (*f) || Changed);
     }
 
+    if (!m_db.hasQuery ())
+    {
+      // program trivially safe
+      m_db.addQuery (mk<FALSE> (m_efac));
+    }
 
     /**
        TODO:

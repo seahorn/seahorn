@@ -311,6 +311,8 @@ namespace ufo
 	    res = Z3_mk_div (ctx, t1, t2);
           else if (isOpX<MOD> (e))
             res = Z3_mk_mod (ctx, t1, t2);
+          else if (isOpX<REM> (e))
+            res = Z3_mk_rem (ctx, t1, t2);
 
 	  /** Comparison Op */
 	  else if (isOpX<EQ>(e))
@@ -680,8 +682,11 @@ namespace ufo
           e = mknary<IDIV> (args.begin (), args.end ());
           break;
 	case Z3_OP_MOD:
-	  e = mknary<MOD> (args.begin(), args.end());
+	  e = mknary<MOD> (args.begin (), args.end ());
 	  break;
+        case Z3_OP_REM:
+          e = mknary<REM> (args.begin (), args.end ());
+          break;
         case Z3_OP_CONST_ARRAY:
           e = mknary<CONST_ARRAY> (args.begin (), args.end ());
           break;

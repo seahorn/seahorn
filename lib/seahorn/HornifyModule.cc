@@ -84,13 +84,19 @@ namespace seahorn
     m_td = &getAnalysis<DataLayoutPass> ().getDataLayout ();
     m_canFail = getAnalysisIfAvailable<CanFail> ();
 
-#if 0
-    // Check syntactically if error is possible. If not the program is
-    // trivially safe.
+    if (Step == hm_detail::CLP_SMALL_STEP || 
+        Step == hm_detail::CLP_FLAT_SMALL_STEP)
+      m_sem.reset (new ClpSmallSymExec (m_efac, *this, TL));
+    else
+      m_sem.reset (new UfoSmallSymExec (m_efac, *this, TL));
+
+
+    /// --- check syntactically if error is possible. If not the
+    ///     program is trivially safe.
+
     Function *main = M.getFunction ("main");
     if (!main)
-    {
-      // program trivially safe
+    { // program trivially safe
       m_db.addQuery (mk<FALSE> (m_efac));
       return Changed;
     }
@@ -99,7 +105,8 @@ namespace seahorn
     Function* failureFn = M.getFunction ("seahorn.fail");
     Function* errorFn = M.getFunction ("verifier.error");
 
-    for (auto &I : boost::make_iterator_range (inst_begin(*main), inst_end (*main)))
+    for (auto &I : boost::make_iterator_range (inst_begin(*main), 
+                                               inst_end (*main)))
     {
       if (!isa<CallInst> (&I)) continue;
       // -- look through pointer casts
@@ -121,20 +128,13 @@ namespace seahorn
             canFail = true; 
       }
     }
+
     if (!canFail)
-    {
-      // program trivially safe
+    { // program trivially safe
       m_db.addQuery (mk<FALSE> (m_efac));
       return Changed;
     }
-#endif 
     
-    if (Step == hm_detail::CLP_SMALL_STEP || 
-        Step == hm_detail::CLP_FLAT_SMALL_STEP)
-      m_sem.reset (new ClpSmallSymExec (m_efac, *this, TL));
-    else
-      m_sem.reset (new UfoSmallSymExec (m_efac, *this, TL));
-
     // create FunctionInfo for verifier.error() function
     if (Function* errorFn = M.getFunction ("verifier.error"))
     {

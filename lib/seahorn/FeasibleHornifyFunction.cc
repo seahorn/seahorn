@@ -220,8 +220,11 @@ namespace seahorn{
           lv.push_back (s.read (rflags[i]));
         }
 
-        lv.insert (lv.end (),
-                   ls.live (exit).begin (), ls.live (exit).end ());
+        // lv.insert (lv.end (),
+        //            ls.live (exit).begin (), ls.live (exit).end ());
+	for (auto v: ls.live (exit))
+	  lv.push_back (s.read (v));
+
         m_db.addQuery (bind::fapp (bbPredicate (*exit), lv));
         LOG("seahorn", errs() << "Adding query : " <<
             *(bind::fapp (bbPredicate (*exit), lv)) << "\n";);

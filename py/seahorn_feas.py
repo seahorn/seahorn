@@ -256,16 +256,21 @@ class Feas(object):
             # TODO: Put them in a multithreading function
             all_results = ""
             for q in queries:
-                decl = q.body().decl()
-                function_name = str(decl).split("@")[0]
-                self.log.info("Check Feasibility : "+ str(function_name))
-                try:
-                    out = self.checkFeasibility(q, function_name)
-                    all_results += out + "\n-----------------------\n"
-                except Exception as e:
-                    self.log.exception("Solving " + function_name)
+                if z3.is_quantifier(q):
+                    decl = q.body().decl()
+                    function_name = str(decl).split("@")[0]
+                    self.log.info("Check Feasibility : "+ str(function_name))
+                    try:
+                        out = self.checkFeasibility(q, function_name)
+                        all_results += out + "\n-----------------------\n"
+                    except Exception as e:
+                        self.log.exception("Solving " + function_name)
+                else:
+                    function_name = str(q.decl()).split("@")[0]
+                    all_results += out_message % (function_name, "FEASIBLE", "", "Trivial", "")
             print "\n\t ========= FEASIBILITY RESULTS ========"
             print all_results
+
 
     def checkFeasibility(self, expr_query, function_name):
         done = False
@@ -305,6 +310,7 @@ class Feas(object):
                         inv += "\n-----------\n"
                     inv_info = inv if self.args.inv else "(set --inv to get invariants info)"
                     out += out_message % (function_name, "INFEASIBLE", inv_info, str(self.feasible_flag),  str(self.non_feasible_flag))
+
                     done = True
                 stats.stop('Query')
             # debugging purpose

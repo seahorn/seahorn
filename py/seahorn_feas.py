@@ -243,6 +243,7 @@ class Feas(object):
         self.fp.set('pdr.flexible_trace',True)
         self.fp.set('reset_obligation_queue',False)
         self.fp.set('spacer.elim_aux',False)
+        if self.args.utvpi: self.fp.set('pdr.utvpi', False)
         if not self.args.pp:
             self.log.info("No pre-processing")
             self.fp.set ('xform.slice', False)
@@ -555,6 +556,8 @@ def parseArgs (argv):
                     default=False, dest="bench")
     p.add_argument ('--inv', help='Outpu Invariants', action='store_true',
                     default=False, dest="inv")
+    p.add_argument ('--no_dl', help='Disable Difference Logic (UTVPI) in SPACER', action='store_true',
+                    default=False, dest="utvpi")
     pars = p.parse_args (argv)
     global verbose
     verbose = pars.verbose

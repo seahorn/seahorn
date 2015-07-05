@@ -282,7 +282,8 @@ class Feas(object):
                         self.log.exception("Solving " + function_name)
                 else:
                     function_name = str(q.decl()).split("@")[0]
-                    all_results += out_message % (function_name, "FEASIBLE", "", "Trivial", "")
+                    out = out_message % (function_name, "FEASIBLE", "", "Trivial", "")
+                    all_results += bcolors.OKGREEN + out + bcolors.ENDC
             print "\n\t ========= FEASIBILITY RESULTS ========"
             print all_results
 
@@ -307,6 +308,7 @@ class Feas(object):
                         stat('Result', result)
                         stat('Rounds', str(rounds))
                         out += out_message % (function_name, "FEASIBLE", "", str(self.feasible_flag),  str(self.non_feasible_flag))
+                        out = bcolors.OKGREEN + out + bcolors.ENDC
                         done = True
                 elif res == z3.unsat:
                     result = "[%s], Infeasible" % function_name
@@ -325,7 +327,7 @@ class Feas(object):
                         inv += "\n-----------\n"
                     inv_info = inv if self.args.inv else "(set --inv to get invariants info)"
                     out += out_message % (function_name, "INFEASIBLE", inv_info, str(self.feasible_flag),  str(self.non_feasible_flag))
-
+                    out = bcolors.FAIL + out + bcolors.ENDC
                     done = True
                 stats.stop('Query')
             # debugging purpose

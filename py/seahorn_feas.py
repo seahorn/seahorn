@@ -142,9 +142,13 @@ def seapp (in_name, out_name, arch, args, extra_args=[]):
     seapp_args = [getSeaPP (), '-o', out_name, in_name ]
     seapp_args.extend (extra_args)
 
-    if verbose: print ' '.join (seapp_args)
-    subprocess.check_call (seapp_args)
+    if args.entry_point is not None:
+      seapp_args.extend ([''.join (['--entry-point=\"',args.entry_point,'\"'])])
 
+    if verbose: print ' '.join (seapp_args)
+
+    #subprocess.check_call (seapp_args)
+    subprocess.check_call (' '.join (seapp_args), shell=True)
 
 # Run Opt
 def llvmOpt (in_name, out_name, opt_level=3, time_passes=False, cpu=-1):
@@ -183,7 +187,6 @@ def seahorn (in_name, out_name, opts, cex = None, cpu = -1, mem = -1):
                     '-horn-step=feasiblesmall',
                     '-o', out_name]
     seahorn_cmd.extend (opts)
-    #if cex is not None: seahorn_cmd.append ('--horn-svcomp-cex={}'.format (cex))
     if verbose: print ' '.join (seahorn_cmd)
 
     p = subprocess.Popen (seahorn_cmd, preexec_fn=set_limits)
@@ -517,6 +520,11 @@ def parseArgs (argv):
     p.add_argument ('--smt2', dest='is_smt2',
                     help='Benchmark file is in smt2 format',
                     action='store_true', default=False)
+    p.add_argument ('--bc', dest='bc',
+                    help='LLVM bitecode format',
+                    action='store_true', default=False)
+    p.add_argument ('--entry', metavar='FUNCNAME', dest='entry_point',
+                    help='Entry point to the program (--seapp must be enabled)', default=None)
     p.add_argument ('--seapp', dest='seapp',
                     help='Enable Seahorn preprocessor',
                     action='store_true', default=False)
@@ -564,12 +572,12 @@ def main (argv):
     if not args.is_smt2:
         workdir = createWorkDir (args.temp_dir, args.save_temps)
 
-        bc_out = defBCName (in_name, workdir)
-        assert bc_out != in_name
-        extra_args = []
-        clang (in_name, bc_out, arch=32, extra_args=extra_args)
-
-        in_name = bc_out
+        if not args.bc:
+            bc_out = defBCName (in_name, workdir)
+            assert bc_out != in_name
+            extra_args = []
+            clang (in_name, bc_out, arch=32, extra_args=extra_args)
+            in_name = bc_out
 
         if args.seapp:
             pp_out = defPPName (in_name, workdir)

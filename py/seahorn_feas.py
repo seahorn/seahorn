@@ -16,7 +16,7 @@ import signal
 root = os.path.dirname (os.path.dirname (os.path.realpath (__file__)))
 verbose=False
 bench=False
-
+running_process = None
 
 class bcolors:
     HEADER = '\033[95m'

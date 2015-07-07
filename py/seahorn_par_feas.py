@@ -191,7 +191,6 @@ def seahorn (in_name, out_name, opts, cex = None, cpu = -1, mem = -1):
             resource.setrlimit (resource.RLIMIT_AS, [mem_bytes, mem_bytes])
 
     seahorn_cmd = [ getSeahorn(), in_name,
-                    '-horn-sem-lvl=mem',
                     '-horn-step=feasiblesmall',
                     '-o', out_name]
     seahorn_cmd.extend (opts)
@@ -571,9 +570,6 @@ def parseArgs (argv):
     p.add_argument ('--seapp', dest='seapp',
                     help='Enable Seahorn preprocessor',
                     action='store_true', default=False)
-    p.add_argument ('--opt', dest='opt',
-                    help='Enable LLVM optimizer',
-                    action='store_true', default=False)
     p.add_argument ('--pp',
                     help='Enable default pre-processing in the solver',
                     action='store_true', default=False)
@@ -600,6 +596,14 @@ def parseArgs (argv):
                     default=False, dest="inv")
     p.add_argument ('--timeout', help='Timeout per function',
                     type=float, default=20.00, dest="timeout")
+    p.add_argument ('-O', type=int, dest='opt_level', metavar='INT',
+                     help='Optimization level L:[0,1,2,3]', default=0)
+    p.add_argument ('--track',
+                    help='Track registers, pointers, and memory',
+                    choices=['reg', 'ptr', 'mem'], default='mem')
+    p.add_argument ('--bc', dest='bc',
+                    help='LLVM bitecode format',
+                    action='store_true', default=False)
     pars = p.parse_args (argv)
     global verbose
     verbose = pars.verbose
@@ -617,12 +621,12 @@ def main (argv):
     if not args.is_smt2:
         workdir = createWorkDir (args.temp_dir, args.save_temps)
 
-        bc_out = defBCName (in_name, workdir)
-        assert bc_out != in_name
-        extra_args = []
-        clang (in_name, bc_out, arch=32, extra_args=extra_args)
-
-        in_name = bc_out
+        if not args.bc:
+            bc_out = defBCName (in_name, workdir)
+            assert bc_out != in_name
+            extra_args = []
+            clang (in_name, bc_out, arch=32, extra_args=extra_args)
+            in_name = bc_out
 
         if args.seapp:
             pp_out = defPPName (in_name, workdir)
@@ -630,15 +634,20 @@ def main (argv):
             seapp (in_name, pp_out, arch=32, args=args)
             in_name = pp_out
 
-        if args.opt:
-            opt_out = defOPTName (in_name, 0, workdir)
-            llvmOpt (in_name, opt_out, opt_level=0)
+
+        if args.opt_level > 0:
+            opt_out = defOPTName (in_name, args.opt_level, workdir)
+            llvmOpt (in_name, opt_out, args.opt_level)
             in_name = opt_out
+
 
         smt_out = defSMTName(in_name, workdir)
         seahorn_args = []
+        seahorn_args.extend (['-horn-sem-lvl={0}'.format (args.track)])
+
         seahorn (in_name, smt_out, seahorn_args)
         in_name = smt_out
+
     jb = JobsSpanner(args)
     jb.spanner(in_name)
 

@@ -248,11 +248,24 @@ class Seahorn(sea.LimitedCmd):
         ap.add_argument ('--ikos',
                          help='Enable IKOS abstract interpreter',
                          dest='ikos', default=False, action='store_true')
+        ap.add_argument ('--ikos-dom',
+                         help='Choose IKOS abstract domain',
+                         choices=['int','cong','zones','term'],
+                         dest='ikos_dom', default='int')
+        # TODO: merge with --track
+        ap.add_argument ('--ikos-track',
+                         help='Track registers, pointers, and memory for IKOS',
+                         choices=['reg', 'ptr', 'mem'], default='reg')
+        # TODO: make ikos-inter-proc and ikos-live true by default
+        ap.add_argument ('--ikos-inter-proc',
+                         help='Build inter-procedural CFG',
+                         dest='ikos_inter_proc', default=False, action='store_true')
+        ap.add_argument ('--ikos-live',
+                         help='Use of liveness information',
+                         dest='ikos_live', default=False, action='store_true')        
         ap.add_argument ('--show-invars',
                          help='Display computed invariants',
                          dest='show_invars', default=False, action='store_true')
-                         
-                         
         return ap
 
     def run (self, args, extra):
@@ -265,6 +278,12 @@ class Seahorn(sea.LimitedCmd):
             argv.append ('--horn-solve')
             if args.ikos:
                 argv.append ('--horn-ikos')
+                argv.append ('--ikos-dom={0}'.format (args.ikos_dom))
+                argv.append ('--ikos-track-lvl={0}'.format (args.ikos_track))
+                if args.ikos_inter_proc:
+                    argv.append ('--ikos-inter-proc')
+                if args.ikos_live:
+                    argv.append ('--ikos-live')
             if args.show_invars:
                 argv.append ('--horn-answer')
         if args.cex is not None and args.solve:

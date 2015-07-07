@@ -193,8 +193,8 @@ def seahorn (in_name, out_name, opts, cex = None, cpu = -1, mem = -1):
             mem_bytes = mem * 1024 * 1024
             resource.setrlimit (resource.RLIMIT_AS, [mem_bytes, mem_bytes])
 
-    seahorn_cmd = [ getSeahorn(), in_name,
-                    '-horn-sem-lvl=mem',
+    seahorn_cmd = [ getSeahorn(), 
+                    in_name,
                     '-horn-step=feasiblesmall',
                     '-o', out_name]
     seahorn_cmd.extend (opts)
@@ -531,6 +531,9 @@ def parseArgs (argv):
     p = a.ArgumentParser (description='Feasibility check with SeaHorn')
 
     p.add_argument ('file', metavar='BENCHMARK', help='Benchmark file (by default in C)')
+    p.add_argument ('--track',
+                    help='Track registers, pointers, and memory',
+                    choices=['reg', 'ptr', 'mem'], default='mem')
     p.add_argument ('--smt2', dest='is_smt2',
                     help='Benchmark file is in smt2 format',
                     action='store_true', default=False)
@@ -542,9 +545,8 @@ def parseArgs (argv):
     p.add_argument ('--seapp', dest='seapp',
                     help='Enable Seahorn preprocessor',
                     action='store_true', default=False)
-    p.add_argument ('--opt', dest='opt',
-                    help='Enable LLVM optimizer',
-                    action='store_true', default=False)
+    p.add_argument ('-O', type=int, dest='opt_level', metavar='INT',
+                     help='Optimization level L:[0,1,2,3]', default=0)
     p.add_argument ('--pp',
                     help='Enable default pre-processing in the solver',
                     action='store_true', default=False)
@@ -601,13 +603,15 @@ def main (argv):
             seapp (in_name, pp_out, arch=32, args=args)
             in_name = pp_out
 
-        if args.opt:
-            opt_out = defOPTName (in_name, 0, workdir)
-            llvmOpt (in_name, opt_out, opt_level=0)
+        if args.opt_level > 0:
+            opt_out = defOPTName (in_name, args.opt_level, workdir)
+            llvmOpt (in_name, opt_out, args.opt_level)
             in_name = opt_out
 
         smt_out = defSMTName(in_name, workdir)
         seahorn_args = []
+        seahorn_args.extend (['-horn-sem-lvl={0}'.format (args.track)])
+
         seahorn (in_name, smt_out, seahorn_args)
         in_name = smt_out
 

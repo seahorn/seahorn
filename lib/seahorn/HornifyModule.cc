@@ -100,25 +100,34 @@ namespace seahorn
       m_db.addQuery (mk<FALSE> (m_efac));
       return Changed;
     }
-    
-    bool canFail = false;
-    Function* failureFn = M.getFunction ("seahorn.fail");
-    Function* errorFn = M.getFunction ("verifier.error");
 
-    for (auto &I : boost::make_iterator_range (inst_begin(*main), 
-                                               inst_end (*main)))
-    {
-      if (!isa<CallInst> (&I)) continue;
-      // -- look through pointer casts
-      Value *v = I.stripPointerCasts ();
-      CallSite CS (const_cast<Value*> (v));
-      const Function *fn = CS.getCalledFunction ();
-      if (fn == failureFn)
-        canFail = true;
+    bool canFail = false; 
+    if (!findExitBlock (*main))
+    { // -- opt can detect an error and make main unreachable
+      canFail = true;
     }
+
+    // Function* failureFn = M.getFunction ("seahorn.fail");
+    // if (!canFail)
+    // {
+    //   for (auto &I : boost::make_iterator_range (inst_begin(*main), 
+    //                                              inst_end (*main)))
+    //   {
+    //     if (!isa<CallInst> (&I)) continue;
+    //     // -- look through pointer casts
+    //     Value *v = I.stripPointerCasts ();
+    //     CallSite CS (const_cast<Value*> (v));
+    //     const Function *fn = CS.getCalledFunction ();
+    //     if (fn == failureFn)
+    //       canFail = true;
+    //   }
+    // }
     
     if (!canFail)
-    {
+    {      
+      Function* errorFn = M.getFunction ("verifier.error");      
+      Function* failureFn = M.getFunction ("seahorn.fail");
+
       for (auto &f : M)
       { 
         if ((&f == errorFn) || (&f == failureFn)) 

@@ -71,7 +71,7 @@ loop-free program block.
 - `-g` : compiles with debug information for more trackable
   counterexamples.
 
-`sea-pf` is a pipeline that runs multiple commands. Individual parts
+`sea pf` is a pipeline that runs multiple commands. Individual parts
 of the pipeline can be ran separately as well:
 
 1. `sea fe file.c -o file.bc`: SeaHorn frontend translates a C program
@@ -83,10 +83,11 @@ of the pipeline can be ran separately as well:
   can choose between different encoding styles with several levels of
   precision by adding:
 
-   - `--step={small,large,flarge}` where `small` is small step
-      encoding, `large` is block-large encoding, and `flarge`:
-      block-large encoding producing flat Horn clauses (i.e., it
-      generates a transition system with only one predicate).
+   - `--step={small,large,fsmall,flarge}` where `small` is small step
+      encoding, `large` is block-large encoding, `fsmall` is small
+      step encoding producing flat Horn clauses (i.e., it generates a
+      transition system with only one predicate), and `flarge`:
+      block-large encoding producing flat Horn clauses.
 
    - `--track={reg,ptr,mem}` where `reg` only models integer
       scalars, `ptr` models `reg` and pointer addresses, and `mem`

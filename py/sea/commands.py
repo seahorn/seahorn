@@ -240,7 +240,7 @@ class Seahorn(sea.LimitedCmd):
                          help='LLVM assembly output file')
         ap.add_argument ('--step',
                          help='Step to use for encoding',
-                         choices=['small', 'large', 'flarge'],
+                         choices=['small', 'large', 'fsmall', 'flarge'],
                          dest='step', default='large')
         ap.add_argument ('--track',
                          help='Track registers, pointers, and memory',
@@ -312,6 +312,15 @@ class SeahornClp(sea.LimitedCmd):
                          metavar='STR', help='Log level')
         ap.add_argument ('--oll', dest='asm_out_file', default=None,
                          help='LLVM assembly output file')
+        ap.add_argument ('--step',
+                         help='Step to use for encoding',
+                         choices=['clpsmall', 'clpfsmall'],
+                         dest='step', default='clpsmall')
+        ap.add_argument ('--clp-fapp',
+                         default=False, action='store_true',
+                         help='Print function applications in CLP format',
+                         dest='clp_fapp')
+
         ### TODO: expose options for semantic level, inter-procedural
         ### encoding, step, flat, etc.
         return ap
@@ -325,8 +334,12 @@ class SeahornClp(sea.LimitedCmd):
         if args.asm_out_file is not None: argv.extend (['-oll', args.asm_out_file])
         
         argv.extend (['-horn-inter-proc',
-                      '-horn-format=clp', '-horn-sem-lvl=reg', '-horn-step=clpsmall'])
-        
+                      '-horn-format=clp', '-horn-sem-lvl=reg', 
+                      '--horn-step={0}'.format (args.step)])
+
+        if args.clp_fapp:
+            argv.extend (['--horn-clp-fapp'])
+
         if args.log is not None:
             for l in args.log.split (':'): argv.extend (['-log', l])
         

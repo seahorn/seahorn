@@ -401,10 +401,13 @@ namespace seahorn
       m_rels (db.getRelations ()), m_efac (efac)
   {     
 
-    // Added false <- query as another rule
-    ClpRule query (mk<FALSE> (m_efac) , mk<TRUE> (m_efac), m_efac, m_rels);
-    query.addBody (db.getQuery ());
-    m_rules.push_back (query);
+    for (auto q:  db.getQueries ())
+    {
+      // Added false <- query as another rule
+      ClpRule query (mk<FALSE> (m_efac) , mk<TRUE> (m_efac), m_efac, m_rels);
+      query.addBody (q);
+      m_rules.push_back (query);
+    }
 
     for (auto & rule : db.getRules ())
     {

@@ -17,8 +17,13 @@ static llvm::cl::opt<bool>
 GlobalConstraints("horn-global-constraints",
                   llvm::cl::desc
                   ("Maximize the use of global (i.e., unguarded) constraints"),
-                  cl::init (false),
-                  cl::Hidden);
+                  cl::init (false));
+
+static llvm::cl::opt<bool>
+StrictlyLinear ("horn-strictly-la",
+                llvm::cl::desc ("Generate strictly Linear Arithmetic constraints"),
+                cl::init (true));
+
 
 
 namespace
@@ -300,37 +305,43 @@ namespace
       Expr res;
       switch(i.getOpcode())
       {
-        case BinaryOperator::Add:
-          res = mk<EQ>(lhs ,mk<PLUS>(op1, op2));
-            break;
-        case BinaryOperator::Sub:
-          res = mk<EQ>(lhs ,mk<MINUS>(op1, op2));
-          break;
-        case BinaryOperator::Mul:
+      case BinaryOperator::Add:
+        res = mk<EQ>(lhs ,mk<PLUS>(op1, op2));
+        break;
+      case BinaryOperator::Sub:
+        res = mk<EQ>(lhs ,mk<MINUS>(op1, op2));
+        break;
+      case BinaryOperator::Mul:
+        // if StrictlyLinear, then require that at least one
+        // argument is a constant
+        if (!StrictlyLinear || 
+            isOpX<MPZ> (op1) || isOpX<MPZ> (op2) || 
+            isOpX<MPQ> (op1) || isOpX<MPQ> (op2))
           res = mk<EQ>(lhs ,mk<MULT>(op1, op2));
-          break;
-        case BinaryOperator::SDiv:
-        case BinaryOperator::UDiv:
+        break;
+      case BinaryOperator::SDiv:
+      case BinaryOperator::UDiv:
+        // if StrictlyLinear then require that divisor is a constant
+        if (!StrictlyLinear || 
+            isOpX<MPZ> (op2) || isOpX<MPQ> (op2))
           res = mk<EQ>(lhs ,mk<DIV>(op1, op2));
-          break;
+        break;
       case BinaryOperator::SRem:
       case BinaryOperator::URem:
-        res = mk<EQ> (lhs, mk<REM> (op1, op2));
+        // if StrictlyLinear then require that divisor is a constant
+        if (StrictlyLinear || isOpX<MPZ> (op2) || isOpX<MPQ> (op2))
+          res = mk<EQ> (lhs, mk<REM> (op1, op2));
         break;
       case BinaryOperator::Shl:
         if (const ConstantInt *ci = dyn_cast<ConstantInt> (&v2))
-        {
           res = doLeftShift(lhs, op1, ci);
-          break;
-        }
+        break;
       case BinaryOperator::AShr:
         if (const ConstantInt *ci = dyn_cast<ConstantInt> (&v2))
-        {
           res = doAShr (lhs, op1, ci);
-          break;
-        }
-        default:
-          break;
+        break;
+      default:
+        break;
       }
 
       Expr act = GlobalConstraints ? trueE : m_activeLit;

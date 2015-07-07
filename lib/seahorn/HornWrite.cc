@@ -3,6 +3,8 @@
 #include "seahorn/HornClauseDBTransf.hh"
 #include "seahorn/ClpWrite.hh"
 
+#include "seahorn/config.h"
+
 #include "llvm/Support/CommandLine.h"
 
 static llvm::cl::opt<bool>
@@ -32,6 +34,13 @@ namespace seahorn
   {
     AU.addRequired<HornifyModule> ();
     AU.setPreservesAll ();
+  }
+  
+  template <typename Out, typename Key, typename Value> 
+  void setInfo (Out &out, Key &key, Value &val)
+  {
+    out << "(set-info :" << key 
+        << " \"" << val << "\"" << ")\n";
   }
   
   bool HornWrite::runOnModule (Module &M)
@@ -65,6 +74,12 @@ namespace seahorn
         params.set (":print_fixedpoint_extensions", false);
         fp.set (params);
       }
+      
+      // -- write header
+      setInfo (m_out, "original", M.getModuleIdentifier ());
+      std::string version ("SeaHorn v.");
+      version += SEAHORN_VERSION_INFO;
+      setInfo (m_out, "authors", version);
       
       if (HornClauseFormat == PURESMT2 || !InternalWriter)
         m_out << fp.toString () << "\n";

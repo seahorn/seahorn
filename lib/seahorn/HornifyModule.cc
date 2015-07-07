@@ -90,56 +90,51 @@ namespace seahorn
     else
       m_sem.reset (new UfoSmallSymExec (m_efac, *this, TL));
 
-
     /// --- check syntactically if error is possible. If not the
     ///     program is trivially safe.
-
     Function *main = M.getFunction ("main");
     if (!main)
     { // program trivially safe
+      errs () << "Program trivially safe\n";
       m_db.addQuery (mk<FALSE> (m_efac));
       return Changed;
     }
 
     bool canFail = false; 
     if (!findExitBlock (*main))
-    { // -- opt can detect an error and make main unreachable
+    { // -- optimizer can detect an error and make main unreachable
       canFail = true;
     }
 
-    // Function* failureFn = M.getFunction ("seahorn.fail");
-    // if (!canFail)
-    // {
-    //   for (auto &I : boost::make_iterator_range (inst_begin(*main), 
-    //                                              inst_end (*main)))
-    //   {
-    //     if (!isa<CallInst> (&I)) continue;
-    //     // -- look through pointer casts
-    //     Value *v = I.stripPointerCasts ();
-    //     CallSite CS (const_cast<Value*> (v));
-    //     const Function *fn = CS.getCalledFunction ();
-    //     if (fn == failureFn)
-    //       canFail = true;
-    //   }
-    // }
+    Function* failureFn = M.getFunction ("seahorn.fail");
+    if (!canFail)
+    {
+      for (auto &I : boost::make_iterator_range (inst_begin(*main), 
+                                                 inst_end (*main)))
+      {
+        if (!isa<CallInst> (&I)) continue;
+        // -- look through pointer casts
+        Value *v = I.stripPointerCasts ();
+        CallSite CS (const_cast<Value*> (v));
+        const Function *fn = CS.getCalledFunction ();
+        canFail |= (fn == failureFn);
+      }
+    }
     
     if (!canFail)
     {      
       Function* errorFn = M.getFunction ("verifier.error");      
-      Function* failureFn = M.getFunction ("seahorn.fail");
-
       for (auto &f : M)
       { 
         if ((&f == errorFn) || (&f == failureFn)) 
           continue; 
-        
-        if (m_canFail->canFail (&f)) 
-            canFail = true; 
+        canFail |= (m_canFail->canFail (&f)); 
       }
     }
 
     if (!canFail)
     { // program trivially safe
+      errs () << "Program trivially safe\n";
       m_db.addQuery (mk<FALSE> (m_efac));
       return Changed;
     }
@@ -201,6 +196,7 @@ namespace seahorn
     if (!m_db.hasQuery ())
     {
       // program trivially safe
+      errs () << "Program trivially safe\n";
       m_db.addQuery (mk<FALSE> (m_efac));
     }
 

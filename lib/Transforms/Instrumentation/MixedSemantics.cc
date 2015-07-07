@@ -214,6 +214,10 @@ namespace seahorn
     }
 
     AttrBuilder B;
+
+    // --- make sure the optimizer does not remove it
+    B.addAttribute (Attribute::OptimizeNone);
+
     AttributeSet as = AttributeSet::get (M.getContext (), 
                                          AttributeSet::FunctionIndex, B);
     auto failureFn = dyn_cast<Function>
@@ -223,6 +227,7 @@ namespace seahorn
 
     for (auto errB : errBlocks)
     {
+      // --- add placeholder to indicate that the function can fail
       Builder.SetInsertPoint (errB, errB->begin ());
       Builder.CreateCall (failureFn);
     }      

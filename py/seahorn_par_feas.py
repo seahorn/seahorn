@@ -500,20 +500,19 @@ class JobsSpanner(object):
             queries = fp.parse_file (smt2_file)
             stats.stop('Parse')
             n_function = len(queries)
-            print "Spanning  " + str(n_function) + " Jobs"
-            stat("Function_Numbers", n_function)
+            print "Number of functions  " + str(n_function) + " Jobs"
+            print "Spanning " + str(self.args.func) + " Jobs"
+            #stat("Function_Numbers", n_function)
             all_results = ""
-            qi = 0
-            pool_jobs = Pool(processes=n_function)
+            pool_jobs = Pool(processes=self.args.func)
+            n_query = n_function if self.args.func > n_function else self.args.func
             try:
-                job_result = None
-                for q in queries:
-                    function_name  = self.getFunctionName(q)
+                for q in range(n_query):
+                    query = queries[q]
+                    function_name  = self.getFunctionName(query)
                     print "checking feasibility of function =>  " + function_name
                     #job_result = pool_jobs.apply_async(jobStarter, (self.args, qi, smt2_file, ), callback=self.onReturn)
-                    job_result = pool_jobs.apply_async(jobStarter, (self.args, qi, smt2_file, ))
-                    #job_result.get(self.args.timeout)
-                    qi +=1
+                    job_result = pool_jobs.apply_async(jobStarter, (self.args, q, smt2_file, ))
                     job_result.wait(timeout=self.args.timeout)
                     if job_result.ready():
                         out = job_result.get()
@@ -625,6 +624,8 @@ def parseArgs (argv):
                     default=False, dest="inv")
     p.add_argument ('--timeout', help='Timeout per function',
                     type=float, default=20.00, dest="timeout")
+    p.add_argument ('--func', help='Number of functions',
+                    type=int, default=10, dest="func")
     p.add_argument ('-O', type=int, dest='opt_level', metavar='INT',
                      help='Optimization level L:[0,1,2,3]', default=0)
     p.add_argument ('--track',

@@ -228,7 +228,8 @@ INFEASIBLE FLAGS = %s
 
 class Feasibility(object):
     def __init__(self, args, smt2_file):
-        self.log = LoggingManager.get_logger(__name__)
+        log = 3 if verbose else 0
+        self.log = LoggingManager.get_logger(__name__,log)
         self.smt2_file = smt2_file
         self.args = args
         self.ctx = z3.Context()
@@ -468,13 +469,24 @@ def jobStarter(args, query_index, smt2_file):
 
 class JobsSpanner(object):
     def __init__(self, args):
-        self.log = LoggingManager.get_logger(__name__)
+        log = 3 if verbose else 0
+        self.log = LoggingManager.get_logger(__name__,log)
         self.args = args
         self.all_result = ""
         return
 
     def onReturn(self, out):
         self.all_result += out + "\n-----------------------\n"
+
+
+    def getFunctionName(self, query):
+        if z3.is_quantifier(query):
+            decl = query.body().decl()
+            return str(decl).split("@")[0]
+        else:
+            return str(query.decl()).split("@")[0]
+
+
 
     def spanner(self, smt2_file):
         """
@@ -488,19 +500,36 @@ class JobsSpanner(object):
             queries = fp.parse_file (smt2_file)
             stats.stop('Parse')
             n_function = len(queries)
-            self.log.info("Spanning  " + str(n_function) + " Jobs")
+            print "Spanning  " + str(n_function) + " Jobs"
             stat("Function_Numbers", n_function)
             all_results = ""
             qi = 0
             pool_jobs = Pool(processes=n_function)
-            for q in queries:
-                job_result = pool_jobs.apply_async(jobStarter, (self.args, qi, smt2_file, ), callback=self.onReturn)
-                job_result.get(self.args.timeout)
-                qi +=1
-            pool_jobs.close()
-            pool_jobs.join()
-            print "\n\t ========= FEASIBILITY RESULTS ========"
-            print self.all_result
+            try:
+                job_result = None
+                for q in queries:
+                    function_name  = self.getFunctionName(q)
+                    print "checking feasibility of function =>  " + function_name
+                    #job_result = pool_jobs.apply_async(jobStarter, (self.args, qi, smt2_file, ), callback=self.onReturn)
+                    job_result = pool_jobs.apply_async(jobStarter, (self.args, qi, smt2_file, ))
+                    #job_result.get(self.args.timeout)
+                    qi +=1
+                    job_result.wait(timeout=self.args.timeout)
+                    if job_result.ready():
+                        out = job_result.get()
+                        print out
+                        all_results += out + "\n-----------------------\n"
+                    else:
+                        out = out_message % (function_name, "TIMEOUT", "", "", "")
+                        out = bcolors.WARNING + out + bcolors.ENDC
+                        print out
+                        all_results += out + "\n-----------------------\n"
+                pool_jobs.close()
+                pool_jobs.join()
+                print "\n\t ========= FEASIBILITY RESULTS ========"
+                print all_results
+            except Exception as e:
+                self.log.exception(str(e))
 
 
 def fp_add_cover (fp, pred, lemma, level=-1):

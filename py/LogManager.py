@@ -59,11 +59,13 @@ class Log(object):
     def __init__(self):
         return
 
-    def mk_log(self, moduleName):
+    def mk_log(self, moduleName, log_level):
         log = logging.getLogger(moduleName)
         streamhandler = logging.StreamHandler()
-
-        log.setLevel(logging.INFO)
+        if log_level > 1:
+            log.setLevel(logging.DEBUG)
+        else:
+            log.setLevel(logging.ERROR)
         streamhandler.setFormatter(LogFormatter())
         streamhandler.setLevel(logging.DEBUG)
         if len(log.handlers) == 0:
@@ -87,13 +89,13 @@ class LoggingManager(object):
         return
 
     @abc.abstractmethod
-    def mk_log(self, moduleName):
+    def mk_log(self, moduleName, log_level):
         return
 
     @staticmethod
-    def get_logger(name):
+    def get_logger(name, log_level):
         logger = Log()
-        return logger.mk_log(name)
+        return logger.mk_log(name, log_level)
 
     @staticmethod
     def disable_logger():

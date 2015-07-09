@@ -262,6 +262,7 @@ class Feasibility(object):
             self.fp.set('print_statistics',True)
         if self.args.z3_verbose:
             z3.set_option (verbose=1)
+        if self.args.utvpi: self.fp.set('pdr.utvpi', False)
         self.fp.set('use_heavy_mev',True)
         self.fp.set('pdr.flexible_trace',True)
         self.fp.set('reset_obligation_queue',False)
@@ -297,6 +298,7 @@ class Feasibility(object):
         function_name = self.function_name
         while not done:
             with stats.timer ('Query'):
+                print "Query Round " + str(rounds) + " ... "
                 res = self.fp.query (expr_query) #if round == 0 else self.fp.query_from_lvl(12, expr_query)
                 if res == z3.sat:
                     msg = "ENTRY -> EXIT is FEASIBLE" if rounds==0 else "STILL FEASIBLE: Continue checking ..."
@@ -532,7 +534,7 @@ class JobsSpanner(object):
                     job_result.wait(timeout=self.args.timeout)
                     if job_result.ready():
                         out = job_result.get()
-                        print out
+                        #print out
                         all_results += out + "\n-----------------------\n"
                     else:
                         out = out_message % (function_name, "TIMEOUT", "", "", "")
@@ -540,8 +542,9 @@ class JobsSpanner(object):
                         print out
                         all_results += out + "\n-----------------------\n"
                 pool_jobs.close()
+                pool_jobs.terminate()
                 pool_jobs.join()
-                print "\n\t ========= FEASIBILITY RESULTS ========"
+                print "\n\t ========= OVERALL FEASIBILITY RESULTS ========"
                 print all_results
             except Exception as e:
                 self.log.exception(str(e))
@@ -650,6 +653,8 @@ def parseArgs (argv):
     p.add_argument ('--bc', dest='bc',
                     help='LLVM bitecode format',
                     action='store_true', default=False)
+    p.add_argument ('--no_dl', help='Disable Difference Logic (UTVPI) in SPACER', action='store_true',
+                    default=False, dest="utvpi")
     pars = p.parse_args (argv)
     global verbose
     verbose = pars.verbose

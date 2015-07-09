@@ -124,6 +124,11 @@ def defPPName (name, wd=None):
     if wd == None: wd = os.path.dirname  (name)
     fname = os.path.splitext (base)[0] + '.pp.bc'
     return os.path.join (wd, fname)
+def defLlName (name, wd=None):
+    base = os.path.basename (name)
+    if wd == None: wd = os.path.dirname  (name)
+    fname = os.path.splitext (base)[0] + '.ll'
+    return os.path.join (wd, fname)
 def defOPTName (name, optLevel=3, wd=None):
     base = os.path.basename (name)
     if wd == None: wd = os.path.dirname  (name)
@@ -190,9 +195,12 @@ def seahorn (in_name, out_name, opts, cex = None, cpu = -1, mem = -1):
             mem_bytes = mem * 1024 * 1024
             resource.setrlimit (resource.RLIMIT_AS, [mem_bytes, mem_bytes])
 
+        out_name = defBCName (in_name)
+
     seahorn_cmd = [ getSeahorn(), in_name,
                     '-horn-step=feasiblesmall',
-                    '-o', out_name]
+                    '-o', out_name,
+                    '-oll', defLlName (out_name) ]
     seahorn_cmd.extend (opts)
     #if cex is not None: seahorn_cmd.append ('--horn-svcomp-cex={}'.format (cex))
     if verbose: print ' '.join (seahorn_cmd)
@@ -628,7 +636,7 @@ def parseArgs (argv):
                     default=False, dest="z3_verbose")
     p.add_argument ('--bench', help='Output Benchmarking Info', action='store_true',
                     default=False, dest="bench")
-    p.add_argument ('--inv', help='Outpu Invariants', action='store_true',
+    p.add_argument ('--inv', help='Output Invariants', action='store_true',
                     default=False, dest="inv")
     p.add_argument ('--timeout', help='Timeout per function',
                     type=float, default=20.00, dest="timeout")

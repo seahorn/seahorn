@@ -343,6 +343,9 @@ class Feasibility(object):
                         out += out_message % (function_name, "INFEASIBLE", inv_info, str(feas), str(infeas))
                         out = bcolors.FAIL + out + bcolors.ENDC
                     done = True
+                else:
+                    out += out_message % (function_name, "UNKNOWN", "", "", "")
+                    done = True
                 stats.stop('Query')
             # debugging purpose
             if self.args.stop != None:
@@ -404,12 +407,12 @@ class Feasibility(object):
         for p in self.preds:
             if fpred.decl().eq(p.decl()): pred = p
         pred_vars = pred.children()
-        false_vars = self.getVars(f_flags, pred_vars, qr)
-        true_vars = self.getVars(t_flags, pred_vars, qr)
+        false_vars = self.mkVars(f_flags, qr)
+        true_vars = self.mkVars(t_flags, qr)
         not_vars = [z3.Not(ix) for ix in false_vars]
         exist_vars, body = stripQuantifierBlock(qr)
         true_false_vars = not_vars + true_vars + [qr.ctx]
-        new_vars_conjunct = z3.Not(z3.And(*true_false_vars))
+        new_vars_conjunct = z3.Not(z3.And(*true_false_vars)) if len(not_vars + true_vars) >= 2 else z3.Not(*true_false_vars)
         and_predicate = z3.And(*[body,new_vars_conjunct,qr.ctx])
         if verbose: print "New Conjunct:", and_predicate
         new_exist_vars = self.existVars(exist_vars, true_false_vars)
@@ -417,18 +420,19 @@ class Feasibility(object):
         if verbose: print "NEW Query:\n", new_query
         return new_query
 
-    def getVars(self, idxs, pred_vars, qr):
+    def mkVars(self, idxs, qr):
         """
         given a list of indexes return var names
         """
         vars = list()
         for idx in idxs:
-            v = pred_vars[idx]
-            if z3.is_true(v):
-                new_v = z3.Bool("__r"+str(idx)+"_0", qr.ctx)
-                vars.append(new_v)
-            else:
-                vars.append(v)
+            new_v = z3.Bool("__r"+str(idx)+"_0", qr.ctx)
+            vars.append(new_v)
+            # if z3.is_true(v):
+            #     new_v = z3.Bool("__r"+str(idx)+"_0", qr.ctx)
+            #     vars.append(new_v)
+            # else:
+            #     vars.append(v)
         return vars
 
 

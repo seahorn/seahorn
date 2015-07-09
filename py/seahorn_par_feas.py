@@ -541,7 +541,7 @@ class JobsSpanner(object):
                     job_result.wait(timeout=self.args.timeout)
                     if job_result.ready():
                         out = job_result.get()
-                        #print out
+                        print out
                         all_results += out + "\n-----------------------\n"
                     else:
                         out = out_message % (function_name, "TIMEOUT", "", "", "")

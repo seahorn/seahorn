@@ -159,6 +159,9 @@ def seapp (in_name, out_name, arch, args, extra_args=[]):
     seapp_args = [getSeaPP (), '-o', out_name, in_name ]
     seapp_args.extend (extra_args)
 
+    if args.entry_point is not None:
+      seapp_args.extend ([''.join (['--entry-point=\"',args.entry_point,'\"'])])
+
     if verbose: print ' '.join (seapp_args)
     subprocess.check_call (seapp_args)
 
@@ -653,6 +656,8 @@ def parseArgs (argv):
     p.add_argument ('--bc', dest='bc',
                     help='LLVM bitecode format',
                     action='store_true', default=False)
+    p.add_argument ('--entry', metavar='FUNCNAME', dest='entry_point',
+                    help='Entry point to the program (--seapp must be enabled)', default=None)
     p.add_argument ('--no_dl', help='Disable Difference Logic (UTVPI) in SPACER', action='store_true',
                     default=False, dest="utvpi")
     pars = p.parse_args (argv)

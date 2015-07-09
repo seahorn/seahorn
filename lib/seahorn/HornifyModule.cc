@@ -138,7 +138,7 @@ namespace seahorn
       m_db.addQuery (mk<FALSE> (m_efac));
       return Changed;
     }
-    
+
     // create FunctionInfo for verifier.error() function
     if (Function* errorFn = M.getFunction ("verifier.error"))
     {
@@ -195,9 +195,8 @@ namespace seahorn
 
     if (!m_db.hasQuery ())
     {
-      // program trivially safe
-      errs () << "Program trivially safe\n";
-      m_db.addQuery (mk<FALSE> (m_efac));
+      // This can happen if the exit block is unreachable
+      m_db.addQuery (mk<TRUE> (m_efac));
     }
 
     /**

@@ -124,6 +124,11 @@ def defPPName (name, wd=None):
     if wd == None: wd = os.path.dirname  (name)
     fname = os.path.splitext (base)[0] + '.pp.bc'
     return os.path.join (wd, fname)
+def defMSName (name, wd=None):
+    base = os.path.basename (name)
+    if wd == None: wd = os.path.dirname  (name)
+    fname = os.path.splitext (base)[0] + 'ms.pp.bc'
+    return os.path.join (wd, fname)
 def defLlName (name, wd=None):
     base = os.path.basename (name)
     if wd == None: wd = os.path.dirname  (name)
@@ -165,6 +170,17 @@ def seapp (in_name, out_name, arch, args, extra_args=[]):
     if verbose: print ' '.join (seapp_args)
     subprocess.check_call (seapp_args)
 
+# Run Mixed Semantics
+def mixSem (in_name, out_name, args, extra_args=[]):
+    # we do not use args but we could make option --ms-reduce-main
+    if out_name == '' or out_name == None:
+        out_name = defMSName (in_name)
+
+    ms_args = [getSeaPP (), '--horn-mixed-sem', '--ms-reduce-main', '-o', out_name, in_name ]
+    ms_args.extend (extra_args)
+
+    if verbose: print ' '.join (ms_args)
+    subprocess.check_call (ms_args)
 
 # Run Opt
 def llvmOpt (in_name, out_name, opt_level=3, time_passes=False, cpu=-1):
@@ -522,7 +538,7 @@ class JobsSpanner(object):
             queries = fp.parse_file (smt2_file)
             stats.stop('Parse')
             n_function = len(queries)
-            n_query = n_function if self.args.func > n_function else self.args.func
+            n_query = n_function if self.args.func < 0 or self.args.func > n_function else self.args.func
             print "Number of functions ...  " + str(n_function)
             print "Number of jobs ... " + str(n_query)
             all_results = ""
@@ -620,6 +636,9 @@ def parseArgs (argv):
     p.add_argument ('--seapp', dest='seapp',
                     help='Enable Seahorn preprocessor',
                     action='store_true', default=False)
+    p.add_argument ('--ms', dest='ms',
+                    help='Enable Mixed Semantics transformation',
+                    action='store_true', default=False)
     p.add_argument ('--pp',
                     help='Enable default pre-processing in the solver',
                     action='store_true', default=False)
@@ -647,7 +666,7 @@ def parseArgs (argv):
     p.add_argument ('--timeout', help='Timeout per function',
                     type=float, default=20.00, dest="timeout")
     p.add_argument ('--func', help='Number of functions',
-                    type=int, default=10, dest="func")
+                    type=int, default=-1, dest="func")
     p.add_argument ('-O', type=int, dest='opt_level', metavar='INT',
                      help='Optimization level L:[0,1,2,3]', default=0)
     p.add_argument ('--track',
@@ -690,6 +709,10 @@ def main (argv):
             seapp (in_name, pp_out, arch=32, args=args)
             in_name = pp_out
 
+            if args.ms:
+                ms_out = defMSName (in_name, workdir)
+                mixSem (in_name, ms_out, args=args)
+                in_name = ms_out
 
         if args.opt_level > 0:
             opt_out = defOPTName (in_name, args.opt_level, workdir)

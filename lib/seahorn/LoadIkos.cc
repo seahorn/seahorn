@@ -58,7 +58,7 @@ namespace llvm
 {
    template <typename Number, typename VariableName>
    llvm::raw_ostream& operator<< (llvm::raw_ostream& o, 
-                                  cfg_impl::ZLinearConstraint cst)
+                                  cfg_impl::z_lin_cst_t cst)
    {
      std::ostringstream s;
      s << cst;
@@ -67,7 +67,7 @@ namespace llvm
    }
 
    inline llvm::raw_ostream& operator<< (llvm::raw_ostream& o, 
-                                         cfg_impl::ZLinearConstraintSystem csts)
+                                         cfg_impl::z_lin_cst_sys_t csts)
    {
      std::ostringstream s;
      s << csts;
@@ -89,7 +89,7 @@ namespace seahorn
 
     struct FailUnMarshal
     {
-      static Expr unmarshal (const ZLinearConstraint &cst, ExprFactory &efac)
+      static Expr unmarshal (const z_lin_cst_t &cst, ExprFactory &efac)
       { 
         llvm::errs () << "Cannot unmarshal: " << cst << "\n";
         assert (0); exit (1); 
@@ -122,7 +122,7 @@ namespace seahorn
         
         // If cst is a constraint of the form x<=c where x is a LLVM
         // Value of type i1 then return x, otherwise null.
-        static const Value* isBoolCst (ZLinearConstraint cst)
+        static const Value* isBoolCst (z_lin_cst_t cst)
         {
           if (cst.is_disequation ()) return nullptr;
           auto e = cst.expression() - cst.expression().constant();
@@ -135,7 +135,7 @@ namespace seahorn
           else return nullptr; 
         }
         
-        BoolCst (ZLinearConstraint cst): m_val (T_TOP),
+        BoolCst (z_lin_cst_t cst): m_val (T_TOP),
                                          m_coef (0), m_rhs (0), 
                                          m_var (nullptr), m_is_eq (cst.is_equality ())
         {
@@ -223,7 +223,7 @@ namespace seahorn
         return bind::intConst (e);
       }
        
-      Expr unmarshal (ZLinearConstraint cst, ExprFactory &efac)
+      Expr unmarshal (z_lin_cst_t cst, ExprFactory &efac)
       {
         if (cst.is_tautology ())     
           return mk<TRUE> (efac);
@@ -274,7 +274,7 @@ namespace seahorn
         
       }
        
-      Expr unmarshal (ZLinearConstraintSystem csts, ExprFactory &efac)
+      Expr unmarshal (z_lin_cst_sys_t csts, ExprFactory &efac)
       {
         Expr e = mk<TRUE> (efac);
 
@@ -315,7 +315,7 @@ namespace seahorn
                       const expr::ExprVector &live, 
                       expr::ExprFactory &efac) 
   {
-    ZLinearConstraintSystem csts = ikos [BB];
+    z_lin_cst_sys_t csts = ikos [BB];
     ikos_smt::BasicExprUnMarshal < ikos_smt::FailUnMarshal > c;
     expr::Expr inv = c.unmarshal (csts, efac);
 

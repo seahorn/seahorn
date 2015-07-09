@@ -234,10 +234,11 @@ class Feasibility(object):
         self.args = args
         self.ctx = z3.Context()
         self.fp = z3.Fixedpoint(ctx=self.ctx)
-        self.ee_idx = [] #entry/exit vars
-        self.feasible_flag = [] # keep track of the  feasible path
-        self.non_feasible_flag = [] # keep track of the infesible path
+        self.ee_idx = list() #entry/exit vars
+        self.feasible_flag = set() # keep track of the  feasible path
+        self.non_feasible_flag = set() # keep track of the infesible path
         self.timeout = args.timeout # timeout per function
+        self.flags = None
         self.preds = None
         #super(Feasibility, self).__init__()
         self.function_name = None
@@ -292,25 +293,19 @@ class Feasibility(object):
                 if res == z3.sat:
                     msg = "ENTRY -> EXIT is FEASIBLE" if rounds==0 else "STILL FEASIBLE: Continue checking ..."
                     self.log.info("( " + function_name + " ) " + msg)
+                    self.feasible_flag |= set(self.ee_idx)
                     expr_query, path = self.cex(expr_query)
-                    self.feasible_flag = self.ee_idx
                     rounds += 1
                     if expr_query is None:
                         result = "[%s], Feasible" % function_name
                         stat('Result', result)
                         stat('Rounds', str(rounds))
-                        out += out_message % (function_name, "FEASIBLE", "", str(self.feasible_flag),  str(self.non_feasible_flag))
+                        feas = list(self.feasible_flag)
+                        infeas = list(self.non_feasible_flag)
+                        out += out_message % (function_name, "FEASIBLE", "", str(feas),  str(infeas))
                         out = bcolors.OKGREEN + out + bcolors.ENDC
                         done = True
                 elif res == z3.unsat:
-                    result = "[%s], Infeasible" % function_name
-                    stat('Result', result)
-                    stat('Rounds', str(rounds))
-                    msg = "EXIT is not FEASIBLE" if rounds==0 else "INFEASIBLE BLOCK FOUND"
-                    if rounds == 0:
-                        self.feasible_flag.append(self.ee_idx[0])
-                        self.non_feasible_flag.append(self.ee_idx[1])
-                    self.log.info(" ( " + function_name + " ) " + msg)
                     inv =  "\n-----------\n"
                     for p in self.preds:
                         lemmas = fp_get_cover_delta (self.fp, p)
@@ -318,8 +313,22 @@ class Feasibility(object):
                         inv += "\n\tInvariant: " + str(lemmas)
                         inv += "\n-----------\n"
                     inv_info = inv if self.args.inv else "(set --inv to get invariants info)"
-                    out += out_message % (function_name, "INFEASIBLE", inv_info, str(self.feasible_flag),  str(self.non_feasible_flag))
-                    out = bcolors.FAIL + out + bcolors.ENDC
+
+                    if len(list(self.feasible_flag)) == self.flags:
+                        self.log.info(" ( " + function_name + " ) FEASIBLE")
+                        feas = list(self.feasible_flag)
+                        out += out_message % (function_name, "FEASIBLE", inv_info, str(feas), str([]))
+                        out = bcolors.OKGREEN + out + bcolors.ENDC
+                    else:
+                        msg = "EXIT is not FEASIBLE" if rounds==0 else "INFEASIBLE BLOCK FOUND"
+                        if rounds == 0:
+                            self.feasible_flag.add(self.ee_idx[0])
+                            self.non_feasible_flag.add(self.ee_idx[1])
+                        self.log.info(" ( " + function_name + " ) " + msg)
+                        feas = list(self.feasible_flag)
+                        infeas = list(self.non_feasible_flag)
+                        out += out_message % (function_name, "INFEASIBLE", inv_info, str(feas), str(infeas))
+                        out = bcolors.FAIL + out + bcolors.ENDC
                     done = True
                 stats.stop('Query')
             # debugging purpose
@@ -340,12 +349,12 @@ class Feasibility(object):
         if verbose: print "RAW CEX:", ground_sat
         fpred = ground_sat[0] if len(ground_sat[0].children()) != 0 else ground_sat[1] # inspecting the first predicate
         var_flags = self.getListFlags(fpred)
-        flags_number = len(var_flags) + 1 # TODO Jorge
-        true_idxs, false_idxs = self.tfFlags(fpred, flags_number)
+        self.flags = len(var_flags) + 1 # TODO Jorge
+        true_idxs, false_idxs = self.tfFlags(fpred, self.flags)
         t_flags = [t for t in true_idxs if t not in self.ee_idx] # filter  entry/exit flags
         f_flags = [t for t in false_idxs if t not in self.ee_idx] # filter entry/exit flags
-        self.feasible_flag +=  t_flags
-        self.non_feasible_flag = f_flags
+        self.feasible_flag |= set(t_flags)
+        self.non_feasible_flag = set(f_flags)
         if verbose: print "TRUE FLAGS:" + str(t_flags) ,  "\nFALSE FLAGS:" + str(f_flags)
         if f_flags == []:
             self.log.info("No failing flags ...")
@@ -500,12 +509,11 @@ class JobsSpanner(object):
             queries = fp.parse_file (smt2_file)
             stats.stop('Parse')
             n_function = len(queries)
-            print "Number of functions  " + str(n_function) + " Jobs"
-            print "Spanning " + str(self.args.func) + " Jobs"
-            #stat("Function_Numbers", n_function)
-            all_results = ""
-            pool_jobs = Pool(processes=self.args.func)
             n_query = n_function if self.args.func > n_function else self.args.func
+            print "Number of functions ...  " + str(n_function)
+            print "Number of jobs ... " + str(n_query)
+            all_results = ""
+            pool_jobs = Pool(processes=n_query)
             try:
                 for q in range(n_query):
                     query = queries[q]

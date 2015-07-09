@@ -62,6 +62,7 @@ class Log(object):
     def mk_log(self, moduleName, log_level):
         log = logging.getLogger(moduleName)
         streamhandler = logging.StreamHandler()
+
         if log_level > 1:
             log.setLevel(logging.DEBUG)
         else:

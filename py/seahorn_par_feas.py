@@ -250,6 +250,8 @@ RESULT = %s
 SET OF INVARIANTS = %s
 FEASIBLE FLAGS  = %s
 INFEASIBLE FLAGS = %s
+ROUNDS = %s
+QUERY TIME = %s
 """)
 
 
@@ -267,11 +269,10 @@ class Feasibility(object):
         self.timeout = args.timeout # timeout per function
         self.flags = None
         self.preds = None
-        #super(Feasibility, self).__init__()
         self.function_name = None
-        #self.name = "Function_"+str(query_index)
-        self._return = None
-        #if verbose: multiprocessing.log_to_stderr(logging.DEBUG)
+        self.query_times = list()
+
+
 
 
 
@@ -317,8 +318,10 @@ class Feasibility(object):
         function_name = self.function_name
         while not done:
             with stats.timer ('Query'):
-                res = self.fp.query (expr_query) #if round == 0 else self.fp.query_from_lvl(12, expr_query)
+                #if round == 0 else self.fp.query_from_lvl(12, expr_query)
+                res = self.fp.query (expr_query)
                 stats.stop('Query')
+                self.query_times.append(str(stats.get('Query')))
                 if bench: print "Query | Round [" + str(rounds) + "] | time  [" + str(stats.get('Query')) + " ms]"
                 if res == z3.sat:
                     msg = "ENTRY -> EXIT is FEASIBLE" if rounds==0 else "STILL FEASIBLE: Continue checking ..."
@@ -328,11 +331,11 @@ class Feasibility(object):
                     rounds += 1
                     if expr_query is None:
                         result = "[%s], Feasible" % function_name
-                        stat('Result', result)
-                        stat('Rounds', str(rounds))
                         feas = list(self.feasible_flag)
                         infeas = list(self.non_feasible_flag)
-                        out += out_message % (function_name, "FEASIBLE", "", str(feas),  str(infeas))
+                        q_times = [float(x) for x in self.query_times]
+                        q_average = sum(q_times) / len(q_times)
+                        out += out_message % (function_name, "FEASIBLE", "", str(feas),  str(infeas), str(rounds), str(q_average))
                         out = bcolors.OKGREEN + out + bcolors.ENDC
                         done = True
                 elif res == z3.unsat:
@@ -347,7 +350,7 @@ class Feasibility(object):
                     if len(list(self.feasible_flag)) == self.flags:
                         self.log.info(" ( " + function_name + " ) FEASIBLE")
                         feas = list(self.feasible_flag)
-                        out += out_message % (function_name, "FEASIBLE", inv_info, str(feas), str([]))
+                        out += out_message % (function_name, "FEASIBLE", inv_info, str(feas), str([]), "", "")
                         out = bcolors.OKGREEN + out + bcolors.ENDC
                     else:
                         msg = "EXIT is not FEASIBLE" if rounds==0 else "INFEASIBLE BLOCK FOUND"
@@ -357,16 +360,14 @@ class Feasibility(object):
                         self.log.info(" ( " + function_name + " ) " + msg)
                         feas = list(self.feasible_flag)
                         infeas = list(self.non_feasible_flag)
-                        out += out_message % (function_name, "INFEASIBLE", inv_info, str(feas), str(infeas))
+                        q_times = [float(x) for x in self.query_times]
+                        q_average = sum(q_times) / len(q_times)
+                        out += out_message % (function_name, "INFEASIBLE", inv_info, str(feas), str(infeas), str(rounds), str(q_average))
                         out = bcolors.FAIL + out + bcolors.ENDC
                     done = True
                 else:
-                    out += out_message % (function_name, "UNKNOWN", "", "", "")
+                    out += out_message % (function_name, "UNKNOWN", "", "", "", "", "")
                     done = True
-            # debugging purpose
-            if self.args.stop != None:
-                self.args.stop -=1
-                done = self.args.stop==0
         return out
 
     def cex(self, qr):
@@ -561,7 +562,7 @@ class JobsSpanner(object):
                         if bench: print out
                         all_results += out + "\n-----------------------\n"
                     else:
-                        out = out_message % (function_name, "TIMEOUT", "", "", "")
+                        out = out_message % (function_name, "TIMEOUT", "", "", "", "", "")
                         out = bcolors.WARNING + out + bcolors.ENDC
                         if bench: print out
                         all_results += out + "\n-----------------------\n"
@@ -654,10 +655,6 @@ def parseArgs (argv):
     p.add_argument ("--temp-dir", dest="temp_dir", metavar='DIR',
                        help="Temporary directory",
                        default=None)
-    p.add_argument ('--stop', help='stop after n iterations', dest="stop",
-                    default=None, type=int)
-    p.add_argument ('--all', help='assert all failing flags', dest="all",
-                    default=False,action='store_true')
     p.add_argument ('--stat', help='Print statistics', dest="stat",
                     default=False, action='store_true')
     p.add_argument ('--verbose', help='Verbose', action='store_true',

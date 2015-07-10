@@ -309,11 +309,18 @@ class Feasibility(object):
             return out
 
 
+    def feasOut(self):
+        feas = list(self.feasible_flag)
+        infeas = []
+        for x in self.non_feasible_flag:
+            if x not in feas:
+                infeas.append(x)
+        return feas, infeas
 
     def checkFeas(self, expr_query):
         done = False
-        rounds = 0 # counter for feasibility check
-        self.ee_idx = self.ee_vars(expr_query)
+        rounds = 1 # counter for feasibility check
+        self.ee_idx = self.ee_vars(expr_query) #entr/exit vars
         if verbose: print "EE VARS INDEX:", self.ee_idx
         out = ""
         function_name = self.function_name
@@ -325,13 +332,12 @@ class Feasibility(object):
                 self.query_times.append(str(stats.get('Query')))
                 if bench: print "Query | Round [" + str(rounds) + "] | time  [" + str(stats.get('Query')) + " ms]"
                 if res == z3.sat:
-                    msg = "ENTRY -> EXIT is FEASIBLE" if rounds==0 else "STILL FEASIBLE: Continue checking ..."
+                    msg = "ENTRY -> EXIT is FEASIBLE" if rounds==1 else "STILL FEASIBLE: Continue checking ..."
                     self.log.info("( " + function_name + " ) " + msg)
                     self.feasible_flag |= set(self.ee_idx)
                     expr_query, path = self.cex(expr_query)
                     rounds += 1
                     if expr_query is None:
-                        result = "[%s], Feasible" % function_name
                         feas = list(self.feasible_flag)
                         infeas = list(self.non_feasible_flag)
                         q_times = [float(x) for x in self.query_times]
@@ -351,16 +357,18 @@ class Feasibility(object):
                     if len(list(self.feasible_flag)) == self.flags:
                         self.log.info(" ( " + function_name + " ) FEASIBLE")
                         feas = list(self.feasible_flag)
+                        q_times = [float(x) for x in self.query_times]
+                        q_average = sum(q_times) / len(q_times)
                         out += out_message % (function_name, "FEASIBLE", inv_info, str(feas), str([]), str(rounds), str(q_average))
                         out = bcolors.OKGREEN + out + bcolors.ENDC
                     else:
-                        msg = "EXIT is not FEASIBLE" if rounds==0 else "INFEASIBLE BLOCK FOUND"
-                        if rounds == 0:
+                        msg = "EXIT is not FEASIBLE" if rounds==1 else "INFEASIBLE BLOCK FOUND"
+                        self.feasOut()
+                        if rounds == 1:
                             self.feasible_flag.add(self.ee_idx[0])
                             self.non_feasible_flag.add(self.ee_idx[1])
                         self.log.info(" ( " + function_name + " ) " + msg)
-                        feas = list(self.feasible_flag)
-                        infeas = list(self.non_feasible_flag)
+                        feas, infeas = self.feasOut()
                         q_times = [float(x) for x in self.query_times]
                         q_average = sum(q_times) / len(q_times)
                         out += out_message % (function_name, "INFEASIBLE", inv_info, str(feas), str(infeas), str(rounds), str(q_average))
@@ -563,7 +571,8 @@ class JobsSpanner(object):
                         try:
                             out = job_result.get()
                             if bench: print out
-                        except:
+                        except Exception as e:
+                            print str(e)
                             continue
                         all_results += out + "\n-----------------------\n"
                     else:

@@ -351,7 +351,7 @@ class Feasibility(object):
                     if len(list(self.feasible_flag)) == self.flags:
                         self.log.info(" ( " + function_name + " ) FEASIBLE")
                         feas = list(self.feasible_flag)
-                        out += out_message % (function_name, "FEASIBLE", inv_info, str(feas), str([]), "", "")
+                        out += out_message % (function_name, "FEASIBLE", inv_info, str(feas), str([]), str(rounds), str(q_average))
                         out = bcolors.OKGREEN + out + bcolors.ENDC
                     else:
                         msg = "EXIT is not FEASIBLE" if rounds==0 else "INFEASIBLE BLOCK FOUND"
@@ -559,8 +559,12 @@ class JobsSpanner(object):
                     job_result = pool_jobs.apply_async(jobStarter, (self.args, q, smt2_file, ))
                     job_result.wait(timeout=self.args.timeout)
                     if job_result.ready():
-                        out = job_result.get()
-                        if bench: print out
+                        out = ""
+                        try:
+                            out = job_result.get()
+                            if bench: print out
+                        except:
+                            continue
                         all_results += out + "\n-----------------------\n"
                     else:
                         out = out_message % (function_name, "TIMEOUT", "", "", "", "", "")

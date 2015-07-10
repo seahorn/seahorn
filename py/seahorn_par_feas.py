@@ -14,6 +14,7 @@ import threading
 from multiprocessing import Process, Pool
 import multiprocessing
 import logging
+import ntpath
 
 
 root = os.path.dirname (os.path.dirname (os.path.realpath (__file__)))
@@ -569,8 +570,13 @@ class JobsSpanner(object):
                 pool_jobs.close()
                 pool_jobs.terminate()
                 pool_jobs.join()
-                print "\n\t ========= OVERALL FEASIBILITY RESULTS ========"
-                print all_results
+                if self.args.save:
+                    f_name = ntpath.basename(smt2_file)+"_feas.txt"
+                    with open (f_name, "w") as f:
+                        f.write(all_results)
+                else:
+                    print "\n\t ========= OVERALL FEASIBILITY RESULTS ========"
+                    print all_results
             except Exception as e:
                 self.log.exception(str(e))
 
@@ -665,6 +671,8 @@ def parseArgs (argv):
                     default=False, dest="bench")
     p.add_argument ('--inv', help='Output Invariants', action='store_true',
                     default=False, dest="inv")
+    p.add_argument ('--save', help='Save results file', action='store_true',
+                    default=False, dest="save")
     p.add_argument ('--timeout', help='Timeout per function',
                     type=float, default=20.00, dest="timeout")
     p.add_argument ('--func', help='Number of functions',

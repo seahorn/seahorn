@@ -317,8 +317,9 @@ class Feasibility(object):
         function_name = self.function_name
         while not done:
             with stats.timer ('Query'):
-                print "Query Round " + str(rounds) + " ... "
                 res = self.fp.query (expr_query) #if round == 0 else self.fp.query_from_lvl(12, expr_query)
+                stats.stop('Query')
+                if bench: print "Query | Round [" + str(rounds) + "] | time  [" + str(stats.get('Query')) + " ms]"
                 if res == z3.sat:
                     msg = "ENTRY -> EXIT is FEASIBLE" if rounds==0 else "STILL FEASIBLE: Continue checking ..."
                     self.log.info("( " + function_name + " ) " + msg)
@@ -362,7 +363,6 @@ class Feasibility(object):
                 else:
                     out += out_message % (function_name, "UNKNOWN", "", "", "")
                     done = True
-                stats.stop('Query')
             # debugging purpose
             if self.args.stop != None:
                 self.args.stop -=1
@@ -541,28 +541,29 @@ class JobsSpanner(object):
             self.log.info('Parsing  ... ' + str(smt2_file))
             queries = fp.parse_file (smt2_file)
             stats.stop('Parse')
+            if bench: print "Parse time [" + str(stats.get('Parse')) + " ms]"
             n_function = len(queries)
             n_query = n_function if self.args.func < 0 or self.args.func > n_function else self.args.func
-            print "Number of functions ...  " + str(n_function)
-            print "Number of jobs ... " + str(n_query)
+            if bench: print "Number of functions ...  " + str(n_function)
+            if bench: print "Number of jobs ... " + str(n_query)
             all_results = ""
             pool_jobs = Pool(processes=n_query)
             try:
                 for q in range(n_query):
                     query = queries[q]
                     function_name  = self.getFunctionName(query)
-                    print "checking feasibility of function =>  " + function_name
+                    if bench: print "checking feasibility of function =>  " + function_name
                     #job_result = pool_jobs.apply_async(jobStarter, (self.args, qi, smt2_file, ), callback=self.onReturn)
                     job_result = pool_jobs.apply_async(jobStarter, (self.args, q, smt2_file, ))
                     job_result.wait(timeout=self.args.timeout)
                     if job_result.ready():
                         out = job_result.get()
-                        print out
+                        if bench: print out
                         all_results += out + "\n-----------------------\n"
                     else:
                         out = out_message % (function_name, "TIMEOUT", "", "", "")
                         out = bcolors.WARNING + out + bcolors.ENDC
-                        print out
+                        if bench: print out
                         all_results += out + "\n-----------------------\n"
                 pool_jobs.close()
                 pool_jobs.terminate()
@@ -741,6 +742,4 @@ if __name__ == '__main__':
         main (sys.argv)
     except Exception as e:
         print str(e)
-    finally:
-        if bench: stats.brunch_print ()
     sys.exit (res)

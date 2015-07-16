@@ -30,6 +30,9 @@
 #include "seahorn/Transforms/Scalar/LowerGvInitializers.hh"
 #include "seahorn/Transforms/Utils/RemoveUnreachableBlocksPass.hh"
 
+#include "ikos_llvm/LlvmIkos.hh"
+#include "ikos_llvm/Transforms/InsertInvariants.hh"
+
 #include "ufo/Smt/EZ3.hh"
 #include "ufo/Stats.hh"
 
@@ -220,6 +223,15 @@ int main(int argc, char **argv) {
   pass_manager.add (llvm::createGlobalDCEPass ()); // kill unused internal global
 
   pass_manager.add (new seahorn::RemoveUnreachableBlocksPass ());
+
+  if (Ikos)
+  {
+    // -- insert some local  invariants 
+    pass_manager.add (new llvm_ikos::InsertInvariants ());
+    // -- simplify local invariants.
+    pass_manager.add (llvm::createInstructionCombiningPass ()); 
+  }
+
   pass_manager.add (new seahorn::HornifyModule ());
   if (!AsmOutputFilename.empty ()) 
     pass_manager.add (createPrintModulePass (asmOutput->os ()));

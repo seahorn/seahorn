@@ -31,6 +31,8 @@
 #include "seahorn/HornifyFunction.hh"
 #include "seahorn/FlatHornifyFunction.hh"
 
+#include "ikos_llvm/LlvmIkos.hh"
+
 using namespace llvm;
 using namespace seahorn;
 
@@ -288,6 +290,7 @@ namespace seahorn
 
     AU.addRequired<seahorn::TopologicalOrder>();
     AU.addRequired<seahorn::CutPointGraph>();
+    AU.addPreserved<llvm_ikos::LlvmIkos> ();
 
   }
 

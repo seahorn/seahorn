@@ -252,10 +252,6 @@ class Seahorn(sea.LimitedCmd):
                          help='Choose IKOS abstract domain',
                          choices=['int','cong','zones','term'],
                          dest='ikos_dom', default='int')
-        # TODO: merge with --track
-        ap.add_argument ('--ikos-track',
-                         help='Track registers, pointers, and memory for IKOS',
-                         choices=['reg', 'ptr', 'mem'], default='reg')
         # TODO: make ikos-inter-proc and ikos-live true by default
         ap.add_argument ('--ikos-inter-proc',
                          help='Build inter-procedural CFG',
@@ -279,7 +275,7 @@ class Seahorn(sea.LimitedCmd):
             if args.ikos:
                 argv.append ('--horn-ikos')
                 argv.append ('--ikos-dom={0}'.format (args.ikos_dom))
-                argv.append ('--ikos-track-lvl={0}'.format (args.ikos_track))
+                argv.append ('--ikos-track-lvl={0}'.format (args.track))
                 if args.ikos_inter_proc:
                     argv.append ('--ikos-inter-proc')
                 if args.ikos_live:

@@ -19,7 +19,7 @@ add_llvm_library (seahorn.LIB
 
 # no need to link with static libraries
 if (HAVE_IKOS_LLVM)
-  target_link_libraries (seahorn.LIB LlvmIkosPasses)
+  target_link_libraries (seahorn.LIB LlvmIkosAnalysis LlvmIkosInstrumentation)
 endif()
 
 set_target_properties (seahorn.LIB PROPERTIES OUTPUT_NAME "seahorn")

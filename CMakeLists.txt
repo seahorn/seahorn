@@ -244,16 +244,6 @@ endif()
 find_package(OpenMP)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
 
-if (IS_DIRECTORY ${CMAKE_SOURCE_DIR}/ikos-llvm AND
-    EXISTS ${CMAKE_SOURCE_DIR}/ikos-llvm/CMakeLists.txt)
-  add_subdirectory(ikos-llvm)
-  if (NOT IKOS_FOUND)
-    return()
-  else()
-    include_directories (${IKOS_INCLUDE_DIR})
-  endif()
-endif()
-
 install(DIRECTORY include/
   DESTINATION include
   FILES_MATCHING
@@ -281,14 +271,6 @@ if ("${CMAKE_CXX_COMPILER_ID}" MATCHES "GNU")
 endif ()
 
 
-if (DEFINED IkosLlvm_SOURCE_DIR)
-  include_directories (AFTER ${IkosLlvm_SOURCE_DIR}/include)
-  add_subdirectory (${IkosLlvm_SOURCE_DIR}/lib/LlvmIkos)
-  message (STATUS "Using ikos-llvm from: ${IkosLlvm_SOURCE_DIR}/lib/LlvmIkos")
-  set (HAVE_IKOS TRUE)
-  set (HAVE_IKOS_LLVM TRUE)
-endif()
-
 if (IS_DIRECTORY ${CMAKE_SOURCE_DIR}/dsa-seahorn AND
     EXISTS ${CMAKE_SOURCE_DIR}/dsa-seahorn/lib/DSA/Steensgaard.cpp)
   include_directories (AFTER dsa-seahorn/include)
@@ -308,6 +290,24 @@ if (IS_DIRECTORY ${CMAKE_SOURCE_DIR}/llvm-seahorn AND
   add_subdirectory(llvm-seahorn/tools)
   set (HAVE_LLVM_SEAHORN TRUE)
   set (LLVM_SEAHORN_LIBS SeaInstCombine)
+endif()
+
+if (IS_DIRECTORY ${CMAKE_SOURCE_DIR}/ikos-llvm AND
+    EXISTS ${CMAKE_SOURCE_DIR}/ikos-llvm/CMakeLists.txt)
+  add_subdirectory(ikos-llvm)
+  if (NOT IKOS_FOUND)
+    return()
+  else()
+    include_directories (${IKOS_INCLUDE_DIR})
+  endif()
+endif()
+
+if (DEFINED IkosLlvm_SOURCE_DIR)
+  include_directories (AFTER ${IkosLlvm_SOURCE_DIR}/include)
+  add_subdirectory (${IkosLlvm_SOURCE_DIR}/lib/LlvmIkos)
+  message (STATUS "Using ikos-llvm from: ${IkosLlvm_SOURCE_DIR}/lib/LlvmIkos")
+  set (HAVE_IKOS TRUE)
+  set (HAVE_IKOS_LLVM TRUE)
 endif()
 
 add_subdirectory(lib)

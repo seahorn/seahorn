@@ -34,6 +34,7 @@
 #include "ikos_llvm/Transforms/InsertInvariants.hh"
 
 #include "ufo/Smt/EZ3.hh"
+#include "ufo/Passes/NameValues.hpp"
 #include "ufo/Stats.hh"
 
 void print_seahorn_version()
@@ -226,7 +227,8 @@ int main(int argc, char **argv) {
 
   if (Ikos)
   {
-    // -- insert some local  invariants 
+    pass_manager.add (new ufo::NameValues ());
+    // -- insert some local invariants 
     pass_manager.add (new llvm_ikos::InsertInvariants ());
     // -- simplify local invariants.
     pass_manager.add (llvm::createInstructionCombiningPass ()); 

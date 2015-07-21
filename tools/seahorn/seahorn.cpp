@@ -228,10 +228,8 @@ int main(int argc, char **argv) {
   if (Ikos)
   {
     pass_manager.add (new ufo::NameValues ());
-    // -- insert some local invariants 
+    // -- insert local invariants 
     pass_manager.add (new llvm_ikos::InsertInvariants ());
-    // -- simplify local invariants.
-    pass_manager.add (llvm::createInstructionCombiningPass ()); 
   }
 
   pass_manager.add (new seahorn::HornifyModule ());

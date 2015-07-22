@@ -95,7 +95,7 @@ namespace seahorn
     Function *main = M.getFunction ("main");
     if (!main)
     { // program trivially safe
-      errs () << "Program trivially safe\n";
+      errs () << "WARNING: main function not found so program is trivially safe.\n";
       m_db.addQuery (mk<FALSE> (m_efac));
       return Changed;
     }
@@ -134,7 +134,8 @@ namespace seahorn
 
     if (!canFail)
     { // program trivially safe
-      errs () << "Program trivially safe\n";
+      errs () << "WARNING: no assertion was found ";
+      errs () << "so either program does not have assertions or the frontend discharged them.\n";
       m_db.addQuery (mk<FALSE> (m_efac));
       return Changed;
     }

@@ -270,16 +270,26 @@ class Seahorn(sea.LimitedCmd):
         self.seahornCmd = sea.ExtCmd (cmd_name)
         
         argv = list()
+
+        if args.ikos:
+            argv.append ('--horn-ikos')
+            argv.append ('--ikos-dom={0}'.format (args.ikos_dom))
+            argv.append ('--ikos-track-lvl={0}'.format (args.track))
+            if args.ikos_inter_proc:
+                argv.append ('--ikos-inter-proc')
+            #if args.ikos_live:
+            argv.append ('--ikos-live')
+
         if args.solve:
             argv.append ('--horn-solve')
-            if args.ikos:
-                argv.append ('--horn-ikos')
-                argv.append ('--ikos-dom={0}'.format (args.ikos_dom))
-                argv.append ('--ikos-track-lvl={0}'.format (args.track))
-                if args.ikos_inter_proc:
-                    argv.append ('--ikos-inter-proc')
-                if args.ikos_live:
-                    argv.append ('--ikos-live')
+            # if args.ikos:
+            #     argv.append ('--horn-ikos')
+            #     argv.append ('--ikos-dom={0}'.format (args.ikos_dom))
+            #     argv.append ('--ikos-track-lvl={0}'.format (args.track))
+            #     if args.ikos_inter_proc:
+            #         argv.append ('--ikos-inter-proc')
+            #     if args.ikos_live:
+            #         argv.append ('--ikos-live')
             if args.show_invars:
                 argv.append ('--horn-answer')
         if args.cex is not None and args.solve:

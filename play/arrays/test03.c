@@ -1,6 +1,8 @@
 extern void __VERIFIER_assume (int);
 extern void __VERIFIER_error (void);
-void assert (int v) { if (!v) __VERIFIER_error (); }
+inline void assert (int v) __attribute__((always_inline));
+void assert (int v)
+{ if (!v) __VERIFIER_error (); }
 
 extern int nd ();
 

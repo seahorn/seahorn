@@ -277,8 +277,8 @@ class Seahorn(sea.LimitedCmd):
             argv.append ('--ikos-track-lvl={0}'.format (args.track))
             if args.ikos_inter_proc:
                 argv.append ('--ikos-inter-proc')
-            #if args.ikos_live:
-            argv.append ('--ikos-live')
+            if args.ikos_live:
+                argv.append ('--ikos-live')
 
         if args.solve:
             argv.append ('--horn-solve')

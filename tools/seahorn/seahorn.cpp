@@ -28,6 +28,7 @@
 #include "seahorn/HornCex.hh"
 #include "seahorn/Transforms/Scalar/PromoteVerifierCalls.hh"
 #include "seahorn/Transforms/Scalar/LowerGvInitializers.hh"
+#include "seahorn/Transforms/Scalar/LowerCstExpr.hh"
 #include "seahorn/Transforms/Utils/RemoveUnreachableBlocksPass.hh"
 
 #include "ikos_llvm/LlvmIkos.hh"
@@ -227,6 +228,7 @@ int main(int argc, char **argv) {
 
   if (Ikos)
   {
+    pass_manager.add (new seahorn::LowerCstExprPass ());
     pass_manager.add (new ufo::NameValues ());
     // -- insert local invariants 
     pass_manager.add (new llvm_ikos::InsertInvariants ());

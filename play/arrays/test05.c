@@ -1,30 +1,22 @@
 extern void __VERIFIER_assume (int);
 extern void __VERIFIER_error (void);
-void assert (int v) { if (!v) __VERIFIER_error (); }
+__attribute__((always_inline)) void assert (int v)  { if (!v) __VERIFIER_error (); }
 
-extern int nd ();
+#define N 10
+
+// With array smashing nothing can be done since a and b are initially
+// top.
 
 int main ()
 {
-  int a[1000], b[1000];
-  int i;
-  int c = nd ();
-  for (i=0;i<1000;i++)
-  {
-    if (c)
-      a[i] = 0;
-    else 
-      a[i] = 5;
+  int a[N], b[N];
+  int i,j;
 
-    if (c)
-      b[i] = 0;
-    else 
-      b[i] =5;
+  for (i=0;i<N;i++)
+    b[i] = a[i];
 
-  }
-
-  for (i=0;i<1000;i++)  
-    assert (a[i] == b[i]);
+  for (j=0;j<N;j++)  
+    assert (a[j] == b[j]);
 
   return 42;
 }

@@ -1,19 +1,27 @@
 extern void __VERIFIER_assume (int);
 extern void __VERIFIER_error (void);
-void assert (int v) { if (!v) __VERIFIER_error (); }
+__attribute__((always_inline)) void assert  (int v)  { if (!v) __VERIFIER_error (); }
 
 extern int nd ();
 
+#define N 1000
+// Different ways of initialization
+struct foo { int a; int b; int c;}; struct foo hh;
+int a[N];
+int x = 4;
+int b [3] = {2, 3, 4};
+
 int main ()
 {
-  int a[1000];
   int i;
-  for (i=0;i<1000;i++)
+  for (i=0;i<N;i++)
   {
     if (nd ())
-      a[i] = 0;
-    else 
-      a[i] =5;
+      a[i] = b[2];
+    else if (nd ())
+      a[i] = hh.a;
+    else
+      a[i] = x;
   }
 
   int res = a[i-1];

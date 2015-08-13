@@ -5,15 +5,6 @@
 
 namespace seahorn
 {
-
-  /// Find a function exit basic block.  Assumes that the function has
-  /// a unique block with return instruction
-  static const BasicBlock* findExitBlock (const Function &F)
-  {
-    for (const BasicBlock& bb : F)
-      if (isa<ReturnInst> (bb.getTerminator ())) return &bb;
-    return NULL;
-  }
   
   void HornifyFunction::extractFunctionInfo (const BasicBlock &BB)
   {

@@ -121,19 +121,11 @@ namespace seahorn
     DenseMap<const Function*, BasicBlock*> entryBlocks;
     DenseMap<const Function*, SmallVector<Value*, 16> > entryPrms;
     
-    SmallVector<const BasicBlock*, 4> errBlocks;
+    SmallVector<BasicBlock*, 4> errBlocks;
     
     
     IRBuilder<> enBldr (M.getContext ());
     enBldr.SetInsertPoint (entry, entry->begin ());
-
-    AttrBuilder B;
-    AttributeSet as = AttributeSet::get (M.getContext (), 
-                                         AttributeSet::FunctionIndex, B);
-    // auto failureFn = dyn_cast<Function>
-    //     (M.getOrInsertFunction ("seahorn.fail",
-    //                             as,
-    //                             Type::getVoidTy (M.getContext ()), NULL));
     
     for (Function &F : M)
     {
@@ -167,7 +159,6 @@ namespace seahorn
       }
       else
       {
-        // Builder.CreateCall (failureFn);
         Builder.CreateRet (Builder.getInt32 (42));
         errBlocks.push_back (bb);
       }
@@ -221,8 +212,29 @@ namespace seahorn
       
       Builder.CreateBr (entryBlocks [ci->getCalledFunction ()]);
     }
+
+    AttrBuilder B;
+
+    // --- make sure the optimizer does not remove it
+    B.addAttribute (Attribute::OptimizeNone);
+
+    AttributeSet as = AttributeSet::get (M.getContext (), 
+                                         AttributeSet::FunctionIndex, B);
+    auto failureFn = dyn_cast<Function>
+        (M.getOrInsertFunction ("seahorn.fail",
+                                as,
+                                Type::getVoidTy (M.getContext ()), NULL));
+
+    for (auto errB : errBlocks)
+    {
+      // --- add placeholder to indicate that the function can fail
+      Builder.SetInsertPoint (errB, errB->begin ());
+      Builder.CreateCall (failureFn);
+    }      
+
+    reduceToAncestors (*newM, SmallVector<const BasicBlock*, 4> (errBlocks.begin (), 
+                                                                 errBlocks.end()));
     
-    reduceToAncestors (*newM, errBlocks);
     ExternalizeDeclarations (M);
 
     return true;

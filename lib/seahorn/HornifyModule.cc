@@ -86,53 +86,61 @@ namespace seahorn
     m_td = &getAnalysis<DataLayoutPass> ().getDataLayout ();
     m_canFail = getAnalysisIfAvailable<CanFail> ();
 
-#if 0
-    // Check syntactically if error is possible. If not the program is
-    // trivially safe.
-    Function *main = M.getFunction ("main");
-    if (!main)
-    {
-      // program trivially safe
-      m_db.addQuery (mk<FALSE> (m_efac));
-      return Changed;
-    }
-    
-    bool canFail = false;
-    Function* failureFn = M.getFunction ("seahorn.fail");
-    for (auto &I : boost::make_iterator_range (inst_begin(*main), inst_end (*main)))
-    {
-      if (!isa<CallInst> (&I)) continue;
-      // -- look through pointer casts
-      Value *v = I.stripPointerCasts ();
-      CallSite CS (const_cast<Value*> (v));
-      const Function *fn = CS.getCalledFunction ();
-      if (fn == failureFn)
-        canFail = true;
-    }
-    
-    if (!canFail)
-    {
-      for (auto &f : M)
-      { 
-        if (&f == errorFn || &f == failureFn) continue; 
-        
-        if (m_canFail->canFail (&f)) 
-            canFail = true; 
-      }
-    }
-    if (!canFail)
-    {
-      // program trivially safe
-      m_db.addQuery (mk<FALSE> (m_efac));
-      return Changed;
-    }
-#endif 
-    
     if (Step == hm_detail::CLP_SMALL_STEP || 
         Step == hm_detail::CLP_FLAT_SMALL_STEP)
       m_sem.reset (new ClpSmallSymExec (m_efac, *this, TL));
     else
       m_sem.reset (new UfoSmallSymExec (m_efac, *this, TL));
+
+    /// --- check syntactically if error is possible. If not the
+    ///     program is trivially safe.
+    Function *main = M.getFunction ("main");
+    if (!main)
+    { // program trivially safe
+      errs () << "WARNING: main function not found so program is trivially safe.\n";
+      m_db.addQuery (mk<FALSE> (m_efac));
+      return Changed;
+    }
+
+    bool canFail = false; 
+    if (!findExitBlock (*main))
+    { // -- optimizer can detect an error and make main unreachable
+      canFail = true;
+    }
+
+    Function* failureFn = M.getFunction ("seahorn.fail");
+    if (!canFail)
+    {
+      for (auto &I : boost::make_iterator_range (inst_begin(*main), 
+                                                 inst_end (*main)))
+      {
+        if (!isa<CallInst> (&I)) continue;
+        // -- look through pointer casts
+        Value *v = I.stripPointerCasts ();
+        CallSite CS (const_cast<Value*> (v));
+        const Function *fn = CS.getCalledFunction ();
+        canFail |= (fn == failureFn);
+      }
+    }
+    
+    if (!canFail)
+    {      
+      Function* errorFn = M.getFunction ("verifier.error");      
+      for (auto &f : M)
+      { 
+        if ((&f == errorFn) || (&f == failureFn)) 
+          continue; 
+        canFail |= (m_canFail->canFail (&f)); 
+      }
+    }
+
+    if (!canFail)
+    { // program trivially safe
+      errs () << "WARNING: no assertion was found ";
+      errs () << "so either program does not have assertions or the frontend discharged them.\n";
+      m_db.addQuery (mk<FALSE> (m_efac));
+      return Changed;
+    }
 
     // create FunctionInfo for verifier.error() function
     if (Function* errorFn = M.getFunction ("verifier.error"))
@@ -190,8 +198,8 @@ namespace seahorn
 
     if (!m_db.hasQuery ())
     {
-      // program trivially safe
-      m_db.addQuery (mk<FALSE> (m_efac));
+      // This can happen if the exit block is unreachable
+      m_db.addQuery (mk<TRUE> (m_efac));
     }
 
     /**

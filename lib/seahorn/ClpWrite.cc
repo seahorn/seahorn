@@ -11,7 +11,8 @@
 static llvm::cl::opt<bool>
 PrintClpFapp ("horn-clp-fapp",
               llvm::cl::desc ("Print function applications in CLP format"), 
-              llvm::cl::init (false));
+              llvm::cl::init (false),
+              llvm::cl::Hidden);
 
 namespace seahorn
 {

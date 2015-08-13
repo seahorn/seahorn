@@ -43,6 +43,12 @@ namespace seahorn
                               Type::getVoidTy (Context),
                               Type::getInt1Ty (Context),
                               NULL));
+
+    m_failureFn = dyn_cast<Function>
+      (M.getOrInsertFunction ("seahorn.fail",
+                              as,
+                              Type::getVoidTy (Context), 
+                              NULL));
    
     B.addAttribute (Attribute::NoReturn);
     // XXX LLVM optimizer removes ReadNone functions even if they do not return!
@@ -55,10 +61,6 @@ namespace seahorn
                               as,
                               Type::getVoidTy (Context), NULL));
 
-    m_failureFn = dyn_cast<Function>
-      (M.getOrInsertFunction ("seahorn.fail",
-                              as,
-                              Type::getVoidTy (Context), NULL));
     
     CallGraphWrapperPass *cgwp = getAnalysisIfAvailable<CallGraphWrapperPass> ();
     if (CallGraph *cg = cgwp ? &cgwp->getCallGraph () : nullptr)

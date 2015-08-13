@@ -13,7 +13,9 @@
 
 namespace{
 
-    inline const llvm::BasicBlock* findErrorBlock (const llvm::Function &F)
+    /// Find a function exit basic block.  Assumes that the function has
+    /// a unique block with return instruction
+    inline const llvm::BasicBlock* findExitBlock (const llvm::Function &F)
     {
       for (const llvm::BasicBlock& bb : F)
         if (llvm::isa<llvm::ReturnInst> (bb.getTerminator ())) return &bb;

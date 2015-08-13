@@ -28,6 +28,7 @@
 #include "seahorn/HornCex.hh"
 #include "seahorn/Transforms/Scalar/PromoteVerifierCalls.hh"
 #include "seahorn/Transforms/Scalar/LowerGvInitializers.hh"
+#include "seahorn/Transforms/Scalar/LowerCstExpr.hh"
 #include "seahorn/Transforms/Utils/RemoveUnreachableBlocksPass.hh"
 
 #include "ufo/Smt/EZ3.hh"
@@ -210,6 +211,10 @@ int main(int argc, char **argv) {
   pass_manager.add (new seahorn::PromoteVerifierCalls ());
   pass_manager.add(llvm::createDeadInstEliminationPass());
   pass_manager.add(llvm::createLowerSwitchPass());
+  // lowers constant expressions to instructions
+  pass_manager.add(new seahorn::LowerCstExprPass());
+  pass_manager.add(llvm::createDeadCodeEliminationPass());
+
   pass_manager.add(llvm::createUnifyFunctionExitNodesPass ());
   pass_manager.add (new seahorn::LowerGvInitializers ());
   

@@ -11,14 +11,18 @@ extern int nd ();
 
 #define N 1000
 
+// --- This is actually how Simulink translates the input/outputs of
+//     the models to C
 struct table {
+  int x;
   int a[N];
 };
+struct table _t;
+struct table * t = &_t;
 
 int main ()
 {  
   int i,j,v;
-  struct table *t = (struct table *) malloc (sizeof (struct table));
 
   for (i=0;i<N;i++)
     t->a[i] = 0;
@@ -26,8 +30,7 @@ int main ()
   for (i=0;i<N;i++)
   {
     v = nd ();    
-    if (nd () && 
-        (v >= 0 && v <= 5))
+    if (nd () && (v >= 0 && v <= 5))
       t->a[i] = v;
   }
 

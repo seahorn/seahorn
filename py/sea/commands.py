@@ -258,13 +258,20 @@ class Seahorn(sea.LimitedCmd):
                          help='Choose IKOS abstract domain',
                          choices=['int','cong','zones','term'],
                          dest='ikos_dom', default='int')
-        # TODO: make ikos-inter-proc and ikos-live true by default
-        ap.add_argument ('--ikos-inter-proc',
-                         help='Build inter-procedural CFG',
-                         dest='ikos_inter_proc', default=False, action='store_true')
+        #### These three should not be optional in the future
+        ap.add_argument ('--ikos-enable-ptr',
+                         help='Translate pointer arithmetic instructions (experimental)',
+                         dest='ikos_enable_ptr', default=False, action='store_true')
+        ap.add_argument ('--ikos-cfg-simplify',
+                         help='Simplify CFG built by Ikos (experimental)',
+                         dest='ikos_cfg_simplify', default=False, action='store_true')
+        ap.add_argument ('--ikos-cfg-interproc',
+                         help='Build inter-procedural CFG (experimental)',
+                         dest='ikos_interproc', default=False, action='store_true')
         ap.add_argument ('--ikos-live',
-                         help='Use of liveness information',
+                         help='Use of liveness information (experimental)',
                          dest='ikos_live', default=False, action='store_true')        
+        ####
         ap.add_argument ('--show-invars',
                          help='Display computed invariants',
                          dest='show_invars', default=False, action='store_true')
@@ -281,21 +288,17 @@ class Seahorn(sea.LimitedCmd):
             argv.append ('--horn-ikos')
             argv.append ('--ikos-dom={0}'.format (args.ikos_dom))
             argv.append ('--ikos-track-lvl={0}'.format (args.track))
-            if args.ikos_inter_proc:
-                argv.append ('--ikos-inter-proc')
+            if args.ikos_enable_ptr:
+                argv.append ('--ikos-enable-ptr')
+            if args.ikos_cfg_simplify:
+                argv.append ('--ikos-cfg-simplify')
+            if args.ikos_interproc:
+                argv.append ('--ikos-cfg-interproc')
             if args.ikos_live:
                 argv.append ('--ikos-live')
 
         if args.solve:
             argv.append ('--horn-solve')
-            # if args.ikos:
-            #     argv.append ('--horn-ikos')
-            #     argv.append ('--ikos-dom={0}'.format (args.ikos_dom))
-            #     argv.append ('--ikos-track-lvl={0}'.format (args.track))
-            #     if args.ikos_inter_proc:
-            #         argv.append ('--ikos-inter-proc')
-            #     if args.ikos_live:
-            #         argv.append ('--ikos-live')
             if args.show_invars:
                 argv.append ('--horn-answer')
         if args.cex is not None and args.solve:

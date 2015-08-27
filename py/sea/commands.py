@@ -256,7 +256,7 @@ class Seahorn(sea.LimitedCmd):
                          dest='ikos', default=False, action='store_true')
         ap.add_argument ('--ikos-dom',
                          help='Choose IKOS abstract domain',
-                         choices=['int','cong','zones','term'],
+                         choices=['int','ric','zones','term'],
                          dest='ikos_dom', default='int')
         #### These three should not be optional in the future
         ap.add_argument ('--ikos-enable-ptr',

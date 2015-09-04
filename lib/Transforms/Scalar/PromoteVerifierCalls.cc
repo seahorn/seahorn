@@ -144,7 +144,9 @@ namespace seahorn
         
         toKill.push_back (&I);
       }
-      else if (fn && fn->getName ().equals ("__SEAHORN_fail"))
+      else if (fn && (fn->getName ().equals ("__SEAHORN_fail") || 
+        /* map __llbmc_assert to seahorn.fail to support legacy frontend */
+                      fn->getName ().equals ("__llbmc_assert")) )
       {
         Function *main = F.getParent ()->getFunction ("main");        
         if (!main  || main != &F)

@@ -216,7 +216,7 @@ def seahorn (in_name, opts, cpu = -1, mem = -1):
 def is_seahorn_opt (x):
     if x.startswith ('-'):
         y = x.strip ('-')
-        return y.startswith ('horn') or y.startswith ('ikos') or y.startswith ('log') or y.startswith ('insert-checks')
+        return y.startswith ('horn') or y.startswith ('crab') or y.startswith ('log') or y.startswith ('insert-checks')
     return False
 
 def is_non_seahorn_opt (x): return not is_seahorn_opt (x)

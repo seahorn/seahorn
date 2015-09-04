@@ -125,12 +125,12 @@ def plot(data, _f):
 
 def solved_analysis(data, _f):
     print "... solved benchmarks analysis"
-    print "SOLVED BY BOTH (SAFE): " + str(len(set(data["large_step_solved"]).intersection(set(data["ikos_large_solved"]))))
-    print "SOLVED BY BOTH (UNSAFE): " + str(len(set(data["large_step_unsolved"]).intersection(set(data["ikos_large_unsolved"]))))
-    print "SOLVED BY LARGE AND NOT BY IKOS (SAFE): " + str(len(set(data["large_step_solved"]).difference(set(data["ikos_large_solved"]))))
-    print "SOLVED BY IKOS AND NOT BY LARGE (SAFE): " + str(len(set(data["ikos_large_solved"]).difference(set(data["large_step_solved"]))))
-    print "SOLVED BY LARGE AND NOT BY IKOS (UNSAFE): " + str(len(set(data["large_step_unsolved"]).difference(set(data["ikos_large_unsolved"]))))
-    print "SOLVED BY IKOS AND NOT BY LARGE (SAFE): " + str(len(set(data["ikos_large_unsolved"]).difference(set(data["large_step_unsolved"]))))
+    print "SOLVED BY BOTH (SAFE): " + str(len(set(data["large_step_solved"]).intersection(set(data["crab_large_solved"]))))
+    print "SOLVED BY BOTH (UNSAFE): " + str(len(set(data["large_step_unsolved"]).intersection(set(data["crab_large_unsolved"]))))
+    print "SOLVED BY LARGE AND NOT BY CRAB (SAFE): " + str(len(set(data["large_step_solved"]).difference(set(data["crab_large_solved"]))))
+    print "SOLVED BY CRAB AND NOT BY LARGE (SAFE): " + str(len(set(data["crab_large_solved"]).difference(set(data["large_step_solved"]))))
+    print "SOLVED BY LARGE AND NOT BY CRAB (UNSAFE): " + str(len(set(data["large_step_unsolved"]).difference(set(data["crab_large_unsolved"]))))
+    print "SOLVED BY CRAB AND NOT BY LARGE (SAFE): " + str(len(set(data["crab_large_unsolved"]).difference(set(data["large_step_unsolved"]))))
 
 
 

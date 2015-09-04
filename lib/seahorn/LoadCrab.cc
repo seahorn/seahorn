@@ -7,48 +7,48 @@ namespace seahorn
 {
   using namespace llvm;
 
-  /// Loads Ikos invariants into  a Horn Solver
-  class LoadIkos: public llvm::ModulePass
+  /// Loads Crab invariants into  a Horn Solver
+  class LoadCrab: public llvm::ModulePass
   {
   public:
     static char ID;
     
-    LoadIkos () : ModulePass(ID) {}
-    virtual ~LoadIkos () {}
+    LoadCrab () : ModulePass(ID) {}
+    virtual ~LoadCrab () {}
     
     virtual bool runOnModule (Module &M);
     virtual bool runOnFunction (Function &F);
     virtual void getAnalysisUsage (AnalysisUsage &AU) const;
-    virtual const char* getPassName () const {return "LoadIkos";}
+    virtual const char* getPassName () const {return "LoadCrab";}
   };
   
-  char LoadIkos::ID = 0;
-  Pass* createLoadIkosPass () {return new LoadIkos ();}
+  char LoadCrab::ID = 0;
+  Pass* createLoadCrabPass () {return new LoadCrab ();}
 
 } // end namespace seahorn
 
-#ifndef HAVE_IKOS_LLVM
-// dummy implementation when Ikos is not compiled in
+#ifndef HAVE_CRAB_LLVM
+// dummy implementation when Crab is not compiled in
 namespace seahorn
 {
-  void LoadIkos::getAnalysisUsage (AnalysisUsage &AU) const
+  void LoadCrab::getAnalysisUsage (AnalysisUsage &AU) const
   {AU.setPreservesAll ();}
 
-  bool LoadIkos::runOnModule (Module &M)
+  bool LoadCrab::runOnModule (Module &M)
   {
-    errs () << "WARNING: Not loading invariants. Compiled without Ikos support.\n";
+    errs () << "WARNING: Not loading invariants. Compiled without Crab support.\n";
     return false;
   }
-  bool LoadIkos::runOnFunction (Function &F) {return false;}
+  bool LoadCrab::runOnFunction (Function &F) {return false;}
 }
 #else
   // real implementation starts here 
 #include "ufo/Expr.hpp"
 #include "ufo/ExprLlvm.hpp"
 
-#include <ikos_llvm/CfgBuilder.hh>
-#include <ikos_llvm/LlvmIkos.hh>
-#include <ikos_llvm/Support/bignums.hh>
+#include <crab_llvm/CfgBuilder.hh>
+#include <crab_llvm/CrabLlvm.hh>
+#include <crab_llvm/Support/bignums.hh>
 
 #include "seahorn/HornifyModule.hh"
 
@@ -58,7 +58,7 @@ namespace llvm
 {
    template <typename Number, typename VariableName>
    llvm::raw_ostream& operator<< (llvm::raw_ostream& o, 
-                                  cfg_impl::z_lin_cst_t cst)
+                                  crab::cfg_impl::z_lin_cst_t cst)
    {
      std::ostringstream s;
      s << cst;
@@ -67,7 +67,7 @@ namespace llvm
    }
 
    inline llvm::raw_ostream& operator<< (llvm::raw_ostream& o, 
-                                         cfg_impl::z_lin_cst_sys_t csts)
+                                         crab::cfg_impl::z_lin_cst_sys_t csts)
    {
      std::ostringstream s;
      s << csts;
@@ -79,13 +79,13 @@ namespace llvm
 
 namespace seahorn
 {
-  namespace ikos_smt 
+  namespace crab_smt 
   {
-    // TODO: marshal expr::Expr to ikos::linear_constraints
+    // TODO: marshal expr::Expr to crab::linear_constraints
 
     using namespace llvm;
     using namespace expr;
-    using namespace cfg_impl;
+    using namespace crab::cfg_impl;
 
     struct FailUnMarshal
     {
@@ -99,7 +99,7 @@ namespace seahorn
     template <typename U>
     struct BasicExprUnMarshal
     {
-      // Ikos does not distinguish between bools and the rest of
+      // Crab does not distinguish between bools and the rest of
       // integers but SeaHorn does.
 
       // A normalizer for Boolean constraints
@@ -211,7 +211,7 @@ namespace seahorn
       
       Expr unmarshal_num( ikos::z_number n, ExprFactory &efac)
       {
-        std::string snum = llvm_ikos::toStr (n);
+        std::string snum = crab_llvm::toStr (n);
         const mpz_class mpz (snum);
         return mkTerm (mpz, efac);
       }
@@ -293,7 +293,7 @@ namespace seahorn
       }
     };
 
-  } // end namespace ikos_smt
+  } // end namespace crab_smt
 
 } // end namespace seahorn
 
@@ -301,22 +301,24 @@ namespace seahorn
 namespace seahorn
 {
   using namespace llvm;
-  using namespace cfg_impl;
+  using namespace crab::cfg_impl;
   
   
-  bool LoadIkos::runOnModule (Module &M)
+  bool LoadCrab::runOnModule (Module &M)
   {
     for (auto &F : M) runOnFunction (F);
     return true;
   }
   
-  expr::Expr Convert (llvm_ikos::LlvmIkos &ikos,
+  expr::Expr Convert (crab_llvm::CrabLlvm &crab,
                       const llvm::BasicBlock *BB, 
                       const expr::ExprVector &live, 
                       expr::ExprFactory &efac) 
   {
-    z_lin_cst_sys_t csts = ikos [BB];
-    ikos_smt::BasicExprUnMarshal < ikos_smt::FailUnMarshal > c;
+    // FIXME: crab [BB] returns actually inv_tbl_t that for now it is
+    // z_lin_cst_sys_t but this might change
+    z_lin_cst_sys_t csts = crab [BB];
+    crab_smt::BasicExprUnMarshal < crab_smt::FailUnMarshal > c;
     expr::Expr inv = c.unmarshal (csts, efac);
 
     if ( (std::distance (live.begin (), live.end ()) == 0) && 
@@ -326,10 +328,10 @@ namespace seahorn
       return inv;
   }
 
-  bool LoadIkos::runOnFunction (Function &F)
+  bool LoadCrab::runOnFunction (Function &F)
   {
     HornifyModule &hm = getAnalysis<HornifyModule> ();
-    llvm_ikos::LlvmIkos &ikos = getAnalysis<llvm_ikos::LlvmIkos> ();
+    crab_llvm::CrabLlvm &crab = getAnalysis<crab_llvm::CrabLlvm> ();
     
     auto &db = hm.getHornClauseDB ();
     
@@ -341,9 +343,9 @@ namespace seahorn
       const ExprVector &live = hm.live (BB);
       
       Expr pred = hm.bbPredicate (BB);
-      Expr inv = Convert (ikos, &BB, live, hm.getExprFactory ());
+      Expr inv = Convert (crab, &BB, live, hm.getExprFactory ());
 
-      LOG ("ikos", 
+      LOG ("crab", 
            errs () << "Loading invariant " << *bind::fname (pred);
            errs () << "("; for (auto v: live) errs () << *v << " ";
            errs () << ")  "  << *inv << "\n"; );
@@ -356,11 +358,11 @@ namespace seahorn
   }
   
   
-  void LoadIkos::getAnalysisUsage (AnalysisUsage &AU) const
+  void LoadCrab::getAnalysisUsage (AnalysisUsage &AU) const
   {
     AU.setPreservesAll ();
     AU.addRequired<HornifyModule> ();
-    AU.addRequired<llvm_ikos::LlvmIkos> ();
+    AU.addRequired<crab_llvm::CrabLlvm> ();
   }
   
 }

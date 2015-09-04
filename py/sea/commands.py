@@ -212,7 +212,7 @@ def _is_seahorn_opt (x):
     if x.startswith ('-'):
         y = x.strip ('-')
         return y.startswith ('horn') or \
-            y.startswith ('ikos') or y.startswith ('log')
+            y.startswith ('crab') or y.startswith ('log')
     return False
 
 class Seahorn(sea.LimitedCmd):
@@ -251,30 +251,31 @@ class Seahorn(sea.LimitedCmd):
         ap.add_argument ('--track',
                          help='Track registers, pointers, and memory',
                          choices=['reg', 'ptr', 'mem'], default='mem')
-        ap.add_argument ('--ikos',
-                         help='Enable IKOS abstract interpreter',
-                         dest='ikos', default=False, action='store_true')
-        ap.add_argument ('--ikos-dom',
-                         help='Choose IKOS abstract domain',
-                         choices=['int','ric','zones','term'],
-                         dest='ikos_dom', default='int')
-        #### These three should not be optional in the future
-        ap.add_argument ('--ikos-enable-ptr',
-                         help='Translate pointer arithmetic instructions (experimental)',
-                         dest='ikos_enable_ptr', default=False, action='store_true')
-        ap.add_argument ('--ikos-cfg-simplify',
-                         help='Simplify CFG built by Ikos (experimental)',
-                         dest='ikos_cfg_simplify', default=False, action='store_true')
-        ap.add_argument ('--ikos-cfg-interproc',
-                         help='Build inter-procedural CFG (experimental)',
-                         dest='ikos_interproc', default=False, action='store_true')
-        ap.add_argument ('--ikos-live',
-                         help='Use of liveness information (experimental)',
-                         dest='ikos_live', default=False, action='store_true')        
-        ####
         ap.add_argument ('--show-invars',
                          help='Display computed invariants',
                          dest='show_invars', default=False, action='store_true')
+        ## Begin Crab ##
+        ap.add_argument ('--crab',
+                         help='Enable Crab abstract interpreter',
+                         dest='crab', default=False, action='store_true')
+        ap.add_argument ('--crab-dom',
+                         help='Choose Crab abstract domain',
+                         choices=['int','ric','zones','term'],
+                         dest='crab_dom', default='int')
+        ap.add_argument ('--crab-live',
+                         help='Use of liveness information',
+                         dest='crab_live', default=False, action='store_true')        
+        #### These three should not be optional in the future
+        ap.add_argument ('--crab-disable-ptr',
+                         help='Disable translation of pointer arithmetic instructions',
+                         dest='crab_disable_ptr', default=False, action='store_true')
+        ap.add_argument ('--crab-cfg-simplify',
+                         help='Simplify CFG built by Crab (experimental)',
+                         dest='crab_cfg_simplify', default=False, action='store_true')
+        ap.add_argument ('--crab-cfg-interproc',
+                         help='Build inter-procedural CFG (experimental)',
+                         dest='crab_interproc', default=False, action='store_true')
+        ## End Crab ##
         return ap
 
     def run (self, args, extra):
@@ -284,18 +285,18 @@ class Seahorn(sea.LimitedCmd):
         
         argv = list()
 
-        if args.ikos:
-            argv.append ('--horn-ikos')
-            argv.append ('--ikos-dom={0}'.format (args.ikos_dom))
-            argv.append ('--ikos-track-lvl={0}'.format (args.track))
-            if args.ikos_enable_ptr:
-                argv.append ('--ikos-enable-ptr')
-            if args.ikos_cfg_simplify:
-                argv.append ('--ikos-cfg-simplify')
-            if args.ikos_interproc:
-                argv.append ('--ikos-cfg-interproc')
-            if args.ikos_live:
-                argv.append ('--ikos-live')
+        if args.crab:
+            argv.append ('--horn-crab')
+            argv.append ('--crab-dom={0}'.format (args.crab_dom))
+            argv.append ('--crab-track-lvl={0}'.format (args.track))
+            if args.crab_disable_ptr:
+                argv.append ('--crab-enable-ptr')
+            if args.crab_cfg_simplify:
+                argv.append ('--crab-cfg-simplify')
+            if args.crab_interproc:
+                argv.append ('--crab-cfg-interproc')
+            if args.crab_live:
+                argv.append ('--crab-live')
 
         if args.solve:
             argv.append ('--horn-solve')

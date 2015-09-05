@@ -324,7 +324,7 @@ def seahorn (in_name, out_name, opts, cex = None, cpu = -1, mem = -1):
 def is_seahorn_opt (x):
     if x.startswith ('-'):
         y = x.strip ('-')
-        return y.startswith ('horn') or y.startswith ('ikos') or y.startswith ('log')
+        return y.startswith ('horn') or y.startswith ('crab') or y.startswith ('log')
     return False
 
 def is_z3_opt (x):

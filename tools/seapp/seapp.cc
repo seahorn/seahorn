@@ -41,7 +41,6 @@
 #include "seahorn/Transforms/Instrumentation/BufferBoundsCheck.hh"
 #include "seahorn/Transforms/Instrumentation/IntegerOverflowCheck.hh"
 #include "seahorn/Transforms/Instrumentation/MixedSemantics.hh"
-//#include "seahorn/Transforms/IkosIndVarSimplify.hh"
 
 #include "ufo/Smt/EZ3.hh"
 #include "ufo/Stats.hh"
@@ -239,7 +238,6 @@ int main(int argc, char **argv) {
   { 
     pass_manager.add (new seahorn::LowerCstExprPass ());
     pass_manager.add (new seahorn::CanAccessMemory ());
-    // pass_manager.add (new seahorn::IkosIndVarSimplify ());
     if (!InlineAll)
       pass_manager.add (new seahorn::ShadowBufferBoundsCheckFuncPars ());
     pass_manager.add (new seahorn::BufferBoundsCheck (InlineAll));

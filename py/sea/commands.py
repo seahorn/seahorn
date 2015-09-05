@@ -88,13 +88,12 @@ class Seapp(sea.LimitedCmd):
         ap = super (Seapp, self).mk_arg_parser (ap)
         ap.add_argument ('--inline', dest='inline', help='Inline all functions',
                          default=False, action='store_true')
+        ap.add_argument ('--entry', dest='entry', help='Entry point if main does not exist',
+                         default=None, metavar='FUNCTION')
         ap.add_argument ('--boc', dest='boc', help='Insert buffer overflow checks',
                          default=False, action='store_true')
         ap.add_argument ('--ioc', dest='ioc', help='Insert signed integer overflow checks',
                          default=False, action='store_true')
-        # ap.add_argument ('--entry', dest='entry', help='Entry point if main does not exist',
-        #                  default=None, metavar='FUNCTION')
-
         add_in_out_args (ap)
         _add_S_arg (ap)
         return ap
@@ -117,8 +116,8 @@ class Seapp(sea.LimitedCmd):
                 argv.append ('--ioc-inline-all')
             else:
                 argv.append ('--ioc')
-        # if args.entry is not None:
-        #         argv.append ('--entry-point=\"{0}\"'.format (args.entry))
+        if args.entry is not None:
+            argv.append ('--entry-point=\"{0}\"'.format (args.entry))
 
         if args.llvm_asm: argv.append ('-S')
         argv.append (args.in_file)

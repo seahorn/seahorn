@@ -92,22 +92,19 @@ namespace seahorn
     else
       m_sem.reset (new UfoSmallSymExec (m_efac, *this, TL));
 
-    /// --- check syntactically if error is possible. If not the
-    ///     program is trivially safe.
     Function *main = M.getFunction ("main");
     if (!main)
-    { // program trivially safe
+    { // if not main found then program trivially safe
       errs () << "WARNING: main function not found so program is trivially safe.\n";
       m_db.addQuery (mk<FALSE> (m_efac));
       return Changed;
     }
 
     bool canFail = false; 
-    if (!findExitBlock (*main))
-    { // -- optimizer can detect an error and make main unreachable
-      canFail = true;
-    }
 
+    // --- optimizer or ms can detect an error and make main
+    //     unreachable. In that case, it will insert a call to
+    //     seahorn.fail.
     Function* failureFn = M.getFunction ("seahorn.fail");
     if (!canFail)
     {
@@ -123,6 +120,7 @@ namespace seahorn
       }
     }
     
+    // --- we ask the can-fail analysis if no function can fail.
     if (!canFail)
     {      
       Function* errorFn = M.getFunction ("verifier.error");      
@@ -134,10 +132,11 @@ namespace seahorn
       }
     }
 
+    // --- no function can fail so the program is trivially safe.
     if (!canFail)
-    { // program trivially safe
+    { 
       errs () << "WARNING: no assertion was found ";
-      errs () << "so either program does not have assertions or the frontend discharged them.\n";
+      errs () << "so either program does not have assertions or frontend discharged them.\n";
       m_db.addQuery (mk<FALSE> (m_efac));
       return Changed;
     }
@@ -197,8 +196,9 @@ namespace seahorn
     }
 
     if (!m_db.hasQuery ())
-    {
-      // This can happen if the exit block is unreachable
+    { 
+      // --- This may happen if the exit block of main is unreachable
+      //     but still the main function can fail. 
       m_db.addQuery (mk<TRUE> (m_efac));
     }
 

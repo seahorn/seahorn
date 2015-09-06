@@ -214,21 +214,27 @@ if (EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/ext/llvm/LICENSE.TXT)
     DESTINATION share/doc/seahorn
     RENAME llvm_license.txt)
 endif()
-  
-if (EXISTS crab/src/crab/LICENSE.pdf)
-  install (
-    FILES
-    ${CMAKE_CURRENT_BINARY_DIR}/crab/src/crab/LICENSE.pdf
-    DESTINATION share/doc/seahorn
-    RENAME crab_license.pdf)
-endif()
 
-if (EXISTS crab/src/crab/Ikos_LICENSE.pdf)
+if (EXISTS ${CMAKE_CURRENT_BINARY_DIR}/crab/src/crab/Ikos_LICENSE.pdf)
   install (
     FILES
     ${CMAKE_CURRENT_BINARY_DIR}/crab/src/crab/Ikos_LICENSE.pdf
     DESTINATION share/doc/seahorn
     RENAME ikos_license.pdf)
+endif()
+  
+if (EXISTS ${CMAKE_CURRENT_BINARY_DIR}/crab/src/crab/Crab_LICENSE.txt)
+  install (
+    FILES
+    ${CMAKE_CURRENT_BINARY_DIR}/crab/src/crab/Crab_LICENSE.txt
+    DESTINATION share/doc/seahorn
+    RENAME crab_license.txt)
+endif()
+
+if (EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/crab-llvm/LICENSE.txt)
+  install (FILES crab-llvm/LICENSE.txt
+    DESTINATION share/doc/seahorn
+    RENAME crab_llvm_license.txt)
 endif()
     
 # check for rt lib. Not needed on OSX.

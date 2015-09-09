@@ -5,7 +5,7 @@
 /ext/
 /debug/
 /dsa-seahorn/
-/ikos-llvm/
+/crab-llvm/
 
 *.pyc
 *.pyo

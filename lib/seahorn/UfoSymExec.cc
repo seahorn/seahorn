@@ -20,6 +20,12 @@ GlobalConstraints("horn-global-constraints",
                   cl::init (false));
 
 static llvm::cl::opt<bool>
+ArrayGlobalConstraints("horn-array-global-constraints",
+                       llvm::cl::desc
+                       ("Extend global constraints to arrays"),
+                       cl::init (false));
+
+static llvm::cl::opt<bool>
 StrictlyLinear ("horn-strictly-la",
                 llvm::cl::desc ("Generate strictly Linear Arithmetic constraints"),
                 cl::init (true));
@@ -605,6 +611,7 @@ namespace
           rhs = mk<NEQ> (rhs, mkTerm (mpz_class(0), m_efac));
 
         Expr act = GlobalConstraints ? trueE : m_activeLit;
+        if (!ArrayGlobalConstraints) act = m_activeLit;
         m_side.push_back (boolop::limp (act,
                                         mk<EQ> (lhs, rhs)));
       }
@@ -625,6 +632,7 @@ namespace
                           mkTerm (mpz_class (0), m_efac));
       
       Expr act = GlobalConstraints ? trueE : m_activeLit;
+      if (!ArrayGlobalConstraints) act = m_activeLit;
       if (idx && v)
         m_side.push_back (boolop::limp (act,
                                         mk<EQ> (m_outMem, 

@@ -24,6 +24,10 @@ StrictlyLinear ("horn-strictly-la",
                 llvm::cl::desc ("Generate strictly Linear Arithmetic constraints"),
                 cl::init (true));
 
+static llvm::cl::opt<bool>
+EnableDiv ("horn-enable-div",
+                llvm::cl::desc ("Enable division constraints."),
+                cl::init (true));
 
 
 namespace
@@ -280,14 +284,13 @@ namespace
     }
     Expr doAShr (Expr lhs, Expr op1, const ConstantInt *op2)
     {
+      if (!EnableDiv) return Expr(nullptr);
+      
       mpz_class shift = expr::toMpz (op2->getValue ());
       mpz_class factor = 1;
       for (unsigned long i = 0; i < shift.get_ui (); ++i) 
-      {
           factor = factor * 2;
-      }
-      Expr res = mk<EQ>(lhs ,mk<DIV>(op1, mkTerm<mpz_class> (factor, m_efac)));        
-      return res;      
+      return mk<EQ>(lhs ,mk<DIV>(op1, mkTerm<mpz_class> (factor, m_efac)));
     }
     
 
@@ -322,14 +325,16 @@ namespace
       case BinaryOperator::SDiv:
       case BinaryOperator::UDiv:
         // if StrictlyLinear then require that divisor is a constant
-        if (!StrictlyLinear || 
-            isOpX<MPZ> (op2) || isOpX<MPQ> (op2))
+        if (EnableDiv && 
+            (!StrictlyLinear || 
+             isOpX<MPZ> (op2) || isOpX<MPQ> (op2)))
           res = mk<EQ>(lhs ,mk<DIV>(op1, op2));
         break;
       case BinaryOperator::SRem:
       case BinaryOperator::URem:
         // if StrictlyLinear then require that divisor is a constant
-        if (StrictlyLinear || isOpX<MPZ> (op2) || isOpX<MPQ> (op2))
+        if (EnableDiv && 
+            (!StrictlyLinear || isOpX<MPZ> (op2) || isOpX<MPQ> (op2)))
           res = mk<EQ> (lhs, mk<REM> (op1, op2));
         break;
       case BinaryOperator::Shl:

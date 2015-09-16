@@ -1,4 +1,4 @@
-import sea 
+import sea
 
 import os.path
 
@@ -23,7 +23,7 @@ def _add_S_arg (ap):
 def _bc_or_ll_file (name):
     ext = os.path.splitext (name)[1]
     return ext == '.bc' or ext == '.ll'
-    
+
 class Clang(sea.LimitedCmd):
     def __init__ (self, quiet=False):
         super (Clang, self).__init__('clang', 'Compile', allow_extra=True)
@@ -38,13 +38,13 @@ class Clang(sea.LimitedCmd):
         add_in_out_args (ap)
         _add_S_arg (ap)
         return ap
-    
+
     def name_out_file (self, in_file, args=None, work_dir=None):
         if _bc_or_ll_file (in_file): return in_file
         ext = '.bc'
         # if args.llvm_asm: ext = '.ll'
         return _remap_file_name (in_file, ext, work_dir)
-        
+
     def run (self, args, extra):
         # do nothing on .bc and .ll files
         if _bc_or_ll_file (args.in_file): return 0
@@ -53,14 +53,14 @@ class Clang(sea.LimitedCmd):
                                 'clang-mp-3.5', 'clang-mp-3.4'])
         if cmd_name is None: raise IOError ('clang not found')
         self.clangCmd = sea.ExtCmd (cmd_name)
-        
+
         argv = ['-c', '-emit-llvm', '-D__SEAHORN__']
 
         argv.extend (filter (lambda s : s.startswith ('-D'), extra))
-        
+
         if args.llvm_asm: argv.append ('-S')
         argv.append ('-m{0}'.format (args.machine))
-        
+
         if args.debug_info: argv.append ('-g')
         if args.out_file is not None:
             argv.extend (['-o', args.out_file])
@@ -74,11 +74,11 @@ class Clang(sea.LimitedCmd):
 class Seapp(sea.LimitedCmd):
     def __init__(self, quiet=False):
         super(Seapp, self).__init__('pp', 'Pre-processing', allow_extra=True)
-        
+
     @property
     def stdout (self):
         return self.seappCmd.stdout
-        
+
     def name_out_file (self, in_file, args=None, work_dir=None):
         ext = '.pp.bc'
         # if args.llvm_asm: ext = '.pp.ll'
@@ -98,12 +98,12 @@ class Seapp(sea.LimitedCmd):
         add_in_out_args (ap)
         _add_S_arg (ap)
         return ap
-    
+
     def run (self, args, extra):
         cmd_name = which ('seapp')
         if cmd_name is None: raise IOError ('seapp not found')
         self.seappCmd = sea.ExtCmd (cmd_name)
-        
+
         argv = list()
         if args.out_file is not None: argv.extend (['-o', args.out_file])
         if args.inline: argv.append ('--horn-inline-all')
@@ -123,7 +123,7 @@ class Seapp(sea.LimitedCmd):
         if args.llvm_asm: argv.append ('-S')
         argv.append (args.in_file)
         return self.seappCmd.run (args, argv)
-        
+
 class MixedSem(sea.LimitedCmd):
     def __init__(self, quiet=False):
         super(MixedSem, self).__init__('ms', 'Mixed semantics transformation',
@@ -132,7 +132,7 @@ class MixedSem(sea.LimitedCmd):
     @property
     def stdout (self):
         return self.seappCmd.stdout
-        
+
     def name_out_file (self, in_file, args=None, work_dir=None):
         ext = '.ms.bc'
         # if args.llvm_asm: ext = '.ms.ll'
@@ -148,12 +148,12 @@ class MixedSem(sea.LimitedCmd):
         add_in_out_args (ap)
         _add_S_arg (ap)
         return ap
-    
+
     def run (self, args, extra):
         cmd_name = which ('seapp')
         if cmd_name is None: raise IOError ('seapp not found')
         self.seappCmd = sea.ExtCmd (cmd_name)
-        
+
         argv = list()
         if args.out_file is not None: argv.extend (['-o', args.out_file])
         if not args.ms_skip: argv.append ('--horn-mixed-sem')
@@ -169,7 +169,7 @@ class Seaopt(sea.LimitedCmd):
     @property
     def stdout (self):
         return self.seaoptCmd.stdout
-        
+
     def name_out_file (self, in_file, args, work_dir=None):
         ext = '.o.bc'
         # ext = 'o{0}.bc'.format(args.opt_level)
@@ -187,7 +187,7 @@ class Seaopt(sea.LimitedCmd):
         add_in_out_args (ap)
         _add_S_arg (ap)
         return ap
-    
+
     def run (self, args, extra):
         cmd_name = which (['seaopt', 'opt-mp-3.6', 'opt-3.6', 'opt'])
         if cmd_name is None: raise IOError ('neither seaopt nor opt where found')
@@ -198,12 +198,12 @@ class Seaopt(sea.LimitedCmd):
             argv.extend (['-o', args.out_file])
         if args.opt_level > 0 and args.opt_level <= 3:
             argv.append('-O{0}'.format (args.opt_level))
-            
+
         if not args.enable_indvar:
             argv.append ('--enable-indvar=false')
         if not args.enable_loop_idiom:
             argv.append ('--enable-loop-idiom=false')
-            
+
         argv.append (args.in_file)
         if args.llvm_asm: argv.append ('-S')
         return self.seaoptCmd.run (args, argv)
@@ -221,7 +221,7 @@ class Seahorn(sea.LimitedCmd):
                                         'Constrained Horn Clauses in SMT-LIB format',
                                         allow_extra=True)
         self.solve = solve
-        
+
     @property
     def stdout (self):
         return self.seahornCmd.stdout
@@ -257,15 +257,15 @@ class Seahorn(sea.LimitedCmd):
         ap.add_argument ('--show-invars',
                          help='Display computed invariants',
                          dest='show_invars', default=False, action='store_true')
-                         
-                         
+
+
         return ap
 
     def run (self, args, extra):
         cmd_name = which ('seahorn')
         if cmd_name is None: raise IOError ('seahorn not found')
         self.seahornCmd = sea.ExtCmd (cmd_name)
-        
+
         argv = list()
         if args.solve:
             argv.append ('--horn-solve')
@@ -278,32 +278,32 @@ class Seahorn(sea.LimitedCmd):
             argv.append ('-horn-svcomp-cex={0}'.format (args.cex))
             argv.extend (['-log', 'cex'])
         if args.asm_out_file is not None: argv.extend (['-oll', args.asm_out_file])
-        
+
         argv.extend (['-horn-inter-proc',
                       '-horn-sem-lvl={0}'.format (args.track),
                       '--horn-step={0}'.format (args.step)])
-        
+
         if args.verbose > 0: argv.extend (['-zverbose', str(args.verbose)])
 
         if args.log is not None:
             for l in args.log.split (':'): argv.extend (['-log', l])
         if args.ztrace is not None:
             for l in args.ztrace.split (':'): argv.extend (['-ztrace', l])
-        
+
         if args.out_file is not None: argv.extend (['-o', args.out_file])
         argv.append (args.in_file)
 
         # pick out extra seahorn options
         argv.extend (filter (_is_seahorn_opt, extra))
-        
-            
+
+
         return self.seahornCmd.run (args, argv)
-    
+
 class SeahornClp(sea.LimitedCmd):
     def __init__ (self, quiet=False):
         super (SeahornClp, self).__init__ ('horn-clp', allow_extra=True)
         self.help = 'Generate Constrained Horn Clauses in CLP format'
-        
+
     @property
     def stdout (self):
         return self.seahornCmd.stdout
@@ -335,12 +335,12 @@ class SeahornClp(sea.LimitedCmd):
         cmd_name = which ('seahorn')
         if cmd_name is None: raise IOError ('seahorn not found')
         self.seahornCmd = sea.ExtCmd (cmd_name)
-        
+
         argv = list()
         if args.asm_out_file is not None: argv.extend (['-oll', args.asm_out_file])
-        
+
         argv.extend (['-horn-inter-proc',
-                      '-horn-format=clp', '-horn-sem-lvl=reg', 
+                      '-horn-format=clp', '-horn-sem-lvl=reg',
                       '--horn-step={0}'.format (args.step)])
 
         if args.clp_fapp:
@@ -348,16 +348,16 @@ class SeahornClp(sea.LimitedCmd):
 
         if args.log is not None:
             for l in args.log.split (':'): argv.extend (['-log', l])
-        
+
         if args.out_file is not None: argv.extend (['-o', args.out_file])
         argv.append (args.in_file)
 
         # pick out extra seahorn options
         argv.extend (filter (_is_seahorn_opt, extra))
-        
-            
+
+
         return self.seahornCmd.run (args, argv)
-    
+
 class LegacyFrontEnd (sea.LimitedCmd):
     def __init__ (self, quiet=False):
         super (LegacyFrontEnd, self).__init__ ('lfe', allow_extra=True)
@@ -374,7 +374,7 @@ class LegacyFrontEnd (sea.LimitedCmd):
     def mk_arg_parser (self, ap):
         ap = super (LegacyFrontEnd, self).mk_arg_parser (ap)
         ap.add_argument ('-m', type=int, dest='machine',
-                         help='Machine architecture MACHINE:[32,64]', 
+                         help='Machine architecture MACHINE:[32,64]',
                          default=32)
         ap.add_argument ('-g', default=False, action='store_true',
                          dest='debug_info', help='Compile with debug info')
@@ -383,8 +383,9 @@ class LegacyFrontEnd (sea.LimitedCmd):
 
     def run (self, args, extra):
         import sys
-        cmd_name = os.path.join (os.path.dirname (sys.argv[0]), 
+        cmd_name = os.path.join (os.path.dirname (sys.argv[0]),
                                  '..', 'legacy', 'bin', 'seahorn.py')
+        print cmd_name
         if not sea.isexec (cmd_name):
             print 'No legacy front-end found at:', cmd_name
 	    print 'Download from https://bitbucket.org/arieg/seahorn-gh/downloads/seahorn-svcomp15-r1.tar.bz2 (64bit) or https://bitbucket.org/arieg/seahorn-gh/downloads/lfe32-2015.tar.bz2 (32bit) and extract into `legacy` sub-directory'
@@ -400,6 +401,30 @@ class LegacyFrontEnd (sea.LimitedCmd):
 
         return self.lfeCmd.run (args, argv)
 
+class Liveness (sea.LimitedCmd):
+    def __init__ (self, quiet=False):
+        super (Liveness, self).__init__ ('term', allow_extra=True)
+        self.help = "Termination analysis"
+
+    @property
+    def stdout (self):
+        return self.term.stdout
+
+    def name_out_file (self, in_file, args, work_dir=None):
+        return
+
+
+    def mk_arg_parser (self, ap):
+        ap = super (Liveness, self).mk_arg_parser (ap)
+        add_in_out_args (ap)
+        return ap
+
+    def run (self, args, extra):
+        return
+
+
+
+
 FrontEnd = sea.SeqCmd ('fe', 'Front end: alias for clang|pp|ms|opt',
                        [Clang(), Seapp(), MixedSem(), Seaopt ()])
 Smt = sea.SeqCmd ('smt', 'alias for fe|horn', FrontEnd.cmds + [Seahorn()])
@@ -408,4 +433,4 @@ Pf = sea.SeqCmd ('pf', 'alias for fe|horn --solve',
                  FrontEnd.cmds + [Seahorn(solve=True)])
 LfeSmt = sea.SeqCmd ('lfe-smt', 'alias for lfe|horn', [LegacyFrontEnd(), Seahorn()])
 LfeClp= sea.SeqCmd ('lfe-clp', 'alias for lfe|horn-clp', [LegacyFrontEnd(), SeahornClp()])
-
+#Liveness = sea.SeqCmd('term', '(Non) Termination'), FrontEnd.cmds + [Seahorn()]

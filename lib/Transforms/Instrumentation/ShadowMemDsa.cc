@@ -276,8 +276,9 @@ namespace seahorn
             AllocaInst *v = allocaForNode (nodeMap [n].getNode ());
             unsigned id = getId (nodeMap [n].getNode ());
             
-            // -- read only node
-            if (n->isReadNode () && !n->isModifiedNode ())
+            // -- read only node ignore nodes that are only reachable
+            // -- from the return of the function
+            if (n->isReadNode () && !n->isModifiedNode () && retReach.count(n) <= 0)
               B.CreateCall3 (m_argRefFn, B.getInt32 (id),
                              B.CreateLoad (v),
                              B.getInt32 (idx));

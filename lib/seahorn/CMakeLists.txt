@@ -1,5 +1,5 @@
 add_llvm_library (seahorn.LIB 
-  LoadIkos.cc
+  LoadCrab.cc
   LiveSymbols.cc 
   SymStore.cc
   SymExec.cc
@@ -18,8 +18,8 @@ add_llvm_library (seahorn.LIB
   )
 
 # no need to link with static libraries
-if (HAVE_IKOS_LLVM)
-  target_link_libraries (seahorn.LIB LlvmIkosPasses)
+if (HAVE_CRAB_LLVM)
+  target_link_libraries (seahorn.LIB CrabLlvmAnalysis CrabLlvmInstrumentation)
 endif()
 
 set_target_properties (seahorn.LIB PROPERTIES OUTPUT_NAME "seahorn")

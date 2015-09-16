@@ -34,16 +34,16 @@ if (GIT_FOUND)
     CACHE STRING "seahorn-llvm repo")
   set (DSA_SEAHORN_REPO "https://github.com/seahorn/dsa-seahorn"
     CACHE STRING "dsa-seahorn repo")
-  set (IKOS_LLVM_REPO "https://github.com/seahorn/ikos-llvm"
-    CACHE STRING "ikos-llvm repo")
+  set (CRAB_LLVM_REPO "https://github.com/seahorn/crab-llvm"
+    CACHE STRING "crab-llvm repo")
   add_custom_target (seahorn-llvm-git
     ${GIT_EXECUTABLE} clone ${SEAHORN_LLVM_REPO} ${CMAKE_SOURCE_DIR}/llvm-seahorn)
    add_custom_target (dsa-seahorn-git
     ${GIT_EXECUTABLE} clone ${DSA_SEAHORN_REPO} ${CMAKE_SOURCE_DIR}/dsa-seahorn)
-   add_custom_target (ikos-llvm-git
-    ${GIT_EXECUTABLE} clone ${IKOS_LLVM_REPO} ${CMAKE_SOURCE_DIR}/ikos-llvm)
+   add_custom_target (crab-llvm-git
+    ${GIT_EXECUTABLE} clone ${CRAB_LLVM_REPO} ${CMAKE_SOURCE_DIR}/crab-llvm)
 
-  add_custom_target (extra DEPENDS seahorn-llvm-git dsa-seahorn-git ikos-llvm-git)
+  add_custom_target (extra DEPENDS seahorn-llvm-git dsa-seahorn-git crab-llvm-git)
 else()
   message (STATUS "Could not find git. Not adding 'extra' target.")
 endif()
@@ -214,13 +214,27 @@ if (EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/ext/llvm/LICENSE.TXT)
     DESTINATION share/doc/seahorn
     RENAME llvm_license.txt)
 endif()
-  
-if (EXISTS ikos-core/src/ikos-core/LICENSE.pdf)
+
+if (EXISTS ${CMAKE_CURRENT_BINARY_DIR}/crab/src/crab/Ikos_LICENSE.pdf)
   install (
     FILES
-    ${CMAKE_CURRENT_BINARY_DIR}/ikos-core/src/ikos-core/LICENSE.pdf
+    ${CMAKE_CURRENT_BINARY_DIR}/crab/src/crab/Ikos_LICENSE.pdf
     DESTINATION share/doc/seahorn
     RENAME ikos_license.pdf)
+endif()
+  
+if (EXISTS ${CMAKE_CURRENT_BINARY_DIR}/crab/src/crab/Crab_LICENSE.txt)
+  install (
+    FILES
+    ${CMAKE_CURRENT_BINARY_DIR}/crab/src/crab/Crab_LICENSE.txt
+    DESTINATION share/doc/seahorn
+    RENAME crab_license.txt)
+endif()
+
+if (EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/crab-llvm/LICENSE.txt)
+  install (FILES crab-llvm/LICENSE.txt
+    DESTINATION share/doc/seahorn
+    RENAME crab_llvm_license.txt)
 endif()
     
 # check for rt lib. Not needed on OSX.
@@ -243,16 +257,6 @@ endif()
 
 find_package(OpenMP)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
-
-if (IS_DIRECTORY ${CMAKE_SOURCE_DIR}/ikos-llvm AND
-    EXISTS ${CMAKE_SOURCE_DIR}/ikos-llvm/CMakeLists.txt)
-  add_subdirectory(ikos-llvm)
-  if (NOT IKOS_FOUND)
-    return()
-  else()
-    include_directories (${IKOS_INCLUDE_DIR})
-  endif()
-endif()
 
 install(DIRECTORY include/
   DESTINATION include
@@ -281,14 +285,6 @@ if ("${CMAKE_CXX_COMPILER_ID}" MATCHES "GNU")
 endif ()
 
 
-if (DEFINED IkosLlvm_SOURCE_DIR)
-  include_directories (AFTER ${IkosLlvm_SOURCE_DIR}/include)
-  add_subdirectory (${IkosLlvm_SOURCE_DIR}/lib/LlvmIkos)
-  message (STATUS "Using ikos-llvm from: ${IkosLlvm_SOURCE_DIR}/lib/LlvmIkos")
-  set (HAVE_IKOS TRUE)
-  set (HAVE_IKOS_LLVM TRUE)
-endif()
-
 if (IS_DIRECTORY ${CMAKE_SOURCE_DIR}/dsa-seahorn AND
     EXISTS ${CMAKE_SOURCE_DIR}/dsa-seahorn/lib/DSA/Steensgaard.cpp)
   include_directories (AFTER dsa-seahorn/include)
@@ -308,6 +304,24 @@ if (IS_DIRECTORY ${CMAKE_SOURCE_DIR}/llvm-seahorn AND
   add_subdirectory(llvm-seahorn/tools)
   set (HAVE_LLVM_SEAHORN TRUE)
   set (LLVM_SEAHORN_LIBS SeaInstCombine)
+endif()
+
+if (IS_DIRECTORY ${CMAKE_SOURCE_DIR}/crab-llvm AND
+    EXISTS ${CMAKE_SOURCE_DIR}/crab-llvm/CMakeLists.txt)
+  add_subdirectory(crab-llvm)
+  if (NOT CRAB_FOUND)
+    return()
+  else()
+    include_directories (${CRAB_INCLUDE_DIR})
+  endif()
+endif()
+
+if (DEFINED CrabLlvm_SOURCE_DIR)
+  include_directories (AFTER ${CrabLlvm_SOURCE_DIR}/include)
+  add_subdirectory (${CrabLlvm_SOURCE_DIR}/lib/CrabLlvm)
+  message (STATUS "Using crab-llvm from: ${CrabLlvm_SOURCE_DIR}/lib/CrabLlvm")
+  set (HAVE_CRAB TRUE)
+  set (HAVE_CRAB_LLVM TRUE)
 endif()
 
 add_subdirectory(lib)

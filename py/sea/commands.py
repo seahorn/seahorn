@@ -54,7 +54,7 @@ class Clang(sea.LimitedCmd):
         if cmd_name is None: raise IOError ('clang not found')
         self.clangCmd = sea.ExtCmd (cmd_name)
 
-        argv = ['-c', '-emit-llvm', '-D__SEAHORN__']
+        argv = ['-c', '-emit-llvm', '-D__SEAHORN__', '-fgnu89-inline']
 
         argv.extend (filter (lambda s : s.startswith ('-D'), extra))
 
@@ -88,13 +88,12 @@ class Seapp(sea.LimitedCmd):
         ap = super (Seapp, self).mk_arg_parser (ap)
         ap.add_argument ('--inline', dest='inline', help='Inline all functions',
                          default=False, action='store_true')
+        ap.add_argument ('--entry', dest='entry', help='Entry point if main does not exist',
+                         default=None, metavar='FUNCTION')
         ap.add_argument ('--boc', dest='boc', help='Insert buffer overflow checks',
                          default=False, action='store_true')
         ap.add_argument ('--ioc', dest='ioc', help='Insert signed integer overflow checks',
                          default=False, action='store_true')
-        # ap.add_argument ('--entry', dest='entry', help='Entry point if main does not exist',
-        #                  default=None, metavar='FUNCTION')
-
         add_in_out_args (ap)
         _add_S_arg (ap)
         return ap
@@ -117,8 +116,8 @@ class Seapp(sea.LimitedCmd):
                 argv.append ('--ioc-inline-all')
             else:
                 argv.append ('--ioc')
-        # if args.entry is not None:
-        #         argv.append ('--entry-point=\"{0}\"'.format (args.entry))
+        if args.entry is not None:
+            argv.append ('--entry-point=\"{0}\"'.format (args.entry))
 
         if args.llvm_asm: argv.append ('-S')
         argv.append (args.in_file)
@@ -184,6 +183,8 @@ class Seaopt(sea.LimitedCmd):
                          action='store_true')
         ap.add_argument ('--enable-loop-idiom', dest='enable_loop_idiom', default=False,
                          action='store_true')
+        ap.add_argument ('--enable-nondet-init', dest='enable_nondet_init', default=False,
+                         action='store_true')
         add_in_out_args (ap)
         _add_S_arg (ap)
         return ap
@@ -203,6 +204,8 @@ class Seaopt(sea.LimitedCmd):
             argv.append ('--enable-indvar=false')
         if not args.enable_loop_idiom:
             argv.append ('--enable-loop-idiom=false')
+        if not args.enable_nondet_init:
+            argv.append ('--enable-nondet-init=false')
 
         argv.append (args.in_file)
         if args.llvm_asm: argv.append ('-S')
@@ -212,7 +215,7 @@ def _is_seahorn_opt (x):
     if x.startswith ('-'):
         y = x.strip ('-')
         return y.startswith ('horn') or \
-            y.startswith ('ikos') or y.startswith ('log')
+            y.startswith ('crab') or y.startswith ('log')
     return False
 
 class Seahorn(sea.LimitedCmd):
@@ -251,14 +254,31 @@ class Seahorn(sea.LimitedCmd):
         ap.add_argument ('--track',
                          help='Track registers, pointers, and memory',
                          choices=['reg', 'ptr', 'mem'], default='mem')
-        ap.add_argument ('--ikos',
-                         help='Enable IKOS abstract interpreter',
-                         dest='ikos', default=False, action='store_true')
         ap.add_argument ('--show-invars',
                          help='Display computed invariants',
                          dest='show_invars', default=False, action='store_true')
-
-
+        ## Begin Crab ##
+        ap.add_argument ('--crab',
+                         help='Enable Crab abstract interpreter',
+                         dest='crab', default=False, action='store_true')
+        ap.add_argument ('--crab-dom',
+                         help='Choose Crab abstract domain',
+                         choices=['int','ric','zones','term'],
+                         dest='crab_dom', default='int')
+        ap.add_argument ('--crab-live',
+                         help='Use of liveness information',
+                         dest='crab_live', default=False, action='store_true')
+        #### These three should not be optional in the future
+        ap.add_argument ('--crab-disable-ptr',
+                         help='Disable translation of pointer arithmetic instructions',
+                         dest='crab_disable_ptr', default=False, action='store_true')
+        ap.add_argument ('--crab-cfg-simplify',
+                         help='Simplify CFG built by Crab (experimental)',
+                         dest='crab_cfg_simplify', default=False, action='store_true')
+        ap.add_argument ('--crab-cfg-interproc',
+                         help='Build inter-procedural CFG (experimental)',
+                         dest='crab_interproc', default=False, action='store_true')
+        ## End Crab ##
         return ap
 
     def run (self, args, extra):
@@ -267,10 +287,22 @@ class Seahorn(sea.LimitedCmd):
         self.seahornCmd = sea.ExtCmd (cmd_name)
 
         argv = list()
+
+        if args.crab:
+            argv.append ('--horn-crab')
+            argv.append ('--crab-dom={0}'.format (args.crab_dom))
+            #argv.append ('--crab-track-lvl={0}'.format (args.track))
+            if args.crab_disable_ptr:
+                argv.append ('--crab-enable-ptr')
+            if args.crab_cfg_simplify:
+                argv.append ('--crab-cfg-simplify')
+            if args.crab_interproc:
+                argv.append ('--crab-cfg-interproc')
+            if args.crab_live:
+                argv.append ('--crab-live')
+
         if args.solve:
             argv.append ('--horn-solve')
-            if args.ikos:
-                argv.append ('--horn-ikos')
             if args.show_invars:
                 argv.append ('--horn-answer')
         if args.cex is not None and args.solve:
@@ -385,7 +417,6 @@ class LegacyFrontEnd (sea.LimitedCmd):
         import sys
         cmd_name = os.path.join (os.path.dirname (sys.argv[0]),
                                  '..', 'legacy', 'bin', 'seahorn.py')
-        print cmd_name
         if not sea.isexec (cmd_name):
             print 'No legacy front-end found at:', cmd_name
 	    print 'Download from https://bitbucket.org/arieg/seahorn-gh/downloads/seahorn-svcomp15-r1.tar.bz2 (64bit) or https://bitbucket.org/arieg/seahorn-gh/downloads/lfe32-2015.tar.bz2 (32bit) and extract into `legacy` sub-directory'
@@ -401,30 +432,6 @@ class LegacyFrontEnd (sea.LimitedCmd):
 
         return self.lfeCmd.run (args, argv)
 
-class Liveness (sea.LimitedCmd):
-    def __init__ (self, quiet=False):
-        super (Liveness, self).__init__ ('term', allow_extra=True)
-        self.help = "Termination analysis"
-
-    @property
-    def stdout (self):
-        return self.term.stdout
-
-    def name_out_file (self, in_file, args, work_dir=None):
-        return
-
-
-    def mk_arg_parser (self, ap):
-        ap = super (Liveness, self).mk_arg_parser (ap)
-        add_in_out_args (ap)
-        return ap
-
-    def run (self, args, extra):
-        return
-
-
-
-
 FrontEnd = sea.SeqCmd ('fe', 'Front end: alias for clang|pp|ms|opt',
                        [Clang(), Seapp(), MixedSem(), Seaopt ()])
 Smt = sea.SeqCmd ('smt', 'alias for fe|horn', FrontEnd.cmds + [Seahorn()])
@@ -433,4 +440,3 @@ Pf = sea.SeqCmd ('pf', 'alias for fe|horn --solve',
                  FrontEnd.cmds + [Seahorn(solve=True)])
 LfeSmt = sea.SeqCmd ('lfe-smt', 'alias for lfe|horn', [LegacyFrontEnd(), Seahorn()])
 LfeClp= sea.SeqCmd ('lfe-clp', 'alias for lfe|horn-clp', [LegacyFrontEnd(), SeahornClp()])
-#Liveness = sea.SeqCmd('term', '(Non) Termination'), FrontEnd.cmds + [Seahorn()]

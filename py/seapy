@@ -23,7 +23,6 @@ def main (argv):
             sea.commands.SeahornClp(),
             sea.commands.FrontEnd,
             sea.commands.LegacyFrontEnd(),
-            sea.commands.Liveness()
     ]
 
 

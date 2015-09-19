@@ -603,71 +603,68 @@ namespace seahorn
 
     LLVMContext &ctx = B.getContext ();
 
-    if (!m_inline_all)
-    {
-      m_err_bb = BasicBlock::Create(ctx, "Error", &F);
-      B.SetInsertPoint (m_err_bb);    
-      B.CreateCall (m_errorFn);
-      B.CreateUnreachable ();
-      return;
-    } 
-    
-    // The original return statement is replaced with a block with an
-    // infinite loop while a fresh block named ERROR returning an
-    // arbitrary value is created. All unsafe checks jump to ERROR.
-    // The original program has been fully inlined and the only
-    // function is "main" which should return an integer.
+    m_err_bb = BasicBlock::Create(ctx, "Error", &F);
+    B.SetInsertPoint (m_err_bb);    
+    B.CreateCall (m_errorFn);
+    B.CreateUnreachable ();
+    return;
 
-    BasicBlock * retBB = nullptr;
-    ReturnInst *retInst = nullptr;
-    for (BasicBlock& bb : F)
-    {
-      TerminatorInst * inst = bb.getTerminator ();
-      if (inst && (retInst = dyn_cast<ReturnInst> (inst))) 
-      {
-        retBB = &bb;
-        break;
-      }
-    }
+    // // The original return statement is replaced with a block with an
+    // // infinite loop while a fresh block named ERROR returning an
+    // // arbitrary value is created. All unsafe checks jump to ERROR.
+    // // The original program has been fully inlined and the only
+    // // function is "main" which should return an integer.
 
-    if (!retInst)
-    {     
-      if (F.getReturnType ()->isIntegerTy ())
-      {
-        m_err_bb = BasicBlock::Create(ctx, "Error", &F);
-        B.SetInsertPoint (m_err_bb);    
-        B.CreateRet ( ConstantInt::get (F.getReturnType (), 42)); 
+    // BasicBlock * retBB = nullptr;
+    // ReturnInst *retInst = nullptr;
+    // for (BasicBlock& bb : F)
+    // {
+    //   TerminatorInst * inst = bb.getTerminator ();
+    //   if (inst && (retInst = dyn_cast<ReturnInst> (inst))) 
+    //   {
+    //     retBB = &bb;
+    //     break;
+    //   }
+    // }
+
+    // if (!retInst)
+    // {     
+    //   if (F.getReturnType ()->isIntegerTy ())
+    //   {
+    //     m_err_bb = BasicBlock::Create(ctx, "Error", &F);
+    //     B.SetInsertPoint (m_err_bb);    
+    //     B.CreateRet ( ConstantInt::get (F.getReturnType (), 42)); 
                                         
-      }
-      else
-        assert (false && 
-                "Only instrument functions that return an integer");
-    }
-    else
-    {
-      Value * retVal = retInst->getReturnValue ();
+    //   }
+    //   else
+    //     assert (false && 
+    //             "Only instrument functions that return an integer");
+    // }
+    // else
+    // {
+    //   Value * retVal = retInst->getReturnValue ();
       
-      if (retVal && retVal->getType ()->isIntegerTy ())
-      {
-        m_err_bb = BasicBlock::Create(ctx, "ERROR", &F);
-        B.SetInsertPoint (m_err_bb);    
-        B.CreateRet ( ConstantInt::get (retVal->getType (), 42));
+    //   if (retVal && retVal->getType ()->isIntegerTy ())
+    //   {
+    //     m_err_bb = BasicBlock::Create(ctx, "ERROR", &F);
+    //     B.SetInsertPoint (m_err_bb);    
+    //     B.CreateRet ( ConstantInt::get (retVal->getType (), 42));
                                         
-      }
-      else 
-      {
-        assert ( false &&
-                "Only instrument functions that return an integer");
-      }
+    //   }
+    //   else 
+    //   {
+    //     assert ( false &&
+    //             "Only instrument functions that return an integer");
+    //   }
 
-      // replace original return with an infinite loop
+    //   // replace original return with an infinite loop
       
-      B.SetInsertPoint (retInst);    
-      BasicBlock::iterator It = B.GetInsertPoint ();
-      m_safe_bb = retBB->splitBasicBlock(It, "SAFE");
-      BranchInst *loopInst = BranchInst::Create(m_safe_bb);
-      ReplaceInstWithInst(retInst, loopInst);
-    }      
+    //   B.SetInsertPoint (retInst);    
+    //   BasicBlock::iterator It = B.GetInsertPoint ();
+    //   m_safe_bb = retBB->splitBasicBlock(It, "SAFE");
+    //   BranchInst *loopInst = BranchInst::Create(m_safe_bb);
+    //   ReplaceInstWithInst(retInst, loopInst);
+    // }
   }
 
   bool BufferBoundsCheck::runOnFunction (Function &F)
@@ -876,38 +873,34 @@ namespace seahorn
     m_Int64Ty = Type::getInt64Ty (ctx);
     m_Int64PtrTy = m_Int64Ty->getPointerTo ();
       
-    if (!m_inline_all)
-    {
-      AttrBuilder B;
-      B.addAttribute (Attribute::NoReturn);
-      B.addAttribute (Attribute::ReadNone);
-      
-      AttributeSet as = AttributeSet::get (ctx, 
-                                           AttributeSet::FunctionIndex,
-                                           B);
-      
-      m_errorFn = dyn_cast<Function>
+    AttrBuilder B;
+    B.addAttribute (Attribute::NoReturn);
+    B.addAttribute (Attribute::ReadNone);
+    
+    AttributeSet as = AttributeSet::get (ctx, 
+                                         AttributeSet::FunctionIndex,
+                                         B);
+    
+    m_errorFn = dyn_cast<Function>
         (M.getOrInsertFunction ("verifier.error",
                                 as,
                                 Type::getVoidTy (ctx), NULL));
-
-      B.clear ();
-      B.addAttribute (Attribute::NoReturn);
-      B.addAttribute (Attribute::ReadNone);
     
-      as = AttributeSet::get (ctx, 
-                              AttributeSet::FunctionIndex,
-                              B);
-      
-      m_memsafeFn = dyn_cast<Function>
-          (M.getOrInsertFunction ("verifier.memsafe",
-                                  as,
-                                  Type::getVoidTy (ctx), 
-                                  m_Int64PtrTy,                
-                                  NULL));
-
-    }
-
+    B.clear ();
+    B.addAttribute (Attribute::NoReturn);
+    B.addAttribute (Attribute::ReadNone);
+    
+    as = AttributeSet::get (ctx, 
+                            AttributeSet::FunctionIndex,
+                            B);
+    
+    m_memsafeFn = dyn_cast<Function>
+        (M.getOrInsertFunction ("verifier.memsafe",
+                                as,
+                                Type::getVoidTy (ctx), 
+                                m_Int64PtrTy,                
+                                NULL));
+    
     bool change = false;
 
     for (Function &F : M) change |= runOnFunction (F); 

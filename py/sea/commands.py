@@ -107,10 +107,9 @@ class Seapp(sea.LimitedCmd):
         if args.out_file is not None: argv.extend (['-o', args.out_file])
         if args.inline: argv.append ('--horn-inline-all')
         if args.boc:
+            argv.append ('--boc')
             if args.inline:
                 argv.append ('--boc-inline-all')
-            else:
-                argv.append ('--boc')
         if args.ioc:
             if args.inline:
                 argv.append ('--ioc-inline-all')

@@ -8,7 +8,7 @@ def main (argv):
     import sea
     import sea.commands
 
-    
+
     cmds = [
             sea.commands.Pf,
             sea.commands.Smt,
@@ -39,5 +39,5 @@ if __name__ == '__main__':
 
     path = os.path.abspath (os.path.join(path, '..', 'lib', 'seapy'))
     if os.path.isdir (path): sys.path.insert(0, path)
-    
+
     sys.exit (main (sys.argv[1:]))

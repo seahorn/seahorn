@@ -19,7 +19,7 @@ cmds = [sea.commands.Clang(),
         sea.commands.Smt,
         sea.commands.FrontEnd,
         sea.commands.Clp]
-        
-    
+
+
 cmd = sea.AgregateCmd('sea', cmds)
 sys.exit (cmd.main (sys.argv[1:]))

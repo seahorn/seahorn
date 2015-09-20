@@ -2,6 +2,7 @@
 #include "seahorn/HornifyModule.hh"
 #include "seahorn/HornClauseDBTransf.hh"
 #include "seahorn/ClpWrite.hh"
+#include "seahorn/McMtWriter.hh"
 
 #include "seahorn/config.h"
 
@@ -12,7 +13,7 @@ InternalWriter("horn-fp-internal-writer",
                llvm::cl::desc("Use internal writer for Horn SMT2 format. (Default)"),
                llvm::cl::init(true),llvm::cl::Hidden);
 
-enum HCFormat { SMT2, CLP, PURESMT2};
+enum HCFormat { SMT2, CLP, PURESMT2, MCMT};
 static llvm::cl::opt<HCFormat>
 HornClauseFormat("horn-format",
        llvm::cl::desc ("Specify the format for Horn Clauses"),
@@ -23,6 +24,7 @@ HornClauseFormat("horn-format",
                     "CLP (Constraint Logic Programming)"),
         clEnumValN (PURESMT2, "pure-smt2",
                     "Pure SMT-LIB2 compliant format"),
+        clEnumValN (MCMT, "mcmt", "MCMT (Sally) format"),
         clEnumValEnd),
        llvm::cl::init (SMT2));
 
@@ -54,6 +56,13 @@ namespace seahorn
       normalizeHornClauseHeads (db);
       ClpWrite writer (db, efac);
       m_out << writer.toString ();
+    }
+    else if (HornClauseFormat == MCMT)
+    {
+      // -- normalize db
+      // -- create writer
+      McMtWriter<llvm::raw_fd_ostream> writer (db);
+      writer.write (m_out);
     }
     else 
     {

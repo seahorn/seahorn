@@ -10,6 +10,8 @@
 
 #include "ufo/Expr.hpp"
 
+#include <algorithm>
+
 namespace seahorn
 {
   using namespace llvm;
@@ -101,6 +103,8 @@ namespace seahorn
 
     HornClauseDB (ExprFactory &efac) : m_efac (efac) {}
     
+    ExprFactory &getExprFactory () {return m_efac;}
+    
     void registerRelation (Expr fdecl) {m_rels.push_back (fdecl);}
     const ExprVector& getRelations () const {return m_rels;}
     bool hasRelation (Expr fdecl) const
@@ -120,6 +124,15 @@ namespace seahorn
     {
       m_rules.push_back (rule);
       boost::copy (rule.vars (), std::back_inserter (m_vars));
+    }
+    
+    const ExprVector &getVars ()
+    {
+      // -- remove duplicates
+      std::sort (m_vars.begin (), m_vars.end ());
+      m_vars.erase (std::unique (m_vars.begin (), m_vars.end ()), m_vars.end ());
+      
+      return m_vars;
     }
 
     void removeRule (const HornRule &r)

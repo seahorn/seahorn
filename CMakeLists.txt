@@ -279,7 +279,7 @@ install(DIRECTORY ${CMAKE_BINARY_DIR}/include/
 add_definitions(-std=c++11)
 add_definitions(-Wno-redeclared-class-member -Wno-sometimes-uninitialized)
 add_definitions(-Wno-covered-switch-default)
-
+add_definitions(-Wno-inconsistent-missing-override)
 if ("${CMAKE_CXX_COMPILER_ID}" MATCHES "GNU")
   add_definitions( -Wno-unused-local-typedefs)
 endif ()

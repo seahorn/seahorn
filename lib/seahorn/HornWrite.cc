@@ -61,7 +61,7 @@ namespace seahorn
     {
       // -- normalize db
       // -- create writer
-      McMtWriter<llvm::raw_fd_ostream> writer (db);
+      McMtWriter<llvm::raw_fd_ostream> writer (db, hm.getZContext ());
       writer.write (m_out);
     }
     else 

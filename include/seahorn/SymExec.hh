@@ -137,7 +137,7 @@ namespace seahorn
   class IntLightSymExec : public SmallStepSymExec
   { 
   public:
-    IntLightSymExec (ExprFactory &efac) : SmallStepSymExec (m_efac) {} 
+    IntLightSymExec (ExprFactory &efac) : SmallStepSymExec (efac) {} 
     
     /// Execute all instructions in the basic block. Modifies the
     /// store s and stores side condition in side

@@ -100,26 +100,37 @@ namespace seahorn
         body.push_back (r.body ()->arg (i));
       
       out << "(define-transition " << *bind::fname (tr) << "_tr_" << c++
-          << " st_ty ";
+          << " st_ty\n";
 
-      out << "(and ";
+      out << "(and \n";
 
-      // XXX TODO
-      // CREATE state.s0=A state.s1=B ...
-      //   AND next.s0=C state.s2=D
+      // -- prev state
+      Expr st = r.body ()->arg (0);
+      out << "  ";
+      for (unsigned i=1, sz=st->arity (); i < sz; ++i)
+        out << "(= state.s" << (i-1) << " " << *st->arg(i) << ") ";
+      out << "\n";
       
-      out << m_z3.toSmtLib (mknary<AND> (trueE, body))<< ")\n";
+      // -- next state
+      out << "  ";
+      for (unsigned i=1, sz=r.head()->arity(); i < sz; ++i)
+        out << "(= next.s" << (i-1) << " " << *r.head ()->arg (i) << ") ";
+      out << "\n";
+      
+      Expr phi = mknary<AND> (trueE, body);
+      phi = z3_simplify (m_z3, phi);
+      out << "  " << m_z3.toSmtLib (phi) << ")\n";
       out << ")\n";
     }
     
     out << "(define-transition-system " << *bind::fname (tr)
-        << " st_ty init ";
+        << " st_ty init \n";
     out << "(or ";
     for (unsigned i = 0; i < c; ++i)
       out << *bind::fname (tr) << "_tr_" << i << " ";
     out << "))\n";
     
-    out << "(query " << *bind::fname (tr) << " (= s0 " << m_z3.toSmtLib (errLoc) << "))";
+    out << "(query " << *bind::fname (tr) << " (= s0 " << m_z3.toSmtLib (errLoc) << "))\n";
     
     return out;
   }

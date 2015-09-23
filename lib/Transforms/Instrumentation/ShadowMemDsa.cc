@@ -114,6 +114,12 @@ namespace seahorn
                                          Type::getInt32Ty (ctx),
                                          Type::getInt32Ty (ctx),
                                          (Type*) 0);
+    
+    m_memUniqLoadFn = M.getOrInsertFunction ("shadow.mem.unique.load", 
+                                             Type::getVoidTy (ctx),
+                                             Type::getInt32Ty (ctx),
+                                             Type::getInt32Ty (ctx),
+                                             (Type*) 0);
 
     m_memStoreFn = M.getOrInsertFunction ("shadow.mem.store", 
                                           Type::getInt32Ty (ctx),
@@ -121,6 +127,12 @@ namespace seahorn
                                           Type::getInt32Ty (ctx),
                                           (Type*) 0);
       
+    m_memUniqStoreFn = M.getOrInsertFunction ("shadow.mem.unique.store", 
+                                              Type::getInt32Ty (ctx),
+                                              Type::getInt32Ty (ctx),
+                                              Type::getInt32Ty (ctx),
+                                              (Type*) 0);
+    
     m_memShadowInitFn = M.getOrInsertFunction ("shadow.mem.init",
                                                Type::getInt32Ty (ctx),
                                                Type::getInt32Ty (ctx),
@@ -163,7 +175,18 @@ namespace seahorn
                                         Type::getInt32Ty (ctx),
                                         Type::getInt32Ty (ctx),
                                         (Type*) 0);
-   
+     m_markUniqIn = M.getOrInsertFunction ("shadow.mem.uniq.in",
+                                           Type::getVoidTy (ctx),
+                                           Type::getInt32Ty (ctx),
+                                           Type::getInt32Ty (ctx),
+                                           Type::getInt32Ty (ctx),
+                                           (Type*) 0);
+     m_markUniqOut = M.getOrInsertFunction ("shadow.mem.uniq.out",
+                                            Type::getVoidTy (ctx),
+                                            Type::getInt32Ty (ctx),
+                                            Type::getInt32Ty (ctx),
+                                            Type::getInt32Ty (ctx),
+                                            (Type*) 0);  
      
      m_node_ids.clear ();
      for (Function &f : M) runOnFunction (f);

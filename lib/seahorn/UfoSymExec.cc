@@ -52,6 +52,8 @@ namespace
     Expr m_inMem;
     /// -- current write memory
     Expr m_outMem;
+    /// --- true if the current read/write is to unique memory location
+    bool m_uniq;
     
     /// -- parameters for a function call
     ExprVector m_fparams;
@@ -63,6 +65,7 @@ namespace
     {
       trueE = mk<TRUE> (m_efac);
       falseE = mk<FALSE> (m_efac);
+      m_uniq = false;
       resetActiveLit ();
       // -- first two arguments are reserved for error flag
       m_fparams.push_back (falseE);
@@ -541,19 +544,22 @@ namespace
       else if (F.getName ().startswith ("shadow.mem") && 
                m_sem.isTracked (I))
       {
-        if (F.getName ().equals ("shadow.mem.init"))
+        if (F.getName ().equals ("shadow.mem.init") ||
+            F.getName ().equals ("shadow.mem.unique.init"))
           m_s.havoc (symb(I));
         else if (F.getName ().equals ("shadow.mem.load") ||
                  F.getName ().equals ("shadow.mem.unique.load"))
         {
           const Value &v = *CS.getArgument (1);
           m_inMem = m_s.read (symb (v));
+          m_uniq = F.getName ().equals ("shadow.mem.unique.load");
         }
         else if (F.getName ().equals ("shadow.mem.store") ||
                  F.getName ().equals ("shadow.mem.unique.store"))
         {
           m_inMem = m_s.read (symb (*CS.getArgument (1)));
           m_outMem = m_s.havoc (symb (I));
+          m_uniq = F.getName ().equals ("shadow.mem.unique.store");
         }
         else if (F.getName ().equals ("shadow.mem.arg.ref"))
           m_fparams.push_back (m_s.read (symb (*CS.getArgument (1))));
@@ -577,7 +583,8 @@ namespace
           m_s.read (symb (*CS.getArgument (1)));
         }
         else if (!PF.getName ().equals ("main") && 
-                 F.getName ().equals ("shadow.mem.arg.init"))
+                 (F.getName ().equals ("shadow.mem.arg.init") ||
+                  F.getName ().equals ("shadow.mem.unique.arg.init")))
         {
           // regions initialized in main are global. We want them to
           // flow to the arguments
@@ -605,19 +612,32 @@ namespace
       Expr lhs = havoc (I);
       if (!m_inMem) return;
       
-      Expr op0 = lookup (*I.getPointerOperand ());
-      
-      if (op0)
+      Expr act = GlobalConstraints ? trueE : m_activeLit;
+      if (m_uniq)
       {
-        Expr rhs = op::array::select (m_inMem, op0);
+        Expr rhs = m_inMem;
         if (I.getType ()->isIntegerTy (1))
           // -- convert to Boolean
           rhs = mk<NEQ> (rhs, mkTerm (mpz_class(0), m_efac));
-
-        Expr act = GlobalConstraints ? trueE : m_activeLit;
-        if (!ArrayGlobalConstraints) act = m_activeLit;
+       
         m_side.push_back (boolop::limp (act,
                                         mk<EQ> (lhs, rhs)));
+      }
+      else
+      {
+        Expr op0 = lookup (*I.getPointerOperand ());
+      
+        if (op0)
+        {
+          Expr rhs = op::array::select (m_inMem, op0);
+          if (I.getType ()->isIntegerTy (1))
+            // -- convert to Boolean
+            rhs = mk<NEQ> (rhs, mkTerm (mpz_class(0), m_efac));
+
+          if (!ArrayGlobalConstraints) act = m_activeLit;
+          m_side.push_back (boolop::limp (act,
+                                          mk<EQ> (lhs, rhs)));
+        }
       }
       
       m_inMem.reset ();
@@ -627,20 +647,28 @@ namespace
     {
       if (!m_inMem || !m_outMem || !m_sem.isTracked (*I.getOperand (0))) return;
       
-      Expr idx = lookup (*I.getPointerOperand ());
+      Expr act = GlobalConstraints ? trueE : m_activeLit;
       Expr v = lookup (*I.getOperand (0));
-      
       if (v && I.getOperand (0)->getType ()->isIntegerTy (1))
         // -- convert to int
         v = boolop::lite (v, mkTerm (mpz_class (1), m_efac),
                           mkTerm (mpz_class (0), m_efac));
+      if (m_uniq)
+      {
+        if (v)
+          m_side.push_back (boolop::limp (act, mk<EQ> (m_outMem, v)));
+      }
+      else
+      {
+        Expr idx = lookup (*I.getPointerOperand ());
       
-      Expr act = GlobalConstraints ? trueE : m_activeLit;
-      if (!ArrayGlobalConstraints) act = m_activeLit;
-      if (idx && v)
-        m_side.push_back (boolop::limp (act,
-                                        mk<EQ> (m_outMem, 
-                                                op::array::store (m_inMem, idx, v))));
+        if (!ArrayGlobalConstraints) act = m_activeLit;
+        if (idx && v)
+          m_side.push_back (boolop::limp (act,
+                                          mk<EQ> (m_outMem, 
+                                                  op::array::store (m_inMem, idx, v))));
+      }
+      
       m_inMem.reset ();
       m_outMem.reset ();
     }
@@ -779,10 +807,12 @@ namespace seahorn
     return m_td->getStructLayout (const_cast<StructType*>(t))->getElementOffset (field);
   }
   
-  bool UfoSmallSymExec::isShadowMem (const Value &V)
+  bool UfoSmallSymExec::isShadowMem (const Value &V, bool uniq)
   {
     // work list
     std::queue<const Value*> wl;
+    std::string shadowFnPrefix("shadow.mem");
+    if (uniq) shadowFnPrefix = "shadow.mem.unique";
     
     wl.push (&V);
     while (!wl.empty ())
@@ -793,7 +823,7 @@ namespace seahorn
       if (const CallInst *ci = dyn_cast<const CallInst> (val))
       {
         if (const Function *fn = ci->getCalledFunction ())
-          return fn->getName ().startswith ("shadow.mem.");
+          return fn->getName ().startswith (shadowFnPrefix);
         return false;
       }   
       else if (const PHINode *phi = dyn_cast<const PHINode> (val))
@@ -851,6 +881,8 @@ namespace seahorn
      
     // -- everything else is mapped to a constant
     Expr v = mkTerm<const Value*> (&I, m_efac);
+    
+    if (isShadowMem (I, true)) return bind::intConst (v);
     
     if (m_trackLvl >= MEM && isShadowMem (I))
     {

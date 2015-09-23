@@ -138,11 +138,20 @@ namespace seahorn
                                                Type::getInt32Ty (ctx),
                                                (Type*) 0);
     
+    m_memShadowUniqInitFn = M.getOrInsertFunction ("shadow.mem.unique.init",
+                                                   Type::getInt32Ty (ctx),
+                                                   Type::getInt32Ty (ctx),
+                                                   (Type*) 0);
+    
     m_memShadowArgInitFn = M.getOrInsertFunction ("shadow.mem.arg.init",
                                                   Type::getInt32Ty (ctx),
                                                   Type::getInt32Ty (ctx),
                                                   (Type*) 0);
     
+    m_memShadowUniqArgInitFn = M.getOrInsertFunction ("shadow.mem.unique.arg.init",
+                                                      Type::getInt32Ty (ctx),
+                                                      Type::getInt32Ty (ctx),
+                                                      (Type*) 0);
     m_argRefFn = M.getOrInsertFunction ("shadow.mem.arg.ref",
                                         Type::getVoidTy (ctx),
                                         Type::getInt32Ty (ctx),
@@ -346,9 +355,16 @@ namespace seahorn
       B.Insert (a, "shadow.mem");
       CallInst *ci;
       if (reach.count (n) <= 0)
-        ci = B.CreateCall (m_memShadowInitFn, B.getInt32 (getId (n)));
+      {
+        Constant *fn = n->getUniqueScalar () ? m_memShadowUniqInitFn : m_memShadowInitFn;
+        ci = B.CreateCall (fn, B.getInt32 (getId (n)));
+      }
       else
-        ci = B.CreateCall (m_memShadowArgInitFn, B.getInt32 (getId (n)));
+      {
+        Constant *fn = n->getUniqueScalar () ?
+          m_memShadowUniqArgInitFn : m_memShadowArgInitFn;
+        ci = B.CreateCall (fn, B.getInt32 (getId (n)));
+      }
       
       inits[n] = ci;
       B.CreateStore (ci, a);

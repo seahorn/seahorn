@@ -5,6 +5,8 @@
 #include "ufo/Expr.hpp"
 #include "ufo/Smt/EZ3.hh"
 
+#include "seahorn/config.h"
+
 namespace seahorn
 {
   template <typename Out>
@@ -38,6 +40,7 @@ namespace seahorn
     Expr errLoc = query->arg (1);
     
    
+    out << ";; SeaHorn v." << SEAHORN_VERSION_INFO << "\n";
     out << "(define-state-type st_ty\n";
     
     out << "  (";
@@ -128,7 +131,8 @@ namespace seahorn
       out << *bind::fname (tr) << "_tr_" << i << " ";
     out << "))\n";
     
-    out << "(query " << *bind::fname (tr) << " (= s0 " << m_z3.toSmtLib (errLoc) << "))\n";
+    out << "(query " << *bind::fname (tr) << "  (< s0 "
+        << m_z3.toSmtLib (errLoc) << "))\n";
     
     return out;
   }

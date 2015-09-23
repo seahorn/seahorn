@@ -875,7 +875,7 @@ namespace seahorn
       
     AttrBuilder B;
     B.addAttribute (Attribute::NoReturn);
-    B.addAttribute (Attribute::ReadNone);
+    // B.addAttribute (Attribute::ReadNone);
     
     AttributeSet as = AttributeSet::get (ctx, 
                                          AttributeSet::FunctionIndex,
@@ -888,7 +888,7 @@ namespace seahorn
     
     B.clear ();
     B.addAttribute (Attribute::NoReturn);
-    B.addAttribute (Attribute::ReadNone);
+    // B.addAttribute (Attribute::ReadNone);
     
     as = AttributeSet::get (ctx, 
                             AttributeSet::FunctionIndex,

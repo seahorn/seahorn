@@ -65,7 +65,7 @@ loop-free program block.
 
 - `--cex=FILE` : stores a counter-example in `FILE`
 
-- `--horn-crab` : generates invariants using the Crab abstract-interpretation-based tool
+- `--crab` : generates invariants using the Crab abstract-interpretation-based tool
 
 - `-g` : compiles with debug information for more trackable
   counterexamples.

@@ -3,6 +3,8 @@
 #ifndef __EXPR__H_
 #define __EXPR__H_
 
+#pragma clang diagnostic ignored "-Wpotentially-evaluated-expression"
+
 #include <typeinfo>
 #include <algorithm>
 #include <set>

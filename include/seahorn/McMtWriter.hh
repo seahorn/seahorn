@@ -38,8 +38,6 @@ namespace seahorn
     Expr errLoc = query->arg (1);
     
    
-    out << *bind::fname (tr) << " and " << *errLoc << "\n";
-    
     out << "(define-state-type st_ty\n";
     
     out << "  (";

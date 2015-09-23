@@ -231,8 +231,9 @@ namespace seahorn
           DSNode* n = dsg->getNodeForValue (load->getOperand (0)).getNode ();
           if (!n) n = gDsg->getNodeForValue (load->getOperand (0)).getNode ();
           if (!n) continue;
+          Constant* fn = n->getUniqueScalar () ? m_memUniqLoadFn : m_memLoadFn;
           B.SetInsertPoint (&inst);
-          B.CreateCall2 (m_memLoadFn, 
+          B.CreateCall2 (fn, 
                          B.getInt32 (getId (n)),
                          B.CreateLoad (allocaForNode (n)));
         }
@@ -241,9 +242,10 @@ namespace seahorn
           DSNode* n = dsg->getNodeForValue (store->getOperand (1)).getNode ();
           if (!n) n = gDsg->getNodeForValue (store->getOperand (1)).getNode ();
           if (!n) continue;
+          Constant* fn = n->getUniqueScalar () ? m_memUniqStoreFn: m_memStoreFn;
           B.SetInsertPoint (&inst);
           AllocaInst *v = allocaForNode (n);
-          B.CreateStore (B.CreateCall2 (m_memStoreFn, 
+          B.CreateStore (B.CreateCall2 (fn, 
                                         B.getInt32 (getId (n)),
                                         B.CreateLoad (v)), v);           
         }
@@ -386,7 +388,8 @@ namespace seahorn
       {
         assert (inits.count (n));
         /// initial value
-        B.CreateCall3 (m_markIn,
+        Constant *fn = n->getUniqueScalar () ? m_markUniqIn : m_markIn;
+        B.CreateCall3 (fn,
                        B.getInt32 (getId (n)),
                        inits[n], 
                        B.getInt32 (idx));
@@ -396,7 +399,8 @@ namespace seahorn
       {
         assert (inits.count (n));
         /// final value
-        B.CreateCall3 (m_markOut, 
+        Constant *fn = n->getUniqueScalar () ? m_markUniqOut : m_markOut;
+        B.CreateCall3 (fn, 
                        B.getInt32 (getId (n)),
                        B.CreateLoad (allocaForNode (n)),
                        B.getInt32 (idx));

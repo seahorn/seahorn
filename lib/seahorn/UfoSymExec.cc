@@ -543,12 +543,14 @@ namespace
       {
         if (F.getName ().equals ("shadow.mem.init"))
           m_s.havoc (symb(I));
-        else if (F.getName ().equals ("shadow.mem.load"))
+        else if (F.getName ().equals ("shadow.mem.load") ||
+                 F.getName ().equals ("shadow.mem.unique.load"))
         {
           const Value &v = *CS.getArgument (1);
           m_inMem = m_s.read (symb (v));
         }
-        else if (F.getName ().equals ("shadow.mem.store"))
+        else if (F.getName ().equals ("shadow.mem.store") ||
+                 F.getName ().equals ("shadow.mem.unique.store"))
         {
           m_inMem = m_s.read (symb (*CS.getArgument (1)));
           m_outMem = m_s.havoc (symb (I));
@@ -563,12 +565,14 @@ namespace
         else if (F.getName ().equals ("shadow.mem.arg.new"))
           m_fparams.push_back (m_s.havoc (symb (I)));
         else if (!PF.getName ().equals ("main") && 
-                 F.getName ().equals ("shadow.mem.in"))
+                 (F.getName ().equals ("shadow.mem.in") ||
+                  F.getName ().equals ("shadow.mem.unique.in")))
         {
           m_s.read (symb (*CS.getArgument (1)));
         }
         else if (!PF.getName ().equals ("main") &&
-                 F.getName ().equals ("shadow.mem.out"))
+                 (F.getName ().equals ("shadow.mem.out") ||
+                  F.getName ().equals ("shadow.mem.unique.out")))
         {
           m_s.read (symb (*CS.getArgument (1)));
         }

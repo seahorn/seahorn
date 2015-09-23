@@ -263,19 +263,12 @@ class Seahorn(sea.LimitedCmd):
                          help='Choose Crab abstract domain',
                          choices=['int','ric','zones','term'],
                          dest='crab_dom', default='int')
-        ap.add_argument ('--crab-live',
-                         help='Use of liveness information',
-                         dest='crab_live', default=False, action='store_true')
-        #### These three should not be optional in the future
-        ap.add_argument ('--crab-disable-ptr',
-                         help='Disable translation of pointer arithmetic instructions',
-                         dest='crab_disable_ptr', default=False, action='store_true')
-        ap.add_argument ('--crab-cfg-simplify',
-                         help='Simplify CFG built by Crab (experimental)',
-                         dest='crab_cfg_simplify', default=False, action='store_true')
-        ap.add_argument ('--crab-cfg-interproc',
-                         help='Build inter-procedural CFG (experimental)',
-                         dest='crab_interproc', default=False, action='store_true')
+        ap.add_argument ('--crab-track',
+                         help='Track registers, pointers, and memory',
+                         choices=['reg', 'ptr', 'mem'], dest='crab_track', default='reg')
+        ap.add_argument ('--crab-inter',
+                         help='Perform inter-procedural analysis',
+                         dest='crab_inter', default=False, action='store_true')
         ## End Crab ##
         return ap
 
@@ -289,15 +282,9 @@ class Seahorn(sea.LimitedCmd):
         if args.crab:
             argv.append ('--horn-crab')
             argv.append ('--crab-dom={0}'.format (args.crab_dom))
-            #argv.append ('--crab-track-lvl={0}'.format (args.track))
-            if args.crab_disable_ptr:
-                argv.append ('--crab-enable-ptr')
-            if args.crab_cfg_simplify:
-                argv.append ('--crab-cfg-simplify')
-            if args.crab_interproc:
-                argv.append ('--crab-cfg-interproc')
-            if args.crab_live:
-                argv.append ('--crab-live')
+            argv.append ('--crab-track-lvl={0}'.format (args.crab_track))
+            if args.crab_inter:
+                argv.append ('--crab-inter')
 
         if args.solve:
             argv.append ('--horn-solve')

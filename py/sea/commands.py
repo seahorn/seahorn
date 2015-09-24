@@ -483,4 +483,4 @@ Pf = sea.SeqCmd ('pf', 'alias for fe|horn --solve',
                  FrontEnd.cmds + [Seahorn(solve=True)])
 LfeSmt = sea.SeqCmd ('lfe-smt', 'alias for lfe|horn', [LegacyFrontEnd(), Seahorn()])
 LfeClp= sea.SeqCmd ('lfe-clp', 'alias for lfe|horn-clp', [LegacyFrontEnd(), SeahornClp()])
-BMC = sea.SeqCmd('bmc', 'alias for fe|seabmc', FrontEnd.cmds + [Seabmc()])
+BMC = sea.SeqCmd('bsmt', 'alias for fe|seabmc', FrontEnd.cmds + [Seabmc()])

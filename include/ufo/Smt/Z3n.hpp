@@ -29,6 +29,7 @@
 #include <boost/lexical_cast.hpp>
 
 #include "ufo/Expr.hpp"
+#include "ufo/ExprInterp.hh"
 
 namespace z3
 {
@@ -328,6 +329,40 @@ namespace ufo
 
     ExprFactory &efac;
 
+    bool isAsArray (const z3::ast &v)
+    {
+      if (v.kind () != Z3_APP_AST) return false;
+      
+      Z3_app app = Z3_to_app (ctx, v);
+      Z3_func_decl fdecl = Z3_get_app_decl (ctx, app);
+      return Z3_get_decl_kind (ctx, fdecl) == Z3_OP_AS_ARRAY;
+    }
+
+    Expr finterpToExpr (const z3::func_interp &zfunc)
+    {
+      ExprVector entries;
+      for (unsigned i = 0, sz = zfunc.num_entries (); i < sz; ++i)
+        entries.push_back (fentryToExpr (zfunc.entry (i)));
+
+      z3::ast elseV (ctx, Z3_func_interp_get_else (ctx, zfunc));
+      Expr res = mdl::ftable (entries, z3.toExpr (elseV));
+      return res;
+    }
+    
+    Expr fentryToExpr (const z3::func_entry &zentry)
+    {
+      ExprVector args;
+      for (unsigned i = 0, sz = zentry.num_args(); i < sz; ++i)
+      {
+        z3::ast arg (ctx, Z3_func_entry_get_arg (ctx, zentry, i));
+        args.push_back (z3.toExpr (arg));
+      }
+      z3::ast zval (ctx, Z3_func_entry_get_value (ctx, zentry));
+      Expr res = mdl::fentry (args, z3.toExpr (zval));
+      return res;
+    }
+    
+    
 
   public:
 
@@ -348,7 +383,13 @@ namespace ufo
 	{
 	  z3::ast val (ctx, raw_val);
 	  ctx.check_error ();
-	  return z3.toExpr (val);
+          if (!isAsArray (val)) return z3.toExpr (val);
+          
+          
+          Z3_func_decl fdecl = Z3_get_as_array_func_decl (ctx, val);
+          z3::func_interp zfunc (ctx, Z3_model_get_func_interp (ctx, model, fdecl));
+          ctx.check_error ();
+          return finterpToExpr (zfunc);
 	}
       ctx.check_error ();
       return mk<NONDET> (efac);
@@ -356,6 +397,8 @@ namespace ufo
 
     ExprFactory &getExprFactory () { return z3.getExprFactory (); }
     Expr operator() (Expr e) { return eval (e); }
+
+    
   };
 
   template <typename Z>
@@ -543,7 +586,7 @@ namespace ufo
     ExprVector m_rels;
     ExprVector m_vars;
     ExprVector m_rules;
-    Expr m_query;
+    ExprVector m_queries;
 
   public:
 
@@ -597,13 +640,23 @@ namespace ufo
       Z3_fixedpoint_add_rule (ctx, fp, qexpr, static_cast<Z3_symbol>(0));
     }
 
-    void addQuery (Expr q) {m_query = q;}
+    void addQuery (Expr q) {m_queries.push_back (q);}
+
+    void addQueries (ExprVector qs) 
+    {
+      std::copy (qs.begin (), qs.end (), 
+                 std::back_inserter (m_queries));
+    }
 
     boost::tribool query (Expr q = Expr())
     {
-      if (q) m_query = q;
+      if (q) m_queries.push_back (q);
 
-      z3::ast ast (z3.toAst (m_query));
+      std::vector<Z3_ast> qs;
+      for (Expr e : m_queries)
+        qs.push_back (z3.toAst (e));
+
+      z3::ast ast = z3::ast (ctx, Z3_mk_and (ctx, qs.size (), &qs [0]));
 
       // -- existentially quantify all variables
       if (!m_vars.empty ())
@@ -632,9 +685,13 @@ namespace ufo
 
     std::string toString (Expr query = Expr())
     {
-      if (!query) query = m_query;
+      if (query) m_queries.push_back (query);
 
-      z3::ast ast (z3.toAst (query));
+      std::vector<Z3_ast> qs;
+      for (Expr e : m_queries)
+        qs.push_back (z3.toAst (e));
+
+      z3::ast ast = z3::ast (ctx, Z3_mk_and (ctx, qs.size (), &qs [0]));
 
       // -- existentially quantify all variables
       if (!m_vars.empty ())
@@ -727,8 +784,8 @@ namespace ufo
       forall (Expr &rule, fp.m_rules)
 	out << "(rule " << fp.z3.toSmtLib (rule) << ")\n";
 
-      if (fp.m_query)
-	out << "(query " << fp.z3.toSmtLib (fp.m_query) << ")\n";
+      for (auto q: fp.m_queries)
+	out << "(query " << fp.z3.toSmtLib (q) << ")\n";
       return out;
     }
 

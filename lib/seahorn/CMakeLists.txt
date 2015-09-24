@@ -1,12 +1,12 @@
-add_llvm_library (seahorn.LIB
-  LoadIkos.cc
-  LiveSymbols.cc
+add_llvm_library (seahorn.LIB 
+  LoadCrab.cc
+  LiveSymbols.cc 
   SymStore.cc
   SymExec.cc
   UfoSymExec.cc
   ClpSymExec.cc
-  HornifyModule.cc
-  HornifyFunction.cc
+  HornifyModule.cc 
+  HornifyFunction.cc 
   FlatHornifyFunction.cc
   HornWrite.cc
   HornSolver.cc
@@ -19,8 +19,8 @@ add_llvm_library (seahorn.LIB
 
 
 # no need to link with static libraries
-if (HAVE_IKOS_LLVM)
-  target_link_libraries (seahorn.LIB LlvmIkosPasses)
+if (HAVE_CRAB_LLVM)
+  target_link_libraries (seahorn.LIB CrabLlvmAnalysis CrabLlvmInstrumentation)
 endif()
 
 set_target_properties (seahorn.LIB PROPERTIES OUTPUT_NAME "seahorn")
@@ -35,4 +35,4 @@ add_llvm_library(seabmc.LIB
   ZOption.cc
   )
 
-set_target_properties (seahorn.LIB PROPERTIES OUTPUT_NAME "seabmc")
+set_target_properties (seabmc.LIB PROPERTIES OUTPUT_NAME "seabmc")

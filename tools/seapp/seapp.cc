@@ -32,6 +32,7 @@
 
 #include "seahorn/Transforms/Scalar/PromoteVerifierCalls.hh"
 #include "seahorn/Transforms/Utils/RemoveUnreachableBlocksPass.hh"
+#include "seahorn/Transforms/Utils/DummyMainFunction.hh"
 #include "seahorn/Transforms/Scalar/LowerGvInitializers.hh"
 
 #include "seahorn/Analysis/CanAccessMemory.hh"
@@ -40,7 +41,6 @@
 #include "seahorn/Transforms/Instrumentation/BufferBoundsCheck.hh"
 #include "seahorn/Transforms/Instrumentation/IntegerOverflowCheck.hh"
 #include "seahorn/Transforms/Instrumentation/MixedSemantics.hh"
-//#include "seahorn/Transforms/IkosIndVarSimplify.hh"
 
 #include "ufo/Smt/EZ3.hh"
 #include "ufo/Stats.hh"
@@ -176,6 +176,9 @@ int main(int argc, char **argv) {
   }
   if (dl) pass_manager.add (new llvm::DataLayoutPass ());
 
+  // -- Create a main function if we do not have one.
+  pass_manager.add (new seahorn::DummyMainFunction ());
+ 
   // -- promote verifier specific functions to special names
   pass_manager.add (new seahorn::PromoteVerifierCalls ());
   
@@ -235,7 +238,6 @@ int main(int argc, char **argv) {
   { 
     pass_manager.add (new seahorn::LowerCstExprPass ());
     pass_manager.add (new seahorn::CanAccessMemory ());
-    // pass_manager.add (new seahorn::IkosIndVarSimplify ());
     if (!InlineAll)
       pass_manager.add (new seahorn::ShadowBufferBoundsCheckFuncPars ());
     pass_manager.add (new seahorn::BufferBoundsCheck (InlineAll));

@@ -113,22 +113,27 @@ namespace seahorn
                                          Type::getVoidTy (ctx),
                                          Type::getInt32Ty (ctx),
                                          Type::getInt32Ty (ctx),
+                                         Type::getInt8PtrTy (ctx),
                                          (Type*) 0);
-
+    
+    
     m_memStoreFn = M.getOrInsertFunction ("shadow.mem.store", 
                                           Type::getInt32Ty (ctx),
                                           Type::getInt32Ty (ctx),
                                           Type::getInt32Ty (ctx),
+                                          Type::getInt8PtrTy (ctx),
                                           (Type*) 0);
       
     m_memShadowInitFn = M.getOrInsertFunction ("shadow.mem.init",
                                                Type::getInt32Ty (ctx),
                                                Type::getInt32Ty (ctx),
+                                               Type::getInt8PtrTy (ctx),
                                                (Type*) 0);
     
     m_memShadowArgInitFn = M.getOrInsertFunction ("shadow.mem.arg.init",
                                                   Type::getInt32Ty (ctx),
                                                   Type::getInt32Ty (ctx),
+                                                  Type::getInt8PtrTy (ctx),
                                                   (Type*) 0);
     
     m_argRefFn = M.getOrInsertFunction ("shadow.mem.arg.ref",
@@ -152,23 +157,32 @@ namespace seahorn
                                         (Type*) 0);
     
      m_markIn = M.getOrInsertFunction ("shadow.mem.in",
-                                        Type::getVoidTy (ctx),
-                                        Type::getInt32Ty (ctx),
-                                        Type::getInt32Ty (ctx),
-                                        Type::getInt32Ty (ctx),
-                                        (Type*) 0);
+                                       Type::getVoidTy (ctx),
+                                       Type::getInt32Ty (ctx),
+                                       Type::getInt32Ty (ctx),
+                                       Type::getInt32Ty (ctx),
+                                       Type::getInt8PtrTy (ctx),
+                                       (Type*) 0);
      m_markOut = M.getOrInsertFunction ("shadow.mem.out",
                                         Type::getVoidTy (ctx),
                                         Type::getInt32Ty (ctx),
                                         Type::getInt32Ty (ctx),
                                         Type::getInt32Ty (ctx),
+                                        Type::getInt8PtrTy (ctx),
                                         (Type*) 0);
-   
-     
      m_node_ids.clear ();
      for (Function &f : M) runOnFunction (f);
       
      return false;
+  }
+  
+  static Value *getUniqueScalar (LLVMContext &ctx, IRBuilder<> &B, const DSNode *n)
+  {
+    Value *v = const_cast<Value*>(n->getUniqueScalar ());
+    if (v)
+      return B.CreateBitCast (v, Type::getInt8PtrTy (ctx));
+    else
+      return ConstantPointerNull::get (Type::getInt8PtrTy (ctx));
   }
   
   bool ShadowMemDsa::runOnFunction (Function &F)
@@ -208,10 +222,11 @@ namespace seahorn
           DSNode* n = dsg->getNodeForValue (load->getOperand (0)).getNode ();
           if (!n) n = gDsg->getNodeForValue (load->getOperand (0)).getNode ();
           if (!n) continue;
+          
           B.SetInsertPoint (&inst);
-          B.CreateCall2 (m_memLoadFn, 
-                         B.getInt32 (getId (n)),
-                         B.CreateLoad (allocaForNode (n)));
+          B.CreateCall3 (m_memLoadFn, B.getInt32 (getId (n)),
+                         B.CreateLoad (allocaForNode (n)),
+                         getUniqueScalar (ctx, B, n));
         }
         else if (const StoreInst *store = dyn_cast<StoreInst> (&inst))
         {
@@ -220,9 +235,11 @@ namespace seahorn
           if (!n) continue;
           B.SetInsertPoint (&inst);
           AllocaInst *v = allocaForNode (n);
-          B.CreateStore (B.CreateCall2 (m_memStoreFn, 
+          B.CreateStore (B.CreateCall3 (m_memStoreFn, 
                                         B.getInt32 (getId (n)),
-                                        B.CreateLoad (v)), v);           
+                                        B.CreateLoad (v),
+                                        getUniqueScalar (ctx, B, n)),
+                         v);           
         }
         else if (CallInst *call = dyn_cast<CallInst> (&inst))
         {
@@ -256,13 +273,29 @@ namespace seahorn
           unsigned idx = 0;
           for (const DSNode* n : reach)
           {
+            LOG("global_shadow", n->print (errs (), n->getParentGraph ());
+                errs () << "global: " << n->isGlobalNode () << "\n";
+                errs () << "#globals: " << n->numGlobals () << "\n";
+                svset<const GlobalValue*> gv;
+                if (n->numGlobals () == 1) n->addFullGlobalsSet (gv);
+                errs () << "gv-size: " << gv.size () << "\n";
+                if (gv.size () == 1) errs () << "Global: " << *(*gv.begin ()) << "\n";
+                const Value *v = n->getUniqueScalar ();
+                if (v) 
+                  errs () << "value: " << *n->getUniqueScalar () << "\n";
+                else
+                  errs () << "no unique scalar\n";
+                );
+            
+            
             // skip nodes that are not read/written by the callee
             if (!n->isReadNode () && !n->isModifiedNode ()) continue;
             AllocaInst *v = allocaForNode (nodeMap [n].getNode ());
             unsigned id = getId (nodeMap [n].getNode ());
             
-            // -- read only node
-            if (n->isReadNode () && !n->isModifiedNode ())
+            // -- read only node ignore nodes that are only reachable
+            // -- from the return of the function
+            if (n->isReadNode () && !n->isModifiedNode () && retReach.count(n) <= 0)
               B.CreateCall3 (m_argRefFn, B.getInt32 (id),
                              B.CreateLoad (v),
                              B.getInt32 (idx));
@@ -304,11 +337,8 @@ namespace seahorn
       AllocaInst *a = it.second;
       B.Insert (a, "shadow.mem");
       CallInst *ci;
-      if (reach.count (n) <= 0)
-        ci = B.CreateCall (m_memShadowInitFn, B.getInt32 (getId (n)));
-      else
-        ci = B.CreateCall (m_memShadowArgInitFn, B.getInt32 (getId (n)));
-      
+      Constant *fn = reach.count (n) <= 0 ? m_memShadowInitFn : m_memShadowArgInitFn;
+      ci = B.CreateCall2 (fn, B.getInt32 (getId (n)), getUniqueScalar (ctx, B, n));
       inits[n] = ci;
       B.CreateStore (ci, a);
     }
@@ -347,20 +377,22 @@ namespace seahorn
       {
         assert (inits.count (n));
         /// initial value
-        B.CreateCall3 (m_markIn,
+        B.CreateCall4 (m_markIn,
                        B.getInt32 (getId (n)),
                        inits[n], 
-                       B.getInt32 (idx));
+                       B.getInt32 (idx),
+                       getUniqueScalar (ctx, B, n));
       }
       
       if (n->isModifiedNode ())
       {
         assert (inits.count (n));
         /// final value
-        B.CreateCall3 (m_markOut, 
+        B.CreateCall4 (m_markOut, 
                        B.getInt32 (getId (n)),
                        B.CreateLoad (allocaForNode (n)),
-                       B.getInt32 (idx));
+                       B.getInt32 (idx),
+                       getUniqueScalar (ctx, B, n));
       }
       ++idx;
     }

@@ -81,11 +81,15 @@ namespace seahorn
     return change;
   }
 
-  ConstantExpr* LowerCstExprPass::hasCstExpr(Value *V)
+  ConstantExpr* LowerCstExprPass::hasCstExpr(Value *V, std::set<Value*> &visited)
   {
+    if (visited.count (V) > 0) return nullptr;
+    
+    visited.insert (V);
+
     if (Constant * cst = dyn_cast<Constant>(V))
     {
-      if (ConstantExpr * ce = dyn_cast<ConstantExpr>(V)) 
+      if (ConstantExpr * ce = dyn_cast<ConstantExpr>(cst)) 
         return ce;
       else
       {
@@ -97,7 +101,7 @@ namespace seahorn
           // for (auto p : boost::make_iterator_range (cst->op_begin (),
           //                                           cst->op_end ()))
           // {
-          if (ConstantExpr * cst_exp_i = hasCstExpr(p.get ()))
+          if (ConstantExpr * cst_exp_i = hasCstExpr(p.get (),visited))
             return cst_exp_i;
         }
       }          
@@ -105,6 +109,11 @@ namespace seahorn
     return nullptr;
   }
 
+  ConstantExpr* LowerCstExprPass::hasCstExpr(Value *V)
+  {
+    std::set<Value*> visited;
+    return hasCstExpr(V,visited);
+  }
 
   Instruction * LowerCstExprPass::lowerCstExpr(ConstantExpr* CstExp, 
                                                Instruction* InsertionLoc) 

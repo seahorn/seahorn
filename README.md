@@ -15,7 +15,7 @@ SeaHorn is distributed under a modified BSD license. See [license.txt](license.t
 * `cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=run ../ `
 * (optional) `cmake --build . --target extra` to download extra packages
 * `cmake --build .` to build dependencies (Z3 and LLVM)
-* (optional) `cmake --build .` to build extra packages (llvm-ikos)
+* (optional) `cmake --build .` to build extra packages (crab-llvm)
 * `cmake --build .` to build seahorn
 * `cmake --build . --target install` to install everything in `run` directory
 
@@ -25,12 +25,12 @@ Optional components can be installed individually as well:
 
 * [dsa-seahorn](https://github.com/seahorn/dsa-seahorn): ``` git clone https://github.com/seahorn/dsa-seahorn.git ```
 
-* [ikos-llvm](https://github.com/seahorn/ikos-llvm): ``` git clone https://github.com/seahorn/ikos-llvm.git```
+* [crab-llvm](https://github.com/seahorn/crab-llvm): ``` git clone https://github.com/seahorn/crab-llvm.git```
 
 * [llvm-seahorn](https://github.com/seahorn/llvm-seahorn): ``` git clone https://github.com/seahorn/llvm-seahorn.git```
 
 Note that both [dsa-seahorn](https://github.com/seahorn/dsa-seahorn)
-and [ikos-llvm](https://github.com/seahorn/ikos-llvm) are
+and [crab-llvm](https://github.com/seahorn/crab-llvm) are
 optional. Nevertheless both are highly recommended. The former is
 needed when reasoning about memory contents while the latter provides
 inductive invariants using abstract interpretation techniques to the
@@ -65,13 +65,12 @@ loop-free program block.
 
 - `--cex=FILE` : stores a counter-example in `FILE`
 
-- `--horn-ikos` : generates invariants using the IKOS abstract
-  interpreter
+- `--crab` : generates invariants using the Crab abstract-interpretation-based tool
 
 - `-g` : compiles with debug information for more trackable
   counterexamples.
 
-`sea-pf` is a pipeline that runs multiple commands. Individual parts
+`sea pf` is a pipeline that runs multiple commands. Individual parts
 of the pipeline can be ran separately as well:
 
 1. `sea fe file.c -o file.bc`: SeaHorn frontend translates a C program
@@ -83,10 +82,11 @@ of the pipeline can be ran separately as well:
   can choose between different encoding styles with several levels of
   precision by adding:
 
-   - `--step={small,large,flarge}` where `small` is small step
-      encoding, `large` is block-large encoding, and `flarge`:
-      block-large encoding producing flat Horn clauses (i.e., it
-      generates a transition system with only one predicate).
+   - `--step={small,large,fsmall,flarge}` where `small` is small step
+      encoding, `large` is block-large encoding, `fsmall` is small
+      step encoding producing flat Horn clauses (i.e., it generates a
+      transition system with only one predicate), and `flarge`:
+      block-large encoding producing flat Horn clauses.
 
    - `--track={reg,ptr,mem}` where `reg` only models integer
       scalars, `ptr` models `reg` and pointer addresses, and `mem`

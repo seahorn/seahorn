@@ -4,4 +4,5 @@ add_llvm_library(SeaTransformsUtils
   MarkInternalInline.cc
   NameValues.cpp
   RemoveUnreachableBlocksPass.cc
+  DummyMainFunction.cc
   )

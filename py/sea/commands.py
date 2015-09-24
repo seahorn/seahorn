@@ -54,7 +54,10 @@ class Clang(sea.LimitedCmd):
         if cmd_name is None: raise IOError ('clang not found')
         self.clangCmd = sea.ExtCmd (cmd_name)
 
-        argv = ['-c', '-emit-llvm']
+        argv = ['-c', '-emit-llvm', '-D__SEAHORN__', '-fgnu89-inline']
+
+        argv.extend (filter (lambda s : s.startswith ('-D'), extra))
+
         if args.llvm_asm: argv.append ('-S')
         argv.append ('-m{0}'.format (args.machine))
 
@@ -85,6 +88,12 @@ class Seapp(sea.LimitedCmd):
         ap = super (Seapp, self).mk_arg_parser (ap)
         ap.add_argument ('--inline', dest='inline', help='Inline all functions',
                          default=False, action='store_true')
+        ap.add_argument ('--entry', dest='entry', help='Entry point if main does not exist',
+                         default=None, metavar='FUNCTION')
+        ap.add_argument ('--boc', dest='boc', help='Insert buffer overflow checks',
+                         default=False, action='store_true')
+        ap.add_argument ('--ioc', dest='ioc', help='Insert signed integer overflow checks',
+                         default=False, action='store_true')
         add_in_out_args (ap)
         _add_S_arg (ap)
         return ap
@@ -97,6 +106,17 @@ class Seapp(sea.LimitedCmd):
         argv = list()
         if args.out_file is not None: argv.extend (['-o', args.out_file])
         if args.inline: argv.append ('--horn-inline-all')
+        if args.boc:
+            argv.append ('--boc')
+            if args.inline:
+                argv.append ('--boc-inline-all')
+        if args.ioc:
+            argv.append ('--ioc')
+            if args.inline:
+                argv.append ('--ioc-inline-all')
+        if args.entry is not None:
+            argv.append ('--entry-point=\"{0}\"'.format (args.entry))
+
         if args.llvm_asm: argv.append ('-S')
         argv.append (args.in_file)
         return self.seappCmd.run (args, argv)
@@ -117,7 +137,7 @@ class MixedSem(sea.LimitedCmd):
 
     def mk_arg_parser (self, ap):
         ap = super (MixedSem, self).mk_arg_parser (ap)
-        ap.add_argument ('--ms-skip', dest='ms_skip', help='Skip mixed semantics',
+        ap.add_argument ('--no-ms', dest='ms_skip', help='Skip mixed semantics',
                          default=False, action='store_true')
         ap.add_argument ('--no-reduce-main', dest='reduce_main',
                          help='Do not reduce main to return paths only',
@@ -157,6 +177,12 @@ class Seaopt(sea.LimitedCmd):
         ap = super (Seaopt, self).mk_arg_parser (ap)
         ap.add_argument ('-O', type=int, dest='opt_level', metavar='INT',
                          help='Optimization level L:[0,1,2,3]', default=3)
+        ap.add_argument ('--enable-indvar', dest='enable_indvar', default=False,
+                         action='store_true')
+        ap.add_argument ('--enable-loop-idiom', dest='enable_loop_idiom', default=False,
+                         action='store_true')
+        ap.add_argument ('--enable-nondet-init', dest='enable_nondet_init', default=False,
+                         action='store_true')
         add_in_out_args (ap)
         _add_S_arg (ap)
         return ap
@@ -171,6 +197,14 @@ class Seaopt(sea.LimitedCmd):
             argv.extend (['-o', args.out_file])
         if args.opt_level > 0 and args.opt_level <= 3:
             argv.append('-O{0}'.format (args.opt_level))
+
+        if not args.enable_indvar:
+            argv.append ('--enable-indvar=false')
+        if not args.enable_loop_idiom:
+            argv.append ('--enable-loop-idiom=false')
+        if not args.enable_nondet_init:
+            argv.append ('--enable-nondet-init=false')
+
         argv.append (args.in_file)
         if args.llvm_asm: argv.append ('-S')
         return self.seaoptCmd.run (args, argv)
@@ -179,7 +213,7 @@ def _is_seahorn_opt (x):
     if x.startswith ('-'):
         y = x.strip ('-')
         return y.startswith ('horn') or \
-            y.startswith ('ikos') or y.startswith ('log')
+            y.startswith ('crab') or y.startswith ('log')
     return False
 
 class Seabmc(sea.LimitedCmd):
@@ -270,12 +304,29 @@ class Seahorn(sea.LimitedCmd):
                          help='LLVM assembly output file')
         ap.add_argument ('--step',
                          help='Step to use for encoding',
-                         choices=['small', 'large', 'flarge'],
+                         choices=['small', 'large', 'fsmall', 'flarge'],
                          dest='step', default='large')
         ap.add_argument ('--track',
                          help='Track registers, pointers, and memory',
                          choices=['reg', 'ptr', 'mem'], default='mem')
-
+        ap.add_argument ('--show-invars',
+                         help='Display computed invariants',
+                         dest='show_invars', default=False, action='store_true')
+        ## Begin Crab ##
+        ap.add_argument ('--crab',
+                         help='Enable Crab abstract interpreter',
+                         dest='crab', default=False, action='store_true')
+        ap.add_argument ('--crab-dom',
+                         help='Choose Crab abstract domain',
+                         choices=['int','ric','zones','term'],
+                         dest='crab_dom', default='int')
+        ap.add_argument ('--crab-track',
+                         help='Track registers, pointers, and memory',
+                         choices=['reg', 'ptr', 'mem'], dest='crab_track', default='reg')
+        ap.add_argument ('--crab-inter',
+                         help='Perform inter-procedural analysis',
+                         dest='crab_inter', default=False, action='store_true')
+        ## End Crab ##
         return ap
 
     def run (self, args, extra):
@@ -284,7 +335,18 @@ class Seahorn(sea.LimitedCmd):
         self.seahornCmd = sea.ExtCmd (cmd_name)
 
         argv = list()
-        if args.solve: argv.append ('--horn-solve')
+
+        if args.crab:
+            argv.append ('--horn-crab')
+            argv.append ('--crab-dom={0}'.format (args.crab_dom))
+            argv.append ('--crab-track-lvl={0}'.format (args.crab_track))
+            if args.crab_inter:
+                argv.append ('--crab-inter')
+
+        if args.solve:
+            argv.append ('--horn-solve')
+            if args.show_invars:
+                argv.append ('--horn-answer')
         if args.cex is not None and args.solve:
             argv.append ('-horn-cex')
             argv.append ('-horn-svcomp-cex={0}'.format (args.cex))
@@ -302,7 +364,7 @@ class Seahorn(sea.LimitedCmd):
         if args.ztrace is not None:
             for l in args.ztrace.split (':'): argv.extend (['-ztrace', l])
 
-        print args.out_file
+(??)
         if args.out_file is not None: argv.extend (['-o', args.out_file])
         argv.append (args.in_file)
 
@@ -331,6 +393,15 @@ class SeahornClp(sea.LimitedCmd):
                          metavar='STR', help='Log level')
         ap.add_argument ('--oll', dest='asm_out_file', default=None,
                          help='LLVM assembly output file')
+        ap.add_argument ('--step',
+                         help='Step to use for encoding',
+                         choices=['clpsmall', 'clpfsmall'],
+                         dest='step', default='clpsmall')
+        ap.add_argument ('--clp-fapp',
+                         default=False, action='store_true',
+                         help='Print function applications in CLP format',
+                         dest='clp_fapp')
+
         ### TODO: expose options for semantic level, inter-procedural
         ### encoding, step, flat, etc.
         return ap
@@ -344,7 +415,11 @@ class SeahornClp(sea.LimitedCmd):
         if args.asm_out_file is not None: argv.extend (['-oll', args.asm_out_file])
 
         argv.extend (['-horn-inter-proc',
-                      '-horn-format=clp', '-horn-sem-lvl=reg', '-horn-step=clpsmall'])
+                      '-horn-format=clp', '-horn-sem-lvl=reg',
+                      '--horn-step={0}'.format (args.step)])
+
+        if args.clp_fapp:
+            argv.extend (['--horn-clp-fapp'])
 
         if args.log is not None:
             for l in args.log.split (':'): argv.extend (['-log', l])
@@ -387,7 +462,7 @@ class LegacyFrontEnd (sea.LimitedCmd):
                                  '..', 'legacy', 'bin', 'seahorn.py')
         if not sea.isexec (cmd_name):
             print 'No legacy front-end found at:', cmd_name
-            print 'Download from https://bitbucket.org/arieg/seahorn-gh/downloads/seahorn-svcomp15-r1.tar.bz2 and extract into `legacy` sub-directory'
+	    print 'Download from https://bitbucket.org/arieg/seahorn-gh/downloads/seahorn-svcomp15-r1.tar.bz2 (64bit) or https://bitbucket.org/arieg/seahorn-gh/downloads/lfe32-2015.tar.bz2 (32bit) and extract into `legacy` sub-directory'
             print 'Only supported on Linux'
             return 1
 

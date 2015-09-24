@@ -43,9 +43,16 @@ namespace seahorn
                               Type::getVoidTy (Context),
                               Type::getInt1Ty (Context),
                               NULL));
+
+    m_failureFn = dyn_cast<Function>
+      (M.getOrInsertFunction ("seahorn.fail",
+                              as,
+                              Type::getVoidTy (Context), 
+                              NULL));
    
     B.addAttribute (Attribute::NoReturn);
-    B.addAttribute (Attribute::ReadNone);
+    // XXX LLVM optimizer removes ReadNone functions even if they do not return!
+    // B.addAttribute (Attribute::ReadNone);
     
     as = AttributeSet::get (Context, 
                            AttributeSet::FunctionIndex, B);
@@ -53,6 +60,7 @@ namespace seahorn
       (M.getOrInsertFunction ("verifier.error",
                               as,
                               Type::getVoidTy (Context), NULL));
+
     
     CallGraphWrapperPass *cgwp = getAnalysisIfAvailable<CallGraphWrapperPass> ();
     if (CallGraph *cg = cgwp ? &cgwp->getCallGraph () : nullptr)
@@ -60,6 +68,7 @@ namespace seahorn
       cg->getOrInsertFunction (m_assumeFn);
       cg->getOrInsertFunction (m_assertFn);
       cg->getOrInsertFunction (m_errorFn);
+      cg->getOrInsertFunction (m_failureFn);
     }
     
     for (auto &F : M) runOnFunction (F);
@@ -135,6 +144,27 @@ namespace seahorn
         
         toKill.push_back (&I);
       }
+      else if (fn && (fn->getName ().equals ("__SEAHORN_fail") || 
+        /* map __llbmc_assert to seahorn.fail to support legacy frontend */
+                      fn->getName ().equals ("__llbmc_assert")) )
+      {
+        Function *main = F.getParent ()->getFunction ("main");        
+        if (!main  || main != &F)
+        {
+          errs () << "__SEAHORN_fail can only be called from the main function.\n";
+          return false;
+        }
+
+        IRBuilder<> Builder (F.getContext ());
+        Builder.SetInsertPoint (&I);
+        CallInst *ci = Builder.CreateCall (m_failureFn);
+        if (cg)
+          (*cg)[&F]->addCalledFunction (CallSite (ci),
+                                        (*cg)[ci->getCalledFunction ()]);
+        
+        toKill.push_back (&I);
+      }
+
     }
     
     for (auto *I : toKill) I->eraseFromParent ();

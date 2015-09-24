@@ -19,9 +19,13 @@ namespace seahorn
   {
     Constant *m_memLoadFn;
     Constant *m_memStoreFn;
+    Constant *m_memUniqLoadFn;
+    Constant *m_memUniqStoreFn;
     Constant *m_memShadowInitFn;
+    Constant *m_memShadowUniqInitFn;
     
     Constant *m_memShadowArgInitFn;
+    Constant *m_memShadowUniqArgInitFn;
     
     Constant *m_argRefFn;
     Constant *m_argModFn;
@@ -29,6 +33,8 @@ namespace seahorn
     
     Constant *m_markIn;
     Constant *m_markOut;
+    Constant *m_markUniqIn;
+    Constant *m_markUniqOut;
     
     DataStructures *m_dsa;
     

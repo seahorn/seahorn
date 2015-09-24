@@ -8,6 +8,8 @@
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/InstIterator.h"
 
+#include <set>
+
 /* Lower constant expressions to instructions */
 
 namespace seahorn
@@ -18,6 +20,7 @@ namespace seahorn
   {
     
     bool runOnFunction(Function &F);
+    ConstantExpr* hasCstExpr(Value *V, std::set<Value*> &visited);
     ConstantExpr* hasCstExpr(Value *Value);
     Instruction* lowerCstExpr(ConstantExpr * CEx, Instruction *I);
     

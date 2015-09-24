@@ -1,4 +1,4 @@
-/// Symbolic execution (loosely) based on semantics used in UFO
+// Symbolic execution (loosely) based on semantics used in UFO
 #include "llvm/IR/GetElementPtrTypeIterator.h"
 
 #include "seahorn/UfoSymExec.hh"
@@ -17,8 +17,57 @@ static llvm::cl::opt<bool>
 GlobalConstraints("horn-global-constraints",
                   llvm::cl::desc
                   ("Maximize the use of global (i.e., unguarded) constraints"),
-                  cl::init (false),
-                  cl::Hidden);
+                  cl::init (false));
+
+static llvm::cl::opt<bool>
+ArrayGlobalConstraints("horn-array-global-constraints",
+                       llvm::cl::desc
+                       ("Extend global constraints to arrays"),
+                       cl::init (false));
+
+static llvm::cl::opt<bool>
+StrictlyLinear ("horn-strictly-la",
+                llvm::cl::desc ("Generate strictly Linear Arithmetic constraints"),
+                cl::init (true));
+
+static llvm::cl::opt<bool>
+EnableDiv ("horn-enable-div",
+                llvm::cl::desc ("Enable division constraints."),
+                cl::init (true));
+
+static llvm::cl::opt<bool>
+EnableUniqueScalars ("horn-singleton-aliases",
+                     llvm::cl::desc ("Treat singleton alias sets as scalar values"),
+                     cl::init (false));
+
+/// extracts unique scalar from a call to shadow.mem functions
+static const Value *extractUniqueScalar (CallSite &cs)
+{
+  if (!EnableUniqueScalars) return nullptr;
+  
+  assert (cs.arg_size () > 0);
+  // -- last argument
+  const Value *v = cs.getArgument (cs.arg_size () - 1);
+
+  if (const Instruction *inst = dyn_cast<Instruction> (v))
+  {
+    assert (inst);
+    return inst->isCast () ? inst->getOperand (0) : inst;
+  }
+  else if (const ConstantPointerNull *c = dyn_cast<ConstantPointerNull> (v))
+    return nullptr;
+  else if (const ConstantExpr *c = dyn_cast<ConstantExpr> (v))
+    return c->getOperand (0);
+  
+  return v;
+}
+
+/// extracts unique scalar from a call to shadow.mem functions
+static const Value* extractUniqueScalar (const CallInst *ci)
+{
+  CallSite cs (const_cast<CallInst*> (ci));
+  return extractUniqueScalar (cs);
+}
 
 
 namespace
@@ -37,6 +86,8 @@ namespace
     Expr m_inMem;
     /// -- current write memory
     Expr m_outMem;
+    /// --- true if the current read/write is to unique memory location
+    bool m_uniq;
     
     /// -- parameters for a function call
     ExprVector m_fparams;
@@ -48,6 +99,7 @@ namespace
     {
       trueE = mk<TRUE> (m_efac);
       falseE = mk<FALSE> (m_efac);
+      m_uniq = false;
       resetActiveLit ();
       // -- first two arguments are reserved for error flag
       m_fparams.push_back (falseE);
@@ -86,6 +138,42 @@ namespace
     void visitPHINode (PHINode &I) { /* do nothing */ }
     
      
+    Expr geq (Expr op0, Expr op1)
+    {
+      if (op0 == op1) return trueE;
+      if (isOpX<MPZ> (op0) && isOpX<MPZ> (op1))
+        return
+          getTerm<mpz_class> (op0) >=
+          getTerm<mpz_class> (op1) ? trueE : falseE;
+      
+      return mk<GEQ> (op0, op1);
+    }
+
+    Expr lt (Expr op0, Expr op1)
+    {
+      if (op0 == op1) return falseE;
+      if (isOpX<MPZ> (op0) && isOpX<MPZ> (op1))
+        return
+          getTerm<mpz_class> (op0) <
+          getTerm<mpz_class> (op1) ? trueE : falseE;
+      
+      return mk<LT> (op0, op1);
+    }
+    
+    Expr mkUnsignedLT (Expr op0, Expr op1)
+    {
+      Expr zero = mkTerm<mpz_class> (0, m_efac);
+      using namespace expr::op::boolop;
+      
+      return lite (geq (op0, zero),
+                      lite (geq (op1, zero),
+                            lt (op0, op1),
+                            trueE),
+                      lite (lt (op1, zero),
+                            lt (op0, op1),
+                            falseE));
+    }
+    
     void visitCmpInst (CmpInst &I)
     {
       Expr lhs = havoc (I);
@@ -109,18 +197,28 @@ namespace
         res = mk<IFF>(lhs, mk<NEQ>(op0,op1));
         break;
       case CmpInst::ICMP_UGT:
+        res = mk<IFF> (lhs, mkUnsignedLT (op1, op0));
+        break;
       case CmpInst::ICMP_SGT:
         res = mk<IFF>(lhs,mk<GT>(op0,op1));
         break;
       case CmpInst::ICMP_UGE:
+        res = mk<OR> (mk<IFF> (lhs, mk<EQ> (op0, op1)),
+                      mk<IFF> (lhs, mkUnsignedLT (op1, op0)));
+        break;
       case CmpInst::ICMP_SGE:
         res = mk<IFF>(lhs,mk<GEQ>(op0,op1));
         break;
       case CmpInst::ICMP_ULT:
+        res = mk<IFF> (lhs, mkUnsignedLT (op0, op1));
+        break;
       case CmpInst::ICMP_SLT:
         res = mk<IFF>(lhs,mk<LT>(op0,op1));
         break; 
       case CmpInst::ICMP_ULE:
+        res = mk<OR> (mk<IFF> (lhs, mk<EQ> (op0, op1)),
+                      mk<IFF> (lhs, mkUnsignedLT (op0, op1)));
+        break;
       case CmpInst::ICMP_SLE:
         res = mk<IFF>(lhs,mk<LEQ>(op0,op1));
         break;
@@ -133,6 +231,7 @@ namespace
       if (res)
         m_side.push_back (boolop::limp (act, res));
     }
+    
     
     void visitSelectInst(SelectInst &I)
     {
@@ -163,13 +262,15 @@ namespace
       case BinaryOperator::UDiv:
       case BinaryOperator::SDiv:
       case BinaryOperator::Shl:
+      case BinaryOperator::AShr:
+      case BinaryOperator::SRem:
+      case BinaryOperator::URem:
         doArithmetic (lhs, I);
         break;
           
       case BinaryOperator::And:
       case BinaryOperator::Or:
       case BinaryOperator::Xor:
-      case BinaryOperator::AShr:
       case BinaryOperator::LShr:
         doLogic(lhs, I);
         break;
@@ -224,6 +325,17 @@ namespace
       Expr res = mk<EQ>(lhs ,mk<MULT>(op1, mkTerm<mpz_class> (factor, m_efac)));        
       return res;
     }
+    Expr doAShr (Expr lhs, Expr op1, const ConstantInt *op2)
+    {
+      if (!EnableDiv) return Expr(nullptr);
+      
+      mpz_class shift = expr::toMpz (op2->getValue ());
+      mpz_class factor = 1;
+      for (unsigned long i = 0; i < shift.get_ui (); ++i) 
+          factor = factor * 2;
+      return mk<EQ>(lhs ,mk<DIV>(op1, mkTerm<mpz_class> (factor, m_efac)));
+    }
+    
 
 
     void doArithmetic (Expr lhs, BinaryOperator &i)
@@ -239,27 +351,45 @@ namespace
       Expr res;
       switch(i.getOpcode())
       {
-        case BinaryOperator::Add:
-          res = mk<EQ>(lhs ,mk<PLUS>(op1, op2));
-            break;
-        case BinaryOperator::Sub:
-          res = mk<EQ>(lhs ,mk<MINUS>(op1, op2));
-          break;
-        case BinaryOperator::Mul:
+      case BinaryOperator::Add:
+        res = mk<EQ>(lhs ,mk<PLUS>(op1, op2));
+        break;
+      case BinaryOperator::Sub:
+        res = mk<EQ>(lhs ,mk<MINUS>(op1, op2));
+        break;
+      case BinaryOperator::Mul:
+        // if StrictlyLinear, then require that at least one
+        // argument is a constant
+        if (!StrictlyLinear || 
+            isOpX<MPZ> (op1) || isOpX<MPZ> (op2) || 
+            isOpX<MPQ> (op1) || isOpX<MPQ> (op2))
           res = mk<EQ>(lhs ,mk<MULT>(op1, op2));
-          break;
-        case BinaryOperator::SDiv:
-        case BinaryOperator::UDiv:
+        break;
+      case BinaryOperator::SDiv:
+      case BinaryOperator::UDiv:
+        // if StrictlyLinear then require that divisor is a constant
+        if (EnableDiv && 
+            (!StrictlyLinear || 
+             isOpX<MPZ> (op2) || isOpX<MPQ> (op2)))
           res = mk<EQ>(lhs ,mk<DIV>(op1, op2));
-          break;
-        case BinaryOperator::Shl:
-          if (const ConstantInt *ci = dyn_cast<ConstantInt> (&v2))
-          {
-            res = doLeftShift(lhs, op1, ci);
-            break;
-          }
-        default:
-          break;
+        break;
+      case BinaryOperator::SRem:
+      case BinaryOperator::URem:
+        // if StrictlyLinear then require that divisor is a constant
+        if (EnableDiv && 
+            (!StrictlyLinear || isOpX<MPZ> (op2) || isOpX<MPQ> (op2)))
+          res = mk<EQ> (lhs, mk<REM> (op1, op2));
+        break;
+      case BinaryOperator::Shl:
+        if (const ConstantInt *ci = dyn_cast<ConstantInt> (&v2))
+          res = doLeftShift(lhs, op1, ci);
+        break;
+      case BinaryOperator::AShr:
+        if (const ConstantInt *ci = dyn_cast<ConstantInt> (&v2))
+          res = doAShr (lhs, op1, ci);
+        break;
+      default:
+        break;
       }
 
       Expr act = GlobalConstraints ? trueE : m_activeLit;
@@ -454,11 +584,13 @@ namespace
         {
           const Value &v = *CS.getArgument (1);
           m_inMem = m_s.read (symb (v));
+          m_uniq = extractUniqueScalar (CS) != nullptr;
         }
         else if (F.getName ().equals ("shadow.mem.store"))
         {
           m_inMem = m_s.read (symb (*CS.getArgument (1)));
           m_outMem = m_s.havoc (symb (I));
+          m_uniq = extractUniqueScalar (CS) != nullptr;
         }
         else if (F.getName ().equals ("shadow.mem.arg.ref"))
           m_fparams.push_back (m_s.read (symb (*CS.getArgument (1))));
@@ -508,18 +640,32 @@ namespace
       Expr lhs = havoc (I);
       if (!m_inMem) return;
       
-      Expr op0 = lookup (*I.getPointerOperand ());
-      
-      if (op0)
+      Expr act = GlobalConstraints ? trueE : m_activeLit;
+      if (m_uniq)
       {
-        Expr rhs = op::array::select (m_inMem, op0);
+        Expr rhs = m_inMem;
         if (I.getType ()->isIntegerTy (1))
           // -- convert to Boolean
           rhs = mk<NEQ> (rhs, mkTerm (mpz_class(0), m_efac));
-
-        Expr act = GlobalConstraints ? trueE : m_activeLit;
+       
         m_side.push_back (boolop::limp (act,
                                         mk<EQ> (lhs, rhs)));
+      }
+      else
+      {
+        Expr op0 = lookup (*I.getPointerOperand ());
+      
+        if (op0)
+        {
+          Expr rhs = op::array::select (m_inMem, op0);
+          if (I.getType ()->isIntegerTy (1))
+            // -- convert to Boolean
+            rhs = mk<NEQ> (rhs, mkTerm (mpz_class(0), m_efac));
+
+          if (!ArrayGlobalConstraints) act = m_activeLit;
+          m_side.push_back (boolop::limp (act,
+                                          mk<EQ> (lhs, rhs)));
+        }
       }
       
       m_inMem.reset ();
@@ -529,19 +675,28 @@ namespace
     {
       if (!m_inMem || !m_outMem || !m_sem.isTracked (*I.getOperand (0))) return;
       
-      Expr idx = lookup (*I.getPointerOperand ());
+      Expr act = GlobalConstraints ? trueE : m_activeLit;
       Expr v = lookup (*I.getOperand (0));
-      
       if (v && I.getOperand (0)->getType ()->isIntegerTy (1))
         // -- convert to int
         v = boolop::lite (v, mkTerm (mpz_class (1), m_efac),
                           mkTerm (mpz_class (0), m_efac));
+      if (m_uniq)
+      {
+        if (v)
+          m_side.push_back (boolop::limp (act, mk<EQ> (m_outMem, v)));
+      }
+      else
+      {
+        Expr idx = lookup (*I.getPointerOperand ());
       
-      Expr act = GlobalConstraints ? trueE : m_activeLit;
-      if (idx && v)
-        m_side.push_back (boolop::limp (act,
-                                        mk<EQ> (m_outMem, 
-                                                op::array::store (m_inMem, idx, v))));
+        if (!ArrayGlobalConstraints) act = m_activeLit;
+        if (idx && v)
+          m_side.push_back (boolop::limp (act,
+                                          mk<EQ> (m_outMem, 
+                                                  op::array::store (m_inMem, idx, v))));
+      }
+      
       m_inMem.reset ();
       m_outMem.reset ();
     }
@@ -680,8 +835,9 @@ namespace seahorn
     return m_td->getStructLayout (const_cast<StructType*>(t))->getElementOffset (field);
   }
   
-  bool UfoSmallSymExec::isShadowMem (const Value &V)
+  bool UfoSmallSymExec::isShadowMem (const Value &V, const Value **out)
   {
+    
     // work list
     std::queue<const Value*> wl;
     
@@ -694,7 +850,12 @@ namespace seahorn
       if (const CallInst *ci = dyn_cast<const CallInst> (val))
       {
         if (const Function *fn = ci->getCalledFunction ())
-          return fn->getName ().startswith ("shadow.mem.");
+        {
+          if (!fn->getName ().startswith ("shadow.mem")) return false;
+          if (out) *out = extractUniqueScalar (ci);
+          return true;
+        }
+        
         return false;
       }   
       else if (const PHINode *phi = dyn_cast<const PHINode> (val))
@@ -753,12 +914,22 @@ namespace seahorn
     // -- everything else is mapped to a constant
     Expr v = mkTerm<const Value*> (&I, m_efac);
     
-    if (m_trackLvl >= MEM && isShadowMem (I))
+    const Value *scalar = nullptr;
+    if (isShadowMem (I, &scalar))
     {
-      Expr intTy = sort::intTy (m_efac);
-      Expr ty = sort::arrayTy (intTy, intTy);
-      return bind::mkConst (v, ty);
+      if (scalar)
+        // -- create a constant with the name v[scalar]
+        return bind::intConst
+          (op::array::select (v, mkTerm<const Value*> (scalar, m_efac)));
+    
+      if (m_trackLvl >= MEM)
+      {
+        Expr intTy = sort::intTy (m_efac);
+        Expr ty = sort::arrayTy (intTy, intTy);
+        return bind::mkConst (v, ty);
+      }
     }
+    
       
     if (isTracked (I))
       return I.getType ()->isIntegerTy (1) ? 
@@ -781,9 +952,12 @@ namespace seahorn
   
   bool UfoSmallSymExec::isTracked (const Value &v) 
   {
+    const Value* scalar;
+    
     // -- shadow values represent memory regions
     // -- only track them when memory is tracked
-    if (isShadowMem (v)) return m_trackLvl >= MEM;
+    if (isShadowMem (v, &scalar))
+      return scalar != nullptr || m_trackLvl >= MEM;
     // -- a pointer
     if (v.getType ()->isPointerTy ()) return m_trackLvl >= PTR;
     

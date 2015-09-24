@@ -28,9 +28,14 @@
 #include "seahorn/HornCex.hh"
 #include "seahorn/Transforms/Scalar/PromoteVerifierCalls.hh"
 #include "seahorn/Transforms/Scalar/LowerGvInitializers.hh"
+#include "seahorn/Transforms/Scalar/LowerCstExpr.hh"
 #include "seahorn/Transforms/Utils/RemoveUnreachableBlocksPass.hh"
 
+#include "crab_llvm/CrabLlvm.hh"
+#include "crab_llvm/Transforms/InsertInvariants.hh"
+
 #include "ufo/Smt/EZ3.hh"
+#include "ufo/Passes/NameValues.hpp"
 #include "ufo/Stats.hh"
 
 void print_seahorn_version()
@@ -99,7 +104,7 @@ static llvm::cl::opt<bool>
 Solve ("horn-solve", llvm::cl::desc ("Run Horn solver"), llvm::cl::init (false));
 
 static llvm::cl::opt<bool>
-Ikos ("horn-ikos", llvm::cl::desc ("Use Ikos invariants"), llvm::cl::init (false));
+Crab ("horn-crab", llvm::cl::desc ("Use Crab invariants"), llvm::cl::init (false));
 
 static llvm::cl::opt<bool> 
 PrintStats ("horn-stats",
@@ -210,6 +215,10 @@ int main(int argc, char **argv) {
   pass_manager.add (new seahorn::PromoteVerifierCalls ());
   pass_manager.add(llvm::createDeadInstEliminationPass());
   pass_manager.add(llvm::createLowerSwitchPass());
+  // lowers constant expressions to instructions
+  pass_manager.add(new seahorn::LowerCstExprPass());
+  pass_manager.add(llvm::createDeadCodeEliminationPass());
+
   pass_manager.add(llvm::createUnifyFunctionExitNodesPass ());
   pass_manager.add (new seahorn::LowerGvInitializers ());
   
@@ -220,11 +229,20 @@ int main(int argc, char **argv) {
   pass_manager.add (llvm::createGlobalDCEPass ()); // kill unused internal global
 
   pass_manager.add (new seahorn::RemoveUnreachableBlocksPass ());
+
+  if (Crab)
+  {
+    pass_manager.add (new ufo::NameValues ());
+    // FIX: commented because it produces wrong results
+    // -- insert local invariants 
+    //pass_manager.add (new crab_llvm::InsertInvariants ());
+  }
+
   pass_manager.add (new seahorn::HornifyModule ());
   if (!AsmOutputFilename.empty ()) 
     pass_manager.add (createPrintModulePass (asmOutput->os ()));
   if (!OutputFilename.empty ()) pass_manager.add (new seahorn::HornWrite (output->os ()));
-  if (Ikos) pass_manager.add (seahorn::createLoadIkosPass ()); 
+  if (Crab) pass_manager.add (seahorn::createLoadCrabPass ()); 
   if (Solve) pass_manager.add (new seahorn::HornSolver ());
   if (Cex) pass_manager.add (new seahorn::HornCex ());
   pass_manager.run(*module.get());

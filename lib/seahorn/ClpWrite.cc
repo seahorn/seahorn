@@ -7,6 +7,13 @@
 #include "boost/algorithm/string/predicate.hpp"
 #include "avy/AvyDebug.h"
 
+
+static llvm::cl::opt<bool>
+PrintClpFapp ("horn-clp-fapp",
+              llvm::cl::desc ("Print function applications in CLP format"), 
+              llvm::cl::init (false),
+              llvm::cl::Hidden);
+
 namespace seahorn
 {
   using namespace expr;
@@ -93,7 +100,7 @@ namespace seahorn
     ExprStr  operator>=(ExprStr e)
     { return ExprStr ("(" + m_s + ">=" + e.m_s + ")"); }
     ExprStr  operator!=(ExprStr e)
-    { return ExprStr (m_s + "<" + e.m_s) || ExprStr (m_s + ">" + e.m_s); }
+    { return (*this < e) || (*this > e); }
 
     static ExprStr mknary (exprStrOp op, std::vector<ExprStr> args)
     {
@@ -238,7 +245,7 @@ namespace seahorn
 
         if (std::distance (it, end) > 0)
         {
-          fapp += "-[";
+          fapp += (PrintClpFapp ? "(" : "-[");
           for (; it != end; )
           {
             ExprStr arg = print (*it, e, rels, efac, cache, seen);
@@ -247,7 +254,7 @@ namespace seahorn
               if (it != end)
                 fapp += ",";
           }
-          fapp += "]";
+          fapp += (PrintClpFapp ? ")" : "]");
         }
         res = ExprStr (fapp);          
       }
@@ -395,10 +402,13 @@ namespace seahorn
       m_rels (db.getRelations ()), m_efac (efac)
   {     
 
-    // Added false <- query as another rule
-    ClpRule query (mk<FALSE> (m_efac) , mk<TRUE> (m_efac), m_efac, m_rels);
-    query.addBody (db.getQuery ());
-    m_rules.push_back (query);
+    for (auto q:  db.getQueries ())
+    {
+      // Added false <- query as another rule
+      ClpRule query (mk<FALSE> (m_efac) , mk<TRUE> (m_efac), m_efac, m_rels);
+      query.addBody (q);
+      m_rules.push_back (query);
+    }
 
     for (auto & rule : db.getRules ())
     {

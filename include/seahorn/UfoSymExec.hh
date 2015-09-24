@@ -55,7 +55,7 @@ namespace seahorn
                    SmallVectorImpl<const Type *> &ts);
     unsigned storageSize (const llvm::Type *t);
     unsigned fieldOff (const StructType *t, unsigned field);
-    bool isShadowMem (const Value &V);
+    bool isShadowMem (const Value &V, const Value **out = nullptr);
     
   }; 
   

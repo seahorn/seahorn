@@ -2,6 +2,9 @@
 #include "seahorn/HornifyModule.hh"
 #include "seahorn/HornClauseDBTransf.hh"
 #include "seahorn/ClpWrite.hh"
+#include "seahorn/McMtWriter.hh"
+
+#include "seahorn/config.h"
 
 #include "llvm/Support/CommandLine.h"
 
@@ -10,7 +13,7 @@ InternalWriter("horn-fp-internal-writer",
                llvm::cl::desc("Use internal writer for Horn SMT2 format. (Default)"),
                llvm::cl::init(true),llvm::cl::Hidden);
 
-enum HCFormat { SMT2, CLP, PURESMT2};
+enum HCFormat { SMT2, CLP, PURESMT2, MCMT};
 static llvm::cl::opt<HCFormat>
 HornClauseFormat("horn-format",
        llvm::cl::desc ("Specify the format for Horn Clauses"),
@@ -21,6 +24,7 @@ HornClauseFormat("horn-format",
                     "CLP (Constraint Logic Programming)"),
         clEnumValN (PURESMT2, "pure-smt2",
                     "Pure SMT-LIB2 compliant format"),
+        clEnumValN (MCMT, "mcmt", "MCMT (Sally) format"),
         clEnumValEnd),
        llvm::cl::init (SMT2));
 
@@ -34,6 +38,13 @@ namespace seahorn
     AU.setPreservesAll ();
   }
   
+  template <typename Out, typename Key, typename Value> 
+  void setInfo (Out &out, Key &key, Value &val)
+  {
+    out << "(set-info :" << key 
+        << " \"" << val << "\"" << ")\n";
+  }
+  
   bool HornWrite::runOnModule (Module &M)
   {
     HornifyModule &hm = getAnalysis<HornifyModule> ();
@@ -45,6 +56,13 @@ namespace seahorn
       normalizeHornClauseHeads (db);
       ClpWrite writer (db, efac);
       m_out << writer.toString ();
+    }
+    else if (HornClauseFormat == MCMT)
+    {
+      // -- normalize db
+      // -- create writer
+      McMtWriter<llvm::raw_fd_ostream> writer (db, hm.getZContext ());
+      writer.write (m_out);
     }
     else 
     {
@@ -65,6 +83,12 @@ namespace seahorn
         params.set (":print_fixedpoint_extensions", false);
         fp.set (params);
       }
+      
+      // -- write header
+      setInfo (m_out, "original", M.getModuleIdentifier ());
+      std::string version ("SeaHorn v.");
+      version += SEAHORN_VERSION_INFO;
+      setInfo (m_out, "authors", version);
       
       if (HornClauseFormat == PURESMT2 || !InternalWriter)
         m_out << fp.toString () << "\n";

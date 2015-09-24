@@ -35,9 +35,16 @@ EnableDiv ("horn-enable-div",
                 llvm::cl::desc ("Enable division constraints."),
                 cl::init (true));
 
+static llvm::cl::opt<bool>
+EnableUniqueScalars ("horn-singleton-aliases",
+                     llvm::cl::desc ("Treat singleton alias sets as scalar values"),
+                     cl::init (false));
+
 /// extracts unique scalar from a call to shadow.mem functions
 static const Value *extractUniqueScalar (CallSite &cs)
 {
+  if (!EnableUniqueScalars) return nullptr;
+  
   assert (cs.arg_size () > 0);
   // -- last argument
   const Value *v = cs.getArgument (cs.arg_size () - 1);

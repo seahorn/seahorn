@@ -1,4 +1,4 @@
-/// Symbolic execution (loosely) based on semantics used in UFO
+// Symbolic execution (loosely) based on semantics used in UFO
 #include "llvm/IR/GetElementPtrTypeIterator.h"
 
 #include "seahorn/UfoSymExec.hh"
@@ -34,6 +34,29 @@ static llvm::cl::opt<bool>
 EnableDiv ("horn-enable-div",
                 llvm::cl::desc ("Enable division constraints."),
                 cl::init (true));
+
+static const Value *extractUniqueScalar (CallSite &cs)
+{
+  assert (cs.arg_size () > 0);
+  // -- last argument
+  const Value *v = cs.getArgument (cs.arg_size () - 1);
+
+  if (const Instruction *inst = dyn_cast<Instruction> (v))
+  {
+    assert (inst);
+    return inst->isCast () ? inst->getOperand (0) : inst;
+  }
+  else if (const ConstantPointerNull *c = dyn_cast<ConstantPointerNull> (v))
+    return nullptr;
+  
+  return v;
+}
+
+static const Value* extractUniqueScalar (const CallInst *ci)
+{
+  CallSite cs (const_cast<CallInst*> (ci));
+  return extractUniqueScalar (cs);
+}
 
 
 namespace
@@ -544,22 +567,19 @@ namespace
       else if (F.getName ().startswith ("shadow.mem") && 
                m_sem.isTracked (I))
       {
-        if (F.getName ().equals ("shadow.mem.init") ||
-            F.getName ().equals ("shadow.mem.unique.init"))
+        if (F.getName ().equals ("shadow.mem.init"))
           m_s.havoc (symb(I));
-        else if (F.getName ().equals ("shadow.mem.load") ||
-                 F.getName ().equals ("shadow.mem.unique.load"))
+        else if (F.getName ().equals ("shadow.mem.load"))
         {
           const Value &v = *CS.getArgument (1);
           m_inMem = m_s.read (symb (v));
-          m_uniq = F.getName ().equals ("shadow.mem.unique.load");
+          m_uniq = extractUniqueScalar (CS) != nullptr;
         }
-        else if (F.getName ().equals ("shadow.mem.store") ||
-                 F.getName ().equals ("shadow.mem.unique.store"))
+        else if (F.getName ().equals ("shadow.mem.store"))
         {
           m_inMem = m_s.read (symb (*CS.getArgument (1)));
           m_outMem = m_s.havoc (symb (I));
-          m_uniq = F.getName ().equals ("shadow.mem.unique.store");
+          m_uniq = extractUniqueScalar (CS) != nullptr;
         }
         else if (F.getName ().equals ("shadow.mem.arg.ref"))
           m_fparams.push_back (m_s.read (symb (*CS.getArgument (1))));
@@ -571,20 +591,17 @@ namespace
         else if (F.getName ().equals ("shadow.mem.arg.new"))
           m_fparams.push_back (m_s.havoc (symb (I)));
         else if (!PF.getName ().equals ("main") && 
-                 (F.getName ().equals ("shadow.mem.in") ||
-                  F.getName ().equals ("shadow.mem.unique.in")))
+                 F.getName ().equals ("shadow.mem.in"))
         {
           m_s.read (symb (*CS.getArgument (1)));
         }
         else if (!PF.getName ().equals ("main") &&
-                 (F.getName ().equals ("shadow.mem.out") ||
-                  F.getName ().equals ("shadow.mem.unique.out")))
+                 F.getName ().equals ("shadow.mem.out"))
         {
           m_s.read (symb (*CS.getArgument (1)));
         }
         else if (!PF.getName ().equals ("main") && 
-                 (F.getName ().equals ("shadow.mem.arg.init") ||
-                  F.getName ().equals ("shadow.mem.unique.arg.init")))
+                 F.getName ().equals ("shadow.mem.arg.init"))
         {
           // regions initialized in main are global. We want them to
           // flow to the arguments
@@ -807,12 +824,11 @@ namespace seahorn
     return m_td->getStructLayout (const_cast<StructType*>(t))->getElementOffset (field);
   }
   
-  bool UfoSmallSymExec::isShadowMem (const Value &V, bool uniq)
+  bool UfoSmallSymExec::isShadowMem (const Value &V, const Value **out)
   {
+    
     // work list
     std::queue<const Value*> wl;
-    std::string shadowFnPrefix("shadow.mem");
-    if (uniq) shadowFnPrefix = "shadow.mem.unique";
     
     wl.push (&V);
     while (!wl.empty ())
@@ -823,7 +839,12 @@ namespace seahorn
       if (const CallInst *ci = dyn_cast<const CallInst> (val))
       {
         if (const Function *fn = ci->getCalledFunction ())
-          return fn->getName ().startswith (shadowFnPrefix);
+        {
+          if (!fn->getName ().startswith ("shadow.mem")) return false;
+          if (out) *out = extractUniqueScalar (ci);
+          return true;
+        }
+        
         return false;
       }   
       else if (const PHINode *phi = dyn_cast<const PHINode> (val))
@@ -882,14 +903,19 @@ namespace seahorn
     // -- everything else is mapped to a constant
     Expr v = mkTerm<const Value*> (&I, m_efac);
     
-    if (isShadowMem (I, true)) return bind::intConst (v);
-    
-    if (m_trackLvl >= MEM && isShadowMem (I))
+    const Value *scalar = nullptr;
+    if (isShadowMem (I, &scalar))
     {
-      Expr intTy = sort::intTy (m_efac);
-      Expr ty = sort::arrayTy (intTy, intTy);
-      return bind::mkConst (v, ty);
+      if (scalar) return bind::intConst (v);
+    
+      if (m_trackLvl >= MEM)
+      {
+        Expr intTy = sort::intTy (m_efac);
+        Expr ty = sort::arrayTy (intTy, intTy);
+        return bind::mkConst (v, ty);
+      }
     }
+    
       
     if (isTracked (I))
       return I.getType ()->isIntegerTy (1) ? 
@@ -912,9 +938,12 @@ namespace seahorn
   
   bool UfoSmallSymExec::isTracked (const Value &v) 
   {
+    const Value* scalar;
+    
     // -- shadow values represent memory regions
     // -- only track them when memory is tracked
-    if (isShadowMem (v)) return m_trackLvl >= MEM;
+    if (isShadowMem (v, &scalar))
+      return scalar != nullptr || m_trackLvl >= MEM;
     // -- a pointer
     if (v.getType ()->isPointerTy ()) return m_trackLvl >= PTR;
     

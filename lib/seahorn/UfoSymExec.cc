@@ -35,6 +35,7 @@ EnableDiv ("horn-enable-div",
                 llvm::cl::desc ("Enable division constraints."),
                 cl::init (true));
 
+/// extracts unique scalar from a call to shadow.mem functions
 static const Value *extractUniqueScalar (CallSite &cs)
 {
   assert (cs.arg_size () > 0);
@@ -48,10 +49,13 @@ static const Value *extractUniqueScalar (CallSite &cs)
   }
   else if (const ConstantPointerNull *c = dyn_cast<ConstantPointerNull> (v))
     return nullptr;
+  else if (const ConstantExpr *c = dyn_cast<ConstantExpr> (v))
+    return c->getOperand (0);
   
   return v;
 }
 
+/// extracts unique scalar from a call to shadow.mem functions
 static const Value* extractUniqueScalar (const CallInst *ci)
 {
   CallSite cs (const_cast<CallInst*> (ci));
@@ -906,7 +910,10 @@ namespace seahorn
     const Value *scalar = nullptr;
     if (isShadowMem (I, &scalar))
     {
-      if (scalar) return bind::intConst (v);
+      if (scalar)
+        // -- create a constant with the name v[scalar]
+        return bind::intConst
+          (op::array::select (v, mkTerm<const Value*> (scalar, m_efac)));
     
       if (m_trackLvl >= MEM)
       {

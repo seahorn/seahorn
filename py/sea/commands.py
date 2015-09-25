@@ -265,7 +265,7 @@ class Seahorn(sea.LimitedCmd):
                          dest='crab_dom', default='int')
         ap.add_argument ('--crab-track',
                          help='Track registers, pointers, and memory',
-                         choices=['reg', 'ptr', 'mem'], dest='crab_track', default='reg')
+                         choices=['int', 'ptr', 'arr'], dest='crab_track', default='reg')
         ap.add_argument ('--crab-inter',
                          help='Perform inter-procedural analysis',
                          dest='crab_inter', default=False, action='store_true')

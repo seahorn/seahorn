@@ -9,8 +9,9 @@ def main (argv):
     import sea.commands
 
 
-    cmds = [
-            sea.commands.BMC,
+    cmds = [sea.commands.Bpf,
+            sea.commands.CutLoops(),
+            sea.commands.BndSmt,
             sea.commands.Pf,
             sea.commands.Smt,
             sea.commands.Clp,

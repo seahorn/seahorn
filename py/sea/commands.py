@@ -253,63 +253,6 @@ def _is_seahorn_opt (x):
             y.startswith ('crab') or y.startswith ('log')
     return False
 
-class Seabmc(sea.LimitedCmd):
-
-    def __init__ (self, solve=False, quiet=False):
-        super (Seabmc, self).__init__ ('bmc', 'BMC engine part of Seahorn ',
-                                        allow_extra=True)
-
-    @property
-    def stdout (self):
-        return self.seabmcCmd.stdout
-
-    def mk_arg_parser (self, ap):
-        ap = super (Seabmc, self).mk_arg_parser (ap)
-        add_in_out_args (ap)
-        ap.add_argument ('--ztrace', dest='ztrace', metavar='STR',
-                         default=None, help='Z3 trace levels')
-        ap.add_argument ('--verbose', '-v', dest='verbose', type=int, default=0,
-                         help='Verbosity level', metavar='N')
-        ap.add_argument ('--log', dest='log', default=None,
-                         metavar='STR', help='Log level')
-        ap.add_argument ('--track',
-                         help='Track registers, pointers, and memory',
-                         choices=['reg', 'ptr', 'mem'], default='mem')
-        ap.add_argument ('--oll', dest='asm_out_file', default=None,
-                         help='LLVM assembly output file')
-        ap.add_argument ('--step',
-                         help='Step to use for encoding',
-                         choices=['small', 'large', 'flarge'],
-                         dest='step', default='large')
-        return ap
-
-
-    def run (self, args, extra):
-        cmd_name = which ('seabmc')
-        if cmd_name is None: raise IOError ('seabmc not found')
-        self.seabmcCmd = sea.ExtCmd (cmd_name)
-
-        argv = list()
-
-        argv.extend (['-horn-sem-lvl={0}'.format (args.track),
-                      '--horn-step={0}'.format (args.step)])
-
-        if args.verbose > 0: argv.extend (['-zverbose', str(args.verbose)])
-
-        if args.log is not None:
-            for l in args.log.split (':'): argv.extend (['-log', l])
-        if args.ztrace is not None:
-            for l in args.ztrace.split (':'): argv.extend (['-ztrace', l])
-
-        if args.out_file is not None: argv.extend (['-o', args.out_file])
-        argv.append (args.in_file)
-
-        # pick out extra seahorn options
-        argv.extend (filter (_is_seahorn_opt, extra))
-
-        return self.seabmcCmd.run (args, argv)
-
-
 class Seahorn(sea.LimitedCmd):
     def __init__ (self, solve=False, quiet=False):
         super (Seahorn, self).__init__ ('horn', 'Generate (and solve) ' +

@@ -30,8 +30,6 @@ add_llvm_library(seabmc.LIB
   LiveSymbols.cc
   SymExec.cc
   UfoSymExec.cc
-  BMCFunction.cc
-  BMCModule.cc
   ZOption.cc
   )
 

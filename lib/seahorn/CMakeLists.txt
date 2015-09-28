@@ -17,9 +17,22 @@ add_llvm_library (seahorn.LIB
   ZOption.cc
   )
 
+
 # no need to link with static libraries
 if (HAVE_CRAB_LLVM)
   target_link_libraries (seahorn.LIB CrabLlvmAnalysis CrabLlvmInstrumentation)
 endif()
 
 set_target_properties (seahorn.LIB PROPERTIES OUTPUT_NAME "seahorn")
+
+add_llvm_library(seabmc.LIB
+  SymStore.cc
+  LiveSymbols.cc
+  SymExec.cc
+  UfoSymExec.cc
+  BMCFunction.cc
+  BMCModule.cc
+  ZOption.cc
+  )
+
+set_target_properties (seabmc.LIB PROPERTIES OUTPUT_NAME "seabmc")

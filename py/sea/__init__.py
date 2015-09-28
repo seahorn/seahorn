@@ -30,13 +30,13 @@ def which(program):
                 if isexec (exe_file):
                     return exe_file
     return None
-    
+
 # inspired from:
 # http://stackoverflow.com/questions/4158502/python-kill-or-terminate-subprocess-when-timeout
 class TimeLimitedExec(threading.Thread):
     def __init__(self, cmd, cpu=0, mem=0, verbose=0):
         threading.Thread.__init__(self)
-        self.cmd = cmd 
+        self.cmd = cmd
         self.cpu = cpu
         self.mem = mem
         self.p = None
@@ -46,15 +46,15 @@ class TimeLimitedExec(threading.Thread):
 
     def run(self, **popen_args):
         def set_limits ():
-            import resource as r    
+            import resource as r
             if self.cpu > 0:
                 r.setrlimit (r.RLIMIT_CPU, [self.cpu, self.cpu])
             if self.mem > 0:
                 mem_bytes = self.mem * 1024 * 1024
                 r.setrlimit (r.RLIMIT_AS, [mem_bytes, mem_bytes])
-                
+
         if self.verbose > 0: print self.cmd
-        self.p = subprocess.Popen(self.cmd, 
+        self.p = subprocess.Popen(self.cmd,
                                   preexec_fn=set_limits,
                                   **popen_args)
         self.stdout, self.stderr = self.p.communicate()
@@ -69,10 +69,10 @@ class TimeLimitedExec(threading.Thread):
 
         if self.p is None:
             return -1
-        
+
         if self.is_alive():
             print 'still alive, terminating'
-            self.p.terminate()      
+            self.p.terminate()
             self.join(5)
 
         if self.is_alive():
@@ -81,7 +81,7 @@ class TimeLimitedExec(threading.Thread):
 
         return self.p.returncode
 
-    
+
 def createWorkDir (dname=None, save=False, prefix='tmp-'):
     if dname is None:
         workdir = tempfile.mkdtemp (prefix=prefix)
@@ -104,10 +104,10 @@ class CliCmd (object):
         self.name = name
         self.help = help
         self.allow_extra = allow_extra
-        
+
     def mk_arg_parser (self, argp):
         return argp
-        
+
     def run (self, args=None, extra=[]):
         return 0
 
@@ -116,19 +116,19 @@ class CliCmd (object):
         if work_dir is not None:
             out_file = os.path.join (work_dir, out_file)
         return out_file
-        
+
     def main (self, argv):
         import argparse
         ap = argparse.ArgumentParser (prog=self.name, description=self.help)
         ap = self.mk_arg_parser (ap)
-        
+
         if self.allow_extra:
             args, extra = ap.parse_known_args (argv)
         else:
             args = ap.parse_args (argv)
             extra = []
         return self.run (args, extra)
-    
+
 class LimitedCmd (CliCmd):
     def __init__ (self, name='', help='', allow_extra=False):
         super (LimitedCmd, self).__init__ (name, help, allow_extra)
@@ -140,13 +140,13 @@ class LimitedCmd (CliCmd):
         argp.add_argument ('--mem', type=int, dest='mem', metavar='MB',
                            help='MEM limit (MB)', default=-1)
         return argp
-        
+
 
 class AgregateCmd (CliCmd):
     def __init__ (self, name='', help='', cmds=[]):
         super(AgregateCmd, self).__init__(name, help, allow_extra=True)
         self.cmds = cmds
-    
+
     def mk_arg_parser (self, argp):
         sb = argp.add_subparsers ()
         for c in self.cmds:
@@ -154,10 +154,10 @@ class AgregateCmd (CliCmd):
             sp = c.mk_arg_parser (sp)
             sp.set_defaults (func = c.run)
         return argp
-            
+
     def run (self, args=None, extra=[]):
         return args.func (args, extra)
-    
+
 class SeqCmd (AgregateCmd):
     def __init__ (self, name='', help='', cmds=[]):
         super (SeqCmd, self).__init__ (name, help, cmds)
@@ -170,16 +170,16 @@ class SeqCmd (AgregateCmd):
                          action="store_true", default=False)
         ap.add_argument ('--temp-dir', dest='temp_dir', metavar='DIR',
                          help="Temporary directory", default=None)
-        
+
         return ap
-    
+
     def run (self, args, extra):
         res = 0
         in_file = args.in_file
         out_file = None
-        
+
         work_dir = createWorkDir (args.temp_dir, args.save_temps, 'sea-')
-        
+
         # all but last command
         for c in self.cmds[:-1]:
             argv = list()
@@ -192,7 +192,7 @@ class SeqCmd (AgregateCmd):
 
             in_file = out_file
             out_file = None
-        
+
         # last command
         c = self.cmds [len (self.cmds) - 1]
         argv = list()
@@ -201,7 +201,7 @@ class SeqCmd (AgregateCmd):
         argv.append (in_file)
         res = c.main (argv)
         return res
-    
+
 class ExtCmd (LimitedCmd):
     def __init__ (self, name, help='', quiet=False):
         super (ExtCmd, self).__init__ (name, help, allow_extra=True)
@@ -211,14 +211,11 @@ class ExtCmd (LimitedCmd):
     def run (self, args, extra):
         argv = [self.name]
         argv.extend (extra)
-        
+
         if not self.quiet: print ' '.join (argv)
-        
+
         self.cmd = TimeLimitedExec (argv, args.cpu, args.mem)
         return self.cmd.Run ()
-    
-    @property    
-    def stdout (self): return self.cmd.stdout
-        
 
-        
+    @property
+    def stdout (self): return self.cmd.stdout

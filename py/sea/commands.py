@@ -94,6 +94,11 @@ class Seapp(sea.LimitedCmd):
                          default=False, action='store_true')
         ap.add_argument ('--ioc', dest='ioc', help='Insert signed integer overflow checks',
                          default=False, action='store_true')
+        ap.add_argument ('--externalize-addr-taken-functions', 
+                         help='Externalize uses of address-taken functions',
+                         dest='enable_ext_funcs', default=False,
+                         action='store_true')
+
         add_in_out_args (ap)
         _add_S_arg (ap)
         return ap
@@ -106,6 +111,9 @@ class Seapp(sea.LimitedCmd):
         argv = list()
         if args.out_file is not None: argv.extend (['-o', args.out_file])
         if args.inline: argv.append ('--horn-inline-all')
+
+        if args.enable_ext_funcs: 
+            argv.append ('--externalize-addr-taken-funcs')
         if args.boc:
             argv.append ('--boc')
             if args.inline:

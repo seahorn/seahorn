@@ -92,6 +92,11 @@ static llvm::cl::opt<bool>
 MixedSem ("horn-mixed-sem", llvm::cl::desc ("Mixed-Semantics Transformation"),
           llvm::cl::init (false));
 
+static llvm::cl::opt<bool>
+ExternalizeAddrTakenFuncs ("externalize-addr-taken-funcs", 
+                           llvm::cl::desc ("Externalize uses of address-taken functions"),
+                           llvm::cl::init (false));
+
 static llvm::cl::opt<int>
 SROA_Threshold ("sroa-threshold",
                 llvm::cl::desc ("Threshold for ScalarReplAggregates pass"),
@@ -181,6 +186,10 @@ int main(int argc, char **argv) {
  
   // -- promote verifier specific functions to special names
   pass_manager.add (new seahorn::PromoteVerifierCalls ());
+
+  // -- externalize uses of address-taken functions
+  if (ExternalizeAddrTakenFuncs)
+    pass_manager.add (seahorn::createExternalizeAddressTakenFunctionsPass ());
   
   // turn all functions internal so that we can inline them if requested
   pass_manager.add (llvm::createInternalizePass (llvm::ArrayRef<const char*>("main")));

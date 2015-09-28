@@ -9,7 +9,9 @@ def main (argv):
     import sea.commands
 
 
-    cmds = [
+    cmds = [sea.commands.Bpf,
+            sea.commands.CutLoops(),
+            sea.commands.BndSmt,
             sea.commands.Pf,
             sea.commands.Smt,
             sea.commands.Clp,
@@ -22,7 +24,7 @@ def main (argv):
             sea.commands.Seahorn(),
             sea.commands.SeahornClp(),
             sea.commands.FrontEnd,
-            sea.commands.LegacyFrontEnd(),
+            sea.commands.LegacyFrontEnd()
     ]
 
 

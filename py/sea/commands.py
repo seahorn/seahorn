@@ -166,7 +166,44 @@ class MixedSem(sea.LimitedCmd):
         if args.llvm_asm: argv.append ('-S')
         argv.append (args.in_file)
         return self.seappCmd.run (args, argv)
+    
+class CutLoops(sea.LimitedCmd):
+    def __init__(self, quiet=False):
+        super(CutLoops, self).__init__('cut-loops', 'Loop cutting transformation',
+                                       allow_extra=True)
 
+    @property
+    def stdout (self):
+        return self.seappCmd.stdout
+
+    def name_out_file (self, in_file, args=None, work_dir=None):
+        ext = '.cut.bc'
+        return _remap_file_name (in_file, ext, work_dir)
+
+    def mk_arg_parser (self, ap):
+        ap = super (CutLoops, self).mk_arg_parser (ap)
+        ap.add_argument ('--log', dest='log', default=None,
+                         metavar='STR', help='Log level')
+        add_in_out_args (ap)
+        _add_S_arg (ap)
+        return ap
+
+    def run (self, args, extra):
+        cmd_name = which ('seapp')
+        if cmd_name is None: raise IOError ('seapp not found')
+        self.seappCmd = sea.ExtCmd (cmd_name)
+
+        argv = list()
+        if args.out_file is not None: argv.extend (['-o', args.out_file])
+        argv.append ('--horn-cut-loops')
+        if args.llvm_asm: argv.append ('-S')
+        argv.append (args.in_file)
+        
+        if args.log is not None:
+            for l in args.log.split (':'): argv.extend (['-log', l])
+            
+        return self.seappCmd.run (args, argv)
+    
 class Seaopt(sea.LimitedCmd):
     def __init__(self, quiet=False):
         super(Seaopt, self).__init__('opt', 'Compiler optimizations', allow_extra=True)
@@ -433,3 +470,8 @@ Pf = sea.SeqCmd ('pf', 'alias for fe|horn --solve',
                  FrontEnd.cmds + [Seahorn(solve=True)])
 LfeSmt = sea.SeqCmd ('lfe-smt', 'alias for lfe|horn', [LegacyFrontEnd(), Seahorn()])
 LfeClp= sea.SeqCmd ('lfe-clp', 'alias for lfe|horn-clp', [LegacyFrontEnd(), SeahornClp()])
+BndSmt = sea.SeqCmd ('bnd-smt', 'alias for fe|cut-loops|opt|horn',
+                     FrontEnd.cmds + [CutLoops(), Seaopt(), Seahorn()])
+Bpf = sea.SeqCmd ('bpf', 'alias for fe|cut-loops|opt|horn --solve',
+                  FrontEnd.cmds + [CutLoops(), Seaopt(), Seahorn(solve=True)])
+                     

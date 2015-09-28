@@ -20,6 +20,8 @@
 #include "llvm/Analysis/LoopPass.h"
 #include "llvm/Analysis/ScalarEvolution.h"
 #include "llvm/IR/Dominators.h"
+
+#include "avy/AvyDebug.h"
 using namespace llvm;
 
 namespace 
@@ -53,17 +55,39 @@ char CutLoops::ID = 0;
 
 bool CutLoops::runOnLoop (Loop *L, LPPassManager &LPM)
 {
+  LOG("cut-loops", errs () << "Cutting loop: " << *L << "\n";);
+  
   BasicBlock *preheader = L->getLoopPreheader ();
-  if (!preheader) return false;
+  if (!preheader)
+  {
+    LOG("cut-loops", errs () << "Warning: no-cut: no pre-header\n");
+    return false;
+  }
+  
 
   BasicBlock *header = L->getHeader ();
-  if (!header) return false;
+  if (!header)
+  {
+    LOG("cut-loops", errs () << "Warning: no-cut: no header\n");
+    return false;
+  }
+  
   
   // single exit
-  if (!L->hasDedicatedExits ()) return false;
+  if (!L->hasDedicatedExits ())
+  {
+    LOG("cut-loops", errs () << "Warning: no-cut: multiple exits\n");
+    return false;
+  }
+  
 
   // -- no sub-loops
-  if (L->begin () != L->end ()) return false;
+  if (L->begin () != L->end ())
+  {
+    LOG("cut-loops", errs () << "Warning: no-cut: sub-loops\n");
+    return false;
+  }
+  
   
   SmallVector<BasicBlock *, 4> latches;
   L->getLoopLatches (latches);
@@ -71,7 +95,12 @@ bool CutLoops::runOnLoop (Loop *L, LPPassManager &LPM)
   for (BasicBlock *latch : latches)
   {
     BranchInst *bi = dyn_cast<BranchInst> (latch->getTerminator ());
-    if (!bi || bi->isUnconditional ()) return false;
+    if (!bi || bi->isUnconditional ())
+    {
+      LOG("cut-loops", errs () << "Warning: no-cut: unsupported latch\n");
+      return false;
+    }
+    
   }
 
   for (BasicBlock *latch : latches)

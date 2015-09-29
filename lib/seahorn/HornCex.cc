@@ -237,6 +237,18 @@ namespace seahorn
     if (Scope) file = Scope.getFilename ();
     else file = "<unknown>";
     
+    LOG ("cex",
+         DISubprogram fnScope = getDISubprogram (dloc.getScope ());
+         if (fnScope)
+         {
+           Function *fn = fnScope.getFunction ();
+           StringRef dname = fnScope.getDisplayName ();
+           StringRef fname = fn ? fn->getName () : "<null>";
+           errs () << "At function: " << fname
+                   << " with display name " << dname << "\n";
+         });
+         
+    
     svcomp.edge (file, (int)dloc.getLine (), "");
   }
   

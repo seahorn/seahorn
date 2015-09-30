@@ -192,7 +192,9 @@ int main(int argc, char **argv) {
     pass_manager.add (seahorn::createExternalizeAddressTakenFunctionsPass ());
   
   // -- mark entry points of all functions
-  pass_manager.add (seahorn::createMarkFnEntryPass ());
+  if (!MixedSem && !CutLoops)
+    // XXX should only be ran once. need better way to ensure that.
+    pass_manager.add (seahorn::createMarkFnEntryPass ());
   
   // turn all functions internal so that we can inline them if requested
   pass_manager.add (llvm::createInternalizePass (llvm::ArrayRef<const char*>("main")));

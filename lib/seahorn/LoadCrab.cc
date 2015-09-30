@@ -48,11 +48,12 @@ namespace seahorn
 
 #include <crab_llvm/CfgBuilder.hh>
 #include <crab_llvm/CrabLlvm.hh>
-#include <crab_llvm/Support/bignums.hh>
 
 #include "seahorn/HornifyModule.hh"
 
 #include "llvm/Support/CommandLine.h"
+
+#include "boost/lexical_cast.hpp"
 
 namespace llvm
 {
@@ -211,7 +212,7 @@ namespace seahorn
       
       Expr unmarshal_num( ikos::z_number n, ExprFactory &efac)
       {
-        std::string snum = crab_llvm::toStr (n);
+        std::string snum = boost::lexical_cast<std::string> ((int) n);
         const mpz_class mpz (snum);
         return mkTerm (mpz, efac);
       }

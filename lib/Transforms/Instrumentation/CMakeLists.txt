@@ -5,6 +5,7 @@ add_llvm_library(SeaInstrumentation
   NondetInit.cc
   ShadowMemDsa.cc
   ShadowBufferBoundsCheckFuncPars.cc
+  MarkFnEntry.cc
   )
 if (HAVE_DSA)
   target_link_libraries (SeaInstrumentation ${DSA_LIBS})

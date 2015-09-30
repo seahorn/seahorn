@@ -191,6 +191,9 @@ int main(int argc, char **argv) {
   if (ExternalizeAddrTakenFuncs)
     pass_manager.add (seahorn::createExternalizeAddressTakenFunctionsPass ());
   
+  // -- mark entry points of all functions
+  pass_manager.add (seahorn::createMarkFnEntryPass ());
+  
   // turn all functions internal so that we can inline them if requested
   pass_manager.add (llvm::createInternalizePass (llvm::ArrayRef<const char*>("main")));
   // kill internal unused code

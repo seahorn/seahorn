@@ -233,9 +233,10 @@ int main(int argc, char **argv) {
   if (Crab)
   {
     pass_manager.add (new ufo::NameValues ());
-    // FIX: commented because it produces wrong results
-    // -- insert local invariants 
-    //pass_manager.add (new crab_llvm::InsertInvariants ());
+    /// -- insert invariants in the bitecode
+    pass_manager.add (new crab_llvm::InsertInvariants ());
+    /// -- simplify invariants added in the bitecode
+    pass_manager.add (seahorn::createInstCombine ());
   }
 
   pass_manager.add (new seahorn::HornifyModule ());

@@ -5,6 +5,7 @@ set (USED_LIBS
   SeaTransformsUtils
   SeaAnalysis
   SeaSupport
+  ${LLVM_SEAHORN_LIBS}
   avy
   ${Z3_LIBRARY}
   ${Boost_SYSTEM_LIBRARY}

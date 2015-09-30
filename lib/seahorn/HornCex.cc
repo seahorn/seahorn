@@ -227,9 +227,10 @@ namespace seahorn
   }
 
   template <typename O>
-  static void printDebugLoc (const DebugLoc& dloc,
+  static void printDebugLoc (const Instruction &inst, 
                              SvCompCex<O> &svcomp)
   {
+    const DebugLoc &dloc = inst.getDebugLoc ();
     if (dloc.isUnknown ()) return;
     std::string file;
     
@@ -237,15 +238,21 @@ namespace seahorn
     if (Scope) file = Scope.getFilename ();
     else file = "<unknown>";
     
+    
     LOG ("cex",
          DISubprogram fnScope = getDISubprogram (dloc.getScope ());
          if (fnScope)
          {
            Function *fn = fnScope.getFunction ();
            StringRef dname = fnScope.getDisplayName ();
-           StringRef fname = fn ? fn->getName () : "<null>";
-           errs () << "At function: " << fname
-                   << " with display name " << dname << "\n";
+           if (const CallInst *ci = dyn_cast<const CallInst> (&inst))
+           {
+             Function *f = ci->getCalledFunction ();
+             if (f && f->getName ().equals ("seahorn.fn.enter"))
+               errs () << "entering: " << dname << "\n";
+           }
+           else
+             errs () << "in: " << dname << "\n";
          });
          
     
@@ -280,7 +287,7 @@ namespace seahorn
     {
       for (auto &I : *bb)
       {
-        printDebugLoc (I.getDebugLoc (), svcomp);
+        printDebugLoc (I, svcomp);
         
         if (const CallInst *ci = dyn_cast<const CallInst> (&I))
         {

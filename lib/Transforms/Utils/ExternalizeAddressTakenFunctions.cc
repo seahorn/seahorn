@@ -57,7 +57,7 @@ namespace seahorn
               continue;
             
             if (isa<CallInst>(FU) || isa<InvokeInst>(FU)) {
-              ImmutableCallSite CS(cast<Instruction>(FU));                        
+              ImmutableCallSite CS(dyn_cast<Instruction>(FU));                        
              if (!CS.isCallee (&U)) {
                FU->replaceUsesOfWith(&F, NF);
                Changed=true;
@@ -65,7 +65,10 @@ namespace seahorn
             }
             
             if (!isa<CallInst>(FU) && !isa<InvokeInst>(FU)) {
-              FU->replaceUsesOfWith(&F, NF);
+              if (Constant *c = dyn_cast<Constant> (FU))
+                c->replaceUsesOfWithOnConstant (&F, NF, &U);
+              else
+                FU->replaceUsesOfWith(&F, NF);
               Changed=true;
             }
 

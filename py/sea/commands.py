@@ -462,6 +462,63 @@ class LegacyFrontEnd (sea.LimitedCmd):
 
         return self.lfeCmd.run (args, argv)
 
+class Crab (sea.LimitedCmd):
+    def __init__ (self, quiet=False):
+        super (Crab, self).__init__ ('crab', 
+                                     'Instrument LLVM bitcode with invariants inferred by Crab',
+                                     allow_extra=True)
+
+    @property
+    def stdout (self):
+        return self.seappCmd.stdout
+
+    def name_out_file (self, in_file, args=None, work_dir=None):
+        ext = 'crab.ll'
+        return _remap_file_name (in_file, ext, work_dir)
+
+    def mk_arg_parser (self, ap):
+        ap = super (Crab, self).mk_arg_parser (ap)
+        ap.add_argument ('--crab-dom',
+                         help='Choose Crab abstract domain',
+                         choices=['int','ric','zones','term'],
+                         dest='crab_dom', default='int')
+        ap.add_argument ('--crab-track',
+                         help='Track registers, pointers, and memory',
+                         choices=['int', 'ptr', 'arr'], dest='crab_track', default='int')
+        ap.add_argument ('--crab-inter',
+                         help='Perform inter-procedural analysis',
+                         dest='crab_inter', default=False, action='store_true')
+        # ap.add_argument ('--crab-add-at-entries',
+        #                  help='Instrument code with invariants at each block entry',
+        #                  dest='insert_entries', default=False, action='store_true')
+        # ap.add_argument ('--crab-add-after-loads',
+        #                  help='Instrument code with invariants after each load instruction',
+        #                  dest='insert_loads', default=False, action='store_true')
+        add_in_out_args (ap)
+
+        return ap
+
+    def run (self, args, extra):
+        cmd_name = which ('seahorn')
+        if cmd_name is None: raise IOError ('seahorn not found')
+        self.seappCmd = sea.ExtCmd (cmd_name)
+
+        argv = list()
+        argv.append ('--horn-crab')
+        argv.append ('--crab-dom={0}'.format (args.crab_dom))
+        argv.append ('--crab-track-lvl={0}'.format (args.crab_track))
+        if args.crab_inter:
+                argv.append ('--crab-inter')
+        #if args.insert_entries:
+        argv.append ('--crab-add-invariants-at-entries')
+        #if args.insert_loads:
+        argv.append ('--crab-add-invariants-after-loads')
+
+        if args.out_file is not None: argv.extend (['-oll', args.out_file])
+        argv.append (args.in_file)
+        return self.seappCmd.run (args, argv)
+
+
 FrontEnd = sea.SeqCmd ('fe', 'Front end: alias for clang|pp|ms|opt',
                        [Clang(), Seapp(), MixedSem(), Seaopt ()])
 Smt = sea.SeqCmd ('smt', 'alias for fe|horn', FrontEnd.cmds + [Seahorn()])
@@ -474,4 +531,5 @@ BndSmt = sea.SeqCmd ('bnd-smt', 'alias for fe|cut-loops|opt|horn',
                      FrontEnd.cmds + [CutLoops(), Seaopt(), Seahorn()])
 Bpf = sea.SeqCmd ('bpf', 'alias for fe|cut-loops|opt|horn --solve',
                   FrontEnd.cmds + [CutLoops(), Seaopt(), Seahorn(solve=True)])
+feCrab = sea.SeqCmd ('fe-crab', 'alias for fe|crab', FrontEnd.cmds + [Crab()])
                      

@@ -24,7 +24,9 @@ def main (argv):
             sea.commands.Seahorn(),
             sea.commands.SeahornClp(),
             sea.commands.FrontEnd,
-            sea.commands.LegacyFrontEnd()
+            sea.commands.LegacyFrontEnd(),
+            sea.commands.Crab(),
+            sea.commands.feCrab
     ]
 
 

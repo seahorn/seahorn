@@ -141,20 +141,23 @@ namespace seahorn
                                         Type::getInt32Ty (ctx),
                                         Type::getInt32Ty (ctx),
                                         Type::getInt32Ty (ctx),
+                                        Type::getInt8PtrTy (ctx),
                                         (Type*) 0);
     
      m_argModFn = M.getOrInsertFunction ("shadow.mem.arg.mod",
-                                        Type::getInt32Ty (ctx),
-                                        Type::getInt32Ty (ctx),
-                                        Type::getInt32Ty (ctx),
-                                        Type::getInt32Ty (ctx),
-                                        (Type*) 0);
-      m_argNewFn = M.getOrInsertFunction ("shadow.mem.arg.new",
-                                        Type::getInt32Ty (ctx),
-                                        Type::getInt32Ty (ctx),
-                                        Type::getInt32Ty (ctx),
-                                        Type::getInt32Ty (ctx),
-                                        (Type*) 0);
+                                         Type::getInt32Ty (ctx),
+                                         Type::getInt32Ty (ctx),
+                                         Type::getInt32Ty (ctx),
+                                         Type::getInt32Ty (ctx),
+                                         Type::getInt8PtrTy (ctx),
+                                         (Type*) 0);
+     m_argNewFn = M.getOrInsertFunction ("shadow.mem.arg.new",
+                                         Type::getInt32Ty (ctx),
+                                         Type::getInt32Ty (ctx),
+                                         Type::getInt32Ty (ctx),
+                                         Type::getInt32Ty (ctx),
+                                         Type::getInt8PtrTy (ctx),
+                                         (Type*) 0);
     
      m_markIn = M.getOrInsertFunction ("shadow.mem.in",
                                        Type::getVoidTy (ctx),
@@ -296,18 +299,19 @@ namespace seahorn
             // -- read only node ignore nodes that are only reachable
             // -- from the return of the function
             if (n->isReadNode () && !n->isModifiedNode () && retReach.count(n) <= 0)
-              B.CreateCall3 (m_argRefFn, B.getInt32 (id),
+              B.CreateCall4 (m_argRefFn, B.getInt32 (id),
                              B.CreateLoad (v),
-                             B.getInt32 (idx));
+                             B.getInt32 (idx), getUniqueScalar (ctx, B, n));
             // -- read/write or new node
             else if (n->isModifiedNode ())
             {
               // -- n is new node iff it is reachable only from the return node
               Constant* argFn = retReach.count (n) ? m_argNewFn : m_argModFn;
-              B.CreateStore (B.CreateCall3 (argFn, 
+              B.CreateStore (B.CreateCall4 (argFn, 
                                             B.getInt32 (id),
                                             B.CreateLoad (v),
-                                            B.getInt32 (idx)), v);
+                                            B.getInt32 (idx),
+                                            getUniqueScalar (ctx, B, n)), v);
             }
             idx++;
           }

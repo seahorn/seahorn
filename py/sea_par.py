@@ -16,7 +16,7 @@ verbose = False
 
 
 def initProfiles():
-    base = ['--step=large', '--horn-stats', '--enable-nondet-init', '--externalize-addr-taken-funcs']
+    base = ['--step=large', '--horn-stats', '--enable-nondet-init', '--externalize-addr-taken-functions']
     profiles = dict()
     profiles ['reg_inline'] = base + [ '-inline', '--track=reg']
     profiles ['mem_no_inline'] = base + ['--track=mem']

@@ -16,6 +16,8 @@ namespace seahorn
 
   llvm::Pass* createCutLoopsPass ();
   llvm::Pass* createMarkFnEntryPass ();
+
+  llvm::Pass* createPromoteMallocPass ();
 }
 
 #ifdef HAVE_LLVM_SEAHORN

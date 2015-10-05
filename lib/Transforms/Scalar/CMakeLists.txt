@@ -4,4 +4,5 @@ add_llvm_library (SeaTransformsScalar
   LowerGvInitializers.cc
   PromoteVerifierCalls.cc
   CutLoops.cc
+  PromoteMalloc.cc
   )

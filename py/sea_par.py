@@ -16,10 +16,10 @@ verbose = False
 
 
 def initProfiles():
-    base = ['--step=large', '--track=reg', '--horn-stats', '--enable-nondet-init', '--externalize-addr-taken-funcs']
+    base = ['--step=large', '--horn-stats', '--enable-nondet-init', '--externalize-addr-taken-funcs']
     profiles = dict()
-    profiles ['inline'] = base + [ '-inline']
-    profiles ['no_inline'] = base
+    profiles ['reg_inline'] = base + [ '-inline', '--track=reg']
+    profiles ['mem_no_inline'] = base + ['--track=mem']
     return profiles
 
 profiles = initProfiles ()
@@ -51,7 +51,7 @@ def parseOpt (argv):
     parser.add_option ('-m', type=int, dest='arch', default=32,
                        help='Machine architecture 32 or 64')
     parser.add_option ('--profiles', '-p', dest='profiles',
-                       default='inline:no_inline',
+                       default='reg_inline:mem_no_inline',
                        help='Colon separated list of profiles')
     parser.add_option ('--list-profiles', dest='list_profiles',
                        action='store_true', default=False)

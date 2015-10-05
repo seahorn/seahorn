@@ -254,6 +254,59 @@ class Seaopt(sea.LimitedCmd):
         if args.llvm_asm: argv.append ('-S')
         return self.seaoptCmd.run (args, argv)
 
+class Unroll(sea.LimitedCmd):
+    def __init__(self, quiet=False):
+        super(Unroll, self).__init__('unroll', 'Unroll loops', allow_extra=True)
+
+    @property
+    def stdout (self):
+        return self.seaoptCmd.stdout
+
+    def name_out_file (self, in_file, args, work_dir=None):
+        ext = '.ul.bc'
+        return _remap_file_name (in_file, ext, work_dir)
+
+    def mk_arg_parser (self, ap):
+        ap = super (Unroll, self).mk_arg_parser (ap)
+        ap.add_argument ('--threshold', type=int, help='Unrolling threshhold. ' +
+                         'Loops of larger size than this value will not ' +
+                         'be unrolled (-unroll-threshold)',
+                         default=131072, metavar='T')
+        ap.add_argument ('--bound', default=0, type=int,
+                         help='Unroll bound (-unroll-count)', metavar='B')
+        ap.add_argument ('--enable-runtime', dest='enable_runtime',
+                         default=False, action='store_true',
+                         help='Allow unrolling loops with runtime trip count ' +
+                         '(-unroll-runtime)')
+        ap.add_argument ('--enable-partial', dest='enable_partial',
+                         default=False, action='store_true',
+                         help='Enable partial unrolling (-unroll-allow-partial)')
+        add_in_out_args (ap)
+        _add_S_arg (ap)
+        return ap
+
+    def run (self, args, extra):
+        cmd_name = which (['seaopt', 'opt-mp-3.6', 'opt-3.6', 'opt'])
+        if cmd_name is None: raise IOError ('neither seaopt nor opt where found')
+        self.seaoptCmd = sea.ExtCmd (cmd_name)
+
+        argv = ['-f', '-funit-at-a-time']
+        if args.out_file is not None:
+            argv.extend (['-o', args.out_file])
+
+        argv.append ('-loop-unroll')
+        if args.enable_runtime:
+            argv.append ('-unroll-runtime')
+        if args.enable_partial:
+            argv.append ('-unroll-allow-partial')
+        if args.bound > 0:
+            argv.append ('-unroll-count={b}'.format(b=args.bound))
+        argv.append ('-unroll-threshold={t}'.format(t=args.threshold))
+
+        argv.append (args.in_file)
+        if args.llvm_asm: argv.append ('-S')
+        return self.seaoptCmd.run (args, argv)    
+    
 def _is_seahorn_opt (x):
     if x.startswith ('-'):
         y = x.strip ('-')
@@ -527,9 +580,9 @@ Pf = sea.SeqCmd ('pf', 'alias for fe|horn --solve',
                  FrontEnd.cmds + [Seahorn(solve=True)])
 LfeSmt = sea.SeqCmd ('lfe-smt', 'alias for lfe|horn', [LegacyFrontEnd(), Seahorn()])
 LfeClp= sea.SeqCmd ('lfe-clp', 'alias for lfe|horn-clp', [LegacyFrontEnd(), SeahornClp()])
-BndSmt = sea.SeqCmd ('bnd-smt', 'alias for fe|cut-loops|opt|horn',
-                     FrontEnd.cmds + [CutLoops(), Seaopt(), Seahorn()])
-Bpf = sea.SeqCmd ('bpf', 'alias for fe|cut-loops|opt|horn --solve',
-                  FrontEnd.cmds + [CutLoops(), Seaopt(), Seahorn(solve=True)])
+BndSmt = sea.SeqCmd ('bnd-smt', 'alias for fe|unroll|cut-loops|opt|horn',
+                     FrontEnd.cmds + [Unroll(), CutLoops(), Seaopt(), Seahorn()])
+Bpf = sea.SeqCmd ('bpf', 'alias for fe|unroll|cut-loops|opt|horn --solve',
+                  FrontEnd.cmds + [Unroll(), CutLoops(), Seaopt(), Seahorn(solve=True)])
 feCrab = sea.SeqCmd ('fe-crab', 'alias for fe|crab', FrontEnd.cmds + [Crab()])
                      

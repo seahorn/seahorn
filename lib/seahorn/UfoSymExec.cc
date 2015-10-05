@@ -958,8 +958,25 @@ namespace seahorn
     // -- only track them when memory is tracked
     if (isShadowMem (v, &scalar))
       return scalar != nullptr || m_trackLvl >= MEM;
+    
+    
     // -- a pointer
-    if (v.getType ()->isPointerTy ()) return m_trackLvl >= PTR;
+    if (v.getType ()->isPointerTy ())
+    {
+      // -- XXX A hack because shadow.mem generates not well formed
+      // -- bitcode that contains future references. A register that
+      // -- is defined later is used to name a shadow region in the
+      // -- beginning of the function. Perhaps there is a better
+      // -- solution. For now, we just do not track anything that came
+      // -- that way.
+      if (v.hasOneUse ())
+        if (const CallInst *ci = dyn_cast<const CallInst> (*v.user_begin ()))
+          if (const Function *fn = ci->getCalledFunction ())
+            if (fn->getName ().startswith ("shadow.mem")) return false;
+      
+      return m_trackLvl >= PTR;
+    }
+    
     
     // -- always track integer registers
     return v.getType ()->isIntegerTy ();

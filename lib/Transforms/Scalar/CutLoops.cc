@@ -99,7 +99,7 @@ bool CutLoops::runOnLoop (Loop *L, LPPassManager &LPM)
   for (BasicBlock *latch : latches)
   {
     BranchInst *bi = dyn_cast<BranchInst> (latch->getTerminator ());
-    if (!bi || bi->isUnconditional ())
+    if (!bi)
     {
       LOG("cut-loops", errs () << "Warning: no-cut: unsupported latch\n"
           << *latch << "\n";);
@@ -127,28 +127,39 @@ bool CutLoops::runOnLoop (Loop *L, LPPassManager &LPM)
   for (BasicBlock *latch : latches)
   {
     BranchInst *bi = dyn_cast<BranchInst> (latch->getTerminator ());
-    // insert call to condition or not condition
-    assert (bi->getSuccessor (0) == header || bi->getSuccessor (1) == header);
-    Function *fn = nullptr;
-    BasicBlock *dst = nullptr;
+    if (bi->isUnconditional ())
+    {
+      CallInst::Create (assumeFn,
+                        ConstantInt::getFalse (assumeFn->getContext ()), "", bi);
+      new UnreachableInst (assumeFn->getContext (), bi);
+      bi->eraseFromParent ();
+    }
+    else
+    {
+      assert (bi->getSuccessor (0) == header || bi->getSuccessor (1) == header);
+      // insert call to condition or not condition
     
-    if (bi->getSuccessor (0) == header)
-    {
-      dst = bi->getSuccessor (1);
-      fn = assumeNotFn;
-    }
-    else 
-    {
-      dst = bi->getSuccessor (0);
-      fn = assumeFn;
-    }
+      Function *fn = nullptr;
+      BasicBlock *dst = nullptr;
+    
+      if (bi->getSuccessor (0) == header)
+      {
+        dst = bi->getSuccessor (1);
+        fn = assumeNotFn;
+      }
+      else 
+      {
+        dst = bi->getSuccessor (0);
+        fn = assumeFn;
+      }
 
-    if (fn)
-      CallInst::Create (fn, bi->getCondition (),
-                        "", bi);
+      if (fn)
+        CallInst::Create (fn, bi->getCondition (),
+                          "", bi);
 
-    BranchInst::Create (dst, bi);
-    bi->eraseFromParent ();
+      BranchInst::Create (dst, bi);
+      bi->eraseFromParent ();
+    }
   }
   
   SmallVector<PHINode*, 8> phiNodes;

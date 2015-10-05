@@ -20,6 +20,7 @@
 #include "llvm/Analysis/LoopPass.h"
 #include "llvm/Analysis/ScalarEvolution.h"
 #include "llvm/IR/Dominators.h"
+#include "llvm/IR/Module.h"
 
 #include "avy/AvyDebug.h"
 using namespace llvm;
@@ -66,12 +67,15 @@ bool CutLoops::runOnLoop (Loop *L, LPPassManager &LPM)
   
 
   BasicBlock *header = L->getHeader ();
+
   if (!header)
   {
     LOG("cut-loops", errs () << "Warning: no-cut: no header\n");
     return false;
   }
   
+  Module *M = header->getParent ()->getParent ();
+  if (!M) return false;
   
   // single exit
   if (!L->hasDedicatedExits ())
@@ -97,12 +101,29 @@ bool CutLoops::runOnLoop (Loop *L, LPPassManager &LPM)
     BranchInst *bi = dyn_cast<BranchInst> (latch->getTerminator ());
     if (!bi || bi->isUnconditional ())
     {
-      LOG("cut-loops", errs () << "Warning: no-cut: unsupported latch\n");
+      LOG("cut-loops", errs () << "Warning: no-cut: unsupported latch\n"
+          << *latch << "\n";);
       return false;
     }
     
   }
 
+  
+  Function *assumeFn = M->getFunction ("verifier.assume");
+  if (!assumeFn)
+  {
+    LOG ("cut-loops", errs () << "Missing verifier.assume()\n";);
+    return false;
+  }
+  
+  Function *assumeNotFn = M->getFunction ("verifier.assume.not");
+  if (!assumeNotFn)
+  {
+    LOG ("cut-loops", errs () << "Missing verifier.assume.not()\n";);
+    return false;
+  }
+  
+  
   for (BasicBlock *latch : latches)
   {
     BranchInst *bi = dyn_cast<BranchInst> (latch->getTerminator ());
@@ -113,21 +134,19 @@ bool CutLoops::runOnLoop (Loop *L, LPPassManager &LPM)
     
     if (bi->getSuccessor (0) == header)
     {
-      //fn = assumeNotFn;
       dst = bi->getSuccessor (1);
+      fn = assumeNotFn;
     }
     else 
     {
-      //fn = assumeFn;
       dst = bi->getSuccessor (0);
+      fn = assumeFn;
     }
 
     if (fn)
       CallInst::Create (fn, bi->getCondition (),
-                        "cut_loop", bi);
+                        "", bi);
 
-    
-    
     BranchInst::Create (dst, bi);
     bi->eraseFromParent ();
   }

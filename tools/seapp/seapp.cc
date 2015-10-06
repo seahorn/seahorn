@@ -93,6 +93,10 @@ MixedSem ("horn-mixed-sem", llvm::cl::desc ("Mixed-Semantics Transformation"),
           llvm::cl::init (false));
 
 static llvm::cl::opt<bool>
+KillVaArg ("kill-vaarg", llvm::cl::desc ("Delete vaarg functions"),
+           llvm::cl::init (false));
+
+static llvm::cl::opt<bool>
 ExternalizeAddrTakenFuncs ("externalize-addr-taken-funcs", 
                            llvm::cl::desc ("Externalize uses of address-taken functions"),
                            llvm::cl::init (false));
@@ -193,6 +197,9 @@ int main(int argc, char **argv) {
   // -- externalize uses of address-taken functions
   if (ExternalizeAddrTakenFuncs)
     pass_manager.add (seahorn::createExternalizeAddressTakenFunctionsPass ());
+  
+  if (KillVaArg)
+    pass_manager.add (seahorn::createKillVarArgFnPass ());
   
   // -- mark entry points of all functions
   if (!MixedSem && !CutLoops)

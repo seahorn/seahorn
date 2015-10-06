@@ -98,7 +98,8 @@ class Seapp(sea.LimitedCmd):
                          help='Externalize uses of address-taken functions',
                          dest='enable_ext_funcs', default=False,
                          action='store_true')
-
+        ap.add_argument ('--no-kill-vaarg', help='Do not delete variadic functions',
+                         dest='kill_vaarg', default=True, action='store_false')
         add_in_out_args (ap)
         _add_S_arg (ap)
         return ap
@@ -125,6 +126,11 @@ class Seapp(sea.LimitedCmd):
         if args.entry is not None:
             argv.append ('--entry-point=\"{0}\"'.format (args.entry))
 
+        if args.kill_vaarg:
+            argv.append('--kill-vaarg=true')
+        else:
+            argv.append('--kill-vaarg=false')
+            
         if args.llvm_asm: argv.append ('-S')
         argv.append (args.in_file)
         return self.seappCmd.run (args, argv)

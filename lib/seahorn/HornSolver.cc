@@ -47,7 +47,9 @@ namespace seahorn
     params.set (":xform.inline-eager", false);
     // -- disable utvpi. It is unstable.
     params.set (":pdr.utvpi", false);
-    
+    // -- disable propagate_variable_equivalences in tail_simplifier
+    params.set (":xform.tail_simplifier_pve", false);
+    params.set (":xform.subsumption_checker", false);
 
     fp.set (params);
     

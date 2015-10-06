@@ -18,6 +18,7 @@ namespace seahorn
   llvm::Pass* createMarkFnEntryPass ();
 
   llvm::Pass* createPromoteMallocPass ();
+  llvm::Pass* createKillVarArgFnPass ();
 }
 
 #ifdef HAVE_LLVM_SEAHORN

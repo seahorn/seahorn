@@ -334,6 +334,15 @@ namespace seahorn
     return res;
   }
 
+  bool HornifyModule::isBbPredicate (Expr pred) const
+  {
+    Expr v = pred;
+    if (bind::isFapp (v)) v = bind::fname (pred);
+    if (!bind::isFdecl (v)) return false;
+    v = bind::fname (v);
+    return isOpX<BB> (v);
+  }
+  
   const BasicBlock& HornifyModule::predicateBb (Expr pred) const
   {
     Expr v = pred;

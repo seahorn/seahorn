@@ -335,7 +335,19 @@ namespace seahorn
     
     for (Expr r : rules)
     {
+      
+      // filter away all rules not from main()
       Expr src, dst;
+
+      {
+        dst = isOpX<IMPL> (r) ? r->arg (1) : r;
+        // -- skip rules whose destinations are not basic blocks
+        if (!hm.isBbPredicate (dst)) continue;
+        const BasicBlock &bb = hm.predicateBb (dst);
+        // -- skip basic blocks of non-main function
+        if (bb.getParent () != &F) continue;
+      }
+      
       if (isOpX<IMPL> (r)) 
       { 
         dst = r->arg (1);

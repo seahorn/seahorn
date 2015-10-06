@@ -67,6 +67,8 @@ namespace seahorn
     const Expr bbPredicate (const BasicBlock &bb);
     /// --- BasicBlock corresponding to the predicate
     const BasicBlock &predicateBb (Expr pred) const;
+    /// --- Checks whether the expression is a BasicBlock predicate
+    bool isBbPredicate (Expr pred) const;
     /// -- summary predicate for a function
     const Expr summaryPredicate (const Function &F)
     {

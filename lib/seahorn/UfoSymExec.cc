@@ -745,22 +745,35 @@ namespace
     SymExecPhiVisitor (SymStore &s, UfoSmallSymExec &sem, 
                        ExprVector &side, const BasicBlock &dst) : 
       SymExecBase (s, sem, side), m_dst (dst) {}
-    
-    void visitPHINode (PHINode &I) 
+
+    void visitBasicBlock (BasicBlock &BB)
     {
-      if (!m_sem.isTracked (I)) return;
+      // -- evaluate all phi-nodes atomically. First read all incoming
+      // -- values, then update phi-nodes all together.
+      ExprVector ops;
+
+      auto curr = BB.begin ();
+      if (!isa<PHINode> (curr)) return;
       
-      const Value &v = *I.getIncomingValueForBlock (&m_dst);
-
-      Expr op0 = lookup (v);
-      // -- phi node can read and write the same register. Thus, we
-      // -- must first lookup the value of the argument, and only then
-      // -- havoc the register.
-      Expr lhs = havoc (I);
-      Expr act = GlobalConstraints ? trueE : m_activeLit;
-      if (op0) m_side.push_back (boolop::limp (act, mk<EQ> (lhs, op0)));
+      for (; PHINode *phi = dyn_cast<PHINode> (curr); ++curr)
+      {
+        // skip phi nodes that are not tracked
+        if (!m_sem.isTracked (*phi)) continue;
+        const Value &v = *phi->getIncomingValueForBlock (&m_dst);
+        ops.push_back (lookup (v));
+      }
+      
+      curr = BB.begin ();
+      for (unsigned i = 0; isa<PHINode> (curr); ++curr)
+      {
+        PHINode &phi = *cast<PHINode> (curr);
+        if (!m_sem.isTracked (phi)) continue;
+        Expr lhs = havoc (phi);
+        Expr act = GlobalConstraints ? trueE : m_activeLit;
+        Expr op0 = ops[i++];
+        if (op0) m_side.push_back (boolop::limp (act, mk<EQ> (lhs, op0)));
+      }
     }
-
   };
 }
 

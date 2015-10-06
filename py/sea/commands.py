@@ -94,7 +94,7 @@ class Seapp(sea.LimitedCmd):
                          default=False, action='store_true')
         ap.add_argument ('--ioc', dest='ioc', help='Insert signed integer overflow checks',
                          default=False, action='store_true')
-        ap.add_argument ('--externalize-addr-taken-functions', 
+        ap.add_argument ('--externalize-addr-taken-functions',
                          help='Externalize uses of address-taken functions',
                          dest='enable_ext_funcs', default=False,
                          action='store_true')
@@ -112,7 +112,7 @@ class Seapp(sea.LimitedCmd):
         if args.out_file is not None: argv.extend (['-o', args.out_file])
         if args.inline: argv.append ('--horn-inline-all')
 
-        if args.enable_ext_funcs: 
+        if args.enable_ext_funcs:
             argv.append ('--externalize-addr-taken-funcs')
         if args.boc:
             argv.append ('--boc')
@@ -166,7 +166,7 @@ class MixedSem(sea.LimitedCmd):
         if args.llvm_asm: argv.append ('-S')
         argv.append (args.in_file)
         return self.seappCmd.run (args, argv)
-    
+
 class CutLoops(sea.LimitedCmd):
     def __init__(self, quiet=False):
         super(CutLoops, self).__init__('cut-loops', 'Loop cutting transformation',
@@ -198,12 +198,12 @@ class CutLoops(sea.LimitedCmd):
         argv.append ('--horn-cut-loops')
         if args.llvm_asm: argv.append ('-S')
         argv.append (args.in_file)
-        
+
         if args.log is not None:
             for l in args.log.split (':'): argv.extend (['-log', l])
-            
+
         return self.seappCmd.run (args, argv)
-    
+
 class Seaopt(sea.LimitedCmd):
     def __init__(self, quiet=False):
         super(Seaopt, self).__init__('opt', 'Compiler optimizations', allow_extra=True)
@@ -338,7 +338,7 @@ class Seahorn(sea.LimitedCmd):
         if args.cex is not None and args.solve:
             argv.append ('-horn-cex')
             argv.append ('-horn-svcomp-cex={0}'.format (args.cex))
-            argv.extend (['-log', 'cex'])
+            #argv.extend (['-log', 'cex'])
         if args.asm_out_file is not None: argv.extend (['-oll', args.asm_out_file])
 
         argv.extend (['-horn-inter-proc',
@@ -464,7 +464,7 @@ class LegacyFrontEnd (sea.LimitedCmd):
 
 class Crab (sea.LimitedCmd):
     def __init__ (self, quiet=False):
-        super (Crab, self).__init__ ('crab', 
+        super (Crab, self).__init__ ('crab',
                                      'Instrument LLVM bitcode with invariants inferred by Crab',
                                      allow_extra=True)
 
@@ -532,4 +532,3 @@ BndSmt = sea.SeqCmd ('bnd-smt', 'alias for fe|cut-loops|opt|horn',
 Bpf = sea.SeqCmd ('bpf', 'alias for fe|cut-loops|opt|horn --solve',
                   FrontEnd.cmds + [CutLoops(), Seaopt(), Seahorn(solve=True)])
 feCrab = sea.SeqCmd ('fe-crab', 'alias for fe|crab', FrontEnd.cmds + [Crab()])
-                     

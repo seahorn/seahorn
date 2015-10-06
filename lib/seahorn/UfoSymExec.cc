@@ -279,6 +279,37 @@ namespace
       }
     }
     
+    void doBitLogic (Expr lhs, BinaryOperator &i)
+    {
+      const Value& v0 = *(i.getOperand (0));
+      const Value& v1 = *(i.getOperand (1));
+
+      Expr op0 = lookup (v0);
+      Expr op1 = lookup (v1);
+      if (!(op0 && op1)) return;
+      Expr res;
+      
+      Expr zero = mkTerm<mpz_class> (0, m_efac);
+      switch(i.getOpcode())
+      {
+      case BinaryOperator::And:
+        // 0 & x = 0
+        res = mk<AND> (mk<IMPL> (mk<EQ> (op0, zero), mk<EQ> (lhs, zero)),
+                       mk<IMPL> (mk<EQ> (op1, zero), mk<EQ> (lhs, zero)));
+        break;
+      case BinaryOperator::Or:
+        // 0 | x = x
+        res = mk<AND> (mk<IMPL> (mk<EQ> (op0, zero), mk<EQ> (lhs, op1)),
+                       mk<IMPL> (mk<EQ> (op1, zero), mk<EQ> (lhs, op0)));
+        break;
+      default:
+        break;
+      }
+      
+      Expr act = GlobalConstraints ? trueE : m_activeLit;
+      if (res) m_side.push_back (boolop::limp (act, res));
+    }
+    
     void doLogic (Expr lhs, BinaryOperator &i)
     {
       const Value& v0 = *(i.getOperand(0));
@@ -286,7 +317,7 @@ namespace
       
       // only Boolean logic is supported
       if (! (v0.getType ()->isIntegerTy (1) &&
-             v1.getType ()->isIntegerTy (1))) return;
+             v1.getType ()->isIntegerTy (1))) return doBitLogic (lhs, i);
       
       Expr op0 = lookup (v0);
       Expr op1 = lookup (v1);

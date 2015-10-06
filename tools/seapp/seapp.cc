@@ -186,6 +186,9 @@ int main(int argc, char **argv) {
  
   // -- promote verifier specific functions to special names
   pass_manager.add (new seahorn::PromoteVerifierCalls ());
+  
+  // -- promote top-level mallocs to alloca
+  pass_manager.add (seahorn::createPromoteMallocPass ());
 
   // -- externalize uses of address-taken functions
   if (ExternalizeAddrTakenFuncs)
@@ -239,6 +242,7 @@ int main(int argc, char **argv) {
     pass_manager.add (seahorn::createMarkInternalInlinePass ());
     pass_manager.add (llvm::createAlwaysInlinerPass ());
     pass_manager.add (llvm::createGlobalDCEPass ()); // kill unused internal global
+    pass_manager.add (seahorn::createPromoteMallocPass ());
   }
   
   pass_manager.add (new seahorn::RemoveUnreachableBlocksPass ());
@@ -273,6 +277,7 @@ int main(int argc, char **argv) {
   {
     pass_manager.add (new seahorn::MixedSemantics ());
     pass_manager.add (new seahorn::RemoveUnreachableBlocksPass ());
+    pass_manager.add (seahorn::createPromoteMallocPass ());
   }
 
   if (CutLoops)

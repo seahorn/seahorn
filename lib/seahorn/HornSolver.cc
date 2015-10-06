@@ -20,6 +20,10 @@ static llvm::cl::opt<bool>
 PrintAnswer ("horn-answer",
              cl::desc ("Print Horn answer"), cl::init (false));
 
+static llvm::cl::opt<bool>
+SkipConstraints ("horn-skip-constraints",
+                 cl::Hidden, cl::init(false));
+
 namespace seahorn
 {
   char HornSolver::ID = 0;
@@ -50,10 +54,10 @@ namespace seahorn
     // -- disable propagate_variable_equivalences in tail_simplifier
     params.set (":xform.tail_simplifier_pve", false);
     params.set (":xform.subsumption_checker", false);
-
+    params.set (":order_children", 1U);
     fp.set (params);
     
-    db.loadZFixedPoint (fp);
+    db.loadZFixedPoint (fp, SkipConstraints);
     
     Stats::resume ("Horn");
     m_result = fp.query ();

@@ -234,7 +234,7 @@ class Seaopt(sea.LimitedCmd):
                          action='store_true')
         ap.add_argument ('--enable-nondet-init', dest='enable_nondet_init', default=False,
                          action='store_true')
-        ap.add_argument ('--inline-threshold', dest='inline_threshold',
+        ap.add_argument ('--llvm-inline-threshold', dest='inline_threshold',
                          type=int, metavar='T',
                          help='Inline threshold (default = 255)')
         add_in_out_args (ap)

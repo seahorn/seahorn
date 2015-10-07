@@ -134,18 +134,26 @@ namespace seahorn
       m_out << "<graphml xmlns:xsi='http://www.w3.org/2001/XMLSchema-instance' "
             << "xmlns='http://graphml.graphdrawing.org/xmlns'>\n";
       key ("sourcecodeLanguage", "string", "graph", "sourcecodelang");
-      key ("lineNumberInOrigin", "int", "edge", "originline");
+      key ("startline", "int", "edge", "originline");
       key ("originFileName", "string", "edge", "originfile");
       key ("isEntryNode", "boolean", "node", "entry");
       key ("isSinkNode", "boolean", "node", "sink");
+      key ("isViolationNode", "boolean", "node", "violation");
       key ("enterFunction", "string", "edge", "enterFunction");
       key ("returnFromFunction", "string", "edge", "returnFrom");
       
       m_out << "<graph edgedefault='directed'>\n"
             << "<data key='sourcecodelang'>C</data>\n"
+            << "<data key='producer'>SeaHorn </data>\n"
             << "<node id='0'> <data key='entry'>true</data> </node>\n";
     }
-    
+
+    void add_violation_node (){
+      unsigned src = m_id++;
+      m_out << "<node id='" << m_id << "'> <data key='violation'>true</data> </node>\n";      
+      m_out << "<edge source='" << src << "' target='" << m_id << "'/>\n";
+    }
+
     void edge (std::string file, int lineno, std::string scope)
     {
       unsigned src = m_id++;
@@ -233,7 +241,7 @@ namespace seahorn
     const DebugLoc &dloc = inst.getDebugLoc ();
     if (dloc.isUnknown ()) return;
     std::string file;
-    
+
     DIScope Scope (dloc.getScope ());
     if (Scope) file = Scope.getFilename ();
     else file = "<unknown>";
@@ -254,8 +262,7 @@ namespace seahorn
            else
              errs () << "in: " << dname << "\n";
          });
-         
-    
+      
     svcomp.edge (file, (int)dloc.getLine (), "");
   }
   
@@ -279,8 +286,6 @@ namespace seahorn
       return;
     }
     
-    
-    
     SvCompCex<llvm::raw_ostream> svcomp (out.os ());
     svcomp.header ();
     for (auto *bb : cex)
@@ -297,6 +302,11 @@ namespace seahorn
             printLiner (*ci, svcomp);
         }
       }
+
+      if (bb->getParent ()->getName ().equals ("main") && 
+          isa<ReturnInst> (bb->getTerminator ())) 
+        svcomp.add_violation_node ();
+      
     }
     svcomp.footer ();
     out.keep ();

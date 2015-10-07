@@ -12,15 +12,18 @@ import signal
 
 
 root = os.path.dirname (os.path.dirname (os.path.realpath (__file__)))
-verbose = False
+verbose = True
 
 
 def initProfiles():
-    base = ['--step=large', '-g', '--horn-global-constraints=true', '--track=mem', '--horn-stats', '--enable-nondet-init', '--externalize-addr-taken-functions', '--horn-singleton-aliases']
+    base = ['--step=large', '-g', '--horn-global-constraints=true', '--track=mem',
+            '--horn-stats', '--enable-nondet-init',
+            '--externalize-addr-taken-functions', '--horn-singleton-aliases=true']
     profiles = dict()
-    profiles ['inline'] = base + [ '-inline']
+    profiles ['inline'] = base + [ '--inline']
     profiles ['no_inline'] = base
-    profiles ['crab_inline'] = base + ['--inline','--horn-crab','--crab-live', '--crab-dom=term']
+    profiles ['crab_inline'] = base + ['--inline',
+                                       '--horn-crab','--crab-live', '--crab-dom=term']
     profiles ['crab_no_inline'] = base + ['--horn-crab','--crab-live', '--crab-dom=term']
     return profiles
 
@@ -207,7 +210,7 @@ def run (workdir, fname, sea_args = [], profs = [],
 def seahorn_opt (x):
     if x.startswith ('-'):
         y = x.strip ('-')
-        return y.startswith ('horn') or  y.startswith ('ikos')
+        return y.startswith ('horn') or  y.startswith ('crab')
     return False
 
 def non_seahorn_opt (x): return not seahorn_opt (x)

@@ -52,6 +52,9 @@ namespace seahorn
           // copy of foo but marked as external.
           for (auto &U : F.uses ()) {
             
+            if (U.get () == NF)
+              continue;
+
             User *FU = U.getUser();
             if (isa<BlockAddress>(FU))
               continue;
@@ -65,7 +68,7 @@ namespace seahorn
             }
             
             if (!isa<CallInst>(FU) && !isa<InvokeInst>(FU)) {
-              if (Constant *c = dyn_cast<Constant> (FU))
+              if (Constant *c = dyn_cast<Constant> (FU)) 
                 c->replaceUsesOfWithOnConstant (&F, NF, &U);
               else
                 FU->replaceUsesOfWith(&F, NF);

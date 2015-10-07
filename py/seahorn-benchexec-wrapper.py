@@ -17,6 +17,7 @@ DM-0002198
 """
 import benchexec.util as util
 import benchexec.tools.template
+import benchexec.result as result
 
 class Tool(benchexec.tools.template.BaseTool):
 
@@ -27,12 +28,18 @@ class Tool(benchexec.tools.template.BaseTool):
     def name(self):
         return 'SeaHorn-F16'
 
+    def cmdline(self, executable, options, tasks, propertyfile, rlimits):
+        assert len(tasks) == 1, "only one inputfile supported"
+        cexfile = "--cex="+tasks[0]+".xml"
+        options = options + [cexfile, "-p", "inline:no_inline"]
+        return [executable] + options + tasks
+
     def determine_result(self, returncode, returnsignal, output, isTimeout):
         output = '\n'.join(output)
         if "BRUNCH_STAT Result TRUE" in output:
-            status = "SAFE"
+            status = result.RESULT_TRUE_PROP
         elif "BRUNCH_STAT Result FALSE" in output:
-            status = "UNSAFE"
+            status = result.RESULT_FALSE_REACH
         elif returnsignal == 9 or returnsignal == (128+9):
             if isTimeout:
                 status = "TIMEOUT"
@@ -40,7 +47,7 @@ class Tool(benchexec.tools.template.BaseTool):
                 status = "KILLED BY SIGNAL 9"
         elif returncode != 0:
             status = "ERROR ({0})".format(returncode)
-        elif:
+        else:
             status = 'FAILURE'
-            
+
         return status

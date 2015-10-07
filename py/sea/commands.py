@@ -234,6 +234,9 @@ class Seaopt(sea.LimitedCmd):
                          action='store_true')
         ap.add_argument ('--enable-nondet-init', dest='enable_nondet_init', default=False,
                          action='store_true')
+        ap.add_argument ('--inline-threshold', dest='inline_threshold',
+                         type=int, metavar='T',
+                         help='Inline threshold (default = 255)')
         add_in_out_args (ap)
         _add_S_arg (ap)
         return ap
@@ -255,6 +258,8 @@ class Seaopt(sea.LimitedCmd):
             argv.append ('--enable-loop-idiom=false')
         if not args.enable_nondet_init:
             argv.append ('--enable-nondet-init=false')
+        if args.inline_threshold is not None:
+            argv.append ('--inline-threshold={t}'.format(t=args.inline_threshold))
 
         argv.append (args.in_file)
         if args.llvm_asm: argv.append ('-S')

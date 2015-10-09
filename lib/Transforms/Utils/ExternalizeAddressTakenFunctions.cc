@@ -50,11 +50,11 @@ namespace seahorn
           
           // replace each use &foo with &foo_stub() where foo_stub is a
           // copy of foo but marked as external.
-          for (auto &U : F.uses ()) {
-            
-            if (U.get () == NF)
-              continue;
-
+          Value::use_iterator UI = F.use_begin (), E = F.use_end ();
+          for (; UI != E;)
+          {
+            Use &U = *UI;
+            ++UI;
             User *FU = U.getUser();
             if (isa<BlockAddress>(FU))
               continue;
@@ -62,7 +62,7 @@ namespace seahorn
             if (isa<CallInst>(FU) || isa<InvokeInst>(FU)) {
               ImmutableCallSite CS(dyn_cast<Instruction>(FU));                        
              if (!CS.isCallee (&U)) {
-               FU->replaceUsesOfWith(&F, NF);
+               U.set (NF);
                Changed=true;
              }
             }
@@ -71,7 +71,7 @@ namespace seahorn
               if (Constant *c = dyn_cast<Constant> (FU)) 
                 c->replaceUsesOfWithOnConstant (&F, NF, &U);
               else
-                FU->replaceUsesOfWith(&F, NF);
+                U.set (NF);
               Changed=true;
             }
 

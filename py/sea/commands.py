@@ -39,7 +39,9 @@ class Clang(sea.LimitedCmd):
         _add_S_arg (ap)
         return ap
 
-    def name_out_file (self, in_file, args=None, work_dir=None):
+    def name_out_file (self, in_files, args=None, work_dir=None):
+        assert (len (in_files) > 0)
+        in_file = in_files [0]
         if _bc_or_ll_file (in_file): return in_file
         ext = '.bc'
         # if args.llvm_asm: ext = '.ll'
@@ -47,7 +49,7 @@ class Clang(sea.LimitedCmd):
 
     def run (self, args, extra):
         # do nothing on .bc and .ll files
-        if _bc_or_ll_file (args.in_file): return 0
+        if _bc_or_ll_file (args.in_files[0]): return 0
 
         cmd_name = which (['clang-mp-3.6', 'clang-3.6', 'clang',
                                 'clang-mp-3.5', 'clang-mp-3.4'])
@@ -64,7 +66,7 @@ class Clang(sea.LimitedCmd):
         if args.debug_info: argv.append ('-g')
         if args.out_file is not None:
             argv.extend (['-o', args.out_file])
-        argv.append (args.in_file)
+        argv.extend (args.in_files)
         return self.clangCmd.run (args, argv)
 
     @property
@@ -79,10 +81,11 @@ class Seapp(sea.LimitedCmd):
     def stdout (self):
         return self.seappCmd.stdout
 
-    def name_out_file (self, in_file, args=None, work_dir=None):
+    def name_out_file (self, in_files, args=None, work_dir=None):
+        assert (len(in_files) == 1)
         ext = '.pp.bc'
         # if args.llvm_asm: ext = '.pp.ll'
-        return _remap_file_name (in_file, ext, work_dir)
+        return _remap_file_name (in_files[0], ext, work_dir)
 
     def mk_arg_parser (self, ap):
         ap = super (Seapp, self).mk_arg_parser (ap)
@@ -132,7 +135,7 @@ class Seapp(sea.LimitedCmd):
             argv.append('--kill-vaarg=false')
             
         if args.llvm_asm: argv.append ('-S')
-        argv.append (args.in_file)
+        argv.extend (args.in_files)
         return self.seappCmd.run (args, argv)
 
 class MixedSem(sea.LimitedCmd):
@@ -144,10 +147,10 @@ class MixedSem(sea.LimitedCmd):
     def stdout (self):
         return self.seappCmd.stdout
 
-    def name_out_file (self, in_file, args=None, work_dir=None):
+    def name_out_file (self, in_files, args=None, work_dir=None):
         ext = '.ms.bc'
         # if args.llvm_asm: ext = '.ms.ll'
-        return _remap_file_name (in_file, ext, work_dir)
+        return _remap_file_name (in_files[0], ext, work_dir)
 
     def mk_arg_parser (self, ap):
         ap = super (MixedSem, self).mk_arg_parser (ap)
@@ -170,7 +173,7 @@ class MixedSem(sea.LimitedCmd):
         if not args.ms_skip: argv.append ('--horn-mixed-sem')
         if args.reduce_main: argv.append ('--ms-reduce-main')
         if args.llvm_asm: argv.append ('-S')
-        argv.append (args.in_file)
+        argv.extend (args.in_files)
         return self.seappCmd.run (args, argv)
 
 class CutLoops(sea.LimitedCmd):
@@ -182,9 +185,9 @@ class CutLoops(sea.LimitedCmd):
     def stdout (self):
         return self.seappCmd.stdout
 
-    def name_out_file (self, in_file, args=None, work_dir=None):
+    def name_out_file (self, in_files, args=None, work_dir=None):
         ext = '.cut.bc'
-        return _remap_file_name (in_file, ext, work_dir)
+        return _remap_file_name (in_files[0], ext, work_dir)
 
     def mk_arg_parser (self, ap):
         ap = super (CutLoops, self).mk_arg_parser (ap)
@@ -203,7 +206,7 @@ class CutLoops(sea.LimitedCmd):
         if args.out_file is not None: argv.extend (['-o', args.out_file])
         argv.append ('--horn-cut-loops')
         if args.llvm_asm: argv.append ('-S')
-        argv.append (args.in_file)
+        argv.extend (args.in_files)
 
         if args.log is not None:
             for l in args.log.split (':'): argv.extend (['-log', l])
@@ -218,11 +221,11 @@ class Seaopt(sea.LimitedCmd):
     def stdout (self):
         return self.seaoptCmd.stdout
 
-    def name_out_file (self, in_file, args, work_dir=None):
+    def name_out_file (self, in_files, args, work_dir=None):
         ext = '.o.bc'
         # ext = 'o{0}.bc'.format(args.opt_level)
         # if args.llvm_asm: ext = 'o{0}.ll'.format(args.opt_level)
-        return _remap_file_name (in_file, ext, work_dir)
+        return _remap_file_name (in_files[0], ext, work_dir)
 
     def mk_arg_parser (self, ap):
         ap = super (Seaopt, self).mk_arg_parser (ap)
@@ -261,7 +264,7 @@ class Seaopt(sea.LimitedCmd):
         if args.inline_threshold is not None:
             argv.append ('--inline-threshold={t}'.format(t=args.inline_threshold))
 
-        argv.append (args.in_file)
+        argv.extend (args.in_files)
         if args.llvm_asm: argv.append ('-S')
         return self.seaoptCmd.run (args, argv)
 
@@ -273,9 +276,9 @@ class Unroll(sea.LimitedCmd):
     def stdout (self):
         return self.seaoptCmd.stdout
 
-    def name_out_file (self, in_file, args, work_dir=None):
+    def name_out_file (self, in_files, args, work_dir=None):
         ext = '.ul.bc'
-        return _remap_file_name (in_file, ext, work_dir)
+        return _remap_file_name (in_files[0], ext, work_dir)
 
     def mk_arg_parser (self, ap):
         ap = super (Unroll, self).mk_arg_parser (ap)
@@ -314,7 +317,7 @@ class Unroll(sea.LimitedCmd):
             argv.append ('-unroll-count={b}'.format(b=args.bound))
         argv.append ('-unroll-threshold={t}'.format(t=args.threshold))
 
-        argv.append (args.in_file)
+        argv.extend (args.in_files)
         if args.llvm_asm: argv.append ('-S')
         return self.seaoptCmd.run (args, argv)    
     
@@ -336,8 +339,8 @@ class Seahorn(sea.LimitedCmd):
     def stdout (self):
         return self.seahornCmd.stdout
 
-    def name_out_file (self, in_file, args=None, work_dir=None):
-        return _remap_file_name (in_file, '.smt2', work_dir)
+    def name_out_file (self, in_files, args=None, work_dir=None):
+        return _remap_file_name (in_files[0], '.smt2', work_dir)
 
     def mk_arg_parser (self, ap):
         ap = super (Seahorn, self).mk_arg_parser (ap)
@@ -417,7 +420,7 @@ class Seahorn(sea.LimitedCmd):
             for l in args.ztrace.split (':'): argv.extend (['-ztrace', l])
 
         if args.out_file is not None: argv.extend (['-o', args.out_file])
-        argv.append (args.in_file)
+        argv.extend (args.in_files)
 
         # pick out extra seahorn options
         argv.extend (filter (_is_seahorn_opt, extra))
@@ -434,8 +437,8 @@ class SeahornClp(sea.LimitedCmd):
     def stdout (self):
         return self.seahornCmd.stdout
 
-    def name_out_file (self, in_file, args=None, work_dir=None):
-        return _remap_file_name (in_file, '.clp', work_dir)
+    def name_out_file (self, in_files, args=None, work_dir=None):
+        return _remap_file_name (in_files[0], '.clp', work_dir)
 
     def mk_arg_parser (self, ap):
         ap = super (SeahornClp, self).mk_arg_parser (ap)
@@ -476,7 +479,7 @@ class SeahornClp(sea.LimitedCmd):
             for l in args.log.split (':'): argv.extend (['-log', l])
 
         if args.out_file is not None: argv.extend (['-o', args.out_file])
-        argv.append (args.in_file)
+        argv.extend (args.in_files)
 
         # pick out extra seahorn options
         argv.extend (filter (_is_seahorn_opt, extra))
@@ -493,8 +496,13 @@ class LegacyFrontEnd (sea.LimitedCmd):
     def stdout (self):
         return self.lfeCmd.stdout
 
-    def name_out_file (self, in_file, args, work_dir=None):
+    def name_out_file (self, in_files, args, work_dir=None):
         ext = 'lfe.ll'
+        assert (len (in_files) > 0)
+        if len(in_files) > 1:
+            in_file = 'merged.c'
+        else:
+            in_file = in_files[0]
         return _remap_file_name (in_file, ext, work_dir)
 
     def mk_arg_parser (self, ap):
@@ -520,10 +528,11 @@ class LegacyFrontEnd (sea.LimitedCmd):
         import subprocess
         self.lfeCmd = sea.ExtCmd (cmd_name)
 
-        argv = ['--no-seahorn', args.in_file, '-o', args.out_file]
+        argv = ['--no-seahorn', '-o', args.out_file]
         argv.append ('-m{0}'.format (args.machine))
         if args.debug_info: argv.append ('--mark-lines')
-
+        argv.extend (args.in_files)
+        
         return self.lfeCmd.run (args, argv)
 
 class Crab (sea.LimitedCmd):
@@ -536,9 +545,9 @@ class Crab (sea.LimitedCmd):
     def stdout (self):
         return self.seappCmd.stdout
 
-    def name_out_file (self, in_file, args=None, work_dir=None):
+    def name_out_file (self, in_files, args=None, work_dir=None):
         ext = 'crab.ll'
-        return _remap_file_name (in_file, ext, work_dir)
+        return _remap_file_name (in_files[0], ext, work_dir)
 
     def mk_arg_parser (self, ap):
         ap = super (Crab, self).mk_arg_parser (ap)
@@ -579,7 +588,7 @@ class Crab (sea.LimitedCmd):
         argv.append ('--crab-add-invariants-after-loads')
 
         if args.out_file is not None: argv.extend (['-oll', args.out_file])
-        argv.append (args.in_file)
+        argv.extend (args.in_files)
         return self.seappCmd.run (args, argv)
 
 

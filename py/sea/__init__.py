@@ -96,7 +96,7 @@ def createWorkDir (dname=None, save=False, prefix='tmp-'):
 def add_in_out_args (ap):
     ap.add_argument ('-o', dest='out_file',
                      metavar='FILE', help='Output file name', default=None)
-    ap.add_argument ('in_file',  metavar='FILE', help='Input file')
+    ap.add_argument ('in_files',  metavar='FILE', help='Input file', nargs='+')
     return ap
 
 class CliCmd (object):
@@ -111,7 +111,7 @@ class CliCmd (object):
     def run (self, args=None, extra=[]):
         return 0
 
-    def name_out_file (self, in_file, args=None, work_dir=None):
+    def name_out_file (self, in_files, args=None, work_dir=None):
         out_file = 'out'
         if work_dir is not None:
             out_file = os.path.join (work_dir, out_file)
@@ -175,7 +175,7 @@ class SeqCmd (AgregateCmd):
 
     def run (self, args, extra):
         res = 0
-        in_file = args.in_file
+        in_files = args.in_files
         out_file = None
 
         work_dir = createWorkDir (args.temp_dir, args.save_temps, 'sea-')
@@ -184,13 +184,13 @@ class SeqCmd (AgregateCmd):
         for c in self.cmds[:-1]:
             argv = list()
             argv.extend (extra)
-            out_file = c.name_out_file (in_file, args, work_dir)
+            out_file = c.name_out_file (in_files, args, work_dir)
             argv.extend (['-o', out_file])
-            argv.append (in_file)
+            argv.extend (in_files)
             res = c.main (argv)
             if res <> 0: return res
 
-            in_file = out_file
+            in_files = [out_file]
             out_file = None
 
         # last command
@@ -198,7 +198,7 @@ class SeqCmd (AgregateCmd):
         argv = list()
         argv.extend (extra)
         argv.extend (['-o', args.out_file])
-        argv.append (in_file)
+        argv.extend (in_files)
         res = c.main (argv)
         return res
 

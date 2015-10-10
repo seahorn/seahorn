@@ -2,7 +2,7 @@ import sea
 
 import os.path
 
-from sea import add_in_out_args, which
+from sea import add_in_out_args, which, createWorkDir
 
 # remaps a file based on working dir and a new extension
 def _remap_file_name (in_file, ext, work_dir):
@@ -41,8 +41,11 @@ class Clang(sea.LimitedCmd):
 
     def name_out_file (self, in_files, args=None, work_dir=None):
         assert (len (in_files) > 0)
-        in_file = in_files [0]
-        if _bc_or_ll_file (in_file): return in_file
+        if len(in_files) == 1:
+            in_file = in_files [0]
+            if _bc_or_ll_file (in_file): return in_file
+        else:
+            in_file = 'merged.c'
         ext = '.bc'
         # if args.llvm_asm: ext = '.ll'
         return _remap_file_name (in_file, ext, work_dir)
@@ -50,7 +53,7 @@ class Clang(sea.LimitedCmd):
     def run (self, args, extra):
         # do nothing on .bc and .ll files
         if _bc_or_ll_file (args.in_files[0]): return 0
-
+        
         cmd_name = which (['clang-mp-3.6', 'clang-3.6', 'clang',
                                 'clang-mp-3.5', 'clang-mp-3.4'])
         if cmd_name is None: raise IOError ('clang not found')
@@ -64,10 +67,42 @@ class Clang(sea.LimitedCmd):
         argv.append ('-m{0}'.format (args.machine))
 
         if args.debug_info: argv.append ('-g')
-        if args.out_file is not None:
-            argv.extend (['-o', args.out_file])
-        argv.extend (args.in_files)
-        return self.clangCmd.run (args, argv)
+        
+        
+        if len(args.in_files) == 1:
+            out_files = [args.out_file]
+        else:
+            # create private workdir
+            workdir = createWorkDir ()
+            out_files = [_remap_file_name (f, '.bc', workdir)
+                         for f in args.in_files]
+        
+        for in_file, out_file in zip(args.in_files, out_files):
+            if out_file is not None:
+                argv.extend (['-o', out_file])
+
+            # clone argv
+            argv1 = list ()
+            argv1.extend (argv)
+            
+            argv1.append (in_file)
+            ret = self.clangCmd.run (args, argv1)
+            if ret <> 0: return ret
+            
+        if len(out_files) > 1:
+            # link
+            cmd_name = which (['llvm-link-mp-3.6', 'llvm-link-3.6', 'llvm-link'])
+            if cmd_name is None: raise IOError ('llvm-link not found')
+            self.linkCmd = sea.ExtCmd (cmd_name)
+
+            argv = []
+            if args.llvm_asm: argv.append ('-S')
+            if args.out_file is not None:
+                argv.extend (['-o', args.out_file])
+            argv.extend (out_files)
+            return self.linkCmd.run (args, argv)
+        
+        return 0
 
     @property
     def stdout (self):

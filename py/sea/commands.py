@@ -443,6 +443,8 @@ class Seahorn(sea.LimitedCmd):
 
         if args.solve:
             argv.append ('--horn-solve')
+            # Cannot delete shadows since they are used by the solver
+            argv.append ('--keep-shadows=true')
             if args.show_invars:
                 argv.append ('--horn-answer')
         if args.cex is not None and args.solve:

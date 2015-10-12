@@ -19,6 +19,7 @@ namespace seahorn
   /// reduce the function to paths that lead to a return
   void reduceToReturnPaths (Function &F);
   
+  Function& createNewNondetFn (Module &m, Type &type, unsigned num, std::string prefix);
   
 }
 

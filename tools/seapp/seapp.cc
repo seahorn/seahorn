@@ -97,6 +97,10 @@ KillVaArg ("kill-vaarg", llvm::cl::desc ("Delete vaarg functions"),
            llvm::cl::init (false));
 
 static llvm::cl::opt<bool>
+StripExtern ("strip-extern", llvm::cl::desc ("Replace external functions by nondet"),
+              llvm::cl::init (false));
+
+static llvm::cl::opt<bool>
 ExternalizeAddrTakenFuncs ("externalize-addr-taken-funcs", 
                            llvm::cl::desc ("Externalize uses of address-taken functions"),
                            llvm::cl::init (false));
@@ -200,6 +204,9 @@ int main(int argc, char **argv) {
   
   if (KillVaArg)
     pass_manager.add (seahorn::createKillVarArgFnPass ());
+  
+  if (StripExtern)
+    pass_manager.add (seahorn::createStripUselessDeclarationsPass ());
   
   // -- mark entry points of all functions
   if (!MixedSem && !CutLoops)

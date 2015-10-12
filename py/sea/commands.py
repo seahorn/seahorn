@@ -138,6 +138,9 @@ class Seapp(sea.LimitedCmd):
                          action='store_true')
         ap.add_argument ('--no-kill-vaarg', help='Do not delete variadic functions',
                          dest='kill_vaarg', default=True, action='store_false')
+        ap.add_argument ('--strip-extern', help='Replace external function calls ' + 
+                         'by non-determinism', default=False, action='store_true',
+                         dest='strip_external')
         add_in_out_args (ap)
         _add_S_arg (ap)
         return ap
@@ -151,6 +154,11 @@ class Seapp(sea.LimitedCmd):
         if args.out_file is not None: argv.extend (['-o', args.out_file])
         if args.inline: argv.append ('--horn-inline-all')
 
+        if args.strip_external:
+            argv.append ('--strip-extern=true')
+        else:
+            argv.append ('--strip-extern=false')
+            
         if args.enable_ext_funcs:
             argv.append ('--externalize-addr-taken-funcs')
         if args.boc:

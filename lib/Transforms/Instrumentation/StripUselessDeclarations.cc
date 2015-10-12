@@ -36,6 +36,8 @@ namespace
             name.startswith ("verifier.")) continue;
 
         if (name.startswith ("__VERIFIER")) continue;
+
+        if (name.startswith ("__builtin")) continue;
         
         strip (F);
       }
@@ -63,7 +65,7 @@ namespace
           if (!F.getReturnType ()->isVoidTy ())
           {
             // insert call to nondet fn
-            std::string newName ("seahorn.");
+            std::string newName ("verifier.nondet.");
             newName += F.getName ();
             newName += ".";
             

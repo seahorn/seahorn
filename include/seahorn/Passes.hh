@@ -13,12 +13,16 @@ namespace seahorn
 
   llvm::Pass* createLoadCrabPass ();
   llvm::Pass* createShadowMemDsaPass ();
+  llvm::Pass * createStripShadowMemPass ();
 
   llvm::Pass* createCutLoopsPass ();
   llvm::Pass* createMarkFnEntryPass ();
 
   llvm::Pass* createPromoteMallocPass ();
   llvm::Pass* createKillVarArgFnPass ();
+  
+  llvm::Pass* createStripLifetimePass ();
+  llvm::Pass* createStripUselessDeclarationsPass ();
 }
 
 #ifdef HAVE_LLVM_SEAHORN

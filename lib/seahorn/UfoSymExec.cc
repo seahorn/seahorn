@@ -424,6 +424,16 @@ namespace
       }
 
       Expr act = GlobalConstraints ? trueE : m_activeLit;
+      
+      // -- always guard division
+      if (EnableDiv &&
+          (i.getOpcode () == BinaryOperator::SDiv ||
+           i.getOpcode () == BinaryOperator::UDiv ||
+           i.getOpcode () == BinaryOperator::SRem ||
+           i.getOpcode () == BinaryOperator::URem ||
+           i.getOpcode () == BinaryOperator::AShr))
+        act = m_activeLit;
+      
       if (res) m_side.push_back (boolop::limp (act, res));
     }
     

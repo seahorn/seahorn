@@ -81,6 +81,8 @@ namespace
     
     Expr trueE;
     Expr falseE;
+    Expr zeroE;
+    Expr oneE;
     
     /// -- current read memory
     Expr m_inMem;
@@ -99,6 +101,8 @@ namespace
     {
       trueE = mk<TRUE> (m_efac);
       falseE = mk<FALSE> (m_efac);
+      zeroE = mkTerm<mpz_class> (0, m_efac);
+      oneE = mkTerm<mpz_class> (1, m_efac);
       m_uniq = false;
       resetActiveLit ();
       // -- first two arguments are reserved for error flag
@@ -162,14 +166,13 @@ namespace
     
     Expr mkUnsignedLT (Expr op0, Expr op1)
     {
-      Expr zero = mkTerm<mpz_class> (0, m_efac);
       using namespace expr::op::boolop;
       
-      return lite (geq (op0, zero),
-                      lite (geq (op1, zero),
+      return lite (geq (op0, zeroE),
+                      lite (geq (op1, zeroE),
                             lt (op0, op1),
                             trueE),
-                      lite (lt (op1, zero),
+                      lite (lt (op1, zeroE),
                             lt (op0, op1),
                             falseE));
     }
@@ -289,18 +292,17 @@ namespace
       if (!(op0 && op1)) return;
       Expr res;
       
-      Expr zero = mkTerm<mpz_class> (0, m_efac);
       switch(i.getOpcode())
       {
       case BinaryOperator::And:
         // 0 & x = 0
-        res = mk<AND> (mk<IMPL> (mk<EQ> (op0, zero), mk<EQ> (lhs, zero)),
-                       mk<IMPL> (mk<EQ> (op1, zero), mk<EQ> (lhs, zero)));
+        res = mk<AND> (mk<IMPL> (mk<EQ> (op0, zeroE), mk<EQ> (lhs, zeroE)),
+                       mk<IMPL> (mk<EQ> (op1, zeroE), mk<EQ> (lhs, zeroE)));
         break;
       case BinaryOperator::Or:
         // 0 | x = x
-        res = mk<AND> (mk<IMPL> (mk<EQ> (op0, zero), mk<EQ> (lhs, op1)),
-                       mk<IMPL> (mk<EQ> (op1, zero), mk<EQ> (lhs, op0)));
+        res = mk<AND> (mk<IMPL> (mk<EQ> (op0, zeroE), mk<EQ> (lhs, op1)),
+                       mk<IMPL> (mk<EQ> (op1, zeroE), mk<EQ> (lhs, op0)));
         break;
       default:
         break;
@@ -462,15 +464,12 @@ namespace
       Expr act = GlobalConstraints ? trueE : m_activeLit;
       if (I.getType ()->isIntegerTy (1))
       {
-        Expr zero = mkTerm<mpz_class> (0, m_efac);
-        Expr one = mkTerm<mpz_class> (1, m_efac);
-      
         // truncation to 1 bit amounts to 'is_even' predicate.
         // We handle the two most common cases: 0 -> false, 1 -> true
         m_side.push_back (boolop::limp (act,
-                                        mk<IMPL> (mk<EQ> (op0, zero), mk<NEG> (lhs))));
+                                        mk<IMPL> (mk<EQ> (op0, zeroE), mk<NEG> (lhs))));
         m_side.push_back (boolop::limp (act,
-                                        mk<IMPL> (mk<EQ> (op0, one), lhs)));
+                                        mk<IMPL> (mk<EQ> (op0, oneE), lhs)));
       }
       else
         m_side.push_back (boolop::limp (act, mk<EQ> (lhs, op0)));
@@ -495,7 +494,18 @@ namespace
       
       Expr op = m_sem.ptrArith (m_s, *gep.getPointerOperand (), ps, ts);
       Expr act = GlobalConstraints ? trueE : m_activeLit;
-      if (op) m_side.push_back (boolop::limp (act, mk<EQ> (lhs, op)));
+      if (op)
+      {
+        m_side.push_back (boolop::limp (act, mk<EQ> (lhs, op)));
+        if (!gep.isInBounds () || gep.getPointerAddressSpace () != 0)
+          return;
+        if (Expr base = lookup (*gep.getPointerOperand ()))
+          // -- base > 0 -> lhs > 0
+          m_side.push_back (mk<IMPL> (act,
+                                     mk<OR> (mk<LEQ> (base, zeroE),
+                                             mk<GT> (lhs, zeroE))));
+      }
+      
     }
     
     void doExtCast (CastInst &I, bool is_signed = false)
@@ -508,14 +518,13 @@ namespace
       
       // sext maps (i1 1) to -1
       Expr one = mkTerm<mpz_class> (is_signed ? -1 : 1, m_efac);
-      Expr zero = mkTerm<mpz_class> (0, m_efac);
       
       if (v0.getType ()->isIntegerTy (1))
       {
         if (const ConstantInt *ci = dyn_cast<ConstantInt> (&v0))
-          op0 = ci->isOne () ? one : zero;
+          op0 = ci->isOne () ? one : zeroE;
         else
-          op0 = mk<ITE> (op0, one, zero);
+          op0 = mk<ITE> (op0, one, zeroE);
       }
       
       Expr act = GlobalConstraints ? trueE : m_activeLit;
@@ -679,11 +688,10 @@ namespace
       if (!m_sem.isTracked (I)) return;
       
       Expr lhs = havoc(I);
-      Expr zero = mkTerm<mpz_class> (0, m_efac);
       Expr act = GlobalConstraints ? trueE : m_activeLit;
 
       // -- alloca always returns a non-zero address
-      m_side.push_back (boolop::limp (act, mk<GT> (lhs, zero)));
+      m_side.push_back (boolop::limp (act, mk<GT> (lhs, zeroE)));
     }
     
     void visitLoadInst (LoadInst &I)

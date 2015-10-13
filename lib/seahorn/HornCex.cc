@@ -20,6 +20,7 @@
 #include "llvm/Support/ToolOutputFile.h"
 #include "llvm/Support/FileSystem.h"
 
+#include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/DebugLoc.h"
 #include "llvm/IR/DebugInfo.h"
 
@@ -572,6 +573,21 @@ namespace seahorn
         
              for (auto &I : BB)
              {
+               if (const DbgValueInst *dvi = dyn_cast<DbgValueInst> (&I))
+               {
+                 if (dvi->getValue () && dvi->getVariable ())
+                 {
+                   DIVariable var (dvi->getVariable ());
+                   
+                   errs () << "  " << var.getName () << " = ";
+                   if (dvi->getValue ()->hasName ())
+                     errs () << dvi->getValue ()->getName ();
+                   else
+                     errs () << *dvi->getValue ();
+                   errs () << "\n";
+                 }
+               }
+               
                if (!sem.isTracked (I)) continue;
                
                // -- skip void functions
@@ -599,6 +615,14 @@ namespace seahorn
                Expr symb = store->eval (sem.symb (I));
                errs () << "  %" << I.getName () << " " 
                        << *mdl.eval (symb);
+               
+               const DebugLoc dloc = I.getDebugLoc ();
+               if (!dloc.isUnknown ())
+               {
+                 DIScope scope (dloc.getScope ());
+                 errs () << "\t[" << scope.getFilename () << ":"
+                         << dloc.getLine () << "]";
+               }
                errs () << "\n";
              });
         cex.push_back (&BB);

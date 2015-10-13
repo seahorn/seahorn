@@ -269,7 +269,6 @@ namespace seahorn
           DSGraph::NodeMapTy nodeMap;
           dsg->computeCalleeCallerMapping (CS, CF, *cdsg, nodeMap);
           
-
           /// generate mod, ref, new function, based on whether the
           /// remote node reads, writes, or creates the corresponding node.
           
@@ -294,8 +293,22 @@ namespace seahorn
             
             // skip nodes that are not read/written by the callee
             if (!n->isReadNode () && !n->isModifiedNode ()) continue;
-            AllocaInst *v = allocaForNode (nodeMap [n].getNode ());
-            unsigned id = getId (nodeMap [n].getNode ());
+
+            /// XXX: it seems that for some nodes in the caller graph
+            /// we may be unable to find its corresponding node in the
+            /// callee graph.
+            ///
+            /// Since the current DSA implementation enforces that the
+            /// caller and callee graphs are actually the same we can
+            /// return n. Note that this is a hook and needs to be
+            /// properly fixed.
+            const DSNode* m = n;
+            auto nodeMapIt = nodeMap.find (n);
+            if (nodeMapIt != nodeMap.end ())
+              m = nodeMapIt->second.getNode ();
+             
+            AllocaInst *v = allocaForNode (m);
+            unsigned id = getId (m);
             
             // -- read only node ignore nodes that are only reachable
             // -- from the return of the function

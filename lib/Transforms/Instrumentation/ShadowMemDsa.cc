@@ -5,6 +5,7 @@
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/Transforms/Utils/UnifyFunctionExitNodes.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
+#include "llvm/Transforms/Utils/Local.h"
 
 #include "avy/AvyDebug.h"
 #include "boost/range.hpp"
@@ -413,6 +414,62 @@ namespace seahorn
     AU.addRequired<llvm::UnifyFunctionExitNodes> ();
   } 
     
+
+  class StripShadowMem : public ModulePass 
+  {
+  public:
+    static char ID;
+    StripShadowMem () : ModulePass (ID) {} 
+
+    void getAnalysisUsage (AnalysisUsage &AU) const override
+    {AU.setPreservesAll ();}
+    
+    bool runOnModule (Module &M) override
+    {
+      std::vector<std::string> voidFnNames = 
+        {"shadow.mem.load", "shadow.mem.arg.ref",
+         "shadow.mem.in", "shadow.mem.out" };
+      
+      for (auto &name : voidFnNames)
+      {
+        Function *fn = M.getFunction (name);
+        if (!fn) continue;
+        
+        while (!fn->use_empty ())
+        {
+          CallInst *ci = cast<CallInst> (fn->user_back ());
+          Value *last = ci->getArgOperand (ci->getNumArgOperands () - 1);
+          ci->eraseFromParent ();
+          RecursivelyDeleteTriviallyDeadInstructions (last);
+        }
+      }
+
+      std::vector<std::string> intFnNames =
+        { "shadow.mem.store", "shadow.mem.init",
+          "shadow.mem.arg.init", "shadow.mem.arg.mod"};
+      Value *zero = ConstantInt::get (Type::getInt32Ty(M.getContext ()), 0);
+      
+      for (auto &name : intFnNames)
+      {
+        Function *fn = M.getFunction (name);
+        if (!fn) continue;
+        
+        while (!fn->use_empty ())
+        {
+          CallInst *ci = cast<CallInst> (fn->user_back ());
+          Value *last = ci->getArgOperand (ci->getNumArgOperands () - 1);
+          ci->replaceAllUsesWith (zero);
+          ci->eraseFromParent ();
+          RecursivelyDeleteTriviallyDeadInstructions (last);
+        }
+      }
+      
+      return true;
+    }
+    
+  };
+  char StripShadowMem::ID = 0;
+    
 }
 
 #endif
@@ -421,7 +478,12 @@ namespace seahorn
 {
   char ShadowMemDsa::ID = 0;
   Pass * createShadowMemDsaPass () {return new ShadowMemDsa ();}
+  Pass * createStripShadowMemPass () {return new StripShadowMem ();}
+  
 }
 
 static llvm::RegisterPass<seahorn::ShadowMemDsa> X ("shadow-dsa", "Shadow DSA nodes");
+static llvm::RegisterPass<seahorn::StripShadowMem> Y ("strip-shadow-dsa",
+                                                      "Remove shadow.mem instrinsics");
+
 

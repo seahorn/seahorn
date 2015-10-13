@@ -40,12 +40,26 @@ STATISTIC(NumKilled, "Number of nondet calls killed");
 
 namespace seahorn
 {
+  Function& createNewNondetFn (Module &m, Type &type, unsigned num, std::string prefix)
+  {
+    std::string name;
+    unsigned c = num;
+    
+    do
+      name = boost::str (boost::format (prefix + "%d") % (c++));
+    while (m.getNamedValue (name));
+    Function *res = dyn_cast<Function>(m.getOrInsertFunction (name, &type, NULL));
+    assert (res);
+    return *res;
+  }
+  
   class NondetInit : public ModulePass 
   {
 
   private:
     /** map for nondet functions */
     DenseMap<const Type*, Constant*> m_ndfn;
+    unsigned last;
     Module* m;
     
     Constant* getNondetFn (Type *type)
@@ -53,10 +67,7 @@ namespace seahorn
       Constant* res = m_ndfn [type];
       if (res == NULL)
 	{
-	  res = m->getOrInsertFunction 
-	    (boost::str 
-	     (boost::format ("verifier.nondet.%d") % m_ndfn.size ()), 
-             type, NULL);
+          res = &createNewNondetFn (*m, *type, m_ndfn.size (), "verifier.nondet.");
 	  
 	  // -- say that f does not access memory will make llvm
 	  // -- assume that all calls to it return the same value
@@ -72,7 +83,7 @@ namespace seahorn
 
   public:
     static char ID;
-    NondetInit() : ModulePass(ID), m(NULL) {}    
+    NondetInit() : ModulePass(ID), last(0), m(NULL) {}    
 
     
     virtual bool runOnModule(Module &M) 

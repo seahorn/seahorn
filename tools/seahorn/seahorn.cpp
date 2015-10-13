@@ -114,6 +114,10 @@ static llvm::cl::opt<bool>
 Cex ("horn-cex", llvm::cl::desc ("Produce detailed counterexample"),
      llvm::cl::init (false));
 
+static llvm::cl::opt<bool>
+KeepShadows ("keep-shadows", llvm::cl::desc ("Do not strip shadow.mem functions"),
+             llvm::cl::init (false), llvm::cl::Hidden);
+             
 // removes extension from filename if there is one
 std::string getFileName(const std::string &str) {
   std::string filename = str;
@@ -229,6 +233,8 @@ int main(int argc, char **argv) {
   pass_manager.add (llvm::createGlobalDCEPass ()); // kill unused internal global
 
   pass_manager.add (new seahorn::RemoveUnreachableBlocksPass ());
+  pass_manager.add (seahorn::createStripLifetimePass ());
+  pass_manager.add (seahorn::createDeadNondetElimPass ());
 
   if (Crab)
   {
@@ -241,7 +247,17 @@ int main(int argc, char **argv) {
 
   pass_manager.add (new seahorn::HornifyModule ());
   if (!AsmOutputFilename.empty ()) 
+  {
+    if (!KeepShadows)
+    {
+      pass_manager.add (new ufo::NameValues ());
+      // -- XXX might destroy names using by HornSolver later on.
+      // -- XXX it is probably dangerous to strip shadows and solve at the same time
+      pass_manager.add (seahorn::createStripShadowMemPass ());
+    }
     pass_manager.add (createPrintModulePass (asmOutput->os ()));
+  }
+  
   if (!OutputFilename.empty ()) pass_manager.add (new seahorn::HornWrite (output->os ()));
   if (Crab) pass_manager.add (seahorn::createLoadCrabPass ()); 
   if (Solve) pass_manager.add (new seahorn::HornSolver ());

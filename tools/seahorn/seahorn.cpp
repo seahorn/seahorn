@@ -236,7 +236,7 @@ int main(int argc, char **argv) {
     /// -- insert invariants in the bitecode
     pass_manager.add (new crab_llvm::InsertInvariants ());
     /// -- simplify invariants added in the bitecode
-    pass_manager.add (seahorn::createInstCombine ());
+    // pass_manager.add (seahorn::createInstCombine ());
   }
 
   pass_manager.add (new seahorn::HornifyModule ());

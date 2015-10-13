@@ -674,6 +674,18 @@ namespace
           
     }
     
+    void visitAllocaInst (AllocaInst &I)
+    {
+      if (!m_sem.isTracked (I)) return;
+      
+      Expr lhs = havoc(I);
+      Expr zero = mkTerm<mpz_class> (0, m_efac);
+      Expr act = GlobalConstraints ? trueE : m_activeLit;
+
+      // -- alloca always returns a non-zero address
+      m_side.push_back (boolop::limp (act, mk<GT> (lhs, zero)));
+    }
+    
     void visitLoadInst (LoadInst &I)
     {
       if (!m_sem.isTracked (I)) return;
@@ -711,6 +723,7 @@ namespace
       
       m_inMem.reset ();
     }
+    
     
     void visitStoreInst (StoreInst &I)
     {

@@ -40,6 +40,13 @@ EnableUniqueScalars ("horn-singleton-aliases",
                      llvm::cl::desc ("Treat singleton alias sets as scalar values"),
                      cl::init (false));
 
+static llvm::cl::opt<bool>
+InferMemSafety ("horn-use-mem-safety",
+                llvm::cl::desc ("Rely on memory safety assumptions such as "
+                                "successful load/store imply validity of their arguments"),
+                cl::init(true),
+                cl::Hidden);
+
 /// extracts unique scalar from a call to shadow.mem functions
 static const Value *extractUniqueScalar (CallSite &cs)
 {
@@ -696,12 +703,26 @@ namespace
     
     void visitLoadInst (LoadInst &I)
     {
+      if (InferMemSafety)
+      {
+        Value *pop = I.getPointerOperand ()->stripPointerCasts ();
+        // -- successful load through a gep implies that the base
+        // -- address of the gep is not null
+        if (GetElementPtrInst *gep = dyn_cast<GetElementPtrInst> (pop))
+        {
+          Expr base = lookup (*gep->getPointerOperand ());
+          if (base)
+            m_side.push_back (boolop::limp (m_activeLit, mk<GT> (base, zeroE)));
+        }
+      }
+      
       if (!m_sem.isTracked (I)) return;
+      
+      Expr act = GlobalConstraints ? trueE : m_activeLit;
       // -- define (i.e., use) the value of the instruction
       Expr lhs = havoc (I);
       if (!m_inMem) return;
       
-      Expr act = GlobalConstraints ? trueE : m_activeLit;
       if (m_uniq)
       {
         Expr rhs = m_inMem;
@@ -712,21 +733,16 @@ namespace
         m_side.push_back (boolop::limp (act,
                                         mk<EQ> (lhs, rhs)));
       }
-      else
+      else if (Expr op0 = lookup (*I.getPointerOperand ()))
       {
-        Expr op0 = lookup (*I.getPointerOperand ());
-      
-        if (op0)
-        {
-          Expr rhs = op::array::select (m_inMem, op0);
-          if (I.getType ()->isIntegerTy (1))
-            // -- convert to Boolean
-            rhs = mk<NEQ> (rhs, mkTerm (mpz_class(0), m_efac));
+        Expr rhs = op::array::select (m_inMem, op0);
+        if (I.getType ()->isIntegerTy (1))
+          // -- convert to Boolean
+          rhs = mk<NEQ> (rhs, mkTerm (mpz_class(0), m_efac));
 
-          if (!ArrayGlobalConstraints) act = m_activeLit;
-          m_side.push_back (boolop::limp (act,
-                                          mk<EQ> (lhs, rhs)));
-        }
+        if (!ArrayGlobalConstraints) act = m_activeLit;
+        m_side.push_back (boolop::limp (act,
+                                        mk<EQ> (lhs, rhs)));
       }
       
       m_inMem.reset ();
@@ -735,6 +751,19 @@ namespace
     
     void visitStoreInst (StoreInst &I)
     {
+      if (InferMemSafety)
+      {
+        Value *pop = I.getPointerOperand ()->stripPointerCasts ();
+        // -- successful load through a gep implies that the base
+        // -- address of the gep is not null
+        if (GetElementPtrInst *gep = dyn_cast<GetElementPtrInst> (pop))
+        {
+          Expr base = lookup (*gep->getPointerOperand ());
+          if (base)
+            m_side.push_back (boolop::limp (m_activeLit, mk<GT> (base, zeroE)));
+        }
+      }
+
       if (!m_inMem || !m_outMem || !m_sem.isTracked (*I.getOperand (0))) return;
       
       Expr act = GlobalConstraints ? trueE : m_activeLit;

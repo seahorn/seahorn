@@ -501,9 +501,9 @@ namespace
           return;
         if (Expr base = lookup (*gep.getPointerOperand ()))
           // -- base > 0 -> lhs > 0
-          m_side.push_back (mk<IMPL> (act,
-                                     mk<OR> (mk<LEQ> (base, zeroE),
-                                             mk<GT> (lhs, zeroE))));
+          m_side.push_back (boolop::limp (m_activeLit,
+                                          mk<OR> (mk<LEQ> (base, zeroE),
+                                                  mk<GT> (lhs, zeroE))));
       }
       
     }

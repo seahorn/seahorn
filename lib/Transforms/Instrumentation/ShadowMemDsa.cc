@@ -183,10 +183,16 @@ namespace seahorn
   static Value *getUniqueScalar (LLVMContext &ctx, IRBuilder<> &B, const DSNode *n)
   {
     Value *v = const_cast<Value*>(n->getUniqueScalar ());
+    
+    // -- a unique scalar is a single-cell global variable. We might be
+    // -- able to extend this to single-cell local pointers, but these
+    // -- are probably not very common.
     if (v)
-      return B.CreateBitCast (v, Type::getInt8PtrTy (ctx));
-    else
-      return ConstantPointerNull::get (Type::getInt8PtrTy (ctx));
+      if (GlobalVariable *gv = dyn_cast<GlobalVariable> (v))
+        if (gv->getType ()->getElementType ()->isSingleValueType ())
+          return B.CreateBitCast (v, Type::getInt8PtrTy (ctx));
+    
+    return ConstantPointerNull::get (Type::getInt8PtrTy (ctx));
   }
   
   bool ShadowMemDsa::runOnFunction (Function &F)

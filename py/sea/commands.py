@@ -351,6 +351,9 @@ class Unroll(sea.LimitedCmd):
         if args.out_file is not None:
             argv.extend (['-o', args.out_file])
 
+        # fake loops to be in the form suitable for loop-unroll
+        argv.append ('-fake-latch-exit')
+        
         argv.append ('-loop-unroll')
         if args.enable_runtime:
             argv.append ('-unroll-runtime')
@@ -647,8 +650,9 @@ Pf = sea.SeqCmd ('pf', 'alias for fe|horn --solve',
                  FrontEnd.cmds + [Seahorn(solve=True)])
 LfeSmt = sea.SeqCmd ('lfe-smt', 'alias for lfe|horn', [LegacyFrontEnd(), Seahorn()])
 LfeClp= sea.SeqCmd ('lfe-clp', 'alias for lfe|horn-clp', [LegacyFrontEnd(), SeahornClp()])
-BndSmt = sea.SeqCmd ('bnd-smt', 'alias for fe|unroll|cut-loops|opt|horn',
-                     FrontEnd.cmds + [Unroll(), CutLoops(), Seaopt(), Seahorn()])
+BndSmt = sea.SeqCmd ('bnd-smt', 'alias for fe|unroll|cut-loops|ms|opt|horn',
+                     FrontEnd.cmds + [Unroll(), CutLoops(), MixedSem (),
+                                      Seaopt(), Seahorn()])
 Bpf = sea.SeqCmd ('bpf', 'alias for fe|unroll|cut-loops|opt|horn --solve',
                   FrontEnd.cmds + [Unroll(), CutLoops(), Seaopt(), Seahorn(solve=True)])
 feCrab = sea.SeqCmd ('fe-crab', 'alias for fe|crab', FrontEnd.cmds + [Crab()])

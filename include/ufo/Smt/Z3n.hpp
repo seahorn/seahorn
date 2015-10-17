@@ -447,6 +447,8 @@ namespace ufo
     ZSolver (Z &z) :
       z3(z), ctx (z.get_ctx ()), solver (z.get_ctx ()), efac (z.get_efac ()) {}
 
+    ZSolver (Z &z, const char *logic) :
+      z3(z), ctx (z.get_ctx ()), solver (z.get_ctx (), logic), efac (z.get_efac ()) {}
 
     void set (const ZParams<Z> &p) { solver.set (p); }
 

@@ -28,6 +28,10 @@ static llvm::cl::opt<std::string>
 SvCompCexFile("horn-svcomp-cex", llvm::cl::desc("Counterexample in SV-COMP XML format"),
               llvm::cl::init(""), llvm::cl::value_desc("filename"));
 
+static llvm::cl::opt<std::string>
+HornCexSmtFilename("horn-cex-smt", llvm::cl::desc("Counterexample validate SMT problem"),
+               llvm::cl::init(""), llvm::cl::value_desc("filename"), llvm::cl::Hidden);
+
 using namespace llvm;
 namespace seahorn
 {
@@ -429,21 +433,19 @@ namespace seahorn
     }
     
     
-    ZSolver<EZ3> solver (hm.getZContext ());
-    ExprVector assumptions;
-    assumptions.reserve (side.size ());
-    for (Expr v : side) 
+    ZSolver<EZ3> solver (hm.getZContext (), "QF_AUFLIA");
+    for (Expr v : side) solver.assertExpr (v);
+    
+    if (!HornCexSmtFilename.empty ())
     {
-      Expr a = bind::boolConst (mk<ASM> (v));
-      assumptions.push_back (a);
-      solver.assertExpr (mk<IMPL> (a, v));
+      std::error_code EC;
+      raw_fd_ostream file (HornCexSmtFilename, EC, sys::fs::F_Text);
+      if (!EC) solver.toSmtLib (file);
+      else errs () << "Could not open: " << HornCexSmtFilename << "\n";
     }
     
-    ExprVector core;
-    solver.push ();
-    auto res = solver.solveAssuming (assumptions);
-    if (!res) solver.unsatCore (std::back_inserter (core));
-    solver.pop ();
+    auto res = solver.solve ();
+    
     
     LOG ("cex",
          errs () << "Solver: " 
@@ -456,6 +458,27 @@ namespace seahorn
     
     if (res) ; else
     {
+      errs () << "Warning: failed to validate cex\n";
+      errs () << "Computing unsat core\n";
+      // -- solve again, now with assumptions and extract core
+      solver.reset ();
+      
+      ExprVector assumptions;
+      assumptions.reserve (side.size ());
+      for (Expr v : side) 
+      {
+        Expr a = bind::boolConst (mk<ASM> (v));
+        assumptions.push_back (a);
+        solver.assertExpr (mk<IMPL> (a, v));
+      }
+
+      ExprVector core;
+      solver.push ();
+      auto res = solver.solveAssuming (assumptions);
+      if (!res) solver.unsatCore (std::back_inserter (core));
+      solver.pop ();
+
+    
       // -- failed to validate the result
       errs () << "Initial core: " << core.size () << "\n";
       // poor-man's unsat core simplification

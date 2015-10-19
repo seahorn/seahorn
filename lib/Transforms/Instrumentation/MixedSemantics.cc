@@ -191,16 +191,18 @@ namespace seahorn
       bb->getTerminator ()->eraseFromParent ();
       Builder.SetInsertPoint (bb);
       
+      BranchInst *br;
       if (CF.mustFail (ci->getCalledFunction ())) 
       {
-        Builder.CreateBr (entryBlocks [ci->getCalledFunction ()]);
+        br = Builder.CreateBr (entryBlocks [ci->getCalledFunction ()]);
+        br->setDebugLoc (ci->getDebugLoc ());
         continue;
       }
       
       BasicBlock *argBb = 
         BasicBlock::Create (M.getContext (), "precall", newM, post);
-      Builder.CreateCondBr (Builder.CreateCall (ndFn),
-                            post, argBb);
+      br = Builder.CreateCondBr (Builder.CreateCall (ndFn), post, argBb);
+      br->setDebugLoc (ci->getDebugLoc ());
       
       Builder.SetInsertPoint (argBb);
       
@@ -208,9 +210,13 @@ namespace seahorn
       auto &params = entryPrms[ci->getCalledFunction ()];
       
       for (unsigned i = 0; i < params.size (); ++i)
-        Builder.CreateStore (CS.getArgument (i), params[i]);
+      {
+        StoreInst *si = Builder.CreateStore (CS.getArgument (i), params[i]);
+        si->setDebugLoc (ci->getDebugLoc ());
+      }
       
-      Builder.CreateBr (entryBlocks [ci->getCalledFunction ()]);
+      br = Builder.CreateBr (entryBlocks [ci->getCalledFunction ()]);
+      br->setDebugLoc (ci->getDebugLoc ());
     }
 
     AttrBuilder B;

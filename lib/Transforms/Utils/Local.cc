@@ -63,7 +63,9 @@ namespace seahorn
         else continue;
         
         Builder.SetInsertPoint (&BB, br);
-        Builder.CreateCall (kill == s1 ? assumeFn : assumeNotFn, br->getCondition ());
+        CallInst *ci = Builder.CreateCall
+          (kill == s1 ? assumeFn : assumeNotFn, br->getCondition ());
+        ci->setDebugLoc (br->getDebugLoc ());
         br->eraseFromParent ();
         Builder.SetInsertPoint (&BB);
         Builder.CreateBr (kill == s1 ? s0 : s1);

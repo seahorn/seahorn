@@ -210,7 +210,14 @@ namespace
         res = mk<IFF> (lhs, mkUnsignedLT (op1, op0));
         break;
       case CmpInst::ICMP_SGT:
-        res = mk<IFF>(lhs,mk<GT>(op0,op1));
+        if (v0.getType ()->isIntegerTy (1))
+        {
+          if (isOpX<TRUE> (op1))
+            // icmp sgt op0, i1 true  == !op0
+            res = mk<IFF> (lhs, boolop::lneg (op0));
+        }
+        else
+          res = mk<IFF>(lhs,mk<GT>(op0,op1));
         break;
       case CmpInst::ICMP_UGE:
         res = mk<OR> (mk<IFF> (lhs, mk<EQ> (op0, op1)),

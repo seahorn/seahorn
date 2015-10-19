@@ -299,12 +299,28 @@ namespace
       if (!(op0 && op1)) return;
       Expr res;
       
+      Expr sixteen = mkTerm<mpz_class> (16, m_efac);
+      Expr thirtytwo = mkTerm<mpz_class> (32, m_efac);
       switch(i.getOpcode())
       {
       case BinaryOperator::And:
-        // 0 & x = 0
-        res = mk<AND> (mk<IMPL> (mk<EQ> (op0, zeroE), mk<EQ> (lhs, zeroE)),
-                       mk<IMPL> (mk<EQ> (op1, zeroE), mk<EQ> (lhs, zeroE)));
+        {
+          ExprVector val;
+          // 0 & x = 0
+          val.push_back (mk<IMPL> (mk<EQ> (op0, zeroE), mk<EQ> (lhs, zeroE)));
+          // x & 0 = 0
+          val.push_back (mk<IMPL> (mk<EQ> (op1, zeroE), mk<EQ> (lhs, zeroE)));
+          // 32 & 16 == 0
+          if (op1 == sixteen)
+            val.push_back (mk<IMPL> (mk<EQ> (op0, thirtytwo),
+                                     mk<EQ> (lhs, zeroE)));
+          
+          // val.push_back (mk<IMPL> (mk<AND> (mk<EQ> (op0, thirtytwo),
+          //                                   mk<EQ> (op1, sixteen)),
+          //                          mk<EQ> (lhs, zeroE)));
+
+          res = mknary<AND> (val);
+        }
         break;
       case BinaryOperator::Or:
         // 0 | x = x
@@ -315,8 +331,7 @@ namespace
         break;
       }
       
-      Expr act = GlobalConstraints ? trueE : m_activeLit;
-      if (res) m_side.push_back (boolop::limp (act, res));
+      if (res) m_side.push_back (boolop::limp (m_activeLit, res));
     }
     
     void doLogic (Expr lhs, BinaryOperator &i)

@@ -63,10 +63,14 @@ def parseOpt (argv):
     parser.add_option ('--cex', dest='cex', default=None,
                        help='Destination for a counterexample file')
     parser.add_option ('--spec', default=None, help='Property file')
-
+    parser.add_option ('--version', default=None, action='store_true')
+    
     (options, args) = parser.parse_args (argv)
 
-
+    if options.version:
+        print _getVersion ()
+        sys.exit (0)
+        
     ## workarround the property file requirement
     if options.spec is not None:
         f = open (options.spec, 'r')
@@ -221,9 +225,9 @@ def seahorn_opt (x):
 def non_seahorn_opt (x): return not seahorn_opt (x)
 
 
-def getVersion ():
+def _getVersion ():
     seahorn = os.path.join (root, "bin/seahorn")
-    default = "SeaHorn v. unknown version"
+    default = "unknown"
     if not isexec (seahorn):
         return default
     else:
@@ -233,13 +237,9 @@ def getVersion ():
         for line in result.splitlines():
             if "SeaHorn version" in line:
                 v = line.split()[2]
-                print v
+                return v
 
 def main (argv):
-    if "--version" in argv:
-        getVersion()
-        sys.exit(0)
-
     seahorn_args = filter (seahorn_opt, argv [1:])
     argv = filter (non_seahorn_opt, argv [1:])
 

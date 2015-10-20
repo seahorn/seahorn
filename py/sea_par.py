@@ -64,13 +64,13 @@ def parseOpt (argv):
                        help='Destination for a counterexample file')
     parser.add_option ('--spec', default=None, help='Property file')
     parser.add_option ('--version', default=None, action='store_true')
-    
+
     (options, args) = parser.parse_args (argv)
 
     if options.version:
         print _getVersion ()
         sys.exit (0)
-        
+
     ## workarround the property file requirement
     if options.spec is not None:
         f = open (options.spec, 'r')
@@ -192,17 +192,20 @@ def run (workdir, fname, sea_args = [], profs = [],
                     except OSError: pass
             break
 
-    if returnvalue == 0:
-        idx = orig_pids.index (pid)
-        cat (open (stdout [idx]), sys.stdout)
-        cat (open (stderr [idx]), sys.stderr)
+    idx = orig_pids.index (pid)
+    f_out =  open(stdout[idx])
+    f_err =  open(stderr[idx])
+    out = f_out.read()
+    err = f_err.read()
+    if "BRUNCH_STAT Result" in out:
+        sys.stdout.write(out)
+        sys.stderr.write(err)
         if cex != None:
             cex_name = '{0}.{1}.trace'.format (cex_base, conf_name [idx])
             print 'Copying {0} to {1}'.format (cex_name, cex)
 	    if os.path.isfile (cex_name):
                 shutil.copy2 (cex_name, cex)
                 print 'Counterexample trace is in {0}'.format (cex)
-
 
         print 'WINNER: ', ' '.join (sea [idx])
         print 'BRUNCH_STAT config {0}'.format (idx)
@@ -212,6 +215,29 @@ def run (workdir, fname, sea_args = [], profs = [],
         print "ALL INSTANCES FAILED"
         print 'Calling sys.exit with {0}'.format (returnvalue // 256)
         sys.exit (returnvalue // 256)
+
+    # if returnvalue == 0:
+    #     idx = orig_pids.index (pid)
+    #     f =  open(stdout[idx])
+    #     print f.read()
+    #     cat (open (stdout [idx]), sys.stdout)
+    #     cat (open (stderr [idx]), sys.stderr)
+    #     if cex != None:
+    #         cex_name = '{0}.{1}.trace'.format (cex_base, conf_name [idx])
+    #         print 'Copying {0} to {1}'.format (cex_name, cex)
+    #         if os.path.isfile (cex_name):
+    #             shutil.copy2 (cex_name, cex)
+    #             print 'Counterexample trace is in {0}'.format (cex)
+
+
+    #     print 'WINNER: ', ' '.join (sea [idx])
+    #     print 'BRUNCH_STAT config {0}'.format (idx)
+    #     print 'BRUNCH_STAT config_name {0}'.format (conf_name [idx])
+
+    # else:
+    #     print "ALL INSTANCES FAILED"
+    #     print 'Calling sys.exit with {0}'.format (returnvalue // 256)
+    #     sys.exit (returnvalue // 256)
 
     running[:] = []
     return returnvalue

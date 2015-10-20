@@ -126,6 +126,17 @@ def runSeahorn (args, fname, stdout, stderr):
 
 
 
+def getAnswer(out_file):
+    output = open(out_file).read()
+    if "BRUNCH_STAT Result TRUE" in output:
+        return True
+
+    elif "BRUNCH_STAT Result FALSE" in output:
+        return False
+    else:
+        return None
+
+
 def run (workdir, fname, sea_args = [], profs = [],
          cex = None, arch=32, cpu=-1, mem=-1):
 
@@ -193,19 +204,17 @@ def run (workdir, fname, sea_args = [], profs = [],
             break
 
     idx = orig_pids.index (pid)
-    f_out =  open(stdout[idx])
-    f_err =  open(stderr[idx])
-    out = f_out.read()
-    err = f_err.read()
-    if "BRUNCH_STAT Result" in out:
-        sys.stdout.write(out)
-        sys.stderr.write(err)
+    out_f = stdout[idx]
+    if returnvalue == 0 and getAnswer(out_f) is not None:
+        cat (open (out_f), sys.stdout)
+        cat (open (stderr [idx]), sys.stderr)
         if cex != None:
             cex_name = '{0}.{1}.trace'.format (cex_base, conf_name [idx])
             print 'Copying {0} to {1}'.format (cex_name, cex)
-	    if os.path.isfile (cex_name):
+            if os.path.isfile (cex_name):
                 shutil.copy2 (cex_name, cex)
                 print 'Counterexample trace is in {0}'.format (cex)
+
 
         print 'WINNER: ', ' '.join (sea [idx])
         print 'BRUNCH_STAT config {0}'.format (idx)
@@ -215,29 +224,6 @@ def run (workdir, fname, sea_args = [], profs = [],
         print "ALL INSTANCES FAILED"
         print 'Calling sys.exit with {0}'.format (returnvalue // 256)
         sys.exit (returnvalue // 256)
-
-    # if returnvalue == 0:
-    #     idx = orig_pids.index (pid)
-    #     f =  open(stdout[idx])
-    #     print f.read()
-    #     cat (open (stdout [idx]), sys.stdout)
-    #     cat (open (stderr [idx]), sys.stderr)
-    #     if cex != None:
-    #         cex_name = '{0}.{1}.trace'.format (cex_base, conf_name [idx])
-    #         print 'Copying {0} to {1}'.format (cex_name, cex)
-    #         if os.path.isfile (cex_name):
-    #             shutil.copy2 (cex_name, cex)
-    #             print 'Counterexample trace is in {0}'.format (cex)
-
-
-    #     print 'WINNER: ', ' '.join (sea [idx])
-    #     print 'BRUNCH_STAT config {0}'.format (idx)
-    #     print 'BRUNCH_STAT config_name {0}'.format (conf_name [idx])
-
-    # else:
-    #     print "ALL INSTANCES FAILED"
-    #     print 'Calling sys.exit with {0}'.format (returnvalue // 256)
-    #     sys.exit (returnvalue // 256)
 
     running[:] = []
     return returnvalue

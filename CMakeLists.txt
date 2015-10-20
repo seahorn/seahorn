@@ -215,6 +215,13 @@ if (EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/ext/llvm/LICENSE.TXT)
     RENAME llvm_license.txt)
 endif()
 
+if (EXISTS ${CMAKE_CURRENT_BINARY_DIR}/llvm-prefix/src/llvm-build/bin/clang-3.6)
+  install (
+    PROGRAMS 
+    ${CMAKE_CURRENT_BINARY_DIR}/llvm-prefix/src/llvm-build/bin/clang-3.6
+    DESTINATION bin)
+endif()
+
 if (EXISTS ${CMAKE_CURRENT_BINARY_DIR}/crab/src/crab/Ikos_LICENSE.pdf)
   install (
     FILES

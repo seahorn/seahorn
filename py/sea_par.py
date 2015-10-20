@@ -82,7 +82,7 @@ def parseOpt (argv):
         sys.exit (0)
 
     if options.arch != 32 and options.arch != 64:
-        parser.error ('Unknown architecture {}'.format (opt.arch))
+        parser.error ('Unknown architecture {0}'.format (opt.arch))
 
     if options.cex != None and os.path.isfile (options.cex):
         os.remove (options.cex)
@@ -132,8 +132,8 @@ def run (workdir, fname, sea_args = [], profs = [],
 
     if cex is None: cex = fname+".xml" # forcing a cex output
 
-    base_args = [sea_cmd, 'pf', '--mem={}'.format(mem),
-                 '-m{}'.format (arch)]
+    base_args = [sea_cmd, 'pf', '--mem={0}'.format(mem),
+                 '-m{0}'.format (arch)]
     base_args.extend (sea_args)
 
     if cex != None:
@@ -149,14 +149,14 @@ def run (workdir, fname, sea_args = [], profs = [],
         conf_name.append (prof)
         p_args = base_args + profiles [prof]
         if cex != None:
-            cex_name = '{}.{}.trace'.format (cex_base, prof)
-            p_args.append ('--cex={}'.format (cex_name))
+            cex_name = '{0}.{1}.trace'.format (cex_base, prof)
+            p_args.append ('--cex={0}'.format (cex_name))
         sea.append (p_args)
 
     name = os.path.splitext (os.path.basename (fname))[0]
-    stdout = [os.path.join (workdir, name + '_seahorn{}.stdout'.format (i))
+    stdout = [os.path.join (workdir, name + '_seahorn{0}.stdout'.format (i))
               for i in range(len (sea))]
-    stderr = [os.path.join (workdir, name + '_seahorn{}.stderr'.format (i))
+    stderr = [os.path.join (workdir, name + '_seahorn{0}.stderr'.format (i))
               for i in range (len (sea))]
     global running
     running.extend ([runSeahorn (sea [i], fname, stdout[i], stderr [i])
@@ -193,11 +193,11 @@ def run (workdir, fname, sea_args = [], profs = [],
         cat (open (stdout [idx]), sys.stdout)
         cat (open (stderr [idx]), sys.stderr)
         if cex != None:
-            cex_name = '{}.{}.trace'.format (cex_base, conf_name [idx])
-            print 'Copying {} to {}'.format (cex_name, cex)
+            cex_name = '{0}.{1}.trace'.format (cex_base, conf_name [idx])
+            print 'Copying {0} to {1}'.format (cex_name, cex)
 	    if os.path.isfile (cex_name):
                 shutil.copy2 (cex_name, cex)
-                print 'Counterexample trace is in {}'.format (cex)
+                print 'Counterexample trace is in {0}'.format (cex)
 
 
         print 'WINNER: ', ' '.join (sea [idx])
@@ -206,7 +206,7 @@ def run (workdir, fname, sea_args = [], profs = [],
 
     else:
         print "ALL INSTANCES FAILED"
-        print 'Calling sys.exit with {}'.format (returnvalue // 256)
+        print 'Calling sys.exit with {0}'.format (returnvalue // 256)
         sys.exit (returnvalue // 256)
 
     running[:] = []

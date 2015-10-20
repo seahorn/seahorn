@@ -66,6 +66,7 @@ def parseOpt (argv):
 
     (options, args) = parser.parse_args (argv)
 
+
     ## workarround the property file requirement
     if options.spec is not None:
         f = open (options.spec, 'r')
@@ -128,6 +129,8 @@ def run (workdir, fname, sea_args = [], profs = [],
     sys.stdout.flush ()
 
     sea_cmd = getSea()
+
+    if cex is None: cex = fname+".xml" # forcing a cex output
 
     base_args = [sea_cmd, 'pf', '--mem={}'.format(mem),
                  '-m{}'.format (arch)]
@@ -230,7 +233,7 @@ def getVersion ():
         for line in result.splitlines():
             if "SeaHorn version" in line:
                 v = line.split()[2]
-                print "SeaHorn V. " + v
+                print v
 
 def main (argv):
     if "--version" in argv:

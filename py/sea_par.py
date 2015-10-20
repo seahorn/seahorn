@@ -105,6 +105,8 @@ def getSea ():
         raise IOError ("Cannot find sea")
     return seahorn
 
+
+
 def cat (in_file, out_file): out_file.write (in_file.read ())
 
 running = list()
@@ -216,7 +218,24 @@ def seahorn_opt (x):
 def non_seahorn_opt (x): return not seahorn_opt (x)
 
 
+def getVersion ():
+    seahorn = os.path.join (root, "bin/seahorn")
+    default = "SeaHorn v. unknown version"
+    if not isexec (seahorn):
+        return default
+    else:
+        cmd = [seahorn,"--version"]
+        p = sub.Popen(cmd, shell=False, stdout=sub.PIPE, stderr=sub.STDOUT)
+        result, _ = p.communicate()
+        for line in result.splitlines():
+            if "SeaHorn version" in line:
+                v = line.split()[2]
+                print "SeaHorn V. " + v
+
 def main (argv):
+    if len(argv) == 1:
+        getVersion()
+        sys.exit(0)
 
     seahorn_args = filter (seahorn_opt, argv [1:])
     argv = filter (non_seahorn_opt, argv [1:])

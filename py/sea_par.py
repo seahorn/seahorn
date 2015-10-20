@@ -233,7 +233,7 @@ def getVersion ():
                 print "SeaHorn V. " + v
 
 def main (argv):
-    if len(argv) == 1:
+    if "--version" in argv:
         getVersion()
         sys.exit(0)
 

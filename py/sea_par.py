@@ -191,8 +191,12 @@ def run (workdir, fname, sea_args = [], profs = [],
         print ' code {0} and signal {1}'.format((returnvalue // 256),
                                                 (returnvalue % 256))
         pids.remove (pid)
-
-        if returnvalue == 0:
+        idx = orig_pids.index (pid)
+        out_f = stdout[idx]
+        
+        # if a process terminated successfully and produced True/False
+        # answer kill all other processes
+        if returnvalue == 0 and getAnswer (out_f) is not None:
             for p in pids:
                 try:
                     os.kill (p, signal.SIGTERM)
@@ -203,11 +207,9 @@ def run (workdir, fname, sea_args = [], profs = [],
                     except OSError: pass
             break
 
-    idx = orig_pids.index (pid)
-    out_f = stdout[idx]
     if returnvalue == 0 and getAnswer(out_f) is not None:
         cat (open (out_f), sys.stdout)
-        cat (open (stderr [idx]), sys.stderr)
+        cat (open (stderr[idx]), sys.stderr)
         if cex != None:
             cex_name = '{0}.{1}.trace'.format (cex_base, conf_name [idx])
             print 'Copying {0} to {1}'.format (cex_name, cex)

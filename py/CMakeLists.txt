@@ -6,10 +6,6 @@ set (SRC
   sea/__init__.py
   sea/__main__.py
   sea/commands.py
-  sea/termination.py
-  sea/program.py
-  sea/rule.py
-  sea/stats.py
   )
 
 
@@ -18,6 +14,8 @@ option (USE_PY_SETUP "Use python distutils to install python modules" OFF)
 if (PYTHON AND NOT USE_PY_SETUP)
   install (DIRECTORY sea DESTINATION lib/seapy
     FILES_MATCHING PATTERN "*.py")
+  install (DIRECTORY term DESTINATION lib/seapy
+            FILES_MATCHING PATTERN "*.py")
   install (PROGRAMS seapy DESTINATION bin RENAME sea)
   install (PROGRAMS sea_par.py DESTINATION bin RENAME sea_svcomp)
   install (FILES seahorn-benchexec-wrapper.py DESTINATION bin)

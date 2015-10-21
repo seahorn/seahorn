@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-import fractions
+mport fractions
 import sys
 import time
 import z3
@@ -314,6 +314,9 @@ def seaTerm(smt_file, rank_function):
 
 def main(argv):
     stat ('Result','UNKNOWN')
+    print "here"
+    print z3.__file__()
+    print "bla"
     fp = z3.Fixedpoint()
     fp.set(engine='spacer')
     fp.set('xform.inline_eager', False)

@@ -9,14 +9,14 @@ import shutil
 import subprocess as sub
 import threading
 import signal
-
+import itertools
 
 root = os.path.dirname (os.path.dirname (os.path.realpath (__file__)))
 verbose = True
 
 
 def initProfiles():
-    base = ['--step=large', '-g', '--horn-global-constraints=true', '--track=mem',
+    base = ['pf', '--step=large', '-g', '--horn-global-constraints=true', '--track=mem',
             '--horn-stats', '--enable-nondet-init', '--strip-extern',
             '--externalize-addr-taken-functions', '--horn-singleton-aliases=true']
     profiles = dict()
@@ -25,6 +25,7 @@ def initProfiles():
     profiles ['crab_inline'] = base + ['--inline',
                                        '--horn-crab','--crab-live', '--crab-dom=term']
     profiles ['crab_no_inline'] = base + ['--horn-crab','--crab-live', '--crab-dom=term']
+    profiles ['term'] = ['term', '-O0', '--horn-no-verif', '--step=flarge', '--inline']
     return profiles
 
 profiles = initProfiles ()
@@ -56,7 +57,7 @@ def parseOpt (argv):
     parser.add_option ('-m', type=int, dest='arch', default=32,
                        help='Machine architecture 32 or 64')
     parser.add_option ('--profiles', '-p', dest='profiles',
-                       default='inline:no_inline:crab_inline:crab_no_inline',
+                       default='inline:no_inline',
                        help='Colon separated list of profiles')
     parser.add_option ('--list-profiles', dest='list_profiles',
                        action='store_true', default=False)
@@ -77,7 +78,9 @@ def parseOpt (argv):
         l = f.readline ()
         # expect property of the form:
         # CHECK( init(main()), LTL(G ! call(__VERIFIER_error())) )
-        if l.find ('__VERIFIER_error') < 0:
+        if l.find('LTL(F end)')>0:
+            options.profiles = 'term'
+        elif l.find ('__VERIFIER_error') < 0:
             print 'BRUNCH_STAT Result UNKNOWN'
             sys.exit (3)
 
@@ -130,7 +133,6 @@ def getAnswer(out_file):
     output = open(out_file).read()
     if "BRUNCH_STAT Result TRUE" in output:
         return True
-
     elif "BRUNCH_STAT Result FALSE" in output:
         return False
     else:
@@ -147,7 +149,7 @@ def run (workdir, fname, sea_args = [], profs = [],
 
     if cex is None: cex = fname+".xml" # forcing a cex output
 
-    base_args = [sea_cmd, 'pf', '--mem={0}'.format(mem),
+    base_args = [sea_cmd, '--mem={0}'.format(mem),
                  '-m{0}'.format (arch)]
     base_args.extend (sea_args)
 
@@ -191,8 +193,12 @@ def run (workdir, fname, sea_args = [], profs = [],
         print ' code {0} and signal {1}'.format((returnvalue // 256),
                                                 (returnvalue % 256))
         pids.remove (pid)
+        idx = orig_pids.index (pid)
+        out_f = stdout[idx]
 
-        if returnvalue == 0:
+        # if a process terminated successfully and produced True/False
+        # answer kill all other processes
+        if returnvalue == 0 and getAnswer (out_f) is not None:
             for p in pids:
                 try:
                     os.kill (p, signal.SIGTERM)
@@ -203,11 +209,9 @@ def run (workdir, fname, sea_args = [], profs = [],
                     except OSError: pass
             break
 
-    idx = orig_pids.index (pid)
-    out_f = stdout[idx]
     if returnvalue == 0 and getAnswer(out_f) is not None:
         cat (open (out_f), sys.stdout)
-        cat (open (stderr [idx]), sys.stderr)
+        cat (open (stderr[idx]), sys.stderr)
         if cex != None:
             cex_name = '{0}.{1}.trace'.format (cex_base, conf_name [idx])
             print 'Copying {0} to {1}'.format (cex_name, cex)
@@ -221,6 +225,15 @@ def run (workdir, fname, sea_args = [], profs = [],
         print 'BRUNCH_STAT config_name {0}'.format (conf_name [idx])
 
     else:
+        # print failed logs if we do not have a good one
+        # useful for debugging
+        for idx, cname, std, err in zip (itertools.count (), conf_name, stdout, stderr):
+            print >> sys.stdout, 'LOG BEGIN', cname
+            cat (open (std), sys.stdout)
+            print >> sys.stdout, 'LOG END', cname
+            print >> sys.stderr, 'LOG BEGIN', cname
+            cat (open (err), sys.stderr)
+            print >> sys.stderr, 'LOG END', cname
         print "ALL INSTANCES FAILED"
         print 'Calling sys.exit with {0}'.format (returnvalue // 256)
         sys.exit (returnvalue // 256)

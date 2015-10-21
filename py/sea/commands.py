@@ -154,6 +154,7 @@ class Seapp(sea.LimitedCmd):
         if args.out_file is not None: argv.extend (['-o', args.out_file])
         if args.inline: argv.append ('--horn-inline-all')
 
+
         if args.strip_external:
             argv.append ('--strip-extern=true')
         else:
@@ -665,8 +666,8 @@ class SeaTerm(sea.LimitedCmd):
 
     def run(self, args, extra):
         try:
-            import termination
-            termination.seaTerm(extra[len(extra)-1],args.rank)
+            import termination as tt
+            tt.seaTerm(extra[len(extra)-1],args.rank)
         except Exception as e:
             raise IOError(str(e))
 

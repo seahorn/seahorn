@@ -129,8 +129,7 @@ def runSeahorn (args, fname, stdout, stderr):
 def getAnswer(out_file):
     output = open(out_file).read()
     if "BRUNCH_STAT Result TRUE" in output:
-        retun True
-
+        return True
     elif "BRUNCH_STAT Result FALSE" in output:
         return False
     else:

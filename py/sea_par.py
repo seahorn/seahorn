@@ -9,7 +9,7 @@ import shutil
 import subprocess as sub
 import threading
 import signal
-
+import itertools
 
 root = os.path.dirname (os.path.dirname (os.path.realpath (__file__)))
 verbose = True
@@ -223,6 +223,15 @@ def run (workdir, fname, sea_args = [], profs = [],
         print 'BRUNCH_STAT config_name {0}'.format (conf_name [idx])
 
     else:
+        # print failed logs if we do not have a good one
+        # useful for debugging
+        for idx, std, err in zip (itertools.count (), stdout, stderr):
+            print >> sys.stdout, 'LOG BEGIN', sea[idx].name 
+            cat (open (std), sys.stdout)
+            print >> sys.stdout, 'LOG END', sea[idx].name 
+            print >> sys.stderr, 'LOG BEGIN', sea[idx].name 
+            cat (open (err), sys.stderr)
+            print >> sys.stderr, 'LOG END', sea[idx].name
         print "ALL INSTANCES FAILED"
         print 'Calling sys.exit with {0}'.format (returnvalue // 256)
         sys.exit (returnvalue // 256)

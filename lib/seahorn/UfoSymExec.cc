@@ -526,6 +526,9 @@ namespace
       if (op)
       {
         m_side.push_back (boolop::limp (act, mk<EQ> (lhs, op)));
+        if (!InferMemSafety) return;
+        
+        // -- extra constraints that exclude undefined behavior
         if (!gep.isInBounds () || gep.getPointerAddressSpace () != 0)
           return;
         if (Expr base = lookup (*gep.getPointerOperand ()))

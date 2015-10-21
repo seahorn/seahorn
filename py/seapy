@@ -27,7 +27,8 @@ def main (argv):
             sea.commands.LegacyFrontEnd(),
             sea.commands.Crab(),
             sea.commands.feCrab,
-            sea.commands.Unroll()
+            sea.commands.Unroll(),
+            sea.commands.seaTerm
     ]
 
 

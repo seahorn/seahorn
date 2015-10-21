@@ -47,7 +47,7 @@ TL("horn-sem-lvl",
    cl::init (seahorn::REG));
 
 
-namespace hm_detail {enum Step {SMALL_STEP, LARGE_STEP, 
+namespace hm_detail {enum Step {SMALL_STEP, LARGE_STEP,
                                 CLP_SMALL_STEP, CLP_FLAT_SMALL_STEP,
                                 FLAT_SMALL_STEP, FLAT_LARGE_STEP};}
 
@@ -68,6 +68,12 @@ InterProc("horn-inter-proc",
           llvm::cl::desc ("Use inter-procedural encoding"),
           cl::init (false));
 
+static llvm::cl::opt<bool>
+NoVerification("horn-no-verif",
+          llvm::cl::desc ("Generate only SMT2 encoding (i.e. even if there are no assertions)"),
+          cl::init (false));
+
+
 namespace seahorn
 {
   char HornifyModule::ID = 0;
@@ -86,7 +92,7 @@ namespace seahorn
     m_td = &getAnalysis<DataLayoutPass> ().getDataLayout ();
     m_canFail = getAnalysisIfAvailable<CanFail> ();
 
-    if (Step == hm_detail::CLP_SMALL_STEP || 
+    if (Step == hm_detail::CLP_SMALL_STEP ||
         Step == hm_detail::CLP_FLAT_SMALL_STEP)
       m_sem.reset (new ClpSmallSymExec (m_efac, *this, TL));
     else
@@ -100,7 +106,7 @@ namespace seahorn
       return Changed;
     }
 
-    bool canFail = false; 
+    bool canFail = false;
 
     // --- optimizer or ms can detect an error and make main
     //     unreachable. In that case, it will insert a call to
@@ -108,7 +114,7 @@ namespace seahorn
     Function* failureFn = M.getFunction ("seahorn.fail");
     if (!canFail)
     {
-      for (auto &I : boost::make_iterator_range (inst_begin(*main), 
+      for (auto &I : boost::make_iterator_range (inst_begin(*main),
                                                  inst_end (*main)))
       {
         if (!isa<CallInst> (&I)) continue;
@@ -119,22 +125,22 @@ namespace seahorn
         canFail |= (fn == failureFn);
       }
     }
-    
+
     // --- we ask the can-fail analysis if no function can fail.
     if (!canFail)
-    {      
-      Function* errorFn = M.getFunction ("verifier.error");      
+    {
+      Function* errorFn = M.getFunction ("verifier.error");
       for (auto &f : M)
-      { 
-        if ((&f == errorFn) || (&f == failureFn)) 
-          continue; 
-        canFail |= (m_canFail->canFail (&f)); 
+      {
+        if ((&f == errorFn) || (&f == failureFn))
+          continue;
+        canFail |= (m_canFail->canFail (&f));
       }
     }
 
     // --- no function can fail so the program is trivially safe.
-    if (!canFail)
-    { 
+    if (!canFail && !NoVerification)
+    {
       errs () << "WARNING: no assertion was found ";
       errs () << "so either program does not have assertions or frontend discharged them.\n";
       m_db.addQuery (mk<FALSE> (m_efac));
@@ -196,9 +202,9 @@ namespace seahorn
     }
 
     if (!m_db.hasQuery ())
-    { 
+    {
       // --- This may happen if the exit block of main is unreachable
-      //     but still the main function can fail. 
+      //     but still the main function can fail.
       m_db.addQuery (mk<TRUE> (m_efac));
     }
 
@@ -266,7 +272,7 @@ namespace seahorn
                                            (*this, InterProc));
     if (Step == hm_detail::LARGE_STEP)
       hf.reset (new LargeHornifyFunction (*this, InterProc));
-    else if (Step == hm_detail::FLAT_SMALL_STEP || 
+    else if (Step == hm_detail::FLAT_SMALL_STEP ||
              Step == hm_detail::CLP_FLAT_SMALL_STEP)
       hf.reset (new FlatSmallHornifyFunction (*this, InterProc));
     else if (Step == hm_detail::FLAT_LARGE_STEP)
@@ -342,7 +348,7 @@ namespace seahorn
     v = bind::fname (v);
     return isOpX<BB> (v);
   }
-  
+
   const BasicBlock& HornifyModule::predicateBb (Expr pred) const
   {
     Expr v = pred;

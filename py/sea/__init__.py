@@ -170,13 +170,13 @@ class SeqCmd (AgregateCmd):
                          action="store_true", default=False)
         ap.add_argument ('--temp-dir', dest='temp_dir', metavar='DIR',
                          help="Temporary directory", default=None)
-
         return ap
 
     def run (self, args, extra):
         res = 0
         in_files = args.in_files
         out_file = None
+
 
         work_dir = createWorkDir (args.temp_dir, args.save_temps, 'sea-')
 

@@ -53,7 +53,7 @@ class Clang(sea.LimitedCmd):
     def run (self, args, extra):
         # do nothing on .bc and .ll files
         if _bc_or_ll_file (args.in_files[0]): return 0
-        
+
         cmd_name = which (['clang-mp-3.6', 'clang-3.6', 'clang',
                                 'clang-mp-3.5', 'clang-mp-3.4'])
         if cmd_name is None: raise IOError ('clang not found')
@@ -67,8 +67,8 @@ class Clang(sea.LimitedCmd):
         argv.append ('-m{0}'.format (args.machine))
 
         if args.debug_info: argv.append ('-g')
-        
-        
+
+
         if len(args.in_files) == 1:
             out_files = [args.out_file]
         else:
@@ -76,7 +76,7 @@ class Clang(sea.LimitedCmd):
             workdir = createWorkDir ()
             out_files = [_remap_file_name (f, '.bc', workdir)
                          for f in args.in_files]
-        
+
         for in_file, out_file in zip(args.in_files, out_files):
             if out_file is not None:
                 argv.extend (['-o', out_file])
@@ -84,11 +84,11 @@ class Clang(sea.LimitedCmd):
             # clone argv
             argv1 = list ()
             argv1.extend (argv)
-            
+
             argv1.append (in_file)
             ret = self.clangCmd.run (args, argv1)
             if ret <> 0: return ret
-            
+
         if len(out_files) > 1:
             # link
             cmd_name = which (['llvm-link-mp-3.6', 'llvm-link-3.6', 'llvm-link'])
@@ -101,7 +101,7 @@ class Clang(sea.LimitedCmd):
                 argv.extend (['-o', args.out_file])
             argv.extend (out_files)
             return self.linkCmd.run (args, argv)
-        
+
         return 0
 
     @property
@@ -138,7 +138,7 @@ class Seapp(sea.LimitedCmd):
                          action='store_true')
         ap.add_argument ('--no-kill-vaarg', help='Do not delete variadic functions',
                          dest='kill_vaarg', default=True, action='store_false')
-        ap.add_argument ('--strip-extern', help='Replace external function calls ' + 
+        ap.add_argument ('--strip-extern', help='Replace external function calls ' +
                          'by non-determinism', default=False, action='store_true',
                          dest='strip_external')
         add_in_out_args (ap)
@@ -158,7 +158,7 @@ class Seapp(sea.LimitedCmd):
             argv.append ('--strip-extern=true')
         else:
             argv.append ('--strip-extern=false')
-            
+
         if args.enable_ext_funcs:
             argv.append ('--externalize-addr-taken-funcs')
         if args.boc:
@@ -176,7 +176,7 @@ class Seapp(sea.LimitedCmd):
             argv.append('--kill-vaarg=true')
         else:
             argv.append('--kill-vaarg=false')
-            
+
         if args.llvm_asm: argv.append ('-S')
         argv.extend (args.in_files)
         return self.seappCmd.run (args, argv)
@@ -353,7 +353,7 @@ class Unroll(sea.LimitedCmd):
 
         # fake loops to be in the form suitable for loop-unroll
         argv.append ('-fake-latch-exit')
-        
+
         argv.append ('-loop-unroll')
         if args.enable_runtime:
             argv.append ('-unroll-runtime')
@@ -365,8 +365,8 @@ class Unroll(sea.LimitedCmd):
 
         argv.extend (args.in_files)
         if args.llvm_asm: argv.append ('-S')
-        return self.seaoptCmd.run (args, argv)    
-    
+        return self.seaoptCmd.run (args, argv)
+
 def _is_seahorn_opt (x):
     if x.startswith ('-'):
         y = x.strip ('-')
@@ -435,6 +435,7 @@ class Seahorn(sea.LimitedCmd):
         if cmd_name is None: raise IOError ('seahorn not found')
         self.seahornCmd = sea.ExtCmd (cmd_name)
 
+
         argv = list()
 
         if args.crab:
@@ -446,7 +447,7 @@ class Seahorn(sea.LimitedCmd):
 
         if args.solve or args.out_file is not None:
             argv.append ('--keep-shadows=true')
-            
+
         if args.solve:
             argv.append ('--horn-solve')
             # Cannot delete shadows since they are used by the solver
@@ -582,7 +583,7 @@ class LegacyFrontEnd (sea.LimitedCmd):
         argv.append ('-m{0}'.format (args.machine))
         if args.debug_info: argv.append ('--mark-lines')
         argv.extend (args.in_files)
-        
+
         return self.lfeCmd.run (args, argv)
 
 class Crab (sea.LimitedCmd):
@@ -642,6 +643,41 @@ class Crab (sea.LimitedCmd):
         return self.seappCmd.run (args, argv)
 
 
+class SeaTerm(sea.LimitedCmd):
+    def __init__ (self, quiet=False):
+        super (SeaTerm, self).__init__ ('term', 'SeaHorn Termination analysis ',
+                                        allow_extra=True)
+
+
+    @property
+    def stdout (self):
+        return
+
+    def name_out_file (self, in_files, args=None, work_dir=None):
+        return _remap_file_name (in_files[0], '.smt2', work_dir)
+
+    def mk_arg_parser (self, ap):
+        ap = super (SeaTerm, self).mk_arg_parser (ap)
+        ap.add_argument ('--rank_func',
+                         help='Choose Ranking Function Type',
+                         choices=['max','lex','mul'], default='lex', dest='rank')
+        return ap
+
+    def run(self, args, extra):
+        try:
+            import termination
+            termination.seaTerm(extra[len(extra)-1],args.rank)
+        except Exception as e:
+            raise IOError(str(e))
+
+
+
+
+
+
+
+
+
 FrontEnd = sea.SeqCmd ('fe', 'Front end: alias for clang|pp|ms|opt',
                        [Clang(), Seapp(), MixedSem(), Seaopt ()])
 Smt = sea.SeqCmd ('smt', 'alias for fe|horn', FrontEnd.cmds + [Seahorn()])
@@ -656,3 +692,4 @@ BndSmt = sea.SeqCmd ('bnd-smt', 'alias for fe|unroll|cut-loops|ms|opt|horn',
 Bpf = sea.SeqCmd ('bpf', 'alias for fe|unroll|cut-loops|opt|horn --solve',
                   FrontEnd.cmds + [Unroll(), CutLoops(), Seaopt(), Seahorn(solve=True)])
 feCrab = sea.SeqCmd ('fe-crab', 'alias for fe|crab', FrontEnd.cmds + [Crab()])
+seaTerm = sea.SeqCmd ('term', 'SeaHorn Termination analysis', Smt.cmds + [SeaTerm()])

@@ -56,7 +56,7 @@ def parseOpt (argv):
     parser.add_option ('-m', type=int, dest='arch', default=32,
                        help='Machine architecture 32 or 64')
     parser.add_option ('--profiles', '-p', dest='profiles',
-                       default='inline:no_inline:crab_inline:crab_no_inline',
+                       default='inline:no_inline',
                        help='Colon separated list of profiles')
     parser.add_option ('--list-profiles', dest='list_profiles',
                        action='store_true', default=False)
@@ -129,7 +129,7 @@ def runSeahorn (args, fname, stdout, stderr):
 def getAnswer(out_file):
     output = open(out_file).read()
     if "BRUNCH_STAT Result TRUE" in output:
-        return True
+        retun True
 
     elif "BRUNCH_STAT Result FALSE" in output:
         return False

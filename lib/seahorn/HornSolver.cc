@@ -22,7 +22,18 @@ PrintAnswer ("horn-answer",
 
 static llvm::cl::opt<bool>
 SkipConstraints ("horn-skip-constraints",
-                 cl::Hidden, cl::init(false));
+                 cl::Hidden, cl::init(false),
+                 cl::desc ("Enabled when number of predicates exceeds 200"));
+
+static llvm::cl::opt<bool>
+Subsumption ("horn-subsumption", cl::Hidden, cl::init(true),
+             cl::desc ("Setting to false helps with cex"));
+
+static llvm::cl::opt<bool>
+FlexTrace ("horn-flex-trace", cl::Hidden, cl::init (false));
+
+static llvm::cl::opt<bool>
+HornChildren ("horn-child-order", cl::Hidden, cl::init(true));
 
 namespace seahorn
 {
@@ -46,15 +57,15 @@ namespace seahorn
     params.set (":xform.slice", false);
     params.set (":use_heavy_mev", true);
     params.set (":reset_obligation_queue", true);
-    params.set (":pdr.flexible_trace", false);
+    params.set (":pdr.flexible_trace", FlexTrace);
     params.set (":xform.inline-linear", false);
     params.set (":xform.inline-eager", false);
     // -- disable utvpi. It is unstable.
     params.set (":pdr.utvpi", false);
     // -- disable propagate_variable_equivalences in tail_simplifier
     params.set (":xform.tail_simplifier_pve", false);
-    params.set (":xform.subsumption_checker", false);
-    params.set (":order_children", 1U);
+    params.set (":xform.subsumption_checker", Subsumption);
+    params.set (":order_children", HornChildren ? 1U : 0U);
     fp.set (params);
     
     db.loadZFixedPoint (fp, SkipConstraints);

@@ -224,13 +224,13 @@ def run (workdir, fname, sea_args = [], profs = [],
     else:
         # print failed logs if we do not have a good one
         # useful for debugging
-        for idx, std, err in zip (itertools.count (), stdout, stderr):
-            print >> sys.stdout, 'LOG BEGIN', sea[idx].name 
+        for idx, cname, std, err in zip (itertools.count (), conf_name, stdout, stderr):
+            print >> sys.stdout, 'LOG BEGIN', cname
             cat (open (std), sys.stdout)
-            print >> sys.stdout, 'LOG END', sea[idx].name 
-            print >> sys.stderr, 'LOG BEGIN', sea[idx].name 
+            print >> sys.stdout, 'LOG END', cname
+            print >> sys.stderr, 'LOG BEGIN', cname
             cat (open (err), sys.stderr)
-            print >> sys.stderr, 'LOG END', sea[idx].name
+            print >> sys.stderr, 'LOG END', cname
         print "ALL INSTANCES FAILED"
         print 'Calling sys.exit with {0}'.format (returnvalue // 256)
         sys.exit (returnvalue // 256)

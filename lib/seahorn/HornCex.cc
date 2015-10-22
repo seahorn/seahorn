@@ -609,7 +609,22 @@ namespace seahorn
                      errs () << *dvi->getValue ();
                    errs () << "\n";
                  }
+                 continue;
                }
+
+               if (const CallInst *ci = dyn_cast<CallInst> (&I))
+               {
+                 Function *f = ci->getCalledFunction ();
+                 if (f && f->getName ().equals ("seahorn.fn.enter"))
+                 {
+                   DISubprogram fnScope =
+                     getDISubprogram (ci->getDebugLoc ().getScope ());
+                   if (fnScope)
+                     errs () << "enter: " << fnScope.getDisplayName () << "\n";
+                   continue;
+                 }
+               }
+               
                
                if (!sem.isTracked (I)) continue;
                

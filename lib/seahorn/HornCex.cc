@@ -433,7 +433,7 @@ namespace seahorn
     }
     
     
-    ZSolver<EZ3> solver (hm.getZContext (), "QF_AUFLIA");
+    ZSolver<EZ3> solver (hm.getZContext ());
     for (Expr v : side) solver.assertExpr (v);
     
     if (!HornCexSmtFilename.empty ())

@@ -159,6 +159,7 @@ def lexicographic(fp):
                 for n in zip(path[:-1],path[1:])])  # loop edges
             exit = set([(node,n)
                 for n in program.next[node] - loop])  # exit edges
+
             # exit = set([(i,n)
             #     for i in loop for n in program.next[i] - loop])  # exit edges
 

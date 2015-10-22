@@ -14,6 +14,18 @@ import itertools
 root = os.path.dirname (os.path.dirname (os.path.realpath (__file__)))
 verbose = True
 
+def checkFloat(prog):
+    import mmap
+    isFloat = False
+    Key = '__VERIFIER_nondet_float'
+    with open (prog, 'rb', 0) as f:
+        s= mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ)
+        if s.find(b'__VERIFIER_nondet_float') != -1:
+            isFloat = True
+    return isFloat
+
+
+
 
 def initProfiles():
     base = ['pf', '--step=large', '-g', '--horn-global-constraints=true', '--track=mem',
@@ -273,9 +285,13 @@ def main (argv):
     workdir = createWorkDir (opt.temp_dir, opt.save_temps)
     returnvalue = 0
     for fname in args:
-        returnvalue = run (workdir, fname, seahorn_args, opt.profiles.split (':'),
-                           opt.cex, opt.arch, opt.cpu, opt.mem)
+        if not checkFloat(fname):
+            returnvalue = run (workdir, fname, seahorn_args, opt.profiles.split (':'),
+                               opt.cex, opt.arch, opt.cpu, opt.mem)
+        else:
+            print "BRUNCH_STAT Result UNKNOWN"
     return returnvalue
+
 
 def killall ():
     global running

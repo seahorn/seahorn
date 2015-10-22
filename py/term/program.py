@@ -109,13 +109,13 @@ class Program:
                     for x in component] for component in pieces]
                 r.add_rank(R,[mx(component) for component in rank],RR)
                 fp.register_relation(r.predicate)
-                # print 'ENTRY:', r
+                #print 'ENTRY:', r
             elif r.is_loop(loop):
                 # ranking function(s) strict decrease within the loop
                 rank = [[z3.substitute_vars(x,*r.head_args()[1:])
                     for x in component] for component in pieces]
                 r.add_decrease(kind,R,[mx(component) for component in rank],RR)
-                # print 'LOOP:', r
+                #print 'LOOP:', r
             elif r.is_exit(exit):
                 r.add_vars(R)
                 # ranking function(s) boundedness from below after the loop
@@ -125,7 +125,7 @@ class Program:
                 fp.rule(q.head,[q.tail] + q.children)
                 # query
                 query = z3.Exists(q.variables,q.head)
-                # print 'EXIT:', r
+                #print 'EXIT:', r
             else:
                 r.add_vars(R)
                 # print 'NONE:', r

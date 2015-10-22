@@ -666,7 +666,7 @@ class SeaTerm(sea.LimitedCmd):
 
     def run(self, args, extra):
         try:
-            import termination as tt
+            import term.termination as tt
             tt.seaTerm(extra[len(extra)-1],args.rank)
         except Exception as e:
             raise IOError(str(e))

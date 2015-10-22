@@ -23,6 +23,8 @@ namespace seahorn
   
   llvm::Pass* createStripLifetimePass ();
   llvm::Pass* createStripUselessDeclarationsPass ();
+
+  llvm::Pass* createPromoteBoolLoadsPass ();
 }
 
 #ifdef HAVE_LLVM_SEAHORN

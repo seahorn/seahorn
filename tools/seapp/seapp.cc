@@ -198,6 +198,9 @@ int main(int argc, char **argv) {
   // -- promote top-level mallocs to alloca
   pass_manager.add (seahorn::createPromoteMallocPass ());
 
+  // -- trurn loads from _Bool from truc to sgt
+  pass_manager.add (seahorn::createPromoteBoolLoadsPass ());
+
   // -- externalize uses of address-taken functions
   if (ExternalizeAddrTakenFuncs)
     pass_manager.add (seahorn::createExternalizeAddressTakenFunctionsPass ());

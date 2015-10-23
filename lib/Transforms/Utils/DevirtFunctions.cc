@@ -48,47 +48,50 @@ namespace seahorn {
   //  calls to execute.
   //
   class DevirtualizeFunctions : public ModulePass, public InstVisitor<DevirtualizeFunctions> {
-      // Access to the target data analysis pass
-      const DataLayout * TD;
 
-      // Worklist of call sites to transform
-      std::vector<Instruction *> Worklist;
+    typedef std::set<const Function *> func_set_t;
 
-      // Keep track of functions with same type
-      std::map<const FunctionType*, std::vector<const Function *> > signatureMap;
+    // Access to the target data analysis pass
+    const DataLayout * TD;
     
-      // A cache of indirect call targets that have been converted already
-      std::map<const Function *, std::set<const Function *> > bounceCache;
+    // Worklist of call sites to transform
+    std::vector<Instruction *> Worklist;
 
-      void makeDirectCall (CallSite & CS);
-      Function* buildBounce (CallSite cs,std::vector<const Function*>& Targets);
-      const Function* findInCache (const CallSite & CS,
-                                   std::set<const Function*>& Targets);
-      void findTargets (CallSite & CS, std::vector<const Function*>& Targets);
-
-    public:
-      static char ID;
-      DevirtualizeFunctions() : ModulePass(ID) {}
-
-      virtual bool runOnModule(Module & M);
-
-      virtual void getAnalysisUsage(AnalysisUsage &AU) const {
-        AU.addRequired<DataLayoutPass>();
-      }
-
-      void visitCallSite(CallSite &CS);
-
-      void visitCallInst(CallInst &CI) {
-        // we cannot take the address of an inline asm
-        if (CI.isInlineAsm ()) return;
-
-        CallSite CS(&CI);
-        visitCallSite(CS);
-      }
-      void visitInvokeInst(InvokeInst &II) {
-        CallSite CS(&II);
-        visitCallSite(CS);
-      }
+    // Keep track of functions with same type
+    DenseMap<const FunctionType*, std::vector<const Function *> > signatureMap;
+    
+    // A cache of indirect call targets that have been converted already
+    DenseMap<const Function *, func_set_t> bounceCache;
+    
+    void makeDirectCall (CallSite & CS);
+    Function* buildBounce (CallSite cs,std::vector<const Function*>& Targets);
+    const Function* findInCache (const CallSite & CS, func_set_t& Targets);
+    void findTargets (CallSite & CS, std::vector<const Function*>& Targets);
+    
+   public:
+    static char ID;
+    DevirtualizeFunctions() : ModulePass(ID) {}
+    
+    virtual bool runOnModule(Module & M);
+    
+    virtual void getAnalysisUsage(AnalysisUsage &AU) const {
+      AU.setPreservesAll ();
+      AU.addRequired<DataLayoutPass>();
+    }
+    
+    void visitCallSite(CallSite &CS);
+    
+    void visitCallInst(CallInst &CI) {
+      // we cannot take the address of an inline asm
+      if (CI.isInlineAsm ()) return;
+      
+      CallSite CS(&CI);
+      visitCallSite(CS);
+    }
+    void visitInvokeInst(InvokeInst &II) {
+      CallSite CS(&II);
+      visitCallSite(CS);
+    }
   };
 
   // Pass ID variable
@@ -152,13 +155,12 @@ namespace seahorn {
   //  returned.
   //
   const Function *
-  DevirtualizeFunctions::findInCache (const CallSite & CS,
-                                      std::set<const Function*>& Targets) {
+  DevirtualizeFunctions::findInCache (const CallSite & CS, func_set_t& Targets) {
     //
     // Iterate through all of the existing bounce functions to see if one of them
     // can be resued.
     //
-    std::map<const Function *, std::set<const Function *> >::iterator I;
+    DenseMap<const Function *, func_set_t>::iterator I;
     for (I = bounceCache.begin(); I != bounceCache.end(); ++I) {
       // If the bounce function and the function pointer have different types,
       // then skip this bounce function because it is incompatible.
@@ -235,7 +237,7 @@ namespace seahorn {
     
     // For each function target, create a basic block that will call that
     // function directly.
-    std::map<const Function*, BasicBlock*> targets;
+    DenseMap<const Function*, BasicBlock*> targets;
     for (unsigned index = 0; index < Targets.size(); ++index) {
       const Function* FL = Targets[index];
       
@@ -336,7 +338,7 @@ namespace seahorn {
     if (Targets.empty ()) return;
 
     // Determine if an existing bounce function can be used for this call site.
-    std::set<const Function *> targetSet (Targets.begin(), Targets.end());
+    func_set_t targetSet (Targets.begin(), Targets.end());
     const Function * NF = findInCache (CS, targetSet);
     
     // If no cached bounce function was found, build a function which will

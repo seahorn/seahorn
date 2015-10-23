@@ -24,6 +24,7 @@
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/InstVisitor.h"
 #include "llvm/IR/DataLayout.h"
+#include "llvm/Analysis/CallGraph.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Support/Debug.h"
@@ -53,7 +54,10 @@ namespace seahorn {
 
     // Access to the target data analysis pass
     const DataLayout * TD;
-    
+
+    // Call graph of the program
+    CallGraph * CG;    
+
     // Worklist of call sites to transform
     std::vector<Instruction *> Worklist;
 
@@ -70,13 +74,15 @@ namespace seahorn {
     
    public:
     static char ID;
-    DevirtualizeFunctions() : ModulePass(ID) {}
+    DevirtualizeFunctions() : ModulePass(ID), CG (nullptr) {}
     
     virtual bool runOnModule(Module & M);
     
     virtual void getAnalysisUsage(AnalysisUsage &AU) const {
       AU.setPreservesAll ();
       AU.addRequired<DataLayoutPass>();
+      AU.addRequired<CallGraphWrapperPass> ();
+      AU.addPreserved<CallGraphWrapperPass> ();
     }
     
     void visitCallSite(CallSite &CS);
@@ -249,6 +255,13 @@ namespace seahorn {
                                             fargs,
                                             "",
                                             BL);
+      // update call graph
+      if (CG) {
+        CG->getOrInsertFunction (const_cast<Function*> (FL));
+        CallInst *ci = static_cast<CallInst*> (directCall);
+        (*CG)[BL->getParent ()]->addCalledFunction (CallSite (ci),
+                                                    (*CG)[ci->getCalledFunction ()]);
+      }
       
       // Add the return instruction for the basic block
       if (CS.getType()->isVoidTy())
@@ -364,6 +377,14 @@ namespace seahorn {
                                        name,
                                        CI);
       
+      // update call graph
+      if (CG) {
+        CG->getOrInsertFunction (const_cast<Function*> (NF));
+        (*CG)[CI->getParent ()->getParent ()]->addCalledFunction (CallSite (CN),
+                                                                  (*CG)[CN->getCalledFunction ()]);
+      }
+
+      CN->setDebugLoc (CI->getDebugLoc ());
       CI->replaceAllUsesWith(CN);
       CI->eraseFromParent();
     } else if (InvokeInst* CI = dyn_cast<InvokeInst>(CS.getInstruction())) {
@@ -375,6 +396,8 @@ namespace seahorn {
                                           Params,
                                           name,
                                           CI);
+      // TODO: update call graph
+      CN->setDebugLoc (CI->getDebugLoc ());
       CI->replaceAllUsesWith(CN);
       CI->eraseFromParent();
     }
@@ -406,6 +429,11 @@ namespace seahorn {
 
     // Get information on the target system.
     TD = &getAnalysis<DataLayoutPass>().getDataLayout ();
+
+    // Get call graph
+    CallGraphWrapperPass *cgwp = getAnalysisIfAvailable<CallGraphWrapperPass> ();
+    if (cgwp)
+      CG = &cgwp->getCallGraph ();
 
     // Populate signature map
     for (auto const &F: M) {

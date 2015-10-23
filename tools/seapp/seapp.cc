@@ -100,6 +100,12 @@ static llvm::cl::opt<bool>
 StripExtern ("strip-extern", llvm::cl::desc ("Replace external functions by nondet"),
               llvm::cl::init (false));
 
+
+static llvm::cl::opt<bool>
+DevirtualizeFuncs ("devirt-functions", 
+                   llvm::cl::desc ("Devirtualize indirect calls using only types"),
+                   llvm::cl::init (false));
+
 static llvm::cl::opt<bool>
 ExternalizeAddrTakenFuncs ("externalize-addr-taken-funcs", 
                            llvm::cl::desc ("Externalize uses of address-taken functions"),
@@ -198,9 +204,13 @@ int main(int argc, char **argv) {
   // -- promote top-level mallocs to alloca
   pass_manager.add (seahorn::createPromoteMallocPass ());
 
-  // -- trurn loads from _Bool from truc to sgt
+  // -- turn loads from _Bool from truc to sgt
   pass_manager.add (seahorn::createPromoteBoolLoadsPass ());
 
+  // -- resolve indirect calls
+  if (DevirtualizeFuncs)
+    pass_manager.add (seahorn::createDevirtualizeFunctionsPass ());
+  
   // -- externalize uses of address-taken functions
   if (ExternalizeAddrTakenFuncs)
     pass_manager.add (seahorn::createExternalizeAddressTakenFunctionsPass ());

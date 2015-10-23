@@ -136,6 +136,10 @@ class Seapp(sea.LimitedCmd):
                          help='Externalize uses of address-taken functions',
                          dest='enable_ext_funcs', default=False,
                          action='store_true')
+        ap.add_argument ('--devirt-functions',
+                         help='Devirtualize indirect functions',
+                         dest='devirt_funcs', default=False,
+                         action='store_true')
         ap.add_argument ('--no-kill-vaarg', help='Do not delete variadic functions',
                          dest='kill_vaarg', default=True, action='store_false')
         ap.add_argument ('--strip-extern', help='Replace external function calls ' + 
@@ -158,9 +162,13 @@ class Seapp(sea.LimitedCmd):
             argv.append ('--strip-extern=true')
         else:
             argv.append ('--strip-extern=false')
+
+        if args.devirt_funcs:
+            argv.append ('--devirt-functions')
             
         if args.enable_ext_funcs:
             argv.append ('--externalize-addr-taken-funcs')
+
         if args.boc:
             argv.append ('--boc')
             if args.inline:

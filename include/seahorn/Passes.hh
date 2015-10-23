@@ -10,6 +10,7 @@ namespace seahorn
   llvm::Pass* createDeadNondetElimPass ();
   llvm::Pass* createDummyExitBlockPass ();
   llvm::Pass* createExternalizeAddressTakenFunctionsPass (); 
+  llvm::Pass* createDevirtualizeFunctionsPass (); 
 
   llvm::Pass* createLoadCrabPass ();
   llvm::Pass* createShadowMemDsaPass ();

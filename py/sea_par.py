@@ -10,20 +10,29 @@ import subprocess as sub
 import threading
 import signal
 import itertools
+import re
 
 root = os.path.dirname (os.path.dirname (os.path.realpath (__file__)))
 verbose = True
 
-def checkFloat(prog):
-    import mmap
-    isFloat = False
-    Key = '__VERIFIER_nondet_float'
-    with open (prog, 'rb', 0) as f:
-        s= mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ)
-        if s.find(b'__VERIFIER_nondet_float') != -1:
-            isFloat = True
-    return isFloat
 
+class Strainer(object):
+    def __init__(self):
+        return
+
+    def floatStrainer(self, bench, limitSize=1000):
+        import mmap
+        isFloat = False
+        with open (bench, 'rb', 0) as f:
+            line_numbers = sum(1 for line in open(bench))
+            if line_numbers >= limitSize:
+                return isFloat
+            s= mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ)
+            if s.find(b'__VERIFIER_nondet_float') != -1 or s.find(b'__VERIFIER_nondet_double') != -1 or s.find(b'ieee754_float') != -1:
+                isFloat = True
+            if s.find(b'float') != -1:
+                isFloat = True
+        return isFloat
 
 
 
@@ -277,6 +286,7 @@ def _getVersion ():
                 return v
 
 def main (argv):
+    strain = Strainer()
     seahorn_args = filter (seahorn_opt, argv [1:])
     argv = filter (non_seahorn_opt, argv [1:])
 
@@ -285,7 +295,7 @@ def main (argv):
     workdir = createWorkDir (opt.temp_dir, opt.save_temps)
     returnvalue = 0
     for fname in args:
-        if not checkFloat(fname):
+        if not strain.floatStrainer(fname):
             returnvalue = run (workdir, fname, seahorn_args, opt.profiles.split (':'),
                                opt.cex, opt.arch, opt.cpu, opt.mem)
         else:

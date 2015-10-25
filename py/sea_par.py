@@ -46,7 +46,10 @@ def initProfiles():
     profiles ['crab_inline'] = base + ['--inline',
                                        '--horn-crab','--crab-live', '--crab-dom=term']
     profiles ['crab_no_inline'] = base + ['--horn-crab','--crab-live', '--crab-dom=term']
-    profiles ['term'] = ['term', '-O0', '--horn-no-verif', '--step=flarge', '--inline']
+    profiles ['term_0'] = ['term', '-O0', '--horn-no-verif', '--step=flarge', '--inline']
+    profiles ['term_3'] = ['term', '-O3', '--horn-no-verif', '--step=flarge', '--inline']
+    profiles ['term_0_max'] = ['term', '-O0', '--horn-no-verif', '--step=flarge', '--inline', '--rank_func=max']
+    profiles ['term_3_max'] = ['term', '-O3', '--horn-no-verif', '--step=flarge', '--inline', '--rank_func=max']
     return profiles
 
 profiles = initProfiles ()
@@ -219,6 +222,8 @@ def run (workdir, fname, sea_args = [], profs = [],
 
         # if a process terminated successfully and produced True/False
         # answer kill all other processes
+
+
         if returnvalue == 0 and getAnswer (out_f) is not None:
             for p in pids:
                 try:

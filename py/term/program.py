@@ -1,12 +1,11 @@
+
 import z3
 
 from rule import *
 
-print z3.__file__
-
 class Program:
     """ Program """
-    def __init__(self,fp):
+    def __init__(self,fp):        
         """ builds the program control flow graph (CFG) """
         # program rules and variables
         self.rules = list()
@@ -27,7 +26,7 @@ class Program:
             if head not in self.next:
                 self.next[head] = set()
             if head not in self.prev:
-                self.prev[head] = set()
+                self.prev[head] = set() 
             if r.is_initial():
                 self.entry = head
                 self.parameters = r.parameters()
@@ -38,7 +37,7 @@ class Program:
                 self.next[tail].add(head)
         # print 'prev:', self.prev
         # print 'next:', self.next
-
+        
     def loop_identification(self,pc):
         """ identifies all paths within the (natural) loop of pc """
         # (variant of) depth first search
@@ -52,7 +51,7 @@ class Program:
                 else:
                     stack.append((nxt,path + [nxt]))
         return paths
-
+        
     def loops_identification(self):
         """ identifies all (natural) loops """
         # depth first search
@@ -70,8 +69,8 @@ class Program:
                     loops[n].append(path + [n])
             stack.extend(self.next[n] - set(loops.keys()))
         return loops
-
-    def get_bit(self,entry,kind,pieces,loop,exit):
+    
+    def get_bit(self,entry,header,kind,pieces,loop,exit):
         """ instruments the program rules with a ranking function
             in order to extract a TERMINATING execution
             such that rank is negative at loop exit
@@ -105,17 +104,15 @@ class Program:
             r = Rule(rule.rule)
             if r.is_entry(entry):
                 # ranking function(s) initialization before the loop
-                rank = [[z3.substitute_vars(x,*r.head_args()[1:])
+                rank = [[z3.substitute_vars(x,*r.head_args()[1:]) 
                     for x in component] for component in pieces]
                 r.add_rank(R,[mx(component) for component in rank],RR)
                 fp.register_relation(r.predicate)
-                #print 'ENTRY:', r
             elif r.is_loop(loop):
                 # ranking function(s) strict decrease within the loop
-                rank = [[z3.substitute_vars(x,*r.head_args()[1:])
+                rank = [[z3.substitute_vars(x,*r.head_args()[1:]) 
                     for x in component] for component in pieces]
                 r.add_decrease(kind,R,[mx(component) for component in rank],RR)
-                #print 'LOOP:', r
             elif r.is_exit(exit):
                 r.add_vars(R)
                 # ranking function(s) boundedness from below after the loop
@@ -125,7 +122,6 @@ class Program:
                 fp.rule(q.head,[q.tail] + q.children)
                 # query
                 query = z3.Exists(q.variables,q.head)
-                #print 'EXIT:', r
             else:
                 r.add_vars(R)
                 # print 'NONE:', r
@@ -135,7 +131,6 @@ class Program:
             else:
                 body = [r.tail] + r.children
                 fp.rule(r.head,body)
-        # print '\nFP:', fp
         # querying for terminating execution with negative ranking function
         bit = dict()
         result = fp.query(query)
@@ -151,12 +146,20 @@ class Program:
                         bit[values[0]] = [values[1:]]
                     else:
                         bit[values[0]].insert(0,values[1:])
+            # adding the first child to loop header to ensure progress 
+            # (when the source of exit edges is not the loop header)
+            first = [child for child in children if child.children()][0]
+            values = [x.as_long() for x in first.children()]
+            if header not in bit:
+                bit[header] = [values[1:]]
+            else:
+                bit[header].append(values[1:])
             return bit
         else:
             return bit
-
-    def termination(self,entry,kind,pieces,loop,exit):
-        """ instruments the rules in fp with a ranking function
+    
+    def termination(self,entry,header,kind,pieces,loop,exit):
+        """ instruments the rules in fp with a ranking function 
             in order to extract a NON-TERMINATING execution
             such that rank is negative within the loop
         """
@@ -189,14 +192,14 @@ class Program:
             r = Rule(rule.rule)
             if r.is_entry(entry):
                 # ranking function(s) initialization before the loop
-                rank = [[z3.substitute_vars(x,*r.head_args()[1:])
+                rank = [[z3.substitute_vars(x,*r.head_args()[1:]) 
                     for x in component] for component in pieces]
                 r.add_rank(R,[mx(component) for component in rank],RR)
                 fp.register_relation(r.predicate)
                 # print 'ENTRY:', r
             elif r.is_loop(loop):
                 # ranking function(s) strict decrease within the loop
-                rank = [[z3.substitute_vars(x,*r.head_args()[1:])
+                rank = [[z3.substitute_vars(x,*r.head_args()[1:]) 
                     for x in component] for component in pieces]
                 r.add_decrease(kind,R,[mx(component) for component in rank],RR)
                 # print 'LOOP:', r

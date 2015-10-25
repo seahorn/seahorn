@@ -8,7 +8,7 @@ import z3
 from program import *
 import stats
 
-verbose = False
+debug = False
 
 def ranking(store,var):
     """ yields a list of ranking functions of the form
@@ -89,20 +89,20 @@ def piecewise(fp):
     for node in loops:
         # ...for all loops involving each node
         if loops[node]:
-            print '\nloop:', loops[node], '\n'
+            if debug: print '\nloop:', loops[node], '\n'
             loop = set([n for path in loops[node] for n in path])   # loop nodes
             entry = set([(n,node)
                 for n in program.prev[node] - loop])  # entry edges
             edges = set([n for path in loops[node]
                 for n in zip(path[:-1],path[1:])])  # loop edges
-            exit = set([(node,n)
-                for n in program.next[node] - loop])  # exit edges
-            # exit = set([(i,n)
-            #     for i in loop for n in program.next[i] - loop])  # exit edges
+            # exit = set([(node,n)
+            #     for n in program.next[node] - loop])  # exit edges
+            exit = set([(i,n)
+                for i in loop for n in program.next[i] - loop])  # exit edges
 
             bits = list()   # (potentially) terminating bits
             pieces = [[z3.IntSort().cast(0)]]    # candidate ranking functions
-            bit = program.get_bit(entry,"max",pieces,edges,exit)
+            bit = program.get_bit(entry,node,'max',pieces,edges,exit)
             while bit:
                 bit[node][0][-len(pieces)] -= bit[node][-1][-len(pieces)]
                 bits.append(bit[node][0][:len(bit[node][0])-len(pieces)+1])
@@ -110,31 +110,31 @@ def piecewise(fp):
                 for i in range(len(bits)):
                     rankings = ranking(bits[:i+1],variables)
                 if not rankings:
-                    print
+                    if debug: print
                     del bits[:-1]
                     rankings = ranking(bits,variables)
-                print 'bit:', zip(arguments + ['-'
+                if debug: print 'bit:', zip(arguments + ['-'
                     for component in pieces],bits[-1])
                 pieces[0].extend(rankings)
-                print 'pieces:', [[z3.substitute_vars(x,*arguments)
+                if debug: print 'pieces:', [[z3.substitute_vars(x,*arguments)
                     for x in component] for component in pieces]
-                bit = program.get_bit(entry,"max",pieces,edges,exit)
+                bit = program.get_bit(entry,node,'max',pieces,edges,exit)
             # check candidate ranking functions
-            point = program.termination(entry,"max",pieces,edges,exit)
+            point = program.termination(entry,node,'max',pieces,edges,exit)
             pieces = [[z3.substitute_vars(x,*arguments)
                 for x in component] for component in pieces]
             if point:
                 rank[node] = (False,point)
-                print '\nnon-terminating execution:', point
-                print '(partial) loop ranking functions:', pieces
+                if debug: print '\nnon-terminating execution:', point
+                if debug: print '(partial) loop ranking functions:', pieces
             else:
                 rank[node] = (True,pieces)
-                print '\nloop ranking functions:', pieces
-    print '\nranking functions:', rank
+                if debug: print '\nloop ranking functions:', pieces
+    if debug: print '\nranking functions:', rank
     if all([r[0] for r in rank.values()]):
-        stat ('Result', 'TRUE')
+        stat("Result", "TRUE")
     else:
-        stat ('Result', 'FALSE')
+        stat("Result", "FALSE")
 
 def lexicographic(fp):
     # program CFG
@@ -151,21 +151,20 @@ def lexicographic(fp):
     for node in loops:
         # ...for all loops involving each node
         if loops[node]:
-            print '\nloop:', loops[node]
+            if debug: print '\nloop:', loops[node]
             loop = set([n for path in loops[node] for n in path])   # loop nodes
             entry = set([(n,node)
                 for n in program.prev[node] - loop])  # entry edges
             edges = set([n for path in loops[node]
                 for n in zip(path[:-1],path[1:])])  # loop edges
-            exit = set([(node,n)
-                for n in program.next[node] - loop])  # exit edges
-
-            # exit = set([(i,n)
-            #     for i in loop for n in program.next[i] - loop])  # exit edges
+            # exit = set([(node,n)
+            #     for n in program.next[node] - loop])  # exit edges
+            exit = set([(i,n)
+                for i in loop for n in program.next[i] - loop])  # exit edges
 
             bits = list()   # (potentially) terminating bits
             pieces = [[z3.IntSort().cast(0)]]    # candidate ranking functions
-            bit = program.get_bit(entry,'lex',pieces,edges,exit)
+            bit = program.get_bit(entry,node,'lex',pieces,edges,exit)
             while bit:
                 bit[node][0][-len(pieces)] -= bit[node][-1][-len(pieces)]
                 bits.append(bit[node][0][:len(bit[node][0])-len(pieces)+1])
@@ -173,119 +172,39 @@ def lexicographic(fp):
                 for i in range(len(bits)):
                     rankings = ranking(bits[:i+1],variables)
                 if not rankings:
-                    print
-                    print 'bit:', zip(arguments + ['-'
+                    if debug: print
+                    if debug: print 'bit:', zip(arguments + ['-'
                         for component in pieces],bits[-1])
                     bits = list()
                     rankings = [z3.IntSort().cast(0)]
                     pieces.insert(0,[])
                 else:
-                    print 'bit:', zip(arguments + ['-'
+                    if debug: print 'bit:', zip(arguments + ['-'
                         for component in pieces],bits[-1])
                 del pieces[0][1:]
                 pieces[0].extend(rankings)
-                print 'pieces:', [[z3.substitute_vars(x,*arguments)
+                if debug: print 'pieces:', [[z3.substitute_vars(x,*arguments)
                         for x in component] for component in pieces]
-                bit = program.get_bit(entry,'lex',pieces,edges,exit)
+                bit = program.get_bit(entry,node,'lex',pieces,edges,exit)
             # check candidate ranking functions
-            point = program.termination(entry,'lex',pieces,edges,exit)
+            point = program.termination(entry,node,'lex',pieces,edges,exit)
             pieces = [[z3.substitute_vars(x,*arguments)
                 for x in component] for component in pieces]
             if point:
                 rank[node] = (False,point)
-                print 'non-terminating execution:', point
-                print '(partial) loop ranking functions:', pieces
+                if debug: print 'non-terminating execution:', point
+                if debug: print '(partial) loop ranking functions:', pieces
             else:
                 rank[node] = (True,pieces)
-                print 'loop ranking functions:', pieces
-    print '\nranking functions:', rank
+                if debug: print 'loop ranking functions:', pieces
+    if debug: print '\nranking functions:', rank
     if all([r[0] for r in rank.values()]):
-        stat ('Result', 'TRUE')
+        stat("Result", "TRUE")
     else:
-        stat ('Result', 'FALSE')
+        stat("Result", "FALSE")
 
-def multiphase(fp):
-    # program CFG
-    program = Program(fp)
-    parameters = program.parameters[1:]
-    variables = [z3.Var(i, sort) for (i,sort)
-        in zip(list(range(len(parameters))),parameters)]
-    arguments = program.arguments[1:]
-
-    # loops identification
-    loops = program.loops_identification()
-    # proving termination...
-    # M = 2  # maximum number of components for a piece
-    # mmm = 0
-    rank = dict()
-    for node in loops:
-        # ...for all loops involving each node
-        if loops[node]:
-            print '\nloop:', loops[node]
-            loop = set([n for path in loops[node] for n in path])   # loop nodes
-            entry = set([(n,node)
-                for n in program.prev[node] - loop])  # entry edges
-            edges = set([n for path in loops[node]
-                for n in zip(path[:-1],path[1:])])  # loop edges
-            exit = set([(node,n)
-                for n in program.next[node] - loop])  # exit edges
-            # exit = set([(i,n)
-            #     for i in loop for n in program.next[i] - loop])  # exit edges
-
-            bits = list()   # (potentially) terminating bits
-            pieces = [[z3.IntSort().cast(0)]]    # candidate ranking functions
-            bit = program.get_bit(entry,'mul',pieces,edges,exit)
-            while bit:
-                # raw_input()     # pause
-                if len(pieces) > 1:
-                    nxt = [x[-len(pieces)+1] for x in bit[node]]
-                    print 'NXT:', nxt
-                    idx = (i for i,x in enumerate(nxt) if x < 0).next()
-                    print 'IDX:', idx
-                    bit[node][idx][-len(pieces)] -= bit[node][-1][-len(pieces)]
-                    bit[node][0] = bit[node][idx]
-                else:
-                    bit[node][0][-len(pieces)] -= bit[node][-1][-len(pieces)]
-                bits.append(bit[node][0][:len(bit[node][0])-len(pieces)+1])
-                rankings = ranking(bits,variables)
-                for i in range(len(bits)):
-                    rankings = ranking(bits[:i+1],variables)
-                if not rankings: #or mmm > M:
-                    # mmm = 0
-                    print
-                    print 'bit:', zip(arguments + ['-'
-                        for component in pieces],bits[-1])
-                    bits = list()
-                    rankings = [z3.IntSort().cast(0)]
-                    pieces.insert(0,[])
-                else:
-                    print 'bit:', zip(arguments + ['-'
-                        for component in pieces],bits[-1])
-                del pieces[0][1:]
-                pieces[0].extend(rankings)
-                # mmm = mmm + 1
-                print 'pieces:', [[z3.substitute_vars(x,*arguments)
-                        for x in component] for component in pieces]
-                bit = program.get_bit(entry,'mul',pieces,edges,exit)
-            # check candidate ranking functions
-            point = program.termination(entry,'mul',pieces,edges,exit)
-            pieces = [[z3.substitute_vars(x,*arguments)
-                for x in component] for component in pieces]
-            if point:
-                rank[node] = (False,point)
-                print 'non-terminating execution:', point
-                print '(partial) loop ranking functions:', pieces
-            else:
-                rank[node] = (True,pieces)
-                print 'loop ranking functions:', pieces
-    print '\nranking functions:', rank
-    if all([r[0] for r in rank.values()]):
-        stat ('Result', 'TRUE')
-    else:
-        stat ('Result', 'FALSE')
 
 def stat (key, val): stats.put (key, val)
-
 
 def seaTerm(smt_file, rank_function):
     try:
@@ -304,8 +223,6 @@ def seaTerm(smt_file, rank_function):
                 piecewise(fp)
             elif rank_function == 'lex':
                 lexicographic(fp)
-            elif rank_function == 'mul':
-                multiphase(fp)
             else:
                 raise IOError('unknown ranking function template')
     except Exception as e:
@@ -314,7 +231,6 @@ def seaTerm(smt_file, rank_function):
         stats.brunch_print()
 
 def main(argv):
-    stat ('Result','UNKNOWN')
     fp = z3.Fixedpoint()
     fp.set(engine='spacer')
     fp.set('xform.inline_eager', False)
@@ -329,20 +245,24 @@ def main(argv):
         print 'please choose a ranking function template:'
         print '    max\t\t(piecewise)'
         print '    lex\t\t(lexicographic)'
-        print '    mul\t\t(multiphase)'
     else:
-        with stats.timer('Termination'):
-            if argv[2] == 'max':
-                piecewise(fp)
-            elif argv[2] == 'lex':
-                lexicographic(fp)
-            elif argv[2] == 'mul':
-                multiphase(fp)
-            else:
-                print 'unknown ranking function template'
+        if argv[2] == 'max':
+            # start = time.time()
+            piecewise(fp)
+            # end = time.time()
+            # print 'Time: %.2fs' % (end - start)
+        elif argv[2] == 'lex':
+            # start = time.time()
+            lexicographic(fp)
+            # end = time.time()
+            # print 'Time: %.2fs' % (end - start)
+        elif argv[2] == 'mul':
+            # start = time.time()
+            multiphase(fp)
+            # end = time.time()
+            # print 'Time: %.2fs' % (end - start)
+        else:
+            print 'unknown ranking function template'
 
 if __name__ == "__main__":
-    try:
-        main(sys.argv)
-    finally:
-        stats.brunch_print()
+    main(sys.argv)

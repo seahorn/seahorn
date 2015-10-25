@@ -20,11 +20,8 @@ def initProfiles():
             '--horn-stats', '--enable-nondet-init', '--strip-extern',
             '--externalize-addr-taken-functions', '--horn-singleton-aliases=true']
     profiles = dict()
-    profiles ['inline'] = base + [ '--inline']
+    profiles ['inline'] = base + [ '--inline', '--crab', '--crab-dom=int']
     profiles ['no_inline'] = base
-    profiles ['crab_inline'] = base + ['--inline',
-                                       '--horn-crab','--crab-live', '--crab-dom=term']
-    profiles ['crab_no_inline'] = base + ['--horn-crab','--crab-live', '--crab-dom=term']
     return profiles
 
 profiles = initProfiles ()
@@ -192,7 +189,7 @@ def run (workdir, fname, sea_args = [], profs = [],
         pids.remove (pid)
         idx = orig_pids.index (pid)
         out_f = stdout[idx]
-        
+
         # if a process terminated successfully and produced True/False
         # answer kill all other processes
         if returnvalue == 0 and getAnswer (out_f) is not None:
@@ -269,6 +266,7 @@ def main (argv):
 
     workdir = createWorkDir (opt.temp_dir, opt.save_temps)
     returnvalue = 0
+    print opt.arch
     for fname in args:
         returnvalue = run (workdir, fname, seahorn_args, opt.profiles.split (':'),
                            opt.cex, opt.arch, opt.cpu, opt.mem)

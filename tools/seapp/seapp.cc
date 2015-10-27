@@ -207,14 +207,6 @@ int main(int argc, char **argv) {
   // -- turn loads from _Bool from truc to sgt
   pass_manager.add (seahorn::createPromoteBoolLoadsPass ());
 
-  // -- resolve indirect calls
-  if (DevirtualizeFuncs)
-    pass_manager.add (seahorn::createDevirtualizeFunctionsPass ());
-  
-  // -- externalize uses of address-taken functions
-  if (ExternalizeAddrTakenFuncs)
-    pass_manager.add (seahorn::createExternalizeAddressTakenFunctionsPass ());
-  
   if (KillVaArg)
     pass_manager.add (seahorn::createKillVarArgFnPass ());
   
@@ -228,6 +220,15 @@ int main(int argc, char **argv) {
   
   // turn all functions internal so that we can inline them if requested
   pass_manager.add (llvm::createInternalizePass (llvm::ArrayRef<const char*>("main")));
+  
+  // -- resolve indirect calls
+  if (DevirtualizeFuncs)
+    pass_manager.add (seahorn::createDevirtualizeFunctionsPass ());
+  
+  // -- externalize uses of address-taken functions
+  if (ExternalizeAddrTakenFuncs)
+    pass_manager.add (seahorn::createExternalizeAddressTakenFunctionsPass ());
+
   // kill internal unused code
   pass_manager.add (llvm::createGlobalDCEPass ()); // kill unused internal global
   

@@ -18,7 +18,7 @@ verbose = True
 def initProfiles():
     base = ['--step=large', '-g', '--horn-global-constraints=true', '--track=mem',
             '--horn-stats', '--enable-nondet-init', '--strip-extern',
-            '--externalize-addr-taken-functions', '--horn-singleton-aliases=true']
+            '--externalize-addr-taken-functions', '--horn-singleton-aliases=true', '--horn-pdr-contexts=600']
     profiles = dict()
     profiles ['inline'] = base + [ '--inline', '--crab', '--crab-dom=int']
     profiles ['no_inline'] = base

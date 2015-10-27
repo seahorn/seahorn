@@ -251,16 +251,15 @@ namespace seahorn {
       BasicBlock* BL = BasicBlock::Create (M->getContext(), FL->getName(), F);
       targets[FL] = BL;
       // Create the direct function call
-      Value* directCall = CallInst::Create (const_cast<Function*>(FL),
+      CallInst* directCall = CallInst::Create (const_cast<Function*>(FL),
                                             fargs,
                                             "",
                                             BL);
       // update call graph
       if (CG) {
-        CG->getOrInsertFunction (const_cast<Function*> (FL));
-        CallInst *ci = static_cast<CallInst*> (directCall);
-        (*CG)[BL->getParent ()]->addCalledFunction (CallSite (ci),
-                                                    (*CG)[ci->getCalledFunction ()]);
+        auto fl_cg = CG->getOrInsertFunction (const_cast<Function*> (FL));
+        auto cf_cg = CG->getOrInsertFunction (directCall->getCalledFunction ());
+        fl_cg->addCalledFunction (CallSite (directCall), cf_cg);
       }
       
       // Add the return instruction for the basic block

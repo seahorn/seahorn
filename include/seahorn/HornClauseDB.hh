@@ -110,6 +110,8 @@ namespace seahorn
     bool hasRelation (Expr fdecl) const
     {return std::find
         (m_rels.begin (), m_rels.end (), fdecl) != m_rels.end ();}
+    /// number of relational predicates
+    unsigned relSize () { return m_rels.size ();}
     
     
     template <typename Range>

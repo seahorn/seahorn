@@ -68,6 +68,11 @@ InterProc("horn-inter-proc",
           llvm::cl::desc ("Use inter-procedural encoding"),
           cl::init (false));
 
+static llvm::cl::opt<bool>
+AbortOnRecursion("horn-abort-on-recursion",
+                 llvm::cl::desc ("Abort if program has a recursive call"),
+                 cl::init (false));
+
 namespace seahorn
 {
   char HornifyModule::ID = 0;
@@ -189,7 +194,15 @@ namespace seahorn
       CallGraphNode *cgn = scc.front ();
       Function *f = cgn->getFunction ();
       if (it.hasLoop () || scc.size () > 1)
+      {
         errs () << "WARNING RECURSION at " << (f ? f->getName () : "nil") << "\n";
+        if (AbortOnRecursion)
+        {
+          errs () << "Aborting on recursion\n";
+          std::exit (3);
+        }
+      }
+      
       // assert (!it.hasLoop () && "Recursion not yet supported");
       // assert (scc.size () == 1 && "Recursion not supported");
       if (f) Changed = (runOnFunction (*f) || Changed);

@@ -196,6 +196,14 @@ namespace seahorn
       if (it.hasLoop () || scc.size () > 1)
       {
         errs () << "WARNING RECURSION at " << (f ? f->getName () : "nil") << "\n";
+        errs () << "SCC is: ";
+        for (auto sccn : scc)
+        {
+          Function *g = sccn->getFunction ();
+          if (g) errs () << g->getName () << " ";
+        }
+        errs () << "\n";
+        
         if (AbortOnRecursion)
         {
           errs () << "Aborting on recursion\n";

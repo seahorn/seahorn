@@ -35,6 +35,9 @@ FlexTrace ("horn-flex-trace", cl::Hidden, cl::init (false));
 static llvm::cl::opt<bool>
 HornChildren ("horn-child-order", cl::Hidden, cl::init(true));
 
+static llvm::cl::opt<unsigned>
+PdrContexts ("horn-pdr-contexts", cl::Hidden, cl::init (500));
+
 namespace seahorn
 {
   char HornSolver::ID = 0;
@@ -66,6 +69,7 @@ namespace seahorn
     params.set (":xform.tail_simplifier_pve", false);
     params.set (":xform.subsumption_checker", Subsumption);
     params.set (":order_children", HornChildren ? 1U : 0U);
+    params.set (":pdr.max_num_contexts", PdrContexts);
     fp.set (params);
     
     db.loadZFixedPoint (fp, SkipConstraints);

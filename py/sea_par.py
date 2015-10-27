@@ -16,49 +16,55 @@ root = os.path.dirname (os.path.dirname (os.path.realpath (__file__)))
 verbose = True
 
 
-
 class Strainer(object):
-    """ Inspired from SMACK's filter of float. This code is faster"""
+    """ Inspired from SMACK's filter of float. This code uses mmap"""
     """ FIXME a couple of LDV cases are passing by """
     def __init__(self):
         return
 
-    def getFloatCode(self, p1, p2, s):
-        valid_lines = []
-        regex_p1 = re.compile(p1)
-        regex_p2 = re.compile(p2)
+    def getFloatCode(self, s):
+        fl_lines = list()
+        raw_cnt = 0
+        is_double = s.find(b'double') != -1
+        regex_p1 = re.compile(r"""(0x)?\d+\.\d*(f|p|e)?""")
+        regex_p2 = re.compile(r"""#|line|June|CIL|0\.000000|\"\d+|Created""")
+        crap = re.compile(r"""(extern|^\w*$|#)""")
         for code in iter(s.readline, ""):
+            if crap.search(code) is None: raw_cnt +=1
             r1 = regex_p1.search(code)
             if r1:
                 r2 = regex_p2.search(code)
-                if r2 is None:
-                    valid_lines.append(r1.group(0))
-        return valid_lines
+                if r2 is None: fl_lines.append(r1.group(0))
+        return fl_lines, raw_cnt, is_double
+
 
     def floatStrainer(self, bench, limitSize=2000):
         import mmap
         pattern = re.compile(r"""(0x)?\d+\.\d*(f|p|e)?""")
         with open (bench, 'rb', 0) as f:
             line_numbers = sum(1 for line in open(bench))
-            print line_numbers
-            if line_numbers >= limitSize:
-                return isFloat
             s= mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ)
             if s.find(b'__VERIFIER_nondet_float') != -1 or s.find(b'__VERIFIER_nondet_double') != -1 or s.find(b'ieee754_float') != -1:
+                if verbose: print "NO_2"
                 return True
-            float_lines = self.getFloatCode(r"""(0x)?\d+\.\d*(f|p|e)?""", r"""#|line|June|CIL|0\.000000|\"\d+|Created""", s)
+            float_lines, raw_cnt, is_double = self.getFloatCode(s)
+            if line_numbers >= limitSize or raw_cnt > 140:
+                if verbose: print "size or row_cnt"
+                return False
             count = len(float_lines)
-            if count > 60: return True
+            if count > 60:
+                if verbose: print "NO_3"
+                return False
             if count == 0:
-                result = re.search(r"""double""", s)
-                if result: return True
+                if is_double: return True
+                else: return False
             else:
                 regex_special = re.compile(r"""1\.4p|1\.0e""")
                 for fl in float_lines:
                     if regex_special.search(fl) is not None and count <= 4:
+                        if verbose: print "NO_4"
                         return False
-                else:
-                    return True
+                return True
 
 
 def initProfiles():
@@ -325,7 +331,7 @@ def main (argv):
     workdir = createWorkDir (opt.temp_dir, opt.save_temps)
     returnvalue = 0
     for fname in args:
-        if not strain.floatStrainer(fname):
+        if not strain.floatStrainer(fname) or "term" in opt.profiles:
             returnvalue = run (workdir, fname, seahorn_args, opt.profiles.split (':'),
                                opt.cex, opt.arch, opt.cpu, opt.mem)
         else:

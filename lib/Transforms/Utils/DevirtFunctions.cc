@@ -437,6 +437,9 @@ namespace seahorn {
     // Populate signature map
     for (auto const &F: M) {
       if (F.isIntrinsic ()) continue;
+      // -- local functions whose address is not taken cannot be
+      // -- resolved by a function pointer
+      if (F.hasLocalLinkage () && !F.hasAddressTaken ()) continue;
 
       auto it = signatureMap.find (F.getFunctionType ());
       if (it != signatureMap.end ()) {

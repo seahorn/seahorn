@@ -259,6 +259,22 @@ namespace seahorn
 
           DSCallSite CS = dsg->getDSCallSiteForCallSite (CallSite (call));
           if (!CS.isDirectCall ()) continue;
+
+          if (!CS.getCalleeFunc ()) continue;
+          
+          if (CS.getCalleeFunc ()->getName ().equals ("calloc"))
+          {
+            DSNode* n = dsg->getNodeForValue (call).getNode ();
+            if (!n) continue;
+            B.SetInsertPoint (call);
+            AllocaInst *v = allocaForNode (n);
+            B.CreateStore (B.CreateCall3 (m_memStoreFn,
+                                          B.getInt32 (getId (n)),
+                                          B.CreateLoad (v),
+                                          getUniqueScalar (ctx, B, n)),
+                           v);
+          }
+          
           if (!m_dsa->hasDSGraph (*CS.getCalleeFunc ())) continue;
           
           

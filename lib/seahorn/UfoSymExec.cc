@@ -47,6 +47,13 @@ InferMemSafety ("horn-use-mem-safety",
                 cl::init(true),
                 cl::Hidden);
 
+static llvm::cl::opt<bool>
+IgnoreCalloc ("horn-ignore-calloc",
+              llvm::cl::desc ("Treat calloc same as malloc, ignore that memory is initialized"),
+              cl::init (false),
+              cl::Hidden);
+
+
 /// extracts unique scalar from a call to shadow.mem functions
 static const Value *extractUniqueScalar (CallSite &cs)
 {
@@ -596,6 +603,24 @@ namespace
         // -- assumption is only active when error flag is false
         addCondSide (boolop::lor (m_s.read (m_sem.errorFlag (BB)), c));
       }
+      else if (F.getName ().equals ("calloc") && m_inMem && m_outMem && m_sem.isTracked (I))
+      {
+        havoc (I);
+        assert (m_fparams.size () == 3);
+        assert (!m_uniq);
+        if (IgnoreCalloc)
+          m_side.push_back (mk<EQ> (m_outMem, m_inMem));
+        else
+        {
+          // XXX This is potentially unsound if the corresponding DSA
+          // XXX node corresponds to multiple allocation sites
+          errs () << "WARNING: zero-initializing DSA node due to calloc()\n";
+          m_side.push_back (mk<EQ> (m_outMem,
+                                    op::array::constArray
+                                    (sort::intTy (m_efac), zeroE)));
+        }
+      }
+      
       // else if (F.getName ().equals ("verifier.assert"))
       // {
       //   Expr ein = m_s.read (m_sem.errorFlag ());

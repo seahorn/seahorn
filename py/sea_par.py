@@ -11,6 +11,9 @@ import threading
 import signal
 import itertools
 import re
+import fileinput
+import shutil
+
 
 root = os.path.dirname (os.path.dirname (os.path.realpath (__file__)))
 verbose = True
@@ -66,6 +69,19 @@ class Strainer(object):
                         return False
                 return True
 
+    def removeLinePragma(self, workdir, fname):
+        basename = os.path.basename(fname)
+        ext = basename.split(".")[1]
+        base = basename.split(".")[0]
+        new_fname = workdir + os.sep + base + ".lp." + ext
+        with  open (fname, 'r') as old_f:
+            with open(new_fname, 'w') as new_f:
+                for code in old_f.readlines():
+                    new_f.write("//"+code if "#line" in code else code)
+        return new_fname
+
+
+
 
 def initProfiles():
     base = ['pf', '--step=large', '-g', '--horn-global-constraints=true', '--track=mem',
@@ -78,9 +94,9 @@ def initProfiles():
                                        '--horn-crab','--crab-live', '--crab-dom=term']
     profiles ['crab_no_inline'] = base + ['--horn-crab','--crab-live', '--crab-dom=term']
     profiles ['term_0'] = ['term', '-O0', '--horn-no-verif', '--step=flarge', '--inline']
-    profiles ['term_3'] = ['term', '-O3', '--horn-no-verif', '--step=flarge', '--inline']
+    profiles ['term_1'] = ['term', '-O1', '--horn-no-verif', '--step=flarge', '--inline']
     profiles ['term_0_max'] = ['term', '-O0', '--horn-no-verif', '--step=flarge', '--inline', '--rank_func=max']
-    profiles ['term_3_max'] = ['term', '-O3', '--horn-no-verif', '--step=flarge', '--inline', '--rank_func=max']
+    profiles ['term_1_max'] = ['term', '-O1', '--horn-no-verif', '--step=flarge', '--inline', '--rank_func=max']
     return profiles
 
 profiles = initProfiles ()
@@ -169,7 +185,6 @@ def getSea ():
     return seahorn
 
 
-
 def cat (in_file, out_file): out_file.write (in_file.read ())
 
 running = list()
@@ -207,6 +222,8 @@ def run (workdir, fname, sea_args = [], profs = [],
     base_args = [sea_cmd, '--mem={0}'.format(mem),
                  '-m{0}'.format (arch)]
     base_args.extend (sea_args)
+
+
 
     if cex != None:
         cex_base = os.path.basename (fname)
@@ -253,7 +270,6 @@ def run (workdir, fname, sea_args = [], profs = [],
 
         # if a process terminated successfully and produced True/False
         # answer kill all other processes
-
 
         if returnvalue == 0 and getAnswer (out_f) is not None:
             for p in pids:
@@ -332,6 +348,7 @@ def main (argv):
     returnvalue = 0
     for fname in args:
         if not strain.floatStrainer(fname) or "term" in opt.profiles:
+            fname = strain.removeLinePragma(workdir, fname)
             returnvalue = run (workdir, fname, seahorn_args, opt.profiles.split (':'),
                                opt.cex, opt.arch, opt.cpu, opt.mem)
         else:

@@ -10,19 +10,90 @@ import subprocess as sub
 import threading
 import signal
 import itertools
+import re
+import fileinput
+import shutil
+import itertools
 
 root = os.path.dirname (os.path.dirname (os.path.realpath (__file__)))
 verbose = True
 
 
+class Strainer(object):
+    """ Inspired from SMACK's filter of float. This code uses mmap"""
+    """ FIXME a couple of LDV cases are passing by """
+    def __init__(self):
+        return
+
+    def getFloatCode(self, s):
+        fl_lines = list()
+        raw_cnt = 0
+        is_double = s.find(b'double') != -1
+        regex_p1 = re.compile(r"""(0x)?\d+\.\d*(f|p|e)?""")
+        regex_p2 = re.compile(r"""#|line|June|CIL|0\.000000|\"\d+|Created""")
+        crap = re.compile(r"""(extern|^\w*$|#)""")
+        for code in iter(s.readline, ""):
+            if crap.search(code) is None: raw_cnt +=1
+            r1 = regex_p1.search(code)
+            if r1:
+                r2 = regex_p2.search(code)
+                if r2 is None: fl_lines.append(r1.group(0))
+        return fl_lines, raw_cnt, is_double
+
+
+    def floatStrainer(self, bench, limitSize=2000):
+        import mmap
+        pattern = re.compile(r"""(0x)?\d+\.\d*(f|p|e)?""")
+        with open (bench, 'rb', 0) as f:
+            line_numbers = sum(1 for line in open(bench))
+            s= mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ)
+            if s.find(b'__VERIFIER_nondet_float') != -1 or s.find(b'__VERIFIER_nondet_double') != -1 or s.find(b'ieee754_float') != -1:
+                if verbose: print "NO_2"
+                return True
+            float_lines, raw_cnt, is_double = self.getFloatCode(s)
+            if line_numbers >= limitSize or raw_cnt > 140:
+                if verbose: print "size or row_cnt"
+                return False
+            count = len(float_lines)
+            if count > 60:
+                if verbose: print "NO_3"
+                return False
+            if count == 0:
+                if is_double: return True
+                else: return False
+            else:
+                regex_special = re.compile(r"""1\.4p|1\.0e""")
+                for fl in float_lines:
+                    if regex_special.search(fl) is not None and count <= 4:
+                        if verbose: print "NO_4"
+                        return False
+                return True
+
+    def removeLinePragma(self, workdir, fname):
+        basename = os.path.basename(fname)
+        ext = os.path.splitext(basename)[1]
+        new_fname = workdir + os.sep + basename + ".lp" + ext
+        with  open (fname, 'r') as old_f:
+            with open(new_fname, 'w') as new_f:
+                for code in old_f.readlines():
+                    new_f.write("//"+code if "#line" in code else code)
+        return new_fname
+
+
+
+
 def initProfiles():
-    base = ['--step=large', '-g', '--horn-global-constraints=true', '--track=mem',
+    base = ['pf', '--step=large', '-g', '--horn-global-constraints=true', '--track=mem',
             '--horn-stats', '--enable-nondet-init', '--strip-extern',
             '--externalize-addr-taken-functions', '--horn-singleton-aliases=true',
             '--horn-pdr-contexts=600', '--devirt-functions']
     profiles = dict()
     profiles ['inline'] = base + [ '--inline', '--crab', '--crab-dom=int']
     profiles ['no_inline'] = base
+    profiles ['term_0'] = ['term', '-O0', '--horn-no-verif', '--step=flarge', '--inline']
+    profiles ['term_1'] = ['term', '-O1', '--horn-no-verif', '--step=flarge', '--inline']
+    profiles ['term_0_max'] = ['term', '-O0', '--horn-no-verif', '--step=flarge', '--inline', '--rank_func=max']
+    profiles ['term_1_max'] = ['term', '-O1', '--horn-no-verif', '--step=flarge', '--inline', '--rank_func=max']
     return profiles
 
 profiles = initProfiles ()
@@ -75,7 +146,9 @@ def parseOpt (argv):
         l = f.readline ()
         # expect property of the form:
         # CHECK( init(main()), LTL(G ! call(__VERIFIER_error())) )
-        if l.find ('__VERIFIER_error') < 0:
+        if l.find('LTL(F end)')>0:
+            options.profiles = 'term'
+        elif l.find ('__VERIFIER_error') < 0:
             print 'BRUNCH_STAT Result UNKNOWN'
             sys.exit (3)
 
@@ -107,7 +180,6 @@ def getSea ():
     if not isexec (seahorn):
         raise IOError ("Cannot find sea")
     return seahorn
-
 
 
 def cat (in_file, out_file): out_file.write (in_file.read ())
@@ -144,7 +216,7 @@ def run (workdir, fname, sea_args = [], profs = [],
 
     if cex is None: cex = fname+".xml" # forcing a cex output
 
-    base_args = [sea_cmd, 'pf', '--mem={0}'.format(mem),
+    base_args = [sea_cmd, '--mem={0}'.format(mem),
                  '-m{0}'.format (arch)]
     base_args.extend (sea_args)
 
@@ -260,6 +332,7 @@ def _getVersion ():
                 return v
 
 def main (argv):
+    strain = Strainer()
     seahorn_args = filter (seahorn_opt, argv [1:])
     argv = filter (non_seahorn_opt, argv [1:])
 
@@ -269,9 +342,14 @@ def main (argv):
     returnvalue = 0
     print opt.arch
     for fname in args:
-        returnvalue = run (workdir, fname, seahorn_args, opt.profiles.split (':'),
-                           opt.cex, opt.arch, opt.cpu, opt.mem)
+        if not strain.floatStrainer(fname) or "term" in opt.profiles:
+            fname = strain.removeLinePragma(workdir, fname)
+            #returnvalue = run (workdir, fname, seahorn_args, opt.profiles.split (':'),
+             #                  opt.cex, opt.arch, opt.cpu, opt.mem)
+        else:
+            print "BRUNCH_STAT Result UNKNOWN"
     return returnvalue
+
 
 def killall ():
     global running

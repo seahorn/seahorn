@@ -650,6 +650,41 @@ class Crab (sea.LimitedCmd):
         return self.seappCmd.run (args, argv)
 
 
+class SeaTerm(sea.LimitedCmd):
+    def __init__ (self, quiet=False):
+        super (SeaTerm, self).__init__ ('term', 'SeaHorn Termination analysis ',
+                                        allow_extra=True)
+
+
+    @property
+    def stdout (self):
+        return
+
+    def name_out_file (self, in_files, args=None, work_dir=None):
+        return _remap_file_name (in_files[0], '.smt2', work_dir)
+
+    def mk_arg_parser (self, ap):
+        ap = super (SeaTerm, self).mk_arg_parser (ap)
+        ap.add_argument ('--rank_func',
+                         help='Choose Ranking Function Type',
+                         choices=['max','lex','mul'], default='lex', dest='rank')
+        return ap
+
+    def run(self, args, extra):
+        try:
+            import term.termination as tt
+            tt.seaTerm(extra[len(extra)-1],args.rank)
+        except Exception as e:
+            raise IOError(str(e))
+
+
+
+
+
+
+
+
+
 FrontEnd = sea.SeqCmd ('fe', 'Front end: alias for clang|pp|ms|opt',
                        [Clang(), Seapp(), MixedSem(), Seaopt ()])
 Smt = sea.SeqCmd ('smt', 'alias for fe|horn', FrontEnd.cmds + [Seahorn()])
@@ -664,3 +699,4 @@ BndSmt = sea.SeqCmd ('bnd-smt', 'alias for fe|unroll|cut-loops|ms|opt|horn',
 Bpf = sea.SeqCmd ('bpf', 'alias for fe|unroll|cut-loops|opt|horn --solve',
                   FrontEnd.cmds + [Unroll(), CutLoops(), Seaopt(), Seahorn(solve=True)])
 feCrab = sea.SeqCmd ('fe-crab', 'alias for fe|crab', FrontEnd.cmds + [Crab()])
+seaTerm = sea.SeqCmd ('term', 'SeaHorn Termination analysis', Smt.cmds + [SeaTerm()])

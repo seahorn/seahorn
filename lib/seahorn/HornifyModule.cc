@@ -47,7 +47,7 @@ TL("horn-sem-lvl",
    cl::init (seahorn::REG));
 
 
-namespace hm_detail {enum Step {SMALL_STEP, LARGE_STEP, 
+namespace hm_detail {enum Step {SMALL_STEP, LARGE_STEP,
                                 CLP_SMALL_STEP, CLP_FLAT_SMALL_STEP,
                                 FLAT_SMALL_STEP, FLAT_LARGE_STEP};}
 
@@ -72,6 +72,13 @@ static llvm::cl::opt<bool>
 AbortOnRecursion("horn-abort-on-recursion",
                  llvm::cl::desc ("Abort if program has a recursive call"),
                  cl::init (false));
+
+static llvm::cl::opt<bool>
+NoVerification("horn-no-verif",
+          llvm::cl::desc ("Generate only SMT2 encoding (i.e. even if there are no assertions)"),
+          cl::init (false));
+
+
 
 namespace seahorn
 {
@@ -138,8 +145,8 @@ namespace seahorn
     }
 
     // --- no function can fail so the program is trivially safe.
-    if (!canFail)
-    { 
+    if (!canFail && !NoVerification)
+    {
       errs () << "WARNING: no assertion was found ";
       errs () << "so either program does not have assertions or frontend discharged them.\n";
       m_db.addQuery (mk<FALSE> (m_efac));
@@ -287,7 +294,7 @@ namespace seahorn
                                            (*this, InterProc));
     if (Step == hm_detail::LARGE_STEP)
       hf.reset (new LargeHornifyFunction (*this, InterProc));
-    else if (Step == hm_detail::FLAT_SMALL_STEP || 
+    else if (Step == hm_detail::FLAT_SMALL_STEP ||
              Step == hm_detail::CLP_FLAT_SMALL_STEP)
       hf.reset (new FlatSmallHornifyFunction (*this, InterProc));
     else if (Step == hm_detail::FLAT_LARGE_STEP)

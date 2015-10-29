@@ -22,7 +22,6 @@ verbose = True
 
 class Strainer(object):
     """ Inspired from SMACK's filter of float. This code uses mmap"""
-    """ FIXME a couple of LDV cases are passing by """
     def __init__(self):
         return
 
@@ -49,25 +48,22 @@ class Strainer(object):
             line_numbers = sum(1 for line in open(bench))
             s= mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ)
             if s.find(b'__VERIFIER_nondet_float') != -1 or s.find(b'__VERIFIER_nondet_double') != -1 or s.find(b'ieee754_float') != -1:
-                if verbose: print "NO_2"
+                if verbose: print "BRUNCH_STAT Float NO_1"
                 return True
             float_lines, raw_cnt, is_double = self.getFloatCode(s)
-            if line_numbers >= limitSize or raw_cnt > 140:
-                if verbose: print "size or row_cnt"
-                return False
+            if line_numbers >= limitSize or raw_cnt > 140: return False
             count = len(float_lines)
-            if count > 60:
-                if verbose: print "NO_3"
-                return False
+            if count > 60: return False
             if count == 0:
-                if is_double: return True
+                if is_double:
+                    if verbose: print "BRUNCH_STAT Float NO_2"
+                    return True
                 else: return False
             else:
                 regex_special = re.compile(r"""1\.4p|1\.0e""")
                 for fl in float_lines:
-                    if regex_special.search(fl) is not None and count <= 4:
-                        if verbose: print "NO_4"
-                        return False
+                    if regex_special.search(fl) is not None and count <= 4: return False
+                if verbose: print "BRUNCH_STAT Float NO_3"
                 return True
 
     def removeLinePragma(self, workdir, fname):
@@ -339,7 +335,6 @@ def main (argv):
 
     workdir = createWorkDir (opt.temp_dir, opt.save_temps)
     returnvalue = 0
-    print opt.arch
     for fname in args:
         if not strain.floatStrainer(fname) or "term" in opt.profiles:
             fname = strain.removeLinePragma(workdir, fname)

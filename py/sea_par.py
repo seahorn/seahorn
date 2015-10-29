@@ -71,9 +71,8 @@ class Strainer(object):
 
     def removeLinePragma(self, workdir, fname):
         basename = os.path.basename(fname)
-        ext = basename.split(".")[1]
-        base = basename.split(".")[0]
-        new_fname = workdir + os.sep + base + ".lp." + ext
+        ext = os.path.splitext(basename)[1]
+        new_fname = workdir + os.sep + basename + ".lp" + ext
         with  open (fname, 'r') as old_f:
             with open(new_fname, 'w') as new_f:
                 for code in old_f.readlines():
@@ -349,8 +348,8 @@ def main (argv):
     for fname in args:
         if not strain.floatStrainer(fname) or "term" in opt.profiles:
             fname = strain.removeLinePragma(workdir, fname)
-            returnvalue = run (workdir, fname, seahorn_args, opt.profiles.split (':'),
-                               opt.cex, opt.arch, opt.cpu, opt.mem)
+            #returnvalue = run (workdir, fname, seahorn_args, opt.profiles.split (':'),
+             #                  opt.cex, opt.arch, opt.cpu, opt.mem)
         else:
             print "BRUNCH_STAT Result UNKNOWN"
     return returnvalue

@@ -212,8 +212,7 @@ namespace seahorn
       
       Expr unmarshal_num( ikos::z_number n, ExprFactory &efac)
       {
-        std::string snum = boost::lexical_cast<std::string> ((int) n);
-        const mpz_class mpz (snum);
+        const mpz_class mpz ((mpz_class) n);
         return mkTerm (mpz, efac);
       }
        

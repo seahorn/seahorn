@@ -15,6 +15,7 @@ import fileinput
 import shutil
 import itertools
 
+
 root = os.path.dirname (os.path.dirname (os.path.realpath (__file__)))
 verbose = True
 
@@ -90,10 +91,8 @@ def initProfiles():
     profiles = dict()
     profiles ['inline'] = base + [ '--inline', '--crab', '--crab-dom=num']
     profiles ['no_inline'] = base
-    profiles ['term_0'] = ['term', '-O0', '--horn-no-verif', '--step=flarge', '--inline']
-    profiles ['term_1'] = ['term', '-O1', '--horn-no-verif', '--step=flarge', '--inline']
-    profiles ['term_0_max'] = ['term', '-O0', '--horn-no-verif', '--step=flarge', '--inline', '--rank_func=max']
-    profiles ['term_1_max'] = ['term', '-O1', '--horn-no-verif', '--step=flarge', '--inline', '--rank_func=max']
+    profiles ['term_lex'] = ['term', '-O0', '--horn-no-verif', '--step=flarge', '--inline']
+    profiles ['term_max'] = ['term', '-O0', '--horn-no-verif', '--step=flarge', '--inline', '--rank_func=max']
     return profiles
 
 profiles = initProfiles ()
@@ -147,7 +146,7 @@ def parseOpt (argv):
         # expect property of the form:
         # CHECK( init(main()), LTL(G ! call(__VERIFIER_error())) )
         if l.find('LTL(F end)')>0:
-            options.profiles = 'term'
+            options.profiles = 'term_lex:term_max'
         elif l.find ('__VERIFIER_error') < 0:
             print 'BRUNCH_STAT Result UNKNOWN'
             sys.exit (3)
@@ -344,8 +343,8 @@ def main (argv):
     for fname in args:
         if not strain.floatStrainer(fname) or "term" in opt.profiles:
             fname = strain.removeLinePragma(workdir, fname)
-            #returnvalue = run (workdir, fname, seahorn_args, opt.profiles.split (':'),
-             #                  opt.cex, opt.arch, opt.cpu, opt.mem)
+            returnvalue = run (workdir, fname, seahorn_args, opt.profiles.split (':'),
+                               opt.cex, opt.arch, opt.cpu, opt.mem)
         else:
             print "BRUNCH_STAT Result UNKNOWN"
     return returnvalue

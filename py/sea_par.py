@@ -128,6 +128,7 @@ def parseOpt (argv):
                        help='Destination for a counterexample file')
     parser.add_option ('--spec', default=None, help='Property file')
     parser.add_option ('--version', default=None, action='store_true')
+    parser.add_option ('--no-line-pragma', default=False, dest='line_pragma', action='store_true')
 
     (options, args) = parser.parse_args (argv)
 
@@ -337,7 +338,9 @@ def main (argv):
     returnvalue = 0
     for fname in args:
         if not strain.floatStrainer(fname) or "term" in opt.profiles:
-            fname = strain.removeLinePragma(workdir, fname)
+            if opt.line_pragma:
+                print "HERE"
+                fname = strain.removeLinePragma(workdir, fname)
             returnvalue = run (workdir, fname, seahorn_args, opt.profiles.split (':'),
                                opt.cex, opt.arch, opt.cpu, opt.mem)
         else:

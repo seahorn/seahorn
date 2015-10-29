@@ -441,6 +441,10 @@ namespace seahorn {
       // -- resolved by a function pointer
       if (F.hasLocalLinkage () && !F.hasAddressTaken ()) continue;
 
+      // -- skip useless declarations
+      if (F.getName().startswith ("seahorn.")) continue;
+      if (F.getName().startswith ("verifier.")) continue;
+
       auto it = signatureMap.find (F.getFunctionType ());
       if (it != signatureMap.end ()) {
         std::vector<const Function*>& fs = it->second;

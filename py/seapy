@@ -46,11 +46,9 @@ if __name__ == '__main__':
         os.environ['PATH'] = path + os.pathsep + os.environ['PATH']
 
     path = os.path.abspath (os.path.join(path, '..', 'lib', 'seapy'))
-
-    z3_path = os.path.abspath (os.path.join(path, '..', 'python2.7', 'dist-packages'))
-
     if os.path.isdir (path): sys.path.insert(0, path)
-
+    
+    z3_path = os.path.abspath (os.path.join(path, '..', 'lib', 'z3py'))
     if os.path.isdir (z3_path): sys.path.insert(0, z3_path)
 
     sys.exit (main (sys.argv[1:]))

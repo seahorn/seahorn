@@ -81,8 +81,22 @@ namespace seahorn
     {AU.setPreservesAll ();}
     virtual const char* getPassName () const {return "Stub-ShadowMemDsa";}
   };
+  
+  class StripShadowMem: public llvm::ModulePass
+  {
+  public:
+    static char ID;
+    StripShadowMem () : llvm::ModulePass (ID) {}
+    virtual bool runOnModule (llvm::Module &M)
+    {
+      errs () << "WARNING: Ignoring memory. Compiled without DSA library.\n";
+      return false;
+    }
+    virtual void getAnalysisUsage (llvm::AnalysisUsage &AU) const
+    {AU.setPreservesAll ();}
+    virtual const char* getPassName () const {return "Stub-StripShadowMem";}
+  };
 }
-
 #endif
 
 #endif

@@ -29,8 +29,24 @@ SvCompCexFile("horn-svcomp-cex", llvm::cl::desc("Counterexample in SV-COMP XML f
               llvm::cl::init(""), llvm::cl::value_desc("filename"));
 
 static llvm::cl::opt<std::string>
+SvCompCexFileSpec("horn-svcomp-cex-spec", 
+                  llvm::cl::desc("Specification key in SV-COMP XML format"),
+                  llvm::cl::init("CHECK( init(main()), LTL(G ! call(__VERIFIER_error())) )"));
+
+static llvm::cl::opt<std::string>
+SvCompCexFileMemModel("horn-svcomp-cex-mem", 
+                      llvm::cl::desc("Memory model key in SV-COMP XML format"),
+                      llvm::cl::init("simple"));
+
+static llvm::cl::opt<std::string>
+SvCompCexFileArch("horn-svcomp-cex-arch", 
+                  llvm::cl::desc("Architecture key in SV-COMP XML format"),
+                  llvm::cl::init("32bit"));
+
+static llvm::cl::opt<std::string>
 HornCexSmtFilename("horn-cex-smt", llvm::cl::desc("Counterexample validate SMT problem"),
                llvm::cl::init(""), llvm::cl::value_desc("filename"), llvm::cl::Hidden);
+
 
 using namespace llvm;
 namespace seahorn
@@ -147,9 +163,16 @@ namespace seahorn
       key ("enterFunction", "string", "edge", "enterFunction");
       key ("returnFromFunction", "string", "edge", "returnFrom");
       
+      const std::string spec = "CHECK( init(main()), LTL(G ! call(__VERIFIER_error())) )";
+      const std::string mem_model = "precise";
+      const std::string arch = "32bit";
+
       m_out << "<graph edgedefault='directed'>\n"
             << "<data key='sourcecodelang'>C</data>\n"
             << "<data key='producer'>SeaHorn </data>\n"
+            << "<data key='specification'>" << SvCompCexFileSpec << "</data>\n"
+            << "<data key='memorymodel'>"   << SvCompCexFileMemModel << "</data>\n"
+            << "<data key='architecture'>"  << SvCompCexFileArch << "</data>\n"
             << "<node id='0'> <data key='entry'>true</data> </node>\n";
     }
 

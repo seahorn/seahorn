@@ -222,6 +222,17 @@ if (EXISTS ${CMAKE_CURRENT_BINARY_DIR}/llvm-prefix/src/llvm-build/bin/clang-3.6)
     DESTINATION bin)
 endif()
 
+if (EXISTS ${CMAKE_CURRENT_BINARY_DIR}/z3-prefix/src/z3/build)
+  file(GLOB z3py
+    ${CMAKE_CURRENT_BINARY_DIR}/z3-prefix/src/z3/build/*.py?
+    ${CMAKE_CURRENT_BINARY_DIR}/z3-prefix/src/z3/build/*.py?
+    ${CMAKE_CURRENT_BINARY_DIR}/z3-prefix/src/z3/build/*.so
+    ${CMAKE_CURRENT_BINARY_DIR}/z3-prefix/src/z3/build/*.dylib
+    ${CMAKE_CURRENT_BINARY_DIR}/z3-prefix/src/z3/build/*.dll
+    )
+  install(FILES ${z3py} DESTINATION lib/z3py)
+endif()
+
 if (EXISTS ${CMAKE_CURRENT_BINARY_DIR}/crab/src/crab/Ikos_LICENSE.pdf)
   install (
     FILES

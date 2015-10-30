@@ -14,10 +14,12 @@ option (USE_PY_SETUP "Use python distutils to install python modules" OFF)
 if (PYTHON AND NOT USE_PY_SETUP)
   install (DIRECTORY sea DESTINATION lib/seapy
     FILES_MATCHING PATTERN "*.py")
+  install (DIRECTORY term DESTINATION lib/seapy
+            FILES_MATCHING PATTERN "*.py")
   install (PROGRAMS seapy DESTINATION bin RENAME sea)
   install (PROGRAMS sea_par.py DESTINATION bin RENAME sea_svcomp)
   install (FILES seahorn-benchexec-wrapper.py DESTINATION bin)
-  
+
   install (FILES stats.py DESTINATION bin)
   set (Z3_SMT2 ${CMAKE_BINARY_DIR}/z3-prefix/src/z3/stats/scripts/z3_smt2.py)
   if (EXISTS ${Z3_SMT2})
@@ -37,7 +39,7 @@ if (PYTHON AND USE_PY_SETUP)
     only_z3.py
     ${SETUP_PY_IN}
     )
-  
+
   configure_file(${SETUP_PY_IN} ${SETUP_PY})
 
   add_custom_command(OUTPUT ${OUTPUT}

@@ -27,7 +27,8 @@ def main (argv):
             sea.commands.LegacyFrontEnd(),
             sea.commands.Crab(),
             sea.commands.feCrab,
-            sea.commands.Unroll()
+            sea.commands.Unroll(),
+            sea.commands.seaTerm
     ]
 
 
@@ -46,5 +47,8 @@ if __name__ == '__main__':
 
     path = os.path.abspath (os.path.join(path, '..', 'lib', 'seapy'))
     if os.path.isdir (path): sys.path.insert(0, path)
+    
+    z3_path = os.path.abspath (os.path.join(path, '..', 'lib', 'z3py'))
+    if os.path.isdir (z3_path): sys.path.insert(0, z3_path)
 
     sys.exit (main (sys.argv[1:]))

@@ -214,6 +214,8 @@ def run (workdir, fname, sea_args = [], profs = [],
 
     base_args = [sea_cmd, '--mem={0}'.format(mem),
                  '-m{0}'.format (arch)]
+    if arch == 64:
+        base_args.append ('--horn-svcomp-cex-arch=64bit')
     base_args.extend (sea_args)
 
     if cex != None:

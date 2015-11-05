@@ -83,7 +83,8 @@ def initProfiles():
     base = ['pf', '--step=large', '-g', '--horn-global-constraints=true', '--track=mem',
             '--horn-stats', '--enable-nondet-init', '--strip-extern',
             '--externalize-addr-taken-functions', '--horn-singleton-aliases=true',
-            '--horn-pdr-contexts=600', '--devirt-functions', '--horn-ignore-calloc=false']
+            '--horn-pdr-contexts=600', '--devirt-functions', '--horn-ignore-calloc=false',
+	     '--enable-indvar', '--enable-loop-idiom']
     profiles = dict()
     profiles ['inline'] = base + [ '--inline', '--crab', '--crab-dom=num']
     profiles ['no_inline'] = base

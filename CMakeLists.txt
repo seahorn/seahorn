@@ -331,6 +331,7 @@ if (IS_DIRECTORY ${CMAKE_SOURCE_DIR}/crab-llvm AND
     return()
   else()
     include_directories (${CRAB_INCLUDE_DIR})
+    include_directories (${LDD_INCLUDE_DIR})
   endif()
 endif()
 

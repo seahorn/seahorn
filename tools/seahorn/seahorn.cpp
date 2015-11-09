@@ -31,8 +31,10 @@
 #include "seahorn/Transforms/Scalar/LowerCstExpr.hh"
 #include "seahorn/Transforms/Utils/RemoveUnreachableBlocksPass.hh"
 
+#ifdef HAVE_CRAB_LLVM
 #include "crab_llvm/CrabLlvm.hh"
 #include "crab_llvm/Transforms/InsertInvariants.hh"
+#endif 
 
 #include "ufo/Smt/EZ3.hh"
 #include "ufo/Passes/NameValues.hpp"
@@ -236,6 +238,7 @@ int main(int argc, char **argv) {
   pass_manager.add (seahorn::createStripLifetimePass ());
   pass_manager.add (seahorn::createDeadNondetElimPass ());
 
+#ifdef HAVE_CRAB_LLVM
   if (Crab)
   {
     pass_manager.add (new ufo::NameValues ());
@@ -244,6 +247,7 @@ int main(int argc, char **argv) {
     /// -- simplify invariants added in the bitecode
     // pass_manager.add (seahorn::createInstCombine ());
   }
+#endif 
 
   pass_manager.add (new seahorn::HornifyModule ());
   if (!AsmOutputFilename.empty ()) 

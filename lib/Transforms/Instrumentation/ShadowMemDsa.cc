@@ -502,9 +502,7 @@ namespace seahorn
       return true;
     }
     
-  };
-  char StripShadowMem::ID = 0;
-    
+  };    
 }
 
 #endif
@@ -512,6 +510,7 @@ namespace seahorn
 namespace seahorn
 {
   char ShadowMemDsa::ID = 0;
+  char StripShadowMem::ID = 0;
   Pass * createShadowMemDsaPass () {return new ShadowMemDsa ();}
   Pass * createStripShadowMemPass () {return new StripShadowMem ();}
   

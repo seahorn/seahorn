@@ -427,7 +427,7 @@ class Seahorn(sea.LimitedCmd):
                          dest='crab', default=False, action='store_true')
         ap.add_argument ('--crab-dom',
                          help='Choose Crab abstract domain',
-                         choices=['int','ric','zones','term','num'],
+                         choices=['int','ric','zones','term','num','boxes'],
                          dest='crab_dom', default='int')
         ap.add_argument ('--crab-track',
                          help='Track registers, pointers, and memory',
@@ -611,7 +611,7 @@ class Crab (sea.LimitedCmd):
         ap = super (Crab, self).mk_arg_parser (ap)
         ap.add_argument ('--crab-dom',
                          help='Choose Crab abstract domain',
-                         choices=['int','ric','zones','term','num'],
+                         choices=['int','ric','zones','term','num','boxes'],
                          dest='crab_dom', default='int')
         ap.add_argument ('--crab-track',
                          help='Track registers, pointers, and memory',

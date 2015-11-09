@@ -3,6 +3,8 @@
 #include "llvm/Support/raw_ostream.h"
 #include "seahorn/config.h"
 
+#include "ufo/Smt/EZ3.hh"
+
 namespace seahorn
 {
   using namespace llvm;
@@ -10,6 +12,7 @@ namespace seahorn
   /// Loads Crab invariants into  a Horn Solver
   class LoadCrab: public llvm::ModulePass
   {
+
   public:
     static char ID;
     
@@ -48,12 +51,10 @@ namespace seahorn
 
 #include <crab_llvm/CfgBuilder.hh>
 #include <crab_llvm/CrabLlvm.hh>
+#include <crab_llvm/AbstractDomainsImpl.hh>
 
 #include "seahorn/HornifyModule.hh"
-
 #include "llvm/Support/CommandLine.h"
-
-#include "boost/lexical_cast.hpp"
 
 namespace llvm
 {
@@ -78,260 +79,508 @@ namespace llvm
 
 } // end namespace
 
-namespace seahorn
+
+namespace crab_llvm
 {
-  namespace crab_smt 
+  using namespace llvm;
+  using namespace expr;
+  using namespace crab::cfg_impl;
+
+  // Conversion from linear constraints to Expr
+  struct LinConstToExpr
   {
-    // TODO: marshal expr::Expr to crab::linear_constraints
-
-    using namespace llvm;
-    using namespace expr;
-    using namespace crab::cfg_impl;
-
-    struct FailUnMarshal
+    // Crab does not distinguish between bools and the rest of
+    // integers but SeaHorn does.
+    
+    // A normalizer for Boolean constraints
+    class BoolCst 
     {
-      static Expr unmarshal (const z_lin_cst_t &cst, ExprFactory &efac)
-      { 
-        llvm::errs () << "Cannot unmarshal: " << cst << "\n";
-        assert (0); exit (1); 
-      }
-    };
+      typedef enum {T_TRUE, T_FALSE, T_TOP} tribool_t;
       
-    template <typename U>
-    struct BasicExprUnMarshal
-    {
-      // Crab does not distinguish between bools and the rest of
-      // integers but SeaHorn does.
-
-      // A normalizer for Boolean constraints
-      class BoolCst 
-      {
-        typedef enum {T_TRUE, T_FALSE, T_TOP} tribool_t;
+      tribool_t      m_val;
       
-        tribool_t      m_val;
-
-        // internal representation:
-        // constraint is of the form m_coef*m_var {<=,==} m_rhs
-        // m_coef and m_rhs can be negative numbers.
-
-        ikos::z_number m_coef;
-        const Value*   m_var;
-        bool           m_is_eq; //tt:equality, ff:inequality
-        ikos::z_number m_rhs;
-        
-       public:
-        
-        // If cst is a constraint of the form x<=c where x is a LLVM
-        // Value of type i1 then return x, otherwise null.
-        static const Value* isBoolCst (z_lin_cst_t cst)
-        {
-          if (cst.is_disequation ()) return nullptr;
-          auto e = cst.expression() - cst.expression().constant();
-          if (std::distance (e.begin (), e.end ()) != 1) return nullptr; 
-          auto t = *(e.begin ());
-          varname_t v = t.second.name();
-          assert (v.get () && "Cannot have shadow vars");
-          if ( (*(v.get ()))->getType ()->isIntegerTy (1))
-            return *(v.get ()); 
-          else return nullptr; 
-        }
-        
-        BoolCst (z_lin_cst_t cst): m_val (T_TOP),
-                                         m_coef (0), m_rhs (0), 
-                                         m_var (nullptr), m_is_eq (cst.is_equality ())
-        {
-          assert (isBoolCst (cst));
-
-          auto e = cst.expression() - cst.expression().constant();
-          auto t = *(e.begin ());
-          assert (t.second.name ().get () && "Cannot have shadow vars");
-          m_var  = *(t.second.name ().get ());
-          m_coef = t.first;
-          m_rhs  = -cst.expression().constant();
-          
-          if (m_is_eq)
-          {
-            if (m_rhs == 0)                        /* k*x == 0 for any k*/
-            { m_val = T_FALSE; }
-            else if (m_coef == 1 && m_rhs == 1)    /*x == 1*/
-            { m_val = T_TRUE; }
-            else if (m_coef == -1 && m_rhs == -1)  /*-x == -1*/
-            { m_val = T_TRUE; }
-          }
-        }
-        
-        // Conjoin two boolean constraints
-        void operator+= (BoolCst other)
-        {
-          // they cannot disagree otherwise the initial constraint
-          // would be false.
-          assert (!(m_val == T_TRUE  && other.m_val == T_FALSE));
-          assert (!(m_val == T_FALSE && other.m_val == T_TRUE));
-          
-          if (m_val != T_TOP && other.m_val == T_TOP) 
-            return; 
-          if (m_val == T_TOP && other.m_val != T_TOP)
-          { 
-            m_val = other.m_val; 
-            return;  
-          }
-          
-          if (!m_is_eq && !other.m_is_eq) // both are inequalities
-          {
-            
-            if ( ( (m_coef == 1 && m_rhs == 0) &&               /* x <= 0*/
-                   (other.m_coef == -1 && other.m_rhs == 0)) || /*-x <= 0*/ 
-                 ( (m_coef == -1 && m_rhs == 0) &&              /*-x <= 0*/
-                   (other.m_coef == 1 && other.m_rhs == 0)))    /* x <= 0*/
-            { m_val = T_FALSE; }
-            else if ( ((m_coef == 1 && m_rhs == 1) &&                /*x <= 1*/
-                       (other.m_coef == -1 && other.m_rhs == -1)) || /*-x <=-1*/ 
-                      ((m_coef == -1 && m_rhs == -1) &&              /*-x <=-1*/
-                       (other.m_coef == 1 && other.m_rhs == 1)))     /*x <= 1*/
-            {  m_val = T_TRUE; } 
-          }
-        }
-        
-        bool isUnknown () const { return m_val == T_TOP; }
-        
-        Expr toExpr (ExprFactory &efac) const 
-        {
-          if (isUnknown ()) return mk<TRUE>(efac);
-
-          Expr e = mkTerm<const Value*>(m_var, efac);
-          e = bind::boolConst (e);
-          if (m_val == T_FALSE) return mk<NEG> (e);
-          else return e;
-        }
-        
-      };
+      // internal representation:
+      // constraint is of the form m_coef*m_var {<=,==} m_rhs
+      // m_coef and m_rhs can be negative numbers.
       
-
-      typedef DenseMap<const Value*, BoolCst> bool_map_t;
-      bool_map_t bool_map;
+      ikos::z_number m_coef;
+      const Value*   m_var;
+      bool           m_is_eq; //tt:equality, ff:inequality
+      ikos::z_number m_rhs;
       
-      Expr unmarshal_num( ikos::z_number n, ExprFactory &efac)
+     public:
+      
+      // If cst is a constraint of the form x<=c where x is a LLVM
+      // Value of type i1 then return x, otherwise null.
+      static const Value* isBoolCst (z_lin_cst_t cst)
       {
-        const mpz_class mpz ((mpz_class) n);
-        return mkTerm (mpz, efac);
-      }
-       
-      Expr unmarshal_int_var( varname_t v, ExprFactory &efac)
-      {
-        assert (v.get () && "Cannot have shadow vars");
-        Expr e = mkTerm<const Value*>(*(v.get()), efac);
-        return bind::intConst (e);
-      }
-       
-      Expr unmarshal (z_lin_cst_t cst, ExprFactory &efac)
-      {
-        if (cst.is_tautology ())     
-          return mk<TRUE> (efac);
-
-        if (cst.is_contradiction ()) 
-          return mk<FALSE> (efac);
-
-        // booleans
-        if (const Value* v = BoolCst::isBoolCst (cst))
-        {
-          BoolCst b2 (cst);
-          auto it = bool_map.find (v);
-          if (it != bool_map.end ())
-          {
-            BoolCst &b1 = it->second;
-            b1 += b2;
-          }
-          else { bool_map.insert (make_pair (v, b2)); } 
-
-          return mk<TRUE> (efac); // we ignore cst for now
-        }
-        
-        // integers
+        if (cst.is_disequation ()) return nullptr;
         auto e = cst.expression() - cst.expression().constant();
-        Expr ee = unmarshal_num ( ikos::z_number ("0"), efac);
-        for (auto t : e)
-        {
-          ikos::z_number n  = t.first;
-          varname_t v = t.second.name();
-          if (n == 0) continue;
-          else if (n == 1) 
-            ee = mk<PLUS> (ee, unmarshal_int_var (v, efac));
-          else if (n == -1) 
-            ee = mk<MINUS> (ee, unmarshal_int_var (v, efac));
-          else
-            ee = mk<PLUS> (ee, mk<MULT> ( unmarshal_num (n, efac), 
-                                          unmarshal_int_var (v, efac)));
-        }
-
-        ikos::z_number c = -cst.expression().constant();
-        Expr cc = unmarshal_num (c, efac);
-        if (cst.is_inequality ())
-          return mk<LEQ> (ee, cc);
-        else if (cst.is_equality ())
-          return mk<EQ> (ee, cc);        
-        else 
-          return mk<NEQ> (ee, cc);
-        
+        if (std::distance (e.begin (), e.end ()) != 1) return nullptr; 
+        auto t = *(e.begin ());
+        varname_t v = t.second.name();
+        assert (v.get () && "Cannot have shadow vars");
+        if ( (*(v.get ()))->getType ()->isIntegerTy (1))
+          return *(v.get ()); 
+        else return nullptr; 
       }
-       
-      Expr unmarshal (z_lin_cst_sys_t csts, ExprFactory &efac)
+      
+      BoolCst (z_lin_cst_t cst): m_val (T_TOP),
+                                 m_coef (0), m_rhs (0), 
+                                 m_var (nullptr), m_is_eq (cst.is_equality ())
       {
-        Expr e = mk<TRUE> (efac);
-
-        // integers
-        for (auto cst: csts)
-        { e = boolop::land (e, unmarshal (cst, efac)); } 
-
-        // booleans 
-        for (auto p: bool_map)
+        assert (isBoolCst (cst));
+        
+        auto e = cst.expression() - cst.expression().constant();
+        auto t = *(e.begin ());
+        assert (t.second.name ().get () && "Cannot have shadow vars");
+        m_var  = *(t.second.name ().get ());
+        m_coef = t.first;
+        m_rhs  = -cst.expression().constant();
+        
+        if (m_is_eq)
         {
-          auto b = p.second;
-          if (!b.isUnknown ()) { e = boolop::land (e, b.toExpr (efac)); }
+          if (m_rhs == 0)                        /* k*x == 0 for any k*/
+          { m_val = T_FALSE; }
+          else if (m_coef == 1 && m_rhs == 1)    /*x == 1*/
+          { m_val = T_TRUE; }
+          else if (m_coef == -1 && m_rhs == -1)  /*-x == -1*/
+          { m_val = T_TRUE; }
         }
+      }
+      
+      // Conjoin two boolean constraints
+      void operator+= (BoolCst other)
+      {
+        // they cannot disagree otherwise the initial constraint
+        // would be false.
+        assert (!(m_val == T_TRUE  && other.m_val == T_FALSE));
+        assert (!(m_val == T_FALSE && other.m_val == T_TRUE));
+        
+        if (m_val != T_TOP && other.m_val == T_TOP) 
+          return; 
+        if (m_val == T_TOP && other.m_val != T_TOP)
+        { 
+          m_val = other.m_val; 
+          return;  
+        }
+        
+        if (!m_is_eq && !other.m_is_eq) // both are inequalities
+        {
+          
+          if ( ( (m_coef == 1 && m_rhs == 0) &&               /* x <= 0*/
+                 (other.m_coef == -1 && other.m_rhs == 0)) || /*-x <= 0*/ 
+               ( (m_coef == -1 && m_rhs == 0) &&              /*-x <= 0*/
+                 (other.m_coef == 1 && other.m_rhs == 0)))    /* x <= 0*/
+          { m_val = T_FALSE; }
+          else if ( ((m_coef == 1 && m_rhs == 1) &&                /*x <= 1*/
+                     (other.m_coef == -1 && other.m_rhs == -1)) || /*-x <=-1*/ 
+                    ((m_coef == -1 && m_rhs == -1) &&              /*-x <=-1*/
+                     (other.m_coef == 1 && other.m_rhs == 1)))     /*x <= 1*/
+          {  m_val = T_TRUE; } 
+        }
+      }
+      
+      bool isUnknown () const { return m_val == T_TOP; }
+      
+      Expr toExpr (ExprFactory &efac) const 
+      {
+        if (isUnknown ()) return mk<TRUE>(efac);
+        
+        Expr e = mkTerm<const Value*>(m_var, efac);
+        e = bind::boolConst (e);
+        if (m_val == T_FALSE) return mk<NEG> (e);
+        else return e;
+        }
+      
+    };
+      
 
-        return e;
+    typedef DenseMap<const Value*, BoolCst> bool_map_t;
+    bool_map_t bool_map;
+    
+    Expr exprFromNum( ikos::z_number n, ExprFactory &efac)
+    {
+      const mpz_class mpz ((mpz_class) n);
+      return mkTerm (mpz, efac);
+    }
+    
+    Expr exprFromIntVar( varname_t v, ExprFactory &efac)
+    {
+      assert (v.get () && "Cannot have shadow vars");
+      Expr e = mkTerm<const Value*>(*(v.get()), efac);
+      return bind::intConst (e);
+    }
+    
+    Expr toExpr (z_lin_cst_t cst, ExprFactory &efac)
+    {
+      if (cst.is_tautology ())     
+        return mk<TRUE> (efac);
+      
+      if (cst.is_contradiction ()) 
+        return mk<FALSE> (efac);
+
+      // booleans
+      if (const Value* v = BoolCst::isBoolCst (cst))
+      {
+        BoolCst b2 (cst);
+        auto it = bool_map.find (v);
+        if (it != bool_map.end ())
+        {
+          BoolCst &b1 = it->second;
+          b1 += b2;
+        }
+        else { bool_map.insert (make_pair (v, b2)); } 
+        
+        return mk<TRUE> (efac); // we ignore cst for now
+      }
+      
+      // integers
+      auto e = cst.expression() - cst.expression().constant();
+      Expr ee = exprFromNum ( ikos::z_number ("0"), efac);
+      for (auto t : e)
+      {
+        ikos::z_number n  = t.first;
+        varname_t v = t.second.name();
+        if (n == 0) continue;
+        else if (n == 1) 
+          ee = mk<PLUS> (ee, exprFromIntVar (v, efac));
+        else if (n == -1) 
+          ee = mk<MINUS> (ee, exprFromIntVar (v, efac));
+        else
+          ee = mk<PLUS> (ee, mk<MULT> ( exprFromNum (n, efac), 
+                                        exprFromIntVar (v, efac)));
+      }
+      
+      ikos::z_number c = -cst.expression().constant();
+      Expr cc = exprFromNum (c, efac);
+      if (cst.is_inequality ())
+        return mk<LEQ> (ee, cc);
+      else if (cst.is_equality ())
+        return mk<EQ> (ee, cc);        
+      else 
+        return mk<NEQ> (ee, cc);
+      
+    }
+    
+    Expr toExpr (z_lin_cst_sys_t csts, ExprFactory &efac)
+    {
+      Expr e = mk<TRUE> (efac);
+      
+      // integers
+      for (auto cst: csts)
+      { e = boolop::land (e, toExpr (cst, efac)); } 
+      
+      // booleans 
+      for (auto p: bool_map)
+      {
+        auto b = p.second;
+        if (!b.isUnknown ()) { e = boolop::land (e, b.toExpr (efac)); }
+      }
+      
+      return e;
+    }
+  };
+
+
+  // Conversion from Ldd to Expr
+  class LDDToExpr
+  {
+  public:
+    struct VarMap
+    {
+      virtual ~VarMap () {}
+      virtual const Value *lookup (int i) const = 0;
+    };
+    
+    template <typename T>
+    class VarMapT : public VarMap
+    {
+      const T *vm;
+      
+    public:
+      VarMapT (const T *m) : vm (m) {}
+      const Value *lookup (int i) const { 
+        auto V = vm->getVarName (i).get (); 
+        assert (V);
+        return *V;
       }
     };
 
-  } // end namespace crab_smt
+  protected:
+    boost::shared_ptr<VarMap> varMap;
+  public:
 
-} // end namespace seahorn
+    template <typename T>
+    LDDToExpr (const T *vm) : 
+      varMap(new VarMapT<T>(vm)) {}
+
+    Expr toExpr (LddNodePtr n, ExprFactory &efac)
+    {
+      LddManager *ldd = getLddManager (n);
+      
+      LddNode *N = Ldd_Regular(&(*n));
+      if (Ldd_GetTrue (ldd) == N)
+	return &*n == N ? mk<TRUE>(efac) : mk<FALSE>(efac);
+      
+      /** cache holds pointers because anything that is placed in the
+	  cache will not disapear until 'n' is deleted */
+      std::map<LddNode*, Expr> cache; 
+      Expr res = toExprRecur(ldd, &*n, efac, cache);
+      return res;
+    }
+
+  protected: 
+    Expr toExprRecur(LddManager* ldd, LddNode* n, 
+                     ExprFactory &efac, std::map<LddNode*, Expr> &cache)
+    {
+
+      LddNode *N = Ldd_Regular (n);
+      Expr res(NULL);
+
+      if (N == Ldd_GetTrue (ldd)) res = mk<TRUE> (efac);
+      else if (N->ref != 1)
+	{
+          std::map<LddNode*,Expr>::const_iterator it = cache.find (N);
+	  if (it != cache.end ()) res = it->second;
+	}
+
+      if (res) return N == n ? res : boolop::lneg (res);
+
+      Expr c = exprFromCons (Ldd_GetCons(ldd, N), 
+                             Ldd_GetTheory (ldd), efac);
+      res = lite (c, 
+		  toExprRecur (ldd, Ldd_T (N), efac, cache),
+		  toExprRecur (ldd, Ldd_E (N), efac, cache));
+
+      if (N->ref != 1) cache [N] = res;
+      
+      return n == N ? res : boolop::lneg (res);
+    }
+
+    Expr lite (Expr c, Expr t, Expr e)
+    {
+      if (t == e) return t;
+      if (isOpX<TRUE> (c)) return t;
+      if (isOpX<FALSE> (c)) return e;
+      if (isOpX<TRUE> (t) && isOpX<FALSE> (e)) return c;
+      if (isOpX<TRUE> (e) && isOpX<FALSE> (t)) return boolop::lneg (c);
+      return mk<ITE> (c, t, e);
+      // return boolop::lor (boolop::land (c, t), 
+      //                     boolop::land (mk<NEG>(c), e));
+    }
+
+    Expr exprFromCons(lincons_t lincons, theory_t *theory, ExprFactory &efac)
+    {
+      Expr lhs = exprFromTerm(theory->get_term(lincons), theory, efac);
+      Expr rhs = exprFromIntCst(theory->get_constant(lincons), theory, efac);
+      
+      return theory->is_strict (lincons) ? mk<LT>(lhs, rhs) : mk<LEQ>(lhs, rhs);
+    }
+
+    Expr exprFromIntCst (constant_t cst, theory_t *theory, ExprFactory &efac)
+    {
+      mpq_class v;
+      // XXX We know that the theory is tvpi, use its method directly.
+      tvpi_cst_set_mpq (v.get_mpq_t (), (tvpi_cst_t) cst);
+      const mpz_class n((mpz_class) v);
+      return mkTerm (n, efac);
+    }
+
+    Expr exprFromIntVar (int v, ExprFactory &efac) {
+      return bind::intConst (mkTerm (varMap->lookup(v), efac));
+    }
+
+    Expr exprFromTerm (linterm_t term, theory_t *theory, ExprFactory &efac)
+    {
+      std::vector<Expr> coeffs (theory->term_size (term));
+
+      for(size_t i = 0;i < coeffs.size (); i++)
+	coeffs[i] = lmult (exprFromIntCst (theory->term_get_coeff (term,i), 
+                                             theory, efac),
+                             exprFromIntVar (theory->term_get_var (term,i), 
+                                             efac));
+                                          
+
+      return coeffs.size() > 1 ? 
+	mknary<PLUS> (coeffs.begin (), coeffs.end ()) : coeffs [0];
+    }
+
+    Expr lmult(Expr cst, Expr var)
+    {
+      // Check if cst is equal to 1
+      const MPZ& op = dynamic_cast<const MPZ&>(cst->op ());
+      return op.get () == 1 ? var :  mk<MULT>(cst,var);
+    }
+ 
+  };
+
+} // end namespace crab_llvm
 
 
 namespace seahorn
 {
   using namespace llvm;
+  using namespace crab;
   using namespace crab::cfg_impl;
+  using namespace crab_llvm;
+  using namespace expr;
+
+  namespace expr_cnf {
+
+     // Decides whether an expression represents a variable/constant
+     class IsVar : public std::unary_function<Expr,bool>
+     {
+      private:
+       /** list of exception expressions that are not treated as variables */
+       ExprSet m_except;
+      public:
+       IsVar () {}
+       IsVar (const ExprSet& except) : m_except (except) {}
+       IsVar (const IsVar &o) : m_except (o.m_except) {}
+       IsVar &operator= (IsVar o)
+       {
+         swap (*this, o);
+      return *this;
+       }
+       
+       /** add an exception expression */
+       void exception (Expr e) { m_except.insert (e); }
+       
+       bool operator () (Expr e)
+       {
+         if (m_except.count (e) > 0) return false;
+         
+         // -- variant
+         if (isOpX<VARIANT> (e))
+           return true;
+         // -- old-style constants
+         if (bind::isBoolVar (e) || bind::isIntVar (e) || bind::isRealVar (e))
+           return true;
+         // -- new-style constants 
+         if (bind::isBoolConst (e) || bind::isIntConst (e) || bind::isRealConst (e))
+           return true;
+         return false;
+       }
+     };
   
+     // Return the set of variables in exp
+     ExprSet getVars (Expr exp) {
+       ExprSet s;
+       filter (exp, IsVar (), std::inserter (s, s.begin ()));
+       return s;
+     }
   
+     Expr mkRelation (ExprSet allVars, string fname, ExprFactory& efac) {
+       ExprVector sorts;
+       sorts.reserve (allVars.size () + 1);
+       for (auto &v : allVars) {
+         //assert (bind::isFapp (v));
+         //assert (bind::domainSz (bind::fname (v)) == 0);
+         sorts.push_back (bind::typeOf (v));
+       }
+       
+       sorts.push_back (mk<BOOL_TY> (efac));
+       Expr name = mkTerm (fname, efac);
+       Expr decl = bind::fdecl (name, sorts);
+       return decl;
+     }
+
+     // Convert e to CNF using a ZFixedPoint
+     Expr cnf (EZ3 & zctx, ExprFactory &efac, Expr phi) {
+
+       if (isOpX<FALSE> (phi)  || isOpX<TRUE> (phi))
+         return phi;
+
+       // Add two horn rules in fp
+       // --- phi -> h
+       // --- h and not phi -> false
+       //
+       // The solution is returned in cnf
+       
+       ZFixedPoint<EZ3> fp (zctx);
+       ExprSet allVars = getVars (phi); 
+       // -- register predicates
+       Expr decl_h = mkRelation (allVars, "h",  efac);
+       ExprSet emptyVars;
+       Expr decl_p = mkRelation (emptyVars, "p",  efac);
+       fp.registerRelation (decl_h);
+       fp.registerRelation (decl_p);
+       // -- add rules
+       Expr h = bind::fapp (decl_h, allVars);
+       Expr p = bind::fapp (decl_p, emptyVars);
+       Expr r1 = mk<IMPL> (phi, h);
+       fp.addRule (allVars, r1);
+       Expr r2 = mk<IMPL> (mk<AND> (h, mk<NEG> (phi)), p);
+       fp.addRule (allVars, r2);
+       Expr r3 = mk<IMPL> (mk<FALSE> (efac), p);
+       fp.addRule (emptyVars, r3);
+       
+       // -- add query
+       fp.addQuery (h);
+       
+       LOG ("crab-cnf", errs () << "Content of fixedpoint: " << fp << "\n";);
+       boost::tribool status = fp.query ();
+       LOG ("crab-cnf", 
+            if (status || !status) errs () << "result=" << fp.getAnswer () << "\n";);
+       assert (status);
+       
+       Expr res = fp.getCex ();
+       LOG ("crab-cnf", errs () << "Cnf=" << *res << "\n";);
+       
+       return res;
+     }
+  } // end namespace
+
+  Expr CrabInvToExpr (GenericAbsDomWrapperPtr absVal,
+                      const ExprVector &live, 
+                      EZ3& zctx,
+                      ExprFactory &efac) 
+  {
+    Expr e = nullptr;
+    if (absVal->getId () == GenericAbsDomWrapper::id_t::boxes) {
+      boxes_domain_t boxes;
+      getAbsDomWrappee (absVal, boxes);        
+      LDDToExpr t = LDDToExpr (&boxes);
+      e = t.toExpr (boxes.getLdd (), efac);
+      //e = expr_cnf::cnf (zctx, efac, e);
+    }
+    else if (absVal->getId () == GenericAbsDomWrapper::id_t::arr_boxes) {
+      arr_boxes_domain_t inv;
+      getAbsDomWrappee (absVal, inv);        
+      boxes_domain_t boxes = inv.get_base_domain ();
+      LDDToExpr t = LDDToExpr (&boxes);
+      e = t.toExpr (boxes.getLdd (), efac);
+      //e = expr_cnf::cnf (zctx, efac, e);
+    }
+    else { 
+      // --- any other domain is translated to convex linear
+      //     constraints
+      LinConstToExpr t;
+      e = t.toExpr (absVal->to_linear_constraints (), efac);
+    }
+        
+    if ( (std::distance (live.begin (), 
+                         live.end ()) == 0) && (!isOpX<FALSE> (e))) {
+      e = mk<TRUE> (efac); 
+    }
+
+    assert (e);
+    return e;
+  }
+
   bool LoadCrab::runOnModule (Module &M)
   {
-    for (auto &F : M) runOnFunction (F);
-    return true;
-  }
-  
-  expr::Expr Convert (crab_llvm::CrabLlvm &crab,
-                      const llvm::BasicBlock *BB, 
-                      const expr::ExprVector &live, 
-                      expr::ExprFactory &efac) 
-  {
-    // FIXME: crab [BB] returns actually inv_tbl_t that for now it is
-    // z_lin_cst_sys_t but this might change
-    z_lin_cst_sys_t csts = crab [BB];
-    crab_smt::BasicExprUnMarshal < crab_smt::FailUnMarshal > c;
-    expr::Expr inv = c.unmarshal (csts, efac);
+    for (auto &F : M) 
+      runOnFunction (F);
 
-    if ( (std::distance (live.begin (), live.end ()) == 0) && 
-         (!expr::isOpX<expr::FALSE> (inv)))
-      return expr::mk<expr::TRUE> (efac); 
-    else 
-      return inv;
+    return true;
   }
 
   bool LoadCrab::runOnFunction (Function &F)
   {
     HornifyModule &hm = getAnalysis<HornifyModule> ();
-    crab_llvm::CrabLlvm &crab = getAnalysis<crab_llvm::CrabLlvm> ();
+    CrabLlvm &crab = getAnalysis<CrabLlvm> ();
     
     auto &db = hm.getHornClauseDB ();
     
@@ -343,15 +592,16 @@ namespace seahorn
       const ExprVector &live = hm.live (BB);
       
       Expr pred = hm.bbPredicate (BB);
-      Expr inv = Convert (crab, &BB, live, hm.getExprFactory ());
+
+      Expr exp = CrabInvToExpr (crab [&BB], live, hm.getZContext (), hm.getExprFactory ());
 
       LOG ("crab", 
            errs () << "Loading invariant " << *bind::fname (pred);
            errs () << "("; for (auto v: live) errs () << *v << " ";
-           errs () << ")  "  << *inv << "\n"; );
+           errs () << ")  "  << *exp << "\n"; );
            
 
-      db.addConstraint (bind::fapp (pred, live), inv);
+      db.addConstraint (bind::fapp (pred, live), exp);
       
     }
     return true;
@@ -362,8 +612,8 @@ namespace seahorn
   {
     AU.setPreservesAll ();
     AU.addRequired<HornifyModule> ();
-    AU.addRequired<crab_llvm::CrabLlvm> ();
+    AU.addRequired<CrabLlvm> ();
   }
   
-}
+} // end namespace seahorn
 #endif

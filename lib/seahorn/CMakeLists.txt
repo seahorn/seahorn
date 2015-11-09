@@ -23,6 +23,10 @@ if (HAVE_CRAB_LLVM)
   target_link_libraries (seahorn.LIB CrabLlvmAnalysis CrabLlvmInstrumentation)
 endif()
 
+if (HAVE_LDD)
+  target_link_libraries (seahorn.LIB ${LDD_LIBS})
+endif()
+
 set_target_properties (seahorn.LIB PROPERTIES OUTPUT_NAME "seahorn")
 
 add_llvm_library(seabmc.LIB

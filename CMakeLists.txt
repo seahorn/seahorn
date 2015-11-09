@@ -324,6 +324,8 @@ if (IS_DIRECTORY ${CMAKE_SOURCE_DIR}/llvm-seahorn AND
   set (LLVM_SEAHORN_LIBS SeaInstCombine)
 endif()
 
+set (USE_LDD ON CACHE BOOL "Install ldd used by boxes domain in crab")
+
 if (IS_DIRECTORY ${CMAKE_SOURCE_DIR}/crab-llvm AND
     EXISTS ${CMAKE_SOURCE_DIR}/crab-llvm/CMakeLists.txt)
   add_subdirectory(crab-llvm)

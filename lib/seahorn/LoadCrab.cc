@@ -365,12 +365,9 @@ namespace crab_llvm
       if (isOpX<FALSE> (c)) return e;
       if (isOpX<TRUE> (t) && isOpX<FALSE> (e)) return c;
       if (isOpX<TRUE> (e) && isOpX<FALSE> (t)) return boolop::lneg (c);
-
-      // XXX AG: Something does not like ITE expressions. Perhaps MathSat
-      // iterprets them as non-logical ITEs
-      //return mk<ITE> (c, t, e);
-      return boolop::lor (boolop::land (c, t), 
-                          boolop::land (mk<NEG>(c), e));
+      return mk<ITE> (c, t, e);
+      // return boolop::lor (boolop::land (c, t), 
+      //                     boolop::land (mk<NEG>(c), e));
     }
 
     Expr exprFromCons(lincons_t lincons, theory_t *theory, ExprFactory &efac)
@@ -418,7 +415,7 @@ namespace crab_llvm
  
   };
 
-} // end namespace crab
+} // end namespace crab_llvm
 
 
 namespace seahorn
@@ -489,7 +486,7 @@ namespace seahorn
        return decl;
      }
 
-     // Convert e to CNF
+     // Convert e to CNF using a ZFixedPoint
      Expr cnf (EZ3 & zctx, ExprFactory &efac, Expr phi) {
 
        if (isOpX<FALSE> (phi)  || isOpX<TRUE> (phi))
@@ -546,7 +543,7 @@ namespace seahorn
       getAbsDomWrappee (absVal, boxes);        
       LDDToExpr t = LDDToExpr (&boxes);
       e = t.toExpr (boxes.getLdd (), efac);
-      // e = expr_cnf::cnf (zctx, efac, e);
+      //e = expr_cnf::cnf (zctx, efac, e);
     }
     else if (absVal->getId () == GenericAbsDomWrapper::id_t::arr_boxes) {
       arr_boxes_domain_t inv;
@@ -554,7 +551,7 @@ namespace seahorn
       boxes_domain_t boxes = inv.get_base_domain ();
       LDDToExpr t = LDDToExpr (&boxes);
       e = t.toExpr (boxes.getLdd (), efac);
-      // e = expr_cnf::cnf (zctx, efac, e);
+      //e = expr_cnf::cnf (zctx, efac, e);
     }
     else { 
       // --- any other domain is translated to convex linear

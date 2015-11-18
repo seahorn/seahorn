@@ -282,7 +282,7 @@ namespace crab_llvm
     }
   };
 
-
+  #ifdef HAVE_LDD
   // Conversion from Ldd to Expr
   class LDDToExpr
   {
@@ -412,9 +412,8 @@ namespace crab_llvm
       const MPZ& op = dynamic_cast<const MPZ&>(cst->op ());
       return op.get () == 1 ? var :  mk<MULT>(cst,var);
     }
- 
-  };
-
+   };
+   #endif 
 } // end namespace crab_llvm
 
 
@@ -425,7 +424,8 @@ namespace seahorn
   using namespace crab::cfg_impl;
   using namespace crab_llvm;
   using namespace expr;
-
+  
+  #ifdef HAVE_LDD
   namespace expr_cnf {
 
      // Decides whether an expression represents a variable/constant
@@ -531,6 +531,7 @@ namespace seahorn
        return res;
      }
   } // end namespace
+  #endif 
 
   Expr CrabInvToExpr (GenericAbsDomWrapperPtr absVal,
                       const ExprVector &live, 
@@ -538,6 +539,8 @@ namespace seahorn
                       ExprFactory &efac) 
   {
     Expr e = nullptr;
+
+    #ifdef HAVE_LDD
     if (absVal->getId () == GenericAbsDomWrapper::id_t::boxes) {
       boxes_domain_t boxes;
       getAbsDomWrappee (absVal, boxes);        
@@ -553,9 +556,10 @@ namespace seahorn
       e = t.toExpr (boxes.getLdd (), efac);
       //e = expr_cnf::cnf (zctx, efac, e);
     }
-    else { 
-      // --- any other domain is translated to convex linear
-      //     constraints
+    else 
+    #endif 
+    { 
+      // --- translation to convex linear constraints
       LinConstToExpr t;
       e = t.toExpr (absVal->to_linear_constraints (), efac);
     }

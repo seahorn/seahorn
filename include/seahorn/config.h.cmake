@@ -15,4 +15,7 @@
 /** Define whether llvm-seahorn is available */
 #cmakedefine HAVE_LLVM_SEAHORN ${HAVE_LLVM_SEAHORN}
 
+/** Define whether ldd is available */
+#cmakedefine HAVE_LDD ${HAVE_LDD}
+
 #endif

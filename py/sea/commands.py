@@ -421,21 +421,9 @@ class Seahorn(sea.LimitedCmd):
         ap.add_argument ('--show-invars',
                          help='Display computed invariants',
                          dest='show_invars', default=False, action='store_true')
-        ## Begin Crab ##
         ap.add_argument ('--crab',
                          help='Enable Crab abstract interpreter',
                          dest='crab', default=False, action='store_true')
-        ap.add_argument ('--crab-dom',
-                         help='Choose Crab abstract domain',
-                         choices=['int','ric','zones','term','num','boxes'],
-                         dest='crab_dom', default='int')
-        ap.add_argument ('--crab-track',
-                         help='Track registers, pointers, and memory',
-                         choices=['int', 'ptr', 'arr'], dest='crab_track', default='int')
-        ap.add_argument ('--crab-inter',
-                         help='Perform inter-procedural analysis',
-                         dest='crab_inter', default=False, action='store_true')
-        ## End Crab ##
         return ap
 
     def run (self, args, extra):
@@ -447,10 +435,6 @@ class Seahorn(sea.LimitedCmd):
 
         if args.crab:
             argv.append ('--horn-crab')
-            argv.append ('--crab-dom={0}'.format (args.crab_dom))
-            argv.append ('--crab-track-lvl={0}'.format (args.crab_track))
-            if args.crab_inter:
-                argv.append ('--crab-inter')
 
         if args.solve or args.out_file is not None:
             argv.append ('--keep-shadows=true')
@@ -609,24 +593,7 @@ class Crab (sea.LimitedCmd):
 
     def mk_arg_parser (self, ap):
         ap = super (Crab, self).mk_arg_parser (ap)
-        ap.add_argument ('--crab-dom',
-                         help='Choose Crab abstract domain',
-                         choices=['int','ric','zones','term','num','boxes'],
-                         dest='crab_dom', default='int')
-        ap.add_argument ('--crab-track',
-                         help='Track registers, pointers, and memory',
-                         choices=['int', 'ptr', 'arr'], dest='crab_track', default='int')
-        ap.add_argument ('--crab-inter',
-                         help='Perform inter-procedural analysis',
-                         dest='crab_inter', default=False, action='store_true')
-        # ap.add_argument ('--crab-add-at-entries',
-        #                  help='Instrument code with invariants at each block entry',
-        #                  dest='insert_entries', default=False, action='store_true')
-        # ap.add_argument ('--crab-add-after-loads',
-        #                  help='Instrument code with invariants after each load instruction',
-        #                  dest='insert_loads', default=False, action='store_true')
         add_in_out_args (ap)
-
         return ap
 
     def run (self, args, extra):
@@ -635,18 +602,17 @@ class Crab (sea.LimitedCmd):
         self.seappCmd = sea.ExtCmd (cmd_name)
 
         argv = list()
+
         argv.append ('--horn-crab')
-        argv.append ('--crab-dom={0}'.format (args.crab_dom))
-        argv.append ('--crab-track-lvl={0}'.format (args.crab_track))
-        if args.crab_inter:
-                argv.append ('--crab-inter')
-        #if args.insert_entries:
         argv.append ('--crab-add-invariants-at-entries')
-        #if args.insert_loads:
         argv.append ('--crab-add-invariants-after-loads')
 
         if args.out_file is not None: argv.extend (['-oll', args.out_file])
         argv.extend (args.in_files)
+
+        # pick out extra seahorn options
+        argv.extend (filter (_is_seahorn_opt, extra))
+
         return self.seappCmd.run (args, argv)
 
 

@@ -249,6 +249,9 @@ int main(int argc, char **argv) {
   }
 #endif 
 
+  // --- verify if an undefined value can be read
+  pass_manager.add (seahorn::createCanReadUndefPass ());
+
   pass_manager.add (new seahorn::HornifyModule ());
   if (!AsmOutputFilename.empty ()) 
   {

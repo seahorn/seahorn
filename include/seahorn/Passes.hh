@@ -14,7 +14,7 @@ namespace seahorn
 
   llvm::Pass* createLoadCrabPass ();
   llvm::Pass* createShadowMemDsaPass ();
-  llvm::Pass * createStripShadowMemPass ();
+  llvm::Pass* createStripShadowMemPass ();
 
   llvm::Pass* createCutLoopsPass ();
   llvm::Pass* createMarkFnEntryPass ();
@@ -26,6 +26,8 @@ namespace seahorn
   llvm::Pass* createStripUselessDeclarationsPass ();
 
   llvm::Pass* createPromoteBoolLoadsPass ();
+
+  llvm::Pass* createCanReadUndefPass ();
 }
 
 #ifdef HAVE_LLVM_SEAHORN

@@ -1,7 +1,6 @@
 #ifndef _LOCAL__H_
 #define _LOCAL__H_
 
-#include "llvm/Transforms/Utils/Local.h"
 #include "llvm/ADT/DenseSet.h"
 #include "llvm/IR/Function.h"
 
@@ -21,6 +20,20 @@ namespace seahorn
   
   Function& createNewNondetFn (Module &m, Type &type, unsigned num, std::string prefix);
   
+
+
+}
+
+namespace llvm
+{
+  class TargetLibraryInfo;
+}
+
+namespace seahorn
+{
+  bool RecursivelyDeleteTriviallyDeadInstructions
+  (llvm::Value *V,
+   const llvm::TargetLibraryInfo *TLI = nullptr);
 }
 
 

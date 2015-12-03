@@ -88,7 +88,7 @@ namespace
               args.push_back (*it);
             CS.getInstruction ()->eraseFromParent ();
             for (auto &a : args)
-              RecursivelyDeleteTriviallyDeadInstructions (a);
+              seahorn::RecursivelyDeleteTriviallyDeadInstructions (a);
             args.clear ();
           }
         }

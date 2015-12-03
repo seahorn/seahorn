@@ -2,6 +2,7 @@
 
 #include "llvm/IR/Module.h"
 #include "llvm/IR/CFG.h"
+#include "llvm/Transforms/Utils/Local.h"
 
 using namespace llvm;
 
@@ -93,6 +94,17 @@ namespace seahorn
     for (auto &BB : F)
       if (isa<ReturnInst> (BB.getTerminator ())) exits.push_back (&BB);
     reduceToAncestors (F, exits);
+  }
+  
+  /// work around bug in llvm::RecursivelyDeleteTriviallyDeadInstructions
+  bool
+  RecursivelyDeleteTriviallyDeadInstructions(Value *V,
+                                             const TargetLibraryInfo *TLI)
+  {
+    Instruction *I = dyn_cast<Instruction> (V);
+    if (!I) return false;
+    if (!I->getParent ()) return false;
+    return llvm::RecursivelyDeleteTriviallyDeadInstructions (V, TLI);
   }
   
 }

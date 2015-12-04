@@ -93,7 +93,7 @@ namespace seahorn
   bool  ShadowBufferBoundsCheckFuncPars::addFunShadowParams (Function *F, 
                                                              LLVMContext &ctx)  
   {
-    if (F->getName ().startswith ("main")) return false;
+    if (F->getName ().equals ("main")) return false;
 
     // TODO: relax this case
     if (F->hasAddressTaken ()) return false;

@@ -158,7 +158,7 @@ namespace seahorn
   {
     if (F.isDeclaration ()) return false;
 
-    if (m_inline_all && !F.getName ().startswith ("main"))
+    if (m_inline_all && !F.getName ().equals ("main"))
     {
       errs () << "Warning: " << F.getName () << " is not instrumented.\n";
       return false;

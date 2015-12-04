@@ -68,7 +68,10 @@ namespace seahorn
             }
             
             if (!isa<CallInst>(FU) && !isa<InvokeInst>(FU)) {
-              if (Constant *c = dyn_cast<Constant> (FU)) 
+              if (GlobalAlias *a = dyn_cast<GlobalAlias> (FU))
+                //a->replaceUsesOfWithOnConstant (&F, NF, &U);
+                a->setAliasee (NF);
+              else if (Constant *c = dyn_cast<Constant> (FU)) 
                 c->replaceUsesOfWithOnConstant (&F, NF, &U);
               else
                 U.set (NF);

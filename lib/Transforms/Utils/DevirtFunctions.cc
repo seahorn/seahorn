@@ -30,6 +30,7 @@
 #include "llvm/Support/Debug.h"
 #include "llvm/ADT/Statistic.h"
 
+#include "avy/AvyDebug.h"
 
 #include <iostream>
 #include <algorithm>
@@ -137,6 +138,23 @@ namespace seahorn {
     if (PointerType * PTy = dyn_cast<PointerType> 
         (CS.getCalledValue()->stripPointerCasts()->getType())) {
       pointeeCSTy  = PTy->getElementType ();
+      // -- only resolve indirect calls without casting
+      if (PTy != CS.getCalledValue ()->getType ()) return;
+      
+      LOG("devirt",
+          errs () << "CS is: " << *CS.getInstruction () << "\n"
+          << "Called value: " << *CS.getCalledValue () << "\n"
+          << "In: " << *CS.getInstruction ()->getParent () << "\n"
+          << "Of: "
+          << CS.getInstruction ()->getParent ()->getParent ()->getName () << "\n";
+
+          errs ()
+          << "stripPtr:" << *CS.getCalledValue ()->stripPointerCasts () << "\n"
+          << "type: " << *PTy << "\n"
+          << "etype: " << *pointeeCSTy << "\n";
+
+          errs () << "cvtype:" << *CS.getCalledValue ()->getType () << "\n";
+          );
     }
 
     if (!pointeeCSTy) return;
@@ -144,7 +162,15 @@ namespace seahorn {
     if (FunctionType* FTy = dyn_cast<FunctionType> (pointeeCSTy)) {
       auto it = signatureMap.find (FTy);
       if (it != signatureMap.end ())
+      {
+        LOG("devirt",
+            errs () << "CallSite: " << *CS.getInstruction () << "\n";
+            errs () << "Targets for signature: " << *FTy << " are:\n";
+            for (auto t : it->second)
+              errs () << "\t" << *t << "\n";);
+        
         Targets.insert (Targets.end (), it->second.begin (), it->second.end ());
+      }
     }
   }
 
@@ -203,9 +229,17 @@ namespace seahorn {
   //  matches.
   //
   Function*
-  DevirtualizeFunctions::buildBounce (CallSite CS, std::vector<const Function*>& Targets) {
+  DevirtualizeFunctions::buildBounce (CallSite CS,
+                                      std::vector<const Function*>& Targets) {
     ++FuncAdded;
 
+    LOG("devirt",
+        errs () << "Building a bounce for call site: "
+        << *CS.getInstruction () << " using:\n";
+        for (auto &f : Targets)
+          errs () << "\t" << f->getName () << "\n";);
+    
+    
     // Create a bounce function that has a function signature almost
     // identical to the function being called.  The only difference is
     // that it will have an additional pointer argument at the

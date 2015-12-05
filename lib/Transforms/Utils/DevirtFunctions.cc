@@ -15,6 +15,7 @@
 
 #define DEBUG_TYPE "devirt-functions"
 
+
 #include "llvm/IR/Constants.h"
 #include "llvm/Transforms/IPO.h"
 #include "llvm/Pass.h"
@@ -153,8 +154,7 @@ namespace seahorn {
           << "type: " << *PTy << "\n"
           << "etype: " << *pointeeCSTy << "\n";
 
-          errs () << "cvtype:" << *CS.getCalledValue ()->getType () << "\n";
-          );
+          errs () << "cvtype:" << *CS.getCalledValue ()->getType () << "\n";);
     }
 
     if (!pointeeCSTy) return;
@@ -238,8 +238,7 @@ namespace seahorn {
         << *CS.getInstruction () << " using:\n";
         for (auto &f : Targets)
           errs () << "\t" << f->getName () << "\n";);
-    
-    
+        
     // Create a bounce function that has a function signature almost
     // identical to the function being called.  The only difference is
     // that it will have an additional pointer argument at the
@@ -286,9 +285,7 @@ namespace seahorn {
       targets[FL] = BL;
       // Create the direct function call
       CallInst* directCall = CallInst::Create (const_cast<Function*>(FL),
-                                            fargs,
-                                            "",
-                                            BL);
+                                               fargs, "", BL);
       // update call graph
       if (CG) {
         auto fl_cg = CG->getOrInsertFunction (const_cast<Function*> (FL));
@@ -303,22 +300,26 @@ namespace seahorn {
         ReturnInst::Create (M->getContext(), directCall, BL);
     }
     
-    // Create a failure basic block.  This basic block should simply be an
-    // unreachable instruction.
-    BasicBlock * failBB = BasicBlock::Create (M->getContext(),
-                                              "fail",
-                                              F);
-    new UnreachableInst (M->getContext(), failBB);
-    
-    // Setup the entry basic block.  For now, just have it call the failure
+    // Create a default basic block having the original indirect call
+    BasicBlock * defaultBB = BasicBlock::Create (M->getContext(),
+                                                 "default",
+                                                 F);
+
+    Value* defaultRet = CallInst::Create (F->arg_begin(), fargs, "", defaultBB);
+    if (CS.getType()->isVoidTy())
+      ReturnInst::Create (M->getContext(), defaultBB);
+    else
+      ReturnInst::Create (M->getContext(), defaultRet, defaultBB);
+                          
+    // Setup the entry basic block.  For now, just have it call the default
     // basic block.  We'll change the basic block to which it branches later.
-    BranchInst * InsertPt = BranchInst::Create (failBB, entryBB);
+    BranchInst * InsertPt = BranchInst::Create (defaultBB, entryBB);
     
     // Create basic blocks which will test the value of the incoming function
     // pointer and branch to the appropriate basic block to call the function.
     Type * VoidPtrType = getVoidPtrType (M->getContext());
     Value * FArg = castTo (F->arg_begin(), VoidPtrType, "", InsertPt);
-    BasicBlock * tailBB = failBB;
+    BasicBlock * tailBB = defaultBB;
     for (unsigned index = 0; index < Targets.size(); ++index) {
       // Cast the function pointer to an integer.  This can go in the entry
       // block.
@@ -393,6 +394,9 @@ namespace seahorn {
     if (!NF) {
       // Build the bounce function and add it to the cache
       NF = buildBounce (CS, Targets);
+      LOG ("devirt",
+           errs () << "Bounce function: \n" << *NF << "\n";);
+           
       bounceCache[NF] = targetSet;
     }
     
@@ -409,7 +413,10 @@ namespace seahorn {
                                        Params,
                                        name,
                                        CI);
-      
+
+      LOG ("devirt",
+           errs () << "Call to bounce function: \n" << *CN << "\n";);
+                 
       // update call graph
       if (CG) {
         CG->getOrInsertFunction (const_cast<Function*> (NF));
@@ -434,7 +441,7 @@ namespace seahorn {
       CI->replaceAllUsesWith(CN);
       CI->eraseFromParent();
     }
-    
+
     ++CSConvert;
     return;
   }

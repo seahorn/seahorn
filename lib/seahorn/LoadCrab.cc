@@ -199,13 +199,13 @@ namespace crab_llvm
     typedef DenseMap<const Value*, BoolCst> bool_map_t;
     bool_map_t bool_map;
     
-    Expr exprFromNum( ikos::z_number n, ExprFactory &efac)
+    static Expr exprFromNum( ikos::z_number n, ExprFactory &efac)
     {
       const mpz_class mpz ((mpz_class) n);
       return mkTerm (mpz, efac);
     }
     
-    Expr exprFromIntVar( varname_t v, ExprFactory &efac)
+    static Expr exprFromIntVar( varname_t v, ExprFactory &efac)
     {
       assert (v.get () && "Cannot have shadow vars");
       Expr e = mkTerm<const Value*>(*(v.get()), efac);
@@ -414,6 +414,69 @@ namespace crab_llvm
     }
    };
    #endif 
+
+   // Conversion from domain of disjunctive intervals to Expr
+   class DisIntervalToExpr
+   {
+     typedef typename dis_interval_domain_t::interval_t interval_t;
+     typedef typename dis_interval_domain_t::varname_t varname_t;
+     typedef typename dis_interval_domain_t::number_t number_t;
+     
+    public:
+     
+     Expr toExpr (dis_interval_domain_t inv, ExprFactory &efac)
+     {
+       Expr e = mk<TRUE> (efac);
+        for (auto p: boost::make_iterator_range (inv.begin (), inv.end ())) {
+          Expr d = mk<FALSE> (efac);
+          for (auto i: boost::make_iterator_range (p.second.begin (), p.second.end ())) {
+            d = boolop::lor (d, intervalToExpr (p.first, i, efac));
+          }
+          e = boolop::land (e, d);
+        }
+        return e;
+     }
+     
+    private:   
+     
+     Expr intervalToExpr (varname_t v, interval_t i, ExprFactory &efac) {
+       
+       if (i.is_top ())
+         return mk<TRUE> (efac);
+       
+       if (i.is_bottom ())
+         return mk<FALSE> (efac);
+       
+       if (i.lb ().is_finite () && i.ub ().is_finite ()) {
+         auto lb = *(i.lb ().number());
+         auto ub = *(i.ub ().number());
+         if (lb == ub) {
+           return mk<EQ> (LinConstToExpr::exprFromIntVar (v, efac),
+                          LinConstToExpr::exprFromNum (lb, efac));
+         }
+         else {
+           return mk<AND> (mk<GEQ> (LinConstToExpr::exprFromIntVar (v, efac), 
+                                    LinConstToExpr::exprFromNum (lb, efac)),
+                           mk<LEQ> (LinConstToExpr::exprFromIntVar (v, efac), 
+                                    LinConstToExpr::exprFromNum (ub, efac)));
+         }
+       }
+       
+        if (i.lb ().is_finite ()) {
+         auto lb = *(i.lb ().number());
+          return mk<GEQ> (LinConstToExpr::exprFromIntVar (v, efac), 
+                          LinConstToExpr::exprFromNum (lb, efac));
+        }
+        
+        assert (i.ub ().is_finite ());
+        
+        auto ub = *(i.ub ().number());
+        return mk<LEQ> (LinConstToExpr::exprFromIntVar (v, efac), 
+                        LinConstToExpr::exprFromNum (ub, efac));
+        
+      }    
+   };
+
 } // end namespace crab_llvm
 
 
@@ -538,9 +601,10 @@ namespace seahorn
                       EZ3& zctx,
                       ExprFactory &efac) 
   {
-    Expr e = nullptr;
+    Expr e = mk<TRUE> (efac);
 
     #ifdef HAVE_LDD
+    // --- translation of linear decision diagrams
     if (absVal->getId () == GenericAbsDomWrapper::id_t::boxes) {
       boxes_domain_t boxes;
       getAbsDomWrappee (absVal, boxes);        
@@ -559,9 +623,24 @@ namespace seahorn
     else 
     #endif 
     { 
-      // --- translation to convex linear constraints
-      LinConstToExpr t;
-      e = t.toExpr (absVal->to_linear_constraints (), efac);
+      // --- translation of disjunctive interval constraints
+      if (absVal->getId () == GenericAbsDomWrapper::id_t::dis_intv) {
+        dis_interval_domain_t inv;
+        getAbsDomWrappee (absVal, inv);        
+        DisIntervalToExpr t;
+        e = t.toExpr (inv, efac);
+      }
+      else if (absVal->getId () == GenericAbsDomWrapper::id_t::arr_dis_intv) {
+        arr_dis_interval_domain_t inv;
+        getAbsDomWrappee (absVal, inv);        
+        DisIntervalToExpr t;
+        e = t.toExpr (inv.get_base_domain (), efac);
+      }
+      else {
+        // --- translation to convex linear constraints
+        LinConstToExpr t;
+        e = t.toExpr (absVal->to_linear_constraints (), efac);
+      }
     }
         
     if ( (std::distance (live.begin (), 
@@ -569,7 +648,6 @@ namespace seahorn
       e = mk<TRUE> (efac); 
     }
 
-    assert (e);
     return e;
   }
 

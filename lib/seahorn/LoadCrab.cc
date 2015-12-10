@@ -426,6 +426,12 @@ namespace crab_llvm
      
      Expr toExpr (dis_interval_domain_t inv, ExprFactory &efac)
      {
+       if (inv.is_top ())
+         return mk<TRUE> (efac);
+       
+       if (inv.is_bottom ())
+         return mk<FALSE> (efac);
+       
        Expr e = mk<TRUE> (efac);
         for (auto p: boost::make_iterator_range (inv.begin (), inv.end ())) {
           Expr d = mk<FALSE> (efac);

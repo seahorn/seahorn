@@ -49,12 +49,13 @@ namespace seahorn
 #include "ufo/Expr.hpp"
 #include "ufo/ExprLlvm.hpp"
 
-#include <crab_llvm/CfgBuilder.hh>
-#include <crab_llvm/CrabLlvm.hh>
-#include <crab_llvm/AbstractDomains.hh>
 
 #include "seahorn/HornifyModule.hh"
 #include "llvm/Support/CommandLine.h"
+
+#include <crab_llvm/CfgBuilder.hh>
+#include <crab_llvm/CrabLlvm.hh>
+#include <crab_llvm/AbstractDomains.hh>
 
 namespace llvm
 {

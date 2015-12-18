@@ -128,9 +128,11 @@ class Seapp(sea.LimitedCmd):
                          default=False, action='store_true')
         ap.add_argument ('--entry', dest='entry', help='Entry point if main does not exist',
                          default=None, metavar='FUNCTION')
-        ap.add_argument ('--boc', dest='boc', help='Insert buffer overflow checks',
+        ap.add_argument ('--bounds-check', dest='boc', help='Insert buffer overflow checks',
                          default=False, action='store_true')
-        ap.add_argument ('--ioc', dest='ioc', help='Insert signed integer overflow checks',
+        ap.add_argument ('--overflow-check', dest='ioc', help='Insert signed integer overflow checks',
+                         default=False, action='store_true')
+        ap.add_argument ('--null-check', dest='ndc', help='Insert null dereference checks',
                          default=False, action='store_true')
         ap.add_argument ('--externalize-addr-taken-functions',
                          help='Externalize uses of address-taken functions',
@@ -170,13 +172,12 @@ class Seapp(sea.LimitedCmd):
             argv.append ('--externalize-addr-taken-funcs')
 
         if args.boc:
-            argv.append ('--boc')
-            if args.inline:
-                argv.append ('--boc-inline-all')
+            argv.append ('--bounds-check')
         if args.ioc:
-            argv.append ('--ioc')
-            if args.inline:
-                argv.append ('--ioc-inline-all')
+            argv.append ('--overflow-check')
+        if args.ndc:
+            argv.append ('--null-check')
+
         if args.entry is not None:
             argv.append ('--entry-point=\"{0}\"'.format (args.entry))
 

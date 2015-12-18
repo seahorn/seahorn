@@ -40,6 +40,7 @@
 #include "seahorn/Transforms/Instrumentation/ShadowBufferBoundsCheckFuncPars.hh"
 #include "seahorn/Transforms/Instrumentation/BufferBoundsCheck.hh"
 #include "seahorn/Transforms/Instrumentation/IntegerOverflowCheck.hh"
+#include "seahorn/Transforms/Instrumentation/NullCheck.hh"
 #include "seahorn/Transforms/Instrumentation/MixedSemantics.hh"
 
 #include "ufo/Smt/EZ3.hh"
@@ -79,13 +80,18 @@ CutLoops ("horn-cut-loops", llvm::cl::desc ("Cut all natural loops"),
            llvm::cl::init (false));
 
 static llvm::cl::opt<bool>
-BOC ("boc", 
+BoundsChecks ("bounds-check", 
      llvm::cl::desc ("Insert array bounds checks"), 
      llvm::cl::init (false));
 
 static llvm::cl::opt<bool>
-IOC ("ioc", 
+OverflowChecks ("overflow-check", 
      llvm::cl::desc ("Insert signed integer overflow checks"), 
+     llvm::cl::init (false));
+
+static llvm::cl::opt<bool>
+NullChecks ("null-check", 
+     llvm::cl::desc ("Insert null dereference checks"), 
      llvm::cl::init (false));
 
 static llvm::cl::opt<bool>
@@ -280,7 +286,7 @@ int main(int argc, char **argv) {
   pass_manager.add (new seahorn::LowerGvInitializers ());
   pass_manager.add(llvm::createUnifyFunctionExitNodesPass ());
 
-  if (BOC)
+  if (BoundsChecks)
   { 
     pass_manager.add (new seahorn::LowerCstExprPass ());
     pass_manager.add (new seahorn::CanAccessMemory ());
@@ -293,10 +299,16 @@ int main(int argc, char **argv) {
     pass_manager.add (seahorn::createNondetInitPass ());
   }
 
-  if (IOC)
+  if (OverflowChecks)
   { 
     pass_manager.add (new seahorn::LowerCstExprPass ());
-    pass_manager.add (new seahorn::IntegerOverflowCheck (InlineAll));
+    pass_manager.add (new seahorn::IntegerOverflowCheck ());
+  }
+
+  if (NullChecks)
+  {
+    pass_manager.add (new seahorn::LowerCstExprPass ());
+    pass_manager.add (new seahorn::NullCheck ());
   }
 
   pass_manager.add (new seahorn::RemoveUnreachableBlocksPass ());

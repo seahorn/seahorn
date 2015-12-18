@@ -7,9 +7,7 @@
 #include "llvm/IR/DataLayout.h"
 #include "llvm/Analysis/MemoryBuiltins.h"
 #include "llvm/Target/TargetLibraryInfo.h"
-#include "llvm/ADT/BitVector.h"
-#include "boost/unordered_set.hpp"
-
+#include "llvm/Analysis/CallGraph.h"
 
 namespace seahorn
 {
@@ -18,33 +16,28 @@ namespace seahorn
   class IntegerOverflowCheck : public llvm::ModulePass
   {
 
-    Function * m_errorFn;
-    BasicBlock * m_err_bb;
-    BasicBlock * m_safe_bb;
+    Function * ErrorFn;
+    BasicBlock * ErrorBB;
+    BasicBlock * SafeBB;
+    unsigned ChecksAdded; 
+    CallGraph * CG; // Call graph of the program   
 
-    bool instrumentVal (Value *res, Type *ty,
-                        IRBuilder<> B,
-                        LLVMContext &ctx,
-                        Instruction& inst);
+    bool insertIntegerCheck (Value *res, Type *ty,
+                             IRBuilder<> B,
+                             LLVMContext &ctx,
+                             Instruction& inst);
     
-    void instrumentErrAndSafeBlocks (IRBuilder<>B, Function &F);   
-
+    void addErrorAndSafeLocs (IRBuilder<>B, Function &F);   
 
   public:
 
     static char ID;
 
-  private:
-
-    bool m_inline_all;
-    unsigned ChecksAdded; 
-
-  public:
-
-    IntegerOverflowCheck (bool InlineAll = false) : 
+    IntegerOverflowCheck () : 
         llvm::ModulePass (ID), 
-        m_inline_all (InlineAll),
-        ChecksAdded (0) { }
+        ErrorFn (nullptr), ErrorBB (nullptr), SafeBB (nullptr),
+        ChecksAdded (0),
+        CG (nullptr) { }
     
     virtual bool runOnModule (llvm::Module &M);
     virtual bool runOnFunction (Function &F);

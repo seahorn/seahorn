@@ -5,11 +5,6 @@
 // call. Instead, it simply selects those functions whose signatures
 // match.
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file was developed by the LLVM research group and is distributed under
-// the University of Illinois Open Source License. See LICENSE.TXT for details.
-//
 //===----------------------------------------------------------------------===//
 
 
@@ -50,7 +45,9 @@ namespace seahorn {
   //  them into a switch statement that selects one of several direct function
   //  calls to execute.
   //
-  class DevirtualizeFunctions : public ModulePass, public InstVisitor<DevirtualizeFunctions> {
+  class DevirtualizeFunctions : 
+    public ModulePass, public InstVisitor<DevirtualizeFunctions> 
+  {
 
     typedef std::set<const Function *> func_set_t;
 
@@ -257,14 +254,15 @@ namespace seahorn {
     Module * M = CS.getInstruction()->getParent()->getParent()->getParent();
     Function* F = Function::Create (NewTy,
                                     GlobalValue::InternalLinkage,
-                                    "devirtbounce",
+                                    "seahorn.bounce",
                                     M);
     
     // Set the names of the arguments.  Also, record the arguments in a vector
     // for subsequence access.
     F->arg_begin()->setName("funcPtr");
     std::vector<Value*> fargs;
-    for(Function::arg_iterator ai = F->arg_begin(), ae = F->arg_end(); ai != ae; ++ai)
+    for(Function::arg_iterator ai = F->arg_begin(), ae = F->arg_end(); 
+        ai != ae; ++ai)
       if (ai != F->arg_begin()) {
         fargs.push_back(ai);
         ai->setName("arg");
@@ -482,6 +480,11 @@ namespace seahorn {
       // -- resolved by a function pointer
       if (F.hasLocalLinkage () && !F.hasAddressTaken ()) continue;
 
+      // -- skip calls to declarations, these are resolved implicitly
+      // -- by calling through the function pointer argument in the
+      // -- default case of bounce function
+      if (F.isDeclaration ()) continue;
+      
       // -- skip useless declarations
       if (F.getName().startswith ("seahorn.")) continue;
       if (F.getName().startswith ("verifier.")) continue;

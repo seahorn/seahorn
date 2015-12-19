@@ -28,11 +28,6 @@
 
 #include "avy/AvyDebug.h"
 
-#include <iostream>
-#include <algorithm>
-#include <iterator>
-#include <set>
-
 using namespace llvm;
 
 namespace seahorn {
@@ -49,8 +44,13 @@ namespace seahorn {
     public ModulePass, public InstVisitor<DevirtualizeFunctions> 
   {
 
-    typedef std::set<const Function *> func_set_t;
+    typedef SmallPtrSet<const Function *, 8> AliasSet;
+    typedef SmallVector<const Function *, 8> AliasVector;
+    typedef const llvm::FunctionType *AliasSetId;
 
+    typedef DenseMap<const Function *, AliasSet> Cache;
+    
+    
     // Access to the target data analysis pass
     const DataLayout * TD;
 
@@ -58,18 +58,23 @@ namespace seahorn {
     CallGraph * CG;    
 
     // Worklist of call sites to transform
-    std::vector<Instruction *> Worklist;
+    SmallVector<Instruction*, 32> Worklist;
 
+    // XXX This is the type-alias map. It maps FunctionType to the
+    // XXX alias set
     // Keep track of functions with same type
-    DenseMap<const FunctionType*, std::vector<const Function *> > signatureMap;
+    DenseMap<AliasSetId, AliasVector> signatureMap;
     
+    // XXX It is enough to map a FunctionType* to the bounce function
     // A cache of indirect call targets that have been converted already
-    DenseMap<const Function *, func_set_t> bounceCache;
+    Cache bounceCache;
     
-    void makeDirectCall (CallSite & CS);
-    Function* buildBounce (CallSite cs,std::vector<const Function*>& Targets);
-    const Function* findInCache (const CallSite & CS, func_set_t& Targets);
-    void findTargets (CallSite & CS, std::vector<const Function*>& Targets);
+    void makeDirectCall (CallSite CS);
+    Function* buildBounce (CallSite cs, SmallVectorImpl<const Function*> & Targets);
+    const Function* findInCache (const CallSite & CS);
+    
+    template<typename R>
+    void findTargets (CallSite & CS, R &Targets);
     
    public:
     static char ID;
@@ -84,16 +89,20 @@ namespace seahorn {
       AU.addPreserved<CallGraphWrapperPass> ();
     }
     
+    // -- VISITOR IMPLEMENTATION --
+    
     void visitCallSite(CallSite &CS);
     
-    void visitCallInst(CallInst &CI) {
+    void visitCallInst(CallInst &CI)
+    {
       // we cannot take the address of an inline asm
       if (CI.isInlineAsm ()) return;
       
       CallSite CS(&CI);
       visitCallSite(CS);
     }
-    void visitInvokeInst(InvokeInst &II) {
+    void visitInvokeInst(InvokeInst &II)
+    {
       CallSite CS(&II);
       visitCallSite(CS);
     }
@@ -129,9 +138,10 @@ namespace seahorn {
 
   // Targets contains all functions whose type signature match with CS.
   // This is purely syntactic and no alias analysis is involved.
+  template<typename R>
   void DevirtualizeFunctions::
-  findTargets (CallSite & CS, std::vector<const Function*>& Targets) {
-
+  findTargets (CallSite & CS,  R &Targets)
+  {
     Type* pointeeCSTy = nullptr;
     if (PointerType * PTy = dyn_cast<PointerType> 
         (CS.getCalledValue()->stripPointerCasts()->getType())) {
@@ -184,13 +194,14 @@ namespace seahorn {
   //  returned.
   //
   const Function *
-  DevirtualizeFunctions::findInCache (const CallSite & CS, func_set_t& Targets) {
+  DevirtualizeFunctions::findInCache (const CallSite & CS)
+  {
     //
     // Iterate through all of the existing bounce functions to see if one of them
     // can be resued.
     //
-    DenseMap<const Function *, func_set_t>::iterator I;
-    for (I = bounceCache.begin(); I != bounceCache.end(); ++I) {
+    for (Cache::iterator I = bounceCache.begin(), E = bounceCache.end(); I != E; ++I)
+    {
       // If the bounce function and the function pointer have different types,
       // then skip this bounce function because it is incompatible.
       const Function * bounceFunc = I->first;
@@ -206,8 +217,7 @@ namespace seahorn {
       
       // Determine whether the targets are identical.  If so, then this function
       // can be used as a bounce function for this call site.
-      if (Targets == I->second)
-        return I->first;
+      return I->first;
     }
 
     //
@@ -227,7 +237,7 @@ namespace seahorn {
   //
   Function*
   DevirtualizeFunctions::buildBounce (CallSite CS,
-                                      std::vector<const Function*>& Targets) {
+                                      SmallVectorImpl<const Function*> &Targets) {
     ++FuncAdded;
 
     LOG("devirt",
@@ -242,13 +252,10 @@ namespace seahorn {
     // beginning of its argument list that will be the function to
     // call.
     Value* ptr = CS.getCalledValue();
-    std::vector<Type *> TP;
-    TP.insert (TP.begin(), ptr->getType());
-    for (CallSite::arg_iterator i = CS.arg_begin();
-         i != CS.arg_end();
-         ++i) {
+    SmallVector<Type*, 8> TP;
+    TP.push_back (ptr->getType ());
+    for (CallSite::arg_iterator i = CS.arg_begin(); i != CS.arg_end(); ++i) 
       TP.push_back ((*i)->getType());
-    }
     
     FunctionType* NewTy = FunctionType::get(CS.getType(), TP, false);
     Module * M = CS.getInstruction()->getParent()->getParent()->getParent();
@@ -275,9 +282,8 @@ namespace seahorn {
     // For each function target, create a basic block that will call that
     // function directly.
     DenseMap<const Function*, BasicBlock*> targets;
-    for (unsigned index = 0; index < Targets.size(); ++index) {
-      const Function* FL = Targets[index];
-      
+    for (const Function *FL : Targets)
+    {
       // Create the basic block for doing the direct call
       BasicBlock* BL = BasicBlock::Create (M->getContext(), FL->getName(), F);
       targets[FL] = BL;
@@ -318,10 +324,12 @@ namespace seahorn {
     Type * VoidPtrType = getVoidPtrType (M->getContext());
     Value * FArg = castTo (F->arg_begin(), VoidPtrType, "", InsertPt);
     BasicBlock * tailBB = defaultBB;
-    for (unsigned index = 0; index < Targets.size(); ++index) {
+    for (const Function *FL : Targets)
+    {
+      
       // Cast the function pointer to an integer.  This can go in the entry
       // block.
-      Value * TargetInt = castTo (const_cast<Function*>(Targets[index]),
+      Value * TargetInt = castTo (const_cast<Function*>(FL),
                                   VoidPtrType,
                                   "",
                                   InsertPt);
@@ -330,9 +338,9 @@ namespace seahorn {
       // function target.  If the function pointer matches, we'll branch to the
       // basic block performing the direct call for that function; otherwise,
       // we'll branch to the next function call target.
-      BasicBlock* TB = targets[Targets[index]];
+      BasicBlock* TB = targets [FL];
       BasicBlock* newB = BasicBlock::Create (M->getContext(),
-                                             "test." + Targets[index]->getName(),
+                                             "test." + FL->getName(),
                                              F);
       CmpInst * setcc = CmpInst::Create (Instruction::ICmp,
                                          CmpInst::ICMP_EQ,
@@ -370,21 +378,20 @@ namespace seahorn {
   //  This method assumes that CS is an indirect call site.
   //
   void
-  DevirtualizeFunctions::makeDirectCall (CallSite & CS) {
+  DevirtualizeFunctions::makeDirectCall (CallSite CS)
+  {
     //
     // Find the targets of the indirect function call.
     //
 
     // Convert the call site if there were any function call targets found.
-    std::vector<const Function*> Targets;
+    AliasVector Targets;
     findTargets (CS, Targets);
 
     // No targets found ...
     if (Targets.empty ()) return;
 
-    // Determine if an existing bounce function can be used for this call site.
-    func_set_t targetSet (Targets.begin(), Targets.end());
-    const Function * NF = findInCache (CS, targetSet);
+    const Function * NF = findInCache (CS);
     
     // If no cached bounce function was found, build a function which will
     // implement a switch statement.  The switch statement will determine which
@@ -394,8 +401,11 @@ namespace seahorn {
       NF = buildBounce (CS, Targets);
       LOG ("devirt",
            errs () << "Bounce function: \n" << *NF << "\n";);
-           
-      bounceCache[NF] = targetSet;
+      
+      // -- cache bounce function
+      AliasSet &targetSet = bounceCache [NF];
+      assert (targetSet.empty ());
+      targetSet.insert (Targets.begin (), Targets.end ());
     }
     
     // Replace the original call with a call to the bounce function.
@@ -468,13 +478,12 @@ namespace seahorn {
     // Get information on the target system.
     TD = &getAnalysis<DataLayoutPass>().getDataLayout ();
 
-    // Get call graph
-    CallGraphWrapperPass *cgwp = getAnalysisIfAvailable<CallGraphWrapperPass> ();
-    if (cgwp)
-      CG = &cgwp->getCallGraph ();
+    // -- Get the call graph
+    CG = &(getAnalysis<CallGraphWrapperPass> ().getCallGraph ());
 
     // Populate signature map
-    for (auto const &F: M) {
+    for (auto const &F: M)
+    {
       if (F.isIntrinsic ()) continue;
       // -- local functions whose address is not taken cannot be
       // -- resolved by a function pointer
@@ -489,16 +498,7 @@ namespace seahorn {
       if (F.getName().startswith ("seahorn.")) continue;
       if (F.getName().startswith ("verifier.")) continue;
 
-      auto it = signatureMap.find (F.getFunctionType ());
-      if (it != signatureMap.end ()) {
-        std::vector<const Function*>& fs = it->second;
-        fs.push_back (&F);
-      }
-      else {
-        std::vector<const Function*> fs;
-        fs.push_back (&F);
-        signatureMap.insert (std::make_pair (F.getFunctionType (), fs));
-      }
+      signatureMap [F.getFunctionType ()].push_back (&F);
     }
 
     // Visit all of the call instructions in this function and record those that
@@ -507,10 +507,9 @@ namespace seahorn {
     
     // Now go through and transform all of the indirect calls that we found that
     // need transforming.
-    for (unsigned index = 0; index < Worklist.size(); ++index) {
-      CallSite CS (Worklist[index]);
-      makeDirectCall (CS);
-    }
+    //for (unsigned index = 0; index < Worklist.size(); ++index) {
+    for (auto &I : Worklist)
+      makeDirectCall (CallSite (I));
 
     // Conservatively assume that we've changed one or more call sites.
     return true;

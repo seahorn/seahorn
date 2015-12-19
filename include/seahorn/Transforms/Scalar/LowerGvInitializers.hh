@@ -7,6 +7,7 @@
 #include "llvm/Pass.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/Function.h"
+#include "llvm/IR/DataLayout.h"
 
 namespace seahorn
 {
@@ -19,8 +20,11 @@ namespace seahorn
     LowerGvInitializers () : ModulePass (ID) {}
     
     virtual bool runOnModule (Module &M);
-    void getAnalysisUsage (AnalysisUsage &AU) const 
-    {AU.setPreservesAll ();}
+
+    void getAnalysisUsage (AnalysisUsage &AU) const  {
+      AU.setPreservesAll ();
+      AU.addRequired<llvm::DataLayoutPass>();
+    }
     
   };
 }

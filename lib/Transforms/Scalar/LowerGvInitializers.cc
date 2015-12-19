@@ -9,8 +9,10 @@ namespace seahorn
 {
   char LowerGvInitializers::ID = 0;
   
-  bool LowerGvInitializers::runOnModule (Module &M)
-  {
+  bool LowerGvInitializers::runOnModule (Module &M) {
+
+    const DataLayout* DL = &getAnalysis<DataLayoutPass>().getDataLayout ();
+
     Function *f = M.getFunction ("main");
     if (!f) return false;
     
@@ -27,10 +29,13 @@ namespace seahorn
       if (!ty) continue;
       Type *ety = ty->getElementType ();
       // only deal with scalars for now
-      if (!ety->isIntegerTy () &&  !ety->isPointerTy ()) continue;
+      if (!ety->isIntegerTy ()) continue;
+      
+      IntegerType* ity = cast<IntegerType> (ety);
       
       // -- create a store instruction
-      Builder.CreateStore (gv.getInitializer (), &gv);
+      Builder.CreateAlignedStore (gv.getInitializer (), &gv, 
+                                  DL->getABITypeAlignment (ity));
     }
       
     return false;

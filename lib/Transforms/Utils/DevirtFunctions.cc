@@ -46,6 +46,7 @@ namespace seahorn {
 
     typedef SmallPtrSet<const Function *, 8> AliasSet;
     typedef SmallVector<const Function *, 8> AliasVector;
+    // TODO: change this to PointerType pointing to a FunctionPointer
     typedef const llvm::FunctionType *AliasSetId;
 
     typedef DenseMap<const Function *, AliasSet> Cache;
@@ -60,21 +61,29 @@ namespace seahorn {
     // Worklist of call sites to transform
     SmallVector<Instruction*, 32> Worklist;
 
-    // XXX This is the type-alias map. It maps FunctionType to the
-    // XXX alias set
-    // Keep track of functions with same type
-    DenseMap<AliasSetId, AliasVector> signatureMap;
+    /// map from alias-id to the corresponding alias set
+    DenseMap<AliasSetId, AliasVector> m_aliasSets;
     
     // XXX It is enough to map a FunctionType* to the bounce function
     // A cache of indirect call targets that have been converted already
     Cache bounceCache;
     
+    /// maps alias set id to an existing bounce function
+    DenseMap<AliasSetId, Function*> m_bounceMap;
+    
     void makeDirectCall (CallSite CS);
     Function* buildBounce (CallSite cs, SmallVectorImpl<const Function*> & Targets);
+    Function* mkBounceFn (CallSite &CS);
+    
     const Function* findInCache (const CallSite & CS);
     
     template<typename R>
     void findTargets (CallSite & CS, R &Targets);
+    
+    /// returns an AliasId of the called value
+    /// requires that CS is an indirect call through a function pointer
+    AliasSetId typeAliasId (CallSite &CS) const;
+    AliasSetId typeAliasId (const Function &F) const {return F.getFunctionType ();}
     
    public:
     static char ID;
@@ -136,11 +145,20 @@ namespace seahorn {
     return CastInst::CreateZExtOrBitCast (V, Ty, Name, InsertPt);
   }
 
+  DevirtualizeFunctions::AliasSetId DevirtualizeFunctions::typeAliasId (CallSite &CS) const
+  {
+    assert (CS.getCalledFunction () == nullptr && "Not an indirect call");
+    PointerType *pTy = dyn_cast<PointerType> (CS.getCalledValue ()->getType ());
+    assert (pTy && "Unexpected call not through a pointer");
+    FunctionType *fTy = dyn_cast<FunctionType> (pTy->getElementType ());
+    assert (fTy && "The type of called value is not a pointer to a function");
+    return fTy;
+  }
+  
   // Targets contains all functions whose type signature match with CS.
   // This is purely syntactic and no alias analysis is involved.
   template<typename R>
-  void DevirtualizeFunctions::
-  findTargets (CallSite & CS,  R &Targets)
+  void DevirtualizeFunctions:: findTargets (CallSite & CS,  R &Targets)
   {
     Type* pointeeCSTy = nullptr;
     if (PointerType * PTy = dyn_cast<PointerType> 
@@ -151,6 +169,7 @@ namespace seahorn {
       
       LOG("devirt",
           errs () << "CS is: " << *CS.getInstruction () << "\n"
+          << "tbaId: " << *const_cast<FunctionType*>(typeAliasId (CS)) << "\n" 
           << "Called value: " << *CS.getCalledValue () << "\n"
           << "In: " << *CS.getInstruction ()->getParent () << "\n"
           << "Of: "
@@ -167,8 +186,8 @@ namespace seahorn {
     if (!pointeeCSTy) return;
 
     if (FunctionType* FTy = dyn_cast<FunctionType> (pointeeCSTy)) {
-      auto it = signatureMap.find (FTy);
-      if (it != signatureMap.end ())
+      auto it = m_aliasSets.find (FTy);
+      if (it != m_aliasSets.end ())
       {
         LOG("devirt",
             errs () << "CallSite: " << *CS.getInstruction () << "\n";
@@ -224,6 +243,147 @@ namespace seahorn {
     // No suiteable bounce function was found.
     //
     return 0;
+  }
+  /**
+   * Creates a bounce function that calls functions in an alias set directly
+   */
+  Function* DevirtualizeFunctions::mkBounceFn (CallSite &CS)
+  {
+    ++FuncAdded;
+
+    AliasSetId id = typeAliasId (CS);
+    {
+      assert (!CS.getCalledFunction () && "Not an indirect call");
+      auto it = m_bounceMap.find (id);
+      if (it != m_bounceMap.end ()) return it->second;
+    }
+    
+    // -- no direct calls in this alias set, nothing to construct
+    if (m_aliasSets.count (id) <= 0) return nullptr;
+    
+    AliasVector &Targets = m_aliasSets [id];
+    
+
+    LOG("devirt",
+        errs () << "Building a bounce for call site: "
+        << *CS.getInstruction () << " using:\n";
+        for (auto &f : Targets)
+          errs () << "\t" << f->getName () << "\n";);
+        
+    // Create a bounce function that has a function signature almost
+    // identical to the function being called.  The only difference is
+    // that it will have an additional pointer argument at the
+    // beginning of its argument list that will be the function to
+    // call.
+    Value* ptr = CS.getCalledValue();
+    SmallVector<Type*, 8> TP;
+    TP.push_back (ptr->getType ());
+    for (auto i = CS.arg_begin(), e = CS.arg_end (); i != e; ++i) 
+      TP.push_back ((*i)->getType());
+    
+    FunctionType* NewTy = FunctionType::get (CS.getType(), TP, false);
+    Module * M = CS.getInstruction()->getParent()->getParent()->getParent();
+    assert (M);
+    Function* F = Function::Create (NewTy,
+                                    GlobalValue::InternalLinkage,
+                                    "seahorn.bounce",
+                                    M);
+    
+    // Set the names of the arguments.  Also, record the arguments in a vector
+    // for subsequence access.
+    F->arg_begin()->setName("funcPtr");
+    SmallVector<Value*, 8> fargs;
+    for(auto ai = ++F->arg_begin(), ae = F->arg_end(); ai != ae; ++ai)
+    {
+      fargs.push_back(ai);
+      ai->setName("arg");
+    }
+          
+    // Create an entry basic block for the function.  All it should do is perform
+    // some cast instructions and branch to the first comparison basic block.
+    BasicBlock* entryBB = BasicBlock::Create (M->getContext(), "entry", F);
+    
+    // For each function target, create a basic block that will call that
+    // function directly.
+    DenseMap<const Function*, BasicBlock*> targets;
+    for (const Function *FL : Targets)
+    {
+      // Create the basic block for doing the direct call
+      BasicBlock* BL = BasicBlock::Create (M->getContext(), FL->getName(), F);
+      targets[FL] = BL;
+      // Create the direct function call
+      CallInst* directCall = CallInst::Create (const_cast<Function*>(FL),
+                                               fargs, "", BL);
+      // update call graph
+      if (CG) {
+        auto fl_cg = CG->getOrInsertFunction (const_cast<Function*> (FL));
+        auto cf_cg = CG->getOrInsertFunction (directCall->getCalledFunction ());
+        fl_cg->addCalledFunction (CallSite (directCall), cf_cg);
+      }
+      
+      // Add the return instruction for the basic block
+      if (CS.getType()->isVoidTy())
+        ReturnInst::Create (M->getContext(), BL);
+      else
+        ReturnInst::Create (M->getContext(), directCall, BL);
+    }
+    
+    // Create a default basic block having the original indirect call
+    BasicBlock * defaultBB = BasicBlock::Create (M->getContext(),
+                                                 "default",
+                                                 F);
+
+    Value* defaultRet = CallInst::Create (F->arg_begin(), fargs, "", defaultBB);
+    if (CS.getType()->isVoidTy())
+      ReturnInst::Create (M->getContext(), defaultBB);
+    else
+      ReturnInst::Create (M->getContext(), defaultRet, defaultBB);
+                          
+    // Setup the entry basic block.  For now, just have it call the default
+    // basic block.  We'll change the basic block to which it branches later.
+    BranchInst * InsertPt = BranchInst::Create (defaultBB, entryBB);
+    
+    // Create basic blocks which will test the value of the incoming function
+    // pointer and branch to the appropriate basic block to call the function.
+    Type * VoidPtrType = getVoidPtrType (M->getContext());
+    Value * FArg = castTo (F->arg_begin(), VoidPtrType, "", InsertPt);
+    BasicBlock * tailBB = defaultBB;
+    for (const Function *FL : Targets)
+    {
+      
+      // Cast the function pointer to an integer.  This can go in the entry
+      // block.
+      Value * TargetInt = castTo (const_cast<Function*>(FL),
+                                  VoidPtrType,
+                                  "",
+                                  InsertPt);
+      
+      // Create a new basic block that compares the function pointer to the
+      // function target.  If the function pointer matches, we'll branch to the
+      // basic block performing the direct call for that function; otherwise,
+      // we'll branch to the next function call target.
+      BasicBlock* TB = targets [FL];
+      BasicBlock* newB = BasicBlock::Create (M->getContext(),
+                                             "test." + FL->getName(),
+                                             F);
+      CmpInst * setcc = CmpInst::Create (Instruction::ICmp,
+                                         CmpInst::ICMP_EQ,
+                                         TargetInt,
+                                         FArg,
+                                         "sc",
+                                         newB);
+      BranchInst::Create (TB, tailBB, setcc, newB);
+      
+      // Make this newly created basic block the next block that will be reached
+      // when the next comparison will need to be done.
+      tailBB = newB;
+    }
+    
+    // Make the entry basic block branch to the first comparison basic block.
+    InsertPt->setSuccessor(0, tailBB);
+
+    // Return the newly created bounce function.
+    return F;
   }
 
   //
@@ -498,7 +658,8 @@ namespace seahorn {
       if (F.getName().startswith ("seahorn.")) continue;
       if (F.getName().startswith ("verifier.")) continue;
 
-      signatureMap [F.getFunctionType ()].push_back (&F);
+      // -- add F to its corresponding alias set
+      m_aliasSets [typeAliasId (F)].push_back (&F);
     }
 
     // Visit all of the call instructions in this function and record those that
@@ -508,16 +669,14 @@ namespace seahorn {
     // Now go through and transform all of the indirect calls that we found that
     // need transforming.
     //for (unsigned index = 0; index < Worklist.size(); ++index) {
-    for (auto &I : Worklist)
-      makeDirectCall (CallSite (I));
+    bool Changed = !Worklist.empty ();
+    for (auto &I : Worklist) makeDirectCall (CallSite (I));
 
     // Conservatively assume that we've changed one or more call sites.
-    return true;
+    return Changed;
   }
   
-  Pass* createDevirtualizeFunctionsPass () {
-    return new DevirtualizeFunctions ();
-  }
+  Pass* createDevirtualizeFunctionsPass () {return new DevirtualizeFunctions ();}
 
   // Pass registration
   RegisterPass<DevirtualizeFunctions>

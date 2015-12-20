@@ -351,18 +351,10 @@ namespace
     return;
   }
   
-  //
-  // Method: visitCallSite()
-  //
-  // Description:
-  //  Examine the specified call site.  If it is an indirect call, mark it for
-  //  transformation into a direct call.
-  //
   void DevirtualizeFunctions::visitCallSite (CallSite &CS)
   {
-    Value * CalledValue = CS.getCalledValue();
-    if (isa<Function>(CalledValue->stripPointerCasts()))
-      return;
+    // -- skip direct calls
+    if (!CS.getCalledFunction ()) return;
     
     // This is an indirect call site.  Put it in the worklist of call
     // sites to transforms.
@@ -375,10 +367,12 @@ namespace
     // -- Get the call graph
     CG = &(getAnalysis<CallGraphWrapperPass> ().getCallGraph ());
 
-    // Populate signature map
+    // -- Create alias sets
     for (auto const &F: M)
     {
+      // -- intrinsics are never called indirectly
       if (F.isIntrinsic ()) continue;
+      
       // -- local functions whose address is not taken cannot be
       // -- resolved by a function pointer
       if (F.hasLocalLinkage () && !F.hasAddressTaken ()) continue;
@@ -388,7 +382,7 @@ namespace
       // -- default case of bounce function
       if (F.isDeclaration ()) continue;
       
-      // -- skip useless declarations
+      // -- skip seahorn and verifier specific intrinsics
       if (F.getName().startswith ("seahorn.")) continue;
       if (F.getName().startswith ("verifier.")) continue;
 

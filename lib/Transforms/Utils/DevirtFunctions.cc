@@ -45,13 +45,10 @@ namespace
     public ModulePass, public InstVisitor<DevirtualizeFunctions> 
   {
 
-    typedef SmallPtrSet<const Function *, 8> AliasSet;
-    typedef SmallVector<const Function *, 8> AliasVector;
+    typedef SmallVector<const Function *, 8> AliasSet;
     // TODO: change this to PointerType pointing to a FunctionPointer
     typedef const llvm::FunctionType *AliasSetId;
 
-    typedef DenseMap<const Function *, AliasSet> Cache;
-    
     
     // Access to the target data analysis pass
     const DataLayout * TD;
@@ -63,15 +60,10 @@ namespace
     SmallVector<Instruction*, 32> Worklist;
 
     /// map from alias-id to the corresponding alias set
-    DenseMap<AliasSetId, AliasVector> m_aliasSets;
-    
-    // XXX It is enough to map a FunctionType* to the bounce function
-    // A cache of indirect call targets that have been converted already
-    Cache bounceCache;
+    DenseMap<AliasSetId, AliasSet> m_aliasSets;
     
     /// maps alias set id to an existing bounce function
     DenseMap<AliasSetId, Function*> m_bounceMap;
-    
     
     /// turn the indirect call-site into a direct one
     void mkDirectCall (CallSite CS);
@@ -172,7 +164,7 @@ namespace
     // -- no direct calls in this alias set, nothing to construct
     if (m_aliasSets.count (id) <= 0) return nullptr;
     
-    AliasVector &Targets = m_aliasSets [id];
+    AliasSet &Targets = m_aliasSets [id];
     
 
     LOG("devirt",

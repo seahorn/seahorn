@@ -57,7 +57,7 @@ namespace
     CallGraph * CG;    
 
     // Worklist of call sites to transform
-    SmallVector<Instruction*, 32> Worklist;
+    SmallVector<Instruction*, 32> m_worklist;
 
     /// map from alias-id to the corresponding alias set
     DenseMap<AliasSetId, AliasSet> m_aliasSets;
@@ -82,7 +82,8 @@ namespace
     
     virtual bool runOnModule(Module & M);
     
-    virtual void getAnalysisUsage(AnalysisUsage &AU) const {
+    virtual void getAnalysisUsage(AnalysisUsage &AU) const
+    {
       AU.setPreservesAll ();
       AU.addRequired<DataLayoutPass>();
       AU.addRequired<CallGraphWrapperPass> ();
@@ -115,19 +116,21 @@ namespace
   STATISTIC(FuncAdded, "Number of bounce functions added");
   STATISTIC(CSConvert, "Number of call sites resolved");
 
-  static inline PointerType * getVoidPtrType (LLVMContext & C) {
+  static inline PointerType * getVoidPtrType (LLVMContext & C)
+  {
     Type * Int8Type  = IntegerType::getInt8Ty(C);
     return PointerType::getUnqual(Int8Type);
   }
 
   static inline Value *
-  castTo (Value * V, Type * Ty, std::string Name, Instruction * InsertPt) {
+  castTo (Value * V, Type * Ty, std::string Name, Instruction * InsertPt)
+  {
     // Don't bother creating a cast if it's already the correct type.
-    if (V->getType() == Ty)
-      return V;
+    if (V->getType() == Ty) return V;
     
     // If it's a constant, just create a constant expression.
-    if (Constant * C = dyn_cast<Constant>(V)) {
+    if (Constant * C = dyn_cast<Constant>(V))
+    {
       Constant * CE = ConstantExpr::getZExtOrBitCast (C, Ty);
       return CE;
     }
@@ -322,10 +325,11 @@ namespace
            errs () << "Call to bounce function: \n" << *CN << "\n";);
                  
       // update call graph
-      if (CG) {
+      if (CG)
+      {
         CG->getOrInsertFunction (const_cast<Function*> (bounceFn));
-        (*CG)[CI->getParent ()->getParent ()]->addCalledFunction (CallSite (CN),
-                                                                  (*CG)[CN->getCalledFunction ()]);
+        (*CG)[CI->getParent ()->getParent ()]->addCalledFunction
+          (CallSite (CN), (*CG)[CN->getCalledFunction ()]);
       }
 
       CN->setDebugLoc (CI->getDebugLoc ());
@@ -367,7 +371,7 @@ namespace
     
     // This is an indirect call site.  Put it in the worklist of call
     // sites to transforms.
-    Worklist.push_back (CS.getInstruction());
+    m_worklist.push_back (CS.getInstruction());
     return;
   }
 
@@ -406,9 +410,8 @@ namespace
     
     // Now go through and transform all of the indirect calls that we found that
     // need transforming.
-    //for (unsigned index = 0; index < Worklist.size(); ++index) {
-    bool Changed = !Worklist.empty ();
-    for (auto &I : Worklist) mkDirectCall (I);
+    bool Changed = !m_worklist.empty ();
+    for (auto &I : m_worklist) mkDirectCall (I);
 
     // Conservatively assume that we've changed one or more call sites.
     return Changed;

@@ -49,10 +49,6 @@ namespace
     // TODO: change this to PointerType pointing to a FunctionPointer
     typedef const llvm::FunctionType *AliasSetId;
 
-    
-    // Access to the target data analysis pass
-    const DataLayout * TD;
-
     // Call graph of the program
     CallGraph * CG;    
 
@@ -85,7 +81,6 @@ namespace
     virtual void getAnalysisUsage(AnalysisUsage &AU) const
     {
       AU.setPreservesAll ();
-      AU.addRequired<DataLayoutPass>();
       AU.addRequired<CallGraphWrapperPass> ();
       AU.addPreserved<CallGraphWrapperPass> ();
     }
@@ -377,9 +372,6 @@ namespace
 
   bool DevirtualizeFunctions::runOnModule (Module & M)
   {
-    // Get information on the target system.
-    TD = &getAnalysis<DataLayoutPass>().getDataLayout ();
-
     // -- Get the call graph
     CG = &(getAnalysis<CallGraphWrapperPass> ().getCallGraph ());
 

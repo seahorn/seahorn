@@ -45,9 +45,8 @@ namespace
     public ModulePass, public InstVisitor<DevirtualizeFunctions> 
   {
 
+    typedef const llvm::PointerType *AliasSetId;
     typedef SmallVector<const Function *, 8> AliasSet;
-    // TODO: change this to PointerType pointing to a FunctionPointer
-    typedef const llvm::FunctionType *AliasSetId;
 
     // Call graph of the program
     CallGraph * CG;    
@@ -69,8 +68,19 @@ namespace
     
     /// returns an AliasId of the called value
     /// requires that CS is an indirect call through a function pointer
-    AliasSetId typeAliasId (CallSite &CS) const;
-    AliasSetId typeAliasId (const Function &F) const {return F.getFunctionType ();}
+    AliasSetId typeAliasId (CallSite &CS) const
+    {
+      assert (CS.getCalledFunction () == nullptr && "Not an indirect call");
+      PointerType *pTy = dyn_cast<PointerType> (CS.getCalledValue ()->getType ());
+      assert (pTy && "Unexpected call not through a pointer");
+      assert (isa<FunctionType> (pTy->getElementType ())
+              && "The type of called value is not a pointer to a function");
+      return pTy;
+    }
+    
+    /// returns an id of an alias set to which this function belongs
+    AliasSetId typeAliasId (const Function &F) const
+    {return F.getFunctionType ()->getPointerTo ();}
     
    public:
     static char ID;
@@ -133,17 +143,6 @@ namespace
     // Otherwise, insert a cast instruction.
     return CastInst::CreateZExtOrBitCast (V, Ty, Name, InsertPt);
   }
-
-  DevirtualizeFunctions::AliasSetId DevirtualizeFunctions::typeAliasId (CallSite &CS) const
-  {
-    assert (CS.getCalledFunction () == nullptr && "Not an indirect call");
-    PointerType *pTy = dyn_cast<PointerType> (CS.getCalledValue ()->getType ());
-    assert (pTy && "Unexpected call not through a pointer");
-    FunctionType *fTy = dyn_cast<FunctionType> (pTy->getElementType ());
-    assert (fTy && "The type of called value is not a pointer to a function");
-    return fTy;
-  }
-  
 
   /**
    * Creates a bounce function that calls functions in an alias set directly

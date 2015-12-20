@@ -30,7 +30,8 @@
 
 using namespace llvm;
 
-namespace seahorn {
+namespace
+{
 
   //
   // Class: DevirtualizeFunctions
@@ -421,13 +422,17 @@ namespace seahorn {
     return Changed;
   }
   
-  Pass* createDevirtualizeFunctionsPass () {return new DevirtualizeFunctions ();}
 
-  // Pass registration
-  RegisterPass<DevirtualizeFunctions>
-  XX ("devirt-functions", "Devirtualize indirect function calls using only types");
 
 } // end namespace
 
+namespace seahorn
+{
+  Pass* createDevirtualizeFunctionsPass () {return new DevirtualizeFunctions ();}
+}
+
+// Pass registration
+static  RegisterPass<DevirtualizeFunctions>
+XX ("devirt-functions", "Devirtualize indirect function calls using only types");
 
 

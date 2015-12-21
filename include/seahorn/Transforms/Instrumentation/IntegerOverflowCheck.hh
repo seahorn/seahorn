@@ -29,6 +29,8 @@ namespace seahorn
     
     void addErrorAndSafeLocs (IRBuilder<>B, Function &F);   
 
+    BasicBlock* createErrorBlock (Function &F, IRBuilder<> B, bool IsOverflow);
+
   public:
 
     static char ID;

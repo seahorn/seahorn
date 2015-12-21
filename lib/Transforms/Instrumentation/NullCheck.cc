@@ -5,6 +5,7 @@
 #include "seahorn/Transforms/Instrumentation/NullCheck.hh"
 
 #include "llvm/IR/InstIterator.h"
+#include "llvm/IR/Constants.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/CommandLine.h"
@@ -19,15 +20,37 @@ namespace seahorn
 
   void NullCheck::insertNullCheck (Value *Ptr, 
                                    IRBuilder<> B,
-                                   Instruction* I,
-                                   BasicBlock* Error) {
+                                   Instruction* I) {
 
      B.SetInsertPoint (I);    
      Value* isNull = B.CreateIsNull (Ptr);
+     isNull->setName ("null_check");
 
+     if (Constant* C = dyn_cast<Constant> (isNull)) {
+       if (ConstantInt* CI = dyn_cast<ConstantInt> (C)) {
+         if (CI == ConstantInt::getFalse (B.getContext ())) {
+           LOG ("null-check",
+                errs () << "Memory access is trivially safe\n";);
+           
+           TrivialChecks++;
+         }
+         else if (CI == ConstantInt::getTrue (B.getContext ())) {
+           LOG ("null-check",
+                errs () << "Memory access is trivially unsafe\n";);
+           
+           TrivialChecks++;
+         }
+       }
+     }
+
+     
      // Attach debug information to the new instruction
-     if (Instruction* isNullI = dyn_cast<Instruction> (isNull))
+     if (Instruction* isNullI = dyn_cast<Instruction> (isNull)) {
        isNullI->setDebugLoc (I->getDebugLoc ());
+       LOG ("null-check",
+            errs () << "Added " << *isNullI << "\n";);
+       ChecksAdded++;
+     }
 
      TerminatorInst* ThenTerm = nullptr;
      TerminatorInst* ElseTerm = nullptr;
@@ -37,31 +60,32 @@ namespace seahorn
      assert (ThenTerm);
 
      // ThenTerm is always a BranchInst so this cast should never fail
-     BranchInst *BI = static_cast<BranchInst*> (ThenTerm);
+     BranchInst *BI = cast<BranchInst> (ThenTerm);
 
-     BI->setSuccessor(0, Error);
+     BasicBlock* ErrorBB = createErrorBlock (*I->getParent ()->getParent (), B);
+     BI->setSuccessor(0, ErrorBB);
+  }
+
+  BasicBlock* NullCheck::createErrorBlock (Function &F, IRBuilder<> B) {
+  
+    BasicBlock* errBB = BasicBlock::Create(B.getContext (), "NullError", &F);
+    B.SetInsertPoint (errBB);    
+    CallInst * CI = B.CreateCall (ErrorFn);
+    B.CreateUnreachable ();
+    
+    // update call graph
+    if (CG) {
+      auto f1 = CG->getOrInsertFunction (&F);
+      auto f2 = CG->getOrInsertFunction (ErrorFn);
+        f1->addCalledFunction (CallSite (CI), f2);
+    }
+    return errBB;
   }
 
   bool NullCheck::runOnFunction (Function &F)
   {
     if (F.isDeclaration ()) return false;
 
-
-    LLVMContext &ctx = F.getContext ();
-    IRBuilder<> B (ctx);
-
-    BasicBlock* errBB = BasicBlock::Create(ctx, "NullError", &F);
-    B.SetInsertPoint (errBB);    
-    CallInst * CI = B.CreateCall (ErrorFn);
-    B.CreateUnreachable ();
-
-    // update call graph
-    if (CG) {
-      auto f1 = CG->getOrInsertFunction (&F);
-      auto f2 = CG->getOrInsertFunction (ErrorFn);
-      f1->addCalledFunction (CallSite (CI), f2);
-    }
-      
     std::vector<Instruction*> Worklist;
     for (inst_iterator i = inst_begin(F), e = inst_end(F); i != e; ++i)  {
       Instruction *I = &*i;
@@ -72,6 +96,9 @@ namespace seahorn
       }
     }
 
+    LLVMContext &ctx = F.getContext ();
+    IRBuilder<> B (ctx);
+
     bool change = false;    
     for (auto I: Worklist) {
       Value *Ptr = nullptr;
@@ -81,15 +108,14 @@ namespace seahorn
         Ptr = SI->getPointerOperand();
       }
 
+
       // Dereferencing a pointer so we insert a check if the pointer is null
       if (Ptr) {
-        insertNullCheck (Ptr, B, I, errBB);
-        ChecksAdded++;
+        insertNullCheck (Ptr, B, I);
         change = true;
       }
     }
 
-    //errs () << "Instrumented function " << F << "\n";
     return change;
   }
 
@@ -122,7 +148,8 @@ namespace seahorn
       change |= runOnFunction (F); 
     }
 
-    errs () << "-- Inserted " << ChecksAdded << " null dereference checks.\n";
+    errs () << "-- Inserted " << ChecksAdded << " null dereference checks " 
+            << " (skipped " << TrivialChecks << " trivial checks).\n";
 
     return change;
   }

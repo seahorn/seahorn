@@ -33,6 +33,15 @@ using namespace llvm;
 namespace
 {
 
+  static bool isIndirectCall (CallSite &CS)
+  {
+    Value *v = CS.getCalledValue ();
+    if (!v) return false;
+    
+    v = v->stripPointerCasts ();
+    return !isa<Function> (v);
+  }
+  
   //
   // Class: DevirtualizeFunctions
   //
@@ -70,7 +79,7 @@ namespace
     /// requires that CS is an indirect call through a function pointer
     AliasSetId typeAliasId (CallSite &CS) const
     {
-      assert (CS.getCalledFunction () == nullptr && "Not an indirect call");
+      assert (isIndirectCall (CS) && "Not an indirect call");
       PointerType *pTy = dyn_cast<PointerType> (CS.getCalledValue ()->getType ());
       assert (pTy && "Unexpected call not through a pointer");
       assert (isa<FunctionType> (pTy->getElementType ())
@@ -153,7 +162,7 @@ namespace
 
     AliasSetId id = typeAliasId (CS);
     {
-      assert (!CS.getCalledFunction () && "Not an indirect call");
+      assert (isIndirectCall (CS) && "Not an indirect call");
       auto it = m_bounceMap.find (id);
       if (it != m_bounceMap.end ()) return it->second;
     }
@@ -353,7 +362,7 @@ namespace
   void DevirtualizeFunctions::visitCallSite (CallSite &CS)
   {
     // -- skip direct calls
-    if (!CS.getCalledFunction ()) return;
+    if (!isIndirectCall (CS)) return;
     
     // This is an indirect call site.  Put it in the worklist of call
     // sites to transforms.
@@ -384,6 +393,8 @@ namespace
       // -- skip seahorn and verifier specific intrinsics
       if (F.getName().startswith ("seahorn.")) continue;
       if (F.getName().startswith ("verifier.")) continue;
+      // -- assume entry point is never called indirectly
+      if (F.getName ().equals ("main")) continue;
 
       // -- add F to its corresponding alias set
       m_aliasSets [typeAliasId (F)].push_back (&F);

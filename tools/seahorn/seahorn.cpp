@@ -227,7 +227,7 @@ int main(int argc, char **argv) {
 
   pass_manager.add(llvm::createUnifyFunctionExitNodesPass ());
   pass_manager.add (new seahorn::LowerGvInitializers ());
-  
+
   pass_manager.add (seahorn::createShadowMemDsaPass ());
   // lowers shadow.mem variables created by ShadowMemDsa pass
   pass_manager.add (llvm::createPromoteMemoryToRegisterPass ());
@@ -238,16 +238,13 @@ int main(int argc, char **argv) {
   pass_manager.add (seahorn::createStripLifetimePass ());
   pass_manager.add (seahorn::createDeadNondetElimPass ());
 
-#ifdef HAVE_CRAB_LLVM
   if (Crab)
   {
-    pass_manager.add (new ufo::NameValues ());
     /// -- insert invariants in the bitecode
     pass_manager.add (new crab_llvm::InsertInvariants ());
     /// -- simplify invariants added in the bitecode
     // pass_manager.add (seahorn::createInstCombine ());
   }
-#endif 
 
   // --- verify if an undefined value can be read
   pass_manager.add (seahorn::createCanReadUndefPass ());

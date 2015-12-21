@@ -7,4 +7,5 @@ add_llvm_library(SeaTransformsUtils
   DummyMainFunction.cc
   ExternalizeAddressTakenFunctions.cc
   DevirtFunctions.cc
+  Mem2Reg.cc
   )

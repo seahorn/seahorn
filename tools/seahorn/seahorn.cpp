@@ -228,11 +228,13 @@ int main(int argc, char **argv) {
   pass_manager.add(llvm::createUnifyFunctionExitNodesPass ());
   pass_manager.add (new seahorn::LowerGvInitializers ());
 
+  // -- it invalidates DSA passes so it should be run before
+  // -- ShadowMemDsa
+  pass_manager.add (llvm::createGlobalDCEPass ()); // kill unused internal global
+
   pass_manager.add (seahorn::createShadowMemDsaPass ());
   // lowers shadow.mem variables created by ShadowMemDsa pass
-  pass_manager.add (llvm::createPromoteMemoryToRegisterPass ());
-
-  pass_manager.add (llvm::createGlobalDCEPass ()); // kill unused internal global
+  pass_manager.add (seahorn::createPromoteMemoryToRegisterPass ());
 
   pass_manager.add (new seahorn::RemoveUnreachableBlocksPass ());
   pass_manager.add (seahorn::createStripLifetimePass ());

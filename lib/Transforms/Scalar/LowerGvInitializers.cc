@@ -20,7 +20,8 @@ namespace seahorn
     
     Builder.SetInsertPoint (&f->getEntryBlock (), 
                             f->getEntryBlock ().begin ());
-    
+
+    bool change=false;
     for (GlobalVariable &gv : boost::make_iterator_range (M.global_begin (),
                                                           M.global_end ()))
     {
@@ -36,12 +37,13 @@ namespace seahorn
       // -- create a store instruction
       Builder.CreateAlignedStore (gv.getInitializer (), &gv, 
                                   DL->getABITypeAlignment (ity));
+      change=true;
     }
       
-    return false;
+    return change;
   }
 
 }
 
 static llvm::RegisterPass<seahorn::LowerGvInitializers>
-X ("lower-gv-init", "Lower initialization of global variables\n");
+X ("lower-gv-init", "Lower initialization of global variables");

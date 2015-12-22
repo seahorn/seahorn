@@ -75,6 +75,7 @@ namespace seahorn
     virtual ~SmallStepSymExec () {}
     
     ExprFactory& getExprFactory () {return m_efac;}
+    ExprFactory& efac () {return m_efac;}
     
     /// Executes all instructions in the basic block. Modifies the
     /// store s and returns a side condition. The side-constraints are

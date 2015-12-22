@@ -1,5 +1,4 @@
 set (USED_LIBS 
-  seahorn.LIB
   SeaInstrumentation
   SeaTransformsScalar
   SeaTransformsUtils

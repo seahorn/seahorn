@@ -8,10 +8,10 @@
 
 #include "seahorn/ClpSymExec.hh"
 #include "seahorn/Support/CFG.hh"
+#include "seahorn/Transforms/Instrumentation/ShadowMemDsa.hh"
 
 #include "ufo/ufo_iterators.hpp"
 
-#include <queue>
 
 using namespace seahorn;
 using namespace llvm;
@@ -657,36 +657,7 @@ namespace seahorn
   {
     return m_td->getStructLayout (const_cast<StructType*>(t))->getElementOffset (field);
   }
-  
-  bool ClpSmallSymExec::isShadowMem (const Value &V)
-  {
-    // work list
-    std::queue<const Value*> wl;
     
-    wl.push (&V);
-    while (!wl.empty ())
-    {
-      const Value *val = wl.front ();
-      wl.pop ();
-      
-      if (const CallInst *ci = dyn_cast<const CallInst> (val))
-      {
-        if (const Function *fn = ci->getCalledFunction ())
-          return fn->getName ().startswith ("shadow.mem.");
-        return false;
-      }   
-      else if (const PHINode *phi = dyn_cast<const PHINode> (val))
-      {
-        for (unsigned i = 0; i < phi->getNumIncomingValues (); ++i)
-          wl.push (phi->getIncomingValue (i));
-      }
-      else return false;
-    }
-    
-    assert (0);
-    return false;
-  }
-  
   Expr ClpSmallSymExec::symb (const Value &I)
   {
     // -- basic blocks are mapped to Bool constants
@@ -729,7 +700,8 @@ namespace seahorn
     // -- everything else is mapped to a constant
     Expr v = mkTerm<const Value*> (&I, m_efac);
     
-    if (m_trackLvl >= MEM && isShadowMem (I))
+    const Value *scalar = nullptr;
+    if (m_trackLvl >= MEM && shadow_dsa::isShadowMem (I, &scalar))
     {
       Expr intTy = sort::intTy (m_efac);
       Expr ty = sort::arrayTy (intTy, intTy);
@@ -761,9 +733,11 @@ namespace seahorn
   
   bool ClpSmallSymExec::isTracked (const Value &v) 
   {
+    const Value* scalar;
+
     // -- shadow values represent memory regions
     // -- only track them when memory is tracked
-    if (isShadowMem (v)) return m_trackLvl >= MEM;
+    if (shadow_dsa::isShadowMem (v, &scalar)) return m_trackLvl >= MEM;
     // -- a pointer
     if (v.getType ()->isPointerTy ()) return m_trackLvl >= PTR;
     

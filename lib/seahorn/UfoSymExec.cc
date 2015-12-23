@@ -3,11 +3,12 @@
 
 #include "seahorn/UfoSymExec.hh"
 #include "seahorn/Support/CFG.hh"
+#include "seahorn/Transforms/Instrumentation/ShadowMemDsa.hh"
 
 #include "ufo/ufo_iterators.hpp"
 #include "llvm/Support/CommandLine.h"
 
-#include <queue>
+//#include <queue>
 
 using namespace seahorn;
 using namespace llvm;
@@ -54,35 +55,29 @@ IgnoreCalloc ("horn-ignore-calloc",
               cl::Hidden);
 
 
-/// extracts unique scalar from a call to shadow.mem functions
 static const Value *extractUniqueScalar (CallSite &cs)
 {
-  if (!EnableUniqueScalars) return nullptr;
-  
-  assert (cs.arg_size () > 0);
-  // -- last argument
-  const Value *v = cs.getArgument (cs.arg_size () - 1);
-
-  if (const Instruction *inst = dyn_cast<Instruction> (v))
-  {
-    assert (inst);
-    return inst->isCast () ? inst->getOperand (0) : inst;
-  }
-  else if (const ConstantPointerNull *c = dyn_cast<ConstantPointerNull> (v))
-    return nullptr;
-  else if (const ConstantExpr *c = dyn_cast<ConstantExpr> (v))
-    return c->getOperand (0);
-  
-  return v;
+   if (!EnableUniqueScalars) 
+     return nullptr;
+   else
+     return seahorn::shadow_dsa::extractUniqueScalar (cs);
 }
 
-/// extracts unique scalar from a call to shadow.mem functions
 static const Value* extractUniqueScalar (const CallInst *ci)
 {
-  CallSite cs (const_cast<CallInst*> (ci));
-  return extractUniqueScalar (cs);
+   if (!EnableUniqueScalars) 
+     return nullptr;
+   else 
+     return seahorn::shadow_dsa::extractUniqueScalar (ci);
 }
 
+static bool isShadowMem (const Value &V, const Value **out) 
+{
+   const Value *scalar;
+   bool res = seahorn::shadow_dsa::isShadowMem (V, &scalar);
+   if (EnableUniqueScalars && out) *out = scalar;
+   return res;
+}
 
 namespace
 {
@@ -988,42 +983,7 @@ namespace seahorn
   {
     return m_td->getStructLayout (const_cast<StructType*>(t))->getElementOffset (field);
   }
-  
-  bool UfoSmallSymExec::isShadowMem (const Value &V, const Value **out)
-  {
     
-    // work list
-    std::queue<const Value*> wl;
-    
-    wl.push (&V);
-    while (!wl.empty ())
-    {
-      const Value *val = wl.front ();
-      wl.pop ();
-      
-      if (const CallInst *ci = dyn_cast<const CallInst> (val))
-      {
-        if (const Function *fn = ci->getCalledFunction ())
-        {
-          if (!fn->getName ().startswith ("shadow.mem")) return false;
-          if (out) *out = extractUniqueScalar (ci);
-          return true;
-        }
-        
-        return false;
-      }   
-      else if (const PHINode *phi = dyn_cast<const PHINode> (val))
-      {
-        for (unsigned i = 0; i < phi->getNumIncomingValues (); ++i)
-          wl.push (phi->getIncomingValue (i));
-      }
-      else return false;
-    }
-    
-    assert (0);
-    return false;
-  }
-  
   Expr UfoSmallSymExec::symb (const Value &I)
   {
     assert (!isa<UndefValue>(&I));

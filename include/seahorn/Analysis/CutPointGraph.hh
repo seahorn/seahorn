@@ -180,7 +180,7 @@ namespace seahorn
       return m_bb.count (&bb) > 0;
     }
     
-    const CutPoint &getCp2 (const BasicBlock &bb) const {return getCp (bb);}
+    //const CutPoint &getCp2 (const BasicBlock &bb) const {return getCp (bb);}
     
     const CutPoint &getCp (const BasicBlock &bb) const
     {

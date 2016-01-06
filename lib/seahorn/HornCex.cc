@@ -360,7 +360,7 @@ namespace seahorn
          << F << "\n";);
     
     HornifyModule &hm = getAnalysis<HornifyModule> ();
-    CutPointGraph &cpg = getAnalysis<CutPointGraph> (F);
+    const CutPointGraph &cpg = getAnalysis<CutPointGraph> (F);
     
     auto &fp = hs.getZFixedPoint ();
     ExprVector rules;
@@ -410,7 +410,7 @@ namespace seahorn
       bbTrace.push_back (bb);
       if (cpg.isCutPoint (*bb)) 
       {
-        const CutPoint &cp = cpg.getCp2 (*bb);
+        const CutPoint &cp = cpg.getCp (*bb);
         cpTrace.push_back (&cp);
       }
     }
@@ -440,7 +440,7 @@ namespace seahorn
     std::vector<const CpEdge*> edges;
     
     states.push_back (SymStore (efac));
-    const CutPoint *prev = &cpg.getCp2 (F.getEntryBlock ());
+    const CutPoint *prev = &cpg.getCp (F.getEntryBlock ());
     for (const CutPoint *cp : cpTrace)
     {
       states.push_back (states.back ());

@@ -20,7 +20,7 @@ namespace seahorn
   {
     /// symbolic operational semantics
     SmallStepSymExec& m_sem;
-    /// expression factory
+    /// expression factorysdfasdf
     ExprFactory &m_efac;
     
     /// last result
@@ -29,6 +29,11 @@ namespace seahorn
     /// cut-point trace
     SmallVector<const CutPoint *, 8> m_cps;
     
+    /// symbolic states corresponding to m_cps
+    SmallVector<SymStore, 8> m_states;
+    /// edge-trace corresponding to m_cps
+    SmallVector<const CpEdge*, 8> m_edges;
+    
     const CutPointGraph *m_cpg;
     const llvm::Function* m_fn;
     
@@ -36,10 +41,6 @@ namespace seahorn
     
     /// path-condition for m_cps
     ExprVector m_side;
-    /// symbolic states corresponding to m_cps
-    SmallVector<SymStore, 8> m_states;
-    /// edge-trace corresponding to m_cps
-    SmallVector<const CpEdge*, 8> m_edges;
     
     
   public:
@@ -76,6 +77,8 @@ namespace seahorn
     /// Dump unsat core 
     /// Exposes internal details. Intendent to be used for debugging only
     void unsatCore (ExprVector &out);
+
+    friend class BmcTrace;
     
   };
   
@@ -84,15 +87,32 @@ namespace seahorn
   {
     BmcEngine &m_bmc;
     
-    BmcTrace (BmcEngine &bmc) : m_bmc (bmc) {}
+    /// the trace of basic blocks
+    SmallVector<const BasicBlock *, 8> m_bbs;
     
-    public:
+    /// a map from an index of a basic block on a trace to the index
+    /// of the corresponding cutpoint in BmcEngine
+    SmallVector<unsigned, 8> m_cpId;
+    
+    
+    BmcTrace (BmcEngine &bmc) : m_bmc (bmc) {}
+
+    /// cutpoint id corresponding to the given location
+    unsigned cpid (unsigned loc) const {return m_cpId[loc];}
+    
+    /// true if loc is the first location on a cutpoint edge
+    bool isFirstOnEdge (unsigned loc) const
+    {return loc == 0 || cpid (loc - 1) !=  cpid (loc);}
+    
+    
+  public:
     
     /// The number of basic blocks in the trace 
     unsigned size ();
 
     /// The basic block at a given location 
-    const llvm::BasicBlock* bb (unsigned loc);
+    const llvm::BasicBlock* bb (unsigned loc) {return m_bbs [loc];}
+    
     
     /// The value of the instruction at the given location 
     Expr eval (unsigned loc, const llvm::Instruction &inst);

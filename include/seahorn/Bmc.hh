@@ -32,7 +32,7 @@ namespace seahorn
     const CutPointGraph *m_cpg;
     const llvm::Function* m_fn;
     
-    ufo::ZSolver<ufo::EZ3> m_smt;
+    ufo::ZSolver<ufo::EZ3> m_smt_solver;
     
     /// path-condition for m_cps
     ExprVector m_side;
@@ -43,10 +43,10 @@ namespace seahorn
     
     
   public:
-    BmcEngine (SmallStepSymExec &sem, ufo::EZ3 zctx) : 
+    BmcEngine (SmallStepSymExec &sem, ufo::EZ3 &zctx) : 
       m_sem (sem), m_efac (sem.efac ()), m_result (boost::indeterminate),
       m_cpg (nullptr), m_fn (nullptr),
-      m_smt (zctx)
+      m_smt_solver (zctx)
     {};
     
     void addCutPoint (const CutPoint &cp);
@@ -57,6 +57,12 @@ namespace seahorn
     boost::tribool solve ();
     /// returns the latest result from solve() 
     boost::tribool result () { return m_result; }
+    
+    
+    /// output current path condition in SMT-LIB2 format
+    template<typename OutputStream>
+    OutputStream &toSmtLib (OutputStream &out) 
+    { encode (); return m_smt_solver.toSmtLib (out); }
     
     /// access to expression factory
     ExprFactory &efac () { return m_efac; }

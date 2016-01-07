@@ -18,7 +18,7 @@ namespace seahorn
   boost::tribool BmcEngine::solve ()
   {
     encode ();
-    //m_result =  m_solver.solve ();
+    m_result =  m_smt_solver.solve ();
     return m_result;
   }
 
@@ -47,7 +47,7 @@ namespace seahorn
       prev = cp;
     }
     
-    //for (Expr v : m_side) m_solver.assertExpr (v);
+    for (Expr v : m_side) m_smt_solver.assertExpr (v);
     
   }
 
@@ -56,7 +56,7 @@ namespace seahorn
     m_cps.clear ();
     m_cpg = nullptr;
     m_fn = nullptr;
-    m_smt.reset ();
+    m_smt_solver.reset ();
 
     m_side.clear ();
     m_states.clear ();

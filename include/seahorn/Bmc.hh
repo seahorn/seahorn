@@ -34,12 +34,13 @@ namespace seahorn
     
     ufo::ZSolver<ufo::EZ3> m_smt;
     
+    /// path-condition for m_cps
     ExprVector m_side;
+    /// symbolic states corresponding to m_cps
     SmallVector<SymStore, 8> m_states;
-    SmallVector<const CpEdge*, 9> m_edges;
+    /// edge-trace corresponding to m_cps
+    SmallVector<const CpEdge*, 8> m_edges;
     
-  protected:
-    void encode ();
     
   public:
     BmcEngine (SmallStepSymExec &sem, ufo::EZ3 zctx) : 
@@ -50,14 +51,21 @@ namespace seahorn
     
     void addCutPoint (const CutPoint &cp);
     
+    /// constructs the path condition
+    void encode ();
+    /// checks satisfiability of the path condition
     boost::tribool solve ();
-    
+    /// returns the latest result from solve() 
     boost::tribool result () { return m_result; }
+    
+    /// access to expression factory
     ExprFactory &efac () { return m_efac; }
+    
+    /// reset the engine
     void reset ();
     
     
-    /** Returns a trace (if available) */
+    /// Returns the BMC trace (if available)
     BmcTrace getTrace ();
     
   };
@@ -67,18 +75,20 @@ namespace seahorn
   {
     BmcEngine &m_bmc;
     
-    public:
     BmcTrace (BmcEngine &bmc) : m_bmc (bmc) {}
     
-    /** number of basic blocks in the trace */
+    public:
+    
+    /// The number of basic blocks in the trace 
     unsigned size ();
 
-    /** return basic block at a given location */
+    /// The basic block at a given location 
     const llvm::BasicBlock* bb (unsigned loc);
     
-    /** The value of the instruction at the given location */
+    /// The value of the instruction at the given location 
     Expr eval (unsigned loc, const llvm::Instruction &inst);
     
+    friend class BmcEngine;
   };
 }
 

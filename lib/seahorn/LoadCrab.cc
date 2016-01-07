@@ -673,7 +673,7 @@ namespace seahorn
     else if (abs->getId () == GenericAbsDomWrapper::id_t::arr_boxes) {
       arr_boxes_domain_t inv;
       getAbsDomWrappee (abs, inv);        
-      boxes_domain_t boxes = inv.get_base_domain ();
+      boxes_domain_t boxes = inv.get_content_domain ();
 
       // Here we do project onto live variables before translation
       vector<varname_t> vars = ExprVecToCrab (live, crab);
@@ -696,7 +696,7 @@ namespace seahorn
         arr_dis_interval_domain_t inv;
         getAbsDomWrappee (abs, inv);        
         DisIntervalToExpr t (crab, B, live);
-        e = t.toExpr (inv.get_base_domain (), efac);
+        e = t.toExpr (inv.get_content_domain (), efac);
       }
       else {
         // --- translation to convex linear constraints

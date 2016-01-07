@@ -74,6 +74,11 @@ namespace seahorn
     /// Returns the BMC trace (if available)
     BmcTrace getTrace ();
     
+
+    /// Dump unsat core 
+    /// Exposes internal details. Intendent to be used for debugging only
+    void unsatCore (ExprVector &out);
+    
   };
   
 

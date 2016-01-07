@@ -64,4 +64,54 @@ namespace seahorn
   }
   
   
+  void BmcEngine::unsatCore (ExprVector &out)
+  {
+    // -- re-assert the path-condition with assumptions
+    m_smt_solver.reset ();
+    ExprVector assumptions;
+    assumptions.reserve (m_side.size ());
+    for (Expr v : m_side)
+    {
+      Expr a = bind::boolConst (mk<ASM> (v));
+      assumptions.push_back (a);
+      m_smt_solver.assertExpr (mk<IMPL> (a, v));
+    }
+    
+    ExprVector core;
+    m_smt_solver.push ();
+    boost::tribool res = m_smt_solver.solveAssuming (assumptions);
+    if (!res) m_smt_solver.unsatCore (std::back_inserter (core));
+    m_smt_solver.pop ();
+    if (res) return;
+
+    
+    // simplify core
+    while (core.size () < assumptions.size ())
+    {
+      assumptions.assign (core.begin (), core.end ());
+      core.clear ();
+      m_smt_solver.push ();
+      res = m_smt_solver.solveAssuming (assumptions);
+      assert (!res ? 1 : 0);
+      m_smt_solver.unsatCore (std::back_inserter (core));
+      m_smt_solver.pop ();
+    }    
+    
+    // minimize simplified core
+    for (unsigned i = 0; i < core.size ();)
+    {
+      Expr saved = core [i];
+      core [i] = core.back ();
+      res = m_smt_solver.solveAssuming 
+        (boost::make_iterator_range (core.begin (), core.end () - 1));
+      if (res) core [i++] = saved;
+      else if (!res)
+        core.pop_back ();
+      else assert (0);
+    }
+    
+    // unwrap the core from ASM to corresponding expressions
+    for (Expr c : core)
+      out.push_back (bind::fname (bind::fname (c))->arg (0));
+  }
 }

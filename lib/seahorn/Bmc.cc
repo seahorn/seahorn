@@ -3,6 +3,11 @@
 
 namespace seahorn
 {
+  /// computes an implicant of f (interpreted as a conjunction) that
+  /// contains the given model
+  static void get_model_implicant (const ExprVector &f, 
+                                   ufo::ZModel<ufo::EZ3> &model, ExprVector &out);
+    
   void BmcEngine::addCutPoint (const CutPoint &cp)
   {
     if (m_cps.empty ())
@@ -114,4 +119,48 @@ namespace seahorn
     for (Expr c : core)
       out.push_back (bind::fname (bind::fname (c))->arg (0));
   }
+  
+  static void get_model_implicant (const ExprVector &f, 
+                                   ufo::ZModel<ufo::EZ3> &model, ExprVector &out)
+  {
+    // XXX This is a partial implementation. Specialized to the
+    // constraints expected to occur in m_side.
+    
+    for (auto v : f)
+    {
+      // -- break IMPL into an OR
+      // -- OR into a single disjunct
+      // -- single disjunct into an AND
+      if (isOpX<IMPL> (v))
+      {
+        assert (v->arity () == 2);
+        Expr a0 = model (v->arg (0));
+        if (isOpX<FALSE> (a0)) continue;
+        else if (isOpX<TRUE> (a0))
+          v = mknary<OR> (mk<FALSE> (a0->efac ()), 
+                          ++(v->args_begin ()), v->args_end ());
+        else
+          continue;
+      }
+      
+      if (isOpX<OR> (v))
+      {
+        for (unsigned i = 0; i < v->arity (); ++i)
+          if (isOpX<TRUE> (model (v->arg (i))))
+          {
+            v = v->arg (i);
+            break;
+          }
+      }
+        
+      if (isOpX<AND> (v)) 
+      {
+        for (unsigned i = 0; i < v->arity (); ++i)
+          out.push_back (v->arg (i));
+      }
+      else out.push_back (v);
+    }      
+    
+  }
+
 }

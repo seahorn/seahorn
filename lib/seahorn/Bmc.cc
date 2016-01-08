@@ -120,6 +120,14 @@ namespace seahorn
       out.push_back (bind::fname (bind::fname (c))->arg (0));
   }
   
+  BmcTrace::BmcTrace (BmcEngine &bmc, ufo::ZModel<ufo::EZ3> &model) :
+    m_bmc (bmc), m_model(m_bmc.m_smt_solver.getContext ())
+  {
+    assert (bmc.result ());
+    
+    m_model = bmc.m_smt_solver.getModel ();
+  }
+
   static void get_model_implicant (const ExprVector &f, 
                                    ufo::ZModel<ufo::EZ3> &model, ExprVector &out)
   {

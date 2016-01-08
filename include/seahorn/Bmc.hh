@@ -87,6 +87,8 @@ namespace seahorn
   {
     BmcEngine &m_bmc;
     
+    ufo::ZModel<ufo::EZ3> m_model;
+    
     /// the trace of basic blocks
     SmallVector<const BasicBlock *, 8> m_bbs;
     
@@ -95,7 +97,7 @@ namespace seahorn
     SmallVector<unsigned, 8> m_cpId;
     
     
-    BmcTrace (BmcEngine &bmc) : m_bmc (bmc) {}
+    BmcTrace (BmcEngine &bmc, ufo::ZModel<ufo::EZ3> &model);
 
     /// cutpoint id corresponding to the given location
     unsigned cpid (unsigned loc) const {return m_cpId[loc];}
@@ -112,7 +114,6 @@ namespace seahorn
 
     /// The basic block at a given location 
     const llvm::BasicBlock* bb (unsigned loc) {return m_bbs [loc];}
-    
     
     /// The value of the instruction at the given location 
     Expr eval (unsigned loc, const llvm::Instruction &inst);

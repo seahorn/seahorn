@@ -325,7 +325,7 @@ namespace ufo
 
     Z& z3;
     z3::context &ctx;
-    z3::model model;
+    Z3_model model;
 
     ExprFactory &efac;
 
@@ -366,31 +366,43 @@ namespace ufo
 
   public:
 
+    ZModel (Z &z) :
+      z3(z), ctx (z.get_ctx ()), model(nullptr), efac(z.get_efac ()) {}
+    
     ZModel (Z &z, const z3::model &m) :
-      z3(z), ctx(z.get_ctx ()), model (m), efac (z.get_efac ()) {}
+      z3(z), ctx(z.get_ctx ()), model (m), efac (z.get_efac ())
+    {Z3_model_inc_ref (ctx, model);}
 
     ZModel (const this_type &o) : z3(o.z3), ctx(z3.get_ctx ()),
-				  model (o.model), efac (z3.get_efac ()) {}
+				  model (o.model), efac (z3.get_efac ())
+    {if (model) Z3_model_inc_ref (ctx, model);}
 
+    ~ZModel ()
+    {
+      if (model) Z3_model_dec_ref (ctx, model);
+      model = nullptr;
+    }
+    
     this_type &operator= (this_type other) { swap (*this, other);}
 
     Expr eval (Expr e, bool completion = false)
     {
+      assert (model);
       z3::ast ast (z3.toAst (e));
 
       Z3_ast raw_val = NULL;
       if (Z3_model_eval (ctx, model, ast, completion, &raw_val) && raw_val)
-	{
-	  z3::ast val (ctx, raw_val);
-	  ctx.check_error ();
-          if (!isAsArray (val)) return z3.toExpr (val);
+      {
+        z3::ast val (ctx, raw_val);
+        ctx.check_error ();
+        if (!isAsArray (val)) return z3.toExpr (val);
           
           
-          Z3_func_decl fdecl = Z3_get_as_array_func_decl (ctx, val);
-          z3::func_interp zfunc (ctx, Z3_model_get_func_interp (ctx, model, fdecl));
-          ctx.check_error ();
-          return finterpToExpr (zfunc);
-	}
+        Z3_func_decl fdecl = Z3_get_as_array_func_decl (ctx, val);
+        z3::func_interp zfunc (ctx, Z3_model_get_func_interp (ctx, model, fdecl));
+        ctx.check_error ();
+        return finterpToExpr (zfunc);
+      }
       ctx.check_error ();
       return mk<NONDET> (efac);
     }
@@ -450,6 +462,7 @@ namespace ufo
     ZSolver (Z &z, const char *logic) :
       z3(z), ctx (z.get_ctx ()), solver (z.get_ctx (), logic), efac (z.get_efac ()) {}
 
+    Z& getContext () {return z3;}
     void set (const ZParams<Z> &p) { solver.set (p); }
 
     template <typename OutputStream>

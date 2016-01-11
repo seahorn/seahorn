@@ -1,12 +1,17 @@
 #include "seahorn/Bmc.hh"
 #include "seahorn/UfoSymExec.hh"
 
+#include "boost/container/flat_set.hpp"
+
 namespace seahorn
 {
   /// computes an implicant of f (interpreted as a conjunction) that
   /// contains the given model
   static void get_model_implicant (const ExprVector &f, 
                                    ufo::ZModel<ufo::EZ3> &model, ExprVector &out);
+  /// true if I is a call to a void function
+  static bool isCallToVoidFn (const llvm::Instruction &I);
+  
     
   void BmcEngine::addCutPoint (const CutPoint &cp)
   {
@@ -126,7 +131,91 @@ namespace seahorn
     assert (bmc.result ());
     
     m_model = bmc.m_smt_solver.getModel ();
+    
+
+    // construct an implicant of the side condition
+    ExprVector trace;
+    trace.reserve (m_bmc.m_side.size ());
+    get_model_implicant (m_bmc.m_side, m_model, trace);
+    boost::container::flat_set<Expr> implicant (trace.begin (), trace.end ());
+    
+    
+    // construct the trace
+    
+    // -- reference to the first state
+    auto st = m_bmc.m_states.begin ();
+    // -- reference to the fist cutpoint in the trace
+    unsigned id = 0;
+    for (const CpEdge *edg : m_bmc.m_edges)
+    {
+      assert (&(edg->source ()) == m_bmc.m_cps [id]);
+      assert (&(edg->target ()) == m_bmc.m_cps [id+1]);
+      
+      SymStore &s = *(++st);
+      for (auto it = edg->begin (), end = edg->end (); it != end; ++it)
+      {
+        const BasicBlock &BB = *it;
+        
+        if (it != edg->begin () && 
+            implicant.count (s.eval (m_bmc.m_sem.symb (BB))) <= 0) 
+          continue;
+        
+        m_bbs.push_back (&BB);
+        m_cpId.push_back (id);
+      }
+      // -- next basic block corresponds to the next cutpoint
+      id++;
+    }
+    
+    // -- last block on the edge
+    if (!m_bmc.m_edges.empty ())
+    {
+      m_bbs.push_back (&m_bmc.m_edges.back ()->target ().bb ());
+      m_cpId.push_back (id);
+    }
+    else
+    {
+      assert (m_bmc.m_cps.size () == 1);
+      // special case of trivial counterexample. The counterexample is
+      // completely contained within the first cutpoint
+      m_bbs.push_back (&m_bmc.m_cps [0]->bb ());
+      m_cpId.push_back (0);
+    }
   }
+  
+  Expr BmcTrace::eval (unsigned loc, const llvm::Instruction &inst)
+  {
+    assert (inst.getParent () == bb(loc));
+    
+    if (!m_bmc.m_sem.isTracked (inst)) return Expr ();
+    if (isCallToVoidFn (inst)) return Expr ();
+    
+    SymStore *store = nullptr;
+
+    if (isa<PHINode> (inst) && isFirstOnEdge (loc))
+      store = &m_bmc.m_states [cpid (loc)];
+    else if (cpid(loc) + 1 < m_bmc.m_states.size ())
+      store = &m_bmc.m_states [cpid (loc) + 1];
+    
+    // -- wrong location, could not get a store
+    if (!store) return Expr();
+    
+    // -- get symbolic name of the instruction
+    Expr v = store->eval (m_bmc.m_sem.symb (inst));
+    
+    // -- evaluate in the model
+    return m_model.eval (v);
+  }
+  
+  static bool isCallToVoidFn (const llvm::Instruction &I)
+  {
+    if (const CallInst *ci = dyn_cast<const CallInst> (&I))
+      if (const Function *fn = ci->getCalledFunction ())
+        return fn->getReturnType ()->isVoidTy ();
+    
+    return false;
+  }
+
 
   static void get_model_implicant (const ExprVector &f, 
                                    ufo::ZModel<ufo::EZ3> &model, ExprVector &out)

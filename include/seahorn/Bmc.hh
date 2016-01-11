@@ -110,8 +110,8 @@ namespace seahorn
   public:
     
     /// The number of basic blocks in the trace 
-    unsigned size ();
-
+    unsigned size () {return m_bbs.size ();}
+    
     /// The basic block at a given location 
     const llvm::BasicBlock* bb (unsigned loc) {return m_bbs [loc];}
     

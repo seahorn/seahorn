@@ -125,6 +125,13 @@ namespace seahorn
       out.push_back (bind::fname (bind::fname (c))->arg (0));
   }
   
+  BmcTrace BmcEngine::getTrace ()
+  {
+    assert (m_result);
+    auto model = m_smt_solver.getModel ();
+    return BmcTrace (*this, model);
+  }
+  
   BmcTrace::BmcTrace (BmcEngine &bmc, ufo::ZModel<ufo::EZ3> &model) :
     m_bmc (bmc), m_model(m_bmc.m_smt_solver.getContext ())
   {
@@ -183,27 +190,22 @@ namespace seahorn
     }
   }
   
-  Expr BmcTrace::eval (unsigned loc, const llvm::Instruction &inst)
+  Expr BmcTrace::eval (unsigned loc, const llvm::Instruction &inst) 
   {
     assert (inst.getParent () == bb(loc));
     
     if (!m_bmc.m_sem.isTracked (inst)) return Expr ();
     if (isCallToVoidFn (inst)) return Expr ();
     
-    SymStore *store = nullptr;
-
-    if (isa<PHINode> (inst) && isFirstOnEdge (loc))
-      store = &m_bmc.m_states [cpid (loc)];
-    else if (cpid(loc) + 1 < m_bmc.m_states.size ())
-      store = &m_bmc.m_states [cpid (loc) + 1];
+    unsigned stateidx = cpid(loc);
+    // -- all registers except for PHI nodes at the entry to an edge
+    // -- get their value at the end of the edge
+    if (! (isa<PHINode> (inst) && isFirstOnEdge (loc)) ) stateidx++;
+    // -- out of bounds, no value in the model
+    if (stateidx >= m_bmc.m_states.size ()) return Expr ();
     
-    // -- wrong location, could not get a store
-    if (!store) return Expr();
-    
-    // -- get symbolic name of the instruction
-    Expr v = store->eval (m_bmc.m_sem.symb (inst));
-    
-    // -- evaluate in the model
+    SymStore &store = m_bmc.m_states[stateidx];
+    Expr v = store.eval (m_bmc.m_sem.symb (inst));
     return m_model.eval (v);
   }
   

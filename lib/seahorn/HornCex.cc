@@ -10,6 +10,8 @@
 #include "seahorn/Analysis/CutPointGraph.hh"
 #include "seahorn/Analysis/CanFail.hh"
 
+#include "seahorn/Bmc.hh"
+
 #include "boost/range.hpp"
 #include "boost/range/adaptor/reversed.hpp"
 #include "boost/range/algorithm/sort.hpp"
@@ -350,6 +352,136 @@ namespace seahorn
   }
   
   bool HornCex::runOnFunction (Function &F)
+  {
+    HornSolver &hs = getAnalysis<HornSolver> ();
+    // -- only run if result is true, skip if it is false or unknown
+    if (hs.getResult ()) ; else return false;
+    
+     LOG ("cex", 
+         errs () << "Analyzed Function:\n"
+         << F << "\n";);
+   
+     HornifyModule &hm = getAnalysis<HornifyModule> ();
+    const CutPointGraph &cpg = getAnalysis<CutPointGraph> (F);
+    
+    auto &fp = hs.getZFixedPoint ();
+    ExprVector rules;
+    fp.getCexRules (rules);
+    boost::reverse (rules);
+    
+    // extract a trace of basic blocks corresponding to the counterexample
+    SmallVector<const BasicBlock*, 8> bbTrace;
+    SmallVector<const CutPoint*, 8> cpTrace;
+    
+    for (Expr r : rules)
+    {
+      
+      // filter away all rules not from main()
+      Expr src, dst;
+
+      {
+        dst = isOpX<IMPL> (r) ? r->arg (1) : r;
+        // -- skip rules whose destinations are not basic blocks
+        if (!hm.isBbPredicate (dst)) continue;
+        const BasicBlock &bb = hm.predicateBb (dst);
+        // -- skip basic blocks of non-main function
+        if (bb.getParent () != &F) continue;
+      }
+      
+      if (isOpX<IMPL> (r)) 
+      { 
+        dst = r->arg (1);
+        r = r->arg (0);
+        src = isOpX<AND> (r) ? r->arg (0) : r;
+      }
+      else dst = r;
+      if (src && !bind::isFapp (src)) src.reset (0);
+      
+      // -- if there is a src, then it was dst in previous iteration
+      assert (bbTrace.empty () || bbTrace.back () == &hm.predicateBb (src));
+      const BasicBlock *bb = &hm.predicateBb (dst);
+      
+      // XXX sometimes the cex includes the entry block, sometimes it does not
+      // XXX normalize by removing it
+      if (bb == &F.getEntryBlock ()) continue;
+      
+      bbTrace.push_back (bb);
+      if (cpg.isCutPoint (*bb)) 
+      {
+        const CutPoint &cp = cpg.getCp (*bb);
+        cpTrace.push_back (&cp);
+      }
+    }
+    
+    LOG ("cex", 
+         errs () << "TRACE BEGIN\n";
+         for (auto bb : bbTrace)
+         {
+           errs () << bb->getName ();
+           if (cpg.isCutPoint (*bb)) errs () << " C";
+           errs () << "\n";
+         }
+         errs () << "TRACE END\n";);
+    
+    
+    // -- create a BMC engine. Use fixed symbolic execution
+    // -- semantics. Possibly different than the semantics used by the
+    // -- HornSolver
+    ExprFactory &efac = hm.getExprFactory ();
+    UfoSmallSymExec sem (efac, *this, MEM);
+    BmcEngine bmc (sem, hm.getZContext ());
+    
+    // -- load the trace into the engine
+    for (const CutPoint *cp : cpTrace)
+      bmc.addCutPoint (*cp);
+    
+    // -- construct BMC instance
+    bmc.encode ();
+
+    if (!HornCexSmtFilename.empty ())
+    {
+      std::error_code EC;
+      raw_fd_ostream file (HornCexSmtFilename, EC, sys::fs::F_Text);
+      if (!EC) bmc.toSmtLib (file);
+      else errs () << "Could not open: " << HornCexSmtFilename << "\n";
+    }
+    
+    auto res = bmc.solve ();
+    LOG ("cex",
+         errs () << "BMC: " 
+         << (res ? "sat" : (!res ? "unsat" : "unknown")) << "\n";);
+    
+    // -- DUMP unsat core if validation failed
+    if (res) ;
+    else
+    {
+      errs () << "Warning: failed to validate cex\n";
+      errs () << "Computing unsat core\n";
+      ExprVector core;
+      bmc.unsatCore (core);
+      errs () << "Final core: " << core.size () << "\n";
+      errs () << "Failed to validate CEX. Core is: \n";
+      for (Expr c : core) errs () << *c << "\n";
+      
+      Stats::sset("Result", "FAILED");
+      return false;
+    }
+    
+    // get bmc trace
+    BmcTrace trace = bmc.getTrace ();
+
+    LOG ("cex", trace.print (errs ()););
+    
+    // XXX legacy support for sv-comp counterexamples
+    std::vector<const BasicBlock *> cex;
+    for (unsigned i = 0; i < trace.size (); ++i)
+      cex.push_back (trace.bb (i));
+    printLineCex (cex);
+    return false;
+  }
+  
+  
+  bool HornCex::runOnFunctionOld (Function &F)
   {
     HornSolver &hs = getAnalysis<HornSolver> ();
     // -- only run if result is true, skip if it is false or unknown

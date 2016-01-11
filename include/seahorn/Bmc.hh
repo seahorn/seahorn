@@ -11,6 +11,10 @@
 #include "seahorn/Analysis/CutPointGraph.hh"
 #include "seahorn/SymExec.hh"
 
+#include "llvm/IR/IntrinsicInst.h"
+#include "llvm/IR/DebugLoc.h"
+#include "llvm/IR/DebugInfo.h"
+
 namespace seahorn
 {
   using namespace expr;
@@ -110,16 +114,79 @@ namespace seahorn
   public:
     
     /// The number of basic blocks in the trace 
-    unsigned size () {return m_bbs.size ();}
+    unsigned size () const {return m_bbs.size ();}
     
     /// The basic block at a given location 
-    const llvm::BasicBlock* bb (unsigned loc) {return m_bbs [loc];}
+    const llvm::BasicBlock* bb (unsigned loc) const {return m_bbs [loc];}
     
     /// The value of the instruction at the given location 
     Expr eval (unsigned loc, const llvm::Instruction &inst);
     
+    template <typename Out> Out &print (Out &out);
     friend class BmcEngine;
   };
+  
+  template <typename Out> 
+  Out &BmcTrace::print (Out &out) 
+  {
+    using namespace llvm;
+    
+    for (unsigned loc = 0; loc < size (); ++loc)
+    {
+      const BasicBlock &BB = *bb(loc);
+      out << BB.getName () << ": \n";
+      
+      for (auto &I : BB)
+      {
+        if (const DbgValueInst *dvi = dyn_cast<DbgValueInst> (&I))
+        {
+          if (dvi->getValue () && dvi->getVariable ())
+          {
+            DIVariable var (dvi->getVariable ());
+                   
+            out << "  " << var.getName () << " = ";
+            if (dvi->getValue ()->hasName ())
+              out << dvi->getValue ()->getName ();
+            else
+              out << *dvi->getValue ();
+            out << "\n";
+          }
+          continue;
+        }
+
+        if (const CallInst *ci = dyn_cast<CallInst> (&I))
+        {
+          Function *f = ci->getCalledFunction ();
+          if (f && f->getName ().equals ("seahorn.fn.enter"))
+          {
+            DISubprogram fnScope =
+              getDISubprogram (ci->getDebugLoc ().getScope ());
+            if (fnScope)
+              out << "enter: " << fnScope.getDisplayName () << "\n";
+            continue;
+          }
+        }
+               
+               
+        Expr v = eval (loc, I);
+        if (!v) continue;
+        
+        out << "  %" << I.getName () << " " << *v;
+        
+        const DebugLoc dloc = I.getDebugLoc ();
+        if (!dloc.isUnknown ())
+        {
+          DIScope scope (dloc.getScope ());
+          out << "\t[" << scope.getFilename () << ":"
+                  << dloc.getLine () << "]";
+        }
+        out << "\n";
+      }        
+      
+    }
+  }
+  
+  
 }
 
 #endif

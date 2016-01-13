@@ -156,7 +156,7 @@ def parseOpt (argv):
     if options.arch != 32 and options.arch != 64:
         parser.error ('Unknown architecture {0}'.format (opt.arch))
 
-    if options.cex != None and os.path.isfile (options.cex):
+    if options.cex is not None and os.path.isfile (options.cex):
         os.remove (options.cex)
 
     return (options, args)
@@ -211,7 +211,7 @@ def run (workdir, fname, sea_args = [], profs = [],
 
     sea_cmd = getSea()
 
-    if cex is None: cex = fname+".xml" # forcing a cex output
+    if cex is None: cex = fname + '.xml' # forcing a cex output
 
     base_args = [sea_cmd, '--mem={0}'.format(mem),
                  '-m{0}'.format (arch)]
@@ -219,7 +219,7 @@ def run (workdir, fname, sea_args = [], profs = [],
         base_args.append ('--horn-svcomp-cex-arch=64bit')
     base_args.extend (sea_args)
 
-    if cex != None:
+    if cex is not None:
         cex_base = os.path.basename (fname)
         cex_base = os.path.splitext (cex_base)[0]
         cex_base = os.path.join (workdir, cex_base)
@@ -231,7 +231,7 @@ def run (workdir, fname, sea_args = [], profs = [],
     for prof in profs:
         conf_name.append (prof)
         p_args = base_args + profiles [prof]
-        if cex != None:
+        if cex is not None:
             cex_name = '{0}.{1}.trace'.format (cex_base, prof)
             p_args.append ('--cex={0}'.format (cex_name))
         sea.append (p_args)
@@ -278,10 +278,10 @@ def run (workdir, fname, sea_args = [], profs = [],
     if returnvalue == 0 and getAnswer(out_f) is not None:
         cat (open (out_f), sys.stdout)
         cat (open (stderr[idx]), sys.stderr)
-        if cex != None:
+        if cex is not None:
             cex_name = '{0}.{1}.trace'.format (cex_base, conf_name [idx])
-            print 'Copying {0} to {1}'.format (cex_name, cex)
             if os.path.isfile (cex_name):
+                print 'Copying {0} to {1}'.format (cex_name, cex)
                 shutil.copy2 (cex_name, cex)
                 print 'Counterexample trace is in {0}'.format (cex)
 

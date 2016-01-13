@@ -54,79 +54,8 @@ using namespace llvm;
 namespace seahorn
 {
   
-  template <typename O>
-  class SvCompCex
-  {
-    O &m_out;
-    unsigned m_id;
-    
-    void key (std::string name, std::string type, std::string obj, std::string id)
-    {
-      m_out << "<key attr.name='" << name << "' attr.type='" << type << "'"
-            << " for='" << obj << "' id='" << id << "'/>\n";
-    }
-    
-  public:
-    SvCompCex (O &out) : m_out (out), m_id(0) {}
-    void header ()
-    {
-      m_out << "<graphml xmlns:xsi='http://www.w3.org/2001/XMLSchema-instance' "
-            << "xmlns='http://graphml.graphdrawing.org/xmlns'>\n";
-      key ("sourcecodeLanguage", "string", "graph", "sourcecodelang");
-      key ("startline", "int", "edge", "originline");
-      key ("originFileName", "string", "edge", "originfile");
-      key ("isEntryNode", "boolean", "node", "entry");
-      key ("isSinkNode", "boolean", "node", "sink");
-      key ("isViolationNode", "boolean", "node", "violation");
-      key ("enterFunction", "string", "edge", "enterFunction");
-      key ("returnFromFunction", "string", "edge", "returnFrom");
-      
-      const std::string spec = "CHECK( init(main()), LTL(G ! call(__VERIFIER_error())) )";
-      const std::string mem_model = "precise";
-      const std::string arch = "32bit";
-
-      m_out << "<graph edgedefault='directed'>\n"
-            << "<data key='sourcecodelang'>C</data>\n"
-            << "<data key='producer'>SeaHorn </data>\n"
-            << "<data key='specification'>" << SvCompCexFileSpec << "</data>\n"
-            << "<data key='memorymodel'>"   << SvCompCexFileMemModel << "</data>\n"
-            << "<data key='architecture'>"  << SvCompCexFileArch << "</data>\n"
-            << "<node id='0'> <data key='entry'>true</data> </node>\n";
-    }
-
-    void add_violation_node (){
-      unsigned src = m_id++;
-      m_out << "<node id='" << m_id << "'> <data key='violation'>true</data> </node>\n";      
-      m_out << "<edge source='" << src << "' target='" << m_id << "'/>\n";
-    }
-
-    void edge (std::string file, int lineno, std::string scope)
-    {
-      unsigned src = m_id++;
-      m_out << "<node id='" << m_id << "'/>\n";
-      m_out << "<edge source='" << src << "' target='" << m_id << "'>\n";
-      m_out << "  <data key='originline'>" << lineno << "</data>\n";
-      m_out << "  <data key='originfile'>" << file << "</data>\n";
-
-      if (boost::starts_with (scope, "enter: "))
-        m_out << "  <data key='enterFunction'>" 
-              << scope.substr (std::string ("enter: ").size ())
-              << "</data>\n";
-      else if (boost::starts_with (scope, "exit: "))
-        m_out << "  <data key='returnFrom'>" 
-              << scope.substr (std::string ("exit: ").size ())
-              << "</data>\n";
-      
-      m_out << "</edge>\n";
-
-    }
-    
-    void footer ()
-    {
-      m_out << "</graph></graphml>\n";
-    }
-  };
-    
+  template <typename O> class SvCompCex;
+  static void dumpSvCompCex (BmcTrace &trace);
   
   char HornCex::ID = 0;
   
@@ -135,86 +64,6 @@ namespace seahorn
     for (Function &F : M)
       if (F.getName ().equals ("main")) return runOnFunction (F);
     return false;
-  }
-  
-  static std::string constAsString (const ConstantExpr *gep)
-  {
-    assert (gep != NULL);
-    assert (gep->isGEPWithNoNotionalOverIndexing ());
-    
-    const GlobalVariable *gv = 
-      dyn_cast<const GlobalVariable> (gep->getOperand (0));
-    assert (gv != NULL);
-    assert (gv->hasInitializer ());
-
-    const ConstantDataSequential *op = 
-      dyn_cast<const ConstantDataSequential> (gv->getInitializer ());
-    assert (op != NULL);
-    assert (op->isCString ());
-    return op->getAsString ();
- }
-
-
-  template <typename O>
-  static void printDebugLoc (const Instruction &inst, 
-                             SvCompCex<O> &svcomp)
-  {
-    const DebugLoc &dloc = inst.getDebugLoc ();
-    if (dloc.isUnknown ()) return;
-    std::string file;
-
-    DIScope Scope (dloc.getScope ());
-    if (Scope) file = Scope.getFilename ();
-    else file = "<unknown>";
-    
-    
-    LOG ("cex",
-         DISubprogram fnScope = getDISubprogram (dloc.getScope ());
-         if (fnScope)
-         {
-           Function *fn = fnScope.getFunction ();
-           StringRef dname = fnScope.getDisplayName ();
-           if (const CallInst *ci = dyn_cast<const CallInst> (&inst))
-           {
-             Function *f = ci->getCalledFunction ();
-             if (f && f->getName ().equals ("seahorn.fn.enter"))
-               errs () << "entering: " << dname << "\n";
-           }
-           else
-             errs () << "in: " << dname << "\n";
-         });
-      
-    svcomp.edge (file, (int)dloc.getLine (), "");
-  }
-  
-  
-  static void dumpSvCompCex (BmcTrace &trace)
-  {
-    if (SvCompCexFile.empty ()) return;
-    
-    std::error_code ec;
-    llvm::tool_output_file out (SvCompCexFile.c_str (), ec, llvm::sys::fs::F_Text);
-    if (ec)
-    {
-      errs () << "ERROR: Cannot open CEX file: " << ec.message () << "\n";
-      return;
-    }
-    
-    SvCompCex<llvm::raw_ostream> svcomp (out.os ());
-    svcomp.header ();
-    for (unsigned i = 0; i < trace.size (); ++i)
-    {
-      const BasicBlock *bb = trace.bb (i);
-      for (auto &I : *bb)
-        printDebugLoc (I, svcomp);
-
-      if (bb->getParent ()->getName ().equals ("main") && 
-          isa<ReturnInst> (bb->getTerminator ())) 
-        svcomp.add_violation_node ();
-      
-    }
-    svcomp.footer ();
-    out.keep ();
   }
   
   bool HornCex::runOnFunction (Function &F)
@@ -356,6 +205,145 @@ namespace seahorn
     AU.addRequired<HornifyModule> ();
     AU.addRequired<HornSolver> ();
     AU.addRequired<CanFail> ();
+  }  
+  
+  /*** Helper methods to create SV-COMP style counterexamples */
+  
+  template <typename O>
+  class SvCompCex
+  {
+    O &m_out;
+    unsigned m_id;
+    
+    void key (std::string name, std::string type, std::string obj, std::string id)
+    {
+      m_out << "<key attr.name='" << name << "' attr.type='" << type << "'"
+            << " for='" << obj << "' id='" << id << "'/>\n";
+    }
+    
+  public:
+    SvCompCex (O &out) : m_out (out), m_id(0) {}
+    void header ()
+    {
+      m_out << "<graphml xmlns:xsi='http://www.w3.org/2001/XMLSchema-instance' "
+            << "xmlns='http://graphml.graphdrawing.org/xmlns'>\n";
+      key ("sourcecodeLanguage", "string", "graph", "sourcecodelang");
+      key ("startline", "int", "edge", "originline");
+      key ("originFileName", "string", "edge", "originfile");
+      key ("isEntryNode", "boolean", "node", "entry");
+      key ("isSinkNode", "boolean", "node", "sink");
+      key ("isViolationNode", "boolean", "node", "violation");
+      key ("enterFunction", "string", "edge", "enterFunction");
+      key ("returnFromFunction", "string", "edge", "returnFrom");
+      
+      const std::string spec = "CHECK( init(main()), LTL(G ! call(__VERIFIER_error())) )";
+      const std::string mem_model = "precise";
+      const std::string arch = "32bit";
+
+      m_out << "<graph edgedefault='directed'>\n"
+            << "<data key='sourcecodelang'>C</data>\n"
+            << "<data key='producer'>SeaHorn </data>\n"
+            << "<data key='specification'>" << SvCompCexFileSpec << "</data>\n"
+            << "<data key='memorymodel'>"   << SvCompCexFileMemModel << "</data>\n"
+            << "<data key='architecture'>"  << SvCompCexFileArch << "</data>\n"
+            << "<node id='0'> <data key='entry'>true</data> </node>\n";
+    }
+
+    void add_violation_node (){
+      unsigned src = m_id++;
+      m_out << "<node id='" << m_id << "'> <data key='violation'>true</data> </node>\n";      
+      m_out << "<edge source='" << src << "' target='" << m_id << "'/>\n";
+    }
+
+    void edge (std::string file, int lineno, std::string scope)
+    {
+      unsigned src = m_id++;
+      m_out << "<node id='" << m_id << "'/>\n";
+      m_out << "<edge source='" << src << "' target='" << m_id << "'>\n";
+      m_out << "  <data key='originline'>" << lineno << "</data>\n";
+      m_out << "  <data key='originfile'>" << file << "</data>\n";
+
+      if (boost::starts_with (scope, "enter: "))
+        m_out << "  <data key='enterFunction'>" 
+              << scope.substr (std::string ("enter: ").size ())
+              << "</data>\n";
+      else if (boost::starts_with (scope, "exit: "))
+        m_out << "  <data key='returnFrom'>" 
+              << scope.substr (std::string ("exit: ").size ())
+              << "</data>\n";
+      
+      m_out << "</edge>\n";
+
+    }
+    
+    void footer ()
+    {
+      m_out << "</graph></graphml>\n";
+    }
+  };
+
+  template <typename O>
+  static void debugLocToSvComp (const Instruction &inst, 
+                                SvCompCex<O> &svcomp)
+  {
+    const DebugLoc &dloc = inst.getDebugLoc ();
+    if (dloc.isUnknown ()) return;
+    std::string file;
+
+    DIScope Scope (dloc.getScope ());
+    if (Scope) file = Scope.getFilename ();
+    else file = "<unknown>";
+    
+    
+    LOG ("cex",
+         DISubprogram fnScope = getDISubprogram (dloc.getScope ());
+         if (fnScope)
+         {
+           Function *fn = fnScope.getFunction ();
+           StringRef dname = fnScope.getDisplayName ();
+           if (const CallInst *ci = dyn_cast<const CallInst> (&inst))
+           {
+             Function *f = ci->getCalledFunction ();
+             if (f && f->getName ().equals ("seahorn.fn.enter"))
+               errs () << "entering: " << dname << "\n";
+           }
+           else
+             errs () << "in: " << dname << "\n";
+         });
+      
+    svcomp.edge (file, (int)dloc.getLine (), "");
   }
+  
+  
+  static void dumpSvCompCex (BmcTrace &trace)
+  {
+    if (SvCompCexFile.empty ()) return;
+    
+    std::error_code ec;
+    llvm::tool_output_file out (SvCompCexFile.c_str (), ec, llvm::sys::fs::F_Text);
+    if (ec)
+    {
+      errs () << "ERROR: Cannot open CEX file: " << ec.message () << "\n";
+      return;
+    }
+    
+    SvCompCex<llvm::raw_ostream> svcomp (out.os ());
+    svcomp.header ();
+    for (unsigned i = 0; i < trace.size (); ++i)
+    {
+      const BasicBlock *bb = trace.bb (i);
+      for (auto &I : *bb)
+        debugLocToSvComp (I, svcomp);
+
+      if (bb->getParent ()->getName ().equals ("main") && 
+          isa<ReturnInst> (bb->getTerminator ())) 
+        svcomp.add_violation_node ();
+      
+    }
+    svcomp.footer ();
+    out.keep ();
+  }
+  
+
 }
 

@@ -13,10 +13,6 @@ namespace seahorn
    */
   class HornCex : public llvm::ModulePass
   {
-    void printInvars (Function &F);
-    void printInvars (Module &M);
-    void printCex ();
-    
   public:
     static char ID;
     

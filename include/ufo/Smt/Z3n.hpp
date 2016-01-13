@@ -385,6 +385,14 @@ namespace ufo
     
     this_type &operator= (this_type other) { swap (*this, other);}
 
+    friend void swap (this_type &src, this_type &dst)
+    {
+      // -- only allow swap between models from the same context
+      assert (&src.z3 == &dst.z3);
+      swap (src.model, dst.model);
+    }
+    
+    
     Expr eval (Expr e, bool completion = false)
     {
       assert (model);

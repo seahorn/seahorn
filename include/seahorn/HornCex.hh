@@ -17,7 +17,6 @@ namespace seahorn
     void printInvars (Module &M);
     void printCex ();
     
-    bool runOnFunctionOld (Function &F);
   public:
     static char ID;
     

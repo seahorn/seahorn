@@ -129,7 +129,7 @@ namespace seahorn
   
   BmcTrace BmcEngine::getTrace ()
   {
-    assert (m_result);
+    assert ((bool)m_result);
     auto model = m_smt_solver.getModel ();
     return BmcTrace (*this, model);
   }
@@ -137,7 +137,7 @@ namespace seahorn
   BmcTrace::BmcTrace (BmcEngine &bmc, ufo::ZModel<ufo::EZ3> &model) :
     m_bmc (bmc), m_model(m_bmc.m_smt_solver.getContext ())
   {
-    assert (bmc.result ());
+    assert ((bool)bmc.result ());
     
     m_model = bmc.m_smt_solver.getModel ();
     

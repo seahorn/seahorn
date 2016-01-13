@@ -383,7 +383,8 @@ namespace ufo
       model = nullptr;
     }
     
-    this_type &operator= (this_type other) { swap (*this, other);}
+    this_type &operator= (this_type other)
+    {swap (*this, other); return *this;}
 
     friend void swap (this_type &src, this_type &dst)
     {

@@ -182,8 +182,8 @@ namespace seahorn
         }
         out << "\n";
       }        
-      
     }
+    return out;
   }
   
   

@@ -188,14 +188,7 @@ namespace seahorn
   }
   
   
-  // static void printDecl (const CallInst &ci)
-  // {
-  //   const ConstantExpr *gep = 
-  //     dyn_cast<const ConstantExpr> (ci.getArgOperand (0));
-  //   errs () << "enter: " << constAsString (gep) << "\n";    
-  // }
-  
-  static void printLineCex (std::vector<const BasicBlock*> const &cex)
+  static void dumpSvCompCex (BmcTrace &trace)
   {
     if (SvCompCexFile.empty ()) return;
     
@@ -209,8 +202,9 @@ namespace seahorn
     
     SvCompCex<llvm::raw_ostream> svcomp (out.os ());
     svcomp.header ();
-    for (auto *bb : cex)
+    for (unsigned i = 0; i < trace.size (); ++i)
     {
+      const BasicBlock *bb = trace.bb (i);
       for (auto &I : *bb)
         printDebugLoc (I, svcomp);
 
@@ -349,11 +343,7 @@ namespace seahorn
 
     LOG ("cex", trace.print (errs ()););
     
-    // XXX legacy support for sv-comp counterexamples
-    std::vector<const BasicBlock *> cex;
-    for (unsigned i = 0; i < trace.size (); ++i)
-      cex.push_back (trace.bb (i));
-    printLineCex (cex);
+    dumpSvCompCex (trace);
     return false;
   }
   

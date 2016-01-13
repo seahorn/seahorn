@@ -154,31 +154,6 @@ namespace seahorn
     return op->getAsString ();
  }
 
-  template <typename O>
-  static void printLiner (const CallInst &ci, 
-                          SvCompCex<O> &svcomp)
-  {
-    const ConstantInt *line = 
-      dyn_cast<const ConstantInt> (ci.getArgOperand (0));
-    assert (line != NULL);
-		
-    const ConstantExpr *file = 
-      dyn_cast<const ConstantExpr> (ci.getArgOperand (1));
-    assert (file != NULL);
-		
-    const ConstantExpr *scope = 
-      dyn_cast<const ConstantExpr> (ci.getArgOperand (2));
-    assert (scope != NULL);
-		
-
-    // -- use c_str() to hide the trailing 0 char
-    // errs () << constAsString (file).c_str () << ":" 
-    //         << line->getSExtValue () << ":"
-    //         << constAsString (scope).c_str () << "\n";   
-    svcomp.edge (constAsString (file).c_str (),
-                 line->getSExtValue (), 
-                 constAsString (scope).c_str ());
-  }
 
   template <typename O>
   static void printDebugLoc (const Instruction &inst, 
@@ -237,17 +212,7 @@ namespace seahorn
     for (auto *bb : cex)
     {
       for (auto &I : *bb)
-      {
         printDebugLoc (I, svcomp);
-        
-        if (const CallInst *ci = dyn_cast<const CallInst> (&I))
-        {
-          Function *f = ci->getCalledFunction ();
-          if (!f) continue;
-          if (f->getName ().equals ("__UFO_liner"))
-            printLiner (*ci, svcomp);
-        }
-      }
 
       if (bb->getParent ()->getName ().equals ("main") && 
           isa<ReturnInst> (bb->getTerminator ())) 

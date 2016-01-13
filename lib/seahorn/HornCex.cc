@@ -357,11 +357,11 @@ namespace seahorn
     // -- only run if result is true, skip if it is false or unknown
     if (hs.getResult ()) ; else return false;
     
-     LOG ("cex", 
+    LOG ("cex", 
          errs () << "Analyzed Function:\n"
          << F << "\n";);
    
-     HornifyModule &hm = getAnalysis<HornifyModule> ();
+    HornifyModule &hm = getAnalysis<HornifyModule> ();
     const CutPointGraph &cpg = getAnalysis<CutPointGraph> (F);
     
     auto &fp = hs.getZFixedPoint ();
@@ -372,6 +372,9 @@ namespace seahorn
     // extract a trace of basic blocks corresponding to the counterexample
     SmallVector<const BasicBlock*, 8> bbTrace;
     SmallVector<const CutPoint*, 8> cpTrace;
+    
+    // -- all counterexamples start at the entry block of the function
+    cpTrace.push_back (&cpg.getCp (F.getEntryBlock ()));
     
     for (Expr r : rules)
     {
@@ -423,6 +426,8 @@ namespace seahorn
          }
          errs () << "TRACE END\n";);
     
+    // -- release trace resources
+    bbTrace.clear ();
     
     // -- create a BMC engine. Use fixed symbolic execution
     // -- semantics. Possibly different than the semantics used by the

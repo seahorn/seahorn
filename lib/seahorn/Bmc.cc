@@ -43,17 +43,19 @@ namespace seahorn
     UfoLargeSymExec sexec (m_sem);
     m_states.push_back (SymStore (m_efac));
     
-    const CutPoint *prev = &m_cpg->getCp (m_fn->getEntryBlock ());
+    const CutPoint *prev = nullptr;
     for (const CutPoint *cp : m_cps)
     {
-      m_states.push_back (m_states.back ());
-      SymStore &s = m_states.back ();
+      if (prev)
+      {
+        const CpEdge *edg = m_cpg->getEdge (*prev, *cp);
+        assert (edg);
+        m_edges.push_back (edg);
       
-      const CpEdge *edg = m_cpg->getEdge (*prev, *cp);
-      assert (edg);
-      m_edges.push_back (edg);
-      sexec.execCpEdg (s, *edg, m_side);
-      
+        m_states.push_back (m_states.back ());
+        SymStore &s = m_states.back ();
+        sexec.execCpEdg (s, *edg, m_side);
+      }
       prev = cp;
     }
     
@@ -155,6 +157,9 @@ namespace seahorn
     unsigned id = 0;
     for (const CpEdge *edg : m_bmc.m_edges)
     {
+      LOG("cex",
+          errs () << "";);
+      
       assert (&(edg->source ()) == m_bmc.m_cps [id]);
       assert (&(edg->target ()) == m_bmc.m_cps [id+1]);
       

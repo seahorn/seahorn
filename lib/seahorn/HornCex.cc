@@ -223,15 +223,6 @@ namespace seahorn
     out.keep ();
   }
   
-  static bool isVoidFn (const llvm::Instruction &I)
-  {
-    if (const CallInst *ci = dyn_cast<const CallInst> (&I))
-      if (const Function *fn = ci->getCalledFunction ())
-        return fn->getReturnType ()->isVoidTy ();
-    
-    return false;
-  }
-  
   bool HornCex::runOnFunction (Function &F)
   {
     HornSolver &hs = getAnalysis<HornSolver> ();

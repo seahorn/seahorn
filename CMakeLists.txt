@@ -48,9 +48,6 @@ else()
   message (STATUS "Could not find git. Not adding 'extra' target.")
 endif()
 
-include_directories(
-  ${CMAKE_CURRENT_SOURCE_DIR}/include
-  ${CMAKE_CURRENT_BINARY_DIR}/include)
 
 option (SEAHORN_STATIC_EXE "Static executable." OFF)
 
@@ -302,6 +299,8 @@ if ("${CMAKE_CXX_COMPILER_ID}" MATCHES "GNU")
   add_definitions( -Wno-unused-local-typedefs)
 endif ()
 
+# add the include directory from the build tree
+include_directories(BEFORE ${CMAKE_CURRENT_BINARY_DIR}/include)
 
 if (IS_DIRECTORY ${CMAKE_SOURCE_DIR}/dsa-seahorn AND
     EXISTS ${CMAKE_SOURCE_DIR}/dsa-seahorn/lib/DSA/Steensgaard.cpp)
@@ -339,12 +338,18 @@ if (IS_DIRECTORY ${CMAKE_SOURCE_DIR}/crab-llvm AND
 endif()
 
 if (DEFINED CrabLlvm_SOURCE_DIR)
-  include_directories (AFTER ${CrabLlvm_SOURCE_DIR}/include)
+  include_directories (BEFORE ${CrabLlvm_SOURCE_DIR}/include)
   add_subdirectory (${CrabLlvm_SOURCE_DIR}/lib/CrabLlvm)
   message (STATUS "Using crab-llvm from: ${CrabLlvm_SOURCE_DIR}/lib/CrabLlvm")
   set (HAVE_CRAB TRUE)
   set (HAVE_CRAB_LLVM TRUE)
 endif()
+
+### add our include directories to the front, overriding directories
+### specified by external packages.
+include_directories(BEFORE 
+  ${CMAKE_CURRENT_SOURCE_DIR}/include
+  ${CMAKE_CURRENT_BINARY_DIR}/include)
 
 add_subdirectory(lib)
 add_subdirectory(tools)

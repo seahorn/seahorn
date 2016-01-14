@@ -29,6 +29,8 @@ namespace seahorn
   llvm::Pass* createPromoteBoolLoadsPass ();
 
   llvm::Pass* createCanReadUndefPass ();
+
+  llvm::Pass* createBmcPass ();
 }
 
 #ifdef HAVE_LLVM_SEAHORN

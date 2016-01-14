@@ -113,6 +113,10 @@ namespace seahorn
     
   public:
     
+    BmcTrace (const BmcTrace &other) :
+      m_bmc (other.m_bmc), m_model (other.m_model),
+      m_bbs (other.m_bbs), m_cpId (other.m_cpId) {}
+    
     /// The number of basic blocks in the trace 
     unsigned size () const {return m_bbs.size ();}
     

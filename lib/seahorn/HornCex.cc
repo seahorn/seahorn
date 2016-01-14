@@ -188,7 +188,7 @@ namespace seahorn
     }
     
     // get bmc trace
-    BmcTrace trace = bmc.getTrace ();
+    BmcTrace trace (bmc.getTrace ());
 
     LOG ("cex", trace.print (errs ()););
     

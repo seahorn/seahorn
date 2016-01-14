@@ -72,12 +72,16 @@ class Tool(benchexec.tools.template.BaseTool):
         options = options + [cexfile, "-p", "inline:no_inline"]
         return [executable] + options + tasks
 
-    def determine_result(self, returncode, returnsignal, output, isTimeout):
+
+   def determine_result(self, returncode, returnsignal, output, isTimeout):
         output = '\n'.join(output)
         if "BRUNCH_STAT Result TRUE" in output:
             status = result.RESULT_TRUE_PROP
         elif "BRUNCH_STAT Result FALSE" in output:
-            status = result.RESULT_FALSE_REACH
+            if "Termination" in output::
+                status = result.RESULT_FALSE_TERMINATION
+            else:
+                status = result.RESULT_FALSE_REACH
         elif returnsignal == 9 or returnsignal == (128+9):
             if isTimeout:
                 status = "TIMEOUT"

@@ -16,6 +16,7 @@ add_llvm_library (seahorn.LIB
   HornClauseDBTransf.cc
   Bmc.cc
   BmcPass.cc
+  BvSymExec.cc
   ZOption.cc
   )
 

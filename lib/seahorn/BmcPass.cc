@@ -29,6 +29,7 @@ DM-0002198
 
 #include "seahorn/Bmc.hh"
 #include "seahorn/UfoSymExec.hh"
+#include "seahorn/BvSymExec.hh"
 
 #include "seahorn/Analysis/CanFail.hh"
 
@@ -88,7 +89,7 @@ namespace
 
       
       ExprFactory efac;
-      UfoSmallSymExec sem (efac, *this, MEM);
+      BvSmallSymExec sem (efac, *this, MEM);
       
       EZ3 zctx (efac);
       BmcEngine bmc (sem, zctx);

@@ -10,6 +10,7 @@
 #include "llvm/IR/Module.h"
 #include "llvm/IRReader/IRReader.h"
 #include "llvm/Support/CommandLine.h"
+#include "llvm/Support/raw_ostream.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/ManagedStatic.h"
 #include "llvm/Support/PrettyStackTrace.h"
@@ -120,6 +121,11 @@ static llvm::cl::opt<bool>
 KeepShadows ("keep-shadows", llvm::cl::desc ("Do not strip shadow.mem functions"),
              llvm::cl::init (false), llvm::cl::Hidden);
              
+static llvm::cl::opt<bool>
+Bmc ("horn-bmc",
+     llvm::cl::desc ("Use BMC engine. Currently restricted to intra-procedural analysis"),
+     llvm::cl::init (false));
+
 // removes extension from filename if there is one
 std::string getFileName(const std::string &str) {
   std::string filename = str;
@@ -251,7 +257,8 @@ int main(int argc, char **argv) {
   // --- verify if an undefined value can be read
   pass_manager.add (seahorn::createCanReadUndefPass ());
 
-  pass_manager.add (new seahorn::HornifyModule ());
+  if (!Bmc)
+    pass_manager.add (new seahorn::HornifyModule ());
   if (!AsmOutputFilename.empty ()) 
   {
     if (!KeepShadows)
@@ -264,10 +271,20 @@ int main(int argc, char **argv) {
     pass_manager.add (createPrintModulePass (asmOutput->os ()));
   }
   
-  if (!OutputFilename.empty ()) pass_manager.add (new seahorn::HornWrite (output->os ()));
-  if (Crab) pass_manager.add (seahorn::createLoadCrabPass ()); 
-  if (Solve) pass_manager.add (new seahorn::HornSolver ());
-  if (Cex) pass_manager.add (new seahorn::HornCex ());
+  if (Bmc)
+  {
+    llvm::raw_ostream *out = nullptr;
+    if (!OutputFilename.empty ()) out = &output->os ();
+    pass_manager.add (seahorn::createBmcPass (out, Solve));
+  }
+  else
+  {
+    if (!OutputFilename.empty ()) pass_manager.add (new seahorn::HornWrite (output->os ()));
+    if (Crab) pass_manager.add (seahorn::createLoadCrabPass ()); 
+    if (Solve) pass_manager.add (new seahorn::HornSolver ());
+    if (Cex) pass_manager.add (new seahorn::HornCex ());
+  }
+  
   pass_manager.run(*module.get());
   
   if (!AsmOutputFilename.empty ()) asmOutput->keep ();

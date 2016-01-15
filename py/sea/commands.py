@@ -128,7 +128,7 @@ class Seapp(sea.LimitedCmd):
                          default=False, action='store_true')
         ap.add_argument ('--entry', dest='entry', help='Entry point if main does not exist',
                          default=None, metavar='FUNCTION')
-        ap.add_argument ('--bounds-check', dest='boc', help='Insert buffer overflow checks',
+        ap.add_argument ('--do-bounds-check', dest='boc', help='Insert buffer overflow checks',
                          default=False, action='store_true')
         ap.add_argument ('--overflow-check', dest='ioc', help='Insert signed integer overflow checks',
                          default=False, action='store_true')
@@ -425,6 +425,9 @@ class Seahorn(sea.LimitedCmd):
         ap.add_argument ('--crab',
                          help='Enable Crab abstract interpreter',
                          dest='crab', default=False, action='store_true')
+        ap.add_argument ('--bmc',
+                         help='Use BMC engine',
+                         dest='bmc', default=False, action='store_true')
         return ap
 
     def run (self, args, extra):
@@ -434,6 +437,9 @@ class Seahorn(sea.LimitedCmd):
 
         argv = list()
 
+        if args.bmc:
+            argv.append ('--horn-bmc')
+            
         if args.crab:
             argv.append ('--horn-crab')
 

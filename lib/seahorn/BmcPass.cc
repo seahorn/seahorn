@@ -25,10 +25,12 @@ DM-0002198
 
 #include "ufo/Smt/EZ3.hh"
 #include "ufo/Stats.hh"
+#include "ufo/Passes/NameValues.hpp"
 
 #include "seahorn/Bmc.hh"
 #include "seahorn/UfoSymExec.hh"
 
+#include "seahorn/Analysis/CanFail.hh"
 
 namespace
 {
@@ -38,10 +40,15 @@ namespace
   
   class BmcPass : public llvm::ModulePass
   {
+    /// output stream for encoded bmc problem
+    raw_ostream *m_out;
+    /// true if to run the solver, false if encode only
+    bool m_solve;
   public:
     static char ID;
     
-    BmcPass () : llvm::ModulePass (ID) {}
+    BmcPass (raw_ostream *out = nullptr, bool solve = true) :
+      llvm::ModulePass (ID), m_out(out), m_solve (solve) {}
     
     virtual bool runOnModule (Module &M)
     {
@@ -54,6 +61,10 @@ namespace
     {
       AU.setPreservesAll ();
       AU.addRequired<DataLayoutPass> ();
+      
+      AU.addRequired<seahorn::CanFail> ();
+      AU.addRequired<ufo::NameValues>();
+      AU.addRequired<seahorn::TopologicalOrder>();
       AU.addRequired<CutPointGraph> ();
     }      
 
@@ -64,6 +75,7 @@ namespace
       const CutPoint &src = cpg.getCp (F.getEntryBlock ());
       const CutPoint *dst = nullptr;
       
+      // -- find return instruction. Assume it is unique
       for (auto &bb : F)
         if (llvm::isa<llvm::ReturnInst> (bb.getTerminator ()) && cpg.isCutPoint (bb))
         {
@@ -83,8 +95,14 @@ namespace
       
       bmc.addCutPoint (src);
       bmc.addCutPoint (*dst);
+      LOG("bmc", errs () << "BMC from: " << src.bb ().getName ()
+          << " to " << dst->bb ().getName () << "\n";);
       
       bmc.encode ();
+      if (m_out) bmc.toSmtLib (*m_out);
+      
+      if (!m_solve) return false;
+      
       auto res = bmc.solve ();
       
       if (res) outs () << "sat";
@@ -95,9 +113,19 @@ namespace
       if (res) Stats::sset ("Result", "FALSE");
       else if (!res) Stats::sset ("Result", "TRUE");
       
-      LOG ("cex", errs () << "Analyzed Function:\n" << F << "\n";);
-      LOG ("cex", BmcTrace trace (bmc.getTrace ());
-           trace.print (errs ()););
+      LOG ("bmc",
+           ExprVector core;
+           if (!res) bmc.unsatCore (core);
+           for (auto c : core) errs () << *c << "\n";
+           );
+      
+      LOG ("cex", 
+           if (res) 
+             {
+               errs () << "Analyzed Function:\n" << F << "\n";
+               BmcTrace trace (bmc.getTrace ());
+               trace.print (errs ());
+             });
       
       return false;
     }
@@ -111,7 +139,8 @@ namespace
 }
 namespace seahorn
 {
-  Pass *createBmcPass () {return new BmcPass ();}
+  Pass *createBmcPass (raw_ostream *out, bool solve)
+  {return new BmcPass (out, solve);}
 }
 
 static llvm::RegisterPass<BmcPass>

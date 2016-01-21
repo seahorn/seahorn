@@ -665,7 +665,9 @@ namespace seahorn
 
       // Here we do project onto live variables before translation
       vector<varname_t> vars = ExprVecToCrab (live, crab);
-      crab::domain_traits::project (boxes, vars.begin (), vars.end ());
+      crab::domains::domain_traits<boxes_domain_t>::project (boxes, 
+                                                             vars.begin (), 
+                                                             vars.end ());
 
       LDDToExpr t = LDDToExpr (&boxes);
       e = t.toExpr (boxes.getLdd (), efac);
@@ -677,7 +679,9 @@ namespace seahorn
 
       // Here we do project onto live variables before translation
       vector<varname_t> vars = ExprVecToCrab (live, crab);
-      crab::domain_traits::project (boxes, vars.begin (), vars.end ());
+      crab::domains::domain_traits<boxes_domain_t>::project (boxes, 
+                                                             vars.begin (),
+                                                             vars.end ());
 
       LDDToExpr t = LDDToExpr (&boxes);
       e = t.toExpr (boxes.getLdd (), efac);

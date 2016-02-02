@@ -174,7 +174,7 @@ namespace
     
 
     LOG("devirt",
-        errs () << "Building a bounce for call site: "
+        errs () << "Building a bounce for call site:\n"
         << *CS.getInstruction () << " using:\n";
         for (auto &f : Targets)
           errs () << "\t" << f->getName () << "\n";);
@@ -309,7 +309,6 @@ namespace
     
     if (!bounceFn) return;
     
-    
     // Replace the original call with a call to the bounce function.
     if (CallInst* CI = dyn_cast<CallInst>(CS.getInstruction()))
     {
@@ -341,15 +340,34 @@ namespace
     }
     else if (InvokeInst* CI = dyn_cast<InvokeInst>(CS.getInstruction()))
     {
-      SmallVector<Value*, 8> Params (CI->op_begin(), CI->op_end());
+      SmallVector<Value*, 8> Params;
+      Params.reserve (std::distance (CI->arg_operands().begin (),
+                                     CI->arg_operands().end ()));
+      // insert first the callee 
+      Params.push_back (CI->getCalledValue ());
+      Params.insert (Params.end (), 
+                     CI->arg_operands().begin (), 
+                     CI->arg_operands().end());
+
       std::string name = CI->hasName() ? CI->getName().str() + ".dv" : "";
-      InvokeInst* CN = InvokeInst::Create(const_cast<Function*>(bounceFn),
-                                          CI->getNormalDest(),
-                                          CI->getUnwindDest(),
-                                          Params,
-                                          name,
-                                          CI);
-      // TODO: update call graph
+      InvokeInst* CN = InvokeInst::Create (const_cast<Function*>(bounceFn),
+                                           CI->getNormalDest(),
+                                           CI->getUnwindDest(),
+                                           Params,
+                                           name,
+                                           CI);
+
+      LOG ("devirt",
+           errs () << "Call to bounce function: \n" << *CN << "\n";);
+                 
+      // update call graph
+      if (CG)
+      {
+        CG->getOrInsertFunction (const_cast<Function*> (bounceFn));
+        (*CG)[CI->getParent ()->getParent ()]->addCalledFunction
+          (CallSite (CN), (*CG)[CN->getCalledFunction ()]);
+      }
+
       CN->setDebugLoc (CI->getDebugLoc ());
       CI->replaceAllUsesWith(CN);
       CI->eraseFromParent();

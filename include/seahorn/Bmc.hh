@@ -34,7 +34,7 @@ namespace seahorn
     SmallVector<const CutPoint *, 8> m_cps;
     
     /// symbolic states corresponding to m_cps
-    SmallVector<SymStore, 8> m_states;
+    std::vector<SymStore> m_states;
     /// edge-trace corresponding to m_cps
     SmallVector<const CpEdge*, 8> m_edges;
     

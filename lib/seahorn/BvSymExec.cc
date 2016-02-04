@@ -94,6 +94,7 @@ namespace
     Expr oneE;
     Expr trueBv;
     Expr falseBv;
+    Expr nullBv;
     
     /// -- current read memory
     Expr m_inMem;
@@ -117,6 +118,7 @@ namespace
       oneE = mkTerm<mpz_class> (1, m_efac);
       trueBv = bv::bvnum (1, 1, m_efac);
       falseBv = bv::bvnum (0, 1, m_efac);
+      nullBv = bv::bvnum (0, m_sem.pointerSizeInBits (), m_efac);
       m_uniq = false;
       resetActiveLit ();
       // -- first two arguments are reserved for error flag
@@ -441,30 +443,8 @@ namespace
         havoc (I);
         assert (m_fparams.size () == 3);
         assert (!m_uniq);
-        if (IgnoreCalloc)
-          m_side.push_back (mk<EQ> (m_outMem, m_inMem));
-        else
-        {
-          // XXX This is potentially unsound if the corresponding DSA
-          // XXX node corresponds to multiple allocation sites
-          errs () << "WARNING: zero-initializing DSA node due to calloc()\n";
-          m_side.push_back (mk<EQ> (m_outMem,
-                                    op::array::constArray
-                                    (sort::intTy (m_efac), zeroE)));
-        }
       }
       
-      // else if (F.getName ().equals ("verifier.assert"))
-      // {
-      //   Expr ein = m_s.read (m_sem.errorFlag ());
-      //   Expr eout = m_s.havoc (m_sem.errorFlag ());
-      //   Expr cond = lookup (*CS.getArgument (0));
-      //   m_side.push_back (boolop::limp (cond,
-      //                                   mk<EQ> (ein, eout)));
-      //   m_side.push_back (boolop::limp (boolop::lneg (cond), eout));
-      // }
-      // else if (F.getName ().equals ("verifier.error"))
-      //   m_side.push_back (m_s.havoc (m_sem.errorFlag ()));
       else if (m_sem.hasFunctionInfo (F))
       {
         const FunctionInfo &fi = m_sem.getFunctionInfo (F);
@@ -578,10 +558,8 @@ namespace
       if (!m_sem.isTracked (I)) return;
       
       Expr lhs = havoc(I);
-      Expr act = GlobalConstraints ? trueE : m_activeLit;
-
       // -- alloca always returns a non-zero address
-      m_side.push_back (boolop::limp (act, mk<GT> (lhs, zeroE)));
+      side (mk<BUGT> (lhs, nullBv));
     }
     
     void visitLoadInst (LoadInst &I)
@@ -594,39 +572,16 @@ namespace
         if (GetElementPtrInst *gep = dyn_cast<GetElementPtrInst> (pop))
         {
           Expr base = lookup (*gep->getPointerOperand ());
-          if (base)
-            m_side.push_back (boolop::limp (m_activeLit, mk<GT> (base, zeroE)));
+          if (base) side (mk<BUGT> (base, nullBv), true);
         }
       }
       
-      if (!m_sem.isTracked (I)) return;
-      
-      Expr act = GlobalConstraints ? trueE : m_activeLit;
-      // -- define (i.e., use) the value of the instruction
-      Expr lhs = havoc (I);
-      if (!m_inMem) return;
-      
-      if (m_uniq)
+      if (!m_sem.isTracked (I))
       {
-        Expr rhs = m_inMem;
-        if (I.getType ()->isIntegerTy (1))
-          // -- convert to Boolean
-          rhs = mk<NEQ> (rhs, mkTerm (mpz_class(0), m_efac));
-       
-        m_side.push_back (boolop::limp (act,
-                                        mk<EQ> (lhs, rhs)));
+        m_inMem.reset ();
+        return;
       }
-      else if (Expr op0 = lookup (*I.getPointerOperand ()))
-      {
-        Expr rhs = op::array::select (m_inMem, op0);
-        if (I.getType ()->isIntegerTy (1))
-          // -- convert to Boolean
-          rhs = mk<NEQ> (rhs, mkTerm (mpz_class(0), m_efac));
-
-        if (!ArrayGlobalConstraints) act = m_activeLit;
-        m_side.push_back (boolop::limp (act,
-                                        mk<EQ> (lhs, rhs)));
-      }
+      
       
       m_inMem.reset ();
     }
@@ -642,35 +597,17 @@ namespace
         if (GetElementPtrInst *gep = dyn_cast<GetElementPtrInst> (pop))
         {
           Expr base = lookup (*gep->getPointerOperand ());
-          if (base)
-            m_side.push_back (boolop::limp (m_activeLit, mk<GT> (base, zeroE)));
+          if (base) side (mk<BUGT> (base, nullBv));
         }
       }
 
-      if (!m_inMem || !m_outMem || !m_sem.isTracked (*I.getOperand (0))) return;
-      
-      Expr act = GlobalConstraints ? trueE : m_activeLit;
-      Expr v = lookup (*I.getOperand (0));
-      if (v && I.getOperand (0)->getType ()->isIntegerTy (1))
-        // -- convert to int
-        v = boolop::lite (v, mkTerm (mpz_class (1), m_efac),
-                          mkTerm (mpz_class (0), m_efac));
-      if (m_uniq)
+      if (!m_inMem || !m_outMem || !m_sem.isTracked (*I.getOperand (0)))
       {
-        if (v)
-          m_side.push_back (boolop::limp (act, mk<EQ> (m_outMem, v)));
+        m_inMem.reset ();
+        m_outMem.reset ();
+        return;
       }
-      else
-      {
-        Expr idx = lookup (*I.getPointerOperand ());
-      
-        if (!ArrayGlobalConstraints) act = m_activeLit;
-        if (idx && v)
-          m_side.push_back (boolop::limp (act,
-                                          mk<EQ> (m_outMem, 
-                                                  op::array::store (m_inMem, idx, v))));
-      }
-      
+          
       m_inMem.reset ();
       m_outMem.reset ();
     }
@@ -682,10 +619,10 @@ namespace
 
       Expr lhs = havoc (I);
       const Value &v0 = *I.getOperand (0);
-      
-      Expr act = GlobalConstraints ? trueE : m_activeLit;
       Expr u = lookup (v0);
-      if (u) m_side.push_back (boolop::limp (act, mk<EQ> (lhs, u)));
+
+      // -- what can this be? Might need to do something here.
+      side (lhs, lookup (v0));
     }
     
     void initGlobals (const BasicBlock &BB)

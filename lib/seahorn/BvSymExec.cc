@@ -303,7 +303,7 @@ namespace
           rhs = mk<BXOR> (op0, op1);
         break;
       case BinaryOperator::LShr:
-        rhs = mk<BSHR> (op0, op1);
+        rhs = mk<BLSHR> (op0, op1);
         break;
       default:
         break;

@@ -113,13 +113,13 @@ namespace expr
     NOP(BSGE,"bvsge",FUNCTIONAL,BvOp)
     NOP(BUGT,"bvugt",FUNCTIONAL,BvOp)
     NOP(BSGT,"bvsgt",FUNCTIONAL,BvOp)
-    NOP(BCONCAT,"bvconcat",FUNCTIONAL,BvOp)
-    NOP(BEXTRACT,"bvextract",FUNCTIONAL,BvOp)
+    NOP(BCONCAT,"concat",FUNCTIONAL,BvOp)
+    NOP(BEXTRACT,"extract",FUNCTIONAL,BvOp)
     NOP(BSEXT,"bvsext",FUNCTIONAL,BvOp)
     NOP(BZEXT,"bvzext",FUNCTIONAL,BvOp)
     NOP(BREPEAT,"bvrepeat",FUNCTIONAL,BvOp)
     NOP(BSHL,"bvshl",FUNCTIONAL,BvOp)
-    NOP(BSHR,"bvshr",FUNCTIONAL,BvOp)
+    NOP(BLSHR,"bvlshr",FUNCTIONAL,BvOp)
     NOP(BASHR,"bvashr",FUNCTIONAL,BvOp)
     NOP(BROTATE_LEFT,"bvrotleft",FUNCTIONAL,BvOp)
     NOP(BROTATE_RIGHT,"bvrotright",FUNCTIONAL,BvOp)
@@ -133,6 +133,20 @@ namespace expr
       /* XXX Add helper methods as needed */
 
       inline Expr bvnot (Expr v) {return mk<BNOT> (v);}
+      
+      inline Expr extract (unsigned high, unsigned low, Expr v)
+      {
+        assert (high < low);
+        mk<BEXTRACT> (mkTerm<unsigned> (high, v->efac ()), 
+                      mkTerm<unsigned> (low, v->efac ()), v);
+      }
+      
+      /// high bit to extract
+      inline unsigned high (Expr v) {return getTerm<unsigned> (v->arg (1));}
+      /// low bit to extract
+      inline unsigned low (Expr v) {return getTerm<unsigned> (v->arg (0));}
+      /// bv argument to extract
+      inline Expr earg (Expr v) {return v->arg (2);}
       
     }
     

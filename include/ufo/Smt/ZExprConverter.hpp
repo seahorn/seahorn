@@ -79,9 +79,12 @@ namespace ufo
       {
         z3::ast _idx_sort (marshal (e->left (), ctx, cache, seen));
         z3::ast _val_sort (marshal (e->right (), ctx, cache, seen));
-        Z3_sort idx_sort = reinterpret_cast<Z3_sort> (static_cast<Z3_ast> (_idx_sort));
-        Z3_sort val_sort = reinterpret_cast<Z3_sort> (static_cast<Z3_ast> (_val_sort));
-        res = reinterpret_cast<Z3_ast> (Z3_mk_array_sort (ctx, idx_sort, val_sort));       
+        Z3_sort idx_sort = reinterpret_cast<Z3_sort> 
+          (static_cast<Z3_ast> (_idx_sort));
+        Z3_sort val_sort = reinterpret_cast<Z3_sort> 
+          (static_cast<Z3_ast> (_val_sort));
+        res = reinterpret_cast<Z3_ast> 
+          (Z3_mk_array_sort (ctx, idx_sort, val_sort));       
       }
       
       else if (isOpX<INT>(e))
@@ -238,173 +241,226 @@ namespace ufo
       if (arity == 0) return M::marshal (e, ctx, cache, seen);
 
       else if (arity == 1)
-	{
-	  // -- then it's a NEG or UN_MINUS
-	  if (isOpX<UN_MINUS>(e))
-          {
-            z3::ast arg = marshal (e->left(), ctx, cache, seen);
-            return z3::ast (ctx, Z3_mk_unary_minus(ctx, arg));
-          }
+      {
+        // -- then it's a NEG or UN_MINUS
+        if (isOpX<UN_MINUS>(e))
+        {
+          z3::ast arg = marshal (e->left(), ctx, cache, seen);
+          return z3::ast (ctx, Z3_mk_unary_minus(ctx, arg));
+        }
 
-	  if (isOpX<NEG>(e))
-          {
-            z3::ast arg = marshal (e->left(), ctx, cache, seen);
-            return z3::ast (ctx, Z3_mk_not(ctx, arg));
-          }
-          if (isOpX<ARRAY_DEFAULT> (e))
-          {
-            z3::ast arg = marshal (e->left(), ctx, cache, seen);
-            return z3::ast (ctx, Z3_mk_array_default (ctx, arg));
-          }
-          if (isOpX<BNOT>(e))
-          {
-            z3::ast arg = marshal (e->left(), ctx, cache, seen);
-            return z3::ast (ctx, Z3_mk_bvnot(ctx, arg));
-          }
-          if (isOpX<BNEG>(e))
-          {
-            z3::ast arg = marshal (e->left(), ctx, cache, seen);
-            return z3::ast (ctx, Z3_mk_bvneg(ctx, arg));
-          }
-          if (isOpX<BREDAND>(e))
-          {
-            z3::ast arg = marshal (e->left(), ctx, cache, seen);
-            return z3::ast (ctx, Z3_mk_bvredand(ctx, arg));
-          }
-          if (isOpX<BREDOR>(e))
-          {
-            z3::ast arg = marshal (e->left(), ctx, cache, seen);
-            return z3::ast (ctx, Z3_mk_bvredor(ctx, arg));
-          }
+        if (isOpX<NEG>(e))
+        {
+          z3::ast arg = marshal (e->left(), ctx, cache, seen);
+          return z3::ast (ctx, Z3_mk_not(ctx, arg));
+        }
+        if (isOpX<ARRAY_DEFAULT> (e))
+        {
+          z3::ast arg = marshal (e->left(), ctx, cache, seen);
+          return z3::ast (ctx, Z3_mk_array_default (ctx, arg));
+        }
+        if (isOpX<BNOT>(e))
+        {
+          z3::ast arg = marshal (e->left(), ctx, cache, seen);
+          return z3::ast (ctx, Z3_mk_bvnot(ctx, arg));
+        }
+        if (isOpX<BNEG>(e))
+        {
+          z3::ast arg = marshal (e->left(), ctx, cache, seen);
+          return z3::ast (ctx, Z3_mk_bvneg(ctx, arg));
+        }
+        if (isOpX<BREDAND>(e))
+        {
+          z3::ast arg = marshal (e->left(), ctx, cache, seen);
+          return z3::ast (ctx, Z3_mk_bvredand(ctx, arg));
+        }
+        if (isOpX<BREDOR>(e))
+        {
+          z3::ast arg = marshal (e->left(), ctx, cache, seen);
+          return z3::ast (ctx, Z3_mk_bvredor(ctx, arg));
+        }
 
-	  return M::marshal (e, ctx, cache, seen);
-	}
+        return M::marshal (e, ctx, cache, seen);
+      }
       else if (arity == 2)
-	{
+      {
 
-	  z3::ast t1 = marshal(e->left(), ctx, cache, seen);
-	  z3::ast t2 = marshal(e->right(), ctx, cache, seen);
+        z3::ast t1 = marshal(e->left(), ctx, cache, seen);
+        z3::ast t2 = marshal(e->right(), ctx, cache, seen);
 
-	  Z3_ast args [2] = {t1, t2};
+        Z3_ast args [2] = {t1, t2};
 
 
-	  /** BoolOp */
-	  if (isOpX<AND>(e))
-	    res = Z3_mk_and(ctx, 2, args);
-	  else if (isOpX<OR>(e))
-	      res = Z3_mk_or(ctx, 2, args);
-	  else if (isOpX<IMPL>(e))
-	    res = Z3_mk_implies(ctx,t1, t2);
-	  else if (isOpX<IFF>(e))
-	    res = Z3_mk_iff(ctx, t1, t2);
-	  else if (isOpX<XOR>(e))
-	    res = Z3_mk_xor(ctx, t1, t2);
+        /** BoolOp */
+        if (isOpX<AND>(e))
+          res = Z3_mk_and(ctx, 2, args);
+        else if (isOpX<OR>(e))
+          res = Z3_mk_or(ctx, 2, args);
+        else if (isOpX<IMPL>(e))
+          res = Z3_mk_implies(ctx,t1, t2);
+        else if (isOpX<IFF>(e))
+          res = Z3_mk_iff(ctx, t1, t2);
+        else if (isOpX<XOR>(e))
+          res = Z3_mk_xor(ctx, t1, t2);
 
-	  /** NumericOp */
-	  else if (isOpX<PLUS>(e))
-	    res = Z3_mk_add(ctx, 2, args);
-	  else if (isOpX<MINUS>(e))
-	      res = Z3_mk_sub(ctx, 2, args);
-	  else if (isOpX<MULT>(e))
-	      res = Z3_mk_mul(ctx, 2, args);
-	  else if (isOpX<DIV>(e) || isOpX<IDIV> (e))
-	    res = Z3_mk_div (ctx, t1, t2);
-          else if (isOpX<MOD> (e))
-            res = Z3_mk_mod (ctx, t1, t2);
-          else if (isOpX<REM> (e))
-            res = Z3_mk_rem (ctx, t1, t2);
+        /** NumericOp */
+        else if (isOpX<PLUS>(e))
+          res = Z3_mk_add(ctx, 2, args);
+        else if (isOpX<MINUS>(e))
+          res = Z3_mk_sub(ctx, 2, args);
+        else if (isOpX<MULT>(e))
+          res = Z3_mk_mul(ctx, 2, args);
+        else if (isOpX<DIV>(e) || isOpX<IDIV> (e))
+          res = Z3_mk_div (ctx, t1, t2);
+        else if (isOpX<MOD> (e))
+          res = Z3_mk_mod (ctx, t1, t2);
+        else if (isOpX<REM> (e))
+          res = Z3_mk_rem (ctx, t1, t2);
 
-	  /** Comparison Op */
-	  else if (isOpX<EQ>(e))
-	    res = Z3_mk_eq (ctx, t1, t2);
-	  else if (isOpX<NEQ>(e))
-	    res = Z3_mk_not (ctx, Z3_mk_eq (ctx, t1, t2));
-	  else if (isOpX<LEQ>(e))
-	    res =  Z3_mk_le(ctx, t1, t2);
-	  else if (isOpX<GEQ>(e))
-	    res = Z3_mk_ge(ctx, t1, t2);
-	  else if (isOpX<LT>(e))
-	    res = Z3_mk_lt(ctx, t1, t2);
-	  else if (isOpX<GT>(e))
-	    res = Z3_mk_gt(ctx, t1, t2);
+        /** Comparison Op */
+        else if (isOpX<EQ>(e))
+          res = Z3_mk_eq (ctx, t1, t2);
+        else if (isOpX<NEQ>(e))
+          res = Z3_mk_not (ctx, Z3_mk_eq (ctx, t1, t2));
+        else if (isOpX<LEQ>(e))
+          res =  Z3_mk_le(ctx, t1, t2);
+        else if (isOpX<GEQ>(e))
+          res = Z3_mk_ge(ctx, t1, t2);
+        else if (isOpX<LT>(e))
+          res = Z3_mk_lt(ctx, t1, t2);
+        else if (isOpX<GT>(e))
+          res = Z3_mk_gt(ctx, t1, t2);
 
-          /** Array Select */
-          else if (isOpX<SELECT>(e))
-            res = Z3_mk_select (ctx, t1, t2);
-          /** Array Const */
-          else if (isOpX<CONST_ARRAY>(e)) 
-          {
-            Z3_sort domain = reinterpret_cast<Z3_sort> (static_cast<Z3_ast> (t1));
-            res = Z3_mk_const_array (ctx, domain, t2);
-          }
+        /** Array Select */
+        else if (isOpX<SELECT>(e))
+          res = Z3_mk_select (ctx, t1, t2);
+        /** Array Const */
+        else if (isOpX<CONST_ARRAY>(e)) 
+        {
+          Z3_sort domain = reinterpret_cast<Z3_sort> (static_cast<Z3_ast> (t1));
+          res = Z3_mk_const_array (ctx, domain, t2);
+        }
           
-          /** Bit-Vectors */
-          else if (isOpX<BSEXT> (e) || isOpX<BZEXT> (e) )
-            {
-              unsigned t1_sz = Z3_get_bv_sort_size (ctx, Z3_get_sort (ctx, t1));
-              assert (t1_sz < bv::width (e->arg (1)));
-              if (isOpX<BSEXT> (e))
-                return z3::ast (ctx,
-                                Z3_mk_sign_ext (ctx, bv::width (e->arg (1)) - t1_sz, t1));
-              else if (isOpX<BZEXT> (e))
-                return z3::ast (ctx, 
-                                Z3_mk_zero_ext (ctx, bv::width (e->arg (1)) - t1_sz, t1));
-              else assert (0);
-            }
-          else if (isOpX<BAND> (e))
-            res = Z3_mk_bvand (ctx, t1, t2);
-          else if (isOpX<BOR> (e))
-            res = Z3_mk_bvor (ctx, t1, t2);
-          else if (isOpX<BMUL> (e))
-            res = Z3_mk_bvmul (ctx, t1, t2);
-          // XXX convert more bit-vector operations
-	  else
-	    return M::marshal (e, ctx, cache, seen);
-	}
-	else if (isOpX<AND> (e) || isOpX<OR> (e) ||
-		 isOpX<ITE> (e) || isOpX<XOR> (e) ||
-		 isOpX<PLUS> (e) || isOpX<MINUS> (e) ||
-		 isOpX<MULT> (e) ||
-                 isOpX<STORE> (e) || isOpX<ARRAY_MAP> (e))
-	  {
-	    std::vector<z3::ast> pinned;
-	    std::vector<Z3_ast> args;
+        /** Bit-Vectors */
+        else if (isOpX<BSEXT> (e) || isOpX<BZEXT> (e) )
+        {
+          unsigned t1_sz = Z3_get_bv_sort_size (ctx, Z3_get_sort (ctx, t1));
+          assert (t1_sz < bv::width (e->arg (1)));
+          if (isOpX<BSEXT> (e))
+            return z3::ast (ctx,
+                            Z3_mk_sign_ext (ctx,
+                                            bv::width (e->arg (1)) - t1_sz,
+                                            t1));
+          else if (isOpX<BZEXT> (e))
+            return z3::ast (ctx, 
+                            Z3_mk_zero_ext (ctx,
+                                            bv::width (e->arg (1)) - t1_sz,
+                                            t1));
+          else assert (0);
+        }
+        else if (isOpX<BAND> (e))
+          res = Z3_mk_bvand (ctx, t1, t2);
+        else if (isOpX<BOR> (e))
+          res = Z3_mk_bvor (ctx, t1, t2);
+        else if (isOpX<BMUL> (e))
+          res = Z3_mk_bvmul (ctx, t1, t2);
+        else if (isOpX<BSUB> (e))
+          res = Z3_mk_bvsub (ctx, t1, t2);
+        else if (isOpX<BSDIV> (e))
+          res = Z3_mk_bvsdiv (ctx, t1, t2);
+        else if (isOpX<BUDIV> (e))
+          res = Z3_mk_bvudiv (ctx, t1, t2);
+        else if (isOpX<BSREM> (e))
+          res = Z3_mk_bvsrem (ctx, t1, t2);
+        else if (isOpX<BUREM> (e))
+          res = Z3_mk_bvurem (ctx, t1, t2);
+        else if (isOpX<BSMOD> (e))
+          res = Z3_mk_bvsmod (ctx, t1, t2);
+        else if (isOpX<BULE> (e))
+          res = Z3_mk_bvule (ctx, t1, t2);
+        else if (isOpX<BSLE> (e))
+          res = Z3_mk_bvsle (ctx, t1, t2);
+        else if (isOpX<BUGE> (e))
+          res = Z3_mk_bvuge (ctx, t1, t2);
+        else if (isOpX<BSGE> (e))
+          res = Z3_mk_bvsge (ctx, t1, t2);
+        else if (isOpX<BULT> (e))
+          res = Z3_mk_bvult (ctx, t1, t2);
+        else if (isOpX<BSLT> (e))
+          res = Z3_mk_bvslt (ctx, t2, t2);
+        else if (isOpX<BUGT> (e))
+          res = Z3_mk_bvugt (ctx, t1, t2);
+        else if (isOpX<BSGT> (e))
+          res = Z3_mk_bvsgt (ctx, t1, t2);
+        else if (isOpX<BXOR> (e))
+          res = Z3_mk_bvxor (ctx, t1, t2);
+        else if (isOpX<BNAND> (e))
+          res = Z3_mk_bvnand (ctx, t1, t2);
+        else if (isOpX<BNOR> (e))
+          res = Z3_mk_bvnor (ctx, t1, t2);
+        else if (isOpX<BXNOR> (e))
+          res = Z3_mk_bvxnor (ctx, t1, t2);
+        else if (isOpX<BCONCAT> (e))
+          res = Z3_mk_concat (ctx, t1, t2);
+        else if (isOpX<BSHL> (e))
+          res = Z3_mk_bvshl (ctx, t1, t2);
+        else if (isOpX<BLSHR> (e))
+          res = Z3_mk_bvlshr (ctx, t1, t2);
+        else if (isOpX<BASHR> (e))
+          res = Z3_mk_bvashr (ctx, t1, t2);
+      
+        else
+          return M::marshal (e, ctx, cache, seen);
+      }
+      else if (isOpX<BEXTRACT> (e))
+      {
+        z3::ast a (ctx, marshal (bv::earg (e), ctx, cache, seen));
+        res = Z3_mk_extract (ctx, bv::high (e), bv::low (e), a);
+      }
+      else if (isOpX<AND> (e) || isOpX<OR> (e) ||
+               isOpX<ITE> (e) || isOpX<XOR> (e) ||
+               isOpX<PLUS> (e) || isOpX<MINUS> (e) ||
+               isOpX<MULT> (e) ||
+               isOpX<STORE> (e) || isOpX<ARRAY_MAP> (e))
+      {
+        std::vector<z3::ast> pinned;
+        std::vector<Z3_ast> args;
 
-	    for (ENode::args_iterator it = e->args_begin(), end = e->args_end();
-		 it != end; ++it)
-	      {
-		z3::ast a = z3::ast (ctx, marshal (*it, ctx, cache, seen));
-		args.push_back (a);
-		pinned.push_back (a);
-	      }
+        for (ENode::args_iterator it = e->args_begin(), end = e->args_end();
+             it != end; ++it)
+        {
+          z3::ast a = z3::ast (ctx, marshal (*it, ctx, cache, seen));
+          args.push_back (a);
+          pinned.push_back (a);
+        }
 
 
-	    if (isOp<ITE>(e))
-	      {
-		assert (e->arity () == 3);
-		res = Z3_mk_ite(ctx,args[0],args[1],args[2]);
-	      }
-	    else if (isOp<AND>(e))
-	      res = Z3_mk_and (ctx, args.size (), &args[0]);
-	    else if (isOp<OR>(e))
-	      res = Z3_mk_or (ctx, args.size (), &args[0]);
-	    else if (isOp<PLUS>(e))
-	      res = Z3_mk_add (ctx, args.size (), &args[0]);
-	    else if (isOp<MINUS>(e))
-	      res = Z3_mk_sub (ctx, args.size (), &args[0]);
-	    else if (isOp<MULT>(e))
-	      res = Z3_mk_mul (ctx, args.size (), &args[0]);
-            else if (isOp<STORE>(e))
-              {
-                assert (e->arity () == 3);
-                res = Z3_mk_store (ctx, args[0], args[1], args[2]);
-              }
-            else if (isOp<ARRAY_MAP> (e))
-              {
-                Z3_func_decl fdecl = reinterpret_cast<Z3_func_decl> (args[0]);
-                res = Z3_mk_map (ctx, fdecl, e->arity ()-1, &args[1]);
-              }
-	  }
+        if (isOp<ITE>(e))
+        {
+          assert (e->arity () == 3);
+          res = Z3_mk_ite(ctx,args[0],args[1],args[2]);
+        }
+        else if (isOp<AND>(e))
+          res = Z3_mk_and (ctx, args.size (), &args[0]);
+        else if (isOp<OR>(e))
+          res = Z3_mk_or (ctx, args.size (), &args[0]);
+        else if (isOp<PLUS>(e))
+          res = Z3_mk_add (ctx, args.size (), &args[0]);
+        else if (isOp<MINUS>(e))
+          res = Z3_mk_sub (ctx, args.size (), &args[0]);
+        else if (isOp<MULT>(e))
+          res = Z3_mk_mul (ctx, args.size (), &args[0]);
+        else if (isOp<STORE>(e))
+        {
+          assert (e->arity () == 3);
+          res = Z3_mk_store (ctx, args[0], args[1], args[2]);
+        }
+        else if (isOp<ARRAY_MAP> (e))
+        {
+          Z3_func_decl fdecl = reinterpret_cast<Z3_func_decl> (args[0]);
+          res = Z3_mk_map (ctx, fdecl, e->arity ()-1, &args[1]);
+        }
+      }
 	else
 	  return M::marshal (e, ctx, cache, seen);
 
@@ -450,7 +506,8 @@ namespace ufo
           case Z3_INT_SORT:
             return mkTerm (mpz_class (snum), efac);
           case Z3_BV_SORT:
-            return bv::bvnum (mpz_class (snum), Z3_get_bv_sort_size (ctx, sort), efac);
+            return bv::bvnum (mpz_class (snum), 
+                              Z3_get_bv_sort_size (ctx, sort), efac);
           default:
             assert (0 && "Unsupported numeric constant");
           }
@@ -471,14 +528,16 @@ namespace ufo
             case Z3_BV_SORT:
               return bv::bvsort (Z3_get_bv_sort_size (ctx, sort), efac);
             case Z3_ARRAY_SORT:
-              domain = unmarshal (z3::ast (ctx, 
-                                           Z3_sort_to_ast 
-                                           (ctx, Z3_get_array_sort_domain (ctx, sort))),
-                                  efac, cache, seen);
-              range = unmarshal (z3::ast (ctx, 
-                                          Z3_sort_to_ast 
-                                          (ctx, Z3_get_array_sort_range (ctx, sort))),
-                                 efac, cache, seen);
+              domain = 
+                unmarshal (z3::ast (ctx, 
+                                    Z3_sort_to_ast 
+                                    (ctx, Z3_get_array_sort_domain (ctx, sort))),
+                           efac, cache, seen);
+              range = 
+                unmarshal (z3::ast (ctx, 
+                                    Z3_sort_to_ast 
+                                    (ctx, Z3_get_array_sort_range (ctx, sort))),
+                           efac, cache, seen);
               return sort::arrayTy (domain, range);
 	    default:
 	      assert (0 && "Unsupported sort");
@@ -569,11 +628,10 @@ namespace ufo
       if (dkind == Z3_OP_BREDOR)
         return mk<BREDOR> (unmarshal (z3::ast (ctx, Z3_get_app_arg (ctx, app, 0)),
                                       efac, cache, seen));
-      if (dkind == Z3_OP_SIGN_EXT || dkind == Z3_OP_ZERO_EXT || 
-          dkind == Z3_OP_ROTATE_LEFT || dkind == Z3_OP_ROTATE_RIGHT ||
-          dkind == Z3_OP_REPEAT || dkind == Z3_OP_INT2BV)
+      if (dkind == Z3_OP_SIGN_EXT || dkind == Z3_OP_ZERO_EXT)
       {
-        Expr sort = bv::bvsort (Z3_get_bv_sort_size (ctx, Z3_get_sort (ctx, z)), efac);
+        Expr sort = bv::bvsort (Z3_get_bv_sort_size (ctx, Z3_get_sort (ctx, z)), 
+                                efac);
         Expr arg = unmarshal (z3::ast (ctx, Z3_get_app_arg (ctx, app, 0)),
                               efac, cache, seen);
         switch (dkind)
@@ -582,20 +640,21 @@ namespace ufo
           return mk<BSEXT> (arg, sort);
         case Z3_OP_ZERO_EXT:
           return mk<BZEXT> (arg, sort);
-        case Z3_OP_ROTATE_LEFT:
-          return mk<BROTATE_LEFT> (arg, sort);
-        case Z3_OP_ROTATE_RIGHT:
-          return mk<BROTATE_RIGHT> (arg, sort);
-        case Z3_OP_INT2BV:
-          return mk<INT2BV> (arg, sort);
-        case Z3_OP_BV2INT:
-          return mk<BV2INT> (arg, sort);
-        case Z3_OP_REPEAT:
-          return mk<BREPEAT> (arg, sort);
         default: assert (0);
         }
       }
       
+      if (dkind == Z3_OP_EXTRACT)
+      {
+        Expr arg = unmarshal (z3::ast (ctx, Z3_get_app_arg (ctx, app, 0)),
+                              efac, cache, seen);
+
+        Z3_func_decl d = Z3_get_app_decl (ctx, app);
+        unsigned high = Z3_get_decl_int_parameter (ctx, d, 0);
+        unsigned low = Z3_get_decl_int_parameter (ctx, d, 1);
+        return bv::extract (high, low, arg);
+      }
+          
 
       if (dkind == Z3_OP_AS_ARRAY)
       {
@@ -696,14 +755,82 @@ namespace ufo
         case Z3_OP_SELECT:
           e = mknary<SELECT> (args.begin (), args.end ());
           break;
+        case Z3_OP_BADD:
+          e = mknary<BADD> (args.begin (), args.end ());
+          break;
+        case Z3_OP_BSUB:
+          e = mknary<BSUB> (args.begin (), args.end ());
+          break;
+        case Z3_OP_BMUL:
+          e = mknary<BMUL> (args.begin (), args.end ());
+          break;
+        case Z3_OP_BSDIV:
+          e = mknary<BSDIV> (args.begin (), args.end ());
+          break;
+        case Z3_OP_BUDIV:
+          e = mknary<BUDIV> (args.begin (), args.end ());
+          break;
+        case Z3_OP_BSREM:
+          e = mknary<BSREM> (args.begin (), args.end ());
+          break;
+        case Z3_OP_BUREM:
+          e = mknary<BUREM> (args.begin (), args.end ());
+          break;
+        case Z3_OP_BSMOD:
+          e = mknary<BSMOD> (args.begin (), args.end ());
+          break;
+        case Z3_OP_ULEQ:
+          e = mknary<BULE> (args.begin (), args.end ());
+          break;
+        case Z3_OP_SLEQ:
+          e = mknary<BSLE> (args.begin (), args.end ());
+          break;
+        case Z3_OP_UGEQ:
+          e = mknary<BUGE> (args.begin (), args.end ());
+          break;
+        case Z3_OP_SGEQ:
+          e = mknary<BSGE> (args.begin (), args.end ());
+          break;
+        case Z3_OP_ULT:
+          e = mknary<BULT> (args.begin (), args.end ());
+          break;
+        case Z3_OP_SLT:
+          e = mknary<BSLT> (args.begin (), args.end ());
+          break;
+        case Z3_OP_UGT:
+          e = mknary<BUGT> (args.begin (), args.end ());
+          break;
+        case Z3_OP_SGT:          
+          e = mknary<BSGT> (args.begin (), args.end ());
+          break;
         case Z3_OP_BAND:
           e = mknary<BAND> (args.begin (), args.end ());
           break;
-         case Z3_OP_BOR:
+        case Z3_OP_BOR:
           e = mknary<BOR> (args.begin (), args.end ());
           break;
-          // XXX Add the rest of bv ops
-	default:
+        case Z3_OP_BXOR:
+          e = mknary<BXOR> (args.begin (), args.end ());
+          break;
+        case Z3_OP_BNAND:
+          e = mknary<BNAND> (args.begin (), args.end ());
+          break;
+        case Z3_OP_BNOR:
+          e = mknary<BNOR> (args.begin (), args.end ());
+          break;
+        case Z3_OP_BXNOR:
+          e = mknary<BXNOR> (args.begin (), args.end ());
+          break;
+        case Z3_OP_BSHL:
+          e = mknary<BSHL> (args.begin (), args.end ());
+          break;
+        case Z3_OP_BLSHR:
+          e = mknary<BLSHR> (args.begin (), args.end ());
+          break;
+        case Z3_OP_BASHR:
+          e = mknary<BASHR> (args.begin (), args.end ());
+          break;
+        default:
 	  return U::unmarshal (z, efac, cache, seen);
 	}
 

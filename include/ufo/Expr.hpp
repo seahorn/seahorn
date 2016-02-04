@@ -703,8 +703,22 @@ namespace expr
       boost::hash<int> hasher;
       return hasher (i);
     }
-    
-    
+  };
+  
+  template<> struct TerminalTrait<unsigned int>
+  {
+    static inline void print (std::ostream &OS, unsigned int s, 
+                              int depth, bool brkt)
+    { OS << s; }
+    static inline bool less (const unsigned int &i1, const unsigned int &i2) 
+    { return i1 < i2; }
+    static inline bool equal_to (unsigned int i1, unsigned int i2)
+    { return i1 == i2; }
+    static inline size_t hash (unsigned int i)
+    {
+      boost::hash<unsigned int> hasher;
+      return hasher (i);
+    }
   };
 
   template<> struct TerminalTrait<unsigned long>
@@ -726,8 +740,7 @@ namespace expr
   };
 
 
-    template <>
-  struct TerminalTrait<mpz_class>
+  template <> struct TerminalTrait<mpz_class>
   {
     static inline void print (std::ostream &OS, const mpz_class &v, 
 			      int depth, bool brkt)
@@ -778,6 +791,7 @@ namespace expr
   {
     typedef Terminal<std::string> STRING;
     typedef Terminal<int> INT;
+    typedef Terminal<unsigned int> UINT;
     typedef Terminal<unsigned long> ULONG;
     
     typedef Terminal<mpq_class> MPQ;
@@ -2339,7 +2353,6 @@ namespace expr
   }
 }
 
-#include "ExprBv.hh"
 namespace expr
 {
   namespace op
@@ -2799,6 +2812,7 @@ namespace expr
   }
 }
 
+#include "ExprBv.hh"
 
 namespace std
 {

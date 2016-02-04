@@ -55,6 +55,10 @@ namespace seahorn
                    SmallVectorImpl<const Type *> &ts);
     unsigned storageSize (const llvm::Type *t);
     unsigned fieldOff (const StructType *t, unsigned field);
+
+    uint64_t sizeInBits (llvm::Value *v) const;
+    uint64_t sizeInBits (llvm::Type *v) const;
+    unsigned pointerSizeInBits () const;
   }; 
 }
 

@@ -134,7 +134,25 @@ namespace
     void setActiveLit (Expr act) {m_activeLit = act;}
     
     // -- add conditional side condition
-    void addCondSide (Expr c) {m_side.push_back (boolop::limp (m_activeLit, c));}
+    void addCondSide (Expr c) {side (c, true);}
+    
+    
+    void side (Expr v, bool conditional = false)
+    {
+      if (!v) return;
+      if (GlobalConstraints || conditional)
+        m_side.push_back (boolop::limp (m_activeLit, v));
+      else
+        m_side.push_back (v);
+    }
+   
+    void bside (Expr lhs, Expr rhs, bool conditional = false)
+    {if (lhs && rhs) side (mk<IFF> (lhs, rhs), conditional);}
+    
+   
+    void side (Expr lhs, Expr rhs, bool conditional = false)
+    {if (lhs && rhs) side (mk<EQ> (lhs, rhs), conditional);}
+
     
   };
   
@@ -150,42 +168,6 @@ namespace
     /// skip PHI nodes
     void visitPHINode (PHINode &I) { /* do nothing */ }
     
-     
-    Expr geq (Expr op0, Expr op1)
-    {
-      if (op0 == op1) return trueE;
-      if (isOpX<MPZ> (op0) && isOpX<MPZ> (op1))
-        return
-          getTerm<mpz_class> (op0) >=
-          getTerm<mpz_class> (op1) ? trueE : falseE;
-      
-      return mk<GEQ> (op0, op1);
-    }
-
-    Expr lt (Expr op0, Expr op1)
-    {
-      if (op0 == op1) return falseE;
-      if (isOpX<MPZ> (op0) && isOpX<MPZ> (op1))
-        return
-          getTerm<mpz_class> (op0) <
-          getTerm<mpz_class> (op1) ? trueE : falseE;
-      
-      return mk<LT> (op0, op1);
-    }
-    
-    Expr mkUnsignedLT (Expr op0, Expr op1)
-    {
-      using namespace expr::op::boolop;
-      
-      return lite (geq (op0, zeroE),
-                      lite (geq (op1, zeroE),
-                            lt (op0, op1),
-                            trueE),
-                      lite (lt (op1, zeroE),
-                            lt (op0, op1),
-                            falseE));
-    }
-    
     void visitCmpInst (CmpInst &I)
     {
       Expr lhs = havoc (I);
@@ -198,57 +180,53 @@ namespace
 
       if (!(op0 && op1)) return;
 
-      Expr res;
+      Expr rhs;
       
       switch (I.getPredicate ())
       {
       case CmpInst::ICMP_EQ:
-        res = mk<IFF>(lhs, mk<EQ>(op0,op1));
+        rhs = mk<EQ> (op0, op1);
         break;
       case CmpInst::ICMP_NE:
-        res = mk<IFF>(lhs, mk<NEQ>(op0,op1));
+        rhs = mk<NEQ> (op0, op1);
         break;
       case CmpInst::ICMP_UGT:
-        res = mk<IFF> (lhs, mkUnsignedLT (op1, op0));
+        rhs = mk<BUGT> (op0, op1);
         break;
       case CmpInst::ICMP_SGT:
         if (v0.getType ()->isIntegerTy (1))
         {
           if (isOpX<TRUE> (op1))
             // icmp sgt op0, i1 true  == !op0
-            res = mk<IFF> (lhs, boolop::lneg (op0));
+            rhs = boolop::lneg (op0);
+          // XXX handle other cases 
         }
         else
-          res = mk<IFF>(lhs,mk<GT>(op0,op1));
+          rhs = mk<BSGT> (op0, op1);
         break;
       case CmpInst::ICMP_UGE:
-        res = mk<OR> (mk<IFF> (lhs, mk<EQ> (op0, op1)),
-                      mk<IFF> (lhs, mkUnsignedLT (op1, op0)));
+        rhs = mk<BUGE> (op0, op1);
         break;
       case CmpInst::ICMP_SGE:
-        res = mk<IFF>(lhs,mk<GEQ>(op0,op1));
+        rhs = mk<BSGE> (op0, op1);
         break;
       case CmpInst::ICMP_ULT:
-        res = mk<IFF> (lhs, mkUnsignedLT (op0, op1));
+        rhs = mk<BULT> (op0, op1);
         break;
       case CmpInst::ICMP_SLT:
-        res = mk<IFF>(lhs,mk<LT>(op0,op1));
+        rhs = mk<BSLT> (op0, op1);
         break; 
       case CmpInst::ICMP_ULE:
-        res = mk<OR> (mk<IFF> (lhs, mk<EQ> (op0, op1)),
-                      mk<IFF> (lhs, mkUnsignedLT (op0, op1)));
+        rhs = mk<BULE> (op0, op1);
         break;
       case CmpInst::ICMP_SLE:
-        res = mk<IFF>(lhs,mk<LEQ>(op0,op1));
+        rhs = mk<BSLE> (op0, op1);
         break;
       default:
         break;
       }       
 
-      // -- optionally guard branch conditions by activation literals
-      Expr act = GlobalConstraints ? trueE : m_activeLit;
-      if (res)
-        m_side.push_back (boolop::limp (act, res));
+      bside (lhs, rhs);
     }
     
     
@@ -261,213 +239,77 @@ namespace
       Expr op0 = lookup (*I.getTrueValue ());
       Expr op1 = lookup (*I.getFalseValue ());
       
-      
-      Expr act = GlobalConstraints ? trueE : m_activeLit;
-      if (cond && op0 && op1)
-        m_side.push_back (boolop::limp (act, mk<EQ> (lhs, mk<ITE> (cond, op0, op1))));
+      if (cond && op0 && op1) side (lhs, mk<ITE> (cond, op0, op1));
     }
     
     void visitBinaryOperator(BinaryOperator &I)
     {
       if (!m_sem.isTracked (I)) return;
       
+      const Value& v0 = *(I.getOperand (0));
+      const Value& v1 = *(I.getOperand (1));
+
+      Expr op0 = lookup (v0);
+      Expr op1 = lookup (v1);
+      if (!(op0 && op1)) return;
+
       Expr lhs = havoc (I);
-      
+      Expr rhs;
       switch (I.getOpcode ())
       {
       case BinaryOperator::Add:
-      case BinaryOperator::Sub:
-      case BinaryOperator::Mul:
-      case BinaryOperator::UDiv:
-      case BinaryOperator::SDiv:
-      case BinaryOperator::Shl:
-      case BinaryOperator::AShr:
-      case BinaryOperator::SRem:
-      case BinaryOperator::URem:
-        doArithmetic (lhs, I);
+        rhs = mk<BADD> (op0, op1);
         break;
-          
+      case BinaryOperator::Sub:
+        rhs = mk<BSUB> (op0, op1);
+        break;
+      case BinaryOperator::Mul:
+        rhs = mk<BMUL> (op0, op1);
+        break;
+      case BinaryOperator::UDiv:
+        rhs = mk<BUDIV> (op0, op1);
+        break;
+      case BinaryOperator::SDiv:
+        rhs = mk<BSDIV> (op0, op1);
+        break;
+      case BinaryOperator::Shl:
+        rhs = mk<BSHL> (op0, op1);
+        break;
+      case BinaryOperator::AShr:
+        rhs = mk<BASHR> (op0, op1);
+        break;
+      case BinaryOperator::SRem:
+        rhs = mk<BSREM> (op0, op1);
+        break;
+      case BinaryOperator::URem:
+        rhs = mk<BUREM> (op0, op1);
+        break;
       case BinaryOperator::And:
+        if (v0.getType ()->isIntegerTy (1) && v1.getType ()->isIntegerTy (1))
+          rhs = mk<AND> (op0, op1);
+        else
+          rhs = mk<BAND> (op0, op1);
+        break;
       case BinaryOperator::Or:
+        if (v0.getType ()->isIntegerTy (1) && v1.getType ()->isIntegerTy (1))
+          rhs = mk<OR> (op0, op1);
+        else
+          rhs = mk<BOR> (op0, op1);
+        break;
       case BinaryOperator::Xor:
+        if (v0.getType ()->isIntegerTy (1) && v1.getType ()->isIntegerTy (1))
+          rhs = mk<XOR> (op0, op1);
+        else
+          rhs = mk<BXOR> (op0, op1);
+        break;
       case BinaryOperator::LShr:
-        doLogic(lhs, I);
-        break;
-      default:
-        break;
-      }
-    }
-    
-    void doBitLogic (Expr lhs, BinaryOperator &i)
-    {
-      const Value& v0 = *(i.getOperand (0));
-      const Value& v1 = *(i.getOperand (1));
-
-      Expr op0 = lookup (v0);
-      Expr op1 = lookup (v1);
-      if (!(op0 && op1)) return;
-      Expr res;
-      
-      Expr sixteen = mkTerm<mpz_class> (16, m_efac);
-      Expr thirtytwo = mkTerm<mpz_class> (32, m_efac);
-      switch(i.getOpcode())
-      {
-      case BinaryOperator::And:
-        {
-          ExprVector val;
-          // 0 & x = 0
-          val.push_back (mk<IMPL> (mk<EQ> (op0, zeroE), mk<EQ> (lhs, zeroE)));
-          // x & 0 = 0
-          val.push_back (mk<IMPL> (mk<EQ> (op1, zeroE), mk<EQ> (lhs, zeroE)));
-          // 32 & 16 == 0
-          if (op1 == sixteen)
-            val.push_back (mk<IMPL> (mk<EQ> (op0, thirtytwo),
-                                     mk<EQ> (lhs, zeroE)));
-          
-          // val.push_back (mk<IMPL> (mk<AND> (mk<EQ> (op0, thirtytwo),
-          //                                   mk<EQ> (op1, sixteen)),
-          //                          mk<EQ> (lhs, zeroE)));
-
-          res = mknary<AND> (val);
-        }
-        break;
-      case BinaryOperator::Or:
-        // 0 | x = x
-        res = mk<AND> (mk<IMPL> (mk<EQ> (op0, zeroE), mk<EQ> (lhs, op1)),
-                       mk<IMPL> (mk<EQ> (op1, zeroE), mk<EQ> (lhs, op0)));
-        break;
-      default:
-        break;
-      }
-      
-      if (res) m_side.push_back (boolop::limp (m_activeLit, res));
-    }
-    
-    void doLogic (Expr lhs, BinaryOperator &i)
-    {
-      const Value& v0 = *(i.getOperand(0));
-      const Value& v1 = *(i.getOperand(1));
-      
-      // only Boolean logic is supported
-      if (! (v0.getType ()->isIntegerTy (1) &&
-             v1.getType ()->isIntegerTy (1))) return doBitLogic (lhs, i);
-      
-      Expr op0 = lookup (v0);
-      Expr op1 = lookup (v1);
-
-      if (!(op0 && op1)) return;
-
-      Expr res;
-      
-      switch(i.getOpcode())
-	{
-	case BinaryOperator::And:
-	  res = mk<IFF>(lhs, mk<AND>(op0,op1));
-          break;
-	case BinaryOperator::Or:
-	  res = mk<IFF>(lhs, mk<OR>(op0,op1));
-          break;
-        case BinaryOperator::Xor:
-	  res = mk<IFF>(lhs, mk<XOR>(op0,op1));
-          break;
-        default:
-          break;
-	}
-
-      Expr act = GlobalConstraints ? trueE : m_activeLit;
-      if (res) m_side.push_back (boolop::limp (act, res));
-    }
-
-    Expr doLeftShift(Expr lhs, Expr op1, const ConstantInt *op2)
-    {
-      mpz_class shift = expr::toMpz (op2->getValue ());
-      mpz_class factor = 1;
-      for (unsigned long i = 0; i < shift.get_ui (); ++i) 
-      {
-          factor = factor * 2;
-      }
-      Expr res = mk<EQ>(lhs ,mk<MULT>(op1, mkTerm<mpz_class> (factor, m_efac)));        
-      return res;
-    }
-    Expr doAShr (Expr lhs, Expr op1, const ConstantInt *op2)
-    {
-      if (!EnableDiv) return Expr(nullptr);
-      
-      mpz_class shift = expr::toMpz (op2->getValue ());
-      mpz_class factor = 1;
-      for (unsigned long i = 0; i < shift.get_ui (); ++i) 
-          factor = factor * 2;
-      return mk<EQ>(lhs ,mk<DIV>(op1, mkTerm<mpz_class> (factor, m_efac)));
-    }
-    
-
-
-    void doArithmetic (Expr lhs, BinaryOperator &i)
-    {
-      const Value& v1 = *i.getOperand(0);
-      const Value& v2 = *i.getOperand(1);
-
-      Expr op1 = lookup (v1);
-      Expr op2 = lookup (v2);
-
-      if (!(op1 && op2)) return;
-
-      Expr res;
-      switch(i.getOpcode())
-      {
-      case BinaryOperator::Add:
-        res = mk<EQ>(lhs ,mk<PLUS>(op1, op2));
-        break;
-      case BinaryOperator::Sub:
-        res = mk<EQ>(lhs ,mk<MINUS>(op1, op2));
-        break;
-      case BinaryOperator::Mul:
-        // if StrictlyLinear, then require that at least one
-        // argument is a constant
-        if (!StrictlyLinear || 
-            isOpX<MPZ> (op1) || isOpX<MPZ> (op2) || 
-            isOpX<MPQ> (op1) || isOpX<MPQ> (op2))
-          res = mk<EQ>(lhs ,mk<MULT>(op1, op2));
-        break;
-      case BinaryOperator::SDiv:
-      case BinaryOperator::UDiv:
-        // if StrictlyLinear then require that divisor is a constant
-        if (EnableDiv && 
-            (!StrictlyLinear || 
-             isOpX<MPZ> (op2) || isOpX<MPQ> (op2)))
-          res = mk<EQ>(lhs ,mk<DIV>(op1, op2));
-        break;
-      case BinaryOperator::SRem:
-      case BinaryOperator::URem:
-        // if StrictlyLinear then require that divisor is a constant
-        if (EnableDiv && 
-            (!StrictlyLinear || isOpX<MPZ> (op2) || isOpX<MPQ> (op2)))
-          res = mk<EQ> (lhs, mk<REM> (op1, op2));
-        break;
-      case BinaryOperator::Shl:
-        if (const ConstantInt *ci = dyn_cast<ConstantInt> (&v2))
-          res = doLeftShift(lhs, op1, ci);
-        break;
-      case BinaryOperator::AShr:
-        if (const ConstantInt *ci = dyn_cast<ConstantInt> (&v2))
-          res = doAShr (lhs, op1, ci);
+        rhs = mk<BSHR> (op0, op1);
         break;
       default:
         break;
       }
 
-      Expr act = GlobalConstraints ? trueE : m_activeLit;
-      
-      // -- always guard division
-      if (EnableDiv &&
-          (i.getOpcode () == BinaryOperator::SDiv ||
-           i.getOpcode () == BinaryOperator::UDiv ||
-           i.getOpcode () == BinaryOperator::SRem ||
-           i.getOpcode () == BinaryOperator::URem ||
-           i.getOpcode () == BinaryOperator::AShr))
-        act = m_activeLit;
-      
-      if (res) m_side.push_back (boolop::limp (act, res));
+      side (lhs, rhs);
     }
     
     void visitReturnInst (ReturnInst &I)
@@ -905,9 +747,8 @@ namespace
         PHINode &phi = *cast<PHINode> (curr);
         if (!m_sem.isTracked (phi)) continue;
         Expr lhs = havoc (phi);
-        Expr act = GlobalConstraints ? trueE : m_activeLit;
         Expr op0 = ops[i++];
-        if (op0) m_side.push_back (boolop::limp (act, mk<EQ> (lhs, op0)));
+        side (lhs, op0);
       }
     }
   };
@@ -975,6 +816,16 @@ namespace seahorn
     }
     return res;
   }
+  
+  unsigned BvSmallSymExec::pointerSizeInBits () const
+  {return m_td->getPointerSizeInBits ();}
+  
+  uint64_t BvSmallSymExec::sizeInBits (llvm::Type *t) const
+  {return m_td->getTypeSizeInBits (t);} 
+
+  uint64_t BvSmallSymExec::sizeInBits (llvm::Value *v) const
+  {return sizeInBits (v->getType ());}
+  
   
   unsigned BvSmallSymExec::storageSize (const llvm::Type *t) 
   {return m_td->getTypeStoreSize (const_cast<Type*> (t));}

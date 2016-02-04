@@ -148,6 +148,12 @@ namespace expr
       /// bv argument to extract
       inline Expr earg (Expr v) {return v->arg (2);}
       
+      inline Expr sext (Expr v, unsigned width)
+      {return mk<BSEXT> (v, bvsort (width, v->efac ()));}
+      
+      inline Expr zext (Expr v, unsigned width) 
+      {return mk<BZEXT> (v, bvsort (width, v->efac ()));}
+      
     }
     
   }

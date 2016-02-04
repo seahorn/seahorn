@@ -92,6 +92,8 @@ namespace
     Expr falseE;
     Expr zeroE;
     Expr oneE;
+    Expr trueBv;
+    Expr falseBv;
     
     /// -- current read memory
     Expr m_inMem;
@@ -110,8 +112,11 @@ namespace
     {
       trueE = mk<TRUE> (m_efac);
       falseE = mk<FALSE> (m_efac);
+
       zeroE = mkTerm<mpz_class> (0, m_efac);
       oneE = mkTerm<mpz_class> (1, m_efac);
+      trueBv = bv::bvnum (1, 1, m_efac);
+      falseBv = bv::bvnum (0, 1, m_efac);
       m_uniq = false;
       resetActiveLit ();
       // -- first two arguments are reserved for error flag
@@ -153,6 +158,8 @@ namespace
     void side (Expr lhs, Expr rhs, bool conditional = false)
     {if (lhs && rhs) side (mk<EQ> (lhs, rhs), conditional);}
 
+    /// convert bv1 to bool
+    Expr bvToBool (Expr bv) {return mk<EQ> (bv, trueBv);}
     
   };
   
@@ -333,26 +340,38 @@ namespace
       Expr op0 = lookup (*I.getOperand (0));
       
       if (!op0) return;
-
-      Expr act = GlobalConstraints ? trueE : m_activeLit;
-      if (I.getType ()->isIntegerTy (1))
-      {
-        // truncation to 1 bit amounts to 'is_even' predicate.
-        // We handle the two most common cases: 0 -> false, 1 -> true
-        m_side.push_back (boolop::limp (act,
-                                        mk<IMPL> (mk<EQ> (op0, zeroE), mk<NEG> (lhs))));
-        m_side.push_back (boolop::limp (act,
-                                        mk<IMPL> (mk<EQ> (op0, oneE), lhs)));
-      }
-      else
-        m_side.push_back (boolop::limp (act, mk<EQ> (lhs, op0)));
+      
+      uint64_t width = m_sem.sizeInBits (I);
+      Expr rhs = bv::extract (width-1, 0, op0);
+      
+      if (I.getType ()->isIntegerTy (1)) rhs = bvToBool (rhs);
+      side (lhs, rhs);
     }
     
-    void visitZExtInst (ZExtInst &I) {doExtCast (I, false);}
-    void visitSExtInst (SExtInst &I) {doExtCast (I, true);}
-    
-    void visitGetElementPtrInst (GetElementPtrInst &gep)
+    void visitZExtInst (ZExtInst &I) 
     {
+      if (!m_sem.isTracked (I)) return;
+      Expr lhs = havoc (I);
+      Expr op0 = lookup (*I.getOperand (0));
+      if (!op0) return;
+      
+      Expr rhs = bv::zext (op0, m_sem.sizeInBits (I));
+      side (lhs, rhs);
+    }
+    void visitSExtInst (SExtInst &I) 
+    {
+      if (!m_sem.isTracked (I)) return;
+      Expr lhs = havoc (I);
+      Expr op0 = lookup (*I.getOperand (0));
+      if (!op0) return;
+      
+      Expr rhs = bv::sext (op0, m_sem.sizeInBits (I));
+      side (lhs, rhs);
+    }
+    
+    void off_visitGetElementPtrInst (GetElementPtrInst &gep)
+    {
+      
       if (!m_sem.isTracked (gep)) return;
       Expr lhs = havoc (gep);
       
@@ -382,29 +401,6 @@ namespace
                                                   mk<GT> (lhs, zeroE))));
       }
       
-    }
-    
-    void doExtCast (CastInst &I, bool is_signed = false)
-    {
-      Expr lhs = havoc (I);
-      const Value& v0 = *I.getOperand (0);
-      Expr op0 = lookup (v0);
-      
-      if (!op0) return;
-      
-      // sext maps (i1 1) to -1
-      Expr one = mkTerm<mpz_class> (is_signed ? -1 : 1, m_efac);
-      
-      if (v0.getType ()->isIntegerTy (1))
-      {
-        if (const ConstantInt *ci = dyn_cast<ConstantInt> (&v0))
-          op0 = ci->isOne () ? one : zeroE;
-        else
-          op0 = mk<ITE> (op0, one, zeroE);
-      }
-      
-      Expr act = GlobalConstraints ? trueE : m_activeLit;
-      m_side.push_back (boolop::limp (act, mk<EQ> (lhs, op0)));
     }
     
     void visitCallSite (CallSite CS)
@@ -820,11 +816,11 @@ namespace seahorn
   unsigned BvSmallSymExec::pointerSizeInBits () const
   {return m_td->getPointerSizeInBits ();}
   
-  uint64_t BvSmallSymExec::sizeInBits (llvm::Type *t) const
-  {return m_td->getTypeSizeInBits (t);} 
+  uint64_t BvSmallSymExec::sizeInBits (llvm::Type &t) const
+  {return m_td->getTypeSizeInBits (&t);} 
 
-  uint64_t BvSmallSymExec::sizeInBits (llvm::Value *v) const
-  {return sizeInBits (v->getType ());}
+  uint64_t BvSmallSymExec::sizeInBits (llvm::Value &v) const
+  {return sizeInBits (*v.getType ());}
   
   
   unsigned BvSmallSymExec::storageSize (const llvm::Type *t) 

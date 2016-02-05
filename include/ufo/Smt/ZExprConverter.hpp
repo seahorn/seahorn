@@ -391,7 +391,7 @@ namespace ufo
         else if (isOpX<BULT> (e))
           res = Z3_mk_bvult (ctx, t1, t2);
         else if (isOpX<BSLT> (e))
-          res = Z3_mk_bvslt (ctx, t2, t2);
+          res = Z3_mk_bvslt (ctx, t1, t2);
         else if (isOpX<BUGT> (e))
           res = Z3_mk_bvugt (ctx, t1, t2);
         else if (isOpX<BSGT> (e))

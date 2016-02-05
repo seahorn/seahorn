@@ -339,7 +339,7 @@ namespace
       if (I.isConditional ()) lookup (*I.getCondition ());
     }
 
-    void visitTruncInst(TruncInst &I)              
+    void visitTruncInst (TruncInst &I)              
     {
       if (!m_sem.isTracked (I)) return;
       Expr lhs = havoc (I);
@@ -924,10 +924,15 @@ namespace seahorn
     if (isShadowMem (I, &scalar))
     {
       if (scalar)
+      {
+        assert (scalar->getType ()->isPointerTy ());
+        Type &eTy = *cast<PointerType> (scalar->getType ())->getElementType ();
         // -- create a constant with the name v[scalar]
         return bv::bvConst
           (op::array::select (v, mkTerm<const Value*> (scalar, m_efac)),
-           sizeInBits (*scalar));
+           sizeInBits (eTy));
+      }
+      
     
       if (m_trackLvl >= MEM)
       {

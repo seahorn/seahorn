@@ -286,7 +286,6 @@ namespace ufo
       }
       else if (arity == 2)
       {
-
         z3::ast t1 = marshal(e->left(), ctx, cache, seen);
         z3::ast t2 = marshal(e->right(), ctx, cache, seen);
 
@@ -341,6 +340,7 @@ namespace ufo
         {
           Z3_sort domain = reinterpret_cast<Z3_sort> (static_cast<Z3_ast> (t1));
           res = Z3_mk_const_array (ctx, domain, t2);
+          assert (res);
         }
           
         /** Bit-Vectors */
@@ -349,15 +349,15 @@ namespace ufo
           unsigned t1_sz = Z3_get_bv_sort_size (ctx, Z3_get_sort (ctx, t1));
           assert (t1_sz < bv::width (e->arg (1)));
           if (isOpX<BSEXT> (e))
-            return z3::ast (ctx,
-                            Z3_mk_sign_ext (ctx,
-                                            bv::width (e->arg (1)) - t1_sz,
-                                            t1));
+            res = z3::ast (ctx,
+                           Z3_mk_sign_ext (ctx,
+                                           bv::width (e->arg (1)) - t1_sz,
+                                           t1));
           else if (isOpX<BZEXT> (e))
-            return z3::ast (ctx, 
-                            Z3_mk_zero_ext (ctx,
-                                            bv::width (e->arg (1)) - t1_sz,
-                                            t1));
+            res = z3::ast (ctx, 
+                           Z3_mk_zero_ext (ctx,
+                                           bv::width (e->arg (1)) - t1_sz,
+                                           t1));
           else assert (0);
         }
         else if (isOpX<BAND> (e))
@@ -465,8 +465,8 @@ namespace ufo
           res = Z3_mk_map (ctx, fdecl, e->arity ()-1, &args[1]);
         }
       }
-	else
-	  return M::marshal (e, ctx, cache, seen);
+      else
+        return M::marshal (e, ctx, cache, seen);
 
       if (res == NULL) ctx.check_error ();
       if (res == NULL) errs () << "Failed to marshal: " << *e << "\n";

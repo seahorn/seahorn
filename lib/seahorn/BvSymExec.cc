@@ -753,10 +753,10 @@ namespace seahorn
   unsigned BvSmallSymExec::pointerSizeInBits () const
   {return m_td->getPointerSizeInBits ();}
   
-  uint64_t BvSmallSymExec::sizeInBits (llvm::Type &t) const
-  {return m_td->getTypeSizeInBits (&t);} 
+  uint64_t BvSmallSymExec::sizeInBits (const llvm::Type &t) const
+  {return m_td->getTypeSizeInBits (const_cast<llvm::Type*> (&t));} 
 
-  uint64_t BvSmallSymExec::sizeInBits (llvm::Value &v) const
+  uint64_t BvSmallSymExec::sizeInBits (const llvm::Value &v) const
   {return sizeInBits (*v.getType ());}
   
   
@@ -785,14 +785,15 @@ namespace seahorn
         if (c->getType ()->isIntegerTy (1))
           return c->isOne () ? mk<TRUE> (m_efac) : mk<FALSE> (m_efac);
         mpz_class k = toMpz (c->getValue ());
-        return mkTerm<mpz_class> (k, m_efac);
+        return bv::bvnum (k, sizeInBits (I), m_efac);
       }
       else if (cv->isNullValue () || isa<ConstantPointerNull> (&I))
-        return mkTerm<mpz_class> (0, m_efac);
+        return bv::bvnum (0, sizeInBits (*cv), m_efac);
       else if (const ConstantExpr *ce = dyn_cast<const ConstantExpr> (&I))
       {
+        // XXX Need a better handling of constant expressions
+        // XXX Perhaps fold using constant folding first, than evaluate the result
         // -- if this is a cast, and not into a Boolean, strip it
-        // -- XXX handle Boolean casts if needed
         if (ce->isCast () && 
             (ce->getType ()->isIntegerTy () || ce->getType ()->isPointerTy ()) && 
             ! ce->getType ()->isIntegerTy (1))
@@ -801,7 +802,7 @@ namespace seahorn
           if (const ConstantInt* val = dyn_cast<const ConstantInt>(ce->getOperand (0)))
           {
             mpz_class k = toMpz (val->getValue ());
-            return mkTerm<mpz_class> (k, m_efac);
+            return bv::bvnum (k, sizeInBits (I), m_efac);
           }
           // -- strip cast
           else return symb (*ce->getOperand (0));
@@ -817,21 +818,24 @@ namespace seahorn
     {
       if (scalar)
         // -- create a constant with the name v[scalar]
-        return bind::intConst
-          (op::array::select (v, mkTerm<const Value*> (scalar, m_efac)));
+        return bv::bvConst
+          (op::array::select (v, mkTerm<const Value*> (scalar, m_efac)),
+           sizeInBits (*scalar));
     
       if (m_trackLvl >= MEM)
       {
-        Expr intTy = sort::intTy (m_efac);
-        Expr ty = sort::arrayTy (intTy, intTy);
-        return bind::mkConst (v, ty);
+        Expr ptrTy = bv::bvsort (pointerSizeInBits (), m_efac);
+        Expr valTy = ptrTy;
+        Expr memTy = sort::arrayTy (ptrTy, valTy);
+        return bind::mkConst (v, memTy);
       }
     }
     
       
     if (isTracked (I))
       return I.getType ()->isIntegerTy (1) ? 
-        bind::boolConst (v) : bind::intConst (v);
+        bind::boolConst (v) : bv::bvConst (v, sizeInBits (I));
+    
     
     return Expr(0);
   }
@@ -900,8 +904,9 @@ namespace seahorn
     if (term && isa<const UnreachableInst> (term)) exec (s, dst, side, trueE);
   }
   
-  void BvSmallSymExec::execBr (SymStore &s, const BasicBlock &src, const BasicBlock &dst, 
-                                ExprVector &side, Expr act)
+  void BvSmallSymExec::execBr (SymStore &s, const BasicBlock &src,
+                               const BasicBlock &dst, 
+                               ExprVector &side, Expr act)
   {
     // the branch condition
     if (const BranchInst *br = dyn_cast<const BranchInst> (src.getTerminator ()))

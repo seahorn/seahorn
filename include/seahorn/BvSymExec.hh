@@ -56,8 +56,8 @@ namespace seahorn
     unsigned storageSize (const llvm::Type *t);
     unsigned fieldOff (const StructType *t, unsigned field);
 
-    uint64_t sizeInBits (llvm::Value &v) const;
-    uint64_t sizeInBits (llvm::Type &t) const;
+    uint64_t sizeInBits (const llvm::Value &v) const;
+    uint64_t sizeInBits (const llvm::Type &t) const;
     unsigned pointerSizeInBits () const;
   }; 
 }

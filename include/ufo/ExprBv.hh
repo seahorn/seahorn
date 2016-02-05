@@ -83,6 +83,14 @@ namespace expr
         return isOpX<BIND> (v) && v->arity () == 2 &&
           isOpX<MPZ> (v->arg (0)) && isOpX<BVSORT> (v->arg (1));
       }
+
+
+      inline Expr bvConst (Expr v, unsigned width)
+      {
+        Expr sort = bvsort (width, v->efac ());
+        return bind::mkConst (v, sort);
+      }
+      
       
     }
     

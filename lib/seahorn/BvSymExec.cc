@@ -27,19 +27,9 @@ ArrayGlobalConstraints("bv-horn-array-global-constraints",
                        cl::init (false));
 
 static llvm::cl::opt<bool>
-StrictlyLinear ("bv-horn-strictly-la",
-                llvm::cl::desc ("Generate strictly Linear Arithmetic constraints"),
-                cl::init (true));
-
-static llvm::cl::opt<bool>
-EnableDiv ("bv-horn-enable-div",
-                llvm::cl::desc ("Enable division constraints."),
-                cl::init (true));
-
-static llvm::cl::opt<bool>
 EnableUniqueScalars ("bv-horn-singleton-aliases",
                      llvm::cl::desc ("Treat singleton alias sets as scalar values"),
-                     cl::init (false));
+                     cl::init (true));
 
 static llvm::cl::opt<bool>
 InferMemSafety ("bv-horn-use-mem-safety",

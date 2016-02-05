@@ -86,6 +86,8 @@ namespace ufo
         res = reinterpret_cast<Z3_ast> 
           (Z3_mk_array_sort (ctx, idx_sort, val_sort));       
       }
+      else if (isOpX<BVSORT> (e))
+        res = reinterpret_cast<Z3_ast> (Z3_mk_bv_sort (ctx, bv::width (e)));
       
       else if (isOpX<INT>(e))
 	{
@@ -364,6 +366,8 @@ namespace ufo
           res = Z3_mk_bvor (ctx, t1, t2);
         else if (isOpX<BMUL> (e))
           res = Z3_mk_bvmul (ctx, t1, t2);
+        else if (isOpX<BADD> (e))
+          res = Z3_mk_bvadd (ctx, t1, t2);
         else if (isOpX<BSUB> (e))
           res = Z3_mk_bvsub (ctx, t1, t2);
         else if (isOpX<BSDIV> (e))

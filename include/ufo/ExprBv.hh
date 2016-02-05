@@ -66,7 +66,7 @@ namespace expr
       {return mkTerm<const BvSort> (BvSort (width), efac);}
       
       inline unsigned width (Expr bvsort)
-      {return getTerm<const BvSort*>(bvsort)->m_width;}
+      {return getTerm<const BvSort>(bvsort).m_width;}
       
       /// Bit-vector numeral of a given sort
       /// num is an integer numeral, and bvsort is a bit-vector sort

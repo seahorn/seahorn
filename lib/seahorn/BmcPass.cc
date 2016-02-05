@@ -89,7 +89,7 @@ namespace
 
       
       ExprFactory efac;
-      BvSmallSymExec sem (efac, *this, MEM);
+      BvSmallSymExec sem (efac, *this, PTR);
       
       EZ3 zctx (efac);
       BmcEngine bmc (sem, zctx);

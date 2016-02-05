@@ -50,11 +50,11 @@ namespace seahorn
     virtual bool isTracked (const Value &v);
     virtual Expr lookup (SymStore &s, const Value &v);
     
-    Expr ptrArith (SymStore &s, const Value& base, 
-                   SmallVectorImpl<const Value*> &ps,
-                   SmallVectorImpl<const Type *> &ts);
-    unsigned storageSize (const llvm::Type *t);
-    unsigned fieldOff (const StructType *t, unsigned field);
+    Expr symbolicIndexedOffset (SymStore &s,
+                                Type *ptrTy,
+                                ArrayRef<Value *> Indicies);
+    unsigned storageSize (const llvm::Type *t) const;
+    unsigned fieldOff (const StructType *t, unsigned field) const;
 
     uint64_t sizeInBits (const llvm::Value &v) const;
     uint64_t sizeInBits (const llvm::Type &t) const;

@@ -375,38 +375,67 @@ namespace
       side (lhs, rhs);
     }
     
-    void off_visitGetElementPtrInst (GetElementPtrInst &gep)
+    void visitPtrToIntInst(PtrToIntInst &I)
+    {
+      if (!m_sem.isTracked (I)) return;
+      Expr lhs = havoc(I);
+      Expr op0 = lookup (*I.getOperand (0));
+      if (!op0) return;
+      
+      uint64_t dsz = m_sem.sizeInBits (I);
+      uint64_t ssz = m_sem.sizeInBits (*I.getOperand (0));
+      
+      Expr rhs;
+
+      if (dsz == ssz) rhs = lhs;
+      else if (dsz > ssz) rhs = bv::zext (op0, dsz);
+      else rhs = bv::extract (dsz-1, 0, op0);
+      
+      side (lhs, rhs);
+    }
+    
+    void visitIntToPtrInst(IntToPtrInst &I)
+    {
+      if (!m_sem.isTracked (I)) return;
+      Expr lhs = havoc(I);
+      Expr op0 = lookup (*I.getOperand (0));
+      if (!op0) return;
+      
+      uint64_t dsz = m_sem.sizeInBits (I);
+      uint64_t ssz = m_sem.sizeInBits (*I.getOperand (0));
+      
+      Expr rhs;
+
+      if (dsz == ssz) rhs = lhs;
+      else if (dsz > ssz) rhs = bv::zext (op0, dsz);
+      else rhs = bv::extract (dsz-1, 0, op0);
+      
+      side (lhs, rhs);
+    }
+    
+    void visitGetElementPtrInst (GetElementPtrInst &gep)
     {
       
       if (!m_sem.isTracked (gep)) return;
       Expr lhs = havoc (gep);
       
-      SmallVector<const Value*, 4> ps;
-      SmallVector<const Type*, 4> ts;
-      gep_type_iterator typeIt = gep_type_begin (gep);
-      for (unsigned i = 1; i < gep.getNumOperands (); ++i, ++typeIt)
-      {
-        ps.push_back (gep.getOperand (i));
-        ts.push_back (*typeIt);
-      }
+      Value *ptrOp = gep.getPointerOperand ();
+      Expr base = lookup (*ptrOp);
+      if (!base) return;
+
+      SmallVector<Value*, 8> Indicies (gep.op_begin () + 1, gep.op_end ());
+      Expr off = m_sem.symbolicIndexedOffset (m_s, ptrOp->getType (), Indicies);
+      if (!off) return;
       
-      Expr op = m_sem.ptrArith (m_s, *gep.getPointerOperand (), ps, ts);
-      Expr act = GlobalConstraints ? trueE : m_activeLit;
-      if (op)
-      {
-        m_side.push_back (boolop::limp (act, mk<EQ> (lhs, op)));
-        if (!InferMemSafety) return;
+      side (lhs, mk<BADD> (base, off));
+      if (!InferMemSafety) return;
         
-        // -- extra constraints that exclude undefined behavior
-        if (!gep.isInBounds () || gep.getPointerAddressSpace () != 0)
-          return;
-        if (Expr base = lookup (*gep.getPointerOperand ()))
-          // -- base > 0 -> lhs > 0
-          m_side.push_back (boolop::limp (m_activeLit,
-                                          mk<OR> (mk<LEQ> (base, zeroE),
-                                                  mk<GT> (lhs, zeroE))));
-      }
-      
+      // -- extra constraints that exclude undefined behavior
+      if (!gep.isInBounds () || gep.getPointerAddressSpace () != 0)
+        return;
+      // -- base > 0 -> lhs > 0
+      side (mk<OR> (mk<EQ> (base, nullBv),
+                    mk<NEQ> (lhs, nullBv)), true);
     }
     
     void visitCallSite (CallSite CS)
@@ -726,31 +755,54 @@ namespace seahorn
     v.resetActiveLit ();
   }
 
-  Expr BvSmallSymExec::ptrArith (SymStore &s, 
-                                  const Value &base,
-                                  SmallVectorImpl<const Value*> &ps,
-                                  SmallVectorImpl<const Type*> &ts)
+  Expr BvSmallSymExec::symbolicIndexedOffset (SymStore &s,
+                                              Type *ptrTy,
+                                              ArrayRef<Value *> Indicies) 
   {
-    Expr res = lookup (s, base);
-    if (!res) return res;
+    unsigned ptrSz = pointerSizeInBits ();
+    Type *Ty = ptrTy;
+    assert (Ty->isPointerTy ());
     
-    for (unsigned i = 0; i < ps.size (); ++i)
+    // numeric offset
+    uint64_t noffset = 0;
+    // symbolic offset
+    Expr soffset;
+
+    generic_gep_type_iterator<Value* const*>
+      TI = gep_type_begin (ptrTy, Indicies);
+    for (unsigned CurIDX = 0, EndIDX = Indicies.size (); CurIDX != EndIDX;
+         ++CurIDX, ++TI)
     {
-      if (const StructType *st = dyn_cast<const StructType> (ts [i]))
+      if (StructType *STy = dyn_cast<StructType> (*TI))
       {
-        if (const ConstantInt *ci = dyn_cast<const ConstantInt> (ps [i]))
+        unsigned fieldNo = cast<ConstantInt> (Indicies [CurIDX])->getZExtValue ();
+        noffset += fieldOff (STy, fieldNo);
+        Ty = STy->getElementType (fieldNo);
+      }
+      else
+      {
+        Ty = cast<SequentialType> (Ty)->getElementType ();
+        if (ConstantInt *ci = dyn_cast<ConstantInt> (Indicies [CurIDX]))
         {
-          Expr off = mkTerm<mpz_class> (fieldOff (st, ci->getZExtValue ()), m_efac);
-          res = mk<PLUS> (res, off);
+          int64_t arrayIdx = ci->getSExtValue ();
+          noffset += (uint64_t)arrayIdx * storageSize (Ty);
         }
-        else assert (0);
+        else
+        {
+          Expr a = lookup (s, *Indicies [CurIDX]);
+          assert (a);
+          a =  mk<BMUL> (a, bv::bvnum (storageSize (Ty), ptrSz, m_efac));
+          if (soffset) soffset = mk<BADD> (soffset, a);
+          else soffset = a;
+        }
       }
-      else if (const SequentialType *seqt = dyn_cast<const SequentialType> (ts [i]))
-      {
-        Expr sz = mkTerm<mpz_class> (storageSize (seqt->getElementType ()), m_efac);
-        res = mk<PLUS> (res, mk<MULT> (lookup (s, *ps[i]), sz));
-      }
+      
     }
+    
+    Expr res;
+    if (noffset > 0) res = bv::bvnum (noffset, ptrSz, m_efac);
+    if (soffset) res = res ? mk<BADD> (soffset, res) : soffset;
+    
     return res;
   }
   
@@ -764,12 +816,13 @@ namespace seahorn
   {return sizeInBits (*v.getType ());}
   
   
-  unsigned BvSmallSymExec::storageSize (const llvm::Type *t) 
+  unsigned BvSmallSymExec::storageSize (const llvm::Type *t) const
   {return m_td->getTypeStoreSize (const_cast<Type*> (t));}
   
-  unsigned BvSmallSymExec::fieldOff (const StructType *t, unsigned field)
+  unsigned BvSmallSymExec::fieldOff (const StructType *t, unsigned field) const
   {
-    return m_td->getStructLayout (const_cast<StructType*>(t))->getElementOffset (field);
+    return m_td->getStructLayout
+      (const_cast<StructType*>(t))->getElementOffset (field);
   }
     
   Expr BvSmallSymExec::symb (const Value &I)

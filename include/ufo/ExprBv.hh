@@ -144,7 +144,7 @@ namespace expr
       
       inline Expr extract (unsigned high, unsigned low, Expr v)
       {
-        assert (high < low);
+        assert (high > low);
         mk<BEXTRACT> (mkTerm<unsigned> (high, v->efac ()), 
                       mkTerm<unsigned> (low, v->efac ()), v);
       }

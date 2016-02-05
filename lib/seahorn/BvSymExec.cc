@@ -428,14 +428,15 @@ namespace
       if (!off) return;
       
       side (lhs, mk<BADD> (base, off));
-      if (!InferMemSafety) return;
-        
-      // -- extra constraints that exclude undefined behavior
-      if (!gep.isInBounds () || gep.getPointerAddressSpace () != 0)
-        return;
-      // -- base > 0 -> lhs > 0
-      side (mk<OR> (mk<EQ> (base, nullBv),
-                    mk<NEQ> (lhs, nullBv)), true);
+      if (!InferMemSafety)
+      {
+        // -- extra constraints that exclude undefined behavior
+        if (!gep.isInBounds () || gep.getPointerAddressSpace () != 0)
+          return;
+        // -- base > 0 -> lhs > 0
+        side (mk<OR> (mk<EQ> (base, nullBv),
+                      mk<NEQ> (lhs, nullBv)), true);
+      }
     }
     
     void visitCallSite (CallSite CS)
@@ -471,11 +472,24 @@ namespace
         // -- assumption is only active when error flag is false
         addCondSide (boolop::lor (m_s.read (m_sem.errorFlag (BB)), c));
       }
-      else if (F.getName ().equals ("calloc") && m_inMem && m_outMem && m_sem.isTracked (I))
+      else if (F.getName ().equals ("calloc") &&
+               m_inMem && m_outMem && m_sem.isTracked (I))
       {
         havoc (I);
         assert (m_fparams.size () == 3);
         assert (!m_uniq);
+        
+        if (IgnoreCalloc)
+          m_side.push_back (mk<EQ> (m_outMem, m_inMem));
+        else
+        {
+          // XXX This is potentially unsound if the corresponding DSA
+          // XXX node corresponds to multiple allocation sites
+          errs () << "WARNING: zero-initializing DSA node due to calloc()\n";
+          side (m_outMem,
+                op::array::constArray
+                (bv::bvsort (m_sem.pointerSizeInBits (), m_efac), nullBv));
+        }        
       }
       
       else if (m_sem.hasFunctionInfo (F))
@@ -609,12 +623,30 @@ namespace
         }
       }
       
-      if (!m_sem.isTracked (I))
-      {
-        m_inMem.reset ();
-        return;
-      }
+      if (!m_sem.isTracked (I)) return;
       
+      unsigned ptrSz = m_sem.pointerSizeInBits ();
+      Expr lhs = havoc (I);
+      if (!m_inMem) return;
+      
+      if (m_uniq)
+      {
+        Expr rhs = m_inMem;
+        if (I.getType ()->isIntegerTy (1))
+          rhs = mk<NEQ> (rhs, nullBv);
+        side (lhs, rhs);
+      }
+      else if (Expr op0 = lookup (*I.getPointerOperand ()))
+      {
+        Expr rhs = op::array::select (m_inMem, op0);
+        if (I.getType ()->isIntegerTy (1))
+          rhs = mk<NEQ> (rhs, nullBv);
+        else if (m_sem.sizeInBits (I) < ptrSz)
+          rhs = bv::extract (ptrSz - 1, 0, rhs);
+        assert (m_sem.sizeInBits (I) <= ptrSz && "Fat integers not supported");
+        
+        side (lhs, rhs);
+      }
       
       m_inMem.reset ();
     }
@@ -634,13 +666,31 @@ namespace
         }
       }
 
-      if (!m_inMem || !m_outMem || !m_sem.isTracked (*I.getOperand (0)))
+      if (!m_inMem || !m_outMem || !m_sem.isTracked (*I.getOperand (0))) return;
+
+      unsigned ptrSz = m_sem.pointerSizeInBits ();
+      Expr v = lookup (*I.getOperand (0));
+      
+      if (v && I.getOperand (0)->getType ()->isIntegerTy (1))
+        v = boolToBv (v);
+      
+      if (m_uniq)
       {
-        m_inMem.reset ();
-        m_outMem.reset ();
-        return;
+        if (v) side (m_outMem, v);
       }
-          
+      else
+      {
+        if (m_sem.sizeInBits (*I.getOperand (0)) < ptrSz)
+          v = bv::zext (v, ptrSz);
+        
+        assert (m_sem.sizeInBits (*I.getOperand (0)) <= ptrSz &&
+                "Fat pointers are not supported");
+        
+        Expr idx = lookup (*I.getPointerOperand ());
+        if (idx && v)
+          side (m_outMem, op::array::store (m_inMem, idx, v));
+      }
+      
       m_inMem.reset ();
       m_outMem.reset ();
     }

@@ -151,7 +151,18 @@ namespace
     {if (lhs && rhs) side (mk<EQ> (lhs, rhs), conditional);}
 
     /// convert bv1 to bool
-    Expr bvToBool (Expr bv) {return mk<EQ> (bv, trueBv);}
+    Expr bvToBool (Expr bv)
+    {
+      if (bv == trueBv) return trueE;
+      if (bv == falseBv) return falseE;
+      return mk<EQ> (bv, trueBv);
+    }
+    Expr boolToBv (Expr b)
+    {
+      if (isOpX<TRUE> (b)) return trueBv;
+      if (isOpX<FALSE> (b)) return falseBv;
+      return mk<ITE> (b, trueBv, falseBv);
+    }
     
   };
   
@@ -198,7 +209,10 @@ namespace
           if (isOpX<TRUE> (op1))
             // icmp sgt op0, i1 true  == !op0
             rhs = boolop::lneg (op0);
-          // XXX handle other cases 
+          else
+            rhs = bvToBool
+              (mk<BSGT> (boolToBv (op0),
+                         boolToBv (op1)));
         }
         else
           rhs = mk<BSGT> (op0, op1);

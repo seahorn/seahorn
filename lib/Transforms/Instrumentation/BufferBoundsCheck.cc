@@ -31,7 +31,7 @@
 */
 
 #include "seahorn/Transforms/Instrumentation/BufferBoundsCheck.hh"
-#include "seahorn/Transforms/Instrumentation/ShadowBufferBoundsCheckFuncPars.hh"
+#include "seahorn/Analysis/CanAccessMemory.hh"
 
 #include "llvm/Analysis/AliasAnalysis.h"
 #include "llvm/Transforms/Utils/UnifyFunctionExitNodes.h"
@@ -42,16 +42,14 @@
 #include "llvm/IR/CallSite.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/CommandLine.h"
+#include "llvm/ADT/Statistic.h"
 
 #include <boost/optional.hpp>
 
 #include "avy/AvyDebug.h"
+
 //#include "seahorn/Analysis/Steensgaard.hh"
 
-static llvm::cl::opt<bool>
-InlineChecks("boc-inline-all",
-             llvm::cl::desc ("Insert checks with assuming all functions have been inlined."),
-             llvm::cl::init (false));
 
 namespace seahorn
 {
@@ -74,17 +72,263 @@ namespace seahorn
     else return false;
   }
 
+  // TODO: figure out if this function is available more efficiently
+  // in llvm
+  Value* getArgument (Function *F, unsigned pos)
+  {
+    unsigned idx = 0;
+    for (Function::arg_iterator I = F->arg_begin(), E = F->arg_end(); I != E;
+         ++I, idx++)
+    {
+      if (idx == pos) return &*I; 
+    }
+    return NULL;
+  }
+
+  ReturnInst* getReturnInst (Function *F)
+  {
+    // Assume there is one single return instruction per function
+    for (BasicBlock& bb : *F)
+    {
+      if (ReturnInst *ret = dyn_cast<ReturnInst> (bb.getTerminator ()))
+        return ret;
+    }
+    return NULL;
+  }
+
+  std::pair<Value*,Value*> 
+  BufferBoundsCheck::findShadowArg (Function *F, const Value *Arg) 
+  {
+    if (!lookup (F)) return std::pair<Value*, Value*> (NULL,NULL);
+      
+    size_t shadow_idx = m_orig_arg_size [F];
+    Function::arg_iterator AI = F->arg_begin();
+    for (size_t idx = 0 ; idx < m_orig_arg_size [F] ; ++AI, idx++)
+    {
+      const Value* formalPar = &*AI;
+      if (formalPar == Arg)
+      {
+        Value* shadowOffset = getArgument (F, shadow_idx);
+        Value* shadowSize   = getArgument (F, shadow_idx+1);
+        assert (shadowOffset && shadowSize);
+        
+        return std::make_pair (shadowOffset, shadowSize);
+      }
+      
+      if (IsShadowableType (formalPar->getType ()))
+        shadow_idx += 2;
+    }
+    return std::pair<Value*, Value*> (NULL,NULL);
+  }
+
+  // For each function parameter for which we want to propagate its
+  // offset and size we add two more *undefined* function parameters
+  // for placeholding its offset and size which will be filled out
+  // later.
+  bool  BufferBoundsCheck::addFunShadowParams (Function *F, LLVMContext &ctx)  
+  {
+    if (F->isDeclaration ()) return false;
+
+    if (F->getName ().equals ("main")) return false;
+
+    // TODO: relax this case
+    if (F->hasAddressTaken ()) return false;
+    // TODO: relax this case
+    const FunctionType *FTy = F->getFunctionType ();
+    if (FTy->isVarArg ()) return false;
+
+    CanAccessMemory &CM = getAnalysis<CanAccessMemory> ();
+    if (!CM.canAccess(F)) return false;
+
+    // copy params
+    // AttributeSet PAL = F->getAttributes ();
+    std::vector<llvm::Type*> ParamsTy (FTy->param_begin (), FTy->param_end ());
+    // XXX: I use string because StringRef and Twine should not be
+    //      stored.
+    std::vector<std::string> NewNames;
+    Function::arg_iterator FAI = F->arg_begin();
+    for(FunctionType::param_iterator I =  FTy->param_begin (),             
+            E = FTy->param_end (); I!=E; ++I, ++FAI) 
+    {
+      Type *PTy = *I;
+      if (IsShadowableType (PTy))
+      {
+        ParamsTy.push_back (m_Int64Ty);
+        Twine offset_name = FAI->getName () + ".shadow.offset";
+        NewNames.push_back (offset_name.str ());
+        // PAL = PAL.addAttribute(ctx, 
+        //                        ParamsTy.size (), 
+        //                        Attribute::ReadOnly);
+        
+        ParamsTy.push_back (m_Int64Ty);
+        Twine size_name = FAI->getName () + ".shadow.size";
+        NewNames.push_back (size_name.str ());
+        // PAL = PAL.addAttribute(ctx, 
+        //                        ParamsTy.size (), 
+        //                        Attribute::ReadOnly);
+      }
+    }
+
+    // copy return value
+    Type *RetTy = F->getReturnType ();
+    if (IsShadowableType (RetTy))
+    {
+      ReturnInst* ret = getReturnInst (F);   
+      Value * retVal = ret->getReturnValue ();
+      assert (retVal);
+      ParamsTy.push_back (m_Int64PtrTy);
+      Twine offset_name = retVal->getName () + ".shadow.ret.offset";
+      NewNames.push_back (offset_name.str ());
+      ParamsTy.push_back (m_Int64PtrTy);
+      Twine size_name = retVal->getName () + ".shadow.ret.size";
+      NewNames.push_back (size_name.str ());
+    }
+
+    // create function type
+    FunctionType *NFTy = FunctionType::get (RetTy, 
+                                            ArrayRef<llvm::Type*> (ParamsTy), 
+                                            FTy->isVarArg ());
+
+    // create new function 
+    Function *NF = Function::Create (NFTy, F->getLinkage ());
+    NF->copyAttributesFrom(F);
+    // NF->setAttributes (PAL);
+    F->getParent ()->getFunctionList ().insert(F, NF);
+    NF->takeName (F);
+
+    m_orig_arg_size [NF] = F->arg_size ();
+
+    // new parameter names
+    unsigned idx=0;
+    for(Function::arg_iterator I = NF->arg_begin(), E = NF->arg_end(); 
+        I != E; ++I, idx++)
+    {
+      if (idx >= F->arg_size ())
+      {
+        Value* newParam = &*I;
+        newParam->setName (NewNames [idx - F->arg_size ()]);
+      }
+    }
+    
+    ValueToValueMapTy ValueMap;
+    Function::arg_iterator DI = NF->arg_begin();
+    for (Function::arg_iterator I = F->arg_begin(), E = F->arg_end();
+         I != E; ++I, ++DI) 
+    {
+      DI->setName(I->getName());  // Copy the name over.
+      // Add a mapping to our mapping.
+      ValueMap[I] = DI;
+    }
+    
+    SmallVector<ReturnInst*, 8> Returns; // Ignore returns.
+    CloneFunctionInto (NF, F, ValueMap, false, Returns);
+
+    IRBuilder<> B (ctx);
+
+    // placeholders for the variables that will feed the shadow
+    // variables for the return instruction of the function
+    if (IsShadowableType (RetTy))
+    {
+      ReturnInst* ret = getReturnInst (NF);   
+      B.SetInsertPoint (ret);
+
+      Value * storeOffset = getArgument (NF, NF->arg_size () - 2);
+      Value * storeSize = getArgument (NF, NF->arg_size () - 1);
+      B.CreateCall (m_memsafeFn, storeOffset);
+      StoreInst* SI_Off = B.CreateStore (UndefValue::get (m_Int64Ty), storeOffset); 
+      B.CreateCall (m_memsafeFn, storeSize);
+      StoreInst* SI_Size = B.CreateStore (UndefValue::get (m_Int64Ty), storeSize); 
+      m_ret_shadows [NF] = std::make_pair (SI_Off,SI_Size);
+    }
+
+    // Replace all callers
+    while (!F->use_empty ())
+    {
+      // here we know all uses are call instructions
+      CallSite CS (cast<Value>(F->user_back ()));
+
+      Instruction *Call = CS.getInstruction ();
+      // Copy the existing arguments
+      std::vector <Value*> Args;
+      Args.reserve (CS.arg_size ());
+      CallSite::arg_iterator AI = CS.arg_begin ();
+      for (unsigned i=0, e=FTy->getNumParams (); i!=e ; ++i, ++AI)
+        Args.push_back (*AI);
+
+      B.SetInsertPoint (Call);
+
+      // insert placeholders for new arguments
+      unsigned added_new_args = NF->arg_size () - F->arg_size();
+      if (IsShadowableType (RetTy))
+      {
+        for(unsigned i=0; i < added_new_args - 2; i++)
+          Args.push_back (UndefValue::get (m_Int64Ty)); // for shadow formal parameters
+        Args.push_back  (B.CreateAlloca (m_Int64Ty));   // for shadow return offset
+        Args.push_back  (B.CreateAlloca (m_Int64Ty));   // for shadow return size
+      }
+      else
+      {
+        for(unsigned i=0; i < added_new_args ; i++)
+          Args.push_back (UndefValue::get (m_Int64Ty)); // for shadow formal parameters
+      }
+
+      // create new call 
+      Instruction *New = B.CreateCall (NF, ArrayRef<Value*> (Args));
+      cast<CallInst>(New)->setCallingConv (CS.getCallingConv ());
+      cast<CallInst>(New)->setAttributes (CS.getAttributes ());
+      if (cast<CallInst>(Call)->isTailCall ())
+        cast<CallInst>(New)->setTailCall ();
+      
+      if (Call->hasName ())
+        New->takeName (Call);
+
+      // Replace all the uses of the old call
+      Call->replaceAllUsesWith (New);
+      
+      // Remove the old call
+      Call->eraseFromParent ();
+
+      // wire up shadow actual parameters of the call with the shadow
+      // formal parameters of its parent.
+      CallSite NCS (const_cast<CallInst*> (cast<CallInst>(New)));
+
+      assert (lookup (NCS.getCalledFunction ()));
+
+      size_t  orig_arg_size = m_orig_arg_size [NCS.getCalledFunction ()];
+      for (unsigned idx = 0, shadow_idx = orig_arg_size; idx < orig_arg_size; idx++)
+      {
+        const Value* ArgPtr = NCS.getArgument (idx);
+        if (IsShadowableType (ArgPtr->getType ()))
+        {
+          std::pair <Value*,Value*> shadow_pars = 
+              findShadowArg (New->getParent ()->getParent(), ArgPtr);
+          
+          if (shadow_pars.first && shadow_pars.second)
+          {
+            NCS.setArgument(shadow_idx,   shadow_pars.first);
+            NCS.setArgument(shadow_idx+1, shadow_pars.second); 
+          }
+
+          shadow_idx +=2;
+        }
+      }
+
+    }
+    // Finally remove the old function
+    if (!F->hasValueHandle ())
+      F->eraseFromParent ();
+
+    return true;
+  } 
+  
   // uint64_t BufferBoundsCheck::getDSNodeSize (const Value *V, DSGraph *dsg, DSGraph *gDsg)
   // {
   //   // DSNode* n = dsg->getNodeForValue (V).getNode ();
   //   // if (!n) n = gDsg->getNodeForValue (V).getNode ();
   //   // if (!n) return AliasAnalysis::UnknownSize;
-
   //   //m_dsa->print (errs (), NULL);
   //   //errs () << "Size: " << n->getSize () << "\n";
   //   //return n->getSize ();
-
-
   //   // TODO: n->getSize() doesn't return the expected size for arrays.
   //   return AliasAnalysis::UnknownSize;
   // }
@@ -427,42 +671,41 @@ namespace seahorn
       return;
     }
     
-    if (!m_inline_all)
+    
+    /// ptr is the return value of a call site      
+    if (const CallInst *CI = dyn_cast<CallInst> (ptr))
     {
-      ShadowBufferBoundsCheckFuncPars &SBOA = 
-          getAnalysis<ShadowBufferBoundsCheckFuncPars> ();
-
-      B.SetInsertPoint(insertPoint);
-
-      /// ptr is the return value of a call site      
-      if (const CallInst *CI = dyn_cast<CallInst> (ptr))
+      CallSite CS (const_cast<CallInst*> (CI));
+      Function *cf = CS.getCalledFunction ();      
+      if (cf && IsShadowableFunction (*cf))
       {
-        CallSite CS (const_cast<CallInst*> (CI));
-        Function *cf = CS.getCalledFunction ();      
-        if (cf && SBOA.IsShadowableFunction (*cf))
-        {
-          Value* ShadowRetOff  = CS.getArgument (CS.arg_size () - 2);
-          Value* ShadowRetSize = CS.getArgument (CS.arg_size () - 1);
-          B.CreateCall (m_memsafeFn, ShadowRetOff);
-          m_offsets [ptr] = B.CreateLoad (ShadowRetOff); 
-          B.CreateCall (m_memsafeFn, ShadowRetSize);
-          m_sizes [ptr] = B.CreateLoad (ShadowRetSize); 
-          return;
-        }
-      }
+        Value* ShadowRetOff  = CS.getArgument (CS.arg_size () - 2);
+        Value* ShadowRetSize = CS.getArgument (CS.arg_size () - 1);
 
-      /// try if ptr is  a function formal parameter
-      auto p =  SBOA.findShadowArg (F, ptr);
-      Value* shadowPtrOff =  p.first;
-      Value* shadowPtrSize = p.second;
-      if (shadowPtrOff && shadowPtrSize)
-      {
-        m_offsets [ptr] = shadowPtrOff;
-        m_sizes [ptr] = shadowPtrSize;      
+        B.SetInsertPoint(const_cast<CallInst*> (CI)); //just before CI
+        auto it = B.GetInsertPoint ();
+        ++it; // just after CI
+        B.SetInsertPoint (const_cast<BasicBlock*>(CI->getParent ()), it);
+
+        B.CreateCall (m_memsafeFn, ShadowRetOff);
+        m_offsets [ptr] = B.CreateLoad (ShadowRetOff); 
+        B.CreateCall (m_memsafeFn, ShadowRetSize);
+        m_sizes [ptr] = B.CreateLoad (ShadowRetSize); 
         return;
       }
     }
-
+    
+    /// try if ptr is  a function formal parameter
+    auto p =  findShadowArg (F, ptr);
+    Value* shadowPtrOff =  p.first;
+    Value* shadowPtrSize = p.second;
+    if (shadowPtrOff && shadowPtrSize)
+    {
+      m_offsets [ptr] = shadowPtrOff;
+      m_sizes [ptr] = shadowPtrSize;      
+      return;
+    }
+    
     LOG( "boc", 
          errs () << "Unable to instrument " << *ptr << "\n");
   }
@@ -671,13 +914,6 @@ namespace seahorn
   {
     if (F.isDeclaration ()) return false;
 
-    if (m_inline_all && !F.getName ().equals ("main"))
-    {
-      errs () << "Warning: " << F.getName () << " is not instrumented ";
-      errs () << "only main is instrumented\n";
-      return false;
-    }
-
     // DSGraph* dsg = m_dsa->getDSGraph (F);
     // if (!dsg) return false;
     // DSGraph* gDsg = dsg->getGlobalsGraph ();
@@ -742,36 +978,37 @@ namespace seahorn
           }
           else 
           {
-            if (!m_inline_all)
+            // Resolving the shadow offsets and sizes which are
+            // actual parameters of a function call
+            //
+            // At this point F has this form:
+            //
+            // q = foo (p,...,_,_,&q.off,&q.size);
+              //
+            // The placeholders are filled out with the shadow
+            // variables corresponding to p.
+            if (IsShadowableFunction (*cf))
             {
-              ShadowBufferBoundsCheckFuncPars &SBOA = 
-                  getAnalysis<ShadowBufferBoundsCheckFuncPars> ();
-
-              // Resolving the shadow offsets and sizes which are
-              // actual parameters of a function call
-              if (SBOA.IsShadowableFunction (*cf))
+              size_t orig_arg_size = getOrigArgSize (*cf);
+              unsigned shadow_idx = orig_arg_size;
+              for (size_t idx= 0; idx < orig_arg_size; idx++)
               {
-                size_t orig_arg_size = SBOA.getOrigArgSize (*cf);
-                unsigned shadow_idx = orig_arg_size;
-                for (size_t idx= 0; idx < orig_arg_size; idx++)
+                const Value* ArgPtr = CS.getArgument (idx);
+                // this could be a symptom of a bug
+                if (isa<UndefValue> (ArgPtr) || isa<ConstantPointerNull> (ArgPtr))
+                  continue;
+                if (IsShadowableType (ArgPtr->getType ()))
                 {
-                  const Value* ArgPtr = CS.getArgument (idx);
-                  // this could be a symptom of a bug
-                  if (isa<UndefValue> (ArgPtr) || isa<ConstantPointerNull> (ArgPtr))
-                    continue;
-                  if (SBOA.IsShadowableType (ArgPtr->getType ()))
+                  instrumentSizeAndOffsetPtr (&F, B, inst, ArgPtr);                  
+                  Value *ptrSize   = m_sizes [ArgPtr];
+                  Value *ptrOffset = m_offsets [ArgPtr];
+                  if (ptrSize && ptrOffset)
                   {
-                    instrumentSizeAndOffsetPtr (&F, B, inst, ArgPtr);                  
-                    Value *ptrSize   = m_sizes [ArgPtr];
-                    Value *ptrOffset = m_offsets [ArgPtr];
-                    if (ptrSize && ptrOffset)
-                    {
-                      CS.setArgument (shadow_idx, ptrOffset);
-                      CS.setArgument (shadow_idx+1, ptrSize);
-                      change = true;
-                    }
-                    shadow_idx +=2;
+                    CS.setArgument (shadow_idx, ptrOffset);
+                    CS.setArgument (shadow_idx+1, ptrSize);
+                    change = true;
                   }
+                  shadow_idx +=2;
                 }
               }
             }
@@ -780,22 +1017,29 @@ namespace seahorn
       }
       else if (const ReturnInst *ret = dyn_cast<ReturnInst> (inst))
       {
-        if (!m_inline_all)
+        if (const Value* retVal = ret->getReturnValue ())
         {
-          if (const Value* retVal = ret->getReturnValue ())
-          {
-            ShadowBufferBoundsCheckFuncPars &SBOA = 
-                getAnalysis<ShadowBufferBoundsCheckFuncPars> ();
-            if (SBOA.IsShadowableType (retVal->getType ()))
-            {
-              // Resolving the shadow offset and size of the return
-              // value of a function
-              instrumentSizeAndOffsetPtr (&F, B, inst, retVal);                  
-              Value *ShadowOffset = m_offsets [retVal];
-              Value *ShadowSize   = m_sizes [retVal];
-              if (ShadowOffset && ShadowSize)
-                change |= SBOA.resolveShadowRetDefs (&F, ShadowOffset, ShadowSize);
-            }
+          if (IsShadowableType (retVal->getType ()))
+          { // Resolving the shadow offset and size of the return
+            // value of a function. At this point, F has this form:
+            //    ...
+            //    *p.off = _;
+            //    *p.size = _;
+            //    return p;
+            // 
+            // The placeholders _ are filled out with the shadow
+            // variables associated with the return variable.
+            instrumentSizeAndOffsetPtr (&F, B, inst, retVal);                  
+            Value *ShadowOffset = m_offsets [retVal];
+            Value *ShadowSize = m_sizes [retVal];
+            if (ShadowOffset && ShadowSize) {
+              auto p = findShadowRet (&F);
+              if (p.first) 
+                p.first->setOperand (0, ShadowOffset);
+              if (p.second) 
+                p.second->setOperand (0, ShadowSize);
+              change |= (p.first || p.second);
+              }
           }
         }
       }
@@ -865,8 +1109,6 @@ namespace seahorn
 
     LLVMContext &ctx = M.getContext ();
 
-    if (!m_inline_all) m_inline_all = InlineChecks;
-  
     // ObjectSizeOffsetEvaluator TheObjSizeEval (m_dl, m_tli, ctx, true);
     // m_obj_size_eval = &TheObjSizeEval;
 
@@ -887,9 +1129,7 @@ namespace seahorn
                                 Type::getVoidTy (ctx), NULL));
     
     B.clear ();
-    B.addAttribute (Attribute::NoReturn);
-    // B.addAttribute (Attribute::ReadNone);
-    
+    B.addAttribute (Attribute::ReadNone);
     as = AttributeSet::get (ctx, 
                             AttributeSet::FunctionIndex,
                             B);
@@ -903,12 +1143,20 @@ namespace seahorn
     
     bool change = false;
 
-    for (Function &F : M) change |= runOnFunction (F); 
+    /* First, we shadow function parameters */
+    std::vector<Function*> oldFuncs;
+    for (Function &F : M) 
+      oldFuncs.push_back (&F);
 
-    LOG( "boc-stats", 
-         errs () 
-         << "[BOA] checks added: " << ChecksAdded << "\n"
-         << "[BOA] checks unabled to add : "<< ChecksUnable << " (should be =0)\n");
+    for (auto F: oldFuncs) 
+      change |= addFunShadowParams (F, ctx);
+
+    /* Second, we shadow load/store pointers */
+    for (Function &F : M) 
+      change |= runOnFunction (F); 
+
+    errs () << "-- Added  " << ChecksAdded << " buffer overflow/underflow checks.\n" 
+            << "-- Missed " << ChecksUnable << " checks.\n";
 
     return change;
   }
@@ -917,17 +1165,17 @@ namespace seahorn
   {
     AU.setPreservesAll ();
     //AU.addRequiredTransitive<llvm::SteensgaardDataStructures> ();
-
     AU.addRequired<llvm::DataLayoutPass>();
     AU.addRequired<llvm::TargetLibraryInfo>();
     AU.addRequired<llvm::UnifyFunctionExitNodes> ();
-    AU.addRequired<ShadowBufferBoundsCheckFuncPars>();
+    AU.addRequired<CanAccessMemory> ();
   } 
-
 
 }
 
 static llvm::RegisterPass<seahorn::BufferBoundsCheck> 
 X ("boc", "Insert buffer overflow/underflow checks");
-   
+ 
+
+  
 

@@ -1,5 +1,21 @@
 /**
- */
+SeaHorn Verification Framework
+Copyright (c) 2015 Carnegie Mellon University.
+All Rights Reserved.
+
+THIS SOFTWARE IS PROVIDED "AS IS," WITH NO WARRANTIES
+WHATSOEVER. CARNEGIE MELLON UNIVERSITY EXPRESSLY DISCLAIMS TO THE
+FULLEST EXTENT PERMITTEDBY LAW ALL EXPRESS, IMPLIED, AND STATUTORY
+WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, AND
+NON-INFRINGEMENT OF PROPRIETARY RIGHTS.
+
+Released under a modified BSD license, please see license.txt for full
+terms.
+
+DM-0002198
+*/
+
 #ifndef __EXPR__H_
 #define __EXPR__H_
 
@@ -16,9 +32,6 @@
 
 #include <gmpxx.h>
 
-#define forall BOOST_FOREACH
-#define rev_forall BOOST_REVERSE_FOREACH
-
 /** boost */
 #include <boost/shared_ptr.hpp>
 #include <boost/intrusive_ptr.hpp>
@@ -26,8 +39,8 @@
 #include <boost/unordered_map.hpp>
 #include <boost/unordered_set.hpp>
 #include <boost/interprocess/containers/flat_set.hpp>
-#include <boost/foreach.hpp>
-#include <boost/range.hpp>
+#include <boost/range/iterator_range.hpp>
+#include <boost/range/adaptor/reversed.hpp>
 #include <boost/ptr_container/ptr_vector.hpp>
 #include <boost/utility.hpp>
 #include <boost/pool/poolfwd.hpp>
@@ -35,7 +48,7 @@
 #include <boost/pool/pool_alloc.hpp>
 #include <boost/lexical_cast.hpp>
 
-#include "llvm/ADT/SmallVector.h"
+#define mk_it_range boost::make_iterator_range
 
 #define NOP_BASE(NAME) struct NAME : public expr::Operator {};
 
@@ -394,7 +407,7 @@ namespace expr
     /**
      * Clear val from all registered caches
      */
-    void clearCaches (ENode *val) { forall (CacheStub &c, caches) c.erase (val); }
+    void clearCaches (ENode *val) { for (CacheStub &c : caches) c.erase (val); }
     
     
 
@@ -559,7 +572,7 @@ namespace expr
   {
     if (freeList.size () < FREE_LIST_MAX_SIZE) 
       {      
-	forall (ENode *a, n->args) Deref (a);
+	for (ENode *a : n->args) Deref (a);
 	n->args.clear ();
 	n->oper.reset ();
 
@@ -1181,7 +1194,7 @@ namespace expr
 
   inline void clearDagVisitCache (DagVisitCache &cache)
   {
-    forall (DagVisitCache::value_type &kv, cache) 
+    for (DagVisitCache::value_type &kv : cache) 
       kv.first->efac ().Deref (kv.first);
     cache.clear ();
   }
@@ -1462,7 +1475,7 @@ namespace expr
 	return mknary<AND> (r);
       }
 
-      struct CIRCSIZE
+      struct CIRCSIZE : public std::unary_function<Expr,VisitAction>
       {
 	unsigned ands;
 	unsigned ors;
@@ -1498,7 +1511,7 @@ namespace expr
       
 
       /** trivial simplifier for Boolean Operators */
-      struct TrivialSimplifier
+      struct TrivialSimplifier : public std::unary_function<Expr,Expr>
       {
 	ExprFactory &efac;
 
@@ -1579,9 +1592,8 @@ namespace expr
 		}
 	      
 	      // -- arity > 2, check if one arguments is true
-	      forall (ENode *arg, make_pair (exp->args_begin (), 
-					      exp->args_end ()))
-		if (trueE == arg) return trueE;
+              for (ENode *arg : mk_it_range (exp->args_begin (), exp->args_end ()))
+                if (trueE == arg) return trueE;
 	      return exp;
 	    }
 
@@ -1606,8 +1618,8 @@ namespace expr
 		}
 
 	      // -- arity > 2, check if one arguments  is false
-	      forall (ENode * arg, make_pair (exp->args_begin (), 
-					       exp->args_end ()))
+	      for (ENode * arg : mk_it_range (exp->args_begin (), 
+                                              exp->args_end ()))
 		if (falseE == arg) return falseE;
 	      return exp;
 	    }
@@ -1617,7 +1629,7 @@ namespace expr
       };
 
       /** Rewriter that gathers Boolean operators into n-ary ones */
-      struct GatherOps
+      struct GatherOps : public std::unary_function<Expr,Expr>
       {
 	Expr trueE;
 	Expr falseE;
@@ -1657,14 +1669,14 @@ namespace expr
 	    }
 	  
 	  ExprSet newArgs;
-	  forall (Expr a, make_pair (exp->args_begin (), exp->args_end ()))
+	  for (Expr a : mk_it_range (exp->args_begin (), exp->args_end ()))
 	    if (! (op == a->op ()) )
 	      {
 		if (a == bot) return bot;
 		else if (a != top) newArgs.insert (a);
 	      }
 	    else /* descend into kids that have the same top-level operator */
-	      forall (Expr ka, make_pair (a->args_begin (), a->args_end ()))
+	      for (Expr ka : mk_it_range (a->args_begin (), a->args_end ()))
 		if (ka == bot) return bot;
 		else if (ka != top) newArgs.insert (ka);
 
@@ -1675,7 +1687,7 @@ namespace expr
       };
       
       /** Rewriter that normalizes AND/OR operators */
-      struct NormalizeOps
+      struct NormalizeOps : public std::unary_function<Expr,Expr>
       {
 	Expr trueE;
 	Expr falseE;
@@ -1720,14 +1732,14 @@ namespace expr
 	    }
 
 	  ExprSet newArgs;
-	  forall (Expr a, make_pair (exp->args_begin (), exp->args_end ()))
+	  for (Expr a : mk_it_range (exp->args_begin (), exp->args_end ()))
 	    if (! (op == a->op ()) )
 	      {
 		if (a == bot) return bot;
 		else if (a != top) newArgs.insert (a);
 	      }
 	    else /* descend into kids that have the same top-level operator */
-	      forall (Expr ka, make_pair (a->args_begin (), a->args_end ()))
+	      for (Expr ka : mk_it_range (a->args_begin (), a->args_end ()))
 		if (ka == bot) return bot;
 		else if (ka != top) newArgs.insert (ka);
 
@@ -1737,8 +1749,8 @@ namespace expr
 	  boost::container::flat_set<Expr> args (newArgs.begin (), 
 						 newArgs.end ());
 	  Expr res = top;
-	  rev_forall (Expr arg, args)
-	    res = isOpX<AND> (exp) ? land (arg, res) : lor (arg, res);
+          for (Expr arg : boost::adaptors::reverse(args))
+            res = isOpX<AND> (exp) ? land (arg, res) : lor (arg, res);
 	  
 	  return res;
 	}
@@ -1819,7 +1831,7 @@ namespace expr
       
 
       /** puts an expression into NNF */
-      struct NNF
+      struct NNF : public std::unary_function<Expr,VisitAction>
       {
 	ExprFactory &efac;
 	boost::shared_ptr<TrivialSimplifier> r;
@@ -1855,8 +1867,8 @@ namespace expr
 	    {
 	      // -- negate arguments
 	      ExprVector args;
-	      forall (Expr arg, make_pair (lhs->args_begin (), 
-					    lhs->args_end ()))
+	      for (Expr arg : mk_it_range (lhs->args_begin (), 
+                                           lhs->args_end ()))
 		args.push_back (lneg (arg));
 
 	      // -- flip operator
@@ -2454,7 +2466,7 @@ namespace expr
   {
     /* Visitors are hidden. Only to be used internally. */
 
-    struct RAV
+    struct RAV: public std::unary_function<Expr,VisitAction>
     {
       Expr s;
       Expr t;
@@ -2465,7 +2477,7 @@ namespace expr
       { return exp == s ? VisitAction::changeTo (t) : VisitAction::doKids (); }
     };
 
-    struct RAVSIMP
+    struct RAVSIMP: public std::unary_function<Expr,VisitAction>
     {
       Expr s;
       Expr t;
@@ -2485,7 +2497,7 @@ namespace expr
 
 
     template <typename F, typename OutputIterator>
-    struct FV
+    struct FV : public std::unary_function<Expr,VisitAction>
     {
       F filter;
       
@@ -2513,7 +2525,7 @@ namespace expr
     };
     
     template <typename M>
-    struct RV
+    struct RV : public std::unary_function<Expr,VisitAction>
     {
       typedef typename M::const_iterator const_iterator;
       
@@ -2530,7 +2542,7 @@ namespace expr
 
 
     template <typename M>
-    struct RVSIMP
+    struct RVSIMP : public std::unary_function<Expr,VisitAction>
     {
       typedef typename M::const_iterator const_iterator;
       
@@ -2558,7 +2570,7 @@ namespace expr
     };
 
 
-    struct CV
+    struct CV : public std::unary_function<Expr,VisitAction>
     {
       Expr e;
       bool found;
@@ -2583,7 +2595,7 @@ namespace expr
       }
     };
 
-    struct SIZE
+    struct SIZE : public std::unary_function<Expr,VisitAction>
     {
       size_t count;
       
@@ -2597,7 +2609,7 @@ namespace expr
     };
 
     template <typename T>
-    struct RW
+    struct RW : public std::unary_function<Expr,VisitAction>
     {
       boost::shared_ptr<T> _r;
       

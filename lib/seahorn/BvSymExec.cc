@@ -850,7 +850,9 @@ namespace seahorn
     }
     
     Expr res;
-    if (noffset > 0) res = bv::bvnum (noffset, ptrSz, m_efac);
+    if (noffset > 0)
+      res = bv::bvnum (/* cast to make clang on osx happy */
+                       (unsigned long int)noffset, ptrSz, m_efac);
     if (soffset) res = res ? mk<BADD> (soffset, res) : soffset;
     
     return res;

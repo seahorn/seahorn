@@ -2,6 +2,7 @@
 
 #ifdef HAVE_DSA
 #include "llvm/IR/DataLayout.h"
+#include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/Transforms/Utils/UnifyFunctionExitNodes.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
@@ -256,7 +257,17 @@ namespace seahorn
           /// ignore inline assembly
           if (call->isInlineAsm ()) continue;
           
+          /// skip intrinsics, except for memory-related ones
+          if (isa<IntrinsicInst> (call) && !isa<MemIntrinsic> (call)) continue;
 
+          /// skip sehaorn.* and verifier.* functions
+          if (Function *fn = call->getCalledFunction ())
+            if (fn->getName ().startswith ("seahorn.") ||
+                fn->getName ().startswith ("verifier.")) 
+              continue;
+          
+
+          LOG ("shadow_cs", errs () << "Call: " << *call << "\n";);
           DSCallSite CS = dsg->getDSCallSiteForCallSite (CallSite (call));
           if (!CS.isDirectCall ()) continue;
 

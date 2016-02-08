@@ -17,6 +17,7 @@ add_llvm_library (seahorn.LIB
   Bmc.cc
   BmcPass.cc
   BvSymExec.cc
+  BvInt.cc
   ZOption.cc
   )
 

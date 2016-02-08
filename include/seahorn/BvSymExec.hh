@@ -8,6 +8,12 @@
 
 namespace seahorn
 {
+  
+  /// Integer abstraction of a bv-expression
+  /// Assumes the input is in nnf
+  Expr bvIntAbstract (Expr v);
+  
+  
   /// Bit-Vector Symbolic Execution
   class BvSmallSymExec : public SmallStepSymExec
   { 

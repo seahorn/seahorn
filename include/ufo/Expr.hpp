@@ -1199,14 +1199,6 @@ namespace expr
     cache.clear ();
   }
 
-  template <typename ExprVisitor> 
-  Expr dagVisit (ExprVisitor &v, Expr expr)
-  {
-    DagVisitCache cache;
-    Expr res = visit (v, expr, cache);
-    clearDagVisitCache (cache);
-    return res;
-  }
 
   template <typename ExprVisitor>
   struct DagVisit : public std::unary_function<Expr,Expr>
@@ -1215,13 +1207,26 @@ namespace expr
     DagVisitCache m_cache;
     
     DagVisit (ExprVisitor &v) : m_v (v) {}
+    DagVisit (const DagVisit &o) : m_v (o.m_v) {} 
     ~DagVisit () { clearDagVisitCache (m_cache); }
     
     Expr operator() (Expr e)  { return visit (m_v, e, m_cache); }
     
   };
   
-    
+  template <typename ExprVisitor> 
+  Expr dagVisit (ExprVisitor &v, Expr expr)
+  {
+    DagVisit<ExprVisitor> dv (v);
+    return dv (expr);
+  }
+
+  template <typename ExprVisitor>
+  void dagVisit (ExprVector &v, ExprVector &vec)
+  {
+    DagVisit<ExprVisitor> dv (v);
+    for (auto &e : vec) e = dv (e);
+  }
 
   template <typename ExprVisitor>
   Expr visit (ExprVisitor &v, Expr expr)

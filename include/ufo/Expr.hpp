@@ -1404,7 +1404,7 @@ namespace expr
     NOP(FALSE,"false",PREFIX,BoolOp)
     NOP(AND,"&&",INFIX,BoolOp)
     NOP(OR,"||",INFIX,BoolOp)
-    NOP(XOR,"XOR",INFIX,BoolOp)
+    NOP(XOR,"^",INFIX,BoolOp)
     NOP(NEG,"!",PREFIX,BoolOp)
     NOP(IMPL,"->",INFIX,BoolOp)
     NOP(ITE,"ite",FUNCTIONAL,BoolOp)

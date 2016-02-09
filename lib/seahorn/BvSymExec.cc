@@ -493,7 +493,8 @@ namespace
         
         assert (m_fparams.size () == 3);
         // -- assumption is only active when error flag is false
-        addCondSide (boolop::lor (m_s.read (m_sem.errorFlag (BB)), c));
+        if (!isOpX<TRUE> (c))
+          addCondSide (boolop::lor (m_s.read (m_sem.errorFlag (BB)), c));
       }
       else if (F.getName ().equals ("calloc") &&
                m_inMem && m_outMem && m_sem.isTracked (I))

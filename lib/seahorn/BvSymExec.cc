@@ -44,6 +44,11 @@ IgnoreCalloc ("bv-horn-ignore-calloc",
               cl::init (false),
               cl::Hidden);
 
+static llvm::cl::opt<bool>
+UseWrite ("horn-use-write",
+          llvm::cl::desc ("Write to store instead of havoc"),
+          cl::init (false),
+          cl::Hidden);
 
 static const Value *extractUniqueScalar (CallSite &cs)
 {
@@ -126,6 +131,8 @@ namespace
     Expr lookup (const Value &v) {return m_sem.lookup (m_s, v);}
     Expr havoc (const Value &v) 
     {return m_sem.isTracked (v) ? m_s.havoc (symb (v)) : Expr (0);}
+    void write (const Value &v, Expr val)
+    {if (val && m_sem.isTracked (v)) m_s.write (symb (v), val);}
 
     void resetActiveLit () {m_activeLit = trueE;}
     void setActiveLit (Expr act) {m_activeLit = act;}
@@ -239,7 +246,8 @@ namespace
         break;
       }       
 
-      bside (lhs, rhs);
+      if (UseWrite) write (I, rhs);
+      else side (lhs, rhs);
     }
     
     
@@ -252,7 +260,12 @@ namespace
       Expr op0 = lookup (*I.getTrueValue ());
       Expr op1 = lookup (*I.getFalseValue ());
       
-      if (cond && op0 && op1) side (lhs, mk<ITE> (cond, op0, op1));
+      if (cond && op0 && op1)
+      {
+        Expr rhs = mk<ITE> (cond, op0, op1);
+        if (UseWrite) write (I, rhs);
+        else side (lhs, rhs);
+      }
     }
     
     void visitBinaryOperator(BinaryOperator &I)
@@ -322,7 +335,8 @@ namespace
         break;
       }
 
-      side (lhs, rhs);
+      if (UseWrite) write (I, rhs);
+      else side (lhs, rhs);
     }
     
     void visitReturnInst (ReturnInst &I)
@@ -351,7 +365,9 @@ namespace
       Expr rhs = bv::extract (width-1, 0, op0);
       
       if (I.getType ()->isIntegerTy (1)) rhs = bvToBool (rhs);
-      side (lhs, rhs);
+
+      if (UseWrite) write (I, rhs);
+      else side (lhs, rhs);
     }
     
     void visitZExtInst (ZExtInst &I) 
@@ -362,7 +378,8 @@ namespace
       if (!op0) return;
       
       Expr rhs = bv::zext (op0, m_sem.sizeInBits (I));
-      side (lhs, rhs);
+      if (UseWrite) write (I, rhs);
+      else side (lhs, rhs);
     }
     void visitSExtInst (SExtInst &I) 
     {
@@ -372,7 +389,8 @@ namespace
       if (!op0) return;
       
       Expr rhs = bv::sext (op0, m_sem.sizeInBits (I));
-      side (lhs, rhs);
+      if (UseWrite) write (I, rhs);
+      else side (lhs, rhs);
     }
     
     void visitPtrToIntInst(PtrToIntInst &I)
@@ -391,7 +409,8 @@ namespace
       else if (dsz > ssz) rhs = bv::zext (op0, dsz);
       else rhs = bv::extract (dsz-1, 0, op0);
       
-      side (lhs, rhs);
+      if (UseWrite) write (I, rhs);
+      else side (lhs, rhs);
     }
     
     void visitIntToPtrInst(IntToPtrInst &I)
@@ -410,7 +429,8 @@ namespace
       else if (dsz > ssz) rhs = bv::zext (op0, dsz);
       else rhs = bv::extract (dsz-1, 0, op0);
       
-      side (lhs, rhs);
+      if (UseWrite) write (I, rhs);
+      else side (lhs, rhs);
     }
     
     void visitGetElementPtrInst (GetElementPtrInst &gep)
@@ -427,7 +447,10 @@ namespace
       Expr off = m_sem.symbolicIndexedOffset (m_s, ptrOp->getType (), Indicies);
       if (!off) return;
       
-      side (lhs, mk<BADD> (base, off));
+      if (UseWrite)
+        write (gep, mk<BADD> (base, off));
+      else
+        side (lhs, mk<BADD> (base, off));
       if (!InferMemSafety)
       {
         // -- extra constraints that exclude undefined behavior
@@ -435,7 +458,7 @@ namespace
           return;
         // -- base > 0 -> lhs > 0
         side (mk<OR> (mk<EQ> (base, nullBv),
-                      mk<NEQ> (lhs, nullBv)), true);
+                      mk<NEQ> (read (gep), nullBv)), true);
       }
     }
     
@@ -634,7 +657,8 @@ namespace
         Expr rhs = m_inMem;
         if (I.getType ()->isIntegerTy (1))
           rhs = mk<NEQ> (rhs, nullBv);
-        side (lhs, rhs);
+        if (UseWrite) write (I, rhs);
+        else side (lhs, rhs);
       }
       else if (Expr op0 = lookup (*I.getPointerOperand ()))
       {
@@ -645,7 +669,8 @@ namespace
           rhs = bv::extract (ptrSz - 1, 0, rhs);
         assert (m_sem.sizeInBits (I) <= ptrSz && "Fat integers not supported");
         
-        side (lhs, rhs);
+        if (UseWrite) write (I, rhs);
+        else side (lhs, rhs);
       }
       
       m_inMem.reset ();
@@ -662,7 +687,7 @@ namespace
         if (GetElementPtrInst *gep = dyn_cast<GetElementPtrInst> (pop))
         {
           Expr base = lookup (*gep->getPointerOperand ());
-          if (base) side (mk<BUGT> (base, nullBv));
+          if (base) side (mk<BUGT> (base, nullBv), true);
         }
       }
 
@@ -705,7 +730,8 @@ namespace
       Expr u = lookup (v0);
 
       // -- what can this be? Might need to do something here.
-      side (lhs, lookup (v0));
+      if (UseWrite) write (I, lookup (v0));
+      else side (lhs, lookup (v0));
     }
     
     void initGlobals (const BasicBlock &BB)
@@ -764,7 +790,8 @@ namespace
         if (!m_sem.isTracked (phi)) continue;
         Expr lhs = havoc (phi);
         Expr op0 = ops[i++];
-        side (lhs, op0);
+        if (UseWrite) write (phi, op0);
+        else side (lhs, op0);
       }
     }
   };

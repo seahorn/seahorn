@@ -677,9 +677,11 @@ namespace
         m_fparams.push_back (falseE);
         m_fparams.push_back (falseE);
       }
-      else if (F.getName ().startswith ("shadow.mem") && 
-               m_sem.isTracked (I))
+      else if (F.getName ().startswith ("shadow.mem"))
       {
+        if (!m_sem.isTracked (I)) 
+          return;
+        
         if (F.getName ().equals ("shadow.mem.init"))
           m_s.havoc (symb(I));
         else if (F.getName ().equals ("shadow.mem.load"))

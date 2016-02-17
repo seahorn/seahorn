@@ -5,8 +5,9 @@
 #include "ufo/Expr.hpp"
 
 #include "llvm/Support/raw_ostream.h"
-
+#include <memory>
 #include <map>
+#include <unordered_map>
 
 namespace seahorn
 {
@@ -42,14 +43,14 @@ namespace seahorn
     friend struct detail::scoped_track_use;
     
   public:
-    typedef boost::shared_ptr<SymStore> SymStorePtr;
-    typedef std::map<Expr,Expr> ExprExprMap;
+    typedef std::shared_ptr<SymStore> SymStorePtr;
+    typedef std::unordered_map<Expr,Expr> ExprExprMap;
     
   protected:
     /// Parent store, if any
     SymStore *m_Parent;
     /// shared pointer for a parent if owned by this object
-    std::shared_ptr<SymStore> m_ownedParent;
+    SymStorePtr m_ownedParent;
     
     
     /// The store
@@ -84,7 +85,7 @@ namespace seahorn
       if (!globalParent)
       {
         // -- create our own parent
-        m_ownedParent.reset (new SymStore (efac, false, true));
+        m_ownedParent = std::make_shared<SymStore> (efac, false, true);
         m_Parent = m_ownedParent.get ();
       }
     }
@@ -108,6 +109,7 @@ namespace seahorn
     
     void swap (SymStore &o);
     void print (llvm::raw_ostream &out);
+    size_t size () {return m_Store.size ();}
     
     
     ExprFactory &getExprFactory () { return m_efac; }

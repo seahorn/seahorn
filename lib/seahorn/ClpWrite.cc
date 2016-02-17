@@ -6,7 +6,7 @@
 #include "boost/algorithm/string/replace.hpp"
 #include "boost/algorithm/string/predicate.hpp"
 #include "avy/AvyDebug.h"
-
+#include <unordered_map>
 
 static llvm::cl::opt<bool>
 PrintClpFapp ("horn-clp-fapp",
@@ -118,7 +118,7 @@ namespace seahorn
 
   };
  
-  typedef boost::unordered_map<Expr,ExprStr> expr_str_map;
+  typedef std::unordered_map<Expr,ExprStr> expr_str_map;
   struct FailPrettyPrinter
   {
     template <typename C>

@@ -23,7 +23,7 @@ namespace expr
 	
 	size_t hash () const
 	{
-	  boost::hash<unsigned> hasher;
+	  std::hash<unsigned> hasher;
 	  return hasher (m_width);
 	}
 	

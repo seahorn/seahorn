@@ -29,15 +29,16 @@ DM-0002198
 #include <iostream>
 #include <iomanip>
 #include <string>
+#include <functional>
+#include "boost/functional/hash_fwd.hpp"
+#include <unordered_set>
+#include <unordered_map>
 
 #include <gmpxx.h>
 
 /** boost */
 #include <boost/shared_ptr.hpp>
 #include <boost/intrusive_ptr.hpp>
-#include <boost/functional/hash.hpp>
-#include <boost/unordered_map.hpp>
-#include <boost/unordered_set.hpp>
 #include <boost/interprocess/containers/flat_set.hpp>
 #include <boost/range/iterator_range.hpp>
 #include <boost/range/adaptor/reversed.hpp>
@@ -360,9 +361,9 @@ namespace expr
     // -- type of unique table entry
     typedef std::set<ENode*,LessENode> unique_entry_type;
 #else
-    typedef boost::unordered_set<ENode*, 
-     				 ENodeUniqueHash, 
-				 ENodeUniqueEqual> unique_entry_type;
+    typedef std::unordered_set<ENode*, 
+                               ENodeUniqueHash, 
+                               ENodeUniqueEqual> unique_entry_type;
 #endif
     typedef const char* unique_key_type;
     // -- type of the unique table
@@ -697,7 +698,7 @@ namespace expr
     { return s1 == s2; }
     static inline size_t hash (const std::string &s)
     {
-      boost::hash<const std::string> hasher;
+      std::hash<std::string> hasher;
       return hasher (s);
     }
     
@@ -713,7 +714,7 @@ namespace expr
     { return i1 == i2; }
     static inline size_t hash (int i)
     {
-      boost::hash<int> hasher;
+      std::hash<int> hasher;
       return hasher (i);
     }
   };
@@ -729,7 +730,7 @@ namespace expr
     { return i1 == i2; }
     static inline size_t hash (unsigned int i)
     {
-      boost::hash<unsigned int> hasher;
+      std::hash<unsigned int> hasher;
       return hasher (i);
     }
   };
@@ -747,7 +748,7 @@ namespace expr
     }
     static inline size_t hash (unsigned long i)
     {
-      boost::hash<unsigned long> hasher;
+      std::hash<unsigned long> hasher;
       return hasher (i);
     }
   };
@@ -768,7 +769,7 @@ namespace expr
     static inline size_t hash (const mpz_class &v)
     {
       std::string str = boost::lexical_cast<std::string> (v);
-      boost::hash<std::string> hasher;
+      std::hash<std::string> hasher;
       return hasher (str);
     }
     
@@ -794,7 +795,7 @@ namespace expr
     static inline size_t hash (const mpq_class &v)
     {
       std::string str = boost::lexical_cast<std::string> (v);
-      boost::hash<std::string> hasher;
+      std::hash<std::string> hasher;
       return hasher (str);
     }    
   };
@@ -964,7 +965,7 @@ namespace expr
   inline size_t typeHash (const Operator *op)
   {
     if (op == NULL) return 0;
-    boost::hash<void*> hasher;
+    std::hash<void*> hasher;
     return hasher (static_cast<void*>(const_cast<char*> (typeid (*op).name ())));
   }
   
@@ -1132,7 +1133,7 @@ namespace expr
   };
 
 
-  typedef boost::unordered_map<ENode*,Expr> DagVisitCache;
+  typedef std::unordered_map<ENode*,Expr> DagVisitCache;
 
   template <typename ExprVisitor> 
   Expr visit (ExprVisitor &v, Expr expr, DagVisitCache &cache)
@@ -2390,7 +2391,7 @@ namespace expr
 	
 	size_t hash () const
 	{
-	  boost::hash<unsigned> hasher;
+	  std::hash<unsigned> hasher;
 	  return hasher (var);
 	}
 	
@@ -2929,14 +2930,28 @@ namespace expr
 {
   inline size_t hash_value (Expr e)
   {
-    boost::hash<ENode*> hasher;
+    std::hash<ENode*> hasher;
     return hasher (e.get ());
   }
 }
 
+/// implement boost::hash
 namespace boost
 {
   template<> struct hash<expr::Expr> : 
+    public std::unary_function<expr::Expr, std::size_t>
+  {
+    std::size_t operator() (const expr::Expr &v) const
+    {
+      return expr::hash_value (v);
+    }
+  };
+}
+
+/// implement std::hash
+namespace std
+{
+  template<> struct hash<expr::Expr> :
     public std::unary_function<expr::Expr, std::size_t>
   {
     std::size_t operator() (const expr::Expr &v) const

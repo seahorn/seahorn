@@ -31,11 +31,13 @@ DM-0002198
 
 #include <sstream>
 
+#include <unordered_map>
+#include <unordered_set>
+
 #include <boost/range/algorithm/sort.hpp>
 #include <boost/range/algorithm/copy.hpp>
 #include <boost/bimap.hpp>
 #include <boost/bimap/unordered_set_of.hpp>
-#include <boost/unordered_map.hpp>
 #include <boost/logic/tribool.hpp>
 #include <boost/lexical_cast.hpp>
 
@@ -48,7 +50,7 @@ namespace z3
   {
     std::size_t operator() (const ast &ast) const
     {
-      boost::hash<Z3_ast> hasher;
+      std::hash<Z3_ast> hasher;
       return hasher (static_cast<Z3_ast> (ast));
     }
   };
@@ -200,10 +202,10 @@ namespace ufo
 namespace ufo
 {
 
-  typedef boost::unordered_map<z3::ast, Expr, z3::ast_ptr_hash,
-			       z3::ast_ptr_equal_to> ast_expr_map;
+  typedef std::unordered_map<z3::ast, Expr, z3::ast_ptr_hash,
+                             z3::ast_ptr_equal_to> ast_expr_map;
 
-  typedef boost::unordered_map<Expr,z3::ast> expr_ast_map;
+  typedef std::unordered_map<Expr,z3::ast> expr_ast_map;
 
   template <typename Z> class ZSolver;
   template <typename Z> class ZModel;
@@ -262,7 +264,7 @@ namespace ufo
 
     ExprFactory &get_efac () { return efac; }
 
-    typedef boost::unordered_set<Z3_func_decl> Z3_func_decl_set;
+    typedef std::unordered_set<Z3_func_decl> Z3_func_decl_set;
 
     void allDecls (Z3_ast a, Z3_func_decl_set &seen)
     {

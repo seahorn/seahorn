@@ -106,6 +106,11 @@ StripExtern ("strip-extern", llvm::cl::desc ("Replace external functions by nond
               llvm::cl::init (false));
 
 static llvm::cl::opt<bool>
+LowerInvoke ("lower-invoke", 
+             llvm::cl::desc ("Lower all invoke instructions"),
+             llvm::cl::init (false));
+
+static llvm::cl::opt<bool>
 DevirtualizeFuncs ("devirt-functions", 
                    llvm::cl::desc ("Devirtualize indirect calls using only types"),
                    llvm::cl::init (false));
@@ -269,6 +274,14 @@ int main(int argc, char **argv) {
   pass_manager.add(llvm::createDeadInstEliminationPass());
   pass_manager.add (new seahorn::RemoveUnreachableBlocksPass ());
 
+  if (LowerInvoke) 
+  {
+    // -- lower invoke's
+    pass_manager.add(llvm::createLowerInvokePass());
+    // cleanup after lowering invoke's
+    pass_manager.add (llvm::createCFGSimplificationPass ());  
+  }
+  
   if (InlineAll)
   {
     pass_manager.add (seahorn::createMarkInternalInlinePass ());

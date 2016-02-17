@@ -6,6 +6,8 @@
 
 #include "llvm/Support/raw_ostream.h"
 
+#include <map>
+
 namespace seahorn
 {
   using namespace expr;
@@ -122,8 +124,8 @@ namespace seahorn
     Expr eval (Expr exp) { return expr::dagVisit (m_evalVisitor, exp); }
     Expr operator() (Expr exp) { return eval (exp); }
     
-    typedef ExprMap::iterator iterator;
-    typedef ExprMap::const_iterator const_iterator;
+    typedef ExprExprMap::iterator iterator;
+    typedef ExprExprMap::const_iterator const_iterator;
     iterator begin () { return m_Store.begin (); }
     iterator end () { return m_Store.end (); }
     const_iterator begin () const { return m_Store.begin (); }

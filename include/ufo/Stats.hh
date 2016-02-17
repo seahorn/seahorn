@@ -183,13 +183,16 @@ namespace ufo
     const char* m_msg;
     Output &m_out;
     Stopwatch m_sw;
+    double m_min;
     
   public:
-    TimeIt (const char *msg, Output out) : m_msg (msg), m_out (out) {}
+    TimeIt (const char *msg, Output out, double min = 0.0) :
+      m_msg (msg), m_out (out), m_min (min) {}
     ~TimeIt () 
     {
       m_sw.stop ();
-      m_out << "TimeIt: " << m_msg << " " << m_sw << "\n";
+      if (m_sw.toSeconds () >= m_min)
+        m_out << "TimeIt: " << m_msg << " " << m_sw << "\n";
     }
     
   };

@@ -84,10 +84,12 @@ namespace
     /// side-condition
     ExprVector m_side;
 
-    boost::shared_ptr<BvIntRewriter> m_r;
+    std::shared_ptr<BvIntRewriter> m_r;
     
     BVINTABS (const BVINTABS &o) : m_efac (o.m_efac), m_r(o.m_r) {}
-    BVINTABS (ExprFactory &efac) : m_efac (efac), m_r (new BvIntRewriter (m_efac)) {}
+    BVINTABS (ExprFactory &efac) : m_efac (efac),
+                                   m_r(std::make_shared<BvIntRewriter> (m_efac)) {}
+    
     
     
     Expr side () {return mknary<AND>(mk<TRUE> (m_efac), m_side);}

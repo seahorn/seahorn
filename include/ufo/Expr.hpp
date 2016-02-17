@@ -33,11 +33,11 @@ DM-0002198
 #include "boost/functional/hash_fwd.hpp"
 #include <unordered_set>
 #include <unordered_map>
+#include <memory>
 
 #include <gmpxx.h>
 
 /** boost */
-#include <boost/shared_ptr.hpp>
 #include <boost/intrusive_ptr.hpp>
 #include <boost/interprocess/containers/flat_set.hpp>
 #include <boost/range/iterator_range.hpp>
@@ -139,7 +139,7 @@ namespace expr
     ExprFactory *fac;
     std::vector<ENode*> args;
 
-    boost::shared_ptr<Operator> oper;
+    std::shared_ptr<Operator> oper;
     
     
     void Deref () { if (count > 0) count--; }
@@ -1069,7 +1069,7 @@ namespace expr
     template <typename T>
     struct ExprFunctionoid : public ExprFn
     {
-      typedef boost::shared_ptr<T> fn_type;
+      typedef std::shared_ptr<T> fn_type;
 
       fn_type fn;
 
@@ -1088,16 +1088,13 @@ namespace expr
     // skipKids or doKids
     VisitAction (bool kids = false) : 
       _skipKids (kids), fn (new ExprFunctionoid<IdentityRewriter> 
-			   (boost::shared_ptr<IdentityRewriter> 
-			    (new IdentityRewriter ()))) {};
+                            (std::make_shared<IdentityRewriter> ())) {}
     
     // changeTo or doKidsRewrite
     template <typename R>
     VisitAction (Expr e, bool kids = false, 
-		 boost::shared_ptr<R> r = 
-		 boost::shared_ptr<IdentityRewriter> 
-		 (new IdentityRewriter ())) :
-      _skipKids(kids), expr(e), fn(new ExprFunctionoid<R> (r)) {}
+		 std::shared_ptr<R> r = std::make_shared<IdentityRewriter> ()) :
+                 _skipKids(kids), expr(e), fn(new ExprFunctionoid<R> (r)) {}
     
     bool isSkipKids () { return _skipKids && expr.get () == NULL; }
     bool isChangeTo () { return _skipKids && expr.get () != NULL; }
@@ -1111,25 +1108,20 @@ namespace expr
     static inline VisitAction skipKids () { return VisitAction (true); }
     static inline VisitAction doKids () { return VisitAction (false); }
     static inline VisitAction changeTo (Expr e) 
-    { return VisitAction (e, true, 
-			  boost::shared_ptr<IdentityRewriter> 
-			  (new IdentityRewriter())); 
-    }
+    { return VisitAction (e, true, std::make_shared<IdentityRewriter> ());}
+    
     static inline VisitAction changeDoKids (Expr e) 
-    { return VisitAction (e, false, 
-			  boost::shared_ptr<IdentityRewriter> 
-			  (new IdentityRewriter())); 
-    }
+    { return VisitAction (e, false, std::make_shared<IdentityRewriter> ());}
+    
     template <typename R> 
-    static inline VisitAction changeDoKidsRewrite 
-    (Expr e, boost::shared_ptr<R> r) 
+    static inline VisitAction changeDoKidsRewrite (Expr e, std::shared_ptr<R> r) 
     { return VisitAction (e, false, r); }
 
   protected:
     bool _skipKids;
     Expr expr;
   private:
-    boost::shared_ptr<ExprFn> fn;
+    std::shared_ptr<ExprFn> fn;
   };
 
 
@@ -1840,11 +1832,12 @@ namespace expr
       struct NNF : public std::unary_function<Expr,VisitAction>
       {
 	ExprFactory &efac;
-	boost::shared_ptr<TrivialSimplifier> r;
+	std::shared_ptr<TrivialSimplifier> r;
 
 	NNF (const NNF &o) : efac (o.efac), r (o.r) {}
 
-	NNF (ExprFactory &fac) : efac (fac), r (new TrivialSimplifier (efac)) {}
+	NNF (ExprFactory &fac) : efac (fac),
+                                 r (std::make_shared<TrivialSimplifier> (efac)) {}
 	
 	VisitAction operator() (Expr exp)
 	{
@@ -2488,11 +2481,11 @@ namespace expr
       Expr s;
       Expr t;
 
-      boost::shared_ptr<boolop::TrivialSimplifier> r;
+      std::shared_ptr<boolop::TrivialSimplifier> r;
 
       RAVSIMP (const RAVSIMP &o) : s(o.s), t(o.t), r(o.r) {}
       RAVSIMP (Expr _s, Expr _t) : 
-	s(_s), t(_t), r(new boolop::TrivialSimplifier (s->efac ())) {}
+	s(_s), t(_t), r(std::make_shared<boolop::TrivialSimplifier> (s->efac ())) {}
 
       VisitAction operator() (Expr exp) const
       { 
@@ -2554,14 +2547,14 @@ namespace expr
       
       const M &map;
 
-      boost::shared_ptr<boolop::TrivialSimplifier> r;
+      std::shared_ptr<boolop::TrivialSimplifier> r;
 
       typedef RVSIMP<M> this_type;
       
       RVSIMP (const this_type &o) : map (o.map), r (o.r) {}
       RVSIMP (ExprFactory &fac, const M &m) : 
 	map (m), 
-	r (new boolop::TrivialSimplifier (fac)) 
+	r (std::make_shared<boolop::TrivialSimplifier> (fac)) 
       {}
 
       VisitAction operator() (Expr exp) const
@@ -2617,12 +2610,12 @@ namespace expr
     template <typename T>
     struct RW : public std::unary_function<Expr,VisitAction>
     {
-      boost::shared_ptr<T> _r;
+      std::shared_ptr<T> _r;
       
       typedef RW<T> this_type;
       
       RW (const this_type &o) : _r (o._r) {}
-      RW(boost::shared_ptr<T> r) : _r(r) {}
+      RW(std::shared_ptr<T> r) : _r(r) {}
 
       VisitAction operator() (Expr exp)
       {
@@ -2638,7 +2631,7 @@ namespace expr
 
   /** Applies a rewriter */
   template <typename T>
-  Expr rewrite (boost::shared_ptr<T> r, Expr e)
+  Expr rewrite (std::shared_ptr<T> r, Expr e)
   {
     RW<T> rw(r);
     return dagVisit (rw, e);
@@ -2767,9 +2760,9 @@ namespace expr
 	template<typename T>
 	struct BS
 	{
-	  boost::shared_ptr<T> _r;
+	  std::shared_ptr<T> _r;
 	  
-	  BS (boost::shared_ptr<T> r) : _r(r) {}
+	  BS (std::shared_ptr<T> r) : _r(r) {}
 	  BS (T *r) : _r (r) {}
 	  
 
@@ -2790,7 +2783,7 @@ namespace expr
        */
       inline Expr simplify (Expr exp)
       {
-	BS<TrivialSimplifier> bs(new TrivialSimplifier (exp->efac ()));
+	BS<TrivialSimplifier> bs(std::make_shared<TrivialSimplifier> (exp->efac ()));
 	return dagVisit (bs, exp);
       }  
 

@@ -492,7 +492,7 @@ namespace crab_llvm
     Expr exprFromCons(lincons_t lincons, theory_t *theory, ExprFactory &efac)
     {
       Expr lhs = exprFromTerm(theory->get_term(lincons), theory, efac);
-      if (!lhs) lhs; 
+      if (!lhs) return lhs; 
       
       Expr rhs = exprFromIntCst(theory->get_constant(lincons), theory, efac);
       return theory->is_strict (lincons) ? mk<LT>(lhs, rhs) : mk<LEQ>(lhs, rhs);

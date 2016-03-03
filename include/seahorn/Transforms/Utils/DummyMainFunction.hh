@@ -8,18 +8,25 @@ namespace seahorn
 {
   using namespace llvm;
   
-  struct DummyMainFunction : public ModulePass
+  class DummyMainFunction : public ModulePass
   {
-    static char ID;
-    std::string m_main;
+    DenseMap<const Type*, Constant*> m_ndfn;
 
-    DummyMainFunction (std::string main = "") : 
-      ModulePass (ID), m_main (main) {}
+    Function& makeNewNondetFn (Module &m, Type &type, unsigned num, std::string prefix);
+    Constant* getNondetFn (Type *type, Module&M);
+
+   public:
+
+    static char ID;
+    
+    DummyMainFunction () : ModulePass (ID) {}
     
     bool runOnModule (Module &M);
 
-    void getAnalysisUsage (AnalysisUsage &AU)
-   {AU.setPreservesAll ();}
+    void getAnalysisUsage (AnalysisUsage &AU);
+    
+    virtual const char* getPassName () const 
+    {return "Add dummy main function";}
   };
 }
 

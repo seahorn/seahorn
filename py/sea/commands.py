@@ -186,7 +186,7 @@ class Seapp(sea.LimitedCmd):
             argv.append ('--null-check')
 
         if args.entry is not None:
-            argv.append ('--entry-point=\"{0}\"'.format (args.entry))
+            argv.append ('--entry-point={0}'.format (args.entry))
 
         if args.kill_vaarg:
             argv.append('--kill-vaarg=true')

@@ -54,6 +54,11 @@ IgnoreCalloc ("horn-ignore-calloc",
               cl::init (false),
               cl::Hidden);
 
+static llvm::cl::opt<bool>
+SplitCriticalEdgesOnly ("horn-split-only-critical",
+              llvm::cl::desc ("Introduce edge variables only for critical edges"),
+              cl::init (true),
+              cl::Hidden);
 
 static const Value *extractUniqueScalar (CallSite &cs)
 {
@@ -1211,35 +1216,40 @@ namespace seahorn
     // -- update constant representing current bb
     Expr bbV = s.havoc (m_sem.symb (bb));
     
-    Expr predBbV;
     // -- update destination of all the edges
-    if (preds.size () == 1)
+
+    if (SplitCriticalEdgesOnly)
     {
-      // -- if bb has a unique predecessor, than reachability of bbV
-      // -- implies that the unique edge has been taken. In this case,
-      // -- there is no need for an additional edge variable.
-      predBbV = edges [0];
-      edges [0] = bbV;
+      // -- create edge variables only for critical edges.
+      // -- for non critical edges, use (SRC && DST) instead
+      
+      for (unsigned i = 0, e = preds.size (); i < e; ++i)
+      {
+        // -- an edge is non-critical if dst has one predecessor, or src
+        // -- has one successor
+        if (e == 1 || preds [i]->getTerminator ()->getNumSuccessors () == 1)
+          // -- single successor is non-critical
+          edges [i] = mk<AND> (bbV, edges [i]);
+        else // -- critical edge, add edge variable
+        {
+          Expr edgV = bind::boolConst (mk<TUPLE> (edges [i], bbV));
+          side.push_back (mk<IMPL> (edgV, edges [i]));
+          edges [i] = mk<AND> (edges [i], edgV);
+        }
+      }
     }
-    
     else
+    {
       // -- b_i & e_{i,j}
       for (Expr &e : edges) e = mk<AND> (e, bind::boolConst (mk<TUPLE> (e, bbV)));
-     
+    }
+    
 
     // -- encode control flow
     // -- b_j -> (b1 & e_{1,j} | b2 & e_{2,j} | ...)
-    if (preds.size () > 1)
-      side.push_back (mk<IMPL> (bbV, 
-                                mknary<OR> 
-                                (mk<FALSE> (m_sem.getExprFactory ()), edges)));
-    else if (preds.size () == 1)
-    {
-      assert (predBbV);
-      side.push_back (mk<IMPL> (bbV, predBbV));
-    }
-    
-    
+    side.push_back (mk<IMPL> (bbV, 
+                              mknary<OR> 
+                              (mk<FALSE> (m_sem.getExprFactory ()), edges)));
       
     // unique node with no successors is asserted to always be reachable
     if (last) side.push_back (bbV);

@@ -37,7 +37,6 @@
 
 #include "seahorn/Analysis/CanAccessMemory.hh"
 #include "seahorn/Transforms/Scalar/LowerCstExpr.hh"
-#include "seahorn/Transforms/Instrumentation/ShadowBufferBoundsCheckFuncPars.hh"
 #include "seahorn/Transforms/Instrumentation/BufferBoundsCheck.hh"
 #include "seahorn/Transforms/Instrumentation/IntegerOverflowCheck.hh"
 #include "seahorn/Transforms/Instrumentation/NullCheck.hh"
@@ -106,6 +105,10 @@ static llvm::cl::opt<bool>
 StripExtern ("strip-extern", llvm::cl::desc ("Replace external functions by nondet"),
               llvm::cl::init (false));
 
+static llvm::cl::opt<bool>
+LowerInvoke ("lower-invoke", 
+             llvm::cl::desc ("Lower all invoke instructions"),
+             llvm::cl::init (false));
 
 static llvm::cl::opt<bool>
 DevirtualizeFuncs ("devirt-functions", 
@@ -270,6 +273,14 @@ int main(int argc, char **argv) {
   
   pass_manager.add(llvm::createDeadInstEliminationPass());
   pass_manager.add (new seahorn::RemoveUnreachableBlocksPass ());
+
+  if (LowerInvoke) 
+  {
+    // -- lower invoke's
+    pass_manager.add(llvm::createLowerInvokePass());
+    // cleanup after lowering invoke's
+    pass_manager.add (llvm::createCFGSimplificationPass ());  
+  }
   
   if (InlineAll)
   {
@@ -290,12 +301,9 @@ int main(int argc, char **argv) {
   { 
     pass_manager.add (new seahorn::LowerCstExprPass ());
     pass_manager.add (new seahorn::CanAccessMemory ());
-    if (!InlineAll)
-      pass_manager.add (new seahorn::ShadowBufferBoundsCheckFuncPars ());
-    pass_manager.add (new seahorn::BufferBoundsCheck (InlineAll));
-    // -- Turn undef into nondet (undef are created by
-    // -- ShadowBufferBoundsCheckFuncPars that cannot be resolved by
-    // -- BufferBoundsCheck)
+    pass_manager.add (new seahorn::BufferBoundsCheck ());
+    // -- Turn undef into nondet (undef might be created by
+    //    BufferBoundsCheck)
     pass_manager.add (seahorn::createNondetInitPass ());
   }
 

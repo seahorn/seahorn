@@ -492,7 +492,7 @@ namespace crab_llvm
     Expr exprFromCons(lincons_t lincons, theory_t *theory, ExprFactory &efac)
     {
       Expr lhs = exprFromTerm(theory->get_term(lincons), theory, efac);
-      if (!lhs) lhs; 
+      if (!lhs) return lhs; 
       
       Expr rhs = exprFromIntCst(theory->get_constant(lincons), theory, efac);
       return theory->is_strict (lincons) ? mk<LT>(lhs, rhs) : mk<LEQ>(lhs, rhs);
@@ -665,7 +665,9 @@ namespace seahorn
 
       // Here we do project onto live variables before translation
       vector<varname_t> vars = ExprVecToCrab (live, crab);
-      crab::domain_traits::project (boxes, vars.begin (), vars.end ());
+      crab::domains::domain_traits<boxes_domain_t>::project (boxes, 
+                                                             vars.begin (), 
+                                                             vars.end ());
 
       LDDToExpr t = LDDToExpr (&boxes);
       e = t.toExpr (boxes.getLdd (), efac);
@@ -677,7 +679,9 @@ namespace seahorn
 
       // Here we do project onto live variables before translation
       vector<varname_t> vars = ExprVecToCrab (live, crab);
-      crab::domain_traits::project (boxes, vars.begin (), vars.end ());
+      crab::domains::domain_traits<boxes_domain_t>::project (boxes, 
+                                                             vars.begin (),
+                                                             vars.end ());
 
       LDDToExpr t = LDDToExpr (&boxes);
       e = t.toExpr (boxes.getLdd (), efac);

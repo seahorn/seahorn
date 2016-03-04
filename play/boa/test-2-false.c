@@ -5,7 +5,7 @@ int main(int argc, char**argv)
   int a[10];
   for (i = 0; i < 10; i++) 
   {
-    a[i] = i;
+    a[i+1] = 9999;
   }
   printf("%d\n", a[i]);
   return 42;

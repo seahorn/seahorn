@@ -138,6 +138,10 @@ class Seapp(sea.LimitedCmd):
                          help='Externalize uses of address-taken functions',
                          dest='enable_ext_funcs', default=False,
                          action='store_true')
+        ap.add_argument ('--lower-invoke',
+                         help='Lower invoke instructions',
+                         dest='lower_invoke', default=False,
+                         action='store_true')
         ap.add_argument ('--devirt-functions',
                          help='Devirtualize indirect functions',
                          dest='devirt_funcs', default=False,
@@ -165,6 +169,9 @@ class Seapp(sea.LimitedCmd):
         else:
             argv.append ('--strip-extern=false')
 
+        if args.lower_invoke:
+            argv.append ('--lower-invoke')
+
         if args.devirt_funcs:
             argv.append ('--devirt-functions')
             
@@ -179,7 +186,7 @@ class Seapp(sea.LimitedCmd):
             argv.append ('--null-check')
 
         if args.entry is not None:
-            argv.append ('--entry-point=\"{0}\"'.format (args.entry))
+            argv.append ('--entry-point={0}'.format (args.entry))
 
         if args.kill_vaarg:
             argv.append('--kill-vaarg=true')

@@ -31,6 +31,7 @@ namespace seahorn
     bool canAccess (const Function *f) const;
     bool mustAccess (const Function *f) const
     {return m_must.count (f) > 0;}
+    virtual const char* getPassName () const {return "CanAccessMemory";}
     
   };
 }

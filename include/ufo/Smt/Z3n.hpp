@@ -1,3 +1,21 @@
+/**
+SeaHorn Verification Framework
+Copyright (c) 2015 Carnegie Mellon University.
+All Rights Reserved.
+
+THIS SOFTWARE IS PROVIDED "AS IS," WITH NO WARRANTIES
+WHATSOEVER. CARNEGIE MELLON UNIVERSITY EXPRESSLY DISCLAIMS TO THE
+FULLEST EXTENT PERMITTEDBY LAW ALL EXPRESS, IMPLIED, AND STATUTORY
+WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, AND
+NON-INFRINGEMENT OF PROPRIETARY RIGHTS.
+
+Released under a modified BSD license, please see license.txt for full
+terms.
+
+DM-0002198
+*/
+
 #ifndef __UFO_Z3N_HPP_
 #define __UFO_Z3N_HPP_
 /**
@@ -7,24 +25,19 @@
 
 #include "z3.h"
 
-#ifdef forall
-#undef forall
-#endif
 
 #include "z3++.h"
 
-#ifndef forall
-#define forall BOOST_FOREACH
-#endif
 
 #include <sstream>
 
-#include <boost/range.hpp>
+#include <unordered_map>
+#include <unordered_set>
+
 #include <boost/range/algorithm/sort.hpp>
 #include <boost/range/algorithm/copy.hpp>
 #include <boost/bimap.hpp>
 #include <boost/bimap/unordered_set_of.hpp>
-#include <boost/unordered_map.hpp>
 #include <boost/logic/tribool.hpp>
 #include <boost/lexical_cast.hpp>
 
@@ -37,7 +50,7 @@ namespace z3
   {
     std::size_t operator() (const ast &ast) const
     {
-      boost::hash<Z3_ast> hasher;
+      std::hash<Z3_ast> hasher;
       return hasher (static_cast<Z3_ast> (ast));
     }
   };
@@ -118,7 +131,7 @@ namespace ufo
     z3::ast_vector pinned (ctx);
 
     size_t cnt = 0;
-    forall (Expr var, vars)
+    for (Expr var : vars)
       {
 	z3::ast a (z3.toAst (var));
 	pinned.push_back (a);
@@ -189,10 +202,10 @@ namespace ufo
 namespace ufo
 {
 
-  typedef boost::unordered_map<z3::ast, Expr, z3::ast_ptr_hash,
-			       z3::ast_ptr_equal_to> ast_expr_map;
+  typedef std::unordered_map<z3::ast, Expr, z3::ast_ptr_hash,
+                             z3::ast_ptr_equal_to> ast_expr_map;
 
-  typedef boost::unordered_map<Expr,z3::ast> expr_ast_map;
+  typedef std::unordered_map<Expr,z3::ast> expr_ast_map;
 
   template <typename Z> class ZSolver;
   template <typename Z> class ZModel;
@@ -251,7 +264,7 @@ namespace ufo
 
     ExprFactory &get_efac () { return efac; }
 
-    typedef boost::unordered_set<Z3_func_decl> Z3_func_decl_set;
+    typedef std::unordered_set<Z3_func_decl> Z3_func_decl_set;
 
     void allDecls (Z3_ast a, Z3_func_decl_set &seen)
     {
@@ -288,7 +301,7 @@ namespace ufo
       Z3_func_decl_set seen;
       z3::ast a (toAst (e));
       allDecls (static_cast<Z3_ast>(a), seen);
-      forall (Z3_func_decl fdecl, seen)
+      for (Z3_func_decl fdecl : seen)
 	out << Z3_func_decl_to_string (ctx, fdecl) << "\n";
       return out.str ();
     }
@@ -490,11 +503,11 @@ namespace ufo
       assertions (std::back_inserter (asserts));
       out << z3.toSmtLibDecls (asserts);
       out << "\n";
-      forall (const Expr &a, asserts)
+      for (const Expr &a : asserts)
         out << "(assert " << z3.toSmtLib (a) << ")\n";
 
       out << "(check-sat";
-      forall (const Expr &a, rng) out << " " << *a;
+      for (const Expr &a : rng) out << " " << *a;
       out << ")\n";
       return out;
     }
@@ -508,7 +521,7 @@ namespace ufo
       z3::ast ast (z3.toAst (body));
       std::vector<Z3_app> bound;
       bound.reserve (boost::size (vars));
-      forall (const Expr &v, vars)
+      for (const Expr &v : vars)
 	bound.push_back (Z3_to_app (ctx, z3.toAst (v)));
 
       Z3_ast forall = Z3_mk_forall_const (ctx, 0,
@@ -547,7 +560,7 @@ namespace ufo
     boost::tribool solveAssuming (const Range &lits)
     {
       z3::ast_vector av (ctx);
-      forall (Expr a, lits) av.push_back (z3.toAst (a));
+      for (Expr a : lits) av.push_back (z3.toAst (a));
 
       std::vector<Z3_ast> raw_av (av.size ());
       for (unsigned i = 0; i < av.size (); ++i)
@@ -648,7 +661,7 @@ namespace ufo
         std::vector<Z3_app> bound (boost::distance(vars));
 
         size_t cnt = 0;
-        forall (Expr v, vars)
+        for (Expr v : vars)
         {
           z3::ast zv (z3.toAst (v));
           pinned.push_back (zv);
@@ -756,7 +769,7 @@ namespace ufo
     template <typename OutputStream>
     friend OutputStream &operator<< (OutputStream &out, this_type &fp)
     {
-      forall (Expr decl, fp.m_rels)
+      for (Expr decl : fp.m_rels)
       {
         out << "(declare-rel " << *bind::fname (decl) << " (";
         for (unsigned i = 0; i < bind::domainSz (decl); i++)
@@ -783,7 +796,7 @@ namespace ufo
       }
 
 
-      forall (const Expr &v, fp.getVars ())
+      for (const Expr &v : fp.getVars ())
       {
         out << "(declare-var " << fp.z3.toSmtLib (v) << " ";
         Expr ty = bind::typeOf (v);
@@ -805,7 +818,7 @@ namespace ufo
         out << ")\n";
       }
 
-      forall (Expr &rule, fp.m_rules)
+      for (Expr &rule : fp.m_rules)
 	out << "(rule " << fp.z3.toSmtLib (rule) << ")\n";
 
       for (auto q: fp.m_queries)
@@ -980,7 +993,7 @@ namespace ufo
 	ZModel<Z> m = s.getModel ();
 
 	Expr cube = mk<TRUE> (e->efac ());
-	forall (Expr t, terms)
+	for (Expr t : terms)
 	  {
 	    Expr v = m.eval (t);
 	    if (isOpX<TRUE> (v)) cube = boolop::land (cube, t);

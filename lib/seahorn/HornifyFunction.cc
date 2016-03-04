@@ -3,6 +3,7 @@
 #include "seahorn/Support/CFG.hh"
 #include "seahorn/Support/ExprSeahorn.hh"
 
+#include "ufo/Stats.hh"
 namespace seahorn
 {
   
@@ -260,7 +261,8 @@ namespace seahorn
 
   void LargeHornifyFunction::runOnFunction (Function &F)
   {
-
+    ScopedStats _st_("LargeHornifyFunction");
+    
     const BasicBlock *exit = findExitBlock (F);
     if (!exit)
     {

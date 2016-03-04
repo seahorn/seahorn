@@ -47,6 +47,7 @@ namespace seahorn
   
   bool HornWrite::runOnModule (Module &M)
   {
+    ScopedStats _st_("HornWrite");
     HornifyModule &hm = getAnalysis<HornifyModule> ();
     HornClauseDB &db  = hm.getHornClauseDB ();
     ExprFactory &efac = hm.getExprFactory ();

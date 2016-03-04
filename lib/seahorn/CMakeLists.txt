@@ -16,6 +16,8 @@ add_llvm_library (seahorn.LIB
   HornClauseDBTransf.cc
   Bmc.cc
   BmcPass.cc
+  BvSymExec.cc
+  BvInt.cc
   ZOption.cc
   )
 
@@ -31,12 +33,3 @@ endif()
 
 set_target_properties (seahorn.LIB PROPERTIES OUTPUT_NAME "seahorn")
 
-add_llvm_library(seabmc.LIB
-  SymStore.cc
-  LiveSymbols.cc
-  SymExec.cc
-  UfoSymExec.cc
-  ZOption.cc
-  )
-
-set_target_properties (seabmc.LIB PROPERTIES OUTPUT_NAME "seabmc")

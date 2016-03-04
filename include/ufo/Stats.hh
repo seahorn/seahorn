@@ -176,6 +176,26 @@ namespace ufo
   //   auto_timer (const std::string &name) : n(name) { Stats::resume (n); }
   //   ~auto_timer () { Stats::stop (n); }
   // };
+
+  template <typename Output>
+  class TimeIt
+  {
+    const char* m_msg;
+    Output &m_out;
+    Stopwatch m_sw;
+    double m_min;
+    
+  public:
+    TimeIt (const char *msg, Output out, double min = 0.0) :
+      m_msg (msg), m_out (out), m_min (min) {}
+    ~TimeIt () 
+    {
+      m_sw.stop ();
+      if (m_sw.toSeconds () >= m_min)
+        m_out << "TimeIt: " << m_msg << " " << m_sw << "\n";
+    }
+    
+  };
   
   class ScopedStats 
   {
@@ -196,6 +216,8 @@ namespace ufo
 
 }
 
+#define SEA_MEASURE_FN ufo::ScopedStats __stats__(__FUNCTION__)
+#define SEA_MEASURE_FN_LAST ufo::ScopedStats __stats_last__(__FUNCTION__, true)
 
 
 #endif

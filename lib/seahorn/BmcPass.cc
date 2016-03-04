@@ -29,6 +29,7 @@ DM-0002198
 
 #include "seahorn/Bmc.hh"
 #include "seahorn/UfoSymExec.hh"
+#include "seahorn/BvSymExec.hh"
 
 #include "seahorn/Analysis/CanFail.hh"
 
@@ -88,7 +89,7 @@ namespace
 
       
       ExprFactory efac;
-      UfoSmallSymExec sem (efac, *this, MEM);
+      BvSmallSymExec sem (efac, *this, MEM);
       
       EZ3 zctx (efac);
       BmcEngine bmc (sem, zctx);
@@ -103,8 +104,10 @@ namespace
       
       if (!m_solve) return false;
       
+      Stats::resume ("BMC");
       auto res = bmc.solve ();
-      
+      Stats::stop ("BMC");
+     
       if (res) outs () << "sat";
       else if (!res) outs () << "unsat";
       else outs () << "unknown";
@@ -116,7 +119,9 @@ namespace
       LOG ("bmc",
            ExprVector core;
            if (!res) bmc.unsatCore (core);
+           errs () << "CORE BEGIN\n";
            for (auto c : core) errs () << *c << "\n";
+           errs () << "CORE END\n";
            );
       
       LOG ("cex", 

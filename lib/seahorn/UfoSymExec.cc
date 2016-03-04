@@ -1207,19 +1207,39 @@ namespace seahorn
     for (const BasicBlock *pred : preds)
       edges.push_back (s.read (m_sem.symb (*pred)));
       
+    assert (preds.size () == edges.size ());
     // -- update constant representing current bb
     Expr bbV = s.havoc (m_sem.symb (bb));
+    
+    Expr predBbV;
     // -- update destination of all the edges
-    // -- b_i & e_{i,j}
-    for (Expr &e : edges) e = mk<AND> (e, bind::boolConst (mk<TUPLE> (e, bbV)));
+    if (preds.size () == 1)
+    {
+      // -- if bb has a unique predecessor, than reachability of bbV
+      // -- implies that the unique edge has been taken. In this case,
+      // -- there is no need for an additional edge variable.
+      predBbV = edges [0];
+      edges [0] = bbV;
+    }
+    
+    else
+      // -- b_i & e_{i,j}
+      for (Expr &e : edges) e = mk<AND> (e, bind::boolConst (mk<TUPLE> (e, bbV)));
      
 
     // -- encode control flow
-    // -- b_i -> (b1 & e_{1,i} | b2 & e_{2,i} | ...)
-    if (!preds.empty ())
+    // -- b_j -> (b1 & e_{1,j} | b2 & e_{2,j} | ...)
+    if (preds.size () > 1)
       side.push_back (mk<IMPL> (bbV, 
                                 mknary<OR> 
                                 (mk<FALSE> (m_sem.getExprFactory ()), edges)));
+    else if (preds.size () == 1)
+    {
+      assert (predBbV);
+      side.push_back (mk<IMPL> (bbV, predBbV));
+    }
+    
+    
       
     // unique node with no successors is asserted to always be reachable
     if (last) side.push_back (bbV);

@@ -51,6 +51,12 @@ namespace seahorn
   llvm::Pass* createCanReadUndefPass ();
 
   llvm::Pass* createBmcPass (llvm::raw_ostream* out, bool solve);
+
+  llvm::Pass* createProfilerPass();
+  llvm::Pass* createCFGPrinterPass ();
+  llvm::Pass* createCFGOnlyPrinterPass ();
+  llvm::Pass* createCFGViewerPass ();
+  llvm::Pass* createCFGOnlyViewerPass ();
 }
 
 #ifdef HAVE_LLVM_SEAHORN

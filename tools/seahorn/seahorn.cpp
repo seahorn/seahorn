@@ -232,7 +232,6 @@ int main(int argc, char **argv) {
   pass_manager.add(llvm::createDeadCodeEliminationPass());
 
   pass_manager.add(llvm::createUnifyFunctionExitNodesPass ());
-  pass_manager.add (new seahorn::LowerGvInitializers ());
 
   // -- it invalidates DSA passes so it should be run before
   // -- ShadowMemDsa

@@ -23,7 +23,7 @@ namespace expr
 	
 	size_t hash () const
 	{
-	  boost::hash<unsigned> hasher;
+	  std::hash<unsigned> hasher;
 	  return hasher (m_width);
 	}
 	
@@ -66,7 +66,7 @@ namespace expr
       {return mkTerm<const BvSort> (BvSort (width), efac);}
       
       inline unsigned width (Expr bvsort)
-      {return getTerm<const BvSort*>(bvsort)->m_width;}
+      {return getTerm<const BvSort>(bvsort).m_width;}
       
       /// Bit-vector numeral of a given sort
       /// num is an integer numeral, and bvsort is a bit-vector sort
@@ -83,6 +83,14 @@ namespace expr
         return isOpX<BIND> (v) && v->arity () == 2 &&
           isOpX<MPZ> (v->arg (0)) && isOpX<BVSORT> (v->arg (1));
       }
+
+
+      inline Expr bvConst (Expr v, unsigned width)
+      {
+        Expr sort = bvsort (width, v->efac ());
+        return bind::mkConst (v, sort);
+      }
+      
       
     }
     
@@ -113,13 +121,13 @@ namespace expr
     NOP(BSGE,"bvsge",FUNCTIONAL,BvOp)
     NOP(BUGT,"bvugt",FUNCTIONAL,BvOp)
     NOP(BSGT,"bvsgt",FUNCTIONAL,BvOp)
-    NOP(BCONCAT,"bvconcat",FUNCTIONAL,BvOp)
-    NOP(BEXTRACT,"bvextract",FUNCTIONAL,BvOp)
+    NOP(BCONCAT,"concat",FUNCTIONAL,BvOp)
+    NOP(BEXTRACT,"extract",FUNCTIONAL,BvOp)
     NOP(BSEXT,"bvsext",FUNCTIONAL,BvOp)
     NOP(BZEXT,"bvzext",FUNCTIONAL,BvOp)
     NOP(BREPEAT,"bvrepeat",FUNCTIONAL,BvOp)
     NOP(BSHL,"bvshl",FUNCTIONAL,BvOp)
-    NOP(BSHR,"bvshr",FUNCTIONAL,BvOp)
+    NOP(BLSHR,"bvlshr",FUNCTIONAL,BvOp)
     NOP(BASHR,"bvashr",FUNCTIONAL,BvOp)
     NOP(BROTATE_LEFT,"bvrotleft",FUNCTIONAL,BvOp)
     NOP(BROTATE_RIGHT,"bvrotright",FUNCTIONAL,BvOp)
@@ -133,6 +141,26 @@ namespace expr
       /* XXX Add helper methods as needed */
 
       inline Expr bvnot (Expr v) {return mk<BNOT> (v);}
+      
+      inline Expr extract (unsigned high, unsigned low, Expr v)
+      {
+        assert (high > low);
+        return mk<BEXTRACT> (mkTerm<unsigned> (high, v->efac ()), 
+                             mkTerm<unsigned> (low, v->efac ()), v);
+      }
+      
+      /// high bit to extract
+      inline unsigned high (Expr v) {return getTerm<unsigned> (v->arg (1));}
+      /// low bit to extract
+      inline unsigned low (Expr v) {return getTerm<unsigned> (v->arg (0));}
+      /// bv argument to extract
+      inline Expr earg (Expr v) {return v->arg (2);}
+      
+      inline Expr sext (Expr v, unsigned width)
+      {return mk<BSEXT> (v, bvsort (width, v->efac ()));}
+      
+      inline Expr zext (Expr v, unsigned width) 
+      {return mk<BZEXT> (v, bvsort (width, v->efac ()));}
       
     }
     

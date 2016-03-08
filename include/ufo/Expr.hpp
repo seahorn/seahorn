@@ -1,5 +1,21 @@
 /**
- */
+SeaHorn Verification Framework
+Copyright (c) 2015 Carnegie Mellon University.
+All Rights Reserved.
+
+THIS SOFTWARE IS PROVIDED "AS IS," WITH NO WARRANTIES
+WHATSOEVER. CARNEGIE MELLON UNIVERSITY EXPRESSLY DISCLAIMS TO THE
+FULLEST EXTENT PERMITTEDBY LAW ALL EXPRESS, IMPLIED, AND STATUTORY
+WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, AND
+NON-INFRINGEMENT OF PROPRIETARY RIGHTS.
+
+Released under a modified BSD license, please see license.txt for full
+terms.
+
+DM-0002198
+*/
+
 #ifndef __EXPR__H_
 #define __EXPR__H_
 
@@ -13,21 +29,19 @@
 #include <iostream>
 #include <iomanip>
 #include <string>
+#include <functional>
+#include "boost/functional/hash_fwd.hpp"
+#include <unordered_set>
+#include <unordered_map>
+#include <memory>
 
 #include <gmpxx.h>
 
-#define forall BOOST_FOREACH
-#define rev_forall BOOST_REVERSE_FOREACH
-
 /** boost */
-#include <boost/shared_ptr.hpp>
 #include <boost/intrusive_ptr.hpp>
-#include <boost/functional/hash.hpp>
-#include <boost/unordered_map.hpp>
-#include <boost/unordered_set.hpp>
 #include <boost/interprocess/containers/flat_set.hpp>
-#include <boost/foreach.hpp>
-#include <boost/range.hpp>
+#include <boost/range/iterator_range.hpp>
+#include <boost/range/adaptor/reversed.hpp>
 #include <boost/ptr_container/ptr_vector.hpp>
 #include <boost/utility.hpp>
 #include <boost/pool/poolfwd.hpp>
@@ -35,7 +49,7 @@
 #include <boost/pool/pool_alloc.hpp>
 #include <boost/lexical_cast.hpp>
 
-#include "llvm/ADT/SmallVector.h"
+#define mk_it_range boost::make_iterator_range
 
 #define NOP_BASE(NAME) struct NAME : public expr::Operator {};
 
@@ -125,7 +139,7 @@ namespace expr
     ExprFactory *fac;
     std::vector<ENode*> args;
 
-    boost::shared_ptr<Operator> oper;
+    std::shared_ptr<Operator> oper;
     
     
     void Deref () { if (count > 0) count--; }
@@ -347,9 +361,9 @@ namespace expr
     // -- type of unique table entry
     typedef std::set<ENode*,LessENode> unique_entry_type;
 #else
-    typedef boost::unordered_set<ENode*, 
-     				 ENodeUniqueHash, 
-				 ENodeUniqueEqual> unique_entry_type;
+    typedef std::unordered_set<ENode*, 
+                               ENodeUniqueHash, 
+                               ENodeUniqueEqual> unique_entry_type;
 #endif
     typedef const char* unique_key_type;
     // -- type of the unique table
@@ -394,7 +408,7 @@ namespace expr
     /**
      * Clear val from all registered caches
      */
-    void clearCaches (ENode *val) { forall (CacheStub &c, caches) c.erase (val); }
+    void clearCaches (ENode *val) { for (CacheStub &c : caches) c.erase (val); }
     
     
 
@@ -559,7 +573,7 @@ namespace expr
   {
     if (freeList.size () < FREE_LIST_MAX_SIZE) 
       {      
-	forall (ENode *a, n->args) Deref (a);
+	for (ENode *a : n->args) Deref (a);
 	n->args.clear ();
 	n->oper.reset ();
 
@@ -684,7 +698,7 @@ namespace expr
     { return s1 == s2; }
     static inline size_t hash (const std::string &s)
     {
-      boost::hash<const std::string> hasher;
+      std::hash<std::string> hasher;
       return hasher (s);
     }
     
@@ -700,11 +714,25 @@ namespace expr
     { return i1 == i2; }
     static inline size_t hash (int i)
     {
-      boost::hash<int> hasher;
+      std::hash<int> hasher;
       return hasher (i);
     }
-    
-    
+  };
+  
+  template<> struct TerminalTrait<unsigned int>
+  {
+    static inline void print (std::ostream &OS, unsigned int s, 
+                              int depth, bool brkt)
+    { OS << s; }
+    static inline bool less (const unsigned int &i1, const unsigned int &i2) 
+    { return i1 < i2; }
+    static inline bool equal_to (unsigned int i1, unsigned int i2)
+    { return i1 == i2; }
+    static inline size_t hash (unsigned int i)
+    {
+      std::hash<unsigned int> hasher;
+      return hasher (i);
+    }
   };
 
   template<> struct TerminalTrait<unsigned long>
@@ -720,14 +748,13 @@ namespace expr
     }
     static inline size_t hash (unsigned long i)
     {
-      boost::hash<unsigned long> hasher;
+      std::hash<unsigned long> hasher;
       return hasher (i);
     }
   };
 
 
-    template <>
-  struct TerminalTrait<mpz_class>
+  template <> struct TerminalTrait<mpz_class>
   {
     static inline void print (std::ostream &OS, const mpz_class &v, 
 			      int depth, bool brkt)
@@ -742,7 +769,7 @@ namespace expr
     static inline size_t hash (const mpz_class &v)
     {
       std::string str = boost::lexical_cast<std::string> (v);
-      boost::hash<std::string> hasher;
+      std::hash<std::string> hasher;
       return hasher (str);
     }
     
@@ -768,7 +795,7 @@ namespace expr
     static inline size_t hash (const mpq_class &v)
     {
       std::string str = boost::lexical_cast<std::string> (v);
-      boost::hash<std::string> hasher;
+      std::hash<std::string> hasher;
       return hasher (str);
     }    
   };
@@ -778,6 +805,7 @@ namespace expr
   {
     typedef Terminal<std::string> STRING;
     typedef Terminal<int> INT;
+    typedef Terminal<unsigned int> UINT;
     typedef Terminal<unsigned long> ULONG;
     
     typedef Terminal<mpq_class> MPQ;
@@ -937,7 +965,7 @@ namespace expr
   inline size_t typeHash (const Operator *op)
   {
     if (op == NULL) return 0;
-    boost::hash<void*> hasher;
+    std::hash<void*> hasher;
     return hasher (static_cast<void*>(const_cast<char*> (typeid (*op).name ())));
   }
   
@@ -1041,7 +1069,7 @@ namespace expr
     template <typename T>
     struct ExprFunctionoid : public ExprFn
     {
-      typedef boost::shared_ptr<T> fn_type;
+      typedef std::shared_ptr<T> fn_type;
 
       fn_type fn;
 
@@ -1060,16 +1088,13 @@ namespace expr
     // skipKids or doKids
     VisitAction (bool kids = false) : 
       _skipKids (kids), fn (new ExprFunctionoid<IdentityRewriter> 
-			   (boost::shared_ptr<IdentityRewriter> 
-			    (new IdentityRewriter ()))) {};
+                            (std::make_shared<IdentityRewriter> ())) {}
     
     // changeTo or doKidsRewrite
     template <typename R>
     VisitAction (Expr e, bool kids = false, 
-		 boost::shared_ptr<R> r = 
-		 boost::shared_ptr<IdentityRewriter> 
-		 (new IdentityRewriter ())) :
-      _skipKids(kids), expr(e), fn(new ExprFunctionoid<R> (r)) {}
+		 std::shared_ptr<R> r = std::make_shared<IdentityRewriter> ()) :
+                 _skipKids(kids), expr(e), fn(new ExprFunctionoid<R> (r)) {}
     
     bool isSkipKids () { return _skipKids && expr.get () == NULL; }
     bool isChangeTo () { return _skipKids && expr.get () != NULL; }
@@ -1083,29 +1108,24 @@ namespace expr
     static inline VisitAction skipKids () { return VisitAction (true); }
     static inline VisitAction doKids () { return VisitAction (false); }
     static inline VisitAction changeTo (Expr e) 
-    { return VisitAction (e, true, 
-			  boost::shared_ptr<IdentityRewriter> 
-			  (new IdentityRewriter())); 
-    }
+    { return VisitAction (e, true, std::make_shared<IdentityRewriter> ());}
+    
     static inline VisitAction changeDoKids (Expr e) 
-    { return VisitAction (e, false, 
-			  boost::shared_ptr<IdentityRewriter> 
-			  (new IdentityRewriter())); 
-    }
+    { return VisitAction (e, false, std::make_shared<IdentityRewriter> ());}
+    
     template <typename R> 
-    static inline VisitAction changeDoKidsRewrite 
-    (Expr e, boost::shared_ptr<R> r) 
+    static inline VisitAction changeDoKidsRewrite (Expr e, std::shared_ptr<R> r) 
     { return VisitAction (e, false, r); }
 
   protected:
     bool _skipKids;
     Expr expr;
   private:
-    boost::shared_ptr<ExprFn> fn;
+    std::shared_ptr<ExprFn> fn;
   };
 
 
-  typedef boost::unordered_map<ENode*,Expr> DagVisitCache;
+  typedef std::unordered_map<ENode*,Expr> DagVisitCache;
 
   template <typename ExprVisitor> 
   Expr visit (ExprVisitor &v, Expr expr, DagVisitCache &cache)
@@ -1167,19 +1187,11 @@ namespace expr
 
   inline void clearDagVisitCache (DagVisitCache &cache)
   {
-    forall (DagVisitCache::value_type &kv, cache) 
+    for (DagVisitCache::value_type &kv : cache) 
       kv.first->efac ().Deref (kv.first);
     cache.clear ();
   }
 
-  template <typename ExprVisitor> 
-  Expr dagVisit (ExprVisitor &v, Expr expr)
-  {
-    DagVisitCache cache;
-    Expr res = visit (v, expr, cache);
-    clearDagVisitCache (cache);
-    return res;
-  }
 
   template <typename ExprVisitor>
   struct DagVisit : public std::unary_function<Expr,Expr>
@@ -1188,13 +1200,26 @@ namespace expr
     DagVisitCache m_cache;
     
     DagVisit (ExprVisitor &v) : m_v (v) {}
+    DagVisit (const DagVisit &o) : m_v (o.m_v) {} 
     ~DagVisit () { clearDagVisitCache (m_cache); }
     
     Expr operator() (Expr e)  { return visit (m_v, e, m_cache); }
     
   };
   
-    
+  template <typename ExprVisitor> 
+  Expr dagVisit (ExprVisitor &v, Expr expr)
+  {
+    DagVisit<ExprVisitor> dv (v);
+    return dv (expr);
+  }
+
+  template <typename ExprVisitor>
+  void dagVisit (ExprVector &v, ExprVector &vec)
+  {
+    DagVisit<ExprVisitor> dv (v);
+    for (auto &e : vec) e = dv (e);
+  }
 
   template <typename ExprVisitor>
   Expr visit (ExprVisitor &v, Expr expr)
@@ -1372,7 +1397,7 @@ namespace expr
     NOP(FALSE,"false",PREFIX,BoolOp)
     NOP(AND,"&&",INFIX,BoolOp)
     NOP(OR,"||",INFIX,BoolOp)
-    NOP(XOR,"XOR",INFIX,BoolOp)
+    NOP(XOR,"^",INFIX,BoolOp)
     NOP(NEG,"!",PREFIX,BoolOp)
     NOP(IMPL,"->",INFIX,BoolOp)
     NOP(ITE,"ite",FUNCTIONAL,BoolOp)
@@ -1448,7 +1473,7 @@ namespace expr
 	return mknary<AND> (r);
       }
 
-      struct CIRCSIZE
+      struct CIRCSIZE : public std::unary_function<Expr,VisitAction>
       {
 	unsigned ands;
 	unsigned ors;
@@ -1484,7 +1509,7 @@ namespace expr
       
 
       /** trivial simplifier for Boolean Operators */
-      struct TrivialSimplifier
+      struct TrivialSimplifier : public std::unary_function<Expr,Expr>
       {
 	ExprFactory &efac;
 
@@ -1565,9 +1590,8 @@ namespace expr
 		}
 	      
 	      // -- arity > 2, check if one arguments is true
-	      forall (ENode *arg, make_pair (exp->args_begin (), 
-					      exp->args_end ()))
-		if (trueE == arg) return trueE;
+              for (ENode *arg : mk_it_range (exp->args_begin (), exp->args_end ()))
+                if (trueE == arg) return trueE;
 	      return exp;
 	    }
 
@@ -1592,8 +1616,8 @@ namespace expr
 		}
 
 	      // -- arity > 2, check if one arguments  is false
-	      forall (ENode * arg, make_pair (exp->args_begin (), 
-					       exp->args_end ()))
+	      for (ENode * arg : mk_it_range (exp->args_begin (), 
+                                              exp->args_end ()))
 		if (falseE == arg) return falseE;
 	      return exp;
 	    }
@@ -1603,7 +1627,7 @@ namespace expr
       };
 
       /** Rewriter that gathers Boolean operators into n-ary ones */
-      struct GatherOps
+      struct GatherOps : public std::unary_function<Expr,Expr>
       {
 	Expr trueE;
 	Expr falseE;
@@ -1643,14 +1667,14 @@ namespace expr
 	    }
 	  
 	  ExprSet newArgs;
-	  forall (Expr a, make_pair (exp->args_begin (), exp->args_end ()))
+	  for (Expr a : mk_it_range (exp->args_begin (), exp->args_end ()))
 	    if (! (op == a->op ()) )
 	      {
 		if (a == bot) return bot;
 		else if (a != top) newArgs.insert (a);
 	      }
 	    else /* descend into kids that have the same top-level operator */
-	      forall (Expr ka, make_pair (a->args_begin (), a->args_end ()))
+	      for (Expr ka : mk_it_range (a->args_begin (), a->args_end ()))
 		if (ka == bot) return bot;
 		else if (ka != top) newArgs.insert (ka);
 
@@ -1661,7 +1685,7 @@ namespace expr
       };
       
       /** Rewriter that normalizes AND/OR operators */
-      struct NormalizeOps
+      struct NormalizeOps : public std::unary_function<Expr,Expr>
       {
 	Expr trueE;
 	Expr falseE;
@@ -1706,14 +1730,14 @@ namespace expr
 	    }
 
 	  ExprSet newArgs;
-	  forall (Expr a, make_pair (exp->args_begin (), exp->args_end ()))
+	  for (Expr a : mk_it_range (exp->args_begin (), exp->args_end ()))
 	    if (! (op == a->op ()) )
 	      {
 		if (a == bot) return bot;
 		else if (a != top) newArgs.insert (a);
 	      }
 	    else /* descend into kids that have the same top-level operator */
-	      forall (Expr ka, make_pair (a->args_begin (), a->args_end ()))
+	      for (Expr ka : mk_it_range (a->args_begin (), a->args_end ()))
 		if (ka == bot) return bot;
 		else if (ka != top) newArgs.insert (ka);
 
@@ -1723,8 +1747,8 @@ namespace expr
 	  boost::container::flat_set<Expr> args (newArgs.begin (), 
 						 newArgs.end ());
 	  Expr res = top;
-	  rev_forall (Expr arg, args)
-	    res = isOpX<AND> (exp) ? land (arg, res) : lor (arg, res);
+          for (Expr arg : boost::adaptors::reverse(args))
+            res = isOpX<AND> (exp) ? land (arg, res) : lor (arg, res);
 	  
 	  return res;
 	}
@@ -1805,14 +1829,15 @@ namespace expr
       
 
       /** puts an expression into NNF */
-      struct NNF
+      struct NNF : public std::unary_function<Expr,VisitAction>
       {
 	ExprFactory &efac;
-	boost::shared_ptr<TrivialSimplifier> r;
+	std::shared_ptr<TrivialSimplifier> r;
 
 	NNF (const NNF &o) : efac (o.efac), r (o.r) {}
 
-	NNF (ExprFactory &fac) : efac (fac), r (new TrivialSimplifier (efac)) {}
+	NNF (ExprFactory &fac) : efac (fac),
+                                 r (std::make_shared<TrivialSimplifier> (efac)) {}
 	
 	VisitAction operator() (Expr exp)
 	{
@@ -1841,8 +1866,8 @@ namespace expr
 	    {
 	      // -- negate arguments
 	      ExprVector args;
-	      forall (Expr arg, make_pair (lhs->args_begin (), 
-					    lhs->args_end ()))
+	      for (Expr arg : mk_it_range (lhs->args_begin (), 
+                                           lhs->args_end ()))
 		args.push_back (lneg (arg));
 
 	      // -- flip operator
@@ -2339,7 +2364,6 @@ namespace expr
   }
 }
 
-#include "ExprBv.hh"
 namespace expr
 {
   namespace op
@@ -2360,7 +2384,7 @@ namespace expr
 	
 	size_t hash () const
 	{
-	  boost::hash<unsigned> hasher;
+	  std::hash<unsigned> hasher;
 	  return hasher (var);
 	}
 	
@@ -2441,7 +2465,7 @@ namespace expr
   {
     /* Visitors are hidden. Only to be used internally. */
 
-    struct RAV
+    struct RAV: public std::unary_function<Expr,VisitAction>
     {
       Expr s;
       Expr t;
@@ -2452,16 +2476,16 @@ namespace expr
       { return exp == s ? VisitAction::changeTo (t) : VisitAction::doKids (); }
     };
 
-    struct RAVSIMP
+    struct RAVSIMP: public std::unary_function<Expr,VisitAction>
     {
       Expr s;
       Expr t;
 
-      boost::shared_ptr<boolop::TrivialSimplifier> r;
+      std::shared_ptr<boolop::TrivialSimplifier> r;
 
       RAVSIMP (const RAVSIMP &o) : s(o.s), t(o.t), r(o.r) {}
       RAVSIMP (Expr _s, Expr _t) : 
-	s(_s), t(_t), r(new boolop::TrivialSimplifier (s->efac ())) {}
+	s(_s), t(_t), r(std::make_shared<boolop::TrivialSimplifier> (s->efac ())) {}
 
       VisitAction operator() (Expr exp) const
       { 
@@ -2472,7 +2496,7 @@ namespace expr
 
 
     template <typename F, typename OutputIterator>
-    struct FV
+    struct FV : public std::unary_function<Expr,VisitAction>
     {
       F filter;
       
@@ -2500,7 +2524,7 @@ namespace expr
     };
     
     template <typename M>
-    struct RV
+    struct RV : public std::unary_function<Expr,VisitAction>
     {
       typedef typename M::const_iterator const_iterator;
       
@@ -2517,20 +2541,20 @@ namespace expr
 
 
     template <typename M>
-    struct RVSIMP
+    struct RVSIMP : public std::unary_function<Expr,VisitAction>
     {
       typedef typename M::const_iterator const_iterator;
       
       const M &map;
 
-      boost::shared_ptr<boolop::TrivialSimplifier> r;
+      std::shared_ptr<boolop::TrivialSimplifier> r;
 
       typedef RVSIMP<M> this_type;
       
       RVSIMP (const this_type &o) : map (o.map), r (o.r) {}
       RVSIMP (ExprFactory &fac, const M &m) : 
 	map (m), 
-	r (new boolop::TrivialSimplifier (fac)) 
+	r (std::make_shared<boolop::TrivialSimplifier> (fac)) 
       {}
 
       VisitAction operator() (Expr exp) const
@@ -2545,7 +2569,7 @@ namespace expr
     };
 
 
-    struct CV
+    struct CV : public std::unary_function<Expr,VisitAction>
     {
       Expr e;
       bool found;
@@ -2570,7 +2594,7 @@ namespace expr
       }
     };
 
-    struct SIZE
+    struct SIZE : public std::unary_function<Expr,VisitAction>
     {
       size_t count;
       
@@ -2584,14 +2608,14 @@ namespace expr
     };
 
     template <typename T>
-    struct RW
+    struct RW : public std::unary_function<Expr,VisitAction>
     {
-      boost::shared_ptr<T> _r;
+      std::shared_ptr<T> _r;
       
       typedef RW<T> this_type;
       
       RW (const this_type &o) : _r (o._r) {}
-      RW(boost::shared_ptr<T> r) : _r(r) {}
+      RW(std::shared_ptr<T> r) : _r(r) {}
 
       VisitAction operator() (Expr exp)
       {
@@ -2607,7 +2631,7 @@ namespace expr
 
   /** Applies a rewriter */
   template <typename T>
-  Expr rewrite (boost::shared_ptr<T> r, Expr e)
+  Expr rewrite (std::shared_ptr<T> r, Expr e)
   {
     RW<T> rw(r);
     return dagVisit (rw, e);
@@ -2736,9 +2760,9 @@ namespace expr
 	template<typename T>
 	struct BS
 	{
-	  boost::shared_ptr<T> _r;
+	  std::shared_ptr<T> _r;
 	  
-	  BS (boost::shared_ptr<T> r) : _r(r) {}
+	  BS (std::shared_ptr<T> r) : _r(r) {}
 	  BS (T *r) : _r (r) {}
 	  
 
@@ -2759,7 +2783,7 @@ namespace expr
        */
       inline Expr simplify (Expr exp)
       {
-	BS<TrivialSimplifier> bs(new TrivialSimplifier (exp->efac ()));
+	BS<TrivialSimplifier> bs(std::make_shared<TrivialSimplifier> (exp->efac ()));
 	return dagVisit (bs, exp);
       }  
 
@@ -2799,6 +2823,7 @@ namespace expr
   }
 }
 
+#include "ExprBv.hh"
 
 namespace std
 {
@@ -2898,14 +2923,28 @@ namespace expr
 {
   inline size_t hash_value (Expr e)
   {
-    boost::hash<ENode*> hasher;
+    std::hash<ENode*> hasher;
     return hasher (e.get ());
   }
 }
 
+/// implement boost::hash
 namespace boost
 {
   template<> struct hash<expr::Expr> : 
+    public std::unary_function<expr::Expr, std::size_t>
+  {
+    std::size_t operator() (const expr::Expr &v) const
+    {
+      return expr::hash_value (v);
+    }
+  };
+}
+
+/// implement std::hash
+namespace std
+{
+  template<> struct hash<expr::Expr> :
     public std::unary_function<expr::Expr, std::size_t>
   {
     std::size_t operator() (const expr::Expr &v) const

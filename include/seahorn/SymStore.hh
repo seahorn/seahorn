@@ -5,6 +5,9 @@
 #include "ufo/Expr.hpp"
 
 #include "llvm/Support/raw_ostream.h"
+#include <memory>
+#include <map>
+#include <unordered_map>
 
 namespace seahorn
 {
@@ -40,14 +43,14 @@ namespace seahorn
     friend struct detail::scoped_track_use;
     
   public:
-    typedef boost::shared_ptr<SymStore> SymStorePtr;
-    typedef std::map<Expr,Expr> ExprExprMap;
+    typedef std::shared_ptr<SymStore> SymStorePtr;
+    typedef std::unordered_map<Expr,Expr> ExprExprMap;
     
   protected:
     /// Parent store, if any
     SymStore *m_Parent;
     /// shared pointer for a parent if owned by this object
-    std::shared_ptr<SymStore> m_ownedParent;
+    SymStorePtr m_ownedParent;
     
     
     /// The store
@@ -82,7 +85,7 @@ namespace seahorn
       if (!globalParent)
       {
         // -- create our own parent
-        m_ownedParent.reset (new SymStore (efac, false, true));
+        m_ownedParent = std::make_shared<SymStore> (efac, false, true);
         m_Parent = m_ownedParent.get ();
       }
     }
@@ -106,6 +109,7 @@ namespace seahorn
     
     void swap (SymStore &o);
     void print (llvm::raw_ostream &out);
+    size_t size () {return m_Store.size ();}
     
     
     ExprFactory &getExprFactory () { return m_efac; }
@@ -122,8 +126,8 @@ namespace seahorn
     Expr eval (Expr exp) { return expr::dagVisit (m_evalVisitor, exp); }
     Expr operator() (Expr exp) { return eval (exp); }
     
-    typedef ExprMap::iterator iterator;
-    typedef ExprMap::const_iterator const_iterator;
+    typedef ExprExprMap::iterator iterator;
+    typedef ExprExprMap::const_iterator const_iterator;
     iterator begin () { return m_Store.begin (); }
     iterator end () { return m_Store.end (); }
     const_iterator begin () const { return m_Store.begin (); }

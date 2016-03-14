@@ -245,6 +245,7 @@ int main(int argc, char **argv) {
   pass_manager.add (seahorn::createStripLifetimePass ());
   pass_manager.add (seahorn::createDeadNondetElimPass ());
 
+#ifdef HAVE_CRAB_LLVM
   if (Crab)
   {
     /// -- insert invariants in the bitecode
@@ -252,6 +253,7 @@ int main(int argc, char **argv) {
     /// -- simplify invariants added in the bitecode
     // pass_manager.add (seahorn::createInstCombine ());
   }
+#endif
 
   // --- verify if an undefined value can be read
   pass_manager.add (seahorn::createCanReadUndefPass ());

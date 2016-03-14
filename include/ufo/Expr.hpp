@@ -34,6 +34,7 @@ DM-0002198
 #include <unordered_set>
 #include <unordered_map>
 #include <memory>
+#include <array>
 
 #include <gmpxx.h>
 
@@ -2129,7 +2130,6 @@ namespace expr
     NOP_BASE(BindOp)
     
     NOP(BIND,":",INFIX,BindOp)
-    NOP(SCOPE,"let",bind::SCOPE_PS,BindOp)
     /** Function declaration */
     NOP(FDECL,"fdecl",PREFIX,BindOp)
     /** Function application */
@@ -2143,12 +2143,6 @@ namespace expr
       inline Expr type (Expr e) { return e->right (); }
       inline Expr value (Expr e) { return e->right (); }
       
-      inline Expr scope (Expr decl, Expr body) 
-      { return mk<SCOPE> (decl, body); }
-      inline Expr decls (Expr e) { return e->left (); }
-      inline Expr body (Expr e) { return e->right (); }
-
-
       inline Expr var (Expr name, Expr type) { return bind (name, type); }
       inline Expr intVar (Expr name) 
       { return var (name, mk<INT_TY>(name->efac ())); }
@@ -2262,6 +2256,7 @@ namespace expr
       inline bool isIntConst (Expr v) { return isConst<INT_TY> (v); }
       inline bool isRealConst (Expr v) { return isConst<REAL_TY> (v); }      
 
+      
       inline Expr typeOf (Expr v)
       {
         using namespace bind;
@@ -2290,6 +2285,7 @@ namespace expr
         assert (0 && "Unreachable");
         return Expr();    
       }
+      inline Expr sortOf (Expr v) {return typeOf (v);}
      
       struct FAPP_PS
       {
@@ -2446,10 +2442,139 @@ namespace expr
 	return getTerm<BoundVar>(t).var;
       }
       
-      
-      
     }
   }
+
+  namespace details
+  {
+    template <typename Range>
+    Expr absConstants (const Range &r, Expr e);
+    
+    template <typename Range>
+    Expr subBndVars (const Range &r, Expr e);
+  }
+  
+  namespace op
+  {
+    
+    namespace bind
+    {
+      struct BINDER
+      {
+        static inline void print (std::ostream &OS,
+                                  int depth,
+                                  bool brkt,
+                                  const std::string &name,
+                                  const std::vector<ENode*> &args)
+        {
+          OS << "(" << name << " ";
+      
+          OS << "(";
+          for (auto it = args.begin (), end = args.end () - 1; it != end; ++it)
+          {
+            (*it)->last ()->Print (OS, depth + 2, true);
+            if (it + 1 != end) OS << " ";
+          }
+          OS << ") ";
+          
+          args.back ()->Print (OS, depth + 2, true);
+
+          OS << ")";
+        }  
+      };
+    }
+    
+    NOP_BASE(BinderOp)
+    /** Forall quantifier */
+    NOP (FORALL, "forall", bind::BINDER, BinderOp)
+    /** Exists */
+    NOP (EXISTS, "exists", bind::BINDER, BinderOp)
+    /** Lambda */
+    NOP (LAMBDA, "lambda", bind::BINDER, BinderOp)
+    
+    namespace bind
+    {
+      inline unsigned numBound (Expr e)
+      {
+        assert (e->arity () > 0);
+        return e->arity () - 1;
+      }
+      inline Expr decl (Expr e, unsigned i) {return e->arg (i);}
+      inline Expr boundName (Expr e, unsigned i) 
+      {return fname (decl (e, i));}
+      inline Expr boundSort (Expr e, unsigned i)
+      {return rangeTy (decl (e, i));}
+      
+      
+      inline Expr body (Expr e) {return *(--(e->args_end ()));}
+      
+      
+      template <typename Op, typename Range> 
+      Expr abs (const Range &r, Expr e)
+      {
+        Expr abs = expr::details::absConstants (r, e);
+        if (abs == e) return e;
+        
+        ExprVector args;
+        args.reserve (std::distance (std::begin(r), std::end(r)) + 1);
+        for (auto &v : r)
+        {
+          assert (bind::IsConst() (v));
+          args.push_back (bind::fname (v));
+        }
+        
+        args.push_back (abs);
+        
+        return mknary<Op> (args);
+      }
+
+      template<typename Op>
+      Expr abs (Expr v, Expr e)
+      {
+        std::array<Expr, 1> a = {v} ;
+        return abs<Op> (a, e);
+      }
+      
+      template<typename Op>
+      Expr abs (Expr v0, Expr v1, Expr e)
+      {
+        std::array<Expr,2> a = {v0,v1};
+        return abs<Op> (a, e);
+      }
+      
+      template<typename Op>
+      Expr abs (Expr v0, Expr v1, Expr v2, Expr e)
+      {
+        std::array<Expr,3> a = {v0,v1,v2};
+        return abs<Op> (a, e);
+      }
+     
+
+      template <typename Range>
+      Expr sub (const Range &r, Expr e) {return expr::details::subBndVars (r, e);}
+      
+      inline Expr sub (Expr v0, Expr e)
+      {
+        std::array<Expr,1> a = {v0};
+        return sub (a, e);
+      }
+        
+      inline Expr sub (Expr v0, Expr v1, Expr e)
+      {
+        std::array<Expr,2> a = {v0,v1};
+        return sub (a, e);
+      }
+
+      inline Expr sub (Expr v0, Expr v1, Expr v2, Expr e)
+      {
+        std::array<Expr,3> a = {v0,v1,v2};
+        return sub (a, e);
+      }
+       
+    }
+  }
+  
+  
 
 
   
@@ -2954,6 +3079,186 @@ namespace std
   };
 }
 
+namespace expr
+{
+  namespace details
+  {
+    template<typename Abs> struct ABSCST;
+    
+    template <typename Range>
+    struct AbsCst 
+    {
+      typedef AbsCst<Range> this_type;
+      
+      const Range &m_r;
+      std::unordered_map<Expr,unsigned> m_evmap;
+
+      std::vector<ABSCST<this_type> > m_pinned;
+      
+      typedef std::map<unsigned, DagVisit<ABSCST<this_type> > > cache_type;
+      cache_type m_cache;
+      
+      AbsCst (const Range &r);
+      DagVisit<ABSCST<this_type> > &cachedVisitor (unsigned offset);
+
+    };
+    
+    template<typename Abs>
+    struct ABSCST : public std::unary_function<Expr,VisitAction>
+    {
+      Abs &m_a;
+      unsigned m_offset;
+      
+      inline ABSCST (Abs &a, unsigned offset);
+      inline VisitAction operator() (Expr exp) const;
+    };
+    
+    template<typename Range>
+    AbsCst<Range>::AbsCst (const Range &r) : m_r(r)
+    {
+      unsigned cnt = std::distance (std::begin(r), std::end(r));
+      for (const Expr &v : m_r) m_evmap[v] = --cnt;
+    }
+      
+    template<typename Range>
+    DagVisit<ABSCST<AbsCst<Range> > > &AbsCst<Range>::cachedVisitor (unsigned offset)
+    {
+      typedef AbsCst<Range> this_type;
+      
+      auto it = m_cache.find (offset);
+      if (it != m_cache.end ()) return it->second;
+        
+      m_pinned.push_back (ABSCST<this_type> (*this, offset));
+        
+      auto v = m_cache.insert
+        (std::make_pair(offset, DagVisit<ABSCST<this_type> > (m_pinned.back ())));
+      return (v.first)->second;
+    }   
+      
+
+    template<typename Abs>
+    ABSCST<Abs>::ABSCST (Abs &a, unsigned offset) :
+      m_a(a), m_offset (offset) {}
+      
+    template<typename Abs>
+    VisitAction ABSCST<Abs>::operator() (Expr exp) const
+    {
+      if (op::bind::isFdecl (exp)) return VisitAction::skipKids ();
+        
+      if (op::bind::IsConst() (exp))
+      {
+        auto it = m_a.m_evmap.find (exp);
+        if (it != m_a.m_evmap.end ())
+        {
+          Expr b = bind::bvar (m_offset + it->second, bind::sortOf (exp));
+          return VisitAction::changeTo (b);
+        }
+        return VisitAction::skipKids ();
+      }
+      else if (isOp<BinderOp> (exp))
+      {
+        auto &dv = m_a.cachedVisitor (m_offset + 1);
+        ExprVector kids (exp->args_begin (), exp->args_end ());
+        Expr &last = kids.back ();
+        last = dv (last);
+        return VisitAction::changeTo (exp->efac ().mkNary (exp->op (), kids));
+      }
+
+      return VisitAction::doKids ();
+    }
+      
+
+      
+    template<typename Range>
+    Expr absConstants (const Range &r, Expr e)
+    {
+      AbsCst<Range> a(r);
+      auto v = ABSCST<AbsCst<Range> > (a, 0);
+      return dagVisit (v, e);
+    }
+
+    
+    template <typename Sub> struct SUBBND;
+
+    template <typename Range>
+    struct SubBnd
+    {
+      typedef SubBnd<Range> this_type;
+
+      const Range &m_r;
+      unsigned m_sz;
+      std::vector<SUBBND<this_type> > m_pinned;
+      typedef std::map<unsigned, DagVisit<SUBBND<this_type> > > cache_type;
+      cache_type m_cache;
+      
+      SubBnd (const Range &r) : m_r (r) 
+      {m_sz = std::distance (std::begin (m_r), std::end (m_r));}
+      
+      DagVisit<SUBBND<this_type> > &cachedVisitor (unsigned offset);
+      
+      Expr sub (unsigned idx)
+      {
+        if (idx >= m_sz) return Expr (0);
+        auto it = std::end (m_r) - 1 - idx; 
+        return *it;
+      }
+      
+    };
+      
+    template<typename Sub>
+    struct SUBBND : public std::unary_function<Expr,VisitAction>
+    {
+      Sub &m_a;
+      unsigned m_offset;
+
+      SUBBND (Sub &a, unsigned offset) : m_a (a), m_offset (offset) {};
+
+      VisitAction operator() (Expr exp) const
+      {
+        if (bind::isFdecl (exp)) return VisitAction::skipKids ();
+        else if (bind::isBVar (exp))
+        {
+          unsigned idx = bind::bvarId (exp);
+          if (idx < m_offset) return VisitAction::skipKids ();
+          
+          Expr u = m_a.sub (idx - m_offset);
+          return u ? VisitAction::changeTo (u) : VisitAction::skipKids ();
+        }
+        else if (isOp<BinderOp> (exp))
+        {
+          auto &dv = m_a.cachedVisitor (m_offset + 1);
+          ExprVector kids (exp->args_begin (), exp->args_end ());
+          Expr &last = kids.back ();
+          last = dv (last);
+          return VisitAction::changeTo (exp->efac ().mkNary (exp->op (), kids));
+        }
+        return VisitAction::doKids ();
+      }
+    };
+    
+    template <typename Range>
+    DagVisit<SUBBND<SubBnd<Range> > > &SubBnd<Range>::cachedVisitor (unsigned offset)
+    {
+      typedef SubBnd<Range> this_type;
+      auto it = m_cache.find (offset);
+      if (it != m_cache.end ()) return it->second;
+      
+      m_pinned.push_back (SUBBND<this_type> (*this, offset));
+      auto v = m_cache.insert
+        (std::make_pair (offset, DagVisit<SUBBND<this_type> > (m_pinned.back ())));
+      return (v.first)->second;
+    }
+    
+    
+    template <typename Range>
+    Expr subBndVars (const Range &r, Expr e)
+    {
+      SubBnd<Range> a(r);
+      auto v = SUBBND<SubBnd<Range> > (a, 0);
+      return dagVisit (v, e);
+    }
+  }
+}
 
 
 

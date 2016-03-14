@@ -16,7 +16,9 @@
 #include "boost/range/adaptor/reversed.hpp"
 #include "boost/range/algorithm/sort.hpp"
 #include "boost/container/flat_set.hpp"
+#include "boost/container/map.hpp"
 #include <boost/algorithm/string/predicate.hpp>
+
 
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/ToolOutputFile.h"
@@ -25,6 +27,14 @@
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/DebugLoc.h"
 #include "llvm/IR/DebugInfo.h"
+#include "llvm/IR/GlobalValue.h"
+#include "llvm/IR/ValueMap.h"
+#include "llvm/IR/IRBuilder.h"
+#include "llvm/IR/Verifier.h"
+
+#include "llvm/Bitcode/ReaderWriter.h"
+
+#include <gmpxx.h>
 
 static llvm::cl::opt<std::string>
 SvCompCexFile("horn-svcomp-cex", llvm::cl::desc("Counterexample in SV-COMP XML format"),
@@ -62,16 +72,23 @@ namespace seahorn
   bool HornCex::runOnModule (Module &M)
   {
     for (Function &F : M)
-      if (F.getName ().equals ("main")) return runOnFunction (F);
+      if (F.getName ().equals ("main")) return runOnFunction (M, F);
     return false;
   }
   
-  bool HornCex::runOnFunction (Function &F)
+  Constant* ufoToLLVM(Type *ty, Expr e) {
+    // XXX: I am assuming we will always be given a Terminal expression
+    errs () << "I am being called!\n";
+    const Terminal<mpz_class> &T = dynamic_cast<const Terminal<mpz_class>&> (e.get()->op());
+    return ConstantInt::get(cast<IntegerType> (ty), T.get().get_str(), 10);
+  }
+
+  bool HornCex::runOnFunction (Module &M, Function &F)
   {
     HornSolver &hs = getAnalysis<HornSolver> ();
     // -- only run if result is true, skip if it is false or unknown
     if (hs.getResult ()) ; else return false;
-    
+
     LOG ("cex", 
          errs () << "Analyzed Function:\n"
          << F << "\n";);
@@ -189,6 +206,126 @@ namespace seahorn
     
     // get bmc trace
     BmcTrace trace (bmc.getTrace ());
+
+    ValueMap<Function*, ExprVector> FuncValueMap;
+
+         // Find the nondet function
+         Function* nondetf = M.getFunction("__VERIFIER_nondet_int");
+         assert (nondetf);
+
+         // Look for calls in the trace
+         for (unsigned loc = 0; loc < trace.size(); loc++)
+         {
+           const BasicBlock &BB = *trace.bb(loc);
+           for (auto &I : BB)
+           {
+             if (const CallInst *ci = dyn_cast<CallInst> (&I))
+             {
+               Function *CF = ci->getCalledFunction ();
+
+               if (CF == nondetf)
+               {
+                 Expr V = trace.eval (loc, I);
+                 assert (V);
+                 FuncValueMap[CF].push_back(V);
+                 errs () << "what " << FuncValueMap[CF].size() << "\n";
+                 errs () << "Call to " << CF->getName() << " returns " << *V << "\n";
+               }
+             }
+           }
+         }
+
+         for (auto &AF : M.getFunctionList()) {
+           errs () << AF << AF.isExternalLinkage(AF.getLinkage()) << AF.getName() << "\n";
+         }
+
+         errs () << "go!\n";
+
+         for (auto CFV : FuncValueMap) {
+
+           auto CF = CFV.first;
+           auto UFOarray = CFV.second;
+
+           errs () << CF << "\n";
+
+           Type *RT = CF->getReturnType();
+
+           SmallVector<Constant*, 20> LLVMarray;
+           std::transform(UFOarray.begin(), UFOarray.end(), std::back_inserter(LLVMarray),
+                          [RT](Expr e) { return ufoToLLVM(RT, e); });
+
+           ArrayType* AT = ArrayType::get(RT, UFOarray.size());
+           GlobalVariable* CA = new GlobalVariable(M,
+                                                   AT,
+                                                   true,
+                                                   GlobalValue::PrivateLinkage,
+                                                   ConstantArray::get(AT, LLVMarray));
+           CA->print(errs());
+           errs() << "\n";
+           CA->getType()->print(errs());
+           errs() << "\n";
+
+           assert (CF.empty());
+           BasicBlock *BB = BasicBlock::Create(getGlobalContext(), "entry", CF);
+
+           IRBuilder<> Builder(BB);
+
+           Type *CountType = IntegerType::get(getGlobalContext(), 32);
+
+           GlobalVariable* counter = new GlobalVariable(M,
+                                                        CountType,
+                                                        false,
+                                                        GlobalValue::PrivateLinkage,
+                                                        ConstantInt::get(CountType, 0));
+
+           counter->getType()->print(errs());
+           counter->print(errs());
+
+           Value *LoadCounter = Builder.CreateLoad(counter);
+           Value *ArrayLookup = Builder.CreateLoad(Builder.CreateGEP(CA,
+                                          std::vector<Value*> {
+                                            ConstantInt::get(CountType, 0),
+                                              LoadCounter
+                                              }));
+
+           Builder.CreateStore(Builder.CreateAdd(LoadCounter,
+                                                 ConstantInt::get(CountType, 1)),
+                               counter);
+           Builder.CreateRet(ArrayLookup);
+
+           CF->print(errs());
+
+           //verifyFunction(*CF);
+
+           // Value *RetValue = Builder.CreateLoad(Builder.CreateGEP(CA,
+           //                                                        std::vector<Value*> {Builder.CreateLoad(counter)}));
+           // Builder.CreateStore(&counter,
+           //                     Builder.CreateAdd(&counter,
+           //                                       ConstantInt::get(CountType, 1L)));
+
+
+           // std::for_each(LLVMarray.begin(), LLVMarray.end(), [](Constant* c) {c->print(errs());});
+           // errs () << "YAY" << UFOarray.size() << LLVMarray.size() << "\n";
+
+           // const Terminal<mpz_class> &test = dynamic_cast<const Terminal<mpz_class>& > (UFOarray[0].get()->op());
+
+           // errs () << "test = " << test.get().get_str() << "\n";
+
+           // errs () << typeid(UFOarray[0].get()->op()).name() << "\n";
+
+           //ConstantArray CA(AT, ArrayRef<Expr>(UFOarray));
+
+           // for (auto retval : UFOarray) {
+           //   errs () << *retval << "\n";
+           // }
+         }
+
+         std::error_code error_code;
+         raw_fd_ostream out(std::string("/tmp/test.bc"), error_code, sys::fs::F_None);
+         assert (!out.has_error());
+         verifyModule(M, &errs());
+         WriteBitcodeToFile(&M, out);
+         out.close();
 
     LOG ("cex", trace.print (errs ()););
     

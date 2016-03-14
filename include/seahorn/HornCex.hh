@@ -20,7 +20,7 @@ namespace seahorn
     virtual ~HornCex () {}
     
     virtual bool runOnModule (Module &M);
-    virtual bool runOnFunction (Function &F);
+    virtual bool runOnFunction (Module &M, Function &F);
     virtual void getAnalysisUsage (AnalysisUsage &AU) const;
     virtual const char* getPassName () const {return "HornCex";}
   };

@@ -15,7 +15,7 @@ set (USED_LIBS
   )
 
 
-set(LLVM_LINK_COMPONENTS irreader ipo scalaropts instrumentation core
+set(LLVM_LINK_COMPONENTS bitwriter irreader ipo scalaropts instrumentation core
   # XXX not clear why these last two are required
   codegen objcarcopts)
 add_executable(seahorn seahorn.cpp)

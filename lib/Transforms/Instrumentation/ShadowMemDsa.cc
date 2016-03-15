@@ -262,8 +262,10 @@ namespace seahorn
 
           /// skip sehaorn.* and verifier.* functions
           if (Function *fn = call->getCalledFunction ())
-            if (fn->getName ().startswith ("seahorn.") ||
-                fn->getName ().startswith ("verifier.")) 
+            if ((fn->getName ().startswith ("seahorn.") ||
+                 fn->getName ().startswith ("verifier.")) &&
+                /* seahorn.bounce should be treated as a regular function*/
+                !(fn->getName ().startswith ("seahorn.bounce"))) 
               continue;
           
 

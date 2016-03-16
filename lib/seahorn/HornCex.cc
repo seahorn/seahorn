@@ -78,7 +78,6 @@ namespace seahorn
   
   Constant* ufoToLLVM(Type *ty, Expr e) {
     // XXX: I am assuming we will always be given a Terminal expression
-    errs () << "I am being called!\n";
     const Terminal<mpz_class> &T = dynamic_cast<const Terminal<mpz_class>&> (e.get()->op());
     return ConstantInt::get(cast<IntegerType> (ty), T.get().get_str(), 10);
   }
@@ -92,7 +91,9 @@ namespace seahorn
     LOG ("cex", 
          errs () << "Analyzed Function:\n"
          << F << "\n";);
-   
+
+    Module Harness("harness", getGlobalContext());
+
     HornifyModule &hm = getAnalysis<HornifyModule> ();
     const CutPointGraph &cpg = getAnalysis<CutPointGraph> (F);
     
@@ -207,11 +208,8 @@ namespace seahorn
     // get bmc trace
     BmcTrace trace (bmc.getTrace ());
 
+    // XXX: Put this in a separate function
     ValueMap<Function*, ExprVector> FuncValueMap;
-
-         // Find the nondet function
-         Function* nondetf = M.getFunction("__VERIFIER_nondet_int");
-         assert (nondetf);
 
          // Look for calls in the trace
          for (unsigned loc = 0; loc < trace.size(); loc++)
@@ -223,108 +221,93 @@ namespace seahorn
              {
                Function *CF = ci->getCalledFunction ();
 
-               if (CF == nondetf)
-               {
-                 Expr V = trace.eval (loc, I);
-                 assert (V);
+               Expr V = trace.eval (loc, I);
+               if (!V) continue;
+
+               // If the function name does not have a period in it,
+               // we assume it is an original function.
+               if (CF->getName().find_first_of('.') == StringRef::npos &&
+                   CF->isExternalLinkage(CF->getLinkage())) {
                  FuncValueMap[CF].push_back(V);
-                 errs () << "what " << FuncValueMap[CF].size() << "\n";
-                 errs () << "Call to " << CF->getName() << " returns " << *V << "\n";
                }
              }
            }
          }
 
-         for (auto &AF : M.getFunctionList()) {
-           errs () << AF << AF.isExternalLinkage(AF.getLinkage()) << AF.getName() << "\n";
-         }
-
          errs () << "go!\n";
 
+         // Create the __VERIFIER_error function
+         Function *VError = cast<Function> (Harness.getOrInsertFunction("__VERIFIER_errorz", FunctionType::get(Type::getVoidTy(getGlobalContext()), false)));
+         Function *Puts = cast<Function> (Harness.getOrInsertFunction("puts", FunctionType::get(Type::getInt32Ty(getGlobalContext()), std::vector<Type*> {Type::getInt8Ty(getGlobalContext())->getPointerTo()}, false)));
+         GlobalVariable *Msg = new GlobalVariable(Harness,
+                                                  ConstantDataArray::getString(getGlobalContext(), "__VERIFIER_error was executed", true)->getType(),
+                                                  true,
+                                                  GlobalValue::PrivateLinkage,
+                                                  ConstantDataArray::getString(getGlobalContext(), "__VERIFIER_error was executed", true));
+         BasicBlock *BB = BasicBlock::Create(getGlobalContext(), "entry", VError);
+         IRBuilder<> Builder(BB);
+         Builder.CreateCall(Puts,
+                            Builder.CreateGEP(Msg,
+                                              std::vector<Value*> {
+                                                ConstantInt::get(Type::getInt32Ty(getGlobalContext()), 0),
+                                                ConstantInt::get(Type::getInt32Ty(getGlobalContext()), 0)
+                                                  }));
+         Builder.CreateRetVoid();
+
+         // Build harness functions
          for (auto CFV : FuncValueMap) {
 
            auto CF = CFV.first;
            auto UFOarray = CFV.second;
 
-           errs () << CF << "\n";
+           // This is where we will build the harness function
+           Function *HF = cast<Function> (Harness.getOrInsertFunction(CF->getName(), cast<FunctionType> (CF->getFunctionType())));
 
            Type *RT = CF->getReturnType();
+           ArrayType* AT = ArrayType::get(RT, UFOarray.size());
 
+           // Convert UFO terminals to LLVM constants
            SmallVector<Constant*, 20> LLVMarray;
            std::transform(UFOarray.begin(), UFOarray.end(), std::back_inserter(LLVMarray),
                           [RT](Expr e) { return ufoToLLVM(RT, e); });
 
-           ArrayType* AT = ArrayType::get(RT, UFOarray.size());
-           GlobalVariable* CA = new GlobalVariable(M,
+           // This is an array containing the values to be returned
+           GlobalVariable* CA = new GlobalVariable(Harness,
                                                    AT,
                                                    true,
                                                    GlobalValue::PrivateLinkage,
                                                    ConstantArray::get(AT, LLVMarray));
-           CA->print(errs());
-           errs() << "\n";
-           CA->getType()->print(errs());
-           errs() << "\n";
 
-           assert (CF.empty());
-           BasicBlock *BB = BasicBlock::Create(getGlobalContext(), "entry", CF);
-
+           // Build the body of the harness function
+           BasicBlock *BB = BasicBlock::Create(getGlobalContext(), "entry", HF);
            IRBuilder<> Builder(BB);
 
            Type *CountType = IntegerType::get(getGlobalContext(), 32);
-
-           GlobalVariable* counter = new GlobalVariable(M,
+           GlobalVariable* Counter = new GlobalVariable(Harness,
                                                         CountType,
                                                         false,
                                                         GlobalValue::PrivateLinkage,
                                                         ConstantInt::get(CountType, 0));
 
-           counter->getType()->print(errs());
-           counter->print(errs());
-
-           Value *LoadCounter = Builder.CreateLoad(counter);
+           Value *LoadCounter = Builder.CreateLoad(Counter);
            Value *ArrayLookup = Builder.CreateLoad(Builder.CreateGEP(CA,
-                                          std::vector<Value*> {
-                                            ConstantInt::get(CountType, 0),
-                                              LoadCounter
-                                              }));
+                                                                     std::vector<Value*> {
+                                                                       ConstantInt::get(CountType, 0),
+                                                                         LoadCounter
+                                                                         }));
 
            Builder.CreateStore(Builder.CreateAdd(LoadCounter,
                                                  ConstantInt::get(CountType, 1)),
-                               counter);
+                               Counter);
            Builder.CreateRet(ArrayLookup);
-
-           CF->print(errs());
-
-           //verifyFunction(*CF);
-
-           // Value *RetValue = Builder.CreateLoad(Builder.CreateGEP(CA,
-           //                                                        std::vector<Value*> {Builder.CreateLoad(counter)}));
-           // Builder.CreateStore(&counter,
-           //                     Builder.CreateAdd(&counter,
-           //                                       ConstantInt::get(CountType, 1L)));
-
-
-           // std::for_each(LLVMarray.begin(), LLVMarray.end(), [](Constant* c) {c->print(errs());});
-           // errs () << "YAY" << UFOarray.size() << LLVMarray.size() << "\n";
-
-           // const Terminal<mpz_class> &test = dynamic_cast<const Terminal<mpz_class>& > (UFOarray[0].get()->op());
-
-           // errs () << "test = " << test.get().get_str() << "\n";
-
-           // errs () << typeid(UFOarray[0].get()->op()).name() << "\n";
-
-           //ConstantArray CA(AT, ArrayRef<Expr>(UFOarray));
-
-           // for (auto retval : UFOarray) {
-           //   errs () << *retval << "\n";
-           // }
          }
 
+         // XXX: Figure out where to write this
          std::error_code error_code;
          raw_fd_ostream out(std::string("/tmp/test.bc"), error_code, sys::fs::F_None);
          assert (!out.has_error());
-         verifyModule(M, &errs());
-         WriteBitcodeToFile(&M, out);
+         verifyModule(Harness, &errs());
+         WriteBitcodeToFile(&Harness, out);
          out.close();
 
     LOG ("cex", trace.print (errs ()););

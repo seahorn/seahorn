@@ -79,11 +79,119 @@ namespace seahorn
       if (F.getName ().equals ("main")) return runOnFunction (M, F);
     return false;
   }
-  
-  Constant* ufoToLLVM(Type *ty, Expr e) {
+
+  // XXX: Does this belong here?
+  // XXX: Support other types of terminals (i.e., boolean)
+  static Constant* ufoToLLVM(Type *ty, Expr e) {
     // XXX: I am assuming we will always be given a Terminal expression
     const Terminal<mpz_class> &T = dynamic_cast<const Terminal<mpz_class>&> (e.get()->op());
     return ConstantInt::get(cast<IntegerType> (ty), T.get().get_str(), 10);
+  }
+
+  static void writeLLVMHarness(std::string HarnessFilename, Module &M, Function &F, BmcTrace &trace)
+  {
+
+    Module Harness("harness", getGlobalContext());
+
+    ValueMap<Function*, ExprVector> FuncValueMap;
+
+    // Look for calls in the trace
+    for (unsigned loc = 0; loc < trace.size(); loc++)
+    {
+      const BasicBlock &BB = *trace.bb(loc);
+      for (auto &I : BB)
+      {
+        if (const CallInst *ci = dyn_cast<CallInst> (&I))
+        {
+          Function *CF = ci->getCalledFunction ();
+
+          Expr V = trace.eval (loc, I);
+          if (!V) continue;
+
+          // If the function name does not have a period in it,
+          // we assume it is an original function.
+          if (CF->getName().find_first_of('.') == StringRef::npos &&
+              CF->isExternalLinkage(CF->getLinkage())) {
+            FuncValueMap[CF].push_back(V);
+          }
+        }
+      }
+    }
+
+    // Create the __VERIFIER_error function
+    // XXX: This is currently unused because I'm not sure how to
+    // programatically link to puts.
+    Function *VError = cast<Function> (Harness.getOrInsertFunction("__VERIFIER_error_unused", FunctionType::get(Type::getVoidTy(getGlobalContext()), false)));
+    Function *Puts = cast<Function> (Harness.getOrInsertFunction("puts", FunctionType::get(Type::getInt32Ty(getGlobalContext()), std::vector<Type*> {Type::getInt8Ty(getGlobalContext())->getPointerTo()}, false)));
+    GlobalVariable *Msg = new GlobalVariable(Harness,
+                                             ConstantDataArray::getString(getGlobalContext(), "__VERIFIER_error was executed", true)->getType(),
+                                             true,
+                                             GlobalValue::PrivateLinkage,
+                                             ConstantDataArray::getString(getGlobalContext(), "__VERIFIER_error was executed", true));
+    BasicBlock *BB = BasicBlock::Create(getGlobalContext(), "entry", VError);
+    IRBuilder<> Builder(BB);
+    Builder.CreateCall(Puts,
+                       Builder.CreateGEP(Msg,
+                                         std::vector<Value*> {
+                                           ConstantInt::get(Type::getInt32Ty(getGlobalContext()), 0),
+                                             ConstantInt::get(Type::getInt32Ty(getGlobalContext()), 0)
+                                             }));
+    Builder.CreateRetVoid();
+
+    // Build harness functions
+    for (auto CFV : FuncValueMap) {
+
+      auto CF = CFV.first;
+      auto UFOarray = CFV.second;
+
+      // This is where we will build the harness function
+      Function *HF = cast<Function> (Harness.getOrInsertFunction(CF->getName(), cast<FunctionType> (CF->getFunctionType())));
+
+      Type *RT = CF->getReturnType();
+      ArrayType* AT = ArrayType::get(RT, UFOarray.size());
+
+      // Convert UFO terminals to LLVM constants
+      SmallVector<Constant*, 20> LLVMarray;
+      std::transform(UFOarray.begin(), UFOarray.end(), std::back_inserter(LLVMarray),
+                     [RT](Expr e) { return ufoToLLVM(RT, e); });
+
+      // This is an array containing the values to be returned
+      GlobalVariable* CA = new GlobalVariable(Harness,
+                                              AT,
+                                              true,
+                                              GlobalValue::PrivateLinkage,
+                                              ConstantArray::get(AT, LLVMarray));
+
+      // Build the body of the harness function
+      BasicBlock *BB = BasicBlock::Create(getGlobalContext(), "entry", HF);
+      IRBuilder<> Builder(BB);
+
+      Type *CountType = IntegerType::get(getGlobalContext(), 32);
+      GlobalVariable* Counter = new GlobalVariable(Harness,
+                                                   CountType,
+                                                   false,
+                                                   GlobalValue::PrivateLinkage,
+                                                   ConstantInt::get(CountType, 0));
+
+      Value *LoadCounter = Builder.CreateLoad(Counter);
+      Value *ArrayLookup = Builder.CreateLoad(Builder.CreateGEP(CA,
+                                                                std::vector<Value*> {
+                                                                  ConstantInt::get(CountType, 0),
+                                                                    LoadCounter
+                                                                    }));
+
+      Builder.CreateStore(Builder.CreateAdd(LoadCounter,
+                                            ConstantInt::get(CountType, 1)),
+                          Counter);
+      Builder.CreateRet(ArrayLookup);
+    }
+
+    std::error_code error_code;
+    raw_fd_ostream out(HornCexLLVM, error_code, sys::fs::F_None);
+    assert (!out.has_error());
+    verifyModule(Harness, &errs());
+    WriteBitcodeToFile(&Harness, out);
+    out.close();
   }
 
   bool HornCex::runOnFunction (Module &M, Function &F)
@@ -95,8 +203,6 @@ namespace seahorn
     LOG ("cex", 
          errs () << "Analyzed Function:\n"
          << F << "\n";);
-
-    Module Harness("harness", getGlobalContext());
 
     HornifyModule &hm = getAnalysis<HornifyModule> ();
     const CutPointGraph &cpg = getAnalysis<CutPointGraph> (F);
@@ -212,109 +318,12 @@ namespace seahorn
     // get bmc trace
     BmcTrace trace (bmc.getTrace ());
 
-    // XXX: Put this in a separate function
     if (!HornCexLLVM.empty()) {
-    ValueMap<Function*, ExprVector> FuncValueMap;
-
-         // Look for calls in the trace
-         for (unsigned loc = 0; loc < trace.size(); loc++)
-         {
-           const BasicBlock &BB = *trace.bb(loc);
-           for (auto &I : BB)
-           {
-             if (const CallInst *ci = dyn_cast<CallInst> (&I))
-             {
-               Function *CF = ci->getCalledFunction ();
-
-               Expr V = trace.eval (loc, I);
-               if (!V) continue;
-
-               // If the function name does not have a period in it,
-               // we assume it is an original function.
-               if (CF->getName().find_first_of('.') == StringRef::npos &&
-                   CF->isExternalLinkage(CF->getLinkage())) {
-                 FuncValueMap[CF].push_back(V);
-               }
-             }
-           }
-         }
-
-         // Create the __VERIFIER_error function
-         Function *VError = cast<Function> (Harness.getOrInsertFunction("__VERIFIER_errorz", FunctionType::get(Type::getVoidTy(getGlobalContext()), false)));
-         Function *Puts = cast<Function> (Harness.getOrInsertFunction("puts", FunctionType::get(Type::getInt32Ty(getGlobalContext()), std::vector<Type*> {Type::getInt8Ty(getGlobalContext())->getPointerTo()}, false)));
-         GlobalVariable *Msg = new GlobalVariable(Harness,
-                                                  ConstantDataArray::getString(getGlobalContext(), "__VERIFIER_error was executed", true)->getType(),
-                                                  true,
-                                                  GlobalValue::PrivateLinkage,
-                                                  ConstantDataArray::getString(getGlobalContext(), "__VERIFIER_error was executed", true));
-         BasicBlock *BB = BasicBlock::Create(getGlobalContext(), "entry", VError);
-         IRBuilder<> Builder(BB);
-         Builder.CreateCall(Puts,
-                            Builder.CreateGEP(Msg,
-                                              std::vector<Value*> {
-                                                ConstantInt::get(Type::getInt32Ty(getGlobalContext()), 0),
-                                                ConstantInt::get(Type::getInt32Ty(getGlobalContext()), 0)
-                                                  }));
-         Builder.CreateRetVoid();
-
-         // Build harness functions
-         for (auto CFV : FuncValueMap) {
-
-           auto CF = CFV.first;
-           auto UFOarray = CFV.second;
-
-           // This is where we will build the harness function
-           Function *HF = cast<Function> (Harness.getOrInsertFunction(CF->getName(), cast<FunctionType> (CF->getFunctionType())));
-
-           Type *RT = CF->getReturnType();
-           ArrayType* AT = ArrayType::get(RT, UFOarray.size());
-
-           // Convert UFO terminals to LLVM constants
-           SmallVector<Constant*, 20> LLVMarray;
-           std::transform(UFOarray.begin(), UFOarray.end(), std::back_inserter(LLVMarray),
-                          [RT](Expr e) { return ufoToLLVM(RT, e); });
-
-           // This is an array containing the values to be returned
-           GlobalVariable* CA = new GlobalVariable(Harness,
-                                                   AT,
-                                                   true,
-                                                   GlobalValue::PrivateLinkage,
-                                                   ConstantArray::get(AT, LLVMarray));
-
-           // Build the body of the harness function
-           BasicBlock *BB = BasicBlock::Create(getGlobalContext(), "entry", HF);
-           IRBuilder<> Builder(BB);
-
-           Type *CountType = IntegerType::get(getGlobalContext(), 32);
-           GlobalVariable* Counter = new GlobalVariable(Harness,
-                                                        CountType,
-                                                        false,
-                                                        GlobalValue::PrivateLinkage,
-                                                        ConstantInt::get(CountType, 0));
-
-           Value *LoadCounter = Builder.CreateLoad(Counter);
-           Value *ArrayLookup = Builder.CreateLoad(Builder.CreateGEP(CA,
-                                                                     std::vector<Value*> {
-                                                                       ConstantInt::get(CountType, 0),
-                                                                         LoadCounter
-                                                                         }));
-
-           Builder.CreateStore(Builder.CreateAdd(LoadCounter,
-                                                 ConstantInt::get(CountType, 1)),
-                               Counter);
-           Builder.CreateRet(ArrayLookup);
-         }
-
-         std::error_code error_code;
-         raw_fd_ostream out(HornCexLLVM, error_code, sys::fs::F_None);
-         assert (!out.has_error());
-         verifyModule(Harness, &errs());
-         WriteBitcodeToFile(&Harness, out);
-         out.close();
+      writeLLVMHarness(HornCexLLVM, M, F, trace);
     }
 
     LOG ("cex", trace.print (errs ()););
-    
+
     dumpSvCompCex (trace);
     return false;
   }

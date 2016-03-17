@@ -59,6 +59,10 @@ static llvm::cl::opt<std::string>
 HornCexSmtFilename("horn-cex-smt", llvm::cl::desc("Counterexample validate SMT problem"),
                llvm::cl::init(""), llvm::cl::value_desc("filename"), llvm::cl::Hidden);
 
+static llvm::cl::opt<std::string>
+HornCexLLVM("horn-llvm-cex", llvm::cl::desc("Produce detailed counterexample in executable LLVM bitcode format"),
+               llvm::cl::init(""), llvm::cl::value_desc("filename"));
+
 
 using namespace llvm;
 namespace seahorn
@@ -209,6 +213,7 @@ namespace seahorn
     BmcTrace trace (bmc.getTrace ());
 
     // XXX: Put this in a separate function
+    if (!HornCexLLVM.empty()) {
     ValueMap<Function*, ExprVector> FuncValueMap;
 
          // Look for calls in the trace
@@ -233,8 +238,6 @@ namespace seahorn
              }
            }
          }
-
-         errs () << "go!\n";
 
          // Create the __VERIFIER_error function
          Function *VError = cast<Function> (Harness.getOrInsertFunction("__VERIFIER_errorz", FunctionType::get(Type::getVoidTy(getGlobalContext()), false)));
@@ -302,13 +305,13 @@ namespace seahorn
            Builder.CreateRet(ArrayLookup);
          }
 
-         // XXX: Figure out where to write this
          std::error_code error_code;
-         raw_fd_ostream out(std::string("/tmp/test.bc"), error_code, sys::fs::F_None);
+         raw_fd_ostream out(HornCexLLVM, error_code, sys::fs::F_None);
          assert (!out.has_error());
          verifyModule(Harness, &errs());
          WriteBitcodeToFile(&Harness, out);
          out.close();
+    }
 
     LOG ("cex", trace.print (errs ()););
     

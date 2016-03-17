@@ -229,6 +229,32 @@ namespace ufo
 
 	  res = Z3_mk_app (ctx, zfdecl, e->arity () - 1, &args [0]);
 	}
+      /** quantifier */
+      else if (isOpX<FORALL> (e) || isOpX<EXISTS> (e))
+      {
+        unsigned num_bound = bind::numBound (e);
+        z3::ast_vector pinned (ctx);
+        pinned.resize (num_bound);
+        std::vector<Z3_sort> bound_sorts;
+        bound_sorts.reserve (num_bound);
+        std::vector<Z3_symbol> bound_names;
+        bound_names.reserve (num_bound);
+        
+        for (unsigned i = 0; i < num_bound; ++i)
+        {
+          z3::ast z (marshal (bind::decl (e, i), ctx, cache, seen));
+          pinned.push_back (z);
+          
+          Z3_func_decl decl = Z3_to_func_decl (ctx, z);
+          bound_sorts.push_back (Z3_get_range (ctx, decl));
+          bound_names.push_back (Z3_get_decl_name (ctx, decl));
+        }
+        
+        
+        z3::ast body (marshal (bind::body (e), ctx, cache, seen));
+        res = Z3_mk_quantifier (ctx, isOpX<FORALL> (e), 0, 0, NULL,
+                                num_bound, &bound_sorts[0], &bound_names[0], body);
+      }
 
       // -- cache the result for unmarshaling
       if (res)
@@ -594,6 +620,27 @@ namespace ufo
 
 	  return bind::fdecl (name, type);
 	}
+      else if (kind == Z3_QUANTIFIER_AST)
+      {
+        ExprVector args;
+        unsigned num_bound = Z3_get_quantifier_num_bound (ctx, z);
+        args.reserve (num_bound + 1);
+        for (unsigned i = 0; i < num_bound; ++i)
+        {
+          Z3_func_decl decl = Z3_mk_func_decl (ctx,
+                                               Z3_get_quantifier_bound_name (ctx, z, i),
+                                               0, nullptr,
+                                               Z3_get_quantifier_bound_sort (ctx, z, i));
+          z3::ast zdecl (ctx, Z3_func_decl_to_ast (ctx, decl));
+          args.push_back (unmarshal (zdecl, efac, cache, seen));
+          assert (args.back ().get ());
+        }
+        args.push_back (unmarshal (z3::ast (ctx, Z3_get_quantifier_body (ctx, z)),
+                                   efac, cache, seen));
+        return Z3_is_quantifier_forall (ctx, z) ?
+          mknary<FORALL> (args) : mknary<EXISTS> (args);
+      }
+      
 
       if (kind != Z3_APP_AST)
           errs () << boost::lexical_cast<std::string> (z) << "\n";

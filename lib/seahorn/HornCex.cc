@@ -88,7 +88,7 @@ namespace seahorn
     return ConstantInt::get(cast<IntegerType> (ty), T.get().get_str(), 10);
   }
 
-  static void writeLLVMHarness(std::string HarnessFilename, Module &M, Function &F, BmcTrace &trace)
+  static void writeLLVMHarness(std::string HarnessFilename, Function &F, BmcTrace &trace)
   {
 
     Module Harness("harness", getGlobalContext());
@@ -118,31 +118,11 @@ namespace seahorn
       }
     }
 
-    // Create the __VERIFIER_error function
-    // XXX: This is currently unused because I'm not sure how to
-    // programatically link to puts.
-    Function *VError = cast<Function> (Harness.getOrInsertFunction("__VERIFIER_error_unused", FunctionType::get(Type::getVoidTy(getGlobalContext()), false)));
-    Function *Puts = cast<Function> (Harness.getOrInsertFunction("puts", FunctionType::get(Type::getInt32Ty(getGlobalContext()), std::vector<Type*> {Type::getInt8Ty(getGlobalContext())->getPointerTo()}, false)));
-    GlobalVariable *Msg = new GlobalVariable(Harness,
-                                             ConstantDataArray::getString(getGlobalContext(), "__VERIFIER_error was executed", true)->getType(),
-                                             true,
-                                             GlobalValue::PrivateLinkage,
-                                             ConstantDataArray::getString(getGlobalContext(), "__VERIFIER_error was executed", true));
-    BasicBlock *BB = BasicBlock::Create(getGlobalContext(), "entry", VError);
-    IRBuilder<> Builder(BB);
-    Builder.CreateCall(Puts,
-                       Builder.CreateGEP(Msg,
-                                         std::vector<Value*> {
-                                           ConstantInt::get(Type::getInt32Ty(getGlobalContext()), 0),
-                                             ConstantInt::get(Type::getInt32Ty(getGlobalContext()), 0)
-                                             }));
-    Builder.CreateRetVoid();
-
     // Build harness functions
     for (auto CFV : FuncValueMap) {
 
       auto CF = CFV.first;
-      auto UFOarray = CFV.second;
+      auto& UFOarray = CFV.second;
 
       // This is where we will build the harness function
       Function *HF = cast<Function> (Harness.getOrInsertFunction(CF->getName(), cast<FunctionType> (CF->getFunctionType())));
@@ -319,7 +299,7 @@ namespace seahorn
     BmcTrace trace (bmc.getTrace ());
 
     if (!HornCexLLVM.empty()) {
-      writeLLVMHarness(HornCexLLVM, M, F, trace);
+      writeLLVMHarness(HornCexLLVM, F, trace);
     }
 
     LOG ("cex", trace.print (errs ()););

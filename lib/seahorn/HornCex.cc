@@ -118,26 +118,6 @@ namespace seahorn
       }
     }
 
-    // Create the __VERIFIER_error function
-    // XXX: This is currently unused because I'm not sure how to
-    // programatically link to puts.
-    Function *VError = cast<Function> (Harness.getOrInsertFunction("__VERIFIER_error_unused", FunctionType::get(Type::getVoidTy(getGlobalContext()), false)));
-    Function *Puts = cast<Function> (Harness.getOrInsertFunction("puts", FunctionType::get(Type::getInt32Ty(getGlobalContext()), std::vector<Type*> {Type::getInt8Ty(getGlobalContext())->getPointerTo()}, false)));
-    GlobalVariable *Msg = new GlobalVariable(Harness,
-                                             ConstantDataArray::getString(getGlobalContext(), "__VERIFIER_error was executed", true)->getType(),
-                                             true,
-                                             GlobalValue::PrivateLinkage,
-                                             ConstantDataArray::getString(getGlobalContext(), "__VERIFIER_error was executed", true));
-    BasicBlock *BB = BasicBlock::Create(getGlobalContext(), "entry", VError);
-    IRBuilder<> Builder(BB);
-    Builder.CreateCall(Puts,
-                       Builder.CreateGEP(Msg,
-                                         std::vector<Value*> {
-                                           ConstantInt::get(Type::getInt32Ty(getGlobalContext()), 0),
-                                             ConstantInt::get(Type::getInt32Ty(getGlobalContext()), 0)
-                                             }));
-    Builder.CreateRetVoid();
-
     // Build harness functions
     for (auto CFV : FuncValueMap) {
 

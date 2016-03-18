@@ -122,7 +122,7 @@ namespace seahorn
     for (auto CFV : FuncValueMap) {
 
       auto CF = CFV.first;
-      auto UFOarray = CFV.second;
+      auto& UFOarray = CFV.second;
 
       // This is where we will build the harness function
       Function *HF = cast<Function> (Harness.getOrInsertFunction(CF->getName(), cast<FunctionType> (CF->getFunctionType())));

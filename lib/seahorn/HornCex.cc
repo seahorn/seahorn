@@ -82,10 +82,12 @@ namespace seahorn
 
   // XXX: Does this belong here?
   // XXX: Support other types of terminals (i.e., boolean)
-  static Constant* ufoToLLVM(Type *ty, Expr e) {
-    // XXX: I am assuming we will always be given a Terminal expression
-    const Terminal<mpz_class> &T = dynamic_cast<const Terminal<mpz_class>&> (e.get()->op());
-    return ConstantInt::get(cast<IntegerType> (ty), T.get().get_str(), 10);
+  static Constant* exprToLlvm (IntegerType *ty, Expr e)
+  {
+    assert (isOpX<MPZ> (e));
+    
+    mpz_class mpz = getTerm<mpz_class> (e);
+    return ConstantInt::get (ty, mpz.get_str (), 10);
   }
 
   static void writeLLVMHarness(std::string HarnessFilename, Function &F, BmcTrace &trace)
@@ -122,18 +124,25 @@ namespace seahorn
     for (auto CFV : FuncValueMap) {
 
       auto CF = CFV.first;
-      auto& UFOarray = CFV.second;
+      auto& values = CFV.second;
 
       // This is where we will build the harness function
       Function *HF = cast<Function> (Harness.getOrInsertFunction(CF->getName(), cast<FunctionType> (CF->getFunctionType())));
 
-      Type *RT = CF->getReturnType();
-      ArrayType* AT = ArrayType::get(RT, UFOarray.size());
+      IntegerType *RT = dyn_cast<IntegerType> (CF->getReturnType());
+      if (!RT)
+      {
+        errs () << "Skipping non-integer function: " << CF->getName () << "\n";
+        continue;
+      }
+      
+      
+      ArrayType* AT = ArrayType::get(RT, values.size());
 
-      // Convert UFO terminals to LLVM constants
+      // Convert Expr to LLVM constants
       SmallVector<Constant*, 20> LLVMarray;
-      std::transform(UFOarray.begin(), UFOarray.end(), std::back_inserter(LLVMarray),
-                     [RT](Expr e) { return ufoToLLVM(RT, e); });
+      std::transform(values.begin(), values.end(), std::back_inserter(LLVMarray),
+                     [RT](Expr e) { return exprToLlvm(RT, e); });
 
       // This is an array containing the values to be returned
       GlobalVariable* CA = new GlobalVariable(Harness,
@@ -146,7 +155,7 @@ namespace seahorn
       BasicBlock *BB = BasicBlock::Create(getGlobalContext(), "entry", HF);
       IRBuilder<> Builder(BB);
 
-      Type *CountType = IntegerType::get(getGlobalContext(), 32);
+      Type *CountType = Type::getInt32Ty (F.getContext ());
       GlobalVariable* Counter = new GlobalVariable(Harness,
                                                    CountType,
                                                    false,
@@ -154,11 +163,8 @@ namespace seahorn
                                                    ConstantInt::get(CountType, 0));
 
       Value *LoadCounter = Builder.CreateLoad(Counter);
-      Value *ArrayLookup = Builder.CreateLoad(Builder.CreateGEP(CA,
-                                                                std::vector<Value*> {
-                                                                  ConstantInt::get(CountType, 0),
-                                                                    LoadCounter
-                                                                    }));
+      Value* Idx[] = {ConstantInt::get(CountType, 0), LoadCounter};
+      Value *ArrayLookup = Builder.CreateLoad(Builder.CreateInBoundsGEP(CA, Idx));
 
       Builder.CreateStore(Builder.CreateAdd(LoadCounter,
                                             ConstantInt::get(CountType, 1)),

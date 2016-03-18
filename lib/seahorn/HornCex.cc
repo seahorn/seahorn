@@ -16,7 +16,9 @@
 #include "boost/range/adaptor/reversed.hpp"
 #include "boost/range/algorithm/sort.hpp"
 #include "boost/container/flat_set.hpp"
+#include "boost/container/map.hpp"
 #include <boost/algorithm/string/predicate.hpp>
+
 
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/ToolOutputFile.h"
@@ -25,6 +27,14 @@
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/DebugLoc.h"
 #include "llvm/IR/DebugInfo.h"
+#include "llvm/IR/GlobalValue.h"
+#include "llvm/IR/ValueMap.h"
+#include "llvm/IR/IRBuilder.h"
+#include "llvm/IR/Verifier.h"
+
+#include "llvm/Bitcode/ReaderWriter.h"
+
+#include <gmpxx.h>
 
 static llvm::cl::opt<std::string>
 SvCompCexFile("horn-svcomp-cex", llvm::cl::desc("Counterexample in SV-COMP XML format"),
@@ -49,6 +59,10 @@ static llvm::cl::opt<std::string>
 HornCexSmtFilename("horn-cex-smt", llvm::cl::desc("Counterexample validate SMT problem"),
                llvm::cl::init(""), llvm::cl::value_desc("filename"), llvm::cl::Hidden);
 
+static llvm::cl::opt<std::string>
+HornCexLLVM("horn-llvm-cex", llvm::cl::desc("Produce detailed counterexample in executable LLVM bitcode format"),
+               llvm::cl::init(""), llvm::cl::value_desc("filename"));
+
 
 using namespace llvm;
 namespace seahorn
@@ -62,20 +76,134 @@ namespace seahorn
   bool HornCex::runOnModule (Module &M)
   {
     for (Function &F : M)
-      if (F.getName ().equals ("main")) return runOnFunction (F);
+      if (F.getName ().equals ("main")) return runOnFunction (M, F);
     return false;
   }
-  
-  bool HornCex::runOnFunction (Function &F)
+
+  // XXX: Does this belong here?
+  // XXX: Support other types of terminals (i.e., boolean)
+  static Constant* ufoToLLVM(Type *ty, Expr e) {
+    // XXX: I am assuming we will always be given a Terminal expression
+    const Terminal<mpz_class> &T = dynamic_cast<const Terminal<mpz_class>&> (e.get()->op());
+    return ConstantInt::get(cast<IntegerType> (ty), T.get().get_str(), 10);
+  }
+
+  static void writeLLVMHarness(std::string HarnessFilename, Module &M, Function &F, BmcTrace &trace)
+  {
+
+    Module Harness("harness", getGlobalContext());
+
+    ValueMap<Function*, ExprVector> FuncValueMap;
+
+    // Look for calls in the trace
+    for (unsigned loc = 0; loc < trace.size(); loc++)
+    {
+      const BasicBlock &BB = *trace.bb(loc);
+      for (auto &I : BB)
+      {
+        if (const CallInst *ci = dyn_cast<CallInst> (&I))
+        {
+          Function *CF = ci->getCalledFunction ();
+
+          Expr V = trace.eval (loc, I);
+          if (!V) continue;
+
+          // If the function name does not have a period in it,
+          // we assume it is an original function.
+          if (CF->getName().find_first_of('.') == StringRef::npos &&
+              CF->isExternalLinkage(CF->getLinkage())) {
+            FuncValueMap[CF].push_back(V);
+          }
+        }
+      }
+    }
+
+    // Create the __VERIFIER_error function
+    // XXX: This is currently unused because I'm not sure how to
+    // programatically link to puts.
+    Function *VError = cast<Function> (Harness.getOrInsertFunction("__VERIFIER_error_unused", FunctionType::get(Type::getVoidTy(getGlobalContext()), false)));
+    Function *Puts = cast<Function> (Harness.getOrInsertFunction("puts", FunctionType::get(Type::getInt32Ty(getGlobalContext()), std::vector<Type*> {Type::getInt8Ty(getGlobalContext())->getPointerTo()}, false)));
+    GlobalVariable *Msg = new GlobalVariable(Harness,
+                                             ConstantDataArray::getString(getGlobalContext(), "__VERIFIER_error was executed", true)->getType(),
+                                             true,
+                                             GlobalValue::PrivateLinkage,
+                                             ConstantDataArray::getString(getGlobalContext(), "__VERIFIER_error was executed", true));
+    BasicBlock *BB = BasicBlock::Create(getGlobalContext(), "entry", VError);
+    IRBuilder<> Builder(BB);
+    Builder.CreateCall(Puts,
+                       Builder.CreateGEP(Msg,
+                                         std::vector<Value*> {
+                                           ConstantInt::get(Type::getInt32Ty(getGlobalContext()), 0),
+                                             ConstantInt::get(Type::getInt32Ty(getGlobalContext()), 0)
+                                             }));
+    Builder.CreateRetVoid();
+
+    // Build harness functions
+    for (auto CFV : FuncValueMap) {
+
+      auto CF = CFV.first;
+      auto UFOarray = CFV.second;
+
+      // This is where we will build the harness function
+      Function *HF = cast<Function> (Harness.getOrInsertFunction(CF->getName(), cast<FunctionType> (CF->getFunctionType())));
+
+      Type *RT = CF->getReturnType();
+      ArrayType* AT = ArrayType::get(RT, UFOarray.size());
+
+      // Convert UFO terminals to LLVM constants
+      SmallVector<Constant*, 20> LLVMarray;
+      std::transform(UFOarray.begin(), UFOarray.end(), std::back_inserter(LLVMarray),
+                     [RT](Expr e) { return ufoToLLVM(RT, e); });
+
+      // This is an array containing the values to be returned
+      GlobalVariable* CA = new GlobalVariable(Harness,
+                                              AT,
+                                              true,
+                                              GlobalValue::PrivateLinkage,
+                                              ConstantArray::get(AT, LLVMarray));
+
+      // Build the body of the harness function
+      BasicBlock *BB = BasicBlock::Create(getGlobalContext(), "entry", HF);
+      IRBuilder<> Builder(BB);
+
+      Type *CountType = IntegerType::get(getGlobalContext(), 32);
+      GlobalVariable* Counter = new GlobalVariable(Harness,
+                                                   CountType,
+                                                   false,
+                                                   GlobalValue::PrivateLinkage,
+                                                   ConstantInt::get(CountType, 0));
+
+      Value *LoadCounter = Builder.CreateLoad(Counter);
+      Value *ArrayLookup = Builder.CreateLoad(Builder.CreateGEP(CA,
+                                                                std::vector<Value*> {
+                                                                  ConstantInt::get(CountType, 0),
+                                                                    LoadCounter
+                                                                    }));
+
+      Builder.CreateStore(Builder.CreateAdd(LoadCounter,
+                                            ConstantInt::get(CountType, 1)),
+                          Counter);
+      Builder.CreateRet(ArrayLookup);
+    }
+
+    std::error_code error_code;
+    raw_fd_ostream out(HornCexLLVM, error_code, sys::fs::F_None);
+    assert (!out.has_error());
+    verifyModule(Harness, &errs());
+    WriteBitcodeToFile(&Harness, out);
+    out.close();
+  }
+
+  bool HornCex::runOnFunction (Module &M, Function &F)
   {
     HornSolver &hs = getAnalysis<HornSolver> ();
     // -- only run if result is true, skip if it is false or unknown
     if (hs.getResult ()) ; else return false;
-    
+
     LOG ("cex", 
          errs () << "Analyzed Function:\n"
          << F << "\n";);
-   
+
     HornifyModule &hm = getAnalysis<HornifyModule> ();
     const CutPointGraph &cpg = getAnalysis<CutPointGraph> (F);
     
@@ -190,8 +318,12 @@ namespace seahorn
     // get bmc trace
     BmcTrace trace (bmc.getTrace ());
 
+    if (!HornCexLLVM.empty()) {
+      writeLLVMHarness(HornCexLLVM, M, F, trace);
+    }
+
     LOG ("cex", trace.print (errs ()););
-    
+
     dumpSvCompCex (trace);
     return false;
   }

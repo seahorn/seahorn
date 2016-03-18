@@ -88,7 +88,7 @@ namespace seahorn
     return ConstantInt::get(cast<IntegerType> (ty), T.get().get_str(), 10);
   }
 
-  static void writeLLVMHarness(std::string HarnessFilename, Module &M, Function &F, BmcTrace &trace)
+  static void writeLLVMHarness(std::string HarnessFilename, Function &F, BmcTrace &trace)
   {
 
     Module Harness("harness", getGlobalContext());
@@ -299,7 +299,7 @@ namespace seahorn
     BmcTrace trace (bmc.getTrace ());
 
     if (!HornCexLLVM.empty()) {
-      writeLLVMHarness(HornCexLLVM, M, F, trace);
+      writeLLVMHarness(HornCexLLVM, F, trace);
     }
 
     LOG ("cex", trace.print (errs ()););

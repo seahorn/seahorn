@@ -15,37 +15,37 @@ using namespace llvm;
 using namespace ufo;
 
 static llvm::cl::opt<bool>
-GlobalConstraints("bv-horn-global-constraints",
+GlobalConstraints("horn-bv-global-constraints",
                   llvm::cl::desc
                   ("Maximize the use of global (i.e., unguarded) constraints"),
                   cl::init (false));
 
 static llvm::cl::opt<bool>
-ArrayGlobalConstraints("bv-horn-array-global-constraints",
+ArrayGlobalConstraints("horn-bv-array-global-constraints",
                        llvm::cl::desc
                        ("Extend global constraints to arrays"),
                        cl::init (false));
 
 static llvm::cl::opt<bool>
-EnableUniqueScalars ("bv-horn-singleton-aliases",
+EnableUniqueScalars ("horn-bv-singleton-aliases",
                      llvm::cl::desc ("Treat singleton alias sets as scalar values"),
                      cl::init (true));
 
 static llvm::cl::opt<bool>
-InferMemSafety ("bv-horn-use-mem-safety",
+InferMemSafety ("horn-bv-use-mem-safety",
                 llvm::cl::desc ("Rely on memory safety assumptions such as "
                                 "successful load/store imply validity of their arguments"),
                 cl::init(true),
                 cl::Hidden);
 
 static llvm::cl::opt<bool>
-IgnoreCalloc ("bv-horn-ignore-calloc",
+IgnoreCalloc ("horn-bv-ignore-calloc",
               llvm::cl::desc ("Treat calloc same as malloc, ignore that memory is initialized"),
               cl::init (false),
               cl::Hidden);
 
 static llvm::cl::opt<bool>
-UseWrite ("horn-use-write",
+UseWrite ("horn-bv-use-write",
           llvm::cl::desc ("Write to store instead of havoc"),
           cl::init (false),
           cl::Hidden);

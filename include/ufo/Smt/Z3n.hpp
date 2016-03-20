@@ -798,6 +798,7 @@ namespace ufo
 
       for (const Expr &v : fp.getVars ())
       {
+        assert (bind::IsConst() (v));
         out << "(declare-var " << fp.z3.toSmtLib (v) << " ";
         Expr ty = bind::typeOf (v);
         if (isOpX<BOOL_TY> (ty)) out << "Bool ";

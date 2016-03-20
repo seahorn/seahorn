@@ -144,7 +144,7 @@ namespace
     void side (Expr v, bool conditional = false)
     {
       if (!v) return;
-      if (GlobalConstraints || conditional)
+      if (!GlobalConstraints || conditional)
         m_side.push_back (boolop::limp (m_activeLit, v));
       else
         m_side.push_back (v);

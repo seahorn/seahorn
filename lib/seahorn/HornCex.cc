@@ -63,6 +63,10 @@ static llvm::cl::opt<std::string>
 HornCexLLVM("horn-llvm-cex", llvm::cl::desc("Produce detailed counterexample in executable LLVM bitcode format"),
                llvm::cl::init(""), llvm::cl::value_desc("filename"));
 
+static llvm::cl::opt<bool>
+AsmHarness("horn-ll-cex", llvm::cl::desc ("Emit counterexample in ll format"),
+           llvm::cl::init(false));
+
 
 using namespace llvm;
 namespace seahorn
@@ -185,7 +189,8 @@ namespace seahorn
     raw_fd_ostream out(HornCexLLVM, error_code, sys::fs::F_None);
     assert (!out.has_error());
     verifyModule(Harness, &errs());
-    WriteBitcodeToFile(&Harness, out);
+    if (AsmHarness) out << Harness;
+    else WriteBitcodeToFile(&Harness, out);
     out.close();
   }
 

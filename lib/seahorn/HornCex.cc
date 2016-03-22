@@ -80,14 +80,23 @@ namespace seahorn
     return false;
   }
 
-  // XXX: Does this belong here?
-  // XXX: Support other types of terminals (i.e., boolean)
   static Constant* exprToLlvm (IntegerType *ty, Expr e)
   {
-    assert (isOpX<MPZ> (e));
-    
-    mpz_class mpz = getTerm<mpz_class> (e);
-    return ConstantInt::get (ty, mpz.get_str (), 10);
+    if (isOpX<TRUE> (e))
+      return ConstantInt::getTrue (ty);
+    else if (isOpX<FALSE> (e))
+      return ConstantInt::getFalse (ty);
+    else if (isOpX<MPZ> (e))
+    {
+      mpz_class mpz = getTerm<mpz_class> (e);
+      return ConstantInt::get (ty, mpz.get_str (), 10);
+    }
+    else
+    {
+      // if all fails, try 0
+      LOG("cex", errs () << "WARNING: Not handled value: " << *e << "\n";);
+      return ConstantInt::get (ty, 0);
+    }
   }
 
   static void writeLLVMHarness(std::string HarnessFilename, Function &F, BmcTrace &trace)

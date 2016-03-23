@@ -114,13 +114,15 @@ namespace seahorn
         if (const CallInst *ci = dyn_cast<CallInst> (&I))
         {
           Function *CF = ci->getCalledFunction ();
+          if (!CF) continue;
 
           Expr V = trace.eval (loc, I);
           if (!V) continue;
 
           // If the function name does not have a period in it,
           // we assume it is an original function.
-          if (CF->getName().find_first_of('.') == StringRef::npos &&
+          if (CF->hasName() &&
+              CF->getName().find_first_of('.') == StringRef::npos &&
               CF->isExternalLinkage(CF->getLinkage())) {
             FuncValueMap[CF].push_back(V);
           }

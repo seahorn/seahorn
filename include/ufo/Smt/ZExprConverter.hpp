@@ -799,7 +799,16 @@ namespace ufo
           e = mknary<REM> (args.begin (), args.end ());
           break;
         case Z3_OP_CONST_ARRAY:
-          e = mknary<CONST_ARRAY> (args.begin (), args.end ());
+          {
+            assert (args.size () == 1);
+            Z3_sort sort = Z3_get_sort (ctx, z);
+            Expr domain = unmarshal
+              (z3::ast (ctx, Z3_sort_to_ast (ctx,
+                                             Z3_get_array_sort_domain (ctx, sort))),
+               efac, cache, seen);
+            
+            e = op::array::constArray (domain, args[0]);
+          }
           break;
         case Z3_OP_STORE:
           e = mknary<STORE> (args.begin (), args.end ());

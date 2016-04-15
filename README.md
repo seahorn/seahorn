@@ -110,9 +110,10 @@ To see all the options, type `sea --help`.
 
 This is an example of a C program annotated with a safety property:
 ``` c
-    extern int nd();
-    extern void __VERIFIER_error() __attribute__((noreturn));
-    void assert (int cond) { if (!cond) __VERIFIER_error (); }
+    /* verification command: sea pf --crab test.c */
+    extern int nd(void);
+    extern void __VERIFIER_error(void) __attribute__((noreturn));
+    #define assert(X) if(!(X)){__VERIFIER_error();}
     int main(){
       int x,y;
       x=1; y=0;

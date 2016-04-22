@@ -84,7 +84,8 @@ def initProfiles():
             '--horn-stats', '--enable-nondet-init', '--strip-extern',
             '--externalize-addr-taken-functions', '--horn-singleton-aliases=true',
             '--horn-pdr-contexts=600', '--devirt-functions', '--horn-ignore-calloc=false',
-	     '--enable-indvar', '--enable-loop-idiom']
+            '--enable-indvar', '--enable-loop-idiom',
+            '--horn-make-undef-warning-error=false']
     profiles = dict()
     profiles ['inline'] = base + [ '--inline', '--crab', '--crab-dom=num']
     profiles ['no_inline'] = base

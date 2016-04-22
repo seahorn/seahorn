@@ -1,4 +1,5 @@
-This directory contains Seahorn's regression test suite. It uses LLVM's [lit](http://llvm.org/docs/CommandGuide/lit.html) testing tool. 
+This directory contains Seahorn's regression test suite. It uses
+LLVM's [lit](http://llvm.org/docs/CommandGuide/lit.html) testing tool.
 
 
 # Installing lit and OutputCheck
@@ -12,5 +13,5 @@ $ pip install OutputCheck
 # Running the tests
 
 ```
-$ lit .
+$ cd <BUILD_DIR> ; cmake --build . --target test-simple
 ```

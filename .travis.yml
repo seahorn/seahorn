@@ -30,6 +30,7 @@ before_install:
    - sudo apt-get --yes update
    - sudo apt-get install --yes cmake cmake-data
    - sudo apt-get install --yes libgmp-dev
+   - sudo apt-get install --yes python-pip
 
 install:
   - until sudo apt-get -qq install libboost-all-dev libboost-test-dev libboost-program-options-dev; do echo retry; done
@@ -56,6 +57,8 @@ install:
   - wget --output-document=llvm-z3.tar.gz https://www.dropbox.com/s/750hyl47vnkxwa8/llvm-z3.tar.gz?dl=1;
   - tar xvf llvm-z3.tar.gz -C $LZ;
   - ls $LZ
+  - sudo pip install lit
+  - sudo pip install OutputCheck
 
 script:
   - mkdir -p build
@@ -72,6 +75,7 @@ script:
   - make
   - /usr/bin/cmake --build . --target install
   - run/bin/sea -h
+  - /usr/local/cmake --build . --target test-simple
 
 
 notifications:

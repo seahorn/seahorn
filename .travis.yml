@@ -75,7 +75,7 @@ script:
   - make
   - /usr/bin/cmake --build . --target install
   - run/bin/sea -h
-  - /usr/local/cmake --build . --target test-simple
+  - /usr/bin/cmake --build . --target test-simple
 
 
 notifications:

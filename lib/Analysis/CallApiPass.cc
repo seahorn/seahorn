@@ -13,41 +13,58 @@
 #include "llvm/Support/raw_ostream.h"
 #include "avy/AvyDebug.h"
 
-
-
 namespace seahorn
 {
   using namespace llvm;
 
+
+  void CallApiPass::parseApiString(std::string apistring) {
+
+    std::istringstream ss(apistring);
+    std::string token;
+    while(std::getline(ss, token, ',')) {
+      m_apis.push_back(token);
+    }
+  }
+
   // The body of the pass
   bool CallApiPass::runOnModule (Module &M)
   {
-    errs() << "Running analysis on called APIs, looking for " << m_apiname << "\n";;
-
-    for (Function &F : M)
+    for (std::string API : m_apis)
     {
-      for (inst_iterator i = inst_begin(F), e = inst_end(F); i != e; ++i)
+      for (Function &F : M)
       {
-        Instruction *I = &*i;
-        if (const CallInst *CI = dyn_cast<CallInst> (I))
+        for (inst_iterator i = inst_begin(F), e = inst_end(F); i != e; ++i)
         {
-          CallSite CS (const_cast<CallInst*> (CI));
-          const Function *cf = CS.getCalledFunction ();
+          Instruction *I = &*i;
+          if (const CallInst *CI = dyn_cast<CallInst> (I)) {
+            CallSite CS (const_cast<CallInst*> (CI));
+            const Function *cf = CS.getCalledFunction ();
 
-          if (cf) {
+            if (cf) {
 
-            if (cf->getName().str().find (m_apiname) != std::string::npos)  {
-              errs() << "Found a call!\n";
-              m_callsapi.insert (&F);
+              if (cf->getName().str().find (API) != std::string::npos)  {
+                m_apicalllist.insert(std::make_pair(&F,API));
+                m_progress++;
+              }
             }
           }
         }
       }
     }
 
-    errs () << "Calls API: " << m_apiname << "\n";
-    for (auto v : m_callsapi) errs () << v->getName () << ", ";
-    errs () << "\n";
+    if (m_progress != m_apicalllist.size()) {
+      outs() << "Could not find all API functions.\n";
+    }
+    else
+    {
+      outs () << "m_progress = " << m_progress << "\n";
+      outs () << "Found calls to " << m_apicalllist.size() << " API functions:\n";
+      for (auto v : m_apicalllist)
+      {
+        outs () << v.first->getName () << " calls " << v.second << "\n";
+      }
+    }
 
     return false;
   }
@@ -67,7 +84,6 @@ namespace seahorn
   llvm::Pass *createCallApiPass() {
     return new CallApiPass();
   }
-
 }   // namespace seahorn
 
 static llvm::RegisterPass<seahorn::CallApiPass>

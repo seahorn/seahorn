@@ -1,23 +1,40 @@
 add_definitions(-D__STDC_CONSTANT_MACROS)
 add_definitions(-D__STDC_LIMIT_MACROS)
 
-set (USED_LIBS 
-  ${Boost_SYSTEM_LIBRARY}
-  ${RT_LIB})
+set (USED_LIBS
+ ${Boost_SYSTEM_LIBRARY}
+ ${RT_LIB})
 
-set(LLVM_LINK_COMPONENTS 
-  irreader 
-  bitwriter 
-  ipo 
-  scalaropts 
-  instrumentation 
-  core 
-  codegen 
+
+# set (USED_LIBS
+#     seahorn.LIB
+#     SeaInstrumentation
+#     SeaTransformsScalar
+#     SeaTransformsUtils
+#     SeaAnalysis
+#     SeaSupport
+#     ${LLVM_SEAHORN_LIBS}
+#     avy
+#     ${Z3_LIBRARY}
+#     ${Boost_SYSTEM_LIBRARY}
+#     ${GMPXX_LIB}
+#     ${GMP_LIB}
+#     ${RT_LIB}
+# )
+
+set(LLVM_LINK_COMPONENTS
+  irreader
+  bitwriter
+  ipo
+  scalaropts
+  instrumentation
+  core
+  codegen
   objcarcopts)
 
 
 add_executable(seainspect seainspect.cc)
-target_link_libraries (seainspect SeaSupport)
+target_link_libraries (seainspect SeaSupport SeaAnalysis)
 llvm_config (seainspect ${LLVM_LINK_COMPONENTS})
 install(TARGETS seainspect RUNTIME DESTINATION bin)
 

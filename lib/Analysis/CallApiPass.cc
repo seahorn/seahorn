@@ -43,7 +43,8 @@ namespace seahorn
 
             if (cf) {
 
-              if (cf->getName().str().find (API) != std::string::npos)  {
+              //if (cf->getName().str().find(API) != std::string::npos)  {
+              if (cf->getName().str() == API) {
                 m_apicalllist.insert(std::make_pair(&F,API));
                 m_progress++;
               }
@@ -53,12 +54,11 @@ namespace seahorn
       }
     }
 
-    if (m_progress != m_apicalllist.size()) {
+    if (m_progress != m_apis.size()) {
       outs() << "Could not find all API functions.\n";
     }
     else
     {
-      outs () << "m_progress = " << m_progress << "\n";
       outs () << "Found calls to " << m_apicalllist.size() << " API functions:\n";
       for (auto v : m_apicalllist)
       {

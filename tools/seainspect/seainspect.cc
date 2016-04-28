@@ -31,11 +31,6 @@ ApiConfig("api-config",
          llvm::cl::desc("Comma separated API function calls"),
          llvm::cl::init(""), llvm::cl::value_desc("api-string"));
 
-static llvm::cl::opt<bool>
-ApiCheck("api-check",
-         llvm::cl::desc("Find API functions"),
-         llvm::cl::init(false));
-
 static llvm::cl::opt<std::string>
 DefaultDataLayout("-data-layout",
         llvm::cl::desc("data layout string to use if not specified by module"),
@@ -121,7 +116,7 @@ int main(int argc, char **argv) {
     pass_manager.add (llvm::createLintPass ());
   }
 
-  if (ApiCheck)
+  if (!ApiConfig.empty())
     pass_manager.add(seahorn::createCallApiPass(ApiConfig));
 
   if (Profiler)

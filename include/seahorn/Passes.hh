@@ -29,9 +29,9 @@ namespace seahorn
   llvm::Pass* createNondetInitPass ();
   llvm::Pass* createDeadNondetElimPass ();
   llvm::Pass* createDummyExitBlockPass ();
-  llvm::Pass* createExternalizeAddressTakenFunctionsPass (); 
-  llvm::Pass* createDevirtualizeFunctionsPass (); 
-  llvm::Pass* createPromoteMemoryToRegisterPass (); 
+  llvm::Pass* createExternalizeAddressTakenFunctionsPass ();
+  llvm::Pass* createDevirtualizeFunctionsPass ();
+  llvm::Pass* createPromoteMemoryToRegisterPass ();
 
   llvm::Pass* createLoadCrabPass ();
   llvm::Pass* createShadowMemDsaPass ();
@@ -42,7 +42,7 @@ namespace seahorn
 
   llvm::Pass* createPromoteMallocPass ();
   llvm::Pass* createKillVarArgFnPass ();
-  
+
   llvm::Pass* createStripLifetimePass ();
   llvm::Pass* createStripUselessDeclarationsPass ();
 
@@ -51,6 +51,8 @@ namespace seahorn
   llvm::Pass* createEnumVerifierCallsPass ();
 
   llvm::Pass* createCanReadUndefPass ();
+
+  llvm::Pass *createCallApiPass(std::string &config);
 
   llvm::Pass* createBmcPass (llvm::raw_ostream* out, bool solve);
 

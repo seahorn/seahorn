@@ -91,6 +91,7 @@ namespace seahorn
                                               true,
                                               GlobalValue::PrivateLinkage,
                                               ConstantArray::get(AT, LLVMarray));
+      Type *CAType = CA->getType();
 
       // Build the body of the harness function
       BasicBlock *BB = BasicBlock::Create(getGlobalContext(), "entry", HF);
@@ -104,13 +105,26 @@ namespace seahorn
                                                    ConstantInt::get(CountType, 0));
 
       Value *LoadCounter = Builder.CreateLoad(Counter);
-      Value* Idx[] = {ConstantInt::get(CountType, 0), LoadCounter};
-      Value *ArrayLookup = Builder.CreateLoad(Builder.CreateInBoundsGEP(CA, Idx));
+      //Value* Idx[] = {ConstantInt::get(CountType, 0), LoadCounter};
+      //Value *ArrayLookup = Builder.CreateLoad(Builder.CreateInBoundsGEP(CA, Idx));
+
+      Value* Args[] = {LoadCounter, CA, ConstantInt::get(CountType, values.size())};
+      Type* ArgTypes[] = {CountType, CAType, CountType};
 
       Builder.CreateStore(Builder.CreateAdd(LoadCounter,
                                             ConstantInt::get(CountType, 1)),
                           Counter);
-      Builder.CreateRet(ArrayLookup);
+
+      std::string RS;
+      llvm::raw_string_ostream RSO(RS);
+      RT->print(RSO);
+      Function *GetValue = llvm::Function::Create(llvm::FunctionType::get(RT, ArgTypes),
+                                                  GlobalValue::ExternalLinkage,
+                                                  Twine("get_value_").concat(RSO.str()),
+                                                  Harness.get());
+      Value* RetValue = Builder.CreateCall(GetValue, Args);
+
+      Builder.CreateRet(RetValue);
     }
 
     return (Harness);

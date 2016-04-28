@@ -620,7 +620,6 @@ namespace crab_llvm
 namespace seahorn
 {
   using namespace llvm;
-  using namespace crab;
   using namespace crab::cfg_impl;
   using namespace crab_llvm;
   using namespace expr;

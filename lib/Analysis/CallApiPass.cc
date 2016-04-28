@@ -17,7 +17,6 @@ namespace seahorn
 {
   using namespace llvm;
 
-
   void CallApiPass::parseApiString(std::string apistring) {
 
     std::istringstream ss(apistring);
@@ -43,7 +42,6 @@ namespace seahorn
 
             if (cf) {
 
-              //if (cf->getName().str().find(API) != std::string::npos)  {
               if (cf->getName().str() == API) {
                 m_apicalllist.insert(std::make_pair(&F,API));
                 m_progress++;
@@ -54,6 +52,7 @@ namespace seahorn
       }
     }
 
+    // This is a check to determine if all of the required APIs have been found
     if (m_progress != m_apis.size()) {
       outs() << "Could not find all API functions.\n";
     }

@@ -13,6 +13,8 @@
 #include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/SetVector.h"
 
+#include "llvm/ADT/PostOrderIterator.h"
+
 namespace seahorn
 {
 
@@ -31,6 +33,7 @@ namespace seahorn
     void parseApiString(std::string apistring);
 
   public:
+
     static char ID;
 
     CallApiPass () : ModulePass (ID), m_progress(0) { }

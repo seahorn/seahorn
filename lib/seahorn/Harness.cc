@@ -118,10 +118,8 @@ namespace seahorn
       std::string RS;
       llvm::raw_string_ostream RSO(RS);
       RT->print(RSO);
-      Function *GetValue = llvm::Function::Create(llvm::FunctionType::get(RT, ArgTypes),
-                                                  GlobalValue::ExternalLinkage,
-                                                  Twine("get_value_").concat(RSO.str()),
-                                                  Harness.get());
+      Constant *GetValue = Harness->getOrInsertFunction(Twine("get_value_").concat(RSO.str()).str(),
+                                                                        llvm::FunctionType::get(RT, ArgTypes));
       Value* RetValue = Builder.CreateCall(GetValue, Args);
 
       Builder.CreateRet(RetValue);

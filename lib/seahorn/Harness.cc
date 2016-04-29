@@ -4,28 +4,30 @@
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/ValueMap.h"
 
+#include "boost/algorithm/string/replace.hpp"
+
 #include <memory>
 
 using namespace llvm;
 namespace seahorn
 {
 
-  Constant* exprToLlvm (IntegerType *ty, Expr e)
+  Constant* exprToLlvm (Type *ty, Expr e)
   {
     if (isOpX<TRUE> (e))
-      return ConstantInt::getTrue (ty);
+      return Constant::getIntegerValue (ty, APInt(ty->getPrimitiveSizeInBits(), 1));
     else if (isOpX<FALSE> (e))
-      return ConstantInt::getFalse (ty);
+      return Constant::getNullValue (ty);
     else if (isOpX<MPZ> (e))
     {
       mpz_class mpz = getTerm<mpz_class> (e);
-      return ConstantInt::get (ty, mpz.get_str (), 10);
+      return Constant::getIntegerValue (ty, APInt(ty->getPrimitiveSizeInBits(), mpz.get_str (), 10));
     }
     else
     {
       // if all fails, try 0
       LOG("cex", errs () << "WARNING: Not handled value: " << *e << "\n";);
-      return ConstantInt::get (ty, 0);
+      return Constant::getNullValue (ty);
     }
   }
 
@@ -70,8 +72,8 @@ namespace seahorn
       // This is where we will build the harness function
       Function *HF = cast<Function> (Harness->getOrInsertFunction(CF->getName(), cast<FunctionType> (CF->getFunctionType())));
 
-      IntegerType *RT = dyn_cast<IntegerType> (CF->getReturnType());
-      if (!RT)
+      Type *RT = CF->getReturnType();
+      if (!isa<IntegerType> (RT))
       {
         errs () << "Skipping non-integer function: " << CF->getName () << "\n";
         continue;
@@ -118,8 +120,10 @@ namespace seahorn
       std::string RS;
       llvm::raw_string_ostream RSO(RS);
       RT->print(RSO);
-      Constant *GetValue = Harness->getOrInsertFunction(Twine("get_value_").concat(RSO.str()).str(),
-                                                                        llvm::FunctionType::get(RT, ArgTypes));
+      std::string name = Twine("get_value_").concat(RSO.str()).str();
+      boost::replace_all(name, "*", "ptr");
+      Constant *GetValue = Harness->getOrInsertFunction(name,
+                                                        llvm::FunctionType::get(RT, ArgTypes));
       Value* RetValue = Builder.CreateCall(GetValue, Args);
 
       Builder.CreateRet(RetValue);

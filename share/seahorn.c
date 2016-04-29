@@ -12,9 +12,15 @@ void __VERIFIER_assume(int x) {
   assert(x);
 }
 
-int32_t get_value_i32(int ctr_arg, int32_t *g_arr, int g_arr_sz) {
-  static int ctr = 0;
-  assert (ctr == ctr_arg);
-  assert (ctr < g_arr_sz);
-  return g_arr[ctr++];
-}
+#define get_value_helper(ctype, llvmtype)              \
+  ctype get_value_ ## llvmtype (int ctr, ctype *g_arr, int g_arr_sz) { \
+    assert (ctr < g_arr_sz); \
+    return g_arr[ctr]; \
+  }
+
+#define get_value_int(bits) get_value_helper(int ## bits ## _t, i ## bits)
+
+get_value_int(64)
+get_value_int(32)
+get_value_int(16)
+get_value_int(8)

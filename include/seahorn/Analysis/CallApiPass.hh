@@ -13,6 +13,7 @@
 #include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/SetVector.h"
 
+#include "seahorn/Support/SortTopo.hh"
 #include "llvm/ADT/PostOrderIterator.h"
 
 namespace seahorn
@@ -31,6 +32,8 @@ namespace seahorn
     size_t m_progress;
 
     void parseApiString(std::string apistring);
+
+    void sortTopo(const Function &F);
 
   public:
 

@@ -54,7 +54,8 @@ install:
   - cd ..
   - export LZ="$TRAVIS_BUILD_DIR/../lz"
   - mkdir -p $LZ
-  - wget --output-document=llvm-z3.tar.gz https://www.dropbox.com/s/750hyl47vnkxwa8/llvm-z3.tar.gz?dl=1;
+  - wget --output-document=llvm-z3.tar.gz https://www.dropbox.com/s/cipjz38k3boyd1v/llvm-3.6-z3.tar.gz?dl=1;
+  
   - tar xvf llvm-z3.tar.gz -C $LZ;
   - ls $LZ
   - sudo pip install lit
@@ -72,10 +73,10 @@ script:
   - /usr/bin/cmake --build . --target extra
   - /usr/bin/cmake --build .
   - /usr/bin/cmake --build .
-  - /usr/bin/cmake --build . --target crab
   - make
   - /usr/bin/cmake --build . --target install
   - run/bin/sea -h
+  - run/bin/sea pf --crab ../play/crab/test-1.c
   - /usr/bin/cmake --build . --target test-simple
 
 

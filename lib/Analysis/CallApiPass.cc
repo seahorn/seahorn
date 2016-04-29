@@ -12,10 +12,45 @@
 #include "llvm/ADT/SCCIterator.h"
 #include "llvm/Support/raw_ostream.h"
 #include "avy/AvyDebug.h"
+#include "llvm/ADT/SCCIterator.h"
 
 namespace seahorn
 {
   using namespace llvm;
+
+  void CallApiPass::sortTopo(const Function &F) {
+
+    outs() << "SCCs for " << F.getName() << " in post-order:\n";
+
+    for (scc_iterator<Function *> I = scc_begin(&F),
+      IE = scc_end(&F);
+      I != IE; ++I) {
+
+        // Obtain the vector of BBs in this SCC and print it out.
+        const std::vector<BasicBlock *> &SCCBBs = *I;
+        outs() << "  SCC: ";
+        for (std::vector<BasicBlock *>::const_iterator BBI = SCCBBs.begin(),
+        BBIE = SCCBBs.end();
+        BBI != BBIE; ++BBI) {
+          outs() << (*BBI)->getName() << "  ";
+      }
+      outs() << "\n";
+    }
+
+
+    // std::vector<const BasicBlock*> outBlocks;
+    //
+    // RevTopoSort(F,outBlocks);
+    //
+    // outs() << ""
+    //
+    // for (const BasicBlock *bb : outBlocks)
+    // {
+    //   outs() << "BB: " << bb->getName() << "\n";
+    // }
+
+  }
+
 
   void CallApiPass::parseApiString(std::string apistring) {
 
@@ -33,6 +68,9 @@ namespace seahorn
     {
       for (Function &F : M)
       {
+
+        sortTopo(F);
+
         for (inst_iterator i = inst_begin(F), e = inst_end(F); i != e; ++i)
         {
           Instruction *I = &*i;

@@ -66,9 +66,6 @@ script:
   - cd build
   - mv $LZ/run run
   - GENERATOR=-GNinja;
-  - pwd
-  - ls
-  - ls ../seahorn
   - /usr/bin/cmake -DBOOST_ROOT=$BOOST_ROOT -DZ3_ROOT=run -DLLVM_DIR=$(pwd)/run/share/llvm/cmake -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE} -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER} -DCMAKE_PROGRAM_PATH=/usr/bin  -DCMAKE_INSTALL_PREFIX=run ../seahorn;
   - /usr/bin/cmake --build . --target extra
   - /usr/bin/cmake --build .
@@ -76,6 +73,7 @@ script:
   - make
   - /usr/bin/cmake --build . --target install
   - run/bin/sea -h
+  - ls
   - run/bin/sea pf --crab ../play/crab/test-1.c
   - /usr/bin/cmake --build . --target test-simple
 

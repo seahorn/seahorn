@@ -1,4 +1,5 @@
 #include "seahorn/HornCex.hh"
+#include "seahorn/Harness.hh"
 
 #include "llvm/IR/Function.h"
 #include "ufo/Stats.hh"
@@ -28,8 +29,6 @@
 #include "llvm/IR/DebugLoc.h"
 #include "llvm/IR/DebugInfo.h"
 #include "llvm/IR/GlobalValue.h"
-#include "llvm/IR/ValueMap.h"
-#include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Verifier.h"
 
 #include "llvm/Bitcode/ReaderWriter.h"
@@ -77,119 +76,6 @@ namespace seahorn
     for (Function &F : M)
       if (F.getName ().equals ("main")) return runOnFunction (M, F);
     return false;
-  }
-
-  static Constant* exprToLlvm (IntegerType *ty, Expr e)
-  {
-    if (isOpX<TRUE> (e))
-      return ConstantInt::getTrue (ty);
-    else if (isOpX<FALSE> (e))
-      return ConstantInt::getFalse (ty);
-    else if (isOpX<MPZ> (e))
-    {
-      mpz_class mpz = getTerm<mpz_class> (e);
-      return ConstantInt::get (ty, mpz.get_str (), 10);
-    }
-    else
-    {
-      // if all fails, try 0
-      LOG("cex", errs () << "WARNING: Not handled value: " << *e << "\n";);
-      return ConstantInt::get (ty, 0);
-    }
-  }
-
-  static void writeLLVMHarness(std::string HarnessFilename, Function &F, BmcTrace &trace)
-  {
-
-    Module Harness("harness", getGlobalContext());
-
-    ValueMap<Function*, ExprVector> FuncValueMap;
-
-    // Look for calls in the trace
-    for (unsigned loc = 0; loc < trace.size(); loc++)
-    {
-      const BasicBlock &BB = *trace.bb(loc);
-      for (auto &I : BB)
-      {
-        if (const CallInst *ci = dyn_cast<CallInst> (&I))
-        {
-          Function *CF = ci->getCalledFunction ();
-          if (!CF) continue;
-
-          Expr V = trace.eval (loc, I);
-          if (!V) continue;
-
-          // If the function name does not have a period in it,
-          // we assume it is an original function.
-          if (CF->hasName() &&
-              CF->getName().find_first_of('.') == StringRef::npos &&
-              CF->isExternalLinkage(CF->getLinkage())) {
-            FuncValueMap[CF].push_back(V);
-          }
-        }
-      }
-    }
-
-    // Build harness functions
-    for (auto CFV : FuncValueMap) {
-
-      auto CF = CFV.first;
-      auto& values = CFV.second;
-
-      // This is where we will build the harness function
-      Function *HF = cast<Function> (Harness.getOrInsertFunction(CF->getName(), cast<FunctionType> (CF->getFunctionType())));
-
-      IntegerType *RT = dyn_cast<IntegerType> (CF->getReturnType());
-      if (!RT)
-      {
-        errs () << "Skipping non-integer function: " << CF->getName () << "\n";
-        continue;
-      }
-      
-      
-      ArrayType* AT = ArrayType::get(RT, values.size());
-
-      // Convert Expr to LLVM constants
-      SmallVector<Constant*, 20> LLVMarray;
-      std::transform(values.begin(), values.end(), std::back_inserter(LLVMarray),
-                     [RT](Expr e) { return exprToLlvm(RT, e); });
-
-      // This is an array containing the values to be returned
-      GlobalVariable* CA = new GlobalVariable(Harness,
-                                              AT,
-                                              true,
-                                              GlobalValue::PrivateLinkage,
-                                              ConstantArray::get(AT, LLVMarray));
-
-      // Build the body of the harness function
-      BasicBlock *BB = BasicBlock::Create(getGlobalContext(), "entry", HF);
-      IRBuilder<> Builder(BB);
-
-      Type *CountType = Type::getInt32Ty (F.getContext ());
-      GlobalVariable* Counter = new GlobalVariable(Harness,
-                                                   CountType,
-                                                   false,
-                                                   GlobalValue::PrivateLinkage,
-                                                   ConstantInt::get(CountType, 0));
-
-      Value *LoadCounter = Builder.CreateLoad(Counter);
-      Value* Idx[] = {ConstantInt::get(CountType, 0), LoadCounter};
-      Value *ArrayLookup = Builder.CreateLoad(Builder.CreateInBoundsGEP(CA, Idx));
-
-      Builder.CreateStore(Builder.CreateAdd(LoadCounter,
-                                            ConstantInt::get(CountType, 1)),
-                          Counter);
-      Builder.CreateRet(ArrayLookup);
-    }
-
-    std::error_code error_code;
-    raw_fd_ostream out(HornCexLLVM, error_code, sys::fs::F_None);
-    assert (!out.has_error());
-    verifyModule(Harness, &errs());
-    StringRef s = HornCexLLVM;
-    if (s.endswith(".ll")) out << Harness;
-    else WriteBitcodeToFile(&Harness, out);
-    out.close();
   }
 
   bool HornCex::runOnFunction (Module &M, Function &F)
@@ -317,7 +203,15 @@ namespace seahorn
     BmcTrace trace (bmc.getTrace ());
 
     if (!HornCexLLVM.empty()) {
-      writeLLVMHarness(HornCexLLVM, F, trace);
+      std::unique_ptr<Module> Harness = createLLVMHarness(trace);
+      std::error_code error_code;
+      raw_fd_ostream out(HornCexLLVM, error_code, sys::fs::F_None);
+      assert (!out.has_error());
+      verifyModule(*Harness, &errs());
+      StringRef s = HornCexLLVM;
+      if (s.endswith(".ll")) out << *Harness;
+      else WriteBitcodeToFile(Harness.get(), out);
+      out.close();
     }
 
     LOG ("cex", trace.print (errs ()););

@@ -67,6 +67,7 @@ script:
   - mkdir -p build
   - cd build
   - mv $LZ/run run
+  - ls run/bin
   - GENERATOR=-GNinja;
   - /usr/bin/cmake -DBOOST_ROOT=$BOOST_ROOT -DZ3_ROOT=run -DLLVM_DIR=$(pwd)/run/share/llvm/cmake -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE} -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER} -DCMAKE_PROGRAM_PATH=/usr/bin  -DCMAKE_INSTALL_PREFIX=run ../;
   - /usr/bin/cmake --build . --target extra
@@ -77,7 +78,7 @@ script:
   - /usr/bin/cmake --build . --target install
   - ls run/bin/
   - run/bin/sea -h
-  - run/bin/sea pf --crab ../seahorn/play/crab/test-1.c
+  - run/bin/sea pf --crab ../play/crab/test-1.c
 
 
 notifications:

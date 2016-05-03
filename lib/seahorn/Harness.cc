@@ -73,9 +73,9 @@ namespace seahorn
       Function *HF = cast<Function> (Harness->getOrInsertFunction(CF->getName(), cast<FunctionType> (CF->getFunctionType())));
 
       Type *RT = CF->getReturnType();
-      if (!isa<IntegerType> (RT))
+      if (!RT->isIntegerTy () /* || !RT->isPointerTy() */)
       {
-        errs () << "Skipping non-integer function: " << CF->getName () << "\n";
+        errs () << "Warning: skipping non-integer function: " << CF->getName () << "\n";
         continue;
       }
 

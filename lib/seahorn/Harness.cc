@@ -122,9 +122,12 @@ namespace seahorn
       RT->print(RSO);
       std::string name = Twine("get_value_").concat(RSO.str()).str();
       boost::replace_all(name, "*", "ptr");
-      Constant *GetValue = Harness->getOrInsertFunction(name,
-                                                        llvm::FunctionType::get(RT, ArgTypes));
-      Value* RetValue = Builder.CreateCall(GetValue, Args);
+      Constant *GetValue =
+        Harness->getOrInsertFunction(name,
+                                     FunctionType::get(RT, makeArrayRef (ArgTypes, 3), 
+                                                       false));
+      assert(GetValue);
+      Value* RetValue = Builder.CreateCall(GetValue, makeArrayRef(Args, 3));
 
       Builder.CreateRet(RetValue);
     }

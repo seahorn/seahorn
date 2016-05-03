@@ -74,7 +74,8 @@ script:
   - /usr/bin/cmake --build . --target install
   - run/bin/sea -h
   - ls
-  - ls ../play/crab/
+  - cd ..
+  - ls
   - run/bin/sea pf --crab ../play/crab/test-1.c
   - /usr/bin/cmake --build . --target test-simple
 

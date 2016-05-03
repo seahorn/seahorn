@@ -13,8 +13,8 @@ void __VERIFIER_assume(int x) {
 }
 
 #define get_value_helper(ctype, llvmtype)              \
-  ctype get_value_ ## llvmtype (int ctr, ctype *g_arr, int g_arr_sz) { \
-    assert (ctr < g_arr_sz); \
+  ctype __seahorn_get_value_ ## llvmtype (int ctr, ctype *g_arr, int g_arr_sz) { \
+    assert (ctr < g_arr_sz && "Unexpected index"); \
     return g_arr[ctr]; \
   }
 

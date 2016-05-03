@@ -121,7 +121,7 @@ namespace seahorn
       std::string RS;
       llvm::raw_string_ostream RSO(RS);
       RT->print(RSO);
-      std::string name = Twine("get_value_").concat(RSO.str()).str();
+      std::string name = Twine("__seahorn_get_value_").concat(RSO.str()).str();
       boost::replace_all(name, "*", "ptr");
       Constant *GetValue =
         Harness->getOrInsertFunction(name,

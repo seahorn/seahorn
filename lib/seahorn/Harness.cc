@@ -93,8 +93,7 @@ namespace seahorn
                                               true,
                                               GlobalValue::PrivateLinkage,
                                               ConstantArray::get(AT, LLVMarray));
-      Type *CAType = CA->getType();
-
+      
       // Build the body of the harness function
       BasicBlock *BB = BasicBlock::Create(getGlobalContext(), "entry", HF);
       IRBuilder<> Builder(BB);
@@ -110,8 +109,10 @@ namespace seahorn
       //Value* Idx[] = {ConstantInt::get(CountType, 0), LoadCounter};
       //Value *ArrayLookup = Builder.CreateLoad(Builder.CreateInBoundsGEP(CA, Idx));
 
-      Value* Args[] = {LoadCounter, CA, ConstantInt::get(CountType, values.size())};
-      Type* ArgTypes[] = {CountType, CAType, CountType};
+      Value* Args[] = {LoadCounter,
+                       Builder.CreateBitCast(CA, RT->getPointerTo()),
+                       ConstantInt::get(CountType, values.size())};
+      Type* ArgTypes[] = {CountType, RT->getPointerTo(), CountType};
 
       Builder.CreateStore(Builder.CreateAdd(LoadCounter,
                                             ConstantInt::get(CountType, 1)),

@@ -203,7 +203,8 @@ namespace seahorn
     BmcTrace trace (bmc.getTrace ());
 
     if (!HornCexLLVM.empty()) {
-      std::unique_ptr<Module> Harness = createLLVMHarness(trace);
+      const DataLayout &dl = getAnalysis<DataLayoutPass> ().getDataLayout();
+      std::unique_ptr<Module> Harness = createLLVMHarness(trace, dl);
       std::error_code error_code;
       raw_fd_ostream out(HornCexLLVM, error_code, sys::fs::F_None);
       assert (!out.has_error());

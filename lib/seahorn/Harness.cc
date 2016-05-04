@@ -3,6 +3,7 @@
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/ValueMap.h"
+#include "llvm/IR/DataLayout.h"
 
 #include "boost/algorithm/string/replace.hpp"
 
@@ -12,24 +13,22 @@ using namespace llvm;
 namespace seahorn
 {
 
-  Constant* exprToLlvm (Type *ty, Expr e)
+  Constant* exprToLlvm (Type *ty, Expr e, const DataLayout &dl)
   {
     if (isOpX<TRUE> (e))
-      return Constant::getIntegerValue (ty, APInt(ty->getPrimitiveSizeInBits(), 1));
+      return Constant::getIntegerValue (ty, APInt(dl.getTypeSizeInBits(ty), 1));
     else if (isOpX<FALSE> (e))
       return Constant::getNullValue (ty);
     else if (isOpX<MPZ> (e))
     {
       mpz_class mpz = getTerm<mpz_class> (e);
-      if (ty->isIntegerTy ())
+      if (ty->isIntegerTy () || ty->isPointerTy())
+      {
         return Constant::getIntegerValue (ty,
-                                          APInt(ty->getPrimitiveSizeInBits(),
+                                          APInt(dl.getTypeSizeInBits(ty),
                                                 mpz.get_str (), 10));
-      else if (ty->isPointerTy()) {
-        // XXX Need DataLayout to allocate properly sized integer
-        // XXX For now, return NULL value
-        return Constant::getNullValue (ty);
       }
+      llvm_unreachable("Unhandled type");
     }
     else
     {
@@ -40,7 +39,7 @@ namespace seahorn
     llvm_unreachable("Unhandled expression");
   }
 
-  std::unique_ptr<Module>  createLLVMHarness(BmcTrace &trace)
+  std::unique_ptr<Module>  createLLVMHarness(BmcTrace &trace, const DataLayout &dl)
   {
 
     std::unique_ptr<Module> Harness = make_unique<Module>("harness", getGlobalContext());
@@ -99,7 +98,7 @@ namespace seahorn
       // Convert Expr to LLVM constants
       SmallVector<Constant*, 20> LLVMarray;
       std::transform(values.begin(), values.end(), std::back_inserter(LLVMarray),
-                     [RT](Expr e) { return exprToLlvm(RT, e); });
+                     [RT, dl](Expr e) { return exprToLlvm(RT, e, dl); });
 
       // This is an array containing the values to be returned
       GlobalVariable* CA = new GlobalVariable(*Harness,

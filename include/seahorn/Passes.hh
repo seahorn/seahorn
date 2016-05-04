@@ -52,7 +52,7 @@ namespace seahorn
 
   llvm::Pass* createCanReadUndefPass ();
 
-  llvm::Pass *createCallApiPass(std::string &config);
+  llvm::Pass *createApiAnalysisPass(std::string &config);
 
   llvm::Pass* createBmcPass (llvm::raw_ostream* out, bool solve);
 

@@ -51,7 +51,7 @@ CfgDot("cfg-dot",
        llvm::cl::desc("Print CFG of function to dot format"),
        llvm::cl::init(false));
 
-static llvm::cl::opt<bool> 
+static llvm::cl::opt<bool>
 CfgOnlyDot("cfg-only-dot",
            llvm::cl::desc("Print CFG of function (with no function bodies) to dot format"),
            llvm::cl::init(false));
@@ -117,7 +117,7 @@ int main(int argc, char **argv) {
   }
 
   if (!ApiConfig.empty())
-    pass_manager.add(seahorn::createCallApiPass(ApiConfig));
+    pass_manager.add(seahorn::createApiAnalysisPass(ApiConfig));
 
   if (Profiler)
     pass_manager.add (seahorn::createProfilerPass ());

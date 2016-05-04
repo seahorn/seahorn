@@ -30,7 +30,9 @@ namespace seahorn
   typedef DenseMap<const BasicBlock*, ApiCallList> BBApiMap;
 
   // Each Function will have an ApiCallList
-  typedef DenseMap<const Function*, ApiCallList> FuncApiMap;
+  typedef DenseMap<Function*, BBApiMap> FuncApiMap;
+
+  typedef std::pair<Function*, ApiCallList> FuncApiEntry;
 
   class ApiAnalysisPass : public ModulePass
   {
@@ -40,15 +42,18 @@ namespace seahorn
     // The API name to look for
     std::vector<std::string> m_apilist;
 
-    BBApiMap m_bbmap;
+    // Map of bb function calls to basic blocks
+    FuncApiMap m_funcmap;
 
-    FuncApiMap m_apimap;
+    FuncApiEntry m_funcApiEntry;
 
     ApiCallList initializeApiCallList();
 
     void parseApiString(std::string apistring);
 
-    void analyzeApisInFunction(Function &F);
+    void initialize(Function &F);
+
+    void propagateAnalysis();
 
     void analyzeBBlock(const BasicBlock* bb);
 

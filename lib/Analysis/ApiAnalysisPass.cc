@@ -18,43 +18,14 @@ namespace seahorn
 {
   using namespace llvm;
 
-  //
-  // void ApiAnalysisPass::analyzeBBlock(const BasicBlock *bb)
-  // {
-  //
-  //   for (std::string API : m_apilist)
-  //   {
-  //     for (BasicBlock::const_iterator bi = bb->begin(); bi != bb->end(); bi++)
-  //     {
-  //       {
-  //         const Instruction *I = &*bi;
-  //         if (const CallInst *CI = dyn_cast<CallInst> (I)) {
-  //           CallSite CS (const_cast<CallInst*> (CI));
-  //           const Function *cf = CS.getCalledFunction();
-  //
-  //           // this block contains an API function call of interest
-  //           if (cf) {
-  //             if (cf->getName().str() == API) {
-  //               // add the bb
-  //               outs() << "Found call to API: " << API << "\n";
-  //             }
-  //           }
-  //         }
-  //       }
-  //     }
-  //   }
-  // }
-
-  void ApiAnalysisPass::analyzeApisInFunction( Function &F)
+  void ApiAnalysisPass::initialize(Function &F)
   {
-
+    // First, get the basic blocks in topological order
     std::vector<const BasicBlock*> sortedBBlocks;
     RevTopoSort(F,sortedBBlocks);
     boost::reverse(sortedBBlocks);
 
-    // basic blocks now in topological order
-
-    // initialize the API
+    // initialize the API list with no APIs found for this BB
     ApiCallList apilist;
     for (std::string API : m_apilist)
     {
@@ -62,29 +33,28 @@ namespace seahorn
     }
 
     // Required API calls are initialized for this BB
-
+    BBApiMap bbmap;
     for (const BasicBlock *bb : sortedBBlocks)
     {
+
+      bbmap[bb] = apilist; // initially, everything is false (not found)
+
       for (std::string API : m_apilist)
       {
         for (BasicBlock::const_iterator bi = bb->begin(); bi != bb->end(); bi++)
         {
-          {
-            const Instruction *I = &*bi;
-            if (const CallInst *CI = dyn_cast<CallInst> (I)) {
-              CallSite CS (const_cast<CallInst*> (CI));
-              const Function *cf = CS.getCalledFunction();
+          const Instruction *I = &*bi;
+          if (const CallInst *CI = dyn_cast<CallInst> (I)) {
+            CallSite CS (const_cast<CallInst*> (CI));
+            const Function *cf = CS.getCalledFunction();
 
-              // this block contains an API function call of interest
-              if (cf) {
-                if (cf->getName().str() == API)
+            // this block contains an API function call of interest
+            if (cf) {
+              if (cf->getName().str() == API)
+              {
+                for (auto &entry : bbmap[bb])
                 {
-                  for (auto &entry : apilist)
-                  {
-                    if (entry.first == API) entry.second = true;
-                  }
-
-                  m_bbmap[bb] = apilist;
+                  if (entry.first == API) entry.second = true;
                 }
               }
             }
@@ -92,22 +62,49 @@ namespace seahorn
         }
       }
     }
+    // Save the bbmap for this function
+    m_funcmap[&F] = bbmap;
+  }
 
-    // outs() << "Function "
-    // << F.getName() << " has " << sortedBBlocks.size() << " blocks\n";
-    //
-    // for (const BasicBlock *bb : sortedBBlocks)
-    // {
-    //   outs() << "BB: \n";
-    //   bb->dump();
-    // }
-    // outs() << "----------------------------------\n";
+  void ApiAnalysisPass::propagateAnalysis()
+  {
+    // for each function
+    for (auto& fentry : m_funcmap)
+    {
+      Function *curfunc = fentry.first;
+      BBApiMap& bbmap = fentry.second;;
 
+      ApiCallList prev;
+      for (std::string API : m_apilist)
+      {
+        prev.push_back(std::make_pair(API,false));
+      }
+
+
+      if (!bbmap.empty())
+      {
+        for (auto& bbentry : bbmap)
+        {
+          const BasicBlock *bb = bbentry.first;
+          ApiCallList& apilist = bbentry.second;
+
+          for (size_t i=0; i<apilist.size(); i++)
+          {
+            ApiEntry& api = apilist[i];
+            if (prev[i].first == api.first && prev[i].second != api.second)
+            {
+              apilist[i].second = true;
+            }
+            prev[i].first = api.first;
+            prev[i].second = api.second;
+          }
+        }
+      }
+    }
   }
 
   void ApiAnalysisPass::parseApiString(std::string apistring)
   {
-
     std::istringstream ss(apistring);
     std::string api;
     while(std::getline(ss, api, ','))
@@ -119,21 +116,27 @@ namespace seahorn
   // The body of the pass
   bool ApiAnalysisPass::runOnModule (Module &M)
   {
-
     for (Function &F : M)
     {
-      analyzeApisInFunction(F);
+      initialize(F);
     }
-    outs () << "Found calls to " << m_apicalllist.size() << " API functions:\n";
-    for (auto entry : m_bbmap)
-    {
-      entry.first->dump();
-      for (auto apilist : entry.second)
-      {
-        outs () << apilist.first << " : " << apilist.second  << "\n";
-      }
-    }
+    propagateAnalysis();
 
+    for (auto &fentry : m_funcmap)
+    {
+      if (!fentry.second.empty())
+      {
+        outs () << fentry.first->getName() << "\n";
+        for (auto bentry : fentry.second)
+        {
+          for (auto &aentry : bentry.second)
+          {
+            outs() << "\t" << aentry.first << ": " << aentry.second << "\n";
+          }
+        }
+      }
+      outs() << "\n";
+    }
 
     return false;
   }

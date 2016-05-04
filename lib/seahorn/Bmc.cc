@@ -195,7 +195,9 @@ namespace seahorn
     }
   }
   
-  Expr BmcTrace::eval (unsigned loc, const llvm::Instruction &inst) 
+  Expr BmcTrace::eval (unsigned loc,
+                       const llvm::Instruction &inst,
+                       bool complete) 
   {
     assert (inst.getParent () == bb(loc));
     
@@ -211,7 +213,7 @@ namespace seahorn
     
     SymStore &store = m_bmc.m_states[stateidx];
     Expr v = store.eval (m_bmc.m_sem.symb (inst));
-    return m_model.eval (v);
+    return m_model.eval (v, complete);
   }
   
   static bool isCallToVoidFn (const llvm::Instruction &I)

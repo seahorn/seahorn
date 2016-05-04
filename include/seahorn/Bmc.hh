@@ -124,7 +124,7 @@ namespace seahorn
     const llvm::BasicBlock* bb (unsigned loc) const {return m_bbs [loc];}
     
     /// The value of the instruction at the given location 
-    Expr eval (unsigned loc, const llvm::Instruction &inst);
+    Expr eval (unsigned loc, const llvm::Instruction &inst, bool complete=false);
     
     template <typename Out> Out &print (Out &out);
     friend class BmcEngine;

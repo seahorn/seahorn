@@ -21,7 +21,15 @@ namespace seahorn
     else if (isOpX<MPZ> (e))
     {
       mpz_class mpz = getTerm<mpz_class> (e);
-      return Constant::getIntegerValue (ty, APInt(ty->getPrimitiveSizeInBits(), mpz.get_str (), 10));
+      if (ty->isIntegerTy ())
+        return Constant::getIntegerValue (ty,
+                                          APInt(ty->getPrimitiveSizeInBits(),
+                                                mpz.get_str (), 10));
+      else if (ty->isPointerTy()) {
+        // XXX Need DataLayout to allocate properly sized integer
+        // XXX For now, return NULL value
+        return Constant::getNullValue (ty);
+      }
     }
     else
     {
@@ -29,14 +37,15 @@ namespace seahorn
       LOG("cex", errs () << "WARNING: Not handled value: " << *e << "\n";);
       return Constant::getNullValue (ty);
     }
+    llvm_unreachable("Unhandled expression");
   }
 
   std::unique_ptr<Module>  createLLVMHarness(BmcTrace &trace)
   {
 
-    std::unique_ptr<Module> Harness(new Module("harness", getGlobalContext()));
+    std::unique_ptr<Module> Harness = make_unique<Module>("harness", getGlobalContext());
 
-    ValueMap<Function*, ExprVector> FuncValueMap;
+    ValueMap<const Function*, ExprVector> FuncValueMap;
 
     // Look for calls in the trace
     for (unsigned loc = 0; loc < trace.size(); loc++)
@@ -46,19 +55,22 @@ namespace seahorn
       {
         if (const CallInst *ci = dyn_cast<CallInst> (&I))
         {
-          Function *CF = ci->getCalledFunction ();
+          ImmutableCallSite CS(ci);
+          const Function *CF = CS.getCalledFunction ();
           if (!CF) continue;
 
-          Expr V = trace.eval (loc, I);
-          if (!V) continue;
+          errs () << "Looking at: " << CF->getName () << "\n";
 
-          // If the function name does not have a period in it,
-          // we assume it is an original function.
-          if (CF->hasName() &&
-              CF->getName().find_first_of('.') == StringRef::npos &&
-              CF->isExternalLinkage(CF->getLinkage())) {
-            FuncValueMap[CF].push_back(V);
-          }
+          if (!CF->hasName()) continue;
+          if (CF->getName().find_first_of('.') != StringRef::npos) continue;
+          if (!CF->isExternalLinkage (CF->getLinkage ())) continue;
+          if (!CF->getReturnType()->isIntegerTy () &&
+              !CF->getReturnType()->isPointerTy())
+            continue;
+
+          Expr V = trace.eval (loc, I, true);
+          if (!V) continue;
+          FuncValueMap[CF].push_back(V);
         }
       }
     }
@@ -70,16 +82,18 @@ namespace seahorn
       auto& values = CFV.second;
 
       // This is where we will build the harness function
-      Function *HF = cast<Function> (Harness->getOrInsertFunction(CF->getName(), cast<FunctionType> (CF->getFunctionType())));
+      Function *HF =
+        cast<Function>
+        (Harness->getOrInsertFunction(CF->getName(),
+                                      cast<FunctionType>
+                                      (CF->getFunctionType())));
 
       Type *RT = CF->getReturnType();
-      if (!RT->isIntegerTy () /* || !RT->isPointerTy() */)
-      {
-        errs () << "Warning: skipping non-integer function: " << CF->getName () << "\n";
-        continue;
-      }
-
-
+      Type *pRT = nullptr;
+      if (RT->isIntegerTy ()) pRT = RT->getPointerTo ();
+      else pRT = Type::getInt8PtrTy (getGlobalContext());
+      
+      
       ArrayType* AT = ArrayType::get(RT, values.size());
 
       // Convert Expr to LLVM constants
@@ -110,19 +124,26 @@ namespace seahorn
       //Value *ArrayLookup = Builder.CreateLoad(Builder.CreateInBoundsGEP(CA, Idx));
 
       Value* Args[] = {LoadCounter,
-                       Builder.CreateBitCast(CA, RT->getPointerTo()),
+                       Builder.CreateBitCast(CA, pRT),
                        ConstantInt::get(CountType, values.size())};
-      Type* ArgTypes[] = {CountType, RT->getPointerTo(), CountType};
+      Type* ArgTypes[] = {CountType, pRT, CountType};
 
       Builder.CreateStore(Builder.CreateAdd(LoadCounter,
                                             ConstantInt::get(CountType, 1)),
                           Counter);
 
-      std::string RS;
-      llvm::raw_string_ostream RSO(RS);
-      RT->print(RSO);
-      std::string name = Twine("__seahorn_get_value_").concat(RSO.str()).str();
-      boost::replace_all(name, "*", "ptr");
+      std::string name;
+      if (RT->isIntegerTy ())
+      {
+        std::string RS;
+        llvm::raw_string_ostream RSO(RS);
+        RT->print(RSO);
+        
+        name = Twine("__seahorn_get_value_").concat(RSO.str()).str();
+      }
+      else
+        name = "__seahorn_get_value_ptr";
+      
       Constant *GetValue =
         Harness->getOrInsertFunction(name,
                                      FunctionType::get(RT, makeArrayRef (ArgTypes, 3), 

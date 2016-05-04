@@ -2,6 +2,7 @@
 #define _HARNESS__HH_
 
 #include "llvm/IR/Module.h"
+#include "llvm/IR/DataLayout.h"
 
 #include "seahorn/Bmc.hh"
 
@@ -11,7 +12,7 @@ namespace seahorn
 {
   using namespace llvm;
 
-  std::unique_ptr<llvm::Module> createLLVMHarness (BmcTrace &trace);
+  std::unique_ptr<llvm::Module> createLLVMHarness (BmcTrace &trace, const DataLayout &dl);
 
 }
 

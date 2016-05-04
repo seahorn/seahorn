@@ -1,4 +1,4 @@
-#include "seahorn/Analysis/CallApiPass.hh"
+#include "seahorn/Analysis/ApiAnalysisPass.hh"
 
 /**
 * Identifies functions that call a specific API function
@@ -9,80 +9,83 @@
 #include "llvm/ADT/DenseSet.h"
 #include "llvm/IR/InstIterator.h"
 #include "llvm/Analysis/CallGraph.h"
-#include "llvm/ADT/SCCIterator.h"
 #include "llvm/Support/raw_ostream.h"
 #include "avy/AvyDebug.h"
 #include "llvm/ADT/SCCIterator.h"
+#include "boost/range/algorithm/reverse.hpp"
 
 namespace seahorn
 {
   using namespace llvm;
 
-  void CallApiPass::sortTopo(const Function &F) {
+  //
+  // void ApiAnalysisPass::analyzeBBlock(const BasicBlock *bb)
+  // {
+  //
+  //   for (std::string API : m_apilist)
+  //   {
+  //     for (BasicBlock::const_iterator bi = bb->begin(); bi != bb->end(); bi++)
+  //     {
+  //       {
+  //         const Instruction *I = &*bi;
+  //         if (const CallInst *CI = dyn_cast<CallInst> (I)) {
+  //           CallSite CS (const_cast<CallInst*> (CI));
+  //           const Function *cf = CS.getCalledFunction();
+  //
+  //           // this block contains an API function call of interest
+  //           if (cf) {
+  //             if (cf->getName().str() == API) {
+  //               // add the bb
+  //               outs() << "Found call to API: " << API << "\n";
+  //             }
+  //           }
+  //         }
+  //       }
+  //     }
+  //   }
+  // }
 
-    outs() << "SCCs for " << F.getName() << " in post-order:\n";
-
-    for (scc_iterator<Function *> I = scc_begin(&F),
-      IE = scc_end(&F);
-      I != IE; ++I) {
-
-        // Obtain the vector of BBs in this SCC and print it out.
-        const std::vector<BasicBlock *> &SCCBBs = *I;
-        outs() << "  SCC: ";
-        for (std::vector<BasicBlock *>::const_iterator BBI = SCCBBs.begin(),
-        BBIE = SCCBBs.end();
-        BBI != BBIE; ++BBI) {
-          outs() << (*BBI)->getName() << "  ";
-      }
-      outs() << "\n";
-    }
-
-
-    // std::vector<const BasicBlock*> outBlocks;
-    //
-    // RevTopoSort(F,outBlocks);
-    //
-    // outs() << ""
-    //
-    // for (const BasicBlock *bb : outBlocks)
-    // {
-    //   outs() << "BB: " << bb->getName() << "\n";
-    // }
-
-  }
-
-
-  void CallApiPass::parseApiString(std::string apistring) {
-
-    std::istringstream ss(apistring);
-    std::string token;
-    while(std::getline(ss, token, ',')) {
-      m_apis.push_back(token);
-    }
-  }
-
-  // The body of the pass
-  bool CallApiPass::runOnModule (Module &M)
+  void ApiAnalysisPass::analyzeApisInFunction( Function &F)
   {
-    for (std::string API : m_apis)
+
+    std::vector<const BasicBlock*> sortedBBlocks;
+    RevTopoSort(F,sortedBBlocks);
+    boost::reverse(sortedBBlocks);
+
+    // basic blocks now in topological order
+
+    // initialize the API
+    ApiCallList apilist;
+    for (std::string API : m_apilist)
     {
-      for (Function &F : M)
+      apilist.push_back(std::make_pair(API,false));
+    }
+
+    // Required API calls are initialized for this BB
+
+    for (const BasicBlock *bb : sortedBBlocks)
+    {
+      for (std::string API : m_apilist)
       {
-
-        sortTopo(F);
-
-        for (inst_iterator i = inst_begin(F), e = inst_end(F); i != e; ++i)
+        for (BasicBlock::const_iterator bi = bb->begin(); bi != bb->end(); bi++)
         {
-          Instruction *I = &*i;
-          if (const CallInst *CI = dyn_cast<CallInst> (I)) {
-            CallSite CS (const_cast<CallInst*> (CI));
-            const Function *cf = CS.getCalledFunction ();
+          {
+            const Instruction *I = &*bi;
+            if (const CallInst *CI = dyn_cast<CallInst> (I)) {
+              CallSite CS (const_cast<CallInst*> (CI));
+              const Function *cf = CS.getCalledFunction();
 
-            if (cf) {
+              // this block contains an API function call of interest
+              if (cf) {
+                if (cf->getName().str() == API)
+                {
+                  for (auto &entry : apilist)
+                  {
+                    if (entry.first == API) entry.second = true;
+                  }
 
-              if (cf->getName().str() == API) {
-                m_apicalllist.insert(std::make_pair(&F,API));
-                m_progress++;
+                  m_bbmap[bb] = apilist;
+                }
               }
             }
           }
@@ -90,38 +93,67 @@ namespace seahorn
       }
     }
 
-    // This is a check to determine if all of the required APIs have been found
-    if (m_progress != m_apis.size()) {
-      outs() << "Could not find all API functions.\n";
-    }
-    else
+    // outs() << "Function "
+    // << F.getName() << " has " << sortedBBlocks.size() << " blocks\n";
+    //
+    // for (const BasicBlock *bb : sortedBBlocks)
+    // {
+    //   outs() << "BB: \n";
+    //   bb->dump();
+    // }
+    // outs() << "----------------------------------\n";
+
+  }
+
+  void ApiAnalysisPass::parseApiString(std::string apistring)
+  {
+
+    std::istringstream ss(apistring);
+    std::string api;
+    while(std::getline(ss, api, ','))
     {
-      outs () << "Found calls to " << m_apicalllist.size() << " API functions:\n";
-      for (auto v : m_apicalllist)
+      m_apilist.push_back(api);
+    }
+  }
+
+  // The body of the pass
+  bool ApiAnalysisPass::runOnModule (Module &M)
+  {
+
+    for (Function &F : M)
+    {
+      analyzeApisInFunction(F);
+    }
+    outs () << "Found calls to " << m_apicalllist.size() << " API functions:\n";
+    for (auto entry : m_bbmap)
+    {
+      entry.first->dump();
+      for (auto apilist : entry.second)
       {
-        outs () << v.first->getName () << " calls " << v.second << "\n";
+        outs () << apilist.first << " : " << apilist.second  << "\n";
       }
     }
+
 
     return false;
   }
 
-  void CallApiPass::getAnalysisUsage (AnalysisUsage &AU) const {
+  void ApiAnalysisPass::getAnalysisUsage (AnalysisUsage &AU) const {
     AU.setPreservesAll ();
     AU.addRequired<CallGraphWrapperPass> ();
     AU.addPreserved<CallGraphWrapperPass> ();
   }
 
-  char CallApiPass::ID = 0;
+  char ApiAnalysisPass::ID = 0;
 
-  llvm::Pass *createCallApiPass(std::string &config) {
-    return new CallApiPass(config);
+  llvm::Pass *createApiAnalysisPass(std::string &config) {
+    return new ApiAnalysisPass(config);
   }
 
-  llvm::Pass *createCallApiPass() {
-    return new CallApiPass();
+  llvm::Pass *createApiAnalysisPass() {
+    return new ApiAnalysisPass();
   }
 }   // namespace seahorn
 
-static llvm::RegisterPass<seahorn::CallApiPass>
+static llvm::RegisterPass<seahorn::ApiAnalysisPass>
 X("call-api", "Determine if a given API is called",false, false);

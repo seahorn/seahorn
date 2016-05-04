@@ -21,27 +21,44 @@ namespace seahorn
 
   using namespace llvm;
 
-  class CallApiPass : public ModulePass
+  typedef std::pair<std::string, bool> ApiEntry;
+
+  // This is a list of expected API entries
+  typedef std::vector<ApiEntry> ApiCallList;
+
+  // Each Basic block in a function will have an ApiCallList
+  typedef DenseMap<const BasicBlock*, ApiCallList> BBApiMap;
+
+  // Each Function will have an ApiCallList
+  typedef DenseMap<const Function*, ApiCallList> FuncApiMap;
+
+  class ApiAnalysisPass : public ModulePass
   {
-    /// functions/instructions that call an API of interest
+    // functions/instructions that call an API of interest
     std::set< std::pair<const Function*, std::string> > m_apicalllist;
 
     // The API name to look for
-    std::vector<std::string> m_apis;
+    std::vector<std::string> m_apilist;
 
-    size_t m_progress;
+    BBApiMap m_bbmap;
+
+    FuncApiMap m_apimap;
+
+    ApiCallList initializeApiCallList();
 
     void parseApiString(std::string apistring);
 
-    void sortTopo(const Function &F);
+    void analyzeApisInFunction(Function &F);
+
+    void analyzeBBlock(const BasicBlock* bb);
 
   public:
 
     static char ID;
 
-    CallApiPass () : ModulePass (ID), m_progress(0) { }
+    ApiAnalysisPass () : ModulePass (ID) { }
 
-    CallApiPass (std::string &apistring) : ModulePass (ID), m_progress(0) {
+    ApiAnalysisPass (std::string &apistring) : ModulePass (ID) {
       parseApiString(apistring);
     }
 
@@ -49,7 +66,7 @@ namespace seahorn
 
     virtual void getAnalysisUsage (AnalysisUsage &AU) const;
 
-    virtual const char* getPassName () const { return "CallApiPass"; }
+    virtual const char* getPassName () const { return "ApiAnalysisPass"; }
   };
 }
 #endif /* _CALL_API_PASS_HH_ */

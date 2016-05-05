@@ -12,7 +12,7 @@
 #include "llvm/IR/Function.h"
 #include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/SetVector.h"
-
+#include "avy/AvyDebug.h"
 #include "seahorn/Support/SortTopo.hh"
 #include "llvm/ADT/PostOrderIterator.h"
 
@@ -26,13 +26,54 @@ namespace seahorn
   // This is a list of expected API entries
   typedef std::vector<ApiEntry> ApiCallList;
 
+  typedef std::pair<const BasicBlock*, ApiCallList> BBApiEntry;
+
   // Each Basic block in a function will have an ApiCallList
-  typedef DenseMap<const BasicBlock*, ApiCallList> BBApiMap;
+  typedef std::vector<BBApiEntry> BBApiList;
 
   // Each Function will have an ApiCallList
-  typedef DenseMap<Function*, BBApiMap> FuncApiMap;
+  //typedef DenseMap<Function*, BBApiMap> FuncApiMap;
 
-  typedef std::pair<Function*, ApiCallList> FuncApiEntry;
+  //typedef std::pair<Function*, ApiCallList> FuncApiEntry;
+
+
+  struct ApiCallInfo {
+
+    ApiCallInfo()
+    { }
+
+    ApiCallInfo(const ApiCallInfo & other)
+    {
+      m_bblist = other.m_bblist;
+      m_func = other.m_func;
+      m_outcalls = other.m_outcalls;
+    }
+
+    ApiCallInfo& operator=(const ApiCallInfo & other)
+    {
+      m_bblist = other.m_bblist;
+      m_func = other.m_func;
+      m_outcalls = other.m_outcalls;
+
+      return *this;
+    }
+
+    BBApiEntry& getFinalAnalysis()
+    {
+      return m_bblist.back();
+    }
+
+    // data flow information for each basic block in this function
+    BBApiList m_bblist;
+
+    // A pointer to the function itself
+    Function * m_func;
+
+    // dataflow information for outgoing calls
+    std::map<const CallInst*, ApiCallList&> m_outcalls;
+
+  };
+
 
   class ApiAnalysisPass : public ModulePass
   {
@@ -43,9 +84,12 @@ namespace seahorn
     std::vector<std::string> m_apilist;
 
     // Map of bb function calls to basic blocks
-    FuncApiMap m_funcmap;
+    //FuncApiMap m_funcmap;
 
-    FuncApiEntry m_funcApiEntry;
+    // Dataflow analysis for each function
+    std::vector<ApiCallInfo> m_apiAnalysis;
+
+    //FuncApiEntry m_funcApiEntry;
 
     ApiCallList initializeApiCallList();
 
@@ -53,7 +97,11 @@ namespace seahorn
 
     void initialize(Function &F);
 
-    void propagateAnalysis();
+    void runFunctionAnalysis();
+
+    void report();
+
+    void propagateFunctionAnalysis();
 
     void analyzeBBlock(const BasicBlock* bb);
 
@@ -61,9 +109,11 @@ namespace seahorn
 
     static char ID;
 
-    ApiAnalysisPass () : ModulePass (ID) { }
+    ApiAnalysisPass () : ModulePass (ID)
+    { }
 
-    ApiAnalysisPass (std::string &apistring) : ModulePass (ID) {
+    ApiAnalysisPass (std::string &apistring) : ModulePass (ID)
+    {
       parseApiString(apistring);
     }
 
@@ -71,7 +121,8 @@ namespace seahorn
 
     virtual void getAnalysisUsage (AnalysisUsage &AU) const;
 
-    virtual const char* getPassName () const { return "ApiAnalysisPass"; }
+    virtual const char* getPassName () const
+    { return "ApiAnalysisPass"; }
   };
 }
 #endif /* _CALL_API_PASS_HH_ */

@@ -32,12 +32,13 @@ namespace seahorn
       apilist.push_back(std::make_pair(API,false));
     }
 
+    ApiCallInfo aci;
+
     // Required API calls are initialized for this BB
-    BBApiMap bbmap;
+    BBApiList bblist;
     for (const BasicBlock *bb : sortedBBlocks)
     {
-
-      bbmap[bb] = apilist; // initially, everything is false (not found)
+      BBApiEntry bbentry = std::make_pair(bb, apilist);
 
       for (std::string API : m_apilist)
       {
@@ -45,34 +46,47 @@ namespace seahorn
         {
           const Instruction *I = &*bi;
           if (const CallInst *CI = dyn_cast<CallInst> (I)) {
+
             CallSite CS (const_cast<CallInst*> (CI));
             const Function *cf = CS.getCalledFunction();
 
             // this block contains an API function call of interest
-            if (cf) {
+            if (cf)
+            {
               if (cf->getName().str() == API)
               {
-                for (auto &entry : bbmap[bb])
+                for (auto &api : bbentry.second)
                 {
-                  if (entry.first == API) entry.second = true;
+                  // this should be ok, because we are comparing pointers
+                  if (api.first == API)
+                  {
+                    api.second = true;
+                    break;
+                  }
                 }
               }
             }
           }
         }
       }
+      // save the BB list
+      bblist.push_back(bbentry);
     }
-    // Save the bbmap for this function
-    m_funcmap[&F] = bbmap;
+
+    // save the analysis for this function
+    aci.m_func = &F;
+    aci.m_bblist = bblist;
+    m_apiAnalysis.push_back(aci);
   }
 
-  void ApiAnalysisPass::propagateAnalysis()
+  void ApiAnalysisPass::runFunctionAnalysis()
   {
-    // for each function
-    for (auto& fentry : m_funcmap)
+
+    for (auto& analysis : m_apiAnalysis)
     {
-      Function *curfunc = fentry.first;
-      BBApiMap& bbmap = fentry.second;;
+      Function *curfunc = analysis.m_func;
+
+      BBApiList& bblist = analysis.m_bblist;
 
       ApiCallList prev;
       for (std::string API : m_apilist)
@@ -80,25 +94,58 @@ namespace seahorn
         prev.push_back(std::make_pair(API,false));
       }
 
-
-      if (!bbmap.empty())
+      for (auto& bbentry : bblist)
       {
-        for (auto& bbentry : bbmap)
-        {
-          const BasicBlock *bb = bbentry.first;
-          ApiCallList& apilist = bbentry.second;
+        const BasicBlock *bb = bbentry.first;
 
-          for (size_t i=0; i<apilist.size(); i++)
+        ApiCallList& apilist = bbentry.second;
+
+        for (size_t i=0; i<apilist.size(); i++)
+        {
+          ApiEntry& api = apilist[i];
+          if (prev[i].first == api.first && prev[i].second != api.second)
           {
-            ApiEntry& api = apilist[i];
-            if (prev[i].first == api.first && prev[i].second != api.second)
-            {
-              apilist[i].second = true;
-            }
-            prev[i].first = api.first;
-            prev[i].second = api.second;
+            apilist[i].second = true;
           }
+          prev[i].first = api.first;
+          prev[i].second = api.second;
         }
+      }
+    }
+  }
+
+  void ApiAnalysisPass::propagateFunctionAnalysis()
+  {
+    // at this point we need to sort the functions in bottom up order
+    // and check interprocedural calls
+
+  }
+
+  void ApiAnalysisPass::report()
+  {
+    for (auto& analysis : m_apiAnalysis)
+    {
+      if (!analysis.m_bblist.empty())
+      {
+        outs () << analysis.m_func->getName() << "\n";
+        for (auto bentry : analysis.m_bblist)
+        {
+          //bentry.first->dump();
+          for (auto &aentry : bentry.second)
+          {
+            outs() << "\t" << aentry.first << ": " << aentry.second << "\n";
+          }
+          outs() << "\t---\n";
+        }
+
+          BBApiEntry final = analysis.getFinalAnalysis();
+          for (auto &e : final.second)
+          {
+            outs() << "\t" << e.first << ": " << e.second << ",";
+          }
+          outs() << "\t\n---\n";
+
+          outs() << "\n";
       }
     }
   }
@@ -120,23 +167,12 @@ namespace seahorn
     {
       initialize(F);
     }
-    propagateAnalysis();
 
-    for (auto &fentry : m_funcmap)
-    {
-      if (!fentry.second.empty())
-      {
-        outs () << fentry.first->getName() << "\n";
-        for (auto bentry : fentry.second)
-        {
-          for (auto &aentry : bentry.second)
-          {
-            outs() << "\t" << aentry.first << ": " << aentry.second << "\n";
-          }
-        }
-      }
-      outs() << "\n";
-    }
+    runFunctionAnalysis();
+
+    propagateFunctionAnalysis();
+
+    report();
 
     return false;
   }

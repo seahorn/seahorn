@@ -3,5 +3,5 @@ add_llvm_library (SeaAnalysis
   CanFail.cc
   CutPointGraph.cc
   TopologicalOrder.cc
-  CallApiPass.cc
+  ApiAnalysisPass.cc
   CanReadUndef.cc)

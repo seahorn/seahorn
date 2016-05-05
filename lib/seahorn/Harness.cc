@@ -16,7 +16,7 @@ namespace seahorn
   Constant* exprToLlvm (Type *ty, Expr e, const DataLayout &dl)
   {
     if (isOpX<TRUE> (e))
-      return Constant::getIntegerValue (ty, APInt(dl.getTypeSizeInBits(ty), 1));
+      return Constant::getIntegerValue (ty, APInt(dl.getTypeStoreSizeInBits(ty), 1));
     else if (isOpX<FALSE> (e))
       return Constant::getNullValue (ty);
     else if (isOpX<MPZ> (e))
@@ -25,7 +25,7 @@ namespace seahorn
       if (ty->isIntegerTy () || ty->isPointerTy())
       {
         return Constant::getIntegerValue (ty,
-                                          APInt(dl.getTypeSizeInBits(ty),
+                                          APInt(dl.getTypeStoreSizeInBits(ty),
                                                 mpz.get_str (), 10));
       }
       llvm_unreachable("Unhandled type");

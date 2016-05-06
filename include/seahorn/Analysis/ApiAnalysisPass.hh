@@ -31,12 +31,6 @@ namespace seahorn
   // Each Basic block in a function will have an ApiCallList
   typedef std::vector<BBApiEntry> BBApiList;
 
-  // Each Function will have an ApiCallList
-  //typedef DenseMap<Function*, BBApiMap> FuncApiMap;
-
-  //typedef std::pair<Function*, ApiCallList> FuncApiEntry;
-
-
   struct ApiCallInfo {
 
     ApiCallInfo()
@@ -70,7 +64,7 @@ namespace seahorn
     Function * m_func;
 
     // dataflow information for outgoing calls
-    std::map<const CallInst*, ApiCallList&> m_outcalls;
+    std::map<Function*, ApiCallList&> m_outcalls;
 
   };
 

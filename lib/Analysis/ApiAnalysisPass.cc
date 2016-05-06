@@ -45,7 +45,8 @@ namespace seahorn
         for (BasicBlock::const_iterator bi = bb->begin(); bi != bb->end(); bi++)
         {
           const Instruction *I = &*bi;
-          if (const CallInst *CI = dyn_cast<CallInst> (I)) {
+          if (const CallInst *CI = dyn_cast<CallInst> (I))
+          {
 
             CallSite CS (const_cast<CallInst*> (CI));
             const Function *cf = CS.getCalledFunction();
@@ -118,7 +119,43 @@ namespace seahorn
   {
     // at this point we need to sort the functions in bottom up order
     // and check interprocedural calls
+    //
+    // We will need to rerun analysis from a given point
 
+    CallGraph &CG = getAnalysis<CallGraphWrapperPass> ().getCallGraph();
+    for (auto it = scc_begin (&CG); !it.isAtEnd (); ++it)
+    {
+      auto &scc = *it;
+      for (CallGraphNode *cgn : scc)
+      {
+        Function *f = cgn->getFunction ();
+        if (!f) continue;
+        outs() << f->getName() << " calls\n";
+        for (auto& calls : *cgn)
+        {
+          Function *calledf = calls.second->getFunction();
+
+          if (!calledf) continue;
+
+          outs() << "\t" << calledf->getName() << "\n";
+
+          // ApiCallInfo& currentfacts;
+          // ApiCallInfo& calledfacts;
+          // // have the function and the called function, now replace DF facts
+          // for (auto& analysis : m_apiAnalysis)
+          // {
+          //   if (f->getName() == analysis.m_func->getName())
+          //   {
+          //     currentfacts = analysis;
+          //   }
+          //   if (calledf.getName() == analysis.m_func->getName())
+          //   {
+          //     calledfacts = analysis;
+          //   }
+          // }
+        }
+      }
+    }
   }
 
   void ApiAnalysisPass::report()
@@ -127,25 +164,32 @@ namespace seahorn
     {
       if (!analysis.m_bblist.empty())
       {
-        outs () << analysis.m_func->getName() << "\n";
-        for (auto bentry : analysis.m_bblist)
+        //outs () << analysis.m_func->getName() << "\n";
+        // for (auto bentry : analysis.m_bblist)
+        // {
+        //   //bentry.first->dump();
+        //   for (auto &aentry : bentry.second)
+        //   {
+        //     outs() << "\t" << aentry.first << ": " << aentry.second << "\n";
+        //   }
+        //   outs() << "\t---\n";
+        // }
+
+        BBApiEntry final = analysis.getFinalAnalysis();
+        bool result = true;
+        for (auto &e : final.second)
         {
-          //bentry.first->dump();
-          for (auto &aentry : bentry.second)
+          if (!e.second)
           {
-            outs() << "\t" << aentry.first << ": " << aentry.second << "\n";
+            result = false;
+            break;
           }
-          outs() << "\t---\n";
         }
 
-          BBApiEntry final = analysis.getFinalAnalysis();
-          for (auto &e : final.second)
-          {
-            outs() << "\t" << e.first << ": " << e.second << ",";
-          }
-          outs() << "\t\n---\n";
-
-          outs() << "\n";
+        if (result)
+        {
+          outs () << analysis.m_func->getName() << " calls required APIs\n";
+        }
       }
     }
   }
@@ -170,7 +214,7 @@ namespace seahorn
 
     runFunctionAnalysis();
 
-    propagateFunctionAnalysis();
+    //propagateFunctionAnalysis();
 
     report();
 

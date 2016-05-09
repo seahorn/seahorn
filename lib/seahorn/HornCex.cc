@@ -36,7 +36,7 @@
 #include <gmpxx.h>
 
 static llvm::cl::opt<std::string>
-SvCompCexFile("horn-svcomp-cex", llvm::cl::desc("Counterexample in SV-COMP XML format"),
+HornCexFile("horn-cex", llvm::cl::desc("Counterexample in SV-COMP (.xml) or LLVM bitcode (.bc or .ll) format"),
               llvm::cl::init(""), llvm::cl::value_desc("filename"));
 
 static llvm::cl::opt<std::string>
@@ -58,17 +58,14 @@ static llvm::cl::opt<std::string>
 HornCexSmtFilename("horn-cex-smt", llvm::cl::desc("Counterexample validate SMT problem"),
                llvm::cl::init(""), llvm::cl::value_desc("filename"), llvm::cl::Hidden);
 
-static llvm::cl::opt<std::string>
-HornCexLLVM("horn-llvm-cex", llvm::cl::desc("Produce detailed counterexample in executable LLVM bitcode format"),
-               llvm::cl::init(""), llvm::cl::value_desc("filename"));
-
 using namespace llvm;
 namespace seahorn
 {
   
   template <typename O> class SvCompCex;
-  static void dumpSvCompCex (BmcTrace &trace);
-  
+  static void dumpSvCompCex (BmcTrace &trace, std::string CexFile);
+  static void dumpLLVMCex (BmcTrace &trace, StringRef CexFile, const DataLayout &dl);
+
   char HornCex::ID = 0;
   
   bool HornCex::runOnModule (Module &M)
@@ -201,27 +198,23 @@ namespace seahorn
     
     // get bmc trace
     BmcTrace trace (bmc.getTrace ());
-
-    if (!HornCexLLVM.empty()) {
-      const DataLayout &dl = getAnalysis<DataLayoutPass> ().getDataLayout();
-      std::unique_ptr<Module> Harness = createLLVMHarness(trace, dl);
-      std::error_code error_code;
-      raw_fd_ostream out(HornCexLLVM, error_code, sys::fs::F_None);
-      assert (!out.has_error());
-      verifyModule(*Harness, &errs());
-      StringRef s = HornCexLLVM;
-      if (s.endswith(".ll")) out << *Harness;
-      else WriteBitcodeToFile(Harness.get(), out);
-      out.close();
-    }
-
     LOG ("cex", trace.print (errs ()););
 
-    dumpSvCompCex (trace);
+    StringRef HornCexFileRef(HornCexFile);
+    if (HornCexFileRef.endswith(".ll") ||
+        HornCexFileRef.endswith(".bc")) {
+      const DataLayout &dl = getAnalysis<DataLayoutPass> ().getDataLayout();
+      dumpLLVMCex(trace, HornCexFileRef, dl);
+    } else if (HornCexFileRef.endswith(".xml")) {
+      dumpSvCompCex (trace, HornCexFileRef);
+    } else if (!HornCexFileRef.empty()) {
+      errs () << "Unrecognized counter-example file suffix in " << HornCexFileRef
+              << ". Expected .xml, .ll, or .bc.\n";
+    }
+
     return false;
   }
-  
-  
+
   void HornCex::getAnalysisUsage (AnalysisUsage &AU) const
   {
     AU.setPreservesAll ();
@@ -340,12 +333,10 @@ namespace seahorn
   }
   
   
-  static void dumpSvCompCex (BmcTrace &trace)
+  static void dumpSvCompCex (BmcTrace &trace, std::string CexFile)
   {
-    if (SvCompCexFile.empty ()) return;
-    
     std::error_code ec;
-    llvm::tool_output_file out (SvCompCexFile.c_str (), ec, llvm::sys::fs::F_Text);
+    llvm::tool_output_file out (CexFile.c_str (), ec, llvm::sys::fs::F_Text);
     if (ec)
     {
       errs () << "ERROR: Cannot open CEX file: " << ec.message () << "\n";
@@ -368,7 +359,19 @@ namespace seahorn
     svcomp.footer ();
     out.keep ();
   }
-  
+
+  static void dumpLLVMCex(BmcTrace &trace, StringRef CexFile, const DataLayout &dl)
+  {
+    std::unique_ptr<Module> Harness = createLLVMHarness(trace, dl);
+    std::error_code error_code;
+    llvm::tool_output_file out(CexFile, error_code, sys::fs::F_None);
+    assert (!out.has_error());
+    verifyModule(*Harness, &errs());
+    if (CexFile.endswith(".ll")) out.os() << *Harness;
+    else WriteBitcodeToFile(Harness.get(), out.os());
+    out.os ().close ();
+    out.keep ();
+  }
 
 }
 

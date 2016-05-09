@@ -16,7 +16,7 @@ namespace seahorn
   Constant* exprToLlvm (Type *ty, Expr e, const DataLayout &dl)
   {
     if (isOpX<TRUE> (e))
-      return Constant::getIntegerValue (ty, APInt(dl.getTypeSizeInBits(ty), 1));
+      return Constant::getIntegerValue (ty, APInt(dl.getTypeStoreSizeInBits(ty), 1));
     else if (isOpX<FALSE> (e))
       return Constant::getNullValue (ty);
     else if (isOpX<MPZ> (e))
@@ -25,7 +25,7 @@ namespace seahorn
       if (ty->isIntegerTy () || ty->isPointerTy())
       {
         return Constant::getIntegerValue (ty,
-                                          APInt(dl.getTypeSizeInBits(ty),
+                                          APInt(dl.getTypeStoreSizeInBits(ty),
                                                 mpz.get_str (), 10));
       }
       llvm_unreachable("Unhandled type");
@@ -91,8 +91,8 @@ namespace seahorn
       Type *pRT = nullptr;
       if (RT->isIntegerTy ()) pRT = RT->getPointerTo ();
       else pRT = Type::getInt8PtrTy (getGlobalContext());
-      
-      
+
+
       ArrayType* AT = ArrayType::get(RT, values.size());
 
       // Convert Expr to LLVM constants
@@ -106,7 +106,7 @@ namespace seahorn
                                               true,
                                               GlobalValue::PrivateLinkage,
                                               ConstantArray::get(AT, LLVMarray));
-      
+
       // Build the body of the harness function
       BasicBlock *BB = BasicBlock::Create(getGlobalContext(), "entry", HF);
       IRBuilder<> Builder(BB);
@@ -119,8 +119,6 @@ namespace seahorn
                                                    ConstantInt::get(CountType, 0));
 
       Value *LoadCounter = Builder.CreateLoad(Counter);
-      //Value* Idx[] = {ConstantInt::get(CountType, 0), LoadCounter};
-      //Value *ArrayLookup = Builder.CreateLoad(Builder.CreateInBoundsGEP(CA, Idx));
 
       Value* Args[] = {LoadCounter,
                        Builder.CreateBitCast(CA, pRT),
@@ -137,15 +135,15 @@ namespace seahorn
         std::string RS;
         llvm::raw_string_ostream RSO(RS);
         RT->print(RSO);
-        
+
         name = Twine("__seahorn_get_value_").concat(RSO.str()).str();
       }
       else
         name = "__seahorn_get_value_ptr";
-      
+
       Constant *GetValue =
         Harness->getOrInsertFunction(name,
-                                     FunctionType::get(RT, makeArrayRef (ArgTypes, 3), 
+                                     FunctionType::get(RT, makeArrayRef (ArgTypes, 3),
                                                        false));
       assert(GetValue);
       Value* RetValue = Builder.CreateCall(GetValue, makeArrayRef(Args, 3));

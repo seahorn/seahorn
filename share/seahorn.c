@@ -25,8 +25,4 @@ get_value_int(32)
 get_value_int(16)
 get_value_int(8)
 
-void* __seahorn_get_value_ptr (int ctx, void* *g_arr, int g_arr_sz)
-{
-  printf ("WARNING: pointers not supported. Returning NULL\n");
-  return NULL;
-}
+get_value_helper(intptr_t, ptr)

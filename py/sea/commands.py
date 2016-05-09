@@ -459,8 +459,8 @@ class Seahorn(sea.LimitedCmd):
             if args.show_invars:
                 argv.append ('--horn-answer')
         if args.cex is not None and args.solve:
-            argv.append ('-horn-cex')
-            argv.append ('-horn-svcomp-cex={0}'.format (args.cex))
+            argv.append ('-horn-cex-pass')
+            argv.append ('-horn-cex={0}'.format (args.cex))
             #argv.extend (['-log', 'cex'])
         if args.asm_out_file is not None: argv.extend (['-oll', args.asm_out_file])
 

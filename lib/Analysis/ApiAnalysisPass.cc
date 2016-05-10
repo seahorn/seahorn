@@ -20,8 +20,7 @@ namespace seahorn
 
   void ApiAnalysisPass::analyzeFunction(Function &F)
   {
-
-    //outs() << "Processing function " << F.getName() << "\n";
+    outs() << "Analyzing " << F.getName() <<"\n";
 
     // First, get the basic blocks in topological order
     std::vector<const BasicBlock*> sortedBBlocks;
@@ -39,14 +38,14 @@ namespace seahorn
 
     // Required API calls are initialized for this BB
     BBApiList bblist;
-    unsigned int progress = 0;
-    std::string targetapi = m_apilist[progress];
-
-    //outs() << "Looking for " << targetapi << "\n";
+    //unsigned int progress = 0;
+    std::string targetapi = m_apilist[aci.m_progress];
 
     // for each of the sorted BBs,
     for (const BasicBlock *bb : sortedBBlocks)
     {
+      //outs() << "Looking for " << targetapi << "\n";
+
       BBApiEntry bbentry = std::make_pair(bb, apilist);
       for (BasicBlock::const_iterator bi = bb->begin(); bi != bb->end(); bi++)
       {
@@ -54,38 +53,49 @@ namespace seahorn
         if (const CallInst *CI = dyn_cast<CallInst> (I))
         {
           CallSite CS (const_cast<CallInst*> (CI));
-          const Function *cf = CS.getCalledFunction();
+          Function *cf = CS.getCalledFunction();
 
           // this block contains an API function call of interest
           if (cf)
           {
+            //outs() << "\tFunction " << F.getName() << " calls " << cf->getName() << "\n";
+            // This is a call to the API of interest
             if (cf->getName().str() == targetapi)
             {
               // Found a call to the target, now record that and increment
               // progress
-              for (unsigned int i = progress; i<bbentry.second.size(); i++)
+              for (unsigned int i = aci.m_progress; i<bbentry.second.size(); i++)
               {
                 ApiEntry& apientry = bbentry.second[i];
-                //outs() << apientry.first << " == " << targetapi << "\n";
                 if (apientry.first == targetapi)
                 {
+                  //outs() << "Found " << targetapi << "\n";
                   apientry.second = true;
-                  ++progress;
+                  ++aci.m_progress;
                   break;
                 }
               }
             }
+            else
+            {
+              if (!cf->empty())
+              {
+                outs() << "Saving called func "<< cf->getName() <<"\n";
+                aci.m_outcalls.push_back(cf);
+              }
+            }
           }
-        }
-      } // for each insn
-      // save the BB list
-      bblist.push_back(bbentry);
+        } // for each insn
+        
+        // save the BB list
+        bblist.push_back(bbentry);
 
-      // are we done?
-      if (progress >= m_apilist.size()) break;
-      targetapi = m_apilist[progress];
-      //outs() << "Looking for " << targetapi << "\n";
+        // are we done?
+        if (aci.m_progress >= m_apilist.size()) break;
 
+        // move to next API
+        targetapi = m_apilist[aci.m_progress];
+      }
     }
 
     // save the analysis for this function
@@ -170,6 +180,9 @@ namespace seahorn
 
   void ApiAnalysisPass::reportResults()
   {
+
+    outs() << "FINAL RESULTS:\n";
+
     for (auto& analysis : m_apiAnalysis)
     {
       if (!analysis.m_bblist.empty())
@@ -217,11 +230,12 @@ namespace seahorn
   // The body of the pass
   bool ApiAnalysisPass::runOnModule (Module &M)
   {
+
+    // This call generates API call information for each
     for (Function &F : M)
     {
       analyzeFunction(F);
     }
-
     propagateAnalysis();
 
     //propagateFunctionAnalysis();

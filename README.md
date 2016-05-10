@@ -1,4 +1,6 @@
 # SeaHorn #
+
+[![Join the chat at https://gitter.im/seahorn/seahorn](https://badges.gitter.im/seahorn/seahorn.svg)](https://gitter.im/seahorn/seahorn?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
 [![Build Status](https://travis-ci.org/seahorn/seahorn.svg?branch=master)](https://travis-ci.org/seahorn/seahorn)
 
 ![18093415-vector-illustration-of-seahorse-cartoon--coloring-book.jpg](https://bitbucket.org/repo/gngGo9/images/174701276-18093415-vector-illustration-of-seahorse-cartoon--coloring-book.jpg)

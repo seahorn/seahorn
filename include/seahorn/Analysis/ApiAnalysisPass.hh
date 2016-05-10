@@ -31,8 +31,8 @@ namespace seahorn
   // Each Basic block in a function will have an ApiCallList
   typedef std::vector<BBApiEntry> BBApiList;
 
-  struct ApiCallInfo {
-
+  struct ApiCallInfo
+  {
     ApiCallInfo()
     { }
 
@@ -77,25 +77,22 @@ namespace seahorn
     // The API name to look for
     std::vector<std::string> m_apilist;
 
-    // Map of bb function calls to basic blocks
-    //FuncApiMap m_funcmap;
-
     // Dataflow analysis for each function
     std::vector<ApiCallInfo> m_apiAnalysis;
-
-    //FuncApiEntry m_funcApiEntry;
 
     ApiCallList initializeApiCallList();
 
     void parseApiString(std::string apistring);
 
-    void initialize(Function &F);
+    void analyzeFunction(Function &F);
 
-    void runFunctionAnalysis();
+    void propagateAnalysis();
 
-    void report();
+    void runInterFunctionAnalysis();
 
-    void propagateFunctionAnalysis();
+    void reportResults();
+
+
 
     void analyzeBBlock(const BasicBlock* bb);
 

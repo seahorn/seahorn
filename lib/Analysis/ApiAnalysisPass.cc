@@ -18,8 +18,11 @@ namespace seahorn
 {
   using namespace llvm;
 
-  void ApiAnalysisPass::initialize(Function &F)
+  void ApiAnalysisPass::analyzeFunction(Function &F)
   {
+
+    //outs() << "Processing function " << F.getName() << "\n";
+
     // First, get the basic blocks in topological order
     std::vector<const BasicBlock*> sortedBBlocks;
     RevTopoSort(F,sortedBBlocks);
@@ -36,42 +39,53 @@ namespace seahorn
 
     // Required API calls are initialized for this BB
     BBApiList bblist;
+    unsigned int progress = 0;
+    std::string targetapi = m_apilist[progress];
+
+    //outs() << "Looking for " << targetapi << "\n";
+
+    // for each of the sorted BBs,
     for (const BasicBlock *bb : sortedBBlocks)
     {
       BBApiEntry bbentry = std::make_pair(bb, apilist);
-
-      for (std::string API : m_apilist)
+      for (BasicBlock::const_iterator bi = bb->begin(); bi != bb->end(); bi++)
       {
-        for (BasicBlock::const_iterator bi = bb->begin(); bi != bb->end(); bi++)
+        const Instruction *I = &*bi;
+        if (const CallInst *CI = dyn_cast<CallInst> (I))
         {
-          const Instruction *I = &*bi;
-          if (const CallInst *CI = dyn_cast<CallInst> (I))
+          CallSite CS (const_cast<CallInst*> (CI));
+          const Function *cf = CS.getCalledFunction();
+
+          // this block contains an API function call of interest
+          if (cf)
           {
-
-            CallSite CS (const_cast<CallInst*> (CI));
-            const Function *cf = CS.getCalledFunction();
-
-            // this block contains an API function call of interest
-            if (cf)
+            if (cf->getName().str() == targetapi)
             {
-              if (cf->getName().str() == API)
+              // Found a call to the target, now record that and increment
+              // progress
+              for (unsigned int i = progress; i<bbentry.second.size(); i++)
               {
-                for (auto &api : bbentry.second)
+                ApiEntry& apientry = bbentry.second[i];
+                //outs() << apientry.first << " == " << targetapi << "\n";
+                if (apientry.first == targetapi)
                 {
-                  // this should be ok, because we are comparing pointers
-                  if (api.first == API)
-                  {
-                    api.second = true;
-                    break;
-                  }
+                  apientry.second = true;
+                  ++progress;
+                  break;
                 }
               }
             }
           }
         }
-      }
+      } // for each insn
       // save the BB list
       bblist.push_back(bbentry);
+
+      // are we done?
+      if (progress >= m_apilist.size()) break;
+      targetapi = m_apilist[progress];
+      //outs() << "Looking for " << targetapi << "\n";
+
     }
 
     // save the analysis for this function
@@ -80,15 +94,12 @@ namespace seahorn
     m_apiAnalysis.push_back(aci);
   }
 
-  void ApiAnalysisPass::runFunctionAnalysis()
+  void ApiAnalysisPass::propagateAnalysis()
   {
-
     for (auto& analysis : m_apiAnalysis)
     {
       Function *curfunc = analysis.m_func;
-
       BBApiList& bblist = analysis.m_bblist;
-
       ApiCallList prev;
       for (std::string API : m_apilist)
       {
@@ -98,7 +109,6 @@ namespace seahorn
       for (auto& bbentry : bblist)
       {
         const BasicBlock *bb = bbentry.first;
-
         ApiCallList& apilist = bbentry.second;
 
         for (size_t i=0; i<apilist.size(); i++)
@@ -115,9 +125,9 @@ namespace seahorn
     }
   }
 
-  void ApiAnalysisPass::propagateFunctionAnalysis()
+  void ApiAnalysisPass::runInterFunctionAnalysis()
   {
-    // at this point we need to sort the functions in bottom up order
+    // At this point we need to sort the functions in bottom up order
     // and check interprocedural calls
     //
     // We will need to rerun analysis from a given point
@@ -128,7 +138,7 @@ namespace seahorn
       auto &scc = *it;
       for (CallGraphNode *cgn : scc)
       {
-        Function *f = cgn->getFunction ();
+        Function *f = cgn->getFunction();
         if (!f) continue;
         outs() << f->getName() << " calls\n";
         for (auto& calls : *cgn)
@@ -158,13 +168,13 @@ namespace seahorn
     }
   }
 
-  void ApiAnalysisPass::report()
+  void ApiAnalysisPass::reportResults()
   {
     for (auto& analysis : m_apiAnalysis)
     {
       if (!analysis.m_bblist.empty())
       {
-        //outs () << analysis.m_func->getName() << "\n";
+        // outs () << analysis.m_func->getName() << "\n";
         // for (auto bentry : analysis.m_bblist)
         // {
         //   //bentry.first->dump();
@@ -188,7 +198,7 @@ namespace seahorn
 
         if (result)
         {
-          outs () << analysis.m_func->getName() << " calls required APIs\n";
+          outs () << analysis.m_func->getName() << " calls required APIs in the required order\n";
         }
       }
     }
@@ -209,14 +219,14 @@ namespace seahorn
   {
     for (Function &F : M)
     {
-      initialize(F);
+      analyzeFunction(F);
     }
 
-    runFunctionAnalysis();
+    propagateAnalysis();
 
     //propagateFunctionAnalysis();
 
-    report();
+    reportResults();
 
     return false;
   }

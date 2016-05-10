@@ -31,9 +31,10 @@ namespace seahorn
   // Each Basic block in a function will have an ApiCallList
   typedef std::vector<BBApiEntry> BBApiList;
 
+  // information about a serach
   struct ApiCallInfo
   {
-    ApiCallInfo()
+    ApiCallInfo() : m_progress(0)
     { }
 
     ApiCallInfo(const ApiCallInfo & other)
@@ -41,6 +42,7 @@ namespace seahorn
       m_bblist = other.m_bblist;
       m_func = other.m_func;
       m_outcalls = other.m_outcalls;
+      m_progress = other.m_progress;
     }
 
     ApiCallInfo& operator=(const ApiCallInfo & other)
@@ -48,6 +50,7 @@ namespace seahorn
       m_bblist = other.m_bblist;
       m_func = other.m_func;
       m_outcalls = other.m_outcalls;
+      m_progress = other.m_progress;
 
       return *this;
     }
@@ -60,11 +63,13 @@ namespace seahorn
     // data flow information for each basic block in this function
     BBApiList m_bblist;
 
+    unsigned int m_progress;
+
     // A pointer to the function itself
     Function * m_func;
 
     // dataflow information for outgoing calls
-    std::map<Function*, ApiCallList&> m_outcalls;
+    std::vector<Function*> m_outcalls;
 
   };
 
@@ -77,7 +82,7 @@ namespace seahorn
     // The API name to look for
     std::vector<std::string> m_apilist;
 
-    // Dataflow analysis for each function
+    // Dataflow analysis for a given search
     std::vector<ApiCallInfo> m_apiAnalysis;
 
     ApiCallList initializeApiCallList();

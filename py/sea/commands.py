@@ -2,7 +2,7 @@ import sea
 
 import os.path
 
-from sea import add_in_out_args, which, createWorkDir
+from sea import add_in_out_args, add_tmp_dir_args, which, createWorkDir
 
 # remaps a file based on working dir and a new extension
 def _remap_file_name (in_file, ext, work_dir):
@@ -35,6 +35,7 @@ class Clang(sea.LimitedCmd):
                          help='Machine architecture MACHINE:[32,64]', default=32)
         ap.add_argument ('-g', default=False, action='store_true',
                          dest='debug_info', help='Compile with debug info')
+        add_tmp_dir_args (ap)
         add_in_out_args (ap)
         _add_S_arg (ap)
         return ap
@@ -73,7 +74,7 @@ class Clang(sea.LimitedCmd):
             out_files = [args.out_file]
         else:
             # create private workdir
-            workdir = createWorkDir ()
+            workdir = createWorkDir (args.temp_dir, args.save_temps, 'clang-')
             out_files = [_remap_file_name (f, '.bc', workdir)
                          for f in args.in_files]
 

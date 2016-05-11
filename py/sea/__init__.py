@@ -99,6 +99,15 @@ def add_in_out_args (ap):
     ap.add_argument ('in_files',  metavar='FILE', help='Input file', nargs='+')
     return ap
 
+def add_tmp_dir_args (ap):
+    ap.add_argument ('--save-temps', '--keep-temps',
+                     dest="save_temps",
+                     help="Do not delete temporary files",
+                     action="store_true", default=False)
+    ap.add_argument ('--temp-dir', dest='temp_dir', metavar='DIR',
+                     help="Temporary directory", default=None)
+    return ap
+
 class CliCmd (object):
     def __init__ (self, name='', help='', allow_extra=False):
         self.name = name
@@ -164,12 +173,7 @@ class SeqCmd (AgregateCmd):
 
     def mk_arg_parser (self, ap):
         add_in_out_args (ap)
-        ap.add_argument ('--save-temps', '--keep-temps',
-                         dest="save_temps",
-                         help="Do not delete temporary files",
-                         action="store_true", default=False)
-        ap.add_argument ('--temp-dir', dest='temp_dir', metavar='DIR',
-                         help="Temporary directory", default=None)
+        add_tmp_dir_args (ap)
         return ap
 
     def run (self, args, extra):

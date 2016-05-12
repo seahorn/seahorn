@@ -6,6 +6,7 @@
 */
 
 #include <sstream>
+#include <boost/ptr_container/ptr_vector.hpp>
 
 #include "llvm/Pass.h"
 #include "llvm/IR/Module.h"
@@ -37,36 +38,49 @@ namespace seahorn
     ApiCallInfo() : m_progress(0)
     { }
 
+    ~ApiCallInfo()
+    { }
+
     ApiCallInfo(const ApiCallInfo & other)
     {
       m_bblist = other.m_bblist;
-      m_func = other.m_func;
+      m_funcs = other.m_funcs;
       m_outcalls = other.m_outcalls;
       m_progress = other.m_progress;
+      m_finalapilist = other.m_finalapilist;
+      m_startFunc = other.m_startFunc;
     }
 
     ApiCallInfo& operator=(const ApiCallInfo & other)
     {
       m_bblist = other.m_bblist;
-      m_func = other.m_func;
+      m_funcs = other.m_funcs;
       m_outcalls = other.m_outcalls;
       m_progress = other.m_progress;
+      m_finalapilist = other.m_finalapilist;
+      m_startFunc = other.m_startFunc;
 
       return *this;
     }
 
-    BBApiEntry& getFinalAnalysis()
+    const BBApiEntry& getFinalAnalysis() const
     {
+
       return m_bblist.back();
     }
 
-    // data flow information for each basic block in this function
+    // data flow information for each basic block in this function. Needed for
+    // sequencing
     BBApiList m_bblist;
+
+    ApiCallList m_finalapilist;
 
     unsigned int m_progress;
 
     // A pointer to the function itself
-    Function * m_func;
+    std::vector<Function*> m_funcs;
+
+    Function * m_startFunc;
 
     // dataflow information for outgoing calls
     std::vector<Function*> m_outcalls;
@@ -83,27 +97,32 @@ namespace seahorn
     std::vector<std::string> m_apilist;
 
     // Dataflow analysis for a given search
-    std::vector<ApiCallInfo> m_apiAnalysis;
+    boost::ptr_vector<ApiCallInfo> m_apiAnalysis;
 
     ApiCallList initializeApiCallList();
 
     void parseApiString(std::string apistring);
 
-    void analyzeFunction(Function &F);
+    ApiCallInfo* analyzeFunction(Function& F, ApiCallInfo *init_state);
 
-    void propagateAnalysis();
+    // void propagateAnalysis(ApiCallInfo *analysis);
 
     void runInterFunctionAnalysis();
 
     void reportResults();
 
-
-
     void analyzeBBlock(const BasicBlock* bb);
+
+    void printFinalAnalysis() const;
 
   public:
 
     static char ID;
+
+    ~ApiAnalysisPass()
+    {
+      //m_apiAnalysis.clear();
+    }
 
     ApiAnalysisPass () : ModulePass (ID)
     { }

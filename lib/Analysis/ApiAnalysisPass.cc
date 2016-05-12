@@ -27,13 +27,10 @@ namespace seahorn
         if (af->getName() == F.getName())
         {
           bool done = analyzedfunc.m_progress == m_apilist.size();
-          //outs() << "Already analyzed " << F.getName() << " and progress is " << done << "\n";
           if (done) return init_state;;
         }
       }
     }
-
-    //outs() << "Analyzing " << F.getName() <<"\n";
 
     // First, get the basic blocks in topological order
     std::vector<const BasicBlock*> sortedBBlocks;
@@ -44,14 +41,13 @@ namespace seahorn
     ApiCallList apilist;
     for (std::string API : m_apilist)
     {
-      apilist.push_back(std::make_pair(API, false));
+      apilist.push_back(API);
     }
 
     ApiCallInfo *aci=NULL;
     if (init_state != NULL)
     {
       aci = init_state;
-      //outs() << "Using existing state\n";
     }
     else
     {
@@ -60,17 +56,11 @@ namespace seahorn
 
     aci->m_funcs.push_back(&F);
 
-    // Required API calls are initialized for this BB
-    BBApiList bblist;
     std::string targetapi = m_apilist[aci->m_progress];
 
     // for each of the sorted BBs,
     for (const BasicBlock *bb : sortedBBlocks)
     {
-      //outs() << "Looking for " << targetapi << "\n";
-
-      BBApiEntry bbentry = std::make_pair(bb, apilist);
-
       for (BasicBlock::const_iterator bi = bb->begin(); bi != bb->end(); bi++)
       {
         const Instruction *I = &*bi;
@@ -79,133 +69,52 @@ namespace seahorn
           CallSite CS (const_cast<CallInst*> (CI));
           Function *cf = CS.getCalledFunction();
 
-          // this block contains an API function call of interest
+          // this function contains an API function call of interest
 
           if (cf)
           {
             // This is a call to the API of interest
-            if (cf->getName().str() == targetapi)
+            if (cf->getName().str() == m_apilist[aci->m_progress])
             {
               // Found a call to the target, now record that and increment
               // progress
-              for (unsigned int i = aci->m_progress; i<bbentry.second.size(); i++)
+              //outs() << "Found target API: " << m_apilist[aci->m_progress] << " in " << F.getName() << "\n";
+
+              aci->m_finalapilist.push_back(m_apilist[aci->m_progress]);
+              aci->m_funcs.push_back(cf);
+              if (0==aci->m_progress)
               {
-                ApiEntry& apientry = bbentry.second[i];
-                if (apientry.first == targetapi)
-                {
-                  outs() << "Found target API: " << targetapi << " in " << F.getName() << "\n";
-                  apientry.second = true;
-
-                  aci->m_finalapilist.push_back(std::make_pair(targetapi,true));
-
-                  aci->m_funcs.push_back(cf);
-
-                  if (0==aci->m_progress)
-                  {
-                    aci->m_startFunc = &F;
-                  }
-                  ++aci->m_progress;
-                  break;
-                }
+                aci->m_startFunc = &F;
               }
+              ++aci->m_progress;
             }
             else
             {
               if (!cf->empty())
               {
-                //outs() << "Calling Outgoing Function " << cf->getName() << "\n";
-                aci = analyzeFunction(*cf,aci);
+                //outs() << "In Function "<< F.getName()<< " calling outgoing Function "
+                //     << cf->getName() << " looking for " << m_apilist[aci->m_progress] << "\n";
 
+                aci = analyzeFunction(*cf, aci);
+
+                //outs() << "Back in Function "<< F.getName() << " looking for " << m_apilist[aci->m_progress] << "\n";
               }
             }
           }
         }
       } // for each insn
 
-      // save the BB list
-      bblist.push_back(bbentry);
-
       // are we done?
       if (aci->m_progress >= m_apilist.size())
       {
-        outs() << "Complete sequence found!\n ";
         break;
       }
-
-      // Pattern not found so move to to next API
-      targetapi = m_apilist[aci->m_progress];
     }
 
-    //outs() << "Saving results\n";
-
-    // save the analysis for this function
-
-    aci->m_bblist = bblist;
+    //outs() << "Returning\n";
 
     return aci;
-    //m_apiAnalysis.push_back(aci);
-  }
 
-  // void ApiAnalysisPass::propagateAnalysis(ApiCallInfo *analysis)
-  // {
-  //   // for each function, propagate the analysis
-  //   for (auto& analysis : m_apiAnalysis)
-  //   {
-  //     Function *curfunc = analysis->m_func;
-  //     BBApiList& bblist = analysis->m_bblist;
-  //
-  //     ApiCallList prev;
-  //     for (std::string API : m_apilist)
-  //     {
-  //       prev.push_back(std::make_pair(API,false));
-  //     }
-  //
-  //     for (auto& bbentry : bblist)
-  //     {
-  //       const BasicBlock *bb = bbentry.first;
-  //       ApiCallList& apilist = bbentry.second;
-  //
-  //       for (size_t i=0; i<apilist.size(); i++)
-  //       {
-  //         ApiEntry& api = apilist[i];
-  //
-  //         if (prev[i].first == api.first && prev[i].second != api.second)
-  //         {
-  //           apilist[i].second = true;
-  //         }
-  //         prev[i].first = api.first;
-  //         prev[i].second = api.second;
-  //       }
-  //     }
-  //   }
-  // }
-
-  void ApiAnalysisPass::runInterFunctionAnalysis()
-  {
-    // At this point we need to sort the functions in bottom up order
-    // and check interprocedural calls
-    //
-    // We will need to rerun analysis from a given point
-
-    CallGraph &CG = getAnalysis<CallGraphWrapperPass> ().getCallGraph();
-    for (auto it = scc_begin (&CG); !it.isAtEnd (); ++it)
-    {
-      auto &scc = *it;
-      for (CallGraphNode *cgn : scc)
-      {
-        Function *f = cgn->getFunction();
-        if (!f) continue;
-        outs() << f->getName() << " calls\n";
-        for (auto& calls : *cgn)
-        {
-          Function *calledf = calls.second->getFunction();
-
-          if (!calledf) continue;
-
-          outs() << "\t" << calledf->getName() << "\n";
-        }
-      }
-    }
   }
 
   void ApiAnalysisPass::printFinalAnalysis() const
@@ -225,31 +134,6 @@ namespace seahorn
     }
   }
 
-  void ApiAnalysisPass::reportResults()
-  {
-    // for (auto analysis : m_apiAnalysis)
-    // {
-    //   if (!analysis.m_bblist.empty())
-    //   {
-    //     if (analysis.m_func->getName() != "_ZN14CSystemManager14getProcessListEv") continue;
-    //
-    //     outs () << analysis.m_func->getName() << "\n";
-    //
-    //     for (auto bentry : analysis.m_bblist)
-    //     {
-    //       //bentry.first->dump();
-    //       for (auto &aentry : bentry.second)
-    //       {
-    //         outs() << "\t" << aentry.first << ": " << aentry.second << "\n";
-    //       }
-    //       outs() << "\t---\n";
-    //     }
-    //
-    //     printFinalAnalysis();
-    //   }
-    // }
-  }
-
   void ApiAnalysisPass::parseApiString(std::string apistring)
   {
     std::istringstream ss(apistring);
@@ -264,9 +148,10 @@ namespace seahorn
   bool ApiAnalysisPass::runOnModule (Module &M)
   {
 
-    std::vector<Function*> sortedFuncs;
     // sort funcs in topo order
+    std::vector<Function*> sortedFuncs;
     CallGraph &CG = getAnalysis<CallGraphWrapperPass> ().getCallGraph();
+
     for (auto it = scc_begin (&CG); !it.isAtEnd (); ++it)
     {
       auto &scc = *it;
@@ -281,7 +166,17 @@ namespace seahorn
     // This call generates API call information for each
     for (Function *F : sortedFuncs)
     {
-      m_apiAnalysis.push_back(analyzeFunction(*F,NULL));
+      ApiCallInfo *aci = analyzeFunction(*F,NULL);
+      m_apiAnalysis.push_back(aci);
+
+      // if (aci->m_progress == m_apilist.size())
+      // {
+      //   outs() << "Completed analysis of " << F->getName() << " with success.\n\n";
+      // }
+      // else
+      // {
+      //   outs() << "Completed analysis of " << F->getName() << " withOUT success.\n\n";
+      // }
     }
 
     printFinalAnalysis();

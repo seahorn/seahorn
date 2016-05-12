@@ -22,15 +22,15 @@ namespace seahorn
 
   using namespace llvm;
 
-  typedef std::pair<std::string, bool> ApiEntry;
+  //typedef std::pair<std::string, bool> ApiEntry;
 
   // This is a list of expected API entries
-  typedef std::vector<ApiEntry> ApiCallList;
+  typedef std::vector<std::string> ApiCallList;
 
   typedef std::pair<const BasicBlock*, ApiCallList> BBApiEntry;
 
   // Each Basic block in a function will have an ApiCallList
-  typedef std::vector<BBApiEntry> BBApiList;
+  //typedef std::vector<BBApiEntry> BBApiList;
 
   // information about a serach
   struct ApiCallInfo
@@ -43,9 +43,7 @@ namespace seahorn
 
     ApiCallInfo(const ApiCallInfo & other)
     {
-      m_bblist = other.m_bblist;
       m_funcs = other.m_funcs;
-      m_outcalls = other.m_outcalls;
       m_progress = other.m_progress;
       m_finalapilist = other.m_finalapilist;
       m_startFunc = other.m_startFunc;
@@ -53,9 +51,7 @@ namespace seahorn
 
     ApiCallInfo& operator=(const ApiCallInfo & other)
     {
-      m_bblist = other.m_bblist;
       m_funcs = other.m_funcs;
-      m_outcalls = other.m_outcalls;
       m_progress = other.m_progress;
       m_finalapilist = other.m_finalapilist;
       m_startFunc = other.m_startFunc;
@@ -63,36 +59,24 @@ namespace seahorn
       return *this;
     }
 
-    const BBApiEntry& getFinalAnalysis() const
-    {
-
-      return m_bblist.back();
-    }
-
     // data flow information for each basic block in this function. Needed for
     // sequencing
-    BBApiList m_bblist;
+    //BBApiList m_bblist;
 
     ApiCallList m_finalapilist;
 
     unsigned int m_progress;
 
-    // A pointer to the function itself
+    // List of functions traversed
     std::vector<Function*> m_funcs;
 
+    // Function containing the first API of interest
     Function * m_startFunc;
-
-    // dataflow information for outgoing calls
-    std::vector<Function*> m_outcalls;
-
   };
 
 
   class ApiAnalysisPass : public ModulePass
   {
-    // functions/instructions that call an API of interest
-    std::set< std::pair<const Function*, std::string> > m_apicalllist;
-
     // The API name to look for
     std::vector<std::string> m_apilist;
 
@@ -104,14 +88,6 @@ namespace seahorn
     void parseApiString(std::string apistring);
 
     ApiCallInfo* analyzeFunction(Function& F, ApiCallInfo *init_state);
-
-    // void propagateAnalysis(ApiCallInfo *analysis);
-
-    void runInterFunctionAnalysis();
-
-    void reportResults();
-
-    void analyzeBBlock(const BasicBlock* bb);
 
     void printFinalAnalysis() const;
 

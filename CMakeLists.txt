@@ -43,7 +43,9 @@ if (GIT_FOUND)
    add_custom_target (crab-llvm-git
     ${GIT_EXECUTABLE} clone ${CRAB_LLVM_REPO} ${CMAKE_SOURCE_DIR}/crab-llvm)
 
-  add_custom_target (extra DEPENDS seahorn-llvm-git dsa-seahorn-git crab-llvm-git)
+  add_custom_target (extra
+    ${CMAKE_COMMAND} -E touch ${CMAKE_CURRENT_LIST_FILE}
+    DEPENDS seahorn-llvm-git dsa-seahorn-git crab-llvm-git)
 else()
   message (STATUS "Could not find git. Not adding 'extra' target.")
 endif()
@@ -193,15 +195,15 @@ endif()
 include(CPack)
 
 install (FILES ${CMAKE_CURRENT_SOURCE_DIR}/README.md DESTINATION .)
-# install all the licenses 
-install (FILES  ${CMAKE_CURRENT_SOURCE_DIR}/license.txt 
+# install all the licenses
+install (FILES  ${CMAKE_CURRENT_SOURCE_DIR}/license.txt
   DESTINATION share/doc/seahorn
   RENAME seahorn_license.txt)
 
 if (EXISTS z3-prefix/src/z3/LICENSE.txt)
   install (
-    FILES 
-    ${CMAKE_CURRENT_BINARY_DIR}/z3-prefix/src/z3/LICENSE.txt 
+    FILES
+    ${CMAKE_CURRENT_BINARY_DIR}/z3-prefix/src/z3/LICENSE.txt
     DESTINATION share/doc/seahorn
     RENAME z3_license.txt)
 endif()
@@ -214,7 +216,7 @@ endif()
 
 if (EXISTS ${CMAKE_CURRENT_BINARY_DIR}/llvm-prefix/src/llvm-build/bin/clang-3.6)
   install (
-    PROGRAMS 
+    PROGRAMS
     ${CMAKE_CURRENT_BINARY_DIR}/llvm-prefix/src/llvm-build/bin/clang-3.6
     DESTINATION bin)
 endif()
@@ -237,7 +239,7 @@ if (EXISTS ${CMAKE_CURRENT_BINARY_DIR}/crab/src/crab/Ikos_LICENSE.pdf)
     DESTINATION share/doc/seahorn
     RENAME ikos_license.pdf)
 endif()
-  
+
 if (EXISTS ${CMAKE_CURRENT_BINARY_DIR}/crab/src/crab/Crab_LICENSE.txt)
   install (
     FILES
@@ -251,7 +253,7 @@ if (EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/crab-llvm/LICENSE.txt)
     DESTINATION share/doc/seahorn
     RENAME crab_llvm_license.txt)
 endif()
-    
+
 # check for rt lib. Not needed on OSX.
 find_library(RT_LIB NAMES rt)
 if (NOT RT_LIB)
@@ -347,7 +349,7 @@ endif()
 
 ### add our include directories to the front, overriding directories
 ### specified by external packages.
-include_directories(BEFORE 
+include_directories(BEFORE
   ${CMAKE_CURRENT_SOURCE_DIR}/include
   ${CMAKE_CURRENT_BINARY_DIR}/include)
 

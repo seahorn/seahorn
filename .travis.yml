@@ -74,10 +74,11 @@ script:
   - ls ../ 
   - /usr/bin/cmake --build .
   - /usr/bin/cmake --build .
-  - make
   - /usr/bin/cmake --build . --target install
   - ls run/bin/
   - run/bin/sea -h
+  - /usr/bin/cmake --build . --target simple-test
+  
 
 
 notifications:

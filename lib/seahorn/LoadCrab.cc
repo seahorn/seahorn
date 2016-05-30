@@ -59,30 +59,6 @@ namespace seahorn
 #include <crab_llvm/CrabLlvm.hh>
 #include <crab_llvm/AbstractDomains.hh>
 
-namespace llvm
-{
-   template <typename Number, typename VariableName>
-   llvm::raw_ostream& operator<< (llvm::raw_ostream& o, 
-                                  crab::cfg_impl::z_lin_cst_t cst)
-   {
-     std::ostringstream s;
-     s << cst;
-     o << s.str ();
-     return o;
-   }
-
-   inline llvm::raw_ostream& operator<< (llvm::raw_ostream& o, 
-                                         crab::cfg_impl::z_lin_cst_sys_t csts)
-   {
-     std::ostringstream s;
-     s << csts;
-     o << s.str ();
-     return o;
-   }
-
-} // end namespace
-
-
 namespace crab_llvm
 {
   using namespace llvm;
@@ -620,7 +596,6 @@ namespace crab_llvm
 namespace seahorn
 {
   using namespace llvm;
-  using namespace crab;
   using namespace crab::cfg_impl;
   using namespace crab_llvm;
   using namespace expr;

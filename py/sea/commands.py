@@ -429,9 +429,9 @@ class Seahorn(sea.LimitedCmd):
         ap.add_argument ('--show-invars',
                          help='Display computed invariants',
                          dest='show_invars', default=False, action='store_true')
-        ap.add_argument ('--crab',
-                         help='Enable Crab abstract interpreter',
-                         dest='crab', default=False, action='store_true')
+        # ap.add_argument ('--crab',
+        #                  help='Enable Crab abstract interpreter',
+        #                  dest='crab', default=False, action='store_true')
         ap.add_argument ('--bmc',
                          help='Use BMC engine',
                          dest='bmc', default=False, action='store_true')
@@ -447,8 +447,8 @@ class Seahorn(sea.LimitedCmd):
         if args.bmc:
             argv.append ('--horn-bmc')
 
-        if args.crab:
-            argv.append ('--horn-crab')
+        # if args.crab:
+        #     argv.append ('--horn-crab')
 
         if args.solve or args.out_file is not None:
             argv.append ('--keep-shadows=true')
@@ -591,43 +591,43 @@ class LegacyFrontEnd (sea.LimitedCmd):
 
         return self.lfeCmd.run (args, argv)
 
-class Crab (sea.LimitedCmd):
-    def __init__ (self, quiet=False):
-        super (Crab, self).__init__ ('crab',
-                                     'Instrument LLVM bitcode with invariants inferred by Crab',
-                                     allow_extra=True)
+# class Crab (sea.LimitedCmd):
+#     def __init__ (self, quiet=False):
+#         super (Crab, self).__init__ ('crab',
+#                                      'Instrument LLVM bitcode with invariants inferred by Crab',
+#                                      allow_extra=True)
 
-    @property
-    def stdout (self):
-        return self.seappCmd.stdout
+#     @property
+#     def stdout (self):
+#         return self.seappCmd.stdout
 
-    def name_out_file (self, in_files, args=None, work_dir=None):
-        ext = 'crab.ll'
-        return _remap_file_name (in_files[0], ext, work_dir)
+#     def name_out_file (self, in_files, args=None, work_dir=None):
+#         ext = 'crab.ll'
+#         return _remap_file_name (in_files[0], ext, work_dir)
 
-    def mk_arg_parser (self, ap):
-        ap = super (Crab, self).mk_arg_parser (ap)
-        add_in_out_args (ap)
-        return ap
+#     def mk_arg_parser (self, ap):
+#         ap = super (Crab, self).mk_arg_parser (ap)
+#         add_in_out_args (ap)
+#         return ap
 
-    def run (self, args, extra):
-        cmd_name = which ('seahorn')
-        if cmd_name is None: raise IOError ('seahorn not found')
-        self.seappCmd = sea.ExtCmd (cmd_name)
+#     def run (self, args, extra):
+#         cmd_name = which ('seahorn')
+#         if cmd_name is None: raise IOError ('seahorn not found')
+#         self.seappCmd = sea.ExtCmd (cmd_name)
 
-        argv = list()
+#         argv = list()
 
-        argv.append ('--horn-crab')
-        argv.append ('--crab-add-invariants-at-entries')
-        argv.append ('--crab-add-invariants-after-loads')
+#         argv.append ('--horn-crab')
+#         argv.append ('--crab-add-invariants-at-entries')
+#         argv.append ('--crab-add-invariants-after-loads')
 
-        if args.out_file is not None: argv.extend (['-oll', args.out_file])
-        argv.extend (args.in_files)
+#         if args.out_file is not None: argv.extend (['-oll', args.out_file])
+#         argv.extend (args.in_files)
 
-        # pick out extra seahorn options
-        argv.extend (filter (_is_seahorn_opt, extra))
+#         # pick out extra seahorn options
+#         argv.extend (filter (_is_seahorn_opt, extra))
 
-        return self.seappCmd.run (args, argv)
+#         return self.seappCmd.run (args, argv)
 
 
 class SeaTerm(sea.LimitedCmd):
@@ -673,5 +673,5 @@ BndSmt = sea.SeqCmd ('bnd-smt', 'alias for fe|unroll|cut-loops|ms|opt|horn',
                                       Seaopt(), Seahorn()])
 Bpf = sea.SeqCmd ('bpf', 'alias for fe|unroll|cut-loops|opt|horn --solve',
                   FrontEnd.cmds + [Unroll(), CutLoops(), Seaopt(), Seahorn(solve=True)])
-feCrab = sea.SeqCmd ('fe-crab', 'alias for fe|crab', FrontEnd.cmds + [Crab()])
+#feCrab = sea.SeqCmd ('fe-crab', 'alias for fe|crab', FrontEnd.cmds + [Crab()])
 seaTerm = sea.SeqCmd ('term', 'SeaHorn Termination analysis', Smt.cmds + [SeaTerm()])

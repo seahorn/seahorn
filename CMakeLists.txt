@@ -43,7 +43,11 @@ if (GIT_FOUND)
    add_custom_target (crab-llvm-git
     ${GIT_EXECUTABLE} clone ${CRAB_LLVM_REPO} ${CMAKE_SOURCE_DIR}/crab-llvm)
 
-  add_custom_target (extra DEPENDS seahorn-llvm-git dsa-seahorn-git crab-llvm-git)
+  # XXX: crab-llvm is not publicly available at the moment. Read
+  # README for details.
+  #add_custom_target (extra DEPENDS seahorn-llvm-git dsa-seahorn-git crab-llvm-git)
+
+  add_custom_target (extra DEPENDS seahorn-llvm-git dsa-seahorn-git)
 else()
   message (STATUS "Could not find git. Not adding 'extra' target.")
 endif()

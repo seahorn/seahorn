@@ -10,7 +10,7 @@ An LLVM based verification framework.
 #License#
 SeaHorn is distributed under a modified BSD license. See [license.txt](license.txt) for details.
 
-#Compilation#
+#Installation#
 
 * `cd seahorn ; mkdir build ; cd build`
 * `cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=run ../ `
@@ -37,6 +37,11 @@ needed when reasoning about memory contents while the latter provides
 inductive invariants using abstract interpretation techniques to the
 rest of SeaHorn's backends.
 
+___
+
+**Latest news**: due to some unsolved licensing issues `crab-llvm` is
+temporary not publicly available. Please, if this impacts your current
+project do not hesitate to contact us at <seahorn@aguga.net>.
 
 #Usage#
 
@@ -69,7 +74,7 @@ loop-free program block.
 - `--crab` : generates invariants using the Crab
   abstract-interpretation-based tool. Read
   [here](https://github.com/seahorn/crab-llvm/tree/master#usage) for
-  details about Crab options. 
+  details about Crab options. **This option is currently disabled.**
 
 - `-g` : compiles with debug information for more trackable
   counterexamples.

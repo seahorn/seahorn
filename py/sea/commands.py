@@ -430,9 +430,9 @@ class Seahorn(sea.LimitedCmd):
         ap.add_argument ('--show-invars',
                          help='Display computed invariants',
                          dest='show_invars', default=False, action='store_true')
-        ap.add_argument ('--crab',
-                         help='Enable Crab abstract interpreter',
-                         dest='crab', default=False, action='store_true')
+        # ap.add_argument ('--crab',
+        #                  help='Enable Crab abstract interpreter',
+        #                  dest='crab', default=False, action='store_true')
         ap.add_argument ('--bmc',
                          help='Use BMC engine',
                          dest='bmc', default=False, action='store_true')

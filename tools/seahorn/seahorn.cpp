@@ -114,7 +114,7 @@ PrintStats ("horn-stats",
             llvm::cl::desc ("Print statistics"), llvm::cl::init(false));
 
 static llvm::cl::opt<bool>
-Cex ("horn-cex", llvm::cl::desc ("Produce detailed counterexample"),
+Cex ("horn-cex-pass", llvm::cl::desc ("Produce detailed counterexample"),
      llvm::cl::init (false));
 
 static llvm::cl::opt<bool>

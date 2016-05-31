@@ -448,8 +448,8 @@ class Seahorn(sea.LimitedCmd):
         if args.bmc:
             argv.append ('--horn-bmc')
 
-        if args.crab:
-            argv.append ('--horn-crab')
+        # if args.crab:
+        #     argv.append ('--horn-crab')
 
         if args.solve or args.out_file is not None:
             argv.append ('--keep-shadows=true')

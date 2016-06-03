@@ -6,7 +6,6 @@
 */
 
 #include <sstream>
-#include <boost/ptr_container/ptr_vector.hpp>
 
 #include "llvm/Pass.h"
 #include "llvm/IR/Module.h"
@@ -19,86 +18,71 @@
 
 namespace seahorn
 {
-
   using namespace llvm;
 
-  //typedef std::pair<std::string, bool> ApiEntry;
-
-  // This is a list of expected API entries
-  typedef std::vector<std::string> ApiCallList;
-
-  typedef std::pair<const BasicBlock*, ApiCallList> BBApiEntry;
+  typedef std::pair<const BasicBlock*, unsigned int> BBApiEntry;
 
   // Each Basic block in a function will have an ApiCallList
-  //typedef std::vector<BBApiEntry> BBApiList;
+  typedef std::vector<BBApiEntry> BBApiList;
 
-  // information about a serach
-  struct ApiCallInfo
-  {
-    ApiCallInfo() : m_progress(0)
-    { }
+  struct ApiCallInfo {
 
-    ~ApiCallInfo()
+    ApiCallInfo()
     { }
 
     ApiCallInfo(const ApiCallInfo & other)
     {
-      m_funcs = other.m_funcs;
-      m_progress = other.m_progress;
-      m_finalapilist = other.m_finalapilist;
-      m_startFunc = other.m_startFunc;
+      m_bblist = other.m_bblist;
+      m_func = other.m_func;
     }
 
     ApiCallInfo& operator=(const ApiCallInfo & other)
     {
-      m_funcs = other.m_funcs;
-      m_progress = other.m_progress;
-      m_finalapilist = other.m_finalapilist;
-      m_startFunc = other.m_startFunc;
+      m_bblist = other.m_bblist;
+      m_func = other.m_func;
 
       return *this;
     }
 
-    // data flow information for each basic block in this function. Needed for
-    // sequencing
-    //BBApiList m_bblist;
+    BBApiEntry& getFinalAnalysis()
+    {
+      return m_bblist.back();
+    }
 
-    ApiCallList m_finalapilist;
+    // data flow information for each basic block in this function
+    BBApiList m_bblist;
 
-    unsigned int m_progress;
+    // A pointer to the function itself
+    Function * m_func;
 
-    // List of functions traversed
-    std::vector<Function*> m_funcs;
-
-    // Function containing the first API of interest
-    Function * m_startFunc;
   };
-
 
   class ApiAnalysisPass : public ModulePass
   {
+    // functions/instructions that call an API of interest
+    std::set< std::pair<const Function*, std::string> > m_apicalllist;
+
     // The API name to look for
     std::vector<std::string> m_apilist;
 
-    // Dataflow analysis for a given search
-    boost::ptr_vector<ApiCallInfo> m_apiAnalysis;
+    // list of functions traversed  while looking for sequence
+    std::vector<Function*> m_path;
 
-    ApiCallList initializeApiCallList();
+    // Dataflow analysis for each function
+    std::vector<ApiCallInfo> m_apiAnalysis;
+
 
     void parseApiString(std::string apistring);
 
-    ApiCallInfo* analyzeFunction(Function& F, ApiCallInfo *init_state);
+    void analyze(Function &F, unsigned int& progress);
 
-    void printFinalAnalysis() const;
+    void report();
+
+    bool checkForTargetAPI(const BasicBlock *bb, std::string API);
 
   public:
 
     static char ID;
-
-    ~ApiAnalysisPass()
-    {
-      //m_apiAnalysis.clear();
-    }
 
     ApiAnalysisPass () : ModulePass (ID)
     { }

@@ -8,6 +8,7 @@
 #include "llvm/IR/Function.h"
 #include "llvm/ADT/DenseSet.h"
 #include "llvm/IR/InstIterator.h"
+#include "llvm/IR/CFG.h"
 #include "llvm/Analysis/CallGraph.h"
 #include "llvm/Support/raw_ostream.h"
 #include "avy/AvyDebug.h"
@@ -18,118 +19,155 @@ namespace seahorn
 {
   using namespace llvm;
 
-  ApiCallInfo* ApiAnalysisPass::analyzeFunction(Function& F, ApiCallInfo *init_state)
+  void ApiAnalysisPass::analyze(Function &F, unsigned int& progress)
   {
-    for (auto analyzedfunc : m_apiAnalysis)
-    {
-      for (auto af : analyzedfunc.m_funcs)
-      {
-        if (af->getName() == F.getName())
-        {
-          bool done = analyzedfunc.m_progress == m_apilist.size();
-          if (done) return init_state;;
-        }
-      }
-    }
+
+    outs() << "In function: " << F.getName() << "\n---\n";
 
     // First, get the basic blocks in topological order
     std::vector<const BasicBlock*> sortedBBlocks;
     RevTopoSort(F,sortedBBlocks);
     boost::reverse(sortedBBlocks);
 
-    // initialize the API list with no APIs found for this BB
-    ApiCallList apilist;
-    for (std::string API : m_apilist)
-    {
-      apilist.push_back(API);
-    }
+    // data flow information for each function
+    ApiCallInfo aci;
 
-    ApiCallInfo *aci=NULL;
-    if (init_state != NULL)
-    {
-      aci = init_state;
-    }
-    else
-    {
-      aci = new ApiCallInfo();
-    }
+    // Required API calls are initialized for this BB
+    BBApiList bblist;
 
-    aci->m_funcs.push_back(&F);
-
-    std::string targetapi = m_apilist[aci->m_progress];
-
-    // for each of the sorted BBs,
-    for (const BasicBlock *bb : sortedBBlocks)
+    unsigned int apiIndex=progress;
+    while ( apiIndex<m_apilist.size())
     {
-      for (BasicBlock::const_iterator bi = bb->begin(); bi != bb->end(); bi++)
+
+      std::string& API = m_apilist.at(apiIndex);
+
+      outs() << "Looking for " << API << "\n";
+
+      bool apiFound = false;
+      for (const BasicBlock *bb : sortedBBlocks)
       {
-        const Instruction *I = &*bi;
-        if (const CallInst *CI = dyn_cast<CallInst> (I))
+
+        outs() << "Processing BB: ";
+        bb->printAsOperand(outs(), false);
+        outs() << "\n";
+
+        // determine if the API is called
+        for (BasicBlock::const_iterator bi = bb->begin(); bi != bb->end(); bi++)
         {
-          CallSite CS (const_cast<CallInst*> (CI));
-          Function *cf = CS.getCalledFunction();
+          const Instruction *I = &*bi;
+          if (const CallInst *CI = dyn_cast<CallInst> (I)) {
 
-          // this function contains an API function call of interest
+            CallSite CS (const_cast<CallInst*> (CI));
+            const Function *cf = CS.getCalledFunction();
 
-          if (cf)
-          {
-            // This is a call to the API of interest
-            if (cf->getName().str() == m_apilist[aci->m_progress])
+            // this block contains an API function call of interest
+            if (cf)
             {
-              // Found a call to the target, now record that and increment
-              // progress
-              //outs() << "Found target API: " << m_apilist[aci->m_progress] << " in " << F.getName() << "\n";
-
-              aci->m_finalapilist.push_back(m_apilist[aci->m_progress]);
-              aci->m_funcs.push_back(cf);
-              if (0==aci->m_progress)
+              if (cf->getName().str() == API)
               {
-                aci->m_startFunc = &F;
+                apiFound = true;
+                break;
               }
-              ++aci->m_progress;
-            }
-            else
-            {
-              if (!cf->empty())
+              else
               {
-                //outs() << "In Function "<< F.getName()<< " calling outgoing Function "
-                //     << cf->getName() << " looking for " << m_apilist[aci->m_progress] << "\n";
-
-                aci = analyzeFunction(*cf, aci);
-
-                //outs() << "Back in Function "<< F.getName() << " looking for " << m_apilist[aci->m_progress] << "\n";
+                if (!cf->empty())
+                {
+                  // handle function calls
+                  outs() << "In function "<< F.getName()<< " calling outgoing function "
+                  << cf->getName() << " looking for "
+                  << API << "\n";
+                }
               }
             }
           }
         }
-      } // for each insn
 
-      // are we done?
-      if (aci->m_progress >= m_apilist.size())
-      {
-        break;
+        outs() << "API Found = " << apiFound << "\n";
+        // found the API
+
+        // get the predecessor and propagate analysis info
+        unsigned int max_progress = 0;
+        for (auto it = pred_begin(bb), et = pred_end(bb); it != et; ++it)
+        {
+          const BasicBlock* predBB = *it;
+
+          outs() << "Predecessor BB: ";
+          predBB->printAsOperand(outs(), false);
+          outs() << "\n";
+
+          for (auto bli = bblist.begin(),ble=bblist.end(); bli!=ble; bli++)
+          {
+            const BasicBlock* processedBB = bli->first;
+
+            //outs() << "Found proc\n";
+            //processedBB->dump();
+
+            if (processedBB == predBB) // found a direct predecessor
+            {
+              unsigned int prev_progress = bli->second;
+
+              outs() << "Prev progress was " << prev_progress << "\n";
+
+              if (prev_progress > max_progress)
+              {
+                max_progress = prev_progress;
+              }
+            }
+          }
+        }
+
+        // Now know the progress value, save it
+
+        BBApiEntry bbentry;
+        if (apiFound)
+        {
+          bbentry = std::make_pair(bb, max_progress+1);
+          outs() << "New progress is " << max_progress+1 << "\n";
+          apiIndex++; // go to next API
+          bblist.push_back(bbentry);
+          break; // done, so no need to process
+        }
+        else
+        {
+          bbentry = std::make_pair(bb, max_progress);
+          bblist.push_back(bbentry);
+          outs() << "New progress is " << max_progress << "\n";
+        }
       }
+
+      // match not here
+      if (!apiFound) break;
+
     }
 
-    //outs() << "Returning\n";
-
-    return aci;
-
+    // save the analysis for this function
+    aci.m_func = &F;
+    aci.m_bblist = bblist;
+    m_apiAnalysis.push_back(aci);
   }
 
-  void ApiAnalysisPass::printFinalAnalysis() const
+  void ApiAnalysisPass::report()
   {
-    // for each function, propagate the analysis
     for (auto& analysis : m_apiAnalysis)
     {
-      if (analysis.m_progress >= m_apilist.size())
+      if (!analysis.m_bblist.empty())
       {
-        outs() << "FINAL RESULTS:\n Required APIs called in required order starting at "
-        << analysis.m_startFunc->getName() << "\nSequence of calls:\n";
-        for (auto path : analysis.m_funcs)
+        outs () << analysis.m_func->getName() << "\n";
+
+        for (auto bentry : analysis.m_bblist)
         {
-          outs() << "\t* " << path->getName() << "\n";
+          outs() << "\t" << bentry.second << "\n";
         }
+        outs() << "\t---\n";
+
+        BBApiEntry final = analysis.getFinalAnalysis();
+        outs()  << final.first->getName() << ": " << final.second << "\n";
+
+        if (final.second == m_apilist.size())
+        {
+          outs() << "Match in " << analysis.m_func->getName() << "\n";
+        }
+
       }
     }
   }
@@ -147,8 +185,6 @@ namespace seahorn
   // The body of the pass
   bool ApiAnalysisPass::runOnModule (Module &M)
   {
-
-    // sort funcs in topo order
     std::vector<Function*> sortedFuncs;
     CallGraph &CG = getAnalysis<CallGraphWrapperPass> ().getCallGraph();
 
@@ -166,20 +202,11 @@ namespace seahorn
     // This call generates API call information for each
     for (Function *F : sortedFuncs)
     {
-      ApiCallInfo *aci = analyzeFunction(*F,NULL);
-      m_apiAnalysis.push_back(aci);
-
-      // if (aci->m_progress == m_apilist.size())
-      // {
-      //   outs() << "Completed analysis of " << F->getName() << " with success.\n\n";
-      // }
-      // else
-      // {
-      //   outs() << "Completed analysis of " << F->getName() << " withOUT success.\n\n";
-      // }
+      unsigned int progress=0;
+      analyze(*F,progress);
     }
 
-    printFinalAnalysis();
+    report();
 
     return false;
   }

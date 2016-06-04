@@ -11,6 +11,7 @@ add_llvm_library (seahorn.LIB
   HornWrite.cc
   HornSolver.cc
   HornCex.cc
+  Harness.cc
   ClpWrite.cc
   HornClauseDB.cc
   HornClauseDBTransf.cc

@@ -12,3 +12,4 @@
 *.pyo
 /llvm-seahorn/
 /seahorn-llvm/
+/gtags.files

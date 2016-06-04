@@ -139,6 +139,9 @@ class Seapp(sea.LimitedCmd):
                          help='Externalize uses of address-taken functions',
                          dest='enable_ext_funcs', default=False,
                          action='store_true')
+        ap.add_argument ('--enum-verifier-calls', dest='enum_verifier_calls', 
+                         help='Assign an unique identifier to each verifier.error call',
+                         default=False, action='store_true')
         ap.add_argument ('--lower-invoke',
                          help='Lower invoke instructions',
                          dest='lower_invoke', default=False,
@@ -178,6 +181,9 @@ class Seapp(sea.LimitedCmd):
 
         if args.enable_ext_funcs:
             argv.append ('--externalize-addr-taken-funcs')
+
+        if args.enum_verifier_calls:
+            argv.append ('--enum-verifier-calls')
 
         if args.boc:
             argv.append ('--bounds-check')

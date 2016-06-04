@@ -48,6 +48,8 @@ namespace seahorn
 
   llvm::Pass* createPromoteBoolLoadsPass ();
 
+  llvm::Pass* createEnumVerifierCallsPass ();
+
   llvm::Pass* createCanReadUndefPass ();
 
   llvm::Pass* createBmcPass (llvm::raw_ostream* out, bool solve);

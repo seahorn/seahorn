@@ -94,6 +94,11 @@ NullChecks ("null-check",
      llvm::cl::init (false));
 
 static llvm::cl::opt<bool>
+EnumVerifierCalls ("enum-verifier-calls", 
+     llvm::cl::desc ("Assign a unique identifier to each call to verifier.error"), 
+     llvm::cl::init (false));
+
+static llvm::cl::opt<bool>
 MixedSem ("horn-mixed-sem", llvm::cl::desc ("Mixed-Semantics Transformation"),
           llvm::cl::init (false));
 
@@ -209,7 +214,7 @@ int main(int argc, char **argv) {
  
   // -- promote verifier specific functions to special names
   pass_manager.add (new seahorn::PromoteVerifierCalls ());
-  
+
   // -- promote top-level mallocs to alloca
   pass_manager.add (seahorn::createPromoteMallocPass ());
 
@@ -317,6 +322,11 @@ int main(int argc, char **argv) {
   {
     pass_manager.add (new seahorn::LowerCstExprPass ());
     pass_manager.add (new seahorn::NullCheck ());
+  }
+
+  if (!MixedSem && EnumVerifierCalls)  
+  { 
+    pass_manager.add (seahorn::createEnumVerifierCallsPass ());
   }
 
   pass_manager.add (new seahorn::RemoveUnreachableBlocksPass ());

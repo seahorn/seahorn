@@ -365,7 +365,7 @@ namespace seahorn
     std::unique_ptr<Module> Harness = createLLVMHarness(trace, dl);
     std::error_code error_code;
     llvm::tool_output_file out(CexFile, error_code, sys::fs::F_None);
-    assert (!out.has_error());
+    assert (!error_code);
     verifyModule(*Harness, &errs());
     if (CexFile.endswith(".ll")) out.os() << *Harness;
     else WriteBitcodeToFile(Harness.get(), out.os());

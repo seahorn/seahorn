@@ -53,8 +53,10 @@ namespace seahorn
     BBApiList m_bblist;
 
     // A pointer to the function itself
-    Function * m_func;
+    const Function* m_func;
 
+    // APIs in this function in the order encountered
+    std::vector<std::string> m_apiSeq;
   };
 
   class ApiAnalysisPass : public ModulePass
@@ -71,10 +73,9 @@ namespace seahorn
     // Dataflow analysis for each function
     std::vector<ApiCallInfo> m_apiAnalysis;
 
-
     void parseApiString(std::string apistring);
 
-    void analyze(Function &F, unsigned int& progress);
+    void analyze(const Function *F, unsigned int& progress);
 
     void report();
 

@@ -142,6 +142,11 @@ SROA_ScalarLoadThreshold ("sroa-scalar-load",
                           llvm::cl::desc ("Scalar load threshold for ScalarReplAggregates"),
                           llvm::cl::init (-1));
 
+static llvm::cl::opt<bool>
+KleeInternalize ("klee-internalize", 
+                   llvm::cl::desc ("Internalizes definitions for Klee"),
+                   llvm::cl::init (false));
+
 // removes extension from filename if there is one
 std::string getFileName(const std::string &str) {
   std::string filename = str;
@@ -209,143 +214,147 @@ int main(int argc, char **argv) {
   }
   if (dl) pass_manager.add (new llvm::DataLayoutPass ());
 
-  // -- Create a main function if we do not have one.
-  pass_manager.add (new seahorn::DummyMainFunction ());
+  if (KleeInternalize)
+    pass_manager.add (seahorn::createKleeInternalizePass ());
+  else
+  {
+    // -- Create a main function if we do not have one.
+    pass_manager.add (new seahorn::DummyMainFunction ());
  
-  // -- promote verifier specific functions to special names
-  pass_manager.add (new seahorn::PromoteVerifierCalls ());
+    // -- promote verifier specific functions to special names
+    pass_manager.add (new seahorn::PromoteVerifierCalls ());
 
-  // -- promote top-level mallocs to alloca
-  pass_manager.add (seahorn::createPromoteMallocPass ());
+    // -- promote top-level mallocs to alloca
+    pass_manager.add (seahorn::createPromoteMallocPass ());
 
-  // -- turn loads from _Bool from truc to sgt
-  pass_manager.add (seahorn::createPromoteBoolLoadsPass ());
+    // -- turn loads from _Bool from truc to sgt
+    pass_manager.add (seahorn::createPromoteBoolLoadsPass ());
 
-  if (KillVaArg)
-    pass_manager.add (seahorn::createKillVarArgFnPass ());
+    if (KillVaArg)
+      pass_manager.add (seahorn::createKillVarArgFnPass ());
   
-  if (StripExtern)
-    pass_manager.add (seahorn::createStripUselessDeclarationsPass ());
+    if (StripExtern)
+      pass_manager.add (seahorn::createStripUselessDeclarationsPass ());
   
-  // -- mark entry points of all functions
-  if (!MixedSem && !CutLoops)
-    // XXX should only be ran once. need better way to ensure that.
-    pass_manager.add (seahorn::createMarkFnEntryPass ());
+    // -- mark entry points of all functions
+    if (!MixedSem && !CutLoops)
+      // XXX should only be ran once. need better way to ensure that.
+      pass_manager.add (seahorn::createMarkFnEntryPass ());
   
-  // turn all functions internal so that we can inline them if requested
-  pass_manager.add (llvm::createInternalizePass (llvm::ArrayRef<const char*>("main")));
+    // turn all functions internal so that we can inline them if requested
+    pass_manager.add (llvm::createInternalizePass (llvm::ArrayRef<const char*>("main")));
   
-  // -- resolve indirect calls
-  if (DevirtualizeFuncs)
-    pass_manager.add (seahorn::createDevirtualizeFunctionsPass ());
+    // -- resolve indirect calls
+    if (DevirtualizeFuncs)
+      pass_manager.add (seahorn::createDevirtualizeFunctionsPass ());
   
-  // -- externalize uses of address-taken functions
-  if (ExternalizeAddrTakenFuncs)
-    pass_manager.add (seahorn::createExternalizeAddressTakenFunctionsPass ());
+    // -- externalize uses of address-taken functions
+    if (ExternalizeAddrTakenFuncs)
+      pass_manager.add (seahorn::createExternalizeAddressTakenFunctionsPass ());
 
-  // kill internal unused code
-  pass_manager.add (llvm::createGlobalDCEPass ()); // kill unused internal global
-  
-  // -- global optimizations
-  //pass_manager.add (llvm::createGlobalOptimizerPass());
-  
-  // -- SSA
-  pass_manager.add(llvm::createPromoteMemoryToRegisterPass());
-  // -- Turn undef into nondet
-  pass_manager.add (seahorn::createNondetInitPass ());
-  
-  // -- cleanup after SSA
-  pass_manager.add (seahorn::createInstCombine ());
-  pass_manager.add (llvm::createCFGSimplificationPass ());
-  
-  // -- break aggregates
-  pass_manager.add (llvm::createScalarReplAggregatesPass (SROA_Threshold,
-                                                          true,
-                                                          SROA_StructMemThreshold,
-                                                          SROA_ArrayElementThreshold,
-                                                          SROA_ScalarLoadThreshold));
-  // -- Turn undef into nondet (undef are created by SROA when it calls mem2reg)
-  pass_manager.add (seahorn::createNondetInitPass ());
-  
-  // -- cleanup after break aggregates
-  pass_manager.add (seahorn::createInstCombine ());
-  pass_manager.add (llvm::createCFGSimplificationPass ());
-  
-  // eliminate unused calls to verifier.nondet() functions
-  pass_manager.add (seahorn::createDeadNondetElimPass ());
-  
-  pass_manager.add(llvm::createLowerSwitchPass());
-  
-  pass_manager.add(llvm::createDeadInstEliminationPass());
-  pass_manager.add (new seahorn::RemoveUnreachableBlocksPass ());
-
-  if (LowerInvoke) 
-  {
-    // -- lower invoke's
-    pass_manager.add(llvm::createLowerInvokePass());
-    // cleanup after lowering invoke's
-    pass_manager.add (llvm::createCFGSimplificationPass ());  
-  }
-  
-  if (InlineAll)
-  {
-    pass_manager.add (seahorn::createMarkInternalInlinePass ());
-    pass_manager.add (llvm::createAlwaysInlinerPass ());
+    // kill internal unused code
     pass_manager.add (llvm::createGlobalDCEPass ()); // kill unused internal global
-    pass_manager.add (seahorn::createPromoteMallocPass ());
-    pass_manager.add (new seahorn::RemoveUnreachableBlocksPass ());
-  }
   
-  pass_manager.add(llvm::createDeadInstEliminationPass());
-  pass_manager.add (llvm::createGlobalDCEPass ()); // kill unused internal global
+    // -- global optimizations
+    //pass_manager.add (llvm::createGlobalOptimizerPass());
   
-  pass_manager.add (new seahorn::LowerGvInitializers ());
-  pass_manager.add(llvm::createUnifyFunctionExitNodesPass ());
-
-  if (BoundsChecks)
-  { 
-    pass_manager.add (new seahorn::LowerCstExprPass ());
-    pass_manager.add (new seahorn::CanAccessMemory ());
-    pass_manager.add (new seahorn::BufferBoundsCheck ());
-    // -- Turn undef into nondet (undef might be created by
-    //    BufferBoundsCheck)
+    // -- SSA
+    pass_manager.add(llvm::createPromoteMemoryToRegisterPass());
+    // -- Turn undef into nondet
     pass_manager.add (seahorn::createNondetInitPass ());
-  }
-
-  if (OverflowChecks)
-  { 
-    pass_manager.add (new seahorn::LowerCstExprPass ());
-    pass_manager.add (new seahorn::IntegerOverflowCheck ());
-  }
-
-  if (NullChecks)
-  {
-    pass_manager.add (new seahorn::LowerCstExprPass ());
-    pass_manager.add (new seahorn::NullCheck ());
-  }
-
-  if (!MixedSem && EnumVerifierCalls)  
-  { 
-    pass_manager.add (seahorn::createEnumVerifierCallsPass ());
-  }
-
-  pass_manager.add (new seahorn::RemoveUnreachableBlocksPass ());
-
-  if (MixedSem)
-  {
-    pass_manager.add (new seahorn::MixedSemantics ());
-    pass_manager.add (new seahorn::RemoveUnreachableBlocksPass ());
-    pass_manager.add (seahorn::createPromoteMallocPass ());
-  }
-
-  if (CutLoops)
-  {
-    pass_manager.add (llvm::createLoopSimplifyPass ());
-    pass_manager.add (llvm::createLCSSAPass ());
-    pass_manager.add (seahorn::createCutLoopsPass ());
-    // pass_manager.add (new seahorn::RemoveUnreachableBlocksPass ());
-  }
   
+    // -- cleanup after SSA
+    pass_manager.add (seahorn::createInstCombine ());
+    pass_manager.add (llvm::createCFGSimplificationPass ());
+  
+    // -- break aggregates
+    pass_manager.add (llvm::createScalarReplAggregatesPass (SROA_Threshold,
+                                                            true,
+                                                            SROA_StructMemThreshold,
+                                                            SROA_ArrayElementThreshold,
+                                                            SROA_ScalarLoadThreshold));
+    // -- Turn undef into nondet (undef are created by SROA when it calls mem2reg)
+    pass_manager.add (seahorn::createNondetInitPass ());
+  
+    // -- cleanup after break aggregates
+    pass_manager.add (seahorn::createInstCombine ());
+    pass_manager.add (llvm::createCFGSimplificationPass ());
+  
+    // eliminate unused calls to verifier.nondet() functions
+    pass_manager.add (seahorn::createDeadNondetElimPass ());
+  
+    pass_manager.add(llvm::createLowerSwitchPass());
+  
+    pass_manager.add(llvm::createDeadInstEliminationPass());
+    pass_manager.add (new seahorn::RemoveUnreachableBlocksPass ());
+
+    if (LowerInvoke) 
+    {
+      // -- lower invoke's
+      pass_manager.add(llvm::createLowerInvokePass());
+      // cleanup after lowering invoke's
+      pass_manager.add (llvm::createCFGSimplificationPass ());  
+    }
+  
+    if (InlineAll)
+    {
+      pass_manager.add (seahorn::createMarkInternalInlinePass ());
+      pass_manager.add (llvm::createAlwaysInlinerPass ());
+      pass_manager.add (llvm::createGlobalDCEPass ()); // kill unused internal global
+      pass_manager.add (seahorn::createPromoteMallocPass ());
+      pass_manager.add (new seahorn::RemoveUnreachableBlocksPass ());
+    }
+  
+    pass_manager.add(llvm::createDeadInstEliminationPass());
+    pass_manager.add (llvm::createGlobalDCEPass ()); // kill unused internal global
+  
+    pass_manager.add (new seahorn::LowerGvInitializers ());
+    pass_manager.add(llvm::createUnifyFunctionExitNodesPass ());
+
+    if (BoundsChecks)
+    { 
+      pass_manager.add (new seahorn::LowerCstExprPass ());
+      pass_manager.add (new seahorn::CanAccessMemory ());
+      pass_manager.add (new seahorn::BufferBoundsCheck ());
+      // -- Turn undef into nondet (undef might be created by
+      //    BufferBoundsCheck)
+      pass_manager.add (seahorn::createNondetInitPass ());
+    }
+
+    if (OverflowChecks)
+    { 
+      pass_manager.add (new seahorn::LowerCstExprPass ());
+      pass_manager.add (new seahorn::IntegerOverflowCheck ());
+    }
+
+    if (NullChecks)
+    {
+      pass_manager.add (new seahorn::LowerCstExprPass ());
+      pass_manager.add (new seahorn::NullCheck ());
+    }
+
+    if (!MixedSem && EnumVerifierCalls)  
+    { 
+      pass_manager.add (seahorn::createEnumVerifierCallsPass ());
+    }
+
+    pass_manager.add (new seahorn::RemoveUnreachableBlocksPass ());
+
+    if (MixedSem)
+    {
+      pass_manager.add (new seahorn::MixedSemantics ());
+      pass_manager.add (new seahorn::RemoveUnreachableBlocksPass ());
+      pass_manager.add (seahorn::createPromoteMallocPass ());
+    }
+
+    if (CutLoops)
+    {
+      pass_manager.add (llvm::createLoopSimplifyPass ());
+      pass_manager.add (llvm::createLCSSAPass ());
+      pass_manager.add (seahorn::createCutLoopsPass ());
+      // pass_manager.add (new seahorn::RemoveUnreachableBlocksPass ());
+    }
+  }
   
   pass_manager.add (llvm::createVerifierPass());
     

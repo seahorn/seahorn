@@ -1541,7 +1541,7 @@ namespace expr
 	      if (trueE == exp->right ()) return trueE;
 
 	      // x -> FALSE == !x
-	      if (trueE == exp->right ()) return lneg (exp->left ());
+	      if (falseE == exp->right ()) return lneg (exp->left ());
 
 	      return exp;
 	    }

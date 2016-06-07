@@ -19,14 +19,13 @@ namespace seahorn
 {
   using namespace llvm;
 
-  void ApiAnalysisPass::analyze(Function &F, unsigned int& progress)
+  void ApiAnalysisPass::analyze(const Function *F, unsigned int& progress)
   {
-
-    outs() << "In function: " << F.getName() << "\n---\n";
+    outs() << "In function: " << F->getName() << "\n---\n";
 
     // First, get the basic blocks in topological order
     std::vector<const BasicBlock*> sortedBBlocks;
-    RevTopoSort(F,sortedBBlocks);
+    RevTopoSort(*F,sortedBBlocks);
     boost::reverse(sortedBBlocks);
 
     // data flow information for each function
@@ -36,17 +35,18 @@ namespace seahorn
     BBApiList bblist;
 
     unsigned int apiIndex=progress;
-    while ( apiIndex<m_apilist.size())
+    while ( apiIndex < m_apilist.size())
     {
-
       std::string& API = m_apilist.at(apiIndex);
 
       outs() << "Looking for " << API << "\n";
 
-      bool apiFound = false;
+      // It appears that two calls can occur in an LLLVM basic block? So each block
+      // must be processed again and again?
+
+      unsigned int apiIncrement=0;
       for (const BasicBlock *bb : sortedBBlocks)
       {
-
         outs() << "Processing BB: ";
         bb->printAsOperand(outs(), false);
         outs() << "\n";
@@ -65,24 +65,46 @@ namespace seahorn
             {
               if (cf->getName().str() == API)
               {
-                apiFound = true;
-                break;
+                aci.m_apiSeq.push_back(API);
+
+                apiIncrement++;
+                outs() << "API found in ";
+                bb->printAsOperand(outs(), false);
+                outs() << ", increment: " << apiIncrement << "\n";
+
+                if ( (apiIndex+apiIncrement) < m_apilist.size())
+                {
+                  API = m_apilist.at(apiIndex+apiIncrement); // go to the next API
+                  outs() << "Looking for " << API << "\n";
+                }
+                else
+                {
+                  break;
+                }
               }
               else
               {
+                // handle external calls
                 if (!cf->empty())
                 {
+
                   // handle function calls
-                  outs() << "In function "<< F.getName()<< " calling outgoing function "
+                  outs() << "In function "<< F->getName() << " calling outgoing function "
                   << cf->getName() << " looking for "
                   << API << "\n";
+
+                  //
+                  //analyze(cf, apiIndex);
+
+                  outs() << "*** Back in caller\n";
+
                 }
               }
             }
           }
         }
 
-        outs() << "API Found = " << apiFound << "\n";
+        outs() << "API Increment: " << apiIncrement << "\n";
         // found the API
 
         // get the predecessor and propagate analysis info
@@ -98,9 +120,6 @@ namespace seahorn
           for (auto bli = bblist.begin(),ble=bblist.end(); bli!=ble; bli++)
           {
             const BasicBlock* processedBB = bli->first;
-
-            //outs() << "Found proc\n";
-            //processedBB->dump();
 
             if (processedBB == predBB) // found a direct predecessor
             {
@@ -118,30 +137,20 @@ namespace seahorn
 
         // Now know the progress value, save it
 
-        BBApiEntry bbentry;
-        if (apiFound)
-        {
-          bbentry = std::make_pair(bb, max_progress+1);
-          outs() << "New progress is " << max_progress+1 << "\n";
-          apiIndex++; // go to next API
-          bblist.push_back(bbentry);
-          break; // done, so no need to process
-        }
-        else
-        {
-          bbentry = std::make_pair(bb, max_progress);
-          bblist.push_back(bbentry);
-          outs() << "New progress is " << max_progress << "\n";
-        }
+        BBApiEntry bbentry = std::make_pair(bb, max_progress+apiIncrement);
+        outs() << "New progress is " << max_progress+apiIncrement << "\n";
+        apiIndex += apiIncrement; // go to next API(s)
+        apiIncrement=0;
+        bblist.push_back(bbentry);
       }
 
       // match not here
-      if (!apiFound) break;
+      if (apiIndex==0) break;
 
     }
 
     // save the analysis for this function
-    aci.m_func = &F;
+    aci.m_func = F;
     aci.m_bblist = bblist;
     m_apiAnalysis.push_back(aci);
   }
@@ -152,22 +161,21 @@ namespace seahorn
     {
       if (!analysis.m_bblist.empty())
       {
-        outs () << analysis.m_func->getName() << "\n";
-
-        for (auto bentry : analysis.m_bblist)
-        {
-          outs() << "\t" << bentry.second << "\n";
-        }
-        outs() << "\t---\n";
 
         BBApiEntry final = analysis.getFinalAnalysis();
-        outs()  << final.first->getName() << ": " << final.second << "\n";
-
         if (final.second == m_apilist.size())
         {
-          outs() << "Match in " << analysis.m_func->getName() << "\n";
-        }
+          outs () << analysis.m_func->getName() << "\n";
 
+          for (auto bentry : analysis.m_bblist)
+          {
+            outs() << "\t";
+            bentry.first->printAsOperand(outs(), false);
+            outs() << " : " <<  bentry.second << "\n";
+          }
+          outs() << "\t---\n" << final.first->getName() << ": " << final.second << "\n";
+          outs() << "MATCH!\n";
+        }
       }
     }
   }
@@ -203,7 +211,7 @@ namespace seahorn
     for (Function *F : sortedFuncs)
     {
       unsigned int progress=0;
-      analyze(*F,progress);
+      analyze(F,progress);
     }
 
     report();

@@ -1,14 +1,13 @@
-#include <assert.h>
-int unknown1();
-int unknown2();
-int unknown3();
-int unknown4();
+#include "seahorn.h"
 
-void main(int n)
+int nd();
+
+int main(void)
 {
  int k=1;
  int i=1;
  int j=0;
+ int n = nd();
  while(i<n) {
   j=0;
   while(j<i) {
@@ -17,6 +16,6 @@ void main(int n)
   }
   i++;
  }
- static_assert(k>=n);
- 
+ sassert(k>=n);
+
 }

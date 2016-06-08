@@ -5,7 +5,7 @@
 
 #About#
 
-An LLVM based verification framework.
+An automated analysis framework for LLVM-based languages.
 
 #License#
 SeaHorn is distributed under a modified BSD license. See [license.txt](license.txt) for details.
@@ -115,28 +115,33 @@ To see all the options, type `sea --help`.
 
 This is an example of a C program annotated with a safety property:
 ``` c
-    /* verification command: sea pf --crab test.c */
-    extern int nd(void);
-    extern void __VERIFIER_error(void) __attribute__((noreturn));
-    #define assert(X) if(!(X)){__VERIFIER_error();}
-    int main(){
-      int x,y;
-      x=1; y=0;
-      while (nd ())
-      {
-        x=x+y;
-        y++;
+    /* verification command: sea pf --horn-stats test.c */
+    #include "seahorn.h"
+    int nd();
+
+    int main(void){
+      int k=1;
+      int i=1;
+      int j=0;
+      int n = nd();
+      while(i<n) {
+        j=0;
+        while(j<i) {
+          k += (i-j);
+          j++;
+        }
+        i++;
       }
-      assert (x>=y);
-     return 0;
+      sassert(k>=n);
     }
+
 ```
 SeaHorn follows [SV-COMP][svcomp] convention of encoding error locations by a call
-to the designated error function 
+to the designated error function
 `__VERIFIER_error()`. SeaHorn returns `unsat` when `__VERIFIER_error()`
 is unreachable, and the program is considered safe. SeaHorn returns `sat`
 when `__VERIFIER_error()` is reachable and the
-program is unsafe.
+program is unsafe. `sassert()` method is defined in `seahorn.h` which can be found in `seahorn/share`.
 
 [svcomp]: (http://sv-comp.sosy-lab.org)
 

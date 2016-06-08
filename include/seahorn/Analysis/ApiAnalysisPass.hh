@@ -55,6 +55,8 @@ namespace seahorn
     // A pointer to the function itself
     const Function* m_func;
 
+    std::vector< std::string> m_path;
+
     // APIs in this function in the order encountered
     std::vector<std::string> m_apiSeq;
   };
@@ -67,19 +69,14 @@ namespace seahorn
     // The API name to look for
     std::vector<std::string> m_apilist;
 
-    // list of functions traversed  while looking for sequence
-    std::vector<Function*> m_path;
-
     // Dataflow analysis for each function
     std::vector<ApiCallInfo> m_apiAnalysis;
 
     void parseApiString(std::string apistring);
 
-    void analyze(const Function *F, unsigned int& progress);
+    void analyze(const Function *F, unsigned int& progress, ApiCallInfo& aci);
 
     void report();
-
-    bool checkForTargetAPI(const BasicBlock *bb, std::string API);
 
   public:
 

@@ -20,10 +20,29 @@ namespace seahorn
 {
   using namespace llvm;
 
-  typedef std::pair<const BasicBlock*, unsigned int> BBApiEntry;
+  //typedef std::pair<const BasicBlock*, unsigned int> BBApiEntry;
+
+  struct ApiEntry {
+
+    ApiEntry()
+    { } 
+
+    ApiEntry(const BasicBlock* bb,unsigned int p,std::string f)
+    : m_bb(bb), m_progress(p), m_func(f)
+    { }
+
+    ApiEntry(const ApiEntry& other)
+    : m_bb(other.m_bb), m_progress(other.m_progress), m_func(other.m_func)
+    { }
+
+    const BasicBlock* m_bb;
+    unsigned int m_progress;
+    std::string m_func;
+  };
 
   // Each Basic block in a function will have an ApiCallList
-  typedef std::vector<BBApiEntry> BBApiList;
+  //typedef std::vector<BBApiEntry> BBApiList;
+  typedef std::vector<ApiEntry> BBApiList;
 
   struct ApiCallInfo {
 
@@ -44,7 +63,8 @@ namespace seahorn
       return *this;
     }
 
-    BBApiEntry& getFinalAnalysis()
+    //BBApiEntry& getFinalAnalysis()
+    ApiEntry& getFinalAnalysis()
     {
       return m_bblist.back();
     }
@@ -55,10 +75,7 @@ namespace seahorn
     // A pointer to the function itself
     const Function* m_func;
 
-    std::vector< std::string> m_path;
-
-    // APIs in this function in the order encountered
-    std::vector<std::string> m_apiSeq;
+    std::vector<const Function*> m_path;
   };
 
   class ApiAnalysisPass : public ModulePass

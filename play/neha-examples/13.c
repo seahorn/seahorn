@@ -1,19 +1,14 @@
-#include <assert.h>
-int unknown1();
-int unknown2();
-int unknown3();
-int unknown4();
+#include "seahorn.h"
 
-/*
- * Based on "Property-Directed Incremental Invariant Generation" by Bradley et al.
- */
+int nd();
+int nd1();
 
-int main(int flag) {
-   int j = 2; 
+int main() {
+   int j = 2;
    int k = 0;
 
-   while(unknown1()){ 
-     if (flag)
+   while(nd()){
+       if (nd1())
        j = j + 4;
      else {
        j = j + 2;
@@ -21,5 +16,6 @@ int main(int flag) {
      }
    }
    if(k!=0)
-     static_assert(j==2*k+2);
+     sassert(j==2*k+2);
+   return 0;
 }

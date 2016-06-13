@@ -135,8 +135,11 @@ namespace
         Builder.CreateRetVoid ();
       else
       {
-		uint64_t storeSzInBits = m_dl->getTypeStoreSizeInBits(retTy);
-		Type* storeTy = Type::getIntNTy(F.getContext(),storeSzInBits);
+        Type* storeTy = retTy;
+        uint64_t storeSzInBits = m_dl->getTypeStoreSizeInBits(retTy);
+
+        if (m_dl->getTypeSizeInBits(retTy)!=storeSzInBits)
+          storeTy = Type::getIntNTy(F.getContext(),storeSzInBits);
 
         AllocaInst *v = Builder.CreateAlloca (storeTy);
         ConstantInt *sz = Builder.getIntN (m_intptrTy->getBitWidth(), 
@@ -151,13 +154,25 @@ namespace
 
         Value *retValue = Builder.CreateLoad (v);
         if (storeTy != retTy)
-        	retValue = Builder.CreateTrunc(retValue, retTy);
-	
-	// TODO: update callgraph
+          retValue = Builder.CreateTruncOrBitCast(retValue, retTy);
+  
+  // TODO: update callgraph
         Builder.CreateRet (retValue);
       }
     }
-    
+
+    void InternalizeVariables (Module& M)
+    {
+       for (Module::global_iterator I = M.global_begin(), E = M.global_end();
+          I != E; ++I) {
+        GlobalVariable *GV = &*I;
+        if (GV->isConstant() || GV->hasInitializer())
+          continue;
+        GV->setInitializer(Constant::getNullValue(GV->getType()->getElementType()));
+        errs() << "making " << GV->getName() << " non-extern\n";
+      }
+    }   
+
     void LoadFile (const char *fname)
     {
       std::ifstream In(fname);
@@ -198,8 +213,10 @@ namespace
 
     bool runOnModule (Module &M)
     {
-      declareKleeFunctions(M);
 
+      InternalizeVariables(M);
+      declareKleeFunctions(M);
+ 
       for (Function &F : M)
       {
         if (shouldInternalize (F)) defineFunction (F);

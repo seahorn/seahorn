@@ -161,11 +161,12 @@ namespace
       }
     }
 
-    void InternalizeVariables (Module& M)
+    void internalizeVariables (Module& M)
     {
        for (Module::global_iterator I = M.global_begin(), E = M.global_end();
           I != E; ++I) {
         GlobalVariable *GV = &*I;
+        if (m_externalNames.count (GV->getName())) continue;
         if (GV->isConstant() || GV->hasInitializer())
           continue;
         GV->setInitializer(Constant::getNullValue(GV->getType()->getElementType()));
@@ -214,8 +215,9 @@ namespace
     bool runOnModule (Module &M)
     {
 
-      InternalizeVariables(M);
+      
       declareKleeFunctions(M);
+      internalizeVariables(M);
  
       for (Function &F : M)
       {

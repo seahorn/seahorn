@@ -18,7 +18,7 @@ DM-0002198
 
 #include "llvm/Pass.h"
 #include "llvm/IR/Module.h"
-#include "llvm/IR/Datalayout.h"
+#include "llvm/IR/DataLayout.h"
 #include "llvm/IR/IRBuilder.h"
 
 #include "llvm/Target/TargetLibraryInfo.h"

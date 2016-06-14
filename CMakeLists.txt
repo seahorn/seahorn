@@ -259,6 +259,13 @@ if (EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/crab-llvm/LICENSE.txt)
     RENAME crab_llvm_license.txt)
 endif()
 
+if (EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/share/seahorn.h)
+  install (FILES share/seahorn.h
+    DESTINATION share/)
+  install (FILES share/seahorn.c
+    DESTINATION share/)
+endif()
+
 # check for rt lib. Not needed on OSX.
 find_library(RT_LIB NAMES rt)
 if (NOT RT_LIB)

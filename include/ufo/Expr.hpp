@@ -2458,6 +2458,13 @@ namespace expr
   namespace op
   {
     
+    /** 
+        Binders with Locally Nameless representation. 
+        
+        Arthur Charguéraud: The Locally Nameless
+        Representation. J. Autom. Reasoning 49(3): 363-408 (2012)
+     */
+    
     namespace bind
     {
       struct BINDER
@@ -2572,6 +2579,46 @@ namespace expr
         return sub (a, e);
       }
        
+
+      template <typename Range>
+      Expr betaReduce (Expr lambda, const Range &r)
+      {
+        // -- nullptr
+        if (!lambda) return lambda;
+        // -- not lambda
+        if (!isOpX<LAMBDA> (lambda)) return lambda;
+
+        // -- nullary
+        if (numBound (lambda) == 0) return body (lambda);
+        
+        // -- number of arguments must match number of bound variables
+        assert (std::distance(std::begin(r), std::end(r)) == numBound(lambda));
+        
+        // -- replace bound variables
+        // XXX Need to decide on the order, this might be opposite from what clients expect
+        return sub(r, body(lambda));
+      }
+
+      inline Expr betaReduce (Expr lambda, Expr v0)
+      {
+        std::array<Expr,1> a = {v0};
+        return betaReduce (lambda, a);
+      }
+      inline Expr betaReduce (Expr lambda, Expr v0, Expr v1)
+      {
+        std::array<Expr,2> a = {v0, v1};
+        return betaReduce (lambda, a);
+      }
+      inline Expr betaReduce (Expr lambda, Expr v0, Expr v1, Expr v2)
+      {
+        std::array<Expr,3> a = {v0, v1, v2};
+        return betaReduce (lambda, a);
+      }
+      inline Expr betaReduce (Expr lambda, Expr v0, Expr v1, Expr v2, Expr v3)
+      {
+        std::array<Expr,4> a = {v0, v1, v2, v3};
+        return betaReduce (lambda, a);
+      }
     }
   }
   

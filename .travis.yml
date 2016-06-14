@@ -77,6 +77,8 @@ script:
   - /usr/bin/cmake --build . --target install
   - ls run/bin/
   - run/bin/sea -h
+  - lit -h
+  - /usr/bin/cmake --build . --target test-simple
   
 
 

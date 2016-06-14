@@ -1,9 +1,9 @@
+// RUN: %sea pf "%s" -I%share  2>&1 | OutputCheck %s
+// CHECK: ^unsat$
+
 #include "seahorn.h"
 int unknown1();
 
-/*
- * IC3 motivating example
- */
 
 int main()
 {

@@ -3,24 +3,11 @@ cache: apt
 env:
   matrix:
    # =======================================================
-   # DEBUG Build
+   # RELEASE Build
    # =======================================================
-   # D1. clang-mp-4.8     | DEBUG
-   #- CMAKE_CXX_COMPILER=clang-mp-3.4
-   # CMAKE_BUILD_TYPE=DEBUG
-   # D2. g++-mp-4.8     | DEBUG
      - CMAKE_CXX_COMPILER=g++-4.8
        CMAKE_BUILD_TYPE=RELEASE
        CONSERVE_MEMORY=ON
-   # =======================================================
-   # RELEASE Build
-   # =======================================================
-   # D1. clang-mp-4.8     | RELEASE
-   #- CMAKE_CXX_COMPILER=clang-mp-3.4
-   #  CMAKE_BUILD_TYPE=RELEASE
-   # D2. g++-mp-4.8     | RELEASE
-   #- CMAKE_CXX_COMPILER=g++-mp-4.8
-   #  CMAKE_BUILD_TYPE=RELEASE
 
 before_install:
    - until sudo add-apt-repository -y ppa:saiarcot895/chromium-beta; do echo retry; done

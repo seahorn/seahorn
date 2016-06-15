@@ -61,6 +61,8 @@ namespace seahorn
   llvm::Pass* createCFGOnlyViewerPass ();
 
   llvm::Pass* createKleeInternalizePass ();
+
+  llvm::Pass* createWrapMemPass ();
 }
 
 #ifdef HAVE_LLVM_SEAHORN

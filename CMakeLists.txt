@@ -292,6 +292,7 @@ install(DIRECTORY include/
   FILES_MATCHING
   PATTERN "*.hpp"
   PATTERN "*.hh"
+  PATTERN "*.h"
   PATTERN ".svn" EXCLUDE
   )
 
@@ -300,12 +301,13 @@ install(DIRECTORY ${CMAKE_BINARY_DIR}/include/
   FILES_MATCHING
   PATTERN "*.hpp"
   PATTERN "*.hh"
+  PATTERN "*.h"
   PATTERN "CMakeFiles" EXCLUDE
   PATTERN ".svn" EXCLUDE
   )
 
 
-add_definitions(-std=c++11)
+set(CMAKE_CXX_EXTENSIONS ON)
 add_definitions(-Wno-redeclared-class-member -Wno-sometimes-uninitialized)
 add_definitions(-Wno-covered-switch-default)
 add_definitions(-Wno-inconsistent-missing-override)
@@ -370,6 +372,7 @@ add_subdirectory(tools)
 if (UNIT_TESTS)
   add_subdirectory(units)
 endif()
+add_subdirectory(sea-rt)
 
 configure_file( include/seahorn/config.h.cmake
                 ${CMAKE_BINARY_DIR}/include/seahorn/config.h )

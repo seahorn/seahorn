@@ -1,6 +1,7 @@
 #include "seahorn/Houdini.hh"
 #include "seahorn/HornifyModule.hh"
 #include "seahorn/HornClauseDBTransf.hh"
+#include "seahorn/HornClauseDB.hh"
 
 #include "llvm/IR/Function.h"
 #include "llvm/Support/CommandLine.h"

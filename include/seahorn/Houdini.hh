@@ -3,6 +3,7 @@
 
 #include "llvm/Pass.h"
 #include "llvm/IR/Module.h"
+#include "seahorn/HornClauseDB.hh"
 
 namespace seahorn
 {
@@ -19,6 +20,9 @@ namespace seahorn
     virtual bool runOnModule (Module &M);
     virtual void getAnalysisUsage (AnalysisUsage &AU) const;
     virtual const char* getPassName () const {return "Houdini";}
+
+    void printDB (const HornClauseDB &db);
+    void printHello ();
   };
 }
 

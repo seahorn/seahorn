@@ -305,7 +305,7 @@ install(DIRECTORY ${CMAKE_BINARY_DIR}/include/
   )
 
 
-add_definitions(-std=c++11)
+set(CMAKE_CXX_EXTENSIONS ON)
 add_definitions(-Wno-redeclared-class-member -Wno-sometimes-uninitialized)
 add_definitions(-Wno-covered-switch-default)
 add_definitions(-Wno-inconsistent-missing-override)

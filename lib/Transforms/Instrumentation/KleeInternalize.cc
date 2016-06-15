@@ -94,22 +94,10 @@ namespace
                                                                   i8PtrTy,
                                                                   NULL));
 
-
       m_externalNames.insert (m_assertFailFn->getName ());
       m_externalNames.insert (m_kleeAssumeFn->getName ());
       m_externalNames.insert (m_kleeMkSymbolicFn->getName ());
-      m_externalNames.insert ("__VERIFIER_assume");
-      m_externalNames.insert ("__VERIFIER_error");
-      
-      // -- LLVM stuff
-      m_externalNames.insert("llvm.used");
-      m_externalNames.insert("llvm.compiler.used");
-      m_externalNames.insert("llvm.global_ctors");
-      m_externalNames.insert("llvm.global_dtors");
-      m_externalNames.insert("llvm.global.annotations");
-      m_externalNames.insert("__stack_chk_fail");
-      m_externalNames.insert("__stack_chk_guard");
-      
+
       CallGraphWrapperPass *cgwp = getAnalysisIfAvailable<CallGraphWrapperPass> ();
       if (CallGraph *cg = cgwp ? &cgwp->getCallGraph () : nullptr)
       {
@@ -130,7 +118,7 @@ namespace
       LibFunc::Func F;
       if (m_tli->getLibFunc (GV.getName(), F)) return false;
           
-      if (m_externalNames.count (GV.getName())) return false;
+      if (m_externalNames.count (GV.getName()) > 0 ) return false;
       
       return true;
     }
@@ -215,6 +203,20 @@ namespace
       m_externalNames.insert ("verifier.assume.not");
       m_externalNames.insert ("seahorn.fail");
       m_externalNames.insert ("verifier.error");
+      
+      m_externalNames.insert ("__VERIFIER_assume");
+      m_externalNames.insert ("__VERIFIER_error");
+      
+      // -- LLVM stuff
+      m_externalNames.insert("llvm.used");
+      m_externalNames.insert("llvm.compiler.used");
+      m_externalNames.insert("llvm.global_ctors");
+      m_externalNames.insert("llvm.global_dtors");
+      m_externalNames.insert("llvm.global.annotations");
+      m_externalNames.insert("__stack_chk_fail");
+      m_externalNames.insert("__stack_chk_guard");
+
+      
     }
 
     void getAnalysisUsage (AnalysisUsage &AU) const override
@@ -226,8 +228,6 @@ namespace
 
     bool runOnModule (Module &M)
     {
-
-      
       declareKleeFunctions(M);
       internalizeVariables(M);
  

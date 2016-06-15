@@ -101,6 +101,15 @@ namespace
       m_externalNames.insert ("__VERIFIER_assume");
       m_externalNames.insert ("__VERIFIER_error");
       
+      // -- LLVM stuff
+      m_externalNames.insert("llvm.used");
+      m_externalNames.insert("llvm.compiler.used");
+      m_externalNames.insert("llvm.global_ctors");
+      m_externalNames.insert("llvm.global_dtors");
+      m_externalNames.insert("llvm.global.annotations");
+      m_externalNames.insert("__stack_chk_fail");
+      m_externalNames.insert("__stack_chk_guard");
+      
       CallGraphWrapperPass *cgwp = getAnalysisIfAvailable<CallGraphWrapperPass> ();
       if (CallGraph *cg = cgwp ? &cgwp->getCallGraph () : nullptr)
       {

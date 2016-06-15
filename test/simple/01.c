@@ -1,7 +1,7 @@
-// RUN: %sea pf "%s" -I%share  2>&1 | OutputCheck %s
+// RUN: %sea pf "%s"  2>&1 | OutputCheck %s
 // CHECK: ^unsat$
 
-#include "seahorn.h"
+#include "seahorn/seahorn.h"
 int unknown1();
 
 

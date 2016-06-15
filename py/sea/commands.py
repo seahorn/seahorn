@@ -1,6 +1,7 @@
 import sea
 
 import os.path
+import sys
 
 from sea import add_in_out_args, add_tmp_dir_args, which, createWorkDir
 
@@ -35,8 +36,8 @@ class Clang(sea.LimitedCmd):
                          help='Machine architecture MACHINE:[32,64]', default=32)
         ap.add_argument ('-g', default=False, action='store_true',
                          dest='debug_info', help='Compile with debug info')
-        ap.add_argument ('-I', default=False,
-                         dest='include', help='Include')
+        ap.add_argument ('-I', default=None,
+                         dest='include_dir', help='Include')
         add_tmp_dir_args (ap)
         add_in_out_args (ap)
         _add_S_arg (ap)
@@ -71,8 +72,13 @@ class Clang(sea.LimitedCmd):
 
         if args.debug_info: argv.append ('-g')
 
-        include_dir = "-I"+str(args.include)
-        if args.include: argv.append (include_dir)
+        if args.include_dir is not None:
+            argv.append ('-I' + args.include_dir)
+
+        include_dir = os.path.dirname (sys.argv[0])
+        include_dir = os.path.dirname (include_dir)
+        include_dir = os.path.join (include_dir, 'include')
+        argv.append ('-I' + include_dir)
 
         if len(args.in_files) == 1:
             out_files = [args.out_file]

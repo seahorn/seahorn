@@ -292,6 +292,7 @@ install(DIRECTORY include/
   FILES_MATCHING
   PATTERN "*.hpp"
   PATTERN "*.hh"
+  PATTERN "*.h"
   PATTERN ".svn" EXCLUDE
   )
 
@@ -300,6 +301,7 @@ install(DIRECTORY ${CMAKE_BINARY_DIR}/include/
   FILES_MATCHING
   PATTERN "*.hpp"
   PATTERN "*.hh"
+  PATTERN "*.h"
   PATTERN "CMakeFiles" EXCLUDE
   PATTERN ".svn" EXCLUDE
   )
@@ -370,6 +372,7 @@ add_subdirectory(tools)
 if (UNIT_TESTS)
   add_subdirectory(units)
 endif()
+add_subdirectory(sea-rt)
 
 configure_file( include/seahorn/config.h.cmake
                 ${CMAKE_BINARY_DIR}/include/seahorn/config.h )

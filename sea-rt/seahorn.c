@@ -1,3 +1,4 @@
+#include "seahorn/seahorn.h"
 #include <stdint.h>
 #include <stdio.h>
 #include <assert.h>

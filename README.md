@@ -116,7 +116,7 @@ To see all the options, type `sea --help`.
 This is an example of a C program annotated with a safety property:
 ``` c
     /* verification command: sea pf --horn-stats test.c */
-    #include "seahorn.h"
+    #include "seahorn/seahorn.h"
     int nd();
 
     int main(void){
@@ -141,7 +141,7 @@ to the designated error function
 `__VERIFIER_error()`. SeaHorn returns `unsat` when `__VERIFIER_error()`
 is unreachable, and the program is considered safe. SeaHorn returns `sat`
 when `__VERIFIER_error()` is reachable and the
-program is unsafe. `sassert()` method is defined in `seahorn.h` which can be found in `seahorn/share`.
+program is unsafe. `sassert()` method is defined in `seahorn/seahorn.h` which can be found in `seahorn/share`.
 
 [svcomp]: (http://sv-comp.sosy-lab.org)
 

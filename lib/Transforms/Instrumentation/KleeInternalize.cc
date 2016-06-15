@@ -163,7 +163,20 @@ namespace
         Builder.CreateRet (retValue);
       }
     }
-    
+
+    void internalizeVariables (Module& M)
+    {
+       for (Module::global_iterator I = M.global_begin(), E = M.global_end();
+          I != E; ++I) {
+        GlobalVariable *GV = &*I;
+        if (m_externalNames.count (GV->getName())) continue;
+        if (GV->isConstant() || GV->hasInitializer())
+          continue;
+        GV->setInitializer(Constant::getNullValue(GV->getType()->getElementType()));
+        errs() << "making " << GV->getName() << " non-extern\n";
+      }
+    }   
+
     void LoadFile (const char *fname)
     {
       std::ifstream In(fname);
@@ -204,8 +217,11 @@ namespace
 
     bool runOnModule (Module &M)
     {
-      declareKleeFunctions(M);
 
+      
+      declareKleeFunctions(M);
+      internalizeVariables(M);
+ 
       for (Function &F : M)
       {
         if (shouldInternalize (F)) defineFunction (F);

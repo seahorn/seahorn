@@ -24,6 +24,15 @@ DM-0002198
 
 #include "llvm/IR/IRBuilder.h"
 
+
+#include "seahorn/config.h"
+#ifdef HAVE_DSA
+#include "dsa/DataStructure.h"
+#include "dsa/DSGraph.h"
+#include "dsa/DSNode.h"
+#include "dsa/Steensgaard.hh"
+#endif
+
 #define DEBUG_TYPE "trap-mem"
 
 using namespace llvm;
@@ -32,6 +41,10 @@ namespace
 {
   class WrapMem : public ModulePass
   {
+#ifdef HAVE_DSA
+    DataStructures *m_dsa;
+#endif
+    
     const DataLayout *m_dl;
     IntegerType *m_intPtrTy;
     Function *m_memLoad;
@@ -43,16 +56,26 @@ namespace
 
     bool runOnModule (Module &M)
     {
+#ifdef HAVE_DSA
+      m_dsa = &getAnalysis<EQTDDataStructures> ();
+      //m_dsa = &getAnalysis<SteensgaardDataStructures> ();
+#endif
       LLVMContext &C = M.getContext ();
       m_dl = &getAnalysis<DataLayoutPass> ().getDataLayout ();
       m_intPtrTy = m_dl->getIntPtrType (C, 0);
       
+      /* void __sea_mem_load (void* dst, void* src, size_t sz)
+         { memcpy (dst, src, sz); }
+       */
       m_memLoad = cast<Function> (M.getOrInsertFunction ("__sea_mem_load",
                                                          Type::getVoidTy (C),
                                                          Type::getInt8PtrTy (C, 0),
                                                          Type::getInt8PtrTy (C, 0),
                                                          m_intPtrTy,
                                                          NULL));
+      /* void __sea_mem_store (void *src, void *dst, size_t sz)
+         { memcpy (dst, src, sz); }
+      */
       m_memStore = cast<Function> (M.getOrInsertFunction ("__sea_mem_store",
                                                           Type::getVoidTy (C),
                                                           Type::getInt8PtrTy (C, 0),
@@ -68,6 +91,9 @@ namespace
     {
       if (F.isDeclaration () || F.empty ()) return false;
 
+#ifdef HAVE_DSA
+      DSGraph *dsg = m_dsa->getDSGraph (F);
+#endif
       IRBuilder<> B(F.getContext ());
       Type* i8PtrTy = B.getInt8PtrTy ();
       for (BasicBlock &bb : F)
@@ -75,6 +101,16 @@ namespace
         {
           if (LoadInst *load = dyn_cast<LoadInst> (&inst))
           {
+#ifdef HAVE_DSA
+            if (dsg)
+            {
+              DSNodeHandle &nh = dsg->getNodeForValue (load->getPointerOperand ());
+              DSNode *n = nh.getNode ();
+              if (!n) continue;
+              // TODO: fine tune what nodes might be interesting to wrap
+              if (!n->isExternalNode ()) continue;
+            }
+#endif
             B.SetInsertPoint (load);
             AllocaInst *x = B.CreateAlloca (load->getType ()); 
             uint64_t sz = m_dl->getTypeStoreSize (load->getType ());
@@ -86,6 +122,16 @@ namespace
           }
           else if (StoreInst *store = dyn_cast<StoreInst> (&inst))
           {
+#ifdef HAVE_DSA
+            if (dsg)
+            {
+              DSNodeHandle &nh = dsg->getNodeForValue (store->getPointerOperand ());
+              DSNode *n = nh.getNode ();
+              if (!n) continue;
+              // TODO: fine tune what nodes might be interesting to wrap
+              if (!n->isExternalNode ()) continue;
+            }
+#endif
             B.SetInsertPoint (store);
             AllocaInst *x = B.CreateAlloca (store->getValueOperand ()->getType ());
             B.SetInsertPoint (store->getNextNode ());
@@ -103,6 +149,10 @@ namespace
     void getAnalysisUsage (AnalysisUsage &AU) const
     {
       AU.addRequired<DataLayoutPass> ();
+#ifdef HAVE_DSA
+      AU.addRequiredTransitive<llvm::EQTDDataStructures>();
+      AU.addRequiredTransitive<llvm::SteensgaardDataStructures> ();
+#endif
       AU.setPreservesAll();
     }
     

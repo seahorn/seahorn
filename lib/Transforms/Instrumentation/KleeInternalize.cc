@@ -98,6 +98,8 @@ namespace
       m_externalNames.insert (m_assertFailFn->getName ());
       m_externalNames.insert (m_kleeAssumeFn->getName ());
       m_externalNames.insert (m_kleeMkSymbolicFn->getName ());
+      m_externalNames.insert ("__VERIFIER_assume");
+      m_externalNames.insert ("__VERIFIER_error");
       
       CallGraphWrapperPass *cgwp = getAnalysisIfAvailable<CallGraphWrapperPass> ();
       if (CallGraph *cg = cgwp ? &cgwp->getCallGraph () : nullptr)

@@ -135,10 +135,10 @@ namespace
         Builder.CreateRetVoid ();
       else
       {
-		uint64_t storeSzInBits = m_dl->getTypeStoreSizeInBits(retTy);
-		Type* storeTy = Type::getIntNTy(F.getContext(),storeSzInBits);
+        uint64_t storeSzInBits = m_dl->getTypeStoreSizeInBits(retTy);
+        Type* storeTy = Type::getIntNTy(F.getContext(),storeSzInBits);
 
-        AllocaInst *v = Builder.CreateAlloca (storeTy);
+        AllocaInst *v = Builder.CreateAlloca (retTy);
         ConstantInt *sz = Builder.getIntN (m_intptrTy->getBitWidth(), 
                                            storeSzInBits  / 8);
         Value *fname = Builder.CreateGlobalString (F.getName ());
@@ -150,9 +150,7 @@ namespace
                                Builder.CreateConstGEP2_32 (fname, 0, 0));
 
         Value *retValue = Builder.CreateLoad (v);
-        if (storeTy != retTy)
-        	retValue = Builder.CreateTrunc(retValue, retTy);
-	
+
 	// TODO: update callgraph
         Builder.CreateRet (retValue);
       }

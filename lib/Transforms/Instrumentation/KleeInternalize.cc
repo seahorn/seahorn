@@ -135,14 +135,19 @@ namespace
         Builder.CreateRetVoid ();
       else
       {
-		uint64_t storeSzInBits = m_dl->getTypeStoreSizeInBits(retTy);
-		Type* storeTy = Type::getIntNTy(F.getContext(),storeSzInBits);
+        uint64_t storeSzInBits = m_dl->getTypeStoreSizeInBits(retTy);
+        Type* storeTy = retTy;
+        
+        // extend if store size is bigger than type size (mostly for i1)
+        if (storeSzInBits > m_dl->getTypeSizeInBits (retTy))
+          storeTy = Type::getIntNTy(F.getContext(),storeSzInBits);
 
         AllocaInst *v = Builder.CreateAlloca (storeTy);
         ConstantInt *sz = Builder.getIntN (m_intptrTy->getBitWidth(), 
                                            storeSzInBits  / 8);
         Value *fname = Builder.CreateGlobalString (F.getName ());
 
+	// TODO: update callgraph with this call
         CallInst *mksym =
           Builder.CreateCall3 (m_kleeMkSymbolicFn,
                                Builder.CreateBitCast (v, Builder.getInt8PtrTy ()),
@@ -151,9 +156,8 @@ namespace
 
         Value *retValue = Builder.CreateLoad (v);
         if (storeTy != retTy)
-        	retValue = Builder.CreateTrunc(retValue, retTy);
+          retValue = Builder.CreateZExtOrTrunc(retValue, retTy);
 	
-	// TODO: update callgraph
         Builder.CreateRet (retValue);
       }
     }

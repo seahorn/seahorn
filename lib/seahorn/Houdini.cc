@@ -19,7 +19,7 @@ namespace seahorn
     auto &db = hm.getHornClauseDB ();
 
     //print hello
-    printHello();
+    printDB(db);
   }
 
   void Houdini::getAnalysisUsage (AnalysisUsage &AU) const

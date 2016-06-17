@@ -259,6 +259,13 @@ if (EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/crab-llvm/LICENSE.txt)
     RENAME crab_llvm_license.txt)
 endif()
 
+if (EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/share/seahorn.h)
+  install (FILES share/seahorn.h
+    DESTINATION share/)
+  install (FILES share/seahorn.c
+    DESTINATION share/)
+endif()
+
 # check for rt lib. Not needed on OSX.
 find_library(RT_LIB NAMES rt)
 if (NOT RT_LIB)
@@ -285,6 +292,7 @@ install(DIRECTORY include/
   FILES_MATCHING
   PATTERN "*.hpp"
   PATTERN "*.hh"
+  PATTERN "*.h"
   PATTERN ".svn" EXCLUDE
   )
 
@@ -293,12 +301,13 @@ install(DIRECTORY ${CMAKE_BINARY_DIR}/include/
   FILES_MATCHING
   PATTERN "*.hpp"
   PATTERN "*.hh"
+  PATTERN "*.h"
   PATTERN "CMakeFiles" EXCLUDE
   PATTERN ".svn" EXCLUDE
   )
 
 
-add_definitions(-std=c++11)
+set(CMAKE_CXX_EXTENSIONS ON)
 add_definitions(-Wno-redeclared-class-member -Wno-sometimes-uninitialized)
 add_definitions(-Wno-covered-switch-default)
 add_definitions(-Wno-inconsistent-missing-override)
@@ -363,6 +372,7 @@ add_subdirectory(tools)
 if (UNIT_TESTS)
   add_subdirectory(units)
 endif()
+add_subdirectory(sea-rt)
 
 configure_file( include/seahorn/config.h.cmake
                 ${CMAKE_BINARY_DIR}/include/seahorn/config.h )

@@ -146,6 +146,10 @@ static llvm::cl::opt<bool>
 KleeInternalize ("klee-internalize", 
                    llvm::cl::desc ("Internalizes definitions for Klee"),
                    llvm::cl::init (false));
+static llvm::cl::opt<bool>
+WrapMem ("wrap-mem",
+         llvm::cl::desc ("Wrap memory accesses with special functions"),
+         llvm::cl::init (false));
 
 // removes extension from filename if there is one
 std::string getFileName(const std::string &str) {
@@ -216,6 +220,8 @@ int main(int argc, char **argv) {
 
   if (KleeInternalize)
     pass_manager.add (seahorn::createKleeInternalizePass ());
+  else if (WrapMem)
+    pass_manager.add (seahorn::createWrapMemPass ());
   else
   {
     // -- Create a main function if we do not have one.

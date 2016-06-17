@@ -94,11 +94,10 @@ namespace
                                                                   i8PtrTy,
                                                                   NULL));
 
-
       m_externalNames.insert (m_assertFailFn->getName ());
       m_externalNames.insert (m_kleeAssumeFn->getName ());
       m_externalNames.insert (m_kleeMkSymbolicFn->getName ());
-      
+
       CallGraphWrapperPass *cgwp = getAnalysisIfAvailable<CallGraphWrapperPass> ();
       if (CallGraph *cg = cgwp ? &cgwp->getCallGraph () : nullptr)
       {
@@ -119,7 +118,7 @@ namespace
       LibFunc::Func F;
       if (m_tli->getLibFunc (GV.getName(), F)) return false;
           
-      if (m_externalNames.count (GV.getName())) return false;
+      if (m_externalNames.count (GV.getName()) > 0 ) return false;
       
       return true;
     }
@@ -135,14 +134,19 @@ namespace
         Builder.CreateRetVoid ();
       else
       {
-		uint64_t storeSzInBits = m_dl->getTypeStoreSizeInBits(retTy);
-		Type* storeTy = Type::getIntNTy(F.getContext(),storeSzInBits);
+        uint64_t storeSzInBits = m_dl->getTypeStoreSizeInBits(retTy);
+        Type* storeTy = retTy;
+        
+        // extend if store size is bigger than type size (mostly for i1)
+        if (storeSzInBits > m_dl->getTypeSizeInBits (retTy))
+          storeTy = Type::getIntNTy(F.getContext(),storeSzInBits);
 
         AllocaInst *v = Builder.CreateAlloca (storeTy);
         ConstantInt *sz = Builder.getIntN (m_intptrTy->getBitWidth(), 
                                            storeSzInBits  / 8);
         Value *fname = Builder.CreateGlobalString (F.getName ());
 
+	// TODO: update callgraph with this call
         CallInst *mksym =
           Builder.CreateCall3 (m_kleeMkSymbolicFn,
                                Builder.CreateBitCast (v, Builder.getInt8PtrTy ()),
@@ -151,13 +155,25 @@ namespace
 
         Value *retValue = Builder.CreateLoad (v);
         if (storeTy != retTy)
-        	retValue = Builder.CreateTrunc(retValue, retTy);
+          retValue = Builder.CreateZExtOrTrunc(retValue, retTy);
 	
-	// TODO: update callgraph
         Builder.CreateRet (retValue);
       }
     }
-    
+
+    void internalizeVariables (Module& M)
+    {
+       for (Module::global_iterator I = M.global_begin(), E = M.global_end();
+          I != E; ++I) {
+        GlobalVariable *GV = &*I;
+        if (m_externalNames.count (GV->getName())) continue;
+        if (GV->isConstant() || GV->hasInitializer())
+          continue;
+        GV->setInitializer(Constant::getNullValue(GV->getType()->getElementType()));
+        errs() << "making " << GV->getName() << " non-extern\n";
+      }
+    }   
+
     void LoadFile (const char *fname)
     {
       std::ifstream In(fname);
@@ -187,6 +203,25 @@ namespace
       m_externalNames.insert ("verifier.assume.not");
       m_externalNames.insert ("seahorn.fail");
       m_externalNames.insert ("verifier.error");
+
+      m_externalNames.insert ("__VERIFIER_assume");
+      m_externalNames.insert ("__VERIFIER_error");
+
+      m_externalNames.insert ("__seahorn_get_value_i8");
+      m_externalNames.insert ("__seahorn_get_value_i16");
+      m_externalNames.insert ("__seahorn_get_value_i32");
+      m_externalNames.insert ("__seahorn_get_value_ptr");
+
+      // -- LLVM stuff
+      m_externalNames.insert("llvm.used");
+      m_externalNames.insert("llvm.compiler.used");
+      m_externalNames.insert("llvm.global_ctors");
+      m_externalNames.insert("llvm.global_dtors");
+      m_externalNames.insert("llvm.global.annotations");
+      m_externalNames.insert("__stack_chk_fail");
+      m_externalNames.insert("__stack_chk_guard");
+
+      
     }
 
     void getAnalysisUsage (AnalysisUsage &AU) const override
@@ -199,7 +234,8 @@ namespace
     bool runOnModule (Module &M)
     {
       declareKleeFunctions(M);
-
+      internalizeVariables(M);
+ 
       for (Function &F : M)
       {
         if (shouldInternalize (F)) defineFunction (F);

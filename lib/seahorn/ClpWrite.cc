@@ -121,8 +121,8 @@ namespace seahorn
   typedef std::unordered_map<Expr,ExprStr> expr_str_map;
   struct FailPrettyPrinter
   {
-    template <typename C>
-    static ExprStr print (Expr e, Expr parent, const ExprVector &rels, 
+    template <typename C, typename Range>
+    static ExprStr print (Expr e, Expr parent, const Range &rels, 
                           ExprFactory &efac, C &cache, expr_str_map &seen)
     { std::cout << "Cannot print: " << *e << "\n";
       assert (false);
@@ -174,8 +174,8 @@ namespace seahorn
       return NULL;
     }
 
-    template <typename C>
-    static ExprStr print (Expr e, Expr parent, const ExprVector &rels, 
+    template <typename C, typename Range>
+    static ExprStr print (Expr e, Expr parent, const Range &rels, 
                           ExprFactory &efac, C &cache, expr_str_map &seen)
                           
     {
@@ -223,7 +223,7 @@ namespace seahorn
       { // e can be positive or negative
         Expr fname = bind::fname (bind::fname (e));
         std::string sname = boost::lexical_cast<std::string> (fname);
-        bool isVar = (std::find (rels.begin (), rels.end (), bind::fname (e)) == rels.end ());
+        bool isVar = (std::find (std::begin (rels), std::end (rels), bind::fname (e)) == rels.end ());
         if (isTopLevelExpr (e, parent) && isVar)
         { res = (ExprStr (sname, true) == ExprStr ("1")); }
         else 
@@ -399,7 +399,7 @@ namespace seahorn
 
 
   ClpWrite::ClpWrite (HornClauseDB &db, ExprFactory &efac): 
-      m_rels (db.getRelations ()), m_efac (efac)
+    m_rels (db.getRelations ()), m_efac (efac)
   {     
 
     for (auto q:  db.getQueries ())

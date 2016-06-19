@@ -182,11 +182,11 @@ namespace seahorn
 
 
 			  //add rules in db.use(r.head()) to worklist
-//			  const Expr head_app = r.head();
-//			  for(HornRule *r_use : db.use(head_app))
-//			  {
-//				  workList.push_back(*r_use);
-//			  }
+			  Expr head_app = r.head();
+			  for(auto r_use : db.use(head_app))
+			  {
+				  workList.push_back(*r_use);
+			  }
 		  }
 		  else // the ret is UNSAT
 		  {

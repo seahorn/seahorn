@@ -5,6 +5,8 @@
 #include "llvm/IR/Module.h"
 #include "seahorn/HornClauseDB.hh"
 
+#include "ufo/Expr.hpp"
+
 namespace seahorn
 {
   using namespace llvm;
@@ -14,6 +16,8 @@ namespace seahorn
   public:
     static char ID;
     
+    std::map<Expr, int> bvar_map;
+
     Houdini() : ModulePass(ID) {}
     virtual ~Houdini() {}
 
@@ -23,6 +27,10 @@ namespace seahorn
 
     void printDB (const HornClauseDB &db);
     void printHello ();
+    Expr guessCandidate(Expr pred);
+    bool validateRule(Expr cand_app);
+    bool validate_OldVersion(HornRule r, HornClauseDB &db);
+    void workListAlgo(HornClauseDB &db);
   };
 }
 

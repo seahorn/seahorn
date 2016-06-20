@@ -8,6 +8,29 @@
 
 namespace seahorn
 {
+  
+  void HornClauseDB::resetIndexes ()
+  {
+    m_body_idx.clear ();
+    m_head_idx.clear ();
+  }
+  
+  void HornClauseDB::buildIndexes ()
+  {
+    resetIndexes ();
+      
+    /// update indexes
+    for (HornRule &r : m_rules)
+    {
+      // -- update head index
+      m_head_idx [bind::fname (r.head ())].insert (&r);
+      // -- update body index
+      ExprVector use;
+      r.used_relations (*this, std::back_inserter (use));
+      for (Expr decl : use) m_body_idx[decl].insert (&r);
+
+    }
+  }
   const ExprVector &HornClauseDB::getVars () const
   {
     boost::sort (m_vars);

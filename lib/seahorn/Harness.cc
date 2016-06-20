@@ -67,6 +67,9 @@ namespace seahorn
               !CF->getReturnType()->isPointerTy())
             continue;
 
+          // TODO: Port detection of well-known library functions from KleeInternalize
+          if (CF->getName().equals ("calloc")) continue;
+          
           Expr V = trace.eval (loc, I, true);
           if (!V) continue;
           FuncValueMap[CF].push_back(V);

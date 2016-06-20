@@ -7,17 +7,20 @@
 #include <boost/range.hpp>
 #include <boost/range/algorithm/copy.hpp>
 #include <boost/lexical_cast.hpp>
+#include <boost/container/flat_set.hpp>
 
 #include "ufo/Expr.hpp"
 #include "ufo/Stats.hh"
 
 #include <algorithm>
+#include <map>
 
 namespace seahorn
 {
   using namespace llvm;
   using namespace expr;
 
+  class HornClauseDB;
   class HornRule
   { 
     ExprVector m_vars;
@@ -78,55 +81,103 @@ namespace seahorn
     }
 
     const ExprVector &vars () const {return m_vars;} 
-        
+
+    template<typename OutputIterator>
+    void used_relations (HornClauseDB &db, OutputIterator out);
   };
 
 
   class HornClauseDB 
   {
-
+    friend class HornRule;
    public:
 
     typedef std::vector<HornRule> RuleVector;
-
+    typedef boost::container::flat_set<Expr> expr_set_type;
    private:
     
+    struct IsRelation : public std::unary_function<Expr, bool>
+    {
+      HornClauseDB &m_db;
+      IsRelation (HornClauseDB &db) : m_db (db) {}
+
+      bool operator() (Expr e)
+      {return bind::isFdecl (e) && m_db.hasRelation (e);}
+    };
     ExprFactory &m_efac;
-    ExprVector m_rels;
+    expr_set_type m_rels;
     mutable ExprVector m_vars;
     RuleVector m_rules;
     ExprVector m_queries;
     std::map<Expr, ExprVector> m_constraints;
     
-    const ExprVector &getVars () const;
+    /// indexes
+
     
+    typedef boost::container::flat_set<HornRule*> horn_set_type;
+    typedef std::map<Expr, horn_set_type > index_type;
+    /// maps a relation to rules it appears in the body
+    index_type m_body_idx;
+    /// maps a relation to rules it appears in the head
+    index_type m_head_idx;
+    
+    const ExprVector &getVars () const;
+
+    /// empty set sentinel
+    static horn_set_type m_empty_set;
+    
+    /// resets all indexes
+    void resetIndexes ();
+
   public:
 
     HornClauseDB (ExprFactory &efac) : m_efac (efac) {}
     
     ExprFactory &getExprFactory () {return m_efac;}
     
-    void registerRelation (Expr fdecl) {m_rels.push_back (fdecl);}
-    const ExprVector& getRelations () const {return m_rels;}
+    void registerRelation (Expr fdecl) {m_rels.insert (fdecl);}
+    const expr_set_type& getRelations () const {return m_rels;}
     bool hasRelation (Expr fdecl) const
-    {return std::find
-        (m_rels.begin (), m_rels.end (), fdecl) != m_rels.end ();}
+    { return m_rels.count (fdecl) > 0; }
     /// number of relational predicates
     unsigned relSize () { return m_rels.size ();}
     
+    /// -- build use/def indexes
+    void buildIndexes ();
+
+    /// -- returns rules that use fdecl
+    /// -- i.e., rules in which fdecl appears in the body
+    /// -- requires indexes (see buildIndexes())
+    const horn_set_type &use (Expr fdecl)
+    {
+      auto it = m_body_idx.find (fdecl);
+      if (it == m_body_idx.end ()) return m_empty_set;
+      return it->second;
+    }
+    
+    /// -- returns rules that define fdecl
+    /// -- i.e., rules in which fdecl appears in the head
+    /// -- requires indexes (see buildIndexes())
+    const horn_set_type &def (Expr fdecl)
+    {
+      auto it = m_head_idx.find (fdecl);
+      if (it == m_body_idx.end ()) return m_empty_set;
+      return it->second;
+    }
     
     template <typename Range>
     void addRule (const Range &vars, Expr rule)
     {
       if (isOpX<TRUE> (rule)) return;
-      m_rules.push_back (HornRule (vars, rule));
-      boost::copy (vars, std::back_inserter (m_vars));
+      addRule (HornRule (vars, rule));
     }
 
-    void addRule (HornRule rule)
+    void addRule (const HornRule &rule)
     {
       m_rules.push_back (rule);
       boost::copy (rule.vars (), std::back_inserter (m_vars));
+      resetIndexes ();
+      
     }
     
     const ExprVector &getVars ()
@@ -139,7 +190,11 @@ namespace seahorn
     }
 
     void removeRule (const HornRule &r)
-    { m_rules.erase (std::remove (m_rules.begin(), m_rules.end(), r)); }
+    {
+      m_rules.erase (std::remove (m_rules.begin(), m_rules.end(), r));
+      resetIndexes ();
+    }
+
 
     const RuleVector &getRules () const {return m_rules;}
     RuleVector &getRules () {return m_rules;}
@@ -193,6 +248,10 @@ namespace seahorn
     }
     
   };
+
+  template<typename OutputIterator>
+  void HornRule::used_relations (HornClauseDB &db, OutputIterator out)
+  {filter (body (), HornClauseDB::IsRelation(db), out);}
 
   inline raw_ostream& operator <<(raw_ostream& o, const HornClauseDB &db)
   {

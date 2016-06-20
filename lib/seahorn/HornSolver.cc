@@ -21,6 +21,11 @@ PrintAnswer ("horn-answer",
              cl::desc ("Print Horn answer"), cl::init (false));
 
 static llvm::cl::opt<bool>
+EstimateSizeInvars ("horn-estimate-size-invars",
+             cl::desc ("Give an estimation about the size of all inferred invariants"), 
+             cl::init (false));
+
+static llvm::cl::opt<bool>
 SkipConstraints ("horn-skip-constraints",
                  cl::Hidden, cl::init(false),
                  cl::desc ("Enabled when number of predicates exceeds 200"));
@@ -94,7 +99,10 @@ namespace seahorn
       printInvars (M);
     else if (PrintAnswer && m_result)
       printCex ();
-    
+
+    if (EstimateSizeInvars)
+      estimateSizeInvars(M);
+
     return false;
   }
 
@@ -178,5 +186,36 @@ namespace seahorn
         outs () << " " << *invars << "\n";
     }
   }
+
+  void HornSolver::estimateSizeInvars (Module &M)
+  {
+    HornifyModule &hm = getAnalysis<HornifyModule> ();
+    ZFixedPoint<EZ3> fp = *m_fp;
+
+    Expr allInvars;
+    bool first = true;
+    unsigned numBlocks = 0;
+    for (auto &F : M) 
+    {
+      if (F.isDeclaration ()) continue;
+      for (auto &BB : F)
+      {
+        if (!hm.hasBbPredicate (BB)) continue;
+        Expr bbPred = hm.bbPredicate (BB);
+        const ExprVector &live = hm.live (BB);
+        Expr invars = fp.getCoverDelta (bind::fapp (bbPred, live));
+        numBlocks++;
+        if (first) {
+          allInvars = invars;
+          first = false;
+        } else {
+          allInvars = mk<AND> (allInvars, invars);
+        }
+      }
+    }
+    Stats::uset ("NumOfBlocksWithInvariants", numBlocks);
+    Stats::uset ("SizeOfInvariants", (allInvars ? dagSize(allInvars) : 0));
+  }
+
 
 }

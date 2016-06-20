@@ -19,15 +19,17 @@ namespace seahorn
       Expr m_head;
       Expr m_body;
       ExprFactory &m_efac;
-      const ExprVector &m_rels;
+      const HornClauseDB::expr_set_type &m_rels;
       
      public:
       
-      ClpRule (Expr head, Expr constraints, ExprFactory &efac, const ExprVector &rels): 
+      ClpRule (Expr head, Expr constraints, ExprFactory &efac,
+               const HornClauseDB::expr_set_type &rels): 
           m_head (head), m_body (constraints), 
           m_efac (efac), m_rels (rels) { }
       
-      ClpRule (Expr head, Expr body, Expr constraints, ExprFactory &efac, const ExprVector &rels): 
+      ClpRule (Expr head, Expr body, Expr constraints, ExprFactory &efac,
+               const HornClauseDB::expr_set_type &rels): 
           m_head (head), m_body (mk<AND> (body, constraints)), 
           m_efac (efac), m_rels (rels) { }
       
@@ -42,7 +44,7 @@ namespace seahorn
     
    private:
 
-    const ExprVector &m_rels;
+    const HornClauseDB::expr_set_type &m_rels;
     vector<ClpRule> m_rules;
     ExprFactory &m_efac;
 

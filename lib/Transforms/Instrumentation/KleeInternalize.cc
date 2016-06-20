@@ -203,10 +203,15 @@ namespace
       m_externalNames.insert ("verifier.assume.not");
       m_externalNames.insert ("seahorn.fail");
       m_externalNames.insert ("verifier.error");
-      
+
       m_externalNames.insert ("__VERIFIER_assume");
       m_externalNames.insert ("__VERIFIER_error");
-      
+
+      m_externalNames.insert ("__seahorn_get_value_i8");
+      m_externalNames.insert ("__seahorn_get_value_i16");
+      m_externalNames.insert ("__seahorn_get_value_i32");
+      m_externalNames.insert ("__seahorn_get_value_ptr");
+
       // -- LLVM stuff
       m_externalNames.insert("llvm.used");
       m_externalNames.insert("llvm.compiler.used");

@@ -21,7 +21,18 @@ namespace seahorn
 
   void ApiAnalysisPass::analyze(const Function *F, unsigned int& progress, ApiCallInfo& aci)
   {
-    outs() << "In function: " << F->getName() << "\n";
+    for (auto analyzedfunc : m_apiAnalysis)
+    {
+      if (F->getName() == analyzedfunc.m_func->getName())
+      {
+        if (analyzedfunc.getFinalAnalysis().m_progress == m_apilist.size())
+        {
+          return;
+        }
+      }
+    }
+
+    //outs() << "In function: " << F->getName() << "\n";
 
     // First, get the basic blocks in topological order
     std::vector<const BasicBlock*> sortedBBlocks;
@@ -36,7 +47,7 @@ namespace seahorn
     {
       std::string API = m_apilist.at(progress);
 
-      outs() << "Looking for " << API << ", progress = " << progress << "\n";
+      //outs() << "Looking for " << API << ", progress = " << progress << "\n";
 
       // It appears that two calls can occur in an LLLVM basic block? So each block
       // must be processed again and again?
@@ -45,10 +56,6 @@ namespace seahorn
 
       for (const BasicBlock *bb : sortedBBlocks)
       {
-        outs() << "Processing BB: ";
-        bb->printAsOperand(outs(), false);
-        outs() << "\n";
-
         // determine if the API is called
         for (BasicBlock::const_iterator bi = bb->begin(); bi != bb->end(); bi++)
         {
@@ -66,14 +73,13 @@ namespace seahorn
 
                 apiIncrement++;
 
-                outs() << "API " << API << " found in ";
-                bb->printAsOperand(outs(), false);
-                outs() << ", increment: " << apiIncrement << ", progress: " << progress << "\n";
+                // outs() << "API " << API << " found in ";
+                // bb->printAsOperand(outs(), false);
+                // outs() << ", increment: " << apiIncrement << ", progress: " << progress << "\n";
 
                 if ( (progress+apiIncrement) < m_apilist.size())
                 {
                   API = m_apilist.at(progress+apiIncrement); // go to the next API
-                  outs() << "1Looking for " << API << "\n";
 
                 }
                 else
@@ -88,13 +94,11 @@ namespace seahorn
                 {
 
                   // handle function calls
-                  outs() << "In function "<< F->getName() << " calling outgoing function "
-                  << cf->getName() << " looking for "
-                  << API << "\n";
+                  // outs() << "In function "<< F->getName() << " calling outgoing function "
+                  // << cf->getName() << " looking for "
+                  // << API << "\n";
 
                   analyze(cf, progress, aci);
-
-                  outs() << "*** Back in caller\n";
                 }
               }
             }
@@ -134,8 +138,6 @@ namespace seahorn
 
         // Now know the progress value, save it
 
-        //BBApiEntry bbentry = std::make_pair(bb, max_progress+apiIncrement);
-
         ApiEntry bbentry;
         bbentry.m_bb = bb;
         bbentry.m_progress = max_progress+apiIncrement;
@@ -145,25 +147,13 @@ namespace seahorn
 
         apiIncrement=0;
 
-        //bblist.push_back(ApiEntry(bbentry);
         aci.m_bblist.push_back(bbentry);
-        outs() << "aci.bblist now has " << aci.m_bblist.size() << " blocks\n";
       }
 
       // match not here
       if (initProgress == progress ) break;
 
     }
-
-    // if (progress>0)
-    // {
-    // save the analysis for this function
-
-    //aci.m_bblist.insert(aci.m_bblist.end(), bblist.begin(), bblist.end());
-    //outs() << "aci.bblist now has " << aci.m_bblist.size() << " blocks\n";
-
-    report();
-    //}
   }
 
   //
@@ -174,7 +164,6 @@ namespace seahorn
     {
       if (!analysis.m_bblist.empty())
       {
-
         ApiEntry final = analysis.getFinalAnalysis();
         if (final.m_progress == m_apilist.size())
         {
@@ -190,6 +179,47 @@ namespace seahorn
 
           outs() << "\nMATCH!\n";
 
+          std::vector<const Function *> chain;
+          chain.push_back(analysis.m_func);
+          findStartingPoints(analysis.m_func);
+        }
+      }
+    }
+    errs() << "\nPossible starting points for this sequence: ";
+
+    for (size_t i=0; i < m_startingPoints.size();i++)
+    {
+      errs() << m_startingPoints[i]->getName();
+      if (i+1<m_startingPoints.size())
+      {
+        errs() << ", ";
+      }
+    }
+    errs() << "\n";
+  }
+
+  void ApiAnalysisPass::findStartingPoints(const Function* F)
+  {
+    if (F->getNumUses() == 0)
+    {
+      if (std::find (m_startingPoints.begin(), m_startingPoints.end(),F) == m_startingPoints.end())
+      {
+        m_startingPoints.push_back(F);
+      }
+    }
+    else
+    {
+      for (auto U : F->users())
+      {
+        if (isa<CallInst> (U) || isa<InvokeInst> (U))
+        {
+          if (const Instruction *Inst = dyn_cast<Instruction>(U))
+          {
+            // Get The grandparent of an instruction is a function (Inst -> BB -> Function)
+            const Function * callingFunc = Inst->getParent()->getParent();
+            findStartingPoints(callingFunc);
+
+          }
         }
       }
     }
@@ -233,16 +263,11 @@ namespace seahorn
       aci.m_func = F;
       analyze(F,progress,aci);
 
-      if (progress == m_apilist.size())
-      {
-        outs() << "MATCH!\n";
-      }
-
-      outs() << "Adding ACI " << F->getName() << "\n";
+      //outs() << "Adding ACI " << F->getName() << "\n";
       m_apiAnalysis.push_back(aci);
     }
 
-    //report();
+    report();
 
     return false;
   }

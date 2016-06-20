@@ -20,12 +20,11 @@ namespace seahorn
 {
   using namespace llvm;
 
-  //typedef std::pair<const BasicBlock*, unsigned int> BBApiEntry;
-
-  struct ApiEntry {
+  struct ApiEntry
+  {
 
     ApiEntry()
-    { } 
+    { }
 
     ApiEntry(const BasicBlock* bb,unsigned int p,std::string f)
     : m_bb(bb), m_progress(p), m_func(f)
@@ -41,10 +40,12 @@ namespace seahorn
   };
 
   // Each Basic block in a function will have an ApiCallList
-  //typedef std::vector<BBApiEntry> BBApiList;
   typedef std::vector<ApiEntry> BBApiList;
 
-  struct ApiCallInfo {
+  typedef std::vector< std::vector<const Function*> > FunctionChain;
+
+  struct ApiCallInfo
+  {
 
     ApiCallInfo()
     { }
@@ -63,7 +64,6 @@ namespace seahorn
       return *this;
     }
 
-    //BBApiEntry& getFinalAnalysis()
     ApiEntry& getFinalAnalysis()
     {
       return m_bblist.back();
@@ -86,10 +86,16 @@ namespace seahorn
     // The API name to look for
     std::vector<std::string> m_apilist;
 
+    // these are functions without any callers, they are potential entry points
+    // for the pattern
+    std::vector<const Function*> m_startingPoints;
+
     // Dataflow analysis for each function
     std::vector<ApiCallInfo> m_apiAnalysis;
 
     void parseApiString(std::string apistring);
+
+    void findStartingPoints(const Function* F);
 
     void analyze(const Function *F, unsigned int& progress, ApiCallInfo& aci);
 

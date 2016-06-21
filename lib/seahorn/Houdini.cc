@@ -22,22 +22,9 @@ namespace seahorn
     auto &db = hm.getHornClauseDB ();
     db.buildIndexes ();
 
-    int i=0;
-    outs() << "Hello\n";
-    outs() << db.getRelations().size() << "\n";
-//    Expr pred;
-//    for (auto &p :db.getRelations())
-//    {
-//    	if(i == 0)
-//    	{
-//    		pred = p;
-//    	}
-//    	i ++;
-//    }
-//    Expr cand = guessCandidate(pred);
-
     workListAlgo(db);
     //getUseRuleSet(db);
+
     return false;
   }
 
@@ -73,7 +60,7 @@ namespace seahorn
   Expr Houdini::guessCandidate(Expr fdecl)
   {
 	ExprVector bvars;
-	ExprVector bins;
+	ExprVector bins;   // a vector of LT expressions
 	Expr cand = NULL;
 
 	int bvar_count = 0;
@@ -83,37 +70,46 @@ namespace seahorn
 		// if its type is INT
 		if (isOpX<INT_TY>(bind::domainTy(fdecl, i)))
 		{
-			// how to create a INT type expr? what is efac?
-			Expr bvar = bind::bvar (i, mk<INT_TY>(bind::domainTy(fdecl, i)->efac()));
+			// what is efac?
+			Expr bvar = bind::bvar (i, mk<INT_TY>(bind::domainTy(fdecl, i)->efac())); //the id of bvar is the same as related arg index
 			bvars.push_back(bvar);
 			bvar_count ++;
 		}
 	}
-	outs() << "i = " << i << "\n";
-	outs() << "bvar count = " << bvar_count << "\n";
+	//outs() << "arg_count = " << i << "\n";
+	//outs() << "bvar count = " << bvar_count << "\n";
 
 	//What if there's no bvar?
 	if(bvar_count == 0)
 	{
 		cand = mk<TRUE>(fdecl->efac());
 	}
-	// if there is only one bvar, create a int constant and make an lt expr, how?
+	// if there is only one bvar, create a int constant and make an lt expr
 	else if(bvar_count == 1)
 	{
-		cand = mk<LT>(bvars[0], bvars[0]);
+		Expr zero = mkTerm<mpz_class> (0, fdecl->efac());
+		cand = mk<LT>(bvars[0], zero);
 	}
 	// if there are more than two bvars, make an lt expr
-	else
+	else if(bvar_count == 2)
 	{
 		Expr lt1 = mk<LT>(bvars[0], bvars[1]);
 		Expr lt2 = mk<LT>(bvars[1], bvars[0]);
 		bins.push_back(lt1);
 		bins.push_back(lt2);
-		outs() << *lt1 << "\n";
 
 		cand = mknary<AND>(bins.begin(), bins.end());
 	}
-	outs() << *cand << "\n";
+	else // bvar_count > 2
+	{
+		for(int j=0; j<bvars.size()-1; j++)
+		{
+			Expr lt = mk<LT>(bvars[j], bvars[j+1]);
+			bins.push_back(lt);
+		}
+		cand = mknary<AND>(bins.begin(), bins.end());
+	}
+	//outs() << *cand << "\n";
 
 	return cand;
   }
@@ -126,89 +122,78 @@ namespace seahorn
 	  auto &workList = db.getRules();
 	  while (!workList.empty())
 	  {
-		  outs() << "WORKLIST SIZE: " << workList.size() << "\n";
+		  //outs() << "[WORKLIST SIZE]: " << workList.size() << "\n";
 		  HornRule r = workList.front();
 
-		  outs() << "rule head: " << *(r.head()) << "\n";
-		  outs() << "rule body: " << *(r.body()) << "\n";
+		  outs() << "[RULE HEAD]: " << *(r.head()) << "\n";
+		  outs() << "[RULE BODY]: " << *(r.body()) << "\n";
 
 		  //generate candidate for rule head
 		  Expr head_app = r.head();
 		  Expr head_pred = bind::fname(head_app);
 		  Expr head_cand = guessCandidate(head_pred);
 
-		  //cand is the overall conjunction
-		  //Expr cand = mk<NEG>(head_cand);
-		  //outs() << "neg-head : " << *cand << "\n";
-
 		  //apply head_cand to actual arguments
 		  ExprMap head_bvar_map;
 		  //I need a visitor here.
 		  ExprVector bvars;
 		  get_all_bvars(head_cand, std::back_inserter(bvars));
-		  outs() << "vector size : " << bvars.size() << "\n";
+
 		  for(ExprVector::iterator it = bvars.begin(); it != bvars.end(); ++it)
 		  {
-			  outs() << *(*it) << "\n";
+			  //outs() << *(*it) << "\n";
 			  unsigned bvar_id = bind::bvarId(*it);
-			  outs() << "bvar id = " << bvar_id << "\n";
 			  Expr head_app_arg = bind::domainTy(head_app, bvar_id);// To improve
 			  head_bvar_map.insert(std::pair<Expr,Expr>(*it, head_app_arg));
 		  }
-		  outs() << "HEAD BVAR MAP:\n";
-		  outs() << "SIZE: " << head_bvar_map.size() << "\n";
-		  for (ExprMap::iterator it = head_bvar_map.begin(); it!=head_bvar_map.end(); ++it)
-		  {
-			  outs() << "Key: " << *(it->first) << ", Value: " << *(it->second) << "\n";
-		  }
+		  //outs() << "[HEAD BVAR MAP]:\n";
+		  //outs() << "[MAP SIZE]: " << head_bvar_map.size() << "\n";
+		  //for (ExprMap::iterator it = head_bvar_map.begin(); it!=head_bvar_map.end(); ++it)
+		  //{
+		  //  outs() << "[KEY]: " << *(it->first) << ", [VALUE]: " << *(it->second) << "\n";
+		  //}
 
 		  Expr head_cand_app = replace(head_cand, head_bvar_map);
-
-		  outs() << "HEAD APP: " << *head_cand_app << "\n";
 
 		  //cand_app is application of the overall conjunction
 		  Expr neg_head_cand_app = mk<NEG>(head_cand_app);
 
-		  outs() << "NEG HEAD APP: " << *neg_head_cand_app << "\n";
+		  //outs() << "[NEG HEAD CAND APP]: " << *neg_head_cand_app << "\n";
 
 		  //generate candidate for rule body
 		  Expr body = r.body();
 		  ExprMap body_map;
 		  ExprVector body_pred_app_vec;
 		  get_all_pred_apps(body, db, std::back_inserter(body_pred_app_vec));
-		  outs() << "BODY PRED NUM: " << body_pred_app_vec.size() << "\n";
+		  //outs() << "[BODY PRED NUM]: " << body_pred_app_vec.size() << "\n";
 		  for (ExprVector::iterator it = body_pred_app_vec.begin(); it != body_pred_app_vec.end(); ++it)
 		  {
-			  outs() << *(*it) << "\n";
 			  Expr body_pred_app = *it;
 			  Expr body_pred = bind::fname(body_pred_app);
 			  Expr body_cand = guessCandidate(body_pred);
-			  outs() << "BODY CAND: " << *body_cand << "\n";
+			  //outs() << "[BODY CAND]: " << *body_cand << "\n";
 			  //apply body_cand to actual arguments
 			  ExprMap body_bvar_map;
 			  ExprVector body_bvars;
 			  get_all_bvars(body_cand, std::back_inserter(body_bvars));
-			  outs() << "BODY BVAR NUMBER: " << body_bvars.size() << "\n";
 			  for(ExprVector::iterator it_bv = body_bvars.begin(); it_bv != body_bvars.end(); ++it_bv)
 			  {
-				  outs() << *(*it_bv) << "\n";
 				  unsigned bvar_id = bind::bvarId(*it_bv);
-				  outs() << "bvar id = " << bvar_id << "\n";
 				  Expr body_app_arg = bind::domainTy(body_pred_app, bvar_id);// To improve
 				  body_bvar_map.insert(std::pair<Expr,Expr>(*it_bv, body_app_arg));
 			  }
 			  Expr body_cand_app = replace(body_cand, body_bvar_map);
-			  outs() << "BODY CAND APP: " << *body_cand_app << "\n";
+			  //outs() << "[BODY CAND APP]: " << *body_cand_app << "\n";
 			  body_map.insert(std::pair<Expr, Expr>(body_pred_app, body_cand_app));
 		  }
 		  Expr new_body = replace(body, body_map);
 
-		  outs() << "NEW BODY: " << *new_body << "\n";
+		  //outs() << "[NEW BODY]: " << *new_body << "\n";
 
 		  //update cand and cand_app
 		  Expr cand_app = mk<AND>(neg_head_cand_app, new_body);
 
-		  outs() << "WHOLE CANDIDATE: " << *cand_app << "\n";
+		  outs() << "[CANDIDATE]: " << *cand_app << "\n";
 
 		  if(validateRule(cand_app) == SAT)
 		  {
@@ -217,7 +202,7 @@ namespace seahorn
 			  {
 				  //add rules in db.use(r.head()) to worklist
 				  Expr head_app = r.head();
-				  outs() << "USE SIZE: " << db.use(head_app).size() << "\n";
+				  //outs() << "[USE SET SIZE]: " << db.use(head_app).size() << "\n";
 				  for(auto r_use : db.use(head_app))
 				  {
 				  	  workList.push_back(*r_use);
@@ -226,7 +211,7 @@ namespace seahorn
 				  //weaken candidate for r.head()
 				  while (validateRule(cand_app) == SAT)
 				  {
-					  outs() << "ARITY: " << head_cand_app->arity() << "\n";
+					  //outs() << "[ARITY]: " << head_cand_app->arity() << "\n";
 					  if(head_cand_app->arity() <= 1 || !isOpX<AND>(head_cand_app))
 					  {
 						  break;
@@ -246,9 +231,9 @@ namespace seahorn
 						  head_cand_app = new_head_vec[0];
 					  }
 					  neg_head_cand_app = mk<NEG>(head_cand_app);
-					  outs() << "HEAD AFTER WEAKEN: " << *neg_head_cand_app << "\n";
+					  //outs() << "[HEAD AFTER WEAKEN]: " << *neg_head_cand_app << "\n";
 					  cand_app = mk<AND>(neg_head_cand_app, new_body);
-					  outs() << "WHOLE AFTER WEAKEN: " << *cand_app << "\n";
+					  outs() << "[CANDIDATE AFTER WEAKEN]: " << *cand_app << "\n";
 				  }
 			  }
 			  else
@@ -266,7 +251,8 @@ namespace seahorn
 
   bool Houdini::validateRule(Expr cand_app)
   {
+	  outs() << "[CANDIDATE]: " << *cand_app << "\n";
 	  // should call smt solver
-	  return SAT;
+	  return UNSAT;
   }
 }

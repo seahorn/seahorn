@@ -210,6 +210,7 @@ namespace
       m_externalNames.insert ("__seahorn_get_value_i8");
       m_externalNames.insert ("__seahorn_get_value_i16");
       m_externalNames.insert ("__seahorn_get_value_i32");
+      m_externalNames.insert ("__seahorn_get_value_i64");
       m_externalNames.insert ("__seahorn_get_value_ptr");
 
       // -- LLVM stuff

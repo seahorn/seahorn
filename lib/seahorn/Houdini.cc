@@ -204,48 +204,46 @@ namespace seahorn
 
 		  if(validateRule(cand_app) == SAT)
 		  {
-			  //weaken candidate for r.head(), how ?
-			  if (isOpX<AND>(head_cand_app) && head_cand_app->arity() > 1)
-			  {
-				  //add rules in db.use(r.head()) to worklist
-				  Expr head_app = r.head();
-				  //outs() << "[USE SET SIZE]: " << db.use(head_app).size() << "\n";
-				  for(auto r_use : db.use(head_app))
-				  {
-				  	  workList.push_back(*r_use);
-				  }
-
-				  //weaken candidate for r.head()
-				  while (validateRule(cand_app) == SAT)
-				  {
-					  //outs() << "[ARITY]: " << head_cand_app->arity() << "\n";
-					  if(head_cand_app->arity() <= 1 || !isOpX<AND>(head_cand_app))
-					  {
-						  break;
-					  }
-					  ExprVector new_head_vec;
-					  for(auto it = head_cand_app->args_begin (), end = head_cand_app->args_end (); it != end; ++it)
-					  {
-						  new_head_vec.push_back(*it);
-					  }
-					  new_head_vec.erase(new_head_vec.begin());
-					  if(new_head_vec.size() > 1)
-					  {
-						  head_cand_app = mknary<AND>(new_head_vec.begin(), new_head_vec.end());
-					  }
-					  else
-					  {
-						  head_cand_app = new_head_vec[0];
-					  }
-					  neg_head_cand_app = mk<NEG>(head_cand_app);
-					  //outs() << "[HEAD AFTER WEAKEN]: " << *neg_head_cand_app << "\n";
-					  cand_app = mk<AND>(neg_head_cand_app, new_body);
-					  outs() << "[CANDIDATE AFTER WEAKEN]: " << *cand_app << "\n";
-				  }
-			  }
-			  else
-			  {
-				  //what to do?
+			 //add rules in db.use(r.head()) to worklist
+			 Expr head_app = r.head();
+			 //outs() << "[USE SET SIZE]: " << db.use(head_app).size() << "\n";
+			 for(auto r_use : db.use(head_app))
+		     {
+				 workList.push_back(*r_use);
+			 }
+			 //weaken candidate for r.head()
+			 while (validateRule(cand_app) == SAT)
+			 {
+				 //outs() << "[ARITY]: " << head_cand_app->arity() << "\n";
+				 if(isOpX<TRUE>(head_cand_app))
+			     {
+					 break;
+				 }
+				 if(!isOpX<AND>(head_cand_app))
+				 {
+					 head_cand_app = mk<TRUE>(head_cand_app->efac());
+				 }
+				 else
+				 {
+					 ExprVector new_head_vec;
+					 for(auto it = head_cand_app->args_begin (), end = head_cand_app->args_end (); it != end; ++it)
+					 {
+					 	new_head_vec.push_back(*it);
+					 }
+					 new_head_vec.erase(new_head_vec.begin());
+					 if(new_head_vec.size() > 1)
+					 {
+					 	head_cand_app = mknary<AND>(new_head_vec.begin(), new_head_vec.end());
+					 }
+					 else
+					 {
+					 	head_cand_app = new_head_vec[0];
+					 }
+				 }
+				 neg_head_cand_app = mk<NEG>(head_cand_app);
+			     //outs() << "[HEAD AFTER WEAKEN]: " << *neg_head_cand_app << "\n";
+				 cand_app = mk<AND>(neg_head_cand_app, new_body);
+				 outs() << "[CANDIDATE AFTER WEAKEN]: " << *cand_app << "\n";
 			  }
 			  workList.erase(workList.begin());
 		  }
@@ -258,7 +256,7 @@ namespace seahorn
 
   bool Houdini::validateRule(Expr cand_app)
   {
-	  outs() << "[CANDIDATE]: " << *cand_app << "\n";
+	  //outs() << "[CANDIDATE]: " << *cand_app << "\n";
 	  // should call smt solver
 	  return SAT;
   }

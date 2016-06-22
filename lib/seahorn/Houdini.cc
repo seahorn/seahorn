@@ -119,10 +119,17 @@ namespace seahorn
 
   void Houdini::workListAlgo(HornClauseDB &db)
   {
-	  auto &workList = db.getRules();
+	  //auto &workList = db.getRules();
+	  HornClauseDB::RuleVector workList;
+	  for (HornClauseDB::RuleVector::iterator it = db.getRules().begin(); it != db.getRules().end(); ++it)
+	  {
+		  HornRule r = *it;
+		  workList.push_back(r);
+	  }
+
 	  while (!workList.empty())
 	  {
-		  //outs() << "[WORKLIST SIZE]: " << workList.size() << "\n";
+		  outs() << "[WORKLIST SIZE]: " << workList.size() << "\n";
 		  HornRule r = workList.front();
 
 		  outs() << "[RULE HEAD]: " << *(r.head()) << "\n";
@@ -253,6 +260,6 @@ namespace seahorn
   {
 	  outs() << "[CANDIDATE]: " << *cand_app << "\n";
 	  // should call smt solver
-	  return UNSAT;
+	  return SAT;
   }
 }

@@ -20,7 +20,7 @@ namespace seahorn
     void printInvars (Function &F);
     void printInvars (Module &M);
     void printCex ();
-    
+    void estimateSizeInvars (Module &M);    
   public:
     static char ID;
     

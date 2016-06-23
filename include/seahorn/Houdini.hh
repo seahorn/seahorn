@@ -4,8 +4,11 @@
 #include "llvm/Pass.h"
 #include "llvm/IR/Module.h"
 #include "seahorn/HornClauseDB.hh"
+#include "seahorn/HornifyModule.hh"
 
 #include "ufo/Expr.hpp"
+#include "ufo/Smt/Z3n.hpp"
+#include "ufo/Smt/EZ3.hh"
 
 namespace seahorn
 {
@@ -15,8 +18,6 @@ namespace seahorn
   {
   public:
     static char ID;
-    
-    //std::map<Expr, int> bvar_map;
 
     Houdini() : ModulePass(ID) {}
     virtual ~Houdini() {}
@@ -29,8 +30,8 @@ namespace seahorn
     void printHello ();
     Expr guessCandidate(Expr pred);
     int testGuessCandidate(Expr pred);
-    bool validateRule(Expr cand_app);
-    void workListAlgo(HornClauseDB &db);
+    bool validateRule(Expr cand_app, HornifyModule &hm);
+    void workListAlgo(HornClauseDB &db, HornifyModule &hm);
 
     template<typename OutputIterator>
     void get_all_bvars (Expr e, OutputIterator out);

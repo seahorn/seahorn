@@ -7,6 +7,8 @@
 #include "llvm/Support/CommandLine.h"
 
 #include "ufo/Expr.hpp"
+#include "ufo/Smt/Z3n.hpp"
+#include "ufo/Smt/EZ3.hh"
 #include <vector>
 
 using namespace llvm;
@@ -14,6 +16,7 @@ using namespace llvm;
 namespace seahorn
 {
   char Houdini::ID = 0;
+
   bool Houdini::runOnModule (Module &M)
   {
     HornifyModule &hm = getAnalysis<HornifyModule> ();
@@ -22,7 +25,10 @@ namespace seahorn
     auto &db = hm.getHornClauseDB ();
     db.buildIndexes ();
 
-    workListAlgo(db);
+    //init the solver
+    //ZSolver<EZ3> solver(hm.getZContext ());
+
+    workListAlgo(db, hm);
     //getUseRuleSet(db);
 
     return false;
@@ -117,7 +123,7 @@ namespace seahorn
   #define SAT true
   #define UNSAT false
 
-  void Houdini::workListAlgo(HornClauseDB &db)
+  void Houdini::workListAlgo(HornClauseDB &db, HornifyModule &hm)
   {
 	  //auto &workList = db.getRules();
 	  HornClauseDB::RuleVector workList;
@@ -202,7 +208,7 @@ namespace seahorn
 
 		  outs() << "[CANDIDATE]: " << *cand_app << "\n";
 
-		  if(validateRule(cand_app) == SAT)
+		  if(validateRule(cand_app, hm) == SAT)
 		  {
 			 //add rules in db.use(r.head()) to worklist
 			 Expr head_app = r.head();
@@ -212,7 +218,7 @@ namespace seahorn
 				 workList.push_back(*r_use);
 			 }
 			 //weaken candidate for r.head()
-			 while (validateRule(cand_app) == SAT)
+			 while (validateRule(cand_app, hm) == SAT)
 			 {
 				 //outs() << "[ARITY]: " << head_cand_app->arity() << "\n";
 				 if(isOpX<TRUE>(head_cand_app))
@@ -254,10 +260,22 @@ namespace seahorn
 	  }
   }
 
-  bool Houdini::validateRule(Expr cand_app)
+  bool Houdini::validateRule(Expr cand_app, HornifyModule &hm)
   {
-	  //outs() << "[CANDIDATE]: " << *cand_app << "\n";
 	  // should call smt solver
-	  return SAT;
+	  ZSolver<EZ3> solver(hm.getZContext ());
+	  solver.assertExpr(cand_app);
+	  solver.toSmtLib(outs());
+	  if(solver.solve())
+	  {
+		  outs() << "SAT\n";
+	  }
+	  else
+	  {
+		  outs() << "UNSAT\n";
+	  }
+	  return solver.solve();
+
+	  //return SAT;
   }
 }

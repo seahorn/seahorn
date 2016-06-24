@@ -1,11 +1,20 @@
-# SeaHorn #
-[![Build Status](https://travis-ci.org/seahorn/seahorn.svg?branch=master)](https://travis-ci.org/seahorn/seahorn)
+<p align=center><a href="https://seahorn.github.io"><img src="https://seahorn.github.io/images/seahorn-logo.png" alt="seahorn" width="300px"/></a></p>
 
-![18093415-vector-illustration-of-seahorse-cartoon--coloring-book.jpg](https://bitbucket.org/repo/gngGo9/images/174701276-18093415-vector-illustration-of-seahorse-cartoon--coloring-book.jpg)
+<table>
+  <tr>
+    <th>Windows</th><th>Ubuntu</th><th>OS X</th>
+  </tr>
+    <td>TBD</td>
+    <td><a href="https://travis-ci.org/seahorn/seahorn"><img src="https://travis-ci.org/seahorn/seahorn.svg?branch=master" title="Ubuntu 12.04 LTS 64bit, g++-4.8"/></a></td>
+    <td>TBD</td>
+    <td>TBD</td>
+  </tr>
+</table>
+
 
 #About#
 
-An automated analysis framework for LLVM-based languages.
+SeaHorn is an automated analysis framework for LLVM-based languages.
 
 #License#
 SeaHorn is distributed under a modified BSD license. See [license.txt](license.txt) for details.

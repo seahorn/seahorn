@@ -64,8 +64,6 @@ script:
   - /usr/bin/cmake --build . --target install
   - ls run/bin/
   - run/bin/sea -h
-  - run/bin/sea pf ../test/simple/01.c
-  - lit -h
   - /usr/bin/cmake --build . --target test-simple
   
 

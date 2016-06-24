@@ -1,4 +1,4 @@
-<p align=center><a href="https://seahorn.github.io"><img src="https://seahorn.github.io/images/seahorn-logo.png" alt="seahorn" width="300px"/></a></p>
+<p align=center><a href="https://seahorn.github.io"><img src="https://seahorn.github.io/images/seahorn-logo.png" alt="seahorn" width="200px" height="100px"/></a></p>
 
 <table>
   <tr>
@@ -6,7 +6,6 @@
   </tr>
     <td>TBD</td>
     <td><a href="https://travis-ci.org/seahorn/seahorn"><img src="https://travis-ci.org/seahorn/seahorn.svg?branch=master" title="Ubuntu 12.04 LTS 64bit, g++-4.8"/></a></td>
-    <td>TBD</td>
     <td>TBD</td>
   </tr>
 </table>

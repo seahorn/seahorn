@@ -44,7 +44,10 @@ if (GIT_FOUND)
     ${GIT_EXECUTABLE} clone ${CRAB_LLVM_REPO} ${CMAKE_SOURCE_DIR}/crab-llvm)
 
 
-  add_custom_target (extra DEPENDS seahorn-llvm-git dsa-seahorn-git)
+  #add_custom_target (extra DEPENDS seahorn-llvm-git dsa-seahorn-git)
+  add_custom_target (extra
+    ${CMAKE_COMMAND} -E touch ${CMAKE_CURRENT_LIST_FILE}
+      DEPENDS seahorn-llvm-git dsa-seahorn-git)
 
   # XXX: crab-llvm is not publicly available at the moment. Read the README for details.
   #add_custom_target (extra
@@ -337,6 +340,8 @@ if (IS_DIRECTORY ${CMAKE_SOURCE_DIR}/llvm-seahorn AND
   add_subdirectory(llvm-seahorn/tools)
   set (HAVE_LLVM_SEAHORN TRUE)
   set (LLVM_SEAHORN_LIBS SeaInstCombine)
+else()
+  message (WARNING "No LLVM-SEAHORN found in ${CMAKE_SOURCE_DIR}/llvm-seahorn")
 endif()
 
 if (IS_DIRECTORY ${CMAKE_SOURCE_DIR}/crab-llvm AND

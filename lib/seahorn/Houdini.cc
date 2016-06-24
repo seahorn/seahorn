@@ -25,9 +25,6 @@ namespace seahorn
     auto &db = hm.getHornClauseDB ();
     db.buildIndexes ();
 
-    //init the solver
-    //ZSolver<EZ3> solver(hm.getZContext ());
-
     workListAlgo(db, hm);
     //getUseRuleSet(db);
 
@@ -56,9 +53,9 @@ namespace seahorn
 	  while (!workList.empty())
 	  {
 		  HornRule r = workList.front();
-		  outs() << "rule head: " << *(r.head()) << "\n";
+		  outs() << "rule head: " << *(bind::fname(r.head())) << "\n";
 		  outs() << "rule body: " << *(r.body()) << "\n";
-		  outs() << "use size: " << db.use(r.head()).size() << "\n";
+		  outs() << "use size: " << db.use(bind::fname(r.head())).size() << "\n";
 		  workList.erase(workList.begin());
 	  }
   }
@@ -127,6 +124,7 @@ namespace seahorn
   {
 	  //auto &workList = db.getRules();
 	  HornClauseDB::RuleVector workList;
+
 	  for (HornClauseDB::RuleVector::iterator it = db.getRules().begin(); it != db.getRules().end(); ++it)
 	  {
 		  HornRule r = *it;
@@ -212,10 +210,23 @@ namespace seahorn
 		  {
 			 //add rules in db.use(r.head()) to worklist
 			 Expr head_app = r.head();
-			 //outs() << "[USE SET SIZE]: " << db.use(head_app).size() << "\n";
-			 for(auto r_use : db.use(head_app))
+			 Expr head_fdecl = bind::fname(head_app);
+			 outs() << "[USE SET SIZE]: " << db.use(head_fdecl).size() << "\n";
+			 for(auto r_use : db.use(head_fdecl))
 		     {
-				 workList.push_back(*r_use);
+				 bool isExist = false;
+				 for(HornClauseDB::RuleVector::iterator itr=workList.begin(); itr!=workList.end(); ++itr)
+				 {
+					 if(*itr == *r_use)
+					 {
+						 isExist = true;
+						 break;
+					 }
+				 }
+				 if(isExist == false)
+				 {
+					 workList.push_back(*r_use);
+				 }
 			 }
 			 //weaken candidate for r.head()
 			 while (validateRule(cand_app, hm) == SAT)

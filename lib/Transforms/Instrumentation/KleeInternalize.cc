@@ -215,6 +215,9 @@ namespace
       m_externalNames.insert ("__seahorn_get_value_i64");
       m_externalNames.insert ("__seahorn_get_value_ptr");
 
+      m_externalNames.insert ("__seahorn_mem_store");
+      m_externalNames.insert ("__seahorn_mem_load");
+
       // -- LLVM stuff
       m_externalNames.insert("llvm.used");
       m_externalNames.insert("llvm.compiler.used");
@@ -238,7 +241,7 @@ namespace
     {
       declareKleeFunctions(M);
       internalizeVariables(M);
- 
+
       for (Function &F : M)
       {
         if (shouldInternalize (F)) defineFunction (F);

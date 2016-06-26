@@ -291,7 +291,17 @@ namespace seahorn
 
 
 
-    //CutPointGraph &cpg = getAnalysis<CutPointGraph> (F);
+    // XXX: between we run LiveSymbols and hornify function (see
+    // below) the CFG can change because the construction of the
+    // cutpoint graph calls a pass that unifies return nodes that
+    // ultimately might change the CFG. 
+    // 
+    // This is a temporary hook to force computing the cutpoint graph
+    // (and unifying return nodes) before computing liveness so that
+    // we make sure the CFG does not change between LiveSymbols and
+    // hornify function.
+    /*CutPointGraph &cpg =*/ getAnalysis<CutPointGraph> (F);
+
     boost::scoped_ptr<HornifyFunction> hf (new SmallHornifyFunction
                                            (*this, InterProc));
     if (Step == hm_detail::LARGE_STEP)

@@ -25,44 +25,17 @@ namespace seahorn
     virtual bool runOnModule (Module &M);
     virtual void getAnalysisUsage (AnalysisUsage &AU) const;
     virtual const char* getPassName () const {return "Houdini";}
-
-    void printDB (const HornClauseDB &db);
-    void printHello ();
+  private:
     Expr guessCandidate(Expr pred);
-    int testGuessCandidate(Expr pred);
     bool validateRule(Expr cand_app, HornifyModule &hm);
     void workListAlgo(HornClauseDB &db, HornifyModule &hm);
 
     template<typename OutputIterator>
     void get_all_bvars (Expr e, OutputIterator out);
-    struct IsBVar : public std::unary_function<Expr, bool>
-    {
-      //Expr m_expr;
-      //IsBVar (Expr expr) : m_expr(expr) {}
-      IsBVar () {}
-      bool operator() (Expr e)
-      {return bind::isBVar (e);}
-    };
+
     template<typename OutputIterator>
     void get_all_pred_apps (Expr e, HornClauseDB &db, OutputIterator out);
-    struct IsPredApp : public std::unary_function<Expr, bool>
-    {
-      HornClauseDB &m_db;
-      IsPredApp (HornClauseDB &db) : m_db (db) {}
-
-      bool operator() (Expr e)
-      {return bind::isFapp (e) && m_db.hasRelation (bind::fname(e));}
-    };
-    void getUseRuleSet(HornClauseDB &db);
   };
-
-  template<typename OutputIterator>
-  void Houdini::get_all_bvars (Expr e, OutputIterator out)
-  {filter (e, Houdini::IsBVar(), out);}
-
-  template<typename OutputIterator>
-  void Houdini::get_all_pred_apps (Expr e, HornClauseDB &db, OutputIterator out)
-  {filter (e, Houdini::IsPredApp(db), out);}
 }
 
 #endif /* HOUDNINI__HH_ */

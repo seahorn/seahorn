@@ -17,6 +17,32 @@ namespace seahorn
 {
   char Houdini::ID = 0;
 
+  struct IsBVar : public std::unary_function<Expr, bool>
+  {
+     //Expr m_expr;
+     //IsBVar (Expr expr) : m_expr(expr) {}
+     IsBVar () {}
+     bool operator() (Expr e)
+     {return bind::isBVar (e);}
+  };
+
+  struct IsPredApp : public std::unary_function<Expr, bool>
+  {
+     HornClauseDB &m_db;
+     IsPredApp (HornClauseDB &db) : m_db (db) {}
+
+     bool operator() (Expr e)
+     {return bind::isFapp (e) && m_db.hasRelation (bind::fname(e));}
+  };
+
+  template<typename OutputIterator>
+  void Houdini::get_all_bvars (Expr e, OutputIterator out)
+  {filter (e, IsBVar(), out);}
+
+  template<typename OutputIterator>
+  void Houdini::get_all_pred_apps (Expr e, HornClauseDB &db, OutputIterator out)
+  {filter (e, IsPredApp(db), out);}
+
   bool Houdini::runOnModule (Module &M)
   {
     HornifyModule &hm = getAnalysis<HornifyModule> ();
@@ -35,29 +61,6 @@ namespace seahorn
   {
     AU.addRequired<HornifyModule> ();
     AU.setPreservesAll();
-  }
-
-  void Houdini::printDB (const HornClauseDB &db)
-  {
-    outs () << db << "\n";
-  }
-
-  void Houdini::printHello ()
-  {
-    outs () << "Hello there.\n";
-  }
-
-  void Houdini::getUseRuleSet(HornClauseDB &db)
-  {
-	  auto &workList = db.getRules();
-	  while (!workList.empty())
-	  {
-		  HornRule r = workList.front();
-		  outs() << "rule head: " << *(bind::fname(r.head())) << "\n";
-		  outs() << "rule body: " << *(r.body()) << "\n";
-		  outs() << "use size: " << db.use(bind::fname(r.head())).size() << "\n";
-		  workList.erase(workList.begin());
-	  }
   }
 
   Expr Houdini::guessCandidate(Expr fdecl)

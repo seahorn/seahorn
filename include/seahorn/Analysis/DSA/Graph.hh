@@ -33,17 +33,22 @@ namespace seahorn
       
       SetFactory &getSetFactory () { return m_setFactory; }
       Set emptySet () { return m_setFactory.getEmptySet (); }
-      Set setAdd (Set old, const llvm::Type *v) { return m_setFactory.add (old, v); }
-      Set setDel (Set old, const llvm::Type *v) { return m_setFactory.remove (old, v); }
+      /// return a new set that is the union of old and a set containing v
+      Set mkSet (Set old, const llvm::Type *v) { return m_setFactory.add (old, v); }
 
       const llvm::DataLayout &getDataLayout ();
     public:
       Node &mkNode ();
     };
     
+    /** 
+        A memory cell (or a field). An offset into a memory object.
+     */
     class Cell
     {
+      /// memory object
       mutable Node *m_node;
+      /// offset
       mutable unsigned m_offset;
 
     public:
@@ -67,12 +72,19 @@ namespace seahorn
       inline bool hasLink (unsigned offset = 0) const;
       inline const Cell &getLink (unsigned offset = 0) const;
       inline void setLink (unsigned offset, const Cell &c);
+      inline void addLink (unsigned offset, Cell &c);
+      
+      /// unify with a given cell. At the end, both cells point to the
+      /// same offset of the same node. Might cause collapse of the
+      /// nodes represented by the cells.
+      inline void unify (Cell &c);
       
       void swap (Cell &o)
       { std::swap (m_node, o.m_node); std::swap (m_offset, o.m_offset); }
     };
     
     
+    /// A node of a DSA graph representing a memory object
     class Node : private boost::noncopyable
     {
       friend class Graph;
@@ -121,33 +133,69 @@ namespace seahorn
         void reset () { memset (this, 0, sizeof (*this)); }
       };
       
+      /// parent DSA graph
       Graph *m_graph;
+      /// node marks
       struct NodeType m_nodeType;
+      /// TODO: UNUSED
       mutable const llvm::Value *m_unique_scalar;
+      /// When the node is forwarding, the memory cell at which the
+      /// node begins in some other memory object
       Cell m_forward;
 
       typedef Graph::Set Set;
       typedef boost::container::flat_map<unsigned,  Set> types_type;
       typedef boost::container::flat_map<unsigned, Cell> links_type;
+      /// known type of every offset/field
       types_type m_types;
+      /// destination of every offset/field
       links_type m_links;
       
+      /// known size
       unsigned m_size;
 
       Node (Graph &g) : m_graph (&g), m_unique_scalar (nullptr), m_size (0) {}
+      
+      /// adjust offset based on type of the node Collapsed nodes
+      /// always have offset 0; for array nodes the offset is modulo
+      /// array size; otherwise offset is not adjusted
+      unsigned adjustOffset (unsigned offset) const
+      {
+        if (isCollapsed ()) return 0;
+        if (isArray ()) return offset % m_size;
+        return offset;
+      }
+      
+      /// Unify a given node with a specified offset of the current node
+      /// post-condition: the given node forwards to the current node.
+      /// might cause a collapse
+      
+      // AG: there is some circular dependency between unifyAt() and
+      // pointTo(). Maybe only pointTo() should remain.
+      inline void unifyAt (Node &n, unsigned offset);
+      /// Make the node point into another object. This transfers
+      /// links and types as needed. Might cause a collapse. 
+      inline void pointTo (Node &node, unsigned offset);
     public:
+      /// unify with a given node
+      void unify (Node &n) { unifyAt (n, 0); }
       Node &setAlloca (bool v = true) { m_nodeType.alloca = v; return *this;}
-      bool isAlloca () { return m_nodeType.alloca; }
+      bool isAlloca () const { return m_nodeType.alloca; }
 
       Node &setArray (bool v = true) { m_nodeType.array = v; return *this; }
-      bool isArray () { return m_nodeType.array; }
+      bool isArray () const { return m_nodeType.array; }
 
       Node &setCollapsed (bool v = true) { m_nodeType.collapsed = v; return *this; }
-      bool isCollapsed () { return m_nodeType.collapsed; }
+      bool isCollapsed () const { return m_nodeType.collapsed; }
       
-      bool isUnique () { return m_unique_scalar; }
+      bool isUnique () const { return m_unique_scalar; }
       
       inline bool isForwarding () const;
+      
+      
+      /// Return a node the current node represents. If the node is
+      /// forwarding, returns the non-forwarding node this node points
+      /// to. Might be expensive.
       inline Node* getNode ();
       inline const Node* getNode () const;
       inline unsigned getOffset () const;
@@ -162,16 +210,22 @@ namespace seahorn
       void growSize (unsigned offset, const llvm::Type *t);
 
       bool hasLink (unsigned offset) const
-      { return m_links.count (offset) > 0; }
+      { return m_links.count (adjustOffset (offset)) > 0; }
       Cell &getLink (unsigned offset)
-      { assert (offset < size ()); return m_links[offset]; }
-      const Cell &getLink (unsigned offset) const { return m_links.at (offset); }
+      {return m_links [adjustOffset (offset)];}
+      const Cell &getLink (unsigned offset) const
+      {return m_links.at (adjustOffset (offset));}
       void setLink (unsigned offset, const Cell &c) {getLink (offset) = c;}
+      inline void addLink (unsigned offset, Cell &c);
 
       bool hasType (unsigned offset) const
-      { return m_types.count (offset) > 0 && !m_types.at (offset).isEmpty (); }
+      {
+        if (isCollapsed ()) return false;
+        return m_types.count (adjustOffset (offset)) > 0
+          && !m_types.at (adjustOffset (offset)).isEmpty ();
+      }
       const Set getType (unsigned offset) const
-      { return m_types.at (offset); }
+      { return m_types.at (adjustOffset (offset));}
       bool isVoid () { return m_types.empty (); }
       bool isEmtpyType ()
       {
@@ -179,24 +233,173 @@ namespace seahorn
                             [] (const types_type::value_type &v)
                             { return v.second.isEmpty (); } );
       }
+      /// Adds a type of a field at a given offset
       void addType (unsigned offset, const llvm::Type *t)
       {
+        if (isCollapsed ()) return;
+        offset = adjustOffset (offset);
         assert (offset < size ());
         growSize (offset, t);
+        if (isCollapsed ()) return;
         Set types = m_graph->emptySet ();
         if (m_types.count (offset) > 0) types = m_types.at (offset);
-        types = m_graph->setAdd (types, t);
+        types = m_graph->mkSet (types, t);
         m_types.insert (std::make_pair (offset, types));
       }
+      /// Adds a set of types for a field at a given offset
       void addType (unsigned offset, Set types)
-      {for (const llvm::Type *t : types) addType (offset, t);}
-      void mergeTypes (unsigned offset, const Node &n)
-      {for (auto &kv : n.m_types) addType (kv.first, kv.second);}
+      {
+        if (isCollapsed ()) return;
+        for (const llvm::Type *t : types) addType (offset, t);
+      }
+      /// joins all the types of a given node starting at a given
+      /// offset of the current node
+      void joinTypes (unsigned offset, const Node &n)
+      {
+        if (isCollapsed () || n.isCollapsed ()) return;
+        for (auto &kv : n.m_types) addType (kv.first, kv.second);
+      }
+
+      /// collapse the current node. Looses all field sensitivity
+      void collapse ()
+      {
+        if (isCollapsed ()) return;
+        
+        // if the node is already of smallest size, just mark it
+        // collapsed to indicate that it cannot grow or change
+        if (size () <= 1)
+        {
+          m_size = 1;
+          setCollapsed (true);
+          return;
+        }
+        else
+        {
+          // create a new node to be the collapsed version of the current one
+          // move everything to the new node. This breaks cycles in the links.
+          Node &n = m_graph->mkNode ();
+          n.m_nodeType.join (m_nodeType);
+          n.setCollapsed (true);
+          n.m_size = 1;
+          pointTo (n, 0);
+        }
+      }
     };
 
     bool Node::isForwarding () const
     { return !m_forward.isNull (); }
 
+    void Node::pointTo (Node &node, unsigned offset)
+    {
+      assert (&node != this);
+      assert (!isForwarding ());
+      
+      unsigned sz = size ();
+      
+      // -- create forwarding link
+      m_forward.pointTo (node, offset);
+      // -- get updated offset based on how forwarding was resolved
+      unsigned noffset = m_forward.getOffset ();
+      // -- at this point, current node is being embedded at noffset
+      // -- into node
+      
+      // -- grow the size if necessary
+      if (sz + noffset > node.size ()) node.growSize (sz + noffset);
+      
+      // -- merge the types
+      node.joinTypes (noffset, *this);
+      
+      // -- merge node annotations
+      node.m_nodeType.join (m_nodeType);
+      
+
+      // -- move all the links
+      for (auto &kv : m_links)
+      {
+        if (kv.second.isNull ()) continue;
+        m_forward.addLink (kv.first, kv.second);
+        
+      }
+      
+      // reset current node
+      m_size = 0;
+      m_links.clear ();
+      m_types.clear ();
+      m_unique_scalar = nullptr;
+      m_nodeType.reset ();
+    }
+      
+    void Node::addLink (unsigned offset, Cell &c)
+    {
+      if (!hasLink (offset))
+        setLink (offset, c);
+      else
+      {
+        Cell &link = getLink (offset);
+        link.unify (c);
+      }
+    }
+      
+    /// Unify a given node into the current node at a specified offset.
+    /// Might cause collapse. 
+    void Node::unifyAt (Node &n, unsigned o)
+    {
+      assert (!isForwarding ());
+      assert (!n.isForwarding ());
+      
+      // collapse before merging with a collapsed node
+      if (n.isCollapsed ()) collapse ();
+      
+      if (// aggressively collapse arrays. This can be refined
+          (isArray () != n.isArray ()) ||
+          // aggressively collapse arrays of different size
+          ( isArray () && n.isArray () && size () != n.size ()))
+      {
+        collapse ();
+        n.collapse ();
+      }
+
+      
+      unsigned offset = adjustOffset (offset);
+      if (&n == this)
+      {
+        // -- merging the node into itself at a different offset
+        if (offset > 0) collapse();
+        return;
+      }
+
+      
+      // -- move everything from n to this node
+      n.pointTo (*this, offset);
+    }
+    
+    void Cell::unify (Cell &c)
+    {
+      if (isNull ())
+      {
+        assert (!c.isNull ());
+        pointTo (*c.getNode (), c.getOffset ());
+      }
+      else if (c.isNull ())
+        c.unify (*this);
+      else
+      {
+        Node &n1 = *getNode ();
+        unsigned o1 = getOffset ();
+        
+        Node &n2 = *c.getNode ();
+        unsigned o2 = c.getOffset ();
+
+        if (o1 < o2)
+          n2.unifyAt (n1, o2 - o1);
+        else if (o2 < o1)
+          n1.unifyAt (n2, o1 - o2);
+        else /* o1 == o2 */
+          // TODO: other ways to break ties
+          n1.unify (n2);
+      }
+    }
+      
     Node* Cell::getNode () const
     {
       if (isNull ()) return nullptr;
@@ -222,6 +425,9 @@ namespace seahorn
 
     void Cell::setLink (unsigned offset, const Cell &c)
     { getNode ()->setLink(m_offset + offset, c); }
+
+    void Cell::addLink (unsigned offset, Cell &c)
+    { getNode ()->addLink (m_offset + offset, c); }
     
     void Cell::pointTo (Node &n, unsigned offset)
     {
@@ -256,13 +462,14 @@ namespace seahorn
       return *m_nodes.back ();
     }
     
+    // TODO: Move to .cc file and uncomment.
     // void Node::growSize (Type *t, unsigned offset)
     // {
     //   if (!t) return;
     //   if (t->isVoidTy ()) return;
     //   if (isCollapsed ()) return;
 
-    //   if (isArray () && size () > 0) { offset %= size (); }
+      // if (isArray ()) COLLAPSE_IF_TRYING_TO_GROW_SIZE_TWICE
     //   auto tSz = m_graph.getDataLayout ().getTypeAllocSize (t);
     //   growSize (tSz + offset);
     // }

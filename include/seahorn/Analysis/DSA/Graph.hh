@@ -131,6 +131,19 @@ namespace seahorn
         }
         void reset () { memset (this, 0, sizeof (*this)); }
       };
+
+      class Offset;
+      friend class Offset;
+      /// helper class to ensure that offsets are properly adjusted
+      class Offset
+      {
+        const Node &m_node;
+        const unsigned m_offset;
+      public:
+        Offset (const Node &n, unsigned offset) : m_node(n), m_offset(offset) {}
+        operator unsigned() const; 
+        const Node &node () const { return m_node; }
+      };
       
       /// parent DSA graph
       Graph *m_graph;
@@ -155,11 +168,6 @@ namespace seahorn
 
       Node (Graph &g) : m_graph (&g), m_unique_scalar (nullptr), m_size (0) {}
       
-      /// adjust offset based on type of the node Collapsed nodes
-      /// always have offset 0; for array nodes the offset is modulo
-      /// array size; otherwise offset is not adjusted
-      unsigned adjustOffset (unsigned offset) const;
-      
       /// Unify a given node with a specified offset of the current node
       /// post-condition: the given node points to the current node.
       /// might cause a collapse
@@ -169,16 +177,23 @@ namespace seahorn
       /// node to the given one at a given offset and make the current
       /// one point to the result. Might cause collapse.  Most clients
       /// should use unifyAt() that has less stringent preconditions.
-      void pointTo (Node &node, unsigned offset);
+      void pointTo (Node &node, const Offset &offset);
       
-      Cell &getLink (unsigned offset) {return m_links [adjustOffset (offset)];}
+      Cell &getLink (const Offset &offset)
+      {
+        assert (this == &offset.node ());
+        return m_links [offset];
+      }
       
       /// Adds a set of types for a field at a given offset
-      void addType (unsigned offset, Set types);
+      void addType (const Offset &offset, Set types);
       
       /// joins all the types of a given node starting at a given
       /// offset of the current node
       void joinTypes (unsigned offset, const Node &n);
+      
+      /// increase size to accommodate a field of type t at the given offset
+      void growSize (const Offset &offset, const llvm::Type *t);
     public:
       /// unify with a given node
       void unify (Node &n) { unifyAt (n, 0); }
@@ -203,26 +218,27 @@ namespace seahorn
       inline const Node* getNode () const;
       unsigned getOffset () const;
 
-      const types_type &types () { return m_types; }
-      const links_type &links () { return m_links; }
+      const types_type &types () const { return m_types; }
+      const links_type &links () const { return m_links; }
 
-      unsigned size () { return m_size; }
+      unsigned size () const { return m_size; }
       void growSize (unsigned v) {if (v > m_size) m_size = v;}
       
-      /// increase size to accommodate a field of type t at the given offset
-      void growSize (unsigned offset, const llvm::Type *t);
 
       bool hasLink (unsigned offset) const
-      { return m_links.count (adjustOffset (offset)) > 0; }
+      { return m_links.count (Offset (*this, offset)) > 0; }
       const Cell &getLink (unsigned offset) const
-      {return m_links.at (adjustOffset (offset));}
-      void setLink (unsigned offset, const Cell &c) {getLink (offset) = c;}
+      {return m_links.at (Offset (*this, offset));}
+      void setLink (unsigned offset, const Cell &c) {getLink (Offset (*this, offset)) = c;}
       void addLink (unsigned offset, Cell &c);
 
       bool hasType (unsigned offset) const;
       
-      const Set getType (unsigned offset) const
-      { return m_types.at (adjustOffset (offset));}
+      const Set getType (unsigned o) const
+      {
+        Offset offset (*this, o);
+        return m_types.at (offset);
+      }
       bool isVoid () const { return m_types.empty (); }
       bool isEmtpyType () const;
       

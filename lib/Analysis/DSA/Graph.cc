@@ -11,14 +11,14 @@ using namespace llvm;
 /// adjust offset based on type of the node Collapsed nodes
 /// always have offset 0; for array nodes the offset is modulo
 /// array size; otherwise offset is not adjusted
-unsigned dsa::Node::adjustOffset (unsigned offset) const
+dsa::Node::Offset::operator unsigned() const 
 {
-  if (isCollapsed ()) return 0;
-  if (isArray ()) return offset % m_size;
-  return offset;
+  if (m_node.isCollapsed ()) return 0;
+  if (m_node.isArray ()) return m_offset % m_node.size ();
+  return m_offset;
 }
 
-void dsa::Node::growSize (unsigned offset, const llvm::Type *t)
+void dsa::Node::growSize (const Offset &offset, const llvm::Type *t)
 {
   if (!t) return;
   if (t->isVoidTy ()) return;
@@ -38,27 +38,27 @@ bool dsa::Node::isEmtpyType () const
                       { return v.second.isEmpty (); } );
 }
 
-bool dsa::Node::hasType (unsigned offset) const
+bool dsa::Node::hasType (unsigned o) const
 {
   if (isCollapsed ()) return false;
-  return m_types.count (adjustOffset (offset)) > 0
-    && !m_types.at (adjustOffset (offset)).isEmpty ();
+  Offset offset(*this, o);
+  return m_types.count (offset) > 0 && !m_types.at (offset).isEmpty ();
 }
 
-void dsa::Node::addType (unsigned offset, const llvm::Type *t)
+void dsa::Node::addType (unsigned o, const llvm::Type *t)
 {
   if (isCollapsed ()) return;
-  offset = adjustOffset (offset);
+  Offset offset (*this, o);
   assert (offset < size ());
   growSize (offset, t);
   if (isCollapsed ()) return;
   Set types = m_graph->emptySet ();
   if (m_types.count (offset) > 0) types = m_types.at (offset);
   types = m_graph->mkSet (types, t);
-  m_types.insert (std::make_pair (offset, types));
+  m_types.insert (std::make_pair ((unsigned)offset, types));
 }
 
-void dsa::Node::addType (unsigned offset, Set types)
+void dsa::Node::addType (const Offset &offset, Set types)
 {
   if (isCollapsed ()) return;
   for (const llvm::Type *t : types) addType (offset, t);
@@ -67,7 +67,11 @@ void dsa::Node::addType (unsigned offset, Set types)
 void dsa::Node::joinTypes (unsigned offset, const Node &n)
 {
   if (isCollapsed () || n.isCollapsed ()) return;
-  for (auto &kv : n.m_types) addType (kv.first, kv.second);
+  for (auto &kv : n.m_types)
+  {
+    const Offset noff (*this, kv.first + offset);
+    addType (noff, kv.second);
+  }
 }
 
 /// collapse the current node. Looses all field sensitivity
@@ -91,12 +95,13 @@ void dsa::Node::collapse ()
     n.m_nodeType.join (m_nodeType);
     n.setCollapsed (true);
     n.m_size = 1;
-    pointTo (n, 0);
+    pointTo (n, Offset(n, 0));
   }
 }
 
-void dsa::Node::pointTo (Node &node, unsigned offset)
+void dsa::Node::pointTo (Node &node, const Offset &offset)
 {
+  assert (&node == &offset.node ());
   assert (&node != this);
   assert (!isForwarding ());
       
@@ -111,7 +116,7 @@ void dsa::Node::pointTo (Node &node, unsigned offset)
       
   // -- grow the size if necessary
   if (sz + noffset > node.size ()) node.growSize (sz + noffset);
-      
+  
   // -- merge the types
   node.joinTypes (noffset, *this);
       
@@ -135,8 +140,9 @@ void dsa::Node::pointTo (Node &node, unsigned offset)
   m_nodeType.reset ();
 }
 
-void dsa::Node::addLink (unsigned offset, Cell &c)
+void dsa::Node::addLink (unsigned o, Cell &c)
 {
+  Offset offset (*this, o);
   if (!hasLink (offset))
     setLink (offset, c);
   else
@@ -146,8 +152,8 @@ void dsa::Node::addLink (unsigned offset, Cell &c)
   }
 }
       
-    /// Unify a given node into the current node at a specified offset.
-    /// Might cause collapse. 
+/// Unify a given node into the current node at a specified offset.
+/// Might cause collapse. 
 void dsa::Node::unifyAt (Node &n, unsigned o)
 {
   assert (!isForwarding ());
@@ -166,7 +172,7 @@ void dsa::Node::unifyAt (Node &n, unsigned o)
   }
 
       
-  unsigned offset = adjustOffset (offset);
+  Offset offset (*this, o);
   if (&n == this)
   {
     // -- merging the node into itself at a different offset

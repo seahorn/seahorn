@@ -4,3 +4,5 @@ add_llvm_library (SeaAnalysis
   CutPointGraph.cc
   TopologicalOrder.cc
   CanReadUndef.cc)
+
+add_subdirectory(DSA)

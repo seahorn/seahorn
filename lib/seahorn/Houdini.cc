@@ -155,11 +155,11 @@ namespace seahorn
 
 	  while(!workList.empty())
 	  {
-		  errs() << "WORKLIST SIZE: " << workList.size() << "\n";
+		  LOG("houdini", errs() << "WORKLIST SIZE: " << workList.size() << "\n";);
 		  HornRule r = workList.front();
 		  workList.pop_front();
-		  errs() << "RULE HEAD: " << *(r.head()) << "\n";
-		  errs() << "RULE BODY: " << *(r.body()) << "\n";
+		  LOG("houdini", errs() << "RULE HEAD: " << *(r.head()) << "\n";);
+		  LOG("houdini", errs() << "RULE BODY: " << *(r.body()) << "\n";);
 		  while (validateRule(r, db, hm) == SAT)
 		  {
 			  std::list<HornRule> &ref_workList = workList;
@@ -191,19 +191,19 @@ namespace seahorn
 
 	  Expr whole_cand = mk<AND>(neg_ruleHead_cand_app, body_cand_app);
 
-	  errs() << "WHOLE CANDIDATE: " << *whole_cand << "\n";
+	  LOG("houdini", errs() << "WHOLE CANDIDATE: " << *whole_cand << "\n";);
 
 	  ZSolver<EZ3> solver(hm.getZContext ());
 	  solver.assertExpr(whole_cand);
-	  solver.toSmtLib(errs());
+	  //solver.toSmtLib(errs());
 	  bool isSat = solver.solve();
 	  if(isSat)
 	  {
-		  errs() << "SAT\n";
+		  LOG("houdini", errs() << "SAT\n";);
 	  }
 	  else
 	  {
-	  	  errs() << "UNSAT\n";
+	  	  LOG("houdini", errs() << "UNSAT\n";);
 	  }
 	  return isSat;
   }
@@ -275,7 +275,7 @@ namespace seahorn
 	  Expr ruleHead_rel = bind::fname(ruleHead_app);
 	  for(auto r_use : db.use(ruleHead_rel))
 	  {
-		  errs() << "USED: " << *((*r_use).head()) << " <== " << *((*r_use).body()) << "\n";
+		  LOG("houdini", errs() << "USED: " << *((*r_use).head()) << " <== " << *((*r_use).body()) << "\n";);
 		  bool isExist = false;
 		  for(std::list<HornRule>::iterator itr=workList.begin(); itr!=workList.end(); ++itr)
 		  {

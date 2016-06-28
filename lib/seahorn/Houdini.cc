@@ -88,8 +88,6 @@ namespace seahorn
 			bvar_count ++;
 		}
 	}
-	//outs() << "arg_count = " << i << "\n";
-	//outs() << "bvar count = " << bvar_count << "\n";
 
 	//What if there's no bvar?
 	if(bvar_count == 0)
@@ -121,7 +119,6 @@ namespace seahorn
 		}
 		cand = mknary<AND>(bins.begin(), bins.end());
 	}
-	//outs() << *cand << "\n";
 
 	return cand;
   }
@@ -159,8 +156,8 @@ namespace seahorn
 	  while(!workList.empty())
 	  {
 		  HornRule r = workList.front();
-		  outs() << "RULE HEAD: " << *(r.head()) << "\n";
-		  outs() << "RULE BODY: " << *(r.body()) << "\n";
+		  errs() << "RULE HEAD: " << *(r.head()) << "\n";
+		  errs() << "RULE BODY: " << *(r.body()) << "\n";
 		  while (validateRule(r, db, hm) == SAT)
 		  {
 			  workList = addUsedRulesBackToWorkList(db, workList, r.head());
@@ -192,20 +189,21 @@ namespace seahorn
 
 	  Expr whole_cand = mk<AND>(neg_ruleHead_cand_app, body_cand_app);
 
-	  outs() << "WHOLE CANDIDATE: " << *whole_cand << "\n";
+	  errs() << "WHOLE CANDIDATE: " << *whole_cand << "\n";
 
 	  ZSolver<EZ3> solver(hm.getZContext ());
 	  solver.assertExpr(whole_cand);
-	  solver.toSmtLib(outs());
-	  if(solver.solve())
+	  solver.toSmtLib(errs());
+	  bool isSat = solver.solve();
+	  if(isSat)
 	  {
-		  outs() << "SAT\n";
+		  errs() << "SAT\n";
 	  }
 	  else
 	  {
-	  	  outs() << "UNSAT\n";
+	  	  errs() << "UNSAT\n";
 	  }
-	  return solver.solve();
+	  return isSat;
   }
 
   /*

@@ -34,7 +34,7 @@ namespace seahorn
     void runHoudini(HornClauseDB &db, HornifyModule &hm);
     Expr applyActualArgsToCand(Expr fapp);
     void weakenRuleHeadCand(HornRule r);
-    HornClauseDB::RuleVector addUsedRulesBackToWorkList(HornClauseDB &db, HornClauseDB::RuleVector workList, Expr ruleHead_app);
+    void addUsedRulesBackToWorkList(HornClauseDB &db, std::list<HornRule> &workList, Expr ruleHead_app);
 
     template<typename OutputIterator>
     void get_all_bvars (Expr e, OutputIterator out);

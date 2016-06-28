@@ -150,20 +150,22 @@ namespace seahorn
   {
 	  guessCandidate(db);
 
-	  HornClauseDB::RuleVector workList;
+	  std::list<HornRule> workList;
 	  workList.insert(workList.end(), db.getRules().begin(), db.getRules().end());
 
 	  while(!workList.empty())
 	  {
+		  errs() << "WORKLIST SIZE: " << workList.size() << "\n";
 		  HornRule r = workList.front();
+		  workList.pop_front();
 		  errs() << "RULE HEAD: " << *(r.head()) << "\n";
 		  errs() << "RULE BODY: " << *(r.body()) << "\n";
 		  while (validateRule(r, db, hm) == SAT)
 		  {
-			  workList = addUsedRulesBackToWorkList(db, workList, r.head());
+			  std::list<HornRule> &ref_workList = workList;
+			  addUsedRulesBackToWorkList(db, ref_workList, r.head());
 			  weakenRuleHeadCand(r);
 		  }
-		  workList.erase(workList.begin());
 	  }
   }
 
@@ -268,13 +270,14 @@ namespace seahorn
   /*
    * Given a rule head, extract all rules using it in body, then add all such rules to the end of workList
    */
-  HornClauseDB::RuleVector Houdini::addUsedRulesBackToWorkList(HornClauseDB &db, HornClauseDB::RuleVector workList, Expr ruleHead_app)
+  void Houdini::addUsedRulesBackToWorkList(HornClauseDB &db, std::list<HornRule> &workList, Expr ruleHead_app)
   {
 	  Expr ruleHead_rel = bind::fname(ruleHead_app);
 	  for(auto r_use : db.use(ruleHead_rel))
 	  {
+		  errs() << "USED: " << *((*r_use).head()) << " <== " << *((*r_use).body()) << "\n";
 		  bool isExist = false;
-		  for(HornClauseDB::RuleVector::iterator itr=workList.begin(); itr!=workList.end(); ++itr)
+		  for(std::list<HornRule>::iterator itr=workList.begin(); itr!=workList.end(); ++itr)
 		  {
 			  if(*itr == *r_use)
 			  {
@@ -287,6 +290,5 @@ namespace seahorn
 			  workList.push_back(*r_use);
 		  }
 	  }
-	  return workList;
   }
 }

@@ -33,10 +33,16 @@ namespace seahorn
      {return bind::isFapp (e) && m_db.hasRelation (bind::fname(e));}
   };
 
+  /*
+   * Extract all bvars in an expression
+   */
   template<typename OutputIterator>
   void Houdini::get_all_bvars (Expr e, OutputIterator out)
   {filter (e, IsBVar(), out);}
 
+  /*
+   * Extract all predicates in an expression
+   */
   template<typename OutputIterator>
   void Houdini::get_all_pred_apps (Expr e, HornClauseDB &db, OutputIterator out)
   {filter (e, IsPredApp(db), out);}
@@ -60,6 +66,9 @@ namespace seahorn
     AU.setPreservesAll();
   }
 
+  /*
+   * Use template to convert a predicate to candidate
+   */
   Expr Houdini::relToCand(Expr fdecl)
   {
 	ExprVector bvars;
@@ -120,8 +129,11 @@ namespace seahorn
   #define SAT true
   #define UNSAT false
 
-  std::map<Expr, Expr> Houdini::currentCandidates;
+  std::map<Expr, Expr> Houdini::currentCandidates;	//a map from predicates to candidates
 
+  /*
+   * Build the map from predicates to candidates
+   */
   void Houdini::guessCandidate(HornClauseDB &db)
   {
 	  for(Expr rel : db.getRelations())
@@ -134,6 +146,9 @@ namespace seahorn
 	  }
   }
 
+  /*
+   * Main loop of Houdini algorithm
+   */
   void Houdini::runHoudini(HornClauseDB &db, HornifyModule &hm)
   {
 	  guessCandidate(db);
@@ -155,6 +170,9 @@ namespace seahorn
 	  }
   }
 
+  /*
+   * Given a rule, check if it's validate
+   */
   bool Houdini::validateRule(HornRule r, HornClauseDB &db, HornifyModule &hm)
   {
 	  Expr ruleHead_cand_app = applyActualArgsToCand(r.head());
@@ -190,6 +208,9 @@ namespace seahorn
 	  return solver.solve();
   }
 
+  /*
+   * Given a function application, apply its actual arguments to its candidate
+   */
   Expr Houdini::applyActualArgsToCand(Expr fapp)
   {
 	  Expr fdecl = bind::fname(fapp);
@@ -209,6 +230,9 @@ namespace seahorn
 	  return cand_app;
   }
 
+  /*
+   * Given a rule, weaken its head's candidate
+   */
   void Houdini::weakenRuleHeadCand(HornRule r)
   {
 	  Expr ruleHead_app = r.head();
@@ -243,6 +267,9 @@ namespace seahorn
 	  }
   }
 
+  /*
+   * Given a rule head, extract all rules using it in body, then add all such rules to the end of workList
+   */
   HornClauseDB::RuleVector Houdini::addUsedRulesBackToWorkList(HornClauseDB &db, HornClauseDB::RuleVector workList, Expr ruleHead_app)
   {
 	  Expr ruleHead_rel = bind::fname(ruleHead_app);

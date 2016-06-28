@@ -26,9 +26,15 @@ namespace seahorn
     virtual void getAnalysisUsage (AnalysisUsage &AU) const;
     virtual const char* getPassName () const {return "Houdini";}
   private:
-    Expr guessCandidate(Expr pred);
-    bool validateRule(Expr cand_app, HornifyModule &hm);
-    void workListAlgo(HornClauseDB &db, HornifyModule &hm);
+    static std::map<Expr, Expr> currentCandidates;
+
+    Expr relToCand(Expr pred);
+    void guessCandidate(HornClauseDB &db);
+    bool validateRule(HornRule r, HornClauseDB &db, HornifyModule &hm);
+    void runHoudini(HornClauseDB &db, HornifyModule &hm);
+    Expr applyActualArgsToCand(Expr fapp);
+    void weakenRuleHeadCand(HornRule r);
+    HornClauseDB::RuleVector addUsedRulesBackToWorkList(HornClauseDB &db, HornClauseDB::RuleVector workList, Expr ruleHead_app);
 
     template<typename OutputIterator>
     void get_all_bvars (Expr e, OutputIterator out);

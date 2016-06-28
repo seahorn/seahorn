@@ -19,8 +19,6 @@ namespace seahorn
 
   struct IsBVar : public std::unary_function<Expr, bool>
   {
-     //Expr m_expr;
-     //IsBVar (Expr expr) : m_expr(expr) {}
      IsBVar () {}
      bool operator() (Expr e)
      {return bind::isBVar (e);}
@@ -51,8 +49,7 @@ namespace seahorn
     auto &db = hm.getHornClauseDB ();
     db.buildIndexes ();
 
-    workListAlgo(db, hm);
-    //getUseRuleSet(db);
+    runHoudini(db, hm);
 
     return false;
   }
@@ -63,7 +60,7 @@ namespace seahorn
     AU.setPreservesAll();
   }
 
-  Expr Houdini::guessCandidate(Expr fdecl)
+  Expr Houdini::relToCand(Expr fdecl)
   {
 	ExprVector bvars;
 	ExprVector bins;   // a vector of LT expressions
@@ -123,162 +120,64 @@ namespace seahorn
   #define SAT true
   #define UNSAT false
 
-  void Houdini::workListAlgo(HornClauseDB &db, HornifyModule &hm)
+  std::map<Expr, Expr> Houdini::currentCandidates;
+
+  void Houdini::guessCandidate(HornClauseDB &db)
   {
-	  //auto &workList = db.getRules();
-	  HornClauseDB::RuleVector workList;
-
-	  for (HornClauseDB::RuleVector::iterator it = db.getRules().begin(); it != db.getRules().end(); ++it)
+	  for(Expr rel : db.getRelations())
 	  {
-		  HornRule r = *it;
-		  workList.push_back(r);
-	  }
-
-	  while (!workList.empty())
-	  {
-		  outs() << "[WORKLIST SIZE]: " << workList.size() << "\n";
-		  HornRule r = workList.front();
-
-		  outs() << "[RULE HEAD]: " << *(r.head()) << "\n";
-		  outs() << "[RULE BODY]: " << *(r.body()) << "\n";
-
-		  //generate candidate for rule head
-		  Expr head_app = r.head();
-		  Expr head_pred = bind::fname(head_app);
-		  Expr head_cand = guessCandidate(head_pred);
-
-		  //apply head_cand to actual arguments
-		  ExprMap head_bvar_map;
-		  //I need a visitor here.
-		  ExprVector bvars;
-		  get_all_bvars(head_cand, std::back_inserter(bvars));
-
-		  for(ExprVector::iterator it = bvars.begin(); it != bvars.end(); ++it)
+		  if(bind::isFdecl(rel))
 		  {
-			  //outs() << *(*it) << "\n";
-			  unsigned bvar_id = bind::bvarId(*it);
-			  Expr head_app_arg = bind::domainTy(head_app, bvar_id);// To improve
-			  head_bvar_map.insert(std::pair<Expr,Expr>(*it, head_app_arg));
-		  }
-		  //outs() << "[HEAD BVAR MAP]:\n";
-		  //outs() << "[MAP SIZE]: " << head_bvar_map.size() << "\n";
-		  //for (ExprMap::iterator it = head_bvar_map.begin(); it!=head_bvar_map.end(); ++it)
-		  //{
-		  //  outs() << "[KEY]: " << *(it->first) << ", [VALUE]: " << *(it->second) << "\n";
-		  //}
-
-		  Expr head_cand_app = replace(head_cand, head_bvar_map);
-
-		  //cand_app is application of the overall conjunction
-		  Expr neg_head_cand_app = mk<NEG>(head_cand_app);
-
-		  //outs() << "[NEG HEAD CAND APP]: " << *neg_head_cand_app << "\n";
-
-		  //generate candidate for rule body
-		  Expr body = r.body();
-		  ExprMap body_map;
-		  ExprVector body_pred_app_vec;
-		  get_all_pred_apps(body, db, std::back_inserter(body_pred_app_vec));
-		  //outs() << "[BODY PRED NUM]: " << body_pred_app_vec.size() << "\n";
-		  for (ExprVector::iterator it = body_pred_app_vec.begin(); it != body_pred_app_vec.end(); ++it)
-		  {
-			  Expr body_pred_app = *it;
-			  Expr body_pred = bind::fname(body_pred_app);
-			  Expr body_cand = guessCandidate(body_pred);
-			  //outs() << "[BODY CAND]: " << *body_cand << "\n";
-			  //apply body_cand to actual arguments
-			  ExprMap body_bvar_map;
-			  ExprVector body_bvars;
-			  get_all_bvars(body_cand, std::back_inserter(body_bvars));
-			  for(ExprVector::iterator it_bv = body_bvars.begin(); it_bv != body_bvars.end(); ++it_bv)
-			  {
-				  unsigned bvar_id = bind::bvarId(*it_bv);
-				  Expr body_app_arg = bind::domainTy(body_pred_app, bvar_id);// To improve
-				  body_bvar_map.insert(std::pair<Expr,Expr>(*it_bv, body_app_arg));
-			  }
-			  Expr body_cand_app = replace(body_cand, body_bvar_map);
-			  //outs() << "[BODY CAND APP]: " << *body_cand_app << "\n";
-			  body_map.insert(std::pair<Expr, Expr>(body_pred_app, body_cand_app));
-		  }
-		  Expr new_body = replace(body, body_map);
-
-		  //outs() << "[NEW BODY]: " << *new_body << "\n";
-
-		  //update cand and cand_app
-		  Expr cand_app = mk<AND>(neg_head_cand_app, new_body);
-
-		  outs() << "[CANDIDATE]: " << *cand_app << "\n";
-
-		  if(validateRule(cand_app, hm) == SAT)
-		  {
-			 //add rules in db.use(r.head()) to worklist
-			 Expr head_app = r.head();
-			 Expr head_fdecl = bind::fname(head_app);
-			 outs() << "[USE SET SIZE]: " << db.use(head_fdecl).size() << "\n";
-			 for(auto r_use : db.use(head_fdecl))
-		     {
-				 bool isExist = false;
-				 for(HornClauseDB::RuleVector::iterator itr=workList.begin(); itr!=workList.end(); ++itr)
-				 {
-					 if(*itr == *r_use)
-					 {
-						 isExist = true;
-						 break;
-					 }
-				 }
-				 if(isExist == false)
-				 {
-					 workList.push_back(*r_use);
-				 }
-			 }
-			 //weaken candidate for r.head()
-			 while (validateRule(cand_app, hm) == SAT)
-			 {
-				 //outs() << "[ARITY]: " << head_cand_app->arity() << "\n";
-				 if(isOpX<TRUE>(head_cand_app))
-			     {
-					 break;
-				 }
-				 if(!isOpX<AND>(head_cand_app))
-				 {
-					 head_cand_app = mk<TRUE>(head_cand_app->efac());
-				 }
-				 else
-				 {
-					 ExprVector new_head_vec;
-					 for(auto it = head_cand_app->args_begin (), end = head_cand_app->args_end (); it != end; ++it)
-					 {
-					 	new_head_vec.push_back(*it);
-					 }
-					 new_head_vec.erase(new_head_vec.begin());
-					 if(new_head_vec.size() > 1)
-					 {
-					 	head_cand_app = mknary<AND>(new_head_vec.begin(), new_head_vec.end());
-					 }
-					 else
-					 {
-					 	head_cand_app = new_head_vec[0];
-					 }
-				 }
-				 neg_head_cand_app = mk<NEG>(head_cand_app);
-			     //outs() << "[HEAD AFTER WEAKEN]: " << *neg_head_cand_app << "\n";
-				 cand_app = mk<AND>(neg_head_cand_app, new_body);
-				 outs() << "[CANDIDATE AFTER WEAKEN]: " << *cand_app << "\n";
-			  }
-			  workList.erase(workList.begin());
-		  }
-		  else // the ret is UNSAT
-		  {
-		      workList.erase(workList.begin());
+			  Expr cand = relToCand(rel);
+			  currentCandidates.insert(std::pair<Expr, Expr>(rel, cand));
 		  }
 	  }
   }
 
-  bool Houdini::validateRule(Expr cand_app, HornifyModule &hm)
+  void Houdini::runHoudini(HornClauseDB &db, HornifyModule &hm)
   {
-	  // should call smt solver
+	  guessCandidate(db);
+
+	  HornClauseDB::RuleVector workList;
+	  workList.insert(workList.end(), db.getRules().begin(), db.getRules().end());
+
+	  while(!workList.empty())
+	  {
+		  HornRule r = workList.front();
+		  outs() << "RULE HEAD: " << *(r.head()) << "\n";
+		  outs() << "RULE BODY: " << *(r.body()) << "\n";
+		  while (validateRule(r, db, hm) == SAT)
+		  {
+			  workList = addUsedRulesBackToWorkList(db, workList, r.head());
+			  weakenRuleHeadCand(r);
+		  }
+		  workList.erase(workList.begin());
+	  }
+  }
+
+  bool Houdini::validateRule(HornRule r, HornClauseDB &db, HornifyModule &hm)
+  {
+	  Expr ruleHead_cand_app = applyActualArgsToCand(r.head());
+	  Expr neg_ruleHead_cand_app = mk<NEG>(ruleHead_cand_app);
+
+	  Expr ruleBody = r.body();
+	  ExprMap body_map;
+	  ExprVector body_pred_apps;
+	  get_all_pred_apps(ruleBody, db, std::back_inserter(body_pred_apps));
+
+	  for(ExprVector::iterator itr = body_pred_apps.begin(); itr != body_pred_apps.end(); ++itr)
+	  {
+		  body_map.insert(std::pair<Expr, Expr>(*itr, applyActualArgsToCand(*itr)));
+	  }
+
+	  Expr body_cand_app = replace(ruleBody, body_map);
+
+	  Expr whole_cand = mk<AND>(neg_ruleHead_cand_app, body_cand_app);
+
+	  outs() << "WHOLE CANDIDATE: " << *whole_cand << "\n";
+
 	  ZSolver<EZ3> solver(hm.getZContext ());
-	  solver.assertExpr(cand_app);
+	  solver.assertExpr(whole_cand);
 	  solver.toSmtLib(outs());
 	  if(solver.solve())
 	  {
@@ -286,10 +185,83 @@ namespace seahorn
 	  }
 	  else
 	  {
-		  outs() << "UNSAT\n";
+	  	  outs() << "UNSAT\n";
 	  }
 	  return solver.solve();
+  }
 
-	  //return SAT;
+  Expr Houdini::applyActualArgsToCand(Expr fapp)
+  {
+	  Expr fdecl = bind::fname(fapp);
+	  Expr cand = currentCandidates[fdecl];
+
+	  ExprMap bvar_map;
+	  ExprVector bvars;
+	  get_all_bvars(cand, std::back_inserter(bvars));
+
+	  for(ExprVector::iterator it = bvars.begin(); it != bvars.end(); ++it)
+	  {
+		  unsigned bvar_id = bind::bvarId(*it);
+		  Expr app_arg = bind::domainTy(fapp, bvar_id);// To improve
+		  bvar_map.insert(std::pair<Expr,Expr>(*it, app_arg));
+	  }
+	  Expr cand_app = replace(cand, bvar_map);
+	  return cand_app;
+  }
+
+  void Houdini::weakenRuleHeadCand(HornRule r)
+  {
+	  Expr ruleHead_app = r.head();
+	  Expr ruleHead_rel = bind::fname(ruleHead_app);
+	  Expr ruleHead_cand = currentCandidates[ruleHead_rel];
+
+	  if(isOpX<TRUE>(ruleHead_cand))
+	  {
+	  		return;
+	  }
+	  if(!isOpX<AND>(ruleHead_cand))
+	  {
+	  		Expr weaken_cand = mk<TRUE>(ruleHead_cand->efac());
+	  		currentCandidates[ruleHead_rel] = weaken_cand;
+	  }
+	  else
+	  {
+	  		ExprVector head_cand_args;
+	  		head_cand_args.insert(head_cand_args.end(), ruleHead_cand->args_begin(), ruleHead_cand->args_end());
+	  		head_cand_args.erase(head_cand_args.begin());
+
+	  		if(head_cand_args.size() > 1)
+	  		{
+	  			Expr weaken_cand = mknary<AND>(head_cand_args.begin(), head_cand_args.end());
+	  			currentCandidates[ruleHead_rel] = weaken_cand;
+	  		}
+	  		else
+	  		{
+	  			Expr weaken_cand = head_cand_args[0];
+	  			currentCandidates[ruleHead_rel] = weaken_cand;
+	  		}
+	  }
+  }
+
+  HornClauseDB::RuleVector Houdini::addUsedRulesBackToWorkList(HornClauseDB &db, HornClauseDB::RuleVector workList, Expr ruleHead_app)
+  {
+	  Expr ruleHead_rel = bind::fname(ruleHead_app);
+	  for(auto r_use : db.use(ruleHead_rel))
+	  {
+		  bool isExist = false;
+		  for(HornClauseDB::RuleVector::iterator itr=workList.begin(); itr!=workList.end(); ++itr)
+		  {
+			  if(*itr == *r_use)
+			  {
+				  isExist = true;
+				  break;
+			  }
+		  }
+		  if(isExist == false)
+		  {
+			  workList.push_back(*r_use);
+		  }
+	  }
+	  return workList;
   }
 }

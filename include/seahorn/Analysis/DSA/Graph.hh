@@ -167,14 +167,14 @@ namespace seahorn
       }
       
       /// Unify a given node with a specified offset of the current node
-      /// post-condition: the given node forwards to the current node.
+      /// post-condition: the given node points to the current node.
       /// might cause a collapse
-      
-      // AG: there is some circular dependency between unifyAt() and
-      // pointTo(). Maybe only pointTo() should remain.
       inline void unifyAt (Node &n, unsigned offset);
-      /// Make the node point into another object. This transfers
-      /// links and types as needed. Might cause a collapse. 
+      
+      /// Transfer links/types and other information from the current
+      /// node to the given one at a given offset and make the current
+      /// one point to the result. Might cause collapse.  Most clients
+      /// should use unifyAt() that has less stringent preconditions.
       inline void pointTo (Node &node, unsigned offset);
     public:
       /// unify with a given node

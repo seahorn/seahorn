@@ -55,7 +55,9 @@ namespace seahorn
     auto &db = hm.getHornClauseDB ();
     db.buildIndexes ();
 
-    runHoudini(db, hm);
+    ZSolver<EZ3> solver(hm.getZContext ());
+
+    runHoudini(db, solver);
 
     return false;
   }
@@ -146,12 +148,13 @@ namespace seahorn
   /*
    * Main loop of Houdini algorithm
    */
-  void Houdini::runHoudini(HornClauseDB &db, HornifyModule &hm)
+  void Houdini::runHoudini(HornClauseDB &db, ZSolver<EZ3> solver)
   {
 	  guessCandidate(db);
 
 	  std::list<HornRule> workList;
 	  workList.insert(workList.end(), db.getRules().begin(), db.getRules().end());
+	  workList.reverse();
 
 	  while(!workList.empty())
 	  {
@@ -160,10 +163,9 @@ namespace seahorn
 		  workList.pop_front();
 		  LOG("houdini", errs() << "RULE HEAD: " << *(r.head()) << "\n";);
 		  LOG("houdini", errs() << "RULE BODY: " << *(r.body()) << "\n";);
-		  while (validateRule(r, db, hm) == SAT)
+		  while (validateRule(r, db, solver) == SAT)
 		  {
-			  std::list<HornRule> &ref_workList = workList;
-			  addUsedRulesBackToWorkList(db, ref_workList, r.head());
+			  addUsedRulesBackToWorkList(db, workList, r.head());
 			  weakenRuleHeadCand(r);
 		  }
 	  }
@@ -172,10 +174,13 @@ namespace seahorn
   /*
    * Given a rule, check if it's validate
    */
-  bool Houdini::validateRule(HornRule r, HornClauseDB &db, HornifyModule &hm)
+  bool Houdini::validateRule(HornRule r, HornClauseDB &db, ZSolver<EZ3> solver)
   {
+	  solver.reset();
+
 	  Expr ruleHead_cand_app = applyActualArgsToCand(r.head());
 	  Expr neg_ruleHead_cand_app = mk<NEG>(ruleHead_cand_app);
+	  solver.assertExpr(neg_ruleHead_cand_app);
 
 	  Expr ruleBody = r.body();
 	  ExprMap body_map;
@@ -184,18 +189,14 @@ namespace seahorn
 
 	  for(ExprVector::iterator itr = body_pred_apps.begin(); itr != body_pred_apps.end(); ++itr)
 	  {
-		  body_map.insert(std::pair<Expr, Expr>(*itr, applyActualArgsToCand(*itr)));
+		  solver.assertExpr(applyActualArgsToCand(*itr)); //add each body predicate app
+		  body_map.insert(std::pair<Expr, Expr>(*itr, mk<TRUE>((*itr)->efac())));
 	  }
 
-	  Expr body_cand_app = replace(ruleBody, body_map);
+	  Expr body_constraints = replace(ruleBody, body_map);
+	  solver.assertExpr(body_constraints);
 
-	  Expr whole_cand = mk<AND>(neg_ruleHead_cand_app, body_cand_app);
-
-	  LOG("houdini", errs() << "WHOLE CANDIDATE: " << *whole_cand << "\n";);
-
-	  ZSolver<EZ3> solver(hm.getZContext ());
-	  solver.assertExpr(whole_cand);
-	  //solver.toSmtLib(errs());
+	  solver.toSmtLib(errs());
 	  bool isSat = solver.solve();
 	  if(isSat)
 	  {

@@ -30,8 +30,8 @@ namespace seahorn
 
     Expr relToCand(Expr pred);
     void guessCandidate(HornClauseDB &db);
-    bool validateRule(HornRule r, HornClauseDB &db, HornifyModule &hm);
-    void runHoudini(HornClauseDB &db, HornifyModule &hm);
+    bool validateRule(HornRule r, HornClauseDB &db, ZSolver<EZ3> solver);
+    void runHoudini(HornClauseDB &db, ZSolver<EZ3> solver);
     Expr applyActualArgsToCand(Expr fapp);
     void weakenRuleHeadCand(HornRule r);
     void addUsedRulesBackToWorkList(HornClauseDB &db, std::list<HornRule> &workList, Expr ruleHead_app);

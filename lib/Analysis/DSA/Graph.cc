@@ -254,3 +254,40 @@ dsa::Node& dsa::Graph::mkNode ()
   m_nodes.push_back (std::unique_ptr<Node> (new Node (*this)));
   return *m_nodes.back ();
 }
+
+void dsa::Graph::compress ()
+{
+  // -- resolve all forwarding
+  for (auto &n : m_nodes)
+  {
+    // resolve the node
+    n->getNode ();
+    // if not forwarding, resolve forwarding on all links
+    if (!n->isForwarding ())
+      for (auto &kv : n->links ()) kv.second.getNode ();
+  }
+
+  for (auto &kv : m_values) kv.second.getNode ();
+  
+  // at this point, all cells and all nodes have their links
+  // resolved. Every link points directly to the representative of the
+  // equivalence class. All forwarding nodes can now be deleted since
+  // they have no referrers.
+  
+  // -- remove forwarding nodes using remove-erase idiom
+  m_nodes.erase (std::remove_if (m_nodes.begin(), m_nodes.end(),
+                                 [] (const std::unique_ptr<Node> &n)
+                                 { return n->isForwarding (); }),
+                 m_nodes.end ());
+}
+
+dsa::Cell &dsa::Graph::mkNodeForValue (const llvm::Value *v)
+{ return m_values [v]; }
+
+const dsa::Cell &dsa::Graph::getNodeForValue (const llvm::Value *v) const
+{
+  auto it = m_values.find (v);
+  assert (it != m_values.end ());
+  return it->second;
+}
+

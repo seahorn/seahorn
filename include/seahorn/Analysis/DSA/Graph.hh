@@ -5,6 +5,7 @@
 #include <boost/container/flat_map.hpp>
 
 #include "llvm/ADT/ImmutableSet.h"
+#include "llvm/ADT/DenseMap.h"
 
 namespace llvm
 {
@@ -24,20 +25,38 @@ namespace seahorn
       friend class Node;
     protected:
       
+      const llvm::DataLayout &m_dl;
       typedef llvm::ImmutableSet<llvm::Type*> Set;
       typedef typename Set::Factory SetFactory;
       SetFactory m_setFactory;
       
+      /// DSA nodes owned by this graph
       std::vector<std::unique_ptr<Node> > m_nodes;
+      
+      /// Map from scalars to cells in this graph
+      llvm::DenseMap<const llvm::Value*, Cell> m_values;
       
       SetFactory &getSetFactory () { return m_setFactory; }
       Set emptySet () { return m_setFactory.getEmptySet (); }
       /// return a new set that is the union of old and a set containing v
       Set mkSet (Set old, const llvm::Type *v) { return m_setFactory.add (old, v); }
 
-      const llvm::DataLayout &getDataLayout ();
-    public:
+      const llvm::DataLayout &getDataLayout () const { return m_dl; }
+      
+      /// -- allocate a new node
       Node &mkNode ();
+      /// creates a node for a value (if necessary)
+      Cell &mkNodeForValue (const llvm::Value *v);
+      
+    public:
+      Graph (const llvm::DataLayout &dl) : m_dl (dl) {}
+      /// remove all forwarding nodes
+      void compress ();
+
+      const Cell &getNodeForValue (const llvm::Value *v) const;
+      bool hasNodeForValue (const llvm::Value *v) const
+      { return m_values.count (v) > 0; }
+      
     };
     
     /** 

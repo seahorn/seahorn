@@ -148,13 +148,13 @@ namespace seahorn
   /*
    * Main loop of Houdini algorithm
    */
-  void Houdini::runHoudini(HornClauseDB &db, ZSolver<EZ3> solver)
+  void Houdini::runHoudini(HornClauseDB &db, ZSolver<EZ3> &solver)
   {
 	  guessCandidate(db);
 
 	  std::list<HornRule> workList;
 	  workList.insert(workList.end(), db.getRules().begin(), db.getRules().end());
-	  workList.reverse();
+	  //workList.reverse();
 
 	  while(!workList.empty())
 	  {
@@ -166,7 +166,8 @@ namespace seahorn
 		  while (validateRule(r, db, solver) == SAT)
 		  {
 			  addUsedRulesBackToWorkList(db, workList, r.head());
-			  weakenRuleHeadCand(r);
+			  ZModel<EZ3> m = solver.getModel();
+			  weakenRuleHeadCand(r, m);
 		  }
 	  }
   }
@@ -174,11 +175,11 @@ namespace seahorn
   /*
    * Given a rule, check if it's validate
    */
-  bool Houdini::validateRule(HornRule r, HornClauseDB &db, ZSolver<EZ3> solver)
+  bool Houdini::validateRule(HornRule r, HornClauseDB &db, ZSolver<EZ3> &solver)
   {
 	  solver.reset();
 
-	  Expr ruleHead_cand_app = applyActualArgsToCand(r.head());
+	  Expr ruleHead_cand_app = fAppToCandApp(r.head());
 	  Expr neg_ruleHead_cand_app = mk<NEG>(ruleHead_cand_app);
 	  solver.assertExpr(neg_ruleHead_cand_app);
 
@@ -189,7 +190,7 @@ namespace seahorn
 
 	  for(ExprVector::iterator itr = body_pred_apps.begin(); itr != body_pred_apps.end(); ++itr)
 	  {
-		  solver.assertExpr(applyActualArgsToCand(*itr)); //add each body predicate app
+		  solver.assertExpr(fAppToCandApp(*itr)); //add each body predicate app
 		  body_map.insert(std::pair<Expr, Expr>(*itr, mk<TRUE>((*itr)->efac())));
 	  }
 
@@ -212,7 +213,23 @@ namespace seahorn
   /*
    * Given a function application, apply its actual arguments to its candidate
    */
-  Expr Houdini::applyActualArgsToCand(Expr fapp)
+  Expr Houdini::fAppToCandApp(Expr fapp)
+  {
+	  Expr fdecl = bind::fname(fapp);
+	  Expr cand = currentCandidates[fdecl];
+	  return applyArgsToBvars(cand, fapp);
+  }
+
+  /*
+   * apply function arguments to any lemma of it.
+   */
+  Expr Houdini::applyArgsToBvars(Expr cand, Expr fapp)
+  {
+ 	  ExprMap bvar_map = getBvarsToArgsMap(fapp);
+ 	  return replace(cand, bvar_map);
+  }
+
+  ExprMap Houdini::getBvarsToArgsMap(Expr fapp)
   {
 	  Expr fdecl = bind::fname(fapp);
 	  Expr cand = currentCandidates[fdecl];
@@ -227,18 +244,19 @@ namespace seahorn
 		  Expr app_arg = bind::domainTy(fapp, bvar_id);// To improve
 		  bvar_map.insert(std::pair<Expr,Expr>(*it, app_arg));
 	  }
-	  Expr cand_app = replace(cand, bvar_map);
-	  return cand_app;
+	  return bvar_map;
   }
 
   /*
    * Given a rule, weaken its head's candidate
    */
-  void Houdini::weakenRuleHeadCand(HornRule r)
+  void Houdini::weakenRuleHeadCand(HornRule r, ZModel<EZ3> m)
   {
 	  Expr ruleHead_app = r.head();
 	  Expr ruleHead_rel = bind::fname(ruleHead_app);
 	  Expr ruleHead_cand = currentCandidates[ruleHead_rel];
+
+	  LOG("houdini", errs() << "HEAD CAND APP: " << *applyArgsToBvars(ruleHead_cand, ruleHead_app) << "\n";);
 
 	  if(isOpX<TRUE>(ruleHead_cand))
 	  {
@@ -253,7 +271,16 @@ namespace seahorn
 	  {
 	  		ExprVector head_cand_args;
 	  		head_cand_args.insert(head_cand_args.end(), ruleHead_cand->args_begin(), ruleHead_cand->args_end());
-	  		head_cand_args.erase(head_cand_args.begin());
+
+	  		for(ExprVector::iterator it = head_cand_args.begin(); it != head_cand_args.end(); ++it)
+	  		{
+	  			LOG("houdini", errs() << "EVAL: " << *(m.eval(applyArgsToBvars(*it, ruleHead_app))) << "\n";);
+	  			if(isOpX<FALSE>(m.eval(applyArgsToBvars(*it, ruleHead_app))))
+	  			{
+	  				head_cand_args.erase(it);
+	  				break;
+	  			}
+	  		}
 
 	  		if(head_cand_args.size() > 1)
 	  		{
@@ -276,7 +303,7 @@ namespace seahorn
 	  Expr ruleHead_rel = bind::fname(ruleHead_app);
 	  for(auto r_use : db.use(ruleHead_rel))
 	  {
-		  LOG("houdini", errs() << "USED: " << *((*r_use).head()) << " <== " << *((*r_use).body()) << "\n";);
+		  //LOG("houdini", errs() << "USED: " << *((*r_use).head()) << " <== " << *((*r_use).body()) << "\n";);
 		  bool isExist = false;
 		  for(std::list<HornRule>::iterator itr=workList.begin(); itr!=workList.end(); ++itr)
 		  {

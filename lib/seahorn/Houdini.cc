@@ -10,6 +10,7 @@
 #include "ufo/Smt/Z3n.hpp"
 #include "ufo/Smt/EZ3.hh"
 #include <vector>
+#include <boost/logic/tribool.hpp>
 
 using namespace llvm;
 
@@ -125,7 +126,7 @@ namespace seahorn
 	return cand;
   }
 
-  #define SAT true
+  #define SAT_OR_INDETERMIN true
   #define UNSAT false
 
   std::map<Expr, Expr> Houdini::currentCandidates;	//a map from predicates to candidates
@@ -163,7 +164,7 @@ namespace seahorn
 		  workList.pop_front();
 		  LOG("houdini", errs() << "RULE HEAD: " << *(r.head()) << "\n";);
 		  LOG("houdini", errs() << "RULE BODY: " << *(r.body()) << "\n";);
-		  while (validateRule(r, db, solver) == SAT)
+		  while (validateRule(r, db, solver) != UNSAT)
 		  {
 			  addUsedRulesBackToWorkList(db, workList, r.head());
 			  ZModel<EZ3> m = solver.getModel();
@@ -198,16 +199,22 @@ namespace seahorn
 	  solver.assertExpr(body_constraints);
 
 	  solver.toSmtLib(errs());
-	  bool isSat = solver.solve();
+	  boost::tribool isSat = solver.solve();
 	  if(isSat)
 	  {
 		  LOG("houdini", errs() << "SAT\n";);
+		  return SAT_OR_INDETERMIN;
 	  }
-	  else
+	  else if(!isSat)
 	  {
 	  	  LOG("houdini", errs() << "UNSAT\n";);
+	  	  return UNSAT;
 	  }
-	  return isSat;
+	  else //if indeterminate
+	  {
+		  LOG("houdini", errs() << "INDETERMINATE\n";);
+		  return SAT_OR_INDETERMIN;
+	  }
   }
 
   /*
@@ -271,6 +278,7 @@ namespace seahorn
 	  {
 	  		ExprVector head_cand_args;
 	  		head_cand_args.insert(head_cand_args.end(), ruleHead_cand->args_begin(), ruleHead_cand->args_end());
+	  		int num_of_lemmas = head_cand_args.size();
 
 	  		for(ExprVector::iterator it = head_cand_args.begin(); it != head_cand_args.end(); ++it)
 	  		{
@@ -280,6 +288,14 @@ namespace seahorn
 	  				head_cand_args.erase(it);
 	  				break;
 	  			}
+	  		}
+
+	  		// This condition can be reached only when the solver answers Indeterminate
+	  		// In this case, we remove an arbitrary lemma (the first one)
+	  		if(head_cand_args.size() == num_of_lemmas)
+	  		{
+	  			LOG("houdini", errs() << "INDETERMINATE REACHED" << "\n");
+	  			head_cand_args.erase(head_cand_args.begin());
 	  		}
 
 	  		if(head_cand_args.size() > 1)

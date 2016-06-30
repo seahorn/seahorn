@@ -18,13 +18,23 @@ dsa::Node::Offset::operator unsigned() const
   return m_offset;
 }
 
+void dsa::Node::growSize (unsigned v)
+{
+  if (isCollapsed ()) m_size = 1;
+  else if (v > m_size)
+  {
+    // -- cannot grow size of an array
+    if (isArray ()) collapse ();
+    else m_size = v;
+  }
+}
+
 void dsa::Node::growSize (const Offset &offset, const llvm::Type *t)
 {
   if (!t) return;
   if (t->isVoidTy ()) return;
   if (isCollapsed ()) return;
-
-  if (isArray ()) assert (false && "COLLAPSE_IF_TRYING_TO_GROW_SIZE_TWICE");
+  
   assert (m_graph);
   // XXX for some reason getTypeAllocSize() is not marked as preserving const
   auto tSz = m_graph->getDataLayout ().getTypeAllocSize (const_cast<Type*>(t));
@@ -162,17 +172,54 @@ void dsa::Node::unifyAt (Node &n, unsigned o)
   // collapse before merging with a collapsed node
   if (n.isCollapsed ()) collapse ();
       
-  if (// aggressively collapse arrays. This can be refined
-      (isArray () != n.isArray ()) ||
-      // aggressively collapse arrays of different size
-      ( isArray () && n.isArray () && size () != n.size ()))
-  {
-    collapse ();
-    n.collapse ();
-  }
-
-      
   Offset offset (*this, o);
+  if (!isCollapsed () && !n.isCollapsed () && n.isArray () && !isArray ())
+  {
+    // -- merge into array at offset 0
+    if (offset == 0)
+    {
+      n.unifyAt (*this, 0);
+      return;
+    }
+    // -- cannot merge array at non-zero offset
+    else collapse ();
+  }
+  else if (isArray () && n.isArray ())
+  {
+    // merge larger sized array into 0 offset of the smaller array
+    // if the size are compatible
+    Node *min = size () <= n.size () ? this : &n;
+    Node *max = min == this ? &n : this;
+    
+    // sizes are incompatible modulo does not distribute. Hence, we
+    // can only shrink an array if the new size is a divisor of all
+    // previous non-constant indexes
+    if (max->size () % min->size () != 0) collapse ();
+    else
+    {
+      Offset minoff (*min, o);
+      // -- arrays can only be unified at offset 0
+      if (minoff == 0)
+      {
+        if (min != this)
+        {
+          // unify by merging into smaller array
+          n.unifyAt (*this, 0);
+          return;
+        }
+        // otherwise, proceed unifying n into this
+      }
+      else
+        // -- cannot unify arrays at non-zero offset
+        collapse ();
+    }
+  }
+  else if (isArray () && !n.isArray ())
+  {
+    // merge non-array into array at offset 0
+    if (offset != 0) collapse ();
+  }
+      
   if (&n == this)
   {
     // -- merging the node into itself at a different offset
@@ -180,7 +227,6 @@ void dsa::Node::unifyAt (Node &n, unsigned o)
     return;
   }
 
-      
   // -- move everything from n to this node
   n.pointTo (*this, offset);
 }

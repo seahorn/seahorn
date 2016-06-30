@@ -213,16 +213,28 @@ namespace seahorn
       
       /// increase size to accommodate a field of type t at the given offset
       void growSize (const Offset &offset, const llvm::Type *t);
+      Node &setArray (bool v = true) { m_nodeType.array = v; return *this; }
     public:
       /// unify with a given node
       void unify (Node &n) { unifyAt (n, 0); }
       Node &setAlloca (bool v = true) { m_nodeType.alloca = v; return *this;}
       bool isAlloca () const { return m_nodeType.alloca; }
 
-      Node &setArray (bool v = true) { m_nodeType.array = v; return *this; }
+      Node &setArraySize (unsigned sz)
+      {
+        assert (!isArray ());
+        assert (!isForwarding ());
+        assert (m_size <= sz);
+        
+        setArray (true);
+        m_size = sz;
+        return *this;
+      }
+      
       bool isArray () const { return m_nodeType.array; }
 
-      Node &setCollapsed (bool v = true) { m_nodeType.collapsed = v; return *this; }
+      Node &setCollapsed (bool v = true)
+      { m_nodeType.collapsed = v; setArray (false); return *this; }
       bool isCollapsed () const { return m_nodeType.collapsed; }
       
       bool isUnique () const { return m_unique_scalar; }
@@ -241,7 +253,7 @@ namespace seahorn
       const links_type &links () const { return m_links; }
 
       unsigned size () const { return m_size; }
-      void growSize (unsigned v) {if (v > m_size) m_size = v;}
+      void growSize (unsigned v);
       
 
       bool hasLink (unsigned offset) const

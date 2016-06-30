@@ -2,13 +2,13 @@
 #define __LLVM_BGL_HPP_
 /** BGL interface to LLVM CFG */
 
-#include "llvm/Support/CFG.h"
+#include "llvm/IR/CFG.h"
 
 #include <boost/graph/graph_traits.hpp>
 #include <boost/graph/properties.hpp>
 #include <boost/iterator/transform_iterator.hpp>
 #include <boost/property_map/property_map.hpp>
-#include "ufo/property_map.hpp"
+//#include "ufo/property_map.hpp"
 
 namespace ufo
 {
@@ -52,7 +52,7 @@ namespace boost
     typedef llvm::BasicBlock* vertex_descriptor;
     typedef llvm::BBPair edge_descriptor;
     
-  typedef disallow_parallel_edge_tag edge_parallel_category;
+    typedef disallow_parallel_edge_tag edge_parallel_category;
     typedef bidirectional_tag directed_category;
     struct this_graph_tag : 
       virtual bidirectional_graph_tag, virtual vertex_list_graph_tag {};
@@ -78,10 +78,10 @@ namespace boost
     static vertex_descriptor null_vertex () { return NULL; }    
   };
   
-  inline llvm::BasicBlock* source (const BBPair e, const llvm::Function &f) 
+  inline llvm::BasicBlock* source (const llvm::BBPair e, const llvm::Function &f) 
   { return e.first; }
 
-  inline llvm::BasicBlock* target (const BBPair e, const llvm::Function &f)
+  inline llvm::BasicBlock* target (const llvm::BBPair e, const llvm::Function &f)
   { return e.second; }
 
   namespace
@@ -92,29 +92,29 @@ namespace boost
   }
   
   
-  inline std::pair<out_eit,out_eit> out_edges (BasicBlock* bb, 
-					       const llvm::Function &f)
+  inline std::pair<out_eit,out_eit> out_edges (llvm::BasicBlock* bb, 
+                                               const llvm::Function &f)
   {
     return std::make_pair
       (make_transform_iterator (succ_begin (bb), llvm::bgl::MkOutEdgePair (bb)),
        make_transform_iterator (succ_end (bb), llvm::bgl::MkOutEdgePair (bb)));
   }
   
-  inline size_t out_degree (const BasicBlock *bb, const llvm::Function &f)
+  inline size_t out_degree (const llvm::BasicBlock *bb, const llvm::Function &f)
   { return bb->getTerminator ()->getNumSuccessors (); }
 
-  inline std::pair<in_eit, in_eit> in_edges (BasicBlock *bb, 
-					     const llvm::Function &f)
+  inline std::pair<in_eit, in_eit> in_edges (llvm::BasicBlock *bb, 
+                                             const llvm::Function &f)
   {
     return std::make_pair
       (make_transform_iterator (pred_begin (bb), llvm::bgl::MkInEdgePair (bb)),
        make_transform_iterator (pred_end (bb), llvm::bgl::MkInEdgePair (bb)));
   }
   
-  inline size_t in_degree (const BasicBlock *bb, const llvm::Function &f)
+  inline size_t in_degree (const llvm::BasicBlock *bb, const llvm::Function &f)
   { return bb->getNumUses (); }
   
-  inline size_t degree (const BasicBlock *bb, const llvm::Function &f)
+  inline size_t degree (const llvm::BasicBlock *bb, const llvm::Function &f)
   { return bb->getNumUses () + bb->getTerminator ()->getNumSuccessors (); }
   
   inline std::pair<vit,vit> vertices (const llvm::Function &f)

@@ -30,7 +30,7 @@ namespace
     Function &m_func;
     dsa::Graph &m_graph;
 
-    const DataLayout &m_td;
+    const DataLayout &m_dl;
     
     
     void visitAllocaInst (AllocaInst &AI);
@@ -55,14 +55,13 @@ namespace
     bool visitIntrinsic(CallSite CS, Function* F);
     void visitCallSite(CallSite CS);
     void visitVAStart(CallSite CS);
-    void visitVAStartNode(DSNode* N);
 
   public:
     IntraBlockBuilder (Function &func, dsa::Graph &graph,
-                       const DataLayout dl) : m_func(func), m_graph(graph), m_dl(dl) {}
+                       const DataLayout &dl) : m_func(func), m_graph(graph), m_dl(dl) {}
     
     
-  }
+  };
 }
 namespace seahorn
 {

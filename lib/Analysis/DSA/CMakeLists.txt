@@ -1,2 +1,4 @@
 add_llvm_library (SeaDsaAnalysis
-  Graph.cc)
+  Graph.cc
+  DsaLocal.cc
+  )

@@ -161,7 +161,7 @@ namespace seahorn
     const horn_set_type &def (Expr fdecl)
     {
       auto it = m_head_idx.find (fdecl);
-      if (it == m_body_idx.end ()) return m_empty_set;
+      if (it == m_head_idx.end ()) return m_empty_set;
       return it->second;
     }
     

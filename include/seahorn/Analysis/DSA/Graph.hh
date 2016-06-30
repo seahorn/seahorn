@@ -43,19 +43,24 @@ namespace seahorn
 
       const llvm::DataLayout &getDataLayout () const { return m_dl; }
       
-      /// -- allocate a new node
-      Node &mkNode ();
-      /// creates a node for a value (if necessary)
-      Cell &mkNodeForValue (const llvm::Value *v);
       
     public:
       Graph (const llvm::DataLayout &dl) : m_dl (dl) {}
       /// remove all forwarding nodes
       void compress ();
 
-      const Cell &getNodeForValue (const llvm::Value *v) const;
-      bool hasNodeForValue (const llvm::Value *v) const
-      { return m_values.count (v) > 0; }
+      /// -- allocates a new node
+      Node &mkNode ();
+      /// creates a cell for the value or returns existing cell if
+      /// present
+      Cell &mkCell (const llvm::Value &v);
+
+      /// return a cell for the value
+      const Cell &getCell (const llvm::Value &v) const;
+
+      /// return true iff the value has a cel
+      bool hasCell (const llvm::Value &v) const
+      { return m_values.count (&v) > 0; }
       
     };
     
@@ -86,6 +91,13 @@ namespace seahorn
       unsigned getOffset () const { return m_offset; }
 
       void pointTo (Node &n, unsigned offset);
+      
+      void pointTo (Cell &c, unsigned offset)
+      {
+        assert (!c.isNull ());
+        Node *n = c.getNode ();
+        pointTo (*n, c.getOffset () + offset);
+      }
 
       inline bool hasLink (unsigned offset = 0) const;
       inline const Cell &getLink (unsigned offset = 0) const;

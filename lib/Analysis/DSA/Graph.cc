@@ -327,12 +327,12 @@ void dsa::Graph::compress ()
                  m_nodes.end ());
 }
 
-dsa::Cell &dsa::Graph::mkNodeForValue (const llvm::Value *v)
-{ return m_values [v]; }
+dsa::Cell &dsa::Graph::mkCell (const llvm::Value &v)
+{ return m_values [&v]; }
 
-const dsa::Cell &dsa::Graph::getNodeForValue (const llvm::Value *v) const
+const dsa::Cell &dsa::Graph::getCell (const llvm::Value &v) const
 {
-  auto it = m_values.find (v);
+  auto it = m_values.find (&v);
   assert (it != m_values.end ());
   return it->second;
 }

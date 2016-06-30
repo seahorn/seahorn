@@ -23,8 +23,22 @@
 using namespace llvm;
 using namespace seahorn;
 
+
 namespace
 {
+  template<typename T>
+  T gcd(T a, T b)
+  {
+    T c;
+    while(b)
+    {
+      c = a % b;
+      a = b;
+      b = c;
+    }
+    return a;
+  }
+  
   class IntraBlockBuilder : InstVisitor<IntraBlockBuilder>
   {
     Function &m_func;
@@ -49,7 +63,7 @@ namespace
     void visitInsertValueInst(InsertValueInst& I) { /* ignore for now */ }
     void visitExtractValueInst(ExtractValueInst& I) { /* ignore for now */ }
 
-    void visitGetElementPtrInst(User &GEP);
+    void visitGetElementPtrInst(GetElementPtrInst &I);
     void visitInstruction(Instruction &I);
 
     bool visitIntrinsic(CallSite CS, Function* F);
@@ -62,6 +76,90 @@ namespace
     
     
   };
+
+  
+  /**
+     Computes an offset of a gep instruction for a given type and a
+     sequence of indicies.
+
+     The first element of the pair is the fixed offset. The second is
+     a gcd of the variable offset.
+   */
+  std::pair<uint64_t, uint64_t> computeGetOffset (Type *ptrTy, ArrayRef<Value *> Indicies,
+                                                  const DataLayout &dl)
+{
+    unsigned ptrSz = dl.getPointerSizeInBits ();
+    Type *Ty = ptrTy;
+    assert (Ty->isPointerTy ());
+    
+    // numeric offset
+    uint64_t noffset = 0;
+
+    // divisor
+    uint64_t divisor = 0;
+    
+    generic_gep_type_iterator<Value* const*>
+      TI = gep_type_begin (ptrTy, Indicies);
+    for (unsigned CurIDX = 0, EndIDX = Indicies.size (); CurIDX != EndIDX;
+         ++CurIDX, ++TI)
+    {
+      if (StructType *STy = dyn_cast<StructType> (*TI))
+      {
+        unsigned fieldNo = cast<ConstantInt> (Indicies [CurIDX])->getZExtValue ();
+        noffset += dl.getStructLayout (STy)->getElementOffset (fieldNo);
+        Ty = STy->getElementType (fieldNo);
+      }
+      else
+      {
+        Ty = cast<SequentialType> (Ty)->getElementType ();
+        uint64_t sz = dl.getTypeStoreSize (Ty);
+        if (ConstantInt *ci = dyn_cast<ConstantInt> (Indicies [CurIDX]))
+        {
+          int64_t arrayIdx = ci->getSExtValue ();
+          noffset += (uint64_t)arrayIdx * sz;
+        }
+        else
+          divisor = divisor == 0 ? sz : gcd (divisor, sz);
+      }
+    }
+    
+    return std::make_pair (noffset, divisor);
+  }    
+  
+  
+  void IntraBlockBuilder::visitGetElementPtrInst(GetElementPtrInst &I)
+  {
+    Value *ptr = I.getPointerOperand ();
+    assert (m_graph.hasCell (*ptr));
+    dsa::Cell &base = m_graph.mkCell (*ptr);
+    assert (!base.isNull ());
+
+    assert (!m_graph.hasCell (I));
+    dsa::Cell &res = m_graph.mkCell (I);
+    
+    dsa::Node *baseNode = base.getNode ();
+    if (baseNode->isCollapsed ())
+    {
+      res.pointTo (*baseNode, 0);
+      return;
+    }
+    
+    SmallVector<Value*, 8> indexes (I.op_begin () + 1, I.op_end ());
+    auto off = computeGetOffset (ptr->getType (), indexes, m_dl);
+    if (off.second)
+    {
+      // create a node representing the array
+      dsa::Node &n = m_graph.mkNode ();
+      n.setArraySize (off.second);
+      // result of the gep points into that array at the gep offset
+      // plus the offset of the base
+      res.pointTo (n, off.first + base.getOffset ());
+      // finally, unify array with the node of the base 
+      n.unify (*baseNode);
+    }
+    else
+      res.pointTo (base, off.first);
+  }
 }
 namespace seahorn
 {

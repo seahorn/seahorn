@@ -263,6 +263,9 @@ namespace seahorn
       inline bool isForwarding () const;
       
       
+      Graph *getGraph () { return m_graph; } 
+      const Graph *getGraph () const { return m_graph; } 
+      
       /// Return a node the current node represents. If the node is
       /// forwarding, returns the non-forwarding node this node points
       /// to. Might be expensive.

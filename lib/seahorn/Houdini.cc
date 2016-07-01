@@ -16,6 +16,13 @@ using namespace llvm;
 
 namespace seahorn
 {
+  #define SAT_OR_INDETERMIN true
+  #define UNSAT false
+
+  #define NAIVE 0
+  #define EACH_RULE_A_SOLVER 1
+  #define EACH_RELATION_A_SOLVER 2
+
   char Houdini::ID = 0;
 
   struct IsBVar : public std::unary_function<Expr, bool>
@@ -56,9 +63,9 @@ namespace seahorn
     auto &db = hm.getHornClauseDB ();
     db.buildIndexes ();
 
-    ZSolver<EZ3> solver(hm.getZContext ());
+    int config = EACH_RULE_A_SOLVER;
 
-    runHoudini(db, solver);
+    runHoudini(db, hm, config);
 
     return false;
   }
@@ -126,9 +133,6 @@ namespace seahorn
 	return cand;
   }
 
-  #define SAT_OR_INDETERMIN true
-  #define UNSAT false
-
   std::map<Expr, Expr> Houdini::currentCandidates;	//a map from predicates to candidates
 
   /*
@@ -149,7 +153,7 @@ namespace seahorn
   /*
    * Main loop of Houdini algorithm
    */
-  void Houdini::runHoudini(HornClauseDB &db, ZSolver<EZ3> &solver)
+  void Houdini::runHoudini(HornClauseDB &db, HornifyModule &hm, int config)
   {
 	  guessCandidate(db);
 
@@ -157,18 +161,81 @@ namespace seahorn
 	  workList.insert(workList.end(), db.getRules().begin(), db.getRules().end());
 	  //workList.reverse();
 
-	  while(!workList.empty())
+	  if (config == NAIVE)
 	  {
-		  LOG("houdini", errs() << "WORKLIST SIZE: " << workList.size() << "\n";);
-		  HornRule r = workList.front();
-		  workList.pop_front();
-		  LOG("houdini", errs() << "RULE HEAD: " << *(r.head()) << "\n";);
-		  LOG("houdini", errs() << "RULE BODY: " << *(r.body()) << "\n";);
-		  while (validateRule(r, db, solver) != UNSAT)
+		  ZSolver<EZ3> solver(hm.getZContext ());
+		  while(!workList.empty())
 		  {
-			  addUsedRulesBackToWorkList(db, workList, r.head());
-			  ZModel<EZ3> m = solver.getModel();
-			  weakenRuleHeadCand(r, m);
+			  LOG("houdini", errs() << "WORKLIST SIZE: " << workList.size() << "\n";);
+			  HornRule r = workList.front();
+			  workList.pop_front();
+			  LOG("houdini", errs() << "RULE HEAD: " << *(r.head()) << "\n";);
+			  LOG("houdini", errs() << "RULE BODY: " << *(r.body()) << "\n";);
+			  while (validateRule(r, db, solver) != UNSAT)
+			  {
+				  addUsedRulesBackToWorkList(db, workList, r.head());
+				  ZModel<EZ3> m = solver.getModel();
+				  weakenRuleHeadCand(r, m);
+			  }
+		  }
+	  }
+	  else if (config == EACH_RULE_A_SOLVER)
+	  {
+		  std::map<HornRule, ZSolver<EZ3>> ruleToSolverMap = assignEachRuleASolver(db, hm);
+		  while(!workList.empty())
+		  {
+			  LOG("houdini", errs() << "WORKLIST SIZE: " << workList.size() << "\n";);
+			  HornRule r = workList.front();
+			  workList.pop_front();
+			  LOG("houdini", errs() << "RULE HEAD: " << *(r.head()) << "\n";);
+			  LOG("houdini", errs() << "RULE BODY: " << *(r.body()) << "\n";);
+
+			  assert(ruleToSolverMap.find(r) != ruleToSolverMap.end());
+
+			  ZSolver<EZ3> &solver = ruleToSolverMap.find(r)->second;
+
+			  while (validateRule_EachRuleASolver(r, db, solver) != UNSAT)
+			  {
+				  addUsedRulesBackToWorkList(db, workList, r.head());
+				  ZModel<EZ3> m = solver.getModel();
+				  weakenRuleHeadCand(r, m);
+				  solver.pop();
+				  solver.push();
+				  //LOG("houdini", errs() << "AFTER POP: \n";);
+				  //solver.toSmtLib(outs());
+			  }
+			  solver.pop();
+			  solver.push();
+		  }
+	  }
+	  else if (config == EACH_RELATION_A_SOLVER)
+	  {
+		  std::map<Expr, ZSolver<EZ3>> relationToSolverMap = assignEachRelationASolver(db, hm);
+
+		  while(!workList.empty())
+		  {
+			  LOG("houdini", errs() << "WORKLIST SIZE: " << workList.size() << "\n";);
+			  HornRule r = workList.front();
+			  workList.pop_front();
+			  LOG("houdini", errs() << "RULE HEAD: " << *(r.head()) << "\n";);
+			  LOG("houdini", errs() << "RULE BODY: " << *(r.body()) << "\n";);
+
+			  assert(relationToSolverMap.find(r.head()) != relationToSolverMap.end());
+
+			  ZSolver<EZ3> &solver = relationToSolverMap.find(r.head())->second;
+
+			  while (validateRule_EachRelationASolver(r, db, solver) != UNSAT)
+			  {
+				  addUsedRulesBackToWorkList(db, workList, r.head());
+				  ZModel<EZ3> m = solver.getModel();
+				  weakenRuleHeadCand(r, m);
+				  solver.pop();
+				  solver.push();
+				  //LOG("houdini", errs() << "AFTER POP: \n";);
+				  //solver.toSmtLib(outs());
+			  }
+			  solver.pop();
+			  solver.push();
 		  }
 	  }
   }
@@ -185,20 +252,16 @@ namespace seahorn
 	  solver.assertExpr(neg_ruleHead_cand_app);
 
 	  Expr ruleBody = r.body();
-	  ExprMap body_map;
 	  ExprVector body_pred_apps;
 	  get_all_pred_apps(ruleBody, db, std::back_inserter(body_pred_apps));
-
 	  for(ExprVector::iterator itr = body_pred_apps.begin(); itr != body_pred_apps.end(); ++itr)
 	  {
 		  solver.assertExpr(fAppToCandApp(*itr)); //add each body predicate app
-		  body_map.insert(std::pair<Expr, Expr>(*itr, mk<TRUE>((*itr)->efac())));
 	  }
 
-	  Expr body_constraints = replace(ruleBody, body_map);
-	  solver.assertExpr(body_constraints);
+	  solver.assertExpr(extractTransitionRelation(r, db));
 
-	  solver.toSmtLib(errs());
+	  //solver.toSmtLib(errs());
 	  boost::tribool isSat = solver.solve();
 	  if(isSat)
 	  {
@@ -215,6 +278,88 @@ namespace seahorn
 		  LOG("houdini", errs() << "INDETERMINATE\n";);
 		  return SAT_OR_INDETERMIN;
 	  }
+  }
+
+  bool Houdini::validateRule_EachRuleASolver(HornRule r, HornClauseDB &db, ZSolver<EZ3> &solver)
+  {
+	  Expr ruleHead_cand_app = fAppToCandApp(r.head());
+	  Expr neg_ruleHead_cand_app = mk<NEG>(ruleHead_cand_app);
+	  solver.assertExpr(neg_ruleHead_cand_app);
+
+	  Expr ruleBody = r.body();
+	  ExprVector body_pred_apps;
+	  get_all_pred_apps(ruleBody, db, std::back_inserter(body_pred_apps));
+	  for(ExprVector::iterator itr = body_pred_apps.begin(); itr != body_pred_apps.end(); ++itr)
+	  {
+		  solver.assertExpr(fAppToCandApp(*itr)); //add each body predicate app
+	  }
+
+	  //LOG("houdini", errs() << "AFTER PUSH: \n";);
+	  //solver.toSmtLib(errs());
+	  boost::tribool isSat = solver.solve();
+	  if(isSat)
+	  {
+		  LOG("houdini", errs() << "SAT\n";);
+	  	  return SAT_OR_INDETERMIN;
+	  }
+	  else if(!isSat)
+	  {
+		  LOG("houdini", errs() << "UNSAT\n";);
+	  	  return UNSAT;
+	  }
+	  else //if indeterminate
+	  {
+		  LOG("houdini", errs() << "INDETERMINATE\n";);
+		  return SAT_OR_INDETERMIN;
+	  }
+  }
+
+  bool Houdini::validateRule_EachRelationASolver(HornRule r, HornClauseDB &db, ZSolver<EZ3> &solver)
+  {
+	  ExprVector impls;
+	  solver.assertions(std::back_inserter(impls));
+
+	  for(ExprVector::iterator it = impls.begin(); it != impls.end(); ++it)
+	  {
+		  assert(isOpX<IMPL>(*it));
+		  Expr tagVar = (*it)->left();
+		  Expr tr = (*it)->right();
+		  if(tr == extractTransitionRelation(r, db))
+		  {
+			  solver.assertExpr(tagVar);
+		  }
+	  }
+
+  	  Expr ruleHead_cand_app = fAppToCandApp(r.head());
+  	  Expr neg_ruleHead_cand_app = mk<NEG>(ruleHead_cand_app);
+  	  solver.assertExpr(neg_ruleHead_cand_app);
+
+  	  Expr ruleBody = r.body();
+  	  ExprVector body_pred_apps;
+  	  get_all_pred_apps(ruleBody, db, std::back_inserter(body_pred_apps));
+  	  for(ExprVector::iterator itr = body_pred_apps.begin(); itr != body_pred_apps.end(); ++itr)
+  	  {
+  		  solver.assertExpr(fAppToCandApp(*itr)); //add each body predicate app
+  	  }
+
+  	  //LOG("houdini", errs() << "AFTER PUSH: \n";);
+  	  //solver.toSmtLib(errs());
+  	  boost::tribool isSat = solver.solve();
+  	  if(isSat)
+  	  {
+  		  LOG("houdini", errs() << "SAT\n";);
+  	  	  return SAT_OR_INDETERMIN;
+  	  }
+  	  else if(!isSat)
+  	  {
+  		  LOG("houdini", errs() << "UNSAT\n";);
+  	  	  return UNSAT;
+  	  }
+  	  else //if indeterminate
+  	  {
+  		  LOG("houdini", errs() << "INDETERMINATE\n";);
+  		  return SAT_OR_INDETERMIN;
+  	  }
   }
 
   /*
@@ -334,5 +479,63 @@ namespace seahorn
 			  workList.push_back(*r_use);
 		  }
 	  }
+  }
+
+  std::map<HornRule, ZSolver<EZ3>> Houdini::assignEachRuleASolver(HornClauseDB &db, HornifyModule &hm)
+  {
+	  std::map<HornRule, ZSolver<EZ3>> ruleToSolverMap;
+	  for(HornClauseDB::RuleVector::iterator it = db.getRules().begin(); it != db.getRules().end(); ++it)
+	  {
+		  HornRule r = *it;
+		  Expr tr = extractTransitionRelation(r, db);
+		  ZSolver<EZ3> solver(hm.getZContext());
+		  solver.assertExpr(tr);
+		  solver.push();
+
+		  ruleToSolverMap.insert(std::pair<HornRule, ZSolver<EZ3>>(r, solver));
+	  }
+	  return ruleToSolverMap;
+  }
+
+  Expr Houdini::extractTransitionRelation(HornRule r, HornClauseDB &db)
+  {
+	  Expr ruleBody = r.body();
+	  ExprMap body_map;
+	  ExprVector body_pred_apps;
+	  get_all_pred_apps(ruleBody, db, std::back_inserter(body_pred_apps));
+
+	  for(ExprVector::iterator itr = body_pred_apps.begin(); itr != body_pred_apps.end(); ++itr)
+	  {
+		  body_map.insert(std::pair<Expr, Expr>(*itr, mk<TRUE>((*itr)->efac())));
+	  }
+
+	  Expr body_constraints = replace(ruleBody, body_map);
+	  return body_constraints;
+  }
+
+  std::map<Expr, ZSolver<EZ3>> Houdini::assignEachRelationASolver(HornClauseDB &db, HornifyModule &hm)
+  {
+	  std::map<Expr, ZSolver<EZ3>> relationToSolverMap;
+	  for(HornClauseDB::RuleVector::iterator it = db.getRules().begin(); it != db.getRules().end(); ++it)
+	  {
+		  HornRule r = *it;
+		  Expr ruleHead = r.head();
+		  if(relationToSolverMap.find(ruleHead) != relationToSolverMap.end())
+		  {
+			  ZSolver<EZ3> &solver = relationToSolverMap.find(ruleHead)->second;
+			  Expr var = bind::boolVar(mkTerm<std::string>(std::string("tag2"), ruleHead->efac()));
+			  solver.assertExpr(mk<IMPL>(var, extractTransitionRelation(r, db)));
+			  solver.push();
+		  }
+		  else
+		  {
+			  ZSolver<EZ3> solver(hm.getZContext());
+			  Expr tagVar = bind::boolVar(mkTerm<std::string>(std::string("tag"), ruleHead->efac()));
+			  solver.assertExpr(mk<IMPL>(tagVar, extractTransitionRelation(r, db)));
+			  solver.push();
+			  relationToSolverMap.insert(std::pair<Expr, ZSolver<EZ3>>(ruleHead, solver));
+		  }
+	  }
+	  return relationToSolverMap;
   }
 }

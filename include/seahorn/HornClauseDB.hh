@@ -98,8 +98,8 @@ namespace seahorn
     
     struct IsRelation : public std::unary_function<Expr, bool>
     {
-      HornClauseDB &m_db;
-      IsRelation (HornClauseDB &db) : m_db (db) {}
+      const HornClauseDB &m_db;
+      IsRelation (const HornClauseDB &db) : m_db (db) {}
 
       bool operator() (Expr e)
       {return bind::isFdecl (e) && m_db.hasRelation (e);}
@@ -129,9 +129,18 @@ namespace seahorn
     /// resets all indexes
     void resetIndexes ();
 
+    /// callgraph
+    typedef std::map<Expr, expr_set_type > callgraph_type;
+    callgraph_type m_callers;
+    callgraph_type m_callees;
+    Expr m_cg_entry;
+
+    /// empty set sentinel
+    static expr_set_type m_expr_empty_set;
+
   public:
 
-    HornClauseDB (ExprFactory &efac) : m_efac (efac) {}
+    HornClauseDB (ExprFactory &efac) : m_efac (efac), m_cg_entry(mk<FALSE>(m_efac)) {}
     
     ExprFactory &getExprFactory () {return m_efac;}
     
@@ -148,7 +157,7 @@ namespace seahorn
     /// -- returns rules that use fdecl
     /// -- i.e., rules in which fdecl appears in the body
     /// -- requires indexes (see buildIndexes())
-    const horn_set_type &use (Expr fdecl)
+    const horn_set_type &use (Expr fdecl) const
     {
       auto it = m_body_idx.find (fdecl);
       if (it == m_body_idx.end ()) return m_empty_set;
@@ -158,13 +167,36 @@ namespace seahorn
     /// -- returns rules that define fdecl
     /// -- i.e., rules in which fdecl appears in the head
     /// -- requires indexes (see buildIndexes())
-    const horn_set_type &def (Expr fdecl)
+    const horn_set_type &def (Expr fdecl) const
     {
       auto it = m_head_idx.find (fdecl);
-      if (it == m_body_idx.end ()) return m_empty_set;
+      if (it == m_head_idx.end ()) return m_empty_set;
       return it->second;
     }
-    
+
+    /// -- build call graph 
+    void buildCallGraph ();
+
+    /// -- returns an entry point of the call graph.
+    bool hasEntry () const { return !isOpX<FALSE>(m_cg_entry); }
+    Expr entry () const { assert(hasEntry()); return m_cg_entry; }
+
+    /// -- requires callgraph (buildCallGraph())
+    const expr_set_type& callees (Expr fdecl) const
+    {
+      auto it = m_callees.find (fdecl);
+      if (it == m_callees.end ()) return m_expr_empty_set;
+      return it->second;
+    }
+
+    /// -- requires callgraph (buildCallGraph())
+    const expr_set_type& callers (Expr fdecl) const
+    {
+      auto it = m_callers.find (fdecl);
+      if (it == m_callers.end ()) return m_expr_empty_set;
+      return it->second;
+    }
+
     template <typename Range>
     void addRule (const Range &vars, Expr rule)
     {
@@ -246,6 +278,7 @@ namespace seahorn
       
       if (!skipQuery) fp.addQueries (getQueries ());
     }
+
     
   };
 

@@ -47,7 +47,7 @@ namespace seahorn
      // Here to print the graph vertex label to the ostream
      // Must be defined for each kind of graph.
      template<typename T>
-     void write_graph_vertex(llvm::raw_ostream&o, T e);
+     void write_graph_vertex(llvm::raw_ostream&o, T e);      
   }
 
 
@@ -404,9 +404,17 @@ namespace seahorn
     { return boost::make_transform_iterator(m_nested_components[v].end(), getHead()); }
 
     nested_components_const_iterator nested_components_begin(vertex_t v) const 
-    { return boost::make_transform_iterator(m_nested_components[v].begin(), getHead()); }
+    { 
+      auto it = m_nested_components.find(v);
+      assert (it != m_nested_components.end ());
+      return boost::make_transform_iterator(it->second.begin(), getHead()); 
+    }
     nested_components_const_iterator nested_components_end(vertex_t v) const 
-    { return boost::make_transform_iterator(m_nested_components[v].end(), getHead()); }
+    { 
+      auto it = m_nested_components.find(v);
+      assert (it != m_nested_components.end ());
+      return boost::make_transform_iterator(it->second.end(), getHead()); 
+    }
     
   };  
 } // end namespace

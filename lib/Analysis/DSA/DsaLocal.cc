@@ -16,6 +16,8 @@
 
 #include "llvm/Analysis/MemoryBuiltins.h"
 
+#include "llvm/ADT/DenseSet.h"
+
 #include "seahorn/Analysis/DSA/Graph.hh"
 #include "seahorn/Support/SortTopo.hh"
 
@@ -60,10 +62,10 @@ namespace
     void visitSelectInst(SelectInst &SI);
     void visitLoadInst(LoadInst &LI);
     void visitStoreInst(StoreInst &SI);
-    void visitAtomicCmpXchgInst(AtomicCmpXchgInst &I);
-    void visitAtomicRMWInst(AtomicRMWInst &I);
+    // void visitAtomicCmpXchgInst(AtomicCmpXchgInst &I);
+    // void visitAtomicRMWInst(AtomicRMWInst &I);
     void visitReturnInst(ReturnInst &RI);
-    void visitVAArgInst(VAArgInst   &I);
+    // void visitVAArgInst(VAArgInst   &I);
     void visitIntToPtrInst(IntToPtrInst &I);
     void visitPtrToIntInst(PtrToIntInst &I);
     void visitBitCastInst(BitCastInst &I);
@@ -74,9 +76,11 @@ namespace
     void visitGetElementPtrInst(GetElementPtrInst &I);
     void visitInstruction(Instruction &I);
 
-    bool visitIntrinsic(CallSite CS, Function* F);
+    void visitMemSetInst(MemSetInst &I);            
+    void visitMemTransferInst(MemTransferInst &I)  ;
+    
     void visitCallSite(CallSite CS);
-    void visitVAStart(CallSite CS);
+    // void visitVAStart(CallSite CS);
 
   public:
     IntraBlockBuilder (Function &func, dsa::Graph &graph,
@@ -86,6 +90,15 @@ namespace
     
   };
 
+  
+  
+  void IntraBlockBuilder::visitInstruction(Instruction &I)
+  {
+    if (isSkip (I)) return;
+    
+    m_graph.mkCell (I).
+      pointTo (m_graph.mkNode(), 0);
+  }
   
   void IntraBlockBuilder::visitAllocaInst (AllocaInst &AI)
   {
@@ -246,7 +259,7 @@ namespace
   }
   
   
-  void IntraBlockBuilder::visitCallSite(CallSite CS)
+  void IntraBlockBuilder::visitCallSite (CallSite CS)
   {
     using namespace dsa;
     if (isSkip (*CS.getInstruction ())) return;
@@ -262,8 +275,78 @@ namespace
       return;  
     }
 
-    // TODO: handle other cases
+    Instruction *inst = CS.getInstruction ();
+    
+    if (inst && !isSkip (*inst))
+    {
+      Cell &c = m_graph.mkCell (*inst);
+      c.pointTo (m_graph.mkNode (), 0);
+      // TODO: mark c as external if it comes from a call to an external function
+    }
+
+    
+    Value *callee = CS.getCalledValue ()->stripPointerCasts ();
+    if (InlineAsm *inasm = dyn_cast<InlineAsm> (callee))
+    {
+      // TODO: handle inline assembly
+    }
+    
+    // TODO: handle variable argument functions
   }
+  
+  
+  void IntraBlockBuilder::visitMemSetInst (MemSetInst &I)
+  {
+    // TODO:
+    // mark node of I.getDest () as modified
+    // can also update size using I.getLength ()
+  }
+  
+  void IntraBlockBuilder::visitMemTransferInst (MemTransferInst &I)
+  {
+    // TODO: mark I.getDest () is modified, and I.getSource () is read
+    assert (m_graph.hasCell (*I.getDest ()));
+    assert (m_graph.hasCell (*I.getSource ()));
+    // unify the two cells because potentially all bytes of source
+    // are copied into dest
+    m_graph.mkCell(*I.getDest ()).unify (m_graph.mkCell (*I.getSource ()));
+    // TODO: adjust size of I.getLength ()
+    // TODO: handle special case when memcpy is used to move non-pointer value only
+  }
+
+  void IntraBlockBuilder::visitIntToPtrInst (IntToPtrInst &I)
+  {
+    // -- only used as a compare. do not needs DSA node
+    if (I.hasOneUse () && isa<CmpInst> (*(I.use_begin ()))) return;
+    
+    dsa::Node &n = m_graph.mkNode ();
+    // TODO: mark n appropriately.
+    dsa::Cell &c = m_graph.mkCell (I);
+    c.pointTo (n, 0);
+  }
+  
+  void IntraBlockBuilder::visitPtrToIntInst (PtrToIntInst &I)
+  {
+    if (I.hasOneUse () && isa<CmpInst> (*(I.use_begin ()))) return;
+
+    if (I.hasOneUse ())
+    {
+      Value *v = dyn_cast<Value> (*(I.use_begin ()));
+      DenseSet<Value *> seen;
+      while (v && v->hasOneUse () && seen.insert (v).second)
+      {
+        if (isa<LoadInst> (v) || isa<StoreInst> (v) || isa<CallInst> (v)) break;
+        v = dyn_cast<Value> (*(v->use_begin ()));
+      }
+      if (isa<BranchInst> (v)) return;
+    }
+    assert (m_graph.hasCell (*I.getOperand (0)));
+    dsa::Cell c = m_graph.valueCell (*I.getOperand (0));
+    if (!c.isNull ())
+      /* c->getNode ()->setPtrToInt (true) */;
+  }
+
+  
 }
 namespace seahorn
 {

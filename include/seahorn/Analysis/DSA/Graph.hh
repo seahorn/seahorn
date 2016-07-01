@@ -54,6 +54,9 @@ namespace seahorn
       
       /// -- allocates a new node
       Node &mkNode ();
+
+      Node &cloneNode (const Node &n);
+      
       /// creates a cell for the value or returns existing cell if
       /// present
       Cell &mkCell (const llvm::Value &v);
@@ -202,6 +205,8 @@ namespace seahorn
       unsigned m_size;
 
       Node (Graph &g) : m_graph (&g), m_unique_scalar (nullptr), m_size (0) {}
+
+      Node (Graph &g, const Node &n, bool copyLinks = false);
       
       /// Unify a given node with a specified offset of the current node
       /// post-condition: the given node points to the current node.

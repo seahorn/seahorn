@@ -11,6 +11,24 @@
 using namespace seahorn;
 using namespace llvm;
 
+dsa::Node::Node (Graph &g, const Node &n, bool copyLinks) :
+  m_graph (&g), m_unique_scalar (n.m_unique_scalar), m_size (n.m_size)
+{
+  assert (!n.isForwarding ());
+  
+  // -- copy node type info
+  m_nodeType = n.m_nodeType;
+  
+  // -- copy types
+  joinTypes (0, n);
+
+  // -- copy links
+  if (copyLinks)
+  {
+    assert (n.m_graph == m_graph);
+    m_links.insert (n.m_links.begin (), n.m_links.end ());
+  }
+}
 /// adjust offset based on type of the node Collapsed nodes
 /// always have offset 0; for array nodes the offset is modulo
 /// array size; otherwise offset is not adjusted
@@ -301,6 +319,12 @@ unsigned dsa::Node::getOffset () const
 dsa::Node& dsa::Graph::mkNode ()
 {
   m_nodes.push_back (std::unique_ptr<Node> (new Node (*this)));
+  return *m_nodes.back ();
+}
+
+dsa::Node &dsa::Graph::cloneNode (const Node &n)
+{
+  m_nodes.push_back (std::unique_ptr<Node> (new Node (*this, n, false)));
   return *m_nodes.back ();
 }
 

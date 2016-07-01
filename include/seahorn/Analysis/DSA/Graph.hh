@@ -49,6 +49,9 @@ namespace seahorn
       /// remove all forwarding nodes
       void compress ();
 
+      /// returns a cell corresponding to the value
+      Cell valueCell (const llvm::Value &v);
+      
       /// -- allocates a new node
       Node &mkNode ();
       /// creates a cell for the value or returns existing cell if
@@ -92,7 +95,7 @@ namespace seahorn
 
       void pointTo (Node &n, unsigned offset);
       
-      void pointTo (Cell &c, unsigned offset)
+      void pointTo (const Cell &c, unsigned offset = 0)
       {
         assert (!c.isNull ());
         Node *n = c.getNode ();
@@ -103,6 +106,7 @@ namespace seahorn
       inline const Cell &getLink (unsigned offset = 0) const;
       inline void setLink (unsigned offset, const Cell &c);
       inline void addLink (unsigned offset, Cell &c);
+      inline void addType (unsigned offset, const llvm::Type *t);
       
       /// unify with a given cell. At the end, both cells point to the
       /// same offset of the same node. Might cause collapse of the
@@ -310,6 +314,9 @@ namespace seahorn
 
     void Cell::addLink (unsigned offset, Cell &c)
     { getNode ()->addLink (m_offset + offset, c); }
+
+    void Cell::addType (unsigned offset, const llvm::Type *t)
+    { getNode ()->addType(m_offset + offset, t); }
     
     
     Node* Node::getNode () 

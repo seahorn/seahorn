@@ -1,8 +1,11 @@
 #include "seahorn/Analysis/DSA/Graph.hh"
 
 #include "llvm/IR/Type.h"
+#include "llvm/IR/Value.h"
+#include "llvm/IR/Constants.h"
+#include "llvm/IR/GlobalAlias.h"
 #include "llvm/IR/DataLayout.h"
-
+#include "llvm/Support/raw_ostream.h"
 #include <string.h>
 
 using namespace seahorn;
@@ -337,3 +340,34 @@ const dsa::Cell &dsa::Graph::getCell (const llvm::Value &v) const
   return it->second;
 }
 
+dsa::Cell dsa::Graph::valueCell (const Value &v)
+{
+  assert (v.getType ()->isPointerTy ());
+  
+  if (isa<Constant> (&v) && cast<Constant> (&v)->isNullValue ())
+    return Cell();
+  if (hasCell (v)) return mkCell (v);
+
+  if (isa<UndefValue> (&v)) return Cell();
+  if (isa<GlobalAlias> (&v)) return valueCell (*cast<GlobalAlias> (&v)->getAliasee ());
+
+  if (isa<ConstantStruct> (&v) || isa<ConstantArray> (&v) ||
+      isa<ConstantDataSequential> (&v) || isa<ConstantDataArray> (&v) ||
+      isa<ConstantDataVector> (&v))
+    {
+      // XXX Handle properly
+      assert (false);
+      return mkCell (v);
+    }
+      
+  if (isa<GlobalValue> (&v))
+  {
+    assert (false && "Globals must be pre-allocated");
+    return mkCell (v);
+  }
+  
+  errs () << v << "\n";
+  assert(false && "Not handled expression");
+  return Cell();
+  
+}

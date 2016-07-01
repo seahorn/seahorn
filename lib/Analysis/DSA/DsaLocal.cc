@@ -14,6 +14,7 @@
 #include "llvm/IR/GetElementPtrTypeIterator.h"
 #include "llvm/IR/InstVisitor.h"
 
+#include "llvm/Analysis/MemoryBuiltins.h"
 
 #include "seahorn/Analysis/DSA/Graph.hh"
 #include "seahorn/Support/SortTopo.hh"
@@ -45,7 +46,14 @@ namespace
     dsa::Graph &m_graph;
 
     const DataLayout &m_dl;
+    const TargetLibraryInfo &m_tli;
     
+    bool isSkip (Instruction &I)
+    {
+      if (!I.getType ()->isPointerTy ()) return true;
+      // XXX skip if only uses are external functions
+      return false;
+    }
     
     void visitAllocaInst (AllocaInst &AI);
     void visitPHINode (PHINode &PHI) {/* do nothing */}
@@ -72,11 +80,87 @@ namespace
 
   public:
     IntraBlockBuilder (Function &func, dsa::Graph &graph,
-                       const DataLayout &dl) : m_func(func), m_graph(graph), m_dl(dl) {}
+                       const DataLayout &dl, const TargetLibraryInfo &tli) :
+      m_func(func), m_graph(graph), m_dl(dl), m_tli (tli) {}
     
     
   };
 
+  
+  void IntraBlockBuilder::visitAllocaInst (AllocaInst &AI)
+  {
+    using namespace seahorn::dsa;
+    assert (!m_graph.hasCell (AI));
+    Node &n = m_graph.mkNode ();
+    // TODO: record allocation site
+    // TODO: mark as stack allocated
+    Cell &res = m_graph.mkCell (AI);
+    res.pointTo (n, 0);
+  }
+  void IntraBlockBuilder::visitSelectInst(SelectInst &SI)
+  {
+    using namespace seahorn::dsa;
+    if (isSkip (SI)) return;
+    
+    Cell &res = m_graph.mkCell (SI);
+
+    Cell thenC = m_graph.valueCell (*SI.getOperand (1));
+    Cell elseC = m_graph.valueCell (*SI.getOperand (2));
+    thenC.unify (elseC);
+    res.pointTo (thenC, 0);
+  }
+  
+  void IntraBlockBuilder::visitLoadInst(LoadInst &LI)
+  {
+    using namespace seahorn::dsa;
+    if (isa<PointerType> (LI.getType ())) m_graph.mkCell (LI);
+    
+    Cell base = m_graph.valueCell (*LI.getPointerOperand ());
+    if (base.isNull ()) return;
+
+    base.addType (0, LI.getType ());
+    // TODO: mark base as read
+    
+    // update/create the link
+    if (isa<PointerType> (LI.getType ())) 
+    {
+      Cell &ptr = m_graph.mkCell (LI);
+      if (!base.hasLink ())
+      {
+        Node &n = m_graph.mkNode ();
+        ptr.setLink (0, Cell (&n, 0));
+      }
+      ptr.pointTo (base.getLink ());
+    }
+  }
+  
+  void IntraBlockBuilder::visitStoreInst(StoreInst &SI)
+  {
+    using namespace seahorn::dsa;
+    Cell base = m_graph.valueCell (*SI.getPointerOperand ());
+    if (base.isNull ()) return;
+
+    // TODO: mark base as modified
+
+    // XXX: potentially it is enough to update size only at this point
+    base.addType (0, SI.getValueOperand ()->getType ());
+    
+    if (isa<PointerType> (SI.getValueOperand ()->getType ()))
+    {
+      Cell val = m_graph.valueCell (*SI.getValueOperand ());
+      base.addLink (0, val);
+    }
+  }
+
+  
+  void IntraBlockBuilder::visitBitCastInst(BitCastInst &I)
+  {
+    if (isSkip (I)) return;
+    dsa::Cell &res = m_graph.mkCell (I);
+    dsa::Cell arg = m_graph.valueCell (*I.getOperand (0));
+    if (arg.isNull ()) return;
+    res.pointTo (arg);
+  }
   
   /**
      Computes an offset of a gep instruction for a given type and a
@@ -159,6 +243,26 @@ namespace
     }
     else
       res.pointTo (base, off.first);
+  }
+  
+  
+  void IntraBlockBuilder::visitCallSite(CallSite CS)
+  {
+    using namespace dsa;
+    if (isSkip (*CS.getInstruction ())) return;
+    
+    if (llvm::isAllocationFn (CS.getInstruction (), &m_tli, true))
+    {
+      assert (CS.getInstruction ());
+      Node &n = m_graph.mkNode ();
+      // TODO: record allocation site
+      // TODO: mark as heap allocated
+      Cell &res = m_graph.mkCell (*CS.getInstruction ());
+      res.pointTo (n, 0);
+      return;  
+    }
+
+    // TODO: handle other cases
   }
 }
 namespace seahorn

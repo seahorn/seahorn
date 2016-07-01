@@ -407,7 +407,7 @@ dsa::Cell dsa::Graph::valueCell (const Value &v)
       
   if (isa<GlobalValue> (&v))
   {
-    assert (false && "Globals must be pre-allocated");
+    // -- create a new cell if needed
     return mkCell (v);
   }
   

@@ -431,22 +431,6 @@ namespace seahorn
           interBuilder.visit (*const_cast<BasicBlock*>(bb));
         return false;
       }
-
-      /// Compute DSA nodes for all instructions in the basic block
-      void doIntraBlock (const BasicBlock &bb)
-      {
-        // run intra-block-visitor
-        for (const Instruction &inst : bb)
-          errs () << "visiting: " << inst << "\n";
-      }
-
-      /// Update DSA nodes for all the PHI-nodes based on the results
-      /// of intra-block analysis
-      void doInterBlock (const BasicBlock &bb)
-      {
-        // run inter-block-visitor
-      }
-      
     };
 
     char Local::ID = 0;

@@ -12,6 +12,8 @@ namespace llvm
   class Value;
   class Type;
   class DataLayout;
+  class Argument;
+  class Function;
 }
 
 namespace seahorn
@@ -35,6 +37,12 @@ namespace seahorn
       
       /// Map from scalars to cells in this graph
       llvm::DenseMap<const llvm::Value*, Cell> m_values;
+
+      /// Map from formal arguments to cells
+      llvm::DenseMap<const llvm::Argument*, Cell> m_formals;
+      
+      /// Map from formal returns of functions to cells
+      llvm::DenseMap<const llvm::Function*, Cell> m_returns;
       
       SetFactory &getSetFactory () { return m_setFactory; }
       Set emptySet () { return m_setFactory.getEmptySet (); }
@@ -60,17 +68,22 @@ namespace seahorn
       /// creates a cell for the value or returns existing cell if
       /// present
       Cell &mkCell (const llvm::Value &v);
+      Cell &mkRetCel (const llvm::Function &fn);
+
+      Cell &mkRetCell (const llvm::Function &fn);
 
       /// return a cell for the value
       const Cell &getCell (const llvm::Value &v) const;
 
       /// return true iff the value has a cel
-      bool hasCell (const llvm::Value &v) const
-      { return m_values.count (&v) > 0; }
+      bool hasCell (const llvm::Value &v) const;
+      
+      bool hasRetCell (const llvm::Function &fn) const
+      { return m_returns.count (&fn) > 0; }
       
       /// import the given graph into the current one
       /// copies all nodes from g and unifies all common scalars
-      void import (const Graph &g);
+      void import (const Graph &g, bool withFormals = false);
     };
     
     /** 

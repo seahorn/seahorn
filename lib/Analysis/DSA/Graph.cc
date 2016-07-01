@@ -2,6 +2,7 @@
 
 #include "llvm/IR/Type.h"
 #include "llvm/IR/Value.h"
+#include "llvm/IR/Argument.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/GlobalAlias.h"
 #include "llvm/IR/DataLayout.h"
@@ -357,13 +358,31 @@ void dsa::Graph::compress ()
 }
 
 dsa::Cell &dsa::Graph::mkCell (const llvm::Value &v)
-{ return m_values [&v]; }
+{return isa<Argument> (v) ?
+    m_formals[cast<const Argument>(&v)] : m_values [&v];}
+
+dsa::Cell &dsa::Graph::mkRetCel (const llvm::Function &fn)
+{return m_returns[&fn];}
 
 const dsa::Cell &dsa::Graph::getCell (const llvm::Value &v) const
 {
+  // -- try m_formals first
+  if (const llvm::Argument *arg = dyn_cast<const Argument> (&v))
+  {
+    auto it = m_formals.find (arg);
+    if (it != m_formals.end ()) return it->second;
+  }
+  
   auto it = m_values.find (&v);
   assert (it != m_values.end ());
   return it->second;
+}
+
+bool dsa::Graph::hasCell (const llvm::Value &v) const
+{
+  return m_values.count (&v) > 0 ||
+    (isa<Argument> (&v) &&
+     m_formals.count (cast<const Argument>(&v)) > 0 );
 }
 
 dsa::Cell dsa::Graph::valueCell (const Value &v)
@@ -398,7 +417,7 @@ dsa::Cell dsa::Graph::valueCell (const Value &v)
   
 }
 
-void dsa::Graph::import (const Graph &g)
+void dsa::Graph::import (const Graph &g, bool withFormals)
 {
   Cloner C (*this);
   for (auto &kv : g.m_values)
@@ -410,10 +429,28 @@ void dsa::Graph::import (const Graph &g)
     Cell c (&n, kv.second.getOffset ());
     
     // -- insert value
-    Cell &vc = mkCell (*kv.first);
+    Cell &nc = mkCell (*kv.first);
     
     // -- unify the old and new cells
-    vc.unify (c);
+    nc.unify (c);
+  }
+
+  if (withFormals)
+  {
+    for (auto &kv : g.m_formals)
+    {
+      Node &n = C.clone (*kv.second.getNode ());
+      Cell c (&n, kv.second.getOffset ());
+      Cell &nc = mkCell (*kv.first);
+      nc.unify (c);
+    }
+    for (auto &kv : g.m_returns)
+    {
+      Node &n = C.clone (*kv.second.getNode ());
+      Cell c (&n, kv.second.getOffset ());
+      Cell &nc = mkRetCel (*kv.first);
+      nc.unify (c);
+    }
   }
 
   // possibly created many indirect links, compress 

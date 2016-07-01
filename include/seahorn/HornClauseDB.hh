@@ -65,6 +65,9 @@ namespace seahorn
     bool operator==(const HornRule & other) const
     { return hash() == other.hash ();}
 
+    bool operator<(const HornRule & other) const
+    { return hash() < other.hash ();}
+
     // return only the body of the horn clause
     Expr body () const {return m_body;}
 

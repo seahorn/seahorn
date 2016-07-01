@@ -42,17 +42,43 @@ namespace
     return a;
   }
   
-  class IntraBlockBuilder : InstVisitor<IntraBlockBuilder>
+  class InterBlockBuilder : public InstVisitor<InterBlockBuilder>
   {
+    friend class InstVisitor<InterBlockBuilder>;
+    dsa::Graph &m_graph;
+    
+    void visitPHINode (PHINode &PHI);
+  public:
+    InterBlockBuilder (dsa::Graph &g) : m_graph (g) {}
+  };
+  
+  void InterBlockBuilder::visitPHINode (PHINode &PHI)
+  {
+
+    if (!PHI.getType ()->isPointerTy ()) return;
+
+    assert (m_graph.hasCell (PHI));
+    dsa::Cell &phi = m_graph.mkCell (PHI);
+    for (unsigned i = 0, e = PHI.getNumIncomingValues (); i < e; ++i)
+    {
+      Value &v = *PHI.getIncomingValue (i);
+      assert (m_graph.hasCell (v));
+      phi.unify (m_graph.mkCell (v));
+    }
+  }
+  
+  class IntraBlockBuilder : public InstVisitor<IntraBlockBuilder>
+  {
+    friend class InstVisitor<IntraBlockBuilder>;
     Function &m_func;
     dsa::Graph &m_graph;
 
     const DataLayout &m_dl;
     const TargetLibraryInfo &m_tli;
     
-    bool isSkip (Instruction &I)
+    bool isSkip (Value &V)
     {
-      if (!I.getType ()->isPointerTy ()) return true;
+      if (!V.getType ()->isPointerTy ()) return true;
       // XXX skip if only uses are external functions
       return false;
     }
@@ -325,6 +351,17 @@ namespace
     c.pointTo (n, 0);
   }
   
+  void IntraBlockBuilder::visitReturnInst(ReturnInst &RI)
+  {
+    Value *v = RI.getReturnValue ();
+    if (!v || isSkip (*v)) return;
+    
+    dsa::Cell c = m_graph.valueCell (*v);
+    if (c.isNull ()) return;
+
+    m_graph.mkRetCell (m_func).pointTo (c);
+  }
+  
   void IntraBlockBuilder::visitPtrToIntInst (PtrToIntInst &I)
   {
     if (I.hasOneUse () && isa<CmpInst> (*(I.use_begin ()))) return;
@@ -355,7 +392,7 @@ namespace seahorn
     class Local : public ModulePass
     {
       const DataLayout *m_dl;
-      TargetLibraryInfo *m_tli;
+      const TargetLibraryInfo *m_tli;
       
     public:
       static char ID;
@@ -371,6 +408,8 @@ namespace seahorn
 
       bool runOnModule (Module &M)
       {
+        m_dl = &getAnalysis<DataLayoutPass>().getDataLayout ();
+        m_tli = &getAnalysis<TargetLibraryInfo> ();
         for (Function &F : M) runOnFunction (F);      
         return false;
       }
@@ -383,8 +422,13 @@ namespace seahorn
         RevTopoSort (F, bbs);
         boost::reverse (bbs);
         
-        for (const BasicBlock *bb : bbs) doIntraBlock (*bb);
-        for (const BasicBlock *bb : bbs) doInterBlock (*bb);
+        Graph g (*m_dl);
+        IntraBlockBuilder intraBuilder (F, g, *m_dl, *m_tli);
+        InterBlockBuilder interBuilder (g);
+        for (const BasicBlock *bb : bbs)
+          intraBuilder.visit (*const_cast<BasicBlock*>(bb));
+        for (const BasicBlock *bb : bbs)
+          interBuilder.visit (*const_cast<BasicBlock*>(bb));
         return false;
       }
 

@@ -361,7 +361,7 @@ dsa::Cell &dsa::Graph::mkCell (const llvm::Value &v)
 {return isa<Argument> (v) ?
     m_formals[cast<const Argument>(&v)] : m_values [&v];}
 
-dsa::Cell &dsa::Graph::mkRetCel (const llvm::Function &fn)
+dsa::Cell &dsa::Graph::mkRetCell (const llvm::Function &fn)
 {return m_returns[&fn];}
 
 const dsa::Cell &dsa::Graph::getCell (const llvm::Value &v) const
@@ -408,7 +408,10 @@ dsa::Cell dsa::Graph::valueCell (const Value &v)
   if (isa<GlobalValue> (&v))
   {
     // -- create a new cell if needed
-    return mkCell (v);
+    assert (!hasCell (v));
+    Cell &c = mkCell (v);
+    c.pointTo (mkNode (), 0);
+    // TODO: set external marker if needed
   }
   
   errs () << v << "\n";
@@ -448,7 +451,7 @@ void dsa::Graph::import (const Graph &g, bool withFormals)
     {
       Node &n = C.clone (*kv.second.getNode ());
       Cell c (&n, kv.second.getOffset ());
-      Cell &nc = mkRetCel (*kv.first);
+      Cell &nc = mkRetCell (*kv.first);
       nc.unify (c);
     }
   }

@@ -68,8 +68,6 @@ namespace seahorn
       /// creates a cell for the value or returns existing cell if
       /// present
       Cell &mkCell (const llvm::Value &v);
-      Cell &mkRetCel (const llvm::Function &fn);
-
       Cell &mkRetCell (const llvm::Function &fn);
 
       /// return a cell for the value

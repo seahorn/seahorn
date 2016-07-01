@@ -68,6 +68,9 @@ namespace seahorn
       bool hasCell (const llvm::Value &v) const
       { return m_values.count (&v) > 0; }
       
+      /// import the given graph into the current one
+      /// copies all nodes from g and unifies all common scalars
+      void import (const Graph &g);
     };
     
     /** 
@@ -302,7 +305,7 @@ namespace seahorn
       
       /// collapse the current node. Looses all field sensitivity
       void collapse ();
-      
+    
     };
 
     bool Node::isForwarding () const

@@ -8,6 +8,8 @@
 #include "llvm/Support/raw_ostream.h"
 #include <string.h>
 
+#include "seahorn/Analysis/DSA/Cloner.hh"
+
 using namespace seahorn;
 using namespace llvm;
 
@@ -394,4 +396,26 @@ dsa::Cell dsa::Graph::valueCell (const Value &v)
   assert(false && "Not handled expression");
   return Cell();
   
+}
+
+void dsa::Graph::import (const Graph &g)
+{
+  Cloner C (*this);
+  for (auto &kv : g.m_values)
+  {
+    // -- clone node
+    Node &n = C.clone (*kv.second.getNode ());
+    
+    // -- re-create the cell 
+    Cell c (&n, kv.second.getOffset ());
+    
+    // -- insert value
+    Cell &vc = mkCell (*kv.first);
+    
+    // -- unify the old and new cells
+    vc.unify (c);
+  }
+
+  // possibly created many indirect links, compress 
+  compress ();
 }

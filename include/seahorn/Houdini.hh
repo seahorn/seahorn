@@ -44,6 +44,10 @@ namespace seahorn
     std::map<Expr, ZSolver<EZ3>> assignEachRelationASolver(HornClauseDB &db, HornifyModule &hm);
     bool validateRule_EachRelationASolver(HornRule r, HornClauseDB &db, ZSolver<EZ3> &solver);
 
+    void run_naive(HornClauseDB &db, HornifyModule &hm, std::list<HornRule> &workList);
+    void run_one_solver_per_rule(HornClauseDB &db, HornifyModule &hm, std::list<HornRule> &workList);
+    void run_one_solver_per_relation(HornClauseDB &db, HornifyModule &hm, std::list<HornRule> &workList);
+
     template<typename OutputIterator>
     void get_all_bvars (Expr e, OutputIterator out);
 

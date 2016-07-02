@@ -435,6 +435,7 @@ namespace seahorn
 
     char Local::ID = 0;
 
+    Pass * createDsaLocalPass () {return new Local ();}
       
   }
 }

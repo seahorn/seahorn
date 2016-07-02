@@ -1,7 +1,12 @@
 #ifndef __DSA_GRAPH_HH_
 #define __DSA_GRAPH_HH_
 
+#include <boost/version.hpp>
+#if BOOST_VERSION / 100 % 1000 >= 60 // minor version >= 60
 #include <boost/core/noncopyable.hpp>
+#else
+#include <boost/noncopyable.hpp>
+#endif 
 #include <boost/container/flat_map.hpp>
 
 #include "llvm/ADT/ImmutableSet.h"

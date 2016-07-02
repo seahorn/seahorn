@@ -12,7 +12,7 @@ namespace seahorn
 
    namespace wto_impl {
       template<>
-      void write_graph_vertex(llvm::raw_ostream&o, llvm::BasicBlock* B) {
+      inline void write_graph_vertex(llvm::raw_ostream&o, llvm::BasicBlock* B) {
         if (!B->hasName())  // we print at least the address
           o << B;
         else

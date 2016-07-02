@@ -15,7 +15,7 @@ namespace seahorn
 
    namespace wto_impl {
       template<>
-      void write_graph_vertex(llvm::raw_ostream&o, Expr fdecl) {
+      inline void write_graph_vertex(llvm::raw_ostream&o, Expr fdecl) {
         o << *(bind::fname(fdecl));
       }
    }

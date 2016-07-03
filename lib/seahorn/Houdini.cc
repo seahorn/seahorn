@@ -516,7 +516,7 @@ namespace seahorn
 			  outs() << "RULE HEAD: " << *((*it).head()) << "\n";
 			  outs() << "RULE BODY: " << *((*it).body()) << "\n";
 			  ZSolver<EZ3> solver(hm.getZContext());
-			  solver.assertExpr(r.head());
+			  solver.assertExpr(r.body());
 
 			  solver.toSmtLib(outs());
 
@@ -602,7 +602,7 @@ namespace seahorn
 			  outs() << "BODY PRED 0: " << *(body_preds[0]) << "\n";
 			  outs() << "FROM PRED: " << *from_pred << "\n";
 		  }
-		  if(body_preds.size() == 1 && body_preds[0] == from_pred)
+		  if(body_preds.size() == 1 && bind::fname(body_preds[0]) == bind::fname(from_pred))
 		  {
 			  outs() << "RULE HEAD: " << *(r.head()) << "\n";
 			  outs() << "RULE BODY: " << *(r.body()) << "\n";
@@ -614,6 +614,12 @@ namespace seahorn
 			  if(isSat)
 			  {
 				  outs() << "SAT\n";
+
+				  if(bind::domainSz(bind::fname(r.head())) == 0) //deal with final relation
+				  {
+					  continue;
+				  }
+
 				  ZModel<EZ3> model = solver.getModel();
 				  ExprVector equations;
 				  for(int i=0; i<=bind::domainSz(r.head()); i++)

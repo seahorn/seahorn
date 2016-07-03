@@ -9,6 +9,7 @@
 #include "ufo/Expr.hpp"
 #include "ufo/Smt/Z3n.hpp"
 #include "ufo/Smt/EZ3.hh"
+#include "seahorn/HornClauseDBWto.hh"
 
 namespace seahorn
 {
@@ -31,12 +32,12 @@ namespace seahorn
     Expr relToCand(Expr pred);
     void guessCandidate(HornClauseDB &db);
     bool validateRule(HornRule r, HornClauseDB &db, ZSolver<EZ3> &solver);
-    void runHoudini(HornClauseDB &db, HornifyModule &hm, int config);
+    void runHoudini(HornClauseDB &db, HornifyModule &hm, HornClauseDBWto &db_wto, int config);
     Expr fAppToCandApp(Expr fapp);
     Expr applyArgsToBvars(Expr cand, Expr fapp);
     ExprMap getBvarsToArgsMap(Expr fapp);
     void weakenRuleHeadCand(HornRule r, ZModel<EZ3> m);
-    void addUsedRulesBackToWorkList(HornClauseDB &db, std::list<HornRule> &workList, Expr ruleHead_app);
+    void addUsedRulesBackToWorkList(HornClauseDB &db, HornClauseDBWto &db_wto, std::list<HornRule> &workList, HornRule r);
 
     std::map<HornRule, ZSolver<EZ3>> assignEachRuleASolver(HornClauseDB &db, HornifyModule &hm);
     Expr extractTransitionRelation(HornRule r, HornClauseDB &db);
@@ -45,8 +46,11 @@ namespace seahorn
     bool validateRule_EachRelationASolver(HornRule r, HornClauseDB &db, ZSolver<EZ3> &solver);
 
     void run_naive(HornClauseDB &db, HornifyModule &hm, std::list<HornRule> &workList);
-    void run_one_solver_per_rule(HornClauseDB &db, HornifyModule &hm, std::list<HornRule> &workList);
-    void run_one_solver_per_relation(HornClauseDB &db, HornifyModule &hm, std::list<HornRule> &workList);
+    void run_one_solver_per_rule(HornClauseDB &db, HornifyModule &hm, HornClauseDBWto &db_wto, std::list<HornRule> &workList);
+    void run_one_solver_per_relation(HornClauseDB &db, HornifyModule &hm, HornClauseDBWto &db_wto, std::list<HornRule> &workList);
+
+    void generatePositiveWitness(std::map<Expr, ExprVector> &relationToPositiveStateMap, HornClauseDB &db, HornifyModule &hm);
+    void getReachableStates(std::map<Expr, ExprVector> &relationToPositiveStateMap, Expr from_pred, Expr from_pred_state, HornClauseDB &db, HornifyModule &hm);
 
     template<typename OutputIterator>
     void get_all_bvars (Expr e, OutputIterator out);

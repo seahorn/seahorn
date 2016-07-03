@@ -13,7 +13,6 @@
 
 namespace seahorn
 {
-  HornClauseDB::horn_set_type HornClauseDB::m_empty_set;
 
   void HornClauseDB::resetIndexes ()
   {

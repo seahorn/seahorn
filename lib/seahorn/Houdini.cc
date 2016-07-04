@@ -69,12 +69,13 @@ namespace seahorn
     HornClauseDBWto db_wto(db);
     db_wto.buildWto();
 
+    //generate positive states
     std::map<Expr, ExprVector> relationToPositiveStateMap;
     generatePositiveWitness(relationToPositiveStateMap, db, hm);
 
     int config = EACH_RULE_A_SOLVER;
 
-    //runHoudini(db, hm, db_wto, config);
+    runHoudini(db, hm, db_wto, config);
 
     return false;
   }
@@ -513,70 +514,10 @@ namespace seahorn
 		  get_all_pred_apps(r.body(), db, std::back_inserter(body_pred_list));
 		  if(body_pred_list.size() == 0) // this rule doesn't have predicates in its body.
 		  {
-			  //getRuleHeadState(relationToPositiveStateMap, r, mk<TRUE>(r.head()->efac()), db, hm);
-			  LOG("houdini", errs() << "RULE HEAD: " << *((*it).head()) << "\n";);
-			  LOG("houdini", errs() << "RULE BODY: " << *((*it).body()) << "\n";);
-			  ZSolver<EZ3> solver(hm.getZContext());
-			  solver.assertExpr(r.body());
-
-			  solver.toSmtLib(outs());
-
-			  boost::tribool isSat = solver.solve();
-			  if(isSat)
-			  {
-				  LOG("houdini", errs() << "SAT\n";);
-				  ZModel<EZ3> model = solver.getModel();
-				  ExprVector equations;
-				  for(int i=0; i<=bind::domainSz(r.head()); i++)
-				  {
-					  Expr var = bind::domainTy(r.head(), i);
-					  Expr value = model.eval(var);
-					  LOG("houdini", errs() << "VAR: " << *var << "\n";);
-					  LOG("houdini", errs() << "VALUE: " << *value << "\n";);
-					  equations.push_back(mk<EQ>(var, value));
-				  }
-				  Expr state_assignment;
-				  if(equations.size() > 1)
-				  {
-					  state_assignment = mknary<AND>(equations.begin(), equations.end());
-				  }
-				  else
-				  {
-					  state_assignment = equations[0];
-				  }
-				  LOG("houdini", errs() << "STATE ASSIGNMENT: " << *state_assignment << "\n";);
-
-				  if(relationToPositiveStateMap.find(bind::fname(r.head())) == relationToPositiveStateMap.end())
-				  {
-					  ExprVector states;
-					  states.push_back(state_assignment);
-					  relationToPositiveStateMap.insert(std::pair<Expr, ExprVector>(bind::fname(r.head()), states));
-				  }
-				  else
-				  {
-					  ExprVector &states = relationToPositiveStateMap.find(bind::fname(r.head()))->second;
-					  states.push_back(state_assignment);
-				  }
-				  LOG("houdini", errs() << "STATE MAP:\n";);
-				  for(std::map<Expr, ExprVector>::iterator itr = relationToPositiveStateMap.begin(); itr != relationToPositiveStateMap.end(); ++itr)
-				  {
-					  LOG("houdini", errs() << "KEY: " << *(itr->first) << "\n";);
-					  LOG("houdini", errs() << "VALUE: [";);
-					  for(ExprVector::iterator itr2 = itr->second.begin(); itr2 != itr->second.end(); ++itr2)
-					  {
-						  LOG("houdini", errs() << *(*itr2) << ", ";);
-					  }
-					  LOG("houdini", errs() << "]\n";);
-				  }
-				  getReachableStates(relationToPositiveStateMap, r.head(), state_assignment, db, hm);
-			  }
-			  else
-			  {
-				  LOG("houdini", errs() << "UNSAT\n";);
-				  continue;
-			  }
+			  getRuleHeadState(relationToPositiveStateMap, r, mk<TRUE>(r.head()->efac()), db, hm);
 		  }
 	  }
+	  LOG("houdini", errs() << "THE WHOLE STATE MAP:\n";);
 	  for(std::map<Expr, ExprVector>::iterator itr = relationToPositiveStateMap.begin(); itr != relationToPositiveStateMap.end(); ++itr)
 	  {
 		  LOG("houdini", errs() << "KEY: " << *(itr->first) << "\n";);
@@ -605,73 +546,7 @@ namespace seahorn
 		  }
 		  if(body_preds.size() == 1 && bind::fname(body_preds[0]) == bind::fname(from_pred))
 		  {
-			  //getRuleHeadState(relationToPositiveStateMap, r, from_pred_state, db, hm);
-			  LOG("houdini", errs() << "RULE HEAD: " << *(r.head()) << "\n";);
-			  LOG("houdini", errs() << "RULE BODY: " << *(r.body()) << "\n";);
-			  ZSolver<EZ3> solver(hm.getZContext());
-			  solver.assertExpr(from_pred_state);
-			  solver.assertExpr(extractTransitionRelation(r, db));
-			  solver.toSmtLib(outs());
-			  bool isSat = solver.solve();
-			  if(isSat)
-			  {
-				  LOG("houdini", errs() << "SAT\n";);
-
-				  if(bind::domainSz(bind::fname(r.head())) == 0) //deal with final relation
-				  {
-					  continue;
-				  }
-
-				  ZModel<EZ3> model = solver.getModel();
-				  ExprVector equations;
-				  for(int i=0; i<=bind::domainSz(r.head()); i++)
-				  {
-					  Expr var = bind::domainTy(r.head(), i);
-					  Expr value = model.eval(var);
-					  LOG("houdini", errs() << "VAR: " << *var << "\n";);
-					  LOG("houdini", errs() << "VALUE: " << *value << "\n";);
-					  equations.push_back(mk<EQ>(var, value));
-				  }
-				  Expr state_assignment;
-				  if(equations.size() > 1)
-				  {
-					  state_assignment = mknary<AND>(equations.begin(), equations.end());
-				  }
-				  else
-				  {
-					  state_assignment = equations[0];
-				  }
-				  LOG("houdini", errs() << "STATE ASSIGNMENT: " << *state_assignment << "\n";);
-
-				  if(relationToPositiveStateMap.find(bind::fname(r.head())) == relationToPositiveStateMap.end())
-				  {
-					  ExprVector states;
-					  states.push_back(state_assignment);
-					  relationToPositiveStateMap.insert(std::pair<Expr, ExprVector>(bind::fname(r.head()), states));
-				  }
-				  else
-				  {
-					  ExprVector &states = relationToPositiveStateMap.find(bind::fname(r.head()))->second;
-					  states.push_back(state_assignment);
-				  }
-				  LOG("houdini", errs() << "STATE MAP:\n";);
-				  for(std::map<Expr, ExprVector>::iterator itr = relationToPositiveStateMap.begin(); itr != relationToPositiveStateMap.end(); ++itr)
-				  {
-					  LOG("houdini", errs() << "KEY: " << *(itr->first) << "\n";);
-					  LOG("houdini", errs() << "VALUE: [";);
-					  for(ExprVector::iterator itr2 = itr->second.begin(); itr2 != itr->second.end(); ++itr2)
-					  {
-						  LOG("houdini", errs() << *(*itr2) << ", ";);
-					  }
-					  LOG("houdini", errs() << "]\n";);
-				  }
-				  getReachableStates(relationToPositiveStateMap, r.head(), state_assignment, db, hm);
-			  }
-			  else
-			  {
-				  LOG("houdini", errs() << "UNSAT\n";);
-				  continue;
-			  }
+			  getRuleHeadState(relationToPositiveStateMap, r, from_pred_state, db, hm);
 		  }
 	  }
   }
@@ -688,8 +563,9 @@ namespace seahorn
 		if(isSat)
 		{
 		  LOG("houdini", errs() << "SAT\n";);
-		  if(bind::domainSz(bind::fname(r.head())) == 0) //deal with final relation
+		  if(bind::domainSz(bind::fname(r.head())) == 0) //reach a predicate with empty signature. Error state.
 		  {
+			  LOG("houdini", errs() << "BAD STATE REACHED!\n";);
 			  return;
 		  }
 		  ZModel<EZ3> model = solver.getModel();
@@ -724,7 +600,7 @@ namespace seahorn
 			  ExprVector &states = relationToPositiveStateMap.find(bind::fname(r.head()))->second;
 			  states.push_back(state_assignment);
 		  }
-		  LOG("houdini", errs() << "STATE MAP:\n";);
+		  /*LOG("houdini", errs() << "STATE MAP:\n";);
 		  for(std::map<Expr, ExprVector>::iterator itr = relationToPositiveStateMap.begin(); itr != relationToPositiveStateMap.end(); ++itr)
 		  {
 			  LOG("houdini", errs() << "KEY: " << *(itr->first) << "\n";);
@@ -734,7 +610,7 @@ namespace seahorn
 				  LOG("houdini", errs() << *(*itr2) << ", ";);
 			  }
 			  LOG("houdini", errs() << "]\n";);
-		  }
+		  }*/
 		  getReachableStates(relationToPositiveStateMap, r.head(), state_assignment, db, hm);
 		}
 		else

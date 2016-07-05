@@ -85,7 +85,6 @@ namespace
     }
     
     void visitAllocaInst (AllocaInst &AI);
-    void visitPHINode (PHINode &PHI) {/* do nothing */}
     void visitSelectInst(SelectInst &SI);
     void visitLoadInst(LoadInst &LI);
     void visitStoreInst(StoreInst &SI);

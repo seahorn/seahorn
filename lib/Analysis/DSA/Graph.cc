@@ -2,6 +2,7 @@
 
 #include "llvm/IR/Type.h"
 #include "llvm/IR/Value.h"
+#include "llvm/IR/Function.h"
 #include "llvm/IR/Argument.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/GlobalAlias.h"
@@ -254,7 +255,62 @@ void dsa::Node::unifyAt (Node &n, unsigned o)
   // -- move everything from n to this node
   n.pointTo (*this, offset);
 }
-    
+
+void dsa::Node::writeTypes(raw_ostream&o) const {
+  if (isCollapsed()) 
+    o << "collapsed";
+  else 
+  {
+    // Go through all the types, and just print them.
+    const types_type & ts = types ();
+    bool firstType = true;
+    o << "types={";
+    if (ts.begin() != ts.end()) {
+      for (typename types_type::const_iterator ii = ts.begin(),
+               ee = ts.end(); ii != ee; ++ii) {
+        if (!firstType) o << "::";
+        firstType = false;
+        o << "o=" << ii->first << ":"; // offset
+        if (ii->second.begin () != ii->second.end()) {
+          bool first = true;
+          for (const Type * t: ii->second) {
+            if (!first) o << "|";
+            t->print(o);
+            first = false;
+          }
+        }
+        else
+          o << "void";
+      }
+    }
+    else {
+      o << "void";
+    }
+    o << "}";
+  }
+  
+  // XXX: this is already printed as a flag
+  //if (isArray()) o << " array";
+}
+
+void dsa::Node::write(raw_ostream&o) const {
+  /// XXX: we print here the address. Therefore, it will change from
+  /// one run to another.
+  /// TODO: assign a unique identifier based on some representative
+  /// (among all referrers).
+
+  o << "Node " << this << ": ";
+  o << "flags=[" << m_nodeType.toStr() << "] ";
+  writeTypes(o);
+
+  // TODO: print links
+}
+
+
+void dsa::Cell::dump() const {
+  write(errs());
+}
+        
 void dsa::Cell::unify (Cell &c)
 {
   if (isNull ())
@@ -420,6 +476,16 @@ dsa::Cell dsa::Graph::valueCell (const Value &v)
   
 }
 
+void dsa::Cell::write(raw_ostream&o) const {
+  o << "<" << m_offset << ",";
+  m_node->write(o);
+  o << ">";
+}
+
+void dsa::Node::dump() const {
+  write(errs());
+}
+
 void dsa::Graph::import (const Graph &g, bool withFormals)
 {
   Cloner C (*this);
@@ -458,4 +524,104 @@ void dsa::Graph::import (const Graph &g, bool withFormals)
 
   // possibly created many indirect links, compress 
   compress ();
+}
+
+
+void dsa::Graph::write (raw_ostream&o) const{
+
+  typedef std::set<const llvm::Value*> ValSet;
+  typedef std::set<const llvm::Argument*> ArgSet;
+  typedef std::set<const llvm::Function*> FuncSet;
+  typedef std::set<const Node*> NodeSet;
+
+  typedef DenseMap<const Cell*, ValSet> CellValMap;
+  typedef DenseMap<const Cell*, ArgSet> CellArgMap;
+  typedef DenseMap<const Cell*, FuncSet> CellRetMap;
+
+  // -- here all nodes referenced by scalars, formals, or returns
+  NodeSet refNodes;
+
+  // --- collect all nodes and cells referenced by scalars
+  CellValMap scalarCells;
+  for (auto &kv : m_values) {
+    const Cell* C = &(kv.second);
+    refNodes.insert(C->getNode());
+    auto it = scalarCells.find(C);
+    if (it == scalarCells.end()) {
+      ValSet S;
+      S.insert(kv.first);
+      scalarCells.insert (std::make_pair(C, S));
+    } else {
+      it->second.insert(kv.first);
+    }
+  }
+
+  // --- collect all nodes and cells referenced by function formal
+  //     parameters
+  CellArgMap argCells;
+  for (auto &kv : m_formals) {
+    const Cell* C = &(kv.second);
+    refNodes.insert(C->getNode());
+    auto it = argCells.find(C);
+    if (it == argCells.end()) {
+      ArgSet S;
+      S.insert(kv.first);
+      argCells.insert (std::make_pair(C, S));
+    } else {
+      it->second.insert(kv.first);
+    }
+  }
+  
+  // --- collect all nodes and cells referenced by return parameters
+  CellRetMap retCells;
+  for (auto &kv : m_returns) {
+    const Cell* C = &(kv.second);
+    refNodes.insert(C->getNode());
+    auto it = retCells.find(C);
+    if (it == retCells.end()) {
+      FuncSet S;
+      S.insert(kv.first);
+      retCells.insert (std::make_pair(C, S));
+    } else {
+      it->second.insert(kv.first);
+    }
+  }
+
+  // --- print referenced nodes
+  o << "=== NODES\n";
+  for (auto N: refNodes) {
+    N->write(o);
+    o << "\n";
+  }
+
+  // TODO: print cells sorted first by node and then by offsets
+  // --- print aliasing sets
+  o << "=== ALIAS SETS\n";
+  for (auto &kv: scalarCells) {
+    const Cell * C = kv.first;
+    if (kv.second.begin() != kv.second.end()) {
+      o << "cell=(" << C->getNode() << "," << C->getOffset () << ")\n";
+      for (const Value* V: kv.second) {
+        o << "\t" << *V << "\n";
+      }
+    }
+  }
+  for (auto &kv: argCells) {
+    const Cell * C = kv.first;
+    if (kv.second.begin() != kv.second.end()) {
+      o << "cell=(" << C->getNode() << "," << C->getOffset () << ")\n";
+      for (const Argument* A: kv.second) {
+        o << "\t" << *A << "\n";
+      }
+    }
+  }
+  for (auto &kv: retCells) {
+    const Cell * C = kv.first;
+    if (kv.second.begin() != kv.second.end()) {
+      o << "cell=(" << C->getNode() << "," << C->getOffset () << ")\n";
+      for (const Function* F: kv.second) {
+        o << "\t" << "ret("<< F->getName() << ")\n";
+      }
+    }
+  }
 }

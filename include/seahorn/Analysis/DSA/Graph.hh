@@ -19,6 +19,7 @@ namespace llvm
   class DataLayout;
   class Argument;
   class Function;
+  class raw_ostream;
 }
 
 namespace seahorn
@@ -87,6 +88,9 @@ namespace seahorn
       /// import the given graph into the current one
       /// copies all nodes from g and unifies all common scalars
       void import (const Graph &g, bool withFormals = false);
+
+      /// pretty-printer of a graph
+      void write(llvm::raw_ostream&o) const;
     };
     
     /** 
@@ -137,6 +141,12 @@ namespace seahorn
       
       void swap (Cell &o)
       { std::swap (m_node, o.m_node); std::swap (m_offset, o.m_offset); }
+
+      /// pretty-printer of a cell
+      void write(llvm::raw_ostream&o) const;
+
+      /// for gdb
+      void dump () const;
     };
     
     
@@ -187,6 +197,28 @@ namespace seahorn
           dead |= n.dead;
         }
         void reset () { memset (this, 0, sizeof (*this)); }
+
+        std::string toStr() const 
+        {
+          std::string flags("");
+          if (alloca) flags += "S";
+          if (heap) flags += "H";
+          if (global) flags += "G";
+          if (array) flags += "A";
+          if (unknown) flags += "U";
+          if (incomplete) flags += "I";
+          if (modified) flags += "M";
+          if (read) flags += "R";
+          if (external) flags += "E";
+          if (externFunc) flags += "X";
+          if (externGlobal) flags += "Y";
+          if (inttoptr) flags += "P";
+          if (ptrtoint) flags += "2";
+          if (vastart) flags += "V";
+          if (dead) flags += "D";
+          return flags;
+        }
+        
       };
 
       class Offset;
@@ -254,7 +286,11 @@ namespace seahorn
       /// increase size to accommodate a field of type t at the given offset
       void growSize (const Offset &offset, const llvm::Type *t);
       Node &setArray (bool v = true) { m_nodeType.array = v; return *this; }
+
+      void writeTypes (llvm::raw_ostream &o) const;
+
     public:
+
       /// unify with a given node
       void unify (Node &n) { unifyAt (n, 0); }
       Node &setAlloca (bool v = true) { m_nodeType.alloca = v; return *this;}
@@ -321,7 +357,12 @@ namespace seahorn
       
       /// collapse the current node. Looses all field sensitivity
       void collapse ();
-    
+
+      /// pretty-printer of a node
+      void write(llvm::raw_ostream&o) const;    
+
+      /// for gdb
+      void dump () const;
     };
 
     bool Node::isForwarding () const

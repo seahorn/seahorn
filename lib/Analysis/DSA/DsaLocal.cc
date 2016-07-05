@@ -8,7 +8,6 @@
 #include "llvm/IR/DataLayout.h"
 #include "llvm/Target/TargetLibraryInfo.h"
 
-
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/GetElementPtrTypeIterator.h"
@@ -21,8 +20,10 @@
 #include "seahorn/Analysis/DSA/Graph.hh"
 #include "seahorn/Support/SortTopo.hh"
 
-
 #include "boost/range/algorithm/reverse.hpp"
+
+#include "avy/AvyDebug.h"
+
 using namespace llvm;
 using namespace seahorn;
 
@@ -410,7 +411,7 @@ namespace seahorn
       {
         m_dl = &getAnalysis<DataLayoutPass>().getDataLayout ();
         m_tli = &getAnalysis<TargetLibraryInfo> ();
-        for (Function &F : M) runOnFunction (F);      
+        for (Function &F : M) runOnFunction (F);                
         return false;
       }
 
@@ -429,6 +430,11 @@ namespace seahorn
           intraBuilder.visit (*const_cast<BasicBlock*>(bb));
         for (const BasicBlock *bb : bbs)
           interBuilder.visit (*const_cast<BasicBlock*>(bb));
+
+        LOG ("dsa", 
+             errs () << "Dsa graph after " << F.getName () << "\n";
+             g.write(errs()));
+
         return false;
       }
     };

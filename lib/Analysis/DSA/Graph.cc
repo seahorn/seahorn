@@ -442,13 +442,20 @@ const dsa::Cell &dsa::Graph::getCell (const llvm::Value &v)
   if (const llvm::Argument *arg = dyn_cast<const Argument> (&v))
   {
     auto it = m_formals.find (arg);
-    if (it != m_formals.end ()) return *(it->second);
+    assert (it != m_formals.end ());
+    return *(it->second);
   }
-  else if (isa<GlobalValue> (&v)) return mkCell (v);
-  
-  auto it = m_values.find (&v);
-  assert (it != m_values.end ());
-  return *(it->second);
+  else if (isa<GlobalValue> (&v))
+  {
+    Cell &c = mkCell (v);
+    c.pointTo (mkNode (), 0);
+  }
+  else 
+  {
+    auto it = m_values.find (&v);
+    assert (it != m_values.end ());
+    return *(it->second);
+  }
 }
 
 bool dsa::Graph::hasCell (const llvm::Value &v) const

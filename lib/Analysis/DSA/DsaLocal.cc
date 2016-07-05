@@ -1,5 +1,3 @@
-
-
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/Function.h"
@@ -18,9 +16,11 @@
 #include "llvm/ADT/DenseSet.h"
 
 #include "seahorn/Analysis/DSA/Graph.hh"
+#include "seahorn/Analysis/DSA/Local.hh"
 #include "seahorn/Support/SortTopo.hh"
 
 #include "boost/range/algorithm/reverse.hpp"
+#include "boost/make_shared.hpp"
 
 #include "avy/AvyDebug.h"
 
@@ -474,63 +474,66 @@ namespace
 
   
 }
+
+
 namespace seahorn
 {
   namespace dsa
   {
-    class Local : public ModulePass
+
+    Local::Local () : 
+        ModulePass (ID), m_dl (nullptr), m_tli (nullptr) {}
+
+
+    void Local::getAnalysisUsage (AnalysisUsage &AU) const 
     {
-      const DataLayout *m_dl;
-      const TargetLibraryInfo *m_tli;
-      
-    public:
-      static char ID;
-      Local () : ModulePass (ID), m_dl (nullptr), m_tli (nullptr)
-      {}
-      
-      void getAnalysisUsage (AnalysisUsage &AU) const override
-      {
-        AU.addRequired<DataLayoutPass> ();
-        AU.addRequired<TargetLibraryInfo> ();
-        AU.setPreservesAll ();
-      }
+      AU.addRequired<DataLayoutPass> ();
+      AU.addRequired<TargetLibraryInfo> ();
+      AU.setPreservesAll ();
+    }
 
-      bool runOnModule (Module &M)
-      {
-        m_dl = &getAnalysis<DataLayoutPass>().getDataLayout ();
-        m_tli = &getAnalysis<TargetLibraryInfo> ();
-        for (Function &F : M) runOnFunction (F);                
+    bool Local::runOnModule (Module &M)
+    {
+      m_dl = &getAnalysis<DataLayoutPass>().getDataLayout ();
+      m_tli = &getAnalysis<TargetLibraryInfo> ();
+      for (Function &F : M) runOnFunction (F);                
         return false;
-      }
+    }
 
-      bool runOnFunction (Function &F)
-      {
-        if (F.isDeclaration () || F.empty ()) return false;
-        
-        Graph g (*m_dl);
-        
-        // create cells and nodes for formal arguments
-        for (Argument &a : F.args ())
-          g.mkCell (a).pointTo (g.mkNode (), 0);
-        
-        std::vector<const BasicBlock *> bbs;
-        RevTopoSort (F, bbs);
-        boost::reverse (bbs);
-        
-        IntraBlockBuilder intraBuilder (F, g, *m_dl, *m_tli);
-        InterBlockBuilder interBuilder (g);
-        for (const BasicBlock *bb : bbs)
-          intraBuilder.visit (*const_cast<BasicBlock*>(bb));
-        for (const BasicBlock *bb : bbs)
-          interBuilder.visit (*const_cast<BasicBlock*>(bb));
+    bool Local::runOnFunction (Function &F)
+    {
+      if (F.isDeclaration () || F.empty ()) return false;
+      
+      Graph_ptr g = boost::make_shared<Graph> (*m_dl);
+      
+      // create cells and nodes for formal arguments
+      for (Argument &a : F.args ())
+        g->mkCell (a).pointTo (g->mkNode (), 0);
+      
+      std::vector<const BasicBlock *> bbs;
+      RevTopoSort (F, bbs);
+      boost::reverse (bbs);
+      
+      IntraBlockBuilder intraBuilder (F, *g, *m_dl, *m_tli);
+      InterBlockBuilder interBuilder (*g);
+      for (const BasicBlock *bb : bbs)
+        intraBuilder.visit (*const_cast<BasicBlock*>(bb));
+      for (const BasicBlock *bb : bbs)
+        interBuilder.visit (*const_cast<BasicBlock*>(bb));
+      
+      LOG ("dsa", 
+           errs () << "Dsa graph after " << F.getName () << "\n";
+           g->write(errs()));
+      
+      m_graphs [&F] = g;
+      return false;
+    }
 
-        LOG ("dsa", 
-             errs () << "Dsa graph after " << F.getName () << "\n";
-             g.write(errs()));
-
-        return false;
-      }
-    };
+    const Graph& Local::getGraph (const Function* F) const {
+      auto it = m_graphs.find(F);
+      assert (it != m_graphs.end());
+      return *(it->second);
+    }
 
     char Local::ID = 0;
 

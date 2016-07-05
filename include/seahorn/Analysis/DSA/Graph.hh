@@ -1,12 +1,6 @@
 #ifndef __DSA_GRAPH_HH_
 #define __DSA_GRAPH_HH_
 
-#include <boost/version.hpp>
-#if BOOST_VERSION / 100 % 1000 >= 60 // minor version >= 60
-#include <boost/core/noncopyable.hpp>
-#else
-#include <boost/noncopyable.hpp>
-#endif 
 #include <boost/container/flat_map.hpp>
 
 #include "llvm/ADT/ImmutableSet.h"
@@ -151,7 +145,7 @@ namespace seahorn
     
     
     /// A node of a DSA graph representing a memory object
-    class Node : private boost::noncopyable
+    class Node 
     {
       friend class Graph;
       friend class Cell;
@@ -291,6 +285,11 @@ namespace seahorn
 
     public:
 
+      /// delete copy constructor
+      Node (const Node &n) = delete;
+      /// delete assignment
+      Node &operator=(const Node &n) = delete;
+      
       /// unify with a given node
       void unify (Node &n) { unifyAt (n, 0); }
       Node &setAlloca (bool v = true) { m_nodeType.alloca = v; return *this;}

@@ -421,10 +421,10 @@ namespace
   {
     // TODO: mark I.getDest () is modified, and I.getSource () is read
     assert (m_graph.hasCell (*I.getDest ()));
-    assert (m_graph.hasCell (*I.getSource ()));
     // unify the two cells because potentially all bytes of source
     // are copied into dest
-    m_graph.mkCell(*I.getDest ()).unify (m_graph.mkCell (*I.getSource ()));
+    dsa::Cell sourceCell = m_graph.valueCell (*I.getSource ());
+    m_graph.mkCell(*I.getDest ()).unify (sourceCell);
     // TODO: adjust size of I.getLength ()
     // TODO: handle special case when memcpy is used to move non-pointer value only
   }

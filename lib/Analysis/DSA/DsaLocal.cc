@@ -420,11 +420,16 @@ namespace seahorn
       {
         if (F.isDeclaration () || F.empty ()) return false;
         
+        Graph g (*m_dl);
+        
+        // create cells and nodes for formal arguments
+        for (Argument &a : F.args ())
+          g.mkCell (a).pointTo (g.mkNode (), 0);
+        
         std::vector<const BasicBlock *> bbs;
         RevTopoSort (F, bbs);
         boost::reverse (bbs);
         
-        Graph g (*m_dl);
         IntraBlockBuilder intraBuilder (F, g, *m_dl, *m_tli);
         InterBlockBuilder interBuilder (g);
         for (const BasicBlock *bb : bbs)

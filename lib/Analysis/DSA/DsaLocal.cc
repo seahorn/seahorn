@@ -164,12 +164,12 @@ namespace
     // update/create the link
     if (isa<PointerType> (LI.getType ())) 
     {
-      Cell &ptr = m_graph.mkCell (LI);
       if (!base.hasLink ())
       {
         Node &n = m_graph.mkNode ();
-        ptr.setLink (0, Cell (&n, 0));
+        base.setLink (0, Cell (&n, 0));
       }
+      Cell &ptr = m_graph.mkCell (LI);
       ptr.pointTo (base.getLink ());
     }
   }

@@ -8,7 +8,9 @@
 #include "llvm/IR/GlobalAlias.h"
 #include "llvm/IR/DataLayout.h"
 #include "llvm/Support/raw_ostream.h"
-#include <string.h>
+
+#include <string>
+#include <set>
 
 #include "seahorn/Analysis/DSA/Cloner.hh"
 

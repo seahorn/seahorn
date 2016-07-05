@@ -473,6 +473,7 @@ dsa::Cell dsa::Graph::valueCell (const Value &v)
     Cell &c = mkCell (v);
     c.pointTo (mkNode (), 0);
     // TODO: set external marker if needed
+    return c;
   }
   
   errs () << v << "\n";

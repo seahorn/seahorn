@@ -74,7 +74,7 @@ namespace seahorn
       Cell &mkRetCell (const llvm::Function &fn);
 
       /// return a cell for the value
-      const Cell &getCell (const llvm::Value &v) const;
+      const Cell &getCell (const llvm::Value &v);
 
       /// return true iff the value has a cel
       bool hasCell (const llvm::Value &v) const;

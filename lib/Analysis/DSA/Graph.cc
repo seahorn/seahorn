@@ -86,7 +86,6 @@ void dsa::Node::addType (unsigned o, const llvm::Type *t)
 {
   if (isCollapsed ()) return;
   Offset offset (*this, o);
-  assert (offset < size ());
   growSize (offset, t);
   if (isCollapsed ()) return;
   Set types = m_graph->emptySet ();
@@ -360,11 +359,15 @@ void dsa::Cell::pointTo (Node &n, unsigned offset)
   assert (!n.isForwarding ());
   m_node = &n;
   if (n.isCollapsed ()) m_offset = 0;
-  else if (n.size () == 0) { assert (false); m_offset = 1; }
-  else if (n.isArray ()) m_offset = offset % n.size ();
+  else if (n.isArray ())
+  {
+    assert (n.size () > 0);
+    m_offset = offset % n.size ();
+  }
   else
   {
-    assert (offset < n.size ());
+    /// grow size as needed. allow offset to go one byte past size
+    if (offset < n.size ()) n.growSize (offset);
     m_offset = offset;
   }
 }    

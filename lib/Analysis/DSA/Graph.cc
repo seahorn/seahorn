@@ -449,6 +449,7 @@ const dsa::Cell &dsa::Graph::getCell (const llvm::Value &v)
   {
     Cell &c = mkCell (v);
     c.pointTo (mkNode (), 0);
+    return c;
   }
   else 
   {

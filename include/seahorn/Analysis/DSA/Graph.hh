@@ -127,6 +127,7 @@ namespace seahorn
       inline void setLink (unsigned offset, const Cell &c);
       inline void addLink (unsigned offset, Cell &c);
       inline void addType (unsigned offset, const llvm::Type *t);
+      inline void growSize (unsigned offset, const llvm::Type *t);
       
       /// unify with a given cell. At the end, both cells point to the
       /// same offset of the same node. Might cause collapse of the
@@ -384,6 +385,14 @@ namespace seahorn
 
     void Cell::addType (unsigned offset, const llvm::Type *t)
     { getNode ()->addType(m_offset + offset, t); }
+
+    void Cell::growSize (unsigned o, const llvm::Type *t)
+    {
+      assert (!isNull ());
+      Node::Offset offset (*getNode (), m_offset + o);
+      getNode ()->growSize (offset, t);
+    }
+      
     
     
     Node* Node::getNode () 

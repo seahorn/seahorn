@@ -183,6 +183,7 @@ namespace
     // TODO: mark base as modified
 
     // XXX: potentially it is enough to update size only at this point
+    base.growSize (0, SI.getValueOperand ()->getType ());
     base.addType (0, SI.getValueOperand ()->getType ());
     
     if (isa<PointerType> (SI.getValueOperand ()->getType ()))

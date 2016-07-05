@@ -90,6 +90,8 @@ def initProfiles():
    #profiles ['inline'] = base + [ '--inline', '--crab', '--crab-dom=num']
     profiles ['inline'] = base + [ '--inline']
     profiles ['no_inline'] = base
+    profiles ['houdini_no_inline'] = base + [ '--horn-houdini']
+    profiles ['houdini_inline'] = base + [ '--horn-houdini', '--inline']
     profiles ['term_lex'] = ['term', '-O0', '--horn-no-verif', '--step=flarge', '--inline']
     profiles ['term_max'] = ['term', '-O0', '--horn-no-verif', '--step=flarge', '--inline', '--rank_func=max']
     return profiles

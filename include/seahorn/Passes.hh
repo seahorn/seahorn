@@ -62,13 +62,7 @@ namespace seahorn
 
   llvm::Pass* createKleeInternalizePass ();
 
-  llvm::Pass* createWrapMemPass ();
-  
-  namespace dsa {
-  
-  llvm::Pass* createDsaLocalPass();
-  
-  }
+  llvm::Pass* createWrapMemPass ();  
 }
 
 #ifdef HAVE_LLVM_SEAHORN

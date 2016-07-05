@@ -1,3 +1,6 @@
+#ifndef __DSA_LOCAL_HH_
+#define __DSA_LOCAL_HH_
+
 #include "llvm/IR/Module.h"
 #include "llvm/IR/Function.h"
 #include "llvm/Pass.h"
@@ -8,7 +11,8 @@
 
 #include "boost/shared_ptr.hpp"
 
-namespace llvm {
+namespace llvm 
+{
    class DataLayout;
    class TargetLibraryInfo;
 }
@@ -29,6 +33,7 @@ namespace seahorn
 
     public:
       static char ID;
+
       Local ();
       
       void getAnalysisUsage (AnalysisUsage &AU) const override;
@@ -37,11 +42,13 @@ namespace seahorn
 
       bool runOnFunction (Function &F);
 
-      const char * getPassName() const {
-        return "Dsa local pass";
-      }
+      const char * getPassName() const 
+      { return "Dsa local pass"; }
       
+      bool hasGraph(const Function* F) const;
+
       const Graph& getGraph(const Function* F) const;
     };
   }
 }
+#endif 

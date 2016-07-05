@@ -484,7 +484,6 @@ namespace seahorn
     Local::Local () : 
         ModulePass (ID), m_dl (nullptr), m_tli (nullptr) {}
 
-
     void Local::getAnalysisUsage (AnalysisUsage &AU) const 
     {
       AU.addRequired<DataLayoutPass> ();
@@ -529,15 +528,19 @@ namespace seahorn
       return false;
     }
 
+    bool Local::hasGraph (const Function* F) const {
+      return (m_graphs.find(F) != m_graphs.end());
+    }
+
     const Graph& Local::getGraph (const Function* F) const {
       auto it = m_graphs.find(F);
       assert (it != m_graphs.end());
       return *(it->second);
     }
 
-    char Local::ID = 0;
-
-    Pass * createDsaLocalPass () {return new Local ();}
-      
+    //Pass * createDsaLocalPass () {return new Local ();}
   }
 }
+
+char seahorn::dsa::Local::ID = 0;
+

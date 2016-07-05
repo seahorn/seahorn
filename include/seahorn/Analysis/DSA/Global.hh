@@ -1,3 +1,6 @@
+#ifndef __DSA_GLOBAL_HH_
+#define __DSA_GLOBAL_HH_
+
 #include "llvm/IR/Module.h"
 #include "llvm/IR/Function.h"
 #include "llvm/Pass.h"
@@ -15,6 +18,7 @@ namespace seahorn
 {
   namespace dsa
   {
+
     class Global : public ModulePass
     {
       const DataLayout *m_dl;
@@ -24,20 +28,19 @@ namespace seahorn
     public:
 
       static char ID;
+
       Global ();
-      
+
       void getAnalysisUsage (AnalysisUsage &AU) const override;
 
-      bool runOnModule (Module &M) ;
+      bool runOnModule (Module &M) override;
 
-      bool runOnFunction (Function &F);
+      const char * getPassName() const override 
+      { return "Context-insensitive Dsa global pass"; }
 
-      const char * getPassName() const {
-        return "Context-insensitive Dsa global pass";
-      }
-      
-      // TODO: method to expose the final global graph
+      const Graph& getGraph () const;
 
     };
   }
 }
+#endif 

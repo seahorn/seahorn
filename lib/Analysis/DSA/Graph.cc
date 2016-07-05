@@ -436,7 +436,7 @@ dsa::Cell &dsa::Graph::mkRetCell (const llvm::Function &fn)
   return *res;
 }
 
-const dsa::Cell &dsa::Graph::getCell (const llvm::Value &v) const
+const dsa::Cell &dsa::Graph::getCell (const llvm::Value &v) 
 {
   // -- try m_formals first
   if (const llvm::Argument *arg = dyn_cast<const Argument> (&v))
@@ -444,6 +444,7 @@ const dsa::Cell &dsa::Graph::getCell (const llvm::Value &v) const
     auto it = m_formals.find (arg);
     if (it != m_formals.end ()) return *(it->second);
   }
+  else if (isa<GlobalValue> (&v)) return mkCell (v);
   
   auto it = m_values.find (&v);
   assert (it != m_values.end ());
@@ -452,7 +453,10 @@ const dsa::Cell &dsa::Graph::getCell (const llvm::Value &v) const
 
 bool dsa::Graph::hasCell (const llvm::Value &v) const
 {
-  return m_values.count (&v) > 0 ||
+  return
+    // -- globals are always implicitly present
+    isa<GlobalValue> (&v) || 
+    m_values.count (&v) > 0 ||
     (isa<Argument> (&v) &&
      m_formals.count (cast<const Argument>(&v)) > 0 );
 }

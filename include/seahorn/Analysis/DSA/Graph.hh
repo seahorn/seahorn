@@ -22,6 +22,8 @@ namespace seahorn
   {
     class Node;
     class Cell;
+    typedef std::unique_ptr<Cell> CellRef;
+    
     class Graph
     {
       friend class Node;
@@ -35,14 +37,15 @@ namespace seahorn
       /// DSA nodes owned by this graph
       std::vector<std::unique_ptr<Node> > m_nodes;
       
+      
       /// Map from scalars to cells in this graph
-      llvm::DenseMap<const llvm::Value*, Cell> m_values;
+      llvm::DenseMap<const llvm::Value*, CellRef> m_values;
 
       /// Map from formal arguments to cells
-      llvm::DenseMap<const llvm::Argument*, Cell> m_formals;
+      llvm::DenseMap<const llvm::Argument*, CellRef> m_formals;
       
       /// Map from formal returns of functions to cells
-      llvm::DenseMap<const llvm::Function*, Cell> m_returns;
+      llvm::DenseMap<const llvm::Function*, CellRef> m_returns;
       
       SetFactory &getSetFactory () { return m_setFactory; }
       Set emptySet () { return m_setFactory.getEmptySet (); }
@@ -242,7 +245,7 @@ namespace seahorn
 
       typedef Graph::Set Set;
       typedef boost::container::flat_map<unsigned,  Set> types_type;
-      typedef boost::container::flat_map<unsigned, Cell> links_type;
+      typedef boost::container::flat_map<unsigned, CellRef> links_type;
       /// known type of every offset/field
       types_type m_types;
       /// destination of every offset/field
@@ -269,7 +272,9 @@ namespace seahorn
       Cell &getLink (const Offset &offset)
       {
         assert (this == &offset.node ());
-        return m_links [offset];
+        auto &res = m_links [offset];
+        if (!res) res.reset (new Cell ());
+        return *res;
       }
       
       /// Adds a set of types for a field at a given offset
@@ -339,7 +344,7 @@ namespace seahorn
       bool hasLink (unsigned offset) const
       { return m_links.count (Offset (*this, offset)) > 0; }
       const Cell &getLink (unsigned offset) const
-      {return m_links.at (Offset (*this, offset));}
+      {return *m_links.at (Offset (*this, offset));}
       void setLink (unsigned offset, const Cell &c) {getLink (Offset (*this, offset)) = c;}
       void addLink (unsigned offset, Cell &c);
 

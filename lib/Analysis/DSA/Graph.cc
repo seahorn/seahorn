@@ -17,6 +17,7 @@
 using namespace seahorn;
 using namespace llvm;
 
+
 dsa::Node::Node (Graph &g, const Node &n, bool copyLinks) :
   m_graph (&g), m_unique_scalar (n.m_unique_scalar), m_size (n.m_size)
 {
@@ -32,7 +33,8 @@ dsa::Node::Node (Graph &g, const Node &n, bool copyLinks) :
   if (copyLinks)
   {
     assert (n.m_graph == m_graph);
-    m_links.insert (n.m_links.begin (), n.m_links.end ());
+    for (auto &kv : n.m_links)
+      m_links[kv.first].reset (new Cell (*kv.second));
   }
 }
 /// adjust offset based on type of the node Collapsed nodes
@@ -163,8 +165,9 @@ void dsa::Node::pointTo (Node &node, const Offset &offset)
   // -- move all the links
   for (auto &kv : m_links)
   {
-    if (kv.second.isNull ()) continue;
-    m_forward.addLink (kv.first, kv.second);
+    if (kv.second->isNull ()) continue;
+    m_forward.addLink (kv.first, *kv.second);
+    
         
   }
       
@@ -402,10 +405,10 @@ void dsa::Graph::compress ()
     n->getNode ();
     // if not forwarding, resolve forwarding on all links
     if (!n->isForwarding ())
-      for (auto &kv : n->links ()) kv.second.getNode ();
+      for (auto &kv : n->links ()) kv.second->getNode ();
   }
 
-  for (auto &kv : m_values) kv.second.getNode ();
+  for (auto &kv : m_values) kv.second->getNode ();
   
   // at this point, all cells and all nodes have their links
   // resolved. Every link points directly to the representative of the
@@ -420,11 +423,18 @@ void dsa::Graph::compress ()
 }
 
 dsa::Cell &dsa::Graph::mkCell (const llvm::Value &v)
-{return isa<Argument> (v) ?
-    m_formals[cast<const Argument>(&v)] : m_values [&v];}
+{
+  auto &res = isa<Argument> (v) ? m_formals[cast<const Argument>(&v)] : m_values [&v];
+  if (!res) res.reset (new Cell ());
+  return *res;
+}
 
 dsa::Cell &dsa::Graph::mkRetCell (const llvm::Function &fn)
-{return m_returns[&fn];}
+{
+  auto &res = m_returns[&fn];
+  if (!res) res.reset (new Cell ());
+  return *res;
+}
 
 const dsa::Cell &dsa::Graph::getCell (const llvm::Value &v) const
 {
@@ -432,12 +442,12 @@ const dsa::Cell &dsa::Graph::getCell (const llvm::Value &v) const
   if (const llvm::Argument *arg = dyn_cast<const Argument> (&v))
   {
     auto it = m_formals.find (arg);
-    if (it != m_formals.end ()) return it->second;
+    if (it != m_formals.end ()) return *(it->second);
   }
   
   auto it = m_values.find (&v);
   assert (it != m_values.end ());
-  return it->second;
+  return *(it->second);
 }
 
 bool dsa::Graph::hasCell (const llvm::Value &v) const
@@ -502,10 +512,10 @@ void dsa::Graph::import (const Graph &g, bool withFormals)
   for (auto &kv : g.m_values)
   {
     // -- clone node
-    Node &n = C.clone (*kv.second.getNode ());
+    Node &n = C.clone (*kv.second->getNode ());
     
     // -- re-create the cell 
-    Cell c (&n, kv.second.getOffset ());
+    Cell c (&n, kv.second->getOffset ());
     
     // -- insert value
     Cell &nc = mkCell (*kv.first);
@@ -518,15 +528,15 @@ void dsa::Graph::import (const Graph &g, bool withFormals)
   {
     for (auto &kv : g.m_formals)
     {
-      Node &n = C.clone (*kv.second.getNode ());
-      Cell c (&n, kv.second.getOffset ());
+      Node &n = C.clone (*kv.second->getNode ());
+      Cell c (&n, kv.second->getOffset ());
       Cell &nc = mkCell (*kv.first);
       nc.unify (c);
     }
     for (auto &kv : g.m_returns)
     {
-      Node &n = C.clone (*kv.second.getNode ());
-      Cell c (&n, kv.second.getOffset ());
+      Node &n = C.clone (*kv.second->getNode ());
+      Cell c (&n, kv.second->getOffset ());
       Cell &nc = mkRetCell (*kv.first);
       nc.unify (c);
     }
@@ -554,7 +564,7 @@ void dsa::Graph::write (raw_ostream&o) const{
   // --- collect all nodes and cells referenced by scalars
   CellValMap scalarCells;
   for (auto &kv : m_values) {
-    const Cell* C = &(kv.second);
+    const Cell* C = kv.second.get ();
     refNodes.insert(C->getNode());
     auto it = scalarCells.find(C);
     if (it == scalarCells.end()) {
@@ -570,7 +580,7 @@ void dsa::Graph::write (raw_ostream&o) const{
   //     parameters
   CellArgMap argCells;
   for (auto &kv : m_formals) {
-    const Cell* C = &(kv.second);
+    const Cell* C = kv.second.get();
     refNodes.insert(C->getNode());
     auto it = argCells.find(C);
     if (it == argCells.end()) {
@@ -585,7 +595,7 @@ void dsa::Graph::write (raw_ostream&o) const{
   // --- collect all nodes and cells referenced by return parameters
   CellRetMap retCells;
   for (auto &kv : m_returns) {
-    const Cell* C = &(kv.second);
+    const Cell* C = kv.second.get();
     refNodes.insert(C->getNode());
     auto it = retCells.find(C);
     if (it == retCells.end()) {

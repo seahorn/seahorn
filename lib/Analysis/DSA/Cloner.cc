@@ -22,10 +22,10 @@ Node &Cloner::clone (const Node &n)
   for (auto &kv : n.links ())
   {
     // dummy link (should not happen)
-    if (kv.second.isNull ()) continue;
+    if (kv.second->isNull ()) continue;
     
     // recursively clone the node pointed by the link 
-    Cell nCell (&clone (*kv.second.getNode ()), kv.second.getOffset ());
+    Cell nCell (&clone (*kv.second->getNode ()), kv.second->getOffset ());
     // create new link
     nNode.setLink (kv.first, nCell);
   }

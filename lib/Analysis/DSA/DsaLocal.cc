@@ -277,8 +277,8 @@ namespace
   void IntraBlockBuilder::visitGetElementPtrInst(GetElementPtrInst &I)
   {
     Value *ptr = I.getPointerOperand ();
-    assert (m_graph.hasCell (*ptr));
-    dsa::Cell &base = m_graph.mkCell (*ptr);
+    assert (m_graph.hasCell (*ptr) || isa<GlobalValue> (ptr));
+    dsa::Cell base = m_graph.valueCell (*ptr);
     assert (!base.isNull ());
 
     assert (!m_graph.hasCell (I));

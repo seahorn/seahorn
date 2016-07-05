@@ -310,6 +310,7 @@ void dsa::Node::write(raw_ostream&o) const {
 
 void dsa::Cell::dump() const {
   write(errs());
+  errs () << "\n";
 }
         
 void dsa::Cell::unify (Cell &c)
@@ -448,7 +449,7 @@ bool dsa::Graph::hasCell (const llvm::Value &v) const
 
 dsa::Cell dsa::Graph::valueCell (const Value &v)
 {
-  assert (v.getType ()->isPointerTy ());
+  assert (v.getType ()->isPointerTy () || v.getType ()->isAggregateType ());
   
   if (isa<Constant> (&v) && cast<Constant> (&v)->isNullValue ())
     return Cell();
@@ -475,6 +476,9 @@ dsa::Cell dsa::Graph::valueCell (const Value &v)
     // TODO: set external marker if needed
     return c;
   }
+
+  // -- special case for aggregate types. Cell creation is handled elsewhere
+  if (v.getType ()->isAggregateType ()) return Cell ();
   
   errs () << v << "\n";
   assert(false && "Not handled expression");

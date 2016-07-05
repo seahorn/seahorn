@@ -96,8 +96,8 @@ namespace
     void visitPtrToIntInst(PtrToIntInst &I);
     void visitBitCastInst(BitCastInst &I);
     void visitCmpInst(CmpInst &I) {/* do nothing */}
-    void visitInsertValueInst(InsertValueInst& I) { /* ignore for now */ }
-    void visitExtractValueInst(ExtractValueInst& I) { /* ignore for now */ }
+    void visitInsertValueInst(InsertValueInst& I); 
+    void visitExtractValueInst(ExtractValueInst& I); 
 
     void visitGetElementPtrInst(GetElementPtrInst &I);
     void visitInstruction(Instruction &I);
@@ -149,10 +149,11 @@ namespace
     res.pointTo (thenC, 0);
   }
   
+ 
   void IntraBlockBuilder::visitLoadInst(LoadInst &LI)
   {
     using namespace seahorn::dsa;
-    if (isa<PointerType> (LI.getType ())) m_graph.mkCell (LI);
+    if (!isSkip (LI)) m_graph.mkCell (LI);
     
     Cell base = m_graph.valueCell (*LI.getPointerOperand ());
     if (base.isNull ()) return;
@@ -161,7 +162,7 @@ namespace
     // TODO: mark base as read
     
     // update/create the link
-    if (isa<PointerType> (LI.getType ())) 
+    if (!isSkip (LI)) 
     {
       if (!base.hasLink ())
       {
@@ -188,6 +189,7 @@ namespace
     if (isa<PointerType> (SI.getValueOperand ()->getType ()))
     {
       Cell val = m_graph.valueCell (*SI.getValueOperand ());
+      assert (!val.isNull ());
       base.addLink (0, val);
     }
   }
@@ -209,9 +211,9 @@ namespace
      The first element of the pair is the fixed offset. The second is
      a gcd of the variable offset.
    */
-  std::pair<uint64_t, uint64_t> computeGetOffset (Type *ptrTy, ArrayRef<Value *> Indicies,
+  std::pair<uint64_t, uint64_t> computeGepOffset (Type *ptrTy, ArrayRef<Value *> Indicies,
                                                   const DataLayout &dl)
-{
+  {
     unsigned ptrSz = dl.getPointerSizeInBits ();
     Type *Ty = ptrTy;
     assert (Ty->isPointerTy ());
@@ -250,6 +252,27 @@ namespace
     return std::make_pair (noffset, divisor);
   }    
   
+  /// Computes offset into an indexed type
+  uint64_t computeIndexedOffset (Type *ty, ArrayRef<unsigned> indecies,
+                                 const DataLayout &dl)
+  {
+    uint64_t offset = 0;
+    for (unsigned idx : indecies)
+    {
+      if (StructType *sty = dyn_cast<StructType> (ty))
+      {
+        const StructLayout *layout = dl.getStructLayout (sty);
+        offset += layout->getElementOffset (idx);
+        ty = sty->getElementType (idx);
+      }
+      else
+      {
+        ty = cast<SequentialType> (ty)->getElementType ();
+        offset += idx * dl.getTypeAllocSize (ty);
+      }
+    }
+    return offset;
+  }
   
   void IntraBlockBuilder::visitGetElementPtrInst(GetElementPtrInst &I)
   {
@@ -269,7 +292,7 @@ namespace
     }
     
     SmallVector<Value*, 8> indexes (I.op_begin () + 1, I.op_end ());
-    auto off = computeGetOffset (ptr->getType (), indexes, m_dl);
+    auto off = computeGepOffset (ptr->getType (), indexes, m_dl);
     if (off.second)
     {
       // create a node representing the array
@@ -285,6 +308,71 @@ namespace
       res.pointTo (base, off.first);
   }
   
+  void IntraBlockBuilder::visitInsertValueInst(InsertValueInst& I)
+  {
+    // TODO: set read/mod/alloc flags
+    assert (I.getAggregateOperand ()->getType () == I.getType ());
+    using namespace dsa;
+    Cell &c = m_graph.mkCell (I);
+
+    // make sure that the aggregate has a cell
+    Cell op = m_graph.valueCell (*I.getAggregateOperand ());
+    if (op.isNull ())
+    {
+      // -- create a node for the aggregate
+      Cell &t = m_graph.mkCell (*I.getAggregateOperand ());
+      t.pointTo (m_graph.mkNode (), 0);
+      op = t;
+    }
+    
+    c.unify (op);
+
+    // -- update type record
+    Value &v = *I.getInsertedValueOperand ();
+    uint64_t offset = computeIndexedOffset (I.getAggregateOperand ()->getType (),
+                                            I.getIndices (), m_dl);
+    Cell out (op, offset);
+    out.growSize (0, v.getType ());
+    out.addType (0, v.getType ());
+    
+    // -- update link 
+    if (!isSkip (v))
+    {
+      Cell vCell = m_graph.valueCell (v);
+      assert (!vCell.isNull ());
+      out.addLink (0, vCell);
+    }
+  }
+  
+  void IntraBlockBuilder::visitExtractValueInst(ExtractValueInst& I)
+  {
+    // TODO: set read/mod/alloc flags
+    using namespace dsa;
+    Cell op = m_graph.valueCell (*I.getAggregateOperand ());
+    if (op.isNull ())
+    {
+      Cell &t = m_graph.mkCell (*I.getAggregateOperand ());
+      t.pointTo (m_graph.mkNode (), 0);
+      op = t;
+    }
+    
+    uint64_t offset = computeIndexedOffset (I.getAggregateOperand ()->getType (),
+                                            I.getIndices (), m_dl);
+    Cell in (op, offset);
+
+    // -- update type record
+    in.addType (0, I.getType ());
+    
+    if (!isSkip (I))
+    {
+      // -- create a new node if there is no link at this offset yet
+      if (!in.hasLink ())
+        in.setLink (0, Cell (&m_graph.mkNode (), 0));
+      // create cell for the read value and point it to where the link points to
+      Cell &c = m_graph.mkCell (I);
+      c.pointTo (in.getLink ());
+    }
+  }
   
   void IntraBlockBuilder::visitCallSite (CallSite CS)
   {

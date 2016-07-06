@@ -45,9 +45,9 @@ namespace seahorn
       const char * getPassName() const 
       { return "Dsa local pass"; }
       
-      bool hasGraph(const Function* F) const;
+      bool hasGraph(const Function& F) const;
 
-      const Graph& getGraph(const Function* F) const;
+      const Graph& getGraph(const Function& F) const;
     };
   }
 }

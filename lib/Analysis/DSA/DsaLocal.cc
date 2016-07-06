@@ -506,7 +506,7 @@ namespace seahorn
       for (const BasicBlock *bb : bbs)
         interBuilder.visit (*const_cast<BasicBlock*>(bb));
       
-      LOG ("dsa", 
+      LOG ("dsa-local", 
            errs () << "Dsa graph after " << F.getName () << "\n";
            g->write(errs()));
       
@@ -514,12 +514,12 @@ namespace seahorn
       return false;
     }
 
-    bool Local::hasGraph (const Function* F) const {
-      return (m_graphs.find(F) != m_graphs.end());
+    bool Local::hasGraph (const Function& F) const {
+      return (m_graphs.find(&F) != m_graphs.end());
     }
 
-    const Graph& Local::getGraph (const Function* F) const {
-      auto it = m_graphs.find(F);
+    const Graph& Local::getGraph (const Function& F) const {
+      auto it = m_graphs.find(&F);
       assert (it != m_graphs.end());
       return *(it->second);
     }

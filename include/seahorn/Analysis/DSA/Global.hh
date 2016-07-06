@@ -9,7 +9,7 @@
 
 namespace llvm {
    class DataLayout;
-   class TargetLibraryInfo;
+   class CallSite;
 }
 
 using namespace llvm;
@@ -22,8 +22,9 @@ namespace seahorn
     class Global : public ModulePass
     {
       const DataLayout *m_dl;
-      const TargetLibraryInfo *m_tli;
       std::unique_ptr<Graph> m_graph;
+
+      void resolveFunctionCall(const Function *F, const CallSite &Call);
 
     public:
 

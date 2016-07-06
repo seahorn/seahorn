@@ -46,40 +46,17 @@ namespace
     return a;
   }
   
-  class InterBlockBuilder : public InstVisitor<InterBlockBuilder>
+  class BlockBuilderBase
   {
-    friend class InstVisitor<InterBlockBuilder>;
-    dsa::Graph &m_graph;
-    
-    void visitPHINode (PHINode &PHI);
-  public:
-    InterBlockBuilder (dsa::Graph &g) : m_graph (g) {}
-  };
-  
-  void InterBlockBuilder::visitPHINode (PHINode &PHI)
-  {
-
-    if (!PHI.getType ()->isPointerTy ()) return;
-
-    assert (m_graph.hasCell (PHI));
-    dsa::Cell &phi = m_graph.mkCell (PHI, dsa::Cell ());
-    for (unsigned i = 0, e = PHI.getNumIncomingValues (); i < e; ++i)
-    {
-      Value &v = *PHI.getIncomingValue (i);
-      assert (m_graph.hasCell (v));
-      phi.unify (m_graph.mkCell (v, dsa::Cell ()));
-    }
-    assert (!phi.isNull ());
-  }
-  
-  class IntraBlockBuilder : public InstVisitor<IntraBlockBuilder>
-  {
-    friend class InstVisitor<IntraBlockBuilder>;
+  protected:
     Function &m_func;
     dsa::Graph &m_graph;
-
     const DataLayout &m_dl;
     const TargetLibraryInfo &m_tli;
+    
+    
+    dsa::Cell valueCell (const Value &v);
+    void visitGep (const Value &gep, const Value &base, ArrayRef<Value *> indicies);
     
     bool isSkip (Value &V)
     {
@@ -88,8 +65,47 @@ namespace
       return false;
     }
     
-    void visitGep (const Value &gep, const Value &base, ArrayRef<Value *> indicies);
-    dsa::Cell valueCell (const Value &v);
+  public:
+    BlockBuilderBase (Function &func, dsa::Graph &graph,
+                      const DataLayout &dl, const TargetLibraryInfo &tli) :
+      m_func(func), m_graph(graph), m_dl(dl), m_tli (tli) {}
+  };
+    
+  class InterBlockBuilder : public InstVisitor<InterBlockBuilder>, BlockBuilderBase
+  {
+    friend class InstVisitor<InterBlockBuilder>;
+    
+    void visitPHINode (PHINode &PHI);
+  public:
+    InterBlockBuilder (Function &func, dsa::Graph &graph,
+                       const DataLayout &dl, const TargetLibraryInfo &tli) :
+      BlockBuilderBase (func, graph, dl, tli) {}
+  };
+  
+  void InterBlockBuilder::visitPHINode (PHINode &PHI)
+  {
+    if (!PHI.getType ()->isPointerTy ()) return;
+
+    assert (m_graph.hasCell (PHI));
+    dsa::Cell &phi = m_graph.mkCell (PHI, dsa::Cell ());
+    for (unsigned i = 0, e = PHI.getNumIncomingValues (); i < e; ++i)
+    {
+      Value &v = *PHI.getIncomingValue (i);
+      // -- skip null
+      if (isa<Constant> (&v) && cast<Constant> (&v)->isNullValue ()) continue;
+      
+      dsa::Cell c = valueCell (v);
+      assert (!c.isNull ());
+      phi.unify (c);
+    }
+    assert (!phi.isNull ());
+  }
+  
+  class IntraBlockBuilder : public InstVisitor<IntraBlockBuilder>, BlockBuilderBase
+  {
+    friend class InstVisitor<IntraBlockBuilder>;
+
+    
     void visitAllocaInst (AllocaInst &AI);
     void visitSelectInst(SelectInst &SI);
     void visitLoadInst(LoadInst &LI);
@@ -115,15 +131,13 @@ namespace
     // void visitVAStart(CallSite CS);
 
   public:
-    IntraBlockBuilder (Function &func, dsa::Graph &graph,
+     IntraBlockBuilder (Function &func, dsa::Graph &graph,
                        const DataLayout &dl, const TargetLibraryInfo &tli) :
-      m_func(func), m_graph(graph), m_dl(dl), m_tli (tli) {}
-    
-    
+       BlockBuilderBase (func, graph, dl, tli) {}
   };
 
   
-  dsa::Cell IntraBlockBuilder::valueCell (const Value &v)
+  dsa::Cell BlockBuilderBase::valueCell (const Value &v)
   {
     using namespace dsa;
     assert (v.getType ()->isPointerTy () || v.getType ()->isAggregateType ());
@@ -234,6 +248,11 @@ namespace
   void IntraBlockBuilder::visitStoreInst(StoreInst &SI)
   {
     using namespace seahorn::dsa;
+    
+    // -- skip store into NULL
+    if (Constant *c = dyn_cast<Constant> (SI.getPointerOperand ()))
+      if (c->isNullValue ()) return;
+    
     Cell base = valueCell  (*SI.getPointerOperand ());
     assert (!base.isNull ());
 
@@ -246,8 +265,16 @@ namespace
     if (!isSkip (*SI.getValueOperand ()))
     {
       Cell val = valueCell  (*SI.getValueOperand ());
-      assert (!val.isNull ());
-      base.addLink (0, val);
+      if ((isa<Constant> (SI.getValueOperand ()) &&
+           cast<Constant> (SI.getValueOperand ())->isNullValue ()))
+      {
+        // TODO: mark link as possibly pointing to null
+      }
+      else
+      {
+        assert (!val.isNull ());
+        base.addLink (0, val);
+      }
     }
   }
 
@@ -330,7 +357,7 @@ namespace
     return offset;
   }
   
-  void IntraBlockBuilder::visitGep (const Value &gep,
+  void BlockBuilderBase::visitGep (const Value &gep,
                                     const Value &ptr, ArrayRef<Value *> indicies)
   {
     assert (m_graph.hasCell (ptr) || isa<GlobalValue> (&ptr));
@@ -446,8 +473,6 @@ namespace
     {
       Cell &c = m_graph.mkCell (*inst, Cell (m_graph.mkNode (), 0));
       // TODO: mark c as external if it comes from a call to an external function
-      LOG ("dsa", errs () << "Creating cell " << &c << " for a call: " << *inst << "\n";
-           c.dump (););
     }
 
     
@@ -553,6 +578,8 @@ namespace seahorn
     {
       if (F.isDeclaration () || F.empty ()) return false;
       
+      LOG("progress", errs () << "DSA: " << F.getName () << "\n";);
+      
       Graph_ptr g = boost::make_shared<Graph> (*m_dl);
       
       // create cells and nodes for formal arguments
@@ -564,7 +591,7 @@ namespace seahorn
       boost::reverse (bbs);
       
       IntraBlockBuilder intraBuilder (F, *g, *m_dl, *m_tli);
-      InterBlockBuilder interBuilder (*g);
+      InterBlockBuilder interBuilder (F, *g, *m_dl, *m_tli);
       for (const BasicBlock *bb : bbs)
         intraBuilder.visit (*const_cast<BasicBlock*>(bb));
       for (const BasicBlock *bb : bbs)

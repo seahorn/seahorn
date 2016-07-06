@@ -360,7 +360,8 @@ namespace seahorn
       void addType (unsigned offset, const llvm::Type *t);
       
       /// collapse the current node. Looses all field sensitivity
-      void collapse ();
+      /// tag argument is used for debugging only
+      void collapse (int tag /*= -2*/);
 
       /// pretty-printer of a node
       void write(llvm::raw_ostream&o) const;    

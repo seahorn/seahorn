@@ -55,7 +55,7 @@ void dsa::Node::growSize (unsigned v)
   else if (v > m_size)
   {
     // -- cannot grow size of an array
-    if (isArray ()) collapse ();
+    if (isArray ()) collapse (__LINE__);
     else m_size = v;
   }
 }
@@ -115,7 +115,7 @@ void dsa::Node::joinTypes (unsigned offset, const Node &n)
 }
 
 /// collapse the current node. Looses all field sensitivity
-void dsa::Node::collapse ()
+void dsa::Node::collapse (int tag)
 {
   if (isCollapsed ()) return;
         
@@ -129,6 +129,11 @@ void dsa::Node::collapse ()
   }
   else
   {
+    LOG ("dsa-collapse",
+         errs () << "Collapsing tag: " << tag << "\n";
+         write (errs ());
+         errs () << "\n";);
+    
     // create a new node to be the collapsed version of the current one
     // move everything to the new node. This breaks cycles in the links.
     Node &n = m_graph->mkNode ();
@@ -203,7 +208,7 @@ void dsa::Node::unifyAt (Node &n, unsigned o)
   // collapse before merging with a collapsed node
   if (!isCollapsed () && n.isCollapsed ())
   {
-    collapse ();
+    collapse (__LINE__);
     getNode ()->unifyAt (*n.getNode (), o);
     return;
   }
@@ -222,7 +227,7 @@ void dsa::Node::unifyAt (Node &n, unsigned o)
     // -- cannot merge array at non-zero offset
     else
     {
-      collapse ();
+      collapse (__LINE__);
       getNode ()->unifyAt (*n.getNode (), o);
       return;
     }
@@ -239,7 +244,7 @@ void dsa::Node::unifyAt (Node &n, unsigned o)
     // previous non-constant indexes
     if (max->size () % min->size () != 0)
     {
-      collapse ();
+      collapse (__LINE__);
       getNode ()->unifyAt (*n.getNode (), o);
       return;
     }
@@ -260,7 +265,7 @@ void dsa::Node::unifyAt (Node &n, unsigned o)
       else
       {
         // -- cannot unify arrays at non-zero offset
-        collapse ();
+        collapse (__LINE__);
         getNode ()->unifyAt (*n.getNode (), o);
         return;
       }
@@ -268,10 +273,10 @@ void dsa::Node::unifyAt (Node &n, unsigned o)
   }
   else if (isArray () && !n.isArray ())
   {
-    // merge non-array into array at offset 0
+    // merge non-array into array at non-0 offset
     if (offset != 0)
     {
-      collapse ();
+      collapse (__LINE__);
       getNode ()->unifyAt (*n.getNode (), o);
       return;
     }
@@ -280,7 +285,7 @@ void dsa::Node::unifyAt (Node &n, unsigned o)
   if (&n == this)
   {
     // -- merging the node into itself at a different offset
-    if (offset > 0) collapse();
+    if (offset > 0) collapse(__LINE__);
     return;
   }
 

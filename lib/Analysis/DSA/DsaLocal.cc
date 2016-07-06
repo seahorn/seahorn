@@ -88,6 +88,7 @@ namespace
       return false;
     }
     
+    void visitGep (const Value &gep, const Value &base, ArrayRef<Value *> indicies);
     dsa::Cell valueCell (const Value &v);
     void visitAllocaInst (AllocaInst &AI);
     void visitSelectInst(SelectInst &SI);
@@ -162,9 +163,11 @@ namespace
         return valueCell (*ce->getOperand (0));
       else if (ce->getOpcode () == Instruction::GetElementPtr)
       {
-        Value *base = ce->getOperand (0);
+        Value &base = *(ce->getOperand (0));
         SmallVector<Value*, 8> indicies (ce->op_begin () + 1, ce->op_end ());
-        auto off = computeGepOffset (base->getType (), indicies, m_dl);
+        visitGep (v, base, indicies);
+        assert (m_graph.hasCell (v));
+        return m_graph.mkCell (v, Cell());
       }
     }
   
@@ -327,24 +330,22 @@ namespace
     return offset;
   }
   
-  void IntraBlockBuilder::visitGetElementPtrInst(GetElementPtrInst &I)
+  void IntraBlockBuilder::visitGep (const Value &gep,
+                                    const Value &ptr, ArrayRef<Value *> indicies)
   {
-    Value *ptr = I.getPointerOperand ();
-    assert (m_graph.hasCell (*ptr) || isa<GlobalValue> (ptr));
-    dsa::Cell base = valueCell  (*ptr);
+    assert (m_graph.hasCell (ptr) || isa<GlobalValue> (&ptr));
+    dsa::Cell base = valueCell (ptr);
     assert (!base.isNull ());
 
-    assert (!m_graph.hasCell (I));
-    
+    assert (!m_graph.hasCell (gep));
     dsa::Node *baseNode = base.getNode ();
     if (baseNode->isCollapsed ())
     {
-      m_graph.mkCell (I, dsa::Cell (baseNode, 0));
+      m_graph.mkCell (gep, dsa::Cell (baseNode, 0));
       return;
     }
     
-    SmallVector<Value*, 8> indexes (I.op_begin () + 1, I.op_end ());
-    auto off = computeGepOffset (ptr->getType (), indexes, m_dl);
+    auto off = computeGepOffset (ptr.getType (), indicies, m_dl);
     if (off.second)
     {
       // create a node representing the array
@@ -352,12 +353,19 @@ namespace
       n.setArraySize (off.second);
       // result of the gep points into that array at the gep offset
       // plus the offset of the base
-      m_graph.mkCell (I, dsa::Cell (n, off.first + base.getOffset ()));
+      m_graph.mkCell (gep, dsa::Cell (n, off.first + base.getOffset ()));
       // finally, unify array with the node of the base 
       n.unify (*baseNode);
-    }
+    }      
     else
-      m_graph.mkCell (I, dsa::Cell (base, off.first));
+      m_graph.mkCell (gep, dsa::Cell (base, off.first));
+  }
+  
+  void IntraBlockBuilder::visitGetElementPtrInst(GetElementPtrInst &I)
+  {
+    Value &ptr = *I.getPointerOperand ();
+    SmallVector<Value*, 8> indicies (I.op_begin () + 1, I.op_end ());
+    visitGep (I, ptr, indicies);
   }
   
   void IntraBlockBuilder::visitInsertValueInst(InsertValueInst& I)

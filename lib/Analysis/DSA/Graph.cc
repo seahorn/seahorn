@@ -276,7 +276,7 @@ void dsa::Node::writeTypes(raw_ostream&o) const {
                ee = ts.end(); ii != ee; ++ii) {
         if (!firstType) o << "::";
         firstType = false;
-        o << "o=" << ii->first << ":"; // offset
+        o << ii->first << ":"; // offset
         if (ii->second.begin () != ii->second.end()) {
           bool first = true;
           for (const Type * t: ii->second) {

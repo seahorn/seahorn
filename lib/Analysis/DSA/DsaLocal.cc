@@ -59,13 +59,14 @@ namespace
     if (!PHI.getType ()->isPointerTy ()) return;
 
     assert (m_graph.hasCell (PHI));
-    dsa::Cell &phi = m_graph.mkCell (PHI);
+    dsa::Cell &phi = m_graph.mkCell (PHI, dsa::Cell ());
     for (unsigned i = 0, e = PHI.getNumIncomingValues (); i < e; ++i)
     {
       Value &v = *PHI.getIncomingValue (i);
       assert (m_graph.hasCell (v));
-      phi.unify (m_graph.mkCell (v));
+      phi.unify (m_graph.mkCell (v, dsa::Cell ()));
     }
+    assert (!phi.isNull ());
   }
   
   class IntraBlockBuilder : public InstVisitor<IntraBlockBuilder>
@@ -122,8 +123,7 @@ namespace
   {
     if (isSkip (I)) return;
     
-    m_graph.mkCell (I).
-      pointTo (m_graph.mkNode(), 0);
+    m_graph.mkCell (I, dsa::Cell (m_graph.mkNode (), 0));
   }
   
   void IntraBlockBuilder::visitAllocaInst (AllocaInst &AI)
@@ -133,31 +133,30 @@ namespace
     Node &n = m_graph.mkNode ();
     // TODO: record allocation site
     // TODO: mark as stack allocated
-    Cell &res = m_graph.mkCell (AI);
-    res.pointTo (n, 0);
+    Cell &res = m_graph.mkCell (AI, Cell (n, 0));
   }
   void IntraBlockBuilder::visitSelectInst(SelectInst &SI)
   {
     using namespace seahorn::dsa;
     if (isSkip (SI)) return;
     
-    Cell &res = m_graph.mkCell (SI);
+    assert (!m_graph.hasCell (SI));
 
     Cell thenC = m_graph.valueCell (*SI.getOperand (1));
     Cell elseC = m_graph.valueCell (*SI.getOperand (2));
     thenC.unify (elseC);
-    res.pointTo (thenC, 0);
+    
+    // -- create result cell
+    m_graph.mkCell (SI, Cell (thenC, 0));
   }
   
  
   void IntraBlockBuilder::visitLoadInst(LoadInst &LI)
   {
     using namespace seahorn::dsa;
-    if (!isSkip (LI)) m_graph.mkCell (LI);
     
     Cell base = m_graph.valueCell (*LI.getPointerOperand ());
-    if (base.isNull ()) return;
-
+    assert (!base.isNull ());
     base.addType (0, LI.getType ());
     // TODO: mark base as read
     
@@ -169,8 +168,7 @@ namespace
         Node &n = m_graph.mkNode ();
         base.setLink (0, Cell (&n, 0));
       }
-      Cell &ptr = m_graph.mkCell (LI);
-      ptr.pointTo (base.getLink ());
+      m_graph.mkCell (LI, base.getLink ());
     }
   }
   
@@ -178,7 +176,7 @@ namespace
   {
     using namespace seahorn::dsa;
     Cell base = m_graph.valueCell (*SI.getPointerOperand ());
-    if (base.isNull ()) return;
+    assert (!base.isNull ());
 
     // TODO: mark base as modified
 
@@ -186,7 +184,7 @@ namespace
     base.growSize (0, SI.getValueOperand ()->getType ());
     base.addType (0, SI.getValueOperand ()->getType ());
     
-    if (isa<PointerType> (SI.getValueOperand ()->getType ()))
+    if (!isSkip (*SI.getValueOperand ()))
     {
       Cell val = m_graph.valueCell (*SI.getValueOperand ());
       assert (!val.isNull ());
@@ -198,10 +196,9 @@ namespace
   void IntraBlockBuilder::visitBitCastInst(BitCastInst &I)
   {
     if (isSkip (I)) return;
-    dsa::Cell &res = m_graph.mkCell (I);
     dsa::Cell arg = m_graph.valueCell (*I.getOperand (0));
-    if (arg.isNull ()) return;
-    res.pointTo (arg);
+    assert (!arg.isNull ());
+    m_graph.mkCell (I, arg);
   }
   
   /**
@@ -282,12 +279,11 @@ namespace
     assert (!base.isNull ());
 
     assert (!m_graph.hasCell (I));
-    dsa::Cell &res = m_graph.mkCell (I);
     
     dsa::Node *baseNode = base.getNode ();
     if (baseNode->isCollapsed ())
     {
-      res.pointTo (*baseNode, 0);
+      m_graph.mkCell (I, dsa::Cell (baseNode, 0));
       return;
     }
     
@@ -300,12 +296,12 @@ namespace
       n.setArraySize (off.second);
       // result of the gep points into that array at the gep offset
       // plus the offset of the base
-      res.pointTo (n, off.first + base.getOffset ());
+      m_graph.mkCell (I, dsa::Cell (n, off.first + base.getOffset ()));
       // finally, unify array with the node of the base 
       n.unify (*baseNode);
     }
     else
-      res.pointTo (base, off.first);
+      m_graph.mkCell (I, dsa::Cell (base, off.first));
   }
   
   void IntraBlockBuilder::visitInsertValueInst(InsertValueInst& I)
@@ -313,19 +309,15 @@ namespace
     // TODO: set read/mod/alloc flags
     assert (I.getAggregateOperand ()->getType () == I.getType ());
     using namespace dsa;
-    Cell &c = m_graph.mkCell (I);
 
     // make sure that the aggregate has a cell
     Cell op = m_graph.valueCell (*I.getAggregateOperand ());
     if (op.isNull ())
-    {
       // -- create a node for the aggregate
-      Cell &t = m_graph.mkCell (*I.getAggregateOperand ());
-      t.pointTo (m_graph.mkNode (), 0);
-      op = t;
-    }
+      op = m_graph.mkCell (*I.getAggregateOperand (),
+                           Cell (m_graph.mkNode (), 0));
     
-    c.unify (op);
+    Cell &c = m_graph.mkCell (I, op);
 
     // -- update type record
     Value &v = *I.getInsertedValueOperand ();
@@ -350,11 +342,7 @@ namespace
     using namespace dsa;
     Cell op = m_graph.valueCell (*I.getAggregateOperand ());
     if (op.isNull ())
-    {
-      Cell &t = m_graph.mkCell (*I.getAggregateOperand ());
-      t.pointTo (m_graph.mkNode (), 0);
-      op = t;
-    }
+      op = m_graph.mkCell (*I.getAggregateOperand (), Cell (m_graph.mkNode (), 0));
     
     uint64_t offset = computeIndexedOffset (I.getAggregateOperand ()->getType (),
                                             I.getIndices (), m_dl);
@@ -369,8 +357,7 @@ namespace
       if (!in.hasLink ())
         in.setLink (0, Cell (&m_graph.mkNode (), 0));
       // create cell for the read value and point it to where the link points to
-      Cell &c = m_graph.mkCell (I);
-      c.pointTo (in.getLink ());
+      m_graph.mkCell (I, in.getLink ());
     }
   }
   
@@ -385,8 +372,7 @@ namespace
       Node &n = m_graph.mkNode ();
       // TODO: record allocation site
       // TODO: mark as heap allocated
-      Cell &res = m_graph.mkCell (*CS.getInstruction ());
-      res.pointTo (n, 0);
+      Cell &res = m_graph.mkCell (*CS.getInstruction (), Cell (n, 0));
       return;  
     }
 
@@ -394,9 +380,10 @@ namespace
     
     if (inst && !isSkip (*inst))
     {
-      Cell &c = m_graph.mkCell (*inst);
-      c.pointTo (m_graph.mkNode (), 0);
+      Cell &c = m_graph.mkCell (*inst, Cell (m_graph.mkNode (), 0));
       // TODO: mark c as external if it comes from a call to an external function
+      LOG ("dsa", errs () << "Creating cell " << &c << " for a call: " << *inst << "\n";
+           c.dump (););
     }
 
     
@@ -424,7 +411,7 @@ namespace
     // unify the two cells because potentially all bytes of source
     // are copied into dest
     dsa::Cell sourceCell = m_graph.valueCell (*I.getSource ());
-    m_graph.mkCell(*I.getDest ()).unify (sourceCell);
+    m_graph.mkCell(*I.getDest (), dsa::Cell ()).unify (sourceCell);
     // TODO: adjust size of I.getLength ()
     // TODO: handle special case when memcpy is used to move non-pointer value only
   }
@@ -436,8 +423,7 @@ namespace
     
     dsa::Node &n = m_graph.mkNode ();
     // TODO: mark n appropriately.
-    dsa::Cell &c = m_graph.mkCell (I);
-    c.pointTo (n, 0);
+    m_graph.mkCell (I, dsa::Cell (n, 0));
   }
   
   void IntraBlockBuilder::visitReturnInst(ReturnInst &RI)
@@ -448,7 +434,7 @@ namespace
     dsa::Cell c = m_graph.valueCell (*v);
     if (c.isNull ()) return;
 
-    m_graph.mkRetCell (m_func).pointTo (c);
+    m_graph.mkRetCell (m_func, c);
   }
   
   void IntraBlockBuilder::visitPtrToIntInst (PtrToIntInst &I)
@@ -507,7 +493,7 @@ namespace seahorn
       
       // create cells and nodes for formal arguments
       for (Argument &a : F.args ())
-        g->mkCell (a).pointTo (g->mkNode (), 0);
+        g->mkCell (a, Cell (g->mkNode (), 0));
       
       std::vector<const BasicBlock *> bbs;
       RevTopoSort (F, bbs);

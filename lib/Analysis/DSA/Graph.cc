@@ -14,6 +14,8 @@
 
 #include "seahorn/Analysis/DSA/Cloner.hh"
 
+#include "avy/AvyDebug.h"
+
 using namespace seahorn;
 using namespace llvm;
 
@@ -422,17 +424,21 @@ void dsa::Graph::compress ()
                  m_nodes.end ());
 }
 
-dsa::Cell &dsa::Graph::mkCell (const llvm::Value &v)
+dsa::Cell &dsa::Graph::mkCell (const llvm::Value &v, const Cell &c)
 {
+  // Pretend that global values are always present
+  if (isa<GlobalValue> (&v) && c.isNull ())
+    return mkCell (v, Cell (mkNode (), 0));
+  
   auto &res = isa<Argument> (v) ? m_formals[cast<const Argument>(&v)] : m_values [&v];
-  if (!res) res.reset (new Cell ());
+  if (!res) res.reset (new Cell (c));
   return *res;
 }
 
-dsa::Cell &dsa::Graph::mkRetCell (const llvm::Function &fn)
+dsa::Cell &dsa::Graph::mkRetCell (const llvm::Function &fn, const Cell &c)
 {
   auto &res = m_returns[&fn];
-  if (!res) res.reset (new Cell ());
+  if (!res) res.reset (new Cell (c));
   return *res;
 }
 
@@ -446,11 +452,7 @@ const dsa::Cell &dsa::Graph::getCell (const llvm::Value &v)
     return *(it->second);
   }
   else if (isa<GlobalValue> (&v))
-  {
-    Cell &c = mkCell (v);
-    c.pointTo (mkNode (), 0);
-    return c;
-  }
+    return mkCell (v, Cell ());
   else 
   {
     auto it = m_values.find (&v);
@@ -474,8 +476,18 @@ dsa::Cell dsa::Graph::valueCell (const Value &v)
   assert (v.getType ()->isPointerTy () || v.getType ()->isAggregateType ());
   
   if (isa<Constant> (&v) && cast<Constant> (&v)->isNullValue ())
+  {
+    LOG ("dsa",
+         errs () << "WARNING: not handled constant: " << v << "\n";);
     return Cell();
-  if (hasCell (v)) return mkCell (v);
+  }
+  
+  if (hasCell (v))
+  {
+    Cell &c = mkCell (v, Cell ());
+    assert (!c.isNull ());
+    return c;
+  }
 
   if (isa<UndefValue> (&v)) return Cell();
   if (isa<GlobalAlias> (&v)) return valueCell (*cast<GlobalAlias> (&v)->getAliasee ());
@@ -486,19 +498,9 @@ dsa::Cell dsa::Graph::valueCell (const Value &v)
     {
       // XXX Handle properly
       assert (false);
-      return mkCell (v);
+      return mkCell (v, Cell (mkNode (), 0));
     }
       
-  if (isa<GlobalValue> (&v))
-  {
-    // -- create a new cell if needed
-    assert (!hasCell (v));
-    Cell &c = mkCell (v);
-    c.pointTo (mkNode (), 0);
-    // TODO: set external marker if needed
-    return c;
-  }
-
   // -- special case for aggregate types. Cell creation is handled elsewhere
   if (v.getType ()->isAggregateType ()) return Cell ();
   
@@ -527,10 +529,10 @@ void dsa::Graph::import (const Graph &g, bool withFormals)
     Node &n = C.clone (*kv.second->getNode ());
     
     // -- re-create the cell 
-    Cell c (&n, kv.second->getOffset ());
+    Cell c (n, kv.second->getOffset ());
     
     // -- insert value
-    Cell &nc = mkCell (*kv.first);
+    Cell &nc = mkCell (*kv.first, Cell ());
     
     // -- unify the old and new cells
     nc.unify (c);
@@ -542,14 +544,14 @@ void dsa::Graph::import (const Graph &g, bool withFormals)
     {
       Node &n = C.clone (*kv.second->getNode ());
       Cell c (&n, kv.second->getOffset ());
-      Cell &nc = mkCell (*kv.first);
+      Cell &nc = mkCell (*kv.first, Cell ());
       nc.unify (c);
     }
     for (auto &kv : g.m_returns)
     {
       Node &n = C.clone (*kv.second->getNode ());
       Cell c (&n, kv.second->getOffset ());
-      Cell &nc = mkRetCell (*kv.first);
+      Cell &nc = mkRetCell (*kv.first, Cell ());
       nc.unify (c);
     }
   }

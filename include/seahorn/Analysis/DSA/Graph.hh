@@ -70,8 +70,8 @@ namespace seahorn
       
       /// creates a cell for the value or returns existing cell if
       /// present
-      Cell &mkCell (const llvm::Value &v);
-      Cell &mkRetCell (const llvm::Function &fn);
+      Cell &mkCell (const llvm::Value &v, const Cell &c);
+      Cell &mkRetCell (const llvm::Function &fn, const Cell &c);
 
       /// return a cell for the value
       const Cell &getCell (const llvm::Value &v);
@@ -103,6 +103,7 @@ namespace seahorn
     public:
       Cell () : m_node(nullptr), m_offset (0) {}
       Cell (Node *node, unsigned offset) : m_node (node), m_offset (offset) {}
+      Cell (Node &node, unsigned offset) : m_node (&node), m_offset (offset) {}
       Cell (const Cell &o, unsigned offset = 0) :
         m_node (o.m_node), m_offset (o.m_offset + offset) {}
       Cell &operator= (const Cell &o)

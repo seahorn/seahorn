@@ -302,7 +302,7 @@ void dsa::Node::writeTypes(raw_ostream&o) const {
     if (ts.begin() != ts.end()) {
       for (typename types_type::const_iterator ii = ts.begin(),
                ee = ts.end(); ii != ee; ++ii) {
-        if (!firstType) o << "::";
+        if (!firstType) o << ",";
         firstType = false;
         o << ii->first << ":"; // offset
         if (ii->second.begin () != ii->second.end()) {

@@ -110,6 +110,12 @@ namespace seahorn
       {return m_node == o.m_node && m_offset == o.m_offset;}
       bool operator< (const Cell &o) const
       { return m_node < o.m_node || (m_node == o.m_node && m_offset < o.m_offset); }
+
+      void setRead (bool v = true);
+      void setModified (bool v = true);
+      
+      bool isRead () const;
+      bool isModified () const;
       
       bool isNull () const { return m_node == nullptr; }
       Node *getNode () const; 
@@ -302,11 +308,17 @@ namespace seahorn
       Node &setHeap (bool v = true) { m_nodeType.heap = v; return *this;}
       Node &setRead (bool v = true) { m_nodeType.read = v; return *this;}
       Node &setModified (bool v = true) { m_nodeType.modified = v; return *this;}
+      Node &setExternal (bool v = true) { m_nodeType.external = v; return *this;}
+      Node &setIntToPtr (bool v = true) { m_nodeType.inttoptr = v; return *this;}
+      Node &setPtrToInt (bool v = true) { m_nodeType.ptrtoint = v; return *this;}
 
       bool isAlloca () const { return m_nodeType.alloca; }
       bool isHeap () const { return m_nodeType.heap; }
       bool isRead () const { return m_nodeType.read; }
       bool isModified () const { return m_nodeType.modified; }
+      bool isExternal () const { return m_nodeType.external; }
+      bool isIntToPtr () const { return m_nodeType.inttoptr; }
+      bool isPtrToInt () const { return m_nodeType.ptrtoint; }
 
       Node &setArraySize (unsigned sz)
       {

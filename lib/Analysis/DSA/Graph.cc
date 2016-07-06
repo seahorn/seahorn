@@ -350,6 +350,12 @@ void dsa::Cell::dump() const {
   write(errs());
   errs () << "\n";
 }
+
+void dsa::Cell::setRead (bool v) { m_node->setRead(v);}
+void dsa::Cell::setModified (bool v) { m_node->setModified(v);}
+
+bool dsa::Cell::isRead () const { return m_node->isRead(); }
+bool dsa::Cell::isModified () const { return m_node->isModified(); }
         
 void dsa::Cell::unify (Cell &c)
 {

@@ -231,7 +231,7 @@ namespace
     Cell base = valueCell  (*LI.getPointerOperand ());
     assert (!base.isNull ());
     base.addType (0, LI.getType ());
-    base.getNode()->setRead();
+    base.setRead();
     // update/create the link
     if (!isSkip (LI)) 
     {
@@ -255,7 +255,7 @@ namespace
     Cell base = valueCell  (*SI.getPointerOperand ());
     assert (!base.isNull ());
 
-    base.getNode()->setModified();
+    base.setModified();
 
     // XXX: potentially it is enough to update size only at this point
     base.growSize (0, SI.getValueOperand ()->getType ());
@@ -420,7 +420,7 @@ namespace
     Cell out (op, offset);
     out.growSize (0, v.getType ());
     out.addType (0, v.getType ());
-    out.getNode()->setModified ();
+    out.setModified ();
 
     // -- update link 
     if (!isSkip (v))
@@ -448,7 +448,7 @@ namespace
 
     // -- update type record
     in.addType (0, I.getType ());
-    in.getNode()->setRead ();
+    in.setRead ();
     
     if (!isSkip (I))
     {
@@ -498,7 +498,7 @@ namespace
   {
     dsa::Cell dest = valueCell (*(I.getDest()));
     assert (!dest.isNull ());    
-    dest.getNode()->setModified();
+    dest.setModified();
     
     // TODO:    
     // can also update size using I.getLength ()
@@ -515,8 +515,8 @@ namespace
     dsa::Cell destCell = m_graph.mkCell(*I.getDest (), dsa::Cell ());
     destCell.unify (sourceCell);
 
-    sourceCell.getNode()->setRead();
-    destCell.getNode()->setModified();
+    sourceCell.setRead();
+    destCell.setModified();
 
     // TODO: adjust size of I.getLength ()
     // TODO: handle special case when memcpy is used to move non-pointer value only
@@ -561,7 +561,7 @@ namespace
     assert (m_graph.hasCell (*I.getOperand (0)));
     dsa::Cell c = valueCell  (*I.getOperand (0));
     if (!c.isNull ())
-      /* c->getNode ()->setPtrToInt (true) */;
+      c.getNode()->setPtrToInt ();
   }
 
   

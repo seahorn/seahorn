@@ -122,6 +122,7 @@ namespace seahorn
               }
             }
           }
+        m_graph->compress();
       }
 
       m_graph->compress();

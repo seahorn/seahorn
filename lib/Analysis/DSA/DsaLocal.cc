@@ -57,7 +57,8 @@ namespace
     
     dsa::Cell valueCell (const Value &v);
     void visitGep (const Value &gep, const Value &base, ArrayRef<Value *> indicies);
-    
+    void visitCastIntToPtr (const Value& dest);
+
     bool isSkip (Value &V)
     {
       if (!V.getType ()->isPointerTy ()) return true;
@@ -182,6 +183,12 @@ namespace
         visitGep (v, base, indicies);
         assert (m_graph.hasCell (v));
         return m_graph.mkCell (v, Cell());
+      } 
+      else if (ce->getOpcode () == Instruction::IntToPtr) {
+        Value &i = *(ce->getOperand (0));
+        visitCastIntToPtr (i);
+        assert (m_graph.hasCell (i));
+        return m_graph.mkCell (i, Cell());
       }
     }
   
@@ -386,7 +393,7 @@ namespace
     else
       m_graph.mkCell (gep, dsa::Cell (base, off.first));
   }
-  
+
   void IntraBlockBuilder::visitGetElementPtrInst(GetElementPtrInst &I)
   {
     Value &ptr = *I.getPointerOperand ();
@@ -529,14 +536,19 @@ namespace
     // non-pointer value only
   }
 
-  void IntraBlockBuilder::visitIntToPtrInst (IntToPtrInst &I)
-  {
+  void BlockBuilderBase::visitCastIntToPtr (const Value& dest) {
     // -- only used as a compare. do not needs DSA node
-    if (I.hasOneUse () && isa<CmpInst> (*(I.use_begin ()))) return;
+    if (dest.hasOneUse () && isa<CmpInst> (*(dest.use_begin ()))) return;
     
     dsa::Node &n = m_graph.mkNode ();
     n.setIntToPtr();
-    m_graph.mkCell (I, dsa::Cell (n, 0));
+    m_graph.mkCell (dest, dsa::Cell (n, 0));
+
+  }
+
+  void IntraBlockBuilder::visitIntToPtrInst (IntToPtrInst &I)
+  {
+    visitCastIntToPtr (I);
   }
   
   void IntraBlockBuilder::visitReturnInst(ReturnInst &RI)

@@ -439,6 +439,8 @@ void dsa::Graph::compress ()
   }
 
   for (auto &kv : m_values) kv.second->getNode ();
+  for (auto &kv : m_formals) kv.second->getNode ();
+  for (auto &kv : m_returns) kv.second->getNode ();
   
   // at this point, all cells and all nodes have their links
   // resolved. Every link points directly to the representative of the
@@ -533,14 +535,14 @@ void dsa::Graph::import (const Graph &g, bool withFormals)
     for (auto &kv : g.m_formals)
     {
       Node &n = C.clone (*kv.second->getNode ());
-      Cell c (&n, kv.second->getOffset ());
+      Cell c (n, kv.second->getOffset ());
       Cell &nc = mkCell (*kv.first, Cell ());
       nc.unify (c);
     }
     for (auto &kv : g.m_returns)
     {
       Node &n = C.clone (*kv.second->getNode ());
-      Cell c (&n, kv.second->getOffset ());
+      Cell c (n, kv.second->getOffset ());
       Cell &nc = mkRetCell (*kv.first, Cell ());
       nc.unify (c);
     }

@@ -297,8 +297,16 @@ namespace seahorn
       
       /// unify with a given node
       void unify (Node &n) { unifyAt (n, 0); }
+
       Node &setAlloca (bool v = true) { m_nodeType.alloca = v; return *this;}
+      Node &setHeap (bool v = true) { m_nodeType.heap = v; return *this;}
+      Node &setRead (bool v = true) { m_nodeType.read = v; return *this;}
+      Node &setModified (bool v = true) { m_nodeType.modified = v; return *this;}
+
       bool isAlloca () const { return m_nodeType.alloca; }
+      bool isHeap () const { return m_nodeType.heap; }
+      bool isRead () const { return m_nodeType.read; }
+      bool isModified () const { return m_nodeType.modified; }
 
       Node &setArraySize (unsigned sz)
       {

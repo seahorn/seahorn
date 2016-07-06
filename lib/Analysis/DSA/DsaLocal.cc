@@ -205,7 +205,7 @@ namespace
     assert (!m_graph.hasCell (AI));
     Node &n = m_graph.mkNode ();
     // TODO: record allocation site
-    // TODO: mark as stack allocated
+    n.setAlloca();
     Cell &res = m_graph.mkCell (AI, Cell (n, 0));
   }
   void IntraBlockBuilder::visitSelectInst(SelectInst &SI)
@@ -231,8 +231,7 @@ namespace
     Cell base = valueCell  (*LI.getPointerOperand ());
     assert (!base.isNull ());
     base.addType (0, LI.getType ());
-    // TODO: mark base as read
-    
+    base.getNode()->setRead();
     // update/create the link
     if (!isSkip (LI)) 
     {
@@ -256,7 +255,7 @@ namespace
     Cell base = valueCell  (*SI.getPointerOperand ());
     assert (!base.isNull ());
 
-    // TODO: mark base as modified
+    base.getNode()->setModified();
 
     // XXX: potentially it is enough to update size only at this point
     base.growSize (0, SI.getValueOperand ()->getType ());
@@ -397,17 +396,21 @@ namespace
   
   void IntraBlockBuilder::visitInsertValueInst(InsertValueInst& I)
   {
-    // TODO: set read/mod/alloc flags
     assert (I.getAggregateOperand ()->getType () == I.getType ());
     using namespace dsa;
 
     // make sure that the aggregate has a cell
     Cell op = valueCell  (*I.getAggregateOperand ());
-    if (op.isNull ())
+    if (op.isNull ()) {
+      dsa::Node &n = m_graph.mkNode ();
+      // TODO: record allocation site
+      n.setAlloca();
       // -- create a node for the aggregate
-      op = m_graph.mkCell (*I.getAggregateOperand (),
-                           Cell (m_graph.mkNode (), 0));
-    
+      op = m_graph.mkCell (*I.getAggregateOperand (), Cell (n, 0));
+    }
+
+    /// JN: I don't understand why we need to create another cell here.
+    ///     Should we remove it? 
     Cell &c = m_graph.mkCell (I, op);
 
     // -- update type record
@@ -417,7 +420,8 @@ namespace
     Cell out (op, offset);
     out.growSize (0, v.getType ());
     out.addType (0, v.getType ());
-    
+    out.getNode()->setModified ();
+
     // -- update link 
     if (!isSkip (v))
     {
@@ -429,11 +433,14 @@ namespace
   
   void IntraBlockBuilder::visitExtractValueInst(ExtractValueInst& I)
   {
-    // TODO: set read/mod/alloc flags
     using namespace dsa;
     Cell op = valueCell  (*I.getAggregateOperand ());
-    if (op.isNull ())
-      op = m_graph.mkCell (*I.getAggregateOperand (), Cell (m_graph.mkNode (), 0));
+    if (op.isNull ()) {
+      dsa::Node &n = m_graph.mkNode ();
+      // TODO: record allocation site
+      n.setAlloca();
+      op = m_graph.mkCell (*I.getAggregateOperand (), Cell (n, 0));
+    }
     
     uint64_t offset = computeIndexedOffset (I.getAggregateOperand ()->getType (),
                                             I.getIndices (), m_dl);
@@ -441,6 +448,7 @@ namespace
 
     // -- update type record
     in.addType (0, I.getType ());
+    in.getNode()->setRead ();
     
     if (!isSkip (I))
     {
@@ -462,7 +470,7 @@ namespace
       assert (CS.getInstruction ());
       Node &n = m_graph.mkNode ();
       // TODO: record allocation site
-      // TODO: mark as heap allocated
+      n.setHeap();
       Cell &res = m_graph.mkCell (*CS.getInstruction (), Cell (n, 0));
       return;  
     }
@@ -488,19 +496,28 @@ namespace
   
   void IntraBlockBuilder::visitMemSetInst (MemSetInst &I)
   {
-    // TODO:
-    // mark node of I.getDest () as modified
+    dsa::Cell dest = valueCell (*(I.getDest()));
+    assert (!dest.isNull ());    
+    dest.getNode()->setModified();
+    
+    // TODO:    
     // can also update size using I.getLength ()
   }
   
   void IntraBlockBuilder::visitMemTransferInst (MemTransferInst &I)
   {
-    // TODO: mark I.getDest () is modified, and I.getSource () is read
     assert (m_graph.hasCell (*I.getDest ()));
+    assert (m_graph.hasCell (*I.getSource ()));
+
     // unify the two cells because potentially all bytes of source
     // are copied into dest
     dsa::Cell sourceCell = valueCell  (*I.getSource ());
-    m_graph.mkCell(*I.getDest (), dsa::Cell ()).unify (sourceCell);
+    dsa::Cell destCell = m_graph.mkCell(*I.getDest (), dsa::Cell ());
+    destCell.unify (sourceCell);
+
+    sourceCell.getNode()->setRead();
+    destCell.getNode()->setModified();
+
     // TODO: adjust size of I.getLength ()
     // TODO: handle special case when memcpy is used to move non-pointer value only
   }

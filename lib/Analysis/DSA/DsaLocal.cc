@@ -30,6 +30,9 @@ using namespace seahorn;
 
 namespace
 {
+  std::pair<uint64_t, uint64_t> computeGepOffset (Type *ptrTy, ArrayRef<Value *> Indicies,
+                                                  const DataLayout &dl);
+  
   template<typename T>
   T gcd(T a, T b)
   {
@@ -85,6 +88,7 @@ namespace
       return false;
     }
     
+    dsa::Cell valueCell (const Value &v);
     void visitAllocaInst (AllocaInst &AI);
     void visitSelectInst(SelectInst &SI);
     void visitLoadInst(LoadInst &LI);
@@ -118,6 +122,58 @@ namespace
   };
 
   
+  dsa::Cell IntraBlockBuilder::valueCell (const Value &v)
+  {
+    using namespace dsa;
+    assert (v.getType ()->isPointerTy () || v.getType ()->isAggregateType ());
+  
+    if (isa<Constant> (&v) && cast<Constant> (&v)->isNullValue ())
+    {
+      LOG ("dsa",
+           errs () << "WARNING: not handled constant: " << v << "\n";);
+      return Cell();
+    }
+  
+    if (m_graph.hasCell (v))
+    {
+      Cell &c = m_graph.mkCell (v, Cell ());
+      assert (!c.isNull ());
+      return c;
+    }
+
+    if (isa<UndefValue> (&v)) return Cell();
+    if (isa<GlobalAlias> (&v)) return valueCell (*cast<GlobalAlias> (&v)->getAliasee ());
+
+    if (isa<ConstantStruct> (&v) || isa<ConstantArray> (&v) ||
+        isa<ConstantDataSequential> (&v) || isa<ConstantDataArray> (&v) ||
+        isa<ConstantDataVector> (&v))
+    {
+      // XXX Handle properly
+      assert (false);
+      return m_graph.mkCell (v, Cell (m_graph.mkNode (), 0));
+    }
+      
+    // -- special case for aggregate types. Cell creation is handled elsewhere
+    if (v.getType ()->isAggregateType ()) return Cell ();
+  
+    if (const ConstantExpr *ce = dyn_cast<const ConstantExpr> (&v))
+    {
+      if (ce->isCast () && ce->getOperand (0)->getType ()->isPointerTy ())
+        return valueCell (*ce->getOperand (0));
+      else if (ce->getOpcode () == Instruction::GetElementPtr)
+      {
+        Value *base = ce->getOperand (0);
+        SmallVector<Value*, 8> indicies (ce->op_begin () + 1, ce->op_end ());
+        auto off = computeGepOffset (base->getType (), indicies, m_dl);
+      }
+    }
+  
+  
+    errs () << v << "\n";
+    assert(false && "Not handled expression");
+    return Cell();
+  
+  }    
   
   void IntraBlockBuilder::visitInstruction(Instruction &I)
   {
@@ -142,8 +198,8 @@ namespace
     
     assert (!m_graph.hasCell (SI));
 
-    Cell thenC = m_graph.valueCell (*SI.getOperand (1));
-    Cell elseC = m_graph.valueCell (*SI.getOperand (2));
+    Cell thenC = valueCell  (*SI.getOperand (1));
+    Cell elseC = valueCell  (*SI.getOperand (2));
     thenC.unify (elseC);
     
     // -- create result cell
@@ -155,7 +211,7 @@ namespace
   {
     using namespace seahorn::dsa;
     
-    Cell base = m_graph.valueCell (*LI.getPointerOperand ());
+    Cell base = valueCell  (*LI.getPointerOperand ());
     assert (!base.isNull ());
     base.addType (0, LI.getType ());
     // TODO: mark base as read
@@ -175,7 +231,7 @@ namespace
   void IntraBlockBuilder::visitStoreInst(StoreInst &SI)
   {
     using namespace seahorn::dsa;
-    Cell base = m_graph.valueCell (*SI.getPointerOperand ());
+    Cell base = valueCell  (*SI.getPointerOperand ());
     assert (!base.isNull ());
 
     // TODO: mark base as modified
@@ -186,7 +242,7 @@ namespace
     
     if (!isSkip (*SI.getValueOperand ()))
     {
-      Cell val = m_graph.valueCell (*SI.getValueOperand ());
+      Cell val = valueCell  (*SI.getValueOperand ());
       assert (!val.isNull ());
       base.addLink (0, val);
     }
@@ -196,7 +252,7 @@ namespace
   void IntraBlockBuilder::visitBitCastInst(BitCastInst &I)
   {
     if (isSkip (I)) return;
-    dsa::Cell arg = m_graph.valueCell (*I.getOperand (0));
+    dsa::Cell arg = valueCell  (*I.getOperand (0));
     assert (!arg.isNull ());
     m_graph.mkCell (I, arg);
   }
@@ -275,7 +331,7 @@ namespace
   {
     Value *ptr = I.getPointerOperand ();
     assert (m_graph.hasCell (*ptr) || isa<GlobalValue> (ptr));
-    dsa::Cell base = m_graph.valueCell (*ptr);
+    dsa::Cell base = valueCell  (*ptr);
     assert (!base.isNull ());
 
     assert (!m_graph.hasCell (I));
@@ -311,7 +367,7 @@ namespace
     using namespace dsa;
 
     // make sure that the aggregate has a cell
-    Cell op = m_graph.valueCell (*I.getAggregateOperand ());
+    Cell op = valueCell  (*I.getAggregateOperand ());
     if (op.isNull ())
       // -- create a node for the aggregate
       op = m_graph.mkCell (*I.getAggregateOperand (),
@@ -330,7 +386,7 @@ namespace
     // -- update link 
     if (!isSkip (v))
     {
-      Cell vCell = m_graph.valueCell (v);
+      Cell vCell = valueCell  (v);
       assert (!vCell.isNull ());
       out.addLink (0, vCell);
     }
@@ -340,7 +396,7 @@ namespace
   {
     // TODO: set read/mod/alloc flags
     using namespace dsa;
-    Cell op = m_graph.valueCell (*I.getAggregateOperand ());
+    Cell op = valueCell  (*I.getAggregateOperand ());
     if (op.isNull ())
       op = m_graph.mkCell (*I.getAggregateOperand (), Cell (m_graph.mkNode (), 0));
     
@@ -410,7 +466,7 @@ namespace
     assert (m_graph.hasCell (*I.getDest ()));
     // unify the two cells because potentially all bytes of source
     // are copied into dest
-    dsa::Cell sourceCell = m_graph.valueCell (*I.getSource ());
+    dsa::Cell sourceCell = valueCell  (*I.getSource ());
     m_graph.mkCell(*I.getDest (), dsa::Cell ()).unify (sourceCell);
     // TODO: adjust size of I.getLength ()
     // TODO: handle special case when memcpy is used to move non-pointer value only
@@ -431,7 +487,7 @@ namespace
     Value *v = RI.getReturnValue ();
     if (!v || isSkip (*v)) return;
     
-    dsa::Cell c = m_graph.valueCell (*v);
+    dsa::Cell c = valueCell  (*v);
     if (c.isNull ()) return;
 
     m_graph.mkRetCell (m_func, c);
@@ -453,7 +509,7 @@ namespace
       if (isa<BranchInst> (v)) return;
     }
     assert (m_graph.hasCell (*I.getOperand (0)));
-    dsa::Cell c = m_graph.valueCell (*I.getOperand (0));
+    dsa::Cell c = valueCell  (*I.getOperand (0));
     if (!c.isNull ())
       /* c->getNode ()->setPtrToInt (true) */;
   }

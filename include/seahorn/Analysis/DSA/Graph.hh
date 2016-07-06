@@ -60,9 +60,6 @@ namespace seahorn
       /// remove all forwarding nodes
       void compress ();
 
-      /// returns a cell corresponding to the value
-      Cell valueCell (const llvm::Value &v);
-      
       /// -- allocates a new node
       Node &mkNode ();
 

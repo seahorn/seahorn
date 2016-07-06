@@ -471,44 +471,6 @@ bool dsa::Graph::hasCell (const llvm::Value &v) const
      m_formals.count (cast<const Argument>(&v)) > 0 );
 }
 
-dsa::Cell dsa::Graph::valueCell (const Value &v)
-{
-  assert (v.getType ()->isPointerTy () || v.getType ()->isAggregateType ());
-  
-  if (isa<Constant> (&v) && cast<Constant> (&v)->isNullValue ())
-  {
-    LOG ("dsa",
-         errs () << "WARNING: not handled constant: " << v << "\n";);
-    return Cell();
-  }
-  
-  if (hasCell (v))
-  {
-    Cell &c = mkCell (v, Cell ());
-    assert (!c.isNull ());
-    return c;
-  }
-
-  if (isa<UndefValue> (&v)) return Cell();
-  if (isa<GlobalAlias> (&v)) return valueCell (*cast<GlobalAlias> (&v)->getAliasee ());
-
-  if (isa<ConstantStruct> (&v) || isa<ConstantArray> (&v) ||
-      isa<ConstantDataSequential> (&v) || isa<ConstantDataArray> (&v) ||
-      isa<ConstantDataVector> (&v))
-    {
-      // XXX Handle properly
-      assert (false);
-      return mkCell (v, Cell (mkNode (), 0));
-    }
-      
-  // -- special case for aggregate types. Cell creation is handled elsewhere
-  if (v.getType ()->isAggregateType ()) return Cell ();
-  
-  errs () << v << "\n";
-  assert(false && "Not handled expression");
-  return Cell();
-  
-}
 
 void dsa::Cell::write(raw_ostream&o) const {
   o << "<" << m_offset << ",";

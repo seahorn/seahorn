@@ -201,7 +201,14 @@ void dsa::Node::unifyAt (Node &n, unsigned o)
   assert (!n.isForwarding ());
       
   // collapse before merging with a collapsed node
-  if (n.isCollapsed ()) collapse ();
+  if (!isCollapsed () && n.isCollapsed ())
+  {
+    collapse ();
+    getNode ()->unifyAt (n, o);
+    return;
+  }
+    
+  
       
   Offset offset (*this, o);
   if (!isCollapsed () && !n.isCollapsed () && n.isArray () && !isArray ())
@@ -213,7 +220,12 @@ void dsa::Node::unifyAt (Node &n, unsigned o)
       return;
     }
     // -- cannot merge array at non-zero offset
-    else collapse ();
+    else
+    {
+      collapse ();
+      getNode ()->unifyAt (n, o);
+      return;
+    }
   }
   else if (isArray () && n.isArray ())
   {
@@ -225,7 +237,12 @@ void dsa::Node::unifyAt (Node &n, unsigned o)
     // sizes are incompatible modulo does not distribute. Hence, we
     // can only shrink an array if the new size is a divisor of all
     // previous non-constant indexes
-    if (max->size () % min->size () != 0) collapse ();
+    if (max->size () % min->size () != 0)
+    {
+      collapse ();
+      getNode ()->unifyAt (n, o);
+      return;
+    }
     else
     {
       Offset minoff (*min, o);
@@ -241,14 +258,23 @@ void dsa::Node::unifyAt (Node &n, unsigned o)
         // otherwise, proceed unifying n into this
       }
       else
+      {
         // -- cannot unify arrays at non-zero offset
         collapse ();
+        getNode ()->unifyAt (n, o);
+        return;
+      }
     }
   }
   else if (isArray () && !n.isArray ())
   {
     // merge non-array into array at offset 0
-    if (offset != 0) collapse ();
+    if (offset != 0)
+    {
+      collapse ();
+      getNode ()->unifyAt (n, o);
+      return;
+    }
   }
       
   if (&n == this)
@@ -258,6 +284,8 @@ void dsa::Node::unifyAt (Node &n, unsigned o)
     return;
   }
 
+  assert (!isForwarding ());
+  assert (!n.isForwarding ());
   // -- move everything from n to this node
   n.pointTo (*this, offset);
 }

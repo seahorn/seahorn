@@ -75,16 +75,16 @@ namespace seahorn
       PM.add (graphs);
       PM.run (M);
 
-      LOG ("dsa-global",
-           errs () << "==============\n";
-           errs () << "*** LOCAL ***\n";
-           errs () << "==============\n";
-           for (auto &F: M) {
-             if (graphs->hasGraph (F)) {
-               auto const &g = graphs->getGraph(F);
-               g.write (errs());
-             }
-           });
+      // LOG ("dsa-global",
+      //      errs () << "==============\n";
+      //      errs () << "*** LOCAL ***\n";
+      //      errs () << "==============\n";
+      //      for (auto &F: M) {
+      //        if (graphs->hasGraph (F)) {
+      //          auto const &g = graphs->getGraph(F);
+      //          g.write (errs());
+      //        }
+      //      });
 
       // -- the global graph
       m_graph.reset (new Graph(*m_dl));

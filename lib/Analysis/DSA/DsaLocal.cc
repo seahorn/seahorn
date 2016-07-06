@@ -480,7 +480,12 @@ namespace
     if (inst && !isSkip (*inst))
     {
       Cell &c = m_graph.mkCell (*inst, Cell (m_graph.mkNode (), 0));
-      // TODO: mark c as external if it comes from a call to an external function
+      if (Function* callee = CS.getCalledFunction ()) {
+        if (callee->isDeclaration()) 
+          c.getNode()->setExternal();
+      } else {
+        // TODO: handle indirect call
+      }
     }
 
     
@@ -518,8 +523,10 @@ namespace
     sourceCell.setRead();
     destCell.setModified();
 
-    // TODO: adjust size of I.getLength ()
-    // TODO: handle special case when memcpy is used to move non-pointer value only
+    // TODO: can also update size of dest and source using I.getLength ()   
+
+    // TODO: handle special case when memcpy is used to move
+    // non-pointer value only
   }
 
   void IntraBlockBuilder::visitIntToPtrInst (IntToPtrInst &I)
@@ -528,7 +535,7 @@ namespace
     if (I.hasOneUse () && isa<CmpInst> (*(I.use_begin ()))) return;
     
     dsa::Node &n = m_graph.mkNode ();
-    // TODO: mark n appropriately.
+    n.setIntToPtr();
     m_graph.mkCell (I, dsa::Cell (n, 0));
   }
   

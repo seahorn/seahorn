@@ -124,6 +124,8 @@ namespace seahorn
           }
       }
 
+      m_graph->compress();
+
       LOG ("dsa-global",
            errs () << "==============\n";
            errs () << "*** GLOBAL ***\n";

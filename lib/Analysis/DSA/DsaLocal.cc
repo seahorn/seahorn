@@ -596,7 +596,9 @@ namespace seahorn
         intraBuilder.visit (*const_cast<BasicBlock*>(bb));
       for (const BasicBlock *bb : bbs)
         interBuilder.visit (*const_cast<BasicBlock*>(bb));
-      
+
+      g->compress ();
+
       LOG ("dsa-local", 
            errs () << "Dsa graph after " << F.getName () << "\n";
            g->write(errs()));

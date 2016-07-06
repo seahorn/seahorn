@@ -204,7 +204,7 @@ void dsa::Node::unifyAt (Node &n, unsigned o)
   if (!isCollapsed () && n.isCollapsed ())
   {
     collapse ();
-    getNode ()->unifyAt (n, o);
+    getNode ()->unifyAt (*n.getNode (), o);
     return;
   }
     
@@ -223,7 +223,7 @@ void dsa::Node::unifyAt (Node &n, unsigned o)
     else
     {
       collapse ();
-      getNode ()->unifyAt (n, o);
+      getNode ()->unifyAt (*n.getNode (), o);
       return;
     }
   }
@@ -240,7 +240,7 @@ void dsa::Node::unifyAt (Node &n, unsigned o)
     if (max->size () % min->size () != 0)
     {
       collapse ();
-      getNode ()->unifyAt (n, o);
+      getNode ()->unifyAt (*n.getNode (), o);
       return;
     }
     else
@@ -261,7 +261,7 @@ void dsa::Node::unifyAt (Node &n, unsigned o)
       {
         // -- cannot unify arrays at non-zero offset
         collapse ();
-        getNode ()->unifyAt (n, o);
+        getNode ()->unifyAt (*n.getNode (), o);
         return;
       }
     }
@@ -272,7 +272,7 @@ void dsa::Node::unifyAt (Node &n, unsigned o)
     if (offset != 0)
     {
       collapse ();
-      getNode ()->unifyAt (n, o);
+      getNode ()->unifyAt (*n.getNode (), o);
       return;
     }
   }

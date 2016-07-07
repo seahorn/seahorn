@@ -278,16 +278,6 @@ namespace seahorn
 
   bool Houdini::validateRule_EachRuleASolver(HornRule r, HornClauseDB &db, ZSolver<EZ3> &solver)
   {
-	  for(HornClauseDB::RuleVector::iterator it = db.getRules().begin(); it != db.getRules().end(); ++it)
-	  {
-		HornRule r = *it;
-		Expr rhead_app = r.head();
-		Expr rhead_cand_app = fAppToCandApp(rhead_app);
-		LOG("houdini", errs() << "HEAD: " << *rhead_app << "\n";);
-		LOG("houdini", errs() << "CAND: " << *rhead_cand_app << "\n";);
-		db.addConstraint(rhead_app, rhead_cand_app);
-	  }
-
 	  Expr ruleHead_cand_app = fAppToCandApp(r.head());
 	  Expr neg_ruleHead_cand_app = mk<NEG>(ruleHead_cand_app);
 	  solver.assertExpr(neg_ruleHead_cand_app);

@@ -92,10 +92,41 @@ void dsa::Node::addType (unsigned o, const llvm::Type *t)
   Offset offset (*this, o);
   growSize (offset, t);
   if (isCollapsed ()) return;
-  Set types = m_graph->emptySet ();
-  if (m_types.count (offset) > 0) types = m_types.at (offset);
-  types = m_graph->mkSet (types, t);
-  m_types.insert (std::make_pair ((unsigned)offset, types));
+
+  // -- recursively expand structures
+  if (const StructType *sty = dyn_cast<const StructType> (t))
+  {
+    const StructLayout *sl =
+      m_graph->getDataLayout ().getStructLayout (const_cast<StructType*> (sty));
+    unsigned idx = 0;
+    for (auto it = sty->element_begin (), end = sty->element_end ();
+         it != end; ++it, ++idx)
+    {
+      unsigned fldOffset = sl->getElementOffset (idx);
+      addType (o + fldOffset, *it);
+    }
+  }
+  // expand array type
+  else if (const ArrayType *aty = dyn_cast<const ArrayType> (t))
+  {
+    uint64_t sz = m_graph->getDataLayout ().getTypeStoreSize (aty->getElementType ());
+    for (unsigned i = 0, e = aty->getNumElements (); i < e; ++i)
+      addType (o + i*sz, aty->getElementType ());
+  }
+  else if (const VectorType *vty = dyn_cast<const VectorType> (t))
+  {
+    uint64_t sz = vty->getElementType ()->getPrimitiveSizeInBits () / 8;
+    for (unsigned i = 0, e = vty->getNumElements (); i < e; ++i)
+      addType (o + i*sz, vty->getElementType ());
+  }  
+  // -- add primitive type
+  else
+  {
+    Set types = m_graph->emptySet ();
+    if (m_types.count (offset) > 0) types = m_types.at (offset);
+    types = m_graph->mkSet (types, t);
+    m_types.insert (std::make_pair ((unsigned)offset, types));
+  }
 }
 
 void dsa::Node::addType (const Offset &offset, Set types)

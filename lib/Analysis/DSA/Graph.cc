@@ -212,8 +212,6 @@ void dsa::Node::unifyAt (Node &n, unsigned o)
     getNode ()->unifyAt (*n.getNode (), o);
     return;
   }
-    
-  
       
   Offset offset (*this, o);
   if (!isCollapsed () && !n.isCollapsed () && n.isArray () && !isArray ())
@@ -399,6 +397,13 @@ dsa::Node* dsa::Cell::getNode () const
   return m_node;
 }
 
+unsigned dsa::Cell::getOffset () const
+{
+  // -- resolve forwarding
+  getNode ();
+  // -- return current offset
+  return m_offset;
+}
 
 void dsa::Cell::pointTo (Node &n, unsigned offset)
 {

@@ -119,7 +119,7 @@ namespace seahorn
       
       bool isNull () const { return m_node == nullptr; }
       Node *getNode () const; 
-      unsigned getOffset () const { return m_offset; }
+      unsigned getOffset () const; 
 
       void pointTo (Node &n, unsigned offset);
       

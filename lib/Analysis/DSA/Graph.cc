@@ -362,16 +362,21 @@ void dsa::Node::writeTypes(raw_ostream&o) const {
 }
 
 void dsa::Node::write(raw_ostream&o) const {
-  /// XXX: we print here the address. Therefore, it will change from
-  /// one run to another.
-  /// TODO: assign a unique identifier based on some representative
-  /// (among all referrers).
+  if (isForwarding ())
+    m_forward.write (o);
+  else
+  {
+    /// XXX: we print here the address. Therefore, it will change from
+    /// one run to another.
+    /// TODO: assign a unique identifier based on some representative
+    /// (among all referrers).
 
-  o << "Node " << this << ": ";
-  o << "flags=[" << m_nodeType.toStr() << "] ";
-  writeTypes(o);
+    o << "Node " << this << ": ";
+    o << "flags=[" << m_nodeType.toStr() << "] ";
+    writeTypes(o);
 
-  // TODO: print links
+    // TODO: print links
+  }
 }
 
 
@@ -551,6 +556,7 @@ bool dsa::Graph::hasCell (const llvm::Value &v) const
 
 
 void dsa::Cell::write(raw_ostream&o) const {
+  getNode ();
   o << "<" << m_offset << ",";
   m_node->write(o);
   o << ">";

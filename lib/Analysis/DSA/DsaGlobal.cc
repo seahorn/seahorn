@@ -20,6 +20,18 @@
 
 using namespace llvm;
 
+static Value* getRetVal (const CallSite &CS)
+{
+  if (Function *F = CS.getCalledFunction ())
+  {
+    FunctionType *FTy = F->getFunctionType ();
+    if (!(FTy->getReturnType()->isVoidTy ()))
+      return CS.getInstruction ();
+  }
+  return nullptr;
+}
+
+
 namespace seahorn
 {
   namespace dsa
@@ -34,34 +46,30 @@ namespace seahorn
       AU.addRequired<CallGraphWrapperPass> ();
       AU.setPreservesAll ();
     }
+    
 
-    Value* getRetVal (const CallSite &CS) {
-      if (Function *F = CS.getCalledFunction()) {
-        FunctionType *FTy = F->getFunctionType();
-        if (!(FTy->getReturnType()->isVoidTy()))
-          return CS.getInstruction();
-      }
-      return nullptr;
-    }
-
-    void Global::resolveFunctionCall (const Function *F, const CallSite &CS)
+    void Global::resolveCallSite (const CallSite &CS)
     {
       // Handle the return value of the function...
+      Function &F = *CS.getCalledFunction ();
       Value* retVal = getRetVal(CS);
-      if ((retVal && m_graph->hasCell(*retVal)) && m_graph->hasRetCell(*F)) {
+      if ((retVal && m_graph->hasCell(*retVal)) && m_graph->hasRetCell(F))
+      {
         Cell &c  = m_graph->mkCell(*retVal, Cell());
-        c.unify(m_graph->mkRetCell(*F, Cell()));
+        c.unify(m_graph->mkRetCell(F, Cell()));
       }
 
       // Loop over all arguments, unifying them with the formal ones
       unsigned argIdx = 0;
-      for (Function::const_arg_iterator AI = F->arg_begin(), AE = F->arg_end();
+      for (Function::const_arg_iterator AI = F.arg_begin(), AE = F.arg_end();
            AI != AE && argIdx < CS.arg_size(); ++AI, ++argIdx) 
       {
         const Value *arg = &*AI;
-        if (m_graph->hasCell(*arg) && m_graph->hasCell(*(CS.getArgument(argIdx)))) {
+        if (m_graph->hasCell(*arg) &&
+            m_graph->hasCell(*(CS.getArgument(argIdx)))) {
           Cell &c = m_graph->mkCell(*(CS.getArgument(argIdx)), Cell());
-          c.unify(m_graph->mkCell (*arg, Cell()));
+          Cell &d = m_graph->mkCell (*arg, Cell ());
+          c.unify (d);
         }
       }
     }                                      
@@ -124,8 +132,9 @@ namespace seahorn
           Function *F = cgn->getFunction ();
           if (!F || !graphs->hasGraph(*F)) continue;
           
-          // iterate over the callees of the current call graph node
-          for (auto CallRecord : *cgn) 
+          // -- iterate over all call instructions of the current function F
+          // -- they are indexed in the CallGraphNode data structure
+          for (auto &CallRecord : *cgn) 
           {
 
             CallSite CS (CallRecord.first);
@@ -135,7 +144,8 @@ namespace seahorn
               LOG ("dsa-resolve",
                    errs () << "Resolving call site " << *(CS.getInstruction()) << "\n");
               
-              resolveFunctionCall (F, CS);
+              assert (F == CS.getCaller ());
+              resolveCallSite (CS);
             }
 
           }

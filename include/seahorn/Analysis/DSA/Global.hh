@@ -24,7 +24,7 @@ namespace seahorn
       const DataLayout *m_dl;
       std::unique_ptr<Graph> m_graph;
 
-      void resolveFunctionCall(const Function *F, const CallSite &Call);
+      void resolveCallSite (const CallSite &Call);
 
     public:
 

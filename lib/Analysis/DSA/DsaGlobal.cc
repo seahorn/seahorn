@@ -36,9 +36,10 @@ namespace seahorn
     }
 
     Value* getRetVal (const CallSite &CS) {
-      if (CallInst* CI = dyn_cast<CallInst>(CS.getInstruction())) {
-        if (!CI->getType()->isVoidTy ())
-          return CI;
+      if (Function *F = CS.getCalledFunction()) {
+        FunctionType *FTy = F->getFunctionType();
+        if (!(FTy->getReturnType()->isVoidTy()))
+          return CS.getInstruction();
       }
       return nullptr;
     }
@@ -126,19 +127,17 @@ namespace seahorn
           // iterate over the callees of the current call graph node
           for (auto CallRecord : *cgn) 
           {
-            // XXX: we ignore invoke instructions
-            if (CallInst *CI = dyn_cast<CallInst>(CallRecord.first)) 
+
+            CallSite CS (CallRecord.first);
+            Function *Callee = CS.getCalledFunction();
+            if (Callee && graphs->hasGraph(*Callee)) 
             {
-              CallSite CS (CI);
-              Function *Callee = CS.getCalledFunction();
-              if (Callee && graphs->hasGraph(*Callee)) 
-              {
-                LOG ("dsa-resolve",
-                     errs () << "Resolving call site " << *(CS.getInstruction()) << "\n");
-                
-                resolveFunctionCall (F, CS);
-              }
+              LOG ("dsa-resolve",
+                   errs () << "Resolving call site " << *(CS.getInstruction()) << "\n");
+              
+              resolveFunctionCall (F, CS);
             }
+
           }
         }
         m_graph->compress();

@@ -94,13 +94,24 @@ namespace seahorn
       for (auto it = scc_begin (&CG); !it.isAtEnd (); ++it)
       {
         auto &scc = *it;
-        for (CallGraphNode *cgn : scc)
-          for (auto &calls : *cgn) 
+
+        LOG ("dsa-inlining", errs () << "SCC\n";);
+
+        for (CallGraphNode *cgn : scc) 
+        {
+          
+          LOG ("dsa-inlining", errs () << "\t"; cgn->print (errs ()); errs () << "\n");
+
+          Function *F = cgn->getFunction ();
+          if (F && graphs->hasGraph(*F)) 
           {
-            Function *F = calls.second->getFunction ();
-            if (F && graphs->hasGraph(*F))
-              m_graph->import(graphs->getGraph(*F), true);
+
+            LOG ("dsa-inlining",
+                 errs () << "\tImported graph from " << F->getName() <<"\n";);
+
+            m_graph->import(graphs->getGraph(*F), true);
           }
+        }
       }
 
       // -- resolve calls by unifying formal and actual parameters
@@ -108,23 +119,30 @@ namespace seahorn
       {
         auto &scc = *it;
         for (CallGraphNode *cgn : scc)
-          for (auto &calls : *cgn) 
+        {
+          Function *F = cgn->getFunction ();
+          if (!F || !graphs->hasGraph(*F)) continue;
+          
+          // iterate over the callees of the current call graph node
+          for (auto CallRecord : *cgn) 
           {
-            Function *F = calls.second->getFunction ();
-            if (!F || !graphs->hasGraph(*F)) continue;
-
-            for (inst_iterator i = inst_begin(*F), e = inst_end(*F); i != e; ++i) 
+            // XXX: we ignore invoke instructions
+            if (CallInst *CI = dyn_cast<CallInst>(CallRecord.first)) 
             {
-              Instruction *I = &*i;
-              if (CallInst * CI = dyn_cast<CallInst>(I)) {
-                CallSite CS (CI);
+              CallSite CS (CI);
+              Function *Callee = CS.getCalledFunction();
+              if (Callee && graphs->hasGraph(*Callee)) 
+              {
+                LOG ("dsa-resolve",
+                     errs () << "Resolving call site " << *(CS.getInstruction()) << "\n");
+                
                 resolveFunctionCall (F, CS);
               }
             }
           }
+        }
         m_graph->compress();
       }
-
       m_graph->compress();
 
       LOG ("dsa-global",

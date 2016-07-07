@@ -53,6 +53,8 @@ namespace seahorn
     void getReachableStates(std::map<Expr, ExprVector> &relationToPositiveStateMap, Expr from_pred, Expr from_pred_state, HornClauseDB &db, HornifyModule &hm);
     void getRuleHeadState(std::map<Expr, ExprVector> &relationToPositiveStateMap, HornRule r, Expr from_pred_state, HornClauseDB &db, HornifyModule &hm);
 
+    void addInvarCandsToProgramSolver(HornClauseDB &db);
+
     template<typename OutputIterator>
     void get_all_bvars (Expr e, OutputIterator out);
 

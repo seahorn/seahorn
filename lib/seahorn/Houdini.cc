@@ -57,6 +57,8 @@ namespace seahorn
   void Houdini::get_all_pred_apps (Expr e, HornClauseDB &db, OutputIterator out)
   {filter (e, IsPredApp(db), out);}
 
+  std::map<Expr, Expr> Houdini::currentCandidates;	//a map from predicates to candidates
+
   bool Houdini::runOnModule (Module &M)
   {
     HornifyModule &hm = getAnalysis<HornifyModule> ();
@@ -71,11 +73,19 @@ namespace seahorn
 
     //generate positive states
     std::map<Expr, ExprVector> relationToPositiveStateMap;
-    generatePositiveWitness(relationToPositiveStateMap, db, hm);
+    //generatePositiveWitness(relationToPositiveStateMap, db, hm);
 
     int config = EACH_RULE_A_SOLVER;
 
+    LOG("dbcheck", errs() << "INITIAL DB:\n";);
+    LOG("dbcheck", errs() << db << "\n";);
+
     runHoudini(db, hm, db_wto, config);
+
+    addInvarCandsToProgramSolver(db);
+
+    LOG("dbcheck", errs() << "FINAL DB:\n";);
+    LOG("dbcheck", errs() << db << "\n";);
 
     return false;
   }
@@ -84,6 +94,23 @@ namespace seahorn
   {
     AU.addRequired<HornifyModule> ();
     AU.setPreservesAll();
+  }
+
+  void Houdini::addInvarCandsToProgramSolver(HornClauseDB &db)
+  {
+	  for(HornClauseDB::RuleVector::iterator it = db.getRules().begin(); it != db.getRules().end(); ++it)
+	  {
+			HornRule r = *it;
+			Expr rhead_app = r.head();
+			Expr rhead_cand_app = fAppToCandApp(rhead_app);
+			LOG("candidates", errs() << "HEAD: " << *rhead_app << "\n";);
+			LOG("candidates", errs() << "CAND: " << *rhead_cand_app << "\n";);
+			if(!isOpX<TRUE>(rhead_cand_app))
+			{
+				LOG("candidates", errs() << "ADD CONSTRAINT\n";);
+				db.addConstraint(rhead_app, rhead_cand_app);
+			}
+	  }
   }
 
   /*
@@ -123,12 +150,13 @@ namespace seahorn
 	// if there are more than two bvars, make an lt expr
 	else if(bvar_count == 2)
 	{
-		Expr lt1 = mk<LT>(bvars[0], bvars[1]);
+		/*Expr lt1 = mk<LT>(bvars[0], bvars[1]);
 		Expr lt2 = mk<LT>(bvars[1], bvars[0]);
 		bins.push_back(lt1);
 		bins.push_back(lt2);
 
-		cand = mknary<AND>(bins.begin(), bins.end());
+		cand = mknary<AND>(bins.begin(), bins.end());*/
+		cand = mk<LT>(bvars[0], bvars[1]);
 	}
 	else // bvar_count > 2
 	{
@@ -142,8 +170,6 @@ namespace seahorn
 
 	return cand;
   }
-
-  std::map<Expr, Expr> Houdini::currentCandidates;	//a map from predicates to candidates
 
   /*
    * Build the map from predicates to candidates
@@ -166,6 +192,14 @@ namespace seahorn
   void Houdini::runHoudini(HornClauseDB &db, HornifyModule &hm, HornClauseDBWto &db_wto, int config)
   {
 	  guessCandidate(db);
+
+	  LOG("houdini", errs() << "CAND MAP:\n";);
+	  LOG("houdini", errs() << "MAP SIZE: " << currentCandidates.size() << "\n";);
+	  for(std::map<Expr, Expr>::iterator it = currentCandidates.begin(); it!= currentCandidates.end(); ++it)
+	  {
+		LOG("houdini", errs() << "PRED: " << *(it->first) << "\n";);
+		LOG("houdini", errs() << "CAND: " << *(it->second) << "\n";);
+	  }
 
 	  std::list<HornRule> workList;
 	  workList.insert(workList.end(), db.getRules().begin(), db.getRules().end());
@@ -244,6 +278,16 @@ namespace seahorn
 
   bool Houdini::validateRule_EachRuleASolver(HornRule r, HornClauseDB &db, ZSolver<EZ3> &solver)
   {
+	  for(HornClauseDB::RuleVector::iterator it = db.getRules().begin(); it != db.getRules().end(); ++it)
+	  {
+		HornRule r = *it;
+		Expr rhead_app = r.head();
+		Expr rhead_cand_app = fAppToCandApp(rhead_app);
+		LOG("houdini", errs() << "HEAD: " << *rhead_app << "\n";);
+		LOG("houdini", errs() << "CAND: " << *rhead_cand_app << "\n";);
+		db.addConstraint(rhead_app, rhead_cand_app);
+	  }
+
 	  Expr ruleHead_cand_app = fAppToCandApp(r.head());
 	  Expr neg_ruleHead_cand_app = mk<NEG>(ruleHead_cand_app);
 	  solver.assertExpr(neg_ruleHead_cand_app);
@@ -416,6 +460,7 @@ namespace seahorn
 	  			currentCandidates[ruleHead_rel] = weaken_cand;
 	  		}
 	  }
+	  LOG("houdini", errs() << "HEAD AFTER WEAKEN: " << *currentCandidates[ruleHead_rel] << "\n";);
   }
 
   /*

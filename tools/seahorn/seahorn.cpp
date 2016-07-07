@@ -284,14 +284,11 @@ int main(int argc, char **argv) {
     if (!OutputFilename.empty ()) out = &output->os ();
     pass_manager.add (seahorn::createBmcPass (out, Solve));
   }
-  else if (HoudiniInv)
-  {
-    pass_manager.add (new seahorn::Houdini ());
-  }
   else
   {
     if (!OutputFilename.empty ()) pass_manager.add (new seahorn::HornWrite (output->os ()));
-    if (Crab) pass_manager.add (seahorn::createLoadCrabPass ()); 
+    if (Crab) pass_manager.add (seahorn::createLoadCrabPass ());
+    if (HoudiniInv) pass_manager.add (new seahorn::Houdini ());
     if (Solve) pass_manager.add (new seahorn::HornSolver ());
     if (Cex) pass_manager.add (new seahorn::HornCex ());
   }

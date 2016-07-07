@@ -362,7 +362,8 @@ void dsa::Cell::unify (Cell &c)
   if (isNull ())
   {
     assert (!c.isNull ());
-    pointTo (*c.getNode (), c.getOffset ());
+    Node *n = c.getNode ();
+    pointTo (*n, c.getOffset ());
   }
   else if (c.isNull ())
     c.unify (*this);

@@ -424,12 +424,14 @@ dsa::Node* dsa::Cell::getNode () const
   if (isNull ()) return nullptr;
       
   Node *n = m_node->getNode ();
+  assert ((n == m_node && !m_node->isForwarding ()) || m_node->isForwarding ());
   if (n != m_node)
   {
     assert (m_node->isForwarding ());
-    m_node = n;
     m_offset += m_node->getOffset ();
+    m_node = n;
   }
+  
   return m_node;
 }
 

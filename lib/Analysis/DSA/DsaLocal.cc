@@ -620,7 +620,8 @@ namespace seahorn
       
       // create cells and nodes for formal arguments
       for (Argument &a : F.args ())
-        g->mkCell (a, Cell (g->mkNode (), 0));
+        if (a.getType ()->isPointerTy ())
+            g->mkCell (a, Cell (g->mkNode (), 0));
       
       std::vector<const BasicBlock *> bbs;
       RevTopoSort (F, bbs);

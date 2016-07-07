@@ -516,8 +516,28 @@ namespace
     // can also update size using I.getLength ()
   }
   
+  static bool hasNoPointerTy (const llvm::Type *t)
+  {
+    if (!t) return true;
+
+    if (t->isPointerTy ()) return false;
+    if (const StructType *sty = dyn_cast<const StructType>(t))
+    {
+      for (auto it = sty->element_begin(), end = sty->element_end ();
+           it != end; ++it)
+        if (!hasNoPointerTy (*it)) return false;
+    }
+    else if (const SequentialType *seqty = dyn_cast<const SequentialType> (t))
+      return hasNoPointerTy (seqty->getElementType ());
+    
+    return true;
+  }
   void IntraBlockBuilder::visitMemTransferInst (MemTransferInst &I)
   {
+    // -- trust types, i.e., assume types are not abused by storing
+    // -- pointers pointers to other types
+    
+    bool TrustTypes = true;
     assert (m_graph.hasCell (*I.getDest ()));
     assert (m_graph.hasCell (*I.getSource ()));
 
@@ -525,7 +545,19 @@ namespace
     // are copied into dest
     dsa::Cell sourceCell = valueCell  (*I.getSource ());
     dsa::Cell destCell = m_graph.mkCell(*I.getDest (), dsa::Cell ());
-    destCell.unify (sourceCell);
+
+    assert (I.getSource ()->getType ()->isPointerTy ());
+    
+    if (TrustTypes &&
+        sourceCell.getNode()->links ().size () == 0 &&
+        hasNoPointerTy (cast<PointerType> (I.getSource()->getType ())->getElementType ()))
+    {
+      /* do nothing */
+      // no pointers are copied from source to dest, so there is no
+      // need to unify them
+    }
+    else
+      destCell.unify (sourceCell);
 
     sourceCell.setRead();
     destCell.setModified();

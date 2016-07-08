@@ -251,9 +251,6 @@ namespace
       }
       m_graph.mkCell (LI, base.getLink ());
     }
-
-    // sanity check
-    assert (m_graph.hasCell (*LI.getPointerOperand ()));
   }
   
   void IntraBlockBuilder::visitStoreInst(StoreInst &SI)
@@ -287,9 +284,6 @@ namespace
         base.addLink (0, val);
       }
     }
-
-    // sanity check
-    assert (m_graph.hasCell (*SI.getPointerOperand ()));
   }
 
   

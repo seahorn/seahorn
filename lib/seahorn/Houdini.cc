@@ -14,6 +14,8 @@
 #include "seahorn/HornClauseDBWto.hh"
 #include <algorithm>
 
+#include "ufo/Stats.hh"
+
 using namespace llvm;
 
 namespace seahorn
@@ -80,7 +82,9 @@ namespace seahorn
     LOG("dbcheck", errs() << "INITIAL DB:\n";);
     LOG("dbcheck", errs() << db << "\n";);
 
+    Stats::resume ("Houdini inv");
     runHoudini(db, hm, db_wto, config);
+    Stats::stop ("Houdini inv");
 
     addInvarCandsToProgramSolver(db);
 

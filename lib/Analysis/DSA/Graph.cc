@@ -14,11 +14,12 @@
 
 #include "seahorn/Analysis/DSA/Cloner.hh"
 
+#include "boost/range/algorithm/set_algorithm.hpp"
+
 #include "avy/AvyDebug.h"
 
 using namespace seahorn;
 using namespace llvm;
-
 
 dsa::Node::Node (Graph &g, const Node &n, bool copyLinks) :
   m_graph (&g), m_unique_scalar (n.m_unique_scalar), m_size (n.m_size)
@@ -30,6 +31,9 @@ dsa::Node::Node (Graph &g, const Node &n, bool copyLinks) :
   
   // -- copy types
   joinTypes (0, n);
+
+  // -- copy allocation sites
+  joinAllocSites (n.m_alloca_sites);
 
   // -- copy links
   if (copyLinks)
@@ -214,6 +218,9 @@ void dsa::Node::pointTo (Node &node, const Offset &offset)
   // -- merge node annotations
   node.getNode ()->m_nodeType.join (m_nodeType);
 
+  // -- merge allocation sites
+  node.joinAllocSites (m_alloca_sites);
+
   // -- move all the links
   for (auto &kv : m_links)
   {
@@ -222,6 +229,7 @@ void dsa::Node::pointTo (Node &node, const Offset &offset)
   }
       
   // reset current node
+  m_alloca_sites.clear();
   m_size = 0;
   m_links.clear ();
   m_types.clear ();
@@ -337,6 +345,19 @@ void dsa::Node::unifyAt (Node &n, unsigned o)
   // -- move everything from n to this node
   n.pointTo (*this, offset);
 }
+
+void dsa::Node::addAllocSite(const Value& v) 
+{
+  m_alloca_sites.insert (&v);
+}
+
+void dsa::Node::joinAllocSites(const AllocaSet &s) 
+{
+  AllocaSet res;
+  boost::set_union (m_alloca_sites, s, std::inserter (res, res.end ()));
+  std::swap (res, m_alloca_sites);
+}
+
 
 void dsa::Node::writeTypes(raw_ostream&o) const {
   if (isCollapsed()) 
@@ -494,6 +515,12 @@ dsa::Node &dsa::Graph::cloneNode (const Node &n)
   m_nodes.push_back (std::unique_ptr<Node> (new Node (*this, n, false)));
   return *m_nodes.back ();
 }
+
+dsa::Graph::const_iterator dsa::Graph::begin() const
+{ return boost::make_indirect_iterator(m_nodes.begin()); }
+
+dsa::Graph::const_iterator dsa::Graph::end() const
+{ return boost::make_indirect_iterator(m_nodes.end()); }
 
 void dsa::Graph::compress ()
 {

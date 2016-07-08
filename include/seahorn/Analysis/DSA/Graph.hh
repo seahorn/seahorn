@@ -2,6 +2,7 @@
 #define __DSA_GRAPH_HH_
 
 #include <boost/container/flat_map.hpp>
+#include <boost/iterator/indirect_iterator.hpp>
 
 #include "llvm/ADT/ImmutableSet.h"
 #include "llvm/ADT/DenseMap.h"
@@ -35,9 +36,9 @@ namespace seahorn
       SetFactory m_setFactory;
       
       /// DSA nodes owned by this graph
-      std::vector<std::unique_ptr<Node> > m_nodes;
-      
-      
+      typedef std::vector<std::unique_ptr<Node> > NodeVector;
+      NodeVector m_nodes;
+            
       /// Map from scalars to cells in this graph
       llvm::DenseMap<const llvm::Value*, CellRef> m_values;
 
@@ -56,6 +57,7 @@ namespace seahorn
       
       
     public:
+
       Graph (const llvm::DataLayout &dl) : m_dl (dl) {}
       /// remove all forwarding nodes
       void compress ();
@@ -64,7 +66,12 @@ namespace seahorn
       Node &mkNode ();
 
       Node &cloneNode (const Node &n);
-      
+
+      /// iterate over nodes
+      typedef boost::indirect_iterator<typename NodeVector::const_iterator> const_iterator; 
+      const_iterator begin() const;
+      const_iterator end() const;
+
       /// creates a cell for the value or returns existing cell if
       /// present
       Cell &mkCell (const llvm::Value &v, const Cell &c);
@@ -258,6 +265,10 @@ namespace seahorn
       /// known size
       unsigned m_size;
 
+      /// allocation sites for the node
+      typedef std::set<const llvm::Value*> AllocaSet;
+      AllocaSet m_alloca_sites;
+
       Node (Graph &g) : m_graph (&g), m_unique_scalar (nullptr), m_size (0) {}
 
       Node (Graph &g, const Node &n, bool copyLinks = false);
@@ -272,7 +283,7 @@ namespace seahorn
       /// one point to the result. Might cause collapse.  Most clients
       /// should use unifyAt() that has less stringent preconditions.
       void pointTo (Node &node, const Offset &offset);
-      
+
       Cell &getLink (const Offset &offset)
       {
         assert (this == &offset.node ());
@@ -291,6 +302,9 @@ namespace seahorn
       /// increase size to accommodate a field of type t at the given offset
       void growSize (const Offset &offset, const llvm::Type *t);
       Node &setArray (bool v = true) { m_nodeType.array = v; return *this; }
+
+      /// joins all the allocation sites
+      void joinAllocSites (const AllocaSet& s);
 
       void writeTypes (llvm::raw_ostream &o) const;
 
@@ -382,6 +396,14 @@ namespace seahorn
       /// collapse the current node. Looses all field sensitivity
       /// tag argument is used for debugging only
       void collapse (int tag /*= -2*/);
+
+      /// Add a new allocation site
+      void addAllocSite (const llvm::Value &v);
+
+      typedef typename AllocaSet::const_iterator alloc_iterator;
+
+      alloc_iterator begin() const { return m_alloca_sites.begin(); }
+      alloc_iterator end() const { return m_alloca_sites.end(); }
 
       /// pretty-printer of a node
       void write(llvm::raw_ostream&o) const;    

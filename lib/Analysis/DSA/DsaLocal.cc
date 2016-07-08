@@ -211,7 +211,9 @@ namespace
     using namespace seahorn::dsa;
     assert (!m_graph.hasCell (AI));
     Node &n = m_graph.mkNode ();
-    // TODO: record allocation site
+    // -- record allocation site
+    n.addAllocSite(AI);
+    // -- mark node as a stack node
     n.setAlloca();
     Cell &res = m_graph.mkCell (AI, Cell (n, 0));
   }
@@ -418,7 +420,9 @@ namespace
     Cell op = valueCell  (*I.getAggregateOperand ());
     if (op.isNull ()) {
       dsa::Node &n = m_graph.mkNode ();
-      // TODO: record allocation site
+      // -- record allocation site
+      n.addAllocSite(I);
+      // -- mark node as a stack node
       n.setAlloca();
       // -- create a node for the aggregate
       op = m_graph.mkCell (*I.getAggregateOperand (), Cell (n, 0));
@@ -452,7 +456,9 @@ namespace
     Cell op = valueCell  (*I.getAggregateOperand ());
     if (op.isNull ()) {
       dsa::Node &n = m_graph.mkNode ();
-      // TODO: record allocation site
+      // -- record allocation site
+      n.addAllocSite(I);
+      // -- mark node as a stack node
       n.setAlloca();
       op = m_graph.mkCell (*I.getAggregateOperand (), Cell (n, 0));
     }
@@ -484,7 +490,9 @@ namespace
     {
       assert (CS.getInstruction ());
       Node &n = m_graph.mkNode ();
-      // TODO: record allocation site
+      // -- record allocation site
+      n.addAllocSite(*(CS.getInstruction()));
+      // -- mark node as a heap node
       n.setHeap();
       Cell &res = m_graph.mkCell (*CS.getInstruction (), Cell (n, 0));
       return;  

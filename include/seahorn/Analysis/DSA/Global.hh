@@ -39,6 +39,7 @@ namespace seahorn
       const char * getPassName() const override 
       { return "Context-insensitive Dsa global pass"; }
 
+      Graph& getGraph ();
       const Graph& getGraph () const;
 
     };

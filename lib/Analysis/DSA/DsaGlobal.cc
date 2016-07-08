@@ -163,9 +163,20 @@ namespace seahorn
       return false;
     }
 
+    Graph& Global::getGraph() { return *m_graph; }
+
     const Graph& Global::getGraph() const { return *m_graph; }
   
   } // end namespace dsa
 } // end namespace seahorn
 
 char seahorn::dsa::Global::ID = 0;
+
+namespace seahorn 
+{
+   namespace dsa 
+   {
+     static llvm::RegisterPass<Global> 
+     X ("dsa-global", "Context-insensitive Dsa analysis");
+   }
+}

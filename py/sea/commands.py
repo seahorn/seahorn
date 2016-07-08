@@ -316,6 +316,8 @@ class Seaopt(sea.LimitedCmd):
         ap.add_argument ('--llvm-inline-threshold', dest='inline_threshold',
                          type=int, metavar='T',
                          help='Inline threshold (default = 255)')
+        ap.add_argument ('--enable-vectorize', dest='enable_vectorize', default=False,
+                         action='store_true', help='Enable LLVM vectorization optimizations')
         add_in_out_args (ap)
         _add_S_arg (ap)
         return ap
@@ -339,6 +341,10 @@ class Seaopt(sea.LimitedCmd):
             argv.append ('--enable-nondet-init=false')
         if args.inline_threshold is not None:
             argv.append ('--inline-threshold={t}'.format(t=args.inline_threshold))
+        if not args.enable_vectorize:
+            argv.extend (['--disable-loop-vectorization=true',
+                          '--disable-slp-vectorization=true',
+                          '--vectorize-slp-aggressive=false'])
 
         argv.extend (args.in_files)
         if args.llvm_asm: argv.append ('-S')

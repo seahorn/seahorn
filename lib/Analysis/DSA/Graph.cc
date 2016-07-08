@@ -531,7 +531,10 @@ void dsa::Graph::compress ()
     n->getNode ();
     // if not forwarding, resolve forwarding on all links
     if (!n->isForwarding ())
+    {
+      n->compress ();
       for (auto &kv : n->links ()) kv.second->getNode ();
+    }
   }
 
   for (auto &kv : m_values) kv.second->getNode ();

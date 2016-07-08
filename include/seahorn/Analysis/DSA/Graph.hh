@@ -2,6 +2,7 @@
 #define __DSA_GRAPH_HH_
 
 #include <boost/container/flat_map.hpp>
+#include <boost/container/flat_set.hpp>
 #include <boost/iterator/indirect_iterator.hpp>
 
 #include "llvm/ADT/ImmutableSet.h"
@@ -266,13 +267,19 @@ namespace seahorn
       unsigned m_size;
 
       /// allocation sites for the node
-      typedef std::set<const llvm::Value*> AllocaSet;
+      typedef boost::container::flat_set<const llvm::Value*> AllocaSet;
       AllocaSet m_alloca_sites;
 
       Node (Graph &g) : m_graph (&g), m_unique_scalar (nullptr), m_size (0) {}
 
       Node (Graph &g, const Node &n, bool copyLinks = false);
       
+      void compress ()
+      {
+        m_types.shrink_to_fit ();
+        m_links.shrink_to_fit ();
+        m_alloca_sites.shrink_to_fit ();
+      }
       /// Unify a given node with a specified offset of the current node
       /// post-condition: the given node points to the current node.
       /// might cause a collapse

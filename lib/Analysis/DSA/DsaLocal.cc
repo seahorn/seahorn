@@ -331,6 +331,14 @@ namespace
         if (ConstantInt *ci = dyn_cast<ConstantInt> (Indicies [CurIDX]))
         {
           int64_t arrayIdx = ci->getSExtValue ();
+          if (arrayIdx < 0)
+          {
+            errs () << "WARNING: negative GEP index\n";
+            // XXX for now, give up as soon as a negative index is found
+            // XXX can probably do better. Some negative indexes are positive offsets
+            // XXX others are just moving between array cells
+            return std::make_pair (0, 1);
+          }
           noffset += (uint64_t)arrayIdx * sz;
         }
         else
@@ -364,7 +372,7 @@ namespace
   }
   
   void BlockBuilderBase::visitGep (const Value &gep,
-                                    const Value &ptr, ArrayRef<Value *> indicies)
+                                   const Value &ptr, ArrayRef<Value *> indicies)
   {
     assert (m_graph.hasCell (ptr) || isa<GlobalValue> (&ptr));
     dsa::Cell base = valueCell (ptr);

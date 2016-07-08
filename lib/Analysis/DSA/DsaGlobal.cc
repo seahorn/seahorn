@@ -172,11 +172,6 @@ namespace seahorn
 
 char seahorn::dsa::Global::ID = 0;
 
-namespace seahorn 
-{
-   namespace dsa 
-   {
-     static llvm::RegisterPass<Global> 
-     X ("dsa-global", "Context-insensitive Dsa analysis");
-   }
-}
+static llvm::RegisterPass<seahorn::dsa::Global> 
+X ("dsa-global", "Context-insensitive Dsa analysis");
+

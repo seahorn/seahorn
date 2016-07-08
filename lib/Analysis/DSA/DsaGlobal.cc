@@ -43,6 +43,7 @@ namespace seahorn
     void Global::getAnalysisUsage (AnalysisUsage &AU) const 
     {
       AU.addRequired<DataLayoutPass> ();
+      AU.addRequired<seahorn::dsa::Local> ();
       AU.addRequired<CallGraphWrapperPass> ();
       AU.setPreservesAll ();
     }
@@ -79,10 +80,7 @@ namespace seahorn
       m_dl = &getAnalysis<DataLayoutPass>().getDataLayout ();
 
       // --- Get the local graphs for each function
-      Local *graphs = new Local ();
-      PassManager PM;
-      PM.add (graphs);
-      PM.run (M);
+      Local *graphs = &getAnalysis<seahorn::dsa::Local> ();
 
       // LOG ("dsa-global",
       //      errs () << "==============\n";

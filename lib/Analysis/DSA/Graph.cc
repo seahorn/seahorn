@@ -302,8 +302,9 @@ void dsa::Node::unifyAt (Node &n, unsigned o)
   }
   else if (isArray () && !n.isArray ())
   {
-    // merge non-array into array at non-0 offset
-    if (offset != 0)
+    // collapse whenever merging a non-array into an array at non-0 offset
+    // and the non-array does not fit into the array 
+    if (offset != 0 && offset + n.size () > size ())
     {
       collapse (__LINE__);
       getNode ()->unifyAt (*n.getNode (), o);

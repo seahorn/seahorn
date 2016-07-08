@@ -44,6 +44,7 @@ dsa::Node::Node (Graph &g, const Node &n, bool copyLinks) :
 /// array size; otherwise offset is not adjusted
 dsa::Node::Offset::operator unsigned() const 
 {
+  assert (!m_node.isForwarding ());
   if (m_node.isCollapsed ()) return 0;
   if (m_node.isArray ()) return m_offset % m_node.size ();
   return m_offset;
@@ -102,6 +103,7 @@ void dsa::Node::addType (unsigned o, const llvm::Type *t)
     for (auto it = sty->element_begin (), end = sty->element_end ();
          it != end; ++it, ++idx)
     {
+      if (getNode ()->isCollapsed ()) return;
       unsigned fldOffset = sl->getElementOffset (idx);
       addType (o + fldOffset, *it);
     }
@@ -111,13 +113,19 @@ void dsa::Node::addType (unsigned o, const llvm::Type *t)
   {
     uint64_t sz = m_graph->getDataLayout ().getTypeStoreSize (aty->getElementType ());
     for (unsigned i = 0, e = aty->getNumElements (); i < e; ++i)
+    {
+      if (getNode ()->isCollapsed ()) return;
       addType (o + i*sz, aty->getElementType ());
+    }
   }
   else if (const VectorType *vty = dyn_cast<const VectorType> (t))
   {
     uint64_t sz = vty->getElementType ()->getPrimitiveSizeInBits () / 8;
     for (unsigned i = 0, e = vty->getNumElements (); i < e; ++i)
+    {
+      if (getNode ()->isCollapsed ()) return;
       addType (o + i*sz, vty->getElementType ());
+    }
   }  
   // -- add primitive type
   else
@@ -150,6 +158,7 @@ void dsa::Node::collapse (int tag)
 {
   if (isCollapsed ()) return;
         
+  assert (!isForwarding ());
   // if the node is already of smallest size, just mark it
   // collapsed to indicate that it cannot grow or change
   if (size () <= 1)
@@ -193,20 +202,23 @@ void dsa::Node::pointTo (Node &node, const Offset &offset)
   // -- grow the size if necessary
   if (sz + noffset > node.size ()) node.growSize (sz + noffset);
   
-  // -- merge the types
-  node.joinTypes (noffset, *this);
+  assert (!node.isForwarding () || node.getNode ()->isCollapsed ());
+  if (!node.getNode ()->isCollapsed ())
+  {
+    assert (!node.isForwarding ());
+    // -- merge the types
+    node.joinTypes (noffset, *this);
+      
+  }
       
   // -- merge node annotations
-  node.m_nodeType.join (m_nodeType);
-      
+  node.getNode ()->m_nodeType.join (m_nodeType);
 
   // -- move all the links
   for (auto &kv : m_links)
   {
     if (kv.second->isNull ()) continue;
     m_forward.addLink (kv.first, *kv.second);
-    
-        
   }
       
   // reset current node
@@ -245,6 +257,7 @@ void dsa::Node::unifyAt (Node &n, unsigned o)
   }
       
   Offset offset (*this, o);
+  
   if (!isCollapsed () && !n.isCollapsed () && n.isArray () && !isArray ())
   {
     // -- merge into array at offset 0

@@ -505,7 +505,19 @@ namespace
       Cell &c = m_graph.mkCell (*inst, Cell (m_graph.mkNode (), 0));
       if (Function* callee = CS.getCalledFunction ()) {
         if (callee->isDeclaration()) 
+        {
           c.getNode()->setExternal();
+          // -- treat external function as allocation
+          c.getNode ()->addAllocSite (*inst);
+          // TODO: many more things can be done to handle external
+          // TODO: functions soundly and precisely.  An absolutely
+          // safe thing is to merge all arguments with return (with
+          // globals) on any external function call. However, this is
+          // too aggressive for most cases. More refined analysis can
+          // be done using annotations of the external functions (like
+          // noalias, does-not-read-memory, etc.). The current
+          // solution is okay for now.
+        }
       } else {
         // TODO: handle indirect call
       }

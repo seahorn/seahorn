@@ -386,11 +386,11 @@ void dsa::Cell::dump() const {
   errs () << "\n";
 }
 
-void dsa::Cell::setRead (bool v) { m_node->setRead(v);}
-void dsa::Cell::setModified (bool v) { m_node->setModified(v);}
+void dsa::Cell::setRead (bool v) { getNode ()->setRead(v);}
+void dsa::Cell::setModified (bool v) { getNode()->setModified(v);}
 
-bool dsa::Cell::isRead () const { return m_node->isRead(); }
-bool dsa::Cell::isModified () const { return m_node->isModified(); }
+bool dsa::Cell::isRead () const { return getNode ()->isRead(); }
+bool dsa::Cell::isModified () const { return getNode()->isModified(); }
         
 void dsa::Cell::unify (Cell &c)
 {

@@ -3,4 +3,5 @@ add_llvm_library (SeaDsaAnalysis
   DsaLocal.cc
   DsaGlobal.cc
   Cloner.cc
+  DsaInfo.cc
   )

@@ -22,6 +22,7 @@
 
 #include "seahorn/Passes.hh"
 #include "seahorn/Analysis/DSA/Global.hh"
+#include "seahorn/Analysis/DSA/Info.hh"
 
 static llvm::cl::opt<std::string>
 InputFilename(llvm::cl::Positional, llvm::cl::desc("<input LLVM bitcode file>"),
@@ -136,8 +137,10 @@ int main(int argc, char **argv) {
   // XXX: for now we just call the analysis pass.
   // Later we will have a pass that call this analysis pass and do
   // some pretty printer of the heap.
-  if (RunDsa) 
+  if (RunDsa) {
     pass_manager.add (new seahorn::dsa::Global ());
+    //pass_manager.add (new seahorn::dsa::Info ());
+  }
 
   pass_manager.run(*module.get());
 

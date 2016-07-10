@@ -55,6 +55,9 @@ namespace seahorn
 
     void addInvarCandsToProgramSolver(HornClauseDB &db);
 
+    Expr applyComplexTemplates(Expr fdecl);
+    void generateLemmasForOneBvar(Expr bvar, ExprVector &conjuncts);
+
     template<typename OutputIterator>
     void get_all_bvars (Expr e, OutputIterator out);
 

@@ -118,7 +118,7 @@ namespace seahorn
   }
 
   /*
-   * Use template to convert a predicate to candidate
+   * Use simple template to convert a predicate to candidate
    */
   Expr Houdini::relToCand(Expr fdecl)
   {
@@ -176,6 +176,79 @@ namespace seahorn
   }
 
   /*
+   * Use complex templates to convert a predicate to candidate
+   */
+  Expr Houdini::applyComplexTemplates(Expr fdecl)
+  {
+	ExprVector bvars;
+	ExprVector conjuncts;   // a vector of conjuncts
+	ExprVector disjuncts;
+	Expr cand = NULL;
+
+	int bvar_count = 0;
+	unsigned i = 0;
+	for (i=0; i < bind::domainSz(fdecl); i++)
+	{
+		// if its type is INT
+		if (isOpX<INT_TY>(bind::domainTy(fdecl, i)))
+		{
+			// what is efac?
+			Expr bvar = bind::bvar (i, mk<INT_TY>(bind::domainTy(fdecl, i)->efac())); //the id of bvar is the same as related arg index
+			bvars.push_back(bvar);
+			bvar_count ++;
+		}
+	}
+
+	if(bvar_count == 0)
+	{
+		cand = mk<TRUE>(fdecl->efac());
+	}
+	else if(bvar_count == 1)
+	{
+		generateLemmasForOneBvar(bvars[0], conjuncts);
+		cand = mknary<AND>(conjuncts.begin(), conjuncts.end());
+	}
+	else if(bvar_count == 2)
+	{
+		generateLemmasForOneBvar(bvars[0], conjuncts);
+		generateLemmasForOneBvar(bvars[1], conjuncts);
+
+		Expr lt1 = mk<LEQ>(bvars[0], bvars[1]);
+		//Expr lt2 = mk<LEQ>(bvars[1], bvars[0]);
+		conjuncts.push_back(lt1);
+		//conjuncts.push_back(lt2);
+
+		cand = mknary<AND>(conjuncts.begin(), conjuncts.end());
+	}
+	else // bvar_count > 2
+	{
+		generateLemmasForOneBvar(bvars[0], conjuncts);
+		for(int j=0; j<bvars.size()-1; j++)
+		{
+			generateLemmasForOneBvar(bvars[j+1], conjuncts);
+			Expr lt = mk<LEQ>(bvars[j], bvars[j+1]);
+			conjuncts.push_back(lt);
+		}
+		cand = mknary<AND>(conjuncts.begin(), conjuncts.end());
+	}
+
+	return cand;
+  }
+
+  void Houdini::generateLemmasForOneBvar(Expr bvar, ExprVector &conjuncts)
+  {
+	  Expr zero = mkTerm<mpz_class> (0, bvar->efac());
+	  Expr one = mkTerm<mpz_class> (1, bvar->efac());
+	  Expr minusOne = mkTerm<mpz_class> (-1, bvar->efac());
+	  conjuncts.push_back(mk<LEQ>(bvar, zero));
+	  //conjuncts.push_back(mk<GEQ>(bvar, zero));
+	  conjuncts.push_back(mk<LEQ>(bvar, one));
+	  //conjuncts.push_back(mk<GEQ>(bvar, one));
+	  conjuncts.push_back(mk<LEQ>(bvar, minusOne));
+	  //conjuncts.push_back(mk<GEQ>(bvar, minusOne));
+  }
+
+  /*
    * Build the map from predicates to candidates
    */
   void Houdini::guessCandidate(HornClauseDB &db)
@@ -184,7 +257,8 @@ namespace seahorn
 	  {
 		  if(bind::isFdecl(rel))
 		  {
-			  Expr cand = relToCand(rel);
+			  //Expr cand = relToCand(rel);
+			  Expr cand = applyComplexTemplates(rel);
 			  currentCandidates.insert(std::pair<Expr, Expr>(rel, cand));
 		  }
 	  }
@@ -282,6 +356,18 @@ namespace seahorn
 
   bool Houdini::validateRule_EachRuleASolver(HornRule r, HornClauseDB &db, ZSolver<EZ3> &solver)
   {
+	  /////////////////////////////////////////
+	  LOG("houdini", errs() << "CAND MAPS:\n";);
+	  for(HornClauseDB::RuleVector::iterator it = db.getRules().begin(); it!= db.getRules().end(); ++it)
+	  {
+		  HornRule r = *it;
+		  Expr rhead_app = r.head();
+		  Expr rhead_cand_app = fAppToCandApp(rhead_app);
+		  LOG("houdini", errs() << "HEAD: " << *rhead_app << "\n";);
+		  LOG("houdini", errs() << "CAND: " << *rhead_cand_app << "\n";);
+	  }
+	  ////////////////////////////////////////
+
 	  Expr ruleHead_cand_app = fAppToCandApp(r.head());
 	  Expr neg_ruleHead_cand_app = mk<NEG>(ruleHead_cand_app);
 	  solver.assertExpr(neg_ruleHead_cand_app);
@@ -295,7 +381,7 @@ namespace seahorn
 	  }
 
 	  //LOG("houdini", errs() << "AFTER PUSH: \n";);
-	  //solver.toSmtLib(errs());
+	  solver.toSmtLib(errs());
 	  boost::tribool isSat = solver.solve();
 	  if(isSat)
 	  {

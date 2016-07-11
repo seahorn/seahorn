@@ -31,7 +31,7 @@ namespace seahorn
 
     Expr relToCand(Expr pred);
     void guessCandidate(HornClauseDB &db);
-    bool validateRule(HornRule r, HornClauseDB &db, ZSolver<EZ3> &solver);
+    bool validateRule_Naive(HornRule r, HornClauseDB &db, ZSolver<EZ3> &solver);
     void runHoudini(HornClauseDB &db, HornifyModule &hm, HornClauseDBWto &db_wto, int config);
     Expr fAppToCandApp(Expr fapp);
     Expr applyArgsToBvars(Expr cand, Expr fapp);
@@ -45,7 +45,7 @@ namespace seahorn
     std::map<Expr, ZSolver<EZ3>> assignEachRelationASolver(HornClauseDB &db, HornifyModule &hm);
     bool validateRule_EachRelationASolver(HornRule r, HornClauseDB &db, ZSolver<EZ3> &solver);
 
-    void run_naive(HornClauseDB &db, HornifyModule &hm, std::list<HornRule> &workList);
+    void run_naive(HornClauseDB &db, HornifyModule &hm, HornClauseDBWto &db_wto, std::list<HornRule> &workList);
     void run_one_solver_per_rule(HornClauseDB &db, HornifyModule &hm, HornClauseDBWto &db_wto, std::list<HornRule> &workList);
     void run_one_solver_per_relation(HornClauseDB &db, HornifyModule &hm, HornClauseDBWto &db_wto, std::list<HornRule> &workList);
 

@@ -522,6 +522,24 @@ dsa::Graph::const_iterator dsa::Graph::begin() const
 dsa::Graph::const_iterator dsa::Graph::end() const
 { return boost::make_indirect_iterator(m_nodes.end()); }
 
+dsa::Graph::scalar_const_iterator dsa::Graph::scalar_begin() const
+{ return m_values.begin(); }
+
+dsa::Graph::scalar_const_iterator dsa::Graph::scalar_end() const
+{ return m_values.end(); }
+
+dsa::Graph::formal_const_iterator dsa::Graph::formal_begin() const
+{ return m_formals.begin(); }
+
+dsa::Graph::formal_const_iterator dsa::Graph::formal_end() const
+{ return m_formals.end(); }
+
+dsa::Graph::return_const_iterator dsa::Graph::return_begin() const
+{ return m_returns.begin(); }
+
+dsa::Graph::return_const_iterator dsa::Graph::return_end() const
+{ return m_returns.end(); }
+
 void dsa::Graph::compress ()
 {
   // -- resolve all forwarding

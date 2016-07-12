@@ -41,13 +41,16 @@ namespace seahorn
       NodeVector m_nodes;
             
       /// Map from scalars to cells in this graph
-      llvm::DenseMap<const llvm::Value*, CellRef> m_values;
+      typedef llvm::DenseMap<const llvm::Value*, CellRef> ValueMap;
+      ValueMap m_values;
 
       /// Map from formal arguments to cells
-      llvm::DenseMap<const llvm::Argument*, CellRef> m_formals;
+      typedef llvm::DenseMap<const llvm::Argument*, CellRef> ArgumentMap;
+      ArgumentMap m_formals;
       
       /// Map from formal returns of functions to cells
-      llvm::DenseMap<const llvm::Function*, CellRef> m_returns;
+      typedef llvm::DenseMap<const llvm::Function*, CellRef> ReturnMap;
+      ReturnMap m_returns;
       
       SetFactory &getSetFactory () { return m_setFactory; }
       Set emptySet () { return m_setFactory.getEmptySet (); }
@@ -73,6 +76,21 @@ namespace seahorn
       const_iterator begin() const;
       const_iterator end() const;
 
+      /// iterate over scalars
+      typedef ValueMap::const_iterator scalar_const_iterator; 
+      scalar_const_iterator scalar_begin() const;
+      scalar_const_iterator scalar_end() const;
+
+      /// iterate over formal parameters of functions
+      typedef ArgumentMap::const_iterator formal_const_iterator; 
+      formal_const_iterator formal_begin() const;
+      formal_const_iterator formal_end() const;
+
+      /// iterate over returns of functions
+      typedef ReturnMap::const_iterator return_const_iterator; 
+      return_const_iterator return_begin() const;
+      return_const_iterator return_end() const;
+            
       /// creates a cell for the value or returns existing cell if
       /// present
       Cell &mkCell (const llvm::Value &v, const Cell &c);

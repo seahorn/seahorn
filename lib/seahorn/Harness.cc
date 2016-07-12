@@ -123,16 +123,18 @@ namespace seahorn
 
       Value *LoadCounter = Builder.CreateLoad(Counter);
 
-      Value* Args[] = {LoadCounter,
-                       Builder.CreateBitCast(CA, pRT),
-                       ConstantInt::get(CountType, values.size())};
-      Type* ArgTypes[] = {CountType, pRT, CountType};
-
       Builder.CreateStore(Builder.CreateAdd(LoadCounter,
                                             ConstantInt::get(CountType, 1)),
                           Counter);
 
       std::string name;
+      std::vector <Type *> ArgTypes =
+        {CountType, pRT, CountType};
+      std::vector <Value *> Args =
+        {LoadCounter,
+         Builder.CreateBitCast(CA, pRT),
+         ConstantInt::get(CountType, values.size())};
+
       if (RT->isIntegerTy ())
       {
         std::string RS;
@@ -141,15 +143,28 @@ namespace seahorn
 
         name = Twine("__seahorn_get_value_").concat(RSO.str()).str();
       }
-      else
+      else if (RT->getSequentialElementType ()) {
         name = "__seahorn_get_value_ptr";
+        ArgTypes.push_back (Type::getInt32Ty (getGlobalContext ()));
+
+        // If we can tell how big the return type is, tell the
+        // callback function.  Otherwise pass zero.
+        if (RT->getSequentialElementType ()->isSized ())
+          Args.push_back (ConstantInt::get (Type::getInt32Ty (getGlobalContext ()),
+                                            dl.getTypeStoreSizeInBits (RT->getSequentialElementType ())));
+        else
+          Args.push_back (ConstantInt::getFalse (Type::getInt32Ty (getGlobalContext ())));
+      }
+      else
+        assert (false && "Unknown return type");
 
       Constant *GetValue =
         Harness->getOrInsertFunction(name,
-                                     FunctionType::get(RT, makeArrayRef (ArgTypes, 3),
+                                     FunctionType::get(RT,
+                                                       makeArrayRef(ArgTypes),
                                                        false));
       assert(GetValue);
-      Value* RetValue = Builder.CreateCall(GetValue, makeArrayRef(Args, 3));
+      Value* RetValue = Builder.CreateCall(GetValue, makeArrayRef (Args));
 
       Builder.CreateRet(RetValue);
     }

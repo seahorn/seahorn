@@ -290,6 +290,11 @@ namespace
   void IntraBlockBuilder::visitBitCastInst(BitCastInst &I)
   {
     if (isSkip (I)) return;
+
+    if (isa<Constant> (I.getOperand (0)) && 
+        cast<Constant> (I.getOperand (0))->isNullValue ()) 
+      return;  // do nothing if null
+
     dsa::Cell arg = valueCell  (*I.getOperand (0));
     assert (!arg.isNull ());
     m_graph.mkCell (I, arg);
@@ -721,5 +726,5 @@ namespace seahorn
 char seahorn::dsa::Local::ID = 0;
 
 static llvm::RegisterPass<seahorn::dsa::Local> 
-X ("dsa-local", "Flow-insensitive, intra-procedural dsa analysis");
+X ("new-dsa-local", "Flow-insensitive, intra-procedural dsa analysis");
 

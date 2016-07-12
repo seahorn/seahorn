@@ -29,6 +29,8 @@ namespace seahorn
     class Cell;
     typedef std::unique_ptr<Cell> CellRef;
     
+    class FunctionalMapper;
+    
     class Graph
     {
       friend class Node;
@@ -172,6 +174,8 @@ namespace seahorn
     {
       friend class Graph;
       friend class Cell;
+
+      friend class FunctionalMapper;
       struct NodeType
       {
         unsigned shadow:1;

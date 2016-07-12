@@ -4,4 +4,5 @@ add_llvm_library (SeaDsaAnalysis
   DsaGlobal.cc
   Cloner.cc
   DsaInfo.cc
+  Mapper.cc
   )

@@ -4,9 +4,12 @@
 #include <boost/container/flat_map.hpp>
 #include <boost/container/flat_set.hpp>
 #include <boost/iterator/indirect_iterator.hpp>
+#include <boost/functional/hash.hpp>
 
 #include "llvm/ADT/ImmutableSet.h"
 #include "llvm/ADT/DenseMap.h"
+
+#include <functional>
 
 namespace llvm
 {
@@ -25,6 +28,8 @@ namespace seahorn
     class Node;
     class Cell;
     typedef std::unique_ptr<Cell> CellRef;
+    
+    class FunctionalMapper;
     
     class Graph
     {
@@ -115,7 +120,7 @@ namespace seahorn
     
     /** 
         A memory cell (or a field). An offset into a memory object.
-     */
+    */
     class Cell
     {
       /// memory object
@@ -134,6 +139,8 @@ namespace seahorn
       
       bool operator== (const Cell &o) const
       {return m_node == o.m_node && m_offset == o.m_offset;}
+      bool operator!= (const Cell &o) const
+      { return !operator==(o); }
       bool operator< (const Cell &o) const
       { return m_node < o.m_node || (m_node == o.m_node && m_offset < o.m_offset); }
 
@@ -176,6 +183,7 @@ namespace seahorn
 
       /// for gdb
       void dump () const;
+      
     };
     
     
@@ -184,6 +192,8 @@ namespace seahorn
     {
       friend class Graph;
       friend class Cell;
+
+      friend class FunctionalMapper;
       struct NodeType
       {
         unsigned shadow:1;
@@ -472,7 +482,22 @@ namespace seahorn
 
     const Node* Node::getNode () const
     { return isForwarding () ? m_forward.getNode () : this;}
-  }
+  }  
+
+}
+
+namespace std
+{
+  template<> struct hash<seahorn::dsa::Cell>
+  {
+    size_t operator() (const seahorn::dsa::Cell &c) const
+    {
+      size_t seed = 0;
+      boost::hash_combine (seed, c.getNode ());
+      boost::hash_combine (seed, c.getOffset ());
+      return seed;
+    }
+  };
 }
 
 #endif

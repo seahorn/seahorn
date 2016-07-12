@@ -37,7 +37,7 @@ const int MEM_REGION_SIZE_GUESS = 1000 * 1000;
 const int TYPE_GUESS = sizeof(int);
 
 intptr_t __seahorn_get_value_ptr(int ctr, intptr_t *g_arr, int g_arr_sz, int ebits) {
-  std::unordered_map<intptr_t, intptr_t> absptrmap;
+  static std::unordered_map<intptr_t, intptr_t> absptrmap;
   intptr_t absptr = __seahorn_get_value_ptr_internal(ctr, g_arr, g_arr_sz);
 
   auto concptrfind = absptrmap.find(absptr);

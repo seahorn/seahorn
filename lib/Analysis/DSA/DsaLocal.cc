@@ -693,26 +693,6 @@ namespace seahorn
       LOG("progress", errs () << "DSA: " << F.getName () << "\n";);
       
       Graph_ptr g = boost::make_shared<Graph> (*m_dl);
-
-      // XXX: should we create a global graph once and them import it?
-      for (auto &gv: F.getParent()->globals()) {
-
-        if (gv.hasSection()) {
-          StringRef Section(gv.getSection());
-          // Globals from llvm.metadata aren't emitted, do not instrument them.
-          if (Section == "llvm.metadata") continue;
-        }
-
-        // skip aliases
-        if (isa<GlobalAlias>(gv)) continue;
-
-        Node &n = g->mkNode ();
-        g->mkCell (gv, Cell (n, 0));
-        // -- record allocation site
-        n.addAllocSite(gv);
-        // -- mark node as a heap node
-        n.setHeap();
-      }
       
       // create cells and nodes for formal arguments
       for (Argument &a : F.args ())
@@ -739,7 +719,7 @@ namespace seahorn
       g->compress ();
 
       LOG ("dsa",
-           // --- Sanity check: all accessed nodes have an allocation site
+           // --- Sanity check
            for (auto &kv: boost::make_iterator_range(g->scalar_begin(),
                                                      g->scalar_end())) 
              if (kv.second->isRead() || kv.second->isModified()) 

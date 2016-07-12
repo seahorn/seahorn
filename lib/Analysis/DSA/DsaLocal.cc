@@ -248,10 +248,6 @@ namespace
       {
         Node &n = m_graph.mkNode ();
         base.setLink (0, Cell (&n, 0));
-        // -- record allocation site
-        n.addAllocSite(LI);
-        // -- mark node as a heap node
-        n.setHeap();
       }
       m_graph.mkCell (LI, base.getLink ());
     }

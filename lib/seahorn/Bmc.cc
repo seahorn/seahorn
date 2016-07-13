@@ -216,6 +216,14 @@ namespace seahorn
     return m_model.eval (v, complete);
   }
   
+  DenseSet<const BasicBlock*> BmcTrace::getRegion()
+  {
+    DenseSet<const BasicBlock*> region;
+    for (auto* bb:m_bbs)
+      region.insert(bb);
+    return region;
+  }
+
   static bool isCallToVoidFn (const llvm::Instruction &I)
   {
     if (const CallInst *ci = dyn_cast<const CallInst> (&I))

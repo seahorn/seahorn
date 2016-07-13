@@ -11,6 +11,7 @@
 #include "seahorn/Analysis/CutPointGraph.hh"
 #include "seahorn/Analysis/CanFail.hh"
 
+#include "seahorn/Transforms/Utils/Local.hh"
 #include "seahorn/Bmc.hh"
 
 #include "boost/range.hpp"
@@ -34,6 +35,8 @@
 
 #include "llvm/Bitcode/ReaderWriter.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
+
+
 
 #include <gmpxx.h>
 
@@ -61,8 +64,13 @@ HornCexSmtFilename("horn-cex-smt", llvm::cl::desc("Counterexample validate SMT p
                llvm::cl::init(""), llvm::cl::value_desc("filename"), llvm::cl::Hidden);
 
 static llvm::cl::opt<std::string>
-    SliceOutputFile("horn-cex-slice", llvm::cl::desc("Output sliced bitcode"),
+    BmcSliceOutputFile("horn-bmc-slice", llvm::cl::desc("Output sliced bitcode by BmcTrace"),
                     llvm::cl::init(""), llvm::cl::value_desc("filename"));
+
+static llvm::cl::opt<std::string>
+    CpSliceOutputFile("horn-cp-slice", llvm::cl::desc("Output sliced bitcode by cut point trace"),
+                    llvm::cl::init(""), llvm::cl::value_desc("filename"));
+
 
 using namespace llvm;
 namespace seahorn
@@ -71,7 +79,6 @@ namespace seahorn
   template <typename O> class SvCompCex;
   static void dumpSvCompCex (BmcTrace &trace, std::string CexFile);
   static void dumpLLVMCex (BmcTrace &trace, StringRef CexFile, const DataLayout &dl);
-  static void sliceErrorTrace(Function &F, BmcTrace &trace);
   static void dumpLLVMBitcode(const Module &M, StringRef BcFile);
 
   char HornCex::ID = 0;
@@ -220,11 +227,25 @@ namespace seahorn
               << ". Expected .xml, .ll, or .bc.\n";
     }
 
-    if (!SliceOutputFile.empty()) {
-      sliceErrorTrace(F, trace);
-      dumpLLVMBitcode(M, SliceOutputFile.c_str());
+    if (!BmcSliceOutputFile.empty()) {
+      llvm::DenseSet<const llvm::BasicBlock*> region(trace.getRegion());
+      reduceToRegion(F, region, false);
+      dumpLLVMBitcode(M, BmcSliceOutputFile.c_str());
       return true;
     }
+
+    if (!CpSliceOutputFile.empty())
+    {
+      DenseSet<const BasicBlock*> region;
+      for (const CutPoint* cp:cpTrace)
+      for (CutPoint::const_iterator it=cp->succ_begin();it!=cp->succ_end();it++)
+      for (CpEdge::iterator ite=(*it)->begin();ite!=(*it)->end();ite++)
+        region.insert(&*ite);
+      reduceToRegion(F,region,false);
+      dumpLLVMBitcode(M, CpSliceOutputFile.c_str());
+      return true;
+    }
+
     return false;
   }
 
@@ -386,49 +407,7 @@ namespace seahorn
     out.keep ();
   }
 
-  static void sliceErrorTrace(Function &F, BmcTrace &trace) {
-    DenseSet<const BasicBlock *> region;
-    for (unsigned loc = 0; loc < trace.size(); ++loc)
-      region.insert(trace.bb(loc));
-
-    IRBuilder<> Builder(F.getContext());
-    Constant *assumeFn = F.getParent()->getOrInsertFunction(
-        "verifier.assume", Builder.getVoidTy(), Builder.getInt1Ty(), NULL);
-    Constant *assumeNotFn = F.getParent()->getOrInsertFunction(
-        "verifier.assume.not", Builder.getVoidTy(), Builder.getInt1Ty(), NULL);
-    std::vector<BasicBlock *> dead;
-    dead.reserve(F.size());
-    for (BasicBlock &BB : F) {
-
-      if (BranchInst *br = dyn_cast<BranchInst>(BB.getTerminator())) {
-        if (br->isUnconditional())
-          continue;
-        BasicBlock *s0 = br->getSuccessor(0);
-        BasicBlock *s1 = br->getSuccessor(1);
-
-        BasicBlock *kill = NULL;
-
-        if ((region.count(s0) > 0) == (region.count(s1) > 0))
-          continue; //both branches or unvisited conditions
-        if (region.count(s0) <= 0)
-          kill = s0;
-        else if (region.count(s1) <= 0)
-          kill = s1;
-
-        dead.push_back(kill);
-        Builder.SetInsertPoint(&BB, br);
-        CallInst *ci = Builder.CreateCall(kill == s1 ? assumeFn : assumeNotFn,
-                                          br->getCondition());
-        ci->setDebugLoc(br->getDebugLoc());
-        br->eraseFromParent();
-        Builder.SetInsertPoint(&BB);
-        Builder.CreateBr(kill == s1 ? s0 : s1);
-      }
-    }
-
-    for (auto *bb : dead)
-      DeleteDeadBlock(bb);
-  }
+  
 
   static void dumpLLVMBitcode(const Module &M, StringRef BcFile) {
     std::error_code error_code;
@@ -442,6 +421,7 @@ namespace seahorn
     sliceOutput.os().close();
     sliceOutput.keep();
   }
+
 
 }
 

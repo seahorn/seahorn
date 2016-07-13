@@ -25,10 +25,9 @@ namespace seahorn
   }
   
   /// Reduce the given function to the basic blocks in a given region
-  void reduceToRegion (Function &F, DenseSet<const BasicBlock*> &region)
+  void reduceToRegion (Function &F, DenseSet<const BasicBlock*> &region, bool deleteBBs)
   {
-    std::vector<BasicBlock*> dead;
-    dead.reserve (F.size ());
+    DenseSet<BasicBlock*> dead;
     
     IRBuilder<> Builder (F.getContext ());
     Constant* assumeFn = F.getParent ()->getOrInsertFunction ("verifier.assume", 
@@ -43,13 +42,12 @@ namespace seahorn
     
     for (BasicBlock &BB : F)
     {
-      if (region.count (&BB) <= 0) 
+      if (region.count (&BB) <= 0 && deleteBBs) 
       {
-        dead.push_back (&BB);
-        BB.dropAllReferences ();
+        dead.insert (&BB);
         continue;
       }
-      
+
       if (BranchInst *br = dyn_cast<BranchInst> (BB.getTerminator ()))
       {
         if (br->isUnconditional ()) continue;
@@ -57,12 +55,14 @@ namespace seahorn
         BasicBlock* s1 = br->getSuccessor (1);
         
         BasicBlock* kill = NULL;
+     
         if (region.count (s0) <= 0)
           kill = s0;
         else if (region.count (s1) <= 0)
           kill = s1;
-        else continue;
-        
+        else 
+          continue;
+           
         Builder.SetInsertPoint (&BB, br);
         CallInst *ci = Builder.CreateCall
           (kill == s1 ? assumeFn : assumeNotFn, br->getCondition ());
@@ -70,10 +70,12 @@ namespace seahorn
         br->eraseFromParent ();
         Builder.SetInsertPoint (&BB);
         Builder.CreateBr (kill == s1 ? s0 : s1);
+        kill->removePredecessor(&BB);
       }
     }
     
-    for (auto *bb : dead) bb->eraseFromParent ();
+    for (auto *bb : dead) 
+      DeleteDeadBlock (bb);
   }
     
   /// Reduce the function to only the BasicBlocks that are ancestors of exits

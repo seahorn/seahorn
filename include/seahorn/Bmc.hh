@@ -15,6 +15,7 @@
 #include "llvm/IR/DebugLoc.h"
 #include "llvm/IR/DebugInfo.h"
 
+#include "llvm/ADT/DenseSet.h"
 namespace seahorn
 {
   using namespace expr;
@@ -125,7 +126,7 @@ namespace seahorn
     
     /// The value of the instruction at the given location 
     Expr eval (unsigned loc, const llvm::Instruction &inst, bool complete=false);
-    
+    DenseSet<const BasicBlock*> getRegion();
     template <typename Out> Out &print (Out &out);
     friend class BmcEngine;
   };

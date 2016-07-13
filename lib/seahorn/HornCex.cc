@@ -229,7 +229,7 @@ namespace seahorn
 
     if (!BmcSliceOutputFile.empty()) {
       llvm::DenseSet<const llvm::BasicBlock*> region(trace.getRegion());
-      reduceToRegion(F, region, false);
+      reduceToRegion(F, region);
       dumpLLVMBitcode(M, BmcSliceOutputFile.c_str());
       return true;
     }

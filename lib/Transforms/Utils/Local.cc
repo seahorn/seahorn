@@ -27,8 +27,9 @@ namespace seahorn
   /// Reduce the given function to the basic blocks in a given region
   void reduceToRegion (Function &F, DenseSet<const BasicBlock*> &region, bool deleteBBs)
   {
-    DenseSet<BasicBlock*> dead;
-    
+    std::vector<BasicBlock*> dead;
+    dead.reserve (F.size ());
+
     IRBuilder<> Builder (F.getContext ());
     Constant* assumeFn = F.getParent ()->getOrInsertFunction ("verifier.assume", 
                                                               Builder.getVoidTy (),
@@ -44,7 +45,8 @@ namespace seahorn
     {
       if (region.count (&BB) <= 0 && deleteBBs) 
       {
-        dead.insert (&BB);
+        dead.push_back (&BB);
+        BB.dropAllReferences ();
         continue;
       }
 
@@ -74,8 +76,7 @@ namespace seahorn
       }
     }
     
-    for (auto *bb : dead) 
-      DeleteDeadBlock (bb);
+    for (auto *bb : dead) bb->eraseFromParent ();
   }
     
   /// Reduce the function to only the BasicBlocks that are ancestors of exits

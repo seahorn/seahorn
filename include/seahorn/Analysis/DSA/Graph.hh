@@ -4,6 +4,7 @@
 #include <boost/container/flat_map.hpp>
 #include <boost/container/flat_set.hpp>
 #include <boost/iterator/indirect_iterator.hpp>
+#include "boost/iterator/filter_iterator.hpp"
 #include <boost/functional/hash.hpp>
 
 #include "llvm/ADT/ImmutableSet.h"
@@ -65,6 +66,8 @@ namespace seahorn
 
       const llvm::DataLayout &getDataLayout () const { return m_dl; }
       
+      struct IsGlobal 
+      {bool operator() (const ValueMap::value_type &kv) const;};
       
     public:
 
@@ -87,6 +90,12 @@ namespace seahorn
       scalar_const_iterator scalar_begin() const;
       scalar_const_iterator scalar_end() const;
 
+      typedef boost::filter_iterator<IsGlobal,
+                                     typename ValueMap::const_iterator>
+      global_const_iterator;
+      global_const_iterator globals_begin () const;
+      global_const_iterator globals_end () const;
+      
       /// iterate over formal parameters of functions
       typedef ArgumentMap::const_iterator formal_const_iterator; 
       formal_const_iterator formal_begin() const;
@@ -96,7 +105,6 @@ namespace seahorn
       typedef ReturnMap::const_iterator return_const_iterator; 
       return_const_iterator return_begin() const;
       return_const_iterator return_end() const;
-            
       /// creates a cell for the value or returns existing cell if
       /// present
       Cell &mkCell (const llvm::Value &v, const Cell &c);

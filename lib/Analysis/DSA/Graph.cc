@@ -550,6 +550,23 @@ dsa::Graph::return_const_iterator dsa::Graph::return_begin() const
 dsa::Graph::return_const_iterator dsa::Graph::return_end() const
 { return m_returns.end(); }
 
+bool dsa::Graph::IsGlobal::operator() (const ValueMap::value_type &kv) const
+{return kv.first != nullptr && isa<GlobalValue> (kv.first);}
+
+dsa::Graph::global_const_iterator dsa::Graph::globals_begin() const
+{
+  return boost::make_filter_iterator (IsGlobal (),
+                                      m_values.begin (),
+                                      m_values.end ());
+}
+
+dsa::Graph::global_const_iterator dsa::Graph::globals_end() const
+{
+  return boost::make_filter_iterator (IsGlobal (),
+                                      m_values.end (),
+                                      m_values.end ());
+}
+
 void dsa::Graph::compress ()
 {
   // -- resolve all forwarding

@@ -4,33 +4,20 @@
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/CallSite.h"
 #include "llvm/IR/InstIterator.h"
+#include "llvm/IR/DataLayout.h"
 #include "llvm/Pass.h"
 #include "llvm/PassManager.h"
-
-#include "llvm/IR/DataLayout.h"
-
 #include "llvm/Analysis/CallGraph.h"
-
 #include "llvm/ADT/SCCIterator.h"
 
+#include "seahorn/Analysis/DSA/Graph.hh"
 #include "seahorn/Analysis/DSA/Global.hh"
 #include "seahorn/Analysis/DSA/Local.hh"
+#include "seahorn/Analysis/DSA/CallSite.hh"
 
 #include "avy/AvyDebug.h"
 
 using namespace llvm;
-
-static Value* getRetVal (const CallSite &CS)
-{
-  if (Function *F = CS.getCalledFunction ())
-  {
-    FunctionType *FTy = F->getFunctionType ();
-    if (!(FTy->getReturnType()->isVoidTy ()))
-      return CS.getInstruction ();
-  }
-  return nullptr;
-}
-
 
 namespace seahorn
 {
@@ -49,30 +36,32 @@ namespace seahorn
     }
     
 
-    void Global::resolveCallSite (const CallSite &CS)
+    void Global::resolveCallSite (DsaCallSite &CS)
     {
       // Handle the return value of the function...
-      Function &F = *CS.getCalledFunction ();
-      Value* retVal = getRetVal(CS);
+      const Function &F = *CS.getCallee ();
+      const Value* retVal = CS.getRetVal();
       if ((retVal && m_graph->hasCell(*retVal)) && m_graph->hasRetCell(F))
       {
         Cell &c  = m_graph->mkCell(*retVal, Cell());
         c.unify(m_graph->mkRetCell(F, Cell()));
       }
 
-      // Loop over all arguments, unifying them with the formal ones
-      unsigned argIdx = 0;
-      for (Function::const_arg_iterator AI = F.arg_begin(), AE = F.arg_end();
-           AI != AE && argIdx < CS.arg_size(); ++AI, ++argIdx) 
+      // Loop over all actual arguments, unifying them with the formal
+      // ones
+      DsaCallSite::const_actual_iterator AI = CS.actual_begin(), AE = CS.actual_end();
+      for (DsaCallSite::const_formal_iterator FI = CS.formal_begin(), FE = CS.formal_end();
+           FI != FE && AI != AE; ++FI, ++AI) 
       {
-        const Value *arg = &*AI;
-        if (m_graph->hasCell(*arg) &&
-            m_graph->hasCell(*(CS.getArgument(argIdx)))) {
-          Cell &c = m_graph->mkCell(*(CS.getArgument(argIdx)), Cell());
-          Cell &d = m_graph->mkCell (*arg, Cell ());
+        const Value *arg = (*AI).get();
+        const Value *farg = &*FI;
+        if (m_graph->hasCell(*farg) && m_graph->hasCell(*arg)) {
+          Cell &c = m_graph->mkCell(*arg, Cell());
+          Cell &d = m_graph->mkCell (*farg, Cell ());
           c.unify (d);
         }
       }
+
     }                                      
     
     bool Global::runOnModule (Module &M)
@@ -135,15 +124,16 @@ namespace seahorn
           for (auto &CallRecord : *cgn) 
           {
 
-            CallSite CS (CallRecord.first);
-            Function *Callee = CS.getCalledFunction();
+            ImmutableCallSite CS(CallRecord.first);
+            DsaCallSite dsa_cs(CS);
+            const Function *Callee = dsa_cs.getCallee();
             if (Callee && graphs->hasGraph(*Callee)) 
             {
               LOG ("dsa-resolve",
-                   errs () << "Resolving call site " << *(CS.getInstruction()) << "\n");
+                   errs () << "Resolving call site " << *(dsa_cs.getInstruction()) << "\n");
               
-              assert (F == CS.getCaller ());
-              resolveCallSite (CS);
+              assert (F == dsa_cs.getCaller ());
+              resolveCallSite (dsa_cs);
             }
 
           }

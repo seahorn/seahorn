@@ -6,10 +6,10 @@
 #include "llvm/Pass.h"
 
 #include "seahorn/Analysis/DSA/Graph.hh"
+#include "seahorn/Analysis/DSA/CallSite.hh"
 
 namespace llvm {
    class DataLayout;
-   class CallSite;
 }
 
 using namespace llvm;
@@ -24,7 +24,7 @@ namespace seahorn
       const DataLayout *m_dl;
       std::unique_ptr<Graph> m_graph;
 
-      void resolveCallSite (const CallSite &Call);
+      void resolveCallSite (DsaCallSite &cs);
 
     public:
 

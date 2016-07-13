@@ -30,7 +30,8 @@ namespace seahorn
     typedef std::unique_ptr<Cell> CellRef;
     
     class FunctionalMapper;
-    
+    class DsaCallSite;
+
     class Graph
     {
       friend class Node;
@@ -109,6 +110,10 @@ namespace seahorn
       
       bool hasRetCell (const llvm::Function &fn) const
       { return m_returns.count (&fn) > 0; }
+
+      void computeCalleeCallerRenaming (const DsaCallSite &cs, 
+                                        Graph& calleeGraph,
+                                        FunctionalMapper& remap);
       
       /// import the given graph into the current one
       /// copies all nodes from g and unifies all common scalars

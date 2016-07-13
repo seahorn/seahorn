@@ -13,6 +13,8 @@
 #include <set>
 
 #include "seahorn/Analysis/DSA/Cloner.hh"
+#include "seahorn/Analysis/DSA/Mapper.hh"
+#include "seahorn/Analysis/DSA/CallSite.hh"
 
 #include "boost/range/algorithm/set_algorithm.hpp"
 
@@ -20,6 +22,14 @@
 
 using namespace seahorn;
 using namespace llvm;
+
+static const llvm::ReturnInst* getReturnInst (const llvm::Function &F)
+{
+  for (const llvm::BasicBlock& bb : F)
+    if (const ReturnInst* RI = dyn_cast<ReturnInst> (bb.getTerminator ()))
+      return RI;
+  return NULL;
+}
 
 dsa::Node::Node (Graph &g, const Node &n, bool copyLinks) :
   m_graph (&g), m_unique_scalar (n.m_unique_scalar), m_size (n.m_size)
@@ -628,6 +638,43 @@ void dsa::Cell::write(raw_ostream&o) const {
 
 void dsa::Node::dump() const {
   write(errs());
+}
+
+void dsa::Graph::computeCalleeCallerRenaming (const DsaCallSite &cs, 
+                                              Graph& calleeGraph,
+                                              FunctionalMapper& remap) 
+{
+  const Function* callee = cs.getCallee();
+  if (!callee) { 
+    // XXX: no handle indirect calls
+    return;
+  }
+
+  if (callee->isVarArg()) {
+    // TODO: functions with variable number of arguments
+    LOG ("dsa", errs () << "WARNING: ignored callsite with varargs");
+    return;
+  }
+
+  // --- build a map from callee to caller
+
+  const Instruction *retVal = getReturnInst(*callee);
+  if (retVal && retVal->getType()->isPointerTy())
+    remap.insert(calleeGraph.getCell(*retVal), getCell(*(cs.getRetVal())));
+  
+  DsaCallSite::const_actual_iterator AI = cs.actual_begin(), AE = cs.actual_end();
+  for (DsaCallSite::const_formal_iterator FI = cs.formal_begin(), FE = cs.formal_end();
+       FI != FE && AI != AE; ++FI, ++AI) 
+  {
+    const Value *arg = (*AI).get();
+    const Value *farg = &*FI;
+    if (calleeGraph.hasCell(*farg) && hasCell(*arg)) {
+      Cell &callee_cell = calleeGraph.mkCell(*farg, Cell());      
+      Cell &caller_cell = mkCell(*arg, Cell());
+      remap.insert(callee_cell, caller_cell);
+    }
+  }
+
 }
 
 void dsa::Graph::import (const Graph &g, bool withFormals)

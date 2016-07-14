@@ -83,7 +83,7 @@ namespace seahorn
       //      });
 
       // -- the global graph
-      m_graph.reset (new Graph(*m_dl));
+      m_graph.reset (new Graph(*m_dl, m_setFactory));
 
       LocalAnalysis la (*m_dl, *m_tli);
       // -- bottom-up inline of all graphs
@@ -103,7 +103,7 @@ namespace seahorn
           if (!F || F->isDeclaration () || F->empty ()) continue;
           
           // compute local graph
-          Graph fGraph (*m_dl);
+          Graph fGraph (*m_dl, m_setFactory);
           la.runOnFunction (*F, fGraph);
 
           LOG ("dsa-inlining",

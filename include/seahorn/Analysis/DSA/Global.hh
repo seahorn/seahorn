@@ -26,7 +26,8 @@ namespace seahorn
       const DataLayout *m_dl;
       const TargetLibraryInfo *m_tli;
       std::unique_ptr<Graph> m_graph;
-
+      Graph::SetFactory m_setFactory;
+      
       void resolveCallSite (DsaCallSite &cs);
 
     public:

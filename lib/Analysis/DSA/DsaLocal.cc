@@ -750,7 +750,7 @@ namespace seahorn
       LOG("progress", errs () << "DSA: " << F.getName () << "\n";);
       
       LocalAnalysis la (*m_dl, *m_tli);
-      GraphRef g = std::make_shared<seahorn::dsa::Graph> (*m_dl);
+      GraphRef g = std::make_shared<seahorn::dsa::Graph> (*m_dl, m_setFactory);
       la.runOnFunction (F, *g);
       m_graphs [&F] = g;
       return false;

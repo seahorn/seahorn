@@ -42,7 +42,8 @@ namespace seahorn
       
       const DataLayout *m_dl;
       const TargetLibraryInfo *m_tli;
-
+      Graph::SetFactory m_setFactory;
+      
     public:
       static char ID;
 

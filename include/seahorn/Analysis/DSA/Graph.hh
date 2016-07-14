@@ -36,13 +36,13 @@ namespace seahorn
     class Graph
     {
       friend class Node;
+    public:
+      typedef llvm::ImmutableSet<llvm::Type*> Set;
+      typedef typename Set::Factory SetFactory;
     protected:
       
       const llvm::DataLayout &m_dl;
-      typedef llvm::ImmutableSet<llvm::Type*> Set;
-      typedef typename Set::Factory SetFactory;
-      SetFactory m_setFactory;
-      
+      SetFactory &m_setFactory;
       /// DSA nodes owned by this graph
       typedef std::vector<std::unique_ptr<Node> > NodeVector;
       NodeVector m_nodes;
@@ -71,7 +71,7 @@ namespace seahorn
       
     public:
 
-      Graph (const llvm::DataLayout &dl) : m_dl (dl) {}
+      Graph (const llvm::DataLayout &dl, SetFactory &sf) : m_dl (dl), m_setFactory (sf) {}
       /// remove all forwarding nodes
       void compress ();
 

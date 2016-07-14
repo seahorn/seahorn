@@ -18,6 +18,8 @@
 
 #include "avy/AvyDebug.h"
 
+#include "boost/range/iterator_range.hpp"
+
 using namespace llvm;
 
 namespace seahorn
@@ -39,17 +41,26 @@ namespace seahorn
 
     void Global::resolveCallSite (DsaCallSite &CS)
     {
-      // Handle the return value of the function...
-      const Function &F = *CS.getCallee ();
-      const Value* retVal = CS.getRetVal();
-      if ((retVal && m_graph->hasCell(*retVal)) && m_graph->hasRetCell(F))
+
+      // unify globals 
+      for (auto &kv : boost::make_iterator_range (m_graph->globals_begin (),
+                                                  m_graph->globals_end ()))
       {
-        Cell &c  = m_graph->mkCell(*retVal, Cell());
-        c.unify(m_graph->mkRetCell(F, Cell()));
+        Cell &nc = m_graph->mkCell (*kv.first, Cell ());
+        nc.unify (*(kv.second));
       }
 
-      // Loop over all actual arguments, unifying them with the formal
-      // ones
+      // unify return
+      const Function &callee = *CS.getCallee ();
+      if (m_graph->hasCell(*CS.getInstruction()) && m_graph->hasRetCell(callee))
+      {
+        Cell &nc = m_graph->mkCell(*CS.getInstruction(), Cell());
+        const Cell& r = m_graph->getRetCell(callee);
+        Cell c (*r.getNode (), r.getOffset ());
+        nc.unify(c);
+      }
+
+      // unify actuals and formals
       DsaCallSite::const_actual_iterator AI = CS.actual_begin(), AE = CS.actual_end();
       for (DsaCallSite::const_formal_iterator FI = CS.formal_begin(), FE = CS.formal_end();
            FI != FE && AI != AE; ++FI, ++AI) 

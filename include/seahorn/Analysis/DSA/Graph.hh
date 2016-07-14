@@ -119,6 +119,8 @@ namespace seahorn
       bool hasRetCell (const llvm::Function &fn) const
       { return m_returns.count (&fn) > 0; }
 
+      const Cell &getRetCell (const llvm::Function &fn) const; 
+
       void computeCalleeCallerRenaming (const DsaCallSite &cs, 
                                         Graph& calleeGraph,
                                         FunctionalMapper& remap);

@@ -616,6 +616,13 @@ dsa::Cell &dsa::Graph::mkRetCell (const llvm::Function &fn, const Cell &c)
   return *res;
 }
 
+const dsa::Cell &dsa::Graph::getRetCell (const llvm::Function &fn) const
+{
+  auto it = m_returns.find (&fn);
+  assert (it != m_returns.end ());
+  return *(it->second);
+}
+
 const dsa::Cell &dsa::Graph::getCell (const llvm::Value &v) 
 {
   // -- try m_formals first

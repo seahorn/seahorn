@@ -667,6 +667,63 @@ namespace seahorn
   namespace dsa
   {
 
+    void LocalAnalysis::runOnFunction (Function &F, dsa::Graph &g)
+    {
+      // create cells and nodes for formal arguments
+      for (Argument &a : F.args ())
+        if (a.getType ()->isPointerTy ()) {
+          Node &n = g.mkNode ();
+          g.mkCell (a, Cell (n, 0));
+          // -- record allocation site
+          n.addAllocSite(a);
+          // -- mark node as a stack node
+          n.setAlloca();
+        }
+      
+      std::vector<const BasicBlock *> bbs;
+      RevTopoSort (F, bbs);
+      boost::reverse (bbs);
+      
+      IntraBlockBuilder intraBuilder (F, g, m_dl, m_tli);
+      InterBlockBuilder interBuilder (F, g, m_dl, m_tli);
+      for (const BasicBlock *bb : bbs)
+        intraBuilder.visit (*const_cast<BasicBlock*>(bb));
+      for (const BasicBlock *bb : bbs)
+        interBuilder.visit (*const_cast<BasicBlock*>(bb));
+
+      g.compress ();
+
+      LOG ("dsa",
+           // --- Sanity check
+           for (auto &kv: boost::make_iterator_range(g.scalar_begin(),
+                                                     g.scalar_end())) 
+             if (kv.second->isRead() || kv.second->isModified()) 
+               if (kv.second->getNode ()->begin() == kv.second->getNode ()->end()) {
+                 errs () << "SCALAR " << *(kv.first) << "\n";
+                 errs () << "WARNING: a node has no allocation site\n";
+               }
+           for (auto &kv: boost::make_iterator_range(g.formal_begin(),
+                                                     g.formal_end())) 
+             if (kv.second->isRead() || kv.second->isModified()) 
+               if (kv.second->getNode ()->begin() == kv.second->getNode ()->end()) {
+                 errs () << "FORMAL " << *(kv.first) << "\n";
+                 errs () << "WARNING: a node has no allocation site\n";
+               }
+           for (auto &kv: boost::make_iterator_range(g.return_begin(),
+                                                     g.return_end())) 
+             if (kv.second->isRead() || kv.second->isModified()) 
+               if (kv.second->getNode ()->begin() == kv.second->getNode ()->end()) {
+                 errs () << "RETURN " << kv.first->getName() << "\n";
+                 errs () << "WARNING: a node has no allocation site\n";
+               }
+           );
+
+      LOG ("dsa-local", 
+           errs () << "Dsa graph after " << F.getName () << "\n";
+           g.write(errs()));
+      
+    }
+    
     Local::Local () : 
         ModulePass (ID), m_dl (nullptr), m_tli (nullptr) {}
 
@@ -692,61 +749,9 @@ namespace seahorn
       
       LOG("progress", errs () << "DSA: " << F.getName () << "\n";);
       
-      Graph_ptr g = boost::make_shared<Graph> (*m_dl);
-      
-      // create cells and nodes for formal arguments
-      for (Argument &a : F.args ())
-        if (a.getType ()->isPointerTy ()) {
-          Node &n = g->mkNode ();
-          g->mkCell (a, Cell (n, 0));
-          // -- record allocation site
-          n.addAllocSite(a);
-          // -- mark node as a stack node
-          n.setAlloca();
-        }
-      
-      std::vector<const BasicBlock *> bbs;
-      RevTopoSort (F, bbs);
-      boost::reverse (bbs);
-      
-      IntraBlockBuilder intraBuilder (F, *g, *m_dl, *m_tli);
-      InterBlockBuilder interBuilder (F, *g, *m_dl, *m_tli);
-      for (const BasicBlock *bb : bbs)
-        intraBuilder.visit (*const_cast<BasicBlock*>(bb));
-      for (const BasicBlock *bb : bbs)
-        interBuilder.visit (*const_cast<BasicBlock*>(bb));
-
-      g->compress ();
-
-      LOG ("dsa",
-           // --- Sanity check
-           for (auto &kv: boost::make_iterator_range(g->scalar_begin(),
-                                                     g->scalar_end())) 
-             if (kv.second->isRead() || kv.second->isModified()) 
-               if (kv.second->getNode ()->begin() == kv.second->getNode ()->end()) {
-                 errs () << "SCALAR " << *(kv.first) << "\n";
-                 errs () << "WARNING: a node has no allocation site\n";
-               }
-           for (auto &kv: boost::make_iterator_range(g->formal_begin(),
-                                                     g->formal_end())) 
-             if (kv.second->isRead() || kv.second->isModified()) 
-               if (kv.second->getNode ()->begin() == kv.second->getNode ()->end()) {
-                 errs () << "FORMAL " << *(kv.first) << "\n";
-                 errs () << "WARNING: a node has no allocation site\n";
-               }
-           for (auto &kv: boost::make_iterator_range(g->return_begin(),
-                                                     g->return_end())) 
-             if (kv.second->isRead() || kv.second->isModified()) 
-               if (kv.second->getNode ()->begin() == kv.second->getNode ()->end()) {
-                 errs () << "RETURN " << kv.first->getName() << "\n";
-                 errs () << "WARNING: a node has no allocation site\n";
-               }
-           );
-
-      LOG ("dsa-local", 
-           errs () << "Dsa graph after " << F.getName () << "\n";
-           g->write(errs()));
-      
+      LocalAnalysis la (*m_dl, *m_tli);
+      GraphRef g = std::make_shared<seahorn::dsa::Graph> (*m_dl);
+      la.runOnFunction (F, *g);
       m_graphs [&F] = g;
       return false;
     }

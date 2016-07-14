@@ -9,8 +9,6 @@
 
 #include "seahorn/Analysis/DSA/Graph.hh"
 
-#include "boost/shared_ptr.hpp"
-
 namespace llvm 
 {
    class DataLayout;
@@ -23,13 +21,27 @@ namespace seahorn
 {
   namespace dsa
   {
+    class LocalAnalysis
+    {
+      const DataLayout &m_dl;
+      const TargetLibraryInfo &m_tli;
+
+    public:
+      LocalAnalysis (const DataLayout &dl,
+                     const TargetLibraryInfo &tli) :
+        m_dl(dl), m_tli(tli) {}
+
+      void runOnFunction (Function &F, dsa::Graph &g);
+      
+    };
     class Local : public ModulePass
     {
-      typedef boost::shared_ptr<Graph> Graph_ptr;
 
+      typedef std::shared_ptr<Graph> GraphRef;
+      DenseMap<const Function*, GraphRef> m_graphs;
+      
       const DataLayout *m_dl;
       const TargetLibraryInfo *m_tli;
-      DenseMap<const Function*, Graph_ptr> m_graphs;
 
     public:
       static char ID;

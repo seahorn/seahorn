@@ -110,13 +110,7 @@ namespace seahorn
           m_graphs[fn] = fGraph;
         }
 
-        fGraph->compress ();
-      }
-
-      // -- resolve all function calls in the graph
-      for (auto it = scc_begin (&cg); !it.isAtEnd (); ++it)
-      {
-        auto &scc = *it;
+        // -- resolve all function calls in the graph
         for (CallGraphNode *cgn : scc)
         {
           Function *fn = cgn->getFunction ();
@@ -132,6 +126,7 @@ namespace seahorn
             resolveCallSite (dsaCS);
           }
         }
+        fGraph->compress();        
       }
       return false;
     }

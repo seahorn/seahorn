@@ -90,64 +90,58 @@ namespace seahorn
 
       LocalAnalysis la (*m_dl, *m_tli);
       // -- bottom-up inline of all graphs
-      CallGraph &CG = getAnalysis<CallGraphWrapperPass> ().getCallGraph ();
-      for (auto it = scc_begin (&CG); !it.isAtEnd (); ++it)
+      CallGraph &cg = getAnalysis<CallGraphWrapperPass> ().getCallGraph ();
+      for (auto it = scc_begin (&cg); !it.isAtEnd (); ++it)
       {
         auto &scc = *it;
 
         LOG ("dsa-inlining", errs () << "SCC\n";);
 
+        // --- all scc members share the same local graph
         for (CallGraphNode *cgn : scc) 
         {
-          
           LOG ("dsa-inlining", errs () << "\t"; cgn->print (errs ()); errs () << "\n");
 
-          Function *F = cgn->getFunction ();
-          if (!F || F->isDeclaration () || F->empty ()) continue;
+          Function *fn = cgn->getFunction ();
+          if (!fn || fn->isDeclaration () || fn->empty ()) continue;
           
           // compute local graph
           Graph fGraph (*m_dl, m_setFactory);
-          la.runOnFunction (*F, fGraph);
+          la.runOnFunction (*fn, fGraph);
 
           LOG ("dsa-inlining",
-               errs () << "\tImporting graph of " << F->getName() << "\n";);
+               errs () << "\tImporting graph of " << fn->getName() << "\n";);
 
           m_graph->import(fGraph, true);
         }
-      }
 
-      // -- resolve calls by unifying formal and actual parameters
-      for (auto it = scc_begin (&CG); !it.isAtEnd (); ++it)
-      {
-        auto &scc = *it;
+        // --- resolve callsites
         for (CallGraphNode *cgn : scc)
         {
-          Function *F = cgn->getFunction ();
+          Function *fn = cgn->getFunction ();
           
           // XXX probably not needed since if the function is external
           // XXX it will have no call records
-          if (!F || F->isDeclaration () || F->empty ()) continue;
+          if (!fn || fn->isDeclaration () || fn->empty ()) continue;
           
-          // -- iterate over all call instructions of the current function F
+          // -- iterate over all call instructions of the current function fn
           // -- they are indexed in the CallGraphNode data structure
           for (auto &CallRecord : *cgn) 
           {
-
-            ImmutableCallSite CS(CallRecord.first);
-            DsaCallSite dsa_cs(CS);
-            const Function *Callee = dsa_cs.getCallee();
+            ImmutableCallSite cs (CallRecord.first);
+            DsaCallSite dsa_cs (cs);
+            const Function *callee = dsa_cs.getCallee();
             // XXX We want to resolve external calls as well.
             // XXX By not resolving them, we pretend that they have no
             // XXX side-effects. This should be an option, not the only behavior
-            if (Callee && !Callee->isDeclaration () && !Callee->empty ())
+            if (callee && !callee->isDeclaration () && !callee->empty ())
             {
               LOG ("dsa-resolve",
                    errs () << "Resolving call site " << *(dsa_cs.getInstruction()) << "\n");
               
-              assert (F == dsa_cs.getCaller ());
+              assert (fn == dsa_cs.getCaller ());
               resolveCallSite (dsa_cs);
             }
-
           }
         }
         m_graph->compress();

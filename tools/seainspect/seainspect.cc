@@ -21,6 +21,8 @@
 #include "llvm/IR/Verifier.h"
 
 #include "seahorn/Passes.hh"
+#include "seahorn/Analysis/DSA/BottomUp.hh"
+#include "seahorn/Analysis/DSA/Local.hh"
 #include "seahorn/Analysis/DSA/Global.hh"
 #include "seahorn/Analysis/DSA/Info.hh"
 
@@ -138,8 +140,10 @@ int main(int argc, char **argv) {
   // Later we will have a pass that call this analysis pass and do
   // some pretty printer of the heap.
   if (RunDsa) {
-    pass_manager.add (new seahorn::dsa::Global ());
-    //pass_manager.add (new seahorn::dsa::Info ());
+    //pass_manager.add (new seahorn::dsa::BottomUp ());
+    //pass_manager.add (new seahorn::dsa::Local ());
+    //pass_manager.add (new seahorn::dsa::Global ());
+    pass_manager.add (new seahorn::dsa::Info ());
   }
 
   pass_manager.run(*module.get());

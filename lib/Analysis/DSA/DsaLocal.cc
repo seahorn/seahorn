@@ -671,7 +671,7 @@ namespace seahorn
     {
       // create cells and nodes for formal arguments
       for (Argument &a : F.args ())
-        if (a.getType ()->isPointerTy ()) {
+        if (a.getType ()->isPointerTy () && !g.hasCell (a)) {
           Node &n = g.mkNode ();
           g.mkCell (a, Cell (n, 0));
           // -- record allocation site

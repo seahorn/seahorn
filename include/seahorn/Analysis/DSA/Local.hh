@@ -36,13 +36,12 @@ namespace seahorn
     };
     class Local : public ModulePass
     {
-
+      Graph::SetFactory m_setFactory;
       typedef std::shared_ptr<Graph> GraphRef;
       DenseMap<const Function*, GraphRef> m_graphs;
       
       const DataLayout *m_dl;
       const TargetLibraryInfo *m_tli;
-      Graph::SetFactory m_setFactory;
       
     public:
       static char ID;

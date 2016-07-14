@@ -23,10 +23,10 @@ namespace seahorn
 
     class Global : public ModulePass
     {
+      Graph::SetFactory m_setFactory;
       const DataLayout *m_dl;
       const TargetLibraryInfo *m_tli;
       std::unique_ptr<Graph> m_graph;
-      Graph::SetFactory m_setFactory;
       
       void resolveCallSite (DsaCallSite &cs);
 

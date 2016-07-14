@@ -24,11 +24,11 @@ namespace seahorn
 
     class BottomUp : public ModulePass
     {
+      Graph::SetFactory m_setFactory;
       const DataLayout *m_dl;
       const TargetLibraryInfo *m_tli;
       typedef std::shared_ptr<Graph> GraphRef;
       llvm::DenseMap<const Function *, GraphRef> m_graphs;
-      Graph::SetFactory m_setFactory;
       
       void resolveCallSite (DsaCallSite &cs);
 

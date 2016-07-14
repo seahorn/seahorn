@@ -3,7 +3,7 @@
 #include "llvm/IR/Module.h"
 #include "llvm/IR/CFG.h"
 #include "llvm/Transforms/Utils/Local.h"
-#include "llvm/Support/raw_ostream.h"
+
 using namespace llvm;
 
 namespace seahorn
@@ -43,7 +43,7 @@ namespace seahorn
     
     for (BasicBlock &BB : F)
     {
-      assert(BB.getParent()!=nullptr);
+
       if (region.count (&BB) <= 0) 
       {
         dead.push_back (&BB);

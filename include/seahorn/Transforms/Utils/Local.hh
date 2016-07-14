@@ -3,7 +3,6 @@
 
 #include "llvm/ADT/DenseSet.h"
 #include "llvm/IR/Function.h"
-#include "llvm/Transforms/Utils/BasicBlockUtils.h"
 
 
 namespace seahorn

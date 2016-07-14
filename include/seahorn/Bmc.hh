@@ -15,7 +15,6 @@
 #include "llvm/IR/DebugLoc.h"
 #include "llvm/IR/DebugInfo.h"
 
-#include "llvm/ADT/DenseSet.h"
 namespace seahorn
 {
   using namespace expr;

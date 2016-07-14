@@ -42,14 +42,6 @@ namespace seahorn
     void Global::resolveCallSite (DsaCallSite &CS)
     {
 
-      // unify globals 
-      for (auto &kv : boost::make_iterator_range (m_graph->globals_begin (),
-                                                  m_graph->globals_end ()))
-      {
-        Cell &nc = m_graph->mkCell (*kv.first, Cell ());
-        nc.unify (*(kv.second));
-      }
-
       // unify return
       const Function &callee = *CS.getCallee ();
       if (m_graph->hasCell(*CS.getInstruction()) && m_graph->hasRetCell(callee))

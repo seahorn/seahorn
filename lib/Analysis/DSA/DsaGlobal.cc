@@ -5,6 +5,7 @@
 #include "llvm/IR/CallSite.h"
 #include "llvm/IR/InstIterator.h"
 #include "llvm/IR/DataLayout.h"
+#include "llvm/Target/TargetLibraryInfo.h"
 #include "llvm/Pass.h"
 #include "llvm/PassManager.h"
 #include "llvm/Analysis/CallGraph.h"
@@ -25,12 +26,12 @@ namespace seahorn
   {
       
     Global::Global () 
-        : ModulePass (ID), m_dl (nullptr), m_graph (nullptr) {}
+      : ModulePass (ID), m_dl (nullptr), m_tli (nullptr)  {}
           
     void Global::getAnalysisUsage (AnalysisUsage &AU) const 
     {
       AU.addRequired<DataLayoutPass> ();
-      AU.addRequired<seahorn::dsa::Local> ();
+      AU.addRequired<TargetLibraryInfo> ();
       AU.addRequired<CallGraphWrapperPass> ();
       AU.setPreservesAll ();
     }
@@ -67,9 +68,8 @@ namespace seahorn
     bool Global::runOnModule (Module &M)
     {
       m_dl = &getAnalysis<DataLayoutPass>().getDataLayout ();
+      m_tli = &getAnalysis<TargetLibraryInfo> ();
 
-      // --- Get the local graphs for each function
-      Local *graphs = &getAnalysis<seahorn::dsa::Local> ();
 
       // LOG ("dsa-global",
       //      errs () << "==============\n";
@@ -85,6 +85,7 @@ namespace seahorn
       // -- the global graph
       m_graph.reset (new Graph(*m_dl));
 
+      LocalAnalysis la (*m_dl, *m_tli);
       // -- bottom-up inline of all graphs
       CallGraph &CG = getAnalysis<CallGraphWrapperPass> ().getCallGraph ();
       for (auto it = scc_begin (&CG); !it.isAtEnd (); ++it)
@@ -99,14 +100,16 @@ namespace seahorn
           LOG ("dsa-inlining", errs () << "\t"; cgn->print (errs ()); errs () << "\n");
 
           Function *F = cgn->getFunction ();
-          if (F && graphs->hasGraph(*F)) 
-          {
+          if (!F || F->isDeclaration () || F->empty ()) continue;
+          
+          // compute local graph
+          Graph fGraph (*m_dl);
+          la.runOnFunction (*F, fGraph);
 
-            LOG ("dsa-inlining",
-                 errs () << "\tImported graph from " << F->getName() <<"\n";);
+          LOG ("dsa-inlining",
+               errs () << "\tImporting graph of " << F->getName() << "\n";);
 
-            m_graph->import(graphs->getGraph(*F), true);
-          }
+          m_graph->import(fGraph, true);
         }
       }
 
@@ -117,7 +120,10 @@ namespace seahorn
         for (CallGraphNode *cgn : scc)
         {
           Function *F = cgn->getFunction ();
-          if (!F || !graphs->hasGraph(*F)) continue;
+          
+          // XXX probably not needed since if the function is external
+          // XXX it will have no call records
+          if (!F || F->isDeclaration () || F->empty ()) continue;
           
           // -- iterate over all call instructions of the current function F
           // -- they are indexed in the CallGraphNode data structure
@@ -127,7 +133,10 @@ namespace seahorn
             ImmutableCallSite CS(CallRecord.first);
             DsaCallSite dsa_cs(CS);
             const Function *Callee = dsa_cs.getCallee();
-            if (Callee && graphs->hasGraph(*Callee)) 
+            // XXX We want to resolve external calls as well.
+            // XXX By not resolving them, we pretend that they have no
+            // XXX side-effects. This should be an option, not the only behavior
+            if (Callee && !Callee->isDeclaration () && !Callee->empty ())
             {
               LOG ("dsa-resolve",
                    errs () << "Resolving call site " << *(dsa_cs.getInstruction()) << "\n");
@@ -140,7 +149,6 @@ namespace seahorn
         }
         m_graph->compress();
       }
-      m_graph->compress();
 
       LOG ("dsa-global",
            errs () << "==============\n";

@@ -8,8 +8,10 @@
 #include "seahorn/Analysis/DSA/Graph.hh"
 #include "seahorn/Analysis/DSA/CallSite.hh"
 
-namespace llvm {
-   class DataLayout;
+namespace llvm
+{
+  class DataLayout;
+  class TargetLibraryInfo;
 }
 
 using namespace llvm;
@@ -22,6 +24,7 @@ namespace seahorn
     class Global : public ModulePass
     {
       const DataLayout *m_dl;
+      const TargetLibraryInfo *m_tli;
       std::unique_ptr<Graph> m_graph;
 
       void resolveCallSite (DsaCallSite &cs);

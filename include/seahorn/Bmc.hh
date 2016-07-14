@@ -126,7 +126,6 @@ namespace seahorn
     
     /// The value of the instruction at the given location 
     Expr eval (unsigned loc, const llvm::Instruction &inst, bool complete=false);
-    DenseSet<const BasicBlock*> getRegion();
     template <typename Out> Out &print (Out &out);
     friend class BmcEngine;
   };

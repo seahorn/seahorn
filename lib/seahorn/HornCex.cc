@@ -228,20 +228,31 @@ namespace seahorn
     }
 
     if (!BmcSliceOutputFile.empty()) {
-      llvm::DenseSet<const llvm::BasicBlock*> region(trace.getRegion());
+      llvm::DenseSet<const llvm::BasicBlock *> region;
+      for (int i = 0; i < trace.size(); i++)
+        region.insert(trace.bb(i));
       reduceToRegion(F, region);
       dumpLLVMBitcode(M, BmcSliceOutputFile.c_str());
       return true;
     }
 
-    if (!CpSliceOutputFile.empty())
-    {
-      DenseSet<const BasicBlock*> region;
-      for (const CutPoint* cp:cpTrace)
-      for (CutPoint::const_iterator it=cp->succ_begin();it!=cp->succ_end();it++)
-      for (CpEdge::iterator ite=(*it)->begin();ite!=(*it)->end();ite++)
-        region.insert(&*ite);
-      reduceToRegion(F,region,false);
+    if (!CpSliceOutputFile.empty()) {
+      DenseSet<const BasicBlock *> region;
+      for (int i = 0; i < cpTrace.size(); i++) {
+        const CutPoint *cp = cpTrace[i];
+        region.insert(&cp->bb());
+        for (CutPoint::const_iterator it = cp->succ_begin();
+             it != cp->succ_end(); it++) {
+          const CpEdge *const edge = *it;
+          if (&edge->target() == cpTrace[i + 1]) {
+            for (CpEdge::const_iterator bb = edge->begin(); bb != edge->end();
+                 bb++) {
+              region.insert(&*bb);
+            }
+          }
+        }
+      }
+      reduceToRegion(F, region);
       dumpLLVMBitcode(M, CpSliceOutputFile.c_str());
       return true;
     }

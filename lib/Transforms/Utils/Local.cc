@@ -3,7 +3,7 @@
 #include "llvm/IR/Module.h"
 #include "llvm/IR/CFG.h"
 #include "llvm/Transforms/Utils/Local.h"
-
+#include "llvm/Support/raw_ostream.h"
 using namespace llvm;
 
 namespace seahorn
@@ -25,7 +25,7 @@ namespace seahorn
   }
   
   /// Reduce the given function to the basic blocks in a given region
-  void reduceToRegion (Function &F, DenseSet<const BasicBlock*> &region, bool deleteBBs)
+  void reduceToRegion (Function &F, DenseSet<const BasicBlock*> &region)
   {
     std::vector<BasicBlock*> dead;
     dead.reserve (F.size ());
@@ -43,9 +43,13 @@ namespace seahorn
     
     for (BasicBlock &BB : F)
     {
-      if (region.count (&BB) <= 0 && deleteBBs) 
+      assert(BB.getParent()!=nullptr);
+      if (region.count (&BB) <= 0) 
       {
         dead.push_back (&BB);
+        TerminatorInst *BBTerm = BB.getTerminator();
+        for (unsigned i = 0, e = BBTerm->getNumSuccessors(); i != e; ++i)
+          BBTerm->getSuccessor(i)->removePredecessor(&BB);
         BB.dropAllReferences ();
         continue;
       }
@@ -64,19 +68,22 @@ namespace seahorn
           kill = s1;
         else 
           continue;
-           
+      
         Builder.SetInsertPoint (&BB, br);
         CallInst *ci = Builder.CreateCall
           (kill == s1 ? assumeFn : assumeNotFn, br->getCondition ());
         ci->setDebugLoc (br->getDebugLoc ());
+        kill->removePredecessor(&BB);   
         br->eraseFromParent ();
         Builder.SetInsertPoint (&BB);
-        Builder.CreateBr (kill == s1 ? s0 : s1);
-        kill->removePredecessor(&BB);
+        Builder.CreateBr (kill == s1 ? s0 : s1);       
       }
     }
     
-    for (auto *bb : dead) bb->eraseFromParent ();
+    for (auto *bb : dead) 
+      bb->eraseFromParent (); 
+
+  
   }
     
   /// Reduce the function to only the BasicBlocks that are ancestors of exits

@@ -14,7 +14,7 @@ namespace seahorn
                            DenseSet<const BasicBlock*> &visited);
   
   /// reduce the function to basic blocks in the region
-  void reduceToRegion (Function &F, DenseSet<const BasicBlock*> &region, bool deleteBBs=true);
+  void reduceToRegion (Function &F, DenseSet<const BasicBlock*> &region);
   /// reduce the function to the ancestors of blocks in exits
   void reduceToAncestors (Function &F, ArrayRef<const BasicBlock*> exits);
   /// reduce the function to paths that lead to a return

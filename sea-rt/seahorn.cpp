@@ -1,10 +1,12 @@
 #include "seahorn/seahorn.h"
 #include <cstdint>
 #include <cstdio>
+#undef NDEBUG
 #include <cassert>
 #include <cstdlib>
 #include <cstring>
 #include <map>
+#include <functional>
 
 extern "C" {
 
@@ -17,11 +19,11 @@ void __VERIFIER_assume(int x) {
   assert(x);
 }
 
-#define get_value_helper(ctype, llvmtype)              \
+#define get_value_helper(ctype, llvmtype)                               \
   ctype __seahorn_get_value_ ## llvmtype (int ctr, ctype *g_arr, int g_arr_sz) { \
-    assert (ctr < g_arr_sz && "Unexpected index"); \
-    printf("__seahorn_get_value_" #llvmtype "\n"); \
-    return g_arr[ctr];                             \
+    assert (ctr < g_arr_sz && "Unexpected index");                      \
+    printf("__seahorn_get_value_" #llvmtype " %d %d\n", ctr, g_arr_sz); \
+    return g_arr[ctr];                                                  \
   }
 
 #define get_value_int(bits) get_value_helper(int ## bits ## _t, i ## bits)
@@ -33,10 +35,10 @@ get_value_int(8)
 
 get_value_helper(intptr_t, ptr_internal)
 
-const int MEM_REGION_SIZE_GUESS = 1000 * 1000;
+const int MEM_REGION_SIZE_GUESS = 1000;
 const int TYPE_GUESS = sizeof(int);
 
-std::map<intptr_t, intptr_t> absptrmap;
+  std::map<intptr_t, intptr_t, std::greater<intptr_t>> absptrmap;
 
   /*intptr_t __seahorn_get_value_ptr(int ctr, intptr_t *g_arr, int g_arr_sz, int ebits) {
   static std::unordered_map<intptr_t, intptr_t> absptrmap;
@@ -69,13 +71,14 @@ std::map<intptr_t, intptr_t> absptrmap;
   }
 
   bool is_dummy_address (void *addr) {
+
     intptr_t ip = intptr_t (addr);
-    auto it = absptrmap.lower_bound (ip);
-    assert (lb != absptrmap.end ());
+    auto it = absptrmap.lower_bound (ip+1);
+    if (it == absptrmap.end()) return false;
     intptr_t lb = it->first;
     intptr_t ub = it->second;
 
-    return (ip <= lb && ip < ub);
+    return (ip >= lb && ip < ub);
   }
 
   bool is_legal_address (void *addr) {
@@ -92,8 +95,8 @@ void __seahorn_mem_store (void *src, void *dst, size_t sz)
     printf("legal\n");
     memcpy (dst, src, sz);
   }
-  else printf("illegal\n");
   /* else if dst is illegal, do nothing */
+  else printf("illegal\n");
 }
 
 void __seahorn_mem_load (void *dst, void *src, size_t sz)
@@ -104,8 +107,8 @@ void __seahorn_mem_load (void *dst, void *src, size_t sz)
     printf("legal\n");
     memcpy (dst, src, sz);
   }
-  else printf("illegal\n");
   /* else, if src is illegal, return a dummy value */
+  else { printf("illegal\n"); bzero(dst, sz); }
 }
 
 // Dummy klee_make_symbolic function

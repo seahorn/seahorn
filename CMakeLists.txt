@@ -44,7 +44,10 @@ if (GIT_FOUND)
     ${GIT_EXECUTABLE} clone ${CRAB_LLVM_REPO} ${CMAKE_SOURCE_DIR}/crab-llvm)
 
 
-  add_custom_target (extra DEPENDS seahorn-llvm-git dsa-seahorn-git)
+  #add_custom_target (extra DEPENDS seahorn-llvm-git dsa-seahorn-git)
+  add_custom_target (extra
+    ${CMAKE_COMMAND} -E touch ${CMAKE_CURRENT_LIST_FILE}
+      DEPENDS seahorn-llvm-git dsa-seahorn-git)
 
   # XXX: crab-llvm is not publicly available at the moment. Read the README for details.
   #add_custom_target (extra
@@ -259,6 +262,13 @@ if (EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/crab-llvm/LICENSE.txt)
     RENAME crab_llvm_license.txt)
 endif()
 
+if (EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/share/seahorn.h)
+  install (FILES share/seahorn.h
+    DESTINATION share/)
+  install (FILES share/seahorn.c
+    DESTINATION share/)
+endif()
+
 # check for rt lib. Not needed on OSX.
 find_library(RT_LIB NAMES rt)
 if (NOT RT_LIB)
@@ -285,6 +295,7 @@ install(DIRECTORY include/
   FILES_MATCHING
   PATTERN "*.hpp"
   PATTERN "*.hh"
+  PATTERN "*.h"
   PATTERN ".svn" EXCLUDE
   )
 
@@ -293,12 +304,13 @@ install(DIRECTORY ${CMAKE_BINARY_DIR}/include/
   FILES_MATCHING
   PATTERN "*.hpp"
   PATTERN "*.hh"
+  PATTERN "*.h"
   PATTERN "CMakeFiles" EXCLUDE
   PATTERN ".svn" EXCLUDE
   )
 
 
-add_definitions(-std=c++11)
+set(CMAKE_CXX_EXTENSIONS ON)
 add_definitions(-Wno-redeclared-class-member -Wno-sometimes-uninitialized)
 add_definitions(-Wno-covered-switch-default)
 add_definitions(-Wno-inconsistent-missing-override)
@@ -328,6 +340,8 @@ if (IS_DIRECTORY ${CMAKE_SOURCE_DIR}/llvm-seahorn AND
   add_subdirectory(llvm-seahorn/tools)
   set (HAVE_LLVM_SEAHORN TRUE)
   set (LLVM_SEAHORN_LIBS SeaInstCombine)
+else()
+  message (WARNING "No LLVM-SEAHORN found in ${CMAKE_SOURCE_DIR}/llvm-seahorn")
 endif()
 
 if (IS_DIRECTORY ${CMAKE_SOURCE_DIR}/crab-llvm AND
@@ -363,6 +377,7 @@ add_subdirectory(tools)
 if (UNIT_TESTS)
   add_subdirectory(units)
 endif()
+add_subdirectory(sea-rt)
 
 configure_file( include/seahorn/config.h.cmake
                 ${CMAKE_BINARY_DIR}/include/seahorn/config.h )

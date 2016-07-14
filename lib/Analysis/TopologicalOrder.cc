@@ -7,6 +7,8 @@
 #include "boost/range/algorithm/sort.hpp"
 #include "boost/range/algorithm/binary_search.hpp"
 
+#include "llvm/Transforms/Utils/UnifyFunctionExitNodes.h"
+
 namespace seahorn
 {
   char TopologicalOrder::ID = 0;
@@ -14,6 +16,7 @@ namespace seahorn
   void TopologicalOrder::getAnalysisUsage (AnalysisUsage &AU) const
   {
     AU.setPreservesAll ();
+    AU.addRequired<UnifyFunctionExitNodes> ();
   }
   
   bool TopologicalOrder::runOnFunction (Function &F)
@@ -26,7 +29,7 @@ namespace seahorn
       
     RevTopoSort (F, m_order);
     boost::reverse (m_order);
-      
+
     return false;
   }
   

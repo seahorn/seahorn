@@ -18,7 +18,7 @@ DM-0002198
 
 #include "llvm/Pass.h"
 #include "llvm/IR/Module.h"
-#include "llvm/IR/Datalayout.h"
+#include "llvm/IR/DataLayout.h"
 #include "llvm/IR/IRBuilder.h"
 
 #include "llvm/Target/TargetLibraryInfo.h"
@@ -94,11 +94,10 @@ namespace
                                                                   i8PtrTy,
                                                                   NULL));
 
-
       m_externalNames.insert (m_assertFailFn->getName ());
       m_externalNames.insert (m_kleeAssumeFn->getName ());
       m_externalNames.insert (m_kleeMkSymbolicFn->getName ());
-      
+
       CallGraphWrapperPass *cgwp = getAnalysisIfAvailable<CallGraphWrapperPass> ();
       if (CallGraph *cg = cgwp ? &cgwp->getCallGraph () : nullptr)
       {
@@ -119,7 +118,7 @@ namespace
       LibFunc::Func F;
       if (m_tli->getLibFunc (GV.getName(), F)) return false;
           
-      if (m_externalNames.count (GV.getName())) return false;
+      if (m_externalNames.count (GV.getName()) > 0 ) return false;
       
       return true;
     }
@@ -135,10 +134,11 @@ namespace
         Builder.CreateRetVoid ();
       else
       {
-        Type* storeTy = retTy;
         uint64_t storeSzInBits = m_dl->getTypeStoreSizeInBits(retTy);
-
-        if (m_dl->getTypeSizeInBits(retTy)!=storeSzInBits)
+        Type* storeTy = retTy;
+        
+        // extend if store size is bigger than type size (mostly for i1)
+        if (storeSzInBits > m_dl->getTypeSizeInBits (retTy))
           storeTy = Type::getIntNTy(F.getContext(),storeSzInBits);
 
         AllocaInst *v = Builder.CreateAlloca (storeTy);
@@ -146,6 +146,7 @@ namespace
                                            storeSzInBits  / 8);
         Value *fname = Builder.CreateGlobalString (F.getName ());
 
+	// TODO: update callgraph with this call
         CallInst *mksym =
           Builder.CreateCall3 (m_kleeMkSymbolicFn,
                                Builder.CreateBitCast (v, Builder.getInt8PtrTy ()),
@@ -154,9 +155,8 @@ namespace
 
         Value *retValue = Builder.CreateLoad (v);
         if (storeTy != retTy)
-          retValue = Builder.CreateTruncOrBitCast(retValue, retTy);
-  
-  // TODO: update callgraph
+          retValue = Builder.CreateZExtOrTrunc(retValue, retTy);
+	
         Builder.CreateRet (retValue);
       }
     }
@@ -167,7 +167,9 @@ namespace
           I != E; ++I) {
         GlobalVariable *GV = &*I;
         if (m_externalNames.count (GV->getName())) continue;
-        if (GV->isConstant() || GV->hasInitializer())
+        // We previously tested for isConstant here, but extern arrays
+        // are considered constant.
+        if (GV->hasInitializer())
           continue;
         GV->setInitializer(Constant::getNullValue(GV->getType()->getElementType()));
         errs() << "making " << GV->getName() << " non-extern\n";
@@ -203,6 +205,29 @@ namespace
       m_externalNames.insert ("verifier.assume.not");
       m_externalNames.insert ("seahorn.fail");
       m_externalNames.insert ("verifier.error");
+
+      m_externalNames.insert ("__VERIFIER_assume");
+      m_externalNames.insert ("__VERIFIER_error");
+
+      m_externalNames.insert ("__seahorn_get_value_i8");
+      m_externalNames.insert ("__seahorn_get_value_i16");
+      m_externalNames.insert ("__seahorn_get_value_i32");
+      m_externalNames.insert ("__seahorn_get_value_i64");
+      m_externalNames.insert ("__seahorn_get_value_ptr");
+
+      m_externalNames.insert ("__seahorn_mem_store");
+      m_externalNames.insert ("__seahorn_mem_load");
+
+      // -- LLVM stuff
+      m_externalNames.insert("llvm.used");
+      m_externalNames.insert("llvm.compiler.used");
+      m_externalNames.insert("llvm.global_ctors");
+      m_externalNames.insert("llvm.global_dtors");
+      m_externalNames.insert("llvm.global.annotations");
+      m_externalNames.insert("__stack_chk_fail");
+      m_externalNames.insert("__stack_chk_guard");
+
+      
     }
 
     void getAnalysisUsage (AnalysisUsage &AU) const override
@@ -214,11 +239,9 @@ namespace
 
     bool runOnModule (Module &M)
     {
-
-      
       declareKleeFunctions(M);
       internalizeVariables(M);
- 
+
       for (Function &F : M)
       {
         if (shouldInternalize (F)) defineFunction (F);

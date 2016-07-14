@@ -84,6 +84,8 @@ namespace seahorn
           nc.unify (c);
         }
       }
+
+      callerG.compress();
     }
 
     bool BottomUp::runOnModule (Module &M)
@@ -108,31 +110,29 @@ namespace seahorn
           m_graphs[fn] = fGraph;
         }
 
-        // -- resolve all function calls in the graph
-        for (auto it = scc_begin (&cg); !it.isAtEnd (); ++it)
-        {
-          auto &scc = *it;
-          for (CallGraphNode *cgn : scc)
-          {
-            Function *fn = cgn->getFunction ();
-            if (!fn || fn->isDeclaration () || fn->empty ()) continue;
-
-            for (auto &callRecord : *cgn)
-            {
-              ImmutableCallSite CS (callRecord.first);
-              DsaCallSite dsaCS (CS);
-              const Function *callee = dsaCS.getCallee ();
-              if (!callee || callee->isDeclaration () || callee->empty ()) continue;
-              
-              resolveCallSite (dsaCS);
-            }
-          }
-        }
-
         fGraph->compress ();
       }
-      
-      
+
+      // -- resolve all function calls in the graph
+      for (auto it = scc_begin (&cg); !it.isAtEnd (); ++it)
+      {
+        auto &scc = *it;
+        for (CallGraphNode *cgn : scc)
+        {
+          Function *fn = cgn->getFunction ();
+          if (!fn || fn->isDeclaration () || fn->empty ()) continue;
+          
+          for (auto &callRecord : *cgn)
+          {
+            ImmutableCallSite CS (callRecord.first);
+            DsaCallSite dsaCS (CS);
+            const Function *callee = dsaCS.getCallee ();
+            if (!callee || callee->isDeclaration () || callee->empty ()) continue;
+            
+            resolveCallSite (dsaCS);
+          }
+        }
+      }
       return false;
     }
 

@@ -4,7 +4,7 @@
 #include <cassert>
 #include <cstdlib>
 #include <cstring>
-#include <unordered_map>
+#include <map>
 
 extern "C" {
 
@@ -36,7 +36,9 @@ get_value_helper(intptr_t, ptr_internal)
 const int MEM_REGION_SIZE_GUESS = 1000 * 1000;
 const int TYPE_GUESS = sizeof(int);
 
-intptr_t __seahorn_get_value_ptr(int ctr, intptr_t *g_arr, int g_arr_sz, int ebits) {
+std::map<intptr_t, intptr_t> absptrmap;
+
+  /*intptr_t __seahorn_get_value_ptr(int ctr, intptr_t *g_arr, int g_arr_sz, int ebits) {
   static std::unordered_map<intptr_t, intptr_t> absptrmap;
   intptr_t absptr = __seahorn_get_value_ptr_internal(ctr, g_arr, g_arr_sz);
 
@@ -52,25 +54,57 @@ intptr_t __seahorn_get_value_ptr(int ctr, intptr_t *g_arr, int g_arr_sz, int ebi
   printf("Returning %#lx for abstract pointer %#lx\n", concptr, absptr);
 
   return concptr;
+  }*/
+
+  intptr_t __seahorn_get_value_ptr(int ctr, intptr_t *g_arr, int g_arr_sz, int ebits) {
+    intptr_t absptr = __seahorn_get_value_ptr_internal(ctr, g_arr, g_arr_sz);
+
+    size_t sz = MEM_REGION_SIZE_GUESS * (ebits == 0 ? TYPE_GUESS : ebits);
+
+    absptrmap[absptr] = absptr + sz;
+
+    printf("Returning abstract pointer from %#lx to %#lx\n", absptr, absptrmap.at(absptr));
+
+    return absptr;
   }
 
+  bool is_dummy_address (void *addr) {
+    intptr_t ip = intptr_t (addr);
+    auto it = absptrmap.lower_bound (ip);
+    assert (lb != absptrmap.end ());
+    intptr_t lb = it->first;
+    intptr_t ub = it->second;
 
+    return (ip <= lb && ip < ub);
+  }
+
+  bool is_legal_address (void *addr) {
+    return ! is_dummy_address (addr);
+  }
 
 /** Dummy implementation of memory wrapping functions */
 
 void __seahorn_mem_store (void *src, void *dst, size_t sz)
 {
+  printf("__seahorn_mem_store from %p to %p\n", src, dst);
+  if (is_legal_address (dst)) {
   /* if dst is a legal address */
-  printf("__seahorn_mem_store\n");
-  memcpy (dst, src, sz);
+    printf("legal\n");
+    memcpy (dst, src, sz);
+  }
+  else printf("illegal\n");
   /* else if dst is illegal, do nothing */
 }
 
 void __seahorn_mem_load (void *dst, void *src, size_t sz)
 {
+  printf("__seahorn_mem_load from %p to %p\n", src, dst);
+  if (is_legal_address (src)) {
   /* if src is a legal address */
-  printf("__seahorn_mem_load\n");
-  memcpy (dst, src, sz);
+    printf("legal\n");
+    memcpy (dst, src, sz);
+  }
+  else printf("illegal\n");
   /* else, if src is illegal, return a dummy value */
 }
 

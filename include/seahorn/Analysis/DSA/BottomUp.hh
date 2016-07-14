@@ -1,5 +1,5 @@
-#ifndef __DSA_GLOBAL_HH_
-#define __DSA_GLOBAL_HH_
+#ifndef __DSA_BOTTOM_UP_HH_
+#define __DSA_BOTTOM_UP_HH_
 
 #include "llvm/IR/Module.h"
 #include "llvm/IR/Function.h"

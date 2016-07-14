@@ -70,7 +70,8 @@ namespace seahorn
     db.buildIndexes ();
 
     //build the wto
-    HornClauseDBWto db_wto(db);
+    HornClauseDBCallGraph callgraph(db);
+    HornClauseDBWto db_wto(callgraph);
     db_wto.buildWto();
 
     //generate positive states

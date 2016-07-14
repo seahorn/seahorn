@@ -97,16 +97,16 @@ namespace seahorn
 
     typedef std::vector<HornRule> RuleVector;
     typedef boost::container::flat_set<Expr> expr_set_type;
+    struct IsRelation : public std::unary_function<Expr, bool>
+	{
+	  const HornClauseDB &m_db;
+	  IsRelation (const HornClauseDB &db) : m_db (db) {}
+
+	  bool operator() (Expr e)
+	  {return bind::isFdecl (e) && m_db.hasRelation (e);}
+	};
    private:
     
-    struct IsRelation : public std::unary_function<Expr, bool>
-    {
-      const HornClauseDB &m_db;
-      IsRelation (const HornClauseDB &db) : m_db (db) {}
-
-      bool operator() (Expr e)
-      {return bind::isFdecl (e) && m_db.hasRelation (e);}
-    };
     ExprFactory &m_efac;
     expr_set_type m_rels;
     mutable ExprVector m_vars;
@@ -132,18 +132,9 @@ namespace seahorn
     /// resets all indexes
     void resetIndexes ();
 
-    /// callgraph
-    typedef std::map<Expr, expr_set_type > callgraph_type;
-    callgraph_type m_callers;
-    callgraph_type m_callees;
-    Expr m_cg_entry;
-
-    /// empty set sentinel
-    static expr_set_type m_expr_empty_set;
-
   public:
 
-    HornClauseDB (ExprFactory &efac) : m_efac (efac), m_cg_entry(mk<FALSE>(m_efac)) {}
+    HornClauseDB (ExprFactory &efac) : m_efac (efac) {}
     
     ExprFactory &getExprFactory () {return m_efac;}
     
@@ -174,29 +165,6 @@ namespace seahorn
     {
       auto it = m_head_idx.find (fdecl);
       if (it == m_head_idx.end ()) return m_empty_set;
-      return it->second;
-    }
-
-    /// -- build call graph 
-    void buildCallGraph ();
-
-    /// -- returns an entry point of the call graph.
-    bool hasEntry () const { return !isOpX<FALSE>(m_cg_entry); }
-    Expr entry () const { assert(hasEntry()); return m_cg_entry; }
-
-    /// -- requires callgraph (buildCallGraph())
-    const expr_set_type& callees (Expr fdecl) const
-    {
-      auto it = m_callees.find (fdecl);
-      if (it == m_callees.end ()) return m_expr_empty_set;
-      return it->second;
-    }
-
-    /// -- requires callgraph (buildCallGraph())
-    const expr_set_type& callers (Expr fdecl) const
-    {
-      auto it = m_callers.find (fdecl);
-      if (it == m_callers.end ()) return m_expr_empty_set;
       return it->second;
     }
 
@@ -294,6 +262,45 @@ namespace seahorn
     db.write (o);
     return o;
   }
+
+  class HornClauseDBCallGraph
+  {
+	  /// callgraph
+	  typedef std::map<Expr, HornClauseDB::expr_set_type > callgraph_type;
+	  callgraph_type m_callers;
+	  callgraph_type m_callees;
+	  Expr m_cg_entry;
+
+	  /// empty set sentinel
+	  static HornClauseDB::expr_set_type m_expr_empty_set;
+
+  public:
+	  HornClauseDB& m_db;
+	  HornClauseDBCallGraph (HornClauseDB &db) : m_db (db), m_cg_entry(mk<FALSE>(db.getExprFactory ())) {}
+
+	  /// -- build call graph
+	  void buildCallGraph ();
+
+	  /// -- returns an entry point of the call graph.
+	  bool hasEntry () const { return !isOpX<FALSE>(m_cg_entry); }
+	  Expr entry () const { assert(hasEntry()); return m_cg_entry; }
+
+	  /// -- requires callgraph (buildCallGraph())
+	  const HornClauseDB::expr_set_type& callees (Expr fdecl) const
+	  {
+		auto it = m_callees.find (fdecl);
+		if (it == m_callees.end ()) return m_expr_empty_set;
+		return it->second;
+	  }
+
+	  /// -- requires callgraph (buildCallGraph())
+	  const HornClauseDB::expr_set_type& callers (Expr fdecl) const
+	  {
+		auto it = m_callers.find (fdecl);
+		if (it == m_callers.end ()) return m_expr_empty_set;
+		return it->second;
+	  }
+  };
 
 }
 #endif /* _HORN_CLAUSE_DB__H_ */

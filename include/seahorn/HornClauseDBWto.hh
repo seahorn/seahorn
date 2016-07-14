@@ -22,9 +22,9 @@ namespace seahorn
 
   // Build a weak topological ordering from the Horn clause database.
   class HornClauseDBWto {
-    typedef WeakTopoOrder<HornClauseDB> wto_t;
+    typedef WeakTopoOrder<HornClauseDBCallGraph> wto_t;
 
-    HornClauseDB &m_db;
+    HornClauseDBCallGraph &m_callgraph;
     wto_t m_wto;
     
    public:
@@ -35,7 +35,7 @@ namespace seahorn
     typedef typename wto_t::nested_components_iterator head_iterator;
     typedef typename wto_t::nested_components_const_iterator head_const_iterator;
 
-    HornClauseDBWto(HornClauseDB &db): m_db(db) { }
+    HornClauseDBWto(HornClauseDBCallGraph &callgraph): m_callgraph(callgraph) { }
 
     // -- iterators to traverse the wto
     iterator begin () {  return m_wto.begin(); }
@@ -63,14 +63,14 @@ namespace seahorn
 
       Stats::resume ("wto");
 
-      m_db.buildCallGraph();
+      m_callgraph.buildCallGraph();
 
-      if (!m_db.hasEntry()) { 
+      if (!m_callgraph.hasEntry()) {
         errs () << "wto requires an entry point to the call graph\n";
         return;
       }
 
-      m_wto.buildWto(&m_db, m_db.entry());
+      m_wto.buildWto(&m_callgraph, m_callgraph.entry());
       
       Stats::stop ("wto");
 
@@ -78,7 +78,7 @@ namespace seahorn
           errs () << "WTO="; m_wto.write(errs()); errs () << "\n";);
           
       LOG("horn-wto",
-          for (auto fdecl: m_db.getRelations ()) {
+          for (auto fdecl: m_callgraph.m_db.getRelations ()) {
             errs () << "Heads of the wto nested components for " 
                     << *(bind::fname(fdecl)) << "={";
             auto it = heads_begin(fdecl);

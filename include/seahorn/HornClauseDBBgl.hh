@@ -53,7 +53,7 @@ namespace seahorn
 namespace boost
 {
   template<> 
-  struct graph_traits<seahorn::HornClauseDB>
+  struct graph_traits<seahorn::HornClauseDBCallGraph>
   {
     typedef expr::Expr vertex_descriptor; // fdecl
     typedef seahorn::bgl::EEPair edge_descriptor;
@@ -84,50 +84,50 @@ namespace boost
     static vertex_descriptor null_vertex () { return NULL; }    
   };
   
-  inline expr::Expr source (const seahorn::bgl::EEPair e, const seahorn::HornClauseDB &Db) 
+  inline expr::Expr source (const seahorn::bgl::EEPair e, const seahorn::HornClauseDBCallGraph &callgraph)
   { return e.first; }
 
-  inline expr::Expr target (const seahorn::bgl::EEPair e, const seahorn::HornClauseDB &Db) 
+  inline expr::Expr target (const seahorn::bgl::EEPair e, const seahorn::HornClauseDBCallGraph &callgraph)
   { return e.second; }
 
 
   namespace
   {
-    typedef typename graph_traits<seahorn::HornClauseDB>::out_edge_iterator out_eit;
-    typedef typename graph_traits<seahorn::HornClauseDB>::in_edge_iterator in_eit;
-    typedef typename graph_traits<seahorn::HornClauseDB>::vertex_iterator vit;
+    typedef typename graph_traits<seahorn::HornClauseDBCallGraph>::out_edge_iterator out_eit;
+    typedef typename graph_traits<seahorn::HornClauseDBCallGraph>::in_edge_iterator in_eit;
+    typedef typename graph_traits<seahorn::HornClauseDBCallGraph>::vertex_iterator vit;
   }
     
-  inline std::pair<out_eit,out_eit> out_edges (expr::Expr e, const seahorn::HornClauseDB &db) 
+  inline std::pair<out_eit,out_eit> out_edges (expr::Expr e, const seahorn::HornClauseDBCallGraph &callgraph)
   {
-    auto const &callees = db.callees(e);
+    auto const &callees = callgraph.callees(e);
     return std::make_pair
         (make_transform_iterator (callees.begin(), seahorn::bgl::MkOutEdgePair (e)),
          make_transform_iterator (callees.end(), seahorn::bgl::MkOutEdgePair (e)));
   }
   
-  inline size_t out_degree (expr::Expr e, const seahorn::HornClauseDB &db)
-  { return db.callees(e).size(); }
+  inline size_t out_degree (expr::Expr e, const seahorn::HornClauseDBCallGraph &callgraph)
+  { return callgraph.callees(e).size(); }
 
-  inline std::pair<in_eit, in_eit> in_edges (expr::Expr e, const seahorn::HornClauseDB &db)
+  inline std::pair<in_eit, in_eit> in_edges (expr::Expr e, const seahorn::HornClauseDBCallGraph &callgraph)
   {
-    auto const &callers = db.callers(e);
+    auto const &callers = callgraph.callers(e);
     return std::make_pair
         (make_transform_iterator (callers.begin(), seahorn::bgl::MkInEdgePair (e)),
          make_transform_iterator (callers.end(), seahorn::bgl::MkInEdgePair (e)));
   }
   
-  inline size_t in_degree (expr::Expr e, const seahorn::HornClauseDB &db)
-  { return db.callers(e).size(); }
+  inline size_t in_degree (expr::Expr e, const seahorn::HornClauseDBCallGraph &callgraph)
+  { return callgraph.callers(e).size(); }
   
-  inline size_t degree (expr::Expr e, const seahorn::HornClauseDB &db)
-  { return db.callees(e).size() + db.callers(e).size(); }
+  inline size_t degree (expr::Expr e, const seahorn::HornClauseDBCallGraph &callgraph)
+  { return callgraph.callees(e).size() + callgraph.callers(e).size(); }
   
-  inline std::pair<vit,vit> vertices (const seahorn::HornClauseDB &db)
-  { return std::make_pair (db.getRelations().begin(), db.getRelations().end()); }
+  inline std::pair<vit,vit> vertices (const seahorn::HornClauseDBCallGraph &callgraph)
+  { return std::make_pair (callgraph.m_db.getRelations().begin(), callgraph.m_db.getRelations().end()); }
   
-  inline size_t num_vertices (const seahorn::HornClauseDB &db)
-  { return db.getRelations().size(); }
+  inline size_t num_vertices (const seahorn::HornClauseDBCallGraph &callgraph)
+  { return callgraph.m_db.getRelations().size(); }
 
 }
 #endif  /*  _HCDB_BOOST_GRAPH_TRAITS_HPP__ */

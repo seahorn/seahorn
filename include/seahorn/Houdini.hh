@@ -26,43 +26,94 @@ namespace seahorn
     virtual bool runOnModule (Module &M);
     virtual void getAnalysisUsage (AnalysisUsage &AU) const;
     virtual const char* getPassName () const {return "Houdini";}
+
   private:
     static std::map<Expr,Expr> currentCandidates;
 
+  public:
+    std::map<Expr,Expr>& getCurrentCandidates() {return currentCandidates;}
+
+  public:
     Expr relToCand(Expr pred);
     void guessCandidate(HornClauseDB &db);
-    bool validateRule_Naive(HornRule r, HornClauseDB &db, ZSolver<EZ3> &solver);
     void runHoudini(HornClauseDB &db, HornifyModule &hm, HornClauseDBWto &db_wto, int config);
+
+    //Utility Functions
     Expr fAppToCandApp(Expr fapp);
     Expr applyArgsToBvars(Expr cand, Expr fapp);
     ExprMap getBvarsToArgsMap(Expr fapp);
-    void weakenRuleHeadCand(HornRule r, ZModel<EZ3> m);
-    void addUsedRulesBackToWorkList(HornClauseDB &db, HornClauseDBWto &db_wto, std::list<HornRule> &workList, HornRule r);
 
-    std::map<HornRule, ZSolver<EZ3>> assignEachRuleASolver(HornClauseDB &db, HornifyModule &hm);
     Expr extractTransitionRelation(HornRule r, HornClauseDB &db);
-    bool validateRule_EachRuleASolver(HornRule r, HornClauseDB &db, ZSolver<EZ3> &solver);
-    std::map<Expr, ZSolver<EZ3>> assignEachRelationASolver(HornClauseDB &db, HornifyModule &hm);
-    bool validateRule_EachRelationASolver(HornRule r, HornClauseDB &db, ZSolver<EZ3> &solver);
 
-    void run_naive(HornClauseDB &db, HornifyModule &hm, HornClauseDBWto &db_wto, std::list<HornRule> &workList);
-    void run_one_solver_per_rule(HornClauseDB &db, HornifyModule &hm, HornClauseDBWto &db_wto, std::list<HornRule> &workList);
-    void run_one_solver_per_relation(HornClauseDB &db, HornifyModule &hm, HornClauseDBWto &db_wto, std::list<HornRule> &workList);
+    template<typename OutputIterator>
+	void get_all_bvars (Expr e, OutputIterator out);
 
+	template<typename OutputIterator>
+	void get_all_pred_apps (Expr e, HornClauseDB &db, OutputIterator out);
+
+    //Functions for generating Positive Examples
     void generatePositiveWitness(std::map<Expr, ExprVector> &relationToPositiveStateMap, HornClauseDB &db, HornifyModule &hm);
     void getReachableStates(std::map<Expr, ExprVector> &relationToPositiveStateMap, Expr from_pred, Expr from_pred_state, HornClauseDB &db, HornifyModule &hm);
     void getRuleHeadState(std::map<Expr, ExprVector> &relationToPositiveStateMap, HornRule r, Expr from_pred_state, HornClauseDB &db, HornifyModule &hm);
 
+    //Add Houdini invs to default solver
     void addInvarCandsToProgramSolver(HornClauseDB &db);
 
+    //Functions for generating complex invariants
     Expr applyComplexTemplates(Expr fdecl);
     void generateLemmasForOneBvar(Expr bvar, ExprVector &conjuncts);
+  };
 
-    template<typename OutputIterator>
-    void get_all_bvars (Expr e, OutputIterator out);
+  class HoudiniContext
+  {
+  protected:
+	  Houdini &m_houdini;
+	  HornClauseDB &m_db;
+	  HornifyModule &m_hm;
+	  HornClauseDBWto &m_db_wto;
+	  std::list<HornRule> &m_workList;
+  public:
+	  HoudiniContext(Houdini& houdini, HornClauseDB &db, HornifyModule &hm, HornClauseDBWto &db_wto, std::list<HornRule> &workList) :
+		  m_houdini(houdini), m_db(db), m_hm(hm), m_db_wto(db_wto), m_workList(workList) {}
+	  virtual void run() = 0;
+	  virtual bool validateRule(HornRule r, ZSolver<EZ3> &solver) = 0;
+	  void weakenRuleHeadCand(HornRule r, ZModel<EZ3> m);
+	  void addUsedRulesBackToWorkList(HornClauseDB &db, HornClauseDBWto &db_wto, std::list<HornRule> &workList, HornRule r);
+  };
 
-    template<typename OutputIterator>
-    void get_all_pred_apps (Expr e, HornClauseDB &db, OutputIterator out);
+  class Houdini_Naive : public HoudiniContext
+  {
+  private:
+	  ZSolver<EZ3> m_solver;
+  public:
+	  Houdini_Naive(Houdini& houdini, HornClauseDB &db, HornifyModule &hm, HornClauseDBWto &db_wto, std::list<HornRule> &workList) :
+		  HoudiniContext(houdini, db, hm, db_wto, workList), m_solver(hm.getZContext()) {}
+	  void run();
+	  bool validateRule(HornRule r, ZSolver<EZ3> &solver);
+  };
+
+  class Houdini_Each_Solver_Per_Rule : public HoudiniContext
+  {
+  private:
+  	  std::map<HornRule, ZSolver<EZ3>> m_ruleToSolverMap;
+  public:
+  	  Houdini_Each_Solver_Per_Rule(Houdini& houdini, HornClauseDB &db, HornifyModule &hm, HornClauseDBWto &db_wto, std::list<HornRule> &workList) :
+  		  HoudiniContext(houdini, db, hm, db_wto, workList), m_ruleToSolverMap(assignEachRuleASolver(db, hm)){}
+  	  void run();
+  	  bool validateRule(HornRule r, ZSolver<EZ3> &solver);
+  	  std::map<HornRule, ZSolver<EZ3>> assignEachRuleASolver(HornClauseDB &db, HornifyModule &hm);
+  };
+
+  class Houdini_Each_Solver_Per_Relation : public HoudiniContext
+  {
+  private:
+	  std::map<Expr, ZSolver<EZ3>> m_relationToSolverMap;
+  public:
+	  Houdini_Each_Solver_Per_Relation(Houdini& houdini, HornClauseDB &db, HornifyModule &hm, HornClauseDBWto &db_wto, std::list<HornRule> &workList) :
+		  HoudiniContext(houdini, db, hm, db_wto, workList), m_relationToSolverMap(assignEachRelationASolver(db, hm)){}
+	  void run();
+	  bool validateRule(HornRule r, ZSolver<EZ3> &solver);
+	  std::map<Expr, ZSolver<EZ3>> assignEachRelationASolver(HornClauseDB &db, HornifyModule &hm);
   };
 }
 

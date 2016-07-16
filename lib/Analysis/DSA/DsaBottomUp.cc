@@ -37,6 +37,54 @@ namespace seahorn
       AU.setPreservesAll ();
     }
     
+    bool BottomUp::callerSimulatesCallee (DsaCallSite &cs, SimulationMapper &sim_map) {
+      assert (m_graphs.count (cs.getCaller ()) > 0);
+      assert (m_graphs.count (cs.getCallee ()) > 0);
+      
+      const Function &caller = *cs.getCaller ();
+      const Function &callee = *cs.getCallee ();
+      Graph &callerG = *(m_graphs.find (&caller)->second);
+      Graph &calleeG = *(m_graphs.find (&callee)->second);
+
+      for (auto &kv : boost::make_iterator_range (calleeG.globals_begin (),
+                                                  calleeG.globals_end ()))
+      {
+        Cell &c = *kv.second;
+        if (c.isModified ())
+        {
+          Cell &nc = callerG.mkCell (*kv.first, Cell ());
+          if (!sim_map.insert (c, nc)) return false;
+        }
+      }
+
+      if (calleeG.hasRetCell (callee) && callerG.hasCell (*cs.getInstruction ()))
+      {
+        const Cell &c = calleeG.getRetCell (callee);
+        if (c.isModified()) 
+        {
+          Cell &nc = callerG.mkCell (*cs.getInstruction (), Cell());
+          if (!sim_map.insert (c, nc)) return false;
+        }
+      }
+
+      DsaCallSite::const_actual_iterator AI = cs.actual_begin(), AE = cs.actual_end();
+      for (DsaCallSite::const_formal_iterator FI = cs.formal_begin(), FE = cs.formal_end();
+           FI != FE && AI != AE; ++FI, ++AI) 
+      {
+        const Value *fml = &*FI;
+        const Value *arg = (*AI).get();
+        if (calleeG.hasCell (*fml) &&  callerG.hasCell (*arg)) {
+          Cell &c = calleeG.mkCell (*fml, Cell ());
+          if (c.isModified ()) 
+          {
+            Cell &nc = callerG.mkCell (*arg, Cell ());
+            if (!sim_map.insert(c, nc)) return false;
+          }
+        }
+      }      
+      return true;
+    }
+
 
     void BottomUp::resolveCallSite (DsaCallSite &CS)
     {

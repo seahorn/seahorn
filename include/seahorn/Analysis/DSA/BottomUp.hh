@@ -8,6 +8,7 @@
 
 #include "seahorn/Analysis/DSA/Graph.hh"
 #include "seahorn/Analysis/DSA/CallSite.hh"
+#include "seahorn/Analysis/DSA/Mapper.hh"
 
 namespace llvm
 {
@@ -30,6 +31,8 @@ namespace seahorn
       typedef std::shared_ptr<Graph> GraphRef;
       llvm::DenseMap<const Function *, GraphRef> m_graphs;
       
+      bool callerSimulatesCallee (DsaCallSite &cs, SimulationMapper &simMap);
+
       void resolveCallSite (DsaCallSite &cs);
 
     public:

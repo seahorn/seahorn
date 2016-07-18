@@ -36,7 +36,9 @@ namespace seahorn
                                  boost::container::flat_map<Node*,
                                                             unsigned> > rel_type;
       rel_type m_sim;
+
     public:
+
       SimulationMapper () {}
 
       bool insert (const Cell &c1, Cell &c2);
@@ -59,7 +61,11 @@ namespace seahorn
         return Cell (res.getNode (),
                      res.getOffset () + c.getOffset ());
       }
+
       bool empty () const { return m_sim.empty (); }
+
+      bool isOneToMany (bool onlyModified = true) const;
+
     };
   }
 }

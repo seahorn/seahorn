@@ -97,3 +97,16 @@ bool SimulationMapper::insert (const Node &n1, Node &n2, unsigned offset)
   
   return true;
 }
+
+bool SimulationMapper::isOneToMany (bool onlyModified)  const 
+{
+  boost::container::flat_set<Cell> inv_sim;
+  for (auto &kv: m_sim) 
+    for (auto &c: kv.second) 
+    {
+      auto res = inv_sim.insert(Cell(c.first, c.second));
+      if (!onlyModified || c.first->isModified()) 
+        if (res.second) return false;
+    }
+  return true;
+}

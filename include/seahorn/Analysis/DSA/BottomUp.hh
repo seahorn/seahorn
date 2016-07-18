@@ -31,8 +31,9 @@ namespace seahorn
       typedef std::shared_ptr<Graph> GraphRef;
       llvm::DenseMap<const Function *, GraphRef> m_graphs;
       
-      bool callerSimulatesCallee (DsaCallSite &cs, SimulationMapper &simMap);
-
+      bool callerSimulatesCallee (DsaCallSite &cs);
+      bool computeCalleeCallerMapping (DsaCallSite &cs, SimulationMapper &simMap, 
+                                       const bool isModified = true);
       void resolveCallSite (DsaCallSite &cs);
 
     public:

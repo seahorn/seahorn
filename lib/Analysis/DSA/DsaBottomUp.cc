@@ -36,8 +36,43 @@ namespace seahorn
       AU.addRequired<CallGraphWrapperPass> ();
       AU.setPreservesAll ();
     }
-    
-    bool BottomUp::callerSimulatesCallee (DsaCallSite &cs, SimulationMapper &sim_map) {
+
+
+    // Check if each formal (modified) can be simulated by an actual
+    // (modified) and whether this simulation relationship is
+    // one-to-many. That is, we check that two formal (modified) cells
+    // cannot be mapped to the same actual (modified) cell.
+    bool BottomUp::callerSimulatesCallee (DsaCallSite &cs) 
+    {
+      SimulationMapper simMap;
+      const bool onlyModifiedNodes = true;
+
+      if (!computeCalleeCallerMapping(cs, simMap, onlyModifiedNodes)) {
+
+        LOG ("dsa-bu",
+             errs () << *(cs.getInstruction())  << "\n"
+                     << "  --- Caller does not simulate callee because "
+                     << "simulation cannot be computed.\n";);
+        
+        return false;
+      }
+
+      bool res = simMap.isOneToMany(onlyModifiedNodes);
+
+      LOG ("dsa-bu",
+           if (!res)
+             errs () << *(cs.getInstruction()) << "\n"
+                     << "  --- Caller does not simulate callee because "
+                     << "simulation is not one-to-many\n";);
+
+      return res;
+    }
+
+    bool BottomUp::computeCalleeCallerMapping (DsaCallSite &cs, 
+                                               SimulationMapper &simMap, 
+                                               const bool onlyModified) 
+    {
+      
       assert (m_graphs.count (cs.getCaller ()) > 0);
       assert (m_graphs.count (cs.getCallee ()) > 0);
       
@@ -50,20 +85,20 @@ namespace seahorn
                                                   calleeG.globals_end ()))
       {
         Cell &c = *kv.second;
-        if (c.isModified ())
+        if (!onlyModified || c.isModified ())
         {
           Cell &nc = callerG.mkCell (*kv.first, Cell ());
-          if (!sim_map.insert (c, nc)) return false;
+          if (!simMap.insert (c, nc)) return false; 
         }
       }
 
       if (calleeG.hasRetCell (callee) && callerG.hasCell (*cs.getInstruction ()))
       {
         const Cell &c = calleeG.getRetCell (callee);
-        if (c.isModified()) 
+        if (!onlyModified || c.isModified()) 
         {
           Cell &nc = callerG.mkCell (*cs.getInstruction (), Cell());
-          if (!sim_map.insert (c, nc)) return false;
+          if (!simMap.insert (c, nc)) return false; 
         }
       }
 
@@ -75,10 +110,10 @@ namespace seahorn
         const Value *arg = (*AI).get();
         if (calleeG.hasCell (*fml) &&  callerG.hasCell (*arg)) {
           Cell &c = calleeG.mkCell (*fml, Cell ());
-          if (c.isModified ()) 
+          if (!onlyModified || c.isModified ()) 
           {
             Cell &nc = callerG.mkCell (*arg, Cell ());
-            if (!sim_map.insert(c, nc)) return false;
+            if (!simMap.insert(c, nc)) return false; 
           }
         }
       }      
@@ -143,6 +178,9 @@ namespace seahorn
 
       LocalAnalysis la (*m_dl, *m_tli);
 
+      // stats
+      unsigned num_cs = 0; unsigned num_cs_without_sim = 0;
+        
       CallGraph &cg = getAnalysis<CallGraphWrapperPass> ().getCallGraph ();
       for (auto it = scc_begin (&cg); !it.isAtEnd (); ++it)
       {
@@ -170,12 +208,22 @@ namespace seahorn
             DsaCallSite dsaCS (CS);
             const Function *callee = dsaCS.getCallee ();
             if (!callee || callee->isDeclaration () || callee->empty ()) continue;
+
+            LOG ("dsa-bu",
+                 num_cs++;
+                 if (!callerSimulatesCallee(dsaCS)) num_cs_without_sim++;);
             
             resolveCallSite (dsaCS);
           }
         }
         fGraph->compress();        
       }
+      
+      LOG ("dsa-bu",
+           errs () << "Number of callsites = " << num_cs << "\n";
+           errs () << "Number of callsites where caller does not simulate callee  = " 
+                   << num_cs_without_sim << "\n";);
+
       return false;
     }
 

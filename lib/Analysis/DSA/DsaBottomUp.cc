@@ -39,9 +39,7 @@ namespace seahorn
 
 
     // Check if each formal (modified) can be simulated by an actual
-    // (modified) and whether this simulation relationship is
-    // one-to-many. That is, we check that two formal (modified) cells
-    // cannot be mapped to the same actual (modified) cell.
+    // (modified)
     bool BottomUp::callerSimulatesCallee (DsaCallSite &cs) 
     {
       SimulationMapper simMap;
@@ -51,21 +49,19 @@ namespace seahorn
 
         LOG ("dsa-bu",
              errs () << *(cs.getInstruction())  << "\n"
-                     << "  --- Caller does not simulate callee because "
-                     << "simulation cannot be computed.\n";);
+                     << "  --- Caller does not simulate callee\n");
         
         return false;
       }
 
-      bool res = simMap.isOneToMany(onlyModifiedNodes);
-
       LOG ("dsa-bu",
+           bool res = simMap.isOneToMany(onlyModifiedNodes);
            if (!res)
              errs () << *(cs.getInstruction()) << "\n"
-                     << "  --- Caller does not simulate callee because "
+                     << "  --- Caller simulates callee but "
                      << "simulation is not one-to-many\n";);
 
-      return res;
+      return true;
     }
 
     bool BottomUp::computeCalleeCallerMapping (DsaCallSite &cs, 
@@ -178,7 +174,7 @@ namespace seahorn
 
       LocalAnalysis la (*m_dl, *m_tli);
 
-      // stats
+      // for sanity check
       unsigned num_cs = 0; unsigned num_cs_without_sim = 0;
         
       CallGraph &cg = getAnalysis<CallGraphWrapperPass> ().getCallGraph ();
@@ -208,21 +204,24 @@ namespace seahorn
             DsaCallSite dsaCS (CS);
             const Function *callee = dsaCS.getCallee ();
             if (!callee || callee->isDeclaration () || callee->empty ()) continue;
+            
+            resolveCallSite (dsaCS);
 
             LOG ("dsa-bu",
                  num_cs++;
                  if (!callerSimulatesCallee(dsaCS)) num_cs_without_sim++;);
-            
-            resolveCallSite (dsaCS);
+
           }
         }
         fGraph->compress();        
       }
       
       LOG ("dsa-bu",
+           // Sanity check
            errs () << "Number of callsites = " << num_cs << "\n";
            errs () << "Number of callsites where caller does not simulate callee  = " 
-                   << num_cs_without_sim << "\n";);
+                   << num_cs_without_sim << "\n";
+           assert (num_cs_without_sim == 0); );
 
       return false;
     }

@@ -59,9 +59,14 @@ bool SimulationMapper::insert (const Node &n1, Node &n2, unsigned offset)
     m_sim.clear (); return false;
   }
 
-  if (!n1.isArray () && (n2.isArray () && offset == 0) &&
-      n1.size () <= n2.size())
-    return true;
+  // -- not array can be simulated by array of larger size at offset 0
+  // XXX probably sufficient if n1 can be completely embedded into n2,
+  // XXX not necessarily at offset 0
+  if (!n1.isArray () && n2.isArray ())
+  {
+    if (offset > 0 || n1.size () > n2.size ())
+    { m_sim.clear (); return false; }
+  }
   
   if (n1.isArray () != n2.isArray ())
   { m_sim.clear (); return false; }

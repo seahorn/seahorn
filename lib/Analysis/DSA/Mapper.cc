@@ -59,7 +59,8 @@ bool SimulationMapper::insert (const Node &n1, Node &n2, unsigned offset)
     m_sim.clear (); return false;
   }
 
-  if (!n1.isArray () && n2.isArray () && n1.size () <= n2.size())
+  if (!n1.isArray () && (n2.isArray () && offset == 0) &&
+      n1.size () <= n2.size())
     return true;
   
   if (n1.isArray () != n2.isArray ())

@@ -129,7 +129,7 @@ namespace
           {
             std::string fName = "nondet.asm.";
             Function &ndfn = seahorn::createNewNondetFn (*F.getParent (),
-                                                         *F.getReturnType (),
+                                                         *CS.getInstruction()->getType (),
                                                          m_count++,
                                                          fName);
             IRBuilder<> Builder (F.getContext ());

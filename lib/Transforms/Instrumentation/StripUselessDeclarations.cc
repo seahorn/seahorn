@@ -31,7 +31,9 @@ namespace
             name.startswith ("calloc") ||
             name.startswith ("memset") ||
             name.startswith ("memcpy")) continue;
-        
+
+        if (name.startswith ("klee_")) continue;
+
         if (name.startswith ("seahorn.") ||
             name.startswith ("verifier.")) continue;
 

@@ -116,4 +116,8 @@ void klee_make_symbolic(void *v, size_t sz, char *fname) {
   printf("klee_make_symbolic was called for %s\n", fname);
 }
 
+void klee_assume(bool b) {
+  printf("klee_assume was called\n");
+}
+
 }

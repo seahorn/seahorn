@@ -26,57 +26,14 @@ namespace seahorn
 {
   namespace dsa
   {
-    BottomUp::BottomUp () 
-      : ModulePass (ID), m_dl (nullptr), m_tli (nullptr)  {}
-          
-    void BottomUp::getAnalysisUsage (AnalysisUsage &AU) const 
+
+    // Build a simulation mapping from calleeG to callerG
+    bool BottomUpAnalysis::
+    computeCalleeCallerMapping (const DsaCallSite &cs, 
+                                Graph &calleeG, Graph &callerG, 
+                                const bool onlyModified,
+                                SimulationMapper &simMap) 
     {
-      AU.addRequired<DataLayoutPass> ();
-      AU.addRequired<TargetLibraryInfo> ();
-      AU.addRequired<CallGraphWrapperPass> ();
-      AU.setPreservesAll ();
-    }
-
-
-    // Check if each formal (modified) can be simulated by an actual
-    // (modified)
-    bool BottomUp::callerSimulatesCallee (DsaCallSite &cs) 
-    {
-      SimulationMapper simMap;
-      const bool onlyModifiedNodes = true;
-
-      if (!computeCalleeCallerMapping(cs, simMap, onlyModifiedNodes)) {
-
-        LOG ("dsa-bu",
-             errs () << *(cs.getInstruction())  << "\n"
-                     << "  --- Caller does not simulate callee\n");
-        
-        return false;
-      }
-
-      LOG ("dsa-bu",
-           bool res = simMap.isOneToMany(onlyModifiedNodes);
-           if (!res)
-             errs () << *(cs.getInstruction()) << "\n"
-                     << "  --- Caller simulates callee but "
-                     << "simulation is not one-to-many\n";);
-
-      return true;
-    }
-
-    bool BottomUp::computeCalleeCallerMapping (DsaCallSite &cs, 
-                                               SimulationMapper &simMap, 
-                                               const bool onlyModified) 
-    {
-      
-      assert (m_graphs.count (cs.getCaller ()) > 0);
-      assert (m_graphs.count (cs.getCallee ()) > 0);
-      
-      const Function &caller = *cs.getCaller ();
-      const Function &callee = *cs.getCallee ();
-      Graph &callerG = *(m_graphs.find (&caller)->second);
-      Graph &calleeG = *(m_graphs.find (&callee)->second);
-
       for (auto &kv : boost::make_iterator_range (calleeG.globals_begin (),
                                                   calleeG.globals_end ()))
       {
@@ -88,6 +45,7 @@ namespace seahorn
         }
       }
 
+      const Function &callee = *cs.getCallee ();
       if (calleeG.hasRetCell (callee) && callerG.hasCell (*cs.getInstruction ()))
       {
         const Cell &c = calleeG.getRetCell (callee);
@@ -116,20 +74,13 @@ namespace seahorn
       return true;
     }
 
-
-    void BottomUp::resolveCallSite (DsaCallSite &CS)
-    {
-      assert (m_graphs.count (CS.getCaller ()) > 0);
-      assert (m_graphs.count (CS.getCallee ()) > 0);
-      
-      const Function &caller = *CS.getCaller ();
-      const Function &callee = *CS.getCallee ();
-      Graph &callerG = *(m_graphs.find (&caller)->second);
-      Graph &calleeG = *(m_graphs.find (&callee)->second);
-      
+    // Clone callee nodes into caller and resolve arguments
+    void BottomUpAnalysis::
+    cloneAndResolveArguments (const DsaCallSite &CS, Graph& calleeG, Graph& callerG)
+    {      
       Cloner C (callerG);
       
-      // import and unify globals 
+      // clone and unify globals 
       for (auto &kv : boost::make_iterator_range (calleeG.globals_begin (),
                                                   calleeG.globals_end ()))
       {
@@ -139,7 +90,8 @@ namespace seahorn
         nc.unify (c);
       }
 
-      // import and unify return
+      // clone and unify return
+      const Function &callee = *CS.getCallee ();
       if (calleeG.hasRetCell (callee) && callerG.hasCell (*CS.getInstruction ()))
       {
         Node &n = C.clone (*calleeG.getRetCell (callee).getNode ());
@@ -148,7 +100,7 @@ namespace seahorn
         nc.unify (c);
       }
 
-      // import and unify actuals and formals
+      // clone and unify actuals and formals
       DsaCallSite::const_actual_iterator AI = CS.actual_begin(), AE = CS.actual_end();
       for (DsaCallSite::const_formal_iterator FI = CS.formal_begin(), FE = CS.formal_end();
            FI != FE && AI != AE; ++FI, ++AI) 
@@ -167,29 +119,30 @@ namespace seahorn
       callerG.compress();
     }
 
-    bool BottomUp::runOnModule (Module &M)
+    bool BottomUpAnalysis::runOnModule(Module &M, GraphMap &graphs) 
     {
-      m_dl = &getAnalysis<DataLayoutPass>().getDataLayout ();
-      m_tli = &getAnalysis<TargetLibraryInfo> ();
 
-      LocalAnalysis la (*m_dl, *m_tli);
+      LocalAnalysis la (m_dl, m_tli);
 
-      // for sanity check
-      unsigned num_cs = 0; unsigned num_cs_without_sim = 0;
-        
-      CallGraph &cg = getAnalysis<CallGraphWrapperPass> ().getCallGraph ();
-      for (auto it = scc_begin (&cg); !it.isAtEnd (); ++it)
+      for (auto it = scc_begin (&m_cg); !it.isAtEnd (); ++it)
       {
         auto &scc = *it;
-        GraphRef fGraph = std::make_shared<Graph> (*m_dl, m_setFactory);
-        
+
         // -- compute a local graph shared between all functions in the scc
+        GraphRef fGraph = nullptr;
         for (CallGraphNode *cgn : scc)
         {
           Function *fn = cgn->getFunction ();
           if (!fn || fn->isDeclaration () || fn->empty ()) continue;
+
+          if (!fGraph) {
+            assert (graphs.find(fn) != graphs.end());
+            fGraph = graphs[fn];
+            assert (fGraph);
+          }
+
           la.runOnFunction (*fn, *fGraph);
-          m_graphs[fn] = fGraph;
+          graphs[fn] = fGraph;
         }
 
         // -- resolve all function calls in the graph
@@ -205,25 +158,55 @@ namespace seahorn
             const Function *callee = dsaCS.getCallee ();
             if (!callee || callee->isDeclaration () || callee->empty ()) continue;
             
-            resolveCallSite (dsaCS);
+            assert (graphs.count (dsaCS.getCaller ()) > 0);
+            assert (graphs.count (dsaCS.getCallee ()) > 0);
+      
+            Graph &callerG = *(graphs.find (dsaCS.getCaller())->second);
+            Graph &calleeG = *(graphs.find (dsaCS.getCallee())->second);
+  
+            cloneAndResolveArguments (dsaCS, calleeG, callerG);
 
-            LOG ("dsa-bu",
-                 num_cs++;
-                 if (!callerSimulatesCallee(dsaCS)) num_cs_without_sim++;);
-
+            LOG ("dsa-bu", 
+                 SimulationMapper simMap;
+                 if (!computeCalleeCallerMapping(dsaCS, calleeG, callerG, true, simMap)) {
+                   errs () << *(dsaCS.getInstruction())  << "\n"
+                           << "  --- Caller does not simulate callee\n";
+                 });
+                 
           }
         }
-        fGraph->compress();        
+        if (fGraph) fGraph->compress();        
       }
       
-      LOG ("dsa-bu",
-           // Sanity check
-           errs () << "Number of callsites = " << num_cs << "\n";
-           errs () << "Number of callsites where caller does not simulate callee  = " 
-                   << num_cs_without_sim << "\n";
-           assert (num_cs_without_sim == 0); );
-
       return false;
+    }
+
+  
+    BottomUp::BottomUp () 
+      : ModulePass (ID), m_dl (nullptr), m_tli (nullptr)  {}
+          
+    void BottomUp::getAnalysisUsage (AnalysisUsage &AU) const 
+    {
+      AU.addRequired<DataLayoutPass> ();
+      AU.addRequired<TargetLibraryInfo> ();
+      AU.addRequired<CallGraphWrapperPass> ();
+      AU.setPreservesAll ();
+    }
+
+    bool BottomUp::runOnModule (Module &M)
+    {
+      m_dl = &getAnalysis<DataLayoutPass>().getDataLayout ();
+      m_tli = &getAnalysis<TargetLibraryInfo> ();
+      CallGraph &cg = getAnalysis<CallGraphWrapperPass> ().getCallGraph ();
+
+      BottomUpAnalysis bu (*m_dl, *m_tli, cg);
+      for (auto &F: M)
+      { // XXX: the graphs must be created here
+        GraphRef fGraph = std::make_shared<Graph> (*m_dl, m_setFactory);
+        m_graphs[&F] = fGraph;
+      }
+
+      return bu.runOnModule (M, m_graphs);
     }
 
     Graph &BottomUp::getGraph (const Function &F) const

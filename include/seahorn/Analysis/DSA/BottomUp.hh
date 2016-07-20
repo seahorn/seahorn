@@ -14,6 +14,7 @@ namespace llvm
 {
   class DataLayout;
   class TargetLibraryInfo;
+  class CallGraph;
 }
 
 using namespace llvm;
@@ -23,19 +24,47 @@ namespace seahorn
   namespace dsa
   {
 
+    class BottomUpAnalysis {
+
+     public:
+
+      typedef std::shared_ptr<Graph> GraphRef;
+      typedef llvm::DenseMap<const Function *, GraphRef> GraphMap;
+
+     private:
+
+      const DataLayout &m_dl;
+      const TargetLibraryInfo &m_tli;
+      CallGraph &m_cg;
+
+     public:
+
+      static bool computeCalleeCallerMapping (const DsaCallSite &cs, 
+                                              Graph &calleeG, Graph &callerG, 
+                                              const bool onlyModified,
+                                              SimulationMapper &simMap); 
+
+      static void cloneAndResolveArguments (const DsaCallSite &CS, 
+                                            Graph& calleeG, Graph& callerG);
+
+      BottomUpAnalysis (const DataLayout &dl,
+                        const TargetLibraryInfo &tli,
+                        CallGraph &cg) 
+          : m_dl(dl), m_tli(tli), m_cg(cg) {}
+
+      bool runOnModule (Module &M, GraphMap &graphs);
+    };
+
     class BottomUp : public ModulePass
     {
+      typedef typename BottomUpAnalysis::GraphRef GraphRef;
+      typedef typename BottomUpAnalysis::GraphMap GraphMap;
+
       Graph::SetFactory m_setFactory;
       const DataLayout *m_dl;
       const TargetLibraryInfo *m_tli;
-      typedef std::shared_ptr<Graph> GraphRef;
-      llvm::DenseMap<const Function *, GraphRef> m_graphs;
+      GraphMap m_graphs;
       
-      bool callerSimulatesCallee (DsaCallSite &cs);
-      bool computeCalleeCallerMapping (DsaCallSite &cs, SimulationMapper &simMap, 
-                                       const bool isModified = true);
-      void resolveCallSite (DsaCallSite &cs);
-
     public:
 
       static char ID;

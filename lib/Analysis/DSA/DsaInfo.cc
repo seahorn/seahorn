@@ -16,12 +16,13 @@
 using namespace seahorn::dsa;
 using namespace llvm;
 
-enum DsaKind { GLOBAL, BU};
+enum DsaKind { GLOBAL, CS_GLOBAL, BU};
 llvm::cl::opt<DsaKind>
 DsaVariant("dsa-variant",
            llvm::cl::desc ("Choose the dsa variant"),
            llvm::cl::values 
            (clEnumValN (GLOBAL, "global", "Context insensitive dsa analysis"),
+            clEnumValN (CS_GLOBAL, "cs-global", "Context sensitive dsa analysis"),
             clEnumValN (BU, "bu", "Bottom-up dsa analysis"),
             clEnumValEnd),
            llvm::cl::init (GLOBAL));
@@ -40,7 +41,7 @@ void Info::getAnalysisUsage (AnalysisUsage &AU) const
 {
   AU.addRequired<DataLayoutPass> ();
   AU.addRequired<TargetLibraryInfo> ();
-  AU.addRequired<Global> ();
+  AU.addRequired<ContextInsensitiveGlobal> ();
   AU.addRequired<BottomUp> ();
   AU.setPreservesAll ();
 }
@@ -59,7 +60,7 @@ Graph* Info::getGraph(const Function&f) const
   }
   else  {
     // default global
-    return &getAnalysis<Global>().getGraph();
+    return &getAnalysis<ContextInsensitiveGlobal>().getGraph();
   }
 
   return nullptr;

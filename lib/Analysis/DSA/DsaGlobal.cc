@@ -26,93 +26,56 @@ namespace seahorn
 {
   namespace dsa
   {
-      
-    Global::Global () 
-      : ModulePass (ID), m_dl (nullptr), m_tli (nullptr)  {}
-          
-    void Global::getAnalysisUsage (AnalysisUsage &AU) const 
-    {
-      AU.addRequired<DataLayoutPass> ();
-      AU.addRequired<TargetLibraryInfo> ();
-      AU.addRequired<CallGraphWrapperPass> ();
-      AU.setPreservesAll ();
-    }
-    
 
-    void Global::resolveCallSite (DsaCallSite &CS)
+    void ContextInsensitiveGlobalAnalysis::
+    resolveArguments (DsaCallSite &cs, Graph& g)
     {
-
       // unify return
-      const Function &callee = *CS.getCallee ();
-      if (m_graph->hasCell(*CS.getInstruction()) && m_graph->hasRetCell(callee))
+      const Function &callee = *cs.getCallee ();
+      if (g.hasCell(*cs.getInstruction()) && g.hasRetCell(callee))
       {
-        Cell &nc = m_graph->mkCell(*CS.getInstruction(), Cell());
-        const Cell& r = m_graph->getRetCell(callee);
+        Cell &nc = g.mkCell(*cs.getInstruction(), Cell());
+        const Cell& r = g.getRetCell(callee);
         Cell c (*r.getNode (), r.getOffset ());
         nc.unify(c);
       }
 
       // unify actuals and formals
-      DsaCallSite::const_actual_iterator AI = CS.actual_begin(), AE = CS.actual_end();
-      for (DsaCallSite::const_formal_iterator FI = CS.formal_begin(), FE = CS.formal_end();
+      DsaCallSite::const_actual_iterator AI = cs.actual_begin(), AE = cs.actual_end();
+      for (DsaCallSite::const_formal_iterator FI = cs.formal_begin(), FE = cs.formal_end();
            FI != FE && AI != AE; ++FI, ++AI) 
       {
         const Value *arg = (*AI).get();
         const Value *farg = &*FI;
-        if (m_graph->hasCell(*farg) && m_graph->hasCell(*arg)) {
-          Cell &c = m_graph->mkCell(*arg, Cell());
-          Cell &d = m_graph->mkCell (*farg, Cell ());
+        if (g.hasCell(*farg) && g.hasCell(*arg)) {
+          Cell &c = g.mkCell(*arg, Cell());
+          Cell &d = g.mkCell (*farg, Cell ());
           c.unify (d);
         }
       }
-
     }                                      
-    
-    bool Global::runOnModule (Module &M)
+
+    bool ContextInsensitiveGlobalAnalysis::
+    runOnModule (Module &M, Graph& g, SetFactory &setFactory)
     {
-      m_dl = &getAnalysis<DataLayoutPass>().getDataLayout ();
-      m_tli = &getAnalysis<TargetLibraryInfo> ();
+      LocalAnalysis la (m_dl, m_tli);
 
-
-      // LOG ("dsa-global",
-      //      errs () << "==============\n";
-      //      errs () << "*** LOCAL ***\n";
-      //      errs () << "==============\n";
-      //      for (auto &F: M) {
-      //        if (graphs->hasGraph (F)) {
-      //          auto const &g = graphs->getGraph(F);
-      //          g.write (errs());
-      //        }
-      //      });
-
-      // -- the global graph
-      m_graph.reset (new Graph(*m_dl, m_setFactory));
-
-      LocalAnalysis la (*m_dl, *m_tli);
       // -- bottom-up inline of all graphs
-      CallGraph &cg = getAnalysis<CallGraphWrapperPass> ().getCallGraph ();
-      for (auto it = scc_begin (&cg); !it.isAtEnd (); ++it)
+      for (auto it = scc_begin (&m_cg); !it.isAtEnd (); ++it)
       {
         auto &scc = *it;
-
-        LOG ("dsa-inlining", errs () << "SCC\n";);
 
         // --- all scc members share the same local graph
         for (CallGraphNode *cgn : scc) 
         {
-          LOG ("dsa-inlining", errs () << "\t"; cgn->print (errs ()); errs () << "\n");
-
           Function *fn = cgn->getFunction ();
           if (!fn || fn->isDeclaration () || fn->empty ()) continue;
           
           // compute local graph
-          Graph fGraph (*m_dl, m_setFactory);
+          Graph fGraph (m_dl, setFactory);
           la.runOnFunction (*fn, fGraph);
 
-          LOG ("dsa-inlining",
-               errs () << "\tImporting graph of " << fn->getName() << "\n";);
-
-          m_graph->import(fGraph, true);
+          g.import(fGraph, true);
         }
 
         // --- resolve callsites
@@ -136,35 +99,56 @@ namespace seahorn
             // XXX side-effects. This should be an option, not the only behavior
             if (callee && !callee->isDeclaration () && !callee->empty ())
             {
-              LOG ("dsa-resolve",
-                   errs () << "Resolving call site " << *(dsa_cs.getInstruction()) << "\n");
-              
               assert (fn == dsa_cs.getCaller ());
-              resolveCallSite (dsa_cs);
+              resolveArguments (dsa_cs, g);
             }
           }
         }
-        m_graph->compress();
+        g.compress();
       }
 
       LOG ("dsa-global",
-           errs () << "==============\n";
-           errs () << "*** GLOBAL ***\n";
-           errs () << "==============\n";
-           m_graph->write (errs ()));
+           errs () << "==============\n*** GLOBAL ***\n==============\n";
+           g.write (errs ()));
       
       return false;
     }
 
-    Graph& Global::getGraph() { return *m_graph; }
+      
+    ContextInsensitiveGlobal::ContextInsensitiveGlobal () 
+      : ModulePass (ID) {}
+          
+    void ContextInsensitiveGlobal::getAnalysisUsage (AnalysisUsage &AU) const 
+    {
+      AU.addRequired<DataLayoutPass> ();
+      AU.addRequired<TargetLibraryInfo> ();
+      AU.addRequired<CallGraphWrapperPass> ();
+      AU.setPreservesAll ();
+    }
+        
+    bool ContextInsensitiveGlobal::runOnModule (Module &M)
+    {
+      auto dl = &getAnalysis<DataLayoutPass>().getDataLayout ();
+      auto tli = &getAnalysis<TargetLibraryInfo> ();
+      CallGraph &cg = getAnalysis<CallGraphWrapperPass> ().getCallGraph ();
 
-    const Graph& Global::getGraph() const { return *m_graph; }
+      m_graph.reset (new Graph(*dl, m_setFactory));
+
+      ContextInsensitiveGlobalAnalysis  ga (*dl, *tli, cg);
+      return ga.runOnModule (M, *m_graph, m_setFactory);
+    }
+
+    Graph& ContextInsensitiveGlobal::getGraph() 
+    { assert(m_graph); return *m_graph; }
+
+    const Graph& ContextInsensitiveGlobal::getGraph() const 
+    { assert (m_graph); return *m_graph; }
   
   } // end namespace dsa
 } // end namespace seahorn
 
-char seahorn::dsa::Global::ID = 0;
+char seahorn::dsa::ContextInsensitiveGlobal::ID = 0;
 
-static llvm::RegisterPass<seahorn::dsa::Global> 
-X ("dsa-global", "Context-insensitive Dsa analysis");
+static llvm::RegisterPass<seahorn::dsa::ContextInsensitiveGlobal> 
+X ("dsa-ci-global", "Context-insensitive Dsa analysis");
 

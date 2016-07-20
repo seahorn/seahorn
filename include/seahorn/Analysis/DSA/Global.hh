@@ -12,6 +12,7 @@ namespace llvm
 {
   class DataLayout;
   class TargetLibraryInfo;
+  class CallGraph;
 }
 
 using namespace llvm;
@@ -21,20 +22,40 @@ namespace seahorn
   namespace dsa
   {
 
-    class Global : public ModulePass
+    class ContextInsensitiveGlobalAnalysis
     {
-      Graph::SetFactory m_setFactory;
-      const DataLayout *m_dl;
-      const TargetLibraryInfo *m_tli;
-      std::unique_ptr<Graph> m_graph;
+      const DataLayout &m_dl;
+      const TargetLibraryInfo &m_tli;
+      CallGraph &m_cg;
       
-      void resolveCallSite (DsaCallSite &cs);
+      void resolveArguments (DsaCallSite &cs, Graph& g);
 
+    public:
+
+      typedef typename Graph::SetFactory SetFactory;
+
+      ContextInsensitiveGlobalAnalysis (const DataLayout &dl,
+                                        const TargetLibraryInfo &tli,
+                                        CallGraph &cg) 
+          : m_dl(dl), m_tli(tli), m_cg(cg) {}
+
+      bool runOnModule (Module &M, Graph& g, SetFactory &setFactory);
+
+    };
+
+    class ContextInsensitiveGlobal : public ModulePass
+    {
+
+      typedef std::unique_ptr<Graph> GraphRef;
+
+      Graph::SetFactory m_setFactory;
+      GraphRef m_graph;
+      
     public:
 
       static char ID;
 
-      Global ();
+      ContextInsensitiveGlobal ();
 
       void getAnalysisUsage (AnalysisUsage &AU) const override;
 
@@ -44,6 +65,7 @@ namespace seahorn
       { return "Context-insensitive Dsa global pass"; }
 
       Graph& getGraph ();
+
       const Graph& getGraph () const;
 
     };

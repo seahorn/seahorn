@@ -58,20 +58,29 @@ namespace seahorn
           const Function *CF = CS.getCalledFunction ();
           if (!CF) continue;
 
-          errs () << "Looking at: " << CF->getName () << "\n";
+          LOG("cex",
+              errs () << "Considering harness for: " << CF->getName () << "\n";);
 
           if (!CF->hasName()) continue;
-          if (CF->getName().find_first_of('.') != StringRef::npos) continue;
+          // We want to ignore seahorn functions, but not nondet
+          // functions created by strip-extern
+          if (CF->getName().find_first_of('.') != StringRef::npos &&
+              CF->getName().startswith("verifier.nondet.stripextern") == StringRef::npos) continue;
           if (!CF->isExternalLinkage (CF->getLinkage ())) continue;
           if (!CF->getReturnType()->isIntegerTy () &&
-              !CF->getReturnType()->isPointerTy())
+              !CF->getReturnType()->isPointerTy()) {
+            LOG("cex",
+                errs () << "Skipping harness for " << CF->getName () << " because it returns type: " << *CF->getReturnType() << "\n";);
             continue;
+          }
 
           // TODO: Port detection of well-known library functions from KleeInternalize
           if (CF->getName().equals ("calloc")) continue;
           
           Expr V = trace.eval (loc, I, true);
           if (!V) continue;
+          LOG("cex",
+              errs () << "Producing harness for " << CF->getName () << "\n";);
           FuncValueMap[CF].push_back(V);
         }
       }

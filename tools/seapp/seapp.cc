@@ -111,6 +111,10 @@ StripExtern ("strip-extern", llvm::cl::desc ("Replace external functions by nond
               llvm::cl::init (false));
 
 static llvm::cl::opt<bool>
+OnlyStripExtern ("only-strip-extern", llvm::cl::desc ("Replace external functions by nondet and perform no other changes"),
+              llvm::cl::init (false));
+
+static llvm::cl::opt<bool>
 LowerInvoke ("lower-invoke", 
              llvm::cl::desc ("Lower all invoke instructions"),
              llvm::cl::init (false));
@@ -222,6 +226,8 @@ int main(int argc, char **argv) {
     pass_manager.add (seahorn::createKleeInternalizePass ());
   else if (WrapMem)
     pass_manager.add (seahorn::createWrapMemPass ());
+  else if (OnlyStripExtern)
+    pass_manager.add (seahorn::createStripUselessDeclarationsPass ());
   else
   {
     // -- Create a main function if we do not have one.

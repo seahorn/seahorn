@@ -74,7 +74,7 @@ namespace
           if (!F.getReturnType ()->isVoidTy ())
           {
             // insert call to nondet fn
-            std::string newName ("verifier.nondet.");
+            std::string newName ("verifier.nondet.stripextern.");
             newName += F.getName ();
             newName += ".";
             

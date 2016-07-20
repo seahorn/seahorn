@@ -73,10 +73,6 @@ namespace seahorn
 
                 apiIncrement++;
 
-                // outs() << "API " << API << " found in ";
-                // bb->printAsOperand(outs(), false);
-                // outs() << ", increment: " << apiIncrement << ", progress: " << progress << "\n";
-
                 if ( (progress+apiIncrement) < m_apilist.size())
                 {
                   API = m_apilist.at(progress+apiIncrement); // go to the next API
@@ -94,10 +90,6 @@ namespace seahorn
                 {
 
                   // handle function calls
-                  // outs() << "In function "<< F->getName() << " calling outgoing function "
-                  // << cf->getName() << " looking for "
-                  // << API << "\n";
-
                   analyze(cf, progress, aci);
                 }
               }
@@ -105,28 +97,19 @@ namespace seahorn
           }
         }
 
-        // outs() << "API Increment: " << apiIncrement << "\n";
-        // found the API
-
         // get the predecessor and propagate analysis info
         unsigned int max_progress = progress;
         for (auto it = pred_begin(bb), et = pred_end(bb); it != et; ++it)
         {
           const BasicBlock* predBB = *it;
 
-          // outs() << "Predecessor BB: ";
-          // predBB->printAsOperand(outs(), false);
-          // outs() << "\n";
-
           for (auto bli = bblist.begin(),ble=bblist.end(); bli!=ble; bli++)
           {
-            const BasicBlock* processedBB = bli->m_bb; //bli->first;
+            const BasicBlock* processedBB = bli->m_bb;
 
             if (processedBB == predBB) // found a direct predecessor
             {
-              unsigned int prev_progress = bli->m_progress; //bli->second;
-
-              //outs() << "Prev progress was " << prev_progress << "\n";
+              unsigned int prev_progress = bli->m_progress;
 
               if (prev_progress > max_progress)
               {
@@ -167,7 +150,7 @@ namespace seahorn
         ApiEntry final = analysis.getFinalAnalysis();
         if (final.m_progress == m_apilist.size())
         {
-          outs () << analysis.m_func->getName() << "\n";
+          outs () << "Found sequence in " <<  analysis.m_func->getName() << "\n";
 
           for (auto bentry : analysis.m_bblist)
           {
@@ -175,9 +158,7 @@ namespace seahorn
             bentry.m_bb->printAsOperand(outs(), false);
             outs() << " : " <<  bentry.m_progress << " (" << bentry.m_func<< ")\n";
           }
-          outs() << "\t---\n" << final.m_bb->getName() << ": " << final.m_progress << "\n";
-
-          outs() << "\nMATCH!\n";
+          outs() << "\t---\n";
 
           std::vector<const Function *> chain;
           chain.push_back(analysis.m_func);
@@ -200,6 +181,8 @@ namespace seahorn
 
   void ApiAnalysisPass::findStartingPoints(const Function* F)
   {
+
+    // Without any users, this is a possible entry point
     if (F->getNumUses() == 0)
     {
       if (std::find (m_startingPoints.begin(), m_startingPoints.end(),F) == m_startingPoints.end())
@@ -215,13 +198,14 @@ namespace seahorn
         {
           if (const Instruction *Inst = dyn_cast<Instruction>(U))
           {
-            // Get The grandparent of an instruction is a function (Inst -> BB -> Function)
+            // The grandparent of an instruction is a function (Inst -> BB -> Function)
             const Function * callingFunc = Inst->getParent()->getParent();
-            findStartingPoints(callingFunc);
 
+            findStartingPoints(callingFunc);
           }
         }
       }
+      errs() << "\n";
     }
   }
 
@@ -263,7 +247,6 @@ namespace seahorn
       aci.m_func = F;
       analyze(F,progress,aci);
 
-      //outs() << "Adding ACI " << F->getName() << "\n";
       m_apiAnalysis.push_back(aci);
     }
 
@@ -290,4 +273,4 @@ namespace seahorn
 }   // namespace seahorn
 
 static llvm::RegisterPass<seahorn::ApiAnalysisPass>
-X("call-api", "Determine if a given API is called",false, false);
+X("call-api", "Determine if a given sequence of API functions are called",false, false);

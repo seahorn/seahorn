@@ -62,6 +62,7 @@ namespace seahorn
               errs () << "Considering harness for: " << CF->getName () << "\n";);
 
           if (!CF->hasName()) continue;
+          if (CF->isIntrinsic ()) continue;
           // We want to ignore seahorn functions, but not nondet
           // functions created by strip-extern
           if (CF->getName().find_first_of('.') != StringRef::npos &&

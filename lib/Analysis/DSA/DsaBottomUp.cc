@@ -166,13 +166,14 @@ namespace seahorn
   
             cloneAndResolveArguments (dsaCS, calleeG, callerG);
 
+            SimulationMapperRef simMap (new SimulationMapper());
+            bool res = computeCalleeCallerMapping(dsaCS, calleeG, callerG, true, *simMap);
             LOG ("dsa-bu", 
-                 SimulationMapper simMap;
-                 if (!computeCalleeCallerMapping(dsaCS, calleeG, callerG, true, simMap)) {
-                   errs () << *(dsaCS.getInstruction())  << "\n"
-                           << "  --- Caller does not simulate callee\n";
-                 });
-                 
+                 if (!res) errs () << *(dsaCS.getInstruction())  << "\n"
+                                   << "  --- Caller does not simulate callee\n";);
+            assert (res);
+            m_callee_caller_map.insert(std::make_pair(dsaCS.getInstruction(), simMap));
+
           }
         }
         if (fGraph) fGraph->compress();        

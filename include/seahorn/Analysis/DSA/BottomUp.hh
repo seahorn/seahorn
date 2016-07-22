@@ -30,12 +30,16 @@ namespace seahorn
 
       typedef std::shared_ptr<Graph> GraphRef;
       typedef llvm::DenseMap<const Function *, GraphRef> GraphMap;
-
+      
      private:
+
+      typedef std::shared_ptr<SimulationMapper> SimulationMapperRef;
+      typedef boost::container::flat_map<const Instruction*, SimulationMapperRef> CalleeCallerMapping;
 
       const DataLayout &m_dl;
       const TargetLibraryInfo &m_tli;
       CallGraph &m_cg;
+      CalleeCallerMapping m_callee_caller_map;
 
      public:
 
@@ -53,6 +57,14 @@ namespace seahorn
           : m_dl(dl), m_tli(tli), m_cg(cg) {}
 
       bool runOnModule (Module &M, GraphMap &graphs);
+
+      typedef typename CalleeCallerMapping::const_iterator callee_caller_mapping_const_iterator;
+      
+      callee_caller_mapping_const_iterator callee_caller_mapping_begin () const 
+      { return m_callee_caller_map.begin(); }
+
+      callee_caller_mapping_const_iterator callee_caller_mapping_end () const 
+      { return m_callee_caller_map.end(); }
     };
 
     class BottomUp : public ModulePass

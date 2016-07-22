@@ -49,12 +49,14 @@ namespace seahorn
      DsaCallSite::const_formal_iterator DsaCallSite::formal_begin() const 
      { 
        isPointerTy p;
+       assert (getCallee());
        return boost::make_filter_iterator(p, getCallee()->arg_begin(), getCallee()->arg_end());
      }
 
      DsaCallSite::const_formal_iterator DsaCallSite::formal_end() const 
      { 
        isPointerTy p;
+       assert (getCallee());
        return boost::make_filter_iterator(p, getCallee()->arg_end(), getCallee()->arg_end());
      }
 

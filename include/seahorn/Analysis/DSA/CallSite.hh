@@ -39,7 +39,10 @@ namespace seahorn
       const_actual_iterator;
 
       DsaCallSite (const llvm::ImmutableCallSite &cs);
-      
+
+      bool operator==(const DsaCallSite &o) const
+      { return getInstruction () == o.getInstruction (); }
+
       const llvm::Value* getRetVal () const; 
 
       const llvm::Function* getCallee () const; 

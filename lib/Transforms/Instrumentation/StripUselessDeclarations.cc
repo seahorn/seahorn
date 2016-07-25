@@ -37,6 +37,7 @@ namespace
           if (name.startswith ("klee_")) continue;
 
           if (name.startswith ("seahorn.") ||
+	      name.startswith ("__seahorn") ||
               name.startswith ("verifier.")) continue;
 
           if (name.startswith ("__VERIFIER")) continue;

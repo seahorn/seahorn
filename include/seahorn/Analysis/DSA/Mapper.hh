@@ -66,6 +66,8 @@ namespace seahorn
 
       bool isOneToMany (bool onlyModified = true) const;
 
+      void write (llvm::raw_ostream &o) const ;
+
     };
   }
 }

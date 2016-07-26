@@ -51,8 +51,11 @@ bool SimulationMapper::insert (const Cell &c1, Cell &c2)
                  c2.getOffset () - c1.getOffset ());
 }
 
-bool SimulationMapper::insert (const Node &n1, Node &n2, unsigned offset)
+bool SimulationMapper::insert (const Node &n1, Node &n2, unsigned o)
 {
+  // XXX: adjust the offset
+  Node::Offset offset (n2, o);
+
   auto &map = m_sim[&n1];
   if (map.count (&n2) > 0)
   {
@@ -108,6 +111,23 @@ bool SimulationMapper::insert (const Node &n1, Node &n2, unsigned offset)
   return true;
 }
 
+void SimulationMapper::write(llvm::raw_ostream&o) const 
+{
+  o << "BEGIN simulation mapper\n";
+  for (auto &kv: m_sim)
+    for (auto &c: kv.second) 
+    {
+      o << "(";
+      kv.first->write (o);
+      o << ", ";
+      c.first->write (o);
+      o << ", ";
+      o << c.second;
+      o << ")\n";
+    }
+  o << "END  simulation mapper\n";
+}
+
 bool SimulationMapper::isOneToMany (bool onlyModified)  const 
 {
   boost::container::flat_set<Cell> inv_sim;
@@ -116,7 +136,7 @@ bool SimulationMapper::isOneToMany (bool onlyModified)  const
     {
       auto res = inv_sim.insert(Cell(c.first, c.second));
       if (!onlyModified || c.first->isModified()) 
-        if (res.second) return false;
+        if (!res.second) return false;
     }
   return true;
 }

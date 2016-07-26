@@ -21,9 +21,9 @@ llvm::cl::opt<DsaKind>
 DsaVariant("dsa-variant",
            llvm::cl::desc ("Choose the dsa variant"),
            llvm::cl::values 
-           (clEnumValN (GLOBAL, "global", "Context insensitive dsa analysis"),
+           (clEnumValN (BU       , "bu"       , "Bottom-up dsa analysis"),
+            clEnumValN (GLOBAL   , "global"   , "Context insensitive dsa analysis"),
             clEnumValN (CS_GLOBAL, "cs-global", "Context sensitive dsa analysis"),
-            clEnumValN (BU, "bu", "Bottom-up dsa analysis"),
             clEnumValEnd),
            llvm::cl::init (GLOBAL));
 
@@ -41,29 +41,40 @@ void Info::getAnalysisUsage (AnalysisUsage &AU) const
 {
   AU.addRequired<DataLayoutPass> ();
   AU.addRequired<TargetLibraryInfo> ();
+  /// XXX: note that this will run the three Dsa variants
+  /// This is temporary for debugging purposes
   AU.addRequired<ContextInsensitiveGlobal> ();
   AU.addRequired<BottomUp> ();
+  AU.addRequired<ContextSensitiveGlobal> ();
   AU.setPreservesAll ();
-}
-
-bool Info::is_alive_node::operator()(const NodeInfo& n) 
-{
-  return n.getNode()->isRead() || n.getNode()->isModified();
 }
 
 // return null if there is no graph for f
 Graph* Info::getGraph(const Function&f) const
 {
-  if (DsaVariant == BU) {
+  /// XXX: this is temporary to allow us to test all variants.
+  if (DsaVariant == BU) 
+  {
     if (getAnalysis<BottomUp>().hasGraph(f))
       return &getAnalysis<BottomUp>().getGraph(f);
   }
-  else  {
-    // default global
+  else if (DsaVariant == CS_GLOBAL) 
+  {
+    if (getAnalysis<ContextSensitiveGlobal>().hasGraph(f))
+      return &getAnalysis<ContextSensitiveGlobal>().getGraph(f);
+  }
+  
+  else if (DsaVariant == GLOBAL) 
+  { 
     return &getAnalysis<ContextInsensitiveGlobal>().getGraph();
   }
-
+  
   return nullptr;
+}
+
+bool Info::is_alive_node::operator()(const NodeInfo& n) 
+{
+  return n.getNode()->isRead() || n.getNode()->isModified();
 }
 
 void Info::addMemoryAccess (const Value* v, Graph* g) 
@@ -298,4 +309,4 @@ bool Info::runOnFunction (Function &f)
 char Info::ID = 0;
 
 static llvm::RegisterPass<Info> 
-X ("new-dsa-info", "Collect stats and information for dsa clients");
+X ("dsa-info", "Collect stats and information for dsa clients");

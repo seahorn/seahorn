@@ -14,6 +14,8 @@
 #include "seahorn/Analysis/DSA/Graph.hh"
 #include "seahorn/Analysis/DSA/Global.hh"
 #include "seahorn/Analysis/DSA/Local.hh"
+#include "seahorn/Analysis/DSA/Cloner.hh"
+#include "seahorn/Analysis/DSA/BottomUp.hh"
 #include "seahorn/Analysis/DSA/CallSite.hh"
 
 #include "avy/AvyDebug.h"
@@ -60,7 +62,7 @@ namespace seahorn
     {
       LocalAnalysis la (m_dl, m_tli);
 
-      // -- bottom-up inline of all graphs
+      // -- bottom-up inlining of all graphs
       for (auto it = scc_begin (&m_cg); !it.isAtEnd (); ++it)
       {
         auto &scc = *it;
@@ -107,10 +109,6 @@ namespace seahorn
         g.compress();
       }
 
-      LOG ("dsa-global",
-           errs () << "==============\n*** GLOBAL ***\n==============\n";
-           g.write (errs ()));
-      
       return false;
     }
 
@@ -147,8 +145,257 @@ namespace seahorn
   } // end namespace dsa
 } // end namespace seahorn
 
+
+namespace seahorn
+{
+  namespace dsa 
+  {
+
+    // Clone caller nodes into callee and resolve arguments
+    // XXX: this code is pretty much symmetric to the one defined in
+    // BottomUp. They should be merged at some point.
+    static void cloneAndResolveArguments (const DsaCallSite &cs, 
+                                          Graph& callerG, Graph& calleeG)
+    {      
+      Cloner C (calleeG);
+      
+      // clone and unify globals 
+      for (auto &kv : boost::make_iterator_range (callerG.globals_begin (),
+                                                  callerG.globals_end ()))
+      {
+        Node &n = C.clone (*kv.second->getNode ());
+        Cell c (n, kv.second->getOffset ());
+        Cell &nc = calleeG.mkCell (*kv.first, Cell ());
+        nc.unify (c);
+      }
+
+      // clone and unify return
+      const Function &callee = *cs.getCallee ();
+      if (calleeG.hasRetCell (callee) && callerG.hasCell (*cs.getInstruction ()))
+      {
+        Node &n = C.clone (*callerG.getCell (*cs.getInstruction ()).getNode());
+        Cell c (n, callerG.getCell (*cs.getInstruction()).getOffset ());
+        Cell &nc = calleeG.getRetCell (callee);
+        nc.unify (c);
+      }
+
+      // clone and unify actuals and formals
+      DsaCallSite::const_actual_iterator AI = cs.actual_begin(), AE = cs.actual_end();
+      for (DsaCallSite::const_formal_iterator FI = cs.formal_begin(), FE = cs.formal_end();
+           FI != FE && AI != AE; ++FI, ++AI) 
+      {
+        const Value *arg = (*AI).get();
+        const Value *fml = &*FI;
+        if (callerG.hasCell (*arg) && calleeG.hasCell (*fml))
+        {
+          Node &n = C.clone (*callerG.getCell (*arg).getNode ());
+          Cell c (n, callerG.getCell (*arg).getOffset ());
+          Cell &nc = calleeG.mkCell (*fml, Cell ());
+          nc.unify (c);
+        }
+      }
+      calleeG.compress();
+    }
+
+    // Decide which kind of propagation (if any) is needed
+    ContextSensitiveGlobalAnalysis::PropagationKind 
+    ContextSensitiveGlobalAnalysis::decidePropagation 
+    (const DsaCallSite& cs, Graph &calleeG, Graph& callerG) 
+    {
+      PropagationKind res = UP;
+      SimulationMapper sm;
+      if (BottomUpAnalysis::
+          computeCalleeCallerMapping(cs, calleeG, callerG, true, sm)) 
+        res = (sm.isOneToMany () ? NONE: DOWN);
+
+      return res;
+    }
+
+    template<typename WorkList>
+    static void Insert (WorkList &w, llvm::WeakVH VH)
+    {
+      ImmutableCallSite CS (VH);
+      const Instruction * I = CS.getInstruction();
+      // XXX: this is a very inefficient way of breaking cycles
+      if (std::find(w.begin(), w.end(), I) == w.end())
+        w.push_back (I);
+    }
+
+    template<typename WorkList>
+    static void Insert (WorkList &w, const DsaCallSite & CS)
+    {
+      const Instruction * I = CS.getInstruction();
+      // XXX: this is a very inefficient way of breaking cycles
+      if (std::find(w.begin(), w.end(), I) == w.end())
+        w.push_back (I);
+    }
+
+    void ContextSensitiveGlobalAnalysis::
+    propagateTopDown (const DsaCallSite& cs, Graph &callerG, Graph& calleeG, Worklist &w) 
+    {
+      //errs () << "TD propagation done.\n";
+      
+      cloneAndResolveArguments (cs, callerG, calleeG);
+      assert (decidePropagation (cs, calleeG, callerG) != DOWN);
+      Insert (w, cs);
+
+      // revisit all callee callsites
+      if (CallGraphNode *cgn = m_cg[cs.getCallee()]) 
+        for (auto &callRecord: *cgn) 
+          Insert (w, callRecord.first);
+    }
+
+    void ContextSensitiveGlobalAnalysis::
+    propagateBottomUp (const DsaCallSite& cs, Graph &calleeG, Graph& callerG, Worklist &w) 
+    {
+      //errs () << "BU propagation done.\n";
+
+      BottomUpAnalysis::cloneAndResolveArguments (cs, calleeG, callerG);
+      assert (decidePropagation (cs, calleeG, callerG) != UP);
+
+      // revisit all caller callsites (included cs again)
+      if (CallGraphNode *cgn = m_cg[cs.getCaller()])
+        for (auto &callRecord: *cgn) 
+          Insert (w, callRecord.first);
+    }
+
+
+    bool ContextSensitiveGlobalAnalysis::runOnModule(Module &M, GraphMap &graphs) 
+    {
+      // -- Run bottom up analysis on the whole call graph 
+      //    and initialize worklist
+      BottomUpAnalysis bu (m_dl, m_tli, m_cg);
+      bu.runOnModule (M, graphs);
+
+      /// push in the worklist callsites for which two different
+      /// callee nodes are mapped to the same caller node
+      Worklist worklist;
+      for (auto &kv: boost::make_iterator_range (bu.callee_caller_mapping_begin (),
+                                                 bu.callee_caller_mapping_end ()))
+      {
+        auto const &simMapper = *(kv.second);
+        if (!simMapper.isOneToMany()) worklist.push_back (kv.first); 
+      }
+
+      // -- Propagation between callees and caller until no change
+      unsigned iters=0;
+      while (!worklist.empty()) 
+      {
+        iters++;
+        const Instruction* I = worklist.back();
+        worklist.pop_back();
+
+        ImmutableCallSite CS (I);
+        DsaCallSite dsaCS (CS);
+
+        auto fn = dsaCS.getCallee();
+        if (!fn || fn->isDeclaration() || fn->empty())
+          continue;
+
+        assert (graphs.count (dsaCS.getCaller ()) > 0);
+        assert (graphs.count (dsaCS.getCallee ()) > 0);
+        
+        Graph &callerG = *(graphs.find (dsaCS.getCaller())->second);
+        Graph &calleeG = *(graphs.find (dsaCS.getCallee())->second);
+
+        switch (decidePropagation (dsaCS, calleeG, callerG))
+        {
+          case DOWN:
+            propagateTopDown (dsaCS, callerG, calleeG, worklist); 
+            break;
+          case UP:
+            propagateBottomUp (dsaCS, calleeG, callerG, worklist);
+            break;
+          default: ;;
+        }
+      }
+
+      // Sanity check 
+      assert (checkNoMorePropagation (graphs));
+      return false;
+    }
+
+
+    // Sanity check
+    bool ContextSensitiveGlobalAnalysis::checkNoMorePropagation(GraphMap &graphs) 
+    {
+      for (auto it = scc_begin (&m_cg); !it.isAtEnd (); ++it)
+      {
+        auto &scc = *it;
+        for (CallGraphNode *cgn : scc)
+        {
+          Function *fn = cgn->getFunction ();
+          if (!fn || fn->isDeclaration () || fn->empty ()) continue;
+          
+          for (auto &callRecord : *cgn)
+          {
+            ImmutableCallSite CS (callRecord.first);
+            DsaCallSite cs (CS);
+
+            const Function *callee = cs.getCallee ();
+            if (!callee || callee->isDeclaration () || callee->empty ()) continue;
+
+            assert (graphs.count (cs.getCaller ()) > 0);
+            assert (graphs.count (cs.getCallee ()) > 0);
+        
+            Graph &callerG = *(graphs.find (cs.getCaller())->second);
+            Graph &calleeG = *(graphs.find (cs.getCallee())->second);
+
+            if (decidePropagation (cs, calleeG, callerG) != NONE)
+            {
+              errs () << "WARNING " 
+                      << *(cs.getInstruction ()) << " requires more propagation\n";
+                      
+              return false;
+            }
+          }
+        }
+      }
+      return true;
+    }
+  
+    ContextSensitiveGlobal::ContextSensitiveGlobal () 
+      : ModulePass (ID), m_dl (nullptr), m_tli (nullptr)  {}
+          
+    void ContextSensitiveGlobal::getAnalysisUsage (AnalysisUsage &AU) const 
+    {
+      AU.addRequired<DataLayoutPass> ();
+      AU.addRequired<TargetLibraryInfo> ();
+      AU.addRequired<CallGraphWrapperPass> ();
+      AU.setPreservesAll ();
+    }
+
+    bool ContextSensitiveGlobal::runOnModule (Module &M)
+    {
+      m_dl = &getAnalysis<DataLayoutPass>().getDataLayout ();
+      m_tli = &getAnalysis<TargetLibraryInfo> ();
+      CallGraph &cg = getAnalysis<CallGraphWrapperPass> ().getCallGraph ();
+
+      ContextSensitiveGlobalAnalysis ga (*m_dl, *m_tli, cg);
+      for (auto &F: M)
+      { 
+        GraphRef fGraph = std::make_shared<Graph> (*m_dl, m_setFactory);
+        m_graphs[&F] = fGraph;
+      }
+
+      return ga.runOnModule (M, m_graphs);
+    }
+
+    Graph &ContextSensitiveGlobal::getGraph (const Function &F) const
+    { return *(m_graphs.find (&F)->second); }
+
+    bool ContextSensitiveGlobal::hasGraph (const Function &F) const
+    { return m_graphs.count (&F) > 0; }
+  }
+}
+
 char seahorn::dsa::ContextInsensitiveGlobal::ID = 0;
 
+char seahorn::dsa::ContextSensitiveGlobal::ID = 0;
+
 static llvm::RegisterPass<seahorn::dsa::ContextInsensitiveGlobal> 
-X ("dsa-ci-global", "Context-insensitive Dsa analysis");
+X ("dsa-global", "Context-insensitive Dsa analysis");
+
+static llvm::RegisterPass<seahorn::dsa::ContextSensitiveGlobal> 
+Y ("dsa-cs-global", "Context-sensitive Dsa analysis");
 

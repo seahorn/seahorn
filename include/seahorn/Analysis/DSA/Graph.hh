@@ -28,6 +28,7 @@ namespace seahorn
   {
     class Node;
     class Cell;
+    class SimulationMapper;
     typedef std::unique_ptr<Cell> CellRef;
     
     class FunctionalMapper;
@@ -211,6 +212,7 @@ namespace seahorn
       friend class Cell;
 
       friend class FunctionalMapper;
+      friend class SimulationMapper;
       struct NodeType
       {
         unsigned shadow:1;
@@ -277,7 +279,7 @@ namespace seahorn
         
       };
 
-     public:
+     protected:
 
       class Offset;
       friend class Offset;

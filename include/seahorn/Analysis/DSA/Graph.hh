@@ -277,6 +277,8 @@ namespace seahorn
         
       };
 
+     public:
+
       class Offset;
       friend class Offset;
       /// helper class to ensure that offsets are properly adjusted
@@ -289,6 +291,8 @@ namespace seahorn
         operator unsigned() const; 
         const Node &node () const { return m_node; }
       };
+
+     private:
       
       /// parent DSA graph
       Graph *m_graph;

@@ -26,10 +26,18 @@
 #include "llvm/Support/Debug.h"
 #include "llvm/ADT/Statistic.h"
 
+#include "seahorn/Transforms/Utils/Local.hh"
+
 #include "avy/AvyDebug.h"
 
 using namespace llvm;
 
+static llvm::cl::opt<bool>
+AllowIndirectCalls ("allow-indirect-calls",
+                    llvm::cl::desc ("Allow creation of indirect calls "
+                                    "during devirtualization "
+                                    "(required for soundness)"),
+                    llvm::cl::init (false));
 namespace
 {
 
@@ -242,11 +250,21 @@ namespace
                                                  "default",
                                                  F);
 
-    Value* defaultRet = CallInst::Create (F->arg_begin(), fargs, "", defaultBB);
     if (CS.getType()->isVoidTy())
       ReturnInst::Create (M->getContext(), defaultBB);
     else
+    {
+      Value* defaultRet = nullptr;
+      if (AllowIndirectCalls)
+        defaultRet = CallInst::Create (F->arg_begin(), fargs, "", defaultBB);
+      else
+      {
+        Function &fn = seahorn::createNewNondetFn (*M, *CS.getType (),
+                                                   1, "nondet.bounce.fptr.");
+        defaultRet = CallInst::Create (&fn, "", defaultBB);
+      }
       ReturnInst::Create (M->getContext(), defaultRet, defaultBB);
+    }
                           
     // Setup the entry basic block.  For now, just have it call the default
     // basic block.  We'll change the basic block to which it branches later.

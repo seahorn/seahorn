@@ -410,6 +410,8 @@ namespace seahorn
       bool isCollapsed () const { return m_nodeType.collapsed; }
       
       bool isUnique () const { return m_unique_scalar; }
+      const llvm::Value *getUniqueScalar () const { return m_unique_scalar; }
+      void setUniqueScalar (const llvm::Value *v) {m_unique_scalar = v;}
       
       inline bool isForwarding () const;
       

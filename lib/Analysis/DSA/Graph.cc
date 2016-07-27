@@ -172,6 +172,7 @@ void dsa::Node::collapse (int tag)
 {
   if (isCollapsed ()) return;
         
+  m_unique_scalar = nullptr;
   assert (!isForwarding ());
   // if the node is already of smallest size, just mark it
   // collapsed to indicate that it cannot grow or change
@@ -204,6 +205,10 @@ void dsa::Node::pointTo (Node &node, const Offset &offset)
   assert (&node != this);
   assert (!isForwarding ());
       
+  // -- reset unique scalar at the destination
+  if (offset != 0) node.setUniqueScalar (nullptr);
+  if (m_unique_scalar != node.getUniqueScalar ()) node.setUniqueScalar (nullptr);
+  
   unsigned sz = size ();
       
   // -- create forwarding link
@@ -605,7 +610,15 @@ dsa::Cell &dsa::Graph::mkCell (const llvm::Value &v, const Cell &c)
     return mkCell (v, Cell (mkNode (), 0));
   
   auto &res = isa<Argument> (v) ? m_formals[cast<const Argument>(&v)] : m_values [&v];
-  if (!res) res.reset (new Cell (c));
+  if (!res)
+  {
+    res.reset (new Cell (c));
+    if (res->getOffset () == 0)
+    {
+      assert (!res->getNode ()->isUnique () && "Not sure this is possible");
+      res->getNode ()->setUniqueScalar (&v);
+    }
+  }
   return *res;
 }
 

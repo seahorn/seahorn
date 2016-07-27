@@ -57,9 +57,10 @@ namespace seahorn
       }
     }                                      
 
-    bool ContextInsensitiveGlobalAnalysis::
-    runOnModule (Module &M, Graph& g, SetFactory &setFactory)
+    bool ContextInsensitiveGlobalAnalysis::runOnModule (Module &M)
     {
+      m_graph.reset (new Graph (m_dl, m_setFactory));
+
       LocalAnalysis la (m_dl, m_tli);
 
       // -- bottom-up inlining of all graphs
@@ -74,10 +75,10 @@ namespace seahorn
           if (!fn || fn->isDeclaration () || fn->empty ()) continue;
           
           // compute local graph
-          Graph fGraph (m_dl, setFactory);
+          Graph fGraph (m_dl, m_setFactory);
           la.runOnFunction (*fn, fGraph);
 
-          g.import(fGraph, true);
+          m_graph->import(fGraph, true);
         }
 
         // --- resolve callsites
@@ -102,19 +103,31 @@ namespace seahorn
             if (callee && !callee->isDeclaration () && !callee->empty ())
             {
               assert (fn == dsa_cs.getCaller ());
-              resolveArguments (dsa_cs, g);
+              resolveArguments (dsa_cs, *m_graph);
             }
           }
         }
-        g.compress();
+        m_graph->compress();
       }
 
       return false;
     }
 
+
+    const Graph& ContextInsensitiveGlobalAnalysis::getGraph(const Function&) const
+    { assert(m_graph); return *m_graph; }
+
+    Graph& ContextInsensitiveGlobalAnalysis::getGraph(const Function&)
+    { assert(m_graph); return *m_graph; }
+
+    bool ContextInsensitiveGlobalAnalysis::hasGraph(const Function&) const 
+    { return true; }
+
       
+    /// LLVM pass
+
     ContextInsensitiveGlobal::ContextInsensitiveGlobal () 
-      : ModulePass (ID) {}
+        : ModulePass (ID), DsaGlobalPass (), m_ga (nullptr) {}
           
     void ContextInsensitiveGlobal::getAnalysisUsage (AnalysisUsage &AU) const 
     {
@@ -126,21 +139,22 @@ namespace seahorn
         
     bool ContextInsensitiveGlobal::runOnModule (Module &M)
     {
-      auto dl = &getAnalysis<DataLayoutPass>().getDataLayout ();
-      auto tli = &getAnalysis<TargetLibraryInfo> ();
-      CallGraph &cg = getAnalysis<CallGraphWrapperPass> ().getCallGraph ();
+      auto &dl = getAnalysis<DataLayoutPass>().getDataLayout ();
+      auto &tli = getAnalysis<TargetLibraryInfo> ();
+      auto &cg = getAnalysis<CallGraphWrapperPass> ().getCallGraph ();
 
-      m_graph.reset (new Graph(*dl, m_setFactory));
-
-      ContextInsensitiveGlobalAnalysis  ga (*dl, *tli, cg);
-      return ga.runOnModule (M, *m_graph, m_setFactory);
+      m_ga.reset (new ContextInsensitiveGlobalAnalysis (dl, tli, cg, m_setFactory));
+      return m_ga->runOnModule (M);
     }
 
-    Graph& ContextInsensitiveGlobal::getGraph() 
-    { assert(m_graph); return *m_graph; }
+    const Graph& ContextInsensitiveGlobal::getGraph(const Function& fn) const
+    { return m_ga->getGraph (fn); }
 
-    const Graph& ContextInsensitiveGlobal::getGraph() const 
-    { assert (m_graph); return *m_graph; }
+    Graph& ContextInsensitiveGlobal::getGraph(const Function& fn) 
+    { return m_ga->getGraph (fn); }
+
+    bool ContextInsensitiveGlobal::hasGraph(const Function& fn) const 
+    { return m_ga->hasGraph (fn); }
   
   } // end namespace dsa
 } // end namespace seahorn
@@ -150,7 +164,6 @@ namespace seahorn
 {
   namespace dsa 
   {
-
     // Clone caller nodes into callee and resolve arguments
     // XXX: this code is pretty much symmetric to the one defined in
     // BottomUp. They should be merged at some point.
@@ -260,12 +273,18 @@ namespace seahorn
     }
 
 
-    bool ContextSensitiveGlobalAnalysis::runOnModule(Module &M, GraphMap &graphs) 
+    bool ContextSensitiveGlobalAnalysis::runOnModule (Module &M) 
     {
+      for (auto &F: M)
+      { 
+        GraphRef fGraph = std::make_shared<Graph> (m_dl, m_setFactory);
+        m_graphs[&F] = fGraph;
+      }
+
       // -- Run bottom up analysis on the whole call graph 
       //    and initialize worklist
       BottomUpAnalysis bu (m_dl, m_tli, m_cg);
-      bu.runOnModule (M, graphs);
+      bu.runOnModule (M, m_graphs);
 
       /// push in the worklist callsites for which two different
       /// callee nodes are mapped to the same caller node
@@ -292,11 +311,11 @@ namespace seahorn
         if (!fn || fn->isDeclaration() || fn->empty())
           continue;
 
-        assert (graphs.count (dsaCS.getCaller ()) > 0);
-        assert (graphs.count (dsaCS.getCallee ()) > 0);
+        assert (m_graphs.count (dsaCS.getCaller ()) > 0);
+        assert (m_graphs.count (dsaCS.getCallee ()) > 0);
         
-        Graph &callerG = *(graphs.find (dsaCS.getCaller())->second);
-        Graph &calleeG = *(graphs.find (dsaCS.getCallee())->second);
+        Graph &callerG = *(m_graphs.find (dsaCS.getCaller())->second);
+        Graph &calleeG = *(m_graphs.find (dsaCS.getCallee())->second);
 
         switch (decidePropagation (dsaCS, calleeG, callerG))
         {
@@ -310,14 +329,14 @@ namespace seahorn
         }
       }
 
-      // Sanity check 
-      assert (checkNoMorePropagation (graphs));
+      assert (checkNoMorePropagation ());
+
       return false;
     }
 
 
     // Sanity check
-    bool ContextSensitiveGlobalAnalysis::checkNoMorePropagation(GraphMap &graphs) 
+    bool ContextSensitiveGlobalAnalysis::checkNoMorePropagation() 
     {
       for (auto it = scc_begin (&m_cg); !it.isAtEnd (); ++it)
       {
@@ -335,11 +354,11 @@ namespace seahorn
             const Function *callee = cs.getCallee ();
             if (!callee || callee->isDeclaration () || callee->empty ()) continue;
 
-            assert (graphs.count (cs.getCaller ()) > 0);
-            assert (graphs.count (cs.getCallee ()) > 0);
+            assert (m_graphs.count (cs.getCaller ()) > 0);
+            assert (m_graphs.count (cs.getCallee ()) > 0);
         
-            Graph &callerG = *(graphs.find (cs.getCaller())->second);
-            Graph &calleeG = *(graphs.find (cs.getCallee())->second);
+            Graph &callerG = *(m_graphs.find (cs.getCaller())->second);
+            Graph &calleeG = *(m_graphs.find (cs.getCallee())->second);
 
             if (decidePropagation (cs, calleeG, callerG) != NONE)
             {
@@ -353,9 +372,21 @@ namespace seahorn
       }
       return true;
     }
-  
+
+    const Graph &ContextSensitiveGlobalAnalysis::getGraph (const Function &fn) const
+    { return *(m_graphs.find (&fn)->second); }
+
+    Graph &ContextSensitiveGlobalAnalysis::getGraph (const Function &fn)
+    { return *(m_graphs.find (&fn)->second); }
+
+    bool ContextSensitiveGlobalAnalysis::hasGraph (const Function &fn) const
+    { return m_graphs.count (&fn) > 0; }
+
+
+    /// LLVM pass
+
     ContextSensitiveGlobal::ContextSensitiveGlobal () 
-      : ModulePass (ID), m_dl (nullptr), m_tli (nullptr)  {}
+        : ModulePass (ID), DsaGlobalPass (), m_ga (nullptr) {}
           
     void ContextSensitiveGlobal::getAnalysisUsage (AnalysisUsage &AU) const 
     {
@@ -367,25 +398,23 @@ namespace seahorn
 
     bool ContextSensitiveGlobal::runOnModule (Module &M)
     {
-      m_dl = &getAnalysis<DataLayoutPass>().getDataLayout ();
-      m_tli = &getAnalysis<TargetLibraryInfo> ();
-      CallGraph &cg = getAnalysis<CallGraphWrapperPass> ().getCallGraph ();
+      auto &dl = getAnalysis<DataLayoutPass>().getDataLayout ();
+      auto &tli = getAnalysis<TargetLibraryInfo> ();
+      auto &cg = getAnalysis<CallGraphWrapperPass> ().getCallGraph ();
 
-      ContextSensitiveGlobalAnalysis ga (*m_dl, *m_tli, cg);
-      for (auto &F: M)
-      { 
-        GraphRef fGraph = std::make_shared<Graph> (*m_dl, m_setFactory);
-        m_graphs[&F] = fGraph;
-      }
-
-      return ga.runOnModule (M, m_graphs);
+      m_ga.reset (new ContextSensitiveGlobalAnalysis (dl, tli, cg, m_setFactory));
+      return m_ga->runOnModule (M);
     }
 
-    Graph &ContextSensitiveGlobal::getGraph (const Function &F) const
-    { return *(m_graphs.find (&F)->second); }
+    const Graph& ContextSensitiveGlobal::getGraph(const Function& fn) const
+    { return m_ga->getGraph (fn); }
 
-    bool ContextSensitiveGlobal::hasGraph (const Function &F) const
-    { return m_graphs.count (&F) > 0; }
+    Graph& ContextSensitiveGlobal::getGraph(const Function& fn) 
+    { return m_ga->getGraph (fn); }
+
+    bool ContextSensitiveGlobal::hasGraph(const Function& fn) const 
+    { return m_ga->hasGraph (fn); }
+
   }
 }
 

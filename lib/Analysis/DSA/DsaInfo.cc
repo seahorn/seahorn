@@ -66,7 +66,8 @@ Graph* Info::getGraph(const Function&f) const
   
   else if (DsaVariant == GLOBAL) 
   { 
-    return &getAnalysis<ContextInsensitiveGlobal>().getGraph();
+    if (getAnalysis<ContextInsensitiveGlobal>().hasGraph(f))
+      return &getAnalysis<ContextInsensitiveGlobal>().getGraph(f);
   }
   
   return nullptr;
@@ -77,17 +78,17 @@ bool Info::is_alive_node::operator()(const NodeInfo& n)
   return n.getNode()->isRead() || n.getNode()->isModified();
 }
 
-void Info::addMemoryAccess (const Value* v, Graph* g) 
+void Info::addMemoryAccess (const Value* v, Graph& g) 
 {
   v = v->stripPointerCasts();
-  if (!g->hasCell(*v)) {
+  if (!g.hasCell(*v)) {
     // sanity check
     if (v->getType()->isPointerTy())
       errs () << "DsaInfo: pointer value " << *v << " has not cell\n";
     return;
   }
   
-  const Cell &c = g->getCell (*v);
+  const Cell &c = g.getCell (*v);
   Node *n = c.getNode();
   auto it = m_nodes_map.find (n);
   if (it != m_nodes_map.end () && !isStaticallyKnown (m_dl, m_tli, v))
@@ -108,14 +109,14 @@ void Info::countMemoryAccesses (Function&F)
   for (inst_iterator i = inst_begin(F), e = inst_end(F); i != e; ++i)  {
     const Instruction *I = &*i;
     if (const LoadInst *LI = dyn_cast<LoadInst>(I)) {
-      addMemoryAccess (LI->getPointerOperand (), g);
+      addMemoryAccess (LI->getPointerOperand (), *g);
     } else if (const StoreInst *SI = dyn_cast<StoreInst>(I)) {
-      addMemoryAccess (SI->getPointerOperand (), g);
+      addMemoryAccess (SI->getPointerOperand (), *g);
     } else if (const MemTransferInst *MTI = dyn_cast<MemTransferInst>(I)) {
-      addMemoryAccess (MTI->getDest (), g);
-      addMemoryAccess (MTI->getSource (), g);
+      addMemoryAccess (MTI->getDest (), *g);
+      addMemoryAccess (MTI->getSource (), *g);
     } else if (const MemSetInst *MSI = dyn_cast<MemSetInst>(I)) {
-      addMemoryAccess (MSI->getDest (), g);
+      addMemoryAccess (MSI->getDest (), *g);
     }
   }
 }

@@ -74,7 +74,7 @@ namespace seahorn
      {
        const llvm::DataLayout *m_dl;
        const llvm::TargetLibraryInfo *m_tli;
-       
+
        typedef boost::unordered_map<const Node*, NodeInfo> NodeInfoMap;
        typedef typename NodeInfoMap::value_type binding_t;
 
@@ -122,7 +122,7 @@ namespace seahorn
 
        Graph* getGraph (const llvm::Function& f) const;
 
-       void addMemoryAccess (const llvm::Value* v, Graph* g); 
+       void addMemoryAccess (const llvm::Value* v, Graph& g); 
        void countMemoryAccesses (llvm::Function& f);
 
        void printMemoryAccesses (live_nodes_const_range nodes, llvm::raw_ostream&o) const;

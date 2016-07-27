@@ -127,7 +127,7 @@ namespace seahorn
     /// LLVM pass
 
     ContextInsensitiveGlobal::ContextInsensitiveGlobal () 
-        : ModulePass (ID), DsaGlobalPass (), m_ga (nullptr) {}
+        : DsaGlobalPass (ID), m_ga (nullptr) {}
           
     void ContextInsensitiveGlobal::getAnalysisUsage (AnalysisUsage &AU) const 
     {
@@ -386,7 +386,7 @@ namespace seahorn
     /// LLVM pass
 
     ContextSensitiveGlobal::ContextSensitiveGlobal () 
-        : ModulePass (ID), DsaGlobalPass (), m_ga (nullptr) {}
+        : DsaGlobalPass (ID), m_ga (nullptr) {}
           
     void ContextSensitiveGlobal::getAnalysisUsage (AnalysisUsage &AU) const 
     {

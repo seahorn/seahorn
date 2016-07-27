@@ -10,6 +10,8 @@
 #include <boost/range/iterator_range.hpp>
 #include "boost/iterator/filter_iterator.hpp"
 
+#include "seahorn/Analysis/DSA/Global.hh"
+
 /* Gather information for dsa clients and compute some stats */
 
 namespace llvm 
@@ -74,6 +76,7 @@ namespace seahorn
      {
        const llvm::DataLayout *m_dl;
        const llvm::TargetLibraryInfo *m_tli;
+       DsaGlobalPass *m_dsa;
 
        typedef boost::unordered_map<const Node*, NodeInfo> NodeInfoMap;
        typedef typename NodeInfoMap::value_type binding_t;
@@ -134,7 +137,7 @@ namespace seahorn
        
        static char ID;       
        
-       Info () : ModulePass (ID), m_dl(nullptr), m_tli(nullptr) {}
+       Info () : ModulePass (ID), m_dl(nullptr), m_tli(nullptr), m_dsa(nullptr) {}
 
        void getAnalysisUsage (llvm::AnalysisUsage &AU) const override;
 

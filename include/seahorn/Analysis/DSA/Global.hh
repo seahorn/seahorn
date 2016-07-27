@@ -127,10 +127,12 @@ namespace seahorn
 
     // Llvm passes
 
-    class DsaGlobalPass {
-     public:
+    class DsaGlobalPass: public ModulePass {
+     protected:
       
-      DsaGlobalPass () { }
+      DsaGlobalPass (char &ID): ModulePass (ID) { }
+
+     public:
 
       virtual const Graph& getGraph (const Function &F) const = 0;
 
@@ -139,7 +141,7 @@ namespace seahorn
       virtual bool hasGraph (const Function &F) const = 0 ;
     };  
 
-    class ContextInsensitiveGlobal : public ModulePass, DsaGlobalPass
+    class ContextInsensitiveGlobal : public DsaGlobalPass
     {
       
       Graph::SetFactory m_setFactory;
@@ -160,13 +162,13 @@ namespace seahorn
 
       const Graph& getGraph (const Function &fn) const override;
 
-      Graph& getGraph (const Function &fn) override ;
+      Graph& getGraph (const Function &fn) override;
 
       bool hasGraph (const Function &fn) const override;
 
     };
 
-    class ContextSensitiveGlobal : public ModulePass, DsaGlobalPass
+    class ContextSensitiveGlobal : public DsaGlobalPass
     {
       Graph::SetFactory m_setFactory;
       std::unique_ptr<ContextSensitiveGlobalAnalysis> m_ga;      

@@ -16,13 +16,12 @@
 using namespace seahorn::dsa;
 using namespace llvm;
 
-enum DsaKind { GLOBAL, CS_GLOBAL, BU};
+enum DsaKind { GLOBAL, CS_GLOBAL};
 llvm::cl::opt<DsaKind>
 DsaVariant("dsa-variant",
            llvm::cl::desc ("Choose the dsa variant"),
            llvm::cl::values 
-           (clEnumValN (BU       , "bu"       , "Bottom-up dsa analysis"),
-            clEnumValN (GLOBAL   , "global"   , "Context insensitive dsa analysis"),
+           (clEnumValN (GLOBAL   , "global"   , "Context insensitive dsa analysis"),
             clEnumValN (CS_GLOBAL, "cs-global", "Context sensitive dsa analysis"),
             clEnumValEnd),
            llvm::cl::init (GLOBAL));
@@ -41,10 +40,9 @@ void Info::getAnalysisUsage (AnalysisUsage &AU) const
 {
   AU.addRequired<DataLayoutPass> ();
   AU.addRequired<TargetLibraryInfo> ();
-  /// XXX: note that this will run the three Dsa variants
+  /// XXX: note that this will run all these Dsa variants.
   /// This is temporary for debugging purposes
   AU.addRequired<ContextInsensitiveGlobal> ();
-  AU.addRequired<BottomUp> ();
   AU.addRequired<ContextSensitiveGlobal> ();
   AU.setPreservesAll ();
 }
@@ -52,25 +50,9 @@ void Info::getAnalysisUsage (AnalysisUsage &AU) const
 // return null if there is no graph for f
 Graph* Info::getGraph(const Function&f) const
 {
-  /// XXX: this is temporary to allow us to test all variants.
-  if (DsaVariant == BU) 
-  {
-    if (getAnalysis<BottomUp>().hasGraph(f))
-      return &getAnalysis<BottomUp>().getGraph(f);
-  }
-  else if (DsaVariant == CS_GLOBAL) 
-  {
-    if (getAnalysis<ContextSensitiveGlobal>().hasGraph(f))
-      return &getAnalysis<ContextSensitiveGlobal>().getGraph(f);
-  }
-  
-  else if (DsaVariant == GLOBAL) 
-  { 
-    if (getAnalysis<ContextInsensitiveGlobal>().hasGraph(f))
-      return &getAnalysis<ContextInsensitiveGlobal>().getGraph(f);
-  }
-  
-  return nullptr;
+  Graph *g = nullptr;
+  if (m_dsa->hasGraph(f)) g = &m_dsa->getGraph(f);
+  return g;
 }
 
 bool Info::is_alive_node::operator()(const NodeInfo& n) 
@@ -276,6 +258,11 @@ bool Info::runOnModule (Module &M)
   m_dl = &getAnalysis<DataLayoutPass>().getDataLayout ();
   m_tli = &getAnalysis<TargetLibraryInfo> ();
 
+  if (DsaVariant == CS_GLOBAL) 
+    m_dsa = &getAnalysis<ContextSensitiveGlobal>();
+  else
+    m_dsa = &getAnalysis<ContextInsensitiveGlobal>();
+
   for (auto &f: M) { runOnFunction (f); }
     
   errs () << " ========== Begin Dsa info  ==========\n";
@@ -290,8 +277,7 @@ bool Info::runOnModule (Module &M)
 }
 
 bool Info::runOnFunction (Function &f) 
-{
-
+{  
   auto g = getGraph(f);
   if (!g) return false;
 

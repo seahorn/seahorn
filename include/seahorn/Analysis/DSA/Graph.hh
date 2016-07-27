@@ -300,8 +300,8 @@ namespace seahorn
       Graph *m_graph;
       /// node marks
       struct NodeType m_nodeType;
-      /// TODO: UNUSED
       mutable const llvm::Value *m_unique_scalar;
+      bool m_first_unique_scalar;
       /// When the node is forwarding, the memory cell at which the
       /// node begins in some other memory object
       Cell m_forward;
@@ -321,7 +321,8 @@ namespace seahorn
       typedef boost::container::flat_set<const llvm::Value*> AllocaSet;
       AllocaSet m_alloca_sites;
 
-      Node (Graph &g) : m_graph (&g), m_unique_scalar (nullptr), m_size (0) {}
+      Node (Graph &g) : m_graph (&g), m_unique_scalar (nullptr), 
+                        m_first_unique_scalar (true), m_size (0) {}
 
       Node (Graph &g, const Node &n, bool copyLinks = false);
       
@@ -411,8 +412,10 @@ namespace seahorn
       
       bool isUnique () const { return m_unique_scalar; }
       const llvm::Value *getUniqueScalar () const { return m_unique_scalar; }
-      void setUniqueScalar (const llvm::Value *v) {m_unique_scalar = v;}
-      
+      void setUniqueScalar (const llvm::Value *v) 
+      {m_unique_scalar = v; m_first_unique_scalar=false;}
+      bool isFirstUniqueScalar () const { return m_first_unique_scalar;}
+
       inline bool isForwarding () const;
       
       

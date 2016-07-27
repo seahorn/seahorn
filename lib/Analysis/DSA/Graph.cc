@@ -613,10 +613,12 @@ dsa::Cell &dsa::Graph::mkCell (const llvm::Value &v, const Cell &c)
   if (!res)
   {
     res.reset (new Cell (c));
-    if (res->getOffset () == 0)
+    if (res->getOffset () == 0 && res->getNode ())
     {
-      assert (!res->getNode ()->isUnique () && "Not sure this is possible");
-      res->getNode ()->setUniqueScalar (&v);
+      if (res->getNode ()->isFirstUniqueScalar ())
+        res->getNode ()->setUniqueScalar (&v);
+      else
+        res->getNode ()->setUniqueScalar (nullptr);
     }
   }
   return *res;

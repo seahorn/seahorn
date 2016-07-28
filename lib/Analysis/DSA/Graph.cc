@@ -615,7 +615,7 @@ dsa::Cell &dsa::Graph::mkCell (const llvm::Value &v, const Cell &c)
     res.reset (new Cell (c));
     if (res->getOffset () == 0 && res->getNode ())
     {
-      if (res->getNode ()->isFirstUniqueScalar ())
+      if (!(res->getNode ()->hasUniqueScalar ()))
         res->getNode ()->setUniqueScalar (&v);
       else
         res->getNode ()->setUniqueScalar (nullptr);

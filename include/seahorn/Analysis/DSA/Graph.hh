@@ -514,6 +514,14 @@ namespace seahorn
 
 }
 
+namespace llvm
+{
+    inline raw_ostream& operator<<(raw_ostream& o, const seahorn::dsa::Node &n) 
+    { n.write(o); return o; }
+    inline raw_ostream& operator<<(raw_ostream& o, const seahorn::dsa::Cell &c)
+    { c.write(o); return o; }
+}
+
 namespace std
 {
   template<> struct hash<seahorn::dsa::Cell>

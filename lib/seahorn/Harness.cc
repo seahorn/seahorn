@@ -163,7 +163,7 @@ namespace seahorn
           Args.push_back (ConstantInt::get (Type::getInt32Ty (getGlobalContext ()),
                                             dl.getTypeStoreSizeInBits (RT->getSequentialElementType ())));
         else
-          Args.push_back (ConstantInt::getFalse (Type::getInt32Ty (getGlobalContext ())));
+          Args.push_back (ConstantInt::get (Type::getInt32Ty (getGlobalContext ()), 0));
       }
       else
         assert (false && "Unknown return type");

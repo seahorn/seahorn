@@ -217,8 +217,7 @@ namespace seahorn
     {
       PropagationKind res = UP;
       SimulationMapper sm;
-      if (BottomUpAnalysis::
-          computeCalleeCallerMapping(cs, calleeG, callerG, true, sm)) 
+      if (Graph::computeCalleeCallerMapping(cs, calleeG, callerG, true, sm)) 
         res = (sm.isOneToMany () ? NONE: DOWN);
 
       return res;

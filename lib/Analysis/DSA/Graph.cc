@@ -17,6 +17,7 @@
 #include "seahorn/Analysis/DSA/CallSite.hh"
 
 #include "boost/range/algorithm/set_algorithm.hpp"
+#include "boost/range/iterator_range.hpp"
 
 #include "avy/AvyDebug.h"
 
@@ -686,41 +687,49 @@ void dsa::Node::dump() const {
   write(errs());
 }
 
-void dsa::Graph::computeCalleeCallerRenaming (const DsaCallSite &cs, 
-                                              Graph& calleeGraph,
-                                              FunctionalMapper& remap) 
+bool dsa::Graph::computeCalleeCallerMapping (const DsaCallSite &cs, 
+                                             Graph& calleeG, Graph &callerG, 
+                                             const bool onlyModified,
+                                             SimulationMapper& simMap) 
 {
-  const Function* callee = cs.getCallee();
-  if (!callee) { 
-    // XXX: no handle indirect calls
-    return;
+  for (auto &kv : boost::make_iterator_range (calleeG.globals_begin (),
+                                              calleeG.globals_end ()))
+  {
+    Cell &c = *kv.second;
+    if (!onlyModified || c.isModified ())
+    {
+      Cell &nc = callerG.mkCell (*kv.first, Cell ());
+      if (!simMap.insert (c, nc)) return false; 
+    }
   }
-
-  if (callee->isVarArg()) {
-    // TODO: functions with variable number of arguments
-    LOG ("dsa", errs () << "WARNING: ignored callsite with varargs");
-    return;
+  
+  const Function &callee = *cs.getCallee ();
+  if (calleeG.hasRetCell (callee) && callerG.hasCell (*cs.getInstruction ()))
+  {
+    const Cell &c = calleeG.getRetCell (callee);
+    if (!onlyModified || c.isModified()) 
+    {
+      Cell &nc = callerG.mkCell (*cs.getInstruction (), Cell());
+      if (!simMap.insert (c, nc)) return false; 
+    }
   }
-
-  // --- build a map from callee to caller
-
-  const Instruction *retVal = getReturnInst(*callee);
-  if (retVal && retVal->getType()->isPointerTy())
-    remap.insert(calleeGraph.getCell(*retVal), getCell(*(cs.getRetVal())));
   
   DsaCallSite::const_actual_iterator AI = cs.actual_begin(), AE = cs.actual_end();
   for (DsaCallSite::const_formal_iterator FI = cs.formal_begin(), FE = cs.formal_end();
        FI != FE && AI != AE; ++FI, ++AI) 
   {
+    const Value *fml = &*FI;
     const Value *arg = (*AI).get();
-    const Value *farg = &*FI;
-    if (calleeGraph.hasCell(*farg) && hasCell(*arg)) {
-      Cell &callee_cell = calleeGraph.mkCell(*farg, Cell());      
-      Cell &caller_cell = mkCell(*arg, Cell());
-      remap.insert(callee_cell, caller_cell);
+    if (calleeG.hasCell (*fml) &&  callerG.hasCell (*arg)) {
+      Cell &c = calleeG.mkCell (*fml, Cell ());
+      if (!onlyModified || c.isModified ()) 
+      {
+        Cell &nc = callerG.mkCell (*arg, Cell ());
+        if (!simMap.insert(c, nc)) return false; 
+      }
     }
-  }
-
+  }      
+  return true;
 }
 
 void dsa::Graph::import (const Graph &g, bool withFormals)

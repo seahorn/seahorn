@@ -27,53 +27,6 @@ namespace seahorn
   namespace dsa
   {
 
-    // Build a simulation mapping from calleeG to callerG
-    bool BottomUpAnalysis::
-    computeCalleeCallerMapping (const DsaCallSite &cs, 
-                                Graph &calleeG, Graph &callerG, 
-                                const bool onlyModified,
-                                SimulationMapper &simMap) 
-    {
-      for (auto &kv : boost::make_iterator_range (calleeG.globals_begin (),
-                                                  calleeG.globals_end ()))
-      {
-        Cell &c = *kv.second;
-        if (!onlyModified || c.isModified ())
-        {
-          Cell &nc = callerG.mkCell (*kv.first, Cell ());
-          if (!simMap.insert (c, nc)) return false; 
-        }
-      }
-
-      const Function &callee = *cs.getCallee ();
-      if (calleeG.hasRetCell (callee) && callerG.hasCell (*cs.getInstruction ()))
-      {
-        const Cell &c = calleeG.getRetCell (callee);
-        if (!onlyModified || c.isModified()) 
-        {
-          Cell &nc = callerG.mkCell (*cs.getInstruction (), Cell());
-          if (!simMap.insert (c, nc)) return false; 
-        }
-      }
-
-      DsaCallSite::const_actual_iterator AI = cs.actual_begin(), AE = cs.actual_end();
-      for (DsaCallSite::const_formal_iterator FI = cs.formal_begin(), FE = cs.formal_end();
-           FI != FE && AI != AE; ++FI, ++AI) 
-      {
-        const Value *fml = &*FI;
-        const Value *arg = (*AI).get();
-        if (calleeG.hasCell (*fml) &&  callerG.hasCell (*arg)) {
-          Cell &c = calleeG.mkCell (*fml, Cell ());
-          if (!onlyModified || c.isModified ()) 
-          {
-            Cell &nc = callerG.mkCell (*arg, Cell ());
-            if (!simMap.insert(c, nc)) return false; 
-          }
-        }
-      }      
-      return true;
-    }
-
     // Clone callee nodes into caller and resolve arguments
     void BottomUpAnalysis::
     cloneAndResolveArguments (const DsaCallSite &CS, Graph& calleeG, Graph& callerG)
@@ -166,13 +119,13 @@ namespace seahorn
   
             cloneAndResolveArguments (dsaCS, calleeG, callerG);
 
-            SimulationMapperRef simMap (new SimulationMapper());
-            bool res = computeCalleeCallerMapping(dsaCS, calleeG, callerG, true, *simMap);
+            SimulationMapperRef sm (new SimulationMapper());
+            bool res = Graph::computeCalleeCallerMapping(dsaCS, calleeG, callerG, true, *sm);
             LOG ("dsa-bu", 
                  if (!res) errs () << *(dsaCS.getInstruction())  << "\n"
                                    << "  --- Caller does not simulate callee\n";);
             assert (res);
-            m_callee_caller_map.insert(std::make_pair(dsaCS.getInstruction(), simMap));
+            m_callee_caller_map.insert(std::make_pair(dsaCS.getInstruction(), sm));
 
           }
         }

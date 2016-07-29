@@ -124,9 +124,14 @@ namespace seahorn
 
       const Cell &getRetCell (const llvm::Function &fn) const; 
 
-      void computeCalleeCallerRenaming (const DsaCallSite &cs, 
-                                        Graph& calleeGraph,
-                                        FunctionalMapper& remap);
+      /// compute a map from callee nodes to caller nodes
+      // 
+      /// XXX: we might want to make the last argument a template
+      /// parameter but then the definition should be in a header file.
+      static bool computeCalleeCallerMapping (const DsaCallSite &cs, 
+                                              Graph& calleeG, Graph& callerG,
+                                              const bool onlyModified,
+                                              SimulationMapper& simMap);
       
       /// import the given graph into the current one
       /// copies all nodes from g and unifies all common scalars

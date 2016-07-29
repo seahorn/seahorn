@@ -10,6 +10,7 @@ add_llvm_library (seahorn.LIB
   FlatHornifyFunction.cc
   HornWrite.cc
   HornSolver.cc
+  Houdini.cc
   HornCex.cc
   Harness.cc
   ClpWrite.cc

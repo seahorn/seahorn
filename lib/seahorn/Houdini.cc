@@ -78,11 +78,12 @@ namespace seahorn
     std::map<Expr, ExprVector> relationToPositiveStateMap;
     //generatePositiveWitness(relationToPositiveStateMap, db, hm);
 
-    int config = EACH_RELATION_A_SOLVER;
+    int config = EACH_RULE_A_SOLVER;
 
     LOG("dbcheck", errs() << "INITIAL DB:\n";);
     LOG("dbcheck", errs() << db << "\n";);
 
+    guessCandidate(db);
     Stats::resume ("Houdini inv");
     runHoudini(db, hm, db_wto, config);
     Stats::stop ("Houdini inv");
@@ -270,8 +271,6 @@ namespace seahorn
    */
   void Houdini::runHoudini(HornClauseDB &db, HornifyModule &hm, HornClauseDBWto &db_wto, int config)
   {
-	  guessCandidate(db);
-
 	  LOG("houdini", errs() << "CAND MAP:\n";);
 	  LOG("houdini", errs() << "MAP SIZE: " << currentCandidates.size() << "\n";);
 	  for(std::map<Expr, Expr>::iterator it = currentCandidates.begin(); it!= currentCandidates.end(); ++it)

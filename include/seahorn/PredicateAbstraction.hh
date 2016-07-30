@@ -16,12 +16,40 @@ namespace seahorn
 	using namespace llvm;
 	class PredicateAbstraction : public llvm::ModulePass
 	{
+		std::unique_ptr<ufo::ZFixedPoint <ufo::EZ3> >  m_fp;
 	public:
 	    static char ID;
 
 	    PredicateAbstraction() : ModulePass(ID) {}
-	    virtual ~PredicateAbstraction()
-	    {
+	    virtual ~PredicateAbstraction() {}
+	    virtual bool runOnModule (Module &M);
+	    virtual void getAnalysisUsage (AnalysisUsage &AU) const;
+	    virtual const char* getPassName () const {return "PredicateAbstraction";}
+
+	private:
+	    static std::map<Expr, int> predToBiNumMap;
+	    static std::map<Expr, Expr> oldToNewPredMap;
+	    static std::map<Expr, Expr> currentCandidates;
+
+	public:
+	    void guessCandidate(HornClauseDB &db);
+	    Expr relToCand(Expr fdecl);
+	    HornClauseDB runOnDB(HornClauseDB &db);
+	    Expr fAppToCandApp(Expr fapp);
+	    Expr applyArgsToBvars(Expr cand, Expr fapp);
+	    ExprMap getBvarsToArgsMap(Expr fapp);
+	    Expr extractTransitionRelation(HornRule r, HornClauseDB &db);
+
+	    template<typename OutputIterator>
+	    void get_all_pred_apps (Expr e, HornClauseDB &db, OutputIterator out);
+
+	    template<typename OutputIterator>
+	    void get_all_bvars (Expr e, OutputIterator out);
+
+	    ufo::ZFixedPoint<ufo::EZ3>& getZFixedPoint () {return *m_fp;}
+		void releaseMemory ()
+		{
+			m_fp.reset (nullptr);
 //			for(std::map<Expr, Expr>::iterator it = predToBiMap.begin(); it!= predToBiMap.end(); ++it)
 //			{
 //				intrusive_ptr_release(it->second);
@@ -42,31 +70,10 @@ namespace seahorn
 //				intrusive_ptr_release(it->second.get());
 //			}
 //			currentCandidates.clear();
-	    }
+		}
 
-	    virtual bool runOnModule (Module &M);
-	    virtual void getAnalysisUsage (AnalysisUsage &AU) const;
-	    virtual const char* getPassName () const {return "PredicateAbstraction";}
-
-	private:
-	    static std::map<Expr, int> predToBiNumMap;
-	    static std::map<Expr, Expr> oldToNewPredMap;
-	    static std::map<Expr, Expr> currentCandidates;
-
-	public:
-	    void guessCandidate(HornClauseDB &db);
-	    Expr relToCand(Expr fdecl);
-	    void runOnDB(HornClauseDB &db);
-	    Expr fAppToCandApp(Expr fapp);
-	    Expr applyArgsToBvars(Expr cand, Expr fapp);
-	    ExprMap getBvarsToArgsMap(Expr fapp);
-	    Expr extractTransitionRelation(HornRule r, HornClauseDB &db);
-
-	    template<typename OutputIterator>
-	    void get_all_pred_apps (Expr e, HornClauseDB &db, OutputIterator out);
-
-	    template<typename OutputIterator>
-	    void get_all_bvars (Expr e, OutputIterator out);
+		void printInvars (Function &F);
+		void printInvars (Module &M);
 	};
 }
 

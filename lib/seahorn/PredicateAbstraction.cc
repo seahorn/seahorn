@@ -34,17 +34,27 @@ namespace seahorn
 		auto &db = hm.getHornClauseDB ();
 		db.buildIndexes ();
 
-		//build the wto
-		HornClauseDBCallGraph callgraph(db);
-		HornClauseDBWto db_wto(callgraph);
-		db_wto.buildWto();
-
 		//guess candidates
 		guessCandidate(db);
 
 		//run main algorithm
-		runOnDB(db);
+		HornClauseDB new_db = runOnDB(db);
 
+		//initialize spacer based on new DB
+//		m_fp.reset (new ZFixedPoint<EZ3> (hm.getZContext ()));
+//		ZFixedPoint<EZ3> &fp = *m_fp;
+//		ZParams<EZ3> params (hm.getZContext ());
+//		params.set (":engine", "horn-pdr-engine");
+//		fp.set (params);
+//		new_db.loadZFixedPoint (fp, false);
+//		boost::tribool result = fp.query ();
+//
+//		if (result) outs () << "sat";
+//		else if (!result) outs () << "unsat";
+//		else outs () << "unknown";
+//		outs () << "\n";
+//
+//		printInvars (M);
 
 		return false;
 	}
@@ -55,8 +65,11 @@ namespace seahorn
 	    AU.setPreservesAll();
 	}
 
-	void PredicateAbstraction::runOnDB(HornClauseDB &db)
+	HornClauseDB PredicateAbstraction::runOnDB(HornClauseDB &db)
 	{
+		outs() << "OLD DB: \n";
+		outs() << db << "\n";
+
 		HornClauseDB new_DB(db.getExprFactory ());
 		int index = 0;
 
@@ -226,8 +239,33 @@ namespace seahorn
 			HornRule new_rule(r.vars (), new_rule_head, new_rule_body);
 			new_DB.addRule(new_rule);
 		}
+
+		//Deal with queries
+//		outs() << "QUERY NUM: " <<db.getQueries().size() << "\n";
+//		for(ExprVector::iterator it = db.getQueries().begin(); it!=db.getQueries().end(); ++it)
+//		{
+//			Expr old_query = *it;
+//			outs() << "OLD QUERY: " << *old_query << "\n";
+//			Expr old_rel = bind::fname(old_query);
+//			outs() << "OLD REL: " << *old_rel << "\n";
+//			Expr new_rel = oldToNewPredMap.find(old_rel)->second;
+//			outs() << "NEW REL: " << *new_rel << "\n";
+//			ExprVector new_args;
+//			for(int i=0; i<oldToNewPredMap.size(); i++)
+//			{
+//				std::ostringstream oss;
+//				oss << "b" << i;
+//				Expr bi = bind::boolVar(mkTerm<std::string>(oss.str(), db.getExprFactory ()));
+//				new_args.push_back(bi);
+//			}
+//			Expr new_query = bind::fapp(new_rel, new_args);
+//			outs() << "NEW QUERY: " << *new_query << "\n";
+//			new_DB.addQuery(new_query);
+//		}
+
 		outs() << "NEW DB: \n";
 		outs() << new_DB << "\n";
+		return new_DB;
 	}
 
 	void PredicateAbstraction::guessCandidate(HornClauseDB &db)
@@ -367,4 +405,42 @@ namespace seahorn
 	template<typename OutputIterator>
 	void PredicateAbstraction::get_all_bvars (Expr e, OutputIterator out)
 	{filter (e, IsBVar(), out);}
+
+	void PredicateAbstraction::printInvars (Module &M)
+	{
+		for (auto &F : M) printInvars (F);
+	}
+
+	void PredicateAbstraction::printInvars (Function &F)
+	{
+		if (F.isDeclaration ()) return;
+
+		HornifyModule &hm = getAnalysis<HornifyModule> ();
+		outs () << "Function: " << F.getName () << "\n";
+
+		// -- not used for now
+		Expr summary = hm.summaryPredicate (F);
+
+		ZFixedPoint<EZ3> fp = *m_fp;
+
+		for (auto &BB : F)
+		{
+		  if (!hm.hasBbPredicate (BB)) continue;
+
+		  Expr bbPred = hm.bbPredicate (BB);
+
+		  outs () << *bind::fname (bbPred) << ":";
+		  const ExprVector &live = hm.live (BB);
+		  Expr invars = fp.getCoverDelta (bind::fapp (bbPred, live));
+
+		  if (isOpX<AND> (invars))
+		  {
+			outs () << "\n\t";
+			for (size_t i = 0; i < invars->arity (); ++i)
+			  outs () << "\t" << *invars->arg (i) << "\n";
+		  }
+		  else
+			outs () << " " << *invars << "\n";
+		}
+	}
 }

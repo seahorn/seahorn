@@ -78,7 +78,7 @@ namespace seahorn
     std::map<Expr, ExprVector> relationToPositiveStateMap;
     //generatePositiveWitness(relationToPositiveStateMap, db, hm);
 
-    int config = NAIVE;
+    int config = EACH_RELATION_A_SOLVER;
 
     LOG("dbcheck", errs() << "INITIAL DB:\n";);
     LOG("dbcheck", errs() << db << "\n";);

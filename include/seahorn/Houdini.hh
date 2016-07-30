@@ -15,53 +15,60 @@ namespace seahorn
 {
   using namespace llvm;
 
-  class Houdini : public llvm::ModulePass
+  class HoudiniPass : public llvm::ModulePass
   {
   public:
     static char ID;
 
-    Houdini() : ModulePass(ID) {}
-    virtual ~Houdini() {}
+    HoudiniPass() : ModulePass(ID) {}
+    virtual ~HoudiniPass() {}
 
     virtual bool runOnModule (Module &M);
     virtual void getAnalysisUsage (AnalysisUsage &AU) const;
     virtual const char* getPassName () const {return "Houdini";}
+  };
 
+  class Houdini
+  {
+  public:
+	  Houdini(HornifyModule &hm) : m_hm(hm)  {}
+	  virtual ~Houdini() {}
   private:
-    static std::map<Expr,Expr> currentCandidates;
+	  HornifyModule &m_hm;
+      static std::map<Expr,Expr> currentCandidates;
 
-  public:
-    std::map<Expr,Expr>& getCurrentCandidates() {return currentCandidates;}
+    public:
+      std::map<Expr,Expr>& getCurrentCandidates() {return currentCandidates;}
 
-  public:
-    Expr relToCand(Expr pred);
-    void guessCandidate(HornClauseDB &db);
-    void runHoudini(HornClauseDB &db, HornifyModule &hm, HornClauseDBWto &db_wto, int config);
+    public:
+      Expr relToCand(Expr pred);
+      void guessCandidate(HornClauseDB &db);
+      void runHoudini(HornifyModule &hm, int config);
 
-    //Utility Functions
-    Expr fAppToCandApp(Expr fapp);
-    Expr applyArgsToBvars(Expr cand, Expr fapp);
-    ExprMap getBvarsToArgsMap(Expr fapp);
+      //Utility Functions
+      Expr fAppToCandApp(Expr fapp);
+      Expr applyArgsToBvars(Expr cand, Expr fapp);
+      ExprMap getBvarsToArgsMap(Expr fapp);
 
-    Expr extractTransitionRelation(HornRule r, HornClauseDB &db);
+      Expr extractTransitionRelation(HornRule r, HornClauseDB &db);
 
-    template<typename OutputIterator>
-	void get_all_bvars (Expr e, OutputIterator out);
+      template<typename OutputIterator>
+  	void get_all_bvars (Expr e, OutputIterator out);
 
-	template<typename OutputIterator>
-	void get_all_pred_apps (Expr e, HornClauseDB &db, OutputIterator out);
+  	template<typename OutputIterator>
+  	void get_all_pred_apps (Expr e, HornClauseDB &db, OutputIterator out);
 
-    //Functions for generating Positive Examples
-    void generatePositiveWitness(std::map<Expr, ExprVector> &relationToPositiveStateMap, HornClauseDB &db, HornifyModule &hm);
-    void getReachableStates(std::map<Expr, ExprVector> &relationToPositiveStateMap, Expr from_pred, Expr from_pred_state, HornClauseDB &db, HornifyModule &hm);
-    void getRuleHeadState(std::map<Expr, ExprVector> &relationToPositiveStateMap, HornRule r, Expr from_pred_state, HornClauseDB &db, HornifyModule &hm);
+      //Functions for generating Positive Examples
+      void generatePositiveWitness(std::map<Expr, ExprVector> &relationToPositiveStateMap, HornClauseDB &db, HornifyModule &hm);
+      void getReachableStates(std::map<Expr, ExprVector> &relationToPositiveStateMap, Expr from_pred, Expr from_pred_state, HornClauseDB &db, HornifyModule &hm);
+      void getRuleHeadState(std::map<Expr, ExprVector> &relationToPositiveStateMap, HornRule r, Expr from_pred_state, HornClauseDB &db, HornifyModule &hm);
 
-    //Add Houdini invs to default solver
-    void addInvarCandsToProgramSolver(HornClauseDB &db);
+      //Add Houdini invs to default solver
+      void addInvarCandsToProgramSolver(HornClauseDB &db);
 
-    //Functions for generating complex invariants
-    Expr applyComplexTemplates(Expr fdecl);
-    void generateLemmasForOneBvar(Expr bvar, ExprVector &conjuncts);
+      //Functions for generating complex invariants
+      Expr applyComplexTemplates(Expr fdecl);
+      void generateLemmasForOneBvar(Expr bvar, ExprVector &conjuncts);
   };
 
   class HoudiniContext

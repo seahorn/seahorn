@@ -27,22 +27,47 @@ namespace seahorn
   #define EACH_RULE_A_SOLVER 1
   #define EACH_RELATION_A_SOLVER 2
 
-  char Houdini::ID = 0;
+  /*HoudiniPass methods begin*/
+
+  char HoudiniPass::ID = 0;
+
+  bool HoudiniPass::runOnModule (Module &M)
+  {
+    HornifyModule &hm = getAnalysis<HornifyModule> ();
+    int config = EACH_RULE_A_SOLVER;
+
+    Stats::resume ("Houdini inv");
+    Houdini houdini(hm);
+    houdini.runHoudini(hm, config);
+    Stats::stop ("Houdini inv");
+
+    return false;
+  }
+
+  void HoudiniPass::getAnalysisUsage (AnalysisUsage &AU) const
+  {
+    AU.addRequired<HornifyModule> ();
+    AU.setPreservesAll();
+  }
+
+  /*HoudiniPass methods end*/
+
+  /*Houdini methods begin*/
 
   struct IsBVar : public std::unary_function<Expr, bool>
   {
-     IsBVar () {}
-     bool operator() (Expr e)
-     {return bind::isBVar (e);}
+	   IsBVar () {}
+	   bool operator() (Expr e)
+	   {return bind::isBVar (e);}
   };
 
   struct IsPredApp : public std::unary_function<Expr, bool>
   {
-     HornClauseDB &m_db;
-     IsPredApp (HornClauseDB &db) : m_db (db) {}
+	   HornClauseDB &m_db;
+	   IsPredApp (HornClauseDB &db) : m_db (db) {}
 
-     bool operator() (Expr e)
-     {return bind::isFapp (e) && m_db.hasRelation (bind::fname(e));}
+	   bool operator() (Expr e)
+	   {return bind::isFapp (e) && m_db.hasRelation (bind::fname(e));}
   };
 
   /*
@@ -60,47 +85,6 @@ namespace seahorn
   {filter (e, IsPredApp(db), out);}
 
   std::map<Expr, Expr> Houdini::currentCandidates;	//a map from predicates to candidates
-
-  bool Houdini::runOnModule (Module &M)
-  {
-    HornifyModule &hm = getAnalysis<HornifyModule> ();
-
-    //load the Horn clause database
-    auto &db = hm.getHornClauseDB ();
-    db.buildIndexes ();
-
-    //build the wto
-    HornClauseDBCallGraph callgraph(db);
-    HornClauseDBWto db_wto(callgraph);
-    db_wto.buildWto();
-
-    //generate positive states
-    std::map<Expr, ExprVector> relationToPositiveStateMap;
-    //generatePositiveWitness(relationToPositiveStateMap, db, hm);
-
-    int config = EACH_RULE_A_SOLVER;
-
-    LOG("dbcheck", errs() << "INITIAL DB:\n";);
-    LOG("dbcheck", errs() << db << "\n";);
-
-    guessCandidate(db);
-    Stats::resume ("Houdini inv");
-    runHoudini(db, hm, db_wto, config);
-    Stats::stop ("Houdini inv");
-
-    addInvarCandsToProgramSolver(db);
-
-    LOG("dbcheck", errs() << "FINAL DB:\n";);
-    LOG("dbcheck", errs() << db << "\n";);
-
-    return false;
-  }
-
-  void Houdini::getAnalysisUsage (AnalysisUsage &AU) const
-  {
-    AU.addRequired<HornifyModule> ();
-    AU.setPreservesAll();
-  }
 
   void Houdini::addInvarCandsToProgramSolver(HornClauseDB &db)
   {
@@ -269,8 +253,24 @@ namespace seahorn
   /*
    * Main loop of Houdini algorithm
    */
-  void Houdini::runHoudini(HornClauseDB &db, HornifyModule &hm, HornClauseDBWto &db_wto, int config)
+  void Houdini::runHoudini(HornifyModule &hm, int config)
   {
+	  //load the Horn clause database
+	  auto &db = hm.getHornClauseDB ();
+	  db.buildIndexes ();
+
+	  //build the wto
+	  HornClauseDBCallGraph callgraph(db);
+	  HornClauseDBWto db_wto(callgraph);
+	  db_wto.buildWto();
+
+	  //generate positive states
+	  std::map<Expr, ExprVector> relationToPositiveStateMap;
+	  //generatePositiveWitness(relationToPositiveStateMap, db, hm);
+
+	  //guess invariant candidates
+	  guessCandidate(db);
+
 	  LOG("houdini", errs() << "CAND MAP:\n";);
 	  LOG("houdini", errs() << "MAP SIZE: " << currentCandidates.size() << "\n";);
 	  for(std::map<Expr, Expr>::iterator it = currentCandidates.begin(); it!= currentCandidates.end(); ++it)
@@ -281,7 +281,7 @@ namespace seahorn
 
 	  std::list<HornRule> workList;
 	  workList.insert(workList.end(), db.getRules().begin(), db.getRules().end());
-	  //workList.reverse();
+	  workList.reverse();
 
 	  if (config == EACH_RULE_A_SOLVER)
 	  {
@@ -298,6 +298,8 @@ namespace seahorn
 		  Houdini_Naive houdini_naive(*this, db, hm, db_wto, workList);
 		  houdini_naive.run();
 	  }
+
+	  addInvarCandsToProgramSolver(db);
   }
 
   void Houdini_Naive::run()

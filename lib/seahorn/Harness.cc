@@ -19,9 +19,10 @@ namespace seahorn
       return Constant::getIntegerValue (ty, APInt(dl.getTypeStoreSizeInBits(ty), 1));
     else if (isOpX<FALSE> (e))
       return Constant::getNullValue (ty);
-    else if (isOpX<MPZ> (e))
+    else if (isOpX<MPZ> (e) || bv::is_bvnum (e))
     {
-      mpz_class mpz = getTerm<mpz_class> (e);
+      mpz_class mpz;
+      mpz = isOpX<MPZ> (e) ? getTerm<mpz_class> (e) : getTerm<mpz_class> (e->arg (0));
       if (ty->isIntegerTy () || ty->isPointerTy())
       {
         return Constant::getIntegerValue (ty,

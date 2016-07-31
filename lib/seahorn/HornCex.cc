@@ -6,6 +6,9 @@
 
 #include "boost/range/algorithm/reverse.hpp"
 
+#include "seahorn/UfoSymExec.hh"
+#include "seahorn/BvSymExec.hh"
+
 #include "seahorn/HornifyModule.hh"
 #include "seahorn/HornSolver.hh"
 #include "seahorn/Analysis/CutPointGraph.hh"
@@ -41,6 +44,11 @@
 static llvm::cl::opt<std::string>
 HornCexFile("horn-cex", llvm::cl::desc("Counterexample in SV-COMP (.xml) or LLVM bitcode (.bc or .ll) format"),
               llvm::cl::init(""), llvm::cl::value_desc("filename"));
+
+static llvm::cl::opt<bool>
+UseBv ("horn-cex-bv",
+       llvm::cl::desc("Construct bit-precise counterexamples"),
+       llvm::cl::init (false));
 
 static llvm::cl::opt<std::string>
 SvCompCexFileSpec("horn-svcomp-cex-spec", 
@@ -170,8 +178,13 @@ namespace seahorn
     // -- semantics. Possibly different than the semantics used by the
     // -- HornSolver
     ExprFactory &efac = hm.getExprFactory ();
-    UfoSmallSymExec sem (efac, *this, MEM);
-    BmcEngine bmc (sem, hm.getZContext ());
+    
+    UfoSmallSymExec semUfo (efac, *this, MEM);
+    BvSmallSymExec semBv (efac, *this, MEM);
+    
+    SmallStepSymExec *sem = UseBv ? static_cast<SmallStepSymExec*>(&semBv) :
+      static_cast<SmallStepSymExec*>(&semUfo);
+    BmcEngine bmc (*sem, hm.getZContext ());
     
     // -- load the trace into the engine
     for (const CutPoint *cp : cpTrace)

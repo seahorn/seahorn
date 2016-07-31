@@ -28,6 +28,17 @@ namespace seahorn
     virtual const char* getPassName () const {return "Houdini";}
   };
 
+  class GuessCandidates
+  {
+  public:
+	  static std::map<Expr, Expr> guessCandidates(HornClauseDB &db);
+	  //Simple templates
+	  static Expr relToCand(Expr pred);
+	  //Functions for generating complex invariants
+	  static Expr applyComplexTemplates(Expr fdecl);
+	  static void generateLemmasForOneBvar(Expr bvar, ExprVector &conjuncts);
+  };
+
   class Houdini
   {
   public:
@@ -35,15 +46,14 @@ namespace seahorn
 	  virtual ~Houdini() {}
   private:
 	  HornifyModule &m_hm;
-      static std::map<Expr,Expr> currentCandidates;
+      std::map<Expr,Expr> currentCandidates;
 
     public:
       std::map<Expr,Expr>& getCurrentCandidates() {return currentCandidates;}
+      void setInitialCandidatesSet(std::map<Expr, Expr> candidates) {currentCandidates = candidates;}
 
     public:
-      Expr relToCand(Expr pred);
-      void guessCandidate(HornClauseDB &db);
-      void runHoudini(HornifyModule &hm, int config);
+      void runHoudini(int config);
 
       //Utility Functions
       Expr fAppToCandApp(Expr fapp);
@@ -53,22 +63,18 @@ namespace seahorn
       Expr extractTransitionRelation(HornRule r, HornClauseDB &db);
 
       template<typename OutputIterator>
-  	void get_all_bvars (Expr e, OutputIterator out);
+  	  void get_all_bvars (Expr e, OutputIterator out);
 
-  	template<typename OutputIterator>
-  	void get_all_pred_apps (Expr e, HornClauseDB &db, OutputIterator out);
+  	  template<typename OutputIterator>
+  	  void get_all_pred_apps (Expr e, HornClauseDB &db, OutputIterator out);
 
       //Functions for generating Positive Examples
-      void generatePositiveWitness(std::map<Expr, ExprVector> &relationToPositiveStateMap, HornClauseDB &db, HornifyModule &hm);
-      void getReachableStates(std::map<Expr, ExprVector> &relationToPositiveStateMap, Expr from_pred, Expr from_pred_state, HornClauseDB &db, HornifyModule &hm);
-      void getRuleHeadState(std::map<Expr, ExprVector> &relationToPositiveStateMap, HornRule r, Expr from_pred_state, HornClauseDB &db, HornifyModule &hm);
+      void generatePositiveWitness(std::map<Expr, ExprVector> &relationToPositiveStateMap);
+      void getReachableStates(std::map<Expr, ExprVector> &relationToPositiveStateMap, Expr from_pred, Expr from_pred_state);
+      void getRuleHeadState(std::map<Expr, ExprVector> &relationToPositiveStateMap, HornRule r, Expr from_pred_state);
 
       //Add Houdini invs to default solver
-      void addInvarCandsToProgramSolver(HornClauseDB &db);
-
-      //Functions for generating complex invariants
-      Expr applyComplexTemplates(Expr fdecl);
-      void generateLemmasForOneBvar(Expr bvar, ExprVector &conjuncts);
+      void addInvarCandsToProgramSolver();
   };
 
   class HoudiniContext

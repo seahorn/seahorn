@@ -34,11 +34,13 @@ namespace seahorn
   bool HoudiniPass::runOnModule (Module &M)
   {
     HornifyModule &hm = getAnalysis<HornifyModule> ();
+    //Use commandline option to replace it.
     int config = EACH_RULE_A_SOLVER;
 
     Stats::resume ("Houdini inv");
     Houdini houdini(hm);
-    houdini.runHoudini(hm, config);
+    houdini.setInitialCandidatesSet(GuessCandidates::guessCandidates(hm.getHornClauseDB()));
+    houdini.runHoudini(config);
     Stats::stop ("Houdini inv");
 
     return false;
@@ -52,61 +54,12 @@ namespace seahorn
 
   /*HoudiniPass methods end*/
 
-  /*Houdini methods begin*/
-
-  struct IsBVar : public std::unary_function<Expr, bool>
-  {
-	   IsBVar () {}
-	   bool operator() (Expr e)
-	   {return bind::isBVar (e);}
-  };
-
-  struct IsPredApp : public std::unary_function<Expr, bool>
-  {
-	   HornClauseDB &m_db;
-	   IsPredApp (HornClauseDB &db) : m_db (db) {}
-
-	   bool operator() (Expr e)
-	   {return bind::isFapp (e) && m_db.hasRelation (bind::fname(e));}
-  };
-
-  /*
-   * Extract all bvars in an expression
-   */
-  template<typename OutputIterator>
-  void Houdini::get_all_bvars (Expr e, OutputIterator out)
-  {filter (e, IsBVar(), out);}
-
-  /*
-   * Extract all predicates in an expression
-   */
-  template<typename OutputIterator>
-  void Houdini::get_all_pred_apps (Expr e, HornClauseDB &db, OutputIterator out)
-  {filter (e, IsPredApp(db), out);}
-
-  std::map<Expr, Expr> Houdini::currentCandidates;	//a map from predicates to candidates
-
-  void Houdini::addInvarCandsToProgramSolver(HornClauseDB &db)
-  {
-	  for(HornClauseDB::RuleVector::iterator it = db.getRules().begin(); it != db.getRules().end(); ++it)
-	  {
-			HornRule r = *it;
-			Expr rhead_app = r.head();
-			Expr rhead_cand_app = fAppToCandApp(rhead_app);
-			LOG("candidates", errs() << "HEAD: " << *rhead_app << "\n";);
-			LOG("candidates", errs() << "CAND: " << *rhead_cand_app << "\n";);
-			if(!isOpX<TRUE>(rhead_cand_app))
-			{
-				LOG("candidates", errs() << "ADD CONSTRAINT\n";);
-				db.addConstraint(rhead_app, rhead_cand_app);
-			}
-	  }
-  }
+  /*GuessCandidates methods begin*/
 
   /*
    * Use simple template to convert a predicate to candidate
    */
-  Expr Houdini::relToCand(Expr fdecl)
+  Expr GuessCandidates::relToCand(Expr fdecl)
   {
 	ExprVector bvars;
 	ExprVector bins;   // a vector of LT expressions
@@ -164,7 +117,7 @@ namespace seahorn
   /*
    * Use complex templates to convert a predicate to candidate
    */
-  Expr Houdini::applyComplexTemplates(Expr fdecl)
+  Expr GuessCandidates::applyComplexTemplates(Expr fdecl)
   {
 	ExprVector bvars;
 	ExprVector conjuncts;   // a vector of conjuncts
@@ -221,7 +174,7 @@ namespace seahorn
 	return cand;
   }
 
-  void Houdini::generateLemmasForOneBvar(Expr bvar, ExprVector &conjuncts)
+  void GuessCandidates::generateLemmasForOneBvar(Expr bvar, ExprVector &conjuncts)
   {
 	  Expr zero = mkTerm<mpz_class> (0, bvar->efac());
 	  Expr one = mkTerm<mpz_class> (1, bvar->efac());
@@ -237,26 +190,82 @@ namespace seahorn
   /*
    * Build the map from predicates to candidates
    */
-  void Houdini::guessCandidate(HornClauseDB &db)
+  std::map<Expr, Expr> GuessCandidates::guessCandidates(HornClauseDB &db)
   {
+	  std::map<Expr, Expr> candidates;
 	  for(Expr rel : db.getRelations())
 	  {
 		  if(bind::isFdecl(rel))
 		  {
 			  Expr cand = relToCand(rel);
 			  //Expr cand = applyComplexTemplates(rel);
-			  currentCandidates.insert(std::pair<Expr, Expr>(rel, cand));
+			  candidates.insert(std::pair<Expr, Expr>(rel, cand));
 		  }
+	  }
+	  return candidates;
+  }
+
+  /*GuessCandidates methods end*/
+
+  /*Houdini methods begin*/
+
+  struct IsBVar : public std::unary_function<Expr, bool>
+  {
+	   IsBVar () {}
+	   bool operator() (Expr e)
+	   {return bind::isBVar (e);}
+  };
+
+  struct IsPredApp : public std::unary_function<Expr, bool>
+  {
+	   HornClauseDB &m_db;
+	   IsPredApp (HornClauseDB &db) : m_db (db) {}
+
+	   bool operator() (Expr e)
+	   {return bind::isFapp (e) && m_db.hasRelation (bind::fname(e));}
+  };
+
+  /*
+   * Extract all bvars in an expression
+   */
+  template<typename OutputIterator>
+  void Houdini::get_all_bvars (Expr e, OutputIterator out)
+  {filter (e, IsBVar(), out);}
+
+  /*
+   * Extract all predicates in an expression
+   */
+  template<typename OutputIterator>
+  void Houdini::get_all_pred_apps (Expr e, HornClauseDB &db, OutputIterator out)
+  {filter (e, IsPredApp(db), out);}
+
+  //std::map<Expr, Expr> Houdini::currentCandidates;	//a map from predicates to candidates
+
+  void Houdini::addInvarCandsToProgramSolver()
+  {
+	  auto &db = m_hm.getHornClauseDB();
+	  for(HornClauseDB::RuleVector::iterator it = db.getRules().begin(); it != db.getRules().end(); ++it)
+	  {
+			HornRule r = *it;
+			Expr rhead_app = r.head();
+			Expr rhead_cand_app = fAppToCandApp(rhead_app);
+			LOG("candidates", errs() << "HEAD: " << *rhead_app << "\n";);
+			LOG("candidates", errs() << "CAND: " << *rhead_cand_app << "\n";);
+			if(!isOpX<TRUE>(rhead_cand_app))
+			{
+				LOG("candidates", errs() << "ADD CONSTRAINT\n";);
+				db.addConstraint(rhead_app, rhead_cand_app);
+			}
 	  }
   }
 
   /*
    * Main loop of Houdini algorithm
    */
-  void Houdini::runHoudini(HornifyModule &hm, int config)
+  void Houdini::runHoudini(int config)
   {
 	  //load the Horn clause database
-	  auto &db = hm.getHornClauseDB ();
+	  auto &db = m_hm.getHornClauseDB ();
 	  db.buildIndexes ();
 
 	  //build the wto
@@ -267,9 +276,6 @@ namespace seahorn
 	  //generate positive states
 	  std::map<Expr, ExprVector> relationToPositiveStateMap;
 	  //generatePositiveWitness(relationToPositiveStateMap, db, hm);
-
-	  //guess invariant candidates
-	  guessCandidate(db);
 
 	  LOG("houdini", errs() << "CAND MAP:\n";);
 	  LOG("houdini", errs() << "MAP SIZE: " << currentCandidates.size() << "\n";);
@@ -285,21 +291,21 @@ namespace seahorn
 
 	  if (config == EACH_RULE_A_SOLVER)
 	  {
-		  Houdini_Each_Solver_Per_Rule houdini_solver_per_rule(*this, db, hm, db_wto, workList);
+		  Houdini_Each_Solver_Per_Rule houdini_solver_per_rule(*this, db, m_hm, db_wto, workList);
 		  houdini_solver_per_rule.run();
 	  }
 	  else if (config == EACH_RELATION_A_SOLVER)
 	  {
-		  Houdini_Each_Solver_Per_Relation houdini_solver_per_relation(*this, db, hm, db_wto, workList);
+		  Houdini_Each_Solver_Per_Relation houdini_solver_per_relation(*this, db, m_hm, db_wto, workList);
 		  houdini_solver_per_relation.run();
 	  }
 	  else if (config == NAIVE)
 	  {
-		  Houdini_Naive houdini_naive(*this, db, hm, db_wto, workList);
+		  Houdini_Naive houdini_naive(*this, db, m_hm, db_wto, workList);
 		  houdini_naive.run();
 	  }
 
-	  addInvarCandsToProgramSolver(db);
+	  addInvarCandsToProgramSolver();
   }
 
   void Houdini_Naive::run()
@@ -691,8 +697,9 @@ namespace seahorn
 	  return body_constraints;
   }
 
-  void Houdini::generatePositiveWitness(std::map<Expr, ExprVector> &relationToPositiveStateMap, HornClauseDB &db, HornifyModule &hm)
+  void Houdini::generatePositiveWitness(std::map<Expr, ExprVector> &relationToPositiveStateMap)
   {
+	  auto &db = m_hm.getHornClauseDB();
 	  for(HornClauseDB::RuleVector::iterator it = db.getRules().begin(); it != db.getRules().end(); ++it)
 	  {
 		  HornRule r = *it;
@@ -700,7 +707,7 @@ namespace seahorn
 		  get_all_pred_apps(r.body(), db, std::back_inserter(body_pred_list));
 		  if(body_pred_list.size() == 0) // this rule doesn't have predicates in its body.
 		  {
-			  getRuleHeadState(relationToPositiveStateMap, r, mk<TRUE>(r.head()->efac()), db, hm);
+			  getRuleHeadState(relationToPositiveStateMap, r, mk<TRUE>(r.head()->efac()));
 		  }
 	  }
 	  LOG("houdini", errs() << "THE WHOLE STATE MAP:\n";);
@@ -716,8 +723,9 @@ namespace seahorn
 	  }
   }
 
-  void Houdini::getReachableStates(std::map<Expr, ExprVector> &relationToPositiveStateMap, Expr from_pred, Expr from_pred_state, HornClauseDB &db, HornifyModule &hm)
+  void Houdini::getReachableStates(std::map<Expr, ExprVector> &relationToPositiveStateMap, Expr from_pred, Expr from_pred_state)
   {
+	  auto &db = m_hm.getHornClauseDB();
 	  LOG("houdini", errs() << "COME IN\n";);
 	  for(HornClauseDB::RuleVector::iterator itr = db.getRules().begin(); itr != db.getRules().end(); ++itr)
 	  {
@@ -732,16 +740,17 @@ namespace seahorn
 		  }
 		  if(body_preds.size() == 1 && bind::fname(body_preds[0]) == bind::fname(from_pred))
 		  {
-			  getRuleHeadState(relationToPositiveStateMap, r, from_pred_state, db, hm);
+			  getRuleHeadState(relationToPositiveStateMap, r, from_pred_state);
 		  }
 	  }
   }
 
-  void Houdini::getRuleHeadState(std::map<Expr, ExprVector> &relationToPositiveStateMap, HornRule r, Expr from_pred_state, HornClauseDB &db, HornifyModule &hm)
+  void Houdini::getRuleHeadState(std::map<Expr, ExprVector> &relationToPositiveStateMap, HornRule r, Expr from_pred_state)
   {
 		LOG("houdini", errs() << "RULE HEAD: " << *(r.head()) << "\n";);
 		LOG("houdini", errs() << "RULE BODY: " << *(r.body()) << "\n";);
-		ZSolver<EZ3> solver(hm.getZContext());
+		auto &db = m_hm.getHornClauseDB();
+		ZSolver<EZ3> solver(m_hm.getZContext());
 		solver.assertExpr(from_pred_state);
 		solver.assertExpr(extractTransitionRelation(r, db));
 		solver.toSmtLib(outs());
@@ -797,7 +806,7 @@ namespace seahorn
 			  }
 			  LOG("houdini", errs() << "]\n";);
 		  }*/
-		  getReachableStates(relationToPositiveStateMap, r.head(), state_assignment, db, hm);
+		  getReachableStates(relationToPositiveStateMap, r.head(), state_assignment);
 		}
 		else
 		{

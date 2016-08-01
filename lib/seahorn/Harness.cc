@@ -25,9 +25,11 @@ namespace seahorn
       mpz = isOpX<MPZ> (e) ? getTerm<mpz_class> (e) : getTerm<mpz_class> (e->arg (0));
       if (ty->isIntegerTy () || ty->isPointerTy())
       {
+        // return Constant::getIntegerValue (ty,
+        //                                   APInt(dl.getTypeStoreSizeInBits(ty),
+        //                                         mpz.get_str (), 10));
         return Constant::getIntegerValue (ty,
-                                          APInt(dl.getTypeStoreSizeInBits(ty),
-                                                mpz.get_str (), 10));
+                                          toAPInt (dl.getTypeStoreSizeInBits (ty), mpz));
       }
       llvm_unreachable("Unhandled type");
     }

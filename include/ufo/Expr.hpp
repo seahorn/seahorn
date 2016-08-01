@@ -759,7 +759,15 @@ namespace expr
   {
     static inline void print (std::ostream &OS, const mpz_class &v, 
 			      int depth, bool brkt)
-    { OS << v; }
+    {
+      /* print large numbers in hex */
+      if (v >= 65535)
+        OS << std::hex << std::showbase;
+      
+      OS << v;
+      
+      OS << std::dec << std::noshowbase;
+    }
     
     static inline bool less(const mpz_class &v1, const mpz_class &v2)
     { return v1 < v2; }

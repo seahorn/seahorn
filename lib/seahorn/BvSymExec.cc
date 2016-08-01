@@ -377,6 +377,9 @@ namespace
       Expr op0 = lookup (*I.getOperand (0));
       if (!op0) return;
       
+      if (I.getOperand (0)->getType ()->isIntegerTy (1))
+        op0 = boolToBv (op0);
+      
       Expr rhs = bv::zext (op0, m_sem.sizeInBits (I));
       if (UseWrite) write (I, rhs);
       else side (lhs, rhs);

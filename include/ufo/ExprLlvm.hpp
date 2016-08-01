@@ -158,6 +158,50 @@ namespace expr
     return 0;
   }
 
+  /** Adapted from 
+      https://llvm.org/svn/llvm-project/polly/branches/release_34/lib/Support/GICHelper.cpp
+  */
+  inline APInt toAPInt (const mpz_class &v)
+  {
+    uint64_t *p = nullptr;
+    size_t sz;
+
+    p = (uint64_t*)mpz_export (p, &sz, -1, sizeof(uint64_t), 0, 0, v.get_mpz_t ());
+    if (p)
+    {
+      APInt A ((unsigned)mpz_sizeinbase (v.get_mpz_t (), 2), (unsigned)sz, p);
+      A = A.zext (A.getBitWidth () + 1);
+      free (p);
+
+      if (sgn (v) == -1)
+        return -A;
+      else
+        return A;
+    }
+    else
+      return APInt (1, 0);
+  }
+
+  inline APInt toAPInt (unsigned numBits, const mpz_class &v)
+  {
+    uint64_t *p = nullptr;
+    size_t sz;
+
+    p = (uint64_t*)mpz_export (p, &sz, -1, sizeof(uint64_t), 0, 0, v.get_mpz_t ());
+    if (p)
+    {
+      APInt A (numBits, (unsigned)sz, p);
+      free (p);
+
+      if (sgn (v) == -1)
+        return -A;
+      else
+        return A;
+    }
+    else
+      return APInt (numBits, 0);
+  }
+
 }
 
 

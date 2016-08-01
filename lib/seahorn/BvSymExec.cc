@@ -667,7 +667,7 @@ namespace
         if (I.getType ()->isIntegerTy (1))
           rhs = mk<NEQ> (rhs, nullBv);
         else if (m_sem.sizeInBits (I) < ptrSz)
-          rhs = bv::extract (ptrSz - 1, 0, rhs);
+          rhs = bv::extract (m_sem.sizeInBits (I) - 1, 0, rhs);
         assert (m_sem.sizeInBits (I) <= ptrSz && "Fat integers not supported");
         
         if (UseWrite) write (I, rhs);

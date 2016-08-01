@@ -495,8 +495,8 @@ namespace ufo
       else
         return M::marshal (e, ctx, cache, seen);
 
-      if (res == NULL) ctx.check_error ();
-      if (res == NULL) errs () << "Failed to marshal: " << *e << "\n";
+      if (res == nullptr) ctx.check_error ();
+      if (res == nullptr) errs () << "Failed to marshal: " << *e << "\n";
       
       assert (res != NULL);
       z3::ast final (ctx, res);

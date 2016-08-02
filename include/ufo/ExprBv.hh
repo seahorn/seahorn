@@ -150,9 +150,9 @@ namespace expr
       }
       
       /// high bit to extract
-      inline unsigned high (Expr v) {return getTerm<unsigned> (v->arg (1));}
+      inline unsigned high (Expr v) {return getTerm<unsigned> (v->arg (0));}
       /// low bit to extract
-      inline unsigned low (Expr v) {return getTerm<unsigned> (v->arg (0));}
+      inline unsigned low (Expr v) {return getTerm<unsigned> (v->arg (1));}
       /// bv argument to extract
       inline Expr earg (Expr v) {return v->arg (2);}
       

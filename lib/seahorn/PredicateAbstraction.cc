@@ -41,20 +41,20 @@ namespace seahorn
 		HornClauseDB new_db = runOnDB(db);
 
 		//initialize spacer based on new DB
-//		m_fp.reset (new ZFixedPoint<EZ3> (hm.getZContext ()));
-//		ZFixedPoint<EZ3> &fp = *m_fp;
-//		ZParams<EZ3> params (hm.getZContext ());
-//		params.set (":engine", "horn-pdr-engine");
-//		fp.set (params);
-//		new_db.loadZFixedPoint (fp, false);
-//		boost::tribool result = fp.query ();
-//
-//		if (result) outs () << "sat";
-//		else if (!result) outs () << "unsat";
-//		else outs () << "unknown";
-//		outs () << "\n";
-//
-//		printInvars (M);
+		m_fp.reset (new ZFixedPoint<EZ3> (hm.getZContext ()));
+		ZFixedPoint<EZ3> &fp = *m_fp;
+		ZParams<EZ3> params (hm.getZContext ());
+		params.set (":engine", "horn-pdr-engine");
+		fp.set (params);
+		new_db.loadZFixedPoint (fp, false);
+		boost::tribool result = fp.query ();
+
+		if (result) outs () << "sat";
+		else if (!result) outs () << "unsat";
+		else outs () << "unknown";
+		outs () << "\n";
+
+		printInvars (M);
 
 		return false;
 	}
@@ -90,6 +90,7 @@ namespace seahorn
 			{
 				new_args.push_back(mk<BOOL_TY>(rel->efac()));
 			}
+			new_args.push_back(bind::rangeTy(rel));
 			Expr new_rel = mknary<FDECL>(new_args);
 			outs() << "NEW PRED: " << *new_rel << "\n";
 			new_DB.registerRelation(new_rel);
@@ -242,6 +243,7 @@ namespace seahorn
 
 		//Deal with queries
 //		outs() << "QUERY NUM: " <<db.getQueries().size() << "\n";
+//		int yes = 0;
 //		for(ExprVector::iterator it = db.getQueries().begin(); it!=db.getQueries().end(); ++it)
 //		{
 //			Expr old_query = *it;

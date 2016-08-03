@@ -314,7 +314,9 @@ int main(int argc, char **argv) {
     pass_manager.add(llvm::createDeadInstEliminationPass());
     pass_manager.add (llvm::createGlobalDCEPass ()); // kill unused internal global
   
-    pass_manager.add (new seahorn::LowerGvInitializers ());
+    if (!MixedSem)
+      pass_manager.add (new seahorn::LowerGvInitializers ());
+    
     pass_manager.add(llvm::createUnifyFunctionExitNodesPass ());
 
     if (BoundsChecks)

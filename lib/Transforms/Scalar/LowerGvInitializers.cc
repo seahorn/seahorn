@@ -30,14 +30,16 @@ namespace seahorn
       if (!ty) continue;
       Type *ety = ty->getElementType ();
       // only deal with scalars for now
-      if (!ety->isIntegerTy ()) continue;
+      if (ety->isIntegerTy () || ety->isPointerTy ())
+      {
       
-      IntegerType* ity = cast<IntegerType> (ety);
-      
-      // -- create a store instruction
-      Builder.CreateAlignedStore (gv.getInitializer (), &gv, 
-                                  DL->getABITypeAlignment (ity));
-      change=true;
+        // -- create a store instruction
+        Builder.CreateAlignedStore (gv.getInitializer (), &gv, 
+                                    DL->getABITypeAlignment (ety));
+        change=true;
+      }
+      else
+        errs () << "WARNING: Ignoring initializer for" << gv << "\n";
     }
       
     return change;

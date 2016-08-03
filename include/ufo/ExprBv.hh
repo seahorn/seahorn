@@ -75,7 +75,7 @@ namespace expr
       
       /// bit-vector numeral of an arbitrary precision integer
       inline Expr bvnum (mpz_class num, unsigned bwidth, ExprFactory &efac)
-      {return bind::bind (mkTerm (num, efac), bvsort (bwidth, efac));}
+      {return bvnum (mkTerm (num, efac), bvsort (bwidth, efac));}
       
       /// true if v is a bit-vector numeral
       inline bool is_bvnum (Expr v)
@@ -150,9 +150,9 @@ namespace expr
       }
       
       /// high bit to extract
-      inline unsigned high (Expr v) {return getTerm<unsigned> (v->arg (1));}
+      inline unsigned high (Expr v) {return getTerm<unsigned> (v->arg (0));}
       /// low bit to extract
-      inline unsigned low (Expr v) {return getTerm<unsigned> (v->arg (0));}
+      inline unsigned low (Expr v) {return getTerm<unsigned> (v->arg (1));}
       /// bv argument to extract
       inline Expr earg (Expr v) {return v->arg (2);}
       

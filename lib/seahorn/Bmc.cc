@@ -216,6 +216,7 @@ namespace seahorn
     return m_model.eval (v, complete);
   }
   
+
   static bool isCallToVoidFn (const llvm::Instruction &I)
   {
     if (const CallInst *ci = dyn_cast<const CallInst> (&I))

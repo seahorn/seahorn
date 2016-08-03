@@ -69,6 +69,7 @@ script:
 
 
 notifications:
+  slack: seahornteam:NAUqZmZHFFviPH4ktQbJXgKu
   email:
     recipients:
      - seahorn-build@googlegroups.com

@@ -44,17 +44,31 @@ namespace seahorn
 		m_fp.reset (new ZFixedPoint<EZ3> (hm.getZContext ()));
 		ZFixedPoint<EZ3> &fp = *m_fp;
 		ZParams<EZ3> params (hm.getZContext ());
-		params.set (":engine", "horn-pdr-engine");
+		params.set (":engine", "spacer");
+//		// -- disable slicing so that we can use cover
+		params.set (":xform.slice", false);
+		params.set (":use_heavy_mev", true);
+		params.set (":reset_obligation_queue", true);
+		params.set (":pdr.flexible_trace", false);
+		params.set (":xform.inline-linear", false);
+		params.set (":xform.inline-eager", false);
+//		// -- disable utvpi. It is unstable.
+		params.set (":pdr.utvpi", false);
+//		// -- disable propagate_variable_equivalences in tail_simplifier
+		params.set (":xform.tail_simplifier_pve", false);
+		params.set (":xform.subsumption_checker", true);
+//		params.set (":order_children", true);
+//		params.set (":pdr.max_num_contexts", "500");
 		fp.set (params);
 		new_db.loadZFixedPoint (fp, false);
 		boost::tribool result = fp.query ();
-
-		if (result) outs () << "sat";
-		else if (!result) outs () << "unsat";
-		else outs () << "unknown";
-		outs () << "\n";
-
-		printInvars (M);
+//
+//		if (result) outs () << "sat";
+//		else if (!result) outs () << "unsat";
+//		else outs () << "unknown";
+//		outs () << "\n";
+//
+//		printInvars (M);
 
 		return false;
 	}
@@ -240,30 +254,29 @@ namespace seahorn
 			HornRule new_rule(r.vars (), new_rule_head, new_rule_body);
 			new_DB.addRule(new_rule);
 		}
+//		 errs () << "QUERIES 2\n";
+//		        for (auto q: db.getQueries ())
+//		        	errs () << *q << "\n";
 
-		//Deal with queries
-//		outs() << "QUERY NUM: " <<db.getQueries().size() << "\n";
-//		int yes = 0;
-//		for(ExprVector::iterator it = db.getQueries().begin(); it!=db.getQueries().end(); ++it)
-//		{
-//			Expr old_query = *it;
-//			outs() << "OLD QUERY: " << *old_query << "\n";
-//			Expr old_rel = bind::fname(old_query);
-//			outs() << "OLD REL: " << *old_rel << "\n";
-//			Expr new_rel = oldToNewPredMap.find(old_rel)->second;
-//			outs() << "NEW REL: " << *new_rel << "\n";
-//			ExprVector new_args;
-//			for(int i=0; i<oldToNewPredMap.size(); i++)
-//			{
-//				std::ostringstream oss;
-//				oss << "b" << i;
-//				Expr bi = bind::boolVar(mkTerm<std::string>(oss.str(), db.getExprFactory ()));
-//				new_args.push_back(bi);
-//			}
-//			Expr new_query = bind::fapp(new_rel, new_args);
-//			outs() << "NEW QUERY: " << *new_query << "\n";
-//			new_DB.addQuery(new_query);
-//		}
+		for(auto old_query : db.getQueries())
+		{
+			outs() << "OLD QUERY: " << *old_query << "\n";
+			Expr old_rel = bind::fname(old_query);
+			outs() << "OLD REL: " << *old_rel << "\n";
+			Expr new_rel = oldToNewPredMap.find(old_rel)->second;
+			outs() << "NEW REL: " << *new_rel << "\n";
+			ExprVector new_args;
+			for(int i=0; i<oldToNewPredMap.size(); i++)
+			{
+				std::ostringstream oss;
+				oss << "b" << i;
+				Expr bi = bind::boolVar(mkTerm<std::string>(oss.str(), db.getExprFactory ()));
+				new_args.push_back(bi);
+			}
+			Expr new_query = bind::fapp(new_rel, new_args);
+			outs() << "NEW QUERY: " << *new_query << "\n";
+			new_DB.addQuery(new_query);
+		}
 
 		outs() << "NEW DB: \n";
 		outs() << new_DB << "\n";
@@ -362,7 +375,7 @@ namespace seahorn
 	  for(ExprVector::iterator it = bvars.begin(); it != bvars.end(); ++it)
 	  {
 		  unsigned bvar_id = bind::bvarId(*it);
-		  Expr app_arg = bind::domainTy(fapp, bvar_id);// To improve
+		  Expr app_arg = fapp->arg(bvar_id + 1);// To improve
 		  bvar_map.insert(std::pair<Expr,Expr>(*it, app_arg));
 	  }
 	  return bvar_map;

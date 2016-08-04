@@ -12,6 +12,10 @@ add_llvm_library(SeaInstrumentation
   KleeInternalize.cc
   WrapMem.cc
   )
+
+## There some passes apart from ShadowMemDsa that use DSA stuff ...
 if (HAVE_DSA)
-  target_link_libraries (SeaInstrumentation ${DSA_LIBS})
+   target_link_libraries (SeaInstrumentation ${DSA_LIBS})
 endif()
+
+target_link_libraries (SeaInstrumentation SeaDsaAnalysis)

@@ -44,11 +44,14 @@ bool SimulationMapper::insert (const Cell &c1, Cell &c2)
 
   if (c1.isNull ()) return true;
 
-  if (c2.getOffset () < c1.getOffset ())
+  // XXX: adjust the offsets
+  Node::Offset o1 (*c1.getNode(), c1.getOffset());
+  Node::Offset o2 (*c2.getNode(), c2.getOffset());
+
+  if (o2 < o1)
   { m_sim.clear (); return false; }
   
-  return insert (*c1.getNode (), *c2.getNode (),
-                 c2.getOffset () - c1.getOffset ());
+  return insert (*c1.getNode (), *c2.getNode (), o2 - o1);
 }
 
 bool SimulationMapper::insert (const Node &n1, Node &n2, unsigned o)
@@ -71,18 +74,22 @@ bool SimulationMapper::insert (const Node &n1, Node &n2, unsigned o)
     if (offset > 0 || n1.size () > n2.size ())
     { m_sim.clear (); return false; }
   }
-  
-  if (n1.isArray () && !n2.isArray ())
+
+  // XXX: a collapsed node can simulate an array node
+  if (n1.isArray () && (!n2.isArray () && !n2.isCollapsed()))
   { m_sim.clear (); return false; }
 
   if (n1.isArray () && offset != 0)
   { m_sim.clear (); return false; } 
-  
-  if (n1.isArray () && n1.size () != n2.size ())
+    
+  // XXX: a collapsed node can simulate an array node
+  // Should we force same size?
+  if (n1.isArray () && !n2.isCollapsed() && n1.size () != n2.size ())
   { m_sim.clear (); return false; }
   
   if (n1.isCollapsed () && !n2.isCollapsed ())
   { m_sim.clear (); return false; }
+    
   
   // add n2 into the map
   map[&n2] = offset;
@@ -101,7 +108,7 @@ bool SimulationMapper::insert (const Node &n1, Node &n2, unsigned o)
     Node *n4 = link.getNode ();
     unsigned off2 = link.getOffset ();
 
-    if (off2 < off1)
+    if (off2 < off1 && !n2.isCollapsed ())
     { m_sim.clear (); return false; }
     
     if (!insert (*n3, *n4, off2 - off1))

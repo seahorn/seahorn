@@ -83,7 +83,6 @@ bool SimulationMapper::insert (const Node &n1, Node &n2, unsigned o)
   { m_sim.clear (); return false; } 
     
   // XXX: a collapsed node can simulate an array node
-  // Should we force same size?
   if (n1.isArray () && !n2.isCollapsed() && n1.size () != n2.size ())
   { m_sim.clear (); return false; }
   

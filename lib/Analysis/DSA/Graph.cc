@@ -24,14 +24,6 @@
 using namespace seahorn;
 using namespace llvm;
 
-static const llvm::ReturnInst* getReturnInst (const llvm::Function &F)
-{
-  for (const llvm::BasicBlock& bb : F)
-    if (const ReturnInst* RI = dyn_cast<ReturnInst> (bb.getTerminator ()))
-      return RI;
-  return NULL;
-}
-
 dsa::Node::Node (Graph &g, const Node &n, bool copyLinks) :
   m_graph (&g), m_unique_scalar (n.m_unique_scalar), m_size (n.m_size)
 {
@@ -230,7 +222,7 @@ void dsa::Node::pointTo (Node &node, const Offset &offset)
     node.joinTypes (noffset, *this);
       
   }
-      
+
   // -- merge node annotations
   node.getNode ()->m_nodeType.join (m_nodeType);
 
@@ -699,7 +691,18 @@ bool dsa::Graph::computeCalleeCallerMapping (const DsaCallSite &cs,
     if (!onlyModified || c.isModified ())
     {
       Cell &nc = callerG.mkCell (*kv.first, Cell ());
-      if (!simMap.insert (c, nc)) return false; 
+      if (!simMap.insert (c, nc)) 
+      {
+        LOG ("dsa-sim-map",
+             errs () << "Cannot compute callee-caller mapping for " 
+                     << *cs.getInstruction() << "\n"
+                     << "Global: " << *kv.first << "\n"
+                     << "Callee cell=" << c << "\n"
+                     << "Caller cell=" << nc << "\n";
+             );
+
+        return false; 
+      }
     }
   }
   
@@ -710,7 +713,18 @@ bool dsa::Graph::computeCalleeCallerMapping (const DsaCallSite &cs,
     if (!onlyModified || c.isModified()) 
     {
       Cell &nc = callerG.mkCell (*cs.getInstruction (), Cell());
-      if (!simMap.insert (c, nc)) return false; 
+      if (!simMap.insert (c, nc)) 
+      {
+        LOG ("dsa-sim-map",
+             errs () << "Cannot compute callee-caller mapping for " 
+                     << *cs.getInstruction() << "\n"
+                     << "Return value of " << callee.getName () << "\n"
+                     << "Callee cell=" << c << "\n"
+                     << "Caller cell=" << nc << "\n";
+             );
+
+        return false; 
+      }
     }
   }
   
@@ -725,7 +739,19 @@ bool dsa::Graph::computeCalleeCallerMapping (const DsaCallSite &cs,
       if (!onlyModified || c.isModified ()) 
       {
         Cell &nc = callerG.mkCell (*arg, Cell ());
-        if (!simMap.insert(c, nc)) return false; 
+        if (!simMap.insert(c, nc)) 
+        {
+          LOG ("dsa-sim-map",
+               errs () << "Cannot compute callee-caller mapping for " 
+                       << *cs.getInstruction() << "\n"
+                       << "Formal param " << *fml << "\n"
+                       << "Actual param " << *arg << "\n"
+                       << "Callee cell=" << c << "\n"
+                       << "Caller cell=" << nc << "\n";
+               );
+
+          return false; 
+        }
       }
     }
   }      

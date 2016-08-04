@@ -245,22 +245,24 @@ namespace seahorn
     void ContextSensitiveGlobalAnalysis::
     propagateTopDown (const DsaCallSite& cs, Graph &callerG, Graph& calleeG, Worklist &w) 
     {
-      //errs () << "TD propagation done.\n";
-      
+      LOG("dsa-global",
+          errs () << "TD PROPAGATION " << *cs.getInstruction() << "\n");
+
       cloneAndResolveArguments (cs, callerG, calleeG);
       assert (decidePropagation (cs, calleeG, callerG) != DOWN);
       Insert (w, cs);
 
       // revisit all callee callsites
       if (CallGraphNode *cgn = m_cg[cs.getCallee()]) 
-        for (auto &callRecord: *cgn) 
+        for (auto &callRecord: *cgn)
           Insert (w, callRecord.first);
     }
 
     void ContextSensitiveGlobalAnalysis::
     propagateBottomUp (const DsaCallSite& cs, Graph &calleeG, Graph& callerG, Worklist &w) 
     {
-      //errs () << "BU propagation done.\n";
+      LOG("dsa-global",
+          errs () << "BU PROPAGATION " << *cs.getInstruction() << "\n");
 
       BottomUpAnalysis::cloneAndResolveArguments (cs, calleeG, callerG);
       assert (decidePropagation (cs, calleeG, callerG) != UP);
@@ -292,11 +294,21 @@ namespace seahorn
                                                  bu.callee_caller_mapping_end ()))
       {
         auto const &simMapper = *(kv.second);
+
+        // LOG ("dsa-global",
+        //      errs () << "Initial simulation map for " << *kv.first << "\n";
+        //      simMapper.write(errs()));
+
         if (!simMapper.isOneToMany()) worklist.push_back (kv.first); 
       }
 
       // -- Propagation between callees and caller until no change
       unsigned iters=0;
+
+      // XXX: for debugging
+      unsigned td_prop=0;
+      unsigned bu_prop=0;
+
       while (!worklist.empty()) 
       {
         iters++;
@@ -320,13 +332,23 @@ namespace seahorn
         {
           case DOWN:
             propagateTopDown (dsaCS, callerG, calleeG, worklist); 
+            LOG ("dsa-global", td_prop++;);
             break;
           case UP:
             propagateBottomUp (dsaCS, calleeG, callerG, worklist);
+            LOG ("dsa-global", bu_prop++;);
             break;
-          default: ;;
+          default: 
+            LOG ("dsa-global", 
+                 errs () << "NO MORE PROPAGATION " << *dsaCS.getInstruction() << "\n";);
+            ;;
         }
       }
+
+      LOG ("dsa-global",
+           errs () << "Number of TD propagations=" << td_prop << "\n";
+           errs () << "Number of BU propagations=" << bu_prop << "\n";
+           checkNoMorePropagation ());;
 
       assert (checkNoMorePropagation ());
 
@@ -358,12 +380,13 @@ namespace seahorn
         
             Graph &callerG = *(m_graphs.find (cs.getCaller())->second);
             Graph &calleeG = *(m_graphs.find (cs.getCallee())->second);
-
-            if (decidePropagation (cs, calleeG, callerG) != NONE)
+            PropagationKind pkind = decidePropagation (cs, calleeG, callerG);
+            if (pkind != NONE)
             {
-              errs () << "WARNING " 
-                      << *(cs.getInstruction ()) << " requires more propagation\n";
-                      
+              auto pkind_str = (pkind==UP)? "BU": "TD";
+              errs () << "Sanity check FAILED:" 
+                      << *(cs.getInstruction ()) << " requires " 
+                      << pkind_str << " propagation\n";
               return false;
             }
           }

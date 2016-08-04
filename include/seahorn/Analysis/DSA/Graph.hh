@@ -258,12 +258,16 @@ namespace seahorn
           ptrtoint |= n.ptrtoint;
           vastart |= n.vastart;
           dead |= n.dead;
+
+          // XXX: cannot be collapsed and array at the same time
+          if (collapsed && array) array = 0;
         }
         void reset () { memset (this, 0, sizeof (*this)); }
 
         std::string toStr() const 
         {
           std::string flags("");
+          if (collapsed) flags += "C";
           if (alloca) flags += "S";
           if (heap) flags += "H";
           if (global) flags += "G";

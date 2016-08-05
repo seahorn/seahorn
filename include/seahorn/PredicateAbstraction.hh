@@ -27,13 +27,12 @@ namespace seahorn
 	    virtual const char* getPassName () const {return "PredicateAbstraction";}
 
 	private:
-	    static std::map<Expr, int> predToBiNumMap;
 	    static std::map<Expr, Expr> oldToNewPredMap;
-	    static std::map<Expr, Expr> currentCandidates;
+	    static std::map<Expr, ExprVector> currentCandidates;
 
 	public:
 	    void guessCandidate(HornClauseDB &db);
-	    Expr relToCand(Expr fdecl);
+	    ExprVector relToCand(Expr fdecl);
 	    HornClauseDB runOnDB(HornClauseDB &db);
 	    Expr fAppToCandApp(Expr fapp);
 	    Expr applyArgsToBvars(Expr cand, Expr fapp);

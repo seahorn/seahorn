@@ -575,6 +575,10 @@ namespace
   {
     // -- trust types, i.e., assume types are not abused by storing
     // -- pointers pointers to other types
+
+    // -- skip copy NULL
+    if (Constant *c = dyn_cast<Constant>(I.getSource ())) 
+      if (c->isNullValue()) return;
     
     bool TrustTypes = true;
     assert (m_graph.hasCell (*I.getDest ()));

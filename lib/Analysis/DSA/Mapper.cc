@@ -44,14 +44,11 @@ bool SimulationMapper::insert (const Cell &c1, Cell &c2)
 
   if (c1.isNull ()) return true;
 
-  // XXX: adjust the offsets
-  Node::Offset o1 (*c1.getNode(), c1.getOffset());
-  Node::Offset o2 (*c2.getNode(), c2.getOffset());
-
-  if (o2 < o1)
+  if (c2.getOffset () < c1.getOffset ())
   { m_sim.clear (); return false; }
   
-  return insert (*c1.getNode (), *c2.getNode (), o2 - o1);
+  return insert (*c1.getNode (), *c2.getNode (),
+                 c2.getOffset () - c1.getOffset ());
 }
 
 bool SimulationMapper::insert (const Node &n1, Node &n2, unsigned o)
@@ -100,7 +97,7 @@ bool SimulationMapper::insert (const Node &n1, Node &n2, unsigned o)
     unsigned off1 = kv.second->getOffset ();
 
     unsigned j = n2.isCollapsed () ? 0 : kv.first + offset;
-    if (!n2.hasLink (j))
+    if (!n2.hasLink (j))      
     { m_sim.clear (); return false; }
 
     auto &link = n2.getLink (j);
@@ -122,15 +119,7 @@ void SimulationMapper::write(llvm::raw_ostream&o) const
   o << "BEGIN simulation mapper\n";
   for (auto &kv: m_sim)
     for (auto &c: kv.second) 
-    {
-      o << "(";
-      kv.first->write (o);
-      o << ", ";
-      c.first->write (o);
-      o << ", ";
-      o << c.second;
-      o << ")\n";
-    }
+      o << "(" << *(kv.first) << ", " << *(c.first) << ", " << c.second << ")\n";
   o << "END  simulation mapper\n";
 }
 

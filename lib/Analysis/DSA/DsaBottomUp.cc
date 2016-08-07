@@ -10,6 +10,7 @@
 #include "llvm/PassManager.h"
 #include "llvm/Analysis/CallGraph.h"
 #include "llvm/ADT/SCCIterator.h"
+#include "llvm/Support/raw_ostream.h"
 
 #include "seahorn/Analysis/DSA/Graph.hh"
 #include "seahorn/Analysis/DSA/BottomUp.hh"
@@ -36,7 +37,7 @@ namespace seahorn
       // clone and unify globals 
       for (auto &kv : boost::make_iterator_range (calleeG.globals_begin (),
                                                   calleeG.globals_end ()))
-      {
+      {          
         Node &n = C.clone (*kv.second->getNode ());
         Cell c (n, kv.second->getOffset ());
         Cell &nc = callerG.mkCell (*kv.first, Cell ());
@@ -45,7 +46,7 @@ namespace seahorn
 
       // clone and unify return
       const Function &callee = *CS.getCallee ();
-      if (calleeG.hasRetCell (callee) && callerG.hasCell (*CS.getInstruction ()))
+      if (calleeG.hasRetCell (callee))
       {
         Node &n = C.clone (*calleeG.getRetCell (callee).getNode ());
         Cell c (n, calleeG.getRetCell (callee).getOffset ());
@@ -60,7 +61,7 @@ namespace seahorn
       {
         const Value *arg = (*AI).get();
         const Value *fml = &*FI;
-        if (callerG.hasCell (*arg) && calleeG.hasCell (*fml))
+        if (calleeG.hasCell (*fml))
         {
           Node &n = C.clone (*calleeG.getCell (*fml).getNode ());
           Cell c (n, calleeG.getCell (*fml).getOffset ());
@@ -74,6 +75,8 @@ namespace seahorn
 
     bool BottomUpAnalysis::runOnModule(Module &M, GraphMap &graphs) 
     {
+
+      LOG("dsa-bu", errs () << "Started bottom-up analysis ... \n");
 
       LocalAnalysis la (m_dl, m_tli);
 
@@ -103,7 +106,8 @@ namespace seahorn
         {
           Function *fn = cgn->getFunction ();
           if (!fn || fn->isDeclaration () || fn->empty ()) continue;
-          
+
+          // -- visit all callsites in the callgraph node
           for (auto &callRecord : *cgn)
           {
             ImmutableCallSite CS (callRecord.first);
@@ -131,7 +135,8 @@ namespace seahorn
         }
         if (fGraph) fGraph->compress();        
       }
-      
+
+      LOG("dsa-bu", errs () << "Finished bottom-up analysis\n");
       return false;
     }
 

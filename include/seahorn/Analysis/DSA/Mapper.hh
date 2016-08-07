@@ -31,7 +31,7 @@ namespace seahorn
 
     class SimulationMapper 
     {
-      /// the simulation relation
+      /// the simulation relation: a node is simulated by a cell
       typedef std::unordered_map<const Node*,
                                  boost::container::flat_map<Node*,
                                                             unsigned> > rel_type;
@@ -48,7 +48,9 @@ namespace seahorn
       {
         if (!m_sim.count (&n)) return Cell ();
         auto &map = m_sim.at (&n);
+
         if (map.size () != 1) return Cell ();
+        
         auto kv = map.begin ();
         return Cell (*kv->first, kv->second);
       }
@@ -64,7 +66,11 @@ namespace seahorn
 
       bool empty () const { return m_sim.empty (); }
 
-      bool isOneToMany (bool onlyModified = true) const;
+      // Return true if no cell can simulate more than one node
+      bool isInjective (bool onlyModified = true) const;
+
+      // Return true if each node is simulated by at most one cell
+      bool isFunction () const;
 
       void write (llvm::raw_ostream &o) const ;
 

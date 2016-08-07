@@ -44,11 +44,17 @@ bool SimulationMapper::insert (const Cell &c1, Cell &c2)
 
   if (c1.isNull ()) return true;
 
-  if (c2.getOffset () < c1.getOffset ())
+  if (c2.getNode()->isCollapsed())
+    return insert (*c1.getNode (), *c2.getNode (), 0);
+
+  // XXX: adjust the offsets
+  Node::Offset o1 (*c1.getNode(), c1.getOffset());
+  Node::Offset o2 (*c2.getNode(), c2.getOffset());
+    
+  if (o2 < o1)
   { m_sim.clear (); return false; }
   
-  return insert (*c1.getNode (), *c2.getNode (),
-                 c2.getOffset () - c1.getOffset ());
+  return insert (*c1.getNode (), *c2.getNode (), o2 - o1);
 }
 
 bool SimulationMapper::insert (const Node &n1, Node &n2, unsigned o)
@@ -85,8 +91,7 @@ bool SimulationMapper::insert (const Node &n1, Node &n2, unsigned o)
   
   if (n1.isCollapsed () && !n2.isCollapsed ())
   { m_sim.clear (); return false; }
-    
-  
+      
   // add n2 into the map
   map[&n2] = offset;
 
@@ -123,7 +128,7 @@ void SimulationMapper::write(llvm::raw_ostream&o) const
   o << "END  simulation mapper\n";
 }
 
-bool SimulationMapper::isOneToMany (bool onlyModified)  const 
+bool SimulationMapper::isInjective (bool onlyModified)  const 
 {
   boost::container::flat_set<Cell> inv_sim;
   for (auto &kv: m_sim) 
@@ -133,5 +138,12 @@ bool SimulationMapper::isOneToMany (bool onlyModified)  const
       if (!onlyModified || c.first->isModified()) 
         if (!res.second) return false;
     }
+  return true;
+}
+
+bool SimulationMapper::isFunction () const 
+{
+  for (auto &kv: m_sim)
+    if (kv.second.size () > 1) return false;
   return true;
 }

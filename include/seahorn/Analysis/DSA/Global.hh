@@ -8,6 +8,9 @@
 #include "seahorn/Analysis/DSA/Graph.hh"
 #include "seahorn/Analysis/DSA/CallSite.hh"
 
+#include "boost/unordered_map.hpp"
+#include "boost/container/flat_set.hpp"
+
 namespace llvm
 {
   class DataLayout;
@@ -53,6 +56,8 @@ namespace seahorn
       CallGraph &m_cg;
       SetFactory &m_setFactory;
       GraphRef m_graph;
+      // functions represented in m_graph
+      boost::container::flat_set<const Function*> m_fns;
 
       void resolveArguments (DsaCallSite &cs, Graph& g);
 
@@ -92,20 +97,31 @@ namespace seahorn
       SetFactory &m_setFactory;
       GraphMap m_graphs;
 
+      typedef boost::container::flat_set<const Instruction*> InstSet;
+      typedef std::shared_ptr<InstSet> InstSetRef;
+      typedef boost::unordered_map<const Function*, InstSetRef> IndexMap;
+
+      // map each function f to the set of callsites where f (or any
+      // other function in the same SCC) is the callee
+      IndexMap m_uses;
+      // map each function f to the set of callsites defined inside f
+      // (or any other function in the same SCC)
+      IndexMap m_defs;
+
       typedef std::vector<const Instruction*> Worklist;
 
-      enum PropagationKind {DOWN, UP, NONE};
-      
-      PropagationKind decidePropagation 
-      (const DsaCallSite& cs, Graph &callerG, Graph& calleeG);
-      
-      void propagateTopDown 
-      (const DsaCallSite& cs, Graph &callerG, Graph& calleeG, Worklist &w);
+      // build the maps m_uses and m_defs
+      void buildIndexes (CallGraph &cg);
 
-      void propagateBottomUp 
-      (const DsaCallSite& cs, Graph &calleeG, Graph& callerG, Worklist &w);
+      enum PropagationKind {DOWN, UP, NONE};
+
+      PropagationKind decidePropagation (const DsaCallSite& cs, Graph &callerG, Graph& calleeG);
       
-      // Sanity check
+      void propagateTopDown(const DsaCallSite& cs, Graph &callerG, Graph& calleeG); 
+
+      void propagateBottomUp(const DsaCallSite& cs, Graph &calleeG, Graph& callerG); 
+            
+      // sanity check
       bool checkNoMorePropagation ();
 
      public:

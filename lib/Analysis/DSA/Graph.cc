@@ -169,6 +169,10 @@ void dsa::Node::collapse (int tag)
 {
   if (isCollapsed ()) return;
         
+  LOG ("unique_scalar",
+       if (m_unique_scalar)
+         errs () << "KILL due to collapse: "
+                 << *m_unique_scalar <<"\n";);
   m_unique_scalar = nullptr;
   assert (!isForwarding ());
   // if the node is already of smallest size, just mark it
@@ -204,7 +208,17 @@ void dsa::Node::pointTo (Node &node, const Offset &offset)
       
   // -- reset unique scalar at the destination
   if (offset != 0) node.setUniqueScalar (nullptr);
-  if (m_unique_scalar != node.getUniqueScalar ()) node.setUniqueScalar (nullptr);
+  if (m_unique_scalar != node.getUniqueScalar ())
+  {
+    LOG ("unique_scalar",
+         if (m_unique_scalar && node.getUniqueScalar ())
+           errs () << "KILL due to point-to "
+                   << *m_unique_scalar
+                   << " and "
+                   << *node.getUniqueScalar () << "\n";);
+
+    node.setUniqueScalar (nullptr);
+  }
   
   unsigned sz = size ();
       
@@ -624,7 +638,14 @@ dsa::Cell &dsa::Graph::mkCell (const llvm::Value &v, const Cell &c)
       if (!(res->getNode ()->hasUniqueScalar ()))
         res->getNode ()->setUniqueScalar (&v);
       else
+      {
+        LOG ("unique_scalar",
+             errs () << "KILL due to mkCell: ";
+             if (res->getNode ()->getUniqueScalar ())
+               errs () << "OLD: " << *res->getNode ()->getUniqueScalar () ;
+             errs () << " NEW: " << v <<"\n";);
         res->getNode ()->setUniqueScalar (nullptr);
+      }
     }
   }
   return *res;

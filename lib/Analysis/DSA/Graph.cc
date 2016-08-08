@@ -51,9 +51,13 @@ dsa::Node::Node (Graph &g, const Node &n, bool copyLinks) :
 /// array size; otherwise offset is not adjusted
 dsa::Node::Offset::operator unsigned() const 
 {
-  assert (!m_node.isForwarding ());
-  if (m_node.isCollapsed ()) return 0;
-  if (m_node.isArray ()) return m_offset % m_node.size ();
+  // XXX: m_node can be forward to another node since the constructor
+  // of Offset was called so we grab here the non-forwarding node
+  Node *n = const_cast<Node*> (m_node.getNode ());
+
+  assert (!n->isForwarding ());
+  if (n->isCollapsed ()) return 0;
+  if (n->isArray ()) return m_offset % n->size ();
   return m_offset;
 }
 
@@ -417,8 +421,17 @@ void dsa::Node::write(raw_ostream&o) const {
     o << "Node " << this << ": ";
     o << "flags=[" << m_nodeType.toStr() << "] ";
     writeTypes(o);
-
-    // TODO: print links
+    o << " links=[";
+    bool first=true;
+    for (auto &kv : m_links)
+    {
+      if (!first) 
+        o << ",";
+      else 
+        first = false;
+      o << kv.first << ":" << kv.second->getNode();
+    }
+    o << "]";
   }
 }
 

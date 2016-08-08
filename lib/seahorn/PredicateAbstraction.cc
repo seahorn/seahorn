@@ -44,14 +44,14 @@ namespace seahorn
 		ZFixedPoint<EZ3> &fp = *m_fp;
 		ZParams<EZ3> params (hm.getZContext ());
 		params.set (":engine", "spacer");
-//		// -- disable slicing so that we can use cover
+		// -- disable slicing so that we can use cover
 		params.set (":xform.slice", false);
 		params.set (":use_heavy_mev", true);
 		params.set (":reset_obligation_queue", true);
 		params.set (":pdr.flexible_trace", false);
 		params.set (":xform.inline-linear", false);
 		params.set (":xform.inline-eager", false);
-//		// -- disable utvpi. It is unstable.
+		// -- disable utvpi. It is unstable.
 		params.set (":pdr.utvpi", false);
 //		// -- disable propagate_variable_equivalences in tail_simplifier
 		params.set (":xform.tail_simplifier_pve", false);
@@ -62,12 +62,12 @@ namespace seahorn
 		new_db.loadZFixedPoint (fp, false);
 		boost::tribool result = fp.query ();
 //
-//		if (result) outs () << "sat";
-//		else if (!result) outs () << "unsat";
-//		else outs () << "unknown";
-//		outs () << "\n";
+		if (result) outs () << "sat";
+		else if (!result) outs () << "unsat";
+		else outs () << "unknown";
+		outs () << "\n";
 //
-//		printInvars (M);
+		printInvars (M);
 
 		return false;
 	}
@@ -180,7 +180,8 @@ namespace seahorn
 			{
 				for(int i=0; i<bind::domainSz(new_rule_head_rel); i++)
 				{
-					Expr boolVar = variant::variant(1, variant::variant(i, variant::tag(bind::fname(new_rule_head_rel), mkTerm<std::string> ("p", new_rule_head_rel->efac ())))); //prime
+					Expr var_tag = variant::variant(1, variant::variant(i, variant::tag(bind::fname(new_rule_head_rel), mkTerm<std::string> ("p", new_rule_head_rel->efac ())))); //prime
+					Expr boolVar = bind::boolConst(var_tag);
 					rule_vars.push_back(boolVar);
 					new_rule_head_args.push_back(boolVar);
 				}
@@ -189,7 +190,8 @@ namespace seahorn
 			{
 				for(int i=0; i<bind::domainSz(new_rule_head_rel); i++)
 				{
-					Expr boolVar = variant::variant(0, variant::variant(i, variant::tag(bind::fname(new_rule_head_rel), mkTerm<std::string> ("p", new_rule_head_rel->efac ())))); //noprime
+					Expr var_tag = variant::variant(0, variant::variant(i, variant::tag(bind::fname(new_rule_head_rel), mkTerm<std::string> ("p", new_rule_head_rel->efac ())))); //noprime
+					Expr boolVar = bind::boolConst(var_tag);
 					rule_vars.push_back(boolVar);
 					new_rule_head_args.push_back(boolVar);
 				}
@@ -240,7 +242,8 @@ namespace seahorn
 
 				for(int i=0; i<bind::domainSz(new_rule_body_rel); i++)
 				{
-					Expr boolVar = variant::variant(0, variant::variant(i, variant::tag(bind::fname(new_rule_body_rel), mkTerm<std::string> ("p", new_rule_body_rel->efac ())))); //noprime
+					Expr var_tag = variant::variant(0, variant::variant(i, variant::tag(bind::fname(new_rule_body_rel), mkTerm<std::string> ("p", new_rule_body_rel->efac ())))); //noprime
+					Expr boolVar = bind::boolConst(var_tag);
 					rule_vars.push_back(boolVar);
 					new_rule_body_args.push_back(boolVar);
 				}
@@ -267,6 +270,7 @@ namespace seahorn
 			Expr new_rule_body = mknary<AND>(new_body_exprs.begin(), new_body_exprs.end());
 			outs() << "NEW RULE BODY :" << *new_rule_body << "\n";
 			HornRule new_rule(rule_vars, new_rule_head, new_rule_body);
+			//HornRule new_rule(r.vars(), new_rule_head, new_rule_body);
 			new_DB.addRule(new_rule);
 		}
 //		 errs () << "QUERIES 2\n";
@@ -332,6 +336,9 @@ namespace seahorn
 		{
 			Expr zero = mkTerm<mpz_class> (0, fdecl->efac());
 			bins.push_back(mk<LT>(bvars[0], zero));
+
+			Expr one = mkTerm<mpz_class> (1, fdecl->efac());//
+			bins.push_back(mk<GEQ>(bvars[0], one));//
 		}
 		// if there are more than two bvars, make an lt expr
 		else if(bvar_count == 2)
@@ -340,6 +347,13 @@ namespace seahorn
 			Expr lt2 = mk<LT>(bvars[1], bvars[0]);
 			bins.push_back(lt1);
 			bins.push_back(lt2);
+
+			//
+			Expr one = mkTerm<mpz_class> (1, fdecl->efac());
+			Expr geq1 = mk<GEQ>(bvars[0], one);
+			Expr geq2 = mk<GEQ>(bvars[1], one);
+			bins.push_back(geq1);
+			bins.push_back(geq2);
 		}
 		else // bvar_count > 2
 		{

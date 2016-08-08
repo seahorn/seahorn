@@ -228,10 +228,10 @@ namespace seahorn
       ufo::ScopedStats _st_("HornClauseDB::loadZFixedPoint");
       for (auto &p: getRelations ())
        fp.registerRelation (p); 
-      
+
       for (auto &rule: getRules ())
         fp.addRule (rule.vars (), rule.get ()); 
-      
+
       for (auto &r : getRelations ())
         if (!skipConstraints && hasConstraints (r))
         {
@@ -246,7 +246,7 @@ namespace seahorn
           pred = bind::fapp (r, args);
           fp.addCover (pred, getConstraints (pred));
         }
-      
+
       if (!skipQuery) fp.addQueries (getQueries ());
     }
 

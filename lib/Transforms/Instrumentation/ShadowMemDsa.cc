@@ -31,6 +31,11 @@ LocalReadMod ("horn-dsa-local-mod",
               llvm::cl::desc ("DSA: Compute read/mod info locally"),
               llvm::cl::init (false));
 
+static llvm::cl::opt<bool>
+DsaCsGlobalAnalysis ("horn-dsa-cs-global",
+                   llvm::cl::desc ("DSA: context-sensitive analysis"),
+                   llvm::cl::init (true));
+
 namespace seahorn
 {
   using namespace llvm;
@@ -40,8 +45,8 @@ namespace seahorn
   void markReachableNodes (const Node *n, Set &set)
   {
     if (!n) return;
-    
     assert (!n->isForwarding () && "Cannot mark a forwarded node");
+
     if (set.insert (n).second) 
       for (auto const &edg : n->links ())
         markReachableNodes (edg.second->getNode (), set);
@@ -68,7 +73,7 @@ namespace seahorn
 
     // return value
     if (g.hasRetCell (fn))
-      retReach.insert (g.getRetCell (fn).getNode());
+      markReachableNodes (g.getRetCell (fn).getNode(), retReach);
   }
 
   // template <typename Set>
@@ -273,9 +278,11 @@ namespace seahorn
   bool ShadowMemDsa::runOnModule (llvm::Module &M)
   {
     if (M.begin () == M.end ()) return false;
-      
-    //m_dsa = &getAnalysis<ContextInsensitiveGlobal>();
-    m_dsa = &getAnalysis<ContextSensitiveGlobal>();
+  
+    if (DsaCsGlobalAnalysis)
+      m_dsa = &getAnalysis<ContextSensitiveGlobal>();
+    else
+      m_dsa = &getAnalysis<ContextInsensitiveGlobal>();
     
     if (LocalReadMod) computeReadMod ();
     
@@ -450,10 +457,6 @@ namespace seahorn
           ImmutableCallSite ICS(call);
           DsaCallSite CS (ICS);
 
-          //DSCallSite CS = dsg->getDSCallSiteForCallSite (CallSite (call));
-          //if (!CS.isDirectCall ()) continue;
-          //if (!CS.getCalleeFunc ()) continue;
-
           if (!CS.getCallee()) continue;
           
           if (CS.getCallee ()->getName ().equals ("calloc"))
@@ -482,13 +485,10 @@ namespace seahorn
           // -- compute callee nodes reachable from arguments and returns
           std::set<const Node*> reach;
           std::set<const Node*> retReach;
-          //DSCallSite CCS = cdsg->getCallSiteForArguments (CF);
-          //argReachableNodes (CCS, *cdsg, reach, retReach);
           argReachableNodes (CF, calleeG, reach, retReach);
 
+          // -- compute mapping between callee and caller graphs
           SimulationMapper simMap;
-          //DSGraph::NodeMapTy nodeMap;
-          //dsg->computeCalleeCallerMapping (CS, CF, *cdsg, nodeMap);
           dsa::Graph::computeCalleeCallerMapping (CS, calleeG, G, false, simMap); 
           
           /// generate mod, ref, new function, based on whether the
@@ -500,7 +500,6 @@ namespace seahorn
           {
             LOG("global_shadow", 
                 errs () << *n << "\n";
-
                 // n->print (errs (), n->getParentGraph ());
                 // errs () << "global: " << n->isGlobalNode () << "\n";
                 // errs () << "#globals: " << n->numGlobals () << "\n";
@@ -508,7 +507,6 @@ namespace seahorn
                 // if (n->numGlobals () == 1) n->addFullGlobalsSet (gv);
                 // errs () << "gv-size: " << gv.size () << "\n";
                 // if (gv.size () == 1) errs () << "Global: " << *(*gv.begin ()) << "\n";
-                
                 const Value *v = n->getUniqueScalar ();
                 if (v) 
                   errs () << "value: " << *n->getUniqueScalar () << "\n";
@@ -523,16 +521,16 @@ namespace seahorn
             // TODO: This must be done for every possible offset of the caller node,
             // TODO: not just for offset 0
 
+            assert (n);
             Cell callerC = simMap.get(Cell(const_cast<Node*> (n), 0));
-            assert (!callerC.isNull () && "Not found in the simulation map");
+            assert (!callerC.isNull () && "Not found node in the simulation map");
 
             AllocaInst *v = allocaForNode (callerC);
             unsigned id = getId (callerC);
-            
+          
             // -- read only node ignore nodes that are only reachable
             // -- from the return of the function
             if (isRead (n, CF) && !isModified (n, CF) && retReach.count(n) <= 0)
-            // if (n->isReadNode () && !n->isModifiedNode () && retReach.count(n) <= 0)
             {
               B.CreateCall4 (m_argRefFn, B.getInt32 (id),
                              B.CreateLoad (v),
@@ -540,7 +538,6 @@ namespace seahorn
             }
             // -- read/write or new node
             else if (isModified (n, CF))
-            // else if (n->isModifiedNode ())
             {
               // -- n is new node iff it is reachable only from the return node
               Constant* argFn = retReach.count (n) ? m_argNewFn : m_argModFn;
@@ -560,14 +557,11 @@ namespace seahorn
     // from the input arguments or from returns
     std::set<const Node*> reach;
     std::set<const Node*> retReach;
-    //DSCallSite CS = dsg->getCallSiteForArguments (F);
-    //argReachableNodes (CS, *dsg, reach, retReach);
     argReachableNodes (F, G, reach, retReach);
     
     // -- create shadows for all nodes that are modified by this
     // -- function and escape to a parent function
     for (const Node *n : reach)
-      // if (n->isModifiedNode () || n->isReadNode ())
       if (isModified (n, F) || isRead (n, F))
       {
         // TODO: allocate for all slices of n, not just offset 0
@@ -623,12 +617,11 @@ namespace seahorn
     {
       // TODO: extend to work with all slices
       Cell c (const_cast<Node*> (n), 0);
-      
+
       // n is read and is not only return-node reachable (for
       // return-only reachable nodes, there is no initial value
       // because they are created within this function)
       if ((isRead (n, F) || isModified (n, F)) && retReach.count (n) <= 0)
-      // if ((n->isReadNode () || n->isModifiedNode ()) && retReach.count (n) <= 0)
       {
         assert (!inits[n].empty());
         /// initial value
@@ -639,7 +632,6 @@ namespace seahorn
                        getUniqueScalar (ctx, B, c));
       }
       
-      // if (n->isModifiedNode ())
       if (isModified (n, F))
       {
         assert (!inits[n].empty());
@@ -659,7 +651,8 @@ namespace seahorn
   void ShadowMemDsa::getAnalysisUsage (llvm::AnalysisUsage &AU) const
   {
     AU.setPreservesAll ();
-    //AU.addRequiredTransitive<ContextInsensitiveGlobal> ();    
+    // XXX: both analysis will be run even if only one will be used
+    AU.addRequiredTransitive<ContextInsensitiveGlobal> ();    
     AU.addRequiredTransitive<ContextSensitiveGlobal> ();
     AU.addRequired<llvm::CallGraphWrapperPass>();
     AU.addRequired<llvm::DataLayoutPass>();

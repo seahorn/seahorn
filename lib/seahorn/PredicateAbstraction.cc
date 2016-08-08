@@ -95,7 +95,10 @@ namespace seahorn
 			outs() << "OLD PRED: " << *rel << "\n";
 			ExprVector new_args;
 			//Push fdecl name
-			new_args.push_back(bind::fname(rel));
+			Expr old_fdecl_name = bind::fname(rel);
+			std::ostringstream oss;
+			oss << old_fdecl_name << "_pabs";
+			new_args.push_back(old_fdecl_name);
 			//Push boolean types
 			ExprVector term_vec = currentCandidates.find(rel)->second;
 			if(term_vec.size() > 1 || term_vec.size() == 1 && !isOpX<TRUE>(term_vec[0]))
@@ -115,6 +118,10 @@ namespace seahorn
 			//Push return type
 			new_args.push_back(bind::rangeTy(rel));
 			Expr new_rel = mknary<FDECL>(new_args);
+
+			//new pred name
+			Expr new_fdecl_name = mkTerm<std::string>(oss.str(), new_rel->efac());
+			new_rel = bind::rename(new_rel, new_fdecl_name);
 
 			outs() << "NEW PRED: " << *new_rel << "\n";
 			new_DB.registerRelation(new_rel);
@@ -153,7 +160,17 @@ namespace seahorn
 			}
 			if(isSkip)
 			{
-				new_DB.addRule(r);
+				ExprMap replaceMap;
+				for(Expr pred : pred_vector)
+				{
+					Expr new_fdecl = oldToNewPredMap.find(bind::fname(pred))->second;
+					Expr new_pred = bind::reapp(pred, new_fdecl);
+					replaceMap.insert(std::pair<Expr, Expr>(pred, new_pred));
+				}
+				Expr new_head = replace(r.head(), replaceMap);
+				Expr new_body = replace(r.body(), replaceMap);
+				HornRule new_rule(r.vars(), new_head, new_body);
+				new_DB.addRule(new_rule);
 				continue;
 			}
 
@@ -252,7 +269,10 @@ namespace seahorn
 
 		for(auto old_query : db.getQueries())
 		{
-			Expr new_query = old_query;
+			Expr old_fdecl = bind::fname(old_query);
+			Expr new_fdecl = oldToNewPredMap.find(old_fdecl)->second;
+			ExprVector old_args;
+			Expr new_query = bind::fapp(new_fdecl, old_args);
 			outs() << "NEW QUERY: " << *new_query << "\n";
 			new_DB.addQuery(new_query);
 		}
@@ -310,8 +330,8 @@ namespace seahorn
 			Expr zero = mkTerm<mpz_class> (0, fdecl->efac());
 			bins.push_back(mk<LT>(bvars[0], zero));
 
-//			Expr one = mkTerm<mpz_class> (1, fdecl->efac());//
-//			bins.push_back(mk<GEQ>(bvars[0], one));//
+			Expr one = mkTerm<mpz_class> (1, fdecl->efac());//
+			bins.push_back(mk<GEQ>(bvars[0], one));//
 		}
 		// if there are more than two bvars, make an lt expr
 		else if(bvar_count == 2)
@@ -322,11 +342,11 @@ namespace seahorn
 			bins.push_back(lt2);
 
 			//
-//			Expr one = mkTerm<mpz_class> (1, fdecl->efac());
-//			Expr geq1 = mk<GEQ>(bvars[0], one);
-//			Expr geq2 = mk<GEQ>(bvars[1], one);
-//			bins.push_back(geq1);
-//			bins.push_back(geq2);
+			Expr one = mkTerm<mpz_class> (1, fdecl->efac());
+			Expr geq1 = mk<GEQ>(bvars[0], one);
+			Expr geq2 = mk<GEQ>(bvars[1], one);
+			bins.push_back(geq1);
+			bins.push_back(geq2);
 		}
 		else // bvar_count > 2
 		{

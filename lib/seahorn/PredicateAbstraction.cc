@@ -130,19 +130,18 @@ namespace seahorn
 			outs() << "OLD RULE HEAD: " << *(r.head()) << "\n";
 			outs() << "OLD RULE BODY: " << *(r.body()) << "\n";
 
+			//old rule variables
 			ExprVector rule_vars;
 			rule_vars.insert(rule_vars.end(), r.vars().begin(), r.vars().end());
 
-			//Map from predicate apps to bool vars
-			std::map<Expr, Expr> predAppToBoolVarMap;
-
-			//Count occurrence time for each relation in per rule
+			//Map for counting occurrence time for each relation in per rule
 			std::map<Expr, int> relOccurrenceTimesMap;
 
 			ExprVector pred_vector;
 			get_all_pred_apps(r.body(), db, std::back_inserter(pred_vector));
 			pred_vector.push_back(r.head());
 
+			//Skip the rules which have no bvar arguments
 			bool isSkip = true;
 			for (Expr pred : pred_vector)
 			{
@@ -158,74 +157,14 @@ namespace seahorn
 				continue;
 			}
 
+			//initialize the occurrence count map
 			for(ExprVector::iterator it = pred_vector.begin(); it!= pred_vector.end(); ++it)
 			{
-				if(relOccurrenceTimesMap.find(bind::fname(*it)) == relOccurrenceTimesMap.end())
-				{
-					relOccurrenceTimesMap.insert(std::pair<Expr, int>(bind::fname(*it), 1));
-				}
-				else
-				{
-					relOccurrenceTimesMap[bind::fname(*it)] += 1;
-				}
+				relOccurrenceTimesMap.insert(std::pair<Expr, int>(bind::fname(*it), 0));
 			}
-
-			//construct new rule head.
-			Expr rule_head = r.head();
-			Expr new_rule_head_rel = oldToNewPredMap.find(bind::fname(rule_head))->second;
-
-			ExprVector new_rule_head_args;
-			int head_rel_occur_time = relOccurrenceTimesMap.find(bind::fname(rule_head))->second;
-			if(head_rel_occur_time == 2) //Both head and body
-			{
-				for(int i=0; i<bind::domainSz(new_rule_head_rel); i++)
-				{
-					Expr var_tag = variant::variant(1, variant::variant(i, variant::tag(bind::fname(new_rule_head_rel), mkTerm<std::string> ("p", new_rule_head_rel->efac ())))); //prime
-					Expr boolVar = bind::boolConst(var_tag);
-					rule_vars.push_back(boolVar);
-					new_rule_head_args.push_back(boolVar);
-				}
-			}
-			else if(head_rel_occur_time == 1) //only in head
-			{
-				for(int i=0; i<bind::domainSz(new_rule_head_rel); i++)
-				{
-					Expr var_tag = variant::variant(0, variant::variant(i, variant::tag(bind::fname(new_rule_head_rel), mkTerm<std::string> ("p", new_rule_head_rel->efac ())))); //noprime
-					Expr boolVar = bind::boolConst(var_tag);
-					rule_vars.push_back(boolVar);
-					new_rule_head_args.push_back(boolVar);
-				}
-			}
-			else
-			{
-				errs() << "OCCUR TIMES WRONG!\n";
-				assert(false);
-			}
-
-			Expr new_rule_head = bind::fapp(new_rule_head_rel, new_rule_head_args);
-			outs() << "NEW RULE HEAD: " << *new_rule_head << "\n";
 
 			//construct new body
 			ExprVector new_body_exprs;
-
-			if(bind::domainSz(bind::fname(rule_head)) != 0)
-			{
-				//construct head equality expr
-				int index = 0;
-				for(Expr term : currentCandidates.find(bind::fname(rule_head))->second)
-				{
-					Expr term_app = applyArgsToBvars(term, rule_head);
-					Expr equal_expr = mk<IFF>(new_rule_head->arg(index + 1), term_app);
-
-					new_body_exprs.push_back(equal_expr);
-					index ++;
-				}
-				outs() << "RULE HEAD IFF: \n";
-				for (Expr e : new_body_exprs)
-				{
-					outs() << *e << "\n";
-				}
-			}
 
 			//For each predicate in the body, construct new version of predicate.
 			Expr rule_body = r.body();
@@ -234,15 +173,17 @@ namespace seahorn
 			for(ExprVector::iterator it = body_pred_apps.begin(); it != body_pred_apps.end(); ++it)
 			{
 				Expr rule_body_pred = *it;
-				assert(oldToNewPredMap.find(bind::fname(rule_body_pred)) != oldToNewPredMap.end());
 				Expr new_rule_body_rel = oldToNewPredMap.find(bind::fname(rule_body_pred))->second;
+
+				int pred_order = relOccurrenceTimesMap.find(bind::fname(rule_body_pred))->second;
+				relOccurrenceTimesMap[bind::fname(rule_body_pred)] += 1;
 
 				ExprVector new_rule_body_args;
 				//Push boolean variables into arguments of new predicate
 
 				for(int i=0; i<bind::domainSz(new_rule_body_rel); i++)
 				{
-					Expr var_tag = variant::variant(0, variant::variant(i, variant::tag(bind::fname(new_rule_body_rel), mkTerm<std::string> ("p", new_rule_body_rel->efac ())))); //noprime
+					Expr var_tag = variant::variant(pred_order, variant::variant(i, variant::tag(bind::fname(new_rule_body_rel), mkTerm<std::string> ("p", new_rule_body_rel->efac ())))); //noprime
 					Expr boolVar = bind::boolConst(var_tag);
 					rule_vars.push_back(boolVar);
 					new_rule_body_args.push_back(boolVar);
@@ -263,19 +204,51 @@ namespace seahorn
 				}
 			}
 
+			Expr rule_head = r.head();
+
+			//construct new rule head.
+			Expr new_rule_head_rel = oldToNewPredMap.find(bind::fname(rule_head))->second;
+
+			ExprVector new_rule_head_args;
+			int pred_order = relOccurrenceTimesMap.find(bind::fname(rule_head))->second;
+			relOccurrenceTimesMap[bind::fname(rule_head)] += 1;
+			for(int i=0; i<bind::domainSz(new_rule_head_rel); i++)
+			{
+				Expr var_tag = variant::variant(pred_order, variant::variant(i, variant::tag(bind::fname(new_rule_head_rel), mkTerm<std::string> ("p", new_rule_head_rel->efac ())))); //prime
+				Expr boolVar = bind::boolConst(var_tag);
+				rule_vars.push_back(boolVar);
+				new_rule_head_args.push_back(boolVar);
+			}
+
+			Expr new_rule_head = bind::fapp(new_rule_head_rel, new_rule_head_args);
+			outs() << "NEW RULE HEAD: " << *new_rule_head << "\n";
+
+
+			if(bind::domainSz(bind::fname(rule_head)) != 0)
+			{
+				//construct head equality expr, put in new body
+				int index = 0;
+				for(Expr term : currentCandidates.find(bind::fname(rule_head))->second)
+				{
+					Expr term_app = applyArgsToBvars(term, rule_head);
+					Expr equal_expr = mk<IFF>(new_rule_head->arg(index + 1), term_app);
+
+					new_body_exprs.push_back(equal_expr);
+					index ++;
+				}
+			}
+
 			//Extract the constraints
 			Expr constraints = extractTransitionRelation(r, db);
 			new_body_exprs.push_back(constraints);
+
 			//Construct new body
 			Expr new_rule_body = mknary<AND>(new_body_exprs.begin(), new_body_exprs.end());
 			outs() << "NEW RULE BODY :" << *new_rule_body << "\n";
+
 			HornRule new_rule(rule_vars, new_rule_head, new_rule_body);
-			//HornRule new_rule(r.vars(), new_rule_head, new_rule_body);
 			new_DB.addRule(new_rule);
 		}
-//		 errs () << "QUERIES 2\n";
-//		        for (auto q: db.getQueries ())
-//		        	errs () << *q << "\n";
 
 		for(auto old_query : db.getQueries())
 		{
@@ -337,8 +310,8 @@ namespace seahorn
 			Expr zero = mkTerm<mpz_class> (0, fdecl->efac());
 			bins.push_back(mk<LT>(bvars[0], zero));
 
-			Expr one = mkTerm<mpz_class> (1, fdecl->efac());//
-			bins.push_back(mk<GEQ>(bvars[0], one));//
+//			Expr one = mkTerm<mpz_class> (1, fdecl->efac());//
+//			bins.push_back(mk<GEQ>(bvars[0], one));//
 		}
 		// if there are more than two bvars, make an lt expr
 		else if(bvar_count == 2)
@@ -349,11 +322,11 @@ namespace seahorn
 			bins.push_back(lt2);
 
 			//
-			Expr one = mkTerm<mpz_class> (1, fdecl->efac());
-			Expr geq1 = mk<GEQ>(bvars[0], one);
-			Expr geq2 = mk<GEQ>(bvars[1], one);
-			bins.push_back(geq1);
-			bins.push_back(geq2);
+//			Expr one = mkTerm<mpz_class> (1, fdecl->efac());
+//			Expr geq1 = mk<GEQ>(bvars[0], one);
+//			Expr geq2 = mk<GEQ>(bvars[1], one);
+//			bins.push_back(geq1);
+//			bins.push_back(geq2);
 		}
 		else // bvar_count > 2
 		{

@@ -623,8 +623,9 @@ void dsa::Graph::compress ()
                  m_nodes.end ());
 }
 
-dsa::Cell &dsa::Graph::mkCell (const llvm::Value &v, const Cell &c)
+dsa::Cell &dsa::Graph::mkCell (const llvm::Value &u, const Cell &c)
 {
+  auto &v = *u.stripPointerCasts ();
   // Pretend that global values are always present
   if (isa<GlobalValue> (&v) && c.isNull ())
     return mkCell (v, Cell (mkNode (), 0));
@@ -672,8 +673,9 @@ const dsa::Cell &dsa::Graph::getRetCell (const llvm::Function &fn) const
   return *(it->second);
 }
 
-const dsa::Cell &dsa::Graph::getCell (const llvm::Value &v) 
+const dsa::Cell &dsa::Graph::getCell (const llvm::Value &u) 
 {
+  const llvm::Value &v = *(u.stripPointerCasts ());
   // -- try m_formals first
   if (const llvm::Argument *arg = dyn_cast<const Argument> (&v))
   {
@@ -691,8 +693,9 @@ const dsa::Cell &dsa::Graph::getCell (const llvm::Value &v)
   }
 }
 
-bool dsa::Graph::hasCell (const llvm::Value &v) const
+bool dsa::Graph::hasCell (const llvm::Value &u) const
 {
+  auto &v = *u.stripPointerCasts ();
   return
     // -- globals are always implicitly present
     isa<GlobalValue> (&v) || 

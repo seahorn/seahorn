@@ -237,7 +237,7 @@ namespace
   {
     using namespace seahorn::dsa;
     
-    Cell base = valueCell  (*LI.getPointerOperand ());
+    Cell base = valueCell  (*LI.getPointerOperand ()->stripPointerCasts ());
     assert (!base.isNull ());
     base.addType (0, LI.getType ());
     base.setRead();
@@ -258,10 +258,10 @@ namespace
     using namespace seahorn::dsa;
     
     // -- skip store into NULL
-    if (Constant *c = dyn_cast<Constant> (SI.getPointerOperand ()))
+    if (Constant *c = dyn_cast<Constant> (SI.getPointerOperand ()->stripPointerCasts ()))
       if (c->isNullValue ()) return;
     
-    Cell base = valueCell  (*SI.getPointerOperand ());
+    Cell base = valueCell  (*SI.getPointerOperand ()->stripPointerCasts ());
     assert (!base.isNull ());
 
     base.setModified();
@@ -382,6 +382,10 @@ namespace
                                    const Value &ptr, ArrayRef<Value *> indicies)
   {
     assert (m_graph.hasCell (ptr) || isa<GlobalValue> (&ptr));
+    
+    // -- empty gep that points directly to the base
+    if (gep.stripPointerCasts () == &ptr) return;
+
     dsa::Cell base = valueCell (ptr);
     assert (!base.isNull ());
 

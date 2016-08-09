@@ -131,6 +131,7 @@ namespace seahorn
       static bool computeCalleeCallerMapping (const DsaCallSite &cs, 
                                               Graph& calleeG, Graph& callerG,
                                               const bool onlyModified,
+                                              const bool reportIfSanityCheckFailed,
                                               SimulationMapper& simMap);
       
       /// import the given graph into the current one

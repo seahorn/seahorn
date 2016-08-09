@@ -719,6 +719,7 @@ void dsa::Node::dump() const {
 bool dsa::Graph::computeCalleeCallerMapping (const DsaCallSite &cs, 
                                              Graph& calleeG, Graph &callerG, 
                                              const bool onlyModified,
+                                             const bool reportIfSanityCheckFailed,
                                              SimulationMapper& simMap) 
 {
   for (auto &kv : boost::make_iterator_range (calleeG.globals_begin (),
@@ -730,14 +731,14 @@ bool dsa::Graph::computeCalleeCallerMapping (const DsaCallSite &cs,
       Cell &nc = callerG.mkCell (*kv.first, Cell ());
       if (!simMap.insert (c, nc)) 
       {
-        LOG ("dsa-sim-map",
-             errs () << "Cannot compute callee-caller mapping for " 
-                     << *cs.getInstruction() << "\n"
-                     << "Global: " << *kv.first << "\n"
-                     << "Callee cell=" << c << "\n"
-                     << "Caller cell=" << nc << "\n";
-             );
-
+        if (reportIfSanityCheckFailed)
+        {
+          errs () << "Callee is not simulated by caller at " 
+                  << *cs.getInstruction() << "\n"
+                  << "Global: " << *kv.first << "\n"
+                  << "Callee cell=" << c << "\n"
+                  << "Caller cell=" << nc << "\n";
+        }
         return false; 
       }
     }
@@ -752,14 +753,14 @@ bool dsa::Graph::computeCalleeCallerMapping (const DsaCallSite &cs,
       Cell &nc = callerG.mkCell (*cs.getInstruction (), Cell());
       if (!simMap.insert (c, nc)) 
       {
-        LOG ("dsa-sim-map",
-             errs () << "Cannot compute callee-caller mapping for " 
-                     << *cs.getInstruction() << "\n"
-                     << "Return value of " << callee.getName () << "\n"
-                     << "Callee cell=" << c << "\n"
-                     << "Caller cell=" << nc << "\n";
-             );
-
+        if (reportIfSanityCheckFailed)
+        {
+          errs () << "Callee is not simulated by caller at " 
+                  << *cs.getInstruction() << "\n"
+                  << "Return value of " << callee.getName () << "\n"
+                  << "Callee cell=" << c << "\n"
+                  << "Caller cell=" << nc << "\n";
+        }
         return false; 
       }
     }
@@ -778,15 +779,15 @@ bool dsa::Graph::computeCalleeCallerMapping (const DsaCallSite &cs,
         Cell &nc = callerG.mkCell (*arg, Cell ());
         if (!simMap.insert(c, nc)) 
         {
-          LOG ("dsa-sim-map",
-               errs () << "Cannot compute callee-caller mapping for " 
-                       << *cs.getInstruction() << "\n"
-                       << "Formal param " << *fml << "\n"
-                       << "Actual param " << *arg << "\n"
-                       << "Callee cell=" << c << "\n"
-                       << "Caller cell=" << nc << "\n";
-               );
-
+          if (reportIfSanityCheckFailed)
+          {
+            errs () << "Callee is not simulated by caller at " 
+                    << *cs.getInstruction() << "\n"
+                    << "Formal param " << *fml << "\n"
+                    << "Actual param " << *arg << "\n"
+                    << "Callee cell=" << c << "\n"
+                    << "Caller cell=" << nc << "\n";
+          }
           return false; 
         }
       }

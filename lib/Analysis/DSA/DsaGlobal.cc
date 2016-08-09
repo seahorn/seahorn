@@ -307,7 +307,10 @@ namespace seahorn
     {
       PropagationKind res = UP;
       SimulationMapper sm;
-      if (Graph::computeCalleeCallerMapping(cs, calleeG, callerG, true, sm)) {
+      if (Graph::computeCalleeCallerMapping(cs, calleeG, callerG, 
+                                            true,  /*only modified nodes*/
+                                            false, /*no report if sanity check failed*/
+                                            sm)) {
         if (sm.isFunction ())
           res = (sm.isInjective () ? NONE: DOWN);
       }
@@ -485,7 +488,7 @@ namespace seahorn
             if (pkind != NONE)
             {
               auto pkind_str = (pkind==UP)? "bottom-up": "top-down";
-              errs () << "Sanity check failed:" 
+              errs () << "WARNING sanity check failed:" 
                       << *(cs.getInstruction ()) << " requires " 
                       << pkind_str << " propagation.\n";
               return false;

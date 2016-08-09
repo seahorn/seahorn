@@ -489,7 +489,7 @@ namespace seahorn
 
           // -- compute mapping between callee and caller graphs
           SimulationMapper simMap;
-          dsa::Graph::computeCalleeCallerMapping (CS, calleeG, G, false, simMap); 
+          dsa::Graph::computeCalleeCallerMapping (CS, calleeG, G, false, true, simMap); 
           
           /// generate mod, ref, new function, based on whether the
           /// remote node reads, writes, or creates the corresponding node.

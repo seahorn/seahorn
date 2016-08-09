@@ -143,7 +143,7 @@ int main(int argc, char **argv) {
     //pass_manager.add (new seahorn::dsa::BottomUp ());
     //pass_manager.add (new seahorn::dsa::Local ());
     //pass_manager.add (new seahorn::dsa::Global ());
-    pass_manager.add (new seahorn::dsa::Info ());
+    pass_manager.add (new seahorn::dsa::InfoPass ());
   }
 
   pass_manager.run(*module.get());

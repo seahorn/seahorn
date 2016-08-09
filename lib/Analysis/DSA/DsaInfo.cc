@@ -16,51 +16,39 @@
 using namespace seahorn::dsa;
 using namespace llvm;
 
-enum DsaKind { GLOBAL, CS_GLOBAL};
-llvm::cl::opt<DsaKind>
-DsaVariant("dsa-variant",
-           llvm::cl::desc ("Choose the dsa variant"),
-           llvm::cl::values 
-           (clEnumValN (GLOBAL   , "global"   , "Context insensitive dsa analysis"),
-            clEnumValN (CS_GLOBAL, "cs-global", "Context sensitive dsa analysis"),
-            clEnumValEnd),
-           llvm::cl::init (GLOBAL));
+// enum DsaKind { GLOBAL, CS_GLOBAL};
+// llvm::cl::opt<DsaKind>
+// DsaVariant("dsa-variant",
+//            llvm::cl::desc ("Choose the dsa variant"),
+//            llvm::cl::values 
+//            (clEnumValN (GLOBAL   , "global"   , "Context insensitive dsa analysis"),
+//             clEnumValN (CS_GLOBAL, "cs-global", "Context sensitive dsa analysis"),
+//             clEnumValEnd),
+//            llvm::cl::init (GLOBAL));
 
 static bool isStaticallyKnown (const DataLayout* dl, 
                                const TargetLibraryInfo* tli,
                                const Value* v) 
 {
   uint64_t size;
-  if (getObjectSize (v, size, dl, tli, true))
-    return (size > 0);
+  if (getObjectSize (v, size, dl, tli, true)) return (size > 0);
   return false; 
 }
-
-void Info::getAnalysisUsage (AnalysisUsage &AU) const 
-{
-  AU.addRequired<DataLayoutPass> ();
-  AU.addRequired<TargetLibraryInfo> ();
-  /// XXX: note that this will run all these Dsa variants.
-  /// This is temporary for debugging purposes
-  AU.addRequired<ContextInsensitiveGlobal> ();
-  AU.addRequired<ContextSensitiveGlobal> ();
-  AU.setPreservesAll ();
-}
-
+      
 // return null if there is no graph for f
-Graph* Info::getGraph(const Function&f) const
+Graph* InfoAnalysis::getGraph(const Function&f) const
 {
   Graph *g = nullptr;
-  if (m_dsa->hasGraph(f)) g = &m_dsa->getGraph(f);
+  if (m_dsa.hasGraph(f)) g = &m_dsa.getGraph(f);
   return g;
 }
 
-bool Info::is_alive_node::operator()(const NodeInfo& n) 
+bool InfoAnalysis::is_alive_node::operator()(const NodeInfo& n) 
 {
   return n.getNode()->isRead() || n.getNode()->isModified();
 }
 
-void Info::addMemoryAccess (const Value* v, Graph& g) 
+void InfoAnalysis::addMemoryAccess (const Value* v, Graph& g) 
 {
   v = v->stripPointerCasts();
   if (!g.hasCell(*v)) {
@@ -73,12 +61,12 @@ void Info::addMemoryAccess (const Value* v, Graph& g)
   const Cell &c = g.getCell (*v);
   Node *n = c.getNode();
   auto it = m_nodes_map.find (n);
-  if (it != m_nodes_map.end () && !isStaticallyKnown (m_dl, m_tli, v))
+  if (it != m_nodes_map.end () && !isStaticallyKnown (&m_dl, &m_tli, v))
     ++(it->second);
 
 }        
 
-void Info::countMemoryAccesses (Function&F) 
+void InfoAnalysis::countMemoryAccesses (Function&F) 
 {
   // A node can be read or modified even if there is no a memory
   // load/store for it. This can happen after nodes are unified.
@@ -103,7 +91,8 @@ void Info::countMemoryAccesses (Function&F)
   }
 }
       
-void Info::printMemoryAccesses (live_nodes_const_range nodes, llvm::raw_ostream &o) const 
+void InfoAnalysis::
+printMemoryAccesses (live_nodes_const_range nodes, llvm::raw_ostream &o) const 
 {
   // Here counters
   unsigned int total_accesses = 0; // count the number of total memory accesses
@@ -139,7 +128,8 @@ void Info::printMemoryAccesses (live_nodes_const_range nodes, llvm::raw_ostream 
   }
 }
 
-void Info::printMemoryTypes (live_nodes_const_range nodes, llvm::raw_ostream& o) const
+void InfoAnalysis::
+printMemoryTypes (live_nodes_const_range nodes, llvm::raw_ostream& o) const
 {
   // Here counters
   unsigned num_collapses = 0;    // number of collapsed nodes
@@ -158,7 +148,8 @@ void Info::printMemoryTypes (live_nodes_const_range nodes, llvm::raw_ostream& o)
   // TODO: print all node's types
 }
 
-void Info::printMemoryAllocSites (live_nodes_const_range nodes, llvm::raw_ostream& o) const
+void InfoAnalysis::
+printMemoryAllocSites (live_nodes_const_range nodes, llvm::raw_ostream& o) const
 {
   // Here counters
   
@@ -252,17 +243,8 @@ void Info::printMemoryAllocSites (live_nodes_const_range nodes, llvm::raw_ostrea
   o << "\t" << num_non_singleton << " allocation sites with more than one type\n";
 }
 
-bool Info::runOnModule (Module &M) 
+bool InfoAnalysis::runOnModule (Module &M) 
 {
-
-  m_dl = &getAnalysis<DataLayoutPass>().getDataLayout ();
-  m_tli = &getAnalysis<TargetLibraryInfo> ();
-
-  if (DsaVariant == CS_GLOBAL) 
-    m_dsa = &getAnalysis<ContextSensitiveGlobal>();
-  else
-    m_dsa = &getAnalysis<ContextInsensitiveGlobal>();
-
   for (auto &f: M) { runOnFunction (f); }
     
   errs () << " ========== Begin Dsa info  ==========\n";
@@ -276,7 +258,7 @@ bool Info::runOnModule (Module &M)
   return false;
 }
 
-bool Info::runOnFunction (Function &f) 
+bool InfoAnalysis::runOnFunction (Function &f) 
 {  
   auto g = getGraph(f);
   if (!g) return false;
@@ -293,7 +275,33 @@ bool Info::runOnFunction (Function &f)
   return false;
 }
 
-char Info::ID = 0;
 
-static llvm::RegisterPass<Info> 
+/// LLVM pass
+
+void InfoPass::getAnalysisUsage (AnalysisUsage &AU) const 
+{
+  AU.addRequired<DataLayoutPass> ();
+  AU.addRequired<TargetLibraryInfo> ();
+  //AU.addRequired<ContextInsensitiveGlobal> ();
+  AU.addRequired<ContextSensitiveGlobal> ();
+  AU.setPreservesAll ();
+}
+
+bool InfoPass::runOnModule (Module &M) 
+{
+
+  auto dl = &getAnalysis<DataLayoutPass>().getDataLayout ();
+  auto tli = &getAnalysis<TargetLibraryInfo> ();
+  //auto dsa = &getAnalysis<ContextInsensitiveGlobal>().getGlobalAnalysis();
+  auto dsa = &getAnalysis<ContextSensitiveGlobal>().getGlobalAnalysis();
+
+  m_ia.reset (new InfoAnalysis (*dl, *tli, *dsa));
+  return m_ia->runOnModule (M);
+  return false;
+}
+
+
+char InfoPass::ID = 0;
+
+static llvm::RegisterPass<InfoPass> 
 X ("dsa-info", "Collect stats and information for dsa clients");

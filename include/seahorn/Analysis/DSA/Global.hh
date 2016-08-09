@@ -11,6 +11,7 @@
 #include "boost/unordered_map.hpp"
 #include "boost/container/flat_set.hpp"
 
+
 namespace llvm
 {
   class DataLayout;
@@ -182,6 +183,9 @@ namespace seahorn
 
       bool hasGraph (const Function &fn) const override;
 
+      GlobalAnalysis& getGlobalAnalysis ()  
+      { return *(static_cast<GlobalAnalysis*> (&*m_ga)); } 
+
     };
 
     class ContextSensitiveGlobal : public DsaGlobalPass
@@ -207,6 +211,10 @@ namespace seahorn
       Graph& getGraph (const Function &fn) override;
 
       bool hasGraph (const Function &fn) const override;
+
+      GlobalAnalysis& getGlobalAnalysis ()  
+      { return *(static_cast<GlobalAnalysis*> (&*m_ga)); } 
+
     };
 
   }

@@ -23,6 +23,7 @@ namespace seahorn
 	char PredicateAbstraction::ID = 0;
 
     std::map<Expr, Expr> PredicateAbstraction::oldToNewPredMap;
+    std::map<Expr, Expr> PredicateAbstraction::newToOldPredMap;
     std::map<Expr, ExprVector> PredicateAbstraction::currentCandidates;
 
 	bool PredicateAbstraction::runOnModule (Module &M)
@@ -36,8 +37,10 @@ namespace seahorn
 		//guess candidates
 		guessCandidate(db);
 
+		HornDbModel oldModel;
+		HornModelConverter converter;
 		//run main algorithm
-		HornClauseDB new_db = runOnDB(db);
+		HornClauseDB new_db = runOnDB(db, converter);
 
 		//initialize spacer based on new DB
 		m_fp.reset (new ZFixedPoint<EZ3> (hm.getZContext ()));
@@ -67,11 +70,59 @@ namespace seahorn
 		{
 			outs() << "unsat\n";
 			HornDbModel absModel(new_db, fp);
+			converter.convert(absModel, oldModel, newToOldPredMap);
+			for(ExprMap::iterator it = oldModel.getRelToSolutionMap().begin(); it!=oldModel.getRelToSolutionMap().end(); ++it)
+			{
+				outs() << *(bind::fname(it->first)) << ": " << *(it->second) << "\n";
+			}
 		}
 		else outs () << "unknown";
 		outs () << "\n";
 
 		return false;
+	}
+
+	bool HornModelConverter::convert (HornDbModel &in, HornDbModel &out, std::map<Expr, Expr> &newToOldPredMap)
+	{
+		ExprMap inRelToSolMap = in.getRelToSolutionMap();
+		ExprMap outRelToSolMap;
+		for(ExprMap::iterator it = inRelToSolMap.begin(); it!=inRelToSolMap.end(); ++it)
+		{
+			Expr abs_rel = it->first;
+			Expr old_rel = newToOldPredMap.find(abs_rel)->second;
+
+			Expr abs_boolvar = it->second;
+			Expr old_solution;
+			if(isOpX<TRUE>(abs_boolvar) || isOpX<FALSE>(abs_boolvar))
+			{
+				old_solution = abs_boolvar;
+			}
+			else
+			{
+				Expr old_term = getBoolToTermMap().find(abs_boolvar)->second;
+				old_solution = old_term;
+			}
+
+			outRelToSolMap.insert(std::pair<Expr, Expr>(old_rel, old_solution));
+		}
+		out.setRelToSolutionMap(outRelToSolMap);
+		return true;
+	}
+
+	bool PredicateAbstraction::hasBvarInRule(HornRule r, HornClauseDB &db)
+	{
+		ExprVector pred_vector;
+		get_all_pred_apps(r.body(), db, std::back_inserter(pred_vector));
+		pred_vector.push_back(r.head());
+		ExprVector bvar_vector;
+		for(Expr pred : pred_vector)
+		{
+			get_all_bvars(bind::fname(pred), std::back_inserter(bvar_vector));
+		}
+		if(bvar_vector.size() == 0)
+			return false;
+		else
+			return true;
 	}
 
 	void PredicateAbstraction::getAnalysisUsage (AnalysisUsage &AU) const
@@ -80,7 +131,7 @@ namespace seahorn
 	    AU.setPreservesAll();
 	}
 
-	HornClauseDB PredicateAbstraction::runOnDB(HornClauseDB &db)
+	HornClauseDB PredicateAbstraction::runOnDB(HornClauseDB &db, HornModelConverter &converter)
 	{
 		outs() << "OLD DB: \n";
 		outs() << db << "\n";
@@ -129,6 +180,7 @@ namespace seahorn
 			new_DB.registerRelation(new_rel);
 
 			oldToNewPredMap.insert(std::pair<Expr, Expr>(rel, new_rel));
+			newToOldPredMap.insert(std::pair<Expr, Expr>(new_rel, rel));
 		}
 		outs() << "NEW DB: \n";
 		outs() << new_DB << "\n";
@@ -217,6 +269,8 @@ namespace seahorn
 				{
 					Expr term_app = applyArgsToBvars(term, *it);
 					Expr equal_expr = mk<IFF>(new_rule_body_pred->arg(index + 1), term_app);
+					//converter
+					converter.getBoolToTermMap().insert(std::pair<Expr, Expr>(new_rule_body_pred->arg(index + 1), term_app));
 
 					new_body_exprs.push_back(equal_expr);
 					index ++;
@@ -251,6 +305,8 @@ namespace seahorn
 				{
 					Expr term_app = applyArgsToBvars(term, rule_head);
 					Expr equal_expr = mk<IFF>(new_rule_head->arg(index + 1), term_app);
+					//converter
+					converter.getBoolToTermMap().insert(std::pair<Expr, Expr>(new_rule_head->arg(index + 1), term_app));
 
 					new_body_exprs.push_back(equal_expr);
 					index ++;

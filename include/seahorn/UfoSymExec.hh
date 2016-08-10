@@ -29,6 +29,9 @@ namespace seahorn
       SmallStepSymExec (o), m_pass (o.m_pass), m_trackLvl (o.m_trackLvl) {}
     
     Expr errorFlag (const BasicBlock &BB) override;
+
+    virtual Expr memStart (unsigned id) { assert (false); return Expr(); }
+    virtual Expr memEnd (unsigned id) { assert (false); return Expr (); }
     
     virtual void exec (SymStore &s, const BasicBlock &bb, 
                        ExprVector &side, Expr act);

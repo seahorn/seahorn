@@ -203,6 +203,7 @@ namespace seahorn
     
     if (!m_bmc.m_sem.isTracked (inst)) return Expr ();
     if (isCallToVoidFn (inst)) return Expr ();
+    Expr u = m_bmc.m_sem.symb (inst);
     
     unsigned stateidx = cpid(loc);
     // -- all registers except for PHI nodes at the entry to an edge
@@ -212,11 +213,26 @@ namespace seahorn
     if (stateidx >= m_bmc.m_states.size ()) return Expr ();
     
     SymStore &store = m_bmc.m_states[stateidx];
-    Expr v = store.eval (m_bmc.m_sem.symb (inst));
+    Expr v = store.eval (u);
     return m_model.eval (v, complete);
   }
   
+  Expr BmcTrace::eval (unsigned loc,
+                       Expr u, 
+                       bool complete) 
+  {
+    
+    unsigned stateidx = cpid(loc);
+    stateidx++;
+    // -- out of bounds, no value in the model
+    if (stateidx >= m_bmc.m_states.size ()) return Expr ();
+    
+    SymStore &store = m_bmc.m_states[stateidx];
+    Expr v = store.eval (u);
+    return m_model.eval (v, complete);
+  }
 
+  
   static bool isCallToVoidFn (const llvm::Instruction &I)
   {
     if (const CallInst *ci = dyn_cast<const CallInst> (&I))

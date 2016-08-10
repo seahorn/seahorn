@@ -15,6 +15,8 @@
 #include "llvm/IR/DebugLoc.h"
 #include "llvm/IR/DebugInfo.h"
 
+#include "seahorn/Transforms/Instrumentation/ShadowMemDsa.hh"
+
 namespace seahorn
 {
   using namespace expr;
@@ -55,6 +57,8 @@ namespace seahorn
     {};
     
     void addCutPoint (const CutPoint &cp);
+    
+    SmallStepSymExec& sem () {return m_sem;}
     
     /// constructs the path condition
     void encode ();
@@ -125,6 +129,7 @@ namespace seahorn
     
     /// The value of the instruction at the given location 
     Expr eval (unsigned loc, const llvm::Instruction &inst, bool complete=false);
+    Expr eval (unsigned loc, Expr v, bool complete=false);
     template <typename Out> Out &print (Out &out);
     friend class BmcEngine;
   };
@@ -168,12 +173,22 @@ namespace seahorn
               out << "enter: " << fnScope.getDisplayName () << "\n";
             continue;
           }
+          else if (f && f->getName ().equals ("shadow.mem.init"))
+          {
+            int64_t id = shadow_dsa::getShadowId (ci);
+            assert (id >= 0);
+            Expr memStart = m_bmc.sem().memStart (id);
+            Expr u = eval (loc, memStart);
+            if (u) out << "  " << *memStart << " " << *u << "\n";
+            Expr memEnd = m_bmc.sem().memEnd (id);
+            u = eval (loc, memEnd);
+            if (u) out << "  " << *memEnd << " " << *u << "\n";
+          }
         }
                
                
         Expr v = eval (loc, I);
         if (!v) continue;
-        
         out << "  %" << I.getName () << " " << *v;
         
         const DebugLoc dloc = I.getDebugLoc ();

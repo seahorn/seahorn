@@ -30,8 +30,8 @@ namespace seahorn
     
     Expr errorFlag (const BasicBlock &BB) override;
 
-    virtual Expr memStart (unsigned id) { assert (false); return Expr(); }
-    virtual Expr memEnd (unsigned id) { assert (false); return Expr (); }
+    virtual Expr memStart (unsigned id); 
+    virtual Expr memEnd (unsigned id); 
     
     virtual void exec (SymStore &s, const BasicBlock &bb, 
                        ExprVector &side, Expr act);

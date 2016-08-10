@@ -165,6 +165,9 @@ namespace seahorn
       BottomUpAnalysis bu (*m_dl, *m_tli, cg);
       for (auto &F: M)
       { // XXX: the graphs must be created here
+        if (F.isDeclaration() || F.empty())
+          continue;
+
         GraphRef fGraph = std::make_shared<Graph> (*m_dl, m_setFactory);
         m_graphs[&F] = fGraph;
       }

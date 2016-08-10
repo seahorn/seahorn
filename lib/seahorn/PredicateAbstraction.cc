@@ -63,11 +63,13 @@ namespace seahorn
 		boost::tribool result = fp.query ();
 //
 		if (result) outs () << "sat";
-		else if (!result) outs () << "unsat";
+		else if (!result)
+		{
+			outs() << "unsat\n";
+			HornDbModel absModel(new_db, fp);
+		}
 		else outs () << "unknown";
 		outs () << "\n";
-//
-		printInvars (M);
 
 		return false;
 	}

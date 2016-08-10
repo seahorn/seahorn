@@ -14,6 +14,33 @@
 namespace seahorn
 {
 	using namespace llvm;
+
+	class HornDbModel
+	{
+	private:
+		ExprMap predToSolutions;
+	public:
+		HornDbModel() {}
+		HornDbModel(HornClauseDB &db, ZFixedPoint<EZ3> &fp)
+		{
+			ExprVector all_preds_in_DB;
+			for(HornRule r : db.getRules())
+			{
+				Expr pred = r.head();
+				all_preds_in_DB.push_back(pred);
+			}
+			for(Expr pred : all_preds_in_DB)
+			{
+				Expr solution = fp.getCoverDelta(pred);
+				predToSolutions.insert(std::pair<Expr, Expr>(bind::fname(pred), solution));
+			}
+		}
+		HornDbModel(ExprMap model) : predToSolutions(model) {}
+		virtual ~HornDbModel(){}
+		ExprMap& getRelToSolutionMap() {return predToSolutions;}
+		void setRelToSolutionMap(ExprMap map) {predToSolutions = map;}
+	};
+
 	class PredicateAbstraction : public llvm::ModulePass
 	{
 		std::unique_ptr<ufo::ZFixedPoint <ufo::EZ3> >  m_fp;

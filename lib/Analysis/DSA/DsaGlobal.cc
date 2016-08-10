@@ -10,6 +10,7 @@
 #include "llvm/Analysis/CallGraph.h"
 #include "llvm/ADT/SCCIterator.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/Support/CommandLine.h"
 
 #include "seahorn/Analysis/DSA/Graph.hh"
 #include "seahorn/Analysis/DSA/Global.hh"
@@ -17,6 +18,7 @@
 #include "seahorn/Analysis/DSA/Cloner.hh"
 #include "seahorn/Analysis/DSA/BottomUp.hh"
 #include "seahorn/Analysis/DSA/CallSite.hh"
+#include "seahorn/Analysis/DSA/CallGraph.hh"
 
 #include "ufo/Stats.hh"
 
@@ -24,8 +26,15 @@
 
 #include "boost/range/iterator_range.hpp"
 
+static llvm::cl::opt<bool>
+normalizeUniqueScalars("horn-dsa-norm-unique-scalar",
+            llvm::cl::desc("DSA: all callees and callers agree on unique scalars"),
+            llvm::cl::init (true));
+
 using namespace llvm;
 
+
+/// CONTEXT-INSENSITIVE DSA 
 namespace seahorn
 {
   namespace dsa
@@ -173,15 +182,18 @@ namespace seahorn
 } // end namespace seahorn
 
 
+/// CONTEXT-SENSITIVE DSA 
 namespace seahorn
 {
   namespace dsa 
   {
+
     // Clone caller nodes into callee and resolve arguments
     // XXX: this code is pretty much symmetric to the one defined in
     // BottomUp. They should be merged at some point.
-    static void cloneAndResolveArguments (const DsaCallSite &cs, 
-                                          Graph& callerG, Graph& calleeG)
+    void ContextSensitiveGlobalAnalysis::
+    cloneAndResolveArguments (const DsaCallSite &cs, 
+                              Graph& callerG, Graph& calleeG)
     {      
       Cloner C (calleeG);
       
@@ -222,83 +234,6 @@ namespace seahorn
       }
       calleeG.compress();
     }
-
-    // Compute for each function the set of used/defined
-    // callsites. All functions in the same SCC share the same set of
-    // used/defined sets.
-    void ContextSensitiveGlobalAnalysis::buildIndexes (CallGraph &cg){
-
-      // --- compute immediate predecessors (callsites) for each
-      //     function in the call graph (considering only direct
-      //     calls).
-      // 
-      // XXX: CallGraph cannot be reversed and the CallGraph analysis
-      // doesn't seem to compute predecessors so I do not know a
-      // better way.
-      boost::unordered_map<const Function*, InstSet> imm_preds;
-      for (auto it = scc_begin (&cg); !it.isAtEnd (); ++it)
-      {
-        auto &scc = *it;
-        for (CallGraphNode *cgn : scc)
-        {
-          const Function *fn = cgn->getFunction ();
-          if (!fn || fn->isDeclaration () || fn->empty ()) continue;
-          
-          for (auto &callRecord : *cgn)
-          { 
-            ImmutableCallSite CS (callRecord.first);
-            const Function *callee = CS.getCalledFunction ();
-            if (!callee || callee->isDeclaration () || callee->empty ()) continue;
-
-            auto predIt = imm_preds.find (callee);
-            if (predIt != imm_preds.end ())
-              predIt->second.insert (CS.getInstruction());
-            else
-            {
-              InstSet s;
-              s.insert (CS.getInstruction ());
-              imm_preds.insert (std::make_pair(callee, s));
-            }
-          }
-        }
-      }
-
-
-      // -- compute uses/defs sets
-      for (auto it = scc_begin (&cg); !it.isAtEnd (); ++it)
-      {
-        auto &scc = *it;
-
-        // compute uses and defs shared between all functions in the scc 
-        auto uses = std::make_shared<InstSet>();
-        auto defs = std::make_shared<InstSet>();
-
-        for (CallGraphNode *cgn : scc)
-        {
-          const Function *fn = cgn->getFunction ();
-          if (!fn || fn->isDeclaration () || fn->empty ()) continue;
-          
-          uses->insert(imm_preds [fn].begin(), imm_preds [fn].end());
-
-          for (auto &callRecord : *cgn)
-          {
-            ImmutableCallSite CS (callRecord.first);
-            defs->insert(CS.getInstruction());
-          }
-        }
-
-        // store uses and defs 
-        for (CallGraphNode *cgn : scc)
-        {
-          const Function *fn = cgn->getFunction ();
-          if (!fn || fn->isDeclaration () || fn->empty ()) continue;
-
-          m_uses[fn] = uses;
-          m_defs[fn] = defs;
-        }
-      }
-    }
-
 
     // Decide which kind of propagation (if any) is needed
     ContextSensitiveGlobalAnalysis::PropagationKind 
@@ -366,6 +301,9 @@ namespace seahorn
 
       for (auto &F: M)
       { 
+        if (F.isDeclaration() || F.empty())
+          continue;
+        
         GraphRef fGraph = std::make_shared<Graph> (m_dl, m_setFactory);
         m_graphs[&F] = fGraph;
       }
@@ -375,8 +313,8 @@ namespace seahorn
       BottomUpAnalysis bu (m_dl, m_tli, m_cg);
       bu.runOnModule (M, m_graphs);
 
-      // build for each function the set of used/defined callsites
-      buildIndexes (m_cg);
+      DsaCallGraph dsaCG (m_cg);
+      dsaCG.buildDependencies ();
 
       /// push in the worklist callsites for which two different
       /// callee nodes are mapped to the same caller node
@@ -423,9 +361,9 @@ namespace seahorn
           td_props++;
           if (const Function *callee = dsaCS.getCallee ())
           {
-            for (const Instruction *cs: *(m_uses [callee]))
+            for (const Instruction *cs: dsaCG.getUses (*callee))
               Insert(worklist, cs); // they might need bottom-up
-            for (const Instruction *cs: *(m_defs [callee]))
+            for (const Instruction *cs: dsaCG.getDefs (*callee))
               Insert(worklist, cs); // they might need top-down
           }
         }
@@ -435,9 +373,9 @@ namespace seahorn
           bu_props++;
           if (const Function *caller = dsaCS.getCaller ())
           {
-            for (const Instruction *cs: *(m_uses [caller]))
+            for (const Instruction *cs: dsaCG.getUses (*caller))
               Insert (worklist, cs);  // they might need bottom-up
-            for (const Instruction *cs: *(m_defs [caller]))
+            for (const Instruction *cs: dsaCG.getDefs (*caller))
               Insert (worklist, cs);  // they might need top-down
           }
         }
@@ -450,6 +388,12 @@ namespace seahorn
       LOG("dsa-global", checkNoMorePropagation ());
 
       assert (checkNoMorePropagation ());
+
+      if (normalizeUniqueScalars)
+      {
+        UniqueScalarAnalysis<ContextSensitiveGlobalAnalysis> usa (*this, dsaCG);
+        usa.runOnModule (M);
+      }
 
       LOG("dsa-global", errs () << "Finished context-sensitive global analysis\n");
 
@@ -509,7 +453,6 @@ namespace seahorn
     bool ContextSensitiveGlobalAnalysis::hasGraph (const Function &fn) const
     { return m_graphs.count (&fn) > 0; }
 
-
     /// LLVM pass
 
     ContextSensitiveGlobal::ContextSensitiveGlobal () 
@@ -542,6 +485,142 @@ namespace seahorn
     bool ContextSensitiveGlobal::hasGraph(const Function& fn) const 
     { return m_ga->hasGraph (fn); }
 
+  }
+}
+
+namespace seahorn
+{
+  namespace dsa
+  {
+
+    template<class GA>
+    void UniqueScalarAnalysis<GA>::join (const DsaCallSite &cs, 
+                                         Node &calleeN, Node &callerN, 
+                                         std::vector<const Instruction*> &w)
+    {
+
+      if (calleeN.getUniqueScalar () && callerN.getUniqueScalar ())
+      { 
+        assert (calleeN.getUniqueScalar () == callerN.getUniqueScalar ()); 
+      }
+      else if (calleeN.getUniqueScalar ()) 
+      {
+        calleeN.setUniqueScalar (nullptr);
+
+        if (const Function *fn = cs.getCallee ())
+        {
+          for (auto cs: m_dsaCG.getUses (*fn)) Insert(w, cs); 
+          for (auto cs: m_dsaCG.getDefs (*fn)) Insert(w, cs); 
+        }
+        
+        LOG("dsa-unique-scalar",
+            errs () << "callee node " << calleeN << " becomes a non-unique scalar\n";);
+      }
+      else if (callerN.getUniqueScalar ()) 
+      {
+        callerN.setUniqueScalar (nullptr);
+        
+        if (const Function *fn = cs.getCaller ())
+        {
+          for (auto cs: m_dsaCG.getUses (*fn)) Insert(w, cs); 
+          for (auto cs: m_dsaCG.getDefs (*fn)) Insert(w, cs); 
+        }
+        
+        LOG("dsa-unique-scalar",
+            errs () << "caller node " << callerN << " becomes a non-unique scalar\n";);
+      }
+    }
+    
+    template<class GA>
+    void UniqueScalarAnalysis<GA>::normalize (const DsaCallSite &cs, 
+                                              Graph& calleeG, Graph& callerG,
+                                              std::vector<const Instruction*> &w)
+    {
+      // globals 
+      for (auto &kv : boost::make_iterator_range (calleeG.globals_begin (),
+                                                  calleeG.globals_end ()))
+      {
+        Cell &c = *kv.second;
+        Cell &nc = callerG.mkCell (*kv.first, Cell ());
+        join (cs, *c.getNode(), *nc.getNode(), w);
+      }
+
+      // return
+      const Function &callee = *cs.getCallee ();
+      if (calleeG.hasRetCell (callee) && callerG.hasCell (*cs.getInstruction ()))
+      {
+        Cell &c = calleeG.getRetCell (callee);
+        Cell &nc = callerG.mkCell (*cs.getInstruction (), Cell ());
+        join (cs, *c.getNode(), *nc.getNode(), w);
+      }
+
+      // actuals and formals
+      DsaCallSite::const_actual_iterator AI = cs.actual_begin(), AE = cs.actual_end();
+      for (DsaCallSite::const_formal_iterator FI = cs.formal_begin(), FE = cs.formal_end();
+           FI != FE && AI != AE; ++FI, ++AI) 
+      {
+        const Value *arg = (*AI).get();
+        const Value *fml = &*FI;
+        if (callerG.hasCell (*arg) && calleeG.hasCell (*fml))
+        {
+          Cell &c = calleeG.mkCell (*fml, Cell ());
+          Cell &nc =  callerG.mkCell (*arg, Cell ());
+          join (cs, *c.getNode(), *nc.getNode(), w);
+        }
+      }
+    }
+  
+    template<class GA>
+    bool UniqueScalarAnalysis<GA>::runOnModule(Module &M) 
+    {
+      std::vector<const Instruction*> W;
+
+      for (auto it = scc_begin (&m_dsaCG.getCallGraph()); !it.isAtEnd (); ++it)
+      {
+        auto &scc = *it;
+        for (CallGraphNode *cgn : scc)
+        {
+          Function *fn = cgn->getFunction ();
+          if (!fn || fn->isDeclaration () || fn->empty ()) continue;
+          
+          for (auto &callRecord : *cgn)
+          {
+            ImmutableCallSite CS (callRecord.first);
+            DsaCallSite dsaCS (CS);
+
+            const Function *callee = dsaCS.getCallee ();
+            if (!callee || callee->isDeclaration () || callee->empty ()) continue;
+
+            if (m_ga.hasGraph (*dsaCS.getCaller()) && m_ga.hasGraph (*dsaCS.getCallee()))
+            {
+              Graph &calleeG = m_ga.getGraph (*dsaCS.getCallee());        
+              Graph &callerG = m_ga.getGraph (*dsaCS.getCaller());
+              normalize (dsaCS, calleeG, callerG, W);
+            }
+          }
+        }
+      }
+
+      while (!W.empty()) 
+      {
+        const Instruction* I = W.back ();
+        ImmutableCallSite CS (I);
+        DsaCallSite dsaCS (CS);
+        W.pop_back ();
+
+        assert (dsaCS.getCaller ());
+        assert (dsaCS.getCallee ());
+
+        if (m_ga.hasGraph (*dsaCS.getCaller ()) && m_ga.hasGraph (*dsaCS.getCallee ()))
+        {
+          Graph &calleeG = m_ga.getGraph (*dsaCS.getCallee());        
+          Graph &callerG = m_ga.getGraph (*dsaCS.getCaller());
+          normalize (dsaCS, calleeG, callerG, W);
+        }
+      }
+      
+      return false;
+    }
   }
 }
 

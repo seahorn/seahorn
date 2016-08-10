@@ -6,11 +6,11 @@
 #include "llvm/Pass.h"
 
 #include "seahorn/Analysis/DSA/Graph.hh"
+#include "seahorn/Analysis/DSA/BottomUp.hh"
 #include "seahorn/Analysis/DSA/CallSite.hh"
+#include "seahorn/Analysis/DSA/CallGraph.hh"
 
-#include "boost/unordered_map.hpp"
 #include "boost/container/flat_set.hpp"
-
 
 namespace llvm
 {
@@ -26,7 +26,9 @@ namespace seahorn
   namespace dsa
   {
 
-    class GlobalAnalysis {
+    // Common API for global analyses
+    class GlobalAnalysis 
+    {
      public:
       
       GlobalAnalysis () { }
@@ -40,10 +42,9 @@ namespace seahorn
       virtual bool hasGraph (const Function &F) const = 0 ;
     };  
 
-
+    // Context-insensitive dsa analysis
     class ContextInsensitiveGlobalAnalysis: public GlobalAnalysis
     {
-
      public:
       
       typedef typename Graph::SetFactory SetFactory;
@@ -80,9 +81,10 @@ namespace seahorn
       bool hasGraph (const Function& fn) const override;
       
     };
-  
-    class ContextSensitiveGlobalAnalysis: public GlobalAnalysis {
 
+    // Context-sensitive dsa analysis
+    class ContextSensitiveGlobalAnalysis: public GlobalAnalysis 
+    {
      public:
       
       typedef typename Graph::SetFactory SetFactory;
@@ -90,39 +92,27 @@ namespace seahorn
      private:
 
       typedef std::shared_ptr<Graph> GraphRef;
-      typedef llvm::DenseMap<const Function *, GraphRef> GraphMap;
+      typedef BottomUpAnalysis::GraphMap GraphMap;
+      typedef std::vector<const Instruction*> Worklist;
+      enum PropagationKind {DOWN, UP, NONE};
 
       const DataLayout &m_dl;
       const TargetLibraryInfo &m_tli;
       CallGraph &m_cg;
       SetFactory &m_setFactory;
+     public:
       GraphMap m_graphs;
 
-      typedef boost::container::flat_set<const Instruction*> InstSet;
-      typedef std::shared_ptr<InstSet> InstSetRef;
-      typedef boost::unordered_map<const Function*, InstSetRef> IndexMap;
-
-      // map each function f to the set of callsites where f (or any
-      // other function in the same SCC) is the callee
-      IndexMap m_uses;
-      // map each function f to the set of callsites defined inside f
-      // (or any other function in the same SCC)
-      IndexMap m_defs;
-
-      typedef std::vector<const Instruction*> Worklist;
-
-      // build the maps m_uses and m_defs
-      void buildIndexes (CallGraph &cg);
-
-      enum PropagationKind {DOWN, UP, NONE};
-
-      PropagationKind decidePropagation (const DsaCallSite& cs, Graph &callerG, Graph& calleeG);
+      void cloneAndResolveArguments (const DsaCallSite &cs, 
+                                     Graph& callerG, Graph& calleeG);
+      
+      PropagationKind decidePropagation (const DsaCallSite& cs, 
+                                         Graph &callerG, Graph& calleeG);
       
       void propagateTopDown(const DsaCallSite& cs, Graph &callerG, Graph& calleeG); 
 
       void propagateBottomUp(const DsaCallSite& cs, Graph &calleeG, Graph& callerG); 
             
-      // sanity check
       bool checkNoMorePropagation ();
 
      public:
@@ -144,7 +134,8 @@ namespace seahorn
 
     // Llvm passes
 
-    class DsaGlobalPass: public ModulePass {
+    class DsaGlobalPass: public ModulePass 
+    {
      protected:
       
       DsaGlobalPass (char &ID): ModulePass (ID) { }
@@ -217,6 +208,39 @@ namespace seahorn
 
     };
 
+  }
+}
+
+
+namespace seahorn
+{
+  namespace dsa
+  {
+
+    // XXX: for now, it makes sense to instantiate the template
+    // parameter only with ContextSensitiveGlobalAnalysis but in the
+    // future we might have other context-sensitive analyses.
+    template<class GlobalAnalysis>
+    class UniqueScalarAnalysis 
+    {
+
+      GlobalAnalysis &m_ga;
+      DsaCallGraph &m_dsaCG;
+
+      void join (const DsaCallSite &cs, Node& calleeN, Node& callerN,
+                 std::vector<const Instruction*> &w);
+      
+      void normalize (const DsaCallSite &cs, Graph& calleeG, Graph& callerG,
+                      std::vector<const Instruction*> &w);
+
+     public:
+
+      UniqueScalarAnalysis (GlobalAnalysis &ga, DsaCallGraph &dsaCG)
+          : m_ga (ga), m_dsaCG (dsaCG)  {}
+      
+      bool runOnModule (Module &M);
+
+    };
   }
 }
 #endif 

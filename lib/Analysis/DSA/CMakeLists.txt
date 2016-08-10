@@ -7,4 +7,5 @@ add_llvm_library (SeaDsaAnalysis
   DsaInfo.cc
   Mapper.cc
   DsaBottomUp.cc
+  DsaCallGraph.cc
   )

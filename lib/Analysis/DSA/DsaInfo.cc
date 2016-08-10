@@ -45,7 +45,7 @@ static bool isStaticallyKnown (const DataLayout* dl,
 }
       
 // return null if there is no graph for f
-Graph* InfoAnalysis::getGraph(const Function&f) const
+Graph* InfoAnalysis::getDsaGraph(const Function&f) const
 {
   Graph *g = nullptr;
   if (m_dsa.hasGraph(f)) g = &m_dsa.getGraph(f);
@@ -82,7 +82,7 @@ void InfoAnalysis::countMemoryAccesses (Function&F)
   // 
   // Here we just count the number of **non-trivial** memory accesses
   // because it is useful for passes that will instrument them.
-  auto g = getGraph(F);
+  auto g = getDsaGraph(F);
   if (!g) return;
 
   for (inst_iterator i = inst_begin(F), e = inst_end(F); i != e; ++i)  {
@@ -389,7 +389,7 @@ void InfoAnalysis::assignNodeId (Graph* g)
 
 bool InfoAnalysis::runOnFunction (Function &f) 
 {  
-  if (Graph* g = getGraph(f))
+  if (Graph* g = getDsaGraph(f))
   {
     LOG ("dsa-info",
          errs () << f.getName () 

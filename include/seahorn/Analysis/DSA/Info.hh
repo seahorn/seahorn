@@ -12,6 +12,8 @@
 #include <boost/iterator/filter_iterator.hpp>
 #include <boost/bimap.hpp>
 
+#include "seahorn/Analysis/DSA/Graph.hh"
+
 /* Gather information for dsa clients and compute some stats */
 
 namespace llvm 
@@ -26,8 +28,6 @@ namespace seahorn
 {
   namespace dsa 
   {
-    class Node;
-    class Graph;
     class GlobalAnalysis;
   }
 }
@@ -135,8 +135,6 @@ namespace seahorn
 
       std::string getName (const llvm::Value* v);       
 
-      Graph* getGraph (const llvm::Function& f) const;
-
       void addMemoryAccess (const llvm::Value* v, Graph& g); 
 
       void countMemoryAccesses (llvm::Function& f);
@@ -160,7 +158,7 @@ namespace seahorn
 
       /// API for Dsa clients
 
-      GlobalAnalysis& getDsa () {  return m_dsa; }
+      Graph* getDsaGraph (const llvm::Function& f) const;
 
       bool isAccessed (const Node&n) const; 
 

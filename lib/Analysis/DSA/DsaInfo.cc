@@ -16,15 +16,15 @@
 using namespace seahorn::dsa;
 using namespace llvm;
 
-// enum DsaKind { GLOBAL, CS_GLOBAL};
-// llvm::cl::opt<DsaKind>
-// DsaVariant("dsa-variant",
-//            llvm::cl::desc ("Choose the dsa variant"),
-//            llvm::cl::values 
-//            (clEnumValN (GLOBAL   , "global"   , "Context insensitive dsa analysis"),
-//             clEnumValN (CS_GLOBAL, "cs-global", "Context sensitive dsa analysis"),
-//             clEnumValEnd),
-//            llvm::cl::init (GLOBAL));
+enum DsaKind { CI_GLOBAL, CS_GLOBAL};
+llvm::cl::opt<DsaKind>
+DsaVariant("dsa-variant",
+           llvm::cl::desc ("Choose the dsa variant"),
+           llvm::cl::values 
+           (clEnumValN (CI_GLOBAL, "ci-global", "Context insensitive dsa analysis"),
+            clEnumValN (CS_GLOBAL, "cs-global", "Context sensitive dsa analysis"),
+            clEnumValEnd),
+           llvm::cl::init (CS_GLOBAL));
 
 static bool isStaticallyKnown (const DataLayout* dl, 
                                const TargetLibraryInfo* tli,
@@ -102,9 +102,9 @@ printMemoryAccesses (live_nodes_const_range nodes, llvm::raw_ostream &o) const
   for (auto const &n: nodes) { total_accesses += n.getAccesses(); }
   
   o << "\t" << std::distance(nodes.begin(), nodes.end())  
-    << " number of read and modified nodes.\n"
+    << " number of read or modified nodes.\n"
     << "\t" << total_accesses 
-    << " number of non-trivial memory accesess"
+    << " number of non-trivial memory accesses"
     << " (load/store/memcpy/memset/memmove).\n";     
   
   //  --- Print a summary of accesses
@@ -249,6 +249,11 @@ bool InfoAnalysis::runOnModule (Module &M)
     
   errs () << " ========== Begin Dsa info  ==========\n";
 
+  if (DsaVariant == CI_GLOBAL)
+    errs () << "Results obtained with context-insensitive global analysis\n";
+  else
+    errs () << "Results obtained with context-sensitive global analysis\n";
+
   printMemoryAccesses (live_nodes (), llvm::errs());
   printMemoryTypes (live_nodes (), llvm::errs());
   printMemoryAllocSites (live_nodes (), llvm::errs());
@@ -258,20 +263,103 @@ bool InfoAnalysis::runOnModule (Module &M)
   return false;
 }
 
+template <typename PairRange, typename SetMap>
+inline void InsertReferrer (PairRange r, SetMap &m) 
+{
+  for (auto &kv: r)
+  {
+    const Node *n = kv.second->getNode ();
+    if (!(n->isRead () || n->isModified ())) continue;
+    
+    auto it = m.find (n);
+    if (it != m.end ())
+      it->second.insert (kv.first);
+    else
+    {
+      typename SetMap::mapped_type s;
+      s.insert (kv.first);
+      m.insert(std::make_pair (n, s));
+    }
+  }
+}
+
+// Assign to each node a deterministic id that is preserved across
+// different executions
+void InfoAnalysis::assignDeterministicId (Graph* g)
+{
+  typedef std::set<const Value*> ValueSet;
+  typedef boost::unordered_map<const Node*, ValueSet  > ReferrerMap;
+  ReferrerMap ref_map;
+
+  // Build referrers for each node
+  InsertReferrer (boost::make_iterator_range (g->scalar_begin(), 
+                                              g->scalar_end()), ref_map);
+  InsertReferrer (boost::make_iterator_range (g->formal_begin(), 
+                                              g->formal_end()), ref_map);
+  InsertReferrer (boost::make_iterator_range (g->return_begin(), 
+                                              g->return_end()), ref_map);
+
+  // Find *deterministically* a representative for each node from its
+  // set of referrers
+  typedef std::vector<std::pair<const Node*, std::string> > ReferrerRepVector;
+  ReferrerRepVector sorted_ref_vector;
+  for (auto &kv: ref_map)
+  {
+    const Node * n = kv.first;
+    const ValueSet& refs = kv.second;
+
+    std::vector<std::string> named_refs;
+    named_refs.reserve (refs.size ());
+    for (auto v: refs)
+      if (v->hasName ())
+        named_refs.push_back (v->getName().str());
+
+    // if no named value we create a name from the unnamed values.
+    if (named_refs.empty ()) 
+    {
+      std::string str("");
+      raw_string_ostream str_os (str);
+      for (auto &v: refs)
+        if (!v->hasName ()) {
+          // build a name from the unnamed value
+          v->print (str_os); 
+          std::string inst_name (str_os.str ());
+          named_refs.push_back (inst_name);
+        }
+    }
+
+    std::sort (named_refs.begin (), named_refs.end (),
+               [](std::string s1, std::string s2){ return (s1 < s2); });
+               
+    if (!named_refs.empty ()) // should not be empty
+      sorted_ref_vector.push_back(std::make_pair(n, named_refs [0]));
+
+    //errs () << *n << " name=" << named_refs [0] << "\n";
+  }
+
+  std::sort (sorted_ref_vector.begin (), sorted_ref_vector.end (),
+             [](std::pair<const Node*,std::string> p1, 
+                std::pair<const Node*,std::string> p2){
+               return (p1.second < p2.second);
+             });
+  
+  
+  // -- Finally, assign a unique (deterministic) id to each node
+  for (auto &kv: sorted_ref_vector)
+    m_nodes_map.insert(std::make_pair(kv.first, 
+                                      NodeInfo(kv.first, 
+                                               m_nodes_map.size()+1,
+                                               kv.second)));
+}
+
+
 bool InfoAnalysis::runOnFunction (Function &f) 
 {  
-  auto g = getGraph(f);
-  if (!g) return false;
-
-  // -- Assign a unique (deterministic) id to each node
-  //    FIXME: [ g->begin()...g->end() ) can change from one
-  //    execution to another
-  for (auto const& n: boost::make_iterator_range(g->begin(), g->end()))
-    m_nodes_map.insert(std::make_pair(&n, NodeInfo(&n, m_nodes_map.size()+1)));
- 
-  // compute here stuff that it's not computed by Dsa
-  countMemoryAccesses(f);
-
+  if (Graph* g = getGraph(f))
+  {
+    assignDeterministicId (g); 
+    countMemoryAccesses (f);
+  }
   return false;
 }
 
@@ -282,7 +370,8 @@ void InfoPass::getAnalysisUsage (AnalysisUsage &AU) const
 {
   AU.addRequired<DataLayoutPass> ();
   AU.addRequired<TargetLibraryInfo> ();
-  //AU.addRequired<ContextInsensitiveGlobal> ();
+  // XXX: this will run both analyses 
+  AU.addRequired<ContextInsensitiveGlobal> ();
   AU.addRequired<ContextSensitiveGlobal> ();
   AU.setPreservesAll ();
 }
@@ -292,8 +381,12 @@ bool InfoPass::runOnModule (Module &M)
 
   auto dl = &getAnalysis<DataLayoutPass>().getDataLayout ();
   auto tli = &getAnalysis<TargetLibraryInfo> ();
-  //auto dsa = &getAnalysis<ContextInsensitiveGlobal>().getGlobalAnalysis();
-  auto dsa = &getAnalysis<ContextSensitiveGlobal>().getGlobalAnalysis();
+
+  GlobalAnalysis *dsa = nullptr;
+  if (DsaVariant == CI_GLOBAL)
+    dsa = &getAnalysis<ContextInsensitiveGlobal>().getGlobalAnalysis();
+  else
+    dsa = &getAnalysis<ContextSensitiveGlobal>().getGlobalAnalysis();
 
   m_ia.reset (new InfoAnalysis (*dl, *tli, *dsa));
   return m_ia->runOnModule (M);

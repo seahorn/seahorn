@@ -44,12 +44,23 @@ namespace seahorn
       const Node* m_node; 
       unsigned m_id;
       unsigned m_accesses;
-      
+      // Name of one of the node's referrers.
+      // The node is chosen deterministically 
+      std::string m_rep_name;
+
      public:
   
-      NodeInfo (const Node* node, unsigned id)
-          : m_node(node), m_id(id), m_accesses(0) {}
+      NodeInfo (const Node* node, unsigned id, std::string name)
+          : m_node(node), m_id(id), m_accesses(0), m_rep_name (name) {}
       
+      bool hasRepName () const { return m_rep_name != "";}
+
+      void setRepName (std::string name) 
+      {
+        assert (name != "");
+        m_rep_name = name; 
+      }
+
       bool operator==(const NodeInfo&o) const 
       {  
          // XXX: we do not want to use pointer addresses here
@@ -126,6 +137,7 @@ namespace seahorn
       Graph* getGraph (const llvm::Function& f) const;
       void addMemoryAccess (const llvm::Value* v, Graph& g); 
       void countMemoryAccesses (llvm::Function& f);
+      void assignDeterministicId (Graph* g);
       
       void printMemoryAccesses (live_nodes_const_range nodes, llvm::raw_ostream&o) const;
       void printMemoryTypes (live_nodes_const_range nodes, llvm::raw_ostream&o) const;

@@ -4,12 +4,14 @@
 #include "llvm/Target/TargetLibraryInfo.h"
 #include "llvm/Analysis/MemoryBuiltins.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/Support/FileSystem.h"
 #include "llvm/Support/CommandLine.h"
 
 #include "seahorn/Analysis/DSA/Info.hh"
 #include "seahorn/Analysis/DSA/Global.hh"
-#include "seahorn/Analysis/DSA/BottomUp.hh"
 #include "seahorn/Analysis/DSA/Graph.hh"
+
+#include "ufo/Passes/NameValues.hpp"
 
 #include "avy/AvyDebug.h"
 
@@ -25,6 +27,13 @@ DsaVariant("dsa-variant",
             clEnumValN (CS_GLOBAL, "cs-global", "Context sensitive dsa analysis"),
             clEnumValEnd),
            llvm::cl::init (CS_GLOBAL));
+
+// Some dsa clients need to write this information from a file
+static llvm::cl::opt<std::string>
+DsaInfoToFile("dsa-info-to-file",
+    llvm::cl::desc ("Write all allocation sites to a file"),
+    llvm::cl::init (""),
+    llvm::cl::Hidden);
 
 static bool isStaticallyKnown (const DataLayout* dl, 
                                const TargetLibraryInfo* tli,
@@ -54,7 +63,7 @@ void InfoAnalysis::addMemoryAccess (const Value* v, Graph& g)
   if (!g.hasCell(*v)) {
     // sanity check
     if (v->getType()->isPointerTy())
-      errs () << "DsaInfo: pointer value " << *v << " has not cell\n";
+      errs () << "WARNING DsaInfo: pointer value " << *v << " has not cell\n";
     return;
   }
   
@@ -147,9 +156,25 @@ printMemoryTypes (live_nodes_const_range nodes, llvm::raw_ostream& o) const
 
   // TODO: print all node's types
 }
+template <typename BiMap>
+inline bool AddAllocSite (const Value* v, unsigned int &site_id, BiMap& alloc_sites_bimap) 
+{
+  auto it = alloc_sites_bimap.left.find (v);
+  if (it == alloc_sites_bimap.left.end ()) 
+  {
+    site_id = alloc_sites_bimap.size () + 1;
+    alloc_sites_bimap.insert (typename BiMap::value_type (v, site_id));
+    return true;
+  } 
+  else 
+  {
+    site_id = it->second;
+    return false;
+  }
+}
 
-void InfoAnalysis::
-printMemoryAllocSites (live_nodes_const_range nodes, llvm::raw_ostream& o) const
+void InfoAnalysis::assignAllocSiteIdAndPrinting 
+(live_nodes_const_range nodes, llvm::raw_ostream& o, std::string outFile) 
 {
   // Here counters
   
@@ -164,45 +189,69 @@ printMemoryAllocSites (live_nodes_const_range nodes, llvm::raw_ostream& o) const
 
 
   o << " --- Allocation site information\n";
-  // Assign a unique (deterministic) id to each allocation site
-  unsigned id = 0;
-  // map each allocation site to a set of nodes
-  typedef boost::container::flat_set<NodeInfo> NodeInfoSet;
-  DenseMap<const llvm::Value*, std::pair<unsigned, NodeInfoSet> > alloc_map;
+  
+  // pretty-printer: map each allocation site to a set of nodes
+  DenseMap<const llvm::Value*, std::pair<unsigned, NodeInfoSet> > alloc_printing_map;
 
   // iterate over all nodes
-  for (auto &n: nodes) {
+  for (auto &n: nodes) 
+  {
     unsigned num_alloc_sites = std::distance(n.getNode()->begin(), n.getNode()->end());
-    if (num_alloc_sites == 0) {
+    if (num_alloc_sites == 0) 
+    {
       num_orphan_nodes++;
       num_orphan_checks += n.getAccesses();
       continue;
-    } else {
+    } 
+    else 
       max_alloc_sites = std::max (max_alloc_sites, num_alloc_sites);
-    }
+    
     // iterate over all allocation sites
     for (const llvm::Value*v : boost::make_iterator_range(n.getNode()->begin(),
-                                                          n.getNode()->end())) {
-      auto it = alloc_map.find (v);
-      if (it != alloc_map.end()) {
+                                                          n.getNode()->end())) 
+    {
+
+      // assign a unique id to the allocation site for Dsa clients
+      unsigned int site_id;
+      AddAllocSite (v, site_id, m_alloc_sites);
+
+      // for pretty printer
+      auto it = alloc_printing_map.find (v);
+      if (it != alloc_printing_map.end())
         it->second.second.insert(n);
-      } else {
+      else 
+      {
         NodeInfoSet s;
         s.insert(n);
-        alloc_map.insert(std::make_pair(v, std::make_pair(++id, s)));
+        alloc_printing_map.insert(std::make_pair(v, 
+                                                 std::make_pair(site_id, s)));
       }
     }
   }
 
-  o << "\t" << alloc_map.size()  << " number of allocation sites\n";
+  o << "\t" << alloc_printing_map.size()  << " number of allocation sites\n";
   o << "\t   " << max_alloc_sites  << " max number of allocation sites in a node\n";
   o << "\t" << num_orphan_nodes  << " number of nodes without allocation site\n";
   o << "\t" << num_orphan_checks << " number of memory accesses without allocation site\n";
 
+  if (outFile != "")
+  {
+    std::string filename (outFile);
+    std::error_code EC;
+    raw_fd_ostream file (filename, EC, sys::fs::F_Text);
+    file << "alloc_site,ds_node\n";
+    for (auto &kv: alloc_printing_map) 
+    {
+      for (auto &nodeInfo: kv.second.second)
+        file <<  kv.second.first << "," << nodeInfo.getId () << "\n";
+    }
+    file.close();
+  }
+
+  // --- print for each allocation site the set of nodes
+
   LOG ("dsa-info-alloc-sites",
-       // --- print for each allocation site the set of nodes
-       // TODO: print allocation sites ordered by id
-       for (auto &kv: alloc_map) {
+       for (auto &kv: alloc_printing_map) {
          o << "  [Alloc site Id " << kv.second.first << " DSNode Ids {";
          bool first = true;
          for (typename NodeInfoSet::iterator it = kv.second.second.begin(),
@@ -218,15 +267,10 @@ printMemoryAllocSites (live_nodes_const_range nodes, llvm::raw_ostream& o) const
   // --- print for each node its set of allocation sites
   for (auto &n: nodes) 
   {
-    // o << "  [Node Id " << n.getId () << " Allocation sites Ids {";
     SmallPtrSet<Type*,32> allocTypes;
     for (const llvm::Value*v : 
          boost::make_iterator_range(n.getNode()->begin(), n.getNode()->end())) 
-    {
       allocTypes.insert(v->getType());
-      //o << alloc_map[v].first << " ";
-    }
-    // o << "}]\n";
 
     num_non_singleton += (allocTypes.size() > 1);
 
@@ -241,26 +285,6 @@ printMemoryAllocSites (live_nodes_const_range nodes, llvm::raw_ostream& o) const
   }
 
   o << "\t" << num_non_singleton << " allocation sites with more than one type\n";
-}
-
-bool InfoAnalysis::runOnModule (Module &M) 
-{
-  for (auto &f: M) { runOnFunction (f); }
-    
-  errs () << " ========== Begin Dsa info  ==========\n";
-
-  if (DsaVariant == CI_GLOBAL)
-    errs () << "Results obtained with context-insensitive global analysis\n";
-  else
-    errs () << "Results obtained with context-sensitive global analysis\n";
-
-  printMemoryAccesses (live_nodes (), llvm::errs());
-  printMemoryTypes (live_nodes (), llvm::errs());
-  printMemoryAllocSites (live_nodes (), llvm::errs());
-  
-  errs () << " ========== End Dsa info  ==========\n";
-
-  return false;
 }
 
 template <typename PairRange, typename SetMap>
@@ -283,13 +307,37 @@ inline void InsertReferrer (PairRange r, SetMap &m)
   }
 }
 
-// Assign to each node a deterministic id that is preserved across
-// different executions
-void InfoAnalysis::assignDeterministicId (Graph* g)
+// Assign a name to a value
+std::string InfoAnalysis::getName (const Value* v) 
 {
-  typedef std::set<const Value*> ValueSet;
+  const Value * V = v->stripPointerCasts();
+
+  if (V->hasName ()) return V->getName().str();
+
+  auto it = m_names.find (V);
+  if (it != m_names.end ()) return it->second;
+
+  // FIXME: this can be really slow!
+  // XXX: I don't know a better way to obtain a string-like
+  // representation from a value.
+  std::string str("");
+  raw_string_ostream str_os (str);
+  V->print (str_os); 
+  auto res = m_names.insert (std::make_pair (V, str_os.str ()));
+  return res.first->second;
+}
+
+
+// Assign to each node a **deterministic** id that is preserved across
+// different executions
+void InfoAnalysis::assignNodeId (Graph* g)
+{
+
   typedef boost::unordered_map<const Node*, ValueSet  > ReferrerMap;
+  typedef std::vector<std::pair<const Node*, std::string> > ReferrerRepVector;
+
   ReferrerMap ref_map;
+  ReferrerRepVector sorted_ref_vector;
 
   // Build referrers for each node
   InsertReferrer (boost::make_iterator_range (g->scalar_begin(), 
@@ -301,67 +349,113 @@ void InfoAnalysis::assignDeterministicId (Graph* g)
 
   // Find *deterministically* a representative for each node from its
   // set of referrers
-  typedef std::vector<std::pair<const Node*, std::string> > ReferrerRepVector;
-  ReferrerRepVector sorted_ref_vector;
   for (auto &kv: ref_map)
   {
     const Node * n = kv.first;
     const ValueSet& refs = kv.second;
 
+    // Transform addresses to strings 
+    // XXX: StringRef does not own the string data so we cannot use here
     std::vector<std::string> named_refs;
     named_refs.reserve (refs.size ());
-    for (auto v: refs)
-      if (v->hasName ())
-        named_refs.push_back (v->getName().str());
-
-    // if no named value we create a name from the unnamed values.
-    if (named_refs.empty ()) 
-    {
-      std::string str("");
-      raw_string_ostream str_os (str);
-      for (auto &v: refs)
-        if (!v->hasName ()) {
-          // build a name from the unnamed value
-          v->print (str_os); 
-          std::string inst_name (str_os.str ());
-          named_refs.push_back (inst_name);
-        }
-    }
-
+    for (auto v: refs) named_refs.push_back (getName (v));
+      
+    // Sort strings
     std::sort (named_refs.begin (), named_refs.end (),
                [](std::string s1, std::string s2){ return (s1 < s2); });
                
+    // Choose arbitrarily the first one
     if (!named_refs.empty ()) // should not be empty
       sorted_ref_vector.push_back(std::make_pair(n, named_refs [0]));
-
-    //errs () << *n << " name=" << named_refs [0] << "\n";
+    
   }
 
+  // Sort nodes 
   std::sort (sorted_ref_vector.begin (), sorted_ref_vector.end (),
-             [](std::pair<const Node*,std::string> p1, 
-                std::pair<const Node*,std::string> p2){
+             [](std::pair<const Node*, std::string> p1, 
+                std::pair<const Node*, std::string> p2){
                return (p1.second < p2.second);
              });
   
-  
   // -- Finally, assign a unique (deterministic) id to each node
+  //    The id 0 is reserved in case some query goes wrong.
   for (auto &kv: sorted_ref_vector)
     m_nodes_map.insert(std::make_pair(kv.first, 
                                       NodeInfo(kv.first, 
                                                m_nodes_map.size()+1,
                                                kv.second)));
-}
 
+}
 
 bool InfoAnalysis::runOnFunction (Function &f) 
 {  
   if (Graph* g = getGraph(f))
   {
-    assignDeterministicId (g); 
+    LOG ("dsa-info",
+         errs () << f.getName () 
+                 << " has " << std::distance (g->begin(), g->end()) << " nodes\n");
+            
+    assignNodeId (g); 
     countMemoryAccesses (f);
   }
   return false;
 }
+
+bool InfoAnalysis::runOnModule (Module &M) 
+{
+  for (auto &f: M) { runOnFunction (f); }
+
+  errs () << " ========== Begin Dsa info  ==========\n";
+
+  if (DsaVariant == CI_GLOBAL)
+    errs () << " Results obtained with context-insensitive global analysis\n";
+  else
+    errs () << " Results obtained with context-sensitive global analysis\n";
+
+  printMemoryAccesses (live_nodes (), llvm::errs());
+  printMemoryTypes (live_nodes (), llvm::errs());
+  assignAllocSiteIdAndPrinting  (live_nodes (), llvm::errs(), DsaInfoToFile);
+  
+  errs () << " ========== End Dsa info  ==========\n";
+
+  return false;
+}
+
+bool InfoAnalysis::isAccessed (const Node&n) const 
+{ 
+  auto it = m_nodes_map.find (&n);
+  if (it != m_nodes_map.end ())
+    return (it->second.getAccesses () > 0);
+  else
+    return false; // not found
+}
+
+unsigned int InfoAnalysis::getDsaNodeId (const Node&n) const 
+{ 
+  auto it = m_nodes_map.find (&n);
+  if (it != m_nodes_map.end ())
+    return it->second.getId ();
+  else
+    return 0; // not found
+}
+
+unsigned int InfoAnalysis::getAllocSiteId (const Value* V) const
+{ 
+  auto it = m_alloc_sites.left.find (V);
+  if (it != m_alloc_sites.left.end ())
+    return it->second;
+  else
+    return 0; // not found
+}
+
+const Value* InfoAnalysis::getAllocValue (unsigned int alloc_site_id) const
+{ 
+  auto it = m_alloc_sites.right.find (alloc_site_id);
+  if (it != m_alloc_sites.right.end ())
+    return it->second;
+  else
+    return nullptr; //not found
+} 
 
 
 /// LLVM pass
@@ -370,6 +464,7 @@ void InfoPass::getAnalysisUsage (AnalysisUsage &AU) const
 {
   AU.addRequired<DataLayoutPass> ();
   AU.addRequired<TargetLibraryInfo> ();
+  AU.addRequired<ufo::NameValues>();
   // XXX: this will run both analyses 
   AU.addRequired<ContextInsensitiveGlobal> ();
   AU.addRequired<ContextSensitiveGlobal> ();
@@ -390,7 +485,6 @@ bool InfoPass::runOnModule (Module &M)
 
   m_ia.reset (new InfoAnalysis (*dl, *tli, *dsa));
   return m_ia->runOnModule (M);
-  return false;
 }
 
 

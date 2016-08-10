@@ -5,12 +5,12 @@
 #include "llvm/IR/Function.h"
 #include "llvm/Pass.h"
 
-#include "boost/unordered_map.hpp"
+#include "boost/container/flat_set.hpp"
+#include <boost/unordered_map.hpp>
 #include <boost/iterator/transform_iterator.hpp>
 #include <boost/range/iterator_range.hpp>
-#include "boost/iterator/filter_iterator.hpp"
-
-//#include "seahorn/Analysis/DSA/Global.hh"
+#include <boost/iterator/filter_iterator.hpp>
+#include <boost/bimap.hpp>
 
 /* Gather information for dsa clients and compute some stats */
 
@@ -53,14 +53,6 @@ namespace seahorn
       NodeInfo (const Node* node, unsigned id, std::string name)
           : m_node(node), m_id(id), m_accesses(0), m_rep_name (name) {}
       
-      bool hasRepName () const { return m_rep_name != "";}
-
-      void setRepName (std::string name) 
-      {
-        assert (name != "");
-        m_rep_name = name; 
-      }
-
       bool operator==(const NodeInfo&o) const 
       {  
          // XXX: we do not want to use pointer addresses here
@@ -86,11 +78,20 @@ namespace seahorn
 
     class InfoAnalysis
     {
+      typedef boost::unordered_map<const Node*, NodeInfo> NodeInfoMap;
+      typedef boost::bimap<const llvm::Value*, unsigned int> AllocSiteBiMap;
+      typedef boost::container::flat_set<const llvm::Value*> ValueSet;
+      typedef boost::container::flat_set<unsigned int> IdSet;
+      typedef boost::container::flat_set<NodeInfo> NodeInfoSet;
+      typedef boost::unordered_map<const llvm::Value*, std::string> NamingMap;
+      
       const llvm::DataLayout &m_dl;
       const llvm::TargetLibraryInfo &m_tli;
       GlobalAnalysis &m_dsa;
+      NodeInfoMap m_nodes_map;
+      AllocSiteBiMap m_alloc_sites;
+      NamingMap m_names;
       
-      typedef boost::unordered_map<const Node*, NodeInfo> NodeInfoMap;
       typedef typename NodeInfoMap::value_type binding_t;
       
       struct get_second : public std::unary_function<binding_t, NodeInfo> 
@@ -131,27 +132,49 @@ namespace seahorn
       {
         return boost::make_iterator_range (live_nodes_begin (), live_nodes_end());
       }
-      
-      NodeInfoMap m_nodes_map;
-      
+
+      std::string getName (const llvm::Value* v);       
+
       Graph* getGraph (const llvm::Function& f) const;
+
       void addMemoryAccess (const llvm::Value* v, Graph& g); 
+
       void countMemoryAccesses (llvm::Function& f);
-      void assignDeterministicId (Graph* g);
-      
+
+      void assignNodeId (Graph* g);
+
+      void assignAllocSiteIdAndPrinting (live_nodes_const_range nodes, llvm::raw_ostream&o,std::string outFile);
+
       void printMemoryAccesses (live_nodes_const_range nodes, llvm::raw_ostream&o) const;
+
       void printMemoryTypes (live_nodes_const_range nodes, llvm::raw_ostream&o) const;
-      void printMemoryAllocSites (live_nodes_const_range nodes, llvm::raw_ostream&o) const;
       
       public:
        
-      InfoAnalysis (const llvm::DataLayout &dl, 
-                    const llvm::TargetLibraryInfo &tli,
+      InfoAnalysis (const llvm::DataLayout &dl, const llvm::TargetLibraryInfo &tli,
                     GlobalAnalysis &dsa)
           : m_dl (dl), m_tli (tli), m_dsa (dsa) {}
 
       bool runOnModule (llvm::Module &M);
       bool runOnFunction (llvm::Function &fn);
+
+      /// API for Dsa clients
+
+      GlobalAnalysis& getDsa () {  return m_dsa; }
+
+      bool isAccessed (const Node&n) const; 
+
+      // return unique numeric identifier for node n if found,
+      // otherwise 0
+      unsigned int getDsaNodeId (const Node&n) const;
+
+      // return unique numeric identifier for Value if it is an
+      // allocation site, otherwise 0.
+      unsigned int getAllocSiteId (const llvm::Value* V) const;
+
+      // the inverse of getAllocSiteID
+      const llvm::Value* getAllocValue (unsigned int alloc_site_id) const;
+
     };
   
     class InfoPass : public llvm::ModulePass
@@ -169,6 +192,9 @@ namespace seahorn
       bool runOnModule (llvm::Module &M) override;
       
       const char * getPassName() const { return "Dsa info pass"; }
+
+      InfoAnalysis& getInfoAnalysis () { return *m_ia; }
+
     };
 
   }

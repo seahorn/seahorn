@@ -9,3 +9,6 @@ add_llvm_library (SeaDsaAnalysis
   DsaBottomUp.cc
   DsaCallGraph.cc
   )
+
+## DsaInfo requires NameValues 
+target_link_libraries (SeaDsaAnalysis SeaTransformsUtils)

@@ -168,15 +168,6 @@ namespace seahorn
       m_ga.reset (new ContextInsensitiveGlobalAnalysis (dl, tli, cg, m_setFactory));
       return m_ga->runOnModule (M);
     }
-
-    const Graph& ContextInsensitiveGlobal::getGraph(const Function& fn) const
-    { return m_ga->getGraph (fn); }
-
-    Graph& ContextInsensitiveGlobal::getGraph(const Function& fn) 
-    { return m_ga->getGraph (fn); }
-
-    bool ContextInsensitiveGlobal::hasGraph(const Function& fn) const 
-    { return m_ga->hasGraph (fn); }
   
   } // end namespace dsa
 } // end namespace seahorn
@@ -475,15 +466,6 @@ namespace seahorn
       m_ga.reset (new ContextSensitiveGlobalAnalysis (dl, tli, cg, m_setFactory));
       return m_ga->runOnModule (M);
     }
-
-    const Graph& ContextSensitiveGlobal::getGraph(const Function& fn) const
-    { return m_ga->getGraph (fn); }
-
-    Graph& ContextSensitiveGlobal::getGraph(const Function& fn) 
-    { return m_ga->getGraph (fn); }
-
-    bool ContextSensitiveGlobal::hasGraph(const Function& fn) const 
-    { return m_ga->hasGraph (fn); }
 
   }
 }

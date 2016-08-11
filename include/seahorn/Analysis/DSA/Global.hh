@@ -142,11 +142,8 @@ namespace seahorn
 
      public:
 
-      virtual const Graph& getGraph (const Function &F) const = 0;
+      virtual GlobalAnalysis& getGlobalAnalysis () = 0;
 
-      virtual Graph& getGraph (const Function &F) = 0;
-
-      virtual bool hasGraph (const Function &F) const = 0 ;
     };  
 
     class ContextInsensitiveGlobal : public DsaGlobalPass
@@ -167,12 +164,6 @@ namespace seahorn
       
       const char * getPassName() const override 
       { return "Context-insensitive Dsa global pass"; }
-
-      const Graph& getGraph (const Function &fn) const override;
-
-      Graph& getGraph (const Function &fn) override;
-
-      bool hasGraph (const Function &fn) const override;
 
       GlobalAnalysis& getGlobalAnalysis ()  
       { return *(static_cast<GlobalAnalysis*> (&*m_ga)); } 
@@ -196,12 +187,6 @@ namespace seahorn
 
       const char * getPassName() const override 
       { return "Context sensitive global DSA pass"; }
-
-      const Graph& getGraph (const Function &fn) const override;
-
-      Graph& getGraph (const Function &fn) override;
-
-      bool hasGraph (const Function &fn) const override;
 
       GlobalAnalysis& getGlobalAnalysis ()  
       { return *(static_cast<GlobalAnalysis*> (&*m_ga)); } 

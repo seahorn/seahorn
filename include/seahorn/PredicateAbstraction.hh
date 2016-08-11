@@ -18,39 +18,32 @@ namespace seahorn
 	class HornDbModel
 	{
 	private:
-		ExprMap predToSolutions;
+		ExprMap relToDefMap;
 	public:
 		HornDbModel() {}
-		HornDbModel(HornClauseDB &db, ZFixedPoint<EZ3> &fp)
-		{
-			ExprVector all_preds_in_DB;
-			for(HornRule r : db.getRules())
-			{
-				Expr pred = r.head();
-				all_preds_in_DB.push_back(pred);
-			}
-			for(Expr pred : all_preds_in_DB)
-			{
-				Expr solution = fp.getCoverDelta(pred);
-				predToSolutions.insert(std::pair<Expr, Expr>(bind::fname(pred), solution));
-			}
-		}
-		HornDbModel(ExprMap model) : predToSolutions(model) {}
+		void initAbstractDbModel(HornClauseDB &db, ZFixedPoint<EZ3> &fp);
+		void addDef(Expr rel, Expr def);
+		Expr& getDef(Expr rel) {return relToDefMap.find(rel)->second;}
+		HornDbModel(ExprMap model) : relToDefMap(model) {}
 		virtual ~HornDbModel(){}
-		ExprMap& getRelToSolutionMap() {return predToSolutions;}
-		void setRelToSolutionMap(ExprMap map) {predToSolutions = map;}
+		ExprMap& getRelToSolutionMap() {return relToDefMap;}
+		void setRelToSolutionMap(ExprMap map) {relToDefMap = map;}
 	};
 
 	class HornModelConverter
 	{
-	private:
-		ExprMap boolVarToTermMap;
 	public:
-		HornModelConverter() {}
-		virtual ~HornModelConverter() {}
 		// converts a model from one database to another. returns false on failure.
-		virtual bool convert (HornDbModel &in, HornDbModel &out, std::map<Expr, Expr> &newToOldPredMap);
-		ExprMap& getBoolToTermMap() {return boolVarToTermMap;}
+		virtual bool convert (HornDbModel &in, HornDbModel &out, std::map<Expr, Expr> &newToOldPredMap, HornClauseDB &abs_db) = 0;
+	};
+
+	class PredAbsHornModelConverter : public HornModelConverter
+	{
+	private:
+		std::map<Expr, ExprMap> relToBvToTermMap;
+	public:
+		bool convert (HornDbModel &in, HornDbModel &out, std::map<Expr, Expr> &newToOldPredMap, HornClauseDB &abs_db);
+		std::map<Expr, ExprMap>& getRelToBvToTermMap() {return relToBvToTermMap;}
 	};
 
 	class PredicateAbstraction : public llvm::ModulePass
@@ -73,7 +66,7 @@ namespace seahorn
 	public:
 	    void guessCandidate(HornClauseDB &db);
 	    ExprVector relToCand(Expr fdecl);
-	    HornClauseDB runOnDB(HornClauseDB &db, HornModelConverter &converter);
+	    HornClauseDB runOnDB(HornClauseDB &db, PredAbsHornModelConverter &converter);
 	    Expr fAppToCandApp(Expr fapp);
 	    Expr applyArgsToBvars(Expr cand, Expr fapp);
 	    ExprMap getBvarsToArgsMap(Expr fapp);

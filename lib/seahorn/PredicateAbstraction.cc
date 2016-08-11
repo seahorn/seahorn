@@ -38,7 +38,7 @@ namespace seahorn
 		guessCandidate(db);
 
 		HornDbModel oldModel;
-		HornModelConverter converter;
+		PredAbsHornModelConverter converter;
 		//run main algorithm
 		HornClauseDB new_db = runOnDB(db, converter);
 
@@ -69,11 +69,23 @@ namespace seahorn
 		else if (!result)
 		{
 			outs() << "unsat\n";
-			HornDbModel absModel(new_db, fp);
-			converter.convert(absModel, oldModel, newToOldPredMap);
-			for(ExprMap::iterator it = oldModel.getRelToSolutionMap().begin(); it!=oldModel.getRelToSolutionMap().end(); ++it)
+			HornDbModel absModel;
+			absModel.initAbstractDbModel(new_db, fp);
+
+			for(ExprMap::iterator it = absModel.getRelToSolutionMap().begin(); it!=absModel.getRelToSolutionMap().end(); ++it)
 			{
 				outs() << *(bind::fname(it->first)) << ": " << *(it->second) << "\n";
+			}
+			converter.convert(absModel, oldModel, newToOldPredMap, new_db);
+			outs() << "FINAL RESULT:\n";
+			for(HornRule r : db.getRules())
+			{
+				Expr pred = r.head();
+
+				Expr def = oldModel.getDef(bind::fname(pred));
+
+				Expr def_app = applyArgsToBvars(def, pred);
+				outs() << *bind::fname(bind::fname(pred)) << ": " << *def_app << "\n";
 			}
 		}
 		else outs () << "unknown";
@@ -82,30 +94,73 @@ namespace seahorn
 		return false;
 	}
 
-	bool HornModelConverter::convert (HornDbModel &in, HornDbModel &out, std::map<Expr, Expr> &newToOldPredMap)
+	void HornDbModel::addDef(Expr rel, Expr def)
 	{
-		ExprMap inRelToSolMap = in.getRelToSolutionMap();
-		ExprMap outRelToSolMap;
-		for(ExprMap::iterator it = inRelToSolMap.begin(); it!=inRelToSolMap.end(); ++it)
-		{
-			Expr abs_rel = it->first;
-			Expr old_rel = newToOldPredMap.find(abs_rel)->second;
+		relToDefMap.insert(std::pair<Expr, Expr>(rel, def));
+	}
 
-			Expr abs_boolvar = it->second;
-			Expr old_solution;
-			if(isOpX<TRUE>(abs_boolvar) || isOpX<FALSE>(abs_boolvar))
+	void HornDbModel::initAbstractDbModel(HornClauseDB &db, ZFixedPoint<EZ3> &fp)
+	{
+		ExprVector all_preds_in_DB;
+		for(HornRule r : db.getRules())
+		{
+			Expr pred = r.head();
+			all_preds_in_DB.push_back(pred);
+		}
+		for(Expr pred : all_preds_in_DB)
+		{
+			outs() << "REL: " << *(bind::fname(pred)) << "\n";
+			Expr solution = fp.getCoverDelta(pred);
+			outs() << "SOLUTION: " << *solution << "\n";
+			if(isOpX<TRUE>(solution) || isOpX<FALSE>(solution))
 			{
-				old_solution = abs_boolvar;
+				relToDefMap.insert(std::pair<Expr, Expr>(bind::fname(pred), solution));
+				continue;
+			}
+			for(int i=0; i<bind::domainSz(bind::fname(pred)); i++)
+			{
+				Expr arg_i = pred->arg(i+1);
+				if(arg_i == solution)
+				{
+					Expr encoded_solution = bind::bvar(i, mk<BOOL_TY>(arg_i->efac()));
+					outs() << "ENCODED SOLUTION: " << *encoded_solution << "\n";
+					relToDefMap.insert(std::pair<Expr, Expr>(bind::fname(pred), encoded_solution));
+				}
+			}
+		}
+	}
+
+	bool PredAbsHornModelConverter::convert (HornDbModel &in, HornDbModel &out, std::map<Expr, Expr> &newToOldPredMap, HornClauseDB &abs_db)
+	{
+		for(std::map<Expr, ExprMap>::iterator it = getRelToBvToTermMap().begin(); it!=getRelToBvToTermMap().end(); ++it)
+		{
+			outs() << "REL: " << *(it->first) << "\n";
+			outs() << "BV: " << *(it->second.begin()->first) << "\n";
+			outs() << "TERM: " << *(it->second.begin()->second) << "\n";
+		}
+		for(Expr abs_rel : abs_db.getRelations())
+		{
+			outs() << "ABS REL: " << *abs_rel << "\n";
+			Expr orig_rel = newToOldPredMap.find(abs_rel)->second;
+			outs() << "ORIG REL: " << *orig_rel << "\n";
+			Expr abs_def = in.getDef(abs_rel);
+			outs() << "ABS DEF: " << *abs_def << "\n";
+			Expr orig_def;
+			if(isOpX<TRUE>(abs_def) || isOpX<FALSE>(abs_def))
+			{
+				orig_def = abs_def;
 			}
 			else
 			{
-				Expr old_term = getBoolToTermMap().find(abs_boolvar)->second;
-				old_solution = old_term;
+				orig_def = (getRelToBvToTermMap().find(orig_rel)->second).find(abs_def)->second;
 			}
-
-			outRelToSolMap.insert(std::pair<Expr, Expr>(old_rel, old_solution));
+			outs() << "ORIG DEF: " << *orig_def << "\n";
+			out.addDef(orig_rel, orig_def);
+			for(ExprMap::iterator it = out.getRelToSolutionMap().begin(); it!=out.getRelToSolutionMap().end(); ++it)
+			{
+				outs() << "ORIG REL: " << *(it->first) << ", ORIG DEF: " << *(it->second) << "\n";
+			}
 		}
-		out.setRelToSolutionMap(outRelToSolMap);
 		return true;
 	}
 
@@ -131,7 +186,7 @@ namespace seahorn
 	    AU.setPreservesAll();
 	}
 
-	HornClauseDB PredicateAbstraction::runOnDB(HornClauseDB &db, HornModelConverter &converter)
+	HornClauseDB PredicateAbstraction::runOnDB(HornClauseDB &db, PredAbsHornModelConverter &converter)
 	{
 		outs() << "OLD DB: \n";
 		outs() << db << "\n";
@@ -265,16 +320,19 @@ namespace seahorn
 
 				//for each predicate in the body, create iff
 				int index = 0;
+				//for converter
+				ExprMap boolToTermMap;
 				for(Expr term : currentCandidates.find(bind::fname(*it))->second)
 				{
 					Expr term_app = applyArgsToBvars(term, *it);
 					Expr equal_expr = mk<IFF>(new_rule_body_pred->arg(index + 1), term_app);
 					//converter
-					converter.getBoolToTermMap().insert(std::pair<Expr, Expr>(new_rule_body_pred->arg(index + 1), term_app));
+					boolToTermMap.insert(std::pair<Expr, Expr>(bind::bvar(index, mk<BOOL_TY>(term_app->efac())), term));
 
 					new_body_exprs.push_back(equal_expr);
 					index ++;
 				}
+				converter.getRelToBvToTermMap().insert(std::pair<Expr, ExprMap>(bind::fname(*it), boolToTermMap));
 			}
 
 			Expr rule_head = r.head();
@@ -301,16 +359,19 @@ namespace seahorn
 			{
 				//construct head equality expr, put in new body
 				int index = 0;
+				//for converter
+				ExprMap boolToTermMap;
 				for(Expr term : currentCandidates.find(bind::fname(rule_head))->second)
 				{
 					Expr term_app = applyArgsToBvars(term, rule_head);
 					Expr equal_expr = mk<IFF>(new_rule_head->arg(index + 1), term_app);
 					//converter
-					converter.getBoolToTermMap().insert(std::pair<Expr, Expr>(new_rule_head->arg(index + 1), term_app));
+					boolToTermMap.insert(std::pair<Expr, Expr>(bind::bvar(index, mk<BOOL_TY>(term_app->efac())), term));
 
 					new_body_exprs.push_back(equal_expr);
 					index ++;
 				}
+				converter.getRelToBvToTermMap().insert(std::pair<Expr, ExprMap>(bind::fname(rule_head), boolToTermMap));
 			}
 
 			//Extract the constraints

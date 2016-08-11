@@ -21,10 +21,7 @@
 #include "llvm/IR/Verifier.h"
 
 #include "seahorn/Passes.hh"
-#include "seahorn/Analysis/DSA/BottomUp.hh"
-#include "seahorn/Analysis/DSA/Local.hh"
-#include "seahorn/Analysis/DSA/Global.hh"
-#include "seahorn/Analysis/DSA/Info.hh"
+#include "seahorn/Analysis/DSA/DsaAnalysis.hh"
 
 static llvm::cl::opt<std::string>
 InputFilename(llvm::cl::Positional, llvm::cl::desc("<input LLVM bitcode file>"),
@@ -139,12 +136,8 @@ int main(int argc, char **argv) {
   // XXX: for now we just call the analysis pass.
   // Later we will have a pass that call this analysis pass and do
   // some pretty printer of the heap.
-  if (RunDsa) {
-    //pass_manager.add (new seahorn::dsa::BottomUp ());
-    //pass_manager.add (new seahorn::dsa::Local ());
-    //pass_manager.add (new seahorn::dsa::Global ());
-    pass_manager.add (new seahorn::dsa::InfoPass ());
-  }
+  if (RunDsa)
+    pass_manager.add (new seahorn::dsa::DsaAnalysis ());
 
   pass_manager.run(*module.get());
 

@@ -8,6 +8,7 @@ add_llvm_library (SeaDsaAnalysis
   Mapper.cc
   DsaBottomUp.cc
   DsaCallGraph.cc
+  DsaAnalysis.cc
   )
 
 ## DsaInfo requires NameValues 

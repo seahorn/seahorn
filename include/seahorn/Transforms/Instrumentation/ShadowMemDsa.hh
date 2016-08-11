@@ -41,7 +41,7 @@ namespace seahorn
     Constant *m_markUniqIn;
     Constant *m_markUniqOut;
     
-    DsaGlobalPass *m_dsa;
+    GlobalAnalysis *m_dsa;
     
     DenseMap<const Node*, DenseMap<unsigned, AllocaInst*> > m_shadows;
     DenseMap<const Node*, unsigned> m_node_ids;

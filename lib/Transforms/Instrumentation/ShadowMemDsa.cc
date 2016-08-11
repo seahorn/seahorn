@@ -17,9 +17,8 @@
 #include "boost/range/algorithm/binary_search.hpp"
 
 #include "seahorn/Analysis/DSA/CallSite.hh"
-#include "seahorn/Analysis/DSA/Graph.hh"
-#include "seahorn/Analysis/DSA/Global.hh"
 #include "seahorn/Analysis/DSA/Mapper.hh"
+#include "seahorn/Analysis/DSA/DsaAnalysis.hh"
 
 static llvm::cl::opt<bool>
 SplitFields("horn-split-dsa",
@@ -30,11 +29,6 @@ static llvm::cl::opt<bool>
 LocalReadMod ("horn-dsa-local-mod",
               llvm::cl::desc ("DSA: Compute read/mod info locally"),
               llvm::cl::init (false));
-
-static llvm::cl::opt<bool>
-DsaCsGlobalAnalysis ("horn-dsa-cs-global",
-                   llvm::cl::desc ("DSA: context-sensitive analysis"),
-                   llvm::cl::init (true));
 
 namespace seahorn
 {
@@ -279,10 +273,7 @@ namespace seahorn
   {
     if (M.begin () == M.end ()) return false;
   
-    if (DsaCsGlobalAnalysis)
-      m_dsa = &getAnalysis<ContextSensitiveGlobal>();
-    else
-      m_dsa = &getAnalysis<ContextInsensitiveGlobal>();
+    m_dsa = &getAnalysis<DsaAnalysis>().getDsaAnalysis ();
     
     if (LocalReadMod) computeReadMod ();
     
@@ -651,9 +642,7 @@ namespace seahorn
   void ShadowMemDsa::getAnalysisUsage (llvm::AnalysisUsage &AU) const
   {
     AU.setPreservesAll ();
-    // XXX: both analysis will be run even if only one will be used
-    AU.addRequiredTransitive<ContextInsensitiveGlobal> ();    
-    AU.addRequiredTransitive<ContextSensitiveGlobal> ();
+    AU.addRequiredTransitive<DsaAnalysis> ();    
     AU.addRequired<llvm::CallGraphWrapperPass>();
     AU.addRequired<llvm::DataLayoutPass>();
     AU.addRequired<llvm::UnifyFunctionExitNodes> ();

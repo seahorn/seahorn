@@ -11,27 +11,14 @@
 #include "seahorn/Analysis/DSA/Global.hh"
 #include "seahorn/Analysis/DSA/Graph.hh"
 
-#include "ufo/Passes/NameValues.hpp"
-
 #include "avy/AvyDebug.h"
 
 using namespace seahorn::dsa;
 using namespace llvm;
 
-enum DsaKind { CI_GLOBAL, CS_GLOBAL};
-llvm::cl::opt<DsaKind>
-DsaVariant("dsa-variant",
-           llvm::cl::desc ("Choose the dsa variant"),
-           llvm::cl::values 
-           (clEnumValN (CI_GLOBAL, "ci-global", "Context insensitive dsa analysis"),
-            clEnumValN (CS_GLOBAL, "cs-global", "Context sensitive dsa analysis"),
-            clEnumValEnd),
-           llvm::cl::init (CS_GLOBAL));
-
-// Some dsa clients need to write this information from a file
 static llvm::cl::opt<std::string>
-DsaInfoToFile("dsa-info-to-file",
-    llvm::cl::desc ("Write all allocation sites to a file"),
+DsaInfoToFile("horn-dsa-info-to-file",
+    llvm::cl::desc ("Dump Dsa into to a file"),
     llvm::cl::init (""),
     llvm::cl::Hidden);
 
@@ -407,11 +394,6 @@ bool InfoAnalysis::runOnModule (Module &M)
 
   errs () << " ========== Begin Dsa info  ==========\n";
 
-  if (DsaVariant == CI_GLOBAL)
-    errs () << " Results obtained with context-insensitive global analysis\n";
-  else
-    errs () << " Results obtained with context-sensitive global analysis\n";
-
   printMemoryAccesses (live_nodes (), llvm::errs());
   printMemoryTypes (live_nodes (), llvm::errs());
   assignAllocSiteIdAndPrinting  (live_nodes (), llvm::errs(), DsaInfoToFile);
@@ -456,39 +438,3 @@ const Value* InfoAnalysis::getAllocValue (unsigned int alloc_site_id) const
   else
     return nullptr; //not found
 } 
-
-
-/// LLVM pass
-
-void InfoPass::getAnalysisUsage (AnalysisUsage &AU) const 
-{
-  AU.addRequired<DataLayoutPass> ();
-  AU.addRequired<TargetLibraryInfo> ();
-  AU.addRequired<ufo::NameValues>();
-  // XXX: this will run both analyses 
-  AU.addRequired<ContextInsensitiveGlobal> ();
-  AU.addRequired<ContextSensitiveGlobal> ();
-  AU.setPreservesAll ();
-}
-
-bool InfoPass::runOnModule (Module &M) 
-{
-
-  auto dl = &getAnalysis<DataLayoutPass>().getDataLayout ();
-  auto tli = &getAnalysis<TargetLibraryInfo> ();
-
-  GlobalAnalysis *dsa = nullptr;
-  if (DsaVariant == CI_GLOBAL)
-    dsa = &getAnalysis<ContextInsensitiveGlobal>().getGlobalAnalysis();
-  else
-    dsa = &getAnalysis<ContextSensitiveGlobal>().getGlobalAnalysis();
-
-  m_ia.reset (new InfoAnalysis (*dl, *tli, *dsa));
-  return m_ia->runOnModule (M);
-}
-
-
-char InfoPass::ID = 0;
-
-static llvm::RegisterPass<InfoPass> 
-X ("dsa-info", "Collect stats and information for dsa clients");

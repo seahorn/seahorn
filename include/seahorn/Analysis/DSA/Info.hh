@@ -12,8 +12,6 @@
 #include <boost/iterator/filter_iterator.hpp>
 #include <boost/bimap.hpp>
 
-#include "seahorn/Analysis/DSA/Graph.hh"
-
 /* Gather information for dsa clients and compute some stats */
 
 namespace llvm 
@@ -28,6 +26,8 @@ namespace seahorn
 {
   namespace dsa 
   {
+    class Node;
+    class Graph; 
     class GlobalAnalysis;
   }
 }
@@ -175,26 +175,6 @@ namespace seahorn
 
     };
   
-    class InfoPass : public llvm::ModulePass
-    {
-      std::unique_ptr<InfoAnalysis> m_ia;
-      
-     public:
-      
-      static char ID;       
-      
-      InfoPass (): ModulePass (ID), m_ia(nullptr) { }
-      
-      void getAnalysisUsage (llvm::AnalysisUsage &AU) const override;
-      
-      bool runOnModule (llvm::Module &M) override;
-      
-      const char * getPassName() const { return "Dsa info pass"; }
-
-      InfoAnalysis& getInfoAnalysis () { return *m_ia; }
-
-    };
-
   }
 }
 #endif 

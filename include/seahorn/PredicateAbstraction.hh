@@ -19,13 +19,15 @@ namespace seahorn
 	{
 	private:
 		ExprMap relToDefMap;
+		std::map<Expr, ExprVector> currentCandidates;
 	public:
 		HornDbModel() {}
-		void initAbstractDbModel(HornClauseDB &db, ZFixedPoint<EZ3> &fp);
-		void addDef(Expr rel, Expr def);
-		Expr& getDef(Expr rel) {return relToDefMap.find(rel)->second;}
+		void initModel(HornClauseDB &db, ZFixedPoint<EZ3> &fp);
+		void addDef(Expr fapp, Expr def);
+		Expr getDef(Expr fapp);
 		HornDbModel(ExprMap model) : relToDefMap(model) {}
 		virtual ~HornDbModel(){}
+		void setCurrentCandidates(std::map<Expr, ExprVector> currentCandidates) { this->currentCandidates = currentCandidates; }
 		ExprMap& getRelToSolutionMap() {return relToDefMap;}
 		void setRelToSolutionMap(ExprMap map) {relToDefMap = map;}
 	};
@@ -34,16 +36,21 @@ namespace seahorn
 	{
 	public:
 		// converts a model from one database to another. returns false on failure.
-		virtual bool convert (HornDbModel &in, HornDbModel &out, std::map<Expr, Expr> &newToOldPredMap, HornClauseDB &abs_db) = 0;
+		virtual bool convert (HornDbModel &in, HornDbModel &out) = 0;
 	};
 
 	class PredAbsHornModelConverter : public HornModelConverter
 	{
 	private:
-		std::map<Expr, ExprMap> relToBvToTermMap;
+		std::map<Expr, ExprMap> relToBoolToTermMap;
+		std::map<Expr, Expr> newToOldPredMap;
+		HornClauseDB* abs_db;
 	public:
-		bool convert (HornDbModel &in, HornDbModel &out, std::map<Expr, Expr> &newToOldPredMap, HornClauseDB &abs_db);
-		std::map<Expr, ExprMap>& getRelToBvToTermMap() {return relToBvToTermMap;}
+		PredAbsHornModelConverter() {}
+		bool convert (HornDbModel &in, HornDbModel &out);
+		std::map<Expr, ExprMap>& getRelToBoolToTermMap() {return relToBoolToTermMap;}
+		void setNewToOldPredMap(std::map<Expr, Expr> &newToOldMap) {newToOldPredMap = newToOldMap;}
+		void setAbsDB(HornClauseDB &db) {abs_db = &db;}
 	};
 
 	class PredicateAbstraction : public llvm::ModulePass
@@ -67,47 +74,44 @@ namespace seahorn
 	    void guessCandidate(HornClauseDB &db);
 	    ExprVector relToCand(Expr fdecl);
 	    HornClauseDB runOnDB(HornClauseDB &db, PredAbsHornModelConverter &converter);
-	    Expr fAppToCandApp(Expr fapp);
-	    Expr applyArgsToBvars(Expr cand, Expr fapp);
-	    ExprMap getBvarsToArgsMap(Expr fapp);
-	    Expr extractTransitionRelation(HornRule r, HornClauseDB &db);
-
-	    template<typename OutputIterator>
-	    void get_all_pred_apps (Expr e, HornClauseDB &db, OutputIterator out);
-
-	    template<typename OutputIterator>
-	    void get_all_bvars (Expr e, OutputIterator out);
-
-	    bool hasBvarInRule(HornRule r, HornClauseDB &db);
 
 	    ufo::ZFixedPoint<ufo::EZ3>& getZFixedPoint () {return *m_fp;}
 		void releaseMemory ()
 		{
 			m_fp.reset (nullptr);
-//			for(std::map<Expr, Expr>::iterator it = predToBiMap.begin(); it!= predToBiMap.end(); ++it)
-//			{
-//				intrusive_ptr_release(it->second);
-//			}
-//			predToBiMap.clear();
-//			for(std::map<Expr, Expr>::iterator it = predToBiPrimeMap.begin(); it!= predToBiPrimeMap.end(); ++it)
-//			{
-//				intrusive_ptr_release(it->second.get());
-//			}
-//			predToBiPrimeMap.clear();
-//			for(std::map<Expr, Expr>::iterator it = oldToNewPredMap.begin(); it!=oldToNewPredMap.end(); ++it)
-//			{
-//				intrusive_ptr_release(it->second.get());
-//			}
-//			oldToNewPredMap.clear();
-//			for(std::map<Expr, Expr>::iterator it = currentCandidates.begin(); it!= currentCandidates.end(); ++it)
-//			{
-//				intrusive_ptr_release(it->second.get());
-//			}
-//			currentCandidates.clear();
 		}
+	};
 
-		void printInvars (Function &F);
-		void printInvars (Module &M);
+	class HornDbUtils
+	{
+	public:
+		static Expr applyArgsToBvars(Expr cand, Expr fapp, std::map<Expr, ExprVector> currentCandidates);
+		static ExprMap getBvarsToArgsMap(Expr fapp, std::map<Expr, ExprVector> currentCandidates);
+		static Expr extractTransitionRelation(HornRule r, HornClauseDB &db);
+
+		template<typename OutputIterator>
+		static void get_all_pred_apps (Expr e, HornClauseDB &db, OutputIterator out);
+
+		template<typename OutputIterator>
+		static void get_all_bvars (Expr e, OutputIterator out);
+
+		static bool hasBvarInRule(HornRule r, HornClauseDB &db);
+
+		struct IsPredApp : public std::unary_function<Expr, bool>
+		{
+			 HornClauseDB &m_db;
+			 IsPredApp (HornClauseDB &db) : m_db (db) {}
+
+			 bool operator() (Expr e)
+			 {return bind::isFapp (e) && m_db.hasRelation (bind::fname(e));}
+		};
+
+		struct IsBVar : public std::unary_function<Expr, bool>
+		{
+			 IsBVar () {}
+			 bool operator() (Expr e)
+			 {return bind::isBVar (e);}
+		};
 	};
 }
 

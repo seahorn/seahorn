@@ -38,7 +38,10 @@ namespace seahorn
 		guessCandidate(db);
 
 		HornDbModel oldModel;
+		oldModel.setCurrentCandidates(currentCandidates);
+
 		PredAbsHornModelConverter converter;
+
 		//run main algorithm
 		HornClauseDB new_db = runOnDB(db, converter);
 
@@ -70,22 +73,21 @@ namespace seahorn
 		{
 			outs() << "unsat\n";
 			HornDbModel absModel;
-			absModel.initAbstractDbModel(new_db, fp);
+			absModel.initModel(new_db, fp);
 
 			for(ExprMap::iterator it = absModel.getRelToSolutionMap().begin(); it!=absModel.getRelToSolutionMap().end(); ++it)
 			{
 				outs() << *(bind::fname(it->first)) << ": " << *(it->second) << "\n";
 			}
-			converter.convert(absModel, oldModel, newToOldPredMap, new_db);
+			converter.setNewToOldPredMap(newToOldPredMap);
+			converter.setAbsDB(new_db);
+			converter.convert(absModel, oldModel);
 			outs() << "FINAL RESULT:\n";
 			for(HornRule r : db.getRules())
 			{
 				Expr pred = r.head();
-
-				Expr def = oldModel.getDef(bind::fname(pred));
-
-				Expr def_app = applyArgsToBvars(def, pred);
-				outs() << *bind::fname(bind::fname(pred)) << ": " << *def_app << "\n";
+				Expr def = oldModel.getDef(pred);
+				outs() << *bind::fname(bind::fname(pred)) << ": " << *def << "\n";
 			}
 		}
 		else outs () << "unknown";
@@ -94,12 +96,34 @@ namespace seahorn
 		return false;
 	}
 
-	void HornDbModel::addDef(Expr rel, Expr def)
+	void HornDbModel::addDef(Expr fapp, Expr def)
 	{
-		relToDefMap.insert(std::pair<Expr, Expr>(rel, def));
+		if(isOpX<TRUE>(def) || isOpX<FALSE>(def))
+		{
+			relToDefMap.insert(std::pair<Expr, Expr>(bind::fname(fapp), def));
+			return;
+		}
+		for(int i=0; i<bind::domainSz(bind::fname(fapp)); i++)
+		{
+			Expr arg_i = fapp->arg(i+1);
+			if(arg_i == def)
+			{
+				Expr encoded_solution = bind::bvar(i, mk<BOOL_TY>(arg_i->efac()));
+				outs() << "ENCODED SOLUTION: " << *encoded_solution << "\n";
+				relToDefMap.insert(std::pair<Expr, Expr>(bind::fname(fapp), encoded_solution));
+			}
+		}
 	}
 
-	void HornDbModel::initAbstractDbModel(HornClauseDB &db, ZFixedPoint<EZ3> &fp)
+	Expr HornDbModel::getDef(Expr fapp)
+	{
+		Expr rel = bind::fname(fapp);
+		Expr def = relToDefMap.find(rel)->second;
+		Expr def_app = HornDbUtils::applyArgsToBvars(def, fapp, currentCandidates);
+		return def_app;
+	}
+
+	void HornDbModel::initModel(HornClauseDB &db, ZFixedPoint<EZ3> &fp)
 	{
 		ExprVector all_preds_in_DB;
 		for(HornRule r : db.getRules())
@@ -112,38 +136,24 @@ namespace seahorn
 			outs() << "REL: " << *(bind::fname(pred)) << "\n";
 			Expr solution = fp.getCoverDelta(pred);
 			outs() << "SOLUTION: " << *solution << "\n";
-			if(isOpX<TRUE>(solution) || isOpX<FALSE>(solution))
-			{
-				relToDefMap.insert(std::pair<Expr, Expr>(bind::fname(pred), solution));
-				continue;
-			}
-			for(int i=0; i<bind::domainSz(bind::fname(pred)); i++)
-			{
-				Expr arg_i = pred->arg(i+1);
-				if(arg_i == solution)
-				{
-					Expr encoded_solution = bind::bvar(i, mk<BOOL_TY>(arg_i->efac()));
-					outs() << "ENCODED SOLUTION: " << *encoded_solution << "\n";
-					relToDefMap.insert(std::pair<Expr, Expr>(bind::fname(pred), encoded_solution));
-				}
-			}
+			addDef(pred, solution);
 		}
 	}
 
-	bool PredAbsHornModelConverter::convert (HornDbModel &in, HornDbModel &out, std::map<Expr, Expr> &newToOldPredMap, HornClauseDB &abs_db)
+	bool PredAbsHornModelConverter::convert (HornDbModel &in, HornDbModel &out)
 	{
-		for(std::map<Expr, ExprMap>::iterator it = getRelToBvToTermMap().begin(); it!=getRelToBvToTermMap().end(); ++it)
+		for(std::map<Expr, ExprMap>::iterator it = getRelToBoolToTermMap().begin(); it!=getRelToBoolToTermMap().end(); ++it)
 		{
 			outs() << "REL: " << *(it->first) << "\n";
-			outs() << "BV: " << *(it->second.begin()->first) << "\n";
+			outs() << "BOOL: " << *(it->second.begin()->first) << "\n";
 			outs() << "TERM: " << *(it->second.begin()->second) << "\n";
 		}
-		for(Expr abs_rel : abs_db.getRelations())
+		for(Expr abs_rel : abs_db->getRelations())
 		{
 			outs() << "ABS REL: " << *abs_rel << "\n";
 			Expr orig_rel = newToOldPredMap.find(abs_rel)->second;
 			outs() << "ORIG REL: " << *orig_rel << "\n";
-			Expr abs_def = in.getDef(abs_rel);
+			Expr abs_def = in.getRelToSolutionMap().find(abs_rel)->second;
 			outs() << "ABS DEF: " << *abs_def << "\n";
 			Expr orig_def;
 			if(isOpX<TRUE>(abs_def) || isOpX<FALSE>(abs_def))
@@ -152,10 +162,10 @@ namespace seahorn
 			}
 			else
 			{
-				orig_def = (getRelToBvToTermMap().find(orig_rel)->second).find(abs_def)->second;
+				orig_def = (getRelToBoolToTermMap().find(orig_rel)->second).find(abs_def)->second;
 			}
 			outs() << "ORIG DEF: " << *orig_def << "\n";
-			out.addDef(orig_rel, orig_def);
+			out.getRelToSolutionMap().insert(std::pair<Expr, Expr>(orig_rel, orig_def));
 			for(ExprMap::iterator it = out.getRelToSolutionMap().begin(); it!=out.getRelToSolutionMap().end(); ++it)
 			{
 				outs() << "ORIG REL: " << *(it->first) << ", ORIG DEF: " << *(it->second) << "\n";
@@ -164,15 +174,15 @@ namespace seahorn
 		return true;
 	}
 
-	bool PredicateAbstraction::hasBvarInRule(HornRule r, HornClauseDB &db)
+	bool HornDbUtils::hasBvarInRule(HornRule r, HornClauseDB &db)
 	{
 		ExprVector pred_vector;
-		get_all_pred_apps(r.body(), db, std::back_inserter(pred_vector));
+		HornDbUtils::get_all_pred_apps(r.body(), db, std::back_inserter(pred_vector));
 		pred_vector.push_back(r.head());
 		ExprVector bvar_vector;
 		for(Expr pred : pred_vector)
 		{
-			get_all_bvars(bind::fname(pred), std::back_inserter(bvar_vector));
+			HornDbUtils::get_all_bvars(bind::fname(pred), std::back_inserter(bvar_vector));
 		}
 		if(bvar_vector.size() == 0)
 			return false;
@@ -254,7 +264,7 @@ namespace seahorn
 			std::map<Expr, int> relOccurrenceTimesMap;
 
 			ExprVector pred_vector;
-			get_all_pred_apps(r.body(), db, std::back_inserter(pred_vector));
+			HornDbUtils::get_all_pred_apps(r.body(), db, std::back_inserter(pred_vector));
 			pred_vector.push_back(r.head());
 
 			//Skip the rules which have no bvar arguments
@@ -295,7 +305,7 @@ namespace seahorn
 			//For each predicate in the body, construct new version of predicate.
 			Expr rule_body = r.body();
 			ExprVector body_pred_apps;
-			get_all_pred_apps(rule_body, db, std::back_inserter(body_pred_apps));
+			HornDbUtils::get_all_pred_apps(rule_body, db, std::back_inserter(body_pred_apps));
 			for(ExprVector::iterator it = body_pred_apps.begin(); it != body_pred_apps.end(); ++it)
 			{
 				Expr rule_body_pred = *it;
@@ -324,7 +334,7 @@ namespace seahorn
 				ExprMap boolToTermMap;
 				for(Expr term : currentCandidates.find(bind::fname(*it))->second)
 				{
-					Expr term_app = applyArgsToBvars(term, *it);
+					Expr term_app = HornDbUtils::applyArgsToBvars(term, *it, currentCandidates);
 					Expr equal_expr = mk<IFF>(new_rule_body_pred->arg(index + 1), term_app);
 					//converter
 					boolToTermMap.insert(std::pair<Expr, Expr>(bind::bvar(index, mk<BOOL_TY>(term_app->efac())), term));
@@ -332,7 +342,7 @@ namespace seahorn
 					new_body_exprs.push_back(equal_expr);
 					index ++;
 				}
-				converter.getRelToBvToTermMap().insert(std::pair<Expr, ExprMap>(bind::fname(*it), boolToTermMap));
+				converter.getRelToBoolToTermMap().insert(std::pair<Expr, ExprMap>(bind::fname(*it), boolToTermMap));
 			}
 
 			Expr rule_head = r.head();
@@ -363,7 +373,7 @@ namespace seahorn
 				ExprMap boolToTermMap;
 				for(Expr term : currentCandidates.find(bind::fname(rule_head))->second)
 				{
-					Expr term_app = applyArgsToBvars(term, rule_head);
+					Expr term_app = HornDbUtils::applyArgsToBvars(term, rule_head, currentCandidates);
 					Expr equal_expr = mk<IFF>(new_rule_head->arg(index + 1), term_app);
 					//converter
 					boolToTermMap.insert(std::pair<Expr, Expr>(bind::bvar(index, mk<BOOL_TY>(term_app->efac())), term));
@@ -371,11 +381,11 @@ namespace seahorn
 					new_body_exprs.push_back(equal_expr);
 					index ++;
 				}
-				converter.getRelToBvToTermMap().insert(std::pair<Expr, ExprMap>(bind::fname(rule_head), boolToTermMap));
+				converter.getRelToBoolToTermMap().insert(std::pair<Expr, ExprMap>(bind::fname(rule_head), boolToTermMap));
 			}
 
 			//Extract the constraints
-			Expr constraints = extractTransitionRelation(r, db);
+			Expr constraints = HornDbUtils::extractTransitionRelation(r, db);
 			new_body_exprs.push_back(constraints);
 
 			//Construct new body
@@ -479,13 +489,13 @@ namespace seahorn
 		return bins;
 	}
 
-	Expr PredicateAbstraction::applyArgsToBvars(Expr cand, Expr fapp)
+	Expr HornDbUtils::applyArgsToBvars(Expr cand, Expr fapp, std::map<Expr, ExprVector> currentCandidates)
 	{
-	  ExprMap bvar_map = getBvarsToArgsMap(fapp);
+	  ExprMap bvar_map = getBvarsToArgsMap(fapp, currentCandidates);
 	  return replace(cand, bvar_map);
 	}
 
-	ExprMap PredicateAbstraction::getBvarsToArgsMap(Expr fapp)
+	ExprMap HornDbUtils::getBvarsToArgsMap(Expr fapp, std::map<Expr, ExprVector> currentCandidates)
 	{
 	  Expr fdecl = bind::fname(fapp);
 	  ExprVector terms = currentCandidates[fdecl];
@@ -506,7 +516,7 @@ namespace seahorn
 
 	  ExprMap bvar_map;
 	  ExprVector bvars;
-	  get_all_bvars(cand, std::back_inserter(bvars));
+	  HornDbUtils::get_all_bvars(cand, std::back_inserter(bvars));
 
 	  for(ExprVector::iterator it = bvars.begin(); it != bvars.end(); ++it)
 	  {
@@ -517,12 +527,12 @@ namespace seahorn
 	  return bvar_map;
 	}
 
-	Expr PredicateAbstraction::extractTransitionRelation(HornRule r, HornClauseDB &db)
+	Expr HornDbUtils::extractTransitionRelation(HornRule r, HornClauseDB &db)
 	{
 	  Expr ruleBody = r.body();
 	  ExprMap body_map;
 	  ExprVector body_pred_apps;
-	  get_all_pred_apps(ruleBody, db, std::back_inserter(body_pred_apps));
+	  HornDbUtils::get_all_pred_apps(ruleBody, db, std::back_inserter(body_pred_apps));
 
 	  for(ExprVector::iterator itr = body_pred_apps.begin(); itr != body_pred_apps.end(); ++itr)
 	  {
@@ -533,65 +543,11 @@ namespace seahorn
 	  return body_constraints;
 	}
 
-	struct IsPredApp : public std::unary_function<Expr, bool>
-	{
-		 HornClauseDB &m_db;
-		 IsPredApp (HornClauseDB &db) : m_db (db) {}
-
-		 bool operator() (Expr e)
-		 {return bind::isFapp (e) && m_db.hasRelation (bind::fname(e));}
-	};
-
-	struct IsBVar : public std::unary_function<Expr, bool>
-	{
-		 IsBVar () {}
-		 bool operator() (Expr e)
-		 {return bind::isBVar (e);}
-	};
-
 	template<typename OutputIterator>
-	void PredicateAbstraction::get_all_pred_apps (Expr e, HornClauseDB &db, OutputIterator out)
+	void HornDbUtils::get_all_pred_apps (Expr e, HornClauseDB &db, OutputIterator out)
 	{filter (e, IsPredApp(db), out);}
 
 	template<typename OutputIterator>
-	void PredicateAbstraction::get_all_bvars (Expr e, OutputIterator out)
+	void HornDbUtils::get_all_bvars (Expr e, OutputIterator out)
 	{filter (e, IsBVar(), out);}
-
-	void PredicateAbstraction::printInvars (Module &M)
-	{
-		for (auto &F : M) printInvars (F);
-	}
-
-	void PredicateAbstraction::printInvars (Function &F)
-	{
-		if (F.isDeclaration ()) return;
-
-		HornifyModule &hm = getAnalysis<HornifyModule> ();
-		outs () << "Function: " << F.getName () << "\n";
-
-		// -- not used for now
-		Expr summary = hm.summaryPredicate (F);
-
-		ZFixedPoint<EZ3> fp = *m_fp;
-
-		for (auto &BB : F)
-		{
-		  if (!hm.hasBbPredicate (BB)) continue;
-
-		  Expr bbPred = hm.bbPredicate (BB);
-
-		  outs () << *bind::fname (bbPred) << ":";
-		  const ExprVector &live = hm.live (BB);
-		  Expr invars = fp.getCoverDelta (bind::fapp (bbPred, live));
-
-		  if (isOpX<AND> (invars))
-		  {
-			outs () << "\n\t";
-			for (size_t i = 0; i < invars->arity (); ++i)
-			  outs () << "\t" << *invars->arg (i) << "\n";
-		  }
-		  else
-			outs () << " " << *invars << "\n";
-		}
-	}
 }

@@ -195,9 +195,7 @@ namespace seahorn
     }
   }
   
-  Expr BmcTrace::eval (unsigned loc,
-                       const llvm::Instruction &inst,
-                       bool complete) 
+  Expr BmcTrace::symb (unsigned loc, const llvm::Instruction &inst)
   {
     assert (inst.getParent () == bb(loc));
     
@@ -213,8 +211,16 @@ namespace seahorn
     if (stateidx >= m_bmc.m_states.size ()) return Expr ();
     
     SymStore &store = m_bmc.m_states[stateidx];
-    Expr v = store.eval (u);
-    return m_model.eval (v, complete);
+    return store.eval (u);
+  }
+  
+  Expr BmcTrace::eval (unsigned loc,
+                       const llvm::Instruction &inst,
+                       bool complete) 
+  {
+    Expr v = symb (loc, inst);
+    if (v) v = m_model.eval (v, complete);
+    return v;
   }
   
   Expr BmcTrace::eval (unsigned loc,

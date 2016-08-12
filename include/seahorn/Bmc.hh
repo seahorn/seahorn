@@ -60,6 +60,8 @@ namespace seahorn
     
     SmallStepSymExec& sem () {return m_sem;}
     
+    ufo::EZ3 &zctx () { return m_smt_solver.getContext (); }
+    
     /// constructs the path condition
     void encode ();
     /// checks satisfiability of the path condition
@@ -107,6 +109,7 @@ namespace seahorn
     
     BmcTrace (BmcEngine &bmc, ufo::ZModel<ufo::EZ3> &model);
 
+    
     /// cutpoint id corresponding to the given location
     unsigned cpid (unsigned loc) const {return m_cpId[loc];}
     
@@ -121,6 +124,8 @@ namespace seahorn
       m_bmc (other.m_bmc), m_model (other.m_model),
       m_bbs (other.m_bbs), m_cpId (other.m_cpId) {}
     
+    /// underlying BMC engine
+    BmcEngine &engine () { return m_bmc; }
     /// The number of basic blocks in the trace 
     unsigned size () const {return m_bbs.size ();}
     
@@ -128,6 +133,7 @@ namespace seahorn
     const llvm::BasicBlock* bb (unsigned loc) const {return m_bbs [loc];}
     
     /// The value of the instruction at the given location 
+    Expr symb (unsigned loc, const llvm::Instruction &inst);
     Expr eval (unsigned loc, const llvm::Instruction &inst, bool complete=false);
     Expr eval (unsigned loc, Expr v, bool complete=false);
     template <typename Out> Out &print (Out &out);

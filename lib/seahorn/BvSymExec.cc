@@ -423,7 +423,7 @@ namespace
       
       Expr rhs;
 
-      if (dsz == ssz) rhs = lhs;
+      if (dsz == ssz) rhs = op0;
       else if (dsz > ssz) rhs = bv::zext (op0, dsz);
       else rhs = bv::extract (dsz-1, 0, op0);
       
@@ -443,7 +443,7 @@ namespace
       
       Expr rhs;
 
-      if (dsz == ssz) rhs = lhs;
+      if (dsz == ssz) rhs = op0;
       else if (dsz > ssz) rhs = bv::zext (op0, dsz);
       else rhs = bv::extract (dsz-1, 0, op0);
       

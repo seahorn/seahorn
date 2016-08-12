@@ -35,7 +35,7 @@ get_value_int(8)
 
 get_value_helper(intptr_t, ptr_internal)
 
-const int MEM_REGION_SIZE_GUESS = 1000;
+const int MEM_REGION_SIZE_GUESS = 4000;
 const int TYPE_GUESS = sizeof(int);
 
   std::map<intptr_t, intptr_t, std::greater<intptr_t>> absptrmap;

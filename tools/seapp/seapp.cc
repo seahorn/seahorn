@@ -226,8 +226,10 @@ int main(int argc, char **argv) {
     pass_manager.add (seahorn::createKleeInternalizePass ());
   else if (WrapMem)
     pass_manager.add (seahorn::createWrapMemPass ());
-  else if (OnlyStripExtern)
+  else if (OnlyStripExtern) {
+    pass_manager.add (seahorn::createDevirtualizeFunctionsPass ());
     pass_manager.add (seahorn::createStripUselessDeclarationsPass ());
+  }
   else
   {
     // -- Create a main function if we do not have one.

@@ -2,7 +2,7 @@
 #define __DSA_CALLGRAPH_HH_
 
 #include "boost/unordered_map.hpp"
-#include "boost/container/flat_set.hpp"
+//#include "boost/container/flat_set.hpp"
 
 namespace llvm 
 {
@@ -18,15 +18,23 @@ namespace seahorn
 
     class DsaCallGraph
     {
-
-      typedef boost::container::flat_set<const llvm::Instruction*> CallSiteSet;
+      // XXX: use a vector to have more control about the ordering
+      typedef std::vector<const llvm::Instruction*> CallSiteSet;
+      //typedef boost::container::flat_set<const llvm::Instruction*> CallSiteSet;
       typedef std::shared_ptr<CallSiteSet> CallSiteSetRef;
       typedef boost::unordered_map<const llvm::Function*, CallSiteSetRef> IndexMap;
 
       llvm::CallGraph &m_cg;
       IndexMap m_uses;
       IndexMap m_defs;
+      
+      static void insert (const llvm::Instruction *I, CallSiteSet &s)
+      { if (std::find(s.begin(), s.end(), I) == s.end()) s.push_back (I); }
 
+      template<typename Iter>
+      static void insert (Iter it, Iter et,  CallSiteSet &s)
+      { for (; it!=et;++it) insert (*it, s); }
+      
      public:
       
       DsaCallGraph (llvm::CallGraph &cg): m_cg (cg) {}

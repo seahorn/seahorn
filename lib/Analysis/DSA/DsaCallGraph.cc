@@ -40,12 +40,12 @@ namespace seahorn
             if (!callee || callee->isDeclaration () || callee->empty ()) continue;
 
             auto predIt = imm_preds.find (callee);
-            if (predIt != imm_preds.end ())
-              predIt->second.insert (CS.getInstruction());
+            if (predIt != imm_preds.end ()) 
+              insert (CS.getInstruction(), predIt->second); 
             else
             {
               CallSiteSet s;
-              s.insert (CS.getInstruction ());
+              insert (CS.getInstruction (), s);
               imm_preds.insert (std::make_pair(callee, s));
             }
           }
@@ -66,12 +66,12 @@ namespace seahorn
           const Function *fn = cgn->getFunction ();
           if (!fn || fn->isDeclaration () || fn->empty ()) continue;
           
-          uses->insert(imm_preds [fn].begin(), imm_preds [fn].end());
+          insert (imm_preds [fn].begin(), imm_preds [fn].end(), *uses);
 
           for (auto &callRecord : *cgn)
           {
             ImmutableCallSite CS (callRecord.first);
-            defs->insert(CS.getInstruction());
+            insert (CS.getInstruction(), *defs);
           }
         }
 

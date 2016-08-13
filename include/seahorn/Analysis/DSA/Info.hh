@@ -19,6 +19,7 @@ namespace llvm
     class DataLayout;
     class TargetLibraryInfo;
     class Value;
+    class Function;
     class raw_ostream;
 }
 
@@ -39,8 +40,8 @@ namespace seahorn
   {
 
     // Wrapper to extend a dsa node with extra information
-    class NodeInfo {
-      
+    class NodeInfo 
+    {      
       const Node* m_node; 
       unsigned m_id;
       unsigned m_accesses;
@@ -83,15 +84,18 @@ namespace seahorn
       typedef boost::container::flat_set<const llvm::Value*> ValueSet;
       typedef boost::container::flat_set<unsigned int> IdSet;
       typedef boost::container::flat_set<NodeInfo> NodeInfoSet;
+      typedef boost::container::flat_set<Graph*> GraphSet;
       typedef boost::unordered_map<const llvm::Value*, std::string> NamingMap;
-      
+
       const llvm::DataLayout &m_dl;
       const llvm::TargetLibraryInfo &m_tli;
       GlobalAnalysis &m_dsa;
-      NodeInfoMap m_nodes_map;
-      AllocSiteBiMap m_alloc_sites;
-      NamingMap m_names;
-      
+
+      NodeInfoMap m_nodes_map; // map Node to NodeInfo
+      AllocSiteBiMap m_alloc_sites; // bimap allocation sites to id
+      NamingMap m_names; // map Value to string name
+
+      GraphSet m_seen_graphs;
       typedef typename NodeInfoMap::value_type binding_t;
       
       struct get_second : public std::unary_function<binding_t, NodeInfo> 
@@ -133,15 +137,16 @@ namespace seahorn
         return boost::make_iterator_range (live_nodes_begin (), live_nodes_end());
       }
 
-      std::string getName (const llvm::Value* v);       
+      std::string getName (const llvm::Function &fn, const llvm::Value& v);       
 
       void addMemoryAccess (const llvm::Value* v, Graph& g); 
 
-      void countMemoryAccesses (llvm::Function& f);
+      void countMemoryAccesses (const llvm::Function& f);
 
-      void assignNodeId (Graph* g);
+      void assignNodeId (const llvm::Function &fn, Graph* g);
 
-      void assignAllocSiteIdAndPrinting (live_nodes_const_range nodes, llvm::raw_ostream&o,std::string outFile);
+      void assignAllocSiteIdAndPrinting (live_nodes_const_range nodes, llvm::raw_ostream&o,
+                                         std::string outFile);
 
       void printMemoryAccesses (live_nodes_const_range nodes, llvm::raw_ostream&o) const;
 

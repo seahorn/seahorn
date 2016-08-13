@@ -18,7 +18,7 @@ using namespace llvm;
 
 static llvm::cl::opt<std::string>
 DsaInfoToFile("horn-dsa-info-to-file",
-    llvm::cl::desc ("Dump Dsa into to a file"),
+    llvm::cl::desc ("Dump some Dsa info into a file"),
     llvm::cl::init (""),
     llvm::cl::Hidden);
 
@@ -62,7 +62,7 @@ void InfoAnalysis::addMemoryAccess (const Value* v, Graph& g)
 
 }        
 
-void InfoAnalysis::countMemoryAccesses (Function&F) 
+void InfoAnalysis::countMemoryAccesses (const Function&F) 
 {
   // A node can be read or modified even if there is no a memory
   // load/store for it. This can happen after nodes are unified.
@@ -72,7 +72,8 @@ void InfoAnalysis::countMemoryAccesses (Function&F)
   auto g = getDsaGraph(F);
   if (!g) return;
 
-  for (inst_iterator i = inst_begin(F), e = inst_end(F); i != e; ++i)  {
+  for (const_inst_iterator i = inst_begin(F), e = inst_end(F); i != e; ++i)  
+  {
     const Instruction *I = &*i;
     if (const LoadInst *LI = dyn_cast<LoadInst>(I)) {
       addMemoryAccess (LI->getPointerOperand (), *g);
@@ -294,31 +295,64 @@ inline void InsertReferrer (PairRange r, SetMap &m)
   }
 }
 
-// Assign a name to a value
-std::string InfoAnalysis::getName (const Value* v) 
+// Assign a unique name to a value for the whole module
+std::string InfoAnalysis::getName (const Function&fn, const Value& v) 
 {
-  const Value * V = v->stripPointerCasts();
-
-  if (V->hasName ()) return V->getName().str();
-
+  assert (v.hasName ());
+  const Value * V = v.stripPointerCasts();
+  
   auto it = m_names.find (V);
   if (it != m_names.end ()) return it->second;
 
-  // FIXME: this can be really slow!
-  // XXX: I don't know a better way to obtain a string-like
-  // representation from a value.
-  std::string str("");
-  raw_string_ostream str_os (str);
-  V->print (str_os); 
-  auto res = m_names.insert (std::make_pair (V, str_os.str ()));
+  std::string name = fn.getName ().str() + "." + v.getName ().str();
+  auto res = m_names.insert (std::make_pair (V, name));
   return res.first->second;
+
+  // if (V->hasName ()) return V->getName().str();
+  // auto it = m_names.find (V);
+  // if (it != m_names.end ()) return it->second;
+  // // FIXME: this can be really slow!
+  // // XXX: I don't know a better way to obtain a string-like
+  // // representation from a value.
+  // std::string str("");
+  // raw_string_ostream str_os (str);
+  // V->print (str_os); 
+  // auto res = m_names.insert (std::make_pair (V, str_os.str ()));
+  // return res.first->second;
 }
 
 
 // Assign to each node a **deterministic** id that is preserved across
 // different executions
-void InfoAnalysis::assignNodeId (Graph* g)
+void InfoAnalysis::assignNodeId (const Function& fn, Graph* g)
 {
+  #if 1
+  /// XXX: Assume class Node already assigns a global id to each node
+
+  for (auto &kv: boost::make_iterator_range (g->scalar_begin(), 
+                                             g->scalar_end())) 
+  {
+    const Node *n = kv.second->getNode ();
+    m_nodes_map.insert(std::make_pair(n,NodeInfo(n, n->getId(), "")));
+  }                                   
+                                      
+  for (auto &kv: boost::make_iterator_range (g->formal_begin(), 
+                                             g->formal_end())) 
+  {
+    const Node *n = kv.second->getNode ();
+    m_nodes_map.insert(std::make_pair(n,NodeInfo(n, n->getId(), "")));
+  }                                   
+
+  for (auto &kv: boost::make_iterator_range (g->return_begin(), 
+                                             g->return_end())) 
+  {
+    const Node *n = kv.second->getNode ();
+    m_nodes_map.insert(std::make_pair(n,NodeInfo(n, n->getId(), "")));
+  }                                   
+                                               
+  #else
+  /// XXX: Try to build a global id from the name of a node's
+  /// representative. The representative is chosen deterministically.
 
   typedef boost::unordered_map<const Node*, ValueSet  > ReferrerMap;
   typedef std::vector<std::pair<const Node*, std::string> > ReferrerRepVector;
@@ -345,24 +379,35 @@ void InfoAnalysis::assignNodeId (Graph* g)
     // XXX: StringRef does not own the string data so we cannot use here
     std::vector<std::string> named_refs;
     named_refs.reserve (refs.size ());
-    for (auto v: refs) named_refs.push_back (getName (v));
+    for (auto v: refs) 
+      if (v->hasName ()) 
+      {
+        /// XXX: constant expressions won't have names
+        named_refs.push_back (getName (fn, *v));
+      }
       
     // Sort strings
-    std::sort (named_refs.begin (), named_refs.end (),
-               [](std::string s1, std::string s2){ return (s1 < s2); });
-               
-    // Choose arbitrarily the first one
-    if (!named_refs.empty ()) // should not be empty
+    std::sort (named_refs.begin (), named_refs.end ());
+
+    // Choose the first one
+    if (!named_refs.empty ()) 
       sorted_ref_vector.push_back(std::make_pair(n, named_refs [0]));
-    
+    else
+      errs () << "WARNING DsaInfo: not found representative for node\n";
   }
 
+  if (sorted_ref_vector.empty()) return;
+
   // Sort nodes 
+  unsigned num_ref = sorted_ref_vector.size ();
   std::sort (sorted_ref_vector.begin (), sorted_ref_vector.end (),
              [](std::pair<const Node*, std::string> p1, 
                 std::pair<const Node*, std::string> p2){
                return (p1.second < p2.second);
              });
+
+  if (sorted_ref_vector.size () != num_ref)
+    errs () << "WARNING DsaInfo: node representatives should be unique\n";
   
   // -- Finally, assign a unique (deterministic) id to each node
   //    The id 0 is reserved in case some query goes wrong.
@@ -371,7 +416,7 @@ void InfoAnalysis::assignNodeId (Graph* g)
                                       NodeInfo(kv.first, 
                                                m_nodes_map.size()+1,
                                                kv.second)));
-
+  #endif 
 }
 
 bool InfoAnalysis::runOnFunction (Function &f) 
@@ -381,8 +426,13 @@ bool InfoAnalysis::runOnFunction (Function &f)
     LOG ("dsa-info",
          errs () << f.getName () 
                  << " has " << std::distance (g->begin(), g->end()) << " nodes\n");
-            
-    assignNodeId (g); 
+
+    // XXX: If the analysis is context-insensitive all functions have
+    // the same graph so we just need to compute the id's for the
+    // first graph.
+    if (m_seen_graphs.count (g) <= 0)
+      assignNodeId (f, g); 
+
     countMemoryAccesses (f);
   }
   return false;
@@ -403,6 +453,7 @@ bool InfoAnalysis::runOnModule (Module &M)
   return false;
 }
 
+// External API for Dsa clients
 bool InfoAnalysis::isAccessed (const Node&n) const 
 { 
   auto it = m_nodes_map.find (&n);

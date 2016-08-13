@@ -28,8 +28,8 @@ namespace seahorn
 		HornDbModel(ExprMap model) : relToDefMap(model) {}
 		virtual ~HornDbModel(){}
 		void setCurrentCandidates(std::map<Expr, ExprVector> currentCandidates) { this->currentCandidates = currentCandidates; }
-		ExprMap& getRelToSolutionMap() {return relToDefMap;}
-		void setRelToSolutionMap(ExprMap map) {relToDefMap = map;}
+//		ExprMap& getRelToSolutionMap() {return relToDefMap;}
+//		void setRelToSolutionMap(ExprMap map) {relToDefMap = map;}
 	};
 
 	class HornModelConverter
@@ -90,10 +90,20 @@ namespace seahorn
 		static Expr extractTransitionRelation(HornRule r, HornClauseDB &db);
 
 		template<typename OutputIterator>
-		static void get_all_pred_apps (Expr e, HornClauseDB &db, OutputIterator out);
+		static void get_all_pred_apps (Expr e, HornClauseDB &db, OutputIterator out)
+		{filter (e, IsPredApp(db), out);}
 
 		template<typename OutputIterator>
-		static void get_all_bvars (Expr e, OutputIterator out);
+		static void get_all_bvars (Expr e, OutputIterator out)
+		{filter (e, IsBVar(), out);}
+
+		template<typename OutputIterator>
+		static void get_all_integers(Expr e, OutputIterator out)
+		{filter (e, IsInteger(), out);}
+
+		template<typename OutputIterator>
+		static void get_all_booleans(Expr e, OutputIterator out)
+		{filter (e, IsBoolean(), out);}
 
 		static bool hasBvarInRule(HornRule r, HornClauseDB &db);
 
@@ -111,6 +121,20 @@ namespace seahorn
 			 IsBVar () {}
 			 bool operator() (Expr e)
 			 {return bind::isBVar (e);}
+		};
+
+		struct IsInteger : public std::unary_function<Expr, bool>
+		{
+			IsInteger() {}
+			bool operator() (Expr e)
+			{return bind::isIntConst (e);}
+		};
+
+		struct IsBoolean : public std::unary_function<Expr, bool>
+		{
+			IsBoolean() {}
+			bool operator() (Expr e)
+			{return bind::isBoolConst (e);}
 		};
 	};
 }

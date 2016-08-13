@@ -74,11 +74,6 @@ namespace seahorn
 			outs() << "unsat\n";
 			HornDbModel absModel;
 			absModel.initModel(new_db, fp);
-
-			for(ExprMap::iterator it = absModel.getRelToSolutionMap().begin(); it!=absModel.getRelToSolutionMap().end(); ++it)
-			{
-				outs() << *(bind::fname(it->first)) << ": " << *(it->second) << "\n";
-			}
 			converter.setNewToOldPredMap(newToOldPredMap);
 			converter.setAbsDB(new_db);
 			converter.convert(absModel, oldModel);
@@ -103,24 +98,77 @@ namespace seahorn
 			relToDefMap.insert(std::pair<Expr, Expr>(bind::fname(fapp), def));
 			return;
 		}
-		for(int i=0; i<bind::domainSz(bind::fname(fapp)); i++)
+
+		std::ostringstream oss;
+		oss << bind::fname(bind::fname(fapp));
+		//For AbsModel
+		if(oss.str().find("_pabs") != -1)
 		{
-			Expr arg_i = fapp->arg(i+1);
-			if(arg_i == def)
+			ExprVector booleanVars;
+			HornDbUtils::get_all_booleans(def, std::back_inserter(booleanVars));
+			ExprMap boolVarsToBvarsMap;
+			for(Expr boolvar : booleanVars)
 			{
-				Expr encoded_solution = bind::bvar(i, mk<BOOL_TY>(arg_i->efac()));
-				outs() << "ENCODED SOLUTION: " << *encoded_solution << "\n";
-				relToDefMap.insert(std::pair<Expr, Expr>(bind::fname(fapp), encoded_solution));
+				for(int i=0; i<bind::domainSz(bind::fname(fapp)); i++)
+				{
+					Expr arg_i = fapp->arg(i+1);
+					if(arg_i == boolvar)
+					{
+						Expr encoded_solution = bind::bvar(i, mk<BOOL_TY>(arg_i->efac()));
+						outs() << "ENCODED SOLUTION: " << *encoded_solution << "\n";
+						boolVarsToBvarsMap.insert(std::pair<Expr, Expr>(boolvar, encoded_solution));
+					}
+				}
 			}
+			def = replace(def, boolVarsToBvarsMap);
+			relToDefMap.insert(std::pair<Expr, Expr>(bind::fname(fapp), def));
+		}
+		//For OrigModel
+		else
+		{
+			ExprVector vars;
+			HornDbUtils::get_all_integers(def, std::back_inserter(vars));
+			ExprMap varIdMap;
+			for(Expr var : vars)
+			{
+				int var_id = variant::variantNum(bind::fname(bind::fname(var)));
+				Expr bvar = bind::intBVar(var_id, var->efac());
+				varIdMap.insert(std::pair<Expr, Expr>(var, bvar));
+			}
+			Expr orig_def = replace(def, varIdMap);
+			outs() << "ADD BVAR DEF: " << *orig_def << "\n";
+			relToDefMap.insert(std::pair<Expr, Expr>(bind::fname(fapp), orig_def));
 		}
 	}
 
 	Expr HornDbModel::getDef(Expr fapp)
 	{
-		Expr rel = bind::fname(fapp);
-		Expr def = relToDefMap.find(rel)->second;
-		Expr def_app = HornDbUtils::applyArgsToBvars(def, fapp, currentCandidates);
-		return def_app;
+		std::ostringstream oss;
+		oss << bind::fname(bind::fname(fapp));
+		//AbsModel
+		if(oss.str().find("_pabs") != -1)
+		{
+			Expr rel = bind::fname(fapp);
+			Expr def = relToDefMap.find(rel)->second;
+			ExprMap bvarToBoolVarMap;
+			ExprVector bvars;
+			HornDbUtils::get_all_bvars(def, std::back_inserter(bvars));
+			for(Expr bvar : bvars)
+			{
+				int bvar_id = bind::bvarId(bvar);
+				bvarToBoolVarMap.insert(std::pair<Expr, Expr>(bvar, fapp->arg(bvar_id+1)));
+			}
+			Expr def_app = replace(def, bvarToBoolVarMap);
+			return def_app;
+		}
+		//OrigModel
+		else
+		{
+			Expr rel = bind::fname(fapp);
+			Expr def = relToDefMap.find(rel)->second;
+			Expr def_app = HornDbUtils::applyArgsToBvars(def, fapp, currentCandidates);
+			return def_app;
+		}
 	}
 
 	void HornDbModel::initModel(HornClauseDB &db, ZFixedPoint<EZ3> &fp)
@@ -153,7 +201,27 @@ namespace seahorn
 			outs() << "ABS REL: " << *abs_rel << "\n";
 			Expr orig_rel = newToOldPredMap.find(abs_rel)->second;
 			outs() << "ORIG REL: " << *orig_rel << "\n";
-			Expr abs_def = in.getRelToSolutionMap().find(abs_rel)->second;
+
+			ExprVector abs_arg_list;
+			for(int i=0; i<bind::domainSz(abs_rel); i++)
+			{
+				Expr boolVar = bind::boolConst(variant::variant(i, mkTerm<std::string>("b", orig_rel->efac())));
+				abs_arg_list.push_back(boolVar);
+			}
+			Expr abs_rel_app = bind::fapp(abs_rel, abs_arg_list);
+			outs() << "ABS REL APP: " << *abs_rel_app << "\n";
+			Expr abs_def_app = in.getDef(abs_rel_app);
+			outs() << "ABS DEF APP: " << *abs_def_app << "\n";
+			ExprMap boolVarToBvarMap;
+			ExprVector bools;
+			HornDbUtils::get_all_booleans(abs_def_app, std::back_inserter(bools));
+			for(Expr boolvar: bools)
+			{
+				Expr bool_bvar = bind::boolBVar(variant::variantNum(bind::fname(bind::fname(boolvar))), boolvar->efac());
+				boolVarToBvarMap.insert(std::pair<Expr,Expr>(boolvar, bool_bvar));
+			}
+			Expr abs_def = replace(abs_def_app, boolVarToBvarMap);
+
 			outs() << "ABS DEF: " << *abs_def << "\n";
 			Expr orig_def;
 			if(isOpX<TRUE>(abs_def) || isOpX<FALSE>(abs_def))
@@ -165,11 +233,32 @@ namespace seahorn
 				orig_def = (getRelToBoolToTermMap().find(orig_rel)->second).find(abs_def)->second;
 			}
 			outs() << "ORIG DEF: " << *orig_def << "\n";
-			out.getRelToSolutionMap().insert(std::pair<Expr, Expr>(orig_rel, orig_def));
-			for(ExprMap::iterator it = out.getRelToSolutionMap().begin(); it!=out.getRelToSolutionMap().end(); ++it)
+
+			ExprVector orig_fapp_args;
+			for(int i=0; i<bind::domainSz(orig_rel); i++)
 			{
-				outs() << "ORIG REL: " << *(it->first) << ", ORIG DEF: " << *(it->second) << "\n";
+				Expr var = bind::intConst(variant::variant(i, mkTerm<std::string> ("V", orig_rel->efac ())));
+				orig_fapp_args.push_back(var);
 			}
+			Expr orig_fapp = bind::fapp(orig_rel, orig_fapp_args);
+			outs() << "ORIG FAPP: " << *orig_fapp << "\n";
+			ExprVector bvars;
+			HornDbUtils::get_all_bvars(orig_def, std::back_inserter(bvars));
+			ExprMap bvarIdMap;
+			for(Expr bvar : bvars)
+			{
+				int bvar_id = bind::bvarId(bvar);
+				Expr var = bind::intConst(variant::variant(bvar_id, mkTerm<std::string> ("V", bvar->efac ())));
+				bvarIdMap.insert(std::pair<Expr, Expr>(bvar, var));
+			}
+			Expr orig_def_app = replace(orig_def, bvarIdMap);
+			outs() << "ORIG DEF APP: " << *orig_def_app << "\n";
+			out.addDef(orig_fapp, orig_def_app);
+			//out.getRelToSolutionMap().insert(std::pair<Expr, Expr>(orig_rel, orig_def));
+//			for(ExprMap::iterator it = out.getRelToSolutionMap().begin(); it!=out.getRelToSolutionMap().end(); ++it)
+//			{
+//				outs() << "ORIG REL: " << *(it->first) << ", ORIG DEF: " << *(it->second) << "\n";
+//			}
 		}
 		return true;
 	}
@@ -542,12 +631,4 @@ namespace seahorn
 	  Expr body_constraints = replace(ruleBody, body_map);
 	  return body_constraints;
 	}
-
-	template<typename OutputIterator>
-	void HornDbUtils::get_all_pred_apps (Expr e, HornClauseDB &db, OutputIterator out)
-	{filter (e, IsPredApp(db), out);}
-
-	template<typename OutputIterator>
-	void HornDbUtils::get_all_bvars (Expr e, OutputIterator out)
-	{filter (e, IsBVar(), out);}
 }

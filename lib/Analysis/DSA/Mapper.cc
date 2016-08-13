@@ -68,7 +68,7 @@ bool SimulationMapper::insert (const Node &n1, Node &n2, unsigned o)
     if (map.at (&n2) == offset) return true;
     m_sim.clear (); return false;
   }
-
+  
   // -- not array can be simulated by array of larger size at offset 0
   // XXX probably sufficient if n1 can be completely embedded into n2,
   // XXX not necessarily at offset 0
@@ -109,7 +109,7 @@ bool SimulationMapper::insert (const Node &n1, Node &n2, unsigned o)
     Node *n4 = link.getNode ();
     unsigned off2 = link.getOffset ();
 
-    if (off2 < off1 && !n2.isCollapsed ())
+    if (off2 < off1 && !n4->isCollapsed ())
     { m_sim.clear (); return false; }
     
     if (!insert (*n3, *n4, off2 - off1))

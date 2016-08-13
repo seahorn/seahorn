@@ -781,5 +781,5 @@ namespace seahorn
 char seahorn::dsa::Local::ID = 0;
 
 static llvm::RegisterPass<seahorn::dsa::Local> 
-X ("new-dsa-local", "Flow-insensitive, intra-procedural dsa analysis");
+X ("sea-dsa-local", "Flow-insensitive, intra-procedural dsa analysis");
 

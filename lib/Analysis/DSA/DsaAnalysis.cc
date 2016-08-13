@@ -60,4 +60,4 @@ bool DsaAnalysis::runOnModule (Module &M)
 char DsaAnalysis::ID = 0;
 
 static llvm::RegisterPass<DsaAnalysis> 
-X ("dsa", "Entry point for all Dsa clients");
+X ("sea-dsa", "Entry point for all Dsa clients");

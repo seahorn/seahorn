@@ -608,8 +608,8 @@ char seahorn::dsa::ContextInsensitiveGlobal::ID = 0;
 char seahorn::dsa::ContextSensitiveGlobal::ID = 0;
 
 static llvm::RegisterPass<seahorn::dsa::ContextInsensitiveGlobal> 
-X ("dsa-global", "Context-insensitive Dsa analysis");
+X ("sea-dsa-ci-global", "Context-insensitive Dsa analysis");
 
 static llvm::RegisterPass<seahorn::dsa::ContextSensitiveGlobal> 
-Y ("dsa-cs-global", "Context-sensitive Dsa analysis");
+Y ("sea-dsa-cs-global", "Context-sensitive Dsa analysis");
 

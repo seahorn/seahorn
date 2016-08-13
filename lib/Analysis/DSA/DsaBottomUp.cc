@@ -186,5 +186,5 @@ namespace seahorn
 }
 
 static llvm::RegisterPass<seahorn::dsa::BottomUp>
-X ("dsa-bu", "Bottom-up DSA pass");
+X ("sea-dsa-bu", "Bottom-up DSA pass");
 

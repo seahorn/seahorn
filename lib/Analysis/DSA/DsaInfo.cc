@@ -17,7 +17,7 @@ using namespace seahorn::dsa;
 using namespace llvm;
 
 static llvm::cl::opt<std::string>
-DsaInfoToFile("horn-dsa-info-to-file",
+DsaInfoToFile("horn-sea-dsa-info-to-file",
     llvm::cl::desc ("Dump some Dsa info into a file"),
     llvm::cl::init (""),
     llvm::cl::Hidden);

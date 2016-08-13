@@ -15,13 +15,13 @@ using namespace seahorn::dsa;
 using namespace llvm;
 
 static llvm::cl::opt<bool>
-DsaCsGlobalAnalysis ("horn-dsa-cs-global",
+DsaCsGlobalAnalysis ("horn-sea-dsa-cs-global",
                    llvm::cl::desc ("DSA: context-sensitive analysis"),
                    llvm::cl::init (true));
 
 static llvm::cl::opt<bool>
-ComputeDsaInfo ("horn-dsa-info",
-                llvm::cl::desc ("DSA: compute information for answering client queries"),
+ComputeDsaInfo ("horn-sea-dsa-info",
+                llvm::cl::desc ("DSA: pre-compute information for answering client queries"),
                 llvm::cl::init (false));
 
 void DsaAnalysis::getAnalysisUsage (AnalysisUsage &AU) const 

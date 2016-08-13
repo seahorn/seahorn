@@ -27,7 +27,7 @@
 #include "boost/range/iterator_range.hpp"
 
 static llvm::cl::opt<bool>
-normalizeUniqueScalars("horn-dsa-norm-unique-scalar",
+normalizeUniqueScalars("horn-sea-dsa-norm-unique-scalar",
             llvm::cl::desc("DSA: all callees and callers agree on unique scalars"),
             llvm::cl::init (true));
 

@@ -7,14 +7,15 @@
 #include "llvm/IR/Constants.h"
 #include "seahorn/config.h"
 
+#include "ufo/Expr.hpp"
+
 #include <queue>
 
-#include "seahorn/Analysis/DSA/Graph.hh"
-#include "seahorn/Analysis/DSA/Global.hh"
+#ifdef HAVE_DSA
+#include "dsa/DataStructure.h"
+#include "dsa/DSGraph.h"
+#include "dsa/DSNode.h"
 
-#include "boost/container/flat_set.hpp"
-
-using namespace seahorn::dsa;
 
 namespace seahorn
 {
@@ -41,41 +42,21 @@ namespace seahorn
     Constant *m_markUniqIn;
     Constant *m_markUniqOut;
     
-    GlobalAnalysis *m_dsa;
+    DataStructures *m_dsa;
     
-    DenseMap<const Node*, DenseMap<unsigned, AllocaInst*> > m_shadows;
-    DenseMap<const Node*, unsigned> m_node_ids;
-    unsigned m_max_id;
+    DenseMap<const DSNode*, AllocaInst*> m_shadows;
+    DenseMap<const DSNode*, unsigned> m_node_ids;
     Type *m_Int32Ty;
     
-    typedef boost::container::flat_set<const Node*> NodeSet;
-    DenseMap<const Function *, NodeSet> m_readList;
-    DenseMap<const Function *, NodeSet > m_modList;
     
+    AllocaInst* allocaForNode (const DSNode *n);
+    unsigned getId (const DSNode *n);
     
-    void declareFunctions (llvm::Module &M);
-    AllocaInst* allocaForNode (const Node *n, unsigned offset);
-    unsigned getId (const Node *n, unsigned offset);
-    unsigned getOffset (const Cell &c);
-    
-    unsigned getId (const Cell &c)
-    { return getId (c.getNode(), getOffset (c)); }
-    AllocaInst* allocaForNode (const Cell &c)
-    { return allocaForNode (c.getNode (), getOffset (c)); }
-    
-    /// compute read/modified information per function
-    void computeReadMod ();
-    void updateReadMod (Function &F, NodeSet &readSet, NodeSet &modSet);
-    
-    bool isRead (const Cell &c, const Function &f);
-    bool isRead (const Node* n, const Function &f);
-    bool isModified (const Cell &c, const Function &f);
-    bool isModified (const Node *n, const Function &f);
     
   public:
     static char ID;
     
-    ShadowMemDsa () : llvm::ModulePass (ID), m_max_id(0)
+    ShadowMemDsa () : llvm::ModulePass (ID)
     {}
     
     virtual bool runOnModule (llvm::Module &M);
@@ -83,76 +64,136 @@ namespace seahorn
     
     virtual void getAnalysisUsage (llvm::AnalysisUsage &AU) const;
     virtual const char* getPassName () const {return "ShadowMemDsa";}
-  }; 
+  };
+  
 }
+#else
+#include "llvm/Support/raw_os_ostream.h"
 
+namespace seahorn
+{
+  using namespace llvm;
+
+  class ShadowMemDsa : public llvm::ModulePass
+  {
+  public:
+    static char ID;
+    ShadowMemDsa () : llvm::ModulePass (ID) {}
+    virtual bool runOnModule (llvm::Module &M)
+    {
+      errs () << "WARNING: Ignoring memory. Compiled without DSA library.\n";
+      return false;
+    }
+    virtual void getAnalysisUsage (llvm::AnalysisUsage &AU) const
+    {AU.setPreservesAll ();}
+    virtual const char* getPassName () const {return "Stub-ShadowMemDsa";}
+  };
+  
+  class StripShadowMem: public llvm::ModulePass
+  {
+  public:
+    static char ID;
+    StripShadowMem () : llvm::ModulePass (ID) {}
+    virtual bool runOnModule (llvm::Module &M)
+    {
+      errs () << "WARNING: Ignoring memory. Compiled without DSA library.\n";
+      return false;
+    }
+    virtual void getAnalysisUsage (llvm::AnalysisUsage &AU) const
+    {AU.setPreservesAll ();}
+    virtual const char* getPassName () const {return "Stub-StripShadowMem";}
+  };
+}
+#endif
 namespace seahorn
 {
   namespace shadow_dsa
   {
-     using namespace llvm;
+    using namespace llvm;
 
-     /// extracts unique scalar from a call to shadow.mem functions
-     static const Value *extractUniqueScalar (CallSite &cs)
-     {
-       assert (cs.arg_size () > 0);
-       // -- last argument
-       const Value *v = cs.getArgument (cs.arg_size () - 1);
+    /// extracts unique scalar from a call to shadow.mem functions
+    inline const Value *extractUniqueScalar (ImmutableCallSite cs)
+    {
+      assert (cs.arg_size () > 0);
+      // -- last argument
+      const Value *v = cs.getArgument (cs.arg_size () - 1);
        
-       if (const Instruction *inst = dyn_cast<Instruction> (v))
-       {
-         assert (inst);
-         return inst->isCast () ? inst->getOperand (0) : inst;
-       }
-       else if (const ConstantPointerNull *c = dyn_cast<ConstantPointerNull> (v))
-         return nullptr;
-       else if (const ConstantExpr *c = dyn_cast<ConstantExpr> (v))
-      return c->getOperand (0);
+      if (const Instruction *inst = dyn_cast<Instruction> (v))
+      {
+        assert (inst);
+        return inst->isCast () ? inst->getOperand (0) : inst;
+      }
+      else if (const ConstantPointerNull *c = dyn_cast<ConstantPointerNull> (v))
+        return nullptr;
+      else if (const ConstantExpr *c = dyn_cast<ConstantExpr> (v))
+        return c->getOperand (0);
        
-       return v;
-     }
+      return v;
+    }
   
-     /// extracts unique scalar from a call to shadow.mem functions
-     static const Value* extractUniqueScalar (const CallInst *ci)
-     {
-       CallSite cs (const_cast<CallInst*> (ci));
-       return extractUniqueScalar (cs);
-     }
-  
-     static bool isShadowMem (const Value &V, const Value **out)
-     {
+    inline int64_t getShadowId (const ImmutableCallSite &cs)
+    {
+      assert (cs.arg_size () > 0);
+      
+      if (const ConstantInt *id = dyn_cast<ConstantInt> (cs.getArgument (0)))
+        return id->getZExtValue ();
+      
+      return -1;
+    }
+
+    /// variable to represent start of a memory region with a given id
+    inline expr::Expr memStartVar (unsigned id, expr::Expr sort)
+    {
+      using namespace expr;
+      ExprFactory &efac = sort->efac ();
+      return bind::mkConst
+        (variant::variant (id, mkTerm<std::string> ("mem_start", efac)), sort);
+    }
+    
+    /// variable to represent end of a memory region with a given id
+    inline expr::Expr memEndVar (unsigned id, expr::Expr sort)
+    {
+      using namespace expr;
+      ExprFactory &efac = sort->efac ();
+      return bind::mkConst
+        (variant::variant (id, mkTerm<std::string> ("mem_end", efac)), sort);
+    }
+    
+    
+    inline bool isShadowMem (const Value &V, const Value **out)
+    {
        
-       // work list
-       std::queue<const Value*> wl;
+      // work list
+      std::queue<const Value*> wl;
        
-       wl.push (&V);
-       while (!wl.empty ())
-       {
-         const Value *val = wl.front ();
-         wl.pop ();
+      wl.push (&V);
+      while (!wl.empty ())
+      {
+        const Value *val = wl.front ();
+        wl.pop ();
          
-         if (const CallInst *ci = dyn_cast<const CallInst> (val))
-         {
-           if (const Function *fn = ci->getCalledFunction ())
-           {
-             if (!fn->getName ().startswith ("shadow.mem")) return false;
-             if (out) *out = extractUniqueScalar (ci);
-             return true;
-           }
+        if (const CallInst *ci = dyn_cast<const CallInst> (val))
+        {
+          if (const Function *fn = ci->getCalledFunction ())
+          {
+            if (!fn->getName ().startswith ("shadow.mem")) return false;
+            if (out) *out = extractUniqueScalar (ci);
+            return true;
+          }
            
-           return false;
-         }   
-         else if (const PHINode *phi = dyn_cast<const PHINode> (val))
-         {
-           for (unsigned i = 0; i < phi->getNumIncomingValues (); ++i)
-          wl.push (phi->getIncomingValue (i));
-         }
-         else return false;
-       }
+          return false;
+        }   
+        else if (const PHINode *phi = dyn_cast<const PHINode> (val))
+        {
+          for (unsigned i = 0; i < phi->getNumIncomingValues (); ++i)
+            wl.push (phi->getIncomingValue (i));
+        }
+        else return false;
+      }
        
-       assert (0);
-       return false;
-     }
+      assert (0);
+      return false;
+    }
   }
 }
 #endif

@@ -126,6 +126,11 @@ Bmc ("horn-bmc",
      llvm::cl::desc ("Use BMC engine. Currently restricted to intra-procedural analysis"),
      llvm::cl::init (false));
 
+static llvm::cl::opt<bool>
+SeaHornDsa ("horn-sea-dsa",
+            llvm::cl::desc ("Use Seahorn Dsa analysis"),
+            llvm::cl::init (false));
+
 // removes extension from filename if there is one
 std::string getFileName(const std::string &str) {
   std::string filename = str;
@@ -236,8 +241,10 @@ int main(int argc, char **argv) {
   // -- it invalidates DSA passes so it should be run before
   // -- ShadowMemDsa
   pass_manager.add (llvm::createGlobalDCEPass ()); // kill unused internal global
-
-  pass_manager.add (seahorn::createShadowMemDsaPass ());
+  if (SeaHornDsa)
+    pass_manager.add (seahorn::createShadowMemSeaDsaPass ());
+  else
+    pass_manager.add (seahorn::createShadowMemDsaPass ());
   // lowers shadow.mem variables created by ShadowMemDsa pass
   pass_manager.add (seahorn::createPromoteMemoryToRegisterPass ());
 

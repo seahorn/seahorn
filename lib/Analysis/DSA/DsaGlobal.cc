@@ -245,12 +245,15 @@ namespace seahorn
     }
 
     template<typename WorkList>
-    static void Insert (WorkList &w, const Instruction* I)
-    {
-      // XXX: this is a very inefficient way of breaking cycles
-      if (std::find(w.begin(), w.end(), I) == w.end())
-        w.push_back (I);
+    static void Insert (WorkList &w, const Instruction* CI)
+    { // XXX: this is a very inefficient way of breaking cycles
+      if (std::find(w.begin(), w.end(), CI) == w.end())
+        w.push_back (CI);
     }
+
+    template<typename Iter, typename WorkList>
+    static void Insert (WorkList &w, Iter it, Iter et)
+    { for (; it!=et;++it) Insert (w, *it); }
 
     void ContextSensitiveGlobalAnalysis::
     propagateTopDown (const DsaCallSite& cs, Graph &callerG, Graph& calleeG) 
@@ -334,8 +337,8 @@ namespace seahorn
         ImmutableCallSite CS (I);
         DsaCallSite dsaCS (CS);
 
-        auto fn = dsaCS.getCallee();
-        if (!fn || fn->isDeclaration() || fn->empty())
+        auto callee = dsaCS.getCallee();
+        if (!callee || callee->isDeclaration() || callee->empty())
           continue;
 
         assert (m_graphs.count (dsaCS.getCaller ()) > 0);
@@ -350,25 +353,19 @@ namespace seahorn
         {
           propagateTopDown (dsaCS, callerG, calleeG); 
           td_props++;
-          if (const Function *callee = dsaCS.getCallee ())
-          {
-            for (const Instruction *cs: dsaCG.getUses (*callee))
-              Insert(worklist, cs); // they might need bottom-up
-            for (const Instruction *cs: dsaCG.getDefs (*callee))
-              Insert(worklist, cs); // they might need top-down
-          }
+          auto &calleeU = dsaCG.getUses (*callee);
+          auto &calleeD = dsaCG.getDefs (*callee);
+          Insert(worklist, calleeU.begin (), calleeU.end ()); // they might need bottom-up
+          Insert(worklist, calleeD.begin (), calleeD.end ()); // they might need top-down
         }
         else if (propKind == UP)
         {
           propagateBottomUp (dsaCS, calleeG, callerG);
           bu_props++;
-          if (const Function *caller = dsaCS.getCaller ())
-          {
-            for (const Instruction *cs: dsaCG.getUses (*caller))
-              Insert (worklist, cs);  // they might need bottom-up
-            for (const Instruction *cs: dsaCG.getDefs (*caller))
-              Insert (worklist, cs);  // they might need top-down
-          }
+          auto &callerU = dsaCG.getUses (*dsaCS.getCaller());
+          auto &callerD = dsaCG.getDefs (*dsaCS.getCaller());
+          Insert (worklist, callerU.begin (), callerU.end ());  // they might need bottom-up
+          Insert (worklist, callerD.begin (), callerD.end ());  // they might need top-down
         }
       }
 

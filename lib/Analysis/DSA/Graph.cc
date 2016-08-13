@@ -29,6 +29,9 @@ dsa::Node::Node (Graph &g, const Node &n, bool copyLinks) :
 {
   assert (!n.isForwarding ());
   
+  // -- copy global id
+  m_id = n.m_id;
+
   // -- copy node type info
   m_nodeType = n.m_nodeType;
   
@@ -628,8 +631,8 @@ dsa::Cell &dsa::Graph::mkCell (const llvm::Value &u, const Cell &c)
   auto &v = *u.stripPointerCasts ();
   // Pretend that global values are always present
   if (isa<GlobalValue> (&v) && c.isNull ())
-    return mkCell (v, Cell (mkNode (), 0));
-  
+    return mkCell (v, Cell (mkNode (), 0));  
+
   auto &res = isa<Argument> (v) ? m_formals[cast<const Argument>(&v)] : m_values [&v];
   if (!res)
   {
@@ -935,3 +938,6 @@ void dsa::Graph::write (raw_ostream&o) const{
     }
   }
 }
+
+// Initialization of static data
+uint64_t seahorn::dsa::Node::m_id_factory = 0;

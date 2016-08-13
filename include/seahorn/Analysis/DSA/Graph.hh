@@ -331,8 +331,12 @@ namespace seahorn
       typedef boost::container::flat_set<const llvm::Value*> AllocaSet;
       AllocaSet m_alloca_sites;
 
+      static uint64_t m_id_factory;
+
+      uint64_t m_id; // global id for the node
+
       Node (Graph &g) : m_graph (&g), m_unique_scalar (nullptr), 
-                        m_has_unique_scalar (false), m_size (0) {}
+                        m_has_unique_scalar (false), m_size (0), m_id (++m_id_factory){}
 
       Node (Graph &g, const Node &n, bool copyLinks = false);
       
@@ -428,7 +432,9 @@ namespace seahorn
 
       inline bool isForwarding () const;
       
-      
+      // global id for the node
+      uint64_t getId () const { return m_id;}
+
       Graph *getGraph () { return m_graph; } 
       const Graph *getGraph () const { return m_graph; } 
       

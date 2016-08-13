@@ -50,6 +50,12 @@ UseWrite ("horn-bv-use-write",
           cl::init (false),
           cl::Hidden);
 
+static llvm::cl::opt<bool>
+PartMem ("horn-bv-part-mem",
+          llvm::cl::desc ("Add constraints to partition memory into disjoint segments"),
+          cl::init (false),
+          cl::Hidden);
+
 static const Value *extractUniqueScalar (CallSite &cs)
 {
    if (!EnableUniqueScalars) 
@@ -91,6 +97,12 @@ namespace
     Expr falseBv;
     Expr nullBv;
     
+    /// -- start of current memory segment
+    Expr m_startMem;
+
+    /// -- end of current memory segment
+    Expr m_endMem;
+    
     /// -- current read memory
     Expr m_inMem;
     /// -- current write memory
@@ -121,6 +133,9 @@ namespace
       m_fparams.push_back (falseE);
       m_fparams.push_back (falseE);
     }
+
+    Expr memStart (unsigned id) {return m_sem.memStart (id);}
+    Expr memEnd (unsigned id) {return m_sem.memEnd (id);}
     Expr symb (const Value &I) {return m_sem.symb (I);}
     
     Expr read (const Value &v)
@@ -377,6 +392,9 @@ namespace
       Expr op0 = lookup (*I.getOperand (0));
       if (!op0) return;
       
+      if (I.getOperand (0)->getType ()->isIntegerTy (1))
+        op0 = boolToBv (op0);
+      
       Expr rhs = bv::zext (op0, m_sem.sizeInBits (I));
       if (UseWrite) write (I, rhs);
       else side (lhs, rhs);
@@ -405,7 +423,7 @@ namespace
       
       Expr rhs;
 
-      if (dsz == ssz) rhs = lhs;
+      if (dsz == ssz) rhs = op0;
       else if (dsz > ssz) rhs = bv::zext (op0, dsz);
       else rhs = bv::extract (dsz-1, 0, op0);
       
@@ -425,7 +443,7 @@ namespace
       
       Expr rhs;
 
-      if (dsz == ssz) rhs = lhs;
+      if (dsz == ssz) rhs = op0;
       else if (dsz > ssz) rhs = bv::zext (op0, dsz);
       else rhs = bv::extract (dsz-1, 0, op0);
       
@@ -570,18 +588,53 @@ namespace
                m_sem.isTracked (I))
       {
         if (F.getName ().equals ("shadow.mem.init"))
+        {
           m_s.havoc (symb(I));
+          unsigned id = shadow_dsa::getShadowId (CS);
+          assert (id >= 0);
+          
+          // -- add constraints only if asked
+          if (PartMem)
+          {
+
+            Expr memStartE = memStart (id);
+            Expr memEndE = memEnd (id); 
+            memStartE = m_s.havoc (memStartE);
+            memEndE = m_s.havoc (memEndE);
+          
+            // -- start < end
+            side (mk<BULT> (memStartE, memEndE));
+
+            // -- old_end < new_start
+            if (m_endMem) side (mk<BULT> (m_s.read (m_endMem), memStartE));
+          
+            // -- remember last choice
+            m_startMem= memStart (id);
+            m_endMem = memEnd (id);
+          }
+          
+        }
         else if (F.getName ().equals ("shadow.mem.load"))
         {
           const Value &v = *CS.getArgument (1);
           m_inMem = m_s.read (symb (v));
           m_uniq = extractUniqueScalar (CS) != nullptr;
+          if (PartMem)
+          {
+            m_startMem = memStart (shadow_dsa::getShadowId (CS));
+            m_endMem = memEnd (shadow_dsa::getShadowId (CS));
+          }
         }
         else if (F.getName ().equals ("shadow.mem.store"))
         {
           m_inMem = m_s.read (symb (*CS.getArgument (1)));
           m_outMem = m_s.havoc (symb (I));
           m_uniq = extractUniqueScalar (CS) != nullptr;
+          if (PartMem)
+          {
+            m_startMem = memStart (shadow_dsa::getShadowId (CS));
+            m_endMem = memEnd (shadow_dsa::getShadowId (CS));
+          }
         }
         else if (F.getName ().equals ("shadow.mem.arg.ref"))
           m_fparams.push_back (m_s.read (symb (*CS.getArgument (1))));
@@ -664,10 +717,17 @@ namespace
       else if (Expr op0 = lookup (*I.getPointerOperand ()))
       {
         Expr rhs = op::array::select (m_inMem, op0);
+        
+        if (PartMem)
+        {
+          side (mk<BULE> (m_s.read (m_startMem), op0));
+          side (mk<BULE> (op0, m_s.read (m_endMem)));
+        }
+        
         if (I.getType ()->isIntegerTy (1))
           rhs = mk<NEQ> (rhs, nullBv);
         else if (m_sem.sizeInBits (I) < ptrSz)
-          rhs = bv::extract (ptrSz - 1, 0, rhs);
+          rhs = bv::extract (m_sem.sizeInBits (I) - 1, 0, rhs);
         assert (m_sem.sizeInBits (I) <= ptrSz && "Fat integers not supported");
         
         if (UseWrite) write (I, rhs);
@@ -714,7 +774,14 @@ namespace
         
         Expr idx = lookup (*I.getPointerOperand ());
         if (idx && v)
+        {
+          if (PartMem)
+          {
+            side (mk<BULE> (m_s.read (m_startMem), idx));
+            side (mk<BULE> (idx, m_s.read (m_endMem)));
+          }
           side (m_outMem, op::array::store (m_inMem, idx, v));
+        }
       }
       
       m_inMem.reset ();
@@ -806,6 +873,19 @@ namespace seahorn
     if (m_canFail && !m_canFail->canFail (BB.getParent ())) return falseE;
     return this->SmallStepSymExec::errorFlag (BB);
   }
+
+  Expr BvSmallSymExec::memStart (unsigned id)
+  {
+    Expr sort = bv::bvsort (pointerSizeInBits (), m_efac);
+    return shadow_dsa::memStartVar (id, sort);
+  }
+
+  Expr BvSmallSymExec::memEnd (unsigned id)
+  {
+    Expr sort = bv::bvsort (pointerSizeInBits (), m_efac);
+    return shadow_dsa::memEndVar (id, sort);
+  }
+    
   
   void BvSmallSymExec::exec (SymStore &s, const BasicBlock &bb, ExprVector &side,
                               Expr act)

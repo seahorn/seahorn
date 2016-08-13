@@ -31,16 +31,23 @@ get_value_helper(intptr_t, ptr)
 
 /** Dummy implementation of memory wrapping functions */
 
-void __sea_mem_store (void *src, void *dst, size_t sz)
+void __seahorn_mem_store (void *src, void *dst, size_t sz)
 {
   /* if dst is a legal address */
+  printf("__seahorn_mem_store\n");
   memcpy (dst, src, sz);
   /* else if dst is illegal, do nothing */
 }
 
-void __sea_mem_load (void *dst, void *src, size_t sz)
+void __seahorn_mem_load (void *dst, void *src, size_t sz)
 {
   /* if src is a legal address */
+  printf("__seahorn_mem_load\n");
   memcpy (dst, src, sz);
   /* else, if src is illegal, return a dummy value */
+}
+
+// Dummy klee_make_symbolic function
+void klee_make_symbolic(void *v, size_t sz, char *fname) {
+  printf("klee_make_symbolic was called for %s\n", fname);
 }

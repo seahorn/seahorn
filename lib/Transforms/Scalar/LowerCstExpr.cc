@@ -1,19 +1,33 @@
 #include "seahorn/Transforms/Scalar/LowerCstExpr.hh"
 
 #include "boost/range.hpp"
+
 #include "llvm/ADT/SmallPtrSet.h"
-#include "llvm/ADT/SmallVector.h"
+//#include "llvm/ADT/SmallVector.h"
+#include "llvm/Support/raw_ostream.h"
+#include "llvm/Support/Debug.h"
+
+#include "avy/AvyDebug.h"
+
+using namespace llvm;
+
+#define DEBUG_TYPE "lower-cst-expr"
 
 namespace seahorn
 {
-  using namespace llvm;
 
   char LowerCstExprPass::ID = 0;
 
-  bool LowerCstExprPass::runOnModule(Module & M) 
-  {
+  bool LowerCstExprPass::runOnModule(Module & M)  {
+
     bool change = false;
+
+    // Note that global variables initialized with constant
+    // expressions cannot be lowered.
+
+    // lower instructions
     for (auto &F: M){ change |= runOnFunction(F); }
+
     return change;
   }
 
@@ -72,6 +86,9 @@ namespace seahorn
           if (ConstantExpr* CstExp = hasCstExpr (I->getOperand(i))) 
           {
             Instruction * NewInst = lowerCstExpr (CstExp, I);
+            LOG("lower-cst-expr",
+                errs () << "Lowering " << *CstExp << "\n");
+
             I->replaceUsesOfWith (CstExp, NewInst);
             worklist.insert (NewInst);
           }
@@ -116,106 +133,114 @@ namespace seahorn
   }
 
   Instruction * LowerCstExprPass::lowerCstExpr(ConstantExpr* CstExp, 
-                                               Instruction* InsertionLoc) 
-  {
-    
-    assert(CstExp);
-    
-    Instruction * NewInst = nullptr;
-    switch (CstExp->getOpcode()) 
-    {
-      case Instruction::Add:
-      case Instruction::FAdd:  
-      case Instruction::Sub:
-      case Instruction::FSub:
-      case Instruction::Mul:
-      case Instruction::FMul:
-      case Instruction::UDiv:
-      case Instruction::SDiv:
-      case Instruction::FDiv:
-      case Instruction::URem:
-      case Instruction::SRem:
-      case Instruction::FRem:
-      case Instruction::Shl:
-      case Instruction::LShr:
-      case Instruction::AShr:
-      case Instruction::And:
-      case Instruction::Or:
-      case Instruction::Xor: 
-      {
-        Instruction::BinaryOps BinOp = 
-            (Instruction::BinaryOps)(CstExp->getOpcode());
-        NewInst = BinaryOperator::Create(BinOp,
-                                         CstExp->getOperand(0),
-                                         CstExp->getOperand(1),
-                                         CstExp->getName(),
-                                         InsertionLoc);  // insert before
-      }
-      break;
-      case Instruction::Trunc:
-      case Instruction::ZExt:
-      case Instruction::SExt:
-      case Instruction::FPToUI:
-      case Instruction::FPToSI:
-      case Instruction::UIToFP:
-      case Instruction::SIToFP:
-      case Instruction::FPTrunc:
-      case Instruction::FPExt:
-      case Instruction::PtrToInt:
-      case Instruction::IntToPtr:
-      case Instruction::BitCast: 
-        {
-          Instruction::CastOps CastOp = (Instruction::CastOps)(CstExp->getOpcode());
-          NewInst = CastInst::Create(CastOp,
-                                     CstExp->getOperand(0),
-                                     CstExp->getType(),
-                                     CstExp->getName(),
-                                     InsertionLoc); // insert before
-        }
-        break;
-      case Instruction:: FCmp:
-      case Instruction:: ICmp: 
-        {
-          Instruction::OtherOps OtherOp = (Instruction::OtherOps)(CstExp->getOpcode());
-          NewInst = CmpInst::Create(OtherOp,
-                                    CstExp->getPredicate(),
-                                    CstExp->getOperand(0),
-                                    CstExp->getOperand(1),
-                                    CstExp->getName(),
-                                    InsertionLoc);
-          break;
-        }
-      case Instruction:: Select:
-        NewInst = SelectInst::Create(CstExp->getOperand(0),
-                                     CstExp->getOperand(1),
-                                     CstExp->getOperand(2),
-                                     CstExp->getName(),
-                                     InsertionLoc);
-        break;
-      case Instruction::GetElementPtr: 
-        {
-          SmallVector<Value *, 4>  VIdxs;
-          for (unsigned i = 1; i < CstExp->getNumOperands(); i++)
-            VIdxs.push_back(CstExp->getOperand(i));
-          
-          ArrayRef<Value*> Idxs(VIdxs); 
-          NewInst = (GetElementPtrInst::Create(CstExp->getOperand(0),
-                                               Idxs,
-                                               CstExp->getName(),
-                                               InsertionLoc));
-          
-        }
-        break;
-      default: 
-        // CallInst, VAArg, ExtractElement, InserElement, 
-        // ShuffleElement, ExtractValue, InsertValue
-        assert(false && "Unhandled constant expression!\n");
-        break;
-    }
-    assert(NewInst);
-  return NewInst;
+                                               Instruction* InsertionLoc)  {
+    Instruction* NewI = CstExp->getAsInstruction ();
+    InsertionLoc->getParent()->getInstList().insert(InsertionLoc, NewI); // insert before
+    return NewI;
   }
+
+  // Instruction * LowerCstExprPass::lowerCstExpr(ConstantExpr* CstExp, 
+  //                                              Instruction* InsertionLoc) 
+  // {
+    
+  //   assert(CstExp);
+    
+  //   Instruction * NewInst = nullptr;
+  //   switch (CstExp->getOpcode()) 
+  //   {
+  //     case Instruction::Add:
+  //     case Instruction::FAdd:  
+  //     case Instruction::Sub:
+  //     case Instruction::FSub:
+  //     case Instruction::Mul:
+  //     case Instruction::FMul:
+  //     case Instruction::UDiv:
+  //     case Instruction::SDiv:
+  //     case Instruction::FDiv:
+  //     case Instruction::URem:
+  //     case Instruction::SRem:
+  //     case Instruction::FRem:
+  //     case Instruction::Shl:
+  //     case Instruction::LShr:
+  //     case Instruction::AShr:
+  //     case Instruction::And:
+  //     case Instruction::Or:
+  //     case Instruction::Xor: 
+  //     {
+  //       Instruction::BinaryOps BinOp = 
+  //           (Instruction::BinaryOps)(CstExp->getOpcode());
+  //       NewInst = BinaryOperator::Create(BinOp,
+  //                                        CstExp->getOperand(0),
+  //                                        CstExp->getOperand(1),
+  //                                        CstExp->getName(),
+  //                                        InsertionLoc);  // insert before
+  //     }
+  //     break;
+  //     case Instruction::Trunc:
+  //     case Instruction::ZExt:
+  //     case Instruction::SExt:
+  //     case Instruction::FPToUI:
+  //     case Instruction::FPToSI:
+  //     case Instruction::UIToFP:
+  //     case Instruction::SIToFP:
+  //     case Instruction::FPTrunc:
+  //     case Instruction::FPExt:
+  //     case Instruction::PtrToInt:
+  //     case Instruction::IntToPtr:
+  //     case Instruction::BitCast: 
+  //       {
+  //         Instruction::CastOps CastOp = (Instruction::CastOps)(CstExp->getOpcode());
+  //         NewInst = CastInst::Create(CastOp,
+  //                                    CstExp->getOperand(0),
+  //                                    CstExp->getType(),
+  //                                    CstExp->getName(),
+  //                                    InsertionLoc); // insert before
+  //       }
+  //       break;
+  //     case Instruction:: FCmp:
+  //     case Instruction:: ICmp: 
+  //       {
+  //         Instruction::OtherOps OtherOp = (Instruction::OtherOps)(CstExp->getOpcode());
+  //         NewInst = CmpInst::Create(OtherOp,
+  //                                   CstExp->getPredicate(),
+  //                                   CstExp->getOperand(0),
+  //                                   CstExp->getOperand(1),
+  //                                   CstExp->getName(),
+  //                                   InsertionLoc);
+  //         break;
+  //       }
+  //     case Instruction:: Select:
+  //       NewInst = SelectInst::Create(CstExp->getOperand(0),
+  //                                    CstExp->getOperand(1),
+  //                                    CstExp->getOperand(2),
+  //                                    CstExp->getName(),
+  //                                    InsertionLoc);
+  //       break;
+  //     case Instruction::GetElementPtr: 
+  //       {
+  //         SmallVector<Value *, 4>  VIdxs;
+  //         for (unsigned i = 1; i < CstExp->getNumOperands(); i++)
+  //           VIdxs.push_back(CstExp->getOperand(i));
+          
+  //         ArrayRef<Value*> Idxs(VIdxs); 
+  //         NewInst = (GetElementPtrInst::Create(CstExp->getOperand(0),
+  //                                              Idxs,
+  //                                              CstExp->getName(),
+  //                                              InsertionLoc));
+          
+  //       }
+  //       break;
+  //     default: 
+  //       // CallInst, VAArg, ExtractElement, InserElement, 
+  //       // ShuffleElement, ExtractValue, InsertValue
+  //       assert(false && "Unhandled constant expression!\n");
+  //       break;
+  //   }
+  //   assert(NewInst);
+  // return NewInst;
+  // }
 }
 
-static llvm::RegisterPass<seahorn::LowerCstExprPass> XX ("lowercstexp",
-                                                         "Lower constant expressions to instructions");
+static llvm::RegisterPass<seahorn::LowerCstExprPass> 
+XX ("lower-cst-expr",
+    "Lower constant expressions to instructions");

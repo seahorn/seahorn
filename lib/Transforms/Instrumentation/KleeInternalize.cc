@@ -167,7 +167,9 @@ namespace
           I != E; ++I) {
         GlobalVariable *GV = &*I;
         if (m_externalNames.count (GV->getName())) continue;
-        if (GV->isConstant() || GV->hasInitializer())
+        // We previously tested for isConstant here, but extern arrays
+        // are considered constant.
+        if (GV->hasInitializer())
           continue;
         GV->setInitializer(Constant::getNullValue(GV->getType()->getElementType()));
         errs() << "making " << GV->getName() << " non-extern\n";
@@ -210,7 +212,11 @@ namespace
       m_externalNames.insert ("__seahorn_get_value_i8");
       m_externalNames.insert ("__seahorn_get_value_i16");
       m_externalNames.insert ("__seahorn_get_value_i32");
+      m_externalNames.insert ("__seahorn_get_value_i64");
       m_externalNames.insert ("__seahorn_get_value_ptr");
+
+      m_externalNames.insert ("__seahorn_mem_store");
+      m_externalNames.insert ("__seahorn_mem_load");
 
       // -- LLVM stuff
       m_externalNames.insert("llvm.used");
@@ -235,7 +241,7 @@ namespace
     {
       declareKleeFunctions(M);
       internalizeVariables(M);
- 
+
       for (Function &F : M)
       {
         if (shouldInternalize (F)) defineFunction (F);

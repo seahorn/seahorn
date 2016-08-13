@@ -67,7 +67,7 @@ namespace
       /* void __sea_mem_load (void* dst, void* src, size_t sz)
          { memcpy (dst, src, sz); }
        */
-      m_memLoad = cast<Function> (M.getOrInsertFunction ("__sea_mem_load",
+      m_memLoad = cast<Function> (M.getOrInsertFunction ("__seahorn_mem_load",
                                                          Type::getVoidTy (C),
                                                          Type::getInt8PtrTy (C, 0),
                                                          Type::getInt8PtrTy (C, 0),
@@ -76,7 +76,7 @@ namespace
       /* void __sea_mem_store (void *src, void *dst, size_t sz)
          { memcpy (dst, src, sz); }
       */
-      m_memStore = cast<Function> (M.getOrInsertFunction ("__sea_mem_store",
+      m_memStore = cast<Function> (M.getOrInsertFunction ("__seahorn_mem_store",
                                                           Type::getVoidTy (C),
                                                           Type::getInt8PtrTy (C, 0),
                                                           Type::getInt8PtrTy (C, 0),

@@ -534,7 +534,10 @@ class SeahornClp(sea.LimitedCmd):
                          default=False, action='store_true',
                          help='Print function applications in CLP format',
                          dest='clp_fapp')
-
+        ap.add_argument ('--inv',
+                         default=None, 
+                         help='Save invariant into a file',
+                         dest='inv')
         ### TODO: expose options for semantic level, inter-procedural
         ### encoding, step, flat, etc.
         return ap

@@ -29,7 +29,7 @@ namespace seahorn
   {
     std::vector<BasicBlock*> dead;
     dead.reserve (F.size ());
-    
+
     IRBuilder<> Builder (F.getContext ());
     Constant* assumeFn = F.getParent ()->getOrInsertFunction ("verifier.assume", 
                                                               Builder.getVoidTy (),
@@ -43,13 +43,17 @@ namespace seahorn
     
     for (BasicBlock &BB : F)
     {
+
       if (region.count (&BB) <= 0) 
       {
         dead.push_back (&BB);
+        TerminatorInst *BBTerm = BB.getTerminator();
+        for (unsigned i = 0, e = BBTerm->getNumSuccessors(); i != e; ++i)
+          BBTerm->getSuccessor(i)->removePredecessor(&BB);
         BB.dropAllReferences ();
         continue;
       }
-      
+
       if (BranchInst *br = dyn_cast<BranchInst> (BB.getTerminator ()))
       {
         if (br->isUnconditional ()) continue;
@@ -57,23 +61,29 @@ namespace seahorn
         BasicBlock* s1 = br->getSuccessor (1);
         
         BasicBlock* kill = NULL;
+     
         if (region.count (s0) <= 0)
           kill = s0;
         else if (region.count (s1) <= 0)
           kill = s1;
-        else continue;
-        
+        else 
+          continue;
+      
         Builder.SetInsertPoint (&BB, br);
         CallInst *ci = Builder.CreateCall
           (kill == s1 ? assumeFn : assumeNotFn, br->getCondition ());
         ci->setDebugLoc (br->getDebugLoc ());
+        kill->removePredecessor(&BB);   
         br->eraseFromParent ();
         Builder.SetInsertPoint (&BB);
-        Builder.CreateBr (kill == s1 ? s0 : s1);
+        Builder.CreateBr (kill == s1 ? s0 : s1);       
       }
     }
     
-    for (auto *bb : dead) bb->eraseFromParent ();
+    for (auto *bb : dead) 
+      bb->eraseFromParent (); 
+
+  
   }
     
   /// Reduce the function to only the BasicBlocks that are ancestors of exits

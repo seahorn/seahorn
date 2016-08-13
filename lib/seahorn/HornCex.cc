@@ -6,11 +6,15 @@
 
 #include "boost/range/algorithm/reverse.hpp"
 
+#include "seahorn/UfoSymExec.hh"
+#include "seahorn/BvSymExec.hh"
+
 #include "seahorn/HornifyModule.hh"
 #include "seahorn/HornSolver.hh"
 #include "seahorn/Analysis/CutPointGraph.hh"
 #include "seahorn/Analysis/CanFail.hh"
 
+#include "seahorn/Transforms/Utils/Local.hh"
 #include "seahorn/Bmc.hh"
 
 #include "boost/range.hpp"
@@ -33,11 +37,18 @@
 
 #include "llvm/Bitcode/ReaderWriter.h"
 
+
+
 #include <gmpxx.h>
 
 static llvm::cl::opt<std::string>
 HornCexFile("horn-cex", llvm::cl::desc("Counterexample in SV-COMP (.xml) or LLVM bitcode (.bc or .ll) format"),
               llvm::cl::init(""), llvm::cl::value_desc("filename"));
+
+static llvm::cl::opt<bool>
+UseBv ("horn-cex-bv",
+       llvm::cl::desc("Construct bit-precise counterexamples"),
+       llvm::cl::init (false));
 
 static llvm::cl::opt<std::string>
 SvCompCexFileSpec("horn-svcomp-cex-spec", 
@@ -58,6 +69,15 @@ static llvm::cl::opt<std::string>
 HornCexSmtFilename("horn-cex-smt", llvm::cl::desc("Counterexample validate SMT problem"),
                llvm::cl::init(""), llvm::cl::value_desc("filename"), llvm::cl::Hidden);
 
+static llvm::cl::opt<std::string>
+    BmcSliceOutputFile("horn-bmc-slice", llvm::cl::desc("Output sliced bitcode by BmcTrace"),
+                    llvm::cl::init(""), llvm::cl::value_desc("filename"));
+
+static llvm::cl::opt<std::string>
+    CpSliceOutputFile("horn-cp-slice", llvm::cl::desc("Output sliced bitcode by cut point trace"),
+                    llvm::cl::init(""), llvm::cl::value_desc("filename"));
+
+
 using namespace llvm;
 namespace seahorn
 {
@@ -65,6 +85,7 @@ namespace seahorn
   template <typename O> class SvCompCex;
   static void dumpSvCompCex (BmcTrace &trace, std::string CexFile);
   static void dumpLLVMCex (BmcTrace &trace, StringRef CexFile, const DataLayout &dl);
+  static void dumpLLVMBitcode(const Module &M, StringRef BcFile);
 
   char HornCex::ID = 0;
   
@@ -157,8 +178,13 @@ namespace seahorn
     // -- semantics. Possibly different than the semantics used by the
     // -- HornSolver
     ExprFactory &efac = hm.getExprFactory ();
-    UfoSmallSymExec sem (efac, *this, MEM);
-    BmcEngine bmc (sem, hm.getZContext ());
+    
+    UfoSmallSymExec semUfo (efac, *this, MEM);
+    BvSmallSymExec semBv (efac, *this, MEM);
+    
+    SmallStepSymExec *sem = UseBv ? static_cast<SmallStepSymExec*>(&semBv) :
+      static_cast<SmallStepSymExec*>(&semUfo);
+    BmcEngine bmc (*sem, hm.getZContext ());
     
     // -- load the trace into the engine
     for (const CutPoint *cp : cpTrace)
@@ -210,6 +236,36 @@ namespace seahorn
     } else if (!HornCexFileRef.empty()) {
       errs () << "Unrecognized counter-example file suffix in " << HornCexFileRef
               << ". Expected .xml, .ll, or .bc.\n";
+    }
+
+    if (!BmcSliceOutputFile.empty()) {
+      llvm::DenseSet<const llvm::BasicBlock *> region;
+      for (int i = 0; i < trace.size(); i++)
+        region.insert(trace.bb(i));
+      reduceToRegion(F, region);
+      dumpLLVMBitcode(M, BmcSliceOutputFile.c_str());
+      return true;
+    }
+
+    if (!CpSliceOutputFile.empty()) {
+      DenseSet<const BasicBlock *> region;
+      for (int i = 0; i < cpTrace.size(); i++) {
+        const CutPoint *cp = cpTrace[i];
+        region.insert(&cp->bb());
+        for (CutPoint::const_iterator it = cp->succ_begin();
+             it != cp->succ_end(); it++) {
+          const CpEdge *const edge = *it;
+          if (&edge->target() == cpTrace[i + 1]) {
+            for (CpEdge::const_iterator bb = edge->begin(); bb != edge->end();
+                 bb++) {
+              region.insert(&*bb);
+            }
+          }
+        }
+      }
+      reduceToRegion(F, region);
+      dumpLLVMBitcode(M, CpSliceOutputFile.c_str());
+      return true;
     }
 
     return false;
@@ -372,6 +428,22 @@ namespace seahorn
     out.os ().close ();
     out.keep ();
   }
+
+  
+
+  static void dumpLLVMBitcode(const Module &M, StringRef BcFile) {
+    std::error_code error_code;
+    tool_output_file sliceOutput(BcFile, error_code, sys::fs::F_None);
+    assert(!error_code);
+    verifyModule(M, &errs());
+    if (BcFile.endswith(".ll"))
+      sliceOutput.os() << M;
+    else
+      WriteBitcodeToFile(&M, sliceOutput.os());
+    sliceOutput.os().close();
+    sliceOutput.keep();
+  }
+
 
 }
 

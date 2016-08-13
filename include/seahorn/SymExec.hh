@@ -118,6 +118,8 @@ namespace seahorn
     {return m_fmap.count (&F) > 0;}
     
     virtual Expr errorFlag (const BasicBlock &BB) {return m_errorFlag;}
+    virtual Expr memStart (unsigned id) = 0;
+    virtual Expr memEnd (unsigned id) = 0;
     
   };
 

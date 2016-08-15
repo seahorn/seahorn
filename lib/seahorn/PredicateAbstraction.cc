@@ -69,7 +69,7 @@ namespace seahorn
 		params.set (":xform.inline-eager", false);
 		// -- disable utvpi. It is unstable.
 		params.set (":pdr.utvpi", false);
-//		// -- disable propagate_variable_equivalences in tail_simplifier
+		// -- disable propagate_variable_equivalences in tail_simplifier
 		params.set (":xform.tail_simplifier_pve", false);
 		params.set (":xform.subsumption_checker", true);
 //		params.set (":order_children", true);
@@ -77,7 +77,7 @@ namespace seahorn
 		fp.set (params);
 		new_db.loadZFixedPoint (fp, false);
 		boost::tribool result = fp.query ();
-//
+
 		if (result) outs () << "sat";
 		else if (!result)
 		{
@@ -194,12 +194,6 @@ namespace seahorn
 
 	bool PredAbsHornModelConverter::convert (HornDbModel &in, HornDbModel &out)
 	{
-		for(std::map<Expr, ExprMap>::iterator it = getRelToBoolToTermMap().begin(); it!=getRelToBoolToTermMap().end(); ++it)
-		{
-			outs() << "REL: " << *(it->first) << "\n";
-			outs() << "BOOL: " << *(it->second.begin()->first) << "\n";
-			outs() << "TERM: " << *(it->second.begin()->second) << "\n";
-		}
 		for(Expr abs_rel : abs_db->getRelations())
 		{
 			outs() << "ABS REL: " << *abs_rel << "\n";
@@ -259,10 +253,6 @@ namespace seahorn
 			outs() << "ORIG DEF APP: " << *orig_def_app << "\n";
 			out.addDef(orig_fapp, orig_def_app);
 			//out.getRelToSolutionMap().insert(std::pair<Expr, Expr>(orig_rel, orig_def));
-//			for(ExprMap::iterator it = out.getRelToSolutionMap().begin(); it!=out.getRelToSolutionMap().end(); ++it)
-//			{
-//				outs() << "ORIG REL: " << *(it->first) << ", ORIG DEF: " << *(it->second) << "\n";
-//			}
 		}
 		return true;
 	}
@@ -399,6 +389,10 @@ namespace seahorn
 				new_body_exprs.push_back(new_rule_body_pred);
 
 				//for each predicate in the body, create iff
+				if(bind::domainSz(bind::fname(new_rule_body_pred)) == 0)
+				{
+					continue;
+				}
 				int index = 0;
 				//for converter
 				ExprMap boolToTermMap;
@@ -432,7 +426,7 @@ namespace seahorn
 			}
 
 			Expr new_rule_head = bind::fapp(new_rule_head_rel, new_rule_head_args);
-			outs() << "NEW RULE HEAD: " << *new_rule_head << "\n";
+			LOG("pabs-debug", outs() << "NEW RULE HEAD: " << *new_rule_head << "\n";);
 
 
 			if(bind::domainSz(bind::fname(rule_head)) != 0)
@@ -460,7 +454,7 @@ namespace seahorn
 
 			//Construct new body
 			Expr new_rule_body = mknary<AND>(new_body_exprs.begin(), new_body_exprs.end());
-			outs() << "NEW RULE BODY :" << *new_rule_body << "\n";
+			LOG("pabs-debug", outs() << "NEW RULE BODY :" << *new_rule_body << "\n";);
 
 			HornRule new_rule(rule_vars, new_rule_head, new_rule_body);
 			new_DB.addRule(new_rule);
@@ -475,7 +469,6 @@ namespace seahorn
 			Expr new_fdecl = oldToNewPredMap.find(old_fdecl)->second;
 			ExprVector old_args;
 			Expr new_query = bind::fapp(new_fdecl, old_args);
-			outs() << "NEW QUERY: " << *new_query << "\n";
 			new_DB.addQuery(new_query);
 		}
 	}
@@ -523,7 +516,7 @@ namespace seahorn
 			Expr zero = mkTerm<mpz_class> (0, fdecl->efac());
 			bins.push_back(mk<LT>(bvars[0], zero));
 
-			Expr one = mkTerm<mpz_class> (1, fdecl->efac());//
+			Expr one = mkTerm<mpz_class> (12292, fdecl->efac());//
 			bins.push_back(mk<GEQ>(bvars[0], one));//
 		}
 		// if there are more than two bvars, make an lt expr
@@ -535,7 +528,7 @@ namespace seahorn
 			bins.push_back(lt2);
 
 			//
-			Expr one = mkTerm<mpz_class> (1, fdecl->efac());
+			Expr one = mkTerm<mpz_class> (12292, fdecl->efac());
 			Expr geq1 = mk<GEQ>(bvars[0], one);
 			Expr geq2 = mk<GEQ>(bvars[1], one);
 			bins.push_back(geq1);
@@ -547,6 +540,12 @@ namespace seahorn
 			{
 				Expr lt = mk<LT>(bvars[j], bvars[j+1]);
 				bins.push_back(lt);
+			}
+			Expr one = mkTerm<mpz_class> (12292, fdecl->efac());
+			for(int j=0; j<bvars.size(); j++)
+			{
+				Expr geq = mk<GEQ>(bvars[j], one);
+				bins.push_back(geq);
 			}
 		}
 

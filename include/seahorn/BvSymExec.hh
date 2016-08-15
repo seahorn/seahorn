@@ -50,6 +50,9 @@ namespace seahorn
     
     virtual void execBr (SymStore &s, const BasicBlock &src, const BasicBlock &dst,
                          ExprVector &side, Expr act);
+
+    virtual Expr memStart (unsigned id);
+    virtual Expr memEnd (unsigned id);
     
     virtual Expr symb (const Value &v);
     virtual const Value &conc (Expr v);

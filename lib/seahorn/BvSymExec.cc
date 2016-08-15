@@ -469,14 +469,18 @@ namespace
         write (gep, mk<BADD> (base, off));
       else
         side (lhs, mk<BADD> (base, off));
-      if (!InferMemSafety)
+      
+      if (InferMemSafety)
       {
         // -- extra constraints that exclude undefined behavior
         if (!gep.isInBounds () || gep.getPointerAddressSpace () != 0)
           return;
         // -- base > 0 -> lhs > 0
-        side (mk<OR> (mk<EQ> (base, nullBv),
-                      mk<NEQ> (read (gep), nullBv)), true);
+        // side (mk<OR> (mk<EQ> (base, nullBv),
+                      // mk<NEQ> (read (gep), nullBv)), true);
+        
+        // lhs >= base
+        side (mk<BUGE> (read (gep), base));
       }
     }
     

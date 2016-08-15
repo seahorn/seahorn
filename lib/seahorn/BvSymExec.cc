@@ -962,6 +962,13 @@ namespace seahorn
       res = bv::bvnum (/* cast to make clang on osx happy */
                        (unsigned long int)noffset, ptrSz, m_efac);
     if (soffset) res = res ? mk<BADD> (soffset, res) : soffset;
+
+    if (!res)
+    {
+      assert (noffset == 0);
+      assert (!soffset);
+      res = bv::bvnum ((unsigned long int)noffset, ptrSz, m_efac);
+    }
     
     return res;
   }

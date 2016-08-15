@@ -84,6 +84,12 @@ namespace expr
           isOpX<MPZ> (v->arg (0)) && isOpX<BVSORT> (v->arg (1));
       }
 
+      inline mpz_class toMpz (Expr v)
+      {
+        assert (is_bvnum (v));
+        return getTerm<mpz_class> (v->arg (0));
+      }
+
 
       inline Expr bvConst (Expr v, unsigned width)
       {

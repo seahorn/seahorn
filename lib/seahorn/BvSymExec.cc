@@ -815,7 +815,15 @@ namespace
       const Module &M = *F.getParent ();
       for (const GlobalVariable &g : boost::make_iterator_range (M.global_begin (),
                                                                  M.global_end ()))
-        if (m_sem.isTracked (g)) havoc (g);
+      {
+        if (m_sem.isTracked (g))
+        {
+          havoc (g);
+          if (InferMemSafety)
+            // globals are non-null
+            side (mk<BUGT> (lookup (g), nullBv));
+        }
+      }
     }
     
     void visitBasicBlock (BasicBlock &BB)

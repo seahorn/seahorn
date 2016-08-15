@@ -22,7 +22,7 @@ namespace seahorn
 		std::map<Expr, ExprVector> currentCandidates;
 	public:
 		HornDbModel() {}
-		void initModel(HornClauseDB &db, ZFixedPoint<EZ3> &fp);
+		void initModelFromFP(HornClauseDB &db, ZFixedPoint<EZ3> &fp);
 		void addDef(Expr fapp, Expr def);
 		Expr getDef(Expr fapp);
 		HornDbModel(ExprMap model) : relToDefMap(model) {}
@@ -72,7 +72,11 @@ namespace seahorn
 	    void runAnalysis();
 		void guessCandidate(HornClauseDB &db);
 		ExprVector relToCand(Expr fdecl);
-		HornClauseDB runOnDB(HornClauseDB &db, PredAbsHornModelConverter &converter);
+		HornClauseDB generateAbstractDB(HornClauseDB &db, PredAbsHornModelConverter &converter);
+		void generateAbstractRelations(HornClauseDB &db, HornClauseDB &new_DB);
+		void generateAbstractRules(HornClauseDB &db, HornClauseDB &new_DB, PredAbsHornModelConverter &converter);
+		void generateAbstractQueries(HornClauseDB &db, HornClauseDB &new_DB);
+		void printInvars(HornClauseDB &db, HornDbModel &origModel);
 	};
 
 	class PredicateAbstraction : public llvm::ModulePass
@@ -110,7 +114,7 @@ namespace seahorn
 		static void get_all_booleans(Expr e, OutputIterator out)
 		{filter (e, IsBoolean(), out);}
 
-		static bool hasBvarInRule(HornRule r, HornClauseDB &db);
+		static bool hasBvarInRule(HornRule r, HornClauseDB &db, std::map<Expr, ExprVector> currentCandidates);
 
 		struct IsPredApp : public std::unary_function<Expr, bool>
 		{

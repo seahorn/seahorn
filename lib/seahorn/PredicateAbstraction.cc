@@ -22,16 +22,26 @@ namespace seahorn
 {
 	char PredicateAbstraction::ID = 0;
 
-    std::map<Expr, Expr> PredicateAbstraction::oldToNewPredMap;
-    std::map<Expr, Expr> PredicateAbstraction::newToOldPredMap;
-    std::map<Expr, ExprVector> PredicateAbstraction::currentCandidates;
-
 	bool PredicateAbstraction::runOnModule (Module &M)
 	{
 		HornifyModule &hm = getAnalysis<HornifyModule> ();
 
+		PredicateAbstractionAnalysis pabs(hm);
+		pabs.runAnalysis();
+
+		return false;
+	}
+
+	void PredicateAbstraction::getAnalysisUsage (AnalysisUsage &AU) const
+	{
+		AU.addRequired<HornifyModule> ();
+		AU.setPreservesAll();
+	}
+
+	void PredicateAbstractionAnalysis::runAnalysis()
+	{
 		//load the Horn clause database
-		auto &db = hm.getHornClauseDB ();
+		auto &db = m_hm.getHornClauseDB ();
 		db.buildIndexes ();
 
 		//guess candidates
@@ -46,9 +56,9 @@ namespace seahorn
 		HornClauseDB new_db = runOnDB(db, converter);
 
 		//initialize spacer based on new DB
-		m_fp.reset (new ZFixedPoint<EZ3> (hm.getZContext ()));
+		m_fp.reset (new ZFixedPoint<EZ3> (m_hm.getZContext ()));
 		ZFixedPoint<EZ3> &fp = *m_fp;
-		ZParams<EZ3> params (hm.getZContext ());
+		ZParams<EZ3> params (m_hm.getZContext ());
 		params.set (":engine", "spacer");
 		// -- disable slicing so that we can use cover
 		params.set (":xform.slice", false);
@@ -87,8 +97,6 @@ namespace seahorn
 		}
 		else outs () << "unknown";
 		outs () << "\n";
-
-		return false;
 	}
 
 	void HornDbModel::addDef(Expr fapp, Expr def)
@@ -279,13 +287,7 @@ namespace seahorn
 			return true;
 	}
 
-	void PredicateAbstraction::getAnalysisUsage (AnalysisUsage &AU) const
-	{
-	    AU.addRequired<HornifyModule> ();
-	    AU.setPreservesAll();
-	}
-
-	HornClauseDB PredicateAbstraction::runOnDB(HornClauseDB &db, PredAbsHornModelConverter &converter)
+	HornClauseDB PredicateAbstractionAnalysis::runOnDB(HornClauseDB &db, PredAbsHornModelConverter &converter)
 	{
 		outs() << "OLD DB: \n";
 		outs() << db << "\n";
@@ -505,7 +507,7 @@ namespace seahorn
 		return new_DB;
 	}
 
-	void PredicateAbstraction::guessCandidate(HornClauseDB &db)
+	void PredicateAbstractionAnalysis::guessCandidate(HornClauseDB &db)
 	{
 	  for(Expr rel : db.getRelations())
 	  {
@@ -517,7 +519,7 @@ namespace seahorn
 	  }
 	}
 
-	ExprVector PredicateAbstraction::relToCand(Expr fdecl)
+	ExprVector PredicateAbstractionAnalysis::relToCand(Expr fdecl)
 	{
 		ExprVector bvars;
 		ExprVector bins;   // a vector of LT expressions

@@ -53,9 +53,30 @@ namespace seahorn
 		void setAbsDB(HornClauseDB &db) {abs_db = &db;}
 	};
 
+	class PredicateAbstractionAnalysis
+	{
+	private:
+	    std::map<Expr, Expr> oldToNewPredMap;
+	    std::map<Expr, Expr> newToOldPredMap;
+	    std::map<Expr, ExprVector> currentCandidates;
+
+	    std::unique_ptr<ufo::ZFixedPoint <ufo::EZ3> >  m_fp;
+	    HornifyModule& m_hm;
+
+	public:
+	    PredicateAbstractionAnalysis(HornifyModule &hm) : m_hm(hm) {}
+	    ~PredicateAbstractionAnalysis() {m_fp.reset (nullptr);}
+
+	    ufo::ZFixedPoint<ufo::EZ3>& getZFixedPoint () {return *m_fp;}
+
+	    void runAnalysis();
+		void guessCandidate(HornClauseDB &db);
+		ExprVector relToCand(Expr fdecl);
+		HornClauseDB runOnDB(HornClauseDB &db, PredAbsHornModelConverter &converter);
+	};
+
 	class PredicateAbstraction : public llvm::ModulePass
 	{
-		std::unique_ptr<ufo::ZFixedPoint <ufo::EZ3> >  m_fp;
 	public:
 	    static char ID;
 
@@ -64,22 +85,6 @@ namespace seahorn
 	    virtual bool runOnModule (Module &M);
 	    virtual void getAnalysisUsage (AnalysisUsage &AU) const;
 	    virtual const char* getPassName () const {return "PredicateAbstraction";}
-
-	private:
-	    static std::map<Expr, Expr> oldToNewPredMap;
-	    static std::map<Expr, Expr> newToOldPredMap;
-	    static std::map<Expr, ExprVector> currentCandidates;
-
-	public:
-	    void guessCandidate(HornClauseDB &db);
-	    ExprVector relToCand(Expr fdecl);
-	    HornClauseDB runOnDB(HornClauseDB &db, PredAbsHornModelConverter &converter);
-
-	    ufo::ZFixedPoint<ufo::EZ3>& getZFixedPoint () {return *m_fp;}
-		void releaseMemory ()
-		{
-			m_fp.reset (nullptr);
-		}
 	};
 
 	class HornDbUtils

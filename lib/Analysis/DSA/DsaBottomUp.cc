@@ -101,13 +101,12 @@ namespace seahorn
           graphs[fn] = fGraph;
         }
 
-        // -- resolve all function calls in the graph
         for (CallGraphNode *cgn : scc)
         {
           Function *fn = cgn->getFunction ();
           if (!fn || fn->isDeclaration () || fn->empty ()) continue;
 
-          // -- visit all callsites in the callgraph node
+          // -- resolve all function calls in the SCC
           for (auto &callRecord : *cgn)
           {
             ImmutableCallSite CS (callRecord.first);
@@ -122,7 +121,22 @@ namespace seahorn
             Graph &calleeG = *(graphs.find (dsaCS.getCallee())->second);
   
             cloneAndResolveArguments (dsaCS, calleeG, callerG);
+          }
 
+          // -- store the simulation maps from the SCC
+          for (auto &callRecord : *cgn)
+          {
+            ImmutableCallSite CS (callRecord.first);
+            DsaCallSite dsaCS (CS);
+            const Function *callee = dsaCS.getCallee ();
+            if (!callee || callee->isDeclaration () || callee->empty ()) continue;
+            
+            assert (graphs.count (dsaCS.getCaller ()) > 0);
+            assert (graphs.count (dsaCS.getCallee ()) > 0);
+      
+            Graph &callerG = *(graphs.find (dsaCS.getCaller())->second);
+            Graph &calleeG = *(graphs.find (dsaCS.getCallee())->second);
+  
             SimulationMapperRef sm (new SimulationMapper());
             bool res = Graph::computeCalleeCallerMapping(dsaCS, calleeG, callerG, 
                                                          true  /*only modified nodes*/, 
@@ -133,8 +147,8 @@ namespace seahorn
                               << "caller does not simulate callee\n";
             assert (res);
             m_callee_caller_map.insert(std::make_pair(dsaCS.getInstruction(), sm));
-
           }
+
         }
 
         if (fGraph) fGraph->compress();        

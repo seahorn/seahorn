@@ -82,6 +82,20 @@ namespace seahorn
       
     };
 
+    template <typename T>
+    class WorkList 
+    {
+     public:
+      WorkList ();
+      bool empty () const;
+      void enqueue (const T &e);
+      const T& dequeue ();
+
+     private:
+      class impl;
+      std::unique_ptr<impl> m_pimpl;
+    };
+
     // Context-sensitive dsa analysis
     class ContextSensitiveGlobalAnalysis: public GlobalAnalysis 
     {
@@ -93,13 +107,13 @@ namespace seahorn
 
       typedef std::shared_ptr<Graph> GraphRef;
       typedef BottomUpAnalysis::GraphMap GraphMap;
-      typedef std::vector<const Instruction*> Worklist;
       enum PropagationKind {DOWN, UP, NONE};
 
       const DataLayout &m_dl;
       const TargetLibraryInfo &m_tli;
       CallGraph &m_cg;
       SetFactory &m_setFactory;
+
      public:
       GraphMap m_graphs;
 
@@ -213,10 +227,10 @@ namespace seahorn
       DsaCallGraph &m_dsaCG;
 
       void join (const DsaCallSite &cs, Node& calleeN, Node& callerN,
-                 std::vector<const Instruction*> &w);
+                 WorkList<const Instruction*> &w);
       
       void normalize (const DsaCallSite &cs, Graph& calleeG, Graph& callerG,
-                      std::vector<const Instruction*> &w);
+                      WorkList<const Instruction*> &w);
 
      public:
 

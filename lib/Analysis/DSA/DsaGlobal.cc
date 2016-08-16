@@ -26,6 +26,8 @@
 
 #include "boost/range/iterator_range.hpp"
 
+#include <queue>
+
 static llvm::cl::opt<bool>
 normalizeUniqueScalars("horn-sea-dsa-norm-unique-scalar",
             llvm::cl::desc("DSA: all callees and callers agree on unique scalars"),
@@ -179,6 +181,21 @@ namespace seahorn
   namespace dsa 
   {
 
+    // A simple worklist implementation 
+    template <typename T>
+    struct WorkList<T>::impl 
+    { std::queue<T> m_w; };
+    template <typename T>
+    WorkList<T>::WorkList () : m_pimpl (new WorkList<T>::impl ()) { }
+    template <typename T>
+    bool WorkList<T>::empty() const { return m_pimpl->m_w.empty(); }
+    template <typename T>
+    void WorkList<T>::enqueue(const T&e) { m_pimpl->m_w.push(e); }
+    template <typename T>
+    const T& WorkList<T>::dequeue() 
+    { const T& e = m_pimpl->m_w.front(); m_pimpl->m_w.pop(); return e;}
+
+
     // Clone caller nodes into callee and resolve arguments
     // XXX: this code is pretty much symmetric to the one defined in
     // BottomUp. They should be merged at some point.
@@ -243,18 +260,7 @@ namespace seahorn
 
       return res;
     }
-
-    template<typename WorkList>
-    static void Insert (WorkList &w, const Instruction* CI)
-    { // XXX: this is a very inefficient way of breaking cycles
-      if (std::find(w.begin(), w.end(), CI) == w.end())
-        w.push_back (CI);
-    }
-
-    template<typename Iter, typename WorkList>
-    static void Insert (WorkList &w, Iter it, Iter et)
-    { for (; it!=et;++it) Insert (w, *it); }
-
+    
     void ContextSensitiveGlobalAnalysis::
     propagateTopDown (const DsaCallSite& cs, Graph &callerG, Graph& calleeG) 
     {
@@ -310,25 +316,25 @@ namespace seahorn
       DsaCallGraph dsaCG (m_cg);
       dsaCG.buildDependencies ();
 
+      WorkList<const Instruction*> w;
+
       /// push in the worklist callsites for which two different
       /// callee nodes are mapped to the same caller node
-      Worklist worklist;
       for (auto &kv: boost::make_iterator_range (bu.callee_caller_mapping_begin (),
                                                  bu.callee_caller_mapping_end ()))
       {
         auto const &simMapper = *(kv.second);
         if (!simMapper.isInjective ()) 
-          worklist.push_back (kv.first);  // they do need top-down
+          w.enqueue (kv.first);  // they do need top-down
       }
 
       /// -- top-down/bottom-up propagation until no change
 
       unsigned td_props = 0;
       unsigned bu_props = 0;
-      while (!worklist.empty()) 
+      while (!w.empty()) 
       {
-        const Instruction* I = I = worklist.back();
-        worklist.pop_back();
+        const Instruction* I = w.dequeue();
 
         if (const CallInst *CI = dyn_cast<CallInst> (I))
           if (CI->isInlineAsm())
@@ -341,11 +347,13 @@ namespace seahorn
         if (!callee || callee->isDeclaration() || callee->empty())
           continue;
 
-        assert (m_graphs.count (dsaCS.getCaller ()) > 0);
-        assert (m_graphs.count (dsaCS.getCallee ()) > 0);
+        auto caller = dsaCS.getCaller();
+
+        assert (m_graphs.count (caller) > 0);
+        assert (m_graphs.count (callee) > 0);
         
-        Graph &callerG = *(m_graphs.find (dsaCS.getCaller())->second);
-        Graph &calleeG = *(m_graphs.find (dsaCS.getCallee())->second);
+        Graph &callerG = *(m_graphs.find (caller)->second);
+        Graph &calleeG = *(m_graphs.find (callee)->second);
 
         // -- find out which propagation is needed if any
         auto propKind = decidePropagation  (dsaCS, calleeG, callerG);
@@ -355,17 +363,17 @@ namespace seahorn
           td_props++;
           auto &calleeU = dsaCG.getUses (*callee);
           auto &calleeD = dsaCG.getDefs (*callee);
-          Insert(worklist, calleeU.begin (), calleeU.end ()); // they might need bottom-up
-          Insert(worklist, calleeD.begin (), calleeD.end ()); // they might need top-down
+          for (auto ci: calleeU) w.enqueue(ci); // they might need bottom-up
+          for (auto ci: calleeD) w.enqueue(ci); // they might need top-down
         }
         else if (propKind == UP)
         {
           propagateBottomUp (dsaCS, calleeG, callerG);
           bu_props++;
-          auto &callerU = dsaCG.getUses (*dsaCS.getCaller());
-          auto &callerD = dsaCG.getDefs (*dsaCS.getCaller());
-          Insert (worklist, callerU.begin (), callerU.end ());  // they might need bottom-up
-          Insert (worklist, callerD.begin (), callerD.end ());  // they might need top-down
+          auto &callerU = dsaCG.getUses (*caller);
+          auto &callerD = dsaCG.getDefs (*caller);
+          for (auto ci: callerU) w.enqueue(ci); // they might need bottom-up
+          for (auto ci: callerD) w.enqueue(ci); // they might need top-down
         }
       }
 
@@ -475,7 +483,7 @@ namespace seahorn
     template<class GA>
     void UniqueScalarAnalysis<GA>::join (const DsaCallSite &cs, 
                                          Node &calleeN, Node &callerN, 
-                                         std::vector<const Instruction*> &w)
+                                         WorkList<const Instruction*> &w)
     {
 
       if (calleeN.getUniqueScalar () && callerN.getUniqueScalar ())
@@ -488,8 +496,8 @@ namespace seahorn
 
         if (const Function *fn = cs.getCallee ())
         {
-          for (auto cs: m_dsaCG.getUses (*fn)) Insert(w, cs); 
-          for (auto cs: m_dsaCG.getDefs (*fn)) Insert(w, cs); 
+          for (auto ci: m_dsaCG.getUses (*fn)) w.enqueue(ci);
+          for (auto ci: m_dsaCG.getDefs (*fn)) w.enqueue(ci); 
         }
         
         LOG("dsa-unique-scalar",
@@ -501,8 +509,8 @@ namespace seahorn
         
         if (const Function *fn = cs.getCaller ())
         {
-          for (auto cs: m_dsaCG.getUses (*fn)) Insert(w, cs); 
-          for (auto cs: m_dsaCG.getDefs (*fn)) Insert(w, cs); 
+          for (auto ci: m_dsaCG.getUses (*fn)) w.enqueue(ci); 
+          for (auto ci: m_dsaCG.getDefs (*fn)) w.enqueue(ci); 
         }
         
         LOG("dsa-unique-scalar",
@@ -513,7 +521,7 @@ namespace seahorn
     template<class GA>
     void UniqueScalarAnalysis<GA>::normalize (const DsaCallSite &cs, 
                                               Graph& calleeG, Graph& callerG,
-                                              std::vector<const Instruction*> &w)
+                                              WorkList<const Instruction*> &w)
     {
       // globals 
       for (auto &kv : boost::make_iterator_range (calleeG.globals_begin (),
@@ -552,7 +560,7 @@ namespace seahorn
     template<class GA>
     bool UniqueScalarAnalysis<GA>::runOnModule(Module &M) 
     {
-      std::vector<const Instruction*> W;
+      WorkList<const Instruction*> w;
 
       for (auto it = scc_begin (&m_dsaCG.getCallGraph()); !it.isAtEnd (); ++it)
       {
@@ -574,18 +582,17 @@ namespace seahorn
             {
               Graph &calleeG = m_ga.getGraph (*dsaCS.getCallee());        
               Graph &callerG = m_ga.getGraph (*dsaCS.getCaller());
-              normalize (dsaCS, calleeG, callerG, W);
+              normalize (dsaCS, calleeG, callerG, w);
             }
           }
         }
       }
 
-      while (!W.empty()) 
+      while (!w.empty()) 
       {
-        const Instruction* I = W.back ();
+        const Instruction* I = w.dequeue ();
         ImmutableCallSite CS (I);
         DsaCallSite dsaCS (CS);
-        W.pop_back ();
 
         assert (dsaCS.getCaller ());
         assert (dsaCS.getCallee ());
@@ -594,7 +601,7 @@ namespace seahorn
         {
           Graph &calleeG = m_ga.getGraph (*dsaCS.getCallee());        
           Graph &callerG = m_ga.getGraph (*dsaCS.getCaller());
-          normalize (dsaCS, calleeG, callerG, W);
+          normalize (dsaCS, calleeG, callerG, w);
         }
       }
       

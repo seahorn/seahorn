@@ -65,6 +65,24 @@ namespace
       // XXX skip if only uses are external functions
       return false;
     }
+
+    static bool isNullConstant (const Value& v)
+    {
+      const Value *V = v.stripPointerCasts ();
+
+      if (isa<Constant> (V) && cast<Constant> (V)->isNullValue ())
+        return true;
+
+      // XXX: some linux device drivers contain instructions gep null, ....
+      if (const GetElementPtrInst *Gep = dyn_cast<const GetElementPtrInst>(V))
+      {
+        const Value &base = *Gep->getPointerOperand ();
+        if (const Constant *c = dyn_cast<Constant>(base.stripPointerCasts ())) 
+          return c->isNullValue();
+      }
+      
+      return false;
+    }
     
   public:
     BlockBuilderBase (Function &func, dsa::Graph &graph,
@@ -143,7 +161,7 @@ namespace
     using namespace dsa;
     assert (v.getType ()->isPointerTy () || v.getType ()->isAggregateType ());
   
-    if (isa<Constant> (&v) && cast<Constant> (&v)->isNullValue ())
+    if (isNullConstant (v))
     {
       LOG ("dsa",
            errs () << "WARNING: not handled constant: " << v << "\n";);
@@ -258,8 +276,8 @@ namespace
     using namespace seahorn::dsa;
     
     // -- skip store into NULL
-    if (Constant *c = dyn_cast<Constant> (SI.getPointerOperand ()->stripPointerCasts ()))
-      if (c->isNullValue ()) return;
+    if (BlockBuilderBase::isNullConstant (*SI.getPointerOperand ()))
+      return;
     
     Cell base = valueCell  (*SI.getPointerOperand ()->stripPointerCasts ());
     assert (!base.isNull ());
@@ -273,8 +291,7 @@ namespace
     if (!isSkip (*SI.getValueOperand ()))
     {
       Cell val = valueCell  (*SI.getValueOperand ());
-      if ((isa<Constant> (SI.getValueOperand ()) &&
-           cast<Constant> (SI.getValueOperand ())->isNullValue ()))
+      if (BlockBuilderBase::isNullConstant (*SI.getValueOperand ()))
       {
         // TODO: mark link as possibly pointing to null
       }
@@ -291,8 +308,7 @@ namespace
   {
     if (isSkip (I)) return;
 
-    if (isa<Constant> (I.getOperand (0)) && 
-        cast<Constant> (I.getOperand (0))->isNullValue ()) 
+    if (BlockBuilderBase::isNullConstant (*I.getOperand (0)))
       return;  // do nothing if null
 
     dsa::Cell arg = valueCell  (*I.getOperand (0));
@@ -381,6 +397,11 @@ namespace
   void BlockBuilderBase::visitGep (const Value &gep,
                                    const Value &ptr, ArrayRef<Value *> indicies)
   {
+    
+    // -- skip NULL
+    if (const Constant *c = dyn_cast<Constant>(&ptr)) 
+      if (c->isNullValue()) return;
+
     assert (m_graph.hasCell (ptr) || isa<GlobalValue> (&ptr));
     
     // -- empty gep that points directly to the base
@@ -552,8 +573,9 @@ namespace
   void IntraBlockBuilder::visitMemSetInst (MemSetInst &I)
   {
     dsa::Cell dest = valueCell (*(I.getDest()));
-    assert (!dest.isNull ());    
-    dest.setModified();
+    //assert (!dest.isNull ());    
+    if (!dest.isNull ())
+      dest.setModified();
     
     // TODO:    
     // can also update size using I.getLength ()

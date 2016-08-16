@@ -329,13 +329,19 @@ namespace seahorn
       {
         if (LoadInst *li = dyn_cast<LoadInst> (&inst))
         {
-          const Cell &c = G.getCell (*(li->getPointerOperand ()));
-          if (!c.isNull()) readSet.insert (c.getNode ());
+          if (G.hasCell (*(li->getPointerOperand ())))
+          {
+            const Cell &c = G.getCell (*(li->getPointerOperand ()));
+            if (!c.isNull()) readSet.insert (c.getNode ());
+          }
         }
         else if (StoreInst *si = dyn_cast<StoreInst> (&inst))
         {
-          const Cell &c = G.getCell (*(si->getPointerOperand ()));
-          if (!c.isNull ()) modSet.insert (c.getNode ());
+          if (G.hasCell (*(si->getPointerOperand ())))
+          {
+            const Cell &c = G.getCell (*(si->getPointerOperand ()));
+            if (!c.isNull ()) modSet.insert (c.getNode ());
+          }
         }
         else if (CallInst *ci = dyn_cast<CallInst> (&inst))
         {

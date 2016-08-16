@@ -603,8 +603,12 @@ namespace
     // -- pointers pointers to other types
 
     // -- skip copy NULL
-    if (Constant *c = dyn_cast<Constant>(I.getSource ())) 
-      if (c->isNullValue()) return;
+    if (isNullConstant (*I.getSource ()))
+      return;
+
+    // -- skip copy to an unallocated address
+    if (isNullConstant (*I.getDest ()))
+      return;
     
     bool TrustTypes = true;
     assert (m_graph.hasCell (*I.getDest ()));

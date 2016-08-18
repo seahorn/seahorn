@@ -40,6 +40,7 @@ namespace seahorn
 
 	void PredicateAbstractionAnalysis::runAnalysis()
 	{
+		Stats::resume ("Pabs solve");
 		//load the Horn clause database
 		auto &db = m_hm.getHornClauseDB ();
 		db.buildIndexes ();
@@ -81,18 +82,19 @@ namespace seahorn
 		if (result) outs () << "sat";
 		else if (!result)
 		{
-			outs() << "unsat\n";
+			outs() << "unsat";
 			HornDbModel absModel;
 			absModel.initModelFromFP(new_db, fp);
 			converter.setNewToOldPredMap(newToOldPredMap);
 			converter.setAbsDB(new_db);
 			converter.convert(absModel, oldModel);
-			outs() << "FINAL RESULT:\n";
+			LOG("pabs-debug", outs() << "FINAL RESULT:\n";);
 			//Print invariants
 			printInvars(db, oldModel);
 		}
 		else outs () << "unknown";
 		outs () << "\n";
+		Stats::stop("Pabs solve");
 	}
 
 	void HornDbModel::addDef(Expr fapp, Expr def)
@@ -119,7 +121,7 @@ namespace seahorn
 					if(arg_i == boolvar)
 					{
 						Expr encoded_solution = bind::bvar(i, mk<BOOL_TY>(arg_i->efac()));
-						outs() << "ENCODED SOLUTION: " << *encoded_solution << "\n";
+						LOG("pabs-debug", outs() << "ENCODED SOLUTION: " << *encoded_solution << "\n";);
 						boolVarsToBvarsMap.insert(std::pair<Expr, Expr>(boolvar, encoded_solution));
 					}
 				}
@@ -140,7 +142,7 @@ namespace seahorn
 				varIdMap.insert(std::pair<Expr, Expr>(var, bvar));
 			}
 			Expr orig_def = replace(def, varIdMap);
-			outs() << "ADD BVAR DEF: " << *orig_def << "\n";
+			LOG("pabs-debug", outs() << "ADD BVAR DEF: " << *orig_def << "\n";);
 			relToDefMap.insert(std::pair<Expr, Expr>(bind::fname(fapp), orig_def));
 		}
 	}
@@ -185,9 +187,9 @@ namespace seahorn
 		}
 		for(Expr pred : all_preds_in_DB)
 		{
-			outs() << "REL: " << *(bind::fname(pred)) << "\n";
+			LOG("pabs-debug", outs() << "REL: " << *(bind::fname(pred)) << "\n";);
 			Expr solution = fp.getCoverDelta(pred);
-			outs() << "SOLUTION: " << *solution << "\n";
+			LOG("pabs-debug", outs() << "SOLUTION: " << *solution << "\n";);
 			addDef(pred, solution);
 		}
 	}
@@ -196,9 +198,9 @@ namespace seahorn
 	{
 		for(Expr abs_rel : abs_db->getRelations())
 		{
-			outs() << "ABS REL: " << *abs_rel << "\n";
+			LOG("pabs-debug", outs() << "ABS REL: " << *abs_rel << "\n";);
 			Expr orig_rel = newToOldPredMap.find(abs_rel)->second;
-			outs() << "ORIG REL: " << *orig_rel << "\n";
+			LOG("pabs-debug", outs() << "ORIG REL: " << *orig_rel << "\n";);
 
 			ExprVector abs_arg_list;
 			for(int i=0; i<bind::domainSz(abs_rel); i++)
@@ -207,9 +209,9 @@ namespace seahorn
 				abs_arg_list.push_back(boolVar);
 			}
 			Expr abs_rel_app = bind::fapp(abs_rel, abs_arg_list);
-			outs() << "ABS REL APP: " << *abs_rel_app << "\n";
+			LOG("pabs-debug", outs() << "ABS REL APP: " << *abs_rel_app << "\n";);
 			Expr abs_def_app = in.getDef(abs_rel_app);
-			outs() << "ABS DEF APP: " << *abs_def_app << "\n";
+			LOG("pabs-debug", outs() << "ABS DEF APP: " << *abs_def_app << "\n";);
 			ExprMap boolVarToBvarMap;
 			ExprVector bools;
 			HornDbUtils::get_all_booleans(abs_def_app, std::back_inserter(bools));
@@ -220,7 +222,7 @@ namespace seahorn
 			}
 			Expr abs_def = replace(abs_def_app, boolVarToBvarMap);
 
-			outs() << "ABS DEF: " << *abs_def << "\n";
+			LOG("pabs-debug", outs() << "ABS DEF: " << *abs_def << "\n";);
 			Expr orig_def;
 			if(isOpX<TRUE>(abs_def) || isOpX<FALSE>(abs_def))
 			{
@@ -228,9 +230,17 @@ namespace seahorn
 			}
 			else
 			{
-				orig_def = (getRelToBoolToTermMap().find(orig_rel)->second).find(abs_def)->second;
+				ExprMap abs_bvar_to_term_map;
+				ExprVector abs_bvars;
+				HornDbUtils::get_all_bvars(abs_def, std::back_inserter(abs_bvars));
+				for(Expr abs_bvar : abs_bvars)
+				{
+					Expr term = (getRelToBoolToTermMap().find(orig_rel)->second).find(abs_bvar)->second;
+					abs_bvar_to_term_map.insert(std::pair<Expr, Expr>(abs_bvar, term));
+				}
+				orig_def = replace(abs_def, abs_bvar_to_term_map);
 			}
-			outs() << "ORIG DEF: " << *orig_def << "\n";
+			LOG("pabs-debug", outs() << "ORIG DEF: " << *orig_def << "\n";);
 
 			ExprVector orig_fapp_args;
 			for(int i=0; i<bind::domainSz(orig_rel); i++)
@@ -239,7 +249,7 @@ namespace seahorn
 				orig_fapp_args.push_back(var);
 			}
 			Expr orig_fapp = bind::fapp(orig_rel, orig_fapp_args);
-			outs() << "ORIG FAPP: " << *orig_fapp << "\n";
+			LOG("pabs-debug", outs() << "ORIG FAPP: " << *orig_fapp << "\n";);
 			ExprVector bvars;
 			HornDbUtils::get_all_bvars(orig_def, std::back_inserter(bvars));
 			ExprMap bvarIdMap;
@@ -250,7 +260,7 @@ namespace seahorn
 				bvarIdMap.insert(std::pair<Expr, Expr>(bvar, var));
 			}
 			Expr orig_def_app = replace(orig_def, bvarIdMap);
-			outs() << "ORIG DEF APP: " << *orig_def_app << "\n";
+			LOG("pabs-debug", outs() << "ORIG DEF APP: " << *orig_def_app << "\n";);
 			out.addDef(orig_fapp, orig_def_app);
 			//out.getRelToSolutionMap().insert(std::pair<Expr, Expr>(orig_rel, orig_def));
 		}
@@ -505,6 +515,41 @@ namespace seahorn
 			}
 		}
 
+		//For test
+		Expr five = mkTerm<mpz_class> (5, fdecl->efac());
+		Expr six = mkTerm<mpz_class> (6, fdecl->efac());
+		Expr seven = mkTerm<mpz_class> (7, fdecl->efac());
+		Expr eight = mkTerm<mpz_class> (8, fdecl->efac());
+		Expr nine = mkTerm<mpz_class> (9, fdecl->efac());
+		Expr ten = mkTerm<mpz_class> (10, fdecl->efac());
+		Expr eleven = mkTerm<mpz_class> (11, fdecl->efac());
+		Expr twelve = mkTerm<mpz_class> (12, fdecl->efac());
+		Expr thirteen = mkTerm<mpz_class> (13, fdecl->efac());
+		Expr fourteen = mkTerm<mpz_class> (14, fdecl->efac());
+		Expr fifteen = mkTerm<mpz_class> (15, fdecl->efac());
+		Expr sixteen = mkTerm<mpz_class> (16, fdecl->efac());
+		Expr seventeen = mkTerm<mpz_class> (17, fdecl->efac());
+		Expr eighteen = mkTerm<mpz_class> (18, fdecl->efac());
+		Expr nineteen = mkTerm<mpz_class> (19, fdecl->efac());
+		Expr twenty = mkTerm<mpz_class> (20, fdecl->efac());
+		Expr twenty_one = mkTerm<mpz_class> (21, fdecl->efac());
+		Expr thirty = mkTerm<mpz_class> (30, fdecl->efac());
+		Expr fourty = mkTerm<mpz_class> (40, fdecl->efac());
+		Expr fifty = mkTerm<mpz_class> (50, fdecl->efac());
+		Expr sixty = mkTerm<mpz_class> (60, fdecl->efac());
+		Expr seventy = mkTerm<mpz_class> (70, fdecl->efac());
+		Expr eighty = mkTerm<mpz_class> (80, fdecl->efac());
+		Expr ninty = mkTerm<mpz_class> (90, fdecl->efac());
+		Expr one_hundred = mkTerm<mpz_class> (100, fdecl->efac());
+		Expr two_hundred = mkTerm<mpz_class> (200, fdecl->efac());
+		Expr three_hundred = mkTerm<mpz_class> (300, fdecl->efac());
+		Expr four_hundred = mkTerm<mpz_class> (400, fdecl->efac());
+		Expr five_hundred = mkTerm<mpz_class> (500, fdecl->efac());
+		Expr six_hundred = mkTerm<mpz_class> (600, fdecl->efac());
+		Expr seven_hundred = mkTerm<mpz_class> (700, fdecl->efac());
+		Expr eight_hundred = mkTerm<mpz_class> (800, fdecl->efac());
+		Expr nine_hundred = mkTerm<mpz_class> (900, fdecl->efac());
+
 		//What if there's no bvar?
 		if(bvar_count == 0)
 		{
@@ -513,39 +558,136 @@ namespace seahorn
 		// if there is only one bvar, create a int constant and make an lt expr
 		else if(bvar_count == 1)
 		{
-			Expr zero = mkTerm<mpz_class> (0, fdecl->efac());
-			bins.push_back(mk<LT>(bvars[0], zero));
-
-			Expr one = mkTerm<mpz_class> (12292, fdecl->efac());//
+			Expr one = mkTerm<mpz_class> (1, fdecl->efac());//
 			bins.push_back(mk<GEQ>(bvars[0], one));//
+			bins.push_back(mk<LEQ>(bvars[0], one));//
+			Expr zero = mkTerm<mpz_class> (0, fdecl->efac());
+			bins.push_back(mk<GEQ>(bvars[0], zero));//
+			Expr two = mkTerm<mpz_class> (2, fdecl->efac());//
+			bins.push_back(mk<GEQ>(bvars[0], two));//
+			bins.push_back(mk<LEQ>(bvars[0], two));//
+			//For test
+			bins.push_back(mk<GEQ>(bvars[0], five));//
+			bins.push_back(mk<GEQ>(bvars[0], six));//
+			bins.push_back(mk<GEQ>(bvars[0], seven));//
+			bins.push_back(mk<GEQ>(bvars[0], eight));//
+			bins.push_back(mk<GEQ>(bvars[0], nine));//
+			bins.push_back(mk<GEQ>(bvars[0], ten));//
+			bins.push_back(mk<GEQ>(bvars[0], eleven));//
+			bins.push_back(mk<GEQ>(bvars[0], twelve));//
+			bins.push_back(mk<GEQ>(bvars[0], thirteen));//
+			bins.push_back(mk<GEQ>(bvars[0], fourteen));//
+			bins.push_back(mk<GEQ>(bvars[0], fifteen));//
+			bins.push_back(mk<LEQ>(bvars[0], sixteen));//
+			bins.push_back(mk<LEQ>(bvars[0], seventeen));//
+			bins.push_back(mk<LEQ>(bvars[0], eighteen));//
+			bins.push_back(mk<LEQ>(bvars[0], nineteen));//
+			bins.push_back(mk<LEQ>(bvars[0], twenty));//
+			bins.push_back(mk<LEQ>(bvars[0], twenty_one));//
+			bins.push_back(mk<GT>(bvars[0], thirty));//
+			bins.push_back(mk<GT>(bvars[0], fourty));//
+			bins.push_back(mk<GT>(bvars[0], fifty));//
+			bins.push_back(mk<GT>(bvars[0], sixty));//
+			bins.push_back(mk<GT>(bvars[0], seventy));//
+			bins.push_back(mk<GT>(bvars[0], eighty));//
+			bins.push_back(mk<LT>(bvars[0], ninty));//
+			bins.push_back(mk<LT>(bvars[0], thirty));//
+			bins.push_back(mk<LEQ>(bvars[0], thirty));//
+			bins.push_back(mk<LEQ>(bvars[0], fourty));//
+			bins.push_back(mk<LEQ>(bvars[0], fifty));//
+			bins.push_back(mk<LT>(bvars[0], fifty));//
+			bins.push_back(mk<LT>(bvars[0], sixty));//
+			bins.push_back(mk<LEQ>(bvars[0], one_hundred));//
+			bins.push_back(mk<LEQ>(bvars[0], two_hundred));//
+			bins.push_back(mk<LT>(bvars[0], five));//
+			bins.push_back(mk<LT>(bvars[0], six));//
+			bins.push_back(mk<LT>(bvars[0], seven));//
+			bins.push_back(mk<LT>(bvars[0], eight));//
+			bins.push_back(mk<LT>(bvars[0], nine));//
+			bins.push_back(mk<LT>(bvars[0], ten));//
+			bins.push_back(mk<LT>(bvars[0], eleven));//
+			bins.push_back(mk<LT>(bvars[0], twelve));//
+			bins.push_back(mk<LT>(bvars[0], thirteen));//
+			bins.push_back(mk<LT>(bvars[0], fourteen));//
+			bins.push_back(mk<LT>(bvars[0], fifteen));//
+			bins.push_back(mk<LEQ>(bvars[0], three_hundred));//
+			bins.push_back(mk<LEQ>(bvars[0], four_hundred));//
+			bins.push_back(mk<LEQ>(bvars[0], five_hundred));//
+			bins.push_back(mk<LEQ>(bvars[0], six_hundred));//
+			bins.push_back(mk<LEQ>(bvars[0], seven_hundred));//
+			bins.push_back(mk<LEQ>(bvars[0], eight_hundred));//
+			bins.push_back(mk<LEQ>(bvars[0], nine_hundred));//
 		}
-		// if there are more than two bvars, make an lt expr
-		else if(bvar_count == 2)
+		else // bvar_count >= 2
 		{
-			Expr lt1 = mk<LT>(bvars[0], bvars[1]);
-			Expr lt2 = mk<LT>(bvars[1], bvars[0]);
-			bins.push_back(lt1);
-			bins.push_back(lt2);
-
-			//
-			Expr one = mkTerm<mpz_class> (12292, fdecl->efac());
-			Expr geq1 = mk<GEQ>(bvars[0], one);
-			Expr geq2 = mk<GEQ>(bvars[1], one);
-			bins.push_back(geq1);
-			bins.push_back(geq2);
-		}
-		else // bvar_count > 2
-		{
-			for(int j=0; j<bvars.size()-1; j++)
-			{
-				Expr lt = mk<LT>(bvars[j], bvars[j+1]);
-				bins.push_back(lt);
-			}
-			Expr one = mkTerm<mpz_class> (12292, fdecl->efac());
+//			for(int j=0; j<bvars.size()-1; j++)
+//			{
+//				Expr lt = mk<LT>(bvars[j], bvars[j+1]);
+//				bins.push_back(lt);
+//				//
+//				bins.push_back(mk<GT>(bvars[j], bvars[j+1]));
+//			}
+			Expr one = mkTerm<mpz_class> (1, fdecl->efac());
+			Expr zero = mkTerm<mpz_class> (0, fdecl->efac());
+			Expr two = mkTerm<mpz_class> (2, fdecl->efac());//
 			for(int j=0; j<bvars.size(); j++)
 			{
-				Expr geq = mk<GEQ>(bvars[j], one);
-				bins.push_back(geq);
+				bins.push_back(mk<GEQ>(bvars[j], one));
+				bins.push_back(mk<LEQ>(bvars[j], one));
+				bins.push_back(mk<GEQ>(bvars[j], zero));
+				bins.push_back(mk<GEQ>(bvars[j], two));//
+				bins.push_back(mk<LEQ>(bvars[j], two));//
+				//For test
+				bins.push_back(mk<GEQ>(bvars[j], five));//
+				bins.push_back(mk<GEQ>(bvars[j], six));//
+				bins.push_back(mk<GEQ>(bvars[j], seven));//
+				bins.push_back(mk<GEQ>(bvars[j], eight));//
+				bins.push_back(mk<GEQ>(bvars[j], nine));//
+				bins.push_back(mk<GEQ>(bvars[j], ten));//
+				bins.push_back(mk<GEQ>(bvars[j], eleven));//
+				bins.push_back(mk<GEQ>(bvars[j], twelve));//
+				bins.push_back(mk<GEQ>(bvars[j], thirteen));//
+				bins.push_back(mk<GEQ>(bvars[j], fourteen));//
+				bins.push_back(mk<GEQ>(bvars[j], fifteen));//
+				bins.push_back(mk<LEQ>(bvars[j], sixteen));//
+				bins.push_back(mk<LEQ>(bvars[j], seventeen));//
+				bins.push_back(mk<LEQ>(bvars[j], eighteen));//
+				bins.push_back(mk<LEQ>(bvars[j], nineteen));//
+				bins.push_back(mk<LEQ>(bvars[j], twenty));//
+				bins.push_back(mk<LEQ>(bvars[j], twenty_one));//
+				bins.push_back(mk<GT>(bvars[j], thirty));//
+				bins.push_back(mk<GT>(bvars[j], fourty));//
+				bins.push_back(mk<GT>(bvars[j], fifty));//
+				bins.push_back(mk<GT>(bvars[j], sixty));//
+				bins.push_back(mk<GT>(bvars[j], seventy));//
+				bins.push_back(mk<GT>(bvars[j], eighty));//
+				bins.push_back(mk<LT>(bvars[j], ninty));//
+				bins.push_back(mk<LT>(bvars[j], thirty));//
+				bins.push_back(mk<LEQ>(bvars[j], thirty));//
+				bins.push_back(mk<LEQ>(bvars[j], fourty));//
+				bins.push_back(mk<LEQ>(bvars[j], fifty));//
+				bins.push_back(mk<LT>(bvars[j], fifty));//
+				bins.push_back(mk<LT>(bvars[j], sixty));//
+				bins.push_back(mk<LEQ>(bvars[j], one_hundred));//
+				bins.push_back(mk<LEQ>(bvars[j], two_hundred));//
+				bins.push_back(mk<LT>(bvars[j], five));//
+				bins.push_back(mk<LT>(bvars[j], six));//
+				bins.push_back(mk<LT>(bvars[j], seven));//
+				bins.push_back(mk<LT>(bvars[j], eight));//
+				bins.push_back(mk<LT>(bvars[j], nine));//
+				bins.push_back(mk<LT>(bvars[j], ten));//
+				bins.push_back(mk<LT>(bvars[j], eleven));//
+				bins.push_back(mk<LT>(bvars[j], twelve));//
+				bins.push_back(mk<LT>(bvars[j], thirteen));//
+				bins.push_back(mk<LT>(bvars[j], fourteen));//
+				bins.push_back(mk<LT>(bvars[j], fifteen));//
+				bins.push_back(mk<LEQ>(bvars[j], three_hundred));//
+				bins.push_back(mk<LEQ>(bvars[j], four_hundred));//
+				bins.push_back(mk<LEQ>(bvars[j], five_hundred));//
+				bins.push_back(mk<LEQ>(bvars[j], six_hundred));//
+				bins.push_back(mk<LEQ>(bvars[j], seven_hundred));//
+				bins.push_back(mk<LEQ>(bvars[j], eight_hundred));//
+				bins.push_back(mk<LEQ>(bvars[j], nine_hundred));//
 			}
 		}
 
@@ -564,7 +706,7 @@ namespace seahorn
 		{
 			Expr pred = it->second;
 			Expr def = origModel.getDef(pred);
-			outs() << *bind::fname(bind::fname(pred)) << ": " << *def << "\n";
+			LOG("predabs", errs() << *bind::fname(bind::fname(pred)) << ": " << *def << "\n";);
 		}
 	}
 

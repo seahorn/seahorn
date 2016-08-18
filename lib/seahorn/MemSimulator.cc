@@ -45,9 +45,9 @@ namespace seahorn
     {
       mpz_class val;
       if (ptrSz() == 64)
-        val = 0xFFFFFFFFFFFFFFFF_mpz;
+        val = 0xFFFFFFFFFFFFFFFF;
       else if (ptrSz () == 32)
-        val = 0xFFFFFFFF_mpz;
+        val = 0xFFFFFFFF;
       else
         assert (false && "Unexpected pointer size");
       m_largestPtr = bv::bvnum (val, ptrSz (), efac());

@@ -516,39 +516,39 @@ namespace seahorn
 		}
 
 		//For test
-		Expr five = mkTerm<mpz_class> (5, fdecl->efac());
-		Expr six = mkTerm<mpz_class> (6, fdecl->efac());
-		Expr seven = mkTerm<mpz_class> (7, fdecl->efac());
-		Expr eight = mkTerm<mpz_class> (8, fdecl->efac());
-		Expr nine = mkTerm<mpz_class> (9, fdecl->efac());
-		Expr ten = mkTerm<mpz_class> (10, fdecl->efac());
-		Expr eleven = mkTerm<mpz_class> (11, fdecl->efac());
-		Expr twelve = mkTerm<mpz_class> (12, fdecl->efac());
-		Expr thirteen = mkTerm<mpz_class> (13, fdecl->efac());
-		Expr fourteen = mkTerm<mpz_class> (14, fdecl->efac());
-		Expr fifteen = mkTerm<mpz_class> (15, fdecl->efac());
-		Expr sixteen = mkTerm<mpz_class> (16, fdecl->efac());
-		Expr seventeen = mkTerm<mpz_class> (17, fdecl->efac());
-		Expr eighteen = mkTerm<mpz_class> (18, fdecl->efac());
-		Expr nineteen = mkTerm<mpz_class> (19, fdecl->efac());
-		Expr twenty = mkTerm<mpz_class> (20, fdecl->efac());
-		Expr twenty_one = mkTerm<mpz_class> (21, fdecl->efac());
-		Expr thirty = mkTerm<mpz_class> (30, fdecl->efac());
-		Expr fourty = mkTerm<mpz_class> (40, fdecl->efac());
-		Expr fifty = mkTerm<mpz_class> (50, fdecl->efac());
-		Expr sixty = mkTerm<mpz_class> (60, fdecl->efac());
-		Expr seventy = mkTerm<mpz_class> (70, fdecl->efac());
-		Expr eighty = mkTerm<mpz_class> (80, fdecl->efac());
-		Expr ninty = mkTerm<mpz_class> (90, fdecl->efac());
-		Expr one_hundred = mkTerm<mpz_class> (100, fdecl->efac());
-		Expr two_hundred = mkTerm<mpz_class> (200, fdecl->efac());
-		Expr three_hundred = mkTerm<mpz_class> (300, fdecl->efac());
-		Expr four_hundred = mkTerm<mpz_class> (400, fdecl->efac());
-		Expr five_hundred = mkTerm<mpz_class> (500, fdecl->efac());
-		Expr six_hundred = mkTerm<mpz_class> (600, fdecl->efac());
-		Expr seven_hundred = mkTerm<mpz_class> (700, fdecl->efac());
-		Expr eight_hundred = mkTerm<mpz_class> (800, fdecl->efac());
-		Expr nine_hundred = mkTerm<mpz_class> (900, fdecl->efac());
+//		Expr five = mkTerm<mpz_class> (5, fdecl->efac());
+//		Expr six = mkTerm<mpz_class> (6, fdecl->efac());
+//		Expr seven = mkTerm<mpz_class> (7, fdecl->efac());
+//		Expr eight = mkTerm<mpz_class> (8, fdecl->efac());
+//		Expr nine = mkTerm<mpz_class> (9, fdecl->efac());
+//		Expr ten = mkTerm<mpz_class> (10, fdecl->efac());
+//		Expr eleven = mkTerm<mpz_class> (11, fdecl->efac());
+//		Expr twelve = mkTerm<mpz_class> (12, fdecl->efac());
+//		Expr thirteen = mkTerm<mpz_class> (13, fdecl->efac());
+//		Expr fourteen = mkTerm<mpz_class> (14, fdecl->efac());
+//		Expr fifteen = mkTerm<mpz_class> (15, fdecl->efac());
+//		Expr sixteen = mkTerm<mpz_class> (16, fdecl->efac());
+//		Expr seventeen = mkTerm<mpz_class> (17, fdecl->efac());
+//		Expr eighteen = mkTerm<mpz_class> (18, fdecl->efac());
+//		Expr nineteen = mkTerm<mpz_class> (19, fdecl->efac());
+//		Expr twenty = mkTerm<mpz_class> (20, fdecl->efac());
+//		Expr twenty_one = mkTerm<mpz_class> (21, fdecl->efac());
+//		Expr thirty = mkTerm<mpz_class> (30, fdecl->efac());
+//		Expr fourty = mkTerm<mpz_class> (40, fdecl->efac());
+//		Expr fifty = mkTerm<mpz_class> (50, fdecl->efac());
+//		Expr sixty = mkTerm<mpz_class> (60, fdecl->efac());
+//		Expr seventy = mkTerm<mpz_class> (70, fdecl->efac());
+//		Expr eighty = mkTerm<mpz_class> (80, fdecl->efac());
+//		Expr ninty = mkTerm<mpz_class> (90, fdecl->efac());
+//		Expr one_hundred = mkTerm<mpz_class> (100, fdecl->efac());
+//		Expr two_hundred = mkTerm<mpz_class> (200, fdecl->efac());
+//		Expr three_hundred = mkTerm<mpz_class> (300, fdecl->efac());
+//		Expr four_hundred = mkTerm<mpz_class> (400, fdecl->efac());
+//		Expr five_hundred = mkTerm<mpz_class> (500, fdecl->efac());
+//		Expr six_hundred = mkTerm<mpz_class> (600, fdecl->efac());
+//		Expr seven_hundred = mkTerm<mpz_class> (700, fdecl->efac());
+//		Expr eight_hundred = mkTerm<mpz_class> (800, fdecl->efac());
+//		Expr nine_hundred = mkTerm<mpz_class> (900, fdecl->efac());
 
 		//What if there's no bvar?
 		if(bvar_count == 0)
@@ -567,56 +567,56 @@ namespace seahorn
 			bins.push_back(mk<GEQ>(bvars[0], two));//
 			bins.push_back(mk<LEQ>(bvars[0], two));//
 			//For test
-			bins.push_back(mk<GEQ>(bvars[0], five));//
-			bins.push_back(mk<GEQ>(bvars[0], six));//
-			bins.push_back(mk<GEQ>(bvars[0], seven));//
-			bins.push_back(mk<GEQ>(bvars[0], eight));//
-			bins.push_back(mk<GEQ>(bvars[0], nine));//
-			bins.push_back(mk<GEQ>(bvars[0], ten));//
-			bins.push_back(mk<GEQ>(bvars[0], eleven));//
-			bins.push_back(mk<GEQ>(bvars[0], twelve));//
-			bins.push_back(mk<GEQ>(bvars[0], thirteen));//
-			bins.push_back(mk<GEQ>(bvars[0], fourteen));//
-			bins.push_back(mk<GEQ>(bvars[0], fifteen));//
-			bins.push_back(mk<LEQ>(bvars[0], sixteen));//
-			bins.push_back(mk<LEQ>(bvars[0], seventeen));//
-			bins.push_back(mk<LEQ>(bvars[0], eighteen));//
-			bins.push_back(mk<LEQ>(bvars[0], nineteen));//
-			bins.push_back(mk<LEQ>(bvars[0], twenty));//
-			bins.push_back(mk<LEQ>(bvars[0], twenty_one));//
-			bins.push_back(mk<GT>(bvars[0], thirty));//
-			bins.push_back(mk<GT>(bvars[0], fourty));//
-			bins.push_back(mk<GT>(bvars[0], fifty));//
-			bins.push_back(mk<GT>(bvars[0], sixty));//
-			bins.push_back(mk<GT>(bvars[0], seventy));//
-			bins.push_back(mk<GT>(bvars[0], eighty));//
-			bins.push_back(mk<LT>(bvars[0], ninty));//
-			bins.push_back(mk<LT>(bvars[0], thirty));//
-			bins.push_back(mk<LEQ>(bvars[0], thirty));//
-			bins.push_back(mk<LEQ>(bvars[0], fourty));//
-			bins.push_back(mk<LEQ>(bvars[0], fifty));//
-			bins.push_back(mk<LT>(bvars[0], fifty));//
-			bins.push_back(mk<LT>(bvars[0], sixty));//
-			bins.push_back(mk<LEQ>(bvars[0], one_hundred));//
-			bins.push_back(mk<LEQ>(bvars[0], two_hundred));//
-			bins.push_back(mk<LT>(bvars[0], five));//
-			bins.push_back(mk<LT>(bvars[0], six));//
-			bins.push_back(mk<LT>(bvars[0], seven));//
-			bins.push_back(mk<LT>(bvars[0], eight));//
-			bins.push_back(mk<LT>(bvars[0], nine));//
-			bins.push_back(mk<LT>(bvars[0], ten));//
-			bins.push_back(mk<LT>(bvars[0], eleven));//
-			bins.push_back(mk<LT>(bvars[0], twelve));//
-			bins.push_back(mk<LT>(bvars[0], thirteen));//
-			bins.push_back(mk<LT>(bvars[0], fourteen));//
-			bins.push_back(mk<LT>(bvars[0], fifteen));//
-			bins.push_back(mk<LEQ>(bvars[0], three_hundred));//
-			bins.push_back(mk<LEQ>(bvars[0], four_hundred));//
-			bins.push_back(mk<LEQ>(bvars[0], five_hundred));//
-			bins.push_back(mk<LEQ>(bvars[0], six_hundred));//
-			bins.push_back(mk<LEQ>(bvars[0], seven_hundred));//
-			bins.push_back(mk<LEQ>(bvars[0], eight_hundred));//
-			bins.push_back(mk<LEQ>(bvars[0], nine_hundred));//
+//			bins.push_back(mk<GEQ>(bvars[0], five));//
+//			bins.push_back(mk<GEQ>(bvars[0], six));//
+//			bins.push_back(mk<GEQ>(bvars[0], seven));//
+//			bins.push_back(mk<GEQ>(bvars[0], eight));//
+//			bins.push_back(mk<GEQ>(bvars[0], nine));//
+//			bins.push_back(mk<GEQ>(bvars[0], ten));//
+//			bins.push_back(mk<GEQ>(bvars[0], eleven));//
+//			bins.push_back(mk<GEQ>(bvars[0], twelve));//
+//			bins.push_back(mk<GEQ>(bvars[0], thirteen));//
+//			bins.push_back(mk<GEQ>(bvars[0], fourteen));//
+//			bins.push_back(mk<GEQ>(bvars[0], fifteen));//
+//			bins.push_back(mk<LEQ>(bvars[0], sixteen));//
+//			bins.push_back(mk<LEQ>(bvars[0], seventeen));//
+//			bins.push_back(mk<LEQ>(bvars[0], eighteen));//
+//			bins.push_back(mk<LEQ>(bvars[0], nineteen));//
+//			bins.push_back(mk<LEQ>(bvars[0], twenty));//
+//			bins.push_back(mk<LEQ>(bvars[0], twenty_one));//
+//			bins.push_back(mk<GT>(bvars[0], thirty));//
+//			bins.push_back(mk<GT>(bvars[0], fourty));//
+//			bins.push_back(mk<GT>(bvars[0], fifty));//
+//			bins.push_back(mk<GT>(bvars[0], sixty));//
+//			bins.push_back(mk<GT>(bvars[0], seventy));//
+//			bins.push_back(mk<GT>(bvars[0], eighty));//
+//			bins.push_back(mk<LT>(bvars[0], ninty));//
+//			bins.push_back(mk<LT>(bvars[0], thirty));//
+//			bins.push_back(mk<LEQ>(bvars[0], thirty));//
+//			bins.push_back(mk<LEQ>(bvars[0], fourty));//
+//			bins.push_back(mk<LEQ>(bvars[0], fifty));//
+//			bins.push_back(mk<LT>(bvars[0], fifty));//
+//			bins.push_back(mk<LT>(bvars[0], sixty));//
+//			bins.push_back(mk<LEQ>(bvars[0], one_hundred));//
+//			bins.push_back(mk<LEQ>(bvars[0], two_hundred));//
+//			bins.push_back(mk<LT>(bvars[0], five));//
+//			bins.push_back(mk<LT>(bvars[0], six));//
+//			bins.push_back(mk<LT>(bvars[0], seven));//
+//			bins.push_back(mk<LT>(bvars[0], eight));//
+//			bins.push_back(mk<LT>(bvars[0], nine));//
+//			bins.push_back(mk<LT>(bvars[0], ten));//
+//			bins.push_back(mk<LT>(bvars[0], eleven));//
+//			bins.push_back(mk<LT>(bvars[0], twelve));//
+//			bins.push_back(mk<LT>(bvars[0], thirteen));//
+//			bins.push_back(mk<LT>(bvars[0], fourteen));//
+//			bins.push_back(mk<LT>(bvars[0], fifteen));//
+//			bins.push_back(mk<LEQ>(bvars[0], three_hundred));//
+//			bins.push_back(mk<LEQ>(bvars[0], four_hundred));//
+//			bins.push_back(mk<LEQ>(bvars[0], five_hundred));//
+//			bins.push_back(mk<LEQ>(bvars[0], six_hundred));//
+//			bins.push_back(mk<LEQ>(bvars[0], seven_hundred));//
+//			bins.push_back(mk<LEQ>(bvars[0], eight_hundred));//
+//			bins.push_back(mk<LEQ>(bvars[0], nine_hundred));//
 		}
 		else // bvar_count >= 2
 		{
@@ -638,56 +638,56 @@ namespace seahorn
 				bins.push_back(mk<GEQ>(bvars[j], two));//
 				bins.push_back(mk<LEQ>(bvars[j], two));//
 				//For test
-				bins.push_back(mk<GEQ>(bvars[j], five));//
-				bins.push_back(mk<GEQ>(bvars[j], six));//
-				bins.push_back(mk<GEQ>(bvars[j], seven));//
-				bins.push_back(mk<GEQ>(bvars[j], eight));//
-				bins.push_back(mk<GEQ>(bvars[j], nine));//
-				bins.push_back(mk<GEQ>(bvars[j], ten));//
-				bins.push_back(mk<GEQ>(bvars[j], eleven));//
-				bins.push_back(mk<GEQ>(bvars[j], twelve));//
-				bins.push_back(mk<GEQ>(bvars[j], thirteen));//
-				bins.push_back(mk<GEQ>(bvars[j], fourteen));//
-				bins.push_back(mk<GEQ>(bvars[j], fifteen));//
-				bins.push_back(mk<LEQ>(bvars[j], sixteen));//
-				bins.push_back(mk<LEQ>(bvars[j], seventeen));//
-				bins.push_back(mk<LEQ>(bvars[j], eighteen));//
-				bins.push_back(mk<LEQ>(bvars[j], nineteen));//
-				bins.push_back(mk<LEQ>(bvars[j], twenty));//
-				bins.push_back(mk<LEQ>(bvars[j], twenty_one));//
-				bins.push_back(mk<GT>(bvars[j], thirty));//
-				bins.push_back(mk<GT>(bvars[j], fourty));//
-				bins.push_back(mk<GT>(bvars[j], fifty));//
-				bins.push_back(mk<GT>(bvars[j], sixty));//
-				bins.push_back(mk<GT>(bvars[j], seventy));//
-				bins.push_back(mk<GT>(bvars[j], eighty));//
-				bins.push_back(mk<LT>(bvars[j], ninty));//
-				bins.push_back(mk<LT>(bvars[j], thirty));//
-				bins.push_back(mk<LEQ>(bvars[j], thirty));//
-				bins.push_back(mk<LEQ>(bvars[j], fourty));//
-				bins.push_back(mk<LEQ>(bvars[j], fifty));//
-				bins.push_back(mk<LT>(bvars[j], fifty));//
-				bins.push_back(mk<LT>(bvars[j], sixty));//
-				bins.push_back(mk<LEQ>(bvars[j], one_hundred));//
-				bins.push_back(mk<LEQ>(bvars[j], two_hundred));//
-				bins.push_back(mk<LT>(bvars[j], five));//
-				bins.push_back(mk<LT>(bvars[j], six));//
-				bins.push_back(mk<LT>(bvars[j], seven));//
-				bins.push_back(mk<LT>(bvars[j], eight));//
-				bins.push_back(mk<LT>(bvars[j], nine));//
-				bins.push_back(mk<LT>(bvars[j], ten));//
-				bins.push_back(mk<LT>(bvars[j], eleven));//
-				bins.push_back(mk<LT>(bvars[j], twelve));//
-				bins.push_back(mk<LT>(bvars[j], thirteen));//
-				bins.push_back(mk<LT>(bvars[j], fourteen));//
-				bins.push_back(mk<LT>(bvars[j], fifteen));//
-				bins.push_back(mk<LEQ>(bvars[j], three_hundred));//
-				bins.push_back(mk<LEQ>(bvars[j], four_hundred));//
-				bins.push_back(mk<LEQ>(bvars[j], five_hundred));//
-				bins.push_back(mk<LEQ>(bvars[j], six_hundred));//
-				bins.push_back(mk<LEQ>(bvars[j], seven_hundred));//
-				bins.push_back(mk<LEQ>(bvars[j], eight_hundred));//
-				bins.push_back(mk<LEQ>(bvars[j], nine_hundred));//
+//				bins.push_back(mk<GEQ>(bvars[j], five));//
+//				bins.push_back(mk<GEQ>(bvars[j], six));//
+//				bins.push_back(mk<GEQ>(bvars[j], seven));//
+//				bins.push_back(mk<GEQ>(bvars[j], eight));//
+//				bins.push_back(mk<GEQ>(bvars[j], nine));//
+//				bins.push_back(mk<GEQ>(bvars[j], ten));//
+//				bins.push_back(mk<GEQ>(bvars[j], eleven));//
+//				bins.push_back(mk<GEQ>(bvars[j], twelve));//
+//				bins.push_back(mk<GEQ>(bvars[j], thirteen));//
+//				bins.push_back(mk<GEQ>(bvars[j], fourteen));//
+//				bins.push_back(mk<GEQ>(bvars[j], fifteen));//
+//				bins.push_back(mk<LEQ>(bvars[j], sixteen));//
+//				bins.push_back(mk<LEQ>(bvars[j], seventeen));//
+//				bins.push_back(mk<LEQ>(bvars[j], eighteen));//
+//				bins.push_back(mk<LEQ>(bvars[j], nineteen));//
+//				bins.push_back(mk<LEQ>(bvars[j], twenty));//
+//				bins.push_back(mk<LEQ>(bvars[j], twenty_one));//
+//				bins.push_back(mk<GT>(bvars[j], thirty));//
+//				bins.push_back(mk<GT>(bvars[j], fourty));//
+//				bins.push_back(mk<GT>(bvars[j], fifty));//
+//				bins.push_back(mk<GT>(bvars[j], sixty));//
+//				bins.push_back(mk<GT>(bvars[j], seventy));//
+//				bins.push_back(mk<GT>(bvars[j], eighty));//
+//				bins.push_back(mk<LT>(bvars[j], ninty));//
+//				bins.push_back(mk<LT>(bvars[j], thirty));//
+//				bins.push_back(mk<LEQ>(bvars[j], thirty));//
+//				bins.push_back(mk<LEQ>(bvars[j], fourty));//
+//				bins.push_back(mk<LEQ>(bvars[j], fifty));//
+//				bins.push_back(mk<LT>(bvars[j], fifty));//
+//				bins.push_back(mk<LT>(bvars[j], sixty));//
+//				bins.push_back(mk<LEQ>(bvars[j], one_hundred));//
+//				bins.push_back(mk<LEQ>(bvars[j], two_hundred));//
+//				bins.push_back(mk<LT>(bvars[j], five));//
+//				bins.push_back(mk<LT>(bvars[j], six));//
+//				bins.push_back(mk<LT>(bvars[j], seven));//
+//				bins.push_back(mk<LT>(bvars[j], eight));//
+//				bins.push_back(mk<LT>(bvars[j], nine));//
+//				bins.push_back(mk<LT>(bvars[j], ten));//
+//				bins.push_back(mk<LT>(bvars[j], eleven));//
+//				bins.push_back(mk<LT>(bvars[j], twelve));//
+//				bins.push_back(mk<LT>(bvars[j], thirteen));//
+//				bins.push_back(mk<LT>(bvars[j], fourteen));//
+//				bins.push_back(mk<LT>(bvars[j], fifteen));//
+//				bins.push_back(mk<LEQ>(bvars[j], three_hundred));//
+//				bins.push_back(mk<LEQ>(bvars[j], four_hundred));//
+//				bins.push_back(mk<LEQ>(bvars[j], five_hundred));//
+//				bins.push_back(mk<LEQ>(bvars[j], six_hundred));//
+//				bins.push_back(mk<LEQ>(bvars[j], seven_hundred));//
+//				bins.push_back(mk<LEQ>(bvars[j], eight_hundred));//
+//				bins.push_back(mk<LEQ>(bvars[j], nine_hundred));//
 			}
 		}
 

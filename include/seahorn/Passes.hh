@@ -34,7 +34,8 @@ namespace seahorn
   llvm::Pass* createPromoteMemoryToRegisterPass (); 
 
   llvm::Pass* createLoadCrabPass ();
-  llvm::Pass* createShadowMemDsaPass ();
+  llvm::Pass* createShadowMemDsaPass (); // llvm dsa
+  llvm::Pass* createShadowMemSeaDsaPass (); // seahorn dsa
   llvm::Pass* createStripShadowMemPass ();
 
   llvm::Pass* createCutLoopsPass ();
@@ -62,7 +63,7 @@ namespace seahorn
 
   llvm::Pass* createKleeInternalizePass ();
 
-  llvm::Pass* createWrapMemPass ();
+  llvm::Pass* createWrapMemPass ();  
 }
 
 #ifdef HAVE_LLVM_SEAHORN

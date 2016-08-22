@@ -469,14 +469,18 @@ namespace
         write (gep, mk<BADD> (base, off));
       else
         side (lhs, mk<BADD> (base, off));
-      if (!InferMemSafety)
+      
+      if (InferMemSafety)
       {
         // -- extra constraints that exclude undefined behavior
         if (!gep.isInBounds () || gep.getPointerAddressSpace () != 0)
           return;
         // -- base > 0 -> lhs > 0
-        side (mk<OR> (mk<EQ> (base, nullBv),
-                      mk<NEQ> (read (gep), nullBv)), true);
+        // side (mk<OR> (mk<EQ> (base, nullBv),
+                      // mk<NEQ> (read (gep), nullBv)), true);
+        
+        // lhs >= base
+        side (mk<BUGE> (read (gep), base));
       }
     }
     
@@ -811,7 +815,15 @@ namespace
       const Module &M = *F.getParent ();
       for (const GlobalVariable &g : boost::make_iterator_range (M.global_begin (),
                                                                  M.global_end ()))
-        if (m_sem.isTracked (g)) havoc (g);
+      {
+        if (m_sem.isTracked (g))
+        {
+          havoc (g);
+          if (InferMemSafety)
+            // globals are non-null
+            side (mk<BUGT> (lookup (g), nullBv));
+        }
+      }
     }
     
     void visitBasicBlock (BasicBlock &BB)
@@ -962,6 +974,13 @@ namespace seahorn
       res = bv::bvnum (/* cast to make clang on osx happy */
                        (unsigned long int)noffset, ptrSz, m_efac);
     if (soffset) res = res ? mk<BADD> (soffset, res) : soffset;
+
+    if (!res)
+    {
+      assert (noffset == 0);
+      assert (!soffset);
+      res = bv::bvnum ((unsigned long int)noffset, ptrSz, m_efac);
+    }
     
     return res;
   }

@@ -195,18 +195,18 @@ namespace seahorn
     }
   }
   
-  Expr BmcTrace::symb (unsigned loc, const llvm::Instruction &inst)
+  Expr BmcTrace::symb (unsigned loc, const llvm::Value &val)
   {
-    assert (inst.getParent () == bb(loc));
+    // assert (cast<Instruction>(&val)->getParent () == bb(loc));
     
-    if (!m_bmc.m_sem.isTracked (inst)) return Expr ();
-    if (isCallToVoidFn (inst)) return Expr ();
-    Expr u = m_bmc.m_sem.symb (inst);
+    if (!m_bmc.m_sem.isTracked (val)) return Expr ();
+    if (isa<Instruction> (val) && isCallToVoidFn (cast<Instruction>(val))) return Expr ();
+    Expr u = m_bmc.m_sem.symb (val);
     
     unsigned stateidx = cpid(loc);
     // -- all registers except for PHI nodes at the entry to an edge
     // -- get their value at the end of the edge
-    if (! (isa<PHINode> (inst) && isFirstOnEdge (loc)) ) stateidx++;
+    if (! (isa<PHINode> (val) && isFirstOnEdge (loc)) ) stateidx++;
     // -- out of bounds, no value in the model
     if (stateidx >= m_bmc.m_states.size ()) return Expr ();
     
@@ -215,10 +215,10 @@ namespace seahorn
   }
   
   Expr BmcTrace::eval (unsigned loc,
-                       const llvm::Instruction &inst,
+                       const llvm::Value &val,
                        bool complete) 
   {
-    Expr v = symb (loc, inst);
+    Expr v = symb (loc, val);
     if (v) v = m_model.eval (v, complete);
     return v;
   }

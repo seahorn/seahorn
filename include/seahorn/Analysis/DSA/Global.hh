@@ -216,30 +216,55 @@ namespace seahorn
   namespace dsa
   {
 
-    // XXX: for now, it makes sense to instantiate the template
-    // parameter only with ContextSensitiveGlobalAnalysis but in the
-    // future we might have other context-sensitive analyses.
-    template<class GlobalAnalysis>
-    class UniqueScalarAnalysis 
+    // Execute operation Op on each callsite until no more changes
+    template<class GlobalAnalysis, class Op>
+    class CallGraphClosure
     {
 
       GlobalAnalysis &m_ga;
       DsaCallGraph &m_dsaCG;
+      WorkList<const Instruction*> m_w; 
 
-      void join (const DsaCallSite &cs, Node& calleeN, Node& callerN,
-                 WorkList<const Instruction*> &w);
-      
-      void normalize (const DsaCallSite &cs, Graph& calleeG, Graph& callerG,
-                      WorkList<const Instruction*> &w);
+      void exec_callsite (const DsaCallSite &cs, Graph& calleeG, Graph& callerG);
 
      public:
 
-      UniqueScalarAnalysis (GlobalAnalysis &ga, DsaCallGraph &dsaCG)
+      CallGraphClosure (GlobalAnalysis &ga, DsaCallGraph &dsaCG)
           : m_ga (ga), m_dsaCG (dsaCG)  {}
       
       bool runOnModule (Module &M);
 
     };
-  }
-}
+
+    // Propagate unique scalar flag across callsites
+    class UniqueScalar 
+    {
+      DsaCallGraph &m_dsaCG;
+      WorkList<const Instruction*> &m_w;
+
+     public:
+      
+      UniqueScalar (DsaCallGraph &dsaCG, WorkList<const Instruction*> &w)
+          : m_dsaCG (dsaCG), m_w (w) {}
+
+      void runOnCallSite (const DsaCallSite &cs, Node &calleeN, Node &callerN);
+    };
+
+    // Propagate allocation sites across callsites
+    class AllocaSite
+    {
+      DsaCallGraph &m_dsaCG;
+      WorkList<const Instruction*> &m_w;
+
+     public:
+      
+      AllocaSite (DsaCallGraph &dsaCG, WorkList<const Instruction*> &w)
+          : m_dsaCG (dsaCG), m_w (w) {}
+
+      void runOnCallSite (const DsaCallSite &cs, Node &calleeN, Node &callerN);
+    };
+
+
+  } // end namespace
+} // end namespace
 #endif 

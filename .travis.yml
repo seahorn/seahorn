@@ -65,7 +65,7 @@ script:
   - ls run/bin/
   - run/bin/sea -h
   - /usr/bin/cmake --build . --target test-simple
-  
+  - /usr/bin/cmake --build . --target pred-abs
 
 
 notifications:

@@ -27,6 +27,7 @@
 #include "seahorn/HornifyModule.hh"
 #include "seahorn/HornSolver.hh"
 #include "seahorn/Houdini.hh"
+#include "seahorn/PredicateAbstraction.hh"
 #include "seahorn/HornCex.hh"
 #include "seahorn/Transforms/Scalar/PromoteVerifierCalls.hh"
 #include "seahorn/Transforms/Scalar/LowerGvInitializers.hh"
@@ -136,6 +137,11 @@ static llvm::cl::opt<bool>
 HoudiniInv ("horn-houdini",
          llvm::cl::desc ("Use Houdini algorithm to generate inductive invariants"),
          llvm::cl::init (false));
+
+static llvm::cl::opt<bool>
+PredAbs ("horn-pred-abs",
+        llvm::cl::desc ("Use Predicate Abstraction to generate inductive invariants"),
+        llvm::cl::init (false));
 
 // removes extension from filename if there is one
 std::string getFileName(const std::string &str) {
@@ -295,7 +301,8 @@ int main(int argc, char **argv) {
   {
     if (!OutputFilename.empty ()) pass_manager.add (new seahorn::HornWrite (output->os ()));
     if (Crab) pass_manager.add (seahorn::createLoadCrabPass ());
-    if (HoudiniInv) pass_manager.add (new seahorn::Houdini ());
+    if (HoudiniInv) pass_manager.add (new seahorn::HoudiniPass ());
+    if (PredAbs) pass_manager.add(new seahorn::PredicateAbstraction());
     if (Solve) pass_manager.add (new seahorn::HornSolver ());
     if (Cex) pass_manager.add (new seahorn::HornCex ());
   }

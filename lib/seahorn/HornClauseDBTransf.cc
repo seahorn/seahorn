@@ -1,4 +1,6 @@
 #include "seahorn/HornClauseDBTransf.hh"
+#include "seahorn/PredicateAbstraction.hh"
+#include "seahorn/HornifyModule.hh"
 #include "ufo/Expr.hpp"
 
 namespace seahorn

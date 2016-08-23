@@ -11,6 +11,8 @@
 #include "seahorn/Analysis/DSA/Global.hh"
 #include "seahorn/Analysis/DSA/Graph.hh"
 
+#include "ufo/Stats.hh"
+
 #include "avy/AvyDebug.h"
 
 using namespace seahorn::dsa;
@@ -98,6 +100,8 @@ printMemoryAccesses (live_nodes_const_range nodes, llvm::raw_ostream &o) const
   o << " --- Memory access information\n";
   for (auto const &n: nodes) { total_accesses += n.getAccesses(); }
   
+  ufo::Stats::uset ("DsaNumOfNodes", std::distance (nodes.begin () , nodes.end ()));
+
   o << "\t" << std::distance(nodes.begin(), nodes.end())  
     << " number of read or modified nodes.\n"
     << "\t" << total_accesses 
@@ -141,6 +145,8 @@ printMemoryTypes (live_nodes_const_range nodes, llvm::raw_ostream& o) const
   }
   o << "\t" << num_typed_nodes << " number of typed nodes.\n";
   o << "\t" << num_collapses << " number of collapsed nodes.\n";
+
+  ufo::Stats::uset ("DsaNumOfCollapsedNodes", num_collapses);
 
   // TODO: print all node's types
 }
@@ -187,7 +193,7 @@ void InfoAnalysis::assignAllocSiteIdAndPrinting
     unsigned num_alloc_sites = n.getNode()->getAllocSites ().size ();
     if (num_alloc_sites == 0) 
     {
-      errs () << *n.getNode () << " has no alllocation site\n";
+      o << *n.getNode () << " has no alllocation site\n";
       num_orphan_nodes++;
       num_orphan_checks += n.getAccesses();
       continue;
@@ -221,6 +227,8 @@ void InfoAnalysis::assignAllocSiteIdAndPrinting
   o << "\t   " << max_alloc_sites  << " max number of allocation sites in a node\n";
   o << "\t" << num_orphan_nodes  << " number of nodes without allocation site\n";
   o << "\t" << num_orphan_checks << " number of memory accesses without allocation site\n";
+
+  ufo::Stats::uset ("DsaNumOfAllocationSites", alloc_printing_map.size());
 
   if (outFile != "")
   {
@@ -440,14 +448,18 @@ bool InfoAnalysis::runOnFunction (Function &f)
 bool InfoAnalysis::runOnModule (Module &M) 
 {
   for (auto &f: M) { runOnFunction (f); }
+  ufo::Stats::uset ("NumOfFunctions", std::distance (M.begin () , M.end ()));
 
-  errs () << " ========== Begin Dsa info  ==========\n";
+  // discards output if verbose mode is disabled
+  raw_ostream &o = (m_verbose ? errs () : nulls ());
 
-  printMemoryAccesses (live_nodes (), llvm::errs());
-  printMemoryTypes (live_nodes (), llvm::errs());
-  assignAllocSiteIdAndPrinting  (live_nodes (), llvm::errs(), DsaInfoToFile);
+  o << " ========== Begin Dsa info  ==========\n";
+
+  printMemoryAccesses (live_nodes (), o);
+  printMemoryTypes (live_nodes (), o);
+  assignAllocSiteIdAndPrinting  (live_nodes (), o, DsaInfoToFile);
   
-  errs () << " ========== End Dsa info  ==========\n";
+  o << " ========== End Dsa info  ==========\n";
 
   return false;
 }
@@ -488,3 +500,4 @@ const Value* InfoAnalysis::getAllocValue (unsigned int alloc_site_id) const
   else
     return nullptr; //not found
 } 
+

@@ -90,6 +90,7 @@ namespace seahorn
       const llvm::DataLayout &m_dl;
       const llvm::TargetLibraryInfo &m_tli;
       GlobalAnalysis &m_dsa;
+      bool m_verbose;
 
       NodeInfoMap m_nodes_map; // map Node to NodeInfo
       AllocSiteBiMap m_alloc_sites; // bimap allocation sites to id
@@ -155,8 +156,8 @@ namespace seahorn
       public:
        
       InfoAnalysis (const llvm::DataLayout &dl, const llvm::TargetLibraryInfo &tli,
-                    GlobalAnalysis &dsa)
-          : m_dl (dl), m_tli (tli), m_dsa (dsa) {}
+                    GlobalAnalysis &dsa, bool verbose = true)
+          : m_dl (dl), m_tli (tli), m_dsa (dsa), m_verbose (verbose) {}
 
       bool runOnModule (llvm::Module &M);
       bool runOnFunction (llvm::Function &fn);
@@ -179,7 +180,7 @@ namespace seahorn
       const llvm::Value* getAllocValue (unsigned int alloc_site_id) const;
 
     };
-  
+
   }
 }
 #endif 

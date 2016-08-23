@@ -709,7 +709,7 @@ namespace seahorn
           Node &n = g.mkNode ();
           g.mkCell (a, Cell (n, 0));
           // -- record allocation site
-          n.addAllocSite(a);
+          //n.addAllocSite(a);
           // -- mark node as a stack node
           n.setAlloca();
         }
@@ -732,28 +732,28 @@ namespace seahorn
            for (auto &kv: boost::make_iterator_range(g.scalar_begin(),
                                                      g.scalar_end())) 
              if (kv.second->isRead() || kv.second->isModified()) 
-               if (kv.second->getNode ()->begin() == kv.second->getNode ()->end()) {
+               if (kv.second->getNode ()->getAllocSites().empty ()) {
                  errs () << "SCALAR " << *(kv.first) << "\n";
                  errs () << "WARNING: a node has no allocation site\n";
                }
            for (auto &kv: boost::make_iterator_range(g.formal_begin(),
                                                      g.formal_end())) 
              if (kv.second->isRead() || kv.second->isModified()) 
-               if (kv.second->getNode ()->begin() == kv.second->getNode ()->end()) {
+               if (kv.second->getNode ()->getAllocSites ().empty ()) {
                  errs () << "FORMAL " << *(kv.first) << "\n";
                  errs () << "WARNING: a node has no allocation site\n";
                }
            for (auto &kv: boost::make_iterator_range(g.return_begin(),
                                                      g.return_end())) 
              if (kv.second->isRead() || kv.second->isModified()) 
-               if (kv.second->getNode ()->begin() == kv.second->getNode ()->end()) {
+               if (kv.second->getNode ()->getAllocSites ().empty ()) {
                  errs () << "RETURN " << kv.first->getName() << "\n";
                  errs () << "WARNING: a node has no allocation site\n";
                }
            );
 
-      LOG ("dsa-local", 
-           errs () << "Dsa graph after " << F.getName () << "\n";
+      LOG ("dsa-local-graph", 
+           errs () << "### Local Dsa graph after " << F.getName () << "\n";
            g.write(errs()));
       
     }

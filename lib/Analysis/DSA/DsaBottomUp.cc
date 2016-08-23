@@ -154,6 +154,14 @@ namespace seahorn
         if (fGraph) fGraph->compress();        
       }
 
+      LOG ("dsa-bu-graph", 
+           for (auto &kv : graphs) 
+           {
+             errs () << "### Bottom-up Dsa graph for " << kv.first->getName () << "\n";
+             kv.second->write (errs ());
+             errs () << "\n";
+           });
+      
       LOG("dsa-bu", errs () << "Finished bottom-up analysis\n");
       return false;
     }

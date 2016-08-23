@@ -30,8 +30,13 @@
 
 static llvm::cl::opt<bool>
 normalizeUniqueScalars("horn-sea-dsa-norm-unique-scalar",
-            llvm::cl::desc("DSA: all callees and callers agree on unique scalars"),
-            llvm::cl::init (true));
+                       llvm::cl::desc("DSA: all callees and callers agree on unique scalars"),
+                       llvm::cl::init (true));
+
+static llvm::cl::opt<bool>
+normalizeAllocaSites("horn-sea-dsa-norm-alloca-sites",
+                     llvm::cl::desc("DSA: all callees and callers agree on allocation sites"),
+                     llvm::cl::init (true));
 
 using namespace llvm;
 
@@ -131,8 +136,14 @@ namespace seahorn
       }
 
       ufo::Stats::stop ("CI-DsaAnalysis");
-      LOG("dsa-global", 
-          errs () << "Finished context-insensitive global analysis.\n");
+
+      LOG ("dsa-global-graph", 
+           errs () << "### Global Dsa graph \n";
+           m_graph->write (errs ());
+           errs () << "\n");
+           
+      LOG ("dsa-global", 
+           errs () << "Finished context-insensitive global analysis.\n");
 
       return false;
     }
@@ -257,7 +268,6 @@ namespace seahorn
         if (sm.isFunction ())
           res = (sm.isInjective () ? NONE: DOWN);
       }
-
       return res;
     }
     
@@ -385,12 +395,27 @@ namespace seahorn
 
       assert (checkNoMorePropagation ());
 
+      /// FIXME: propagate both in the same fixpoint
       if (normalizeUniqueScalars)
       {
-        UniqueScalarAnalysis<ContextSensitiveGlobalAnalysis> usa (*this, dsaCG);
+        CallGraphClosure<ContextSensitiveGlobalAnalysis, UniqueScalar> usa (*this, dsaCG);
         usa.runOnModule (M);
       }
 
+      if (normalizeAllocaSites)
+      {
+        CallGraphClosure<ContextSensitiveGlobalAnalysis, AllocaSite> asa (*this, dsaCG);
+        asa.runOnModule (M);
+      }
+        
+      LOG ("dsa-global-graph", 
+           for (auto &kv : m_graphs) 
+           {
+             errs () << "### Global Dsa graph for " << kv.first->getName () << "\n";
+             kv.second->write (errs ());
+             errs () << "\n";
+           });
+           
       LOG("dsa-global", errs () << "Finished context-sensitive global analysis\n");
 
       ufo::Stats::stop ("CS-DsaAnalysis");          
@@ -475,140 +500,152 @@ namespace seahorn
   }
 }
 
-namespace seahorn
+namespace seahorn 
 {
-  namespace dsa
-  {
+   namespace dsa
+   {
 
-    template<class GA>
-    void UniqueScalarAnalysis<GA>::join (const DsaCallSite &cs, 
-                                         Node &calleeN, Node &callerN, 
-                                         WorkList<const Instruction*> &w)
-    {
-
-      if (calleeN.getUniqueScalar () && callerN.getUniqueScalar ())
-      { 
-        assert (calleeN.getUniqueScalar () == callerN.getUniqueScalar ()); 
-      }
-      else if (calleeN.getUniqueScalar ()) 
+      // propagate unique scalars across callsites
+      void UniqueScalar::runOnCallSite (const DsaCallSite &cs, 
+                                        Node &calleeN, Node &callerN)
       {
-        calleeN.setUniqueScalar (nullptr);
-
-        if (const Function *fn = cs.getCallee ())
+        unsigned changed =  calleeN.mergeUniqueScalar (callerN);
+        if (changed & 0x01) // calleeN changed
         {
-          for (auto ci: m_dsaCG.getUses (*fn)) w.enqueue(ci);
-          for (auto ci: m_dsaCG.getDefs (*fn)) w.enqueue(ci); 
-        }
-        
-        LOG("dsa-unique-scalar",
-            errs () << "callee node " << calleeN << " becomes a non-unique scalar\n";);
-      }
-      else if (callerN.getUniqueScalar ()) 
-      {
-        callerN.setUniqueScalar (nullptr);
-        
-        if (const Function *fn = cs.getCaller ())
-        {
-          for (auto ci: m_dsaCG.getUses (*fn)) w.enqueue(ci); 
-          for (auto ci: m_dsaCG.getDefs (*fn)) w.enqueue(ci); 
-        }
-        
-        LOG("dsa-unique-scalar",
-            errs () << "caller node " << callerN << " becomes a non-unique scalar\n";);
-      }
-    }
-    
-    template<class GA>
-    void UniqueScalarAnalysis<GA>::normalize (const DsaCallSite &cs, 
-                                              Graph& calleeG, Graph& callerG,
-                                              WorkList<const Instruction*> &w)
-    {
-      // globals 
-      for (auto &kv : boost::make_iterator_range (calleeG.globals_begin (),
-                                                  calleeG.globals_end ()))
-      {
-        Cell &c = *kv.second;
-        Cell &nc = callerG.mkCell (*kv.first, Cell ());
-        join (cs, *c.getNode(), *nc.getNode(), w);
-      }
-
-      // return
-      const Function &callee = *cs.getCallee ();
-      if (calleeG.hasRetCell (callee) && callerG.hasCell (*cs.getInstruction ()))
-      {
-        Cell &c = calleeG.getRetCell (callee);
-        Cell &nc = callerG.mkCell (*cs.getInstruction (), Cell ());
-        join (cs, *c.getNode(), *nc.getNode(), w);
-      }
-
-      // actuals and formals
-      DsaCallSite::const_actual_iterator AI = cs.actual_begin(), AE = cs.actual_end();
-      for (DsaCallSite::const_formal_iterator FI = cs.formal_begin(), FE = cs.formal_end();
-           FI != FE && AI != AE; ++FI, ++AI) 
-      {
-        const Value *arg = (*AI).get();
-        const Value *fml = &*FI;
-        if (callerG.hasCell (*arg) && calleeG.hasCell (*fml))
-        {
-          Cell &c = calleeG.mkCell (*fml, Cell ());
-          Cell &nc =  callerG.mkCell (*arg, Cell ());
-          join (cs, *c.getNode(), *nc.getNode(), w);
-        }
-      }
-    }
-  
-    template<class GA>
-    bool UniqueScalarAnalysis<GA>::runOnModule(Module &M) 
-    {
-      WorkList<const Instruction*> w;
-
-      for (auto it = scc_begin (&m_dsaCG.getCallGraph()); !it.isAtEnd (); ++it)
-      {
-        auto &scc = *it;
-        for (CallGraphNode *cgn : scc)
-        {
-          Function *fn = cgn->getFunction ();
-          if (!fn || fn->isDeclaration () || fn->empty ()) continue;
-          
-          for (auto &callRecord : *cgn)
+          if (const Function *fn = cs.getCallee ())
           {
-            ImmutableCallSite CS (callRecord.first);
-            DsaCallSite dsaCS (CS);
+            for (auto ci: m_dsaCG.getUses (*fn)) m_w.enqueue(ci);
+            for (auto ci: m_dsaCG.getDefs (*fn)) m_w.enqueue(ci); 
+          }
+        }
 
-            const Function *callee = dsaCS.getCallee ();
-            if (!callee || callee->isDeclaration () || callee->empty ()) continue;
-
-            if (m_ga.hasGraph (*dsaCS.getCaller()) && m_ga.hasGraph (*dsaCS.getCallee()))
-            {
-              Graph &calleeG = m_ga.getGraph (*dsaCS.getCallee());        
-              Graph &callerG = m_ga.getGraph (*dsaCS.getCaller());
-              normalize (dsaCS, calleeG, callerG, w);
-            }
+        if (changed & 0x02) // callerN changed
+        {
+          if (const Function *fn = cs.getCaller ())
+          {
+            for (auto ci: m_dsaCG.getUses (*fn)) m_w.enqueue(ci); 
+            for (auto ci: m_dsaCG.getDefs (*fn)) m_w.enqueue(ci); 
           }
         }
       }
 
-      while (!w.empty()) 
+      // propagate allocation sites across callsites
+      void AllocaSite::runOnCallSite (const DsaCallSite &cs, 
+                                      Node &calleeN, Node &callerN)
       {
-        const Instruction* I = w.dequeue ();
-        ImmutableCallSite CS (I);
-        DsaCallSite dsaCS (CS);
-
-        assert (dsaCS.getCaller ());
-        assert (dsaCS.getCallee ());
-
-        if (m_ga.hasGraph (*dsaCS.getCaller ()) && m_ga.hasGraph (*dsaCS.getCallee ()))
+        unsigned changed =  calleeN.mergeAllocSites (callerN);
+        if (changed & 0x01) // calleeN changed
         {
-          Graph &calleeG = m_ga.getGraph (*dsaCS.getCallee());        
-          Graph &callerG = m_ga.getGraph (*dsaCS.getCaller());
-          normalize (dsaCS, calleeG, callerG, w);
+          if (const Function *fn = cs.getCallee ())
+          {
+            for (auto ci: m_dsaCG.getUses (*fn)) m_w.enqueue(ci);
+            for (auto ci: m_dsaCG.getDefs (*fn)) m_w.enqueue(ci); 
+          }
+        }
+
+        if (changed & 0x02) // callerN changed
+        {
+          if (const Function *fn = cs.getCaller ())
+          {
+            for (auto ci: m_dsaCG.getUses (*fn)) m_w.enqueue(ci); 
+            for (auto ci: m_dsaCG.getDefs (*fn)) m_w.enqueue(ci); 
+          }
         }
       }
-      
-      return false;
-    }
-  }
-}
+   
+      // Quick closure implementation over a call graph's callsites
+      template<class GA, class Op>
+      bool CallGraphClosure<GA, Op>::runOnModule(Module &M) 
+      {
+        for (auto it = scc_begin (&m_dsaCG.getCallGraph()); !it.isAtEnd (); ++it)
+        {
+          auto &scc = *it;
+          for (CallGraphNode *cgn : scc)
+          {
+            Function *fn = cgn->getFunction ();
+            if (!fn || fn->isDeclaration () || fn->empty ()) continue;
+            
+            for (auto &callRecord : *cgn)
+            {
+              ImmutableCallSite CS (callRecord.first);
+              DsaCallSite dsaCS (CS);
+
+              const Function *callee = dsaCS.getCallee ();
+              if (!callee || callee->isDeclaration () || callee->empty ()) continue;
+              
+              if (m_ga.hasGraph (*dsaCS.getCaller()) && m_ga.hasGraph (*dsaCS.getCallee()))
+              {
+                Graph &calleeG = m_ga.getGraph (*dsaCS.getCallee());        
+                Graph &callerG = m_ga.getGraph (*dsaCS.getCaller());
+                exec_callsite (dsaCS, calleeG, callerG);
+              }
+            }
+          }
+        }
+        
+        while (!m_w.empty()) 
+        {
+          const Instruction* I = m_w.dequeue ();
+          ImmutableCallSite CS (I);
+          DsaCallSite dsaCS (CS);
+          
+          assert (dsaCS.getCaller ());
+          assert (dsaCS.getCallee ());
+          
+          if (m_ga.hasGraph (*dsaCS.getCaller ()) && m_ga.hasGraph (*dsaCS.getCallee ()))
+          {
+            Graph &calleeG = m_ga.getGraph (*dsaCS.getCallee());        
+            Graph &callerG = m_ga.getGraph (*dsaCS.getCaller());
+            exec_callsite (dsaCS, calleeG, callerG);
+          }
+        }
+        return false;
+      }
+   
+      template<class GA, class Op>
+      void CallGraphClosure<GA, Op>::exec_callsite (const DsaCallSite &cs, 
+                                                    Graph& calleeG, Graph& callerG)
+      {
+        // globals 
+        for (auto &kv : boost::make_iterator_range (calleeG.globals_begin (),
+                                                    calleeG.globals_end ()))
+        {
+          Cell &c = *kv.second;
+          Cell &nc = callerG.mkCell (*kv.first, Cell ());
+          Op op (m_dsaCG, m_w);
+          op.runOnCallSite (cs, *c.getNode(), *nc.getNode());
+        }
+        
+        // return
+        const Function &callee = *cs.getCallee ();
+        if (calleeG.hasRetCell (callee) && callerG.hasCell (*cs.getInstruction ()))
+        {
+          Cell &c = calleeG.getRetCell (callee);
+          Cell &nc = callerG.mkCell (*cs.getInstruction (), Cell ());
+          Op op (m_dsaCG, m_w);
+          op.runOnCallSite (cs, *c.getNode(), *nc.getNode());
+        }
+        
+        // actuals and formals
+        DsaCallSite::const_actual_iterator AI = cs.actual_begin(), AE = cs.actual_end();
+        for (DsaCallSite::const_formal_iterator FI = cs.formal_begin(), FE = cs.formal_end();
+             FI != FE && AI != AE; ++FI, ++AI) 
+        {
+          const Value *arg = (*AI).get();
+          const Value *fml = &*FI;
+          if (callerG.hasCell (*arg) && calleeG.hasCell (*fml))
+          {
+            Cell &c = calleeG.mkCell (*fml, Cell ());
+            Cell &nc =  callerG.mkCell (*arg, Cell ());
+            Op op (m_dsaCG, m_w);
+            op.runOnCallSite (cs, *c.getNode(), *nc.getNode());
+          }
+        }
+      }
+
+   } // end namespace
+} // end namespace 
+
 
 char seahorn::dsa::ContextInsensitiveGlobal::ID = 0;
 

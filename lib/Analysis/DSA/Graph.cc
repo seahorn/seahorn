@@ -377,6 +377,7 @@ void dsa::Node::unifyAt (Node &n, unsigned o)
 }
 
 
+/// pre: this simulated by n
 unsigned dsa::Node::mergeUniqueScalar (Node &n)
 {
   unsigned res = 0x0;
@@ -395,12 +396,16 @@ unsigned dsa::Node::mergeUniqueScalar (Node &n)
 
   for (auto &kv: n.links ())
   {
-    unsigned o2 = kv.first;
-    auto &c2 = kv.second;
-    assert (hasLink (o2));
-    auto &c1 = getLink (o2);
-    res |= c1.getNode ()->mergeUniqueScalar (*c2->getNode ());
+    Node *n2 = kv.second->getNode ();
+    unsigned j = kv.first;
+
+    if (hasLink (j))
+    {
+      Node *n1 = getLink (j).getNode ();
+      res |= n1->mergeUniqueScalar (*n2);
+    }
   }
+
   return res;
 }
 
@@ -416,6 +421,7 @@ void dsa::Node::joinAllocSites(const AllocaSet &s)
   std::swap (res, m_alloca_sites);
 }
 
+// pre: this simulated by n
 unsigned dsa::Node::mergeAllocSites (Node &n)
 {
   auto const& s1 = getAllocSites ();
@@ -442,15 +448,19 @@ unsigned dsa::Node::mergeAllocSites (Node &n)
     n.joinAllocSites (s1);
     res = 0x3;
   }
-  
+
   for (auto &kv: n.links ())
   {
-    unsigned o2 = kv.first;
-    auto &c2 = kv.second;
-    assert (hasLink (o2));
-    auto &c1 = getLink (o2);
-    res |= c1.getNode ()->mergeAllocSites (*c2->getNode ());
+    Node *n2 = kv.second->getNode ();
+    unsigned j = kv.first;
+
+    if (hasLink (j))
+    {
+      Node *n1 = getLink (j).getNode ();
+      res |= n1->mergeAllocSites (*n2);
+    }
   }
+
   return res;
 } 
 
@@ -707,7 +717,11 @@ dsa::Cell &dsa::Graph::mkCell (const llvm::Value &u, const Cell &c)
   auto &v = *u.stripPointerCasts ();
   // Pretend that global values are always present
   if (isa<GlobalValue> (&v) && c.isNull ())
-    return mkCell (v, Cell (mkNode (), 0));  
+  {
+    dsa::Node &n = mkNode ();
+    n.addAllocSite (v);
+    return mkCell (v, Cell (n, 0));  
+  }
 
   auto &res = isa<Argument> (v) ? m_formals[cast<const Argument>(&v)] : m_values [&v];
   if (!res)

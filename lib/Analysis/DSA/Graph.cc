@@ -176,6 +176,7 @@ void dsa::Node::collapse (int tag)
        if (m_unique_scalar)
          errs () << "KILL due to collapse: "
                  << *m_unique_scalar <<"\n";);
+
   m_unique_scalar = nullptr;
   assert (!isForwarding ());
   // if the node is already of smallest size, just mark it
@@ -375,6 +376,34 @@ void dsa::Node::unifyAt (Node &n, unsigned o)
   n.pointTo (*this, offset);
 }
 
+
+unsigned dsa::Node::mergeUniqueScalar (Node &n)
+{
+  unsigned res = 0x0;
+  if (getUniqueScalar () && n.getUniqueScalar ())
+  { assert (getUniqueScalar () == n.getUniqueScalar ()); }
+  else if (getUniqueScalar ()) 
+  {
+    setUniqueScalar (nullptr);
+    res = 0x01;
+  }
+  else if (n.getUniqueScalar ()) 
+  {
+    n.setUniqueScalar (nullptr);
+    res = 0x02;    
+  }
+
+  for (auto &kv: n.links ())
+  {
+    unsigned o2 = kv.first;
+    auto &c2 = kv.second;
+    assert (hasLink (o2));
+    auto &c1 = getLink (o2);
+    res |= c1.getNode ()->mergeUniqueScalar (*c2->getNode ());
+  }
+  return res;
+}
+
 void dsa::Node::addAllocSite(const Value& v) 
 {
   m_alloca_sites.insert (&v);
@@ -386,6 +415,44 @@ void dsa::Node::joinAllocSites(const AllocaSet &s)
   boost::set_union (m_alloca_sites, s, std::inserter (res, res.end ()));
   std::swap (res, m_alloca_sites);
 }
+
+unsigned dsa::Node::mergeAllocSites (Node &n)
+{
+  auto const& s1 = getAllocSites ();
+  auto const& s2 = n.getAllocSites ();
+  
+  unsigned res = 0x0; 
+  
+  if (std::includes(s1.begin(), s1.end (), s2.begin(), s2.end ()))
+  {
+    if (!std::includes(s2.begin(), s2.end (), s1.begin(), s1.end ()))
+    {
+      n.joinAllocSites (s1);
+      res = 0x2;
+    }
+  }
+  else if (std::includes(s2.begin(), s2.end (), s1.begin(), s1.end ()))
+  {
+    joinAllocSites (s2);
+    res = 0x1;
+  }
+  else
+  {
+    joinAllocSites (s2);
+    n.joinAllocSites (s1);
+    res = 0x3;
+  }
+  
+  for (auto &kv: n.links ())
+  {
+    unsigned o2 = kv.first;
+    auto &c2 = kv.second;
+    assert (hasLink (o2));
+    auto &c1 = getLink (o2);
+    res |= c1.getNode ()->mergeAllocSites (*c2->getNode ());
+  }
+  return res;
+} 
 
 
 void dsa::Node::writeTypes(raw_ostream&o) const {
@@ -432,8 +499,6 @@ void dsa::Node::write(raw_ostream&o) const {
   {
     /// XXX: we print here the address. Therefore, it will change from
     /// one run to another.
-    /// TODO: assign a unique identifier based on some representative
-    /// (among all referrers).
 
     o << "Node " << this << ": ";
     o << "flags=[" << m_nodeType.toStr() << "] ";
@@ -448,7 +513,18 @@ void dsa::Node::write(raw_ostream&o) const {
         first = false;
       o << kv.first << ":" << kv.second->getNode();
     }
-    o << "]";
+    o << "] ";
+    first = true;
+    o << " alloca sites=[";
+    for (const Value* a: getAllocSites())
+    {
+      if (!first) 
+        o << ",";
+      else 
+        first = false;
+      o << *a;
+    }
+    o << "]";        
   }
 }
 

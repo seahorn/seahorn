@@ -376,9 +376,6 @@ namespace seahorn
       void growSize (const Offset &offset, const llvm::Type *t);
       Node &setArray (bool v = true) { m_nodeType.array = v; return *this; }
 
-      /// joins all the allocation sites
-      void joinAllocSites (const AllocaSet& s);
-
       void writeTypes (llvm::raw_ostream &o) const;
 
     public:
@@ -429,6 +426,12 @@ namespace seahorn
       void setUniqueScalar (const llvm::Value *v) 
       {m_unique_scalar = v; m_has_unique_scalar=true;}
       bool hasUniqueScalar () const { return m_has_unique_scalar;}
+      /// compute a simulation relation between this and n while
+      /// propagating unique scalars for all the nodes in the
+      /// relation. The result can only be one of these four values:
+      /// 0x0 (no change), 0x1 (this changed), 0x2 (n changed), 0x3
+      /// (both changed).
+      unsigned mergeUniqueScalar (Node &n);
 
       inline bool isForwarding () const;
       
@@ -478,12 +481,17 @@ namespace seahorn
 
       /// Add a new allocation site
       void addAllocSite (const llvm::Value &v);
-
-      typedef typename AllocaSet::const_iterator alloc_iterator;
-
-      alloc_iterator begin() const { return m_alloca_sites.begin(); }
-      alloc_iterator end() const { return m_alloca_sites.end(); }
-
+      /// get all allocation sites
+      const AllocaSet& getAllocSites () const { return m_alloca_sites;}
+      /// joins all the allocation sites
+      void joinAllocSites (const AllocaSet& s);
+      /// compute a simulation relation between this and n while
+      /// propagating allocation sites for all the nodes in the
+      /// relation. The result can only be one of these four values:
+      /// 0x0 (no change), 0x1 (this changed), 0x2 (n changed), 0x3
+      /// (both changed).
+      unsigned mergeAllocSites (Node &n);
+      
       /// pretty-printer of a node
       void write(llvm::raw_ostream&o) const;    
 

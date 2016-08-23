@@ -17,7 +17,7 @@ using namespace seahorn::dsa;
 using namespace llvm;
 
 static llvm::cl::opt<std::string>
-DsaInfoToFile("horn-sea-dsa-info-to-file",
+DsaInfoToFile("sea-dsa-info-to-file",
     llvm::cl::desc ("Dump some Dsa info into a file"),
     llvm::cl::init (""),
     llvm::cl::Hidden);
@@ -184,9 +184,10 @@ void InfoAnalysis::assignAllocSiteIdAndPrinting
   // iterate over all nodes
   for (auto &n: nodes) 
   {
-    unsigned num_alloc_sites = std::distance(n.getNode()->begin(), n.getNode()->end());
+    unsigned num_alloc_sites = n.getNode()->getAllocSites ().size ();
     if (num_alloc_sites == 0) 
     {
+      errs () << *n.getNode () << " has no alllocation site\n";
       num_orphan_nodes++;
       num_orphan_checks += n.getAccesses();
       continue;
@@ -195,8 +196,7 @@ void InfoAnalysis::assignAllocSiteIdAndPrinting
       max_alloc_sites = std::max (max_alloc_sites, num_alloc_sites);
     
     // iterate over all allocation sites
-    for (const llvm::Value*v : boost::make_iterator_range(n.getNode()->begin(),
-                                                          n.getNode()->end())) 
+    for (const llvm::Value*v : n.getNode ()->getAllocSites ()) 
     {
 
       // assign a unique id to the allocation site for Dsa clients
@@ -240,7 +240,7 @@ void InfoAnalysis::assignAllocSiteIdAndPrinting
 
   LOG ("dsa-info-alloc-sites",
        for (auto &kv: alloc_printing_map) {
-         o << "  [Alloc site Id " << kv.second.first << " DSNode Ids {";
+         o << "\t  [Alloc site Id " << kv.second.first << " DSNode Ids {";
          bool first = true;
          for (typename NodeInfoSet::iterator it = kv.second.second.begin(),
                   et = kv.second.second.end(); it != et; ) {
@@ -256,8 +256,7 @@ void InfoAnalysis::assignAllocSiteIdAndPrinting
   for (auto &n: nodes) 
   {
     SmallPtrSet<Type*,32> allocTypes;
-    for (const llvm::Value*v : 
-         boost::make_iterator_range(n.getNode()->begin(), n.getNode()->end())) 
+    for (const llvm::Value*v : n.getNode ()->getAllocSites ()) 
       allocTypes.insert(v->getType());
 
     num_non_singleton += (allocTypes.size() > 1);

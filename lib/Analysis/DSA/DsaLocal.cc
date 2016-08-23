@@ -708,8 +708,9 @@ namespace seahorn
         if (a.getType ()->isPointerTy () && !g.hasCell (a)) {
           Node &n = g.mkNode ();
           g.mkCell (a, Cell (n, 0));
-          // -- record allocation site
-          //n.addAllocSite(a);
+          // -- XXX: hook to record allocation site if F is main
+          if (F.getName () == "main")
+            n.addAllocSite(a);
           // -- mark node as a stack node
           n.setAlloca();
         }

@@ -1,6 +1,8 @@
 #include "seahorn/HornCex.hh"
 #include "seahorn/Harness.hh"
 
+#include "seahorn/MemSimulator.hh"
+
 #include "llvm/IR/Function.h"
 #include "ufo/Stats.hh"
 
@@ -37,6 +39,8 @@
 
 #include "llvm/Bitcode/ReaderWriter.h"
 
+#include "llvm/IR/DataLayout.h"
+#include "llvm/Target/TargetLibraryInfo.h"
 
 
 #include <gmpxx.h>
@@ -49,6 +53,11 @@ static llvm::cl::opt<bool>
 UseBv ("horn-cex-bv",
        llvm::cl::desc("Construct bit-precise counterexamples"),
        llvm::cl::init (false));
+
+static llvm::cl::opt<bool>
+MemSim ("horn-cex-bv-memsim",
+        llvm::cl::desc ("Run memory simulation on the counterexample"),
+        llvm::cl::init (false));
 
 static llvm::cl::opt<std::string>
 SvCompCexFileSpec("horn-svcomp-cex-spec", 
@@ -226,6 +235,18 @@ namespace seahorn
     BmcTrace trace (bmc.getTrace ());
     LOG ("cex", trace.print (errs ()););
 
+    
+    if (UseBv)
+    {
+      const DataLayout &dl = getAnalysis<DataLayoutPass> ().getDataLayout();
+      const TargetLibraryInfo &tli = getAnalysis<TargetLibraryInfo> ();
+      if (MemSim)
+      {
+        MemSimulator memSim (trace, dl, tli);
+        bool simRes = memSim.simulate ();
+      }
+    }
+    
     StringRef HornCexFileRef(HornCexFile);
     if (HornCexFileRef.endswith(".ll") ||
         HornCexFileRef.endswith(".bc")) {
@@ -275,6 +296,7 @@ namespace seahorn
   {
     AU.setPreservesAll ();
     AU.addRequired<DataLayoutPass> ();
+    AU.addRequired<TargetLibraryInfo> ();
     AU.addRequired<CutPointGraph> ();
     AU.addRequired<HornifyModule> ();
     AU.addRequired<HornSolver> ();

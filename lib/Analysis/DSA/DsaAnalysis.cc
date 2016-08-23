@@ -20,7 +20,7 @@ DsaCsGlobalAnalysis ("horn-sea-dsa-cs-global",
                    llvm::cl::init (true));
 
 static llvm::cl::opt<bool>
-ComputeDsaInfo ("horn-sea-dsa-info",
+ComputeDsaInfo ("sea-dsa-info",
                 llvm::cl::desc ("DSA: pre-compute information for answering client queries"),
                 llvm::cl::init (false));
 

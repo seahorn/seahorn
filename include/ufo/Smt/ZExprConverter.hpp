@@ -372,7 +372,7 @@ namespace ufo
         /** Bit-Vectors */
         else if (isOpX<BSEXT> (e) || isOpX<BZEXT> (e) )
         {
-          assert (Z3_get_sort_kind (Z3_get_sort (ctx, t1)) == Z3_BV_SORT);
+          assert (Z3_get_sort_kind (ctx, Z3_get_sort (ctx, t1)) == Z3_BV_SORT);
           unsigned t1_sz = Z3_get_bv_sort_size (ctx, Z3_get_sort (ctx, t1));
           assert (t1_sz > 0);
           assert (t1_sz < bv::width (e->arg (1)));

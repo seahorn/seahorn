@@ -24,6 +24,11 @@ ComputeDsaInfo ("sea-dsa-info",
                 llvm::cl::desc ("DSA: pre-compute information for answering client queries"),
                 llvm::cl::init (false));
 
+static llvm::cl::opt<bool> 
+PrintDsaStats ("horn-dsa-stats",
+               llvm::cl::desc ("Print dsa statistics"), 
+               llvm::cl::init(false));
+
 void DsaAnalysis::getAnalysisUsage (AnalysisUsage &AU) const 
 {
   AU.addRequired<DataLayoutPass> ();
@@ -47,9 +52,9 @@ bool DsaAnalysis::runOnModule (Module &M)
   
   m_ga->runOnModule (M);
 
-  if (ComputeDsaInfo)
+  if (ComputeDsaInfo || PrintDsaStats)
   {
-    m_ia.reset (new InfoAnalysis (dl, tli, *m_ga));  
+    m_ia.reset (new InfoAnalysis (dl, tli, *m_ga, !PrintDsaStats));  
     m_ia->runOnModule (M);
   }
 

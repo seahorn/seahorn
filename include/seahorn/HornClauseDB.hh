@@ -356,6 +356,6 @@ namespace seahorn
   bool util_hasBvarInRule(HornRule r, HornClauseDB &db,
                           std::map<Expr, ExprVector> currentCandidates);
 
-
+  std::vector<std::string> util_split(std::string str,std::string pattern);
 }
 #endif /* _HORN_CLAUSE_DB__H_ */

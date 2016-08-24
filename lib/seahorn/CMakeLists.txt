@@ -13,6 +13,7 @@ add_llvm_library (seahorn.LIB
   Houdini.cc
   HornModelConverter.cc
   HornDbModel.cc
+  PredicateAbstraction.cc
   HornCex.cc
   Harness.cc
   ClpWrite.cc

@@ -18,6 +18,7 @@ namespace seahorn
     HornDbModel() {}
     void addDef(Expr fapp, Expr lemma);
     Expr getDef(Expr fapp);
+    bool hasDef (Expr fdecl);
     virtual ~HornDbModel() {}
   };
 

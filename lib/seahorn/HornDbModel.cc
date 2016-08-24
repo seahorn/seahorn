@@ -60,6 +60,12 @@ namespace seahorn
     return lemma;
   }
 
+  bool HornDbModel::hasDef (Expr v)
+  {
+    if (bind::isFapp (v)) v = bind::fname (v);
+    return m_defs.count (v);
+  }
+
   void initDBModelFromFP(HornDbModel &dbModel, HornClauseDB &db, ZFixedPoint<EZ3> &fp)
   {
     for(Expr rel : db.getRelations ())

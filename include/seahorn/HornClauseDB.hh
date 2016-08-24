@@ -306,7 +306,6 @@ namespace seahorn
   ExprMap util_getBvarsToArgsMap(Expr fapp, std::map<Expr, ExprVector> currentCandidates);
   Expr util_extractTransitionRelation(HornRule r, HornClauseDB &db);
 
-  std::vector<std::string> util_split(std::string str,std::string pattern);
 
   struct Util_IsPredApp : public std::unary_function<Expr, bool>
   {

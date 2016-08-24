@@ -61,8 +61,8 @@ namespace seahorn
 
       LOG("horn-cg", 
           errs () << *(bind::fname(p)) << "\n"
-                  << "\tNumber of callers=" << callers.size() << "\n"
-                  << "\tNumber of callees=" << callees.size() << "\n";
+          << "\tNumber of callers=" << callers.size() << "\n"
+          << "\tNumber of callees=" << callees.size() << "\n";
           if (!callers.empty()) {
             errs () << "\tCALLERS=";
             for (auto c: callers) {
@@ -168,73 +168,73 @@ namespace seahorn
 
   Expr util_applyArgsToBvars(Expr cand, Expr fapp, std::map<Expr, ExprVector> currentCandidates)
   {
-	  ExprMap bvar_map = util_getBvarsToArgsMap(fapp, currentCandidates);
-	  return replace(cand, bvar_map);
+    ExprMap bvar_map = util_getBvarsToArgsMap(fapp, currentCandidates);
+    return replace(cand, bvar_map);
   }
 
   ExprMap util_getBvarsToArgsMap(Expr fapp, std::map<Expr, ExprVector> currentCandidates)
   {
-	  Expr fdecl = bind::fname(fapp);
-	  ExprVector terms = currentCandidates[fdecl];
-	  Expr cand;
-	  if(terms.size() == 1)
-	  {
-		  cand = currentCandidates[fdecl][0];
-	  }
-	  else if(terms.size() > 1)
-	  {
-		  cand = mknary<AND>(terms.begin(), terms.end());
-	  }
-	  else
-	  {
-		  errs() << "terms size wrong!\n";
-		  assert(false);
-	  }
+    Expr fdecl = bind::fname(fapp);
+    ExprVector terms = currentCandidates[fdecl];
+    Expr cand;
+    if(terms.size() == 1)
+    {
+      cand = currentCandidates[fdecl][0];
+    }
+    else if(terms.size() > 1)
+    {
+      cand = mknary<AND>(terms.begin(), terms.end());
+    }
+    else
+    {
+      errs() << "terms size wrong!\n";
+      assert(false);
+    }
 
-	  ExprMap bvar_map;
-	  ExprVector bvars;
-	  get_all_bvars(cand, std::back_inserter(bvars));
+    ExprMap bvar_map;
+    ExprVector bvars;
+    get_all_bvars(cand, std::back_inserter(bvars));
 
-	  for(ExprVector::iterator it = bvars.begin(); it != bvars.end(); ++it)
-	  {
-		  unsigned bvar_id = bind::bvarId(*it);
-		  Expr app_arg = fapp->arg(bvar_id + 1);// To improve
-		  bvar_map.insert(std::pair<Expr,Expr>(*it, app_arg));
-	  }
-	  return bvar_map;
+    for(ExprVector::iterator it = bvars.begin(); it != bvars.end(); ++it)
+    {
+      unsigned bvar_id = bind::bvarId(*it);
+      Expr app_arg = fapp->arg(bvar_id + 1);// To improve
+      bvar_map.insert(std::pair<Expr,Expr>(*it, app_arg));
+    }
+    return bvar_map;
   }
 
   Expr util_extractTransitionRelation(HornRule r, HornClauseDB &db)
   {
-	  Expr ruleBody = r.body();
-	  ExprMap body_map;
-	  ExprVector body_pred_apps;
-	  get_all_pred_apps(ruleBody, db, std::back_inserter(body_pred_apps));
+    Expr ruleBody = r.body();
+    ExprMap body_map;
+    ExprVector body_pred_apps;
+    get_all_pred_apps(ruleBody, db, std::back_inserter(body_pred_apps));
 
-	  for(ExprVector::iterator itr = body_pred_apps.begin(); itr != body_pred_apps.end(); ++itr)
-	  {
-		  body_map.insert(std::pair<Expr, Expr>(*itr, mk<TRUE>((*itr)->efac())));
-	  }
+    for(ExprVector::iterator itr = body_pred_apps.begin(); itr != body_pred_apps.end(); ++itr)
+    {
+      body_map.insert(std::pair<Expr, Expr>(*itr, mk<TRUE>((*itr)->efac())));
+    }
 
-	  Expr body_constraints = replace(ruleBody, body_map);
-	  return body_constraints;
+    Expr body_constraints = replace(ruleBody, body_map);
+    return body_constraints;
   }
 
   bool util_hasBvarInRule(HornRule r, HornClauseDB &db, std::map<Expr, ExprVector> currentCandidates)
   {
-		ExprVector pred_vector;
-		get_all_pred_apps(r.body(), db, std::back_inserter(pred_vector));
-		pred_vector.push_back(r.head());
+    ExprVector pred_vector;
+    get_all_pred_apps(r.body(), db, std::back_inserter(pred_vector));
+    pred_vector.push_back(r.head());
 
-		for (Expr pred : pred_vector)
-		{
-			ExprVector term_vec = currentCandidates.find(bind::fname(pred))->second;
-			if(term_vec.size() > 1 || term_vec.size() == 1 && !isOpX<TRUE>(term_vec[0]))
-			{
-				return true;
-			}
-		}
-		return false;
+    for (Expr pred : pred_vector)
+    {
+      ExprVector term_vec = currentCandidates.find(bind::fname(pred))->second;
+      if(term_vec.size() > 1 || term_vec.size() == 1 && !isOpX<TRUE>(term_vec[0]))
+      {
+        return true;
+      }
+    }
+    return false;
   }
 
 }

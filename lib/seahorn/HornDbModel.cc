@@ -13,7 +13,7 @@ namespace seahorn
   {
     if (isOpX<TRUE> (lemma) || isOpX<FALSE> (lemma))
     {
-      m_defs.insert(std::pair<Expr, Expr>(bind::fname(fapp), lemma));
+      m_defs.insert(std::make_pair (bind::fname(fapp), lemma));
       return;
     }
 
@@ -28,7 +28,7 @@ namespace seahorn
       Expr arg_i = fapp->arg(i+1);
       Expr arg_i_type = bind::domainTy(fdecl, i);
       Expr bvar_i = bind::bvar(i, arg_i_type);
-      actual_arg_to_bvar_map.insert(std::pair<Expr, Expr>(arg_i, bvar_i));
+      actual_arg_to_bvar_map.insert(std::make_pair(arg_i, bvar_i));
     }
 
     Expr lemma_def = replace(lemma, actual_arg_to_bvar_map);
@@ -42,9 +42,7 @@ namespace seahorn
     ExprMap::iterator it = m_defs.find(fdecl);
 
     if(it == m_defs.end())
-    {
       return mk<TRUE>(fdecl->efac());
-    }
 
     Expr lemma_def = it->second;
 
@@ -55,7 +53,7 @@ namespace seahorn
       Expr arg_i = fapp->arg(i+1);
       Expr arg_i_type = bind::domainTy(fdecl, i);
       Expr bvar_i = bind::bvar(i, arg_i_type);
-      bvar_to_actual_arg_map.insert(std::pair<Expr, Expr>(bvar_i, arg_i));
+      bvar_to_actual_arg_map.insert(std::make_pair(bvar_i, arg_i));
     }
 
     Expr lemma = replace(lemma_def, bvar_to_actual_arg_map);
@@ -64,14 +62,16 @@ namespace seahorn
 
   void initDBModelFromFP(HornDbModel &dbModel, HornClauseDB &db, ZFixedPoint<EZ3> &fp)
   {
-    for(Expr rel : db.getRelations())
+    for(Expr rel : db.getRelations ())
     {
       ExprVector actual_args;
       for(int i=0; i<bind::domainSz(rel); i++)
       {
+        Expr V = mkTerm<std::string> ("V", rel->efac ());
         Expr arg_i_type = bind::domainTy(rel, i);
-        Expr var = bind::fapp(bind::constDecl(variant::variant(i, mkTerm<std::string> ("V", rel->efac ())), arg_i_type));
-        actual_args.push_back(var);
+        // XXX use bvars instead of constants
+        Expr var = bind::fapp(bind::constDecl(variant::variant(i, V), arg_i_type));
+        actual_args.push_back (var);
       }
       Expr fapp = bind::fapp(rel, actual_args);
       Expr def_app = fp.getCoverDelta(fapp);

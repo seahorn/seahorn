@@ -184,12 +184,12 @@ namespace seahorn
     Stats::uset ("SizeOfInvariants", (allInvars ? dagSize(allInvars) : 0));
   }
 
-  void HornSolver::printInvars (Module &M, HornDbModel &origModel)
+  void HornSolver::printInvars (Module &M, HornDbModel &model)
   {
-    for (auto &F : M) printInvars (F, origModel);
+    for (auto &F : M) printInvars (F, model);
   }
 
-  void HornSolver::printInvars(Function &F, HornDbModel &origModel)
+  void HornSolver::printInvars(Function &F, HornDbModel &model)
   {
     if (F.isDeclaration ()) return;
 
@@ -210,7 +210,7 @@ namespace seahorn
       outs () << *bind::fname (bbPred) << ":";
       const ExprVector &live = hm.live (BB);
       //Expr invars = fp.getCoverDelta (bind::fapp (bbPred, live));
-      Expr invars = origModel.getDef(bind::fapp(bbPred, live));
+      Expr invars = model.getDef(bind::fapp(bbPred, live));
 
       if (isOpX<AND> (invars))
       {

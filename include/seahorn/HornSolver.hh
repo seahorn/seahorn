@@ -20,8 +20,8 @@ namespace seahorn
     void printCex ();
     void estimateSizeInvars (Module &M);
 
-    void printInvars(Function &F, HornDbModel &origModel);
-    void printInvars(Module &M, HornDbModel &origModel);
+    void printInvars(Function &F, HornDbModel &model);
+    void printInvars(Module &M, HornDbModel &model);
 
   public:
     static char ID;

@@ -27,11 +27,11 @@ namespace seahorn
     Expr m_head;
     Expr m_body; 
     
-   public:
+  public:
     template <typename Range>
     HornRule (Range &v, Expr b) : 
-        m_vars (boost::begin (v), boost::end (v)), 
-        m_head (b), m_body (mk<TRUE>(b->efac ())) 
+      m_vars (boost::begin (v), boost::end (v)), 
+      m_head (b), m_body (mk<TRUE>(b->efac ())) 
     {
       if ((b->arity () == 2) && isOpX<IMPL> (b))
       { 
@@ -44,13 +44,13 @@ namespace seahorn
 
     template <typename Range>
     HornRule (Range &v, Expr head, Expr body) : 
-        m_vars (boost::begin (v), boost::end (v)), 
-        m_head (head), m_body (body) 
+      m_vars (boost::begin (v), boost::end (v)), 
+      m_head (head), m_body (body) 
     { }
     
     HornRule (const HornRule &r) : 
-        m_vars (r.m_vars), 
-        m_head (r.m_head), m_body (r.m_body) 
+      m_vars (r.m_vars), 
+      m_head (r.m_head), m_body (r.m_body) 
     {} 
     
     size_t hash () const
@@ -93,19 +93,19 @@ namespace seahorn
   class HornClauseDB 
   {
     friend class HornRule;
-   public:
+  public:
 
     typedef std::vector<HornRule> RuleVector;
     typedef boost::container::flat_set<Expr> expr_set_type;
     struct IsRelation : public std::unary_function<Expr, bool>
-	{
-	  const HornClauseDB &m_db;
-	  IsRelation (const HornClauseDB &db) : m_db (db) {}
+    {
+      const HornClauseDB &m_db;
+      IsRelation (const HornClauseDB &db) : m_db (db) {}
 
-	  bool operator() (Expr e)
-	  {return bind::isFdecl (e) && m_db.hasRelation (e);}
-	};
-   private:
+      bool operator() (Expr e)
+      {return bind::isFdecl (e) && m_db.hasRelation (e);}
+    };
+  private:
     
     ExprFactory &m_efac;
     expr_set_type m_rels;
@@ -227,7 +227,7 @@ namespace seahorn
     {
       ufo::ScopedStats _st_("HornClauseDB::loadZFixedPoint");
       for (auto &p: getRelations ())
-       fp.registerRelation (p); 
+        fp.registerRelation (p); 
 
       for (auto &rule: getRules ())
         fp.addRule (rule.vars (), rule.get ()); 
@@ -265,41 +265,41 @@ namespace seahorn
 
   class HornClauseDBCallGraph
   {
-	  /// callgraph
-	  typedef std::map<Expr, HornClauseDB::expr_set_type > callgraph_type;
-	  callgraph_type m_callers;
-	  callgraph_type m_callees;
-	  Expr m_cg_entry;
+    /// callgraph
+    typedef std::map<Expr, HornClauseDB::expr_set_type > callgraph_type;
+    callgraph_type m_callers;
+    callgraph_type m_callees;
+    Expr m_cg_entry;
 
-	  /// empty set sentinel
-	  static HornClauseDB::expr_set_type m_expr_empty_set;
+    /// empty set sentinel
+    static HornClauseDB::expr_set_type m_expr_empty_set;
 
   public:
-	  HornClauseDB& m_db;
-	  HornClauseDBCallGraph (HornClauseDB &db) : m_db (db), m_cg_entry(mk<FALSE>(db.getExprFactory ())) {}
+    HornClauseDB& m_db;
+    HornClauseDBCallGraph (HornClauseDB &db) : m_db (db), m_cg_entry(mk<FALSE>(db.getExprFactory ())) {}
 
-	  /// -- build call graph
-	  void buildCallGraph ();
+    /// -- build call graph
+    void buildCallGraph ();
 
-	  /// -- returns an entry point of the call graph.
-	  bool hasEntry () const { return !isOpX<FALSE>(m_cg_entry); }
-	  Expr entry () const { assert(hasEntry()); return m_cg_entry; }
+    /// -- returns an entry point of the call graph.
+    bool hasEntry () const { return !isOpX<FALSE>(m_cg_entry); }
+    Expr entry () const { assert(hasEntry()); return m_cg_entry; }
 
-	  /// -- requires callgraph (buildCallGraph())
-	  const HornClauseDB::expr_set_type& callees (Expr fdecl) const
-	  {
-		auto it = m_callees.find (fdecl);
-		if (it == m_callees.end ()) return m_expr_empty_set;
-		return it->second;
-	  }
+    /// -- requires callgraph (buildCallGraph())
+    const HornClauseDB::expr_set_type& callees (Expr fdecl) const
+    {
+      auto it = m_callees.find (fdecl);
+      if (it == m_callees.end ()) return m_expr_empty_set;
+      return it->second;
+    }
 
-	  /// -- requires callgraph (buildCallGraph())
-	  const HornClauseDB::expr_set_type& callers (Expr fdecl) const
-	  {
-		auto it = m_callers.find (fdecl);
-		if (it == m_callers.end ()) return m_expr_empty_set;
-		return it->second;
-	  }
+    /// -- requires callgraph (buildCallGraph())
+    const HornClauseDB::expr_set_type& callers (Expr fdecl) const
+    {
+      auto it = m_callers.find (fdecl);
+      if (it == m_callers.end ()) return m_expr_empty_set;
+      return it->second;
+    }
   };
 
   Expr util_applyArgsToBvars(Expr cand, Expr fapp, std::map<Expr, ExprVector> currentCandidates);
@@ -310,32 +310,32 @@ namespace seahorn
 
   struct Util_IsPredApp : public std::unary_function<Expr, bool>
   {
-	  HornClauseDB &m_db;
-	  Util_IsPredApp (HornClauseDB &db) : m_db (db) {}
+    HornClauseDB &m_db;
+    Util_IsPredApp (HornClauseDB &db) : m_db (db) {}
 
-	  bool operator() (Expr e)
-	  {return bind::isFapp (e) && m_db.hasRelation (bind::fname(e));}
+    bool operator() (Expr e)
+    {return bind::isFapp (e) && m_db.hasRelation (bind::fname(e));}
   };
 
   struct Util_IsBVar : public std::unary_function<Expr, bool>
   {
-	  Util_IsBVar () {}
-	  bool operator() (Expr e)
-	  {return bind::isBVar (e);}
+    Util_IsBVar () {}
+    bool operator() (Expr e)
+    {return bind::isBVar (e);}
   };
 
   struct Util_IsInteger : public std::unary_function<Expr, bool>
   {
-	  Util_IsInteger() {}
-	  bool operator() (Expr e)
-	  {return bind::isIntConst (e);}
+    Util_IsInteger() {}
+    bool operator() (Expr e)
+    {return bind::isIntConst (e);}
   };
 
   struct Util_IsBoolean : public std::unary_function<Expr, bool>
   {
-	  Util_IsBoolean() {}
-	  bool operator() (Expr e)
-	  {return bind::isBoolConst (e);}
+    Util_IsBoolean() {}
+    bool operator() (Expr e)
+    {return bind::isBoolConst (e);}
   };
 
   template<typename OutputIterator>
@@ -354,7 +354,8 @@ namespace seahorn
   void get_all_booleans(Expr e, OutputIterator out)
   {filter (e, Util_IsBoolean(), out);}
 
-  bool util_hasBvarInRule(HornRule r, HornClauseDB &db, std::map<Expr, ExprVector> currentCandidates);
+  bool util_hasBvarInRule(HornRule r, HornClauseDB &db,
+                          std::map<Expr, ExprVector> currentCandidates);
 
 
 }

@@ -10,18 +10,19 @@
 
 namespace seahorn
 {
-	class HornDbModel
-	{
-	private:
-		ExprMap relToDefMap;
-	public:
-		HornDbModel() {}
-		void addDef(Expr fapp, Expr lemma);
-		Expr getDef(Expr fapp);
-		virtual ~HornDbModel() {}
-	};
+  class HornDbModel
+  {
+  private:
+    ExprMap m_defs;
+  public:
+    HornDbModel() {}
+    void addDef(Expr fapp, Expr lemma);
+    Expr getDef(Expr fapp);
+    virtual ~HornDbModel() {}
+  };
 
-	void initDBModelFromFP(HornDbModel &dbModel, HornClauseDB &db, ZFixedPoint<EZ3> &fp);
+  /// Extract HornDbModel of a given horn db from a ZFixedPoint. 
+  void initDBModelFromFP(HornDbModel &dbModel, HornClauseDB &db, ZFixedPoint<EZ3> &fp);
 }
 
 #endif

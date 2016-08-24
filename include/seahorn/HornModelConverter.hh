@@ -11,12 +11,13 @@
 
 namespace seahorn
 {
-	class HornModelConverter
-	{
-	public:
-		// converts a model from one database to another. returns false on failure.
-		virtual bool convert (HornDbModel &in, HornDbModel &out) = 0;
-	};
+  class HornModelConverter
+  {
+  public:
+    // converts a model from one database to another. returns false on failure.
+    virtual bool convert (HornDbModel &in, HornDbModel &out) = 0;
+    virtual ~HornModelConverter() {}
+  };
 }
 
 #endif

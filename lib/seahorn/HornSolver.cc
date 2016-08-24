@@ -98,9 +98,9 @@ namespace seahorn
 
     if (PrintAnswer && !m_result)
     {
-    	HornDbModel dbModel;
-    	initDBModelFromFP(dbModel, db, fp);
-    	printInvars(M, dbModel);
+      HornDbModel dbModel;
+      initDBModelFromFP(dbModel, db, fp);
+      printInvars(M, dbModel);
     }
     else if (PrintAnswer && m_result)
       printCex ();
@@ -186,41 +186,41 @@ namespace seahorn
 
   void HornSolver::printInvars (Module &M, HornDbModel &origModel)
   {
- 	  for (auto &F : M) printInvars (F, origModel);
+    for (auto &F : M) printInvars (F, origModel);
   }
 
   void HornSolver::printInvars(Function &F, HornDbModel &origModel)
   {
-	  if (F.isDeclaration ()) return;
+    if (F.isDeclaration ()) return;
 
-	  HornifyModule &hm = getAnalysis<HornifyModule> ();
-	  outs () << "Function: " << F.getName () << "\n";
+    HornifyModule &hm = getAnalysis<HornifyModule> ();
+    outs () << "Function: " << F.getName () << "\n";
 
-	  // -- not used for now
-	  Expr summary = hm.summaryPredicate (F);
+    // -- not used for now
+    Expr summary = hm.summaryPredicate (F);
 
-	  ZFixedPoint<EZ3> fp = *m_fp;
+    ZFixedPoint<EZ3> fp = *m_fp;
 
-	  for (auto &BB : F)
-	  {
-		if (!hm.hasBbPredicate (BB)) continue;
+    for (auto &BB : F)
+    {
+      if (!hm.hasBbPredicate (BB)) continue;
 
-		Expr bbPred = hm.bbPredicate (BB);
+      Expr bbPred = hm.bbPredicate (BB);
 
-		outs () << *bind::fname (bbPred) << ":";
-		const ExprVector &live = hm.live (BB);
-		//Expr invars = fp.getCoverDelta (bind::fapp (bbPred, live));
-		Expr invars = origModel.getDef(bind::fapp(bbPred, live));
+      outs () << *bind::fname (bbPred) << ":";
+      const ExprVector &live = hm.live (BB);
+      //Expr invars = fp.getCoverDelta (bind::fapp (bbPred, live));
+      Expr invars = origModel.getDef(bind::fapp(bbPred, live));
 
-		if (isOpX<AND> (invars))
-		{
-		  outs () << "\n\t";
-		  for (size_t i = 0; i < invars->arity (); ++i)
-			outs () << "\t" << *invars->arg (i) << "\n";
-		}
-		else
-		  outs () << " " << *invars << "\n";
-	  }
+      if (isOpX<AND> (invars))
+      {
+        outs () << "\n\t";
+        for (size_t i = 0; i < invars->arity (); ++i)
+          outs () << "\t" << *invars->arg (i) << "\n";
+      }
+      else
+        outs () << " " << *invars << "\n";
+    }
   }
 
 

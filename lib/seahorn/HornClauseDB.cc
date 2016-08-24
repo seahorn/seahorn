@@ -211,16 +211,15 @@ namespace seahorn
     ExprVector body_pred_apps;
     get_all_pred_apps(ruleBody, db, std::back_inserter(body_pred_apps));
 
-    for(ExprVector::iterator itr = body_pred_apps.begin(); itr != body_pred_apps.end(); ++itr)
-    {
-      body_map.insert(std::pair<Expr, Expr>(*itr, mk<TRUE>((*itr)->efac())));
-    }
+    for (Expr p : body_pred_apps)
+      body_map.insert (std::make_pair (p, mk<TRUE> (p->efac ())));
 
     Expr body_constraints = replace(ruleBody, body_map);
     return body_constraints;
   }
 
-  bool util_hasBvarInRule(HornRule r, HornClauseDB &db, std::map<Expr, ExprVector> currentCandidates)
+  bool util_hasBvarInRule(HornRule r, HornClauseDB &db,
+                          std::map<Expr, ExprVector> currentCandidates)
   {
     ExprVector pred_vector;
     get_all_pred_apps(r.body(), db, std::back_inserter(pred_vector));
@@ -229,10 +228,8 @@ namespace seahorn
     for (Expr pred : pred_vector)
     {
       ExprVector term_vec = currentCandidates.find(bind::fname(pred))->second;
-      if(term_vec.size() > 1 || term_vec.size() == 1 && !isOpX<TRUE>(term_vec[0]))
-      {
+      if(term_vec.size() > 1 || (term_vec.size() == 1 && !isOpX<TRUE>(term_vec[0])))
         return true;
-      }
     }
     return false;
   }

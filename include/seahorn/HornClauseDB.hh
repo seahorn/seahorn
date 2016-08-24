@@ -228,10 +228,10 @@ namespace seahorn
       ufo::ScopedStats _st_("HornClauseDB::loadZFixedPoint");
       for (auto &p: getRelations ())
        fp.registerRelation (p); 
-      
+
       for (auto &rule: getRules ())
         fp.addRule (rule.vars (), rule.get ()); 
-      
+
       for (auto &r : getRelations ())
         if (!skipConstraints && hasConstraints (r))
         {
@@ -246,7 +246,7 @@ namespace seahorn
           pred = bind::fapp (r, args);
           fp.addCover (pred, getConstraints (pred));
         }
-      
+
       if (!skipQuery) fp.addQueries (getQueries ());
     }
 
@@ -301,6 +301,61 @@ namespace seahorn
 		return it->second;
 	  }
   };
+
+  Expr util_applyArgsToBvars(Expr cand, Expr fapp, std::map<Expr, ExprVector> currentCandidates);
+  ExprMap util_getBvarsToArgsMap(Expr fapp, std::map<Expr, ExprVector> currentCandidates);
+  Expr util_extractTransitionRelation(HornRule r, HornClauseDB &db);
+
+  std::vector<std::string> util_split(std::string str,std::string pattern);
+
+  struct Util_IsPredApp : public std::unary_function<Expr, bool>
+  {
+	  HornClauseDB &m_db;
+	  Util_IsPredApp (HornClauseDB &db) : m_db (db) {}
+
+	  bool operator() (Expr e)
+	  {return bind::isFapp (e) && m_db.hasRelation (bind::fname(e));}
+  };
+
+  struct Util_IsBVar : public std::unary_function<Expr, bool>
+  {
+	  Util_IsBVar () {}
+	  bool operator() (Expr e)
+	  {return bind::isBVar (e);}
+  };
+
+  struct Util_IsInteger : public std::unary_function<Expr, bool>
+  {
+	  Util_IsInteger() {}
+	  bool operator() (Expr e)
+	  {return bind::isIntConst (e);}
+  };
+
+  struct Util_IsBoolean : public std::unary_function<Expr, bool>
+  {
+	  Util_IsBoolean() {}
+	  bool operator() (Expr e)
+	  {return bind::isBoolConst (e);}
+  };
+
+  template<typename OutputIterator>
+  void get_all_pred_apps (Expr e, HornClauseDB &db, OutputIterator out)
+  {filter (e, Util_IsPredApp(db), out);}
+
+  template<typename OutputIterator>
+  void get_all_bvars (Expr e, OutputIterator out)
+  {filter (e, Util_IsBVar(), out);}
+
+  template<typename OutputIterator>
+  void get_all_integers(Expr e, OutputIterator out)
+  {filter (e, Util_IsInteger(), out);}
+
+  template<typename OutputIterator>
+  void get_all_booleans(Expr e, OutputIterator out)
+  {filter (e, Util_IsBoolean(), out);}
+
+  bool util_hasBvarInRule(HornRule r, HornClauseDB &db, std::map<Expr, ExprVector> currentCandidates);
+
 
 }
 #endif /* _HORN_CLAUSE_DB__H_ */

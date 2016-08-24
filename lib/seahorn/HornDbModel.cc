@@ -33,7 +33,7 @@ namespace seahorn
 
     Expr lemma_def = replace(lemma, actual_arg_to_bvar_map);
 
-    m_defs.insert(std::pair<Expr, Expr>(bind::fname(fapp), lemma_def));
+    m_defs.insert(std::make_pair(bind::fname(fapp), lemma_def));
   }
 
   Expr HornDbModel::getDef(Expr fapp)

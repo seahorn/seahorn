@@ -199,7 +199,7 @@ namespace seahorn
     {
       unsigned bvar_id = bind::bvarId(*it);
       Expr app_arg = fapp->arg(bvar_id + 1);// To improve
-      bvar_map.insert(std::pair<Expr,Expr>(*it, app_arg));
+      bvar_map.insert(std::make_pair(*it, app_arg));
     }
     return bvar_map;
   }

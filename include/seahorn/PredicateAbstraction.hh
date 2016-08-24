@@ -30,7 +30,7 @@ namespace seahorn
 		virtual ~PredAbsHornModelConverter() {}
 		bool convert (HornDbModel &in, HornDbModel &out);
 
-		void addRelToBoolToTerm(Expr rel, ExprMap &boolToTermMap) {m_relToBoolToTermMap.insert(std::pair<Expr, ExprMap>(rel, boolToTermMap));}
+		void addRelToBoolToTerm(Expr rel, ExprMap &boolToTermMap) {m_relToBoolToTermMap.insert(std::make_pair(rel, boolToTermMap));}
 		void setNewToOldPredMap(std::map<Expr, Expr> &newToOldMap) {m_newToOldPredMap = newToOldMap;}
 		void setAbsDB(HornClauseDB &db) {m_abs_db = &db;}
 	};

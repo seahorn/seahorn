@@ -193,8 +193,8 @@ namespace seahorn
 			LOG("pabs-debug", outs() << "NEW REL: " << *new_rel << "\n";);
 			new_DB.registerRelation(new_rel);
 
-			m_oldToNewPredMap.insert(std::pair<Expr, Expr>(rel, new_rel));
-			m_newToOldPredMap.insert(std::pair<Expr, Expr>(new_rel, rel));
+			m_oldToNewPredMap.insert(std::make_pair(rel, new_rel));
+			m_newToOldPredMap.insert(std::make_pair(new_rel, rel));
 		}
 		converter.setNewToOldPredMap(m_newToOldPredMap); //set converter
 	}
@@ -226,7 +226,7 @@ namespace seahorn
 				{
 					Expr new_fdecl = m_oldToNewPredMap.find(bind::fname(pred))->second;
 					Expr new_pred = bind::reapp(pred, new_fdecl);
-					replaceMap.insert(std::pair<Expr, Expr>(pred, new_pred));
+					replaceMap.insert(std::make_pair(pred, new_pred));
 				}
 				Expr new_head = replace(r.head(), replaceMap);
 				Expr new_body = replace(r.body(), replaceMap);
@@ -238,7 +238,7 @@ namespace seahorn
 			//initialize the occurrence count map
 			for(ExprVector::iterator it = pred_vector.begin(); it!= pred_vector.end(); ++it)
 			{
-				relOccurrenceTimesMap.insert(std::pair<Expr, int>(bind::fname(*it), 0));
+				relOccurrenceTimesMap.insert(std::make_pair(bind::fname(*it), 0));
 			}
 
 			//construct new body
@@ -283,7 +283,7 @@ namespace seahorn
 					Expr term_app = util_applyArgsToBvars(term, *it, m_currentCandidates);
 					Expr equal_expr = mk<IFF>(new_rule_body_pred->arg(index + 1), term_app);
 					//converter
-					boolToTermMap.insert(std::pair<Expr, Expr>(bind::bvar(index, mk<BOOL_TY>(term_app->efac())), term));
+					boolToTermMap.insert(std::make_pair(bind::bvar(index, mk<BOOL_TY>(term_app->efac())), term));
 
 					new_body_exprs.push_back(equal_expr);
 					index ++;
@@ -323,7 +323,7 @@ namespace seahorn
 					Expr term_app = util_applyArgsToBvars(term, rule_head, m_currentCandidates);
 					Expr equal_expr = mk<IFF>(new_rule_head->arg(index + 1), term_app);
 					//converter
-					boolToTermMap.insert(std::pair<Expr, Expr>(bind::bvar(index, mk<BOOL_TY>(term_app->efac())), term));
+					boolToTermMap.insert(std::make_pair(bind::bvar(index, mk<BOOL_TY>(term_app->efac())), term));
 
 					new_body_exprs.push_back(equal_expr);
 					index ++;
@@ -365,7 +365,7 @@ namespace seahorn
 		  {
 			  //ExprVector terms = relToCand(rel);
 			  ExprVector terms = applyTemplatesFromExperimentFile(rel, "/home/chenguang/Desktop/seahorn/test/pabs-experiment/preds_temp");
-			  m_currentCandidates.insert(std::pair<Expr, ExprVector>(rel, terms));
+			  m_currentCandidates.insert(std::make_pair(rel, terms));
 		  }
 	  }
 	}
@@ -529,7 +529,7 @@ namespace seahorn
 			for(Expr boolvar: bools)
 			{
 				Expr bool_bvar = bind::boolBVar(variant::variantNum(bind::fname(bind::fname(boolvar))), boolvar->efac());
-				boolVarToBvarMap.insert(std::pair<Expr,Expr>(boolvar, bool_bvar));
+				boolVarToBvarMap.insert(std::make_pair(boolvar, bool_bvar));
 			}
 			Expr abs_def = replace(abs_def_app, boolVarToBvarMap);
 			LOG("pabs-debug", outs() << "ABS DEF: " << *abs_def << "\n";);
@@ -547,7 +547,7 @@ namespace seahorn
 				for(Expr abs_bvar : abs_bvars)
 				{
 					Expr term = (getRelToBoolToTermMap().find(orig_rel)->second).find(abs_bvar)->second;
-					abs_bvar_to_term_map.insert(std::pair<Expr, Expr>(abs_bvar, term));
+					abs_bvar_to_term_map.insert(std::make_pair(abs_bvar, term));
 				}
 				orig_def = replace(abs_def, abs_bvar_to_term_map);
 			}
@@ -571,7 +571,7 @@ namespace seahorn
 				int bvar_id = bind::bvarId(bvar);
 				Expr bvar_type = bind::typeOf(bvar);
 				Expr var = bind::fapp(bind::constDecl(variant::variant(bvar_id, mkTerm<std::string> ("V", bvar->efac ())), bvar_type));
-				bvarIdMap.insert(std::pair<Expr, Expr>(bvar, var));
+				bvarIdMap.insert(std::make_pair(bvar, var));
 			}
 			Expr orig_def_app = replace(orig_def, bvarIdMap);
 			LOG("pabs-debug", outs() << "ORIG DEF APP: " << *orig_def_app << "\n";);

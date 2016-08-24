@@ -200,7 +200,7 @@ namespace seahorn
 		  {
 			  Expr cand = relToCand(rel);
 			  //Expr cand = applyComplexTemplates(rel);
-			  candidates.insert(std::pair<Expr, Expr>(rel, cand));
+			  candidates.insert(std::make_pair(rel, cand));
 		  }
 	  }
 	  return candidates;
@@ -457,7 +457,7 @@ namespace seahorn
   		  solver.assertExpr(tr);
   		  solver.push();
 
-  		  ruleToSolverMap.insert(std::pair<HornRule, ZSolver<EZ3>>(r, solver));
+  		  ruleToSolverMap.insert(std::make_pair(r, solver));
   	  }
   	  return ruleToSolverMap;
   }
@@ -563,7 +563,7 @@ namespace seahorn
   			  Expr tagVar = bind::boolVar(mkTerm<std::string>(std::string("tag"), ruleHead->efac()));
   			  solver.assertExpr(mk<IMPL>(tagVar, m_houdini.extractTransitionRelation(r, db)));
   			  solver.push();
-  			  relationToSolverMap.insert(std::pair<Expr, ZSolver<EZ3>>(ruleHead, solver));
+  			  relationToSolverMap.insert(std::make_pair(ruleHead, solver));
   		  }
   	  }
   	  return relationToSolverMap;
@@ -690,7 +690,7 @@ namespace seahorn
 	  {
 		  unsigned bvar_id = bind::bvarId(*it);
 		  Expr app_arg = bind::domainTy(fapp, bvar_id);// To improve
-		  bvar_map.insert(std::pair<Expr,Expr>(*it, app_arg));
+		  bvar_map.insert(std::make_pair(*it, app_arg));
 	  }
 	  return bvar_map;
   }
@@ -704,7 +704,7 @@ namespace seahorn
 
 	  for(ExprVector::iterator itr = body_pred_apps.begin(); itr != body_pred_apps.end(); ++itr)
 	  {
-		  body_map.insert(std::pair<Expr, Expr>(*itr, mk<TRUE>((*itr)->efac())));
+		  body_map.insert(std::make_pair(*itr, mk<TRUE>((*itr)->efac())));
 	  }
 
 	  Expr body_constraints = replace(ruleBody, body_map);
@@ -802,7 +802,7 @@ namespace seahorn
 		  {
 			  ExprVector states;
 			  states.push_back(state_assignment);
-			  relationToPositiveStateMap.insert(std::pair<Expr, ExprVector>(bind::fname(r.head()), states));
+			  relationToPositiveStateMap.insert(std::make_pair(bind::fname(r.head()), states));
 		  }
 		  else
 		  {

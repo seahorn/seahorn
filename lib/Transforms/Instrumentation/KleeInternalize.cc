@@ -24,6 +24,7 @@ DM-0002198
 #include "llvm/Target/TargetLibraryInfo.h"
 #include "llvm/Analysis/CallGraph.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/ADT/StringMap.h"
 
 #include <fstream>
 #include <set>
@@ -63,7 +64,10 @@ namespace
 
     Value *m_failed;
     Value *m_builtin;
-    
+    StringMap<int> m_functionId;
+
+    Module* m_module;
+
     void declareKleeFunctions (Module &M)
     {
       LLVMContext &C = M.getContext ();
@@ -239,13 +243,13 @@ namespace
 
     bool runOnModule (Module &M)
     {
+      m_module = &M;
       declareKleeFunctions(M);
       internalizeVariables(M);
 
       for (Function &F : M)
       {
-        if (shouldInternalize (F)) defineFunction (F);
-        else if (!F.isDeclaration()) runOnFunction (F);
+        if (!F.isDeclaration()) runOnFunction (F);
       }
       return true;
     }
@@ -270,7 +274,22 @@ namespace
           CallInst *ninst = nullptr;
           Builder.SetInsertPoint (&inst);
           
-          if (fn->getName().equals ("verifier.assume"))
+          if (shouldInternalize(*fn))
+          {
+            int id = m_functionId[fn->getName()];
+            Function * newFn = cast<Function> (m_module->getOrInsertFunction(
+              fn->getName().str() + "_" +std::to_string(id),
+              fn->getFunctionType()));
+            defineFunction(*newFn);
+
+            if (CallInst *CI = dyn_cast<CallInst>(&inst))
+                CI->setCalledFunction(newFn);
+            if (InvokeInst *II = dyn_cast<InvokeInst>(&inst))
+                II->setCalledFunction(newFn);
+
+            m_functionId[fn->getName()]++;
+          }
+          else if (fn->getName().equals ("verifier.assume"))
           {
             ninst = Builder.CreateCall (m_kleeAssumeFn,
                                         Builder.CreateZExtOrTrunc (CS.getArgument (0),
@@ -284,7 +303,8 @@ namespace
                                          m_intptrTy));
           }
           else if (fn->getName().equals ("seahorn.fail") ||
-                   fn->getName().equals ("verifier.error"))
+                   fn->getName().equals ("verifier.error")||
+                   fn->getName().equals ("__VERIFIER_error"))
           {
             Value *nullV = ConstantPointerNull::get (Builder.getInt8PtrTy ());
             // TODO: extract line number info from inst

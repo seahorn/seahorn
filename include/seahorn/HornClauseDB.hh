@@ -302,6 +302,9 @@ namespace seahorn
     }
   };
 
+  /*
+   * This function is to extract transition relation in a rule.
+   */
   Expr extractTransitionRelation(HornRule r, HornClauseDB &db);
 
   struct IsPredApp : public std::unary_function<Expr, bool>
@@ -350,6 +353,9 @@ namespace seahorn
   void get_all_booleans(Expr e, OutputIterator out)
   {filter (e, IsBoolean(), out);}
 
+  /*
+   * Return false if there are no bvars in all predicates in a rule, else return true.
+   */
   bool hasBvarInRule(HornRule r, HornClauseDB &db,
                           std::map<Expr, ExprVector> currentCandidates);
 

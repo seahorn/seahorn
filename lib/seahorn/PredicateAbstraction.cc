@@ -160,7 +160,8 @@ namespace seahorn
 
 			Expr old_fdecl_name = bind::fname(rel);
 			//new pred name
-			Expr new_fdecl_name = variant::tag(old_fdecl_name, mkTerm<std::string>("pabs", old_fdecl_name->efac()));
+			std::string postfix = "pabs";
+			Expr new_fdecl_name = variant::tag(old_fdecl_name, postfix);
 			new_args.push_back(new_fdecl_name);
 			//Push boolean types
 			ExprVector term_vec = m_currentCandidates.find(rel)->second;

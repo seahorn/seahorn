@@ -2,6 +2,7 @@
 #include "seahorn/HornifyModule.hh"
 #include "seahorn/HornClauseDBTransf.hh"
 #include "seahorn/HornClauseDB.hh"
+#include "seahorn/GuessCandidates.hh"
 
 #include "llvm/IR/Function.h"
 #include "llvm/Support/CommandLine.h"
@@ -40,7 +41,7 @@ namespace seahorn
 
     Stats::resume ("Houdini inv");
     Houdini houdini(hm);
-    houdini.setInitialCandidatesSet(GuessCandidates::guessCandidates(hm.getHornClauseDB()));
+    houdini.setInitialCandidatesSet(houdini.guessCandidates(hm.getHornClauseDB()));
     houdini.runHoudini(config);
     Stats::stop ("Houdini inv");
 
@@ -57,154 +58,7 @@ namespace seahorn
 
   /*GuessCandidates methods begin*/
 
-  /*
-   * Use simple template to convert a predicate to candidate
-   */
-  Expr GuessCandidates::relToCand(Expr fdecl)
-  {
-	ExprVector bvars;
-	ExprVector bins;   // a vector of LT expressions
-	Expr cand = NULL;
 
-	int bvar_count = 0;
-	unsigned i = 0;
-	for (i=0; i < bind::domainSz(fdecl); i++)
-	{
-		// if its type is INT
-		if (isOpX<INT_TY>(bind::domainTy(fdecl, i)))
-		{
-			// what is efac?
-			Expr bvar = bind::bvar (i, mk<INT_TY>(bind::domainTy(fdecl, i)->efac())); //the id of bvar is the same as related arg index
-			bvars.push_back(bvar);
-			bvar_count ++;
-		}
-	}
-
-	//What if there's no bvar?
-	if(bvar_count == 0)
-	{
-		cand = mk<TRUE>(fdecl->efac());
-	}
-	// if there is only one bvar, create a int constant and make an lt expr
-	else if(bvar_count == 1)
-	{
-		Expr zero = mkTerm<mpz_class> (0, fdecl->efac());
-		cand = mk<LT>(bvars[0], zero);
-	}
-	// if there are more than two bvars, make an lt expr
-	else if(bvar_count == 2)
-	{
-		Expr lt1 = mk<LT>(bvars[0], bvars[1]);
-		Expr lt2 = mk<LT>(bvars[1], bvars[0]);
-		bins.push_back(lt1);
-		bins.push_back(lt2);
-
-		cand = mknary<AND>(bins.begin(), bins.end());
-		//cand = mk<LT>(bvars[0], bvars[1]);
-	}
-	else // bvar_count > 2
-	{
-		for(int j=0; j<bvars.size()-1; j++)
-		{
-			Expr lt = mk<LT>(bvars[j], bvars[j+1]);
-			bins.push_back(lt);
-		}
-		cand = mknary<AND>(bins.begin(), bins.end());
-	}
-
-	return cand;
-  }
-
-  /*
-   * Use complex templates to convert a predicate to candidate
-   */
-  Expr GuessCandidates::applyComplexTemplates(Expr fdecl)
-  {
-	ExprVector bvars;
-	ExprVector conjuncts;   // a vector of conjuncts
-	ExprVector disjuncts;
-	Expr cand = NULL;
-
-	int bvar_count = 0;
-	unsigned i = 0;
-	for (i=0; i < bind::domainSz(fdecl); i++)
-	{
-		// if its type is INT
-		if (isOpX<INT_TY>(bind::domainTy(fdecl, i)))
-		{
-			// what is efac?
-			Expr bvar = bind::bvar (i, mk<INT_TY>(bind::domainTy(fdecl, i)->efac())); //the id of bvar is the same as related arg index
-			bvars.push_back(bvar);
-			bvar_count ++;
-		}
-	}
-
-	if(bvar_count == 0)
-	{
-		cand = mk<TRUE>(fdecl->efac());
-	}
-	else if(bvar_count == 1)
-	{
-		generateLemmasForOneBvar(bvars[0], conjuncts);
-		cand = mknary<AND>(conjuncts.begin(), conjuncts.end());
-	}
-	else if(bvar_count == 2)
-	{
-		generateLemmasForOneBvar(bvars[0], conjuncts);
-		generateLemmasForOneBvar(bvars[1], conjuncts);
-
-		Expr lt1 = mk<LEQ>(bvars[0], bvars[1]);
-		//Expr lt2 = mk<LEQ>(bvars[1], bvars[0]);
-		conjuncts.push_back(lt1);
-		//conjuncts.push_back(lt2);
-
-		cand = mknary<AND>(conjuncts.begin(), conjuncts.end());
-	}
-	else // bvar_count > 2
-	{
-		generateLemmasForOneBvar(bvars[0], conjuncts);
-		for(int j=0; j<bvars.size()-1; j++)
-		{
-			generateLemmasForOneBvar(bvars[j+1], conjuncts);
-			Expr lt = mk<LEQ>(bvars[j], bvars[j+1]);
-			conjuncts.push_back(lt);
-		}
-		cand = mknary<AND>(conjuncts.begin(), conjuncts.end());
-	}
-
-	return cand;
-  }
-
-  void GuessCandidates::generateLemmasForOneBvar(Expr bvar, ExprVector &conjuncts)
-  {
-	  Expr zero = mkTerm<mpz_class> (0, bvar->efac());
-	  Expr one = mkTerm<mpz_class> (1, bvar->efac());
-	  Expr minusOne = mkTerm<mpz_class> (-1, bvar->efac());
-	  conjuncts.push_back(mk<LEQ>(bvar, zero));
-	  //conjuncts.push_back(mk<GEQ>(bvar, zero));
-	  conjuncts.push_back(mk<LEQ>(bvar, one));
-	  //conjuncts.push_back(mk<GEQ>(bvar, one));
-	  conjuncts.push_back(mk<LEQ>(bvar, minusOne));
-	  //conjuncts.push_back(mk<GEQ>(bvar, minusOne));
-  }
-
-  /*
-   * Build the map from predicates to candidates
-   */
-  std::map<Expr, Expr> GuessCandidates::guessCandidates(HornClauseDB &db)
-  {
-	  std::map<Expr, Expr> candidates;
-	  for(Expr rel : db.getRelations())
-	  {
-		  if(bind::isFdecl(rel))
-		  {
-			  Expr cand = relToCand(rel);
-			  //Expr cand = applyComplexTemplates(rel);
-			  candidates.insert(std::make_pair(rel, cand));
-		  }
-	  }
-	  return candidates;
-  }
 
   /*GuessCandidates methods end*/
 
@@ -258,6 +112,27 @@ namespace seahorn
 				db.addConstraint(rhead_app, rhead_cand_app);
 			}
 	  }
+  }
+
+  std::map<Expr, Expr> Houdini::guessCandidates(HornClauseDB &db)
+  {
+	  std::map<Expr, Expr> candidates;
+	  for(Expr rel : db.getRelations())
+	  {
+		  if(bind::isFdecl(rel))
+		  {
+			  ExprVector lemmas = relToCand(rel);
+			  if(lemmas.size() == 1)
+			  {
+				  candidates.insert(std::make_pair(rel, lemmas[0]));
+			  }
+			  else
+			  {
+				  candidates.insert(std::make_pair(rel, mknary<AND>(lemmas.begin(), lemmas.end())));
+			  }
+		  }
+	  }
+	  return candidates;
   }
 
   /*

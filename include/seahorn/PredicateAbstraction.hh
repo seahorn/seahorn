@@ -7,6 +7,7 @@
 #include "seahorn/HornifyModule.hh"
 #include "seahorn/HornDbModel.hh"
 #include "seahorn/HornModelConverter.hh"
+#include "seahorn/GuessCandidates.hh"
 
 #include "ufo/Expr.hpp"
 #include "ufo/Smt/Z3n.hpp"
@@ -49,14 +50,11 @@ namespace seahorn
 	    ~PredicateAbstractionAnalysis() {}
 
 		void guessCandidate(HornClauseDB &db);
-		ExprVector relToCand(Expr fdecl);
+
 		void generateAbstractDB(HornClauseDB &db, HornClauseDB &new_DB, PredAbsHornModelConverter &converter);
 		void generateAbstractRelations(HornClauseDB &db, HornClauseDB &new_DB, PredAbsHornModelConverter &converter);
 		void generateAbstractRules(HornClauseDB &db, HornClauseDB &new_DB, PredAbsHornModelConverter &converter);
 		void generateAbstractQueries(HornClauseDB &db, HornClauseDB &new_DB);
-
-		ExprVector applyTemplatesFromExperimentFile(Expr fdecl, std::string filepath);
-		void parseLemmasFromExpFile(Expr bvar, ExprVector& lemmas, std::string filepath);
 	};
 
 	class PredicateAbstraction : public llvm::ModulePass

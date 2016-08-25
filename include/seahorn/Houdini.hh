@@ -5,6 +5,7 @@
 #include "llvm/IR/Module.h"
 #include "seahorn/HornClauseDB.hh"
 #include "seahorn/HornifyModule.hh"
+#include "seahorn/GuessCandidates.hh"
 
 #include "ufo/Expr.hpp"
 #include "ufo/Smt/Z3n.hpp"
@@ -28,17 +29,6 @@ namespace seahorn
     virtual const char* getPassName () const {return "Houdini";}
   };
 
-  class GuessCandidates
-  {
-  public:
-	  static std::map<Expr, Expr> guessCandidates(HornClauseDB &db);
-	  //Simple templates
-	  static Expr relToCand(Expr pred);
-	  //Functions for generating complex invariants
-	  static Expr applyComplexTemplates(Expr fdecl);
-	  static void generateLemmasForOneBvar(Expr bvar, ExprVector &conjuncts);
-  };
-
   class Houdini
   {
   public:
@@ -55,6 +45,8 @@ namespace seahorn
 
     public:
       void runHoudini(int config);
+
+      std::map<Expr, Expr> guessCandidates(HornClauseDB &db);
 
       //Utility Functions
       Expr fAppToCandApp(Expr fapp);

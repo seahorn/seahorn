@@ -45,7 +45,8 @@ namespace seahorn
 		PredAbsHornModelConverter converter;
 
 		//run main algorithm
-		HornClauseDB new_db = pabs.generateAbstractDB(db, converter);
+		HornClauseDB new_db(db.getExprFactory());
+		pabs.generateAbstractDB(db, new_db, converter);
 
 		//initialize spacer based on new DB
 		m_fp.reset (new ZFixedPoint<EZ3> (hm.getZContext ()));
@@ -136,10 +137,8 @@ namespace seahorn
 		  }
 	}
 
-	HornClauseDB PredicateAbstractionAnalysis::generateAbstractDB(HornClauseDB &db, PredAbsHornModelConverter &converter)
+	void PredicateAbstractionAnalysis::generateAbstractDB(HornClauseDB &db, HornClauseDB &new_DB, PredAbsHornModelConverter &converter)
 	{
-		HornClauseDB new_DB(db.getExprFactory ());
-
 		generateAbstractRelations(db, new_DB, converter);
 
 		generateAbstractRules(db, new_DB, converter);
@@ -150,8 +149,6 @@ namespace seahorn
 		LOG("pabs-debug", outs() << new_DB << "\n";);
 
 		converter.setAbsDB(new_DB); //set converter
-
-		return new_DB;
 	}
 
 	void PredicateAbstractionAnalysis::generateAbstractRelations(HornClauseDB &db, HornClauseDB &new_DB, PredAbsHornModelConverter &converter)
@@ -163,8 +160,6 @@ namespace seahorn
 			ExprVector new_args;
 			//Push fdecl name
 			Expr old_fdecl_name = bind::fname(rel);
-			std::ostringstream oss;
-			oss << old_fdecl_name << "_pabs";
 			new_args.push_back(old_fdecl_name);
 			//Push boolean types
 			ExprVector term_vec = m_currentCandidates.find(rel)->second;
@@ -187,7 +182,7 @@ namespace seahorn
 			Expr new_rel = mknary<FDECL>(new_args);
 
 			//new pred name
-			Expr new_fdecl_name = mkTerm<std::string>(oss.str(), new_rel->efac());
+			Expr new_fdecl_name = variant::tag(old_fdecl_name, mkTerm<std::string>("pabs", new_rel->efac()));
 			new_rel = bind::rename(new_rel, new_fdecl_name);
 
 			LOG("pabs-debug", outs() << "NEW REL: " << *new_rel << "\n";);

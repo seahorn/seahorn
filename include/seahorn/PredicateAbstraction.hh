@@ -50,7 +50,7 @@ namespace seahorn
 
 		void guessCandidate(HornClauseDB &db);
 		ExprVector relToCand(Expr fdecl);
-		HornClauseDB generateAbstractDB(HornClauseDB &db, PredAbsHornModelConverter &converter);
+		void generateAbstractDB(HornClauseDB &db, HornClauseDB &new_DB, PredAbsHornModelConverter &converter);
 		void generateAbstractRelations(HornClauseDB &db, HornClauseDB &new_DB, PredAbsHornModelConverter &converter);
 		void generateAbstractRules(HornClauseDB &db, HornClauseDB &new_DB, PredAbsHornModelConverter &converter);
 		void generateAbstractQueries(HornClauseDB &db, HornClauseDB &new_DB);

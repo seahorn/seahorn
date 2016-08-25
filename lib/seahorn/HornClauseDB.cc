@@ -166,45 +166,7 @@ namespace seahorn
   HornClauseDB::horn_set_type HornClauseDB::m_empty_set;
   HornClauseDB::expr_set_type HornClauseDBCallGraph::m_expr_empty_set;
 
-  Expr util_applyArgsToBvars(Expr cand, Expr fapp, std::map<Expr, ExprVector> currentCandidates)
-  {
-    ExprMap bvar_map = util_getBvarsToArgsMap(fapp, currentCandidates);
-    return replace(cand, bvar_map);
-  }
-
-  ExprMap util_getBvarsToArgsMap(Expr fapp, std::map<Expr, ExprVector> currentCandidates)
-  {
-    Expr fdecl = bind::fname(fapp);
-    ExprVector terms = currentCandidates[fdecl];
-    Expr cand;
-    if(terms.size() == 1)
-    {
-      cand = currentCandidates[fdecl][0];
-    }
-    else if(terms.size() > 1)
-    {
-      cand = mknary<AND>(terms.begin(), terms.end());
-    }
-    else
-    {
-      errs() << "terms size wrong!\n";
-      assert(false);
-    }
-
-    ExprMap bvar_map;
-    ExprVector bvars;
-    get_all_bvars(cand, std::back_inserter(bvars));
-
-    for(ExprVector::iterator it = bvars.begin(); it != bvars.end(); ++it)
-    {
-      unsigned bvar_id = bind::bvarId(*it);
-      Expr app_arg = fapp->arg(bvar_id + 1);// To improve
-      bvar_map.insert(std::pair<Expr,Expr>(*it, app_arg));
-    }
-    return bvar_map;
-  }
-
-  Expr util_extractTransitionRelation(HornRule r, HornClauseDB &db)
+  Expr extractTransitionRelation(HornRule r, HornClauseDB &db)
   {
     Expr ruleBody = r.body();
     ExprMap body_map;
@@ -218,7 +180,7 @@ namespace seahorn
     return body_constraints;
   }
 
-  bool util_hasBvarInRule(HornRule r, HornClauseDB &db,
+  bool hasBvarInRule(HornRule r, HornClauseDB &db,
                           std::map<Expr, ExprVector> currentCandidates)
   {
     ExprVector pred_vector;

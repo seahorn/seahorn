@@ -11,29 +11,28 @@ namespace seahorn
 {
   void HornDbModel::addDef(Expr fapp, Expr lemma)
   {
+	Expr lemma_def;
+
     if (isOpX<TRUE> (lemma) || isOpX<FALSE> (lemma))
     {
-      m_defs.insert(std::make_pair (bind::fname(fapp), lemma));
-      return;
+    	lemma_def = lemma;
     }
-
-    assert (bind::isFapp (fapp));
-
-    Expr fdecl = bind::fname(fapp);
-
-    ExprMap actual_arg_to_bvar_map;
-
-    for(int i=0; i<bind::domainSz(fdecl); i++)
+    else
     {
-      Expr arg_i = fapp->arg(i+1);
-      Expr arg_i_type = bind::domainTy(fdecl, i);
-      Expr bvar_i = bind::bvar(i, arg_i_type);
-      actual_arg_to_bvar_map.insert(std::make_pair(arg_i, bvar_i));
+		assert (bind::isFapp (fapp));
+		Expr fdecl = bind::fname(fapp);
+		ExprMap actual_arg_to_bvar_map;
+		for(int i=0; i<bind::domainSz(fdecl); i++)
+		{
+		  Expr arg_i = fapp->arg(i+1);
+		  Expr arg_i_type = bind::domainTy(fdecl, i);
+		  Expr bvar_i = bind::bvar(i, arg_i_type);
+		  actual_arg_to_bvar_map.insert(std::make_pair(arg_i, bvar_i));
+		}
+		lemma_def = replace(lemma, actual_arg_to_bvar_map);
     }
 
-    Expr lemma_def = replace(lemma, actual_arg_to_bvar_map);
-
-    m_defs.insert(std::pair<Expr, Expr>(bind::fname(fapp), lemma_def));
+    m_defs[bind::fname(fapp)] = lemma_def;
   }
 
   Expr HornDbModel::getDef(Expr fapp)

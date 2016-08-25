@@ -5,6 +5,8 @@
 #include "llvm/IR/Module.h"
 #include "seahorn/HornClauseDB.hh"
 #include "seahorn/HornifyModule.hh"
+#include "seahorn/GuessCandidates.hh"
+#include "seahorn/HornDbModel.hh"
 
 #include "ufo/Expr.hpp"
 #include "ufo/Smt/Z3n.hpp"
@@ -28,17 +30,6 @@ namespace seahorn
     virtual const char* getPassName () const {return "Houdini";}
   };
 
-  class GuessCandidates
-  {
-  public:
-	  static std::map<Expr, Expr> guessCandidates(HornClauseDB &db);
-	  //Simple templates
-	  static Expr relToCand(Expr pred);
-	  //Functions for generating complex invariants
-	  static Expr applyComplexTemplates(Expr fdecl);
-	  static void generateLemmasForOneBvar(Expr bvar, ExprVector &conjuncts);
-  };
-
   class Houdini
   {
   public:
@@ -46,28 +37,17 @@ namespace seahorn
 	  virtual ~Houdini() {}
   private:
 	  HornifyModule &m_hm;
-      std::map<Expr,Expr> currentCandidates;
+	  HornDbModel m_candidate_model;
+
 
     public:
       HornifyModule& getHornifyModule() {return m_hm;}
-      std::map<Expr,Expr>& getCurrentCandidates() {return currentCandidates;}
-      void setInitialCandidatesSet(std::map<Expr, Expr> candidates) {currentCandidates = candidates;}
+      HornDbModel& getCandidateModel() {return m_candidate_model;}
 
     public:
       void runHoudini(int config);
 
-      //Utility Functions
-      Expr fAppToCandApp(Expr fapp);
-      Expr applyArgsToBvars(Expr cand, Expr fapp);
-      ExprMap getBvarsToArgsMap(Expr fapp);
-
-      Expr extractTransitionRelation(HornRule r, HornClauseDB &db);
-
-      template<typename OutputIterator>
-  	  void get_all_bvars (Expr e, OutputIterator out);
-
-  	  template<typename OutputIterator>
-  	  void get_all_pred_apps (Expr e, HornClauseDB &db, OutputIterator out);
+      void guessCandidates(HornClauseDB &db);
 
       //Functions for generating Positive Examples
       void generatePositiveWitness(std::map<Expr, ExprVector> &relationToPositiveStateMap);

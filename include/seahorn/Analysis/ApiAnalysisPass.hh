@@ -43,8 +43,6 @@ namespace seahorn
   // Each Basic block in a function will have an ApiCallList
   typedef std::vector<ApiEntry> BBApiList;
 
-  //typedef std::vector< std::vector<const Function*> > FunctionChain;
-
   struct ApiCallInfo
   {
 
@@ -101,8 +99,6 @@ namespace seahorn
     void analyze(const Function *F, unsigned int& progress, ApiCallInfo& aci);
 
     void defineEntryFunction(Module &M);
-
-    void defineNewMain(Module &M);
 
     void printModule(Module &M);
     

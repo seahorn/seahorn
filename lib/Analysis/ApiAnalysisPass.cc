@@ -35,7 +35,6 @@ namespace seahorn
             }
         }
 
-        //outs() << "In function: " << F->getName() << "\n";
 
         // First, get the basic blocks in topological order
         std::vector<const BasicBlock*> sortedBBlocks;
@@ -49,8 +48,6 @@ namespace seahorn
         while ( progress < m_apilist.size())
         {
             std::string API = m_apilist.at(progress);
-
-            //outs() << "Looking for " << API << ", progress = " << progress << "\n";
 
             // It appears that two calls can occur in an LLLVM basic block? So each block
             // must be processed again and again?
@@ -259,8 +256,6 @@ namespace seahorn
         // one of those a actual entry
 
         defineEntryFunction(M);
-
-        //printModule(M);
     
         return false;
     }
@@ -342,8 +337,6 @@ namespace seahorn
 
         // return 0 from the new main
         builder.CreateRet(ConstantInt::get(getGlobalContext(), APInt(32, 0)));
-        
-        printFunction(newMain);
     }
 
     void ApiAnalysisPass::getAnalysisUsage (AnalysisUsage &AU) const {

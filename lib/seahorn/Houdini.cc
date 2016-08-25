@@ -41,7 +41,7 @@ namespace seahorn
 
     Stats::resume ("Houdini inv");
     Houdini houdini(hm);
-    houdini.setInitialCandidatesSet(houdini.guessCandidates(hm.getHornClauseDB()));
+    houdini.guessCandidates(hm.getHornClauseDB());
     houdini.runHoudini(config);
     Stats::stop ("Houdini inv");
 
@@ -61,40 +61,70 @@ namespace seahorn
   void Houdini::addInvarCandsToProgramSolver()
   {
 	  auto &db = m_hm.getHornClauseDB();
-	  for(HornClauseDB::RuleVector::iterator it = db.getRules().begin(); it != db.getRules().end(); ++it)
-	  {
-			HornRule r = *it;
-			Expr rhead_app = r.head();
-			Expr rhead_cand_app = fAppToCandApp(rhead_app);
-			LOG("candidates", errs() << "HEAD: " << *rhead_app << "\n";);
-			LOG("candidates", errs() << "CAND: " << *rhead_cand_app << "\n";);
-			if(!isOpX<TRUE>(rhead_cand_app))
-			{
-				LOG("candidates", errs() << "ADD CONSTRAINT\n";);
-				db.addConstraint(rhead_app, rhead_cand_app);
-			}
-	  }
-  }
-
-  std::map<Expr, Expr> Houdini::guessCandidates(HornClauseDB &db)
-  {
-	  std::map<Expr, Expr> candidates;
 	  for(Expr rel : db.getRelations())
 	  {
-		  if(bind::isFdecl(rel))
+		  ExprVector arg_list;
+		  for(int i=0; i<bind::domainSz(rel); i++)
 		  {
-			  ExprVector lemmas = relToCand(rel);
-			  if(lemmas.size() == 1)
-			  {
-				  candidates.insert(std::make_pair(rel, lemmas[0]));
-			  }
-			  else
-			  {
-				  candidates.insert(std::make_pair(rel, mknary<AND>(lemmas.begin(), lemmas.end())));
-			  }
+			  Expr arg_i_type = bind::domainTy(rel, i);
+			  Expr arg_i = bind::fapp(bind::bvar(i, arg_i_type));
+			  arg_list.push_back(arg_i);
+		  }
+		  Expr fapp = bind::fapp(rel, arg_list);
+		  Expr cand_app = m_candidate_model.getDef(fapp);
+		  LOG("candidates", errs() << "HEAD: " << *fapp << "\n";);
+		  LOG("candidates", errs() << "CAND: " << *cand_app << "\n";);
+		  if(!isOpX<TRUE>(cand_app))
+		  {
+			  LOG("candidates", errs() << "ADD CONSTRAINT\n";);
+			  db.addConstraint(fapp, cand_app);
 		  }
 	  }
-	  return candidates;
+//	  for(HornClauseDB::RuleVector::iterator it = db.getRules().begin(); it != db.getRules().end(); ++it)
+//	  {
+//			HornRule r = *it;
+//			Expr rhead_app = r.head();
+//			Expr rhead_cand_app = m_candidate_model.getDef(rhead_app);
+//			LOG("candidates", errs() << "HEAD: " << *rhead_app << "\n";);
+//			LOG("candidates", errs() << "CAND: " << *rhead_cand_app << "\n";);
+//			if(!isOpX<TRUE>(rhead_cand_app))
+//			{
+//				LOG("candidates", errs() << "ADD CONSTRAINT\n";);
+//				db.addConstraint(rhead_app, rhead_cand_app);
+//			}
+//	  }
+  }
+
+  void Houdini::guessCandidates(HornClauseDB &db)
+  {
+	  for(Expr rel : db.getRelations())
+	  {
+		  ExprMap bvarToArgMap;
+		  ExprVector arg_list;
+		  for(int i=0; i<bind::domainSz(rel); i++)
+		  {
+			  Expr arg_i_type = bind::domainTy(rel, i);
+			  Expr bvar_i = bind::bvar(i, arg_i_type);
+			  Expr arg_i = bind::fapp(bvar_i);
+			  bvarToArgMap.insert(std::make_pair(bvar_i, arg_i));
+			  arg_list.push_back(arg_i);
+		  }
+		  Expr fapp = bind::fapp(rel, arg_list);
+
+		  ExprVector lemmas = relToCand(rel);
+		  Expr cand;
+		  if(lemmas.size() == 1)
+		  {
+			  cand = lemmas[0];
+		  }
+		  else
+		  {
+			  cand = mknary<AND>(lemmas.begin(), lemmas.end());
+		  }
+		  Expr cand_app = replace(cand, bvarToArgMap);
+
+		  m_candidate_model.addDef(fapp, cand_app);
+	  }
   }
 
   /*
@@ -115,13 +145,13 @@ namespace seahorn
 	  std::map<Expr, ExprVector> relationToPositiveStateMap;
 	  //generatePositiveWitness(relationToPositiveStateMap, db, hm);
 
-	  LOG("houdini", errs() << "CAND MAP:\n";);
-	  LOG("houdini", errs() << "MAP SIZE: " << currentCandidates.size() << "\n";);
-	  for(std::map<Expr, Expr>::iterator it = currentCandidates.begin(); it!= currentCandidates.end(); ++it)
-	  {
-		LOG("houdini", errs() << "PRED: " << *(it->first) << "\n";);
-		LOG("houdini", errs() << "CAND: " << *(it->second) << "\n";);
-	  }
+//	  LOG("houdini", errs() << "CAND MAP:\n";);
+//	  LOG("houdini", errs() << "MAP SIZE: " << m_candidate_model.m_defs.size() << "\n";);
+//	  for(std::map<Expr, Expr>::iterator it = m_candidate_model.m_defs.begin(); it!= m_candidate_model.m_defs.end(); ++it)
+//	  {
+//		LOG("houdini", errs() << "PRED: " << *(it->first) << "\n";);
+//		LOG("houdini", errs() << "CAND: " << *(it->second) << "\n";);
+//	  }
 
 	  std::list<HornRule> workList;
 	  workList.insert(workList.end(), db.getRules().begin(), db.getRules().end());
@@ -171,16 +201,16 @@ namespace seahorn
 	  auto &m_hm = m_houdini.getHornifyModule();
 	  auto &db = m_hm.getHornClauseDB();
 
-	  Expr ruleHead_cand_app = m_houdini.fAppToCandApp(r.head());
+	  Expr ruleHead_cand_app = m_houdini.getCandidateModel().getDef(r.head());
 	  Expr neg_ruleHead_cand_app = mk<NEG>(ruleHead_cand_app);
 	  solver.assertExpr(neg_ruleHead_cand_app);
 
 	  Expr ruleBody = r.body();
 	  ExprVector body_pred_apps;
 	  get_all_pred_apps(ruleBody, db, std::back_inserter(body_pred_apps));
-	  for(ExprVector::iterator itr = body_pred_apps.begin(); itr != body_pred_apps.end(); ++itr)
+	  for(Expr body_app : body_pred_apps)
 	  {
-		  solver.assertExpr(m_houdini.fAppToCandApp(*itr)); //add each body predicate app
+		  solver.assertExpr(m_houdini.getCandidateModel().getDef(body_app)); //add each body predicate app
 	  }
 
 	  solver.assertExpr(extractTransitionRelation(r, db));
@@ -249,17 +279,17 @@ namespace seahorn
 	  auto &m_hm = m_houdini.getHornifyModule();
 	  auto &db = m_hm.getHornClauseDB();
 
-  	  Expr ruleHead_cand_app = m_houdini.fAppToCandApp(r.head());
+	  Expr ruleHead_cand_app = m_houdini.getCandidateModel().getDef(r.head());
   	  Expr neg_ruleHead_cand_app = mk<NEG>(ruleHead_cand_app);
   	  solver.assertExpr(neg_ruleHead_cand_app);
 
   	  Expr ruleBody = r.body();
   	  ExprVector body_pred_apps;
   	  get_all_pred_apps(ruleBody, db, std::back_inserter(body_pred_apps));
-  	  for(ExprVector::iterator itr = body_pred_apps.begin(); itr != body_pred_apps.end(); ++itr)
-  	  {
-  		  solver.assertExpr(m_houdini.fAppToCandApp(*itr)); //add each body predicate app
-  	  }
+  	  for(Expr body_app : body_pred_apps)
+	  {
+		  solver.assertExpr(m_houdini.getCandidateModel().getDef(body_app)); //add each body predicate app
+	  }
 
   	  //LOG("houdini", errs() << "AFTER PUSH: \n";);
   	  //solver.toSmtLib(errs());
@@ -346,17 +376,17 @@ namespace seahorn
 		  }
 	  }
 
-  	  Expr ruleHead_cand_app = m_houdini.fAppToCandApp(r.head());
+	  Expr ruleHead_cand_app = m_houdini.getCandidateModel().getDef(r.head());
   	  Expr neg_ruleHead_cand_app = mk<NEG>(ruleHead_cand_app);
   	  solver.assertExpr(neg_ruleHead_cand_app);
 
   	  Expr ruleBody = r.body();
   	  ExprVector body_pred_apps;
   	  get_all_pred_apps(ruleBody, db, std::back_inserter(body_pred_apps));
-  	  for(ExprVector::iterator itr = body_pred_apps.begin(); itr != body_pred_apps.end(); ++itr)
-  	  {
-  		  solver.assertExpr(m_houdini.fAppToCandApp(*itr)); //add each body predicate app
-  	  }
+  	  for(Expr body_app : body_pred_apps)
+	  {
+		  solver.assertExpr(m_houdini.getCandidateModel().getDef(body_app)); //add each body predicate app
+	  }
 
   	  //LOG("houdini", errs() << "AFTER PUSH: \n";);
   	  //solver.toSmtLib(errs());
@@ -412,30 +442,29 @@ namespace seahorn
   void HoudiniContext::weakenRuleHeadCand(HornRule r, ZModel<EZ3> m)
   {
 	  Expr ruleHead_app = r.head();
-	  Expr ruleHead_rel = bind::fname(ruleHead_app);
-	  Expr ruleHead_cand = m_houdini.getCurrentCandidates()[ruleHead_rel];
+	  Expr ruleHead_cand_app = m_houdini.getCandidateModel().getDef(ruleHead_app);
 
-	  LOG("houdini", errs() << "HEAD CAND APP: " << *(m_houdini.applyArgsToBvars(ruleHead_cand, ruleHead_app)) << "\n";);
+	  LOG("houdini", errs() << "HEAD CAND APP: " << *ruleHead_cand_app << "\n";);
 
-	  if(isOpX<TRUE>(ruleHead_cand))
+	  if(isOpX<TRUE>(ruleHead_cand_app))
 	  {
 			return;
 	  }
-	  if(!isOpX<AND>(ruleHead_cand))
+	  if(!isOpX<AND>(ruleHead_cand_app))
 	  {
-			Expr weaken_cand = mk<TRUE>(ruleHead_cand->efac());
-			m_houdini.getCurrentCandidates()[ruleHead_rel] = weaken_cand;
+			Expr weaken_cand = mk<TRUE>(ruleHead_cand_app->efac());
+			m_houdini.getCandidateModel().addDef(ruleHead_app, weaken_cand);
 	  }
 	  else
 	  {
 			ExprVector head_cand_args;
-			head_cand_args.insert(head_cand_args.end(), ruleHead_cand->args_begin(), ruleHead_cand->args_end());
+			head_cand_args.insert(head_cand_args.end(), ruleHead_cand_app->args_begin(), ruleHead_cand_app->args_end());
 			int num_of_lemmas = head_cand_args.size();
 
 			for(ExprVector::iterator it = head_cand_args.begin(); it != head_cand_args.end(); ++it)
 			{
-				LOG("houdini", errs() << "EVAL: " << *(m.eval(m_houdini.applyArgsToBvars(*it, ruleHead_app))) << "\n";);
-				if(isOpX<FALSE>(m.eval(m_houdini.applyArgsToBvars(*it, ruleHead_app))))
+				LOG("houdini", errs() << "EVAL: " << *(m.eval(*it)) << "\n";);
+				if(isOpX<FALSE>(m.eval(*it)))
 				{
 					head_cand_args.erase(it);
 					break;
@@ -450,18 +479,28 @@ namespace seahorn
 				head_cand_args.erase(head_cand_args.begin());
 			}
 
+			ExprMap bvarToArgMap;
+			for(int i=0; i<bind::domainSz(bind::fname(ruleHead_app)); i++)
+			{
+				Expr arg_i = ruleHead_app->arg(i+1);
+				Expr bvar_i = bind::bvar(i, bind::typeOf(arg_i));
+				bvarToArgMap.insert(std::make_pair(bvar_i, arg_i));
+			}
+
 			if(head_cand_args.size() > 1)
 			{
 				Expr weaken_cand = mknary<AND>(head_cand_args.begin(), head_cand_args.end());
-				m_houdini.getCurrentCandidates()[ruleHead_rel] = weaken_cand;
+				Expr weaken_cand_app = replace(weaken_cand, bvarToArgMap);
+				m_houdini.getCandidateModel().addDef(ruleHead_app, weaken_cand_app);
 			}
 			else
 			{
 				Expr weaken_cand = head_cand_args[0];
-				m_houdini.getCurrentCandidates()[ruleHead_rel] = weaken_cand;
+				Expr weaken_cand_app = replace(weaken_cand, bvarToArgMap);
+				m_houdini.getCandidateModel().addDef(ruleHead_app, weaken_cand_app);
 			}
 	  }
-	  LOG("houdini", errs() << "HEAD AFTER WEAKEN: " << *(m_houdini.getCurrentCandidates()[ruleHead_rel]) << "\n";);
+	  LOG("houdini", errs() << "HEAD AFTER WEAKEN: " << *(m_houdini.getCandidateModel().getDef(ruleHead_app)) << "\n";);
   }
 
   /*
@@ -494,59 +533,6 @@ namespace seahorn
   		  }
   	  }
   }
-
-  /*
-   * Given a function application, apply its actual arguments to its candidate
-   */
-  Expr Houdini::fAppToCandApp(Expr fapp)
-  {
-	  Expr fdecl = bind::fname(fapp);
-	  Expr cand = currentCandidates[fdecl];
-	  return applyArgsToBvars(cand, fapp);
-  }
-
-  /*
-   * apply function arguments to any lemma of it.
-   */
-  Expr Houdini::applyArgsToBvars(Expr cand, Expr fapp)
-  {
- 	  ExprMap bvar_map = getBvarsToArgsMap(fapp);
- 	  return replace(cand, bvar_map);
-  }
-
-  ExprMap Houdini::getBvarsToArgsMap(Expr fapp)
-  {
-	  Expr fdecl = bind::fname(fapp);
-	  Expr cand = currentCandidates[fdecl];
-
-	  ExprMap bvar_map;
-	  ExprVector bvars;
-	  get_all_bvars(cand, std::back_inserter(bvars));
-
-	  for(ExprVector::iterator it = bvars.begin(); it != bvars.end(); ++it)
-	  {
-		  unsigned bvar_id = bind::bvarId(*it);
-		  Expr app_arg = bind::domainTy(fapp, bvar_id);// To improve
-		  bvar_map.insert(std::make_pair(*it, app_arg));
-	  }
-	  return bvar_map;
-  }
-
-//  Expr Houdini::extractTransitionRelation(HornRule r, HornClauseDB &db)
-//  {
-//	  Expr ruleBody = r.body();
-//	  ExprMap body_map;
-//	  ExprVector body_pred_apps;
-//	  get_all_pred_apps(ruleBody, db, std::back_inserter(body_pred_apps));
-//
-//	  for(ExprVector::iterator itr = body_pred_apps.begin(); itr != body_pred_apps.end(); ++itr)
-//	  {
-//		  body_map.insert(std::make_pair(*itr, mk<TRUE>((*itr)->efac())));
-//	  }
-//
-//	  Expr body_constraints = replace(ruleBody, body_map);
-//	  return body_constraints;
-//  }
 
   void Houdini::generatePositiveWitness(std::map<Expr, ExprVector> &relationToPositiveStateMap)
   {

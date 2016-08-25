@@ -6,6 +6,7 @@
 #include "seahorn/HornClauseDB.hh"
 #include "seahorn/HornifyModule.hh"
 #include "seahorn/GuessCandidates.hh"
+#include "seahorn/HornDbModel.hh"
 
 #include "ufo/Expr.hpp"
 #include "ufo/Smt/Z3n.hpp"
@@ -36,22 +37,17 @@ namespace seahorn
 	  virtual ~Houdini() {}
   private:
 	  HornifyModule &m_hm;
-      std::map<Expr,Expr> currentCandidates;
+	  HornDbModel m_candidate_model;
+
 
     public:
       HornifyModule& getHornifyModule() {return m_hm;}
-      std::map<Expr,Expr>& getCurrentCandidates() {return currentCandidates;}
-      void setInitialCandidatesSet(std::map<Expr, Expr> candidates) {currentCandidates = candidates;}
+      HornDbModel& getCandidateModel() {return m_candidate_model;}
 
     public:
       void runHoudini(int config);
 
-      std::map<Expr, Expr> guessCandidates(HornClauseDB &db);
-
-      //Utility Functions
-      Expr fAppToCandApp(Expr fapp);
-      Expr applyArgsToBvars(Expr cand, Expr fapp);
-      ExprMap getBvarsToArgsMap(Expr fapp);
+      void guessCandidates(HornClauseDB &db);
 
       //Functions for generating Positive Examples
       void generatePositiveWitness(std::map<Expr, ExprVector> &relationToPositiveStateMap);

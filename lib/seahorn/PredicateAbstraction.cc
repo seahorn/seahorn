@@ -211,7 +211,7 @@ namespace seahorn
 			pred_vector.push_back(r.head());
 
 			//Deal with the rules that have no predicates
-			if(!util_hasBvarInRule(r, db, m_currentCandidates))
+			if(!hasBvarInRule(r, db, m_currentCandidates))
 			{
 				ExprMap replaceMap;
 				for(Expr pred : pred_vector)
@@ -272,7 +272,7 @@ namespace seahorn
 				ExprMap boolToTermMap;
 				for(Expr term : m_currentCandidates.find(bind::fname(*it))->second)
 				{
-					Expr term_app = util_applyArgsToBvars(term, *it, m_currentCandidates);
+					Expr term_app = applyArgsToBvars(term, *it, m_currentCandidates);
 					Expr equal_expr = mk<IFF>(new_rule_body_pred->arg(index + 1), term_app);
 					//converter
 					boolToTermMap.insert(std::make_pair(bind::bvar(index, mk<BOOL_TY>(term_app->efac())), term));
@@ -312,7 +312,7 @@ namespace seahorn
 				ExprMap boolToTermMap;
 				for(Expr term : m_currentCandidates.find(bind::fname(rule_head))->second)
 				{
-					Expr term_app = util_applyArgsToBvars(term, rule_head, m_currentCandidates);
+					Expr term_app = applyArgsToBvars(term, rule_head, m_currentCandidates);
 					Expr equal_expr = mk<IFF>(new_rule_head->arg(index + 1), term_app);
 					//converter
 					boolToTermMap.insert(std::make_pair(bind::bvar(index, mk<BOOL_TY>(term_app->efac())), term));
@@ -325,7 +325,7 @@ namespace seahorn
 			}
 
 			//Extract the constraints
-			Expr constraints = util_extractTransitionRelation(r, db);
+			Expr constraints = extractTransitionRelation(r, db);
 			new_body_exprs.push_back(constraints);
 
 			//Construct new body
@@ -360,6 +360,44 @@ namespace seahorn
 			  m_currentCandidates.insert(std::make_pair(rel, terms));
 		  }
 	  }
+	}
+
+	Expr PredicateAbstractionAnalysis::applyArgsToBvars(Expr cand, Expr fapp, std::map<Expr, ExprVector> currentCandidates)
+	{
+	    ExprMap bvar_map = getBvarsToArgsMap(fapp, currentCandidates);
+	    return replace(cand, bvar_map);
+	}
+
+	ExprMap PredicateAbstractionAnalysis::getBvarsToArgsMap(Expr fapp, std::map<Expr, ExprVector> currentCandidates)
+	{
+	    Expr fdecl = bind::fname(fapp);
+	    ExprVector terms = currentCandidates[fdecl];
+	    Expr cand;
+	    if(terms.size() == 1)
+	    {
+	      cand = currentCandidates[fdecl][0];
+	    }
+	    else if(terms.size() > 1)
+	    {
+	      cand = mknary<AND>(terms.begin(), terms.end());
+	    }
+	    else
+	    {
+	      errs() << "terms size wrong!\n";
+	      assert(false);
+	    }
+
+	    ExprMap bvar_map;
+	    ExprVector bvars;
+	    get_all_bvars(cand, std::back_inserter(bvars));
+
+	    for(ExprVector::iterator it = bvars.begin(); it != bvars.end(); ++it)
+	    {
+	      unsigned bvar_id = bind::bvarId(*it);
+	      Expr app_arg = fapp->arg(bvar_id + 1);// To improve
+	      bvar_map.insert(std::make_pair(*it, app_arg));
+	    }
+	    return bvar_map;
 	}
 
 	bool PredAbsHornModelConverter::convert (HornDbModel &in, HornDbModel &out)

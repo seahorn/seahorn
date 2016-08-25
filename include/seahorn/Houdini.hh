@@ -53,14 +53,6 @@ namespace seahorn
       Expr applyArgsToBvars(Expr cand, Expr fapp);
       ExprMap getBvarsToArgsMap(Expr fapp);
 
-      Expr extractTransitionRelation(HornRule r, HornClauseDB &db);
-
-      template<typename OutputIterator>
-  	  void get_all_bvars (Expr e, OutputIterator out);
-
-  	  template<typename OutputIterator>
-  	  void get_all_pred_apps (Expr e, HornClauseDB &db, OutputIterator out);
-
       //Functions for generating Positive Examples
       void generatePositiveWitness(std::map<Expr, ExprVector> &relationToPositiveStateMap);
       void getReachableStates(std::map<Expr, ExprVector> &relationToPositiveStateMap, Expr from_pred, Expr from_pred_state);

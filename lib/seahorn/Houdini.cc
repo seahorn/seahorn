@@ -56,45 +56,7 @@ namespace seahorn
 
   /*HoudiniPass methods end*/
 
-  /*GuessCandidates methods begin*/
-
-
-
-  /*GuessCandidates methods end*/
-
   /*Houdini methods begin*/
-
-  struct IsBVar : public std::unary_function<Expr, bool>
-  {
-	   IsBVar () {}
-	   bool operator() (Expr e)
-	   {return bind::isBVar (e);}
-  };
-
-  struct IsPredApp : public std::unary_function<Expr, bool>
-  {
-	   HornClauseDB &m_db;
-	   IsPredApp (HornClauseDB &db) : m_db (db) {}
-
-	   bool operator() (Expr e)
-	   {return bind::isFapp (e) && m_db.hasRelation (bind::fname(e));}
-  };
-
-  /*
-   * Extract all bvars in an expression
-   */
-  template<typename OutputIterator>
-  void Houdini::get_all_bvars (Expr e, OutputIterator out)
-  {filter (e, IsBVar(), out);}
-
-  /*
-   * Extract all predicates in an expression
-   */
-  template<typename OutputIterator>
-  void Houdini::get_all_pred_apps (Expr e, HornClauseDB &db, OutputIterator out)
-  {filter (e, IsPredApp(db), out);}
-
-  //std::map<Expr, Expr> Houdini::currentCandidates;	//a map from predicates to candidates
 
   void Houdini::addInvarCandsToProgramSolver()
   {
@@ -215,13 +177,13 @@ namespace seahorn
 
 	  Expr ruleBody = r.body();
 	  ExprVector body_pred_apps;
-	  m_houdini.get_all_pred_apps(ruleBody, db, std::back_inserter(body_pred_apps));
+	  get_all_pred_apps(ruleBody, db, std::back_inserter(body_pred_apps));
 	  for(ExprVector::iterator itr = body_pred_apps.begin(); itr != body_pred_apps.end(); ++itr)
 	  {
 		  solver.assertExpr(m_houdini.fAppToCandApp(*itr)); //add each body predicate app
 	  }
 
-	  solver.assertExpr(m_houdini.extractTransitionRelation(r, db));
+	  solver.assertExpr(extractTransitionRelation(r, db));
 
 	  //solver.toSmtLib(errs());
 	  boost::tribool isSat = solver.solve();
@@ -293,7 +255,7 @@ namespace seahorn
 
   	  Expr ruleBody = r.body();
   	  ExprVector body_pred_apps;
-  	  m_houdini.get_all_pred_apps(ruleBody, db, std::back_inserter(body_pred_apps));
+  	  get_all_pred_apps(ruleBody, db, std::back_inserter(body_pred_apps));
   	  for(ExprVector::iterator itr = body_pred_apps.begin(); itr != body_pred_apps.end(); ++itr)
   	  {
   		  solver.assertExpr(m_houdini.fAppToCandApp(*itr)); //add each body predicate app
@@ -327,7 +289,7 @@ namespace seahorn
   	  for(HornClauseDB::RuleVector::iterator it = db.getRules().begin(); it != db.getRules().end(); ++it)
   	  {
   		  HornRule r = *it;
-  		  Expr tr = m_houdini.extractTransitionRelation(r, db);
+  		  Expr tr = extractTransitionRelation(r, db);
   		  ZSolver<EZ3> solver(m_hm.getZContext());
   		  solver.assertExpr(tr);
   		  solver.push();
@@ -378,7 +340,7 @@ namespace seahorn
 		  assert(isOpX<IMPL>(*it));
 		  Expr tagVar = (*it)->left();
 		  Expr tr = (*it)->right();
-		  if(tr == m_houdini.extractTransitionRelation(r, db))
+		  if(tr == extractTransitionRelation(r, db))
 		  {
 			  solver.assertExpr(tagVar);
 		  }
@@ -390,7 +352,7 @@ namespace seahorn
 
   	  Expr ruleBody = r.body();
   	  ExprVector body_pred_apps;
-  	  m_houdini.get_all_pred_apps(ruleBody, db, std::back_inserter(body_pred_apps));
+  	  get_all_pred_apps(ruleBody, db, std::back_inserter(body_pred_apps));
   	  for(ExprVector::iterator itr = body_pred_apps.begin(); itr != body_pred_apps.end(); ++itr)
   	  {
   		  solver.assertExpr(m_houdini.fAppToCandApp(*itr)); //add each body predicate app
@@ -429,14 +391,14 @@ namespace seahorn
   		  {
   			  ZSolver<EZ3> &solver = relationToSolverMap.find(ruleHead)->second;
   			  Expr var = bind::boolVar(mkTerm<std::string>(std::string("tag2"), ruleHead->efac()));
-  			  solver.assertExpr(mk<IMPL>(var, m_houdini.extractTransitionRelation(r, db)));
+  			  solver.assertExpr(mk<IMPL>(var, extractTransitionRelation(r, db)));
   			  solver.push();
   		  }
   		  else
   		  {
   			  ZSolver<EZ3> solver(m_hm.getZContext());
   			  Expr tagVar = bind::boolVar(mkTerm<std::string>(std::string("tag"), ruleHead->efac()));
-  			  solver.assertExpr(mk<IMPL>(tagVar, m_houdini.extractTransitionRelation(r, db)));
+  			  solver.assertExpr(mk<IMPL>(tagVar, extractTransitionRelation(r, db)));
   			  solver.push();
   			  relationToSolverMap.insert(std::make_pair(ruleHead, solver));
   		  }
@@ -570,21 +532,21 @@ namespace seahorn
 	  return bvar_map;
   }
 
-  Expr Houdini::extractTransitionRelation(HornRule r, HornClauseDB &db)
-  {
-	  Expr ruleBody = r.body();
-	  ExprMap body_map;
-	  ExprVector body_pred_apps;
-	  get_all_pred_apps(ruleBody, db, std::back_inserter(body_pred_apps));
-
-	  for(ExprVector::iterator itr = body_pred_apps.begin(); itr != body_pred_apps.end(); ++itr)
-	  {
-		  body_map.insert(std::make_pair(*itr, mk<TRUE>((*itr)->efac())));
-	  }
-
-	  Expr body_constraints = replace(ruleBody, body_map);
-	  return body_constraints;
-  }
+//  Expr Houdini::extractTransitionRelation(HornRule r, HornClauseDB &db)
+//  {
+//	  Expr ruleBody = r.body();
+//	  ExprMap body_map;
+//	  ExprVector body_pred_apps;
+//	  get_all_pred_apps(ruleBody, db, std::back_inserter(body_pred_apps));
+//
+//	  for(ExprVector::iterator itr = body_pred_apps.begin(); itr != body_pred_apps.end(); ++itr)
+//	  {
+//		  body_map.insert(std::make_pair(*itr, mk<TRUE>((*itr)->efac())));
+//	  }
+//
+//	  Expr body_constraints = replace(ruleBody, body_map);
+//	  return body_constraints;
+//  }
 
   void Houdini::generatePositiveWitness(std::map<Expr, ExprVector> &relationToPositiveStateMap)
   {

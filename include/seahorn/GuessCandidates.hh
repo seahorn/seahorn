@@ -8,6 +8,7 @@
 #include "ufo/Smt/EZ3.hh"
 #include <fstream>
 #include <iostream>
+#include <boost/tokenizer.hpp>
 
 namespace seahorn
 {

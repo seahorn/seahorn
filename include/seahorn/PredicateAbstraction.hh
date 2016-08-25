@@ -51,6 +51,9 @@ namespace seahorn
 
 		void guessCandidate(HornClauseDB &db);
 
+		Expr applyArgsToBvars(Expr cand, Expr fapp, std::map<Expr, ExprVector> currentCandidates);
+		ExprMap getBvarsToArgsMap(Expr fapp, std::map<Expr, ExprVector> currentCandidates);
+
 		void generateAbstractDB(HornClauseDB &db, HornClauseDB &new_DB, PredAbsHornModelConverter &converter);
 		void generateAbstractRelations(HornClauseDB &db, HornClauseDB &new_DB, PredAbsHornModelConverter &converter);
 		void generateAbstractRules(HornClauseDB &db, HornClauseDB &new_DB, PredAbsHornModelConverter &converter);

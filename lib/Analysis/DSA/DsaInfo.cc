@@ -447,8 +447,17 @@ bool InfoAnalysis::runOnFunction (Function &f)
 
 bool InfoAnalysis::runOnModule (Module &M) 
 {
-  for (auto &f: M) { runOnFunction (f); }
-  ufo::Stats::uset ("NumOfFunctions", std::distance (M.begin () , M.end ()));
+
+  unsigned num_of_funcs = 0;
+  for (auto &f: M) 
+  { 
+    runOnFunction (f); 
+    if (f.isDeclaration () || f.empty ()) 
+      continue;
+    num_of_funcs++; 
+  }
+
+  ufo::Stats::uset ("NumOfFunctions", num_of_funcs);
 
   // discards output if verbose mode is disabled
   raw_ostream &o = (m_verbose ? errs () : nulls ());

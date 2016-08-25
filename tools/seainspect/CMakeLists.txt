@@ -2,6 +2,11 @@ add_definitions(-D__STDC_CONSTANT_MACROS)
 add_definitions(-D__STDC_LIMIT_MACROS)
 
 set (USED_LIBS
+  SeaInstrumentation
+  SeaTransformsScalar
+  SeaTransformsUtils
+  SeaAnalysis
+  SeaSupport
  ${Boost_SYSTEM_LIBRARY}
  ${RT_LIB})
 
@@ -34,7 +39,7 @@ set(LLVM_LINK_COMPONENTS
 
 
 add_executable(seainspect seainspect.cc)
-target_link_libraries (seainspect SeaSupport SeaAnalysis)
+target_link_libraries (seainspect SeaSupport SeaAnalysis SeaTransformsUtils seahorn.LIB SeaInstrumentation SeaTransformsScalar  ${LLVM_SEAHORN_LIBS})
 llvm_config (seainspect ${LLVM_LINK_COMPONENTS})
 install(TARGETS seainspect RUNTIME DESTINATION bin)
 

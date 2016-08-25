@@ -325,7 +325,7 @@ namespace seahorn
         for (auto &a : startFuncParams)
         {
             Type *t = a->getType();
-            Function &ndfn = seahorn::createNewNondetFn(M, *t, 1, "get.arg"); 
+            Function &ndfn = seahorn::createNewNondetFn(M, *t, 1, "__sea_get_arg"); 
   
             builder.SetInsertPoint (entry);
             Value* p = builder.CreateCall(&ndfn);

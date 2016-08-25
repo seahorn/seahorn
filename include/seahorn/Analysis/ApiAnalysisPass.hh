@@ -98,7 +98,7 @@ namespace seahorn
 
     void analyze(const Function *F, unsigned int& progress, ApiCallInfo& aci);
 
-    void defineEntryFunction(Module &M);
+    void defineEntryFunction(Module &M); 
 
     void printModule(Module &M);
     

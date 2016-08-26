@@ -929,6 +929,16 @@ namespace seahorn
     return this->SmallStepSymExec::errorFlag (BB);
   }
   
+  Expr UfoSmallSymExec::memStart (unsigned id)
+  {
+    Expr sort = sort::intTy (m_efac);
+    return shadow_dsa::memStartVar (id, sort);
+  }
+  Expr UfoSmallSymExec::memEnd (unsigned id)
+  {
+    Expr sort = sort::intTy (m_efac);
+    return shadow_dsa::memEndVar (id, sort);
+  }
   void UfoSmallSymExec::exec (SymStore &s, const BasicBlock &bb, ExprVector &side,
                               Expr act)
   {

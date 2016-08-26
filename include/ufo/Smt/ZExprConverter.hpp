@@ -372,7 +372,9 @@ namespace ufo
         /** Bit-Vectors */
         else if (isOpX<BSEXT> (e) || isOpX<BZEXT> (e) )
         {
+          assert (Z3_get_sort_kind (ctx, Z3_get_sort (ctx, t1)) == Z3_BV_SORT);
           unsigned t1_sz = Z3_get_bv_sort_size (ctx, Z3_get_sort (ctx, t1));
+          assert (t1_sz > 0);
           assert (t1_sz < bv::width (e->arg (1)));
           if (isOpX<BSEXT> (e))
             res = z3::ast (ctx,
@@ -444,8 +446,8 @@ namespace ufo
       }
       else if (isOpX<BEXTRACT> (e))
       {
+        assert (bv::high (e) > bv::low (e));
         z3::ast a (ctx, marshal (bv::earg (e), ctx, cache, seen));
-        assert (bv::high (e) < bv::low (e));
         res = Z3_mk_extract (ctx, bv::high (e), bv::low (e), a);
       }
       else if (isOpX<AND> (e) || isOpX<OR> (e) ||
@@ -799,7 +801,16 @@ namespace ufo
           e = mknary<REM> (args.begin (), args.end ());
           break;
         case Z3_OP_CONST_ARRAY:
-          e = mknary<CONST_ARRAY> (args.begin (), args.end ());
+          {
+            assert (args.size () == 1);
+            Z3_sort sort = Z3_get_sort (ctx, z);
+            Expr domain = unmarshal
+              (z3::ast (ctx, Z3_sort_to_ast (ctx,
+                                             Z3_get_array_sort_domain (ctx, sort))),
+               efac, cache, seen);
+            
+            e = op::array::constArray (domain, args[0]);
+          }
           break;
         case Z3_OP_STORE:
           e = mknary<STORE> (args.begin (), args.end ());

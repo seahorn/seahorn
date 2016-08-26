@@ -432,6 +432,12 @@ namespace ufo
     ExprFactory &getExprFactory () { return z3.getExprFactory (); }
     Expr operator() (Expr e) { return eval (e); }
 
+    template <typename OutputStream>
+    friend OutputStream &operator<< (OutputStream &out, this_type &model)
+    {
+      out << Z3_model_to_string (model.ctx, model.model);
+      return out;
+    }
     
   };
 

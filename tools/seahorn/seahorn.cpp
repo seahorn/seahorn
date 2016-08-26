@@ -27,6 +27,7 @@
 #include "seahorn/HornifyModule.hh"
 #include "seahorn/HornSolver.hh"
 #include "seahorn/Houdini.hh"
+#include "seahorn/PredicateAbstraction.hh"
 #include "seahorn/HornCex.hh"
 #include "seahorn/Transforms/Scalar/PromoteVerifierCalls.hh"
 #include "seahorn/Transforms/Scalar/LowerGvInitializers.hh"
@@ -36,7 +37,7 @@
 #ifdef HAVE_CRAB_LLVM
 #include "crab_llvm/CrabLlvm.hh"
 #include "crab_llvm/Transforms/InsertInvariants.hh"
-#endif 
+#endif
 
 #include "ufo/Smt/EZ3.hh"
 #include "ufo/Passes/NameValues.hpp"
@@ -53,11 +54,11 @@ namespace seahorn
 {
   struct ZTraceLogOpt
   {
-    void operator= (const std::string &tag) const 
+    void operator= (const std::string &tag) const
     {Z3_enable_trace (tag.c_str ());}
   };
   ZTraceLogOpt ztrace;
-  
+
   struct ZVerboseOpt
   {
     void operator= (const int v) const
@@ -67,7 +68,7 @@ namespace seahorn
 }
 
 static llvm::cl::opt<seahorn::ZTraceLogOpt, true, llvm::cl::parser<std::string> >
-TraceOption ("ztrace", 
+TraceOption ("ztrace",
              llvm::cl::desc ("Enable z3 trace level"),
              llvm::cl::location (seahorn::ztrace),
              llvm::cl::value_desc ("string"),
@@ -75,13 +76,13 @@ TraceOption ("ztrace",
              llvm::cl::Hidden);
 
 static llvm::cl::opt<seahorn::ZVerboseOpt, true, llvm::cl::parser<int> >
-VerboseOption ("zverbose", 
+VerboseOption ("zverbose",
                llvm::cl::desc ("Z3 verbosity level"),
                llvm::cl::location (seahorn::zverbose),
                llvm::cl::value_desc ("int"),
                llvm::cl::ValueRequired, llvm::cl::Hidden);
 
-  
+
 static llvm::cl::opt<std::string>
 InputFilename(llvm::cl::Positional, llvm::cl::desc("<input LLVM bitcode file>"),
               llvm::cl::Required, llvm::cl::value_desc("filename"));
@@ -104,13 +105,13 @@ static llvm::cl::opt<bool>
 InlineAll ("horn-inline-all", llvm::cl::desc ("Inline all functions"),
            llvm::cl::init (false));
 
-static llvm::cl::opt<bool> 
+static llvm::cl::opt<bool>
 Solve ("horn-solve", llvm::cl::desc ("Run Horn solver"), llvm::cl::init (false));
 
 static llvm::cl::opt<bool>
 Crab ("horn-crab", llvm::cl::desc ("Use Crab invariants"), llvm::cl::init (false));
 
-static llvm::cl::opt<bool> 
+static llvm::cl::opt<bool>
 PrintStats ("horn-stats",
             llvm::cl::desc ("Print statistics"), llvm::cl::init(false));
 
@@ -121,16 +122,27 @@ Cex ("horn-cex-pass", llvm::cl::desc ("Produce detailed counterexample"),
 static llvm::cl::opt<bool>
 KeepShadows ("keep-shadows", llvm::cl::desc ("Do not strip shadow.mem functions"),
              llvm::cl::init (false), llvm::cl::Hidden);
-             
+
 static llvm::cl::opt<bool>
 Bmc ("horn-bmc",
      llvm::cl::desc ("Use BMC engine. Currently restricted to intra-procedural analysis"),
      llvm::cl::init (false));
 
 static llvm::cl::opt<bool>
+SeaHornDsa ("horn-sea-dsa",
+            llvm::cl::desc ("Use Seahorn Dsa analysis"),
+            llvm::cl::init (false));
+
+static llvm::cl::opt<bool>
 HoudiniInv ("horn-houdini",
          llvm::cl::desc ("Use Houdini algorithm to generate inductive invariants"),
          llvm::cl::init (false));
+
+static llvm::cl::opt<bool>
+PredAbs ("horn-pred-abs",
+        llvm::cl::desc ("Use Predicate Abstraction to generate inductive invariants"),
+        llvm::cl::init (false));
+
 
 // removes extension from filename if there is one
 std::string getFileName(const std::string &str) {
@@ -143,7 +155,7 @@ std::string getFileName(const std::string &str) {
 
 int main(int argc, char **argv) {
   ufo::ScopedStats _st ("seahorn_total");
-  
+
   llvm::llvm_shutdown_obj shutdown;  // calls llvm_shutdown() on exit
   llvm::cl::AddExtraVersionPrinter (print_seahorn_version);
   llvm::cl::ParseCommandLineOptions(argc, argv,
@@ -159,7 +171,7 @@ int main(int argc, char **argv) {
   std::unique_ptr<llvm::Module> module;
   std::unique_ptr<llvm::tool_output_file> output;
   std::unique_ptr<llvm::tool_output_file> asmOutput;
-  
+
 
   module = llvm::parseIRFile(InputFilename, err, context);
   if (module.get() == 0)
@@ -171,13 +183,13 @@ int main(int argc, char **argv) {
     return 3;
   }
   if (!AsmOutputFilename.empty ())
-    asmOutput = 
-      llvm::make_unique<llvm::tool_output_file>(AsmOutputFilename.c_str(), error_code, 
+    asmOutput =
+      llvm::make_unique<llvm::tool_output_file>(AsmOutputFilename.c_str(), error_code,
                                                 llvm::sys::fs::F_Text);
   if (error_code) {
-    if (llvm::errs().has_colors()) 
+    if (llvm::errs().has_colors())
       llvm::errs().changeColor(llvm::raw_ostream::RED);
-    llvm::errs() << "error: Could not open " << AsmOutputFilename << ": " 
+    llvm::errs() << "error: Could not open " << AsmOutputFilename << ": "
                  << error_code.message () << "\n";
     if (llvm::errs().has_colors()) llvm::errs().resetColor();
     return 3;
@@ -186,15 +198,15 @@ int main(int argc, char **argv) {
   if (!OutputFilename.empty ())
     output = llvm::make_unique<llvm::tool_output_file>
       (OutputFilename.c_str(), error_code, llvm::sys::fs::F_None);
-      
+
   if (error_code) {
     if (llvm::errs().has_colors()) llvm::errs().changeColor(llvm::raw_ostream::RED);
-    llvm::errs() << "error: Could not open " << OutputFilename << ": " 
+    llvm::errs() << "error: Could not open " << OutputFilename << ": "
                  << error_code.message () << "\n";
     if (llvm::errs().has_colors()) llvm::errs().resetColor();
     return 3;
   }
-  
+
 
   ///////////////////////////////
   // initialise and run passes //
@@ -203,10 +215,10 @@ int main(int argc, char **argv) {
   llvm::PassManager pass_manager;
   llvm::PassRegistry &Registry = *llvm::PassRegistry::getPassRegistry();
   llvm::initializeAnalysis(Registry);
-  
+
   /// call graph and other IPA passes
   llvm::initializeIPA (Registry);
-  
+
   // add an appropriate DataLayout instance for the module
   const llvm::DataLayout *dl = module->getDataLayout ();
   if (!dl && !DefaultDataLayout.empty ())
@@ -214,13 +226,13 @@ int main(int argc, char **argv) {
     module->setDataLayout (DefaultDataLayout);
     dl = module->getDataLayout ();
   }
-  
+
   if (dl) pass_manager.add (new llvm::DataLayoutPass ());
 
   // turn all functions internal so that we can inline them if requested
   pass_manager.add (llvm::createInternalizePass (llvm::ArrayRef<const char*>("main")));
   pass_manager.add (llvm::createGlobalDCEPass ()); // kill unused internal global
-  
+
   if (InlineAll)
   {
     pass_manager.add (seahorn::createMarkInternalInlinePass ());
@@ -242,8 +254,10 @@ int main(int argc, char **argv) {
   // -- it invalidates DSA passes so it should be run before
   // -- ShadowMemDsa
   pass_manager.add (llvm::createGlobalDCEPass ()); // kill unused internal global
-
-  pass_manager.add (seahorn::createShadowMemDsaPass ());
+  if (SeaHornDsa)
+    pass_manager.add (seahorn::createShadowMemSeaDsaPass ());
+  else
+    pass_manager.add (seahorn::createShadowMemDsaPass ());
   // lowers shadow.mem variables created by ShadowMemDsa pass
   pass_manager.add (seahorn::createPromoteMemoryToRegisterPass ());
 
@@ -266,7 +280,7 @@ int main(int argc, char **argv) {
 
   if (!Bmc)
     pass_manager.add (new seahorn::HornifyModule ());
-  if (!AsmOutputFilename.empty ()) 
+  if (!AsmOutputFilename.empty ())
   {
     if (!KeepShadows)
     {
@@ -277,7 +291,7 @@ int main(int argc, char **argv) {
     }
     pass_manager.add (createPrintModulePass (asmOutput->os ()));
   }
-  
+
   if (Bmc)
   {
     llvm::raw_ostream *out = nullptr;
@@ -288,13 +302,16 @@ int main(int argc, char **argv) {
   {
     if (!OutputFilename.empty ()) pass_manager.add (new seahorn::HornWrite (output->os ()));
     if (Crab) pass_manager.add (seahorn::createLoadCrabPass ());
-    if (HoudiniInv) pass_manager.add (new seahorn::Houdini ());
-    if (Solve) pass_manager.add (new seahorn::HornSolver ());
-    if (Cex) pass_manager.add (new seahorn::HornCex ());
+    if (HoudiniInv) pass_manager.add (new seahorn::HoudiniPass ());
+    if (PredAbs) pass_manager.add(new seahorn::PredicateAbstraction());
+    if (Solve)
+    { 	  pass_manager.add (new seahorn::HornSolver ());
+          if (Cex) pass_manager.add (new seahorn::HornCex ());
+    }
   }
-  
+
   pass_manager.run(*module.get());
-  
+
   if (!AsmOutputFilename.empty ()) asmOutput->keep ();
   if (!OutputFilename.empty ()) output->keep();
   if (PrintStats) ufo::Stats::PrintBrunch (llvm::outs ());

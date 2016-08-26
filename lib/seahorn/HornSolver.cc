@@ -1,6 +1,7 @@
 #include "seahorn/HornSolver.hh"
 #include "seahorn/HornifyModule.hh"
 #include "seahorn/HornClauseDBTransf.hh"
+#include "seahorn/HornDbModel.hh"
 
 #include "llvm/IR/Function.h"
 #include "llvm/Support/CommandLine.h"
@@ -96,7 +97,11 @@ namespace seahorn
 
 
     if (PrintAnswer && !m_result)
-      printInvars (M);
+    {
+      HornDbModel dbModel;
+      initDBModelFromFP(dbModel, db, fp);
+      printInvars(M, dbModel);
+    }
     else if (PrintAnswer && m_result)
       printCex ();
 
@@ -149,44 +154,6 @@ namespace seahorn
     
   }
 
-  void HornSolver::printInvars (Module &M)
-  {
-    for (auto &F : M) printInvars (F);
-  }
-
-  void HornSolver::printInvars (Function &F)
-  {
-    if (F.isDeclaration ()) return;
-
-    HornifyModule &hm = getAnalysis<HornifyModule> ();
-    outs () << "Function: " << F.getName () << "\n";
-
-    // -- not used for now
-    Expr summary = hm.summaryPredicate (F);
-    
-    ZFixedPoint<EZ3> fp = *m_fp;
-
-    for (auto &BB : F)
-    {
-      if (!hm.hasBbPredicate (BB)) continue;
-
-      Expr bbPred = hm.bbPredicate (BB);
-
-      outs () << *bind::fname (bbPred) << ":";
-      const ExprVector &live = hm.live (BB);
-      Expr invars = fp.getCoverDelta (bind::fapp (bbPred, live));
-
-      if (isOpX<AND> (invars))
-      {
-        outs () << "\n\t";
-        for (size_t i = 0; i < invars->arity (); ++i)
-          outs () << "\t" << *invars->arg (i) << "\n";
-      }
-      else
-        outs () << " " << *invars << "\n";
-    }
-  }
-
   void HornSolver::estimateSizeInvars (Module &M)
   {
     HornifyModule &hm = getAnalysis<HornifyModule> ();
@@ -215,6 +182,45 @@ namespace seahorn
     }
     Stats::uset ("NumOfBlocksWithInvariants", numBlocks);
     Stats::uset ("SizeOfInvariants", (allInvars ? dagSize(allInvars) : 0));
+  }
+
+  void HornSolver::printInvars (Module &M, HornDbModel &model)
+  {
+    for (auto &F : M) printInvars (F, model);
+  }
+
+  void HornSolver::printInvars(Function &F, HornDbModel &model)
+  {
+    if (F.isDeclaration ()) return;
+
+    HornifyModule &hm = getAnalysis<HornifyModule> ();
+    outs () << "Function: " << F.getName () << "\n";
+
+    // -- not used for now
+    Expr summary = hm.summaryPredicate (F);
+
+    ZFixedPoint<EZ3> fp = *m_fp;
+
+    for (auto &BB : F)
+    {
+      if (!hm.hasBbPredicate (BB)) continue;
+
+      Expr bbPred = hm.bbPredicate (BB);
+
+      outs () << *bind::fname (bbPred) << ":";
+      const ExprVector &live = hm.live (BB);
+      //Expr invars = fp.getCoverDelta (bind::fapp (bbPred, live));
+      Expr invars = model.getDef(bind::fapp(bbPred, live));
+
+      if (isOpX<AND> (invars))
+      {
+        outs () << "\n\t";
+        for (size_t i = 0; i < invars->arity (); ++i)
+          outs () << "\t" << *invars->arg (i) << "\n";
+      }
+      else
+        outs () << " " << *invars << "\n";
+    }
   }
 
 

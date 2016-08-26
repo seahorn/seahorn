@@ -533,4 +533,3 @@ static llvm::RegisterPass<seahorn::ShadowMemDsa> X ("shadow-dsa", "Shadow DSA no
 static llvm::RegisterPass<seahorn::StripShadowMem> Y ("strip-shadow-dsa",
                                                       "Remove shadow.mem instrinsics");
 
-

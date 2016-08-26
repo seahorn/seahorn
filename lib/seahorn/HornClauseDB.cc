@@ -61,8 +61,8 @@ namespace seahorn
 
       LOG("horn-cg", 
           errs () << *(bind::fname(p)) << "\n"
-                  << "\tNumber of callers=" << callers.size() << "\n"
-                  << "\tNumber of callees=" << callees.size() << "\n";
+          << "\tNumber of callers=" << callers.size() << "\n"
+          << "\tNumber of callees=" << callees.size() << "\n";
           if (!callers.empty()) {
             errs () << "\tCALLERS=";
             for (auto c: callers) {
@@ -165,4 +165,35 @@ namespace seahorn
 
   HornClauseDB::horn_set_type HornClauseDB::m_empty_set;
   HornClauseDB::expr_set_type HornClauseDBCallGraph::m_expr_empty_set;
+
+  Expr extractTransitionRelation(HornRule r, HornClauseDB &db)
+  {
+    Expr ruleBody = r.body();
+    ExprMap body_map;
+    ExprVector body_pred_apps;
+    get_all_pred_apps(ruleBody, db, std::back_inserter(body_pred_apps));
+
+    for (Expr p : body_pred_apps)
+      body_map.insert (std::make_pair (p, mk<TRUE> (p->efac ())));
+
+    Expr body_constraints = replace(ruleBody, body_map);
+    return body_constraints;
+  }
+
+  bool hasBvarInRule(HornRule r, HornClauseDB &db,
+                          std::map<Expr, ExprVector> currentCandidates)
+  {
+    ExprVector pred_vector;
+    get_all_pred_apps(r.body(), db, std::back_inserter(pred_vector));
+    pred_vector.push_back(r.head());
+
+    for (Expr pred : pred_vector)
+    {
+      ExprVector term_vec = currentCandidates.find(bind::fname(pred))->second;
+      if(term_vec.size() > 1 || (term_vec.size() == 1 && !isOpX<TRUE>(term_vec[0])))
+        return true;
+    }
+    return false;
+  }
+
 }

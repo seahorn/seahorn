@@ -3,8 +3,8 @@
 #ifdef __cplusplus
 extern "C" {
 #endif        
-void __VERIFIER_error (void);
-void __VERIFIER_assume (int);
+extern void __VERIFIER_error (void);
+extern void __VERIFIER_assume (int);
 #ifdef __cplusplus
 }
 #endif

@@ -761,7 +761,7 @@ namespace expr
 			      int depth, bool brkt)
     {
       /* print large numbers in hex */
-      if (v >= 65535)
+      if (v >= 65535 || v <= -65535)
         OS << std::hex << std::showbase;
       
       OS << v;
@@ -2078,7 +2078,7 @@ namespace expr
       inline Expr tag (Expr e, Expr tag)
       { return mk<TAG> (tag, e); }
 
-      inline Expr tag (Expr e, std::string &t)
+      inline Expr tag (Expr e, const std::string &t)
       {return tag (e, mkTerm<std::string> (t, e->efac ()));}
 
       inline Expr getTag (Expr e)

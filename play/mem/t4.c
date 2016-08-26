@@ -1,5 +1,12 @@
 #include <stdlib.h>
 
+extern void __VERIFIER_assume (int);
+extern int  __VERIFIER_NONDET(void);
+extern void __VERIFIER_error (void) __attribute__((noreturn)); 
+void sassert (int v) { if (!v) __VERIFIER_error (); }
+#define assume __VERIFIER_assume 
+#define nd __VERIFIER_NONDET
+
 int x, y;
 int nd();
 
@@ -11,7 +18,5 @@ int main ()
   if (n) y = 5; else y = 10;
   
   nd ();
-  if (x == y) return 42;
-  
- UFO: goto UFO;
+  sassert (x != y);
 }

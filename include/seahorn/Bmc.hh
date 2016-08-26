@@ -15,6 +15,8 @@
 #include "llvm/IR/DebugLoc.h"
 #include "llvm/IR/DebugInfo.h"
 
+#include "seahorn/Transforms/Instrumentation/ShadowMemDsa.hh"
+
 namespace seahorn
 {
   using namespace expr;
@@ -55,6 +57,10 @@ namespace seahorn
     {};
     
     void addCutPoint (const CutPoint &cp);
+    
+    SmallStepSymExec& sem () {return m_sem;}
+    
+    ufo::EZ3 &zctx () { return m_smt_solver.getContext (); }
     
     /// constructs the path condition
     void encode ();
@@ -103,6 +109,7 @@ namespace seahorn
     
     BmcTrace (BmcEngine &bmc, ufo::ZModel<ufo::EZ3> &model);
 
+    
     /// cutpoint id corresponding to the given location
     unsigned cpid (unsigned loc) const {return m_cpId[loc];}
     
@@ -117,6 +124,8 @@ namespace seahorn
       m_bmc (other.m_bmc), m_model (other.m_model),
       m_bbs (other.m_bbs), m_cpId (other.m_cpId) {}
     
+    /// underlying BMC engine
+    BmcEngine &engine () { return m_bmc; }
     /// The number of basic blocks in the trace 
     unsigned size () const {return m_bbs.size ();}
     
@@ -124,7 +133,9 @@ namespace seahorn
     const llvm::BasicBlock* bb (unsigned loc) const {return m_bbs [loc];}
     
     /// The value of the instruction at the given location 
-    Expr eval (unsigned loc, const llvm::Instruction &inst, bool complete=false);
+    Expr symb (unsigned loc, const llvm::Value &inst);
+    Expr eval (unsigned loc, const llvm::Value &inst, bool complete=false);
+    Expr eval (unsigned loc, Expr v, bool complete=false);
     template <typename Out> Out &print (Out &out);
     friend class BmcEngine;
   };
@@ -168,12 +179,22 @@ namespace seahorn
               out << "enter: " << fnScope.getDisplayName () << "\n";
             continue;
           }
+          else if (f && f->getName ().equals ("shadow.mem.init"))
+          {
+            int64_t id = shadow_dsa::getShadowId (ci);
+            assert (id >= 0);
+            Expr memStart = m_bmc.sem().memStart (id);
+            Expr u = eval (loc, memStart);
+            if (u) out << "  " << *memStart << " " << *u << "\n";
+            Expr memEnd = m_bmc.sem().memEnd (id);
+            u = eval (loc, memEnd);
+            if (u) out << "  " << *memEnd << " " << *u << "\n";
+          }
         }
                
                
         Expr v = eval (loc, I);
         if (!v) continue;
-        
         out << "  %" << I.getName () << " " << *v;
         
         const DebugLoc dloc = I.getDebugLoc ();

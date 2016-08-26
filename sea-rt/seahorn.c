@@ -10,8 +10,17 @@ void __VERIFIER_error() {
   exit(1);
 }
 
+void __assert_fail() {
+    printf("__assert_fail was executed\n");
+    exit(1);
+}
+
 void __VERIFIER_assume(int x) {
   assert(x);
+}
+ 
+void klee_assume(int x) {
+    assert(x);
 }
 
 #define get_value_helper(ctype, llvmtype)              \

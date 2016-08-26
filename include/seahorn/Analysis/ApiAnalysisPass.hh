@@ -10,7 +10,10 @@
 #include "llvm/Pass.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/Function.h"
+<<<<<<< HEAD
 #include "llvm/IR/IRBuilder.h"
+=======
+>>>>>>> refs/remotes/jsg/callapi
 #include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/SetVector.h"
 #include "avy/AvyDebug.h"
@@ -43,6 +46,11 @@ namespace seahorn
   // Each Basic block in a function will have an ApiCallList
   typedef std::vector<ApiEntry> BBApiList;
 
+<<<<<<< HEAD
+=======
+  typedef std::vector< std::vector<const Function*> > FunctionChain;
+
+>>>>>>> refs/remotes/jsg/callapi
   struct ApiCallInfo
   {
 
@@ -98,12 +106,15 @@ namespace seahorn
 
     void analyze(const Function *F, unsigned int& progress, ApiCallInfo& aci);
 
+<<<<<<< HEAD
     void defineEntryFunction(Module &M); 
 
     void printModule(Module &M);
     
     void printFunction(Function *F);
 
+=======
+>>>>>>> refs/remotes/jsg/callapi
     void report();
 
   public:

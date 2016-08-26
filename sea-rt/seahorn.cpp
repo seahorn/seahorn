@@ -116,8 +116,16 @@ void klee_make_symbolic(void *v, size_t sz, char *fname) {
   printf("klee_make_symbolic was called for %s\n", fname);
 }
 
-void klee_assume(bool b) {
+void klee_assume(int b) {
   printf("klee_assume was called\n");
+  __VERIFIER_assume (b);
 }
+  
+  void __assert_fail (const char * assertion, const char * file,
+                      unsigned int line, const char * function) {
+    printf("__assert_fail was executed\n");
+    exit(1);
+  }
+
 
 }

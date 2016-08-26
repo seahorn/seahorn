@@ -137,6 +137,12 @@ static llvm::cl::opt<int>
 SROA_StructMemThreshold ("sroa-struct",
                          llvm::cl::desc ("Structure threshold for ScalarReplAggregates"),
                          llvm::cl::init (INT_MAX));
+
+static llvm::cl::opt<std::string>
+ApiConfig("api-config",
+         llvm::cl::desc("Comma separated API function calls"),
+         llvm::cl::init(""), llvm::cl::value_desc("api-string"));
+
 static llvm::cl::opt<int>
 SROA_ArrayElementThreshold ("sroa-array",
                             llvm::cl::desc ("Array threshold for ScalarReplAggregates"),
@@ -222,6 +228,11 @@ int main(int argc, char **argv) {
   }
   if (dl) pass_manager.add (new llvm::DataLayoutPass ());
 
+  if (!ApiConfig.empty())
+  {
+      pass_manager.add(seahorn::createApiAnalysisPass(ApiConfig));
+  }
+  
   if (KleeInternalize)
     pass_manager.add (seahorn::createKleeInternalizePass ());
   else if (WrapMem)

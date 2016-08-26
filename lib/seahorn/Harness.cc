@@ -61,20 +61,30 @@ namespace seahorn
           const Function *CF = CS.getCalledFunction ();
           if (!CF) continue;
 
-          errs () << "Looking at: " << CF->getName () << "\n";
+          LOG("cex",
+              errs () << "Considering harness for: " << CF->getName () << "\n";);
 
           if (!CF->hasName()) continue;
-          if (CF->getName().find_first_of('.') != StringRef::npos) continue;
+          if (CF->isIntrinsic ()) continue;
+          // We want to ignore seahorn functions, but not nondet
+          // functions created by strip-extern
+          if (CF->getName().find_first_of('.') != StringRef::npos &&
+              CF->getName().startswith("verifier.nondet.stripextern") == StringRef::npos) continue;
           if (!CF->isExternalLinkage (CF->getLinkage ())) continue;
           if (!CF->getReturnType()->isIntegerTy () &&
-              !CF->getReturnType()->isPointerTy())
+              !CF->getReturnType()->isPointerTy()) {
+            LOG("cex",
+                errs () << "Skipping harness for " << CF->getName () << " because it returns type: " << *CF->getReturnType() << "\n";);
             continue;
+          }
 
           // TODO: Port detection of well-known library functions from KleeInternalize
           if (CF->getName().equals ("calloc")) continue;
           
           Expr V = trace.eval (loc, I, true);
           if (!V) continue;
+          LOG("cex",
+              errs () << "Producing harness for " << CF->getName () << "\n";);
           FuncValueMap[CF].push_back(V);
         }
       }
@@ -126,16 +136,18 @@ namespace seahorn
 
       Value *LoadCounter = Builder.CreateLoad(Counter);
 
-      Value* Args[] = {LoadCounter,
-                       Builder.CreateBitCast(CA, pRT),
-                       ConstantInt::get(CountType, values.size())};
-      Type* ArgTypes[] = {CountType, pRT, CountType};
-
       Builder.CreateStore(Builder.CreateAdd(LoadCounter,
                                             ConstantInt::get(CountType, 1)),
                           Counter);
 
       std::string name;
+      std::vector <Type *> ArgTypes =
+        {CountType, pRT, CountType};
+      std::vector <Value *> Args =
+        {LoadCounter,
+         Builder.CreateBitCast(CA, pRT),
+         ConstantInt::get(CountType, values.size())};
+
       if (RT->isIntegerTy ())
       {
         std::string RS;
@@ -144,15 +156,28 @@ namespace seahorn
 
         name = Twine("__seahorn_get_value_").concat(RSO.str()).str();
       }
-      else
+      else if (RT->getSequentialElementType ()) {
         name = "__seahorn_get_value_ptr";
+        ArgTypes.push_back (Type::getInt32Ty (getGlobalContext ()));
+
+        // If we can tell how big the return type is, tell the
+        // callback function.  Otherwise pass zero.
+        if (RT->getSequentialElementType ()->isSized ())
+          Args.push_back (ConstantInt::get (Type::getInt32Ty (getGlobalContext ()),
+                                            dl.getTypeStoreSizeInBits (RT->getSequentialElementType ())));
+        else
+          Args.push_back (ConstantInt::get (Type::getInt32Ty (getGlobalContext ()), 0));
+      }
+      else
+        assert (false && "Unknown return type");
 
       Constant *GetValue =
         Harness->getOrInsertFunction(name,
-                                     FunctionType::get(RT, makeArrayRef (ArgTypes, 3),
+                                     FunctionType::get(RT,
+                                                       makeArrayRef(ArgTypes),
                                                        false));
       assert(GetValue);
-      Value* RetValue = Builder.CreateCall(GetValue, makeArrayRef(Args, 3));
+      Value* RetValue = Builder.CreateCall(GetValue, makeArrayRef (Args));
 
       Builder.CreateRet(RetValue);
     }

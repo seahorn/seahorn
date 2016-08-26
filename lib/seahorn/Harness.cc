@@ -69,7 +69,7 @@ namespace seahorn
           // We want to ignore seahorn functions, but not nondet
           // functions created by strip-extern
           if (CF->getName().find_first_of('.') != StringRef::npos &&
-              CF->getName().startswith("verifier.nondet.stripextern") == StringRef::npos) continue;
+              !CF->getName().startswith("verifier.nondet.stripextern")) continue;
           if (!CF->isExternalLinkage (CF->getLinkage ())) continue;
           if (!CF->getReturnType()->isIntegerTy () &&
               !CF->getReturnType()->isPointerTy()) {

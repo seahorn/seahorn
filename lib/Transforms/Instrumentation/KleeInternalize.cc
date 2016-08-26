@@ -25,6 +25,7 @@ DM-0002198
 #include "llvm/Analysis/CallGraph.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/ADT/StringMap.h"
+#include "llvm/ADT/SmallSet.h"
 
 #include <fstream>
 #include <set>
@@ -67,6 +68,7 @@ namespace
     StringMap<int> m_functionId;
 
     Module* m_module;
+    SmallSet<Function*, 128> m_killFn;
 
     void declareKleeFunctions (Module &M)
     {
@@ -251,6 +253,9 @@ namespace
       {
         if (!F.isDeclaration()) runOnFunction (F);
       }
+
+      for (Function * F: m_killFn)
+        F->eraseFromParent();
       return true;
     }
 
@@ -276,9 +281,10 @@ namespace
           
           if (shouldInternalize(*fn))
           {
+            m_killFn.insert(fn);
             int id = m_functionId[fn->getName()];
             Function * newFn = cast<Function> (m_module->getOrInsertFunction(
-              fn->getName().str() + "_" +std::to_string(id),
+              fn->getName().str() + "." +std::to_string(id),
               fn->getFunctionType()));
             defineFunction(*newFn);
 

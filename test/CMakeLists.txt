@@ -10,3 +10,12 @@ add_lit_testsuite(test-simple "Run simple tests"
   sea_cmd="${PROJECT_BINARY_DIR}/run/bin/sea"
   DEPENDS seahorn
   )
+
+add_lit_testsuite(pred-abs "Regression test on Predicate Abstraction"
+   -v
+   ${CMAKE_CURRENT_SOURCE_DIR}/predabs
+   PARAMS
+   test_dir=${CMAKE_CURRENT_BINARY_DIR}
+   sea_cmd="${PROJECT_BINARY_DIR}/run/bin/sea"
+   DEPENDS seahorn
+   )

@@ -254,6 +254,10 @@ namespace
   void IntraBlockBuilder::visitLoadInst(LoadInst &LI)
   {
     using namespace seahorn::dsa;
+
+    // -- skip read from NULL
+    if (BlockBuilderBase::isNullConstant (*LI.getPointerOperand ()->stripPointerCasts ()))
+      return;
     
     Cell base = valueCell  (*LI.getPointerOperand ()->stripPointerCasts ());
     assert (!base.isNull ());
@@ -276,7 +280,7 @@ namespace
     using namespace seahorn::dsa;
     
     // -- skip store into NULL
-    if (BlockBuilderBase::isNullConstant (*SI.getPointerOperand ()))
+    if (BlockBuilderBase::isNullConstant (*SI.getPointerOperand ()->stripPointerCasts ()))
       return;
     
     Cell base = valueCell  (*SI.getPointerOperand ()->stripPointerCasts ());
@@ -308,7 +312,7 @@ namespace
   {
     if (isSkip (I)) return;
 
-    if (BlockBuilderBase::isNullConstant (*I.getOperand (0)))
+    if (BlockBuilderBase::isNullConstant (*I.getOperand (0)->stripPointerCasts ()))
       return;  // do nothing if null
 
     dsa::Cell arg = valueCell  (*I.getOperand (0));
@@ -708,8 +712,9 @@ namespace seahorn
         if (a.getType ()->isPointerTy () && !g.hasCell (a)) {
           Node &n = g.mkNode ();
           g.mkCell (a, Cell (n, 0));
-          // -- record allocation site
-          //n.addAllocSite(a);
+          // -- XXX: hook to record allocation site if F is main
+          if (F.getName () == "main")
+            n.addAllocSite(a);
           // -- mark node as a stack node
           n.setAlloca();
         }

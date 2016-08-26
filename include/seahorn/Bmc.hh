@@ -195,8 +195,7 @@ namespace seahorn
                
         Expr v = eval (loc, I);
         if (!v) continue;
-        
-        out << "  " << I << "\n  %" << I.getName () << " " << *v;
+        out << "  %" << I.getName () << " " << *v;
         
         const DebugLoc dloc = I.getDebugLoc ();
         if (!dloc.isUnknown ())

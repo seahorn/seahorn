@@ -2,38 +2,24 @@ add_definitions(-D__STDC_CONSTANT_MACROS)
 add_definitions(-D__STDC_LIMIT_MACROS)
 
 set (SEAINSPECT_LIBS
-#  ${Boost_SYSTEM_LIBRARY}
-#  ${RT_LIB}
+  SeaInstrumentation
+  SeaAnalysis
+  SeaTransformsScalar
+  SeaTransformsUtils 
   SeaDsaAnalysis 
   SeaSupport
   avy
+  ${RT_LIB}
   )
 
-
-# set (USED_LIBS
-#     seahorn.LIB
-#     SeaInstrumentation
-#     SeaTransformsScalar
-#     SeaTransformsUtils
-#     SeaAnalysis
-#     SeaSupport
-#     ${LLVM_SEAHORN_LIBS}
-#     avy
-#     ${Z3_LIBRARY}
-#     ${Boost_SYSTEM_LIBRARY}
-#     ${GMPXX_LIB}
-#     ${GMP_LIB}
-#     ${RT_LIB}
-# )
-
-set(LLVM_LINK_COMPONENTS
-  irreader
-  bitwriter
-  ipo
-  scalaropts
-  instrumentation
-  core
-  codegen
+set(LLVM_LINK_COMPONENTS 
+  irreader 
+  bitwriter 
+  ipo 
+  scalaropts 
+  instrumentation 
+  core 
+  codegen 
   objcarcopts)
 
 

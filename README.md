@@ -10,6 +10,7 @@
   </tr>
 </table>
 
+[![Gitter](https://badges.gitter.im/seahorn/seahorn.svg)](https://gitter.im/seahorn/seahorn?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge)
 
 #About#
 

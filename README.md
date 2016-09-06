@@ -15,10 +15,10 @@
 
 #About#
 
-SeaHorn is an automated analysis framework for LLVM-based languages.
+<a href="http://seahorn.github.io/">SeaHorn</a> is an automated analysis framework for LLVM-based languages.
 
 #License#
-SeaHorn is distributed under a modified BSD license. See [license.txt](license.txt) for details.
+<a href="http://seahorn.github.io/">SeaHorn</a> is distributed under a modified BSD license. See [license.txt](license.txt) for details.
 
 #Installation#
 

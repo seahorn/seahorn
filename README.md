@@ -2,7 +2,7 @@
 
 <table>
   <tr>
-    <th>Windows</th><th>Ubuntu</th><th>OS X</th> Chat with us
+    <th>Windows</th><th>Ubuntu</th><th>OS X</th> <th>Chat with us</th>
   </tr>
     <td>TBD</td>
     <td><a href="https://travis-ci.org/seahorn/seahorn"><img src="https://travis-ci.org/seahorn/seahorn.svg?branch=master" title="Ubuntu 12.04 LTS 64bit, g++-4.8"/></a></td>

@@ -44,8 +44,9 @@ namespace seahorn
     MemSimVisitor (MemSimulator &sim, ExprVector &side) : m_sim (sim), m_side (side)
     {
       mpz_class val;
+      static const mpz_class ones64("0xFFFFFFFFFFFFFFFF");
       if (ptrSz() == 64)
-        val = 0xFFFFFFFFFFFFFFFF;
+        val = ones64;
       else if (ptrSz () == 32)
         val = 0xFFFFFFFF;
       else

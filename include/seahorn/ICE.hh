@@ -13,6 +13,9 @@
 #include "ufo/Smt/EZ3.hh"
 #include "seahorn/HornClauseDBWto.hh"
 
+#include <boost/property_tree/ptree.hpp>
+#include <boost/property_tree/json_parser.hpp>
+
 #include <algorithm>
 
 namespace seahorn
@@ -69,6 +72,10 @@ namespace seahorn
 
 	  std::string m_C5filename;
 
+	  ExprMap m_attr_name_to_expr_map;
+	  ExprMap m_rel_to_c5_rel_name_map;
+	  ExprMap m_c5_rel_name_to_rel_map;
+
 	  std::set<HornRule> m_pos_rule_set;
 	  std::set<HornRule> m_neg_rule_set;
 
@@ -117,7 +124,8 @@ namespace seahorn
 
       void addDataPointToIndex(DataPoint dp, int index) {m_data_point_to_index_map.insert(std::make_pair(dp, index));}
 
-      void convertPtreeToInvCandidate() {}
+      void convertPtreeToInvCandidate(boost::property_tree::ptree pt, Expr rel_name);
+      std::list<std::list<Expr>> constructFormula(std::list<Expr> stack, boost::property_tree::ptree sub_pt);
   };
 
   class ICEContext

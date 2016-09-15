@@ -70,6 +70,8 @@ namespace seahorn
 	  HornifyModule &m_hm;
 	  HornDbModel m_candidate_model;
 
+	  std::unique_ptr<ufo::ZFixedPoint <ufo::EZ3> >  m_fp;
+
 	  std::string m_C5filename;
 
 	  ExprMap m_attr_name_to_expr_map;
@@ -78,6 +80,10 @@ namespace seahorn
 
 	  std::set<HornRule> m_pos_rule_set;
 	  std::set<HornRule> m_neg_rule_set;
+
+	  ExprVector m_pos_queries;
+	  ExprVector m_neg_queries;
+	  ExprVector m_impl_queries;
 
 	  std::set<DataPoint> m_pos_data_set;
 	  std::set<DataPoint> m_neg_data_set;
@@ -117,6 +123,8 @@ namespace seahorn
       void constructNewDB(HornClauseDB &db, HornClauseDB &new_db);
       void addPosNegRulesToDB(HornClauseDB &db, HornClauseDB &new_db);
 
+      void constructQueries(HornClauseDB &db);
+
       void addPosCex(DataPoint dp) {m_pos_data_set.insert(dp);}
       void addNegCex(DataPoint dp) {m_neg_data_set.insert(dp);}
       void addImplCex(DataPoint dp) {m_impl_cex_set.insert(dp);}
@@ -126,6 +134,8 @@ namespace seahorn
 
       void convertPtreeToInvCandidate(boost::property_tree::ptree pt, Expr rel_name);
       std::list<std::list<Expr>> constructFormula(std::list<Expr> stack, boost::property_tree::ptree sub_pt);
+
+      ZFixedPoint<EZ3>& resetFixedPoint(HornClauseDB &db);
   };
 
   class ICEContext

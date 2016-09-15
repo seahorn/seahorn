@@ -14,6 +14,7 @@
 #include <boost/logic/tribool.hpp>
 #include <boost/property_tree/ptree.hpp>
 #include <boost/property_tree/json_parser.hpp>
+#include "boost/range/algorithm/reverse.hpp"
 #include "seahorn/HornClauseDBWto.hh"
 #include <algorithm>
 
@@ -52,6 +53,7 @@ namespace seahorn
     ice.setupC5();
     ice.genInitialCandidates(hm.getHornClauseDB());
     ice.runICE(config);
+    outs() << "RUN ICE SUCCESSCULLY\n";
     Stats::stop ("ICE inv");
 
     return false;
@@ -76,7 +78,7 @@ namespace seahorn
 		  for(int i=0; i<bind::domainSz(rel); i++)
 		  {
 			  Expr arg_i_type = bind::domainTy(rel, i);
-			  Expr arg_i = bind::fapp(bind::bvar(i, arg_i_type));
+			  Expr arg_i = bind::fapp(bind::constDecl(variant::variant(i, mkTerm<std::string> ("V", rel->efac ())), arg_i_type));
 			  arg_list.push_back(arg_i);
 		  }
 		  Expr fapp = bind::fapp(rel, arg_list);
@@ -156,8 +158,8 @@ namespace seahorn
 		  {
 			  if(isOpX<INT_TY>(bind::domainTy(rel, i)) || isOpX<BOOL_TY>(bind::domainTy(rel, i)))
 			  {
-				  Expr bvar_i = bind::bvar(i, bind::domainTy(rel, i));
-				  Expr arg_i = bind::fapp(bvar_i);
+				  Expr arg_i_type = bind::domainTy(rel, i);
+				  Expr arg_i = bind::fapp(bind::constDecl(variant::variant(i, mkTerm<std::string> ("V", rel->efac ())), arg_i_type));
 				  Expr attr_name_i = variant::tag(C5_rel_name, bind::fname(bind::fname(arg_i)));
 				  m_attr_name_to_expr_map.insert(std::make_pair(attr_name_i, arg_i));
 				  names_of << attr_name_i << ": continuous.\n";
@@ -186,8 +188,7 @@ namespace seahorn
 		  for(int i=0; i<bind::domainSz(rel); i++)
 		  {
 			  Expr arg_i_type = bind::domainTy(rel, i);
-			  Expr bvar_i = bind::bvar(i, arg_i_type);
-			  Expr arg_i = bind::fapp(bvar_i);
+			  Expr arg_i = bind::fapp(bind::constDecl(variant::variant(i, mkTerm<std::string> ("V", rel->efac ())), arg_i_type));
 			  arg_list.push_back(arg_i);
 		  }
 		  Expr fapp = bind::fapp(rel, arg_list);
@@ -279,8 +280,7 @@ namespace seahorn
 	  for(int i=0; i<bind::domainSz(rel); i++)
 	  {
 		  Expr arg_i_type = bind::domainTy(rel, i);
-		  Expr bvar_i = bind::bvar(i, arg_i_type);
-		  Expr arg_i = bind::fapp(bvar_i);
+		  Expr arg_i = bind::fapp(bind::constDecl(variant::variant(i, mkTerm<std::string> ("V", rel->efac ())), arg_i_type));
 		  arg_list.push_back(arg_i);
 	  }
 	  Expr fapp = bind::fapp(rel, arg_list);
@@ -419,28 +419,287 @@ namespace seahorn
 	  //load the Horn clause database
 	  auto &db = m_hm.getHornClauseDB ();
 	  db.buildIndexes ();
-
-	  //construct the new horn clause DB, with pos and neg new rules.
-	  HornClauseDB new_db(db.getExprFactory());
-	  constructNewDB(db, new_db);
-	  outs() << "NEW DB:\n" << new_db;
+	  outs() << "DB: \n" << db;
 
 	  //build the new DB wto
-	  HornClauseDBCallGraph callgraph(new_db);
-	  HornClauseDBWto new_db_wto(callgraph);
-	  new_db_wto.buildWto();
+	  HornClauseDBCallGraph callgraph(db);
+	  HornClauseDBWto db_wto(callgraph);
+	  db_wto.buildWto();
 
-	  std::list<HornRule> workList;
-	  workList.insert(workList.end(), new_db.getRules().begin(), new_db.getRules().end());
-	  workList.reverse();
-
-	  if (config == NAIVE)
+	  bool isChanged = true;
+	  while(isChanged)
 	  {
-		  ICE_Naive ice_naive(*this, new_db_wto, workList);
-		  ice_naive.run();
+		  isChanged = false;
+		  constructQueries(db);
+		  outs() << "POS QUERIES:\n";
+		  for(Expr p : m_pos_queries)
+		  {
+			  outs() << *p << "\n";
+		  }
+		  outs() << "NEG QUERIES:\n";
+		  for(Expr n : m_neg_queries)
+		  {
+			  outs() << *n << "\n";
+		  }
+		  outs() << "IMPL QUERIES:\n";
+		  for(Expr i : m_impl_queries)
+		  {
+			  outs() << *i << "\n";
+		  }
+
+		  int index = 0;
+		  for(Expr pos_qry : m_pos_queries)
+		  {
+			  ExprVector& queries = db.getQueries_Ref();
+			  queries.clear();
+			  db.addQuery(pos_qry);
+			  outs() << "NEW QUERY: " << "\n";
+			  for (Expr q : db.getQueries_Ref())
+			  {
+				  outs() << *q << "\n";
+			  }
+			  ZFixedPoint<EZ3>& fp = resetFixedPoint(db);
+			  boost::tribool result = fp.query();
+			  if(result != UNSAT)
+			  {
+				  outs() << "SAT, NEED TO ADD POSITIVE DATA POINT\n";
+				  isChanged = true;
+				  //get cex
+				  ExprVector cex_rules;
+				  fp.getCexRules(cex_rules);
+				  boost::reverse(cex_rules);
+				  Expr cex_rule = cex_rules[0];
+				  Expr dst = cex_rule -> arg(1);
+				  outs() << *dst << "\n";
+				  return;
+
+				  //add data point
+//				  outs() << "POS QUERY:\n";
+//				  std::list<Expr> attr_values;
+//
+//				  for(int i=0; i<bind::domainSz(bind::fname(dst); i++)
+//				  {
+//					  Expr arg_i = dst->arg(i+1);
+//					  Expr arg_i_value = m.eval(arg_i);
+//					  attr_values.push_back(arg_i_value);
+//				  }
+//
+//				  DataPoint pos_dp(bind::fname(bind::fname(r.head())), attr_values);
+//				  addPosCex(pos_dp);
+//				  addDataPointToIndex(pos_dp, index);
+//				  index++;
+
+				  //call C5 learner
+				  C5learn();
+			  }
+			  else
+			  {
+				  //This query is good, go to next
+				  outs() << "UNSAT\n";
+			  }
+		  }
+		  for(Expr neg_qry : m_neg_queries)
+		  {
+			  ExprVector& queries = db.getQueries_Ref();
+			  queries.clear();
+			  db.addQuery(neg_qry);
+			  outs() << "NEW QUERY: " << "\n";
+			  for (Expr q : db.getQueries_Ref())
+			  {
+				  outs() << *q << "\n";
+			  }
+			  ZFixedPoint<EZ3>& fp = resetFixedPoint(db);
+			  boost::tribool result = fp.query();
+			  if(result != UNSAT)
+			  {
+				  outs() << "SAT, NEED TO ADD NEGATIVE DATA POINT\n";
+				  isChanged = true;
+				  //get cex
+				  ExprVector cex_rules;
+				  fp.getCexRules(cex_rules);
+				  boost::reverse(cex_rules);
+				  Expr cex_rule = cex_rules[0];
+				  Expr dst = cex_rule -> arg(1);
+				  outs() << *dst << "\n";
+				  return;
+
+				  //add data point
+//				  outs() << "NEG QUERY:\n";
+//				  std::list<Expr> attr_values;
+//
+//				  for(int i=0; i<bind::domainSz(bind::fname(dst); i++)
+//				  {
+//					  Expr arg_i = dst->arg(i+1);
+//					  Expr arg_i_value = m.eval(arg_i);
+//					  attr_values.push_back(arg_i_value);
+//				  }
+//
+//				  DataPoint neg_dp(bind::fname(bind::fname(r.head())), attr_values);
+//				  addNegCex(neg_dp);
+//				  addDataPointToIndex(neg_dp, index);
+//				  index++;
+
+				  //call C5 learner
+				  C5learn();
+			  }
+			  else
+			  {
+				  //This query is good, go to next
+				  outs() << "UNSAT\n";
+			  }
+		  }
+		  for(Expr impl_qry : m_impl_queries)
+		  {
+			  ExprVector& queries = db.getQueries_Ref();
+			  queries.clear();
+			  db.addQuery(impl_qry);
+			  outs() << "NEW QUERY: " << "\n";
+			  for (Expr q : db.getQueries_Ref())
+			  {
+				  outs() << *q << "\n";
+			  }
+			  ZFixedPoint<EZ3>& fp = resetFixedPoint(db);
+			  boost::tribool result = fp.query();
+			  if(result != UNSAT)
+			  {
+				  outs() << "SAT, NEED TO ADD IMPLICATION DATA PAIR\n";
+				  isChanged = true;
+				  //get cex
+				  ExprVector cex_rules;
+				  fp.getCexRules(cex_rules);
+				  boost::reverse(cex_rules);
+				  Expr last_rule = cex_rules[0];
+				  Expr first_rule = cex_rules[cex_rules.size()-1];
+				  Expr dst = last_rule -> arg(1);
+				  Expr src = first_rule -> arg(0);
+				  outs() << *src << "\n";
+				  outs() << *dst << "\n";
+				  return;
+
+				  //add data point
+//				  for(int i=0; i<bind::domainSz(bind::fname(src)); i++)
+//				  {
+//					  Expr arg_i = src->arg(i+1);
+//					  Expr arg_i_value = m.eval(arg_i);
+//					  start_attr_values.push_back(arg_i_value);
+//				  }
+//				  DataPoint start_point(bind::fname(bind::fname(src)), start_attr_values);
+//
+//				  std::list<Expr> end_attr_values;
+//				  for(int i=0; i<bind::domainSz(bind::fname(dst)); i++)
+//				  {
+//					  Expr arg_i = head->arg(i+1);
+//					  Expr arg_i_value = m.eval(arg_i);
+//					  end_attr_values.push_back(arg_i_value);
+//				  }
+//				  DataPoint end_point(bind::fname(bind::fname(dst)), end_attr_values);
+//
+//				  addImplCex(start_point);
+//				  addDataPointToIndex(start_point, index);
+//				  index++;
+//				  addImplCex(end_point);
+//				  addDataPointToIndex(end_point, index);
+//				  index++;
+//				  addImplPair(std::make_pair(start_point, end_point));
+
+				  //call C5 learner
+				  C5learn();
+			  }
+			  else
+			  {
+				  //This query is good, go to next
+				  outs() << "UNSAT\n";
+			  }
+		  }
 	  }
 
+//	  if (config == NAIVE)
+//	  {
+//		  ICE_Naive ice_naive(*this, new_db_wto, workList);
+//		  ice_naive.run();
+//	  }
+
 	  addInvarCandsToProgramSolver();
+  }
+
+  ZFixedPoint<EZ3>& ICE::resetFixedPoint(HornClauseDB &db)
+  {
+	  m_fp.reset (new ZFixedPoint<EZ3>(m_hm.getZContext ()));
+	  ZFixedPoint<EZ3> &fp = *m_fp;
+	  ZParams<EZ3> params (m_hm.getZContext ());
+	  params.set (":engine", "spacer");
+	  // -- disable slicing so that we can use cover
+	  params.set (":xform.slice", false);
+	  params.set (":use_heavy_mev", true);
+	  params.set (":reset_obligation_queue", true);
+	  params.set (":pdr.flexible_trace", false);
+	  params.set (":xform.inline-linear", false);
+	  params.set (":xform.inline-eager", false);
+	  // -- disable utvpi. It is unstable.
+	  params.set (":pdr.utvpi", false);
+	  // -- disable propagate_variable_equivalences in tail_simplifier
+	  params.set (":xform.tail_simplifier_pve", false);
+	  params.set (":xform.subsumption_checker", true);
+  //	  params.set (":order_children", true);
+  //	  params.set (":pdr.max_num_contexts", "500");
+	  fp.set (params);
+	  db.loadZFixedPoint(fp, false);
+
+	  return fp;
+  }
+
+  void ICE::constructQueries(HornClauseDB &db)
+  {
+	  m_pos_queries.clear();
+	  m_neg_queries.clear();
+	  m_impl_queries.clear();
+
+	  for(Expr rel : db.getRelations())
+	  {
+		  ExprVector args;
+		  for(int i=0; i<bind::domainSz(rel); i++)
+		  {
+			  Expr arg_i_type = bind::domainTy(rel, i);
+			  Expr arg_i = bind::fapp(bind::constDecl(variant::variant(i, mkTerm<std::string> ("V", rel->efac ())), arg_i_type));
+			  //Expr arg_i = bind::bvar(i, arg_i_type);
+			  args.push_back(arg_i);
+		  }
+		  Expr rel_app = bind::fapp(rel, args);
+		  Expr cand_app = m_candidate_model.getDef(rel_app);
+
+		  Expr pos_qry = mk<AND>(rel_app, mk<NEG>(cand_app));
+		  m_pos_queries.push_back(pos_qry);
+
+		  Expr neg_qry = mk<AND>(mk<NEG>(rel_app), cand_app);
+		  m_neg_queries.push_back(neg_qry);
+	  }
+	  for(auto it = db.getRules().begin(); it!= db.getRules().end(); ++it)
+	  {
+		  HornRule r = *it;
+		  Expr head_pred = r.head();
+		  ExprVector body_preds;
+		  get_all_pred_apps(r.body(), db, std::back_inserter(body_preds));
+		  //check the rule format
+		  if(body_preds.size() == 1 && bind::fname(head_pred) == bind::fname(body_preds[0]))
+		  {
+			  ExprVector conjuncts;
+
+			  Expr body_pred = body_preds[0];
+			  Expr head_cand = m_candidate_model.getDef(head_pred);
+			  Expr body_cand = m_candidate_model.getDef(body_pred);
+			  Expr trans = extractTransitionRelation(r, db);
+			  conjuncts.push_back(mk<NEG>(head_cand));
+			  conjuncts.push_back(body_cand);
+			  conjuncts.push_back(trans);
+
+			  Expr impl_qry = mknary<AND>(conjuncts.begin(), conjuncts.end());
+			  m_impl_queries.push_back(impl_qry);
+		  }
+		  else
+		  {
+			  //ignore the rules
+		  }
+	  }
   }
 
   void ICE::constructNewDB(HornClauseDB &db, HornClauseDB &new_db)

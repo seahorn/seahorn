@@ -1,22 +1,26 @@
+
 <p align=center><a href="https://seahorn.github.io"><img src="https://seahorn.github.io/images/seahorn-logo.png" alt="seahorn" width="200px" height="200px"/></a></p>
 
 <table>
   <tr>
-    <th>Windows</th><th>Ubuntu</th><th>OS X</th>
+    <th>Windows</th><th>Ubuntu</th><th>OS X</th><th>Chat with us</th><th>Stories</th>
   </tr>
     <td>TBD</td>
     <td><a href="https://travis-ci.org/seahorn/seahorn"><img src="https://travis-ci.org/seahorn/seahorn.svg?branch=master" title="Ubuntu 12.04 LTS 64bit, g++-4.8"/></a></td>
     <td>TBD</td>
+    <td><a href="https://gitter.im/seahorn/seahorn?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge"><img src="https://badges.gitter.im/seahorn/seahorn.svg" title="Gitter"/></a></td>
+    <td> <a href="http://waffle.io/seahorn/seahorn/"><img src="https://badge.waffle.io/seahorn/seahorn.svg?label=ready&title=Ready"/></a></td>
   </tr>
 </table>
 
 
+
 #About#
 
-SeaHorn is an automated analysis framework for LLVM-based languages.
+<a href="http://seahorn.github.io/">SeaHorn</a> is an automated analysis framework for LLVM-based languages.
 
 #License#
-SeaHorn is distributed under a modified BSD license. See [license.txt](license.txt) for details.
+<a href="http://seahorn.github.io/">SeaHorn</a> is distributed under a modified BSD license. See [license.txt](license.txt) for details.
 
 #Installation#
 

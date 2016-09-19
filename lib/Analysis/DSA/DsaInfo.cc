@@ -117,7 +117,7 @@ printMemoryAccesses (live_nodes_const_range nodes, llvm::raw_ostream &o) const
              { return (n1.getAccesses() > n2.getAccesses());});
                
   if (total_accesses > 0) {
-    for (auto &n: sorted_nodes) {
+    for (const auto &n: sorted_nodes) {
       if (summ_size <= 0) break;
       summ_size--;
       if (n.getAccesses() == 0) break;
@@ -138,7 +138,7 @@ printMemoryTypes (live_nodes_const_range nodes, llvm::raw_ostream& o) const
 
 
   o << " --- Type information\n";
-  for (auto &n: nodes) {
+  for (const auto &n: nodes) {
     num_collapses += n.getNode()->isCollapsed ();
     num_typed_nodes += (std::distance(n.getNode()->types().begin(),
                                       n.getNode()->types().end()) > 0);
@@ -188,7 +188,7 @@ void InfoAnalysis::assignAllocSiteIdAndPrinting
   DenseMap<const llvm::Value*, std::pair<unsigned, NodeInfoSet> > alloc_printing_map;
 
   // iterate over all nodes
-  for (auto &n: nodes) 
+  for (const auto &n: nodes) 
   {
     unsigned num_alloc_sites = n.getNode()->getAllocSites ().size ();
     if (num_alloc_sites == 0) 
@@ -238,7 +238,7 @@ void InfoAnalysis::assignAllocSiteIdAndPrinting
     file << "alloc_site,ds_node\n";
     for (auto &kv: alloc_printing_map) 
     {
-      for (auto &nodeInfo: kv.second.second)
+      for (const auto &nodeInfo: kv.second.second)
         file <<  kv.second.first << "," << nodeInfo.getId () << "\n";
     }
     file.close();
@@ -261,7 +261,7 @@ void InfoAnalysis::assignAllocSiteIdAndPrinting
        });
   
   // --- print for each node its set of allocation sites
-  for (auto &n: nodes) 
+  for (const auto &n: nodes) 
   {
     SmallPtrSet<Type*,32> allocTypes;
     for (const llvm::Value*v : n.getNode ()->getAllocSites ()) 
@@ -447,8 +447,17 @@ bool InfoAnalysis::runOnFunction (Function &f)
 
 bool InfoAnalysis::runOnModule (Module &M) 
 {
-  for (auto &f: M) { runOnFunction (f); }
-  ufo::Stats::uset ("NumOfFunctions", std::distance (M.begin () , M.end ()));
+
+  unsigned num_of_funcs = 0;
+  for (auto &f: M) 
+  { 
+    runOnFunction (f); 
+    if (f.isDeclaration () || f.empty ()) 
+      continue;
+    num_of_funcs++; 
+  }
+
+  ufo::Stats::uset ("NumOfFunctions", num_of_funcs);
 
   // discards output if verbose mode is disabled
   raw_ostream &o = (m_verbose ? errs () : nulls ());

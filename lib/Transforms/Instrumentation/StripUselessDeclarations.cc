@@ -33,8 +33,11 @@ namespace
               name.startswith ("calloc") ||
               name.startswith ("memset") ||
               name.startswith ("memcpy")) continue;
-        
+
+          if (name.startswith ("klee_")) continue;
+
           if (name.startswith ("seahorn.") ||
+	      name.startswith ("__seahorn") ||
               name.startswith ("verifier.")) continue;
 
           if (name.startswith ("__VERIFIER")) continue;
@@ -72,7 +75,7 @@ namespace
           if (!F.getReturnType ()->isVoidTy ())
           {
             // insert call to nondet fn
-            std::string newName ("verifier.nondet.");
+            std::string newName ("verifier.nondet.stripextern.");
             newName += F.getName ();
             newName += ".";
             
@@ -127,7 +130,7 @@ namespace
           {
             std::string fName = "nondet.asm.";
             Function &ndfn = seahorn::createNewNondetFn (*F.getParent (),
-                                                         *call->getType (),
+                                                         *CS.getInstruction()->getType (),
                                                          m_count++,
                                                          fName);
             IRBuilder<> Builder (F.getContext ());

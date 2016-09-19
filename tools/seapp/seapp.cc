@@ -111,6 +111,10 @@ StripExtern ("strip-extern", llvm::cl::desc ("Replace external functions by nond
               llvm::cl::init (false));
 
 static llvm::cl::opt<bool>
+OnlyStripExtern ("only-strip-extern", llvm::cl::desc ("Replace external functions by nondet and perform no other changes"),
+              llvm::cl::init (false));
+
+static llvm::cl::opt<bool>
 LowerInvoke ("lower-invoke", 
              llvm::cl::desc ("Lower all invoke instructions"),
              llvm::cl::init (false));
@@ -133,6 +137,12 @@ static llvm::cl::opt<int>
 SROA_StructMemThreshold ("sroa-struct",
                          llvm::cl::desc ("Structure threshold for ScalarReplAggregates"),
                          llvm::cl::init (INT_MAX));
+
+static llvm::cl::opt<std::string>
+ApiConfig("api-config",
+         llvm::cl::desc("Comma separated API function calls"),
+         llvm::cl::init(""), llvm::cl::value_desc("api-string"));
+
 static llvm::cl::opt<int>
 SROA_ArrayElementThreshold ("sroa-array",
                             llvm::cl::desc ("Array threshold for ScalarReplAggregates"),
@@ -218,10 +228,19 @@ int main(int argc, char **argv) {
   }
   if (dl) pass_manager.add (new llvm::DataLayoutPass ());
 
+  if (!ApiConfig.empty())
+  {
+      pass_manager.add(seahorn::createApiAnalysisPass(ApiConfig));
+  }
+  
   if (KleeInternalize)
     pass_manager.add (seahorn::createKleeInternalizePass ());
   else if (WrapMem)
     pass_manager.add (seahorn::createWrapMemPass ());
+  else if (OnlyStripExtern) {
+    pass_manager.add (seahorn::createDevirtualizeFunctionsPass ());
+    pass_manager.add (seahorn::createStripUselessDeclarationsPass ());
+  }
   else
   {
     // -- Create a main function if we do not have one.

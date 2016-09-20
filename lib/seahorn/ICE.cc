@@ -516,19 +516,15 @@ namespace seahorn
 				  outs() << "SAT, NEED TO ADD NEGATIVE DATA POINT\n";
 				  isChanged = true;
 				  //get cex
-				  ExprVector cexs;
-				  fp.getGroundSatAnswer(cexs);
-				  boost::reverse(cexs);
-				  outs() << "CEX:\n";
-				  outs() << fp.getAnswer() << "\n";
-				  outs() << *(fp.getCex()) << "\n";
-				  for(Expr c: cexs)
+				  Expr cexs;
+				  cexs = fp.getGroundSatAnswer();
+				  if(isOpX<AND>(cexs))
 				  {
-					  outs() << *c <<"\n";
+					  outs() << "CEX:\n";
+					  outs() << fp.getAnswer() << "\n";
+					  outs() << *(fp.getCex()) << "\n";
+					  outs() << *cexs;
 				  }
-				  Expr cex = cexs[0];
-				  Expr dst = cex -> arg(1);
-				  outs() << *dst << "\n";
 				  return;
 
 				  //add data point

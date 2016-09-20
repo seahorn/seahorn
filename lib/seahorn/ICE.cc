@@ -332,7 +332,7 @@ namespace seahorn
 			 return final_formula;
 		  }
 		  stack.push_back(decision_expr);
-		  assert(sub_pt.children().size() == 2);
+		  //assert(sub_pt.children().size() == 2);
 		  boost::property_tree::ptree::assoc_iterator child_itr = sub_pt.ordered_begin();
 		  std::list<std::list<Expr>> final_formula_left = constructFormula(stack, child_itr->second);
 		  stack.pop_back();
@@ -431,6 +431,7 @@ namespace seahorn
 	  {
 		  isChanged = false;
 		  constructQueries(db);
+		  outs() << "NEW DB: \n" << db;
 		  outs() << "POS QUERIES:\n";
 		  for(Expr p : m_pos_queries)
 		  {
@@ -515,11 +516,18 @@ namespace seahorn
 				  outs() << "SAT, NEED TO ADD NEGATIVE DATA POINT\n";
 				  isChanged = true;
 				  //get cex
-				  ExprVector cex_rules;
-				  fp.getCexRules(cex_rules);
-				  boost::reverse(cex_rules);
-				  Expr cex_rule = cex_rules[0];
-				  Expr dst = cex_rule -> arg(1);
+				  ExprVector cexs;
+				  fp.getGroundSatAnswer(cexs);
+				  boost::reverse(cexs);
+				  outs() << "CEX:\n";
+				  outs() << fp.getAnswer() << "\n";
+				  outs() << *(fp.getCex()) << "\n";
+				  for(Expr c: cexs)
+				  {
+					  outs() << *c <<"\n";
+				  }
+				  Expr cex = cexs[0];
+				  Expr dst = cex -> arg(1);
 				  outs() << *dst << "\n";
 				  return;
 
@@ -656,6 +664,13 @@ namespace seahorn
 
 	  for(Expr rel : db.getRelations())
 	  {
+		  std::ostringstream oss;
+		  oss << bind::fname(rel);
+		  if(oss.str() == std::string("verifier.error"))
+		  {
+			  continue;
+		  }
+
 		  ExprVector args;
 		  for(int i=0; i<bind::domainSz(rel); i++)
 		  {
@@ -667,10 +682,24 @@ namespace seahorn
 		  Expr rel_app = bind::fapp(rel, args);
 		  Expr cand_app = m_candidate_model.getDef(rel_app);
 
+		  //construct pos queries and pos rules
+//		  Expr pos_rule_head_rel = bind::rename(rel, variant::tag(bind::fname(rel), std::string("_POS")));
+//		  Expr pos_rule_head = bind::fapp(pos_rule_head_rel, args);
+//		  Expr pos_rule_body = mk<AND>(rel_app, mk<NEG>(cand_app));
+//		  Expr pos_qry = pos_rule_head;
+//		  HornRule pos_rule(args, pos_rule_head, pos_rule_body);
+//		  db.addRule(pos_rule);
+//		  m_pos_rule_set.insert(pos_rule);
 		  Expr pos_qry = mk<AND>(rel_app, mk<NEG>(cand_app));
 		  m_pos_queries.push_back(pos_qry);
 
-		  Expr neg_qry = mk<AND>(mk<NEG>(rel_app), cand_app);
+		  //construct neg queries and neg rules
+		  Expr neg_qry = rel_app;
+		  Expr neg_rule_head = rel_app;
+		  Expr neg_rule_body = cand_app;
+		  HornRule neg_rule(args, rel_app, cand_app);
+		  db.addRule(neg_rule);
+		  m_neg_rule_set.insert(neg_rule);
 		  m_neg_queries.push_back(neg_qry);
 	  }
 	  for(auto it = db.getRules().begin(); it!= db.getRules().end(); ++it)

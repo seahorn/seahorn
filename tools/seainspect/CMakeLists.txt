@@ -2,11 +2,14 @@ add_definitions(-D__STDC_CONSTANT_MACROS)
 add_definitions(-D__STDC_LIMIT_MACROS)
 
 set (SEAINSPECT_LIBS
-#  ${Boost_SYSTEM_LIBRARY}
-#  ${RT_LIB}
+  SeaAnalysis
+  SeaInstrumentation
+  SeaTransformsScalar
+  SeaTransformsUtils 
   SeaDsaAnalysis 
   SeaSupport
   avy
+  ${RT_LIB}
   )
 
 set(LLVM_LINK_COMPONENTS 

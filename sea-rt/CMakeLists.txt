@@ -1,5 +1,5 @@
 add_library(sea-rt
-  seahorn.c)
+  seahorn.cpp)
 
 install (TARGETS sea-rt
   LIBRARY DESTINATION lib

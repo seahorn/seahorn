@@ -922,10 +922,22 @@ namespace ufo
 
     std::string getAnswer ()
     {
-
       z3::ast res (ctx, Z3_fixedpoint_get_answer (ctx, fp));
       //return z3.toExpr (res);
       return std::string (Z3_ast_to_string (ctx, res));
+    }
+
+    /**
+     ** Return a bottom-up (from query) vector of ground predicates
+     ** that together from a ground derivation to query
+     **/
+    void getGroundSatAnswer (ExprVector &res)
+    {
+      z3::ast ans (ctx, Z3_fixedpoint_get_ground_sat_answer (ctx, fp));
+      Expr e = z3.toExpr (ans);
+      if (isOpX<AND>(e)) 
+        for (auto p: boost::make_iterator_range (e->args_begin (), e->args_end ()))
+          res.push_back (p);
     }
 
     Expr getCex ()

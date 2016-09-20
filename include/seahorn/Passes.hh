@@ -66,6 +66,7 @@ namespace seahorn
   llvm::Pass* createKleeInternalizePass ();
 
   llvm::Pass* createWrapMemPass ();  
+  llvm::Pass* createRenameNondetPass();
 }
 
 #ifdef HAVE_LLVM_SEAHORN

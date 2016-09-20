@@ -12,6 +12,7 @@ add_llvm_library(SeaInstrumentation
   StripUselessDeclarations.cc
   KleeInternalize.cc
   WrapMem.cc
+  RenameNondet.cc
   )
 
 if (HAVE_DSA)

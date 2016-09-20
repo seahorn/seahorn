@@ -151,6 +151,16 @@ WrapMem ("wrap-mem",
          llvm::cl::desc ("Wrap memory accesses with special functions"),
          llvm::cl::init (false));
 
+static llvm::cl::opt<bool>
+StripShadowMem ("strip-shadow-mem",
+         llvm::cl::desc ("Strip shadow memory functions"),
+         llvm::cl::init (false));
+
+static llvm::cl::opt<bool>
+RenameNondet ("rename-nondet",
+         llvm::cl::desc ("Assign a unique name to each non-determinism per call."),
+         llvm::cl::init (false));
+
 // removes extension from filename if there is one
 std::string getFileName(const std::string &str) {
   std::string filename = str;
@@ -217,8 +227,11 @@ int main(int argc, char **argv) {
     dl = module->getDataLayout ();
   }
   if (dl) pass_manager.add (new llvm::DataLayoutPass ());
-
-  if (KleeInternalize)
+  if (RenameNondet)
+    pass_manager.add (seahorn::createRenameNondetPass ());
+  else if (StripShadowMem)
+    pass_manager.add (seahorn::createStripShadowMemPass ());
+  else if (KleeInternalize)
     pass_manager.add (seahorn::createKleeInternalizePass ());
   else if (WrapMem)
     pass_manager.add (seahorn::createWrapMemPass ());

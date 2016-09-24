@@ -426,29 +426,29 @@ namespace seahorn
 	  HornClauseDBWto db_wto(callgraph);
 	  db_wto.buildWto();
 
+	  //record the number of original rules in DB
+	  int orig_rule_num = db.getRules().size();
+	  outs() << "ORIG RULE NUM: " << orig_rule_num << "\n";
+	  //record the original queries in DB
+	  ExprVector orig_queries;
+	  for(auto q : db.getQueries())
+	  {
+		  orig_queries.push_back(q);
+	  }
+
 	  bool isChanged = true;
 	  while(isChanged)
 	  {
 		  isChanged = false;
 		  constructQueries(db);
-		  outs() << "NEW DB: \n" << db;
 		  outs() << "POS QUERIES:\n";
 		  for(Expr p : m_pos_queries)
 		  {
 			  outs() << *p << "\n";
 		  }
-		  outs() << "NEG QUERIES:\n";
-		  for(Expr n : m_neg_queries)
-		  {
-			  outs() << *n << "\n";
-		  }
-		  outs() << "IMPL QUERIES:\n";
-		  for(Expr i : m_impl_queries)
-		  {
-			  outs() << *i << "\n";
-		  }
 
 		  int index = 0;
+		  outs() << "=========================== POS START ============================\n";
 		  for(Expr pos_qry : m_pos_queries)
 		  {
 			  ExprVector& queries = db.getQueries_Ref();
@@ -499,49 +499,64 @@ namespace seahorn
 				  outs() << "UNSAT\n";
 			  }
 		  }
-		  for(Expr neg_qry : m_neg_queries)
+
+		  //reset the query here !!!
+		  ExprVector &queries = db.getQueries_Ref();
+		  queries.clear();
+		  for(auto q : orig_queries)
 		  {
-			  ExprVector& queries = db.getQueries_Ref();
-			  queries.clear();
-			  db.addQuery(neg_qry);
-			  outs() << "NEW QUERY: " << "\n";
-			  for (Expr q : db.getQueries_Ref())
+			  db.addQuery(q);
+		  }
+
+		  outs() << "=========================== NEG START ============================\n";
+		  for(auto it = m_neg_rule_set.begin(); it != m_neg_rule_set.end(); ++it)
+		  {
+			  HornClauseDB::RuleVector &db_rules = db.getRules();
+			  if(db_rules.size() == orig_rule_num + 1)
+			  {
+				  db_rules.pop_back();
+				  db.addRule(*it);
+			  }
+			  else
+			  {
+				  db.addRule(*it);
+			  }
+			  outs() << "NEW QUERIE:\n";
+			  for(auto q : db.getQueries())
 			  {
 				  outs() << *q << "\n";
 			  }
+			  outs() << "NEW DB:\n" << db;
 			  ZFixedPoint<EZ3>& fp = resetFixedPoint(db);
 			  boost::tribool result = fp.query();
 			  if(result != UNSAT)
 			  {
 				  outs() << "SAT, NEED TO ADD NEGATIVE DATA POINT\n";
-				  isChanged = true;
 				  //get cex
-				  Expr cexs;
-				  cexs = fp.getGroundSatAnswer();
-				  if(isOpX<AND>(cexs))
+				  Expr answer = fp.getGroundSatAnswer();
+				  outs() << *answer << "\n";
+				  if(isOpX<TRUE>(answer))
 				  {
-					  outs() << "CEX:\n";
-					  outs() << fp.getAnswer() << "\n";
-					  outs() << *(fp.getCex()) << "\n";
-					  outs() << *cexs;
+					  continue;
 				  }
+				  isChanged = true;
 				  return;
 
 				  //add data point
-//				  outs() << "NEG QUERY:\n";
-//				  std::list<Expr> attr_values;
-//
-//				  for(int i=0; i<bind::domainSz(bind::fname(dst); i++)
-//				  {
-//					  Expr arg_i = dst->arg(i+1);
-//					  Expr arg_i_value = m.eval(arg_i);
-//					  attr_values.push_back(arg_i_value);
-//				  }
-//
-//				  DataPoint neg_dp(bind::fname(bind::fname(r.head())), attr_values);
-//				  addNegCex(neg_dp);
-//				  addDataPointToIndex(neg_dp, index);
-//				  index++;
+  //				  outs() << "NEG QUERY:\n";
+  //				  std::list<Expr> attr_values;
+  //
+  //				  for(int i=0; i<bind::domainSz(bind::fname(dst); i++)
+  //				  {
+  //					  Expr arg_i = dst->arg(i+1);
+  //					  Expr arg_i_value = m.eval(arg_i);
+  //					  attr_values.push_back(arg_i_value);
+  //				  }
+  //
+  //				  DataPoint neg_dp(bind::fname(bind::fname(r.head())), attr_values);
+  //				  addNegCex(neg_dp);
+  //				  addDataPointToIndex(neg_dp, index);
+  //				  index++;
 
 				  //call C5 learner
 				  C5learn();
@@ -552,32 +567,58 @@ namespace seahorn
 				  outs() << "UNSAT\n";
 			  }
 		  }
-		  for(Expr impl_qry : m_impl_queries)
+
+		  //reset the rules here !!!
+		  auto &rules = db.getRules();
+		  rules.pop_back();
+
+		  outs() << "=========================== IMPL START ============================\n";
+		  ZSolver<EZ3> solver(m_hm.getZContext());
+		  for(auto it = db.getRules().begin(); it != db.getRules().end(); ++it)
 		  {
-			  ExprVector& queries = db.getQueries_Ref();
-			  queries.clear();
-			  db.addQuery(impl_qry);
-			  outs() << "NEW QUERY: " << "\n";
-			  for (Expr q : db.getQueries_Ref())
+			  solver.reset();
+
+			  HornRule r = *it;
+
+			  Expr r_head = r.head();
+			  Expr r_head_cand = m_candidate_model.getDef(r_head);
+
+			  solver.assertExpr(mk<NEG>(r_head_cand));
+
+			  Expr r_body = r.body();
+			  ExprVector body_pred_apps;
+			  get_all_pred_apps(r_body, db, std::back_inserter(body_pred_apps));
+
+			  if(body_pred_apps.size() != 1)
 			  {
-				  outs() << *q << "\n";
+				  continue;
 			  }
-			  ZFixedPoint<EZ3>& fp = resetFixedPoint(db);
-			  boost::tribool result = fp.query();
+			  Expr body_app = body_pred_apps[0];
+			  if(bind::fname(r_head) != bind::fname(body_app))
+			  {
+				  continue;
+			  }
+			  Expr body_app_cand  = m_candidate_model.getDef(body_app);
+
+			  solver.assertExpr(body_app_cand);
+
+			  solver.assertExpr(extractTransitionRelation(r, db));
+
+			  solver.toSmtLib(errs());
+			  boost::tribool result = solver.solve();
 			  if(result != UNSAT)
 			  {
 				  outs() << "SAT, NEED TO ADD IMPLICATION DATA PAIR\n";
 				  isChanged = true;
 				  //get cex
-				  ExprVector cex_rules;
-				  fp.getCexRules(cex_rules);
-				  boost::reverse(cex_rules);
-				  Expr last_rule = cex_rules[0];
-				  Expr first_rule = cex_rules[cex_rules.size()-1];
-				  Expr dst = last_rule -> arg(1);
-				  Expr src = first_rule -> arg(0);
-				  outs() << *src << "\n";
-				  outs() << *dst << "\n";
+				  ZModel<EZ3> m = solver.getModel();
+				  for(int i=0; i<bind::domainSz(bind::fname(r_head)); i++)
+				  {
+					  Expr arg_i = r_head->arg(i+1);
+					  Expr arg_i_value = m.eval(arg_i);
+					  outs() << *arg_i_value << "\n";
+				  }
+
 				  return;
 
 				  //add data point
@@ -656,16 +697,22 @@ namespace seahorn
   {
 	  m_pos_queries.clear();
 	  m_neg_queries.clear();
-	  m_impl_queries.clear();
+
+	  for(Expr q : db.getQueries())
+	  {
+		 m_neg_queries.push_back(q);
+	  }
+
+	  assert(m_neg_queries.size() == 1);
 
 	  for(Expr rel : db.getRelations())
 	  {
-		  std::ostringstream oss;
-		  oss << bind::fname(rel);
-		  if(oss.str() == std::string("verifier.error"))
-		  {
-			  continue;
-		  }
+//		  std::ostringstream oss;
+//		  oss << bind::fname(rel);
+//		  if(oss.str() == std::string("verifier.error"))
+//		  {
+//			  continue;
+//		  }
 
 		  ExprVector args;
 		  for(int i=0; i<bind::domainSz(rel); i++)
@@ -678,114 +725,15 @@ namespace seahorn
 		  Expr rel_app = bind::fapp(rel, args);
 		  Expr cand_app = m_candidate_model.getDef(rel_app);
 
-		  //construct pos queries and pos rules
-//		  Expr pos_rule_head_rel = bind::rename(rel, variant::tag(bind::fname(rel), std::string("_POS")));
-//		  Expr pos_rule_head = bind::fapp(pos_rule_head_rel, args);
-//		  Expr pos_rule_body = mk<AND>(rel_app, mk<NEG>(cand_app));
-//		  Expr pos_qry = pos_rule_head;
-//		  HornRule pos_rule(args, pos_rule_head, pos_rule_body);
-//		  db.addRule(pos_rule);
-//		  m_pos_rule_set.insert(pos_rule);
+		  //construct pos queries
 		  Expr pos_qry = mk<AND>(rel_app, mk<NEG>(cand_app));
 		  m_pos_queries.push_back(pos_qry);
 
-		  //construct neg queries and neg rules
-		  Expr neg_qry = rel_app;
+		  //construct neg rules
 		  Expr neg_rule_head = rel_app;
 		  Expr neg_rule_body = cand_app;
 		  HornRule neg_rule(args, rel_app, cand_app);
-		  db.addRule(neg_rule);
 		  m_neg_rule_set.insert(neg_rule);
-		  m_neg_queries.push_back(neg_qry);
-	  }
-	  for(auto it = db.getRules().begin(); it!= db.getRules().end(); ++it)
-	  {
-		  HornRule r = *it;
-		  Expr head_pred = r.head();
-		  ExprVector body_preds;
-		  get_all_pred_apps(r.body(), db, std::back_inserter(body_preds));
-		  //check the rule format
-		  if(body_preds.size() == 1 && bind::fname(head_pred) == bind::fname(body_preds[0]))
-		  {
-			  ExprVector conjuncts;
-
-			  Expr body_pred = body_preds[0];
-			  Expr head_cand = m_candidate_model.getDef(head_pred);
-			  Expr body_cand = m_candidate_model.getDef(body_pred);
-			  Expr trans = extractTransitionRelation(r, db);
-			  conjuncts.push_back(mk<NEG>(head_cand));
-			  conjuncts.push_back(body_cand);
-			  conjuncts.push_back(trans);
-
-			  Expr impl_qry = mknary<AND>(conjuncts.begin(), conjuncts.end());
-			  m_impl_queries.push_back(impl_qry);
-		  }
-		  else
-		  {
-			  //ignore the rules
-		  }
-	  }
-  }
-
-  void ICE::constructNewDB(HornClauseDB &db, HornClauseDB &new_db)
-  {
-	  //copy old db contents to new db
-	  for(Expr rel : db.getRelations())
-	  {
-		  new_db.registerRelation(rel);
-	  }
-	  for(HornClauseDB::RuleVector::iterator it = db.getRules().begin(); it != db.getRules().end(); ++it)
-	  {
-		  HornRule r = *it;
-		  new_db.addRule(r);
-	  }
-	  for(auto query : db.getQueries())
-	  {
-		  new_db.addQuery(query);
-	  }
-	  addPosNegRulesToDB(db, new_db);
-  }
-
-  void ICE::addPosNegRulesToDB(HornClauseDB &db, HornClauseDB &new_db)
-  {
-	  //Extract verifier.error
-	  Expr error_pred;
-	  for(Expr rel : db.getRelations())
-	  {
-		  std::ostringstream oss;
-		  oss << bind::fname(rel);
-		  if(oss.str() == "verifier.error") //how to identify error predicate?
-		  {
-			 error_pred = bind::fname(rel);
-		  }
-	  }
-	  outs() << "ERROR PRED: " << *error_pred << "\n";
-	  //Add Pos and Neg Rules
-	  for(Expr rel : db.getRelations())
-	  {
-		  ExprVector args;
-		  for(int i=0; i<bind::domainSz(rel); i++)
-		  {
-			  Expr arg_i = bind::bvar(i, bind::domainTy(rel, i));
-			  Expr arg_i_app = bind::fapp(arg_i);
-			  args.push_back(arg_i_app);
-		  }
-		  Expr rel_app = bind::fapp(rel, args);
-		  Expr cand_app = m_candidate_model.getDef(rel_app);
-
-		  //pos
-		  Expr new_pos_head = bind::fapp(error_pred);
-		  Expr new_pos_body = mk<AND>(rel_app, mk<NEG>(cand_app));
-		  HornRule new_pos_rule(args, new_pos_head, new_pos_body);
-		  new_db.addRule(new_pos_rule);
-		  m_pos_rule_set.insert(new_pos_rule);
-
-		  //neg
-		  Expr new_neg_head = rel_app;
-		  Expr new_neg_body = cand_app;
-		  HornRule new_neg_rule(args, new_neg_head, new_neg_body);
-		  new_db.addRule(new_neg_rule);
-		  m_neg_rule_set.insert(new_neg_rule);
 	  }
   }
 

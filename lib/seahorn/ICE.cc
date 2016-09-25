@@ -703,6 +703,24 @@ namespace seahorn
 		 m_neg_queries.push_back(q);
 	  }
 
+	  //get db entry predicate
+	  Expr entry_pred;
+	  for(auto it = db.getRules().begin(); it!=db.getRules().end(); ++it)
+	  {
+		  Expr body = (*it).body();
+		  if(isOpX<TRUE>(body))
+		  {
+			  std::ostringstream oss;
+			  oss << bind::fname(bind::fname((*it).head()));
+			  if(oss.str() == std::string("verifier.error"))
+			  {
+				  continue;
+			  }
+			  entry_pred = (*it).head();
+		  }
+	  }
+	  outs() << "ENTRY IS: " << *entry_pred << "\n";
+
 	  assert(m_neg_queries.size() == 1);
 
 	  for(Expr rel : db.getRelations())
@@ -730,9 +748,16 @@ namespace seahorn
 		  m_pos_queries.push_back(pos_qry);
 
 		  //construct neg rules
+		  ExprVector vars;
+		  vars.insert(vars.end(), args.begin(), args.end());
+		  for(int i=0; i<bind::domainSz(bind::fname(entry_pred)); i++)
+		  {
+			  Expr entry_arg_i = entry_pred->arg(i+1);
+			  vars.push_back(entry_arg_i);
+		  }
 		  Expr neg_rule_head = rel_app;
 		  Expr neg_rule_body = cand_app;
-		  HornRule neg_rule(args, rel_app, cand_app);
+		  HornRule neg_rule(vars, rel_app, mk<AND>(entry_pred, cand_app));
 		  m_neg_rule_set.insert(neg_rule);
 	  }
   }

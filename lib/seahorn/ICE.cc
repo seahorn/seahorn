@@ -755,10 +755,16 @@ namespace seahorn
 			  Expr entry_arg_i = entry_pred->arg(i+1);
 			  vars.push_back(entry_arg_i);
 		  }
-		  Expr neg_rule_head = rel_app;
-		  Expr neg_rule_body = cand_app;
-		  HornRule neg_rule(vars, rel_app, mk<AND>(entry_pred, cand_app));
-		  m_neg_rule_set.insert(neg_rule);
+		  if(rel == bind::fname(entry_pred))
+		  {
+			  HornRule neg_rule(vars, rel_app, cand_app);
+			  m_neg_rule_set.insert(neg_rule);
+		  }
+		  else
+		  {
+			  HornRule neg_rule(vars, rel_app, mk<AND>(entry_pred, cand_app));
+			  m_neg_rule_set.insert(neg_rule);
+		  }
 	  }
   }
 

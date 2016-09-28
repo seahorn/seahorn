@@ -540,7 +540,7 @@ namespace seahorn
 					  continue;
 				  }
 				  isChanged = true;
-				  return;
+
 
 				  //add data point
   //				  outs() << "NEG QUERY:\n";
@@ -559,7 +559,7 @@ namespace seahorn
   //				  index++;
 
 				  //call C5 learner
-				  C5learn();
+				  //C5learn();
 			  }
 			  else
 			  {
@@ -567,6 +567,7 @@ namespace seahorn
 				  outs() << "UNSAT\n";
 			  }
 		  }
+		  return; //for testing neg examples
 
 		  //reset the rules here !!!
 		  auto &rules = db.getRules();
@@ -684,7 +685,8 @@ namespace seahorn
 	  params.set (":pdr.utvpi", false);
 	  // -- disable propagate_variable_equivalences in tail_simplifier
 	  params.set (":xform.tail_simplifier_pve", false);
-	  params.set (":xform.subsumption_checker", true);
+	  // JN: Set to false helps with cex
+	  params.set (":xform.subsumption_checker", false);
   //	  params.set (":order_children", true);
   //	  params.set (":pdr.max_num_contexts", "500");
 	  fp.set (params);

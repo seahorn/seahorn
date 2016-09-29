@@ -14,6 +14,7 @@
 #include <boost/logic/tribool.hpp>
 #include <boost/property_tree/ptree.hpp>
 #include <boost/property_tree/json_parser.hpp>
+#include <boost/optional/optional.hpp>
 #include "boost/range/algorithm/reverse.hpp"
 #include "seahorn/HornClauseDBWto.hh"
 #include <algorithm>
@@ -126,9 +127,15 @@ namespace seahorn
 	  for(Expr rel : db.getRelations())
 	  {
 		  Expr C5_rel_name = variant::variant(rel_index, mkTerm<std::string>(std::string("PRED"), rel->efac()));
-		  m_rel_to_c5_rel_name_map.insert(std::make_pair(rel, C5_rel_name));
-		  m_c5_rel_name_to_rel_map.insert(std::make_pair(C5_rel_name, rel));
+		  m_rel_to_c5_rel_name_map.insert(std::make_pair(bind::fname(rel), C5_rel_name));
+		  m_c5_rel_name_to_rel_map.insert(std::make_pair(C5_rel_name, bind::fname(rel)));
 		  rel_index ++;
+	  }
+
+	  outs() << "REL NAME TO C5 NAME MAP:\n";
+	  for(auto it = m_rel_to_c5_rel_name_map.begin(); it != m_rel_to_c5_rel_name_map.end(); ++it)
+	  {
+		  outs() << *(it->first) << ", " << *(it->second) << "\n";
 	  }
 
 	  names_of << "invariant.\n";
@@ -138,7 +145,7 @@ namespace seahorn
 	  int counter=0;
 	  for(Expr rel : db.getRelations())
 	  {
-		  Expr C5_rel_name = m_rel_to_c5_rel_name_map.find(rel)->second;
+		  Expr C5_rel_name = m_rel_to_c5_rel_name_map.find(bind::fname(rel))->second;
 		  if(counter == db.getRelations().size()-1)
 		  {
 			  names_of << *C5_rel_name << ".\n";
@@ -153,7 +160,7 @@ namespace seahorn
 	  //each argument of each predicate is an attribute
 	  for(Expr rel : db.getRelations())
 	  {
-		  Expr C5_rel_name = m_rel_to_c5_rel_name_map.find(rel)->second;
+		  Expr C5_rel_name = m_rel_to_c5_rel_name_map.find(bind::fname(rel))->second;
 		  for(int i=0; i<bind::domainSz(rel); i++)
 		  {
 			  if(isOpX<INT_TY>(bind::domainTy(rel, i)) || isOpX<BOOL_TY>(bind::domainTy(rel, i)))
@@ -202,6 +209,8 @@ namespace seahorn
   void ICE::C5learn()
   {
 	  generateC5DataAndImplicationFiles();
+
+	  outs() << "DATA & IMPL FILES ARE GENERATED\n";
 
 	  //system("/home/chenguang/Desktop/C50-ICE/C50/c5.0.dt_penalty -I 1 -m 1 -f " + m_C5filename);
 	  FILE *fp;
@@ -256,25 +265,47 @@ namespace seahorn
 
   void ICE::convertPtreeToInvCandidate(boost::property_tree::ptree pt, Expr rel)
   {
-	  Expr rel_name = bind::fname(rel);
+	  Expr candidate;
+
+	  Expr C5_rel_name = m_rel_to_c5_rel_name_map.find(bind::fname(rel))->second;
 	  std::ostringstream oss;
-	  oss << rel_name;
-	  boost::property_tree::ptree sub_pt = pt.get_child(oss.str());
-	  std::list<Expr> stack;
-	  stack.push_back(mk<TRUE>(rel_name->efac()));
-	  std::list<std::list<Expr>> final_formula = constructFormula(stack, sub_pt);
-	  ExprVector disjunctions;
-	  for(std::list<std::list<Expr>>::iterator disj_it = final_formula.begin(); disj_it != final_formula.end(); ++disj_it)
+	  oss << C5_rel_name;
+
+	  //boost::property_tree::ptree sub_pt = pt.get_child(oss.str());
+
+	  boost::optional<boost::property_tree::ptree&> hasChild = pt.get_child_optional(oss.str());
+	  if(!hasChild)
 	  {
-		  ExprVector conjunctions;
-		  for(std::list<Expr>::iterator conj_it = (*disj_it).begin(); conj_it != (*disj_it).end(); ++conj_it)
+		  if(pt.get<std::string>("classification") == "true" || pt.get<std::string>("classification") == "True")
 		  {
-			  conjunctions.push_back(*conj_it);
+			 candidate = mk<TRUE>(rel->efac());
 		  }
-		  Expr disjunct = mknary<AND>(conjunctions.begin(), conjunctions.end());
-		  disjunctions.push_back(disjunct);
+		  else if(pt.get<std::string>("classification") == "false" || pt.get<std::string>("classification") == "False")
+		  {
+			 candidate = mk<FALSE>(rel->efac());
+		  }
 	  }
-	  Expr candidate = mknary<OR>(disjunctions.begin(), disjunctions.end());
+	  else
+	  {
+		  boost::property_tree::ptree sub_pt = pt.get_child(oss.str());
+		  std::list<Expr> stack;
+		  stack.push_back(mk<TRUE>(C5_rel_name->efac()));
+		  std::list<std::list<Expr>> final_formula = constructFormula(stack, sub_pt);
+		  ExprVector disjunctions;
+		  for(std::list<std::list<Expr>>::iterator disj_it = final_formula.begin(); disj_it != final_formula.end(); ++disj_it)
+		  {
+			  ExprVector conjunctions;
+			  for(std::list<Expr>::iterator conj_it = (*disj_it).begin(); conj_it != (*disj_it).end(); ++conj_it)
+			  {
+				  conjunctions.push_back(*conj_it);
+			  }
+			  Expr disjunct = mknary<AND>(conjunctions.begin(), conjunctions.end());
+			  disjunctions.push_back(disjunct);
+		  }
+		  candidate = mknary<OR>(disjunctions.begin(), disjunctions.end());
+	  }
+
+	  outs() << "NEW CANDIDATE: " << *candidate << "\n";
 
 	  ExprVector arg_list;
 	  for(int i=0; i<bind::domainSz(rel); i++)
@@ -345,6 +376,33 @@ namespace seahorn
 	  return final_formula;
   }
 
+  std::string ICE::outputDataPoint(DataPoint p)
+  {
+	  auto &db = m_hm.getHornClauseDB();
+	  std::ostringstream oss;
+	  Expr pred_name = p.getPredName();
+	  Expr C5_pred_name = m_rel_to_c5_rel_name_map.find(pred_name)->second;
+	  oss << C5_pred_name;
+	  for(Expr rel : db.getRelations())
+	  {
+		  if(bind::fname(rel) == pred_name)
+		  {
+			  for(Expr attr : p.getAttrValues())
+			  {
+				  oss << "," << *attr;
+			  }
+		  }
+		  else
+		  {
+			  for(int i=0; i<bind::domainSz(rel); i++)
+			  {
+				  oss << ",?";
+			  }
+		  }
+	  }
+	  return oss.str();
+  }
+
   void ICE::generateC5DataAndImplicationFiles()
   {
 	  //generate .data file
@@ -355,35 +413,24 @@ namespace seahorn
 
 	  for(DataPoint pos_dp : m_pos_data_set)
 	  {
-		  data_of << pos_dp.getPredName();
-		  for(Expr attr : pos_dp.getAttrValues())
-		  {
-			  data_of << "," << *attr;
-		  }
-		  data_of << "true\n";
+		  data_of << outputDataPoint(pos_dp);
+		  data_of << ",true\n";
 	  }
 
 	  for(DataPoint neg_dp : m_neg_data_set)
 	  {
-		  data_of << neg_dp.getPredName();
-		  for(Expr attr : neg_dp.getAttrValues())
-		  {
-			  data_of << "," << *attr;
-		  }
-		  data_of << "false\n";
+		  data_of << outputDataPoint(neg_dp);
+		  data_of << ",false\n";
 	  }
 
 	  for(DataPoint impl_dp : m_impl_cex_set)
 	  {
-		  if(m_pos_data_set.count(impl_dp) != 0 || m_neg_data_set.count(impl_dp) != 0)
-		  {
-			  continue;
-		  }
-		  data_of << impl_dp.getPredName();
-		  for(Expr attr : impl_dp.getAttrValues())
-		  {
-			  data_of << "," << *attr;
-		  }
+//		  if(m_pos_data_set.count(impl_dp) != 0 || m_neg_data_set.count(impl_dp) != 0)
+//		  {
+//			  continue;
+//		  }
+
+		  data_of << outputDataPoint(impl_dp);
 		  data_of << "?\n";
 	  }
 
@@ -511,15 +558,17 @@ namespace seahorn
 		  outs() << "=========================== NEG START ============================\n";
 		  for(auto it = m_neg_rule_set.begin(); it != m_neg_rule_set.end(); ++it)
 		  {
+			  HornRule r = *it;
+			  Expr head = r.head();
 			  HornClauseDB::RuleVector &db_rules = db.getRules();
 			  if(db_rules.size() == orig_rule_num + 1)
 			  {
 				  db_rules.pop_back();
-				  db.addRule(*it);
+				  db.addRule(r);
 			  }
 			  else
 			  {
-				  db.addRule(*it);
+				  db.addRule(r);
 			  }
 			  outs() << "NEW QUERIE:\n";
 			  for(auto q : db.getQueries())
@@ -537,29 +586,47 @@ namespace seahorn
 				  outs() << *answer << "\n";
 				  if(isOpX<TRUE>(answer))
 				  {
+					  outs() << "THE GROUND SAT ANSWER IS TRUE!\n";
 					  continue;
 				  }
 				  isChanged = true;
 
+				  Expr cex;
+				  ExprVector answer_preds;
+				  get_all_pred_apps(answer, db, std::back_inserter(answer_preds));
+				  for(Expr ans_pred : answer_preds)
+				  {
+					  if(bind::fname(head) == bind::fname(ans_pred))
+					  {
+						  cex = ans_pred;
+					  }
+				  }
+				  outs() << "NEG CEX IS: " << *cex << "\n";
 
-				  //add data point
-  //				  outs() << "NEG QUERY:\n";
-  //				  std::list<Expr> attr_values;
-  //
-  //				  for(int i=0; i<bind::domainSz(bind::fname(dst); i++)
-  //				  {
-  //					  Expr arg_i = dst->arg(i+1);
-  //					  Expr arg_i_value = m.eval(arg_i);
-  //					  attr_values.push_back(arg_i_value);
-  //				  }
-  //
-  //				  DataPoint neg_dp(bind::fname(bind::fname(r.head())), attr_values);
-  //				  addNegCex(neg_dp);
-  //				  addDataPointToIndex(neg_dp, index);
-  //				  index++;
+				  //add data point to C5
+  				  std::list<Expr> attr_values;
+
+  				  outs() << "ANSWER ARGS:\n";
+  				  for(int i=0; i<bind::domainSz(bind::fname(cex)); i++)
+  				  {
+  					  Expr arg_i = cex->arg(i+1);
+  					  outs() << *arg_i << "\n";
+  					  if(bind::isBoolConst(arg_i) || bind::isIntConst(arg_i))
+  					  {
+  						  outs() << "NOT VALUE: " << *arg_i << "\n";
+  						  Expr uncertain_value = mkTerm<std::string>("?", arg_i->efac());
+  						  arg_i = uncertain_value;
+  					  }
+  					  attr_values.push_back(arg_i);
+  				  }
+
+  				  DataPoint neg_dp(bind::fname(bind::fname(head)), attr_values);
+  				  addNegCex(neg_dp);
+  				  addDataPointToIndex(neg_dp, index);
+  				  index++;
 
 				  //call C5 learner
-				  //C5learn();
+				  C5learn();
 			  }
 			  else
 			  {
@@ -567,11 +634,12 @@ namespace seahorn
 				  outs() << "UNSAT\n";
 			  }
 		  }
-		  return; //for testing neg examples
 
 		  //reset the rules here !!!
 		  auto &rules = db.getRules();
 		  rules.pop_back();
+
+		  outs() << "AFTER RESET DB IS:\n" << db;
 
 		  outs() << "=========================== IMPL START ============================\n";
 		  ZSolver<EZ3> solver(m_hm.getZContext());
@@ -733,6 +801,12 @@ namespace seahorn
 //		  {
 //			  continue;
 //		  }
+
+		  //skip the predicates that have no arguments
+		  if(bind::domainSz(rel) == 0)
+		  {
+			  continue;
+		  }
 
 		  ExprVector args;
 		  for(int i=0; i<bind::domainSz(rel); i++)

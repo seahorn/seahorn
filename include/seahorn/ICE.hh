@@ -65,7 +65,7 @@ namespace seahorn
   {
   public:
 	  ICE(HornifyModule &hm) : m_hm(hm)  {}
-	  virtual ~ICE() {}
+	  virtual ~ICE() {m_fp.reset (nullptr);}
   private:
 	  HornifyModule &m_hm;
 	  HornDbModel m_candidate_model;
@@ -96,6 +96,7 @@ namespace seahorn
   public:
 	  void setupC5();
 	  void C5learn();
+	  std::string outputDataPoint(DataPoint p);
 
   public:
       HornifyModule& getHornifyModule() {return m_hm;}

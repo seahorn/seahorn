@@ -261,6 +261,20 @@ namespace seahorn
 		  convertPtreeToInvCandidate(pt, rel);
 	  }
 
+	  outs() << "NEW CANDIDATES MAP:\n";
+	  for(Expr rel : db.getRelations())
+	  {
+		  ExprVector arg_list;
+		  for(int i=0; i<bind::domainSz(rel); i++)
+		  {
+			  Expr arg_i_type = bind::domainTy(rel, i);
+			  Expr arg_i = bind::fapp(bind::constDecl(variant::variant(i, mkTerm<std::string> ("V", rel->efac ())), arg_i_type));
+			  arg_list.push_back(arg_i);
+		  }
+		  Expr fapp = bind::fapp(rel, arg_list);
+		  Expr cand = m_candidate_model.getDef(fapp);
+		  outs() << "REL: " << *fapp << ", CAND: " << *cand << "\n";
+	  }
   }
 
   void ICE::convertPtreeToInvCandidate(boost::property_tree::ptree pt, Expr rel)
@@ -488,24 +502,27 @@ namespace seahorn
 	  {
 		  isChanged = false;
 		  constructQueries(db);
-		  outs() << "POS QUERIES:\n";
-		  for(Expr p : m_pos_queries)
-		  {
-			  outs() << *p << "\n";
-		  }
+//		  outs() << "POS QUERIES:\n";
+//		  for(Expr p : m_pos_queries)
+//		  {
+//			  outs() << *p << "\n";
+//		  }
+		  //outs() << "THE NEW ROUND DB: \n" << db;
 
 		  int index = 0;
-		  outs() << "=========================== POS START ============================\n";
+		  /*outs() << "=========================== POS START ============================\n";
 		  for(Expr pos_qry : m_pos_queries)
 		  {
+			  //add pos query
 			  ExprVector& queries = db.getQueries_Ref();
 			  queries.clear();
 			  db.addQuery(pos_qry);
-			  outs() << "NEW QUERY: " << "\n";
+			  outs() << "NEW QUERY:\n";
 			  for (Expr q : db.getQueries_Ref())
 			  {
 				  outs() << *q << "\n";
 			  }
+			  outs() << "NEW DB:\n" << db;
 			  ZFixedPoint<EZ3>& fp = resetFixedPoint(db);
 			  boost::tribool result = fp.query();
 			  if(result != UNSAT)
@@ -553,7 +570,96 @@ namespace seahorn
 		  for(auto q : orig_queries)
 		  {
 			  db.addQuery(q);
+		  }*/
+
+		  outs() << "=========================== POS START ============================\n";
+		  for(auto it = m_pos_rule_set.begin(); it != m_pos_rule_set.end(); ++it)
+		  {
+			  HornRule r = *it;
+			  HornClauseDB::RuleVector &db_rules = db.getRules();
+			  if(db_rules.size() == orig_rule_num + 1)
+			  {
+				  db_rules.pop_back();
+				  db.addRule(r);
+			  }
+			  else
+			  {
+				  db.addRule(r);
+			  }
+			  outs() << "NEW QUERIE:\n";
+			  for(auto q : db.getQueries())
+			  {
+				  outs() << *q << "\n";
+			  }
+			  //outs() << "NEW DB:\n" << db;
+			  ZFixedPoint<EZ3>& fp = resetFixedPoint(db);
+			  boost::tribool result = fp.query();
+			  if(result != UNSAT)
+			  {
+				  outs() << "SAT, NEED TO ADD POSITIVE DATA POINT\n";
+				  //get cex
+				  Expr answer = fp.getGroundSatAnswer();
+				  outs() << *answer << "\n";
+				  if(isOpX<TRUE>(answer))
+				  {
+					  outs() << "THE GROUND SAT ANSWER IS TRUE!\n";
+					  continue;
+				  }
+				  isChanged = true;
+
+				  Expr obj_pred = r.body()->arg(0);
+				  outs() << "POS OBJ PRED: " << *obj_pred << "\n";
+
+				  Expr cex;
+				  ExprVector answer_preds;
+				  get_all_pred_apps(answer, db, std::back_inserter(answer_preds));
+				  for(Expr ans_pred : answer_preds)
+				  {
+					  if(bind::fname(obj_pred) == bind::fname(ans_pred))
+					  {
+						  cex = ans_pred;
+					  }
+				  }
+				  outs() << "POS CEX IS: " << *cex << "\n";
+
+				  //add data point to C5
+				  std::list<Expr> attr_values;
+
+				  outs() << "ANSWER ARGS:\n";
+				  for(int i=0; i<bind::domainSz(bind::fname(cex)); i++)
+				  {
+					  Expr arg_i = cex->arg(i+1);
+					  outs() << *arg_i << "\n";
+					  if(bind::isBoolConst(arg_i) || bind::isIntConst(arg_i))
+					  {
+						  outs() << "NOT VALUE: " << *arg_i << "\n";
+						  Expr uncertain_value = mkTerm<std::string>("?", arg_i->efac());
+						  arg_i = uncertain_value;
+					  }
+					  attr_values.push_back(arg_i);
+				  }
+
+				  DataPoint pos_dp(bind::fname(bind::fname(obj_pred)), attr_values);
+				  addPosCex(pos_dp);
+				  addDataPointToIndex(pos_dp, index);
+				  index++;
+
+				  //call C5 learner
+				  C5learn();
+			  }
+			  else
+			  {
+				  //This query is good, go to next
+				  outs() << "UNSAT\n";
+			  }
 		  }
+
+		  outs() << "==================================================================\n";
+
+		  //reset the rules here !!!
+		  auto &cur_rules = db.getRules();
+		  cur_rules.pop_back();
+		  outs() << "AFTER RESET DB IS:\n" << db;
 
 		  outs() << "=========================== NEG START ============================\n";
 		  for(auto it = m_neg_rule_set.begin(); it != m_neg_rule_set.end(); ++it)
@@ -575,7 +681,7 @@ namespace seahorn
 			  {
 				  outs() << *q << "\n";
 			  }
-			  outs() << "NEW DB:\n" << db;
+			  //outs() << "NEW DB:\n" << db;
 			  ZFixedPoint<EZ3>& fp = resetFixedPoint(db);
 			  boost::tribool result = fp.query();
 			  if(result != UNSAT)
@@ -634,6 +740,8 @@ namespace seahorn
 				  outs() << "UNSAT\n";
 			  }
 		  }
+
+		  outs() << "==================================================================\n";
 
 		  //reset the rules here !!!
 		  auto &rules = db.getRules();
@@ -725,6 +833,7 @@ namespace seahorn
 				  outs() << "UNSAT\n";
 			  }
 		  }
+		  outs() << "==================================================================\n";
 	  }
 
 //	  if (config == NAIVE)
@@ -767,6 +876,9 @@ namespace seahorn
   {
 	  m_pos_queries.clear();
 	  m_neg_queries.clear();
+
+	  m_pos_rule_set.clear();
+	  m_neg_rule_set.clear();
 
 	  for(Expr q : db.getQueries())
 	  {
@@ -822,6 +934,11 @@ namespace seahorn
 		  //construct pos queries
 		  Expr pos_qry = mk<AND>(rel_app, mk<NEG>(cand_app));
 		  m_pos_queries.push_back(pos_qry);
+		  //construct pos rules
+		  Expr error_split = db.getQueries()[0];
+		  outs() << "ERROR PRED: " << *error_split << "\n";
+		  HornRule pos_rule(args, error_split, mk<AND>(rel_app, mk<NEG>(cand_app)));
+		  m_pos_rule_set.insert(pos_rule);
 
 		  //construct neg rules
 		  ExprVector vars;

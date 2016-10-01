@@ -158,7 +158,8 @@ class LinkRt(sea.LimitedCmd):
         argv.append ('-m{0}'.format (args.machine))
         if args.debug_info: argv.append ('-g')
 
-        argv.extend (['-o', args.out_file])
+        if args.out_file is not None:
+            argv.extend (['-o', args.out_file])
 
         assert (len (args.in_files) == 1)
         argv.append (args.in_files[0])
@@ -177,9 +178,10 @@ class LinkRt(sea.LimitedCmd):
         return self.clangCmd.stdout
 
 class Seapp(sea.LimitedCmd):
-    def __init__(self, quiet=False):
+    def __init__(self, quiet=False, internalize=False):
         super(Seapp, self).__init__('pp', 'Pre-processing', allow_extra=True)
-
+        self._internalize = internalize
+        
     @property
     def stdout (self):
         return self.seappCmd.stdout
@@ -223,8 +225,8 @@ class Seapp(sea.LimitedCmd):
                          'by non-determinism', default=False, action='store_true',
                          dest='strip_external')
         ap.add_argument ('--internalize', help='Create dummy definitions for all ' +
-                         'external functions', default=False, action='store_true',
-                         dest='internalize')
+                         'external functions', default=self._internalize,
+                         action='store_true', dest='internalize')
         ap.add_argument ('--log', dest='log', default=None,
                          metavar='STR', help='Log level')
         add_in_out_args (ap)
@@ -771,3 +773,5 @@ Bpf = sea.SeqCmd ('bpf', 'alias for fe|unroll|cut-loops|opt|horn --solve',
                   FrontEnd.cmds + [Unroll(), CutLoops(), Seaopt(), Seahorn(solve=True)])
 feCrab = sea.SeqCmd ('fe-crab', 'alias for fe|crab', FrontEnd.cmds + [Crab()])
 seaTerm = sea.SeqCmd ('term', 'SeaHorn Termination analysis', Smt.cmds + [SeaTerm()])
+Exe = sea.SeqCmd ('exe', 'alias for clang|pp --internalize|linkrt',
+                  [Clang(), Seapp(internalize=True), LinkRt()])

@@ -91,6 +91,7 @@ namespace seahorn
 	  std::set<std::pair<DataPoint, DataPoint>> m_impl_pair_set;
 
 	  std::map<DataPoint, int> m_data_point_to_index_map;
+	  std::vector<DataPoint> m_cex_list;
 
 	  std::list<std::map<Expr, std::list<Expr>>> m_relToImplCexListMapList;
   public:
@@ -133,36 +134,10 @@ namespace seahorn
 
       void addDataPointToIndex(DataPoint dp, int index) {m_data_point_to_index_map.insert(std::make_pair(dp, index));}
 
-      void convertPtreeToInvCandidate(boost::property_tree::ptree pt, Expr rel_name);
+      void convertPtreeToInvCandidate(boost::property_tree::ptree pt);
       std::list<std::list<Expr>> constructFormula(std::list<Expr> stack, boost::property_tree::ptree sub_pt);
 
       ZFixedPoint<EZ3>& resetFixedPoint(HornClauseDB &db);
-  };
-
-  class ICEContext
-  {
-  protected:
-	  ICE &m_ice;
-	  HornClauseDBWto &m_db_wto;
-	  std::list<HornRule> &m_workList;
-  public:
-	  ICEContext(ICE& ice, HornClauseDBWto &db_wto, std::list<HornRule> &workList) :
-		  m_ice(ice), m_db_wto(db_wto), m_workList(workList) {}
-	  virtual void run() = 0;
-	  virtual bool validateRule(HornRule r, ZSolver<EZ3> &solver) = 0;
-	  void weakenRuleHeadCand(HornRule r, ZModel<EZ3> m);
-	  void addUsedRulesBackToWorkList(HornClauseDBWto &db_wto, std::list<HornRule> &workList, HornRule r);
-  };
-
-  class ICE_Naive : public ICEContext
-  {
-  private:
-	  ZSolver<EZ3> m_solver;
-  public:
-	  ICE_Naive(ICE& ice, HornClauseDBWto &db_wto, std::list<HornRule> &workList) :
-		  ICEContext(ice, db_wto, workList), m_solver(ice.getHornifyModule().getZContext()) {}
-	  void run();
-	  bool validateRule(HornRule r, ZSolver<EZ3> &solver);
   };
 }
 

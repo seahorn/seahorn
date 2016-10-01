@@ -681,10 +681,16 @@ namespace seahorn
 				  {
 					  Expr arg_i = cex->arg(i+1);
 					  outs() << *arg_i << "\n";
-					  if(bind::isBoolConst(arg_i) || bind::isIntConst(arg_i))
+					  if(bind::isBoolConst(arg_i))
 					  {
-						  outs() << "NOT VALUE: " << *arg_i << "\n";
-						  Expr uncertain_value = mkTerm<std::string>("?", arg_i->efac());
+						  outs() << "UNCERTAIN VALUE: " << *arg_i << "\n";
+						  Expr uncertain_value = mk<FALSE>(arg_i->efac());
+						  arg_i = uncertain_value;
+					  }
+					  else if(bind::isIntConst(arg_i))
+					  {
+						  outs() << "UNCERTAIN VALUE: " << *arg_i << "\n";
+						  Expr uncertain_value = mkTerm<mpz_class>(0, arg_i->efac());
 						  arg_i = uncertain_value;
 					  }
 					  attr_values.push_back(arg_i);
@@ -698,7 +704,7 @@ namespace seahorn
 				  index++;
 
 				  //call C5 learner
-				  C5learn();
+				  //C5learn();
 			  }
 			  else
 			  {
@@ -770,12 +776,18 @@ namespace seahorn
   				  {
   					  Expr arg_i = cex->arg(i+1);
   					  outs() << *arg_i << "\n";
-  					  if(bind::isBoolConst(arg_i) || bind::isIntConst(arg_i))
-  					  {
-  						  outs() << "NOT VALUE: " << *arg_i << "\n";
-  						  Expr uncertain_value = mkTerm<std::string>("?", arg_i->efac());
-  						  arg_i = uncertain_value;
-  					  }
+  					  if(bind::isBoolConst(arg_i))
+ 					  {
+ 						  outs() << "UNCERTAIN VALUE: " << *arg_i << "\n";
+ 						  Expr uncertain_value = mk<FALSE>(arg_i->efac());
+ 						  arg_i = uncertain_value;
+ 					  }
+ 					  else if(bind::isIntConst(arg_i))
+					  {
+ 						  outs() << "UNCERTAIN VALUE: " << *arg_i << "\n";
+ 						  Expr uncertain_value = mkTerm<mpz_class>(0, arg_i->efac());
+						  arg_i = uncertain_value;
+					  }
   					  attr_values.push_back(arg_i);
   				  }
 
@@ -787,7 +799,7 @@ namespace seahorn
   				  index++;
 
 				  //call C5 learner
-				  C5learn();
+				  //C5learn();
 			  }
 			  else
 			  {
@@ -899,7 +911,7 @@ namespace seahorn
 				  addImplPair(std::make_pair(start_point, end_point));
 
 				  //call C5 learner
-				  C5learn();
+				  //C5learn();
 			  }
 			  else
 			  {
@@ -908,6 +920,11 @@ namespace seahorn
 			  }
 		  }
 		  outs() << "==================================================================\n";
+
+		  if(isChanged)
+		  {
+			  C5learn();
+		  }
 	  }
 
 	  outs() << "FINAL INVARIANTS MAP:\n";

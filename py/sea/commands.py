@@ -171,6 +171,9 @@ class Seapp(sea.LimitedCmd):
         ap.add_argument ('--strip-extern', help='Replace external function calls ' +
                          'by non-determinism', default=False, action='store_true',
                          dest='strip_external')
+        ap.add_argument ('--internalize', help='Create dummy definitions for all ' +
+                         'external functions', default=False, action='store_true',
+                         dest='internalize')
         add_in_out_args (ap)
         _add_S_arg (ap)
         return ap
@@ -182,41 +185,46 @@ class Seapp(sea.LimitedCmd):
 
         argv = list()
         if args.out_file is not None: argv.extend (['-o', args.out_file])
-        if args.inline: argv.append ('--horn-inline-all')
-
-        if args.strip_external:
-            argv.append ('--strip-extern=true')
-        else:
-            argv.append ('--strip-extern=false')
-
-        if args.lower_invoke:
-            argv.append ('--lower-invoke')
-
-        if args.devirt_funcs:
-            argv.append ('--devirt-functions')
-
-        if args.enable_ext_funcs:
-            argv.append ('--externalize-addr-taken-funcs')
-
-        if args.enum_verifier_calls:
-            argv.append ('--enum-verifier-calls')
-
-        if args.boc:
-            argv.append ('--bounds-check')
-        if args.ioc:
-            argv.append ('--overflow-check')
-        if args.ndc:
-            argv.append ('--null-check')
-
-        if args.entry is not None:
-            argv.append ('--entry-point={0}'.format (args.entry))
-
-        if args.kill_vaarg:
-            argv.append('--kill-vaarg=true')
-        else:
-            argv.append('--kill-vaarg=false')
-
         if args.llvm_asm: argv.append ('-S')
+        
+        # internalize takes precedence over all other options and must run alone
+        if args.internalize:
+            argv.append ('--klee-internalize')
+        else:
+            if args.inline: argv.append ('--horn-inline-all')
+
+            if args.strip_external:
+                argv.append ('--strip-extern=true')
+            else:
+                argv.append ('--strip-extern=false')
+
+            if args.lower_invoke:
+                argv.append ('--lower-invoke')
+
+            if args.devirt_funcs:
+                argv.append ('--devirt-functions')
+
+            if args.enable_ext_funcs:
+                argv.append ('--externalize-addr-taken-funcs')
+
+            if args.enum_verifier_calls:
+                argv.append ('--enum-verifier-calls')
+
+            if args.boc:
+                argv.append ('--bounds-check')
+            if args.ioc:
+                argv.append ('--overflow-check')
+            if args.ndc:
+                argv.append ('--null-check')
+
+            if args.entry is not None:
+                argv.append ('--entry-point={0}'.format (args.entry))
+
+            if args.kill_vaarg:
+                argv.append('--kill-vaarg=true')
+            else:
+                argv.append('--kill-vaarg=false')
+
         argv.extend (args.in_files)
         return self.seappCmd.run (args, argv)
 

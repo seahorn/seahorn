@@ -25,6 +25,8 @@ DM-0002198
 #include "llvm/Analysis/CallGraph.h"
 #include "llvm/Support/raw_ostream.h"
 
+#include "avy/AvyDebug.h"
+
 #include <fstream>
 #include <set>
 #include <string>
@@ -125,7 +127,7 @@ namespace
     
     void defineFunction (Function &F)
     {
-      errs () << "Defining: " << F.getName () << "\n";
+      LOG ("verbose", errs () << "Defining: " << F.getName () << "\n";);
       BasicBlock *bb = BasicBlock::Create (F.getContext(), "entry", &F);
       IRBuilder<> Builder (bb);
       
@@ -172,7 +174,7 @@ namespace
         if (GV->hasInitializer())
           continue;
         GV->setInitializer(Constant::getNullValue(GV->getType()->getElementType()));
-        errs() << "making " << GV->getName() << " non-extern\n";
+        LOG ("verbose", errs() << "making " << GV->getName() << " non-extern\n";);
       }
     }   
 
@@ -253,7 +255,7 @@ namespace
 
     bool runOnFunction (Function &F)
     {
-      errs() << "Processing: " << F.getName () << "\n";
+      LOG("verbose", errs() << "Processing: " << F.getName () << "\n";);
       Value *fname = nullptr;
       LLVMContext &C = F.getContext();
       IRBuilder<> Builder (C);

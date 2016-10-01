@@ -878,6 +878,18 @@ namespace seahorn
 				  {
 					  Expr arg_i = body_app->arg(i+1);
 					  Expr arg_i_value = m.eval(arg_i);
+					  if(bind::isBoolConst(arg_i_value))
+					  {
+						  outs() << "UNCERTAIN VALUE: " << *arg_i_value << "\n";
+						  Expr uncertain_value = mk<FALSE>(arg_i_value->efac());
+						  arg_i_value = uncertain_value;
+					  }
+					  else if(bind::isIntConst(arg_i_value))
+					  {
+						  outs() << "UNCERTAIN VALUE: " << *arg_i_value << "\n";
+						  Expr uncertain_value = mkTerm<mpz_class>(0, arg_i_value->efac());
+						  arg_i_value = uncertain_value;
+					  }
 					  start_attr_values.push_back(arg_i_value);
 				  }
 				  DataPoint start_point(bind::fname(bind::fname(body_app)), start_attr_values);
@@ -887,6 +899,18 @@ namespace seahorn
 				  {
 					  Expr arg_i = r_head->arg(i+1);
 					  Expr arg_i_value = m.eval(arg_i);
+					  if(bind::isBoolConst(arg_i_value))
+					  {
+						  outs() << "UNCERTAIN VALUE: " << *arg_i_value << "\n";
+						  Expr uncertain_value = mk<FALSE>(arg_i_value->efac());
+						  arg_i_value = uncertain_value;
+					  }
+					  else if(bind::isIntConst(arg_i_value))
+					  {
+						  outs() << "UNCERTAIN VALUE: " << *arg_i_value << "\n";
+						  Expr uncertain_value = mkTerm<mpz_class>(0, arg_i_value->efac());
+						  arg_i_value = uncertain_value;
+					  }
 					  end_attr_values.push_back(arg_i_value);
 				  }
 				  DataPoint end_point(bind::fname(bind::fname(r_head)), end_attr_values);

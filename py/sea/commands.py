@@ -26,9 +26,10 @@ def _bc_or_ll_file (name):
     return ext == '.bc' or ext == '.ll'
 
 class Clang(sea.LimitedCmd):
-    def __init__ (self, quiet=False):
+    def __init__ (self, quiet=False, plusplus=False):
         super (Clang, self).__init__('clang', 'Compile', allow_extra=True)
         self.clangCmd = None
+        self.plusplus = plusplus
 
     def mk_arg_parser (self, ap):
         ap = super (Clang, self).mk_arg_parser (ap)
@@ -58,8 +59,13 @@ class Clang(sea.LimitedCmd):
         # do nothing on .bc and .ll files
         if _bc_or_ll_file (args.in_files[0]): return 0
 
-        cmd_name = which (['clang-mp-3.6', 'clang-3.6', 'clang',
-                                'clang-mp-3.5', 'clang-mp-3.4'])
+        if self.plusplus:
+            cmd_name = which (['clang++-mp-3.6', 'clang++-3.6', 'clang++',
+                               'clang++-mp-3.5', 'clang++-mp-3.4'])
+        else:
+            cmd_name = which (['clang-mp-3.6', 'clang-3.6', 'clang',
+                               'clang-mp-3.5', 'clang-mp-3.4'])
+            
         if cmd_name is None: raise IOError ('clang not found')
         self.clangCmd = sea.ExtCmd (cmd_name)
 

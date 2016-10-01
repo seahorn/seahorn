@@ -124,6 +124,57 @@ class Clang(sea.LimitedCmd):
     @property
     def stdout (self):
         return self.clangCmd.stdout
+    
+class LinkRt(sea.LimitedCmd):
+    """
+    Create an executable by linking with sea-rt library 
+    """
+    def __init__ (self, quiet=False):
+        super (LinkRt, self).__init__('linkrt', 'Link sea-rt library', allow_extra=True)
+        self.clangCmd = None
+
+    def mk_arg_parser (self, ap):
+        ap = super (LinkRt, self).mk_arg_parser (ap)
+        ap.add_argument ('-m', type=int, dest='machine',
+                         help='Machine architecture MACHINE:[32,64]', default=32)
+        ap.add_argument ('-g', default=False, action='store_true',
+                         dest='debug_info', help='Compile with debug info')
+        add_in_out_args (ap)
+        return ap
+
+    def name_out_file (self, in_files, args=None, work_dir=None):
+        assert (len (in_files) == 1)
+        return _remap_file (in_files[0], '', work_dir)
+
+    def run (self, args, extra):
+
+        cmd_name = which (['clang++-mp-3.6', 'clang++-3.6', 'clang++',
+                           'clang++-mp-3.5', 'clang++-mp-3.4'])
+            
+        if cmd_name is None: raise IOError ('clang++ not found')
+        self.clangCmd = sea.ExtCmd (cmd_name)
+
+        argv = []
+        argv.append ('-m{0}'.format (args.machine))
+        if args.debug_info: argv.append ('-g')
+
+        argv.extend (['-o', args.out_file])
+
+        assert (len (args.in_files) == 1)
+        argv.append (args.in_files[0])
+        
+        lib_dir = os.path.dirname (sys.argv[0])
+        lib_dir = os.path.dirname (lib_dir)
+        lib_dir = os.path.join (lib_dir, 'lib')
+        libseart = os.path.join (lib_dir, 'libsea-rt.a')
+        argv.append (libseart)
+        
+        ret = self.clangCmd.run (args, argv)
+        if ret <> 0: return ret
+
+    @property
+    def stdout (self):
+        return self.clangCmd.stdout
 
 class Seapp(sea.LimitedCmd):
     def __init__(self, quiet=False):

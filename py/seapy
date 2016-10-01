@@ -28,7 +28,8 @@ def main (argv):
             sea.commands.Crab(),
             sea.commands.feCrab,
             sea.commands.Unroll(),
-            sea.commands.seaTerm
+            sea.commands.seaTerm,
+            sea.commands.LinkRt(),
     ]
 
 

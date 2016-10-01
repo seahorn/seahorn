@@ -174,6 +174,8 @@ class Seapp(sea.LimitedCmd):
         ap.add_argument ('--internalize', help='Create dummy definitions for all ' +
                          'external functions', default=False, action='store_true',
                          dest='internalize')
+        ap.add_argument ('--log', dest='log', default=None,
+                         metavar='STR', help='Log level')
         add_in_out_args (ap)
         _add_S_arg (ap)
         return ap
@@ -224,6 +226,9 @@ class Seapp(sea.LimitedCmd):
                 argv.append('--kill-vaarg=true')
             else:
                 argv.append('--kill-vaarg=false')
+                
+        if args.log is not None:
+            for l in args.log.split (':'): argv.extend (['-log', l])
 
         argv.extend (args.in_files)
         return self.seappCmd.run (args, argv)

@@ -177,13 +177,22 @@ namespace seahorn
 					  Expr arg_j = bind::fapp(bind::constDecl(variant::variant(j, mkTerm<std::string> ("V", rel->efac ())), arg_type));
 					  Expr attr_name_i = variant::tag(C5_rel_name, bind::fname(bind::fname(arg_i)));
 					  Expr attr_name_j = variant::tag(C5_rel_name, bind::fname(bind::fname(arg_j)));
-					  names_of << attr_name_i << "+" << attr_name_j << ":= " << attr_name_i << "+" << attr_name_j << "\n";
-					  names_of << attr_name_i << "-" << attr_name_j << ":= " << attr_name_i << "-" << attr_name_j << "\n";
+					  names_of << attr_name_i << "+" << attr_name_j << ":= " << attr_name_i << " + " << attr_name_j << ".\n";
+					  names_of << attr_name_i << "-" << attr_name_j << ":= " << attr_name_i << " - " << attr_name_j << ".\n";
 					  upperInterval += 2;
 				  }
 			  }
 		  }
-		  std::string interval_line = boost::lexical_cast<std::string>(lowerInterval) + " " + boost::lexical_cast<std::string>(upperInterval) + "\n";
+
+		  std::string interval_line;
+		  if(bind::domainSz(rel) == 0)
+		  {
+			  interval_line = boost::lexical_cast<std::string>(lowerInterval) + " " + boost::lexical_cast<std::string>(upperInterval) + "\n";
+		  }
+		  else
+		  {
+			  interval_line = boost::lexical_cast<std::string>(lowerInterval) + " " + boost::lexical_cast<std::string>(upperInterval - 1) + "\n";
+		  }
 		  intervals_of << interval_line;
 		  lowerInterval = upperInterval;
 		  upperInterval = lowerInterval;
@@ -222,7 +231,8 @@ namespace seahorn
 	  FILE *fp;
 	  FILE *wp;
 	  wp = fopen("C5_temp","w+");
-	  std::string command = "/home/chenguang/Desktop/C50-ICE/C50/c5.0.dt_penalty -I 1 -m 1 -f " + m_C5filename;
+	  //std::string command = "/home/chenguang/Desktop/C50-ICE/C50/c5.0.dt_penalty -I 1 -m 1 -f " + m_C5filename;
+	  std::string command = "/home/chenguang/Desktop/C50-ICE/C50/c5.0.dt_penalty -I 1 -f " + m_C5filename;
 	  std::string access = "r";
 	  if((fp = popen(command.c_str(), access.c_str())) == NULL)
 	  {

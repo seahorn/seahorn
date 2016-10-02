@@ -81,9 +81,8 @@ namespace seahorn
 	  std::set<HornRule> m_pos_rule_set;
 	  std::set<HornRule> m_neg_rule_set;
 
-	  ExprVector m_pos_queries;
-	  ExprVector m_neg_queries;
-	  ExprVector m_impl_queries;
+	  Expr m_pos_query;
+	  ExprVector m_orig_queries;
 
 	  std::set<DataPoint> m_pos_data_set;
 	  std::set<DataPoint> m_neg_data_set;
@@ -93,7 +92,6 @@ namespace seahorn
 	  std::map<DataPoint, int> m_data_point_to_index_map;
 	  std::vector<DataPoint> m_cex_list;
 
-	  std::list<std::map<Expr, std::list<Expr>>> m_relToImplCexListMapList;
   public:
 	  void setupC5();
 	  void C5learn();
@@ -107,14 +105,9 @@ namespace seahorn
       std::set<HornRule>& getNegRuleSet() {return m_neg_rule_set;}
 
   public:
-      void runICE(int config);
+      void runICE();
 
       void guessCandidates(HornClauseDB &db);
-
-      //Functions for generating Positive Examples
-      void generatePositiveWitness(std::map<Expr, ExprVector> &relationToPositiveStateMap);
-      void getReachableStates(std::map<Expr, ExprVector> &relationToPositiveStateMap, Expr from_pred, Expr from_pred_state);
-      void getRuleHeadState(std::map<Expr, ExprVector> &relationToPositiveStateMap, HornRule r, Expr from_pred_state);
 
       //Add ICE invs to default solver
       void addInvarCandsToProgramSolver();
@@ -122,10 +115,7 @@ namespace seahorn
       void genInitialCandidates(HornClauseDB &db);
       void generateC5DataAndImplicationFiles();
 
-      void constructNewDB(HornClauseDB &db, HornClauseDB &new_db);
-      void addPosNegRulesToDB(HornClauseDB &db, HornClauseDB &new_db);
-
-      void constructQueries(HornClauseDB &db);
+      void constructPosAndNegRules(HornClauseDB &db);
 
       void addPosCex(DataPoint dp) {m_pos_data_set.insert(dp);}
       void addNegCex(DataPoint dp) {m_neg_data_set.insert(dp);}
@@ -138,6 +128,15 @@ namespace seahorn
       std::list<std::list<Expr>> constructFormula(std::list<Expr> stack, boost::property_tree::ptree sub_pt);
 
       ZFixedPoint<EZ3>& resetFixedPoint(HornClauseDB &db);
+
+      void setPosQuery();
+
+      void recordPosCexs(HornClauseDB &db, bool &isChanged, int &index);
+      void recordNegCexs(HornClauseDB &db, bool &isChanged, int &index);
+      void recordImplPairs(HornClauseDB &db, bool &isChanged, int &index);
+
+      Expr plusAttrToDecisionExpr(boost::property_tree::ptree sub_pt, std::string attr_name);
+      Expr minusAttrToDecisionExpr(boost::property_tree::ptree sub_pt, std::string attr_name);
   };
 }
 

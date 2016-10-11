@@ -33,7 +33,7 @@ DM-0002198
 #include "dsa/Steensgaard.hh"
 #endif
 
-#define DEBUG_TYPE "trap-mem"
+#define DEBUG_TYPE "wrap-mem"
 
 using namespace llvm;
 
@@ -150,8 +150,8 @@ namespace
     {
       AU.addRequired<DataLayoutPass> ();
 #ifdef HAVE_DSA
-      AU.addRequiredTransitive<llvm::EQTDDataStructures>();
-      AU.addRequiredTransitive<llvm::SteensgaardDataStructures> ();
+      AU.addRequired<llvm::EQTDDataStructures>();
+      // AU.addRequiredTransitive<llvm::SteensgaardDataStructures> ();
 #endif
       AU.setPreservesAll();
     }

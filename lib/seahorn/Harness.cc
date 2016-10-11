@@ -47,6 +47,7 @@ namespace seahorn
 
     std::unique_ptr<Module> Harness = make_unique<Module>("harness", getGlobalContext());
 
+    Harness->setDataLayout (&dl);
     ValueMap<const Function*, ExprVector> FuncValueMap;
 
     // Look for calls in the trace

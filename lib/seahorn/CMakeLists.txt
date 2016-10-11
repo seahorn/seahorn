@@ -16,7 +16,7 @@ add_llvm_library (seahorn.LIB
   PredicateAbstraction.cc
   GuessCandidates.cc
   HornCex.cc
-  Harness.cc
+  CexHarness.cc
   ClpWrite.cc
   HornClauseDB.cc
   HornClauseDBTransf.cc

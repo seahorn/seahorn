@@ -1,5 +1,5 @@
 #include "seahorn/HornCex.hh"
-#include "seahorn/Harness.hh"
+#include "seahorn/CexHarness.hh"
 
 #include "seahorn/MemSimulator.hh"
 
@@ -440,7 +440,7 @@ namespace seahorn
 
   static void dumpLLVMCex(BmcTrace &trace, StringRef CexFile, const DataLayout &dl)
   {
-    std::unique_ptr<Module> Harness = createLLVMHarness(trace, dl);
+    std::unique_ptr<Module> Harness = createCexHarness(trace, dl);
     std::error_code error_code;
     llvm::tool_output_file out(CexFile, error_code, sys::fs::F_None);
     assert (!error_code);

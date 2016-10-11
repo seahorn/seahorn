@@ -1,4 +1,4 @@
-#include "seahorn/Harness.hh"
+#include "seahorn/CexHarness.hh"
 
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/LLVMContext.h"
@@ -6,7 +6,6 @@
 #include "llvm/IR/DataLayout.h"
 
 #include "boost/algorithm/string/replace.hpp"
-
 #include <memory>
 
 using namespace llvm;
@@ -42,7 +41,7 @@ namespace seahorn
     llvm_unreachable("Unhandled expression");
   }
 
-  std::unique_ptr<Module>  createLLVMHarness(BmcTrace &trace, const DataLayout &dl)
+  std::unique_ptr<Module>  createCexHarness(BmcTrace &trace, const DataLayout &dl)
   {
 
     std::unique_ptr<Module> Harness = make_unique<Module>("harness", getGlobalContext());

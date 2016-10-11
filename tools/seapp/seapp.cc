@@ -236,6 +236,9 @@ int main(int argc, char **argv) {
     module->setDataLayout (DefaultDataLayout);
     dl = module->getDataLayout ();
   }
+  
+  assert (dl && "Could not find Data Layout for the module");
+  
   if (dl) pass_manager.add (new llvm::DataLayoutPass ());
   if (!ApiConfig.empty())
   {

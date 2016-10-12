@@ -2,6 +2,7 @@ import sea
 
 import os.path
 import sys
+import shutil
 
 from sea import add_in_out_args, add_tmp_dir_args, which, createWorkDir
 
@@ -178,9 +179,10 @@ class LinkRt(sea.LimitedCmd):
         return self.clangCmd.stdout
 
 class Seapp(sea.LimitedCmd):
-    def __init__(self, quiet=False, internalize=False):
+    def __init__(self, quiet=False, internalize=False, strip_extern=False):
         super(Seapp, self).__init__('pp', 'Pre-processing', allow_extra=True)
         self._internalize = internalize
+        self._strip_extern = strip_extern
         
     @property
     def stdout (self):
@@ -188,7 +190,11 @@ class Seapp(sea.LimitedCmd):
 
     def name_out_file (self, in_files, args=None, work_dir=None):
         assert (len(in_files) == 1)
-        ext = '.pp.bc'
+        
+        if self._strip_extern: ext = '.ext.bc'
+        elif self._internalize: ext = '.int.bc'
+        else: ext = '.pp.bc'
+        
         # if args.llvm_asm: ext = '.pp.ll'
         return _remap_file_name (in_files[0], ext, work_dir)
 
@@ -243,7 +249,9 @@ class Seapp(sea.LimitedCmd):
         if args.llvm_asm: argv.append ('-S')
         
         # internalize takes precedence over all other options and must run alone
-        if args.internalize:
+        if self._strip_extern:
+            argv.append ('--only-strip-extern=true')
+        elif args.internalize:
             argv.append ('--klee-internalize')
         else:
             if args.inline: argv.append ('--horn-inline-all')
@@ -323,6 +331,47 @@ class MixedSem(sea.LimitedCmd):
         if args.llvm_asm: argv.append ('-S')
         argv.extend (args.in_files)
         return self.seappCmd.run (args, argv)
+    
+class WrapMem(sea.LimitedCmd):
+    def __init__(self, quiet=False):
+        super(WrapMem, self).__init__('wmem', 'Wrap external memory access with SeaRt calls',
+                                       allow_extra=True)
+        self.seppCmd = None
+
+    @property
+    def stdout (self):
+        return self.seappCmd.stdout
+
+    def name_out_file (self, in_files, args=None, work_dir=None):
+        assert (len (in_files) == 1)
+        
+        ext = '.wmem.bc'
+        return _remap_file_name (in_files[0], ext, work_dir)
+
+    def mk_arg_parser (self, ap):
+        ap = super (WrapMem, self).mk_arg_parser (ap)
+        ap.add_argument ('--no-wmem', dest='wmem_skip', help='Skipped wrap-mem pass',
+                         default=False, action='store_true')
+        add_in_out_args (ap)
+        _add_S_arg (ap)
+        return ap
+
+    def run (self, args, extra):
+        cmd_name = which ('seapp')
+        if cmd_name is None: raise IOError ('seapp not found')
+        self.seappCmd = sea.ExtCmd (cmd_name)
+
+        if args.wmem_skip:
+            if args.out_file is not None:
+                shutil.copy2 (args.in_files[0], args.out_file)
+            return 0
+        else:
+            argv = list()
+            if args.out_file is not None: argv.extend (['-o', args.out_file])
+            argv.append ('--wrap-mem')
+            if args.llvm_asm: argv.append ('-S')
+            argv.extend (args.in_files)
+            return self.seappCmd.run (args, argv)
 
 class CutLoops(sea.LimitedCmd):
     def __init__(self, quiet=False):
@@ -773,5 +822,5 @@ Bpf = sea.SeqCmd ('bpf', 'alias for fe|unroll|cut-loops|opt|horn --solve',
                   FrontEnd.cmds + [Unroll(), CutLoops(), Seaopt(), Seahorn(solve=True)])
 feCrab = sea.SeqCmd ('fe-crab', 'alias for fe|crab', FrontEnd.cmds + [Crab()])
 seaTerm = sea.SeqCmd ('term', 'SeaHorn Termination analysis', Smt.cmds + [SeaTerm()])
-Exe = sea.SeqCmd ('exe', 'alias for clang|pp --internalize|linkrt',
-                  [Clang(), Seapp(internalize=True), LinkRt()])
+Exe = sea.SeqCmd ('exe', 'alias for clang|pp --strip-extern|pp --internalize|wmem|linkrt',
+                  [Clang(), Seapp(strip_extern=True), Seapp(internalize=True), WrapMem(), LinkRt()])

@@ -553,6 +553,8 @@ class Seahorn(sea.LimitedCmd):
         add_in_out_args (ap)
         ap.add_argument ('--cex', dest='cex', help='Destination for a cex',
                          default=None, metavar='FILE')
+        ap.add_argument ('--bv-cex', dest='bv_cex', help='Generate bit-precise counterexamples',
+                         default=False, action='store_true')
         ap.add_argument ('--solve', dest='solve', action='store_true',
                          help='Solve', default=self.solve)
         ap.add_argument ('--ztrace', dest='ztrace', metavar='STR',
@@ -606,6 +608,8 @@ class Seahorn(sea.LimitedCmd):
             argv.append ('-horn-cex-pass')
             argv.append ('-horn-cex={0}'.format (args.cex))
             #argv.extend (['-log', 'cex'])
+            if args.bv_cex:
+                argv.append ('--horn-cex-bv=true')
         if args.asm_out_file is not None: argv.extend (['-oll', args.asm_out_file])
 
         argv.extend (['-horn-inter-proc',

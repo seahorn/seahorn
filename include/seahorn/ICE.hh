@@ -83,6 +83,7 @@ namespace seahorn
 
 	  Expr m_pos_query;
 	  ExprVector m_orig_queries;
+	  Expr entry_pred;
 
 	  std::set<DataPoint> m_pos_data_set;
 	  std::set<DataPoint> m_neg_data_set;
@@ -132,7 +133,7 @@ namespace seahorn
       void setPosQuery();
 
       void recordPosCexs(HornClauseDB &db, bool &isChanged, int &index);
-      void recordNegCexs(HornClauseDB &db, bool &isChanged, int &index);
+      bool recordNegCexs(HornClauseDB &db, bool &isChanged, int &index);
       void recordImplPairs(HornClauseDB &db, bool &isChanged, int &index);
 
       Expr plusAttrToDecisionExpr(boost::property_tree::ptree sub_pt, std::string attr_name);

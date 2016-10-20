@@ -264,7 +264,10 @@ namespace seahorn
   		  LOG("ice", errs() << "AFTER RESET DB IS:\n" << db;);
 
   		  //deal with negative examples
-  		  recordNegCexs(db, isChanged, index);
+  		  if(!recordNegCexs(db, isChanged, index)) //Program is sat
+  		  {
+  			  return;
+  		  }
 
   		  //reset the rules here !!!
   		  auto &rules = db.getRules();
@@ -364,6 +367,8 @@ namespace seahorn
 			  {
 				  Expr arg_i = cex->arg(i+1);
 				  LOG("ice", errs() << *arg_i << "\n";);
+
+				  //deal with uncertain values in cexs
 				  if(bind::isBoolConst(arg_i))
 				  {
 					  LOG("ice", errs() << "UNCERTAIN VALUE: " << *arg_i << "\n";);
@@ -376,6 +381,17 @@ namespace seahorn
 					  Expr uncertain_value = mkTerm<mpz_class>(0, arg_i->efac());
 					  arg_i = uncertain_value;
 				  }
+
+				  //convert true/false to 1/0 in C5 data point
+				  if(isOpX<TRUE>(arg_i))
+				  {
+					  arg_i = mkTerm<mpz_class>(1, arg_i->efac());
+				  }
+				  else if(isOpX<FALSE>(arg_i))
+				  {
+					  arg_i = mkTerm<mpz_class>(0, arg_i->efac());
+				  }
+
 				  attr_values.push_back(arg_i);
 			  }
 
@@ -399,7 +415,7 @@ namespace seahorn
 	  LOG("ice", errs() << "==================================================================\n";);
   }
 
-  void ICE::recordNegCexs(HornClauseDB &db, bool &isChanged, int &index)
+  bool ICE::recordNegCexs(HornClauseDB &db, bool &isChanged, int &index)
   {
 	  //record the number of original rules in DB
 	  int orig_rule_num = db.getRules().size();
@@ -440,13 +456,29 @@ namespace seahorn
 			  Expr cex;
 			  ExprVector answer_preds;
 			  get_all_pred_apps(answer, db, std::back_inserter(answer_preds));
+
+			  bool isHeadInAnswer = false;
+			  bool isEntryInAnswer = false;
 			  for(Expr ans_pred : answer_preds)
 			  {
 				  if(bind::fname(head) == bind::fname(ans_pred))
 				  {
+					  isHeadInAnswer = true;
 					  cex = ans_pred;
 				  }
+				  else if(bind::fname(entry_pred) == bind::fname(ans_pred))
+				  {
+					  isEntryInAnswer = true;
+				  }
 			  }
+
+			  //Found real negative cex, the program is sat
+			  if(!isHeadInAnswer && isEntryInAnswer)
+			  {
+				  LOG("ice", errs() << "FOUND REAL NEG CEX, THE PROGRAM IS SAT!\n";);
+				  return false;
+			  }
+
 			  LOG("ice", errs() << "NEG CEX IS: " << *cex << "\n";);
 
 			  //add data point to C5
@@ -457,6 +489,8 @@ namespace seahorn
 			  {
 				  Expr arg_i = cex->arg(i+1);
 				  LOG("ice", errs() << *arg_i << "\n";);
+
+				  //deal with uncertain values in cexs
 				  if(bind::isBoolConst(arg_i))
 				  {
 					  LOG("ice", errs() << "UNCERTAIN VALUE: " << *arg_i << "\n";);
@@ -469,6 +503,17 @@ namespace seahorn
 					  Expr uncertain_value = mkTerm<mpz_class>(0, arg_i->efac());
 					  arg_i = uncertain_value;
 				  }
+
+				  //convert true/false to 1/0 in C5 data point
+				  if(isOpX<TRUE>(arg_i))
+				  {
+					  arg_i = mkTerm<mpz_class>(1, arg_i->efac());
+				  }
+				  else if(isOpX<FALSE>(arg_i))
+				  {
+					  arg_i = mkTerm<mpz_class>(0, arg_i->efac());
+				  }
+
 				  attr_values.push_back(arg_i);
 			  }
 
@@ -490,6 +535,7 @@ namespace seahorn
 	  }
 
 	  LOG("ice", errs() << "==================================================================\n";);
+	  return true;
   }
 
   void ICE::recordImplPairs(HornClauseDB &db, bool &isChanged, int &index)
@@ -557,6 +603,8 @@ namespace seahorn
   			  {
   				  Expr arg_i = body_app->arg(i+1);
   				  Expr arg_i_value = m.eval(arg_i);
+
+				  //deal with uncertain values in cexs
   				  if(bind::isBoolConst(arg_i_value))
   				  {
   					  LOG("ice", errs() << "UNCERTAIN VALUE: " << *arg_i_value << "\n";);
@@ -569,6 +617,17 @@ namespace seahorn
   					  Expr uncertain_value = mkTerm<mpz_class>(0, arg_i_value->efac());
   					  arg_i_value = uncertain_value;
   				  }
+
+  				  //convert true/false to 1/0 in C5 data point
+				  if(isOpX<TRUE>(arg_i_value))
+				  {
+					  arg_i_value = mkTerm<mpz_class>(1, arg_i_value->efac());
+				  }
+				  else if(isOpX<FALSE>(arg_i_value))
+				  {
+					  arg_i_value = mkTerm<mpz_class>(0, arg_i_value->efac());
+				  }
+
   				  start_attr_values.push_back(arg_i_value);
   			  }
   			  DataPoint start_point(bind::fname(bind::fname(body_app)), start_attr_values);
@@ -578,6 +637,8 @@ namespace seahorn
   			  {
   				  Expr arg_i = r_head->arg(i+1);
   				  Expr arg_i_value = m.eval(arg_i);
+
+				  //deal with uncertain values in cexs
   				  if(bind::isBoolConst(arg_i_value))
   				  {
   					  LOG("ice", errs() << "UNCERTAIN VALUE: " << *arg_i_value << "\n";);
@@ -590,6 +651,17 @@ namespace seahorn
   					  Expr uncertain_value = mkTerm<mpz_class>(0, arg_i_value->efac());
   					  arg_i_value = uncertain_value;
   				  }
+
+  				  //convert true/false to 1/0 in C5 data point
+				  if(isOpX<TRUE>(arg_i_value))
+				  {
+					  arg_i_value = mkTerm<mpz_class>(1, arg_i_value->efac());
+				  }
+				  else if(isOpX<FALSE>(arg_i_value))
+				  {
+					  arg_i_value = mkTerm<mpz_class>(0, arg_i_value->efac());
+				  }
+
   				  end_attr_values.push_back(arg_i_value);
   			  }
   			  DataPoint end_point(bind::fname(bind::fname(r_head)), end_attr_values);
@@ -640,7 +712,6 @@ namespace seahorn
   	  assert(m_orig_queries.size() == 1);
 
   	  //get db entry predicate
-  	  Expr entry_pred;
   	  for(auto it = db.getRules().begin(); it!=db.getRules().end(); ++it)
   	  {
   		  Expr body = (*it).body();
@@ -1108,8 +1179,12 @@ namespace seahorn
 	  params.set (":xform.tail_simplifier_pve", false);
 	  // JN: Set to false helps with cex
 	  params.set (":xform.subsumption_checker", false);
-  //	  params.set (":order_children", true);
-  //	  params.set (":pdr.max_num_contexts", "500");
+	  unsigned isHornChildren = 1;
+	  params.set (":order_children", isHornChildren);
+	  unsigned max_ctx = 600;
+  	  params.set (":pdr.max_num_contexts", max_ctx);
+	  unsigned lv = 20;
+	  //params.set (":fixedpoint.pdr.max_level", lv); //bound the depth of exploration
 	  fp.set (params);
 	  db.loadZFixedPoint(fp, false);
 

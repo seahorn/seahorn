@@ -378,9 +378,20 @@ void dsa::Node::unifyAt (Node &n, unsigned o)
 
 
 /// pre: this simulated by n
-unsigned dsa::Node::mergeUniqueScalar (Node &n)
+unsigned dsa::Node::mergeUniqueScalar (Node &n) {
+  boost::container::flat_set<Node*> seen;
+  return mergeUniqueScalar (n, seen);
+}
+
+template<typename Cache>
+unsigned dsa::Node::mergeUniqueScalar (Node &n, Cache &seen)
 {
   unsigned res = 0x0;
+
+  auto it = seen.find (&n);
+  if (it != seen.end ()) return res;
+  seen.insert (&n);
+  
   if (getUniqueScalar () && n.getUniqueScalar ())
   { assert (getUniqueScalar () == n.getUniqueScalar ()); }
   else if (getUniqueScalar ()) 
@@ -402,7 +413,7 @@ unsigned dsa::Node::mergeUniqueScalar (Node &n)
     if (hasLink (j))
     {
       Node *n1 = getLink (j).getNode ();
-      res |= n1->mergeUniqueScalar (*n2);
+      res |= n1->mergeUniqueScalar (*n2, seen);
     }
   }
 
@@ -421,13 +432,24 @@ void dsa::Node::joinAllocSites(const AllocaSet &s)
   std::swap (res, m_alloca_sites);
 }
 
+
 // pre: this simulated by n
-unsigned dsa::Node::mergeAllocSites (Node &n)
+unsigned dsa::Node::mergeAllocSites (Node &n) {
+  boost::container::flat_set<Node*> seen;
+  return mergeAllocSites (n, seen);
+}
+
+template<typename Cache>
+unsigned dsa::Node::mergeAllocSites (Node &n, Cache &seen)
 {
+  unsigned res = 0x0; 
+
+  auto it = seen.find (&n);
+  if (it != seen.end ()) return res;
+  seen.insert (&n);
+
   auto const& s1 = getAllocSites ();
   auto const& s2 = n.getAllocSites ();
-  
-  unsigned res = 0x0; 
   
   if (std::includes(s1.begin(), s1.end (), s2.begin(), s2.end ()))
   {
@@ -457,7 +479,7 @@ unsigned dsa::Node::mergeAllocSites (Node &n)
     if (hasLink (j))
     {
       Node *n1 = getLink (j).getNode ();
-      res |= n1->mergeAllocSites (*n2);
+      res |= n1->mergeAllocSites (*n2, seen);
     }
   }
 

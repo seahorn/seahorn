@@ -18,6 +18,7 @@
 
 #include "boost/range/algorithm/set_algorithm.hpp"
 #include "boost/range/iterator_range.hpp"
+#include "boost/unordered_set.hpp"
 
 #include "avy/AvyDebug.h"
 
@@ -379,7 +380,7 @@ void dsa::Node::unifyAt (Node &n, unsigned o)
 
 /// pre: this simulated by n
 unsigned dsa::Node::mergeUniqueScalar (Node &n) {
-  boost::container::flat_set<Node*> seen;
+  boost::unordered_set<Node*> seen;
   return mergeUniqueScalar (n, seen);
 }
 
@@ -435,7 +436,7 @@ void dsa::Node::joinAllocSites(const AllocaSet &s)
 
 // pre: this simulated by n
 unsigned dsa::Node::mergeAllocSites (Node &n) {
-  boost::container::flat_set<Node*> seen;
+  boost::unordered_set<Node*> seen;
   return mergeAllocSites (n, seen);
 }
 

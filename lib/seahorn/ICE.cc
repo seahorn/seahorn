@@ -355,52 +355,72 @@ namespace seahorn
 				  if(bind::fname(obj_pred) == bind::fname(ans_pred))
 				  {
 					  cex = ans_pred;
+
+					  LOG("ice", errs() << "POS CEX IS: " << *cex << "\n";);
+
+					  //add data point to C5
+					  std::list<Expr> attr_values;
+
+					  LOG("ice", errs() << "ANSWER ARGS:\n";);
+					  for(int i=0; i<bind::domainSz(bind::fname(cex)); i++)
+					  {
+						  Expr arg_i = cex->arg(i+1);
+						  LOG("ice", errs() << *arg_i << "\n";);
+
+						  //deal with uncertain values in cexs
+						  if(bind::isBoolConst(arg_i))
+						  {
+							  LOG("ice", errs() << "UNCERTAIN VALUE: " << *arg_i << "\n";);
+							  Expr uncertain_value = mk<FALSE>(arg_i->efac());
+							  arg_i = uncertain_value;
+						  }
+						  else if(bind::isIntConst(arg_i))
+						  {
+							  LOG("ice", errs() << "UNCERTAIN VALUE: " << *arg_i << "\n";);
+							  Expr uncertain_value = mkTerm<mpz_class>(0, arg_i->efac());
+							  arg_i = uncertain_value;
+						  }
+
+						  //convert true/false to 1/0 in C5 data point
+						  if(isOpX<TRUE>(arg_i))
+						  {
+							  arg_i = mkTerm<mpz_class>(1, arg_i->efac());
+						  }
+						  else if(isOpX<FALSE>(arg_i))
+						  {
+							  arg_i = mkTerm<mpz_class>(0, arg_i->efac());
+						  }
+
+						  //deal with too large integer value like: -0xffffffb
+						  std::ostringstream oss;
+						  oss << arg_i;
+						  if(oss.str().find("-0x") == 0)
+						  {
+							  LOG("ice", errs() << "TOO LARGE VALUE, OVERFLOW: " << *arg_i << "\n";);
+							  Expr uncertain_value = mkTerm<mpz_class>(0, arg_i->efac());
+							  arg_i = uncertain_value;
+						  }
+
+						  attr_values.push_back(arg_i);
+					  }
+
+					  DataPoint pos_dp(bind::fname(bind::fname(obj_pred)), attr_values);
+					  int orig_size = m_pos_data_set.size();
+					  addPosCex(pos_dp);
+					  if(m_pos_data_set.size() == orig_size + 1) //no duplicate
+					  {
+						  m_cex_list.push_back(pos_dp);
+						  addDataPointToIndex(pos_dp, index);
+						  LOG("ice", errs() << "POS CEX, INDEX IS " << index << "\n";);
+						  index++;
+						  break;
+					  }
+					  else //it is a duplicate data point
+					  {
+						  continue;
+					  }
 				  }
 			  }
-			  LOG("ice", errs() << "POS CEX IS: " << *cex << "\n";);
-
-			  //add data point to C5
-			  std::list<Expr> attr_values;
-
-			  LOG("ice", errs() << "ANSWER ARGS:\n";);
-			  for(int i=0; i<bind::domainSz(bind::fname(cex)); i++)
-			  {
-				  Expr arg_i = cex->arg(i+1);
-				  LOG("ice", errs() << *arg_i << "\n";);
-
-				  //deal with uncertain values in cexs
-				  if(bind::isBoolConst(arg_i))
-				  {
-					  LOG("ice", errs() << "UNCERTAIN VALUE: " << *arg_i << "\n";);
-					  Expr uncertain_value = mk<FALSE>(arg_i->efac());
-					  arg_i = uncertain_value;
-				  }
-				  else if(bind::isIntConst(arg_i))
-				  {
-					  LOG("ice", errs() << "UNCERTAIN VALUE: " << *arg_i << "\n";);
-					  Expr uncertain_value = mkTerm<mpz_class>(0, arg_i->efac());
-					  arg_i = uncertain_value;
-				  }
-
-				  //convert true/false to 1/0 in C5 data point
-				  if(isOpX<TRUE>(arg_i))
-				  {
-					  arg_i = mkTerm<mpz_class>(1, arg_i->efac());
-				  }
-				  else if(isOpX<FALSE>(arg_i))
-				  {
-					  arg_i = mkTerm<mpz_class>(0, arg_i->efac());
-				  }
-
-				  attr_values.push_back(arg_i);
-			  }
-
-			  DataPoint pos_dp(bind::fname(bind::fname(obj_pred)), attr_values);
-			  addPosCex(pos_dp);
-			  m_cex_list.push_back(pos_dp);
-			  addDataPointToIndex(pos_dp, index);
-			  LOG("ice", errs() << "POS CEX, INDEX IS " << index << "\n";);
-			  index++;
 
 			  //call C5 learner
 			  //C5learn();
@@ -465,6 +485,70 @@ namespace seahorn
 				  {
 					  isHeadInAnswer = true;
 					  cex = ans_pred;
+
+					  LOG("ice", errs() << "NEG CEX IS: " << *cex << "\n";);
+
+					  //add data point to C5
+					  std::list<Expr> attr_values;
+
+					  LOG("ice", errs() << "ANSWER ARGS:\n";);
+					  for(int i=0; i<bind::domainSz(bind::fname(cex)); i++)
+					  {
+						  Expr arg_i = cex->arg(i+1);
+						  LOG("ice", errs() << *arg_i << "\n";);
+
+						  //deal with uncertain values in cexs
+						  if(bind::isBoolConst(arg_i))
+						  {
+							  LOG("ice", errs() << "UNCERTAIN VALUE: " << *arg_i << "\n";);
+							  Expr uncertain_value = mk<FALSE>(arg_i->efac());
+							  arg_i = uncertain_value;
+						  }
+						  else if(bind::isIntConst(arg_i))
+						  {
+							  LOG("ice", errs() << "UNCERTAIN VALUE: " << *arg_i << "\n";);
+							  Expr uncertain_value = mkTerm<mpz_class>(0, arg_i->efac());
+							  arg_i = uncertain_value;
+						  }
+
+						  //convert true/false to 1/0 in C5 data point
+						  if(isOpX<TRUE>(arg_i))
+						  {
+							  arg_i = mkTerm<mpz_class>(1, arg_i->efac());
+						  }
+						  else if(isOpX<FALSE>(arg_i))
+						  {
+							  arg_i = mkTerm<mpz_class>(0, arg_i->efac());
+						  }
+
+						  //deal with too large integer value like: -0xffffffb
+						  std::ostringstream oss;
+						  oss << arg_i;
+						  if(oss.str().find("-0x") == 0)
+						  {
+							  LOG("ice", errs() << "TOO LARGE VALUE, OVERFLOW: " << *arg_i << "\n";);
+							  Expr uncertain_value = mkTerm<mpz_class>(0, arg_i->efac());
+							  arg_i = uncertain_value;
+						  }
+
+						  attr_values.push_back(arg_i);
+					  }
+
+					  DataPoint neg_dp(bind::fname(bind::fname(head)), attr_values);
+					  int orig_size = m_neg_data_set.size();
+					  addNegCex(neg_dp);
+					  if(m_neg_data_set.size() == orig_size + 1) //no duplicate
+					  {
+						  m_cex_list.push_back(neg_dp);
+						  addDataPointToIndex(neg_dp, index);
+						  LOG("ice", errs() << "NEG CEX, INDEX IS " << index << "\n";);
+						  index++;
+						  break;
+					  }
+					  else //it is a duplicate data point
+					  {
+						  continue;
+					  }
 				  }
 				  else if(bind::fname(entry_pred) == bind::fname(ans_pred))
 				  {
@@ -478,51 +562,6 @@ namespace seahorn
 				  LOG("ice", errs() << "FOUND REAL NEG CEX, THE PROGRAM IS SAT!\n";);
 				  return false;
 			  }
-
-			  LOG("ice", errs() << "NEG CEX IS: " << *cex << "\n";);
-
-			  //add data point to C5
-			  std::list<Expr> attr_values;
-
-			  LOG("ice", errs() << "ANSWER ARGS:\n";);
-			  for(int i=0; i<bind::domainSz(bind::fname(cex)); i++)
-			  {
-				  Expr arg_i = cex->arg(i+1);
-				  LOG("ice", errs() << *arg_i << "\n";);
-
-				  //deal with uncertain values in cexs
-				  if(bind::isBoolConst(arg_i))
-				  {
-					  LOG("ice", errs() << "UNCERTAIN VALUE: " << *arg_i << "\n";);
-					  Expr uncertain_value = mk<FALSE>(arg_i->efac());
-					  arg_i = uncertain_value;
-				  }
-				  else if(bind::isIntConst(arg_i))
-				  {
-					  LOG("ice", errs() << "UNCERTAIN VALUE: " << *arg_i << "\n";);
-					  Expr uncertain_value = mkTerm<mpz_class>(0, arg_i->efac());
-					  arg_i = uncertain_value;
-				  }
-
-				  //convert true/false to 1/0 in C5 data point
-				  if(isOpX<TRUE>(arg_i))
-				  {
-					  arg_i = mkTerm<mpz_class>(1, arg_i->efac());
-				  }
-				  else if(isOpX<FALSE>(arg_i))
-				  {
-					  arg_i = mkTerm<mpz_class>(0, arg_i->efac());
-				  }
-
-				  attr_values.push_back(arg_i);
-			  }
-
-			  DataPoint neg_dp(bind::fname(bind::fname(head)), attr_values);
-			  addNegCex(neg_dp);
-			  m_cex_list.push_back(neg_dp);
-			  addDataPointToIndex(neg_dp, index);
-			  LOG("ice", errs() << "NEG CEX, INDEX IS " << index << "\n";);
-			  index++;
 
 			  //call C5 learner
 			  //C5learn();
@@ -628,6 +667,16 @@ namespace seahorn
 					  arg_i_value = mkTerm<mpz_class>(0, arg_i_value->efac());
 				  }
 
+				  //deal with too large integer value like: -0xffffffb
+				  std::ostringstream oss;
+				  oss << arg_i_value;
+				  if(oss.str().find("-0x") == 0)
+				  {
+					  LOG("ice", errs() << "TOO LARGE VALUE, OVERFLOW: " << *arg_i_value << "\n";);
+					  Expr uncertain_value = mkTerm<mpz_class>(0, arg_i_value->efac());
+					  arg_i_value = uncertain_value;
+				  }
+
   				  start_attr_values.push_back(arg_i_value);
   			  }
   			  DataPoint start_point(bind::fname(bind::fname(body_app)), start_attr_values);
@@ -662,6 +711,16 @@ namespace seahorn
 					  arg_i_value = mkTerm<mpz_class>(0, arg_i_value->efac());
 				  }
 
+				  //deal with too large integer value like: -0xffffffb
+				  std::ostringstream oss;
+				  oss << arg_i_value;
+				  if(oss.str().find("-0x") == 0)
+				  {
+					  LOG("ice", errs() << "TOO LARGE VALUE, OVERFLOW: " << *arg_i_value << "\n";);
+					  Expr uncertain_value = mkTerm<mpz_class>(0, arg_i_value->efac());
+					  arg_i_value = uncertain_value;
+				  }
+
   				  end_attr_values.push_back(arg_i_value);
   			  }
   			  DataPoint end_point(bind::fname(bind::fname(r_head)), end_attr_values);
@@ -671,16 +730,16 @@ namespace seahorn
   				  addImplCex(start_point);
   				  m_cex_list.push_back(start_point);
   				  addDataPointToIndex(start_point, index);
-  				  LOG("ice", errs() << "IMPL CEX, INDEX IS " << index << "\n";);
-  				  index++;
+				  LOG("ice", errs() << "IMPL CEX, INDEX IS " << index << "\n";);
+				  index++;
   			  }
   			  if(m_pos_data_set.count(end_point) == 0 && m_neg_data_set.count(end_point) == 0 && m_impl_cex_set.count(end_point) == 0)
   			  {
   				  addImplCex(end_point);
-  				  m_cex_list.push_back(end_point);
-  				  addDataPointToIndex(end_point, index);
-  				  LOG("ice", errs() << "IMPL CEX, INDEX IS " << index << "\n";);
-  				  index++;
+				  m_cex_list.push_back(end_point);
+				  addDataPointToIndex(end_point, index);
+				  LOG("ice", errs() << "IMPL CEX, INDEX IS " << index << "\n";);
+				  index++;
   			  }
 
   			  addImplPair(std::make_pair(start_point, end_point));
@@ -1184,7 +1243,7 @@ namespace seahorn
 	  unsigned max_ctx = 600;
   	  params.set (":pdr.max_num_contexts", max_ctx);
 	  unsigned lv = 20;
-	  //params.set (":fixedpoint.pdr.max_level", lv); //bound the depth of exploration
+	  params.set (":fixedpoint.pdr.max_level", lv); //bound the depth of exploration
 	  fp.set (params);
 	  db.loadZFixedPoint(fp, false);
 

@@ -394,7 +394,14 @@ unsigned dsa::Node::mergeUniqueScalar (Node &n, Cache &seen)
   seen.insert (&n);
   
   if (getUniqueScalar () && n.getUniqueScalar ())
-  { assert (getUniqueScalar () == n.getUniqueScalar ()); }
+  {
+    if (getUniqueScalar () != n.getUniqueScalar ())
+    {
+      setUniqueScalar (nullptr);
+      n.setUniqueScalar (nullptr);
+      res = 0x03;
+    }
+  }  
   else if (getUniqueScalar ()) 
   {
     setUniqueScalar (nullptr);

@@ -41,6 +41,11 @@ namespace seahorn
       CallGraph &m_cg;
       CalleeCallerMapping m_callee_caller_map;
 
+      // sanity check
+      bool checkAllNodesAreMapped (const Function &callee,
+				   Graph &calleeG,
+				   const SimulationMapper &sm);
+      
      public:
 
       static bool computeCalleeCallerMapping (const DsaCallSite &cs, 

@@ -259,14 +259,19 @@ namespace seahorn
     ContextSensitiveGlobalAnalysis::decidePropagation 
     (const DsaCallSite& cs, Graph &calleeG, Graph& callerG) 
     {
+      const bool do_sanity_checks = false;      
+      const bool only_modified = true; /* do not change this */
+      
       PropagationKind res = UP;
       SimulationMapper sm;
       if (Graph::computeCalleeCallerMapping(cs, calleeG, callerG, 
-                                            true,  /*only modified nodes*/
-                                            false, /*no report if sanity check failed*/
-                                            sm)) {
-        if (sm.isFunction ())
-          res = (sm.isInjective () ? NONE: DOWN);
+                                            only_modified, do_sanity_checks,
+					    sm)) {
+                                            
+        if (sm.isFunction ()) {
+	  // XXX: only need injectiveness if the node is modified
+          res = (sm.isInjective (only_modified) ? NONE: DOWN);
+	}
       }
       return res;
     }

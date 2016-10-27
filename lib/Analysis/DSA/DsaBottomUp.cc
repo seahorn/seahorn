@@ -73,13 +73,70 @@ namespace seahorn
       callerG.compress();
     }
 
+
+    template <typename Set>
+    static void markReachableNodes (const Node *n, Set &set)
+    {
+      if (!n) return;
+      assert (!n->isForwarding () && "Cannot mark a forwarded node");
+      
+      if (set.insert (n).second) 
+        for (auto const &edg : n->links ())
+          markReachableNodes (edg.second->getNode (), set);
+    }
+
+    template <typename Set>
+    static void reachableNodes (const Function &fn, Graph &g, Set &inputReach, Set& retReach)
+    {
+      // formal parameters
+      for (Function::const_arg_iterator I = fn.arg_begin(), E = fn.arg_end(); I != E; ++I)
+      {
+        const Value &arg = *I;
+        if (g.hasCell (arg)) 
+        {
+          Cell &c = g.mkCell (arg, Cell ());
+          markReachableNodes (c.getNode (), inputReach);
+        }
+      }
+      
+      // globals
+      for (auto &kv : boost::make_iterator_range (g.globals_begin (),
+                                                  g.globals_end ()))
+        markReachableNodes (kv.second->getNode (), inputReach);
+      
+      // return value
+      if (g.hasRetCell (fn))
+        markReachableNodes (g.getRetCell (fn).getNode(), retReach);
+    }
+    
+    bool BottomUpAnalysis::checkAllNodesAreMapped (const Function &fn,
+						   Graph& fnG, 
+						   const SimulationMapper &sm) {
+      
+      std::set<const Node*> reach;
+      std::set<const Node*> retReach /*unused*/;
+      reachableNodes (fn, fnG, reach, retReach);
+      for (const Node* n : reach)
+      {
+	
+	Cell callerC = sm.get(Cell(const_cast<Node*> (n), 0));
+	if (callerC.isNull ()) {
+	  errs () << "ERROR: callee node " << *n << " not mapped to a caller node.\n";
+	  return false;
+	}
+      }
+      return true;
+    }
+    
     bool BottomUpAnalysis::runOnModule(Module &M, GraphMap &graphs) 
     {
 
       LOG("dsa-bu", errs () << "Started bottom-up analysis ... \n");
 
+      // Keep it true until implementation is stable
+      const bool do_sanity_checks = true;
+      
       LocalAnalysis la (m_dl, m_tli);
-
       for (auto it = scc_begin (&m_cg); !it.isAtEnd (); ++it)
       {
         auto &scc = *it;
@@ -138,15 +195,21 @@ namespace seahorn
             Graph &calleeG = *(graphs.find (dsaCS.getCallee())->second);
   
             SimulationMapperRef sm (new SimulationMapper());
-            bool res = Graph::computeCalleeCallerMapping(dsaCS, calleeG, callerG, 
-                                                         true  /*only modified nodes*/, 
-                                                         true, /*report if sanity check failed*/
+            bool res = Graph::computeCalleeCallerMapping(dsaCS, calleeG, callerG,
+                                                         false /* all nodes: read and modified*/, 
+                                                         do_sanity_checks,
                                                          *sm);
             if (!res) errs () << "WARNING " 
                               << *(dsaCS.getInstruction())  << ": "
                               << "caller does not simulate callee\n";
             assert (res);
             m_callee_caller_map.insert(std::make_pair(dsaCS.getInstruction(), sm));
+
+	    if (do_sanity_checks) {
+	      // Check that all nodes in the callee are mapped to one
+	      // node in the caller graph
+	      checkAllNodesAreMapped (*callee, calleeG,  *sm);
+	    }
           }
 
         }

@@ -589,10 +589,8 @@ namespace seahorn
           ImmutableCallSite CS (I);
           DsaCallSite dsaCS (CS);
           
-          assert (dsaCS.getCaller ());
-          assert (dsaCS.getCallee ());
-          
-          if (m_ga.hasGraph (*dsaCS.getCaller ()) && m_ga.hasGraph (*dsaCS.getCallee ()))
+          if (dsaCS.getCaller () && m_ga.hasGraph (*dsaCS.getCaller ()) &&
+	      dsaCS.getCallee () && m_ga.hasGraph (*dsaCS.getCallee ()))
           {
             Graph &calleeG = m_ga.getGraph (*dsaCS.getCallee());        
             Graph &callerG = m_ga.getGraph (*dsaCS.getCaller());

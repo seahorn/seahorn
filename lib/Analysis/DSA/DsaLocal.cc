@@ -401,11 +401,9 @@ namespace
   void BlockBuilderBase::visitGep (const Value &gep,
                                    const Value &ptr, ArrayRef<Value *> indicies)
   {
-    
     // -- skip NULL
     if (const Constant *c = dyn_cast<Constant>(&ptr)) 
       if (c->isNullValue()) return;
-
     assert (m_graph.hasCell (ptr) || isa<GlobalValue> (&ptr));
     
     // -- empty gep that points directly to the base
@@ -413,6 +411,12 @@ namespace
 
     dsa::Cell base = valueCell (ptr);
     assert (!base.isNull ());
+
+    if (m_graph.hasCell (gep)) {
+      // gep can have already a cell if it can be stripped to another
+      // pointer different from the base.
+      if (gep.stripPointerCasts () != &gep) return;
+    }
 
     assert (!m_graph.hasCell (gep));
     dsa::Node *baseNode = base.getNode ();

@@ -129,10 +129,9 @@ namespace seahorn
       /// XXX: we might want to make the last argument a template
       /// parameter but then the definition should be in a header file.
       static bool computeCalleeCallerMapping (const DsaCallSite &cs, 
-                                              Graph& calleeG, Graph& callerG,
-                                              const bool onlyModified,
-                                              const bool reportIfSanityCheckFailed,
-                                              SimulationMapper& simMap);
+                                              Graph& calleeG, Graph& callerG,                                             
+                                              SimulationMapper& simMap,
+					      const bool reportIfSanityCheckFailed = true);
       
       /// import the given graph into the current one
       /// copies all nodes from g and unifies all common scalars

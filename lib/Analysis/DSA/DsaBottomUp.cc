@@ -196,16 +196,16 @@ namespace seahorn
   
             SimulationMapperRef sm (new SimulationMapper());
             bool res = Graph::computeCalleeCallerMapping(dsaCS, calleeG, callerG,
-                                                         false /* all nodes: read and modified*/, 
-                                                         do_sanity_checks,
-                                                         *sm);
-            if (!res) errs () << "WARNING " 
-                              << *(dsaCS.getInstruction())  << ": "
-                              << "caller does not simulate callee\n";
-            assert (res);
+                                                         *sm, do_sanity_checks);
+            assert (res); // the simulation map was successfully built.
             m_callee_caller_map.insert(std::make_pair(dsaCS.getInstruction(), sm));
 
 	    if (do_sanity_checks) {
+	      // Check the simulation map is a function
+	      if (!sm->isFunction ())
+		errs () << "ERROR: simulation map for "
+			<< *dsaCS.getInstruction ()
+			<< " is not a function!\n";
 	      // Check that all nodes in the callee are mapped to one
 	      // node in the caller graph
 	      checkAllNodesAreMapped (*callee, calleeG,  *sm);

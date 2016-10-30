@@ -74,8 +74,8 @@ bool SimulationMapper::insert (const Node &n1, Node &n2, unsigned o)
   // XXX not necessarily at offset 0
   if (!n1.isArray () && n2.isArray ())
   {
-    if (offset > 0 || n1.size () > n2.size ())
-    { m_sim.clear (); return false; }
+    if (offset > 0 && n1.size () + o > n2.size ())
+      { m_sim.clear (); return false; }
   }
 
   // XXX: a collapsed node can simulate an array node

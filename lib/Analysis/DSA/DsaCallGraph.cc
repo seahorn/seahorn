@@ -8,6 +8,8 @@
 #include "llvm/ADT/SCCIterator.h"
 #include "llvm/Support/raw_ostream.h"
 
+#include "avy/AvyDebug.h"
+
 using namespace llvm;
 
 namespace seahorn
@@ -71,6 +73,9 @@ namespace seahorn
           for (auto &callRecord : *cgn)
           {
             ImmutableCallSite CS (callRecord.first);
+	    auto callee = CS.getCalledFunction ();
+	    if (!callee || callee->isDeclaration () || callee->empty ())
+	      continue;
             insert (CS.getInstruction(), *defs);
           }
         }
@@ -85,6 +90,22 @@ namespace seahorn
           m_defs[fn] = defs;
         }
       }
+
+      LOG ("dsa-cg",
+	   errs () << "--- USES ---\n";
+	   for (auto kv: m_uses) {
+	     errs () << kv.first->getName () << " ---> \n";
+	     for (auto &CS: *(kv.second)) {
+	       errs () << "\t" << CS->getParent()->getParent()->getName () << ":" << *CS << "\n";
+	     }
+	   }
+	   errs () << "--- DEFS ---\n";
+	   for (auto kv: m_defs) {
+	     errs () << kv.first->getName () << " ---> \n";
+	     for (auto &CS: *(kv.second)) {
+	       errs () << "\t" << *CS << "\n";
+	     }
+	   });
     }
 
   } // end namespace

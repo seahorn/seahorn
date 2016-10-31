@@ -837,7 +837,7 @@ namespace seahorn
 	  FILE *fp;
 	  FILE *wp;
 	  wp = fopen("C5_temp","w+");
-	  std::string command = "/home/chenguang/Desktop/C50-ICE/C50/c5.0.dt_penalty -I 1 -m 1 -f " + m_C5filename;
+	  std::string command = "/home/chenguang/Desktop/C50-ICE/C50/c5.0dbg -I 1 -m 1 -f " + m_C5filename;
 	  std::string access = "r";
 	  if((fp = popen(command.c_str(), access.c_str())) == NULL)
 	  {

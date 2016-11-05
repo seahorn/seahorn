@@ -164,7 +164,7 @@ namespace ufo
 	res.push_back (z3.toExpr (gast));
       }
 
-    return mknary<AND> (mk<FALSE> (e->efac ()), res);
+    return mknary<AND> (mk<TRUE> (e->efac ()), res);
   }
 
 

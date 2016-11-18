@@ -265,7 +265,8 @@ namespace
       /// result of applying one or several gep instructions starting
       /// from NULL. Note that this is undefined behavior but it
       /// occurs in ldv benchmarks.
-      return;
+      if (!isa<ConstantExpr>(LI.getPointerOperand()->stripPointerCasts ()))
+	return;
     }
     
     Cell base = valueCell  (*LI.getPointerOperand ()->stripPointerCasts ());
@@ -298,7 +299,8 @@ namespace
       /// result of applying one or several gep instructions starting
       /// from NULL. Note that this is undefined behavior but it
       /// occurs in ldv benchmarks.
-      return;
+      if (!isa<ConstantExpr>(SI.getPointerOperand()->stripPointerCasts ()))
+	return;
     }
 	      
     Cell base = valueCell  (*SI.getPointerOperand ()->stripPointerCasts ());

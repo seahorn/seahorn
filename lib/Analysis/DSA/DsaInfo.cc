@@ -167,6 +167,13 @@ inline bool AddAllocSite (const Value* v, unsigned int &site_id, BiMap& alloc_si
   }
 }
 
+bool compareValues (const Value* v1, const Value* v2)
+{
+  assert (v1->hasName());
+  assert (v2->hasName());
+  return (v1->getName () < v2->getName ());
+}
+
 void InfoAnalysis::assignAllocSiteIdAndPrinting 
 (live_nodes_const_range nodes, llvm::raw_ostream& o, std::string outFile) 
 {
@@ -187,8 +194,13 @@ void InfoAnalysis::assignAllocSiteIdAndPrinting
   // pretty-printer: map each allocation site to a set of nodes
   DenseMap<const llvm::Value*, std::pair<unsigned, NodeInfoSet> > alloc_printing_map;
 
+  /// XXX: sort nodes by id's to achieve determinism across different
+  /// executions.
+  std::vector<NodeInfo> nodes_sorted;
+  for (auto n: nodes) { nodes_sorted.push_back (n);} 
+  std::sort (nodes_sorted.begin(), nodes_sorted.end());
   // iterate over all nodes
-  for (const auto &n: nodes) 
+  for (const auto &n: nodes_sorted) 
   {
     unsigned num_alloc_sites = n.getNode()->getAllocSites ().size ();
     if (num_alloc_sites == 0) 
@@ -200,11 +212,18 @@ void InfoAnalysis::assignAllocSiteIdAndPrinting
     } 
     else 
       max_alloc_sites = std::max (max_alloc_sites, num_alloc_sites);
+
+    /// XXX: sort alloca sites by name to achieve determinism across
+    /// different executions.
     
     // iterate over all allocation sites
-    for (const llvm::Value*v : n.getNode ()->getAllocSites ()) 
+    auto &n_alloca_sites = n.getNode ()->getAllocSites ();
+    std::vector<const llvm::Value*> n_alloca_sites_sorted (n_alloca_sites.begin(),
+							   n_alloca_sites.end());
+    std::sort (n_alloca_sites_sorted.begin(),
+	       n_alloca_sites_sorted.end(), compareValues);
+    for (const llvm::Value*v : n_alloca_sites_sorted) 
     {
-
       // assign a unique id to the allocation site for Dsa clients
       unsigned int site_id;
       AddAllocSite (v, site_id, m_alloc_sites);

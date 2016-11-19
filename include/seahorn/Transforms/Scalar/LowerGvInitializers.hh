@@ -13,8 +13,15 @@ namespace seahorn
 {
   using namespace llvm;
   
-  struct LowerGvInitializers : public ModulePass
+  class LowerGvInitializers : public ModulePass
   {
+
+    DenseMap<const Type*, Constant*> m_ndfn;
+
+    Constant* getNondetFn (Type *type, Module& M);
+      
+  public:
+    
     static char ID;
     
     LowerGvInitializers () : ModulePass (ID) {}

@@ -109,25 +109,6 @@ namespace seahorn
     Builder.SetInsertPoint (&f->getEntryBlock (), f->getEntryBlock ().begin ());
 
     bool change=false;
-
-    // Iterate over global constructors
-    if (GlobalVariable * GlobalCtors = findGlobalCtors (M)) {
-      auto CtorFns = parseGlobalCtors (GlobalCtors);
-      if (!CtorFns.empty ())
-	change = true;
-	
-      for (auto Fn : CtorFns) {
-        // -- create a call with non-deterministic parameters
-        SmallVector<Value*, 16> Args;
-        for (auto &A : Fn->args ()) {
-          Constant *ndf = getNondetFn (A.getType (), M);
-          Args.push_back (Builder.CreateCall (ndf));
-        }
-        CallInst* CI = Builder.CreateCall (Fn, Args);
-        LOG ("lower-gv-init",
-             errs () << "LowerGvInitializers: created a call " << *CI << "\n");
-      }
-    }
     
     // Iterate over global variables
     for (GlobalVariable &gv : boost::make_iterator_range (M.global_begin (),
@@ -153,6 +134,25 @@ namespace seahorn
       else
 	errs () << "WARNING: Ignoring initializer for" << gv << "\n";
     }
+
+    // Iterate over global constructors
+    if (GlobalVariable * GlobalCtors = findGlobalCtors (M)) {
+      auto CtorFns = parseGlobalCtors (GlobalCtors);
+      if (!CtorFns.empty ())
+	change = true;
+	
+      for (auto Fn : CtorFns) {
+        // -- create a call with non-deterministic parameters
+        SmallVector<Value*, 16> Args;
+        for (auto &A : Fn->args ()) {
+          Constant *ndf = getNondetFn (A.getType (), M);
+          Args.push_back (Builder.CreateCall (ndf));
+        }
+        CallInst* CI = Builder.CreateCall (Fn, Args);
+        LOG ("lower-gv-init",
+             errs () << "LowerGvInitializers: created a call " << *CI << "\n");
+      }
+    }    
       
     return change;
   }

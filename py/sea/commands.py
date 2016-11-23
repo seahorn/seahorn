@@ -204,12 +204,14 @@ class Seapp(sea.LimitedCmd):
                          default=False, action='store_true')
         ap.add_argument ('--entry', dest='entry', help='Entry point if main does not exist',
                          default=None, metavar='FUNCTION')
-        ap.add_argument ('--do-bounds-check', dest='boc', help='Insert buffer overflow checks',
+        # XXX: the instrumentation is obsolete. Branch abc has the latest instrumentation
+        ap.add_argument ('--bounds-check', dest='boc', help='Insert buffer overflow checks',
                          default=False, action='store_true')
-        ap.add_argument ('--overflow-check', dest='ioc', help='Insert signed integer overflow checks',
-                         default=False, action='store_true')
+        # XXX: the instrumentation is obsolete. Branch modular_inc has the latest instrumentation        
         ap.add_argument ('--null-check', dest='ndc', help='Insert null dereference checks',
                          default=False, action='store_true')
+        ap.add_argument ('--integer-check', dest='ioc', help='Insert signed integer overflow checks',
+                         default=False, action='store_true')        
         ap.add_argument ('--externalize-addr-taken-functions',
                          help='Externalize uses of address-taken functions',
                          dest='enable_ext_funcs', default=False,
@@ -276,7 +278,7 @@ class Seapp(sea.LimitedCmd):
             if args.boc:
                 argv.append ('--bounds-check')
             if args.ioc:
-                argv.append ('--overflow-check')
+                argv.append ('--integer-check')
             if args.ndc:
                 argv.append ('--null-check')
 

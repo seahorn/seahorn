@@ -140,7 +140,7 @@ namespace seahorn
 
       std::string getName (const llvm::Function &fn, const llvm::Value& v);       
 
-      void addMemoryAccess (const llvm::Value* v, Graph& g); 
+      void addMemoryAccess (const llvm::Value* v, Graph& g, const llvm::Instruction &I); 
 
       void countMemoryAccesses (const llvm::Function& f);
 

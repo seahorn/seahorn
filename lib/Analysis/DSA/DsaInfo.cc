@@ -46,7 +46,8 @@ bool InfoAnalysis::is_alive_node::operator()(const NodeInfo& n)
   return n.getNode()->isRead() || n.getNode()->isModified();
 }
 
-void InfoAnalysis::addMemoryAccess (const Value* v, Graph& g) 
+// returnt true if v has no allocation site
+void InfoAnalysis::addMemoryAccess (const Value* v, Graph& g, const Instruction &I) 
 {
   v = v->stripPointerCasts();
   if (!g.hasCell(*v)) {
@@ -59,9 +60,15 @@ void InfoAnalysis::addMemoryAccess (const Value* v, Graph& g)
   const Cell &c = g.getCell (*v);
   Node *n = c.getNode();
   auto it = m_nodes_map.find (n);
-  if (it != m_nodes_map.end () && !isStaticallyKnown (&m_dl, &m_tli, v))
+  if (it != m_nodes_map.end () && !isStaticallyKnown (&m_dl, &m_tli, v)) {
     ++(it->second);
-
+    #if 0
+    if (c.getNode()->getAllocSites ().size () == 0) {
+      errs () << "WARNING: " << I.getParent ()->getParent ()->getName () << ":"
+	      << I << " has no allocation site\n";
+    }
+    #endif 
+  }
 }        
 
 void InfoAnalysis::countMemoryAccesses (const Function&F) 
@@ -78,14 +85,14 @@ void InfoAnalysis::countMemoryAccesses (const Function&F)
   {
     const Instruction *I = &*i;
     if (const LoadInst *LI = dyn_cast<LoadInst>(I)) {
-      addMemoryAccess (LI->getPointerOperand (), *g);
+      addMemoryAccess (LI->getPointerOperand (), *g, *I);
     } else if (const StoreInst *SI = dyn_cast<StoreInst>(I)) {
-      addMemoryAccess (SI->getPointerOperand (), *g);
+      addMemoryAccess (SI->getPointerOperand (), *g, *I);
     } else if (const MemTransferInst *MTI = dyn_cast<MemTransferInst>(I)) {
-      addMemoryAccess (MTI->getDest (), *g);
-      addMemoryAccess (MTI->getSource (), *g);
+      addMemoryAccess (MTI->getDest (), *g, *I);
+      addMemoryAccess (MTI->getSource (), *g, *I);
     } else if (const MemSetInst *MSI = dyn_cast<MemSetInst>(I)) {
-      addMemoryAccess (MSI->getDest (), *g);
+      addMemoryAccess (MSI->getDest (), *g, *I);
     }
   }
 }
@@ -135,16 +142,22 @@ printMemoryTypes (live_nodes_const_range nodes, llvm::raw_ostream& o) const
   // Here counters
   unsigned num_collapses = 0;    // number of collapsed nodes
   unsigned num_typed_nodes = 0;  // number of typed nodes
-
+  unsigned num_untyped_nodes = 0;
 
   o << " --- Type information\n";
   for (const auto &n: nodes) {
-    num_collapses += n.getNode()->isCollapsed ();
-    num_typed_nodes += (std::distance(n.getNode()->types().begin(),
-                                      n.getNode()->types().end()) > 0);
+    if (n.getNode()->isCollapsed ())
+      num_collapses ++;
+    else if (std::distance(n.getNode()->types().begin(),
+			   n.getNode()->types().end()) == 0)
+      num_untyped_nodes ++;    
+    else if (std::distance(n.getNode()->types().begin(),
+			   n.getNode()->types().end()) > 0)
+      num_typed_nodes ++;
   }
-  o << "\t" << num_typed_nodes << " number of typed nodes.\n";
-  o << "\t" << num_collapses << " number of collapsed nodes.\n";
+  o << "\t" << num_typed_nodes   << " number of typed nodes.\n";
+  o << "\t" << num_untyped_nodes << " number of untyped nodes.\n";
+  o << "\t" << num_collapses     << " number of collapsed nodes.\n";
 
   ufo::Stats::uset ("DsaNumOfCollapsedNodes", num_collapses);
 
@@ -185,7 +198,7 @@ void InfoAnalysis::assignAllocSiteIdAndPrinting
   unsigned num_orphan_checks = 0;
   /// keep track of maximum number of allocation sites in a single node
   unsigned max_alloc_sites = 0;
-  /// number of different types of a node's allocation sites
+  /// number of nodes with allocation sites with more than one type
   unsigned num_non_singleton = 0;
 
 
@@ -298,7 +311,8 @@ void InfoAnalysis::assignAllocSiteIdAndPrinting
          });
   }
 
-  o << "\t" << num_non_singleton << " allocation sites with more than one type\n";
+  o << "\t" << num_non_singleton
+    << " number of nodes with multi-typed allocation sites\n";
 }
 
 template <typename PairRange, typename SetMap>
@@ -446,7 +460,9 @@ void InfoAnalysis::assignNodeId (const Function& fn, Graph* g)
 }
 
 bool InfoAnalysis::runOnFunction (Function &f) 
-{  
+{
+  if (f.isDeclaration ()) return false;
+  
   if (Graph* g = getDsaGraph(f))
   {
     LOG ("dsa-info",
@@ -461,12 +477,13 @@ bool InfoAnalysis::runOnFunction (Function &f)
 
     countMemoryAccesses (f);
   }
+  else
+    errs () << "WARNING: " << f.getName () << " has not Dsa graph\n";
   return false;
 }
 
 bool InfoAnalysis::runOnModule (Module &M) 
 {
-
   unsigned num_of_funcs = 0;
   for (auto &f: M) 
   { 

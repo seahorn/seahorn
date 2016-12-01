@@ -61,7 +61,7 @@ namespace
 
     bool isSkip (Value &V)
     {
-      if (!V.getType ()->isPointerTy ()) return true;
+      if (!V.getType ()->isPointerTy ()) return true;     
       // XXX skip if only uses are external functions
       return false;
     }
@@ -431,7 +431,7 @@ namespace
       if (BlockBuilderBase::isNullConstant (*(LI->getPointerOperand ()->stripPointerCasts ())))
 	return;
     }
-    
+
     assert (m_graph.hasCell (ptr) || isa<GlobalValue> (&ptr));
     
     // -- empty gep that points directly to the base
@@ -678,10 +678,33 @@ namespace
     // non-pointer value only
   }
 
+  // -- only used as a compare. do not needs DSA node
+  bool shouldBeTrackedIntToPtr (const Value& def) {
+    // XXX: use_begin will return the same Value def. We need to call
+    //      getUser() to get the actual user.
+    //if (def.hasOneUse () && isa<CmpInst> (*(def.use_begin ()))) return false;
+
+    if (def.hasOneUse ()) 
+    {
+      const Value *v = dyn_cast<Value> (def.use_begin ()->getUser());
+      if (isa<CmpInst> (v)) return false;
+
+      DenseSet<const Value *> seen;
+      while (v && v->hasOneUse () && seen.insert (v).second)
+      {
+        if (isa<LoadInst> (v) || isa<StoreInst> (v) || isa<CallInst> (v)) break;
+        v = dyn_cast<const Value> (v->use_begin ()->getUser());
+      }
+      if (isa<CmpInst> (v)) return false;
+    }
+    return true;
+  }
+
   void BlockBuilderBase::visitCastIntToPtr (const Value& dest) {
     // -- only used as a compare. do not needs DSA node
-    if (dest.hasOneUse () && isa<CmpInst> (*(dest.use_begin ()))) return;
-    
+    //if (dest.hasOneUse () && isa<CmpInst> (*(dest.use_begin ()))) return;
+    if (!shouldBeTrackedIntToPtr (dest)) return;
+
     dsa::Node &n = m_graph.mkNode ();
     n.setIntToPtr();
     // -- record allocation site
@@ -689,7 +712,7 @@ namespace
     // -- mark node as an alloca node
     n.setAlloca();
     m_graph.mkCell (dest, dsa::Cell (n, 0));
-
+    llvm::errs () << "WARNING: " << dest << " is allocating a new cell\n";
   }
 
   void IntraBlockBuilder::visitIntToPtrInst (IntToPtrInst &I)
@@ -708,25 +731,55 @@ namespace
     m_graph.mkRetCell (m_func, c);
   }
   
-  void IntraBlockBuilder::visitPtrToIntInst (PtrToIntInst &I)
+  bool shouldBeTrackedPtrToInt (const Value &def) 
   {
-    if (I.hasOneUse () && isa<CmpInst> (*(I.use_begin ()))) return;
+    if (def.hasOneUse () && isa<CmpInst> (*(def.use_begin ()->getUser())))
+      return false;
 
-    if (I.hasOneUse ())
+    if (def.hasOneUse ())
     {
-      Value *v = dyn_cast<Value> (*(I.use_begin ()));
+      Value *v = dyn_cast<Value> (def.use_begin ()->getUser());
       DenseSet<Value *> seen;
       while (v && v->hasOneUse () && seen.insert (v).second)
       {
         if (isa<LoadInst> (v) || isa<StoreInst> (v) || isa<CallInst> (v)) break;
-        v = dyn_cast<Value> (*(v->use_begin ()));
+        v = dyn_cast<Value> (v->use_begin ()->getUser());
       }
-      if (isa<BranchInst> (v)) return;
+      if (isa<BranchInst> (v)) return false;
+
+      /// XXX: search for a common pattern in which all uses are
+      /// assume functions
+      if (!v->hasOneUse ()) 
+      {
+	for(auto const&U: v->uses())
+	{
+	  if (const CallInst *CI = dyn_cast<const CallInst>(U.getUser()))
+	  { 
+	    ImmutableCallSite CS (CI);
+	    const Function *callee = CS.getCalledFunction ();
+	    if (callee && 
+		(callee->getName () == "verifier.assume" ||
+		 callee->getName () == "llvm.assume"))
+	      continue;
+	  }
+	  return true;
+	}
+	return false; 
+      }
     }
+    return true;
+  }
+
+  void IntraBlockBuilder::visitPtrToIntInst (PtrToIntInst &I)
+  {
+    if (!shouldBeTrackedPtrToInt (I)) return;
+
     assert (m_graph.hasCell (*I.getOperand (0)));
     dsa::Cell c = valueCell  (*I.getOperand (0));
-    if (!c.isNull ())
+    if (!c.isNull ()) {
+      llvm::errs () << "WARNING: " << I << " may be escaping.\n";
       c.getNode()->setPtrToInt ();
+    }
   }
 
   

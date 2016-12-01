@@ -55,6 +55,12 @@ IgnoreCalloc ("horn-ignore-calloc",
               cl::Hidden);
 
 static llvm::cl::opt<bool>
+IgnoreMemset ("horn-ignore-memset",
+              llvm::cl::desc ("Ignore that memset writes into a memory"),
+              cl::init (false),
+              cl::Hidden);
+
+static llvm::cl::opt<bool>
 SplitCriticalEdgesOnly ("horn-split-only-critical",
               llvm::cl::desc ("Introduce edge variables only for critical edges"),
               cl::init (true),
@@ -291,7 +297,7 @@ namespace
       case BinaryOperator::URem:
         doArithmetic (lhs, I);
         break;
-          
+	
       case BinaryOperator::And:
       case BinaryOperator::Or:
       case BinaryOperator::Xor:
@@ -397,7 +403,7 @@ namespace
     Expr doAShr (Expr lhs, Expr op1, const ConstantInt *op2)
     {
       if (!EnableDiv) return Expr(nullptr);
-      
+
       mpz_class shift = expr::toMpz (op2->getValue ());
       mpz_class factor = 1;
       for (unsigned long i = 0; i < shift.get_ui (); ++i) 
@@ -440,7 +446,7 @@ namespace
         if (EnableDiv && 
             (!StrictlyLinear || 
              isOpX<MPZ> (op2) || isOpX<MPQ> (op2)))
-          res = mk<EQ>(lhs ,mk<DIV>(op1, op2));
+	  res = mk<EQ>(lhs ,mk<DIV>(op1, op2));	    	  
         break;
       case BinaryOperator::SRem:
       case BinaryOperator::URem:
@@ -455,7 +461,7 @@ namespace
         break;
       case BinaryOperator::AShr:
         if (const ConstantInt *ci = dyn_cast<ConstantInt> (&v2))
-          res = doAShr (lhs, op1, ci);
+	   res = doAShr (lhs, op1, ci);	    
         break;
       default:
         break;
@@ -590,8 +596,9 @@ namespace
       const Function &F = *f;
       const Function &PF = *I.getParent ()->getParent ();
       
-      // skip intrinsic functions
-      if (F.isIntrinsic ()) { assert (m_fparams.size () == 3); return;}
+      // skip intrinsic functions, except for memory-related ones
+      if (F.isIntrinsic () && !isa<MemIntrinsic> (&I))
+      { assert (m_fparams.size () == 3); return;}
     
       
       if (F.getName ().startswith ("verifier.assume"))
@@ -620,7 +627,28 @@ namespace
                                     (sort::intTy (m_efac), zeroE)));
         }
       }
-      
+      else if (MemSetInst *MSI = dyn_cast<MemSetInst>(&I))		
+      {
+	if (m_inMem && m_outMem && m_sem.isTracked (*(MSI->getDest ()))) {
+	  assert (m_fparams.size () == 3);
+	  assert (!m_uniq);
+	  if (IgnoreMemset)
+	    m_side.push_back (mk<EQ> (m_outMem, m_inMem));
+	  else
+	  {
+	    if (const ConstantInt *c = dyn_cast<const ConstantInt> (MSI->getValue ()))
+	    {
+	      // XXX This is potentially unsound if the corresponding DSA
+	      // XXX node corresponds to multiple allocation sites
+	      Expr val = mkTerm<mpz_class> (expr::toMpz (c->getValue ()), m_efac); 
+	      errs () << "WARNING: initializing DSA node due to memset()\n";
+	      m_side.push_back (mk<EQ> (m_outMem,
+					op::array::constArray
+					(sort::intTy (m_efac), val)));
+	    }
+	  }
+	}
+      }
       // else if (F.getName ().equals ("verifier.assert"))
       // {
       //   Expr ein = m_s.read (m_sem.errorFlag ());

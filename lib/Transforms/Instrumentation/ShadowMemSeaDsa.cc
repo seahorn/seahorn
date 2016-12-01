@@ -475,9 +475,28 @@ namespace seahorn
             B.CreateStore (B.CreateCall3 (m_memStoreFn,
                                           B.getInt32 (getId (c)),
                                           B.CreateLoad (v),
-                                          getUniqueScalar (ctx, B, c)),
-                           v);
+                                          getUniqueScalar (ctx, B, c)), v);
           }
+          else if (MemSetInst *MSI = dyn_cast<MemSetInst>(&inst))
+          {
+	    Value &dst = *(MSI->getDest ());
+	    
+            if (!G.hasCell(dst)) continue;
+            const Cell &c = G.getCell (dst);
+            if (c.isNull ()) continue;
+
+	    if (c.getOffset () == 0) {
+	      B.SetInsertPoint (&inst);
+	      AllocaInst *v = allocaForNode (c);
+	      B.CreateStore (B.CreateCall3 (m_memStoreFn,
+					    B.getInt32 (getId (c)),
+					    B.CreateLoad (v),
+					    getUniqueScalar (ctx, B, c)), v);
+	    } else {
+	      // TODO: handle multiple nodes
+	    }
+          }
+	  
 
           const Function &CF = *CS.getCallee ();
           

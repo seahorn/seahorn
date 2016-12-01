@@ -17,6 +17,8 @@
 
 #include "boost/range.hpp"
 #include "boost/scoped_ptr.hpp"
+#include "boost/optional.hpp"
+#include <regex>
 
 #include "seahorn/Support/SortTopo.hh"
 
@@ -80,11 +82,42 @@ NoVerification("horn-no-verif",
           llvm::cl::desc ("Generate only SMT2 encoding (i.e. even if there are no assertions)"),
           cl::init (false));
 
-
+static llvm::cl::list<std::string>
+AbstractFunctions("horn-abstract",
+		  llvm::cl::desc("Abstract all calls to these functions"),
+		  llvm::cl::ZeroOrMore);
 
 namespace seahorn
 {
   char HornifyModule::ID = 0;
+
+  struct FunctionNameMatcher :
+    public std::unary_function<const Function&, bool> {
+    boost::optional <std::regex> m_re;
+    FunctionNameMatcher (std::string s) { 
+      if (s != "")
+      {
+  	try
+  	{ m_re = std::regex (s);  }  
+  	catch (std::regex_error& e) 
+  	{ errs () << "Warning: syntax error in the regex: "
+		  << e.what () << "\n"; }
+      }
+    }
+    bool operator() (const Function &fn)  {
+      if (!m_re) return false;  // this should not happen
+      auto fn_name = fn.getName().str() ;  
+      return std::regex_match (fn_name, *m_re);
+    }
+  };
+
+  bool shouldBeAbstracted (const Function &fn) {
+    for (auto name : AbstractFunctions) {
+      FunctionNameMatcher filter (name);
+      if (filter (fn)) return true;
+    }
+    return false;
+  }
 
   HornifyModule::HornifyModule () :
     ModulePass (ID), m_zctx (m_efac),  m_db (m_efac),
@@ -100,11 +133,17 @@ namespace seahorn
     m_td = &getAnalysis<DataLayoutPass> ().getDataLayout ();
     m_canFail = getAnalysisIfAvailable<CanFail> ();
 
+    typename UfoSmallSymExec::FunctionPtrSet abs_fns;
+    if (!AbstractFunctions.empty ()) {
+      for (auto &F: M)
+	if (shouldBeAbstracted (F)) abs_fns.insert(&F);
+    }
+    
     if (Step == hm_detail::CLP_SMALL_STEP || 
         Step == hm_detail::CLP_FLAT_SMALL_STEP)
       m_sem.reset (new ClpSmallSymExec (m_efac, *this, TL));
     else
-      m_sem.reset (new UfoSmallSymExec (m_efac, *this, TL));
+      m_sem.reset (new UfoSmallSymExec (m_efac, *this, TL, abs_fns));
 
     Function *main = M.getFunction ("main");
     if (!main)

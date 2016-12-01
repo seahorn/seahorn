@@ -118,8 +118,12 @@ namespace
     
     /// -- parameters for a function call
     ExprVector m_fparams;
-    
+   
     Expr m_activeLit;
+
+    // -- input and output parameter regions for a function call
+    ExprVector m_inRegions;
+    ExprVector m_outRegions;
     
     SymExecBase (SymStore &s, UfoSmallSymExec &sem, ExprVector &side) : 
       m_s(s), m_efac (m_s.getExprFactory ()), m_sem (sem), m_side (side) 
@@ -745,6 +749,9 @@ namespace
         m_fparams.push_back (falseE);
         m_fparams.push_back (falseE);
         m_fparams.push_back (falseE);
+
+	m_inRegions.clear();
+	m_outRegions.clear();
       }
       else if (F.getName ().startswith ("shadow.mem"))
       {
@@ -769,8 +776,12 @@ namespace
           m_fparams.push_back (m_s.read (symb (*CS.getArgument (1))));
         else if (F.getName ().equals ("shadow.mem.arg.mod"))
         {
-          m_fparams.push_back (m_s.read (symb (*CS.getArgument (1))));
-          m_fparams.push_back (m_s.havoc (symb (I)));
+	  auto in_par = m_s.read (symb (*CS.getArgument (1)));
+          m_fparams.push_back (in_par);
+	  m_inRegions.push_back (in_par);	  
+	  auto out_par = m_s.havoc (symb (I));
+          m_fparams.push_back (out_par);
+	  m_outRegions.push_back (out_par);
         }
         else if (F.getName ().equals ("shadow.mem.arg.new"))
           m_fparams.push_back (m_s.havoc (symb (I)));
@@ -796,11 +807,27 @@ namespace
       {
         if (m_fparams.size () > 3)
         {
-          m_fparams.resize (3);
-          errs () << "WARNING: skipping a call to " << F.getName () 
-                  << " (recursive call?)\n";
+
+	  if (m_sem.isAbstracted (*f))
+	  {
+	    assert (m_inRegions.size () m_outRegions.size());
+	    for (unsigned i=0;i<m_inRegions.size(); i++) {
+	      addCondSide (mk<EQ> (m_inRegions[i], m_outRegions[i]));
+	    }
+	    errs () << "WARNING: abstracted unsoundly a call to "
+		    << F.getName () << "\n";
+	  }
+	  else
+	  {
+	    errs () << "WARNING: skipping a call to " << F.getName () 
+		    << " (recursive call?)\n";
+	  }
+
+          m_fparams.resize (3);	  
+	  m_inRegions.clear();
+	  m_outRegions.clear();	
         }
-        
+
         visitInstruction (*CS.getInstruction ());
       }
           
@@ -1176,7 +1203,12 @@ namespace seahorn
     // -- always track integer registers
     return v.getType ()->isIntegerTy ();
   }
-  
+
+  bool UfoSmallSymExec::isAbstracted (const Function &fn) 
+  {
+    return (m_abs_funcs.count (&fn) > 0);
+  }
+
   Expr UfoSmallSymExec::lookup (SymStore &s, const Value &v)
   {
     Expr u = symb (v);

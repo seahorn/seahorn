@@ -110,6 +110,8 @@ namespace seahorn
     /// Expr corresponding to the value in the current store. The
     /// value can be a constant
     virtual Expr lookup (SymStore &s, const Value&v) = 0;
+    /// true if all calls to fn will be abstracted
+    virtual bool isAbstracted (const Function& fn) { return false; }
     
     virtual FunctionInfo& getFunctionInfo (const Function &F)
     { return m_fmap [ &F ];}

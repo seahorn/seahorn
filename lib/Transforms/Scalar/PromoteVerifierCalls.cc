@@ -36,7 +36,13 @@ namespace seahorn
                               Type::getVoidTy (Context),
                               Type::getInt1Ty (Context),
                               NULL));
-    
+    Function *assumeNotFn = dyn_cast<Function>
+      (M.getOrInsertFunction ("verifier.assume.not", 
+                              as,
+                              Type::getVoidTy (Context),
+                              Type::getInt1Ty (Context),
+                              NULL));
+
     m_assertFn = dyn_cast<Function> 
       (M.getOrInsertFunction ("verifier.assert",
                               as,
@@ -61,6 +67,36 @@ namespace seahorn
                               as,
                               Type::getVoidTy (Context), NULL));
 
+    /* add our functions to llvm used */
+    GlobalVariable *LLVMUsed = M.getGlobalVariable("llvm.used");
+    std::vector<Constant*> MergedVars;
+    if (LLVMUsed) {
+      // Collect the existing members of llvm.used except sea
+      // functions
+      ConstantArray *Inits = cast<ConstantArray>(LLVMUsed->getInitializer());
+      for (unsigned I = 0, E = Inits->getNumOperands(); I != E; ++I) {
+        Value* V = Inits->getOperand(I)->stripPointerCasts();
+        MergedVars.push_back(Inits->getOperand(I));
+      }
+      LLVMUsed->eraseFromParent();
+    }
+    // re-create llvm.used
+    Type *i8PTy = Type::getInt8PtrTy(M.getContext ());
+    MergedVars.push_back
+      (ConstantExpr::getBitCast (cast<llvm::Constant> (m_assumeFn), i8PTy));
+    MergedVars.push_back
+      (ConstantExpr::getBitCast (cast<llvm::Constant> (assumeNotFn), i8PTy));
+    MergedVars.push_back
+      (ConstantExpr::getBitCast (cast<llvm::Constant> (m_errorFn), i8PTy));
+    MergedVars.push_back
+      (ConstantExpr::getBitCast (cast<llvm::Constant> (m_failureFn), i8PTy));
+    ArrayType *ATy = ArrayType::get(i8PTy, MergedVars.size());
+    LLVMUsed = new llvm::GlobalVariable(
+        M, ATy, false, llvm::GlobalValue::AppendingLinkage,
+        llvm::ConstantArray::get(ATy, MergedVars), "llvm.used");
+    LLVMUsed->setSection("llvm.metadata");
+    
+    
     
     CallGraphWrapperPass *cgwp = getAnalysisIfAvailable<CallGraphWrapperPass> ();
     if (CallGraph *cg = cgwp ? &cgwp->getCallGraph () : nullptr)

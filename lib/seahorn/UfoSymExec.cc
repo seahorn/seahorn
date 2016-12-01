@@ -321,6 +321,7 @@ namespace
       
       Expr sixteen = mkTerm<mpz_class> (16, m_efac);
       Expr thirtytwo = mkTerm<mpz_class> (32, m_efac);
+      Expr twoToSixteenMinusOne = mkTerm<mpz_class> (65535, m_efac);      
       switch(i.getOpcode())
       {
       case BinaryOperator::And:
@@ -334,7 +335,11 @@ namespace
           if (op1 == sixteen)
             val.push_back (mk<IMPL> (mk<EQ> (op0, thirtytwo),
                                      mk<EQ> (lhs, zeroE)));
-          
+	  // x & 65535 == x (if x <= 65535)	  
+	  if (op1 == twoToSixteenMinusOne)
+	    val.push_back (mk<IMPL>(mk<LEQ>(op0, twoToSixteenMinusOne),
+				    mk<EQ> (lhs, op0)));
+	  			 
           // val.push_back (mk<IMPL> (mk<AND> (mk<EQ> (op0, thirtytwo),
           //                                   mk<EQ> (op1, sixteen)),
           //                          mk<EQ> (lhs, zeroE)));

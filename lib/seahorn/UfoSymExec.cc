@@ -37,6 +37,11 @@ EnableDiv ("horn-enable-div",
                 cl::init (true));
 
 static llvm::cl::opt<bool>
+RewriteDiv ("horn-rewrite-div",
+	    llvm::cl::desc ("Rewrite division constraints to multiplications."),
+	    cl::init (false));
+
+static llvm::cl::opt<bool>
 EnableUniqueScalars ("horn-singleton-aliases",
                      llvm::cl::desc ("Treat singleton alias sets as scalar values"),
                      cl::init (false));
@@ -367,8 +372,13 @@ namespace
       mpz_class factor = 1;
       for (unsigned long i = 0; i < shift.get_ui (); ++i) 
           factor = factor * 2;
-      return mk<IMPL>(mk<GEQ>(op1, zeroE),
-		      mk<DIV>(op1, mkTerm<mpz_class> (factor, m_efac)));
+      Expr factorE = mkTerm<mpz_class> (factor, m_efac);
+      if (RewriteDiv)
+	return mk<IMPL>(mk<GEQ>(op1, zeroE),
+			mk<EQ>(mk<MULT>(lhs, factorE), op1));	      	
+      else
+	return mk<IMPL>(mk<GEQ>(op1, zeroE), mk<DIV>(op1, factorE));
+			
     }
     
     void doLogic (Expr lhs, BinaryOperator &i)
@@ -428,7 +438,11 @@ namespace
       mpz_class factor = 1;
       for (unsigned long i = 0; i < shift.get_ui (); ++i) 
           factor = factor * 2;
-      return mk<EQ>(lhs ,mk<DIV>(op1, mkTerm<mpz_class> (factor, m_efac)));
+      Expr factorE = mkTerm<mpz_class> (factor, m_efac);
+      if (RewriteDiv)
+	return mk<EQ>(mk<MULT>(lhs, factorE), op1);
+      else
+	return mk<EQ>(lhs ,mk<DIV>(op1, factorE));
     }
     
     void doArithmetic (Expr lhs, BinaryOperator &i)
@@ -463,8 +477,12 @@ namespace
         // if StrictlyLinear then require that divisor is a constant
         if (EnableDiv && 
             (!StrictlyLinear || 
-             isOpX<MPZ> (op2) || isOpX<MPQ> (op2)))
-	  res = mk<EQ>(lhs ,mk<DIV>(op1, op2));	    	  
+             isOpX<MPZ> (op2) || isOpX<MPQ> (op2))) {
+	  if (RewriteDiv)
+	    res = mk<EQ>(mk<MULT>(lhs, op2), op1);
+	  else 
+	    res = mk<EQ>(lhs ,mk<DIV>(op1, op2));
+	}
         break;
       case BinaryOperator::SRem:
       case BinaryOperator::URem:

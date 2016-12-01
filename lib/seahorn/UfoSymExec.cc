@@ -353,6 +353,18 @@ namespace
       
       if (res) m_side.push_back (boolop::limp (m_activeLit, res));
     }
+
+    Expr doLShr (Expr lhs, Expr op1, const ConstantInt *op2)
+    {
+      if (!EnableDiv) return Expr(nullptr);
+
+      mpz_class shift = expr::toMpz (op2->getValue ());
+      mpz_class factor = 1;
+      for (unsigned long i = 0; i < shift.get_ui (); ++i) 
+          factor = factor * 2;
+      return mk<IMPL>(mk<GEQ>(op1, zeroE),
+		      mk<DIV>(op1, mkTerm<mpz_class> (factor, m_efac)));
+    }
     
     void doLogic (Expr lhs, BinaryOperator &i)
     {
@@ -381,6 +393,9 @@ namespace
         case BinaryOperator::Xor:
 	  res = mk<IFF>(lhs, mk<XOR>(op0,op1));
           break;
+	case BinaryOperator::LShr:
+	  if (const ConstantInt *ci = dyn_cast<ConstantInt> (&v1))
+	    res = doLShr (lhs, op0, ci);
         default:
           break;
 	}
@@ -411,8 +426,6 @@ namespace
       return mk<EQ>(lhs ,mk<DIV>(op1, mkTerm<mpz_class> (factor, m_efac)));
     }
     
-
-
     void doArithmetic (Expr lhs, BinaryOperator &i)
     {
       const Value& v1 = *i.getOperand(0);

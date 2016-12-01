@@ -102,7 +102,11 @@ namespace
       bmc.encode ();
       if (m_out) bmc.toSmtLib (*m_out);
       
-      if (!m_solve) return false;
+      if (!m_solve)
+        {
+          LOG ("bmc", errs () << "Stopping before solving\n";);
+          return false;
+        }
       
       Stats::resume ("BMC");
       auto res = bmc.solve ();

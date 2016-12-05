@@ -717,7 +717,7 @@ namespace
       {
         Expr rhs = m_inMem;
         if (I.getType ()->isIntegerTy (1))
-          rhs = mk<NEQ> (rhs, nullBv);
+          rhs = mk<NEQ> (rhs, falseBv);
         if (UseWrite) write (I, rhs);
         else side (lhs, rhs);
       }

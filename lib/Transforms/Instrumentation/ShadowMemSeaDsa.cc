@@ -467,15 +467,18 @@ namespace seahorn
             if (!G.hasCell(*call)) continue;
             const Cell &c = G.getCell (*call);
             if (c.isNull ()) continue;
-
-            // TODO: handle multiple nodes
-            assert (c.getOffset () == 0 && "TODO");
-            B.SetInsertPoint (call);
-            AllocaInst *v = allocaForNode (c);
-            B.CreateStore (B.CreateCall3 (m_memStoreFn,
-                                          B.getInt32 (getId (c)),
-                                          B.CreateLoad (v),
-                                          getUniqueScalar (ctx, B, c)), v);
+            
+	    if (c.getOffset () == 0) {
+	      B.SetInsertPoint (call);
+	      AllocaInst *v = allocaForNode (c);
+	      B.CreateStore (B.CreateCall3 (m_memStoreFn,
+					    B.getInt32 (getId (c)),
+					    B.CreateLoad (v),
+					    getUniqueScalar (ctx, B, c)), v);
+	    } else {
+	      // TODO: handle multiple nodes
+	      errs () << "WARNING: missing calloc instrumentation because cell offset is not zero\n";
+	    }
           }
           else if (MemSetInst *MSI = dyn_cast<MemSetInst>(&inst))
           {
@@ -494,6 +497,7 @@ namespace seahorn
 					    getUniqueScalar (ctx, B, c)), v);
 	    } else {
 	      // TODO: handle multiple nodes
+	      errs () << "WARNING: missing memset instrumentation because cell offset is not zero\n";
 	    }
           }
 	  

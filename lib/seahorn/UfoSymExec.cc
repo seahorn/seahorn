@@ -810,7 +810,7 @@ namespace
 
 	  if (m_sem.isAbstracted (*f))
 	  {
-	    assert (m_inRegions.size () m_outRegions.size());
+	    assert (m_inRegions.size () && m_outRegions.size());
 	    for (unsigned i=0;i<m_inRegions.size(); i++) {
 	      addCondSide (mk<EQ> (m_inRegions[i], m_outRegions[i]));
 	    }

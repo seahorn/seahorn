@@ -43,9 +43,10 @@ namespace seahorn {
        else File = "unknown file";
 
        os << "Possible read of undefined value at \n"
-          << "--- File  : " << File << "\n"
-          << "--- Line  : " << Line << "\n" 
-          << "--- Column: " << Col  << "\n";
+          << "--- File   : " << File << "\n"
+          << "--- Line   : " << Line << "\n" 
+          << "--- Column : " << Col  << "\n"
+	  << "--- Bitcode: " << *inst << "\n";
      }
 
      unsigned m_undef_num;
@@ -98,9 +99,9 @@ namespace seahorn {
             for (unsigned i = 0; i < phi->getNumIncomingValues (); i++) {
               if (isa<UndefValue> (phi->getIncomingValue (i))) {
                 m_undef_num++;
-                if (hasDebugLoc (dyn_cast<Instruction>(phi))) {
+                if (hasDebugLoc (dyn_cast<Instruction>(&u))) {		
                   raw_string_ostream os(m_msg);
-                  printDebugLoc(dyn_cast<Instruction>(phi), os);
+		  printDebugLoc(dyn_cast<Instruction>(&u), os);
                 }
               }
             }
@@ -111,9 +112,9 @@ namespace seahorn {
           for (unsigned i = 0; i < u.getNumOperands (); i++) {
             if (isa <UndefValue> (u.getOperand (i))) {
               m_undef_num++;
-              if (hasDebugLoc(dyn_cast<Instruction>(u.getOperand (i)))) {
+	      if (hasDebugLoc(dyn_cast<Instruction>(&u))) {
                 raw_string_ostream os(m_msg);
-                printDebugLoc(dyn_cast<Instruction>(u.getOperand (i)), os);
+		printDebugLoc(dyn_cast<Instruction>(&u), os);		
               }
             }
           }

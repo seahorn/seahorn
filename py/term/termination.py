@@ -200,6 +200,7 @@ def lexicographic(fp):
     if debug: print '\nranking functions:', rank
     if all([r[0] for r in rank.values()]):
         stat("Result", "TRUE")
+        stat("Ranking-Function", rank)
     else:
         stat("Result", "FALSE")
 

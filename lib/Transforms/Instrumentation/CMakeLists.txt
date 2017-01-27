@@ -1,7 +1,4 @@
 add_llvm_library(SeaInstrumentation
-  BufferBoundsCheck.cc
-  IntegerOverflowCheck.cc
-  NullCheck.cc
   MixedSemantics.cc
   NondetInit.cc
   ShadowMemDsa.cc

@@ -37,9 +37,6 @@
 
 #include "seahorn/Analysis/CanAccessMemory.hh"
 #include "seahorn/Transforms/Scalar/LowerCstExpr.hh"
-#include "seahorn/Transforms/Instrumentation/BufferBoundsCheck.hh"
-#include "seahorn/Transforms/Instrumentation/IntegerOverflowCheck.hh"
-#include "seahorn/Transforms/Instrumentation/NullCheck.hh"
 #include "seahorn/Transforms/Instrumentation/MixedSemantics.hh"
 
 #include "ufo/Smt/EZ3.hh"
@@ -77,21 +74,6 @@ InlineAll ("horn-inline-all", llvm::cl::desc ("Inline all functions"),
 static llvm::cl::opt<bool>
 CutLoops ("horn-cut-loops", llvm::cl::desc ("Cut all natural loops"),
            llvm::cl::init (false));
-
-static llvm::cl::opt<bool>
-BoundsChecks ("bounds-check", 
-     llvm::cl::desc ("Insert array bounds checks"), 
-     llvm::cl::init (false));
-
-static llvm::cl::opt<bool>
-IntegerChecks ("integer-check", 
-     llvm::cl::desc ("Insert signed integer overflow checks"), 
-     llvm::cl::init (false));
-
-static llvm::cl::opt<bool>
-NullChecks ("null-check", 
-     llvm::cl::desc ("Insert null dereference checks"), 
-     llvm::cl::init (false));
 
 static llvm::cl::opt<bool>
 EnumVerifierCalls ("enum-verifier-calls", 
@@ -353,28 +335,6 @@ int main(int argc, char **argv) {
       pass_manager.add (new seahorn::LowerGvInitializers ());
     
     pass_manager.add(llvm::createUnifyFunctionExitNodesPass ());
-
-    if (BoundsChecks)
-    { 
-      pass_manager.add (new seahorn::LowerCstExprPass ());
-      pass_manager.add (new seahorn::CanAccessMemory ());
-      pass_manager.add (new seahorn::BufferBoundsCheck ());
-      // -- Turn undef into nondet (undef might be created by
-      //    BufferBoundsCheck)
-      pass_manager.add (seahorn::createNondetInitPass ());
-    }
-
-    if (IntegerChecks)
-    { 
-      pass_manager.add (new seahorn::LowerCstExprPass ());
-      pass_manager.add (new seahorn::IntegerOverflowCheck ());
-    }
-
-    if (NullChecks)
-    {
-      pass_manager.add (new seahorn::LowerCstExprPass ());
-      pass_manager.add (new seahorn::NullCheck ());
-    }
 
     if (!MixedSem && EnumVerifierCalls)  
     { 

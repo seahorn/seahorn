@@ -204,14 +204,6 @@ class Seapp(sea.LimitedCmd):
                          default=False, action='store_true')
         ap.add_argument ('--entry', dest='entry', help='Entry point if main does not exist',
                          default=None, metavar='FUNCTION')
-        # XXX: the instrumentation is obsolete. Branch abc has the latest instrumentation
-        ap.add_argument ('--bounds-check', dest='boc', help='Insert buffer overflow checks',
-                         default=False, action='store_true')
-        # XXX: the instrumentation is obsolete. Branch modular_inc has the latest instrumentation        
-        ap.add_argument ('--null-check', dest='ndc', help='Insert null dereference checks',
-                         default=False, action='store_true')
-        ap.add_argument ('--integer-check', dest='ioc', help='Insert signed integer overflow checks',
-                         default=False, action='store_true')        
         ap.add_argument ('--externalize-addr-taken-functions',
                          help='Externalize uses of address-taken functions',
                          dest='enable_ext_funcs', default=False,
@@ -274,13 +266,6 @@ class Seapp(sea.LimitedCmd):
 
             if args.enum_verifier_calls:
                 argv.append ('--enum-verifier-calls')
-
-            if args.boc:
-                argv.append ('--bounds-check')
-            if args.ioc:
-                argv.append ('--integer-check')
-            if args.ndc:
-                argv.append ('--null-check')
 
             if args.entry is not None:
                 argv.append ('--entry-point={0}'.format (args.entry))

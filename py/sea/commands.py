@@ -498,6 +498,8 @@ class Unroll(sea.LimitedCmd):
         if args.out_file is not None:
             argv.extend (['-o', args.out_file])
 
+        # cannonical loops
+        argv.append ('-loop-simplify')
         # fake loops to be in the form suitable for loop-unroll
         argv.append ('-fake-latch-exit')
 

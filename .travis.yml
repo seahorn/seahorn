@@ -21,13 +21,6 @@ before_install:
 
 install:
   - until sudo apt-get -qq install libboost-all-dev libboost-test-dev libboost-program-options-dev; do echo retry; done
-  - wget http://dl.dropboxusercontent.com/u/203889738/gcc/ninja.tar.gz;
-    tar xfz ninja.tar.gz;
-    cd ninja;
-    ./bootstrap.py > /dev/null 2>&1;
-    sudo cp -v ninja /usr/bin/;
-    cd ..;
-  - ninja --version
   - until sudo apt-get -qq update; do echo retry; done
   - until sudo apt-get -qq install libstdc++-4.8-dev; do echo retry; done
   - if [[ $CMAKE_CXX_COMPILER == g++-4.8 ]]; then until sudo apt-get -qq install g++-4.8; do echo retry; done fi
@@ -55,7 +48,6 @@ script:
   - cd build
   - mv $LZ/run run
   - ls run/bin
-  - GENERATOR=-GNinja;
   - /usr/bin/cmake -DBOOST_ROOT=$BOOST_ROOT -DZ3_ROOT=run -DLLVM_DIR=$(pwd)/run/share/llvm/cmake -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE} -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER} -DCMAKE_PROGRAM_PATH=/usr/bin  -DCMAKE_INSTALL_PREFIX=run ../;
   - /usr/bin/cmake --build . --target extra
   - ls ../ 

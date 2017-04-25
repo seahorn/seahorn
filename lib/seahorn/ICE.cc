@@ -65,6 +65,31 @@ namespace seahorn
 
   /*ICE methods begin*/
 
+  void ICE::saveInvsToSmtLibFile()
+  {
+	  auto &db = m_hm.getHornClauseDB();
+	  ZSolver<EZ3> solver(m_hm.getZContext());
+
+	  for(Expr rel : db.getRelations())
+	  {
+		  ExprVector arg_list;
+		  for(int i=0; i<bind::domainSz(rel); i++)
+		  {
+			  Expr arg_i_type = bind::domainTy(rel, i);
+			  Expr arg_i = bind::fapp(bind::constDecl(variant::tag(bind::fname(rel), variant::variant(i, mkTerm<std::string> ("V", rel->efac ()))), arg_i_type));
+			  arg_list.push_back(arg_i);
+		  }
+		  Expr fapp = bind::fapp(rel, arg_list);
+		  Expr cand_app = m_candidate_model.getDef(fapp);
+		  LOG("ice", errs() << "HEAD: " << *fapp << "\n";);
+		  LOG("ice", errs() << "CAND: " << *cand_app << "\n";);
+
+		  solver.assertExpr(mk<IMPL>(fapp, cand_app));
+	  }
+	  std::ofstream ofs("invs.dump");
+	  solver.toSmtLib(ofs);
+  }
+
   void ICE::addInvarCandsToProgramSolver()
   {
 	  auto &db = m_hm.getHornClauseDB();
@@ -261,7 +286,7 @@ namespace seahorn
   		  //reset the rules
   		  auto &cur_rules = db.getRules();
   		  cur_rules.pop_back();
-  		  LOG("ice", errs() << "AFTER RESET DB IS:\n" << db;);
+  		  LOG("ice-verbose", errs() << "AFTER RESET DB IS:\n" << db;);
 
   		  //deal with negative examples
   		  if(!recordNegCexs(db, isChanged, index)) //Program is sat
@@ -273,7 +298,7 @@ namespace seahorn
   		  auto &rules = db.getRules();
   		  rules.pop_back();
 
-  		  LOG("ice", errs() << "AFTER RESET DB IS:\n" << db;);
+  		  LOG("ice-verbose", errs() << "AFTER RESET DB IS:\n" << db;);
 
   		  //deal with implication examples
   		  recordImplPairs(db, isChanged, index);
@@ -299,6 +324,7 @@ namespace seahorn
   		  LOG("ice", errs() << "REL: " << *fapp << ", CAND: " << *cand << "\n";);
   	  }
 
+  	  saveInvsToSmtLibFile();
   	  addInvarCandsToProgramSolver();
   }
 

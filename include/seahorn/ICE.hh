@@ -138,6 +138,8 @@ namespace seahorn
 
       Expr plusAttrToDecisionExpr(boost::property_tree::ptree sub_pt, std::string attr_name);
       Expr minusAttrToDecisionExpr(boost::property_tree::ptree sub_pt, std::string attr_name);
+
+      void saveInvsToSmtLibFile();
   };
 }
 

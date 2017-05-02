@@ -225,17 +225,17 @@ void dsa::Node::pointTo (Node &node, const Offset &offset)
     node.setUniqueScalar (nullptr);
   }
   
-  unsigned sz = size ();
+  //unsigned sz = size ();
       
   // -- create forwarding link
   m_forward.pointTo (node, offset);
   // -- get updated offset based on how forwarding was resolved
-  unsigned noffset = m_forward.getOffset ();
+  unsigned noffset = m_forward.getRawOffset ();
   // -- at this point, current node is being embedded at noffset
   // -- into node
       
-  // -- grow the size if necessary
-  if (sz + noffset > node.size ()) node.growSize (sz + noffset);
+  // // -- grow the size if necessary
+  // if (sz + noffset > node.size ()) node.growSize (sz + noffset);
   
   assert (!node.isForwarding () || node.getNode ()->isCollapsed ());
   if (!node.getNode ()->isCollapsed ())
@@ -542,6 +542,7 @@ void dsa::Node::write(raw_ostream&o) const {
 
     o << "Node " << this << ": ";
     o << "flags=[" << m_nodeType.toStr() << "] ";
+    o << "size=" << size () << " ";
     writeTypes(o);
     o << " links=[";
     bool first=true;
@@ -586,17 +587,17 @@ void dsa::Cell::unify (Cell &c)
   {
     assert (!c.isNull ());
     Node *n = c.getNode ();
-    pointTo (*n, c.getOffset ());
+    pointTo (*n, c.getRawOffset ());
   }
   else if (c.isNull ())
     c.unify (*this);
   else
   {
     Node &n1 = *getNode ();
-    unsigned o1 = getOffset ();
+    unsigned o1 = getRawOffset ();
         
     Node &n2 = *c.getNode ();
-    unsigned o2 = c.getOffset ();
+    unsigned o2 = c.getRawOffset ();
 
     if (o1 < o2)
       n2.unifyAt (n1, o2 - o1);
@@ -617,19 +618,30 @@ dsa::Node* dsa::Cell::getNode () const
   if (n != m_node)
   {
     assert (m_node->isForwarding ());
-    m_offset += m_node->getOffset ();
+    m_offset += m_node->getRawOffset ();
     m_node = n;
   }
   
   return m_node;
 }
 
-unsigned dsa::Cell::getOffset () const
+unsigned dsa::Cell::getRawOffset () const
 {
   // -- resolve forwarding
   getNode ();
   // -- return current offset
   return m_offset;
+}
+
+unsigned dsa::Cell::getOffset () const
+{
+  // -- adjust the offset based on the kind of node
+  if (getNode()->isCollapsed ())
+    return 0;
+  else if (getNode()->isArray ())
+    return (getRawOffset () %  getNode ()->size ());
+  else
+    return getRawOffset ();
 }
 
 void dsa::Cell::pointTo (Node &n, unsigned offset)
@@ -650,11 +662,11 @@ void dsa::Cell::pointTo (Node &n, unsigned offset)
   }
 }    
 
-unsigned dsa::Node::getOffset () const
+unsigned dsa::Node::getRawOffset () const
 {
   if (!isForwarding ()) return 0;
   m_forward.getNode ();
-  return m_forward.getOffset ();
+  return m_forward.getRawOffset ();
 }
 
 
@@ -757,7 +769,7 @@ dsa::Cell &dsa::Graph::mkCell (const llvm::Value &u, const Cell &c)
   if (!res)
   {
     res.reset (new Cell (c));
-    if (res->getOffset () == 0 && res->getNode ())
+    if (res->getRawOffset () == 0 && res->getNode ())
     {
       if (!(res->getNode ()->hasUniqueScalar ()))
         res->getNode ()->setUniqueScalar (&v);
@@ -930,7 +942,7 @@ void dsa::Graph::import (const Graph &g, bool withFormals)
     Node &n = C.clone (*kv.second->getNode ());
     
     // -- re-create the cell 
-    Cell c (n, kv.second->getOffset ());
+    Cell c (n, kv.second->getRawOffset ());
     
     // -- insert value
     Cell &nc = mkCell (*kv.first, Cell ());
@@ -944,14 +956,14 @@ void dsa::Graph::import (const Graph &g, bool withFormals)
     for (auto &kv : g.m_formals)
     {
       Node &n = C.clone (*kv.second->getNode ());
-      Cell c (n, kv.second->getOffset ());
+      Cell c (n, kv.second->getRawOffset ());
       Cell &nc = mkCell (*kv.first, Cell ());
       nc.unify (c);
     }
     for (auto &kv : g.m_returns)
     {
       Node &n = C.clone (*kv.second->getNode ());
-      Cell c (n, kv.second->getOffset ());
+      Cell c (n, kv.second->getRawOffset ());
       Cell &nc = mkRetCell (*kv.first, Cell ());
       nc.unify (c);
     }
@@ -1035,7 +1047,7 @@ void dsa::Graph::write (raw_ostream&o) const{
   for (auto &kv: scalarCells) {
     const Cell * C = kv.first;
     if (kv.second.begin() != kv.second.end()) {
-      o << "cell=(" << C->getNode() << "," << C->getOffset () << ")\n";
+      o << "cell=(" << C->getNode() << "," << C->getRawOffset () << ")\n";
       for (const Value* V: kv.second) {
         o << "\t" << *V << "\n";
       }
@@ -1044,7 +1056,7 @@ void dsa::Graph::write (raw_ostream&o) const{
   for (auto &kv: argCells) {
     const Cell * C = kv.first;
     if (kv.second.begin() != kv.second.end()) {
-      o << "cell=(" << C->getNode() << "," << C->getOffset () << ")\n";
+      o << "cell=(" << C->getNode() << "," << C->getRawOffset () << ")\n";
       for (const Argument* A: kv.second) {
         o << "\t" << *A << "\n";
       }
@@ -1053,7 +1065,7 @@ void dsa::Graph::write (raw_ostream&o) const{
   for (auto &kv: retCells) {
     const Cell * C = kv.first;
     if (kv.second.begin() != kv.second.end()) {
-      o << "cell=(" << C->getNode() << "," << C->getOffset () << ")\n";
+      o << "cell=(" << C->getNode() << "," << C->getRawOffset () << ")\n";
       for (const Function* F: kv.second) {
         o << "\t" << "ret("<< F->getName() << ")\n";
       }

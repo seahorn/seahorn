@@ -384,7 +384,7 @@ namespace seahorn
   }
 
   unsigned ShadowMemSeaDsa::getOffset (const Cell &c)
-  {return (SplitFields && !c.getNode()->isCollapsed())? c.getOffset() : 0;}    
+  {return (SplitFields ? c.getOffset() : 0);}    
   
   bool ShadowMemSeaDsa::runOnFunction (Function &F)
   {

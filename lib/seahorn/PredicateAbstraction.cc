@@ -22,6 +22,12 @@
 
 using namespace llvm;
 
+static llvm::cl::opt<std::string>
+UserCandidatesFile ("pa-candidates-file",
+		    llvm::cl::desc ("Read candidates from a file"),
+		    cl::init ("preds_temp"),
+		    cl::Hidden);
+
 namespace seahorn
 {
   char PredicateAbstraction::ID = 0;
@@ -30,67 +36,87 @@ namespace seahorn
   {
     HornifyModule &hm = getAnalysis<HornifyModule> ();
     PredicateAbstractionAnalysis pabs(hm);
-
     Stats::resume ("Pabs solve");
+    
     //load the Horn clause database
     auto &db = hm.getHornClauseDB ();
-    db.buildIndexes ();
+    if (db.hasQuery ()) {
+      bool all_true = true;
+      bool any_false= false;
 
-    //guess candidates
-    pabs.guessCandidate(db);
+      // check for trivial queries
+      for (auto q: db.getQueries ()) {
+	if (!isOpX<TRUE>(q)) all_true = false;
+	if (isOpX<FALSE>(q)) any_false = true;
+      }
 
-    HornDbModel oldModel;
-
-    PredAbsHornModelConverter converter;
-
-    //run main algorithm
-    HornClauseDB new_db(db.getExprFactory());
-    pabs.generateAbstractDB(db, new_db, converter);
-
-    //initialize spacer based on new DB
-    m_fp.reset (new ZFixedPoint<EZ3> (hm.getZContext ()));
-    ZFixedPoint<EZ3> &fp = *m_fp;
-    ZParams<EZ3> params (hm.getZContext ());
-    params.set (":engine", "spacer");
-    // -- disable slicing so that we can use cover
-    params.set (":xform.slice", false);
-    params.set (":use_heavy_mev", true);
-    params.set (":reset_obligation_queue", true);
-    params.set (":pdr.flexible_trace", false);
-    params.set (":xform.inline-linear", false);
-    params.set (":xform.inline-eager", false);
-    // -- disable utvpi. It is unstable.
-    params.set (":pdr.utvpi", false);
-    // -- disable propagate_variable_equivalences in tail_simplifier
-    params.set (":xform.tail_simplifier_pve", false);
-    params.set (":xform.subsumption_checker", true);
-    //		params.set (":order_children", true);
-    //		params.set (":pdr.max_num_contexts", "500");
-    fp.set (params);
-    new_db.loadZFixedPoint (fp, false);
-    boost::tribool result = fp.query ();
-
-    LOG("pabs-smt2", outs() << "SMT2: " << fp << "\n";);
-
-    if (result) outs () << "sat";
-    else if (!result)
-    {
-      outs() << "unsat\n";
-      HornDbModel absModel;
-      initDBModelFromFP(absModel, new_db, fp);
-
-      converter.convert(absModel, oldModel);
-      LOG("pabs-debug", outs() << "FINAL RESULT:\n";);
-      //Print invariants
-      printInvars(M, oldModel);
+      if (all_true) {
+	//outs () << "sat";
+      } else if (any_false) {
+	//outs () << "unsat";
+      } else {
+	db.buildIndexes ();
+	
+	//guess candidates
+	pabs.guessCandidate(db);
+	
+	HornDbModel oldModel;
+	
+	PredAbsHornModelConverter converter;
+	
+	//run main algorithm
+	HornClauseDB new_db(db.getExprFactory());
+	pabs.generateAbstractDB(db, new_db, converter);
+	
+	//initialize spacer based on new DB
+	m_fp.reset (new ZFixedPoint<EZ3> (hm.getZContext ()));
+	ZFixedPoint<EZ3> &fp = *m_fp;
+	ZParams<EZ3> params (hm.getZContext ());
+	params.set (":engine", "spacer");
+	// -- disable slicing so that we can use cover
+	params.set (":xform.slice", false);
+	params.set (":use_heavy_mev", true);
+	params.set (":reset_obligation_queue", true);
+	params.set (":pdr.flexible_trace", false);
+	params.set (":xform.inline-linear", false);
+	params.set (":xform.inline-eager", false);
+	// -- disable utvpi. It is unstable.
+	params.set (":pdr.utvpi", false);
+	// -- disable propagate_variable_equivalences in tail_simplifier
+	params.set (":xform.tail_simplifier_pve", false);
+	params.set (":xform.subsumption_checker", true);
+	//		params.set (":order_children", true);
+	//		params.set (":pdr.max_num_contexts", "500");
+	fp.set (params);
+	new_db.loadZFixedPoint (fp, false);
+	boost::tribool result = fp.query ();
+	
+	LOG("pabs-smt2", outs() << "SMT2: " << fp << "\n";);
+	
+	if (result) {
+	  outs () << "sat";
+	} else if (!result) {
+	  outs() << "unsat\n";
+	  HornDbModel absModel;
+	  initDBModelFromFP(absModel, new_db, fp);
+	  
+	  converter.convert(absModel, oldModel);
+	  LOG("pabs-debug", outs() << "FINAL RESULT:\n";);
+	  //Print invariants
+	  printInvars(M, oldModel);
+	} else {
+	  outs () << "unknown";
+	}
+      }
+    } else {
+      // no query so trivially unsat
+      //outs () << "unsat";      
     }
-    else outs () << "unknown";
     outs () << "\n";
     Stats::stop("Pabs solve");
-
     return false;
   }
-
+  
   void PredicateAbstraction::getAnalysisUsage (AnalysisUsage &AU) const
   {
     AU.addRequired<HornifyModule> ();
@@ -357,7 +383,7 @@ namespace seahorn
       if(bind::isFdecl(rel))
       {
         //ExprVector terms = relToCand(rel);
-        ExprVector terms = applyTemplatesFromExperimentFile(rel, "/home/chenguang/Desktop/seahorn/test/pabs-experiment/preds_temp");
+        ExprVector terms = applyTemplatesFromExperimentFile(rel, UserCandidatesFile);
         m_currentCandidates.insert(std::make_pair(rel, terms));
       }
     }

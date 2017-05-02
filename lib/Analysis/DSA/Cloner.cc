@@ -27,7 +27,7 @@ Node &Cloner::clone (const Node &n)
     // -- resolve any potential forwarding
     kv.second->getNode ();
     // recursively clone the node pointed by the link 
-    Cell nCell (&clone (*kv.second->getNode ()), kv.second->getOffset ());
+    Cell nCell (&clone (*kv.second->getNode ()), kv.second->getRawOffset ());
     // create new link
     nNode.setLink (kv.first, nCell);
   }

@@ -462,7 +462,7 @@ namespace
       n.setArraySize (off.second);
       // result of the gep points into that array at the gep offset
       // plus the offset of the base
-      m_graph.mkCell (gep, dsa::Cell (n, off.first + base.getOffset ()));
+      m_graph.mkCell (gep, dsa::Cell (n, off.first + base.getRawOffset ()));
       // finally, unify array with the node of the base 
       n.unify (*baseNode);
     }      
@@ -580,7 +580,8 @@ namespace
         {
           c.getNode()->setExternal();
           // -- treat external function as allocation
-          c.getNode ()->addAllocSite (*inst);
+	  c.getNode ()->addAllocSite (*inst);
+	  
           // TODO: many more things can be done to handle external
           // TODO: functions soundly and precisely.  An absolutely
           // safe thing is to merge all arguments with return (with

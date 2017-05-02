@@ -61,7 +61,7 @@ namespace seahorn
         
         Cell res = get (*c.getNode ());
         return Cell (res.getNode (),
-                     res.getOffset () + c.getOffset ());
+                     res.getRawOffset () + c.getRawOffset ());
       }
 
       bool empty () const { return m_sim.empty (); }

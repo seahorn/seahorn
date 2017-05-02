@@ -56,7 +56,7 @@ namespace seahorn
       {
         Cell &nc = g.mkCell(*cs.getInstruction(), Cell());
         const Cell& r = g.getRetCell(callee);
-        Cell c (*r.getNode (), r.getOffset ());
+        Cell c (*r.getNode (), r.getRawOffset ());
         nc.unify(c);
       }
 
@@ -222,7 +222,7 @@ namespace seahorn
                                                   callerG.globals_end ()))
       {
         Node &n = C.clone (*kv.second->getNode ());
-        Cell c (n, kv.second->getOffset ());
+        Cell c (n, kv.second->getRawOffset ());
         Cell &nc = calleeG.mkCell (*kv.first, Cell ());
         nc.unify (c);
       }
@@ -232,7 +232,7 @@ namespace seahorn
       if (calleeG.hasRetCell (callee) && callerG.hasCell (*cs.getInstruction ()))
       {
         Node &n = C.clone (*callerG.getCell (*cs.getInstruction ()).getNode());
-        Cell c (n, callerG.getCell (*cs.getInstruction()).getOffset ());
+        Cell c (n, callerG.getCell (*cs.getInstruction()).getRawOffset ());
         Cell &nc = calleeG.getRetCell (callee);
         nc.unify (c);
       }
@@ -247,7 +247,7 @@ namespace seahorn
         if (callerG.hasCell (*arg) && calleeG.hasCell (*fml))
         {
           Node &n = C.clone (*callerG.getCell (*arg).getNode ());
-          Cell c (n, callerG.getCell (*arg).getOffset ());
+          Cell c (n, callerG.getCell (*arg).getRawOffset ());
           Cell &nc = calleeG.mkCell (*fml, Cell ());
           nc.unify (c);
         }

@@ -174,8 +174,11 @@ namespace seahorn
       bool isModified () const;
       
       bool isNull () const { return m_node == nullptr; }
-      Node *getNode () const; 
-      unsigned getOffset () const; 
+      Node *getNode () const;
+      // for internal Dsa use (actual offset)
+      unsigned getRawOffset () const;
+      // for Dsa clients (offset is adjusted based on the node)
+      unsigned getOffset () const;       
 
       void pointTo (Node &n, unsigned offset);
       
@@ -183,7 +186,7 @@ namespace seahorn
       {
         assert (!c.isNull ());
         Node *n = c.getNode ();
-        pointTo (*n, c.getOffset () + offset);
+        pointTo (*n, c.getRawOffset () + offset);
       }
 
       inline bool hasLink (unsigned offset = 0) const;
@@ -447,7 +450,7 @@ namespace seahorn
       /// to. Might be expensive.
       inline Node* getNode ();
       inline const Node* getNode () const;
-      unsigned getOffset () const;
+      unsigned getRawOffset () const;
 
       const types_type &types () const { return m_types; }
       const links_type &links () const { return m_links; }
@@ -557,7 +560,7 @@ namespace std
     {
       size_t seed = 0;
       boost::hash_combine (seed, c.getNode ());
-      boost::hash_combine (seed, c.getOffset ());
+      boost::hash_combine (seed, c.getRawOffset ());
       return seed;
     }
   };

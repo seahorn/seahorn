@@ -19,10 +19,6 @@ DsaCsGlobalAnalysis ("horn-sea-dsa-cs-global",
                    llvm::cl::desc ("DSA: context-sensitive analysis"),
                    llvm::cl::init (true));
 
-static llvm::cl::opt<bool>
-ComputeDsaInfo ("sea-dsa-info",
-                llvm::cl::desc ("DSA: pre-compute information for answering client queries"),
-                llvm::cl::init (false));
 
 static llvm::cl::opt<bool> 
 PrintDsaStats ("horn-dsa-stats",
@@ -52,11 +48,10 @@ bool DsaAnalysis::runOnModule (Module &M)
   
   m_ga->runOnModule (M);
 
-  if (ComputeDsaInfo || PrintDsaStats)
-  {
-    m_ia.reset (new InfoAnalysis (dl, tli, *m_ga, !PrintDsaStats));  
-    m_ia->runOnModule (M);
-  }
+  // XXX after the analysis is run we collect and preprocess some
+  // information for DSA queries
+  m_ia.reset (new InfoAnalysis (dl, tli, *m_ga, PrintDsaStats));  
+  m_ia->runOnModule (M);
 
   return false;
 }

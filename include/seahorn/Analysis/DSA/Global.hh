@@ -25,14 +25,24 @@ namespace seahorn
 {
   namespace dsa
   {
-
+    enum GlobalAnalysisKind {
+      CONTEXT_INSENSITIVE,
+      CONTEXT_SENSITIVE
+    };
+    
     // Common API for global analyses
     class GlobalAnalysis 
     {
+     protected:
+      
+      GlobalAnalysisKind _kind;
+      
      public:
       
-      GlobalAnalysis () { }
+      GlobalAnalysis (GlobalAnalysisKind kind): _kind (kind) { }
 
+      GlobalAnalysisKind kind () const { return _kind;}
+      
       virtual bool runOnModule (Module &M) = 0;
 
       virtual const Graph& getGraph (const Function &F) const = 0;
@@ -68,7 +78,7 @@ namespace seahorn
       ContextInsensitiveGlobalAnalysis (const DataLayout &dl, 
                                         const TargetLibraryInfo &tli,
                                         CallGraph &cg, SetFactory &setFactory) 
-          : GlobalAnalysis (),
+          : GlobalAnalysis (CONTEXT_INSENSITIVE),
             m_dl (dl), m_tli (tli), m_cg (cg), m_setFactory (setFactory), 
             m_graph (nullptr) {}
 
@@ -134,7 +144,7 @@ namespace seahorn
       ContextSensitiveGlobalAnalysis (const DataLayout &dl,
                                       const TargetLibraryInfo &tli,
                                       CallGraph &cg, SetFactory &setFactory) 
-          : GlobalAnalysis (), 
+          : GlobalAnalysis (CONTEXT_SENSITIVE), 
             m_dl(dl), m_tli(tli), m_cg(cg), m_setFactory (setFactory) {}
       
       bool runOnModule (Module &M) override;

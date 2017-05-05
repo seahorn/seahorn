@@ -32,6 +32,8 @@ def main (argv):
             sea.commands.LinkRt(),
             sea.commands.WrapMem(),
             sea.commands.Exe,
+            sea.commands.SeaInspect(),
+            sea.commands.feInspect
     ]
 
 

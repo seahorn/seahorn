@@ -798,6 +798,54 @@ class SeaTerm(sea.LimitedCmd):
             raise IOError(str(e))
 
 
+class SeaInspect(sea.LimitedCmd):
+    def __init__ (self, quiet=False):
+        super (SeaInspect, self).__init__ ('inspect', allow_extra=True)
+        self.help = 'Utilities for program inspection'
+
+    @property
+    def stdout (self):
+        return self.seainspectCmd.stdout
+
+    def mk_arg_parser (self, ap):
+        ap = super (SeaInspect, self).mk_arg_parser (ap)
+        add_in_out_args (ap)
+        ap.add_argument ('--profiler', default=False, action='store_true',
+                         dest='profiling', help='Profile program for static analysis')
+        ap.add_argument ('--cfg-dot', default=False, action='store_true',
+                         dest='cfg_dot', help='Print CFG of all functions to dot format')
+        ap.add_argument ('--cfg-only-dot', default=False, action='store_true',
+                         dest='cfg_only_dot', help='Print CFG of all functions (without instructions) to dot format')
+        ap.add_argument ('--mem-dot', default=False, action='store_true',
+                         dest='mem_dot', help='Print memory graph of all functions to dot format')        
+        ap.add_argument ('--cfg-viewer', default=False, action='store_true',
+                         dest='cfg_viewer', help='View CFG of all functions to dot format')
+        ap.add_argument ('--cfg-only-viewer', default=False, action='store_true',
+                         dest='cfg_only_viewer', help='View CFG of all functions (without instructions) to dot format')
+        ap.add_argument ('--mem-viewer', default=False, action='store_true',
+                         dest='mem_viewer', help='View memory graph of all functions to dot format')
+        return ap
+
+    def run (self, args, extra):
+        cmd_name = which ('seainspect')
+        if cmd_name is None: raise IOError ('seainspect not found')
+        self.seainspectCmd = sea.ExtCmd (cmd_name)
+
+        argv = list()
+
+        if args.profiling: argv.extend (['-profiler'])
+        if args.cfg_dot: argv.extend (['-cfg-dot'])
+        if args.cfg_only_dot: argv.extend (['-cfg-only-dot'])
+        if args.cfg_viewer: argv.extend (['-cfg-viewer'])
+        if args.cfg_only_viewer: argv.extend (['-cfg-only-viewer'])
+        if args.mem_dot: argv.extend (['-mem-dot'])
+        if args.mem_viewer: argv.extend (['-mem-viewer'])                        
+
+        argv.extend (args.in_files)        
+        # pick out extra seahorn options
+        argv.extend (filter (_is_seahorn_opt, extra))
+
+        return self.seainspectCmd.run (args, argv)
 
 
 FrontEnd = sea.SeqCmd ('fe', 'Front end: alias for clang|pp|ms|opt',
@@ -817,3 +865,5 @@ feCrab = sea.SeqCmd ('fe-crab', 'alias for fe|crab', FrontEnd.cmds + [Crab()])
 seaTerm = sea.SeqCmd ('term', 'SeaHorn Termination analysis', Smt.cmds + [SeaTerm()])
 Exe = sea.SeqCmd ('exe', 'alias for clang|pp --strip-extern|pp --internalize|wmem|linkrt',
                   [Clang(), Seapp(strip_extern=True), Seapp(internalize=True), WrapMem(), LinkRt()])
+feInspect = sea.SeqCmd ('fe-inspect', 'alias for fe + seainspect', FrontEnd.cmds + [SeaInspect()])
+                         

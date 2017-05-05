@@ -20,7 +20,8 @@ cmds = [sea.commands.Clang(),
         sea.commands.FrontEnd,
         sea.commands.Clp,
         sea.commands.feCrab,
-        sea.commands.seaTerm]
+        sea.commands.seaTerm,
+        sea.commands.feInspect]
 
 
 cmd = sea.AgregateCmd('sea', cmds)

@@ -62,7 +62,9 @@ namespace seahorn
   llvm::Pass* createCFGOnlyPrinterPass ();
   llvm::Pass* createCFGViewerPass ();
   llvm::Pass* createCFGOnlyViewerPass ();
-
+  llvm::Pass* createDsaPrinterPass ();
+  llvm::Pass* createDsaViewerPass ();  
+  
   llvm::Pass* createKleeInternalizePass ();
 
   llvm::Pass* createWrapMemPass ();  

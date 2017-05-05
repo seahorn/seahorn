@@ -9,6 +9,7 @@ add_llvm_library (SeaDsaAnalysis
   DsaBottomUp.cc
   DsaCallGraph.cc
   DsaAnalysis.cc
+  DsaPrinter.cc	
   )
 
 ## DsaInfo requires NameValues 

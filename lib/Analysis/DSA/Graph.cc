@@ -539,7 +539,6 @@ void dsa::Node::write(raw_ostream&o) const {
   {
     /// XXX: we print here the address. Therefore, it will change from
     /// one run to another.
-
     o << "Node " << this << ": ";
     o << "flags=[" << m_nodeType.toStr() << "] ";
     o << "size=" << size () << " ";
@@ -552,7 +551,8 @@ void dsa::Node::write(raw_ostream&o) const {
         o << ",";
       else 
         first = false;
-      o << kv.first << ":" << kv.second->getNode();
+      o << kv.first << "->"
+	<< "(" << kv.second->getOffset () << "," << kv.second->getNode () << ")" ;
     }
     o << "] ";
     first = true;
@@ -681,6 +681,12 @@ dsa::Node &dsa::Graph::cloneNode (const Node &n)
   m_nodes.push_back (std::unique_ptr<Node> (new Node (*this, n, false)));
   return *m_nodes.back ();
 }
+
+dsa::Graph::iterator dsa::Graph::begin()
+{ return boost::make_indirect_iterator(m_nodes.begin()); }
+
+dsa::Graph::iterator dsa::Graph::end() 
+{ return boost::make_indirect_iterator(m_nodes.end()); }
 
 dsa::Graph::const_iterator dsa::Graph::begin() const
 { return boost::make_indirect_iterator(m_nodes.begin()); }

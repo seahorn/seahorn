@@ -34,6 +34,10 @@ namespace seahorn
     class FunctionalMapper;
     class DsaCallSite;
 
+    // Data structure graph traversal iterator
+    template<typename T>
+    class NodeIterator;          
+    
     class Graph
     {
       friend class Node;
@@ -82,10 +86,13 @@ namespace seahorn
       Node &cloneNode (const Node &n);
 
       /// iterate over nodes
-      typedef boost::indirect_iterator<typename NodeVector::const_iterator> const_iterator; 
+      typedef boost::indirect_iterator<typename NodeVector::const_iterator> const_iterator;
+      typedef boost::indirect_iterator<typename NodeVector::iterator> iterator; 
       const_iterator begin() const;
       const_iterator end() const;
-
+      iterator begin();
+      iterator end();
+      
       /// iterate over scalars
       typedef ValueMap::const_iterator scalar_const_iterator; 
       scalar_const_iterator scalar_begin() const;
@@ -129,7 +136,7 @@ namespace seahorn
       /// XXX: we might want to make the last argument a template
       /// parameter but then the definition should be in a header file.
       static bool computeCalleeCallerMapping (const DsaCallSite &cs, 
-                                              Graph& calleeG, Graph& callerG,                                             
+                                              Graph& calleeG, Graph& callerG,
                                               SimulationMapper& simMap,
 					      const bool reportIfSanityCheckFailed = true);
       
@@ -221,6 +228,9 @@ namespace seahorn
 
       friend class FunctionalMapper;
       friend class SimulationMapper;
+
+    public:
+      
       struct NodeType
       {
         unsigned shadow:1;
@@ -317,10 +327,27 @@ namespace seahorn
       /// When the node is forwarding, the memory cell at which the
       /// node begins in some other memory object
       Cell m_forward;
+      
+    public:
 
       typedef Graph::Set Set;
-      typedef boost::container::flat_map<unsigned,  Set> types_type;
+      typedef boost::container::flat_map<unsigned,  Set> types_type;      
       typedef boost::container::flat_map<unsigned, CellRef> links_type;
+
+      // Iterator for graph interface... Defined in GraphTraits.h
+      typedef NodeIterator<Node> iterator;
+      typedef NodeIterator<const Node> const_iterator;
+      iterator begin();
+      iterator end();
+      const_iterator begin() const;
+      const_iterator end() const;
+
+      NodeType getNodeType () const {
+	return m_nodeType;
+      }
+      
+    private:
+      
       /// known type of every offset/field
       types_type m_types;
       /// destination of every offset/field
@@ -452,7 +479,9 @@ namespace seahorn
       inline const Node* getNode () const;
       unsigned getRawOffset () const;
 
+      types_type &types () { return m_types; }
       const types_type &types () const { return m_types; }
+      links_type &links () { return m_links; }
       const links_type &links () const { return m_links; }
 
       unsigned size () const { return m_size; }

@@ -54,7 +54,7 @@ CfgDot("cfg-dot",
 
 static llvm::cl::opt<bool>
 CfgOnlyDot("cfg-only-dot",
-           llvm::cl::desc("Print CFG of function (with no function bodies) to dot format"),
+           llvm::cl::desc("Print CFG of function (without instructions) to dot format"),
            llvm::cl::init(false));
 
 
@@ -65,14 +65,18 @@ CfgViewer("cfg-viewer",
 
 static llvm::cl::opt<bool>
 CfgOnlyViewer("cfg-only-viewer",
-              llvm::cl::desc("View CFG of function (with no function bodies)"),
+              llvm::cl::desc("View CFG of function (without instructions)"),
               llvm::cl::init(false));
 
 static llvm::cl::opt<bool>
-RunDsa("dsa",
-       llvm::cl::desc("Print an abstraction of the heap"),
+MemDot("mem-dot",
+       llvm::cl::desc("Print memory graph of a function to dot format"),
        llvm::cl::init(false));
 
+static llvm::cl::opt<bool>
+MemViewer("mem-viewer",
+	  llvm::cl::desc("View memory graph of a function to dot format"),
+	  llvm::cl::init(false));
 
 int main(int argc, char **argv) {
 
@@ -122,9 +126,17 @@ int main(int argc, char **argv) {
     pass_manager.add (llvm::createLintPass ());
   }
 
+  
   if (!ApiConfig.empty())
     pass_manager.add(seahorn::createApiAnalysisPass(ApiConfig));
 
+  // XXX: run Dsa passes before CFG passes
+  if (MemDot)
+    pass_manager.add (seahorn::createDsaPrinterPass ());
+  
+  if (MemViewer)
+    pass_manager.add (seahorn::createDsaViewerPass ());
+  
   if (Profiler)
     pass_manager.add (seahorn::createProfilerPass ());
 
@@ -140,11 +152,6 @@ int main(int argc, char **argv) {
   if (CfgOnlyViewer)
     pass_manager.add (seahorn::createCFGOnlyViewerPass ());
 
-  // XXX: for now we just call the analysis pass.
-  // Later we will have a pass that call this analysis pass and do
-  // some pretty printer of the heap.
-  if (RunDsa)
-    pass_manager.add (new seahorn::dsa::DsaAnalysis ());
 
   pass_manager.run(*module.get());
 

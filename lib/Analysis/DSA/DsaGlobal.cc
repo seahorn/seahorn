@@ -31,12 +31,14 @@
 static llvm::cl::opt<bool>
 normalizeUniqueScalars("horn-sea-dsa-norm-unique-scalar",
                        llvm::cl::desc("DSA: all callees and callers agree on unique scalars"),
-                       llvm::cl::init (true));
+                       llvm::cl::init (true),
+		       llvm::cl::Hidden);
 
 static llvm::cl::opt<bool>
 normalizeAllocaSites("horn-sea-dsa-norm-alloca-sites",
                      llvm::cl::desc("DSA: all callees and callers agree on allocation sites"),
-                     llvm::cl::init (true));
+                     llvm::cl::init (true),
+		     llvm::cl::Hidden);
 
 using namespace llvm;
 

@@ -50,17 +50,26 @@ bool InfoAnalysis::is_alive_node::operator()(const NodeInfo& n)
 void InfoAnalysis::addMemoryAccess (const Value* v, Graph& g, const Instruction &I) 
 {
   v = v->stripPointerCasts();
+
+  if (isStaticallyKnown (&m_dl, &m_tli, v)) return;
+  
   if (!g.hasCell(*v)) {
     // sanity check
     if (v->getType()->isPointerTy())
       errs () << "WARNING DsaInfo: pointer value " << *v << " has not cell\n";
     return;
   }
+
+  if (isa<GlobalValue>(v)) {
+    // DSA pretends all global variables have a node by creating a new
+    // fresh node each time getCell is called.
+    return;
+  }
   
   const Cell &c = g.getCell (*v);
   Node *n = c.getNode();
   auto it = m_nodes_map.find (n);
-  if (it != m_nodes_map.end () && !isStaticallyKnown (&m_dl, &m_tli, v)) {
+  if (it != m_nodes_map.end ()) {
     ++(it->second);
     #if 0
     if (c.getNode()->getAllocSites ().size () == 0) {

@@ -28,6 +28,10 @@ InputFilename(llvm::cl::Positional, llvm::cl::desc("<input LLVM bitcode file>"),
               llvm::cl::Required, llvm::cl::value_desc("filename"));
 
 static llvm::cl::opt<std::string>
+AsmOutputFilename("oll", llvm::cl::desc("Output analyzed bitcode"),
+               llvm::cl::init(""), llvm::cl::value_desc("filename"));
+
+static llvm::cl::opt<std::string>
 ApiConfig("api-config",
          llvm::cl::desc("Comma separated API function calls"),
          llvm::cl::init(""), llvm::cl::value_desc("api-string"));
@@ -92,6 +96,7 @@ int main(int argc, char **argv) {
   llvm::SMDiagnostic err;
   llvm::LLVMContext &context = llvm::getGlobalContext();
   std::unique_ptr<llvm::Module> module;
+  std::unique_ptr<llvm::tool_output_file> asmOutput;
 
   module = llvm::parseIRFile(InputFilename, err, context);
   if (module.get() == 0)
@@ -103,6 +108,23 @@ int main(int argc, char **argv) {
     return 3;
   }
 
+  if (!AsmOutputFilename.empty ())
+    asmOutput =
+      llvm::make_unique<llvm::tool_output_file>(AsmOutputFilename.c_str(), error_code,
+                                                llvm::sys::fs::F_Text);
+  if (error_code) {
+    if (llvm::errs().has_colors())
+      llvm::errs().changeColor(llvm::raw_ostream::RED);
+    llvm::errs() << "error: Could not open " << AsmOutputFilename << ": "
+                 << error_code.message () << "\n";
+    if (llvm::errs().has_colors()) llvm::errs().resetColor();
+    return 3;
+  }
+
+  ///////////////////////////////
+  // initialise and run passes //
+  ///////////////////////////////
+  
   llvm::PassManager pass_manager;
 
   llvm::PassRegistry &Registry = *llvm::PassRegistry::getPassRegistry();
@@ -153,7 +175,13 @@ int main(int argc, char **argv) {
     pass_manager.add (seahorn::createCFGOnlyViewerPass ());
 
 
+  if (!AsmOutputFilename.empty ())
+    pass_manager.add (createPrintModulePass (asmOutput->os ()));
+  
   pass_manager.run(*module.get());
 
+  if (!AsmOutputFilename.empty ())
+    asmOutput->keep ();
+  
   return 0;
 }

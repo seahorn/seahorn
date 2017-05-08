@@ -3,6 +3,7 @@
 #include "llvm/ADT/GraphTraits.h"
 #include "llvm/Support/DOTGraphTraits.h"
 #include "llvm/Support/GraphWriter.h"
+#include "llvm/Support/CommandLine.h"
 
 #include "seahorn/Analysis/DSA/DsaAnalysis.hh"
 #include "seahorn/Analysis/DSA/Info.hh"
@@ -10,9 +11,16 @@
 
 #include "avy/AvyDebug.h"
 
+
 /*
    Convert each DSA graph to .dot file.
  */
+
+static llvm::cl::opt<std::string>
+OutputDir("mem-dot-outdir",
+	  llvm::cl::desc("Output directory for dot files"),
+	  llvm::cl::init(""),
+	  llvm::cl::value_desc("DIR"));
 
 
 namespace seahorn {
@@ -563,10 +571,21 @@ namespace seahorn {
   namespace dsa {
 
     using namespace llvm;
-   
+
+    static std::string appendOutDir (std::string FileName) {
+      if (!OutputDir.empty ()) {
+	if (!llvm::sys::fs::create_directory (OutputDir)) {
+	  std::string FullFileName = OutputDir + "/" + FileName;
+	  return FullFileName;
+	}
+      }
+      return FileName;
+    }
+    
     static bool writeGraph (Graph *G, std::string Filename) {
+      std::string FullFilename = appendOutDir (Filename);
       std::error_code EC;
-      raw_fd_ostream File(Filename, EC, sys::fs::F_Text);
+      raw_fd_ostream File(FullFilename, EC, sys::fs::F_Text);
       if (!EC) {
 	//llvm::WriteGraph(File, G);
 	seahorn::WriteGraph(File, G);
@@ -575,6 +594,7 @@ namespace seahorn {
       }
       return false;
     }
+
     
     struct DsaPrinter : public ModulePass {
       static char ID; 

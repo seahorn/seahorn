@@ -817,7 +817,9 @@ class SeaInspect(sea.LimitedCmd):
         ap.add_argument ('--cfg-only-dot', default=False, action='store_true',
                          dest='cfg_only_dot', help='Print CFG of all functions (without instructions) to dot format')
         ap.add_argument ('--mem-dot', default=False, action='store_true',
-                         dest='mem_dot', help='Print memory graph of all functions to dot format')        
+                         dest='mem_dot', help='Print memory graph of all functions to dot format')
+        ap.add_argument ('--dot-outdir', default="", type=str, metavar='DIR', 
+                         dest='dot_outdir', help='Directory to store all dot files')
         ap.add_argument ('--cfg-viewer', default=False, action='store_true',
                          dest='cfg_viewer', help='View CFG of all functions to dot format')
         ap.add_argument ('--cfg-only-viewer', default=False, action='store_true',
@@ -840,6 +842,9 @@ class SeaInspect(sea.LimitedCmd):
         if args.cfg_only_viewer: argv.extend (['-cfg-only-viewer'])
         if args.mem_dot: argv.extend (['-mem-dot'])
         if args.mem_viewer: argv.extend (['-mem-viewer'])                        
+        if args.mem_dot or args.mem_viewer:
+            if args.dot_outdir is not "":
+                argv.extend(['--mem-dot-outdir={0}'.format(args.dot_outdir)])
 
         argv.extend (args.in_files)        
         # pick out extra seahorn options

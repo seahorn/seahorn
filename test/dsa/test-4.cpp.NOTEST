@@ -1,0 +1,61 @@
+#define N 10
+
+#ifdef __cplusplus
+extern "C" {
+#endif        
+extern void __VERIFIER_error (void);
+extern void __VERIFIER_assume (int);
+#ifdef __cplusplus
+}
+#endif
+#define sassert(X) if(!(X)) __VERIFIER_error ()
+
+struct A {
+  int _x;
+  A (int x): _x(x) { }
+};
+
+
+struct B: public A {
+  int  _y1;
+  int _y2[2];
+  B (int x, int y1): A(x), _y1(y1) {
+    // for (int i=0;i<2;i++) {
+    //   _y2[i] = 0;
+    // }
+  }
+};
+
+struct C: public A {
+  int  _z1;
+  int _z2[8];
+  C (int x, int z1): A(x), _z1(z1) {
+    // for (int i=0;i<8;i++) {
+    //   _z2[i] = 0;
+    // }
+  }
+};
+
+
+extern int nd ();
+// A* p[N];
+
+// void foo () {
+//   for (int i=0; i < N; i++) {
+//     if (nd ())
+//       p[i] = new B (3*i, 3*i);
+//     else
+//       p[i] = new C (5*i, 5*i);
+//   }
+// }
+
+int main (int argc, char**argv) {
+  //foo ();
+  //B* q = (B *) p[2];
+  B* b = new B(nd(), nd());
+  C* c = new C(nd(), nd());
+  return b->_y1 + c->_z1;
+  //sassert (q->_y1 >= 0);
+  //return q->_y1;
+}
+

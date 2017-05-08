@@ -1,0 +1,20 @@
+digraph unnamed {
+	graph [center=true, ratio=true, bgcolor=lightgray, fontname=Helvetica];
+	node  [fontname=Helvetica, fontsize=11];
+
+	Node0x7fa52140c520 [shape=record,label="{\{void\}:S}"];
+	Node0x7fa52140c5d0 [shape=record,label="{\{0:i32\}:SMR}"];
+	Node0x7fa52140c780 [shape=record,label="{\{0:i32\}:SMR}"];
+	Node0x7fa521409c68[  label ="x.y"];
+	Node0x7fa521409c68 -> Node0x7fa52140c5d0[arrowtail=tee,color=gray63];
+	Node0x7fa5214099f8[  label ="y"];
+	Node0x7fa5214099f8 -> Node0x7fa52140c5d0[arrowtail=tee,color=gray63];
+	Node0x7fa521409988[  label ="x"];
+	Node0x7fa521409988 -> Node0x7fa52140c5d0[arrowtail=tee,color=gray63];
+	Node0x7fa521409ad8[  label ="z"];
+	Node0x7fa521409ad8 -> Node0x7fa52140c780[arrowtail=tee,color=gray63];
+	Node0x7fa521409a68[  label ="w"];
+	Node0x7fa521409a68 -> Node0x7fa52140c780[arrowtail=tee,color=gray63];
+	Node0x7fa521409820[ color=blue, label ="main#1"];
+	Node0x7fa521409820 -> Node0x7fa52140c520[tailclip=false,color=gray63];
+}

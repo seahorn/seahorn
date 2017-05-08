@@ -1,0 +1,50 @@
+#include <stdio.h>
+
+extern int nd ();
+int* a = NULL;
+int* b = NULL;
+
+void f ( int *x , int *y ) {
+  *x = 1 ; *y = 2 ;
+//#ifdef GLOBAL
+//printf ("%p\n", a);
+//#endif 
+}
+
+void g (int *p , int *q , int *r , int *s) {
+  f (p,q) ;
+  f (r,s);
+  // If GLOBAL then we lose context-sensitivity after analyzing f(r,s).
+  // The reason is that after the first call to f, the global b points
+  // to the same node than x,y.  When we analyze for the second time
+  // f, we will have a fresh graph with b,x',and y' where they point
+  // to the same node. After unification x,y,x',y' point to the same
+  // node (losing context-sensitivity) via b.
+  // 
+  // If GLOBAL is disabled we have x,y pointing to a different node than
+  // x',y' so that's why some context-sensitivity is preserved.
+
+#ifdef GLOBAL
+  printf ("%p\n", b);
+#endif 
+}
+
+int main (int argc, char**argv){
+
+  int x;
+  int y;
+  int w;
+  int z;
+
+#ifdef GLOBAL
+  /*int **/a = &x;
+  /*int **/b = &y;
+#else
+  int *a = &x;
+  int *b = &y;
+#endif 
+  if (nd ()) a = b;
+  
+  g(a, b, &w, &z);
+  return x + y + w + z;
+}

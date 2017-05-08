@@ -1,0 +1,31 @@
+digraph unnamed {
+	graph [center=true, ratio=true, bgcolor=lightgray, fontname=Helvetica];
+	node  [fontname=Helvetica, fontsize=11];
+
+	Node0x7f947a40c0d0 [shape=record,label="{\{0:i32\}:SMR}"];
+	Node0x7f947a40c490 [shape=record,label="{\{void\}:S}"];
+	Node0x7f947a409c68[  label ="x.y"];
+	Node0x7f947a409c68 -> Node0x7f947a40c0d0[arrowtail=tee,color=gray63];
+	Node0x7f947a4099f8[  label ="y"];
+	Node0x7f947a4099f8 -> Node0x7f947a40c0d0[arrowtail=tee,color=gray63];
+	Node0x7f947a409988[  label ="x"];
+	Node0x7f947a409988 -> Node0x7f947a40c0d0[arrowtail=tee,color=gray63];
+	Node0x7f947a409ad8[  label ="z"];
+	Node0x7f947a409ad8 -> Node0x7f947a40c0d0[arrowtail=tee,color=gray63];
+	Node0x7f947a409a68[  label ="w"];
+	Node0x7f947a409a68 -> Node0x7f947a40c0d0[arrowtail=tee,color=gray63];
+	Node0x7f947a409420[ color=blue, label ="g#3"];
+	Node0x7f947a409420 -> Node0x7f947a40c0d0[tailclip=false,color=gray63];
+	Node0x7f947a409820[ color=blue, label ="main#1"];
+	Node0x7f947a409820 -> Node0x7f947a40c490[tailclip=false,color=gray63];
+	Node0x7f947a407580[ color=blue, label ="f#1"];
+	Node0x7f947a407580 -> Node0x7f947a40c0d0[tailclip=false,color=gray63];
+	Node0x7f947a407540[ color=blue, label ="f#0"];
+	Node0x7f947a407540 -> Node0x7f947a40c0d0[tailclip=false,color=gray63];
+	Node0x7f947a4093a0[ color=blue, label ="g#1"];
+	Node0x7f947a4093a0 -> Node0x7f947a40c0d0[tailclip=false,color=gray63];
+	Node0x7f947a4093e0[ color=blue, label ="g#2"];
+	Node0x7f947a4093e0 -> Node0x7f947a40c0d0[tailclip=false,color=gray63];
+	Node0x7f947a409360[ color=blue, label ="g#0"];
+	Node0x7f947a409360 -> Node0x7f947a40c0d0[tailclip=false,color=gray63];
+}

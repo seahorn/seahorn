@@ -7,7 +7,8 @@ ifeq ($(LIT),)
 else
 	${LIT} --param=test_dir=./simple  ./simple  -v -o ${OUT_LOG}
 	${LIT} --param=test_dir=./predabs ./predabs -v -o ${OUT_LOG}
-	${LIT} --param=test_dir=./solve   ./solve   -v -o ${OUT_LOG} 
+	${LIT} --param=test_dir=./solve   ./solve   -v -o ${OUT_LOG}
+	${LIT} --param=test_dir=./dsa     ./dsa     -v -o ${OUT_LOG} 
 endif
 
 clean:

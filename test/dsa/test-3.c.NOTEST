@@ -1,0 +1,25 @@
+struct node {
+  int* head;
+  struct node * next;
+};
+typedef struct node* List;
+
+struct foo {
+  int size;
+  List l;
+};
+
+typedef struct foo* Foo;
+
+extern Foo mkFoo (int sz);
+
+int main (){
+  Foo f = mkFoo (5);
+  List p = f->l;
+  int acc = 0;
+  while (p) {
+    acc += *(p->head);
+    p=p->next;
+  }
+  return acc;
+}   

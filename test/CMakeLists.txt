@@ -25,3 +25,11 @@ add_lit_testsuite(test-solve "Regression test on Predicate Abstraction"
    test_dir=${CMAKE_CURRENT_BINARY_DIR}
    DEPENDS seahorn
    )
+   
+add_lit_testsuite(test-dsa "Regression test for DSA"
+  -v
+  ${CMAKE_CURRENT_SOURCE_DIR}/dsa
+  PARAMS
+  test_dir=${CMAKE_CURRENT_BINARY_DIR}
+  DEPENDS seahorn
+  )

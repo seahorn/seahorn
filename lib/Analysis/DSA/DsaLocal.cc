@@ -819,6 +819,8 @@ namespace seahorn
 
       g.compress ();
 
+      g.remove_dead ();
+      
       LOG ("dsa",
            // --- Sanity check
            for (auto &kv: boost::make_iterator_range(g.scalar_begin(),

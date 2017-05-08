@@ -80,6 +80,9 @@ namespace seahorn
       /// remove all forwarding nodes
       void compress ();
 
+      /// remove all dead nodes
+      void remove_dead ();
+      
       /// -- allocates a new node
       Node &mkNode ();
 

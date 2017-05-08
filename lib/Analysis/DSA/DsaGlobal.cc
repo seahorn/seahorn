@@ -136,7 +136,8 @@ namespace seahorn
         }
         m_graph->compress();
       }
-
+      m_graph->remove_dead ();
+      
       ufo::Stats::stop ("CI-DsaAnalysis");
 
       LOG ("dsa-global-graph", 
@@ -276,7 +277,7 @@ namespace seahorn
     propagateTopDown (const DsaCallSite& cs, Graph &callerG, Graph& calleeG) 
     {
       cloneAndResolveArguments (cs, callerG, calleeG);
-
+      
       LOG("dsa-global",
           if (decidePropagation (cs, calleeG, callerG) == DOWN)
           {
@@ -291,7 +292,7 @@ namespace seahorn
     propagateBottomUp (const DsaCallSite& cs, Graph &calleeG, Graph& callerG) 
     {
       BottomUpAnalysis::cloneAndResolveArguments (cs, calleeG, callerG);
-      
+
       LOG("dsa-global",
           if (decidePropagation (cs, calleeG, callerG) == UP)
           {
@@ -410,7 +411,11 @@ namespace seahorn
         CallGraphClosure<ContextSensitiveGlobalAnalysis, AllocaSite> asa (*this, dsaCG);
         asa.runOnModule (M);
       }
-        
+
+      // Removing dead nodes (if any)
+      for (auto &kv : m_graphs) 
+	kv.second->remove_dead ();
+            
       LOG ("dsa-global-graph", 
            for (auto &kv : m_graphs) 
            {
@@ -418,7 +423,7 @@ namespace seahorn
              kv.second->write (errs ());
              errs () << "\n";
            });
-           
+
       LOG("dsa-global", errs () << "Finished context-sensitive global analysis\n");
 
       ufo::Stats::stop ("CS-DsaAnalysis");          

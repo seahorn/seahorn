@@ -760,6 +760,60 @@ void dsa::Graph::compress ()
                  m_nodes.end ());
 }
 
+// pre: the graph has been compressed already
+void dsa::Graph::remove_dead () {
+  LOG("dsa-dead", errs () << "Removing dead nodes ...\n";);
+  
+  std::set<const Node*> reachable;
+  
+  // --- collect all nodes referenced by scalars
+  for (auto &kv : m_values) {
+    const Cell* C = kv.second.get ();
+    if (reachable.insert(C->getNode()).second) {
+      LOG("dsa-dead", errs () << "\treachable node " << C->getNode () << "\n";);
+    }
+  }
+
+  // --- collect all nodes referenced by formal parameters
+  for (auto &kv : m_formals) {
+    const Cell* C = kv.second.get();
+    if (reachable.insert(C->getNode()).second) {
+      LOG("dsa-dead", errs () << "\treachable node " << C->getNode () << "\n";);
+    }
+  }
+  
+  // --- collect all nodes referenced by return parameters
+  for (auto &kv : m_returns) {
+    const Cell* C = kv.second.get();
+    if (reachable.insert(C->getNode()).second) {
+      LOG("dsa-dead", errs () << "\treachable node " << C->getNode () << "\n";);
+    }
+  }
+
+  // --- compute all reachable nodes from referenced nodes
+  std::vector<const Node*> worklist (reachable.begin(), reachable.end ());
+  while (!worklist.empty()) {
+    auto n = worklist.back();
+    worklist.pop_back();
+    for (auto &kv : n->links ()) {
+      auto s = kv.second->getNode ();
+      if (reachable.insert(s).second) {
+	worklist.push_back (s);
+	LOG("dsa-dead", errs () << "\t" << s << " reachable from " << n << "\n";);
+      }
+    }
+  }
+     
+  // -- remove unreachable nodes using remove-erase idiom
+  m_nodes.erase (std::remove_if (m_nodes.begin(), m_nodes.end(),
+                                 [reachable] (const std::unique_ptr<Node> &n)
+                                 { LOG("dsa-dead",
+				       if (reachable.count(&*n) == 0)
+					 errs () << "\tremoving dead " << &*n << "\n";);
+				   return (reachable.count(&*n) == 0);}),
+                 m_nodes.end ());
+}
+
 dsa::Cell &dsa::Graph::mkCell (const llvm::Value &u, const Cell &c)
 {
   auto &v = *u.stripPointerCasts ();
@@ -991,14 +1045,10 @@ void dsa::Graph::write (raw_ostream&o) const{
   typedef DenseMap<const Cell*, ArgSet> CellArgMap;
   typedef DenseMap<const Cell*, FuncSet> CellRetMap;
 
-  // -- here all nodes referenced by scalars, formals, or returns
-  NodeSet refNodes;
-
   // --- collect all nodes and cells referenced by scalars
   CellValMap scalarCells;
   for (auto &kv : m_values) {
     const Cell* C = kv.second.get ();
-    refNodes.insert(C->getNode());
     auto it = scalarCells.find(C);
     if (it == scalarCells.end()) {
       ValSet S;
@@ -1014,7 +1064,6 @@ void dsa::Graph::write (raw_ostream&o) const{
   CellArgMap argCells;
   for (auto &kv : m_formals) {
     const Cell* C = kv.second.get();
-    refNodes.insert(C->getNode());
     auto it = argCells.find(C);
     if (it == argCells.end()) {
       ArgSet S;
@@ -1029,7 +1078,6 @@ void dsa::Graph::write (raw_ostream&o) const{
   CellRetMap retCells;
   for (auto &kv : m_returns) {
     const Cell* C = kv.second.get();
-    refNodes.insert(C->getNode());
     auto it = retCells.find(C);
     if (it == retCells.end()) {
       FuncSet S;
@@ -1040,9 +1088,9 @@ void dsa::Graph::write (raw_ostream&o) const{
     }
   }
 
-  // --- print referenced nodes
+  // --- print all nodes
   o << "=== NODES\n";
-  for (auto N: refNodes) {
+  for (auto &N: m_nodes) {
     N->write(o);
     o << "\n";
   }

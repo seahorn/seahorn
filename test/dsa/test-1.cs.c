@@ -2,7 +2,6 @@
 // RUN: %cmp-graphs %tests/test-1.cs.c.main.mem.dot %T/test-1.cs.c/main.mem.dot | OutputCheck %s -d
 // CHECK: ^OK$
 
-#include <stdio.h>
 
 extern int nd ();
 void f ( int *x , int *y ) {

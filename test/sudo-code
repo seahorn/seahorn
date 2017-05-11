@@ -1,0 +1,88 @@
+runICE()
+{
+  setupC5()
+  guessInitialCandidate()
+  learnInv()
+}
+
+setupC5()
+{
+  lowerInterval = 2
+  upperInterval = 2
+
+  for each predicate p:
+  {
+    for each variable v in p.args:
+    {
+      if v is INT or v is BOOL:
+      {
+        write v as an attribute into C5.names file
+        upInterval++
+      }
+      for each INT pair (a,b):
+      {
+        write a+b, a-b as attributes into C5.names file
+        upInterval += 2
+      }
+      else:
+      {
+        print 'DO NOT SUPPORT THIS TYPE!'
+      }
+    }
+    write lowerInterval and upperInterval into C5.intervals file
+    lowerInterval = upperInterval
+    upperInterval = lowerInterval
+  }  
+}
+
+guessInitialCandidate()
+{
+  for each predicate p:
+  {
+    cand = true
+    cand_model.addDef(p, cand)
+  }
+}
+
+learnInv()
+{
+  put all horn rules into worklist
+  while worklist is not empty:
+  {
+    pick out one rule r
+    head = r.head()
+    body = r.body()
+    vc = !head AND body
+    replace each predicate in vc with its candidate, get vc'
+    
+    isValid = validateRule(r)
+    if(isValid)
+    {
+      continue
+    }
+    else
+    {
+      get model m from solver
+      extract attributes value from m             //?
+      extract implication pairs like (dp1 -> dp2) //?
+      add attributes as counter examples into C5.data file
+      C5learn()
+      add dependent rules back to worklist, including itself
+    }
+  }
+}
+
+C5learn()
+{
+  generateC5DataAndImplfiles()
+  call C5 terminal command
+  parse the result tree from C5.json file
+  convert the result tree to invariant
+  update the cand_model
+}
+
+generateC5DataAndImplfiles()
+{
+  write all counter-exmaples into C5.data file
+  write all implications into C5.implications file
+}

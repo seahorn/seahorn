@@ -22,7 +22,7 @@ before_install:
 install:
   - until sudo apt-get -qq install libboost-all-dev libboost-test-dev libboost-program-options-dev; do echo retry; done
   - until sudo apt-get -qq update; do echo retry; done
-  - until sudo apt-get -qq install libstdc++-5; do echo retry; done
+  - until sudo apt-get -qq install libstdc++5; do echo retry; done
   - if [[ $CMAKE_CXX_COMPILER == g++-5 ]]; then until sudo apt-get -qq install g++-5; do echo retry; done fi
   - wget --no-verbose --output-document=boost-trunk.tar.bz2 http://sourceforge.net/projects/boost/files/boost/1.55.0/boost_1_55_0.tar.bz2/download
   - export BOOST_ROOT="$TRAVIS_BUILD_DIR/../boost-trunk"

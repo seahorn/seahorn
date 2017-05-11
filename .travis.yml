@@ -34,8 +34,7 @@ install:
   - cd ..
   - export LZ="$TRAVIS_BUILD_DIR/../lz"
   - mkdir -p $LZ
-  - wget --output-document=llvm-z3.tar.gz https://www.dropbox.com/s/cipjz38k3boyd1v/llvm-3.6-z3.tar.gz?dl=1;
-  
+  - wget --output-document=llvm-z3.tar.gz https://www.dropbox.com/s/la0fqi5bhv5a6hi/llvm-3.6-z3.tar.gz?dl=0;
   - tar xvf llvm-z3.tar.gz -C $LZ;
   - ls $LZ
   - sudo pip install lit

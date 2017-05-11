@@ -57,13 +57,11 @@ namespace seahorn
 
 #include <crab_llvm/CfgBuilder.hh>
 #include <crab_llvm/CrabLlvm.hh>
-#include <crab_llvm/AbstractDomains.hh>
 
 namespace crab_llvm
 {
   using namespace llvm;
   using namespace expr;
-  using namespace crab::cfg_impl;
   using namespace seahorn;
 
   // Conversion from linear constraints to Expr.
@@ -596,7 +594,6 @@ namespace crab_llvm
 namespace seahorn
 {
   using namespace llvm;
-  using namespace crab::cfg_impl;
   using namespace crab_llvm;
   using namespace expr;
 

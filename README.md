@@ -14,48 +14,50 @@
 </table>
 
 
-
-#About#
+# About #
 
 <a href="http://seahorn.github.io/">SeaHorn</a> is an automated analysis framework for LLVM-based languages.
 
-#License#
+# License #
+
 <a href="http://seahorn.github.io/">SeaHorn</a> is distributed under a modified BSD license. See [license.txt](license.txt) for details.
 
-#Installation#
+# Installation #
 
 * `cd seahorn ; mkdir build ; cd build`
-* `cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=run ../ `
-* (optional) `cmake --build . --target extra` to download extra packages
+* `cmake -DCMAKE_INSTALL_PREFIX=run ../ `
 * `cmake --build .` to build dependencies (Z3 and LLVM)
-* (optional) `cmake --build .` to build extra packages (crab-llvm)
-* `cmake --build .` to build seahorn
-* `cmake --build . --target install` to install everything in `run` directory
+* (optional) `cmake --build . --target extra && cmake ..` to download extra packages
+* (optional) `cmake --build . --target crab && cmake ..` to configure crab-llvm (if `extra` target was run)
+* `cmake --build . --target install` to build seahorn and install everything in `run` directory
 
 SeaHorn and dependencies are installed in `build/run`
 
-Optional components can be installed individually as well:
+Optional components can be installed individually (or even better via `extra` target) as well:
 
-* [dsa-seahorn](https://github.com/seahorn/dsa-seahorn): ``` git clone https://github.com/seahorn/dsa-seahorn.git ```
+* [dsa-seahorn](https://github.com/seahorn/dsa-seahorn): `git clone https://github.com/seahorn/dsa-seahorn.git`
 
-* [crab-llvm](https://github.com/seahorn/crab-llvm): ``` git clone https://github.com/seahorn/crab-llvm.git```
+  `dsa-seahorn` is the legacy DSA implementation from
+  [PoolAlloc](https://llvm.org/svn/llvm-project/poolalloc/). DSA is
+  used by SeaHorn to disambiguate the heap. Recently, we have added a
+  new DSA-based pointer analysis implemented inside SeaHorn that can
+  be used by adding option `--horn-sea-dsa`.
 
-* [llvm-seahorn](https://github.com/seahorn/llvm-seahorn): ``` git clone https://github.com/seahorn/llvm-seahorn.git```
+* [crab-llvm](https://github.com/caballa/crab-llvm): `git clone https://github.com/caballa/crab-llvm.git`
 
-Note that both [dsa-seahorn](https://github.com/seahorn/dsa-seahorn)
-and [crab-llvm](https://github.com/seahorn/crab-llvm) are
-optional. Nevertheless both are highly recommended. The former is
-needed when reasoning about memory contents while the latter provides
-inductive invariants using abstract interpretation techniques to the
-rest of SeaHorn's backends.
+  `crab-llvm` provides inductive invariants using abstract
+  interpretation techniques to the rest of SeaHorn's backends.
+
+* [llvm-seahorn](https://github.com/seahorn/llvm-seahorn): `git clone https://github.com/seahorn/llvm-seahorn.git`
+
+   `llvm-seahorn` provides specialized versions of `InstCombine` and
+   `IndVarSimplify` LLVM passes as well as a LLVM pass to convert
+   undefined values into nondeterministic calls, among other things.
+
 
 ___
 
-**Latest news**: due to some unsolved licensing issues `crab-llvm` is
-temporary not publicly available. Please, if this impacts your current
-project do not hesitate to contact us at <seahorn@aguga.net>.
-
-#Usage#
+# Usage #
 
 SeaHorn provides a python script called `sea` to interact with
 users. Given a C program annotated with assertions, users just need to
@@ -84,9 +86,10 @@ loop-free program block.
 - `--cex=FILE` : stores a counter-example in `FILE`
 
 - `--crab` : generates invariants using the Crab
-  abstract-interpretation-based tool. Read
-  [here](https://github.com/seahorn/crab-llvm/tree/master#usage) for
-  details about Crab options. **This option is currently disabled.**
+  abstract-interpretation-based tool with default options. Read
+  [here](https://github.com/caballa/crab-llvm/tree/master#crab-options)
+  for details about all Crab options (prefix `--crab`). You can see
+  which invariants are inferred by Crab by typing option `--log=crab`.
 
 - `-g` : compiles with debug information for more trackable
   counterexamples.
@@ -123,7 +126,7 @@ of the pipeline can be ran separately as well:
 
 To see all the options, type `sea --help`.
 
-##Annotating C programs##
+## Annotating C programs ##
 
 This is an example of a C program annotated with a safety property:
 ``` c
@@ -148,17 +151,17 @@ This is an example of a C program annotated with a safety property:
     }
 
 ```
-SeaHorn follows [SV-COMP][svcomp] convention of encoding error locations by a call
-to the designated error function
-`__VERIFIER_error()`. SeaHorn returns `unsat` when `__VERIFIER_error()`
-is unreachable, and the program is considered safe. SeaHorn returns `sat`
-when `__VERIFIER_error()` is reachable and the
-program is unsafe. `sassert()` method is defined in `seahorn/seahorn.h` which can be found in `seahorn/share`.
+SeaHorn follows [SV-COMP](http://sv-comp.sosy-lab.org) convention of
+encoding error locations by a call to the designated error function
+`__VERIFIER_error()`. SeaHorn returns `unsat` when
+`__VERIFIER_error()` is unreachable, and the program is considered
+safe. SeaHorn returns `sat` when `__VERIFIER_error()` is reachable and
+the program is unsafe. `sassert()` method is defined in
+`seahorn/seahorn.h` which can be found in `seahorn/share`.
 
-[svcomp]: (http://sv-comp.sosy-lab.org)
 
-#People#
+# People #
 
 * [Arie Gurfinkel](arieg.bitbucket.org)
-* [Jorge Navas](http://ti.arc.nasa.gov/profile/jorge/)
+* [Jorge Navas](http://jorgenavas.github.io/)
 * [Temesghen Kahsai](http://www.lememta.info/)

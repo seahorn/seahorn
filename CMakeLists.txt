@@ -24,6 +24,12 @@ endif()
 enable_testing()
 include (CTest)
 
+# Default is release with debug info
+if(NOT CMAKE_BUILD_TYPE)
+  set(CMAKE_BUILD_TYPE RelWithDebInfo CACHE STRING
+    "Choose the type of build, options are: None Debug Release RelWithDebInfo MinSizeRel." FORCE)
+endif()
+
 # Add path for custom modules
 list (APPEND CMAKE_MODULE_PATH
   "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
@@ -34,7 +40,7 @@ if (GIT_FOUND)
     CACHE STRING "seahorn-llvm repo")
   set (DSA_SEAHORN_REPO "https://github.com/seahorn/dsa-seahorn"
     CACHE STRING "dsa-seahorn repo")
-  set (CRAB_LLVM_REPO "https://github.com/seahorn/crab-llvm"
+  set (CRAB_LLVM_REPO "https://github.com/caballa/crab-llvm"
     CACHE STRING "crab-llvm repo")
   add_custom_target (seahorn-llvm-git
     ${GIT_EXECUTABLE} clone ${SEAHORN_LLVM_REPO} ${CMAKE_SOURCE_DIR}/llvm-seahorn)
@@ -42,17 +48,10 @@ if (GIT_FOUND)
     ${GIT_EXECUTABLE} clone ${DSA_SEAHORN_REPO} ${CMAKE_SOURCE_DIR}/dsa-seahorn)
    add_custom_target (crab-llvm-git
     ${GIT_EXECUTABLE} clone ${CRAB_LLVM_REPO} ${CMAKE_SOURCE_DIR}/crab-llvm)
-
-
-  #add_custom_target (extra DEPENDS seahorn-llvm-git dsa-seahorn-git)
+    
   add_custom_target (extra
     ${CMAKE_COMMAND} -E touch ${CMAKE_CURRENT_LIST_FILE}
-      DEPENDS seahorn-llvm-git dsa-seahorn-git)
-
-  # XXX: crab-llvm is not publicly available at the moment. Read the README for details.
-  #add_custom_target (extra
-  #  ${CMAKE_COMMAND} -E touch ${CMAKE_CURRENT_LIST_FILE}
-  #  DEPENDS seahorn-llvm-git dsa-seahorn-git crab-llvm-git)
+    DEPENDS seahorn-llvm-git dsa-seahorn-git crab-llvm-git)
 
 else()
   message (STATUS "Could not find git. Not adding 'extra' target.")
@@ -83,6 +82,15 @@ endif ()
 
 include(ExternalProject)
 set_property(DIRECTORY PROPERTY EP_STEP_TARGETS configure build test)
+
+set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
+if(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
+  set(CMAKE_MACOSX_RPATH TRUE)  
+endif ()  
+if (NOT CMAKE_INSTALL_RPATH)
+  set(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_PREFIX}/lib")
+endif ()
+
 
 set (Z3_TAG "origin/spacer" CACHE STRING "Z3 git tag to use")
 set (Z3_REPO "https://bitbucket.org/spacer/code.git" CACHE STRING "Z3 repo")
@@ -240,24 +248,8 @@ if (EXISTS ${CMAKE_CURRENT_BINARY_DIR}/z3-prefix/src/z3/build)
   install(FILES ${z3py} DESTINATION lib/z3py)
 endif()
 
-if (EXISTS ${CMAKE_CURRENT_BINARY_DIR}/crab/src/crab/Ikos_LICENSE.pdf)
-  install (
-    FILES
-    ${CMAKE_CURRENT_BINARY_DIR}/crab/src/crab/Ikos_LICENSE.pdf
-    DESTINATION share/doc/seahorn
-    RENAME ikos_license.pdf)
-endif()
-
-if (EXISTS ${CMAKE_CURRENT_BINARY_DIR}/crab/src/crab/Crab_LICENSE.txt)
-  install (
-    FILES
-    ${CMAKE_CURRENT_BINARY_DIR}/crab/src/crab/Crab_LICENSE.txt
-    DESTINATION share/doc/seahorn
-    RENAME crab_license.txt)
-endif()
-
-if (EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/crab-llvm/LICENSE.txt)
-  install (FILES crab-llvm/LICENSE.txt
+if (EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/crab-llvm/LICENSE)
+  install (FILES crab-llvm/LICENSE
     DESTINATION share/doc/seahorn
     RENAME crab_llvm_license.txt)
 endif()
@@ -329,7 +321,7 @@ if (IS_DIRECTORY ${CMAKE_SOURCE_DIR}/dsa-seahorn AND
   set (DSA_LIBS DSA AssistDS)
   set (HAVE_DSA TRUE)
 else()
-  message (WARNING "No DSA found in ${CMAKE_SOURCE_DIR}/dsa-seahorn")
+  message (WARNING "No DSA found in ${CMAKE_SOURCE_DIR}/dsa-seahorn. Run\n\tcmake --build . --target extra && cmake ${CMAKE_SOURCE_DIR}")
   set (DSA_LIBS "")
 endif()
 
@@ -341,29 +333,18 @@ if (IS_DIRECTORY ${CMAKE_SOURCE_DIR}/llvm-seahorn AND
   set (HAVE_LLVM_SEAHORN TRUE)
   set (LLVM_SEAHORN_LIBS SeaInstCombine)
 else()
-  message (WARNING "No LLVM-SEAHORN found in ${CMAKE_SOURCE_DIR}/llvm-seahorn")
+  message (WARNING "No LLVM-SEAHORN found in ${CMAKE_SOURCE_DIR}/llvm-seahorn. Run\n\tcmake --build . --target extra && cmake ${CMAKE_SOURCE_DIR}")
 endif()
 
 if (IS_DIRECTORY ${CMAKE_SOURCE_DIR}/crab-llvm AND
     EXISTS ${CMAKE_SOURCE_DIR}/crab-llvm/CMakeLists.txt)
   add_subdirectory(crab-llvm)
-  if (NOT CRAB_FOUND)
-    return()
-  else()
-    include_directories (${CRAB_INCLUDE_DIR})
-    # optional external libraries used by Crab
-    # these include dirs are optionally defined by Crab-Llvm
-    include_directories (${LDD_INCLUDE_DIR})
-    include_directories (${APRON_INCLUDE_DIR})
-  endif()
-endif()
-
-if (DEFINED CrabLlvm_SOURCE_DIR)
-  include_directories (BEFORE ${CrabLlvm_SOURCE_DIR}/include)
-  add_subdirectory (${CrabLlvm_SOURCE_DIR}/lib/CrabLlvm)
-  message (STATUS "Using crab-llvm from: ${CrabLlvm_SOURCE_DIR}/lib/CrabLlvm")
-  set (HAVE_CRAB TRUE)
+  include_directories (BEFORE ${CRABLLVM_INCLUDE_DIRS})  
+  message (STATUS "Crab-llvm found ${CMAKE_SOURCE_DIR}/crab-llvm")
+  message (STATUS ${CRABLLVM_INCLUDE_DIRS})
   set (HAVE_CRAB_LLVM TRUE)
+else()
+  message (WARNING "No CRAB-LLVM found in ${CMAKE_SOURCE_DIR}/crab-llvm. Run\n\tcmake --build . --target extra && cmake ${CMAKE_SOURCE_DIR}")
 endif()
 
 ### add our include directories to the front, overriding directories

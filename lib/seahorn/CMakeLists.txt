@@ -28,14 +28,8 @@ add_llvm_library (seahorn.LIB
   ZOption.cc
   )
 
-
-# no need to link with static libraries
 if (HAVE_CRAB_LLVM)
-  target_link_libraries (seahorn.LIB CrabLlvmAnalysis CrabLlvmInstrumentation)
-endif()
-
-if (HAVE_LDD)
-  target_link_libraries (seahorn.LIB ${LDD_LIBS})
+  target_link_libraries (seahorn.LIB ${CRABLLVM_LIBS})
 endif()
 
 set_target_properties (seahorn.LIB PROPERTIES OUTPUT_NAME "seahorn")

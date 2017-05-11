@@ -564,9 +564,9 @@ class Seahorn(sea.LimitedCmd):
         ap.add_argument ('--show-invars',
                          help='Display computed invariants',
                          dest='show_invars', default=False, action='store_true')
-        # ap.add_argument ('--crab',
-        #                  help='Enable Crab abstract interpreter',
-        #                  dest='crab', default=False, action='store_true')
+        ap.add_argument ('--crab',
+                         help='Enable Crab abstract interpreter',
+                         dest='crab', default=False, action='store_true')
         ap.add_argument ('--bmc',
                          help='Use BMC engine',
                          dest='bmc', default=False, action='store_true')
@@ -581,9 +581,9 @@ class Seahorn(sea.LimitedCmd):
 
         if args.bmc:
             argv.append ('--horn-bmc')
-
-        # if args.crab:
-        #     argv.append ('--horn-crab')
+            
+        if args.crab:
+            argv.append ('--horn-crab')
 
         if args.solve or args.out_file is not None:
             argv.append ('--keep-shadows=true')
@@ -758,8 +758,7 @@ class Crab (sea.LimitedCmd):
         argv = list()
 
         argv.append ('--horn-crab')
-        argv.append ('--crab-add-invariants-at-entries')
-        argv.append ('--crab-add-invariants-after-loads')
+        argv.append ('--crab-add-invariants=all')
 
         if args.out_file is not None: argv.extend (['-oll', args.out_file])
         argv.extend (args.in_files)

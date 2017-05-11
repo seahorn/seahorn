@@ -20,15 +20,17 @@ before_install:
    - sudo apt-get install --yes python-pip
    - sudo pip install lit
    - sudo pip install OutputCheck
+   - sudo easy_install networkx
+   - sudo apt-get install libgraphviz-dev
+   - sudo easy_install pygraphviz
    # XXX: crab-llvm is based on llvm 3.6 so the clang version must be 3.6 as well.
    # XXX: for ubuntu 14-04
    #- sudo apt-get install --yes clang-3.6
    # for ubuntu 12.04
    - sudo apt-get install --yes clang
+   - clang -v
 
 install:
-  ## XXX: we install later boost
-  ##- until sudo apt-get -qq install libboost-all-dev libboost-test-dev libboost-program-options-dev; do echo retry; done
   - until sudo apt-get -qq update; do echo retry; done
   - until sudo apt-get -qq install libstdc++5; do echo retry; done
   - if [[ $CMAKE_CXX_COMPILER == g++-5 ]]; then until sudo apt-get -qq install g++-5; do echo retry; done fi

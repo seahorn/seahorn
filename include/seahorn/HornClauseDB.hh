@@ -204,6 +204,7 @@ namespace seahorn
 
     void addQuery (Expr q) {m_queries.push_back (q);}
     ExprVector getQueries () const {return m_queries;}
+    ExprVector &getQueries_Ref () {return m_queries;}
     bool hasQuery () const {return !m_queries.empty ();}
     
 

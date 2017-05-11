@@ -306,6 +306,7 @@ set(CMAKE_CXX_EXTENSIONS ON)
 add_definitions(-Wno-redeclared-class-member -Wno-sometimes-uninitialized)
 add_definitions(-Wno-covered-switch-default)
 add_definitions(-Wno-inconsistent-missing-override)
+add_definitions(-Wno-deprecated-declarations)
 if ("${CMAKE_CXX_COMPILER_ID}" MATCHES "GNU")
   add_definitions( -Wno-unused-local-typedefs)
 endif ()
@@ -338,11 +339,9 @@ endif()
 
 if (IS_DIRECTORY ${CMAKE_SOURCE_DIR}/crab-llvm AND
     EXISTS ${CMAKE_SOURCE_DIR}/crab-llvm/CMakeLists.txt)
-  add_subdirectory(crab-llvm)
-  include_directories (BEFORE ${CRABLLVM_INCLUDE_DIRS})  
-  message (STATUS "Crab-llvm found ${CMAKE_SOURCE_DIR}/crab-llvm")
-  message (STATUS ${CRABLLVM_INCLUDE_DIRS})
+  add_subdirectory(${CMAKE_SOURCE_DIR}/crab-llvm)
   set (HAVE_CRAB_LLVM TRUE)
+  include_directories (${CRABLLVM_INCLUDE_DIRS})  
 else()
   message (WARNING "No CRAB-LLVM found in ${CMAKE_SOURCE_DIR}/crab-llvm. Run\n\tcmake --build . --target extra && cmake ${CMAKE_SOURCE_DIR}")
 endif()
@@ -352,6 +351,7 @@ endif()
 include_directories(BEFORE
   ${CMAKE_CURRENT_SOURCE_DIR}/include
   ${CMAKE_CURRENT_BINARY_DIR}/include)
+
 
 add_subdirectory(lib)
 add_subdirectory(tools)

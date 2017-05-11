@@ -18,9 +18,17 @@ before_install:
    - sudo apt-get install --yes cmake cmake-data
    - sudo apt-get install --yes libgmp-dev
    - sudo apt-get install --yes python-pip
+   - sudo pip install lit
+   - sudo pip install OutputCheck
+   # XXX: crab-llvm is based on llvm 3.6 so the clang version must be 3.6 as well.
+   # XXX: for ubuntu 14-04
+   #- sudo apt-get install --yes clang-3.6
+   # for ubuntu 12.04
+   - sudo apt-get install --yes clang
 
 install:
-  - until sudo apt-get -qq install libboost-all-dev libboost-test-dev libboost-program-options-dev; do echo retry; done
+  ## XXX: we install later boost
+  ##- until sudo apt-get -qq install libboost-all-dev libboost-test-dev libboost-program-options-dev; do echo retry; done
   - until sudo apt-get -qq update; do echo retry; done
   - until sudo apt-get -qq install libstdc++5; do echo retry; done
   - if [[ $CMAKE_CXX_COMPILER == g++-5 ]]; then until sudo apt-get -qq install g++-5; do echo retry; done fi
@@ -37,24 +45,18 @@ install:
   - wget --output-document=llvm-z3.tar.gz https://www.dropbox.com/s/la0fqi5bhv5a6hi/llvm-3.6-z3.tar.gz?dl=0;
   - tar xvf llvm-z3.tar.gz -C $LZ;
   - ls $LZ
-  - sudo pip install lit
-  - sudo pip install OutputCheck
 
 script:
   - cd seahorn
-  - ls
   - mkdir -p build
   - cd build
   - mv $LZ/run run
-  - ls run/bin
   - /usr/bin/cmake -DBOOST_ROOT=$BOOST_ROOT -DZ3_ROOT=run -DLLVM_DIR=$(pwd)/run/share/llvm/cmake -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE} -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER} -DCMAKE_PROGRAM_PATH=/usr/bin  -DCMAKE_INSTALL_PREFIX=run ../;
   ## XXX: not required since LLVM and Z3 are already found
   #- /usr/bin/cmake --build .
   - /usr/bin/cmake --build . --target extra && /usr/bin/cmake ..
   - /usr/bin/cmake --build . --target crab && /usr/bin/cmake ..
   - /usr/bin/cmake --build . --target install
-  - ls run/bin/
-  - run/bin/sea -h
   - /usr/bin/cmake --build . --target test-simple
   - /usr/bin/cmake --build . --target pred-abs  
   - /usr/bin/cmake --build . --target test-solve

@@ -6,7 +6,7 @@
     <th>Windows</th><th>Ubuntu</th><th>OS X</th><th>Chat with us</th><th>Stories</th>
   </tr>
     <td>TBD</td>
-    <td><a href="https://travis-ci.org/seahorn/seahorn"><img src="https://travis-ci.org/seahorn/seahorn.svg?branch=master" title="Ubuntu 12.04 LTS 64bit, g++-4.8"/></a></td>
+    <td><a href="https://travis-ci.org/seahorn/seahorn"><img src="https://travis-ci.org/seahorn/seahorn.svg?branch=master" title="Ubuntu 12.04 LTS 64bit, g++-5"/></a></td>
     <td>TBD</td>
     <td><a href="https://gitter.im/seahorn/seahorn?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge"><img src="https://badges.gitter.im/seahorn/seahorn.svg" title="Gitter"/></a></td>
     <td> <a href="http://waffle.io/seahorn/seahorn/"><img src="https://badge.waffle.io/seahorn/seahorn.svg?label=ready&title=Ready"/></a></td>

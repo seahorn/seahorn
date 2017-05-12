@@ -332,7 +332,7 @@ if (IS_DIRECTORY ${CMAKE_SOURCE_DIR}/llvm-seahorn AND
   add_subdirectory(llvm-seahorn/lib)
   add_subdirectory(llvm-seahorn/tools)
   set (HAVE_LLVM_SEAHORN TRUE)
-  set (LLVM_SEAHORN_LIBS SeaInstCombine)
+  set (LLVM_SEAHORN_LIBS SeaInstCombine SeaLoops)
 else()
   message (WARNING "No LLVM-SEAHORN found in ${CMAKE_SOURCE_DIR}/llvm-seahorn. Run\n\tcmake --build . --target extra && cmake ${CMAKE_SOURCE_DIR}")
 endif()

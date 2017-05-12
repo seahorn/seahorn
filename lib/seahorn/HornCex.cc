@@ -111,9 +111,9 @@ namespace seahorn
     // -- only run if result is true, skip if it is false or unknown
     if (hs.getResult ()) ; else return false;
 
-    LOG ("cex", 
-         errs () << "Analyzed Function:\n"
-         << F << "\n";);
+    // LOG ("cex", 
+    //      errs () << "Analyzed Function:\n"
+    //      << F << "\n";);
 
     HornifyModule &hm = getAnalysis<HornifyModule> ();
     const CutPointGraph &cpg = getAnalysis<CutPointGraph> (F);

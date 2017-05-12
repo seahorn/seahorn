@@ -1139,6 +1139,8 @@ namespace expr
   template <typename ExprVisitor> 
   Expr visit (ExprVisitor &v, Expr expr, DagVisitCache &cache)
   {
+    if (!expr) return expr;
+    
     if (expr->use_count () > 1)
       {
 	DagVisitCache::const_iterator cit 
@@ -1342,7 +1344,10 @@ namespace expr
    */
   template <typename T, typename iterator> 
   Expr mknary (iterator bgn, iterator end)
-  { return eptr (*bgn)->efac ().mkNary (T(), bgn, end);  }
+  {
+    if (bgn == end) return Expr(nullptr);
+    return eptr (*bgn)->efac ().mkNary (T(), bgn, end);
+  }
 
   template <typename T, typename iterator> 
   Expr mknary (Expr base, iterator bgn, iterator end)

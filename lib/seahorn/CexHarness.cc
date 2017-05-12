@@ -61,8 +61,8 @@ namespace seahorn
           const Function *CF = CS.getCalledFunction ();
           if (!CF) continue;
 
-          LOG("cex",
-              errs () << "Considering harness for: " << CF->getName () << "\n";);
+          // LOG("cex",
+          //     errs () << "Considering harness for: " << CF->getName () << "\n";);
 
           if (!CF->hasName()) continue;
           if (CF->isIntrinsic ()) continue;
@@ -73,8 +73,8 @@ namespace seahorn
           if (!CF->isExternalLinkage (CF->getLinkage ())) continue;
           if (!CF->getReturnType()->isIntegerTy () &&
               !CF->getReturnType()->isPointerTy()) {
-            LOG("cex",
-                errs () << "Skipping harness for " << CF->getName () << " because it returns type: " << *CF->getReturnType() << "\n";);
+            // LOG("cex",
+            //     errs () << "Skipping harness for " << CF->getName () << " because it returns type: " << *CF->getReturnType() << "\n";);
             continue;
           }
 
@@ -83,8 +83,8 @@ namespace seahorn
           
           Expr V = trace.eval (loc, I, true);
           if (!V) continue;
-          LOG("cex",
-              errs () << "Producing harness for " << CF->getName () << "\n";);
+          // LOG("cex",
+          //     errs () << "Producing harness for " << CF->getName () << "\n";);
           FuncValueMap[CF].push_back(V);
         }
       }

@@ -10,6 +10,14 @@ add_lit_testsuite(test-simple "Run simple tests"
   DEPENDS seahorn
   )
 
+add_lit_testsuite(test-solve "Run more tests"
+   -v
+   ${CMAKE_CURRENT_SOURCE_DIR}/solve
+   PARAMS
+   test_dir=${CMAKE_CURRENT_BINARY_DIR}
+   DEPENDS seahorn
+   )
+
 add_lit_testsuite(pred-abs "Regression test on Predicate Abstraction"
    -v
    ${CMAKE_CURRENT_SOURCE_DIR}/predabs
@@ -18,13 +26,14 @@ add_lit_testsuite(pred-abs "Regression test on Predicate Abstraction"
    DEPENDS seahorn
    )
 
-add_lit_testsuite(test-solve "Regression test on Predicate Abstraction"
-   -v
-   ${CMAKE_CURRENT_SOURCE_DIR}/solve
-   PARAMS
-   test_dir=${CMAKE_CURRENT_BINARY_DIR}
-   DEPENDS seahorn
-   )
+   
+add_lit_testsuite(test-abc "Regression test for Array Bounds Checks"
+  -v
+  ${CMAKE_CURRENT_SOURCE_DIR}/abc
+  PARAMS
+  test_dir=${CMAKE_CURRENT_BINARY_DIR}
+  DEPENDS seahorn
+  )
    
 add_lit_testsuite(test-dsa "Regression test for DSA"
   -v

@@ -42,11 +42,6 @@ DefaultDataLayout("-data-layout",
         llvm::cl::init(""), llvm::cl::value_desc("layout-string"));
 
 static llvm::cl::opt<bool>
-Lint("lint",
-     llvm::cl::desc("Statically lint-checks LLVM IR"),
-     llvm::cl::init(false));
-
-static llvm::cl::opt<bool>
 Profiler("profiler",
          llvm::cl::desc("Profile a program for static analysis purposes"),
          llvm::cl::init(false));
@@ -143,12 +138,6 @@ int main(int argc, char **argv) {
 
   //pass_manager.add (llvm::createVerifierPass());
 
-  if (Lint) {
-    llvm::errs () << "Ran statically lint-like checks of LLVM IR\n";
-    pass_manager.add (llvm::createLintPass ());
-  }
-
-  
   if (!ApiConfig.empty())
     pass_manager.add(seahorn::createApiAnalysisPass(ApiConfig));
 

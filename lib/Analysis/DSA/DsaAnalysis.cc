@@ -22,7 +22,7 @@ DsaCsGlobalAnalysis ("horn-sea-dsa-cs-global",
 
 static llvm::cl::opt<bool> 
 PrintDsaStats ("horn-dsa-stats",
-               llvm::cl::desc ("Print dsa statistics"), 
+               llvm::cl::desc ("DSA: print dsa statistics"), 
                llvm::cl::init(false));
 
 void DsaAnalysis::getAnalysisUsage (AnalysisUsage &AU) const 

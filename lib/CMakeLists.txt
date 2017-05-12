@@ -22,3 +22,11 @@ if (HAVE_DSA)
 endif()
 install (TARGETS shadow LIBRARY DESTINATION lib)
 
+add_llvm_loadable_module (checks
+  Transforms/Scalar/LowerCstExpr.cc
+  Transforms/Instrumentation/BufferBoundsCheck.cc
+  Analysis/CanAccessMemory.cc
+)
+
+target_link_libraries (checks avy)
+install (TARGETS checks LIBRARY DESTINATION lib)

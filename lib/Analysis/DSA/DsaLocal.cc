@@ -580,7 +580,9 @@ namespace
         {
           c.getNode()->setExternal();
           // -- treat external function as allocation
-	  c.getNode ()->addAllocSite (*inst);
+	  // XXX: we ignore external calls created by AbstractMemory pass
+	  if (!callee->getName ().startswith ("verifier.nondet.abstract.memory"))
+	    c.getNode ()->addAllocSite (*inst);
 	  
           // TODO: many more things can be done to handle external
           // TODO: functions soundly and precisely.  An absolutely

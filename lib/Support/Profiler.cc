@@ -1,10 +1,7 @@
 /* 
-
-   This pass aims at profiling the complexity of a program for the
-   purpose of proving absence of certain kind of errors such as
-   out-of-bound accesses, division by zero, use of uninitialized
-   variables, etc.
-
+   This pass aims at profiling a program for the purpose of checking
+   certain kind of errors such as out-of-bound accesses, division by
+   zero, use of uninitialized variables, etc.
 */
 
 #include "llvm/Pass.h"
@@ -27,32 +24,39 @@
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Support/Format.h"
 #include "llvm/Target/TargetLibraryInfo.h"
-
+#include "llvm/Support/CommandLine.h"
 #include <boost/unordered_map.hpp>
 
 using namespace llvm;
+
+static llvm::cl::opt<bool>
+ShowCallGraphInfo("profiler-callgraph",
+        llvm::cl::desc ("Show call graph information"),
+        llvm::cl::init (false));
+
+static llvm::cl::opt<bool>
+DisplayDeclarations("profiler-list-declarations",
+        llvm::cl::desc ("List all the function declarations"),
+        llvm::cl::init (false));
 
 #include "llvm/IR/Instruction.def"
 
 namespace seahorn {
 
   struct Counter {
-    unsigned int Id;
     const char*Name;
+    const char* Desc;
     unsigned int Value;
-
-    Counter (unsigned int id, const char *name): 
-        Id (id), Name(name), Value(0) { }
-
-    bool operator<(const Counter&o) const {
-      if (int Cmp = std::strcmp(getName(), o.getName()))
-        return Cmp < 0;
-      // secondary key
-      return Id < o.Id;
-    }
-
+    Counter (): Name(""), Desc (""), Value(0)  { }
+    Counter (const char *name): Name(name), Desc (name), Value(0) { }
+    Counter (const char *name, const char *desc): Name(name), Desc (desc), Value(0) { }
+    bool operator<(const Counter&o) const 
+    { return (std::strcmp(getName(), o.getName()) < 0); }
+    bool operator==(const Counter&o) const 
+    { return (std::strcmp(getName(), o.getName()) == 0); }
     unsigned int getValue() const { return Value; }
     const char *getName() const { return Name; }
+    const char *getDesc() const { return Desc; }
     void operator++() { Value++; }
     void operator+=(unsigned val) { Value += val; }
   };
@@ -132,22 +136,6 @@ namespace seahorn {
   class Profiler : public ModulePass, public InstVisitor<Profiler> {
     friend class InstVisitor<Profiler>;
 
-    boost::unordered_map <unsigned int, Counter> counters;
-    unsigned CounterId;
-
-    void incrCounter (unsigned id, const char* name, unsigned val) {
-      auto it = counters.find (id);
-      if (it != counters.end ())
-        it->second += val;
-      else
-        counters.insert (std::make_pair (id, Counter (id, name)));
-    }
-
-    Counter mkCounter (const char* name) {
-      Counter res (CounterId++, name);
-      return res;
-    }
-
     void formatCounters (std::vector<Counter>& counters, 
                          unsigned& MaxNameLen, 
                          unsigned& MaxValLen,
@@ -166,32 +154,49 @@ namespace seahorn {
       }
     }
 
+
     const DataLayout* DL;
     TargetLibraryInfo* TLI;
     StringSet<> ExtFuncs;
 
-    unsigned int TotalFuncs;
-    unsigned int TotalBlocks;
-    unsigned int TotalJoins;
-    unsigned int TotalInsts;
-    unsigned int TotalDirectCalls;
-    unsigned int TotalIndirectCalls;
-    unsigned int TotalExternalCalls;
+    // -- to group all instruction counters
+    boost::unordered_map <const char*, Counter> instCounters;
+    void incrInstCounter (const char* name, unsigned val) {
+      auto it = instCounters.find (name);
+      if (it != instCounters.end ())
+        it->second += val;
+      else
+        instCounters.insert (std::make_pair (name, Counter (name)));
+    }
+
+    // -- individual counters
+    Counter TotalFuncs;
+    Counter TotalBlocks;
+    Counter TotalJoins;
+    Counter TotalInsts;
+    Counter TotalDirectCalls;
+    Counter TotalIndirectCalls;
+    Counter TotalExternalCalls;
     ///
-    unsigned int SafeIntDiv;
-    unsigned int SafeFPDiv;
-    unsigned int UnsafeIntDiv;
-    unsigned int UnsafeFPDiv;
-    unsigned int DivIntUnknown;
-    unsigned int DivFPUnknown;
+    Counter SafeIntDiv;
+    Counter SafeFPDiv;
+    Counter UnsafeIntDiv;
+    Counter UnsafeFPDiv;
+    Counter DivIntUnknown;
+    Counter DivFPUnknown;
     /// 
-    unsigned int TotalMemAccess;
-    unsigned int MemUnknown;
-    unsigned int SafeMemAccess;
+    Counter TotalMemInst;
+    Counter MemUnknown;
+    Counter SafeMemAccess;
+    Counter TotalAllocations;
+    Counter InBoundGEP;
+    Counter MemCpy;
+    Counter MemMove;
+    Counter MemSet;
     ///
-    unsigned int SafeLeftShift;
-    unsigned int UnsafeLeftShift;
-    unsigned int UnknownLeftShift;
+    Counter SafeLeftShift;
+    Counter UnsafeLeftShift;
+    Counter UnknownLeftShift;
 
     void visitFunction  (Function &F) { ++TotalFuncs; }
     void visitBasicBlock(BasicBlock &BB) { 
@@ -203,23 +208,36 @@ namespace seahorn {
     void visitCallSite(CallSite &CS) {
       Function* callee = CS.getCalledFunction ();
       if (callee) {
-        TotalDirectCalls++;
+        ++TotalDirectCalls;
         if (callee->isDeclaration ()) {
-          TotalExternalCalls++;
+          ++TotalExternalCalls;
           ExtFuncs.insert (callee->getName ());
         }
       }
       else
-        TotalIndirectCalls++;
+        ++TotalIndirectCalls;
+
+      // new, malloc, calloc, realloc, and strdup.
+      if (isAllocationFn (CS.getInstruction(), TLI, true)) 
+        ++TotalAllocations;
     }
 
+
     void processPointerOperand (Value* V) {
-      TotalMemAccess++;
       uint64_t Size;
       if (getObjectSize (V, Size, DL, TLI, true)) {
-        SafeMemAccess++;
+        ++SafeMemAccess;
       } else {
-        MemUnknown++;        
+        ++MemUnknown;        
+      }
+    }
+
+    void processMemIntrPointerOperand (Value* V, Value*N) {
+      uint64_t Size;
+      if (getObjectSize (V, Size, DL, TLI, true) && isa<ConstantInt> (N)) {
+        ++SafeMemAccess;
+      } else {
+        ++MemUnknown;        
       }
     }
 
@@ -232,12 +250,12 @@ namespace seahorn {
           BI->getOpcode () == BinaryOperator::FRem) {
         const Value* divisor = BI->getOperand (1);
         if (const ConstantInt *CI = dyn_cast<const ConstantInt> (divisor)) {
-          if (CI->isZero ()) UnsafeIntDiv++;
-          else SafeIntDiv++;
+          if (CI->isZero ()) ++UnsafeIntDiv;
+          else ++SafeIntDiv;
         }
         else if (const ConstantFP *CFP = dyn_cast<const ConstantFP> (divisor)) {
-          if (CFP->isZero ()) UnsafeFPDiv++;
-          else SafeFPDiv++;
+          if (CFP->isZero ()) ++UnsafeFPDiv;
+          else ++SafeFPDiv;
         }
         else {
           // cannot figure out statically
@@ -245,9 +263,9 @@ namespace seahorn {
               BI->getOpcode () == BinaryOperator::UDiv ||
               BI->getOpcode () == BinaryOperator::SRem ||
               BI->getOpcode () == BinaryOperator::URem)
-            DivIntUnknown++;
+            ++DivIntUnknown;
           else 
-            DivFPUnknown++;
+            ++DivFPUnknown;
         }
       }
       else if (BI->getOpcode () == BinaryOperator::Shl) {
@@ -257,46 +275,55 @@ namespace seahorn {
           if (CI->getType ()->isIntegerTy ()) {
             APInt bitwidth (32, CI->getType ()->getIntegerBitWidth (), true);
             if (shift.slt (bitwidth))
-              SafeLeftShift++;
+              ++SafeLeftShift;
             else
-              UnsafeLeftShift++;
+              ++UnsafeLeftShift;
           }
           else 
-            UnknownLeftShift++;
+            ++UnknownLeftShift;
         }
         else 
-          UnknownLeftShift++;
+          ++UnknownLeftShift;
       }
     }
 
     #define HANDLE_INST(N, OPCODE, CLASS)                    \
     void visit##OPCODE(CLASS &I) {                           \
-      incrCounter (N, #OPCODE, 1);                           \
+      incrInstCounter (#OPCODE, 1);                          \
       ++TotalInsts;                                          \
-      if (CallInst* CI = dyn_cast<CallInst>(&I)) {           \
-         CallSite CS (CI);                                   \
-         visitCallSite (CS);                                 \
-      }                                                      \
-      else if (InvokeInst* II = dyn_cast<InvokeInst>(&I)) {  \
-         CallSite CS (II);                                   \
-         visitCallSite (CS);                                 \
-      }                                                      \
+      if (MemTransferInst * MTI = dyn_cast<MemTransferInst>(&I)) {  \
+         ++TotalMemInst;                                            \
+         if (isa<MemCpyInst> (MTI)) ++MemCpy;                       \
+         else if (isa<MemMoveInst> (MTI)) ++MemMove;                \
+         processMemIntrPointerOperand (MTI->getSource(), MTI->getLength ()); \
+         processMemIntrPointerOperand (MTI->getDest(), MTI->getLength ()); \
+      }                                                             \
+      else if (MemSetInst* MSI = dyn_cast<MemSetInst>(&I)) {        \
+         ++TotalMemInst;                                            \
+         ++MemSet;                                                  \
+         processMemIntrPointerOperand (MSI->getDest(), MSI->getLength ()); \
+      }                                                             \
+      if (CallInst* CI = dyn_cast<CallInst>(&I)) {                  \
+         CallSite CS (CI);                                          \
+         visitCallSite (CS);                                        \
+      }                                                             \
+      else if (InvokeInst* II = dyn_cast<InvokeInst>(&I)) {         \
+         CallSite CS (II);                                          \
+         visitCallSite (CS);                                        \
+      }                                                             \
       else if (BinaryOperator* BI = dyn_cast<BinaryOperator>(&I)) { \
          visitBinaryOperator (BI);                                  \
       }                                                             \
-      else if (isa<MemTransferInst>(&I)) {                          \
-         TotalMemAccess++;                                          \
-         MemUnknown++;                                              \
-      }                                                             \
-      else if (isa<MemSetInst>(&I)) {                               \
-         TotalMemAccess++;                                          \
-         MemUnknown++;                                              \
-      }                                                             \
       else if (LoadInst* LI = dyn_cast<LoadInst>(&I)) {             \
+         ++TotalMemInst;                                            \
          processPointerOperand (LI->getPointerOperand ());          \
       }                                                             \
       else if (StoreInst* SI = dyn_cast<StoreInst>(&I)) {           \
+         ++TotalMemInst;                                            \
          processPointerOperand (SI->getPointerOperand ());          \
+      }                                                             \
+      else if (GetElementPtrInst* GEP = dyn_cast<GetElementPtrInst>(&I)) { \
+        if (GEP->isInBounds ()) ++InBoundGEP;                       \
       }                                                             \
     }
 
@@ -313,17 +340,34 @@ namespace seahorn {
 
     Profiler() : 
         ModulePass(ID),
-        CounterId (0),
         DL (nullptr), TLI (nullptr),
-        TotalFuncs (0), TotalBlocks (0), TotalJoins (0), TotalInsts (0),
-        TotalDirectCalls (0), TotalExternalCalls (0), TotalIndirectCalls (0),
+        TotalFuncs ("TotalFuncs", "Number of non-external functions"), 
+        TotalBlocks ("TotalBlocks", "Number of basic blocks"), 
+        TotalJoins ("TotalJoins","Number of basic blocks with more than one predecessor"), 
+        TotalInsts ("TotalInsts","Number of instructions"),
+        TotalDirectCalls ("TotalDirectCalls","Number of non-external direct callsites"), 
+        TotalExternalCalls ("TotalExternalCalls","Number of external direct callsites"), 
+        TotalIndirectCalls ("TotalIndirectCalls","Number of indirect callsites (unknown callee)"),
         ////////
-        SafeIntDiv (0), SafeFPDiv (0), 
-        UnsafeIntDiv (0), UnsafeFPDiv (0), DivIntUnknown (0), DivFPUnknown (0),
+        SafeIntDiv ("SafeIntDiv","Number of safe integer div/rem"), 
+        SafeFPDiv ("SafeFPDiv","Number of safe FP div/rem"), 
+        UnsafeIntDiv ("UnsafeIntDiv","Number of definite unsafe integer div/rem"), 
+        UnsafeFPDiv ("UnsafeFPDiv","Number of definite unsafe FP div/rem"), 
+        DivIntUnknown ("DivIntUnknown","Number of unknown integer div/rem"), 
+        DivFPUnknown ("DivFPUnknown","Number of unknown FP div/rem"),
         /////////
-        TotalMemAccess (0), SafeMemAccess (0), MemUnknown (0),
+        TotalMemInst ("TotalMemInst","Number of memory instructions"),
+        MemUnknown ("MemUnknown","Unknown memory accesses"), 
+        SafeMemAccess ("SafeMemAccess","Statically known memory accesses"), 
+        TotalAllocations ("TotalAllocations","Malloc-like allocations"), 
+        InBoundGEP ("InBoundGEP","Inbound GetElementPtr"),
+        MemCpy ("MemCpy"),
+        MemMove ("MemMove"), 
+        MemSet ("MemSet"),
         /////////
-        SafeLeftShift (0), UnsafeLeftShift (0), UnknownLeftShift(0)
+        SafeLeftShift ("SafeLeftShift","Number of safe left shifts"), 
+        UnsafeLeftShift ("UnsafeLeftShift", "Number of definite unsafe left shifts"), 
+        UnknownLeftShift("UnknownLeftShift", "Number of unknown left shifts")
     { }
 
     bool runOnFunction(Function &F)  {
@@ -342,76 +386,73 @@ namespace seahorn {
       //   cgwp->print (errs (), &M);
       // }
 
-      CallGraph &CG = getAnalysis<CallGraphWrapperPass> ().getCallGraph ();
 
-      typedef std::pair <Function*, std::pair <unsigned, unsigned> > func_ty;
-      std::vector<func_ty> funcs;
-    
-      errs () << " ===================================== \n";
-      errs () << "  Call graph information\n";
-      errs () << " ===================================== \n";
-      errs () << "Total number of functions=" << std::distance(M.begin(), M.end()) << "\n";
-      for (auto it = scc_begin (&CG); !it.isAtEnd (); ++it) {
-        auto &scc = *it;
-        for (CallGraphNode *cgn : scc) {
-          if (cgn->getFunction () && !cgn->getFunction ()->isDeclaration ()) {
-             funcs.push_back (std::make_pair (cgn->getFunction (), 
-                              std::make_pair (cgn->getNumReferences (), 
-                                              std::distance (cgn->begin (), cgn->end ()))));
-             // errs () << cgn->getFunction ()->getName () 
-             //         << " callers=" << cgn->getNumReferences ()
-             //         << " callees=" << std::distance (cgn->begin (), cgn->end ()) 
-             //         << "\n";
+      if (ShowCallGraphInfo) {
+        CallGraph &CG = getAnalysis<CallGraphWrapperPass> ().getCallGraph ();
+        typedef std::pair <Function*, std::pair <unsigned, unsigned> > func_ty;
+        std::vector<func_ty> funcs;
+        errs () << " ===================================== \n";
+        errs () << "  Call graph information\n";
+        errs () << " ===================================== \n";
+        errs () << "Total number of functions=" << std::distance(M.begin(), M.end()) << "\n";
+        for (auto it = scc_begin (&CG); !it.isAtEnd (); ++it) {
+          auto &scc = *it;
+          for (CallGraphNode *cgn : scc) {
+            if (cgn->getFunction () && !cgn->getFunction ()->isDeclaration ()) {
+              funcs.push_back (std::make_pair (cgn->getFunction (), 
+                                               std::make_pair (cgn->getNumReferences (), 
+                                                               std::distance (cgn->begin (), cgn->end ()))));
+            }
           }
         }
-      }
-
-      bool has_rec_func = false;
-      for (auto it = scc_begin (&CG); !it.isAtEnd (); ++it) {
-        auto &scc = *it;
-        if (std::distance (scc.begin (), scc.end ()) > 1) {
-           has_rec_func = true;
-           errs () << "Found recursive SCC={";
-           for (CallGraphNode *cgn : scc) {
-             if (cgn->getFunction ())
+        
+        bool has_rec_func = false;
+        for (auto it = scc_begin (&CG); !it.isAtEnd (); ++it) {
+          auto &scc = *it;
+          if (std::distance (scc.begin (), scc.end ()) > 1) {
+            has_rec_func = true;
+            errs () << "Found recursive SCC={";
+            for (CallGraphNode *cgn : scc) {
+              if (cgn->getFunction ())
                 errs () << cgn->getFunction ()->getName () << ";";
-           }
+            }
+          }
         }
-      }
-      if (!has_rec_func) 
-         errs () << "No recursive functions found\n";
-
-
-      std::sort (funcs.begin(), funcs.end (), 
-                 [](func_ty p1, func_ty p2) { 
+        if (!has_rec_func) 
+          errs () << "No recursive functions found\n";
+        
+        
+        std::sort (funcs.begin(), funcs.end (), 
+                   [](func_ty p1, func_ty p2) { 
                      return   (p1.second.first + p1.second.second) > 
-                              (p2.second.first + p2.second.second);
-                 });
-
-      for (auto&p: funcs){
+                         (p2.second.first + p2.second.second);
+                   });
+        
+        for (auto&p: funcs){
           Function* F = p.first;
           unsigned numInsts = std::distance(inst_begin(F), inst_end(F));
           errs () << F->getName () << ":" 
                   << " num of instructions=" << numInsts
                   << " num of callers=" << p.second.first 
                   << " num of callees=" << p.second.second << "\n";
-      }                                   
+        }           
+      }                        
 
 
-      for (auto &F: M) {
-        runOnFunction (F);
-      }
+      for (auto &F: M) { runOnFunction (F); }
       printReport (errs ());
 
       CanReadUndef undef;
       undef.runOnModule (M);
       undef.printReport (errs ());
 
-      errs () << " ====================================== \n";
-      errs () << "   Non-analyzed (external) functions    \n";
-      errs () << " ====================================== \n";
-      for (auto &p: ExtFuncs) 
-        errs () << p.getKey () << "\n";
+      if (DisplayDeclarations) {
+        errs () << " ====================================== \n";
+        errs () << "   Non-analyzed (external) functions    \n";
+        errs () << " ====================================== \n";
+        for (auto &p: ExtFuncs) 
+          errs () << p.getKey () << "\n";
+      }
       return false;
     }
 
@@ -428,126 +469,88 @@ namespace seahorn {
       unsigned MaxNameLen = 0, MaxValLen = 0;
 
       { 
-        O << " ===================================== \n";
-        O << "  CFG information\n";
-        O << " ===================================== \n";
-
-        // Global counters
-        Counter c1  = mkCounter("Number of instructions");
-        c1 += TotalInsts;
-        Counter c2  = mkCounter("Number of basic blocks");
-        c2 += TotalBlocks;
-        Counter c3  = mkCounter("Number of joins");
-        c3 += TotalJoins;
-        Counter c4 = mkCounter("Number of non-external functions");
-        c4 += TotalFuncs;
-        Counter c5 = mkCounter("Number of (non-external) direct calls");
-        c5 += TotalDirectCalls;
-        Counter c6 = mkCounter("Number of (non-external) indirect calls");
-        c6 += TotalIndirectCalls;
-        Counter c7 = mkCounter("Number of external calls");
-        c7 += TotalExternalCalls;
-
-       std::vector<Counter> global_counters {c1, c2, c3, c4, c5, c6, c7};
-        formatCounters (global_counters, MaxNameLen, MaxValLen, false);
-        for (auto c: global_counters) {
+        O << " ================\n";
+        O << "  CFG analysis   \n";
+        O << " ================\n";
+        std::vector<Counter> cfg_counters 
+           {TotalInsts, TotalBlocks, TotalJoins, TotalFuncs,
+            TotalDirectCalls,TotalExternalCalls,TotalIndirectCalls};
+        formatCounters (cfg_counters, MaxNameLen, MaxValLen, false);
+        for (auto c: cfg_counters) {
           O << format("%*u %-*s\n",
                       MaxValLen, 
                       c.getValue(),
                       MaxNameLen,
-                      c.getName());
+                      c.getDesc());
         }
       }
 
       { // instruction counters
         MaxNameLen = MaxValLen = 0;
         std::vector<Counter> inst_counters;
-        inst_counters.reserve (counters.size ());
-        for(auto &p: counters) { inst_counters.push_back (p.second); }
+        inst_counters.reserve (instCounters.size ());
+        for(auto &p: instCounters) { inst_counters.push_back (p.second); }
         formatCounters (inst_counters, MaxNameLen, MaxValLen);
-        O << " ===================================== \n";
-        O << "  Number of each kind of instructions  \n";
-        O << " ===================================== \n";
+        O << "Number of each kind of instructions  \n";
         for (auto c: inst_counters) {
           O << format("%*u %-*s\n",
                       MaxValLen, 
                       c.getValue(),
                       MaxNameLen,
-                      c.getName());
+                      c.getDesc());
         }
       }
-
-      { // Division counters
-        MaxNameLen = MaxValLen = 0;
-        Counter c1 = mkCounter("Number of safe integer div/rem");
-        c1 += SafeIntDiv;
-        Counter c2 = mkCounter("Number of definite unsafe integer div/rem");
-        c2 += UnsafeIntDiv;
-        Counter c3 = mkCounter("Number of safe FP div/rem");
-        c3 += SafeFPDiv;
-        Counter c4 = mkCounter("Number of definite unsafe FP div/rem");
-        c4 += UnsafeFPDiv;
-        Counter c5 = mkCounter("Number of unknown integer div/rem");
-        c5 += DivIntUnknown;
-        Counter c6 = mkCounter("Number of unknown FP div/rem");
-        c6 += DivFPUnknown;
-
-        std::vector<Counter> div_counters {c1, c2, c3, c4, c5, c6};
-        formatCounters (div_counters, MaxNameLen, MaxValLen,false);
-        O << " ======================== \n";
-        O << "   Division by zero       \n";
-        O << " ======================== \n";
-        for (auto c: div_counters) {
-          O << format("%*u %-*s\n",
-                      MaxValLen, 
-                      c.getValue(),
-                      MaxNameLen,
-                      c.getName());
-        }
-      }
-
-      { // left shift
-        MaxNameLen = MaxValLen = 0;
-        Counter c1 = mkCounter("Number of safe left shifts");
-        c1 += SafeLeftShift;
-        Counter c2 = mkCounter("Number of definite unsafe left shifts");
-        c2 += UnsafeLeftShift;
-        Counter c3 = mkCounter("Number of unknown left shifts");
-        c3 += UnknownLeftShift;
-        std::vector<Counter> lsh_counters {c1, c2, c3};
-        formatCounters (lsh_counters, MaxNameLen, MaxValLen,false);
-        O << " ======================== \n";
-        O << "   Oversized Left Shifts  \n";
-        O << " ======================== \n";
-        for (auto c: lsh_counters) {
-          O << format("%*u %-*s\n",
-                      MaxValLen, 
-                      c.getValue(),
-                      MaxNameLen,
-                      c.getName());
-        }
-      }
-
 
       { // Memory counters
         MaxNameLen = MaxValLen = 0;
-        Counter c1 = mkCounter("Total Number of memory accesses");
-        c1 += TotalMemAccess;
-        Counter c2 = mkCounter("Number of safe memory accesses");
-        c2 += SafeMemAccess;
-        Counter c3 = mkCounter("Number of unknown memory accesses");
-        c3 += MemUnknown;
-        std::vector<Counter> mem_counters {c1, c2, c3};
+        std::vector<Counter> mem_counters 
+        {TotalMemInst,instCounters["Store"],instCounters["Load"],MemCpy,MemMove,MemSet,
+         SafeMemAccess,MemUnknown,
+         instCounters["GetElementPtr"],InBoundGEP,
+         instCounters["Alloca"], TotalAllocations};
         formatCounters (mem_counters, MaxNameLen, MaxValLen,false);
         O << " ================================= \n";
-        O << "   Out-of-bounds memory accesses    \n";
+        O << "   Memory analysis                 \n";
         O << " ================================= \n";
         for (auto c: mem_counters) {
           O << format("%*u %-*s\n",
                       MaxValLen, 
                       c.getValue(),
                       MaxNameLen,
-                      c.getName());
+                      c.getDesc());
+        }
+      }
+
+      { // Division counters
+        MaxNameLen = MaxValLen = 0;
+        std::vector<Counter> div_counters 
+        {SafeIntDiv,UnsafeIntDiv,SafeFPDiv,UnsafeFPDiv,DivIntUnknown,DivFPUnknown};
+        formatCounters (div_counters, MaxNameLen, MaxValLen,false);
+        O << " ============================== \n";
+        O << "   Division by zero analysis    \n";
+        O << " ============================== \n";
+        for (auto c: div_counters) {
+          O << format("%*u %-*s\n",
+                      MaxValLen, 
+                      c.getValue(),
+                      MaxNameLen,
+                      c.getDesc());
+        }
+      }
+
+      { // left shift
+        MaxNameLen = MaxValLen = 0;
+        std::vector<Counter> lsh_counters {SafeLeftShift,UnsafeLeftShift,UnknownLeftShift};
+        formatCounters (lsh_counters, MaxNameLen, MaxValLen,false);
+        O << " =================================== \n";
+        O << "   Oversized left shifts analysis    \n";
+        O << " =================================== \n";
+        for (auto c: lsh_counters) {
+          O << format("%*u %-*s\n",
+                      MaxValLen, 
+                      c.getValue(),
+                      MaxNameLen,
+                      c.getDesc());
         }
       }
     }
@@ -557,12 +560,11 @@ namespace seahorn {
 
   char Profiler::ID = 0;
 
-  ModulePass *createProfilerPass() { 
-    return new Profiler(); 
-  }
+  ModulePass *createProfilerPass() 
+  {return new Profiler();}
 
-  } // end namespace crabllvm
-
+} // end namespace seahorn
+    
 
 
 

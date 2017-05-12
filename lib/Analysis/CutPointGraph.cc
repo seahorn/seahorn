@@ -2,10 +2,28 @@
 #include "llvm/Transforms/Utils/UnifyFunctionExitNodes.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/IR/CFG.h"
-#include "boost/range.hpp"
+#include "llvm/IR/Instructions.h"
+#include "llvm/Support/CommandLine.h"
+
 #include "seahorn/Support/CFG.hh"
 
+#include "boost/range.hpp"
 #include "avy/AvyDebug.h"
+
+enum ExtraCpHeuristics { H0, H1, H2};
+static llvm::cl::opt<ExtraCpHeuristics>
+ExtraCp("horn-extra-cps", 
+        llvm::cl::desc("Generate additional cut-points"),
+        llvm::cl::values(
+            clEnumValN (H0, "h0", /*"none",*/ 
+                        "None"),
+            clEnumValN (H1, "h1", /*"backedge-src",*/ 
+                        "Add block if source of a back-edge"),
+            clEnumValN (H2, "h2", /*"more-reach-cp-than-children",*/ 
+                        "Add block if it reaches more cutpoints than its successors"),
+            clEnumValEnd),
+        llvm::cl::init (H0));
+            
 namespace seahorn
 {
   char CutPointGraph::ID = 0;
@@ -21,8 +39,7 @@ namespace seahorn
 
   bool CutPointGraph::runOnFunction (llvm::Function &F)
   {
-      //LOG("seahorn", errs () << "CPG runOnFunction: " << F.getName () << "\n");
-
+    //LOG("seahorn", errs () << "CPG runOnFunction: " << F.getName () << "\n");
 
     const TopologicalOrder &topo = getAnalysis<TopologicalOrder> ();
 
@@ -31,45 +48,14 @@ namespace seahorn
     computeBwdReach (F, topo);
     computeEdges (F, topo);
 
+    LOG ("cpg", 
+         errs () << "Size of the CPG: " 
+                 << m_cps.size ()  << " nodes and " 
+                 << m_edges.size() << " edges.\n");
+
     LOG ("cpg", print (errs (), F.getParent ()));
+
     return false;
-  }
-
-
-  void CutPointGraph::computeCutPoints (const Function &F, const TopologicalOrder &topo)
-  {
-
-    for (const BasicBlock *bb : topo)
-    {
-      // -- skip basic blocks that are already marked as cut-points
-      if (isCutPoint (*bb)) continue;
-      
-      // entry
-      if (pred_begin (bb) == pred_end (bb))
-      {
-        LOG ("cpg", errs () << "entry cp: " << bb->getName () << "\n");
-        newCp (*bb);
-      }
-      
-      // exit
-      if (succ_begin (bb) == succ_end (bb))
-      {
-        LOG ("cpg", errs () << "exit cp: " << bb->getName () << "\n");
-        newCp (*bb);
-      }
-      
-
-      // has incoming back-edge
-      for (const BasicBlock *pred :
-             boost::make_iterator_range (pred_begin (bb), pred_end (bb)))
-        if (topo.isBackEdge (*pred, *bb))
-        {
-          LOG ("cpg", errs () << "back-edge cp: " << bb->getName () << "\n");
-          newCp (*bb);
-        }
-      
-    }
-
   }
 
   void setbit (llvm::BitVector &b, unsigned idx)
@@ -78,6 +64,115 @@ namespace seahorn
     b.set (idx);
   }
 
+  bool lookup (const DenseMap<const BasicBlock*, unsigned>& cpMap, const BasicBlock* bb) {
+    return (cpMap.find (bb) != cpMap.end ());
+  }
+
+  void addCpMap (DenseMap<const BasicBlock*, unsigned>& cpMap, const BasicBlock* bb){ 
+    auto it = cpMap.find (bb);
+    if (it == cpMap.end ()) {
+      cpMap.insert (std::make_pair (bb, cpMap.size()));
+    }
+  }
+
+  void CutPointGraph::computeCutPoints (const Function &F, const TopologicalOrder &topo)
+  {
+    // -- store temporarily cutpoints without the need of preserving
+    //    topological ordering.
+    DenseMap<const BasicBlock*, unsigned> cp_map;
+
+    for (const BasicBlock *BB : topo) {
+
+      // -- skip basic blocks that are already marked as cut-points if
+      // -- ExtraCp == H1 is enabled, we might still find a new cutpoint
+      // -- that points into this one
+      if (ExtraCp != H1 && lookup (cp_map, BB)) continue;
+
+      // entry
+      if (pred_begin (BB) == pred_end (BB))
+      {
+        LOG ("cpg", errs () << "entry cp: " << BB->getName () << "\n");
+        addCpMap (cp_map, BB);
+      }
+      
+      // exit
+      if (succ_begin (BB) == succ_end (BB))
+      {
+        LOG ("cpg", errs () << "exit cp: " << BB->getName () << "\n");
+        addCpMap (cp_map, BB);
+      }
+      
+      // has incoming back-edge
+      for (const BasicBlock *pred :
+             boost::make_iterator_range (pred_begin (BB), pred_end (BB)))
+        if (topo.isBackEdge (*pred, *BB))
+        {
+
+          LOG ("cpg", errs () << "back-edge cp: " << BB->getName () << "\n");
+          addCpMap (cp_map, BB);
+
+          // -- make a source of a back edge that has multiple successors a cutpoint
+          if (ExtraCp == H1 && succ_end(BB) - succ_begin(BB) > 1)
+          {
+            LOG("cpg", 
+                errs () << "Adding (pred) cp: " << pred->getName () << "\n";);
+            addCpMap (cp_map, pred);
+          }
+        }      
+    }
+    
+    if (ExtraCp == H2) {
+      // -- compute for a basic block cutpoint's ids it can forward reach.
+      // XXX: We cannot use m_fwd since it has not been computed
+      // yet. We could compute m_fwd while we add cutpoints but I
+      // prefer not to do it for now.
+      BlockBitMap fwd;
+      for (auto it = topo.rbegin (), end = topo.rend (); it != end; ++it) {
+        const BasicBlock *BB = *it;
+        BitVector &r = fwd [BB];
+        for (const BasicBlock *succ : succs (*BB))
+          if (lookup (cp_map, succ)) setbit (r, cp_map [succ]);
+          else r |= fwd [succ];
+      }
+      for (const BasicBlock *BB : topo) {
+        if (!lookup (cp_map, BB) && succ_end(BB) - succ_begin(BB) > 1) {
+          // -- make a block a cutpoint if it can forward reach more
+          //    cutpoints thant its successors.
+          unsigned reachCpSucc = 0;
+          for (const BasicBlock *succ : succs (*BB))
+            reachCpSucc = std::max (reachCpSucc, fwd [succ].count ());
+
+          if (reachCpSucc > 0 && fwd [BB].count () > reachCpSucc) {
+            LOG("cpg", 
+                errs () << "Adding (reachMoreCp) cp: " << BB->getName () << "\n";);
+            addCpMap (cp_map, BB);
+          }
+        }      
+      }
+    }
+
+    // -- store permanently cutpoints preserving topological ordering
+    for (const BasicBlock* BB: topo)
+      if (lookup (cp_map, BB)) newCp (*BB); 
+    
+    cp_map.clear ();
+  }
+
+  void CutPointGraph::orderCutPoints (const Function &F, const TopologicalOrder &topo)
+  {
+    m_cps.clear ();
+    // -- re-create m_cps in topological order
+    for (const BasicBlock *bb : topo)
+    {
+      auto it = m_bb.find (bb);
+      if (it == m_bb.end ()) continue;
+
+      CutPointPtr cp = it->second;
+      cp->setId (m_cps.size ());
+      m_cps.push_back (cp);
+    }
+  }
+  
   void CutPointGraph::computeFwdReach (const Function &F, const TopologicalOrder &topo)
   {
     for (auto it = topo.rbegin (), end = topo.rend (); it != end; ++it)
@@ -101,6 +196,7 @@ namespace seahorn
     for (const BasicBlock *bb : topo)
     {
       BitVector &r = m_bwd [bb];
+      
       const BasicBlock &BB = *bb;
       for (const BasicBlock *pred :
              boost::make_iterator_range (pred_begin (bb), pred_end (bb)))

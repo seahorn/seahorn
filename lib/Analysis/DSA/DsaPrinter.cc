@@ -11,7 +11,6 @@
 
 #include "avy/AvyDebug.h"
 
-
 /*
    Convert each DSA graph to .dot file.
  */
@@ -594,7 +593,6 @@ namespace seahorn {
       }
       return false;
     }
-
     
     struct DsaPrinter : public ModulePass {
       static char ID; 

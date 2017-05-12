@@ -5,15 +5,24 @@
 #include "llvm/ADT/GraphTraits.h"
 #include "llvm/Support/DOTGraphTraits.h"
 #include "llvm/Support/GraphWriter.h"
+#include "llvm/Support/CommandLine.h"
+
+static llvm::cl::opt<bool>
+HideShadows("cfg-hide-shadows",
+            llvm::cl::desc ("Hide shadow functions and variables"),
+            llvm::cl::init (false));
 
 namespace seahorn {
-  
+
   // A wrapper for a function with loop information
   struct FunctionWrapper {
     const llvm::Function* m_F; 
     const llvm::LoopInfo* m_LI;
-    FunctionWrapper (const llvm::Function* F, const llvm::LoopInfo* LI): 
-        m_F (F), m_LI(LI) { }
+    bool m_HideShadows;    
+    FunctionWrapper (const llvm::Function* F,
+		     const llvm::LoopInfo* LI,
+		     bool HideShadows = false): 
+        m_F (F), m_LI(LI), m_HideShadows (HideShadows) { }
   };
   
 } // end namespace 
@@ -33,7 +42,6 @@ namespace llvm {
     static size_t         size       (const seahorn::FunctionWrapper *FW) 
     { return FW->m_F->size(); }
   };
-
 
   template<>
   struct DOTGraphTraits<const seahorn::FunctionWrapper*> : public DefaultDOTGraphTraits {
@@ -169,7 +177,7 @@ namespace seahorn {
       std::error_code EC;
       raw_fd_ostream File(Filename, EC, sys::fs::F_Text);
 
-      FunctionWrapper FW ((const Function*)&F, &LI);
+      FunctionWrapper FW ((const Function*)&F, &LI, HideShadows);
 
       if (!EC) {
         errs() << "Writing '" << Filename << "'...";

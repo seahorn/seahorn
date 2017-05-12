@@ -2,6 +2,27 @@
 #include "seahorn/LiveSymbols.hh"
 #include "seahorn/Support/CFG.hh"
 #include "seahorn/Support/ExprSeahorn.hh"
+#include "ufo/Stats.hh"
+
+#include "llvm/Support/CommandLine.h"
+#include "llvm/Support/FileSystem.h"
+
+static llvm::cl::opt<bool>
+ReduceFalse ("horn-reduce-constraints",
+             llvm::cl::desc
+             ("Reduce false constraints"),
+             llvm::cl::init (false));
+static llvm::cl::opt<bool>
+FlattenBody ("horn-flatten",
+             llvm::cl::desc
+             ("Flatten bodies of generated rules"),
+             llvm::cl::init (false));
+
+static llvm::cl::opt<bool>
+ReduceWeak ("horn-reduce-weakly",
+            llvm::cl::desc
+            ("Use weak solver for reducing constraints"),
+            llvm::cl::init (true));
 
 #include "ufo/Stats.hh"
 namespace seahorn
@@ -102,9 +123,9 @@ namespace seahorn
     Expr falseE = mk<FALSE> (m_efac);
     ExprVector postArgs {trueE, trueE, trueE};
     fi.evalArgs (m_sem, s, std::back_inserter (postArgs));
-    std::copy_if (postArgs.begin () + 3, postArgs.end (), 
-                  std::inserter (allVars, allVars.begin ()),
-                  bind::IsConst());
+    // -- use a mutable gate to put everything together
+    expr::filter (mknary<OUT_G> (postArgs), bind::IsConst(),
+                  std::inserter (allVars, allVars.begin ()));
     
     m_db.addRule (allVars, bind::fapp (fi.sumPred, postArgs));
     
@@ -158,6 +179,7 @@ namespace seahorn
 
     BasicBlock &entry = F.getEntryBlock ();
     ExprSet allVars;
+    ExprVector args;
     SymStore s(m_efac);
     for (const Expr& v : ls.live (&F.getEntryBlock ())) allVars.insert (s.read (v));
     Expr rule = s.eval (bind::fapp (m_parent.bbPredicate (entry), ls.live (&entry)));
@@ -174,6 +196,8 @@ namespace seahorn
         allVars.clear ();
         s.reset ();
         side.clear ();
+        args.clear ();
+        
         
         const ExprVector &live = ls.live (bb);
         for (const Expr &v : live) allVars.insert (s.read (v));
@@ -186,7 +210,10 @@ namespace seahorn
 
         expr::filter (tau, bind::IsConst(), 
                       std::inserter (allVars, allVars.begin ()));
-        for (const Expr &v : ls.live (dst)) allVars.insert (s.read (v));
+        for (const Expr &v : ls.live (dst)) args.push_back (s.read (v));
+        // -- use a mutable gate to put everything together
+        expr::filter (mknary<OUT_G> (args), bind::IsConst(),
+                      std::inserter (allVars, allVars.begin ()));
 
         Expr post;
         post = s.eval (bind::fapp (m_parent.bbPredicate (*dst), ls.live (dst)));
@@ -214,6 +241,7 @@ namespace seahorn
       // error flag (directly or indirectly)
       s.reset ();
       allVars.clear ();
+      args.clear ();
       const ExprVector &live = ls.live (&BB);
       for (const Expr &v : live) allVars.insert (s.read (v));
       Expr pre = s.eval (bind::fapp (m_parent.bbPredicate (BB), live));
@@ -244,9 +272,10 @@ namespace seahorn
       ExprVector postArgs {mk<TRUE> (m_efac), falseE, falseE};
       const FunctionInfo &fi = m_sem.getFunctionInfo (F);
       fi.evalArgs (m_sem, s, std::back_inserter (postArgs));
-      std::copy_if (postArgs.begin () + 3, postArgs.end (), 
-                    std::inserter (allVars, allVars.begin ()),
-                    bind::IsConst());
+      // -- use a mutable gate to put everything together
+      expr::filter (mknary<OUT_G> (postArgs), bind::IsConst(),
+                    std::inserter (allVars, allVars.begin ()));
+      
       Expr post = bind::fapp (fi.sumPred, postArgs);
       m_db.addRule (allVars, boolop::limp (pre, post));
       
@@ -273,6 +302,8 @@ namespace seahorn
       errs () << "The exit block of " << F.getName () << " is unreachable.\n";
       return;
     }
+    
+    LOG ("reduce", errs () << "Begin HornifyFunction: " << F.getName () << "\n";);
 
 
     CutPointGraph &cpg = m_parent.getCpg (F);
@@ -299,11 +330,26 @@ namespace seahorn
     rule = boolop::limp (boolop::lneg (s.read (m_sem.errorFlag (entry))), rule);
     m_db.addRule (allVars, rule);
     allVars.clear ();
+    ZSolver<EZ3> smt (m_zctx);
+    
+    /** use a rather weak solver */
+    ZParams<EZ3> params (m_zctx);
+    // -- always use weak arrays for now
+    params.set (":smt.array.weak", true);
+    if (ReduceWeak) params.set (":smt.arith.ignore_int", true);
+    smt.set (params);
     
     UfoLargeSymExec lsem (m_sem);
     
+
+    DenseSet<const BasicBlock*> reached;
+    reached.insert (&cpg.begin ()->bb ());
+    
+    unsigned rule_cnt = 0;
     for (const CutPoint &cp : cpg)
       {
+        if (reached.count (&cp.bb ()) <= 0) continue;
+        
         for (const CpEdge *edge : boost::make_iterator_range (cp.succ_begin (),
                                                               cp.succ_end ()))
         {
@@ -327,10 +373,71 @@ namespace seahorn
           const BasicBlock &dst = edge->target ().bb ();
           args.clear ();
           for (const Expr &v : ls.live (&dst)) args.push_back (s.read (v));
-          allVars.insert (args.begin (), args.end ());
+          // -- use a mutable gate to put everything together
+          expr::filter (mknary<OUT_G> (args), bind::IsConst(),
+                                            std::inserter (allVars, allVars.begin ()));
+          // allVars.insert (args.begin (), args.end ());
           
+          if (ReduceFalse)
+          {
+            ufo::ScopedStats __st__ ("HornifyFunction.reduce-false");
+            ufo::Stats::count ("HornifyFunction.edge");
+            bind::IsConst isConst;
+            for (auto &e : side)
+            {
+              // ignore uninterpreted functions, makes the problem easier to solve
+              if (!bind::isFapp (e) || isConst (e)) smt.assertExpr (e);
+            }
+            LOG ("reduce",
+                 
+                 std::error_code EC;
+                 raw_fd_ostream file ("/tmp/edge.smt2", EC, sys::fs::F_Text);
+                 if (!EC)
+                 {
+                   file << "(set-info :original \""
+                        << edge->source ().bb ().getName () << " --> "
+                        << edge->target ().bb ().getName () << "\")\n";
+                   smt.toSmtLib (file);
+                   file.close ();
+                 });
+            auto res = smt.solve ();
+            
+            smt.reset ();
+            
+            if (!res)
+              LOG ("reduce", errs () << "Reduced edge to false: "
+                   << edge->source ().bb ().getName () << " --> "
+                   << edge->target ().bb ().getName () << "\n";);
+            else 
+              LOG ("reduce", errs () << "NOT Reduced edge to false: "
+                   << edge->source ().bb ().getName () << " --> "
+                   << edge->target ().bb ().getName () << "\n";);
+            
+            if (!res)
+            {
+              ufo::Stats::count ("HornifyFunction.edge.false");
+              continue; /* skip a rule with an inconsistent body */
+            }
+            
+          }
+          
+          reached.insert (&dst);
           Expr post = bind::fapp (m_parent.bbPredicate (dst), args);
-          m_db.addRule (allVars, boolop::limp (boolop::land (pre, tau), post));
+          Expr body = boolop::land (pre, tau);
+          // flatten body if needed
+          if (FlattenBody &&
+              isOpX<AND> (body) && body->arity () == 2 && isOpX<AND> (body->arg (1)))
+          {
+            ExprVector v;
+            v.reserve (1 + body->arg (1)->arity ());
+            v.push_back (body->arg (0));
+            body = body->arg (1);
+            for (unsigned i = 0; i < body->arity (); ++i) v.push_back (body->arg (i));
+            
+            body = mknary<AND> (mk<TRUE> (m_efac), v);
+          }
+          
+          m_db.addRule (allVars, boolop::limp (body, post));
         }
       }
     
@@ -391,9 +498,9 @@ namespace seahorn
       ExprVector postArgs {mk<TRUE> (m_efac), falseE, falseE};
       const FunctionInfo &fi = m_sem.getFunctionInfo (F);
       fi.evalArgs (m_sem, s, std::back_inserter (postArgs));
-      std::copy_if (postArgs.begin () + 3, postArgs.end (), 
-                    std::inserter (allVars, allVars.begin ()),
-                    bind::IsConst());
+      // -- use a mutable gate to put everything together
+      expr::filter (mknary<OUT_G> (postArgs), bind::IsConst(),
+                    std::inserter (allVars, allVars.begin ()));
       Expr post = bind::fapp (fi.sumPred, postArgs);
       m_db.addRule (allVars, boolop::limp (pre, post));
       
@@ -406,6 +513,7 @@ namespace seahorn
     }
     else if (!exit & m_interproc) assert (0);
   
+    LOG ("reduce", errs () << "Done HornifyFunction: " << F.getName () << "\n";);
   }
 
   // bool HornifyFunction::checkProperty(ExprVector predicates, Expr &cex){

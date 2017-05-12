@@ -20,7 +20,7 @@ using namespace llvm;
 
 static llvm::cl::opt<std::string>
 DsaInfoToFile("sea-dsa-info-to-file",
-    llvm::cl::desc ("Dump some Dsa info into a file"),
+    llvm::cl::desc ("DSA: dump some Dsa info into a file"),
     llvm::cl::init (""),
     llvm::cl::Hidden);
 
@@ -227,7 +227,7 @@ void InfoAnalysis::assignAllocSiteIdAndPrinting
     unsigned num_alloc_sites = n.getNode()->getAllocSites ().size ();
     if (num_alloc_sites == 0) 
     {
-      o << *n.getNode () << " has no alllocation site\n";
+      //o << *n.getNode () << " has no alllocation site\n";
       num_orphan_nodes++;
       num_orphan_checks += n.getAccesses();
       continue;

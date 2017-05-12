@@ -7,6 +7,10 @@
 
 #include "ufo/ufo_iterators.hpp"
 #include "llvm/Support/CommandLine.h"
+#include "llvm/Support/FileSystem.h"
+
+#include "ufo/Smt/EZ3.hh"
+#include "ufo/Stats.hh"
 
 //#include <queue>
 
@@ -70,6 +74,19 @@ SplitCriticalEdgesOnly ("horn-split-only-critical",
               llvm::cl::desc ("Introduce edge variables only for critical edges"),
               cl::init (true),
               cl::Hidden);
+
+static llvm::cl::opt<bool>
+UseWrite ("horn-use-write",
+          llvm::cl::desc ("Write to store instead of havoc"),
+          cl::init (false),
+          cl::Hidden);
+
+
+static llvm::cl::opt<bool>
+LargeStepReduce ("horn-large-reduce",
+                 llvm::cl::desc ("Reduce constraints during large-step encoding"),
+                 cl::init (false),
+                 cl::Hidden);
 
 static const Value *extractUniqueScalar (CallSite &cs)
 {
@@ -149,12 +166,30 @@ namespace
     Expr lookup (const Value &v) {return m_sem.lookup (m_s, v);}
     Expr havoc (const Value &v) 
     {return m_sem.isTracked (v) ? m_s.havoc (symb (v)) : Expr (0);}
+    void write (const Value &v, Expr val)
+    {if (val && m_sem.isTracked (v)) m_s.write (symb (v), val);}
 
     void resetActiveLit () {m_activeLit = trueE;}
     void setActiveLit (Expr act) {m_activeLit = act;}
     
     // -- add conditional side condition
-    void addCondSide (Expr c) {m_side.push_back (boolop::limp (m_activeLit, c));}
+    void addCondSide (Expr c) {side(c, true);}
+
+    void side (Expr v, bool conditional = false)
+    {
+      if (!v) return;
+      if (!GlobalConstraints || conditional)
+        m_side.push_back (boolop::limp (m_activeLit, v));
+      else
+        m_side.push_back (v);
+    }
+   
+    void bside (Expr lhs, Expr rhs, bool conditional = false)
+    {if (lhs && rhs) side (mk<IFF> (lhs, rhs), conditional);}
+    
+   
+    void side (Expr lhs, Expr rhs, bool conditional = false)
+    {if (lhs && rhs) side (mk<EQ> (lhs, rhs), conditional);}
     
   };
   
@@ -218,57 +253,58 @@ namespace
 
       if (!(op0 && op1)) return;
 
-      Expr res;
+      Expr rhs;
       
       switch (I.getPredicate ())
       {
       case CmpInst::ICMP_EQ:
-        res = mk<IFF>(lhs, mk<EQ>(op0,op1));
+        rhs =  mk<EQ>(op0,op1);
         break;
       case CmpInst::ICMP_NE:
-        res = mk<IFF>(lhs, mk<NEQ>(op0,op1));
+        rhs = mk<NEQ>(op0,op1);
         break;
       case CmpInst::ICMP_UGT:
-        res = mk<IFF> (lhs, mkUnsignedLT (op1, op0));
+        rhs = mkUnsignedLT (op1, op0);
         break;
       case CmpInst::ICMP_SGT:
         if (v0.getType ()->isIntegerTy (1))
         {
           if (isOpX<TRUE> (op1))
             // icmp sgt op0, i1 true  == !op0
-            res = mk<IFF> (lhs, boolop::lneg (op0));
+            rhs = boolop::lneg (op0);
         }
         else
-          res = mk<IFF>(lhs,mk<GT>(op0,op1));
+          rhs = mk<GT>(op0,op1);
         break;
       case CmpInst::ICMP_UGE:
-        res = mk<OR> (mk<IFF> (lhs, mk<EQ> (op0, op1)),
-                      mk<IFF> (lhs, mkUnsignedLT (op1, op0)));
+        side (mk<OR> (mk<IFF> (lhs, mk<EQ> (op0, op1)),
+                      mk<IFF> (lhs, mkUnsignedLT (op1, op0))));
+        rhs = nullptr;
         break;
       case CmpInst::ICMP_SGE:
-        res = mk<IFF>(lhs,mk<GEQ>(op0,op1));
+        rhs = mk<GEQ>(op0,op1);
         break;
       case CmpInst::ICMP_ULT:
-        res = mk<IFF> (lhs, mkUnsignedLT (op0, op1));
+        rhs = mkUnsignedLT (op0, op1);
         break;
       case CmpInst::ICMP_SLT:
-        res = mk<IFF>(lhs,mk<LT>(op0,op1));
+        rhs = mk<LT>(op0,op1);
         break; 
       case CmpInst::ICMP_ULE:
-        res = mk<OR> (mk<IFF> (lhs, mk<EQ> (op0, op1)),
-                      mk<IFF> (lhs, mkUnsignedLT (op0, op1)));
+        side (mk<OR> (mk<IFF> (lhs, mk<EQ> (op0, op1)),
+                      mk<IFF> (lhs, mkUnsignedLT (op0, op1))));
+        rhs = nullptr;
         break;
       case CmpInst::ICMP_SLE:
-        res = mk<IFF>(lhs,mk<LEQ>(op0,op1));
+        rhs = mk<LEQ>(op0,op1);
         break;
       default:
+        rhs = nullptr;
         break;
       }       
 
-      // -- optionally guard branch conditions by activation literals
-      Expr act = GlobalConstraints ? trueE : m_activeLit;
-      if (res)
-        m_side.push_back (boolop::limp (act, res));
+      if (UseWrite) write (I, rhs);
+      else side (lhs, rhs);
     }
     
     
@@ -281,10 +317,14 @@ namespace
       Expr op0 = lookup (*I.getTrueValue ());
       Expr op1 = lookup (*I.getFalseValue ());
       
-      
-      Expr act = GlobalConstraints ? trueE : m_activeLit;
       if (cond && op0 && op1)
-        m_side.push_back (boolop::limp (act, mk<EQ> (lhs, mk<ITE> (cond, op0, op1))));
+      {
+        Expr rhs = mk<ITE> (cond, op0, op1);
+
+        /* avoid creating nest ite expressions by always introducing fresh constants */
+        if (false && UseWrite) write (I, rhs);
+        else side (lhs, rhs);
+      }
     }
     
     void visitBinaryOperator(BinaryOperator &I)
@@ -365,7 +405,7 @@ namespace
         break;
       }
       
-      if (res) m_side.push_back (boolop::limp (m_activeLit, res));
+      addCondSide (res);
     }
 
     Expr doLShr (Expr lhs, Expr op1, const ConstantInt *op2)
@@ -385,45 +425,48 @@ namespace
 			
     }
     
-    void doLogic (Expr lhs, BinaryOperator &i)
+    void doLogic (Expr lhs, BinaryOperator &I)
     {
-      const Value& v0 = *(i.getOperand(0));
-      const Value& v1 = *(i.getOperand(1));
+      const Value& v0 = *(I.getOperand(0));
+      const Value& v1 = *(I.getOperand(1));
       
       // only Boolean logic is supported
       if (! (v0.getType ()->isIntegerTy (1) &&
-             v1.getType ()->isIntegerTy (1))) return doBitLogic (lhs, i);
+             v1.getType ()->isIntegerTy (1))) return doBitLogic (lhs, I);
       
       Expr op0 = lookup (v0);
       Expr op1 = lookup (v1);
 
       if (!(op0 && op1)) return;
 
-      Expr res;
+      Expr rhs;
       
-      switch(i.getOpcode())
+      switch(I.getOpcode())
 	{
 	case BinaryOperator::And:
-	  res = mk<IFF>(lhs, mk<AND>(op0,op1));
+	  rhs = mk<AND>(op0,op1);
           break;
 	case BinaryOperator::Or:
-	  res = mk<IFF>(lhs, mk<OR>(op0,op1));
+	  rhs = mk<OR>(op0,op1);
           break;
         case BinaryOperator::Xor:
-	  res = mk<IFF>(lhs, mk<XOR>(op0,op1));
+	  rhs = mk<XOR>(op0,op1);
           break;
 	case BinaryOperator::LShr:
-	  if (const ConstantInt *ci = dyn_cast<ConstantInt> (&v1))
-	    res = doLShr (lhs, op0, ci);
+	  if (const ConstantInt *ci = dyn_cast<ConstantInt> (&v1)) {
+	    Expr res = doLShr (lhs, op0, ci);
+	    side (res);
+	    return;
+	  }
         default:
           break;
 	}
 
-      Expr act = GlobalConstraints ? trueE : m_activeLit;
-      if (res) m_side.push_back (boolop::limp (act, res));
+      if (UseWrite) write (I, rhs);
+      else side (lhs, rhs);
     }
 
-    Expr doLeftShift(Expr lhs, Expr op1, const ConstantInt *op2)
+    Expr doLeftShift(Expr op1, const ConstantInt *op2)
     {
       mpz_class shift = expr::toMpz (op2->getValue ());
       mpz_class factor = 1;
@@ -431,10 +474,10 @@ namespace
       {
           factor = factor * 2;
       }
-      Expr res = mk<EQ>(lhs ,mk<MULT>(op1, mkTerm<mpz_class> (factor, m_efac)));        
-      return res;
+      return mk<MULT>(op1, mkTerm<mpz_class> (factor, m_efac));
     }
-    Expr doAShr (Expr lhs, Expr op1, const ConstantInt *op2)
+
+    Expr doAShr (Expr lhs, Expr op1, const ConstantInt *op2)    
     {
       if (!EnableDiv) return Expr(nullptr);
 
@@ -443,30 +486,31 @@ namespace
       for (unsigned long i = 0; i < shift.get_ui (); ++i) 
           factor = factor * 2;
       Expr factorE = mkTerm<mpz_class> (factor, m_efac);
+      
       if (RewriteDiv)
 	return mk<EQ>(mk<MULT>(lhs, factorE), op1);
       else
 	return mk<EQ>(lhs ,mk<DIV>(op1, factorE));
     }
     
-    void doArithmetic (Expr lhs, BinaryOperator &i)
+    void doArithmetic (Expr lhs, BinaryOperator &I)
     {
-      const Value& v1 = *i.getOperand(0);
-      const Value& v2 = *i.getOperand(1);
+      const Value& v1 = *I.getOperand(0);
+      const Value& v2 = *I.getOperand(1);
 
       Expr op1 = lookup (v1);
       Expr op2 = lookup (v2);
 
       if (!(op1 && op2)) return;
 
-      Expr res;
-      switch(i.getOpcode())
+      Expr rhs;
+      switch(I.getOpcode())
       {
       case BinaryOperator::Add:
-        res = mk<EQ>(lhs ,mk<PLUS>(op1, op2));
+        rhs = mk<PLUS>(op1, op2);
         break;
       case BinaryOperator::Sub:
-        res = mk<EQ>(lhs ,mk<MINUS>(op1, op2));
+        rhs = mk<MINUS>(op1, op2);
         break;
       case BinaryOperator::Mul:
         // if StrictlyLinear, then require that at least one
@@ -474,7 +518,7 @@ namespace
         if (!StrictlyLinear || 
             isOpX<MPZ> (op1) || isOpX<MPZ> (op2) || 
             isOpX<MPQ> (op1) || isOpX<MPQ> (op2))
-          res = mk<EQ>(lhs ,mk<MULT>(op1, op2));
+          rhs = mk<MULT>(op1, op2);
         break;
       case BinaryOperator::SDiv:
       case BinaryOperator::UDiv:
@@ -482,10 +526,12 @@ namespace
         if (EnableDiv && 
             (!StrictlyLinear || 
              isOpX<MPZ> (op2) || isOpX<MPQ> (op2))) {
-	  if (RewriteDiv)
-	    res = mk<EQ>(mk<MULT>(lhs, op2), op1);
+	  if (RewriteDiv) {
+	    side (mk<MULT>(lhs, op2), op1, true);
+	    return;
+	  }
 	  else 
-	    res = mk<EQ>(lhs ,mk<DIV>(op1, op2));
+	    rhs = mk<DIV>(op1, op2);	    
 	}
         break;
       case BinaryOperator::SRem:
@@ -493,32 +539,33 @@ namespace
         // if StrictlyLinear then require that divisor is a constant
         if (EnableDiv && 
             (!StrictlyLinear || isOpX<MPZ> (op2) || isOpX<MPQ> (op2)))
-          res = mk<EQ> (lhs, mk<REM> (op1, op2));
+          rhs = mk<REM> (op1, op2);
         break;
       case BinaryOperator::Shl:
         if (const ConstantInt *ci = dyn_cast<ConstantInt> (&v2))
-          res = doLeftShift(lhs, op1, ci);
+          rhs = doLeftShift(op1, ci);
         break;
       case BinaryOperator::AShr:
-        if (const ConstantInt *ci = dyn_cast<ConstantInt> (&v2))
-	   res = doAShr (lhs, op1, ci);	    
+        if (const ConstantInt *ci = dyn_cast<ConstantInt> (&v2)) {
+	  Expr res = doAShr (lhs, op1, ci);
+	  side (res, true);
+	  return;
+	}
         break;
       default:
         break;
       }
 
-      Expr act = GlobalConstraints ? trueE : m_activeLit;
-      
       // -- always guard division
       if (EnableDiv &&
-          (i.getOpcode () == BinaryOperator::SDiv ||
-           i.getOpcode () == BinaryOperator::UDiv ||
-           i.getOpcode () == BinaryOperator::SRem ||
-           i.getOpcode () == BinaryOperator::URem ||
-           i.getOpcode () == BinaryOperator::AShr))
-        act = m_activeLit;
-      
-      if (res) m_side.push_back (boolop::limp (act, res));
+          (I.getOpcode () == BinaryOperator::SDiv ||
+           I.getOpcode () == BinaryOperator::UDiv ||
+           I.getOpcode () == BinaryOperator::SRem ||
+           I.getOpcode () == BinaryOperator::URem ||
+           I.getOpcode () == BinaryOperator::AShr))
+        side (lhs, rhs, true);
+      else if (UseWrite) write (I, rhs);
+      else side (lhs, rhs);
     }
     
     void visitReturnInst (ReturnInst &I)
@@ -543,18 +590,16 @@ namespace
       
       if (!op0) return;
 
-      Expr act = GlobalConstraints ? trueE : m_activeLit;
       if (I.getType ()->isIntegerTy (1))
       {
         // truncation to 1 bit amounts to 'is_even' predicate.
         // We handle the two most common cases: 0 -> false, 1 -> true
-        m_side.push_back (boolop::limp (act,
-                                        mk<IMPL> (mk<EQ> (op0, zeroE), mk<NEG> (lhs))));
-        m_side.push_back (boolop::limp (act,
-                                        mk<IMPL> (mk<EQ> (op0, oneE), lhs)));
+        side (mk<IMPL> (mk<EQ> (op0, zeroE), mk<NEG> (lhs)));
+        side (mk<IMPL> (mk<EQ> (op0, oneE), lhs));
+        
       }
-      else
-        m_side.push_back (boolop::limp (act, mk<EQ> (lhs, op0)));
+      else if (UseWrite) write (I, op0);
+      else side (lhs, op0);
     }
     
     void visitZExtInst (ZExtInst &I) {doExtCast (I, false);}
@@ -575,10 +620,10 @@ namespace
       }
       
       Expr op = m_sem.ptrArith (m_s, *gep.getPointerOperand (), ps, ts);
-      Expr act = GlobalConstraints ? trueE : m_activeLit;
       if (op)
       {
-        m_side.push_back (boolop::limp (act, mk<EQ> (lhs, op)));
+        // XXX cannot use write because lhs is further constrained below
+        side (lhs, op);
         if (!InferMemSafety) return;
         
         // -- extra constraints that exclude undefined behavior
@@ -586,9 +631,7 @@ namespace
           return;
         if (Expr base = lookup (*gep.getPointerOperand ()))
           // -- base > 0 -> lhs > 0
-          m_side.push_back (boolop::limp (m_activeLit,
-                                          mk<OR> (mk<LEQ> (base, zeroE),
-                                                  mk<GT> (lhs, zeroE))));
+          addCondSide (mk<OR> (mk<LEQ> (base, zeroE), mk<GT> (lhs, zeroE)));
       }
       
     }
@@ -612,8 +655,8 @@ namespace
           op0 = mk<ITE> (op0, one, zeroE);
       }
       
-      Expr act = GlobalConstraints ? trueE : m_activeLit;
-      m_side.push_back (boolop::limp (act, mk<EQ> (lhs, op0)));
+      if (UseWrite) write (I, op0);
+      else side (lhs, op0);
     }
     
     void visitCallSite (CallSite CS)
@@ -837,11 +880,9 @@ namespace
     {
       if (!m_sem.isTracked (I)) return;
       
-      Expr lhs = havoc(I);
-      Expr act = GlobalConstraints ? trueE : m_activeLit;
-
       // -- alloca always returns a non-zero address
-      m_side.push_back (boolop::limp (act, mk<GT> (lhs, zeroE)));
+      Expr lhs = havoc(I);
+      side (mk<GT> (lhs, zeroE));
     }
     
     void visitLoadInst (LoadInst &I)
@@ -854,14 +895,12 @@ namespace
         if (GetElementPtrInst *gep = dyn_cast<GetElementPtrInst> (pop))
         {
           Expr base = lookup (*gep->getPointerOperand ());
-          if (base)
-            m_side.push_back (boolop::limp (m_activeLit, mk<GT> (base, zeroE)));
+          if (base) addCondSide (mk<GT> (base, zeroE));
         }
       }
       
       if (!m_sem.isTracked (I)) return;
       
-      Expr act = GlobalConstraints ? trueE : m_activeLit;
       // -- define (i.e., use) the value of the instruction
       Expr lhs = havoc (I);
       if (!m_inMem) return;
@@ -873,8 +912,8 @@ namespace
           // -- convert to Boolean
           rhs = mk<NEQ> (rhs, mkTerm (mpz_class(0), m_efac));
        
-        m_side.push_back (boolop::limp (act,
-                                        mk<EQ> (lhs, rhs)));
+        if (UseWrite) write (I, rhs);
+        else side (lhs, rhs);
       }
       else if (Expr op0 = lookup (*I.getPointerOperand ()))
       {
@@ -883,9 +922,7 @@ namespace
           // -- convert to Boolean
           rhs = mk<NEQ> (rhs, mkTerm (mpz_class(0), m_efac));
 
-        if (!ArrayGlobalConstraints) act = m_activeLit;
-        m_side.push_back (boolop::limp (act,
-                                        mk<EQ> (lhs, rhs)));
+        side (lhs, rhs, !ArrayGlobalConstraints);
       }
       
       m_inMem.reset ();
@@ -902,8 +939,7 @@ namespace
         if (GetElementPtrInst *gep = dyn_cast<GetElementPtrInst> (pop))
         {
           Expr base = lookup (*gep->getPointerOperand ());
-          if (base)
-            m_side.push_back (boolop::limp (m_activeLit, mk<GT> (base, zeroE)));
+          if (base) addCondSide (mk<GT> (base, zeroE));
         }
       }
 
@@ -917,18 +953,13 @@ namespace
                           mkTerm (mpz_class (0), m_efac));
       if (m_uniq)
       {
-        if (v)
-          m_side.push_back (boolop::limp (act, mk<EQ> (m_outMem, v)));
+        side (m_outMem, v);
       }
       else
       {
         Expr idx = lookup (*I.getPointerOperand ());
-      
-        if (!ArrayGlobalConstraints) act = m_activeLit;
         if (idx && v)
-          m_side.push_back (boolop::limp (act,
-                                          mk<EQ> (m_outMem, 
-                                                  op::array::store (m_inMem, idx, v))));
+          side (m_outMem, op::array::store (m_inMem, idx, v), !ArrayGlobalConstraints);
       }
       
       m_inMem.reset ();
@@ -943,9 +974,9 @@ namespace
       Expr lhs = havoc (I);
       const Value &v0 = *I.getOperand (0);
       
-      Expr act = GlobalConstraints ? trueE : m_activeLit;
       Expr u = lookup (v0);
-      if (u) m_side.push_back (boolop::limp (act, mk<EQ> (lhs, u)));
+      if (UseWrite) write (I, u);
+      else side (lhs, u);
     }
     
     void initGlobals (const BasicBlock &BB)
@@ -1005,7 +1036,7 @@ namespace
         Expr lhs = havoc (phi);
         Expr act = GlobalConstraints ? trueE : m_activeLit;
         Expr op0 = ops[i++];
-        if (op0) m_side.push_back (boolop::limp (act, mk<EQ> (lhs, op0)));
+        side (lhs, op0);
       }
     }
   };
@@ -1094,7 +1125,8 @@ namespace seahorn
     
   Expr UfoSmallSymExec::symb (const Value &I)
   {
-    assert (!isa<UndefValue>(&I));
+    if (isa<UndefValue> (&I)) return Expr(0);
+    // assert (!isa<UndefValue>(&I));
 
     // -- basic blocks are mapped to Bool constants
     if (const BasicBlock *bb = dyn_cast<const BasicBlock> (&I))
@@ -1175,6 +1207,8 @@ namespace seahorn
   bool UfoSmallSymExec::isTracked (const Value &v) 
   {
     const Value* scalar;
+
+    if (isa<UndefValue> (v)) return false;
     
     // -- shadow values represent memory regions
     // -- only track them when memory is tracked
@@ -1266,19 +1300,118 @@ namespace seahorn
   {
     const CutPoint &target = edge.target ();
     
+    std::unique_ptr<EZ3> zctx;
+    std::unique_ptr<ZSolver<EZ3> > smt;
+    if (LargeStepReduce) 
+    {
+      errs () << "\nE";
+      // XXX Consider using global EZ3 
+      zctx.reset (new EZ3 (m_sem.efac ()));
+      smt.reset (new ZSolver<EZ3> (*zctx));
+      ZParams<EZ3> params (*zctx);
+      params.set (":smt.array.weak", true);
+      params.set (":smt.arith.ignore_int", true);
+      smt->set (params);
+    }
+      
+    unsigned head = side.size ();
+    bind::IsConst isConst;
+    
     bool first = true;
     for (const BasicBlock& bb : edge) 
     {
+      Expr bbV;
       if (first)
       {
-        s.havoc (m_sem.symb (bb));
+        bbV = s.havoc (m_sem.symb (bb));
         m_sem.exec (s, bb, side, trueE);  
       }
-      else execEdgBb (s, edge, bb, side);
+      else
+      {
+        execEdgBb (s, edge, bb, side);
+        bbV = s.read (m_sem.symb (bb));
+      }
+
+      
+      if (LargeStepReduce){
+        for (unsigned sz = side.size (); head < sz; ++head)
+        {
+            ufo::ScopedStats __st__ ("LargeSymExec.smt");
+            Expr e = side [head];
+            if (!bind::isFapp (e) || isConst (e)) smt->assertExpr (e);
+        }
+        
+        errs () << ".";
+        errs ().flush ();
+        
+        TimeIt<llvm::raw_ostream&> _t_("smt-solving", errs(), 0.1);
+        
+        ufo::ScopedStats __st__ ("LargeSymExec.smt");
+        Expr a[1] = {bbV};
+
+        LOG("pedge",
+          std::error_code EC;
+          raw_fd_ostream file ("/tmp/p-edge.smt2", EC, sys::fs::F_Text);
+          if (!EC)
+          {
+            file << "(set-info :original \""
+                 << edge.source ().bb ().getName () << " --> "
+                 << bb.getName () << " --> "
+                 << edge.target ().bb ().getName () << "\")\n";
+            smt->toSmtLibAssuming (file, a);
+            file.close ();
+          });
+        
+        try
+        {
+          auto res = smt->solveAssuming (a);
+          if (!res)
+          {
+            errs () << "F";
+            errs ().flush ();
+            Stats::count ("LargeSymExec.smt.unsat");
+            smt->assertExpr (boolop::lneg (bbV));
+            side.push_back (boolop::lneg (bbV));
+          }
+        }
+        catch (z3::exception &e)
+        {
+          errs () << e.msg () << "\n";
+          // std::exit (1);
+        }
+        
+      }
+      
+      
       first = false;
     }
     
     execEdgBb (s, edge, target.bb (), side, true);
+    
+    if (LargeStepReduce)
+    {
+      for (unsigned sz = side.size (); head < sz; ++head)
+      {
+        ufo::ScopedStats __st__ ("LargeSymExec.smt");
+        Expr e = side [head];
+        if (!bind::isFapp (e) || isConst (e)) smt->assertExpr (e);
+      }    
+    
+      try
+      {
+        ufo::ScopedStats __st__ ("LargeSymExec.smt.last");
+        auto res = smt->solve ();
+        if (!res)
+        {
+          Stats::count ("LargeSymExec.smt.last.unsat");
+          side.push_back (mk<FALSE> (m_sem.efac ()));
+        }
+      } catch (z3::exception &e)
+      {
+        errs () << e.msg () << "\n";
+      }
+      
+    }
   }
   
   namespace sem_detail

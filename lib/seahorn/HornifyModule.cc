@@ -194,6 +194,25 @@ namespace seahorn
       return Changed;
     }
 
+    
+    if (!NoVerification)
+    {
+      // --- expensive check that iterates over all callsites 
+      Function* errorFn = M.getFunction ("verifier.error");            
+      for (auto &fn: M)
+	for (auto &I : boost::make_iterator_range (inst_begin(fn), inst_end(fn))) {
+	  if (!isa<CallInst> (&I)) continue;
+	  CallSite CS (&I);
+	  const Function *callee = CS.getCalledFunction ();
+	  if (callee == errorFn) {
+	    // this happens when a function calls to verifier.error()
+	    // but it is not reachable from main and for some reason
+	    // (e.g., llvm.global_ctors) it was not marked as dead code.
+	    errs () << "WARNING: found call to verifier.error(). This should not happen.\n";
+	  }
+	}
+    }
+    
     // create FunctionInfo for verifier.error() function
     if (Function* errorFn = M.getFunction ("verifier.error"))
     {

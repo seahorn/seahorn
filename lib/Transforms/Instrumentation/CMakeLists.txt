@@ -10,6 +10,7 @@ add_llvm_library(SeaInstrumentation
   KleeInternalize.cc
   WrapMem.cc
   RenameNondet.cc
+  BufferBoundsCheck.cc
   )
 
 if (HAVE_DSA)

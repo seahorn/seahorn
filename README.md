@@ -13,7 +13,6 @@
   </tr>
 </table>
 
-
 # About #
 
 <a href="http://seahorn.github.io/">SeaHorn</a> is an automated analysis framework for LLVM-based languages.

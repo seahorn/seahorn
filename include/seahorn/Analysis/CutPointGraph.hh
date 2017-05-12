@@ -62,6 +62,8 @@ namespace seahorn
     
   class CutPoint
   {
+    friend class CutPointGraph;
+    
     const CutPointGraph &m_parent;
     unsigned m_id;
     const BasicBlock &m_bb;
@@ -70,6 +72,7 @@ namespace seahorn
     EdgeVector m_pred;
     EdgeVector m_succ;
     
+    void setId (unsigned v) {m_id = v;}
 
   public:
     CutPoint (const CutPointGraph &p, unsigned id, const BasicBlock &bb) 
@@ -113,8 +116,10 @@ namespace seahorn
  
   class CutPointGraph : public FunctionPass
   {
-    typedef std::vector<boost::shared_ptr<CutPoint>> CpVector;
-    typedef std::vector<boost::shared_ptr<CpEdge>> CpEdgeVector;
+    typedef boost::shared_ptr<CutPoint> CutPointPtr;
+    
+    typedef std::vector<CutPointPtr> CpVector;
+    typedef std::vector<boost::shared_ptr<CpEdge> > CpEdgeVector;
     
     CpVector m_cps;
     CpEdgeVector m_edges;
@@ -126,7 +131,7 @@ namespace seahorn
     BlockBitMap m_bwd;
     
     
-    DenseMap<const BasicBlock*,  CutPoint *> m_bb;
+    DenseMap<const BasicBlock*,  boost::shared_ptr<CutPoint> > m_bb;
     
     CutPoint &newCp (const BasicBlock &bb)
     {
@@ -135,9 +140,8 @@ namespace seahorn
 
       m_cps.push_back (boost::make_shared<CutPoint> (*this, m_cps.size (), bb));
       
-      CutPoint &res = *m_cps.back ();
-      m_bb [&bb] = &res;
-      return res;
+      m_bb [&bb] = m_cps.back ();
+      return *(m_cps.back ());
     }
     
     CpEdge &newEdge (CutPoint &s, CutPoint &d)
@@ -153,6 +157,7 @@ namespace seahorn
     
     
     void computeCutPoints (const Function &F, const TopologicalOrder &topo);
+    void orderCutPoints (const Function &F, const TopologicalOrder &topo);
     void computeFwdReach (const Function &F, const TopologicalOrder &topo);
     void computeBwdReach (const Function &F, const TopologicalOrder &topo);
     void computeEdges (const Function &F, const TopologicalOrder &topo);

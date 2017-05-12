@@ -2,7 +2,6 @@
 // RUN: %cmp-graphs %tests/test-2.ci.c.main.mem.dot %T/test-2.ci.c/main.mem.dot | OutputCheck %s -d
 // CHECK: ^OK$
 
-
 extern void print(int x);
 extern void* malloc (unsigned int sz);
 
@@ -44,7 +43,6 @@ int main (){
   Elem e = (Elem) malloc (sizeof(struct element));
   e->x = 5;
   e->y = 6;
-  
   
   List p1 = mkList (5,e);
   List p2 = mkList (5,e);

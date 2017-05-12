@@ -564,6 +564,9 @@ class Seahorn(sea.LimitedCmd):
         ap.add_argument ('--show-invars',
                          help='Display computed invariants',
                          dest='show_invars', default=False, action='store_true')
+        ap.add_argument ('--mem-dot',
+                         help='Print memory graph of a function to dot format (if --horn-sea-dsa)',
+                         dest='mem_dot', default=False, action='store_true'),
         ap.add_argument ('--crab',
                          help='Enable Crab abstract interpreter',
                          dest='crab', default=False, action='store_true')
@@ -587,6 +590,9 @@ class Seahorn(sea.LimitedCmd):
 
         if args.solve or args.out_file is not None:
             argv.append ('--keep-shadows=true')
+
+        if args.mem_dot:
+            argv.append ('--mem-dot')
 
         if args.solve:
             argv.append ('--horn-solve')

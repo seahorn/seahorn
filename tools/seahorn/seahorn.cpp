@@ -143,6 +143,10 @@ PredAbs ("horn-pred-abs",
         llvm::cl::desc ("Use Predicate Abstraction to generate inductive invariants"),
         llvm::cl::init (false));
 
+static llvm::cl::opt<bool>
+MemDot("mem-dot",
+       llvm::cl::desc("Print SeaHorn Dsa memory graph of a function to dot format"),
+       llvm::cl::init(false));
 
 // removes extension from filename if there is one
 std::string getFileName(const std::string &str) {
@@ -309,7 +313,10 @@ int main(int argc, char **argv) {
           if (Cex) pass_manager.add (new seahorn::HornCex ());
     }
   }
-
+  
+  if (MemDot)
+    pass_manager.add (seahorn::createDsaPrinterPass ());
+  
   pass_manager.run(*module.get());
 
   if (!AsmOutputFilename.empty ()) asmOutput->keep ();

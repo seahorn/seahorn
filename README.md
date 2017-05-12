@@ -157,7 +157,7 @@ encoding error locations by a call to the designated error function
 `__VERIFIER_error()` is unreachable, and the program is considered
 safe. SeaHorn returns `sat` when `__VERIFIER_error()` is reachable and
 the program is unsafe. `sassert()` method is defined in
-`seahorn/seahorn.h` which can be found in `seahorn/share`.
+`seahorn/seahorn.h`.
 
 
 # People #

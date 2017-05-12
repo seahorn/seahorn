@@ -64,18 +64,10 @@ script:
   - /usr/bin/cmake --build . --target test-solve
   - /usr/bin/cmake --build . --target test-dsa  
 
-# JN: avoid spamming while I set up things
 notifications:
-  email:
-    recipients:
-     - navasjorgea@gmail.com
-    on_success: always
-    on_failure: always
-
-# notifications:
-#   slack: seahornteam:NAUqZmZHFFviPH4ktQbJXgKu
-#   email:
-#     recipients:
-#      - seahorn-build@googlegroups.com
-#     on_success: always
-#     on_failure: always
+   slack: seahornteam:NAUqZmZHFFviPH4ktQbJXgKu
+   email:
+     recipients:
+      - seahorn-build@googlegroups.com
+     on_success: always
+     on_failure: always

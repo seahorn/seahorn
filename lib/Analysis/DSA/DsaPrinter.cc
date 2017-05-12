@@ -512,7 +512,7 @@ namespace llvm {
 	    OS << v->getName ();
 	  else
 	    OS << *v;
-	  GW.emitSimpleNode(it->first, "", OS.str());
+	  GW.emitSimpleNode(it->first, "shape=plaintext", OS.str());
 	  Node *DestNode = it->second->getNode();
 	  int EdgeDest = getIndex(DestNode, it->second->getOffset());
 	  GW.emitEdge(it->first, -1,
@@ -531,7 +531,7 @@ namespace llvm {
 	  llvm::raw_string_ostream OS(OS_str);
 	  const llvm::Argument* arg = it->first;
 	  OS << arg->getParent()->getName () << "#" << arg->getArgNo();
-	  GW.emitSimpleNode(it->first, "color=blue", OS.str());
+	  GW.emitSimpleNode(it->first, "shape=plaintext,fontcolor=blue", OS.str());
 	  Node *DestNode = it->second->getNode();
 	  int EdgeDest = getIndex(DestNode, it->second->getOffset());
 	  GW.emitEdge(it->first, -1,
@@ -550,7 +550,7 @@ namespace llvm {
 	  llvm::raw_string_ostream OS(OS_str);
 	  const llvm::Function* f = it->first;
 	  OS << f->getName () << "#Ret";
-	  GW.emitSimpleNode(it->first, "color=blue", OS.str());
+	  GW.emitSimpleNode(it->first, "shape=plaintext,fontcolor=blue", OS.str());
 	  Node *DestNode = it->second->getNode();
 	  int EdgeDest = getIndex(DestNode, it->second->getOffset());
 	  GW.emitEdge(it->first, -1,

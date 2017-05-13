@@ -1,7 +1,8 @@
 // RUN: %sea pf -O0 --abc=%abc_encoding %dsa "%s" %abc3_definitions 2>&1 | OutputCheck %s
 // CHECK: ^unsat$
 
-#include <stdio.h>
+// Used to avoid llvm to optimize away
+extern void read (int);
 
 int foo(int k, int N) {
   return k + N;
@@ -15,5 +16,6 @@ int main(int argc, char** argv) {
   int a[56];
   int x = foo(5, 10); // x=15
   int y = x + bar(x); // y=55
-  return a[y];
+  read (a[y]);
+  return 0;
 }

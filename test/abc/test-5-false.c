@@ -3,8 +3,11 @@
 
 extern int nd ();
 
-#include <stdio.h>
-#include <stdlib.h>
+// Used to avoid llvm to optimize away
+extern void read (int);
+
+extern void* malloc (unsigned int);
+
 
 int bar(int *a, int sz) 
 {
@@ -14,8 +17,8 @@ int bar(int *a, int sz)
     a[i] = i;
   }
   // trick llvm so that it cannot detect overflow
-  printf("%d\n", a[(nd () > 0 ? i-1 : i)]);
-  return 42;
+  read(a[(nd () > 0 ? i-1 : i)]);
+  return 0;
 }
 
 int foo(int sz) 

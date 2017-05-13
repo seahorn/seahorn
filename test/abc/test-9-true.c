@@ -1,7 +1,8 @@
 // RUN: %sea pf -O0 --abc=%abc_encoding %dsa "%s" %abc3_definitions 2>&1 | OutputCheck %s
 // CHECK: ^unsat$
 
-#include <stdio.h>
+// Used to avoid llvm to optimize away
+extern void read (int);
 
 extern void __VERIFIER_assume (int v);
 #define assume __VERIFIER_assume
@@ -25,5 +26,6 @@ int main()
   assume (x==5);
   int *b = foo (a, n, x);
   /* int *c = foo (b, 10, 7); */
-  printf("%d\n", b[7]);
+  read(b[7]);
+  return 0;
 }

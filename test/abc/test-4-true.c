@@ -1,12 +1,14 @@
 // RUN: %sea pf -O0 --abc=%abc_encoding %dsa "%s" %abc3_definitions 2>&1 | OutputCheck %s
 // CHECK: ^unsat$
 
+// Used to avoid llvm to optimize away
+extern void read (int);
+
+extern void* malloc (unsigned int);
+
 extern int nd ();
 extern void __VERIFIER_assume (int v);
 #define assume __VERIFIER_assume
-
-#include <stdio.h>
-#include <stdlib.h>
 
 // To test loops 
 int main(int argc, char**argv) 
@@ -24,6 +26,6 @@ int main(int argc, char**argv)
     p[i] = i;
   }
 
-  printf("%d\n", p[i-1]);
-  return 42;
+  read(p[i-1]);
+  return 0;
 }

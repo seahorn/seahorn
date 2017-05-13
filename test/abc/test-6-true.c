@@ -1,7 +1,8 @@
 // RUN: %sea pf -O0 --abc=%abc_encoding %dsa "%s" %abc3_definitions 2>&1 | OutputCheck %s
 // CHECK: ^unsat$
 
-#include <stdio.h>
+// Used to avoid llvm to optimize away
+extern void read (int);
 
 extern int unknown ();
 
@@ -20,8 +21,8 @@ int main(int argc, char**argv) {
 
   for (i = 0; i < MAX_ARRAY; i++) 
   {
-    printf("%d\n",a[i][i]);  
+    read(a[i][i]);  
   }
   
-  return 42;
+  return 0;
 }

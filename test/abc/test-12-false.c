@@ -1,7 +1,8 @@
 // RUN: %sea pf -O0 --abc=%abc_encoding %dsa "%s" %abc3_definitions 2>&1 | OutputCheck %s
 // CHECK: ^sat$
 
-#include <stdio.h>
+// Used to avoid llvm to optimize away
+extern void read (int);
 
 int MAX_ARRAY = 10;
 
@@ -13,8 +14,8 @@ int main(int argc, char** argv) {
     a[i] = i;
   }
   // buffer underflow
-  printf("%d\n", a[i]);
+  read(a[i]);
   // buffer overflow
-  printf("%d\n", a[MAX_ARRAY]);
+  read(a[MAX_ARRAY]);
   return 0;
 }

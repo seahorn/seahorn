@@ -1,4 +1,5 @@
-#include <stdio.h>
+// Used to avoid llvm to optimize away
+extern void read (int);
 
 extern int unknown ();
 
@@ -14,7 +15,7 @@ int main(int argc, char**argv) {
   }
 
   for (i = 0; i < MAX_ARRAY; i++) {
-    printf("%d\n",a[i][i]);  
+    read(a[i][i]);  
   }
   
   return 42;

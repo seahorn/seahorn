@@ -1,8 +1,10 @@
 // RUN: %sea pf -O0 --abc=%abc_encoding %dsa "%s" %abc3_definitions 2>&1 | OutputCheck %s
 // CHECK: ^unsat$
 
-#include <stdio.h>
-#include <stdlib.h>
+// Used to avoid llvm to optimize away
+extern void read (int);
+
+extern void* malloc (unsigned int);
 
 int bar(int *a, int sz) 
 {
@@ -11,8 +13,8 @@ int bar(int *a, int sz)
   {
     a[i] = i;
   }
-  printf("%d\n", a[i-1]);
-  return 42;
+  read(a[i-1]);
+  return 0;
 }
 
 int foo(int sz) 

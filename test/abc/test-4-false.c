@@ -5,8 +5,10 @@ extern int nd ();
 extern void __VERIFIER_assume (int v);
 #define assume __VERIFIER_assume
 
-#include <stdio.h>
-#include <stdlib.h>
+// Used to avoid llvm to optimize away
+extern void read (int);
+
+extern void* malloc (unsigned int);
 
 // To test loops 
 int main(int argc, char**argv) 
@@ -24,5 +26,6 @@ int main(int argc, char**argv)
     p[i] = i;
   }
   // trick llvm so that it cannot detect overflow
-  return p[(nd () > 0 ? i-1 : i)];
+  read(p[(nd () > 0 ? i-1 : i)]);
+  return 0;
 }

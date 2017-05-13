@@ -62,7 +62,7 @@ script:
   - /usr/bin/cmake --build . --target test-simple
   - /usr/bin/cmake --build . --target test-solve
   - /usr/bin/cmake --build . --target pred-abs  
-  - /usr/bin/cmake --build . --target pred-abc   
+  - /usr/bin/cmake --build . --target test-abc   
   - /usr/bin/cmake --build . --target test-dsa  
 
 notifications:

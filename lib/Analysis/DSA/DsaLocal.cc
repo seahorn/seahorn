@@ -638,8 +638,6 @@ namespace
   }
   void IntraBlockBuilder::visitMemTransferInst (MemTransferInst &I)
   {
-    // -- trust types, i.e., assume types are not abused by storing
-    // -- pointers pointers to other types
 
     // -- skip copy NULL
     if (isNullConstant (*I.getSource ()))
@@ -649,7 +647,22 @@ namespace
     if (isNullConstant (*I.getDest ()))
       return;
 
-    
+
+    if (!m_graph.hasCell (*I.getSource ())) {
+      errs () << "WARNING: source of memcopy/memmove has no cell: " 
+	      << *I.getSource() << "\n";
+      return;
+    }
+
+    if (!m_graph.hasCell (*I.getDest ())) {
+      errs () << "WARNING: destination of memcopy/memmove has no cell: " 
+	      << *I.getDest() << "\n";
+      return;
+    }
+
+    // -- trust types, i.e., assume types are not abused by storing
+    // -- pointers pointers to other types
+	 
     bool TrustTypes = true;
     assert (m_graph.hasCell (*I.getDest ()));
     assert (m_graph.hasCell (*I.getSource ()));

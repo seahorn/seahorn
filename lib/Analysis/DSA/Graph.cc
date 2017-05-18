@@ -769,6 +769,7 @@ void dsa::Graph::remove_dead () {
   // --- collect all nodes referenced by scalars
   for (auto &kv : m_values) {
     const Cell* C = kv.second.get ();
+    if (C->isNull()) continue;
     if (reachable.insert(C->getNode()).second) {
       LOG("dsa-dead", errs () << "\treachable node " << C->getNode () << "\n";);
     }
@@ -777,6 +778,7 @@ void dsa::Graph::remove_dead () {
   // --- collect all nodes referenced by formal parameters
   for (auto &kv : m_formals) {
     const Cell* C = kv.second.get();
+    if (C->isNull()) continue;
     if (reachable.insert(C->getNode()).second) {
       LOG("dsa-dead", errs () << "\treachable node " << C->getNode () << "\n";);
     }
@@ -785,6 +787,7 @@ void dsa::Graph::remove_dead () {
   // --- collect all nodes referenced by return parameters
   for (auto &kv : m_returns) {
     const Cell* C = kv.second.get();
+    if (C->isNull()) continue;
     if (reachable.insert(C->getNode()).second) {
       LOG("dsa-dead", errs () << "\treachable node " << C->getNode () << "\n";);
     }
@@ -796,6 +799,7 @@ void dsa::Graph::remove_dead () {
     auto n = worklist.back();
     worklist.pop_back();
     for (auto &kv : n->links ()) {
+      if (kv.second->isNull()) continue;
       auto s = kv.second->getNode ();
       if (reachable.insert(s).second) {
 	worklist.push_back (s);

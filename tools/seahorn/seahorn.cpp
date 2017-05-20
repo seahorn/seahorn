@@ -288,6 +288,17 @@ int main(int argc, char **argv) {
 
   if (!Bmc)
     pass_manager.add (new seahorn::HornifyModule ());
+
+  // FIXME: if StripShadowMemPass () is executed then DsaPrinterPass
+  // crashes because the callgraph has not been updated so it can
+  // access to a callsite for which the callee function is a null
+  // pointer corresponding to a stripped shadow memory function. The
+  // solution for now is to make sure that DsaPrinterPass is called
+  // before StripShadowMemPass. A better solution is to make sure that
+  // createStripShadowMemPass updates the callgraph.
+  if (MemDot)
+    pass_manager.add (seahorn::createDsaPrinterPass ());
+  
   if (!AsmOutputFilename.empty ())
   {
     if (!KeepShadows)
@@ -318,8 +329,6 @@ int main(int argc, char **argv) {
     }
   }
   
-  if (MemDot)
-    pass_manager.add (seahorn::createDsaPrinterPass ());
   
   pass_manager.run(*module.get());
 

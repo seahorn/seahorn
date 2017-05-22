@@ -129,6 +129,11 @@ Bmc ("horn-bmc",
      llvm::cl::init (false));
 
 static llvm::cl::opt<bool>
+OneAssumePerBlock ("horn-one-assume-per-block", 
+                   llvm::cl::desc ("Make sure there is at most one call to verifier.assume per block"), 
+                   llvm::cl::init (false));
+
+static llvm::cl::opt<bool>
 SeaHornDsa ("horn-sea-dsa",
             llvm::cl::desc ("Use Seahorn Dsa analysis"),
             llvm::cl::init (false));
@@ -273,6 +278,11 @@ int main(int argc, char **argv) {
   pass_manager.add (seahorn::createStripLifetimePass ());
   pass_manager.add (seahorn::createDeadNondetElimPass ());
 
+  if (OneAssumePerBlock) {
+    // -- it must be called after all the cfg simplifications
+    pass_manager.add (seahorn::createOneAssumePerBlockPass ());
+  }
+
 #ifdef HAVE_CRAB_LLVM
   if (Crab)
   {
@@ -285,6 +295,7 @@ int main(int argc, char **argv) {
 
   // --- verify if an undefined value can be read
   pass_manager.add (seahorn::createCanReadUndefPass ());
+
 
   if (!Bmc)
     pass_manager.add (new seahorn::HornifyModule ());

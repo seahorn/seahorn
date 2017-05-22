@@ -35,13 +35,12 @@
 #include "llvm/IR/DebugLoc.h"
 #include "llvm/IR/DebugInfo.h"
 #include "llvm/IR/GlobalValue.h"
+#include "llvm/IR/ValueMap.h"
+#include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Verifier.h"
-
 #include "llvm/Bitcode/ReaderWriter.h"
-
 #include "llvm/IR/DataLayout.h"
 #include "llvm/Target/TargetLibraryInfo.h"
-
 
 #include <gmpxx.h>
 

@@ -11,6 +11,7 @@ add_llvm_library (SeaTransformsScalar
   PromoteBoolLoads.cc
   SimplifyPointerLoops.cc
   SymbolizeConstantLoopBounds.cc
+  LowerAssert.cc
   UnfoldLoopForDsa.cc
   PromoteSeahornAssume.cc
   )

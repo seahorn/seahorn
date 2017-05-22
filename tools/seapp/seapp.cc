@@ -38,7 +38,7 @@
 #include "seahorn/Transforms/Scalar/LowerCstExpr.hh"
 #include "seahorn/Transforms/Instrumentation/MixedSemantics.hh"
 #include "seahorn/Transforms/Instrumentation/BufferBoundsCheck.hh"
-
+#include "seahorn/Transforms/Instrumentation/NullCheck.hh"
 #include "seahorn/Analysis/DSA/Info.hh"
 
 #include "llvm_seahorn/Transforms/Scalar.h"
@@ -105,6 +105,11 @@ UnfoldLoopsForDsa ("unfold-loops-for-dsa",
                llvm::cl::desc ("Unfold the first loop iteration if useful for DSA analysis"),
                llvm::cl::init (false));
 
+static llvm::cl::opt<bool>
+NullChecks ("null-check", 
+     llvm::cl::desc ("Insert null-dereference checks"), 
+     llvm::cl::init (false));
+
 enum ArrayBoundsChecksEncoding {NONE=0, LOCAL=1, GLOBAL=2, GLOBAL_C=3};
 static llvm::cl::opt<enum ArrayBoundsChecksEncoding>
 ArrayBoundsChecks("abc",
@@ -152,6 +157,11 @@ static llvm::cl::opt<bool>
 ExternalizeAddrTakenFuncs ("externalize-addr-taken-funcs", 
                            llvm::cl::desc ("Externalize uses of address-taken functions"),
                            llvm::cl::init (false));
+
+static llvm::cl::opt<bool>
+LowerAssert ("lower-assert", 
+             llvm::cl::desc ("Replace assertions with assumptions"),
+             llvm::cl::init (false));
 
 static llvm::cl::opt<bool>
 PromoteAssumptions ("promote-assumptions",
@@ -337,6 +347,7 @@ int main(int argc, char **argv) {
     // FIXME: for inconsistency analysis this causes problems with
     //        trivial examples.
     pass_manager.add (llvm::createGlobalOptimizerPass());
+    // pass_manager.add (llvm::createGlobalOptimizerPass());
   
     // -- SSA
     pass_manager.add(llvm::createPromoteMemoryToRegisterPass());
@@ -378,10 +389,9 @@ int main(int argc, char **argv) {
     
     // lower arithmetic with overflow intrinsics
     pass_manager.add(seahorn::createLowerArithWithOverflowIntrinsicsPass ());
-      
     // lower libc++abi functions
     pass_manager.add(seahorn::createLowerLibCxxAbiFunctionsPass ());
-
+    
     // cleanup after lowering 
     pass_manager.add (seahorn::createInstCombine ());
     pass_manager.add (llvm::createCFGSimplificationPass ());
@@ -446,9 +456,22 @@ int main(int argc, char **argv) {
       case GLOBAL:
       default : 
 	pass_manager.add (new seahorn::Global ());
-      }      
+      }
+    }
+    
+    if (LowerAssert) {
+      pass_manager.add (seahorn::createLowerAssertPass ());
+      // LowerAssert might generate some dead code 
+      pass_manager.add(llvm::createDeadInstEliminationPass());
+    }
+    
+    pass_manager.add (new seahorn::RemoveUnreachableBlocksPass ());
+    if (NullChecks) {
+      pass_manager.add (new seahorn::LowerCstExprPass ());
+      pass_manager.add (new seahorn::NullCheck ());
     }
 
+    
     if (!MixedSem && EnumVerifierCalls)  
     { 
       pass_manager.add (seahorn::createEnumVerifierCallsPass ());

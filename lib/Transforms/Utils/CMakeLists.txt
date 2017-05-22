@@ -10,6 +10,8 @@ add_llvm_library(SeaTransformsUtils
   ExternalizeAddressTakenFunctions.cc
   ExternalizeFunctions.cc
   DevirtFunctions.cc
+  SliceFunctions.cc
   Mem2Reg.cc
+  OneAssumePerBlock.cc
   SliceFunctions.cc
   )

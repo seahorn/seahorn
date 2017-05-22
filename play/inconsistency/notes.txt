@@ -1,0 +1,19 @@
+Limitations
+
+1. We are missing inconsistency in the case of small step semantics
+   due to the body of a clause could contain multiple paths
+   (e.g. ite). Our approach works at the level of a clause mapped to a
+   basic block therefore, it might miss inconsistency inside the
+   clause body. See example unit_test_3.c.
+
+2. We identify a block as inconsistent if there is no path that visits
+   the block. We can miss inconsistencies between two blocks (or three
+   and so on) if the two blocks are visited by two different paths. In
+   that case, we found two separated paths that contain the two blocks
+   so they will be marked as consistent but we miss the fact that
+   there is no path that visit the two blocks.
+
+New techniques
+
+1. We split a basic blocl that has two or more assumptions.
+2. Try for each pair, triple, etc if there is a path that visit them. 

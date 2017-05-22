@@ -137,7 +137,6 @@ int main(int argc, char **argv) {
     pass_manager.add (new llvm::DataLayoutPass ());
 
   //pass_manager.add (llvm::createVerifierPass());
-
   if (!ApiConfig.empty())
     pass_manager.add(seahorn::createApiAnalysisPass(ApiConfig));
 

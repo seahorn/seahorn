@@ -2558,8 +2558,7 @@ namespace expr
       {return fname (decl (e, i));}
       inline Expr boundSort (Expr e, unsigned i)
       {return rangeTy (decl (e, i));}
-      
-      
+            
       inline Expr body (Expr e) {return *(--(e->args_end ()));}
       
       
@@ -2625,7 +2624,6 @@ namespace expr
         return sub (a, e);
       }
        
-
       template <typename Range>
       Expr betaReduce (Expr lambda, const Range &r)
       {

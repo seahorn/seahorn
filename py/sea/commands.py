@@ -93,7 +93,7 @@ class Clang(sea.LimitedCmd):
 
             if args.llvm_asm: argv.append ('-S')
             argv.append ('-m{0}'.format (args.machine))
-
+            
             if args.include_dir is not None:
                 argv.append ('-I' + args.include_dir)
 
@@ -303,6 +303,12 @@ class Seapp(sea.LimitedCmd):
         ap.add_argument ('--abc-dsa-to-file', dest='abc_dsa_to_file',
                          help='Dump some Dsa info to a file',
                          metavar='DIR', default=None)
+        ap.add_argument ('--ndc', dest='ndc',
+                         help='Insert null dereference checks',
+                         default=False, action='store_true')
+        ap.add_argument ('--ndc-opt', dest='ndc_opt',
+                         help='Minimize the number of null dereference checks',
+                         default=False, action='store_true')        
         ap.add_argument ('--externalize-addr-taken-functions',
                          help='Externalize uses of address-taken functions',
                          dest='enable_ext_funcs', default=False,
@@ -320,6 +326,10 @@ class Seapp(sea.LimitedCmd):
         ap.add_argument ('--devirt-functions',
                          help='Devirtualize indirect functions',
                          dest='devirt_funcs', default=False,
+                         action='store_true')
+        ap.add_argument ('--lower-assert',
+                         help='Replace assertions with assumptions',
+                         dest='lower_assert', default=False,
                          action='store_true')
         ap.add_argument ('--no-kill-vaarg', help='Do not delete variadic functions',
                          dest='kill_vaarg', default=True, action='store_false')
@@ -391,6 +401,8 @@ class Seapp(sea.LimitedCmd):
             if args.enable_ext_funcs:
                 argv.append ('--externalize-addr-taken-funcs')
 
+            if args.lower_assert: argv.append('--lower-assert')                           
+                
             if args.abc <> 'none':
                 argv.append ('--abc={0}'.format(args.abc))
 
@@ -443,6 +455,11 @@ class Seapp(sea.LimitedCmd):
             if args.enum_verifier_calls:
                 argv.append ('--enum-verifier-calls')
 
+            if args.ndc:
+                argv.append ('--null-check')
+                if args.ndc_opt:
+                    argv.append ('--null-check-optimize')
+            
             if args.entry is not None:
                 argv.append ('--entry-point={0}'.format (args.entry))
 
@@ -754,7 +771,7 @@ class Seahorn(sea.LimitedCmd):
                          help='LLVM assembly output file')
         ap.add_argument ('--step',
                          help='Step to use for encoding',
-                         choices=['small', 'large', 'fsmall', 'flarge'],
+                         choices=['small', 'large', 'fsmall', 'flarge', 'incsmall'],
                          dest='step', default='large')
         ap.add_argument ('--track',
                          help='Track registers, pointers, and memory',
@@ -1000,6 +1017,63 @@ class SeaTerm(sea.LimitedCmd):
         except Exception as e:
             raise IOError(str(e))
 
+## XXX: we prefer not to expose SeaInc to users.
+#       That is, 'inc' is not an option of the 'sea' command.
+class SeaInc(sea.LimitedCmd):
+  def __init__ (self, quiet=False):
+      super (SeaInc, self).__init__ ('inc',
+                                     'Helper for inconsistency analysis',
+                                      allow_extra=True)
+  @property
+  def stdout (self):
+      return
+
+  def name_out_file (self, in_files, args=None, work_dir=None):
+      return _remap_file_name (in_files[0], '.smt2', work_dir)
+
+  def mk_arg_parser (self, ap):
+      ap = super (SeaInc, self).mk_arg_parser (ap)
+      ap.add_argument ('--stop', help='stop after n iterations', dest="stop",
+                       default=None, type=int)
+      ap.add_argument ('--all', help='assert all failing flags', dest="all",
+                      default=False,action='store_true')
+      ap.add_argument ('--bench', help='Output Benchmarking Info', action='store_true',
+                       default=False, dest="bench")
+      ap.add_argument ('--debug_cex', help='Print RAW CEX for debugging', action='store_true',
+                      default=False, dest="debug_cex")
+      ap.add_argument ('--inv', help='Outpu Invariants', action='store_true',
+                  default=False, dest="inv")
+      ap.add_argument ('--stat', help='Print statistics', dest="stat",
+                  default=False, action='store_true')
+      ap.add_argument ('--spacer_verbose', help='Spacer Verbose', action='store_true',
+                       default=False, dest="z3_verbose")
+      ap.add_argument ('--no_dl', help='Disable Difference Logic (UTVPI) in SPACER',
+                       action='store_true',
+                       default=False, dest="utvpi")
+      ap.add_argument ('--pp',
+                       help='Enable default pre-processing in the solver',
+                       action='store_true', default=False)
+      ap.add_argument ('--inc_verbose', help='Verbose', action='store_true',
+                       default=False, dest="inc_verbose")
+      ap.add_argument ('--save', help='Save results file', action='store_true',
+                      default=False, dest="save")
+      ap.add_argument ('--timeout', help='Timeout per function',
+                      type=float, default=20.00, dest="timeout")
+      ap.add_argument ('--func', help='Number of functions',
+                      type=int, default=-1, dest="func")
+      return ap
+
+  def run(self, args, extra):
+      try:
+          # from inc.inc import Inc
+          # tt = Inc(args)
+          # tt.solve(extra[len(extra)-1])
+          from inc.par_inc import JobsSpanner
+          jb = JobsSpanner(args)
+          smt2_file = extra[len(extra)-1]
+          jb.singleRun(smt2_file)
+      except Exception as e:
+          raise IOError(str(e))
 
 class SeaAbc(sea.LimitedCmd):
     def __init__ (self, quiet=False):
@@ -1082,6 +1156,7 @@ class SeaInspect(sea.LimitedCmd):
 
         return self.seainspectCmd.run (args, argv)
 
+## SeaHorn commands
 
 ## SeaHorn commands
 FrontEnd = sea.SeqCmd ('fe', 'Front end: alias for clang|pp|ms|opt',
@@ -1099,6 +1174,10 @@ Bpf = sea.SeqCmd ('bpf', 'alias for fe|unroll|cut-loops|opt|horn --solve',
                   FrontEnd.cmds + [Unroll(), CutLoops(), Seaopt(), Seahorn(solve=True)])
 feCrab = sea.SeqCmd ('fe-crab', 'alias for fe|crab', FrontEnd.cmds + [Crab()])
 seaTerm = sea.SeqCmd ('term', 'SeaHorn Termination analysis', Smt.cmds + [SeaTerm()])
+ClangPP = sea.SeqCmd ('clang-pp', 'alias for clang|pp', [Clang(), Seapp()])
+seaIncSmt = sea.SeqCmd ('inc-smt', 'alias for fe|horn|inc. ' +
+                        'It should be used only as a helper by sea_inc.',
+                        Smt.cmds + [SeaInc()])
 seaClangAbc = sea.SeqCmd ('clang-abc', 'alias for clang|abc', [Clang(), SeaAbc()])
 Exe = sea.SeqCmd ('exe', 'alias for clang|pp --strip-extern|pp --internalize|wmem|linkrt',
                   [Clang(), Seapp(strip_extern=True), Seapp(internalize=True), WrapMem(), LinkRt()])

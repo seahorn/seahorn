@@ -1,13 +1,14 @@
-add_llvm_library (seahorn.LIB 
+add_llvm_library (seahorn.LIB
   LoadCrab.cc
-  LiveSymbols.cc 
+  LiveSymbols.cc
   SymStore.cc
   SymExec.cc
   UfoSymExec.cc
   ClpSymExec.cc
-  HornifyModule.cc 
-  HornifyFunction.cc 
+  HornifyModule.cc
+  HornifyFunction.cc
   FlatHornifyFunction.cc
+  IncHornifyFunction.cc
   HornWrite.cc
   HornSolver.cc
   Houdini.cc

@@ -28,6 +28,8 @@ def main (argv):
             sea.commands.Crab(),
             sea.commands.feCrab,
             sea.commands.Unroll(),
+            sea.commands.ClangPP,
+            sea.commands.seaIncSmt,
             sea.commands.seaTerm,
             sea.commands.SeaAbc(),
             sea.commands.seaClangAbc,            
@@ -52,10 +54,12 @@ if __name__ == '__main__':
     if os.path.isdir (path):
         os.environ['PATH'] = path + os.pathsep + os.environ['PATH']
 
-    sea_path = os.path.abspath (os.path.join(path, '..', 'lib', 'seapy'))
-    if os.path.isdir (path): sys.path.insert(0, sea_path)
-    
-    z3_path = os.path.abspath (os.path.join(path, '..', 'lib', 'z3py'))
+
+    path = os.path.abspath (os.path.join(path, '..', 'lib', 'seapy'))
+    if os.path.isdir (path): sys.path.insert(0, path)
+
+    z3_path = os.path.abspath (os.path.join(path, '..', 'z3py'))
+
     if os.path.isdir (z3_path): sys.path.insert(0, z3_path)
 
     sys.exit (main (sys.argv[1:]))

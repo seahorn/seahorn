@@ -15,10 +15,13 @@ if (PYTHON AND NOT USE_PY_SETUP)
   install (DIRECTORY sea DESTINATION lib/seapy
     FILES_MATCHING PATTERN "*.py")
   install (DIRECTORY term DESTINATION lib/seapy
+    FILES_MATCHING PATTERN "*.py")
+    install (DIRECTORY inc DESTINATION lib/seapy
             FILES_MATCHING PATTERN "*.py")
   install (PROGRAMS seapy DESTINATION bin RENAME sea)
   install (PROGRAMS sea/abc.py DESTINATION bin RENAME sea_abc)
   install (PROGRAMS sea_par.py DESTINATION bin RENAME sea_svcomp)
+  install (PROGRAMS inc_looper.py DESTINATION bin RENAME sea_inc)
   install (FILES seahorn-benchexec-wrapper.py DESTINATION bin)
 
   install (FILES stats.py DESTINATION bin)

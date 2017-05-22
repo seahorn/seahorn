@@ -32,10 +32,11 @@
 
 #include "seahorn/HornifyFunction.hh"
 #include "seahorn/FlatHornifyFunction.hh"
+#include "seahorn/IncHornifyFunction.hh"
 
 #ifdef HAVE_CRAB_LLVM
 #include "crab_llvm/CrabLlvm.hh"
-#endif 
+#endif
 
 using namespace llvm;
 using namespace seahorn;
@@ -53,7 +54,7 @@ TL("horn-sem-lvl",
 
 namespace hm_detail {enum Step {SMALL_STEP, LARGE_STEP,
                                 CLP_SMALL_STEP, CLP_FLAT_SMALL_STEP,
-                                FLAT_SMALL_STEP, FLAT_LARGE_STEP};}
+                                FLAT_SMALL_STEP, FLAT_LARGE_STEP, INC_SMALL_STEP};}
 
 static llvm::cl::opt<enum hm_detail::Step>
 Step("horn-step",
@@ -64,6 +65,7 @@ Step("horn-step",
                  clEnumValN (hm_detail::FLAT_LARGE_STEP, "flarge", "Flat Large Step"),
                  clEnumValN (hm_detail::CLP_SMALL_STEP, "clpsmall", "CLP Small Step"),
                  clEnumValN (hm_detail::CLP_FLAT_SMALL_STEP, "clpfsmall","CLP Flat Small Step"),
+                 clEnumValN (hm_detail::INC_SMALL_STEP, "incsmall","Inconsistency Small Step"),
                  clEnumValEnd),
      cl::init (hm_detail::SMALL_STEP));
 
@@ -153,7 +155,7 @@ namespace seahorn
       return Changed;
     }
 
-    bool canFail = false; 
+    bool canFail = false;
 
     // --- optimizer or ms can detect an error and make main
     //     unreachable. In that case, it will insert a call to
@@ -161,7 +163,7 @@ namespace seahorn
     Function* failureFn = M.getFunction ("seahorn.fail");
     if (!canFail)
     {
-      for (auto &I : boost::make_iterator_range (inst_begin(*main), 
+      for (auto &I : boost::make_iterator_range (inst_begin(*main),
                                                  inst_end (*main)))
       {
         if (!isa<CallInst> (&I)) continue;
@@ -172,16 +174,16 @@ namespace seahorn
         canFail |= (fn == failureFn);
       }
     }
-    
+
     // --- we ask the can-fail analysis if no function can fail.
     if (!canFail)
-    {      
-      Function* errorFn = M.getFunction ("verifier.error");      
+    {
+      Function* errorFn = M.getFunction ("verifier.error");
       for (auto &f : M)
-      { 
-        if ((&f == errorFn) || (&f == failureFn)) 
-          continue; 
-        canFail |= (m_canFail->canFail (&f)); 
+      {
+        if ((&f == errorFn) || (&f == failureFn))
+          continue;
+        canFail |= (m_canFail->canFail (&f));
       }
     }
 
@@ -270,23 +272,23 @@ namespace seahorn
           if (g) errs () << g->getName () << " ";
         }
         errs () << "\n";
-        
+
         if (AbortOnRecursion)
         {
           errs () << "Aborting on recursion\n";
           std::exit (3);
         }
       }
-      
+
       // assert (!it.hasLoop () && "Recursion not yet supported");
       // assert (scc.size () == 1 && "Recursion not supported");
       if (f) Changed = (runOnFunction (*f) || Changed);
     }
 
     if (!m_db.hasQuery ())
-    { 
+    {
       // --- This may happen if the exit block of main is unreachable
-      //     but still the main function can fail. 
+      //     but still the main function can fail.
       m_db.addQuery (mk<TRUE> (m_efac));
     }
 
@@ -369,6 +371,8 @@ namespace seahorn
       hf.reset (new FlatSmallHornifyFunction (*this, InterProc));
     else if (Step == hm_detail::FLAT_LARGE_STEP)
       hf.reset (new FlatLargeHornifyFunction (*this, InterProc));
+    else if (Step == hm_detail::INC_SMALL_STEP)
+        hf.reset (new IncSmallHornifyFunction (*this, InterProc));
 
 
     /// -- allocate LiveSymbols
@@ -398,7 +402,7 @@ namespace seahorn
     AU.addRequired<seahorn::CutPointGraph>();
 #ifdef HAVE_CRAB_LLVM
     AU.addPreserved<crab_llvm::CrabLlvm> ();
-#endif 
+#endif
 
   }
 
@@ -442,7 +446,7 @@ namespace seahorn
     v = bind::fname (v);
     return isOpX<BB> (v);
   }
-  
+
   const BasicBlock& HornifyModule::predicateBb (Expr pred) const
   {
     Expr v = pred;

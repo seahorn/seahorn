@@ -32,13 +32,13 @@ namespace seahorn
   llvm::Pass* createDeadNondetElimPass ();
   llvm::Pass* createDummyExitBlockPass ();
   llvm::Pass* createDummyMainFunctionPass ();
-  llvm::Pass* createExternalizeAddressTakenFunctionsPass (); 
-  llvm::Pass* createExternalizeFunctionsPass (); 
-  llvm::Pass* createSliceFunctionsPass (); 
+  llvm::Pass* createOneAssumePerBlockPass ();
+  llvm::Pass* createExternalizeAddressTakenFunctionsPass ();
+  llvm::Pass* createExternalizeFunctionsPass ();
+  llvm::Pass* createSliceFunctionsPass ();
   llvm::Pass* createDevirtualizeFunctionsPass ();
-  llvm::Pass* createAbstractMemoryPass ();      
-  llvm::Pass* createPromoteMemoryToRegisterPass (); 
-
+  llvm::Pass* createAbstractMemoryPass ();        
+  llvm::Pass* createPromoteMemoryToRegisterPass ();
   llvm::Pass* createLoadCrabPass ();
   llvm::Pass* createShadowMemDsaPass (); // llvm dsa
   llvm::Pass* createShadowMemSeaDsaPass (); // seahorn dsa
@@ -53,6 +53,7 @@ namespace seahorn
   llvm::Pass* createLowerLibCxxAbiFunctionsPass ();
   llvm::Pass* createSimplifyPointerLoopsPass ();
   llvm::Pass* createSymbolizeConstantLoopBoundsPass ();
+  llvm::Pass* createLowerAssertPass ();
   llvm::Pass* createUnfoldLoopForDsaPass ();
   llvm::Pass* createStripLifetimePass ();
   llvm::Pass* createStripUselessDeclarationsPass ();

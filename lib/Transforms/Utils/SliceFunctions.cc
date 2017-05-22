@@ -13,6 +13,10 @@
 
 #include <set>
 #include <vector>
+//#include <iostream>
+#include <fstream>
+#include <string>
+#include <sstream>
 
 static llvm::cl::list<std::string>
 FuncNamesToKeep("slice-function",
@@ -27,25 +31,26 @@ namespace seahorn {
   class SliceFunctions : public ModulePass
   {
    public:
-    
+
     static char ID;
 
     SliceFunctions (): ModulePass (ID) {}
-    
+
     virtual bool runOnModule (Module &M) {
 
-      if (M.empty ()) 
+      if (M.empty ())
         return false;
 
-      if (FuncNamesToKeep.begin() == FuncNamesToKeep.end()) 
+      if (FuncNamesToKeep.begin() == FuncNamesToKeep.end())
         return false;
-      
+
       std::set<Function *> FuncsToKeep;
       for (std::string FuncName : FuncNamesToKeep) {
         Function *Func = M.getFunction(FuncName);
         if (!Func) {
-          LOG ("slice",  
+          LOG ("slice",
                errs() << "SliceFunctions: " << FuncName <<  " not found.\n");
+               printFunctionsInfo(M);
         } else {
           FuncsToKeep.insert(Func);
         }
@@ -62,7 +67,7 @@ namespace seahorn {
       for (Function &F : M) {
         if (F.isDeclaration()) continue;
         if (FuncsToKeep.count(&F) > 0) continue;
-        LOG ("slice", 
+        LOG ("slice",
              errs () << "SliceFunctions: deleted body of " << F.getName () <<"\n");
         F.deleteBody();
         Change = true;
@@ -98,19 +103,32 @@ namespace seahorn {
           Change = true;
         }
       }
-      
       return Change;
     }
-    
+
     virtual void getAnalysisUsage (AnalysisUsage &AU){
       AU.setPreservesAll();
       //AU.addRequired<llvm::CallGraphWrapperPass>();
     }
 
-    virtual const char* getPassName () const override 
-    {return "SliceFunctions";}  
+    virtual const char* getPassName () const override
+    {return "SliceFunctions";}
 
    private:
+     void printFunctionsInfo(Module &M) {
+       std::stringstream info;
+       info << "\t NUM_FUNCS: " << std::to_string(std::distance(M.begin(), M.end())) << ",\n";
+       for (auto &F : M) {
+	 unsigned numInsts = std::distance(inst_begin(&F), inst_end(&F));
+	 std::string fn = F.getName();
+	 errs() << "INC | " << F.getName()
+		<< " | " << std::distance(F.begin(), F.end())
+		<< " | " << numInsts << "\n";
+	 info << "\t" << fn
+	      << ":{ BLOCKS: " << std::to_string(std::distance(F.begin(), F.end()))
+	      << ", INST: " << std::to_string(numInsts) + "},\n";
+       }
+     }
 
     // void printFunctionsInfo (Module& M) {
     //   CallGraphWrapperPass *cgwp = getAnalysisIfAvailable<CallGraphWrapperPass>();

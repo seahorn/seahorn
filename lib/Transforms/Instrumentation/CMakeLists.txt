@@ -10,6 +10,7 @@ add_llvm_library(SeaInstrumentation
   KleeInternalize.cc
   WrapMem.cc
   RenameNondet.cc
+  NullCheck.cc
   BufferBoundsCheck.cc
   )
 

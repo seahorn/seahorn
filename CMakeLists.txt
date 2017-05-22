@@ -48,7 +48,6 @@ if (GIT_FOUND)
     ${GIT_EXECUTABLE} clone ${DSA_SEAHORN_REPO} ${CMAKE_SOURCE_DIR}/dsa-seahorn)
    add_custom_target (crab-llvm-git
     ${GIT_EXECUTABLE} clone ${CRAB_LLVM_REPO} ${CMAKE_SOURCE_DIR}/crab-llvm)
-    
   add_custom_target (extra
     ${CMAKE_COMMAND} -E touch ${CMAKE_CURRENT_LIST_FILE}
     DEPENDS seahorn-llvm-git dsa-seahorn-git crab-llvm-git)

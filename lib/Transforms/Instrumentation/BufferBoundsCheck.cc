@@ -3262,5 +3262,3 @@ namespace seahorn
   Z ("abc-global-c", "Insert array buffer checks using Global encoding by calling C functions");
   
 } // end namespace seahorn
-  
-

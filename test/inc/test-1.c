@@ -1,6 +1,12 @@
 // RUN: %sea_inc --null --num-blks=2 "%s" 2>&1 | OutputCheck %s
 // CHECK: INFEASIBLE
 
+// This test can only pass if line 349 in tools/seapp/seapp.cc
+//    pass_manager.add (llvm::createGlobalOptimizerPass());
+// is commented out.
+
+#include <stdio.h>
+
 extern int nd ();
 extern void __VERIFIER_error (void);
 #define assert(c) if (!c) __VERIFIER_error ();

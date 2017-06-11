@@ -5,7 +5,7 @@
 
 extern int nd ();
 
-#define N 1000
+#define N 100
 // Different ways of initialization
 struct foo { int a; int b; int c;}; struct foo hh;
 int a[N];
@@ -26,6 +26,6 @@ int main ()
   }
 
   int res = a[i-1];
-  assert (res >= 0 && res <= 5);
+  sassert (res >= 0 && res <= 5);
   return res;
 }

@@ -132,7 +132,7 @@ namespace seahorn
     ScopedStats _st ("HornifyModule");
 
     bool Changed = false;
-    m_td = &getAnalysis<DataLayoutPass> ().getDataLayout ();
+    m_td = &M.getDataLayout();
     m_canFail = getAnalysisIfAvailable<CanFail> ();
 
     typename UfoSmallSymExec::FunctionPtrSet abs_fns;
@@ -143,9 +143,9 @@ namespace seahorn
     
     if (Step == hm_detail::CLP_SMALL_STEP || 
         Step == hm_detail::CLP_FLAT_SMALL_STEP)
-      m_sem.reset (new ClpSmallSymExec (m_efac, *this, TL));
+      m_sem.reset (new ClpSmallSymExec (m_efac, *this, M.getDataLayout(), TL));
     else
-      m_sem.reset (new UfoSmallSymExec (m_efac, *this, TL, abs_fns));
+      m_sem.reset (new UfoSmallSymExec (m_efac, *this, M.getDataLayout(), TL, abs_fns));
 
     Function *main = M.getFunction ("main");
     if (!main)
@@ -390,7 +390,6 @@ namespace seahorn
   void HornifyModule::getAnalysisUsage (llvm::AnalysisUsage &AU) const
   {
     AU.setPreservesAll ();
-    AU.addRequired<llvm::DataLayoutPass>();
 
     AU.addRequired<seahorn::CanFail> ();
     AU.addRequired<ufo::NameValues>();

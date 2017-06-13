@@ -37,13 +37,13 @@ namespace
     void getAnalysisUsage(AnalysisUsage &AU) const override 
     {
       AU.addRequired<DominatorTreeWrapperPass>();
-      AU.addRequired<LoopInfo>();
+      AU.addRequired<LoopInfoWrapperPass>();
       AU.addRequiredID(LoopSimplifyID);
       AU.addRequiredID(LCSSAID);
 
-      AU.addPreserved<ScalarEvolution>();
+      AU.addPreserved<ScalarEvolutionWrapperPass>();
       AU.addPreserved<DominatorTreeWrapperPass>();
-      AU.addPreserved<LoopInfo>();
+      AU.addPreserved<LoopInfoWrapperPass>();
       AU.addPreservedID(LoopSimplifyID);
       AU.addPreservedID(LCSSAID);
     }      
@@ -173,17 +173,22 @@ bool CutLoops::runOnLoop (Loop *L, LPPassManager &LPM)
   for (PHINode *P : phiNodes)
     for (BasicBlock *latch : latches)
       P->removeIncomingValue (latch);
+
+  if (ScalarEvolutionWrapperPass *SEWP = getAnalysisIfAvailable<ScalarEvolutionWrapperPass> ()) {
+    ScalarEvolution &SE = SEWP->getSE();
+    SE.forgetLoop (L);
+  }
   
-  ScalarEvolution *SE = getAnalysisIfAvailable<ScalarEvolution> ();
-  if (SE) SE->forgetLoop (L);
-  
-  LoopInfo &loopInfo = getAnalysis<LoopInfo>();
+  LoopInfo &loopInfo = getAnalysis<LoopInfoWrapperPass>().getLoopInfo();
   SmallPtrSet<BasicBlock*, 8> blocks;
   blocks.insert(L->block_begin(), L->block_end());
   for (BasicBlock *BB : blocks)
     loopInfo.removeBlock(BB);
-  
-  LPM.deleteLoopFromQueue (L);
+
+  // llvm 3.8
+  loopInfo.markAsRemoved(L);
+  // llvm 3.6
+  //LPM.deleteLoopFromQueue (L);
   return true;
 }
 

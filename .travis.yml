@@ -8,15 +8,6 @@ env:
      - CMAKE_CXX_COMPILER=g++-5
        CMAKE_BUILD_TYPE=RELEASE
        CONSERVE_MEMORY=ON
-   # =======================================================
-   # RELEASE Build
-   # =======================================================
-   # D1. clang-mp-4.8     | RELEASE
-   #- CMAKE_CXX_COMPILER=clang-mp-3.4
-   #  CMAKE_BUILD_TYPE=RELEASE
-   # D2. g++-mp-4.8     | RELEASE
-   #- CMAKE_CXX_COMPILER=g++-mp-4.8
-   #  CMAKE_BUILD_TYPE=RELEASE
 
 before_install:
    - until sudo add-apt-repository -y ppa:saiarcot895/chromium-beta; do echo retry; done
@@ -32,10 +23,12 @@ before_install:
    - sudo easy_install networkx
    - sudo apt-get install libgraphviz-dev
    - sudo easy_install pygraphviz
-   # XXX: crab-llvm is based on llvm 3.6 so the clang version must be 3.6 as well.
-   # XXX: for ubuntu 14-04
-   #- sudo apt-get install --yes clang-3.6
+   # XXX: seahorn is based on llvm 3.8 so the clang version must be 3.8 as well.
+   # XXX: for ubuntu 16-04
+   #- sudo apt-get install --yes clang-3.8
    # for ubuntu 12.04
+   # TODO we need clang-3.8 but not available with ubuntu 12.04
+   # this will install probably clang-3.4
    - sudo apt-get install --yes clang
    - clang -v
 
@@ -53,6 +46,7 @@ install:
   - cd ..
   - export LZ="$TRAVIS_BUILD_DIR/../lz"
   - mkdir -p $LZ
+  ## TODO: download 3.8 version
   - wget --output-document=llvm-z3.tar.gz https://www.dropbox.com/s/la0fqi5bhv5a6hi/llvm-3.6-z3.tar.gz?dl=0;
   - tar xvf llvm-z3.tar.gz -C $LZ;
   - ls $LZ
@@ -66,7 +60,8 @@ script:
   ## XXX: not required since LLVM and Z3 are already found
   #- /usr/bin/cmake --build .
   - /usr/bin/cmake --build . --target extra && /usr/bin/cmake ..
-  - /usr/bin/cmake --build . --target crab && /usr/bin/cmake ..
+  # TODO: crab is not ported to llvm 3.8 yet
+  #- /usr/bin/cmake --build . --target crab && /usr/bin/cmake ..
   - /usr/bin/cmake --build . --target install
   - /usr/bin/cmake --build . --target test-simple
   - /usr/bin/cmake --build . --target test-solve

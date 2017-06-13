@@ -212,7 +212,7 @@ namespace
     SmallVector<Value*, 8> fargs;
     for(auto ai = ++F->arg_begin(), ae = F->arg_end(); ai != ae; ++ai)
     {
-      fargs.push_back(ai);
+      fargs.push_back(&*ai);
       ai->setName("arg");
     }
           
@@ -256,7 +256,7 @@ namespace
     {
       Value* defaultRet = nullptr;
       if (AllowIndirectCalls)
-        defaultRet = CallInst::Create (F->arg_begin(), fargs, "", defaultBB);
+        defaultRet = CallInst::Create (&*(F->arg_begin()), fargs, "", defaultBB);
       else
       {
         Function &fn = seahorn::createNewNondetFn (*M, *CS.getType (),
@@ -273,7 +273,7 @@ namespace
     // Create basic blocks which will test the value of the incoming function
     // pointer and branch to the appropriate basic block to call the function.
     Type * VoidPtrType = getVoidPtrType (M->getContext());
-    Value * FArg = castTo (F->arg_begin(), VoidPtrType, "", InsertPt);
+    Value * FArg = castTo (&*(F->arg_begin()), VoidPtrType, "", InsertPt);
     BasicBlock * tailBB = defaultBB;
     for (const Function *FL : Targets)
     {
@@ -443,7 +443,10 @@ namespace
     // Now go through and transform all of the indirect calls that we found that
     // need transforming.
     bool Changed = !m_worklist.empty ();
-    for (auto &I : m_worklist) mkDirectCall (I);
+    for (auto I : m_worklist) {
+      CallSite CS (I);
+      mkDirectCall (CS);
+    }
 
     // Conservatively assume that we've changed one or more call sites.
     return Changed;

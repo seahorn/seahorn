@@ -1,5 +1,5 @@
 #include "llvm/IR/DataLayout.h"
-#include "llvm/Target/TargetLibraryInfo.h"
+#include "llvm/Analysis/TargetLibraryInfo.h"
 #include "llvm/Analysis/MemoryBuiltins.h"
 #include "llvm/Analysis/CallGraph.h"
 #include "llvm/Support/raw_ostream.h"
@@ -27,8 +27,7 @@ PrintDsaStats ("horn-dsa-stats",
 
 void DsaAnalysis::getAnalysisUsage (AnalysisUsage &AU) const 
 {
-  AU.addRequired<DataLayoutPass> ();
-  AU.addRequired<TargetLibraryInfo> ();
+  AU.addRequired<TargetLibraryInfoWrapperPass> ();
   AU.addRequired<CallGraphWrapperPass> ();
   AU.addRequired<ufo::NameValues>();
   AU.setPreservesAll ();
@@ -37,8 +36,8 @@ void DsaAnalysis::getAnalysisUsage (AnalysisUsage &AU) const
 bool DsaAnalysis::runOnModule (Module &M) 
 {
 
-  auto &dl  = getAnalysis<DataLayoutPass>().getDataLayout ();
-  auto &tli = getAnalysis<TargetLibraryInfo> ();
+  auto &dl  = M.getDataLayout ();
+  auto &tli = getAnalysis<TargetLibraryInfoWrapperPass> ().getTLI();
   auto &cg = getAnalysis<CallGraphWrapperPass> ().getCallGraph ();
 
   if (DsaCsGlobalAnalysis)

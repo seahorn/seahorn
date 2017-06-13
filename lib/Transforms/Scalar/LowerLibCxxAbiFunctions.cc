@@ -33,7 +33,7 @@ namespace seahorn
                                            AttributeSet::FunctionIndex,
                                            B);
 
-      const DataLayout* DL = &getAnalysis<DataLayoutPass>().getDataLayout ();
+      const DataLayout* DL = &M.getDataLayout ();
       Type* IntPtrTy = DL->getIntPtrType (Context, 0);
       
       CallGraphWrapperPass *cgwp = getAnalysisIfAvailable<CallGraphWrapperPass> ();
@@ -134,7 +134,6 @@ namespace seahorn
     void getAnalysisUsage (AnalysisUsage &AU) const
     {
       AU.setPreservesAll ();
-      AU.addRequired<llvm::DataLayoutPass>();
       AU.addRequired<llvm::CallGraphWrapperPass>();
     }
     

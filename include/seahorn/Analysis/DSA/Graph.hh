@@ -7,6 +7,11 @@
 #include "boost/iterator/filter_iterator.hpp"
 #include <boost/functional/hash.hpp>
 
+// llvm 3.8: forward declarations not enough
+#include "llvm/IR/Value.h"
+#include "llvm/IR/Argument.h"
+#include "llvm/IR/Function.h"
+
 #include "llvm/ADT/ImmutableSet.h"
 #include "llvm/ADT/DenseMap.h"
 

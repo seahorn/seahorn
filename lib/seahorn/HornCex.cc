@@ -40,7 +40,7 @@
 #include "llvm/IR/Verifier.h"
 #include "llvm/Bitcode/ReaderWriter.h"
 #include "llvm/IR/DataLayout.h"
-#include "llvm/Target/TargetLibraryInfo.h"
+#include "llvm/Analysis/TargetLibraryInfo.h"
 
 #include <gmpxx.h>
 
@@ -187,8 +187,8 @@ namespace seahorn
     // -- HornSolver
     ExprFactory &efac = hm.getExprFactory ();
     
-    UfoSmallSymExec semUfo (efac, *this, MEM);
-    BvSmallSymExec semBv (efac, *this, MEM);
+    UfoSmallSymExec semUfo (efac, *this, M.getDataLayout(), MEM);
+    BvSmallSymExec semBv (efac, *this, M.getDataLayout(), MEM);
     
     SmallStepSymExec *sem = UseBv ? static_cast<SmallStepSymExec*>(&semBv) :
       static_cast<SmallStepSymExec*>(&semUfo);
@@ -237,8 +237,9 @@ namespace seahorn
     
     if (UseBv)
     {
-      const DataLayout &dl = getAnalysis<DataLayoutPass> ().getDataLayout();
-      const TargetLibraryInfo &tli = getAnalysis<TargetLibraryInfo> ();
+      const DataLayout &dl = M.getDataLayout();
+      const TargetLibraryInfo &tli =
+	getAnalysis<TargetLibraryInfoWrapperPass> ().getTLI();
       if (MemSim)
       {
         MemSimulator memSim (trace, dl, tli);
@@ -249,7 +250,7 @@ namespace seahorn
     StringRef HornCexFileRef(HornCexFile);
     if (HornCexFileRef.endswith(".ll") ||
         HornCexFileRef.endswith(".bc")) {
-      const DataLayout &dl = getAnalysis<DataLayoutPass> ().getDataLayout();
+      const DataLayout &dl = M.getDataLayout();
       dumpLLVMCex(trace, HornCexFileRef, dl);
     } else if (HornCexFileRef.endswith(".xml")) {
       dumpSvCompCex (trace, HornCexFileRef);
@@ -294,8 +295,7 @@ namespace seahorn
   void HornCex::getAnalysisUsage (AnalysisUsage &AU) const
   {
     AU.setPreservesAll ();
-    AU.addRequired<DataLayoutPass> ();
-    AU.addRequired<TargetLibraryInfo> ();
+    AU.addRequired<TargetLibraryInfoWrapperPass> ();
     AU.addRequired<CutPointGraph> ();
     AU.addRequired<HornifyModule> ();
     AU.addRequired<HornSolver> ();
@@ -382,29 +382,32 @@ namespace seahorn
                                 SvCompCex<O> &svcomp)
   {
     const DebugLoc &dloc = inst.getDebugLoc ();
-    if (dloc.isUnknown ()) return;
+    if (!(dloc.get())) return;
     std::string file;
 
-    DIScope Scope (dloc.getScope ());
-    if (Scope) file = Scope.getFilename ();
-    else file = "<unknown>";
-    
-    
-    LOG ("cex",
-         DISubprogram fnScope = getDISubprogram (dloc.getScope ());
-         if (fnScope)
-         {
-           Function *fn = fnScope.getFunction ();
-           StringRef dname = fnScope.getDisplayName ();
-           if (const CallInst *ci = dyn_cast<const CallInst> (&inst))
-           {
-             Function *f = ci->getCalledFunction ();
-             if (f && f->getName ().equals ("seahorn.fn.enter"))
-               errs () << "entering: " << dname << "\n";
-           }
-           else
-             errs () << "in: " << dname << "\n";
-         });
+    // DIScope Scope (dloc.getScope ());
+    // if (Scope) file = Scope.getFilename ();
+    // else file = "<unknown>";
+    // XXX: porting to llvm 3.8
+    file = dloc.get()->getFilename ();
+
+    // TODO: port to llvm 3.8
+    // 
+    // LOG ("cex",
+    //      DISubprogram fnScope = getDISubprogram (*(dloc.getScope ()));
+    //      if (fnScope)
+    //      {
+    //        Function *fn = fnScope.getFunction ();
+    //        StringRef dname = fnScope.getDisplayName ();
+    //        if (const CallInst *ci = dyn_cast<const CallInst> (&inst))
+    //        {
+    //          Function *f = ci->getCalledFunction ();
+    //          if (f && f->getName ().equals ("seahorn.fn.enter"))
+    //            errs () << "entering: " << dname << "\n";
+    //        }
+    //        else
+    //          errs () << "in: " << dname << "\n";
+    //      });
       
     svcomp.edge (file, (int)dloc.getLine (), "");
   }

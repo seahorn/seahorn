@@ -2,9 +2,10 @@
 #include "llvm/IR/Module.h"
 #include "llvm/IR/InstIterator.h"
 #include "llvm/IR/CallSite.h"
-#include "llvm/Target/TargetLibraryInfo.h"
+#include "llvm/Analysis/TargetLibraryInfo.h"
 #include "llvm/Analysis/MemoryBuiltins.h"
 #include "llvm/ADT/SmallSet.h"
+#include "llvm/Support/raw_ostream.h"
 #include "llvm/Support/Debug.h"
 
 #include "avy/AvyDebug.h"
@@ -32,7 +33,7 @@ namespace seahorn
     
     void getAnalysisUsage (AnalysisUsage &AU) const {
       AU.setPreservesAll ();
-      AU.addRequired<llvm::TargetLibraryInfo>();
+      AU.addRequired<llvm::TargetLibraryInfoWrapperPass>();
       #ifdef HAVE_DSA
       AU.addRequired<llvm::AllocIdentify>();
       #endif 
@@ -65,7 +66,7 @@ namespace seahorn
       #ifndef HAVE_DSA
       // Mark any function that calls a function that (de)allocates
       // memory.
-      const TargetLibraryInfo* TLI = &getAnalysis<TargetLibraryInfo>();
+      const TargetLibraryInfo* TLI = &getAnalysis<TargetLibraryInfoWrapperPass>().getTLI();
       for (Function &F : M)
         if (!F.isDeclaration () && F.hasLocalLinkage ())
           Change |= markIfAllocationFn (F, TLI);

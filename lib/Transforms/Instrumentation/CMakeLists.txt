@@ -1,7 +1,6 @@
 add_llvm_library(SeaInstrumentation
   MixedSemantics.cc
   NondetInit.cc
-  ShadowMemDsa.cc
   ShadowMemSeaDsa.cc
   MarkFnEntry.cc
   EnumVerifierCalls.cc

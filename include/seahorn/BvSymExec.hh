@@ -25,14 +25,15 @@ namespace seahorn
     
     
   public:
-    BvSmallSymExec (ExprFactory &efac, Pass &pass, TrackLevel trackLvl = MEM) : 
-      SmallStepSymExec (efac), m_pass (pass), m_trackLvl (trackLvl)
+    BvSmallSymExec (ExprFactory &efac, Pass &pass, const DataLayout &dl,
+		    TrackLevel trackLvl = MEM) : 
+      SmallStepSymExec (efac), m_pass (pass), m_trackLvl (trackLvl), m_td(&dl)
     {
-      m_td = &pass.getAnalysis<DataLayoutPass> ().getDataLayout ();
       m_canFail = pass.getAnalysisIfAvailable<CanFail> ();
     }
     BvSmallSymExec (const BvSmallSymExec& o) : 
-      SmallStepSymExec (o), m_pass (o.m_pass), m_trackLvl (o.m_trackLvl) {}
+      SmallStepSymExec (o), m_pass (o.m_pass), m_trackLvl (o.m_trackLvl),
+      m_td (o.m_td), m_canFail (o.m_canFail) {}
     
     Expr errorFlag (const BasicBlock &BB) override;
     

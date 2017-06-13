@@ -2,13 +2,12 @@
 #include "llvm/IR/Module.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/Constants.h"
-#include "llvm/Support/raw_ostream.h"
 #include "llvm/IR/Instructions.h"
-#include "llvm/PassManager.h"
-#include "llvm/Support/ErrorHandling.h"
+#include "llvm/IR/PassManager.h"
 #include "llvm/IR/DebugLoc.h"
 #include "llvm/IR/DebugInfo.h"
-
+#include "llvm/Support/raw_ostream.h"
+#include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/CommandLine.h"
 
 using namespace llvm;
@@ -27,7 +26,10 @@ namespace seahorn {
 
        const DebugLoc &dloc = inst->getDebugLoc ();
 
-       return (!(dloc.isUnknown ()));
+       // llvm 3.6
+       //return (!(dloc.isUnknown ()));
+       // llvm 3.8
+       return (!(dloc.get()));
      }
 
      static void printDebugLoc (const Instruction *inst, llvm::raw_ostream& os) {
@@ -38,9 +40,10 @@ namespace seahorn {
        unsigned Line = dloc.getLine ();
        unsigned Col = dloc.getCol ();
        std::string File; 
-       DIScope Scope (dloc.getScope ());
-       if (Scope) File = Scope.getFilename ();
-       else File = "unknown file";
+       if (dloc.get ())
+	 File = dloc.get ()->getFilename ();
+       else
+	 File = "unknown file";
 
        os << "Possible read of undefined value at \n"
           << "--- File   : " << File << "\n"

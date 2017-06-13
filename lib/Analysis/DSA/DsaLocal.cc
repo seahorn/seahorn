@@ -4,13 +4,12 @@
 #include "llvm/Pass.h"
 
 #include "llvm/IR/DataLayout.h"
-#include "llvm/Target/TargetLibraryInfo.h"
-
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/GetElementPtrTypeIterator.h"
 #include "llvm/IR/InstVisitor.h"
 
+#include "llvm/Analysis/TargetLibraryInfo.h"
 #include "llvm/Analysis/MemoryBuiltins.h"
 
 #include "llvm/ADT/DenseSet.h"
@@ -872,15 +871,14 @@ namespace seahorn
 
     void Local::getAnalysisUsage (AnalysisUsage &AU) const 
     {
-      AU.addRequired<DataLayoutPass> ();
-      AU.addRequired<TargetLibraryInfo> ();
+      AU.addRequired<TargetLibraryInfoWrapperPass> ();
       AU.setPreservesAll ();
     }
 
     bool Local::runOnModule (Module &M)
     {
-      m_dl = &getAnalysis<DataLayoutPass>().getDataLayout ();
-      m_tli = &getAnalysis<TargetLibraryInfo> ();
+      m_dl = &M.getDataLayout ();
+      m_tli = &getAnalysis<TargetLibraryInfoWrapperPass> ().getTLI();
 
       for (Function &F : M) runOnFunction (F);                
         return false;

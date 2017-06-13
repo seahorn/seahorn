@@ -2,6 +2,7 @@
 #include "llvm/IR/Module.h"
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/Support/Debug.h"
+#include "llvm/Support/raw_ostream.h"
 #include "llvm/Support/CommandLine.h"
 
 #include "avy/AvyDebug.h"

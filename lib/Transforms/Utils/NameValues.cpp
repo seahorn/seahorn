@@ -24,7 +24,7 @@ DM-0002198
 #include "llvm/Support/Debug.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/BasicBlock.h"
-#include "llvm/PassManager.h"
+#include "llvm/IR/PassManager.h"
 
 #include <boost/tokenizer.hpp>
 #include <boost/algorithm/string/predicate.hpp>

@@ -154,10 +154,11 @@ namespace seahorn {
       
       if (!DTraits.renderGraphFromBottomUp()) {
 	O << DOT::EscapeString(DTraits.getNodeLabel(Node, G));
-	
+
 	// If we should include the address of the node in the label, do so now.
-	if (DTraits.hasNodeAddressLabel(Node, G))
-	  O << "|" << static_cast<const void*>(Node);
+	std::string Id = DTraits.getNodeIdentifierLabel(Node, G);
+	if (!Id.empty())
+	  O << "|" << DOT::EscapeString(Id);
 	
 	std::string NodeDesc = DTraits.getNodeDescription(Node, G);
 	if (!NodeDesc.empty())
@@ -178,14 +179,15 @@ namespace seahorn {
       
       if (DTraits.renderGraphFromBottomUp()) {
 	O << DOT::EscapeString(DTraits.getNodeLabel(Node, G));
-	
+
 	// If we should include the address of the node in the label, do so now.
-	if (DTraits.hasNodeAddressLabel(Node, G))
-	  O << "|" << static_cast<const void*>(Node);
+	std::string Id = DTraits.getNodeIdentifierLabel(Node, G);
+	if (!Id.empty())
+	  O << "|" << DOT::EscapeString(Id);
 	
 	std::string NodeDesc = DTraits.getNodeDescription(Node, G);
 	if (!NodeDesc.empty())
-	  O << "|" << DOT::EscapeString(NodeDesc);
+	  O << "|" << DOT::EscapeString(NodeDesc);	
       }
 
       #if 0 

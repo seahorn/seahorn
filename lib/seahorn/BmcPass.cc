@@ -61,7 +61,6 @@ namespace
     void getAnalysisUsage (AnalysisUsage &AU) const
     {
       AU.setPreservesAll ();
-      AU.addRequired<DataLayoutPass> ();
       
       AU.addRequired<seahorn::CanFail> ();
       AU.addRequired<ufo::NameValues>();
@@ -89,7 +88,7 @@ namespace
 
       
       ExprFactory efac;
-      BvSmallSymExec sem (efac, *this, MEM);
+      BvSmallSymExec sem (efac, *this, F.getParent()->getDataLayout(), MEM);
       
       EZ3 zctx (efac);
       BmcEngine bmc (sem, zctx);

@@ -27,7 +27,7 @@
 static llvm::cl::opt<bool>
 UseSeaDsa("abc-sea-dsa",
           llvm::cl::desc ("Use SeaHorn Dsa analysis"),
-          llvm::cl::init (false));
+          llvm::cl::init (true));
 
 // Notes: Local is obsolete and very incomplete. We keep it for
 // comparison with the other encodings just for toy programs.
@@ -339,7 +339,7 @@ namespace seahorn
     WrapperObjectSizeOffsetVisitor(const DataLayout *DL, 
 				   const TargetLibraryInfo *TLI,
 				   LLVMContext &Context) : 
-      DL (DL), TLI (TLI), vis (DL, TLI, Context, true) { }
+      DL (DL), TLI (TLI), vis (*DL, TLI, Context, true) { }
     
     bool knownSize(SizeOffsetType &SizeOffset)
     { return SizeOffset.first.getBitWidth() > 1; }
@@ -857,7 +857,7 @@ namespace seahorn
     // create new function 
     Function *NF = Function::Create (NFTy, F->getLinkage ());
     NF->copyAttributesFrom(F);
-    F->getParent ()->getFunctionList ().insert(F, NF);
+    F->getParent ()->getFunctionList ().insert(F->getIterator(), NF);
     NF->takeName (F);
 
     //m_orig_arg_size [NF] = F->arg_size ();
@@ -880,7 +880,8 @@ namespace seahorn
          I != E; ++I, ++DI)  {
       DI->setName(I->getName());  // Copy the name over.
       // Add a mapping to our mapping.
-      ValueMap[I] = DI;
+      const Value* V = &*I;
+      ValueMap[V] = &*DI;
     }
     
     SmallVector<ReturnInst*, 8> Returns; // Ignore returns.
@@ -1298,14 +1299,16 @@ namespace seahorn
     if (M.begin () == M.end ()) return false;
 
     std::unique_ptr<DsaWrapper> dsa (new SeaDsa (this));
-    if (!UseSeaDsa)
-      dsa.reset (new LlvmDsa (this));
+    if (!UseSeaDsa) {
+      //dsa.reset (new LlvmDsa (this));
+      llvm_unreachable("Seahorn 3.8 does not use llvm dsa");
+    }
 
     errs () << " --- Using " << dsa->getDsaName () << "\n";
 
     LLVMContext &ctx = M.getContext ();
-    m_dl = &getAnalysis<DataLayoutPass>().getDataLayout ();
-    m_tli = &getAnalysis<TargetLibraryInfo>();
+    m_dl = &M.getDataLayout ();
+    m_tli = &getAnalysis<TargetLibraryInfoWrapperPass>().getTLI();
 
     m_IntPtrTy = m_dl->getIntPtrType (ctx, 0);
     errs () << "intPtrTy is " << *m_IntPtrTy << "\n";
@@ -1513,10 +1516,9 @@ namespace seahorn
   void Local::getAnalysisUsage (llvm::AnalysisUsage &AU) const
   {
     AU.setPreservesAll ();
-    AU.addRequired<seahorn::DSAInfo>(); // run llvm dsa
+    //AU.addRequired<seahorn::DSAInfo>(); // run llvm dsa
     AU.addRequired<dsa::DsaAnalysis>(); // run seahorn dsa
-    AU.addRequired<llvm::DataLayoutPass>();
-    AU.addRequired<llvm::TargetLibraryInfo>();
+    AU.addRequired<llvm::TargetLibraryInfoWrapperPass>();
     AU.addRequired<llvm::UnifyFunctionExitNodes> ();
     AU.addRequired<CanAccessMemory> ();
   } 
@@ -1545,7 +1547,7 @@ namespace seahorn
   CallInst* Global::InstVis::NonDet (Function* caller) {
     Module &m = *(caller->getParent ());
     auto &nondetFn = createNewNondetFn (m, *m_IntPtrTy, m_nondet_id, "verifier.nondet");
-    CallInst *CI = m_B.CreateCall (&nondetFn, "nd");
+    CallInst *CI = m_B.CreateCall (&nondetFn, None, "nd");
     updateCallGraph (m_cg, caller, CI);
     return CI;
   }
@@ -1554,7 +1556,7 @@ namespace seahorn
     Type *i8PtrTy = Type::getInt8Ty (m_B.getContext())->getPointerTo ();
     Module &m = *(caller->getParent ());
     auto &nondetPtrFn = createNewNondetFn (m, *i8PtrTy, m_nondet_id, "verifier.nondet_ptr");
-    CallInst* CI = m_B.CreateCall (&nondetPtrFn, "nd_ptr");
+    CallInst* CI = m_B.CreateCall (&nondetPtrFn, None, "nd_ptr");
     updateCallGraph (m_cg, caller, CI);
     return CI;
   }
@@ -1665,7 +1667,7 @@ namespace seahorn
     
     Function* main = M.getFunction ("main");
     assert (main);
-    m_B.SetInsertPoint (main->getEntryBlock ().getFirstInsertionPt ());
+    m_B.SetInsertPoint (&*(main->getEntryBlock ().getFirstInsertionPt ()));
     LLVMContext& ctx = m_B.getContext ();      
     
     // assume (m_tracked_base > 0);
@@ -1694,7 +1696,7 @@ namespace seahorn
       m_tracked_escaped_ptr = createGlobalBool (M, false, "tracked_escaped_ptr");
     }
     
-    Instruction * insertPt = m_B.GetInsertPoint ();
+    BasicBlock::iterator insertPt = m_B.GetInsertPoint ();
     /// Allocation of global variables
     for (auto &GV: M.globals ()) {
       Type *Ty = cast<PointerType>(GV.getType())->getElementType();
@@ -1710,7 +1712,7 @@ namespace seahorn
       
       uint64_t size;
       if (seahorn::getObjectSize(&GV, size, m_dl, m_tli, true)) {
-	doAllocaSite (&GV, createIntCst (m_IntPtrTy, size), insertPt); 
+	doAllocaSite (&GV, createIntCst (m_IntPtrTy, size), &*insertPt); 
       }
       else {
 	// this should not happen unless the global is external
@@ -2185,7 +2187,7 @@ namespace seahorn
                             Function* errorFn, Function* assumeFn): 
     m_dl (dl), m_tli (tli), 
     m_B (B), m_cg (cg), m_dsa (dsa),
-    m_eval (dl, tli, B.getContext (), true),             
+    m_eval (*dl, tli, B.getContext (), true),             
     m_IntPtrTy (dl->getIntPtrType (M.getContext (), 0)),
     m_nondet_id (0),
     m_tracked_base (nullptr), m_tracked_ptr (nullptr),
@@ -2548,7 +2550,7 @@ namespace seahorn
 	//    saved_tracked_offset = tracked_offset
 	
 	if (getReturnInst (F)) {
-	  m_B.SetInsertPoint (F->getEntryBlock ().getFirstInsertionPt ());
+	  m_B.SetInsertPoint (&*(F->getEntryBlock ().getFirstInsertionPt ()));
 	  saved_tracked_ptr = createLoad(m_B, m_tracked_ptr, m_dl,
 					      "saved_tracked_ptr");
 	  saved_tracked_offset = createLoad(m_B, m_tracked_offset, m_dl,
@@ -2561,7 +2563,7 @@ namespace seahorn
       // Add extra assumptions about the sizes of the formal paramters
       if (!F->empty () && F->args().begin () != F->args().end ()) {
 	
-	m_B.SetInsertPoint (F->getEntryBlock ().getFirstInsertionPt ());
+	m_B.SetInsertPoint (&*(F->getEntryBlock ().getFirstInsertionPt ()));
         
 	Value *vtracked_base, *vtracked_ptr, *vtracked_size, *vtracked_offset;
 	vtracked_base = vtracked_ptr = vtracked_size = vtracked_offset = nullptr;
@@ -2632,8 +2634,10 @@ namespace seahorn
     }
     
     std::unique_ptr<DsaWrapper> dsa (new SeaDsa (this));
-    if (!UseSeaDsa)
-      dsa.reset (new LlvmDsa (this));
+    if (!UseSeaDsa) {
+      // dsa.reset (new LlvmDsa (this));
+      llvm_unreachable("Seahorn 3.8 does not use llvm dsa");      
+    }
     
     errs () << " --- Using " << dsa->getDsaName () << "\n";
     
@@ -2646,8 +2650,8 @@ namespace seahorn
     
     LLVMContext &ctx = M.getContext ();
     
-    const TargetLibraryInfo * tli = &getAnalysis<TargetLibraryInfo>();
-    const DataLayout * dl = &getAnalysis<DataLayoutPass>().getDataLayout ();
+    const TargetLibraryInfo * tli = &getAnalysis<TargetLibraryInfoWrapperPass>().getTLI();
+    const DataLayout * dl = &M.getDataLayout ();
     
     AttrBuilder AB;
     AB.addAttribute (Attribute::NoReturn);
@@ -2836,10 +2840,9 @@ namespace seahorn
   void Global::getAnalysisUsage (llvm::AnalysisUsage &AU) const
   {
     AU.setPreservesAll ();
-    AU.addRequired<seahorn::DSAInfo>(); // run llvm dsa
+    //AU.addRequired<seahorn::DSAInfo>(); // run llvm dsa
     AU.addRequired<dsa::DsaAnalysis>(); // run seahorn dsa
-    AU.addRequired<llvm::DataLayoutPass>();
-    AU.addRequired<llvm::TargetLibraryInfo>();
+    AU.addRequired<llvm::TargetLibraryInfoWrapperPass>();
     AU.addRequired<llvm::UnifyFunctionExitNodes> ();
     AU.addRequired<llvm::CallGraphWrapperPass>(); 
     // for debugging
@@ -2862,12 +2865,14 @@ namespace seahorn
       return false;
     }
     
-    const TargetLibraryInfo * tli = &getAnalysis<TargetLibraryInfo>();
-    const DataLayout* dl = &getAnalysis<DataLayoutPass>().getDataLayout ();
+    const TargetLibraryInfo * tli = &getAnalysis<TargetLibraryInfoWrapperPass>().getTLI();
+    const DataLayout* dl = &M.getDataLayout ();
     
     std::unique_ptr<DsaWrapper> dsa (new SeaDsa (this));
-    if (!UseSeaDsa)
-      dsa.reset (new LlvmDsa (this));
+    if (!UseSeaDsa) {
+      // dsa.reset (new LlvmDsa (this));
+      llvm_unreachable("Seahorn 3.8 does not use llvm dsa");            
+    }
     
     errs () << " Using " << dsa->getDsaName () << "\n\n";
     
@@ -2981,10 +2986,10 @@ namespace seahorn
     unsigned trivial_checks = 0;
     unsigned mem_accesses = 0;
     DenseMap<GetElementPtrInst*, Value*> instrumented_gep;
-    ObjectSizeOffsetEvaluator size_offset_eval (dl, tli, ctx, true);
+    ObjectSizeOffsetEvaluator size_offset_eval (*dl, tli, ctx, true);
     
     // do initialization
-    B.SetInsertPoint (main->getEntryBlock ().getFirstInsertionPt ());
+    B.SetInsertPoint (&*(main->getEntryBlock ().getFirstInsertionPt ()));
     updateCallGraph (cg, main, B.CreateCall (abc_init));
     
     // allocation of global variables
@@ -3006,7 +3011,7 @@ namespace seahorn
       if (seahorn::getObjectSize(&GV, size, dl, tli, true)) {
 	Value* baseAddr = B.CreateBitOrPointerCast (&GV,geti8PtrTy (ctx));
 	Value* allocSize = createIntCst (intPtrTy, size);
-	CallInst *CI = B.CreateCall2 (abc_alloc, baseAddr, allocSize);
+	CallInst *CI = B.CreateCall (abc_alloc, {baseAddr, allocSize});
 	//errs () << "*** allocating global " << GV << "\n" << "\t" << *CI << "\n";
 	updateCallGraph (cg, main, CI);
       }
@@ -3049,7 +3054,7 @@ namespace seahorn
 	      Value* offset = computeGepOffset (dl, B, GEP);                  
 	      instrumented_gep [GEP] = offset;
 	      Value* base8Ptr = B.CreateBitOrPointerCast (base, geti8PtrTy (ctx));
-	      updateCallGraph (cg,&F,B.CreateCall2 (abc_log_ptr, base8Ptr, offset));  
+	      updateCallGraph (cg,&F,B.CreateCall (abc_log_ptr, {base8Ptr, offset}));  
 	    }
 	  } else if (Value *ptr = isInterestingMemoryAccess(I, &IsWrite, &Aligment)) {
 	    // XXX: this may help
@@ -3082,14 +3087,14 @@ namespace seahorn
 		  uint64_t size; //bytes
 		  if (seahorn::getObjectSize(base, size, dl, tli, true)) {
 		    Value* vsize = createIntCst (intPtrTy, size);
-		    CallInst *CI = B.CreateCall2(abc_assert_valid_offset, offset, vsize);
+		    CallInst *CI = B.CreateCall(abc_assert_valid_offset, {offset, vsize});
 		    updateCallGraph (cg, &F, CI);
 		    //errs () << "**** ptr is a gep of known size " << *I << "\n"; 
 		    //errs () << "\t" << *CI << "\n";		      
 		  }
 		  else {
 		    base = B.CreateBitOrPointerCast (base, geti8PtrTy (ctx));
-		    CallInst *CI = B.CreateCall2 (abc_assert_valid_ptr, base, offset);
+		    CallInst *CI = B.CreateCall (abc_assert_valid_ptr, {base, offset});
 		    updateCallGraph(cg, &F, CI);
 		    //errs () << "**** ptr is a gep but unknown size " << *I << "\n";
 		    //errs () << "\t" << *CI << "\n";
@@ -3099,7 +3104,7 @@ namespace seahorn
 		else { 
 		  B.SetInsertPoint (I);
 		  Value* base = B.CreateBitOrPointerCast (ptr, geti8PtrTy (ctx));
-		  CallInst * CI = B.CreateCall2 (abc_assert_valid_ptr, base, addrSz);
+		  CallInst * CI = B.CreateCall (abc_assert_valid_ptr, {base, addrSz});
 		  updateCallGraph (cg, &F, CI);		    
 		  //errs () << "**** ptr is not a gep " << *I << "\n";
 		  //errs () << "\t" << *CI << "\n";
@@ -3121,7 +3126,7 @@ namespace seahorn
 		B.SetInsertPoint (getNextInst (I)); 
 		Value* lhs = B.CreateBitOrPointerCast (I, geti8PtrTy (ctx));
 		Value* ptr = B.CreateBitOrPointerCast (LI->getPointerOperand (), geti8PtrTy (ctx));		    
-		updateCallGraph (cg, &F, B.CreateCall2 (abc_log_load_ptr, lhs, ptr));
+		updateCallGraph (cg, &F, B.CreateCall (abc_log_load_ptr, {lhs, ptr}));
 	      }
 	    } else if (StoreInst *SI = dyn_cast<StoreInst> (I)) {
 	      if (SI->getValueOperand()->getType()->isPointerTy ()) {
@@ -3129,7 +3134,7 @@ namespace seahorn
 		B.SetInsertPoint (I); // insert instrumentation before the store 
 		Value* value = B.CreateBitOrPointerCast (SI->getValueOperand (), geti8PtrTy (ctx));
 		Value* ptr = B.CreateBitOrPointerCast (SI->getPointerOperand (), geti8PtrTy (ctx));		    
-		updateCallGraph (cg, &F, B.CreateCall2 (abc_log_store_ptr, value, ptr));
+		updateCallGraph (cg, &F, B.CreateCall (abc_log_store_ptr, {value, ptr}));
 	      }
 	    }
 	    
@@ -3149,7 +3154,7 @@ namespace seahorn
 		checks_added++;
 		Value *base = B.CreateBitOrPointerCast (dest, geti8PtrTy(ctx));
 		len = B.CreateZExtOrTrunc (MTI->getLength(), intPtrTy);
-		updateCallGraph (cg, &F, B.CreateCall2 (abc_assert_valid_ptr, base, len));
+		updateCallGraph (cg, &F, B.CreateCall (abc_assert_valid_ptr, {base, len}));
 	      }
               
 	      Value* src = MTI->getSource ();
@@ -3159,7 +3164,7 @@ namespace seahorn
 		checks_added++; 
 		if (!len) len = B.CreateZExtOrTrunc (MTI->getLength(), intPtrTy);
 		Value *base = B.CreateBitOrPointerCast (src, geti8PtrTy(ctx));
-		updateCallGraph (cg, &F, B.CreateCall2 (abc_assert_valid_ptr, base, len));
+		updateCallGraph (cg, &F, B.CreateCall (abc_assert_valid_ptr, {base, len}));
 	      }
 	    }
 	    else 
@@ -3178,7 +3183,7 @@ namespace seahorn
 		checks_added++; 
 		Value *base = B.CreateBitOrPointerCast (dest, geti8PtrTy(ctx));
 		Value *len = B.CreateZExtOrTrunc (MSI->getLength(), intPtrTy);
-		updateCallGraph (cg, &F, B.CreateCall2 (abc_assert_valid_ptr, base, len));
+		updateCallGraph (cg, &F, B.CreateCall (abc_assert_valid_ptr, {base, len}));
 	      }
 	    }
 	    else 
@@ -3192,7 +3197,7 @@ namespace seahorn
 	      if (Value* size = Data.first) {
 		Value* vptr = B.CreateBitOrPointerCast (AI, geti8PtrTy (ctx));
 		size = B.CreateZExtOrTrunc (size, intPtrTy);
-		updateCallGraph (cg, &F, B.CreateCall2 (abc_alloc, vptr,size));
+		updateCallGraph (cg, &F, B.CreateCall (abc_alloc, {vptr,size}));
 		if (PositiveAddresses) {
 		  // Trick llvm to make sure that all pointer addresses
 		  // are positive
@@ -3203,7 +3208,10 @@ namespace seahorn
 		}
 	      }
 	    }
-	  } else if (isMallocLikeFn(I, tli, true) || isOperatorNewLikeFn(I, tli, true)){
+	  } else if (isMallocLikeFn(I, tli, true)
+		     // XXX: this method is gone with llvm 3.8
+		     /*|| isOperatorNewLikeFn(I, tli, true)*/
+		     ){
 	    
 	    if (dsa->shouldBeTrackedPtr (*I, F, __LINE__)) {
 	      SizeOffsetEvalType Data = size_offset_eval.compute (I);
@@ -3211,7 +3219,7 @@ namespace seahorn
 		B.SetInsertPoint (getNextInst (I));
 		Value* vI = B.CreateBitOrPointerCast (I, geti8PtrTy (ctx));
 		size = B.CreateZExtOrTrunc (size,intPtrTy);
-		updateCallGraph (cg, &F,B.CreateCall2 (abc_alloc, vI,size));
+		updateCallGraph (cg, &F,B.CreateCall (abc_alloc, {vI, size}));
 		if (PositiveAddresses) {
 		  // Trick llvm to make sure that all pointer addresses
 		  // are positive
@@ -3248,10 +3256,9 @@ namespace seahorn
   void GlobalCCallbacks::getAnalysisUsage (llvm::AnalysisUsage &AU) const
   {
     AU.setPreservesAll ();
-    AU.addRequired<seahorn::DSAInfo>();// run llvm dsa
+    //AU.addRequired<seahorn::DSAInfo>();// run llvm dsa
     AU.addRequired<dsa::DsaAnalysis>();// run seahorn dsa
-    AU.addRequired<llvm::DataLayoutPass>();
-    AU.addRequired<llvm::TargetLibraryInfo>();
+    AU.addRequired<llvm::TargetLibraryInfoWrapperPass>();
     AU.addRequired<llvm::UnifyFunctionExitNodes> ();
     AU.addRequired<llvm::CallGraphWrapperPass>();
   } 

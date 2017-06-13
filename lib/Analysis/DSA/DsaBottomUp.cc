@@ -5,10 +5,10 @@
 #include "llvm/IR/CallSite.h"
 #include "llvm/IR/InstIterator.h"
 #include "llvm/IR/DataLayout.h"
-#include "llvm/Target/TargetLibraryInfo.h"
+#include "llvm/IR/PassManager.h"
 #include "llvm/Pass.h"
-#include "llvm/PassManager.h"
 #include "llvm/Analysis/CallGraph.h"
+#include "llvm/Analysis/TargetLibraryInfo.h"
 #include "llvm/ADT/SCCIterator.h"
 #include "llvm/Support/raw_ostream.h"
 
@@ -235,16 +235,15 @@ namespace seahorn
           
     void BottomUp::getAnalysisUsage (AnalysisUsage &AU) const 
     {
-      AU.addRequired<DataLayoutPass> ();
-      AU.addRequired<TargetLibraryInfo> ();
+      AU.addRequired<TargetLibraryInfoWrapperPass> ();
       AU.addRequired<CallGraphWrapperPass> ();
       AU.setPreservesAll ();
     }
 
     bool BottomUp::runOnModule (Module &M)
     {
-      m_dl = &getAnalysis<DataLayoutPass>().getDataLayout ();
-      m_tli = &getAnalysis<TargetLibraryInfo> ();
+      m_dl = &M.getDataLayout ();
+      m_tli = &getAnalysis<TargetLibraryInfoWrapperPass> ().getTLI();
       CallGraph &cg = getAnalysis<CallGraphWrapperPass> ().getCallGraph ();
 
       BottomUpAnalysis bu (*m_dl, *m_tli, cg);

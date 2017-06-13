@@ -11,6 +11,7 @@
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/CommandLine.h"
+#include "llvm/Support/raw_ostream.h"
 
 #include "avy/AvyDebug.h"
 

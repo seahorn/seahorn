@@ -5,7 +5,7 @@
 //
 
 #include "llvm/LinkAllPasses.h"
-#include "llvm/PassManager.h"
+#include "llvm/IR/LegacyPassManager.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IRReader/IRReader.h"
@@ -136,7 +136,7 @@ OneAssumePerBlock ("horn-one-assume-per-block",
 static llvm::cl::opt<bool>
 SeaHornDsa ("horn-sea-dsa",
             llvm::cl::desc ("Use Seahorn Dsa analysis"),
-            llvm::cl::init (false));
+            llvm::cl::init (true));
 
 static llvm::cl::opt<bool>
 HoudiniInv ("horn-houdini",
@@ -221,23 +221,29 @@ int main(int argc, char **argv) {
   // initialise and run passes //
   ///////////////////////////////
 
-  llvm::PassManager pass_manager;
+  llvm::legacy::PassManager pass_manager;
   llvm::PassRegistry &Registry = *llvm::PassRegistry::getPassRegistry();
   llvm::initializeAnalysis(Registry);
 
   /// call graph and other IPA passes
-  llvm::initializeIPA (Registry);
+  // llvm::initializeIPA (Registry);
+  // XXX: porting to 3.8 
+  llvm::initializeCallGraphWrapperPassPass(Registry);
+  llvm::initializeCallGraphPrinterPass(Registry);
+  llvm::initializeCallGraphViewerPass(Registry);
+  // XXX: not sure if needed anymore
+  llvm::initializeGlobalsAAWrapperPassPass(Registry);  
 
   // add an appropriate DataLayout instance for the module
-  const llvm::DataLayout *dl = module->getDataLayout ();
+  const llvm::DataLayout *dl = &module->getDataLayout ();
   if (!dl && !DefaultDataLayout.empty ())
   {
     module->setDataLayout (DefaultDataLayout);
-    dl = module->getDataLayout ();
+    dl = &module->getDataLayout ();
   }
 
-  if (dl) pass_manager.add (new llvm::DataLayoutPass ());
-
+  assert (dl && "Could not find Data Layout for the module");
+  
   // turn all functions internal so that we can inline them if requested
   pass_manager.add (llvm::createInternalizePass (llvm::ArrayRef<const char*>("main")));
   pass_manager.add (llvm::createGlobalDCEPass ()); // kill unused internal global
@@ -268,8 +274,10 @@ int main(int argc, char **argv) {
   pass_manager.add (new seahorn::LowerGvInitializers ());
   if (SeaHornDsa)
     pass_manager.add (seahorn::createShadowMemSeaDsaPass ());
-  else
-    pass_manager.add (seahorn::createShadowMemDsaPass ());
+  else {
+    llvm_unreachable("Seahorn 3.8 does not use llvm dsa");      
+    // pass_manager.add (seahorn::createShadowMemDsaPass ());
+  }
 
   // lowers shadow.mem variables created by ShadowMemDsa pass
   pass_manager.add (seahorn::createPromoteMemoryToRegisterPass ());

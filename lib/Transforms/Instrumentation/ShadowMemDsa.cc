@@ -235,9 +235,10 @@ namespace seahorn
           if (!n) continue;
           
           B.SetInsertPoint (&inst);
-          B.CreateCall3 (m_memLoadFn, B.getInt32 (getId (n)),
-                         B.CreateLoad (allocaForNode (n)),
-                         getUniqueScalar (ctx, B, n));
+          B.CreateCall (m_memLoadFn,
+			{B.getInt32 (getId (n)),
+			 B.CreateLoad (allocaForNode (n)),
+			 getUniqueScalar (ctx, B, n)});
         }
         else if (const StoreInst *store = dyn_cast<StoreInst> (&inst))
         {
@@ -246,10 +247,10 @@ namespace seahorn
           if (!n) continue;
           B.SetInsertPoint (&inst);
           AllocaInst *v = allocaForNode (n);
-          B.CreateStore (B.CreateCall3 (m_memStoreFn, 
-                                        B.getInt32 (getId (n)),
+          B.CreateStore (B.CreateCall (m_memStoreFn, 
+                                       {B.getInt32 (getId (n)),
                                         B.CreateLoad (v),
-                                        getUniqueScalar (ctx, B, n)),
+					getUniqueScalar (ctx, B, n)}),
                          v);           
         }
         else if (CallInst *call = dyn_cast<CallInst> (&inst))
@@ -281,10 +282,10 @@ namespace seahorn
             if (!n) continue;
             B.SetInsertPoint (call);
             AllocaInst *v = allocaForNode (n);
-            B.CreateStore (B.CreateCall3 (m_memStoreFn,
-                                          B.getInt32 (getId (n)),
+            B.CreateStore (B.CreateCall (m_memStoreFn,
+                                         {B.getInt32 (getId (n)),
                                           B.CreateLoad (v),
-                                          getUniqueScalar (ctx, B, n)),
+					  getUniqueScalar (ctx, B, n)}),
                            v);
           }
           
@@ -458,7 +459,6 @@ namespace seahorn
     AU.setPreservesAll ();
     // AU.addRequiredTransitive<llvm::EQTDDataStructures>();
     AU.addRequiredTransitive<llvm::SteensgaardDataStructures> ();
-    AU.addRequired<llvm::DataLayoutPass>();
     AU.addRequired<llvm::UnifyFunctionExitNodes> ();
   } 
     

@@ -156,9 +156,8 @@ namespace seahorn
         {
           if (dvi->getValue () && dvi->getVariable ())
           {
-            DIVariable var (dvi->getVariable ());
-                   
-            out << "  " << var.getName () << " = ";
+            DILocalVariable *var = dvi->getVariable ();
+            out << "  " << var->getName () << " = ";
             if (dvi->getValue ()->hasName ())
               out << dvi->getValue ()->getName ();
             else
@@ -173,10 +172,10 @@ namespace seahorn
           Function *f = ci->getCalledFunction ();
           if (f && f->getName ().equals ("seahorn.fn.enter"))
           {
-            DISubprogram fnScope =
-              getDISubprogram (ci->getDebugLoc ().getScope ());
-            if (fnScope)
-              out << "enter: " << fnScope.getDisplayName () << "\n";
+	    if (ci->getDebugLoc ()) {
+	      if (DISubprogram *fnScope = getDISubprogram (ci->getDebugLoc ().getScope ())) 
+		out << "enter: " << fnScope->getDisplayName () << "\n";
+	    }
             continue;
           }
           else if (f && f->getName ().equals ("shadow.mem.init"))
@@ -197,12 +196,11 @@ namespace seahorn
         if (!v) continue;
         out << "  %" << I.getName () << " " << *v;
         
-        const DebugLoc dloc = I.getDebugLoc ();
-        if (!dloc.isUnknown ())
+        const DebugLoc &dloc = I.getDebugLoc ();
+        if (dloc)
         {
-          DIScope scope (dloc.getScope ());
-          out << "\t[" << scope.getFilename () << ":"
-                  << dloc.getLine () << "]";
+          out << "\t[" << (*dloc).getFilename () << ":"
+	               << dloc.getLine () << "]";
         }
         out << "\n";
       }        

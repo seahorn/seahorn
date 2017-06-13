@@ -4,10 +4,10 @@
 #include "llvm/IR/CallSite.h"
 #include "llvm/IR/InstIterator.h"
 #include "llvm/IR/DataLayout.h"
-#include "llvm/Target/TargetLibraryInfo.h"
+#include "llvm/IR/PassManager.h"
 #include "llvm/Pass.h"
-#include "llvm/PassManager.h"
 #include "llvm/Analysis/CallGraph.h"
+#include "llvm/Analysis/TargetLibraryInfo.h"
 #include "llvm/ADT/SCCIterator.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Support/CommandLine.h"
@@ -169,16 +169,15 @@ namespace seahorn
           
     void ContextInsensitiveGlobal::getAnalysisUsage (AnalysisUsage &AU) const 
     {
-      AU.addRequired<DataLayoutPass> ();
-      AU.addRequired<TargetLibraryInfo> ();
+      AU.addRequired<TargetLibraryInfoWrapperPass> ();
       AU.addRequired<CallGraphWrapperPass> ();
       AU.setPreservesAll ();
     }
         
     bool ContextInsensitiveGlobal::runOnModule (Module &M)
     {
-      auto &dl = getAnalysis<DataLayoutPass>().getDataLayout ();
-      auto &tli = getAnalysis<TargetLibraryInfo> ();
+      auto &dl = M.getDataLayout ();
+      auto &tli = getAnalysis<TargetLibraryInfoWrapperPass> ().getTLI();
       auto &cg = getAnalysis<CallGraphWrapperPass> ().getCallGraph ();
 
       m_ga.reset (new ContextInsensitiveGlobalAnalysis (dl, tli, cg, m_setFactory));
@@ -489,16 +488,15 @@ namespace seahorn
           
     void ContextSensitiveGlobal::getAnalysisUsage (AnalysisUsage &AU) const 
     {
-      AU.addRequired<DataLayoutPass> ();
-      AU.addRequired<TargetLibraryInfo> ();
+      AU.addRequired<TargetLibraryInfoWrapperPass> ();
       AU.addRequired<CallGraphWrapperPass> ();
       AU.setPreservesAll ();
     }
 
     bool ContextSensitiveGlobal::runOnModule (Module &M)
     {
-      auto &dl = getAnalysis<DataLayoutPass>().getDataLayout ();
-      auto &tli = getAnalysis<TargetLibraryInfo> ();
+      auto &dl = M.getDataLayout ();
+      auto &tli = getAnalysis<TargetLibraryInfoWrapperPass> ().getTLI();
       auto &cg = getAnalysis<CallGraphWrapperPass> ().getCallGraph ();
 
       m_ga.reset (new ContextSensitiveGlobalAnalysis (dl, tli, cg, m_setFactory));

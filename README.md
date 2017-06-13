@@ -15,7 +15,7 @@
 
 # About #
 
-<a href="http://seahorn.github.io/">SeaHorn</a> is an automated analysis framework for LLVM-based languages.
+<a href="http://seahorn.github.io/">SeaHorn</a> is an automated analysis framework for LLVM-based languages. LLVM version is 3.8.
 
 # License #
 
@@ -33,14 +33,6 @@
 SeaHorn and dependencies are installed in `build/run`
 
 Optional components can be installed individually (or even better via `extra` target) as well:
-
-* [dsa-seahorn](https://github.com/seahorn/dsa-seahorn): `git clone https://github.com/seahorn/dsa-seahorn.git`
-
-  `dsa-seahorn` is the legacy DSA implementation from
-  [PoolAlloc](https://llvm.org/svn/llvm-project/poolalloc/). DSA is
-  used by SeaHorn to disambiguate the heap. Recently, we have added a
-  new DSA-based pointer analysis implemented inside SeaHorn that can
-  be used by adding option `--horn-sea-dsa`.
 
 * [crab-llvm](https://github.com/caballa/crab-llvm): `git clone https://github.com/caballa/crab-llvm.git`
 

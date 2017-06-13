@@ -95,7 +95,7 @@ namespace seahorn
   // Add instructions in main that initialize global variables.
   bool LowerGvInitializers::runOnModule (Module &M) {
 
-    const DataLayout* DL = &getAnalysis<DataLayoutPass>().getDataLayout ();
+    const DataLayout* DL = &M.getDataLayout();
 
     Function *f = M.getFunction ("main");
     if (!f) {

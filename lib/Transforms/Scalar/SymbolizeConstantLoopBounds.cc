@@ -98,7 +98,7 @@ namespace
             return false;
           }
           
-          CallInst* nd = B.CreateCall (nondetFn, "loop.bound");
+          CallInst* nd = B.CreateCall (nondetFn, None, "loop.bound");
           Value* symBound = B.CreateSExtOrTrunc (nd, CstBound->getType ()); 
           updateCallGraph (F, nd);
           CallInst* assumption = B.CreateCall (assumeFn, 
@@ -161,17 +161,18 @@ namespace
       Type* voidTy = Type::getVoidTy (ctx);
       Type* boolTy = Type::getInt1Ty (ctx);
 
-      const DataLayout* dl = &getAnalysis<DataLayoutPass>().getDataLayout ();
+      const DataLayout* dl = &(M->getDataLayout ());
       Type* intTy = dl->getIntPtrType (ctx, 0);
 
       IRBuilder<> B (ctx);
-      B.SetInsertPoint (F.getEntryBlock ().getFirstInsertionPt ());      
+      BasicBlock::iterator insertPt = F.getEntryBlock ().getFirstInsertionPt ();
+      B.SetInsertPoint (&*insertPt);      
 
       AttrBuilder AB;        
       AttributeSet as = AttributeSet::get (ctx, AttributeSet::FunctionIndex, AB);
 
       assumeFn = dyn_cast<Function>
-          (M->getOrInsertFunction ("verifier.assume", as, voidTy, boolTy, NULL));                                 
+          (M->getOrInsertFunction ("verifier.assume", as, voidTy, boolTy, NULL));
 
       nondetFn = dyn_cast<Function>
           (M->getOrInsertFunction ("verifier.nondet", as, intTy, NULL));
@@ -184,7 +185,7 @@ namespace
         cg->getOrInsertFunction (nondetFn);
       }
         
-      LoopInfo* LI = &getAnalysis<LoopInfo>();      
+      LoopInfo* LI = &getAnalysis<LoopInfoWrapperPass>().getLoopInfo();      
       bool Change = false;
       for (auto L : boost::make_iterator_range (LI->begin (), LI->end ())) {
         // symbolize nested loops
@@ -198,8 +199,7 @@ namespace
 
     void getAnalysisUsage (AnalysisUsage &AU) const {
       AU.setPreservesAll();
-      AU.addRequired<LoopInfo>();
-      AU.addRequired<llvm::DataLayoutPass>();
+      AU.addRequired<LoopInfoWrapperPass>();
       AU.addRequired<llvm::CallGraphWrapperPass>();
     }
     

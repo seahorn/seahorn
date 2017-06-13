@@ -38,19 +38,18 @@ find_package (Git)
 if (GIT_FOUND)
   set (SEAHORN_LLVM_REPO "https://github.com/seahorn/llvm-seahorn"
     CACHE STRING "seahorn-llvm repo")
-  set (DSA_SEAHORN_REPO "https://github.com/seahorn/dsa-seahorn"
-    CACHE STRING "dsa-seahorn repo")
   set (CRAB_LLVM_REPO "https://github.com/caballa/crab-llvm"
     CACHE STRING "crab-llvm repo")
   add_custom_target (seahorn-llvm-git
-    ${GIT_EXECUTABLE} clone ${SEAHORN_LLVM_REPO} ${CMAKE_SOURCE_DIR}/llvm-seahorn)
-   add_custom_target (dsa-seahorn-git
-    ${GIT_EXECUTABLE} clone ${DSA_SEAHORN_REPO} ${CMAKE_SOURCE_DIR}/dsa-seahorn)
-   add_custom_target (crab-llvm-git
-    ${GIT_EXECUTABLE} clone ${CRAB_LLVM_REPO} ${CMAKE_SOURCE_DIR}/crab-llvm)
+    ${GIT_EXECUTABLE} clone -b "llvm-3.8" ${SEAHORN_LLVM_REPO} ${CMAKE_SOURCE_DIR}/llvm-seahorn)
+  add_custom_target (crab-llvm-git
+    ${GIT_EXECUTABLE} clone -b "llvm-3.8" ${CRAB_LLVM_REPO} ${CMAKE_SOURCE_DIR}/crab-llvm)
   add_custom_target (extra
     ${CMAKE_COMMAND} -E touch ${CMAKE_CURRENT_LIST_FILE}
-    DEPENDS seahorn-llvm-git dsa-seahorn-git crab-llvm-git)
+    DEPENDS seahorn-llvm-git
+            #TODO: port crab-llvm to llvm-3.8
+            #crab-llvm-git
+  )
 
 else()
   message (STATUS "Could not find git. Not adding 'extra' target.")
@@ -127,7 +126,7 @@ else()
 endif()
 
 ExternalProject_Add (llvm
-  SVN_REPOSITORY http://llvm.org/svn/llvm-project/llvm/tags/RELEASE_360/final/
+  SVN_REPOSITORY http://llvm.org/svn/llvm-project/llvm/tags/RELEASE_380/final/
   SOURCE_DIR ${CMAKE_SOURCE_DIR}/ext/llvm
   INSTALL_DIR ${CMAKE_BINARY_DIR}/run
   CMAKE_ARGS
@@ -143,7 +142,7 @@ ExternalProject_Add (llvm
   LOG_BUILD 1
   LOG_INSTALL 1)
 
-find_package (LLVM 3.6.0 CONFIG NO_DEFAULT_PATH)
+find_package (LLVM 3.8.0 CONFIG NO_DEFAULT_PATH)
 if (NOT LLVM_FOUND)
   ExternalProject_Get_Property (llvm INSTALL_DIR)
   set (LLVM_ROOT ${INSTALL_DIR})
@@ -229,10 +228,10 @@ if (EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/ext/llvm/LICENSE.TXT)
     RENAME llvm_license.txt)
 endif()
 
-if (EXISTS ${CMAKE_CURRENT_BINARY_DIR}/llvm-prefix/src/llvm-build/bin/clang-3.6)
+if (EXISTS ${CMAKE_CURRENT_BINARY_DIR}/llvm-prefix/src/llvm-build/bin/clang-3.8)
   install (
     PROGRAMS
-    ${CMAKE_CURRENT_BINARY_DIR}/llvm-prefix/src/llvm-build/bin/clang-3.6
+    ${CMAKE_CURRENT_BINARY_DIR}/llvm-prefix/src/llvm-build/bin/clang-3.8
     DESTINATION bin)
 endif()
 

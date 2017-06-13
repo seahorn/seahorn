@@ -421,9 +421,10 @@ namespace seahorn
           if (c.isNull ()) continue;
           
           B.SetInsertPoint (&inst);
-          B.CreateCall3 (m_memLoadFn, B.getInt32 (getId (c)),
+          B.CreateCall (m_memLoadFn,
+			{B.getInt32 (getId (c)),
                          B.CreateLoad (allocaForNode (c)),
-                         getUniqueScalar (ctx, B, c));
+			 getUniqueScalar (ctx, B, c)});
         }
         else if (const StoreInst *store = dyn_cast<StoreInst> (&inst))
         {
@@ -433,10 +434,10 @@ namespace seahorn
           
           B.SetInsertPoint (&inst);
           AllocaInst *v = allocaForNode (c);
-          B.CreateStore (B.CreateCall3 (m_memStoreFn, 
-                                        B.getInt32 (getId (c)),
+          B.CreateStore (B.CreateCall (m_memStoreFn, 
+                                       {B.getInt32 (getId (c)),
                                         B.CreateLoad (v),
-                                        getUniqueScalar (ctx, B, c)),
+					getUniqueScalar (ctx, B, c)}),
                          v);           
         }
         else if (CallInst *call = dyn_cast<CallInst> (&inst))
@@ -471,10 +472,10 @@ namespace seahorn
 	    if (c.getOffset () == 0) {
 	      B.SetInsertPoint (call);
 	      AllocaInst *v = allocaForNode (c);
-	      B.CreateStore (B.CreateCall3 (m_memStoreFn,
-					    B.getInt32 (getId (c)),
+	      B.CreateStore (B.CreateCall (m_memStoreFn,
+					   {B.getInt32 (getId (c)),
 					    B.CreateLoad (v),
-					    getUniqueScalar (ctx, B, c)), v);
+					    getUniqueScalar (ctx, B, c)}), v);
 	    } else {
 	      // TODO: handle multiple nodes
 	      errs () << "WARNING: missing calloc instrumentation because cell offset is not zero\n";
@@ -491,10 +492,10 @@ namespace seahorn
 	    if (c.getOffset () == 0) {
 	      B.SetInsertPoint (&inst);
 	      AllocaInst *v = allocaForNode (c);
-	      B.CreateStore (B.CreateCall3 (m_memStoreFn,
-					    B.getInt32 (getId (c)),
+	      B.CreateStore (B.CreateCall (m_memStoreFn,
+					   {B.getInt32 (getId (c)),
 					    B.CreateLoad (v),
-					    getUniqueScalar (ctx, B, c)), v);
+					    getUniqueScalar (ctx, B, c)}), v);
 	    } else {
 	      // TODO: handle multiple nodes
 	      errs () << "WARNING: missing memset instrumentation because cell offset is not zero\n";
@@ -558,20 +559,22 @@ namespace seahorn
             // -- from the return of the function
             if (isRead (n, CF) && !isModified (n, CF) && retReach.count(n) <= 0)
             {
-              B.CreateCall4 (m_argRefFn, B.getInt32 (id),
+              B.CreateCall (m_argRefFn,
+			    {B.getInt32 (id),
                              B.CreateLoad (v),
-                             B.getInt32 (idx), getUniqueScalar (ctx, B, callerC));
+                             B.getInt32 (idx),
+			     getUniqueScalar (ctx, B, callerC)});
             }
             // -- read/write or new node
             else if (isModified (n, CF))
             {
               // -- n is new node iff it is reachable only from the return node
               Constant* argFn = retReach.count (n) ? m_argNewFn : m_argModFn;
-              B.CreateStore (B.CreateCall4 (argFn, 
-                                            B.getInt32 (id),
+              B.CreateStore (B.CreateCall (argFn, 
+                                           {B.getInt32 (id),
                                             B.CreateLoad (v),
                                             B.getInt32 (idx),
-                                            getUniqueScalar (ctx, B, callerC)), v);
+					    getUniqueScalar (ctx, B, callerC)}), v);
             }
             idx++;
           }
@@ -609,7 +612,7 @@ namespace seahorn
         AllocaInst *a = jt.second;
         B.Insert (a, "shadow.mem");
         CallInst *ci;
-        ci = B.CreateCall2 (fn, B.getInt32 (getId (c)), getUniqueScalar (ctx, B, c));
+        ci = B.CreateCall (fn, {B.getInt32 (getId (c)), getUniqueScalar (ctx, B, c)});
         inits[c.getNode()][getOffset(c)] = ci;
         B.CreateStore (ci, a);
       }
@@ -633,7 +636,9 @@ namespace seahorn
     // split return basic block if it has more than just the return instruction
     if (exit->size () > 1)
     {
-      exit = llvm::SplitBlock (exit, ret, this);
+      exit = llvm::SplitBlock (exit, ret,
+			       // these two passes will not be preserved if null
+			       nullptr /*DominatorTree*/, nullptr /*LoopInfo*/);
       ret = exit->getTerminator ();
     }
     
@@ -651,22 +656,22 @@ namespace seahorn
       {
         assert (!inits[n].empty());
         /// initial value
-        B.CreateCall4 (m_markIn,
-                       B.getInt32 (getId (c)),
+        B.CreateCall (m_markIn,
+                      {B.getInt32 (getId (c)),
                        inits[n][0], 
                        B.getInt32 (idx),
-                       getUniqueScalar (ctx, B, c));
+		       getUniqueScalar (ctx, B, c)});
       }
       
       if (isModified (n, F))
       {
         assert (!inits[n].empty());
         /// final value
-        B.CreateCall4 (m_markOut, 
-                       B.getInt32 (getId (c)),
+        B.CreateCall (m_markOut, 
+                      {B.getInt32 (getId (c)),
                        B.CreateLoad (allocaForNode (c)),
                        B.getInt32 (idx),
-                       getUniqueScalar (ctx, B, c));
+		       getUniqueScalar (ctx, B, c)});
       }
       ++idx;
     }
@@ -679,7 +684,6 @@ namespace seahorn
     AU.setPreservesAll ();
     AU.addRequiredTransitive<DsaAnalysis> ();    
     AU.addRequired<llvm::CallGraphWrapperPass>();
-    AU.addRequired<llvm::DataLayoutPass>();
     AU.addRequired<llvm::UnifyFunctionExitNodes> ();
   } 
     
@@ -742,9 +746,14 @@ namespace seahorn
 namespace seahorn
 {
   char ShadowMemSeaDsa::ID = 0;
+  char StripShadowMem::ID = 0;  
   Pass * createShadowMemSeaDsaPass () {return new ShadowMemSeaDsa ();}
+  Pass * createStripShadowMemPass () {return new StripShadowMem ();}  
 }
 
 static llvm::RegisterPass<seahorn::ShadowMemSeaDsa> X ("shadow-sea-dsa", "Shadow DSA nodes");
+
+static llvm::RegisterPass<seahorn::StripShadowMem> Y ("strip-shadow-dsa",
+                                                      "Remove shadow.mem instrinsics");
 
 

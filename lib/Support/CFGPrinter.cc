@@ -160,7 +160,7 @@ namespace seahorn {
     CFGPrinter() : FunctionPass(ID) { }
 
     bool runOnFunction(Function &F) override {
-      const LoopInfo* LI = &getAnalysis<LoopInfo>();      
+      const LoopInfo* LI = &getAnalysis<LoopInfoWrapperPass>().getLoopInfo();      
       std::string Filename = F.getName().str() + ".dot";
       writeGraph (F, *LI, Filename);
       return false;
@@ -170,7 +170,7 @@ namespace seahorn {
 
     void getAnalysisUsage(AnalysisUsage &AU) const override {
       AU.setPreservesAll();
-      AU.addRequired<LoopInfo>();
+      AU.addRequired<LoopInfoWrapperPass>();
     }
 
     static bool writeGraph (Function&F, const LoopInfo& LI, std::string Filename) {
@@ -196,7 +196,7 @@ namespace seahorn {
     CFGOnlyPrinter() : FunctionPass(ID) { }
 
     bool runOnFunction(Function &F) override {
-      const LoopInfo* LI = &getAnalysis<LoopInfo>();      
+      const LoopInfo* LI = &getAnalysis<LoopInfoWrapperPass>().getLoopInfo();      
       std::string Filename = F.getName().str() + ".dot";
       writeGraph (F, *LI, Filename);
       return false;
@@ -206,7 +206,7 @@ namespace seahorn {
 
     void getAnalysisUsage(AnalysisUsage &AU) const override {
       AU.setPreservesAll();
-      AU.addRequired<LoopInfo>();
+      AU.addRequired<LoopInfoWrapperPass>();
 
     }
 
@@ -232,7 +232,7 @@ namespace seahorn {
     CFGViewer() : FunctionPass(ID) { }
 
     bool runOnFunction(Function &F) override {
-      const LoopInfo* LI = &getAnalysis<LoopInfo>();      
+      const LoopInfo* LI = &getAnalysis<LoopInfoWrapperPass>().getLoopInfo();      
       std::string Filename = F.getName().str() + ".dot";
       if (CFGPrinter::writeGraph (F, *LI, Filename))
         DisplayGraph(Filename, false, GraphProgram::DOT);        
@@ -244,7 +244,7 @@ namespace seahorn {
 
     void getAnalysisUsage(AnalysisUsage &AU) const override {
       AU.setPreservesAll();
-      AU.addRequired<LoopInfo>();
+      AU.addRequired<LoopInfoWrapperPass>();
     }
   };
 
@@ -256,7 +256,7 @@ namespace seahorn {
     CFGOnlyViewer() : FunctionPass(ID) { }
 
     bool runOnFunction(Function &F) override {
-      const LoopInfo* LI = &getAnalysis<LoopInfo>();      
+      const LoopInfo* LI = &getAnalysis<LoopInfoWrapperPass>().getLoopInfo();      
       std::string Filename = F.getName().str() + ".dot";
       if (CFGOnlyPrinter::writeGraph (F, *LI, Filename))
         DisplayGraph(Filename, false, GraphProgram::DOT);        
@@ -268,7 +268,7 @@ namespace seahorn {
 
     void getAnalysisUsage(AnalysisUsage &AU) const override {
       AU.setPreservesAll();
-      AU.addRequired<LoopInfo>();
+      AU.addRequired<LoopInfoWrapperPass>();
     }
   };
 

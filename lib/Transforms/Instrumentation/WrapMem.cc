@@ -21,7 +21,6 @@ DM-0002198
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/Module.h"
-
 #include "llvm/IR/IRBuilder.h"
 
 
@@ -61,7 +60,7 @@ namespace
       //m_dsa = &getAnalysis<SteensgaardDataStructures> ();
 #endif
       LLVMContext &C = M.getContext ();
-      m_dl = &getAnalysis<DataLayoutPass> ().getDataLayout ();
+      m_dl = &M.getDataLayout ();
       m_intPtrTy = m_dl->getIntPtrType (C, 0);
       
       /* void __sea_mem_load (void* dst, void* src, size_t sz)
@@ -114,10 +113,10 @@ namespace
             B.SetInsertPoint (load);
             AllocaInst *x = B.CreateAlloca (load->getType ()); 
             uint64_t sz = m_dl->getTypeStoreSize (load->getType ());
-            B.CreateCall3 (m_memLoad,
-                           B.CreateBitCast (x, i8PtrTy),
-                           B.CreateBitCast (load->getPointerOperand (), i8PtrTy),
-                           ConstantInt::get (m_intPtrTy, sz));
+            B.CreateCall (m_memLoad,
+			  {B.CreateBitCast (x, i8PtrTy),
+			   B.CreateBitCast (load->getPointerOperand (), i8PtrTy),
+			   ConstantInt::get (m_intPtrTy, sz)});
             load->setOperand (load->getPointerOperandIndex (), x);
           }
           else if (StoreInst *store = dyn_cast<StoreInst> (&inst))
@@ -136,9 +135,10 @@ namespace
             AllocaInst *x = B.CreateAlloca (store->getValueOperand ()->getType ());
             B.SetInsertPoint (store->getNextNode ());
             uint64_t sz = m_dl->getTypeStoreSize (store->getValueOperand ()->getType ());
-            B.CreateCall3 (m_memStore, B.CreateBitCast (x, i8PtrTy),
-                           B.CreateBitCast (store->getPointerOperand (), i8PtrTy),
-                           ConstantInt::get (m_intPtrTy, sz));
+            B.CreateCall (m_memStore,
+			  {B.CreateBitCast (x, i8PtrTy),
+			   B.CreateBitCast (store->getPointerOperand (), i8PtrTy),
+			   ConstantInt::get (m_intPtrTy, sz)});
             store->setOperand (store->getPointerOperandIndex (), x);
           }
         }
@@ -148,7 +148,6 @@ namespace
 
     void getAnalysisUsage (AnalysisUsage &AU) const
     {
-      AU.addRequired<DataLayoutPass> ();
 #ifdef HAVE_DSA
       AU.addRequired<llvm::EQTDDataStructures>();
       // AU.addRequiredTransitive<llvm::SteensgaardDataStructures> ();

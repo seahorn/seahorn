@@ -263,7 +263,7 @@ namespace seahorn
    {
       for (auto curFref = M.getFunctionList().begin(), endFref = M.getFunctionList().end(); curFref != endFref; ++curFref)
       {
-         printFunction(curFref);
+         printFunction(&*curFref);
       }
       outs() << "\n";
    }

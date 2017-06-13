@@ -161,7 +161,7 @@ def getSeaPP ():
     return seapp
 
 def getClang ():
-    names = ['clang-mp-3.6', 'clang-3.6', 'clang', 'clang-mp-3.5', 'clang-mp-3.4']
+    names = ['clang-mp-3.8', 'clang-3.8', 'clang']
     
     for n in names:
         clang = which (n)

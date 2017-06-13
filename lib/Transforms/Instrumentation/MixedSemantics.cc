@@ -60,11 +60,11 @@ namespace seahorn
     bool change = false;
     for (Module::iterator I = M.begin(), E = M.end(); I != E; ) 
     {
-      Function *F = I++;
-      if (F->isDeclaration() &&
-          (F->getLinkage () == GlobalValue::LinkageTypes::InternalLinkage))
+      Function &F = *I++;
+      if (F.isDeclaration() &&
+          (F.getLinkage () == GlobalValue::LinkageTypes::InternalLinkage))
       {
-        F->setLinkage (GlobalValue::LinkageTypes::ExternalLinkage);
+        F.setLinkage (GlobalValue::LinkageTypes::ExternalLinkage);
         change = true;
       }
     }

@@ -5,7 +5,7 @@
 #include "llvm/IR/IRBuilder.h"
 
 #include "llvm/ADT/Statistic.h"
-#include "llvm/Target/TargetLibraryInfo.h"
+#include "llvm/Analysis/TargetLibraryInfo.h"
 #include "llvm/Analysis/LoopInfo.h"
 #include "llvm/Analysis/ScalarEvolution.h"
 #include "llvm/Analysis/ScalarEvolutionExpander.h"
@@ -152,7 +152,7 @@ namespace
 
             // XXX: not sure if this restriction is needed
             if (*bb != Header) {
-              if (!hasOutsideLoopUser(TheLoop, it))
+              if (!hasOutsideLoopUser(TheLoop, &*it))
                 continue;
               return false;
             }
@@ -168,7 +168,7 @@ namespace
             // Check if this is an induction variable.
             if (isPointerInductionVariable(Phi)) {
               // XXX: not sure if this restriction is needed
-              if (hasOutsideLoopUser(TheLoop, it))
+              if (hasOutsideLoopUser(TheLoop, &*it))
                 return false;
               InductionInfo& II = m_inductions [Phi];
               II.m_start = StartValue;
@@ -349,10 +349,10 @@ namespace
     {
       if (F.empty ()) return false;
 
-      m_tli = &getAnalysis<TargetLibraryInfo>();
-      m_dl = &getAnalysis<DataLayoutPass>().getDataLayout ();
-      m_se = &getAnalysis<ScalarEvolution>();      
-      LoopInfo* LI = &getAnalysis<LoopInfo>();      
+      m_tli = &getAnalysis<TargetLibraryInfoWrapperPass>().getTLI();
+      m_dl = &F.getParent()->getDataLayout ();
+      m_se = &getAnalysis<ScalarEvolutionWrapperPass>().getSE();      
+      LoopInfo* LI = &getAnalysis<LoopInfoWrapperPass>().getLoopInfo();      
 
       for (auto L : boost::make_iterator_range (LI->begin (), LI->end ())) {
         getPointerInductionVariables (L);
@@ -368,10 +368,9 @@ namespace
 
     void getAnalysisUsage (AnalysisUsage &AU) const {
       AU.setPreservesAll ();
-      AU.addRequired<LoopInfo>();
-      AU.addRequired<ScalarEvolution> ();
-      AU.addRequired<TargetLibraryInfo> ();
-      AU.addRequired<DataLayoutPass> ();
+      AU.addRequired<LoopInfoWrapperPass>();
+      AU.addRequired<ScalarEvolutionWrapperPass> ();
+      AU.addRequired<TargetLibraryInfoWrapperPass> ();
     }
     
     virtual const char *getPassName () const 

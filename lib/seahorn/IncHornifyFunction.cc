@@ -26,12 +26,28 @@ std::string IncHornifyFunction::extractInfo(const BasicBlock &BB, unsigned crumb
   // errs() << "Extracting info for: " << crumb << "\n";
   std::stringstream lines;
   for (const Instruction &inst : BB) {
-    //check if md is not null
-    MDNode *md = inst.getMetadata("dbg");
-    DILocation loc(md);
-    unsigned int line = loc.getLineNumber();
-    StringRef file = loc.getFilename();
-    StringRef dir = loc.getDirectory();
+
+    // XXX: llvm 3.6
+    // --- check if md is not null
+    // MDNode *md = inst.getMetadata("dbg");
+    // DILocation loc(md);
+    // unsigned int line = loc.getLineNumber();
+    // StringRef file = loc.getFilename();
+    // StringRef dir = loc.getDirectory();
+
+    // XXX: llvm 3.8
+    const DebugLoc &dloc = inst.getDebugLoc ();
+    unsigned line = dloc.getLine ();
+    std::string file, dir; 
+    if (dloc.get ()) {
+      file = dloc.get ()->getFilename ();
+      dir = dloc.get ()->getDirectory ();
+    }
+    else {
+      file = "unknown file";
+      dir = "unknown directory";
+    }
+        
     // errs() << file << "\n";
     // errs() << inst << " | line: " << line << "\n";
     lines << line << " | ";

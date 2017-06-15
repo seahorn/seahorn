@@ -25,11 +25,7 @@ namespace seahorn {
        if (!inst) return false;
 
        const DebugLoc &dloc = inst->getDebugLoc ();
-
-       // llvm 3.6
-       //return (!(dloc.isUnknown ()));
-       // llvm 3.8
-       return (!(dloc.get()));
+       return dloc;
      }
 
      static void printDebugLoc (const Instruction *inst, llvm::raw_ostream& os) {
@@ -40,9 +36,8 @@ namespace seahorn {
        unsigned Line = dloc.getLine ();
        unsigned Col = dloc.getCol ();
        std::string File; 
-       if (dloc.get ())
-	 File = dloc.get ()->getFilename ();
-       else
+       File =  (*dloc).getFilename ();
+       if (File == "")
 	 File = "unknown file";
 
        os << "Possible read of undefined value at \n"

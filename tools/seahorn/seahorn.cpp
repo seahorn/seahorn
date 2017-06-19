@@ -136,7 +136,7 @@ OneAssumePerBlock ("horn-one-assume-per-block",
 static llvm::cl::opt<bool>
 SeaHornDsa ("horn-sea-dsa",
             llvm::cl::desc ("Use Seahorn Dsa analysis"),
-            llvm::cl::init (true));
+            llvm::cl::init (false));
 
 static llvm::cl::opt<bool>
 HoudiniInv ("horn-houdini",
@@ -275,8 +275,7 @@ int main(int argc, char **argv) {
   if (SeaHornDsa)
     pass_manager.add (seahorn::createShadowMemSeaDsaPass ());
   else {
-    llvm_unreachable("Seahorn 3.8 does not use llvm dsa");      
-    // pass_manager.add (seahorn::createShadowMemDsaPass ());
+    pass_manager.add (seahorn::createShadowMemDsaPass ());
   }
 
   // lowers shadow.mem variables created by ShadowMemDsa pass

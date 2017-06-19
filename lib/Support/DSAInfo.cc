@@ -51,7 +51,7 @@ DSAInfoToFile("dsa-info-to-file",
 #ifdef HAVE_DSA
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/InstIterator.h"
-#include "llvm/Target/TargetLibraryInfo.h"
+#include "llvm/Analysis/TargetLibraryInfo.h"
 #include "llvm/Analysis/MemoryBuiltins.h"
 
 #include "boost/range.hpp"
@@ -65,7 +65,7 @@ namespace seahorn
                                  const TargetLibraryInfo* tli,
                                  const Value* V) {
     uint64_t Size;
-    if (getObjectSize (V, Size, dl, tli, true))
+    if (getObjectSize (V, Size, *dl, tli, true))
       return (Size > 0);
     
     return false; 
@@ -454,8 +454,8 @@ namespace seahorn
         }     
       }
 
-      const TargetLibraryInfo * tli = &getAnalysis<TargetLibraryInfo>();
-      const DataLayout* dl = &getAnalysis<DataLayoutPass>().getDataLayout ();
+      const TargetLibraryInfo * tli = &getAnalysis<TargetLibraryInfoWrapperPass>().getTLI();
+      const DataLayout* dl = &M.getDataLayout ();
 
       // Count number of reads and writes to each DSNode
       for (Function &F : M) {
@@ -602,8 +602,7 @@ namespace seahorn
   void DSAInfo::getAnalysisUsage (llvm::AnalysisUsage &AU) const {
     AU.setPreservesAll ();
     AU.addRequiredTransitive<llvm::SteensgaardDataStructures> ();
-    AU.addRequired<llvm::DataLayoutPass>();
-    AU.addRequired<llvm::TargetLibraryInfo>();
+    AU.addRequired<llvm::TargetLibraryInfoWrapperPass>();
   }
 
 } // end namespace

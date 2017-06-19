@@ -27,7 +27,7 @@
 static llvm::cl::opt<bool>
 UseSeaDsa("abc-sea-dsa",
           llvm::cl::desc ("Use SeaHorn Dsa analysis"),
-          llvm::cl::init (true));
+          llvm::cl::init (false));
 
 // Notes: Local is obsolete and very incomplete. We keep it for
 // comparison with the other encodings just for toy programs.
@@ -1300,11 +1300,10 @@ namespace seahorn
 
     std::unique_ptr<DsaWrapper> dsa (new SeaDsa (this));
     if (!UseSeaDsa) {
-      //dsa.reset (new LlvmDsa (this));
-      llvm_unreachable("Seahorn 3.8 does not use llvm dsa");
+      dsa.reset (new LlvmDsa (this));
     }
 
-    errs () << " --- Using " << dsa->getDsaName () << "\n";
+    //errs () << " --- Using " << dsa->getDsaName () << "\n";
 
     LLVMContext &ctx = M.getContext ();
     m_dl = &M.getDataLayout ();
@@ -1516,7 +1515,7 @@ namespace seahorn
   void Local::getAnalysisUsage (llvm::AnalysisUsage &AU) const
   {
     AU.setPreservesAll ();
-    //AU.addRequired<seahorn::DSAInfo>(); // run llvm dsa
+    AU.addRequired<seahorn::DSAInfo>(); // run llvm dsa
     AU.addRequired<dsa::DsaAnalysis>(); // run seahorn dsa
     AU.addRequired<llvm::TargetLibraryInfoWrapperPass>();
     AU.addRequired<llvm::UnifyFunctionExitNodes> ();
@@ -2635,11 +2634,10 @@ namespace seahorn
     
     std::unique_ptr<DsaWrapper> dsa (new SeaDsa (this));
     if (!UseSeaDsa) {
-      // dsa.reset (new LlvmDsa (this));
-      llvm_unreachable("Seahorn 3.8 does not use llvm dsa");      
+      dsa.reset (new LlvmDsa (this));
     }
     
-    errs () << " --- Using " << dsa->getDsaName () << "\n";
+    //errs () << " --- Using " << dsa->getDsaName () << "\n";
     
     if (TrackedAllocSite > 0)
       {
@@ -2840,7 +2838,7 @@ namespace seahorn
   void Global::getAnalysisUsage (llvm::AnalysisUsage &AU) const
   {
     AU.setPreservesAll ();
-    //AU.addRequired<seahorn::DSAInfo>(); // run llvm dsa
+    AU.addRequired<seahorn::DSAInfo>(); // run llvm dsa
     AU.addRequired<dsa::DsaAnalysis>(); // run seahorn dsa
     AU.addRequired<llvm::TargetLibraryInfoWrapperPass>();
     AU.addRequired<llvm::UnifyFunctionExitNodes> ();
@@ -2870,11 +2868,10 @@ namespace seahorn
     
     std::unique_ptr<DsaWrapper> dsa (new SeaDsa (this));
     if (!UseSeaDsa) {
-      // dsa.reset (new LlvmDsa (this));
-      llvm_unreachable("Seahorn 3.8 does not use llvm dsa");            
+      dsa.reset (new LlvmDsa (this));
     }
     
-    errs () << " Using " << dsa->getDsaName () << "\n\n";
+    //errs () << " Using " << dsa->getDsaName () << "\n\n";
     
     LLVMContext &ctx = M.getContext ();
     Type *voidTy = Type::getVoidTy (ctx);
@@ -3256,7 +3253,7 @@ namespace seahorn
   void GlobalCCallbacks::getAnalysisUsage (llvm::AnalysisUsage &AU) const
   {
     AU.setPreservesAll ();
-    //AU.addRequired<seahorn::DSAInfo>();// run llvm dsa
+    AU.addRequired<seahorn::DSAInfo>();// run llvm dsa
     AU.addRequired<dsa::DsaAnalysis>();// run seahorn dsa
     AU.addRequired<llvm::TargetLibraryInfoWrapperPass>();
     AU.addRequired<llvm::UnifyFunctionExitNodes> ();

@@ -5,6 +5,7 @@ add_subdirectory(Transforms)
 add_subdirectory(Support)
 
 add_llvm_loadable_module (shadow
+  Transforms/Instrumentation/ShadowMemDsa.cc   
   Transforms/Instrumentation/ShadowMemSeaDsa.cc 
   Transforms/Instrumentation/MixedSemantics.cc
   Transforms/Instrumentation/NondetInit.cc

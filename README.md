@@ -34,17 +34,26 @@ SeaHorn and dependencies are installed in `build/run`
 
 Optional components can be installed individually (or even better via `extra` target) as well:
 
-* [crab-llvm](https://github.com/caballa/crab-llvm): `git clone https://github.com/caballa/crab-llvm.git`
-
-  `crab-llvm` provides inductive invariants using abstract
-  interpretation techniques to the rest of SeaHorn's backends.
-
 * [llvm-seahorn](https://github.com/seahorn/llvm-seahorn): `git clone https://github.com/seahorn/llvm-seahorn.git`
 
    `llvm-seahorn` provides specialized versions of `InstCombine` and
    `IndVarSimplify` LLVM passes as well as a LLVM pass to convert
    undefined values into nondeterministic calls, among other things.
 
+* [crab-llvm](https://github.com/caballa/crab-llvm): `git clone https://github.com/caballa/crab-llvm.git`
+
+  `crab-llvm` provides inductive invariants using abstract
+  interpretation techniques to the rest of SeaHorn's backends.
+
+* [dsa-seahorn](https://github.com/seahorn/dsa-seahorn): `git clone https://github.com/seahorn/dsa-seahorn.git`
+
+  `dsa-seahorn` is the legacy DSA implementation
+  from [PoolAlloc](https://llvm.org/svn/llvm-project/poolalloc/). DSA
+  is used by SeaHorn to disambiguate the heap. Recently, we have added
+  a new DSA-based pointer analysis implemented inside SeaHorn which is
+  more precise in presence of functions. By default (and temporarily),
+  SeaHorn uses the legacy DSA. Add the option `--horn-sea-dsa` to use
+  the new context-sensitive DSA analysis.
 
 ___
 

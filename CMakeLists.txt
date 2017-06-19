@@ -38,17 +38,21 @@ find_package (Git)
 if (GIT_FOUND)
   set (SEAHORN_LLVM_REPO "https://github.com/seahorn/llvm-seahorn"
     CACHE STRING "seahorn-llvm repo")
+  set (DSA_SEAHORN_REPO "https://github.com/seahorn/dsa-seahorn"
+    CACHE STRING "dsa-seahorn repo")  
   set (CRAB_LLVM_REPO "https://github.com/caballa/crab-llvm"
     CACHE STRING "crab-llvm repo")
   add_custom_target (seahorn-llvm-git
     ${GIT_EXECUTABLE} clone -b "llvm-3.8" ${SEAHORN_LLVM_REPO} ${CMAKE_SOURCE_DIR}/llvm-seahorn)
+  add_custom_target (dsa-seahorn-git
+    ${GIT_EXECUTABLE} clone -b "llvm-3.8" ${DSA_SEAHORN_REPO} ${CMAKE_SOURCE_DIR}/dsa-seahorn)  
   add_custom_target (crab-llvm-git
     ${GIT_EXECUTABLE} clone -b "llvm-3.8" ${CRAB_LLVM_REPO} ${CMAKE_SOURCE_DIR}/crab-llvm)
   add_custom_target (extra
     ${CMAKE_COMMAND} -E touch ${CMAKE_CURRENT_LIST_FILE}
     DEPENDS seahorn-llvm-git
-            #TODO: port crab-llvm to llvm-3.8
-            #crab-llvm-git
+            dsa-seahorn-git
+            crab-llvm-git
   )
 
 else()

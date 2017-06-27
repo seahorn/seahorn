@@ -45,15 +45,13 @@ Optional components can be installed individually (or even better via `extra` ta
   `crab-llvm` provides inductive invariants using abstract
   interpretation techniques to the rest of SeaHorn's backends.
 
-* [dsa-seahorn](https://github.com/seahorn/dsa-seahorn): `git clone https://github.com/seahorn/dsa-seahorn.git`
+* [llvm-dsa](https://github.com/seahorn/llvm-dsa): `git clone https://github.com/seahorn/llvm-dsa.git`
 
-  `dsa-seahorn` is the legacy DSA implementation
-  from [PoolAlloc](https://llvm.org/svn/llvm-project/poolalloc/). DSA
-  is used by SeaHorn to disambiguate the heap. Recently, we have added
-  a new DSA-based pointer analysis implemented inside SeaHorn which is
-  more precise in presence of functions. By default (and temporarily),
-  SeaHorn uses the legacy DSA. Add the option `--horn-sea-dsa` to use
-  the new context-sensitive DSA analysis.
+  `llvm-dsa` is the legacy DSA implementation from
+  [PoolAlloc](https://llvm.org/svn/llvm-project/poolalloc/). DSA is
+  used by SeaHorn to disambiguate the heap. Recently, we have added a
+  new DSA-based pointer analysis implemented inside SeaHorn that can
+  be used by adding option `--horn-sea-dsa`.
 
 ___
 

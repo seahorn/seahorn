@@ -38,20 +38,20 @@ find_package (Git)
 if (GIT_FOUND)
   set (SEAHORN_LLVM_REPO "https://github.com/seahorn/llvm-seahorn"
     CACHE STRING "seahorn-llvm repo")
-  set (DSA_SEAHORN_REPO "https://github.com/seahorn/dsa-seahorn"
-    CACHE STRING "dsa-seahorn repo")  
+  set (LLVM_DSA_REPO "https://github.com/seahorn/llvm-dsa"
+    CACHE STRING "llvm-dsa repo")  
   set (CRAB_LLVM_REPO "https://github.com/caballa/crab-llvm"
     CACHE STRING "crab-llvm repo")
   add_custom_target (seahorn-llvm-git
     ${GIT_EXECUTABLE} clone -b "llvm-3.8" ${SEAHORN_LLVM_REPO} ${CMAKE_SOURCE_DIR}/llvm-seahorn)
-  add_custom_target (dsa-seahorn-git
-    ${GIT_EXECUTABLE} clone -b "llvm-3.8" ${DSA_SEAHORN_REPO} ${CMAKE_SOURCE_DIR}/dsa-seahorn)  
+  add_custom_target (llvm-dsa-git
+    ${GIT_EXECUTABLE} clone -b "llvm-3.8" ${LLVM_DSA_REPO} ${CMAKE_SOURCE_DIR}/llvm-dsa)  
   add_custom_target (crab-llvm-git
     ${GIT_EXECUTABLE} clone -b "llvm-3.8" ${CRAB_LLVM_REPO} ${CMAKE_SOURCE_DIR}/crab-llvm)
   add_custom_target (extra
     ${CMAKE_COMMAND} -E touch ${CMAKE_CURRENT_LIST_FILE}
     DEPENDS seahorn-llvm-git
-            dsa-seahorn-git
+            llvm-dsa-git
             crab-llvm-git
   )
 
@@ -316,15 +316,15 @@ endif ()
 # add the include directory from the build tree
 include_directories(BEFORE ${CMAKE_CURRENT_BINARY_DIR}/include)
 
-if (IS_DIRECTORY ${CMAKE_SOURCE_DIR}/dsa-seahorn AND
-    EXISTS ${CMAKE_SOURCE_DIR}/dsa-seahorn/lib/DSA/Steensgaard.cpp)
-  include_directories (AFTER dsa-seahorn/include)
-  add_subdirectory (dsa-seahorn/lib/AssistDS)
-  add_subdirectory (dsa-seahorn/lib/DSA)
+if (IS_DIRECTORY ${CMAKE_SOURCE_DIR}/llvm-dsa AND
+    EXISTS ${CMAKE_SOURCE_DIR}/llvm-dsa/lib/DSA/Steensgaard.cpp)
+  include_directories (AFTER llvm-dsa/include)
+  add_subdirectory (llvm-dsa/lib/AssistDS)
+  add_subdirectory (llvm-dsa/lib/DSA)
   set (DSA_LIBS DSA AssistDS)
   set (HAVE_DSA TRUE)
 else()
-  message (WARNING "No DSA found in ${CMAKE_SOURCE_DIR}/dsa-seahorn. Run\n\tcmake --build . --target extra && cmake ${CMAKE_SOURCE_DIR}")
+  message (WARNING "No DSA found in ${CMAKE_SOURCE_DIR}/llvm-dsa. Run\n\tcmake --build . --target extra && cmake ${CMAKE_SOURCE_DIR}")
   set (DSA_LIBS "")
 endif()
 

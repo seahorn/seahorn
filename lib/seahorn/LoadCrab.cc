@@ -195,9 +195,15 @@ namespace crab_llvm
 
     DenseSet<const Value*> m_live_values; // for fast queries
 
-    public:
+    typedef DenseMap<const Value*, BoolCst> bool_map_t;
+    bool_map_t bool_map;
+    
+   public:
 
-    LinConstToExpr (CrabLlvm* crab, const llvm::BasicBlock* bb, const ExprVector &live): 
+    LinConstToExpr (CrabLlvm* crab,
+		    // needed by crab-llvm memory analysis
+		    const llvm::BasicBlock* bb,
+		    const ExprVector &live): 
         m_crab (crab), m_bb (bb), m_live (live) { 
 
       for (auto v: m_live) 
@@ -209,8 +215,6 @@ namespace crab_llvm
 
     }      
     
-    typedef DenseMap<const Value*, BoolCst> bool_map_t;
-    bool_map_t bool_map;
     
     Expr exprFromNum (ikos::z_number n, ExprFactory &efac)
     {
@@ -232,8 +236,9 @@ namespace crab_llvm
       const Value* V = *(v.get());
 
       if (const Value* Gv = 
-          m_crab->getMemAnalysis().getRegion(*(const_cast <Function*> (m_bb->getParent ())), 
-                                             const_cast<Value*> (V)).getSingleton ()) 
+          m_crab->getMemAnalysis().
+	  getRegion(*(const_cast <Function*> (m_bb->getParent ())), 
+		    const_cast<Value*> (V)).getSingleton ()) 
       {
         /// -- The crab variable v corresponds to a global singleton
         ///    cell so we can grab a llvm Value from it. We search for
@@ -353,241 +358,115 @@ namespace crab_llvm
       return e;
     }
   };
-
-  #ifdef HAVE_LDD
-  // Conversion from Ldd to Expr.
-  // 
-  // TODO: a ldd is precisely translated only if all its variables can
-  // be mapped to llvm Value. Unlike in class LinConstToExpr here we
-  // do not even translate global singletons.
-  class LDDToExpr
+  
+  // Conversion from boxes domain to Expr
+  class BoxesToExpr
   {
-   public:
-     struct VarMap
-     {
-       virtual ~VarMap () {}
-       virtual const Value *lookup (int i) const = 0;
-     };
+    typedef typename boxes_domain_t::varname_t varname_t;
+    typedef typename boxes_domain_t::number_t number_t;
+    LinConstToExpr m_t;
     
-     template <typename T>
-     class VarMapT : public VarMap
-     {
-       const T *vm;
-       
-      public:
-       VarMapT (const T *m) : vm (m) {}
-       const Value *lookup (int i) const { 
-        auto V = vm->getVarName (i).get (); 
-        assert (V);
-        return *V;
-       }
-     };
+  public:
     
-   protected:
+    BoxesToExpr (CrabLlvm* crab,
+		 const llvm::BasicBlock* bb,
+		 const ExprVector &live): 
+      m_t (crab, bb, live) { }
     
-    boost::shared_ptr<VarMap> varMap;
-    
-   public:
-    
-    template <typename T>
-    LDDToExpr (const T *vm) : 
-        varMap(new VarMapT<T>(vm)) { }
-    
-    Expr toExpr (LddNodePtr n, ExprFactory &efac)
-    {
-      LddManager *ldd = getLddManager (n);
-      
-      LddNode *N = Ldd_Regular(&(*n));
-      if (Ldd_GetTrue (ldd) == N)
-        return &*n == N ? mk<TRUE>(efac) : mk<FALSE>(efac);
-      
-      /** cache holds pointers because anything that is placed in the
-          cache will not disapear until 'n' is deleted */
-      std::map<LddNode*, Expr> cache; 
-      Expr res = toExprRecur(ldd, &*n, efac, cache);
-      if (!res) 
-        return mk<TRUE> (efac);
-      else
-        return res;
-    }
-    
-   protected: 
-
-    Expr toExprRecur(LddManager* ldd, LddNode* n, 
-                     ExprFactory &efac, std::map<LddNode*, Expr> &cache)
-    {
-      
-      LddNode *N = Ldd_Regular (n);
-      Expr res = nullptr;
-      
-      if (N == Ldd_GetTrue (ldd)) 
-      {
-        res = mk<TRUE> (efac);
-      } 
-      else if (N == Ldd_GetFalse (ldd)) 
-      {
-        res = mk<FALSE> (efac);
-      } 
-      else if (N->ref != 1) 
-      {
-        std::map<LddNode*,Expr>::const_iterator it = cache.find (N);
-        if (it != cache.end ()) res = it->second;
+    Expr toExpr (boxes_domain_t inv, ExprFactory &efac) {
+      auto csts = inv.to_disjunctive_linear_constraint_system ();
+      if (csts.is_false ())
+	return mk<FALSE>(efac);
+      else if (csts.size () == 0)
+	 return mk<TRUE>(efac);
+      else {
+	assert (csts.size () > 0);
+	Expr e = mk<FALSE> (efac);
+	for (auto cst : csts) {
+	  e = boolop::lor (e, m_t.toExpr(cst, efac));
+	}
+	return e;
       }
-      
-      if (res) return (N == n ? res : boolop::lneg (res));
-
-      Expr c = exprFromCons (Ldd_GetCons (ldd, N), 
-                             Ldd_GetTheory (ldd), efac);
-
-      // This should not happen because we project boxes onto live
-      // vars before translation.
-      if (!c) return nullptr;
-
-      res = lite (c, 
-                  toExprRecur (ldd, Ldd_T (N), efac, cache),
-                  toExprRecur (ldd, Ldd_E (N), efac, cache));
-      
-      if (N->ref != 1) cache [N] = res;
-      
-      return n == N ? res : boolop::lneg (res);
-    }
-    
-    Expr lite (Expr c, Expr t, Expr e)
-    {
-      if (t == e) return t;
-      if (isOpX<TRUE> (c)) return t;
-      if (isOpX<FALSE> (c)) return e;
-      if (isOpX<TRUE> (t) && isOpX<FALSE> (e)) return c;
-      if (isOpX<TRUE> (e) && isOpX<FALSE> (t)) return boolop::lneg (c);
-      return boolop::lor (boolop::land (c, t), 
-                          boolop::land (mk<NEG>(c), e));
-    }
-    
-    Expr exprFromCons(lincons_t lincons, theory_t *theory, ExprFactory &efac)
-    {
-      Expr lhs = exprFromTerm(theory->get_term(lincons), theory, efac);
-      if (!lhs) return lhs; 
-      
-      Expr rhs = exprFromIntCst(theory->get_constant(lincons), theory, efac);
-      return theory->is_strict (lincons) ? mk<LT>(lhs, rhs) : mk<LEQ>(lhs, rhs);
-    }
-
-    Expr exprFromIntCst (constant_t cst, theory_t *theory, ExprFactory &efac)
-    {
-      mpq_class v;
-      // XXX We know that the theory is tvpi, use its method directly.
-      tvpi_cst_set_mpq (v.get_mpq_t (), (tvpi_cst_t) cst);
-      const mpz_class n((mpz_class) v);
-      return mkTerm (n, efac);
-    }
-    
-    // TODO: translation of Crab global singleton cells
-    Expr exprFromIntVar (int v, ExprFactory &efac) {
-      if (const Value* V = varMap->lookup(v)) {
-        return bind::intConst (mkTerm (V, efac));
-      }
-      
-      return nullptr; // this should not happen
-    }
-    
-    Expr exprFromTerm (linterm_t term, theory_t *theory, ExprFactory &efac)
-    {
-      std::vector<Expr> coeffs (theory->term_size (term));
-      
-      for(size_t i = 0;i < coeffs.size (); i++) {
-        Expr v = exprFromIntVar (theory->term_get_var (term,i), efac);
-        if (!v) return v;
-        
-        coeffs[i] = lmult (exprFromIntCst (theory->term_get_coeff (term,i), 
-                                           theory, efac), v);
-      }
-      return coeffs.size() > 1 ? 
-	mknary<PLUS> (coeffs.begin (), coeffs.end ()) : coeffs [0];
-    }
-    
-    Expr lmult(Expr cst, Expr var)
-    {
-      // Check if cst is equal to 1
-      const MPZ& op = dynamic_cast<const MPZ&>(cst->op ());
-      return op.get () == 1 ? var :  mk<MULT>(cst,var);
     }
   };
-  #endif 
-
-   // Conversion from domain of disjunctive intervals to Expr
-   class DisIntervalToExpr
-   {
-     typedef typename dis_interval_domain_t::interval_t interval_t;
-     typedef typename dis_interval_domain_t::varname_t varname_t;
-     typedef typename dis_interval_domain_t::number_t number_t;
-
-     LinConstToExpr m_t;
-
-    public:
-
-     DisIntervalToExpr (CrabLlvm* crab, const llvm::BasicBlock* bb, const ExprVector &live): 
-         m_t (crab, bb, live) { }
-
-     Expr toExpr (dis_interval_domain_t inv, ExprFactory &efac)
-     {
-       if (inv.is_top ())
-         return mk<TRUE> (efac);
-       
-       if (inv.is_bottom ())
-         return mk<FALSE> (efac);
-       
+  
+  // Conversion from domain of disjunctive intervals to Expr
+  class DisIntervalToExpr
+  {
+    typedef typename dis_interval_domain_t::interval_t interval_t;
+    typedef typename dis_interval_domain_t::varname_t varname_t;
+    typedef typename dis_interval_domain_t::number_t number_t;
+    
+    LinConstToExpr m_t;
+    
+  public:
+    
+    DisIntervalToExpr (CrabLlvm* crab,
+		       const llvm::BasicBlock* bb,
+		       const ExprVector &live): 
+      m_t (crab, bb, live) { }
+    
+    Expr toExpr (dis_interval_domain_t inv, ExprFactory &efac)
+    {
+      if (inv.is_top ())
+	return mk<TRUE> (efac);
+      
+      if (inv.is_bottom ())
+	return mk<FALSE> (efac);
+      
        Expr e = mk<TRUE> (efac);
-        for (auto p: boost::make_iterator_range (inv.begin (), inv.end ())) {
-          Expr d = mk<FALSE> (efac);
-          for (auto i: boost::make_iterator_range (p.second.begin (), p.second.end ())) {
-            d = boolop::lor (d, intervalToExpr (p.first, i, efac));
-          }
-          e = boolop::land (e, d);
-        }
-        return e;
-     }
-     
-    private:   
-     
-     Expr intervalToExpr (varname_t v, interval_t i, ExprFactory &efac) {
-       
-       if (i.is_top ())
-         return mk<TRUE> (efac);
-       
-       if (i.is_bottom ())
-         return mk<FALSE> (efac);
-
-       Expr e = m_t.exprFromIntVar (v, efac);
-       if (!e) {
-         // we could not translate the crab variable
-         return mk<TRUE> (efac);
+       for (auto p: boost::make_iterator_range (inv.begin (), inv.end ())) {
+	 Expr d = mk<FALSE> (efac);
+	 for (auto i: boost::make_iterator_range (p.second.begin (),
+						  p.second.end ())) {
+	   d = boolop::lor (d, intervalToExpr (p.first, i, efac));
+	 }
+	 e = boolop::land (e, d);
        }
-       
-       if (i.lb ().is_finite () && i.ub ().is_finite ()) {
-         auto lb = *(i.lb ().number());
-         auto ub = *(i.ub ().number());
-         if (lb == ub) {
-           return mk<EQ> (e, m_t.exprFromNum (lb, efac));
-         } else {
-           return mk<AND> (mk<GEQ> (e, m_t.exprFromNum (lb, efac)),
-                           mk<LEQ> (e, m_t.exprFromNum (ub, efac)));
-         }
-       }
-       
-        if (i.lb ().is_finite ()) {
-          auto lb = *(i.lb ().number());
-          return mk<GEQ> (e, m_t.exprFromNum (lb, efac));
-        }
-
-        if (i.ub ().is_finite ()) {
-          auto ub = *(i.ub ().number());
+       return e;
+    }
+    
+  private:   
+    
+    Expr intervalToExpr (varname_t v, interval_t i, ExprFactory &efac) {
+      
+      if (i.is_top ())
+	return mk<TRUE> (efac);
+      
+      if (i.is_bottom ())
+	return mk<FALSE> (efac);
+      
+      Expr e = m_t.exprFromIntVar (v, efac);
+      if (!e) {
+	// we could not translate the crab variable
+	return mk<TRUE> (efac);
+      }
+      
+      if (i.lb ().is_finite () && i.ub ().is_finite ()) {
+	auto lb = *(i.lb ().number());
+	auto ub = *(i.ub ().number());
+	if (lb == ub) {
+	  return mk<EQ> (e, m_t.exprFromNum (lb, efac));
+	} else {
+	  return mk<AND> (mk<GEQ> (e, m_t.exprFromNum (lb, efac)),
+			  mk<LEQ> (e, m_t.exprFromNum (ub, efac)));
+	}
+      }
+      
+      if (i.lb ().is_finite ()) {
+	auto lb = *(i.lb ().number());
+	return mk<GEQ> (e, m_t.exprFromNum (lb, efac));
+      }
+      
+      if (i.ub ().is_finite ()) {
+	auto ub = *(i.ub ().number());
           return mk<LEQ> (e, m_t.exprFromNum (ub, efac));
-        }
-        // this should be unreachable
-        return mk<TRUE> (efac);
-     }    
-   };
-
+      }
+      // this should be unreachable
+      return mk<TRUE> (efac);
+    }    
+  };
+  
 } // end namespace crab_llvm
 
 
@@ -629,8 +508,7 @@ namespace seahorn
     // live variables because some abstract domains might not have a
     // precise implementation for it.
 
-    #ifdef HAVE_LDD
-    // --- translation of linear decision diagrams
+    // --- translation of boxes
     if (abs->getId () == GenericAbsDomWrapper::id_t::boxes) {
       boxes_domain_t boxes;
       getAbsDomWrappee (abs, boxes);        
@@ -641,8 +519,8 @@ namespace seahorn
                                                              vars.begin (), 
                                                              vars.end ());
 
-      LDDToExpr t = LDDToExpr (&boxes);
-      e = t.toExpr (boxes.getLdd (), efac);
+      BoxesToExpr t (crab, B, live);      
+      e = t.toExpr (boxes, efac);
     }
     else if (abs->getId () == GenericAbsDomWrapper::id_t::arr_boxes) {
       arr_boxes_domain_t inv;
@@ -655,11 +533,10 @@ namespace seahorn
                                                              vars.begin (),
                                                              vars.end ());
 
-      LDDToExpr t = LDDToExpr (&boxes);
-      e = t.toExpr (boxes.getLdd (), efac);
+      BoxesToExpr t (crab, B, live);      
+      e = t.toExpr (boxes, efac);
     }
     else 
-    #endif 
     { 
       // --- translation of disjunctive interval constraints
       if (abs->getId () == GenericAbsDomWrapper::id_t::dis_intv) {
@@ -734,114 +611,6 @@ namespace seahorn
     AU.addRequired<HornifyModule> ();
     AU.addRequired<CrabLlvm> ();
   }
-
-  // #ifdef HAVE_LDD
-  // namespace expr_cnf {
-
-  //    // Decides whether an expression represents a variable/constant
-  //    class IsVar : public std::unary_function<Expr,bool>
-  //    {
-  //     private:
-  //      /** list of exception expressions that are not treated as variables */
-  //      ExprSet m_except;
-  //     public:
-  //      IsVar () {}
-  //      IsVar (const ExprSet& except) : m_except (except) {}
-  //      IsVar (const IsVar &o) : m_except (o.m_except) {}
-  //      IsVar &operator= (IsVar o)
-  //      {
-  //        swap (*this, o);
-  //     return *this;
-  //      }
-       
-  //      /** add an exception expression */
-  //      void exception (Expr e) { m_except.insert (e); }
-       
-  //      bool operator () (Expr e)
-  //      {
-  //        if (m_except.count (e) > 0) return false;
-         
-  //        // -- variant
-  //        if (isOpX<VARIANT> (e))
-  //          return true;
-  //        // -- old-style constants
-  //        if (bind::isBoolVar (e) || bind::isIntVar (e) || bind::isRealVar (e))
-  //          return true;
-  //        // -- new-style constants 
-  //        if (bind::isBoolConst (e) || bind::isIntConst (e) || bind::isRealConst (e))
-  //          return true;
-  //        return false;
-  //      }
-  //    };
-  
-  //    // Return the set of variables in exp
-  //    ExprSet getVars (Expr exp) {
-  //      ExprSet s;
-  //      filter (exp, IsVar (), std::inserter (s, s.begin ()));
-  //      return s;
-  //    }
-  
-  //    Expr mkRelation (ExprSet allVars, string fname, ExprFactory& efac) {
-  //      ExprVector sorts;
-  //      sorts.reserve (allVars.size () + 1);
-  //      for (auto &v : allVars) {
-  //        //assert (bind::isFapp (v));
-  //        //assert (bind::domainSz (bind::fname (v)) == 0);
-  //        sorts.push_back (bind::typeOf (v));
-  //      }
-       
-  //      sorts.push_back (mk<BOOL_TY> (efac));
-  //      Expr name = mkTerm (fname, efac);
-  //      Expr decl = bind::fdecl (name, sorts);
-  //      return decl;
-  //    }
-
-  //    // Convert e to CNF using a ZFixedPoint
-  //    Expr cnf (EZ3 & zctx, ExprFactory &efac, Expr phi) {
-
-  //      if (isOpX<FALSE> (phi)  || isOpX<TRUE> (phi))
-  //        return phi;
-
-  //      // Add two horn rules in fp
-  //      // --- phi -> h
-  //      // --- h and not phi -> false
-  //      //
-  //      // The solution is returned in cnf
-       
-  //      ZFixedPoint<EZ3> fp (zctx);
-  //      ExprSet allVars = getVars (phi); 
-  //      // -- register predicates
-  //      Expr decl_h = mkRelation (allVars, "h",  efac);
-  //      ExprSet emptyVars;
-  //      Expr decl_p = mkRelation (emptyVars, "p",  efac);
-  //      fp.registerRelation (decl_h);
-  //      fp.registerRelation (decl_p);
-  //      // -- add rules
-  //      Expr h = bind::fapp (decl_h, allVars);
-  //      Expr p = bind::fapp (decl_p, emptyVars);
-  //      Expr r1 = mk<IMPL> (phi, h);
-  //      fp.addRule (allVars, r1);
-  //      Expr r2 = mk<IMPL> (mk<AND> (h, mk<NEG> (phi)), p);
-  //      fp.addRule (allVars, r2);
-  //      Expr r3 = mk<IMPL> (mk<FALSE> (efac), p);
-  //      fp.addRule (emptyVars, r3);
-       
-  //      // -- add query
-  //      fp.addQuery (h);
-       
-  //      LOG ("crab-cnf", errs () << "Content of fixedpoint: " << fp << "\n";);
-  //      boost::tribool status = fp.query ();
-  //      LOG ("crab-cnf", 
-  //           if (status || !status) errs () << "result=" << fp.getAnswer () << "\n";);
-  //      assert (status);
-       
-  //      Expr res = fp.getCex ();
-  //      LOG ("crab-cnf", errs () << "Cnf=" << *res << "\n";);
-       
-  //      return res;
-  //    }
-  // } // end namespace
-  // #endif 
   
 } // end namespace seahorn
 #endif

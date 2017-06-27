@@ -76,7 +76,7 @@ namespace seahorn
     }
     else
     {
-      errs() << "FILE NOT EXIST!\n";
+      //errs() << "FILE NOT EXIST!\n";
       return;
     }
   }

@@ -34,9 +34,9 @@ SeaHorn and dependencies are installed in `build/run`
 
 Optional components can be installed individually (or even better via `extra` target) as well:
 
-* [dsa-seahorn](https://github.com/seahorn/dsa-seahorn): `git clone https://github.com/seahorn/dsa-seahorn.git`
+* [llvm-dsa](https://github.com/seahorn/llvm-dsa): `git clone https://github.com/seahorn/llvm-dsa.git`
 
-  `dsa-seahorn` is the legacy DSA implementation from
+  `llvm-dsa` is the legacy DSA implementation from
   [PoolAlloc](https://llvm.org/svn/llvm-project/poolalloc/). DSA is
   used by SeaHorn to disambiguate the heap. Recently, we have added a
   new DSA-based pointer analysis implemented inside SeaHorn that can

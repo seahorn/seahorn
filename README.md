@@ -40,7 +40,7 @@ Optional components can be installed individually (or even better via `extra` ta
    `IndVarSimplify` LLVM passes as well as a LLVM pass to convert
    undefined values into nondeterministic calls, among other things.
 
-* [crab-llvm](https://github.com/caballa/crab-llvm): `git clone https://github.com/caballa/crab-llvm.git`
+* [crab-llvm](https://github.com/seahorn/crab-llvm): `git clone https://github.com/seahorn/crab-llvm.git`
 
   `crab-llvm` provides inductive invariants using abstract
   interpretation techniques to the rest of SeaHorn's backends.
@@ -85,7 +85,7 @@ loop-free program block.
 
 - `--crab` : generates invariants using the Crab
   abstract-interpretation-based tool with default options. Read
-  [here](https://github.com/caballa/crab-llvm/tree/master#crab-options)
+  [here](https://github.com/seahorn/crab-llvm/tree/master#crab-options)
   for details about all Crab options (prefix `--crab`). You can see
   which invariants are inferred by Crab by typing option `--log=crab`.
 

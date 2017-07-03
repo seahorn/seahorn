@@ -40,7 +40,7 @@ if (GIT_FOUND)
     CACHE STRING "seahorn-llvm repo")
   set (LLVM_DSA_REPO "https://github.com/seahorn/llvm-dsa"
     CACHE STRING "llvm-dsa repo")
-  set (CRAB_LLVM_REPO "https://github.com/caballa/crab-llvm"
+  set (CRAB_LLVM_REPO "https://github.com/seahorn/crab-llvm"
     CACHE STRING "crab-llvm repo")
   add_custom_target (seahorn-llvm-git
     ${GIT_EXECUTABLE} clone ${SEAHORN_LLVM_REPO} ${CMAKE_SOURCE_DIR}/llvm-seahorn)

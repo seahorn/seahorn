@@ -326,18 +326,8 @@ if (IS_DIRECTORY ${CMAKE_SOURCE_DIR}/llvm-dsa AND
   set (DSA_LIBS DSA AssistDS)
   set (HAVE_DSA TRUE)
 else()
-  message (WARNING "No DSA found in ${CMAKE_SOURCE_DIR}/llvm-dsa. Run\n\tcmake --build . --target extra && cmake ${CMAKE_SOURCE_DIR}")
+  message (WARNING "No LLVM DSA found in ${CMAKE_SOURCE_DIR}/llvm-dsa. Run\n\tcmake --build . --target extra && cmake ${CMAKE_SOURCE_DIR}")
   set (DSA_LIBS "")
-endif()
-
-if (IS_DIRECTORY ${CMAKE_SOURCE_DIR}/sea-dsa AND
-    EXISTS ${CMAKE_SOURCE_DIR}/sea-dsa/src/DsaAnalysis.cc)
-  include_directories (AFTER sea-dsa/include)
-  add_subdirectory (${CMAKE_SOURCE_DIR}/sea-dsa)
-  set (SEA_DSA_LIBS SeaDsaAnalysis)
-else()
-  message (WARNING "No SEA DSA found in ${CMAKE_SOURCE_DIR}/sea-dsa. Run\n\tcmake --build . --target extra && cmake ${CMAKE_SOURCE_DIR}")
-  return()
 endif()
 
 if (IS_DIRECTORY ${CMAKE_SOURCE_DIR}/llvm-seahorn AND
@@ -358,6 +348,16 @@ if (IS_DIRECTORY ${CMAKE_SOURCE_DIR}/crab-llvm AND
   include_directories (${CRABLLVM_INCLUDE_DIRS})  
 else()
   message (WARNING "No CRAB-LLVM found in ${CMAKE_SOURCE_DIR}/crab-llvm. Run\n\tcmake --build . --target extra && cmake ${CMAKE_SOURCE_DIR}")
+endif()
+
+if (IS_DIRECTORY ${CMAKE_SOURCE_DIR}/sea-dsa AND
+    EXISTS ${CMAKE_SOURCE_DIR}/sea-dsa/src/DsaAnalysis.cc)
+  include_directories (AFTER sea-dsa/include)
+  add_subdirectory (${CMAKE_SOURCE_DIR}/sea-dsa)
+  set (SEA_DSA_LIBS SeaDsaAnalysis)
+else()
+  message (WARNING "No SEA DSA found in ${CMAKE_SOURCE_DIR}/sea-dsa. Run\n\tcmake --build . --target extra && cmake ${CMAKE_SOURCE_DIR}")
+  return()
 endif()
 
 ### add our include directories to the front, overriding directories

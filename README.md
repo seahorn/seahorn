@@ -149,7 +149,7 @@ This is an example of a C program annotated with a safety property:
 ``` c
     /* verification command: sea pf --horn-stats test.c */
     #include "seahorn/seahorn.h"
-    int nd();
+    extern int nd();
 
     int main(void){
       int k=1;

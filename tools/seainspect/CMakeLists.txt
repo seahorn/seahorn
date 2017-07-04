@@ -6,7 +6,7 @@ set (SEAINSPECT_LIBS
   SeaInstrumentation
   SeaTransformsScalar
   SeaTransformsUtils 
-  SeaDsaAnalysis 
+  ${SEA_DSA_LIBS}
   SeaSupport
   avy
   ${RT_LIB}

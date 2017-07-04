@@ -3,7 +3,7 @@
 
 
 #include "seahorn/seahorn.h"
-int unknown1();
+extern int unknown1();
 
 
 int main()

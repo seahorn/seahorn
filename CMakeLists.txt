@@ -40,17 +40,22 @@ if (GIT_FOUND)
     CACHE STRING "seahorn-llvm repo")
   set (LLVM_DSA_REPO "https://github.com/seahorn/llvm-dsa"
     CACHE STRING "llvm-dsa repo")
+  set (LLVM_DSA_REPO "https://github.com/seahorn/sea-dsa"
+    CACHE STRING "sea-dsa repo")
   set (CRAB_LLVM_REPO "https://github.com/seahorn/crab-llvm"
     CACHE STRING "crab-llvm repo")
+  
   add_custom_target (seahorn-llvm-git
     ${GIT_EXECUTABLE} clone ${SEAHORN_LLVM_REPO} ${CMAKE_SOURCE_DIR}/llvm-seahorn)
-   add_custom_target (llvm-dsa-git
+  add_custom_target (llvm-dsa-git
     ${GIT_EXECUTABLE} clone ${LLVM_DSA_REPO} ${CMAKE_SOURCE_DIR}/llvm-dsa)
-   add_custom_target (crab-llvm-git
+  add_custom_target (sea-dsa-git
+    ${GIT_EXECUTABLE} clone ${LLVM_DSA_REPO} ${CMAKE_SOURCE_DIR}/sea-dsa)
+  add_custom_target (crab-llvm-git
     ${GIT_EXECUTABLE} clone ${CRAB_LLVM_REPO} ${CMAKE_SOURCE_DIR}/crab-llvm)
   add_custom_target (extra
     ${CMAKE_COMMAND} -E touch ${CMAKE_CURRENT_LIST_FILE}
-    DEPENDS seahorn-llvm-git llvm-dsa-git crab-llvm-git)
+    DEPENDS seahorn-llvm-git llvm-dsa-git sea-dsa-git crab-llvm-git)
 
 else()
   message (STATUS "Could not find git. Not adding 'extra' target.")
@@ -323,6 +328,16 @@ if (IS_DIRECTORY ${CMAKE_SOURCE_DIR}/llvm-dsa AND
 else()
   message (WARNING "No DSA found in ${CMAKE_SOURCE_DIR}/llvm-dsa. Run\n\tcmake --build . --target extra && cmake ${CMAKE_SOURCE_DIR}")
   set (DSA_LIBS "")
+endif()
+
+if (IS_DIRECTORY ${CMAKE_SOURCE_DIR}/sea-dsa AND
+    EXISTS ${CMAKE_SOURCE_DIR}/sea-dsa/src/DsaAnalysis.cc)
+  include_directories (AFTER sea-dsa/include)
+  add_subdirectory (${CMAKE_SOURCE_DIR}/sea-dsa)
+  set (SEA_DSA_LIBS SeaDsaAnalysis)
+else()
+  message (WARNING "No SEA DSA found in ${CMAKE_SOURCE_DIR}/sea-dsa. Run\n\tcmake --build . --target extra && cmake ${CMAKE_SOURCE_DIR}")
+  return()
 endif()
 
 if (IS_DIRECTORY ${CMAKE_SOURCE_DIR}/llvm-seahorn AND

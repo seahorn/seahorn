@@ -34,6 +34,8 @@
 #include "seahorn/Transforms/Scalar/LowerCstExpr.hh"
 #include "seahorn/Transforms/Utils/RemoveUnreachableBlocksPass.hh"
 
+#include "sea_dsa/DsaAnalysis.hh"
+
 #ifdef HAVE_CRAB_LLVM
 #include "crab_llvm/CrabLlvm.hh"
 #include "crab_llvm/Transforms/InsertInvariants.hh"
@@ -133,6 +135,7 @@ OneAssumePerBlock ("horn-one-assume-per-block",
                    llvm::cl::desc ("Make sure there is at most one call to verifier.assume per block"), 
                    llvm::cl::init (false));
 
+// To switch between llvm-dsa and sea-dsa
 static llvm::cl::opt<bool>
 SeaHornDsa ("horn-sea-dsa",
             llvm::cl::desc ("Use Seahorn Dsa analysis"),
@@ -308,7 +311,7 @@ int main(int argc, char **argv) {
   // before StripShadowMemPass. A better solution is to make sure that
   // createStripShadowMemPass updates the callgraph.
   if (MemDot)
-    pass_manager.add (seahorn::createDsaPrinterPass ());
+    pass_manager.add (sea_dsa::createDsaPrinterPass ());
   
   if (!AsmOutputFilename.empty ())
   {

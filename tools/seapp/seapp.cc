@@ -39,11 +39,11 @@
 #include "seahorn/Transforms/Instrumentation/MixedSemantics.hh"
 #include "seahorn/Transforms/Instrumentation/BufferBoundsCheck.hh"
 #include "seahorn/Transforms/Instrumentation/NullCheck.hh"
-#include "seahorn/Analysis/DSA/Info.hh"
 
 #include "llvm_seahorn/Transforms/Scalar.h"
 
 #include "ufo/Smt/EZ3.hh"
+#include "ufo/Passes/NameValues.hpp"
 #include "ufo/Stats.hh"
 
 #include "seahorn/config.h"
@@ -441,6 +441,8 @@ int main(int argc, char **argv) {
     }
     
     if (ArrayBoundsChecks > 0) {
+      // XXX ABC might run sea-dsa which requires all values have a name
+      pass_manager.add (new ufo::NameValues ());
       switch (ArrayBoundsChecks) {
       case LOCAL: 
 	pass_manager.add (new seahorn::LowerCstExprPass ());

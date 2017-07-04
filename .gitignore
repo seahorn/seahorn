@@ -7,7 +7,8 @@
 /static/
 /dsa-seahorn/
 /crab-llvm/
-
+/sea-dsa/
+/llvm-dsa/
 *.pyc
 *.pyo
 /llvm-seahorn/

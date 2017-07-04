@@ -19,11 +19,12 @@
 #include "boost/format.hpp"
 
 // Seahorn dsa
-#include "seahorn/Analysis/DSA/DsaAnalysis.hh"
+#include "sea_dsa/DsaAnalysis.hh"
 // Llvm dsa
 #include "seahorn/Support/DSAInfo.hh"
 
 
+// To switch between llvm-dsa and sea-dsa
 static llvm::cl::opt<bool>
 UseSeaDsa("abc-sea-dsa",
           llvm::cl::desc ("Use SeaHorn Dsa analysis"),
@@ -121,16 +122,16 @@ namespace seahorn
   // A wrapper for seahorn dsa
   class SeaDsa : public DsaWrapper
   { 
-    dsa::InfoAnalysis* m_dsa;
+    sea_dsa::DsaInfo* m_dsa;
     
-    const dsa::Cell*
+    const sea_dsa::Cell*
     getCell (const llvm::Value &ptr, const llvm::Function& fn, int tag) {
       if (!m_dsa)  {
 	//errs () << "WARNING ABC: Sea Dsa information not found " << tag << "\n";
 	return nullptr; 
       }
       
-      dsa::Graph* g = m_dsa->getDsaGraph (fn);
+      sea_dsa::Graph* g = m_dsa->getDsaGraph (fn);
       if (!g) {
 	errs () << "WARNING ABC: Sea Dsa graph not found for " << fn.getName () << "\n";
 	//<< " " << tag << "\n";
@@ -143,34 +144,26 @@ namespace seahorn
 	return nullptr; 
       }
       
-      const dsa::Cell &c = g->getCell(ptr);
+      const sea_dsa::Cell &c = g->getCell(ptr);
       return &c;
     }
     
-    bool hasSuccessors (const dsa::Cell &c) const {
-      const dsa::Node &n = *(c.getNode ());
+    bool hasSuccessors (const sea_dsa::Cell &c) const {
+      const sea_dsa::Node &n = *(c.getNode ());
       return (std::distance (n.links().begin(), n.links().end ()) > 0);
     }
     
     
   public:
     
-    SeaDsa(Pass *abc) : DsaWrapper(abc),  m_dsa(nullptr) 
-    {
-      auto &dsa = this->m_abc->getAnalysis<dsa::DsaAnalysis>();
-      if (dsa.hasDsaInfo ())
-	m_dsa = &dsa.getDsaInfo ();
-      else {
-	if (TrackedAllocSite > 0 || TrackedDsaNode > 0)
-	  errs () << "WARNING ABC: No Sea Dsa found\n";
-	else
-	  errs () << "ABC was not asked ot run Sea Dsa.\n";
-      }
-    }
+    SeaDsa(Pass *abc)
+      : DsaWrapper(abc),
+	m_dsa(&this->m_abc->getAnalysis<sea_dsa::DsaInfoPass>().getDsaInfo()) {}
     
     const char* getDsaName () const { return "SeaHorn Dsa analysis";}
     
-    bool shouldBeTrackedPtr (const llvm::Value &ptr, const llvm::Function& fn, int tag)
+    bool shouldBeTrackedPtr (const llvm::Value &ptr, const llvm::Function& fn,
+			     int tag)
     {
       auto &v = *(ptr.stripPointerCasts ());
       if (!v.getType()->isPointerTy ()) return false;
@@ -179,7 +172,7 @@ namespace seahorn
 	// instrumentation starts.
       if (ptr.getName ().startswith ("sea_")) return false;
       
-      const dsa::Cell *c = getCell (v, fn, tag);
+      const sea_dsa::Cell *c = getCell (v, fn, tag);
       if (!c) return true;
       
       if (OnlySurface && hasSuccessors (*c)) {
@@ -1513,8 +1506,8 @@ namespace seahorn
   void Local::getAnalysisUsage (llvm::AnalysisUsage &AU) const
   {
     AU.setPreservesAll ();
-    AU.addRequired<seahorn::DSAInfo>(); // run llvm dsa
-    AU.addRequired<dsa::DsaAnalysis>(); // run seahorn dsa
+    AU.addRequired<seahorn::DSAInfo>();     // run llvm dsa
+    AU.addRequired<sea_dsa::DsaInfoPass>(); // run seahorn dsa
     AU.addRequired<llvm::DataLayoutPass>();
     AU.addRequired<llvm::TargetLibraryInfo>();
     AU.addRequired<llvm::UnifyFunctionExitNodes> ();
@@ -2836,8 +2829,8 @@ namespace seahorn
   void Global::getAnalysisUsage (llvm::AnalysisUsage &AU) const
   {
     AU.setPreservesAll ();
-    AU.addRequired<seahorn::DSAInfo>(); // run llvm dsa
-    AU.addRequired<dsa::DsaAnalysis>(); // run seahorn dsa
+    AU.addRequired<seahorn::DSAInfo>();     // run llvm dsa
+    AU.addRequired<sea_dsa::DsaInfoPass>(); // run seahorn dsa
     AU.addRequired<llvm::DataLayoutPass>();
     AU.addRequired<llvm::TargetLibraryInfo>();
     AU.addRequired<llvm::UnifyFunctionExitNodes> ();
@@ -3248,8 +3241,8 @@ namespace seahorn
   void GlobalCCallbacks::getAnalysisUsage (llvm::AnalysisUsage &AU) const
   {
     AU.setPreservesAll ();
-    AU.addRequired<seahorn::DSAInfo>();// run llvm dsa
-    AU.addRequired<dsa::DsaAnalysis>();// run seahorn dsa
+    AU.addRequired<seahorn::DSAInfo>();    // run llvm dsa
+    AU.addRequired<sea_dsa::DsaInfoPass>();// run seahorn dsa
     AU.addRequired<llvm::DataLayoutPass>();
     AU.addRequired<llvm::TargetLibraryInfo>();
     AU.addRequired<llvm::UnifyFunctionExitNodes> ();

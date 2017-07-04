@@ -189,23 +189,16 @@ class LinkRt(sea.LimitedCmd):
     def stdout (self):
         return self.clangCmd.stdout
 
-def _is_sea_dsa_opt (x):
-    ## Consider only options with prefix horn-sea-dsa and some
-    ## non-empty suffix
-    if x == '--horn-sea-dsa': return False
-    if x.startswith ('-'):
-        y = x.strip ('-')
-        ## ShadowMemSeaDsa pass
-        if y.startswith('horn-sea-dsa-local-mod'): return False
-        ## ShadowMemSeaDsa pass        
-        if y.startswith('horn-sea-dsa-split'): return False        
-        return y.startswith ('horn-sea-dsa')
-    return False
-
-def enable_sea_dsa (args):
-    l = filter (lambda x: x == '--horn-sea-dsa', args)
-    return l 
-
+## This function searches for `--dsa` option passed by `sea horn` command.
+def get_sea_horn_dsa (opts):
+    for x in opts:
+        if x.startswith ('--dsa='):
+            y = x[len('--dsa='):]
+            if y == 'sea-flat' or y == 'sea-ci' or  y == 'sea-cs' or \
+               y == 'llvm':
+                return y
+    return None
+    
 class Seapp(sea.LimitedCmd):
     def __init__(self, quiet=False, internalize=False, strip_extern=False):
         super(Seapp, self).__init__('pp', 'Pre-processing', allow_extra=True)
@@ -225,7 +218,7 @@ class Seapp(sea.LimitedCmd):
         
         # if args.llvm_asm: ext = '.pp.ll'
         return _remap_file_name (in_files[0], ext, work_dir)
-
+        
     def mk_arg_parser (self, ap):
         ap = super (Seapp, self).mk_arg_parser (ap)
         ap.add_argument ('--inline', dest='inline', help='Inline all functions',
@@ -284,10 +277,23 @@ class Seapp(sea.LimitedCmd):
         ap.add_argument ('--abc-store-base-only', dest='abc_store_base_only',
                          help='Check that only base pointers are stored in memory',
                          default=False, action='store_true')
-        
+        ap.add_argument ('--abc-dsa', 
+                         help='Heap analysis used by abc instrumentation: '
+                         'context-insensitive Llvm Dsa, '
+                         'flat memory SeaHorn Dsa, '
+                         'context-insensitive SeaHorn Dsa, and '
+                         'context-sensitive SeaHorn Dsa',
+                         choices=['llvm','sea-flat','sea-ci','sea-cs'],
+                         dest='dsa', default='llvm')
         ap.add_argument ('--abc-dsa-node', dest='abc_dsa', 
                          help='Instrument only pointers that belong to this DSA node N',
                          type=int, default=0, metavar='N')
+        ap.add_argument ('--abc-dsa-stats', dest='abc_dsa_stats',
+                         help='Print some DSA stats before abc instrumentation',
+                         default=False, action='store_true')
+        ap.add_argument ('--abc-dsa-to-file', dest='abc_dsa_to_file',
+                         help='Dump some Dsa info to a file',
+                         metavar='DIR', default=None)        
         ap.add_argument ('--abc-alloc-site', dest='abc_site', 
                          help='Instrument only pointers  that belong to this allocation site N',
                          type=int, default=0, metavar='N')
@@ -297,12 +303,6 @@ class Seapp(sea.LimitedCmd):
         ap.add_argument ('--abc-instrument-except-types', 
                          help='Do not instrument a pointer if it is not of these user-defined types',
                          dest='abc_except_types', type=str,metavar='str,...')
-        ap.add_argument ('--abc-dsa-stats', dest='abc_dsa_stats',
-                         help='Print some DSA stats before abc instrumentation',
-                         default=False, action='store_true')
-        ap.add_argument ('--abc-dsa-to-file', dest='abc_dsa_to_file',
-                         help='Dump some Dsa info to a file',
-                         metavar='DIR', default=None)
         ap.add_argument ('--ndc', dest='ndc',
                          help='Insert null dereference checks',
                          default=False, action='store_true')
@@ -354,7 +354,6 @@ class Seapp(sea.LimitedCmd):
         self.seappCmd = sea.ExtCmd (cmd_name)
 
         argv = list()
-        # TODO:extract from extra the option '--horn-dsa-cs-global=false'
 
         if args.out_file is not None: argv.extend (['-o', args.out_file])
         if args.llvm_asm: argv.append ('-S')
@@ -406,26 +405,36 @@ class Seapp(sea.LimitedCmd):
             if args.abc <> 'none':
                 argv.append ('--abc={0}'.format(args.abc))
 
-                # pick out extra seahorn options
-                dsa_opts = filter (_is_sea_dsa_opt, extra)
-
-                if enable_sea_dsa (extra): argv.append ('--abc-sea-dsa')
-
-                if args.abc_dsa_stats: 
-                    if enable_sea_dsa (extra):
-                        argv.append ('--horn-dsa-stats')
-                    else:
-                        argv.append ('--llvm-dsa-stats')
-
-                if args.abc_dsa_to_file is not None: 
-                    if enable_sea_dsa (extra):
-                        argv.append ('--sea-dsa-info-to-file={n}'.format(n=args.abc_dsa_to_file))
-                    else:
-                        argv.append ('--dsa-info-to-file={n}'.format(n=args.abc_dsa_to_file))
-
-                # add dsa options     
-                argv.extend (dsa_opts)
+                ## Begin Dsa options
                 
+                ## XXX: for simplicity, we enforce that --abc-dsa
+                ## (from `sea pp`) and --dsa (from `sea horn`) options are the same.
+                sea_horn_dsa = get_sea_horn_dsa (extra)
+                if sea_horn_dsa is not None and sea_horn_dsa != args.dsa:
+                    if args.dsa != 'llvm': ## do not bother warning if default value
+                        print "WARNING: Overwriting \'--abc-dsa\' with \'--dsa\'."
+                    args.dsa = sea_horn_dsa
+                if args.dsa == 'llvm':
+                    if args.abc_dsa_stats:
+                        argv.append ('--llvm-dsa-stats') 
+                    if args.abc_dsa_to_file is not None:
+                        argv.append ('--dsa-info-to-file={n}'.format(n=args.abc_dsa_to_file))
+                else:
+                    if args.abc_dsa_stats:
+                        argv.append ('--sea-dsa-stats')
+                    if args.abc_dsa_to_file is not None:                        
+                        argv.append ('--sea-dsa-info-to-file={n}'.format(n=args.abc_dsa_to_file))
+                    ## we tell abc to use sea-dsa    
+                    argv.append ('--abc-sea-dsa')
+                    ## we select the sea-dsa variant
+                    if args.dsa == 'sea-flat':
+                        argv.append ('--sea-dsa=flat')
+                    elif args.dsa == 'sea-ci':
+                        argv.append ('--sea-dsa=ci')                        
+                    else:
+                        argv.append ('--sea-dsa=cs')
+                ## End Dsa options
+
                 argv.append ('--abc-dsa-node={n}'.format (n=args.abc_dsa))
                 argv.append ('--abc-alloc-site={n}'.format (n=args.abc_site))
                 if args.abc_only_types: 
@@ -776,12 +785,20 @@ class Seahorn(sea.LimitedCmd):
         ap.add_argument ('--track',
                          help='Track registers, pointers, and memory',
                          choices=['reg', 'ptr', 'mem'], default='mem')
+        ap.add_argument ('--dsa', 
+                         help='Heap analysis used by \'mem\' encoding: '
+                         'context-insensitive Llvm Dsa, '
+                         'flat memory SeaHorn Dsa, '
+                         'context-insensitive SeaHorn Dsa, and '
+                         'context-sensitive SeaHorn Dsa',
+                         choices=['llvm','sea-flat','sea-ci','sea-cs'],
+                         dest='dsa', default='llvm')
+        ap.add_argument ('--mem-dot',
+                         help='Print Dsa memory graphs of all functions to dot format',
+                         dest='mem_dot', default=False, action='store_true'),        
         ap.add_argument ('--show-invars',
                          help='Display computed invariants',
                          dest='show_invars', default=False, action='store_true')
-        ap.add_argument ('--mem-dot',
-                         help='Print memory graph of a function to dot format (if --horn-sea-dsa)',
-                         dest='mem_dot', default=False, action='store_true'),
         ap.add_argument ('--crab',
                          help='Enable Crab abstract interpreter',
                          dest='crab', default=False, action='store_true')
@@ -806,8 +823,22 @@ class Seahorn(sea.LimitedCmd):
         if args.solve or args.out_file is not None:
             argv.append ('--keep-shadows=true')
 
+        if args.dsa != 'llvm':
+            ## we tell abc to use sea-dsa    
+            argv.append ('--horn-sea-dsa')
+            ## we select the sea-dsa variant
+            if args.dsa == 'sea-flat':
+                argv.append ('--sea-dsa=flat')
+            elif args.dsa == 'sea-ci':
+                argv.append ('--sea-dsa=ci')                        
+            else:
+                argv.append ('--sea-dsa=cs')
+
         if args.mem_dot:
-            argv.append ('--mem-dot')
+            if args.dsa == 'llvm':
+                print ("WARNING: option --mem-dot only available if --dsa != llvm\n")
+            else:
+                argv.append ('--mem-dot')
 
         if args.solve:
             argv.append ('--horn-solve')

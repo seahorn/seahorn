@@ -128,10 +128,11 @@ def add_abc_args(ap):
                      default='none')
     ap.add_argument ('--dsa', 
                      help="Dsa analysis:\n"
-                          "- llvm  : context-insensitive Llvm Dsa\n"
-                          "- sea-ci: context-insensitive SeaHorn Dsa\n"
-                          "- sea-cs: context-sensitive SeaHorn Dsa\n",
-                     choices=['llvm','sea-ci','sea-cs'], dest='dsa', default='llvm')
+                          "- llvm    : context-insensitive Llvm Dsa\n"
+                          "- sea-flat: flat memory SeaHorn Dsa\n"
+                          "- sea-ci  : context-insensitive SeaHorn Dsa\n"
+                          "- sea-cs  : context-sensitive SeaHorn Dsa\n",
+                     choices=['llvm','sea-flat','sea-ci','sea-cs'], dest='dsa', default='llvm')
     ap.add_argument ('--abc-disable-underflow', dest='abc_no_under',
                      help='Do not instrument underflow checks',
                      default=False, action='store_true')
@@ -295,19 +296,13 @@ def horn_opts(args):
     if args.add_cuts is not 'h0':
         opts = opts + ['--horn-extra-cps={0}'.format(args.add_cuts)]
 
-    if args.dsa != 'llvm': 
-        opts = opts + ['--horn-sea-dsa']
-        if args.dsa == 'sea-ci':
-            opts = opts + ['--horn-sea-dsa-cs-global=false']
-            opts = opts + ['--horn-sea-dsa-split=true']
-        else:
-            opts = opts + ['--horn-sea-dsa-cs-global=true']
-            opts = opts + ['--horn-sea-dsa-local-mod=true']
-            opts = opts + ['--horn-sea-dsa-split=true']
-    # XXX: not available anymore            
-    #else:
-    #    opts = opts + ['--horn-dsa-split=true']
+    opts = opts + ['--dsa={0}'.format(args.dsa)]
 
+    if args.dsa != 'llvm':
+        opts = opts + ['--horn-sea-dsa-split=true']
+    if args.dsa == 'sea-cs':
+        opts = opts + ['--horn-sea-dsa-local-mod=true']
+        
     if args.abstract_funcs is not None:
         opts.extend(['--horn-abstract={0}'.format(args.abstract_funcs)])
             
@@ -458,14 +453,8 @@ def get_alloc_sites (in_file, work_dir, args):
 
     opts.extend(['--abc-dsa-to-file=' + alloca_file])
     opts.extend(['--abc-dsa-stats'])
+    opts.extend(['--abc-dsa={0}'.format (args.dsa)])
     
-    if args.dsa != 'llvm':
-        opts.extend(['--horn-sea-dsa'])
-        if args.dsa == 'sea-ci':
-            opts.extend(['--horn-sea-dsa-cs-global=false'])
-        else:
-            opts.extend(['--horn-sea-dsa-cs-global=true'])
-
     opts = [get_sea(), 'pp'] + opts
     ext = '.pp.bc'
     out_file = remap_file_name (in_file, ext, work_dir)
@@ -593,24 +582,12 @@ def sea_abc(args, extra): # extra is unused
                 if args.abc_surface_only:    sea_abc_cmd.extend(['--abc-surface-only'])
                 if args.abc_store_base_only: sea_abc_cmd.extend(['--abc-store-base-only'])
 
+                sea_abc_cmd.extend(['--dsa={0}'.format(args.dsa)])
+
                 if args.save_temps: 
                     sea_abc_cmd.extend(['--save-temps'])
                     sea_abc_cmd.extend(['--temp-dir={0}'.format(args.temp_dir)])
 
-                if args.dsa != 'llvm':
-                    sea_abc_cmd.extend(['--horn-sea-dsa'])
-                    if args.dsa == 'sea-ci':
-                        sea_abc_cmd.extend(['--horn-sea-dsa-cs-global=false'])
-                        # This option is added later by prove_abc
-                        #sea_abc_cmd.extend(['--horn-sea-dsa-split=true'])
-                    else:
-                        sea_abc_cmd.extend(['--horn-sea-dsa-cs-global=true'])
-                        # These options are added later by prove_abc
-                        #sea_abc_cmd.extend(['--horn-sea-dsa-local-mod=true'])
-                        #sea_abc_cmd.extend(['--horn-sea-dsa-split=true'])
-                # XXX: not available anymore            
-                # else:
-                #    sea_abc_cmd.extend(['--horn-dsa-split=true'])
                 xargs.append(' '.join(sea_abc_cmd))
                 if njobs == maxjobs or acc_njobs == num_allocas:
                     if verbose: 

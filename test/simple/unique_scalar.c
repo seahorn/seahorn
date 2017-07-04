@@ -1,4 +1,4 @@
-// RUN: %sea pf -O0  --horn-sea-dsa --horn-sea-dsa-cs-global=true --horn-global-constraints=true --horn-singleton-aliases=true "%s" 2>&1 | OutputCheck %s
+// RUN: %sea pf -O0  --dsa=sea-cs --horn-global-constraints=true --horn-singleton-aliases=true "%s" 2>&1 | OutputCheck %s
 // CHECK: ^sat$
 #include <seahorn/seahorn.h>
 

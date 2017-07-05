@@ -16,9 +16,9 @@
 #include "boost/range/algorithm/set_algorithm.hpp"
 #include "boost/range/algorithm/binary_search.hpp"
 
-#include "seahorn/Analysis/DSA/CallSite.hh"
-#include "seahorn/Analysis/DSA/Mapper.hh"
-#include "seahorn/Analysis/DSA/DsaAnalysis.hh"
+#include "sea_dsa/CallSite.hh"
+#include "sea_dsa/Mapper.hh"
+#include "sea_dsa/DsaAnalysis.hh"
 
 static llvm::cl::opt<bool>
 SplitFields("horn-sea-dsa-split",
@@ -33,7 +33,7 @@ LocalReadMod ("horn-sea-dsa-local-mod",
 namespace seahorn
 {
   using namespace llvm;
-  using namespace dsa;
+  using namespace sea_dsa;
 
   namespace sea_dsa_impl 
   {
@@ -516,7 +516,7 @@ namespace seahorn
 
           // -- compute mapping between callee and caller graphs
           SimulationMapper simMap;
-          dsa::Graph::computeCalleeCallerMapping (CS, calleeG, G, simMap); 
+          Graph::computeCalleeCallerMapping (CS, calleeG, G, simMap); 
           
           /// generate mod, ref, new function, based on whether the
           /// remote node reads, writes, or creates the corresponding node.

@@ -17,5 +17,4 @@ add_llvm_library(SeaInstrumentation
 if (HAVE_DSA)
    target_link_libraries (SeaInstrumentation ${DSA_LIBS})
 endif()
-
-target_link_libraries (SeaInstrumentation SeaDsaAnalysis)
+target_link_libraries (SeaInstrumentation ${SEA_DSA_LIBS})

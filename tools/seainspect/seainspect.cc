@@ -21,7 +21,7 @@
 #include "llvm/IR/Verifier.h"
 
 #include "seahorn/Passes.hh"
-#include "seahorn/Analysis/DSA/DsaAnalysis.hh"
+#include "sea_dsa/DsaAnalysis.hh"
 
 static llvm::cl::opt<std::string>
 InputFilename(llvm::cl::Positional, llvm::cl::desc("<input LLVM bitcode file>"),
@@ -77,6 +77,12 @@ MemViewer("mem-viewer",
 	  llvm::cl::desc("View memory graph of a function to dot format"),
 	  llvm::cl::init(false));
 
+static llvm::cl::opt<bool>
+PrintMemStats("mem-stats",
+       llvm::cl::desc("Print statistics about all memory graphs"),
+       llvm::cl::init(false));
+
+
 int main(int argc, char **argv) {
 
   llvm::llvm_shutdown_obj shutdown;  // calls llvm_shutdown() on exit
@@ -120,7 +126,7 @@ int main(int argc, char **argv) {
   // initialise and run passes //
   ///////////////////////////////
   
-  legacy::PassManager pass_manager;
+  llvm::legacy::PassManager pass_manager;
   llvm::PassRegistry &Registry = *llvm::PassRegistry::getPassRegistry();
   llvm::initializeAnalysis(Registry);
   
@@ -148,10 +154,13 @@ int main(int argc, char **argv) {
 
   // XXX: run Dsa passes before CFG passes
   if (MemDot)
-    pass_manager.add (seahorn::createDsaPrinterPass ());
+    pass_manager.add (sea_dsa::createDsaPrinterPass ());
   
   if (MemViewer)
-    pass_manager.add (seahorn::createDsaViewerPass ());
+    pass_manager.add (sea_dsa::createDsaViewerPass ());
+
+  if (PrintMemStats)
+    pass_manager.add (sea_dsa::createDsaPrintStatsPass ());
   
   if (Profiler)
     pass_manager.add (seahorn::createProfilerPass ());

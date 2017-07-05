@@ -4,6 +4,7 @@ set (USED_LIBS
   SeaTransformsScalar
   SeaTransformsUtils
   SeaAnalysis
+  ${SEA_DSA_LIBS}    
   SeaSupport
   ${LLVM_SEAHORN_LIBS}
   avy

@@ -1,4 +1,4 @@
-// RUN: %sea fe-inspect -O0 %ci_dsa --mem-dot %s --dot-outdir=%T/test-2.ci.c
+// RUN: %sea fe-inspect -O0 %ci_dsa --mem-dot %s --sea-dsa-dot-outdir=%T/test-2.ci.c
 // RUN: %cmp-graphs %tests/test-2.ci.c.main.mem.dot %T/test-2.ci.c/main.mem.dot | OutputCheck %s -d
 // CHECK: ^OK$
 

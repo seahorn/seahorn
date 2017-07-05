@@ -1180,8 +1180,19 @@ class SeaInspect(sea.LimitedCmd):
         if args.mem_viewer: argv.extend (['-mem-viewer'])                        
         if args.mem_dot or args.mem_viewer:
             if args.dot_outdir is not "":
-                argv.extend(['--mem-dot-outdir={0}'.format(args.dot_outdir)])
-        argv.extend (args.in_files)        
+                argv.extend(['-sea-dsa-dot-outdir={0}'.format(args.dot_outdir)])
+
+        dsa = get_sea_horn_dsa (extra)
+        if dsa is not None:
+            ## we select the sea-dsa variant
+            if dsa == 'sea-flat':
+                argv.extend (['--sea-dsa=flat'])
+            elif dsa == 'sea-ci':
+                argv.extend (['--sea-dsa=ci'])
+            else:
+                argv.extend (['--sea-dsa=cs'])
+            
+        argv.extend (args.in_files)
         # pick out extra seahorn options
         argv.extend (filter (_is_seahorn_opt, extra))
 

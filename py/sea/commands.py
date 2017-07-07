@@ -823,7 +823,10 @@ class Seahorn(sea.LimitedCmd):
         if args.solve or args.out_file is not None:
             argv.append ('--keep-shadows=true')
 
+            
         if args.dsa != 'llvm':
+            if "--dsa-stats" in extra:
+                argv.append ('--sea-dsa-stats')
             ## we tell abc to use sea-dsa    
             argv.append ('--horn-sea-dsa')
             ## we select the sea-dsa variant
@@ -1162,6 +1165,8 @@ class SeaInspect(sea.LimitedCmd):
                          dest='cfg_only_viewer', help='View CFG of all functions (without instructions) to dot format')
         ap.add_argument ('--mem-viewer', default=False, action='store_true',
                          dest='mem_viewer', help='View memory graph of all functions to dot format')
+        ap.add_argument ('--mem-stats', default=False, action='store_true',
+                         dest='mem_stats', help='Print stats about all memory graphs')
         return ap
 
     def run (self, args, extra):
@@ -1177,7 +1182,8 @@ class SeaInspect(sea.LimitedCmd):
         if args.cfg_viewer: argv.extend (['-cfg-viewer'])
         if args.cfg_only_viewer: argv.extend (['-cfg-only-viewer'])
         if args.mem_dot: argv.extend (['-mem-dot'])
-        if args.mem_viewer: argv.extend (['-mem-viewer'])                        
+        if args.mem_viewer: argv.extend (['-mem-viewer'])
+        if args.mem_stats: argv.extend (['-mem-stats'])                                
         if args.mem_dot or args.mem_viewer:
             if args.dot_outdir is not "":
                 argv.extend(['-sea-dsa-dot-outdir={0}'.format(args.dot_outdir)])

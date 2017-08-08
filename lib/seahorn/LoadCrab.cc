@@ -55,11 +55,12 @@ namespace seahorn
 
 #include "llvm/Support/CommandLine.h"
 
-#include <crab_llvm/CfgBuilder.hh>
-#include <crab_llvm/CrabLlvm.hh>
+#include "crab_llvm/CrabLlvm.hh"
+#include "crab_llvm/HeapAbstraction.hh"
+#include "crab_llvm/wrapper_domain.hh"
 
-namespace crab_llvm
-{
+namespace crab_llvm {
+  
   using namespace llvm;
   using namespace expr;
   using namespace seahorn;
@@ -235,11 +236,10 @@ namespace crab_llvm
 
       const Value* V = *(v.get());
 
-      if (const Value* Gv = 
-          m_crab->getMemAnalysis().
+      if (const Value* Gv = m_crab->getHeapAbstraction().
 	  getRegion(*(const_cast <Function*> (m_bb->getParent ())), 
-		    const_cast<Value*> (V)).getSingleton ()) 
-      {
+		    const_cast<Value*> (V)).getSingleton ()) {
+	
         /// -- The crab variable v corresponds to a global singleton
         ///    cell so we can grab a llvm Value from it. We search for
         ///    the seahorn shadow variable that matches it.
@@ -300,7 +300,7 @@ namespace crab_llvm
           BoolCst &b1 = it->second;
           b1 += b2;
         }
-        else { bool_map.insert (make_pair (v, b2)); } 
+        else { bool_map.insert (std::make_pair (v, b2)); } 
         
         return mk<TRUE> (efac); // we ignore cst for now
       }
@@ -406,8 +406,7 @@ namespace crab_llvm
 		       const ExprVector &live): 
       m_t (crab, bb, live) { }
     
-    Expr toExpr (dis_interval_domain_t inv, ExprFactory &efac)
-    {
+    Expr toExpr (dis_interval_domain_t inv, ExprFactory &efac) {
       if (inv.is_top ())
 	return mk<TRUE> (efac);
       
@@ -415,7 +414,10 @@ namespace crab_llvm
 	return mk<FALSE> (efac);
       
        Expr e = mk<TRUE> (efac);
-       for (auto p: boost::make_iterator_range (inv.begin (), inv.end ())) {
+       // bit ugly: dis_interval_domain_t is wrapped into array smashing.
+       // That's why we need to call first get_contain_domain().
+       auto &dis_intvs = inv.get_content_domain().second(); 
+       for (auto p: boost::make_iterator_range (dis_intvs.begin (), dis_intvs.end ())) {
 	 Expr d = mk<FALSE> (efac);
 	 for (auto i: boost::make_iterator_range (p.second.begin (),
 						  p.second.end ())) {
@@ -475,13 +477,12 @@ namespace seahorn
   using namespace llvm;
   using namespace crab_llvm;
   using namespace expr;
-
-
+  
   // Translate a range of Expr variables to Crab variables but only
   // those that can be mapped to llvm value.
   template<typename Range>
-  static vector<varname_t> ExprVecToCrab (const Range & live, CrabLlvm* Crab) { 
-    vector<varname_t> res;
+  static std::vector<varname_t> ExprVecToCrab (const Range & live, CrabLlvm* Crab) { 
+    std::vector<varname_t> res;
     for (auto l: live) 
     {
       Expr u = bind::fname (bind::fname (l));
@@ -489,7 +490,7 @@ namespace seahorn
       {
         const Value* v = getTerm <const Value*> (u);
         if (isa<GlobalVariable> (v)) continue;
-        res.push_back (Crab->getVariableFactory ()[*v]);
+        res.push_back (Crab->getVariableFactory()[v]);
       }
     }
     return res;
@@ -499,8 +500,7 @@ namespace seahorn
                       CrabLlvm* crab,
                       const ExprVector &live, 
                       EZ3& zctx,
-                      ExprFactory &efac) 
-  {
+                      ExprFactory &efac) { 
     Expr e = mk<TRUE> (efac);
     GenericAbsDomWrapperPtr abs = (*crab) [B];
 
@@ -508,54 +508,29 @@ namespace seahorn
     // live variables because some abstract domains might not have a
     // precise implementation for it.
 
-    // --- translation of boxes
+    
     if (abs->getId () == GenericAbsDomWrapper::id_t::boxes) {
+      // --- special translation for boxes
       boxes_domain_t boxes;
       getAbsDomWrappee (abs, boxes);        
 
       // Here we do project onto live variables before translation
-      vector<varname_t> vars = ExprVecToCrab (live, crab);
+      std::vector<varname_t> vars = ExprVecToCrab (live, crab);
       crab::domains::domain_traits<boxes_domain_t>::project (boxes, 
                                                              vars.begin (), 
                                                              vars.end ());
-
       BoxesToExpr t (crab, B, live);      
       e = t.toExpr (boxes, efac);
-    }
-    else if (abs->getId () == GenericAbsDomWrapper::id_t::arr_boxes) {
-      arr_boxes_domain_t inv;
+    } else if (abs->getId () == GenericAbsDomWrapper::id_t::dis_intv) {
+      // --- special translation of disjunctive interval constraints
+      dis_interval_domain_t inv;
       getAbsDomWrappee (abs, inv);        
-      boxes_domain_t boxes = inv.get_content_domain ();
-
-      // Here we do project onto live variables before translation
-      vector<varname_t> vars = ExprVecToCrab (live, crab);
-      crab::domains::domain_traits<boxes_domain_t>::project (boxes, 
-                                                             vars.begin (),
-                                                             vars.end ());
-
-      BoxesToExpr t (crab, B, live);      
-      e = t.toExpr (boxes, efac);
-    }
-    else 
-    { 
-      // --- translation of disjunctive interval constraints
-      if (abs->getId () == GenericAbsDomWrapper::id_t::dis_intv) {
-        dis_interval_domain_t inv;
-        getAbsDomWrappee (abs, inv);        
-        DisIntervalToExpr t (crab, B, live);
-        e = t.toExpr (inv, efac);
-      }
-      else if (abs->getId () == GenericAbsDomWrapper::id_t::arr_dis_intv) {
-        arr_dis_interval_domain_t inv;
-        getAbsDomWrappee (abs, inv);        
-        DisIntervalToExpr t (crab, B, live);
-        e = t.toExpr (inv.get_content_domain (), efac);
-      }
-      else {
-        // --- translation to convex linear constraints
-        LinConstToExpr t (crab, B, live);
-        e = t.toExpr (abs->to_linear_constraints (), efac);
-      }
+      DisIntervalToExpr t (crab, B, live);
+      e = t.toExpr (inv, efac);
+    } else {
+      // --- rest of domains translated to convex linear constraints
+      LinConstToExpr t (crab, B, live);
+      e = t.toExpr (abs->to_linear_constraints (), efac);
     }
         
     if ((std::distance (live.begin (),live.end ()) == 0) && (!isOpX<FALSE> (e))) {
@@ -565,8 +540,7 @@ namespace seahorn
     return e;
   }
 
-  bool LoadCrab::runOnModule (Module &M)
-  {
+  bool LoadCrab::runOnModule (Module &M) {
     for (auto &F : M) {
       runOnFunction (F);
     }

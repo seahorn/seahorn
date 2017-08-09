@@ -190,7 +190,7 @@ namespace crab_llvm {
 
    private:
 
-    CrabLlvm* m_crab;
+    CrabLlvmPass* m_crab;
     const llvm::BasicBlock* m_bb;
     const ExprVector& m_live;
 
@@ -201,7 +201,7 @@ namespace crab_llvm {
     
    public:
 
-    LinConstToExpr (CrabLlvm* crab,
+    LinConstToExpr (CrabLlvmPass* crab,
 		    // needed by crab-llvm memory analysis
 		    const llvm::BasicBlock* bb,
 		    const ExprVector &live): 
@@ -368,7 +368,7 @@ namespace crab_llvm {
     
   public:
     
-    BoxesToExpr (CrabLlvm* crab,
+    BoxesToExpr (CrabLlvmPass* crab,
 		 const llvm::BasicBlock* bb,
 		 const ExprVector &live): 
       m_t (crab, bb, live) { }
@@ -401,7 +401,7 @@ namespace crab_llvm {
     
   public:
     
-    DisIntervalToExpr (CrabLlvm* crab,
+    DisIntervalToExpr (CrabLlvmPass* crab,
 		       const llvm::BasicBlock* bb,
 		       const ExprVector &live): 
       m_t (crab, bb, live) { }
@@ -481,7 +481,7 @@ namespace seahorn
   // Translate a range of Expr variables to Crab variables but only
   // those that can be mapped to llvm value.
   template<typename Range>
-  static std::vector<varname_t> ExprVecToCrab (const Range & live, CrabLlvm* Crab) { 
+  static std::vector<varname_t> ExprVecToCrab (const Range & live, CrabLlvmPass* Crab) { 
     std::vector<varname_t> res;
     for (auto l: live) 
     {
@@ -497,7 +497,7 @@ namespace seahorn
   }
 
   Expr CrabInvToExpr (const llvm::BasicBlock* B,
-                      CrabLlvm* crab,
+                      CrabLlvmPass* crab,
                       const ExprVector &live, 
                       EZ3& zctx,
                       ExprFactory &efac) { 
@@ -550,7 +550,7 @@ namespace seahorn
   bool LoadCrab::runOnFunction (Function &F)
   {
     HornifyModule &hm = getAnalysis<HornifyModule> ();
-    CrabLlvm &crab = getAnalysis<CrabLlvm> ();
+    CrabLlvmPass &crab = getAnalysis<CrabLlvmPass> ();
     
     auto &db = hm.getHornClauseDB ();
     
@@ -583,7 +583,7 @@ namespace seahorn
   {
     AU.setPreservesAll ();
     AU.addRequired<HornifyModule> ();
-    AU.addRequired<CrabLlvm> ();
+    AU.addRequired<CrabLlvmPass> ();
   }
   
 } // end namespace seahorn

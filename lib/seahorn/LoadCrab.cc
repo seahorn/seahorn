@@ -236,7 +236,7 @@ namespace crab_llvm {
 
       const Value* V = *(v.get());
 
-      if (const Value* Gv = m_crab->getHeapAbstraction().
+      if (const Value* Gv = m_crab->get_heap_abstraction()->
 	  getRegion(*(const_cast <Function*> (m_bb->getParent ())), 
 		    const_cast<Value*> (V)).getSingleton ()) {
 	
@@ -490,7 +490,7 @@ namespace seahorn
       {
         const Value* v = getTerm <const Value*> (u);
         if (isa<GlobalVariable> (v)) continue;
-        res.push_back (Crab->getVariableFactory()[v]);
+        res.push_back (Crab->get_var_factory()[v]);
       }
     }
     return res;
@@ -502,8 +502,8 @@ namespace seahorn
                       EZ3& zctx,
                       ExprFactory &efac) { 
     Expr e = mk<TRUE> (efac);
-    GenericAbsDomWrapperPtr abs = (*crab) [B];
-
+    auto abs = crab->get_pre(B);
+    
     // TODO: note we don't project an arbitrary abstract domain onto
     // live variables because some abstract domains might not have a
     // precise implementation for it.
@@ -553,7 +553,7 @@ namespace seahorn
     CrabLlvmPass &crab = getAnalysis<CrabLlvmPass> ();
     
     auto &db = hm.getHornClauseDB ();
-    
+
     for (auto &BB : F)
     {
       // skip all basic blocks that HornifyModule does not know
@@ -574,7 +574,7 @@ namespace seahorn
 
       db.addConstraint (bind::fapp (pred, live), exp);
       
-    }
+    }    
     return false;
   }
   

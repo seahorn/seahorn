@@ -3,7 +3,7 @@
 // CHECK: ^OK$
 
 extern void print(int x);
-extern void* malloc (unsigned int sz);
+extern void* mymalloc (unsigned int sz);
 
 struct element {
   int x;
@@ -20,7 +20,7 @@ typedef struct node* List;
 List mkList (int sz, Elem e) {
   if (sz < 1) return 0;
     
-  List l = (List) malloc(sizeof(struct node));
+  List l = (List) mymalloc(sizeof(struct node));
   List p = l;
   int i;
   for (i=0; i<sz; i++) {
@@ -29,7 +29,7 @@ List mkList (int sz, Elem e) {
       p->next = 0;
       break;
     }
-    p->next = (List) malloc(sizeof(struct node));
+    p->next = (List) mymalloc(sizeof(struct node));
     p = p->next;
   }
   return l;
@@ -40,7 +40,7 @@ int main (){
   int x = 4;
   int y = 2;
 
-  Elem e = (Elem) malloc (sizeof(struct element));
+  Elem e = (Elem) mymalloc (sizeof(struct element));
   e->x = 5;
   e->y = 6;
   
@@ -55,6 +55,6 @@ int main (){
     print(p2->head->y);
     p2=p2->next;
   }
-    
+  
   return 0;
 }   

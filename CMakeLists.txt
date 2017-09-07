@@ -50,7 +50,7 @@ if (GIT_FOUND)
   add_custom_target (llvm-dsa-git
     ${GIT_EXECUTABLE} clone --branch "stable-llvm-3.6" ${LLVM_DSA_REPO} ${CMAKE_SOURCE_DIR}/llvm-dsa)
   add_custom_target (sea-dsa-git
-    ${GIT_EXECUTABLE} clone ${SEA_DSA_REPO} ${CMAKE_SOURCE_DIR}/sea-dsa)
+    ${GIT_EXECUTABLE} clone --branch "stable-llvm-3.6" ${SEA_DSA_REPO} ${CMAKE_SOURCE_DIR}/sea-dsa)
   add_custom_target (crab-llvm-git
     ${GIT_EXECUTABLE} clone ${CRAB_LLVM_REPO} ${CMAKE_SOURCE_DIR}/crab-llvm)
   add_custom_target (extra

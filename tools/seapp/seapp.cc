@@ -354,7 +354,10 @@ int main(int argc, char **argv) {
     //        trivial examples.
     pass_manager.add (llvm::createGlobalOptimizerPass());
     // pass_manager.add (llvm::createGlobalOptimizerPass());
-  
+
+    //if (!MixedSem)
+    pass_manager.add (new seahorn::LowerGvInitializers ());
+    
     // -- SSA
     pass_manager.add(llvm::createPromoteMemoryToRegisterPass());
     // -- Turn undef into nondet
@@ -421,9 +424,6 @@ int main(int argc, char **argv) {
   
     pass_manager.add(llvm::createDeadInstEliminationPass());
     pass_manager.add (llvm::createGlobalDCEPass ()); // kill unused internal global
-    if (!MixedSem)
-      pass_manager.add (new seahorn::LowerGvInitializers ());
-
     pass_manager.add(llvm::createUnifyFunctionExitNodesPass ());
 
     if (SimplifyPointerLoops) {

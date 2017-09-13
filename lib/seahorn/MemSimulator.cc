@@ -229,7 +229,8 @@ namespace seahorn
         Instruction &I = *CS.getInstruction ();
         uint64_t sz = 0;
         if (llvm::getObjectSize (&I, sz,
-                                 &m_sim.getDataLayout (), &m_sim.getTargetLibraryInfo (),
+                                 m_sim.getDataLayout (),
+				 &m_sim.getTargetLibraryInfo (),
                                  true))
         {
           LOG ("memsim", errs () << sz;);
@@ -258,7 +259,8 @@ namespace seahorn
         
       uint64_t sz = 0;
       if (llvm::getObjectSize (&I, sz,
-                               &m_sim.getDataLayout (), &m_sim.getTargetLibraryInfo (),
+                               m_sim.getDataLayout (),
+			       &m_sim.getTargetLibraryInfo (),
                                true))
       {
         LOG ("memsim", errs () << sz;);

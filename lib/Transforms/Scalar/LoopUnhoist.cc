@@ -54,7 +54,7 @@ namespace seahorn
     virtual void getAnalysisUsage (AnalysisUsage &AU) const
     {
       AU.setPreservesAll ();
-      AU.addRequiredTransitive<LoopInfo> ();
+      AU.addRequiredTransitive<LoopInfoWrapperPass> ();
     }
     
     virtual bool runOnFunction (Function &F)
@@ -63,7 +63,7 @@ namespace seahorn
       
       errs () << "Looking at: " << F.getName () << "\n";
       
-      LoopInfo &li = getAnalysis<LoopInfo> ();
+      LoopInfo &li = getAnalysis<LoopInfoWrapperPass>().getLoopInfo();
       
       // instructions to unhoist
       SmallVector<Instruction*, 16> todo;
@@ -99,7 +99,7 @@ namespace seahorn
         
         
         // -- clone new code into loop header
-        Instruction *insertPt = loop->getHeader ()->getFirstInsertionPt ();
+	BasicBlock::iterator insertPt = loop->getHeader ()->getFirstInsertionPt ();
         while (!todo.empty ())
         {
           Instruction *clone = map [todo.back ()];
@@ -128,7 +128,7 @@ namespace seahorn
             clone->setName (todo.back ()->getName ());
           
           todo.pop_back ();
-          clone->insertBefore (insertPt);
+	  clone->insertBefore (&*insertPt);
           errs () << "Unhoisting: " << *clone << "\n";
         }
       }

@@ -3,7 +3,7 @@
 #include "seahorn/Bmc.hh"
 
 #include "llvm/IR/DataLayout.h"
-#include "llvm/Target/TargetLibraryInfo.h"
+#include "llvm/Analysis/TargetLibraryInfo.h"
 
 namespace seahorn
 {

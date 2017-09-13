@@ -24,17 +24,18 @@ namespace seahorn
     Expr one;
     
   public:
-    ClpSmallSymExec (ExprFactory &efac, Pass &pass, TrackLevel trackLvl = MEM) : 
-      SmallStepSymExec (efac), m_pass (pass), m_trackLvl (trackLvl)
+    ClpSmallSymExec (ExprFactory &efac, Pass &pass, const DataLayout &dl,
+		     TrackLevel trackLvl = MEM) : 
+      SmallStepSymExec (efac), m_pass (pass), m_trackLvl (trackLvl), m_td(&dl)
     {
-      m_td = &pass.getAnalysis<DataLayoutPass> ().getDataLayout ();
       m_canFail = pass.getAnalysisIfAvailable<CanFail> ();
       zero = mkTerm<mpz_class> (0, m_efac);
       one  = mkTerm<mpz_class> (1, m_efac);
     }
 
     ClpSmallSymExec (const ClpSmallSymExec& o) : 
-      SmallStepSymExec (o), m_pass (o.m_pass), m_trackLvl (o.m_trackLvl) {}
+      SmallStepSymExec (o), m_pass (o.m_pass), m_trackLvl (o.m_trackLvl),
+      m_td (o.m_td), m_canFail (o.m_canFail) {}
     
     Expr errorFlag (const BasicBlock &BB) override;
     virtual Expr memStart (unsigned id) { assert (false); return Expr (); }

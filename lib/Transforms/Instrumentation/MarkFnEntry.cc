@@ -23,8 +23,7 @@ DM-0002198
 #include "llvm/IR/Function.h"
 #include "llvm/IR/Module.h"
 #include "llvm/Support/Compiler.h"
-#include "llvm/PassManager.h"
-
+#include "llvm/IR/PassManager.h"
 #include "llvm/IR/IRBuilder.h"
 
 
@@ -64,7 +63,7 @@ namespace
       for (auto &BB : F)
       {
         auto Inst = std::find_if(BB.begin(), BB.end(), [](const Instruction &Inst) {
-            return !Inst.getDebugLoc().isUnknown();
+            return !Inst.getDebugLoc().get();
           });
         if (Inst == BB.end())
           continue;      

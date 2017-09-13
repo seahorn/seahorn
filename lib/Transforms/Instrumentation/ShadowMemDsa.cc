@@ -15,6 +15,8 @@
 #include "boost/range/algorithm/binary_search.hpp"
 
 #include "dsa/Steensgaard.hh"
+// To print stats about llvm dsa
+#include "seahorn/Support/DSAInfo.hh"
 
 namespace seahorn
 {
@@ -235,9 +237,10 @@ namespace seahorn
           if (!n) continue;
           
           B.SetInsertPoint (&inst);
-          B.CreateCall3 (m_memLoadFn, B.getInt32 (getId (n)),
-                         B.CreateLoad (allocaForNode (n)),
-                         getUniqueScalar (ctx, B, n));
+          B.CreateCall (m_memLoadFn,
+			{B.getInt32 (getId (n)),
+			 B.CreateLoad (allocaForNode (n)),
+			 getUniqueScalar (ctx, B, n)});
         }
         else if (const StoreInst *store = dyn_cast<StoreInst> (&inst))
         {
@@ -246,10 +249,10 @@ namespace seahorn
           if (!n) continue;
           B.SetInsertPoint (&inst);
           AllocaInst *v = allocaForNode (n);
-          B.CreateStore (B.CreateCall3 (m_memStoreFn, 
-                                        B.getInt32 (getId (n)),
+          B.CreateStore (B.CreateCall (m_memStoreFn, 
+                                       {B.getInt32 (getId (n)),
                                         B.CreateLoad (v),
-                                        getUniqueScalar (ctx, B, n)),
+					getUniqueScalar (ctx, B, n)}),
                          v);           
         }
         else if (CallInst *call = dyn_cast<CallInst> (&inst))
@@ -281,10 +284,10 @@ namespace seahorn
             if (!n) continue;
             B.SetInsertPoint (call);
             AllocaInst *v = allocaForNode (n);
-            B.CreateStore (B.CreateCall3 (m_memStoreFn,
-                                          B.getInt32 (getId (n)),
+            B.CreateStore (B.CreateCall (m_memStoreFn,
+                                         {B.getInt32 (getId (n)),
                                           B.CreateLoad (v),
-                                          getUniqueScalar (ctx, B, n)),
+					  getUniqueScalar (ctx, B, n)}),
                            v);
           }
           
@@ -348,19 +351,21 @@ namespace seahorn
             // -- read only node ignore nodes that are only reachable
             // -- from the return of the function
             if (n->isReadNode () && !n->isModifiedNode () && retReach.count(n) <= 0)
-              B.CreateCall4 (m_argRefFn, B.getInt32 (id),
-                             B.CreateLoad (v),
-                             B.getInt32 (idx), getUniqueScalar (ctx, B, n));
+              B.CreateCall (m_argRefFn,
+			    {B.getInt32 (id),
+			     B.CreateLoad (v),
+                             B.getInt32 (idx),
+			     getUniqueScalar (ctx, B, n)});
             // -- read/write or new node
             else if (n->isModifiedNode ())
             {
               // -- n is new node iff it is reachable only from the return node
               Constant* argFn = retReach.count (n) ? m_argNewFn : m_argModFn;
-              B.CreateStore (B.CreateCall4 (argFn, 
-                                            B.getInt32 (id),
+              B.CreateStore (B.CreateCall (argFn, 
+					   {B.getInt32 (id),
                                             B.CreateLoad (v),
                                             B.getInt32 (idx),
-                                            getUniqueScalar (ctx, B, n)), v);
+					    getUniqueScalar (ctx, B, n)}), v);
             }
             idx++;
           }
@@ -391,7 +396,7 @@ namespace seahorn
       B.Insert (a, "shadow.mem");
       CallInst *ci;
       Constant *fn = reach.count (n) <= 0 ? m_memShadowInitFn : m_memShadowArgInitFn;
-      ci = B.CreateCall2 (fn, B.getInt32 (getId (n)), getUniqueScalar (ctx, B, n));
+      ci = B.CreateCall (fn, {B.getInt32 (getId (n)), getUniqueScalar (ctx, B, n)});
       inits[n] = ci;
       B.CreateStore (ci, a);
     }
@@ -414,7 +419,7 @@ namespace seahorn
     // split return basic block if it has more than just the return instruction
     if (exit->size () > 1)
     {
-      exit = llvm::SplitBlock (exit, ret, this);
+      exit = llvm::SplitBlock (exit, ret, nullptr /*DominatorTree not updated*/);
       ret = exit->getTerminator ();
     }
     
@@ -430,22 +435,22 @@ namespace seahorn
       {
         assert (inits.count (n));
         /// initial value
-        B.CreateCall4 (m_markIn,
-                       B.getInt32 (getId (n)),
+        B.CreateCall (m_markIn,
+                      {B.getInt32 (getId (n)),
                        inits[n], 
                        B.getInt32 (idx),
-                       getUniqueScalar (ctx, B, n));
+		       getUniqueScalar (ctx, B, n)});
       }
       
       if (n->isModifiedNode ())
       {
         assert (inits.count (n));
         /// final value
-        B.CreateCall4 (m_markOut, 
-                       B.getInt32 (getId (n)),
+        B.CreateCall (m_markOut, 
+                      {B.getInt32 (getId (n)),
                        B.CreateLoad (allocaForNode (n)),
                        B.getInt32 (idx),
-                       getUniqueScalar (ctx, B, n));
+		       getUniqueScalar (ctx, B, n)});
       }
       ++idx;
     }
@@ -456,66 +461,66 @@ namespace seahorn
   void ShadowMemDsa::getAnalysisUsage (llvm::AnalysisUsage &AU) const
   {
     AU.setPreservesAll ();
+    AU.addRequired<seahorn::DSAInfo>(); // print stats about llvm dsa        
     // AU.addRequiredTransitive<llvm::EQTDDataStructures>();
     AU.addRequiredTransitive<llvm::SteensgaardDataStructures> ();
-    AU.addRequired<llvm::DataLayoutPass>();
     AU.addRequired<llvm::UnifyFunctionExitNodes> ();
   } 
     
+  //// XXX: Defined already in ShadowMemSeaDsa
+  // class StripShadowMem : public ModulePass 
+  // {
+  // public:
+  //   static char ID;
+  //   StripShadowMem () : ModulePass (ID) {} 
 
-  class StripShadowMem : public ModulePass 
-  {
-  public:
-    static char ID;
-    StripShadowMem () : ModulePass (ID) {} 
-
-    void getAnalysisUsage (AnalysisUsage &AU) const override
-    {AU.setPreservesAll ();}
+  //   void getAnalysisUsage (AnalysisUsage &AU) const override
+  //   {AU.setPreservesAll ();}
     
-    bool runOnModule (Module &M) override
-    {
-      std::vector<std::string> voidFnNames = 
-        {"shadow.mem.load", "shadow.mem.arg.ref",
-         "shadow.mem.in", "shadow.mem.out" };
+  //   bool runOnModule (Module &M) override
+  //   {
+  //     std::vector<std::string> voidFnNames = 
+  //       {"shadow.mem.load", "shadow.mem.arg.ref",
+  //        "shadow.mem.in", "shadow.mem.out" };
       
-      for (auto &name : voidFnNames)
-      {
-        Function *fn = M.getFunction (name);
-        if (!fn) continue;
+  //     for (auto &name : voidFnNames)
+  //     {
+  //       Function *fn = M.getFunction (name);
+  //       if (!fn) continue;
         
-        while (!fn->use_empty ())
-        {
-          CallInst *ci = cast<CallInst> (fn->user_back ());
-          Value *last = ci->getArgOperand (ci->getNumArgOperands () - 1);
-          ci->eraseFromParent ();
-          RecursivelyDeleteTriviallyDeadInstructions (last);
-        }
-      }
+  //       while (!fn->use_empty ())
+  //       {
+  //         CallInst *ci = cast<CallInst> (fn->user_back ());
+  //         Value *last = ci->getArgOperand (ci->getNumArgOperands () - 1);
+  //         ci->eraseFromParent ();
+  //         RecursivelyDeleteTriviallyDeadInstructions (last);
+  //       }
+  //     }
 
-      std::vector<std::string> intFnNames =
-        { "shadow.mem.store", "shadow.mem.init",
-          "shadow.mem.arg.init", "shadow.mem.arg.mod"};
-      Value *zero = ConstantInt::get (Type::getInt32Ty(M.getContext ()), 0);
+  //     std::vector<std::string> intFnNames =
+  //       { "shadow.mem.store", "shadow.mem.init",
+  //         "shadow.mem.arg.init", "shadow.mem.arg.mod"};
+  //     Value *zero = ConstantInt::get (Type::getInt32Ty(M.getContext ()), 0);
       
-      for (auto &name : intFnNames)
-      {
-        Function *fn = M.getFunction (name);
-        if (!fn) continue;
+  //     for (auto &name : intFnNames)
+  //     {
+  //       Function *fn = M.getFunction (name);
+  //       if (!fn) continue;
         
-        while (!fn->use_empty ())
-        {
-          CallInst *ci = cast<CallInst> (fn->user_back ());
-          Value *last = ci->getArgOperand (ci->getNumArgOperands () - 1);
-          ci->replaceAllUsesWith (zero);
-          ci->eraseFromParent ();
-          RecursivelyDeleteTriviallyDeadInstructions (last);
-        }
-      }
+  //       while (!fn->use_empty ())
+  //       {
+  //         CallInst *ci = cast<CallInst> (fn->user_back ());
+  //         Value *last = ci->getArgOperand (ci->getNumArgOperands () - 1);
+  //         ci->replaceAllUsesWith (zero);
+  //         ci->eraseFromParent ();
+  //         RecursivelyDeleteTriviallyDeadInstructions (last);
+  //       }
+  //     }
       
-      return true;
-    }
+  //     return true;
+  //   }
     
-  };    
+  // };    
 }
 
 #endif
@@ -523,13 +528,15 @@ namespace seahorn
 namespace seahorn
 {
   char ShadowMemDsa::ID = 0;
-  char StripShadowMem::ID = 0;
   Pass * createShadowMemDsaPass () {return new ShadowMemDsa ();}
-  Pass * createStripShadowMemPass () {return new StripShadowMem ();}
+  //// XXX: Defined already in ShadowMemSeaDsa
+  // char StripShadowMem::ID = 0;  
+  // Pass * createStripShadowMemPass () {return new StripShadowMem ();}
   
 }
 
 static llvm::RegisterPass<seahorn::ShadowMemDsa> X ("shadow-dsa", "Shadow DSA nodes");
-static llvm::RegisterPass<seahorn::StripShadowMem> Y ("strip-shadow-dsa",
-                                                      "Remove shadow.mem instrinsics");
+//// XXX: Defined already in ShadowMemSeaDsa
+//static llvm::RegisterPass<seahorn::StripShadowMem> Y ("strip-shadow-dsa",
+//                                                      "Remove shadow.mem instrinsics");
 

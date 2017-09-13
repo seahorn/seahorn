@@ -26,6 +26,10 @@ def _bc_or_ll_file (name):
     ext = os.path.splitext (name)[1]
     return ext == '.bc' or ext == '.ll'
 
+def _plus_plus_file (name):
+    ext = os.path.splitext (name)[1]
+    return ext == '.cpp' or ext == '.cc'
+
 class Clang(sea.LimitedCmd):
     def __init__ (self, quiet=False, plusplus=False):
         super (Clang, self).__init__('clang', 'Compile', allow_extra=True)
@@ -50,8 +54,12 @@ class Clang(sea.LimitedCmd):
         if len(in_files) == 1:
             in_file = in_files [0]
             if _bc_or_ll_file (in_file): return in_file
+            if _plus_plus_file (in_file):
+                self.plusplus = True
         else:
             in_file = 'merged.c'
+            if all (_plus_plus_file(f) for f in in_files):
+                self.plusplus = True
         ext = '.bc'
         # if args.llvm_asm: ext = '.ll'
         return _remap_file_name (in_file, ext, work_dir)
@@ -72,22 +80,22 @@ class Clang(sea.LimitedCmd):
         if _bc_or_ll_file (args.in_files[0]): return 0
 
         if self.plusplus:
-            cmd_name = which (['clang++-mp-3.6', 'clang++-3.6', 'clang++',
-                               'clang++-mp-3.5', 'clang++-mp-3.4'])
+            cmd_name = which (['clang++-mp-3.8', 'clang++-3.8', 'clang++'])
         else:
-            cmd_name = which (['clang-mp-3.6', 'clang-3.6', 'clang',
-                               'clang-mp-3.5', 'clang-mp-3.4'])
+            cmd_name = which (['clang-mp-3.8', 'clang-3.8', 'clang'])
             
         if cmd_name is None: raise IOError ('clang not found')
         self.clangCmd = sea.ExtCmd (cmd_name)
 
         if not all (_bc_or_ll_file (f) for f  in args.in_files): 
-            cmd_name = which (['clang-mp-3.6', 'clang-3.6', 'clang',
-                               'clang-mp-3.5', 'clang-mp-3.4'])
+            cmd_name = which (['clang-mp-3.8', 'clang-3.8', 'clang'])
             if cmd_name is None: raise IOError ('clang not found')
             self.clangCmd = sea.ExtCmd (cmd_name)
 
-            argv = ['-c', '-emit-llvm', '-D__SEAHORN__', '-fgnu89-inline']
+            argv = ['-c', '-emit-llvm', '-D__SEAHORN__']            
+            if not self.plusplus:
+                ## this is an invalid argument with C++/ObjC++ with clang 3.8
+                argv.append('-fgnu89-inline')
 
             argv.extend (filter (lambda s : s.startswith ('-D'), extra))
 
@@ -160,8 +168,7 @@ class LinkRt(sea.LimitedCmd):
 
     def run (self, args, extra):
 
-        cmd_name = which (['clang++-mp-3.6', 'clang++-3.6', 'clang++',
-                           'clang++-mp-3.5', 'clang++-mp-3.4'])
+        cmd_name = which (['clang++-mp-3.8', 'clang++-3.8', 'clang++'])
             
         if cmd_name is None: raise IOError ('clang++ not found')
         self.clangCmd = sea.ExtCmd (cmd_name)

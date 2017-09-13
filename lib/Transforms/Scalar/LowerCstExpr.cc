@@ -135,7 +135,8 @@ namespace seahorn
   Instruction * LowerCstExprPass::lowerCstExpr(ConstantExpr* CstExp, 
                                                Instruction* InsertionLoc)  {
     Instruction* NewI = CstExp->getAsInstruction ();
-    InsertionLoc->getParent()->getInstList().insert(InsertionLoc, NewI); // insert before
+    // insert before    
+    InsertionLoc->getParent()->getInstList().insert(InsertionLoc->getIterator(), NewI); 
     return NewI;
   }
 

@@ -47,13 +47,13 @@ namespace {
     {
       // initialize passes we depend on
       initializeLoopSimplifyPass(*PassRegistry::getPassRegistry());
-      initializeLoopInfoPass(*PassRegistry::getPassRegistry());
+      initializeLoopInfoWrapperPassPass(*PassRegistry::getPassRegistry());
       initializeLCSSAPass(*PassRegistry::getPassRegistry());
     }
 
     bool runOnLoop (Loop *L, LPPassManager &LPM) override
     {
-      LI = &getAnalysis<LoopInfo>();      
+      LI = &getAnalysis<LoopInfoWrapperPass>().getLoopInfo();      
       if (UnfoldAllLoops || ShouldLoopBeUnfolded (L))
         return OneUnfoldLoop (L);
 
@@ -64,8 +64,8 @@ namespace {
     /// requires that loop preheaders be inserted into the CFG...
     /// It also requires LCSSA.
     void getAnalysisUsage (AnalysisUsage &AU) const override {
-      AU.addRequired<LoopInfo>();
-      AU.addPreserved<LoopInfo>();
+      AU.addRequired<LoopInfoWrapperPass>();
+      AU.addPreserved<LoopInfoWrapperPass>();
       AU.addRequiredID(LoopSimplifyID);
       AU.addPreservedID(LoopSimplifyID);
       AU.addRequiredID(LCSSAID);
@@ -241,7 +241,7 @@ namespace {
 
       // Tell LI about New.
       if (Loop* ParentLoop = L->getParentLoop()) {
-        ParentLoop->addBasicBlockToLoop(New, LI->getBase());
+        ParentLoop->addBasicBlockToLoop(New, *LI);
       }
 
       VMap[*BB] = New;
@@ -263,7 +263,7 @@ namespace {
     for (unsigned i = 0; i < NewBlocks.size(); ++i)
       for (BasicBlock::iterator I = NewBlocks[i]->begin(),
                E = NewBlocks[i]->end(); I != E; ++I)
-        RemapInstruction(I, VMap);
+        RemapInstruction(&*I, VMap);
 
 
     // Update phi nodes at the loop exits with new map

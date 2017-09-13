@@ -15,7 +15,7 @@
 
 # About #
 
-<a href="http://seahorn.github.io/">SeaHorn</a> is an automated analysis framework for LLVM-based languages.
+<a href="http://seahorn.github.io/">SeaHorn</a> is an automated analysis framework for LLVM-based languages. LLVM version is 3.8.
 
 # License #
 
@@ -35,7 +35,7 @@ SeaHorn and dependencies are installed in `build/run`
 SeaHorn uses several components that can be installed individually (or
 even better via `extra` target) as well:
 
-* [llvm-dsa](https://github.com/seahorn/llvm-dsa): `git clone https://github.com/seahorn/llvm-dsa.git`
+* [llvm-seahorn](https://github.com/seahorn/llvm-seahorn): `git clone https://github.com/seahorn/llvm-seahorn.git`
 
   `llvm-dsa` is the legacy DSA implementation
   from [PoolAlloc](https://llvm.org/svn/llvm-project/poolalloc/). DSA
@@ -106,7 +106,6 @@ corresponds to a loop-free fragments.
   invariants are inferred by Crab by typing option `--log=crab`.
 
 - `--bmc`: use BMC engine.
-
 
 
 `sea pf` is a pipeline that runs multiple commands. Individual parts

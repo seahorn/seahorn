@@ -8,7 +8,7 @@
 // SeaPP-- LLVM bitcode Pre-Processor for Verification
 ///
 #include "llvm/LinkAllPasses.h"
-#include "llvm/PassManager.h"
+#include "llvm/IR/LegacyPassManager.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IRReader/IRReader.h"
@@ -40,7 +40,9 @@
 #include "seahorn/Transforms/Instrumentation/BufferBoundsCheck.hh"
 #include "seahorn/Transforms/Instrumentation/NullCheck.hh"
 
+#ifdef HAVE_LLVM_SEAHORN
 #include "llvm_seahorn/Transforms/Scalar.h"
+#endif 
 
 #include "ufo/Smt/EZ3.hh"
 #include "ufo/Passes/NameValues.hpp"
@@ -266,24 +268,28 @@ int main(int argc, char **argv) {
   // initialise and run passes //
   ///////////////////////////////
 
-  llvm::PassManager pass_manager;
+  llvm::legacy::PassManager pass_manager;  
   llvm::PassRegistry &Registry = *llvm::PassRegistry::getPassRegistry();
   llvm::initializeAnalysis(Registry);
   
   /// call graph and other IPA passes
-  llvm::initializeIPA (Registry);
+  //llvm::initializeIPA (Registry);
+  // XXX: porting to 3.8 
+  llvm::initializeCallGraphWrapperPassPass(Registry);
+  llvm::initializeCallGraphPrinterPass(Registry);
+  llvm::initializeCallGraphViewerPass(Registry);
+  // XXX: not sure if needed anymore
+  llvm::initializeGlobalsAAWrapperPassPass(Registry);  
   
   // add an appropriate DataLayout instance for the module
-  const llvm::DataLayout *dl = module->getDataLayout ();
-  if (!dl && !DefaultDataLayout.empty ())
-  {
+  const llvm::DataLayout *dl = &module->getDataLayout ();
+  if (!dl && !DefaultDataLayout.empty ()) {
     module->setDataLayout (DefaultDataLayout);
-    dl = module->getDataLayout ();
+    dl = &module->getDataLayout ();
   }
   
   assert (dl && "Could not find Data Layout for the module");
   
-  if (dl) pass_manager.add (new llvm::DataLayoutPass ());
   if (!ApiConfig.empty())
   {
       pass_manager.add(seahorn::createApiAnalysisPass(ApiConfig));
@@ -348,7 +354,10 @@ int main(int argc, char **argv) {
     //        trivial examples.
     pass_manager.add (llvm::createGlobalOptimizerPass());
     // pass_manager.add (llvm::createGlobalOptimizerPass());
-  
+
+    //if (!MixedSem)
+    pass_manager.add (new seahorn::LowerGvInitializers ());
+    
     // -- SSA
     pass_manager.add(llvm::createPromoteMemoryToRegisterPass());
     // -- Turn undef into nondet
@@ -415,9 +424,6 @@ int main(int argc, char **argv) {
   
     pass_manager.add(llvm::createDeadInstEliminationPass());
     pass_manager.add (llvm::createGlobalDCEPass ()); // kill unused internal global
-    if (!MixedSem)
-      pass_manager.add (new seahorn::LowerGvInitializers ());
-
     pass_manager.add(llvm::createUnifyFunctionExitNodesPass ());
 
     if (SimplifyPointerLoops) {
@@ -427,7 +433,9 @@ int main(int argc, char **argv) {
 
     if (UnfoldLoopsForDsa) {
       // --- help DSA to be more precise
+#ifdef HAVE_LLVM_SEAHORN      
       pass_manager.add (llvm_seahorn::createFakeLatchExitPass());
+#endif       
       pass_manager.add (seahorn::createUnfoldLoopForDsaPass());
     }
 

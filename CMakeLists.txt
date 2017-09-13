@@ -46,16 +46,17 @@ if (GIT_FOUND)
     CACHE STRING "crab-llvm repo")
   
   add_custom_target (seahorn-llvm-git
-    ${GIT_EXECUTABLE} clone --branch "stable-llvm-3.6" ${SEAHORN_LLVM_REPO} ${CMAKE_SOURCE_DIR}/llvm-seahorn)
+    ${GIT_EXECUTABLE} clone ${SEAHORN_LLVM_REPO} ${CMAKE_SOURCE_DIR}/llvm-seahorn)
   add_custom_target (llvm-dsa-git
-    ${GIT_EXECUTABLE} clone --branch "stable-llvm-3.6" ${LLVM_DSA_REPO} ${CMAKE_SOURCE_DIR}/llvm-dsa)
+    ${GIT_EXECUTABLE} clone ${LLVM_DSA_REPO} ${CMAKE_SOURCE_DIR}/llvm-dsa)
   add_custom_target (sea-dsa-git
-    ${GIT_EXECUTABLE} clone --branch "stable-llvm-3.6" ${SEA_DSA_REPO} ${CMAKE_SOURCE_DIR}/sea-dsa)
+    ${GIT_EXECUTABLE} clone ${SEA_DSA_REPO} ${CMAKE_SOURCE_DIR}/sea-dsa)
   add_custom_target (crab-llvm-git
-    ${GIT_EXECUTABLE} clone --branch "stable-llvm-3.6" ${CRAB_LLVM_REPO} ${CMAKE_SOURCE_DIR}/crab-llvm)
+    ${GIT_EXECUTABLE} clone ${CRAB_LLVM_REPO} ${CMAKE_SOURCE_DIR}/crab-llvm)
   add_custom_target (extra
     ${CMAKE_COMMAND} -E touch ${CMAKE_CURRENT_LIST_FILE}
-    DEPENDS seahorn-llvm-git llvm-dsa-git sea-dsa-git crab-llvm-git)
+    DEPENDS seahorn-llvm-git llvm-dsa-git sea-dsa-git crab-llvm-git
+  )
 
 else()
   message (STATUS "Could not find git. Not adding 'extra' target.")
@@ -132,7 +133,7 @@ else()
 endif()
 
 ExternalProject_Add (llvm
-  SVN_REPOSITORY http://llvm.org/svn/llvm-project/llvm/tags/RELEASE_360/final/
+  SVN_REPOSITORY http://llvm.org/svn/llvm-project/llvm/tags/RELEASE_380/final/
   SOURCE_DIR ${CMAKE_SOURCE_DIR}/ext/llvm
   INSTALL_DIR ${CMAKE_BINARY_DIR}/run
   CMAKE_ARGS
@@ -142,13 +143,18 @@ ExternalProject_Add (llvm
   -DLLVM_TARGETS_TO_BUILD:STRING=X86 -DWITH_POLY:BOOL=OFF
   -DLLVM_ENABLE_PEDANTIC=OFF
   -DLLVM_ENABLE_PIC=ON -DLLVM_REQUIRES_RTTI:BOOL=TRUE
+  -DLLVM_INCLUDE_TESTS:BOOL=OFF
+  -DLLVM_INCLUDE_GO_TESTS=OFF
+  -DLLVM_INCLUDE_EXAMPLES=OFF
+  -DLLVM_INCLUDE_DOCS=OFF    
+  -DLLVM_BINDINGS_LIST=" "
   TEST_AFTER_INSTALL 1
   TEST_COMMAND ${CMAKE_COMMAND} -E touch ${CMAKE_CURRENT_LIST_FILE}
   LOG_CONFIGURE 1
   LOG_BUILD 1
   LOG_INSTALL 1)
 
-find_package (LLVM 3.6.0 CONFIG NO_DEFAULT_PATH)
+find_package (LLVM 3.8.0 CONFIG NO_DEFAULT_PATH)
 if (NOT LLVM_FOUND)
   ExternalProject_Get_Property (llvm INSTALL_DIR)
   set (LLVM_ROOT ${INSTALL_DIR})
@@ -234,10 +240,10 @@ if (EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/ext/llvm/LICENSE.TXT)
     RENAME llvm_license.txt)
 endif()
 
-if (EXISTS ${CMAKE_CURRENT_BINARY_DIR}/llvm-prefix/src/llvm-build/bin/clang-3.6)
+if (EXISTS ${CMAKE_CURRENT_BINARY_DIR}/llvm-prefix/src/llvm-build/bin/clang-3.8)
   install (
     PROGRAMS
-    ${CMAKE_CURRENT_BINARY_DIR}/llvm-prefix/src/llvm-build/bin/clang-3.6
+    ${CMAKE_CURRENT_BINARY_DIR}/llvm-prefix/src/llvm-build/bin/clang-3.8
     DESTINATION bin)
 endif()
 

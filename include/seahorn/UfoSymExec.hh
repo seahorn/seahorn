@@ -24,18 +24,18 @@ namespace seahorn
     const CanFail *m_canFail;
         
   public:
-    UfoSmallSymExec (ExprFactory &efac, Pass &pass,
+    UfoSmallSymExec (ExprFactory &efac, Pass &pass, const DataLayout &dl,
 		     TrackLevel trackLvl = MEM,
 		     FunctionPtrSet abs_fns = FunctionPtrSet ()) : 
       SmallStepSymExec (efac), m_pass (pass),
-      m_trackLvl (trackLvl), m_abs_funcs (abs_fns)
+      m_trackLvl (trackLvl), m_abs_funcs (abs_fns), m_td (&dl)
     {
-      m_td = &pass.getAnalysis<DataLayoutPass> ().getDataLayout ();
       m_canFail = pass.getAnalysisIfAvailable<CanFail> ();
     }
     UfoSmallSymExec (const UfoSmallSymExec& o) : 
       SmallStepSymExec (o), m_pass (o.m_pass),
-      m_trackLvl (o.m_trackLvl), m_abs_funcs (o.m_abs_funcs) {}
+      m_trackLvl (o.m_trackLvl), m_abs_funcs (o.m_abs_funcs),
+      m_td (o.m_td), m_canFail (o.m_canFail) {}
     
     Expr errorFlag (const BasicBlock &BB) override;
 

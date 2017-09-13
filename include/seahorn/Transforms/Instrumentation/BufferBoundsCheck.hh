@@ -33,7 +33,7 @@
 #include "llvm/IR/DataLayout.h"
 #include "llvm/Analysis/MemoryBuiltins.h"
 #include "llvm/Analysis/CallGraph.h"
-#include "llvm/Target/TargetLibraryInfo.h"
+#include "llvm/Analysis/TargetLibraryInfo.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/Support/Debug.h"
 

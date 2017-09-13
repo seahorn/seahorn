@@ -21,7 +21,7 @@ DM-0002198
 #include "llvm/IR/DataLayout.h"
 #include "llvm/IR/IRBuilder.h"
 
-#include "llvm/Target/TargetLibraryInfo.h"
+#include "llvm/Analysis/TargetLibraryInfo.h"
 #include "llvm/Analysis/CallGraph.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/ADT/StringMap.h"
@@ -50,7 +50,7 @@ namespace
       if (!GV.isDeclaration()) return false;
       if (GV.getName().startswith ("llvm.")) return false;
 
-      if (!m_tli) m_tli = &getAnalysis<TargetLibraryInfo> ();
+      if (!m_tli) m_tli = &getAnalysis<TargetLibraryInfoWrapperPass> ().getTLI();
 
       // -- known library function 
       LibFunc::Func F;
@@ -103,8 +103,7 @@ namespace
 
     void getAnalysisUsage (AnalysisUsage &AU) const override
     {
-      AU.addRequired<DataLayoutPass> ();
-      AU.addRequired<TargetLibraryInfo> ();
+      AU.addRequired<TargetLibraryInfoWrapperPass> ();
       AU.setPreservesAll ();
     }
 

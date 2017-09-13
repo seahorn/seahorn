@@ -30,7 +30,6 @@ namespace seahorn
 
     void getAnalysisUsage (AnalysisUsage &AU) const  {
       AU.setPreservesAll ();
-      AU.addRequired<llvm::DataLayoutPass>();
     }
     
   };

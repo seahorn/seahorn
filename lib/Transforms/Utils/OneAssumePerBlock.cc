@@ -63,7 +63,8 @@ namespace seahorn
       while (!workList.empty())  {
         CallInst* CI = workList.back();
         workList.pop_back();
-        llvm::SplitBlock(CI->getParent(), CI, this);
+        llvm::SplitBlock(CI->getParent(), CI,
+			 nullptr/*DT*/, nullptr /*LI*/);
       }
 
       return true;

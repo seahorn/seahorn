@@ -11,13 +11,12 @@
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 #include "llvm/Support/CommandLine.h"
-//#include "llvm/Support/Debug.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Analysis/MemoryBuiltins.h"
 #include "llvm/Analysis/CallGraph.h"
 #include "llvm/Analysis/LoopInfo.h"
+#include "llvm/Analysis/TargetLibraryInfo.h"
 #include "llvm/ADT/SmallVector.h"
-#include "llvm/Target/TargetLibraryInfo.h"
 
 #include "boost/range.hpp"
 #include "boost/format.hpp"
@@ -312,7 +311,7 @@ namespace seahorn
       B.SetInsertPoint (I);	    
       auto insPt = B.GetInsertPoint ();
       insPt++;
-      B.SetInsertPoint (insPt);
+      B.SetInsertPoint (&*insPt);
       Instruction * ni = B.CreateCall(fn, &v);
       updateCg (cast<Function>(fn), cast<CallInst> (ni));	  
       ni->setDebugLoc (I->getDebugLoc ());
@@ -499,7 +498,7 @@ namespace seahorn
     {
       if (F.isDeclaration () || F.empty ()) return false;
 
-      LoopInfo *li = &getAnalysis<LoopInfo>(F);
+      LoopInfo *li = &getAnalysis<LoopInfoWrapperPass>(F).getLoopInfo();
       InstSet LoopConds;
       for (Loop *L: boost::make_iterator_range (li->begin(), li->end ())) {
 	extractLoopConditions (L, LoopConds);
@@ -536,7 +535,7 @@ namespace seahorn
     
     bool runOnModule (Module &M)
     {      
-      m_tli = &getAnalysis<TargetLibraryInfo>();
+      m_tli = &getAnalysis<TargetLibraryInfoWrapperPass>().getTLI();
       CallGraphWrapperPass *cgwp = getAnalysisIfAvailable<CallGraphWrapperPass> ();
       m_cg = cgwp ? &cgwp->getCallGraph () : nullptr;
                  
@@ -593,9 +592,9 @@ namespace seahorn
     void getAnalysisUsage (AnalysisUsage &AU) const
     {
       AU.setPreservesAll ();
-      AU.addRequired<llvm::TargetLibraryInfo>();
+      AU.addRequired<llvm::TargetLibraryInfoWrapperPass>();
       AU.addRequired<llvm::CallGraphWrapperPass>();
-      AU.addRequired<LoopInfo>();      
+      AU.addRequired<LoopInfoWrapperPass>();      
     }
     
     virtual const char* getPassName () const 

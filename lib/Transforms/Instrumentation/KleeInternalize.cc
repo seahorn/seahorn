@@ -21,7 +21,7 @@ DM-0002198
 #include "llvm/IR/DataLayout.h"
 #include "llvm/IR/IRBuilder.h"
 
-#include "llvm/Target/TargetLibraryInfo.h"
+#include "llvm/Analysis/TargetLibraryInfo.h"
 #include "llvm/Analysis/CallGraph.h"
 #include "llvm/Support/raw_ostream.h"
 
@@ -69,7 +69,7 @@ namespace
     void declareKleeFunctions (Module &M)
     {
       LLVMContext &C = M.getContext ();
-      m_dl = &(getAnalysis<DataLayoutPass>().getDataLayout());
+      m_dl = &M.getDataLayout();
 
       m_intptrTy = m_dl->getIntPtrType (C, 0);
 
@@ -114,7 +114,8 @@ namespace
       if (!GV.isDeclaration()) return false;
       if (GV.getName().startswith ("llvm.")) return false;
 
-      if (!m_tli) m_tli = &getAnalysis<TargetLibraryInfo> ();
+      if (!m_tli)
+	m_tli = &getAnalysis<TargetLibraryInfoWrapperPass> ().getTLI();
 
       // -- known library function 
       LibFunc::Func F;
@@ -150,10 +151,11 @@ namespace
 
 	// TODO: update callgraph with this call
         CallInst *mksym =
-          Builder.CreateCall3 (m_kleeMkSymbolicFn,
-                               Builder.CreateBitCast (v, Builder.getInt8PtrTy ()),
-                               sz,
-                               Builder.CreateConstGEP2_32 (fname, 0, 0));
+          Builder.CreateCall (m_kleeMkSymbolicFn,
+			      {Builder.CreateBitCast (v, Builder.getInt8PtrTy ()),
+			       sz,
+			       Builder.CreateConstGEP2_32 (fname->getType(),//llvm 3.8
+							   fname, 0, 0)});
 
         Value *retValue = Builder.CreateLoad (v);
         if (storeTy != retTy)
@@ -234,8 +236,7 @@ namespace
 
     void getAnalysisUsage (AnalysisUsage &AU) const override
     {
-      AU.addRequired<DataLayoutPass> ();
-      AU.addRequired<TargetLibraryInfo> ();
+      AU.addRequired<TargetLibraryInfoWrapperPass> ();
       AU.setPreservesAll ();
     }
 
@@ -292,11 +293,12 @@ namespace
             // TODO: extract line number info from inst
             if (!fname)
               fname = Builder.CreateGlobalString (F.getName ());
-            ninst = Builder.CreateCall4 (m_assertFailFn,
-                                         Builder.CreateGlobalStringPtr ("FAILED"),
-                                         Builder.CreateGlobalStringPtr ("__builtin.c"),
-                                         Builder.getInt32 (0),
-                                         Builder.CreateConstGEP2_32 (fname, 0, 0));
+            ninst = Builder.CreateCall (m_assertFailFn,
+                                       {Builder.CreateGlobalStringPtr ("FAILED"),
+					Builder.CreateGlobalStringPtr ("__builtin.c"),
+                                        Builder.getInt32 (0),
+					Builder.CreateConstGEP2_32 (fname->getType(), // llvm 3.8
+						         	    fname, 0, 0)});
             
           }
           

@@ -1206,7 +1206,7 @@ namespace seahorn
   
   bool UfoSmallSymExec::isTracked (const Value &v) 
   {
-    const Value* scalar;
+    const Value* scalar = nullptr;
 
     if (isa<UndefValue> (v)) return false;
     

@@ -3,6 +3,7 @@
 #include "boost/range.hpp"
 #include "boost/format.hpp"
 
+#include "llvm/Transforms/Utils/GlobalStatus.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/IR/IRBuilder.h"
 
@@ -17,7 +18,7 @@ namespace seahorn
   /// 
   /// Given a llvm.global_ctors list that we can understand,
   /// return a list of the functions and null terminator as a vector.
-  std::vector<Function *> parseGlobalCtors(GlobalVariable *GV) {
+  static std::vector<Function *> parseGlobalCtors(GlobalVariable *GV) {
     if (GV->getInitializer()->isNullValue())
       return std::vector<Function *>();
     ConstantArray *CA = cast<ConstantArray>(GV->getInitializer());
@@ -35,7 +36,7 @@ namespace seahorn
   /// 
   /// Find the llvm.global_ctors list, verifying that all initializers have an
   /// init priority of 65535.
-  GlobalVariable *findGlobalCtors(Module &M) {
+  static GlobalVariable *findGlobalCtors(Module &M) {
     
     GlobalVariable *GV = M.getGlobalVariable("llvm.global_ctors");
     if (!GV)
@@ -72,7 +73,8 @@ namespace seahorn
 
       
   //XXX: From DummyMainFunction.cpp
-  Function& makeNewNondetFn (Module &m, Type &type, unsigned num, std::string prefix) {
+  static Function& makeNewNondetFn (Module &m, Type &type, unsigned num,
+				    std::string prefix) {
     std::string name;
     unsigned c = num;
     do
@@ -82,7 +84,37 @@ namespace seahorn
     assert (res);
     return *res;
   }
+
+  /// C may have non-instruction users, and
+  /// allNonInstructionUsersCanBeMadeInstructions has returned true. Convert the
+  /// non-instruction users to instructions.
+  static void makeAllConstantUsesInstructions(Constant *C) {
+    SmallVector<ConstantExpr*,4> Users;
+    for (auto *U : C->users()) {
+      if (isa<ConstantExpr>(U))
+	Users.push_back(cast<ConstantExpr>(U));
+      else
+	// We should never get here; allNonInstructionUsersCanBeMadeInstructions
+	// should not have returned true for C.
+	assert(isa<Instruction>(U) &&
+	       "Can't transform non-constantexpr non-instruction to instruction!");
+    }
     
+    SmallVector<Value*,4> UUsers;
+    for (auto *U : Users) {
+      UUsers.clear();
+      for (auto *UU : U->users())
+	UUsers.push_back(UU);
+      for (auto *UU : UUsers) {
+	Instruction *UI = cast<Instruction>(UU);
+	Instruction *NewU = U->getAsInstruction();
+	NewU->insertBefore(UI);
+	UI->replaceUsesOfWith(U, NewU);
+      }
+      U->dropAllReferences();
+    }
+  }
+  
   Constant* LowerGvInitializers::getNondetFn (Type *type, Module& M) {
     Constant* res = m_ndfn [type];
     if (!res) {
@@ -91,11 +123,11 @@ namespace seahorn
     }
     return res;
   }
-  
+
   // Add instructions in main that initialize global variables.
   bool LowerGvInitializers::runOnModule (Module &M) {
 
-    const DataLayout* DL = &getAnalysis<DataLayoutPass>().getDataLayout ();
+    const DataLayout* DL = &M.getDataLayout();
 
     Function *f = M.getFunction ("main");
     if (!f) {
@@ -104,33 +136,51 @@ namespace seahorn
       return false;
     }
     
-    IRBuilder<> Builder (f->getContext ());
-    
-    Builder.SetInsertPoint (&f->getEntryBlock (), f->getEntryBlock ().begin ());
-
+    IRBuilder<> Builder(M.getContext ());
+        Builder.SetInsertPoint (&f->getEntryBlock (), f->getEntryBlock ().begin ());
     bool change=false;
+    std::vector<GlobalVariable*> gvs;
+    for (GlobalVariable &gv : boost::make_iterator_range(M.global_begin(),
+							 M.global_end())) {
+      if (gv.hasInitializer ())
+	gvs.push_back(&gv);
+    }
     
-    // Iterate over global variables
-    for (GlobalVariable &gv : boost::make_iterator_range (M.global_begin (),
-                                                          M.global_end ()))
-    {
-      if (!gv.hasInitializer ()) continue;
+    // Iterate over global variables    
+    for (GlobalVariable *gv : gvs) {
       // XXX: skip global variables used by seahorn for instrumentation
-      if (gv.getName ().startswith ("sea_")) continue;      
-      PointerType *ty = dyn_cast<PointerType> (gv.getType ());
+      if (gv->getName ().startswith ("sea_")) continue;
+
+      // First we try to promote the global variable to a stack variable
+      if (isa<ConstantInt>(gv->getInitializer())) {
+	GlobalStatus GS;
+	bool AddressTaken = GlobalStatus::analyzeGlobal(gv, GS);
+	if (!AddressTaken &&
+	    !GS.HasMultipleAccessingFunctions &&
+	    GS.AccessingFunction &&
+	    GS.AccessingFunction->getName() == "main") {
+	  Type *ElemTy = gv->getType()->getElementType();
+	  AllocaInst* Alloca = Builder.CreateAlloca(ElemTy, nullptr, gv->getName());
+	  Builder.CreateStore(gv->getInitializer(), Alloca,DL->getABITypeAlignment (ElemTy));
+	  makeAllConstantUsesInstructions(gv);
+	  gv->replaceAllUsesWith(Alloca);
+	  gv->eraseFromParent();
+	  continue;
+	}
+      }
+
+      // Otherwise we add a store instruction in the entry block of
+      // main if initializer is a scalar
+      PointerType *ty = dyn_cast<PointerType> (gv->getType ());
       if (!ty) continue;
       Type *ety = ty->getElementType ();
       // only deal with scalars for now
-      if (ety->isIntegerTy () || ety->isPointerTy ())
-      {
-      
+      if (ety->isIntegerTy () || ety->isPointerTy ()) {
         // -- create a store instruction
-        StoreInst* SI= Builder.CreateAlignedStore (gv.getInitializer (), &gv, 
+        StoreInst* SI= Builder.CreateAlignedStore (gv->getInitializer (), gv, 
 						   DL->getABITypeAlignment (ety));
-
         LOG ("lower-gv-init",
              errs () << "LowerGvInitializers: created a store " << *SI << "\n");
-	
         change=true;
       }
       // else

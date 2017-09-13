@@ -23,7 +23,7 @@
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Support/Format.h"
-#include "llvm/Target/TargetLibraryInfo.h"
+#include "llvm/Analysis/TargetLibraryInfo.h"
 #include "llvm/Support/CommandLine.h"
 #include <boost/unordered_map.hpp>
 
@@ -68,14 +68,19 @@ namespace seahorn {
       if (!inst) return false;
       
       const DebugLoc &dloc = inst->getDebugLoc ();
-      if (dloc.isUnknown ()) return false;
+      if (!dloc.get ()) return false;
 
       unsigned Line = dloc.getLine ();
       unsigned Col = dloc.getCol ();
-      std::string File; 
-      DIScope Scope (dloc.getScope ());
-      if (Scope) File = Scope.getFilename ();
-      else File = "unknown file";
+
+      // llvm 3.6
+      //std::string File;
+      //DIScope Scope (dloc.getScope ());
+      //if (dloc.get()Scope) File = Scope.getFilename ();
+      //else File = "unknown file";
+
+      // llvm 3.8
+      std::string File = dloc.get()->getFilename ();
       
       msg += "--- File: " + File + "\n"
           + "--- Line: " + std::to_string(Line)  + "\n" 
@@ -225,7 +230,7 @@ namespace seahorn {
 
     void processPointerOperand (Value* V) {
       uint64_t Size;
-      if (getObjectSize (V, Size, DL, TLI, true)) {
+      if (getObjectSize (V, Size, *DL, TLI, true)) {
         ++SafeMemAccess;
       } else {
         ++MemUnknown;        
@@ -234,7 +239,7 @@ namespace seahorn {
 
     void processMemIntrPointerOperand (Value* V, Value*N) {
       uint64_t Size;
-      if (getObjectSize (V, Size, DL, TLI, true) && isa<ConstantInt> (N)) {
+      if (getObjectSize (V, Size, *DL, TLI, true) && isa<ConstantInt> (N)) {
         ++SafeMemAccess;
       } else {
         ++MemUnknown;        
@@ -377,8 +382,8 @@ namespace seahorn {
 
     bool runOnModule (Module &M) override {
 
-      DL = &getAnalysis<DataLayoutPass>().getDataLayout ();
-      TLI = &getAnalysis<TargetLibraryInfo>();
+      DL = &M.getDataLayout ();
+      TLI = &getAnalysis<TargetLibraryInfoWrapperPass>().getTLI();
 
       /// Look at the callgraph 
       // CallGraphWrapperPass *cgwp = &getAnalysis<CallGraphWrapperPass> ();
@@ -458,9 +463,8 @@ namespace seahorn {
 
     void getAnalysisUsage(AnalysisUsage &AU) const override {
       AU.setPreservesAll();
-      AU.addRequired<llvm::DataLayoutPass>();
       AU.addRequired<llvm::CallGraphWrapperPass>();
-      AU.addRequired<llvm::TargetLibraryInfo>();
+      AU.addRequired<llvm::TargetLibraryInfoWrapperPass>();
       AU.addPreserved<CallGraphWrapperPass> ();
     }
 

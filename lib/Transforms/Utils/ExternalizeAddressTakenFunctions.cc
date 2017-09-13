@@ -46,7 +46,7 @@ namespace seahorn
                                            GlobalValue::ExternalLinkage, 
                                            F.getName () + ".stub");
           NF->copyAttributesFrom(&F);
-          F.getParent ()->getFunctionList ().insert(&F, NF);       
+          F.getParent ()->getFunctionList ().insert(F.getIterator(), NF);       
           
           // replace each use &foo with &foo_stub() where foo_stub is a
           // copy of foo but marked as external.
@@ -60,7 +60,7 @@ namespace seahorn
               continue;
             
             if (isa<CallInst>(FU) || isa<InvokeInst>(FU)) {
-              ImmutableCallSite CS(dyn_cast<Instruction>(FU));                        
+              ImmutableCallSite CS(dyn_cast<Instruction>(FU)); 
              if (!CS.isCallee (&U)) {
                U.set (NF);
                Changed=true;
@@ -68,11 +68,12 @@ namespace seahorn
             }
             
             if (!isa<CallInst>(FU) && !isa<InvokeInst>(FU)) {
-              if (GlobalAlias *a = dyn_cast<GlobalAlias> (FU))
-                //a->replaceUsesOfWithOnConstant (&F, NF, &U);
+              if (GlobalAlias *a = dyn_cast<GlobalAlias> (FU)) {
+                //a->handleOperandChange (&F, NF, &U);		
                 a->setAliasee (NF);
-              else if (Constant *c = dyn_cast<Constant> (FU)) 
-                c->replaceUsesOfWithOnConstant (&F, NF, &U);
+	      } else if (Constant *c = dyn_cast<Constant> (FU)) {
+		c->handleOperandChange (&F, NF, &U); 
+	      }
               else
                 U.set (NF);
               Changed=true;

@@ -97,7 +97,7 @@ if (NOT CMAKE_INSTALL_RPATH)
 endif ()
 
 
-set (Z3_TAG "origin/spacer" CACHE STRING "Z3 git tag to use")
+set (Z3_TAG "upstream/nlg" CACHE STRING "Z3 git tag to use")
 set (Z3_REPO "https://bitbucket.org/spacer/code.git" CACHE STRING "Z3 repo")
 if (CMAKE_BUILD_TYPE STREQUAL "Debug")
   set (Z3_DEBUG "-d")

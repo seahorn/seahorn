@@ -64,8 +64,7 @@ namespace seahorn
     params.set (":engine", PdrEngine);
     // -- disable slicing so that we can use cover
     params.set (":xform.slice", false);
-    params.set (":use_heavy_mev", true);
-    params.set (":reset_obligation_queue", true);
+    params.set (":spacer.reset_obligation_queue", true);
     params.set (":pdr.flexible_trace", FlexTrace);
     params.set (":xform.inline-linear", false);
     params.set (":xform.inline-eager", false);
@@ -74,10 +73,10 @@ namespace seahorn
     // -- disable propagate_variable_equivalences in tail_simplifier
     params.set (":xform.tail_simplifier_pve", false);
     params.set (":xform.subsumption_checker", Subsumption);
-    params.set (":order_children", HornChildren ? 1U : 0U);
+    params.set (":spacer.order_children", HornChildren ? 1U : 0U);
     params.set (":pdr.max_num_contexts", PdrContexts);
     fp.set (params);
-    
+
     db.loadZFixedPoint (fp, SkipConstraints);
     
     Stats::resume ("Horn");

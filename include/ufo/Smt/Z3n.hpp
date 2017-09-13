@@ -64,10 +64,10 @@ namespace z3
   };
 }
 
-namespace z3
+namespace ufo
 {
   // -- fixedpoint class is missing from z3++.h
-  class fixedpoint : public object
+  class fixedpoint : public z3::object
   {
     Z3_fixedpoint m_fixedpoint;
     void init (Z3_fixedpoint f)
@@ -76,8 +76,8 @@ namespace z3
       Z3_fixedpoint_inc_ref (ctx(), f);
     }
   public:
-    fixedpoint(context & c):object(c) { init(Z3_mk_fixedpoint(c)); }
-    fixedpoint(context & c, Z3_fixedpoint s):object(c) { init(s); }
+    fixedpoint(z3::context & c):object(c) { init(Z3_mk_fixedpoint(c)); }
+    fixedpoint(z3::context & c, Z3_fixedpoint s):object(c) { init(s); }
     fixedpoint(fixedpoint const & s):object(s) { init(s.m_fixedpoint); }
     ~fixedpoint() { Z3_fixedpoint_dec_ref(ctx(), m_fixedpoint); }
     operator Z3_fixedpoint() const { return m_fixedpoint; }
@@ -88,7 +88,7 @@ namespace z3
       m_fixedpoint = s.m_fixedpoint;
       return *this;
     }
-    void set(params const & p)
+    void set(z3::params const & p)
     { Z3_fixedpoint_set_params(ctx(), m_fixedpoint, p); check_error(); }
   };
 }
@@ -236,7 +236,8 @@ namespace ufo
 					    z3::ast_ptr_hash,
 					    z3::ast_ptr_equal_to> > cache_type;
 
-    ExprFactory& efac;
+    ExprFactory &efac;
+    z3::config  m_c; //default config
     z3::context ctx;
 
     cache_type cache;
@@ -284,7 +285,7 @@ namespace ufo
 
   public:
 
-    ZContext (ExprFactory &ef) : efac(ef) { init (); }
+    ZContext (ExprFactory &ef) : efac(ef), ctx(m_c) { init (); }
     ZContext (ExprFactory &ef, z3::config &c) : efac (ef), ctx(c) { init (); }
 
     ~ZContext () { cache.clear (); }
@@ -623,7 +624,7 @@ namespace ufo
 
     Z& z3;
     z3::context &ctx;
-    z3::fixedpoint fp;
+    ufo::fixedpoint fp;
     ExprFactory &efac;
 
     ExprVector m_rels;

@@ -97,24 +97,19 @@ if (NOT CMAKE_INSTALL_RPATH)
 endif ()
 
 
-set (Z3_TAG "upstream/nlg" CACHE STRING "Z3 git tag to use")
+set (Z3_TAG "origin/nlg" CACHE STRING "Z3 git tag to use")
 set (Z3_REPO "https://bitbucket.org/spacer/code.git" CACHE STRING "Z3 repo")
-if (CMAKE_BUILD_TYPE STREQUAL "Debug")
-  set (Z3_DEBUG "-d")
-else()
-  set (Z3_DEBUG "")
-endif()
-
 ExternalProject_Add(z3
   GIT_REPOSITORY  ${Z3_REPO}
   GIT_TAG ${Z3_TAG}
-  BUILD_IN_SOURCE 1
   INSTALL_DIR ${CMAKE_BINARY_DIR}/run
-  CONFIGURE_COMMAND env CC=${CMAKE_C_COMPILER} CXX=${CMAKE_CXX_COMPILER}
-  ./configure -p <INSTALL_DIR> -b build --staticlib ${Z3_DEBUG}
-  BUILD_COMMAND make -j3 -C build
-  INSTALL_COMMAND make -C build install
-  COMMAND ${CMAKE_COMMAND} -E touch ${CMAKE_CURRENT_LIST_FILE}
+  CMAKE_ARGS
+  -DCMAKE_C_COMPILER=${CMAKE_C_COMPILER} -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}
+  -DCMAKE_BUILD_TYPE:STRING=${CMAKE_BUILD_TYPE}
+  -DCMAKE_INSTALL_PREFIX:PATH=<INSTALL_DIR>
+  -DBUILD_LIBZ3_SHARED:BOOL=FALSE  
+  TEST_AFTER_INSTALL 1
+  TEST_COMMAND ${CMAKE_COMMAND} -E touch ${CMAKE_CURRENT_LIST_FILE}
   LOG_CONFIGURE 1
   LOG_INSTALL 1
   LOG_BUILD 1)
@@ -124,6 +119,7 @@ if (NOT Z3_FOUND)
   ExternalProject_Get_Property (z3 INSTALL_DIR)
   set(Z3_ROOT ${INSTALL_DIR} CACHE PATH "Forced location of Z3" FORCE)
   message(WARNING "No Z3 found. Run \n\tcmake --build . && cmake ${CMAKE_SOURCE_DIR}")
+  return()
 else()
   set_target_properties(z3 PROPERTIES EXCLUDE_FROM_ALL ON)
   include_directories(${Z3_INCLUDE_DIR})

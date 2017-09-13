@@ -1,4 +1,3 @@
-
 <p align=center><a href="https://seahorn.github.io"><img src="https://seahorn.github.io/images/seahorn-logo.png" alt="seahorn" width="200px" height="200px"/></a></p>
 
 <table>
@@ -26,14 +25,29 @@
 * `cd seahorn ; mkdir build ; cd build`
 * `cmake -DCMAKE_INSTALL_PREFIX=run ../ `
 * `cmake --build .` to build dependencies (Z3 and LLVM)
-* (optional) `cmake --build . --target extra && cmake ..` to download extra packages
-* (optional) `cmake --build . --target crab && cmake ..` to configure crab-llvm (if `extra` target was run)
+* `cmake --build . --target extra && cmake ..` to download extra packages
+* `cmake --build . --target crab && cmake ..` to configure crab-llvm (if `extra` target was run)
 * `cmake --build . --target install` to build seahorn and install everything in `run` directory
 
-SeaHorn and dependencies are installed in `build/run`
+_Note that the *install* target is required!_
 
-SeaHorn uses several components that can be installed individually (or
-even better via `extra` target) as well:
+The install target installs SeaHorn all of it dependencies under `build/run`.
+The main executable is `build/run/bin/sea`.
+
+SeaHorn requires clang version 3.8. The main script first looks for
+clang in the install directory, then on the path. To easiest way to
+ensure that the right version of clang is found is to link to the
+executable in the install directory:
+
+``` shell
+$ cd build/run/bin
+$ ln -sf PATH_TO_CLANG_38 .
+$ ln -sf PATH_TO_CLANG++_38 .
+```
+
+SeaHorn provides several components that are installed via the `extra`
+target. These components can be used by other projects outside of
+SeaHorn.
 
 * [llvm-seahorn](https://github.com/seahorn/llvm-seahorn): `git clone https://github.com/seahorn/llvm-seahorn.git`
 
@@ -74,7 +88,7 @@ users. Given a C program annotated with assertions, users just need to
 type: `sea pf file.c`
 
 This will output `unsat` if all assertions hold or otherwise `sat` if
-any of the assertions is violated. 
+any of the assertions is violated.
 
 The option `pf` tells SeaHorn to translate `file.c` into LLVM
 bitecode, generate a set of verification conditions (VCs), and

@@ -10,5 +10,5 @@ extern void __VERIFIER_assume (int);
 #endif
 
 #define assume __VERIFIER_assume
-#define sassert(X) if(!(X)) __VERIFIER_error ()
+#define sassert(X) (void)((X) || (__VERIFIER_error (), 0))
 #endif

@@ -83,16 +83,16 @@ class Clang(sea.LimitedCmd):
             cmd_name = which (['clang++-mp-3.8', 'clang++-3.8', 'clang++'])
         else:
             cmd_name = which (['clang-mp-3.8', 'clang-3.8', 'clang'])
-            
+
         if cmd_name is None: raise IOError ('clang not found')
         self.clangCmd = sea.ExtCmd (cmd_name)
 
-        if not all (_bc_or_ll_file (f) for f  in args.in_files): 
+        if not all (_bc_or_ll_file (f) for f  in args.in_files):
             cmd_name = which (['clang-mp-3.8', 'clang-3.8', 'clang'])
             if cmd_name is None: raise IOError ('clang not found')
             self.clangCmd = sea.ExtCmd (cmd_name)
 
-            argv = ['-c', '-emit-llvm', '-D__SEAHORN__']            
+            argv = ['-c', '-emit-llvm', '-D__SEAHORN__']
             if not self.plusplus:
                 ## this is an invalid argument with C++/ObjC++ with clang 3.8
                 argv.append('-fgnu89-inline')
@@ -101,7 +101,7 @@ class Clang(sea.LimitedCmd):
 
             if args.llvm_asm: argv.append ('-S')
             argv.append ('-m{0}'.format (args.machine))
-            
+
             if args.include_dir is not None:
                 argv.append ('-I' + args.include_dir)
 
@@ -111,7 +111,7 @@ class Clang(sea.LimitedCmd):
             argv.append ('-I' + include_dir)
 
             if args.debug_info: argv.append ('-g')
-        
+
             for in_file, out_file in zip(args.in_files, out_files):
                 if _bc_or_ll_file (in_file): continue
 
@@ -125,10 +125,10 @@ class Clang(sea.LimitedCmd):
                 argv1.append (in_file)
                 ret = self.clangCmd.run (args, argv1)
                 if ret <> 0: return ret
-        
+
         if len(out_files) > 1:
             # link
-            cmd_name = which (['llvm-link-mp-3.6', 'llvm-link-3.6', 'llvm-link'])
+            cmd_name = which (['llvm-link-mp-3.8', 'llvm-link-3.8', 'llvm-link'])
             if cmd_name is None: raise IOError ('llvm-link not found')
             self.linkCmd = sea.ExtCmd (cmd_name)
 
@@ -138,16 +138,16 @@ class Clang(sea.LimitedCmd):
                 argv.extend (['-o', args.out_file])
             argv.extend (out_files)
             return self.linkCmd.run (args, argv)
-        
+
         return 0
 
     @property
     def stdout (self):
         return self.clangCmd.stdout
-    
+
 class LinkRt(sea.LimitedCmd):
     """
-    Create an executable by linking with sea-rt library 
+    Create an executable by linking with sea-rt library
     """
     def __init__ (self, quiet=False):
         super (LinkRt, self).__init__('linkrt', 'Link sea-rt library', allow_extra=True)
@@ -169,7 +169,7 @@ class LinkRt(sea.LimitedCmd):
     def run (self, args, extra):
 
         cmd_name = which (['clang++-mp-3.8', 'clang++-3.8', 'clang++'])
-            
+
         if cmd_name is None: raise IOError ('clang++ not found')
         self.clangCmd = sea.ExtCmd (cmd_name)
 
@@ -182,13 +182,13 @@ class LinkRt(sea.LimitedCmd):
 
         assert (len (args.in_files) == 1)
         argv.append (args.in_files[0])
-        
+
         lib_dir = os.path.dirname (sys.argv[0])
         lib_dir = os.path.dirname (lib_dir)
         lib_dir = os.path.join (lib_dir, 'lib')
         libseart = os.path.join (lib_dir, 'libsea-rt.a')
         argv.append (libseart)
-        
+
         ret = self.clangCmd.run (args, argv)
         if ret <> 0: return ret
 
@@ -205,27 +205,27 @@ def get_sea_horn_dsa (opts):
                y == 'llvm':
                 return y
     return None
-    
+
 class Seapp(sea.LimitedCmd):
     def __init__(self, quiet=False, internalize=False, strip_extern=False):
         super(Seapp, self).__init__('pp', 'Pre-processing', allow_extra=True)
         self._internalize = internalize
         self._strip_extern = strip_extern
-        
+
     @property
     def stdout (self):
         return self.seappCmd.stdout
 
     def name_out_file (self, in_files, args=None, work_dir=None):
         assert (len(in_files) == 1)
-        
+
         if self._strip_extern: ext = '.ext.bc'
         elif self._internalize: ext = '.int.bc'
         else: ext = '.pp.bc'
-        
+
         # if args.llvm_asm: ext = '.pp.ll'
         return _remap_file_name (in_files[0], ext, work_dir)
-        
+
     def mk_arg_parser (self, ap):
         ap = super (Seapp, self).mk_arg_parser (ap)
         ap.add_argument ('--inline', dest='inline', help='Inline all functions',
@@ -233,19 +233,19 @@ class Seapp(sea.LimitedCmd):
         ap.add_argument ('--inline-only',
                          help='Inline only these functions',
                          dest='inline_only', type=str, metavar='str,...')
-        ap.add_argument ('--inline-allocators', dest='inline_alloc', 
+        ap.add_argument ('--inline-allocators', dest='inline_alloc',
                          help='Inline functions that (de)allocate memory',
                          default=False, action='store_true')
-        ap.add_argument ('--inline-constructors', dest='inline_const', 
+        ap.add_argument ('--inline-constructors', dest='inline_const',
                          help='Inline C++ constructors/destructors',
                          default=False, action='store_true')
-        ap.add_argument ('--no-promote-assumptions', dest='no_promote_assumptions', 
+        ap.add_argument ('--no-promote-assumptions', dest='no_promote_assumptions',
                          help='Do not promote verifier.assume to llvm.assume',
-                         default=False, action='store_true')        
-        ap.add_argument ('--simplify-pointer-loops', dest='simp_ptr_loops', 
+                         default=False, action='store_true')
+        ap.add_argument ('--simplify-pointer-loops', dest='simp_ptr_loops',
                          help='Simplify loops that iterate over pointers',
                          default=False, action='store_true')
-        ap.add_argument ('--unfold-loops-for-dsa', dest='unfold_loops_for_dsa', 
+        ap.add_argument ('--unfold-loops-for-dsa', dest='unfold_loops_for_dsa',
                          help='Unfold the first loop iteration if useful for DSA analysis',
                          default=False, action='store_true')
         ap.add_argument ('--abstract-memory',
@@ -254,7 +254,7 @@ class Seapp(sea.LimitedCmd):
                          default='none')
         ap.add_argument ('--entry', dest='entry', help='Make entry point if main does not exist',
                          default=None, metavar='str')
-        ap.add_argument ('--abc', dest='abc', 
+        ap.add_argument ('--abc', dest='abc',
                          help='Encoding used to insert array bounds checks',
                          choices=['none','local','global','global-c'], default='none')
         ap.add_argument ('--abc-disable-underflow', dest='abc_no_under',
@@ -284,7 +284,7 @@ class Seapp(sea.LimitedCmd):
         ap.add_argument ('--abc-store-base-only', dest='abc_store_base_only',
                          help='Check that only base pointers are stored in memory',
                          default=False, action='store_true')
-        ap.add_argument ('--abc-dsa', 
+        ap.add_argument ('--abc-dsa',
                          help='Heap analysis used by abc instrumentation: '
                          'context-insensitive Llvm Dsa, '
                          'flat memory SeaHorn Dsa, '
@@ -292,7 +292,7 @@ class Seapp(sea.LimitedCmd):
                          'context-sensitive SeaHorn Dsa',
                          choices=['llvm','sea-flat','sea-ci','sea-cs'],
                          dest='dsa', default='llvm')
-        ap.add_argument ('--abc-dsa-node', dest='abc_dsa', 
+        ap.add_argument ('--abc-dsa-node', dest='abc_dsa',
                          help='Instrument only pointers that belong to this DSA node N',
                          type=int, default=0, metavar='N')
         ap.add_argument ('--abc-dsa-stats', dest='abc_dsa_stats',
@@ -300,14 +300,14 @@ class Seapp(sea.LimitedCmd):
                          default=False, action='store_true')
         ap.add_argument ('--abc-dsa-to-file', dest='abc_dsa_to_file',
                          help='Dump some Dsa info to a file',
-                         metavar='DIR', default=None)        
-        ap.add_argument ('--abc-alloc-site', dest='abc_site', 
+                         metavar='DIR', default=None)
+        ap.add_argument ('--abc-alloc-site', dest='abc_site',
                          help='Instrument only pointers  that belong to this allocation site N',
                          type=int, default=0, metavar='N')
-        ap.add_argument ('--abc-instrument-only-types', 
+        ap.add_argument ('--abc-instrument-only-types',
                          help='Instrument only pointers of these user-defined types',
                          dest='abc_only_types', type=str,metavar='str,...')
-        ap.add_argument ('--abc-instrument-except-types', 
+        ap.add_argument ('--abc-instrument-except-types',
                          help='Do not instrument a pointer if it is not of these user-defined types',
                          dest='abc_except_types', type=str,metavar='str,...')
         ap.add_argument ('--ndc', dest='ndc',
@@ -315,7 +315,7 @@ class Seapp(sea.LimitedCmd):
                          default=False, action='store_true')
         ap.add_argument ('--ndc-opt', dest='ndc_opt',
                          help='Minimize the number of null dereference checks',
-                         default=False, action='store_true')        
+                         default=False, action='store_true')
         ap.add_argument ('--externalize-addr-taken-functions',
                          help='Externalize uses of address-taken functions',
                          dest='enable_ext_funcs', default=False,
@@ -340,10 +340,10 @@ class Seapp(sea.LimitedCmd):
                          action='store_true')
         ap.add_argument ('--no-kill-vaarg', help='Do not delete variadic functions',
                          dest='kill_vaarg', default=True, action='store_false')
-        ap.add_argument ('--strip-extern', help='Replace external function calls ' + 
+        ap.add_argument ('--strip-extern', help='Replace external function calls ' +
                          'by non-determinism', default=False, action='store_true',
                          dest='strip_external')
-        ap.add_argument ('--slice-functions', 
+        ap.add_argument ('--slice-functions',
                          help='Slice program onto these functions',
                          dest='slice_funcs', type=str, metavar='str,...')
         ap.add_argument ('--internalize', help='Create dummy definitions for all ' +
@@ -364,7 +364,7 @@ class Seapp(sea.LimitedCmd):
 
         if args.out_file is not None: argv.extend (['-o', args.out_file])
         if args.llvm_asm: argv.append ('-S')
-        
+
         # internalize takes precedence over all other options and must run alone
         if self._strip_extern:
             argv.append ('--only-strip-extern=true')
@@ -378,42 +378,42 @@ class Seapp(sea.LimitedCmd):
                     for f in args.inline_only.split(','):
                         argv.append ('--horn-inline-only={0}'.format(f))
                 if args.inline_alloc: argv.append ('--horn-inline-allocators')
-                if args.inline_const: argv.append ('--horn-inline-constructors') 
-            
+                if args.inline_const: argv.append ('--horn-inline-constructors')
+
             if args.strip_external:
                 argv.append ('--strip-extern=true')
             else:
                 argv.append ('--strip-extern=false')
-            
+
             if args.no_promote_assumptions:
                 argv.append ('--promote-assumptions=false')
-                
+
             if args.abs_mem_lvl <> 'none':
                 argv.append ('--abstract-memory')
                 argv.append ('--abstract-memory-level={0}'.format(args.abs_mem_lvl))
-                
+
             if args.simp_ptr_loops:
                 argv.append('--simplify-pointer-loops')
 
             if args.unfold_loops_for_dsa:
                 argv.append('--unfold-loops-for-dsa')
-            
+
             if args.lower_invoke:
                 argv.append ('--lower-invoke')
 
             if args.devirt_funcs:
                 argv.append ('--devirt-functions')
-            
+
             if args.enable_ext_funcs:
                 argv.append ('--externalize-addr-taken-funcs')
 
-            if args.lower_assert: argv.append('--lower-assert')                           
-                
+            if args.lower_assert: argv.append('--lower-assert')
+
             if args.abc <> 'none':
                 argv.append ('--abc={0}'.format(args.abc))
 
                 ## Begin Dsa options
-                
+
                 ## XXX: for simplicity, we enforce that --abc-dsa
                 ## (from `sea pp`) and --dsa (from `sea horn`) options are the same.
                 sea_horn_dsa = get_sea_horn_dsa (extra)
@@ -423,43 +423,43 @@ class Seapp(sea.LimitedCmd):
                     args.dsa = sea_horn_dsa
                 if args.dsa == 'llvm':
                     if args.abc_dsa_stats:
-                        argv.append ('--llvm-dsa-stats') 
+                        argv.append ('--llvm-dsa-stats')
                     if args.abc_dsa_to_file is not None:
                         argv.append ('--dsa-info-to-file={n}'.format(n=args.abc_dsa_to_file))
                 else:
                     if args.abc_dsa_stats:
                         argv.append ('--sea-dsa-stats')
-                    if args.abc_dsa_to_file is not None:                        
+                    if args.abc_dsa_to_file is not None:
                         argv.append ('--sea-dsa-info-to-file={n}'.format(n=args.abc_dsa_to_file))
-                    ## we tell abc to use sea-dsa    
+                    ## we tell abc to use sea-dsa
                     argv.append ('--abc-sea-dsa')
                     ## we select the sea-dsa variant
                     if args.dsa == 'sea-flat':
                         argv.append ('--sea-dsa=flat')
                     elif args.dsa == 'sea-ci':
-                        argv.append ('--sea-dsa=ci')                        
+                        argv.append ('--sea-dsa=ci')
                     else:
                         argv.append ('--sea-dsa=cs')
                 ## End Dsa options
 
                 argv.append ('--abc-dsa-node={n}'.format (n=args.abc_dsa))
                 argv.append ('--abc-alloc-site={n}'.format (n=args.abc_site))
-                if args.abc_only_types: 
+                if args.abc_only_types:
                     for t in args.abc_only_types.split(','):
                         argv.append ('--abc-instrument-only-type={0}'.format(t))
-                if args.abc_except_types: 
+                if args.abc_except_types:
                     for t in args.abc_except_types.split(','):
                         argv.append ('--abc-instrument-except-type={0}'.format (t))
-                if args.abc_no_under: argv.append ('--abc-instrument-underflow=false') 
-                if args.abc_no_reads: argv.append ('--abc-instrument-reads=false') 
-                if args.abc_no_writes: argv.append ('--abc-instrument-writes=false') 
-                if args.abc_no_intrinsics: argv.append ('--abc-instrument-mem-intrinsics=false') 
-                if args.abc_escape_ptr: argv.append ('--abc-escape-ptr') 
-                if args.abc_use_deref: argv.append ('--abc-use-deref') 
+                if args.abc_no_under: argv.append ('--abc-instrument-underflow=false')
+                if args.abc_no_reads: argv.append ('--abc-instrument-reads=false')
+                if args.abc_no_writes: argv.append ('--abc-instrument-writes=false')
+                if args.abc_no_intrinsics: argv.append ('--abc-instrument-mem-intrinsics=false')
+                if args.abc_escape_ptr: argv.append ('--abc-escape-ptr')
+                if args.abc_use_deref: argv.append ('--abc-use-deref')
                 if args.abc_track_base_only: argv.append ('--abc-track-base-only')
                 if args.abc_surface_only: argv.append ('--abc-surface-only')
                 if args.abc_store_base_only: argv.append ('--abc-store-base-only')
-                
+
             if args.extern_funcs:
                 for f in args.extern_funcs.split(','):
                     argv.append ('--externalize-function={0}'.format(f))
@@ -467,7 +467,7 @@ class Seapp(sea.LimitedCmd):
             if args.slice_funcs:
                 for f in args.slice_funcs.split(','):
                     argv.append ('--slice-function={0}'.format(f))
-                
+
             if args.enum_verifier_calls:
                 argv.append ('--enum-verifier-calls')
 
@@ -475,7 +475,7 @@ class Seapp(sea.LimitedCmd):
                 argv.append ('--null-check')
                 if args.ndc_opt:
                     argv.append ('--null-check-optimize')
-            
+
             if args.entry is not None:
                 argv.append ('--entry-point={0}'.format (args.entry))
 
@@ -483,7 +483,7 @@ class Seapp(sea.LimitedCmd):
                 argv.append('--kill-vaarg=true')
             else:
                 argv.append('--kill-vaarg=false')
-                
+
         if args.log is not None:
             for l in args.log.split (':'): argv.extend (['-log', l])
 
@@ -512,10 +512,10 @@ class MixedSem(sea.LimitedCmd):
                          help='Do not reduce main to return paths only',
                          default=True, action='store_false')
         # some passes only after mixed semantics
-        ap.add_argument ('--symbolize-constant-loop-bounds', dest='sym_bounds', 
+        ap.add_argument ('--symbolize-constant-loop-bounds', dest='sym_bounds',
                          help='Convert constant loop bounds into symbolic ones',
                          default=False, action='store_true')
-        ap.add_argument ('--ms-slice-functions', 
+        ap.add_argument ('--ms-slice-functions',
                          help='Slice program onto these functions after mixed semantics',
                          dest='ms_slice_funcs', type=str)
 
@@ -534,15 +534,15 @@ class MixedSem(sea.LimitedCmd):
         if args.reduce_main: argv.append ('--ms-reduce-main')
         if args.sym_bounds:
             argv.append ('--horn-symbolize-loops')
-            argv.append ('--promote-assumptions=false')            
+            argv.append ('--promote-assumptions=false')
         if args.ms_slice_funcs:
             for f in args.ms_slice_funcs.split(','):
                 argv.append ('--slice-function={0}'.format(f))
-            
+
         if args.llvm_asm: argv.append ('-S')
         argv.extend (args.in_files)
         return self.seappCmd.run (args, argv)
-    
+
 class WrapMem(sea.LimitedCmd):
     def __init__(self, quiet=False):
         super(WrapMem, self).__init__('wmem', 'Wrap external memory access with SeaRt calls',
@@ -555,7 +555,7 @@ class WrapMem(sea.LimitedCmd):
 
     def name_out_file (self, in_files, args=None, work_dir=None):
         assert (len (in_files) == 1)
-        
+
         ext = '.wmem.bc'
         return _remap_file_name (in_files[0], ext, work_dir)
 
@@ -659,8 +659,8 @@ class Seaopt(sea.LimitedCmd):
         return ap
 
     def run (self, args, extra):
-        cmd_name = which (['seaopt', 'opt-mp-3.6', 'opt-3.6', 'opt'])
-        if cmd_name is None: raise IOError ('neither seaopt nor opt where found')
+        cmd_name = which (['seaopt'])
+        if cmd_name is None: raise IOError ('`seaopt` from llvm-seahorn (https://github.com/seahorn/llvm-seahorn) is not found')
         self.seaoptCmd = sea.ExtCmd (cmd_name)
 
         argv = ['-f', '-funit-at-a-time']
@@ -721,8 +721,8 @@ class Unroll(sea.LimitedCmd):
         return ap
 
     def run (self, args, extra):
-        cmd_name = which (['seaopt', 'opt-mp-3.6', 'opt-3.6', 'opt'])
-        if cmd_name is None: raise IOError ('neither seaopt nor opt where found')
+        cmd_name = which (['seaopt'])
+        if cmd_name is None: raise IOError ('`seaopt` from llvm-seahorn (https://github.com/seahorn/llvm-seahorn) is not found')
         self.seaoptCmd = sea.ExtCmd (cmd_name)
 
         argv = ['-f', '-funit-at-a-time']
@@ -733,7 +733,7 @@ class Unroll(sea.LimitedCmd):
         argv.append ('-loop-simplify')
         # fake loops to be in the form suitable for loop-unroll
         argv.append ('-fake-latch-exit')
-        
+
         argv.append ('-loop-unroll')
         if args.enable_runtime:
             argv.append ('-unroll-runtime')
@@ -745,8 +745,8 @@ class Unroll(sea.LimitedCmd):
 
         argv.extend (args.in_files)
         if args.llvm_asm: argv.append ('-S')
-        return self.seaoptCmd.run (args, argv)    
-    
+        return self.seaoptCmd.run (args, argv)
+
 def _is_seahorn_opt (x):
     if x.startswith ('-'):
         y = x.strip ('-')
@@ -792,7 +792,7 @@ class Seahorn(sea.LimitedCmd):
         ap.add_argument ('--track',
                          help='Track registers, pointers, and memory',
                          choices=['reg', 'ptr', 'mem'], default='mem')
-        ap.add_argument ('--dsa', 
+        ap.add_argument ('--dsa',
                          help='Heap analysis used by \'mem\' encoding: '
                          'context-insensitive Llvm Dsa, '
                          'flat memory SeaHorn Dsa, '
@@ -802,7 +802,7 @@ class Seahorn(sea.LimitedCmd):
                          dest='dsa', default='llvm')
         ap.add_argument ('--mem-dot',
                          help='Print Dsa memory graphs of all functions to dot format',
-                         dest='mem_dot', default=False, action='store_true'),        
+                         dest='mem_dot', default=False, action='store_true'),
         ap.add_argument ('--show-invars',
                          help='Display computed invariants',
                          dest='show_invars', default=False, action='store_true')
@@ -823,24 +823,24 @@ class Seahorn(sea.LimitedCmd):
 
         if args.bmc:
             argv.append ('--horn-bmc')
-            
+
         if args.crab:
             argv.append ('--horn-crab')
 
         if args.solve or args.out_file is not None:
             argv.append ('--keep-shadows=true')
 
-            
+
         if args.dsa != 'llvm':
             if "--dsa-stats" in extra:
                 argv.append ('--sea-dsa-stats')
-            ## we tell abc to use sea-dsa    
+            ## we tell abc to use sea-dsa
             argv.append ('--horn-sea-dsa')
             ## we select the sea-dsa variant
             if args.dsa == 'sea-flat':
                 argv.append ('--sea-dsa=flat')
             elif args.dsa == 'sea-ci':
-                argv.append ('--sea-dsa=ci')                        
+                argv.append ('--sea-dsa=ci')
             else:
                 argv.append ('--sea-dsa=cs')
 
@@ -911,7 +911,7 @@ class SeahornClp(sea.LimitedCmd):
                          help='Print function applications in CLP format',
                          dest='clp_fapp')
         ap.add_argument ('--inv',
-                         default=None, 
+                         default=None,
                          help='Save invariant into a file',
                          dest='inv')
         ### TODO: expose options for semantic level, inter-procedural
@@ -990,7 +990,7 @@ class LegacyFrontEnd (sea.LimitedCmd):
         argv.append ('-m{0}'.format (args.machine))
         if args.debug_info: argv.append ('--mark-lines')
         argv.extend (args.in_files)
-        
+
         return self.lfeCmd.run (args, argv)
 
 class Crab (sea.LimitedCmd):
@@ -1164,7 +1164,7 @@ class SeaInspect(sea.LimitedCmd):
                          dest='cfg_only_dot', help='Print CFG of all functions (without instructions) to dot format')
         ap.add_argument ('--mem-dot', default=False, action='store_true',
                          dest='mem_dot', help='Print memory graph of all functions to dot format')
-        ap.add_argument ('--dot-outdir', default="", type=str, metavar='DIR', 
+        ap.add_argument ('--dot-outdir', default="", type=str, metavar='DIR',
                          dest='dot_outdir', help='Directory to store all dot files')
         ap.add_argument ('--cfg-viewer', default=False, action='store_true',
                          dest='cfg_viewer', help='View CFG of all functions to dot format')
@@ -1190,7 +1190,7 @@ class SeaInspect(sea.LimitedCmd):
         if args.cfg_only_viewer: argv.extend (['-cfg-only-viewer'])
         if args.mem_dot: argv.extend (['-mem-dot'])
         if args.mem_viewer: argv.extend (['-mem-viewer'])
-        if args.mem_stats: argv.extend (['-mem-stats'])                                
+        if args.mem_stats: argv.extend (['-mem-stats'])
         if args.mem_dot or args.mem_viewer:
             if args.dot_outdir is not "":
                 argv.extend(['-sea-dsa-dot-outdir={0}'.format(args.dot_outdir)])
@@ -1204,7 +1204,7 @@ class SeaInspect(sea.LimitedCmd):
                 argv.extend (['--sea-dsa=ci'])
             else:
                 argv.extend (['--sea-dsa=cs'])
-            
+
         argv.extend (args.in_files)
         # pick out extra seahorn options
         argv.extend (filter (_is_seahorn_opt, extra))
@@ -1237,4 +1237,3 @@ seaClangAbc = sea.SeqCmd ('clang-abc', 'alias for clang|abc', [Clang(), SeaAbc()
 Exe = sea.SeqCmd ('exe', 'alias for clang|pp --strip-extern|pp --internalize|wmem|linkrt',
                   [Clang(), Seapp(strip_extern=True), Seapp(internalize=True), WrapMem(), LinkRt()])
 feInspect = sea.SeqCmd ('fe-inspect', 'alias for fe + seainspect', FrontEnd.cmds + [SeaInspect()])
-                         

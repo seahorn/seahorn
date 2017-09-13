@@ -34,17 +34,6 @@ _Note that the *install* target is required!_
 The install target installs SeaHorn all of it dependencies under `build/run`.
 The main executable is `build/run/bin/sea`.
 
-SeaHorn requires clang version 3.8. The main script first looks for
-clang in the install directory, then on the path. To easiest way to
-ensure that the right version of clang is found is to link to the
-executable in the install directory:
-
-``` shell
-$ cd build/run/bin
-$ ln -sf PATH_TO_CLANG_38 .
-$ ln -sf PATH_TO_CLANG++_38 .
-```
-
 SeaHorn provides several components that are installed via the `extra`
 target. These components can be used by other projects outside of
 SeaHorn.
@@ -74,12 +63,38 @@ SeaHorn.
   pass to convert undefined values into nondeterministic calls, among
   other things.
 
-SeaHorn doesn't come with its own version of Clang and expects to find it either in the build directory (`run/bin`) or in PATH. Make sure that the version of Clang matches the version of LLVM that comes with SeaHorn (currently 3.8). The easiest way to provide the right version of Clang is to download it from [llvm.org](http://releases.llvm.org/download.html), unpact it somewhere and create a symbolic link to `clang` and `clang++` in `run/bin`.
+SeaHorn doesn't come with its own version of Clang and expects to find it 
+either in the build directory (`run/bin`) or in PATH. Make sure that the 
+version of Clang matches the version of LLVM that comes with SeaHorn 
+(currently 3.8). The easiest way to provide the right version of Clang is 
+to download it from [llvm.org](http://releases.llvm.org/download.html), 
+unpact it somewhere and create a symbolic link to `clang` and `clang++` 
+in `run/bin`.
 ```
 cd seahorn/build/run/bin
 ln -s place_where_you_unpacked_clang/bin/clang clang
 ln -s place_where_you_unpacked_clang/bin/clang++ clang++
 ```
+
+# Test #
+
+Tests require `lit` and `OutputCheck`. These can be installed using
+
+``` shell
+pip install lit OutputCheck
+```
+
+Test can be run using
+
+``` shell
+  $ cmake --build . --target test-simple
+  $ cmake --build . --target test-solve
+  $ cmake --build . --target test-abc
+  $ cmake --build . --target test-dsa
+```
+
+__Note: `test-dsa` requires additional python packages__
+
 
 # Usage #
 

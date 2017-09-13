@@ -7,7 +7,6 @@ set (USED_LIBS
   SeaSupport
   ${LLVM_SEAHORN_LIBS}
   avy
-  ${Z3_LIBRARY}
   ${Boost_SYSTEM_LIBRARY}
   ${GMPXX_LIB}
   ${GMP_LIB}

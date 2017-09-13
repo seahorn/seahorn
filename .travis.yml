@@ -28,10 +28,10 @@ install:
   - until sudo apt-get install --yes libgmp-dev; do echo retry; done
   - until sudo apt-get install --yes libmpfr-dev; do echo retry; done
   - until sudo apt-get install -qq clang-3.8; do echo retry; done
-  ### precompiled binaries for LLVM 3.8  
-  - export LLVM_ROOT="$TRAVIS_BUILD_DIR/LLVM-3.8-Linux"
-  - wget https://jorgenavas.github.io/sw/LLVM-3.8-Linux.tar.gz  
-  - tar xf LLVM-3.8-Linux.tar.gz
+  ### precompiled binaries for LLVM 3.8.1
+  - export LLVM_ROOT="$TRAVIS_BUILD_DIR/LLVM-3.8.1-Linux"
+  - wget https://github.com/seahorn/seahorn/releases/download/untagged-52277792d2b0c5b411b0/LLVM-3.8.1-Linux.tar.gz
+  - tar xf LLVM-3.8.1-Linux.tar.gz
   ### precompiled binaries for z3
   - export Z3_ROOT="$TRAVIS_BUILD_DIR/Z3-Linux"
   - wget https://jorgenavas.github.io/sw/Z3-Linux.tar.gz

@@ -70,7 +70,14 @@ namespace seahorn
     }
     return change;
   }
- 
+
+  // If the function becomes empty then it cannot have metadata in its
+  // declaration.
+  static void removeMetadataIfFunctionIsEmpty(Function &f) {
+    if (f.empty() && f.hasMetadata())
+      f.dropUnknownMetadata({});
+  }
+
   bool MixedSemantics::runOnModule (Module &M)
   {
     Function *main = M.getFunction ("main");
@@ -82,6 +89,7 @@ namespace seahorn
       // -- this benefits the legacy front-end. 
       // -- it might create issues in some applications where mixed-semantics is applied
       if (ReduceMain) reduceToReturnPaths (*main);
+      removeMetadataIfFunctionIsEmpty(*main);
       return false;
     }
     

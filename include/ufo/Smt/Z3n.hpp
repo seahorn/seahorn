@@ -148,7 +148,7 @@ namespace ufo
     z3::goal goal (ctx);
     Z3_goal_assert (ctx, goal, qexpr);
 
-    z3::tactic qe (ctx, "qe");
+    z3::tactic qe (ctx, "qe2");
     ctx.check_error ();
 
     z3::apply_result ares = qe (goal);

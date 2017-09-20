@@ -868,7 +868,7 @@ namespace ufo
      * Given a function application P(x, y, z), adds a given lemma to
      * the given level of P. The lemma must be in terms of x, y, z
      */
-    void addCover (Expr pred, Expr lemma, int lvl = -1)
+    void addLemma(Expr pred, Expr lemma, bool is_invariant, int lvl = -1)
     {
       if (isOpX<TRUE> (lemma)) return;
       
@@ -878,8 +878,12 @@ namespace ufo
 
       if (isOpX<FALSE> (lemma))
       {
-        Z3_fixedpoint_add_cover (ctx, fp, lvl, Z3_get_app_decl (ctx, app), 
-                                 Z3_mk_false (ctx));
+	if (is_invariant)
+	  Z3_fixedpoint_add_invariant (ctx, fp, Z3_get_app_decl (ctx, app), 
+				       Z3_mk_false (ctx));
+	else
+	  Z3_fixedpoint_add_cover(ctx, fp, lvl, Z3_get_app_decl (ctx, app), 
+				  Z3_mk_false (ctx));	  
         ctx.check_error ();
         return;
       }
@@ -909,11 +913,38 @@ namespace ufo
       z3::ast zlemma (ctx, Z3_substitute (ctx, z3.toAst (lemma),
 					  from.size (), &from [0], &to [0]));
 
-      Z3_fixedpoint_add_cover (ctx, fp, lvl,
-			       Z3_get_app_decl (ctx, app), zlemma);
+      if (is_invariant) 
+	Z3_fixedpoint_add_invariant (ctx, fp, 
+				     Z3_get_app_decl (ctx, app), zlemma);
+      else
+	Z3_fixedpoint_add_cover (ctx, fp, lvl,
+				 Z3_get_app_decl (ctx, app), zlemma);
+	
       ctx.check_error ();
     }
 
+    
+    
+    /**
+     * Given a function application P(x, y, z), adds a given lemma to
+     * the given level of P. The lemma must be in terms of x, y, z
+     * The lemma is used everywhere.
+     */
+    void addCover (Expr pred, Expr lemma, int lvl = -1)
+    {
+      addLemma(pred,lemma,false,lvl);
+    }
+
+    /**
+     * Given a function application P(x, y, z), adds a given lemma to
+     * the given level of P. The lemma must be in terms of x, y, z
+     * The lemma is used only during the inductive invariant check.
+     */
+    void addInvariant (Expr pred, Expr lemma)
+    {
+      addLemma(pred,lemma,true,-1);
+    }
+    
 
     unsigned getNumLevels (Expr pred)
     {

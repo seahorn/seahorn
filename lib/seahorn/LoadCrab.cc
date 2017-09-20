@@ -572,7 +572,7 @@ namespace seahorn
            errs () << ")  "  << *exp << "\n"; );
            
 
-      db.addConstraint (bind::fapp (pred, live), exp);
+      db.addInvariant (bind::fapp (pred, live), exp);
       
     }    
     return false;

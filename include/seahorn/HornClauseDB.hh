@@ -116,6 +116,7 @@ namespace seahorn
     RuleVector m_rules;
     ExprVector m_queries;
     std::map<Expr, ExprVector> m_constraints;
+    std::map<Expr, ExprVector> m_invariants;
     
     /// indexes
 
@@ -218,6 +219,15 @@ namespace seahorn
     
     /// Returns the current constraints for the predicate
     Expr getConstraints (Expr pred) const;
+
+    bool hasInvariants (Expr reln) const {return m_invariants.count (reln) > 0;}
+    
+    /// Add invariant to a predicate
+    /// Adds invariant Forall V . pred -> lemma
+    void addInvariant (Expr pred, Expr lemma);
+    
+    /// Returns the current invariants for the predicate
+    Expr getInvariants (Expr pred) const;
     
 
     raw_ostream& write (raw_ostream& o) const;
@@ -236,7 +246,7 @@ namespace seahorn
         fp.addRule (rule.vars (), rule.get ()); 
 
       for (auto &r : getRelations ())
-        if (!skipConstraints && hasConstraints (r))
+        if (!skipConstraints && (hasConstraints (r) || hasInvariants (r)))
         {
           ExprVector args;
           for (unsigned i = 0, sz = bind::domainSz (r); i < sz; ++i)
@@ -247,7 +257,10 @@ namespace seahorn
           }
           Expr pred;
           pred = bind::fapp (r, args);
-          fp.addCover (pred, getConstraints (pred));
+	  if (hasConstraints (r))
+	    fp.addCover (pred, getConstraints (pred));
+	  if (hasInvariants (r))
+	    fp.addInvariant (pred, getInvariants (pred));	  
         }
 
       if (!skipQuery) fp.addQueries (getQueries ());

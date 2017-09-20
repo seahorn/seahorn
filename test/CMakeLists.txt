@@ -27,7 +27,7 @@ add_lit_testsuite(pred-abs "Regression test on Predicate Abstraction"
    )
 
 add_lit_testsuite(test-abc "Regression test for Array Bounds Checks"
-  -v
+  #--show-tests
   ${CMAKE_CURRENT_SOURCE_DIR}/abc
   PARAMS
   test_dir=${CMAKE_CURRENT_BINARY_DIR}

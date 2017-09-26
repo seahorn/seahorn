@@ -44,6 +44,10 @@ HornChildren ("horn-child-order", cl::Hidden, cl::init(true));
 static llvm::cl::opt<unsigned>
 PdrContexts ("horn-pdr-contexts", cl::Hidden, cl::init (500));
 
+static llvm::cl::opt<bool>
+WeakAbs ("horn-weak-abs", cl::Hidden, cl::init(true),
+	 cl::desc ("Perform weak abstraction"));
+
 namespace seahorn
 {
   char HornSolver::ID = 0;
@@ -51,7 +55,7 @@ namespace seahorn
   bool HornSolver::runOnModule (Module &M)
   {
     Stats::sset ("Result", "UNKNOWN");
-    
+
     HornifyModule &hm = getAnalysis<HornifyModule> ();
 
     // Load the Horn clause database
@@ -69,21 +73,25 @@ namespace seahorn
     params.set (":xform.inline-linear", false);
     params.set (":xform.inline-eager", false);
     // -- disable utvpi. It is unstable.
-    //XXparams.set (":pdr.utvpi", false);
+    params.set (":pdr.utvpi", false);
     // -- disable propagate_variable_equivalences in tail_simplifier
     params.set (":xform.tail_simplifier_pve", false);
-    //XXparams.set (":xform.subsumption_checker", Subsumption);
-    //XXparams.set (":spacer.order_children", HornChildren ? 1U : 0U);
-    //XXparams.set (":pdr.max_num_contexts", PdrContexts);
+    params.set (":xform.subsumption_checker", Subsumption);
+    params.set (":spacer.order_children", HornChildren ? 1U : 0U);
+    params.set (":pdr.max_num_contexts", PdrContexts);
     params.set (":spacer.elim_aux", true);
     params.set (":spacer.reach_dnf", true);
+    //params.set ("print_statistics", true);
+    params.set (":spacer.use_ext_invariants", true);
+    params.set (":spacer.weak_abs", WeakAbs);
+    
     fp.set (params);
     db.loadZFixedPoint (fp, SkipConstraints);
     
     Stats::resume ("Horn");
     m_result = fp.query ();
     Stats::stop ("Horn");
-    
+
     if (m_result) outs () << "sat"; 
     else if (!m_result) outs () << "unsat"; 
     else outs () << "unknown"; 
@@ -95,7 +103,7 @@ namespace seahorn
     LOG ("answer",
          if (m_result || !m_result) errs () << fp.getAnswer () << "\n";);
 
-
+    
     if (PrintAnswer && !m_result)
     {
       HornDbModel dbModel;

@@ -697,7 +697,6 @@ namespace
       {
         havoc (I);
         assert (m_fparams.size () == 3);
-        assert (!m_uniq);
         if (IgnoreCalloc)
           m_side.push_back (mk<EQ> (m_outMem, m_inMem));
         else
@@ -705,16 +704,19 @@ namespace
           // XXX This is potentially unsound if the corresponding DSA
           // XXX node corresponds to multiple allocation sites
           errs () << "WARNING: zero-initializing DSA node due to calloc()\n";
-          m_side.push_back (mk<EQ> (m_outMem,
-                                    op::array::constArray
-                                    (sort::intTy (m_efac), zeroE)));
+	  if (m_uniq) {
+	    side (m_outMem, zeroE);
+	  } else {
+	    m_side.push_back (mk<EQ> (m_outMem,
+				      op::array::constArray
+				      (sort::intTy (m_efac), zeroE)));
+	  }
         }
       }
       else if (MemSetInst *MSI = dyn_cast<MemSetInst>(&I))		
       {
 	if (m_inMem && m_outMem && m_sem.isTracked (*(MSI->getDest ()))) {
 	  assert (m_fparams.size () == 3);
-	  assert (!m_uniq);
 	  if (IgnoreMemset)
 	    m_side.push_back (mk<EQ> (m_outMem, m_inMem));
 	  else
@@ -724,10 +726,14 @@ namespace
 	      // XXX This is potentially unsound if the corresponding DSA
 	      // XXX node corresponds to multiple allocation sites
 	      Expr val = mkTerm<mpz_class> (expr::toMpz (c->getValue ()), m_efac); 
-	      errs () << "WARNING: initializing DSA node due to memset()\n";
-	      m_side.push_back (mk<EQ> (m_outMem,
-					op::array::constArray
-					(sort::intTy (m_efac), val)));
+	      errs () << "WARNING: initializing DSA node due to memset()\n";	      
+	      if (m_uniq) {
+		side (m_outMem, val);
+	      } else {
+		m_side.push_back (mk<EQ> (m_outMem,
+					  op::array::constArray
+					  (sort::intTy (m_efac), val)));
+	      }
 	    }
 	  }
 	}

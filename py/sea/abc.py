@@ -65,6 +65,10 @@ def remap_file_name (in_file, ext, work_dir):
     out_file = out_file + ext
     return out_file
 
+def _bc_or_ll_file (name):
+    ext = os.path.splitext (name)[1]
+    return ext == '.bc' or ext == '.ll'
+
 def get_sea ():
     #from sea import which 
     cmd_name = which (['sea'])
@@ -101,7 +105,7 @@ def add_abc_args(ap):
     ap.add_argument ('--do-not-split-proof', dest='dont_split_proof',
                      help='Do not split the proof by allocation sites',
                      default=False, action='store_true')
-    # XXX for debugging: this might produce quite different proofs from --do-not-split-proof
+    # XXX this might produce quite different proofs from --do-not-split-proof
     ap.add_argument ('--sequential', dest='sequential',
                      help="if do-not-split-proof is disabled then prove \n"
                            "each allocation site separately but sequentially "
@@ -372,7 +376,6 @@ def prove_abc (in_file, alloca_id, args, extra = []):
 
     p = sub.Popen(pf_cmd, shell=False, stdout=sub.PIPE, stderr=sub.STDOUT)
     results, _ = p.communicate()
-    print results
     checks, ans, time, blks, invars_size, exitcode, signalcode = get_results (results, p.returncode, args.cpu)
     if time == float(args.cpu):
         if "WARNING: found call to verifier.error()" in results:
@@ -387,7 +390,6 @@ def prove_abc (in_file, alloca_id, args, extra = []):
     elif verbose or args.zverbose > 0:
         print " ".join(pf_cmd)        
         print results
-        
     return (checks, ans, time, blks, invars_size, exitcode, signalcode)
 
 
@@ -505,6 +507,11 @@ def sea_abc(args, extra): # extra is unused
     assert (len(args.in_files) == 1)
     in_file = args.in_files[0]
 
+    # sea_abc takes bitcode as input 
+    if not _bc_or_ll_file(in_file):
+        report_fatal_error("Input file must be .bc or .ll. " + 
+                           "Use clang-abc to take a c/c++ file as input")
+        
     if args.dont_split_proof or args.alloc_site >= 0:
         alloc_site = None
         if args.alloc_site >= 0: alloc_site = args.alloc_site
@@ -526,7 +533,7 @@ def sea_abc(args, extra): # extra is unused
         # results['AllocId'] = -1; results['NumChecks'] = num_checks
         # results['Answer'] = ans; results['Time'] = time; 
         # results['InvarsSize'] = invars_size; results['BlocksWithInvars'] = num_blks
-        # csv_results_line (args.csv_file, fmt, results)    
+        # csv_results_line (args.csv_file, fmt, results)
         return
     else:
         (allocas, num_checks) = get_alloc_sites (in_file, work_dir, args)

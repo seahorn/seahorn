@@ -52,6 +52,10 @@ static llvm::cl::opt<bool>
 UseExtInvariants ("horn-use-ext-invariants", cl::Hidden, cl::init(true),
 	 cl::desc ("Use of external invariants"));
 
+static llvm::cl::opt<bool>
+UseExtInvariantsGeneralization ("horn-use-ext-invariants-generalization", cl::Hidden, cl::init(true),
+	 cl::desc ("Use of external invariants during generalization"));
+
 namespace seahorn
 {
   char HornSolver::ID = 0;
@@ -87,6 +91,7 @@ namespace seahorn
     params.set (":spacer.reach_dnf", true);
     //params.set ("print_statistics", true);
     params.set (":spacer.use_ext_invariants", UseExtInvariants);
+    params.set (":spacer.use_ext_invariants_generalization", UseExtInvariantsGeneralization);
     params.set (":spacer.weak_abs", WeakAbs);
     // -- less incremental but constraints are popped after pushed in
     //    the solver

@@ -48,6 +48,10 @@ static llvm::cl::opt<bool>
 WeakAbs ("horn-weak-abs", cl::Hidden, cl::init(true),
 	 cl::desc ("Perform weak abstraction"));
 
+static llvm::cl::opt<bool>
+UseExtInvariants ("horn-use-ext-invariants", cl::Hidden, cl::init(true),
+	 cl::desc ("Use of external invariants"));
+
 namespace seahorn
 {
   char HornSolver::ID = 0;
@@ -82,7 +86,7 @@ namespace seahorn
     params.set (":spacer.elim_aux", true);
     params.set (":spacer.reach_dnf", true);
     //params.set ("print_statistics", true);
-    params.set (":spacer.use_ext_invariants", true);
+    params.set (":spacer.use_ext_invariants", UseExtInvariants);
     params.set (":spacer.weak_abs", WeakAbs);
     
     fp.set (params);

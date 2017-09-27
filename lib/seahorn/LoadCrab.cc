@@ -2,8 +2,16 @@
 #include "llvm/IR/Module.h"
 #include "llvm/ADT/DenseSet.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/Support/CommandLine.h"
+
 #include "seahorn/config.h"
 #include "ufo/Smt/EZ3.hh"
+
+// If enabled then crab invariants are added as lemmas.
+// Otherwise, they are added as invariants. 
+static llvm::cl::opt<bool>
+AddExtLemmas ("horn-add-lemmas", llvm::cl::Hidden, llvm::cl::init(false),
+	      llvm::cl::desc ("Add crab invariants as external lemmas"));
 
 namespace seahorn
 {
@@ -571,8 +579,10 @@ namespace seahorn
            errs () << "("; for (auto v: live) errs () << *v << " ";
            errs () << ")  "  << *exp << "\n"; );
            
-
-      db.addInvariant (bind::fapp (pred, live), exp);
+      if (AddExtLemmas)
+	db.addConstraint(bind::fapp (pred, live), exp);
+      else
+	db.addInvariant (bind::fapp (pred, live), exp);
       
     }    
     return false;

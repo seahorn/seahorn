@@ -88,7 +88,9 @@ namespace seahorn
     //params.set ("print_statistics", true);
     params.set (":spacer.use_ext_invariants", UseExtInvariants);
     params.set (":spacer.weak_abs", WeakAbs);
-    
+    // -- less incremental but constraints are popped after pushed in
+    //    the solver
+    params.set (":spacer.keep_proxy", false);
     fp.set (params);
     db.loadZFixedPoint (fp, SkipConstraints);
     

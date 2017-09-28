@@ -37,7 +37,7 @@ install:
   - wget https://jorgenavas.github.io/sw/Z3-Linux.tar.gz
   - tar xf Z3-Linux.tar.gz
   ### BOOST
-  - wget --no-verbose --output-document=boost-trunk.tar.bz2 http://sourceforge.net/projects/boost/files/boost/1.64.0/boost_1_64_0.tar.bz2/download
+  - wget --no-verbose --output-document=boost-trunk.tar.bz2 https://dl.bintray.com/boostorg/release/1.64.0/source/boost_1_64_0.tar.bz2
   - export BOOST_ROOT="$TRAVIS_BUILD_DIR/boost-trunk"
   - export CMAKE_MODULE_PATH="$BOOST_ROOT"
   - mkdir -p $BOOST_ROOT

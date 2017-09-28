@@ -50,6 +50,9 @@ namespace seahorn
           
           // replace each use &foo with &foo_stub() where foo_stub is a
           // copy of foo but marked as external.
+	  // 
+	  // JN: we might be able to replace the whole loop with
+	  //     "F.replaceAllUsesWith(NF);"
           Value::use_iterator UI = F.use_begin (), E = F.use_end ();
           for (; UI != E;)
           {
@@ -69,10 +72,14 @@ namespace seahorn
             
             if (!isa<CallInst>(FU) && !isa<InvokeInst>(FU)) {
               if (GlobalAlias *a = dyn_cast<GlobalAlias> (FU)) {
-                //a->handleOperandChange (&F, NF, &U);		
                 a->setAliasee (NF);
 	      } else if (Constant *c = dyn_cast<Constant> (FU)) {
-		c->handleOperandChange (&F, NF, &U); 
+		// -- handleOperandChange cannot handle this case:
+		//    @ldv_0_callback_handler = internal global i32 (i32, i8*)* @alx_intr_legacy, align 4
+		//    where we want to replace @alx_intr_legacy with
+		//    @alx_intr_legacy_stub
+		//c->handleOperandChange (&F, NF, &U);
+		F.replaceAllUsesWith(NF);
 	      }
               else
                 U.set (NF);

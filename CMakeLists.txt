@@ -98,7 +98,8 @@ endif ()
 
 
 set (Z3_TAG "origin/nlg" CACHE STRING "Z3 git tag to use")
-set (Z3_REPO "https://bitbucket.org/spacer/code.git" CACHE STRING "Z3 repo")
+#set (Z3_REPO "https://bitbucket.org/spacer/code.git" CACHE STRING "Z3 repo")
+set (Z3_REPO "https://jorgenavas@bitbucket.org/jorgenavas/spacer.git" CACHE STRING "Z3 repo")
 ExternalProject_Add(z3
   GIT_REPOSITORY  ${Z3_REPO}
   GIT_TAG ${Z3_TAG}

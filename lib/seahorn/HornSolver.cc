@@ -96,6 +96,7 @@ namespace seahorn
     // -- less incremental but constraints are popped after pushed in
     //    the solver
     params.set (":spacer.keep_proxy", false);
+    params.set (":spacer.ground_cti", false);
     fp.set (params);
     db.loadZFixedPoint (fp, SkipConstraints);
     

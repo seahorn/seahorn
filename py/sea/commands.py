@@ -867,7 +867,9 @@ class Seahorn(sea.LimitedCmd):
                       '-horn-sem-lvl={0}'.format (args.track),
                       '--horn-step={0}'.format (args.step)])
 
-        if args.verbose > 0: argv.extend (['-zverbose', str(args.verbose)])
+        if args.verbose > 0:
+            argv.extend (['-zverbose', str(args.verbose)])
+            argv.extend (['-cverbose', str(args.verbose)])
 
         if args.log is not None:
             for l in args.log.split (':'): argv.extend (['-log', l])

@@ -67,6 +67,15 @@ namespace seahorn
     {z3::set_param ("verbose", v);}
   };
   ZVerboseOpt zverbose;
+
+  #ifdef HAVE_CRAB_LLVM
+  struct CVerboseOpt {
+    void operator=(unsigned level) const 
+    { crab::CrabEnableVerbosity(level); } 
+  };
+
+  CVerboseOpt cverbose;
+  #endif   
 }
 
 static llvm::cl::opt<seahorn::ZTraceLogOpt, true, llvm::cl::parser<std::string> >
@@ -84,6 +93,13 @@ VerboseOption ("zverbose",
                llvm::cl::value_desc ("int"),
                llvm::cl::ValueRequired, llvm::cl::Hidden);
 
+#ifdef HAVE_CRAB_LLVM
+static llvm::cl::opt<seahorn::CVerboseOpt, true, llvm::cl::parser<unsigned> > 
+CrabVerbose("cverbose",
+	    llvm::cl::desc ("Enable crab verbose messages"),
+	    llvm::cl::location (seahorn::cverbose),
+	    llvm::cl::value_desc ("uint"));
+#endif 
 
 static llvm::cl::opt<std::string>
 InputFilename(llvm::cl::Positional, llvm::cl::desc("<input LLVM bitcode file>"),
@@ -306,6 +322,7 @@ int main(int argc, char **argv) {
   // --- verify if an undefined value can be read
   pass_manager.add (seahorn::createCanReadUndefPass ());
 
+  // Z3_open_log("log.txt");
 
   if (!Bmc)
     pass_manager.add (new seahorn::HornifyModule ());

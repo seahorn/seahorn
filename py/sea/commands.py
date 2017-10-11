@@ -103,7 +103,12 @@ class Clang(sea.LimitedCmd):
             argv.append ('-m{0}'.format (args.machine))
 
             if args.include_dir is not None:
-                argv.append ('-I' + args.include_dir)
+                if ':' in args.include_dir:
+                    idirs = ["-I{}".format(x.strip())  \
+                      for x in args.include_dir.split(":") if x.strip() != '']
+                    argv.extend(idirs)
+                else:
+                    argv.append ('-I' + args.include_dir)
 
             include_dir = os.path.dirname (sys.argv[0])
             include_dir = os.path.dirname (include_dir)

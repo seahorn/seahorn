@@ -88,10 +88,6 @@ class Clang(sea.LimitedCmd):
         self.clangCmd = sea.ExtCmd (cmd_name)
 
         if not all (_bc_or_ll_file (f) for f  in args.in_files):
-            cmd_name = which (['clang-mp-3.8', 'clang-3.8', 'clang'])
-            if cmd_name is None: raise IOError ('clang not found')
-            self.clangCmd = sea.ExtCmd (cmd_name)
-
             argv = ['-c', '-emit-llvm', '-D__SEAHORN__']
             if not self.plusplus:
                 ## this is an invalid argument with C++/ObjC++ with clang 3.8

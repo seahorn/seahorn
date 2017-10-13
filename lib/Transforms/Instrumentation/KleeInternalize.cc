@@ -147,16 +147,17 @@ namespace
         AllocaInst *v = Builder.CreateAlloca (storeTy);
         ConstantInt *sz = Builder.getIntN (m_intptrTy->getBitWidth(), 
                                            storeSzInBits  / 8);
-        Value *fname = Builder.CreateGlobalString (F.getName ());
+        GlobalVariable *fname = Builder.CreateGlobalString (F.getName ());
 
 	// TODO: update callgraph with this call
         CallInst *mksym =
           Builder.CreateCall (m_kleeMkSymbolicFn,
 			      {Builder.CreateBitCast (v, Builder.getInt8PtrTy ()),
 			       sz,
-			       Builder.CreateConstGEP2_32 (fname->getType(),//llvm 3.8
-							   fname, 0, 0)});
-
+			       Builder.CreateConstGEP2_32
+				  (cast<PointerType>(fname->getType())->getElementType(),
+				   fname, 0, 0)});
+	
         Value *retValue = Builder.CreateLoad (v);
         if (storeTy != retTy)
           retValue = Builder.CreateZExtOrTrunc(retValue, retTy);

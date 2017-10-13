@@ -512,6 +512,9 @@ class MixedSem(sea.LimitedCmd):
         ap.add_argument ('--no-reduce-main', dest='reduce_main',
                          help='Do not reduce main to return paths only',
                          default=True, action='store_false')
+        ap.add_argument ('--no-promote-assumptions', dest='no_promote_assumptions',
+                         help='Do not promote verifier.assume to llvm.assume',
+                         default=False, action='store_true')
         # some passes only after mixed semantics
         ap.add_argument ('--symbolize-constant-loop-bounds', dest='sym_bounds',
                          help='Convert constant loop bounds into symbolic ones',
@@ -519,7 +522,7 @@ class MixedSem(sea.LimitedCmd):
         ap.add_argument ('--ms-slice-functions',
                          help='Slice program onto these functions after mixed semantics',
                          dest='ms_slice_funcs', type=str)
-
+        
         add_in_out_args (ap)
         _add_S_arg (ap)
         return ap
@@ -539,7 +542,9 @@ class MixedSem(sea.LimitedCmd):
         if args.ms_slice_funcs:
             for f in args.ms_slice_funcs.split(','):
                 argv.append ('--slice-function={0}'.format(f))
-
+        if args.no_promote_assumptions:
+            argv.append ('--promote-assumptions=false')
+                
         if args.llvm_asm: argv.append ('-S')
         argv.extend (args.in_files)
         return self.seappCmd.run (args, argv)

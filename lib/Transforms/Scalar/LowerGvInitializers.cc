@@ -186,7 +186,7 @@ namespace seahorn
 	    allNonInstructionUsersCanBeMadeInstructions(gv)) {
 	  Type *ElemTy = gv->getType()->getElementType();
 	  AllocaInst* Alloca = Builder.CreateAlloca(ElemTy, nullptr, gv->getName());
-	  Builder.CreateStore(gv->getInitializer(), Alloca,DL->getABITypeAlignment (ElemTy));
+	  Builder.CreateAlignedStore(gv->getInitializer(), Alloca,DL->getABITypeAlignment (ElemTy));
 	  makeAllConstantUsesInstructions(gv);
 	  gv->replaceAllUsesWith(Alloca);
 	  gv->eraseFromParent();

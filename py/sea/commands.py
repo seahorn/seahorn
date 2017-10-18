@@ -88,10 +88,6 @@ class Clang(sea.LimitedCmd):
         self.clangCmd = sea.ExtCmd (cmd_name)
 
         if not all (_bc_or_ll_file (f) for f  in args.in_files):
-            cmd_name = which (['clang-mp-3.8', 'clang-3.8', 'clang'])
-            if cmd_name is None: raise IOError ('clang not found')
-            self.clangCmd = sea.ExtCmd (cmd_name)
-
             argv = ['-c', '-emit-llvm', '-D__SEAHORN__']
             if not self.plusplus:
                 ## this is an invalid argument with C++/ObjC++ with clang 3.8
@@ -103,7 +99,12 @@ class Clang(sea.LimitedCmd):
             argv.append ('-m{0}'.format (args.machine))
 
             if args.include_dir is not None:
-                argv.append ('-I' + args.include_dir)
+                if ':' in args.include_dir:
+                    idirs = ["-I{}".format(x.strip())  \
+                      for x in args.include_dir.split(":") if x.strip() != '']
+                    argv.extend(idirs)
+                else:
+                    argv.append ('-I' + args.include_dir)
 
             include_dir = os.path.dirname (sys.argv[0])
             include_dir = os.path.dirname (include_dir)
@@ -511,6 +512,9 @@ class MixedSem(sea.LimitedCmd):
         ap.add_argument ('--no-reduce-main', dest='reduce_main',
                          help='Do not reduce main to return paths only',
                          default=True, action='store_false')
+        ap.add_argument ('--no-promote-assumptions', dest='no_promote_assumptions',
+                         help='Do not promote verifier.assume to llvm.assume',
+                         default=False, action='store_true')
         # some passes only after mixed semantics
         ap.add_argument ('--symbolize-constant-loop-bounds', dest='sym_bounds',
                          help='Convert constant loop bounds into symbolic ones',
@@ -518,7 +522,7 @@ class MixedSem(sea.LimitedCmd):
         ap.add_argument ('--ms-slice-functions',
                          help='Slice program onto these functions after mixed semantics',
                          dest='ms_slice_funcs', type=str)
-
+        
         add_in_out_args (ap)
         _add_S_arg (ap)
         return ap
@@ -538,7 +542,9 @@ class MixedSem(sea.LimitedCmd):
         if args.ms_slice_funcs:
             for f in args.ms_slice_funcs.split(','):
                 argv.append ('--slice-function={0}'.format(f))
-
+        if args.no_promote_assumptions:
+            argv.append ('--promote-assumptions=false')
+                
         if args.llvm_asm: argv.append ('-S')
         argv.extend (args.in_files)
         return self.seappCmd.run (args, argv)

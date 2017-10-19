@@ -1,19 +1,10 @@
 /**
 SeaHorn Verification Framework
-Copyright (c) 2016 Carnegie Mellon University.
+Copyright (c) 2017 Arie Gurfinkel and Jorge Navas.
 All Rights Reserved.
-
-THIS SOFTWARE IS PROVIDED "AS IS," WITH NO WARRANTIES
-WHATSOEVER. CARNEGIE MELLON UNIVERSITY EXPRESSLY DISCLAIMS TO THE
-FULLEST EXTENT PERMITTEDBY LAW ALL EXPRESS, IMPLIED, AND STATUTORY
-WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE WARRANTIES OF
-MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, AND
-NON-INFRINGEMENT OF PROPRIETARY RIGHTS.
 
 Released under a modified BSD license, please see license.txt for full
 terms.
-
-DM-0002198
 */
 
 #include "llvm/Pass.h"
@@ -47,14 +38,14 @@ APIList("klee-internalize-public-api-list", cl::value_desc("list"),
 
 namespace
 {
-  /** 
+  /**
    * Internalizes external definitions by providing stubs and
    * definitions.
    */
   class KleeInternalize : public ModulePass
   {
     std::set<std::string> m_externalNames;
-    
+
     const DataLayout *m_dl;
     TargetLibraryInfo *m_tli;
     IntegerType *m_intptrTy;
@@ -65,7 +56,7 @@ namespace
 
     Value *m_failed;
     Value *m_builtin;
-    
+
     void declareKleeFunctions (Module &M)
     {
       LLVMContext &C = M.getContext ();
@@ -76,19 +67,19 @@ namespace
       Type *voidTy = Type::getVoidTy (C);
       Type *i8PtrTy = Type::getInt8PtrTy (C);
       Type *i32Ty = Type::getInt32Ty (C);
-      
+
       m_assertFailFn = cast<Function> (M.getOrInsertFunction ("__assert_fail",
                                                               voidTy,
                                                               i8PtrTy, i8PtrTy,
                                                               i32Ty,
                                                               i8PtrTy,
                                                               NULL));
-                                                              
+
       m_kleeAssumeFn = cast<Function> (M.getOrInsertFunction ("klee_assume",
                                                               voidTy,
                                                               m_intptrTy,
                                                               NULL));
-      
+
       m_kleeMkSymbolicFn = cast<Function> (M.getOrInsertFunction ("klee_make_symbolic",
                                                                   voidTy,
                                                                   i8PtrTy,
@@ -117,21 +108,21 @@ namespace
       if (!m_tli)
 	m_tli = &getAnalysis<TargetLibraryInfoWrapperPass> ().getTLI();
 
-      // -- known library function 
+      // -- known library function
       LibFunc::Func F;
       if (m_tli->getLibFunc (GV.getName(), F)) return false;
-          
+
       if (m_externalNames.count (GV.getName()) > 0 ) return false;
-      
+
       return true;
     }
-    
+
     void defineFunction (Function &F)
     {
       LOG ("verbose", errs () << "Defining: " << F.getName () << "\n";);
       BasicBlock *bb = BasicBlock::Create (F.getContext(), "entry", &F);
       IRBuilder<> Builder (bb);
-      
+
       Type *retTy = F.getReturnType ();
       if (retTy->isVoidTy ())
         Builder.CreateRetVoid ();
@@ -139,13 +130,13 @@ namespace
       {
         uint64_t storeSzInBits = m_dl->getTypeStoreSizeInBits(retTy);
         Type* storeTy = retTy;
-        
+
         // extend if store size is bigger than type size (mostly for i1)
         if (storeSzInBits > m_dl->getTypeSizeInBits (retTy))
           storeTy = Type::getIntNTy(F.getContext(),storeSzInBits);
 
         AllocaInst *v = Builder.CreateAlloca (storeTy);
-        ConstantInt *sz = Builder.getIntN (m_intptrTy->getBitWidth(), 
+        ConstantInt *sz = Builder.getIntN (m_intptrTy->getBitWidth(),
                                            storeSzInBits  / 8);
         GlobalVariable *fname = Builder.CreateGlobalString (F.getName ());
 
@@ -157,11 +148,11 @@ namespace
 			       Builder.CreateConstGEP2_32
 				  (cast<PointerType>(fname->getType())->getElementType(),
 				   fname, 0, 0)});
-	
+
         Value *retValue = Builder.CreateLoad (v);
         if (storeTy != retTy)
           retValue = Builder.CreateZExtOrTrunc(retValue, retTy);
-	
+
         Builder.CreateRet (retValue);
       }
     }
@@ -179,7 +170,7 @@ namespace
         GV->setInitializer(Constant::getNullValue(GV->getType()->getElementType()));
         LOG ("verbose", errs() << "making " << GV->getName() << " non-extern\n";);
       }
-    }   
+    }
 
     void LoadFile (const char *fname)
     {
@@ -232,7 +223,12 @@ namespace
       m_externalNames.insert("__stack_chk_fail");
       m_externalNames.insert("__stack_chk_guard");
 
-      
+
+      // -- libc
+      m_externalNames.insert("__stdoutp");
+      m_externalNames.insert("__stderrp");
+      m_externalNames.insert("__stdinp");
+
     }
 
     void getAnalysisUsage (AnalysisUsage &AU) const override
@@ -273,7 +269,7 @@ namespace
 
           CallInst *ninst = nullptr;
           Builder.SetInsertPoint (&inst);
-          
+
           if (fn->getName().equals ("verifier.assume"))
           {
             ninst = Builder.CreateCall (m_kleeAssumeFn,
@@ -300,16 +296,16 @@ namespace
                                         Builder.getInt32 (0),
 					Builder.CreateConstGEP2_32 (fname->getType(), // llvm 3.8
 						         	    fname, 0, 0)});
-            
+
           }
-          
+
           if (ninst)
           {
             ninst->setDebugLoc (inst.getDebugLoc ());
             killList.push_back (&inst);
             // TODO: update callgraph
           }
-          
+
         }
       }
 
@@ -317,7 +313,7 @@ namespace
       {
         i->eraseFromParent();
       }
-      
+
       return true;
     }
   };

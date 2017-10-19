@@ -11,7 +11,7 @@
 extern "C" {
 
 void __VERIFIER_error() {
-  printf("__VERIFIER_error was executed\n");
+  printf("[sea] __VERIFIER_error was executed\n");
   exit(1);
 }
 
@@ -22,7 +22,7 @@ void __VERIFIER_assume(int x) {
 #define get_value_helper(ctype, llvmtype)                               \
   ctype __seahorn_get_value_ ## llvmtype (int ctr, ctype *g_arr, int g_arr_sz) { \
     assert (ctr < g_arr_sz && "Unexpected index");                      \
-    printf("__seahorn_get_value_" #llvmtype " %d %d\n", ctr, g_arr_sz); \
+    printf("[sea] __seahorn_get_value_(" #llvmtype ", %d, %d)\n", ctr, g_arr_sz); \
     return g_arr[ctr];                                                  \
   }
 
@@ -65,7 +65,7 @@ const int TYPE_GUESS = sizeof(int);
 
     absptrmap[absptr] = absptr + sz;
 
-    printf("Returning abstract pointer from %#lx to %#lx\n", absptr, absptrmap.at(absptr));
+    printf("[sea] returning a pointer to an abstract region [%#lx, %#lx]\n", absptr, absptrmap.at(absptr));
 
     return absptr;
   }
@@ -89,14 +89,14 @@ const int TYPE_GUESS = sizeof(int);
 
 void __seahorn_mem_store (void *src, void *dst, size_t sz)
 {
-  printf("__seahorn_mem_store from %p to %p\n", src, dst);
+  printf("[sea] __seahorn_mem_store from %p to %p\n", src, dst);
   if (is_legal_address (dst)) {
   /* if dst is a legal address */
-    printf("legal\n");
+    printf("[sea] memory write\n");
     memcpy (dst, src, sz);
   }
   /* else if dst is illegal, do nothing */
-  else printf("illegal\n");
+  else printf("[sea] ignoring write to illegal memory address\n");
 }
 
 void __seahorn_mem_load (void *dst, void *src, size_t sz)
@@ -104,26 +104,26 @@ void __seahorn_mem_load (void *dst, void *src, size_t sz)
   printf("__seahorn_mem_load from %p to %p\n", src, dst);
   if (is_legal_address (src)) {
   /* if src is a legal address */
-    printf("legal\n");
+    printf("[sea] memory read\n");
     memcpy (dst, src, sz);
   }
   /* else, if src is illegal, return a dummy value */
-  else { printf("illegal\n"); bzero(dst, sz); }
+  else { printf("[sea] ignoring read from an illegal memory address\n"); bzero(dst, sz); }
 }
 
 // Dummy klee_make_symbolic function
 void klee_make_symbolic(void *v, size_t sz, char *fname) {
-  printf("klee_make_symbolic was called for %s\n", fname);
+  printf("[sea] calling klee_make_symbolic for %s\n", fname);
 }
 
 void klee_assume(int b) {
-  printf("klee_assume was called\n");
+  printf("[sea] calling klee_assume\n");
   __VERIFIER_assume (b);
 }
-  
+
   void __assert_fail (const char * assertion, const char * file,
                       unsigned int line, const char * function) {
-    printf("__assert_fail was executed\n");
+    printf("[sea] exiting with a call to __assert_fail\n");
     exit(1);
   }
 

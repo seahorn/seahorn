@@ -59,17 +59,17 @@ MemSim ("horn-cex-bv-memsim",
         llvm::cl::init (false));
 
 static llvm::cl::opt<std::string>
-SvCompCexFileSpec("horn-svcomp-cex-spec", 
+SvCompCexFileSpec("horn-svcomp-cex-spec",
                   llvm::cl::desc("Specification key in SV-COMP XML format"),
                   llvm::cl::init("CHECK( init(main()), LTL(G ! call(__VERIFIER_error())) )"));
 
 static llvm::cl::opt<std::string>
-SvCompCexFileMemModel("horn-svcomp-cex-mem", 
+SvCompCexFileMemModel("horn-svcomp-cex-mem",
                       llvm::cl::desc("Memory model key in SV-COMP XML format"),
                       llvm::cl::init("simple"));
 
 static llvm::cl::opt<std::string>
-SvCompCexFileArch("horn-svcomp-cex-arch", 
+SvCompCexFileArch("horn-svcomp-cex-arch",
                   llvm::cl::desc("Architecture key in SV-COMP XML format"),
                   llvm::cl::init("32bit"));
 
@@ -89,14 +89,15 @@ static llvm::cl::opt<std::string>
 using namespace llvm;
 namespace seahorn
 {
-  
+
   template <typename O> class SvCompCex;
   static void dumpSvCompCex (BmcTrace &trace, std::string CexFile);
-  static void dumpLLVMCex (BmcTrace &trace, StringRef CexFile, const DataLayout &dl);
+  static void dumpLLVMCex (BmcTrace &trace, StringRef CexFile, const DataLayout &dl,
+                           const TargetLibraryInfo &tli);
   static void dumpLLVMBitcode(const Module &M, StringRef BcFile);
 
   char HornCex::ID = 0;
-  
+
   bool HornCex::runOnModule (Module &M)
   {
     for (Function &F : M)
@@ -110,28 +111,28 @@ namespace seahorn
     // -- only run if result is true, skip if it is false or unknown
     if (hs.getResult ()) ; else return false;
 
-    // LOG ("cex", 
+    // LOG ("cex",
     //      errs () << "Analyzed Function:\n"
     //      << F << "\n";);
 
     HornifyModule &hm = getAnalysis<HornifyModule> ();
     const CutPointGraph &cpg = getAnalysis<CutPointGraph> (F);
-    
+
     auto &fp = hs.getZFixedPoint ();
     ExprVector rules;
     fp.getCexRules (rules);
     boost::reverse (rules);
-    
+
     // extract a trace of basic blocks corresponding to the counterexample
     SmallVector<const BasicBlock*, 8> bbTrace;
     SmallVector<const CutPoint*, 8> cpTrace;
-    
+
     // -- all counterexamples start at the entry block of the function
     cpTrace.push_back (&cpg.getCp (F.getEntryBlock ()));
-    
+
     for (Expr r : rules)
     {
-      
+
       // filter away all rules not from main()
       Expr src, dst;
 
@@ -143,33 +144,33 @@ namespace seahorn
         // -- skip basic blocks of non-main function
         if (bb.getParent () != &F) continue;
       }
-      
-      if (isOpX<IMPL> (r)) 
-      { 
+
+      if (isOpX<IMPL> (r))
+      {
         dst = r->arg (1);
         r = r->arg (0);
         src = isOpX<AND> (r) ? r->arg (0) : r;
       }
       else dst = r;
       if (src && !bind::isFapp (src)) src.reset (0);
-      
+
       // -- if there is a src, then it was dst in previous iteration
       assert (bbTrace.empty () || bbTrace.back () == &hm.predicateBb (src));
       const BasicBlock *bb = &hm.predicateBb (dst);
-      
+
       // XXX sometimes the cex includes the entry block, sometimes it does not
       // XXX normalize by removing it
       if (bb == &F.getEntryBlock ()) continue;
-      
+
       bbTrace.push_back (bb);
-      if (cpg.isCutPoint (*bb)) 
+      if (cpg.isCutPoint (*bb))
       {
         const CutPoint &cp = cpg.getCp (*bb);
         cpTrace.push_back (&cp);
       }
     }
-    
-    LOG ("cex", 
+
+    LOG ("cex",
          errs () << "TRACE BEGIN\n";
          for (auto bb : bbTrace)
          {
@@ -178,26 +179,26 @@ namespace seahorn
            errs () << "\n";
          }
          errs () << "TRACE END\n";);
-    
+
     // -- release trace resources
     bbTrace.clear ();
-    
+
     // -- create a BMC engine. Use fixed symbolic execution
     // -- semantics. Possibly different than the semantics used by the
     // -- HornSolver
     ExprFactory &efac = hm.getExprFactory ();
-    
+
     UfoSmallSymExec semUfo (efac, *this, M.getDataLayout(), MEM);
     BvSmallSymExec semBv (efac, *this, M.getDataLayout(), MEM);
-    
+
     SmallStepSymExec *sem = UseBv ? static_cast<SmallStepSymExec*>(&semBv) :
       static_cast<SmallStepSymExec*>(&semUfo);
     BmcEngine bmc (*sem, hm.getZContext ());
-    
+
     // -- load the trace into the engine
     for (const CutPoint *cp : cpTrace)
       bmc.addCutPoint (*cp);
-    
+
     // -- construct BMC instance
     bmc.encode ();
 
@@ -208,12 +209,12 @@ namespace seahorn
       if (!EC) bmc.toSmtLib (file);
       else errs () << "Could not open: " << HornCexSmtFilename << "\n";
     }
-    
+
     auto res = bmc.solve ();
     LOG ("cex",
-         errs () << "BMC: " 
+         errs () << "BMC: "
          << (res ? "sat" : (!res ? "unsat" : "unknown")) << "\n";);
-    
+
     // -- DUMP unsat core if validation failed
     if (res) ;
     else
@@ -225,16 +226,16 @@ namespace seahorn
       errs () << "Final core: " << core.size () << "\n";
       errs () << "Failed to validate CEX. Core is: \n";
       for (Expr c : core) errs () << *c << "\n";
-      
+
       Stats::sset("Result", "FAILED");
       return false;
     }
-    
+
     // get bmc trace
     BmcTrace trace (bmc.getTrace ());
     LOG ("cex", trace.print (errs ()););
 
-    
+
     if (UseBv)
     {
       const DataLayout &dl = M.getDataLayout();
@@ -246,12 +247,14 @@ namespace seahorn
         bool simRes = memSim.simulate ();
       }
     }
-    
+
     StringRef HornCexFileRef(HornCexFile);
     if (HornCexFileRef.endswith(".ll") ||
         HornCexFileRef.endswith(".bc")) {
       const DataLayout &dl = M.getDataLayout();
-      dumpLLVMCex(trace, HornCexFileRef, dl);
+      const TargetLibraryInfo &tli =
+          getAnalysis<TargetLibraryInfoWrapperPass> ().getTLI();
+      dumpLLVMCex(trace, HornCexFileRef, dl, tli);
     } else if (HornCexFileRef.endswith(".xml")) {
       dumpSvCompCex (trace, HornCexFileRef);
     } else if (!HornCexFileRef.empty()) {
@@ -300,22 +303,22 @@ namespace seahorn
     AU.addRequired<HornifyModule> ();
     AU.addRequired<HornSolver> ();
     AU.addRequired<CanFail> ();
-  }  
-  
+  }
+
   /*** Helper methods to create SV-COMP style counterexamples */
-  
+
   template <typename O>
   class SvCompCex
   {
     O &m_out;
     unsigned m_id;
-    
+
     void key (std::string name, std::string type, std::string obj, std::string id)
     {
       m_out << "<key attr.name='" << name << "' attr.type='" << type << "'"
             << " for='" << obj << "' id='" << id << "'/>\n";
     }
-    
+
   public:
     SvCompCex (O &out) : m_out (out), m_id(0) {}
     void header ()
@@ -330,7 +333,7 @@ namespace seahorn
       key ("isViolationNode", "boolean", "node", "violation");
       key ("enterFunction", "string", "edge", "enterFunction");
       key ("returnFromFunction", "string", "edge", "returnFrom");
-      
+
       const std::string spec = "CHECK( init(main()), LTL(G ! call(__VERIFIER_error())) )";
       const std::string mem_model = "precise";
       const std::string arch = "32bit";
@@ -346,7 +349,7 @@ namespace seahorn
 
     void add_violation_node (){
       unsigned src = m_id++;
-      m_out << "<node id='" << m_id << "'> <data key='violation'>true</data> </node>\n";      
+      m_out << "<node id='" << m_id << "'> <data key='violation'>true</data> </node>\n";
       m_out << "<edge source='" << src << "' target='" << m_id << "'/>\n";
     }
 
@@ -359,18 +362,18 @@ namespace seahorn
       m_out << "  <data key='originfile'>" << file << "</data>\n";
 
       if (boost::starts_with (scope, "enter: "))
-        m_out << "  <data key='enterFunction'>" 
+        m_out << "  <data key='enterFunction'>"
               << scope.substr (std::string ("enter: ").size ())
               << "</data>\n";
       else if (boost::starts_with (scope, "exit: "))
-        m_out << "  <data key='returnFrom'>" 
+        m_out << "  <data key='returnFrom'>"
               << scope.substr (std::string ("exit: ").size ())
               << "</data>\n";
-      
+
       m_out << "</edge>\n";
 
     }
-    
+
     void footer ()
     {
       m_out << "</graph></graphml>\n";
@@ -378,7 +381,7 @@ namespace seahorn
   };
 
   template <typename O>
-  static void debugLocToSvComp (const Instruction &inst, 
+  static void debugLocToSvComp (const Instruction &inst,
                                 SvCompCex<O> &svcomp)
   {
     const DebugLoc &dloc = inst.getDebugLoc ();
@@ -392,7 +395,7 @@ namespace seahorn
     file = dloc.get()->getFilename ();
 
     // TODO: port to llvm 3.8
-    // 
+    //
     // LOG ("cex",
     //      DISubprogram fnScope = getDISubprogram (*(dloc.getScope ()));
     //      if (fnScope)
@@ -408,11 +411,11 @@ namespace seahorn
     //        else
     //          errs () << "in: " << dname << "\n";
     //      });
-      
+
     svcomp.edge (file, (int)dloc.getLine (), "");
   }
-  
-  
+
+
   static void dumpSvCompCex (BmcTrace &trace, std::string CexFile)
   {
     std::error_code ec;
@@ -422,7 +425,7 @@ namespace seahorn
       errs () << "ERROR: Cannot open CEX file: " << ec.message () << "\n";
       return;
     }
-    
+
     SvCompCex<llvm::raw_ostream> svcomp (out.os ());
     svcomp.header ();
     for (unsigned i = 0; i < trace.size (); ++i)
@@ -431,18 +434,19 @@ namespace seahorn
       for (auto &I : *bb)
         debugLocToSvComp (I, svcomp);
 
-      if (bb->getParent ()->getName ().equals ("main") && 
-          isa<ReturnInst> (bb->getTerminator ())) 
+      if (bb->getParent ()->getName ().equals ("main") &&
+          isa<ReturnInst> (bb->getTerminator ()))
         svcomp.add_violation_node ();
-      
+
     }
     svcomp.footer ();
     out.keep ();
   }
 
-  static void dumpLLVMCex(BmcTrace &trace, StringRef CexFile, const DataLayout &dl)
+  static void dumpLLVMCex(BmcTrace &trace, StringRef CexFile, const DataLayout &dl,
+                          const TargetLibraryInfo &tli)
   {
-    std::unique_ptr<Module> Harness = createCexHarness(trace, dl);
+      std::unique_ptr<Module> Harness = createCexHarness(trace, dl, tli);
     std::error_code error_code;
     llvm::tool_output_file out(CexFile, error_code, sys::fs::F_None);
     assert (!error_code);
@@ -453,7 +457,7 @@ namespace seahorn
     out.keep ();
   }
 
-  
+
 
   static void dumpLLVMBitcode(const Module &M, StringRef BcFile) {
     std::error_code error_code;
@@ -470,4 +474,3 @@ namespace seahorn
 
 
 }
-

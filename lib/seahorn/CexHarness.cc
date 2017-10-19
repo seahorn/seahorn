@@ -41,7 +41,8 @@ namespace seahorn
     llvm_unreachable("Unhandled expression");
   }
 
-  std::unique_ptr<Module>  createCexHarness(BmcTrace &trace, const DataLayout &dl)
+  std::unique_ptr<Module>  createCexHarness(BmcTrace &trace, const DataLayout &dl,
+                                            const TargetLibraryInfo  &tli)
   {
 
     std::unique_ptr<Module> Harness = make_unique<Module>("harness", getGlobalContext());
@@ -87,10 +88,14 @@ namespace seahorn
             continue;
           }
 
-          // TODO: Port detection of well-known library functions from
           // KleeInternalize
           if (CF->getName().equals ("calloc")) continue;
-          
+
+          // -- known library function
+          LibFunc::Func libfn;
+          if (tli.getLibFunc (CF->getName(), libfn)) continue;
+
+
           Expr V = trace.eval (loc, I, true);
           if (!V) continue;
           LOG("cex",

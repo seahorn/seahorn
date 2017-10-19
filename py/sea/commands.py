@@ -208,10 +208,12 @@ def get_sea_horn_dsa (opts):
     return None
 
 class Seapp(sea.LimitedCmd):
-    def __init__(self, quiet=False, internalize=False, strip_extern=False):
+    def __init__(self, quiet=False, internalize=False, strip_extern=False,
+                 keep_lib_fn=False):
         super(Seapp, self).__init__('pp', 'Pre-processing', allow_extra=True)
         self._internalize = internalize
         self._strip_extern = strip_extern
+        self._keep_lib_fn = keep_lib_fn
 
     @property
     def stdout (self):
@@ -369,10 +371,11 @@ class Seapp(sea.LimitedCmd):
         # internalize takes precedence over all other options and must run alone
         if self._strip_extern:
             argv.append ('--only-strip-extern=true')
+            if self._keep_lib_fn:
+                argv.append ("--keep-lib-fn")
         elif args.internalize:
             argv.append ('--klee-internalize')
         else:
-
             if args.inline: argv.append ('--horn-inline-all')
             else:
                 if args.inline_only:
@@ -522,7 +525,7 @@ class MixedSem(sea.LimitedCmd):
         ap.add_argument ('--ms-slice-functions',
                          help='Slice program onto these functions after mixed semantics',
                          dest='ms_slice_funcs', type=str)
-        
+
         add_in_out_args (ap)
         _add_S_arg (ap)
         return ap
@@ -544,7 +547,7 @@ class MixedSem(sea.LimitedCmd):
                 argv.append ('--slice-function={0}'.format(f))
         if args.no_promote_assumptions:
             argv.append ('--promote-assumptions=false')
-                
+
         if args.llvm_asm: argv.append ('-S')
         argv.extend (args.in_files)
         return self.seappCmd.run (args, argv)
@@ -1241,5 +1244,6 @@ seaIncSmt = sea.SeqCmd ('inc-smt', 'alias for fe|horn|inc. ' +
                         Smt.cmds + [SeaInc()])
 seaClangAbc = sea.SeqCmd ('clang-abc', 'alias for clang|abc', [Clang(), SeaAbc()])
 Exe = sea.SeqCmd ('exe', 'alias for clang|pp --strip-extern|pp --internalize|wmem|linkrt',
-                  [Clang(), Seapp(strip_extern=True), Seapp(internalize=True), WrapMem(), LinkRt()])
+                  [Clang(), Seapp(strip_extern=True,keep_lib_fn=True),
+                   Seapp(internalize=True), WrapMem(), LinkRt()])
 feInspect = sea.SeqCmd ('fe-inspect', 'alias for fe + seainspect', FrontEnd.cmds + [SeaInspect()])

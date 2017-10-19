@@ -224,6 +224,11 @@ namespace
       m_externalNames.insert("__stack_chk_guard");
 
 
+      // -- libc
+      m_externalNames.insert("__stdoutp");
+      m_externalNames.insert("__stderrp");
+      m_externalNames.insert("__stdinp");
+
     }
 
     void getAnalysisUsage (AnalysisUsage &AU) const override

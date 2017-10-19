@@ -367,14 +367,33 @@ namespace
       Expr op1 = lookup (v1);
       if (!(op0 && op1)) return;
       Expr res;
-      
+
       Expr sixteen = mkTerm<mpz_class> (16, m_efac);
       Expr thirtytwo = mkTerm<mpz_class> (32, m_efac);
-      Expr twoToSixteenMinusOne = mkTerm<mpz_class> (65535, m_efac);      
+      Expr twoToSixteenMinusOne = mkTerm<mpz_class> (65535, m_efac);
       switch(i.getOpcode())
       {
       case BinaryOperator::And:
-        {
+      {
+          if (const ConstantInt *ci = dyn_cast<ConstantInt> (i.getOperand(1)))
+          {
+              if (ci->getBitWidth () <= 64) {
+                  Expr rhs;
+                  if (isMask_32 (ci->getZExtValue ()))
+                  {
+                      uint64_t v = ci->getZExtValue();
+                      rhs = mk<MOD>
+                          (op0,
+                           mkTerm<mpz_class>
+                           ((unsigned long int )(v + 1), m_efac));
+                  }
+
+                  if (UseWrite) write(i, rhs);
+                  else side(lhs, rhs);
+                  return;
+              }
+          }
+          // other common cases
           ExprVector val;
           // 0 & x = 0
           val.push_back (mk<IMPL> (mk<EQ> (op0, zeroE), mk<EQ> (lhs, zeroE)));

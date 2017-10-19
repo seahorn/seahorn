@@ -42,7 +42,7 @@
 
 #ifdef HAVE_LLVM_SEAHORN
 #include "llvm_seahorn/Transforms/Scalar.h"
-#endif 
+#endif
 
 #include "ufo/Smt/EZ3.hh"
 #include "ufo/Passes/NameValues.hpp"
@@ -78,12 +78,12 @@ InlineAll ("horn-inline-all", llvm::cl::desc ("Inline all functions"),
            llvm::cl::init (false));
 
 static llvm::cl::opt<bool>
-InlineAllocFn ("horn-inline-allocators", 
+InlineAllocFn ("horn-inline-allocators",
                llvm::cl::desc ("Inline functions that allocate or deallocate memory"),
                llvm::cl::init (false));
 
 static llvm::cl::opt<bool>
-InlineConstructFn ("horn-inline-constructors", 
+InlineConstructFn ("horn-inline-constructors",
                   llvm::cl::desc ("Inline C++ constructors and destructors"),
                   llvm::cl::init (false));
 
@@ -93,23 +93,23 @@ CutLoops ("horn-cut-loops", llvm::cl::desc ("Cut all natural loops"),
 
 
 static llvm::cl::opt<bool>
-SymbolizeLoops ("horn-symbolize-loops", 
+SymbolizeLoops ("horn-symbolize-loops",
                llvm::cl::desc ("Convert constant loop bounds into symbolic bounds"),
                llvm::cl::init (false));
 
 static llvm::cl::opt<bool>
-SimplifyPointerLoops ("simplify-pointer-loops", 
+SimplifyPointerLoops ("simplify-pointer-loops",
                llvm::cl::desc ("Simplify loops that iterate over pointers"),
                llvm::cl::init (false));
 
 static llvm::cl::opt<bool>
-UnfoldLoopsForDsa ("unfold-loops-for-dsa", 
+UnfoldLoopsForDsa ("unfold-loops-for-dsa",
                llvm::cl::desc ("Unfold the first loop iteration if useful for DSA analysis"),
                llvm::cl::init (false));
 
 static llvm::cl::opt<bool>
-NullChecks ("null-check", 
-     llvm::cl::desc ("Insert null-dereference checks"), 
+NullChecks ("null-check",
+     llvm::cl::desc ("Insert null-dereference checks"),
      llvm::cl::init (false));
 
 enum ArrayBoundsChecksEncoding {NONE=0, LOCAL=1, GLOBAL=2, GLOBAL_C=3};
@@ -125,8 +125,8 @@ ArrayBoundsChecks("abc",
  llvm::cl::init (NONE));
 
 static llvm::cl::opt<bool>
-EnumVerifierCalls ("enum-verifier-calls", 
-     llvm::cl::desc ("Assign a unique identifier to each call to verifier.error"), 
+EnumVerifierCalls ("enum-verifier-calls",
+     llvm::cl::desc ("Assign a unique identifier to each call to verifier.error"),
      llvm::cl::init (false));
 
 static llvm::cl::opt<bool>
@@ -146,29 +146,29 @@ OnlyStripExtern ("only-strip-extern", llvm::cl::desc ("Replace external function
               llvm::cl::init (false));
 
 static llvm::cl::opt<bool>
-LowerInvoke ("lower-invoke", 
+LowerInvoke ("lower-invoke",
              llvm::cl::desc ("Lower all invoke instructions"),
              llvm::cl::init (false));
 
 static llvm::cl::opt<bool>
-DevirtualizeFuncs ("devirt-functions", 
+DevirtualizeFuncs ("devirt-functions",
                    llvm::cl::desc ("Devirtualize indirect calls using only types"),
                    llvm::cl::init (false));
 
 static llvm::cl::opt<bool>
-ExternalizeAddrTakenFuncs ("externalize-addr-taken-funcs", 
+ExternalizeAddrTakenFuncs ("externalize-addr-taken-funcs",
                            llvm::cl::desc ("Externalize uses of address-taken functions"),
                            llvm::cl::init (false));
 
 static llvm::cl::opt<bool>
-LowerAssert ("lower-assert", 
+LowerAssert ("lower-assert",
              llvm::cl::desc ("Replace assertions with assumptions"),
              llvm::cl::init (false));
 
 static llvm::cl::opt<bool>
 PromoteAssumptions ("promote-assumptions",
                     llvm::cl::desc ("Promote verifier.assume to llvm.assume"),
-                    llvm::cl::init (true));
+                    llvm::cl::init (false));
 
 static llvm::cl::opt<int>
 SROA_Threshold ("sroa-threshold",
@@ -194,7 +194,7 @@ SROA_ScalarLoadThreshold ("sroa-scalar-load",
                           llvm::cl::init (-1));
 
 static llvm::cl::opt<bool>
-KleeInternalize ("klee-internalize", 
+KleeInternalize ("klee-internalize",
                    llvm::cl::desc ("Internalizes definitions for Klee"),
                    llvm::cl::init (false));
 static llvm::cl::opt<bool>
@@ -241,7 +241,7 @@ int main(int argc, char **argv) {
   llvm::LLVMContext &context = llvm::getGlobalContext();
   std::unique_ptr<llvm::Module> module;
   std::unique_ptr<llvm::tool_output_file> output;
-  
+
   module = llvm::parseIRFile(InputFilename, err, context);
   if (!module)
   {
@@ -255,46 +255,46 @@ int main(int argc, char **argv) {
   if (!OutputFilename.empty ())
     output = llvm::make_unique<llvm::tool_output_file>
       (OutputFilename.c_str(), error_code, llvm::sys::fs::F_None);
-      
+
   if (error_code) {
     if (llvm::errs().has_colors()) llvm::errs().changeColor(llvm::raw_ostream::RED);
-    llvm::errs() << "error: Could not open " << OutputFilename << ": " 
+    llvm::errs() << "error: Could not open " << OutputFilename << ": "
                  << error_code.message () << "\n";
     if (llvm::errs().has_colors()) llvm::errs().resetColor();
     return 3;
   }
-  
+
   ///////////////////////////////
   // initialise and run passes //
   ///////////////////////////////
 
-  llvm::legacy::PassManager pass_manager;  
+  llvm::legacy::PassManager pass_manager;
   llvm::PassRegistry &Registry = *llvm::PassRegistry::getPassRegistry();
   llvm::initializeAnalysis(Registry);
-  
+
   /// call graph and other IPA passes
   //llvm::initializeIPA (Registry);
-  // XXX: porting to 3.8 
+  // XXX: porting to 3.8
   llvm::initializeCallGraphWrapperPassPass(Registry);
   llvm::initializeCallGraphPrinterPass(Registry);
   llvm::initializeCallGraphViewerPass(Registry);
   // XXX: not sure if needed anymore
-  llvm::initializeGlobalsAAWrapperPassPass(Registry);  
-  
+  llvm::initializeGlobalsAAWrapperPassPass(Registry);
+
   // add an appropriate DataLayout instance for the module
   const llvm::DataLayout *dl = &module->getDataLayout ();
   if (!dl && !DefaultDataLayout.empty ()) {
     module->setDataLayout (DefaultDataLayout);
     dl = &module->getDataLayout ();
   }
-  
+
   assert (dl && "Could not find Data Layout for the module");
-  
+
   if (!ApiConfig.empty())
   {
       pass_manager.add(seahorn::createApiAnalysisPass(ApiConfig));
   }
-  
+
   if (RenameNondet)
     pass_manager.add (seahorn::createRenameNondetPass ());
   else if (StripShadowMem)
@@ -314,7 +314,7 @@ int main(int argc, char **argv) {
 
     // -- Create a main function if we do not have one.
     pass_manager.add (seahorn::createDummyMainFunctionPass ());
- 
+
     // -- promote verifier specific functions to special names
     pass_manager.add (new seahorn::PromoteVerifierCalls ());
 
@@ -326,29 +326,29 @@ int main(int argc, char **argv) {
 
     if (KillVaArg)
       pass_manager.add (seahorn::createKillVarArgFnPass ());
-  
+
     if (StripExtern)
       pass_manager.add (seahorn::createStripUselessDeclarationsPass ());
-  
+
     // -- mark entry points of all functions
     if (!MixedSem && !CutLoops)
       // XXX should only be ran once. need better way to ensure that.
       pass_manager.add (seahorn::createMarkFnEntryPass ());
-  
+
     // turn all functions internal so that we can inline them if requested
     pass_manager.add (llvm::createInternalizePass (llvm::ArrayRef<const char*>("main")));
-  
+
     // -- resolve indirect calls
     if (DevirtualizeFuncs)
       pass_manager.add (seahorn::createDevirtualizeFunctionsPass ());
-  
+
     // -- externalize uses of address-taken functions
     if (ExternalizeAddrTakenFuncs)
       pass_manager.add (seahorn::createExternalizeAddressTakenFunctionsPass ());
 
     // kill internal unused code
     pass_manager.add (llvm::createGlobalDCEPass ()); // kill unused internal global
-  
+
     // -- global optimizations
     // FIXME: for inconsistency analysis this causes problems with
     //        trivial examples.
@@ -357,16 +357,16 @@ int main(int argc, char **argv) {
 
     //if (!MixedSem)
     pass_manager.add (new seahorn::LowerGvInitializers ());
-    
+
     // -- SSA
     pass_manager.add(llvm::createPromoteMemoryToRegisterPass());
     // -- Turn undef into nondet
     pass_manager.add (seahorn::createNondetInitPass ());
-  
+
     // -- cleanup after SSA
     pass_manager.add (seahorn::createInstCombine ());
     pass_manager.add (llvm::createCFGSimplificationPass ());
-  
+
     // -- break aggregates
     pass_manager.add (llvm::createScalarReplAggregatesPass (SROA_Threshold,
                                                             true,
@@ -375,36 +375,36 @@ int main(int argc, char **argv) {
                                                             SROA_ScalarLoadThreshold));
     // -- Turn undef into nondet (undef are created by SROA when it calls mem2reg)
     pass_manager.add (seahorn::createNondetInitPass ());
-  
+
     // -- cleanup after break aggregates
     pass_manager.add (seahorn::createInstCombine ());
     pass_manager.add (llvm::createCFGSimplificationPass ());
-  
+
     // eliminate unused calls to verifier.nondet() functions
     pass_manager.add (seahorn::createDeadNondetElimPass ());
-  
+
     pass_manager.add(llvm::createLowerSwitchPass());
-  
+
     pass_manager.add(llvm::createDeadInstEliminationPass());
     pass_manager.add (new seahorn::RemoveUnreachableBlocksPass ());
-    
-    if (LowerInvoke) 
+
+    if (LowerInvoke)
     {
       // -- lower invoke's
       pass_manager.add(llvm::createLowerInvokePass());
       // cleanup after lowering invoke's
-      pass_manager.add (llvm::createCFGSimplificationPass ());  
+      pass_manager.add (llvm::createCFGSimplificationPass ());
     }
-    
+
     // lower arithmetic with overflow intrinsics
     pass_manager.add(seahorn::createLowerArithWithOverflowIntrinsicsPass ());
     // lower libc++abi functions
     pass_manager.add(seahorn::createLowerLibCxxAbiFunctionsPass ());
-    
-    // cleanup after lowering 
+
+    // cleanup after lowering
     pass_manager.add (seahorn::createInstCombine ());
     pass_manager.add (llvm::createCFGSimplificationPass ());
-    
+
     if (InlineAll || InlineAllocFn || InlineConstructFn)
     {
       if (InlineAll)
@@ -415,13 +415,13 @@ int main(int argc, char **argv) {
         if (InlineConstructFn)
           pass_manager.add (seahorn::createMarkInternalConstructOrDestructInlinePass ());
       }
-      
+
       pass_manager.add (llvm::createAlwaysInlinerPass ());
       pass_manager.add (llvm::createGlobalDCEPass ()); // kill unused internal global
       pass_manager.add (seahorn::createPromoteMallocPass ());
       pass_manager.add (new seahorn::RemoveUnreachableBlocksPass ());
     }
-  
+
     pass_manager.add(llvm::createDeadInstEliminationPass());
     pass_manager.add (llvm::createGlobalDCEPass ()); // kill unused internal global
     pass_manager.add(llvm::createUnifyFunctionExitNodesPass ());
@@ -433,9 +433,9 @@ int main(int argc, char **argv) {
 
     if (UnfoldLoopsForDsa) {
       // --- help DSA to be more precise
-#ifdef HAVE_LLVM_SEAHORN      
+#ifdef HAVE_LLVM_SEAHORN
       pass_manager.add (llvm_seahorn::createFakeLatchExitPass());
-#endif       
+#endif
       pass_manager.add (seahorn::createUnfoldLoopForDsaPass());
     }
 
@@ -447,12 +447,12 @@ int main(int argc, char **argv) {
       // -- instructions
       pass_manager.add(llvm::createDeadInstEliminationPass());
     }
-    
+
     if (ArrayBoundsChecks > 0) {
       // XXX ABC might run sea-dsa which requires all values have a name
       pass_manager.add (new ufo::NameValues ());
       switch (ArrayBoundsChecks) {
-      case LOCAL: 
+      case LOCAL:
 	pass_manager.add (new seahorn::LowerCstExprPass ());
 	pass_manager.add (new seahorn::Local ());
 	// -- Turn undef into nondet (undef might be created by Local)
@@ -464,50 +464,50 @@ int main(int argc, char **argv) {
 	pass_manager.add (llvm::createAlwaysInlinerPass ());
 	break;
       case GLOBAL:
-      default : 
+      default :
 	pass_manager.add (new seahorn::Global ());
       }
     }
-    
+
     if (LowerAssert) {
       pass_manager.add (seahorn::createLowerAssertPass ());
-      // LowerAssert might generate some dead code 
+      // LowerAssert might generate some dead code
       pass_manager.add(llvm::createDeadInstEliminationPass());
     }
-    
+
     pass_manager.add (new seahorn::RemoveUnreachableBlocksPass ());
     if (NullChecks) {
       pass_manager.add (new seahorn::LowerCstExprPass ());
       pass_manager.add (new seahorn::NullCheck ());
     }
 
-    
-    if (!MixedSem && EnumVerifierCalls)  
-    { 
+
+    if (!MixedSem && EnumVerifierCalls)
+    {
       pass_manager.add (seahorn::createEnumVerifierCallsPass ());
     }
-    
+
     pass_manager.add (new seahorn::RemoveUnreachableBlocksPass ());
     pass_manager.add (seahorn::createPromoteMallocPass ());
-    pass_manager.add (llvm::createGlobalDCEPass ()); // kill unused internal global    
-  
+    pass_manager.add (llvm::createGlobalDCEPass ()); // kill unused internal global
+
     // -- Enable function slicing
     pass_manager.add (seahorn::createSliceFunctionsPass ());
     // -- Create a main function if we sliced it away
     pass_manager.add (seahorn::createDummyMainFunctionPass ());
-    
-    if (SymbolizeLoops) 
+
+    if (SymbolizeLoops)
     {
       pass_manager.add (seahorn::createSymbolizeConstantLoopBoundsPass ());
     }
-    
+
     if (MixedSem)
     {
       pass_manager.add (new seahorn::MixedSemantics ());
       pass_manager.add (new seahorn::RemoveUnreachableBlocksPass ());
       pass_manager.add (seahorn::createPromoteMallocPass ());
     }
-    
+
     if (CutLoops)
     {
       pass_manager.add (llvm::createLoopSimplifyPass ());
@@ -515,8 +515,8 @@ int main(int argc, char **argv) {
       pass_manager.add (seahorn::createCutLoopsPass ());
       // pass_manager.add (new seahorn::RemoveUnreachableBlocksPass ());
     }
-    
-    
+
+
     if (PromoteAssumptions)
       pass_manager.add (seahorn::createPromoteSeahornAssumePass ());
   }
@@ -525,17 +525,17 @@ int main(int argc, char **argv) {
   pass_manager.add (seahorn::createCanReadUndefPass ());
   // --- verify if bitcode is well-formed
   pass_manager.add (llvm::createVerifierPass());
-  
-  if (!OutputFilename.empty ()) 
+
+  if (!OutputFilename.empty ())
   {
     if (OutputAssembly)
       pass_manager.add (createPrintModulePass (output->os ()));
-    else 
+    else
       pass_manager.add (createBitcodeWriterPass (output->os ()));
   }
-  
+
   pass_manager.run(*module.get());
-  
+
   if (!OutputFilename.empty ()) output->keep();
   return 0;
 }

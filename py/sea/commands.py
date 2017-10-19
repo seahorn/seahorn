@@ -242,8 +242,8 @@ class Seapp(sea.LimitedCmd):
         ap.add_argument ('--inline-constructors', dest='inline_const',
                          help='Inline C++ constructors/destructors',
                          default=False, action='store_true')
-        ap.add_argument ('--no-promote-assumptions', dest='no_promote_assumptions',
-                         help='Do not promote verifier.assume to llvm.assume',
+        ap.add_argument ('--promote-assumptions', dest='promote_assumptions',
+                         help='Promote verifier.assume to llvm.assume',
                          default=False, action='store_true')
         ap.add_argument ('--simplify-pointer-loops', dest='simp_ptr_loops',
                          help='Simplify loops that iterate over pointers',
@@ -389,8 +389,11 @@ class Seapp(sea.LimitedCmd):
             else:
                 argv.append ('--strip-extern=false')
 
-            if args.no_promote_assumptions:
+            if args.promote_assumptions:
+                argv.append ('--promote-assumptions=true')
+            else:
                 argv.append ('--promote-assumptions=false')
+
 
             if args.abs_mem_lvl <> 'none':
                 argv.append ('--abstract-memory')

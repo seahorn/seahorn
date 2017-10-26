@@ -36,8 +36,8 @@ RUN cmake -GNinja \
           -DLLVM_TARGETS_TO_BUILD="X86;" \
           -DCMAKE_INSTALL_PREFIX:PATH=/llvm/out \
           -DLLVM_ENABLE_PEDANTIC=OFF \
-  		  -DLLVM_ENABLE_PIC=ON \
-  		  -DLLVM_REQUIRES_RTTI=ON \
+          -DLLVM_ENABLE_PIC=ON \
+          -DLLVM_REQUIRES_RTTI=ON \
           -DLLVM_INCLUDE_TESTS=OFF \
           -DLLVM_INCLUDE_GO_TESTS=OFF \
           -DLLVM_INCLUDE_EXAMPLES=OFF \

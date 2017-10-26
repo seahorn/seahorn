@@ -1,5 +1,5 @@
 #
-# z3/spacer xenial Dockerfile for SeaHorn
+# z3/spacer Dockerfile for SeaHorn
 # This produces packages in /z3.
 # Arguments:
 #  - UBUNTU:     trusty, xenial
@@ -46,7 +46,7 @@ RUN git clone https://bitbucket.org/spacer/code.git ./ -b spacer3 --depth=1
 
 RUN mkdir -p /z3/out
 
-# Build release configuration. Use the file with a saved flag to pick
+# Build selected configuration. Use the file with a saved flag to pick
 # release or debug configuration.
 
 RUN export IS_DEBUG=$(cat /tmp/dockerutils/out.txt) && \
@@ -57,7 +57,7 @@ RUN make install -j$(nproc)
 
 RUN tar -cvf /z3/z3.tar /z3/out
 
-RUN rm -rf /z3/out ; rm -rf /z3/repo/build
+RUN rm -rf /z3/out ; rm -rf /z3/repo/build ; rm -rf /tmp/dockerutils
 
 # Define default command.
 CMD ["bash"]

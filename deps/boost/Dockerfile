@@ -40,44 +40,38 @@ RUN update-alternatives --install "/usr/bin/ld" "ld" "/usr/bin/ld.gold" 20
 RUN update-alternatives --install "/usr/bin/ld" "ld" "/usr/bin/ld.bfd" 10
 
 WORKDIR /boost
-RUN mkdir -p /boost/repo
 
-# Checkout boost.
-RUN git clone https://github.com/boostorg/boost.git -b boost-1.62.0 \
-              --depth=1 --recursive ./repo
+RUN wget --output-document=boost.tar.bz2 https://downloads.sourceforge.net/project/boost/boost/1.62.0/boost_1_62_0.tar.bz2
 
-RUN mkdir -p /boost/out ; mkdir -p /boost/build
+RUN tar -xvf boost.tar.bz2 && mv -T /boost/boost_1_62_0 /boost/repo && rm boost.tar.bz2
+
+RUN mkdir -p /boost/out
 
 # Build selected configuration. Use the file with a saved flag to pick
 # release or debug configuration.
 
 WORKDIR /boost/repo
 
-RUN ./bootstrap.sh
+RUN ./bootstrap.sh --with-libraries=date_time,filesystem,system,iostreams,regex,test
 
-# Generate headers.
-RUN ./b2 -j$(nproc) \
-    --build-type=complete \
-    --layout=versioned \
-    --prefix=/boost/out headers 
+# Generate libs and headers.
+RUN ./b2 -j$(nproc) threading=multi -d0
 
-# Generate shared libraries.
-RUN ./b2 -j$(nproc) \
-         --layout=versioned \
-         --prefix=/boost/out \
-         --build-dir=/boost/build \
-         --build-type=complete \
-         --without-mpi \
-         variant=$(cat /tmp/dockerutils/out.txt) \
-         link=shared \
-         install
+RUN mkdir -p /boost/out ; mkdir -p /boost/out/boost ; mkdir -p /boost/out/boost/include
+RUN cp -r /boost/repo/boost /boost/out/boost/include/boost
+RUN cp -r /boost/repo/stage/lib /boost/out/boost/lib
 
-RUN cd /boost && \
-    tar -cvf /boost/boost162.tar ./out
+RUN ls 1>&2 /boost/out
 
-RUN rm -rf /boost/out ; rm -rf /z3/boost/build ; rm -rf /tmp/dockerutils
+RUN cd /boost/out && tar -cvf /boost/boost162.tar ./
+
+RUN rm -rf /boost/out ; rm -rf /boost/repo ; rm -rf /tmp/dockerutils
 
 WORKDIR /boost
 
+RUN echo '#!/bin/sh' > cpy.sh && \ 
+    echo 'cp *.tar /host/' >> cpy.sh && \
+    chmod +x cpy.sh
+
 # Define default command.
-CMD ["bash"]
+CMD ["./cpy.sh"]

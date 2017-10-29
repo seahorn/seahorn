@@ -43,6 +43,7 @@ RUN cmake -GNinja \
           -DLLVM_INCLUDE_EXAMPLES=OFF \
           -DLLVM_INCLUDE_DOCS=OFF \
           -DLLVM_BINDINGS_LIST=" " \
+          -DCPACK_GENERATOR="TGZ" \
           /llvm/repo
 
 RUN ninja package
@@ -50,5 +51,10 @@ RUN ninja package
 WORKDIR /llvm
 RUN mv /llvm/build/LLVM-* /llvm/ && rm -rf /llvm/build 
 
+RUN echo '#!/bin/sh' > cpy.sh && \ 
+    echo 'cp *.tar.gz /host/' >> cpy.sh && \
+    chmod +x cpy.sh
+
 # Define default command.
-CMD ["bash"]
+CMD ["./cpy.sh"]
+

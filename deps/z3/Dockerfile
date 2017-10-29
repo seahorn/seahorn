@@ -44,20 +44,27 @@ WORKDIR /z3/repo
 # Checkout z3/spacer3.
 RUN git clone https://bitbucket.org/spacer/code.git ./ -b spacer3 --depth=1
 
-RUN mkdir -p /z3/out
+RUN mkdir -p /z3/out ; mkdir -p /z3/out/z3
 
 # Build selected configuration. Use the file with a saved flag to pick
 # release or debug configuration.
 
 RUN export IS_DEBUG=$(cat /tmp/dockerutils/out.txt) && \
-    python /z3/repo/scripts/mk_make.py --prefix=/z3/out --staticlib $IS_DEBUG
+    python /z3/repo/scripts/mk_make.py --prefix=/z3/out/z3 --staticlib $IS_DEBUG
 WORKDIR /z3/repo/build
 RUN make -j$(nproc)
 RUN make install -j$(nproc)
 
-RUN tar -cvf /z3/z3.tar /z3/out
+RUN cd /z3/out ; tar -cvf /z3/z3.tar ./z3
 
 RUN rm -rf /z3/out ; rm -rf /z3/repo/build ; rm -rf /tmp/dockerutils
 
+WORKDIR /z3
+
+RUN echo '#!/bin/sh' > cpy.sh && \ 
+    echo 'cp *.tar /host/' >> cpy.sh && \
+    chmod +x cpy.sh
+
 # Define default command.
-CMD ["bash"]
+CMD ["./cpy.sh"]
+

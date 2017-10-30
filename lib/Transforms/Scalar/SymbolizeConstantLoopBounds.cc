@@ -176,8 +176,7 @@ namespace
 
       nondetFn = dyn_cast<Function>
           (M->getOrInsertFunction ("verifier.nondet", as, intTy, NULL));
-                                   
-      // XXX: I'm not sure the pass needs to a Module pass
+      
       CallGraphWrapperPass *cgwp = getAnalysisIfAvailable<CallGraphWrapperPass> ();
       cg = cgwp ? &cgwp->getCallGraph () : nullptr;
       if (cg) { 
@@ -193,7 +192,35 @@ namespace
         { Change |= SymbolizeLoop (SL, B); }
         // symbolize outermost loop
         Change |= SymbolizeLoop (L, B);
-      }      
+      }
+
+      if (Change) {
+	// -- HOOK: we insert an empty loop "while(nd()){}" between
+	//    entry and succ.  The reason for that is to enforce that
+	//    the initialization of the loop bounds and the loop
+	//    conditions where those bounds are used go to different
+	//    cutpoint graphs during the VC encoding phase.
+	
+	BasicBlock &entry = F.getEntryBlock();
+	if (BranchInst *BI = dyn_cast<BranchInst>(entry.getTerminator())) {
+	  if (BI->isUnconditional()) { 
+	    // TODO: update LoopInfo
+	    BasicBlock *succ= BI->getSuccessor(0);
+	    BasicBlock *header = BasicBlock::Create(ctx,"empty.loop", &F);
+	    BasicBlock *body = BasicBlock::Create(ctx,"empty.loop.body", &F);
+	    entry.replaceSuccessorsPhiUsesWith(header);
+	    B.SetInsertPoint(body);	  
+	    B.CreateBr(header);	  
+	    B.SetInsertPoint(header);
+	    Function * fn = dyn_cast<Function>
+	      (M->getOrInsertFunction ("verifier.nondet.bool", as, boolTy, NULL));
+	    B.CreateCondBr(B.CreateCall(fn, None, "nd.loop.cond"), body, succ);
+	    BI->eraseFromParent();
+	    B.SetInsertPoint(&entry);
+	    B.CreateBr(header);
+	  }
+	}
+      }
       return Change;
     }
 

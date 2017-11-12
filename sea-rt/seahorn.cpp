@@ -1,4 +1,5 @@
 #include "seahorn/seahorn.h"
+#include <stdarg.h>
 #include <cstdint>
 #include <cstdio>
 #undef NDEBUG

@@ -71,7 +71,7 @@ RUN mkdir -p /seahorn
 WORKDIR /seahorn
 
 # Checkout SeaHorn.
-RUN git clone https://github.com/seahorn/seahorn ./ --depth=10
+RUN git clone https://github.com/seahorn/seahorn ./ -b master --depth=10
 RUN mkdir -p /seahorn/build
 WORKDIR /seahorn/build
 

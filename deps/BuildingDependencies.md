@@ -10,6 +10,6 @@ This will automatically create a z3.tar file in the current working directory.
 
 For all the dependencies, the possible build arguments are:
 - UBUNTU: trusty, xenial
-- BUILD_TUPE: Release, Debug
+- BUILD_TYPE: Release, Debug
 
 Note that both `UBUNTU` and `BUILD_TYPE` are required arguments.

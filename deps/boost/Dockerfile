@@ -24,9 +24,8 @@ RUN echo '#!/bin/sh' > switch.sh && \
     echo 'VAL=$1;shift;while test $# -gt 0;do if [ "$1" = "$VAL" ];then echo $2;exit 0;fi;shift;shift;done' >> switch.sh && \
     chmod +x switch.sh
 
-# If BUILD_TYPE is Debug the additional CXX flags. 
+# If BUILD_TYPE is Debug we need to add 'debug' the additional CXX flags. 
 # Save them to a temporary file, as every run command runs in its own shell.
-# Assume AVX support.
 RUN /tmp/dockerutils/switch.sh $BUILD_TYPE Debug "debug" Release "release" \
     > /tmp/dockerutils/out.txt
 
@@ -63,14 +62,14 @@ RUN cp -r /boost/repo/stage/lib /boost/out/boost/lib
 
 RUN ls 1>&2 /boost/out
 
-RUN cd /boost/out && tar -cvf /boost/boost162.tar ./
+RUN cd /boost/out && tar -czvf /boost/boost162.tar.gz ./
 
 RUN rm -rf /boost/out ; rm -rf /boost/repo ; rm -rf /tmp/dockerutils
 
 WORKDIR /boost
 
 RUN echo '#!/bin/sh' > cpy.sh && \ 
-    echo 'cp *.tar /host/' >> cpy.sh && \
+    echo 'cp *.tar.gz /host/' >> cpy.sh && \
     chmod +x cpy.sh
 
 # Define default command.

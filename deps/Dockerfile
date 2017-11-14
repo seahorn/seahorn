@@ -48,30 +48,22 @@ RUN /tmp/dockerutils/switch.sh $BUILD_TYPE Debug "debug" Release "rel" \
     > /tmp/dockerutils/dt_out.txt
 RUN export BT=$(cat /tmp/dockerutils/dt_out.txt) && \
     export UB=$(lsb_release --a 2>&1 | cut -f2 | tail -n 1) && \
-    echo "$UB"_"$BT"_ > /tmp/dockerutils/prefix.txt && \
+    echo "$UB"_"$BT" > /tmp/dockerutils/prefix.txt && \
     cat /tmp/dockerutils/prefix.txt
 
 RUN mkdir -p /deps
 WORKDIR /deps
 RUN export PREFIX=$(cat /tmp/dockerutils/prefix.txt) && \
-    export BOOST_LINK=$(echo https://github.com/kuhar/seahorn_deps/raw/master/"$PREFIX"boost162.tar) && \
-    wget $BOOST_LINK
+    export DEPS_LINK=$(echo https://github.com/kuhar/seahorn_deps/releases/download/v0.1/"$PREFIX".tar.gz) && \
+    wget $DEPS_LINK
 
 RUN export PREFIX=$(cat /tmp/dockerutils/prefix.txt) && \
-    export Z3_LINK=$(echo https://github.com/kuhar/seahorn_deps/raw/master/"$PREFIX"z3.tar) && \
-    wget $Z3_LINK
-
-RUN export PREFIX=$(cat /tmp/dockerutils/prefix.txt) && \
-    export LLVM_LINK=$(echo https://github.com/kuhar/seahorn_deps/raw/master/"$PREFIX"llvm38.tar.gz) && \
-    wget $LLVM_LINK
-
-RUN export PREFIX=$(cat /tmp/dockerutils/prefix.txt) && \
-    export BOOST_TAR=$(echo "$PREFIX"boost162.tar) && \
-    export Z3_TAR=$(echo "$PREFIX"z3.tar) && \
-    export LLVM_TAR=$(echo "$PREFIX"llvm38.tar.gz) && \
-    tar -xvf $BOOST_TAR && rm $BOOST_TAR && \
-    tar -xvf $Z3_TAR && rm $Z3_TAR && \
-    tar -xvf $LLVM_TAR && rm $LLVM_TAR
+    export DEPS_TAR=$(echo "$PREFIX".tar.gz) && \
+    tar -xvf $DEPS_TAR && \
+    tar -xvf boost162.tar.gz && \
+    tar -xvf z3.tar.gz && \
+    tar -xvf llvm38.tar.gz && \
+    rm *.tar.gz
 
 RUN ls -al --block-size=M 1>&2
 
@@ -103,5 +95,10 @@ RUN cmake --build . --target package
 ENV PATH "/seahorn/build/run/bin:$PATH"
 
 WORKDIR /seahorn
+
+RUN echo '#!/bin/sh' > /tmp/cpy.sh && \ 
+    echo 'cp /seahorn/build/*.tar.gz /host/ && bash' >> /tmp/cpy.sh && \
+    chmod +x /tmp/cpy.sh
+
 # Define default command.
-CMD ["bash"]
+CMD ["/tmp/cpy.sh"]

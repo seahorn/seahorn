@@ -55,14 +55,14 @@ WORKDIR /z3/repo/build
 RUN make -j$(nproc)
 RUN make install -j$(nproc)
 
-RUN cd /z3/out ; tar -cvf /z3/z3.tar ./z3
+RUN cd /z3/out ; tar -czvf /z3/z3.tar.gz ./z3
 
 RUN rm -rf /z3/out ; rm -rf /z3/repo/build ; rm -rf /tmp/dockerutils
 
 WORKDIR /z3
 
 RUN echo '#!/bin/sh' > cpy.sh && \ 
-    echo 'cp *.tar /host/' >> cpy.sh && \
+    echo 'cp *.tar.gz /host/' >> cpy.sh && \
     chmod +x cpy.sh
 
 # Define default command.

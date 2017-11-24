@@ -49,6 +49,23 @@ WeakAbs ("horn-weak-abs", cl::Hidden, cl::init(true),
 	 cl::desc ("Perform weak abstraction"));
 
 static llvm::cl::opt<bool>
+KeepProxy ("horn-keep-proxy", cl::Hidden, cl::init(false),
+	 cl::desc ("Keep proxy variables"));
+
+static llvm::cl::opt<unsigned>
+// 0: old implementation of unsat-core generation
+// 1: new implementation of IUC
+// 2: new implementation of IUC + min-cut optimization
+IUC ("horn-iuc", cl::Hidden, cl::init (1));
+
+static llvm::cl::opt<unsigned>
+// 0: simple Farkas plugin
+// 1: simple Farkas plugin from other partition
+// 2: Gaussian elimination optimization
+// 3: use additive IUC plugin
+IUCArith ("horn-iuc-arith", cl::Hidden, cl::init (2));
+
+static llvm::cl::opt<bool>
 UseExtInvariants ("horn-use-ext-invariants", cl::Hidden, cl::init(true),
 	 cl::desc ("Use of external invariants"));
 
@@ -93,9 +110,11 @@ namespace seahorn
     params.set (":spacer.use_ext_invariants", UseExtInvariants);
     params.set (":spacer.use_ext_invariants_generalization", UseExtInvariantsGeneralization);
     params.set (":spacer.weak_abs", WeakAbs);
+    params.set (":spacer.iuc", IUC);
+    params.set (":spacer.iuc.arith", IUCArith);    
     // -- less incremental but constraints are popped after pushed in
     //    the solver
-    params.set (":spacer.keep_proxy", false);
+    params.set (":spacer.keep_proxy", KeepProxy);
     params.set (":spacer.ground_cti", false);
     fp.set (params);
     db.loadZFixedPoint (fp, SkipConstraints);

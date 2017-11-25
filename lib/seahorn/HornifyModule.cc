@@ -34,10 +34,6 @@
 #include "seahorn/FlatHornifyFunction.hh"
 #include "seahorn/IncHornifyFunction.hh"
 
-#ifdef HAVE_CRAB_LLVM
-#include "crab_llvm/CrabLlvm.hh"
-#endif
-
 using namespace llvm;
 using namespace seahorn;
 
@@ -399,10 +395,6 @@ namespace seahorn
 
     AU.addRequired<seahorn::TopologicalOrder>();
     AU.addRequired<seahorn::CutPointGraph>();
-#ifdef HAVE_CRAB_LLVM
-    AU.addPreserved<crab_llvm::CrabLlvm> ();
-#endif
-
   }
 
   const LiveSymbols& HornifyModule::getLiveSybols (const Function &F) const

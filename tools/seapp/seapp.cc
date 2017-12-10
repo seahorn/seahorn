@@ -38,6 +38,7 @@
 #include "seahorn/Transforms/Scalar/LowerCstExpr.hh"
 #include "seahorn/Transforms/Instrumentation/MixedSemantics.hh"
 #include "seahorn/Transforms/Instrumentation/BufferBoundsCheck.hh"
+#include "seahorn/Transforms/Instrumentation/SimpleMemoryCheck.hh"
 #include "seahorn/Transforms/Instrumentation/NullCheck.hh"
 
 #ifdef HAVE_LLVM_SEAHORN
@@ -123,6 +124,10 @@ ArrayBoundsChecks("abc",
 	clEnumValN (GLOBAL_C, "global-c", "Use global encoding by calling C-defined functions"),
 	clEnumValEnd),
  llvm::cl::init (NONE));
+
+static llvm::cl::opt<bool>
+    SimpleMemoryChecks("smc", llvm::cl::desc("Insert simple memory checks"),
+                       llvm::cl::init(false));
 
 static llvm::cl::opt<bool>
 EnumVerifierCalls ("enum-verifier-calls",
@@ -467,6 +472,10 @@ int main(int argc, char **argv) {
       default :
 	pass_manager.add (new seahorn::Global ());
       }
+    }
+
+    if (SimpleMemoryChecks) {
+      pass_manager.add(new seahorn::SimpleMemoryCheck());
     }
 
     if (LowerAssert) {

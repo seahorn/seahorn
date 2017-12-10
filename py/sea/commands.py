@@ -313,6 +313,9 @@ class Seapp(sea.LimitedCmd):
         ap.add_argument ('--abc-instrument-except-types',
                          help='Do not instrument a pointer if it is not of these user-defined types',
                          dest='abc_except_types', type=str,metavar='str,...')
+        ap.add_argument ('--smc', dest='simple_memory_checks',
+                         help='Insert Simple Memory Checks',
+                         default=False, action='store_true')
         ap.add_argument ('--ndc', dest='ndc',
                          help='Insert null dereference checks',
                          default=False, action='store_true')
@@ -478,6 +481,9 @@ class Seapp(sea.LimitedCmd):
             if args.enum_verifier_calls:
                 argv.append ('--enum-verifier-calls')
 
+            if args.simple_memory_checks:
+                argv.append ('--smc')
+
             if args.ndc:
                 argv.append ('--null-check')
                 if args.ndc_opt:
@@ -627,6 +633,7 @@ class CutLoops(sea.LimitedCmd):
             for l in args.log.split (':'): argv.extend (['-log', l])
 
         return self.seappCmd.run (args, argv)
+
 
 class Seaopt(sea.LimitedCmd):
     def __init__(self, quiet=False):

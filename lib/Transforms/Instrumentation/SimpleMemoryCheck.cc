@@ -1,4 +1,20 @@
 #include "seahorn/Transforms/Instrumentation/SimpleMemoryCheck.hh"
+
+#include "llvm/ADT/DenseMap.h"
+#include "llvm/Analysis/CallGraph.h"
+#include "llvm/Analysis/MemoryBuiltins.h"
+#include "llvm/Analysis/TargetLibraryInfo.h"
+#include "llvm/IR/DataLayout.h"
+#include "llvm/IR/Function.h"
+#include "llvm/IR/IRBuilder.h"
+#include "llvm/IR/Instructions.h"
+#include "llvm/IR/IntrinsicInst.h"
+#include "llvm/IR/Module.h"
+#include "llvm/Pass.h"
+#include "llvm/Support/Debug.h"
+
+#include "seahorn/config.h"
+
 #include "seahorn/Analysis/CanAccessMemory.hh"
 #include "ufo/Passes/NameValues.hpp"
 
@@ -23,8 +39,20 @@
 // Llvm dsa
 #include "seahorn/Support/DSAInfo.hh"
 
-
 namespace seahorn {
+
+class SimpleMemoryCheck : public llvm::ModulePass {
+public:
+  static char ID;
+  SimpleMemoryCheck() : llvm::ModulePass(ID) {}
+  virtual bool runOnModule(llvm::Module &M);
+  virtual void getAnalysisUsage(llvm::AnalysisUsage &AU) const;
+  virtual const char *getPassName() const { return "SimpleMemoryCheck"; }
+};
+
+llvm::ModulePass *CreateSimpleMemoryCheckPass() {
+  return new SimpleMemoryCheck();
+}
 
 bool SimpleMemoryCheck::runOnModule(llvm::Module &M) {
   llvm::outs() << " ========== SMC  ==========\n";
@@ -75,7 +103,6 @@ bool SimpleMemoryCheck::runOnModule(llvm::Module &M) {
   bool IsWrite;
   unsigned Aligment;
 
-
   errs() << " ========== SMC  ==========\n";
   // errs () << M << "\n";
   return true;
@@ -96,6 +123,5 @@ char SimpleMemoryCheck::ID = 0;
 
 static llvm::RegisterPass<SimpleMemoryCheck>
     Y("abc-simple", "Insert array buffer checks using simple encoding");
-
 
 } // end namespace seahorn

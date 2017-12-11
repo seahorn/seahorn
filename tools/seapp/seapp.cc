@@ -475,7 +475,7 @@ int main(int argc, char **argv) {
     }
 
     if (SimpleMemoryChecks) {
-      pass_manager.add(new seahorn::SimpleMemoryCheck());
+      pass_manager.add(seahorn::CreateSimpleMemoryCheckPass());
     }
 
     if (LowerAssert) {

@@ -36,7 +36,7 @@ add_lit_testsuite(test-abc "Regression test for Array Bounds Checks"
 
 add_lit_testsuite(test-smc "Regression test for Simple Memory Safety Checks"
   -v
-  ${CMAKE_CURRENT_SOURCE_DIR}/smsc
+  ${CMAKE_CURRENT_SOURCE_DIR}/smc
   PARAMS
   test_dir=${CMAKE_CURRENT_BINARY_DIR}
   DEPENDS seahorn

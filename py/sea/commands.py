@@ -313,9 +313,6 @@ class Seapp(sea.LimitedCmd):
         ap.add_argument ('--abc-instrument-except-types',
                          help='Do not instrument a pointer if it is not of these user-defined types',
                          dest='abc_except_types', type=str,metavar='str,...')
-        ap.add_argument ('--smc', dest='simple_memory_checks',
-                         help='Insert Simple Memory Checks',
-                         default=False, action='store_true')
         ap.add_argument ('--ndc', dest='ndc',
                          help='Insert null dereference checks',
                          default=False, action='store_true')
@@ -481,9 +478,6 @@ class Seapp(sea.LimitedCmd):
             if args.enum_verifier_calls:
                 argv.append ('--enum-verifier-calls')
 
-            if args.simple_memory_checks:
-                argv.append ('--smc')
-
             if args.ndc:
                 argv.append ('--null-check')
                 if args.ndc_opt:
@@ -555,6 +549,42 @@ class MixedSem(sea.LimitedCmd):
         if args.llvm_asm: argv.append ('-S')
         argv.extend (args.in_files)
         return self.seappCmd.run (args, argv)
+
+
+class SimpleMemoryChecks(sea.LimitedCmd):
+    def __init__(self, quiet=False):
+        super(SimpleMemoryChecks, self).__init__('smc',
+                                                 'Simple Memory Safety Checks',
+                                       allow_extra=True)
+
+    @property
+    def stdout (self):
+        return self.seappCmd.stdout
+
+    def name_out_file (self, in_files, args=None, work_dir=None):
+        ext = '.smc.bc'
+        # if args.llvm_asm: ext = '.ms.ll'
+        return _remap_file_name (in_files[0], ext, work_dir)
+
+    def mk_arg_parser (self, ap):
+        ap = super (SimpleMemoryChecks, self).mk_arg_parser (ap)
+        add_in_out_args (ap)
+        _add_S_arg (ap)
+        return ap
+
+    def run (self, args, extra):
+        cmd_name = which ('seapp')
+        if cmd_name is None: raise IOError ('seapp not found')
+        self.seappCmd = sea.ExtCmd (cmd_name)
+
+        argv = list()
+        if args.out_file is not None: argv.extend (['-o', args.out_file])
+        if args.llvm_asm: argv.append ('-S')
+
+        argv.append('--smc')
+        argv.extend (args.in_files)
+        return self.seappCmd.run (args, argv)
+
 
 class WrapMem(sea.LimitedCmd):
     def __init__(self, quiet=False):
@@ -1252,3 +1282,5 @@ Exe = sea.SeqCmd ('exe', 'alias for clang|pp --strip-extern|pp --internalize|wme
                   [Clang(), Seapp(strip_extern=True,keep_lib_fn=True),
                    Seapp(internalize=True), WrapMem(), LinkRt()])
 feInspect = sea.SeqCmd ('fe-inspect', 'alias for fe + seainspect', FrontEnd.cmds + [SeaInspect()])
+Smsc = sea.SeqCmd ('smsc', 'alias for fe|opt|smsc',
+                   [Clang(), Seapp(), Seaopt(), SimpleMemoryChecks()])

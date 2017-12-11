@@ -55,7 +55,6 @@ llvm::ModulePass *CreateSimpleMemoryCheckPass() {
 }
 
 bool SimpleMemoryCheck::runOnModule(llvm::Module &M) {
-  llvm::outs() << " ========== SMC  ==========\n";
 
   if (M.begin() == M.end())
     return false;
@@ -72,36 +71,30 @@ bool SimpleMemoryCheck::runOnModule(llvm::Module &M) {
       &getAnalysis<TargetLibraryInfoWrapperPass>().getTLI();
   const DataLayout *dl = &M.getDataLayout();
 
-  AttrBuilder AB;
-  AB.addAttribute(Attribute::NoReturn);
-  AttributeSet as = AttributeSet::get(ctx, AttributeSet::FunctionIndex, AB);
-  Function *errorFn = dyn_cast<Function>(
-      M.getOrInsertFunction("verifier.error", as, Type::getVoidTy(ctx), NULL));
+  M.dump();
+  llvm::outs() << "\n\n ========== SMC  ==========\n";
 
-  AB.clear();
-  as = AttributeSet::get(ctx, AttributeSet::FunctionIndex, AB);
-  Function *assumeFn = dyn_cast<Function>(M.getOrInsertFunction(
-      "verifier.assume", as, Type::getVoidTy(ctx), Type::getInt1Ty(ctx), NULL));
+  for (auto &F : M) {
+    if (F.getName() != "main") continue;
+    dbgs() << "Found main\n";
+    F.viewCFG();
 
-  // Type *intPtrTy = dl->getIntPtrType (ctx, 0);
-  // //errs () << "intPtrTy is " << *intPtrTy << "\n";
-  // Type *i8PtrTy = Type::getInt8Ty (ctx)->getPointerTo ();
+    for (auto &BB : F) {
+      for (auto &I : BB) {
+        if (auto *L = dyn_cast<LoadInst>(&I)) {
+          dbgs() << "Found a load in " << BB.getName() << ":\t";
+          L->dump();
 
-  IRBuilder<> B(ctx);
+          auto *Origin = L->getOperand(0);
+          if (dyn_cast<PHINode>(Origin)) continue;
+          if (dyn_cast<BitCastInst>(Origin)) continue;
 
-  CallGraphWrapperPass *cgwp = getAnalysisIfAvailable<CallGraphWrapperPass>();
-  CallGraph *cg = cgwp ? &cgwp->getCallGraph() : nullptr;
-  if (cg) {
-    cg->getOrInsertFunction(assumeFn);
-    cg->getOrInsertFunction(errorFn);
+          dbgs() << "\tOrigin: ";
+          Origin->dump();
+        }
+      }
+    }
   }
-
-  // unsigned untracked_dsa_checks = 0;
-  SmallVector<Instruction *, 16> ToInstrument;
-  // We instrument every address only once per basic block
-  SmallSet<Value *, 16> TempsToInstrument;
-  bool IsWrite;
-  unsigned Aligment;
 
   errs() << " ========== SMC  ==========\n";
   // errs () << M << "\n";

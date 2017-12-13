@@ -191,7 +191,8 @@ bool SimpleMemoryCheck::canBeUnsafe(Value *Ptr) {
   auto *Ty = L->getType();
   assert(Ty);
 
-  const uint32_t Sz = DL->getTypeSizeInBits(Ty) / 8;
+  const auto Bits = DL->getTypeSizeInBits(Ty);
+  const uint32_t Sz = Bits < 8 ? 1 : Bits / 8;
   if (int64_t(Origin.Offset) + Sz > int64_t(*AllocSize)) {
     dbgs() << "Allocated: " << (*AllocSize) << ", load size " << Sz
            << " at offset " << Origin.Offset << "\n";

@@ -43,7 +43,6 @@ using namespace llvm;
 
 namespace seahorn {
 
-
 struct PtrOrigin {
   llvm::Value *Ptr;
   int64_t Offset;
@@ -53,6 +52,123 @@ struct PtrOrigin {
     if (Ptr) Ptr->print(dbgs());
     else dbgs() << "nullptr";
     dbgs() << ", " << Offset << ">\n";
+  }
+};
+
+// Generic Wwapper for Dsa analysis.  This wrapper allows us to
+// switch from llvm dsa to seahorn dsa
+class DsaWrapper {
+protected:
+  llvm::Pass *m_abc;
+  DsaWrapper(llvm::Pass *abc) : m_abc(abc) {}
+
+public:
+  /* tag only for debugging purposes */
+  virtual bool shouldBeTrackedPtr(const llvm::Value &ptr,
+                                  const llvm::Function &fn, int tag) = 0;
+  virtual unsigned int getAllocSiteId(const llvm::Value &ptr) = 0;
+  virtual const llvm::Value *getAllocValue(unsigned int id) = 0;
+};
+
+// A wrapper for seahorn dsa
+class SeaDsa : public DsaWrapper {
+  sea_dsa::DsaInfo *m_dsa;
+
+  const sea_dsa::Cell *getCell(const llvm::Value &ptr, const llvm::Function &fn,
+                               int tag) {
+    if (!m_dsa) {
+      // errs () << "WARNING ABC: Sea Dsa information not found " << tag <<
+      // "\n";
+      return nullptr;
+    }
+
+    sea_dsa::Graph *g = m_dsa->getDsaGraph(fn);
+    if (!g) {
+      errs() << "WARNING ABC: Sea Dsa graph not found for " << fn.getName()
+             << "\n";
+      //<< " " << tag << "\n";
+      return nullptr;
+    }
+
+    if (!(g->hasCell(ptr))) {
+      errs() << "WARNING ABC: Sea Dsa node not found for " << ptr << "\n";
+      //<< " " << tag << "\n";
+      return nullptr;
+    }
+
+    const sea_dsa::Cell &c = g->getCell(ptr);
+    return &c;
+  }
+
+  bool hasSuccessors(const sea_dsa::Cell &c) const {
+    const sea_dsa::Node &n = *(c.getNode());
+    return (std::distance(n.links().begin(), n.links().end()) > 0);
+  }
+
+public:
+  SeaDsa(Pass *abc)
+      : DsaWrapper(abc),
+        m_dsa(&this->m_abc->getAnalysis<sea_dsa::DsaInfoPass>().getDsaInfo()) {}
+
+  bool shouldBeTrackedPtr(const llvm::Value &ptr, const llvm::Function &fn,
+                          int tag) {
+    unsigned TrackedDsaNode = 1;
+    unsigned TrackedAllocSite = 1;
+
+    auto &v = *(ptr.stripPointerCasts());
+    if (!v.getType()->isPointerTy())
+      return false;
+
+    // XXX: with GlobalCCallbacks sea global variables are before the abc
+    // instrumentation starts.
+    if (ptr.getName().startswith("sea_"))
+      return false;
+
+    const sea_dsa::Cell *c = getCell(v, fn, tag);
+    if (!c)
+      return true;
+
+    /// XXX: if the dsa analysis is context-sensitive we can have
+    /// a node that is not accessed in one function but accessed
+    /// in another. Thus, we cannot skip nodes that are not
+    /// accessed in the current function.
+
+    if (TrackedDsaNode > 0) {
+      return (m_dsa->getDsaNodeId(*(c->getNode())) == TrackedDsaNode);
+    }
+
+    if (TrackedAllocSite > 0) {
+      if (c->getNode()->getAllocSites().empty()) {
+        // errs () << "WARNING ABC: Sea Dsa found node for " << v
+        //         << " without allocation site " << tag << "\n"
+        //         << *(c->getNode ()) << "\n";
+
+        // XXX: return false is unsound!
+        // We do this so at least be able to claim "all memory
+        // accesses within dsa nodes with allocation sites are
+        // safe."
+
+        return false;
+      }
+
+      if (const Value *AV = m_dsa->getAllocValue(TrackedAllocSite)) {
+        auto const &s = c->getNode()->getAllocSites();
+        return (std::find(s.begin(), s.end(), AV) != s.end());
+      } else {
+        errs() << "WARNING ABC: allocation site " << TrackedAllocSite
+               << " not understood by Sea Dsa\n";
+        return true;
+      }
+    }
+    return true;
+  }
+
+  unsigned int getAllocSiteId(const llvm::Value &ptr) {
+    return m_dsa->getAllocSiteId(&ptr);
+  }
+
+  const llvm::Value *getAllocValue(unsigned int id) {
+    return m_dsa->getAllocValue(id);
   }
 };
 
@@ -69,6 +185,7 @@ private:
   LLVMContext *Ctx;
   const DataLayout *DL;
   const TargetLibraryInfo *TLI;
+  std::unique_ptr<SeaDsa> SDSA;
 
   bool isKnownAlloc(Value *Ptr);
   llvm::Optional<size_t> getAllocSize(Value *Ptr);
@@ -92,6 +209,9 @@ bool SimpleMemoryCheck::isKnownAlloc(Value *Ptr) {
   auto *CI = dyn_cast<CallInst>(Ptr);
   if (CI && isAllocationFn(CI, TLI))
     return true;
+
+  if (auto *GV = dyn_cast<GlobalVariable>(Ptr))
+      return GV->hasInitializer();
 
   return false;
 }
@@ -131,11 +251,6 @@ PtrOrigin SimpleMemoryCheck::trackPtrOrigin(Value *Ptr) {
     if (isKnownAlloc(Res.Ptr))
       return Res;
 
-    if (isa<CallInst>(Res.Ptr)) {
-      dbgs() << "Call, giving up :<\n";
-      return Res;
-    }
-
     if (auto *LD = dyn_cast<LoadInst>(Res.Ptr)) {
       dbgs() << "Load, giving up :<\n";
       return Res;
@@ -145,6 +260,12 @@ PtrOrigin SimpleMemoryCheck::trackPtrOrigin(Value *Ptr) {
       dbgs() << "Phi node, giving up :<\n";
       return Res;
     }
+
+    if (isa<SelectInst>(Res.Ptr)) {
+      dbgs() << "Select, giving up :<\n";
+      return Res;
+    }
+
 
     if (auto *BC = dyn_cast<BitCastInst>(Res.Ptr)) {
       auto *Arg = BC->getOperand(0);
@@ -166,8 +287,11 @@ PtrOrigin SimpleMemoryCheck::trackPtrOrigin(Value *Ptr) {
       continue;
     }
 
-    Res.Ptr->dump();
-    dbgs() << "Unhandled instruction type!\n";
+    if (isa<Argument>(Res.Ptr)) {
+      dbgs() << "Function argument, giving up\n";
+      return Res;
+    }
+
     return Res;
   }
 }
@@ -215,6 +339,7 @@ bool SimpleMemoryCheck::runOnModule(llvm::Module &M) {
   Ctx = &M.getContext();
   TLI = &getAnalysis<TargetLibraryInfoWrapperPass>().getTLI();
   DL = &M.getDataLayout();
+  SDSA = std::unique_ptr<SeaDsa>(new SeaDsa(this));
 
   M.dump();
   llvm::outs() << "\n\n ========== SMC  ==========\n";
@@ -249,7 +374,6 @@ bool SimpleMemoryCheck::runOnModule(llvm::Module &M) {
 
 void SimpleMemoryCheck::getAnalysisUsage(llvm::AnalysisUsage &AU) const {
   AU.setPreservesAll();
-  AU.addRequired<seahorn::DSAInfo>();     // run llvm dsa
   AU.addRequired<sea_dsa::DsaInfoPass>(); // run seahorn dsa
   AU.addRequired<llvm::TargetLibraryInfoWrapperPass>();
   AU.addRequired<llvm::UnifyFunctionExitNodes>();

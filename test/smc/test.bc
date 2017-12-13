@@ -1,0 +1,109 @@
+; ModuleID = 'test.c'
+target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
+target triple = "x86_64-unknown-linux-gnu"
+
+%struct.Foo = type { i32, i32 }
+%struct.Bar = type { %struct.Foo, i32 }
+
+@fn_a.f = private unnamed_addr constant %struct.Foo { i32 3, i32 0 }, align 4
+@fn_a.b = private unnamed_addr constant %struct.Bar { %struct.Foo { i32 2, i32 1 }, i32 -4 }, align 4
+@fn_b.f = private unnamed_addr constant %struct.Foo { i32 3, i32 0 }, align 4
+
+; Function Attrs: nounwind
+define void @fn_a() #0 {
+  %f = alloca %struct.Foo, align 4
+  %b = alloca %struct.Bar, align 4
+  %1 = bitcast %struct.Foo* %f to i8*
+  call void @llvm.memcpy.p0i8.p0i8.i64(i8* %1, i8* bitcast (%struct.Foo* @fn_a.f to i8*), i64 8, i32 4, i1 false)
+  %2 = bitcast %struct.Foo* %f to i8*
+  call void @touch(i8* %2)
+  %3 = getelementptr inbounds %struct.Foo, %struct.Foo* %f, i32 0, i32 0
+  %4 = load i32, i32* %3, align 4
+  call void @print(i32 %4)
+  %5 = bitcast %struct.Bar* %b to i8*
+  call void @llvm.memcpy.p0i8.p0i8.i64(i8* %5, i8* bitcast (%struct.Bar* @fn_a.b to i8*), i64 12, i32 4, i1 false)
+  %6 = bitcast %struct.Bar* %b to i8*
+  call void @touch(i8* %6)
+  %7 = getelementptr inbounds %struct.Bar, %struct.Bar* %b, i32 0, i32 1
+  %8 = load i32, i32* %7, align 4
+  call void @print(i32 %8)
+  %9 = getelementptr inbounds %struct.Bar, %struct.Bar* %b, i32 0, i32 0
+  %10 = getelementptr inbounds %struct.Foo, %struct.Foo* %9, i32 0, i32 0
+  %11 = load i32, i32* %10, align 4
+  call void @print(i32 %11)
+  %12 = bitcast %struct.Bar* %b to %struct.Foo*
+  %13 = getelementptr inbounds %struct.Foo, %struct.Foo* %12, i32 0, i32 1
+  %14 = load i32, i32* %13, align 4
+  call void @print(i32 %14)
+  ret void
+}
+
+; Function Attrs: argmemonly nounwind
+declare void @llvm.memcpy.p0i8.p0i8.i64(i8* nocapture, i8* nocapture readonly, i64, i32, i1) #1
+
+declare void @touch(i8*) #2
+
+declare void @print(i32) #2
+
+; Function Attrs: nounwind
+define void @fn_b() #0 {
+  %f = alloca %struct.Foo, align 4
+  %c = alloca %struct.Bar*, align 8
+  %1 = bitcast %struct.Foo* %f to i8*
+  call void @llvm.memcpy.p0i8.p0i8.i64(i8* %1, i8* bitcast (%struct.Foo* @fn_b.f to i8*), i64 8, i32 4, i1 false)
+  %2 = bitcast %struct.Foo* %f to i8*
+  call void @touch(i8* %2)
+  %3 = bitcast %struct.Foo* %f to %struct.Bar*
+  store %struct.Bar* %3, %struct.Bar** %c, align 8
+  %4 = load %struct.Bar*, %struct.Bar** %c, align 8
+  %5 = getelementptr inbounds %struct.Bar, %struct.Bar* %4, i32 0, i32 0
+  %6 = getelementptr inbounds %struct.Foo, %struct.Foo* %5, i32 0, i32 1
+  %7 = load i32, i32* %6, align 4
+  call void @print(i32 %7)
+  %8 = load %struct.Bar*, %struct.Bar** %c, align 8
+  %9 = getelementptr inbounds %struct.Bar, %struct.Bar* %8, i32 0, i32 1
+  %10 = load i32, i32* %9, align 4
+  call void @print(i32 %10)
+  ret void
+}
+
+; Function Attrs: nounwind
+define void @fn_c() #0 {
+  %g = alloca %struct.Foo*, align 8
+  %1 = call i8* @malloc(i64 8)
+  %2 = bitcast i8* %1 to %struct.Foo*
+  store %struct.Foo* %2, %struct.Foo** %g, align 8
+  %3 = load %struct.Foo*, %struct.Foo** %g, align 8
+  %4 = bitcast %struct.Foo* %3 to i8*
+  call void @touch(i8* %4)
+  %5 = load %struct.Foo*, %struct.Foo** %g, align 8
+  %6 = getelementptr inbounds %struct.Foo, %struct.Foo* %5, i32 0, i32 1
+  %7 = load i32, i32* %6, align 4
+  call void @print(i32 %7)
+  %8 = load %struct.Foo*, %struct.Foo** %g, align 8
+  %9 = bitcast %struct.Foo* %8 to %struct.Bar*
+  %10 = getelementptr inbounds %struct.Bar, %struct.Bar* %9, i32 0, i32 1
+  %11 = load i32, i32* %10, align 4
+  call void @print(i32 %11)
+  ret void
+}
+
+declare i8* @malloc(i64) #2
+
+; Function Attrs: nounwind
+define i32 @main() #0 {
+  %1 = alloca i32, align 4
+  store i32 0, i32* %1, align 4
+  call void @fn_a()
+  call void @fn_b()
+  call void @fn_c()
+  ret i32 0
+}
+
+attributes #0 = { nounwind "disable-tail-calls"="false" "less-precise-fpmad"="false" "no-frame-pointer-elim"="false" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "target-features"="+mmx,+sse,+sse2" "unsafe-fp-math"="false" "use-soft-float"="false" }
+attributes #1 = { argmemonly nounwind }
+attributes #2 = { "disable-tail-calls"="false" "less-precise-fpmad"="false" "no-frame-pointer-elim"="false" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "target-features"="+mmx,+sse,+sse2" "unsafe-fp-math"="false" "use-soft-float"="false" }
+
+!llvm.ident = !{!0}
+
+!0 = !{!"clang version 3.8.1 (tags/RELEASE_381/final)"}

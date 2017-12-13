@@ -39,7 +39,23 @@
 // Llvm dsa
 #include "seahorn/Support/DSAInfo.hh"
 
+using namespace llvm;
+
 namespace seahorn {
+
+
+struct PtrOrigin {
+  llvm::Value *Ptr;
+  int64_t Offset;
+
+  void dump() const {
+    llvm::dbgs() << '<';
+    if (Ptr) Ptr->print(dbgs());
+    else dbgs() << "nullptr";
+    dbgs() << ", " << Offset << ">\n";
+  }
+};
+
 
 class SimpleMemoryCheck : public llvm::ModulePass {
 public:
@@ -48,14 +64,144 @@ public:
   virtual bool runOnModule(llvm::Module &M);
   virtual void getAnalysisUsage(llvm::AnalysisUsage &AU) const;
   virtual const char *getPassName() const { return "SimpleMemoryCheck"; }
+
+private:
+  LLVMContext *Ctx;
+  const DataLayout *DL;
+  const TargetLibraryInfo *TLI;
+
+  bool isKnownAlloc(Value *Ptr);
+  llvm::Optional<size_t> getAllocSize(Value *Ptr);
+  PtrOrigin trackPtrOrigin(Value *Ptr);
+  bool canBeUnsafe(Value *Ptr);
 };
 
 llvm::ModulePass *CreateSimpleMemoryCheckPass() {
   return new SimpleMemoryCheck();
 }
 
-bool SimpleMemoryCheck::runOnModule(llvm::Module &M) {
 
+bool SimpleMemoryCheck::isKnownAlloc(Value *Ptr) {
+  if (auto *AI = dyn_cast<AllocaInst>(Ptr)) {
+    if (AI->isArrayAllocation())
+      return false;
+
+    return true;
+  }
+
+  auto *CI = dyn_cast<CallInst>(Ptr);
+  if (CI && isAllocationFn(CI, TLI))
+    return true;
+
+  return false;
+}
+
+llvm::Optional<size_t> SimpleMemoryCheck::getAllocSize(Value *Ptr) {
+  assert(Ptr);
+  if (!isKnownAlloc(Ptr))
+    return None;
+
+
+  ObjectSizeOffsetEvaluator OSOE(*DL, TLI, *Ctx, true);
+  SizeOffsetEvalType OffsetAlign = OSOE.compute(Ptr);
+  if (!OSOE.knownSize(OffsetAlign))
+    return llvm::None;
+
+  if (auto *Sz = dyn_cast<ConstantInt>(OffsetAlign.first)) {
+    const int64_t I = Sz->getSExtValue();
+    dbgs() << "\tconstant size: " << I << "\n";
+
+    assert(I >= 0);
+    return size_t(I);
+  }
+
+  return llvm::None;
+}
+
+PtrOrigin SimpleMemoryCheck::trackPtrOrigin(Value *Ptr) {
+  assert(Ptr);
+
+  PtrOrigin Res{Ptr, 0};
+  unsigned Iter = 0;
+  while (true) {
+    ++Iter;
+    for (unsigned i = 0; i < Iter; ++i) dbgs() << "\t";
+    Res.dump();
+
+    if (isKnownAlloc(Res.Ptr))
+      return Res;
+
+    if (isa<CallInst>(Res.Ptr)) {
+      dbgs() << "Call, giving up :<\n";
+      return Res;
+    }
+
+    if (auto *LD = dyn_cast<LoadInst>(Res.Ptr)) {
+      dbgs() << "Load, giving up :<\n";
+      return Res;
+    }
+
+    if (isa<PHINode>(Res.Ptr)) {
+      dbgs() << "Phi node, giving up :<\n";
+      return Res;
+    }
+
+    if (auto *BC = dyn_cast<BitCastInst>(Res.Ptr)) {
+      auto *Arg = BC->getOperand(0);
+      Res.Ptr = Arg;
+      continue;
+    }
+
+    if (auto *GEP = dyn_cast<GetElementPtrInst>(Res.Ptr)) {
+      auto *Arg = GEP->getOperand(0);
+
+      APInt GEPOffset(DL->getPointerTypeSizeInBits(GEP->getType()), 0);
+      if (!GEP->accumulateConstantOffset(*DL, GEPOffset)) {
+        dbgs() << "Non-constant GEP, giving up\n";
+        return Res;
+      }
+
+      Res.Ptr = Arg;
+      Res.Offset += GEPOffset.getSExtValue();
+      continue;
+    }
+
+    Res.Ptr->dump();
+    dbgs() << "Unhandled instruction type!\n";
+    return Res;
+  }
+}
+
+bool SimpleMemoryCheck::canBeUnsafe(Value *Ptr) {
+  assert(isa<LoadInst>(Ptr) || isa<StoreInst>(Ptr) && "Wrong instruction type");
+
+  auto *Inst = dyn_cast<Instruction>(Ptr);
+  assert(Inst);
+  Value *Arg = Inst->getOperand(0);
+  assert(Arg);
+
+  PtrOrigin Origin = trackPtrOrigin(Arg);
+  Optional<size_t> AllocSize = getAllocSize(Origin.Ptr);
+  if (!AllocSize)
+    return false;
+
+  auto *L = dyn_cast<LoadInst>(Inst);
+  assert(L && "Only loads for now");
+
+  auto *Ty = L->getType();
+  assert(Ty);
+
+  const uint32_t Sz = DL->getTypeSizeInBits(Ty) / 8;
+  if (int64_t(Origin.Offset) + Sz > int64_t(*AllocSize)) {
+    dbgs() << "Allocated: " << (*AllocSize) << ", load size " << Sz
+           << " at offset " << Origin.Offset << "\n";
+    return true;
+  }
+
+  return false;
+}
+
+bool SimpleMemoryCheck::runOnModule(llvm::Module &M) {
   if (M.begin() == M.end())
     return false;
 
@@ -65,32 +211,31 @@ bool SimpleMemoryCheck::runOnModule(llvm::Module &M) {
     return false;
   }
 
-  LLVMContext &ctx = M.getContext();
-
-  const TargetLibraryInfo *tli =
-      &getAnalysis<TargetLibraryInfoWrapperPass>().getTLI();
-  const DataLayout *dl = &M.getDataLayout();
+  Ctx = &M.getContext();
+  TLI = &getAnalysis<TargetLibraryInfoWrapperPass>().getTLI();
+  DL = &M.getDataLayout();
 
   M.dump();
   llvm::outs() << "\n\n ========== SMC  ==========\n";
 
   for (auto &F : M) {
-    if (F.getName() != "main") continue;
-    dbgs() << "Found main\n";
-    F.viewCFG();
+    // if (F.getName() != "main") continue;
+    // dbgs() << "Found main\n";
+    if (F.isDeclaration()) continue;
+
+    //F.viewCFG();
 
     for (auto &BB : F) {
       for (auto &I : BB) {
         if (auto *L = dyn_cast<LoadInst>(&I)) {
-          dbgs() << "Found a load in " << BB.getName() << ":\t";
+          dbgs() << "\n\nFound a load in " << BB.getName() << ":\t";
           L->dump();
 
-          auto *Origin = L->getOperand(0);
-          if (dyn_cast<PHINode>(Origin)) continue;
-          if (dyn_cast<BitCastInst>(Origin)) continue;
-
-          dbgs() << "\tOrigin: ";
-          Origin->dump();
+          if (canBeUnsafe(L)) {
+            dbgs() << "Can be unsafe: ";
+            L->dump();
+            dbgs() << "\n";
+          }
         }
       }
     }

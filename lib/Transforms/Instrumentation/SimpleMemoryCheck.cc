@@ -55,32 +55,15 @@ struct PtrOrigin {
   }
 };
 
-// Generic Wwapper for Dsa analysis.  This wrapper allows us to
-// switch from llvm dsa to seahorn dsa
-class DsaWrapper {
-protected:
-  llvm::Pass *m_abc;
-  DsaWrapper(llvm::Pass *abc) : m_abc(abc) {}
-
-public:
-  /* tag only for debugging purposes */
-  virtual bool shouldBeTrackedPtr(const llvm::Value &ptr,
-                                  const llvm::Function &fn, int tag) = 0;
-  virtual unsigned int getAllocSiteId(const llvm::Value &ptr) = 0;
-  virtual const llvm::Value *getAllocValue(unsigned int id) = 0;
-};
 
 // A wrapper for seahorn dsa
-class SeaDsa : public DsaWrapper {
+class SeaDsa {
+  llvm::Pass *m_abc;
   sea_dsa::DsaInfo *m_dsa;
 
   const sea_dsa::Cell *getCell(const llvm::Value &ptr, const llvm::Function &fn,
                                int tag) {
-    if (!m_dsa) {
-      // errs () << "WARNING ABC: Sea Dsa information not found " << tag <<
-      // "\n";
-      return nullptr;
-    }
+    assert(m_dsa);
 
     sea_dsa::Graph *g = m_dsa->getDsaGraph(fn);
     if (!g) {
@@ -107,61 +90,21 @@ class SeaDsa : public DsaWrapper {
 
 public:
   SeaDsa(Pass *abc)
-      : DsaWrapper(abc),
+      : m_abc(abc),
         m_dsa(&this->m_abc->getAnalysis<sea_dsa::DsaInfoPass>().getDsaInfo()) {}
 
-  bool shouldBeTrackedPtr(const llvm::Value &ptr, const llvm::Function &fn,
-                          int tag) {
-    unsigned TrackedDsaNode = 1;
-    unsigned TrackedAllocSite = 1;
+  SmallPtrSet<Value *, 8> getAllocSites(Value *V, const Function &F) {
+    auto *C = getCell(*V, F, 0);
+    assert(C);
+    auto *N = C->getNode();
+    assert(N);
 
-    auto &v = *(ptr.stripPointerCasts());
-    if (!v.getType()->isPointerTy())
-      return false;
+    SmallPtrSet<Value *, 8> Sites;
+    for (auto &S : N->getAllocSites())
+      Sites.insert(const_cast<Value *>(S));
 
-    // XXX: with GlobalCCallbacks sea global variables are before the abc
-    // instrumentation starts.
-    if (ptr.getName().startswith("sea_"))
-      return false;
-
-    const sea_dsa::Cell *c = getCell(v, fn, tag);
-    if (!c)
-      return true;
-
-    /// XXX: if the dsa analysis is context-sensitive we can have
-    /// a node that is not accessed in one function but accessed
-    /// in another. Thus, we cannot skip nodes that are not
-    /// accessed in the current function.
-
-    if (TrackedDsaNode > 0) {
-      return (m_dsa->getDsaNodeId(*(c->getNode())) == TrackedDsaNode);
-    }
-
-    if (TrackedAllocSite > 0) {
-      if (c->getNode()->getAllocSites().empty()) {
-        // errs () << "WARNING ABC: Sea Dsa found node for " << v
-        //         << " without allocation site " << tag << "\n"
-        //         << *(c->getNode ()) << "\n";
-
-        // XXX: return false is unsound!
-        // We do this so at least be able to claim "all memory
-        // accesses within dsa nodes with allocation sites are
-        // safe."
-
-        return false;
-      }
-
-      if (const Value *AV = m_dsa->getAllocValue(TrackedAllocSite)) {
-        auto const &s = c->getNode()->getAllocSites();
-        return (std::find(s.begin(), s.end(), AV) != s.end());
-      } else {
-        errs() << "WARNING ABC: allocation site " << TrackedAllocSite
-               << " not understood by Sea Dsa\n";
-        return true;
-      }
-    }
-    return true;
-  }
+    return Sites;
+  };
 
   unsigned int getAllocSiteId(const llvm::Value &ptr) {
     return m_dsa->getAllocSiteId(&ptr);
@@ -190,7 +133,8 @@ private:
   bool isKnownAlloc(Value *Ptr);
   llvm::Optional<size_t> getAllocSize(Value *Ptr);
   PtrOrigin trackPtrOrigin(Value *Ptr);
-  bool canBeUnsafe(Value *Ptr);
+  bool canBeUnsafe(Value *Ptr, Function &F);
+  bool isInterestingAllocSite(Value *Ptr, int64_t LoadEnd, Value *Alloc);
 };
 
 llvm::ModulePass *CreateSimpleMemoryCheckPass() {
@@ -229,8 +173,6 @@ llvm::Optional<size_t> SimpleMemoryCheck::getAllocSize(Value *Ptr) {
 
   if (auto *Sz = dyn_cast<ConstantInt>(OffsetAlign.first)) {
     const int64_t I = Sz->getSExtValue();
-    dbgs() << "\tconstant size: " << I << "\n";
-
     assert(I >= 0);
     return size_t(I);
   }
@@ -296,7 +238,7 @@ PtrOrigin SimpleMemoryCheck::trackPtrOrigin(Value *Ptr) {
   }
 }
 
-bool SimpleMemoryCheck::canBeUnsafe(Value *Ptr) {
+bool SimpleMemoryCheck::canBeUnsafe(Value *Ptr, Function &F) {
   assert(isa<LoadInst>(Ptr) || isa<StoreInst>(Ptr) && "Wrong instruction type");
 
   auto *Inst = dyn_cast<Instruction>(Ptr);
@@ -305,9 +247,6 @@ bool SimpleMemoryCheck::canBeUnsafe(Value *Ptr) {
   assert(Arg);
 
   PtrOrigin Origin = trackPtrOrigin(Arg);
-  Optional<size_t> AllocSize = getAllocSize(Origin.Ptr);
-  if (!AllocSize)
-    return false;
 
   auto *L = dyn_cast<LoadInst>(Inst);
   assert(L && "Only loads for now");
@@ -317,13 +256,42 @@ bool SimpleMemoryCheck::canBeUnsafe(Value *Ptr) {
 
   const auto Bits = DL->getTypeSizeInBits(Ty);
   const uint32_t Sz = Bits < 8 ? 1 : Bits / 8;
-  if (int64_t(Origin.Offset) + Sz > int64_t(*AllocSize)) {
-    dbgs() << "Allocated: " << (*AllocSize) << ", load size " << Sz
-           << " at offset " << Origin.Offset << "\n";
-    return true;
+  const int64_t LastRead = Origin.Offset + Sz;
+
+  Optional<size_t> AllocSize = getAllocSize(Origin.Ptr);
+  if (AllocSize) {
+    if (int64_t(Origin.Offset) + Sz > int64_t(*AllocSize)) {
+      dbgs() << "Allocated: " << (*AllocSize) << ", load size " << Sz
+             << " at offset " << Origin.Offset << "\n";
+      return true;
+    }
   }
 
+  assert(Origin.Ptr);
+  dbgs() << "Interesting alloca sites: \n";
+  for (Value *AS : SDSA->getAllocSites(Origin.Ptr, F)) {
+    if (!isInterestingAllocSite(Origin.Ptr, LastRead, AS))
+      continue;
+
+    dbgs() << "\t";
+    AS->dump();
+  }
+
+
   return false;
+}
+
+bool SimpleMemoryCheck::isInterestingAllocSite(Value *Ptr, int64_t LoadEnd,
+                                               Value *Alloc) {
+  assert(Ptr);
+  assert(Alloc);
+  assert(LoadEnd > 0);
+
+  Optional<size_t> AllocSize = getAllocSize(Alloc);
+  if (!AllocSize)
+    return false;
+
+  return size_t(LoadEnd) > *AllocSize;
 }
 
 bool SimpleMemoryCheck::runOnModule(llvm::Module &M) {
@@ -357,7 +325,7 @@ bool SimpleMemoryCheck::runOnModule(llvm::Module &M) {
           dbgs() << "\n\nFound a load in " << BB.getName() << ":\t";
           L->dump();
 
-          if (canBeUnsafe(L)) {
+          if (canBeUnsafe(L, F)) {
             dbgs() << "Can be unsafe: ";
             L->dump();
             dbgs() << "\n";

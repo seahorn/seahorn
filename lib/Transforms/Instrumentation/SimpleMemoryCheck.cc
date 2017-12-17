@@ -55,6 +55,38 @@ struct PtrOrigin {
   }
 };
 
+struct CheckContext {
+  Instruction *MI = nullptr;
+  Function *F = nullptr;
+  Value *Barrier = nullptr;
+  size_t AccessedBytes = 0;
+  SmallVector<Value *, 8> AllocSites;
+
+  void dump() {
+    dbgs() << "CheckContext : " << (F ? F->getName() : "nullptr") << " {\n";
+    dbgs() << "  MI: ";
+    if (MI) MI->print(dbgs());
+    else dbgs() << " nullptr";
+
+    dbgs() << "\n  Barrier: ";
+    if (Barrier) Barrier->print(dbgs());
+    else dbgs() << " nullptr";
+
+    dbgs() << "\n  AccessedBytes: " << AccessedBytes;
+
+    dbgs() << "\n  AllocSites: {\n";
+    unsigned i = 0;
+    for (auto *V : AllocSites) {
+      dbgs() << "    " << (i++) << ": ";
+      V->print(dbgs());
+      if (auto *I = dyn_cast<Instruction>(V))
+        dbgs() << "  (" << I->getParent()->getName() << ")";
+
+      dbgs() << ",\n";
+    }
+    dbgs() << "  }\n}\n";
+  }
+};
 
 // A wrapper for seahorn dsa
 class SeaDsa {
@@ -133,7 +165,7 @@ private:
   bool isKnownAlloc(Value *Ptr);
   llvm::Optional<size_t> getAllocSize(Value *Ptr);
   PtrOrigin trackPtrOrigin(Value *Ptr);
-  bool canBeUnsafe(Instruction *Ptr, Function &F);
+  CheckContext getUnsafeCandidates(Instruction *Ptr, Function &F);
   bool isInterestingAllocSite(Value *Inst, int64_t LoadEnd, Value *Alloc);
 };
 
@@ -185,8 +217,6 @@ PtrOrigin SimpleMemoryCheck::trackPtrOrigin(Value *Ptr) {
   unsigned Iter = 0;
   while (true) {
     ++Iter;
-    for (unsigned i = 0; i < Iter; ++i) dbgs() << "\t";
-    Res.dump();
 
     if (isKnownAlloc(Res.Ptr))
       return Res;
@@ -201,10 +231,8 @@ PtrOrigin SimpleMemoryCheck::trackPtrOrigin(Value *Ptr) {
       auto *Arg = GEP->getOperand(0);
 
       APInt GEPOffset(DL->getPointerTypeSizeInBits(GEP->getType()), 0);
-      if (!GEP->accumulateConstantOffset(*DL, GEPOffset)) {
-        dbgs() << "Non-constant GEP, giving up\n";
+      if (!GEP->accumulateConstantOffset(*DL, GEPOffset))
         return Res;
-      }
 
       Res.Ptr = Arg;
       Res.Offset += GEPOffset.getSExtValue();
@@ -215,7 +243,8 @@ PtrOrigin SimpleMemoryCheck::trackPtrOrigin(Value *Ptr) {
   }
 }
 
-bool SimpleMemoryCheck::canBeUnsafe(Instruction *Inst, Function &F) {
+CheckContext SimpleMemoryCheck::getUnsafeCandidates(Instruction *Inst,
+                                                    Function &F) {
   assert(isa<LoadInst>(Inst) || isa<StoreInst>(Inst) && "Wrong instruction type");
 
   Value *Arg = Inst->getOperand(isa<LoadInst>(Inst) ? 0 : 1);
@@ -231,27 +260,33 @@ bool SimpleMemoryCheck::canBeUnsafe(Instruction *Inst, Function &F) {
   const uint32_t Sz = Bits < 8 ? 1 : Bits / 8;
   const int64_t LastRead = Origin.Offset + Sz;
 
+  CheckContext Check;
+  Check.MI = Inst;
+  Check.F = &F;
+  Check.Barrier = Origin.Ptr;
+  Check.AccessedBytes = size_t(LastRead);
+
   Optional<size_t> AllocSize = getAllocSize(Origin.Ptr);
   if (AllocSize) {
     if (int64_t(Origin.Offset) + Sz > int64_t(*AllocSize)) {
-      dbgs() << "Allocated: " << (*AllocSize) << ", load size " << Sz
+      errs() << "Unsafe access found!\n";
+      errs() << "  Allocated: " << (*AllocSize) << ", load size " << Sz
              << " at offset " << Origin.Offset << "\n";
-      return true;
+      Check.dump();
     }
+
+    return Check;
   }
 
   assert(Origin.Ptr);
-  dbgs() << "Interesting alloca sites: \n";
   for (Value *AS : SDSA->getAllocSites(Origin.Ptr, F)) {
     if (!isInterestingAllocSite(Origin.Ptr, LastRead, AS))
       continue;
 
-    dbgs() << "\t";
-    AS->dump();
+    Check.AllocSites.push_back(AS);
   }
 
-
-  return false;
+  return Check;
 }
 
 bool SimpleMemoryCheck::isInterestingAllocSite(Value *Ptr, int64_t LoadEnd,
@@ -284,6 +319,9 @@ bool SimpleMemoryCheck::runOnModule(llvm::Module &M) {
 
   M.dump();
   llvm::outs() << "\n\n ========== SMC  ==========\n";
+  llvm::outs().flush();
+
+  std::vector<CheckContext> CheckCandidates;
 
   for (auto &F : M) {
     // if (F.getName() != "main") continue;
@@ -296,21 +334,21 @@ bool SimpleMemoryCheck::runOnModule(llvm::Module &M) {
       for (auto &V : BB) {
         auto *I = dyn_cast<Instruction>(&V);
         if (I && (isa<LoadInst>(I) || isa<StoreInst>(I))) {
-          dbgs() << "\n\nFound a MI in " << BB.getName() << ":\t";
-          I->dump();
 
-          if (canBeUnsafe(I, F)) {
-            dbgs() << "Can be unsafe: ";
-            I->dump();
-            dbgs() << "\n";
-          }
+          CheckContext Check = getUnsafeCandidates(I, F);
+          if (Check.AllocSites.empty())
+            continue;
+
+          CheckCandidates.emplace_back(std::move(Check));
+
+          dbgs() << CheckCandidates.size() << ": ";
+          CheckCandidates.back().dump();
         }
       }
     }
   }
 
   errs() << " ========== SMC  ==========\n";
-  // errs () << M << "\n";
   return true;
 }
 

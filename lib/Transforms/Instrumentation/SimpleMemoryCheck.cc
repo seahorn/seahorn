@@ -49,8 +49,10 @@ struct PtrOrigin {
 
   void dump() const {
     llvm::dbgs() << '<';
-    if (Ptr) Ptr->print(dbgs());
-    else dbgs() << "nullptr";
+    if (Ptr)
+      Ptr->print(dbgs());
+    else
+      dbgs() << "nullptr";
     dbgs() << ", " << Offset << ">\n";
   }
 };
@@ -65,12 +67,16 @@ struct CheckContext {
   void dump() {
     dbgs() << "CheckContext : " << (F ? F->getName() : "nullptr") << " {\n";
     dbgs() << "  MI: ";
-    if (MI) MI->print(dbgs());
-    else dbgs() << " nullptr";
+    if (MI)
+      MI->print(dbgs());
+    else
+      dbgs() << " nullptr";
 
     dbgs() << "\n  Barrier: ";
-    if (Barrier) Barrier->print(dbgs());
-    else dbgs() << " nullptr";
+    if (Barrier)
+      Barrier->print(dbgs());
+    else
+      dbgs() << " nullptr";
 
     dbgs() << "\n  AccessedBytes: " << AccessedBytes;
 
@@ -147,7 +153,6 @@ public:
   }
 };
 
-
 class SimpleMemoryCheck : public llvm::ModulePass {
 public:
   static char ID;
@@ -186,7 +191,7 @@ bool SimpleMemoryCheck::isKnownAlloc(Value *Ptr) {
     return true;
 
   if (auto *GV = dyn_cast<GlobalVariable>(Ptr))
-      return GV->hasInitializer();
+    return GV->hasInitializer();
 
   return false;
 }
@@ -245,15 +250,16 @@ PtrOrigin SimpleMemoryCheck::trackPtrOrigin(Value *Ptr) {
 
 CheckContext SimpleMemoryCheck::getUnsafeCandidates(Instruction *Inst,
                                                     Function &F) {
-  assert(isa<LoadInst>(Inst) || isa<StoreInst>(Inst) && "Wrong instruction type");
+  assert(isa<LoadInst>(Inst) ||
+         isa<StoreInst>(Inst) && "Wrong instruction type");
 
   Value *Arg = Inst->getOperand(isa<LoadInst>(Inst) ? 0 : 1);
   assert(Arg);
 
   PtrOrigin Origin = trackPtrOrigin(Arg);
 
-  auto *Ty = isa<LoadInst>(Inst) ? Inst->getType()
-                                 : Inst->getOperand(0)->getType();
+  auto *Ty =
+      isa<LoadInst>(Inst) ? Inst->getType() : Inst->getOperand(0)->getType();
   assert(Ty);
 
   const auto Bits = DL->getTypeSizeInBits(Ty);
@@ -315,20 +321,34 @@ bool SimpleMemoryCheck::runOnModule(llvm::Module &M) {
   Ctx = &M.getContext();
   TLI = &getAnalysis<TargetLibraryInfoWrapperPass>().getTLI();
   DL = &M.getDataLayout();
-  SDSA = std::unique_ptr<SeaDsa>(new SeaDsa(this));
+  SDSA = llvm::make_unique<SeaDsa>(this);
 
   M.dump();
+
   llvm::outs() << "\n\n ========== SMC  ==========\n";
   llvm::outs().flush();
+
+  AttrBuilder AB;
+  AB.addAttribute(Attribute::NoReturn);
+  AttributeSet as = AttributeSet::get(*Ctx, AttributeSet::FunctionIndex, AB);
+  Function *errorFn = dyn_cast<Function>(M.getOrInsertFunction(
+      "verifier.error", as, Type::getVoidTy(*Ctx), nullptr));
+
+  AB.clear();
+  as = AttributeSet::get(*Ctx, AttributeSet::FunctionIndex, AB);
+  Function *assumeFn = dyn_cast<Function>(
+      M.getOrInsertFunction("verifier.assume", as, Type::getVoidTy(*Ctx),
+                            Type::getInt1Ty(*Ctx), nullptr));
 
   std::vector<CheckContext> CheckCandidates;
 
   for (auto &F : M) {
     // if (F.getName() != "main") continue;
     // dbgs() << "Found main\n";
-    if (F.isDeclaration()) continue;
+    if (F.isDeclaration())
+      continue;
 
-    //F.viewCFG();
+    // F.viewCFG();
 
     for (auto &BB : F) {
       for (auto &V : BB) {

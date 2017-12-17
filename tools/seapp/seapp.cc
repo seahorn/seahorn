@@ -336,7 +336,7 @@ int main(int argc, char **argv) {
       pass_manager.add (seahorn::createStripUselessDeclarationsPass ());
 
     // -- mark entry points of all functions
-    if (!MixedSem && !CutLoops)
+    if (!MixedSem && !CutLoops && !SimpleMemoryChecks)
       // XXX should only be ran once. need better way to ensure that.
       pass_manager.add (seahorn::createMarkFnEntryPass ());
 
@@ -491,7 +491,7 @@ int main(int argc, char **argv) {
     }
 
 
-    if (!MixedSem && EnumVerifierCalls)
+    if (!MixedSem && !SimpleMemoryChecks && EnumVerifierCalls)
     {
       pass_manager.add (seahorn::createEnumVerifierCallsPass ());
     }

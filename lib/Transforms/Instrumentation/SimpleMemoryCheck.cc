@@ -93,15 +93,15 @@ public:
       : m_abc(abc),
         m_dsa(&this->m_abc->getAnalysis<sea_dsa::DsaInfoPass>().getDsaInfo()) {}
 
-  SmallPtrSet<Value *, 8> getAllocSites(Value *V, const Function &F) {
+  SmallVector<Value *, 8> getAllocSites(Value *V, const Function &F) {
     auto *C = getCell(*V, F, 0);
     assert(C);
     auto *N = C->getNode();
     assert(N);
 
-    SmallPtrSet<Value *, 8> Sites;
+    SmallVector<Value *, 8> Sites;
     for (auto &S : N->getAllocSites())
-      Sites.insert(const_cast<Value *>(S));
+      Sites.push_back(const_cast<Value *>(S));
 
     return Sites;
   };
@@ -133,14 +133,13 @@ private:
   bool isKnownAlloc(Value *Ptr);
   llvm::Optional<size_t> getAllocSize(Value *Ptr);
   PtrOrigin trackPtrOrigin(Value *Ptr);
-  bool canBeUnsafe(Value *Ptr, Function &F);
-  bool isInterestingAllocSite(Value *Ptr, int64_t LoadEnd, Value *Alloc);
+  bool canBeUnsafe(Instruction *Ptr, Function &F);
+  bool isInterestingAllocSite(Value *Inst, int64_t LoadEnd, Value *Alloc);
 };
 
 llvm::ModulePass *CreateSimpleMemoryCheckPass() {
   return new SimpleMemoryCheck();
 }
-
 
 bool SimpleMemoryCheck::isKnownAlloc(Value *Ptr) {
   if (auto *AI = dyn_cast<AllocaInst>(Ptr)) {
@@ -164,7 +163,6 @@ llvm::Optional<size_t> SimpleMemoryCheck::getAllocSize(Value *Ptr) {
   assert(Ptr);
   if (!isKnownAlloc(Ptr))
     return None;
-
 
   ObjectSizeOffsetEvaluator OSOE(*DL, TLI, *Ctx, true);
   SizeOffsetEvalType OffsetAlign = OSOE.compute(Ptr);
@@ -193,22 +191,6 @@ PtrOrigin SimpleMemoryCheck::trackPtrOrigin(Value *Ptr) {
     if (isKnownAlloc(Res.Ptr))
       return Res;
 
-    if (auto *LD = dyn_cast<LoadInst>(Res.Ptr)) {
-      dbgs() << "Load, giving up :<\n";
-      return Res;
-    }
-
-    if (isa<PHINode>(Res.Ptr)) {
-      dbgs() << "Phi node, giving up :<\n";
-      return Res;
-    }
-
-    if (isa<SelectInst>(Res.Ptr)) {
-      dbgs() << "Select, giving up :<\n";
-      return Res;
-    }
-
-
     if (auto *BC = dyn_cast<BitCastInst>(Res.Ptr)) {
       auto *Arg = BC->getOperand(0);
       Res.Ptr = Arg;
@@ -229,29 +211,20 @@ PtrOrigin SimpleMemoryCheck::trackPtrOrigin(Value *Ptr) {
       continue;
     }
 
-    if (isa<Argument>(Res.Ptr)) {
-      dbgs() << "Function argument, giving up\n";
-      return Res;
-    }
-
     return Res;
   }
 }
 
-bool SimpleMemoryCheck::canBeUnsafe(Value *Ptr, Function &F) {
-  assert(isa<LoadInst>(Ptr) || isa<StoreInst>(Ptr) && "Wrong instruction type");
+bool SimpleMemoryCheck::canBeUnsafe(Instruction *Inst, Function &F) {
+  assert(isa<LoadInst>(Inst) || isa<StoreInst>(Inst) && "Wrong instruction type");
 
-  auto *Inst = dyn_cast<Instruction>(Ptr);
-  assert(Inst);
-  Value *Arg = Inst->getOperand(0);
+  Value *Arg = Inst->getOperand(isa<LoadInst>(Inst) ? 0 : 1);
   assert(Arg);
 
   PtrOrigin Origin = trackPtrOrigin(Arg);
 
-  auto *L = dyn_cast<LoadInst>(Inst);
-  assert(L && "Only loads for now");
-
-  auto *Ty = L->getType();
+  auto *Ty = isa<LoadInst>(Inst) ? Inst->getType()
+                                 : Inst->getOperand(0)->getType();
   assert(Ty);
 
   const auto Bits = DL->getTypeSizeInBits(Ty);
@@ -320,14 +293,15 @@ bool SimpleMemoryCheck::runOnModule(llvm::Module &M) {
     //F.viewCFG();
 
     for (auto &BB : F) {
-      for (auto &I : BB) {
-        if (auto *L = dyn_cast<LoadInst>(&I)) {
-          dbgs() << "\n\nFound a load in " << BB.getName() << ":\t";
-          L->dump();
+      for (auto &V : BB) {
+        auto *I = dyn_cast<Instruction>(&V);
+        if (I && (isa<LoadInst>(I) || isa<StoreInst>(I))) {
+          dbgs() << "\n\nFound a MI in " << BB.getName() << ":\t";
+          I->dump();
 
-          if (canBeUnsafe(L, F)) {
+          if (canBeUnsafe(I, F)) {
             dbgs() << "Can be unsafe: ";
-            L->dump();
+            I->dump();
             dbgs() << "\n";
           }
         }

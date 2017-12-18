@@ -481,8 +481,8 @@ namespace seahorn
   // Translate a range of Expr variables to Crab variables but only
   // those that can be mapped to llvm value.
   template<typename Range>
-  static std::vector<varname_t> ExprVecToCrab (const Range & live, CrabLlvmPass* Crab) { 
-    std::vector<varname_t> res;
+  static std::vector<crab_llvm::var_t> ExprVecToCrab (const Range & live, CrabLlvmPass* Crab) { 
+    std::vector<crab_llvm::var_t> res;
     for (auto l: live) 
     {
       Expr u = bind::fname (bind::fname (l));
@@ -490,7 +490,9 @@ namespace seahorn
       {
         const Value* v = getTerm <const Value*> (u);
         if (isa<GlobalVariable> (v)) continue;
-        res.push_back (Crab->get_var_factory()[v]);
+
+	// we need to create a typed variable
+        res.push_back (crab_llvm::var_t(Crab->get_var_factory()[v], crab::UNK_TYPE, 0));
       }
     }
     return res;
@@ -515,7 +517,7 @@ namespace seahorn
       getAbsDomWrappee (abs, boxes);        
 
       // Here we do project onto live variables before translation
-      std::vector<varname_t> vars = ExprVecToCrab (live, crab);
+      std::vector<crab_llvm::var_t> vars = ExprVecToCrab (live, crab);
       crab::domains::domain_traits<boxes_domain_t>::project (boxes, 
                                                              vars.begin (), 
                                                              vars.end ());

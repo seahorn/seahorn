@@ -178,10 +178,12 @@ private:
   bool isInterestingAllocSite(Value *Inst, int64_t LoadEnd, Value *Alloc);
   void emitGlobalInstrumentation();
   void emitMemoryInstInstrumentation(CheckContext &Candidate);
+  void emitAllocSiteInstrumentation(CheckContext &Candidate, size_t AllocId);
 
-  Function *createNewNDFn(Type *Ty, StringRef Prefix);
-  CallInst *getNDVal(Twine Name, Function *F, IRBuilder<> &IRB);
-  CallInst *getNDPtr(Twine Name, Function *F, IRBuilder<> &IRB);
+  Function *createNewNDFn(Type *Ty, Twine Prefix = "");
+  CallInst *getNDVal(size_t IntBitWidth, Function *F, IRBuilder<> &IRB,
+                     Twine Name = "");
+  CallInst *getNDPtr(Function *F, IRBuilder<> &IRB, Twine Name = "");
   void createAssume(Value *Cond, Function *F, IRBuilder<> &IRB);
 };
 
@@ -383,8 +385,9 @@ void UpdateCallGraph(CallGraph *CG, Function *Caller, CallInst *Callee) {
 
 } // namespace
 
-Function *SimpleMemoryCheck::createNewNDFn(Type *Ty, StringRef Prefix) {
-  auto *Res = dyn_cast<Function>(m_M->getOrInsertFunction(Prefix, Ty, nullptr));
+Function *SimpleMemoryCheck::createNewNDFn(Type *Ty, Twine Name) {
+  auto *Res =
+      dyn_cast<Function>(m_M->getOrInsertFunction(Name.str(), Ty, nullptr));
   assert(Res);
 
   if (m_CG)
@@ -393,16 +396,17 @@ Function *SimpleMemoryCheck::createNewNDFn(Type *Ty, StringRef Prefix) {
   return Res;
 }
 
-CallInst *SimpleMemoryCheck::getNDVal(Twine Name, Function *F,
-                                      IRBuilder<> &IRB) {
-  auto *NondetFn = createNewNDFn(GetI8PtrTy(*Ctx), "verifier.nondet");
+CallInst *SimpleMemoryCheck::getNDVal(size_t Bits, Function *F,
+                                      IRBuilder<> &IRB, Twine Name) {
+  auto *Ty = IntegerType::get(*Ctx, Bits);
+  auto *NondetFn = createNewNDFn(Ty, "verifier.nondet");
   CallInst *CI = IRB.CreateCall(NondetFn, None, Name);
   UpdateCallGraph(m_CG, F, CI);
   return CI;
 }
 
-CallInst *SimpleMemoryCheck::getNDPtr(Twine Name, Function *F,
-                                      IRBuilder<> &IRB) {
+CallInst *SimpleMemoryCheck::getNDPtr(Function *F, IRBuilder<> &IRB,
+                                      Twine Name) {
   auto *NondetPtrFn = createNewNDFn(GetI8PtrTy(*Ctx), "verifier.nondet_ptr");
   CallInst *CI = IRB.CreateCall(NondetPtrFn, None, Name);
   UpdateCallGraph(m_CG, F, CI);
@@ -425,7 +429,7 @@ void SimpleMemoryCheck::emitGlobalInstrumentation() {
 
   IRBuilder<> IRB(*Ctx);
   IRB.SetInsertPoint(&*(Main->getEntryBlock().getFirstInsertionPt()));
-  CallInst *NDPtrBegin = getNDPtr("nd_ptr_begin", Main, IRB);
+  CallInst *NDPtrBegin = getNDPtr(Main, IRB, "nd_ptr_begin");
   auto *Cmp1 = IRB.CreateICmpSGT(
       NDPtrBegin,
       IRB.CreateBitOrPointerCast(CreateNullptr(*Ctx), NDPtrBegin->getType()));
@@ -433,7 +437,7 @@ void SimpleMemoryCheck::emitGlobalInstrumentation() {
   createAssume(Cmp1, Main, IRB);
   CreateStore(IRB, NDPtrBegin, m_trackedBegin, DL);
 
-  CallInst *NDPtrEnd = getNDPtr("nd_ptr_end", Main, IRB);
+  CallInst *NDPtrEnd = getNDPtr(Main, IRB, "nd_ptr_end");
   auto *Cmp2 = IRB.CreateICmpSGT(NDPtrEnd, NDPtrBegin);
   createAssume(Cmp2, Main, IRB);
   CreateStore(IRB, NDPtrEnd, m_trackedEnd, DL);
@@ -451,9 +455,67 @@ void SimpleMemoryCheck::emitMemoryInstInstrumentation(CheckContext &Candidate) {
   auto *Cmp = IRB.CreateICmpEQ(TrackedBegin, BeginCandiate);
   auto *Active = IRB.CreateLoad(m_trackingEnbaled, "active_tracking");
   auto *And = IRB.CreateAnd(Active, Cmp, "unsafe_condition");
-  auto *Term = (SplitBlockAndInsertIfThen(And, Candidate.MI, true));
+  auto *Term = SplitBlockAndInsertIfThen(And, Candidate.MI, true);
   IRB.SetInsertPoint(Term);
   IRB.CreateCall(m_errorFn);
+}
+
+void SimpleMemoryCheck::emitAllocSiteInstrumentation(CheckContext &Candidate,
+                                                     size_t AllocId) {
+  assert(Candidate.AllocSites.size() > AllocId);
+
+  Value *const Alloc = Candidate.AllocSites[AllocId];
+  if (isa<GlobalVariable>(Alloc)) {
+    assert(false && "Not implemented");
+  }
+
+  assert(isa<CallInst>(Alloc) || isa<AllocaInst>(Alloc));
+  auto *AI = cast<Instruction>(Alloc);
+  auto *CSFn = AI->getFunction();
+  assert(CSFn);
+
+  IRBuilder<> IRB(GetNextInst(AI));
+  auto *Active = IRB.CreateLoad(m_trackingEnbaled, "active_tracking");
+  auto *NotActive = IRB.CreateICmpEQ(Active, ConstantInt::getFalse(*Ctx),
+                                     "inactive_tracking");
+  auto *NDVal = getNDVal(32, CSFn, IRB);
+  auto *NDBool = IRB.CreateICmpEQ(NDVal, CreateIntCnst(NDVal->getType(), 0));
+  auto *TrackedEnd = CreateLoad(IRB, m_trackedEnd, DL, "loaded_end");
+  auto *And = dyn_cast<Instruction>(IRB.CreateAnd(NotActive, NDBool));
+  assert(And);
+
+  TerminatorInst *ThenTerm;
+  TerminatorInst *ElseTerm;
+  SplitBlockAndInsertIfThenElse(And, GetNextInst(And), &ThenTerm, &ElseTerm);
+
+  auto *ThenBB = ThenTerm->getParent();
+  ThenBB->setName("start_tracking");
+  auto *ElseBB = ElseTerm->getParent();
+  ElseBB->setName("not_tracking");
+
+  // Continue inserting before the new branch.
+  IRB.SetInsertPoint(ElseBB->getFirstNonPHI());
+  auto *GT = IRB.CreateICmpSGT(AI, TrackedEnd);
+  createAssume(GT, CSFn, IRB);
+
+  // Start tracking.
+  IRB.SetInsertPoint(ThenBB->getFirstNonPHI());
+  CreateStore(IRB, ConstantInt::getTrue(*Ctx), m_trackingEnbaled, DL);
+  auto *AllocI8 = IRB.CreateBitCast(AI, GetI8PtrTy(*Ctx), "alloc.i8");
+  auto *TrackedBegin = CreateLoad(IRB, m_trackedBegin, DL, "loaded_begin");
+  auto *AllocIsBegin =
+      IRB.CreateICmpEQ(AllocI8, TrackedBegin, "alloc.is.begin");
+  createAssume(AllocIsBegin, CSFn, IRB);
+
+  Optional<size_t> AllocSize = getAllocSize(AI);
+  assert(AllocSize);
+
+  auto *End = IRB.CreateGEP(
+      AllocI8,
+      CreateIntCnst(IntegerType::getInt32Ty(*Ctx), int64_t(*AllocSize)),
+      "end_ptr");
+  auto *EndEq = IRB.CreateICmpEQ(End, TrackedEnd);
+  createAssume(EndEq, CSFn, IRB);
 }
 
 bool SimpleMemoryCheck::runOnModule(llvm::Module &M) {
@@ -546,6 +608,9 @@ bool SimpleMemoryCheck::runOnModule(llvm::Module &M) {
   Check.dump();
 
   emitMemoryInstInstrumentation(Check);
+  M.dump();
+
+  emitAllocSiteInstrumentation(Check, AllocSiteId);
   M.dump();
 
   errs() << " ========== SMC  ==========\n";

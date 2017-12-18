@@ -32,12 +32,8 @@
 #include "llvm/Transforms/Utils/Local.h"
 #include "llvm/Transforms/Utils/UnifyFunctionExitNodes.h"
 
-#include "boost/format.hpp"
-
 // Seahorn dsa
 #include "sea_dsa/DsaAnalysis.hh"
-// Llvm dsa
-#include "seahorn/Support/DSAInfo.hh"
 
 using namespace llvm;
 
@@ -163,15 +159,28 @@ public:
 
 private:
   LLVMContext *Ctx;
+  Module *m_M;
+  CallGraph *m_CG;
   const DataLayout *DL;
   const TargetLibraryInfo *TLI;
   std::unique_ptr<SeaDsa> SDSA;
+
+  Function *m_assumeFn;
+  Value *m_trackedBegin;
+  Value *m_trackedEnd;
+  Value *m_trackingEnbaled;
 
   bool isKnownAlloc(Value *Ptr);
   llvm::Optional<size_t> getAllocSize(Value *Ptr);
   PtrOrigin trackPtrOrigin(Value *Ptr);
   CheckContext getUnsafeCandidates(Instruction *Ptr, Function &F);
   bool isInterestingAllocSite(Value *Inst, int64_t LoadEnd, Value *Alloc);
+  void emitGlobalInstrumentation(Module &M);
+
+  Function *createNewNDFn(Type *Ty, StringRef Prefix);
+  CallInst *getNDVal(Function *F, IRBuilder<> &IRB);
+  CallInst *getNDPtr(Function *F, IRBuilder<> &IRB);
+  void createAssume(Value *Cond, Function *F, IRBuilder<> &IRB);
 };
 
 llvm::ModulePass *CreateSimpleMemoryCheckPass() {
@@ -308,6 +317,123 @@ bool SimpleMemoryCheck::isInterestingAllocSite(Value *Ptr, int64_t LoadEnd,
   return size_t(LoadEnd) > *AllocSize;
 }
 
+static Instruction *getNextInst(Instruction *I) {
+  if (I->isTerminator())
+    return I;
+  return I->getParent()->getInstList().getNext(I);
+}
+
+static Type *createIntTy(const DataLayout *dl, LLVMContext &ctx) {
+  return dl->getIntPtrType(ctx, 0);
+}
+
+static Type *geti8PtrTy(LLVMContext &ctx) {
+  return Type::getInt8Ty(ctx)->getPointerTo();
+}
+
+static Value *createIntCst(Type *ty, int64_t val) {
+  return ConstantInt::get(ty, val);
+}
+
+static Value *createLoad(IRBuilder<> B, Value *Ptr, const DataLayout *dl,
+                         const char *Name = "") {
+  return B.CreateAlignedLoad(Ptr, dl->getABITypeAlignment(Ptr->getType()),
+                             Name);
+}
+
+static Value *createStore(IRBuilder<> B, Value *Val, Value *Ptr,
+                          const DataLayout *dl) {
+  return B.CreateAlignedStore(Val, Ptr,
+                              dl->getABITypeAlignment(Ptr->getType()));
+}
+
+static Value *createNullCst(LLVMContext &ctx) {
+  return ConstantPointerNull::get(cast<PointerType>(geti8PtrTy(ctx)));
+}
+
+static Value *createGlobalBool(Module &M, unsigned val,
+                               const Twine &Name = "") {
+  ConstantInt *Cst = (val ? ConstantInt::getTrue(M.getContext())
+                          : ConstantInt::getFalse(M.getContext()));
+  GlobalVariable *GV = new GlobalVariable(M, Cst->getType(), false,
+                                          GlobalValue::InternalLinkage, Cst);
+  GV->setName(Name);
+  return GV;
+}
+
+static Value *createGlobalPtr(Module &M, const Twine &Name = "") {
+  auto NullPtr = cast<ConstantPointerNull>(createNullCst(M.getContext()));
+  GlobalVariable *GV =
+      new GlobalVariable(M, geti8PtrTy(M.getContext()), false, /*non-constant*/
+                         GlobalValue::InternalLinkage, NullPtr);
+  GV->setName(Name);
+  return GV;
+}
+
+static void UpdateCallGraph(CallGraph *cg, Function *caller, CallInst *callee) {
+  if (cg) {
+    (*cg)[caller]->addCalledFunction(CallSite(callee),
+                                     (*cg)[callee->getCalledFunction()]);
+  }
+}
+
+Function *SimpleMemoryCheck::createNewNDFn(Type *Ty, StringRef Prefix) {
+  auto *Res = dyn_cast<Function>(m_M->getOrInsertFunction(Prefix, Ty, nullptr));
+  assert(Res);
+
+  if (m_CG)
+    m_CG->getOrInsertFunction(Res);
+
+  return Res;
+}
+
+CallInst *SimpleMemoryCheck::getNDVal(Function *F, IRBuilder<> &IRB) {
+  auto *NondetFn = createNewNDFn(geti8PtrTy(*Ctx), "verifier.nondet");
+  CallInst *CI = IRB.CreateCall(NondetFn, None, "nd");
+  UpdateCallGraph(m_CG, F, CI);
+  return CI;
+}
+
+CallInst *SimpleMemoryCheck::getNDPtr(Function *F, IRBuilder<> &IRB) {
+  auto *i8PtrTy = Type::getInt8Ty(IRB.getContext())->getPointerTo();
+  auto *NondetPtrFn = createNewNDFn(i8PtrTy, "verifier.nondet_ptr");
+  CallInst *CI = IRB.CreateCall(NondetPtrFn, None, "nd_ptr");
+  UpdateCallGraph(m_CG, F, CI);
+  return CI;
+}
+
+void SimpleMemoryCheck::createAssume(Value *Cond, Function *F,
+                                     IRBuilder<> &IRB) {
+  CallInst *CI = IRB.CreateCall(m_assumeFn, Cond);
+  UpdateCallGraph(m_CG, F, CI);
+}
+
+void SimpleMemoryCheck::emitGlobalInstrumentation(Module &M) {
+  m_trackedBegin = createGlobalPtr(M, "tracked_begin");
+  m_trackedEnd = createGlobalPtr(M, "tracked_end");
+  m_trackingEnbaled = createGlobalBool(M, 0, "tracking_enabled");
+
+  Function *Main = M.getFunction("main");
+  assert(Main);
+
+  IRBuilder<> IRB(*Ctx);
+  IRB.SetInsertPoint(&*(Main->getEntryBlock().getFirstInsertionPt()));
+  CallInst *NDPtrBegin = getNDPtr(Main, IRB);
+  auto *Cmp1 = IRB.CreateICmpSGT(
+      NDPtrBegin,
+      IRB.CreateBitOrPointerCast(createNullCst(*Ctx), NDPtrBegin->getType()));
+
+  createAssume(Cmp1, Main, IRB);
+  createStore(IRB, NDPtrBegin, m_trackedBegin, DL);
+
+  CallInst *NDPtrEnd = getNDPtr(Main, IRB);
+  auto *Cmp2 = IRB.CreateICmpSGT(NDPtrEnd, NDPtrBegin);
+  createAssume(Cmp2, Main, IRB);
+  createStore(IRB, NDPtrEnd, m_trackedEnd, DL);
+
+  createStore(IRB, ConstantInt::getFalse(*Ctx), m_trackingEnbaled, DL);
+}
+
 bool SimpleMemoryCheck::runOnModule(llvm::Module &M) {
   if (M.begin() == M.end())
     return false;
@@ -319,11 +445,10 @@ bool SimpleMemoryCheck::runOnModule(llvm::Module &M) {
   }
 
   Ctx = &M.getContext();
+  m_M = &M;
   TLI = &getAnalysis<TargetLibraryInfoWrapperPass>().getTLI();
   DL = &M.getDataLayout();
   SDSA = llvm::make_unique<SeaDsa>(this);
-
-  M.dump();
 
   llvm::outs() << "\n\n ========== SMC  ==========\n";
   llvm::outs().flush();
@@ -336,9 +461,20 @@ bool SimpleMemoryCheck::runOnModule(llvm::Module &M) {
 
   AB.clear();
   as = AttributeSet::get(*Ctx, AttributeSet::FunctionIndex, AB);
-  Function *assumeFn = dyn_cast<Function>(
+  m_assumeFn = dyn_cast<Function>(
       M.getOrInsertFunction("verifier.assume", as, Type::getVoidTy(*Ctx),
                             Type::getInt1Ty(*Ctx), nullptr));
+
+  IRBuilder<> B(*Ctx);
+  CallGraphWrapperPass *CGWP = getAnalysisIfAvailable<CallGraphWrapperPass>();
+  m_CG = CGWP ? &CGWP->getCallGraph() : nullptr;
+  if (m_CG) {
+    m_CG->getOrInsertFunction(m_assumeFn);
+    m_CG->getOrInsertFunction(errorFn);
+  }
+
+  emitGlobalInstrumentation(M);
+  M.dump();
 
   std::vector<CheckContext> CheckCandidates;
 
@@ -346,6 +482,12 @@ bool SimpleMemoryCheck::runOnModule(llvm::Module &M) {
     // if (F.getName() != "main") continue;
     // dbgs() << "Found main\n";
     if (F.isDeclaration())
+      continue;
+
+    // Skip special functions
+    if (F.getName().startswith("seahorn.") ||
+        F.getName().startswith("shadow.") ||
+        F.getName().startswith("verifier."))
       continue;
 
     // F.viewCFG();

@@ -91,16 +91,16 @@ namespace crab_llvm {
       // constraint is of the form m_coef*m_var {<=,==} m_rhs
       // m_coef and m_rhs can be negative numbers.
       
-      ikos::z_number m_coef;
+      number_t m_coef;
       const Value*   m_var;
       bool           m_is_eq; //tt:equality, ff:inequality
-      ikos::z_number m_rhs;
+      number_t m_rhs;
       
      public:
       
       // If cst is a constraint of the form x<=c where x is a LLVM
       // Value of type i1 then return x, otherwise null.
-      static const Value* isBoolCst (z_lin_cst_t cst)
+      static const Value* isBoolCst (lin_cst_t cst)
       {
         if (cst.is_disequation ()) return nullptr;
         auto e = cst.expression() - cst.expression().constant();
@@ -117,9 +117,9 @@ namespace crab_llvm {
           return nullptr; 
       }
       
-      BoolCst (z_lin_cst_t cst): m_val (T_TOP),
-                                 m_coef (0), m_rhs (0), 
-                                 m_var (nullptr), m_is_eq (cst.is_equality ())
+      BoolCst (lin_cst_t cst): m_val (T_TOP),
+			       m_coef (0), m_rhs (0), 
+			       m_var (nullptr), m_is_eq (cst.is_equality ())
       {
         assert (isBoolCst (cst));
         
@@ -215,8 +215,8 @@ namespace crab_llvm {
       }
 
     }      
-    
-    
+
+    // Defined only for z_number
     Expr exprFromNum (ikos::z_number n, ExprFactory &efac)
     {
       const mpz_class mpz ((mpz_class) n);
@@ -282,7 +282,7 @@ namespace crab_llvm {
       }
     }
     
-    Expr toExpr (z_lin_cst_t cst, ExprFactory &efac)
+    Expr toExpr (lin_cst_t cst, ExprFactory &efac)
     {
       if (cst.is_tautology ())     
         return mk<TRUE> (efac);
@@ -307,10 +307,10 @@ namespace crab_llvm {
       
       // integers
       auto e = cst.expression() - cst.expression().constant();
-      Expr ee = exprFromNum ( ikos::z_number ("0"), efac);
+      Expr ee = exprFromNum (number_t("0"), efac);
       for (auto t : e)
       {
-        ikos::z_number n  = t.first;
+        number_t n = t.first;
         if (n == 0) continue;
         
         Expr v = exprFromIntVar (t.second.name(), efac);
@@ -329,7 +329,7 @@ namespace crab_llvm {
         }
       }
       
-      ikos::z_number c = -cst.expression().constant();
+      number_t c = -cst.expression().constant();
       Expr cc = exprFromNum (c, efac);
       if (cst.is_inequality ())
         return mk<LEQ> (ee, cc);
@@ -340,7 +340,7 @@ namespace crab_llvm {
       
     }
     
-    Expr toExpr (z_lin_cst_sys_t csts, ExprFactory &efac)
+    Expr toExpr (lin_cst_sys_t csts, ExprFactory &efac)
     {
       Expr e = mk<TRUE> (efac);
       
@@ -421,7 +421,7 @@ namespace crab_llvm {
 	 Expr d = mk<FALSE> (efac);
 	 for (auto i: boost::make_iterator_range (p.second.begin (),
 						  p.second.end ())) {
-	   d = boolop::lor (d, intervalToExpr (p.first, i, efac));
+	   d = boolop::lor (d, intervalToExpr (p.first.name(), i, efac));
 	 }
 	 e = boolop::land (e, d);
        }

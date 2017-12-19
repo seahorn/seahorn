@@ -39,7 +39,7 @@ def main (argv):
             sea.commands.SeaInspect(),
             sea.commands.feInspect,
             sea.commands.SimpleMemoryChecks(),
-            sea.commands.Smsc
+            sea.commands.Smc
     ]
 
 

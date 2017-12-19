@@ -578,12 +578,13 @@ class SimpleMemoryChecks(sea.LimitedCmd):
         self.seappCmd = sea.ExtCmd (cmd_name)
 
         argv = list()
+        print "yolo swag airbag"
         if args.out_file is not None: argv.extend (['-o', args.out_file])
         if args.llvm_asm: argv.append ('-S')
 
         argv.append('--smc')
         argv.extend (args.in_files)
-        return self.seappCmd.run (args, argv)
+        return self.seappCmd.run(args, argv)
 
 
 class WrapMem(sea.LimitedCmd):
@@ -1282,5 +1283,6 @@ Exe = sea.SeqCmd ('exe', 'alias for clang|pp --strip-extern|pp --internalize|wme
                   [Clang(), Seapp(strip_extern=True,keep_lib_fn=True),
                    Seapp(internalize=True), WrapMem(), LinkRt()])
 feInspect = sea.SeqCmd ('fe-inspect', 'alias for fe + seainspect', FrontEnd.cmds + [SeaInspect()])
-Smsc = sea.SeqCmd ('smsc', 'alias for fe|opt|smsc',
-                   [Clang(), Seapp(), Seaopt(), SimpleMemoryChecks()])
+Smc = sea.SeqCmd ('smc', 'alias for fe|opt|smc',
+                   [Clang(), SimpleMemoryChecks(), Seapp(), MixedSem(),
+                    Seaopt(), Seahorn(solve=True)])

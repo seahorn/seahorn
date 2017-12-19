@@ -1,4 +1,4 @@
-// RUN: %sea pf -O0 --smc "%s" 2>&1 | OutputCheck %s
+// RUN: %sea smc -O0 "%s" 2>&1 | OutputCheck %s
 // CHECK: ^sat$
 
 #include<stdlib.h>

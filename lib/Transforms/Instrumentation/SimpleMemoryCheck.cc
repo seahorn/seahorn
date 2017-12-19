@@ -318,6 +318,10 @@ bool SimpleMemoryCheck::isInterestingAllocSite(Value *Ptr, int64_t LoadEnd,
   if (!AllocSize)
     return false;
 
+  // Temporarily disable checks for globals.
+  if (isa<GlobalVariable>(Alloc))
+    return false;
+
   return size_t(LoadEnd) > *AllocSize;
 }
 
@@ -327,10 +331,6 @@ Instruction *GetNextInst(Instruction *I) {
   if (I->isTerminator())
     return I;
   return I->getParent()->getInstList().getNext(I);
-}
-
-Type *CreateIntTy(const DataLayout *DL, LLVMContext &Ctx) {
-  return DL->getIntPtrType(Ctx, 0);
 }
 
 Type *GetI8PtrTy(LLVMContext &Ctx) {
@@ -443,6 +443,8 @@ void SimpleMemoryCheck::emitGlobalInstrumentation() {
   CreateStore(IRB, NDPtrEnd, m_trackedEnd, DL);
 
   CreateStore(IRB, ConstantInt::getFalse(*Ctx), m_trackingEnbaled, DL);
+
+  NDPtrBegin->getParent()->dump();
 }
 
 void SimpleMemoryCheck::emitMemoryInstInstrumentation(CheckContext &Candidate) {
@@ -458,6 +460,9 @@ void SimpleMemoryCheck::emitMemoryInstInstrumentation(CheckContext &Candidate) {
   auto *Term = SplitBlockAndInsertIfThen(And, Candidate.MI, true);
   IRB.SetInsertPoint(Term);
   IRB.CreateCall(m_errorFn);
+
+  cast<Instruction>(Candidate.Barrier)->getParent()->dump();
+  Term->getParent()->dump();
 }
 
 void SimpleMemoryCheck::emitAllocSiteInstrumentation(CheckContext &Candidate,
@@ -475,6 +480,7 @@ void SimpleMemoryCheck::emitAllocSiteInstrumentation(CheckContext &Candidate,
   assert(CSFn);
 
   IRBuilder<> IRB(GetNextInst(AI));
+  auto *AllocI8 = IRB.CreateBitCast(AI, GetI8PtrTy(*Ctx), "alloc.i8");
   auto *Active = IRB.CreateLoad(m_trackingEnbaled, "active_tracking");
   auto *NotActive = IRB.CreateICmpEQ(Active, ConstantInt::getFalse(*Ctx),
                                      "inactive_tracking");
@@ -495,13 +501,12 @@ void SimpleMemoryCheck::emitAllocSiteInstrumentation(CheckContext &Candidate,
 
   // Continue inserting before the new branch.
   IRB.SetInsertPoint(ElseBB->getFirstNonPHI());
-  auto *GT = IRB.CreateICmpSGT(AI, TrackedEnd);
+  auto *GT = IRB.CreateICmpSGT(AllocI8, TrackedEnd);
   createAssume(GT, CSFn, IRB);
 
   // Start tracking.
   IRB.SetInsertPoint(ThenBB->getFirstNonPHI());
   CreateStore(IRB, ConstantInt::getTrue(*Ctx), m_trackingEnbaled, DL);
-  auto *AllocI8 = IRB.CreateBitCast(AI, GetI8PtrTy(*Ctx), "alloc.i8");
   auto *TrackedBegin = CreateLoad(IRB, m_trackedBegin, DL, "loaded_begin");
   auto *AllocIsBegin =
       IRB.CreateICmpEQ(AllocI8, TrackedBegin, "alloc.is.begin");
@@ -516,6 +521,10 @@ void SimpleMemoryCheck::emitAllocSiteInstrumentation(CheckContext &Candidate,
       "end_ptr");
   auto *EndEq = IRB.CreateICmpEQ(End, TrackedEnd);
   createAssume(EndEq, CSFn, IRB);
+
+  And->getParent()->dump();
+  ThenBB->dump();
+  ElseBB->dump();
 }
 
 bool SimpleMemoryCheck::runOnModule(llvm::Module &M) {
@@ -557,9 +566,6 @@ bool SimpleMemoryCheck::runOnModule(llvm::Module &M) {
     m_CG->getOrInsertFunction(m_errorFn);
   }
 
-  emitGlobalInstrumentation();
-  M.dump();
-
   std::vector<CheckContext> CheckCandidates;
 
   for (auto &F : M) {
@@ -587,12 +593,16 @@ bool SimpleMemoryCheck::runOnModule(llvm::Module &M) {
 
           CheckCandidates.emplace_back(std::move(Check));
 
-          dbgs() << CheckCandidates.size() << ": ";
+          dbgs() << (CheckCandidates.size() - 1) << ": ";
           CheckCandidates.back().dump();
+
+          if (CheckCandidates.size() > 16) goto skip;
         }
       }
     }
   }
+
+  skip:
 
   if (CheckCandidates.empty()) {
     dbgs() << "No check candidates!\n";
@@ -602,16 +612,20 @@ bool SimpleMemoryCheck::runOnModule(llvm::Module &M) {
   size_t CheckId = 0;
   size_t AllocSiteId = 0;
 
-  auto &Check = CheckCandidates[0];
+  assert(CheckCandidates.size() > CheckId);
+  auto &Check = CheckCandidates[CheckId];
   dbgs() << "Emitting instrumentation for check [" << CheckId << "], alloc ("
          << AllocSiteId << ")\n";
   Check.dump();
 
+  emitGlobalInstrumentation();
+  //M.dump();
+
   emitMemoryInstInstrumentation(Check);
-  M.dump();
+  //M.dump();
 
   emitAllocSiteInstrumentation(Check, AllocSiteId);
-  M.dump();
+  //M.dump();
 
   errs() << " ========== SMC  ==========\n";
   return true;

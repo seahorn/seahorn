@@ -1,4 +1,5 @@
 #include "seahorn/seahorn.h"
+#include <stdarg.h>
 #include <cstdint>
 #include <cstdio>
 #undef NDEBUG
@@ -9,6 +10,14 @@
 #include <functional>
 
 extern "C" {
+
+void sealog (const char *format, ...) {
+    va_list args;
+    va_start(args, format);
+    if (std::getenv("SEAHORN_RT_VERBOSE"))
+        vprintf(format, args);
+    va_end(args);
+}
 
 void __VERIFIER_error() {
   printf("[sea] __VERIFIER_error was executed\n");
@@ -22,7 +31,7 @@ void __VERIFIER_assume(int x) {
 #define get_value_helper(ctype, llvmtype)                               \
   ctype __seahorn_get_value_ ## llvmtype (int ctr, ctype *g_arr, int g_arr_sz) { \
     assert (ctr < g_arr_sz && "Unexpected index");                      \
-    printf("[sea] __seahorn_get_value_(" #llvmtype ", %d, %d)\n", ctr, g_arr_sz); \
+    sealog("[sea] __seahorn_get_value_(" #llvmtype ", %d, %d)\n", ctr, g_arr_sz); \
     return g_arr[ctr];                                                  \
   }
 
@@ -65,7 +74,7 @@ const int TYPE_GUESS = sizeof(int);
 
     absptrmap[absptr] = absptr + sz;
 
-    printf("[sea] returning a pointer to an abstract region [%#lx, %#lx]\n", absptr, absptrmap.at(absptr));
+    sealog("[sea] returning a pointer to an abstract region [%#lx, %#lx]\n", absptr, absptrmap.at(absptr));
 
     return absptr;
   }
@@ -89,35 +98,35 @@ const int TYPE_GUESS = sizeof(int);
 
 void __seahorn_mem_store (void *src, void *dst, size_t sz)
 {
-  printf("[sea] __seahorn_mem_store from %p to %p\n", src, dst);
+  sealog("[sea] __seahorn_mem_store from %p to %p\n", src, dst);
   if (is_legal_address (dst)) {
   /* if dst is a legal address */
-    printf("[sea] memory write\n");
+    sealog("[sea] memory write\n");
     memcpy (dst, src, sz);
   }
   /* else if dst is illegal, do nothing */
-  else printf("[sea] ignoring write to illegal memory address\n");
+  else sealog("[sea] ignoring write to illegal memory address\n");
 }
 
 void __seahorn_mem_load (void *dst, void *src, size_t sz)
 {
-  printf("__seahorn_mem_load from %p to %p\n", src, dst);
+  sealog("__seahorn_mem_load from %p to %p\n", src, dst);
   if (is_legal_address (src)) {
   /* if src is a legal address */
-    printf("[sea] memory read\n");
+    sealog("[sea] memory read\n");
     memcpy (dst, src, sz);
   }
   /* else, if src is illegal, return a dummy value */
-  else { printf("[sea] ignoring read from an illegal memory address\n"); bzero(dst, sz); }
+  else { sealog("[sea] ignoring read from an illegal memory address\n"); bzero(dst, sz); }
 }
 
 // Dummy klee_make_symbolic function
 void klee_make_symbolic(void *v, size_t sz, char *fname) {
-  printf("[sea] calling klee_make_symbolic for %s\n", fname);
+  sealog("[sea] calling klee_make_symbolic for %s\n", fname);
 }
 
 void klee_assume(int b) {
-  printf("[sea] calling klee_assume\n");
+  sealog("[sea] calling klee_assume\n");
   __VERIFIER_assume (b);
 }
 

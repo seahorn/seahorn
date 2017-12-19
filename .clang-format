@@ -1,0 +1,6 @@
+﻿---
+BasedOnStyle: LLVM
+AllowShortFunctionsOnASingleLine: All
+IndentWidth: '2'
+
+...

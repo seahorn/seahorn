@@ -578,7 +578,6 @@ class SimpleMemoryChecks(sea.LimitedCmd):
         self.seappCmd = sea.ExtCmd (cmd_name)
 
         argv = list()
-        print "yolo swag airbag"
         if args.out_file is not None: argv.extend (['-o', args.out_file])
         if args.llvm_asm: argv.append ('-S')
 

@@ -58,7 +58,8 @@ struct CheckContext {
   Function *F = nullptr;
   Value *Barrier = nullptr;
   size_t AccessedBytes = 0;
-  SmallVector<Value *, 8> AllocSites;
+  SmallVector<Value *, 8> InterestingAllocSites;
+  SmallVector<Value *, 8> OtherAllocSites;
 
   void dump() {
     dbgs() << "CheckContext : " << (F ? F->getName() : "nullptr") << " {\n";
@@ -76,13 +77,25 @@ struct CheckContext {
 
     dbgs() << "\n  AccessedBytes: " << AccessedBytes;
 
-    dbgs() << "\n  AllocSites: {\n";
+    dbgs() << "\n  InterestingAllocSites: {\n";
     unsigned i = 0;
-    for (auto *V : AllocSites) {
+    for (auto *V : InterestingAllocSites) {
       dbgs() << "    " << (i++) << ": ";
       V->print(dbgs());
       if (auto *I = dyn_cast<Instruction>(V))
-        dbgs() << "  (" << I->getParent()->getName() << ")";
+        dbgs() << "  (" << I->getFunction()->getName() << ", "
+               << I->getParent()->getName() << ")";
+
+      dbgs() << ",\n";
+    }
+
+    dbgs() << "  }  OtherAllocSites: {\n";
+    for (auto *V : OtherAllocSites) {
+      dbgs() << "    " << (i++) << ": ";
+      V->print(dbgs());
+      if (auto *I = dyn_cast<Instruction>(V))
+        dbgs() << "  (" << I->getFunction()->getName() << ", "
+               << I->getParent()->getName() << ")";
 
       dbgs() << ",\n";
     }
@@ -300,9 +313,9 @@ CheckContext SimpleMemoryCheck::getUnsafeCandidates(Instruction *Inst,
   assert(Origin.Ptr);
   for (Value *AS : SDSA->getAllocSites(Origin.Ptr, F)) {
     if (!isInterestingAllocSite(Origin.Ptr, LastRead, AS))
-      continue;
-
-    Check.AllocSites.push_back(AS);
+      Check.OtherAllocSites.push_back(AS);
+    else
+      Check.InterestingAllocSites.push_back(AS);
   }
 
   return Check;
@@ -467,11 +480,12 @@ void SimpleMemoryCheck::emitMemoryInstInstrumentation(CheckContext &Candidate) {
 
 void SimpleMemoryCheck::emitAllocSiteInstrumentation(CheckContext &Candidate,
                                                      size_t AllocId) {
-  assert(Candidate.AllocSites.size() > AllocId);
+  assert(Candidate.InterestingAllocSites.size() > AllocId);
 
-  Value *const Alloc = Candidate.AllocSites[AllocId];
+  Value *const Alloc = Candidate.InterestingAllocSites[AllocId];
   if (isa<GlobalVariable>(Alloc)) {
     assert(false && "Not implemented");
+    return;
   }
 
   assert(isa<CallInst>(Alloc) || isa<AllocaInst>(Alloc));
@@ -522,9 +536,33 @@ void SimpleMemoryCheck::emitAllocSiteInstrumentation(CheckContext &Candidate,
   auto *EndEq = IRB.CreateICmpEQ(End, TrackedEnd);
   createAssume(EndEq, CSFn, IRB);
 
-  And->getParent()->dump();
-  ThenBB->dump();
-  ElseBB->dump();
+
+  auto InstrumentRemainingSite = [&] (Value *AV) {
+    if (isa<GlobalVariable>(AV)) {
+      assert(false && "Not implemented");
+    }
+
+    assert(isa<Instruction>(AV));
+    auto *OtherAllocInst = cast<Instruction>(AV);
+    IRB.SetInsertPoint(GetNextInst(OtherAllocInst));
+    auto *OAI8 = IRB.CreateBitCast(OtherAllocInst,
+                                   GetI8PtrTy(*Ctx), "other.alloc.i8");
+    auto *TrackedEnd = CreateLoad(IRB, m_trackedEnd, DL, "loaded_end");
+    auto *GT = IRB.CreateICmpSGT(OAI8, TrackedEnd);
+    createAssume(GT, OtherAllocInst->getFunction(), IRB);
+  };
+
+
+  for (size_t i = 0; i < Candidate.InterestingAllocSites.size(); ++i) {
+    if (i == AllocId)
+      continue;
+
+    auto *AV = Candidate.InterestingAllocSites[i];
+    InstrumentRemainingSite(AV);
+  }
+
+  for (auto *AV : Candidate.OtherAllocSites)
+    InstrumentRemainingSite(AV);
 }
 
 bool SimpleMemoryCheck::runOnModule(llvm::Module &M) {
@@ -588,7 +626,7 @@ bool SimpleMemoryCheck::runOnModule(llvm::Module &M) {
         if (I && (isa<LoadInst>(I) || isa<StoreInst>(I))) {
 
           CheckContext Check = getUnsafeCandidates(I, F);
-          if (Check.AllocSites.empty())
+          if (Check.InterestingAllocSites.empty())
             continue;
 
           CheckCandidates.emplace_back(std::move(Check));
@@ -596,13 +634,14 @@ bool SimpleMemoryCheck::runOnModule(llvm::Module &M) {
           dbgs() << (CheckCandidates.size() - 1) << ": ";
           CheckCandidates.back().dump();
 
-          if (CheckCandidates.size() > 16) goto skip;
+          if (CheckCandidates.size() > 16)
+            goto skip;
         }
       }
     }
   }
 
-  skip:
+skip:
 
   if (CheckCandidates.empty()) {
     dbgs() << "No check candidates!\n";
@@ -619,13 +658,13 @@ bool SimpleMemoryCheck::runOnModule(llvm::Module &M) {
   Check.dump();
 
   emitGlobalInstrumentation();
-  //M.dump();
+  // M.dump();
 
   emitMemoryInstInstrumentation(Check);
-  //M.dump();
+  // M.dump();
 
   emitAllocSiteInstrumentation(Check, AllocSiteId);
-  //M.dump();
+  M.dump();
 
   errs() << " ========== SMC  ==========\n";
   return true;

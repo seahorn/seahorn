@@ -114,10 +114,12 @@ namespace seahorn
     // LOG ("cex",
     //      errs () << "Analyzed Function:\n"
     //      << F << "\n";);
-
+    
     HornifyModule &hm = getAnalysis<HornifyModule> ();
     const CutPointGraph &cpg = getAnalysis<CutPointGraph> (F);
 
+    Stats::resume ("CexValidation");
+    
     auto &fp = hs.getZFixedPoint ();
     ExprVector rules;
     fp.getCexRules (rules);
@@ -211,13 +213,17 @@ namespace seahorn
     }
 
     auto res = bmc.solve ();
+
+    Stats::stop ("CexValidation");
+    
     LOG ("cex",
          errs () << "BMC: "
          << (res ? "sat" : (!res ? "unsat" : "unknown")) << "\n";);
 
     // -- DUMP unsat core if validation failed
-    if (res) ;
-    else
+    if (res) {
+      errs () << "Validated CEX.\n";
+    } else
     {
       errs () << "Warning: failed to validate cex\n";
       errs () << "Computing unsat core\n";

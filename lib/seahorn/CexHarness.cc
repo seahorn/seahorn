@@ -14,21 +14,24 @@ namespace seahorn
 
   Constant* exprToLlvm (Type *ty, Expr e, const DataLayout &dl)
   {
-    if (isOpX<TRUE> (e))
-      return Constant::getIntegerValue (ty, APInt(dl.getTypeStoreSizeInBits(ty), 1));
-    else if (isOpX<FALSE> (e))
-      return Constant::getNullValue (ty);
-    else if (isOpX<MPZ> (e) || bv::is_bvnum (e))
-    {
+    if (isOpX<TRUE> (e)) {
+      // JN: getTypeStoreSizeInBits returns 8 for i1.
+      //     This causes later an error (only visible in debug mode)
+      //     when calling ConstantArray::get(AT, LLVMarray) because
+      //     the element type from AT will be i1 but the type of the
+      //     constant in LLVMarray will be i8 because of the use of getTypeStoreSizeInBits.
+      //
+      // return Constant::getIntegerValue (ty, APInt(dl.getTypeStoreSizeInBits(ty), 1));
+      return ConstantInt::getTrue(getGlobalContext());
+    } else if (isOpX<FALSE> (e)) {      
+      //return Constant::getNullValue (ty);
+      return ConstantInt::getFalse(getGlobalContext());
+    } else if (isOpX<MPZ> (e) || bv::is_bvnum (e)) {
       mpz_class mpz;
       mpz = isOpX<MPZ> (e) ? getTerm<mpz_class> (e) : getTerm<mpz_class> (e->arg (0));
-      if (ty->isIntegerTy () || ty->isPointerTy())
-      {
-        // return Constant::getIntegerValue (ty,
-        //                                   APInt(dl.getTypeStoreSizeInBits(ty),
-        //                                         mpz.get_str (), 10));
-        return Constant::getIntegerValue (ty,
-                                          toAPInt (dl.getTypeStoreSizeInBits (ty), mpz));
+      if (ty->isIntegerTy () || ty->isPointerTy()) {
+	// JN: I think we can have the same issue as above but for now I leave like it is.
+        return Constant::getIntegerValue (ty, toAPInt (dl.getTypeStoreSizeInBits (ty), mpz));
       }
       llvm_unreachable("Unhandled type");
     }

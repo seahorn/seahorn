@@ -735,7 +735,15 @@ namespace
           rhs = mk<NEQ> (rhs, nullBv);
         else if (m_sem.sizeInBits (I) < ptrSz)
           rhs = bv::extract (m_sem.sizeInBits (I) - 1, 0, rhs);
-        assert (m_sem.sizeInBits (I) <= ptrSz && "Fat integers not supported");
+
+	if(m_sem.sizeInBits (I) > ptrSz) {
+	  errs() << "WARNING: fat integers not supported: "
+		 << "size " << m_sem.sizeInBits (I) << " > " << "pointer size "
+		 <<  ptrSz << " in" << I << "\n"
+		 << "Ignored instruction.\n";
+	  return;
+	}
+	assert (m_sem.sizeInBits (I) <= ptrSz && "Fat integers not supported");
         
         if (UseWrite) write (I, rhs);
         else side (lhs, rhs);
@@ -775,7 +783,15 @@ namespace
       {
         if (m_sem.sizeInBits (*I.getOperand (0)) < ptrSz)
           v = bv::zext (v, ptrSz);
-        
+
+	if(m_sem.sizeInBits (*I.getOperand(0)) > ptrSz) {
+	  errs() << "WARNING: fat pointers are not supported: "
+		 << "size " << m_sem.sizeInBits (*I.getOperand(0)) << " > "
+		 << "pointer size " <<  ptrSz << " in" << I << "\n"
+		 << "Ignored instruction.\n";
+	  return;
+	}
+	
         assert (m_sem.sizeInBits (*I.getOperand (0)) <= ptrSz &&
                 "Fat pointers are not supported");
         

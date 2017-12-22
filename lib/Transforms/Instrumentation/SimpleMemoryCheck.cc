@@ -360,8 +360,8 @@ Value *CreateLoad(IRBuilder<> B, Value *Ptr, const DataLayout *DL,
                              Name);
 }
 
-static Value *CreateStore(IRBuilder<> B, Value *Val, Value *Ptr,
-                          const DataLayout *DL) {
+Value *CreateStore(IRBuilder<> B, Value *Val, Value *Ptr,
+                   const DataLayout *DL) {
   return B.CreateAlignedStore(Val, Ptr,
                               DL->getABITypeAlignment(Ptr->getType()));
 }
@@ -536,8 +536,7 @@ void SimpleMemoryCheck::emitAllocSiteInstrumentation(CheckContext &Candidate,
   auto *EndEq = IRB.CreateICmpEQ(End, TrackedEnd);
   createAssume(EndEq, CSFn, IRB);
 
-
-  auto InstrumentRemainingSite = [&] (Value *AV) {
+  auto InstrumentRemainingSite = [&](Value *AV) {
     if (isa<GlobalVariable>(AV)) {
       assert(false && "Not implemented");
     }
@@ -545,13 +544,12 @@ void SimpleMemoryCheck::emitAllocSiteInstrumentation(CheckContext &Candidate,
     assert(isa<Instruction>(AV));
     auto *OtherAllocInst = cast<Instruction>(AV);
     IRB.SetInsertPoint(GetNextInst(OtherAllocInst));
-    auto *OAI8 = IRB.CreateBitCast(OtherAllocInst,
-                                   GetI8PtrTy(*Ctx), "other.alloc.i8");
+    auto *OAI8 =
+        IRB.CreateBitCast(OtherAllocInst, GetI8PtrTy(*Ctx), "other.alloc.i8");
     auto *TrackedEnd = CreateLoad(IRB, m_trackedEnd, DL, "loaded_end");
     auto *GT = IRB.CreateICmpSGT(OAI8, TrackedEnd);
     createAssume(GT, OtherAllocInst->getFunction(), IRB);
   };
-
 
   for (size_t i = 0; i < Candidate.InterestingAllocSites.size(); ++i) {
     if (i == AllocId)

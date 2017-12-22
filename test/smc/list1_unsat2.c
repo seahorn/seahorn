@@ -1,4 +1,4 @@
-// RUN: %sea smc -O0 "%s" 2>&1 | OutputCheck %s
+// RUN: %sea smc -O3 --inline --horn-sea-dsa "%s" 2>&1 | OutputCheck %s
 // CHECK: ^unsat$
 
 #include<stdlib.h>
@@ -35,8 +35,6 @@ Bar *mk_bar (int x, int y) {
 Foo *to_foo(Bar *b) {return (Foo*)b;}
 int is_bar (Foo *b) {return b->tag == BAR_TAG;}
 Bar *to_bar (Foo *b) {return (Bar*)b;}
-
-
 
 typedef struct Entry {
     void *data;
@@ -76,7 +74,6 @@ int main(void) {
 
     insert (lst, a_foo);
     insert (lst, b_bar);
-    //insert (lst, mk_foo(2));
 
     int c = 0;
     for (it = lst->head; it != NULL; it = it->next) {
@@ -85,10 +82,10 @@ int main(void) {
             Bar *b;
             b = to_bar(v);
             printf ("bar: x=%d, y=%d\n", v->x, b->y);
+        } else {
+            printf ("foo: x=%d\n", v->x);
         }
-        // else {
-        //     printf("foo: x=%d\n", v->x);
-        // }
+
         if (++c > 3) break;
     }
     return 0;

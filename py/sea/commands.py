@@ -568,6 +568,8 @@ class SimpleMemoryChecks(sea.LimitedCmd):
 
     def mk_arg_parser (self, ap):
         ap = super (SimpleMemoryChecks, self).mk_arg_parser (ap)
+        ap.add_argument ('--log', dest='log', default=None,
+                         metavar='STR', help='Log level')
         add_in_out_args (ap)
         _add_S_arg (ap)
         return ap
@@ -582,6 +584,10 @@ class SimpleMemoryChecks(sea.LimitedCmd):
         if args.llvm_asm: argv.append ('-S')
 
         argv.append('--smc')
+
+        if args.log is not None:
+            for l in args.log.split (':'): argv.extend (['-log', l])
+
         argv.extend (args.in_files)
         return self.seappCmd.run(args, argv)
 

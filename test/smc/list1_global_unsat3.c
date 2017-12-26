@@ -80,7 +80,7 @@ int main(void) {
 
     int c = 0;
     for (it = lst->head; it != NULL; it = it->next) {
-        Foo *v = (Foo*)(lst->head->data);
+        Foo *v = (Foo*)(it->data);
         if (is_bar(v)) {
             Bar *b;
             b = to_bar(v);

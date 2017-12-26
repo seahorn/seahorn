@@ -550,6 +550,48 @@ class MixedSem(sea.LimitedCmd):
         argv.extend (args.in_files)
         return self.seappCmd.run (args, argv)
 
+
+class SimpleMemoryChecks(sea.LimitedCmd):
+    def __init__(self, quiet=False):
+        super(SimpleMemoryChecks, self).__init__('smc',
+                                                 'Simple Memory Safety Checks',
+                                       allow_extra=True)
+
+    @property
+    def stdout (self):
+        return self.seappCmd.stdout
+
+    def name_out_file (self, in_files, args=None, work_dir=None):
+        ext = '.smc.bc'
+        # if args.llvm_asm: ext = '.ms.ll'
+        return _remap_file_name (in_files[0], ext, work_dir)
+
+    def mk_arg_parser (self, ap):
+        ap = super (SimpleMemoryChecks, self).mk_arg_parser (ap)
+        ap.add_argument ('--log', dest='log', default=None,
+                         metavar='STR', help='Log level')
+        add_in_out_args (ap)
+        _add_S_arg (ap)
+        return ap
+
+    def run (self, args, extra):
+        cmd_name = which ('seapp')
+        if cmd_name is None: raise IOError ('seapp not found')
+        self.seappCmd = sea.ExtCmd (cmd_name)
+
+        argv = list()
+        if args.out_file is not None: argv.extend (['-o', args.out_file])
+        if args.llvm_asm: argv.append ('-S')
+
+        argv.append('--smc')
+
+        if args.log is not None:
+            for l in args.log.split (':'): argv.extend (['-log', l])
+
+        argv.extend (args.in_files)
+        return self.seappCmd.run(args, argv)
+
+
 class WrapMem(sea.LimitedCmd):
     def __init__(self, quiet=False):
         super(WrapMem, self).__init__('wmem', 'Wrap external memory access with SeaRt calls',
@@ -627,6 +669,7 @@ class CutLoops(sea.LimitedCmd):
             for l in args.log.split (':'): argv.extend (['-log', l])
 
         return self.seappCmd.run (args, argv)
+
 
 class Seaopt(sea.LimitedCmd):
     def __init__(self, quiet=False):
@@ -1245,3 +1288,6 @@ Exe = sea.SeqCmd ('exe', 'alias for clang|pp --strip-extern|pp --internalize|wme
                   [Clang(), Seapp(strip_extern=True,keep_lib_fn=True),
                    Seapp(internalize=True), WrapMem(), LinkRt()])
 feInspect = sea.SeqCmd ('fe-inspect', 'alias for fe + seainspect', FrontEnd.cmds + [SeaInspect()])
+Smc = sea.SeqCmd ('smc', 'alias for fe|opt|smc',
+                   [Clang(), SimpleMemoryChecks(), Seapp(), MixedSem(),
+                    Seaopt(), Seahorn(solve=True)])

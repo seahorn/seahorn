@@ -1,6 +1,7 @@
 #include "seahorn/Transforms/Scalar/LowerGvInitializers.hh"
 
 #include "boost/format.hpp"
+#include "boost/range.hpp"
 
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/Support/raw_ostream.h"
@@ -167,6 +168,8 @@ bool LowerGvInitializers::runOnModule(Module &M) {
 
   // Iterate over global variables
   for (GlobalVariable *gv : gvs) {
+    LOG("lower-gv-init", gv->dump());
+
     // XXX: skip global variables used by seahorn for instrumentation
     if (gv->getName().startswith("sea_"))
       continue;
@@ -196,17 +199,18 @@ bool LowerGvInitializers::runOnModule(Module &M) {
     if (!ty)
       continue;
     Type *ety = ty->getElementType();
-    // only deal with scalars for now
-    if (ety->isIntegerTy() || ety->isPointerTy()) {
-      // -- create a store instruction
+
+    // Only deal with scalars and simple structs for now.
+    // TODO: Support other kinds of initializers.
+    if (ety->isIntegerTy() || ety->isPointerTy() ||
+        isa<ConstantStruct>(gv->getInitializer())) {
       StoreInst *SI = Builder.CreateAlignedStore(gv->getInitializer(), gv,
                                                  DL->getABITypeAlignment(ety));
       LOG("lower-gv-init",
           errs() << "LowerGvInitializers: created a store " << *SI << "\n");
       change = true;
-    }
-    // else
-    //   errs () << "WARNING: Ignoring initializer for" << gv << "\n";
+    } else if (ety->isStructTy())
+      errs() << "WARNING: Ignoring initializer for:  " << gv->getName() << "\n";
   }
 
   // Iterate over global constructors

@@ -71,16 +71,16 @@ int main(void) {
     Entry *it;
 
     lst = mk_list();
-    //void *a_foo = mk_foo(2);
-    //void *b_bar = mk_bar(3, 4);
+    void *a_foo = mk_foo(2);
+    void *b_bar = mk_bar(3, 4);
 
-    //insert (lst, a_foo);
-    //insert (lst, b_bar);
     insert (lst, &g_foo);
+    insert (lst, b_bar);
+    insert (lst, a_foo);
 
     int c = 0;
     for (it = lst->head; it != NULL; it = it->next) {
-        Foo *v = (Foo*)(it->data);
+        Foo *v = (Foo*)(lst->head->data);
         if (is_bar(v)) {
             Bar *b;
             b = to_bar(v);

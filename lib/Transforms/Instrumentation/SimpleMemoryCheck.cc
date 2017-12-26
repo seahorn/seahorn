@@ -25,6 +25,123 @@ using namespace llvm;
 
 namespace seahorn {
 
+struct PtrOrigin {
+  llvm::Value *Ptr;
+  int64_t Offset;
+
+  void dump(llvm::raw_ostream &OS = llvm::dbgs()) const {
+    OS << '<';
+    if (Ptr)
+      Ptr->print(OS);
+    else
+      OS << "nullptr";
+    OS << ", " << Offset << ">\n";
+  }
+};
+
+struct CheckContext {
+  Instruction *MI = nullptr;
+  Function *F = nullptr;
+  Value *Barrier = nullptr;
+  size_t AccessedBytes = 0;
+  SmallVector<Value *, 8> InterestingAllocSites;
+  SmallVector<Value *, 8> OtherAllocSites;
+
+  void dump(llvm::raw_ostream &OS = llvm::dbgs()) {
+    OS << "CheckContext : " << (F ? F->getName() : "nullptr") << " {\n";
+    OS << "  MI: ";
+    if (MI)
+      MI->print(OS);
+    else
+      OS << " nullptr";
+
+    OS << "\n  Barrier: ";
+    if (Barrier)
+      Barrier->print(OS);
+    else
+      OS << " nullptr";
+
+    OS << "\n  AccessedBytes: " << AccessedBytes;
+
+    OS << "\n  InterestingAllocSites: {\n";
+    unsigned i = 0;
+    for (auto *V : InterestingAllocSites) {
+      OS << "    " << (i++) << ": ";
+      V->print(OS);
+      if (auto *I = dyn_cast<Instruction>(V))
+        OS << "  (" << I->getFunction()->getName() << ", "
+           << I->getParent()->getName() << ")";
+
+      OS << ",\n";
+    }
+
+    OS << "  }  OtherAllocSites: {\n";
+    for (auto *V : OtherAllocSites) {
+      OS << "    " << (i++) << ": ";
+      V->print(OS);
+      if (auto *I = dyn_cast<Instruction>(V))
+        OS << "  (" << I->getFunction()->getName() << ", "
+           << I->getParent()->getName() << ")";
+
+      OS << ",\n";
+    }
+    OS << "  }\n}\n";
+  }
+};
+
+namespace {
+// A wrapper for seahorn dsa
+class SeaDsa {
+  llvm::Pass *m_abc;
+  sea_dsa::DsaInfo *m_dsa;
+
+  const sea_dsa::Cell *getCell(const llvm::Value *ptr,
+                               const llvm::Function &fn) {
+    assert(ptr);
+    assert(m_dsa);
+
+    sea_dsa::Graph *g = m_dsa->getDsaGraph(fn);
+    if (!g) {
+      errs() << "WARNING SMC: Sea Dsa graph not found for " << fn.getName()
+             << "\n";
+      return nullptr;
+    }
+
+    if (!(g->hasCell(*ptr))) {
+      errs() << "WARNING SMC: Sea Dsa node not found for " << ptr << "\n";
+      return nullptr;
+    }
+
+    const sea_dsa::Cell &c = g->getCell(*ptr);
+    return &c;
+  }
+
+public:
+  SeaDsa(Pass *abc)
+      : m_abc(abc),
+        m_dsa(&this->m_abc->getAnalysis<sea_dsa::DsaInfoPass>().getDsaInfo()) {}
+
+  SmallVector<Value *, 8> getAllocSites(Value *V, const Function &F) {
+    auto *C = getCell(V, F);
+    assert(C);
+    auto *N = C->getNode();
+    assert(N);
+
+    SmallVector<Value *, 8> Sites;
+    for (auto *S : N->getAllocSites()) {
+      if (auto *GV = dyn_cast<const GlobalVariable>(S))
+        if (GV->isDeclaration())
+          continue;
+
+      Sites.push_back(const_cast<Value *>(S));
+    }
+
+    return Sites;
+  };
+};
+
+} // namespace
+
 class SimpleMemoryCheck : public llvm::ModulePass {
 public:
   static char ID;
@@ -34,13 +151,568 @@ public:
   virtual const char *getPassName() const { return "SimpleMemoryCheck"; }
 
 private:
+  LLVMContext *m_Ctx;
+  Module *m_M;
+  CallGraph *m_CG;
+  const DataLayout *m_DL;
+  const TargetLibraryInfo *TLI;
+  std::unique_ptr<SeaDsa> m_SDSA;
+
+  Function *m_assumeFn;
+  Function *m_errorFn;
+  Value *m_trackedBegin;
+  Value *m_trackedEnd;
+  Value *m_trackingEnbaled;
+
+  bool isKnownAlloc(Value *Ptr);
+  llvm::Optional<size_t> getAllocSize(Value *Ptr);
+  PtrOrigin trackPtrOrigin(Value *Ptr);
+  CheckContext getUnsafeCandidates(Instruction *Ptr, Function &F);
+  bool isInterestingAllocSite(Value *Inst, int64_t LoadEnd, Value *Alloc);
+
+  void emitGlobalInstrumentation(CheckContext &Candidate, size_t AllocId);
+  void emitMemoryInstInstrumentation(CheckContext &Candidate);
+  void emitAllocSiteInstrumentation(CheckContext &Candidate, size_t AllocId);
+
+  Function *createNewNDFn(Type *Ty, Twine Prefix = "");
+  CallInst *getNDVal(size_t IntBitWidth, Function *F, IRBuilder<> &IRB,
+                     Twine Name = "");
+  CallInst *getNDPtr(Function *F, IRBuilder<> &IRB, Twine Name = "");
+  void createAssume(Value *Cond, Function *F, IRBuilder<> &IRB);
 };
 
 llvm::ModulePass *CreateSimpleMemoryCheckPass() {
   return new SimpleMemoryCheck();
 }
 
+bool SimpleMemoryCheck::isKnownAlloc(Value *Ptr) {
+  if (auto *AI = dyn_cast<AllocaInst>(Ptr))
+    return !AI->isArrayAllocation();
+
+  if (auto *CI = dyn_cast<CallInst>(Ptr))
+    return isAllocationFn(CI, TLI);
+
+  if (auto *GV = dyn_cast<GlobalVariable>(Ptr))
+    return GV->hasInitializer();
+
+  return false;
+}
+
+llvm::Optional<size_t> SimpleMemoryCheck::getAllocSize(Value *Ptr) {
+  assert(Ptr);
+  if (!isKnownAlloc(Ptr))
+    return None;
+
+  ObjectSizeOffsetEvaluator OSOE(*m_DL, TLI, *m_Ctx, true);
+  SizeOffsetEvalType OffsetAlign = OSOE.compute(Ptr);
+  if (!OSOE.knownSize(OffsetAlign))
+    return llvm::None;
+
+  if (auto *Sz = dyn_cast<ConstantInt>(OffsetAlign.first)) {
+    const int64_t I = Sz->getSExtValue();
+    assert(I >= 0);
+    return size_t(I);
+  }
+
+  return llvm::None;
+}
+
+PtrOrigin SimpleMemoryCheck::trackPtrOrigin(Value *Ptr) {
+  assert(Ptr);
+
+  PtrOrigin Res{Ptr, 0};
+  unsigned Iter = 0;
+  while (true) {
+    ++Iter;
+
+    if (isKnownAlloc(Res.Ptr))
+      return Res;
+
+    if (auto *BC = dyn_cast<BitCastInst>(Res.Ptr)) {
+      auto *Arg = BC->getOperand(0);
+      Res.Ptr = Arg;
+      continue;
+    }
+
+    if (auto *GEP = dyn_cast<GetElementPtrInst>(Res.Ptr)) {
+      auto *Arg = GEP->getPointerOperand();
+
+      APInt GEPOffset(m_DL->getPointerTypeSizeInBits(GEP->getType()), 0);
+      if (!GEP->accumulateConstantOffset(*m_DL, GEPOffset))
+        return Res;
+
+      Res.Ptr = Arg;
+      Res.Offset += GEPOffset.getSExtValue();
+      continue;
+    }
+
+    return Res;
+  }
+}
+
+CheckContext SimpleMemoryCheck::getUnsafeCandidates(Instruction *Inst,
+                                                    Function &F) {
+  auto *LI = dyn_cast<LoadInst>(Inst);
+  auto *SI = dyn_cast<StoreInst>(Inst);
+  assert((LI || SI) && "Wrong instruction type");
+
+  Value *Arg = LI ? LI->getPointerOperand() : SI->getPointerOperand();
+  assert(Arg);
+
+  PtrOrigin Origin = trackPtrOrigin(Arg);
+
+  auto *Ty = LI ? LI->getType() : SI->getPointerOperand()->getType();
+  assert(Ty);
+
+  const auto Bits = m_DL->getTypeSizeInBits(Ty);
+  const uint32_t Sz = Bits < 8 ? 1 : Bits / 8;
+  const int64_t LastRead = Origin.Offset + Sz;
+
+  CheckContext Check;
+  Check.MI = Inst;
+  Check.F = &F;
+  Check.Barrier = Origin.Ptr;
+  Check.AccessedBytes = size_t(LastRead);
+
+  if (Optional<size_t> AllocSize = getAllocSize(Origin.Ptr)) {
+    if (int64_t(Origin.Offset) + Sz > int64_t(*AllocSize)) {
+      errs() << "Unsafe access found!\n";
+      errs() << "  Allocated: " << (*AllocSize) << ", load size " << Sz
+             << " at offset " << Origin.Offset << "\n";
+      Check.dump(errs());
+    }
+
+    return Check;
+  }
+
+  assert(Origin.Ptr);
+  for (Value *AS : m_SDSA->getAllocSites(Origin.Ptr, F)) {
+    if (!isInterestingAllocSite(Origin.Ptr, LastRead, AS))
+      Check.OtherAllocSites.push_back(AS);
+    else
+      Check.InterestingAllocSites.push_back(AS);
+  }
+
+  return Check;
+}
+
+bool SimpleMemoryCheck::isInterestingAllocSite(Value *Ptr, int64_t LoadEnd,
+                                               Value *Alloc) {
+  assert(Ptr);
+  assert(Alloc);
+  assert(LoadEnd > 0);
+
+  Optional<size_t> AllocSize = getAllocSize(Alloc);
+  return AllocSize && size_t(LoadEnd) > *AllocSize;
+}
+
+namespace {
+
+Instruction *GetNextInst(Instruction *I) {
+  if (I->isTerminator())
+    return I;
+  return I->getParent()->getInstList().getNext(I);
+}
+
+Type *GetI8PtrTy(LLVMContext &Ctx) {
+  return Type::getInt8Ty(Ctx)->getPointerTo();
+}
+
+Value *CreateIntCnst(Type *Ty, int64_t Val) {
+  return ConstantInt::get(Ty, Val);
+}
+
+Value *CreateLoad(IRBuilder<> &B, Value *Ptr, const DataLayout *DL,
+                  StringRef Name = "") {
+  return B.CreateAlignedLoad(Ptr, DL->getABITypeAlignment(Ptr->getType()),
+                             Name);
+}
+
+Value *CreateStore(IRBuilder<> &B, Value *Val, Value *Ptr,
+                   const DataLayout *DL) {
+  return B.CreateAlignedStore(Val, Ptr,
+                              DL->getABITypeAlignment(Ptr->getType()));
+}
+
+Value *CreateNullptr(LLVMContext &Ctx) {
+  return ConstantPointerNull::get(cast<PointerType>(GetI8PtrTy(Ctx)));
+}
+
+Value *CreateGlobalBool(Module &M, bool Val, Twine Name = "") {
+  auto *Cnst = (Val ? ConstantInt::getTrue(M.getContext())
+                    : ConstantInt::getFalse(M.getContext()));
+  auto *GV = new GlobalVariable(M, Cnst->getType(), false,
+                                GlobalValue::InternalLinkage, Cnst);
+  GV->setName(Name);
+  return GV;
+}
+
+Value *CreateGlobalPtr(Module &M, Twine Name = "") {
+  auto NullPtr = cast<ConstantPointerNull>(CreateNullptr(M.getContext()));
+  GlobalVariable *GV =
+      new GlobalVariable(M, GetI8PtrTy(M.getContext()), false, /*non-constant*/
+                         GlobalValue::InternalLinkage, NullPtr);
+  GV->setName(Name);
+  return GV;
+}
+
+void UpdateCallGraph(CallGraph *CG, Function *Caller, CallInst *Callee) {
+  if (!CG)
+    return;
+
+  (*CG)[Caller]->addCalledFunction(CallSite(Callee),
+                                   (*CG)[Callee->getCalledFunction()]);
+}
+
+} // namespace
+
+Function *SimpleMemoryCheck::createNewNDFn(Type *Ty, Twine Name) {
+  auto *Res =
+      dyn_cast<Function>(m_M->getOrInsertFunction(Name.str(), Ty, nullptr));
+  assert(Res);
+
+  if (m_CG)
+    m_CG->getOrInsertFunction(Res);
+
+  return Res;
+}
+
+CallInst *SimpleMemoryCheck::getNDVal(size_t Bits, Function *F,
+                                      IRBuilder<> &IRB, Twine Name) {
+  auto *Ty = IntegerType::get(*m_Ctx, Bits);
+  auto *NondetFn = createNewNDFn(Ty, "verifier.nondet");
+  CallInst *CI = IRB.CreateCall(NondetFn, None, Name);
+  UpdateCallGraph(m_CG, F, CI);
+  return CI;
+}
+
+CallInst *SimpleMemoryCheck::getNDPtr(Function *F, IRBuilder<> &IRB,
+                                      Twine Name) {
+  auto *NondetPtrFn = createNewNDFn(GetI8PtrTy(*m_Ctx), "verifier.nondet_ptr");
+  CallInst *CI = IRB.CreateCall(NondetPtrFn, None, Name);
+  UpdateCallGraph(m_CG, F, CI);
+  return CI;
+}
+
+void SimpleMemoryCheck::createAssume(Value *Cond, Function *F,
+                                     IRBuilder<> &IRB) {
+  CallInst *CI = IRB.CreateCall(m_assumeFn, Cond);
+  UpdateCallGraph(m_CG, F, CI);
+}
+
+/**
+ * Creates 3 global variables used for pointer tracking:
+ *  - tracked_begin   -- the first byte of the tracked memory chunk
+ *  - tracked_end     -- one byte past the tracked memory chunk
+ *  - tacking_enabled -- if the tracked memory chunk was already allocated
+ *
+ *  The rest of the instrumentation is emitted in the main function.
+ *  We start by setting the values such that:
+ *  - tracked_begin = nd_ptr(), tacked_end = nd_ptr(), tacking_enabled = false
+ *  - tracked_end > tracked_begin > nullptr
+ *
+ *  Then we create assumptions for (not tracked) global variables:
+ *  - &gv_n > tracked_end
+ *
+ *  If the tracked allocation site is a global variable, we also emit:
+ *  - &the_gv == tracked_begin
+ *  - &the_gv + sizeof(the_gv) == tracked_end
+ *  - tacking_enabled = true
+ */
+void SimpleMemoryCheck::emitGlobalInstrumentation(CheckContext &Candidate,
+                                                  size_t AllocId) {
+  m_trackedBegin = CreateGlobalPtr(*m_M, "tracked_begin");
+  m_trackedEnd = CreateGlobalPtr(*m_M, "tracked_end");
+  m_trackingEnbaled = CreateGlobalBool(*m_M, 0, "tracking_enabled");
+
+  Function *Main = m_M->getFunction("main");
+  assert(Main);
+
+  IRBuilder<> IRB(*m_Ctx);
+  IRB.SetInsertPoint(&*(Main->getEntryBlock().getFirstInsertionPt()));
+  CallInst *NDPtrBegin = getNDPtr(Main, IRB, "nd_ptr_begin");
+  auto *Cmp1 = IRB.CreateICmpSGT(
+      NDPtrBegin,
+      IRB.CreateBitOrPointerCast(CreateNullptr(*m_Ctx), NDPtrBegin->getType()));
+
+  createAssume(Cmp1, Main, IRB);
+  CreateStore(IRB, NDPtrBegin, m_trackedBegin, m_DL);
+
+  CallInst *NDPtrEnd = getNDPtr(Main, IRB, "nd_ptr_end");
+  auto *Cmp2 = IRB.CreateICmpSGT(NDPtrEnd, NDPtrBegin);
+  createAssume(Cmp2, Main, IRB);
+  CreateStore(IRB, NDPtrEnd, m_trackedEnd, m_DL);
+
+  auto *TrackedAlloc = Candidate.InterestingAllocSites[AllocId];
+  if (auto *TrackedGV = dyn_cast<GlobalVariable>(TrackedAlloc)) {
+    assert(!TrackedGV->isDeclaration());
+
+    auto *I8GV = IRB.CreateBitCast(TrackedGV, GetI8PtrTy(*m_Ctx));
+    auto *GlobalIsBegin = IRB.CreateICmpEQ(I8GV, NDPtrBegin, "global.is.begin");
+    createAssume(GlobalIsBegin, Main, IRB);
+
+    Optional<size_t> AllocSize = getAllocSize(TrackedAlloc);
+    assert(AllocSize);
+
+    auto *GlobalEnd = IRB.CreateGEP(
+        I8GV,
+        CreateIntCnst(IntegerType::getInt32Ty(*m_Ctx), int64_t(*AllocSize)),
+        "global_end_ptr");
+    auto *EndEq = IRB.CreateICmpEQ(GlobalEnd, NDPtrEnd);
+    createAssume(EndEq, Main, IRB);
+
+    CreateStore(IRB, ConstantInt::getTrue(*m_Ctx), m_trackingEnbaled, m_DL);
+  } else {
+    CreateStore(IRB, ConstantInt::getFalse(*m_Ctx), m_trackingEnbaled, m_DL);
+  }
+
+  auto EmitOtherGVAssume = [&](Value *V) {
+    auto *GV = dyn_cast<GlobalVariable>(V);
+    if (!GV)
+      return;
+
+    auto *I8GV = IRB.CreateBitOrPointerCast(GV, GetI8PtrTy(*m_Ctx),
+                                            GV->getName() + ".i8");
+    auto *CmpGV = IRB.CreateICmpSGT(I8GV, NDPtrEnd);
+    createAssume(CmpGV, Main, IRB);
+  };
+
+  for (auto *AV : Candidate.InterestingAllocSites) {
+    if (AV == TrackedAlloc)
+      continue;
+
+    EmitOtherGVAssume(AV);
+  }
+
+  for (auto *AV : Candidate.OtherAllocSites)
+    EmitOtherGVAssume(AV);
+
+  SMC_LOG(NDPtrBegin->getParent()->dump());
+}
+
+/**
+ * For the selected Memory Instruction (load/store) and barrier, emits:
+ *   if (tacking_enabled && barrier == tracked_begin)
+ *     verifier.error()
+ */
+void SimpleMemoryCheck::emitMemoryInstInstrumentation(CheckContext &Candidate) {
+  assert(isa<LoadInst>(Candidate.MI) || isa<StoreInst>(Candidate.MI));
+  IRBuilder<> IRB(Candidate.MI);
+
+  auto *BeginCandiate = IRB.CreateBitOrPointerCast(
+      Candidate.Barrier, GetI8PtrTy(*m_Ctx), "begin_candidate");
+  auto *TrackedBegin = CreateLoad(IRB, m_trackedBegin, m_DL, "tracked_begin");
+  auto *Cmp = IRB.CreateICmpEQ(TrackedBegin, BeginCandiate);
+  auto *Active = IRB.CreateLoad(m_trackingEnbaled, "active_tracking");
+  auto *And = IRB.CreateAnd(Active, Cmp, "unsafe_condition");
+  auto *Term = SplitBlockAndInsertIfThen(And, Candidate.MI, true);
+  IRB.SetInsertPoint(Term);
+  IRB.CreateCall(m_errorFn);
+
+  SMC_LOG(cast<Instruction>(Candidate.Barrier)->getParent()->dump());
+  SMC_LOG(Term->getParent()->dump());
+}
+
+/**
+ * If the selected allocation site is malloc/alloca, nondeterministically start
+ * tracking it, if it's not already being tracked:
+ *   ptr = alloc(bytes)
+ *   if (!tacking_enabled && nd() == 0)
+ *     verifier.assume(ptr == tracked_begin)
+ *     verifier.assume(ptr + bytes = tracked_end)
+ *     tracking_enabled = true
+ *
+ * For other mallocs/allocas that alias with the instrumented barrier, assume
+ * they produce chunks of memory we are not tracking:
+ *   other_ptr = alloc(...)
+ *   verifier.assume(other_ptr > tracked_end)
+ */
+void SimpleMemoryCheck::emitAllocSiteInstrumentation(CheckContext &Candidate,
+                                                     size_t AllocId) {
+  assert(Candidate.InterestingAllocSites.size() > AllocId);
+
+  Value *const Alloc = Candidate.InterestingAllocSites[AllocId];
+  IRBuilder<> IRB(*m_Ctx);
+
+  // GlobalVariables are handles in emitGlobalInstrumentation.
+  if (!isa<GlobalVariable>(Alloc)) {
+    assert(isa<CallInst>(Alloc) || isa<AllocaInst>(Alloc));
+    auto *AI = cast<Instruction>(Alloc);
+    auto *CSFn = AI->getFunction();
+    assert(CSFn);
+
+    IRB.SetInsertPoint(GetNextInst(AI));
+    auto *AllocI8 = IRB.CreateBitCast(AI, GetI8PtrTy(*m_Ctx), "alloc.i8");
+    auto *Active = IRB.CreateLoad(m_trackingEnbaled, "active_tracking");
+    auto *NotActive = IRB.CreateICmpEQ(Active, ConstantInt::getFalse(*m_Ctx),
+                                       "inactive_tracking");
+    auto *NDVal = getNDVal(32, CSFn, IRB);
+    auto *NDBool = IRB.CreateICmpEQ(NDVal, CreateIntCnst(NDVal->getType(), 0));
+    auto *TrackedEnd = CreateLoad(IRB, m_trackedEnd, m_DL, "loaded_end");
+    auto *And = dyn_cast<Instruction>(IRB.CreateAnd(NotActive, NDBool));
+    assert(And);
+
+    TerminatorInst *ThenTerm;
+    TerminatorInst *ElseTerm;
+    SplitBlockAndInsertIfThenElse(And, GetNextInst(And), &ThenTerm, &ElseTerm);
+
+    auto *ThenBB = ThenTerm->getParent();
+    ThenBB->setName("start_tracking");
+    auto *ElseBB = ElseTerm->getParent();
+    ElseBB->setName("not_tracking");
+
+    // Continue inserting before the new branch.
+    IRB.SetInsertPoint(ElseBB->getFirstNonPHI());
+    auto *GT = IRB.CreateICmpSGT(AllocI8, TrackedEnd);
+    createAssume(GT, CSFn, IRB);
+
+    // Start tracking.
+    IRB.SetInsertPoint(ThenBB->getFirstNonPHI());
+    CreateStore(IRB, ConstantInt::getTrue(*m_Ctx), m_trackingEnbaled, m_DL);
+    auto *TrackedBegin = CreateLoad(IRB, m_trackedBegin, m_DL, "loaded_begin");
+    auto *AllocIsBegin =
+        IRB.CreateICmpEQ(AllocI8, TrackedBegin, "alloc.is.begin");
+    createAssume(AllocIsBegin, CSFn, IRB);
+
+    Optional<size_t> AllocSize = getAllocSize(AI);
+    assert(AllocSize);
+
+    auto *End = IRB.CreateGEP(
+        AllocI8,
+        CreateIntCnst(IntegerType::getInt32Ty(*m_Ctx), int64_t(*AllocSize)),
+        "end_ptr");
+    auto *EndEq = IRB.CreateICmpEQ(End, TrackedEnd);
+    createAssume(EndEq, CSFn, IRB);
+  }
+
+  auto InstrumentRemainingSite = [&](Value *AV) {
+    // Remaining GlobalVariables are handled in emitGlobalInstrumentation.
+    if (isa<GlobalVariable>(AV))
+      return;
+
+    assert(isa<Instruction>(AV));
+    auto *OtherAllocInst = cast<Instruction>(AV);
+    IRB.SetInsertPoint(GetNextInst(OtherAllocInst));
+    auto *OAI8 =
+        IRB.CreateBitCast(OtherAllocInst, GetI8PtrTy(*m_Ctx), "other.alloc.i8");
+    auto *TrackedEnd = CreateLoad(IRB, m_trackedEnd, m_DL, "loaded_end");
+    auto *GT = IRB.CreateICmpSGT(OAI8, TrackedEnd);
+    createAssume(GT, OtherAllocInst->getFunction(), IRB);
+
+    SMC_LOG(dbgs() << "Instrumented other alloc site for " << AV->getName()
+                   << ":\n");
+    SMC_LOG(OtherAllocInst->getParent()->dump());
+  };
+
+  for (size_t i = 0; i < Candidate.InterestingAllocSites.size(); ++i) {
+    if (i == AllocId)
+      continue;
+
+    auto *AV = Candidate.InterestingAllocSites[i];
+    InstrumentRemainingSite(AV);
+  }
+
+  for (auto *AV : Candidate.OtherAllocSites)
+    InstrumentRemainingSite(AV);
+}
+
 bool SimpleMemoryCheck::runOnModule(llvm::Module &M) {
+  if (M.begin() == M.end())
+    return false;
+
+  Function *main = M.getFunction("main");
+  if (!main) {
+    errs() << "Main not found: no buffer overflow checks added\n";
+    return false;
+  }
+
+  m_Ctx = &M.getContext();
+  m_M = &M;
+  TLI = &getAnalysis<TargetLibraryInfoWrapperPass>().getTLI();
+  m_DL = &M.getDataLayout();
+  m_SDSA = llvm::make_unique<SeaDsa>(this);
+
+  SMC_LOG(dbgs() << "\n\n ========== SMC  ==========\n");
+  SMC_LOG(M.dump());
+
+  AttrBuilder AB;
+  AB.addAttribute(Attribute::NoReturn);
+  AttributeSet AS = AttributeSet::get(*m_Ctx, AttributeSet::FunctionIndex, AB);
+  m_errorFn = dyn_cast<Function>(M.getOrInsertFunction(
+      "verifier.error", AS, Type::getVoidTy(*m_Ctx), nullptr));
+
+  AB.clear();
+  AS = AttributeSet::get(*m_Ctx, AttributeSet::FunctionIndex, AB);
+  m_assumeFn = dyn_cast<Function>(
+      M.getOrInsertFunction("verifier.assume", AS, Type::getVoidTy(*m_Ctx),
+                            Type::getInt1Ty(*m_Ctx), nullptr));
+
+  IRBuilder<> B(*m_Ctx);
+  CallGraphWrapperPass *CGWP = getAnalysisIfAvailable<CallGraphWrapperPass>();
+  m_CG = CGWP ? &CGWP->getCallGraph() : nullptr;
+  if (m_CG) {
+    m_CG->getOrInsertFunction(m_assumeFn);
+    m_CG->getOrInsertFunction(m_errorFn);
+  }
+
+  std::vector<CheckContext> CheckCandidates;
+
+  for (auto &F : M) {
+    if (F.isDeclaration())
+      continue;
+
+    // Skip special functions.
+    if (F.getName().startswith("seahorn.") ||
+        F.getName().startswith("shadow.") ||
+        F.getName().startswith("verifier."))
+      continue;
+
+    for (auto &BB : F) {
+      for (auto &V : BB) {
+        auto *I = dyn_cast<Instruction>(&V);
+        if (I && (isa<LoadInst>(I) || isa<StoreInst>(I))) {
+
+          CheckContext Check = getUnsafeCandidates(I, F);
+          if (Check.InterestingAllocSites.empty())
+            continue;
+
+          CheckCandidates.emplace_back(std::move(Check));
+
+          SMC_LOG(dbgs() << (CheckCandidates.size() - 1) << ": ");
+          SMC_LOG(CheckCandidates.back().dump());
+
+          // FIXME: Allow to specify allocation sites and memory instructions.
+          if (CheckCandidates.size() > 16)
+            goto skip;
+        }
+      }
+    }
+  }
+
+skip:
+
+  if (CheckCandidates.empty()) {
+    SMC_LOG(dbgs() << "No check candidates!\n");
+    return true;
+  }
+
+  // FIXME: Allow to specify allocation sites and memory instructions.
+  size_t CheckId = 0;
+  size_t AllocSiteId = 0;
+
+  assert(CheckCandidates.size() > CheckId);
+  auto &Check = CheckCandidates[CheckId];
+  SMC_LOG(dbgs() << "Emitting instrumentation for check [" << CheckId
+                 << "], alloc (" << AllocSiteId << ")\n");
+  SMC_LOG(Check.dump());
+
+  emitGlobalInstrumentation(Check, AllocSiteId);
+  emitMemoryInstInstrumentation(Check);
+  emitAllocSiteInstrumentation(Check, AllocSiteId);
+
+  SMC_LOG(M.dump());
+
+  SMC_LOG(dbgs() << " ========== SMC  ==========\n");
   return true;
 }
 

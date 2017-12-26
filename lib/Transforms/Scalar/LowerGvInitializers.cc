@@ -1,7 +1,6 @@
 #include "seahorn/Transforms/Scalar/LowerGvInitializers.hh"
 
 #include "boost/format.hpp"
-#include "boost/range.hpp"
 
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/Support/raw_ostream.h"

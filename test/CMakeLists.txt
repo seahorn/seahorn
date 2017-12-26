@@ -34,6 +34,15 @@ add_lit_testsuite(test-abc "Regression test for Array Bounds Checks"
   DEPENDS seahorn
   )
 
+add_lit_testsuite(test-smc "Regression test for Simple Memory Safety Checks"
+  -v
+  ${CMAKE_CURRENT_SOURCE_DIR}/smc
+  PARAMS
+  test_dir=${CMAKE_CURRENT_BINARY_DIR}
+  DEPENDS seahorn
+  )
+
+
 add_lit_testsuite(test-inc "Regression test for Inconsistency Analysis"
   -v
   ${CMAKE_CURRENT_SOURCE_DIR}/inc

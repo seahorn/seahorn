@@ -1,7 +1,6 @@
 #include "seahorn/Transforms/Scalar/LowerGvInitializers.hh"
 
 #include "boost/format.hpp"
-#include "boost/range.hpp"
 
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/Support/raw_ostream.h"
@@ -161,8 +160,7 @@ bool LowerGvInitializers::runOnModule(Module &M) {
   Builder.SetInsertPoint(&f->getEntryBlock(), f->getEntryBlock().begin());
   bool change = false;
   std::vector<GlobalVariable *> gvs;
-  for (GlobalVariable &gv :
-       boost::make_iterator_range(M.global_begin(), M.global_end())) {
+  for (GlobalVariable &gv : make_range(M.global_begin(), M.global_end())) {
     if (gv.hasInitializer())
       gvs.push_back(&gv);
   }

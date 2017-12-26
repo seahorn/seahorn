@@ -1,40 +1,27 @@
 #include "seahorn/Transforms/Instrumentation/SimpleMemoryCheck.hh"
 
 #include "llvm/ADT/DenseMap.h"
+#include "llvm/ADT/SmallSet.h"
+#include "llvm/ADT/SmallVector.h"
 #include "llvm/Analysis/CallGraph.h"
 #include "llvm/Analysis/MemoryBuiltins.h"
 #include "llvm/Analysis/TargetLibraryInfo.h"
 #include "llvm/IR/DataLayout.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/IRBuilder.h"
-#include "llvm/IR/Instructions.h"
-#include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/Module.h"
 #include "llvm/Pass.h"
-#include "llvm/Support/Debug.h"
-
-#include "seahorn/config.h"
-
-#include "seahorn/Analysis/CanAccessMemory.hh"
-#include "ufo/Passes/NameValues.hpp"
-
-#include "llvm/ADT/SmallSet.h"
-#include "llvm/ADT/SmallVector.h"
-#include "llvm/Analysis/MemoryBuiltins.h"
-#include "llvm/IR/CallSite.h"
-#include "llvm/IR/InstIterator.h"
-#include "llvm/IR/IntrinsicInst.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
-#include "llvm/Support/ErrorHandling.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 #include "llvm/Transforms/Utils/Cloning.h"
 #include "llvm/Transforms/Utils/Local.h"
 #include "llvm/Transforms/Utils/UnifyFunctionExitNodes.h"
 
-// Seahorn dsa
 #include "avy/AvyDebug.h"
 #include "sea_dsa/DsaAnalysis.hh"
+#include "seahorn/Analysis/CanAccessMemory.hh"
+#include "seahorn/config.h"
 
 #define SMC_LOG(...) LOG("smc", __VA_ARGS__)
 
@@ -106,13 +93,15 @@ struct CheckContext {
   }
 };
 
+namespace {
 // A wrapper for seahorn dsa
 class SeaDsa {
   llvm::Pass *m_abc;
   sea_dsa::DsaInfo *m_dsa;
 
-  const sea_dsa::Cell *getCell(const llvm::Value &ptr, const llvm::Function &fn,
+  const sea_dsa::Cell *getCell(const llvm::Value *ptr, const llvm::Function &fn,
                                int tag) {
+    assert(ptr);
     assert(m_dsa);
 
     sea_dsa::Graph *g = m_dsa->getDsaGraph(fn);
@@ -123,13 +112,13 @@ class SeaDsa {
       return nullptr;
     }
 
-    if (!(g->hasCell(ptr))) {
+    if (!(g->hasCell(*ptr))) {
       errs() << "WARNING ABC: Sea Dsa node not found for " << ptr << "\n";
       //<< " " << tag << "\n";
       return nullptr;
     }
 
-    const sea_dsa::Cell &c = g->getCell(ptr);
+    const sea_dsa::Cell &c = g->getCell(*ptr);
     return &c;
   }
 
@@ -144,7 +133,7 @@ public:
         m_dsa(&this->m_abc->getAnalysis<sea_dsa::DsaInfoPass>().getDsaInfo()) {}
 
   SmallVector<Value *, 8> getAllocSites(Value *V, const Function &F) {
-    auto *C = getCell(*V, F, 0);
+    auto *C = getCell(V, F, 0);
     assert(C);
     auto *N = C->getNode();
     assert(N);
@@ -169,6 +158,8 @@ public:
     return m_dsa->getAllocValue(id);
   }
 };
+
+} // namespace
 
 class SimpleMemoryCheck : public llvm::ModulePass {
 public:

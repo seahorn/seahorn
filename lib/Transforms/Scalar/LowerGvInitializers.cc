@@ -146,7 +146,6 @@ Constant *LowerGvInitializers::getNondetFn(Type *type, Module &M) {
 
 // Add instructions in main that initialize global variables.
 bool LowerGvInitializers::runOnModule(Module &M) {
-
   const DataLayout *DL = &M.getDataLayout();
 
   Function *f = M.getFunction("main");

@@ -38,6 +38,7 @@
 #include "seahorn/Transforms/Scalar/LowerCstExpr.hh"
 #include "seahorn/Transforms/Instrumentation/MixedSemantics.hh"
 #include "seahorn/Transforms/Instrumentation/BufferBoundsCheck.hh"
+#include "seahorn/Transforms/Instrumentation/SimpleMemoryCheck.hh"
 #include "seahorn/Transforms/Instrumentation/NullCheck.hh"
 
 #ifdef HAVE_LLVM_SEAHORN
@@ -123,6 +124,10 @@ ArrayBoundsChecks("abc",
 	clEnumValN (GLOBAL_C, "global-c", "Use global encoding by calling C-defined functions"),
 	clEnumValEnd),
  llvm::cl::init (NONE));
+
+static llvm::cl::opt<bool>
+    SimpleMemoryChecks("smc", llvm::cl::desc("Insert simple memory checks"),
+                       llvm::cl::init(false));
 
 static llvm::cl::opt<bool>
 EnumVerifierCalls ("enum-verifier-calls",
@@ -331,7 +336,7 @@ int main(int argc, char **argv) {
       pass_manager.add (seahorn::createStripUselessDeclarationsPass ());
 
     // -- mark entry points of all functions
-    if (!MixedSem && !CutLoops)
+    if (!MixedSem && !CutLoops && !SimpleMemoryChecks)
       // XXX should only be ran once. need better way to ensure that.
       pass_manager.add (seahorn::createMarkFnEntryPass ());
 
@@ -469,6 +474,10 @@ int main(int argc, char **argv) {
       }
     }
 
+    if (SimpleMemoryChecks) {
+      pass_manager.add(seahorn::CreateSimpleMemoryCheckPass());
+    }
+
     if (LowerAssert) {
       pass_manager.add (seahorn::createLowerAssertPass ());
       // LowerAssert might generate some dead code
@@ -482,7 +491,7 @@ int main(int argc, char **argv) {
     }
 
 
-    if (!MixedSem && EnumVerifierCalls)
+    if (!MixedSem && !SimpleMemoryChecks && EnumVerifierCalls)
     {
       pass_manager.add (seahorn::createEnumVerifierCallsPass ());
     }

@@ -7,9 +7,7 @@
 #include "llvm/Analysis/MemoryBuiltins.h"
 #include "llvm/Analysis/TargetLibraryInfo.h"
 #include "llvm/IR/DataLayout.h"
-#include "llvm/IR/Function.h"
 #include "llvm/IR/IRBuilder.h"
-#include "llvm/IR/Module.h"
 #include "llvm/Pass.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
@@ -20,8 +18,6 @@
 
 #include "avy/AvyDebug.h"
 #include "sea_dsa/DsaAnalysis.hh"
-#include "seahorn/Analysis/CanAccessMemory.hh"
-#include "seahorn/config.h"
 
 #define SMC_LOG(...) LOG("smc", __VA_ARGS__)
 
@@ -99,32 +95,25 @@ class SeaDsa {
   llvm::Pass *m_abc;
   sea_dsa::DsaInfo *m_dsa;
 
-  const sea_dsa::Cell *getCell(const llvm::Value *ptr, const llvm::Function &fn,
-                               int tag) {
+  const sea_dsa::Cell *getCell(const llvm::Value *ptr,
+                               const llvm::Function &fn) {
     assert(ptr);
     assert(m_dsa);
 
     sea_dsa::Graph *g = m_dsa->getDsaGraph(fn);
     if (!g) {
-      errs() << "WARNING ABC: Sea Dsa graph not found for " << fn.getName()
+      errs() << "WARNING SMC: Sea Dsa graph not found for " << fn.getName()
              << "\n";
-      //<< " " << tag << "\n";
       return nullptr;
     }
 
     if (!(g->hasCell(*ptr))) {
-      errs() << "WARNING ABC: Sea Dsa node not found for " << ptr << "\n";
-      //<< " " << tag << "\n";
+      errs() << "WARNING SMC: Sea Dsa node not found for " << ptr << "\n";
       return nullptr;
     }
 
     const sea_dsa::Cell &c = g->getCell(*ptr);
     return &c;
-  }
-
-  bool hasSuccessors(const sea_dsa::Cell &c) const {
-    const sea_dsa::Node &n = *(c.getNode());
-    return (std::distance(n.links().begin(), n.links().end()) > 0);
   }
 
 public:
@@ -133,7 +122,7 @@ public:
         m_dsa(&this->m_abc->getAnalysis<sea_dsa::DsaInfoPass>().getDsaInfo()) {}
 
   SmallVector<Value *, 8> getAllocSites(Value *V, const Function &F) {
-    auto *C = getCell(V, F, 0);
+    auto *C = getCell(V, F);
     assert(C);
     auto *N = C->getNode();
     assert(N);
@@ -149,14 +138,6 @@ public:
 
     return Sites;
   };
-
-  unsigned int getAllocSiteId(const llvm::Value &ptr) {
-    return m_dsa->getAllocSiteId(&ptr);
-  }
-
-  const llvm::Value *getAllocValue(unsigned int id) {
-    return m_dsa->getAllocValue(id);
-  }
 };
 
 } // namespace
@@ -170,12 +151,12 @@ public:
   virtual const char *getPassName() const { return "SimpleMemoryCheck"; }
 
 private:
-  LLVMContext *Ctx;
+  LLVMContext *m_Ctx;
   Module *m_M;
   CallGraph *m_CG;
-  const DataLayout *DL;
+  const DataLayout *m_DL;
   const TargetLibraryInfo *TLI;
-  std::unique_ptr<SeaDsa> SDSA;
+  std::unique_ptr<SeaDsa> m_SDSA;
 
   Function *m_assumeFn;
   Function *m_errorFn;
@@ -227,7 +208,7 @@ llvm::Optional<size_t> SimpleMemoryCheck::getAllocSize(Value *Ptr) {
   if (!isKnownAlloc(Ptr))
     return None;
 
-  ObjectSizeOffsetEvaluator OSOE(*DL, TLI, *Ctx, true);
+  ObjectSizeOffsetEvaluator OSOE(*m_DL, TLI, *m_Ctx, true);
   SizeOffsetEvalType OffsetAlign = OSOE.compute(Ptr);
   if (!OSOE.knownSize(OffsetAlign))
     return llvm::None;
@@ -261,8 +242,8 @@ PtrOrigin SimpleMemoryCheck::trackPtrOrigin(Value *Ptr) {
     if (auto *GEP = dyn_cast<GetElementPtrInst>(Res.Ptr)) {
       auto *Arg = GEP->getOperand(0);
 
-      APInt GEPOffset(DL->getPointerTypeSizeInBits(GEP->getType()), 0);
-      if (!GEP->accumulateConstantOffset(*DL, GEPOffset))
+      APInt GEPOffset(m_DL->getPointerTypeSizeInBits(GEP->getType()), 0);
+      if (!GEP->accumulateConstantOffset(*m_DL, GEPOffset))
         return Res;
 
       Res.Ptr = Arg;
@@ -288,7 +269,7 @@ CheckContext SimpleMemoryCheck::getUnsafeCandidates(Instruction *Inst,
       isa<LoadInst>(Inst) ? Inst->getType() : Inst->getOperand(0)->getType();
   assert(Ty);
 
-  const auto Bits = DL->getTypeSizeInBits(Ty);
+  const auto Bits = m_DL->getTypeSizeInBits(Ty);
   const uint32_t Sz = Bits < 8 ? 1 : Bits / 8;
   const int64_t LastRead = Origin.Offset + Sz;
 
@@ -311,7 +292,7 @@ CheckContext SimpleMemoryCheck::getUnsafeCandidates(Instruction *Inst,
   }
 
   assert(Origin.Ptr);
-  for (Value *AS : SDSA->getAllocSites(Origin.Ptr, F)) {
+  for (Value *AS : m_SDSA->getAllocSites(Origin.Ptr, F)) {
     if (!isInterestingAllocSite(Origin.Ptr, LastRead, AS))
       Check.OtherAllocSites.push_back(AS);
     else
@@ -407,7 +388,7 @@ Function *SimpleMemoryCheck::createNewNDFn(Type *Ty, Twine Name) {
 
 CallInst *SimpleMemoryCheck::getNDVal(size_t Bits, Function *F,
                                       IRBuilder<> &IRB, Twine Name) {
-  auto *Ty = IntegerType::get(*Ctx, Bits);
+  auto *Ty = IntegerType::get(*m_Ctx, Bits);
   auto *NondetFn = createNewNDFn(Ty, "verifier.nondet");
   CallInst *CI = IRB.CreateCall(NondetFn, None, Name);
   UpdateCallGraph(m_CG, F, CI);
@@ -416,7 +397,7 @@ CallInst *SimpleMemoryCheck::getNDVal(size_t Bits, Function *F,
 
 CallInst *SimpleMemoryCheck::getNDPtr(Function *F, IRBuilder<> &IRB,
                                       Twine Name) {
-  auto *NondetPtrFn = createNewNDFn(GetI8PtrTy(*Ctx), "verifier.nondet_ptr");
+  auto *NondetPtrFn = createNewNDFn(GetI8PtrTy(*m_Ctx), "verifier.nondet_ptr");
   CallInst *CI = IRB.CreateCall(NondetPtrFn, None, Name);
   UpdateCallGraph(m_CG, F, CI);
   return CI;
@@ -437,26 +418,26 @@ void SimpleMemoryCheck::emitGlobalInstrumentation(CheckContext &Candidate,
   Function *Main = m_M->getFunction("main");
   assert(Main);
 
-  IRBuilder<> IRB(*Ctx);
+  IRBuilder<> IRB(*m_Ctx);
   IRB.SetInsertPoint(&*(Main->getEntryBlock().getFirstInsertionPt()));
   CallInst *NDPtrBegin = getNDPtr(Main, IRB, "nd_ptr_begin");
   auto *Cmp1 = IRB.CreateICmpSGT(
       NDPtrBegin,
-      IRB.CreateBitOrPointerCast(CreateNullptr(*Ctx), NDPtrBegin->getType()));
+      IRB.CreateBitOrPointerCast(CreateNullptr(*m_Ctx), NDPtrBegin->getType()));
 
   createAssume(Cmp1, Main, IRB);
-  CreateStore(IRB, NDPtrBegin, m_trackedBegin, DL);
+  CreateStore(IRB, NDPtrBegin, m_trackedBegin, m_DL);
 
   CallInst *NDPtrEnd = getNDPtr(Main, IRB, "nd_ptr_end");
   auto *Cmp2 = IRB.CreateICmpSGT(NDPtrEnd, NDPtrBegin);
   createAssume(Cmp2, Main, IRB);
-  CreateStore(IRB, NDPtrEnd, m_trackedEnd, DL);
+  CreateStore(IRB, NDPtrEnd, m_trackedEnd, m_DL);
 
   auto *TrackedAlloc = Candidate.InterestingAllocSites[AllocId];
   if (auto *TrackedGV = dyn_cast<GlobalVariable>(TrackedAlloc)) {
     assert(!TrackedGV->isDeclaration());
 
-    auto *I8GV = IRB.CreateBitCast(TrackedGV, GetI8PtrTy(*Ctx));
+    auto *I8GV = IRB.CreateBitCast(TrackedGV, GetI8PtrTy(*m_Ctx));
     auto *GlobalIsBegin = IRB.CreateICmpEQ(I8GV, NDPtrBegin, "global.is.begin");
     createAssume(GlobalIsBegin, Main, IRB);
 
@@ -464,14 +445,15 @@ void SimpleMemoryCheck::emitGlobalInstrumentation(CheckContext &Candidate,
     assert(AllocSize);
 
     auto *GlobalEnd = IRB.CreateGEP(
-        I8GV, CreateIntCnst(IntegerType::getInt32Ty(*Ctx), int64_t(*AllocSize)),
+        I8GV,
+        CreateIntCnst(IntegerType::getInt32Ty(*m_Ctx), int64_t(*AllocSize)),
         "global_end_ptr");
     auto *EndEq = IRB.CreateICmpEQ(GlobalEnd, NDPtrEnd);
     createAssume(EndEq, Main, IRB);
 
-    CreateStore(IRB, ConstantInt::getTrue(*Ctx), m_trackingEnbaled, DL);
+    CreateStore(IRB, ConstantInt::getTrue(*m_Ctx), m_trackingEnbaled, m_DL);
   } else {
-    CreateStore(IRB, ConstantInt::getFalse(*Ctx), m_trackingEnbaled, DL);
+    CreateStore(IRB, ConstantInt::getFalse(*m_Ctx), m_trackingEnbaled, m_DL);
   }
 
   auto EmitOtherGVAssume = [&](Value *V) {
@@ -479,8 +461,8 @@ void SimpleMemoryCheck::emitGlobalInstrumentation(CheckContext &Candidate,
     if (!GV)
       return;
 
-    auto *I8GV =
-        IRB.CreateBitOrPointerCast(GV, GetI8PtrTy(*Ctx), GV->getName() + ".i8");
+    auto *I8GV = IRB.CreateBitOrPointerCast(GV, GetI8PtrTy(*m_Ctx),
+                                            GV->getName() + ".i8");
     auto *CmpGV = IRB.CreateICmpSGT(I8GV, NDPtrEnd);
     createAssume(CmpGV, Main, IRB);
   };
@@ -503,8 +485,8 @@ void SimpleMemoryCheck::emitMemoryInstInstrumentation(CheckContext &Candidate) {
   IRBuilder<> IRB(Candidate.MI);
 
   auto *BeginCandiate = IRB.CreateBitOrPointerCast(
-      Candidate.Barrier, GetI8PtrTy(*Ctx), "begin_candidate");
-  auto *TrackedBegin = CreateLoad(IRB, m_trackedBegin, DL, "tracked_begin");
+      Candidate.Barrier, GetI8PtrTy(*m_Ctx), "begin_candidate");
+  auto *TrackedBegin = CreateLoad(IRB, m_trackedBegin, m_DL, "tracked_begin");
   auto *Cmp = IRB.CreateICmpEQ(TrackedBegin, BeginCandiate);
   auto *Active = IRB.CreateLoad(m_trackingEnbaled, "active_tracking");
   auto *And = IRB.CreateAnd(Active, Cmp, "unsafe_condition");
@@ -521,7 +503,7 @@ void SimpleMemoryCheck::emitAllocSiteInstrumentation(CheckContext &Candidate,
   assert(Candidate.InterestingAllocSites.size() > AllocId);
 
   Value *const Alloc = Candidate.InterestingAllocSites[AllocId];
-  IRBuilder<> IRB(*Ctx);
+  IRBuilder<> IRB(*m_Ctx);
 
   // GlobalVariables are handles in emitGlobalInstrumentation.
   if (!isa<GlobalVariable>(Alloc)) {
@@ -531,13 +513,13 @@ void SimpleMemoryCheck::emitAllocSiteInstrumentation(CheckContext &Candidate,
     assert(CSFn);
 
     IRB.SetInsertPoint(GetNextInst(AI));
-    auto *AllocI8 = IRB.CreateBitCast(AI, GetI8PtrTy(*Ctx), "alloc.i8");
+    auto *AllocI8 = IRB.CreateBitCast(AI, GetI8PtrTy(*m_Ctx), "alloc.i8");
     auto *Active = IRB.CreateLoad(m_trackingEnbaled, "active_tracking");
-    auto *NotActive = IRB.CreateICmpEQ(Active, ConstantInt::getFalse(*Ctx),
+    auto *NotActive = IRB.CreateICmpEQ(Active, ConstantInt::getFalse(*m_Ctx),
                                        "inactive_tracking");
     auto *NDVal = getNDVal(32, CSFn, IRB);
     auto *NDBool = IRB.CreateICmpEQ(NDVal, CreateIntCnst(NDVal->getType(), 0));
-    auto *TrackedEnd = CreateLoad(IRB, m_trackedEnd, DL, "loaded_end");
+    auto *TrackedEnd = CreateLoad(IRB, m_trackedEnd, m_DL, "loaded_end");
     auto *And = dyn_cast<Instruction>(IRB.CreateAnd(NotActive, NDBool));
     assert(And);
 
@@ -557,8 +539,8 @@ void SimpleMemoryCheck::emitAllocSiteInstrumentation(CheckContext &Candidate,
 
     // Start tracking.
     IRB.SetInsertPoint(ThenBB->getFirstNonPHI());
-    CreateStore(IRB, ConstantInt::getTrue(*Ctx), m_trackingEnbaled, DL);
-    auto *TrackedBegin = CreateLoad(IRB, m_trackedBegin, DL, "loaded_begin");
+    CreateStore(IRB, ConstantInt::getTrue(*m_Ctx), m_trackingEnbaled, m_DL);
+    auto *TrackedBegin = CreateLoad(IRB, m_trackedBegin, m_DL, "loaded_begin");
     auto *AllocIsBegin =
         IRB.CreateICmpEQ(AllocI8, TrackedBegin, "alloc.is.begin");
     createAssume(AllocIsBegin, CSFn, IRB);
@@ -568,7 +550,7 @@ void SimpleMemoryCheck::emitAllocSiteInstrumentation(CheckContext &Candidate,
 
     auto *End = IRB.CreateGEP(
         AllocI8,
-        CreateIntCnst(IntegerType::getInt32Ty(*Ctx), int64_t(*AllocSize)),
+        CreateIntCnst(IntegerType::getInt32Ty(*m_Ctx), int64_t(*AllocSize)),
         "end_ptr");
     auto *EndEq = IRB.CreateICmpEQ(End, TrackedEnd);
     createAssume(EndEq, CSFn, IRB);
@@ -583,8 +565,8 @@ void SimpleMemoryCheck::emitAllocSiteInstrumentation(CheckContext &Candidate,
     auto *OtherAllocInst = cast<Instruction>(AV);
     IRB.SetInsertPoint(GetNextInst(OtherAllocInst));
     auto *OAI8 =
-        IRB.CreateBitCast(OtherAllocInst, GetI8PtrTy(*Ctx), "other.alloc.i8");
-    auto *TrackedEnd = CreateLoad(IRB, m_trackedEnd, DL, "loaded_end");
+        IRB.CreateBitCast(OtherAllocInst, GetI8PtrTy(*m_Ctx), "other.alloc.i8");
+    auto *TrackedEnd = CreateLoad(IRB, m_trackedEnd, m_DL, "loaded_end");
     auto *GT = IRB.CreateICmpSGT(OAI8, TrackedEnd);
     createAssume(GT, OtherAllocInst->getFunction(), IRB);
 
@@ -615,28 +597,28 @@ bool SimpleMemoryCheck::runOnModule(llvm::Module &M) {
     return false;
   }
 
-  Ctx = &M.getContext();
+  m_Ctx = &M.getContext();
   m_M = &M;
   TLI = &getAnalysis<TargetLibraryInfoWrapperPass>().getTLI();
-  DL = &M.getDataLayout();
-  SDSA = llvm::make_unique<SeaDsa>(this);
+  m_DL = &M.getDataLayout();
+  m_SDSA = llvm::make_unique<SeaDsa>(this);
 
   SMC_LOG(dbgs() << "\n\n ========== SMC  ==========\n");
   SMC_LOG(M.dump());
 
   AttrBuilder AB;
   AB.addAttribute(Attribute::NoReturn);
-  AttributeSet AS = AttributeSet::get(*Ctx, AttributeSet::FunctionIndex, AB);
+  AttributeSet AS = AttributeSet::get(*m_Ctx, AttributeSet::FunctionIndex, AB);
   m_errorFn = dyn_cast<Function>(M.getOrInsertFunction(
-      "verifier.error", AS, Type::getVoidTy(*Ctx), nullptr));
+      "verifier.error", AS, Type::getVoidTy(*m_Ctx), nullptr));
 
   AB.clear();
-  AS = AttributeSet::get(*Ctx, AttributeSet::FunctionIndex, AB);
+  AS = AttributeSet::get(*m_Ctx, AttributeSet::FunctionIndex, AB);
   m_assumeFn = dyn_cast<Function>(
-      M.getOrInsertFunction("verifier.assume", AS, Type::getVoidTy(*Ctx),
-                            Type::getInt1Ty(*Ctx), nullptr));
+      M.getOrInsertFunction("verifier.assume", AS, Type::getVoidTy(*m_Ctx),
+                            Type::getInt1Ty(*m_Ctx), nullptr));
 
-  IRBuilder<> B(*Ctx);
+  IRBuilder<> B(*m_Ctx);
   CallGraphWrapperPass *CGWP = getAnalysisIfAvailable<CallGraphWrapperPass>();
   m_CG = CGWP ? &CGWP->getCallGraph() : nullptr;
   if (m_CG) {
@@ -670,6 +652,7 @@ bool SimpleMemoryCheck::runOnModule(llvm::Module &M) {
           SMC_LOG(dbgs() << (CheckCandidates.size() - 1) << ": ");
           SMC_LOG(CheckCandidates.back().dump());
 
+          // FIXME: Allow to specify allocation sites and memory instructions.
           if (CheckCandidates.size() > 16)
             goto skip;
         }
@@ -684,6 +667,7 @@ skip:
     return true;
   }
 
+  // FIXME: Allow to specify allocation sites and memory instructions.
   size_t CheckId = 0;
   size_t AllocSiteId = 0;
 

@@ -7,8 +7,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#define FOO_TAG 100
-#define BAR_TAG 200
+#define FOO_TAG 123
+#define BAR_TAG 234
 
 static int8_t *g_bgn;
 static int8_t *g_end;
@@ -95,41 +95,40 @@ void insert(List *lst, void *data) {
   lst->head = en;
 }
 
+static Foo g_foo = {FOO_TAG, 5};
+
 int main(void) {
   List *lst;
   Entry *it;
+
+  // g_foo.tag = FOO_TAG;
+  // g_foo.x = 5;
 
   g_bgn = nd_ptr();
   g_end = nd_ptr();
   assume(g_bgn > 0);
   assume(g_end > g_bgn);
-
-  g_active = 0;
+  assume((int8_t *)&g_foo == g_bgn);
+  assume(g_end == (int8_t *)&g_foo + sizeof(struct Foo));
+  g_active = 1;
 
   lst = mk_list();
-  insert(lst, mk_foo(2));
-  insert(lst, mk_bar(3, 4));
-  insert(lst, mk_foo(5));
+  insert(lst, &g_foo);
 
-  unsigned cnt;
-  cnt = 0;
-  for (it = lst->head; it != NULL; it = it->next) {
-    Foo *v = (Foo *)(it->data);
-    if (is_bar(v)) {
-      Bar *b;
-
-      if (g_active) {
-        sassert((int8_t *)v != g_bgn);
-      }
-
-      b = to_bar(v);
-      printf("bar: x=%d, y=%d\n", v->x, b->y);
-    } else {
-      printf("foo: x=%d\n", v->x);
+  // unsigned cnt = 0;
+  // for (it = lst->head; it != NULL; it = it->next) {
+  Foo *v = (Foo *)(lst->head->data);
+  if (is_bar(v)) {
+    if (g_active) {
+      sassert((int8_t *)v != g_bgn);
     }
-    cnt++;
-    if (cnt > 3)
-      break;
+
+    Bar *b = to_bar(v);
+    printf("bar: x=%d, y=%d\n", v->x, b->y);
   }
+  // else {
+  //     printf("foo: x=%d\n", v->x);
+  // }
+  //
   return 0;
 }

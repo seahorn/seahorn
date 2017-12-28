@@ -23,6 +23,16 @@
 
 using namespace llvm;
 
+static llvm::cl::opt<bool>
+    PrintSMCStats("print-smc-stats",
+                  llvm::cl::desc("Print Simple Memory Check statistics"),
+                  llvm::cl::init(false));
+
+static llvm::cl::opt<unsigned int> SMCAnalysisThreshold(
+    "smc-check-threshold",
+    llvm::cl::desc("Max no. of analyzed memory instructions"),
+    llvm::cl::init(16));
+
 namespace seahorn {
 
 struct PtrOrigin {
@@ -43,6 +53,7 @@ struct CheckContext {
   Instruction *MI = nullptr;
   Function *F = nullptr;
   Value *Barrier = nullptr;
+  bool Collapsed = false;
   size_t AccessedBytes = 0;
   SmallVector<Value *, 8> InterestingAllocSites;
   SmallVector<Value *, 8> OtherAllocSites;
@@ -60,6 +71,9 @@ struct CheckContext {
       Barrier->print(OS);
     else
       OS << " nullptr";
+
+    if (Collapsed)
+      OS << " C";
 
     OS << "\n  AccessedBytes: " << AccessedBytes;
 
@@ -95,6 +109,7 @@ class SeaDsa {
   llvm::Pass *m_abc;
   sea_dsa::DsaInfo *m_dsa;
 
+public:
   const sea_dsa::Cell *getCell(const llvm::Value *ptr,
                                const llvm::Function &fn) {
     assert(ptr);
@@ -116,7 +131,6 @@ class SeaDsa {
     return &c;
   }
 
-public:
   SeaDsa(Pass *abc)
       : m_abc(abc),
         m_dsa(&this->m_abc->getAnalysis<sea_dsa::DsaInfoPass>().getDsaInfo()) {}
@@ -150,6 +164,8 @@ public:
   virtual void getAnalysisUsage(llvm::AnalysisUsage &AU) const;
   virtual const char *getPassName() const { return "SimpleMemoryCheck"; }
 
+  llvm::Optional<size_t> getAllocSize(Value *Ptr);
+
 private:
   LLVMContext *m_Ctx;
   Module *m_M;
@@ -162,10 +178,9 @@ private:
   Function *m_errorFn;
   Value *m_trackedBegin;
   Value *m_trackedEnd;
-  Value *m_trackingEnbaled;
+  Value *m_trackingEnabled;
 
   bool isKnownAlloc(Value *Ptr);
-  llvm::Optional<size_t> getAllocSize(Value *Ptr);
   PtrOrigin trackPtrOrigin(Value *Ptr);
   CheckContext getUnsafeCandidates(Instruction *Ptr, Function &F);
   bool isInterestingAllocSite(Value *Inst, int64_t LoadEnd, Value *Alloc);
@@ -179,6 +194,9 @@ private:
                      Twine Name = "");
   CallInst *getNDPtr(Function *F, IRBuilder<> &IRB, Twine Name = "");
   void createAssume(Value *Cond, Function *F, IRBuilder<> &IRB);
+
+  void printStats(std::vector<CheckContext> &Checks,
+                  std::vector<Instruction *> &UninterestingMIs);
 };
 
 llvm::ModulePass *CreateSimpleMemoryCheckPass() {
@@ -261,7 +279,8 @@ CheckContext SimpleMemoryCheck::getUnsafeCandidates(Instruction *Inst,
 
   PtrOrigin Origin = trackPtrOrigin(Arg);
 
-  auto *Ty = LI ? LI->getType() : SI->getPointerOperand()->getType();
+  auto *Ty = LI ? LI->getType()
+                : SI->getPointerOperand()->getType()->getPointerElementType();
   assert(Ty);
 
   const auto Bits = m_DL->getTypeSizeInBits(Ty);
@@ -272,12 +291,13 @@ CheckContext SimpleMemoryCheck::getUnsafeCandidates(Instruction *Inst,
   Check.MI = Inst;
   Check.F = &F;
   Check.Barrier = Origin.Ptr;
+  Check.Collapsed = m_SDSA->getCell(Origin.Ptr, F)->getNode()->isCollapsed();
   Check.AccessedBytes = size_t(LastRead);
 
   if (Optional<size_t> AllocSize = getAllocSize(Origin.Ptr)) {
     if (int64_t(Origin.Offset) + Sz > int64_t(*AllocSize)) {
       errs() << "Unsafe access found!\n";
-      errs() << "  Allocated: " << (*AllocSize) << ", load size " << Sz
+      errs() << "  Allocated: " << (*AllocSize) << ", access size " << Sz
              << " at offset " << Origin.Offset << "\n";
       Check.dump(errs());
     }
@@ -423,7 +443,7 @@ void SimpleMemoryCheck::emitGlobalInstrumentation(CheckContext &Candidate,
                                                   size_t AllocId) {
   m_trackedBegin = CreateGlobalPtr(*m_M, "tracked_begin");
   m_trackedEnd = CreateGlobalPtr(*m_M, "tracked_end");
-  m_trackingEnbaled = CreateGlobalBool(*m_M, 0, "tracking_enabled");
+  m_trackingEnabled = CreateGlobalBool(*m_M, 0, "tracking_enabled");
 
   Function *Main = m_M->getFunction("main");
   assert(Main);
@@ -461,9 +481,9 @@ void SimpleMemoryCheck::emitGlobalInstrumentation(CheckContext &Candidate,
     auto *EndEq = IRB.CreateICmpEQ(GlobalEnd, NDPtrEnd);
     createAssume(EndEq, Main, IRB);
 
-    CreateStore(IRB, ConstantInt::getTrue(*m_Ctx), m_trackingEnbaled, m_DL);
+    CreateStore(IRB, ConstantInt::getTrue(*m_Ctx), m_trackingEnabled, m_DL);
   } else {
-    CreateStore(IRB, ConstantInt::getFalse(*m_Ctx), m_trackingEnbaled, m_DL);
+    CreateStore(IRB, ConstantInt::getFalse(*m_Ctx), m_trackingEnabled, m_DL);
   }
 
   auto EmitOtherGVAssume = [&](Value *V) {
@@ -503,7 +523,7 @@ void SimpleMemoryCheck::emitMemoryInstInstrumentation(CheckContext &Candidate) {
       Candidate.Barrier, GetI8PtrTy(*m_Ctx), "begin_candidate");
   auto *TrackedBegin = CreateLoad(IRB, m_trackedBegin, m_DL, "tracked_begin");
   auto *Cmp = IRB.CreateICmpEQ(TrackedBegin, BeginCandiate);
-  auto *Active = IRB.CreateLoad(m_trackingEnbaled, "active_tracking");
+  auto *Active = IRB.CreateLoad(m_trackingEnabled, "active_tracking");
   auto *And = IRB.CreateAnd(Active, Cmp, "unsafe_condition");
   auto *Term = SplitBlockAndInsertIfThen(And, Candidate.MI, true);
   IRB.SetInsertPoint(Term);
@@ -543,7 +563,7 @@ void SimpleMemoryCheck::emitAllocSiteInstrumentation(CheckContext &Candidate,
 
     IRB.SetInsertPoint(GetNextInst(AI));
     auto *AllocI8 = IRB.CreateBitCast(AI, GetI8PtrTy(*m_Ctx), "alloc.i8");
-    auto *Active = IRB.CreateLoad(m_trackingEnbaled, "active_tracking");
+    auto *Active = IRB.CreateLoad(m_trackingEnabled, "active_tracking");
     auto *NotActive = IRB.CreateICmpEQ(Active, ConstantInt::getFalse(*m_Ctx),
                                        "inactive_tracking");
     auto *NDVal = getNDVal(32, CSFn, IRB);
@@ -568,7 +588,7 @@ void SimpleMemoryCheck::emitAllocSiteInstrumentation(CheckContext &Candidate,
 
     // Start tracking.
     IRB.SetInsertPoint(ThenBB->getFirstNonPHI());
-    CreateStore(IRB, ConstantInt::getTrue(*m_Ctx), m_trackingEnbaled, m_DL);
+    CreateStore(IRB, ConstantInt::getTrue(*m_Ctx), m_trackingEnabled, m_DL);
     auto *TrackedBegin = CreateLoad(IRB, m_trackedBegin, m_DL, "loaded_begin");
     auto *AllocIsBegin =
         IRB.CreateICmpEQ(AllocI8, TrackedBegin, "alloc.is.begin");
@@ -633,7 +653,6 @@ bool SimpleMemoryCheck::runOnModule(llvm::Module &M) {
   m_SDSA = llvm::make_unique<SeaDsa>(this);
 
   SMC_LOG(dbgs() << "\n\n ========== SMC  ==========\n");
-  SMC_LOG(M.dump());
 
   AttrBuilder AB;
   AB.addAttribute(Attribute::NoReturn);
@@ -656,6 +675,7 @@ bool SimpleMemoryCheck::runOnModule(llvm::Module &M) {
   }
 
   std::vector<CheckContext> CheckCandidates;
+  std::vector<Instruction *> UninterestingMIs;
 
   for (auto &F : M) {
     if (F.isDeclaration())
@@ -673,16 +693,19 @@ bool SimpleMemoryCheck::runOnModule(llvm::Module &M) {
         if (I && (isa<LoadInst>(I) || isa<StoreInst>(I))) {
 
           CheckContext Check = getUnsafeCandidates(I, F);
-          if (Check.InterestingAllocSites.empty())
+
+          // Skip collapsed DSA nodes for now, as they generate too much noise.
+          if (Check.InterestingAllocSites.empty() || Check.Collapsed) {
+            UninterestingMIs.push_back(I);
             continue;
+          }
 
           CheckCandidates.emplace_back(std::move(Check));
 
           SMC_LOG(dbgs() << (CheckCandidates.size() - 1) << ": ");
           SMC_LOG(CheckCandidates.back().dump());
 
-          // FIXME: Allow to specify allocation sites and memory instructions.
-          if (CheckCandidates.size() > 16)
+          if (CheckCandidates.size() >= SMCAnalysisThreshold)
             goto skip;
         }
       }
@@ -690,6 +713,11 @@ bool SimpleMemoryCheck::runOnModule(llvm::Module &M) {
   }
 
 skip:
+
+  if (PrintSMCStats) {
+    printStats(CheckCandidates, UninterestingMIs);
+    return false;
+  }
 
   if (CheckCandidates.empty()) {
     SMC_LOG(dbgs() << "No check candidates!\n");
@@ -724,6 +752,141 @@ void SimpleMemoryCheck::getAnalysisUsage(llvm::AnalysisUsage &AU) const {
   AU.addRequired<llvm::CallGraphWrapperPass>();
   // for debugging
   // AU.addRequired<ufo::NameValues> ();
+}
+
+template <typename ValTy, typename Container>
+static size_t CountOfType(const Container &C) {
+  size_t Res = 0;
+  for (auto *V : C)
+    if (isa<ValTy>(V))
+      ++Res;
+
+  return Res;
+};
+
+template <typename Container> static size_t CountOfHeap(const Container &C) {
+  return CountOfType<CallInst>(C) + CountOfType<InvokeInst>(C);
+}
+
+template <typename Container> static size_t CountOfStack(const Container &C) {
+  return CountOfType<AllocaInst>(C);
+}
+
+template <typename Container> static size_t CountOfGlobal(const Container &C) {
+  return CountOfType<GlobalVariable>(C);
+}
+
+struct SizeStats {
+  size_t Min = size_t(-1);
+  size_t Max = 0;
+  size_t Sum = 0;
+  size_t N = 0;
+
+  template <typename Container>
+  static SizeStats Collect(SimpleMemoryCheck &SMC, Container &C) {
+    SizeStats Stats;
+
+    for (auto *V : C) {
+      Optional<size_t> Size = SMC.getAllocSize(V);
+      assert(Size);
+
+      ++Stats.N;
+      Stats.Min = std::min(Stats.Min, *Size);
+      Stats.Max = std::max(Stats.Max, *Size);
+      Stats.Sum += *Size;
+    }
+
+    return Stats;
+  }
+
+  void dump(llvm::raw_ostream &OS = llvm::dbgs(), bool NewLine = true) const {
+    OS << "Min " << Min << ", Avg " << (N > 0 ? (Sum / N) : 0) << ", Max "
+       << Max;
+    if (NewLine)
+      OS << "\n";
+  }
+};
+
+void SimpleMemoryCheck::printStats(
+    std::vector<CheckContext> &Checks,
+    std::vector<Instruction *> &UninterestingMIs) {
+  raw_ostream &OS = outs();
+  OS << "\n=========== Start of Simple Memory Check Stats ===========\n";
+  OS << "Format:\tAll instructions (Heap/Stack/Global)\n\n";
+
+  SmallPtrSet<Value *, 64> AllAllocSites;
+  SmallPtrSet<Value *, 64> AllInterestingAllocSites;
+  SmallPtrSet<Value *, 64> AllOtherAllocSites;
+  for (auto &Check : Checks) {
+    for (auto *AS : Check.InterestingAllocSites) {
+      AllAllocSites.insert(AS);
+      AllInterestingAllocSites.insert(AS);
+    }
+
+    for (auto *AS : Check.OtherAllocSites) {
+      AllAllocSites.insert(AS);
+      AllOtherAllocSites.insert(AS);
+    }
+  }
+
+  OS << "Discovered memory instructions\t" << Checks.size() << "\n";
+  OS << "Discovered allocation sites\t" << AllAllocSites.size() << "\t("
+     << CountOfHeap(AllAllocSites) << "/" << CountOfStack(AllAllocSites) << "/"
+     << CountOfGlobal(AllAllocSites) << ")\n";
+  OS << "Interesting allocation sites\t" << AllInterestingAllocSites.size()
+     << "\t(" << CountOfHeap(AllInterestingAllocSites) << "/"
+     << CountOfStack(AllInterestingAllocSites) << "/"
+     << CountOfGlobal(AllInterestingAllocSites) << ")\n";
+  OS << "Other allocation sites\t" << AllOtherAllocSites.size() << "\t("
+     << CountOfHeap(AllOtherAllocSites) << "/"
+     << CountOfStack(AllOtherAllocSites) << "/"
+     << CountOfGlobal(AllOtherAllocSites) << ")\n";
+
+  OS << "\n\n";
+  for (size_t i = 0, e = Checks.size(); i != e; ++i) {
+    const auto &C = Checks[i];
+    OS << "MI " << i << (isa<LoadInst>(C.MI) ? "\tLoad" : "\tStore") << " "
+       << C.AccessedBytes;
+
+    OS << "\tSimple  " << C.InterestingAllocSites.size() << "  ("
+       << CountOfHeap(C.InterestingAllocSites) << "/"
+       << CountOfStack(C.InterestingAllocSites) << "/"
+       << CountOfGlobal(C.InterestingAllocSites) << ")\t";
+
+    auto Stats = SizeStats::Collect(*this, C.InterestingAllocSites);
+    Stats.dump(OS, false);
+
+    size_t DifficultGlobalCnt = 0;
+    size_t DifficultStackCnt = 0;
+    size_t DifficultHeapCnt = 0;
+    for (auto *AS : C.OtherAllocSites) {
+      if (getAllocSize(AS))
+        continue;
+      if (auto *GV = dyn_cast<GlobalVariable>(AS)) {
+        if (!GV->hasInternalLinkage()) {
+          ++DifficultGlobalCnt;
+        }
+      } else if (isa<AllocaInst>(AS))
+        ++DifficultStackCnt;
+      else if (isa<CallInst>(AS) || isa<InvokeInst>(AS))
+        ++DifficultHeapCnt;
+    }
+
+    const size_t TotalDifficult =
+        DifficultGlobalCnt + DifficultStackCnt + DifficultHeapCnt;
+    OS << "\tDifficult  " << TotalDifficult << "  (" << DifficultHeapCnt << "/"
+       << DifficultStackCnt << "/" << DifficultGlobalCnt << ")";
+
+    OS << "\tOther  " << (C.OtherAllocSites.size() - TotalDifficult) << "  ("
+       << (CountOfHeap(C.OtherAllocSites) - DifficultHeapCnt) << "/"
+       << (CountOfStack(C.OtherAllocSites) - DifficultStackCnt) << "/"
+       << (CountOfGlobal(C.OtherAllocSites) - DifficultGlobalCnt) << ")";
+
+    OS << "\n";
+  }
+
+  OS << "\n===========  End of Simple Memory Check Stats  ===========\n\n";
+  OS.flush();
 }
 
 char SimpleMemoryCheck::ID = 0;

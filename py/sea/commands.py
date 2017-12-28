@@ -570,6 +570,11 @@ class SimpleMemoryChecks(sea.LimitedCmd):
         ap = super (SimpleMemoryChecks, self).mk_arg_parser (ap)
         ap.add_argument ('--log', dest='log', default=None,
                          metavar='STR', help='Log level')
+        ap.add_argument ('--print-smc-stats', default=False, action='store_true',
+                         dest='print_smc_stats', help='Print Simple Memory Check stats')
+        ap.add_argument ('--smc-check-threshold', type=int, dest='smc_check_threshold',
+                         help='Max no. of analyzed memory instructions', default=16)
+
         add_in_out_args (ap)
         _add_S_arg (ap)
         return ap
@@ -584,6 +589,12 @@ class SimpleMemoryChecks(sea.LimitedCmd):
         if args.llvm_asm: argv.append ('-S')
 
         argv.append('--smc')
+
+        if args.print_smc_stats:
+            argv.append('--print-smc-stats')
+
+        if args.smc_check_threshold is not None:
+            argv.append ('--smc-check-threshold={t}'.format(t=args.smc_check_threshold))
 
         if args.log is not None:
             for l in args.log.split (':'): argv.extend (['-log', l])

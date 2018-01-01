@@ -156,6 +156,8 @@ public:
 
 } // namespace
 
+struct TypeSimilarity;
+
 class SimpleMemoryCheck : public llvm::ModulePass {
 public:
   static char ID;
@@ -182,7 +184,11 @@ private:
 
   bool isKnownAlloc(Value *Ptr);
   PtrOrigin trackPtrOrigin(Value *Ptr);
-  CheckContext getUnsafeCandidates(Instruction *Ptr, Function &F);
+
+  using TypeSimilarityCache =
+      std::map<std::pair<Type *, Type *>, TypeSimilarity>;
+  CheckContext getUnsafeCandidates(Instruction *Ptr, Function &F,
+                                   TypeSimilarityCache &TSC);
   bool isInterestingAllocSite(Value *Inst, int64_t LoadEnd, Value *Alloc);
 
   void emitGlobalInstrumentation(CheckContext &Candidate, size_t AllocId);
@@ -268,8 +274,145 @@ PtrOrigin SimpleMemoryCheck::trackPtrOrigin(Value *Ptr) {
   }
 }
 
+static void FlattenTy(Type *ATy, LLVMContext *Ctx,
+                      SmallVectorImpl<std::pair<Type *, unsigned>> &Flattened) {
+  SmallVector<std::pair<Type *, unsigned>, 16> TempRes;
+  SmallVector<Type *, 8> Worklist = {ATy};
+
+  while (!Worklist.empty()) {
+    auto *const Ty = Worklist.pop_back_val();
+
+    if (Ty->isPointerTy()) {
+      TempRes.push_back({Ty, 1});
+      continue;
+    }
+
+    if (!isa<CompositeType>(Ty)) {
+      TempRes.push_back({Ty, 1});
+      continue;
+    }
+
+    if (Ty->isArrayTy()) {
+      for (size_t i = 0, e = Ty->getArrayNumElements(); i != e; ++i)
+        Worklist.push_back(Ty->getArrayElementType());
+      continue;
+    }
+
+    if (Ty->isVectorTy()) {
+      for (size_t i = 0, e = Ty->getVectorNumElements(); i != e; ++i)
+        Worklist.push_back(Ty->getVectorElementType());
+      continue;
+    }
+
+    assert(Ty->isStructTy());
+    for (auto *SubTy : llvm::reverse(Ty->subtypes()))
+      Worklist.push_back(SubTy);
+  }
+
+  // Normalize all pointer types to i8*.
+  for (auto &TyNum : TempRes)
+    if (TyNum.first->isPointerTy())
+      TyNum.first = Type::getInt8Ty(*Ctx)->getPointerTo();
+
+  // Merge adjacent elements of the same type.
+  Flattened.push_back(TempRes.front());
+  for (size_t i = 1, e = TempRes.size(); i < e; ++i) {
+    if (TempRes[i].first == Flattened.back().first)
+      Flattened.back().second += TempRes[i].second;
+    else
+      Flattened.push_back(TempRes[i]);
+  }
+}
+
+struct TypeSimilarity {
+  Type *First = nullptr;
+  size_t FirstSize = 0;
+  SmallVector<std::pair<Type *, unsigned>, 16> FlattenedFirst;
+  Type *Second = nullptr;
+  size_t SecondSize = 0;
+  SmallVector<std::pair<Type *, unsigned>, 16> FlattenedSecond;
+  unsigned MatchPosition = 0;
+  unsigned NumMatching = 0;
+  float Similarity = 0.0f;
+
+  TypeSimilarity() = default;
+  TypeSimilarity(const TypeSimilarity &) = default;
+  TypeSimilarity &operator=(const TypeSimilarity &) = default;
+  TypeSimilarity(TypeSimilarity &&) = default;
+  TypeSimilarity &operator=(TypeSimilarity &&) = default;
+
+  TypeSimilarity(Type *_First, Type *_Second, LLVMContext *Ctx,
+                 const DataLayout *DL)
+      : First(_First), Second(_Second), NumMatching(0) {
+    FirstSize = DL->getTypeSizeInBits(First);
+    SecondSize = DL->getTypeSizeInBits(Second);
+
+    if (FirstSize > SecondSize) {
+      std::swap(First, Second);
+      std::swap(FirstSize, SecondSize);
+    }
+
+    FlattenTy(First, Ctx, FlattenedFirst);
+    FlattenTy(Second, Ctx, FlattenedSecond);
+
+    for (size_t k = 0, e1 = FlattenedSecond.size(); k != e1; ++k) {
+      unsigned CurrentMatching = 0;
+
+      for (size_t i = 0, e2 = FlattenedFirst.size(); i != e2 && i + k < e1;
+           ++i) {
+        if (FlattenedFirst[i].first == FlattenedSecond[i + k].first)
+          CurrentMatching +=
+              DL->getTypeSizeInBits(FlattenedFirst[i].first) *
+              std::min(FlattenedFirst[i].second, FlattenedSecond[i + k].second);
+        else
+          break;
+        if (FlattenedFirst[i].second != FlattenedSecond[i + k].second)
+          break;
+      }
+
+      if (CurrentMatching > NumMatching) {
+        NumMatching = CurrentMatching;
+        MatchPosition = unsigned(k);
+      }
+
+      if (NumMatching == FirstSize)
+        break;
+    }
+
+    Similarity = float(NumMatching) / FirstSize;
+  }
+
+  bool operator<(const TypeSimilarity &Other) const {
+    return std::make_pair(First, Second) <
+           std::make_pair(Other.First, Other.Second);
+  }
+
+  void dump(raw_ostream &OS = llvm::dbgs()) const {
+    dumpOne(OS, "First", First, FlattenedFirst);
+    dumpOne(OS, "Second", Second, FlattenedSecond);
+    OS << "Similarity: " << Similarity << ", ";
+    OS << "Num matching bits: " << NumMatching << "/" << FirstSize << "\n";
+  }
+
+private:
+  void
+  dumpOne(raw_ostream &OS, StringRef Prefix, Type *Ty,
+          const SmallVectorImpl<std::pair<Type *, unsigned>> &Flattened) const {
+    OS << Prefix << ":\t";
+    Ty->print(OS);
+    OS << "\nFlattened" << Prefix << ":\t";
+    for (auto &P : Flattened) {
+      OS << "[";
+      P.first->print(OS);
+      OS << " x " << P.second << "], ";
+    }
+    OS << "\n";
+  }
+};
+
 CheckContext SimpleMemoryCheck::getUnsafeCandidates(Instruction *Inst,
-                                                    Function &F) {
+                                                    Function &F,
+                                                    TypeSimilarityCache &TSC) {
   auto *LI = dyn_cast<LoadInst>(Inst);
   auto *SI = dyn_cast<StoreInst>(Inst);
   assert((LI || SI) && "Wrong instruction type");
@@ -306,8 +449,42 @@ CheckContext SimpleMemoryCheck::getUnsafeCandidates(Instruction *Inst,
   }
 
   assert(Origin.Ptr);
+
   for (Value *AS : m_SDSA->getAllocSites(Origin.Ptr, F)) {
-    if (!isInterestingAllocSite(Origin.Ptr, LastRead, AS))
+    bool Interesting = isInterestingAllocSite(Origin.Ptr, LastRead, AS);
+
+    if (Interesting && !Check.Collapsed) {
+      auto *BarrierPtrTy = Check.Barrier->getType();
+      auto *AllocPtrTry = AS->getType();
+      if (BarrierPtrTy->isPointerTy() && AllocPtrTry->isPointerTy()) {
+        auto *BarrierTy = BarrierPtrTy->getPointerElementType();
+        auto *AllocTy = AllocPtrTry->getPointerElementType();
+
+        // Temporary hack for CASS.
+        if (auto *Arg = dyn_cast<Argument>(Check.Barrier))
+          if (Arg->getName() == "this")
+            if (AllocTy->isStructTy() &&
+                (AllocTy->getStructName().endswith("::string") ||
+                 AllocTy->getStructName().endswith("::vector3")))
+              Interesting = false;
+
+        if (TSC.count({BarrierTy, AllocTy}) == 0)
+          TSC[{BarrierTy, AllocTy}] =
+              TypeSimilarity(BarrierTy, AllocTy, m_Ctx, m_DL);
+
+        auto &TySim = TSC[{BarrierTy, AllocTy}];
+        if (TySim.Similarity < 0.8f)
+          Interesting = false;
+        else if (TySim.First != BarrierTy &&
+                 (TySim.FirstSize * 3 < TySim.SecondSize))
+          Interesting = false;
+        else if (auto *Arg = dyn_cast<Argument>(Check.Barrier))
+          if (Arg->getName() == "this" && TySim.MatchPosition > 1)
+            Interesting = false;
+      }
+    }
+
+    if (!Interesting)
       Check.OtherAllocSites.push_back(AS);
     else
       Check.InterestingAllocSites.push_back(AS);
@@ -534,11 +711,10 @@ void SimpleMemoryCheck::emitMemoryInstInstrumentation(CheckContext &Candidate) {
 }
 
 /**
- * If the selected allocation site is malloc/alloca, nondeterministically start
- * tracking it, if it's not already being tracked:
+ * If the selected allocation site is malloc/alloca, nondeterministically
+ * start tracking it, if it's not already being tracked:
  *   ptr = alloc(bytes)
- *   if (!tacking_enabled && nd() == 0)
- *     verifier.assume(ptr == tracked_begin)
+ *   if (!tacking_enabled && nd() == 0) verifier.assume(ptr == tracked_begin)
  *     verifier.assume(ptr + bytes = tracked_end)
  *     tracking_enabled = true
  *
@@ -677,6 +853,8 @@ bool SimpleMemoryCheck::runOnModule(llvm::Module &M) {
   std::vector<CheckContext> CheckCandidates;
   std::vector<Instruction *> UninterestingMIs;
 
+  TypeSimilarityCache TSC;
+
   for (auto &F : M) {
     if (F.isDeclaration())
       continue;
@@ -692,9 +870,10 @@ bool SimpleMemoryCheck::runOnModule(llvm::Module &M) {
         auto *I = dyn_cast<Instruction>(&V);
         if (I && (isa<LoadInst>(I) || isa<StoreInst>(I))) {
 
-          CheckContext Check = getUnsafeCandidates(I, F);
+          CheckContext Check = getUnsafeCandidates(I, F, TSC);
 
-          // Skip collapsed DSA nodes for now, as they generate too much noise.
+          // Skip collapsed DSA nodes for now, as they generate too much
+          // noise.
           if (Check.InterestingAllocSites.empty() || Check.Collapsed) {
             UninterestingMIs.push_back(I);
             continue;
@@ -716,6 +895,27 @@ skip:
 
   if (PrintSMCStats) {
     printStats(CheckCandidates, UninterestingMIs);
+
+    dbgs() << "\n~~~~~~  TypeSimilarityCache  ~~~~~~\n";
+
+    std::vector<TypeSimilarity> TySims;
+    TySims.reserve(TSC.size());
+    for (auto &TyTySim : TSC)
+      TySims.push_back(TyTySim.second);
+    std::sort(TySims.begin(), TySims.end(),
+              [](const TypeSimilarity &A, const TypeSimilarity &B) {
+                return std::make_pair(A.Similarity, A.NumMatching) >
+                       std::make_pair(B.Similarity, B.NumMatching);
+              });
+
+    unsigned i = 0;
+    for (auto &TySim : TySims) {
+      if (TySim.Similarity < 0.8f)
+        break;
+      dbgs() << "\n" << (i++) << ":\n";
+      TySim.dump(dbgs());
+    }
+
     return false;
   }
 

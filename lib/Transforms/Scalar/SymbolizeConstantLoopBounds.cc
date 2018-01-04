@@ -175,7 +175,7 @@ namespace
           (M->getOrInsertFunction ("verifier.assume", as, voidTy, boolTy, NULL));
 
       nondetFn = dyn_cast<Function>
-          (M->getOrInsertFunction ("verifier.nondet", as, intTy, NULL));
+          (M->getOrInsertFunction ("verifier.nondet.sym.bound", as, intTy, NULL));
       
       CallGraphWrapperPass *cgwp = getAnalysisIfAvailable<CallGraphWrapperPass> ();
       cg = cgwp ? &cgwp->getCallGraph () : nullptr;

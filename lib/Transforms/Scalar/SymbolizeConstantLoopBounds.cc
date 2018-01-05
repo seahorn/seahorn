@@ -12,7 +12,6 @@
 #include "llvm/Transforms/Scalar.h"
 
 #include "avy/AvyDebug.h"
-#include "boost/range.hpp"
 
 using namespace llvm;
 
@@ -182,7 +181,7 @@ public:
 
     LoopInfo *LI = &getAnalysis<LoopInfoWrapperPass>().getLoopInfo();
     bool Change = false;
-    for (auto L : boost::make_iterator_range(LI->begin(), LI->end())) {
+    for (auto *L : *LI) {
       // symbolize nested loops
       for (auto SL : *L) {
         Change |= SymbolizeLoop(SL, B);

@@ -1,18 +1,14 @@
 #include "seahorn/Bmc.hh"
 #include "seahorn/UfoSymExec.hh"
+#include "seahorn/Transforms/Instrumentation/ShadowMemDsa.hh"
+
+#include "llvm/IR/DebugLoc.h"
+#include "llvm/IR/DebugInfo.h"
 
 #include "boost/container/flat_set.hpp"
 
 namespace seahorn
 {
-  /// computes an implicant of f (interpreted as a conjunction) that
-  /// contains the given model
-  static void get_model_implicant (const ExprVector &f, 
-                                   ufo::ZModel<ufo::EZ3> &model, ExprVector &out);
-  /// true if I is a call to a void function
-  static bool isCallToVoidFn (const llvm::Instruction &I);
-  
-    
   void BmcEngine::addCutPoint (const CutPoint &cp)
   {
     if (m_cps.empty ())
@@ -74,59 +70,11 @@ namespace seahorn
     m_states.clear ();
     m_edges.clear ();
   }
-  
-  
-  void BmcEngine::unsatCore (ExprVector &out)
-  {
-    // -- re-assert the path-condition with assumptions
-    m_smt_solver.reset ();
-    ExprVector assumptions;
-    assumptions.reserve (m_side.size ());
-    for (Expr v : m_side)
-    {
-      Expr a = bind::boolConst (mk<ASM> (v));
-      assumptions.push_back (a);
-      m_smt_solver.assertExpr (mk<IMPL> (a, v));
-    }
-    
-    ExprVector core;
-    m_smt_solver.push ();
-    boost::tribool res = m_smt_solver.solveAssuming (assumptions);
-    if (!res) m_smt_solver.unsatCore (std::back_inserter (core));
-    m_smt_solver.pop ();
-    if (res) return;
 
-    
-    // simplify core
-    while (core.size () < assumptions.size ())
-    {
-      assumptions.assign (core.begin (), core.end ());
-      core.clear ();
-      m_smt_solver.push ();
-      res = m_smt_solver.solveAssuming (assumptions);
-      assert (!res ? 1 : 0);
-      m_smt_solver.unsatCore (std::back_inserter (core));
-      m_smt_solver.pop ();
-    }    
-    
-    // minimize simplified core
-    for (unsigned i = 0; i < core.size ();)
-    {
-      Expr saved = core [i];
-      core [i] = core.back ();
-      res = m_smt_solver.solveAssuming 
-        (boost::make_iterator_range (core.begin (), core.end () - 1));
-      if (res) core [i++] = saved;
-      else if (!res)
-        core.pop_back ();
-      else assert (0);
-    }
-    
-    // unwrap the core from ASM to corresponding expressions
-    for (Expr c : core)
-      out.push_back (bind::fname (bind::fname (c))->arg (0));
+  void BmcEngine::unsatCore (ExprVector &out) {
+    bmc_impl::unsat_core(m_smt_solver, m_side, out);
   }
-  
+
   BmcTrace BmcEngine::getTrace ()
   {
     assert ((bool)m_result);
@@ -135,33 +83,34 @@ namespace seahorn
   }
   
   BmcTrace::BmcTrace (BmcEngine &bmc, ufo::ZModel<ufo::EZ3> &model) :
-    m_bmc (bmc), m_model(m_bmc.m_smt_solver.getContext ())
+    m_bmc (bmc), m_model(m_bmc.zctx())
   {
     assert ((bool)bmc.result ());
     
-    m_model = bmc.m_smt_solver.getModel ();
+    m_model = bmc.getModel ();
     
 
     // construct an implicant of the side condition
     ExprVector trace;
-    trace.reserve (m_bmc.m_side.size ());
-    get_model_implicant (m_bmc.m_side, m_model, trace);
+    trace.reserve (m_bmc.getFormula().size ());
+    ExprMap bool_map /*unused*/;
+    bmc_impl::get_model_implicant (m_bmc.getFormula(), m_model, trace, bool_map);
     boost::container::flat_set<Expr> implicant (trace.begin (), trace.end ());
     
     
     // construct the trace
     
     // -- reference to the first state
-    auto st = m_bmc.m_states.begin ();
+    auto st = m_bmc.getStates().begin ();
     // -- reference to the fist cutpoint in the trace
     unsigned id = 0;
-    for (const CpEdge *edg : m_bmc.m_edges)
+    for (const CpEdge *edg : m_bmc.getEdges())
     {
       LOG("cex",
           errs () << "";);
       
-      assert (&(edg->source ()) == m_bmc.m_cps [id]);
-      assert (&(edg->target ()) == m_bmc.m_cps [id+1]);
+      assert (&(edg->source ()) == m_bmc.getCps()[id]);
+      assert (&(edg->target ()) == m_bmc.getCps()[id+1]);
       
       SymStore &s = *(++st);
       for (auto it = edg->begin (), end = edg->end (); it != end; ++it)
@@ -169,7 +118,7 @@ namespace seahorn
         const BasicBlock &BB = *it;
         
         if (it != edg->begin () && 
-            implicant.count (s.eval (m_bmc.m_sem.symb (BB))) <= 0) 
+            implicant.count (s.eval (m_bmc.sem().symb (BB))) <= 0) 
           continue;
         
         m_bbs.push_back (&BB);
@@ -180,17 +129,19 @@ namespace seahorn
     }
     
     // -- last block on the edge
-    if (!m_bmc.m_edges.empty ())
+    const SmallVector<const CpEdge*, 8>& edges = m_bmc.getEdges();
+    if (!edges.empty ())
     {
-      m_bbs.push_back (&m_bmc.m_edges.back ()->target ().bb ());
+      m_bbs.push_back (&edges.back ()->target ().bb ());
       m_cpId.push_back (id);
     }
     else
     {
-      assert (m_bmc.m_cps.size () == 1);
+      const SmallVector<const CutPoint*, 8>& cps = m_bmc.getCps();
+      assert (cps.size () == 1);
       // special case of trivial counterexample. The counterexample is
       // completely contained within the first cutpoint
-      m_bbs.push_back (&m_bmc.m_cps [0]->bb ());
+      m_bbs.push_back (&cps[0]->bb ());
       m_cpId.push_back (0);
     }
   }
@@ -199,18 +150,19 @@ namespace seahorn
   {
     // assert (cast<Instruction>(&val)->getParent () == bb(loc));
     
-    if (!m_bmc.m_sem.isTracked (val)) return Expr ();
-    if (isa<Instruction> (val) && isCallToVoidFn (cast<Instruction>(val))) return Expr ();
-    Expr u = m_bmc.m_sem.symb (val);
+    if (!m_bmc.sem().isTracked (val)) return Expr ();
+    if (isa<Instruction> (val) &&
+	bmc_impl::isCallToVoidFn (cast<Instruction>(val))) return Expr ();
+    Expr u = m_bmc.sem().symb (val);
     
     unsigned stateidx = cpid(loc);
     // -- all registers except for PHI nodes at the entry to an edge
     // -- get their value at the end of the edge
     if (! (isa<PHINode> (val) && isFirstOnEdge (loc)) ) stateidx++;
     // -- out of bounds, no value in the model
-    if (stateidx >= m_bmc.m_states.size ()) return Expr ();
+    if (stateidx >= m_bmc.getStates().size ()) return Expr ();
     
-    SymStore &store = m_bmc.m_states[stateidx];
+    SymStore &store = m_bmc.getStates()[stateidx];
     return store.eval (u);
   }
   
@@ -231,65 +183,190 @@ namespace seahorn
     unsigned stateidx = cpid(loc);
     stateidx++;
     // -- out of bounds, no value in the model
-    if (stateidx >= m_bmc.m_states.size ()) return Expr ();
+    if (stateidx >= m_bmc.getStates().size ()) return Expr ();
     
-    SymStore &store = m_bmc.m_states[stateidx];
+    SymStore &store = m_bmc.getStates()[stateidx];
     Expr v = store.eval (u);
     return m_model.eval (v, complete);
   }
 
-  
-  static bool isCallToVoidFn (const llvm::Instruction &I)
+  //template <typename Out> Out &BmcTrace::print (Out &out)
+  template<> raw_ostream& BmcTrace::print (raw_ostream &out)
   {
-    if (const CallInst *ci = dyn_cast<const CallInst> (&I))
-      if (const Function *fn = ci->getCalledFunction ())
-        return fn->getReturnType ()->isVoidTy ();
-    
-    return false;
-  }
-
-
-  static void get_model_implicant (const ExprVector &f, 
-                                   ufo::ZModel<ufo::EZ3> &model, ExprVector &out)
-  {
-    // XXX This is a partial implementation. Specialized to the
-    // constraints expected to occur in m_side.
-    
-    for (auto v : f)
+    //using namespace llvm;
+    for (unsigned loc = 0; loc < size (); ++loc)
     {
-      // -- break IMPL into an OR
-      // -- OR into a single disjunct
-      // -- single disjunct into an AND
-      if (isOpX<IMPL> (v))
+      const BasicBlock &BB = *bb(loc);
+      out << BB.getName () << ": \n";
+      
+      for (auto &I : BB)
       {
-        assert (v->arity () == 2);
-        Expr a0 = model (v->arg (0));
-        if (isOpX<FALSE> (a0)) continue;
-        else if (isOpX<TRUE> (a0))
-          v = mknary<OR> (mk<FALSE> (a0->efac ()), 
-                          ++(v->args_begin ()), v->args_end ());
-        else
+        if (const DbgValueInst *dvi = dyn_cast<DbgValueInst> (&I))
+        {
+          if (dvi->getValue () && dvi->getVariable ())
+          {
+            DILocalVariable *var = dvi->getVariable ();
+            out << "  " << var->getName () << " = ";
+            if (dvi->getValue ()->hasName ())
+              out << dvi->getValue ()->getName ();
+            else
+              out << *dvi->getValue ();
+            out << "\n";
+          }
           continue;
+        }
+
+        if (const CallInst *ci = dyn_cast<CallInst> (&I))
+        {
+          Function *f = ci->getCalledFunction ();
+          if (f && f->getName ().equals ("seahorn.fn.enter"))
+          {
+	    if (ci->getDebugLoc ()) {
+	      if (DISubprogram *fnScope = getDISubprogram (ci->getDebugLoc ().getScope ())) 
+		out << "enter: " << fnScope->getDisplayName () << "\n";
+	    }
+            continue;
+          }
+          else if (f && f->getName ().equals ("shadow.mem.init"))
+          {
+            int64_t id = shadow_dsa::getShadowId (ci);
+            assert (id >= 0);
+            Expr memStart = m_bmc.sem().memStart (id);
+            Expr u = eval (loc, memStart);
+            if (u) out << "  " << *memStart << " " << *u << "\n";
+            Expr memEnd = m_bmc.sem().memEnd (id);
+            u = eval (loc, memEnd);
+            if (u) out << "  " << *memEnd << " " << *u << "\n";
+          }
+        }
+               
+               
+        Expr v = eval (loc, I);
+        if (!v) continue;
+        out << "  %" << I.getName () << " " << *v;
+        
+        const DebugLoc &dloc = I.getDebugLoc ();
+        if (dloc)
+        {
+          out << "\t[" << (*dloc).getFilename () << ":"
+	               << dloc.getLine () << "]";
+        }
+        out << "\n";
+      }        
+    }
+    return out;
+  }
+  
+  namespace bmc_impl {
+    
+    bool isCallToVoidFn (const llvm::Instruction &I)
+    {
+      if (const CallInst *ci = dyn_cast<const CallInst> (&I))
+	if (const Function *fn = ci->getCalledFunction ())
+	  return fn->getReturnType ()->isVoidTy ();
+      
+      return false;
+    }
+    
+
+    void get_model_implicant (const ExprVector &f, 
+			      ufo::ZModel<ufo::EZ3> &model, ExprVector &out,
+			      ExprMap &active_bool_map)
+    {
+      // XXX This is a partial implementation. Specialized to the
+      // constraints expected to occur in m_side.
+      
+      for (auto v : f)
+	{
+	  // -- break IMPL into an OR
+	  // -- OR into a single disjunct
+	  // -- single disjunct into an AND
+	  Expr bool_lit = nullptr;
+	  if (isOpX<IMPL> (v))
+	    {
+	      assert (v->arity () == 2);
+	      Expr v0 = model (v->arg (0));
+	      Expr a0 = v->arg(0);	      
+	      if (isOpX<FALSE> (v0)) continue;
+	      else if (isOpX<TRUE> (v0)) {
+		v = mknary<OR> (mk<FALSE> (v0->efac ()), 
+				++(v->args_begin ()), v->args_end ());
+		bool_lit = a0;
+	      } else
+		continue;
+	    }
+      
+	  if (isOpX<OR> (v))
+	    {
+	      for (unsigned i = 0; i < v->arity (); ++i)
+		if (isOpX<TRUE> (model (v->arg (i))))
+		  {
+		    v = v->arg (i);
+		    break;
+		  }
+	    }
+	  
+	  if (isOpX<AND> (v)) 
+	    {
+	      for (unsigned i = 0; i < v->arity (); ++i) {
+		out.push_back (v->arg (i));
+		if (bool_lit)
+		  active_bool_map[v->arg(i)] = bool_lit;
+	      }
+	    }
+	  else {
+	    out.push_back (v);
+	    if (bool_lit)
+	      active_bool_map[v] = bool_lit;
+	  }
+	}      
+      
+    }
+
+    void unsat_core(ufo::ZSolver<ufo::EZ3>& solver, const ExprVector& f, ExprVector& out) {
+      solver.reset ();
+      ExprVector assumptions;
+      assumptions.reserve (f.size ());
+      for (Expr v : f) {
+	Expr a = bind::boolConst (mk<ASM> (v));
+	assumptions.push_back (a);
+	solver.assertExpr (mk<IMPL> (a, v));
       }
       
-      if (isOpX<OR> (v))
-      {
-        for (unsigned i = 0; i < v->arity (); ++i)
-          if (isOpX<TRUE> (model (v->arg (i))))
-          {
-            v = v->arg (i);
-            break;
-          }
+      ExprVector core;
+      solver.push ();
+      boost::tribool res = solver.solveAssuming (assumptions);
+      if (!res) solver.unsatCore (std::back_inserter (core));
+      solver.pop ();
+      if (res) return;
+      
+      // simplify core
+      while (core.size () < assumptions.size ()) {
+	assumptions.assign (core.begin (), core.end ());
+	core.clear ();
+	solver.push ();
+	res = solver.solveAssuming (assumptions);
+	assert (!res ? 1 : 0);
+	solver.unsatCore (std::back_inserter (core));
+	solver.pop ();
+      }    
+      
+      // minimize simplified core
+      for (unsigned i = 0; i < core.size ();) {
+	Expr saved = core [i];
+	core [i] = core.back ();
+	res = solver.solveAssuming(boost::make_iterator_range(core.begin(), core.end() - 1)); 
+	if (res) core [i++] = saved;
+	else if (!res)
+	  core.pop_back ();
+	else assert (0);
       }
-        
-      if (isOpX<AND> (v)) 
-      {
-        for (unsigned i = 0; i < v->arity (); ++i)
-          out.push_back (v->arg (i));
-      }
-      else out.push_back (v);
-    }      
+      
+      // unwrap the core from ASM to corresponding expressions
+      for (Expr c : core)
+      	out.push_back (bind::fname (bind::fname (c))->arg (0));
+    }
     
-  }
+  } // end namespace bmc_impl
 
 }

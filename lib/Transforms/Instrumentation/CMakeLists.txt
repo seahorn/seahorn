@@ -12,6 +12,7 @@ add_llvm_library(SeaInstrumentation
   RenameNondet.cc
   NullCheck.cc
   BufferBoundsCheck.cc
+  SimpleMemoryCheck.cc
   )
 
 if (HAVE_DSA)

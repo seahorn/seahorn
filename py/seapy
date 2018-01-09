@@ -37,7 +37,9 @@ def main (argv):
             sea.commands.WrapMem(),
             sea.commands.Exe,
             sea.commands.SeaInspect(),
-            sea.commands.feInspect
+            sea.commands.feInspect,
+            sea.commands.SimpleMemoryChecks(),
+            sea.commands.Smc
     ]
 
 

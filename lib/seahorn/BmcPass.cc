@@ -21,13 +21,14 @@ DM-0002198
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/Module.h"
-
+#include "llvm/Analysis/TargetLibraryInfo.h" 
 
 #include "ufo/Smt/EZ3.hh"
 #include "ufo/Stats.hh"
 #include "ufo/Passes/NameValues.hpp"
 
 #include "seahorn/Bmc.hh"
+#include "seahorn/PathBasedBmc.hh" 
 #include "seahorn/UfoSymExec.hh"
 #include "seahorn/BvSymExec.hh"
 
@@ -41,6 +42,8 @@ namespace
   
   class BmcPass : public llvm::ModulePass
   {
+    /// bmc engine
+    bmc_engine_t m_engine;
     /// output stream for encoded bmc problem
     raw_ostream *m_out;
     /// true if to run the solver, false if encode only
@@ -48,8 +51,8 @@ namespace
   public:
     static char ID;
     
-    BmcPass (raw_ostream *out = nullptr, bool solve = true) :
-      llvm::ModulePass (ID), m_out(out), m_solve (solve) {}
+    BmcPass (bmc_engine_t engine = mono_bmc, raw_ostream *out = nullptr, bool solve = true) :
+      llvm::ModulePass (ID), m_engine(engine), m_out(out), m_solve (solve) {}
     
     virtual bool runOnModule (Module &M)
     {
@@ -66,6 +69,7 @@ namespace
       AU.addRequired<ufo::NameValues>();
       AU.addRequired<seahorn::TopologicalOrder>();
       AU.addRequired<CutPointGraph> ();
+      AU.addRequired<TargetLibraryInfoWrapperPass> ();
     }      
 
     virtual bool runOnFunction (Function &F)
@@ -91,15 +95,27 @@ namespace
       BvSmallSymExec sem (efac, *this, F.getParent()->getDataLayout(), MEM);
       
       EZ3 zctx (efac);
-      BmcEngine bmc (sem, zctx);
+      std::unique_ptr<BmcEngine> bmc;
+      switch(m_engine) {
+      case path_bmc: {
+	const TargetLibraryInfo &tli =
+	  getAnalysis<TargetLibraryInfoWrapperPass> ().getTLI();
+	bmc.reset(new PathBasedBmcEngine(sem, zctx, tli));
+	break;
+      }
+      case mono_bmc:
+      default:
+	bmc.reset(new BmcEngine(sem, zctx));
+      }
+
       
-      bmc.addCutPoint (src);
-      bmc.addCutPoint (*dst);
+      bmc->addCutPoint (src);
+      bmc->addCutPoint (*dst);
       LOG("bmc", errs () << "BMC from: " << src.bb ().getName ()
           << " to " << dst->bb ().getName () << "\n";);
       
-      bmc.encode ();
-      if (m_out) bmc.toSmtLib (*m_out);
+      bmc->encode ();
+      if (m_out) bmc->toSmtLib (*m_out);
       
       if (!m_solve)
         {
@@ -108,7 +124,7 @@ namespace
         }
       
       Stats::resume ("BMC");
-      auto res = bmc.solve ();
+      auto res = bmc->solve ();
       Stats::stop ("BMC");
      
       if (res) outs () << "sat";
@@ -121,7 +137,7 @@ namespace
       
       LOG ("bmc",
            ExprVector core;
-           if (!res) bmc.unsatCore (core);
+           if (!res) bmc->unsatCore (core);
            errs () << "CORE BEGIN\n";
            for (auto c : core) errs () << *c << "\n";
            errs () << "CORE END\n";
@@ -131,7 +147,7 @@ namespace
            if (res) 
              {
                errs () << "Analyzed Function:\n" << F << "\n";
-               BmcTrace trace (bmc.getTrace ());
+               BmcTrace trace (bmc->getTrace ());
                trace.print (errs ());
              });
       
@@ -147,8 +163,8 @@ namespace
 }
 namespace seahorn
 {
-  Pass *createBmcPass (raw_ostream *out, bool solve)
-  {return new BmcPass (out, solve);}
+  Pass *createBmcPass (bmc_engine_t engine, raw_ostream *out, bool solve)
+  {return new BmcPass (engine, out, solve);}
 }
 
 static llvm::RegisterPass<BmcPass>

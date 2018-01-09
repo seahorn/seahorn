@@ -22,6 +22,7 @@ DM-0002198
 #include "seahorn/config.h"
 #include "llvm/Pass.h"
 #include "llvm/Support/raw_ostream.h"
+#include "seahorn/Bmc.hh"
 
 namespace seahorn
 {
@@ -66,7 +67,7 @@ namespace seahorn
 
   llvm::Pass *createApiAnalysisPass(std::string &config);
 
-  llvm::Pass* createBmcPass (llvm::raw_ostream* out, bool solve);
+  llvm::Pass* createBmcPass (bmc_engine_t engine, llvm::raw_ostream* out, bool solve);
 
   llvm::Pass* createProfilerPass();
   llvm::Pass* createCFGPrinterPass ();

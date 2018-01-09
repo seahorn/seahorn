@@ -97,6 +97,7 @@ namespace seahorn
 
     llvm::Pass* createCanFailPass();
 
+  llvm::FunctionPass* createPromoteMemcpyPass();
 }
 
 #ifdef HAVE_LLVM_SEAHORN

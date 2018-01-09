@@ -468,19 +468,23 @@ CheckContext SimpleMemoryCheck::getUnsafeCandidates(Instruction *Inst,
                  AllocTy->getStructName().endswith("::vector3")))
               Interesting = false;
 
-        if (TSC.count({BarrierTy, AllocTy}) == 0)
-          TSC[{BarrierTy, AllocTy}] =
-              TypeSimilarity(BarrierTy, AllocTy, m_Ctx, m_DL);
+        // Heap alloc tends to return i8* instead of precise type.
+        if (!isa<CallInst>(AS) && !isa<InvokeInst>(AS)) {
+          if (TSC.count({BarrierTy, AllocTy}) == 0)
+            TSC[{BarrierTy, AllocTy}] =
+                TypeSimilarity(BarrierTy, AllocTy, m_Ctx, m_DL);
 
-        auto &TySim = TSC[{BarrierTy, AllocTy}];
-        if (TySim.Similarity < 0.8f)
-          Interesting = false;
-        else if (TySim.First != BarrierTy &&
-                 (TySim.FirstSize * 3 < TySim.SecondSize))
-          Interesting = false;
-        else if (auto *Arg = dyn_cast<Argument>(Check.Barrier))
-          if (Arg->getName() == "this" && TySim.MatchPosition > 1)
+          auto &TySim = TSC[{BarrierTy, AllocTy}];
+
+          if (TySim.Similarity < 0.8f)
             Interesting = false;
+          else if (TySim.First != BarrierTy &&
+                   (TySim.FirstSize * 3 < TySim.SecondSize))
+            Interesting = false;
+          else if (auto *Arg = dyn_cast<Argument>(Check.Barrier))
+            if (Arg->getName() == "this" && TySim.MatchPosition > 1)
+              Interesting = false;
+        }
       }
     }
 

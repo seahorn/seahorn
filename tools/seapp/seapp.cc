@@ -415,7 +415,10 @@ int main(int argc, char **argv) {
     // -- SSA
     pass_manager.add(llvm::createPromoteMemoryToRegisterPass());
     // -- Turn undef into nondet
-    pass_manager.add(seahorn::createNondetInitPass());
+    pass_manager.add (seahorn::createNondetInitPass());
+
+    // -- Promote memcpy to loads-and-stores for easier alias analysis.
+    pass_manager.add (seahorn::createPromoteMemcpyPass());
 
     // -- cleanup after SSA
     pass_manager.add(seahorn::createInstCombine());

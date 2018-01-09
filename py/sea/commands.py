@@ -1300,5 +1300,5 @@ Exe = sea.SeqCmd ('exe', 'alias for clang|pp --strip-extern|pp --internalize|wme
                    Seapp(internalize=True), WrapMem(), LinkRt()])
 feInspect = sea.SeqCmd ('fe-inspect', 'alias for fe + seainspect', FrontEnd.cmds + [SeaInspect()])
 Smc = sea.SeqCmd ('smc', 'alias for fe|opt|smc',
-                   [Clang(), SimpleMemoryChecks(), Seapp(), MixedSem(),
+                   [Clang(), Seapp(), SimpleMemoryChecks(), MixedSem(),
                     Seaopt(), Seahorn(solve=True)])

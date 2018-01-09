@@ -1,11 +1,8 @@
-#include "llvm/Pass.h"
-#include "llvm/IR/Module.h"
-#include "llvm/ADT/DenseSet.h"
+#include "seahorn/config.h"
+#include "seahorn/LoadCrab.hh"
+
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Support/CommandLine.h"
-
-#include "seahorn/config.h"
-#include "ufo/Smt/EZ3.hh"
 
 // If enabled then crab invariants are added as lemmas.
 // Otherwise, they are added as invariants. 
@@ -13,30 +10,11 @@ static llvm::cl::opt<bool>
 AddExtLemmas ("horn-add-lemmas", llvm::cl::Hidden, llvm::cl::init(false),
 	      llvm::cl::desc ("Add crab invariants as external lemmas"));
 
-namespace seahorn
-{
-  using namespace llvm;
-
-  /// Loads Crab invariants into a Horn Solver
-  class LoadCrab: public llvm::ModulePass
-  {
-
-  public:
-    static char ID;
-    
-    LoadCrab () : ModulePass(ID) {}
-    virtual ~LoadCrab () {}
-    
-    virtual bool runOnModule (Module &M);
-    virtual bool runOnFunction (Function &F);
-    virtual void getAnalysisUsage (AnalysisUsage &AU) const;
-    virtual const char* getPassName () const {return "LoadCrab";}
-  };
-  
+namespace seahorn {
   char LoadCrab::ID = 0;
-  Pass* createLoadCrabPass () {return new LoadCrab ();}
+  llvm::Pass* createLoadCrabPass () {return new LoadCrab ();}
+}
 
-} // end namespace seahorn
 
 #ifndef HAVE_CRAB_LLVM
 /// Dummy implementation when Crab is not compiled in
@@ -53,15 +31,15 @@ namespace seahorn
   bool LoadCrab::runOnFunction (Function &F) {return false;}
 }
 #else
-/// Real implementation starts here 
+/// Real implementation starts here
+#include "llvm/ADT/DenseSet.h"
+
 #include "ufo/Expr.hpp"
 #include "ufo/ExprLlvm.hpp"
 
 #include "seahorn/HornifyModule.hh"
 #include "seahorn/SymExec.hh"
 #include "seahorn/Transforms/Instrumentation/ShadowMemDsa.hh"
-
-#include "llvm/Support/CommandLine.h"
 
 #include "crab_llvm/CrabLlvm.hh"
 #include "crab_llvm/HeapAbstraction.hh"
@@ -75,14 +53,16 @@ namespace crab_llvm {
 
   // Conversion from linear constraints to Expr.
   //
-  // TODO: a linear constraint is precisely translated only if all its
+  // A linear constraint is precisely translated only if all its
   // variables can be mapped to llvm Value. Otherwise, it is
   // translated to true. For instance, Crab generates shadow variables
   // representing DSA nodes that are not translated with the exception
   // of global singletons.
-  class LinConstToExpr
+  class DisIntervalToExpr;  
+  class LinConsToExprImpl
   {
-
+    friend class DisIntervalToExpr;
+    
    public:
 
     // Crab does not distinguish between bools and the rest of
@@ -197,32 +177,14 @@ namespace crab_llvm {
     };
 
    private:
-
-    CrabLlvmPass* m_crab;
-    const llvm::BasicBlock* m_bb;
-    const ExprVector& m_live;
-
-    DenseSet<const Value*> m_live_values; // for fast queries
-
-    typedef DenseMap<const Value*, BoolCst> bool_map_t;
-    bool_map_t bool_map;
     
-   public:
+    typedef DenseMap<const Value*, BoolCst> bool_map_t;
 
-    LinConstToExpr (CrabLlvmPass* crab,
-		    // needed by crab-llvm memory analysis
-		    const llvm::BasicBlock* bb,
-		    const ExprVector &live): 
-        m_crab (crab), m_bb (bb), m_live (live) { 
-
-      for (auto v: m_live) 
-      {
-        Expr u = bind::fname (bind::fname (v));
-        if (isOpX<VALUE> (u)) 
-          m_live_values.insert (getTerm <const Value*> (u));
-      }
-
-    }      
+    HeapAbstraction& m_heap_abs;
+    const llvm::Function& m_func;
+    const ExprVector& m_live;
+    DenseSet<const Value*> m_live_values; // for fast queries
+    bool_map_t bool_map;
 
     // Defined only for z_number
     Expr exprFromNum (ikos::z_number n, ExprFactory &efac)
@@ -241,13 +203,9 @@ namespace crab_llvm {
         // to a shadow variable which is not currently translated.
         return nullptr; 
       }
-
       const Value* V = *(v.get());
-
-      if (const Value* Gv = m_crab->get_heap_abstraction()->
-	  getRegion(*(const_cast <Function*> (m_bb->getParent ())), 
-		    const_cast<Value*> (V)).getSingleton ()) {
-	
+      if (const Value* Gv =
+	  m_heap_abs.getRegion(m_func, const_cast<Value*>(V)).getSingleton()) {
         /// -- The crab variable v corresponds to a global singleton
         ///    cell so we can grab a llvm Value from it. We search for
         ///    the seahorn shadow variable that matches it.
@@ -290,8 +248,18 @@ namespace crab_llvm {
       }
     }
     
-    Expr toExpr (lin_cst_t cst, ExprFactory &efac)
-    {
+   public:
+    
+    LinConsToExprImpl (HeapAbstraction& heap_abs, const llvm::Function& f, const ExprVector &live)
+      : m_heap_abs(heap_abs), m_func(f), m_live (live) {  
+      for (auto v: m_live) {
+        Expr u = bind::fname (bind::fname (v));
+        if (isOpX<VALUE> (u)) 
+          m_live_values.insert (getTerm <const Value*> (u));
+      }
+    }      
+    
+    Expr toExpr (lin_cst_t cst, ExprFactory &efac) {
       if (cst.is_tautology ())     
         return mk<TRUE> (efac);
       
@@ -329,8 +297,7 @@ namespace crab_llvm {
 
         if (n == 1) {
           ee = mk<PLUS> (ee, v);
-        }
-        else if (n == -1)  {
+        } else if (n == -1)  {
           ee = mk<MINUS> (ee, v);
         } else {
           ee = mk<PLUS> (ee, mk<MULT> (exprFromNum (n, efac), v)); 
@@ -372,15 +339,13 @@ namespace crab_llvm {
   {
     typedef typename boxes_domain_t::varname_t varname_t;
     typedef typename boxes_domain_t::number_t number_t;
-    LinConstToExpr m_t;
+    LinConsToExprImpl m_t;
     
   public:
     
-    BoxesToExpr (CrabLlvmPass* crab,
-		 const llvm::BasicBlock* bb,
-		 const ExprVector &live): 
-      m_t (crab, bb, live) { }
-    
+    BoxesToExpr(HeapAbstraction& heap_abs, const llvm::Function& f, const ExprVector &live)
+      : m_t(heap_abs, f, live) {} 
+          
     Expr toExpr (boxes_domain_t inv, ExprFactory &efac) {
       auto csts = inv.to_disjunctive_linear_constraint_system ();
       if (csts.is_false ())
@@ -405,14 +370,12 @@ namespace crab_llvm {
     typedef typename dis_interval_domain_t::varname_t varname_t;
     typedef typename dis_interval_domain_t::number_t number_t;
     
-    LinConstToExpr m_t;
+    LinConsToExprImpl m_t;
     
   public:
     
-    DisIntervalToExpr (CrabLlvmPass* crab,
-		       const llvm::BasicBlock* bb,
-		       const ExprVector &live): 
-      m_t (crab, bb, live) { }
+    DisIntervalToExpr(HeapAbstraction& heap_abs, const llvm::Function& f, const ExprVector &live)
+      : m_t(heap_abs, f, live) {}
     
     Expr toExpr (dis_interval_domain_t inv, ExprFactory &efac) {
       if (inv.is_top ())
@@ -427,8 +390,7 @@ namespace crab_llvm {
        auto &dis_intvs = inv.get_content_domain().second(); 
        for (auto p: boost::make_iterator_range (dis_intvs.begin (), dis_intvs.end ())) {
 	 Expr d = mk<FALSE> (efac);
-	 for (auto i: boost::make_iterator_range (p.second.begin (),
-						  p.second.end ())) {
+	 for (auto i: boost::make_iterator_range (p.second.begin (), p.second.end ())) {
 	   d = boolop::lor (d, intervalToExpr (p.first.name(), i, efac));
 	 }
 	 e = boolop::land (e, d);
@@ -506,40 +468,46 @@ namespace seahorn
     return res;
   }
 
-  Expr CrabInvToExpr (const llvm::BasicBlock* B,
-                      CrabLlvmPass* crab,
-                      const ExprVector &live, 
-                      EZ3& zctx,
-                      ExprFactory &efac) { 
+  LinConsToExpr::LinConsToExpr(HeapAbstraction &heap, const llvm::Function& f,
+			       const ExprVector &live)
+    : m_impl(new LinConsToExprImpl(heap, f, live)) {}
+  
+  LinConsToExpr::~LinConsToExpr() {
+    delete m_impl;
+  }
+  
+  Expr LinConsToExpr::toExpr(lin_cst_t cst, ExprFactory &efac) {
+    return m_impl->toExpr(cst, efac);
+  }
+  
+  Expr CrabInvToExpr (llvm::BasicBlock* B, CrabLlvmPass* crab, const ExprVector &live, 
+                      EZ3& zctx, ExprFactory &efac) { 
+                      
     Expr e = mk<TRUE> (efac);
     auto abs = crab->get_pre(B);
     
     // TODO: note we don't project an arbitrary abstract domain onto
     // live variables because some abstract domains might not have a
     // precise implementation for it.
-
     
     if (abs->getId () == GenericAbsDomWrapper::id_t::boxes) {
       // --- special translation for boxes
       boxes_domain_t boxes;
       getAbsDomWrappee (abs, boxes);        
-
       // Here we do project onto live variables before translation
-      std::vector<crab_llvm::var_t> vars = ExprVecToCrab (live, crab);
-      crab::domains::domain_traits<boxes_domain_t>::project (boxes, 
-                                                             vars.begin (), 
-                                                             vars.end ());
-      BoxesToExpr t (crab, B, live);      
+      std::vector<crab_llvm::var_t> vars = ExprVecToCrab(live, crab);
+      crab::domains::domain_traits<boxes_domain_t>::project(boxes, vars.begin(), vars.end());
+      BoxesToExpr t(*(crab->get_heap_abstraction()), *(B->getParent()), live);      
       e = t.toExpr (boxes, efac);
     } else if (abs->getId () == GenericAbsDomWrapper::id_t::dis_intv) {
       // --- special translation of disjunctive interval constraints
       dis_interval_domain_t inv;
       getAbsDomWrappee (abs, inv);        
-      DisIntervalToExpr t (crab, B, live);
+      DisIntervalToExpr t(*(crab->get_heap_abstraction()), *(B->getParent()), live);
       e = t.toExpr (inv, efac);
     } else {
       // --- rest of domains translated to convex linear constraints
-      LinConstToExpr t (crab, B, live);
+      LinConsToExprImpl t(*(crab->get_heap_abstraction()), *(B->getParent()), live);
       e = t.toExpr (abs->to_linear_constraints (), efac);
     }
         

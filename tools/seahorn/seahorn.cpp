@@ -29,6 +29,7 @@
 #include "seahorn/Houdini.hh"
 #include "seahorn/PredicateAbstraction.hh"
 #include "seahorn/HornCex.hh"
+#include "seahorn/Bmc.hh"
 #include "seahorn/Transforms/Scalar/PromoteVerifierCalls.hh"
 #include "seahorn/Transforms/Scalar/LowerGvInitializers.hh"
 #include "seahorn/Transforms/Scalar/LowerCstExpr.hh"
@@ -143,8 +144,17 @@ KeepShadows ("keep-shadows", llvm::cl::desc ("Do not strip shadow.mem functions"
 
 static llvm::cl::opt<bool>
 Bmc ("horn-bmc",
-     llvm::cl::desc ("Use BMC engine. Currently restricted to intra-procedural analysis"),
+     llvm::cl::desc ("Use BMC. Currently restricted to intra-procedural analysis"),
      llvm::cl::init (false));
+
+static llvm::cl::opt<seahorn::bmc_engine_t>
+BmcEngine("horn-bmc-engine",
+	  llvm::cl::desc ("Choose BMC engine"),
+	  llvm::cl::values
+	  (clEnumValN (seahorn::mono_bmc, "mono", "Generate a single formula"),
+	   clEnumValN (seahorn::path_bmc, "path", "Based on path enumeration"),
+	   clEnumValEnd),
+	  llvm::cl::init (seahorn::bmc_engine_t::mono_bmc));
 
 static llvm::cl::opt<bool>
 OneAssumePerBlock ("horn-one-assume-per-block", 
@@ -353,7 +363,7 @@ int main(int argc, char **argv) {
   {
     llvm::raw_ostream *out = nullptr;
     if (!OutputFilename.empty ()) out = &output->os ();
-    pass_manager.add (seahorn::createBmcPass (out, Solve));
+    pass_manager.add (seahorn::createBmcPass (BmcEngine, out, Solve));
   }
   else
   {
@@ -363,7 +373,7 @@ int main(int argc, char **argv) {
     if (PredAbs) pass_manager.add(new seahorn::PredicateAbstraction());
     if (Solve)
     { 	  pass_manager.add (new seahorn::HornSolver ());
-          if (Cex) pass_manager.add (new seahorn::HornCex ());
+          if (Cex) pass_manager.add (new seahorn::HornCex (BmcEngine));
     }
   }
   

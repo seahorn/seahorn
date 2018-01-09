@@ -818,7 +818,7 @@ class Seahorn(sea.LimitedCmd):
                          dest='crab', default=False, action='store_true')
         ap.add_argument ('--bmc',
                          help='Use BMC engine',
-                         dest='bmc', default=False, action='store_true')
+                         choices=['none', 'mono', 'path'], dest='bmc', default='none')
         return ap
 
     def run (self, args, extra):
@@ -828,8 +828,10 @@ class Seahorn(sea.LimitedCmd):
 
         argv = list()
 
-        if args.bmc:
+        if args.bmc != 'none':
             argv.append ('--horn-bmc')
+            if args.bmc == 'path':
+                argv.append ('--horn-bmc-engine=path')
 
         if args.crab:
             argv.append ('--horn-crab')

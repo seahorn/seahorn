@@ -18,6 +18,7 @@
 
 #include "seahorn/Transforms/Utils/Local.hh"
 #include "seahorn/Bmc.hh"
+#include "seahorn/PathBasedBmc.hh"
 
 #include "boost/range.hpp"
 #include "boost/range/adaptor/reversed.hpp"
@@ -195,24 +196,36 @@ namespace seahorn
 
     SmallStepSymExec *sem = UseBv ? static_cast<SmallStepSymExec*>(&semBv) :
       static_cast<SmallStepSymExec*>(&semUfo);
-    BmcEngine bmc (*sem, hm.getZContext ());
 
+    const TargetLibraryInfo &tli =
+      getAnalysis<TargetLibraryInfoWrapperPass> ().getTLI();
+    
+    std::unique_ptr<BmcEngine> bmc;
+    switch(m_engine) {
+    case path_bmc:
+      bmc.reset(new PathBasedBmcEngine(*sem, hm.getZContext(), tli));
+      break;
+    case mono_bmc:
+    default:
+      bmc.reset(new BmcEngine(*sem, hm.getZContext ()));
+    }
+    
     // -- load the trace into the engine
     for (const CutPoint *cp : cpTrace)
-      bmc.addCutPoint (*cp);
+      bmc->addCutPoint (*cp);
 
     // -- construct BMC instance
-    bmc.encode ();
+    bmc->encode ();
 
     if (!HornCexSmtFilename.empty ())
     {
       std::error_code EC;
       raw_fd_ostream file (HornCexSmtFilename, EC, sys::fs::F_Text);
-      if (!EC) bmc.toSmtLib (file);
+      if (!EC) bmc->toSmtLib (file);
       else errs () << "Could not open: " << HornCexSmtFilename << "\n";
     }
 
-    auto res = bmc.solve ();
+    auto res = bmc->solve ();
 
     Stats::stop ("CexValidation");
     
@@ -228,7 +241,7 @@ namespace seahorn
       errs () << "Warning: failed to validate cex\n";
       errs () << "Computing unsat core\n";
       ExprVector core;
-      bmc.unsatCore (core);
+      bmc->unsatCore (core);
       errs () << "Final core: " << core.size () << "\n";
       errs () << "Failed to validate CEX. Core is: \n";
       for (Expr c : core) errs () << *c << "\n";
@@ -238,7 +251,7 @@ namespace seahorn
     }
 
     // get bmc trace
-    BmcTrace trace (bmc.getTrace ());
+    BmcTrace trace (bmc->getTrace ());
     LOG ("cex", trace.print (errs ()););
 
 
@@ -257,9 +270,7 @@ namespace seahorn
     StringRef HornCexFileRef(HornCexFile);
     if (HornCexFileRef.endswith(".ll") ||
         HornCexFileRef.endswith(".bc")) {
-      const DataLayout &dl = M.getDataLayout();
-      const TargetLibraryInfo &tli =
-          getAnalysis<TargetLibraryInfoWrapperPass> ().getTLI();
+      const DataLayout &dl = M.getDataLayout();      
       dumpLLVMCex(trace, HornCexFileRef, dl, tli);
     } else if (HornCexFileRef.endswith(".xml")) {
       dumpSvCompCex (trace, HornCexFileRef);

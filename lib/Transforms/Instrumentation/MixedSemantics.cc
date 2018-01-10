@@ -256,7 +256,8 @@ namespace seahorn
 
   void MixedSemantics::getAnalysisUsage (AnalysisUsage &AU) const
   {
-    AU.addRequiredID (LowerSwitchID);
+      // XXX Removed since switches are assumed to be removed by pp pipeline
+    // AU.addRequiredID (LowerSwitchID);
     AU.addRequired<CallGraphWrapperPass> ();
     AU.addRequired<CanFail> ();
     AU.addRequired<PromoteVerifierCalls> ();

@@ -311,6 +311,7 @@ int main(int argc, char **argv) {
   else if (MixedSem)
   {
       // -- apply mixed semantics
+      pass_manager.add (llvm::createLowerSwitchPass());
       pass_manager.add (seahorn::createPromoteVerifierClassPass ());
       pass_manager.add (seahorn::createCanFailPass());
       pass_manager.add (seahorn::createMixedSemanticsPass ());

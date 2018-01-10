@@ -264,6 +264,8 @@ int main(int argc, char **argv) {
 
   llvm::legacy::PassManager pass_manager;
   llvm::PassRegistry &Registry = *llvm::PassRegistry::getPassRegistry();
+  llvm::initializeCore(Registry);
+  llvm::initializeTransformUtils(Registry);
   llvm::initializeAnalysis(Registry);
 
   /// call graph and other IPA passes

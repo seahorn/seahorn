@@ -95,6 +95,8 @@ namespace seahorn
 
     llvm::Pass* createSimpleMemoryCheckPass();
 
+    llvm::Pass* createCanFailPass();
+
 }
 
 #ifdef HAVE_LLVM_SEAHORN

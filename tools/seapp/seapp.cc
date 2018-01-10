@@ -311,6 +311,8 @@ int main(int argc, char **argv) {
   else if (MixedSem)
   {
       // -- apply mixed semantics
+      pass_manager.add (seahorn::createPromoteVerifierClassPass ());
+      pass_manager.add (seahorn::createCanFailPass());
       pass_manager.add (seahorn::createMixedSemanticsPass ());
       pass_manager.add (seahorn::createRemoveUnreachableBlocksPass ());
       pass_manager.add (seahorn::createPromoteMallocPass ());

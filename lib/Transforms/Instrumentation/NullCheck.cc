@@ -1,4 +1,4 @@
-/* 
+/*
  * Instrument a program to add null dereference checks
  */
 
@@ -26,7 +26,7 @@ OptimizeNullChecks("null-check-optimize",
 namespace seahorn
 {
   using namespace llvm;
- 
+
   Value* getBasePtr (Value *V, SmallPtrSet<Instruction *, 8> &SeenInsts) {
 
     V = V->stripPointerCasts();
@@ -45,7 +45,7 @@ namespace seahorn
             return GEP->getPointerOperand();
           else
             return getBasePtr(GEP->getPointerOperand(), SeenInsts);
-        } else 
+        } else
           return nullptr;
       }
       if (LoadInst *LI = dyn_cast<LoadInst>(V))
@@ -74,7 +74,7 @@ namespace seahorn
   }
 
   void NullCheck::insertNullCheck (Value *Ptr, IRBuilder<> B, Instruction* I) {
-    B.SetInsertPoint (I);    
+    B.SetInsertPoint (I);
     Value* isNull = B.CreateIsNull (Ptr);
     isNull->setName ("null_check");
 
@@ -90,46 +90,46 @@ namespace seahorn
         }
       }
     }
-    
-    
+
+
     // Attach debug information to the new instruction
     if (Instruction* isNullI = dyn_cast<Instruction> (isNull)) {
       isNullI->setDebugLoc (I->getDebugLoc ());
       LOG ("null-check",
-           errs () << "Added check for " 
-                   << I->getParent()->getParent()->getName() << "::"  
+           errs () << "Added check for "
+                   << I->getParent()->getParent()->getName() << "::"
                    << *(Ptr->stripPointerCasts()) << "\n";
            );
       ChecksAdded++;
     }
-    
+
     TerminatorInst* ThenTerm = nullptr;
     TerminatorInst* ElseTerm = nullptr;
-    
+
     SplitBlockAndInsertIfThenElse(isNull, I, &ThenTerm, &ElseTerm);
-    
+
     assert (ThenTerm);
-    
+
     // ThenTerm is always a BranchInst so this cast should never fail
     BranchInst *BI = cast<BranchInst> (ThenTerm);
-    
+
     BasicBlock* ErrorBB = createErrorBlock (*I->getParent ()->getParent (), B);
     BI->setSuccessor(0, ErrorBB);
   }
 
   BasicBlock* NullCheck::createErrorBlock (Function &F, IRBuilder<> B) {
-  
+
     BasicBlock* errBB = BasicBlock::Create(B.getContext (), "NullError", &F);
-    B.SetInsertPoint (errBB);    
+    B.SetInsertPoint (errBB);
     CallInst * CI = B.CreateCall (ErrorFn);
     B.CreateUnreachable ();
-    
+
     // update call graph
     if (CG) {
       auto f1 = CG->getOrInsertFunction (&F);
       auto f2 = CG->getOrInsertFunction (ErrorFn);
       f1->addCalledFunction (CallSite (CI), f2);
-    } 
+    }
 
     return errBB;
   }
@@ -150,13 +150,13 @@ namespace seahorn
 	    if (Value* BasePtr = getBasePtr (I)) {
 	      // We've checked BasePtr in the current BB.
 	      if (!TempsToInstrument.insert(BasePtr).second) {
-		LOG ("null-check", 
+		LOG ("null-check",
 		     errs () << "Skipped " << *BasePtr << " because already checked!\n";);
-		continue;  
+		continue;
 	      }
 	    }
 	  }
-	  
+
           Worklist.push_back (I);
         } else if (isa<StoreInst>(I)) {
 
@@ -164,13 +164,13 @@ namespace seahorn
 	    if (Value* BasePtr = getBasePtr (I)) {
 	      // We've checked BasePtr in the current BB.
 	      if (!TempsToInstrument.insert(BasePtr).second) {
-		LOG ("null-check", 
+		LOG ("null-check",
 		     errs () << "Skipped " << *BasePtr << " because already checked!\n";);
-		continue;  
+		continue;
 	      }
 	    }
           }
-	  
+
           Worklist.push_back (I);
         }
 	else {
@@ -182,7 +182,7 @@ namespace seahorn
     LLVMContext &ctx = F.getContext ();
     IRBuilder<> B (ctx);
 
-    bool change = false;    
+    bool change = false;
     for (auto I: Worklist) {
 
       Value *Ptr = nullptr;
@@ -195,10 +195,10 @@ namespace seahorn
 	continue;
       }
       assert (Ptr);
-      
+
       Value * Base = nullptr;
       if (OptimizeNullChecks) Base = getBasePtr(Ptr);
-      
+
       // -- Instrument the memory access
       insertNullCheck (Base ? Base : Ptr, B, I);
 
@@ -214,10 +214,10 @@ namespace seahorn
 	    B.SetInsertPoint(I->getParent(), It);
 	    CallInst* CI = B.CreateCall(AssumeFn, B.CreateIsNotNull(base));
 	    CI->setDebugLoc (I->getDebugLoc ());
-              
+
 	    LOG ("null-check",
 		 errs () << "Added memory safety assumption for " << *base << "\n";);
-	    
+
 	    // update call graph
 	    if (CG) {
 	      auto f1 = CG->getOrInsertFunction (&F);
@@ -235,7 +235,7 @@ namespace seahorn
   bool NullCheck::runOnModule (llvm::Module &M) {
 
     if (M.begin () == M.end ()) return false;
-      
+
     // Get call graph
     CallGraphWrapperPass *cgwp = getAnalysisIfAvailable<CallGraphWrapperPass> ();
     if (cgwp) CG = &cgwp->getCallGraph ();
@@ -244,12 +244,12 @@ namespace seahorn
 
     AttrBuilder B;
 
-    AttributeSet as = AttributeSet::get (ctx, 
+    AttributeSet as = AttributeSet::get (ctx,
                                          AttributeSet::FunctionIndex,
                                          B);
 
     AssumeFn = dyn_cast<Function>
-        (M.getOrInsertFunction ("verifier.assume", 
+        (M.getOrInsertFunction ("verifier.assume",
                                 as,
                                 Type::getVoidTy (ctx),
                                 Type::getInt1Ty (ctx),
@@ -265,27 +265,25 @@ namespace seahorn
     bool change = false;
     for (Function &F : M) {
       if (F.isDeclaration ()) continue;
-      change |= runOnFunction (F); 
+      change |= runOnFunction (F);
     }
 
-    errs () << "-- Inserted " << ChecksAdded << " null dereference checks " 
+    errs () << "-- Inserted " << ChecksAdded << " null dereference checks "
             << " (skipped " << TrivialChecks << " trivial checks).\n";
 
     return change;
   }
-    
+
   void NullCheck::getAnalysisUsage (llvm::AnalysisUsage &AU) const {
     AU.setPreservesAll ();
     AU.addRequired<CallGraphWrapperPass> ();
     AU.addPreserved<CallGraphWrapperPass> ();
-  } 
+  }
 
   char NullCheck::ID = 0;
 
-  static llvm::RegisterPass<NullCheck> 
-  X ("null-check", "Insert null dereference checks", false, false);
+    Pass* createNullCheckPass(){return new NullCheck();}
 
 } // end namespace seahorn
-
-   
-
+static llvm::RegisterPass<seahorn::NullCheck>
+X ("null-check", "Insert null dereference checks", false, false);

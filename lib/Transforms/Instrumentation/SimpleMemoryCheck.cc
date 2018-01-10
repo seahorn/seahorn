@@ -205,7 +205,7 @@ private:
                   std::vector<Instruction *> &UninterestingMIs);
 };
 
-llvm::ModulePass *CreateSimpleMemoryCheckPass() {
+llvm::Pass* createSimpleMemoryCheckPass() {
   return new SimpleMemoryCheck();
 }
 

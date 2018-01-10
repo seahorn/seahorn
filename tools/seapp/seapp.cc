@@ -30,17 +30,6 @@
 
 #include "seahorn/Passes.hh"
 
-#include "seahorn/Transforms/Scalar/PromoteVerifierCalls.hh"
-#include "seahorn/Transforms/Utils/RemoveUnreachableBlocksPass.hh"
-#include "seahorn/Transforms/Scalar/LowerGvInitializers.hh"
-
-#include "seahorn/Analysis/CanAccessMemory.hh"
-#include "seahorn/Transforms/Scalar/LowerCstExpr.hh"
-#include "seahorn/Transforms/Instrumentation/MixedSemantics.hh"
-#include "seahorn/Transforms/Instrumentation/BufferBoundsCheck.hh"
-#include "seahorn/Transforms/Instrumentation/SimpleMemoryCheck.hh"
-#include "seahorn/Transforms/Instrumentation/NullCheck.hh"
-
 #ifdef HAVE_LLVM_SEAHORN
 #include "llvm_seahorn/Transforms/Scalar.h"
 #endif
@@ -297,21 +286,69 @@ int main(int argc, char **argv) {
 
   if (!ApiConfig.empty())
   {
+      // -- api-config command. Deprecated.
       pass_manager.add(seahorn::createApiAnalysisPass(ApiConfig));
   }
-
-  if (RenameNondet)
+  else if (RenameNondet)
+      // -- ren-nondet utility pass
     pass_manager.add (seahorn::createRenameNondetPass ());
   else if (StripShadowMem)
+      // -- strips shadows. Useful for debugging
     pass_manager.add (seahorn::createStripShadowMemPass ());
   else if (KleeInternalize)
+      // -- internalize external definitions to make klee happy
+      // -- useful for preparing seahorn bitcode to be used with KLEE
     pass_manager.add (seahorn::createKleeInternalizePass ());
   else if (WrapMem)
+      // -- wraps memory instructions with a custom function
+      // -- not actively used. part of cex replaying
     pass_manager.add (seahorn::createWrapMemPass ());
   else if (OnlyStripExtern) {
+      // -- remove useless declarations
     pass_manager.add (seahorn::createDevirtualizeFunctionsPass ());
     pass_manager.add (seahorn::createStripUselessDeclarationsPass ());
   }
+  else if (MixedSem)
+  {
+      // -- apply mixed semantics
+      pass_manager.add (seahorn::createMixedSemanticsPass ());
+      pass_manager.add (seahorn::createRemoveUnreachableBlocksPass ());
+      pass_manager.add (seahorn::createPromoteMallocPass ());
+  }
+  else if (CutLoops)
+  {
+      // -- cut loops to turn a program into loop-free program
+      pass_manager.add (llvm::createLoopSimplifyPass ());
+      pass_manager.add (llvm::createLCSSAPass ());
+      pass_manager.add (seahorn::createCutLoopsPass ());
+      // pass_manager.add (new seahorn::RemoveUnreachableBlocksPass ());
+  }
+  // array bound checking. WIP.
+  else if (ArrayBoundsChecks > 0) {
+      // XXX ABC might run sea-dsa which requires all values have a name
+      pass_manager.add (ufo::createNameValuesPass ());
+      switch (ArrayBoundsChecks) {
+      case LOCAL:
+	pass_manager.add (seahorn::createLowerCstExprPass ());
+	pass_manager.add (seahorn::createLocalBufferBoundsCheck());
+	// -- Turn undef into nondet (undef might be created by Local)
+	pass_manager.add (seahorn::createNondetInitPass ());
+	break;
+      case GLOBAL_C:
+          pass_manager.add (seahorn::createGlobalCBufferBoundsCheckPass());
+	// --- inline some special functions
+	pass_manager.add (llvm::createAlwaysInlinerPass ());
+	break;
+      case GLOBAL:
+      default :
+          pass_manager.add (seahorn::createGlobalBufferBoundsCheck());
+      }
+    }
+  // checking for simple instances of memory safety. WIP
+  else if (SimpleMemoryChecks) {
+      pass_manager.add(seahorn::createSimpleMemoryCheckPass());
+    }
+  // default pre-processing pipeline
   else
   {
     // -- Externalize some user-selected functions
@@ -321,7 +358,7 @@ int main(int argc, char **argv) {
     pass_manager.add (seahorn::createDummyMainFunctionPass ());
 
     // -- promote verifier specific functions to special names
-    pass_manager.add (new seahorn::PromoteVerifierCalls ());
+    pass_manager.add (seahorn::createPromoteVerifierClassPass ());
 
     // -- promote top-level mallocs to alloca
     pass_manager.add (seahorn::createPromoteMallocPass ());
@@ -336,12 +373,18 @@ int main(int argc, char **argv) {
       pass_manager.add (seahorn::createStripUselessDeclarationsPass ());
 
     // -- mark entry points of all functions
-    if (!MixedSem && !CutLoops && !SimpleMemoryChecks)
-      // XXX should only be ran once. need better way to ensure that.
-      pass_manager.add (seahorn::createMarkFnEntryPass ());
+    pass_manager.add (seahorn::createMarkFnEntryPass ());
 
     // turn all functions internal so that we can inline them if requested
     pass_manager.add (llvm::createInternalizePass (llvm::ArrayRef<const char*>("main")));
+
+    if (LowerInvoke)
+    {
+      // -- lower invoke's
+      pass_manager.add(llvm::createLowerInvokePass());
+      // cleanup after lowering invoke's
+      pass_manager.add (llvm::createCFGSimplificationPass ());
+    }
 
     // -- resolve indirect calls
     if (DevirtualizeFuncs)
@@ -355,13 +398,10 @@ int main(int argc, char **argv) {
     pass_manager.add (llvm::createGlobalDCEPass ()); // kill unused internal global
 
     // -- global optimizations
-    // FIXME: for inconsistency analysis this causes problems with
-    //        trivial examples.
     pass_manager.add (llvm::createGlobalOptimizerPass());
-    // pass_manager.add (llvm::createGlobalOptimizerPass());
 
-    //if (!MixedSem)
-    pass_manager.add (new seahorn::LowerGvInitializers ());
+    // -- explicitly initialize globals in the beginning of main()
+    pass_manager.add (seahorn::createLowerGvInitializersPass ());
 
     // -- SSA
     pass_manager.add(llvm::createPromoteMemoryToRegisterPass());
@@ -391,15 +431,7 @@ int main(int argc, char **argv) {
     pass_manager.add(llvm::createLowerSwitchPass());
 
     pass_manager.add(llvm::createDeadInstEliminationPass());
-    pass_manager.add (new seahorn::RemoveUnreachableBlocksPass ());
-
-    if (LowerInvoke)
-    {
-      // -- lower invoke's
-      pass_manager.add(llvm::createLowerInvokePass());
-      // cleanup after lowering invoke's
-      pass_manager.add (llvm::createCFGSimplificationPass ());
-    }
+    pass_manager.add (seahorn::createRemoveUnreachableBlocksPass ());
 
     // lower arithmetic with overflow intrinsics
     pass_manager.add(seahorn::createLowerArithWithOverflowIntrinsicsPass ());
@@ -410,31 +442,6 @@ int main(int argc, char **argv) {
     pass_manager.add (seahorn::createInstCombine ());
     pass_manager.add (llvm::createCFGSimplificationPass ());
 
-    if (InlineAll || InlineAllocFn || InlineConstructFn)
-    {
-      if (InlineAll)
-        pass_manager.add (seahorn::createMarkInternalInlinePass ());
-      else {
-        if (InlineAllocFn)
-          pass_manager.add (seahorn::createMarkInternalAllocOrDeallocInlinePass ());
-        if (InlineConstructFn)
-          pass_manager.add (seahorn::createMarkInternalConstructOrDestructInlinePass ());
-      }
-
-      pass_manager.add (llvm::createAlwaysInlinerPass ());
-      pass_manager.add (llvm::createGlobalDCEPass ()); // kill unused internal global
-      pass_manager.add (seahorn::createPromoteMallocPass ());
-      pass_manager.add (new seahorn::RemoveUnreachableBlocksPass ());
-    }
-
-    pass_manager.add(llvm::createDeadInstEliminationPass());
-    pass_manager.add (llvm::createGlobalDCEPass ()); // kill unused internal global
-    pass_manager.add(llvm::createUnifyFunctionExitNodesPass ());
-
-    if (SimplifyPointerLoops) {
-      // --- simplify loops that iterate over pointers
-      pass_manager.add (seahorn::createSimplifyPointerLoopsPass ());
-    }
 
     if (UnfoldLoopsForDsa) {
       // --- help DSA to be more precise
@@ -444,6 +451,12 @@ int main(int argc, char **argv) {
       pass_manager.add (seahorn::createUnfoldLoopForDsaPass());
     }
 
+    if (SimplifyPointerLoops) {
+      // --- simplify loops that iterate over pointers
+      pass_manager.add (seahorn::createSimplifyPointerLoopsPass ());
+    }
+
+    // XXX: AG: Should not be part of standard pipeline
     if (AbstractMemory) {
       // -- abstract memory load/stores pointer operands with
       // -- non-deterministic values
@@ -453,79 +466,71 @@ int main(int argc, char **argv) {
       pass_manager.add(llvm::createDeadInstEliminationPass());
     }
 
-    if (ArrayBoundsChecks > 0) {
-      // XXX ABC might run sea-dsa which requires all values have a name
-      pass_manager.add (new ufo::NameValues ());
-      switch (ArrayBoundsChecks) {
-      case LOCAL:
-	pass_manager.add (new seahorn::LowerCstExprPass ());
-	pass_manager.add (new seahorn::Local ());
-	// -- Turn undef into nondet (undef might be created by Local)
-	pass_manager.add (seahorn::createNondetInitPass ());
-	break;
-      case GLOBAL_C:
-	pass_manager.add (new seahorn::GlobalCCallbacks ());
-	// --- inline some special functions
-	pass_manager.add (llvm::createAlwaysInlinerPass ());
-	break;
-      case GLOBAL:
-      default :
-	pass_manager.add (new seahorn::Global ());
-      }
-    }
 
-    if (SimpleMemoryChecks) {
-      pass_manager.add(seahorn::CreateSimpleMemoryCheckPass());
-    }
-
+    // XXX: AG: no clue what this was for.
     if (LowerAssert) {
       pass_manager.add (seahorn::createLowerAssertPass ());
       // LowerAssert might generate some dead code
       pass_manager.add(llvm::createDeadInstEliminationPass());
     }
+    pass_manager.add (seahorn::createRemoveUnreachableBlocksPass ());
 
-    pass_manager.add (new seahorn::RemoveUnreachableBlocksPass ());
+    // null deref check. WIP. Not used.
+    // XXX AG: Should not be part of standard pipeline
     if (NullChecks) {
-      pass_manager.add (new seahorn::LowerCstExprPass ());
-      pass_manager.add (new seahorn::NullCheck ());
+      pass_manager.add (seahorn::createLowerCstExprPass ());
+      pass_manager.add (seahorn::createNullCheckPass ());
     }
 
 
-    if (!MixedSem && !SimpleMemoryChecks && EnumVerifierCalls)
+    // -- request seaopt to inline all functions
+    if (InlineAll)
+        pass_manager.add (seahorn::createMarkInternalInlinePass ());
+    else {
+        // mark memory allocator/deallocators to be inlined
+        if (InlineAllocFn)
+            pass_manager.add (seahorn::createMarkInternalAllocOrDeallocInlinePass ());
+        // mark constructors to be inlined
+        if (InlineConstructFn)
+          pass_manager.add (seahorn::createMarkInternalConstructOrDestructInlinePass ());
+    }
+
+     // run inliner pass
+    if (InlineAll || InlineAllocFn || InlineConstructFn)
     {
-      pass_manager.add (seahorn::createEnumVerifierCallsPass ());
+      pass_manager.add (llvm::createAlwaysInlinerPass ());
+      pass_manager.add (llvm::createGlobalDCEPass ()); // kill unused internal global
+      pass_manager.add (seahorn::createPromoteMallocPass ());
+      pass_manager.add (seahorn::createRemoveUnreachableBlocksPass ());
     }
 
-    pass_manager.add (new seahorn::RemoveUnreachableBlocksPass ());
+    // -- EVERYTHING IS MORE EXPENSIVE AFTER INLINING
+    // -- BEFORE SCHEDULING PASSES HERE, THINK WHETHER THEY BELONG BEFORE INLINE!
+    pass_manager.add(llvm::createDeadInstEliminationPass());
+    pass_manager.add (llvm::createGlobalDCEPass ()); // kill unused internal global
+    pass_manager.add(llvm::createUnifyFunctionExitNodesPass ());
+
+    // -- moves loop initialization up
+    // AG: After inline because cheap and loop initialization is moved higher up
+    if (SymbolizeLoops)
+      pass_manager.add (seahorn::createSymbolizeConstantLoopBoundsPass ());
+
+    // AG: Maybe should be moved before inline. Not used as far as I know.
+    if (EnumVerifierCalls)
+      pass_manager.add (seahorn::createEnumVerifierCallsPass ());
+
+    pass_manager.add (seahorn::createRemoveUnreachableBlocksPass ());
     pass_manager.add (seahorn::createPromoteMallocPass ());
     pass_manager.add (llvm::createGlobalDCEPass ()); // kill unused internal global
 
     // -- Enable function slicing
+    // AG: NOT USED. Not part of std pipeline
     pass_manager.add (seahorn::createSliceFunctionsPass ());
+
     // -- Create a main function if we sliced it away
     pass_manager.add (seahorn::createDummyMainFunctionPass ());
 
-    if (SymbolizeLoops)
-    {
-      pass_manager.add (seahorn::createSymbolizeConstantLoopBoundsPass ());
-    }
-
-    if (MixedSem)
-    {
-      pass_manager.add (new seahorn::MixedSemantics ());
-      pass_manager.add (new seahorn::RemoveUnreachableBlocksPass ());
-      pass_manager.add (seahorn::createPromoteMallocPass ());
-    }
-
-    if (CutLoops)
-    {
-      pass_manager.add (llvm::createLoopSimplifyPass ());
-      pass_manager.add (llvm::createLCSSAPass ());
-      pass_manager.add (seahorn::createCutLoopsPass ());
-      // pass_manager.add (new seahorn::RemoveUnreachableBlocksPass ());
-    }
-
-
+    // AG: Dangerous. Promotes verifier.assume() to llvm.assume()
     if (PromoteAssumptions)
       pass_manager.add (seahorn::createPromoteSeahornAssumePass ());
   }

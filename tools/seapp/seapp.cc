@@ -469,7 +469,8 @@ int main(int argc, char **argv) {
     }
 
 
-    // XXX: AG: no clue what this was for.
+    // AG: Used for inconsistency analysis
+    // XXX Should be moved out of standard pp pipeline
     if (LowerAssert) {
       pass_manager.add (seahorn::createLowerAssertPass ());
       // LowerAssert might generate some dead code

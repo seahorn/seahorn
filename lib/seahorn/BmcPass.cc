@@ -23,6 +23,8 @@ DM-0002198
 #include "llvm/IR/Module.h"
 #include "llvm/Analysis/TargetLibraryInfo.h" 
 
+#include "seahorn/config.h"
+
 #include "ufo/Smt/EZ3.hh"
 #include "ufo/Stats.hh"
 #include "ufo/Passes/NameValues.hpp"
@@ -33,6 +35,10 @@ DM-0002198
 #include "seahorn/BvSymExec.hh"
 
 #include "seahorn/Analysis/CanFail.hh"
+
+#ifdef HAVE_CRAB_LLVM
+#include "crab_llvm/CrabLlvm.hh"
+#endif 
 
 namespace
 {
@@ -70,6 +76,9 @@ namespace
       AU.addRequired<seahorn::TopologicalOrder>();
       AU.addRequired<CutPointGraph> ();
       AU.addRequired<TargetLibraryInfoWrapperPass> ();
+      #ifdef HAVE_CRAB_LLVM
+      AU.addRequired<crab_llvm::CrabLlvmPass> ();
+      #endif 
     }      
 
     virtual bool runOnFunction (Function &F)
@@ -78,7 +87,7 @@ namespace
       const CutPointGraph &cpg = getAnalysis<CutPointGraph> (F);
       const CutPoint &src = cpg.getCp (F.getEntryBlock ());
       const CutPoint *dst = nullptr;
-      
+    
       // -- find return instruction. Assume it is unique
       for (auto &bb : F)
         if (llvm::isa<llvm::ReturnInst> (bb.getTerminator ()) && cpg.isCutPoint (bb))
@@ -98,9 +107,13 @@ namespace
       std::unique_ptr<BmcEngine> bmc;
       switch(m_engine) {
       case path_bmc: {
-	const TargetLibraryInfo &tli =
-	  getAnalysis<TargetLibraryInfoWrapperPass> ().getTLI();
+	const TargetLibraryInfo &tli = getAnalysis<TargetLibraryInfoWrapperPass> ().getTLI();
+	#ifdef HAVE_CRAB_LLVM
+	crab_llvm::CrabLlvmPass &crab = getAnalysis<crab_llvm::CrabLlvmPass> ();
+	bmc.reset(new PathBasedBmcEngine(sem, zctx, &crab, tli));
+	#else
 	bmc.reset(new PathBasedBmcEngine(sem, zctx, tli));
+	#endif 
 	break;
       }
       case mono_bmc:

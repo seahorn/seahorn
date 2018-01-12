@@ -20,12 +20,16 @@
 #include "seahorn/Bmc.hh"
 #include "seahorn/PathBasedBmc.hh"
 
+#ifdef HAVE_CRAB_LLVM
+#include "crab_llvm/CrabLlvm.hh"
+#endif 
+
 #include "boost/range.hpp"
 #include "boost/range/adaptor/reversed.hpp"
 #include "boost/range/algorithm/sort.hpp"
 #include "boost/container/flat_set.hpp"
 #include "boost/container/map.hpp"
-#include <boost/algorithm/string/predicate.hpp>
+#include "boost/algorithm/string/predicate.hpp"
 
 
 #include "llvm/Support/CommandLine.h"
@@ -202,9 +206,15 @@ namespace seahorn
     
     std::unique_ptr<BmcEngine> bmc;
     switch(m_engine) {
-    case path_bmc:
+    case path_bmc: {
+      #ifdef HAVE_CRAB_LLVM
+      crab_llvm::CrabLlvmPass &crab = getAnalysis<crab_llvm::CrabLlvmPass> ();
+      bmc.reset(new PathBasedBmcEngine(*sem, hm.getZContext(), &crab, tli));      
+      #else
       bmc.reset(new PathBasedBmcEngine(*sem, hm.getZContext(), tli));
+      #endif 
       break;
+    }
     case mono_bmc:
     default:
       bmc.reset(new BmcEngine(*sem, hm.getZContext ()));
@@ -320,8 +330,11 @@ namespace seahorn
     AU.addRequired<HornifyModule> ();
     AU.addRequired<HornSolver> ();
     AU.addRequired<CanFail> ();
+    #ifdef HAVE_CRAB_LLVM
+    AU.addRequired<crab_llvm::CrabLlvmPass> ();
+    #endif 
   }
-
+  
   /*** Helper methods to create SV-COMP style counterexamples */
 
   template <typename O>

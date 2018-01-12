@@ -6,16 +6,20 @@
 
 #include "boost/unordered_set.hpp"
 
-#ifdef HAVE_CRAB_LLVM
-#include "crab_llvm/CrabLlvm.hh"
-#endif 
-
 namespace llvm {
   class TargetLibraryInfo;
 }
 
+#ifdef HAVE_CRAB_LLVM
+namespace crab_llvm {
+  class CrabLlvmPass;
+  class IntraCrabLlvm;
+}
+#endif 
+
+
 /*
-  Rather than building one monolithic precise encoding of the program
+  Rather than building a monolithic precise encoding of the program
   and check its satisfiability, this BMC engine enumerates
   symbolically all paths using an abstraction of the precise encoding
   of the program. This enumeration continues until a path is
@@ -25,8 +29,16 @@ namespace seahorn
 {  
   class PathBasedBmcEngine: public BmcEngine {
   public:
+
+    #ifdef HAVE_CRAB_LLVM
+    PathBasedBmcEngine (SmallStepSymExec &sem, ufo::EZ3 &zctx,
+			crab_llvm::CrabLlvmPass *crab,
+			const llvm::TargetLibraryInfo& tli);
+    
+    #else
     PathBasedBmcEngine (SmallStepSymExec &sem, ufo::EZ3 &zctx,
 			const llvm::TargetLibraryInfo& tli);
+    #endif 
 
     ~PathBasedBmcEngine();
         
@@ -53,8 +65,14 @@ namespace seahorn
     ExprVector m_active_bool_lits;
     // model of a path formula
     ufo::ZModel<ufo::EZ3> m_model;
-    // live symbols
+    // live symbols  
     LiveSymbols* m_ls;
+    #ifdef HAVE_CRAB_LLVM
+    // crab instance that includes invariants and heab abstraction information
+    crab_llvm::CrabLlvmPass* m_crab_global;
+    // crab instance to run only paths
+    crab_llvm::IntraCrabLlvm* m_crab_path;
+    #endif 
     // Temporary sanity check: bookeeping of all generated blocking
     // clauses.
     boost::unordered_set<Expr> m_blocking_clauses;
@@ -72,9 +90,7 @@ namespace seahorn
     // interpretation.
     // Return true (sat) or false (unsat). If unsat then it produces a
     // blocking clause.
-    bool path_encoding_and_solve_with_ai(BmcTrace &trace, 
-					 const crab_llvm::IntraCrabLlvm& crab,
-					 invariants_map_t& path_constraints);
+    bool path_encoding_and_solve_with_ai(BmcTrace &trace, invariants_map_t& path_constraints);
     #endif 
 
     // Return false if a blocking clause has been generated twice.

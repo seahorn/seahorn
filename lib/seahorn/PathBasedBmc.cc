@@ -22,6 +22,7 @@
   UfoLargeSymExec and the following options enabled:
 
     --horn-split-only-critical=true
+    --horn-at-most-one-predecessor=true
 **/
 
 
@@ -400,7 +401,6 @@ namespace seahorn
      abstraction we handle is Boolean.
    */   
   bool PathBasedBmcEngine::path_encoding_and_solve_with_ai(BmcTrace& trace,
-							   const crab_llvm::IntraCrabLlvm& crab,
 							   invariants_map_t& path_constraints) {
     using namespace crab_llvm;
     const Function& fun = *(this->m_fn);
@@ -416,7 +416,7 @@ namespace seahorn
 
     // -- crab parameters
     AnalysisParams params;
-    // TODO: make it user option
+    // TODO: make these options user options
     //params.dom=TERMS_INTERVALS; // EQ+UF+INTERVALS
     //params.dom=WRAPPED_INTERVALS;
     params.dom=INTERVALS;    
@@ -430,19 +430,17 @@ namespace seahorn
     const bool populate_constraints_map = false;
     bool res;
     if (populate_constraints_map) {
-      res = crab.path_analyze(params, trace_blocks, relevant_stmts, postmap, premap);
+      res = m_crab_path->path_analyze(params, trace_blocks, relevant_stmts, postmap, premap);
     } else {
       // we don't compute forward/backward constraints along the path
-      res = crab.path_analyze(params, trace_blocks, relevant_stmts);
+      res = m_crab_path->path_analyze(params, trace_blocks, relevant_stmts);
     }
 
     if (populate_constraints_map) {
-      // -- heap abstraction
-      DummyHeapAbstraction heap_abs;
       // -- Convert crab linear constraints to Expr
       for (const BasicBlock* b : trace_blocks) {
 	const ExprVector &live = m_ls->live(b);
-	LinConsToExpr conv(heap_abs, fun, live);
+	LinConsToExpr conv(*(m_crab_global->get_heap_abstraction()), fun, live);
 	ExprVector f;	
 	auto it = postmap.find(b);
 	if (it != postmap.end()) {
@@ -517,9 +515,13 @@ namespace seahorn
       std::set<Expr, lessExpr> active_bool_lits;
       for (auto it = relevant_stmts.begin(); it != relevant_stmts.end(); ++it) {
        	crab::cfg::statement_wrapper s = *it;
-	if (s.m_s->is_bin_op() || s.m_s->is_int_cast() ||
+	if (s.m_s->is_bin_op() || s.m_s->is_int_cast() || s.m_s->is_select() ||
 	    s.m_s->is_bool_bin_op() || s.m_s->is_bool_assign_cst() ||
-	    s.m_s->is_select()) {
+	    s.m_s->is_arr_write() || s.m_s->is_arr_read() ||
+	    // array assumptions are not coming from branches
+	    s.m_s->is_arr_assume() ||
+	    // array assignments are not coming from PHI nodes
+	    s.m_s->is_arr_assign()) {
 	  const BasicBlock* BB = s.m_parent.get_basic_block(); 
 	  assert(BB);
 	  active_bool_lits.insert(sem().symb(*BB));
@@ -738,14 +740,26 @@ namespace seahorn
     }    
     return res;
   }
-  
+
+  #ifdef HAVE_CRAB_LLVM
+  PathBasedBmcEngine::PathBasedBmcEngine(SmallStepSymExec &sem, ufo::EZ3 &zctx,
+					 crab_llvm::CrabLlvmPass *crab,
+					 const TargetLibraryInfo& tli)
+    : BmcEngine(sem, zctx),
+      m_aux_smt_solver(zctx), m_tli(tli), m_model(zctx), m_ls(nullptr),
+      m_crab_global(crab), m_crab_path(nullptr) { }
+  #else
   PathBasedBmcEngine::PathBasedBmcEngine(SmallStepSymExec &sem, ufo::EZ3 &zctx,
 					 const TargetLibraryInfo& tli)
     : BmcEngine(sem, zctx),
       m_aux_smt_solver(zctx), m_tli(tli), m_model(zctx), m_ls(nullptr) { }
+  #endif 
 
   PathBasedBmcEngine::~PathBasedBmcEngine() {
     if (m_ls) delete m_ls;
+    #ifdef HAVE_CRAB_LLVM
+    if (m_crab_path) delete m_crab_path;
+    #endif 
   }
 
   void PathBasedBmcEngine::encode() {
@@ -758,56 +772,33 @@ namespace seahorn
     invariants_map_t invariants;
     
     #ifdef HAVE_CRAB_LLVM
-    ufo::Stats::resume ("BMC path-based: global AI");
-    // -- Compute invariants for the whole function. These invariants
-    //    can help later to solve more efficiently path conditions.    
-    crab_llvm::IntraCrabLlvm crab(*(const_cast<Function*>(this->m_fn)), m_tli);
+    // Convert crab invariants to Expr
 
-    // -- compute live symbols so that invariant variables exclude
+    // -- Compute live symbols so that invariant variables exclude
     //    dead variables.
     m_ls = new LiveSymbols(*m_fn, sem().efac(), sem());
     m_ls->run();
-
-    // -- set up crab parameters
-    crab_llvm::AnalysisParams params;
-    params.widening_delay = 2;
-    params.narrowing_iters = 1;
-    // TODO: make these user parameters
-    //params.dom=WRAPPED_INTERVALS;    
-    params.dom = crab_llvm::TERMS_INTERVALS; /* EQ+UF+INTERVALS */
-
-    // -- run crab analysis on the whole function
-    typename crab_llvm::IntraCrabLlvm::assumption_map_t assumptions;    
-    crab.analyze(params, assumptions);
-
-    // -- heap abstraction
-    // TODO: we would like to pass a non-dummy HeapAbstraction
-    // instance so that crab can reason about arrays. HeapAbstraction
-    // is a global analysis so it requires a Module. Here, we are at
-    // the level of functions so we need to adapt the code accordingly.
-    crab_llvm::DummyHeapAbstraction heap_abs;
-    
-    // -- convert crab linear constraints to Expr
+    // -- Translate invariants
     for(const BasicBlock& b: *m_fn) {
       const ExprVector& live = m_ls->live(&b);
-      LinConsToExpr conv(heap_abs, *m_fn, live);
-      crab_llvm::lin_cst_sys_t csts = crab.get_pre(&b)->to_linear_constraints();
+      LinConsToExpr conv(*(m_crab_global->get_heap_abstraction()), *m_fn, live);
+      crab_llvm::lin_cst_sys_t csts = m_crab_global->get_pre(&b)->to_linear_constraints();
       ExprVector inv;	
       for(auto cst: csts) {
-	Expr e = conv.toExpr(cst, sem().efac());
-	if (isOpX<FALSE>(e)) {
-	  inv.clear();
-	  inv.push_back(e);
-	  break;
-	} else if (isOpX<TRUE>(e)) {
-	  continue;
-	} else {
-	  inv.push_back(e);
-	}
+    	Expr e = conv.toExpr(cst, sem().efac());
+    	if (isOpX<FALSE>(e)) {
+    	  inv.clear();
+    	  inv.push_back(e);
+    	  break;
+    	} else if (isOpX<TRUE>(e)) {
+    	  continue;
+    	} else {
+    	  inv.push_back(e);
+    	}
       }
       invariants.insert(std::make_pair(&b, inv));
     }
-
+    
     LOG("bmc-ai",
 	for(auto &kv: invariants) {
 	  errs () << "Invariants at " << kv.first->getName() << ": ";
@@ -820,7 +811,15 @@ namespace seahorn
 	    }
 	  }
 	});
-    ufo::Stats::stop ("BMC path-based: global AI");    
+    
+    // Create another instance of crab to analyze single paths
+    // TODO: make these options user options
+    const crab::cfg::tracked_precision prec_level = crab::cfg::ARR;
+    auto heap_abstraction = m_crab_global->get_heap_abstraction();
+    // TODO: modify IntraCrabLlvm api so that it takes the cfg already
+    // generated by m_crab_global    
+    m_crab_path = new crab_llvm::IntraCrabLlvm(*(const_cast<Function*>(this->m_fn)), m_tli,
+					       prec_level, heap_abstraction);
     #endif 
 
     // -- Precise encoding
@@ -873,7 +872,7 @@ namespace seahorn
       if (UseCrab) {
 	BmcTrace trace(*this, model);
 	ufo::Stats::resume ("BMC path-based: solving path with AI (included muc)");	
-	bool res = path_encoding_and_solve_with_ai(trace, crab, path_constraints);
+	bool res = path_encoding_and_solve_with_ai(trace, path_constraints);
 	ufo::Stats::stop ("BMC path-based: solving path with AI (included muc)"); 
 	if (!res) {
 	  bool ok = add_blocking_clauses();

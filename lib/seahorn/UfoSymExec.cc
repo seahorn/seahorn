@@ -76,6 +76,12 @@ SplitCriticalEdgesOnly ("horn-split-only-critical",
               cl::Hidden);
 
 static llvm::cl::opt<bool>
+EnforceAtMostOnePredecessor("horn-at-most-one-predecessor",
+              llvm::cl::desc ("Encode a block has at most one predecessor"),
+              cl::init (false),
+              cl::Hidden);
+
+static llvm::cl::opt<bool>
 UseWrite ("horn-use-write",
           llvm::cl::desc ("Write to store instead of havoc"),
           cl::init (false),
@@ -1455,7 +1461,7 @@ namespace seahorn
       {return this->operator() (*bb);} 
     };
   }
-  
+
   void UfoLargeSymExec::execEdgBb (SymStore &s, const CpEdge &edge, 
                                    const BasicBlock &bb, 
                                    ExprVector &side, bool last)
@@ -1481,7 +1487,7 @@ namespace seahorn
     Expr bbV = s.havoc (m_sem.symb (bb));
     
     // -- update destination of all the edges
-
+    
     if (SplitCriticalEdgesOnly)
     {
       // -- create edge variables only for critical edges.
@@ -1508,7 +1514,27 @@ namespace seahorn
       for (Expr &e : edges) e = mk<AND> (e, bind::boolConst (mk<TUPLE> (e, bbV)));
     }
     
-
+    if (EnforceAtMostOnePredecessor) {
+      if (edges.size() > 1) {
+	// Naive quadratic encoding of exactly-one predecessor.
+	// TODO: linear encoding based on adders.
+	ExprVector exactly_one; 
+	for (unsigned i=0, e = edges.size(); i<e; ++i) {
+	  ExprVector exactly_ei; // exactly predecessor edges[i]
+	  exactly_ei.push_back(edges[i]);
+	  for (unsigned j=0; j<e; ++j) {
+	    if (edges[i] == edges[j]) continue;
+	    exactly_ei.push_back(mk<NEG>(edges[j]));
+	  }
+	  exactly_one.push_back(op::boolop::land(exactly_ei));
+	}
+	// this enforces at-most-one predecessor.
+	// if !bbV (i.e., bb is not reachable) then bb won't have
+	// predecessors.
+	side.push_back(mk<IMPL>(bbV, mknary<OR>(exactly_one)));
+      }
+    }
+    
     // -- encode control flow
     // -- b_j -> (b1 & e_{1,j} | b2 & e_{2,j} | ...)
     side.push_back (mk<IMPL> (bbV, 

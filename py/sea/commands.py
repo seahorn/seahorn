@@ -1089,11 +1089,11 @@ class LegacyFrontEnd (sea.LimitedCmd):
 
         return self.lfeCmd.run (args, argv)
 
-class Crab (sea.LimitedCmd):
+class CrabInst (sea.LimitedCmd):
     def __init__ (self, quiet=False):
-        super (Crab, self).__init__ ('crab',
-                                     'Instrument LLVM bitcode with invariants inferred by Crab',
-                                     allow_extra=True)
+        super (CrabInst, self).__init__ ('crab-inst',
+                                         'Instrument LLVM bitcode with invariants inferred by Crab',
+                                         allow_extra=True)
 
     @property
     def stdout (self):
@@ -1104,7 +1104,7 @@ class Crab (sea.LimitedCmd):
         return _remap_file_name (in_files[0], ext, work_dir)
 
     def mk_arg_parser (self, ap):
-        ap = super (Crab, self).mk_arg_parser (ap)
+        ap = super (CrabInst, self).mk_arg_parser (ap)
         add_in_out_args (ap)
         return ap
 
@@ -1240,9 +1240,9 @@ class SeaInc(sea.LimitedCmd):
 #             raise IOError(str(e))
 
 
-class SeaInspect(sea.LimitedCmd):
+class InspectBitcode(sea.LimitedCmd):
     def __init__ (self, quiet=False):
-        super (SeaInspect, self).__init__ ('inspect', allow_extra=True)
+        super (InspectBitcode, self).__init__ ('inspect-bitcode', allow_extra=True)
         self.help = 'Utilities for program inspection'
 
     @property
@@ -1250,7 +1250,7 @@ class SeaInspect(sea.LimitedCmd):
         return self.seainspectCmd.stdout
 
     def mk_arg_parser (self, ap):
-        ap = super (SeaInspect, self).mk_arg_parser (ap)
+        ap = super (InspectBitcode, self).mk_arg_parser (ap)
         add_in_out_args (ap)
         ap.add_argument ('--profiler', default=False, action='store_true',
                          dest='profiling', help='Profile program for static analysis')
@@ -1321,7 +1321,7 @@ BndSmt = sea.SeqCmd ('bnd-smt', 'alias for fe|unroll|cut-loops|ms|opt|horn',
                                       Seaopt(), Seahorn()])
 Bpf = sea.SeqCmd ('bpf', 'alias for fe|unroll|cut-loops|opt|horn --solve',
                   FrontEnd.cmds + [Unroll(), CutLoops(), Seaopt(), Seahorn(solve=True)])
-feCrab = sea.SeqCmd ('fe-crab', 'alias for fe|crab', FrontEnd.cmds + [Crab()])
+Crab = sea.SeqCmd ('crab', 'alias for fe|crab-inst', FrontEnd.cmds + [CrabInst()])
 seaTerm = sea.SeqCmd ('term', 'SeaHorn Termination analysis', Smt.cmds + [SeaTerm()])
 ClangPP = sea.SeqCmd ('clang-pp', 'alias for clang|pp', [Clang(), Seapp()])
 seaIncSmt = sea.SeqCmd ('inc-smt', 'alias for fe|horn|inc. ' +
@@ -1333,7 +1333,7 @@ Abc = sea.SeqCmd ('abc', 'alias for fe|abc-inst',
 Exe = sea.SeqCmd ('exe', 'alias for clang|pp --strip-extern|pp --internalize|wmem|linkrt',
                   [Clang(), Seapp(strip_extern=True,keep_lib_fn=True),
                    Seapp(internalize=True), WrapMem(), LinkRt()])
-feInspect = sea.SeqCmd ('fe-inspect', 'alias for fe + seainspect', FrontEnd.cmds + [SeaInspect()])
+Inspect = sea.SeqCmd ('inspect', 'alias for fe + inspect-bitcode', FrontEnd.cmds + [InspectBitcode()])
 Smc = sea.SeqCmd ('smc', 'alias for fe|opt|smc',
                    [Clang(), Seapp(), SimpleMemoryChecks(), MixedSem(),
                     Seaopt(), Seahorn(solve=True)])

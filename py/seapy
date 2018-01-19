@@ -25,8 +25,8 @@ def main (argv):
             sea.commands.SeahornClp(),
             sea.commands.FrontEnd,
             sea.commands.LegacyFrontEnd(),
-            sea.commands.Crab(),
-            sea.commands.feCrab,
+            sea.commands.CrabInst(),
+            sea.commands.Crab,
             sea.commands.Unroll(),
             sea.commands.ClangPP,
             sea.commands.seaIncSmt,
@@ -38,8 +38,8 @@ def main (argv):
             sea.commands.LinkRt(),
             sea.commands.WrapMem(),
             sea.commands.Exe,
-            sea.commands.SeaInspect(),
-            sea.commands.feInspect,
+            sea.commands.InspectBitcode(),
+            sea.commands.Inspect,
             sea.commands.SimpleMemoryChecks(),
             sea.commands.Smc
     ]

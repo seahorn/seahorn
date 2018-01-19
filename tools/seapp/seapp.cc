@@ -357,6 +357,11 @@ int main(int argc, char **argv) {
   else if (SimpleMemoryChecks) {
     pass_manager.add(seahorn::createSimpleMemoryCheckPass());
   }
+  // null deref check. WIP. Not used.
+  else if (NullChecks) {
+    pass_manager.add(seahorn::createLowerCstExprPass());
+    pass_manager.add(seahorn::createNullCheckPass());
+  }
   // default pre-processing pipeline
   else {
     // -- Externalize some user-selected functions
@@ -484,13 +489,6 @@ int main(int argc, char **argv) {
       pass_manager.add(llvm::createDeadInstEliminationPass());
     }
     pass_manager.add(seahorn::createRemoveUnreachableBlocksPass());
-
-    // null deref check. WIP. Not used.
-    // XXX AG: Should not be part of standard pipeline
-    if (NullChecks) {
-      pass_manager.add(seahorn::createLowerCstExprPass());
-      pass_manager.add(seahorn::createNullCheckPass());
-    }
 
     // -- request seaopt to inline all functions
     if (InlineAll)

@@ -257,12 +257,6 @@ class Seapp(sea.LimitedCmd):
                          default='none')
         ap.add_argument ('--entry', dest='entry', help='Make entry point if main does not exist',
                          default=None, metavar='str')
-        ap.add_argument ('--ndc', dest='ndc',
-                         help='Insert null dereference checks',
-                         default=False, action='store_true')
-        ap.add_argument ('--ndc-opt', dest='ndc_opt',
-                         help='Minimize the number of null dereference checks',
-                         default=False, action='store_true')
         ap.add_argument ('--externalize-addr-taken-functions',
                          help='Externalize uses of address-taken functions',
                          dest='enable_ext_funcs', default=False,
@@ -370,11 +364,6 @@ class Seapp(sea.LimitedCmd):
 
             if args.enum_verifier_calls:
                 argv.append ('--enum-verifier-calls')
-
-            if args.ndc:
-                argv.append ('--null-check')
-                if args.ndc_opt:
-                    argv.append ('--null-check-optimize')
 
             if args.entry is not None:
                 argv.append ('--entry-point={0}'.format (args.entry))
@@ -580,6 +569,53 @@ class AbcInst(sea.LimitedCmd):
         if args.abc_surface_only: argv.append ('--abc-surface-only')
         if args.abc_store_base_only: argv.append ('--abc-store-base-only')
             
+        if args.log is not None:
+            for l in args.log.split (':'): argv.extend (['-log', l])
+
+        argv.extend (args.in_files)
+        return self.seappCmd.run(args, argv)
+
+
+class NdcInst(sea.LimitedCmd):
+    def __init__(self, quiet=False):
+        super(NdcInst, self).__init__('ndc-inst',
+                                     'Null dereference Checks Instrumentation',
+                                     allow_extra=True)
+
+    @property
+    def stdout (self):
+        return self.seappCmd.stdout
+
+    def name_out_file (self, in_files, args=None, work_dir=None):
+        ext = '.abc.bc'
+        # if args.llvm_asm: ext = '.ms.ll'
+        return _remap_file_name (in_files[0], ext, work_dir)
+
+    def mk_arg_parser (self, ap):
+        ap = super (NdcInst, self).mk_arg_parser (ap)
+        ap.add_argument ('--log', dest='log', default=None,
+                         metavar='STR', help='Log level')
+        
+        ap.add_argument ('--ndc-opt', dest='ndc_opt',
+                         help='Minimize the number of null dereference checks',
+                         default=False, action='store_true')
+        
+        add_in_out_args (ap)
+        _add_S_arg (ap)
+        return ap
+
+    def run (self, args, extra):
+        cmd_name = which ('seapp')
+        if cmd_name is None: raise IOError ('seapp not found')
+        self.seappCmd = sea.ExtCmd (cmd_name)
+
+        argv = list()
+        if args.out_file is not None: argv.extend (['-o', args.out_file])
+        if args.llvm_asm: argv.append ('-S')
+
+        argv.append ('--null-check')
+        if args.ndc_opt: argv.append ('--null-check-optimize')
+        
         if args.log is not None:
             for l in args.log.split (':'): argv.extend (['-log', l])
 
@@ -1329,7 +1365,9 @@ seaIncSmt = sea.SeqCmd ('inc-smt', 'alias for fe|horn|inc. ' +
                         Smt.cmds + [SeaInc()])
 #seaClangAbc = sea.SeqCmd ('clang-abc', 'alias for clang|abc', [Clang(), SeaAbc()])
 Abc = sea.SeqCmd ('abc', 'alias for fe|abc-inst',
-                   [Clang(), Seapp(), AbcInst(), MixedSem(), Seaopt(), Seahorn(solve=True)])
+                  [Clang(), Seapp(), AbcInst(), MixedSem(), Seaopt(), Seahorn(solve=True)])
+Ndc = sea.SeqCmd ('ndc', 'alias for fe|ndc-inst',
+                  [Clang(), Seapp(), NdcInst(), MixedSem(), Seaopt(), Seahorn(solve=True)])
 Exe = sea.SeqCmd ('exe', 'alias for clang|pp --strip-extern|pp --internalize|wmem|linkrt',
                   [Clang(), Seapp(strip_extern=True,keep_lib_fn=True),
                    Seapp(internalize=True), WrapMem(), LinkRt()])

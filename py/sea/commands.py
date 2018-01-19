@@ -644,7 +644,7 @@ class SimpleMemoryChecks(sea.LimitedCmd):
         ap.add_argument ('--print-smc-stats', default=False, action='store_true',
                          dest='print_smc_stats', help='Print Simple Memory Check stats')
         ap.add_argument ('--smc-check-threshold', type=int, dest='smc_check_threshold',
-                         help='Max no. of analyzed memory instructions', default=16)
+                         help='Max no. of analyzed memory instructions', default=100)
 
         add_in_out_args (ap)
         _add_S_arg (ap)

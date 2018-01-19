@@ -257,62 +257,6 @@ class Seapp(sea.LimitedCmd):
                          default='none')
         ap.add_argument ('--entry', dest='entry', help='Make entry point if main does not exist',
                          default=None, metavar='str')
-        ap.add_argument ('--abc', dest='abc',
-                         help='Encoding used to insert array bounds checks',
-                         choices=['none','local','global','global-c'], default='none')
-        ap.add_argument ('--abc-disable-underflow', dest='abc_no_under',
-                         help='Do not instrument for underflow checks',
-                         default=False, action='store_true')
-        ap.add_argument ('--abc-disable-reads', dest='abc_no_reads',
-                         help='Do not instrument memory reads',
-                         default=False, action='store_true')
-        ap.add_argument ('--abc-disable-writes', dest='abc_no_writes',
-                         help='Do not instrument memory writes',
-                         default=False, action='store_true')
-        ap.add_argument ('--abc-disable-mem-intrinsics', dest='abc_no_intrinsics',
-                         help='Do not instrument memcpy, memmove, and memset',
-                         default=False, action='store_true')
-        ap.add_argument ('--abc-escape-ptr', dest='abc_escape_ptr',
-                         help='Keep track whether a pointer escapes',
-                         default=False, action='store_true')
-        ap.add_argument ('--abc-use-deref', dest='abc_use_deref',
-                         help='Use dereferenceable attribute to add extra assumptions',
-                         default=False, action='store_true')
-        ap.add_argument ('--abc-track-base-only', dest='abc_track_base_only',
-                         help='Track only accesses to base pointers',
-                         default=False, action='store_true')
-        ap.add_argument ('--abc-surface-only', dest='abc_surface_only',
-                         help='Track only accesses to pointers which are not stored in memory',
-                         default=False, action='store_true')
-        ap.add_argument ('--abc-store-base-only', dest='abc_store_base_only',
-                         help='Check that only base pointers are stored in memory',
-                         default=False, action='store_true')
-        ap.add_argument ('--abc-dsa',
-                         help='Heap analysis used by abc instrumentation: '
-                         'context-insensitive Llvm Dsa, '
-                         'flat memory SeaHorn Dsa, '
-                         'context-insensitive SeaHorn Dsa, and '
-                         'context-sensitive SeaHorn Dsa',
-                         choices=['llvm','sea-flat','sea-ci','sea-cs'],
-                         dest='dsa', default='llvm')
-        ap.add_argument ('--abc-dsa-node', dest='abc_dsa',
-                         help='Instrument only pointers that belong to this DSA node N',
-                         type=int, default=0, metavar='N')
-        ap.add_argument ('--abc-dsa-stats', dest='abc_dsa_stats',
-                         help='Print some DSA stats before abc instrumentation',
-                         default=False, action='store_true')
-        ap.add_argument ('--abc-dsa-to-file', dest='abc_dsa_to_file',
-                         help='Dump some Dsa info to a file',
-                         metavar='DIR', default=None)
-        ap.add_argument ('--abc-alloc-site', dest='abc_site',
-                         help='Instrument only pointers  that belong to this allocation site N',
-                         type=int, default=0, metavar='N')
-        ap.add_argument ('--abc-instrument-only-types',
-                         help='Instrument only pointers of these user-defined types',
-                         dest='abc_only_types', type=str,metavar='str,...')
-        ap.add_argument ('--abc-instrument-except-types',
-                         help='Do not instrument a pointer if it is not of these user-defined types',
-                         dest='abc_except_types', type=str,metavar='str,...')
         ap.add_argument ('--ndc', dest='ndc',
                          help='Insert null dereference checks',
                          default=False, action='store_true')
@@ -416,57 +360,6 @@ class Seapp(sea.LimitedCmd):
 
             if args.lower_assert: argv.append('--lower-assert')
 
-            if args.abc <> 'none':
-                argv.append ('--abc={0}'.format(args.abc))
-
-                ## Begin Dsa options
-
-                ## XXX: for simplicity, we enforce that --abc-dsa
-                ## (from `sea pp`) and --dsa (from `sea horn`) options are the same.
-                sea_horn_dsa = get_sea_horn_dsa (extra)
-                if sea_horn_dsa is not None and sea_horn_dsa != args.dsa:
-                    if args.dsa != 'llvm': ## do not bother warning if default value
-                        print "WARNING: Overwriting \'--abc-dsa\' with \'--dsa\'."
-                    args.dsa = sea_horn_dsa
-                if args.dsa == 'llvm':
-                    if args.abc_dsa_stats:
-                        argv.append ('--llvm-dsa-stats')
-                    if args.abc_dsa_to_file is not None:
-                        argv.append ('--dsa-info-to-file={n}'.format(n=args.abc_dsa_to_file))
-                else:
-                    if args.abc_dsa_stats:
-                        argv.append ('--sea-dsa-stats')
-                    if args.abc_dsa_to_file is not None:
-                        argv.append ('--sea-dsa-info-to-file={n}'.format(n=args.abc_dsa_to_file))
-                    ## we tell abc to use sea-dsa
-                    argv.append ('--abc-sea-dsa')
-                    ## we select the sea-dsa variant
-                    if args.dsa == 'sea-flat':
-                        argv.append ('--sea-dsa=flat')
-                    elif args.dsa == 'sea-ci':
-                        argv.append ('--sea-dsa=ci')
-                    else:
-                        argv.append ('--sea-dsa=cs')
-                ## End Dsa options
-
-                argv.append ('--abc-dsa-node={n}'.format (n=args.abc_dsa))
-                argv.append ('--abc-alloc-site={n}'.format (n=args.abc_site))
-                if args.abc_only_types:
-                    for t in args.abc_only_types.split(','):
-                        argv.append ('--abc-instrument-only-type={0}'.format(t))
-                if args.abc_except_types:
-                    for t in args.abc_except_types.split(','):
-                        argv.append ('--abc-instrument-except-type={0}'.format (t))
-                if args.abc_no_under: argv.append ('--abc-instrument-underflow=false')
-                if args.abc_no_reads: argv.append ('--abc-instrument-reads=false')
-                if args.abc_no_writes: argv.append ('--abc-instrument-writes=false')
-                if args.abc_no_intrinsics: argv.append ('--abc-instrument-mem-intrinsics=false')
-                if args.abc_escape_ptr: argv.append ('--abc-escape-ptr')
-                if args.abc_use_deref: argv.append ('--abc-use-deref')
-                if args.abc_track_base_only: argv.append ('--abc-track-base-only')
-                if args.abc_surface_only: argv.append ('--abc-surface-only')
-                if args.abc_store_base_only: argv.append ('--abc-store-base-only')
-
             if args.extern_funcs:
                 for f in args.extern_funcs.split(','):
                     argv.append ('--externalize-function={0}'.format(f))
@@ -550,7 +443,149 @@ class MixedSem(sea.LimitedCmd):
         argv.extend (args.in_files)
         return self.seappCmd.run (args, argv)
 
+class AbcInst(sea.LimitedCmd):
+    def __init__(self, quiet=False):
+        super(AbcInst, self).__init__('abc-inst',
+                                     'Array Bounds Checks Instrumentation',
+                                     allow_extra=True)
 
+    @property
+    def stdout (self):
+        return self.seappCmd.stdout
+
+    def name_out_file (self, in_files, args=None, work_dir=None):
+        ext = '.abc.bc'
+        # if args.llvm_asm: ext = '.ms.ll'
+        return _remap_file_name (in_files[0], ext, work_dir)
+
+    def mk_arg_parser (self, ap):
+        ap = super (AbcInst, self).mk_arg_parser (ap)
+        ap.add_argument ('--log', dest='log', default=None,
+                         metavar='STR', help='Log level')
+        
+        ap.add_argument ('--abc-encoding', dest='abc_encoding',
+                         help='Encoding used to insert array bounds checks',
+                         choices=['local','global','global-c'], default='global')
+        ap.add_argument ('--abc-disable-underflow', dest='abc_no_under',
+                         help='Do not instrument for underflow checks',
+                         default=False, action='store_true')
+        ap.add_argument ('--abc-disable-reads', dest='abc_no_reads',
+                         help='Do not instrument memory reads',
+                         default=False, action='store_true')
+        ap.add_argument ('--abc-disable-writes', dest='abc_no_writes',
+                         help='Do not instrument memory writes',
+                         default=False, action='store_true')
+        ap.add_argument ('--abc-disable-mem-intrinsics', dest='abc_no_intrinsics',
+                         help='Do not instrument memcpy, memmove, and memset',
+                         default=False, action='store_true')
+        ap.add_argument ('--abc-escape-ptr', dest='abc_escape_ptr',
+                         help='Keep track whether a pointer escapes',
+                         default=False, action='store_true')
+        ap.add_argument ('--abc-use-deref', dest='abc_use_deref',
+                         help='Use dereferenceable attribute to add extra assumptions',
+                         default=False, action='store_true')
+        ap.add_argument ('--abc-track-base-only', dest='abc_track_base_only',
+                         help='Track only accesses to base pointers',
+                         default=False, action='store_true')
+        ap.add_argument ('--abc-surface-only', dest='abc_surface_only',
+                         help='Track only accesses to pointers which are not stored in memory',
+                         default=False, action='store_true')
+        ap.add_argument ('--abc-store-base-only', dest='abc_store_base_only',
+                         help='Check that only base pointers are stored in memory',
+                         default=False, action='store_true')
+        ap.add_argument ('--abc-dsa',
+                         help='Heap analysis used by abc instrumentation: '
+                         'context-insensitive Llvm Dsa, '
+                         'flat memory SeaHorn Dsa, '
+                         'context-insensitive SeaHorn Dsa, and '
+                         'context-sensitive SeaHorn Dsa',
+                         choices=['llvm','sea-flat','sea-ci','sea-cs'],
+                         dest='dsa', default='llvm')
+        ap.add_argument ('--abc-dsa-node', dest='abc_dsa',
+                         help='Instrument only pointers that belong to this DSA node N',
+                         type=int, default=0, metavar='N')
+        ap.add_argument ('--abc-dsa-stats', dest='abc_dsa_stats',
+                         help='Print some DSA stats before abc instrumentation',
+                         default=False, action='store_true')
+        ap.add_argument ('--abc-dsa-to-file', dest='abc_dsa_to_file',
+                         help='Dump some Dsa info to a file',
+                         metavar='DIR', default=None)
+        ap.add_argument ('--abc-alloc-site', dest='abc_site',
+                         help='Instrument only pointers  that belong to this allocation site N',
+                         type=int, default=0, metavar='N')
+        ap.add_argument ('--abc-instrument-only-types',
+                         help='Instrument only pointers of these user-defined types',
+                         dest='abc_only_types', type=str,metavar='str,...')
+        ap.add_argument ('--abc-instrument-except-types',
+                         help='Do not instrument a pointer if it is not of these user-defined types',
+                         dest='abc_except_types', type=str,metavar='str,...')
+        
+        add_in_out_args (ap)
+        _add_S_arg (ap)
+        return ap
+
+    def run (self, args, extra):
+        cmd_name = which ('seapp')
+        if cmd_name is None: raise IOError ('seapp not found')
+        self.seappCmd = sea.ExtCmd (cmd_name)
+
+        argv = list()
+        if args.out_file is not None: argv.extend (['-o', args.out_file])
+        if args.llvm_asm: argv.append ('-S')
+
+        argv.append ('--abc={0}'.format(args.abc_encoding))
+        ## Begin Dsa options
+        ## XXX: for simplicity, we enforce that --abc-dsa
+        ## (from `sea pp`) and --dsa (from `sea horn`) options are the same.
+        sea_horn_dsa = get_sea_horn_dsa (extra)
+        if sea_horn_dsa is not None and sea_horn_dsa != args.dsa:
+            if args.dsa != 'llvm': ## do not bother warning if default value
+                print "WARNING: Overwriting \'--abc-dsa\' with \'--dsa\'."
+            args.dsa = sea_horn_dsa
+        if args.dsa == 'llvm':
+            if args.abc_dsa_stats:
+                argv.append ('--llvm-dsa-stats')
+            if args.abc_dsa_to_file is not None:
+                argv.append ('--dsa-info-to-file={n}'.format(n=args.abc_dsa_to_file))
+        else:
+            if args.abc_dsa_stats:
+                argv.append ('--sea-dsa-stats')
+            if args.abc_dsa_to_file is not None:
+                argv.append ('--sea-dsa-info-to-file={n}'.format(n=args.abc_dsa_to_file))
+            ## we tell abc to use sea-dsa
+            argv.append ('--abc-sea-dsa')
+            ## we select the sea-dsa variant
+            if args.dsa == 'sea-flat':
+                argv.append ('--sea-dsa=flat')
+            elif args.dsa == 'sea-ci':
+                argv.append ('--sea-dsa=ci')
+            else:
+                argv.append ('--sea-dsa=cs')
+        ## End Dsa options
+        argv.append ('--abc-dsa-node={n}'.format (n=args.abc_dsa))
+        argv.append ('--abc-alloc-site={n}'.format (n=args.abc_site))
+        if args.abc_only_types:
+            for t in args.abc_only_types.split(','):
+                argv.append ('--abc-instrument-only-type={0}'.format(t))
+        if args.abc_except_types:
+            for t in args.abc_except_types.split(','):
+                argv.append ('--abc-instrument-except-type={0}'.format (t))
+        if args.abc_no_under: argv.append ('--abc-instrument-underflow=false')
+        if args.abc_no_reads: argv.append ('--abc-instrument-reads=false')
+        if args.abc_no_writes: argv.append ('--abc-instrument-writes=false')
+        if args.abc_no_intrinsics: argv.append ('--abc-instrument-mem-intrinsics=false')
+        if args.abc_escape_ptr: argv.append ('--abc-escape-ptr')
+        if args.abc_use_deref: argv.append ('--abc-use-deref')
+        if args.abc_track_base_only: argv.append ('--abc-track-base-only')
+        if args.abc_surface_only: argv.append ('--abc-surface-only')
+        if args.abc_store_base_only: argv.append ('--abc-store-base-only')
+            
+        if args.log is not None:
+            for l in args.log.split (':'): argv.extend (['-log', l])
+
+        argv.extend (args.in_files)
+        return self.seappCmd.run(args, argv)
+    
 class SimpleMemoryChecks(sea.LimitedCmd):
     def __init__(self, quiet=False):
         super(SimpleMemoryChecks, self).__init__('smc',
@@ -1176,33 +1211,33 @@ class SeaInc(sea.LimitedCmd):
           jb.singleRun(smt2_file)
       except Exception as e:
           raise IOError(str(e))
+      
+# class SeaAbc(sea.LimitedCmd):
+#     def __init__ (self, quiet=False):
+#         super (SeaAbc, self).__init__ ('abc', allow_extra=True)
+#         self.help = 'SeaHorn array bounds check analysis '
 
-class SeaAbc(sea.LimitedCmd):
-    def __init__ (self, quiet=False):
-        super (SeaAbc, self).__init__ ('abc', allow_extra=True)
-        self.help = 'SeaHorn array bounds check analysis '
+#     @property
+#     def stdout (self):
+#         return
 
-    @property
-    def stdout (self):
-        return
+#     def name_out_file (self, in_files, args=None, work_dir=None):
+#         return _remap_file_name (in_files[0], '.smt2', work_dir)
 
-    def name_out_file (self, in_files, args=None, work_dir=None):
-        return _remap_file_name (in_files[0], '.smt2', work_dir)
+#     def mk_arg_parser (self, ap):
+#         ap = super (SeaAbc, self).mk_arg_parser (ap)
+#         add_in_out_args(ap)
+#         add_tmp_dir_args(ap)
+#         import sea.abc as abc
+#         abc.add_abc_args(ap)
+#         return ap
 
-    def mk_arg_parser (self, ap):
-        ap = super (SeaAbc, self).mk_arg_parser (ap)
-        add_in_out_args(ap)
-        add_tmp_dir_args(ap)
-        import sea.abc as abc
-        abc.add_abc_args(ap)
-        return ap
-
-    def run(self, args, extra):
-        try:
-            import sea.abc as abc
-            return abc.sea_abc(args, extra)
-        except Exception as e:
-            raise IOError(str(e))
+#     def run(self, args, extra):
+#         try:
+#             import sea.abc as abc
+#             return abc.sea_abc(args, extra)
+#         except Exception as e:
+#             raise IOError(str(e))
 
 
 class SeaInspect(sea.LimitedCmd):
@@ -1272,9 +1307,7 @@ class SeaInspect(sea.LimitedCmd):
 
         return self.seainspectCmd.run (args, argv)
 
-## SeaHorn commands
-
-## SeaHorn commands
+## SeaHorn aliases 
 FrontEnd = sea.SeqCmd ('fe', 'Front end: alias for clang|pp|ms|opt',
                        [Clang(), Seapp(), MixedSem(), Seaopt ()])
 Smt = sea.SeqCmd ('smt', 'alias for fe|horn', FrontEnd.cmds + [Seahorn()])
@@ -1294,7 +1327,9 @@ ClangPP = sea.SeqCmd ('clang-pp', 'alias for clang|pp', [Clang(), Seapp()])
 seaIncSmt = sea.SeqCmd ('inc-smt', 'alias for fe|horn|inc. ' +
                         'It should be used only as a helper by sea_inc.',
                         Smt.cmds + [SeaInc()])
-seaClangAbc = sea.SeqCmd ('clang-abc', 'alias for clang|abc', [Clang(), SeaAbc()])
+#seaClangAbc = sea.SeqCmd ('clang-abc', 'alias for clang|abc', [Clang(), SeaAbc()])
+Abc = sea.SeqCmd ('abc', 'alias for fe|abc-inst',
+                   [Clang(), Seapp(), AbcInst(), MixedSem(), Seaopt(), Seahorn(solve=True)])
 Exe = sea.SeqCmd ('exe', 'alias for clang|pp --strip-extern|pp --internalize|wmem|linkrt',
                   [Clang(), Seapp(strip_extern=True,keep_lib_fn=True),
                    Seapp(internalize=True), WrapMem(), LinkRt()])

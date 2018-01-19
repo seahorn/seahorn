@@ -1248,32 +1248,32 @@ class SeaInc(sea.LimitedCmd):
       except Exception as e:
           raise IOError(str(e))
       
-# class SeaAbc(sea.LimitedCmd):
-#     def __init__ (self, quiet=False):
-#         super (SeaAbc, self).__init__ ('abc', allow_extra=True)
-#         self.help = 'SeaHorn array bounds check analysis '
+class ParAbc(sea.LimitedCmd):
+    def __init__ (self, quiet=False):
+        super (ParAbc, self).__init__ ('par-abc', allow_extra=True)
+        self.help = 'Parallel array bounds check analysis '
 
-#     @property
-#     def stdout (self):
-#         return
+    @property
+    def stdout (self):
+        return
 
-#     def name_out_file (self, in_files, args=None, work_dir=None):
-#         return _remap_file_name (in_files[0], '.smt2', work_dir)
+    def name_out_file (self, in_files, args=None, work_dir=None):
+        return _remap_file_name (in_files[0], '.smt2', work_dir)
 
-#     def mk_arg_parser (self, ap):
-#         ap = super (SeaAbc, self).mk_arg_parser (ap)
-#         add_in_out_args(ap)
-#         add_tmp_dir_args(ap)
-#         import sea.abc as abc
-#         abc.add_abc_args(ap)
-#         return ap
+    def mk_arg_parser (self, ap):
+        ap = super (ParAbc, self).mk_arg_parser (ap)
+        add_in_out_args(ap)
+        add_tmp_dir_args(ap)
+        import sea.abc as abc
+        abc.add_abc_args(ap)
+        return ap
 
-#     def run(self, args, extra):
-#         try:
-#             import sea.abc as abc
-#             return abc.sea_abc(args, extra)
-#         except Exception as e:
-#             raise IOError(str(e))
+    def run(self, args, extra):
+        try:
+            import sea.abc as abc
+            return abc.sea_par_abc(args, extra)
+        except Exception as e:
+            raise IOError(str(e))
 
 
 class InspectBitcode(sea.LimitedCmd):
@@ -1363,9 +1363,9 @@ ClangPP = sea.SeqCmd ('clang-pp', 'alias for clang|pp', [Clang(), Seapp()])
 seaIncSmt = sea.SeqCmd ('inc-smt', 'alias for fe|horn|inc. ' +
                         'It should be used only as a helper by sea_inc.',
                         Smt.cmds + [SeaInc()])
-#seaClangAbc = sea.SeqCmd ('clang-abc', 'alias for clang|abc', [Clang(), SeaAbc()])
 Abc = sea.SeqCmd ('abc', 'alias for fe|abc-inst',
                   [Clang(), Seapp(), AbcInst(), MixedSem(), Seaopt(), Seahorn(solve=True)])
+ClangParAbc = sea.SeqCmd ('c-par-abc', 'alias for clang|pp|par-abc', [Clang(), Seapp(), ParAbc()])
 Ndc = sea.SeqCmd ('ndc', 'alias for fe|ndc-inst',
                   [Clang(), Seapp(), NdcInst(), MixedSem(), Seaopt(), Seahorn(solve=True)])
 Exe = sea.SeqCmd ('exe', 'alias for clang|pp --strip-extern|pp --internalize|wmem|linkrt',

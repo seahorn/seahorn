@@ -10,7 +10,6 @@ import re
 
 verbose = False
 
-## XXX: defined in _init__.py 
 # When this file is used as a module we just need to 
 # add `from sea import which' before calling which. 
 # However, there is some problem with paths when this file 
@@ -36,7 +35,6 @@ def which(program):
                     return exe_file
     return None
 
-## XXX: defined in _init__.py 
 # When this file is used as a module we just need to 
 # add `from sea import createWorkDir' before calling which. 
 # However, there is some problem with paths when this file 
@@ -85,7 +83,7 @@ def add_abc_args(ap):
     from argparse import RawTextHelpFormatter
     ap.formatter_class=RawTextHelpFormatter
     if ap.description is None:
-        ap.description = 'Array bounds check analysis\n\n' + \
+        ap.description = 'Parallel array bounds check analysis\n\n' + \
                'Description: the analysis instruments each memory access with an assertion that is\n' + \
                'satisfied iff the memory access is in-bounds. The analysis splits the\n' + \
                'original program into N instrumented programs and runs each one in parallel, where N\n' + \
@@ -100,8 +98,9 @@ def add_abc_args(ap):
                      help='Verbosity level for Z3', metavar='N')
     ap.add_argument ('--oll', dest='asm_out_file', default=None,
                          help='LLVM assembly output file')
-    ap.add_argument ('--bmc', '-bmc', dest='bmc', type=int, default=-1,
-                     help='Bounded-model checking using horn solver with bound N', metavar='N')
+    ## JN: disabled BMC
+    # ap.add_argument ('--bmc', '-bmc', dest='bmc', type=int, default=-1,
+    #                  help='Bounded-model checking using horn solver with bound N', metavar='N')
     ap.add_argument ('--do-not-split-proof', dest='dont_split_proof',
                      help='Do not split the proof by allocation sites',
                      default=False, action='store_true')
@@ -179,7 +178,7 @@ def report_fatal_error (msg, returncode = None):
             print "KILLED BY SIGNAL 9"
         if returnsignal <> 0:
             print "KILLED BY SIGNAL " + str(returnsignal)
-    sys.exit("ERROR found in abc.py: " + msg)
+    sys.exit("ERROR: " + msg)
 
 
 def get_answer(output):
@@ -252,9 +251,9 @@ def pp_opts (args):
                       
     return opts
     
-# extra options for `sea pp` with array bounds checks
+# extra options for `sea abc-inst` with array bounds checks
 def abc_opts(args, alloca_id = None):    
-    opts = ['--abc=global', '--abc-dsa-stats']
+    opts = ['--abc-encoding=global', '--abc-dsa-stats']
     if args.abc_no_under: opts.extend(['--abc-disable-underflow'])
     if args.abc_no_reads: opts.extend(['--abc-disable-reads'])
     if args.abc_no_writes: opts.extend(['--abc-disable-writes'])
@@ -355,10 +354,12 @@ def prove_abc_cmmd (in_file, alloca_id, args, extra = []):
         asm_filename, asm_file_ext = os.path.splitext(args.asm_out_file)
         asm_filename = asm_filename + '.alloc.' + str(alloca_id) + asm_file_ext
         pf_cmd.extend(['--oll={0}'.format(asm_filename)])
-    if args.bmc >=0 :
-        pf_cmd = [get_sea(),'bpf', '--bound={0}'.format(args.bmc)] + pf_cmd + extra + [in_file]
-    else:
-        pf_cmd = [get_sea(), 'pf'] + pf_cmd + extra + [in_file]        
+    # JN: Disabled bmc 
+    # if args.bmc >=0 :
+    #     pf_cmd = [get_sea(),'bpf', '--bound={0}'.format(args.bmc)] + pf_cmd + extra + [in_file]
+    # else:
+    #     pf_cmd = [get_sea(), 'abc'] + pf_cmd + extra + [in_file]
+    pf_cmd = [get_sea(), 'abc'] + pf_cmd + extra + [in_file] 
     return pf_cmd
 
 # if alloca_id is None then it will try to prove all checks, 
@@ -366,7 +367,7 @@ def prove_abc_cmmd (in_file, alloca_id, args, extra = []):
 def prove_abc (in_file, alloca_id, args, extra = []):
 
     if alloca_id is None:
-        print "--- Running abc checker "
+        print "--- Running parallel abc checker "
     else:
         print "--- Running abc checker for allocation site id=" + str(alloca_id)
 
@@ -395,7 +396,7 @@ def prove_abc (in_file, alloca_id, args, extra = []):
 
 def print_results (outfile, num_allocas, orig_num_checks, isParallel):
     print "========================================="
-    print "      Array bounds check analysis        "
+    print " Parallel array bounds check analysis    "
     print "========================================="
     #print "Number of allocation sites=" + str(num_allocas)
     with open(outfile, 'rb') as csvfile:
@@ -457,7 +458,8 @@ def get_alloc_sites (in_file, work_dir, args):
     opts.extend(['--abc-dsa-stats'])
     opts.extend(['--abc-dsa={0}'.format (args.dsa)])
     
-    opts = [get_sea(), 'pp'] + opts
+    #opts = [get_sea(), 'pp'] + opts
+    opts = [get_sea(), 'abc-inst'] + opts
     ext = '.pp.bc'
     out_file = remap_file_name (in_file, ext, work_dir)
     opts = opts + [in_file, '-o', out_file]
@@ -493,7 +495,7 @@ def get_alloc_sites (in_file, work_dir, args):
 #############################################################################
 #                Entry point called from commands.py                        #
 #############################################################################
-def sea_abc(args, extra): # extra is unused
+def sea_par_abc(args, extra): # extra is unused
     
     if args.verbose > 0: 
         global verbose
@@ -510,7 +512,7 @@ def sea_abc(args, extra): # extra is unused
     # sea_abc takes bitcode as input 
     if not _bc_or_ll_file(in_file):
         report_fatal_error("Input file must be .bc or .ll. " + 
-                           "Use clang-abc to take a c/c++ file as input")
+                           "Use sea c-par-abc to take a c/c++ file as input")
         
     if args.dont_split_proof or args.alloc_site >= 0:
         alloc_site = None
@@ -570,8 +572,9 @@ def sea_abc(args, extra): # extra is unused
                                '--zverbose={0}'.format(args.zverbose), 
                                '--add-extra-cutpoints={0}'.format(args.add_cuts),
                                '--csv={0}'.format(args.csv_file)]
-                if args.bmc >= 0 :
-                    sea_abc_cmd.extend(['--bmc={0}'.format(args.bmc)])
+                ## JN: disabled BMC
+                # if args.bmc >= 0 :
+                #     sea_abc_cmd.extend(['--bmc={0}'.format(args.bmc)])
                 if args.extern_funcs is not None:
                     sea_abc_cmd.extend(['--externalize-functions={0}'.format(args.extern_funcs)])
                 if args.abstract_funcs is not None:
@@ -634,7 +637,7 @@ def main (argv):
     from argparse import RawTextHelpFormatter
     ap = argparse.ArgumentParser (prog='sea_abc', 
                                   description='Script to run abc for a single allocation site',
-                                  epilog='WARNING: should be used only by GNU parallel.\nUse instead \'sea abc\'',
+                                  epilog='WARNING: should be used only by GNU parallel. Otherwise, use instead \'sea par-abc\'',
                                   formatter_class=RawTextHelpFormatter)
 
     # from sea import add_in_out_args, add_tmp_dir_args

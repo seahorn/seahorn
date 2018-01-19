@@ -31,7 +31,7 @@ static llvm::cl::opt<bool>
 static llvm::cl::opt<unsigned int> SMCAnalysisThreshold(
     "smc-check-threshold",
     llvm::cl::desc("Max no. of analyzed memory instructions"),
-    llvm::cl::init(16));
+    llvm::cl::init(100));
 
 namespace seahorn {
 
@@ -173,7 +173,7 @@ private:
   Module *m_M;
   CallGraph *m_CG;
   const DataLayout *m_DL;
-  const TargetLibraryInfo *TLI;
+  const TargetLibraryInfo *m_TLI;
   std::unique_ptr<SeaDsa> m_SDSA;
 
   Function *m_assumeFn;
@@ -205,16 +205,14 @@ private:
                   std::vector<Instruction *> &UninterestingMIs);
 };
 
-llvm::Pass* createSimpleMemoryCheckPass() {
-  return new SimpleMemoryCheck();
-}
+llvm::Pass *createSimpleMemoryCheckPass() { return new SimpleMemoryCheck(); }
 
 bool SimpleMemoryCheck::isKnownAlloc(Value *Ptr) {
   if (auto *AI = dyn_cast<AllocaInst>(Ptr))
     return !AI->isArrayAllocation();
 
   if (auto *CI = dyn_cast<CallInst>(Ptr))
-    return isAllocationFn(CI, TLI);
+    return isAllocationFn(CI, m_TLI);
 
   if (auto *GV = dyn_cast<GlobalVariable>(Ptr))
     return GV->hasInitializer();
@@ -227,7 +225,7 @@ llvm::Optional<size_t> SimpleMemoryCheck::getAllocSize(Value *Ptr) {
   if (!isKnownAlloc(Ptr))
     return None;
 
-  ObjectSizeOffsetEvaluator OSOE(*m_DL, TLI, *m_Ctx, true);
+  ObjectSizeOffsetEvaluator OSOE(*m_DL, m_TLI, *m_Ctx, true);
   SizeOffsetEvalType OffsetAlign = OSOE.compute(Ptr);
   if (!OSOE.knownSize(OffsetAlign))
     return llvm::None;
@@ -448,21 +446,25 @@ CheckContext SimpleMemoryCheck::getUnsafeCandidates(Instruction *Inst,
     return Check;
   }
 
+  // Assume that alloc functions return fresh memory.
+  if (isAllocLikeFn(Check.Barrier, m_TLI, true))
+    return Check;
+
   assert(Origin.Ptr);
 
   for (Value *AS : m_SDSA->getAllocSites(Origin.Ptr, F)) {
     bool Interesting = isInterestingAllocSite(Origin.Ptr, LastRead, AS);
 
-    if (Interesting && !Check.Collapsed) {
+    if (true && Interesting /* && Check.Collapsed */) {
       auto *BarrierPtrTy = Check.Barrier->getType();
       auto *AllocPtrTry = AS->getType();
       if (BarrierPtrTy->isPointerTy() && AllocPtrTry->isPointerTy()) {
         auto *BarrierTy = BarrierPtrTy->getPointerElementType();
         auto *AllocTy = AllocPtrTry->getPointerElementType();
 
-        // Temporary hack for CASS.
+        // Temporary hack for CASS. Disabled for now.
         if (auto *Arg = dyn_cast<Argument>(Check.Barrier))
-          if (Arg->getName() == "this")
+          if (false && Arg->getName() == "this")
             if (AllocTy->isStructTy() &&
                 (AllocTy->getStructName().endswith("::string") ||
                  AllocTy->getStructName().endswith("::vector3")))
@@ -478,13 +480,15 @@ CheckContext SimpleMemoryCheck::getUnsafeCandidates(Instruction *Inst,
 
           if (TySim.Similarity < 0.8f)
             Interesting = false;
-          else if (TySim.First != BarrierTy &&
-                   (TySim.FirstSize * 3 < TySim.SecondSize))
-            Interesting = false;
           else if (auto *Arg = dyn_cast<Argument>(Check.Barrier))
             if (Arg->getName() == "this" && TySim.MatchPosition > 1)
               Interesting = false;
         }
+
+        // Discard vtables.
+        if (auto *C = dyn_cast<Constant>(AS))
+          if (C->getName().startswith("_ZTVN"))
+            Interesting = false;
       }
     }
 
@@ -828,7 +832,7 @@ bool SimpleMemoryCheck::runOnModule(llvm::Module &M) {
 
   m_Ctx = &M.getContext();
   m_M = &M;
-  TLI = &getAnalysis<TargetLibraryInfoWrapperPass>().getTLI();
+  m_TLI = &getAnalysis<TargetLibraryInfoWrapperPass>().getTLI();
   m_DL = &M.getDataLayout();
   m_SDSA = llvm::make_unique<SeaDsa>(this);
 
@@ -878,7 +882,7 @@ bool SimpleMemoryCheck::runOnModule(llvm::Module &M) {
 
           // Skip collapsed DSA nodes for now, as they generate too much
           // noise.
-          if (Check.InterestingAllocSites.empty() || Check.Collapsed) {
+          if (Check.InterestingAllocSites.empty() /*|| Check.Collapsed*/) {
             UninterestingMIs.push_back(I);
             continue;
           }
@@ -888,8 +892,12 @@ bool SimpleMemoryCheck::runOnModule(llvm::Module &M) {
           SMC_LOG(dbgs() << (CheckCandidates.size() - 1) << ": ");
           SMC_LOG(CheckCandidates.back().dump());
 
-          if (CheckCandidates.size() >= SMCAnalysisThreshold)
+          if (CheckCandidates.size() >= SMCAnalysisThreshold) {
+            SMC_LOG(errs() << "Skipping SMC analysis after reaching the"
+                              " threshold of"
+                           << SMCAnalysisThreshold.getValue() << "\n");
             goto skip;
+          }
         }
       }
     }
@@ -942,7 +950,7 @@ skip:
   emitMemoryInstInstrumentation(Check);
   emitAllocSiteInstrumentation(Check, AllocSiteId);
 
-  SMC_LOG(M.dump());
+  // SMC_LOG(M.dump());
 
   SMC_LOG(dbgs() << " ========== SMC  ==========\n");
   return true;

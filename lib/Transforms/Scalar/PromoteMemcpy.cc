@@ -114,21 +114,59 @@ bool PromoteMemcpy::simplifyMemCpy(MemCpyInst *MI) {
   // for each field_id in fields(BufferTy):
   //   *GEP(Dst, field_id) = *GEP(Src, field_id)
   //
-  for (unsigned i = 0, e = BufferTy->getStructNumElements(); i != e; ++i) {
-    auto *Idx = Constant::getIntegerValue(I32Ty, APInt(32, i));
 
-    auto *SrcGEP = Builder.CreateInBoundsGEP(nullptr, SrcPtr, {NullInt, Idx},
-                                             "src.gep.pmcpy");
-    auto *NewLoad = Builder.CreateLoad(SrcGEP, SrcPtr->getName() + ".pmcpy");
+  using Transfer = std::pair<Value *, Value *>;
+  SmallVector<Transfer, 4> ToLower = {std::make_pair(SrcPtr, DstPtr)};
+  while (!ToLower.empty()) {
+    Value *TrSrc;
+    Value *TrDst;
+    std::tie(TrSrc, TrDst) = ToLower.pop_back_val();
+    auto *Ty = TrSrc->getType();
+    assert(Ty == TrDst->getType());
 
-    auto *DstGEP = Builder.CreateInBoundsGEP(nullptr, DstPtr, {NullInt, Idx},
-                                             "buffer.gep.pmcpy");
-    auto *NewStore = Builder.CreateStore(NewLoad, DstGEP);
+    if (!Ty->isStructTy()) {
+      auto *NewLoad = Builder.CreateLoad(TrSrc, SrcPtr->getName() + ".pmcpy");
+      auto *NewStore = Builder.CreateStore(NewLoad, TrDst);
 
-    PMCPY_LOG(SrcGEP->print(errs() << "\n"); NewLoad->print(errs() << "\n");
-              DstGEP->print(errs() << "\n"); NewStore->print(errs() << "\n");
-              errs() << "\n");
+      PMCPY_LOG(errs() << "New load-store:\n\t"; NewLoad->print(errs());
+                errs() << "\n\t"; NewStore->print(errs()); errs() << "\n");
+      continue;
+    }
+
+    SmallVector<Transfer, 8> TmpBuff;
+    for (unsigned i = 0, e = Ty->getStructNumElements(); i != e; ++i) {
+      auto *Idx = Constant::getIntegerValue(I32Ty, APInt(32, i));
+      auto *SrcGEP = Builder.CreateInBoundsGEP(nullptr, SrcPtr, {NullInt, Idx},
+                                               "src.gep.pmcpy");
+      auto *DstGEP = Builder.CreateInBoundsGEP(nullptr, DstPtr, {NullInt, Idx},
+                                               "buffer.gep.pmcpy");
+      TmpBuff.push_back({SrcGEP, DstGEP});
+    }
+
+    for (auto &P : llvm::reverse(TmpBuff))
+      ToLower.push_back(P);
+
+    PMCPY_LOG(errs() << "\tSecond level\n");
   }
+  //
+  //  for (unsigned i = 0, e = BufferTy->getStructNumElements(); i != e; ++i) {
+  //    auto *Idx = Constant::getIntegerValue(I32Ty, APInt(32, i));
+  //
+  //    auto *SrcGEP = Builder.CreateInBoundsGEP(nullptr, SrcPtr, {NullInt,
+  //    Idx},
+  //                                             "src.gep.pmcpy");
+  //    auto *NewLoad = Builder.CreateLoad(SrcGEP, SrcPtr->getName() +
+  //    ".pmcpy");
+  //
+  //    auto *DstGEP = Builder.CreateInBoundsGEP(nullptr, DstPtr, {NullInt,
+  //    Idx},
+  //                                             "buffer.gep.pmcpy");
+  //    auto *NewStore = Builder.CreateStore(NewLoad, DstGEP);
+  //
+  //    PMCPY_LOG(SrcGEP->print(errs() << "\n"); NewLoad->print(errs() << "\n");
+  //              DstGEP->print(errs() << "\n"); NewStore->print(errs() <<
+  //              "\n"); errs() << "\n");
+  //  }
 
   return true;
 }

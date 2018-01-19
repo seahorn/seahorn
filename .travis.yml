@@ -56,8 +56,7 @@ script:
   - /usr/bin/cmake --build . --target install
   - /usr/bin/cmake --build . --target test-simple
   - /usr/bin/cmake --build . --target test-solve
-  # AG: disabled until sea-py is fixed to schedule both pp and abc instrumentation
-  # - /usr/bin/cmake --build . --target test-abc   
+  - /usr/bin/cmake --build . --target test-abc   
   - /usr/bin/cmake --build . --target test-dsa
   #- /usr/bin/cmake --build . --target test-inc
   # XXX: after porting to llvm 3.8 some of these tests fail  

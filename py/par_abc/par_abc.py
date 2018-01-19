@@ -565,7 +565,7 @@ def sea_par_abc(args, extra): # extra is unused
             for alloca_id in allocas:
                 njobs = njobs + 1
                 acc_njobs = acc_njobs + 1
-                sea_abc_cmd = ['sea_abc', '--alloc-site={0}'.format(alloca_id), in_file, 
+                sea_abc_cmd = ['sea_par_abc', '--alloc-site={0}'.format(alloca_id), in_file, 
                                '--cpu={0}'.format(args.cpu), '--mem={0}'.format(args.mem),
                                '-O{0}'.format(args.opt_level), 
                                '--verbose={0}'.format(args.verbose), 
@@ -635,7 +635,7 @@ def _is_seahorn_opt (x):
 def main (argv):
     import argparse
     from argparse import RawTextHelpFormatter
-    ap = argparse.ArgumentParser (prog='sea_abc', 
+    ap = argparse.ArgumentParser (prog='sea_par_abc', 
                                   description='Script to run abc for a single allocation site',
                                   epilog='WARNING: should be used only by GNU parallel. Otherwise, use instead \'sea par-abc\'',
                                   formatter_class=RawTextHelpFormatter)

@@ -1264,14 +1264,14 @@ class ParAbc(sea.LimitedCmd):
         ap = super (ParAbc, self).mk_arg_parser (ap)
         add_in_out_args(ap)
         add_tmp_dir_args(ap)
-        import sea.abc as abc
-        abc.add_abc_args(ap)
+        import par_abc.par_abc as parabc
+        parabc.add_abc_args(ap)
         return ap
 
     def run(self, args, extra):
         try:
-            import sea.abc as abc
-            return abc.sea_par_abc(args, extra)
+            import par_abc.par_abc as parabc            
+            return parabc.sea_par_abc(args, extra)
         except Exception as e:
             raise IOError(str(e))
 

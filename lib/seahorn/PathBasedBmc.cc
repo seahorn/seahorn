@@ -385,7 +385,81 @@ namespace seahorn
     
   };
   
-  #ifdef HAVE_CRAB_LLVM 
+  #ifdef HAVE_CRAB_LLVM
+  /** Begin convert from crab invariants to SeaHorn Expr **/
+
+  // Map from basic blocks to linear constraints
+  // The map itself is hidden
+  struct crab_map {
+    virtual ~crab_map() {}
+    virtual crab_llvm::lin_cst_sys_t operator()(const BasicBlock* b) = 0;
+  };
+
+  class crab_global_map: public crab_map {
+  public:
+    crab_global_map(crab_llvm::CrabLlvmPass& crab_global)
+      : m_crab_global(crab_global) {}
+    virtual crab_llvm::lin_cst_sys_t operator()(const BasicBlock* b) override {
+      return m_crab_global.get_pre(b)->to_linear_constraints();      
+    }
+  private:
+    crab_llvm::CrabLlvmPass& m_crab_global;    
+  };
+
+  class crab_path_map: public crab_map {
+  public:
+    crab_path_map(typename crab_llvm::IntraCrabLlvm::invariant_map_t &inv_map)
+      : m_map(inv_map) {}
+    virtual crab_llvm::lin_cst_sys_t operator()(const BasicBlock* b) override {
+      auto it = m_map.find(b);
+      if (it != m_map.end()) {
+	return it->second->to_linear_constraints();
+      } else {
+	// if the block is not found then the value is assumed to be
+	// bottom.
+	return crab_llvm::lin_cst_t::get_false();
+      }
+    }
+  private:
+    typename crab_llvm::IntraCrabLlvm::invariant_map_t &m_map;
+  };
+
+  class crabToSea {
+  public:
+    crabToSea(const LiveSymbols& ls, crab_llvm::HeapAbstraction& heap_abs, 
+	      const Function& fn, ExprFactory& efac):
+      m_ls(ls), m_heap_abs(heap_abs), m_fn(fn), m_efac(efac) {}
+
+    template<typename BBIterator, typename SeaMap>
+    void convert(BBIterator beg, BBIterator end, crab_map& in, SeaMap& out) {
+      for (const BasicBlock* b : boost::make_iterator_range(beg,end)) {
+	const ExprVector &live = m_ls.live(b);
+	LinConsToExpr conv(m_heap_abs, m_fn, live);
+	crab_llvm::lin_cst_sys_t csts = in(b);
+	ExprVector f;	
+	for(auto cst: csts) {
+	  Expr e = conv.toExpr(cst, m_efac);
+	  if (isOpX<FALSE>(e)) {
+	    f.clear();
+	    f.push_back(e);
+	  } else if (isOpX<TRUE>(e)) {
+	    continue;
+	  } else {
+	    f.push_back(e);
+	  }
+	}
+	out.insert(std::make_pair(b, f));
+      }
+    }
+      
+  private:
+    const LiveSymbols& m_ls;
+    crab_llvm::HeapAbstraction& m_heap_abs;
+    const Function& m_fn;
+    ExprFactory& m_efac;
+  };
+  /** End convert from crab invariants to SeaHorn Expr **/
+  
   /* 
      It builds a sliced Crab CFG wrt trace and performs abstract
      interpretation on it. This sliced CFG should correspond to a path
@@ -424,51 +498,27 @@ namespace seahorn
     // -- run crab on the path:
     //    If bottom is inferred then relevant_stmts is a minimal subset of
     //    statements along the path that still implies bottom.
-    typename IntraCrabLlvm::invariant_map_t postmap, premap;
     std::vector<crab::cfg::statement_wrapper> relevant_stmts;
-    // XXX: disabled temporary
+    typename IntraCrabLlvm::invariant_map_t postmap, premap;    
     const bool populate_constraints_map = false;
     bool res;
     if (populate_constraints_map) {
-      res = m_crab_path->path_analyze(params, trace_blocks, relevant_stmts, postmap, premap);
+      // postmap contains the forward invariants
+      // premap contains necessary preconditions
+      res = m_crab_path->path_analyze(params, trace_blocks, relevant_stmts,
+				      postmap, premap/*unused*/);
+      // translate postmap (crab linear constraints) to path_constraints (Expr)
+      crabToSea c2s(*m_ls, *(m_crab_global->get_heap_abstraction()), fun, sem().efac());
+      crab_path_map cm(postmap);
+      c2s.convert(trace_blocks.begin(), trace_blocks.end(), cm, path_constraints);
     } else {
-      // we don't compute forward/backward constraints along the path
       res = m_crab_path->path_analyze(params, trace_blocks, relevant_stmts);
-    }
-
-    if (populate_constraints_map) {
-      // -- Convert crab linear constraints to Expr
-      for (const BasicBlock* b : trace_blocks) {
-	const ExprVector &live = m_ls->live(b);
-	LinConsToExpr conv(*(m_crab_global->get_heap_abstraction()), fun, live);
-	ExprVector f;	
-	auto it = postmap.find(b);
-	if (it != postmap.end()) {
-	  lin_cst_sys_t csts = it->second->to_linear_constraints();
-	  for(auto cst: csts) {
-	    Expr e = conv.toExpr(cst, sem().efac());
-	    if (isOpX<FALSE>(e)) {
-	      f.clear();
-	      f.push_back(e);
-	    } else if (isOpX<TRUE>(e)) {
-	      continue;
-	    } else {
-	      f.push_back(e);
-	    }
-	  }
-	} else {
-	  // if the map key is not found then the value is assumed to be
-	  // bottom.
-	  f.push_back(mk<FALSE>(sem().efac()));
-	}
-	path_constraints.insert(std::make_pair(b, f));
-      }
     }
 
     if (!res) {
 
       LOG("bmc", errs () << "Crab proved unsat!\n";);      
-      ufo::Stats::resume ("BMC path-based: boolean blocking clause");
+      //ufo::Stats::resume ("BMC path-based: blocking clause");
       
       LOG("bmc-ai",
 	  errs () << "\nRelevant Crab statements:\n";
@@ -482,22 +532,8 @@ namespace seahorn
 	    crab::outs () << "\t" << *(s.m_s) << "\n";
 	  });
 
-      // TODO: right now we don't use necessary
-      // preconditions. However, if we would use an abstraction that
-      // can express intervals and/or equalities, we could use these
-      // preconditions as blocking clauses.
-      
-      LOG("bmc-ai",
-	  if (populate_constraints_map) {
-	    errs() << "\nNecessary preconditions:\n";
-	    for(auto &kv: premap) {
-	      crab::outs() << kv.first->getName() << ": " << kv.second << "\n";
-	    }
-	  });
-      
       // -- Refine the Boolean abstraction from a minimal infeasible
       //    sequence of crab statements.
-      
       /* 
 	 1) A binary operation s at bb is translated to (bb => s)
          2) Most assignments are coming from PHI nodes:
@@ -590,7 +626,7 @@ namespace seahorn
 	crab::outs() << "TODO: inference of active bool literals for " << *s.m_s << "\n";
 	// By returning true we pretend the query was sat so we run
 	// the SMT solver next.
-	ufo::Stats::stop ("BMC path-based: boolean blocking clause");	
+	//ufo::Stats::stop ("BMC path-based: blocking clause");	
 	return true;	  
       }
       
@@ -633,7 +669,6 @@ namespace seahorn
 	  return true;
 	}
       }
-      ufo::Stats::stop ("BMC path-based: boolean blocking clause");	      
     }    
     return res;
   }
@@ -692,7 +727,7 @@ namespace seahorn
     boost::tribool res = m_aux_smt_solver.solve();
 
     if (!res) {
-      ufo::Stats::resume ("BMC path-based: SMT unsat core");
+      //ufo::Stats::resume ("BMC path-based: SMT unsat core");
       
       // --- Compute minimal unsat core of the path formula
       muc_method_t muc_method = MUC_ASSUMPTIONS;
@@ -718,9 +753,9 @@ namespace seahorn
       }
       default: assert(false);
       }
-      ufo::Stats::stop ("BMC path-based: SMT unsat core");
+      //ufo::Stats::stop ("BMC path-based: SMT unsat core");
 
-      ufo::Stats::resume ("BMC path-based: boolean blocking clause");            
+      //ufo::Stats::resume ("BMC path-based: blocking clause");            
       // -- Refine the Boolean abstraction using the unsat core
       ExprSet active_bool_set;
       for(Expr e: unsat_core) {
@@ -733,7 +768,7 @@ namespace seahorn
 	}
       }
       m_active_bool_lits.assign(active_bool_set.begin(), active_bool_set.end());
-      ufo::Stats::stop ("BMC path-based: boolean blocking clause");      
+      //ufo::Stats::stop ("BMC path-based: blocking clause");      
 
     } else if (res) {
       m_model = m_aux_smt_solver.getModel();
@@ -765,63 +800,10 @@ namespace seahorn
   void PathBasedBmcEngine::encode() {
     // TODO: for a path-based bmc engine is not clear what to do here.
   }
-  
+
   boost::tribool PathBasedBmcEngine::solve() {
     LOG("bmc", errs () << "Starting path-based BMC \n";);
     
-    invariants_map_t invariants;
-    
-    #ifdef HAVE_CRAB_LLVM
-    // Convert crab invariants to Expr
-
-    // -- Compute live symbols so that invariant variables exclude
-    //    dead variables.
-    m_ls = new LiveSymbols(*m_fn, sem().efac(), sem());
-    m_ls->run();
-    // -- Translate invariants
-    for(const BasicBlock& b: *m_fn) {
-      const ExprVector& live = m_ls->live(&b);
-      LinConsToExpr conv(*(m_crab_global->get_heap_abstraction()), *m_fn, live);
-      crab_llvm::lin_cst_sys_t csts = m_crab_global->get_pre(&b)->to_linear_constraints();
-      ExprVector inv;	
-      for(auto cst: csts) {
-    	Expr e = conv.toExpr(cst, sem().efac());
-    	if (isOpX<FALSE>(e)) {
-    	  inv.clear();
-    	  inv.push_back(e);
-    	  break;
-    	} else if (isOpX<TRUE>(e)) {
-    	  continue;
-    	} else {
-    	  inv.push_back(e);
-    	}
-      }
-      invariants.insert(std::make_pair(&b, inv));
-    }
-    
-    LOG("bmc-ai",
-	for(auto &kv: invariants) {
-	  errs () << "Invariants at " << kv.first->getName() << ": ";
-	  if (kv.second.empty()) {
-	    errs () << "true\n";
-	  } else {
-	    errs () << "\n";
-	    for(auto e: kv.second) {
-	      errs () << "\t" << *e << "\n";
-	    }
-	  }
-	});
-    
-    // Create another instance of crab to analyze single paths
-    // TODO: make these options user options
-    const crab::cfg::tracked_precision prec_level = crab::cfg::ARR;
-    auto heap_abstraction = m_crab_global->get_heap_abstraction();
-    // TODO: modify IntraCrabLlvm api so that it takes the cfg already
-    // generated by m_crab_global    
-    m_crab_path = new crab_llvm::IntraCrabLlvm(*(const_cast<Function*>(this->m_fn)), m_tli,
-					       prec_level, heap_abstraction);
-    #endif 
-
     // -- Precise encoding
     ufo::Stats::resume ("BMC path-based: precise encoding");        
     BmcEngine::encode();
@@ -849,6 +831,55 @@ namespace seahorn
     ufo::Stats::stop ("BMC path-based: initial boolean abstraction");                    
     LOG("bmc", errs()<< "End boolean abstraction:\n";);
 
+
+    // -- Numerical abstraction
+    invariants_map_t invariants;
+    #ifdef HAVE_CRAB_LLVM   
+    // Convert crab invariants to Expr
+
+    // -- Compute live symbols so that invariant variables exclude
+    //    dead variables.
+    m_ls = new LiveSymbols(*m_fn, sem().efac(), sem());
+    m_ls->run();
+    
+    // -- Translate invariants
+    crabToSea c2s(*m_ls, *(m_crab_global->get_heap_abstraction()), *m_fn, sem().efac());
+    crab_global_map cm(*m_crab_global);
+    // convert references to pointers (FIXME: use make_transform_iterator)
+    std::vector<const BasicBlock*> bb_ptr_vector;
+    bb_ptr_vector.reserve(m_fn->size());
+    for(const BasicBlock&b: *m_fn)
+    { bb_ptr_vector.push_back(&b); }
+    c2s.convert(bb_ptr_vector.begin(), bb_ptr_vector.end(), cm, invariants);
+      
+    LOG("bmc-ai",
+	for(auto &kv: invariants) {
+	  errs () << "Invariants at " << kv.first->getName() << ": ";
+	  if (kv.second.empty()) {
+	    errs () << "true\n";
+	  } else {
+	    errs () << "\n";
+	    for(auto e: kv.second) {
+	      errs () << "\t" << *e << "\n";
+	    }
+	  }
+	});
+    #endif
+
+    
+    #ifdef HAVE_CRAB_LLVM
+    /** 
+	Create another instance of crab to analyze single paths
+	TODO: make these options user options
+    **/
+    const crab::cfg::tracked_precision prec_level = crab::cfg::ARR;
+    auto heap_abstraction = m_crab_global->get_heap_abstraction();
+    // TODO: modify IntraCrabLlvm api so that it takes the cfg already
+    // generated by m_crab_global    
+    m_crab_path = new crab_llvm::IntraCrabLlvm(*(const_cast<Function*>(this->m_fn)), m_tli,
+					       prec_level, heap_abstraction);
+    #endif 
+
     LOG("bmc-progress", errs() << "Processing symbolic path ");
     /**
      * Main loop
@@ -861,9 +892,11 @@ namespace seahorn
     while ((bool) (m_result = m_smt_solver.solve())) {
       ++iters;
       ufo::Stats::count("BMC total number of symbolic paths");
-
-      LOG("bmc-progress", errs() << iters << " ");          
+      
+      LOG("bmc-progress", errs() << iters << " ");
+      ufo::Stats::resume ("BMC path-based: get model");      
       ufo::ZModel<ufo::EZ3> model = m_smt_solver.getModel ();
+      ufo::Stats::stop ("BMC path-based: get model");            
       
       LOG("bmc", errs () << "Model " << iters << " found: \n" << model << "\n";);
 
@@ -871,9 +904,9 @@ namespace seahorn
       #ifdef HAVE_CRAB_LLVM
       if (UseCrab) {
 	BmcTrace trace(*this, model);
-	ufo::Stats::resume ("BMC path-based: solving path with AI (included muc)");	
+	ufo::Stats::resume ("BMC path-based: solving path + learning clauses with AI");	
 	bool res = path_encoding_and_solve_with_ai(trace, path_constraints);
-	ufo::Stats::stop ("BMC path-based: solving path with AI (included muc)"); 
+	ufo::Stats::stop ("BMC path-based: solving path + learning clauses with AI"); 
 	if (!res) {
 	  bool ok = add_blocking_clauses();
 	  if (ok) {
@@ -887,9 +920,9 @@ namespace seahorn
 
       }
       #endif
-      ufo::Stats::resume ("BMC path-based: solving path with SMT (included muc)"); 	      
+      ufo::Stats::resume ("BMC path-based: solving path + learning clauses with SMT");
       boost::tribool res= path_encoding_and_solve_with_smt(model, invariants, path_constraints);
-      ufo::Stats::stop ("BMC path-based: solving path with SMT (included muc)"); 	      
+      ufo::Stats::stop ("BMC path-based: solving path + learning clauses with SMT");
       if (res == boost::indeterminate || res) {
         #ifdef HAVE_CRAB_LLVM
 	// Temporary: for profiling crab
@@ -919,20 +952,23 @@ namespace seahorn
   }
 
   bool PathBasedBmcEngine::add_blocking_clauses() {
-    // For now, we only refine the Boolean abstraction.
+    ufo::Stats::resume ("BMC path-based: adding blocking clauses");
     
+    // -- Refine the Boolean abstraction
     Expr bc = mk<FALSE>(sem().efac());
-    
     if (m_active_bool_lits.empty()) {
       errs () << "No found active boolean literals. Trivially unsat ... \n";
     } else {
       bc = op::boolop::lneg(op::boolop::land(m_active_bool_lits));
     }
-    
-    LOG("bmc", errs() << "Added blocking clause: " << *bc << "\n";);
+    LOG("bmc", errs() << "Added blocking clause to refine Boolean abstraction: "
+	<< *bc << "\n";);
     m_smt_solver.assertExpr(bc);
     auto res = m_blocking_clauses.insert(bc);
-    return res.second;
+    bool ok = res.second;
+
+    ufo::Stats::stop ("BMC path-based: adding blocking clauses");      
+    return ok;
   }
   
   BmcTrace PathBasedBmcEngine::getTrace() {

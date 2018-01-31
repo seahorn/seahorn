@@ -551,7 +551,12 @@ namespace seahorn
       std::set<Expr, lessExpr> active_bool_lits;
       for (auto it = relevant_stmts.begin(); it != relevant_stmts.end(); ++it) {
        	crab::cfg::statement_wrapper s = *it;
-	if (s.m_s->is_bin_op() || s.m_s->is_int_cast() || s.m_s->is_select() ||
+	if (s.m_s->is_havoc()) {
+	  // The only reason a havoc statement is relevant is if we have something like
+	  // x:=*; assume(cond(x)); assert(cond(x))
+	  // Therefore, we can skip it.
+	  continue;
+	} else if (s.m_s->is_bin_op() || s.m_s->is_int_cast() || s.m_s->is_select() ||
 	    s.m_s->is_bool_bin_op() || s.m_s->is_bool_assign_cst() ||
 	    s.m_s->is_arr_write() || s.m_s->is_arr_read() ||
 	    // array assumptions are not coming from branches

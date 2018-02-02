@@ -96,6 +96,14 @@ namespace
         ++UI;
         User *FU = U.getUser ();
         if (isa<BlockAddress> (FU)) continue;
+	if (InvokeInst *II = dyn_cast<InvokeInst> (FU)) {
+	  // Invoke instructions are terminators so if II is the
+	  // terminator of its block then we don't touch it, otherwise
+	  // the CFG won't be well-formed.
+	  if (II->getParent()->getTerminator() == II) {
+	    continue;
+	  }
+	}
         if (isa<CallInst> (FU) || isa<InvokeInst> (FU))
         {
           CallSite CS (dyn_cast<Instruction> (FU));

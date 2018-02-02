@@ -454,7 +454,7 @@ def get_alloc_sites (in_file, work_dir, args):
     
     alloca_file = work_dir + '/alloc.csv'
 
-    opts.extend(['--abc-dsa-to-file=' + alloca_file])
+    opts.extend(['--abc-dsa-to-csv=' + alloca_file])
     opts.extend(['--abc-dsa-stats'])
     opts.extend(['--abc-dsa={0}'.format (args.dsa)])
     

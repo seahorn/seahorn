@@ -496,8 +496,11 @@ class AbcInst(sea.LimitedCmd):
         ap.add_argument ('--abc-dsa-stats', dest='abc_dsa_stats',
                          help='Print some DSA stats before abc instrumentation',
                          default=False, action='store_true')
-        ap.add_argument ('--abc-dsa-to-file', dest='abc_dsa_to_file',
-                         help='Dump some Dsa info to a file',
+        ap.add_argument ('--abc-dsa-to-csv', dest='abc_dsa_to_csv',
+                         help='Print all pairs of allocation sites and dsa nodes to CSV file',
+                         metavar='DIR', default=None)
+        ap.add_argument ('--abc-allocas-to-file', dest='abc_allocas_to_file',
+                         help='Print all allocation sites to file',
                          metavar='DIR', default=None)
         ap.add_argument ('--abc-alloc-site', dest='abc_site',
                          help='Instrument only pointers  that belong to this allocation site N',
@@ -534,13 +537,15 @@ class AbcInst(sea.LimitedCmd):
         if args.dsa == 'llvm':
             if args.abc_dsa_stats:
                 argv.append ('--llvm-dsa-stats')
-            if args.abc_dsa_to_file is not None:
-                argv.append ('--dsa-info-to-file={n}'.format(n=args.abc_dsa_to_file))
+            if args.abc_dsa_to_csv is not None:
+                argv.append ('--dsa-info-to-file={n}'.format(n=args.abc_dsa_to_csv))
         else:
             if args.abc_dsa_stats:
                 argv.append ('--sea-dsa-stats')
-            if args.abc_dsa_to_file is not None:
-                argv.append ('--sea-dsa-info-to-file={n}'.format(n=args.abc_dsa_to_file))
+            if args.abc_dsa_to_csv is not None:
+                argv.append ('--sea-dsa-to-csv={n}'.format(n=args.abc_dsa_to_csv))
+            if args.abc_allocas_to_file is not None:
+                argv.append ('--sea-dsa-allocas-to-file={n}'.format(n=args.abc_allocas_to_file))
             ## we tell abc to use sea-dsa
             argv.append ('--abc-sea-dsa')
             ## we select the sea-dsa variant

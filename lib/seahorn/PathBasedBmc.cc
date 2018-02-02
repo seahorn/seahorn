@@ -624,6 +624,12 @@ namespace seahorn
 	    active_bool_lits.insert(src);	    
 	    active_bool_lits.insert(edge);	    
 	    continue;
+	  } else {
+	    // XXX assignment is not originated from a PHI node
+	    const BasicBlock* BB = s.m_parent.get_basic_block(); 
+	    assert(BB);
+	    active_bool_lits.insert(sem().symb(*BB));
+	    continue;
 	  }
 	}
 

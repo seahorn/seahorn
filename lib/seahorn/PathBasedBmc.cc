@@ -875,6 +875,15 @@ namespace seahorn
 	    }
 	  }
 	});
+
+    // -- Load the numerical abstraction (invariants) into the solver
+    for(auto &kv: invariants) {
+      const BasicBlock* bb = kv.first;
+      ExprVector inv = kv.second;
+      if (inv.empty()) continue;
+      Expr bbV = sem().symb(*bb);
+      m_smt_solver.assertExpr(mk<IMPL>(bbV, op::boolop::land(inv)));
+    }
     #endif
 
     

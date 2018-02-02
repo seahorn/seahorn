@@ -149,7 +149,7 @@ static llvm::cl::opt<bool> OnlyStripExtern(
 
 static llvm::cl::opt<bool>
     LowerInvoke("lower-invoke", llvm::cl::desc("Lower all invoke instructions"),
-                llvm::cl::init(false));
+                llvm::cl::init(true));
 
 static llvm::cl::opt<bool> DevirtualizeFuncs(
     "devirt-functions",

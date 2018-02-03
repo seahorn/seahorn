@@ -38,6 +38,19 @@ namespace seahorn
 }
 
 
+static llvm::raw_ostream& get_os(bool show_time = false) {
+  llvm::raw_ostream* result = &llvm::errs();
+  if (show_time) {
+    time_t now = time(0);
+    struct tm tstruct;
+    char buf[80];
+    tstruct = *localtime(&now);
+    strftime(buf, sizeof(buf), "[%Y-%m-%d.%X] ", &tstruct);
+    *result << buf;
+  }
+  return *result;
+}
+
 namespace seahorn
 {
 
@@ -517,7 +530,16 @@ namespace seahorn
 
     if (!res) {
 
-      LOG("bmc", errs () << "Crab proved unsat!\n";);      
+      LOG("bmc", errs () << "Crab proved unsat!\n";);
+      LOG("bmc-progress",
+	  get_os() << "Crab proved unsat.";
+	  // count the number of llvm instructions in the path
+	  unsigned num_insts = 0;
+	  for(auto BB: trace_blocks) {
+	    num_insts += BB->size();
+	  }
+	  get_os() << " Size of unsat core " << relevant_stmts.size()
+	           << " (num of instructions " << num_insts << ").\n";);
       //ufo::Stats::resume ("BMC path-based: blocking clause");
       
       LOG("bmc-ai",
@@ -556,18 +578,15 @@ namespace seahorn
 	  // x:=*; assume(cond(x)); assert(cond(x))
 	  // Therefore, we can skip it.
 	  continue;
-	} else if (s.m_s->is_bin_op() || s.m_s->is_int_cast() || s.m_s->is_select() ||
-	    s.m_s->is_bool_bin_op() || s.m_s->is_bool_assign_cst() ||
-	    s.m_s->is_arr_write() || s.m_s->is_arr_read() ||
-	    // array assumptions are not coming from branches
-	    s.m_s->is_arr_assume() ||
-	    // array assignments are not coming from PHI nodes
-	    s.m_s->is_arr_assign()) {
-	  const BasicBlock* BB = s.m_parent.get_basic_block(); 
-	  assert(BB);
-	  active_bool_lits.insert(sem().symb(*BB));
-	  continue;
-	} else if (s.m_s->is_assume() || s.m_s->is_bool_assume()) {
+	} else if (// enumerate all statements here so that we can know if we miss one
+		   s.m_s->is_bin_op() || s.m_s->is_int_cast() || s.m_s->is_select() ||
+		   s.m_s->is_bool_bin_op() || s.m_s->is_bool_assign_cst() ||
+		   s.m_s->is_arr_write() || s.m_s->is_arr_read() ||
+		   s.m_s->is_assume() || s.m_s->is_bool_assume() ||
+		   // array assumptions are not coming from branches
+		   s.m_s->is_arr_assume() ||
+		   // array assignments are not coming from PHI nodes
+		   s.m_s->is_arr_assign()) {
 	  if (s.m_parent.is_edge()) {
 	    auto p = s.m_parent.get_edge();
 	    Expr src = sem().symb(*p.first);
@@ -582,7 +601,6 @@ namespace seahorn
 	    active_bool_lits.insert(src);	    
 	    active_bool_lits.insert(edge);
 	  } else {
-	    assert(s.m_s->is_bool_assume());
 	    const BasicBlock* BB = s.m_parent.get_basic_block(); 
 	    active_bool_lits.insert(sem().symb(*BB));
 	  }
@@ -603,14 +621,13 @@ namespace seahorn
 	      Phi = dyn_cast<PHINode>(*lhs);
 	    }
 	  }
+	  
 	  if (Phi) {
-	    
 	    const BasicBlock* src_BB = s.m_parent.get_basic_block();
 	    if (!src_BB) {
 	      src_BB = s.m_parent.get_edge().first;
+	      assert(src_BB);
 	    }
-	    
-	    assert(src_BB);
 	    const BasicBlock* dst_BB = Phi->getParent();
 	    Expr src = sem().symb(*src_BB);
 	    Expr dst = sem().symb(*dst_BB);
@@ -626,6 +643,7 @@ namespace seahorn
 	    continue;
 	  } else {
 	    // XXX assignment is not originated from a PHI node
+	    assert(!s.m_parent.is_edge());	    
 	    const BasicBlock* BB = s.m_parent.get_basic_block(); 
 	    assert(BB);
 	    active_bool_lits.insert(sem().symb(*BB));
@@ -729,17 +747,15 @@ namespace seahorn
      * TODO: make decisions `a la` mcsat to solve faster. We will use
      * here invariants to make only those decisions which are
      * consistent with the invariants.
-     *****************************************************************/
+     *****************************************************************/    
     m_aux_smt_solver.reset();
     for (Expr e: path_formula) {
       m_aux_smt_solver.assertExpr(e);
     }
     // TODO: add here path_constraints to help
-    boost::tribool res = m_aux_smt_solver.solve();
-
+    boost::tribool res = m_aux_smt_solver.solve();    
     if (!res) {
-      //ufo::Stats::resume ("BMC path-based: SMT unsat core");
-      
+      //ufo::Stats::resume ("BMC path-based: SMT unsat core");          
       // --- Compute minimal unsat core of the path formula
       muc_method_t muc_method = MUC_ASSUMPTIONS;
       ExprVector unsat_core;      
@@ -766,6 +782,10 @@ namespace seahorn
       }
       //ufo::Stats::stop ("BMC path-based: SMT unsat core");
 
+      LOG("bmc-progress",
+	  get_os() << "SMT proved unsat. Unsat core size= "
+	           << unsat_core.size() << "\n";);      
+      
       //ufo::Stats::resume ("BMC path-based: blocking clause");            
       // -- Refine the Boolean abstraction using the unsat core
       ExprSet active_bool_set;
@@ -779,8 +799,7 @@ namespace seahorn
 	}
       }
       m_active_bool_lits.assign(active_bool_set.begin(), active_bool_set.end());
-      //ufo::Stats::stop ("BMC path-based: blocking clause");      
-
+      //ufo::Stats::stop ("BMC path-based: blocking clause");           
     } else if (res) {
       m_model = m_aux_smt_solver.getModel();
     }    
@@ -900,7 +919,8 @@ namespace seahorn
 					       prec_level, heap_abstraction);
     #endif 
 
-    LOG("bmc-progress", errs() << "Processing symbolic path ");
+    LOG("bmc-progress",
+	get_os() << "Processing symbolic paths\n");
     /**
      * Main loop
      *
@@ -913,7 +933,7 @@ namespace seahorn
       ++iters;
       ufo::Stats::count("BMC total number of symbolic paths");
       
-      LOG("bmc-progress", errs() << iters << " ");
+      LOG("bmc-progress", get_os(true) << iters << ": ");
       ufo::Stats::resume ("BMC path-based: get model");      
       ufo::ZModel<ufo::EZ3> model = m_smt_solver.getModel ();
       ufo::Stats::stop ("BMC path-based: get model");            

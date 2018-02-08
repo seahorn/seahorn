@@ -58,3 +58,9 @@ add_lit_testsuite(test-dsa "Regression test for DSA"
   test_dir=${CMAKE_CURRENT_BINARY_DIR}
   DEPENDS seahorn
   )
+
+install (DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/simple DESTINATION test)
+install (DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/solve DESTINATION test)
+install (DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/abc DESTINATION test)
+install (DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/dsa DESTINATION test)
+install (FILES ${CMAKE_CURRENT_SOURCE_DIR}/lit.cfg DESTINATION test)

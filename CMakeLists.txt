@@ -328,7 +328,7 @@ include_directories(BEFORE ${CMAKE_CURRENT_BINARY_DIR}/include)
 
 if (IS_DIRECTORY ${CMAKE_SOURCE_DIR}/llvm-dsa AND
     EXISTS ${CMAKE_SOURCE_DIR}/llvm-dsa/lib/DSA/Steensgaard.cpp)
-  include_directories (AFTER llvm-dsa/include)
+  include_directories (BEFORE llvm-dsa/include)
   add_subdirectory (llvm-dsa/lib/AssistDS)
   add_subdirectory (llvm-dsa/lib/DSA)
   set (DSA_LIBS DSA AssistDS)
@@ -360,7 +360,7 @@ endif()
 
 if (IS_DIRECTORY ${CMAKE_SOURCE_DIR}/sea-dsa AND
     EXISTS ${CMAKE_SOURCE_DIR}/sea-dsa/src/DsaAnalysis.cc)
-  include_directories (AFTER sea-dsa/include)
+  include_directories (BEFORE sea-dsa/include)
   add_subdirectory (${CMAKE_SOURCE_DIR}/sea-dsa)
   set (SEA_DSA_LIBS SeaDsaAnalysis)
 else()

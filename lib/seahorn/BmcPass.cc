@@ -96,9 +96,17 @@ namespace
           break;
         }
 
-      if (dst == nullptr) return false;
-      if (!cpg.getEdge (src, *dst)) return false;
-
+      if (dst == nullptr) {
+	//cpg.print(llvm::errs (), F.getParent());
+	errs () << "WARNING: BmcPass: function '" << F.getName() << "' never returns\n";
+	return false;
+      }
+      
+      if (!cpg.getEdge (src, *dst)) {
+	//cpg.print(llvm::errs (), F.getParent());	
+	errs () << "WARNING: BmcPass: function '" << F.getName() << "' never returns\n";	
+	return false;
+      }
       
       ExprFactory efac;
       BvSmallSymExec sem (efac, *this, F.getParent()->getDataLayout(), MEM);

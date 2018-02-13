@@ -866,42 +866,43 @@ namespace seahorn
     invariants_map_t invariants;
     #ifdef HAVE_CRAB_LLVM   
     // Convert crab invariants to Expr
-
-    // -- Compute live symbols so that invariant variables exclude
-    //    dead variables.
-    m_ls = new LiveSymbols(*m_fn, sem().efac(), sem());
-    m_ls->run();
-    
-    // -- Translate invariants
-    crabToSea c2s(*m_ls, *(m_crab_global->get_heap_abstraction()), *m_fn, sem().efac());
-    crab_global_map cm(*m_crab_global);
-    // convert references to pointers (FIXME: use make_transform_iterator)
-    std::vector<const BasicBlock*> bb_ptr_vector;
-    bb_ptr_vector.reserve(m_fn->size());
-    for(const BasicBlock&b: *m_fn)
-    { bb_ptr_vector.push_back(&b); }
-    c2s.convert(bb_ptr_vector.begin(), bb_ptr_vector.end(), cm, invariants);
+    if (UseCrab) {
+      // -- Compute live symbols so that invariant variables exclude
+      //    dead variables.
+      m_ls = new LiveSymbols(*m_fn, sem().efac(), sem());
+      m_ls->run();
       
-    LOG("bmc-ai",
-	for(auto &kv: invariants) {
-	  errs () << "Invariants at " << kv.first->getName() << ": ";
-	  if (kv.second.empty()) {
-	    errs () << "true\n";
-	  } else {
-	    errs () << "\n";
-	    for(auto e: kv.second) {
-	      errs () << "\t" << *e << "\n";
+      // -- Translate invariants
+      crabToSea c2s(*m_ls, *(m_crab_global->get_heap_abstraction()), *m_fn, sem().efac());
+      crab_global_map cm(*m_crab_global);
+      // convert references to pointers (FIXME: use make_transform_iterator)
+      std::vector<const BasicBlock*> bb_ptr_vector;
+      bb_ptr_vector.reserve(m_fn->size());
+      for(const BasicBlock&b: *m_fn)
+	{ bb_ptr_vector.push_back(&b); }
+      c2s.convert(bb_ptr_vector.begin(), bb_ptr_vector.end(), cm, invariants);
+      
+      LOG("bmc-ai",
+	  for(auto &kv: invariants) {
+	    errs () << "Invariants at " << kv.first->getName() << ": ";
+	    if (kv.second.empty()) {
+	      errs () << "true\n";
+	    } else {
+	      errs () << "\n";
+	      for(auto e: kv.second) {
+		errs () << "\t" << *e << "\n";
+	      }
 	    }
-	  }
-	});
-
-    // -- Load the numerical abstraction (invariants) into the solver
-    for(auto &kv: invariants) {
-      const BasicBlock* bb = kv.first;
-      ExprVector inv = kv.second;
-      if (inv.empty()) continue;
-      Expr bbV = sem().symb(*bb);
-      m_smt_solver.assertExpr(mk<IMPL>(bbV, op::boolop::land(inv)));
+	  });
+      
+      // -- Load the numerical abstraction (invariants) into the solver
+      for(auto &kv: invariants) {
+	const BasicBlock* bb = kv.first;
+	ExprVector inv = kv.second;
+	if (inv.empty()) continue;
+	Expr bbV = sem().symb(*bb);
+	m_smt_solver.assertExpr(mk<IMPL>(bbV, op::boolop::land(inv)));
+      }
     }
     #endif
 

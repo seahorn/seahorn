@@ -3277,8 +3277,15 @@ void GlobalCCallbacks::getAnalysisUsage(llvm::AnalysisUsage &AU) const {
 
 char GlobalCCallbacks::ID = 0;
 
-static llvm::RegisterPass<GlobalCCallbacks> Z(
-    "abc-global-c",
-    "Insert array buffer checks using Global encoding by calling C functions");
 
 } // end namespace seahorn
+
+namespace seahorn{
+    Pass *createGlobalBufferBoundsCheck(){return new Global();}
+    Pass *createLocalBufferBoundsCheck(){return new Local();}
+    Pass *createGlobalCBufferBoundsCheckPass(){return new GlobalCCallbacks();}
+
+}
+static llvm::RegisterPass<seahorn::GlobalCCallbacks> Z(
+    "abc-global-c",
+    "Insert array buffer checks using Global encoding by calling C functions");

@@ -27,7 +27,7 @@ namespace seahorn
   using namespace llvm;
 
   char MixedSemantics::ID = 0;
-  
+
   static void removeError (Function &F)
   {
     for (auto &BB : F)
@@ -39,26 +39,26 @@ namespace seahorn
         Function* cf = ci->getCalledFunction ();
         if (!cf) continue;
         if (!cf->getName ().equals ("verifier.error")) continue;
-        
-        auto assumeFn = 
-          F.getParent ()->getOrInsertFunction ("verifier.assume", 
-                                                 Type::getVoidTy (F.getContext ()), 
+
+        auto assumeFn =
+          F.getParent ()->getOrInsertFunction ("verifier.assume",
+                                                 Type::getVoidTy (F.getContext ()),
                                                  Type::getInt1Ty (F.getContext ()), NULL);
-        ReplaceInstWithInst (ci, 
-                             CallInst::Create (assumeFn, 
+        ReplaceInstWithInst (ci,
+                             CallInst::Create (assumeFn,
                                                ConstantInt::getFalse (F.getContext ())));
         // does not matter what verifier.error() call is followed by in this bb
         break;
       }
     }
-    
+
   }
 
 
   static bool ExternalizeDeclarations (Module &M)
   {
     bool change = false;
-    for (Module::iterator I = M.begin(), E = M.end(); I != E; ) 
+    for (Module::iterator I = M.begin(), E = M.end(); I != E; )
     {
       Function &F = *I++;
       if (F.isDeclaration() &&
@@ -82,25 +82,25 @@ namespace seahorn
   {
     Function *main = M.getFunction ("main");
     if (!main) return false;
-    
+
     CanFail &CF = getAnalysis<CanFail> ();
-    if (!CF.canFail (main)) 
+    if (!CF.canFail (main))
     {
-      // -- this benefits the legacy front-end. 
+      // -- this benefits the legacy front-end.
       // -- it might create issues in some applications where mixed-semantics is applied
       if (ReduceMain) reduceToReturnPaths (*main);
       removeMetadataIfFunctionIsEmpty(*main);
       return false;
     }
-    
-    
+
+
     main->setName ("orig.main");
     FunctionType *mainTy = main->getFunctionType ();
-    FunctionType *newTy = 
+    FunctionType *newTy =
       FunctionType::get (Type::getInt32Ty (M.getContext ()),
                          ArrayRef<Type*> (mainTy->param_begin (),
                                           mainTy->param_end ()), false);
-    
+
     Function *newM = Function::Create (newTy,
                                        main->getLinkage (),
                                        "main", &M);
@@ -108,19 +108,19 @@ namespace seahorn
 
     // -- mark old main as private
     main->setLinkage (GlobalValue::LinkageTypes::PrivateLinkage);
-    
+
     BasicBlock *entry = BasicBlock::Create (M.getContext (),
                                             "entry", newM);
-    
+
     IRBuilder<> Builder (M.getContext ());
     Builder.SetInsertPoint (entry, entry->begin ());
-    
-    
+
+
     SmallVector<Value*,16> fargs;
-    for (auto &a : boost::make_iterator_range (newM->arg_begin (), 
+    for (auto &a : boost::make_iterator_range (newM->arg_begin (),
                                                newM->arg_end ()))
       fargs.push_back (&a);
-    
+
     InlineFunctionInfo IFI;
     CallInst *mcall = Builder.CreateCall (main, fargs);
     Builder.CreateUnreachable ();
@@ -128,28 +128,28 @@ namespace seahorn
 
     DenseMap<const Function*, BasicBlock*> entryBlocks;
     DenseMap<const Function*, SmallVector<Value*, 16> > entryPrms;
-    
+
     SmallVector<BasicBlock*, 4> errBlocks;
-    
-    
+
+
     IRBuilder<> enBldr (M.getContext ());
     enBldr.SetInsertPoint (entry, entry->begin ());
-    
+
     for (Function &F : M)
     {
       if (&F == main || &F == newM) continue;
-      if (!CF.canFail (&F)) 
+      if (!CF.canFail (&F))
       {
         if (!F.isDeclaration ()) reduceToReturnPaths (F);
         continue;
       }
-      
+
       BasicBlock *bb = BasicBlock::Create (M.getContext (), F.getName (), newM);
       entryBlocks [&F] = bb;
-      
+
       Builder.SetInsertPoint (bb, bb->begin ());
-      
-      if (!CF.mustFail (&F)) 
+
+      if (!CF.mustFail (&F))
       {
         fargs.clear ();
         auto &p = entryPrms [&F];
@@ -158,7 +158,7 @@ namespace seahorn
           p.push_back (enBldr.CreateAlloca (a.getType ()));
           fargs.push_back (Builder.CreateLoad (p.back ()));
         }
-    
+
         CallInst *fcall = Builder.CreateCall (&F, fargs);
         Builder.CreateUnreachable ();
         InlineFunction (fcall, IFI);
@@ -170,12 +170,12 @@ namespace seahorn
         Builder.CreateRet (Builder.getInt32 (42));
         errBlocks.push_back (bb);
       }
-      
+
     }
-    
+
     std::vector<CallInst*> workList;
-    
-    Constant *ndFn = M.getOrInsertFunction ("nondet.bool", 
+
+    Constant *ndFn = M.getOrInsertFunction ("nondet.bool",
                                             Type::getInt1Ty (M.getContext ()), NULL);
     for (BasicBlock &BB : *newM)
     {
@@ -190,39 +190,39 @@ namespace seahorn
         workList.push_back (ci);
       }
     }
-    
+
     for (auto *ci : workList)
     {
       BasicBlock *bb = ci->getParent ();
       BasicBlock *post = bb->splitBasicBlock (ci, "postcall");
-      
+
       bb->getTerminator ()->eraseFromParent ();
       Builder.SetInsertPoint (bb);
-      
+
       BranchInst *br;
-      if (CF.mustFail (ci->getCalledFunction ())) 
+      if (CF.mustFail (ci->getCalledFunction ()))
       {
         br = Builder.CreateBr (entryBlocks [ci->getCalledFunction ()]);
         br->setDebugLoc (ci->getDebugLoc ());
         continue;
       }
-      
-      BasicBlock *argBb = 
+
+      BasicBlock *argBb =
         BasicBlock::Create (M.getContext (), "precall", newM, post);
       br = Builder.CreateCondBr (Builder.CreateCall (ndFn), post, argBb);
       br->setDebugLoc (ci->getDebugLoc ());
-      
+
       Builder.SetInsertPoint (argBb);
-      
+
       CallSite CS (ci);
       auto &params = entryPrms[ci->getCalledFunction ()];
-      
+
       for (unsigned i = 0; i < params.size (); ++i)
       {
         StoreInst *si = Builder.CreateStore (CS.getArgument (i), params[i]);
         si->setDebugLoc (ci->getDebugLoc ());
       }
-      
+
       br = Builder.CreateBr (entryBlocks [ci->getCalledFunction ()]);
       br->setDebugLoc (ci->getDebugLoc ());
     }
@@ -232,7 +232,7 @@ namespace seahorn
     // --- make sure the optimizer does not remove it
     B.addAttribute (Attribute::OptimizeNone);
 
-    AttributeSet as = AttributeSet::get (M.getContext (), 
+    AttributeSet as = AttributeSet::get (M.getContext (),
                                          AttributeSet::FunctionIndex, B);
     auto failureFn = dyn_cast<Function>
         (M.getOrInsertFunction ("seahorn.fail",
@@ -244,24 +244,31 @@ namespace seahorn
       // --- add placeholder to indicate that the function can fail
       Builder.SetInsertPoint (errB, errB->begin ());
       Builder.CreateCall (failureFn);
-    }      
+    }
 
-    reduceToAncestors (*newM, SmallVector<const BasicBlock*, 4> (errBlocks.begin (), 
+    reduceToAncestors (*newM, SmallVector<const BasicBlock*, 4> (errBlocks.begin (),
                                                                  errBlocks.end()));
-    
+
     ExternalizeDeclarations (M);
 
     return true;
   }
-  
+
   void MixedSemantics::getAnalysisUsage (AnalysisUsage &AU) const
   {
-    AU.addRequiredID (LowerSwitchID);
+      // XXX Removed since switches are assumed to be removed by pp pipeline
+    // AU.addRequiredID (LowerSwitchID);
     AU.addRequired<CallGraphWrapperPass> ();
     AU.addRequired<CanFail> ();
     AU.addRequired<PromoteVerifierCalls> ();
   }
-  
+
+}
+
+namespace seahorn {
+    Pass *createMixedSemanticsPass() {
+        return new MixedSemantics();
+    }
 }
 
 static llvm::RegisterPass<seahorn::MixedSemantics>

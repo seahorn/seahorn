@@ -1,4 +1,4 @@
-// RUN: %sea pf -O0 --abc=%abc_encoding %dsa "%s" %abc3_definitions 2>&1 | OutputCheck %s
+// RUN: %sea abc -O0 --encoding=%abc_encoding %dsa "%s" %abc3_definitions 2>&1 | OutputCheck %s
 // CHECK: ^unsat$
 
 struct foo {

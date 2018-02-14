@@ -14,4 +14,5 @@ add_llvm_library (SeaTransformsScalar
   LowerAssert.cc
   UnfoldLoopForDsa.cc
   PromoteSeahornAssume.cc
+  PromoteMemcpy.cc
   )

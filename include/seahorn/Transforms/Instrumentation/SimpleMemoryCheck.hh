@@ -3,10 +3,7 @@
 
 namespace llvm {
 class ModulePass;
-}
 
-namespace seahorn {
-llvm::ModulePass *CreateSimpleMemoryCheckPass();
 }
 
 #endif

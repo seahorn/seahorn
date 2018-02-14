@@ -231,6 +231,7 @@ bool LowerGvInitializers::runOnModule(Module &M) {
   return change;
 }
 
+    Pass *createLowerGvInitializersPass(){return new LowerGvInitializers();}
 } // namespace seahorn
 
 static llvm::RegisterPass<seahorn::LowerGvInitializers>

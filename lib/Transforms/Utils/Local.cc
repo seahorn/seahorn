@@ -9,11 +9,11 @@ using namespace llvm;
 namespace seahorn
 {
   /// Returns all basic blocks that are ancestors of the blocks in roots
-  void markAncestorBlocks (ArrayRef<const BasicBlock*> roots, 
+  void markAncestorBlocks (ArrayRef<const BasicBlock*> roots,
                            DenseSet<const BasicBlock*> &visited)
   {
     SmallVector<const BasicBlock*, 128> W (std::begin (roots), std::end (roots));
-    
+
     while (!W.empty ())
     {
       const BasicBlock *bb = W.back ();
@@ -23,7 +23,7 @@ namespace seahorn
       std::copy (pred_begin (bb), pred_end (bb), std::back_inserter (W));
     }
   }
-  
+
   /// Reduce the given function to the basic blocks in a given region
   void reduceToRegion (Function &F, DenseSet<const BasicBlock*> &region)
   {
@@ -31,20 +31,20 @@ namespace seahorn
     dead.reserve (F.size ());
 
     IRBuilder<> Builder (F.getContext ());
-    Constant* assumeFn = F.getParent ()->getOrInsertFunction ("verifier.assume", 
+    Constant* assumeFn = F.getParent ()->getOrInsertFunction ("verifier.assume",
                                                               Builder.getVoidTy (),
-                                                              Builder.getInt1Ty (), 
+                                                              Builder.getInt1Ty (),
                                                               NULL);
-    Constant* assumeNotFn = F.getParent ()->getOrInsertFunction ("verifier.assume.not", 
+    Constant* assumeNotFn = F.getParent ()->getOrInsertFunction ("verifier.assume.not",
                                                                  Builder.getVoidTy (),
-                                                                 Builder.getInt1Ty (), 
+                                                                 Builder.getInt1Ty (),
                                                                  NULL);
-    
-    
+
+
     for (BasicBlock &BB : F)
     {
 
-      if (region.count (&BB) <= 0) 
+      if (region.count (&BB) <= 0)
       {
         dead.push_back (&BB);
         TerminatorInst *BBTerm = BB.getTerminator();
@@ -59,33 +59,49 @@ namespace seahorn
         if (br->isUnconditional ()) continue;
         BasicBlock* s0 = br->getSuccessor (0);
         BasicBlock* s1 = br->getSuccessor (1);
-        
+
         BasicBlock* kill = NULL;
-     
+
         if (region.count (s0) <= 0)
           kill = s0;
         else if (region.count (s1) <= 0)
           kill = s1;
-        else 
+        else
           continue;
-      
+
         Builder.SetInsertPoint (&BB, br->getIterator());
         CallInst *ci = Builder.CreateCall
           (kill == s1 ? assumeFn : assumeNotFn, br->getCondition ());
         ci->setDebugLoc (br->getDebugLoc ());
-        kill->removePredecessor(&BB);   
+        kill->removePredecessor(&BB);
         br->eraseFromParent ();
         Builder.SetInsertPoint (&BB);
-        Builder.CreateBr (kill == s1 ? s0 : s1);       
+        Builder.CreateBr (kill == s1 ? s0 : s1);
       }
-    }
-    
-    for (auto *bb : dead) 
-      bb->eraseFromParent (); 
 
-  
+    }
+
+    for (auto *bb : dead)
+    {
+        if (bb->hasNUses(0))
+            bb->eraseFromParent ();
+        else {
+            errs() << "WARNING: attempt to delete a basic block that is still in use.\n"
+                   << "Perhaps the user is an invoke instructions with an out-of-region"
+                   << " landing block. Consider lowering invoke instructions.\n";
+
+            errs () << "bb: " << bb->getName () << "\n";
+            errs () << "Users:\n";
+            auto UI = bb->user_begin();
+            auto E = bb->user_end();
+            for (; UI != E; ++UI)
+                errs () << *(*UI) << "\n";
+        }
+    }
+
+
   }
-    
+
   /// Reduce the function to only the BasicBlocks that are ancestors of exits
   void reduceToAncestors (Function &F, ArrayRef<const BasicBlock*> exits)
   {
@@ -94,18 +110,18 @@ namespace seahorn
     markAncestorBlocks (exits, region);
     reduceToRegion (F, region);
   }
-  
+
   void reduceToReturnPaths (Function &F)
   {
     if (F.isDeclaration ()) return;
-    
+
     SmallVector<const BasicBlock*, 16> exits;
-    
+
     for (auto &BB : F)
       if (isa<ReturnInst> (BB.getTerminator ())) exits.push_back (&BB);
     reduceToAncestors (F, exits);
   }
-  
+
   /// work around bug in llvm::RecursivelyDeleteTriviallyDeadInstructions
   bool
   RecursivelyDeleteTriviallyDeadInstructions(Value *V,
@@ -116,5 +132,5 @@ namespace seahorn
     if (!I->getParent ()) return false;
     return llvm::RecursivelyDeleteTriviallyDeadInstructions (V, TLI);
   }
-  
+
 }

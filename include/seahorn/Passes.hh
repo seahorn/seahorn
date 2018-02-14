@@ -38,7 +38,7 @@ namespace seahorn
   llvm::Pass* createExternalizeFunctionsPass ();
   llvm::Pass* createSliceFunctionsPass ();
   llvm::Pass* createDevirtualizeFunctionsPass ();
-  llvm::Pass* createAbstractMemoryPass ();        
+  llvm::Pass* createAbstractMemoryPass ();
   llvm::Pass* createPromoteMemoryToRegisterPass ();
   llvm::Pass* createLoadCrabPass ();
   llvm::Pass* createShadowMemDsaPass (); // llvm dsa
@@ -47,7 +47,7 @@ namespace seahorn
 
   llvm::Pass* createCutLoopsPass ();
   llvm::Pass* createMarkFnEntryPass ();
-
+    llvm::Pass* createPromoteVerifierClassPass ();
   llvm::Pass* createPromoteMallocPass ();
   llvm::Pass* createKillVarArgFnPass ();
   llvm::Pass* createLowerArithWithOverflowIntrinsicsPass ();
@@ -75,12 +75,30 @@ namespace seahorn
   llvm::Pass* createCFGViewerPass ();
   llvm::Pass* createCFGOnlyViewerPass ();
   llvm::Pass* createDsaPrinterPass ();
-  llvm::Pass* createDsaViewerPass ();  
+  llvm::Pass* createDsaViewerPass ();
 
   llvm::Pass* createPromoteSeahornAssumePass ();
   llvm::Pass* createKleeInternalizePass ();
-  llvm::Pass* createWrapMemPass ();  
+  llvm::Pass* createWrapMemPass ();
   llvm::Pass* createRenameNondetPass();
+
+    llvm::Pass* createMixedSemanticsPass();
+    llvm::Pass* createRemoveUnreachableBlocksPass();
+
+    llvm::Pass* createLowerGvInitializersPass();
+    llvm::Pass* createLowerCstExprPass();
+
+    llvm::Pass* createNullCheckPass();
+
+    llvm::Pass *createGlobalBufferBoundsCheck();
+    llvm::Pass *createLocalBufferBoundsCheck();
+    llvm::Pass *createGlobalCBufferBoundsCheckPass();
+
+    llvm::Pass* createSimpleMemoryCheckPass();
+
+    llvm::Pass* createCanFailPass();
+
+  llvm::FunctionPass* createPromoteMemcpyPass();
 }
 
 #ifdef HAVE_LLVM_SEAHORN

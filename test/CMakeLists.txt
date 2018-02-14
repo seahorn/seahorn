@@ -59,8 +59,17 @@ add_lit_testsuite(test-dsa "Regression test for DSA"
   DEPENDS seahorn
   )
 
+add_lit_testsuite(test-bmc "Regression tests for BMC"
+  -v
+  ${CMAKE_CURRENT_SOURCE_DIR}/bmc
+  PARAMS
+  test_dir=${CMAKE_CURRENT_BINARY_DIR}
+  DEPENDS seahorn
+  )
+
 install (DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/simple DESTINATION share/seahorn/test)
 install (DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/solve DESTINATION share/seahorn/test)
 install (DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/abc DESTINATION share/seahorn/test)
 install (DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/dsa DESTINATION share/seahorn/test)
+install (DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/bmc DESTINATION share/seahorn/test)
 install (FILES ${CMAKE_CURRENT_SOURCE_DIR}/lit.cfg DESTINATION share/seahorn/test)

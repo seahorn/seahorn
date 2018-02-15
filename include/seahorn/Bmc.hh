@@ -75,7 +75,7 @@ namespace seahorn
     ufo::EZ3 &zctx () { return m_smt_solver.getContext (); }
     
     /// constructs the path condition
-    virtual void encode ();
+    virtual void encode (bool assert_formula = true);
     /// checks satisfiability of the path condition
     virtual boost::tribool solve ();
     /// returns the latest result from solve() 

@@ -28,7 +28,7 @@ namespace seahorn
     return m_result;
   }
 
-  void BmcEngine::encode ()
+  void BmcEngine::encode (bool assert_formula)
   {
     
     // -- only run the encoding once
@@ -54,8 +54,9 @@ namespace seahorn
       }
       prev = cp;
     }
-    
-    for (Expr v : m_side) m_smt_solver.assertExpr (v);
+    if (assert_formula) {
+      for (Expr v : m_side) m_smt_solver.assertExpr (v);
+    }
     
   }
 

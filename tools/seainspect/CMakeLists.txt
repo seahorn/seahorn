@@ -7,6 +7,7 @@ set (SEAINSPECT_LIBS
   SeaTransformsScalar
   SeaTransformsUtils 
   ${SEA_DSA_LIBS}
+  ${Boost_SYSTEM_LIBRARY}  
   SeaSupport
   avy
   ${RT_LIB}

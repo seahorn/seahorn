@@ -50,7 +50,7 @@ namespace seahorn
     virtual BmcTrace getTrace () override;
 
     /// constructs the path condition (NOT implemented)
-    virtual void encode () override;
+    virtual void encode (bool assert_formula) override;
     
     /// Dump unsat core  (NOT implemented)
     virtual void unsatCore (ExprVector &out) override;

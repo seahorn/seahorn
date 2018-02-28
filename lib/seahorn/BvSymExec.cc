@@ -1114,7 +1114,7 @@ namespace seahorn
   
   bool BvSmallSymExec::isTracked (const Value &v) 
   {
-    const Value* scalar;
+    const Value* scalar = nullptr;
     
     // -- shadow values represent memory regions
     // -- only track them when memory is tracked

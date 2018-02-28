@@ -33,8 +33,9 @@ DM-0002198
 #include "seahorn/PathBasedBmc.hh" 
 #include "seahorn/UfoSymExec.hh"
 #include "seahorn/BvSymExec.hh"
-
 #include "seahorn/Analysis/CanFail.hh"
+// prerequisite for CrabLlvm
+#include "seahorn/Transforms/Scalar/LowerCstExpr.hh"
 
 #ifdef HAVE_CRAB_LLVM
 #include "crab_llvm/CrabLlvm.hh"
@@ -77,7 +78,8 @@ namespace
       AU.addRequired<CutPointGraph> ();
       AU.addRequired<TargetLibraryInfoWrapperPass> ();
       #ifdef HAVE_CRAB_LLVM
-      AU.addRequired<crab_llvm::CrabLlvmPass> ();
+      AU.addRequired<seahorn::LowerCstExprPass>();
+      AU.addRequired<crab_llvm::CrabLlvmPass>();
       #endif 
     }      
 

@@ -15,15 +15,17 @@ script:
   - docker build --build-arg UBUNTU=xenial --build-arg BUILD_TYPE=MinSizeRel --build-arg TRAVIS=true -t seahorn_xenial_build -f docker/seahorn-full-size-rel.Dockerfile .
   - docker run -v `pwd`:/host -it seahorn_xenial_build /bin/sh -c "cp build/*.tar.gz /host/"
   ### extract SeaHorn in a separate container and run tests
-  - docker build --build-arg BASE_IMAGE=seahorn/seahorn -t seahorn_container -f docker/seahorn.Dockerfile .
-  - >
-      docker run -v `pwd`:/host -it seahorn_container
-      /bin/sh -c
-      "cd share/seahorn/test;
-      lit simple;
-      lit solve;
-      lit abc;
-      lit dsa"
+  - 'if [ "$TRAVIS_EVENT_TYPE" = "cron" ] ;
+       then docker build -t seahorn_container -f docker/seahorn.Dockerfile . ;
+       else docker build --build-arg BASE_IMAGE=seahorn/seahorn -t seahorn_container -f docker/seahorn.Dockerfile . ;
+     fi '
+  - 'if [ "$TRAVIS_EVENT_TYPE" = "cron" ] ;
+     then docker run -v `pwd`:/host -it seahorn_container /bin/sh -c "cd share/seahorn/test; lit simple; lit solve; lit abc; lit dsa"
+       && docker login -u "$DOCKER_USER" -p "$DOCKER_PWD"
+       && docker tag seahorn_container seahorn/seahorn:nightly
+       && docker push seahorn/seahorn:nightly ;
+     else docker run -v `pwd`:/host -it seahorn_container /bin/sh -c "cd share/seahorn/test; lit simple; lit solve; lit abc; lit dsa" ;
+     fi '
 
   #- /usr/bin/cmake --build . --target test-inc
   # XXX: after porting to llvm 3.8 some of these tests fail  

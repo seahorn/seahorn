@@ -413,7 +413,15 @@ namespace seahorn
     crab_global_map(crab_llvm::CrabLlvmPass& crab_global)
       : m_crab_global(crab_global) {}
     virtual crab_llvm::lin_cst_sys_t operator()(const BasicBlock* b) override {
-      return m_crab_global.get_pre(b)->to_linear_constraints();      
+      auto pre = m_crab_global.get_pre(b);
+      if (pre) {
+	return pre->to_linear_constraints();
+      } else {
+	// usually if pre is null then it's because the block is
+	// unreachable. However, since we don't know for sure we just
+	// return true.
+	return crab_llvm::lin_cst_sys_t();
+      }
     }
   private:
     crab_llvm::CrabLlvmPass& m_crab_global;    
@@ -507,7 +515,7 @@ namespace seahorn
     //params.dom=TERMS_INTERVALS; // EQ+UF+INTERVALS
     //params.dom=WRAPPED_INTERVALS;
     params.dom=INTERVALS;
-    //params.dom=ZONES_SPLIT_DBM;    
+    //params.dom=TERMS_ZONES; // EQ+UF+ZONES
     
     // -- run crab on the path:
     //    If bottom is inferred then relevant_stmts is a minimal subset of

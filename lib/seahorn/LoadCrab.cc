@@ -485,7 +485,10 @@ namespace seahorn
                       
     Expr e = mk<TRUE> (efac);
     auto abs = crab->get_pre(B);
-    
+    if (!abs) {
+      return e;
+    }
+      
     // TODO: note we don't project an arbitrary abstract domain onto
     // live variables because some abstract domains might not have a
     // precise implementation for it.

@@ -31,12 +31,21 @@ UseCrab ("horn-bmc-crab",
 	 llvm::cl::desc ("Use of Crab in BMC (restricted to the path-based engine)"), 
 	 llvm::cl::init (false));
 
-
-namespace seahorn
+namespace bmc_detail
 {
-  enum muc_method_t { MUC_NAIVE, MUC_ASSUMPTIONS, MUC_BINARY_SEARCH };
+  enum muc_method_t { MUC_NONE, MUC_NAIVE, MUC_ASSUMPTIONS, MUC_BINARY_SEARCH };
 }
 
+static llvm::cl::opt<enum bmc_detail::muc_method_t>
+MucMethod("horn-bmc-muc",
+	  llvm::cl::desc("Method used to compute minimal unsatisfiable cores"),
+	  llvm::cl::values(
+		  clEnumValN (bmc_detail::MUC_NONE, "none", "None"),
+		  clEnumValN (bmc_detail::MUC_ASSUMPTIONS, "assumptions", "Solve with assumptions"),
+		  clEnumValN (bmc_detail::MUC_NAIVE, "naive", "Quadratic number of calls to the solver"),
+		  clEnumValN (bmc_detail::MUC_BINARY_SEARCH, "binary", "Method based on Binary search"),
+		  clEnumValEnd),
+	  llvm::cl::init(bmc_detail::MUC_ASSUMPTIONS));
 
 static llvm::raw_ostream& get_os(bool show_time = false) {
   llvm::raw_ostream* result = &llvm::errs();
@@ -766,24 +775,30 @@ namespace seahorn
     // TODO: add here path_constraints to help
     boost::tribool res = m_aux_smt_solver.solve();    
     if (!res) {
+      LOG("bmc", get_os() << "SMT proved unsat. Size of path formula=" 
+	                  << path_formula.size() << ". ");
+
       //ufo::Stats::resume ("BMC path-based: SMT unsat core");          
       // --- Compute minimal unsat core of the path formula
-      muc_method_t muc_method = MUC_ASSUMPTIONS;
       ExprVector unsat_core;      
-      switch(muc_method) {
-      case MUC_ASSUMPTIONS: {
+      switch(MucMethod) {
+      case bmc_detail::MUC_NONE: {
+	unsat_core.assign(path_formula.begin(), path_formula.end());
+	break;
+      }
+      case bmc_detail::MUC_ASSUMPTIONS: {
       	muc_with_assumptions muc(m_aux_smt_solver);
       	muc.run(path_formula, unsat_core);
 	LOG("bmc-unsat-core", muc.print_stats(errs()));
 	break;
       }
-      case MUC_NAIVE: {
+      case bmc_detail::MUC_NAIVE: {
       	naive_muc muc(m_aux_smt_solver);
       	muc.run(path_formula, unsat_core);
 	LOG("bmc-unsat-core", muc.print_stats(errs()));
 	break;
       }
-      case MUC_BINARY_SEARCH: {
+      case bmc_detail::MUC_BINARY_SEARCH: {
       	binary_search_muc muc(m_aux_smt_solver);
       	muc.run(path_formula, unsat_core);
 	LOG("bmc-unsat-core", muc.print_stats(errs()));	
@@ -793,8 +808,8 @@ namespace seahorn
       }
       //ufo::Stats::stop ("BMC path-based: SMT unsat core");
 
-      LOG("bmc", get_os() << "SMT proved unsat. Unsat core size= "
-	                  << unsat_core.size() << "\n";);      
+      LOG("bmc", 
+	  get_os() << "Size of unsat core= " << unsat_core.size() << "\n";);
       
       //ufo::Stats::resume ("BMC path-based: blocking clause");            
       // -- Refine the Boolean abstraction using the unsat core

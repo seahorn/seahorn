@@ -107,11 +107,11 @@ namespace seahorn
     params.set (":spacer.elim_aux", true);
     params.set (":spacer.reach_dnf", true);
     //params.set ("print_statistics", true);
-    params.set (":spacer.use_ext_invariants", UseExtInvariants);
-    params.set (":spacer.use_ext_invariants_generalization", UseExtInvariantsGeneralization);
-    params.set (":spacer.weak_abs", WeakAbs);
-    params.set (":spacer.iuc", IUC);
-    params.set (":spacer.iuc.arith", IUCArith);    
+    //params.set (":spacer.use_ext_invariants", UseExtInvariants);
+    //params.set (":spacer.use_ext_invariants_generalization", UseExtInvariantsGeneralization);
+    //params.set (":spacer.weak_abs", WeakAbs);
+    // params.set (":spacer.iuc", IUC);
+    //params.set (":spacer.iuc.arith", IUCArith);    
     // -- less incremental but constraints are popped after pushed in
     //    the solver
     params.set (":spacer.keep_proxy", KeepProxy);

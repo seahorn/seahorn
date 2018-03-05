@@ -159,11 +159,13 @@ namespace
       else if (!res) Stats::sset ("Result", "TRUE");
       
       LOG ("bmc",
-           ExprVector core;
-           if (!res) bmc->unsatCore (core);
-           errs () << "CORE BEGIN\n";
-           for (auto c : core) errs () << *c << "\n";
-           errs () << "CORE END\n";
+           if (!res) {
+	     ExprVector core;
+	     bmc->unsatCore (core);
+	     errs () << "CORE BEGIN\n";
+	     for (auto c : core) errs () << *c << "\n";
+	     errs () << "CORE END\n";
+	   }
            );
       
       LOG ("cex", 
@@ -171,6 +173,7 @@ namespace
              {
                errs () << "Analyzed Function:\n" << F << "\n";
                BmcTrace trace (bmc->getTrace ());
+	       errs () << "Trace \n";
                trace.print (errs ());
              });
       

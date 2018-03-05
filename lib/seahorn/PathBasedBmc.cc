@@ -523,8 +523,8 @@ namespace seahorn
     // TODO: make these options user options
     //params.dom=TERMS_INTERVALS; // EQ+UF+INTERVALS
     //params.dom=WRAPPED_INTERVALS;
-    params.dom=INTERVALS;
-    //params.dom=TERMS_ZONES; // EQ+UF+ZONES
+    //params.dom=INTERVALS;
+    params.dom=TERMS_ZONES;    
     
     // -- run crab on the path:
     //    If bottom is inferred then relevant_stmts is a minimal subset of

@@ -84,13 +84,11 @@ namespace seahorn
   }
   
   BmcTrace::BmcTrace (BmcEngine &bmc, ufo::ZModel<ufo::EZ3> &model) :
-    m_bmc (bmc), m_model(m_bmc.zctx())
+    m_bmc (bmc), m_model(model/*m_bmc.zctx()*/)
   {
-    assert ((bool)bmc.result ());
+    // assert ((bool)bmc.result ());
+    // m_model = bmc.getModel ();
     
-    m_model = bmc.getModel ();
-    
-
     // construct an implicant of the side condition
     ExprVector trace;
     trace.reserve (m_bmc.getFormula().size ());

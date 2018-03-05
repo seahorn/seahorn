@@ -74,13 +74,28 @@ namespace seahorn
     
     ufo::EZ3 &zctx () { return m_smt_solver.getContext (); }
     
-    /// constructs the path condition
+    /// constructs the path condition    
     virtual void encode (bool assert_formula = true);
+    
     /// checks satisfiability of the path condition
     virtual boost::tribool solve ();
+    
+    /// get model if side condition evaluated to sat.
+    virtual ufo::ZModel<ufo::EZ3> getModel() {
+      assert((bool) result());
+      return m_smt_solver.getModel();
+    }
+    
+    /// Returns the BMC trace (if available)
+    virtual BmcTrace getTrace ();
+    
+    /// Dump unsat core 
+    /// Exposes internal details. Intendent to be used for debugging only
+    virtual void unsatCore (ExprVector &out);
+
+    
     /// returns the latest result from solve() 
     boost::tribool result () { return m_result; }
-    
     
     /// output current path condition in SMT-LIB2 format
     template<typename OutputStream>
@@ -104,20 +119,6 @@ namespace seahorn
 
     /// get symbolic states corresponding to the cutpoint trace
     std::vector<SymStore>& getStates() { return  m_states; }
-
-    /// get model if side condition evaluated to sat.
-    ufo::ZModel<ufo::EZ3> getModel() {
-      assert((bool) result());
-      return m_smt_solver.getModel();
-    }
-    
-    /// Returns the BMC trace (if available)
-    virtual BmcTrace getTrace ();
-    
-    /// Dump unsat core 
-    /// Exposes internal details. Intendent to be used for debugging only
-    virtual void unsatCore (ExprVector &out);
-
   };
   
 

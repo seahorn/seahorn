@@ -49,14 +49,18 @@ namespace seahorn
     /// Returns the BMC trace (if available)
     virtual BmcTrace getTrace () override;
 
+    // Return model if sat
+    virtual ufo::ZModel<ufo::EZ3> getModel() override;
+    
     /// constructs the path condition (NOT implemented)
     virtual void encode (bool assert_formula) override;
     
-    /// Dump unsat core  (NOT implemented)
+    /// Dump unsat core if unsat (NOT implemented)
     virtual void unsatCore (ExprVector &out) override;
     
   private:
-    
+
+    // used to solve a path formula
     ufo::ZSolver<ufo::EZ3> m_aux_smt_solver;        
     const llvm::TargetLibraryInfo& m_tli;
 

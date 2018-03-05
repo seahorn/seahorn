@@ -786,12 +786,6 @@ namespace seahorn
 	unsat_core.assign(path_formula.begin(), path_formula.end());
 	break;
       }
-      case bmc_detail::MUC_ASSUMPTIONS: {
-      	muc_with_assumptions muc(m_aux_smt_solver);
-      	muc.run(path_formula, unsat_core);
-	LOG("bmc-unsat-core", muc.print_stats(errs()));
-	break;
-      }
       case bmc_detail::MUC_NAIVE: {
       	naive_muc muc(m_aux_smt_solver);
       	muc.run(path_formula, unsat_core);
@@ -804,12 +798,18 @@ namespace seahorn
 	LOG("bmc-unsat-core", muc.print_stats(errs()));	
 	break;
       }
-      default: assert(false);
+      case bmc_detail::MUC_ASSUMPTIONS:
+      default: {
+      	muc_with_assumptions muc(m_aux_smt_solver);
+      	muc.run(path_formula, unsat_core);
+	LOG("bmc-unsat-core", muc.print_stats(errs()));
+	break;
+      }
       }
       //ufo::Stats::stop ("BMC path-based: SMT unsat core");
 
       LOG("bmc", 
-	  get_os() << "Size of unsat core= " << unsat_core.size() << "\n";);
+	  get_os() << "Size of unsat core=" << unsat_core.size() << "\n";);
       
       //ufo::Stats::resume ("BMC path-based: blocking clause");            
       // -- Refine the Boolean abstraction using the unsat core
@@ -853,7 +853,13 @@ namespace seahorn
   }
 
   void PathBasedBmcEngine::encode(bool assert_formula) {
-    // TODO: for a path-based bmc engine is not clear what to do here.
+    // This method can be called separately from solve() to, e.g.,
+    // dump the precise encoding into a file. The encoding happens
+    // only once so it doesn't matter to call BmcEngine::encode
+    // several times.
+    ufo::Stats::resume ("BMC path-based: precise encoding");
+    BmcEngine::encode(/*assert_formula=*/ false);
+    ufo::Stats::stop ("BMC path-based: precise encoding");
   }
 
   static inline boost::tribool path_solver(ufo::ZSolver<ufo::EZ3>& solver) {
@@ -868,7 +874,7 @@ namespace seahorn
     
     // -- Precise encoding
     LOG("bmc", get_os(true)<< "Begin precise encoding\n";);    
-    ufo::Stats::resume ("BMC path-based: precise encoding");        
+    ufo::Stats::resume ("BMC path-based: precise encoding");
     BmcEngine::encode(/*assert_formula=*/ false);
     ufo::Stats::stop ("BMC path-based: precise encoding");
     LOG("bmc", get_os(true)<< "End precise encoding\n";);        
@@ -992,7 +998,8 @@ namespace seahorn
 	    continue;
 	  } else {
 	    errs () << "Path-based BMC ERROR: same blocking clause again " << __LINE__ << "\n";
-	    return boost::indeterminate;
+	    m_result = boost::indeterminate;
+	    return m_result;
 	  }
 	}
 
@@ -1005,13 +1012,15 @@ namespace seahorn
         #ifdef HAVE_CRAB_LLVM
 	// Temporary: for profiling crab
 	crab::CrabStats::PrintBrunch (crab::outs());
-        #endif 
+        #endif
+	m_result = res;
 	return res;
       } else  {
 	bool ok = add_blocking_clauses();
 	if (!ok) {
-	  errs () << "Path-based BMC ERROR: same blocking clause again " << __LINE__ << "\n";  
-	  return boost::indeterminate;
+	  errs () << "Path-based BMC ERROR: same blocking clause again " << __LINE__ << "\n";
+	  m_result = boost::indeterminate;
+	  return m_result;
 	}
 	ufo::Stats::count("BMC number symbolic paths discharged by SMT");	
       }
@@ -1051,9 +1060,16 @@ namespace seahorn
   }
   
   BmcTrace PathBasedBmcEngine::getTrace() {
-    return BmcTrace(*this, m_model);
+    assert((bool) m_result);
+    BmcTrace trace(*this, m_model);
+    return trace;
   }
-
+  
+  ufo::ZModel<ufo::EZ3> PathBasedBmcEngine::getModel() {
+    assert((bool) m_result);    
+    return m_model;
+  }
+  
   // This is intending only for debugging purposes
   void PathBasedBmcEngine::unsatCore(ExprVector &out) {
     // TODO: for path-based BMC is not clear what to return.

@@ -59,7 +59,8 @@ namespace seahorn
     virtual void unsatCore (ExprVector &out) override;
     
   private:
-
+    // Incomplete flag: if a SMT query returned unknown
+    bool m_incomplete;
     // used to solve a path formula
     ufo::ZSolver<ufo::EZ3> m_aux_smt_solver;        
     const llvm::TargetLibraryInfo& m_tli;

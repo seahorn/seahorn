@@ -32,20 +32,23 @@ UseCrab ("horn-bmc-crab",
 	 llvm::cl::init (false));
 
 namespace bmc_detail
-{
-  enum muc_method_t { MUC_NONE, MUC_NAIVE, MUC_ASSUMPTIONS, MUC_BINARY_SEARCH };
-}
+{ enum muc_method_t { MUC_NONE, MUC_NAIVE, MUC_ASSUMPTIONS, MUC_BINARY_SEARCH }; }
 
 static llvm::cl::opt<enum bmc_detail::muc_method_t>
 MucMethod("horn-bmc-muc",
-	  llvm::cl::desc("Method used to compute minimal unsatisfiable cores"),
-	  llvm::cl::values(
-		  clEnumValN (bmc_detail::MUC_NONE, "none", "None"),
-		  clEnumValN (bmc_detail::MUC_ASSUMPTIONS, "assumptions", "Solve with assumptions"),
-		  clEnumValN (bmc_detail::MUC_NAIVE, "naive", "Quadratic number of calls to the solver"),
-		  clEnumValN (bmc_detail::MUC_BINARY_SEARCH, "binary", "Method based on Binary search"),
-		  clEnumValEnd),
-	  llvm::cl::init(bmc_detail::MUC_ASSUMPTIONS));
+  llvm::cl::desc("Method used to compute minimal unsatisfiable cores"),
+  llvm::cl::values(
+    clEnumValN (bmc_detail::MUC_NONE, "none", "None"),
+    clEnumValN (bmc_detail::MUC_ASSUMPTIONS, "assumptions", "Solve with assumptions"),
+    clEnumValN (bmc_detail::MUC_NAIVE, "naive", "Quadratic number of calls to the solver"),
+    clEnumValN (bmc_detail::MUC_BINARY_SEARCH, "binary", "Method based on Binary search"),
+    clEnumValEnd),
+  llvm::cl::init(bmc_detail::MUC_ASSUMPTIONS));
+
+static llvm::cl::opt<unsigned>
+PathTimeout("horn-bmc-timeout",
+	    llvm::cl::desc("Timeout (miliseconds) for solving a path formula"),
+	    llvm::cl::init(4294967295u));
 
 static llvm::raw_ostream& get_os(bool show_time = false) {
   llvm::raw_ostream* result = &llvm::errs();
@@ -773,15 +776,35 @@ namespace seahorn
       m_aux_smt_solver.assertExpr(e);
     }
     // TODO: add here path_constraints to help
-    boost::tribool res = m_aux_smt_solver.solve();    
-    if (!res) {
-      LOG("bmc", get_os() << "SMT proved unsat. Size of path formula=" 
-	                  << path_formula.size() << ". ");
+    
+    // set timeout
+    ufo::ZParams<ufo::EZ3> params(m_aux_smt_solver.getContext());
+    params.set(":timeout", PathTimeout);
+    m_aux_smt_solver.set(params);
+    boost::tribool res = m_aux_smt_solver.solve();
+    // reset timeout
+    params.set(":timeout", 4294967295u);
+    m_aux_smt_solver.set(params);
 
+    if (res) {
+      m_model = m_aux_smt_solver.getModel();
+    } else {
       //ufo::Stats::resume ("BMC path-based: SMT unsat core");          
       // --- Compute minimal unsat core of the path formula
+      bmc_detail::muc_method_t muc_method = MucMethod;
+      if (!res) {
+	LOG("bmc", get_os() << "SMT proved unsat. Size of path formula=" 
+	                    << path_formula.size() << ". ");
+      } else {     
+	muc_method = bmc_detail::MUC_NONE;
+	res = false;
+	m_incomplete = true;
+	LOG("bmc", get_os() << "SMT returned unknown. Size of path formula=" 
+	                    << path_formula.size() << ". ");	
+      } 
+      
       ExprVector unsat_core;      
-      switch(MucMethod) {
+      switch(muc_method) {
       case bmc_detail::MUC_NONE: {
 	unsat_core.assign(path_formula.begin(), path_formula.end());
 	break;
@@ -825,9 +848,8 @@ namespace seahorn
       }
       m_active_bool_lits.assign(active_bool_set.begin(), active_bool_set.end());
       //ufo::Stats::stop ("BMC path-based: blocking clause");           
-    } else if (res) {
-      m_model = m_aux_smt_solver.getModel();
-    }    
+    }
+    
     return res;
   }
 
@@ -836,12 +858,14 @@ namespace seahorn
 					 crab_llvm::CrabLlvmPass *crab,
 					 const TargetLibraryInfo& tli)
     : BmcEngine(sem, zctx),
+      m_incomplete(false),
       m_aux_smt_solver(zctx), m_tli(tli), m_model(zctx), m_ls(nullptr),
       m_crab_global(crab), m_crab_path(nullptr) { }
   #else
   PathBasedBmcEngine::PathBasedBmcEngine(SmallStepSymExec &sem, ufo::EZ3 &zctx,
 					 const TargetLibraryInfo& tli)
     : BmcEngine(sem, zctx),
+      m_incomplete(false),
       m_aux_smt_solver(zctx), m_tli(tli), m_model(zctx), m_ls(nullptr) { }
   #endif 
 
@@ -1008,7 +1032,7 @@ namespace seahorn
       ufo::Stats::resume ("BMC path-based: solving path + learning clauses with SMT");
       boost::tribool res= path_encoding_and_solve_with_smt(model, invariants, path_constraints);
       ufo::Stats::stop ("BMC path-based: solving path + learning clauses with SMT");
-      if (res == boost::indeterminate || res) {
+      if (res) {
         #ifdef HAVE_CRAB_LLVM
 	// Temporary: for profiling crab
 	crab::CrabStats::PrintBrunch (crab::outs());
@@ -1016,6 +1040,8 @@ namespace seahorn
 	m_result = res;
 	return res;
       } else  {
+	// if res is unknown we still add a blocking clause to skip
+	// the path.
 	bool ok = add_blocking_clauses();
 	if (!ok) {
 	  errs () << "Path-based BMC ERROR: same blocking clause again " << __LINE__ << "\n";
@@ -1030,6 +1056,10 @@ namespace seahorn
     // Temporary: for profiling crab
     crab::CrabStats::PrintBrunch (crab::outs());
     #endif 
+
+    if (m_incomplete) {
+      m_result = indeterminate;
+    } 
     
     if (iters == 0) {
       errs () << "\nProgram is trivially unsat: initial boolean abstraction was enough.\n";
@@ -1055,7 +1085,7 @@ namespace seahorn
     auto res = m_blocking_clauses.insert(bc);
     bool ok = res.second;
 
-    ufo::Stats::stop ("BMC path-based: adding blocking clauses");      
+    ufo::Stats::stop ("BMC path-based: adding blocking clauses");
     return ok;
   }
   

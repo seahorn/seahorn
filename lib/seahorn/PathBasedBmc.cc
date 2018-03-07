@@ -28,8 +28,22 @@
 
 static llvm::cl::opt<bool>
 UseCrab ("horn-bmc-crab",
-	 llvm::cl::desc ("Use of Crab in BMC (restricted to the path-based engine)"), 
-	 llvm::cl::init (false));
+   llvm::cl::desc ("Use of Crab in BMC (only --bmc=path)"), 
+   llvm::cl::init (false));
+
+static llvm::cl::opt<crab_llvm::CrabDomain>
+CrabDom ("horn-bmc-crab-dom",
+   llvm::cl::desc ("Crab Domain to solve path formulas (only --bmc=path)"),
+   llvm::cl::values
+    (clEnumValN (crab_llvm::INTERVALS, "int", "Classical interval domain (default)"),
+     clEnumValN (crab_llvm::TERMS_INTERVALS, "term-int",
+		 "Intervals with uninterpreted functions."),       
+     clEnumValN (crab_llvm::TERMS_ZONES, "rtz",
+		 "Reduced product of term-dis-int and zones."),
+     clEnumValN (crab_llvm::WRAPPED_INTERVALS, "w-int",
+		 "Wrapped interval domain"),       
+     clEnumValEnd),
+   llvm::cl::init (crab_llvm::INTERVALS));
 
 namespace bmc_detail
 { enum muc_method_t { MUC_NONE, MUC_NAIVE, MUC_ASSUMPTIONS, MUC_BINARY_SEARCH }; }
@@ -523,11 +537,7 @@ namespace seahorn
 
     // -- crab parameters
     AnalysisParams params;
-    // TODO: make these options user options
-    //params.dom=TERMS_INTERVALS; // EQ+UF+INTERVALS
-    //params.dom=WRAPPED_INTERVALS;
-    //params.dom=INTERVALS;
-    params.dom=TERMS_ZONES;    
+    params.dom = CrabDom;
     
     // -- run crab on the path:
     //    If bottom is inferred then relevant_stmts is a minimal subset of
@@ -987,7 +997,21 @@ namespace seahorn
 					       prec_level, heap_abstraction);
     #endif 
 
-    LOG("bmc", get_os() << "Processing symbolic paths\n");
+    LOG("bmc", get_os() << "Processing symbolic paths\n";
+	switch(CrabDom) {
+	case crab_llvm::TERMS_INTERVALS:
+	  get_os() << "Using term+interval domain for solving paths\n";
+	  break;
+	case crab_llvm::WRAPPED_INTERVALS:
+	  get_os() << "Using wrapped interval domain for solving paths\n";
+	  break;	  
+	case crab_llvm::TERMS_ZONES:
+	  get_os() << "Using terms+zones domain for solving paths\n";
+	  break;	  
+	default:
+	  get_os() << "Using interval domain for solving paths\n";
+	});
+	
     /**
      * Main loop
      *

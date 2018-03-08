@@ -46,15 +46,15 @@ CrabDom ("horn-bmc-crab-dom",
    llvm::cl::init (crab_llvm::INTERVALS));
 
 namespace bmc_detail
-{ enum muc_method_t { MUC_NONE, MUC_NAIVE, MUC_ASSUMPTIONS, MUC_BINARY_SEARCH }; }
+{ enum muc_method_t { MUC_NONE, MUC_DELETION, MUC_ASSUMPTIONS, MUC_BINARY_SEARCH }; }
 
 static llvm::cl::opt<enum bmc_detail::muc_method_t>
 MucMethod("horn-bmc-muc",
   llvm::cl::desc("Method used to compute minimal unsatisfiable cores"),
   llvm::cl::values(
     clEnumValN (bmc_detail::MUC_NONE, "none", "None"),
-    clEnumValN (bmc_detail::MUC_ASSUMPTIONS, "assumptions", "Solve with assumptions"),
-    clEnumValN (bmc_detail::MUC_NAIVE, "naive", "Quadratic number of calls to the solver"),
+    clEnumValN (bmc_detail::MUC_ASSUMPTIONS, "assumptions", "Solving with assumptions"),
+    clEnumValN (bmc_detail::MUC_DELETION, "deletion", "Deletion-based method"),
     clEnumValN (bmc_detail::MUC_BINARY_SEARCH, "quickXplain", "QuickXplain method"),
     clEnumValEnd),
   llvm::cl::init(bmc_detail::MUC_BINARY_SEARCH));
@@ -289,8 +289,8 @@ namespace seahorn
   
   class binary_search_muc;
 
-  // Naive deletion-based method
-  class naive_muc: public minimal_unsat_core {
+  // Deletion deletion-based method
+  class deletion_muc: public minimal_unsat_core {
     friend class binary_search_muc;
   private:
     typedef ExprVector::const_iterator const_iterator;
@@ -326,7 +326,7 @@ namespace seahorn
     }
     
   public:
-    naive_muc(ufo::ZSolver<ufo::EZ3>& solver)
+    deletion_muc(ufo::ZSolver<ufo::EZ3>& solver)
       : minimal_unsat_core(solver) {}
 
     
@@ -336,7 +336,7 @@ namespace seahorn
     }
 
     std::string get_name() const override {
-      return "Naive MUC";
+      return "Deletion MUC";
     }
     
   };
@@ -388,7 +388,7 @@ namespace seahorn
 	  //core.reserve(size);
 	  core.insert(core.end(), f.begin(), f.end());
 	} else {
-	  naive_muc muc(m_solver);
+	  deletion_muc muc(m_solver);
 	  ExprVector small_f(f.begin(), f.end());
 	  ExprVector small_core;
 	  muc.run(small_f, assume, small_core);
@@ -447,7 +447,7 @@ namespace seahorn
     }
 
     std::string get_name() const override {
-      return "Naive Junker's QuickXplain";
+      return "QuickXplain";
     }
     
   };
@@ -848,8 +848,8 @@ namespace seahorn
 	unsat_core.assign(path_formula.begin(), path_formula.end());
 	break;
       }
-      case bmc_detail::MUC_NAIVE: {
-      	naive_muc muc(m_aux_smt_solver);
+      case bmc_detail::MUC_DELETION: {
+      	deletion_muc muc(m_aux_smt_solver);
       	muc.run(path_formula, unsat_core);
 	LOG("bmc-unsat-core", errs() << "\n"; muc.print_stats(errs()));
 	break;

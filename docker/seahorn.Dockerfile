@@ -9,7 +9,7 @@ ARG BASE_IMAGE=ubuntu
 FROM $BASE_IMAGE
 
 ARG BASE_IMAGE=ubuntu
-ENV SEAHORN=/opt/seahorn/bin/sea PATH="$PATH:/opt/seahorn/bin"
+ENV SEAHORN=/opt/seahorn/bin/sea PATH="$PATH:/opt/seahorn/bin:/opt/llvm/bin"
 USER root
 
 RUN if [ "$BASE_IMAGE" != "seahorn/seahorn" ] && [ "$BASE_IMAGE" != "ubuntu" ] ; \
@@ -33,11 +33,15 @@ RUN mkdir -p seahorn && \
             sudo curl build-essential python-dev python-setuptools python-pip libgraphviz-dev && \
         pip install lit OutputCheck && \
         easy_install networkx pygraphviz && \
+        # get supported llvm version
+        mkdir /opt/llvm && \
+        curl -sL https://github.com/seahorn/seahorn-ext-deps/releases/download/v0.1/xenial_rel_llvm38.tar.gz \
+        | tar -xzf - -C /opt/llvm --strip-components=1 && \
         # download clang
         mkdir /clang-3.8 && \
         if [ "$UBUNTU" = "xenial" ] ; \
-          then curl http://releases.llvm.org/3.8.0/clang+llvm-3.8.0-x86_64-linux-gnu-ubuntu-16.04.tar.xz ; \
-          else curl http://releases.llvm.org/3.8.0/clang+llvm-3.8.0-x86_64-linux-gnu-ubuntu-14.04.tar.xz ; \
+          then curl -s http://releases.llvm.org/3.8.0/clang+llvm-3.8.0-x86_64-linux-gnu-ubuntu-16.04.tar.xz ; \
+          else curl -s http://releases.llvm.org/3.8.0/clang+llvm-3.8.0-x86_64-linux-gnu-ubuntu-14.04.tar.xz ; \
         fi \
         | tar -xJf - -C /clang-3.8 --strip-components=1 && \
         apt-get remove -yqq curl && \

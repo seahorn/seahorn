@@ -52,15 +52,21 @@ namespace seahorn
     // Return model if sat
     virtual ufo::ZModel<ufo::EZ3> getModel() override;
     
-    /// constructs the path condition (NOT implemented)
+    /// constructs the initial (precise) encoding
+    /// but the encoding is not asserted in the solver.
     virtual void encode (bool assert_formula) override;
     
     /// Dump unsat core if unsat (NOT implemented)
     virtual void unsatCore (ExprVector &out) override;
+
+    /// Output the initial (precise) encoding in SMT-LIB2 format
+    virtual raw_ostream& toSmtLib (raw_ostream& out) override; 
     
   private:
     // Incomplete flag: if a SMT query returned unknown
     bool m_incomplete;
+    // Count number of path
+    unsigned m_num_paths;
     // used to solve a path formula
     ufo::ZSolver<ufo::EZ3> m_aux_smt_solver;        
     const llvm::TargetLibraryInfo& m_tli;
@@ -81,7 +87,7 @@ namespace seahorn
     // Temporary sanity check: bookeeping of all generated blocking
     // clauses.
     boost::unordered_set<Expr> m_blocking_clauses;
-
+    
     // Check feasibility of a path induced by model using SMT solver.
     // Return true (sat), false (unsat), or indeterminate (inconclusive).
     // If unsat then it produces a blocking clause.
@@ -100,5 +106,9 @@ namespace seahorn
 
     // Return false if a blocking clause has been generated twice.
     bool add_blocking_clauses();
+
+    // For debugging
+    void toSmtLib(const ExprVector& path);
+    
   };
 }

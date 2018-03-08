@@ -2,6 +2,7 @@
 #define  __BMC__HH_
 
 #include "llvm/IR/Function.h"
+#include "llvm/Support/raw_ostream.h"
 
 #include "boost/logic/tribool.hpp"
 
@@ -94,14 +95,13 @@ namespace seahorn
     /// Exposes internal details. Intendent to be used for debugging only
     virtual void unsatCore (ExprVector &out);
 
+    /// output current path condition in SMT-LIB2 format
+    virtual raw_ostream& toSmtLib (raw_ostream& out) 
+    { encode (); return m_smt_solver.toSmtLib (out); }
+
     
     /// returns the latest result from solve() 
     boost::tribool result () { return m_result; }
-    
-    /// output current path condition in SMT-LIB2 format
-    template<typename OutputStream>
-    OutputStream &toSmtLib (OutputStream &out) 
-    { encode (); return m_smt_solver.toSmtLib (out); }
     
     /// access to expression factory
     ExprFactory &efac () { return m_efac; }

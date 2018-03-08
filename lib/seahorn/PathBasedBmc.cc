@@ -14,6 +14,9 @@
 #endif
 
 #include "llvm/Support/CommandLine.h"
+#include "llvm/Support/FileSystem.h"
+#include "llvm/Support/Path.h"
+#include "llvm/Support/raw_ostream.h"
 
 /** 
   Important: Certain parts of this implementation is VC
@@ -35,7 +38,8 @@ static llvm::cl::opt<crab_llvm::CrabDomain>
 CrabDom ("horn-bmc-crab-dom",
    llvm::cl::desc ("Crab Domain to solve path formulas (only --bmc=path)"),
    llvm::cl::values
-    (clEnumValN (crab_llvm::INTERVALS, "int", "Classical interval domain (default)"),
+    (clEnumValN (crab_llvm::INTERVALS, "int",
+		 "Classical interval domain (default)"),
      clEnumValN (crab_llvm::TERMS_INTERVALS, "term-int",
 		 "Intervals with uninterpreted functions."),       
      clEnumValN (crab_llvm::TERMS_ZONES, "rtz",
@@ -57,7 +61,7 @@ MucMethod("horn-bmc-muc",
     clEnumValN (bmc_detail::MUC_DELETION, "deletion", "Deletion-based method"),
     clEnumValN (bmc_detail::MUC_BINARY_SEARCH, "quickXplain", "QuickXplain method"),
     clEnumValEnd),
-  llvm::cl::init(bmc_detail::MUC_BINARY_SEARCH));
+  llvm::cl::init(bmc_detail::MUC_ASSUMPTIONS));
 
 static llvm::cl::opt<unsigned>
 PathTimeout("horn-bmc-path-timeout",
@@ -68,6 +72,12 @@ static llvm::cl::opt<unsigned>
 MucTimeout("horn-bmc-muc-timeout",
 	    llvm::cl::desc("Timeout (seconds) for SMT query during MUC computation"),
 	    llvm::cl::init(5u));
+
+static llvm::cl::opt<std::string>
+SmtOutDir("horn-bmc-smt-outdir",
+	  llvm::cl::desc("Directory to dump path formulas in SMT-LIB format"),
+	  llvm::cl::init(""),
+	  llvm::cl::value_desc("directory"));
 
 // To print messages with timestamps
 static llvm::raw_ostream& get_os(bool show_time = false) {
@@ -840,7 +850,12 @@ namespace seahorn
 
     LOG("bmc-details", errs() << "PATH FORMULA:\n";
 	for (Expr e: path_formula) { errs () << "\t" << *e << "\n"; });
-	  
+
+    // For debugging
+    // if (SmtOutDir != "") {
+    //   toSmtLib(path_formula);
+    // }
+    
     /*****************************************************************
      * This check might be expensive if path_formula contains complex
      * bitvector/floating point expressions.
@@ -873,7 +888,11 @@ namespace seahorn
 	res = false;
 	m_incomplete = true;
 	LOG("bmc", get_os() << "SMT returned unknown. Size of path formula=" 
-	                    << path_formula.size() << ". ");	
+	                    << path_formula.size() << ". ");
+
+	if (SmtOutDir != "") {
+	   toSmtLib(path_formula);
+	}
       } 
       
       ExprVector unsat_core;      
@@ -932,6 +951,7 @@ namespace seahorn
 					 const TargetLibraryInfo& tli)
     : BmcEngine(sem, zctx),
       m_incomplete(false),
+      m_num_paths(0),
       m_aux_smt_solver(zctx), m_tli(tli), m_model(zctx), m_ls(nullptr),
       m_crab_global(crab), m_crab_path(nullptr) { }
   #else
@@ -939,6 +959,7 @@ namespace seahorn
 					 const TargetLibraryInfo& tli)
     : BmcEngine(sem, zctx),
       m_incomplete(false),
+      m_num_paths(0),      
       m_aux_smt_solver(zctx), m_tli(tli), m_model(zctx), m_ls(nullptr) { }
   #endif 
 
@@ -949,11 +970,72 @@ namespace seahorn
     #endif 
   }
 
-  void PathBasedBmcEngine::encode(bool assert_formula) {
-    // This method can be called separately from solve() to, e.g.,
-    // dump the precise encoding into a file. The encoding happens
-    // only once so it doesn't matter to call BmcEngine::encode
-    // several times.
+  // Print a path to a SMT-LIB file (for debugging purposes)
+  void PathBasedBmcEngine::toSmtLib(const ExprVector& f) {
+    assert (SmtOutDir != "");
+    
+    std::error_code EC;
+    std::string DirName = SmtOutDir;
+    
+    // get absolute path to the directory
+    SmallVector<char, 256> path;
+    EC = sys::fs::make_absolute(DirName, path);
+    if (EC) {
+      errs () << "Cannot find absolute path to " << DirName << "\n";
+      return;
+    }
+    // create the directory
+    EC = sys::fs::create_directory(path, true /*ignore if dir exists*/);
+    if (EC) {
+      errs () << "Cannot create directory " << DirName << "\n";
+      return;
+    }
+    // create a file name
+    std::string Filename("path_" + std::to_string(m_num_paths));
+    {
+      time_t now = time(0);
+      struct tm tstruct;
+      char buf[80];
+      tstruct = *localtime(&now);
+      strftime(buf, sizeof(buf), "__%Y-%m-%d.%H-%M-%S", &tstruct);
+      std::string suffix(buf);
+      Filename= Filename + "_" + suffix;
+    }    
+    Filename = Filename + ".smt2";
+    sys::path::append(path, Filename);
+    Twine fullFilename(path);
+    
+    // create a file descriptor
+    raw_fd_ostream fd(fullFilename.toStringRef(path), EC, sys::fs::F_Text);
+    if (EC) {
+      errs () << "Could not open: " << Filename << "\n";
+      return;
+    }
+
+    // dump the formula to the file descriptor
+    m_aux_smt_solver.reset();
+    for (Expr e : f) {
+      m_aux_smt_solver.assertExpr(e);
+    }
+    m_aux_smt_solver.toSmtLib(fd);
+    m_aux_smt_solver.reset();
+  }
+  
+  raw_ostream& PathBasedBmcEngine::toSmtLib(raw_ostream& o) {
+    encode(false);
+    
+    m_aux_smt_solver.reset();
+    for (Expr e : m_side) {
+      m_aux_smt_solver.assertExpr(e);
+    }
+    m_aux_smt_solver.toSmtLib(o);
+    m_aux_smt_solver.reset();
+    return o;
+  }
+  
+  void PathBasedBmcEngine::encode(bool assert_formula /*unused*/) {
+    /** Note that we never assert the encoding into the solver **/
+    
     ufo::Stats::resume ("BMC path-based: precise encoding");
     BmcEngine::encode(/*assert_formula=*/ false);
     ufo::Stats::stop ("BMC path-based: precise encoding");
@@ -970,10 +1052,8 @@ namespace seahorn
     LOG("bmc", get_os(true) << "Starting path-based BMC \n";);
     
     // -- Precise encoding
-    LOG("bmc", get_os(true)<< "Begin precise encoding\n";);    
-    ufo::Stats::resume ("BMC path-based: precise encoding");
-    BmcEngine::encode(/*assert_formula=*/ false);
-    ufo::Stats::stop ("BMC path-based: precise encoding");
+    LOG("bmc", get_os(true)<< "Begin precise encoding\n";);
+    encode(/*assert_formula=*/ false);
     LOG("bmc", get_os(true)<< "End precise encoding\n";);        
 
     LOG("bmc-details",
@@ -1082,18 +1162,17 @@ namespace seahorn
      * unsat, blocking clauses are added to avoid exploring the same
      * path.
     **/
-    unsigned iters = 0;
     while ((bool) (m_result = path_solver(m_smt_solver))) {
-      ++iters;
+      ++m_num_paths;
       ufo::Stats::count("BMC total number of symbolic paths");
       
-      LOG("bmc", get_os(true) << iters << ": ");
+      LOG("bmc", get_os(true) << m_num_paths << ": ");
       ufo::Stats::resume ("BMC path-based: get model");      
       ufo::ZModel<ufo::EZ3> model = m_smt_solver.getModel ();
       ufo::Stats::stop ("BMC path-based: get model");            
       
       LOG("bmc-details",
-	  errs () << "Model " << iters << " found: \n" << model << "\n";);
+	  errs () << "Model " << m_num_paths << " found: \n" << model << "\n";);
 
       invariants_map_t path_constraints;
       #ifdef HAVE_CRAB_LLVM
@@ -1148,7 +1227,7 @@ namespace seahorn
       m_result = indeterminate;
     } 
     
-    if (iters == 0) {
+    if (m_num_paths == 0) {
       errs () << "\nProgram is trivially unsat: initial boolean abstraction was enough.\n";
     }
 

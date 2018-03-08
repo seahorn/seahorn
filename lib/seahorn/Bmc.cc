@@ -73,7 +73,8 @@ namespace seahorn
   }
 
   void BmcEngine::unsatCore (ExprVector &out) {
-    bmc_impl::unsat_core(m_smt_solver, m_side, out);
+    const bool simplify = true;
+    bmc_impl::unsat_core(m_smt_solver, m_side, simplify, out);
   }
 
   BmcTrace BmcEngine::getTrace ()
@@ -322,7 +323,8 @@ namespace seahorn
       
     }
 
-    void unsat_core(ufo::ZSolver<ufo::EZ3>& solver, const ExprVector& f, ExprVector& out) {
+    void unsat_core(ufo::ZSolver<ufo::EZ3>& solver, const ExprVector& f, bool simplify,
+		    ExprVector& out) {
       solver.reset ();
       ExprVector assumptions;
       assumptions.reserve (f.size ());
@@ -338,27 +340,29 @@ namespace seahorn
       if (!res) solver.unsatCore (std::back_inserter (core));
       solver.pop ();
       if (res) return;
-      
-      // simplify core
-      while (core.size () < assumptions.size ()) {
-	assumptions.assign (core.begin (), core.end ());
-	core.clear ();
-	solver.push ();
-	res = solver.solveAssuming (assumptions);
-	assert (!res ? 1 : 0);
-	solver.unsatCore (std::back_inserter (core));
-	solver.pop ();
-      }    
-      
-      // minimize simplified core
-      for (unsigned i = 0; i < core.size ();) {
-	Expr saved = core [i];
-	core [i] = core.back ();
-	res = solver.solveAssuming(boost::make_iterator_range(core.begin(), core.end() - 1)); 
-	if (res) core [i++] = saved;
-	else if (!res)
-	  core.pop_back ();
-	else assert (0);
+
+      if (simplify) {
+	// simplify core
+	while (core.size () < assumptions.size ()) {
+	  assumptions.assign (core.begin (), core.end ());
+	  core.clear ();
+	  solver.push ();
+	  res = solver.solveAssuming (assumptions);
+	  assert (!res ? 1 : 0);
+	  solver.unsatCore (std::back_inserter (core));
+	  solver.pop ();
+	}    
+	
+	// minimize simplified core
+	for (unsigned i = 0; i < core.size ();) {
+	  Expr saved = core [i];
+	  core [i] = core.back ();
+	  res = solver.solveAssuming(boost::make_iterator_range(core.begin(), core.end() - 1)); 
+	  if (res) core [i++] = saved;
+	  else if (!res)
+      	  core.pop_back ();
+	  else assert (0);
+	}
       }
       
       // unwrap the core from ASM to corresponding expressions

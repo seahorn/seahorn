@@ -55,9 +55,9 @@ MucMethod("horn-bmc-muc",
     clEnumValN (bmc_detail::MUC_NONE, "none", "None"),
     clEnumValN (bmc_detail::MUC_ASSUMPTIONS, "assumptions", "Solve with assumptions"),
     clEnumValN (bmc_detail::MUC_NAIVE, "naive", "Quadratic number of calls to the solver"),
-    clEnumValN (bmc_detail::MUC_BINARY_SEARCH, "binary", "Method based on Binary search"),
+    clEnumValN (bmc_detail::MUC_BINARY_SEARCH, "quickXplain", "QuickXplain method"),
     clEnumValEnd),
-  llvm::cl::init(bmc_detail::MUC_ASSUMPTIONS));
+  llvm::cl::init(bmc_detail::MUC_BINARY_SEARCH));
 
 static llvm::cl::opt<unsigned>
 PathTimeout("horn-bmc-timeout",
@@ -241,20 +241,34 @@ namespace seahorn
   class minimal_unsat_core {
   protected:    
     ufo::ZSolver<ufo::EZ3>& m_solver;
-    unsigned m_num_solver_calls;
+    
+    std::vector<unsigned> m_size_solver_calls;
     
   public:
     minimal_unsat_core(ufo::ZSolver<ufo::EZ3>& solver)
-      : m_solver(solver), m_num_solver_calls(0) {}
+      : m_solver(solver) {}
     
     virtual void run(const ExprVector& f, ExprVector& core) = 0;
 
     virtual std::string get_name(void) const = 0;
     
     void print_stats(llvm::raw_ostream& o) {
-      o << get_name() << "\n";
-      o << "\t" << m_num_solver_calls << " number of solver calls\n";
-    }
+      unsigned sz = m_size_solver_calls.size();
+      unsigned avg = 0;
+
+      if (sz > 0) {
+	// compute average
+	int tot = 0;
+	for(unsigned i=0, e=sz; i<e; ++i) {
+	  tot += m_size_solver_calls[i];
+	}
+	avg = (unsigned) tot / sz;
+      }
+      
+      o << get_name() << ":\n";
+      o << "\t" << sz  << " number of solver calls\n";
+      o << "\t" << avg << " average size of each query\n";
+    }  
   };
 
 
@@ -268,13 +282,14 @@ namespace seahorn
     }
     
     void run(const ExprVector& f, ExprVector& core) override {
-      bmc_impl::unsat_core(m_solver, f, core);
+      const bool simplify = false;
+      bmc_impl::unsat_core(m_solver, f, false, core);
     }
   };
   
   class binary_search_muc;
 
-  // Naive quadratic method
+  // Naive deletion-based method
   class naive_muc: public minimal_unsat_core {
     friend class binary_search_muc;
   private:
@@ -288,11 +303,10 @@ namespace seahorn
       for (Expr e: boost::make_iterator_range (it, et)) {
 	m_solver.assertExpr(e);
       }
-      m_num_solver_calls++;
+      m_size_solver_calls.push_back(assumptions.size() + std::distance(it, et));
       return m_solver.solve();
     }
 
-    // TODO: incremental version    
     void run(const ExprVector& f, const ExprVector& assumptions, ExprVector& out) {
       assert (!((bool) check(f.begin(), f.end(), assumptions))); 
 
@@ -328,65 +342,80 @@ namespace seahorn
   };
 
   // Compute minimal unsatisfiable cores using binary search
+  // Naive implementation of Junker's QuickXplain method.
   class binary_search_muc: public minimal_unsat_core{
   private:
 
     // minimum size of the formula to perform binary search on it
-    const unsigned threshold = 10;
+    const unsigned threshold = 5;
     
     typedef typename ExprVector::const_iterator const_iterator;
+    typedef boost::iterator_range<const_iterator> const_range;
     
-    boost::tribool check_with_assumptions(const_iterator it, const_iterator et,
-					  const ExprVector& assumptions) {
+    boost::tribool check_with_assumptions(const_range f,
+					  const ExprVector& assume,
+					  const_range more_assume) {
       m_solver.reset();
-      for (Expr e: assumptions) {
-	m_solver.assertExpr(e);
-      }
-      for (const_iterator i=it; i!=et; ++i) {
-	m_solver.assertExpr(*i);
-      }
-      m_num_solver_calls++;
-      return m_solver.solve();
+      for (Expr e: f) { m_solver.assertExpr(e); }                  
+      for (Expr e: assume) { m_solver.assertExpr(e); }
+      for (Expr e: more_assume) { m_solver.assertExpr(e); }      
+      m_size_solver_calls.push_back(std::distance(f.begin(), f.end()) +
+				    assume.size() +
+				    std::distance(more_assume.begin(), more_assume.end()));
+      boost::tribool res = m_solver.solve();
+      m_solver.reset();
+      return res;
     }
 
-    void run_with_assumptions(const_iterator f_beg, const_iterator f_end,
-			      const ExprVector& assumptions, ExprVector& core) { 
-      assert(!(bool) check_with_assumptions(f_beg, f_end, assumptions));
+    
+    void run_with_assumptions(const_range f, const ExprVector& assume, 
+			      ExprVector& core) {
+      ExprVector more_assume;
+      run_with_assumptions(f, assume, boost::make_iterator_range(more_assume.begin(),
+								 more_assume.end()),
+			   core);
+    }
+    
+    void run_with_assumptions(const_range f, 
+			      const ExprVector& assume, const_range more_assume, 
+			      ExprVector& core) { 
+      assert(!(bool) check_with_assumptions(f, assume, more_assume));
 
-      unsigned size = std::distance(f_beg, f_end);
+      unsigned size = std::distance(f.begin(), f.end());
       if (size <= threshold) {
 	if (size == 0) {
 	} else if (size == 1) {
-	  core.reserve(std::distance(f_beg, f_end));
-	  core.insert(core.end(), f_beg, f_end);
+	  //core.reserve(size);
+	  core.insert(core.end(), f.begin(), f.end());
 	} else {
 	  naive_muc muc(m_solver);
-	  ExprVector small_f(f_beg, f_end);
+	  ExprVector small_f(f.begin(), f.end());
 	  ExprVector small_core;
-	  muc.run(small_f, assumptions, small_core);
+	  muc.run(small_f, assume, small_core);
 	  core.insert(core.end(), small_core.begin(), small_core.end());
-	  m_num_solver_calls += muc.m_num_solver_calls;
+	  m_size_solver_calls.insert(m_size_solver_calls.end(),
+				     muc.m_size_solver_calls.begin(),
+				     muc.m_size_solver_calls.end());
 	}
 	return;
       }
-
-      const_iterator A_beg = f_beg;
-      const_iterator A_end = f_beg +  (size/2);      
+      const_iterator A_beg = f.begin();
+      const_iterator A_end = f.begin() +  (size/2);      
       const_iterator B_beg = A_end;
-      const_iterator B_end = f_end;
-      
+      const_iterator B_end = f.end();
+      const_range A = boost::make_iterator_range(A_beg, A_end);
+      const_range B = boost::make_iterator_range(B_beg, B_end);
       boost::tribool resA = boost::indeterminate;      
       boost::tribool resB = boost::indeterminate;
-      
       /*A*/
-      resA = check_with_assumptions(A_beg, A_end,  assumptions);
+      resA = check_with_assumptions(A, assume, more_assume);
       if (!resA) {
-	return run_with_assumptions(A_beg, A_end, assumptions, core);
+	return run_with_assumptions(A, assume, more_assume, core);
       } else if (resA) {
 	/* B */
-	resB = check_with_assumptions(B_beg, B_end, assumptions);
+	resB = check_with_assumptions(B, assume, more_assume);
 	if (!resB) {
-	  return run_with_assumptions(B_beg, B_end, assumptions, core);
+	  return run_with_assumptions(B, assume, more_assume, core);
 	} else if (resB) {
 	  /* do nothing */
 	} else {
@@ -397,33 +426,33 @@ namespace seahorn
       }
       assert((bool) resA && (bool) resB);
 
-      unsigned num_assumes = assumptions.size();
-      ExprVector new_assumptions(assumptions.begin(), assumptions.end());
-      
-      // minimize A assuming B (plus assumptions) is an unsat core
-      new_assumptions.insert(new_assumptions.end(), B_beg, B_end);
-      run_with_assumptions(A_beg, A_end, new_assumptions, core);
-      
-      // minimize B assuming core (plus assumptions) is an unsat core
-      new_assumptions.erase(new_assumptions.begin() + num_assumes, new_assumptions.end());
-      new_assumptions.insert(new_assumptions.end(), core.begin(), core.end());
-      run_with_assumptions(B_beg, B_end, new_assumptions, core);
+      // minimize A wrt {assumptions, B}
+      run_with_assumptions(A, assume, B, core);
+      // minimize B wrt {assumptions, core}      
+      run_with_assumptions(B, assume,
+      			   boost::make_iterator_range(core.begin(), core.end()),
+      			   core);
     }
 
   public:
-    binary_search_muc(ufo::ZSolver<ufo::EZ3>& solver): minimal_unsat_core(solver) {}
+    binary_search_muc(ufo::ZSolver<ufo::EZ3>& solver)
+      : minimal_unsat_core(solver) {}
     
     void run(const ExprVector& f, ExprVector& out) override {
-      ExprVector assumptions;
-      run_with_assumptions(f.begin(), f.end(), assumptions, out);
+      ExprVector assume, more_assume;
+      run_with_assumptions(boost::make_iterator_range(f.begin(), f.end()),
+			   assume,
+			   boost::make_iterator_range(more_assume.begin(), more_assume.end()),
+			   out);
     }
 
     std::string get_name() const override {
-      return "Binary search-based MUC";
+      return "Naive Junker's QuickXplain";
     }
     
   };
-  
+
+
   #ifdef HAVE_CRAB_LLVM
   /** Begin convert from crab invariants to SeaHorn Expr **/
 
@@ -822,20 +851,20 @@ namespace seahorn
       case bmc_detail::MUC_NAIVE: {
       	naive_muc muc(m_aux_smt_solver);
       	muc.run(path_formula, unsat_core);
-	LOG("bmc-unsat-core", muc.print_stats(errs()));
+	LOG("bmc-unsat-core", errs() << "\n"; muc.print_stats(errs()));
 	break;
       }
       case bmc_detail::MUC_BINARY_SEARCH: {
       	binary_search_muc muc(m_aux_smt_solver);
       	muc.run(path_formula, unsat_core);
-	LOG("bmc-unsat-core", muc.print_stats(errs()));	
+	LOG("bmc-unsat-core", errs() << "\n"; muc.print_stats(errs()));	
 	break;
       }
       case bmc_detail::MUC_ASSUMPTIONS:
       default: {
       	muc_with_assumptions muc(m_aux_smt_solver);
       	muc.run(path_formula, unsat_core);
-	LOG("bmc-unsat-core", muc.print_stats(errs()));
+	LOG("bmc-unsat-core", errs() << "\n"; muc.print_stats(errs()));
 	break;
       }
       }

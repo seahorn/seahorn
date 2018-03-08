@@ -30,7 +30,8 @@ namespace seahorn
 			      ufo::ZModel<ufo::EZ3> &model, ExprVector &out,
 			      ExprMap& active_bool_map);
     // out is a minimal unsat core f based on assumptions
-    void unsat_core(ufo::ZSolver<ufo::EZ3>& solver, const ExprVector& f, ExprVector& out);
+    void unsat_core(ufo::ZSolver<ufo::EZ3>& solver, const ExprVector& f, bool simplify,
+		    ExprVector& out);
   } // end namespace
   
   class BmcTrace;  

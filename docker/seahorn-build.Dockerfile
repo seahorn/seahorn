@@ -48,22 +48,20 @@ RUN echo '#!/bin/sh' > switch.sh && \
 
 WORKDIR /deps
 RUN export PREFIX=$(cat /tmp/dockerutils/prefix.txt) && \
-    export DEPS_LINK=$(echo https://github.com/seahorn/seahorn-ext-deps/releases/download/v0.1/"$PREFIX".tar.gz) && \
-    curl -sSOL $DEPS_LINK && \
-    export PREFIX=$(cat /tmp/dockerutils/prefix.txt) && \
-    export DEPS_TAR=$(echo "$PREFIX".tar.gz) && \
-    tar -xf $DEPS_TAR && \
-    tar -xf boost162.tar.gz && \
-    tar -xf z3.tar.gz && \
-    tar -xf llvm38.tar.gz && \
-    rm *.tar.gz && \
+    export DEPS_BASE=$(echo https://github.com/seahorn/seahorn-ext-deps/releases/download/v0.1/"$PREFIX") && \
+    curl -sSOL "$DEPS_BASE"_boost162.tar.gz && \
+    tar -xf "$PREFIX"_boost162.tar.gz && \
+    curl -sSOL "$DEPS_BASE"_z3.tar.gz && \
+    tar -xf "$PREFIX"_z3.tar.gz && \
+    curl -sSOL "$DEPS_BASE"_llvm38.tar.gz && \
+    tar -xf "$PREFIX"_llvm38.tar.gz && \
 #   ls -al --block-size=M 1>&2 && \
     mkdir -p /seahorn && \
     # download clang
     mkdir /clang-3.8 && \
     if [ "$UBUNTU" = "xenial" ] ; \
-      then curl http://releases.llvm.org/3.8.0/clang+llvm-3.8.0-x86_64-linux-gnu-ubuntu-16.04.tar.xz ; \
-      else curl http://releases.llvm.org/3.8.0/clang+llvm-3.8.0-x86_64-linux-gnu-ubuntu-14.04.tar.xz ; \
+      then curl -s http://releases.llvm.org/3.8.0/clang+llvm-3.8.0-x86_64-linux-gnu-ubuntu-16.04.tar.xz ; \
+      else curl -s http://releases.llvm.org/3.8.0/clang+llvm-3.8.0-x86_64-linux-gnu-ubuntu-14.04.tar.xz ; \
     fi \
     | tar -xJf - -C /clang-3.8 --strip-components=1
     

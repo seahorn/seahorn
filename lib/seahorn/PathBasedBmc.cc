@@ -53,17 +53,23 @@ MucMethod("horn-bmc-muc",
   llvm::cl::desc("Method used to compute minimal unsatisfiable cores"),
   llvm::cl::values(
     clEnumValN (bmc_detail::MUC_NONE, "none", "None"),
-    clEnumValN (bmc_detail::MUC_ASSUMPTIONS, "assumptions", "Solving with assumptions"),
+    clEnumValN (bmc_detail::MUC_ASSUMPTIONS, "assume", "Solving with assumptions"),
     clEnumValN (bmc_detail::MUC_DELETION, "deletion", "Deletion-based method"),
     clEnumValN (bmc_detail::MUC_BINARY_SEARCH, "quickXplain", "QuickXplain method"),
     clEnumValEnd),
   llvm::cl::init(bmc_detail::MUC_BINARY_SEARCH));
 
 static llvm::cl::opt<unsigned>
-PathTimeout("horn-bmc-timeout",
-	    llvm::cl::desc("Timeout (miliseconds) for solving a path formula"),
-	    llvm::cl::init(4294967295u));
+PathTimeout("horn-bmc-path-timeout",
+	    llvm::cl::desc("Timeout (seconds) for SMT solving a path formula"),
+	    llvm::cl::init(1800u));
 
+static llvm::cl::opt<unsigned>
+MucTimeout("horn-bmc-muc-timeout",
+	    llvm::cl::desc("Timeout (seconds) for SMT query during MUC computation"),
+	    llvm::cl::init(5u));
+
+// To print messages with timestamps
 static llvm::raw_ostream& get_os(bool show_time = false) {
   llvm::raw_ostream* result = &llvm::errs();
   if (show_time) {
@@ -237,6 +243,27 @@ namespace seahorn
 				  [](Expr e){return isOpX<TRUE>(e);}),abs_side.end());    
   }
 
+  struct scoped_solver {
+    ufo::ZSolver<ufo::EZ3>& m_solver;
+  public:
+    scoped_solver(ufo::ZSolver<ufo::EZ3>& solver, unsigned timeout /* seconds*/)
+      : m_solver(solver) {
+      ufo::ZParams<ufo::EZ3> params(m_solver.getContext());
+      // We should check here for possible overflow if timeout is
+      // given, e.g., in miliseconds.
+      params.set(":timeout", timeout * 1000);
+      m_solver.set(params);
+    }
+    
+    ~scoped_solver() {
+      ufo::ZParams<ufo::EZ3> params(m_solver.getContext());      
+      params.set(":timeout", 4294967295u); // disable timeout
+      m_solver.set(params);      
+    }
+
+    ufo::ZSolver<ufo::EZ3>& get () { return m_solver;}    
+  };
+  
   // Compute minimal unsatisfiable cores
   class minimal_unsat_core {
   protected:    
@@ -304,7 +331,12 @@ namespace seahorn
 	m_solver.assertExpr(e);
       }
       m_size_solver_calls.push_back(assumptions.size() + std::distance(it, et));
-      return m_solver.solve();
+      boost::tribool res;      
+      {
+	scoped_solver ss(m_solver, MucTimeout);
+	res = ss.get().solve();
+      }
+      return res;
     }
 
     void run(const ExprVector& f, const ExprVector& assumptions, ExprVector& out) {
@@ -320,7 +352,9 @@ namespace seahorn
 	} else if (!res) {
 	  out.pop_back ();
 	} else {
-	  assert(false);
+	  // timeout
+	  out.assign(f.begin(), f.end());
+	  return;
 	}
       }      
     }
@@ -329,7 +363,6 @@ namespace seahorn
     deletion_muc(ufo::ZSolver<ufo::EZ3>& solver)
       : minimal_unsat_core(solver) {}
 
-    
     void run(const ExprVector& f, ExprVector& out) override {
       ExprVector assumptions;
       run(f, assumptions, out);
@@ -362,8 +395,11 @@ namespace seahorn
       m_size_solver_calls.push_back(std::distance(f.begin(), f.end()) +
 				    assume.size() +
 				    std::distance(more_assume.begin(), more_assume.end()));
-      boost::tribool res = m_solver.solve();
-      m_solver.reset();
+      boost::tribool res;      
+      {
+	scoped_solver ss(m_solver, MucTimeout);
+	res = ss.get().solve();
+      }
       return res;
     }
 
@@ -419,12 +455,14 @@ namespace seahorn
 	} else if (resB) {
 	  /* do nothing */
 	} else {
-	  assert(false);
+	  // unknown
+	  core.assign(f.begin(), f.end());
+	  return;
 	}
       } else {
-	assert(false);
+	core.assign(f.begin(), f.end());
+	return;
       }
-      assert((bool) resA && (bool) resB);
 
       // minimize A wrt {assumptions, B}
       run_with_assumptions(A, assume, B, core);
@@ -811,20 +849,16 @@ namespace seahorn
      * consistent with the invariants.
      *****************************************************************/    
     m_aux_smt_solver.reset();
+    // TODO: add here path_constraints to help    
     for (Expr e: path_formula) {
       m_aux_smt_solver.assertExpr(e);
     }
-    // TODO: add here path_constraints to help
-    
-    // set timeout
-    ufo::ZParams<ufo::EZ3> params(m_aux_smt_solver.getContext());
-    params.set(":timeout", PathTimeout);
-    m_aux_smt_solver.set(params);
-    boost::tribool res = m_aux_smt_solver.solve();
-    // reset timeout
-    params.set(":timeout", 4294967295u);
-    m_aux_smt_solver.set(params);
 
+    boost::tribool res;      
+    {
+      scoped_solver ss(m_aux_smt_solver, PathTimeout);
+      res = ss.get().solve();
+    }
     if (res) {
       m_model = m_aux_smt_solver.getModel();
     } else {

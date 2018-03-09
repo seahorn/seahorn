@@ -34,6 +34,11 @@ UseCrab ("horn-bmc-crab",
    llvm::cl::desc ("Use of Crab in BMC (only --bmc=path)"), 
    llvm::cl::init (false));
 
+static llvm::cl::opt<bool>
+UseCrabInvariants ("horn-bmc-crab-invariants",
+   llvm::cl::desc ("Load crab invariants into the BMC engine (only --bmc=path)"), 
+   llvm::cl::init (true));
+
 static llvm::cl::opt<crab_llvm::CrabDomain>
 CrabDom ("horn-bmc-crab-dom",
    llvm::cl::desc ("Crab Domain to solve path formulas (only --bmc=path)"),
@@ -843,10 +848,13 @@ namespace seahorn
     // TODO: BmcTrace already computed the implicant so we might
     // compute the implicant twice if crab is enabled.
     bmc_impl::get_model_implicant(f, model, path_formula, active_bool_map);
+
+    #if 1
     // remove redundant literals
     std::sort(path_formula.begin(), path_formula.end());
     path_formula.erase(std::unique(path_formula.begin(), path_formula.end()),
 		       path_formula.end());
+    #endif 
 
     LOG("bmc-details", errs() << "PATH FORMULA:\n";
 	for (Expr e: path_formula) { errs () << "\t" << *e << "\n"; });
@@ -890,6 +898,7 @@ namespace seahorn
 	LOG("bmc", get_os() << "SMT returned unknown. Size of path formula=" 
 	                    << path_formula.size() << ". ");
 
+	ufo::Stats::count("BMC total number of unknown symbolic paths");	
 	if (SmtOutDir != "") {
 	   toSmtLib(path_formula);
 	}
@@ -1080,7 +1089,7 @@ namespace seahorn
     invariants_map_t invariants;
     #ifdef HAVE_CRAB_LLVM   
     // Convert crab invariants to Expr
-    if (UseCrab) {
+    if (UseCrab && UseCrabInvariants) {
       LOG("bmc", get_os(true)<< "Begin loading of crab invariants\n";);
       ufo::Stats::resume ("BMC path-based: loading of crab invariants");  
       // -- Compute live symbols so that invariant variables exclude

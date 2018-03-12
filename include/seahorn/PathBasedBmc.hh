@@ -108,7 +108,7 @@ namespace seahorn
     bool add_blocking_clauses();
 
     // For debugging
-    void toSmtLib(const ExprVector& path);
+    void toSmtLib(const ExprVector& path, std::string prefix="");
     
   };
 }

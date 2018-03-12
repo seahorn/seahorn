@@ -137,6 +137,13 @@ namespace seahorn
     // -- all counterexamples start at the entry block of the function
     cpTrace.push_back (&cpg.getCp (F.getEntryBlock ()));
 
+    LOG ("cex",
+         errs () << "Solver CEX BEGIN\n";
+	 for (Expr r : rules) {
+	   errs() << *r << "\n";
+	 }    
+         errs () << "Solver CEX END\n";);
+    
     for (Expr r : rules)
     {
 
@@ -245,17 +252,16 @@ namespace seahorn
 
     // -- DUMP unsat core if validation failed
     if (res) {
-      errs () << "Validated CEX.\n";
+      errs () << "Validated CEX by BMC engine.\n";
     } else
     {
-      errs () << "Warning: failed to validate cex\n";
+      errs () << "Warning: the BMC engine failed to validate cex\n";
       errs () << "Computing unsat core\n";
       ExprVector core;
       bmc->unsatCore (core);
       errs () << "Final core: " << core.size () << "\n";
-      errs () << "Failed to validate CEX. Core is: \n";
+      errs () << "Core is: \n";
       for (Expr c : core) errs () << *c << "\n";
-
       Stats::sset("Result", "FAILED");
       return false;
     }

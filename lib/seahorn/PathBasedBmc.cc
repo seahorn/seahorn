@@ -884,6 +884,9 @@ namespace seahorn
     }
     if (res) {
       m_model = m_aux_smt_solver.getModel();
+      if (SmtOutDir != "") {
+	toSmtLib(path_formula, "sat");
+      }
     } else {
       //ufo::Stats::resume ("BMC path-based: SMT unsat core");          
       // --- Compute minimal unsat core of the path formula
@@ -900,7 +903,7 @@ namespace seahorn
 
 	ufo::Stats::count("BMC total number of unknown symbolic paths");	
 	if (SmtOutDir != "") {
-	   toSmtLib(path_formula);
+	  toSmtLib(path_formula, "unknown");
 	}
       } 
       
@@ -980,7 +983,7 @@ namespace seahorn
   }
 
   // Print a path to a SMT-LIB file (for debugging purposes)
-  void PathBasedBmcEngine::toSmtLib(const ExprVector& f) {
+  void PathBasedBmcEngine::toSmtLib(const ExprVector& f, std::string prefix) {
     assert (SmtOutDir != "");
     
     std::error_code EC;
@@ -1000,7 +1003,7 @@ namespace seahorn
       return;
     }
     // create a file name
-    std::string Filename("path_" + std::to_string(m_num_paths));
+    std::string Filename("path_" + prefix + "_" + std::to_string(m_num_paths));
     {
       time_t now = time(0);
       struct tm tstruct;

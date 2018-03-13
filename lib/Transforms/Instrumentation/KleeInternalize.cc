@@ -294,8 +294,9 @@ namespace
                                        {Builder.CreateGlobalStringPtr ("FAILED"),
 					Builder.CreateGlobalStringPtr ("__builtin.c"),
                                         Builder.getInt32 (0),
-					Builder.CreateConstGEP2_32 (fname->getType(), // llvm 3.8
-						         	    fname, 0, 0)});
+					   Builder.CreateConstGEP2_32 (
+					       cast<PointerType>(fname->getType()->getScalarType())->getElementType(), 
+					       fname, 0, 0)});
 
           }
 

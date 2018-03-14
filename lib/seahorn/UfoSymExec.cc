@@ -90,7 +90,7 @@ LargeStepReduce ("horn-large-reduce",
 
 static const Value *extractUniqueScalar (CallSite &cs)
 {
-   if (!EnableUniqueScalars) 
+   if (!EnableUniqueScalars)
      return nullptr;
    else
      return seahorn::shadow_dsa::extractUniqueScalar (cs);
@@ -98,13 +98,13 @@ static const Value *extractUniqueScalar (CallSite &cs)
 
 static const Value* extractUniqueScalar (const CallInst *ci)
 {
-   if (!EnableUniqueScalars) 
+   if (!EnableUniqueScalars)
      return nullptr;
-   else 
+   else
      return seahorn::shadow_dsa::extractUniqueScalar (ci);
 }
 
-static bool isShadowMem (const Value &V, const Value **out) 
+static bool isShadowMem (const Value &V, const Value **out)
 {
    const Value *scalar;
    bool res = seahorn::shadow_dsa::isShadowMem (V, &scalar);
@@ -120,30 +120,30 @@ namespace
     ExprFactory &m_efac;
     UfoSmallSymExec &m_sem;
     ExprVector &m_side;
-    
+
     Expr trueE;
     Expr falseE;
     Expr zeroE;
     Expr oneE;
-    
+
     /// -- current read memory
     Expr m_inMem;
     /// -- current write memory
     Expr m_outMem;
     /// --- true if the current read/write is to unique memory location
     bool m_uniq;
-    
+
     /// -- parameters for a function call
     ExprVector m_fparams;
-   
+
     Expr m_activeLit;
 
     // -- input and output parameter regions for a function call
     ExprVector m_inRegions;
     ExprVector m_outRegions;
-    
-    SymExecBase (SymStore &s, UfoSmallSymExec &sem, ExprVector &side) : 
-      m_s(s), m_efac (m_s.getExprFactory ()), m_sem (sem), m_side (side) 
+
+    SymExecBase (SymStore &s, UfoSmallSymExec &sem, ExprVector &side) :
+      m_s(s), m_efac (m_s.getExprFactory ()), m_sem (sem), m_side (side)
     {
       trueE = mk<TRUE> (m_efac);
       falseE = mk<FALSE> (m_efac);
@@ -157,21 +157,21 @@ namespace
       m_fparams.push_back (falseE);
     }
     Expr symb (const Value &I) {return m_sem.symb (I);}
-    
+
     Expr read (const Value &v)
     {
       return m_sem.isTracked (v) ? m_s.read (symb (v)) : Expr (0);
     }
 
     Expr lookup (const Value &v) {return m_sem.lookup (m_s, v);}
-    Expr havoc (const Value &v) 
+    Expr havoc (const Value &v)
     {return m_sem.isTracked (v) ? m_s.havoc (symb (v)) : Expr (0);}
     void write (const Value &v, Expr val)
     {if (val && m_sem.isTracked (v)) m_s.write (symb (v), val);}
 
     void resetActiveLit () {m_activeLit = trueE;}
     void setActiveLit (Expr act) {m_activeLit = act;}
-    
+
     // -- add conditional side condition
     void addCondSide (Expr c) {side(c, true);}
 
@@ -183,29 +183,29 @@ namespace
       else
         m_side.push_back (v);
     }
-   
+
     void bside (Expr lhs, Expr rhs, bool conditional = false)
     {if (lhs && rhs) side (mk<IFF> (lhs, rhs), conditional);}
-    
-   
+
+
     void side (Expr lhs, Expr rhs, bool conditional = false)
     {if (lhs && rhs) side (mk<EQ> (lhs, rhs), conditional);}
-    
+
   };
-  
-  struct SymExecVisitor : public InstVisitor<SymExecVisitor>, 
+
+  struct SymExecVisitor : public InstVisitor<SymExecVisitor>,
                           SymExecBase
   {
-    SymExecVisitor (SymStore &s, UfoSmallSymExec &sem, ExprVector &side) : 
+    SymExecVisitor (SymStore &s, UfoSmallSymExec &sem, ExprVector &side) :
       SymExecBase (s, sem, side) {}
-    
+
     /// base case. if all else fails.
     void visitInstruction (Instruction &I) {havoc (I);}
-    
+
     /// skip PHI nodes
     void visitPHINode (PHINode &I) { /* do nothing */ }
-    
-     
+
+
     Expr geq (Expr op0, Expr op1)
     {
       if (op0 == op1) return trueE;
@@ -213,7 +213,7 @@ namespace
         return
           getTerm<mpz_class> (op0) >=
           getTerm<mpz_class> (op1) ? trueE : falseE;
-      
+
       return mk<GEQ> (op0, op1);
     }
 
@@ -224,14 +224,14 @@ namespace
         return
           getTerm<mpz_class> (op0) <
           getTerm<mpz_class> (op1) ? trueE : falseE;
-      
+
       return mk<LT> (op0, op1);
     }
-    
+
     Expr mkUnsignedLT (Expr op0, Expr op1)
     {
       using namespace expr::op::boolop;
-      
+
       return lite (geq (op0, zeroE),
                       lite (geq (op1, zeroE),
                             lt (op0, op1),
@@ -240,21 +240,21 @@ namespace
                             lt (op0, op1),
                             falseE));
     }
-    
+
     void visitCmpInst (CmpInst &I)
     {
       Expr lhs = havoc (I);
-      
+
       const Value& v0 = *I.getOperand (0);
       const Value& v1 = *I.getOperand (1);
-      
+
       Expr op0 = lookup (v0);
       Expr op1 = lookup (v1);
 
       if (!(op0 && op1)) return;
 
       Expr rhs;
-      
+
       switch (I.getPredicate ())
       {
       case CmpInst::ICMP_EQ:
@@ -289,7 +289,7 @@ namespace
         break;
       case CmpInst::ICMP_SLT:
         rhs = mk<LT>(op0,op1);
-        break; 
+        break;
       case CmpInst::ICMP_ULE:
         side (mk<OR> (mk<IFF> (lhs, mk<EQ> (op0, op1)),
                       mk<IFF> (lhs, mkUnsignedLT (op0, op1))));
@@ -301,22 +301,22 @@ namespace
       default:
         rhs = nullptr;
         break;
-      }       
+      }
 
       if (UseWrite) write (I, rhs);
       else side (lhs, rhs);
     }
-    
-    
+
+
     void visitSelectInst(SelectInst &I)
     {
       if (!m_sem.isTracked (I)) return;
-      
+
       Expr lhs = havoc (I);
       Expr cond = lookup (*I.getCondition ());
       Expr op0 = lookup (*I.getTrueValue ());
       Expr op1 = lookup (*I.getFalseValue ());
-      
+
       if (cond && op0 && op1)
       {
         Expr rhs = mk<ITE> (cond, op0, op1);
@@ -326,13 +326,13 @@ namespace
         else side (lhs, rhs);
       }
     }
-    
+
     void visitBinaryOperator(BinaryOperator &I)
     {
       if (!m_sem.isTracked (I)) return;
-      
+
       Expr lhs = havoc (I);
-      
+
       switch (I.getOpcode ())
       {
       case BinaryOperator::Add:
@@ -346,7 +346,7 @@ namespace
       case BinaryOperator::URem:
         doArithmetic (lhs, I);
         break;
-	
+
       case BinaryOperator::And:
       case BinaryOperator::Or:
       case BinaryOperator::Xor:
@@ -357,7 +357,7 @@ namespace
         break;
       }
     }
-    
+
     void doBitLogic (Expr lhs, BinaryOperator &i)
     {
       const Value& v0 = *(i.getOperand (0));
@@ -403,11 +403,11 @@ namespace
           if (op1 == sixteen)
             val.push_back (mk<IMPL> (mk<EQ> (op0, thirtytwo),
                                      mk<EQ> (lhs, zeroE)));
-	  // x & 65535 == x (if x <= 65535)	  
+	  // x & 65535 == x (if x <= 65535)
 	  if (op1 == twoToSixteenMinusOne)
 	    val.push_back (mk<IMPL>(mk<LEQ>(op0, twoToSixteenMinusOne),
 				    mk<EQ> (lhs, op0)));
-	  			 
+
           // val.push_back (mk<IMPL> (mk<AND> (mk<EQ> (op0, thirtytwo),
           //                                   mk<EQ> (op1, sixteen)),
           //                          mk<EQ> (lhs, zeroE)));
@@ -495,29 +495,29 @@ namespace
     {
       mpz_class shift = expr::toMpz (op2->getValue ());
       mpz_class factor = 1;
-      for (unsigned long i = 0; i < shift.get_ui (); ++i) 
+      for (unsigned long i = 0; i < shift.get_ui (); ++i)
       {
           factor = factor * 2;
       }
       return mk<MULT>(op1, mkTerm<mpz_class> (factor, m_efac));
     }
 
-    Expr doAShr (Expr lhs, Expr op1, const ConstantInt *op2)    
+    Expr doAShr (Expr lhs, Expr op1, const ConstantInt *op2)
     {
       if (!EnableDiv) return Expr(nullptr);
 
       mpz_class shift = expr::toMpz (op2->getValue ());
       mpz_class factor = 1;
-      for (unsigned long i = 0; i < shift.get_ui (); ++i) 
+      for (unsigned long i = 0; i < shift.get_ui (); ++i)
           factor = factor * 2;
       Expr factorE = mkTerm<mpz_class> (factor, m_efac);
-      
+
       if (RewriteDiv)
 	return mk<EQ>(mk<MULT>(lhs, factorE), op1);
       else
 	return mk<EQ>(lhs ,mk<DIV>(op1, factorE));
     }
-    
+
     void doArithmetic (Expr lhs, BinaryOperator &I)
     {
       const Value& v1 = *I.getOperand(0);
@@ -540,29 +540,29 @@ namespace
       case BinaryOperator::Mul:
         // if StrictlyLinear, then require that at least one
         // argument is a constant
-        if (!StrictlyLinear || 
-            isOpX<MPZ> (op1) || isOpX<MPZ> (op2) || 
+        if (!StrictlyLinear ||
+            isOpX<MPZ> (op1) || isOpX<MPZ> (op2) ||
             isOpX<MPQ> (op1) || isOpX<MPQ> (op2))
           rhs = mk<MULT>(op1, op2);
         break;
       case BinaryOperator::SDiv:
       case BinaryOperator::UDiv:
         // if StrictlyLinear then require that divisor is a constant
-        if (EnableDiv && 
-            (!StrictlyLinear || 
+        if (EnableDiv &&
+            (!StrictlyLinear ||
              isOpX<MPZ> (op2) || isOpX<MPQ> (op2))) {
 	  if (RewriteDiv) {
 	    side (mk<MULT>(lhs, op2), op1, true);
 	    return;
 	  }
-	  else 
-	    rhs = mk<DIV>(op1, op2);	    
+	  else
+	    rhs = mk<DIV>(op1, op2);
 	}
         break;
       case BinaryOperator::SRem:
       case BinaryOperator::URem:
         // if StrictlyLinear then require that divisor is a constant
-        if (EnableDiv && 
+        if (EnableDiv &&
             (!StrictlyLinear || isOpX<MPZ> (op2) || isOpX<MPQ> (op2)))
           rhs = mk<REM> (op1, op2);
         break;
@@ -592,27 +592,27 @@ namespace
       else if (UseWrite) write (I, rhs);
       else side (lhs, rhs);
     }
-    
+
     void visitReturnInst (ReturnInst &I)
     {
       // -- skip return argument of main
       if (I.getParent ()->getParent ()->getName ().equals ("main")) return;
-      
+
       if (I.getNumOperands () > 0)
         lookup (*I.getOperand (0));
     }
-    
+
     void visitBranchInst (BranchInst &I)
     {
       if (I.isConditional ()) lookup (*I.getCondition ());
     }
 
-    void visitTruncInst(TruncInst &I)              
+    void visitTruncInst(TruncInst &I)
     {
       if (!m_sem.isTracked (I)) return;
       Expr lhs = havoc (I);
       Expr op0 = lookup (*I.getOperand (0));
-      
+
       if (!op0) return;
 
       if (I.getType ()->isIntegerTy (1))
@@ -621,20 +621,20 @@ namespace
         // We handle the two most common cases: 0 -> false, 1 -> true
         side (mk<IMPL> (mk<EQ> (op0, zeroE), mk<NEG> (lhs)));
         side (mk<IMPL> (mk<EQ> (op0, oneE), lhs));
-        
+
       }
       else if (UseWrite) write (I, op0);
       else side (lhs, op0);
     }
-    
+
     void visitZExtInst (ZExtInst &I) {doExtCast (I, false);}
     void visitSExtInst (SExtInst &I) {doExtCast (I, true);}
-    
+
     void visitGetElementPtrInst (GetElementPtrInst &gep)
     {
       if (!m_sem.isTracked (gep)) return;
       Expr lhs = havoc (gep);
-      
+
       SmallVector<const Value*, 4> ps;
       SmallVector<const Type*, 4> ts;
       gep_type_iterator typeIt = gep_type_begin (gep);
@@ -643,14 +643,14 @@ namespace
         ps.push_back (gep.getOperand (i));
         ts.push_back (*typeIt);
       }
-      
+
       Expr op = m_sem.ptrArith (m_s, *gep.getPointerOperand (), ps, ts);
       if (op)
       {
         // XXX cannot use write because lhs is further constrained below
         side (lhs, op);
         if (!InferMemSafety) return;
-        
+
         // -- extra constraints that exclude undefined behavior
         if (!gep.isInBounds () || gep.getPointerAddressSpace () != 0)
           return;
@@ -658,20 +658,20 @@ namespace
           // -- base > 0 -> lhs > 0
           addCondSide (mk<OR> (mk<LEQ> (base, zeroE), mk<GT> (lhs, zeroE)));
       }
-      
+
     }
-    
+
     void doExtCast (CastInst &I, bool is_signed = false)
     {
       Expr lhs = havoc (I);
       const Value& v0 = *I.getOperand (0);
       Expr op0 = lookup (v0);
-      
+
       if (!op0) return;
-      
+
       // sext maps (i1 1) to -1
       Expr one = mkTerm<mpz_class> (is_signed ? -1 : 1, m_efac);
-      
+
       if (v0.getType ()->isIntegerTy (1))
       {
         if (const ConstantInt *ci = dyn_cast<ConstantInt> (&v0))
@@ -679,41 +679,41 @@ namespace
         else
           op0 = mk<ITE> (op0, one, zeroE);
       }
-      
+
       if (UseWrite) write (I, op0);
       else side (lhs, op0);
     }
-    
+
     void visitCallSite (CallSite CS)
     {
       assert (CS.isCall ());
       const Function *f = CS.getCalledFunction ();
-      
+
       Instruction &I = *CS.getInstruction ();
       BasicBlock &BB = *I.getParent ();
-      
+
       // -- unknown/indirect function call
       if (!f)
-      { 
+      {
         // XXX Use DSA and/or Devirt to handle better
         assert (m_fparams.size () == 3);
         visitInstruction (I);
         return;
       }
-      
+
       const Function &F = *f;
       const Function &PF = *I.getParent ()->getParent ();
-      
+
       // skip intrinsic functions, except for memory-related ones
       if (F.isIntrinsic () && !isa<MemIntrinsic> (&I))
       { assert (m_fparams.size () == 3); return;}
-    
-      
+
+
       if (F.getName ().startswith ("verifier.assume"))
       {
         Expr c = lookup (*CS.getArgument (0));
         if (F.getName ().equals ("verifier.assume.not")) c = boolop::lneg (c);
-        
+
         assert (m_fparams.size () == 3);
         // -- assumption is only active when error flag is false
         addCondSide (boolop::lor (m_s.read (m_sem.errorFlag (BB)), c));
@@ -738,7 +738,7 @@ namespace
 	  }
         }
       }
-      else if (MemSetInst *MSI = dyn_cast<MemSetInst>(&I))		
+      else if (MemSetInst *MSI = dyn_cast<MemSetInst>(&I))
       {
 	if (m_inMem && m_outMem && m_sem.isTracked (*(MSI->getDest ()))) {
 	  assert (m_fparams.size () == 3);
@@ -750,8 +750,8 @@ namespace
 	    {
 	      // XXX This is potentially unsound if the corresponding DSA
 	      // XXX node corresponds to multiple allocation sites
-	      Expr val = mkTerm<mpz_class> (expr::toMpz (c->getValue ()), m_efac); 
-	      errs () << "WARNING: initializing DSA node due to memset()\n";	      
+	      Expr val = mkTerm<mpz_class> (expr::toMpz (c->getValue ()), m_efac);
+	      errs () << "WARNING: initializing DSA node due to memset()\n";
 	      if (m_uniq) {
 		side (m_outMem, val);
 	      } else {
@@ -777,7 +777,7 @@ namespace
       else if (m_sem.hasFunctionInfo (F))
       {
         const FunctionInfo &fi = m_sem.getFunctionInfo (F);
-        
+
         // enabled
         m_fparams [0] = m_activeLit; // activation literal
         // error flag in
@@ -788,10 +788,10 @@ namespace
           m_fparams.push_back (m_s.read (symb (*CS.getArgument (arg->getArgNo ()))));
         for (const GlobalVariable *gv : fi.globals)
           m_fparams.push_back (m_s.read (symb (*gv)));
-        
+
         if (fi.ret) m_fparams.push_back (m_s.havoc (symb (I)));
-        
-        LOG ("arg_error", 
+
+        LOG ("arg_error",
              if (m_fparams.size () != bind::domainSz (fi.sumPred))
              {
                errs () << "Call instruction: " << I << "\n";
@@ -802,9 +802,9 @@ namespace
                errs () << "Domain size: " << bind::domainSz (fi.sumPred) << "\n";
                errs () << "m_fparams\n";
                for (auto r : m_fparams) errs () << *r << "\n";
-               errs () << "regions: " << fi.regions.size () 
-                       << " args: " << fi.args.size () 
-                       << " globals: " << fi.globals.size () 
+               errs () << "regions: " << fi.regions.size ()
+                       << " args: " << fi.args.size ()
+                       << " globals: " << fi.globals.size ()
                        << " ret: " << fi.ret << "\n";
                errs () << "regions\n";
                for (auto r : fi.regions) errs () << *r << "\n";
@@ -815,10 +815,10 @@ namespace
                if (fi.ret) errs () << "ret: " << *fi.ret << "\n";
              }
              );
-        
+
         assert (m_fparams.size () == bind::domainSz (fi.sumPred));
         m_side.push_back (bind::fapp (fi.sumPred, m_fparams));
-        
+
         m_fparams.clear ();
         m_fparams.push_back (falseE);
         m_fparams.push_back (falseE);
@@ -829,9 +829,9 @@ namespace
       }
       else if (F.getName ().startswith ("shadow.mem"))
       {
-        if (!m_sem.isTracked (I)) 
+        if (!m_sem.isTracked (I))
           return;
-        
+
         if (F.getName ().equals ("shadow.mem.init"))
           m_s.havoc (symb(I));
         else if (F.getName ().equals ("shadow.mem.load"))
@@ -852,14 +852,14 @@ namespace
         {
 	  auto in_par = m_s.read (symb (*CS.getArgument (1)));
           m_fparams.push_back (in_par);
-	  m_inRegions.push_back (in_par);	  
+	  m_inRegions.push_back (in_par);
 	  auto out_par = m_s.havoc (symb (I));
           m_fparams.push_back (out_par);
 	  m_outRegions.push_back (out_par);
         }
         else if (F.getName ().equals ("shadow.mem.arg.new"))
           m_fparams.push_back (m_s.havoc (symb (I)));
-        else if (!PF.getName ().equals ("main") && 
+        else if (!PF.getName ().equals ("main") &&
                  F.getName ().equals ("shadow.mem.in"))
         {
           m_s.read (symb (*CS.getArgument (1)));
@@ -869,7 +869,7 @@ namespace
         {
           m_s.read (symb (*CS.getArgument (1)));
         }
-        else if (!PF.getName ().equals ("main") && 
+        else if (!PF.getName ().equals ("main") &&
                  F.getName ().equals ("shadow.mem.arg.init"))
         {
           // regions initialized in main are global. We want them to
@@ -893,29 +893,29 @@ namespace
 	  }
 	  else
 	  {
-	    errs () << "WARNING: skipping a call to " << F.getName () 
+	    errs () << "WARNING: skipping a call to " << F.getName ()
 		    << " (recursive call?)\n";
 	  }
 
-          m_fparams.resize (3);	  
+          m_fparams.resize (3);
 	  m_inRegions.clear();
-	  m_outRegions.clear();	
+	  m_outRegions.clear();
         }
 
         visitInstruction (*CS.getInstruction ());
       }
-          
+
     }
-    
+
     void visitAllocaInst (AllocaInst &I)
     {
       if (!m_sem.isTracked (I)) return;
-      
+
       // -- alloca always returns a non-zero address
       Expr lhs = havoc(I);
       side (mk<GT> (lhs, zeroE));
     }
-    
+
     void visitLoadInst (LoadInst &I)
     {
       if (InferMemSafety)
@@ -929,20 +929,20 @@ namespace
           if (base) addCondSide (mk<GT> (base, zeroE));
         }
       }
-      
+
       if (!m_sem.isTracked (I)) return;
-      
+
       // -- define (i.e., use) the value of the instruction
       Expr lhs = havoc (I);
       if (!m_inMem) return;
-      
+
       if (m_uniq)
       {
         Expr rhs = m_inMem;
         if (I.getType ()->isIntegerTy (1))
           // -- convert to Boolean
           rhs = mk<NEQ> (rhs, mkTerm (mpz_class(0), m_efac));
-       
+
         if (UseWrite) write (I, rhs);
         else side (lhs, rhs);
       }
@@ -955,11 +955,11 @@ namespace
 
         side (lhs, rhs, !ArrayGlobalConstraints);
       }
-      
+
       m_inMem.reset ();
     }
-    
-    
+
+
     void visitStoreInst (StoreInst &I)
     {
       if (InferMemSafety)
@@ -975,7 +975,7 @@ namespace
       }
 
       if (!m_inMem || !m_outMem || !m_sem.isTracked (*I.getOperand (0))) return;
-      
+
       Expr act = GlobalConstraints ? trueE : m_activeLit;
       Expr v = lookup (*I.getOperand (0));
       if (v && I.getOperand (0)->getType ()->isIntegerTy (1))
@@ -992,54 +992,54 @@ namespace
         if (idx && v)
           side (m_outMem, op::array::store (m_inMem, idx, v), !ArrayGlobalConstraints);
       }
-      
+
       m_inMem.reset ();
       m_outMem.reset ();
     }
-    
-    
+
+
     void visitCastInst (CastInst &I)
     {
       if (!m_sem.isTracked (I)) return;
 
       Expr lhs = havoc (I);
       const Value &v0 = *I.getOperand (0);
-      
+
       Expr u = lookup (v0);
       if (UseWrite) write (I, u);
       else side (lhs, u);
     }
-    
+
     void initGlobals (const BasicBlock &BB)
     {
       const Function &F = *BB.getParent ();
       if (&F.getEntryBlock () != &BB) return;
       if (!F.getName ().equals ("main")) return;
-      
+
       const Module &M = *F.getParent ();
       for (const GlobalVariable &g : boost::make_iterator_range (M.global_begin (),
                                                                  M.global_end ()))
         if (m_sem.isTracked (g)) havoc (g);
     }
-    
+
     void visitBasicBlock (BasicBlock &BB)
     {
       /// -- check if globals need to be initialized
       initGlobals (BB);
-      
+
       // read the error flag to make it live
       m_s.read (m_sem.errorFlag (BB));
     }
-    
+
   };
-    
+
   struct SymExecPhiVisitor : public InstVisitor<SymExecPhiVisitor>,
                              SymExecBase
   {
     const BasicBlock &m_dst;
-    
-    SymExecPhiVisitor (SymStore &s, UfoSmallSymExec &sem, 
-                       ExprVector &side, const BasicBlock &dst) : 
+
+    SymExecPhiVisitor (SymStore &s, UfoSmallSymExec &sem,
+                       ExprVector &side, const BasicBlock &dst) :
       SymExecBase (s, sem, side), m_dst (dst) {}
 
     void visitBasicBlock (BasicBlock &BB)
@@ -1050,7 +1050,7 @@ namespace
 
       auto curr = BB.begin ();
       if (!isa<PHINode> (curr)) return;
-      
+
       for (; PHINode *phi = dyn_cast<PHINode> (curr); ++curr)
       {
         // skip phi nodes that are not tracked
@@ -1058,7 +1058,7 @@ namespace
         const Value &v = *phi->getIncomingValueForBlock (&m_dst);
         ops.push_back (lookup (v));
       }
-      
+
       curr = BB.begin ();
       for (unsigned i = 0; isa<PHINode> (curr); ++curr)
       {
@@ -1081,7 +1081,7 @@ namespace seahorn
     if (m_canFail && !m_canFail->canFail (BB.getParent ())) return falseE;
     return this->SmallStepSymExec::errorFlag (BB);
   }
-  
+
   Expr UfoSmallSymExec::memStart (unsigned id)
   {
     Expr sort = sort::intTy (m_efac);
@@ -1100,15 +1100,15 @@ namespace seahorn
     v.visit (const_cast<BasicBlock&>(bb));
     v.resetActiveLit ();
   }
-    
+
   void UfoSmallSymExec::exec (SymStore &s, const Instruction &inst, ExprVector &side)
   {
     SymExecVisitor v (s, *this, side);
     v.visit (const_cast<Instruction&>(inst));
   }
-    
-  
-  void UfoSmallSymExec::execPhi (SymStore &s, const BasicBlock &bb, 
+
+
+  void UfoSmallSymExec::execPhi (SymStore &s, const BasicBlock &bb,
                                  const BasicBlock &from, ExprVector &side, Expr act)
   {
     // act is ignored since phi node only introduces a definition
@@ -1118,14 +1118,14 @@ namespace seahorn
     v.resetActiveLit ();
   }
 
-  Expr UfoSmallSymExec::ptrArith (SymStore &s, 
+  Expr UfoSmallSymExec::ptrArith (SymStore &s,
                                   const Value &base,
                                   SmallVectorImpl<const Value*> &ps,
                                   SmallVectorImpl<const Type*> &ts)
   {
     Expr res = lookup (s, base);
     if (!res) return res;
-    
+
     for (unsigned i = 0; i < ps.size (); ++i)
     {
       if (const StructType *st = dyn_cast<const StructType> (ts [i]))
@@ -1145,15 +1145,15 @@ namespace seahorn
     }
     return res;
   }
-  
-  unsigned UfoSmallSymExec::storageSize (const llvm::Type *t) 
+
+  unsigned UfoSmallSymExec::storageSize (const llvm::Type *t)
   {return m_td->getTypeStoreSize (const_cast<Type*> (t));}
-  
+
   unsigned UfoSmallSymExec::fieldOff (const StructType *t, unsigned field)
   {
     return m_td->getStructLayout (const_cast<StructType*>(t))->getElementOffset (field);
   }
-    
+
   Expr UfoSmallSymExec::symb (const Value &I)
   {
     if (isa<UndefValue> (&I)) return Expr(0);
@@ -1161,9 +1161,9 @@ namespace seahorn
 
     // -- basic blocks are mapped to Bool constants
     if (const BasicBlock *bb = dyn_cast<const BasicBlock> (&I))
-      return bind::boolConst 
+      return bind::boolConst
         (mkTerm<const BasicBlock*> (bb, m_efac));
-    
+
     // -- constants are mapped to values
     if (const Constant *cv = dyn_cast<const Constant> (&I))
     {
@@ -1180,10 +1180,10 @@ namespace seahorn
       {
         // -- if this is a cast, and not into a Boolean, strip it
         // -- XXX handle Boolean casts if needed
-        if (ce->isCast () && 
-            (ce->getType ()->isIntegerTy () || ce->getType ()->isPointerTy ()) && 
+        if (ce->isCast () &&
+            (ce->getType ()->isIntegerTy () || ce->getType ()->isPointerTy ()) &&
             ! ce->getType ()->isIntegerTy (1))
-   
+
         {
           if (const ConstantInt* val = dyn_cast<const ConstantInt>(ce->getOperand (0)))
           {
@@ -1194,11 +1194,11 @@ namespace seahorn
           else return symb (*ce->getOperand (0));
         }
       }
-    }   
-     
+    }
+
     // -- everything else is mapped to a constant
     Expr v = mkTerm<const Value*> (&I, m_efac);
-    
+
     const Value *scalar = nullptr;
     if (isShadowMem (I, &scalar))
     {
@@ -1206,7 +1206,7 @@ namespace seahorn
         // -- create a constant with the name v[scalar]
         return bind::intConst
           (op::array::select (v, mkTerm<const Value*> (scalar, m_efac)));
-    
+
       if (m_trackLvl >= MEM)
       {
         Expr intTy = sort::intTy (m_efac);
@@ -1214,15 +1214,15 @@ namespace seahorn
         return bind::mkConst (v, ty);
       }
     }
-    
-      
+
+
     if (isTracked (I))
-      return I.getType ()->isIntegerTy (1) ? 
+      return I.getType ()->isIntegerTy (1) ?
         bind::boolConst (v) : bind::intConst (v);
-    
+
     return Expr(0);
   }
-  
+
   const Value &UfoSmallSymExec::conc (Expr v)
   {
     assert (isOpX<FAPP> (v));
@@ -1233,20 +1233,20 @@ namespace seahorn
     assert (isOpX<VALUE> (v));
     return *getTerm<const Value*> (v);
   }
-  
-  
-  bool UfoSmallSymExec::isTracked (const Value &v) 
+
+
+  bool UfoSmallSymExec::isTracked (const Value &v)
   {
     const Value* scalar = nullptr;
 
     if (isa<UndefValue> (v)) return false;
-    
+
     // -- shadow values represent memory regions
     // -- only track them when memory is tracked
     if (isShadowMem (v, &scalar))
       return scalar != nullptr || m_trackLvl >= MEM;
-    
-    
+
+
     // -- a pointer
     if (v.getType ()->isPointerTy ())
     {
@@ -1260,16 +1260,16 @@ namespace seahorn
         if (const CallInst *ci = dyn_cast<const CallInst> (*v.user_begin ()))
           if (const Function *fn = ci->getCalledFunction ())
             if (fn->getName ().startswith ("shadow.mem")) return false;
-      
+
       return m_trackLvl >= PTR;
     }
-    
-    
+
+
     // -- always track integer registers
     return v.getType ()->isIntegerTy ();
   }
 
-  bool UfoSmallSymExec::isAbstracted (const Function &fn) 
+  bool UfoSmallSymExec::isAbstracted (const Function &fn)
   {
     return (m_abs_funcs.count (&fn) > 0);
   }
@@ -1288,13 +1288,13 @@ namespace seahorn
     exec (s, src, side, trueE);
     execBr (s, src, dst, side, trueE);
     execPhi (s, dst, src, side, trueE);
-    
+
     // an edge into a basic block that does not return includes the block itself
     const TerminatorInst *term = dst.getTerminator ();
     if (term && isa<const UnreachableInst> (term)) exec (s, dst, side, trueE);
   }
-  
-  void UfoSmallSymExec::execBr (SymStore &s, const BasicBlock &src, const BasicBlock &dst, 
+
+  void UfoSmallSymExec::execBr (SymStore &s, const BasicBlock &src, const BasicBlock &dst,
                                 ExprVector &side, Expr act)
   {
     // the branch condition
@@ -1314,29 +1314,29 @@ namespace seahorn
         }
         else if (Expr target = lookup (s, c))
         {
-          
+
           Expr cond = br->getSuccessor (0) == &dst ? target : mk<NEG> (target);
           cond = boolop::lor (s.read (errorFlag (src)), cond);
           cond = boolop::limp (act, cond);
           side.push_back (cond);
         }
-        
-            
+
+
       }
-    }   
+    }
   }
-  
-  void UfoLargeSymExec::execCpEdg (SymStore &s, const CpEdge &edge, 
+
+  void UfoLargeSymExec::execCpEdg (SymStore &s, const CpEdge &edge,
                                    ExprVector &side)
   {
     const CutPoint &target = edge.target ();
-    
+
     std::unique_ptr<EZ3> zctx;
     std::unique_ptr<ZSolver<EZ3> > smt;
-    if (LargeStepReduce) 
+    if (LargeStepReduce)
     {
       errs () << "\nE";
-      // XXX Consider using global EZ3 
+      // XXX Consider using global EZ3
       zctx.reset (new EZ3 (m_sem.efac ()));
       smt.reset (new ZSolver<EZ3> (*zctx));
       ZParams<EZ3> params (*zctx);
@@ -1344,18 +1344,18 @@ namespace seahorn
       params.set (":smt.arith.ignore_int", true);
       smt->set (params);
     }
-      
+
     unsigned head = side.size ();
     bind::IsConst isConst;
-    
+
     bool first = true;
-    for (const BasicBlock& bb : edge) 
+    for (const BasicBlock& bb : edge)
     {
       Expr bbV;
       if (first)
       {
         bbV = s.havoc (m_sem.symb (bb));
-        m_sem.exec (s, bb, side, trueE);  
+        m_sem.exec (s, bb, side, trueE);
       }
       else
       {
@@ -1363,7 +1363,7 @@ namespace seahorn
         bbV = s.read (m_sem.symb (bb));
       }
 
-      
+
       if (LargeStepReduce){
         for (unsigned sz = side.size (); head < sz; ++head)
         {
@@ -1371,12 +1371,12 @@ namespace seahorn
             Expr e = side [head];
             if (!bind::isFapp (e) || isConst (e)) smt->assertExpr (e);
         }
-        
+
         errs () << ".";
         errs ().flush ();
-        
+
         TimeIt<llvm::raw_ostream&> _t_("smt-solving", errs(), 0.1);
-        
+
         ufo::ScopedStats __st__ ("LargeSymExec.smt");
         Expr a[1] = {bbV};
 
@@ -1392,7 +1392,7 @@ namespace seahorn
             smt->toSmtLibAssuming (file, a);
             file.close ();
           });
-        
+
         try
         {
           auto res = smt->solveAssuming (a);
@@ -1410,15 +1410,15 @@ namespace seahorn
           errs () << e.msg () << "\n";
           // std::exit (1);
         }
-        
+
       }
-      
-      
+
+
       first = false;
     }
-    
+
     execEdgBb (s, edge, target.bb (), side, true);
-    
+
     if (LargeStepReduce)
     {
       for (unsigned sz = side.size (); head < sz; ++head)
@@ -1426,8 +1426,8 @@ namespace seahorn
         ufo::ScopedStats __st__ ("LargeSymExec.smt");
         Expr e = side [head];
         if (!bind::isFapp (e) || isConst (e)) smt->assertExpr (e);
-      }    
-    
+      }
+
       try
       {
         ufo::ScopedStats __st__ ("LargeSymExec.smt.last");
@@ -1441,58 +1441,58 @@ namespace seahorn
       {
         errs () << e.msg () << "\n";
       }
-      
+
     }
   }
-  
+
   namespace sem_detail
   {
     struct FwdReachPred : public std::unary_function<const BasicBlock&,bool>
     {
       const CutPointGraph &m_cpg;
       const CutPoint &m_cp;
-      
-      FwdReachPred (const CutPointGraph &cpg, const CutPoint &cp) : 
+
+      FwdReachPred (const CutPointGraph &cpg, const CutPoint &cp) :
         m_cpg (cpg), m_cp (cp) {}
-      
-      bool operator() (const BasicBlock &bb) const 
+
+      bool operator() (const BasicBlock &bb) const
       {return m_cpg.isFwdReach (m_cp, bb);}
       bool operator() (const BasicBlock *bb) const
-      {return this->operator() (*bb);} 
+      {return this->operator() (*bb);}
     };
   }
-  
-  void UfoLargeSymExec::execEdgBb (SymStore &s, const CpEdge &edge, 
-                                   const BasicBlock &bb, 
+
+  void UfoLargeSymExec::execEdgBb (SymStore &s, const CpEdge &edge,
+                                   const BasicBlock &bb,
                                    ExprVector &side, bool last)
   {
     ExprVector edges;
-    
+
     if (last) assert (&bb == &(edge.target ().bb ()));
-    
+
     // -- predicate for reachable from source
     sem_detail::FwdReachPred reachable (edge.parent (), edge.source ());
-    
+
     // compute predecessors, relative to the source cut-point
     llvm::SmallVector<const BasicBlock*, 4> preds;
-    for (const BasicBlock* p : seahorn::preds (bb)) 
+    for (const BasicBlock* p : seahorn::preds (bb))
       if (reachable (p)) preds.push_back (p);
-    
+
     // -- compute source of all the edges
     for (const BasicBlock *pred : preds)
       edges.push_back (s.read (m_sem.symb (*pred)));
-      
+
     assert (preds.size () == edges.size ());
     // -- update constant representing current bb
     Expr bbV = s.havoc (m_sem.symb (bb));
-    
+
     // -- update destination of all the edges
 
     if (SplitCriticalEdgesOnly)
     {
       // -- create edge variables only for critical edges.
       // -- for non critical edges, use (SRC && DST) instead
-      
+
       for (unsigned i = 0, e = preds.size (); i < e; ++i)
       {
         // -- an edge is non-critical if dst has one predecessor, or src
@@ -1513,45 +1513,45 @@ namespace seahorn
       // -- b_i & e_{i,j}
       for (Expr &e : edges) e = mk<AND> (e, bind::boolConst (mk<TUPLE> (e, bbV)));
     }
-    
+
 
     // -- encode control flow
     // -- b_j -> (b1 & e_{1,j} | b2 & e_{2,j} | ...)
-    side.push_back (mk<IMPL> (bbV, 
-                              mknary<OR> 
+    side.push_back (mk<IMPL> (bbV,
+                              mknary<OR>
                               (mk<FALSE> (m_sem.getExprFactory ()), edges)));
-      
+
     // unique node with no successors is asserted to always be reachable
     if (last) side.push_back (bbV);
-      
+
     /// -- generate constraints from the phi-nodes (keep them separate for now)
     std::vector<ExprVector> phiConstraints (preds.size ());
-    
+
     unsigned idx = 0;
     for (const BasicBlock *pred : preds)
     {
       // clone s
       SymStore es(s);
-        
-      // edge_ij -> phi_ij, 
+
+      // edge_ij -> phi_ij,
       // -- branch condition
       m_sem.execBr (es, *pred, bb, side, edges[idx]);
       // -- definition of phi nodes
       m_sem.execPhi (es, bb, *pred, side, edges[idx]);
       s.uses (es.uses ());
-        
-        
+
+
       for (const Instruction &inst : bb)
       {
         if (!isa<PHINode> (&inst)) break;
         if (!m_sem.isTracked (inst)) continue;
-        
+
         phiConstraints [idx].push_back (es.read (m_sem.symb (inst)));
       }
-      
+
       idx++;
     }
-      
+
     // create new values for phi-node variables
     ExprVector newPhi;
     for (const Instruction &inst : bb)
@@ -1560,35 +1560,35 @@ namespace seahorn
       if (!m_sem.isTracked (inst)) continue;
       newPhi.push_back (s.havoc (m_sem.symb (inst)));
     }
-      
+
     // connect new phi-node variables with constructed phi-node constraints
     for (unsigned j = 0; j < edges.size (); ++j)
       for (unsigned i = 0; i < newPhi.size (); ++i)
-        side.push_back (boolop::limp (edges[j], mk<EQ> (newPhi [i], 
+        side.push_back (boolop::limp (edges[j], mk<EQ> (newPhi [i],
                                                         phiConstraints[j][i])));
-        
-      
+
+
     // actions of the block. The side-conditions are not guarded by
     // the basic-block variable because it does not matter.
     if (!last)
       m_sem.exec (s, bb, side, bbV);
     else if (const TerminatorInst *term = bb.getTerminator ())
       if (isa<UnreachableInst> (term)) m_sem.exec (s, bb, side, trueE);
-    
-    
-     
+
+
+
   }
-    
+
     // 1. execute all basic blocks using small-step semantics in topological order
-    
-    
+
+
     // 2. when a block executes, it updates a special variable for the block
-    
+
     // 3. allocate a Boolean variable for each edge: these are unique
     // if named using bb variables
-    
-    // 4. side condition: edge -> branchCond & execPhi  
-    
+
+    // 4. side condition: edge -> branchCond & execPhi
+
     // actions: optionally conditional on the block
     // bb_i -> e_i1 | e_i2 | e_i3
     // e_i1 -> bb_1

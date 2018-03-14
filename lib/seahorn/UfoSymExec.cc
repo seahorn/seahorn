@@ -420,10 +420,14 @@ namespace
         res = mk<AND> (mk<IMPL> (mk<EQ> (op0, zeroE), mk<EQ> (lhs, op1)),
                        mk<IMPL> (mk<EQ> (op1, zeroE), mk<EQ> (lhs, op0)));
         break;
+      case BinaryOperator::LShr:
+          if (const ConstantInt *ci = dyn_cast<ConstantInt> (&v1))
+              res = doLShr (lhs, op0, ci);
+          break;
       default:
         break;
       }
-      
+
       addCondSide (res);
     }
 
@@ -433,33 +437,35 @@ namespace
 
       mpz_class shift = expr::toMpz (op2->getValue ());
       mpz_class factor = 1;
-      for (unsigned long i = 0; i < shift.get_ui (); ++i) 
+      for (unsigned long i = 0; i < shift.get_ui (); ++i)
           factor = factor * 2;
       Expr factorE = mkTerm<mpz_class> (factor, m_efac);
       if (RewriteDiv)
 	return mk<IMPL>(mk<GEQ>(op1, zeroE),
-			mk<EQ>(mk<MULT>(lhs, factorE), op1));	      	
+			mk<EQ>(mk<MULT>(lhs, factorE), op1));
       else
-	return mk<IMPL>(mk<GEQ>(op1, zeroE), mk<DIV>(op1, factorE));
-			
+          return mk<IMPL>(mk<GEQ>(op1, zeroE),
+                          mk<EQ> (lhs, mk<DIV>(op1, factorE)));
+
     }
-    
+
     void doLogic (Expr lhs, BinaryOperator &I)
     {
       const Value& v0 = *(I.getOperand(0));
       const Value& v1 = *(I.getOperand(1));
-      
+
+
       // only Boolean logic is supported
       if (! (v0.getType ()->isIntegerTy (1) &&
              v1.getType ()->isIntegerTy (1))) return doBitLogic (lhs, I);
-      
+
       Expr op0 = lookup (v0);
       Expr op1 = lookup (v1);
 
       if (!(op0 && op1)) return;
 
       Expr rhs;
-      
+
       switch(I.getOpcode())
 	{
 	case BinaryOperator::And:

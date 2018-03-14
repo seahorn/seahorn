@@ -451,7 +451,7 @@ class AbcInst(sea.LimitedCmd):
         ap = super (AbcInst, self).mk_arg_parser (ap)
         ap.add_argument ('--log', dest='log', default=None,
                          metavar='STR', help='Log level')
-        
+
         ap.add_argument ('--abc-encoding', dest='abc_encoding',
                          help='Encoding used to insert array bounds checks',
                          choices=['local','global','global-c'], default='global')
@@ -511,7 +511,7 @@ class AbcInst(sea.LimitedCmd):
         ap.add_argument ('--abc-instrument-except-types',
                          help='Do not instrument a pointer if it is not of these user-defined types',
                          dest='abc_except_types', type=str,metavar='str,...')
-        
+
         add_in_out_args (ap)
         _add_S_arg (ap)
         return ap
@@ -573,7 +573,7 @@ class AbcInst(sea.LimitedCmd):
         if args.abc_track_base_only: argv.append ('--abc-track-base-only')
         if args.abc_surface_only: argv.append ('--abc-surface-only')
         if args.abc_store_base_only: argv.append ('--abc-store-base-only')
-            
+
         if args.log is not None:
             for l in args.log.split (':'): argv.extend (['-log', l])
 
@@ -600,11 +600,11 @@ class NdcInst(sea.LimitedCmd):
         ap = super (NdcInst, self).mk_arg_parser (ap)
         ap.add_argument ('--log', dest='log', default=None,
                          metavar='STR', help='Log level')
-        
+
         ap.add_argument ('--ndc-opt', dest='ndc_opt',
                          help='Minimize the number of null dereference checks',
                          default=False, action='store_true')
-        
+
         add_in_out_args (ap)
         _add_S_arg (ap)
         return ap
@@ -620,13 +620,13 @@ class NdcInst(sea.LimitedCmd):
 
         argv.append ('--null-check')
         if args.ndc_opt: argv.append ('--null-check-optimize')
-        
+
         if args.log is not None:
             for l in args.log.split (':'): argv.extend (['-log', l])
 
         argv.extend (args.in_files)
         return self.seappCmd.run(args, argv)
-    
+
 class SimpleMemoryChecks(sea.LimitedCmd):
     def __init__(self, quiet=False):
         super(SimpleMemoryChecks, self).__init__('smc',
@@ -949,6 +949,9 @@ class Seahorn(sea.LimitedCmd):
         ap.add_argument ('--bmc',
                          help='Use BMC engine',
                          dest='bmc', default=False, action='store_true')
+        ap.add_argument ('--max-depth',
+                         help='Maximum depth of exploration',
+                         dest='max_depth', default=sys.maxint)
         return ap
 
     def run (self, args, extra):
@@ -957,6 +960,9 @@ class Seahorn(sea.LimitedCmd):
         self.seahornCmd = sea.ExtCmd (cmd_name)
 
         argv = list()
+
+        if args.max_depth <> sys.maxint:
+            argv.append ('--horn-max-depth=' + str(args.max_depth))
 
         if args.bmc:
             argv.append ('--horn-bmc')
@@ -1252,7 +1258,7 @@ class SeaInc(sea.LimitedCmd):
           jb.singleRun(smt2_file)
       except Exception as e:
           raise IOError(str(e))
-      
+
 class ParAbc(sea.LimitedCmd):
     def __init__ (self, quiet=False):
         super (ParAbc, self).__init__ ('par-abc', allow_extra=True)
@@ -1275,7 +1281,7 @@ class ParAbc(sea.LimitedCmd):
 
     def run(self, args, extra):
         try:
-            import par_abc.par_abc as parabc            
+            import par_abc.par_abc as parabc
             return parabc.sea_par_abc(args, extra)
         except Exception as e:
             raise IOError(str(e))
@@ -1348,7 +1354,7 @@ class InspectBitcode(sea.LimitedCmd):
 
         return self.seainspectCmd.run (args, argv)
 
-## SeaHorn aliases 
+## SeaHorn aliases
 FrontEnd = sea.SeqCmd ('fe', 'Front end: alias for clang|pp|ms|opt',
                        [Clang(), Seapp(), MixedSem(), Seaopt ()])
 Smt = sea.SeqCmd ('smt', 'alias for fe|horn', FrontEnd.cmds + [Seahorn()])

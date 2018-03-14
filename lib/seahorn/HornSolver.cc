@@ -9,6 +9,8 @@
 
 #include "boost/range/algorithm/reverse.hpp"
 
+#include <climits>
+
 using namespace llvm;
 
 static llvm::cl::opt<std::string>
@@ -23,7 +25,7 @@ PrintAnswer ("horn-answer",
 
 static llvm::cl::opt<bool>
 EstimateSizeInvars ("horn-estimate-size-invars",
-             cl::desc ("Give an estimation about the size of all inferred invariants"), 
+             cl::desc ("Give an estimation about the size of all inferred invariants"),
              cl::init (false));
 
 static llvm::cl::opt<bool>
@@ -44,6 +46,11 @@ HornChildren ("horn-child-order", cl::Hidden, cl::init(true));
 static llvm::cl::opt<unsigned>
 PdrContexts ("horn-pdr-contexts", cl::Hidden, cl::init (500));
 
+static llvm::cl::opt<unsigned>
+HornMaxDepth("horn-max-depth", cl::Hidden,
+             cl::desc ("Maximum exploration depth"),
+             cl::init (UINT_MAX));
+
 namespace seahorn
 {
   char HornSolver::ID = 0;
@@ -51,7 +58,7 @@ namespace seahorn
   bool HornSolver::runOnModule (Module &M)
   {
     Stats::sset ("Result", "UNKNOWN");
-    
+
     HornifyModule &hm = getAnalysis<HornifyModule> ();
 
     // Load the Horn clause database
@@ -76,22 +83,25 @@ namespace seahorn
     params.set (":xform.subsumption_checker", Subsumption);
     params.set (":order_children", HornChildren ? 1U : 0U);
     params.set (":pdr.max_num_contexts", PdrContexts);
+    // -- XXX the parameter is renamed to spacer.max_level in newer
+    // -- XXX version of SPACER
+    params.set (":pdr.max_level", HornMaxDepth);
     fp.set (params);
-    
+
     db.loadZFixedPoint (fp, SkipConstraints);
-    
+
     Stats::resume ("Horn");
     m_result = fp.query ();
     Stats::stop ("Horn");
-    
-    if (m_result) outs () << "sat"; 
-    else if (!m_result) outs () << "unsat"; 
-    else outs () << "unknown"; 
+
+    if (m_result) outs () << "sat";
+    else if (!m_result) outs () << "unsat";
+    else outs () << "unknown";
     outs () << "\n";
 
     if (m_result) Stats::sset ("Result", "FALSE");
     else if (!m_result) Stats::sset ("Result", "TRUE");
-    
+
     LOG ("answer",
          if (m_result || !m_result) errs () << fp.getAnswer () << "\n";);
 
@@ -121,37 +131,37 @@ namespace seahorn
   {
     ZFixedPoint<EZ3> fp = *m_fp;
     //outs () << *fp.getCex () << "\n";
-    
+
     ExprVector rules;
     fp.getCexRules (rules);
     boost::reverse (rules);
-    for (Expr r : rules) 
+    for (Expr r : rules)
     {
       Expr src;
       Expr dst;
-      
-      if (isOpX<IMPL> (r)) 
-      { 
+
+      if (isOpX<IMPL> (r))
+      {
         dst = r->arg (1);
         r = r->arg (0);
         src = isOpX<AND> (r) ? r->arg (0) : r;
       }
       else
         dst = r;
-      
+
       if (src)
       {
         if (!bind::isFapp (src)) src.reset (0);
         else src = bind::fname (bind::fname (src));
       }
-      
+
 
       if (src) outs () << *src << " --> ";
-      
+
       dst = bind::fname (bind::fname (dst));
       outs () << *dst << "\n";
     }
-    
+
   }
 
   void HornSolver::estimateSizeInvars (Module &M)
@@ -162,7 +172,7 @@ namespace seahorn
     Expr allInvars;
     bool first = true;
     unsigned numBlocks = 0;
-    for (auto &F : M) 
+    for (auto &F : M)
     {
       if (F.isDeclaration ()) continue;
       for (auto &BB : F)

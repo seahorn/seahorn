@@ -20,13 +20,27 @@
 
 
 /** 
-  Important: Certain parts of this implementation is VC
+  NOTE #1: certain parts of this implementation is VC
   encoding-dependent. For instance, the generation of blocking clauses
-  and the boolean abstraction. Currently, it has been testing with
-  UfoLargeSymExec and the following options enabled:
+  and the boolean abstraction. 
+
+  NOTE #2: the BMC engines can be used in two scenarios: (1) for validating a
+  CEX, and (2) for performing bounded-model checking rather than
+  invariant generation. 
+
+  Sometimes, crab can fail at solving a path if it cannot build a
+  single path from boolean literals. When BMC is used in context (1)
+  this can be fixed by running SeaHorn with the options:
 
     --horn-split-only-critical=true
     --horn-at-most-one-predecessor=true
+
+  These options are used by UfoLargeSymExec. Although BMC uses
+  BvSmallSymExec these options still can help since the CEX is first
+  generated using UfoLargeSymExec. There is no an equivalent of
+  --horn-at-most-one-predecessor for BvSmallSymExec but we might want
+  to implement it in the future in cases crab also fails in scenario
+  (2).
 **/
 
 
@@ -1162,19 +1176,22 @@ namespace seahorn
 					       prec_level, heap_abstraction);
     #endif 
 
-    LOG("bmc", get_os() << "Processing symbolic paths\n";
-	switch(CrabDom) {
-	case crab_llvm::TERMS_INTERVALS:
-	  get_os() << "Using term+interval domain for solving paths\n";
-	  break;
-	case crab_llvm::WRAPPED_INTERVALS:
-	  get_os() << "Using wrapped interval domain for solving paths\n";
-	  break;	  
-	case crab_llvm::TERMS_ZONES:
-	  get_os() << "Using terms+zones domain for solving paths\n";
-	  break;	  
-	default:
-	  get_os() << "Using interval domain for solving paths\n";
+    LOG("bmc",
+	if (UseCrab) {
+	  get_os() << "Processing symbolic paths\n";
+	  switch(CrabDom) {
+	  case crab_llvm::TERMS_INTERVALS:
+	    get_os() << "Using term+interval domain for solving paths\n";
+	    break;
+	  case crab_llvm::WRAPPED_INTERVALS:
+	    get_os() << "Using wrapped interval domain for solving paths\n";
+	    break;	  
+	  case crab_llvm::TERMS_ZONES:
+	    get_os() << "Using terms+zones domain for solving paths\n";
+	    break;	  
+	  default:
+	    get_os() << "Using interval domain for solving paths\n";
+	  }
 	});
 	
     /**

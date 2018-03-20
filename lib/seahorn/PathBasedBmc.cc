@@ -18,6 +18,7 @@
 #include "llvm/Support/Path.h"
 #include "llvm/Support/raw_ostream.h"
 
+
 /** 
   Important: Certain parts of this implementation is VC
   encoding-dependent. For instance, the generation of blocking clauses
@@ -31,17 +32,17 @@
 
 static llvm::cl::opt<bool>
 UseCrab ("horn-bmc-crab",
-   llvm::cl::desc ("Use of Crab in BMC (only --bmc=path)"), 
+   llvm::cl::desc ("Use of Crab in Path-based BMC"), 
    llvm::cl::init (false));
 
 static llvm::cl::opt<bool>
 UseCrabInvariants ("horn-bmc-crab-invariants",
-   llvm::cl::desc ("Load crab invariants into the BMC engine (only --bmc=path)"), 
+   llvm::cl::desc ("Load crab invariants into the Path-based BMC engine"), 
    llvm::cl::init (true));
 
 static llvm::cl::opt<crab_llvm::CrabDomain>
 CrabDom ("horn-bmc-crab-dom",
-   llvm::cl::desc ("Crab Domain to solve path formulas (only --bmc=path)"),
+   llvm::cl::desc ("Crab Domain to solve path formulas in Path-Based BMC"),
    llvm::cl::values
     (clEnumValN (crab_llvm::INTERVALS, "int",
 		 "Classical interval domain (default)"),
@@ -59,7 +60,7 @@ namespace bmc_detail
 
 static llvm::cl::opt<enum bmc_detail::muc_method_t>
 MucMethod("horn-bmc-muc",
-  llvm::cl::desc("Method used to compute minimal unsatisfiable cores"),
+  llvm::cl::desc("Method used to compute minimal unsatisfiable cores in Path-Based BMC"),
   llvm::cl::values(
     clEnumValN (bmc_detail::MUC_NONE, "none", "None"),
     clEnumValN (bmc_detail::MUC_ASSUMPTIONS, "assume", "Solving with assumptions"),
@@ -70,12 +71,12 @@ MucMethod("horn-bmc-muc",
 
 static llvm::cl::opt<unsigned>
 PathTimeout("horn-bmc-path-timeout",
-	    llvm::cl::desc("Timeout (seconds) for SMT solving a path formula"),
+	    llvm::cl::desc("Timeout (sec) for SMT solving a path formula in Path-based BMC"),
 	    llvm::cl::init(1800u));
 
 static llvm::cl::opt<unsigned>
 MucTimeout("horn-bmc-muc-timeout",
-	    llvm::cl::desc("Timeout (seconds) for SMT query during MUC computation"),
+	    llvm::cl::desc("Timeout (sec) for SMT query during MUC in Path-based BMC"),
 	    llvm::cl::init(5u));
 
 static llvm::cl::opt<std::string>
@@ -849,8 +850,9 @@ namespace seahorn
     // compute the implicant twice if crab is enabled.
     bmc_impl::get_model_implicant(f, model, path_formula, active_bool_map);
 
-    #if 1
+    #if 0
     // remove redundant literals
+    // XXX: possibly cause of non-determinism?
     std::sort(path_formula.begin(), path_formula.end());
     path_formula.erase(std::unique(path_formula.begin(), path_formula.end()),
 		       path_formula.end());
@@ -901,7 +903,15 @@ namespace seahorn
 	LOG("bmc", get_os() << "SMT returned unknown. Size of path formula=" 
 	                    << path_formula.size() << ". ");
 
-	ufo::Stats::count("BMC total number of unknown symbolic paths");	
+	ufo::Stats::count("BMC total number of unknown symbolic paths");
+
+	// get second of active_bool_map
+	ExprVector bool_lits;
+	bool_lits.reserve(active_bool_map.size());
+	for(auto& kv: active_bool_map) { bool_lits.push_back(kv.second); }
+	// remember the unknown bool literals
+	m_unknown_bools_active.insert(std::make_pair(m_num_paths, bool_lits));
+	
 	if (SmtOutDir != "") {
 	  toSmtLib(path_formula, "unknown");
 	}
@@ -940,7 +950,7 @@ namespace seahorn
       
       //ufo::Stats::resume ("BMC path-based: blocking clause");            
       // -- Refine the Boolean abstraction using the unsat core
-      ExprSet active_bool_set;
+      ExprSet active_bool_set;  
       for(Expr e: unsat_core) {
 	auto it = active_bool_map.find(e);
 	// It's possible that an implicant has no active booleans.
@@ -1236,7 +1246,32 @@ namespace seahorn
     #endif 
 
     if (m_incomplete) {
+      // At this point, we can still try all (Boolean part) unknown
+      // paths and see if they are excluded by the abstraction. If
+      // yes, we can recover completeness. Otherwise, we finally
+      // return unknown.
       m_result = indeterminate;
+      LOG("bmc", get_os() << "Checking unsolved paths with a more refined abstraction ...\n");
+      bool all_unsat = true;
+      for(auto &kv: m_unknown_bools_active) {
+	m_smt_solver.push();
+	for (auto &e: kv.second) {
+	  m_smt_solver.assertExpr(e);
+	}
+	if(!m_smt_solver.solve()) {
+	  LOG("bmc", get_os(true) << "Path " << kv.first << " proved unsat!\n";);
+	  m_smt_solver.pop();
+	} else {
+	  LOG("bmc", get_os(true) << "Path " << kv.first << " cannot be proved unsat!\n";);
+	  m_smt_solver.pop();
+	  all_unsat = false;
+	  break;
+	}
+      }
+      if (all_unsat) {
+	ufo::Stats::uset("BMC total number of unknown symbolic paths", 0);
+	m_result = (bool) false;
+      }
     } 
     
     if (m_num_paths == 0) {

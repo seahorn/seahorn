@@ -2,6 +2,14 @@
 find_program(LIT_COMMAND lit)
 
 # add the test suite
+add_lit_testsuite(test-all "Run all the tests"
+  -v
+  ${CMAKE_CURRENT_SOURCE_DIR}
+  ARGS
+  --path=${CMAKE_INSTALL_PREFIX}/bin
+  DEPENDS seahorn
+  )
+
 add_lit_testsuite(test-simple "Run simple tests"
   -v
   ${CMAKE_CURRENT_SOURCE_DIR}/simple
@@ -54,6 +62,14 @@ add_lit_testsuite(test-inc "Regression test for Inconsistency Analysis"
 add_lit_testsuite(test-dsa "Regression test for DSA"
   -v
   ${CMAKE_CURRENT_SOURCE_DIR}/dsa
+  ARGS
+  --path=${CMAKE_INSTALL_PREFIX}/bin
+  DEPENDS seahorn
+  )
+
+add_lit_testsuite(test-tutorial "Regression tests for the SeaHorn tutorial"
+  -v
+  ${CMAKE_CURRENT_SOURCE_DIR}/tutorial
   ARGS
   --path=${CMAKE_INSTALL_PREFIX}/bin
   DEPENDS seahorn

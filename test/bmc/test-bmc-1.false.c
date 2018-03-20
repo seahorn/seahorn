@@ -1,4 +1,4 @@
-// RUN: %sea bpf -O0 --horn-bmc-crab  --bmc=path --bound=1  --horn-stats --inline --horn-at-most-one-predecessor --log=bmc-progress "%s" 2>&1 | OutputCheck %s
+// RUN: %sea bpf -O0 --horn-bmc-crab  --bmc=path --bound=1  --horn-stats --inline  --log=bmc "%s" 2>&1 | OutputCheck %s
 // CHECK: ^sat$
 
 extern int nd(void);

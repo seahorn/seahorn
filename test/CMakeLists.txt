@@ -7,6 +7,7 @@ add_lit_testsuite(test-simple "Run simple tests"
   ${CMAKE_CURRENT_SOURCE_DIR}/simple
   PARAMS
   test_dir=${CMAKE_CURRENT_BINARY_DIR}
+  path=${CMAKE_CURRENT_BINARY_DIR}
   DEPENDS seahorn
   )
 
@@ -15,6 +16,7 @@ add_lit_testsuite(test-solve "Run more tests"
    ${CMAKE_CURRENT_SOURCE_DIR}/solve
    PARAMS
    test_dir=${CMAKE_CURRENT_BINARY_DIR}
+   path=${CMAKE_CURRENT_BINARY_DIR}
    DEPENDS seahorn
    )
 
@@ -23,6 +25,7 @@ add_lit_testsuite(pred-abs "Regression test on Predicate Abstraction"
    ${CMAKE_CURRENT_SOURCE_DIR}/predabs
    PARAMS
    test_dir=${CMAKE_CURRENT_BINARY_DIR}
+   path=${CMAKE_CURRENT_BINARY_DIR}
    DEPENDS seahorn
    )
 
@@ -31,6 +34,7 @@ add_lit_testsuite(test-abc "Regression test for Array Bounds Checks"
   ${CMAKE_CURRENT_SOURCE_DIR}/abc
   PARAMS
   test_dir=${CMAKE_CURRENT_BINARY_DIR}
+  path=${CMAKE_CURRENT_BINARY_DIR}
   DEPENDS seahorn
   )
 
@@ -39,6 +43,7 @@ add_lit_testsuite(test-smc "Regression test for Simple Memory Safety Checks"
   ${CMAKE_CURRENT_SOURCE_DIR}/smc
   PARAMS
   test_dir=${CMAKE_CURRENT_BINARY_DIR}
+  path=${CMAKE_CURRENT_BINARY_DIR}
   DEPENDS seahorn
   )
 
@@ -48,6 +53,7 @@ add_lit_testsuite(test-inc "Regression test for Inconsistency Analysis"
   ${CMAKE_CURRENT_SOURCE_DIR}/inc
   PARAMS
   test_dir=${CMAKE_CURRENT_BINARY_DIR}
+  path=${CMAKE_CURRENT_BINARY_DIR}
   DEPENDS seahorn
   )
 
@@ -56,6 +62,7 @@ add_lit_testsuite(test-dsa "Regression test for DSA"
   ${CMAKE_CURRENT_SOURCE_DIR}/dsa
   PARAMS
   test_dir=${CMAKE_CURRENT_BINARY_DIR}
+  path=${CMAKE_CURRENT_BINARY_DIR}
   DEPENDS seahorn
   )
 

@@ -919,13 +919,9 @@ namespace seahorn
 
 	ufo::Stats::count("BMC total number of unknown symbolic paths");
 
-	// get second of active_bool_map
-	ExprVector bool_lits;
-	bool_lits.reserve(active_bool_map.size());
-	for(auto& kv: active_bool_map) { bool_lits.push_back(kv.second); }
-	// remember the unknown bool literals
-	m_unknown_bools_active.insert(std::make_pair(m_num_paths, bool_lits));
-	
+	// -- Enqueue the unknown path formula
+	m_unknown_path_formulas.push(std::make_pair(m_num_paths, path_formula));
+
 	if (SmtOutDir != "") {
 	  toSmtLib(path_formula, "unknown");
 	}
@@ -1257,43 +1253,68 @@ namespace seahorn
       }
     }
 
-    #ifdef HAVE_CRAB_LLVM
-    // Temporary: for profiling crab
-    crab::CrabStats::PrintBrunch (crab::outs());
-    #endif 
-
     if (m_incomplete) {
-      // At this point, we can still try all (Boolean part) unknown
-      // paths and see if they are excluded by the abstraction. If
-      // yes, we can recover completeness. Otherwise, we finally
-      // return unknown.
       m_result = indeterminate;
-      LOG("bmc", get_os() << "Checking unsolved paths with a more refined abstraction ...\n");
-      bool all_unsat = true;
-      for(auto &kv: m_unknown_bools_active) {
-	m_smt_solver.push();
-	for (auto &e: kv.second) {
-	  m_smt_solver.assertExpr(e);
+
+      LOG("bmc", get_os() << "Checking again unsolved paths with increasing timeout ...\n");
+      // XXX: can be user parameter
+      const unsigned timeout_delta = 10; // (seconds)
+      boost::unordered_map<unsigned, unsigned> timeout_map;
+      while (!m_unknown_path_formulas.empty()) {
+	auto kv = m_unknown_path_formulas.front();
+	m_unknown_path_formulas.pop();
+
+	m_aux_smt_solver.reset();
+	for (Expr e: kv.second) {
+	  m_aux_smt_solver.assertExpr(e);
 	}
-	if(!m_smt_solver.solve()) {
-	  LOG("bmc", get_os(true) << "Path " << kv.first << " proved unsat!\n";);
-	  m_smt_solver.pop();
+
+	unsigned timeout;
+	auto it = timeout_map.find(kv.first);
+	if (it == timeout_map.end()) {
+	  timeout_map.insert(std::make_pair(kv.first, PathTimeout + timeout_delta));
+	  timeout = PathTimeout + timeout_delta;
 	} else {
-	  LOG("bmc", get_os(true) << "Path " << kv.first << " cannot be proved unsat!\n";);
-	  m_smt_solver.pop();
-	  all_unsat = false;
-	  break;
+	  timeout = it->second + timeout_delta;
+	  it->second = timeout;
+	}
+
+	boost::tribool res;      
+	{
+	  scoped_solver ss(m_aux_smt_solver, timeout);
+	  res = ss.get().solve();
+	}
+	if (res) {
+	  m_model = m_aux_smt_solver.getModel();
+	  if (SmtOutDir != "") {
+	    toSmtLib(kv.second, "sat");
+	  }
+	  LOG("bmc", get_os(true) << "Path " << kv.first << " proved sat!\n";);
+	  m_result = (bool) true;
+	  return m_result;
+	} else if(!res) {
+	  LOG("bmc", get_os(true) << "Path " << kv.first << " proved unsat!\n";);
+	} else {
+	  LOG("bmc", 
+	      get_os(true) << "Path " << kv.first 
+	                   << " cannot be proved unsat with timeout=" << timeout << "\n";);
+	  // put it back in the queue and try next time with a bigger timeout
+	  m_unknown_path_formulas.push(kv);
 	}
       }
-      if (all_unsat) {
-	ufo::Stats::uset("BMC total number of unknown symbolic paths", 0);
-	m_result = (bool) false;
-      }
+      // If we reach this point we were able to discharge all the paths!
+      ufo::Stats::uset("BMC total number of unknown symbolic paths", 0);
+      m_result = (bool) false;
     } 
     
     if (m_num_paths == 0) {
       errs () << "\nProgram is trivially unsat: initial boolean abstraction was enough.\n";
     }
+
+    #ifdef HAVE_CRAB_LLVM
+    // Temporary: for profiling crab
+    //crab::CrabStats::PrintBrunch (crab::outs());
+    #endif 
 
     return m_result;
   }

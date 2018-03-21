@@ -5,7 +5,9 @@
 #include "seahorn/LiveSymbols.hh"
 
 #include "boost/unordered_set.hpp"
-#include "boost/unordered_map.hpp"
+//#include "boost/unordered_map.hpp"
+
+#include <queue>
 
 namespace llvm {
   class TargetLibraryInfo;
@@ -66,9 +68,9 @@ namespace seahorn
   private:
     // Incomplete flag: if a SMT query returned unknown
     bool m_incomplete;
-    // For each unknown query we remember the boolean structure of the
-    // query.
-    boost::unordered_map<unsigned, ExprVector> m_unknown_bools_active;
+
+    // Queue for unsolved path formulas
+    std::queue<std::pair<unsigned, ExprVector>> m_unknown_path_formulas;
     
     // Count number of path
     unsigned m_num_paths;

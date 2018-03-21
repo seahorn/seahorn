@@ -1,18 +1,30 @@
+enable_testing()
+include (CTest)
 
-set (BASE_LIBS 
-  ${Boost_UNIT_TEST_FRAMEWORK_LIBRARY} 
+# In the future we can group tests by linking dependencies and move them into
+# seperate directories.
+set (USED_LIBS_Z3_TESTS
   ${Boost_SYSTEM_LIBRARY}
-  ${GMPXX_LIB} ${GMP_LIB} ${RT_LIB} ncurses dl)
+  ${Z3_LIBRARY}
+  ${SEA_DSA_LIBS}
+  SeaSupport
+  ${LLVM_SEAHORN_LIBS}
+  ${GMPXX_LIB}
+  ${GMP_LIB}
+  ${RT_LIB}
+  )
 
-add_executable (fapp_z3 fapp_z3.cpp)
-target_link_libraries (fapp_z3 ${Z3_LIBRARY})
-llvm_config (fapp_z3  instrumentation)
-target_link_libraries (fapp_z3 ${BASE_LIBS})
-add_test (NAME units/fapp_z3 COMMAND fapp_z3)
+set(LLVM_LINK_COMPONENTS irreader bitwriter ipo scalaropts instrumentation core
+    # XXX not clear why these last two are required
+    codegen objcarcopts)
 
-add_executable (muz_test muz_test.cpp)
-target_link_libraries (muz_test ${Z3_LIBRARY})
-llvm_config (muz_test instrumentation)
-target_link_libraries (muz_test ${BASE_LIBS})
-add_test (NAME units/muz_test COMMAND muz_test)
+add_executable(units_z3 EXCLUDE_FROM_ALL
+  units_z3.cpp
+  fapp_z3.cpp
+  muz_test.cpp
+  )
+llvm_config (units_z3 ${LLVM_LINK_COMPONENTS})
 
+target_link_libraries(units_z3 ${USED_LIBS_Z3_TESTS})
+add_custom_target(test_z3 units_z3 DEPENDS units_z3)
+add_test(NAME Z3_SPACER_Tests COMMAND units_z3)

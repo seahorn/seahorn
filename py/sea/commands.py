@@ -650,6 +650,11 @@ class SimpleMemoryChecks(sea.LimitedCmd):
                          dest='print_smc_stats', help='Print Simple Memory Check stats')
         ap.add_argument ('--smc-check-threshold', type=int, dest='smc_check_threshold',
                          help='Max no. of analyzed memory instructions', default=100)
+        ap.add_argument ('--smc-instrument-check', type=int, dest='smc_instrument_check',
+                         help='Check id to instrement', default=0)
+        ap.add_argument ('--smc-instrument-alloc', type=int, dest='smc_instrument_alloc',
+                         help='Allocation site id to instrument', default=0)
+
 
         add_in_out_args (ap)
         _add_S_arg (ap)
@@ -671,6 +676,12 @@ class SimpleMemoryChecks(sea.LimitedCmd):
 
         if args.smc_check_threshold is not None:
             argv.append ('--smc-check-threshold={t}'.format(t=args.smc_check_threshold))
+
+        if args.smc_instrument_check is not None:
+            argv.append ('--smc-instrument-check={t}'.format(t=args.smc_instrument_check))
+
+        if args.smc_instrument_alloc is not None:
+            argv.append ('--smc-instrument-alloc={t}'.format(t=args.smc_instrument_alloc))
 
         if args.log is not None:
             for l in args.log.split (':'): argv.extend (['-log', l])

@@ -30,7 +30,7 @@ RUN mkdir -p seahorn && \
         # install test dependencies
         apt-get update && \
         apt-get install --no-install-recommends -yqq \
-            sudo curl build-essential python-dev python-setuptools python-pip libgraphviz-dev && \
+            sudo curl build-essential python-dev python-setuptools python-pip libgraphviz-dev libc6-dev-i386 && \
         pip install lit OutputCheck && \
         easy_install networkx pygraphviz && \
         # get supported llvm version

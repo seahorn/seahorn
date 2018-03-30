@@ -88,7 +88,8 @@ namespace
     void strip (Function &F)
     {
       SmallVector<Value*, 16> args;
-
+      SmallVector<Instruction*, 32> ToRemove;
+      
       Value::use_iterator UI = F.use_begin (), E = F.use_end ();
       for (; UI != E;)
       {
@@ -132,16 +133,24 @@ namespace
             CS.getInstruction ()->replaceAllUsesWith (call);
           }
 
-          // -- delete the old call instruction
-          if (FU->use_empty ())
-          {
-            args.insert (args.end (), CS.arg_begin (), CS.arg_end ());
-            CS.getInstruction ()->eraseFromParent ();
-            for (auto &a : args)
-              seahorn::RecursivelyDeleteTriviallyDeadInstructions (a);
-            args.clear ();
+          // -- push the old call instruction in the queue to be
+          // -- removed. Otherwise, we might invalidate iterators when
+          // -- calling RecursivelyDeleteTriviallyDeadInstructions.
+          if (FU->use_empty ()) {
+	    ToRemove.push_back(CS.getInstruction());
           }
         }
+      }
+      
+      while (!ToRemove.empty()) {
+	CallSite CS(ToRemove.back());
+	ToRemove.pop_back();
+	args.insert (args.end(), CS.arg_begin(), CS.arg_end ());
+	CS.getInstruction()->eraseFromParent();
+	for (auto &a : args) {
+	  seahorn::RecursivelyDeleteTriviallyDeadInstructions (a);
+	}
+	args.clear ();
       }
     }
 

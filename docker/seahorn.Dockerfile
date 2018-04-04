@@ -27,10 +27,11 @@ RUN mkdir -p seahorn && \
     rm -f *.tar.gz && \
     if [ "$BASE_IMAGE" != "seahorn/seahorn" ] ; \
       then \
-        # install test dependencies
+        # install test dependencies & tools
         apt-get update && \
         apt-get install --no-install-recommends -yqq \
-            sudo curl build-essential python-dev python-setuptools python-pip libgraphviz-dev libc6-dev-i386 && \
+            sudo curl build-essential vim-tiny gdb \
+            python-dev python-setuptools python-pip libgraphviz-dev libc6-dev-i386 && \
         pip install lit OutputCheck && \
         easy_install networkx pygraphviz && \
         # get supported llvm version

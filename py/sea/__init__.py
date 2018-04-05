@@ -174,13 +174,46 @@ class AgregateCmd (CliCmd):
 
     def run (self, args=None, extra=[]):
         return args.func (args, extra)
+class _SeqCmdHelpAction(argparse.Action):
+    def __init__(self,
+                 option_strings,
+                 cmds = None,
+                 dest=argparse.SUPPRESS,
+                 default=argparse.SUPPRESS,
+                 help=None):
+        super(_SeqCmdHelpAction, self).__init__(
+            option_strings=option_strings,
+            dest=dest,
+            default=default,
+            nargs=0,
+            help=help)
+        self._cmds = cmds
+
+    def __call__(self, parser, namespace, values, option_string=None):
+        parser.print_help()
+        if self._cmds is not None:
+            cname = '|'.join ([c.name for c in self._cmds])
+
+            print ''
+            print 'This is a sequential command build out of:', cname
+            print 'Any of the following options of the sub-commands are allowed:'
+            print '\n\n'
+
+            for c in self._cmds:
+                ap = argparse.ArgumentParser (c.name,
+                                              description = c.help,
+                                              add_help = False)
+                ap = c.mk_arg_parser(ap)
+                ap.print_help()
+        parser.exit()
 
 class SeqCmd (AgregateCmd):
     def __init__ (self, name='', help='', cmds=[]):
         super (SeqCmd, self).__init__ (name, help, cmds)
 
     def mk_arg_parser (self, ap):
-        #add_help_arg (ap)
+        ap.add_argument('--help', '-h', help = 'Print this message and exit',
+                        action=_SeqCmdHelpAction, cmds = self.cmds)
         add_in_out_args (ap)
         add_tmp_dir_args (ap)
         return ap

@@ -1032,7 +1032,12 @@ class Seahorn(sea.LimitedCmd):
         argv.extend (args.in_files)
 
         # pick out extra seahorn options
-        argv.extend (filter (_is_seahorn_opt, extra))
+        sea_argv = filter (_is_seahorn_opt, extra)
+        if len(sea_argv) <> len(extra):
+            print 'WARNING: Ignoring unknown options:  ',
+            print ' '.join(filter(lambda x : not _is_seahorn_opt(x), extra))
+
+        argv.extend (sea_argv)
 
 
         return self.seahornCmd.run (args, argv)

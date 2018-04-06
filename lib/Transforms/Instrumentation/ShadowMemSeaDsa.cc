@@ -323,7 +323,7 @@ namespace seahorn
           if (G.hasCell (*(li->getPointerOperand ())))
           {
             const Cell &c = G.getCell (*(li->getPointerOperand ()));
-            if (!c.isNull()) readSet.insert (c.getNode ());
+            if (!c.isNodeNull()) readSet.insert (c.getNode ());
           }
         }
         else if (StoreInst *si = dyn_cast<StoreInst> (&inst))
@@ -331,7 +331,7 @@ namespace seahorn
           if (G.hasCell (*(si->getPointerOperand ())))
           {
             const Cell &c = G.getCell (*(si->getPointerOperand ()));
-            if (!c.isNull ()) modSet.insert (c.getNode ());
+            if (!c.isNodeNull()) modSet.insert (c.getNode ());
           }
         }
         else if (CallInst *ci = dyn_cast<CallInst> (&inst))
@@ -342,7 +342,7 @@ namespace seahorn
           if (cf->getName ().equals ("calloc"))
           {
             const Cell &c = G.getCell (inst);
-            if (!c.isNull ()) modSet.insert (c.getNode ());
+            if (!c.isNodeNull()) modSet.insert (c.getNode ());
           }
           else if (m_dsa->hasGraph (*cf))
           {            
@@ -409,7 +409,7 @@ namespace seahorn
         {
           if (!G.hasCell (*(load->getOperand (0)))) continue;
           const Cell &c = G.getCell (*(load->getOperand (0)));
-          if (c.isNull ()) continue;
+          if (c.isNodeNull()) continue;
           
           B.SetInsertPoint (&inst);
           B.CreateCall (m_memLoadFn,
@@ -421,7 +421,7 @@ namespace seahorn
         {
           if (!G.hasCell (*(store->getOperand (1)))) continue;
           const Cell &c = G.getCell (*(store->getOperand (1)));
-          if (c.isNull ()) continue;
+          if (c.isNodeNull()) continue;
           
           B.SetInsertPoint (&inst);
           AllocaInst *v = allocaForNode (c);
@@ -458,7 +458,7 @@ namespace seahorn
           {
             if (!G.hasCell(*call)) continue;
             const Cell &c = G.getCell (*call);
-            if (c.isNull ()) continue;
+            if (c.isNodeNull()) continue;
             
 	    if (c.getOffset () == 0) {
 	      B.SetInsertPoint (call);
@@ -478,7 +478,7 @@ namespace seahorn
 	    
             if (!G.hasCell(dst)) continue;
             const Cell &c = G.getCell (dst);
-            if (c.isNull ()) continue;
+            if (c.isNodeNull()) continue;
 
 	    if (c.getOffset () == 0) {
 	      B.SetInsertPoint (&inst);
@@ -540,8 +540,9 @@ namespace seahorn
             // TODO: not just for offset 0
 
             assert (n);
-            Cell callerC = simMap.get(Cell(const_cast<Node*> (n), 0));
-            assert (!callerC.isNull () && "Not found node in the simulation map");
+            Cell callerC = simMap.get(Cell(const_cast<Node*> (n), 0,
+                                           sea_dsa::FieldType::NotImplemented()));
+            assert (!callerC.isNodeNull() && "Not found node in the simulation map");
 
             AllocaInst *v = allocaForNode (callerC);
             unsigned id = getId (callerC);
@@ -599,7 +600,8 @@ namespace seahorn
       
       for (auto jt : it.second)
       {
-        Cell c (const_cast<Node*> (n), jt.first);
+        // TODO: Types
+        Cell c (const_cast<Node*> (n), jt.first, FieldType::NotImplemented());
         AllocaInst *a = jt.second;
         B.Insert (a, "shadow.mem");
         CallInst *ci;
@@ -638,7 +640,7 @@ namespace seahorn
     for (const Node* n : reach)
     {
       // TODO: extend to work with all slices
-      Cell c (const_cast<Node*> (n), 0);
+      Cell c (const_cast<Node*> (n), 0, FieldType::NotImplemented());
 
       // n is read and is not only return-node reachable (for
       // return-only reachable nodes, there is no initial value

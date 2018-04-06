@@ -21,9 +21,6 @@ if (CMAKE_SOURCE_DIR STREQUAL CMAKE_BINARY_DIR )
     "In-source builds are not allowed. Please clean your source tree and try again.")
 endif()
 
-enable_testing()
-include (CTest)
-
 # Default is release with debug info
 if(NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE RelWithDebInfo CACHE STRING
@@ -74,13 +71,9 @@ endif()
 # put static libraries first
 set(CMAKE_FIND_LIBRARY_SUFFIXES ".a" ${CMAKE_FIND_LIBRARY_SUFFIXES})
 
-option (UNIT_TESTS "Compile unit tests" OFF)
 set (Boost_USE_STATIC_LIBS ON)
 set (BOOST_COMPONENTS system)
-if (UNIT_TESTS)
-  set (BOOST_COMPONENTS ${BOOST_COMPONENTS} unit_test_framework)
-endif()
-  find_package (Boost 1.55 REQUIRED COMPONENTS ${BOOST_COMPONENTS})
+find_package (Boost 1.55 REQUIRED COMPONENTS ${BOOST_COMPONENTS})
 if (Boost_FOUND)
   include_directories (${Boost_INCLUDE_DIRS})
 endif ()
@@ -91,10 +84,12 @@ set_property(DIRECTORY PROPERTY EP_STEP_TARGETS configure build test)
 set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
 if(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
   set(CMAKE_MACOSX_RPATH TRUE)  
-endif ()  
-if (NOT CMAKE_INSTALL_RPATH)
+  set(CMAKE_INSTALL_RPATH "@loader_path/../lib")
+elseif(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
+  set(CMAKE_INSTALL_RPATH "\$ORIGIN/../lib")
+else()
   set(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_PREFIX}/lib")
-endif ()
+endif ()  
 
 
 set (Z3_TAG "origin/nlg" CACHE STRING "Z3 git tag to use")
@@ -374,9 +369,7 @@ include_directories(BEFORE
 
 add_subdirectory(lib)
 add_subdirectory(tools)
-if (UNIT_TESTS)
-  add_subdirectory(units)
-endif()
+add_subdirectory(units)
 add_subdirectory(sea-rt)
 
 configure_file( include/seahorn/config.h.cmake

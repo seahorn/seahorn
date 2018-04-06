@@ -93,6 +93,10 @@ def createWorkDir (dname=None, save=False, prefix='tmp-'):
         atexit.register (shutil.rmtree, path=workdir)
     return workdir
 
+def add_help_arg (ap):
+    ap.add_argument('-h', '--help', action='help',
+                    help='Print this message and exit')
+
 def add_in_out_args (ap):
     ap.add_argument ('-o', dest='out_file',
                      metavar='FILE', help='Output file name', default=None)
@@ -115,6 +119,7 @@ class CliCmd (object):
         self.allow_extra = allow_extra
 
     def mk_arg_parser (self, argp):
+        add_help_arg (argp)
         return argp
 
     def run (self, args=None, extra=[]):
@@ -128,7 +133,9 @@ class CliCmd (object):
 
     def main (self, argv):
         import argparse
-        ap = argparse.ArgumentParser (prog=self.name, description=self.help)
+        ap = argparse.ArgumentParser (prog=self.name,
+                                      description=self.help,
+                                      add_help=False)
         ap = self.mk_arg_parser (ap)
 
         if self.allow_extra:
@@ -157,21 +164,56 @@ class AgregateCmd (CliCmd):
         self.cmds = cmds
 
     def mk_arg_parser (self, argp):
+        add_help_arg (argp)
         sb = argp.add_subparsers ()
         for c in self.cmds:
-            sp = sb.add_parser (c.name, help=c.help)
+            sp = sb.add_parser (c.name, help=c.help, add_help=False)
             sp = c.mk_arg_parser (sp)
             sp.set_defaults (func = c.run)
         return argp
 
     def run (self, args=None, extra=[]):
         return args.func (args, extra)
+class _SeqCmdHelpAction(argparse.Action):
+    def __init__(self,
+                 option_strings,
+                 cmds = None,
+                 dest=argparse.SUPPRESS,
+                 default=argparse.SUPPRESS,
+                 help=None):
+        super(_SeqCmdHelpAction, self).__init__(
+            option_strings=option_strings,
+            dest=dest,
+            default=default,
+            nargs=0,
+            help=help)
+        self._cmds = cmds
+
+    def __call__(self, parser, namespace, values, option_string=None):
+        parser.print_help()
+        if self._cmds is not None:
+            cname = '|'.join ([c.name for c in self._cmds])
+
+            print ''
+            print 'This is a sequential command build out of:', cname
+            print 'Any of the following options of the sub-commands are allowed:'
+            print '\n\n'
+
+            for c in self._cmds:
+                ap = argparse.ArgumentParser (c.name,
+                                              description = c.help,
+                                              add_help = False)
+                ap = c.mk_arg_parser(ap)
+                ap.print_help()
+        parser.exit()
 
 class SeqCmd (AgregateCmd):
     def __init__ (self, name='', help='', cmds=[]):
         super (SeqCmd, self).__init__ (name, help, cmds)
 
     def mk_arg_parser (self, ap):
+        ap.add_argument('--help', '-h', help = 'Print this message and exit',
+                        action=_SeqCmdHelpAction, cmds = self.cmds)
         add_in_out_args (ap)
         add_tmp_dir_args (ap)
         return ap

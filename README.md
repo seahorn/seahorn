@@ -38,7 +38,7 @@ SeaHorn provides several components that are installed via the `extra`
 target. These components can be used by other projects outside of
 SeaHorn.
 
-* [llvm-seahorn](https://github.com/seahorn/llvm-seahorn): `git clone https://github.com/seahorn/llvm-seahorn.git`
+* [llvm-dsa](https://github.com/seahorn/llvm-dsa): `git clone https://github.com/seahorn/llvm-dsa.git`
 
   `llvm-dsa` is the legacy DSA implementation
   from [PoolAlloc](https://llvm.org/svn/llvm-project/poolalloc/). DSA
@@ -63,12 +63,12 @@ SeaHorn.
   pass to convert undefined values into nondeterministic calls, among
   other things.
 
-SeaHorn doesn't come with its own version of Clang and expects to find it 
-either in the build directory (`run/bin`) or in PATH. Make sure that the 
-version of Clang matches the version of LLVM that comes with SeaHorn 
-(currently 3.8). The easiest way to provide the right version of Clang is 
-to download it from [llvm.org](http://releases.llvm.org/download.html), 
-unpact it somewhere and create a symbolic link to `clang` and `clang++` 
+SeaHorn doesn't come with its own version of Clang and expects to find it
+either in the build directory (`run/bin`) or in PATH. Make sure that the
+version of Clang matches the version of LLVM that comes with SeaHorn
+(currently 3.8). The easiest way to provide the right version of Clang is
+to download it from [llvm.org](http://releases.llvm.org/download.html),
+unpact it somewhere and create a symbolic link to `clang` and `clang++`
 in `run/bin`.
 ```
 cd seahorn/build/run/bin

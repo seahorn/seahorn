@@ -1,11 +1,9 @@
 #include "ufo/Smt/ZExprConverter.hpp"
 #include "llvm/Support/raw_ostream.h"
 
-#define BOOST_TEST_MODULE fapp_z3_test
-#include <boost/test/unit_test.hpp>
+#include "doctest.h"
 
-BOOST_AUTO_TEST_CASE( muz_test )
-{      
+TEST_CASE("z3.muz_test") {
   using namespace std;
   using namespace ufo;
   using namespace expr;
@@ -19,7 +17,7 @@ BOOST_AUTO_TEST_CASE( muz_test )
           << "Size of INT: " << sizeof (INT) << "\n"
           << "Size of ULONG: " << sizeof (ULONG) << "\n"
           << "Size of ENode: " << sizeof (ENode) << "\n";
-      
+
 
   Expr x = bind::intConst (mkTerm<string> ("x", efac));
   Expr y = bind::intConst (mkTerm<string> ("y", efac));
@@ -27,10 +25,10 @@ BOOST_AUTO_TEST_CASE( muz_test )
   Expr u = bind::intConst (mkTerm<string> ("u", efac));
   Expr v = bind::intConst (mkTerm<string> ("v", efac));
 
-      
+
   Expr iTy = mk<INT_TY> (efac);
   Expr bTy = mk<BOOL_TY> (efac);
-      
+
   ExprVector ftype;
   ftype.push_back (iTy);
   ftype.push_back (iTy);
@@ -40,26 +38,26 @@ BOOST_AUTO_TEST_CASE( muz_test )
   Expr fapp = bind::fapp (fdecl, x, y);
 
   EZ3 z3(efac);
-  
+
   errs () << "fapp: " << *fapp << "\n";
   errs () << "z3: " << z3_to_smtlib (z3, fapp) << "\n";
-      
+
 
   Expr pfapp = bind::fapp (fdecl, u, v);
 
 
   ZFixedPoint<EZ3> fp (z3);
 
+
   ZParams<EZ3> params (z3);
-  params.set (":engine", "pdr");
-  params.set (":use-farkas", true);
-  params.set (":generate-proof-trace", false);
-  params.set (":slice", false);
-  params.set (":inline-linear", false);
-  params.set (":inline-eager", false);
-      
+
+  params.set (":engine", "spacer");
+  params.set (":pdr.farkas", true);
+  params.set (":xform.slice", false);
+  params.set (":xform.inline_linear", false);
+  params.set (":xform.inline_eager", false);
+
   fp.set (params);
-      
 
   fp.registerRelation (fdecl);
 
@@ -69,7 +67,7 @@ BOOST_AUTO_TEST_CASE( muz_test )
   vars.push_back (u);
   vars.push_back (v);
 
-  fp.addRule (vars, 
+  fp.addRule (vars,
               boolop::limp (mk<EQ> (x, mkTerm<mpz_class>(0, efac)), fapp));
   ExprVector body;
   body.push_back (pfapp);
@@ -78,10 +76,9 @@ BOOST_AUTO_TEST_CASE( muz_test )
 
   Expr zero = mkTerm<mpz_class>(0, efac);
   Expr q = bind::fapp (fdecl, zero, zero);
-      
+
   errs () << fp.toString (q) << "\n";
   tribool res = fp.query (q);
   errs () << "Solving: " << (res ? "sat" : "unsat")  << "\n";
-  BOOST_REQUIRE_EQUAL (res, true);
-  
+  CHECK(res == true);
  }

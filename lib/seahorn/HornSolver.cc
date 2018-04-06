@@ -9,6 +9,8 @@
 
 #include "boost/range/algorithm/reverse.hpp"
 
+#include <climits>
+
 using namespace llvm;
 
 static llvm::cl::opt<std::string>
@@ -23,7 +25,7 @@ PrintAnswer ("horn-answer",
 
 static llvm::cl::opt<bool>
 EstimateSizeInvars ("horn-estimate-size-invars",
-             cl::desc ("Give an estimation about the size of all inferred invariants"), 
+             cl::desc ("Give an estimation about the size of all inferred invariants"),
              cl::init (false));
 
 static llvm::cl::opt<bool>
@@ -72,6 +74,10 @@ UseExtInvariants ("horn-use-ext-invariants", cl::Hidden, cl::init(true),
 static llvm::cl::opt<bool>
 UseExtInvariantsGeneralization ("horn-use-ext-invariants-generalization", cl::Hidden, cl::init(true),
 	 cl::desc ("Use of external invariants during generalization"));
+static llvm::cl::opt<unsigned>
+HornMaxDepth("horn-max-depth", cl::Hidden,
+             cl::desc ("Maximum exploration depth"),
+             cl::init (UINT_MAX));
 
 namespace seahorn
 {
@@ -117,8 +123,13 @@ namespace seahorn
     params.set (":spacer.keep_proxy", KeepProxy);
     params.set (":spacer.ground_cti", false);
     fp.set (params);
+    // -- XXX the parameter is renamed to spacer.max_level in newer
+    // -- XXX version of SPACER
+    params.set (":spacer.max_level", HornMaxDepth);
+    fp.set (params);
+
     db.loadZFixedPoint (fp, SkipConstraints);
-    
+
     Stats::resume ("Horn");
     m_result = fp.query ();
     Stats::stop ("Horn");
@@ -130,7 +141,7 @@ namespace seahorn
 
     if (m_result) Stats::sset ("Result", "FALSE");
     else if (!m_result) Stats::sset ("Result", "TRUE");
-    
+
     LOG ("answer",
          if (m_result || !m_result) errs () << fp.getAnswer () << "\n";);
 
@@ -160,37 +171,37 @@ namespace seahorn
   {
     ZFixedPoint<EZ3> fp = *m_fp;
     //outs () << *fp.getCex () << "\n";
-    
+
     ExprVector rules;
     fp.getCexRules (rules);
     boost::reverse (rules);
-    for (Expr r : rules) 
+    for (Expr r : rules)
     {
       Expr src;
       Expr dst;
-      
-      if (isOpX<IMPL> (r)) 
-      { 
+
+      if (isOpX<IMPL> (r))
+      {
         dst = r->arg (1);
         r = r->arg (0);
         src = isOpX<AND> (r) ? r->arg (0) : r;
       }
       else
         dst = r;
-      
+
       if (src)
       {
         if (!bind::isFapp (src)) src.reset (0);
         else src = bind::fname (bind::fname (src));
       }
-      
+
 
       if (src) outs () << *src << " --> ";
-      
+
       dst = bind::fname (bind::fname (dst));
       outs () << *dst << "\n";
     }
-    
+
   }
 
   void HornSolver::estimateSizeInvars (Module &M)
@@ -201,7 +212,7 @@ namespace seahorn
     Expr allInvars;
     bool first = true;
     unsigned numBlocks = 0;
-    for (auto &F : M) 
+    for (auto &F : M)
     {
       if (F.isDeclaration ()) continue;
       for (auto &BB : F)

@@ -1,3 +1,5 @@
+from __future__ import print_function
+
 import sea
 
 import os.path
@@ -451,7 +453,7 @@ class AbcInst(sea.LimitedCmd):
         ap = super (AbcInst, self).mk_arg_parser (ap)
         ap.add_argument ('--log', dest='log', default=None,
                          metavar='STR', help='Log level')
-        
+
         ap.add_argument ('--abc-encoding', dest='abc_encoding',
                          help='Encoding used to insert array bounds checks',
                          choices=['local','global','global-c'], default='global')
@@ -511,7 +513,7 @@ class AbcInst(sea.LimitedCmd):
         ap.add_argument ('--abc-instrument-except-types',
                          help='Do not instrument a pointer if it is not of these user-defined types',
                          dest='abc_except_types', type=str,metavar='str,...')
-        
+
         add_in_out_args (ap)
         _add_S_arg (ap)
         return ap
@@ -532,7 +534,7 @@ class AbcInst(sea.LimitedCmd):
         sea_horn_dsa = get_sea_horn_dsa (extra)
         if sea_horn_dsa is not None and sea_horn_dsa != args.dsa:
             if args.dsa != 'llvm': ## do not bother warning if default value
-                print "WARNING: Overwriting \'--abc-dsa\' with \'--dsa\'."
+                print ("WARNING: Overwriting \'--abc-dsa\' with \'--dsa\'.")
             args.dsa = sea_horn_dsa
         if args.dsa == 'llvm':
             if args.abc_dsa_stats:
@@ -573,7 +575,7 @@ class AbcInst(sea.LimitedCmd):
         if args.abc_track_base_only: argv.append ('--abc-track-base-only')
         if args.abc_surface_only: argv.append ('--abc-surface-only')
         if args.abc_store_base_only: argv.append ('--abc-store-base-only')
-            
+
         if args.log is not None:
             for l in args.log.split (':'): argv.extend (['-log', l])
 
@@ -600,11 +602,11 @@ class NdcInst(sea.LimitedCmd):
         ap = super (NdcInst, self).mk_arg_parser (ap)
         ap.add_argument ('--log', dest='log', default=None,
                          metavar='STR', help='Log level')
-        
+
         ap.add_argument ('--ndc-opt', dest='ndc_opt',
                          help='Minimize the number of null dereference checks',
                          default=False, action='store_true')
-        
+
         add_in_out_args (ap)
         _add_S_arg (ap)
         return ap
@@ -620,13 +622,13 @@ class NdcInst(sea.LimitedCmd):
 
         argv.append ('--null-check')
         if args.ndc_opt: argv.append ('--null-check-optimize')
-        
+
         if args.log is not None:
             for l in args.log.split (':'): argv.extend (['-log', l])
 
         argv.extend (args.in_files)
         return self.seappCmd.run(args, argv)
-    
+
 class SimpleMemoryChecks(sea.LimitedCmd):
     def __init__(self, quiet=False):
         super(SimpleMemoryChecks, self).__init__('smc',
@@ -650,6 +652,11 @@ class SimpleMemoryChecks(sea.LimitedCmd):
                          dest='print_smc_stats', help='Print Simple Memory Check stats')
         ap.add_argument ('--smc-check-threshold', type=int, dest='smc_check_threshold',
                          help='Max no. of analyzed memory instructions', default=100)
+        ap.add_argument ('--smc-instrument-check', type=int, dest='smc_instrument_check',
+                         help='Check id to instrement', default=0)
+        ap.add_argument ('--smc-instrument-alloc', type=int, dest='smc_instrument_alloc',
+                         help='Allocation site id to instrument', default=0)
+
 
         add_in_out_args (ap)
         _add_S_arg (ap)
@@ -671,6 +678,12 @@ class SimpleMemoryChecks(sea.LimitedCmd):
 
         if args.smc_check_threshold is not None:
             argv.append ('--smc-check-threshold={t}'.format(t=args.smc_check_threshold))
+
+        if args.smc_instrument_check is not None:
+            argv.append ('--smc-instrument-check={t}'.format(t=args.smc_instrument_check))
+
+        if args.smc_instrument_alloc is not None:
+            argv.append ('--smc-instrument-alloc={t}'.format(t=args.smc_instrument_alloc))
 
         if args.log is not None:
             for l in args.log.split (':'): argv.extend (['-log', l])
@@ -949,6 +962,9 @@ class Seahorn(sea.LimitedCmd):
         ap.add_argument ('--bmc',
                          help='Use BMC engine',
                          choices=['none', 'mono', 'path'], dest='bmc', default='none')
+        ap.add_argument ('--max-depth',
+                         help='Maximum depth of exploration',
+                         dest='max_depth', default=sys.maxint)
         return ap
 
     def run (self, args, extra):
@@ -957,6 +973,9 @@ class Seahorn(sea.LimitedCmd):
         self.seahornCmd = sea.ExtCmd (cmd_name)
 
         argv = list()
+
+        if args.max_depth <> sys.maxint:
+            argv.append ('--horn-max-depth=' + str(args.max_depth))
 
         if args.bmc != 'none':
             argv.append ('--horn-bmc')
@@ -1019,7 +1038,12 @@ class Seahorn(sea.LimitedCmd):
         argv.extend (args.in_files)
 
         # pick out extra seahorn options
-        argv.extend (filter (_is_seahorn_opt, extra))
+        sea_argv = filter (_is_seahorn_opt, extra)
+        if len(sea_argv) <> len(extra):
+            print ('WARNING: Ignoring unknown options:',
+                   ' '.join(filter(lambda x : not _is_seahorn_opt(x), extra)))
+
+        argv.extend (sea_argv)
 
 
         return self.seahornCmd.run (args, argv)
@@ -1119,9 +1143,11 @@ class LegacyFrontEnd (sea.LimitedCmd):
         cmd_name = os.path.join (os.path.dirname (sys.argv[0]),
                                  '..', 'legacy', 'bin', 'seahorn.py')
         if not sea.isexec (cmd_name):
-            print 'No legacy front-end found at:', cmd_name
-	    print 'Download from https://bitbucket.org/arieg/seahorn-gh/downloads/seahorn-svcomp15-r1.tar.bz2 (64bit) or https://bitbucket.org/arieg/seahorn-gh/downloads/lfe32-2015.tar.bz2 (32bit) and extract into `legacy` sub-directory'
-            print 'Only supported on Linux'
+            print ('LEGACY FRONT-END HAS BEEN DEPRECATED')
+            print ('THE FOLLOWING INSTRUCTIONS ARE PROBABLY INCORRECT')
+            print ('No legacy front-end found at:', cmd_name)
+	    print ('Download from https://bitbucket.org/arieg/seahorn-gh/downloads/seahorn-svcomp15-r1.tar.bz2 (64bit) or https://bitbucket.org/arieg/seahorn-gh/downloads/lfe32-2015.tar.bz2 (32bit) and extract into `legacy` sub-directory')
+            print ('Only supported on Linux')
             return 1
 
         import subprocess
@@ -1256,7 +1282,7 @@ class SeaInc(sea.LimitedCmd):
           jb.singleRun(smt2_file)
       except Exception as e:
           raise IOError(str(e))
-      
+
 class ParAbc(sea.LimitedCmd):
     def __init__ (self, quiet=False):
         super (ParAbc, self).__init__ ('par-abc', allow_extra=True)
@@ -1279,7 +1305,7 @@ class ParAbc(sea.LimitedCmd):
 
     def run(self, args, extra):
         try:
-            import par_abc.par_abc as parabc            
+            import par_abc.par_abc as parabc
             return parabc.sea_par_abc(args, extra)
         except Exception as e:
             raise IOError(str(e))
@@ -1352,7 +1378,7 @@ class InspectBitcode(sea.LimitedCmd):
 
         return self.seainspectCmd.run (args, argv)
 
-## SeaHorn aliases 
+## SeaHorn aliases
 FrontEnd = sea.SeqCmd ('fe', 'Front end: alias for clang|pp|ms|opt',
                        [Clang(), Seapp(), MixedSem(), Seaopt ()])
 Smt = sea.SeqCmd ('smt', 'alias for fe|horn', FrontEnd.cmds + [Seahorn()])

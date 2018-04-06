@@ -28,10 +28,20 @@ static llvm::cl::opt<bool>
                   llvm::cl::desc("Print Simple Memory Check statistics"),
                   llvm::cl::init(false));
 
-static llvm::cl::opt<unsigned int> SMCAnalysisThreshold(
+static llvm::cl::opt<unsigned> SMCAnalysisThreshold(
     "smc-check-threshold",
     llvm::cl::desc("Max no. of analyzed memory instructions"),
     llvm::cl::init(100));
+
+static llvm::cl::opt<unsigned> CheckToInstrumentID(
+    "smc-instrument-check",
+    llvm::cl::desc("Id of the check to instrument"),
+    llvm::cl::init(0));
+
+static llvm::cl::opt<unsigned> AllocToInstrumentID(
+    "smc-instrument-alloc",
+    llvm::cl::desc("Id of the allocation site to instrument"),
+    llvm::cl::init(0));
 
 namespace seahorn {
 
@@ -89,6 +99,7 @@ struct CheckContext {
       OS << ",\n";
     }
 
+    unsigned Others = 0;
     OS << "  }  OtherAllocSites: {\n";
     for (auto *V : OtherAllocSites) {
       OS << "    " << (i++) << ": ";
@@ -98,6 +109,13 @@ struct CheckContext {
            << I->getParent()->getName() << ")";
 
       OS << ",\n";
+
+      const unsigned SkipOthersAfter = 8;
+      if (Others++ > SkipOthersAfter) {
+        OS << "...(skipping the " << (OtherAllocSites.size() - Others)
+           << " remaining ones)\n";
+        break;
+      }
     }
     OS << "  }\n}\n";
   }
@@ -936,9 +954,8 @@ skip:
     return true;
   }
 
-  // FIXME: Allow to specify allocation sites and memory instructions.
-  size_t CheckId = 0;
-  size_t AllocSiteId = 0;
+  size_t CheckId = CheckToInstrumentID;
+  size_t AllocSiteId = AllocToInstrumentID;
 
   assert(CheckCandidates.size() > CheckId);
   auto &Check = CheckCandidates[CheckId];

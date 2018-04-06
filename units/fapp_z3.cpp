@@ -1,40 +1,37 @@
-    #include "ufo/Smt/ZExprConverter.hpp"
-    #include "llvm/Support/raw_ostream.h"
+#include "ufo/Smt/ZExprConverter.hpp"
+#include "llvm/Support/raw_ostream.h"
 
-    #define BOOST_TEST_MODULE fapp_z3_test
-    #include <boost/test/unit_test.hpp>
+#include "doctest.h"
 
-    BOOST_AUTO_TEST_CASE( fapp_test )
-    {      
-      using namespace std;
-      using namespace expr;
-      using namespace ufo;
-      
-      ExprFactory efac;
+TEST_CASE("z3.fapp_test") {
+  using namespace std;
+  using namespace expr;
+  using namespace ufo;
 
-      Expr x = bind::intConst (mkTerm<string> ("x", efac));
-      Expr y = bind::intConst (mkTerm<string> ("y", efac));
+  ExprFactory efac;
 
-      Expr iTy = mk<INT_TY> (efac);
-      Expr bTy = mk<BOOL_TY> (efac);
+  Expr x = bind::intConst (mkTerm<string> ("x", efac));
+  Expr y = bind::intConst (mkTerm<string> ("y", efac));
 
-      ExprVector ftype;
-      ftype.push_back (iTy);
-      ftype.push_back (iTy);
-      ftype.push_back (bTy);
+  Expr iTy = mk<INT_TY> (efac);
+  Expr bTy = mk<BOOL_TY> (efac);
 
-      Expr fdecl = bind::fdecl (mkTerm<string> ("f", efac), ftype);
-      ExprVector args;
-      args.push_back (x);
-      args.push_back (y);
+  ExprVector ftype;
+  ftype.push_back (iTy);
+  ftype.push_back (iTy);
+  ftype.push_back (bTy);
 
-      Expr fapp = bind::fapp (fdecl, args);
+  Expr fdecl = bind::fdecl (mkTerm<string> ("f", efac), ftype);
+  ExprVector args;
+  args.push_back (x);
+  args.push_back (y);
 
-      EZ3 z3(efac);
+  Expr fapp = bind::fapp (fdecl, args);
 
-      errs () << "fapp: " << *fapp << "\n";
-      errs () << "z3: " << z3_to_smtlib (z3, fapp) << "\n";
+  EZ3 z3(efac);
 
-      BOOST_REQUIRE_EQUAL (lexical_cast<string> (*fapp), 
-                           z3_to_smtlib (z3, fapp));  
-    }
+  errs () << "fapp: " << *fapp << "\n";
+  errs () << "z3: " << z3_to_smtlib (z3, fapp) << "\n";
+
+  CHECK(lexical_cast<string> (*fapp) == z3_to_smtlib (z3, fapp));
+}

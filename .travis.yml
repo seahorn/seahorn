@@ -5,63 +5,32 @@ env:
      - os: linux
        dist: trusty
        language: generic
+services:
+  - docker
 
-before_install:
-   - until sudo add-apt-repository -y ppa:saiarcot895/chromium-beta; do echo retry; done
-   - until sudo apt-get -qq update; do echo retry; done
-   - until sudo add-apt-repository --yes ppa:ubuntu-toolchain-r/test; do echo retry; done
-   - sudo apt-add-repository --yes ppa:smspillaz/cmake-2.8.12
-   - sudo apt-get --yes update
-   - sudo apt-get install --yes cmake cmake-data
-   - sudo apt-get install --yes python-dev
-   - sudo apt-get install --yes python-pip
-   - sudo pip install lit
-   - sudo pip install OutputCheck
-   - sudo easy_install networkx
-   - sudo apt-get install libgraphviz-dev
-   - sudo easy_install pygraphviz
-
-install:
-  - until sudo apt-get -qq update; do echo retry; done
-  - until sudo apt-get -qq install libstdc++5; do echo retry; done
-  - until sudo apt-get -qq install g++-5; do echo retry; done
-  - until sudo apt-get install --yes libgmp-dev; do echo retry; done
-  - until sudo apt-get install --yes libmpfr-dev; do echo retry; done
-  - until sudo apt-get install -qq clang-3.8; do echo retry; done
-  ### precompiled binaries for LLVM 3.8
-  - export LLVM_ROOT="$TRAVIS_BUILD_DIR/LLVM-3.8-Linux"
-  - wget https://jorgenavas.github.io/sw/LLVM-3.8-Linux.tar.gz  
-  - tar xf LLVM-3.8-Linux.tar.gz  
-  ### precompiled binaries for z3
-  - export Z3_ROOT="$TRAVIS_BUILD_DIR/Z3-Linux"
-  - wget https://jorgenavas.github.io/sw/Z3-Linux.tar.gz
-  - tar xf Z3-Linux.tar.gz
-  ### BOOST
-  - wget --no-verbose --output-document=boost-trunk.tar.bz2 https://dl.bintray.com/boostorg/release/1.64.0/source/boost_1_64_0.tar.bz2
-  - export BOOST_ROOT="$TRAVIS_BUILD_DIR/boost-trunk"
-  - export CMAKE_MODULE_PATH="$BOOST_ROOT"
-  - mkdir -p $BOOST_ROOT
-  - tar jxf boost-trunk.tar.bz2 --strip-components=1 -C $BOOST_ROOT
-  - (cd $BOOST_ROOT; ./bootstrap.sh --with-libraries=date_time,filesystem,system,iostreams,regex,test)
-  - (cd $BOOST_ROOT; ./b2 threading=multi --prefix=$BOOST_ROOT -d0 install)
+install: true
 
 script:
-  - mkdir -p build
-  - cd build
-  - /usr/bin/cmake -DBOOST_ROOT=${BOOST_ROOT} -DZ3_ROOT=${Z3_ROOT} -DLLVM_DIR=${LLVM_ROOT}/share/llvm/cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER=g++-5 -DCMAKE_PROGRAM_PATH=/usr/bin  -DCMAKE_INSTALL_PREFIX=run ../;
-  ## XXX: not required since LLVM and Z3 are already found
-  #- /usr/bin/cmake --build .
-  - /usr/bin/cmake --build . --target extra && /usr/bin/cmake ..
-  - /usr/bin/cmake --build . --target crab && /usr/bin/cmake ..
-  - /usr/bin/cmake --build . --target install
-  - /usr/bin/cmake --build . --target test-simple
-  - /usr/bin/cmake --build . --target test-solve
-  - /usr/bin/cmake --build . --target test-abc   
-  - /usr/bin/cmake --build . --target test-dsa
+  ### build with docker
+  - docker build --build-arg UBUNTU=xenial --build-arg BUILD_TYPE=MinSizeRel --build-arg TRAVIS=true -t seahorn_xenial_build -f docker/seahorn-full-size-rel.Dockerfile .
+  - docker run -v `pwd`:/host -it seahorn_xenial_build /bin/sh -c "cp build/*.tar.gz /host/"
+  ### extract SeaHorn in a separate container and run tests
+  - 'if [ "$TRAVIS_EVENT_TYPE" = "cron" ] ;
+       then docker build -t seahorn_container -f docker/seahorn.Dockerfile . ;
+       else docker build --build-arg BASE_IMAGE=seahorn/seahorn -t seahorn_container -f docker/seahorn.Dockerfile . ;
+     fi '
+  - 'if [ "$TRAVIS_EVENT_TYPE" = "cron" ] ;
+     then docker run -v `pwd`:/host -it seahorn_container /bin/sh -c "cd share/seahorn/test; lit simple; lit solve; lit abc; lit dsa; lit tutorial; lit smc"
+       && docker login -u "$DOCKER_USER" -p "$DOCKER_PWD"
+       && docker tag seahorn_container seahorn/seahorn:nightly
+       && docker push seahorn/seahorn:nightly ;
+     else docker run -v `pwd`:/host -it seahorn_container /bin/sh -c "cd share/seahorn/test; lit simple; lit solve; lit abc; lit dsa; lit tutorial; lit smc" ;
+     fi '
+
   #- /usr/bin/cmake --build . --target test-inc
-  # XXX: after porting to llvm 3.8 some of these tests fail  
-  #- /usr/bin/cmake --build . --target pred-abs  
-  
+  # XXX: after porting to llvm 3.8 some of these tests fail
+  #- /usr/bin/cmake --build . --target pred-abs
+
 
 notifications:
    slack: seahornteam:NAUqZmZHFFviPH4ktQbJXgKu

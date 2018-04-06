@@ -1,3 +1,5 @@
+from __future__ import print_function
+
 import sea
 
 import os.path
@@ -532,7 +534,7 @@ class AbcInst(sea.LimitedCmd):
         sea_horn_dsa = get_sea_horn_dsa (extra)
         if sea_horn_dsa is not None and sea_horn_dsa != args.dsa:
             if args.dsa != 'llvm': ## do not bother warning if default value
-                print "WARNING: Overwriting \'--abc-dsa\' with \'--dsa\'."
+                print ("WARNING: Overwriting \'--abc-dsa\' with \'--dsa\'.")
             args.dsa = sea_horn_dsa
         if args.dsa == 'llvm':
             if args.abc_dsa_stats:
@@ -1034,8 +1036,8 @@ class Seahorn(sea.LimitedCmd):
         # pick out extra seahorn options
         sea_argv = filter (_is_seahorn_opt, extra)
         if len(sea_argv) <> len(extra):
-            print 'WARNING: Ignoring unknown options:  ',
-            print ' '.join(filter(lambda x : not _is_seahorn_opt(x), extra))
+            print ('WARNING: Ignoring unknown options:',
+                   ' '.join(filter(lambda x : not _is_seahorn_opt(x), extra)))
 
         argv.extend (sea_argv)
 
@@ -1137,9 +1139,11 @@ class LegacyFrontEnd (sea.LimitedCmd):
         cmd_name = os.path.join (os.path.dirname (sys.argv[0]),
                                  '..', 'legacy', 'bin', 'seahorn.py')
         if not sea.isexec (cmd_name):
-            print 'No legacy front-end found at:', cmd_name
-	    print 'Download from https://bitbucket.org/arieg/seahorn-gh/downloads/seahorn-svcomp15-r1.tar.bz2 (64bit) or https://bitbucket.org/arieg/seahorn-gh/downloads/lfe32-2015.tar.bz2 (32bit) and extract into `legacy` sub-directory'
-            print 'Only supported on Linux'
+            print ('LEGACY FRONT-END HAS BEEN DEPRECATED')
+            print ('THE FOLLOWING INSTRUCTIONS ARE PROBABLY INCORRECT')
+            print ('No legacy front-end found at:', cmd_name)
+	    print ('Download from https://bitbucket.org/arieg/seahorn-gh/downloads/seahorn-svcomp15-r1.tar.bz2 (64bit) or https://bitbucket.org/arieg/seahorn-gh/downloads/lfe32-2015.tar.bz2 (32bit) and extract into `legacy` sub-directory')
+            print ('Only supported on Linux')
             return 1
 
         import subprocess

@@ -1,5 +1,5 @@
-; RUN: %seainspect %s -mem-dot -sea-dsa-stats --sea-dsa-dot-outdir=%T-globals
-; RUN: %cmp-graphs %tests/globals.entry.mem.dot %T-globals/entry.mem.dot both | OutputCheck %s -d --comment=";"
+; RUN: %seainspect %s -mem-dot -sea-dsa-stats --sea-dsa-dot-outdir=%T/globals.ll
+; RUN: %cmp-graphs %tests/globals.entry.mem.dot %T/globals.ll/entry.mem.dot both | OutputCheck %s -d --comment=";"
 ; CHECK: ^OK$
 
 @a = common global i32 0, align 4

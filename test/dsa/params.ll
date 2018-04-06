@@ -1,5 +1,5 @@
-; RUN: %seainspect %s -mem-dot -sea-dsa-stats --sea-dsa-dot-outdir=%T-params
-; RUN: %cmp-graphs %tests/params.entry.mem.dot %T-params/entry.mem.dot both | OutputCheck %s -d --comment=";"
+; RUN: %seainspect %s -mem-dot -sea-dsa-stats --sea-dsa-dot-outdir=%T/params.ll
+; RUN: %cmp-graphs %tests/params.entry.mem.dot %T/params.ll/entry.mem.dot both | OutputCheck %s -d --comment=";"
 ; CHECK: ^OK$
 
 ; ModuleID = 'param.c.ll'

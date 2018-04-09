@@ -1,0 +1,15 @@
+digraph unnamed {
+	graph [center=true, ratio=true, bgcolor=lightgray, fontname=Helvetica];
+	node  [fontname=Helvetica, fontsize=11];
+
+	Node0x258cf60 [shape=record,label="{\{0:i32\}:SMR}"];
+	Node0x258d410 [shape=record,label="{\{0:i32*\}:SM|{<s0>0,\ni32*}}"];
+	Node0x258d410:s0 -> Node0x258e8f0[];
+	Node0x258e8f0 [shape=record,label="{\{void\}:SP}"];
+	Node0x257e5f8[ shape=plaintext, label ="a"];
+	Node0x257e5f8 -> Node0x258cf60[arrowtail=tee,label="0, opaque",fontsize=8,color=purple];
+	Node0x257ec78[ shape=plaintext, label ="ptr"];
+	Node0x257ec78 -> Node0x258d410[arrowtail=tee,label="0, opaque",fontsize=8,color=purple];
+	Node0x257f0d8[ shape=plaintext, label ="tmp3"];
+	Node0x257f0d8 -> Node0x258e8f0[arrowtail=tee,label="0, i32",fontsize=8,color=gray63];
+}

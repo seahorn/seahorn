@@ -1,12 +1,21 @@
+#include "llvm/Analysis/TargetLibraryInfo.h"
+#include "llvm/Bitcode/ReaderWriter.h"
+#include "llvm/IR/IntrinsicInst.h"
+#include "llvm/IR/DataLayout.h"
+#include "llvm/IR/DebugLoc.h"
+#include "llvm/IR/DebugInfo.h"
+#include "llvm/IR/Function.h"
+#include "llvm/IR/GlobalValue.h"
+#include "llvm/IR/ValueMap.h"
+#include "llvm/IR/IRBuilder.h"
+#include "llvm/IR/Verifier.h"
+#include "llvm/Support/CommandLine.h"
+#include "llvm/Support/ToolOutputFile.h"
+#include "llvm/Support/FileSystem.h"
+
 #include "seahorn/HornCex.hh"
 #include "seahorn/CexHarness.hh"
-
 #include "seahorn/MemSimulator.hh"
-
-#include "llvm/IR/Function.h"
-#include "ufo/Stats.hh"
-
-#include "boost/range/algorithm/reverse.hpp"
 
 #include "seahorn/UfoSymExec.hh"
 #include "seahorn/BvSymExec.hh"
@@ -20,6 +29,8 @@
 #include "seahorn/Bmc.hh"
 #include "seahorn/PathBasedBmc.hh"
 
+#include "ufo/Stats.hh"
+
 #ifdef HAVE_CRAB_LLVM
 #include "crab_llvm/CrabLlvm.hh"
 #endif 
@@ -30,22 +41,7 @@
 #include "boost/container/flat_set.hpp"
 #include "boost/container/map.hpp"
 #include "boost/algorithm/string/predicate.hpp"
-
-
-#include "llvm/Support/CommandLine.h"
-#include "llvm/Support/ToolOutputFile.h"
-#include "llvm/Support/FileSystem.h"
-
-#include "llvm/IR/IntrinsicInst.h"
-#include "llvm/IR/DebugLoc.h"
-#include "llvm/IR/DebugInfo.h"
-#include "llvm/IR/GlobalValue.h"
-#include "llvm/IR/ValueMap.h"
-#include "llvm/IR/IRBuilder.h"
-#include "llvm/IR/Verifier.h"
-#include "llvm/Bitcode/ReaderWriter.h"
-#include "llvm/IR/DataLayout.h"
-#include "llvm/Analysis/TargetLibraryInfo.h"
+#include "boost/range/algorithm/reverse.hpp"
 
 #include <gmpxx.h>
 
@@ -97,7 +93,8 @@ namespace seahorn
 
   template <typename O> class SvCompCex;
   static void dumpSvCompCex (BmcTrace &trace, std::string CexFile);
-  static void dumpLLVMCex (BmcTrace &trace, StringRef CexFile, const DataLayout &dl,
+  static void dumpLLVMCex (BmcTraceWrapper &trace, 
+			   StringRef CexFile, const DataLayout &dl,
                            const TargetLibraryInfo &tli);
   static void dumpLLVMBitcode(const Module &M, StringRef BcFile);
 
@@ -269,7 +266,7 @@ namespace seahorn
     // get bmc trace
     BmcTrace trace (bmc->getTrace ());
     LOG ("cex", trace.print (errs ()););
-
+    std::unique_ptr<MemSimulator> memSim = nullptr;
 
     if (UseBv)
     {
@@ -278,16 +275,23 @@ namespace seahorn
 	getAnalysis<TargetLibraryInfoWrapperPass> ().getTLI();
       if (MemSim)
       {
-        MemSimulator memSim (trace, dl, tli);
-        bool simRes = memSim.simulate ();
+        memSim = std::unique_ptr<MemSimulator>(new MemSimulator(trace, dl, tli));
+        bool simRes = memSim->simulate ();
+	if (!simRes) {
+	  memSim.reset();
+	}
       }
     }
-
+    
     StringRef HornCexFileRef(HornCexFile);
     if (HornCexFileRef.endswith(".ll") ||
         HornCexFileRef.endswith(".bc")) {
-      const DataLayout &dl = M.getDataLayout();      
-      dumpLLVMCex(trace, HornCexFileRef, dl, tli);
+      const DataLayout &dl = M.getDataLayout();
+      std::unique_ptr<BmcTraceWrapper> traceW(new BmcTraceWrapper(trace));
+      if (memSim) {
+	traceW.reset(new BmcTraceMemSim(*memSim));
+      }
+      dumpLLVMCex(*traceW, HornCexFileRef, dl, tli);
     } else if (HornCexFileRef.endswith(".xml")) {
       dumpSvCompCex (trace, HornCexFileRef);
     } else if (!HornCexFileRef.empty()) {
@@ -479,10 +483,11 @@ namespace seahorn
     out.keep ();
   }
 
-  static void dumpLLVMCex(BmcTrace &trace, StringRef CexFile, const DataLayout &dl,
+  static void dumpLLVMCex(BmcTraceWrapper &trace, 
+			  StringRef CexFile, const DataLayout &dl,
                           const TargetLibraryInfo &tli)
   {
-      std::unique_ptr<Module> Harness = createCexHarness(trace, dl, tli);
+    std::unique_ptr<Module> Harness = createCexHarness(trace, dl, tli);
     std::error_code error_code;
     llvm::tool_output_file out(CexFile, error_code, sys::fs::F_None);
     assert (!error_code);

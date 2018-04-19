@@ -12,6 +12,21 @@ using namespace llvm;
 namespace seahorn
 {
 
+  Expr BmcTraceWrapper::eval(unsigned loc, const llvm::Instruction &inst, bool complete) {
+    Expr v = m_trace.eval(loc,inst,complete);
+    LOG("cex-eval",
+	errs() << "Eval " << "loc=" << loc << " " << inst << " --> " << v << "\n");
+    return v;    
+  }
+
+  Expr BmcTraceMemSim::eval (unsigned loc, const llvm::Instruction &inst, bool complete) {
+    Expr v = m_mem_sim.eval(loc,inst,complete);
+    LOG("cex-eval",
+	errs() << "Eval[MemSimulator] " << "loc=" << loc << " " << inst << " --> "
+	       << v << "\n");
+    return v;	
+  }
+  
   Constant* exprToLlvm (Type *ty, Expr e, const DataLayout &dl)
   {
     if (isOpX<TRUE> (e)) {
@@ -44,8 +59,8 @@ namespace seahorn
     llvm_unreachable("Unhandled expression");
   }
 
-  std::unique_ptr<Module>  createCexHarness(BmcTrace &trace, const DataLayout &dl,
-                                            const TargetLibraryInfo  &tli)
+  std::unique_ptr<Module> createCexHarness(BmcTraceWrapper &trace, 
+					   const DataLayout &dl, const TargetLibraryInfo &tli)
   {
 
     std::unique_ptr<Module> Harness = make_unique<Module>("harness", getGlobalContext());

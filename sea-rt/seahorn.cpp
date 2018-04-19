@@ -30,9 +30,14 @@ void __VERIFIER_assume(int x) {
 
 #define get_value_helper(ctype, llvmtype)                               \
   ctype __seahorn_get_value_ ## llvmtype (int ctr, ctype *g_arr, int g_arr_sz) { \
-    assert (ctr < g_arr_sz && "Unexpected index");                      \
     sealog("[sea] __seahorn_get_value_(" #llvmtype ", %d, %d)\n", ctr, g_arr_sz); \
-    return g_arr[ctr];                                                  \
+    if (ctr >= g_arr_sz) {						\
+      sealog("\tout-of-bounds index\n");				\
+      return 0;								\
+    }									\
+    else { 								\
+      return g_arr[ctr];						\
+    }									\
   }
 
 #define get_value_int(bits) get_value_helper(int ## bits ## _t, i ## bits)
@@ -91,7 +96,9 @@ const int TYPE_GUESS = sizeof(int);
   }
 
   bool is_legal_address (void *addr) {
-    return ! is_dummy_address (addr);
+    return (! is_dummy_address (addr) &&
+	    (intptr_t(addr) >= 0x100000 &&
+	     intptr_t(addr) <= 0xFFFFFFFFFFFF));
   }
 
 /** Dummy implementation of memory wrapping functions */
@@ -99,25 +106,32 @@ const int TYPE_GUESS = sizeof(int);
 void __seahorn_mem_store (void *src, void *dst, size_t sz)
 {
   sealog("[sea] __seahorn_mem_store from %p to %p\n", src, dst);
-  if (is_legal_address (dst)) {
+  if (is_legal_address (dst) && is_legal_address(src)) {
   /* if dst is a legal address */
-    sealog("[sea] memory write\n");
+    sealog("\tmemory write ");
     memcpy (dst, src, sz);
+    sealog("done\n");    
   }
   /* else if dst is illegal, do nothing */
-  else sealog("[sea] ignoring write to illegal memory address\n");
+  else{
+    sealog("\tignoring write to illegal memory address\n");
+  }
 }
 
 void __seahorn_mem_load (void *dst, void *src, size_t sz)
 {
-  sealog("__seahorn_mem_load from %p to %p\n", src, dst);
-  if (is_legal_address (src)) {
+  sealog("[sea] __seahorn_mem_load from %p to %p\n", src, dst);
+  if (is_legal_address (src) && is_legal_address(dst)) {
   /* if src is a legal address */
-    sealog("[sea] memory read\n");
+    sealog("\tmemory read ");
     memcpy (dst, src, sz);
+    sealog("done\n");        
   }
   /* else, if src is illegal, return a dummy value */
-  else { sealog("[sea] ignoring read from an illegal memory address\n"); bzero(dst, sz); }
+  else {
+    sealog("\tignoring read from an illegal memory address\n");
+    bzero(dst, sz);
+  }
 }
 
 // Dummy klee_make_symbolic function
@@ -130,11 +144,11 @@ void klee_assume(int b) {
   __VERIFIER_assume (b);
 }
 
-  void __assert_fail (const char * assertion, const char * file,
-                      unsigned int line, const char * function) {
-    printf("[sea] exiting with a call to __assert_fail\n");
-    exit(1);
-  }
+void __assert_fail (const char * assertion, const char * file,
+		    unsigned int line, const char * function) {
+  printf("[sea] exiting with a call to __assert_fail %s\n",assertion);
+  exit(1);
+}
 
 
 }

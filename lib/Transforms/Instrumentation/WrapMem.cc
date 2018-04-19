@@ -17,12 +17,12 @@ DM-0002198
 */
 
 #include "llvm/Pass.h"
-#include "llvm/Support/raw_ostream.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/IRBuilder.h"
-
+#include "llvm/Support/CommandLine.h"
+#include "llvm/Support/raw_ostream.h"
 
 #include "seahorn/config.h"
 #ifdef HAVE_DSA
@@ -36,11 +36,17 @@ DM-0002198
 
 using namespace llvm;
 
+static llvm::cl::opt<bool>
+UseDsa("horn-wrap-mem-dsa",
+       llvm::cl::desc("Use DSA to choose which memory accesses should be wrapped"),
+       llvm::cl::init (false));
+
 namespace
 {
   class WrapMem : public ModulePass
   {
 #ifdef HAVE_DSA
+    // TODO: use sea-dsa 
     DataStructures *m_dsa;
 #endif
     
@@ -51,13 +57,15 @@ namespace
     
   public:
     static char ID;
-    WrapMem() : ModulePass (ID) {}
+    WrapMem() : ModulePass (ID), m_dsa(nullptr) {}
 
     bool runOnModule (Module &M)
     {
 #ifdef HAVE_DSA
-      m_dsa = &getAnalysis<EQTDDataStructures> ();
-      //m_dsa = &getAnalysis<SteensgaardDataStructures> ();
+      if (UseDsa) {
+	m_dsa = &getAnalysis<EQTDDataStructures> ();
+	//m_dsa = &getAnalysis<SteensgaardDataStructures> ();
+      }
 #endif
       LLVMContext &C = M.getContext ();
       m_dl = &M.getDataLayout ();
@@ -91,7 +99,10 @@ namespace
       if (F.isDeclaration () || F.empty ()) return false;
 
 #ifdef HAVE_DSA
-      DSGraph *dsg = m_dsa->getDSGraph (F);
+      DSGraph *dsg = nullptr;
+      if (UseDsa) {      
+	dsg = m_dsa->getDSGraph (F);
+      }
 #endif
       IRBuilder<> B(F.getContext ());
       Type* i8PtrTy = B.getInt8PtrTy ();
@@ -101,8 +112,7 @@ namespace
           if (LoadInst *load = dyn_cast<LoadInst> (&inst))
           {
 #ifdef HAVE_DSA
-            if (dsg)
-            {
+            if (dsg) {
               DSNodeHandle &nh = dsg->getNodeForValue (load->getPointerOperand ());
               DSNode *n = nh.getNode ();
               if (!n) continue;
@@ -122,8 +132,7 @@ namespace
           else if (StoreInst *store = dyn_cast<StoreInst> (&inst))
           {
 #ifdef HAVE_DSA
-            if (dsg)
-            {
+            if (dsg) {
               DSNodeHandle &nh = dsg->getNodeForValue (store->getPointerOperand ());
               DSNode *n = nh.getNode ();
               if (!n) continue;

@@ -2327,8 +2327,26 @@ namespace expr
         if (isRealVar (v) || isRealConst (v))
           return mk<REAL_TY> (v->efac ());
 
-        std::cerr << "WARNING: could not infer type of: " << *v << "\n";
-        
+	if (isOpX<SELECT>(v)) {
+	  Expr a = v->left();
+	  if (isOpX<FAPP> (a)) {
+	    Expr decl_a = a->left(); // decl_a is fdecl name (ARRAY idxTy valTy)
+	    Expr array_ty = decl_a->right();
+	    Expr val_ty = array_ty->right();
+	    return val_ty;
+	  } 
+	}
+
+	// if (isOpX<STORE>(v)) {
+	//   Expr a = v->left();
+	//   if (isOpX<FAPP> (a)) {
+	//     Expr decl_a = a->left(); // decl_a is fdecl name (ARRAY idxTy valTy)
+	//     Expr array_ty = decl_a->right();
+	//     return array_ty;
+	//   } 
+	// }
+	
+	std::cerr << "WARNING: could not infer type of: " << *v << "\n";
         assert (0 && "Unreachable");
         return Expr();    
       }

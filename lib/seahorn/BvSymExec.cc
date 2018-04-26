@@ -56,6 +56,16 @@ PartMem ("horn-bv-part-mem",
           cl::init (false),
           cl::Hidden);
 
+static llvm::cl::opt<bool>
+EnableModelExternalCalls("horn-bv-enable-external-calls",
+	  llvm::cl::desc("Model external function call as an uninterpreted function"),
+	  llvm::cl::init(false));
+
+static llvm::cl::list<std::string>
+IgnoreExternalFunctions("horn-bv-ignore-external-functions",
+	  llvm::cl::desc("These functions are not modeled as uninterpreted functions"),
+          llvm::cl::ZeroOrMore);
+
 static const Value *extractUniqueScalar (CallSite &cs)
 {
    if (!EnableUniqueScalars) 
@@ -672,14 +682,65 @@ namespace
       }
       else
       {
-        if (m_fparams.size () > 3)
-        {
-          m_fparams.resize (3);
-          errs () << "WARNING: skipping a call to " << F.getName () 
-                  << " (recursive call?)\n";
-        }
-        
-        visitInstruction (*CS.getInstruction ());
+	if (f->isDeclaration() && !f->getFunctionType()->getReturnType()->isVoidTy() &&
+	    m_sem.isTracked(I) &&
+	    // we model external calls as interpreted functions
+	    EnableModelExternalCalls && 
+	    // user didn't say to ignore the function in particular
+	    (std::find(IgnoreExternalFunctions.begin(), IgnoreExternalFunctions.end(),
+		       f->getName()) == IgnoreExternalFunctions.end())) {
+	  
+	  // Treat the call as an uninterpreted function
+	  Expr lhs = havoc(I);
+	  ExprVector fargs;
+	  ExprVector sorts;	  
+	  fargs.reserve(CS.arg_size());
+	  sorts.reserve(CS.arg_size());
+	  bool cannot_infer_types = false;
+	  for (auto &a: CS.args()) {
+	    if (!m_sem.isTracked(*a)) {
+	      continue;
+	    }
+	    Expr e = lookup(*a);
+	    fargs.push_back(e);
+	    Expr s = bind::typeOf(e);
+	    if (!s) {
+	      // bind::typeOf is partially defined
+	      cannot_infer_types = true;
+	      break;
+	    }
+	    sorts.push_back(s);
+	  }
+	  if (!cannot_infer_types) {
+	    // return type of the function
+	    Expr lhs_ty = bind::typeOf(lhs);
+	    if (!lhs_ty) {
+	      cannot_infer_types = true;
+	    } else {
+	      sorts.push_back(lhs_ty);
+	    }
+	  }
+
+	  if (cannot_infer_types) {
+	    fargs.clear();
+	    sorts.clear();
+	    visitInstruction (*CS.getInstruction ());
+	  } else {
+	    errs () << "Modelling " << I << " with an uninterpreted function\n";
+	    Expr name = mkTerm<const Function*>(f, m_efac);
+	    Expr d = bind::fdecl(name, sorts);
+	    Expr uf = bind::fapp(d, fargs);
+	    side(mk<EQ>(lhs, uf));
+	  }
+	} else {
+	  if (m_fparams.size () > 3) {
+	    m_fparams.resize (3);
+	    errs () << "WARNING: skipping a call to " << F.getName () 
+		    << " (recursive call?)\n";
+	  }
+	  
+	  visitInstruction (*CS.getInstruction ());
+	}
       }
           
     }

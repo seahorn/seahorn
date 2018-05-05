@@ -1035,9 +1035,17 @@ class Seahorn(sea.LimitedCmd):
 
         # pick out extra seahorn options
         sea_argv = filter (_is_seahorn_opt, extra)
-        if len(sea_argv) <> len(extra):
-            print ('WARNING: Ignoring unknown options:',
-                   ' '.join(filter(lambda x : not _is_seahorn_opt(x), extra)))
+
+        ###
+        ### Unfortunately this prints the warning too often
+        ### `extra` contains all options passed to the aggregate command
+        ### on command line, so it is likely to contain non-seahorn options
+        ### I thought that each sub-command 'eats' options it has processed,
+        ### but this is not the case. Disabling to avoid even more confusion.
+        ###
+        # if len(sea_argv) <> len(extra):
+        #     print ('WARNING: Ignoring unknown options:',
+        #            ' '.join(filter(lambda x : not _is_seahorn_opt(x), extra)))
 
         argv.extend (sea_argv)
 

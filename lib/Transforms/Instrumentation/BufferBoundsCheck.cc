@@ -109,6 +109,7 @@ protected:
   DsaWrapper(llvm::Pass *abc) : m_abc(abc) {}
 
 public:
+  virtual ~DsaWrapper() = default;
   /* tag only for debugging purposes */
   virtual bool shouldBeTrackedPtr(const llvm::Value &ptr,
                                   const llvm::Function &fn, int tag) = 0;

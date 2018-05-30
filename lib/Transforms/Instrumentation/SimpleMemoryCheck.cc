@@ -450,7 +450,8 @@ CheckContext SimpleMemoryCheck::getUnsafeCandidates(Instruction *Inst,
   Check.MI = Inst;
   Check.F = &F;
   Check.Barrier = Origin.Ptr;
-  Check.Collapsed = m_SDSA->getCell(Origin.Ptr, F)->getNode()->isCollapsed();
+  Check.Collapsed = m_SDSA->getCell(Origin.Ptr,
+                                    F)->getNode()->isOffsetCollapsed();
   Check.AccessedBytes = size_t(LastRead);
 
   if (Optional<size_t> AllocSize = getAllocSize(Origin.Ptr)) {

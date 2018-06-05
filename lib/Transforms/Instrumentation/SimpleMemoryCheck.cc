@@ -170,6 +170,8 @@ public:
 
     return Sites;
   };
+
+  void viewGraph(const Function &F) { m_dsa->getDsaGraph(F)->viewGraph(); }
 };
 
 } // namespace
@@ -472,9 +474,9 @@ CheckContext SimpleMemoryCheck::getUnsafeCandidates(Instruction *Inst,
   assert(Origin.Ptr);
 
   for (Value *AS : m_SDSA->getAllocSites(Origin.Ptr, F)) {
-    bool Interesting = isInterestingAllocSite(Origin.Ptr, LastRead, AS);
+    bool Interesting = true || isInterestingAllocSite(Origin.Ptr, LastRead, AS);
 
-    if (true && Interesting /* && Check.Collapsed */) {
+    if (Interesting && Check.Collapsed) {
       auto *BarrierPtrTy = Check.Barrier->getType();
       auto *AllocPtrTry = AS->getType();
       if (BarrierPtrTy->isPointerTy() && AllocPtrTry->isPointerTy()) {
@@ -496,18 +498,18 @@ CheckContext SimpleMemoryCheck::getUnsafeCandidates(Instruction *Inst,
                 TypeSimilarity(BarrierTy, AllocTy, m_Ctx, m_DL);
 
           auto &TySim = TSC[{BarrierTy, AllocTy}];
-
-          if (TySim.Similarity < 0.8f)
-            Interesting = false;
-          else if (auto *Arg = dyn_cast<Argument>(Check.Barrier))
-            if (Arg->getName() == "this" && TySim.MatchPosition > 1)
-              Interesting = false;
+//
+//          if (TySim.Similarity < 0.8f)
+//            Interesting = false;
+//          else if (auto *Arg = dyn_cast<Argument>(Check.Barrier))
+//            if (Arg->getName() == "this" && TySim.MatchPosition > 1)
+//              Interesting = false;
         }
 
         // Discard vtables.
-        if (auto *C = dyn_cast<Constant>(AS))
-          if (C->getName().startswith("_ZTVN"))
-            Interesting = false;
+//        if (auto *C = dyn_cast<Constant>(AS))
+//          if (C->getName().startswith("_ZTVN"))
+//            Interesting = false;
       }
     }
 
@@ -860,6 +862,7 @@ bool SimpleMemoryCheck::runOnModule(llvm::Module &M) {
   m_SDSA = llvm::make_unique<SeaDsa>(this);
 
   SMC_LOG(dbgs() << "\n\n ========== SMC  ==========\n");
+ // SMC_LOG(m_SDSA->viewGraph(*main));
 
   AttrBuilder AB;
   AB.addAttribute(Attribute::NoReturn);

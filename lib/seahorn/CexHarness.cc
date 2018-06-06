@@ -75,9 +75,9 @@ namespace seahorn
           if (!CF->hasName()) continue;
           if (CF->isIntrinsic ()) continue;
           // We want to ignore seahorn functions, but not nondet
-          // functions created by strip-extern
+          // functions created by strip-extern or dummyMainFunction
           if (CF->getName().find_first_of('.') != StringRef::npos &&
-              !CF->getName().startswith("verifier.nondet.stripextern")) continue;
+              !CF->getName().startswith("verifier.nondet")) continue;
           if (!CF->isExternalLinkage (CF->getLinkage ())) continue;
           if (!CF->getReturnType()->isIntegerTy () &&
               !CF->getReturnType()->isPointerTy()) {

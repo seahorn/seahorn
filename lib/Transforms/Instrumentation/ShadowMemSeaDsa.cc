@@ -541,7 +541,7 @@ namespace seahorn
 
             assert (n);
             Cell callerC = simMap.get(Cell(const_cast<Node*> (n), 0,
-                                           sea_dsa::FieldType::NotImplemented()));
+                                           FIELD_TYPE_NOT_IMPLEMENTED));
             assert (!callerC.isNull() && "Not found node in the simulation map");
 
             AllocaInst *v = allocaForNode (callerC);
@@ -601,7 +601,7 @@ namespace seahorn
       for (auto jt : it.second)
       {
         // TODO: Types
-        Cell c (const_cast<Node*> (n), jt.first, FieldType::NotImplemented());
+        Cell c (const_cast<Node*> (n), jt.first, FIELD_TYPE_NOT_IMPLEMENTED);
         AllocaInst *a = jt.second;
         B.Insert (a, "shadow.mem");
         CallInst *ci;
@@ -640,7 +640,7 @@ namespace seahorn
     for (const Node* n : reach)
     {
       // TODO: extend to work with all slices
-      Cell c (const_cast<Node*> (n), 0, FieldType::NotImplemented());
+      Cell c (const_cast<Node*> (n), 0, FIELD_TYPE_NOT_IMPLEMENTED);
 
       // n is read and is not only return-node reachable (for
       // return-only reachable nodes, there is no initial value

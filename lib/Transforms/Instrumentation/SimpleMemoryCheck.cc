@@ -14,6 +14,7 @@
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 #include "llvm/Transforms/Utils/Cloning.h"
 #include "llvm/Transforms/Utils/Local.h"
+#include "llvm/Transforms/Scalar.h"
 #include "llvm/Transforms/Utils/UnifyFunctionExitNodes.h"
 
 #include "avy/AvyDebug.h"
@@ -474,14 +475,18 @@ CheckContext SimpleMemoryCheck::getUnsafeCandidates(Instruction *Inst,
   assert(Origin.Ptr);
 
   for (Value *AS : m_SDSA->getAllocSites(Origin.Ptr, F)) {
-    bool Interesting = true || isInterestingAllocSite(Origin.Ptr, LastRead, AS);
+    if (auto *G = dyn_cast<GlobalValue>(AS))
+      if (G->isDeclaration())
+        continue;
 
-    if (Interesting && Check.Collapsed) {
+    bool Interesting = isInterestingAllocSite(Origin.Ptr, LastRead, AS);
+
+    if (Interesting /*&& Check.Collapsed*/) {
       auto *BarrierPtrTy = Check.Barrier->getType();
-      auto *AllocPtrTry = AS->getType();
-      if (BarrierPtrTy->isPointerTy() && AllocPtrTry->isPointerTy()) {
+      auto *AllocPtrTy = AS->getType();
+      if (BarrierPtrTy->isPointerTy() && AllocPtrTy->isPointerTy()) {
         auto *BarrierTy = BarrierPtrTy->getPointerElementType();
-        auto *AllocTy = AllocPtrTry->getPointerElementType();
+        auto *AllocTy = AllocPtrTy->getPointerElementType();
 
         // Temporary hack for CASS. Disabled for now.
         if (auto *Arg = dyn_cast<Argument>(Check.Barrier))
@@ -908,10 +913,10 @@ bool SimpleMemoryCheck::runOnModule(llvm::Module &M) {
 
           // Skip collapsed DSA nodes for now, as they generate too much
           // noise.
-          if (Check.InterestingAllocSites.empty() /*|| Check.Collapsed*/) {
-            UninterestingMIs.push_back(I);
-            continue;
-          }
+//          if (Check.InterestingAllocSites.empty() /*|| Check.Collapsed*/) {
+//            UninterestingMIs.push_back(I);
+//            continue;
+//          }
 
           CheckCandidates.emplace_back(std::move(Check));
 

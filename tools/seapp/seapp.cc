@@ -355,6 +355,7 @@ int main(int argc, char **argv) {
   }
   // checking for simple instances of memory safety. WIP
   else if (SimpleMemoryChecks) {
+    pass_manager.add(llvm::createPromoteMemoryToRegisterPass());
     pass_manager.add(seahorn::createSimpleMemoryCheckPass());
   }
   // null deref check. WIP. Not used.

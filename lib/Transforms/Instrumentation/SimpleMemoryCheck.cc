@@ -1,6 +1,7 @@
 #include "seahorn/Transforms/Instrumentation/SimpleMemoryCheck.hh"
 
 #include "llvm/ADT/DenseMap.h"
+#include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/Analysis/CallGraph.h"
@@ -1077,10 +1078,15 @@ void SimpleMemoryCheck::printStats(
   OS << "\n=========== Start of Simple Memory Check Stats ===========\n";
   OS << "Format:\tAll instructions (Heap/Stack/Global)\n\n";
 
-  SmallPtrSet<Value *, 32> AllAllocSites;
-  SmallPtrSet<Value *, 32> AllInterestingAllocSites;
-  SmallPtrSet<Value *, 32> AllOtherAllocSites;
+  SmallPtrSet<Value *, 64> AllAllocSites;
+  SmallPtrSet<Value *, 64> AllInterestingAllocSites;
+  SmallPtrSet<Value *, 64> AllOtherAllocSites;
+  DenseSet<Instruction *> AllInstructions;
+  AllInstructions.insert(UninterestingMIs.begin(), UninterestingMIs.end());
+
   for (auto &Check : Checks) {
+    AllInstructions.insert(Check.MI);
+
     for (auto *AS : Check.InterestingAllocSites) {
       AllAllocSites.insert(AS);
       AllInterestingAllocSites.insert(AS);
@@ -1092,7 +1098,7 @@ void SimpleMemoryCheck::printStats(
     }
   }
 
-  OS << "Discovered memory instructions\t" << Checks.size() << "\n";
+  OS << "Discovered memory instructions\t" << AllInstructions.size() << "\n";
   OS << "Discovered allocation sites\t" << AllAllocSites.size() << "\t("
      << CountOfHeap(AllAllocSites) << "/" << CountOfStack(AllAllocSites) << "/"
      << CountOfGlobal(AllAllocSites) << ")\n";
@@ -1100,7 +1106,7 @@ void SimpleMemoryCheck::printStats(
      << "\t(" << CountOfHeap(AllInterestingAllocSites) << "/"
      << CountOfStack(AllInterestingAllocSites) << "/"
      << CountOfGlobal(AllInterestingAllocSites) << ")\n";
-  OS << "Other allocation sites\t" << AllOtherAllocSites.size() << "\t("
+  OS << "Other allocation sites\t\t" << AllOtherAllocSites.size() << "\t("
      << CountOfHeap(AllOtherAllocSites) << "/"
      << CountOfStack(AllOtherAllocSites) << "/"
      << CountOfGlobal(AllOtherAllocSites) << ")\n";

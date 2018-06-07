@@ -70,16 +70,16 @@ struct CheckContext {
   SmallVector<Value *, 8> OtherAllocSites;
 
   void dump(llvm::raw_ostream &OS = llvm::dbgs()) {
-    OS << "CheckContext : " << (F ? F->getName() : "nullptr") << " {\n";
+    OS << "CheckContext : " << (F ? ValueToString(F) : "nullptr") << " {\n";
     OS << "  MI: ";
     if (MI)
-      MI->print(OS);
+      OS << ValueToString(MI);
     else
       OS << " nullptr";
 
     OS << "\n  Barrier: ";
     if (Barrier)
-      Barrier->print(OS);
+      OS << ValueToString(Barrier);
     else
       OS << " nullptr";
 
@@ -91,11 +91,11 @@ struct CheckContext {
     OS << "\n  InterestingAllocSites: {\n";
     unsigned i = 0;
     for (auto *V : InterestingAllocSites) {
-      OS << "    " << (i++) << ": ";
-      V->print(OS);
+      OS << "    " << (i++) << ": " << ValueToString(V);
+
       if (auto *I = dyn_cast<Instruction>(V))
-        OS << "  (" << I->getFunction()->getName() << ", "
-           << I->getParent()->getName() << ")";
+        OS << "  (" << ValueToString(I->getFunction()) << ", "
+           << ValueToString(I->getParent()) << ")";
 
       OS << ",\n";
     }
@@ -103,11 +103,11 @@ struct CheckContext {
     unsigned Others = 0;
     OS << "  }  OtherAllocSites: {\n";
     for (auto *V : OtherAllocSites) {
-      OS << "    " << (i++) << ": ";
-      V->print(OS);
+      OS << "    " << (i++) << ": " << ValueToString(V);
+
       if (auto *I = dyn_cast<Instruction>(V))
-        OS << "  (" << I->getFunction()->getName() << ", "
-           << I->getParent()->getName() << ")";
+        OS << "  (" << ValueToString(I->getFunction()) << ", "
+           << ValueToString(I->getParent()) << ")";
 
       OS << ",\n";
 
@@ -119,6 +119,29 @@ struct CheckContext {
       }
     }
     OS << "  }\n}\n";
+    OS.flush();
+  }
+
+private:
+  static llvm::StringRef ValueToString(llvm::Value *V) {
+    assert(V);
+    static llvm::DenseMap<llvm::Value *, std::string> Cache;
+
+    if (Cache.count(V) == 0) {
+      std::string Buff;
+      llvm::raw_string_ostream OS(Buff);
+      if (auto *F = dyn_cast<llvm::Function>(V))
+        OS << F->getName();
+      else if (auto *BB = dyn_cast<llvm::BasicBlock>(V))
+        OS << BB->getName();
+      else
+        V->print(OS);
+
+      OS.flush();
+      Cache[V] = Buff;
+    }
+
+    return Cache[V];
   }
 };
 
@@ -162,7 +185,7 @@ public:
 
     SmallVector<Value *, 8> Sites;
     for (auto *S : N->getAllocSites()) {
-      if (auto *GV = dyn_cast<const GlobalVariable>(S))
+      if (auto *GV = dyn_cast<const GlobalValue>(S))
         if (GV->isDeclaration())
           continue;
 
@@ -475,10 +498,6 @@ CheckContext SimpleMemoryCheck::getUnsafeCandidates(Instruction *Inst,
   assert(Origin.Ptr);
 
   for (Value *AS : m_SDSA->getAllocSites(Origin.Ptr, F)) {
-    if (auto *G = dyn_cast<GlobalValue>(AS))
-      if (G->isDeclaration())
-        continue;
-
     bool Interesting = isInterestingAllocSite(Origin.Ptr, LastRead, AS);
 
     if (Interesting /*&& Check.Collapsed*/) {
@@ -866,8 +885,9 @@ bool SimpleMemoryCheck::runOnModule(llvm::Module &M) {
   m_DL = &M.getDataLayout();
   m_SDSA = llvm::make_unique<SeaDsa>(this);
 
-  SMC_LOG(dbgs() << "\n\n ========== SMC  ==========\n");
- // SMC_LOG(m_SDSA->viewGraph(*main));
+  SMC_LOG(dbgs() << " ========== SMC (" << (sea_dsa::IsTypeAware ? "" : "Not ")
+                 << "Type-aware) ==========\n");
+  //SMC_LOG(m_SDSA->viewGraph(*main));
 
   AttrBuilder AB;
   AB.addAttribute(Attribute::NoReturn);
@@ -913,10 +933,10 @@ bool SimpleMemoryCheck::runOnModule(llvm::Module &M) {
 
           // Skip collapsed DSA nodes for now, as they generate too much
           // noise.
-//          if (Check.InterestingAllocSites.empty() /*|| Check.Collapsed*/) {
-//            UninterestingMIs.push_back(I);
-//            continue;
-//          }
+          if (Check.InterestingAllocSites.empty() /*|| Check.Collapsed*/) {
+            UninterestingMIs.push_back(I);
+            continue;
+          }
 
           CheckCandidates.emplace_back(std::move(Check));
 
@@ -925,7 +945,7 @@ bool SimpleMemoryCheck::runOnModule(llvm::Module &M) {
 
           if (CheckCandidates.size() >= SMCAnalysisThreshold) {
             SMC_LOG(errs() << "Skipping SMC analysis after reaching the"
-                              " threshold of"
+                              " threshold of "
                            << SMCAnalysisThreshold.getValue() << "\n");
             goto skip;
           }
@@ -982,7 +1002,8 @@ skip:
 
   // SMC_LOG(M.dump());
 
-  SMC_LOG(dbgs() << " ========== SMC  ==========\n");
+  SMC_LOG(dbgs() << " ========== SMC (" << (sea_dsa::IsTypeAware ? "" : "Not ")
+                 << "Type-aware) ==========\n");
   return true;
 }
 

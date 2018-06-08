@@ -30,6 +30,11 @@ static llvm::cl::opt<bool>
                   llvm::cl::desc("Print Simple Memory Check statistics"),
                   llvm::cl::init(false));
 
+static llvm::cl::opt<bool>
+    PrintEmptyAS("print-empty-alloc-sites",
+                 llvm::cl::desc("Print empty allocation sites"),
+                 llvm::cl::init(false));
+
 static llvm::cl::opt<unsigned> SMCAnalysisThreshold(
     "smc-check-threshold",
     llvm::cl::desc("Max no. of analyzed memory instructions"),
@@ -253,8 +258,8 @@ private:
 llvm::Pass *createSimpleMemoryCheckPass() { return new SimpleMemoryCheck(); }
 
 bool SimpleMemoryCheck::isKnownAlloc(Value *Ptr) {
-  if (auto *AI = dyn_cast<AllocaInst>(Ptr))
-    return !AI->isArrayAllocation();
+  if (isa<AllocaInst>(Ptr))
+    return true;
 
   if (auto *CI = dyn_cast<CallInst>(Ptr))
     return isAllocationFn(CI, m_TLI);
@@ -270,18 +275,14 @@ llvm::Optional<size_t> SimpleMemoryCheck::getAllocSize(Value *Ptr) {
   if (!isKnownAlloc(Ptr))
     return None;
 
-  ObjectSizeOffsetEvaluator OSOE(*m_DL, m_TLI, *m_Ctx, true);
-  SizeOffsetEvalType OffsetAlign = OSOE.compute(Ptr);
-  if (!OSOE.knownSize(OffsetAlign))
+  ObjectSizeOffsetVisitor OSOV(*m_DL, m_TLI, *m_Ctx, true);
+  auto OffsetAlign = OSOV.compute(Ptr);
+  if (!OSOV.knownSize(OffsetAlign))
     return llvm::None;
 
-  if (auto *Sz = dyn_cast<ConstantInt>(OffsetAlign.first)) {
-    const int64_t I = Sz->getSExtValue();
-    assert(I >= 0);
-    return size_t(I);
-  }
-
-  return llvm::None;
+  const int64_t I = OffsetAlign.first.getSExtValue();
+  assert(I >= 0);
+  return size_t(I);
 }
 
 PtrOrigin SimpleMemoryCheck::trackPtrOrigin(Value *Ptr) {
@@ -888,7 +889,7 @@ bool SimpleMemoryCheck::runOnModule(llvm::Module &M) {
 
   SMC_LOG(dbgs() << " ========== SMC (" << (sea_dsa::IsTypeAware ? "" : "Not ")
                  << "Type-aware) ==========\n");
-  //SMC_LOG(m_SDSA->viewGraph(*main));
+  LOG("smc-dsa", m_SDSA->viewGraph(*main));
 
   AttrBuilder AB;
   AB.addAttribute(Attribute::NoReturn);
@@ -936,7 +937,8 @@ bool SimpleMemoryCheck::runOnModule(llvm::Module &M) {
           // noise.
           if (Check.InterestingAllocSites.empty() /*|| Check.Collapsed*/) {
             UninterestingMIs.push_back(I);
-            continue;
+            if (!PrintEmptyAS)
+              continue;
           }
 
           CheckCandidates.emplace_back(std::move(Check));
@@ -1059,6 +1061,9 @@ struct SizeStats {
       Stats.Max = std::max(Stats.Max, *Size);
       Stats.Sum += *Size;
     }
+
+    if (Stats.Min == size_t(-1))
+      Stats.Min = 0;
 
     return Stats;
   }

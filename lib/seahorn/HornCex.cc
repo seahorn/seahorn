@@ -134,12 +134,12 @@ namespace seahorn
     // -- all counterexamples start at the entry block of the function
     cpTrace.push_back (&cpg.getCp (F.getEntryBlock ()));
 
-    LOG ("cex",
-         errs () << "Solver CEX BEGIN\n";
-	 for (Expr r : rules) {
-	   errs() << *r << "\n";
-	 }    
-         errs () << "Solver CEX END\n";);
+    // LOG ("cex",
+    //      errs () << "Solver CEX BEGIN\n";
+    // 	 for (Expr r : rules) {
+    // 	   errs() << *r << "\n";
+    // 	 }    
+    //      errs () << "Solver CEX END\n";);
     
     for (Expr r : rules)
     {
@@ -278,8 +278,13 @@ namespace seahorn
         memSim = std::unique_ptr<MemSimulator>(new MemSimulator(trace, dl, tli));
         bool simRes = memSim->simulate ();
 	if (!simRes) {
+	  //errs () << "Warning: memory simulation failed.\n";
 	  memSim.reset();
+	} else {
+	  //errs () << "Warning: memory simulation succeed!\n";	  
 	}
+      } else {
+	//errs () << "Warning: memory simulation is not enabled.\n";
       }
     }
     

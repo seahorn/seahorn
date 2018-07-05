@@ -430,5 +430,11 @@ namespace seahorn
     Expr v = m_trace.symb (loc, inst);
     if (v) v = m_model.eval (v, complete);
     return v;
+  }
+
+  Expr MemSimulator::eval (unsigned loc, Expr e, bool complete) {
+    //return m_model.eval (e, complete);
+    return m_trace.eval (loc, e, complete);
   }  
+  
 }

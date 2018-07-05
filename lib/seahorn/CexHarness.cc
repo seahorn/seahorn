@@ -5,6 +5,8 @@
 #include "llvm/IR/ValueMap.h"
 #include "llvm/IR/DataLayout.h"
 
+#include "seahorn/Transforms/Instrumentation/ShadowMemDsa.hh"
+
 #include "boost/algorithm/string/replace.hpp"
 #include <memory>
 
@@ -19,10 +21,25 @@ namespace seahorn
     return v;    
   }
 
+  Expr BmcTraceWrapper::eval(unsigned loc, Expr e, bool complete) {
+    Expr v = m_trace.eval(loc,e,complete);
+    LOG("cex-eval",
+	errs() << "Eval " << "loc=" << loc << " " << e << " --> " << v << "\n");
+    return v;    
+  }
+  
   Expr BmcTraceMemSim::eval (unsigned loc, const llvm::Instruction &inst, bool complete) {
     Expr v = m_mem_sim.eval(loc,inst,complete);
     LOG("cex-eval",
 	errs() << "Eval[MemSimulator] " << "loc=" << loc << " " << inst << " --> "
+	       << v << "\n");
+    return v;	
+  }
+
+  Expr BmcTraceMemSim::eval (unsigned loc, Expr e, bool complete) {
+    Expr v = m_mem_sim.eval(loc,e,complete);
+    LOG("cex-eval",
+	errs() << "Eval[MemSimulator] " << "loc=" << loc << " " << e << " --> "
 	       << v << "\n");
     return v;	
   }
@@ -59,15 +76,51 @@ namespace seahorn
     llvm_unreachable("Unhandled expression");
   }
 
+  // return true if success
+  template<typename IndexToValueMap> 
+  bool extractArrayContents(Expr e, IndexToValueMap &out, Expr &default_value) {
+    if (isOpX<CONST_ARRAY>(e)) {
+      default_value = e->right();
+      return true;
+    }
+    
+    if (isOpX<STORE>(e)) {
+      assert(e->arity() == 3);
+      
+      ExprVector kids(e->args_begin(), e->args_end());
+      Expr array = kids[0];
+      Expr index =  kids[1];
+      Expr val = kids[2];
+      auto it = out.find(index);
+      if (it != out.end()) {
+	// we assume that indexes cannot be overwritten during
+	// initialization
+	errs () << "Warning: cannot extract array contents\n";
+	out.clear();
+	return false;
+      }
+      out.insert(std::make_pair(index, val));
+      return extractArrayContents(array, out, default_value);
+    }
+    errs() << "Warning: unsupported array term " << *e << "\n";
+    out.clear();
+    return false;
+  }
+  
   std::unique_ptr<Module> createCexHarness(BmcTraceWrapper &trace, 
 					   const DataLayout &dl, const TargetLibraryInfo &tli)
   {
 
     std::unique_ptr<Module> Harness = make_unique<Module>("harness", getGlobalContext());
-
     Harness->setDataLayout (dl);
+    
     ValueMap<const Function*, ExprVector> FuncValueMap;
-
+    // map a dsa node to start and end addresses
+    std::map<unsigned,std::pair<Expr,Expr>> DsaAllocMap;
+    // map a dsa node to its contents (as a pair of a default value
+    // and a map from index to value)
+    std::map<unsigned,std::pair<Expr, std::map<Expr,Expr>>> DsaContentMap;    
+    
     // Look for calls in the trace
     for (unsigned loc = 0; loc < trace.size(); loc++)
     {
@@ -90,6 +143,30 @@ namespace seahorn
           LOG("cex",
 	      errs () << "Considering harness for: " << CF->getName () << "\n";);
 
+
+	  if (CF->getName().equals("shadow.mem.init")) {
+	    unsigned id = shadow_dsa::getShadowId (CS);
+	    ExprFactory &efac = trace.efac();
+	    Expr sort = bv::bvsort (dl.getPointerSizeInBits (), efac);
+	    Expr startE = shadow_dsa::memStartVar (id, sort);
+	    Expr endE = shadow_dsa::memEndVar (id, sort);
+	    Expr startV = trace.eval(loc, startE, true);
+	    Expr endV = trace.eval(loc, endE, true);
+	    DsaAllocMap.insert(std::make_pair(id, std::make_pair(startV,endV)));
+	    // 2) Get the contents of the lhs of shadow.mem.init
+	    //    list of (offset,value) plus default value ?
+	    Expr arrayE = trace.eval(loc, *ci, true);
+	    auto &p = DsaContentMap[id];	    
+	    bool res = extractArrayContents(arrayE, p.second, p.first);
+	    if (!res) {
+	      DsaContentMap.erase(id);
+	    }
+	    // we generate the harness even if we fail extracting the
+	    // array contents
+	    LOG("cex", errs () << "Producing harness for " << CF->getName () << "\n";);
+	    continue;
+	  }
+	  
           if (!CF->hasName()) continue;
           if (CF->isIntrinsic ()) continue;
           // We want to ignore seahorn functions, but not nondet
@@ -215,6 +292,92 @@ namespace seahorn
       Builder.CreateRet(RetValue);
     }
 
+
+    {
+      LLVMContext& C = getGlobalContext();
+      Type* intTy = IntegerType::get(C, 64);
+      Type* intPtrTy = dl.getIntPtrType (C, 0);
+      Type* i8PtrTy = Type::getInt8PtrTy(C, 0);
+      // Build function to initialize dsa nodes
+      Function *InitF = cast<Function>
+	(Harness->getOrInsertFunction("__seahorn_mem_init_routine",
+				      Type::getVoidTy (C),
+				      NULL));
+      // Build the body of the harness initialization function
+      BasicBlock *BB = BasicBlock::Create(C, "entry", InitF);
+      IRBuilder<> Builder(BB);
+
+      // Hook to allocate a dsa node
+      Function* m_memAlloc = cast<Function> (Harness->getOrInsertFunction
+					     ("__seahorn_mem_alloc",
+					      Type::getVoidTy (C),
+					      i8PtrTy,
+					      i8PtrTy,
+					      intTy,
+					      intTy,
+					      NULL));
+      // Hook to initialize a dsa node
+      Function* m_memInit = cast<Function> (Harness->getOrInsertFunction
+					    ("__seahorn_mem_init",
+					     Type::getVoidTy (C),
+					     i8PtrTy,
+					     intTy,
+					     intTy,
+					     NULL));
+      
+      for(auto &kv: DsaAllocMap) {
+	unsigned id = kv.first;
+	std::pair<Expr,Expr> limits = kv.second;
+	// LOG("cex",
+	//     errs() << "Dsa node id=" << id << "\n"
+	//            << "start=" << *(limits.first) << " "
+ 	//            << "end=" << *(limits.second) << "\n";);
+
+	std::map<Expr,Expr> contentVals;
+	Expr defVal;
+	
+	// check if we have contents
+	auto it = DsaContentMap.find(id);
+	if (it != DsaContentMap.end()) {
+	  defVal = it->second.first;
+	  contentVals = it->second.second;
+	  // LOG("cex",
+	  //     errs () << "default value=" << *(defVal) << "\n";
+	  //     for (auto &kv: contentVals) {
+	  // 	errs () << *(kv.first) << "->" << *(kv.second) << "\n";
+	  //     });
+	}
+	
+	// __seahorn_mem_alloc(start, end, val, sz);
+	Value* startC = exprToLlvm(i8PtrTy, limits.first, dl);
+	Value* endC = exprToLlvm(i8PtrTy, limits.second, dl);
+	Value* valC = ConstantInt::get(intTy,0);
+	if (defVal) {
+	  valC = exprToLlvm(intTy, defVal, dl);
+	}
+	
+	Builder.CreateCall(m_memAlloc,
+			   {Builder.CreateBitCast(startC, i8PtrTy),
+			    Builder.CreateBitCast(endC, i8PtrTy),
+			    valC,   
+			       ConstantInt::get(intTy, dl.getTypeStoreSize(intPtrTy))
+			    });
+
+	// __seahorn_mem_init(index, val, sz)
+	for (auto &kv: contentVals) {
+	  Value* indexC = exprToLlvm(i8PtrTy, kv.first, dl);
+	  Value* valC = exprToLlvm(intTy, kv.second, dl);
+	  Builder.CreateCall(m_memInit,
+			     {Builder.CreateBitCast(indexC, i8PtrTy),
+			      valC,
+				 ConstantInt::get(intTy, dl.getTypeStoreSize(intPtrTy))
+			     });
+	}
+			   
+      }
+      Builder.CreateRetVoid();
+    } // end AllocateMem
+    
     return (Harness);
   }
 }

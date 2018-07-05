@@ -21,6 +21,9 @@ namespace seahorn
   public:
     BmcTraceWrapper(BmcTrace &trace):
       m_trace(trace) {}
+
+    /// access to expression factory
+    ExprFactory &efac () { return m_trace.engine().efac(); }
     
     /// The number of basic blocks in the trace 
     virtual unsigned size () const
@@ -32,6 +35,7 @@ namespace seahorn
 
     /// The value of the instruction at the given location     
     virtual Expr eval (unsigned loc, const llvm::Instruction &inst, bool complete);
+    virtual Expr eval (unsigned loc, Expr v, bool complete);    
   };
 
   class BmcTraceMemSim: public BmcTraceWrapper {
@@ -43,6 +47,7 @@ namespace seahorn
       m_mem_sim(mem_sim) {}
 
     virtual Expr eval (unsigned loc, const llvm::Instruction &inst, bool complete) override;
+    virtual Expr eval (unsigned loc, Expr v, bool complete) override;
   };
 
   

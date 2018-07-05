@@ -56,6 +56,12 @@ PartMem ("horn-bv-part-mem",
           cl::init (false),
           cl::Hidden);
 
+static llvm::cl::opt<unsigned>
+PartMemSize ("horn-bv-part-mem-size",
+           llvm::cl::desc ("Maximum memory region size in KB"),
+           cl::init (4),
+           cl::Hidden);
+
 static llvm::cl::opt<bool>
 EnableModelExternalCalls("horn-bv-enable-external-calls",
 	  llvm::cl::desc("Model external function call as an uninterpreted function"),
@@ -106,12 +112,13 @@ namespace
     Expr trueBv;
     Expr falseBv;
     Expr nullBv;
-    
-    /// -- start of current memory segment
-    Expr m_startMem;
 
+    /// -- start of current memory segment
+    Expr m_cur_startMem;
     /// -- end of current memory segment
-    Expr m_endMem;
+    Expr m_cur_endMem;
+
+    Expr m_largestPtr;
     
     /// -- current read memory
     Expr m_inMem;
@@ -126,7 +133,9 @@ namespace
     Expr m_activeLit;
     
     SymExecBase (SymStore &s, BvSmallSymExec &sem, ExprVector &side) : 
-      m_s(s), m_efac (m_s.getExprFactory ()), m_sem (sem), m_side (side) 
+      m_s(s), m_efac (m_s.getExprFactory ()), m_sem (sem), m_side (side),
+      m_cur_startMem(nullptr), m_cur_endMem(nullptr),
+      m_largestPtr(nullptr), m_inMem(nullptr), m_outMem(nullptr)
     {
       trueE = mk<TRUE> (m_efac);
       falseE = mk<FALSE> (m_efac);
@@ -138,15 +147,26 @@ namespace
       nullBv = bv::bvnum (0, m_sem.pointerSizeInBits (), m_efac);
       m_uniq = false;
       resetActiveLit ();
+
+      mpz_class val;
+      if (ptrSz() == 64) {
+	val = 0x000000000FFFFFFF;
+      } else if (ptrSz() == 32) {
+	val = 0x0FFFFFFF;
+      } else {
+	assert(false && "Unexpected pointer size");
+      }
+      m_largestPtr = bv::bvnum (val, ptrSz (), m_efac);      
       // -- first two arguments are reserved for error flag
       m_fparams.push_back (falseE);
       m_fparams.push_back (falseE);
       m_fparams.push_back (falseE);
     }
-
+        
     Expr memStart (unsigned id) {return m_sem.memStart (id);}
     Expr memEnd (unsigned id) {return m_sem.memEnd (id);}
     Expr symb (const Value &I) {return m_sem.symb (I);}
+    unsigned ptrSz() { return m_sem.pointerSizeInBits ();}
     
     Expr read (const Value &v)
     {
@@ -203,6 +223,21 @@ namespace
   {
     SymExecVisitor (SymStore &s, BvSmallSymExec &sem, ExprVector &side) : 
       SymExecBase (s, sem, side) {}
+
+    void addAlignConstraint(Expr e, unsigned sz) {
+      switch(sz) {
+      case 4:
+      	side(mk<EQ> (bv::extract(2-1, 0, e), bv::bvnum(0, 2, m_efac)));
+	break;
+      case 8:
+      	side(mk<EQ> (bv::extract(3-1, 0, e), bv::bvnum(0, 3, m_efac)));
+	break;
+      default:
+	// FIXME: expensive encoding
+	side(mk<EQ> (mk<BUREM>(e, bv::bvnum(sz, ptrSz(), m_efac)),
+		     bv::bvnum(0, ptrSz(), m_efac)));
+      }
+    }
     
     /// base case. if all else fails.
     void visitInstruction (Instruction &I) {havoc (I);}
@@ -368,7 +403,7 @@ namespace
     {
       // -- skip return argument of main
       if (I.getParent ()->getParent ()->getName ().equals ("main")) return;
-      
+           
       if (I.getNumOperands () > 0)
         lookup (*I.getOperand (0));
     }
@@ -547,7 +582,7 @@ namespace
           errs () << "WARNING: zero-initializing DSA node due to calloc()\n";
           side (m_outMem,
                 op::array::constArray
-                (bv::bvsort (m_sem.pointerSizeInBits (), m_efac), nullBv));
+                (bv::bvsort (ptrSz(), m_efac), nullBv));
         }        
       }
       
@@ -618,16 +653,32 @@ namespace
             Expr memEndE = memEnd (id); 
             memStartE = m_s.havoc (memStartE);
             memEndE = m_s.havoc (memEndE);
-          
+	    
             // -- start < end
             side (mk<BULT> (memStartE, memEndE));
 
+	    // -- end < largestPtr
+	    side (mk<BULT> (memEndE, m_largestPtr));
+	    
+	    if (PartMemSize > 0) {
+	      // -- end - start <= PartMemSize KB	      
+	      side (mk<BULE> (mk<BSUB>(memEndE, memStartE),
+			      bv::bvnum(PartMemSize*1024, ptrSz(), m_efac)));
+	    }
+	    
             // -- old_end < new_start
-            if (m_endMem) side (mk<BULT> (m_s.read (m_endMem), memStartE));
+            if (m_cur_endMem) side (mk<BULT> (m_s.read (m_cur_endMem), memStartE));
           
             // -- remember last choice
-            m_startMem= memStart (id);
-            m_endMem = memEnd (id);
+            m_cur_startMem= memStart (id);
+            m_cur_endMem = memEnd (id);
+
+	  
+	    /// start addresses are aligned:
+	    ///   In addition to enforce that all pointers are
+	    ///   aligned, we also need to enforce that the start
+	    ///   address is also aligned.
+	    addAlignConstraint(memStartE, ptrSz()/8 /*bytes*/);
           }
           
         }
@@ -638,8 +689,8 @@ namespace
           m_uniq = extractUniqueScalar (CS) != nullptr;
           if (PartMem)
           {
-            m_startMem = memStart (shadow_dsa::getShadowId (CS));
-            m_endMem = memEnd (shadow_dsa::getShadowId (CS));
+            m_cur_startMem = memStart (shadow_dsa::getShadowId (CS));
+            m_cur_endMem = memEnd (shadow_dsa::getShadowId (CS));
           }
         }
         else if (F.getName ().equals ("shadow.mem.store"))
@@ -649,8 +700,8 @@ namespace
           m_uniq = extractUniqueScalar (CS) != nullptr;
           if (PartMem)
           {
-            m_startMem = memStart (shadow_dsa::getShadowId (CS));
-            m_endMem = memEnd (shadow_dsa::getShadowId (CS));
+            m_cur_startMem = memStart (shadow_dsa::getShadowId (CS));
+            m_cur_endMem = memEnd (shadow_dsa::getShadowId (CS));
           }
         }
         else if (F.getName ().equals ("shadow.mem.arg.ref"))
@@ -770,7 +821,6 @@ namespace
       
       if (!m_sem.isTracked (I)) return;
       
-      unsigned ptrSz = m_sem.pointerSizeInBits ();
       Expr lhs = havoc (I);
       if (!m_inMem) return;
       
@@ -788,23 +838,30 @@ namespace
         
         if (PartMem)
         {
-          side (mk<BULE> (m_s.read (m_startMem), op0));
-          side (mk<BULE> (op0, m_s.read (m_endMem)));
+          side (mk<BULE> (m_s.read (m_cur_startMem), op0));
+	  side (mk<BULE> (mk<BADD>(op0, bv::bvnum(ptrSz(), ptrSz(), m_efac)),
+			  m_s.read (m_cur_endMem)));
+
+	  side (mk<BULT> (op0, m_largestPtr));
+	  
+	  /// addresses must be aligned 
+	  unsigned sz = I.getAlignment(); 
+	  addAlignConstraint(op0, sz);
         }
         
         if (I.getType ()->isIntegerTy (1))
           rhs = mk<NEQ> (rhs, nullBv);
-        else if (m_sem.sizeInBits (I) < ptrSz)
+        else if (m_sem.sizeInBits (I) < ptrSz())
           rhs = bv::extract (m_sem.sizeInBits (I) - 1, 0, rhs);
 
-	if(m_sem.sizeInBits (I) > ptrSz) {
+	if(m_sem.sizeInBits (I) > ptrSz()) {
 	  errs() << "WARNING: fat integers not supported: "
 		 << "size " << m_sem.sizeInBits (I) << " > " << "pointer size "
-		 <<  ptrSz << " in" << I << "\n"
+		 <<  ptrSz() << " in" << I << "\n"
 		 << "Ignored instruction.\n";
 	  return;
 	}
-	assert (m_sem.sizeInBits (I) <= ptrSz && "Fat integers not supported");
+	assert (m_sem.sizeInBits (I) <= ptrSz() && "Fat integers not supported");
         
         if (UseWrite) write (I, rhs);
         else side (lhs, rhs);
@@ -830,7 +887,6 @@ namespace
 
       if (!m_inMem || !m_outMem || !m_sem.isTracked (*I.getOperand (0))) return;
 
-      unsigned ptrSz = m_sem.pointerSizeInBits ();
       Expr v = lookup (*I.getOperand (0));
       
       if (v && I.getOperand (0)->getType ()->isIntegerTy (1))
@@ -842,18 +898,18 @@ namespace
       }
       else
       {
-        if (m_sem.sizeInBits (*I.getOperand (0)) < ptrSz)
-          v = bv::zext (v, ptrSz);
+        if (m_sem.sizeInBits (*I.getOperand (0)) < ptrSz())
+          v = bv::zext (v, ptrSz());
 
-	if(m_sem.sizeInBits (*I.getOperand(0)) > ptrSz) {
+	if(m_sem.sizeInBits (*I.getOperand(0)) > ptrSz()) {
 	  errs() << "WARNING: fat pointers are not supported: "
 		 << "size " << m_sem.sizeInBits (*I.getOperand(0)) << " > "
-		 << "pointer size " <<  ptrSz << " in" << I << "\n"
+		 << "pointer size " <<  ptrSz() << " in" << I << "\n"
 		 << "Ignored instruction.\n";
 	  return;
 	}
 	
-        assert (m_sem.sizeInBits (*I.getOperand (0)) <= ptrSz &&
+        assert (m_sem.sizeInBits (*I.getOperand (0)) <= ptrSz() &&
                 "Fat pointers are not supported");
         
         Expr idx = lookup (*I.getPointerOperand ());
@@ -861,8 +917,14 @@ namespace
         {
           if (PartMem)
           {
-            side (mk<BULE> (m_s.read (m_startMem), idx));
-            side (mk<BULE> (idx, m_s.read (m_endMem)));
+            side (mk<BULE> (m_s.read (m_cur_startMem), idx));
+            side (mk<BULE> (mk<BADD>(idx, bv::bvnum(ptrSz(), ptrSz(), m_efac)),
+			    m_s.read (m_cur_endMem)));
+
+	    side (mk<BULT> (idx, m_largestPtr));
+	    /// addresses must be aligned
+	    unsigned sz = I.getAlignment(); 
+	    addAlignConstraint(idx, sz);
           }
           side (m_outMem, op::array::store (m_inMem, idx, v));
         }

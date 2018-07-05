@@ -213,6 +213,8 @@ namespace
 
       m_externalNames.insert ("__seahorn_mem_store");
       m_externalNames.insert ("__seahorn_mem_load");
+      m_externalNames.insert ("__seahorn_mem_init");
+      m_externalNames.insert ("__seahorn_mem_alloc");      
 
       // -- LLVM stuff
       m_externalNames.insert("llvm.used");

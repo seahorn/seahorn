@@ -89,8 +89,25 @@ namespace
                                                           Type::getInt8PtrTy (C, 0),
                                                           m_intPtrTy,
                                                           NULL));
-      for (Function &F : M)
+
+      if (Function *Main = M.getFunction ("main")) {
+	Function* memInit = cast<Function> (M.getOrInsertFunction
+					    ("__seahorn_mem_init_routine",
+					     Type::getVoidTy (C),
+					     NULL));
+	
+	BasicBlock &entry = Main->getEntryBlock();
+	IRBuilder<> B(M.getContext ());
+	B.SetInsertPoint(entry.getFirstNonPHI());
+	B.CreateCall(memInit,{});
+      }
+      
+      for (Function &F : M) {
+	if (F.getName().equals("__seahorn_mem_init_routine")) {
+	  continue;
+	}
         runOnFunction (F);
+      }
       return true;
     }
 
@@ -104,7 +121,8 @@ namespace
 	dsg = m_dsa->getDSGraph (F);
       }
 #endif
-      IRBuilder<> B(F.getContext ());
+      LLVMContext &C = F.getContext ();
+      IRBuilder<> B(C);
       Type* i8PtrTy = B.getInt8PtrTy ();
       for (BasicBlock &bb : F)
         for (Instruction &inst : bb)
@@ -123,6 +141,7 @@ namespace
             B.SetInsertPoint (load);
             AllocaInst *x = B.CreateAlloca (load->getType ()); 
             uint64_t sz = m_dl->getTypeStoreSize (load->getType ());
+	    //uint64_t sz = load->getAlignment();
             B.CreateCall (m_memLoad,
 			  {B.CreateBitCast (x, i8PtrTy),
 			   B.CreateBitCast (load->getPointerOperand (), i8PtrTy),
@@ -143,6 +162,7 @@ namespace
             B.SetInsertPoint (store);
             AllocaInst *x = B.CreateAlloca (store->getValueOperand ()->getType ());
             B.SetInsertPoint (store->getNextNode ());
+	    //uint64_t sz = store->getAlignment();
             uint64_t sz = m_dl->getTypeStoreSize (store->getValueOperand ()->getType ());
             B.CreateCall (m_memStore,
 			  {B.CreateBitCast (x, i8PtrTy),

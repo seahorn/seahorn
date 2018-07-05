@@ -102,6 +102,11 @@ const int TYPE_GUESS = sizeof(int);
   }
 
 /** Dummy implementation of memory wrapping functions */
+void __seahorn_mem_alloc(void* start, void* end, int64_t val, size_t sz)
+{}
+  
+void __seahorn_mem_init (void* addr, int64_t val, size_t sz)
+{}
 
 void __seahorn_mem_store (void *src, void *dst, size_t sz)
 {

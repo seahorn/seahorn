@@ -53,6 +53,7 @@ namespace seahorn
     bool simulate ();
 
     Expr eval (unsigned loc, const llvm::Instruction &inst, bool complete=false);
+    Expr eval (unsigned loc, Expr e, bool complete=false);
     
     const DataLayout &getDataLayout () {return m_dl;}
     const TargetLibraryInfo &getTargetLibraryInfo () {return m_tli;}

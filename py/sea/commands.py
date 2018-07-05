@@ -162,6 +162,9 @@ class LinkRt(sea.LimitedCmd):
                          help='Machine architecture MACHINE:[32,64]', default=32)
         ap.add_argument ('-g', default=False, action='store_true',
                          dest='debug_info', help='Compile with debug info')
+        ap.add_argument ('-alloc-mem', '--alloc-mem', default=False, action='store_true',
+                         dest='alloc_mem',
+                         help='Allocate memory for uninitialized memory')
         add_in_out_args (ap)
         return ap
 
@@ -189,7 +192,10 @@ class LinkRt(sea.LimitedCmd):
         lib_dir = os.path.dirname (sys.argv[0])
         lib_dir = os.path.dirname (lib_dir)
         lib_dir = os.path.join (lib_dir, 'lib')
-        libseart = os.path.join (lib_dir, 'libsea-rt.a')
+        if args.alloc_mem:
+            libseart = os.path.join (lib_dir, 'libsea-mem-rt.a')
+        else:
+            libseart = os.path.join (lib_dir, 'libsea-rt.a')
         argv.append (libseart)
 
         ret = self.clangCmd.run (args, argv)

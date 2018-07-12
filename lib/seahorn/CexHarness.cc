@@ -291,13 +291,23 @@ namespace seahorn
 
       Builder.CreateRet(RetValue);
     }
-
-
+    
     {
       LLVMContext& C = getGlobalContext();
       Type* intTy = IntegerType::get(C, 64);
       Type* intPtrTy = dl.getIntPtrType (C, 0);
       Type* i8PtrTy = Type::getInt8PtrTy(C, 0);
+
+      // Hook for gdb-like tools. Used to translate virtual addresses to
+      // physical ones if that's the case. This is useful so we can
+      // inspect content of virtual addresses.
+      Function *EmvMapF = cast<Function>
+	(Harness->getOrInsertFunction("__emv",
+				      i8PtrTy,
+				      i8PtrTy,
+				      NULL));
+	 EmvMapF->addFnAttr(Attribute::NoInline);
+
       // Build function to initialize dsa nodes
       Function *InitF = cast<Function>
 	(Harness->getOrInsertFunction("__seahorn_mem_init_routine",

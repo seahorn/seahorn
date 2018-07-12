@@ -52,8 +52,13 @@ get_value_helper(intptr_t, ptr_internal)
 const int MEM_REGION_SIZE_GUESS = 4000;
 const int TYPE_GUESS = sizeof(int);
 
-  std::map<intptr_t, intptr_t, std::greater<intptr_t>> absptrmap;
+std::map<intptr_t, intptr_t, std::greater<intptr_t>> absptrmap;
 
+// Hook for gdb-like tools: do nothing here.
+void* __emv(void* p) {
+  return p;
+}
+  
   /*intptr_t __seahorn_get_value_ptr(int ctr, intptr_t *g_arr, int g_arr_sz, int ebits) {
   static std::unordered_map<intptr_t, intptr_t> absptrmap;
   intptr_t absptr = __seahorn_get_value_ptr_internal(ctr, g_arr, g_arr_sz);

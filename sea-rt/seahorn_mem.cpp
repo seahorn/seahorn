@@ -56,7 +56,7 @@ get_value_helper(intptr_t, ptr_internal)
 
 std::map<intptr_t, intptr_t, std::greater<intptr_t>> absptrmap;
 std::map<intptr_t, void*> abs_to_concr_ptr_map;
-  
+
 intptr_t __seahorn_get_value_ptr(int ctr, intptr_t *g_arr, int g_arr_sz, int ebits) {
     intptr_t absptr = __seahorn_get_value_ptr_internal(ctr, g_arr, g_arr_sz);
     sealog("[sea] returning a pointer %#lx to an abstract region\n", absptr);
@@ -65,7 +65,7 @@ intptr_t __seahorn_get_value_ptr(int ctr, intptr_t *g_arr, int g_arr_sz, int ebi
   
 /** Implementations of the memory wrapping functions */
 
-intptr_t get_abs_base_address (void *addr) {
+intptr_t __seahorn_get_abs_base_address (void *addr) {
   intptr_t ip = intptr_t (addr);
   auto it = absptrmap.lower_bound (ip+1);
   if (it == absptrmap.end()) return false;
@@ -78,6 +78,20 @@ intptr_t get_abs_base_address (void *addr) {
   }
 }
 
+/* Hook for gdb-like tools */  
+void* __emv(void* p) {
+  if (intptr_t ab = __seahorn_get_abs_base_address(p)) {
+    auto it = abs_to_concr_ptr_map.find((intptr_t) ab);
+    if (it != abs_to_concr_ptr_map.end()) {
+      intptr_t pb =  (intptr_t) it->second;
+      intptr_t offset = ((intptr_t) p - ab);
+      return (void*) (pb + offset);
+    }
+  }
+  printf("Address %#lx not found in the emv map\n", (intptr_t) p);
+  return p;
+}
+  
 void __seahorn_mem_alloc(void* start, void* end, int64_t val, size_t sz){
   intptr_t startp = (intptr_t) start;
   intptr_t endp = (intptr_t) end;  
@@ -113,7 +127,7 @@ void __seahorn_mem_init (void* addr, int64_t val, size_t sz) {
   sealog("[sea] __seahorn_mem_init %p with %#lx (%td) and sz=%d\n", addr,
 	 (intptr_t) val, (intptr_t) val, sz);
   
-  if (intptr_t base_addr = get_abs_base_address(addr)) {
+  if (intptr_t base_addr = __seahorn_get_abs_base_address(addr)) {
     auto it = abs_to_concr_ptr_map.find(base_addr);
     if (it != abs_to_concr_ptr_map.end()) {
       void *p = it->second;
@@ -138,7 +152,7 @@ void __seahorn_mem_store (void *src, void *dst, size_t sz) {
   intptr_t p_src = (intptr_t) src;
   intptr_t p_dst = (intptr_t) dst;
   
-  if(intptr_t base_src = get_abs_base_address(src)) {
+  if(intptr_t base_src = __seahorn_get_abs_base_address(src)) {
     sealog("\tFound abstract address for source %p -> %#lx\n", src, base_src);
     auto it = abs_to_concr_ptr_map.find(base_src);
     if (it != abs_to_concr_ptr_map.end()) {
@@ -156,7 +170,7 @@ void __seahorn_mem_store (void *src, void *dst, size_t sz) {
     sealog("\tSource is already a physical address.\n");
   }
   
-  if(intptr_t base_dst = get_abs_base_address(dst)) {
+  if(intptr_t base_dst = __seahorn_get_abs_base_address(dst)) {
     sealog("\tFound abstract address for destination %p -> %#lx\n", dst, base_dst);
     auto it = abs_to_concr_ptr_map.find(base_dst);
     if (it != abs_to_concr_ptr_map.end()) {
@@ -181,7 +195,7 @@ void __seahorn_mem_load (void *dst, void *src, size_t sz) {
   intptr_t p_src = (intptr_t) src;
   intptr_t p_dst = (intptr_t) dst;
   
-  if(intptr_t base_src = get_abs_base_address(src)) {
+  if(intptr_t base_src = __seahorn_get_abs_base_address(src)) {
     sealog("\tFound abstract address for source %p -> %#lx\n", src, base_src);
     auto it = abs_to_concr_ptr_map.find(base_src);
     if (it != abs_to_concr_ptr_map.end()) {
@@ -198,7 +212,7 @@ void __seahorn_mem_load (void *dst, void *src, size_t sz) {
     sealog("\tSource is already a physical address\n");
   }
   
-  if(intptr_t base_dst = get_abs_base_address(dst)) {
+  if(intptr_t base_dst = __seahorn_get_abs_base_address(dst)) {
     sealog("\tFound abstract address for destination %p -> %#lx\n", dst, base_dst);
     auto it = abs_to_concr_ptr_map.find(base_dst);
     if (it != abs_to_concr_ptr_map.end()) {

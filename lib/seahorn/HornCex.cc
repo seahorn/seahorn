@@ -265,7 +265,7 @@ namespace seahorn
 
     // get bmc trace
     BmcTrace trace (bmc->getTrace ());
-    LOG ("cex", trace.print (errs ()););
+    trace.print (errs ());
     std::unique_ptr<MemSimulator> memSim = nullptr;
 
     if (UseBv)

@@ -43,7 +43,8 @@ def main (argv):
             sea.commands.InspectBitcode(),
             sea.commands.Inspect,
             sea.commands.SimpleMemoryChecks(),
-            sea.commands.Smc
+            sea.commands.Smc,
+            sea.commands.SeaExeCex()
     ]
 
 

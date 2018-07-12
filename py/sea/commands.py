@@ -9,7 +9,7 @@ import shutil
 from sea import add_in_out_args, add_tmp_dir_args, which, createWorkDir
 
 # To disable printing of commands and some warnings
-quiet=False
+quiet=True
 
 # remaps a file based on working dir and a new extension
 def _remap_file_name (in_file, ext, work_dir):
@@ -201,9 +201,8 @@ class LinkRt(sea.LimitedCmd):
             libseart = os.path.join (lib_dir, 'libsea-rt.a')
         argv.append (libseart)
 
-        ret = self.clangCmd.run (args, argv)
-        if ret <> 0: return ret
-
+        return self.clangCmd.run (args, argv)
+        
     @property
     def stdout (self):
         return self.clangCmd.stdout
@@ -919,7 +918,7 @@ class Seahorn(sea.LimitedCmd):
                                         'Constrained Horn Clauses in SMT-LIB format',
                                         allow_extra=True)
         self.solve = solve
-
+        
     @property
     def stdout (self):
         return self.seahornCmd.stdout
@@ -980,7 +979,6 @@ class Seahorn(sea.LimitedCmd):
         cmd_name = which ('seahorn')
         if cmd_name is None: raise IOError ('seahorn not found')
         self.seahornCmd = sea.ExtCmd (cmd_name,'',quiet) 
-
         argv = list()
 
         if args.max_depth <> sys.maxint:
@@ -1025,7 +1023,6 @@ class Seahorn(sea.LimitedCmd):
         if args.cex is not None and args.solve:
             argv.append ('-horn-cex-pass')
             argv.append ('-horn-cex={0}'.format (args.cex))
-            #argv.extend (['-log', 'cex'])
             if args.bv_cex:
                 argv.append ('--horn-cex-bv=true')
         if args.asm_out_file is not None: argv.extend (['-oll', args.asm_out_file])
@@ -1387,6 +1384,104 @@ class InspectBitcode(sea.LimitedCmd):
 
         return self.seainspectCmd.run (args, argv)
 
+class SeaExeCex(sea.LimitedCmd):
+    def __init__(self, quiet=False):
+        super (SeaExeCex, self).__init__('exe-cex',
+                                         'Executable Counterexamples',
+                                         allow_extra=True)
+    @property
+    def stdout (self):
+        return
+
+    def name_out_file (self, in_files, args=None, work_dir=None):        
+        return _remap_file_name (in_files[0], '.exe', work_dir)
+
+    def mk_arg_parser (self, ap):
+        ap = super (SeaExeCex, self).mk_arg_parser (ap)
+        add_tmp_dir_args (ap)        
+        add_in_out_args (ap)
+        _add_S_arg (ap)
+        ap.add_argument ('--harness', '-harness',
+                         dest='harness',
+                         help='Destination file for the harness',
+                         default=None, metavar='FILE')
+        ap.add_argument ('--bit-precise','-bit-precise',
+                         dest='bv_cex',
+                         help='Generate bit-precise counterexamples',
+                         default=False, action='store_true')
+        ap.add_argument ('--bit-mem-precise','-bit-mem-precise',
+                         dest='bv_part_mem',
+                         help='Generate bit- and memory-precise counterexamples',
+                         default=False, action='store_true')
+        ap.add_argument ('--alloc-mem', '-alloc-mem',
+                         default=False, action='store_true',
+                         dest='alloc_mem',
+                         help='Allocate space for uninitialized memory')
+        return ap
+
+    def run(self, args, extra):
+        # FIXME: the -o is used both `sea pf` and `sea exe`. Thus,
+        # the output of `sea pf` is overwritten by the output of `sea exe`. 
+        try:
+            harness_file = args.harness
+            if harness_file is None:
+                harness_file = 'harness.ll'
+
+            try:
+                os.remove(harness_file)
+            except OSError:
+                pass                
+            
+            ## `sea pf`: find counterexample and generate harness
+            c = sea.SeqCmd('','',
+                           [Clang(), Seapp(), MixedSem(), Seaopt(), \
+                            Seahorn(solve=True)])            
+            argv = list ()
+            argv.extend(['-m64', '-g'])
+            argv.extend(extra)
+            # TODO: we should remove from `extra` the following options:
+            argv.extend(['--cex={0}'.format(harness_file)])            
+            if args.bv_cex or args.bv_part_mem:
+                argv.extend(['--bv-cex'])
+            if args.bv_part_mem:
+                argv.extend(['--horn-bv-part-mem'])                
+            res = c.run(args,  argv)
+            if res <> 0:
+                print('\n\nThe harness was not generated. Aborting ...\n'); 
+                return res
+
+            if not os.path.isfile(harness_file): # if program was safe
+                print('\n\nThe harness was not generated. Aborting ...\n');
+                # remove the .smt2 file
+                try:
+                    os.remove(args.out_file)
+                except OSError:
+                    pass                
+                # some error code different from 0
+                return 1
+
+            
+            ## `sea exe`: generate executable
+            c = sea.SeqCmd('','',
+                           [Clang(), Seapp(strip_extern=True,keep_lib_fn=True), \
+                            Seapp(internalize=True), WrapMem(), LinkRt()])
+            argv = list()
+            argv.extend(['-m64', '-g'])
+            argv.extend(extra)
+            # TODO: we should remove from `extra` the following options:
+            if args.alloc_mem:
+                argv.extend(['--alloc-mem'])
+            infiles = args.in_files
+            infiles.extend([harness_file])
+            res = c.run(args,  argv)
+            if res <> 0:
+                print('\n\nThe executable counterexample was not generated. Aborting ...\n');
+            else:
+                print ('\n\nGenerated executable counterexample {0}'.format(args.out_file))
+            return res
+        except Exception as e:
+            raise IOError(str(e))
+    
 ## SeaHorn aliases
 FrontEnd = sea.SeqCmd ('fe', 'Front end: alias for clang|pp|ms|opt',
                        [Clang(), Seapp(), MixedSem(), Seaopt ()])
@@ -1419,3 +1514,4 @@ Inspect = sea.SeqCmd ('inspect', 'alias for fe + inspect-bitcode', FrontEnd.cmds
 Smc = sea.SeqCmd ('smc', 'alias for fe|opt|smc',
                    [Clang(), Seapp(), SimpleMemoryChecks(), MixedSem(),
                     Seaopt(), Seahorn(solve=True)])
+                     

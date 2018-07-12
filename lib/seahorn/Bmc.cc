@@ -189,11 +189,11 @@ namespace seahorn
     Expr v = store.eval (u);
     return m_model.eval (v, complete);
   }
-
+  
   //template <typename Out> Out &BmcTrace::print (Out &out)
   template<> raw_ostream& BmcTrace::print (raw_ostream &out)
   {
-    //using namespace llvm;
+    out << "Begin trace \n";
     for (unsigned loc = 0; loc < size (); ++loc)
     {
       const BasicBlock &BB = *bb(loc);
@@ -205,6 +205,7 @@ namespace seahorn
         {
           if (dvi->getValue () && dvi->getVariable ())
           {
+	    out.changeColor(raw_ostream::RED);
             DILocalVariable *var = dvi->getVariable ();
             out << "  " << var->getName () << " = ";
             if (dvi->getValue ()->hasName ())
@@ -212,10 +213,12 @@ namespace seahorn
             else
               out << *dvi->getValue ();
             out << "\n";
+	    out.resetColor();
           }
           continue;
         }
 
+	bool print_inst = true;
         if (const CallInst *ci = dyn_cast<CallInst> (&I))
         {
           Function *f = ci->getCalledFunction ();
@@ -229,6 +232,7 @@ namespace seahorn
           }
           else if (f && f->getName ().equals ("shadow.mem.init"))
           {
+	    out.changeColor(raw_ostream::RED);
             int64_t id = shadow_dsa::getShadowId (ci);
             assert (id >= 0);
             Expr memStart = m_bmc.sem().memStart (id);
@@ -237,23 +241,32 @@ namespace seahorn
             Expr memEnd = m_bmc.sem().memEnd (id);
             u = eval (loc, memEnd);
             if (u) out << "  " << *memEnd << " " << *u << "\n";
+	    out.resetColor();
+	    print_inst = false;
           }
         }
                
-               
+	if (print_inst) {
+	  out << I << "\n";
+	}
+	
         Expr v = eval (loc, I);
         if (!v) continue;
+
+	out.changeColor(raw_ostream::RED);
         out << "  %" << I.getName () << " " << *v;
-        
         const DebugLoc &dloc = I.getDebugLoc ();
         if (dloc)
         {
-          out << "\t[" << (*dloc).getFilename () << ":"
-	               << dloc.getLine () << "]";
+	  out.changeColor(raw_ostream::BLACK);
+          out << " [" << (*dloc).getFilename () << ":"
+	              << dloc.getLine () << "]";
         }
         out << "\n";
+	out.resetColor();
       }        
     }
+    out << "End trace\n";
     return out;
   }
   

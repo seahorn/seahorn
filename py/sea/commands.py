@@ -8,6 +8,9 @@ import shutil
 
 from sea import add_in_out_args, add_tmp_dir_args, which, createWorkDir
 
+# To disable printing of commands and some warnings
+quiet=False
+
 # remaps a file based on working dir and a new extension
 def _remap_file_name (in_file, ext, work_dir):
     out_file = in_file
@@ -87,7 +90,7 @@ class Clang(sea.LimitedCmd):
             cmd_name = which (['clang-mp-3.8', 'clang-3.8', 'clang'])
 
         if cmd_name is None: raise IOError ('clang not found')
-        self.clangCmd = sea.ExtCmd (cmd_name)
+        self.clangCmd = sea.ExtCmd (cmd_name,'',quiet) 
 
         if not all (_bc_or_ll_file (f) for f  in args.in_files):
             argv = ['-c', '-emit-llvm', '-D__SEAHORN__']
@@ -133,7 +136,7 @@ class Clang(sea.LimitedCmd):
             # link
             cmd_name = which (['llvm-link-mp-3.8', 'llvm-link-3.8', 'llvm-link'])
             if cmd_name is None: raise IOError ('llvm-link not found')
-            self.linkCmd = sea.ExtCmd (cmd_name)
+            self.linkCmd = sea.ExtCmd (cmd_name,'',quiet) 
 
             argv = []
             if args.llvm_asm: argv.append ('-S')
@@ -177,7 +180,7 @@ class LinkRt(sea.LimitedCmd):
         cmd_name = which (['clang++-mp-3.8', 'clang++-3.8', 'clang++'])
 
         if cmd_name is None: raise IOError ('clang++ not found')
-        self.clangCmd = sea.ExtCmd (cmd_name)
+        self.clangCmd = sea.ExtCmd (cmd_name,'',quiet) 
 
         argv = []
         argv.append ('-m{0}'.format (args.machine))
@@ -307,7 +310,7 @@ class Seapp(sea.LimitedCmd):
     def run (self, args, extra):
         cmd_name = which ('seapp')
         if cmd_name is None: raise IOError ('seapp not found')
-        self.seappCmd = sea.ExtCmd (cmd_name)
+        self.seappCmd = sea.ExtCmd (cmd_name,'',quiet) 
 
         argv = list()
 
@@ -423,7 +426,7 @@ class MixedSem(sea.LimitedCmd):
     def run (self, args, extra):
         cmd_name = which ('seapp')
         if cmd_name is None: raise IOError ('seapp not found')
-        self.seappCmd = sea.ExtCmd (cmd_name)
+        self.seappCmd = sea.ExtCmd (cmd_name,'',quiet) 
 
         argv = list()
         if args.out_file is not None: argv.extend (['-o', args.out_file])
@@ -527,7 +530,7 @@ class AbcInst(sea.LimitedCmd):
     def run (self, args, extra):
         cmd_name = which ('seapp')
         if cmd_name is None: raise IOError ('seapp not found')
-        self.seappCmd = sea.ExtCmd (cmd_name)
+        self.seappCmd = sea.ExtCmd (cmd_name,'',quiet) 
 
         argv = list()
         if args.out_file is not None: argv.extend (['-o', args.out_file])
@@ -620,7 +623,7 @@ class NdcInst(sea.LimitedCmd):
     def run (self, args, extra):
         cmd_name = which ('seapp')
         if cmd_name is None: raise IOError ('seapp not found')
-        self.seappCmd = sea.ExtCmd (cmd_name)
+        self.seappCmd = sea.ExtCmd (cmd_name,'',quiet) 
 
         argv = list()
         if args.out_file is not None: argv.extend (['-o', args.out_file])
@@ -671,7 +674,7 @@ class SimpleMemoryChecks(sea.LimitedCmd):
     def run (self, args, extra):
         cmd_name = which ('seapp')
         if cmd_name is None: raise IOError ('seapp not found')
-        self.seappCmd = sea.ExtCmd (cmd_name)
+        self.seappCmd = sea.ExtCmd (cmd_name,'',quiet) 
 
         argv = list()
         if args.out_file is not None: argv.extend (['-o', args.out_file])
@@ -725,7 +728,7 @@ class WrapMem(sea.LimitedCmd):
     def run (self, args, extra):
         cmd_name = which ('seapp')
         if cmd_name is None: raise IOError ('seapp not found')
-        self.seappCmd = sea.ExtCmd (cmd_name)
+        self.seappCmd = sea.ExtCmd (cmd_name,'',quiet) 
 
         if args.wmem_skip:
             if args.out_file is not None:
@@ -763,7 +766,7 @@ class CutLoops(sea.LimitedCmd):
     def run (self, args, extra):
         cmd_name = which ('seapp')
         if cmd_name is None: raise IOError ('seapp not found')
-        self.seappCmd = sea.ExtCmd (cmd_name)
+        self.seappCmd = sea.ExtCmd (cmd_name,'',quiet) 
 
         argv = list()
         if args.out_file is not None: argv.extend (['-o', args.out_file])
@@ -817,7 +820,7 @@ class Seaopt(sea.LimitedCmd):
     def run (self, args, extra):
         cmd_name = which (['seaopt'])
         if cmd_name is None: raise IOError ('`seaopt` from llvm-seahorn (https://github.com/seahorn/llvm-seahorn) is not found')
-        self.seaoptCmd = sea.ExtCmd (cmd_name)
+        self.seaoptCmd = sea.ExtCmd (cmd_name,'',quiet) 
 
         argv = ['-f', '-funit-at-a-time']
         if args.out_file is not None:
@@ -879,7 +882,7 @@ class Unroll(sea.LimitedCmd):
     def run (self, args, extra):
         cmd_name = which (['seaopt'])
         if cmd_name is None: raise IOError ('`seaopt` from llvm-seahorn (https://github.com/seahorn/llvm-seahorn) is not found')
-        self.seaoptCmd = sea.ExtCmd (cmd_name)
+        self.seaoptCmd = sea.ExtCmd (cmd_name,'',quiet) 
 
         argv = ['-f', '-funit-at-a-time']
         if args.out_file is not None:
@@ -976,7 +979,7 @@ class Seahorn(sea.LimitedCmd):
     def run (self, args, extra):
         cmd_name = which ('seahorn')
         if cmd_name is None: raise IOError ('seahorn not found')
-        self.seahornCmd = sea.ExtCmd (cmd_name)
+        self.seahornCmd = sea.ExtCmd (cmd_name,'',quiet) 
 
         argv = list()
 
@@ -1045,12 +1048,12 @@ class Seahorn(sea.LimitedCmd):
 
         # pick out extra seahorn options
         sea_argv = filter (_is_seahorn_opt, extra)
-        if len(sea_argv) <> len(extra):
+        if not quiet and len(sea_argv) <> len(extra):
             print ('WARNING: Ignoring unknown options:',
                    ' '.join(filter(lambda x : not _is_seahorn_opt(x), extra)))
-
         argv.extend (sea_argv)
-
+        if not ('--horn-stats' in argv):
+            argv.append('--horn-stats')
 
         return self.seahornCmd.run (args, argv)
 
@@ -1092,7 +1095,7 @@ class SeahornClp(sea.LimitedCmd):
     def run (self, args, extra):
         cmd_name = which ('seahorn')
         if cmd_name is None: raise IOError ('seahorn not found')
-        self.seahornCmd = sea.ExtCmd (cmd_name)
+        self.seahornCmd = sea.ExtCmd (cmd_name,'',quiet) 
 
         argv = list()
         if args.asm_out_file is not None: argv.extend (['-oll', args.asm_out_file])
@@ -1157,7 +1160,7 @@ class LegacyFrontEnd (sea.LimitedCmd):
             return 1
 
         import subprocess
-        self.lfeCmd = sea.ExtCmd (cmd_name)
+        self.lfeCmd = sea.ExtCmd (cmd_name,'',quiet) 
 
         argv = ['--no-seahorn', '-o', args.out_file]
         argv.append ('-m{0}'.format (args.machine))
@@ -1188,7 +1191,7 @@ class CrabInst (sea.LimitedCmd):
     def run (self, args, extra):
         cmd_name = which ('seahorn')
         if cmd_name is None: raise IOError ('seahorn not found')
-        self.seappCmd = sea.ExtCmd (cmd_name)
+        self.seappCmd = sea.ExtCmd (cmd_name,'',quiet) 
 
         argv = list()
 
@@ -1352,7 +1355,7 @@ class InspectBitcode(sea.LimitedCmd):
     def run (self, args, extra):
         cmd_name = which ('seainspect')
         if cmd_name is None: raise IOError ('seainspect not found')
-        self.seainspectCmd = sea.ExtCmd (cmd_name)
+        self.seainspectCmd = sea.ExtCmd (cmd_name,'',quiet) 
 
         argv = list()
 

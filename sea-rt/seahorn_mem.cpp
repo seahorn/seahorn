@@ -137,7 +137,7 @@ void __seahorn_mem_init (void* addr, int64_t val, size_t sz) {
       #if 1
       /// This assumes that sz==sizeof(int)
       int* pp = (int*) ((intptr_t) p + offset);
-      printf("\tContent of %#lx = %d (0x%x)\n",(intptr_t) p + offset, *pp, *pp);
+      sealog("\tContent of %#lx = %d (0x%x)\n",(intptr_t) p + offset, *pp, *pp);
       #endif 
     } else {
       printf("Error: cannot find physical memory for %#lx\n", base_addr);
@@ -234,9 +234,9 @@ void __seahorn_mem_load (void *dst, void *src, size_t sz) {
   #if 1
   /// This assumes that sz=sizeof(int)
   int* pp_src = (int*) (p_src);
-  printf("\tContent of %#lx = %d (0x%x)\n",p_src, *pp_src, *pp_src);      
+  sealog("\tContent of %#lx = %d (0x%x)\n",p_src, *pp_src, *pp_src);      
   int* pp_dst = (int*) (p_dst);
-  printf("\tContent of %#lx = %d (0x%x)\n",p_dst, *pp_dst, *pp_dst);
+  sealog("\tContent of %#lx = %d (0x%x)\n",p_dst, *pp_dst, *pp_dst);
   #endif 
 }
 

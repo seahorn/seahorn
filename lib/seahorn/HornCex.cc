@@ -18,6 +18,7 @@
 
 #include "seahorn/Transforms/Utils/Local.hh"
 #include "seahorn/Bmc.hh"
+#include "seahorn/Support/CFG.hh"
 
 #include "boost/range.hpp"
 #include "boost/range/adaptor/reversed.hpp"
@@ -132,7 +133,6 @@ namespace seahorn
 
     for (Expr r : rules)
     {
-
       // filter away all rules not from main()
       Expr src, dst;
 
@@ -182,7 +182,61 @@ namespace seahorn
 
     // -- release trace resources
     bbTrace.clear ();
-
+    
+    // -- abort if cpTrace is not well formed and it cannot be fixed.
+    bool isCpTraceOK = true;
+    if (cpTrace.empty()) {
+      isCpTraceOK = false;
+      errs () << "ERROR in cex generation: cex trace is empty.\n"
+	      << "The cex produced by the back-end solver is not enough to produce a bmc trace.\n"
+	      << "This typically happens if the program is too simple.\n";
+    } else if (cpTrace.size() == 1 && F.size() > 1) {
+      // cpTrace contains only the entry block but the function has more
+      // than one block so cpTrace is missing some nodes
+      if (F.size() == 2) {
+	// The function consists only of an entry and an exit so we
+	// fix the cpTrace and add the exit.
+	const CutPoint* cp = cpTrace[0];
+	const BasicBlock &bb = cp->bb();
+	assert (&F.getEntryBlock() == &bb);
+	auto kids = succs(bb);
+	if (std::distance(kids.begin(), kids.end()) == 1) {
+	  const BasicBlock *kid = *(kids.begin());
+	  auto grandkids = succs(*kid);
+	  if (grandkids.begin() == grandkids.end()) {
+	    cpTrace.push_back(&cpg.getCp(*kid));
+	  }
+	}
+      } else {
+	isCpTraceOK = false;
+	errs () << "ERROR in cex generation: "
+	        << "cex trace contains only the entry block but it should contain some more blocks.\n"
+	        << "The cex produced by the back-end solver is not enough to produce a bmc trace.\n"
+	        << "This typically happens if the program is too simple.\n";
+      }
+    } else {
+      const CutPoint *prev = nullptr;
+      for (const CutPoint *cp : cpTrace) {
+	if (prev) {
+	  const CpEdge *edg = cpg.getEdge (*prev, *cp);
+	  if (!edg) {
+	    // the trace is broken: we found a cp node for which there
+	    // is no successor.
+	    isCpTraceOK = false;
+	    errs () << "ERROR in cex generation: cex trace is incomplete.\n"
+		    << "The cex produced by the back-end solver is not enough to produce a bmc trace.\n"
+		    << "This typically happens if the program is too simple.\n";
+	    break;
+	  }
+	}
+	prev = cp;
+      }
+    }
+      
+    if (!isCpTraceOK) {
+      return false;
+    }
+    
     // -- create a BMC engine. Use fixed symbolic execution
     // -- semantics. Possibly different than the semantics used by the
     // -- HornSolver

@@ -136,13 +136,6 @@ bool HornCex::runOnFunction(Module &M, Function &F) {
   // -- all counterexamples start at the entry block of the function
   cpTrace.push_back(&cpg.getCp(F.getEntryBlock()));
 
-  // LOG ("cex",
-  //      errs () << "Solver CEX BEGIN\n";
-  // 	 for (Expr r : rules) {
-  // 	   errs() << *r << "\n";
-  // 	 }
-  //      errs () << "Solver CEX END\n";);
-
   for (Expr r : rules) {
 
     // filter away all rules not from main()
@@ -249,24 +242,24 @@ bool HornCex::runOnFunction(Module &M, Function &F) {
                     << "\n";);
 
   // -- DUMP unsat core if validation failed
-  if (res) {
-    errs() << "Validated CEX by BMC engine.\n";
-  } else {
-    errs() << "Warning: the BMC engine failed to validate cex\n";
-    errs() << "Computing unsat core\n";
-    ExprVector core;
-    bmc->unsatCore(core);
-    errs() << "Final core: " << core.size() << "\n";
-    errs() << "Core is: \n";
-    for (Expr c : core)
-      errs() << *c << "\n";
-    Stats::sset("Result", "FAILED");
-    return false;
+  if (!res) {
+      errs() << "Warning: the BMC engine failed to validate cex\n";
+      errs() << "Computing unsat core\n";
+      ExprVector core;
+      bmc->unsatCore(core);
+      errs() << "Final core: " << core.size() << "\n";
+      errs() << "Core is: \n";
+      for (Expr c : core)
+          errs() << *c << "\n";
+      Stats::sset("Result", "FAILED");
+      return false;
   }
+
+  LOG("cex", errs() << "Validated CEX by BMC engine.\n";);
 
   // get bmc trace
   BmcTrace trace(bmc->getTrace());
-  trace.print(errs());
+  LOG("cex", trace.print(errs()));
   std::unique_ptr<MemSimulator> memSim = nullptr;
 
   if (UseBv) {

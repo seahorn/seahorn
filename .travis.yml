@@ -1,4 +1,8 @@
-language: cpp
+languag: cpp
+branches:
+  except:
+  - dev
+  - deep-dev
 cache: apt
 env:
   matrix:

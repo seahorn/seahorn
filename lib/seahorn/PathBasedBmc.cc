@@ -723,8 +723,8 @@ namespace seahorn
 		   s.m_s->is_bool_bin_op() || s.m_s->is_bool_assign_cst() ||
 		   s.m_s->is_arr_write() || s.m_s->is_arr_read() ||
 		   s.m_s->is_assume() || s.m_s->is_bool_assume() ||
-		   // array assumptions are not coming from branches
-		   s.m_s->is_arr_assume() ||
+		   // array initializations are not coming from branches
+		   s.m_s->is_arr_init() ||
 		   // array assignments are not coming from PHI nodes
 		   s.m_s->is_arr_assign()) {
 	  if (s.m_parent.is_edge()) {

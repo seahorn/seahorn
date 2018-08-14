@@ -43,6 +43,16 @@
   (2).
 **/
 
+/**
+   TODO: we have two instances of Crab: one CrabLlvmPass and one
+   IntraCrabLlvm. The former is used to compute a global analysis and
+   the second one for analyzing single paths. 
+
+   We can have one instance of IntraCrabLlvm and use it for both uses.
+   This would avoid running always CrabLlvmPass in BmcPass even if the
+   path-based engine is not selected. Also, it would simplified code
+   here since would not need crab_global_map and crab_path_map.
+ **/
 
 static llvm::cl::opt<bool>
 UseCrab ("horn-bmc-crab",
@@ -50,7 +60,7 @@ UseCrab ("horn-bmc-crab",
    llvm::cl::init (false));
 
 static llvm::cl::opt<bool>
-UseCrabInvariants ("horn-bmc-crab-invariants",
+UseCrabGlobalInvariants ("horn-bmc-crab-invariants",
    llvm::cl::desc ("Load crab invariants into the Path-based BMC engine"), 
    llvm::cl::init (true));
 
@@ -576,6 +586,7 @@ namespace seahorn
 
     template<typename BBIterator, typename SeaMap>
     void convert(BBIterator beg, BBIterator end, crab_map& in, SeaMap& out) {
+      
       for (const BasicBlock* b : boost::make_iterator_range(beg,end)) {
 	const ExprVector &live = m_ls.live(b);
 	LinConsToExpr conv(m_heap_abs, m_fn, live);
@@ -641,7 +652,7 @@ namespace seahorn
     //    statements along the path that still implies bottom.
     std::vector<crab::cfg::statement_wrapper> relevant_stmts;
     typename IntraCrabLlvm::invariant_map_t postmap, premap;    
-    const bool populate_constraints_map = false;
+    const bool populate_constraints_map = true;
     bool res;
     if (populate_constraints_map) {
       // postmap contains the forward invariants
@@ -652,12 +663,12 @@ namespace seahorn
       crabToSea c2s(*m_ls, *(m_crab_global->get_heap_abstraction()), fun, sem().efac());
       crab_path_map cm(postmap);
       c2s.convert(trace_blocks.begin(), trace_blocks.end(), cm, path_constraints);
+      
     } else {
       res = m_crab_path->path_analyze(params, trace_blocks, relevant_stmts);
     }
 
     if (!res) {
-
       LOG("bmc",
 	  get_os() << "Crab proved unsat.";
 	  // count the number of llvm instructions in the path
@@ -712,8 +723,8 @@ namespace seahorn
 		   s.m_s->is_bool_bin_op() || s.m_s->is_bool_assign_cst() ||
 		   s.m_s->is_arr_write() || s.m_s->is_arr_read() ||
 		   s.m_s->is_assume() || s.m_s->is_bool_assume() ||
-		   // array assumptions are not coming from branches
-		   s.m_s->is_arr_assume() ||
+		   // array initializations are not coming from branches
+		   s.m_s->is_arr_init() ||
 		   // array assignments are not coming from PHI nodes
 		   s.m_s->is_arr_assign()) {
 	  if (s.m_parent.is_edge()) {
@@ -1112,48 +1123,52 @@ namespace seahorn
     invariants_map_t invariants;
     #ifdef HAVE_CRAB_LLVM   
     // Convert crab invariants to Expr
-    if (UseCrab && UseCrabInvariants) {
-      LOG("bmc", get_os(true)<< "Begin loading of crab invariants\n";);
-      ufo::Stats::resume ("BMC path-based: loading of crab invariants");  
+    if (UseCrab) {
+      
       // -- Compute live symbols so that invariant variables exclude
       //    dead variables.
       m_ls = new LiveSymbols(*m_fn, sem().efac(), sem());
       m_ls->run();
-      
-      // -- Translate invariants
-      crabToSea c2s(*m_ls, *(m_crab_global->get_heap_abstraction()),
-		    *m_fn, sem().efac());
-      crab_global_map cm(*m_crab_global);
-      // convert references to pointers (FIXME: use make_transform_iterator)
-      std::vector<const BasicBlock*> bb_ptr_vector;
-      bb_ptr_vector.reserve(m_fn->size());
-      for(const BasicBlock&b: *m_fn)
-	{ bb_ptr_vector.push_back(&b); }
-      c2s.convert(bb_ptr_vector.begin(), bb_ptr_vector.end(), cm, invariants);
-      
-      LOG("bmc-details",
-	  for(auto &kv: invariants) {
-	    errs () << "Invariants at " << kv.first->getName() << ": ";
-	    if (kv.second.empty()) {
-	      errs () << "true\n";
+
+      if (UseCrabGlobalInvariants) {
+	LOG("bmc", get_os(true)<< "Begin loading of crab global invariants\n";);
+	ufo::Stats::resume ("BMC path-based: loading of crab global invariants");  
+	
+	// -- Translate invariants
+	crabToSea c2s(*m_ls, *(m_crab_global->get_heap_abstraction()),
+		      *m_fn, sem().efac());
+	crab_global_map cm(*m_crab_global);
+	// convert references to pointers (FIXME: use make_transform_iterator)
+	std::vector<const BasicBlock*> bb_ptr_vector;
+	bb_ptr_vector.reserve(m_fn->size());
+	for(const BasicBlock&b: *m_fn)
+	  { bb_ptr_vector.push_back(&b); }
+	c2s.convert(bb_ptr_vector.begin(), bb_ptr_vector.end(), cm, invariants);
+	
+	LOG("bmc-ai",
+	    for(auto &kv: invariants) {
+	      errs () << "Global invariants at " << kv.first->getName() << ": ";
+	      if (kv.second.empty()) {
+		errs () << "true\n";
 	    } else {
-	      errs () << "\n";
-	      for(auto e: kv.second) {
-		errs () << "\t" << *e << "\n";
+		errs () << "\n";
+		for(auto e: kv.second) {
+		  errs () << "\t" << *e << "\n";
+		}
 	      }
-	    }
-	  });
-      
-      // -- Load the numerical abstraction (invariants) into the solver
-      for(auto &kv: invariants) {
-	const BasicBlock* bb = kv.first;
-	ExprVector inv = kv.second;
-	if (inv.empty()) continue;
-	Expr bbV = sem().symb(*bb);
-	m_smt_solver.assertExpr(mk<IMPL>(bbV, op::boolop::land(inv)));
+	    });
+	
+	// -- Load the numerical abstraction (invariants) into the solver
+	for(auto &kv: invariants) {
+	  const BasicBlock* bb = kv.first;
+	  ExprVector inv = kv.second;
+	  if (inv.empty()) continue;
+	  Expr bbV = sem().symb(*bb);
+	  m_smt_solver.assertExpr(mk<IMPL>(bbV, op::boolop::land(inv)));
+	}
+	ufo::Stats::stop ("BMC path-based: loading of crab invariants");        
+	LOG("bmc", get_os(true)<< "End loading of crab invariants\n";);
       }
-      ufo::Stats::stop ("BMC path-based: loading of crab invariants");        
-      LOG("bmc", get_os(true)<< "End loading of crab invariants\n";);
     }
     #endif
 
@@ -1216,7 +1231,23 @@ namespace seahorn
 	BmcTrace trace(*this, model);
 	ufo::Stats::resume ("BMC path-based: solving path + learning clauses with AI");	
 	bool res = path_encoding_and_solve_with_ai(trace, path_constraints);
-	ufo::Stats::stop ("BMC path-based: solving path + learning clauses with AI"); 
+	ufo::Stats::stop ("BMC path-based: solving path + learning clauses with AI");
+
+	LOG("bmc-ai",
+	    errs () << "\nPath constraints (post-conditions) inferred by AI\n";
+	    for(auto &kv: path_constraints) {
+	      errs() << "\t" << kv.first->getName() << ": ";
+	      if (kv.second.empty()) {
+		errs() << "true\n";
+	      } else {
+		errs() << "{";
+		for(auto e: kv.second) {
+		  errs() << *e << ";";
+		}
+		errs() << "}\n";
+	      }
+	    });
+	
 	if (!res) {
 	  bool ok = add_blocking_clauses();
 	  if (ok) {

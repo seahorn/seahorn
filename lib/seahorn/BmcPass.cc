@@ -55,14 +55,23 @@ namespace
     raw_ostream *m_out;
     /// true if to run the solver, false if encode only
     bool m_solve;
+    /// can-fail analysis
+    CanFail* m_failure_analysis;
+    
   public:
     static char ID;
     
-    BmcPass (bmc_engine_t engine = mono_bmc, raw_ostream *out = nullptr, bool solve = true) :
-      llvm::ModulePass (ID), m_engine(engine), m_out(out), m_solve (solve) {}
-    
+    BmcPass (bmc_engine_t engine = mono_bmc, raw_ostream *out = nullptr, bool solve = true)
+      : llvm::ModulePass (ID)
+      , m_engine(engine)
+      , m_out(out)
+      , m_solve (solve)
+      , m_failure_analysis(nullptr) {}
+      
     virtual bool runOnModule (Module &M)
     {
+      m_failure_analysis = getAnalysisIfAvailable<seahorn::CanFail>();
+      
       for (Function &F : M)
         if (F.getName ().equals ("main")) return runOnFunction (F);
       return false;
@@ -85,6 +94,34 @@ namespace
 
     virtual bool runOnFunction (Function &F)
     {
+      
+      if (m_failure_analysis) {
+	bool canFail = false;
+	if (!canFail) {
+	  // --- optimizer or ms can detect an error and make main
+	  //     unreachable. In that case, it will insert a call to
+	  //     seahorn.fail.
+	  Function* failureFn = F.getParent()->getFunction ("seahorn.fail");
+	  for (auto &I : boost::make_iterator_range (inst_begin(F), inst_end (F))) {
+	    if (!isa<CallInst> (&I)) continue;
+	    // -- look through pointer casts
+	    Value *v = I.stripPointerCasts ();
+	    CallSite CS (const_cast<Value*> (v));
+	    const Function *fn = CS.getCalledFunction ();
+	    canFail |= (fn == failureFn);
+	  }
+	}
+	if (!canFail) {
+	  // --- we ask the can-fail analysis if the function can fail.	  
+	  canFail |= m_failure_analysis->canFail(&F);
+	}
+
+	if (!canFail) {
+	  errs() << "WARNING: no assertion was found ";
+	  errs() << "so either program does not have assertions or frontend discharged them.\n";
+	  return false;
+	}
+      }
       
       const CutPointGraph &cpg = getAnalysis<CutPointGraph> (F);
       const CutPoint &src = cpg.getCp (F.getEntryBlock ());

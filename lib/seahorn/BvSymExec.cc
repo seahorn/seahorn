@@ -98,11 +98,11 @@ static bool isShadowMem (const Value &V, const Value **out)
 
 namespace
 {
-  struct SymExecBase
+  struct OpSemBase
   {
     SymStore &m_s;
     ExprFactory &m_efac;
-    BvSmallSymExec &m_sem;
+    BvOpSem &m_sem;
     ExprVector &m_side;
 
     Expr trueE;
@@ -132,7 +132,7 @@ namespace
 
     Expr m_activeLit;
 
-    SymExecBase (SymStore &s, BvSmallSymExec &sem, ExprVector &side) :
+    OpSemBase (SymStore &s, BvOpSem &sem, ExprVector &side) :
       m_s(s), m_efac (m_s.getExprFactory ()), m_sem (sem), m_side (side),
       m_cur_startMem(nullptr), m_cur_endMem(nullptr),
       m_largestPtr(nullptr), m_inMem(nullptr), m_outMem(nullptr)
@@ -218,11 +218,11 @@ namespace
 
   };
 
-  struct SymExecVisitor : public InstVisitor<SymExecVisitor>,
-                          SymExecBase
+  struct OpSemVisitor : public InstVisitor<OpSemVisitor>,
+                          OpSemBase
   {
-    SymExecVisitor (SymStore &s, BvSmallSymExec &sem, ExprVector &side) :
-      SymExecBase (s, sem, side) {}
+    OpSemVisitor (SymStore &s, BvOpSem &sem, ExprVector &side) :
+      OpSemBase (s, sem, side) {}
 
     void addAlignConstraint(Expr e, unsigned sz) {
       switch(sz) {
@@ -979,14 +979,14 @@ namespace
 
   };
 
-  struct SymExecPhiVisitor : public InstVisitor<SymExecPhiVisitor>,
-                             SymExecBase
+  struct OpSemPhiVisitor : public InstVisitor<OpSemPhiVisitor>,
+                             OpSemBase
   {
     const BasicBlock &m_dst;
 
-    SymExecPhiVisitor (SymStore &s, BvSmallSymExec &sem,
+    OpSemPhiVisitor (SymStore &s, BvOpSem &sem,
                        ExprVector &side, const BasicBlock &dst) :
-      SymExecBase (s, sem, side), m_dst (dst) {}
+      OpSemBase (s, sem, side), m_dst (dst) {}
 
     void visitBasicBlock (BasicBlock &BB)
     {
@@ -1021,53 +1021,53 @@ namespace
 
 namespace seahorn
 {
-  Expr BvSmallSymExec::errorFlag (const BasicBlock &BB)
+  Expr BvOpSem::errorFlag (const BasicBlock &BB)
   {
     // -- if BB belongs to a function that cannot fail, errorFlag is always false
     if (m_canFail && !m_canFail->canFail (BB.getParent ())) return falseE;
     return this->OpSem::errorFlag (BB);
   }
 
-  Expr BvSmallSymExec::memStart (unsigned id)
+  Expr BvOpSem::memStart (unsigned id)
   {
     Expr sort = bv::bvsort (pointerSizeInBits (), m_efac);
     return shadow_dsa::memStartVar (id, sort);
   }
 
-  Expr BvSmallSymExec::memEnd (unsigned id)
+  Expr BvOpSem::memEnd (unsigned id)
   {
     Expr sort = bv::bvsort (pointerSizeInBits (), m_efac);
     return shadow_dsa::memEndVar (id, sort);
   }
 
 
-  void BvSmallSymExec::exec (SymStore &s, const BasicBlock &bb, ExprVector &side,
+  void BvOpSem::exec (SymStore &s, const BasicBlock &bb, ExprVector &side,
                               Expr act)
   {
-    SymExecVisitor v(s, *this, side);
+    OpSemVisitor v(s, *this, side);
     v.setActiveLit (act);
     v.visit (const_cast<BasicBlock&>(bb));
     v.resetActiveLit ();
   }
 
-  void BvSmallSymExec::exec (SymStore &s, const Instruction &inst, ExprVector &side)
+  void BvOpSem::exec (SymStore &s, const Instruction &inst, ExprVector &side)
   {
-    SymExecVisitor v (s, *this, side);
+    OpSemVisitor v (s, *this, side);
     v.visit (const_cast<Instruction&>(inst));
   }
 
 
-  void BvSmallSymExec::execPhi (SymStore &s, const BasicBlock &bb,
+  void BvOpSem::execPhi (SymStore &s, const BasicBlock &bb,
                                  const BasicBlock &from, ExprVector &side, Expr act)
   {
     // act is ignored since phi node only introduces a definition
-    SymExecPhiVisitor v(s, *this, side, from);
+    OpSemPhiVisitor v(s, *this, side, from);
     v.setActiveLit (act);
     v.visit (const_cast<BasicBlock&>(bb));
     v.resetActiveLit ();
   }
 
-  Expr BvSmallSymExec::symbolicIndexedOffset (SymStore &s,
+  Expr BvOpSem::symbolicIndexedOffset (SymStore &s,
                                               Type *ptrTy,
                                               ArrayRef<Value *> Indicies)
   {
@@ -1127,26 +1127,26 @@ namespace seahorn
     return res;
   }
 
-  unsigned BvSmallSymExec::pointerSizeInBits () const
+  unsigned BvOpSem::pointerSizeInBits () const
   {return m_td->getPointerSizeInBits ();}
 
-  uint64_t BvSmallSymExec::sizeInBits (const llvm::Type &t) const
+  uint64_t BvOpSem::sizeInBits (const llvm::Type &t) const
   {return m_td->getTypeSizeInBits (const_cast<llvm::Type*> (&t));}
 
-  uint64_t BvSmallSymExec::sizeInBits (const llvm::Value &v) const
+  uint64_t BvOpSem::sizeInBits (const llvm::Value &v) const
   {return sizeInBits (*v.getType ());}
 
 
-  unsigned BvSmallSymExec::storageSize (const llvm::Type *t) const
+  unsigned BvOpSem::storageSize (const llvm::Type *t) const
   {return m_td->getTypeStoreSize (const_cast<Type*> (t));}
 
-  unsigned BvSmallSymExec::fieldOff (const StructType *t, unsigned field) const
+  unsigned BvOpSem::fieldOff (const StructType *t, unsigned field) const
   {
     return m_td->getStructLayout
       (const_cast<StructType*>(t))->getElementOffset (field);
   }
 
-  Expr BvSmallSymExec::symb (const Value &I)
+  Expr BvOpSem::symb (const Value &I)
   {
     assert (!isa<UndefValue>(&I));
 
@@ -1223,7 +1223,7 @@ namespace seahorn
     return Expr(0);
   }
 
-  const Value &BvSmallSymExec::conc (Expr v)
+  const Value &BvOpSem::conc (Expr v)
   {
     assert (isOpX<FAPP> (v));
     // name of the app
@@ -1235,7 +1235,7 @@ namespace seahorn
   }
 
 
-  bool BvSmallSymExec::isTracked (const Value &v)
+  bool BvOpSem::isTracked (const Value &v)
   {
     const Value* scalar = nullptr;
 
@@ -1267,7 +1267,7 @@ namespace seahorn
     return v.getType ()->isIntegerTy ();
   }
 
-  Expr BvSmallSymExec::lookup (SymStore &s, const Value &v)
+  Expr BvOpSem::lookup (SymStore &s, const Value &v)
   {
     Expr u = symb (v);
     // if u is defined it is either an fapp or a constant
@@ -1275,7 +1275,7 @@ namespace seahorn
     return Expr (0);
   }
 
-  void BvSmallSymExec::execEdg (SymStore &s, const BasicBlock &src,
+  void BvOpSem::execEdg (SymStore &s, const BasicBlock &src,
                                  const BasicBlock &dst, ExprVector &side)
   {
     exec (s, src, side, trueE);
@@ -1287,7 +1287,7 @@ namespace seahorn
     if (term && isa<const UnreachableInst> (term)) exec (s, dst, side, trueE);
   }
 
-  void BvSmallSymExec::execBr (SymStore &s, const BasicBlock &src,
+  void BvOpSem::execBr (SymStore &s, const BasicBlock &src,
                                const BasicBlock &dst,
                                ExprVector &side, Expr act)
   {

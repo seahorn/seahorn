@@ -13,9 +13,18 @@ namespace seahorn
   /// Assumes the input is in nnf
   Expr bvIntAbstract (Expr v);
 
+  /**
+     Bit-precise operational semantics for LLVM.
 
-  /// Bit-Vector Symbolic Execution
-  class BvSmallSymExec : public OpSem
+     Fairly accurate representation of LLVM semantics without
+     considering undefined behaviour. Most operators are mapped
+     directly to their logical equivalent SMT-LIB representation.
+
+     Memory is modelled by arrays.
+
+     Pointers are not aligned
+   */
+  class BvOpSem : public OpSem
   {
     Pass &m_pass;
     TrackLevel m_trackLvl;
@@ -25,13 +34,13 @@ namespace seahorn
 
 
   public:
-    BvSmallSymExec (ExprFactory &efac, Pass &pass, const DataLayout &dl,
-		    TrackLevel trackLvl = MEM) :
+    BvOpSem (ExprFactory &efac, Pass &pass, const DataLayout &dl,
+             TrackLevel trackLvl = MEM) :
       OpSem (efac), m_pass (pass), m_trackLvl (trackLvl), m_td(&dl)
     {
       m_canFail = pass.getAnalysisIfAvailable<CanFail> ();
     }
-    BvSmallSymExec (const BvSmallSymExec& o) :
+    BvOpSem (const BvOpSem& o) :
       OpSem (o), m_pass (o.m_pass), m_trackLvl (o.m_trackLvl),
       m_td (o.m_td), m_canFail (o.m_canFail) {}
 

@@ -111,7 +111,7 @@ namespace
       }
 
       ExprFactory efac;
-      BvSmallSymExec sem (efac, *this, F.getParent()->getDataLayout(), MEM);
+      BvOpSem sem (efac, *this, F.getParent()->getDataLayout(), MEM);
 
       EZ3 zctx (efac);
       std::unique_ptr<BmcEngine> bmc;

@@ -36,9 +36,9 @@
     --horn-at-most-one-predecessor=true
 
   These options are used by VCGen. Although BMC uses
-  BvSmallSymExec these options still can help since the CEX is first
+  BvOpSem these options still can help since the CEX is first
   generated using VCGen. There is no an equivalent of
-  --horn-at-most-one-predecessor for BvSmallSymExec but we might want
+  --horn-at-most-one-predecessor for BvOpSem but we might want
   to implement it in the future in cases crab also fails in scenario
   (2).
 **/

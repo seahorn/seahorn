@@ -32,7 +32,7 @@ DM-0002198
 #include "seahorn/Bmc.hh"
 #include "seahorn/PathBasedBmc.hh"
 #include "seahorn/UfoOpSem.hh"
-#include "seahorn/BvSymExec.hh"
+#include "seahorn/BvOpSem.hh"
 #include "seahorn/Analysis/CanFail.hh"
 // prerequisite for CrabLlvm
 #include "seahorn/Transforms/Scalar/LowerCstExpr.hh"

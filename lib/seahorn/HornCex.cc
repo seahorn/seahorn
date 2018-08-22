@@ -17,7 +17,7 @@
 #include "seahorn/HornCex.hh"
 #include "seahorn/MemSimulator.hh"
 
-#include "seahorn/BvSymExec.hh"
+#include "seahorn/BvOpSem.hh"
 #include "seahorn/UfoOpSem.hh"
 
 #include "seahorn/Analysis/CanFail.hh"

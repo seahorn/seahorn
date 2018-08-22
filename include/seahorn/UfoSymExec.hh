@@ -70,7 +70,13 @@ namespace seahorn
   };
 
 
-  class UfoLargeSymExec : public LargeStepSymExec
+  /**
+   * Verification Condition (VC) generator for loop-free code.  Given
+   * an operational semantics (OpSem) and loop-free code block,
+   * generates a formula that encodes all executions through the code
+   * block according to the given operational semantics.
+   */
+  class VCGen
   {
     OpSem &m_sem;
     Expr trueE;
@@ -79,7 +85,7 @@ namespace seahorn
                     const BasicBlock &bb, ExprVector &side, bool last = false);
 
   public:
-    UfoLargeSymExec (OpSem &sem)
+    VCGen (OpSem &sem)
       : m_sem (sem) { trueE = mk<TRUE> (m_sem.getExprFactory ()); }
 
     virtual void execCpEdg (SymStore &s, const CpEdge &edge, ExprVector &side);

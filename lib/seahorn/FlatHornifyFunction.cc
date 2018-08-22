@@ -18,7 +18,7 @@ namespace seahorn
 
     DenseMap<const BasicBlock*, Expr> pred;
     ExprVector sorts;
-    
+
     const LiveSymbols &ls = m_parent.getLiveSybols (F);
 
     DenseMap<const BasicBlock*, unsigned> bbOrder;
@@ -37,7 +37,7 @@ namespace seahorn
 
     // -- process counter
     Expr pc = bind::intConst (mkTerm<std::string> ("flat.pc", m_efac));
-    
+
     // -- step predicate. First argument is pc
     Expr step;
     {
@@ -46,16 +46,16 @@ namespace seahorn
       sorts.push_back (bind::typeOf (pc));
       for (auto &v : glive) sorts.push_back (bind::typeOf (v));
       sorts.push_back (mk<BOOL_TY> (m_efac));
-      
+
       // the step function is
       Expr name = mkTerm<const Function*> (&F, m_efac);
       // avoid clash with the names of summaries
       if (m_interproc) name = variant::prime (name);
-      
+
       step = bind::fdecl (name, sorts);
       m_db.registerRelation (step);
     }
-    
+
 
     BasicBlock &entry = F.getEntryBlock ();
 
@@ -68,11 +68,11 @@ namespace seahorn
     args.push_back (s.read (pc));
     for (const Expr& v : glive) args.push_back (s.read (v));
     allVars.insert (++args.begin (), args.end ());
-    
+
     Expr rule = bind::fapp (step, args);
     rule = boolop::limp (boolop::lneg (s.read (m_sem.errorFlag (entry))), rule);
     m_db.addRule (allVars, rule);
-      
+
     for (auto &BB : F)
     {
       const BasicBlock *bb = &BB;
@@ -86,7 +86,7 @@ namespace seahorn
         s.write (pc, mkTerm<mpz_class> (bbOrder [bb], m_efac));
         args.push_back (s.read (pc));
         for (const Expr &v : glive) args.push_back (s.read (v));
-        allVars.insert (++args.begin (), args.end ());          
+        allVars.insert (++args.begin (), args.end ());
         Expr pre = bind::fapp (step, args);
 
         // create tau
@@ -96,7 +96,7 @@ namespace seahorn
 
         Expr tau = mknary<AND> (mk<TRUE> (m_efac), side);
 
-        expr::filter (tau, bind::IsConst(), 
+        expr::filter (tau, bind::IsConst(),
                       std::inserter (allVars, allVars.begin ()));
 
         // create step(pc,x1,...,xn) for post
@@ -107,7 +107,7 @@ namespace seahorn
         allVars.insert (++args.begin (), args.end ());
         Expr post = bind::fapp (step, args);
 
-        LOG("seahorn", errs() << "Adding rule : " 
+        LOG("seahorn", errs() << "Adding rule : "
             << *mk<IMPL> (boolop::land (pre, tau), post) << "\n";);
         m_db.addRule (allVars, boolop::limp (boolop::land (pre, tau), post));
       }
@@ -116,8 +116,8 @@ namespace seahorn
     allVars.clear ();
     args.clear ();
     s.reset ();
-    
-    
+
+
     // Add error flag exit rules
     // bb (err, V) & err -> bb_exit (err , V)
     assert(exit);
@@ -125,7 +125,7 @@ namespace seahorn
     for (auto &BB : F)
     {
       if (&BB == exit) continue;
-      
+
       // XXX Can optimize. Only need the rules for BBs that trip the
       // error flag (directly or indirectly)
       s.reset ();
@@ -139,7 +139,7 @@ namespace seahorn
 
       Expr pre = bind::fapp (step, args);
       pre = boolop::land (pre, s.read (m_sem.errorFlag (BB)));
-      
+
       args.clear ();
       s.write (pc, mkTerm<mpz_class> (bbOrder [exit], m_efac));
       args.push_back (s.read (pc));
@@ -149,12 +149,12 @@ namespace seahorn
       Expr post = bind::fapp (step, args);
       m_db.addRule (allVars, boolop::limp (pre, post));
     }
-    
+
     if (F.getName ().equals ("main"))
     {
       args.clear ();
       s.reset ();
-      
+
       s.write (pc, mkTerm<mpz_class> (bbOrder [exit], m_efac));
       args.push_back (s.read (pc));
       if (ls.live (exit).size () == 1)
@@ -167,15 +167,15 @@ namespace seahorn
       // the summary rule
       // exit(live_at_exit) & !error.flag ->
       //                  summary(true, false, false, regions, arguments, globals, return)
-     
+
       args.clear ();
       allVars.clear ();
-      
+
       s.write (pc, mkTerm<mpz_class> (bbOrder [exit], m_efac));
       args.push_back (s.read (pc));
-      for (const Expr &v : glive) args.push_back (s.read (v)); 
+      for (const Expr &v : glive) args.push_back (s.read (v));
       allVars.insert (++args.begin (), args.end ());
- 
+
       Expr pre = bind::fapp (step, args);
       pre = boolop::land (pre, boolop::lneg (s.read (m_sem.errorFlag (*exit))));
 
@@ -183,12 +183,12 @@ namespace seahorn
       ExprVector postArgs {mk<TRUE> (m_efac), falseE, falseE};
       const FunctionInfo &fi = m_sem.getFunctionInfo (F);
       fi.evalArgs (m_sem, s, std::back_inserter (postArgs));
-      std::copy_if (postArgs.begin () + 3, postArgs.end (), 
+      std::copy_if (postArgs.begin () + 3, postArgs.end (),
                     std::inserter (allVars, allVars.begin ()),
                     bind::IsConst());
       Expr post = bind::fapp (fi.sumPred, postArgs);
       m_db.addRule (allVars, boolop::limp (pre, post));
-      
+
       // the error rule
       // bb_exit (true, V) -> S(true, false, true, V)
       pre = boolop::land (pre->arg (0), s.read (m_sem.errorFlag (*exit)));
@@ -197,9 +197,9 @@ namespace seahorn
       m_db.addRule (allVars, boolop::limp (pre, post));
     }
     else if (!exit & m_interproc) assert (0);
-    
+
   }
-  
+
   void FlatLargeHornifyFunction::runOnFunction (Function &F)
   {
 
@@ -216,60 +216,60 @@ namespace seahorn
     DenseMap<const BasicBlock*, unsigned> cpgOrder;
     // globally live
     ExprSet glive;
-    
+
     unsigned idx = 0;
     for (const CutPoint &cp : cpg)
     {
       cpgOrder [&cp.bb ()] = idx++;
-      
+
       auto &live = ls.live (&cp.bb ());
       glive.insert (live.begin (), live.end ());
-      
+
       if (m_interproc) extractFunctionInfo (cp.bb ());
     }
 
     // -- process counter
     Expr pc = bind::intConst (mkTerm<std::string> ("flat.pc", m_efac));
-    
+
     // -- step predicate. First argument is pc
     Expr step;
-    
+
     {
       ExprVector sorts;
       sorts.reserve (glive.size () + 2);
       sorts.push_back (bind::typeOf (pc));
       for (auto &v : glive) sorts.push_back (bind::typeOf (v));
       sorts.push_back (mk<BOOL_TY> (m_efac));
-      
+
       // the step function is
       Expr name = mkTerm<const Function*> (&F, m_efac);
       // avoid clash with the names of summaries
       if (m_interproc) name = variant::prime (name);
-      
+
       step = bind::fdecl (name, sorts);
       m_db.registerRelation (step);
     }
-    
-          
+
+
     const BasicBlock &entry = F.getEntryBlock ();
-    
+
     ExprSet allVars;
     ExprVector args;
     SymStore s (m_efac);
-    
-    
+
+
     s.write (pc, mkTerm<mpz_class> (cpgOrder [&entry], m_efac));
     args.push_back (s.read (pc));
     for (const Expr& v : glive) args.push_back (s.read (v));
     allVars.insert (++args.begin (), args.end ());
-    
+
     Expr rule = bind::fapp (step, args);
     rule = boolop::limp (boolop::lneg (s.read (m_sem.errorFlag (entry))), rule);
     m_db.addRule (allVars, rule);
     allVars.clear ();
-    
-    UfoLargeSymExec lsem (m_sem);
-    
+
+    VCGen lsem (m_sem);
+
     for (const CutPoint &cp : cpg)
       {
         for (const CpEdge *edge : boost::make_iterator_range (cp.succ_begin (),
@@ -278,38 +278,38 @@ namespace seahorn
           allVars.clear ();
           args.clear ();
           s.reset ();
-          
+
           s.write (pc, mkTerm<mpz_class> (cpgOrder [&cp.bb ()], m_efac));
           args.push_back (s.read (pc));
           for (const Expr &v : glive) args.push_back (s.read (v));
           allVars.insert (++args.begin (), args.end ());
-          
+
           Expr pre = bind::fapp (step, args);
-          
+
           ExprVector side;
           side.push_back (boolop::lneg ((s.read (m_sem.errorFlag (cp.bb ())))));
           lsem.execCpEdg (s, *edge, side);
           Expr tau = mknary<AND> (mk<TRUE> (m_efac), side);
-          expr::filter (tau, bind::IsConst(), 
+          expr::filter (tau, bind::IsConst(),
                         std::inserter (allVars, allVars.begin ()));
 
           const BasicBlock &dst = edge->target ().bb ();
           args.clear ();
-          
+
           s.write (pc, mkTerm<mpz_class> (cpgOrder [&dst], m_efac));
           args.push_back (s.read (pc));
           for (const Expr &v : glive) args.push_back (s.read (v));
           allVars.insert (++args.begin (), args.end ());
-          
+
           Expr post = bind::fapp (step, args);
           m_db.addRule (allVars, boolop::limp (boolop::land (pre, tau), post));
         }
       }
-    
+
     allVars.clear ();
     args.clear ();
     s.reset ();
-    
+
     // Add error flag exit rules
     // bb (err, V) & err -> bb_exit (err , V)
     assert(exit);
@@ -317,43 +317,43 @@ namespace seahorn
     for (const CutPoint &cp : cpg)
     {
       if (&cp.bb () == exit) continue;
-      
+
       // XXX Can optimize. Only need the rules for BBs that trip the
       // error flag (directly or indirectly)
       s.reset ();
       allVars.clear ();
       args.clear ();
-      
+
       s.write (pc, mkTerm<mpz_class> (cpgOrder [&cp.bb ()], m_efac));
       args.push_back (s.read (pc));
       for (const Expr &v : glive) args.push_back (s.read (v));
       allVars.insert (++args.begin (), args.end ());
-      
+
       Expr pre = bind::fapp (step, args);
       pre = boolop::land (pre, s.read (m_sem.errorFlag (cp.bb ())));
-      
+
       args.clear ();
-      
+
       s.write (pc, mkTerm<mpz_class> (cpgOrder [exit], m_efac));
       args.push_back (s.read (pc));
       for (const Expr &v : glive) args.push_back (s.read (v));
       allVars.insert (++args.begin (), args.end ());
-      
+
       Expr post = bind::fapp (step, args);
       m_db.addRule (allVars, boolop::limp (pre, post));
-    }   
-    
+    }
+
     if (F.getName ().equals ("main"))
     {
       args.clear ();
       s.reset ();
-      
+
       s.write (pc, mkTerm<mpz_class> (cpgOrder [exit], m_efac));
       args.push_back (s.read (pc));
       if (ls.live (exit).size () == 1)
         s.write (m_sem.errorFlag (*exit), mk<TRUE> (m_efac));
       for (const Expr &v : glive) args.push_back (s.read (v));
-      
+
       m_db.addQuery (bind::fapp (step , args));
     }
     else if (m_interproc)
@@ -361,28 +361,28 @@ namespace seahorn
       // the summary rule
       // exit(live_at_exit) & !error.flag ->
       //     summary(true, false, false, regions, arguments, globals, return)
-      
+
       args.clear ();
       allVars.clear ();
-      
+
       s.write (pc, mkTerm<mpz_class> (cpgOrder [exit], m_efac));
       args.push_back (s.read (pc));
-      for (const Expr &v : glive) args.push_back (s.read (v)); 
+      for (const Expr &v : glive) args.push_back (s.read (v));
       allVars.insert (++args.begin (), args.end ());
-      
+
       Expr pre = bind::fapp (step, args);
       pre = boolop::land (pre, boolop::lneg (s.read (m_sem.errorFlag (*exit))));
-      
+
       Expr falseE = mk<FALSE> (m_efac);
       ExprVector postArgs {mk<TRUE> (m_efac), falseE, falseE};
       const FunctionInfo &fi = m_sem.getFunctionInfo (F);
       fi.evalArgs (m_sem, s, std::back_inserter (postArgs));
-      std::copy_if (postArgs.begin () + 3, postArgs.end (), 
+      std::copy_if (postArgs.begin () + 3, postArgs.end (),
                     std::inserter (allVars, allVars.begin ()),
                     bind::IsConst());
       Expr post = bind::fapp (fi.sumPred, postArgs);
       m_db.addRule (allVars, boolop::limp (pre, post));
-      
+
       // the error rule
       // bb_exit (true, V) -> S(true, false, true, V)
       pre = boolop::land (pre->arg (0), s.read (m_sem.errorFlag (*exit)));

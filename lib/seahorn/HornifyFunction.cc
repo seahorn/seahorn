@@ -337,7 +337,7 @@ void LargeHornifyFunction::runOnFunction(Function &F) {
     params.set(":smt.arith.ignore_int", true);
   smt.set(params);
 
-  UfoLargeSymExec lsem(m_sem);
+  VCGen lsem(m_sem);
 
   DenseSet<const BasicBlock *> reached;
   reached.insert(&cpg.begin()->bb());

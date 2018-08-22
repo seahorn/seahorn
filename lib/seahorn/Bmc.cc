@@ -16,7 +16,7 @@ namespace seahorn
       m_cpg = &cp.parent ();
       m_fn = cp.bb ().getParent ();
     }
-  
+
     assert (m_cpg == &cp.parent ());
     m_cps.push_back (&cp);
   }
@@ -30,15 +30,15 @@ namespace seahorn
 
   void BmcEngine::encode (bool assert_formula)
   {
-    
+
     // -- only run the encoding once
     if (!m_side.empty ()) return;
-    
+
     assert (m_cpg);
     assert (m_fn);
-    UfoLargeSymExec sexec (m_sem);
+    VCGen sexec (m_sem);
     m_states.push_back (SymStore (m_efac));
-    
+
     const CutPoint *prev = nullptr;
     for (const CutPoint *cp : m_cps)
     {
@@ -47,7 +47,7 @@ namespace seahorn
         const CpEdge *edg = m_cpg->getEdge (*prev, *cp);
         assert (edg);
         m_edges.push_back (edg);
-      
+
         m_states.push_back (m_states.back ());
         SymStore &s = m_states.back ();
         sexec.execCpEdg (s, *edg, m_side);
@@ -57,7 +57,7 @@ namespace seahorn
     if (assert_formula) {
       for (Expr v : m_side) m_smt_solver.assertExpr (v);
     }
-    
+
   }
 
   void BmcEngine::reset ()
@@ -83,23 +83,23 @@ namespace seahorn
     auto model = m_smt_solver.getModel ();
     return BmcTrace (*this, model);
   }
-  
+
   BmcTrace::BmcTrace (BmcEngine &bmc, ufo::ZModel<ufo::EZ3> &model) :
     m_bmc (bmc), m_model(model/*m_bmc.zctx()*/)
   {
     // assert ((bool)bmc.result ());
     // m_model = bmc.getModel ();
-    
+
     // construct an implicant of the side condition
     ExprVector trace;
     trace.reserve (m_bmc.getFormula().size ());
     ExprMap bool_map /*unused*/;
     bmc_impl::get_model_implicant (m_bmc.getFormula(), m_model, trace, bool_map);
     boost::container::flat_set<Expr> implicant (trace.begin (), trace.end ());
-    
-    
+
+
     // construct the trace
-    
+
     // -- reference to the first state
     auto st = m_bmc.getStates().begin ();
     // -- reference to the fist cutpoint in the trace
@@ -108,26 +108,26 @@ namespace seahorn
     {
       LOG("cex",
           errs () << "";);
-      
+
       assert (&(edg->source ()) == m_bmc.getCps()[id]);
       assert (&(edg->target ()) == m_bmc.getCps()[id+1]);
-      
+
       SymStore &s = *(++st);
       for (auto it = edg->begin (), end = edg->end (); it != end; ++it)
       {
         const BasicBlock &BB = *it;
-        
-        if (it != edg->begin () && 
-            implicant.count (s.eval (m_bmc.sem().symb (BB))) <= 0) 
+
+        if (it != edg->begin () &&
+            implicant.count (s.eval (m_bmc.sem().symb (BB))) <= 0)
           continue;
-        
+
         m_bbs.push_back (&BB);
         m_cpId.push_back (id);
       }
       // -- next basic block corresponds to the next cutpoint
       id++;
     }
-    
+
     // -- last block on the edge
     const SmallVector<const CpEdge*, 8>& edges = m_bmc.getEdges();
     if (!edges.empty ())
@@ -145,51 +145,51 @@ namespace seahorn
       m_cpId.push_back (0);
     }
   }
-  
+
   Expr BmcTrace::symb (unsigned loc, const llvm::Value &val)
   {
     // assert (cast<Instruction>(&val)->getParent () == bb(loc));
-    
+
     if (!m_bmc.sem().isTracked (val)) return Expr ();
     if (isa<Instruction> (val) &&
 	bmc_impl::isCallToVoidFn (cast<Instruction>(val))) return Expr ();
     Expr u = m_bmc.sem().symb (val);
-    
+
     unsigned stateidx = cpid(loc);
     // -- all registers except for PHI nodes at the entry to an edge
     // -- get their value at the end of the edge
     if (! (isa<PHINode> (val) && isFirstOnEdge (loc)) ) stateidx++;
     // -- out of bounds, no value in the model
     if (stateidx >= m_bmc.getStates().size ()) return Expr ();
-    
+
     SymStore &store = m_bmc.getStates()[stateidx];
     return store.eval (u);
   }
-  
+
   Expr BmcTrace::eval (unsigned loc,
                        const llvm::Value &val,
-                       bool complete) 
+                       bool complete)
   {
     Expr v = symb (loc, val);
     if (v) v = m_model.eval (v, complete);
     return v;
   }
-  
+
   Expr BmcTrace::eval (unsigned loc,
-                       Expr u, 
-                       bool complete) 
+                       Expr u,
+                       bool complete)
   {
-    
+
     unsigned stateidx = cpid(loc);
     stateidx++;
     // -- out of bounds, no value in the model
     if (stateidx >= m_bmc.getStates().size ()) return Expr ();
-    
+
     SymStore &store = m_bmc.getStates()[stateidx];
     Expr v = store.eval (u);
     return m_model.eval (v, complete);
   }
-  
+
   //template <typename Out> Out &BmcTrace::print (Out &out)
   template<> raw_ostream& BmcTrace::print (raw_ostream &out)
   {
@@ -198,7 +198,7 @@ namespace seahorn
     {
       const BasicBlock &BB = *bb(loc);
       out << BB.getName () << ": \n";
-      
+
       for (auto &I : BB)
       {
         if (const DbgValueInst *dvi = dyn_cast<DbgValueInst> (&I))
@@ -225,7 +225,7 @@ namespace seahorn
           if (f && f->getName ().equals ("seahorn.fn.enter"))
           {
 	    if (ci->getDebugLoc ()) {
-	      if (DISubprogram *fnScope = getDISubprogram (ci->getDebugLoc ().getScope ())) 
+	      if (DISubprogram *fnScope = getDISubprogram (ci->getDebugLoc ().getScope ()))
 		out << "enter: " << fnScope->getDisplayName () << "\n";
 	    }
             continue;
@@ -245,11 +245,11 @@ namespace seahorn
 	    print_inst = false;
           }
         }
-               
+
 	if (print_inst) {
 	  out << I << "\n";
 	}
-	
+
         Expr v = eval (loc, I);
         if (!v) continue;
 
@@ -264,31 +264,31 @@ namespace seahorn
         }
         out << "\n";
 	out.resetColor();
-      }        
+      }
     }
     out << "End trace\n";
     return out;
   }
-  
+
   namespace bmc_impl {
-    
+
     bool isCallToVoidFn (const llvm::Instruction &I)
     {
       if (const CallInst *ci = dyn_cast<const CallInst> (&I))
 	if (const Function *fn = ci->getCalledFunction ())
 	  return fn->getReturnType ()->isVoidTy ();
-      
+
       return false;
     }
-    
 
-    void get_model_implicant (const ExprVector &f, 
+
+    void get_model_implicant (const ExprVector &f,
 			      ufo::ZModel<ufo::EZ3> &model, ExprVector &out,
 			      ExprMap &active_bool_map)
     {
       // XXX This is a partial implementation. Specialized to the
       // constraints expected to occur in m_side.
-      
+
       for (auto v : f)
 	{
 	  // -- break IMPL into an OR
@@ -299,16 +299,16 @@ namespace seahorn
 	    {
 	      assert (v->arity () == 2);
 	      Expr v0 = model (v->arg (0));
-	      Expr a0 = v->arg(0);	      
+	      Expr a0 = v->arg(0);
 	      if (isOpX<FALSE> (v0)) continue;
 	      else if (isOpX<TRUE> (v0)) {
-		v = mknary<OR> (mk<FALSE> (v0->efac ()), 
+		v = mknary<OR> (mk<FALSE> (v0->efac ()),
 				++(v->args_begin ()), v->args_end ());
 		bool_lit = a0;
 	      } else
 		continue;
 	    }
-      
+
 	  if (isOpX<OR> (v))
 	    {
 	      for (unsigned i = 0; i < v->arity (); ++i)
@@ -318,8 +318,8 @@ namespace seahorn
 		    break;
 		  }
 	    }
-	  
-	  if (isOpX<AND> (v)) 
+
+	  if (isOpX<AND> (v))
 	    {
 	      for (unsigned i = 0; i < v->arity (); ++i) {
 		out.push_back (v->arg (i));
@@ -332,8 +332,8 @@ namespace seahorn
 	    if (bool_lit)
 	      active_bool_map[v] = bool_lit;
 	  }
-	}      
-      
+	}
+
     }
 
     void unsat_core(ufo::ZSolver<ufo::EZ3>& solver, const ExprVector& f, bool simplify,
@@ -346,7 +346,7 @@ namespace seahorn
 	assumptions.push_back (a);
 	solver.assertExpr (mk<IMPL> (a, v));
       }
-      
+
       ExprVector core;
       solver.push ();
       boost::tribool res = solver.solveAssuming (assumptions);
@@ -364,25 +364,25 @@ namespace seahorn
 	  assert (!res ? 1 : 0);
 	  solver.unsatCore (std::back_inserter (core));
 	  solver.pop ();
-	}    
-	
+	}
+
 	// minimize simplified core
 	for (unsigned i = 0; i < core.size ();) {
 	  Expr saved = core [i];
 	  core [i] = core.back ();
-	  res = solver.solveAssuming(boost::make_iterator_range(core.begin(), core.end() - 1)); 
+	  res = solver.solveAssuming(boost::make_iterator_range(core.begin(), core.end() - 1));
 	  if (res) core [i++] = saved;
 	  else if (!res)
       	  core.pop_back ();
 	  else assert (0);
 	}
       }
-      
+
       // unwrap the core from ASM to corresponding expressions
       for (Expr c : core)
       	out.push_back (bind::fname (bind::fname (c))->arg (0));
     }
-    
+
   } // end namespace bmc_impl
 
 }

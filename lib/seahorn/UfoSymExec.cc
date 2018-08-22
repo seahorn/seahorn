@@ -1332,7 +1332,7 @@ namespace seahorn
     }
   }
 
-  void UfoLargeSymExec::execCpEdg (SymStore &s, const CpEdge &edge,
+  void VCGen::execCpEdg (SymStore &s, const CpEdge &edge,
                                    ExprVector &side)
   {
     const CutPoint &target = edge.target ();
@@ -1468,7 +1468,7 @@ namespace seahorn
     };
   }
 
-  void UfoLargeSymExec::execEdgBb (SymStore &s, const CpEdge &edge,
+  void VCGen::execEdgBb (SymStore &s, const CpEdge &edge,
                                    const BasicBlock &bb,
                                    ExprVector &side, bool last)
   {

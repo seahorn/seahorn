@@ -48,6 +48,12 @@ namespace seahorn
   /// maps llvm::Function to seahorn::FunctionInfo
   typedef DenseMap<const llvm::Function*, FunctionInfo> FuncInfoMap;
 
+  /**
+   * Operational Semantics for LLVM instructions and basic blocks.
+   * Provides symbolic-executor-like interface by transforming an
+   * input symbolic state to an output symbolic state and
+   * side-conditions.
+   */
   class OpSem
   {
   protected:
@@ -124,24 +130,13 @@ namespace seahorn
 
   };
 
-  /// -- computes verification condition for a CPG edge
-  class LargeStepSymExec
-  {
-  public:
 
-    virtual ~LargeStepSymExec () {}
-
-    /// Execute a CutPoint-to-CutPoint edge
-    virtual void execCpEdg (SymStore &s, const CpEdge &edg, ExprVector &side) = 0;
-  };
-
-
-  /// Small step symbolic execution for integers
+  /// Very abstract operational semantics
   /// Highly non-deterministic. Used to identify live symbols
-  class IntLightSymExec : public OpSem
+  class IntLightOpSem : public OpSem
   {
   public:
-    IntLightSymExec (ExprFactory &efac) : OpSem (efac) {}
+    IntLightOpSem (ExprFactory &efac) : OpSem (efac) {}
 
     /// Execute all instructions in the basic block. Modifies the
     /// store s and stores side condition in side

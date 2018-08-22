@@ -6,7 +6,7 @@
 
 #include "ufo/Expr.hpp"
 #include "ufo/Smt/EZ3.hh"
-#include "seahorn/UfoSymExec.hh"
+#include "seahorn/UfoOpSem.hh"
 #include "seahorn/LiveSymbols.hh"
 
 namespace seahorn
@@ -14,7 +14,7 @@ namespace seahorn
   using namespace expr;
   using namespace llvm;
   using namespace ufo;
-  
+
   class FlatLargeHornifyFunction : public HornifyFunction
   {
   public:

@@ -18,7 +18,7 @@
 #include "seahorn/MemSimulator.hh"
 
 #include "seahorn/BvSymExec.hh"
-#include "seahorn/UfoSymExec.hh"
+#include "seahorn/UfoOpSem.hh"
 
 #include "seahorn/Analysis/CanFail.hh"
 #include "seahorn/Analysis/CutPointGraph.hh"

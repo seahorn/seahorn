@@ -5,7 +5,7 @@
 #include "llvm/IR/Function.h"
 
 #include "seahorn/LiveSymbols.hh"
-#include "seahorn/UfoSymExec.hh"
+#include "seahorn/UfoOpSem.hh"
 #include "ufo/Expr.hpp"
 #include "ufo/Smt/EZ3.hh"
 

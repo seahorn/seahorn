@@ -1,7 +1,7 @@
 #ifndef __CLP_SYM_EXEC_HH_
 #define __CLP_SYM_EXEC_HH_
 
-/* Based on a copy-and-paste version of UfoSymExec */
+/* Based on a copy-and-paste version of UfoOpSem */
 
 #include "llvm/Pass.h"
 #include "llvm/IR/DataLayout.h"

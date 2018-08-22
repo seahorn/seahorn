@@ -18,7 +18,7 @@ namespace crab_llvm {
   class CrabLlvmPass;
   class IntraCrabLlvm;
 }
-#endif 
+#endif
 
 
 /*
@@ -29,22 +29,22 @@ namespace crab_llvm {
   satisfiable or no more paths exist.
  */
 namespace seahorn
-{  
+{
   class PathBasedBmcEngine: public BmcEngine {
   public:
 
     #ifdef HAVE_CRAB_LLVM
-    PathBasedBmcEngine (SmallStepSymExec &sem, ufo::EZ3 &zctx,
+    PathBasedBmcEngine (OpSem &sem, ufo::EZ3 &zctx,
 			crab_llvm::CrabLlvmPass *crab,
 			const llvm::TargetLibraryInfo& tli);
-    
+
     #else
-    PathBasedBmcEngine (SmallStepSymExec &sem, ufo::EZ3 &zctx,
+    PathBasedBmcEngine (OpSem &sem, ufo::EZ3 &zctx,
 			const llvm::TargetLibraryInfo& tli);
-    #endif 
+    #endif
 
     ~PathBasedBmcEngine();
-        
+
     /// Enumerate paths until a path is satisfiable or there is no
     /// more paths.
     virtual boost::tribool solve () override;
@@ -54,28 +54,28 @@ namespace seahorn
 
     // Return model if sat
     virtual ufo::ZModel<ufo::EZ3> getModel() override;
-    
+
     /// constructs the initial (precise) encoding
     /// but the encoding is not asserted in the solver.
     virtual void encode (bool assert_formula) override;
-    
+
     /// Dump unsat core if unsat (NOT implemented)
     virtual void unsatCore (ExprVector &out) override;
 
     /// Output the initial (precise) encoding in SMT-LIB2 format
-    virtual raw_ostream& toSmtLib (raw_ostream& out) override; 
-    
+    virtual raw_ostream& toSmtLib (raw_ostream& out) override;
+
   private:
     // Incomplete flag: if a SMT query returned unknown
     bool m_incomplete;
 
     // Queue for unsolved path formulas
     std::queue<std::pair<unsigned, ExprVector>> m_unknown_path_formulas;
-    
+
     // Count number of path
     unsigned m_num_paths;
     // used to solve a path formula
-    ufo::ZSolver<ufo::EZ3> m_aux_smt_solver;        
+    ufo::ZSolver<ufo::EZ3> m_aux_smt_solver;
     const llvm::TargetLibraryInfo& m_tli;
 
     // Boolean literals that active the implicant: used to produce
@@ -83,39 +83,39 @@ namespace seahorn
     ExprVector m_active_bool_lits;
     // model of a path formula
     ufo::ZModel<ufo::EZ3> m_model;
-    // live symbols  
+    // live symbols
     LiveSymbols* m_ls;
     #ifdef HAVE_CRAB_LLVM
     // crab instance that includes invariants and heab abstraction information
     crab_llvm::CrabLlvmPass* m_crab_global;
     // crab instance to run only paths
     crab_llvm::IntraCrabLlvm* m_crab_path;
-    #endif 
+    #endif
     // Temporary sanity check: bookeeping of all generated blocking
     // clauses.
     boost::unordered_set<Expr> m_blocking_clauses;
-    
+
     // Check feasibility of a path induced by model using SMT solver.
     // Return true (sat), false (unsat), or indeterminate (inconclusive).
     // If unsat then it produces a blocking clause.
-    typedef DenseMap<const BasicBlock*, ExprVector> invariants_map_t;    
+    typedef DenseMap<const BasicBlock*, ExprVector> invariants_map_t;
     boost::tribool path_encoding_and_solve_with_smt(ufo::ZModel<ufo::EZ3> &model,
 						    const invariants_map_t& invariants,
 						    const invariants_map_t& path_constraints);
-    
+
     #ifdef HAVE_CRAB_LLVM
     // Check feasibility of a path induced by trace using abstract
     // interpretation.
     // Return true (sat) or false (unsat). If unsat then it produces a
     // blocking clause.
     bool path_encoding_and_solve_with_ai(BmcTrace &trace, invariants_map_t& path_constraints);
-    #endif 
+    #endif
 
     // Return false if a blocking clause has been generated twice.
     bool add_blocking_clauses();
 
     // For debugging
     void toSmtLib(const ExprVector& path, std::string prefix="");
-    
+
   };
 }

@@ -196,8 +196,8 @@ bool HornCex::runOnFunction(Module &M, Function &F) {
   UfoSmallSymExec semUfo(efac, *this, M.getDataLayout(), MEM);
   BvSmallSymExec semBv(efac, *this, M.getDataLayout(), MEM);
 
-  SmallStepSymExec *sem = UseBv ? static_cast<SmallStepSymExec *>(&semBv)
-                                : static_cast<SmallStepSymExec *>(&semUfo);
+  OpSem *sem = UseBv ? static_cast<OpSem *>(&semBv)
+                                : static_cast<OpSem *>(&semUfo);
 
   const TargetLibraryInfo &tli =
       getAnalysis<TargetLibraryInfoWrapperPass>().getTLI();

@@ -1085,7 +1085,7 @@ namespace seahorn
   {
     // -- if BB belongs to a function that cannot fail, errorFlag is always false
     if (m_canFail && !m_canFail->canFail (BB.getParent ())) return falseE;
-    return this->SmallStepSymExec::errorFlag (BB);
+    return this->OpSem::errorFlag (BB);
   }
 
   Expr UfoSmallSymExec::memStart (unsigned id)
@@ -1493,7 +1493,7 @@ namespace seahorn
     Expr bbV = s.havoc (m_sem.symb (bb));
 
     // -- update destination of all the edges
-    
+
     if (SplitCriticalEdgesOnly)
     {
       // -- create edge variables only for critical edges.
@@ -1519,12 +1519,12 @@ namespace seahorn
       // -- b_i & e_{i,j}
       for (Expr &e : edges) e = mk<AND> (e, bind::boolConst (mk<TUPLE> (e, bbV)));
     }
-    
+
     if (EnforceAtMostOnePredecessor) {
       if (edges.size() > 1) {
 	// Naive quadratic encoding of exactly-one predecessor.
 	// TODO: linear encoding based on adders.
-	ExprVector exactly_one; 
+	ExprVector exactly_one;
 	for (unsigned i=0, e = edges.size(); i<e; ++i) {
 	  ExprVector exactly_ei; // exactly predecessor edges[i]
 	  exactly_ei.push_back(edges[i]);
@@ -1540,7 +1540,7 @@ namespace seahorn
 	side.push_back(mk<IMPL>(bbV, mknary<OR>(exactly_one)));
       }
     }
-    
+
     // -- encode control flow
     // -- b_j -> (b1 & e_{1,j} | b2 & e_{2,j} | ...)
     side.push_back (mk<IMPL> (bbV,

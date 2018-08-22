@@ -1,7 +1,7 @@
 // Symbolic execution (loosely) based on semantics used in UFO
 #include "llvm/IR/GetElementPtrTypeIterator.h"
 
-#include "seahorn/BvSymExec.hh"
+#include "seahorn/BvOpSem.hh"
 #include "seahorn/Support/CFG.hh"
 #include "seahorn/Transforms/Instrumentation/ShadowMemDsa.hh"
 

@@ -1,6 +1,4 @@
-#ifndef __CLP_SYM_EXEC_HH_
-#define __CLP_SYM_EXEC_HH_
-
+#pragma once
 /* Based on a copy-and-paste version of UfoOpSem */
 
 #include "llvm/Pass.h"
@@ -11,8 +9,13 @@
 namespace seahorn
 {
 
-  /// Small step symbolic execution for integers based on CLP semantics
-  class ClpSmallSymExec : public OpSem
+  /**
+     LLVM operational semantics that can be well represented in CLP
+
+     Very imprecise/inaccurate. Only interesting for comparing with
+     CLP-based analysis tools.
+  */
+  class ClpOpSem : public OpSem
   {
     Pass &m_pass;
     TrackLevel m_trackLvl;
@@ -24,7 +27,7 @@ namespace seahorn
     Expr one;
 
   public:
-    ClpSmallSymExec (ExprFactory &efac, Pass &pass, const DataLayout &dl,
+    ClpOpSem (ExprFactory &efac, Pass &pass, const DataLayout &dl,
 		     TrackLevel trackLvl = MEM) :
       OpSem (efac), m_pass (pass), m_trackLvl (trackLvl), m_td(&dl)
     {
@@ -33,7 +36,7 @@ namespace seahorn
       one  = mkTerm<mpz_class> (1, m_efac);
     }
 
-    ClpSmallSymExec (const ClpSmallSymExec& o) :
+    ClpOpSem (const ClpOpSem& o) :
       OpSem (o), m_pass (o.m_pass), m_trackLvl (o.m_trackLvl),
       m_td (o.m_td), m_canFail (o.m_canFail) {}
 
@@ -69,5 +72,3 @@ namespace seahorn
   };
 
 }
-
-#endif

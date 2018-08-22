@@ -7,7 +7,7 @@
 #include "ufo/Expr.hpp"
 #include "ufo/Smt/EZ3.hh"
 #include "seahorn/UfoOpSem.hh"
-#include "seahorn/ClpSymExec.hh"
+#include "seahorn/ClpOpSem.hh"
 
 #include "boost/smart_ptr/scoped_ptr.hpp"
 

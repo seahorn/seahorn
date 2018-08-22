@@ -4,7 +4,7 @@ add_llvm_library (seahorn.LIB
   SymStore.cc
   OpSem.cc
   UfoOpSem.cc
-  ClpSymExec.cc
+  ClpOpSem.cc
   HornifyModule.cc
   HornifyFunction.cc
   FlatHornifyFunction.cc
@@ -24,7 +24,7 @@ add_llvm_library (seahorn.LIB
   PathBasedBmc.cc
   Bmc.cc    
   BmcPass.cc
-  BvSymExec.cc
+  BvOpSem.cc
   BvInt.cc
   MemSimulator.cc
   ZOption.cc

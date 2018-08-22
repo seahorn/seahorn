@@ -139,7 +139,7 @@ namespace seahorn
 
     if (Step == hm_detail::CLP_SMALL_STEP ||
         Step == hm_detail::CLP_FLAT_SMALL_STEP)
-      m_sem.reset (new ClpSmallSymExec (m_efac, *this, M.getDataLayout(), TL));
+      m_sem.reset (new ClpOpSem(m_efac, *this, M.getDataLayout(), TL));
     else
       m_sem.reset (new UfoOpSem (m_efac, *this, M.getDataLayout(), TL, abs_fns));
 

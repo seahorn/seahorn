@@ -6,7 +6,7 @@
 
 #include "llvm/IR/GetElementPtrTypeIterator.h"
 
-#include "seahorn/ClpSymExec.hh"
+#include "seahorn/ClpOpSem.hh"
 #include "seahorn/Support/CFG.hh"
 #include "seahorn/Transforms/Instrumentation/ShadowMemDsa.hh"
 
@@ -23,7 +23,7 @@ namespace
   {
     SymStore &m_s;
     ExprFactory &m_efac;
-    ClpSmallSymExec &m_sem;
+    ClpOpSem &m_sem;
     ExprVector &m_side;
 
     Expr trueE;
@@ -39,7 +39,7 @@ namespace
     /// -- parameters for a function call
     ExprVector m_fparams;
 
-    SymExecBase (SymStore &s, ClpSmallSymExec &sem, ExprVector &side) :
+    SymExecBase (SymStore &s, ClpOpSem &sem, ExprVector &side) :
       m_s(s), m_efac (m_s.getExprFactory ()), m_sem (sem), m_side (side)
     {
       trueE  = mk<TRUE> (m_efac);
@@ -72,7 +72,7 @@ namespace
   struct SymExecVisitor : public InstVisitor<SymExecVisitor>,
                           SymExecBase
   {
-    SymExecVisitor (SymStore &s, ClpSmallSymExec &sem, ExprVector &side) :
+    SymExecVisitor (SymStore &s, ClpOpSem &sem, ExprVector &side) :
       SymExecBase (s, sem, side) {}
 
     /// base case. if all else fails.
@@ -569,7 +569,7 @@ namespace
   {
     const BasicBlock &m_dst;
 
-    SymExecPhiVisitor (SymStore &s, ClpSmallSymExec &sem,
+    SymExecPhiVisitor (SymStore &s, ClpOpSem &sem,
                        ExprVector &side, const BasicBlock &dst) :
       SymExecBase (s, sem, side), m_dst (dst) {}
 
@@ -592,14 +592,14 @@ namespace
 
 namespace seahorn
 {
-  Expr ClpSmallSymExec::errorFlag (const BasicBlock &BB)
+  Expr ClpOpSem::errorFlag (const BasicBlock &BB)
   {
     // -- if BB belongs to a function that cannot fail, errorFlag is always false
     if (m_canFail && !m_canFail->canFail (BB.getParent ())) return falseE;
     return this->OpSem::errorFlag (BB);
   }
 
-  void ClpSmallSymExec::exec (SymStore &s, const BasicBlock &bb, ExprVector &side,
+  void ClpOpSem::exec (SymStore &s, const BasicBlock &bb, ExprVector &side,
                               Expr act)
   {
     assert (isOpX<TRUE> (act));
@@ -607,14 +607,14 @@ namespace seahorn
     v.visit (const_cast<BasicBlock&>(bb));
   }
 
-  void ClpSmallSymExec::exec (SymStore &s, const Instruction &inst, ExprVector &side)
+  void ClpOpSem::exec (SymStore &s, const Instruction &inst, ExprVector &side)
   {
     SymExecVisitor v (s, *this, side);
     v.visit (const_cast<Instruction&>(inst));
   }
 
 
-  void ClpSmallSymExec::execPhi (SymStore &s, const BasicBlock &bb,
+  void ClpOpSem::execPhi (SymStore &s, const BasicBlock &bb,
                                  const BasicBlock &from, ExprVector &side, Expr act)
   {
     assert (isOpX<TRUE> (act));
@@ -622,7 +622,7 @@ namespace seahorn
     v.visit (const_cast<BasicBlock&>(bb));
   }
 
-  Expr ClpSmallSymExec::ptrArith (SymStore &s,
+  Expr ClpOpSem::ptrArith (SymStore &s,
                                   const Value &base,
                                   SmallVectorImpl<const Value*> &ps,
                                   SmallVectorImpl<const Type*> &ts)
@@ -650,15 +650,15 @@ namespace seahorn
     return res;
   }
 
-  unsigned ClpSmallSymExec::storageSize (const llvm::Type *t)
+  unsigned ClpOpSem::storageSize (const llvm::Type *t)
   {return m_td->getTypeStoreSize (const_cast<Type*> (t));}
 
-  unsigned ClpSmallSymExec::fieldOff (const StructType *t, unsigned field)
+  unsigned ClpOpSem::fieldOff (const StructType *t, unsigned field)
   {
     return m_td->getStructLayout (const_cast<StructType*>(t))->getElementOffset (field);
   }
 
-  Expr ClpSmallSymExec::symb (const Value &I)
+  Expr ClpOpSem::symb (const Value &I)
   {
     // -- basic blocks are mapped to Bool constants
     if (const BasicBlock *bb = dyn_cast<const BasicBlock> (&I))
@@ -719,7 +719,7 @@ namespace seahorn
     return Expr(0);
   }
 
-  const Value &ClpSmallSymExec::conc (Expr v)
+  const Value &ClpOpSem::conc (Expr v)
   {
     assert (isOpX<FAPP> (v));
     // name of the app
@@ -731,7 +731,7 @@ namespace seahorn
   }
 
 
-  bool ClpSmallSymExec::isTracked (const Value &v)
+  bool ClpOpSem::isTracked (const Value &v)
   {
     const Value* scalar;
 
@@ -745,7 +745,7 @@ namespace seahorn
     return v.getType ()->isIntegerTy ();
   }
 
-  Expr ClpSmallSymExec::lookup (SymStore &s, const Value &v)
+  Expr ClpOpSem::lookup (SymStore &s, const Value &v)
   {
     Expr u = symb (v);
     // if u is defined it is either an fapp or a constant
@@ -753,7 +753,7 @@ namespace seahorn
     return Expr (0);
   }
 
-  void ClpSmallSymExec::execEdg (SymStore &s, const BasicBlock &src,
+  void ClpOpSem::execEdg (SymStore &s, const BasicBlock &src,
                                  const BasicBlock &dst, ExprVector &side)
   {
     Expr trueE = mk<TRUE> (m_efac);
@@ -767,7 +767,7 @@ namespace seahorn
 
   }
 
-  void ClpSmallSymExec::execBr (SymStore &s, const BasicBlock &src, const BasicBlock &dst,
+  void ClpOpSem::execBr (SymStore &s, const BasicBlock &src, const BasicBlock &dst,
                                 ExprVector &side, Expr act)
   {
     assert (isOpX<TRUE> (act));

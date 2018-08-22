@@ -7,7 +7,7 @@
 
 #include "ufo/Expr.hpp"
 #include "seahorn/SymStore.hh"
-#include "seahorn/SymExec.hh"
+#include "seahorn/OpSem.hh"
 
 namespace seahorn
 {

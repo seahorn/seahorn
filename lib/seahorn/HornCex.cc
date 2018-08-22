@@ -193,7 +193,7 @@ bool HornCex::runOnFunction(Module &M, Function &F) {
   // -- HornSolver
   ExprFactory &efac = hm.getExprFactory();
 
-  UfoSmallSymExec semUfo(efac, *this, M.getDataLayout(), MEM);
+  UfoOpSem semUfo(efac, *this, M.getDataLayout(), MEM);
   BvSmallSymExec semBv(efac, *this, M.getDataLayout(), MEM);
 
   OpSem *sem = UseBv ? static_cast<OpSem *>(&semBv)

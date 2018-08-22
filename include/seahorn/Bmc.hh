@@ -10,7 +10,7 @@
 #include "ufo/Smt/EZ3.hh"
 
 #include "seahorn/Analysis/CutPointGraph.hh"
-#include "seahorn/SymExec.hh"
+#include "seahorn/OpSem.hh"
 
 namespace seahorn
 {

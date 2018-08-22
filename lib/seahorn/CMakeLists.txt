@@ -2,7 +2,7 @@ add_llvm_library (seahorn.LIB
   LoadCrab.cc
   LiveSymbols.cc
   SymStore.cc
-  SymExec.cc
+  OpSem.cc
   UfoSymExec.cc
   ClpSymExec.cc
   HornifyModule.cc

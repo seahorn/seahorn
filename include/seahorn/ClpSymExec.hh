@@ -5,7 +5,7 @@
 
 #include "llvm/Pass.h"
 #include "llvm/IR/DataLayout.h"
-#include "seahorn/SymExec.hh"
+#include "seahorn/OpSem.hh"
 #include "seahorn/Analysis/CanFail.hh"
 
 namespace seahorn

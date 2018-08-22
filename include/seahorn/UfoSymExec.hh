@@ -4,13 +4,22 @@
 #include "llvm/Pass.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/IR/DataLayout.h"
-#include "seahorn/SymExec.hh"
+#include "seahorn/OpSem.hh"
 #include "seahorn/Analysis/CanFail.hh"
 
 namespace seahorn
 {
-  /// Small step symbolic execution for integers based on UFO semantics
-  class UfoSmallSymExec : public OpSem
+  /**
+   * Operational semantics for LLVM based on one from UFO
+   * This has evolved significantly from the original UFO semantics.
+   *
+   * All numeric types are represented by arbitrary precision integers
+   * Memory is represented by arrays indexed by arbitrary precision integers
+   *
+   * This semantics is not very accurate. Should not be used for
+   * low-level bit-precise reasoning.
+   */
+  class UfoOpSem : public OpSem
   {
     Pass &m_pass;
     TrackLevel m_trackLvl;
@@ -24,7 +33,7 @@ namespace seahorn
     const CanFail *m_canFail;
 
   public:
-    UfoSmallSymExec (ExprFactory &efac, Pass &pass, const DataLayout &dl,
+    UfoOpSem (ExprFactory &efac, Pass &pass, const DataLayout &dl,
                      TrackLevel trackLvl = MEM,
                      FunctionPtrSet abs_fns = FunctionPtrSet ()) :
       OpSem (efac), m_pass (pass),
@@ -32,7 +41,7 @@ namespace seahorn
     {
       m_canFail = pass.getAnalysisIfAvailable<CanFail> ();
     }
-    UfoSmallSymExec (const UfoSmallSymExec& o) :
+    UfoOpSem (const UfoOpSem& o) :
       OpSem (o), m_pass (o.m_pass),
       m_trackLvl (o.m_trackLvl), m_abs_funcs (o.m_abs_funcs),
       m_td (o.m_td), m_canFail (o.m_canFail) {}

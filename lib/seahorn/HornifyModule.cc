@@ -92,19 +92,19 @@ namespace seahorn
   struct FunctionNameMatcher :
     public std::unary_function<const Function&, bool> {
     boost::optional <std::regex> m_re;
-    FunctionNameMatcher (std::string s) { 
+    FunctionNameMatcher (std::string s) {
       if (s != "")
       {
   	try
-  	{ m_re = std::regex (s);  }  
-  	catch (std::regex_error& e) 
+  	{ m_re = std::regex (s);  }
+  	catch (std::regex_error& e)
   	{ errs () << "Warning: syntax error in the regex: "
 		  << e.what () << "\n"; }
       }
     }
     bool operator() (const Function &fn)  {
       if (!m_re) return false;  // this should not happen
-      auto fn_name = fn.getName().str() ;  
+      auto fn_name = fn.getName().str() ;
       return std::regex_match (fn_name, *m_re);
     }
   };
@@ -131,17 +131,17 @@ namespace seahorn
     m_td = &M.getDataLayout();
     m_canFail = getAnalysisIfAvailable<CanFail> ();
 
-    typename UfoSmallSymExec::FunctionPtrSet abs_fns;
+    typename UfoOpSem::FunctionPtrSet abs_fns;
     if (!AbstractFunctions.empty ()) {
       for (auto &F: M)
 	if (shouldBeAbstracted (F)) abs_fns.insert(&F);
     }
-    
-    if (Step == hm_detail::CLP_SMALL_STEP || 
+
+    if (Step == hm_detail::CLP_SMALL_STEP ||
         Step == hm_detail::CLP_FLAT_SMALL_STEP)
       m_sem.reset (new ClpSmallSymExec (m_efac, *this, M.getDataLayout(), TL));
     else
-      m_sem.reset (new UfoSmallSymExec (m_efac, *this, M.getDataLayout(), TL, abs_fns));
+      m_sem.reset (new UfoOpSem (m_efac, *this, M.getDataLayout(), TL, abs_fns));
 
     Function *main = M.getFunction ("main");
     if (!main)
@@ -192,11 +192,11 @@ namespace seahorn
       return Changed;
     }
 
-    
+
     if (!NoVerification)
     {
-      // --- expensive check that iterates over all callsites 
-      Function* errorFn = M.getFunction ("verifier.error");            
+      // --- expensive check that iterates over all callsites
+      Function* errorFn = M.getFunction ("verifier.error");
       for (auto &fn: M)
 	for (auto &I : boost::make_iterator_range (inst_begin(fn), inst_end(fn))) {
 	  if (!isa<CallInst> (&I)) continue;
@@ -210,7 +210,7 @@ namespace seahorn
 	  }
 	}
     }
-    
+
     // create FunctionInfo for verifier.error() function
     if (Function* errorFn = M.getFunction ("verifier.error"))
     {
@@ -350,8 +350,8 @@ namespace seahorn
     // XXX: between we run LiveSymbols and hornify function (see
     // below) the CFG can change because the construction of the
     // cutpoint graph calls a pass that unifies return nodes that
-    // ultimately might change the CFG. 
-    // 
+    // ultimately might change the CFG.
+    //
     // This is a temporary hook to force computing the cutpoint graph
     // (and unifying return nodes) before computing liveness so that
     // we make sure the CFG does not change between LiveSymbols and

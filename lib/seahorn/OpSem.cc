@@ -1,17 +1,17 @@
-#include "seahorn/SymExec.hh"
+#include "seahorn/OpSem.hh"
 
 using namespace seahorn;
 
 namespace
 {
-  struct SymExecBase
+  struct OpSemBase
   {
     SymStore &m_s;
     ExprFactory &m_efac;
     IntLightOpSem &m_sem;
 
 
-    SymExecBase (SymStore &s, IntLightOpSem &sem) :
+    OpSemBase (SymStore &s, IntLightOpSem &sem) :
       m_s(s), m_efac (s.getExprFactory ()), m_sem (sem) {}
 
     void read (const Value &v)
@@ -24,10 +24,10 @@ namespace
   };
 
 
-  struct SymExecVisitor : public InstVisitor<SymExecVisitor> ,
-                          SymExecBase
+  struct OpSemVisitor : public InstVisitor<OpSemVisitor> ,
+                          OpSemBase
   {
-    SymExecVisitor (SymStore &s, IntLightOpSem &sem) : SymExecBase (s, sem) {}
+    OpSemVisitor (SymStore &s, IntLightOpSem &sem) : OpSemBase (s, sem) {}
 
     void visitInstruction (Instruction &I) {havoc (I);}
 
@@ -58,13 +58,13 @@ namespace
     }
   };
 
-  struct SymExecPhiVisitor : public InstVisitor<SymExecPhiVisitor>,
-                             SymExecBase
+  struct OpSemPhiVisitor : public InstVisitor<OpSemPhiVisitor>,
+                             OpSemBase
   {
     const BasicBlock &m_dst;
 
-    SymExecPhiVisitor (SymStore &s, IntLightOpSem &sem, const BasicBlock &dst) :
-      SymExecBase (s, sem), m_dst (dst) {}
+    OpSemPhiVisitor (SymStore &s, IntLightOpSem &sem, const BasicBlock &dst) :
+      OpSemBase (s, sem), m_dst (dst) {}
 
     void visitPHINode (PHINode &I)
     {
@@ -79,13 +79,13 @@ namespace seahorn
 {
   void IntLightOpSem::exec (SymStore &s, const BasicBlock &bb, ExprVector &side)
   {
-    SymExecVisitor v(s, *this);
+    OpSemVisitor v(s, *this);
     v.visit (const_cast<BasicBlock&>(bb));
   }
 
   void IntLightOpSem::exec (SymStore &s, const Instruction &inst, ExprVector &side)
   {
-    SymExecVisitor v (s, *this);
+    OpSemVisitor v (s, *this);
     v.visit (const_cast<Instruction&>(inst));
   }
 
@@ -93,7 +93,7 @@ namespace seahorn
   void IntLightOpSem::execPhi (SymStore &s, const BasicBlock &bb,
                                  const BasicBlock &from, ExprVector &side)
   {
-    SymExecPhiVisitor v(s, *this, from);
+    OpSemPhiVisitor v(s, *this, from);
     v.visit (const_cast<BasicBlock&>(bb));
   }
 

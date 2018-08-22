@@ -5,7 +5,7 @@
 #include "llvm/Support/CommandLine.h"
 
 // If enabled then crab invariants are added as lemmas.
-// Otherwise, they are added as invariants. 
+// Otherwise, they are added as invariants.
 static llvm::cl::opt<bool>
 AddExtLemmas ("horn-add-lemmas", llvm::cl::Hidden, llvm::cl::init(false),
 	      llvm::cl::desc ("Add crab invariants as external lemmas"));
@@ -38,7 +38,7 @@ namespace seahorn
 #include "ufo/ExprLlvm.hpp"
 
 #include "seahorn/HornifyModule.hh"
-#include "seahorn/SymExec.hh"
+#include "seahorn/OpSem.hh"
 #include "seahorn/Transforms/Instrumentation/ShadowMemDsa.hh"
 
 #include "crab_llvm/CrabLlvm.hh"
@@ -46,7 +46,7 @@ namespace seahorn
 #include "crab_llvm/wrapper_domain.hh"
 
 namespace crab_llvm {
-  
+
   using namespace llvm;
   using namespace expr;
   using namespace seahorn;
@@ -58,41 +58,41 @@ namespace crab_llvm {
   // translated to true. For instance, Crab generates shadow variables
   // representing DSA nodes that are not translated with the exception
   // of global singletons.
-  class DisIntervalToExpr;  
+  class DisIntervalToExpr;
   class LinConsToExprImpl
   {
     friend class DisIntervalToExpr;
-    
+
    public:
 
     // Crab does not distinguish between bools and the rest of
     // integers but SeaHorn does.
-    
+
     // A normalizer for Boolean constraints
-    class BoolCst 
+    class BoolCst
     {
       typedef enum {T_TRUE, T_FALSE, T_TOP} tribool_t;
-      
+
       tribool_t      m_val;
-      
+
       // internal representation:
       // constraint is of the form m_coef*m_var {<=,==} m_rhs
       // m_coef and m_rhs can be negative numbers.
-      
+
       number_t m_coef;
       const Value*   m_var;
       bool           m_is_eq; //tt:equality, ff:inequality
       number_t m_rhs;
-      
+
      public:
-      
+
       // If cst is a constraint of the form x<=c where x is a LLVM
       // Value of type i1 then return x, otherwise null.
       static const Value* isBoolCst (lin_cst_t cst)
       {
         if (cst.is_disequation ()) return nullptr;
         auto e = cst.expression() - cst.expression().constant();
-        if (std::distance (e.begin (), e.end ()) != 1) return nullptr; 
+        if (std::distance (e.begin (), e.end ()) != 1) return nullptr;
         auto t = *(e.begin ());
         varname_t v = t.second.name();
 
@@ -100,17 +100,17 @@ namespace crab_llvm {
           return nullptr;
 
         if ( (*(v.get ()))->getType ()->isIntegerTy (1))
-          return *(v.get ()); 
-        else 
-          return nullptr; 
+          return *(v.get ());
+        else
+          return nullptr;
       }
-      
+
       BoolCst (lin_cst_t cst): m_val (T_TOP),
-			       m_coef (0), m_rhs (0), 
+			       m_coef (0), m_rhs (0),
 			       m_var (nullptr), m_is_eq (cst.is_equality ())
       {
         assert (isBoolCst (cst));
-        
+
         auto e = cst.expression() - cst.expression().constant();
         auto t = *(e.begin ());
         assert (t.second.name ().get ());
@@ -118,7 +118,7 @@ namespace crab_llvm {
         m_var  = *(t.second.name ().get ());
         m_coef = t.first;
         m_rhs  = -cst.expression().constant();
-        
+
         if (m_is_eq)
         {
           if (m_rhs == 0)                        /* k*x == 0 for any k*/
@@ -129,7 +129,7 @@ namespace crab_llvm {
           { m_val = T_TRUE; }
         }
       }
-      
+
       // Conjoin two boolean constraints
       void operator+= (BoolCst other)
       {
@@ -137,47 +137,47 @@ namespace crab_llvm {
         // would be false.
         assert (!(m_val == T_TRUE  && other.m_val == T_FALSE));
         assert (!(m_val == T_FALSE && other.m_val == T_TRUE));
-        
-        if (m_val != T_TOP && other.m_val == T_TOP) 
-          return; 
+
+        if (m_val != T_TOP && other.m_val == T_TOP)
+          return;
         if (m_val == T_TOP && other.m_val != T_TOP)
-        { 
-          m_val = other.m_val; 
-          return;  
+        {
+          m_val = other.m_val;
+          return;
         }
-        
+
         if (!m_is_eq && !other.m_is_eq) // both are inequalities
         {
-          
+
           if ( ( (m_coef == 1 && m_rhs == 0) &&               /* x <= 0*/
-                 (other.m_coef == -1 && other.m_rhs == 0)) || /*-x <= 0*/ 
+                 (other.m_coef == -1 && other.m_rhs == 0)) || /*-x <= 0*/
                ( (m_coef == -1 && m_rhs == 0) &&              /*-x <= 0*/
                  (other.m_coef == 1 && other.m_rhs == 0)))    /* x <= 0*/
           { m_val = T_FALSE; }
           else if ( ((m_coef == 1 && m_rhs == 1) &&                /*x <= 1*/
-                     (other.m_coef == -1 && other.m_rhs == -1)) || /*-x <=-1*/ 
+                     (other.m_coef == -1 && other.m_rhs == -1)) || /*-x <=-1*/
                     ((m_coef == -1 && m_rhs == -1) &&              /*-x <=-1*/
                      (other.m_coef == 1 && other.m_rhs == 1)))     /*x <= 1*/
-          {  m_val = T_TRUE; } 
+          {  m_val = T_TRUE; }
         }
       }
-      
+
       bool isUnknown () const { return m_val == T_TOP; }
-      
-      Expr toExpr (ExprFactory &efac) const 
+
+      Expr toExpr (ExprFactory &efac) const
       {
         if (isUnknown ()) return mk<TRUE>(efac);
-        
+
         Expr e = mkTerm<const Value*>(m_var, efac);
         e = bind::boolConst (e);
         if (m_val == T_FALSE) return mk<NEG> (e);
         else return e;
         }
-      
+
     };
 
    private:
-    
+
     typedef DenseMap<const Value*, BoolCst> bool_map_t;
 
     HeapAbstraction& m_heap_abs;
@@ -192,7 +192,7 @@ namespace crab_llvm {
       const mpz_class mpz ((mpz_class) n);
       return mkTerm (mpz, efac);
     }
-    
+
     Expr exprFromIntVar (varname_t v, ExprFactory &efac)
     {
       if (!(v.get ())) {
@@ -201,7 +201,7 @@ namespace crab_llvm {
         // TODO: v.get() method only returns a non-null value if v
         // contains a const Value*. Otherwise, it means that v refers
         // to a shadow variable which is not currently translated.
-        return nullptr; 
+        return nullptr;
       }
       const Value* V = *(v.get());
       if (const Value* Gv =
@@ -233,8 +233,8 @@ namespace crab_llvm {
         }
         // We could not translate the global singleton cell
         return nullptr;
-      } 
-      else 
+      }
+      else
       {
         // -- If here then v can be mapped directly to a llvm value
         //    after we check v is live. This is needed because we do
@@ -243,27 +243,27 @@ namespace crab_llvm {
         if (m_live_values.count (V) > 0) {
           return bind::intConst (mkTerm<const Value*> (V, efac));
         } else {
-          return nullptr; 
+          return nullptr;
         }
       }
     }
-    
+
    public:
-    
+
     LinConsToExprImpl (HeapAbstraction& heap_abs, const llvm::Function& f, const ExprVector &live)
-      : m_heap_abs(heap_abs), m_func(f), m_live (live) {  
+      : m_heap_abs(heap_abs), m_func(f), m_live (live) {
       for (auto v: m_live) {
         Expr u = bind::fname (bind::fname (v));
-        if (isOpX<VALUE> (u)) 
+        if (isOpX<VALUE> (u))
           m_live_values.insert (getTerm <const Value*> (u));
       }
-    }      
-    
+    }
+
     Expr toExpr (lin_cst_t cst, ExprFactory &efac) {
-      if (cst.is_tautology ())     
+      if (cst.is_tautology ())
         return mk<TRUE> (efac);
-      
-      if (cst.is_contradiction ()) 
+
+      if (cst.is_contradiction ())
         return mk<FALSE> (efac);
 
       // booleans
@@ -276,11 +276,11 @@ namespace crab_llvm {
           BoolCst &b1 = it->second;
           b1 += b2;
         }
-        else { bool_map.insert (std::make_pair (v, b2)); } 
-        
+        else { bool_map.insert (std::make_pair (v, b2)); }
+
         return mk<TRUE> (efac); // we ignore cst for now
       }
-      
+
       // integers
       auto e = cst.expression() - cst.expression().constant();
       Expr ee = exprFromNum (number_t("0"), efac);
@@ -288,9 +288,9 @@ namespace crab_llvm {
       {
         number_t n = t.first;
         if (n == 0) continue;
-        
+
         Expr v = exprFromIntVar (t.second.name(), efac);
-        if (!v) { 
+        if (!v) {
           // We could not translate Crab variable.
           return mk<TRUE> (efac);
         }
@@ -300,52 +300,52 @@ namespace crab_llvm {
         } else if (n == -1)  {
           ee = mk<MINUS> (ee, v);
         } else {
-          ee = mk<PLUS> (ee, mk<MULT> (exprFromNum (n, efac), v)); 
+          ee = mk<PLUS> (ee, mk<MULT> (exprFromNum (n, efac), v));
         }
       }
-      
+
       number_t c = -cst.expression().constant();
       Expr cc = exprFromNum (c, efac);
       if (cst.is_inequality ())
         return mk<LEQ> (ee, cc);
       else if (cst.is_equality ())
-        return mk<EQ> (ee, cc);        
-      else 
+        return mk<EQ> (ee, cc);
+      else
         return mk<NEQ> (ee, cc);
-      
+
     }
-    
+
     Expr toExpr (lin_cst_sys_t csts, ExprFactory &efac)
     {
       Expr e = mk<TRUE> (efac);
-      
+
       // integers
       for (auto cst: csts)
-      { e = boolop::land (e, toExpr (cst, efac)); } 
-      
-      // booleans 
+      { e = boolop::land (e, toExpr (cst, efac)); }
+
+      // booleans
       for (auto p: bool_map)
       {
         auto b = p.second;
         if (!b.isUnknown ()) { e = boolop::land (e, b.toExpr (efac)); }
       }
-      
+
       return e;
     }
   };
-  
+
   // Conversion from boxes domain to Expr
   class BoxesToExpr
   {
     typedef typename boxes_domain_t::varname_t varname_t;
     typedef typename boxes_domain_t::number_t number_t;
     LinConsToExprImpl m_t;
-    
+
   public:
-    
+
     BoxesToExpr(HeapAbstraction& heap_abs, const llvm::Function& f, const ExprVector &live)
-      : m_t(heap_abs, f, live) {} 
-          
+      : m_t(heap_abs, f, live) {}
+
     Expr toExpr (boxes_domain_t inv, ExprFactory &efac) {
       auto csts = inv.to_disjunctive_linear_constraint_system ();
       if (csts.is_false ())
@@ -362,32 +362,32 @@ namespace crab_llvm {
       }
     }
   };
-  
+
   // Conversion from domain of disjunctive intervals to Expr
   class DisIntervalToExpr
   {
     typedef typename dis_interval_domain_t::interval_t interval_t;
     typedef typename dis_interval_domain_t::varname_t varname_t;
     typedef typename dis_interval_domain_t::number_t number_t;
-    
+
     LinConsToExprImpl m_t;
-    
+
   public:
-    
+
     DisIntervalToExpr(HeapAbstraction& heap_abs, const llvm::Function& f, const ExprVector &live)
       : m_t(heap_abs, f, live) {}
-    
+
     Expr toExpr (dis_interval_domain_t inv, ExprFactory &efac) {
       if (inv.is_top ())
 	return mk<TRUE> (efac);
-      
+
       if (inv.is_bottom ())
 	return mk<FALSE> (efac);
-      
+
        Expr e = mk<TRUE> (efac);
        // bit ugly: dis_interval_domain_t is wrapped into array smashing.
        // That's why we need to call first get_contain_domain().
-       auto &dis_intvs = inv.get_content_domain().second(); 
+       auto &dis_intvs = inv.get_content_domain().second();
        for (auto p: boost::make_iterator_range (dis_intvs.begin (), dis_intvs.end ())) {
 	 Expr d = mk<FALSE> (efac);
 	 for (auto i: boost::make_iterator_range (p.second.begin (), p.second.end ())) {
@@ -397,23 +397,23 @@ namespace crab_llvm {
        }
        return e;
     }
-    
-  private:   
-    
+
+  private:
+
     Expr intervalToExpr (varname_t v, interval_t i, ExprFactory &efac) {
-      
+
       if (i.is_top ())
 	return mk<TRUE> (efac);
-      
+
       if (i.is_bottom ())
 	return mk<FALSE> (efac);
-      
+
       Expr e = m_t.exprFromIntVar (v, efac);
       if (!e) {
 	// we could not translate the crab variable
 	return mk<TRUE> (efac);
       }
-      
+
       if (i.lb ().is_finite () && i.ub ().is_finite ()) {
 	auto lb = *(i.lb ().number());
 	auto ub = *(i.ub ().number());
@@ -424,21 +424,21 @@ namespace crab_llvm {
 			  mk<LEQ> (e, m_t.exprFromNum (ub, efac)));
 	}
       }
-      
+
       if (i.lb ().is_finite ()) {
 	auto lb = *(i.lb ().number());
 	return mk<GEQ> (e, m_t.exprFromNum (lb, efac));
       }
-      
+
       if (i.ub ().is_finite ()) {
 	auto ub = *(i.ub ().number());
           return mk<LEQ> (e, m_t.exprFromNum (ub, efac));
       }
       // this should be unreachable
       return mk<TRUE> (efac);
-    }    
+    }
   };
-  
+
 } // end namespace crab_llvm
 
 
@@ -447,16 +447,16 @@ namespace seahorn
   using namespace llvm;
   using namespace crab_llvm;
   using namespace expr;
-  
+
   // Translate a range of Expr variables to Crab variables but only
   // those that can be mapped to llvm value.
   template<typename Range>
-  static std::vector<crab_llvm::var_t> ExprVecToCrab (const Range & live, CrabLlvmPass* Crab) { 
+  static std::vector<crab_llvm::var_t> ExprVecToCrab (const Range & live, CrabLlvmPass* Crab) {
     std::vector<crab_llvm::var_t> res;
-    for (auto l: live) 
+    for (auto l: live)
     {
       Expr u = bind::fname (bind::fname (l));
-      if (isOpX<VALUE> (u)) 
+      if (isOpX<VALUE> (u))
       {
         const Value* v = getTerm <const Value*> (u);
         if (isa<GlobalVariable> (v)) continue;
@@ -471,41 +471,41 @@ namespace seahorn
   LinConsToExpr::LinConsToExpr(HeapAbstraction &heap, const llvm::Function& f,
 			       const ExprVector &live)
     : m_impl(new LinConsToExprImpl(heap, f, live)) {}
-  
+
   LinConsToExpr::~LinConsToExpr() {
     delete m_impl;
   }
-  
+
   Expr LinConsToExpr::toExpr(lin_cst_t cst, ExprFactory &efac) {
     return m_impl->toExpr(cst, efac);
   }
-  
-  Expr CrabInvToExpr (llvm::BasicBlock* B, CrabLlvmPass* crab, const ExprVector &live, 
-                      EZ3& zctx, ExprFactory &efac) { 
-                      
+
+  Expr CrabInvToExpr (llvm::BasicBlock* B, CrabLlvmPass* crab, const ExprVector &live,
+                      EZ3& zctx, ExprFactory &efac) {
+
     Expr e = mk<TRUE> (efac);
     auto abs = crab->get_pre(B);
     if (!abs) {
       return e;
     }
-      
+
     // TODO: note we don't project an arbitrary abstract domain onto
     // live variables because some abstract domains might not have a
     // precise implementation for it.
-    
+
     if (abs->getId () == GenericAbsDomWrapper::id_t::boxes) {
       // --- special translation for boxes
       boxes_domain_t boxes;
-      getAbsDomWrappee (abs, boxes);        
+      getAbsDomWrappee (abs, boxes);
       // Here we do project onto live variables before translation
       std::vector<crab_llvm::var_t> vars = ExprVecToCrab(live, crab);
       crab::domains::domain_traits<boxes_domain_t>::project(boxes, vars.begin(), vars.end());
-      BoxesToExpr t(*(crab->get_heap_abstraction()), *(B->getParent()), live);      
+      BoxesToExpr t(*(crab->get_heap_abstraction()), *(B->getParent()), live);
       e = t.toExpr (boxes, efac);
     } else if (abs->getId () == GenericAbsDomWrapper::id_t::dis_intv) {
       // --- special translation of disjunctive interval constraints
       dis_interval_domain_t inv;
-      getAbsDomWrappee (abs, inv);        
+      getAbsDomWrappee (abs, inv);
       DisIntervalToExpr t(*(crab->get_heap_abstraction()), *(B->getParent()), live);
       e = t.toExpr (inv, efac);
     } else {
@@ -513,9 +513,9 @@ namespace seahorn
       LinConsToExprImpl t(*(crab->get_heap_abstraction()), *(B->getParent()), live);
       e = t.toExpr (abs->to_linear_constraints (), efac);
     }
-        
+
     if ((std::distance (live.begin (),live.end ()) == 0) && (!isOpX<FALSE> (e))) {
-      e = mk<TRUE> (efac); 
+      e = mk<TRUE> (efac);
     }
 
     return e;
@@ -532,42 +532,42 @@ namespace seahorn
   {
     HornifyModule &hm = getAnalysis<HornifyModule> ();
     CrabLlvmPass &crab = getAnalysis<CrabLlvmPass> ();
-    
+
     auto &db = hm.getHornClauseDB ();
 
     for (auto &BB : F)
     {
       // skip all basic blocks that HornifyModule does not know
       if (! hm.hasBbPredicate (BB)) continue;
-      
+
       const ExprVector &live = hm.live (BB);
 
       Expr exp = CrabInvToExpr (&BB, &crab, live,
                                 hm.getZContext (), hm.getExprFactory ());
-                                
+
       Expr pred = hm.bbPredicate (BB);
 
-      LOG ("crab", 
+      LOG ("crab",
            errs () << "Loading invariant " << *bind::fname (pred);
            errs () << "("; for (auto v: live) errs () << *v << " ";
            errs () << ")  "  << *exp << "\n"; );
-           
+
       if (AddExtLemmas)
 	db.addConstraint(bind::fapp (pred, live), exp);
       else
 	db.addInvariant (bind::fapp (pred, live), exp);
-      
-    }    
+
+    }
     return false;
   }
-  
-  
+
+
   void LoadCrab::getAnalysisUsage (AnalysisUsage &AU) const
   {
     AU.setPreservesAll ();
     AU.addRequired<HornifyModule> ();
     AU.addRequired<CrabLlvmPass> ();
   }
-  
+
 } // end namespace seahorn
 #endif

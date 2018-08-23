@@ -157,6 +157,11 @@ BmcEngine("horn-bmc-engine",
 	  llvm::cl::init (seahorn::bmc_engine_t::mono_bmc));
 
 static llvm::cl::opt<bool>
+BoogieOutput ("boogie",
+            llvm::cl::desc ("Translate llvm bitcode to boogie"),
+	    llvm::cl::init(false));
+
+static llvm::cl::opt<bool>
 OneAssumePerBlock ("horn-one-assume-per-block", 
                    llvm::cl::desc ("Make sure there is at most one call to verifier.assume per block"), 
                    llvm::cl::init (false));
@@ -319,22 +324,22 @@ int main(int argc, char **argv) {
     pass_manager.add (seahorn::createOneAssumePerBlockPass ());
   }
 
-#ifdef HAVE_CRAB_LLVM
-  if (Crab)
+  #ifdef HAVE_CRAB_LLVM
+  if (Crab && !BoogieOutput)
   {
     /// -- insert invariants in the bitecode
     pass_manager.add (new crab_llvm::InsertInvariants ());
     /// -- simplify invariants added in the bitecode
     // pass_manager.add (seahorn::createInstCombine ());
   }
-#endif
+  #endif
 
   // --- verify if an undefined value can be read
   pass_manager.add (seahorn::createCanReadUndefPass ());
 
   // Z3_open_log("log.txt");
 
-  if (!Bmc)
+  if (!Bmc && !BoogieOutput)
     pass_manager.add (new seahorn::HornifyModule ());
 
   // FIXME: if StripShadowMemPass () is executed then DsaPrinterPass
@@ -365,6 +370,16 @@ int main(int argc, char **argv) {
     if (!OutputFilename.empty ()) out = &output->os ();
     pass_manager.add (seahorn::createBmcPass (BmcEngine, out, Solve));
   }
+  else if (BoogieOutput)
+  {
+    llvm::raw_ostream *out = nullptr;
+    if (!OutputFilename.empty ()) {
+      out = &output->os ();
+    } else {
+      out = &llvm::outs();
+    }
+    pass_manager.add (seahorn::createBoogieWriterPass (out, Crab));
+  }
   else
   {
     if (!OutputFilename.empty ()) pass_manager.add (new seahorn::HornWrite (output->os ()));
@@ -376,8 +391,7 @@ int main(int argc, char **argv) {
           if (Cex) pass_manager.add (new seahorn::HornCex (BmcEngine));
     }
   }
-  
-  
+    
   pass_manager.run(*module.get());
 
   if (!AsmOutputFilename.empty ()) asmOutput->keep ();

@@ -23,6 +23,7 @@ def main (argv):
             sea.commands.Seaopt(),
             sea.commands.Seahorn(),
             sea.commands.SeahornClp(),
+            sea.commands.Boogie,
             sea.commands.FrontEnd,
             sea.commands.LegacyFrontEnd(),
             sea.commands.CrabInst(),

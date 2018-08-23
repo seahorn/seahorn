@@ -82,23 +82,25 @@ namespace seahorn
   llvm::Pass* createWrapMemPass ();
   llvm::Pass* createRenameNondetPass();
 
-    llvm::Pass* createMixedSemanticsPass();
-    llvm::Pass* createRemoveUnreachableBlocksPass();
-
-    llvm::Pass* createLowerGvInitializersPass();
-    llvm::Pass* createLowerCstExprPass();
-
-    llvm::Pass* createNullCheckPass();
-
-    llvm::Pass *createGlobalBufferBoundsCheck();
-    llvm::Pass *createLocalBufferBoundsCheck();
-    llvm::Pass *createGlobalCBufferBoundsCheckPass();
-
-    llvm::Pass* createSimpleMemoryCheckPass();
-
-    llvm::Pass* createCanFailPass();
-
+  llvm::Pass* createMixedSemanticsPass();
+  llvm::Pass* createRemoveUnreachableBlocksPass();
+  
+  llvm::Pass* createLowerGvInitializersPass();
+  llvm::Pass* createLowerCstExprPass();
+  
+  llvm::Pass* createNullCheckPass();
+  
+  llvm::Pass *createGlobalBufferBoundsCheck();
+  llvm::Pass *createLocalBufferBoundsCheck();
+  llvm::Pass *createGlobalCBufferBoundsCheckPass();
+  
+  llvm::Pass* createSimpleMemoryCheckPass();
+  
+  llvm::Pass* createCanFailPass();
+  
   llvm::FunctionPass* createPromoteMemcpyPass();
+
+  llvm::Pass* createBoogieWriterPass(llvm::raw_ostream* out, bool use_crab);
 }
 
 #ifdef HAVE_LLVM_SEAHORN

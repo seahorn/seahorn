@@ -913,11 +913,12 @@ def _is_seahorn_opt (x):
     return False
 
 class Seahorn(sea.LimitedCmd):
-    def __init__ (self, solve=False, quiet=False):
+    def __init__ (self, solve=False, enable_boogie = False, quiet=False):
         super (Seahorn, self).__init__ ('horn', 'Generate (and solve) ' +
                                         'Constrained Horn Clauses in SMT-LIB format',
                                         allow_extra=True)
         self.solve = solve
+        self.enable_boogie = enable_boogie
         
     @property
     def stdout (self):
@@ -992,9 +993,13 @@ class Seahorn(sea.LimitedCmd):
         if args.crab:
             argv.append ('--horn-crab')
 
+        if self.enable_boogie:
+            argv.append ('--boogie')
+            # the translation uses crab to add invariants: disable crab warnings
+            argv.append ('--crab-disable-warnings')
+            
         if args.solve or args.out_file is not None:
             argv.append ('--keep-shadows=true')
-
 
         if args.dsa != 'llvm':
             if "--dsa-stats" in extra:
@@ -1043,7 +1048,7 @@ class Seahorn(sea.LimitedCmd):
         if args.out_file is not None: argv.extend (['-o', args.out_file])
         argv.extend (args.in_files)
 
-        # pick out extra seahorn options
+        # pick out extra seahorn/crab options
         sea_argv = filter (_is_seahorn_opt, extra)
         if not quiet and len(sea_argv) <> len(extra):
             print ('WARNING: Ignoring unknown options:',
@@ -1110,12 +1115,11 @@ class SeahornClp(sea.LimitedCmd):
         if args.out_file is not None: argv.extend (['-o', args.out_file])
         argv.extend (args.in_files)
 
-        # pick out extra seahorn options
+        # pick out extra seahorn/crab options
         argv.extend (filter (_is_seahorn_opt, extra))
 
-
         return self.seahornCmd.run (args, argv)
-
+    
 class LegacyFrontEnd (sea.LimitedCmd):
     def __init__ (self, quiet=False):
         super (LegacyFrontEnd, self).__init__ ('lfe', allow_extra=True)
@@ -1198,7 +1202,7 @@ class CrabInst (sea.LimitedCmd):
         if args.out_file is not None: argv.extend (['-oll', args.out_file])
         argv.extend (args.in_files)
 
-        # pick out extra seahorn options
+        # pick out extra seahorn/crab options
         argv.extend (filter (_is_seahorn_opt, extra))
 
         return self.seappCmd.run (args, argv)
@@ -1379,7 +1383,7 @@ class InspectBitcode(sea.LimitedCmd):
                 argv.extend (['--sea-dsa=cs'])
 
         argv.extend (args.in_files)
-        # pick out extra seahorn options
+        # pick out extra seahorn/crab options
         argv.extend (filter (_is_seahorn_opt, extra))
 
         return self.seainspectCmd.run (args, argv)
@@ -1487,6 +1491,8 @@ FrontEnd = sea.SeqCmd ('fe', 'Front end: alias for clang|pp|ms|opt',
                        [Clang(), Seapp(), MixedSem(), Seaopt ()])
 Smt = sea.SeqCmd ('smt', 'alias for fe|horn', FrontEnd.cmds + [Seahorn()])
 Clp = sea.SeqCmd ('clp', 'alias for fe|horn-clp', FrontEnd.cmds + [SeahornClp()])
+Boogie= sea.SeqCmd ('boogie', 'alias for fe|horn --boogie',
+                    FrontEnd.cmds + [Seahorn(solve=False,enable_boogie=True)])
 Pf = sea.SeqCmd ('pf', 'alias for fe|horn --solve',
                  FrontEnd.cmds + [Seahorn(solve=True)])
 LfeSmt = sea.SeqCmd ('lfe-smt', 'alias for lfe|horn', [LegacyFrontEnd(), Seahorn()])

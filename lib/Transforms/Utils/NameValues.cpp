@@ -44,7 +44,12 @@ namespace ufo
       runOnFunction (*FI);
     return false;
   }
-    
+
+  static std::string sanitizeName(std::string name) {
+    std::replace(name.begin(), name.end(), '-', '_'); // replace all '-' to '_'
+    return name;
+  }
+  
   bool NameValues::runOnFunction (Function &F)
   {
     LOG ("nv", errs () << "Running on: " << F.getName () << "\n";);
@@ -81,9 +86,14 @@ namespace ufo
 	    std::string bb_name = *names.begin ();
             if (bb_name == ";") bb_name = "bb";
             LOG ("nv", errs () << "Found BB name: " << bb_name << "\n";);
-            
+	    
 	    BB.setName ("_" + bb_name);
 	  }
+	else
+	  {
+	    BB.setName (sanitizeName(BB.getName()));
+	  }
+	  
 	++line_iter;
 
 	for (BasicBlock::iterator II = BB.begin (), IE = BB.end ();
@@ -101,6 +111,13 @@ namespace ufo
                      errs () << "Found instruction name: " << inst_name << "\n");
             
 		I.setName ("_" + inst_name);
+	      }
+	    else
+	      {
+		if (I.hasName() && !I.getType ()->isVoidTy())
+		{
+		  I.setName (sanitizeName(I.getName()));
+		}
 	      }
             
 	    ++line_iter;

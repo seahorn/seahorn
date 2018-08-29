@@ -1,7 +1,7 @@
 #pragma once
 
-#include <stdlib.h>
-#include "seahorn/seahorn.h"
+#include <stdint.h>
+#include <seahorn/seahorn.h>
 
 #define USE_FIX_ADDR
 

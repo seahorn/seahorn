@@ -186,7 +186,7 @@ template <typename M> struct BasicExprMarshal {
       res = Z3_mk_app(ctx, zfdecl, e->arity() - 1, &args[0]);
     }
     /** quantifier */
-    else if (isOpX<FORALL>(e) || isOpX<EXISTS>(e)) {
+    else if (isOpX<FORALL>(e) || isOpX<EXISTS>(e) || isOpX<LAMBDA>(e)) {
       unsigned num_bound = bind::numBound(e);
       z3::ast_vector pinned(ctx);
       pinned.resize(num_bound);
@@ -205,8 +205,14 @@ template <typename M> struct BasicExprMarshal {
       }
 
       z3::ast body(marshal(bind::body(e), ctx, cache, seen));
-      res = Z3_mk_quantifier(ctx, isOpX<FORALL>(e), 0, 0, NULL, num_bound,
-                             &bound_sorts[0], &bound_names[0], body);
+      if (isOpX<FORALL>(e) || isOpX<EXISTS>(e)) {
+        res = Z3_mk_quantifier(ctx, isOpX<FORALL>(e), 0, 0, NULL, num_bound,
+                               &bound_sorts[0], &bound_names[0], body);
+      } else {
+        assert(isOpX<LAMBDA>(e));
+        res = Z3_mk_lambda(ctx, num_bound,
+                           &bound_sorts[0], &bound_names[0], body);
+      }
     }
 
     // -- cache the result for unmarshaling
@@ -540,8 +546,13 @@ template <typename U> struct BasicExprUnmarshal {
       }
       args.push_back(unmarshal(z3::ast(ctx, Z3_get_quantifier_body(ctx, z)),
                                efac, cache, seen));
-      return Z3_is_quantifier_forall(ctx, z) ? mknary<FORALL>(args)
-                                             : mknary<EXISTS>(args);
+      if (Z3_is_quantifier_forall(ctx, z))
+        return mknary<FORALL>(args);
+      else if (Z3_is_quantifier_exists(ctx, z))
+        return mknary<EXISTS>(args);
+
+      assert(Z3_is_lambda(ctx, z));
+      return mknary<LAMBDA>(args);
     }
 
     if (kind != Z3_APP_AST)

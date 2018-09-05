@@ -13,9 +13,9 @@
 
 using namespace llvm;
 
-static llvm::cl::opt<std::string>
-ChcEngine("horn-pdr-engine", llvm::cl::desc("CHC engine to use"),
-          cl::init("spacer"), cl::Hidden);
+static llvm::cl::opt<std::string> ChcEngine("horn-pdr-engine",
+                                            llvm::cl::desc("CHC engine to use"),
+                                            cl::init("spacer"), cl::Hidden);
 
 static llvm::cl::opt<bool>
     PrintAnswer("horn-answer", cl::desc("Print Horn answer"), cl::init(false));
@@ -60,23 +60,19 @@ static llvm::cl::opt<unsigned>
     // 1: simple Farkas plugin from other partition
     // 2: Gaussian elimination optimization
     // 3: use additive IUC plugin
-    IUCArith("horn-iuc-arith", cl::Hidden, cl::init(2));
+    IUCArith("horn-iuc-arith", cl::Hidden, cl::init(1));
 
 static llvm::cl::opt<bool>
-    UseExtInvariants("horn-use-ext-invariants", cl::Hidden, cl::init(true),
-                     cl::desc("Use of external invariants"));
+    UseBgInvariants("horn-use-bg-invs", cl::Hidden, cl::init(true),
+                    cl::desc("Use external invariants only in background"));
 
-static llvm::cl::opt<bool> UseExtInvariantsGeneralization(
-    "horn-use-ext-invariants-generalization", cl::Hidden, cl::init(true),
-    cl::desc("Use of external invariants during generalization"));
 static llvm::cl::opt<unsigned>
     HornMaxDepth("horn-max-depth", cl::Hidden,
                  cl::desc("Maximum exploration depth"), cl::init(UINT_MAX));
 
-
 static llvm::cl::opt<bool>
-UseEufGen("horn-use-euf-gen", cl::Hidden, cl::init(true),
-          cl::desc("Use euf generalizer for equalities"));
+    UseEufGen("horn-use-euf-gen", cl::Hidden, cl::init(true),
+              cl::desc("Use euf generalizer for equalities"));
 
 namespace seahorn {
 char HornSolver::ID = 0;
@@ -108,11 +104,10 @@ bool HornSolver::runOnModule(Module &M) {
   params.set(":spacer.elim_aux", true);
   params.set(":spacer.reach_dnf", true);
   // params.set ("print_statistics", true);
-  // params.set (":spacer.use_ext_invariants", UseExtInvariants);
-  // params.set (":spacer.use_ext_invariants_generalization",
-  // UseExtInvariantsGeneralization); params.set (":spacer.weak_abs", WeakAbs);
-  // params.set (":spacer.iuc", IUC);
-  // params.set (":spacer.iuc.arith", IUCArith);
+  params.set(":spacer.use_bg_invs", UseBgInvariants);
+  params.set(":spacer.weak_abs", WeakAbs);
+  params.set(":spacer.iuc", IUC);
+  params.set(":spacer.iuc.arith", IUCArith);
   // -- less incremental but constraints are popped after pushed in
   //    the solver
   params.set(":spacer.keep_proxy", KeepProxy);

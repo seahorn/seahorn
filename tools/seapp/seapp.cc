@@ -217,6 +217,16 @@ static llvm::cl::opt<bool>
                    llvm::cl::desc("Abstract memory instructions"),
                    llvm::cl::init(false));
 
+static llvm::cl::opt<bool>
+    TaintCheck("taint-check",
+               llvm::cl::desc("Instrument taint-analysis checks"),
+               llvm::cl::init(false));
+
+static llvm::cl::opt<bool>
+    SelfCompose("self-compose",
+                llvm::cl::desc("Perform Self-Composition analysis"),
+                llvm::cl::init(false));
+
 // removes extension from filename if there is one
 std::string getFileName(const std::string &str) {
   std::string filename = str;
@@ -420,10 +430,10 @@ int main(int argc, char **argv) {
     // -- SSA
     pass_manager.add(llvm::createPromoteMemoryToRegisterPass());
     // -- Turn undef into nondet
-    pass_manager.add (seahorn::createNondetInitPass());
+    pass_manager.add(seahorn::createNondetInitPass());
 
     // -- Promote memcpy to loads-and-stores for easier alias analysis.
-    pass_manager.add (seahorn::createPromoteMemcpyPass());
+    pass_manager.add(seahorn::createPromoteMemcpyPass());
 
     // -- cleanup after SSA
     pass_manager.add(seahorn::createInstCombine());
@@ -459,7 +469,7 @@ int main(int argc, char **argv) {
     pass_manager.add(llvm::createCFGSimplificationPass());
 
     if (UnfoldLoopsForDsa) {
-    // --- help DSA to be more precise
+      // --- help DSA to be more precise
 #ifdef HAVE_LLVM_SEAHORN
       pass_manager.add(llvm_seahorn::createFakeLatchExitPass());
 #endif
@@ -511,6 +521,12 @@ int main(int argc, char **argv) {
       pass_manager.add(seahorn::createPromoteMallocPass());
       pass_manager.add(seahorn::createRemoveUnreachableBlocksPass());
     }
+
+    if (TaintCheck) {
+      pass_manager.add(seahorn::createTaintLogicPass());
+      assert(!SelfCompose);
+    } else if (SelfCompose)
+      pass_manager.add(seahorn::createSelfCompositionPass());
 
     // -- EVERYTHING IS MORE EXPENSIVE AFTER INLINING
     // -- BEFORE SCHEDULING PASSES HERE, THINK WHETHER THEY BELONG BEFORE

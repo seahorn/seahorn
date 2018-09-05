@@ -11,6 +11,9 @@ add_llvm_library (seahorn.LIB
   IncHornifyFunction.cc
   HornWrite.cc
   HornSolver.cc
+  HornUnroll.cc
+  HornToSMT.cc
+  HornCtrlDep.cc
   Houdini.cc
   HornModelConverter.cc
   HornDbModel.cc

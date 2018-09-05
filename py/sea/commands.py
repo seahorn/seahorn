@@ -9,7 +9,7 @@ import shutil
 from sea import add_in_out_args, add_tmp_dir_args, which, createWorkDir
 
 # To disable printing of commands and some warnings
-quiet=True
+quiet=False
 
 # remaps a file based on working dir and a new extension
 def _remap_file_name (in_file, ext, work_dir):

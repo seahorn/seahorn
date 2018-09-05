@@ -294,6 +294,10 @@ class Seapp(sea.LimitedCmd):
                          action='store_true', dest='internalize')
         ap.add_argument ('--log', dest='log', default=None,
                          metavar='STR', help='Log level')
+        ap.add_argument ('--taint-check', help="Instrument taint analysis checks",
+                         dest="taint_check", default=False, action='store_true')
+        ap.add_argument ('--self-composition-check', help="Do Self-Composition instrumentation",
+                         dest="self_compose", default=False, action='store_true')
         add_in_out_args (ap)
         _add_S_arg (ap)
         return ap
@@ -374,6 +378,16 @@ class Seapp(sea.LimitedCmd):
                 argv.append('--kill-vaarg=true')
             else:
                 argv.append('--kill-vaarg=false')
+
+            if args.taint_check:
+                argv.append('--taint-check')
+                if args.self_compose:
+                    print('WARNING: Ignoring Self-Composition. '  +
+                          'Combination of Self-Composition and Taint Analysis' +
+                          ' is not supported.')
+                    args.self_compose = False
+            elif args.self_compose:
+                argv.append('--self-compose')
 
         if args.log is not None:
             for l in args.log.split (':'): argv.extend (['-log', l])

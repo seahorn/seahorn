@@ -386,7 +386,7 @@ template <typename M> struct BasicExprMarshal {
       else
         return M::marshal(e, ctx, cache, seen);
     } else if (isOpX<BEXTRACT>(e)) {
-      assert(bv::high(e) > bv::low(e));
+      assert(bv::high(e) >= bv::low(e));
       z3::ast a(ctx, marshal(bv::earg(e), ctx, cache, seen));
       res = Z3_mk_extract(ctx, bv::high(e), bv::low(e), a);
     } else if (isOpX<AND>(e) || isOpX<OR>(e) || isOpX<ITE>(e) ||

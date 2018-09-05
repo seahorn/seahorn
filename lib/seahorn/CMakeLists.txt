@@ -14,6 +14,8 @@ add_llvm_library (seahorn.LIB
   HornUnroll.cc
   HornToSMT.cc
   HornCtrlDep.cc
+  TaintTracker.cc
+  TaintAnalysis.cc
   Houdini.cc
   HornModelConverter.cc
   HornDbModel.cc

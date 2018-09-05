@@ -98,6 +98,8 @@ llvm::Pass *createCanFailPass();
 
 llvm::Pass *createTaintLogicPass();
 llvm::Pass *createSelfCompositionPass();
+llvm::Pass *createTaintAnalysisPass(unsigned bnd);
+llvm::Pass *createHornUnrollPass(unsigned bnd, bool strict = false);
 
 llvm::FunctionPass *createPromoteMemcpyPass();
 

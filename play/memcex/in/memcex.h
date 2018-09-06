@@ -17,8 +17,8 @@
 
 
 
-extern int nd_int(void);
-extern int* nd_ptr(void);
+extern int __VERIFIER_nondet_int(void);
+extern int* __VERIFIER_nondet_ptr(void);
 
 struct st {
     int x;
@@ -26,4 +26,4 @@ struct st {
     struct st *next;
 };
 
-extern struct st *nd_st(void);
+extern struct st *__VERIFIER_nondet_st(void);

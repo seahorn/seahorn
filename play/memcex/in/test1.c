@@ -3,7 +3,7 @@
 // reading non-deterministic pointer
 
 int main(void) {
-    if (nd_ptr() > 0) {
+    if (__VERIFIER_nondet_ptr() > 0) {
         __VERIFIER_error();
     }
     return 0;

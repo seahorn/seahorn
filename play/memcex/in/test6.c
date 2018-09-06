@@ -3,7 +3,7 @@
 // reading through a pointer field
 int main(void) {
     struct st *p;
-    p = nd_st();
+    p = __VERIFIER_nondet_st();
 
     assume(p > 0);
     BASE_PTR(p);

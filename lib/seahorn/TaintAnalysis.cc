@@ -100,6 +100,8 @@ bool TaintAnalysis::checkTaint(HornifyModule &hm) {
     outs() << "\n";
   }
 
+  // Disable the unroller for now
+  return false;
   for (unsigned i = 1; i <= m_nBound; i++) {
     HornUnroll unroller(false);
     unroller.unroll(i, hm, hm.getHornClauseDB());

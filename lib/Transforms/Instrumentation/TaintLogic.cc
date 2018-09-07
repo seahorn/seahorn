@@ -295,6 +295,12 @@ void TaintLogic::addAllShadowTaintVars(IRBuilder<> &B,
         Value *a = addShadowTaintVar(B, var);
         B.SetInsertPoint(I->getNextNode());
         B.CreateAlignedStore(ConstantInt::get(m_BoolTy, 1), a, 1);
+      } else if (funcName.startswith_lower("ifc_set_notaint")) {
+        Value *var = I->getOperand(0);
+        assert(isa<AllocaInst>(var)); // TODO: just for now
+        Value *a = addShadowTaintVar(B, var);
+        B.SetInsertPoint(I->getNextNode());
+        B.CreateAlignedStore(ConstantInt::get(m_BoolTy, 0), a, 1);
       }
       continue;
     }

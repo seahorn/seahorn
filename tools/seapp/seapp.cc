@@ -413,6 +413,12 @@ int main(int argc, char **argv) {
     if (DevirtualizeFuncs)
       pass_manager.add(seahorn::createDevirtualizeFunctionsPass());
 
+    if (SelfCompose || TaintCheck) {
+      // XXX AG: why is this necessary?
+      // XXX AG: there is already seahorn-specific variant of this pass
+      pass_manager.add(llvm::createInstructionNamerPass());
+    }
+
     // -- externalize uses of address-taken functions
     if (ExternalizeAddrTakenFuncs)
       pass_manager.add(seahorn::createExternalizeAddressTakenFunctionsPass());

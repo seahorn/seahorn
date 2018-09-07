@@ -411,12 +411,14 @@ bool SelfComposition::runOnFunction(Function &F) {
       StringRef funcName = I->getOperand(operands - 1)->getName();
       if (funcName.compare("ifc_set_secret") == 0) {
         Value *var = I->getOperand(0);
+        var = var->stripPointerCasts();
         assert(isa<AllocaInst>(var)); // TODO: just for now
         m_high.insert(var);
         Value *shadow = addShadowVar(B, (AllocaInst *)var, 0);
         I->eraseFromParent();
       } else if (funcName.startswith_lower("ifc_set_notaint")) {
         Value *var = I->getOperand(0);
+        var = var->stripPointerCasts();
         assert(isa<AllocaInst>(var)); // TODO: just for now
         m_inst_to_notaint[var] = I;   // I->getNextNode();
       } else if (funcName.compare("ifc_check_out") == 0) {

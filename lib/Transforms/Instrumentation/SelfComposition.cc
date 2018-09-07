@@ -283,9 +283,8 @@ void SelfComposition::updateInstruction(IRBuilder<> &B, Instruction *inst) {
 
   assert(m_inst_to_shadow.find(inst) != m_inst_to_shadow.end());
   Instruction *shadow = dynamic_cast<Instruction *>(m_inst_to_shadow[inst]);
-  if (isa<PHINode>(shadow)) {
-    PHINode *phi = dynamic_cast<PHINode *>(shadow);
-    std::vector<BasicBlock *> preds;
+  if (PHINode *phi = dyn_cast<PHINode>(shadow)) {
+    SmallVector<BasicBlock*,8> preds;
     for (auto it = pred_begin(phi->getParent()),
               end = pred_end(phi->getParent());
          it != end; it++) {
@@ -293,6 +292,14 @@ void SelfComposition::updateInstruction(IRBuilder<> &B, Instruction *inst) {
       if (!p->getName().endswith_lower("_shadow"))
         preds.push_back(p);
     }
+    LOG("ifc_sc",
+        if (preds.size() > 1) {
+            errs() << "preds size: " << preds.size() << "\n";
+            for (auto *bb : preds) {
+                errs() << *bb << "\n\n";
+            }
+        }
+        );
     assert(preds.size() <= 1);
     unsigned opIdx = 0;
     auto itVal = phi->op_begin();

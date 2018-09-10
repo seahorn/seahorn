@@ -6,7 +6,9 @@ import os.path
 import sys
 import shutil
 
-from sea import add_in_out_args, add_tmp_dir_args, which, createWorkDir
+import subprocess
+
+from sea import add_in_args, add_in_out_args, add_tmp_dir_args, which, createWorkDir
 
 # To disable printing of commands and some warnings
 quiet=True
@@ -704,7 +706,7 @@ class WrapMem(sea.LimitedCmd):
     def __init__(self, quiet=False):
         super(WrapMem, self).__init__('wmem', 'Wrap external memory access with SeaRt calls',
                                        allow_extra=True)
-        self.seppCmd = None
+        self.seappCmd = None
 
     @property
     def stdout (self):
@@ -741,6 +743,37 @@ class WrapMem(sea.LimitedCmd):
             argv.extend (args.in_files)
             return self.seappCmd.run (args, argv)
 
+class ExecHarness(sea.LimitedCmd):
+    def __init__(self, quiet=False):
+        super(ExecHarness, self).__init__('exec-harness', 'Execute an executable harness to see if it calls __VERIFIER_error',
+                                             allow_extra=True)
+        self.harnessCmd = None
+
+    @property
+    def stdout (self):
+        return self.harnessCmd.stdout
+
+    def mk_arg_parser (self, ap):
+        ap = super (ExecHarness, self).mk_arg_parser (ap)
+        add_in_args (ap)
+        return ap
+
+    def run (self, args, extra):
+        if len(args.in_files) != 1: raise IOError('ExecHarness expects the harness executable as an input')
+        eharness = os.path.abspath(args.in_files[0])
+
+        self.harnessCmd = sea.ExtCmd (eharness)
+        if args.cpu is None: args.cpu = 10
+
+        retval = self.harnessCmd.run (args, [eharness], stdout=subprocess.PIPE)
+        
+        if "[sea] __VERIFIER_error was executed" in self.harnessCmd.stdout:
+            print ("__VERIFIER_error was executed")
+        else:
+            print ("__VERIFIER_error was not executed")
+            
+        return retval
+        
 class CutLoops(sea.LimitedCmd):
     def __init__(self, quiet=False):
         super(CutLoops, self).__init__('cut-loops', 'Loop cutting transformation',
@@ -1417,6 +1450,10 @@ class SeaExeCex(sea.LimitedCmd):
                          default=False, action='store_true',
                          dest='alloc_mem',
                          help='Allocate space for uninitialized memory')
+        ap.add_argument ('--verify', '-verify',
+                         default=False, action='store_true',
+                         dest='verify',
+                         help='Verify the harness executes __VERIFIER_error')
         return ap
 
     def run(self, args, extra):
@@ -1427,6 +1464,9 @@ class SeaExeCex(sea.LimitedCmd):
             if harness_file is None:
                 harness_file = 'harness.ll'
 
+            if args.out_file is None:
+                args.out_file = 'harness'
+                
             try:
                 os.remove(harness_file)
             except OSError:
@@ -1473,12 +1513,20 @@ class SeaExeCex(sea.LimitedCmd):
                 argv.extend(['--alloc-mem'])
             infiles = args.in_files
             infiles.extend([harness_file])
-            res = c.run(args,  argv)
+            res = c.run(args, argv)
             if res <> 0:
                 print('\n\nThe executable counterexample was not generated. Aborting ...\n');
             else:
                 print ('\n\nGenerated executable counterexample {0}'.format(args.out_file))
+
+            # Optionally verify the harness reaches __VERIFIER_error
+            if res == 0 and args.verify:
+                args.in_files = [args.out_file]
+                c = ExecHarness()
+                c.run(args, [])
+
             return res
+
         except Exception as e:
             raise IOError(str(e))
     

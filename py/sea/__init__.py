@@ -34,7 +34,7 @@ def which(program):
 # inspired from:
 # http://stackoverflow.com/questions/4158502/python-kill-or-terminate-subprocess-when-timeout
 class TimeLimitedExec(threading.Thread):
-    def __init__(self, cmd, cpu=0, mem=0, verbose=0):
+    def __init__(self, cmd, cpu=0, mem=0, verbose=0, **popen_args):
         threading.Thread.__init__(self)
         self.cmd = cmd
         self.cpu = cpu
@@ -43,8 +43,9 @@ class TimeLimitedExec(threading.Thread):
         self.stdout = None
         self.stderr = None
         self.verbose = verbose
-
-    def run(self, **popen_args):
+        self.kwargs = popen_args
+        
+    def run(self):
         def set_limits ():
             import resource as r
             if self.cpu > 0:
@@ -56,7 +57,7 @@ class TimeLimitedExec(threading.Thread):
         if self.verbose > 0: print self.cmd
         self.p = subprocess.Popen(self.cmd,
                                   preexec_fn=set_limits,
-                                  **popen_args)
+                                  **self.kwargs)
         self.stdout, self.stderr = self.p.communicate()
 
     def Run(self):
@@ -97,10 +98,14 @@ def add_help_arg (ap):
     ap.add_argument('-h', '--help', action='help',
                     help='Print this message and exit')
 
+def add_in_args (ap):
+    ap.add_argument ('in_files',  metavar='FILE', help='Input file', nargs='+')
+    return ap
+
 def add_in_out_args (ap):
+    add_in_args (ap)
     ap.add_argument ('-o', dest='out_file',
                      metavar='FILE', help='Output file name', default=None)
-    ap.add_argument ('in_files',  metavar='FILE', help='Input file', nargs='+')
     return ap
 
 def add_tmp_dir_args (ap):
@@ -254,13 +259,13 @@ class ExtCmd (LimitedCmd):
         self.cmd = None
         self.quiet = quiet
 
-    def run (self, args, extra):
+    def run (self, args, extra, **popen_args):
         argv = [self.name]
         argv.extend (extra)
 
         if not self.quiet: print ' '.join (argv)
 
-        self.cmd = TimeLimitedExec (argv, args.cpu, args.mem)
+        self.cmd = TimeLimitedExec (argv, args.cpu, args.mem, **popen_args)
         return self.cmd.Run ()
 
     @property

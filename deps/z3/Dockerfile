@@ -1,4 +1,3 @@
-#
 # z3/spacer Dockerfile for SeaHorn
 # This produces packages in /z3.
 # Arguments:
@@ -42,7 +41,7 @@ RUN mkdir -p /z3/repo
 WORKDIR /z3/repo
 
 # Checkout z3/spacer3.
-RUN git clone https://bitbucket.org/spacer/code.git ./ -b spacer3 --depth=1
+RUN git clone https://github.com/agurfinkel/z3.git ./ -b deep_space --depth=1
 
 RUN mkdir -p /z3/out ; mkdir -p /z3/out/z3
 

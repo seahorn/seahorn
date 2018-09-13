@@ -70,6 +70,8 @@ CrabDom ("horn-bmc-crab-dom",
    llvm::cl::values
     (clEnumValN (crab_llvm::INTERVALS, "int",
 		 "Classical interval domain (default)"),
+     clEnumValN (crab_llvm::ZONES_SPLIT_DBM, "zones",
+		 "Zones domain."),
      clEnumValN (crab_llvm::TERMS_INTERVALS, "term-int",
 		 "Intervals with uninterpreted functions."),
      clEnumValN (crab_llvm::TERMS_ZONES, "rtz",
@@ -1201,6 +1203,9 @@ namespace seahorn
 	  case crab_llvm::TERMS_ZONES:
 	    get_os() << "Using terms+zones domain for solving paths\n";
 	    break;
+	  case crab_llvm::ZONES_SPLIT_DBM:
+	    get_os() << "Using zones domain for solving paths\n";
+	    break;
 	  default:
 	    get_os() << "Using interval domain for solving paths\n";
 	  }
@@ -1345,7 +1350,7 @@ namespace seahorn
 
     #ifdef HAVE_CRAB_LLVM
     // Temporary: for profiling crab
-    //crab::CrabStats::PrintBrunch (crab::outs());
+    crab::CrabStats::PrintBrunch (crab::outs());
     #endif
 
     return m_result;

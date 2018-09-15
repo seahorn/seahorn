@@ -12,7 +12,7 @@ set (USED_LIBS
   ${GMP_LIB}
   ${RT_LIB})
 
-set(LLVM_LINK_COMPONENTS irreader bitwriter ipo scalaropts instrumentation core
+set(LLVM_LINK_COMPONENTS irreader bitwriter ipo scalaropts instrumentation core 
   # XXX not clear why these last two are required
   codegen objcarcopts)
 add_executable(seapp seapp.cc)

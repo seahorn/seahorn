@@ -325,7 +325,7 @@ class WrapperObjectSizeOffsetVisitor
   APInt align(APInt Size, uint64_t Align) {
     const bool RoundToAlign = true; // always true
     if (RoundToAlign && Align)
-      return APInt(IntTyBits, RoundUpToAlignment(Size.getZExtValue(), Align));
+      return APInt(IntTyBits, alignTo(Size.getZExtValue(), Align));
     return Size;
   }
 
@@ -333,7 +333,7 @@ public:
   WrapperObjectSizeOffsetVisitor(const DataLayout *DL,
                                  const TargetLibraryInfo *TLI,
                                  LLVMContext &Context)
-      : DL(DL), TLI(TLI), vis(*DL, TLI, Context, true) {}
+    : DL(DL), TLI(TLI), vis(*DL, TLI, Context, {}) {}
 
   bool knownSize(SizeOffsetType &SizeOffset) {
     return SizeOffset.first.getBitWidth() > 1;
@@ -525,7 +525,7 @@ static uint64_t fieldOffset(const DataLayout *dl, const StructType *t,
 static Instruction *getNextInst(Instruction *I) {
   if (I->isTerminator())
     return I;
-  return I->getParent()->getInstList().getNext(I);
+  return I->getParent()->getInstList().getNextNode(*I);  
 }
 
 static Type *createIntTy(const DataLayout *dl, LLVMContext &ctx) {
@@ -1008,7 +1008,7 @@ void Local::instrumentGepOffset(IRBuilder<> B, Instruction *insertPoint,
   gep_type_iterator typeIt = gep_type_begin(*gep);
   for (unsigned i = 1; i < gep->getNumOperands(); ++i, ++typeIt) {
     ps.push_back(gep->getOperand(i));
-    ts.push_back(*typeIt);
+    ts.push_back(typeIt.getIndexedType());
   }
 
   const Value *base = gep->getPointerOperand();
@@ -1026,8 +1026,7 @@ void Local::instrumentGepOffset(IRBuilder<> B, Instruction *insertPoint,
         curVal = createAdd(B, m_dl, curVal, createIntCst(m_IntPtrTy, off));
       } else
         assert(false);
-    } else if (const SequentialType *seqt =
-                   dyn_cast<const SequentialType>(ts[i])) {
+    } else if (const SequentialType *seqt = dyn_cast<const SequentialType>(ts[i])) {
       // arrays, pointers, and vectors
       unsigned sz = storageSize(m_dl, seqt->getElementType());
       Value *LHS = curVal;
@@ -1309,10 +1308,10 @@ bool Local::runOnModule(llvm::Module &M) {
 
   AttrBuilder AB;
   AB.addAttribute(Attribute::NoReturn);
-  AttributeSet as = AttributeSet::get(ctx, AttributeSet::FunctionIndex, AB);
+  AttributeList as = AttributeList::get(ctx, AttributeList::FunctionIndex, AB);
 
   m_errorFn = dyn_cast<Function>(M.getOrInsertFunction(
-      "verifier.error", as, Type::getVoidTy(ctx), nullptr));
+      "verifier.error", as, Type::getVoidTy(ctx)));
 
   /* Shadow function parameters */
   std::vector<Function *> funcsToInstrument;
@@ -1528,7 +1527,7 @@ Function &Global::InstVis::createNewNondetFn(Module &m, Type &type,
   do
     name = boost::str(boost::format(prefix + "%d") % (c++));
   while (m.getNamedValue(name));
-  Function *res = dyn_cast<Function>(m.getOrInsertFunction(name, &type, NULL));
+  Function *res = dyn_cast<Function>(m.getOrInsertFunction(name, &type));
   assert(res);
   if (m_cg)
     m_cg->getOrInsertFunction(res);
@@ -2666,14 +2665,14 @@ bool Global::runOnModule(llvm::Module &M) {
 
   AttrBuilder AB;
   AB.addAttribute(Attribute::NoReturn);
-  AttributeSet as = AttributeSet::get(ctx, AttributeSet::FunctionIndex, AB);
+  AttributeList as = AttributeList::get(ctx, AttributeList::FunctionIndex, AB);
   Function *errorFn = dyn_cast<Function>(
-      M.getOrInsertFunction("verifier.error", as, Type::getVoidTy(ctx), NULL));
+      M.getOrInsertFunction("verifier.error", as, Type::getVoidTy(ctx)));
 
   AB.clear();
-  as = AttributeSet::get(ctx, AttributeSet::FunctionIndex, AB);
+  as = AttributeList::get(ctx, AttributeList::FunctionIndex, AB);
   Function *assumeFn = dyn_cast<Function>(M.getOrInsertFunction(
-      "verifier.assume", as, Type::getVoidTy(ctx), Type::getInt1Ty(ctx), NULL));
+      "verifier.assume", as, Type::getVoidTy(ctx), Type::getInt1Ty(ctx)));
 
   // Type *intPtrTy = dl->getIntPtrType (ctx, 0);
   // //errs () << "intPtrTy is " << *intPtrTy << "\n";
@@ -2890,38 +2889,38 @@ bool GlobalCCallbacks::runOnModule(llvm::Module &M) {
   Type *i8PtrTy = Type::getInt8Ty(ctx)->getPointerTo();
 
   AttrBuilder AB;
-  AttributeSet as = AttributeSet::get(ctx, AttributeSet::FunctionIndex, AB);
+  AttributeList as = AttributeList::get(ctx, AttributeList::FunctionIndex, AB);
 
   Function *abc_init = dyn_cast<Function>(
-      M.getOrInsertFunction("sea_abc_init", as, voidTy, NULL));
+      M.getOrInsertFunction("sea_abc_init", as, voidTy));
   abc_init->addFnAttr(Attribute::AlwaysInline);
 
   Function *abc_alloc = dyn_cast<Function>(M.getOrInsertFunction(
-      "sea_abc_alloc", as, voidTy, i8PtrTy, intPtrTy, NULL));
+      "sea_abc_alloc", as, voidTy, i8PtrTy, intPtrTy));
   abc_alloc->addFnAttr(Attribute::AlwaysInline);
 
   Function *abc_log_ptr = dyn_cast<Function>(M.getOrInsertFunction(
-      "sea_abc_log_ptr", as, voidTy, i8PtrTy, intPtrTy, NULL));
+      "sea_abc_log_ptr", as, voidTy, i8PtrTy, intPtrTy));
   abc_log_ptr->addFnAttr(Attribute::AlwaysInline);
 
   Function *abc_log_load_ptr = dyn_cast<Function>(M.getOrInsertFunction(
-      "sea_abc_log_load_ptr", as, voidTy, i8PtrTy, i8PtrTy, NULL));
+      "sea_abc_log_load_ptr", as, voidTy, i8PtrTy, i8PtrTy));
   abc_log_load_ptr->addFnAttr(Attribute::AlwaysInline);
 
   Function *abc_log_store_ptr = dyn_cast<Function>(M.getOrInsertFunction(
-      "sea_abc_log_store_ptr", as, voidTy, i8PtrTy, i8PtrTy, NULL));
+      "sea_abc_log_store_ptr", as, voidTy, i8PtrTy, i8PtrTy));
   abc_log_store_ptr->addFnAttr(Attribute::AlwaysInline);
 
   Function *abc_assert_valid_ptr = dyn_cast<Function>(M.getOrInsertFunction(
-      "sea_abc_assert_valid_ptr", as, voidTy, i8PtrTy, intPtrTy, NULL));
+      "sea_abc_assert_valid_ptr", as, voidTy, i8PtrTy, intPtrTy));
   abc_assert_valid_ptr->addFnAttr(Attribute::AlwaysInline);
 
   Function *abc_assert_valid_offset = dyn_cast<Function>(M.getOrInsertFunction(
-      "sea_abc_assert_valid_offset", as, voidTy, intPtrTy, intPtrTy, NULL));
+      "sea_abc_assert_valid_offset", as, voidTy, intPtrTy, intPtrTy));
   abc_assert_valid_offset->addFnAttr(Attribute::AlwaysInline);
 
   Function *assumeFn = dyn_cast<Function>(M.getOrInsertFunction(
-      "verifier.assume", as, Type::getVoidTy(ctx), Type::getInt1Ty(ctx), NULL));
+      "verifier.assume", as, Type::getVoidTy(ctx), Type::getInt1Ty(ctx)));
 
   std::vector<Function *> sea_funcs = {abc_assert_valid_offset,
                                        abc_assert_valid_ptr,

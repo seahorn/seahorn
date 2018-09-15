@@ -210,7 +210,9 @@ namespace
     // for subsequence access.
     F->arg_begin()->setName("funcPtr");
     SmallVector<Value*, 8> fargs;
-    for(auto ai = ++F->arg_begin(), ae = F->arg_end(); ai != ae; ++ai)
+    auto ai = F->arg_begin();
+    ++ai;
+    for(auto ae = F->arg_end(); ai != ae; ++ai)
     {
       fargs.push_back(&*ai);
       ai->setName("arg");

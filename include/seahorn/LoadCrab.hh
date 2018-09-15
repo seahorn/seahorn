@@ -23,7 +23,7 @@ namespace seahorn
     virtual bool runOnModule (llvm::Module &M);
     virtual bool runOnFunction (llvm::Function &F);
     virtual void getAnalysisUsage (llvm::AnalysisUsage &AU) const;
-    virtual const char* getPassName () const {return "LoadCrab";}
+    virtual llvm::StringRef getPassName () const {return "LoadCrab";}
   };
 
 }

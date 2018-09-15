@@ -25,7 +25,7 @@ namespace seahorn
     virtual bool runOnModule (Module &M);
     virtual bool runOnFunction (Module &M, Function &F);
     virtual void getAnalysisUsage (AnalysisUsage &AU) const;
-    virtual const char* getPassName () const {return "HornCex";}
+    virtual StringRef getPassName () const {return "HornCex";}
   };
 }
 

@@ -49,7 +49,7 @@ namespace seahorn
     virtual bool runOnModule (Module &M);
     virtual bool runOnFunction (Function &F);
     virtual void getAnalysisUsage (AnalysisUsage &AU) const;
-    virtual const char* getPassName () const {return "HornifyModule";}
+    virtual StringRef getPassName () const {return "HornifyModule";}
 
     /// --- live symbols for a function
     const LiveSymbols& getLiveSybols (const Function &F) const;

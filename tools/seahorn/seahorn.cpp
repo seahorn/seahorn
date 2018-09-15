@@ -152,8 +152,7 @@ BmcEngine("horn-bmc-engine",
 	  llvm::cl::desc ("Choose BMC engine"),
 	  llvm::cl::values
 	  (clEnumValN (seahorn::mono_bmc, "mono", "Generate a single formula"),
-	   clEnumValN (seahorn::path_bmc, "path", "Based on path enumeration"),
-	   clEnumValEnd),
+	   clEnumValN (seahorn::path_bmc, "path", "Based on path enumeration")),
 	  llvm::cl::init (seahorn::bmc_engine_t::mono_bmc));
 
 static llvm::cl::opt<bool>
@@ -204,13 +203,13 @@ int main(int argc, char **argv) {
   llvm::cl::ParseCommandLineOptions(argc, argv,
                                     "SeaHorn -- LLVM bitcode to Horn/SMT2 transformation\n");
 
-  llvm::sys::PrintStackTraceOnErrorSignal();
+  llvm::sys::PrintStackTraceOnErrorSignal(argv[0]);
   llvm::PrettyStackTraceProgram PSTP(argc, argv);
   llvm::EnableDebugBuffering = true;
 
   std::error_code error_code;
   llvm::SMDiagnostic err;
-  llvm::LLVMContext &context = llvm::getGlobalContext();
+  static llvm::LLVMContext context;
   std::unique_ptr<llvm::Module> module;
   std::unique_ptr<llvm::tool_output_file> output;
   std::unique_ptr<llvm::tool_output_file> asmOutput;
@@ -263,7 +262,8 @@ int main(int argc, char **argv) {
   // llvm::initializeIPA (Registry);
   // XXX: porting to 3.8 
   llvm::initializeCallGraphWrapperPassPass(Registry);
-  llvm::initializeCallGraphPrinterPass(Registry);
+  // XXX: commented while porting to 5.0  
+  //llvm::initializeCallGraphPrinterPass(Registry);
   llvm::initializeCallGraphViewerPass(Registry);
   // XXX: not sure if needed anymore
   llvm::initializeGlobalsAAWrapperPassPass(Registry);  
@@ -279,13 +279,16 @@ int main(int argc, char **argv) {
   assert (dl && "Could not find Data Layout for the module");
   
   // turn all functions internal so that we can inline them if requested
-  pass_manager.add (llvm::createInternalizePass (llvm::ArrayRef<const char*>("main")));
+  auto PreserveMain = [=](const llvm::GlobalValue &GV) {
+    return GV.getName() == "main";
+  };
+  pass_manager.add (llvm::createInternalizePass (PreserveMain));
   pass_manager.add (llvm::createGlobalDCEPass ()); // kill unused internal global
 
   if (InlineAll)
   {
     pass_manager.add (seahorn::createMarkInternalInlinePass ());
-    pass_manager.add (llvm::createAlwaysInlinerPass ());
+    pass_manager.add (llvm::createAlwaysInlinerLegacyPass ());
     pass_manager.add (llvm::createGlobalDCEPass ()); // kill unused internal global
   }
   pass_manager.add (new seahorn::RemoveUnreachableBlocksPass ());

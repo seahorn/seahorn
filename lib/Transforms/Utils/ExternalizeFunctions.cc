@@ -116,7 +116,7 @@ namespace seahorn
       AU.setPreservesAll ();
     }
 
-    virtual const char* getPassName () const 
+    virtual StringRef getPassName () const 
     {return "Externalize all selected functions";}
     
   };

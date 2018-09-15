@@ -1,6 +1,8 @@
 #include "seahorn/Support/SortTopo.hh"
-#include "llvm/Support/raw_ostream.h"
+#include "llvm/ADT/Optional.h"
 #include "llvm/Analysis/CFG.h"
+#include "llvm/Support/raw_ostream.h"
+
 namespace llvm
 {
   class BlockedEdges
@@ -38,9 +40,12 @@ namespace llvm
     po_iterator_storage (BlockedEdges &VSet) : Visited (VSet) {}
     po_iterator_storage (const po_iterator_storage &S) : Visited (S.Visited) {}
     
-    bool insertEdge (const BasicBlock* src, const BasicBlock *dst)
+    bool insertEdge (Optional<const BasicBlock*> src, const BasicBlock *dst)
     {
-      if (!Visited.isBlockedEdge (src, dst))
+      if (!src)
+	return false;
+      
+      if (!Visited.isBlockedEdge (*src, dst))
         return Visited.insert (dst);
       
       return false;

@@ -243,25 +243,21 @@ namespace seahorn
     LLVMContext &ctx = M.getContext ();
 
     AttrBuilder B;
-
-    AttributeSet as = AttributeSet::get (ctx,
-                                         AttributeSet::FunctionIndex,
-                                         B);
+    AttributeList as = AttributeList::get (ctx,
+					   AttributeList::FunctionIndex,
+					   B);
 
     AssumeFn = dyn_cast<Function>
         (M.getOrInsertFunction ("verifier.assume",
                                 as,
                                 Type::getVoidTy (ctx),
-                                Type::getInt1Ty (ctx),
-                                NULL));
+                                Type::getInt1Ty (ctx)));
 
     B.addAttribute (Attribute::NoReturn);
     B.addAttribute (Attribute::ReadNone);
     ErrorFn = dyn_cast<Function> (M.getOrInsertFunction ("verifier.error",
                                                          as,
-                                                         Type::getVoidTy (ctx), NULL));
-
-
+                                                         Type::getVoidTy (ctx)));
     bool change = false;
     for (Function &F : M) {
       if (F.isDeclaration ()) continue;

@@ -44,7 +44,7 @@ namespace
     {
       
       m_mark = M.getOrInsertFunction ("seahorn.fn.enter",
-                                      Type::getVoidTy (M.getContext ()), NULL);
+                                      Type::getVoidTy (M.getContext ()));
       for (auto &F : M) runOnFunction (F);
       return true;
     }

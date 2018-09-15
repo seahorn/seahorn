@@ -20,15 +20,15 @@ namespace seahorn {
 /// Dummy implementation when Crab is not compiled in
 namespace seahorn
 {
-  void LoadCrab::getAnalysisUsage (AnalysisUsage &AU) const
+  void LoadCrab::getAnalysisUsage (llvm::AnalysisUsage &AU) const
   {AU.setPreservesAll ();}
 
-  bool LoadCrab::runOnModule (Module &M)
+  bool LoadCrab::runOnModule (llvm::Module &M)
   {
-    errs () << "WARNING: Not loading invariants. Compiled without Crab support.\n";
+    llvm::errs () << "WARNING: Not loading invariants. Compiled without Crab support.\n";
     return false;
   }
-  bool LoadCrab::runOnFunction (Function &F) {return false;}
+  bool LoadCrab::runOnFunction (llvm::Function &F) {return false;}
 }
 #else
 /// Real implementation starts here

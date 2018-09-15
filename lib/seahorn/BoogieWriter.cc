@@ -1004,7 +1004,7 @@ namespace seahorn
       return false;
     }
     
-    virtual const char *getPassName() const {
+    virtual StringRef getPassName() const {
       return "Translate LLVM bitcode to Boogie";
     }
     

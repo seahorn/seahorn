@@ -76,7 +76,7 @@ namespace seahorn
     virtual bool runOnFunction (llvm::Function &F);
     
     virtual void getAnalysisUsage (llvm::AnalysisUsage &AU) const;
-    virtual const char* getPassName () const {return "ShadowMemSeaDsa";}
+    virtual llvm::StringRef getPassName () const {return "ShadowMemSeaDsa";}
   }; 
 }
 #endif

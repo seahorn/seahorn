@@ -42,8 +42,8 @@ namespace seahorn
 
         auto assumeFn =
           F.getParent ()->getOrInsertFunction ("verifier.assume",
-                                                 Type::getVoidTy (F.getContext ()),
-                                                 Type::getInt1Ty (F.getContext ()), NULL);
+					       Type::getVoidTy (F.getContext ()),
+					       Type::getInt1Ty (F.getContext ()));
         ReplaceInstWithInst (ci,
                              CallInst::Create (assumeFn,
                                                ConstantInt::getFalse (F.getContext ())));
@@ -75,7 +75,7 @@ namespace seahorn
   // declaration.
   static void removeMetadataIfFunctionIsEmpty(Function &f) {
     if (f.empty() && f.hasMetadata())
-      f.dropUnknownMetadata({});
+      f.clearMetadata();
   }
 
   bool MixedSemantics::runOnModule (Module &M)
@@ -176,7 +176,7 @@ namespace seahorn
     std::vector<CallInst*> workList;
 
     Constant *ndFn = M.getOrInsertFunction ("nondet.bool",
-                                            Type::getInt1Ty (M.getContext ()), NULL);
+                                            Type::getInt1Ty (M.getContext ()));
     for (BasicBlock &BB : *newM)
     {
       for (auto &I : BB)
@@ -232,12 +232,13 @@ namespace seahorn
     // --- make sure the optimizer does not remove it
     B.addAttribute (Attribute::OptimizeNone);
 
-    AttributeSet as = AttributeSet::get (M.getContext (),
-                                         AttributeSet::FunctionIndex, B);
+    AttributeList as = AttributeList::get (M.getContext (),
+					   AttributeList::FunctionIndex,
+					   B);
     auto failureFn = dyn_cast<Function>
         (M.getOrInsertFunction ("seahorn.fail",
                                 as,
-                                Type::getVoidTy (M.getContext ()), NULL));
+                                Type::getVoidTy (M.getContext ())));
 
     for (auto errB : errBlocks)
     {

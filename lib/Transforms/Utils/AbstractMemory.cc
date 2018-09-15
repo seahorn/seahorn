@@ -66,8 +66,7 @@ MAL("abstract-memory-level",
 		clEnumValN (seahorn::ONLY_STORE,
 			    "only-store", "Only store instructions"),
 		clEnumValN (seahorn::LOAD_AND_STORE,
-			    "load-and-store", "Both load and store instructions"),
-		clEnumValEnd),
+			    "load-and-store", "Both load and store instructions")),
    cl::init (seahorn::LOAD_AND_STORE));
 
 
@@ -99,7 +98,7 @@ namespace seahorn
       do
         name = boost::str (boost::format (prefix + "%d") % (c++));
       while (m.getNamedValue (name));
-      Function *res = dyn_cast<Function>(m.getOrInsertFunction (name, &type, NULL));
+      Function *res = dyn_cast<Function>(m.getOrInsertFunction (name, &type));
       assert (res);
       return *res;
     }
@@ -123,7 +122,7 @@ namespace seahorn
       while (m.getNamedValue (name));
       Function *res = dyn_cast<Function>(m.getOrInsertFunction
 					 (name, Type::getVoidTy (m.getContext()),
-					  &type, NULL));
+					  &type));
       assert (res);
       return *res;
     }
@@ -597,7 +596,7 @@ namespace seahorn
       AU.addRequired<LoopInfoWrapperPass>();      
     }
     
-    virtual const char* getPassName () const 
+    virtual StringRef getPassName () const 
     {return "Abstract memory instructions";}
   };
 

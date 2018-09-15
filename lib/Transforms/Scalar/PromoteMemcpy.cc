@@ -33,7 +33,7 @@ public:
     AU.addRequired<AssumptionCacheTracker>();
   }
 
-  const char *getPassName() const override { return "PromoteMemcpy"; }
+  StringRef getPassName() const override { return "PromoteMemcpy"; }
 
 private:
   Module *m_M = nullptr;

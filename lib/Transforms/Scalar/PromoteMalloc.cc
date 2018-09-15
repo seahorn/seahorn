@@ -42,9 +42,11 @@ namespace
         
         if (fn && fn->getName ().equals ("malloc"))
         {
-          
+
+	  unsigned addrSpace = 0;
           Value *nv = new AllocaInst (v->getType ()->getPointerElementType (),
-                                      CS.getArgument (0), "malloc", &I);
+				      addrSpace, CS.getArgument (0), "malloc", &I);
+                                      
           v->replaceAllUsesWith (nv);
           
           changed = true;
@@ -63,7 +65,7 @@ namespace
     void getAnalysisUsage (AnalysisUsage &AU) const
     {AU.setPreservesAll ();}
     
-    virtual const char *getPassName () const {return "PromoteMalloc";}
+    virtual StringRef getPassName () const {return "PromoteMalloc";}
     
   };
 

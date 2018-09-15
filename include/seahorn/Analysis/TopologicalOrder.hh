@@ -50,7 +50,7 @@ namespace seahorn
     const_reverse_iterator rend () const {return m_order.rend ();}
    
     virtual void print (raw_ostream &out, const Module *m) const;
-    virtual const char* getPassName () const {return "TopologicalOrder";}
+    virtual StringRef getPassName () const {return "TopologicalOrder";}
     
     
   };

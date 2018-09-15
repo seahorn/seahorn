@@ -226,7 +226,7 @@ namespace seahorn
           {
 	    if (ci->getDebugLoc ()) {
 	      if (DISubprogram *fnScope = getDISubprogram (ci->getDebugLoc ().getScope ()))
-		out << "enter: " << fnScope->getDisplayName () << "\n";
+		out << "enter: " << fnScope->getName () << "\n";
 	    }
             continue;
           }

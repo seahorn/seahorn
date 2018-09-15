@@ -45,7 +45,7 @@ Expr BmcTraceMemSim::eval(unsigned loc, Expr e, bool complete) {
   return v;
 }
 
-Constant *exprToLlvm(Type *ty, Expr e, const DataLayout &dl) {
+Constant *exprToLlvm(Type *ty, Expr e, LLVMContext &ctx, const DataLayout &dl) {
   if (isOpX<TRUE>(e)) {
     // JN: getTypeStoreSizeInBits returns 8 for i1.
     //     This causes later an error (only visible in debug mode)
@@ -56,10 +56,10 @@ Constant *exprToLlvm(Type *ty, Expr e, const DataLayout &dl) {
     //
     // return Constant::getIntegerValue (ty,
     // APInt(dl.getTypeStoreSizeInBits(ty), 1));
-    return ConstantInt::getTrue(getGlobalContext());
+    return ConstantInt::getTrue(ctx);
   } else if (isOpX<FALSE>(e)) {
     // return Constant::getNullValue (ty);
-    return ConstantInt::getFalse(getGlobalContext());
+    return ConstantInt::getFalse(ctx);
   } else if (isOpX<MPZ>(e) || bv::is_bvnum(e)) {
     mpz_class mpz;
     mpz = isOpX<MPZ>(e) ? getTerm<mpz_class>(e) : getTerm<mpz_class>(e->arg(0));
@@ -113,8 +113,9 @@ std::unique_ptr<Module> createCexHarness(BmcTraceWrapper &trace,
                                          const DataLayout &dl,
                                          const TargetLibraryInfo &tli) {
 
+  static LLVMContext TheContext;  
   std::unique_ptr<Module> Harness =
-      make_unique<Module>("harness", getGlobalContext());
+      make_unique<Module>("harness", TheContext);
   Harness->setDataLayout(dl);
 
   ValueMap<const Function *, ExprVector> FuncValueMap;
@@ -191,7 +192,7 @@ std::unique_ptr<Module> createCexHarness(BmcTraceWrapper &trace,
           continue;
 
         // -- known library function
-        LibFunc::Func libfn;
+        LibFunc libfn;
         if (tli.getLibFunc(CF->getName(), libfn))
           continue;
 
@@ -220,14 +221,14 @@ std::unique_ptr<Module> createCexHarness(BmcTraceWrapper &trace,
     if (RT->isIntegerTy())
       pRT = RT->getPointerTo();
     else
-      pRT = Type::getInt8PtrTy(getGlobalContext());
+      pRT = Type::getInt8PtrTy(TheContext);
 
     ArrayType *AT = ArrayType::get(RT, values.size());
 
     // Convert Expr to LLVM constants
     SmallVector<Constant *, 20> LLVMarray;
     std::transform(values.begin(), values.end(), std::back_inserter(LLVMarray),
-                   [RT, dl](Expr e) { return exprToLlvm(RT, e, dl); });
+                   [RT, dl](Expr e) { return exprToLlvm(RT, e, TheContext, dl); });
 
     // This is an array containing the values to be returned
     GlobalVariable *CA =
@@ -235,10 +236,10 @@ std::unique_ptr<Module> createCexHarness(BmcTraceWrapper &trace,
                            ConstantArray::get(AT, LLVMarray));
 
     // Build the body of the harness function
-    BasicBlock *BB = BasicBlock::Create(getGlobalContext(), "entry", HF);
+    BasicBlock *BB = BasicBlock::Create(TheContext, "entry", HF);
     IRBuilder<> Builder(BB);
 
-    Type *CountType = Type::getInt32Ty(getGlobalContext());
+    Type *CountType = Type::getInt32Ty(TheContext);
     GlobalVariable *Counter = new GlobalVariable(
         *Harness, CountType, false, GlobalValue::PrivateLinkage,
         ConstantInt::get(CountType, 0));
@@ -262,17 +263,17 @@ std::unique_ptr<Module> createCexHarness(BmcTraceWrapper &trace,
       name = Twine("__seahorn_get_value_").concat(RSO.str()).str();
     } else if (RT->getSequentialElementType()) {
       name = "__seahorn_get_value_ptr";
-      ArgTypes.push_back(Type::getInt32Ty(getGlobalContext()));
+      ArgTypes.push_back(Type::getInt32Ty(TheContext));
 
       // If we can tell how big the return type is, tell the
       // callback function.  Otherwise pass zero.
       if (RT->getSequentialElementType()->isSized())
         Args.push_back(ConstantInt::get(
-            Type::getInt32Ty(getGlobalContext()),
+            Type::getInt32Ty(TheContext),
             dl.getTypeStoreSizeInBits(RT->getSequentialElementType())));
       else
         Args.push_back(
-            ConstantInt::get(Type::getInt32Ty(getGlobalContext()), 0));
+            ConstantInt::get(Type::getInt32Ty(TheContext), 0));
     } else
       assert(false && "Unknown return type");
 
@@ -285,32 +286,31 @@ std::unique_ptr<Module> createCexHarness(BmcTraceWrapper &trace,
   }
 
   {
-    LLVMContext &C = getGlobalContext();
-    Type *intTy = IntegerType::get(C, 64);
-    Type *intPtrTy = dl.getIntPtrType(C, 0);
-    Type *i8PtrTy = Type::getInt8PtrTy(C, 0);
+    Type *intTy = IntegerType::get(TheContext, 64);
+    Type *intPtrTy = dl.getIntPtrType(TheContext, 0);
+    Type *i8PtrTy = Type::getInt8PtrTy(TheContext, 0);
 
     // Hook for gdb-like tools. Used to translate virtual addresses to
     // physical ones if that's the case. This is useful so we can
     // inspect content of virtual addresses.
     Function *EmvMapF = cast<Function>(
-        Harness->getOrInsertFunction("__emv", i8PtrTy, i8PtrTy, NULL));
+        Harness->getOrInsertFunction("__emv", i8PtrTy, i8PtrTy));
     EmvMapF->addFnAttr(Attribute::NoInline);
 
     // Build function to initialize dsa nodes
     Function *InitF = cast<Function>(Harness->getOrInsertFunction(
-        "__seahorn_mem_init_routine", Type::getVoidTy(C), NULL));
+        "__seahorn_mem_init_routine", Type::getVoidTy(TheContext)));
     // Build the body of the harness initialization function
-    BasicBlock *BB = BasicBlock::Create(C, "entry", InitF);
+    BasicBlock *BB = BasicBlock::Create(TheContext, "entry", InitF);
     IRBuilder<> Builder(BB);
 
     // Hook to allocate a dsa node
     Function *m_memAlloc = cast<Function>(
-        Harness->getOrInsertFunction("__seahorn_mem_alloc", Type::getVoidTy(C),
-                                     i8PtrTy, i8PtrTy, intTy, intTy, NULL));
+        Harness->getOrInsertFunction("__seahorn_mem_alloc", Type::getVoidTy(TheContext),
+                                     i8PtrTy, i8PtrTy, intTy, intTy));
     // Hook to initialize a dsa node
     Function *m_memInit = cast<Function>(Harness->getOrInsertFunction(
-        "__seahorn_mem_init", Type::getVoidTy(C), i8PtrTy, intTy, intTy, NULL));
+        "__seahorn_mem_init", Type::getVoidTy(TheContext), i8PtrTy, intTy, intTy));
 
     for (auto &kv : DsaAllocMap) {
       unsigned id = kv.first;
@@ -336,11 +336,11 @@ std::unique_ptr<Module> createCexHarness(BmcTraceWrapper &trace,
       }
 
       // __seahorn_mem_alloc(start, end, val, sz);
-      Value *startC = exprToLlvm(i8PtrTy, limits.first, dl);
-      Value *endC = exprToLlvm(i8PtrTy, limits.second, dl);
+      Value *startC = exprToLlvm(i8PtrTy, limits.first, TheContext, dl);
+      Value *endC = exprToLlvm(i8PtrTy, limits.second, TheContext, dl);
       Value *valC = ConstantInt::get(intTy, 0);
       if (defVal) {
-        valC = exprToLlvm(intTy, defVal, dl);
+        valC = exprToLlvm(intTy, defVal, TheContext, dl);
       }
 
       Builder.CreateCall(
@@ -350,8 +350,8 @@ std::unique_ptr<Module> createCexHarness(BmcTraceWrapper &trace,
 
       // __seahorn_mem_init(index, val, sz)
       for (auto &kv : contentVals) {
-        Value *indexC = exprToLlvm(i8PtrTy, kv.first, dl);
-        Value *valC = exprToLlvm(intTy, kv.second, dl);
+        Value *indexC = exprToLlvm(i8PtrTy, kv.first, TheContext, dl);
+        Value *valC = exprToLlvm(intTy, kv.second, TheContext, dl);
         Builder.CreateCall(
             m_memInit,
             {Builder.CreateBitCast(indexC, i8PtrTy), valC,

@@ -112,7 +112,7 @@ namespace seahorn {
       //AU.addRequired<llvm::CallGraphWrapperPass>();
     }
 
-    virtual const char* getPassName () const override
+    virtual StringRef getPassName () const override
     {return "SliceFunctions";}
 
    private:

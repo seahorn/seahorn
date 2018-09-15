@@ -297,7 +297,7 @@ namespace seahorn
       }
     
       // Add the new entry function
-      Function *newMain = cast<Function> (M.getOrInsertFunction ("main", Type::getInt32Ty(C), NULL));
+      Function *newMain = cast<Function> (M.getOrInsertFunction ("main", Type::getInt32Ty(C)));
       if (oldMain)
       {
          newMain->copyAttributesFrom(oldMain);
@@ -335,7 +335,8 @@ namespace seahorn
       CallInst *mcall = builder.CreateCall (startFunc, vals);
 
       // return 0 from the new main
-      builder.CreateRet(ConstantInt::get(getGlobalContext(), APInt(32, 0)));
+      static LLVMContext TheContext; 
+      builder.CreateRet(ConstantInt::get(TheContext, APInt(32, 0)));
    }
 
    void ApiAnalysisPass::getAnalysisUsage (AnalysisUsage &AU) const {

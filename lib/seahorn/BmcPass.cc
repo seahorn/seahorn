@@ -217,7 +217,7 @@ namespace
       return false;
     }
 
-    virtual const char *getPassName () const {return "BmcPass";}
+    virtual StringRef getPassName () const {return "BmcPass";}
 
 
   };

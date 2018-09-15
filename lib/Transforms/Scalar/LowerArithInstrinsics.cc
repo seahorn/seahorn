@@ -100,7 +100,7 @@ namespace
     void getAnalysisUsage (AnalysisUsage &AU) const
     {AU.setPreservesAll ();}
     
-    virtual const char *getPassName () const 
+    virtual StringRef getPassName () const 
     {return "Lower Arithmetic with Overflow Intrinsics";}
     
   };

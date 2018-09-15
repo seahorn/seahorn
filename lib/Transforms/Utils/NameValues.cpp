@@ -40,8 +40,10 @@ namespace ufo
   {
     //avy::AvyEnableLog ("nv");
     
-    for (Module::iterator FI = M.begin (), E = M.end (); FI != E; ++FI)
-      runOnFunction (*FI);
+    for (Module::iterator FI = M.begin (), E = M.end (); FI != E; ++FI) {
+      if (!(*FI).isDeclaration()) 
+	runOnFunction (*FI);
+    }
     return false;
   }
 
@@ -53,13 +55,13 @@ namespace ufo
   bool NameValues::runOnFunction (Function &F)
   {
     LOG ("nv", errs () << "Running on: " << F.getName () << "\n";);
-    
+
     // -- print to string 
     std::string funcAsm;
     raw_string_ostream out (funcAsm);
     out << F;
     out.flush ();
-      
+    
     typedef boost::tokenizer<boost::char_separator<char> > tokenizer;
     boost::char_separator<char> nl_sep ("\n");
     boost::char_separator<char> sp_sep (" :\t%@");

@@ -42,7 +42,7 @@ namespace
     TargetLibraryInfo *m_tli;
     StringMap<int> m_functionId;
     Module* m_module;
-    SmallSet<Function*, 128> m_killFn;
+    SmallSet<Function*, 32> m_killFn;
 
 
     bool shouldRename (const GlobalValue &GV)
@@ -53,7 +53,7 @@ namespace
       if (!m_tli) m_tli = &getAnalysis<TargetLibraryInfoWrapperPass> ().getTLI();
 
       // -- known library function 
-      LibFunc::Func F;
+      LibFunc F;
       if (m_tli->getLibFunc (GV.getName(), F)) return false;
           
       if (m_externalNames.count (GV.getName()) > 0 ) return false;

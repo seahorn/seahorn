@@ -608,7 +608,7 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
     gep_type_iterator typeIt = gep_type_begin(gep);
     for (unsigned i = 1; i < gep.getNumOperands(); ++i, ++typeIt) {
       ps.push_back(gep.getOperand(i));
-      ts.push_back(*typeIt);
+      ts.push_back(typeIt.getIndexedType());
     }
 
     Expr op = m_sem.ptrArith(m_s, *gep.getPointerOperand(), ps, ts);

@@ -221,7 +221,7 @@ struct MemSimVisitor : public InstVisitor<MemSimVisitor> {
       Instruction &I = *CS.getInstruction();
       uint64_t sz = 0;
       if (llvm::getObjectSize(&I, sz, m_sim.getDataLayout(),
-                              &m_sim.getTargetLibraryInfo(), true)) {
+                              &m_sim.getTargetLibraryInfo())) {
         LOG("memsim", errs() << sz;);
       } else {
         outs() << "\nWARNING: unsupported dynamically sized allocation\n";
@@ -246,7 +246,7 @@ struct MemSimVisitor : public InstVisitor<MemSimVisitor> {
 
     uint64_t sz = 0;
     if (llvm::getObjectSize(&I, sz, m_sim.getDataLayout(),
-                            &m_sim.getTargetLibraryInfo(), true)) {
+                            &m_sim.getTargetLibraryInfo())) {
       LOG("memsim", errs() << sz;);
     } else {
       outs() << "\nWARNING: unsupported dynamically sized allocation\n";

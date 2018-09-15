@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 2.8.11)
+cmake_minimum_required(VERSION 3.3)
 
 project (SeaHorn)
 set (SeaHorn_VERSION_MAJOR 0)
@@ -47,12 +47,16 @@ if (GIT_FOUND)
   add_custom_target (llvm-dsa-git
     ${GIT_EXECUTABLE} clone ${LLVM_DSA_REPO} ${CMAKE_SOURCE_DIR}/llvm-dsa)
   add_custom_target (sea-dsa-git
-    ${GIT_EXECUTABLE} clone ${SEA_DSA_REPO} ${CMAKE_SOURCE_DIR}/sea-dsa)
+    ${GIT_EXECUTABLE} clone -b llvm-5.0 ${SEA_DSA_REPO} ${CMAKE_SOURCE_DIR}/sea-dsa)
   add_custom_target (crab-llvm-git
     ${GIT_EXECUTABLE} clone -b dev ${CRAB_LLVM_REPO} ${CMAKE_SOURCE_DIR}/crab-llvm)
   add_custom_target (extra
     ${CMAKE_COMMAND} -E touch ${CMAKE_CURRENT_LIST_FILE}
-    DEPENDS seahorn-llvm-git llvm-dsa-git sea-dsa-git crab-llvm-git
+    DEPENDS
+    #seahorn-llvm-git
+    #llvm-dsa-git
+    sea-dsa-git
+    #crab-llvm-git
   )
 
 else()
@@ -124,7 +128,7 @@ else()
 endif()
 
 ExternalProject_Add (llvm
-  SVN_REPOSITORY http://llvm.org/svn/llvm-project/llvm/tags/RELEASE_380/final/
+  SVN_REPOSITORY http://llvm.org/svn/llvm-project/llvm/tags/RELEASE_500/final/  
   SOURCE_DIR ${CMAKE_SOURCE_DIR}/ext/llvm
   INSTALL_DIR ${CMAKE_BINARY_DIR}/run
   CMAKE_ARGS
@@ -145,11 +149,11 @@ ExternalProject_Add (llvm
   LOG_BUILD 1
   LOG_INSTALL 1)
 
-find_package (LLVM 3.8.0 CONFIG NO_DEFAULT_PATH)
+find_package (LLVM 5.0.0 CONFIG NO_DEFAULT_PATH)
 if (NOT LLVM_FOUND)
   ExternalProject_Get_Property (llvm INSTALL_DIR)
   set (LLVM_ROOT ${INSTALL_DIR})
-  set (LLVM_DIR ${LLVM_ROOT}/share/llvm/cmake CACHE PATH
+  set (LLVM_DIR ${LLVM_ROOT}/lib/cmake/llvm CACHE PATH
     "Forced location of LLVM cmake config" FORCE)
   message (WARNING "No llvm found. Run \n\tcmake --build . && cmake ${CMAKE_SOURCE_DIR}")
   return()
@@ -231,10 +235,10 @@ if (EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/ext/llvm/LICENSE.TXT)
     RENAME llvm_license.txt)
 endif()
 
-if (EXISTS ${CMAKE_CURRENT_BINARY_DIR}/llvm-prefix/src/llvm-build/bin/clang-3.8)
+if (EXISTS ${CMAKE_CURRENT_BINARY_DIR}/llvm-prefix/src/llvm-build/bin/clang-5.0)
   install (
     PROGRAMS
-    ${CMAKE_CURRENT_BINARY_DIR}/llvm-prefix/src/llvm-build/bin/clang-3.8
+    ${CMAKE_CURRENT_BINARY_DIR}/llvm-prefix/src/llvm-build/bin/clang-5.0
     DESTINATION bin)
 endif()
 
@@ -317,37 +321,37 @@ endif ()
 # add the include directory from the build tree
 include_directories(BEFORE ${CMAKE_CURRENT_BINARY_DIR}/include)
 
-if (IS_DIRECTORY ${CMAKE_SOURCE_DIR}/llvm-dsa AND
-    EXISTS ${CMAKE_SOURCE_DIR}/llvm-dsa/lib/DSA/Steensgaard.cpp)
-  include_directories (BEFORE llvm-dsa/include)
-  add_subdirectory (llvm-dsa/lib/AssistDS)
-  add_subdirectory (llvm-dsa/lib/DSA)
-  set (DSA_LIBS DSA AssistDS)
-  set (HAVE_DSA TRUE)
-else()
-  message (WARNING "No LLVM DSA found in ${CMAKE_SOURCE_DIR}/llvm-dsa. Run\n\tcmake --build . --target extra && cmake ${CMAKE_SOURCE_DIR}")
-  set (DSA_LIBS "")
-endif()
+# if (IS_DIRECTORY ${CMAKE_SOURCE_DIR}/llvm-dsa AND
+#     EXISTS ${CMAKE_SOURCE_DIR}/llvm-dsa/lib/DSA/Steensgaard.cpp)
+#   include_directories (BEFORE llvm-dsa/include)
+#   add_subdirectory (llvm-dsa/lib/AssistDS)
+#   add_subdirectory (llvm-dsa/lib/DSA)
+#   set (DSA_LIBS DSA AssistDS)
+#   set (HAVE_DSA TRUE)
+# else()
+#   message (WARNING "No LLVM DSA found in ${CMAKE_SOURCE_DIR}/llvm-dsa. Run\n\tcmake --build . --target extra && cmake ${CMAKE_SOURCE_DIR}")
+#   set (DSA_LIBS "")
+# endif()
 
-if (IS_DIRECTORY ${CMAKE_SOURCE_DIR}/llvm-seahorn AND
-    EXISTS ${CMAKE_SOURCE_DIR}/llvm-seahorn/lib/CMakeLists.txt)
-  include_directories (BEFORE llvm-seahorn/include)
-  add_subdirectory(llvm-seahorn/lib)
-  add_subdirectory(llvm-seahorn/tools)
-  set (HAVE_LLVM_SEAHORN TRUE)
-  set (LLVM_SEAHORN_LIBS SeaInstCombine SeaLoops)
-else()
-  message (WARNING "No LLVM-SEAHORN found in ${CMAKE_SOURCE_DIR}/llvm-seahorn. Run\n\tcmake --build . --target extra && cmake ${CMAKE_SOURCE_DIR}")
-endif()
+# if (IS_DIRECTORY ${CMAKE_SOURCE_DIR}/llvm-seahorn AND
+#     EXISTS ${CMAKE_SOURCE_DIR}/llvm-seahorn/lib/CMakeLists.txt)
+#   include_directories (BEFORE llvm-seahorn/include)
+#   add_subdirectory(llvm-seahorn/lib)
+#   add_subdirectory(llvm-seahorn/tools)
+#   set (HAVE_LLVM_SEAHORN TRUE)
+#   set (LLVM_SEAHORN_LIBS SeaInstCombine SeaLoops)
+# else()
+#   message (WARNING "No LLVM-SEAHORN found in ${CMAKE_SOURCE_DIR}/llvm-seahorn. Run\n\tcmake --build . --target extra && cmake ${CMAKE_SOURCE_DIR}")
+# endif()
 
-if (IS_DIRECTORY ${CMAKE_SOURCE_DIR}/crab-llvm AND
-    EXISTS ${CMAKE_SOURCE_DIR}/crab-llvm/CMakeLists.txt)
-  add_subdirectory(${CMAKE_SOURCE_DIR}/crab-llvm)
-  set (HAVE_CRAB_LLVM TRUE)
-  include_directories (${CRABLLVM_INCLUDE_DIRS})  
-else()
-  message (WARNING "No CRAB-LLVM found in ${CMAKE_SOURCE_DIR}/crab-llvm. Run\n\tcmake --build . --target extra && cmake ${CMAKE_SOURCE_DIR}")
-endif()
+# if (IS_DIRECTORY ${CMAKE_SOURCE_DIR}/crab-llvm AND
+#     EXISTS ${CMAKE_SOURCE_DIR}/crab-llvm/CMakeLists.txt)
+#   add_subdirectory(${CMAKE_SOURCE_DIR}/crab-llvm)
+#   set (HAVE_CRAB_LLVM TRUE)
+#   include_directories (${CRABLLVM_INCLUDE_DIRS})  
+# else()
+#   message (WARNING "No CRAB-LLVM found in ${CMAKE_SOURCE_DIR}/crab-llvm. Run\n\tcmake --build . --target extra && cmake ${CMAKE_SOURCE_DIR}")
+# endif()
 
 if (IS_DIRECTORY ${CMAKE_SOURCE_DIR}/sea-dsa AND
     EXISTS ${CMAKE_SOURCE_DIR}/sea-dsa/src/DsaAnalysis.cc)

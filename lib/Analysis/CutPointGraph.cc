@@ -20,8 +20,7 @@ ExtraCp("horn-extra-cps",
             clEnumValN (H1, "h1", /*"backedge-src",*/ 
                         "Add block if source of a back-edge"),
             clEnumValN (H2, "h2", /*"more-reach-cp-than-children",*/ 
-                        "Add block if it reaches more cutpoints than its successors"),
-            clEnumValEnd),
+                        "Add block if it reaches more cutpoints than its successors")),
         llvm::cl::init (H0));
             
 namespace seahorn

@@ -48,7 +48,9 @@ namespace {
       // initialize passes we depend on
       initializeLoopSimplifyPass(*PassRegistry::getPassRegistry());
       initializeLoopInfoWrapperPassPass(*PassRegistry::getPassRegistry());
-      initializeLCSSAPass(*PassRegistry::getPassRegistry());
+      // JN: do not exist in llvm 5.0
+      //initializeLCSSAPass(*PassRegistry::getPassRegistry());
+      initializeLoopPassPass(*PassRegistry::getPassRegistry());
     }
 
     bool runOnLoop (Loop *L, LPPassManager &LPM) override
@@ -72,7 +74,7 @@ namespace {
       AU.addPreservedID(LCSSAID);
     }
     
-    virtual const char *getPassName () const 
+    virtual StringRef getPassName () const 
     {return "Unfold first iteration of loops if useful for DSA";}
     
   };

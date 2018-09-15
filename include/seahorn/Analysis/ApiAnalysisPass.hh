@@ -122,7 +122,7 @@ namespace seahorn
 
     virtual void getAnalysisUsage (AnalysisUsage &AU) const;
 
-    virtual const char* getPassName () const
+    virtual StringRef getPassName () const
     { return "ApiAnalysisPass"; }
   };
 }

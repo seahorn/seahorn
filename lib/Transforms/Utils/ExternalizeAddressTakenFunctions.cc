@@ -95,7 +95,7 @@ namespace seahorn
 		  Use *OperandList = c->getOperandList();
 		  unsigned OperandToUpdate = U-OperandList;
 		  if (c->getOperand(OperandToUpdate) == &F) {
-		    c->handleOperandChange (&F, NF, U);
+		    c->handleOperandChange (&F, NF);
 		    Changed = true;
 		  }
 		}
@@ -113,7 +113,7 @@ namespace seahorn
       AU.setPreservesAll ();
     }
 
-    const char* getPassName () const {
+    StringRef getPassName () const {
       return "Externalize uses of address-taken functions";
     }
   };

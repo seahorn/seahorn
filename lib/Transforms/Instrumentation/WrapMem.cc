@@ -57,7 +57,12 @@ namespace
     
   public:
     static char ID;
-    WrapMem() : ModulePass (ID), m_dsa(nullptr) {}
+    WrapMem() :
+      ModulePass (ID)
+#ifdef HAVE_DSA      
+      , m_dsa(nullptr)
+#endif       
+    {}
 
     bool runOnModule (Module &M)
     {
@@ -78,8 +83,7 @@ namespace
                                                          Type::getVoidTy (C),
                                                          Type::getInt8PtrTy (C, 0),
                                                          Type::getInt8PtrTy (C, 0),
-                                                         m_intPtrTy,
-                                                         NULL));
+                                                         m_intPtrTy));
       /* void __sea_mem_store (void *src, void *dst, size_t sz)
          { memcpy (dst, src, sz); }
       */
@@ -87,14 +91,12 @@ namespace
                                                           Type::getVoidTy (C),
                                                           Type::getInt8PtrTy (C, 0),
                                                           Type::getInt8PtrTy (C, 0),
-                                                          m_intPtrTy,
-                                                          NULL));
+                                                          m_intPtrTy));
 
       if (Function *Main = M.getFunction ("main")) {
 	Function* memInit = cast<Function> (M.getOrInsertFunction
 					    ("__seahorn_mem_init_routine",
-					     Type::getVoidTy (C),
-					     NULL));
+					     Type::getVoidTy (C)));
 	
 	BasicBlock &entry = Main->getEntryBlock();
 	IRBuilder<> B(M.getContext ());

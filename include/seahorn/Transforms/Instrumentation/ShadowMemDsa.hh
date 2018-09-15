@@ -63,7 +63,7 @@ namespace seahorn
     virtual bool runOnFunction (Function &F);
     
     virtual void getAnalysisUsage (llvm::AnalysisUsage &AU) const;
-    virtual const char* getPassName () const {return "ShadowMemDsa";}
+    virtual StringRef getPassName () const {return "ShadowMemDsa";}
   };
   
 }
@@ -86,7 +86,7 @@ namespace seahorn
     }
     virtual void getAnalysisUsage (llvm::AnalysisUsage &AU) const
     {AU.setPreservesAll ();}
-    virtual const char* getPassName () const {return "Stub-ShadowMemDsa";}
+    virtual StringRef getPassName () const {return "Stub-ShadowMemDsa";}
   };
   
   class StripShadowMem: public llvm::ModulePass
@@ -101,7 +101,7 @@ namespace seahorn
     }
     virtual void getAnalysisUsage (llvm::AnalysisUsage &AU) const
     {AU.setPreservesAll ();}
-    virtual const char* getPassName () const {return "Stub-StripShadowMem";}
+    virtual StringRef getPassName () const {return "Stub-StripShadowMem";}
   };
 }
 #endif

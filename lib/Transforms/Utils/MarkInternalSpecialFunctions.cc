@@ -39,7 +39,7 @@ namespace seahorn
       #endif 
     }
 
-    virtual const char* getPassName () const 
+    virtual StringRef getPassName () const 
     {return "Mark function that allocate or deallocate memory with AlwaysInline attribute";}
     
     // Mark any function that has a call to a malloc-like or free-like
@@ -117,7 +117,7 @@ namespace seahorn
     static char ID;
     MarkInternalConstructOrDestructInline () : ModulePass (ID) {}
 
-    virtual const char* getPassName () const 
+    virtual StringRef getPassName () const 
     {return "Mark C++ constructors/destructors with AlwaysInline attribute";}
     
     void getAnalysisUsage (AnalysisUsage &AU) const

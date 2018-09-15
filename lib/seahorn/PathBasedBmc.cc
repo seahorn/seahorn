@@ -18,6 +18,7 @@
 #include "llvm/Support/Path.h"
 #include "llvm/Support/raw_ostream.h"
 
+#include "boost/unordered_map.hpp"
 
 /**
   NOTE #1: certain parts of this implementation is VC
@@ -64,6 +65,7 @@ UseCrabGlobalInvariants ("horn-bmc-crab-invariants",
    llvm::cl::desc ("Load crab invariants into the Path-based BMC engine"),
    llvm::cl::init (true));
 
+#ifdef HAVE_CRAB_LLVM
 static llvm::cl::opt<crab_llvm::CrabDomain>
 CrabDom ("horn-bmc-crab-dom",
    llvm::cl::desc ("Crab Domain to solve path formulas in Path-Based BMC"),
@@ -77,9 +79,9 @@ CrabDom ("horn-bmc-crab-dom",
      clEnumValN (crab_llvm::TERMS_ZONES, "rtz",
 		 "Reduced product of term-dis-int and zones."),
      clEnumValN (crab_llvm::WRAPPED_INTERVALS, "w-int",
-		 "Wrapped interval domain"),
-     clEnumValEnd),
+		 "Wrapped interval domain")),
    llvm::cl::init (crab_llvm::INTERVALS));
+#endif
 
 namespace bmc_detail
 { enum muc_method_t { MUC_NONE, MUC_DELETION, MUC_ASSUMPTIONS, MUC_BINARY_SEARCH }; }
@@ -91,8 +93,7 @@ MucMethod("horn-bmc-muc",
     clEnumValN (bmc_detail::MUC_NONE, "none", "None"),
     clEnumValN (bmc_detail::MUC_ASSUMPTIONS, "assume", "Solving with assumptions"),
     clEnumValN (bmc_detail::MUC_DELETION, "deletion", "Deletion-based method"),
-    clEnumValN (bmc_detail::MUC_BINARY_SEARCH, "quickXplain", "QuickXplain method"),
-    clEnumValEnd),
+    clEnumValN (bmc_detail::MUC_BINARY_SEARCH, "quickXplain", "QuickXplain method")),
   llvm::cl::init(bmc_detail::MUC_ASSUMPTIONS));
 
 static llvm::cl::opt<unsigned>
@@ -1188,8 +1189,6 @@ namespace seahorn
     m_crab_path = new crab_llvm::IntraCrabLlvm(*(const_cast<Function*>(this->m_fn)),
 					       m_tli, cfg_man,
 					       prec_level, heap_abstraction);
-    #endif
-
     LOG("bmc",
 	if (UseCrab) {
 	  get_os() << "Processing symbolic paths\n";
@@ -1210,6 +1209,7 @@ namespace seahorn
 	    get_os() << "Using interval domain for solving paths\n";
 	  }
 	});
+    #endif
 
     /**
      * Main loop

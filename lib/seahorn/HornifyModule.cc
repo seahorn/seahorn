@@ -43,8 +43,7 @@ TL("horn-sem-lvl",
    llvm::cl::desc ("Track level for symbolic execution"),
    cl::values (clEnumValN (REG, "reg", "Primitive registers only"),
                clEnumValN (PTR, "ptr", "REG + pointers"),
-               clEnumValN (MEM, "mem", "PTR + memory content"),
-               clEnumValEnd),
+               clEnumValN (MEM, "mem", "PTR + memory content")),
    cl::init (seahorn::REG));
 
 
@@ -61,8 +60,7 @@ Step("horn-step",
                  clEnumValN (hm_detail::FLAT_LARGE_STEP, "flarge", "Flat Large Step"),
                  clEnumValN (hm_detail::CLP_SMALL_STEP, "clpsmall", "CLP Small Step"),
                  clEnumValN (hm_detail::CLP_FLAT_SMALL_STEP, "clpfsmall","CLP Flat Small Step"),
-                 clEnumValN (hm_detail::INC_SMALL_STEP, "incsmall","Inconsistency Small Step"),
-                 clEnumValEnd),
+                 clEnumValN (hm_detail::INC_SMALL_STEP, "incsmall","Inconsistency Small Step")),
      cl::init (hm_detail::SMALL_STEP));
 
 static llvm::cl::opt<bool>

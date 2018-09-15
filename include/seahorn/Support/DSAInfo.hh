@@ -21,7 +21,7 @@ namespace seahorn
 
     virtual bool runOnModule (llvm::Module &M) { return false;}
     virtual void getAnalysisUsage (llvm::AnalysisUsage &AU) const{ AU.setPreservesAll ();}
-    virtual const char* getPassName () const {return "DSAInfo";}
+    virtual StringRef getPassName () const {return "DSAInfo";}
   };
 }
 #else
@@ -123,7 +123,7 @@ namespace seahorn
 
     void releaseMemory();
 
-    virtual const char* getPassName () const {return "DSAInfo";}
+    virtual StringRef getPassName () const {return "DSAInfo";}
 
   };
 }

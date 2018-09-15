@@ -35,7 +35,7 @@ namespace seahorn
     // specially those to iterate over the nested components of a
     // given basic block.
 
-    virtual const char* getPassName () const {return "WeakTopologicalOrder";}
+    virtual StringRef getPassName () const {return "WeakTopologicalOrder";}
   };
 
 }

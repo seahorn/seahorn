@@ -24,7 +24,7 @@
 #include "llvm/Support/raw_ostream.h"
 
 #include "llvm/Bitcode/BitcodeWriterPass.h"
-#include "llvm/Bitcode/ReaderWriter.h"
+#include "llvm/Bitcode/BitcodeWriter.h"
 #include "llvm/Transforms/IPO.h"
 
 #include "llvm/IR/Verifier.h"
@@ -115,8 +115,7 @@ static llvm::cl::opt<enum ArrayBoundsChecksEncoding> ArrayBoundsChecks(
                    "Use local encoding (each pointer individually)"),
         clEnumValN(GLOBAL, "global", "Use global encoding"),
         clEnumValN(GLOBAL_C, "global-c",
-                   "Use global encoding by calling C-defined functions"),
-        clEnumValEnd),
+                   "Use global encoding by calling C-defined functions")),
     llvm::cl::init(NONE));
 
 static llvm::cl::opt<bool>
@@ -171,27 +170,27 @@ static llvm::cl::opt<bool>
                        llvm::cl::desc("Promote verifier.assume to llvm.assume"),
                        llvm::cl::init(false));
 
-static llvm::cl::opt<int>
-    SROA_Threshold("sroa-threshold",
-                   llvm::cl::desc("Threshold for ScalarReplAggregates pass"),
-                   llvm::cl::init(INT_MAX));
-static llvm::cl::opt<int> SROA_StructMemThreshold(
-    "sroa-struct",
-    llvm::cl::desc("Structure threshold for ScalarReplAggregates"),
-    llvm::cl::init(INT_MAX));
-
 static llvm::cl::opt<std::string>
     ApiConfig("api-config",
               llvm::cl::desc("Comma separated API function calls"),
               llvm::cl::init(""), llvm::cl::value_desc("api-string"));
 
-static llvm::cl::opt<int> SROA_ArrayElementThreshold(
-    "sroa-array", llvm::cl::desc("Array threshold for ScalarReplAggregates"),
-    llvm::cl::init(INT_MAX));
-static llvm::cl::opt<int> SROA_ScalarLoadThreshold(
-    "sroa-scalar-load",
-    llvm::cl::desc("Scalar load threshold for ScalarReplAggregates"),
-    llvm::cl::init(-1));
+// static llvm::cl::opt<int>
+//     SROA_Threshold("sroa-threshold",
+//                    llvm::cl::desc("Threshold for ScalarReplAggregates pass"),
+//                    llvm::cl::init(INT_MAX));
+// static llvm::cl::opt<int> SROA_StructMemThreshold(
+//     "sroa-struct",
+//     llvm::cl::desc("Structure threshold for ScalarReplAggregates"),
+//     llvm::cl::init(INT_MAX));
+
+// static llvm::cl::opt<int> SROA_ArrayElementThreshold(
+//     "sroa-array", llvm::cl::desc("Array threshold for ScalarReplAggregates"),
+//     llvm::cl::init(INT_MAX));
+// static llvm::cl::opt<int> SROA_ScalarLoadThreshold(
+//     "sroa-scalar-load",
+//     llvm::cl::desc("Scalar load threshold for ScalarReplAggregates"),
+//     llvm::cl::init(-1));
 
 static llvm::cl::opt<bool>
     KleeInternalize("klee-internalize",
@@ -232,13 +231,13 @@ int main(int argc, char **argv) {
   llvm::cl::ParseCommandLineOptions(
       argc, argv, "SeaPP-- LLVM bitcode Pre-Processor for Verification\n");
 
-  llvm::sys::PrintStackTraceOnErrorSignal();
+  llvm::sys::PrintStackTraceOnErrorSignal(argv[0]);
   llvm::PrettyStackTraceProgram PSTP(argc, argv);
   llvm::EnableDebugBuffering = true;
 
   std::error_code error_code;
   llvm::SMDiagnostic err;
-  llvm::LLVMContext &context = llvm::getGlobalContext();
+  static llvm::LLVMContext context;
   std::unique_ptr<llvm::Module> module;
   std::unique_ptr<llvm::tool_output_file> output;
 
@@ -282,7 +281,8 @@ int main(int argc, char **argv) {
   // llvm::initializeIPA (Registry);
   // XXX: porting to 3.8
   llvm::initializeCallGraphWrapperPassPass(Registry);
-  llvm::initializeCallGraphPrinterPass(Registry);
+  // XXX: commented while porting to 5.0    
+  //llvm::initializeCallGraphPrinterPass(Registry);
   llvm::initializeCallGraphViewerPass(Registry);
   // XXX: not sure if needed anymore
   llvm::initializeGlobalsAAWrapperPassPass(Registry);
@@ -346,7 +346,7 @@ int main(int argc, char **argv) {
     case GLOBAL_C:
       pass_manager.add(seahorn::createGlobalCBufferBoundsCheckPass());
       // --- inline some special functions
-      pass_manager.add(llvm::createAlwaysInlinerPass());
+      pass_manager.add(llvm::createAlwaysInlinerLegacyPass());
       break;
     case GLOBAL:
     default:
@@ -389,8 +389,10 @@ int main(int argc, char **argv) {
     pass_manager.add(seahorn::createMarkFnEntryPass());
 
     // turn all functions internal so that we can inline them if requested
-    pass_manager.add(
-        llvm::createInternalizePass(llvm::ArrayRef<const char *>("main")));
+    auto PreserveMain = [=](const llvm::GlobalValue &GV) {
+      return GV.getName() == "main";
+    };    
+    pass_manager.add(llvm::createInternalizePass(PreserveMain));
 
     if (LowerInvoke) {
       // -- lower invoke's
@@ -430,11 +432,13 @@ int main(int argc, char **argv) {
     pass_manager.add(llvm::createCFGSimplificationPass());
 
     // -- break aggregates
-    pass_manager.add(llvm::createScalarReplAggregatesPass(
-        SROA_Threshold, true, SROA_StructMemThreshold,
-        SROA_ArrayElementThreshold, SROA_ScalarLoadThreshold));
+    // XXX: createScalarReplAggregatesPass is not defined in llvm 5.0
+    // pass_manager.add(llvm::createScalarReplAggregatesPass(
+    //     SROA_Threshold, true, SROA_StructMemThreshold,
+    //     SROA_ArrayElementThreshold, SROA_ScalarLoadThreshold));
+    pass_manager.add(llvm::createSROAPass());
     // -- Turn undef into nondet (undef are created by SROA when it calls
-    // mem2reg)
+    //     mem2reg)
     pass_manager.add(seahorn::createNondetInitPass());
 
     // -- cleanup after break aggregates
@@ -505,7 +509,7 @@ int main(int argc, char **argv) {
 
     // run inliner pass
     if (InlineAll || InlineAllocFn || InlineConstructFn) {
-      pass_manager.add(llvm::createAlwaysInlinerPass());
+      pass_manager.add(llvm::createAlwaysInlinerLegacyPass());
       pass_manager.add(
           llvm::createGlobalDCEPass()); // kill unused internal global
       pass_manager.add(seahorn::createPromoteMallocPass());

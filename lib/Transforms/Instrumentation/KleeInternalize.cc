@@ -72,20 +72,17 @@ namespace
                                                               voidTy,
                                                               i8PtrTy, i8PtrTy,
                                                               i32Ty,
-                                                              i8PtrTy,
-                                                              NULL));
+                                                              i8PtrTy));
 
       m_kleeAssumeFn = cast<Function> (M.getOrInsertFunction ("klee_assume",
                                                               voidTy,
-                                                              m_intptrTy,
-                                                              NULL));
+                                                              m_intptrTy));
 
       m_kleeMkSymbolicFn = cast<Function> (M.getOrInsertFunction ("klee_make_symbolic",
                                                                   voidTy,
                                                                   i8PtrTy,
                                                                   m_intptrTy,
-                                                                  i8PtrTy,
-                                                                  NULL));
+                                                                  i8PtrTy));
 
       m_externalNames.insert (m_assertFailFn->getName ());
       m_externalNames.insert (m_kleeAssumeFn->getName ());
@@ -109,7 +106,7 @@ namespace
 	m_tli = &getAnalysis<TargetLibraryInfoWrapperPass> ().getTLI();
 
       // -- known library function
-      LibFunc::Func F;
+      LibFunc F;
       if (m_tli->getLibFunc (GV.getName(), F)) return false;
 
       if (m_externalNames.count (GV.getName()) > 0 ) return false;

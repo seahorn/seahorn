@@ -26,46 +26,43 @@ namespace seahorn
 
     AttrBuilder B;
 
-    AttributeSet as = AttributeSet::get (Context,
-                                        AttributeSet::FunctionIndex,
-                                        B);
+    AttributeList as = AttributeList::get (Context,
+					   AttributeList::FunctionIndex,
+					   B);
 
     m_assumeFn = dyn_cast<Function>
       (M.getOrInsertFunction ("verifier.assume",
                               as,
                               Type::getVoidTy (Context),
-                              Type::getInt1Ty (Context),
-                              NULL));
+                              Type::getInt1Ty (Context)));
+                              
     Function *assumeNotFn = dyn_cast<Function>
       (M.getOrInsertFunction ("verifier.assume.not",
                               as,
                               Type::getVoidTy (Context),
-                              Type::getInt1Ty (Context),
-                              NULL));
-
+                              Type::getInt1Ty (Context)));
+                              
     m_assertFn = dyn_cast<Function>
       (M.getOrInsertFunction ("verifier.assert",
                               as,
                               Type::getVoidTy (Context),
-                              Type::getInt1Ty (Context),
-                              NULL));
+                              Type::getInt1Ty (Context)));
 
     m_failureFn = dyn_cast<Function>
       (M.getOrInsertFunction ("seahorn.fail",
                               as,
-                              Type::getVoidTy (Context),
-                              NULL));
+                              Type::getVoidTy (Context)));
 
     B.addAttribute (Attribute::NoReturn);
     // XXX LLVM optimizer removes ReadNone functions even if they do not return!
     // B.addAttribute (Attribute::ReadNone);
 
-    as = AttributeSet::get (Context,
-                           AttributeSet::FunctionIndex, B);
+    as = AttributeList::get (Context,
+			     AttributeList::FunctionIndex, B);
     m_errorFn = dyn_cast<Function>
       (M.getOrInsertFunction ("verifier.error",
                               as,
-                              Type::getVoidTy (Context), NULL));
+                              Type::getVoidTy (Context)));
 
     /* add our functions to llvm used */
     GlobalVariable *LLVMUsed = M.getGlobalVariable("llvm.used");

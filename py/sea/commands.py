@@ -85,9 +85,9 @@ class Clang(sea.LimitedCmd):
         if _bc_or_ll_file (args.in_files[0]): return 0
 
         if self.plusplus:
-            cmd_name = which (['clang++-mp-3.8', 'clang++-3.8', 'clang++'])
+            cmd_name = which (['clang++-mp-5.0', 'clang++-5.0', 'clang++'])
         else:
-            cmd_name = which (['clang-mp-3.8', 'clang-3.8', 'clang'])
+            cmd_name = which (['clang-mp-5.0', 'clang-5.0', 'clang'])
 
         if cmd_name is None: raise IOError ('clang not found')
         self.clangCmd = sea.ExtCmd (cmd_name,'',quiet) 
@@ -134,7 +134,7 @@ class Clang(sea.LimitedCmd):
 
         if len(out_files) > 1:
             # link
-            cmd_name = which (['llvm-link-mp-3.8', 'llvm-link-3.8', 'llvm-link'])
+            cmd_name = which (['llvm-link-mp-5.0', 'llvm-link-5.0', 'llvm-link'])
             if cmd_name is None: raise IOError ('llvm-link not found')
             self.linkCmd = sea.ExtCmd (cmd_name,'',quiet) 
 
@@ -177,7 +177,7 @@ class LinkRt(sea.LimitedCmd):
 
     def run (self, args, extra):
 
-        cmd_name = which (['clang++-mp-3.8', 'clang++-3.8', 'clang++'])
+        cmd_name = which (['clang++-mp-5.0', 'clang++-5.0', 'clang++'])
 
         if cmd_name is None: raise IOError ('clang++ not found')
         self.clangCmd = sea.ExtCmd (cmd_name,'',quiet) 
@@ -1488,7 +1488,8 @@ class SeaExeCex(sea.LimitedCmd):
     
 ## SeaHorn aliases
 FrontEnd = sea.SeqCmd ('fe', 'Front end: alias for clang|pp|ms|opt',
-                       [Clang(), Seapp(), MixedSem(), Seaopt ()])
+                       #[Clang(), Seapp(), MixedSem(), Seaopt ()])
+                       [Clang(), Seapp(), MixedSem()])
 Smt = sea.SeqCmd ('smt', 'alias for fe|horn', FrontEnd.cmds + [Seahorn()])
 Clp = sea.SeqCmd ('clp', 'alias for fe|horn-clp', FrontEnd.cmds + [SeahornClp()])
 Boogie= sea.SeqCmd ('boogie', 'alias for fe|horn --boogie',

@@ -1060,7 +1060,7 @@ Expr BvOpSem::symbolicIndexedOffset(SymStore &s, Type *ptrTy,
       gep_type_begin(ptrTy, Indicies);
   for (unsigned CurIDX = 0, EndIDX = Indicies.size(); CurIDX != EndIDX;
        ++CurIDX, ++TI) {
-    if (StructType *STy = dyn_cast<StructType>(*TI)) {
+    if (StructType *STy = TI.getStructTypeOrNull()) {
       unsigned fieldNo = cast<ConstantInt>(Indicies[CurIDX])->getZExtValue();
       noffset += fieldOff(STy, fieldNo);
       Ty = STy->getElementType(fieldNo);

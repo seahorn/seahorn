@@ -220,7 +220,7 @@ namespace seahorn
     virtual void print (raw_ostream &out, const Module *M) const ;
     
     
-    virtual const char* getPassName () const {return "CutPointGraph";}
+    virtual StringRef getPassName () const {return "CutPointGraph";}
     
     
   };

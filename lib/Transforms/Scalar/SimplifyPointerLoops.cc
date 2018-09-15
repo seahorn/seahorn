@@ -373,7 +373,7 @@ namespace
       AU.addRequired<TargetLibraryInfoWrapperPass> ();
     }
     
-    virtual const char *getPassName () const 
+    virtual StringRef getPassName () const 
     {return "Simplify Loops with Pointer Induction Variables";}
     
   };

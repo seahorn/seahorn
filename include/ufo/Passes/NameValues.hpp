@@ -17,7 +17,7 @@ namespace ufo
     bool runOnModule (Module &M);
     bool runOnFunction (Function &F);
     void getAnalysisUsage (AnalysisUsage &AU) const { AU.setPreservesAll (); }
-    virtual const char* getPassName () const {return "NameValues";}
+    virtual StringRef getPassName () const {return "NameValues";}
 
   };
 

@@ -24,8 +24,7 @@ HornClauseFormat("horn-format",
                     "CLP (Constraint Logic Programming)"),
         clEnumValN (PURESMT2, "pure-smt2",
                     "Pure SMT-LIB2 compliant format"),
-        clEnumValN (MCMT, "mcmt", "MCMT (Sally) format"),
-        clEnumValEnd),
+        clEnumValN (MCMT, "mcmt", "MCMT (Sally) format")),
        llvm::cl::init (SMT2));
 
 namespace seahorn

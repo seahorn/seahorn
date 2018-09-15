@@ -182,7 +182,7 @@ public:
   SimpleMemoryCheck() : llvm::ModulePass(ID) {}
   virtual bool runOnModule(llvm::Module &M);
   virtual void getAnalysisUsage(llvm::AnalysisUsage &AU) const;
-  virtual const char *getPassName() const { return "SimpleMemoryCheck"; }
+  virtual llvm::StringRef getPassName() const { return "SimpleMemoryCheck"; }
 
   llvm::Optional<size_t> getAllocSize(Value *Ptr);
 
@@ -534,7 +534,7 @@ namespace {
 Instruction *GetNextInst(Instruction *I) {
   if (I->isTerminator())
     return I;
-  return I->getParent()->getInstList().getNext(I);
+  return I->getParent()->getInstList().getNextNode(*I);    
 }
 
 Type *GetI8PtrTy(LLVMContext &Ctx) {
@@ -710,7 +710,8 @@ void SimpleMemoryCheck::emitGlobalInstrumentation(CheckContext &Candidate,
   for (auto *AV : Candidate.OtherAllocSites)
     EmitOtherGVAssume(AV);
 
-  SMC_LOG(NDPtrBegin->getParent()->dump());
+  // FIXME: undefined symbols llvm::Value::dump() while porting to 5.0
+  //SMC_LOG(NDPtrBegin->getParent()->dump());
 }
 
 /**
@@ -732,8 +733,10 @@ void SimpleMemoryCheck::emitMemoryInstInstrumentation(CheckContext &Candidate) {
   IRB.SetInsertPoint(Term);
   IRB.CreateCall(m_errorFn);
 
-  SMC_LOG(cast<Instruction>(Candidate.Barrier)->getParent()->dump());
-  SMC_LOG(Term->getParent()->dump());
+
+  // FIXME: undefined symbols llvm::Value::dump() while porting to 5.0  
+  // SMC_LOG(cast<Instruction>(Candidate.Barrier)->getParent()->dump());
+  // SMC_LOG(Term->getParent()->dump());
 }
 
 /**
@@ -823,7 +826,8 @@ void SimpleMemoryCheck::emitAllocSiteInstrumentation(CheckContext &Candidate,
 
     SMC_LOG(dbgs() << "Instrumented other alloc site for " << AV->getName()
                    << ":\n");
-    SMC_LOG(OtherAllocInst->getParent()->dump());
+    // FIXME: undefined symbols llvm::Value::dump() while porting to 5.0  
+    //SMC_LOG(OtherAllocInst->getParent()->dump());
   };
 
   for (size_t i = 0; i < Candidate.InterestingAllocSites.size(); ++i) {
@@ -858,15 +862,15 @@ bool SimpleMemoryCheck::runOnModule(llvm::Module &M) {
 
   AttrBuilder AB;
   AB.addAttribute(Attribute::NoReturn);
-  AttributeSet AS = AttributeSet::get(*m_Ctx, AttributeSet::FunctionIndex, AB);
+  AttributeList AS = AttributeList::get(*m_Ctx, AttributeList::FunctionIndex, AB);
   m_errorFn = dyn_cast<Function>(M.getOrInsertFunction(
-      "verifier.error", AS, Type::getVoidTy(*m_Ctx), nullptr));
+      "verifier.error", AS, Type::getVoidTy(*m_Ctx)));
 
   AB.clear();
-  AS = AttributeSet::get(*m_Ctx, AttributeSet::FunctionIndex, AB);
+  AS = AttributeList::get(*m_Ctx, AttributeList::FunctionIndex, AB);
   m_assumeFn = dyn_cast<Function>(
       M.getOrInsertFunction("verifier.assume", AS, Type::getVoidTy(*m_Ctx),
-                            Type::getInt1Ty(*m_Ctx), nullptr));
+                            Type::getInt1Ty(*m_Ctx)));
 
   IRBuilder<> B(*m_Ctx);
   CallGraphWrapperPass *CGWP = getAnalysisIfAvailable<CallGraphWrapperPass>();
@@ -1043,9 +1047,9 @@ void SimpleMemoryCheck::printStats(
   OS << "\n=========== Start of Simple Memory Check Stats ===========\n";
   OS << "Format:\tAll instructions (Heap/Stack/Global)\n\n";
 
-  SmallPtrSet<Value *, 64> AllAllocSites;
-  SmallPtrSet<Value *, 64> AllInterestingAllocSites;
-  SmallPtrSet<Value *, 64> AllOtherAllocSites;
+  SmallPtrSet<Value *, 32> AllAllocSites;
+  SmallPtrSet<Value *, 32> AllInterestingAllocSites;
+  SmallPtrSet<Value *, 32> AllOtherAllocSites;
   for (auto &Check : Checks) {
     for (auto *AS : Check.InterestingAllocSites) {
       AllAllocSites.insert(AS);

@@ -29,9 +29,9 @@ namespace seahorn
 
       LLVMContext &Context = M.getContext ();
       AttrBuilder B;
-      AttributeSet as = AttributeSet::get (Context, 
-                                           AttributeSet::FunctionIndex,
-                                           B);
+      AttributeList as = AttributeList::get (Context, 
+					     AttributeList::FunctionIndex,
+					     B);
 
       const DataLayout* DL = &M.getDataLayout ();
       Type* IntPtrTy = DL->getIntPtrType (Context, 0);
@@ -43,16 +43,16 @@ namespace seahorn
           (M.getOrInsertFunction ("malloc", 
                                   as,
                                   Type::getInt8Ty(Context)->getPointerTo(),
-                                  IntPtrTy,
-                                  NULL));
+                                  IntPtrTy));
+                                  
       if (cg) cg->getOrInsertFunction (m_mallocFn);
     
       m_freeFn = dyn_cast<Function> 
           (M.getOrInsertFunction ("free",
                                   as,
                                   Type::getVoidTy (Context),
-                                  Type::getInt8Ty(Context)->getPointerTo(),
-                                  NULL));
+                                  Type::getInt8Ty(Context)->getPointerTo()));
+                                  
       if (cg) cg->getOrInsertFunction (m_freeFn);
       
       for (auto &F : M) runOnFunction (F);
@@ -137,7 +137,7 @@ namespace seahorn
       AU.addRequired<llvm::CallGraphWrapperPass>();
     }
     
-    virtual const char* getPassName () const 
+    virtual StringRef getPassName () const 
     {return "Lower Libc++abi functions";}
 
   };

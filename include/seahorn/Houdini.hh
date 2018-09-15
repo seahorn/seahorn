@@ -27,7 +27,7 @@ namespace seahorn
 
     virtual bool runOnModule (Module &M);
     virtual void getAnalysisUsage (AnalysisUsage &AU) const;
-    virtual const char* getPassName () const {return "Houdini";}
+    virtual StringRef getPassName () const {return "Houdini";}
   };
 
   class Houdini

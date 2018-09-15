@@ -33,13 +33,11 @@ namespace seahorn
     IRBuilder<> Builder (F.getContext ());
     Constant* assumeFn = F.getParent ()->getOrInsertFunction ("verifier.assume",
                                                               Builder.getVoidTy (),
-                                                              Builder.getInt1Ty (),
-                                                              NULL);
+                                                              Builder.getInt1Ty ());
+                                                              
     Constant* assumeNotFn = F.getParent ()->getOrInsertFunction ("verifier.assume.not",
                                                                  Builder.getVoidTy (),
-                                                                 Builder.getInt1Ty (),
-                                                                 NULL);
-
+                                                                 Builder.getInt1Ty ());
 
     for (BasicBlock &BB : F)
     {

@@ -44,7 +44,7 @@ namespace seahorn {
   struct PromotePass : public FunctionPass {
     static char ID; // Pass identification, replacement for typeid
     PromotePass() : FunctionPass(ID) {
-      initializePromotePassPass(*PassRegistry::getPassRegistry());
+      initializePromoteLegacyPassPass(*PassRegistry::getPassRegistry());
     }
 
     // runOnFunction - To run this pass, first we calculate the alloca
@@ -97,7 +97,7 @@ namespace seahorn {
       
       if (Allocas.empty()) break;
 
-      PromoteMemToReg(Allocas, DT, nullptr, &AC);
+      PromoteMemToReg(Allocas, DT, &AC);
       NumPromoted += Allocas.size();
       Changed = true;
     }

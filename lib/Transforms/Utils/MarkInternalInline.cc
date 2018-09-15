@@ -23,7 +23,7 @@ namespace seahorn
     static char ID;
     MarkInternalInline () : ModulePass (ID) {}
 
-    virtual const char* getPassName () const 
+    virtual StringRef getPassName () const 
     {return "Mark all internal functions with AlwaysInline attribute";}
     
     void getAnalysisUsage (AnalysisUsage &AU) const

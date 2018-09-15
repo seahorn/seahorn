@@ -43,7 +43,7 @@ if (GIT_FOUND)
     CACHE STRING "crab-llvm repo")
   
   add_custom_target (seahorn-llvm-git
-    ${GIT_EXECUTABLE} clone ${SEAHORN_LLVM_REPO} ${CMAKE_SOURCE_DIR}/llvm-seahorn)
+    ${GIT_EXECUTABLE} clone -b llvm-5.0 ${SEAHORN_LLVM_REPO} ${CMAKE_SOURCE_DIR}/llvm-seahorn)
   add_custom_target (llvm-dsa-git
     ${GIT_EXECUTABLE} clone ${LLVM_DSA_REPO} ${CMAKE_SOURCE_DIR}/llvm-dsa)
   add_custom_target (sea-dsa-git
@@ -53,7 +53,7 @@ if (GIT_FOUND)
   add_custom_target (extra
     ${CMAKE_COMMAND} -E touch ${CMAKE_CURRENT_LIST_FILE}
     DEPENDS
-    #seahorn-llvm-git
+    seahorn-llvm-git
     #llvm-dsa-git
     sea-dsa-git
     #crab-llvm-git
@@ -333,16 +333,16 @@ include_directories(BEFORE ${CMAKE_CURRENT_BINARY_DIR}/include)
 #   set (DSA_LIBS "")
 # endif()
 
-# if (IS_DIRECTORY ${CMAKE_SOURCE_DIR}/llvm-seahorn AND
-#     EXISTS ${CMAKE_SOURCE_DIR}/llvm-seahorn/lib/CMakeLists.txt)
-#   include_directories (BEFORE llvm-seahorn/include)
-#   add_subdirectory(llvm-seahorn/lib)
-#   add_subdirectory(llvm-seahorn/tools)
-#   set (HAVE_LLVM_SEAHORN TRUE)
-#   set (LLVM_SEAHORN_LIBS SeaInstCombine SeaLoops)
-# else()
-#   message (WARNING "No LLVM-SEAHORN found in ${CMAKE_SOURCE_DIR}/llvm-seahorn. Run\n\tcmake --build . --target extra && cmake ${CMAKE_SOURCE_DIR}")
-# endif()
+if (IS_DIRECTORY ${CMAKE_SOURCE_DIR}/llvm-seahorn AND
+    EXISTS ${CMAKE_SOURCE_DIR}/llvm-seahorn/lib/CMakeLists.txt)
+  include_directories (BEFORE llvm-seahorn/include)
+  add_subdirectory(llvm-seahorn/lib)
+  add_subdirectory(llvm-seahorn/tools)
+  set (HAVE_LLVM_SEAHORN TRUE)
+  set (LLVM_SEAHORN_LIBS SeaInstCombine SeaLoops)
+else()
+  message (WARNING "No LLVM-SEAHORN found in ${CMAKE_SOURCE_DIR}/llvm-seahorn. Run\n\tcmake --build . --target extra && cmake ${CMAKE_SOURCE_DIR}")
+endif()
 
 # if (IS_DIRECTORY ${CMAKE_SOURCE_DIR}/crab-llvm AND
 #     EXISTS ${CMAKE_SOURCE_DIR}/crab-llvm/CMakeLists.txt)

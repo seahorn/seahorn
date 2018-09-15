@@ -1488,8 +1488,7 @@ class SeaExeCex(sea.LimitedCmd):
     
 ## SeaHorn aliases
 FrontEnd = sea.SeqCmd ('fe', 'Front end: alias for clang|pp|ms|opt',
-                       #[Clang(), Seapp(), MixedSem(), Seaopt ()])
-                       [Clang(), Seapp(), MixedSem()])
+                       [Clang(), Seapp(), MixedSem(), Seaopt ()])
 Smt = sea.SeqCmd ('smt', 'alias for fe|horn', FrontEnd.cmds + [Seahorn()])
 Clp = sea.SeqCmd ('clp', 'alias for fe|horn-clp', FrontEnd.cmds + [SeahornClp()])
 Boogie= sea.SeqCmd ('boogie', 'alias for fe|horn --boogie',

@@ -14,7 +14,7 @@
 
 # About #
 
-<a href="http://seahorn.github.io/">SeaHorn</a> is an automated analysis framework for LLVM-based languages. LLVM version is 3.8.
+<a href="http://seahorn.github.io/">SeaHorn</a> is an automated analysis framework for LLVM-based languages. LLVM version is 5.0.
 
 # License #
 
@@ -66,7 +66,7 @@ SeaHorn.
 SeaHorn doesn't come with its own version of Clang and expects to find it
 either in the build directory (`run/bin`) or in PATH. Make sure that the
 version of Clang matches the version of LLVM that comes with SeaHorn
-(currently 3.8). The easiest way to provide the right version of Clang is
+(currently 5.0). The easiest way to provide the right version of Clang is
 to download it from [llvm.org](http://releases.llvm.org/download.html),
 unpact it somewhere and create a symbolic link to `clang` and `clang++`
 in `run/bin`.

@@ -3,10 +3,12 @@ branches:
   except:
   - dev
   - deep-dev
+  - deep-dev-5.0
 cache: apt
 branches:
   except:
   - deep-dev
+  - deep-dev-5.0  
 env:
   matrix:
      - os: linux

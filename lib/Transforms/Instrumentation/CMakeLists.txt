@@ -13,6 +13,8 @@ add_llvm_library(SeaInstrumentation
   NullCheck.cc
   BufferBoundsCheck.cc
   SimpleMemoryCheck.cc
+  TaintLogic.cc
+  SelfComposition.cc
   )
 
 if (HAVE_DSA)

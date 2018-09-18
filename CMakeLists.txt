@@ -41,22 +41,22 @@ if (GIT_FOUND)
     CACHE STRING "sea-dsa repo")
   set (CRAB_LLVM_REPO "https://github.com/seahorn/crab-llvm"
     CACHE STRING "crab-llvm repo")
-  
+
+  add_custom_target (llvm-dsa-git
+    ${GIT_EXECUTABLE} clone -b llvm-5.0 ${LLVM_DSA_REPO} ${CMAKE_SOURCE_DIR}/llvm-dsa)
+  add_custom_target (sea-dsa-git
+    ${GIT_EXECUTABLE} clone -b llvm-5.0 ${SEA_DSA_REPO} ${CMAKE_SOURCE_DIR}/sea-dsa)  
   add_custom_target (seahorn-llvm-git
     ${GIT_EXECUTABLE} clone -b llvm-5.0 ${SEAHORN_LLVM_REPO} ${CMAKE_SOURCE_DIR}/llvm-seahorn)
-  add_custom_target (llvm-dsa-git
-    ${GIT_EXECUTABLE} clone ${LLVM_DSA_REPO} ${CMAKE_SOURCE_DIR}/llvm-dsa)
-  add_custom_target (sea-dsa-git
-    ${GIT_EXECUTABLE} clone -b llvm-5.0 ${SEA_DSA_REPO} ${CMAKE_SOURCE_DIR}/sea-dsa)
   add_custom_target (crab-llvm-git
-    ${GIT_EXECUTABLE} clone -b dev ${CRAB_LLVM_REPO} ${CMAKE_SOURCE_DIR}/crab-llvm)
+    ${GIT_EXECUTABLE} clone -b dev-llvm-5.0 ${CRAB_LLVM_REPO} ${CMAKE_SOURCE_DIR}/crab-llvm)
   add_custom_target (extra
     ${CMAKE_COMMAND} -E touch ${CMAKE_CURRENT_LIST_FILE}
     DEPENDS
+    llvm-dsa-git
+    sea-dsa-git    
     seahorn-llvm-git
-    #llvm-dsa-git
-    sea-dsa-git
-    #crab-llvm-git
+    crab-llvm-git
   )
 
 else()
@@ -321,17 +321,17 @@ endif ()
 # add the include directory from the build tree
 include_directories(BEFORE ${CMAKE_CURRENT_BINARY_DIR}/include)
 
-# if (IS_DIRECTORY ${CMAKE_SOURCE_DIR}/llvm-dsa AND
-#     EXISTS ${CMAKE_SOURCE_DIR}/llvm-dsa/lib/DSA/Steensgaard.cpp)
-#   include_directories (BEFORE llvm-dsa/include)
-#   add_subdirectory (llvm-dsa/lib/AssistDS)
-#   add_subdirectory (llvm-dsa/lib/DSA)
-#   set (DSA_LIBS DSA AssistDS)
-#   set (HAVE_DSA TRUE)
-# else()
-#   message (WARNING "No LLVM DSA found in ${CMAKE_SOURCE_DIR}/llvm-dsa. Run\n\tcmake --build . --target extra && cmake ${CMAKE_SOURCE_DIR}")
-#   set (DSA_LIBS "")
-# endif()
+if (IS_DIRECTORY ${CMAKE_SOURCE_DIR}/llvm-dsa AND
+    EXISTS ${CMAKE_SOURCE_DIR}/llvm-dsa/lib/DSA/Steensgaard.cpp)
+  include_directories (BEFORE llvm-dsa/include)
+  add_subdirectory (llvm-dsa/lib/AssistDS)
+  add_subdirectory (llvm-dsa/lib/DSA)
+  set (DSA_LIBS DSA AssistDS)
+  set (HAVE_DSA TRUE)
+else()
+  message (WARNING "No LLVM DSA found in ${CMAKE_SOURCE_DIR}/llvm-dsa. Run\n\tcmake --build . --target extra && cmake ${CMAKE_SOURCE_DIR}")
+  set (DSA_LIBS "")
+endif()
 
 if (IS_DIRECTORY ${CMAKE_SOURCE_DIR}/llvm-seahorn AND
     EXISTS ${CMAKE_SOURCE_DIR}/llvm-seahorn/lib/CMakeLists.txt)
@@ -344,14 +344,14 @@ else()
   message (WARNING "No LLVM-SEAHORN found in ${CMAKE_SOURCE_DIR}/llvm-seahorn. Run\n\tcmake --build . --target extra && cmake ${CMAKE_SOURCE_DIR}")
 endif()
 
-# if (IS_DIRECTORY ${CMAKE_SOURCE_DIR}/crab-llvm AND
-#     EXISTS ${CMAKE_SOURCE_DIR}/crab-llvm/CMakeLists.txt)
-#   add_subdirectory(${CMAKE_SOURCE_DIR}/crab-llvm)
-#   set (HAVE_CRAB_LLVM TRUE)
-#   include_directories (${CRABLLVM_INCLUDE_DIRS})  
-# else()
-#   message (WARNING "No CRAB-LLVM found in ${CMAKE_SOURCE_DIR}/crab-llvm. Run\n\tcmake --build . --target extra && cmake ${CMAKE_SOURCE_DIR}")
-# endif()
+if (IS_DIRECTORY ${CMAKE_SOURCE_DIR}/crab-llvm AND
+    EXISTS ${CMAKE_SOURCE_DIR}/crab-llvm/CMakeLists.txt)
+  add_subdirectory(${CMAKE_SOURCE_DIR}/crab-llvm)
+  set (HAVE_CRAB_LLVM TRUE)
+  include_directories (${CRABLLVM_INCLUDE_DIRS})  
+else()
+  message (WARNING "No CRAB-LLVM found in ${CMAKE_SOURCE_DIR}/crab-llvm. Run\n\tcmake --build . --target extra && cmake ${CMAKE_SOURCE_DIR}")
+endif()
 
 if (IS_DIRECTORY ${CMAKE_SOURCE_DIR}/sea-dsa AND
     EXISTS ${CMAKE_SOURCE_DIR}/sea-dsa/src/DsaAnalysis.cc)

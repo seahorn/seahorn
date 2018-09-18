@@ -65,7 +65,7 @@ namespace seahorn
                                  const TargetLibraryInfo* tli,
                                  const Value* V) {
     uint64_t Size;
-    if (getObjectSize (V, Size, *dl, tli, true))
+    if (getObjectSize (V, Size, *dl, tli))
       return (Size > 0);
     
     return false; 

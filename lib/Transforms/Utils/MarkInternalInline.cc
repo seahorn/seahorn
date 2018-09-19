@@ -41,6 +41,10 @@ namespace seahorn
           if (selectedFn.empty () || selectedFn.count (&F) > 0) {
             LOG("inline", 
                 errs () << "INLINED " << F.getName () << "\n");
+
+	    if (F.hasFnAttribute(Attribute::NoInline)) {
+	      F.removeFnAttr(Attribute::NoInline);
+	    }
             F.addFnAttr (Attribute::AlwaysInline);
           }
         }

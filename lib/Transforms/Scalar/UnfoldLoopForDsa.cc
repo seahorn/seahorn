@@ -48,8 +48,7 @@ namespace {
       // initialize passes we depend on
       initializeLoopSimplifyPass(*PassRegistry::getPassRegistry());
       initializeLoopInfoWrapperPassPass(*PassRegistry::getPassRegistry());
-      // JN: do not exist in llvm 5.0
-      //initializeLCSSAPass(*PassRegistry::getPassRegistry());
+      initializeLCSSAWrapperPassPass(*PassRegistry::getPassRegistry());
       initializeLoopPassPass(*PassRegistry::getPassRegistry());
     }
 

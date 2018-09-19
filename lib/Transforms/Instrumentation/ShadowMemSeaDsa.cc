@@ -694,10 +694,12 @@ namespace seahorn
     static char ID;
     StripShadowMem () : ModulePass (ID) {} 
 
-    void getAnalysisUsage (AnalysisUsage &AU) const override
+    virtual StringRef getPassName() const { return "StripShadowMem"; }
+    
+    virtual void getAnalysisUsage (AnalysisUsage &AU) const override
     {AU.setPreservesAll ();}
     
-    bool runOnModule (Module &M) override
+    virtual bool runOnModule (Module &M) override
     {
       std::vector<std::string> voidFnNames = 
         {"shadow.mem.load", "shadow.mem.arg.ref",

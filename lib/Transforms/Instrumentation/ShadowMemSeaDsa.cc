@@ -213,66 +213,57 @@ namespace seahorn
                                          Type::getVoidTy (ctx),
                                          Type::getInt32Ty (ctx),
                                          Type::getInt32Ty (ctx),
-                                         Type::getInt8PtrTy (ctx),
-                                         (Type*) 0);
+                                         Type::getInt8PtrTy (ctx));
     
     
     m_memStoreFn = M.getOrInsertFunction ("shadow.mem.store", 
                                           Type::getInt32Ty (ctx),
                                           Type::getInt32Ty (ctx),
                                           Type::getInt32Ty (ctx),
-                                          Type::getInt8PtrTy (ctx),
-                                          (Type*) 0);
+                                          Type::getInt8PtrTy (ctx));
       
     m_memShadowInitFn = M.getOrInsertFunction ("shadow.mem.init",
                                                Type::getInt32Ty (ctx),
                                                Type::getInt32Ty (ctx),
-                                               Type::getInt8PtrTy (ctx),
-                                               (Type*) 0);
+                                               Type::getInt8PtrTy (ctx));
     
     m_memShadowArgInitFn = M.getOrInsertFunction ("shadow.mem.arg.init",
                                                   Type::getInt32Ty (ctx),
                                                   Type::getInt32Ty (ctx),
-                                                  Type::getInt8PtrTy (ctx),
-                                                  (Type*) 0);
+                                                  Type::getInt8PtrTy (ctx));
     
     m_argRefFn = M.getOrInsertFunction ("shadow.mem.arg.ref",
                                         Type::getVoidTy (ctx),
                                         Type::getInt32Ty (ctx),
                                         Type::getInt32Ty (ctx),
                                         Type::getInt32Ty (ctx),
-                                        Type::getInt8PtrTy (ctx),
-                                        (Type*) 0);
+                                        Type::getInt8PtrTy (ctx));
     
     m_argModFn = M.getOrInsertFunction ("shadow.mem.arg.mod",
                                         Type::getInt32Ty (ctx),
                                         Type::getInt32Ty (ctx),
                                         Type::getInt32Ty (ctx),
                                         Type::getInt32Ty (ctx),
-                                        Type::getInt8PtrTy (ctx),
-                                        (Type*) 0);
+                                        Type::getInt8PtrTy (ctx));
     m_argNewFn = M.getOrInsertFunction ("shadow.mem.arg.new",
                                         Type::getInt32Ty (ctx),
                                         Type::getInt32Ty (ctx),
                                         Type::getInt32Ty (ctx),
                                         Type::getInt32Ty (ctx),
-                                        Type::getInt8PtrTy (ctx),
-                                        (Type*) 0);
+                                        Type::getInt8PtrTy (ctx));
     
     m_markIn = M.getOrInsertFunction ("shadow.mem.in",
                                       Type::getVoidTy (ctx),
                                       Type::getInt32Ty (ctx),
                                       Type::getInt32Ty (ctx),
                                       Type::getInt32Ty (ctx),
-                                      Type::getInt8PtrTy (ctx),
-                                      (Type*) 0);
+                                      Type::getInt8PtrTy (ctx));
     m_markOut = M.getOrInsertFunction ("shadow.mem.out",
                                        Type::getVoidTy (ctx),
                                        Type::getInt32Ty (ctx),
                                        Type::getInt32Ty (ctx),
                                        Type::getInt32Ty (ctx),
-                                       Type::getInt8PtrTy (ctx),
-                                       (Type*) 0);
+                                       Type::getInt8PtrTy (ctx));
   }
   
   bool ShadowMemSeaDsa::runOnModule (llvm::Module &M)

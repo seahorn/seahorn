@@ -43,7 +43,7 @@ namespace llvm
     bool insertEdge (Optional<const BasicBlock*> src, const BasicBlock *dst)
     {
       if (!src)
-	return false;
+	return Visited.insert(dst);
       
       if (!Visited.isBlockedEdge (*src, dst))
         return Visited.insert (dst);

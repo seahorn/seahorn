@@ -94,6 +94,12 @@ class Clang(sea.LimitedCmd):
 
         if not all (_bc_or_ll_file (f) for f  in args.in_files):
             argv = ['-c', '-emit-llvm', '-D__SEAHORN__']
+            
+            # New for clang 5.0: to avoid add optnone if -O0
+            # Otherwise, seaopt cannot optimize.
+            argv.append('-Xclang')
+            argv.append('-disable-O0-optnone')
+            
             if not self.plusplus:
                 ## this is an invalid argument with C++/ObjC++ with clang 3.8
                 argv.append('-fgnu89-inline')
@@ -839,9 +845,9 @@ class Seaopt(sea.LimitedCmd):
             argv.append ('--unroll-threshold={t}'.format
                          (t=args.unroll_threshold))
         if not args.enable_vectorize:
-            argv.extend (['--disable-loop-vectorization=true',
-                          '--disable-slp-vectorization=true',
-                          '--vectorize-slp-aggressive=false'])
+            argv.extend ([  '--disable-loop-vectorization=true'
+                          , '--disable-slp-vectorization=true'
+                         ])
 
         argv.extend (args.in_files)
         if args.llvm_asm: argv.append ('-S')

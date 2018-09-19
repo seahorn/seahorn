@@ -650,10 +650,11 @@ namespace seahorn
     }
 
     void visitReturnInst (ReturnInst &I) {
-      Value *RV = I.getReturnValue();
-      if (instruction_factory::opt_term_t tr = m_ifac.get_value(*RV)) {
-	term_t res("#SEA_res");
-	m_bb += m_ifac.mk_assign(res, *tr);
+      if (Value *RV = I.getReturnValue()) {
+	if (instruction_factory::opt_term_t tr = m_ifac.get_value(*RV)) {
+	  term_t res("#SEA_res");
+	  m_bb += m_ifac.mk_assign(res, *tr);
+	}
       }
       
       m_bb += m_ifac.mk_return();

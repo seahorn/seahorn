@@ -209,7 +209,7 @@ int main(int argc, char **argv) {
 
   std::error_code error_code;
   llvm::SMDiagnostic err;
-  static llvm::LLVMContext context;
+  llvm::LLVMContext context;
   std::unique_ptr<llvm::Module> module;
   std::unique_ptr<llvm::tool_output_file> output;
   std::unique_ptr<llvm::tool_output_file> asmOutput;
@@ -256,18 +256,17 @@ int main(int argc, char **argv) {
 
   llvm::legacy::PassManager pass_manager;
   llvm::PassRegistry &Registry = *llvm::PassRegistry::getPassRegistry();
+  
   llvm::initializeAnalysis(Registry);
-
-  /// call graph and other IPA passes
-  // llvm::initializeIPA (Registry);
-  // XXX: porting to 3.8 
+  llvm::initializeTransformUtils(Registry);
+  llvm::initializeScalarOpts(Registry);
+  llvm::initializeIPO(Registry);
   llvm::initializeCallGraphWrapperPassPass(Registry);
-  // XXX: commented while porting to 5.0  
-  //llvm::initializeCallGraphPrinterPass(Registry);
+  llvm::initializeCallGraphPrinterLegacyPassPass(Registry);
   llvm::initializeCallGraphViewerPass(Registry);
   // XXX: not sure if needed anymore
   llvm::initializeGlobalsAAWrapperPassPass(Registry);  
-
+  
   // add an appropriate DataLayout instance for the module
   const llvm::DataLayout *dl = &module->getDataLayout ();
   if (!dl && !DefaultDataLayout.empty ())

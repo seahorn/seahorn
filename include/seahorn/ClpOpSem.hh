@@ -6,6 +6,10 @@
 #include "seahorn/OpSem.hh"
 #include "seahorn/Analysis/CanFail.hh"
 
+namespace llvm {
+  class GetElementPtrInst;
+}
+
 namespace seahorn
 {
 
@@ -63,10 +67,7 @@ namespace seahorn
     virtual const Value &conc (Expr v);
     virtual bool isTracked (const Value &v);
     virtual Expr lookup (SymStore &s, const Value &v);
-
-    Expr ptrArith (SymStore &s, const Value& base,
-                   SmallVectorImpl<const Value*> &ps,
-                   SmallVectorImpl<const Type *> &ts);
+    Expr ptrArith (SymStore &s, llvm::GetElementPtrInst& gep);
     unsigned storageSize (const llvm::Type *t);
     unsigned fieldOff (const StructType *t, unsigned field);
   };

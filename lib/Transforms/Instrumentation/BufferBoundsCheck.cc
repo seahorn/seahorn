@@ -617,42 +617,6 @@ static Value *computeGepOffset(const DataLayout *dl, IRBuilder<> B,
   }
 }
 
-// //! extract offset from gep
-// static Value* computeGepOffset(const DataLayout* dl, IRBuilder<> B,
-//                                GetElementPtrInst *gep) {
-//   SmallVector<Value*, 4> ps;
-//   SmallVector<Type*, 4> ts;
-//   gep_type_iterator typeIt = gep_type_begin (*gep);
-//   for (unsigned i = 1; i < gep->getNumOperands (); ++i, ++typeIt) {
-//     ps.push_back (gep->getOperand (i));
-//     ts.push_back (*typeIt);
-//   }
-
-//   Type* IntTy = createIntTy (dl, B.getContext ());
-//   Value* base = createIntCst (IntTy, 0);
-//   Value* curVal = base;
-
-//   for (unsigned i = 0; i < ps.size (); ++i) {
-//     if (const StructType *st = dyn_cast<StructType> (ts [i])) {
-//       if (const ConstantInt *ci = dyn_cast<ConstantInt> (ps [i])) {
-//         uint64_t off = fieldOffset (dl, st, ci->getZExtValue ());
-//         curVal = createAdd(B, dl,
-//                                 curVal,
-//                                 createIntCst (IntTy, off));
-//       }
-//       else assert (false);
-//     }
-//     else if (SequentialType *seqt = dyn_cast<SequentialType> (ts [i]))
-//     { // arrays, pointers, and vectors
-//       unsigned sz = storageSize (dl, seqt->getElementType ());
-//       Value *lhs = curVal;
-//       Value *rhs = createMul (B, dl, ps[i], sz);
-//       curVal = createAdd (B, dl, lhs, rhs);
-//     }
-//   }
-//   return curVal;
-// }
-
 static void updateCallGraph(CallGraph *cg, Function *caller, CallInst *callee) {
   if (cg) {
     (*cg)[caller]->addCalledFunction(CallSite(callee),
@@ -1003,34 +967,27 @@ void Local::resolvePHIUsers(const Value *v,
 
 void Local::instrumentGepOffset(IRBuilder<> B, Instruction *insertPoint,
                                 const GetElementPtrInst *gep) {
-  SmallVector<const Value *, 4> ps;
-  SmallVector<const Type *, 4> ts;
-  gep_type_iterator typeIt = gep_type_begin(*gep);
-  for (unsigned i = 1; i < gep->getNumOperands(); ++i, ++typeIt) {
-    ps.push_back(gep->getOperand(i));
-    ts.push_back(typeIt.getIndexedType());
-  }
-
   const Value *base = gep->getPointerOperand();
   Value *gepBaseOff = m_offsets[base];
 
-  if (!gepBaseOff)
-    return;
-
+  if (!gepBaseOff) return;
+    
   B.SetInsertPoint(insertPoint);
   Value *curVal = gepBaseOff;
-  for (unsigned i = 0; i < ps.size(); ++i) {
-    if (const StructType *st = dyn_cast<const StructType>(ts[i])) {
-      if (const ConstantInt *ci = dyn_cast<const ConstantInt>(ps[i])) {
+  for(auto GTI = gep_type_begin(gep), GTE = gep_type_end(gep); GTI != GTE; ++GTI) {
+    if (const StructType *st = GTI.getStructTypeOrNull()) {
+      if (const ConstantInt *ci = dyn_cast<const ConstantInt>(GTI.getOperand())) {
         uint64_t off = fieldOffset(m_dl, st, ci->getZExtValue());
         curVal = createAdd(B, m_dl, curVal, createIntCst(m_IntPtrTy, off));
-      } else
-        assert(false);
-    } else if (const SequentialType *seqt = dyn_cast<const SequentialType>(ts[i])) {
-      // arrays, pointers, and vectors
-      unsigned sz = storageSize(m_dl, seqt->getElementType());
+      } else {
+	assert(false);
+      }
+    } else {
+      // otherwise we have a sequential type like an array or vector.
+      // Multiply the index by the size of the indexed type.
+      unsigned sz = storageSize(m_dl, GTI.getIndexedType());
       Value *LHS = curVal;
-      Value *RHS = createMul(B, m_dl, const_cast<Value *>(ps[i]), sz);
+      Value *RHS = createMul(B, m_dl, const_cast<Value *>(GTI.getOperand()), sz);
       curVal = createAdd(B, m_dl, LHS, RHS);
     }
   }

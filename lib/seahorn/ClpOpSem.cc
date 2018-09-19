@@ -295,16 +295,7 @@ namespace
       if (!m_sem.isTracked (gep)) return;
       Expr lhs = havoc (gep);
 
-      SmallVector<const Value*, 4> ps;
-      SmallVector<const Type*, 4> ts;
-      gep_type_iterator typeIt = gep_type_begin (gep);
-      for (unsigned i = 1; i < gep.getNumOperands (); ++i, ++typeIt)
-      {
-        ps.push_back (gep.getOperand (i));
-        ts.push_back (typeIt.getIndexedType());
-      }
-
-      Expr op = m_sem.ptrArith (m_s, *gep.getPointerOperand (), ps, ts);
+      Expr op = m_sem.ptrArith (m_s, gep);
       if (op) m_side.push_back (mk<EQ> (lhs, op));
     }
 
@@ -622,29 +613,23 @@ namespace seahorn
     v.visit (const_cast<BasicBlock&>(bb));
   }
 
-  Expr ClpOpSem::ptrArith (SymStore &s,
-                                  const Value &base,
-                                  SmallVectorImpl<const Value*> &ps,
-                                  SmallVectorImpl<const Type*> &ts)
-  {
+  Expr ClpOpSem::ptrArith (SymStore &s, GetElementPtrInst& gep) {
+    Value& base = *gep.getPointerOperand ();
     Expr res = lookup (s, base);
     if (!res) return res;
-
-    for (unsigned i = 0; i < ps.size (); ++i)
-    {
-      if (const StructType *st = dyn_cast<const StructType> (ts [i]))
-      {
-        if (const ConstantInt *ci = dyn_cast<const ConstantInt> (ps [i]))
-        {
-          Expr off = mkTerm<mpz_class> (fieldOff (st, ci->getZExtValue ()), m_efac);
-          res = mk<PLUS> (res, off);
-        }
-        else assert (0);
-      }
-      else if (const SequentialType *seqt = dyn_cast<const SequentialType> (ts [i]))
-      {
-        Expr sz = mkTerm<mpz_class> (storageSize (seqt->getElementType ()), m_efac);
-        res = mk<PLUS> (res, mk<MULT> (lookup (s, *ps[i]), sz));
+    
+    for(auto GTI = gep_type_begin(&gep), GTE = gep_type_end(&gep); GTI != GTE; ++GTI) {
+      if (const StructType *st = GTI.getStructTypeOrNull()) {
+	if (const ConstantInt *ci = dyn_cast<const ConstantInt>(GTI.getOperand())) {
+	  Expr off = mkTerm<mpz_class>(fieldOff(st, ci->getZExtValue()), m_efac);
+	  res = mk<PLUS>(res, off);
+	} else
+	  assert(0);
+      } else {
+	// otherwise we have a sequential type like an array or vector.
+	// Multiply the index by the size of the indexed type.
+	Expr sz = mkTerm<mpz_class>(storageSize(GTI.getIndexedType()), m_efac);
+	res = mk<PLUS>(res, mk<MULT>(lookup(s, *GTI.getOperand()), sz));
       }
     }
     return res;

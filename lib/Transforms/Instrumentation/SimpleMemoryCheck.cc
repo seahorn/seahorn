@@ -591,7 +591,7 @@ void UpdateCallGraph(CallGraph *CG, Function *Caller, CallInst *Callee) {
 
 Function *SimpleMemoryCheck::createNewNDFn(Type *Ty, Twine Name) {
   auto *Res =
-      dyn_cast<Function>(m_M->getOrInsertFunction(Name.str(), Ty, nullptr));
+      dyn_cast<Function>(m_M->getOrInsertFunction(Name.str(), Ty));
   assert(Res);
 
   if (m_CG)

@@ -44,7 +44,7 @@ class TimeLimitedExec(threading.Thread):
         self.stderr = None
         self.verbose = verbose
         self.kwargs = popen_args
-        
+
     def run(self):
         def set_limits ():
             import resource as r

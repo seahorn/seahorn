@@ -195,6 +195,7 @@ namespace seahorn
         IRBuilder<> Builder (F.getContext ());
         Builder.SetInsertPoint (&I);
         CallInst *ci = Builder.CreateCall (m_failureFn);
+        ci->setDebugLoc (I.getDebugLoc ());
         if (cg)
           (*cg)[&F]->addCalledFunction (CallSite (ci),
                                         (*cg)[ci->getCalledFunction ()]);

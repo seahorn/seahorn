@@ -200,11 +200,11 @@ class LinkRt(sea.LimitedCmd):
         if args.alloc_mem:
             libseart = os.path.join (lib_dir, 'libsea-mem-rt.a')
         else:
-            libseart = os.path.join (lib_dir, 'libsea-rt.a')
+        libseart = os.path.join (lib_dir, 'libsea-rt.a')
         argv.append (libseart)
 
         return self.clangCmd.run (args, argv)
-        
+
     @property
     def stdout (self):
         return self.clangCmd.stdout
@@ -463,7 +463,7 @@ class AbcInst(sea.LimitedCmd):
         ap = super (AbcInst, self).mk_arg_parser (ap)
         ap.add_argument ('--log', dest='log', default=None,
                          metavar='STR', help='Log level')
-
+        
         ap.add_argument ('--abc-encoding', dest='abc_encoding',
                          help='Encoding used to insert array bounds checks',
                          choices=['local','global','global-c'], default='global')
@@ -523,7 +523,7 @@ class AbcInst(sea.LimitedCmd):
         ap.add_argument ('--abc-instrument-except-types',
                          help='Do not instrument a pointer if it is not of these user-defined types',
                          dest='abc_except_types', type=str,metavar='str,...')
-
+        
         add_in_out_args (ap)
         _add_S_arg (ap)
         return ap
@@ -585,7 +585,7 @@ class AbcInst(sea.LimitedCmd):
         if args.abc_track_base_only: argv.append ('--abc-track-base-only')
         if args.abc_surface_only: argv.append ('--abc-surface-only')
         if args.abc_store_base_only: argv.append ('--abc-store-base-only')
-
+            
         if args.log is not None:
             for l in args.log.split (':'): argv.extend (['-log', l])
 
@@ -612,11 +612,11 @@ class NdcInst(sea.LimitedCmd):
         ap = super (NdcInst, self).mk_arg_parser (ap)
         ap.add_argument ('--log', dest='log', default=None,
                          metavar='STR', help='Log level')
-
+        
         ap.add_argument ('--ndc-opt', dest='ndc_opt',
                          help='Minimize the number of null dereference checks',
                          default=False, action='store_true')
-
+        
         add_in_out_args (ap)
         _add_S_arg (ap)
         return ap
@@ -632,13 +632,13 @@ class NdcInst(sea.LimitedCmd):
 
         argv.append ('--null-check')
         if args.ndc_opt: argv.append ('--null-check-optimize')
-
+        
         if args.log is not None:
             for l in args.log.split (':'): argv.extend (['-log', l])
 
         argv.extend (args.in_files)
         return self.seappCmd.run(args, argv)
-
+    
 class SimpleMemoryChecks(sea.LimitedCmd):
     def __init__(self, quiet=False):
         super(SimpleMemoryChecks, self).__init__('smc',
@@ -952,7 +952,7 @@ class Seahorn(sea.LimitedCmd):
                                         allow_extra=True)
         self.solve = solve
         self.enable_boogie = enable_boogie
-        
+
     @property
     def stdout (self):
         return self.seahornCmd.stdout
@@ -1081,14 +1081,22 @@ class Seahorn(sea.LimitedCmd):
         if args.out_file is not None: argv.extend (['-o', args.out_file])
         argv.extend (args.in_files)
 
-        # pick out extra seahorn/crab options
+        # pick out extra seahorn options
         sea_argv = filter (_is_seahorn_opt, extra)
-        if not quiet and len(sea_argv) <> len(extra):
-            print ('WARNING: Ignoring unknown options:',
-                   ' '.join(filter(lambda x : not _is_seahorn_opt(x), extra)))
+
+        ###
+        ### Unfortunately this prints the warning too often
+        ### `extra` contains all options passed to the aggregate command
+        ### on command line, so it is likely to contain non-seahorn options
+        ### I thought that each sub-command 'eats' options it has processed,
+        ### but this is not the case. Disabling to avoid even more confusion.
+        ###
+        # if len(sea_argv) <> len(extra):
+        #     print ('WARNING: Ignoring unknown options:',
+        #            ' '.join(filter(lambda x : not _is_seahorn_opt(x), extra)))
+
         argv.extend (sea_argv)
-        if not ('--horn-stats' in argv):
-            argv.append('--horn-stats')
+
 
         return self.seahornCmd.run (args, argv)
 
@@ -1152,7 +1160,7 @@ class SeahornClp(sea.LimitedCmd):
         argv.extend (filter (_is_seahorn_opt, extra))
 
         return self.seahornCmd.run (args, argv)
-    
+
 class LegacyFrontEnd (sea.LimitedCmd):
     def __init__ (self, quiet=False):
         super (LegacyFrontEnd, self).__init__ ('lfe', allow_extra=True)
@@ -1325,7 +1333,7 @@ class SeaInc(sea.LimitedCmd):
           jb.singleRun(smt2_file)
       except Exception as e:
           raise IOError(str(e))
-
+      
 class ParAbc(sea.LimitedCmd):
     def __init__ (self, quiet=False):
         super (ParAbc, self).__init__ ('par-abc', allow_extra=True)
@@ -1348,7 +1356,7 @@ class ParAbc(sea.LimitedCmd):
 
     def run(self, args, extra):
         try:
-            import par_abc.par_abc as parabc
+            import par_abc.par_abc as parabc            
             return parabc.sea_par_abc(args, extra)
         except Exception as e:
             raise IOError(str(e))
@@ -1534,7 +1542,7 @@ class SeaExeCex(sea.LimitedCmd):
         except Exception as e:
             raise IOError(str(e))
     
-## SeaHorn aliases
+## SeaHorn aliases 
 FrontEnd = sea.SeqCmd ('fe', 'Front end: alias for clang|pp|ms|opt',
                        [Clang(), Seapp(), MixedSem(), Seaopt ()])
 Smt = sea.SeqCmd ('smt', 'alias for fe|horn', FrontEnd.cmds + [Seahorn()])

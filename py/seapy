@@ -8,7 +8,6 @@ def main (argv):
     import sea
     import sea.commands
 
-
     cmds = [sea.commands.Bpf,
             sea.commands.CutLoops(),
             sea.commands.BndSmt,
@@ -45,9 +44,8 @@ def main (argv):
             sea.commands.Inspect,
             sea.commands.SimpleMemoryChecks(),
             sea.commands.Smc,
-            sea.commands.SeaExeCex()
+            sea.commands.SeaExeCex(),
     ]
-
 
     cmd = sea.AgregateCmd('sea', 'SeaHorn Verification Framework', cmds)
     return cmd.main (argv)

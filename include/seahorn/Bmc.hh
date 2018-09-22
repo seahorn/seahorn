@@ -68,7 +68,13 @@ namespace seahorn
       m_sem (sem), m_efac (sem.efac ()), m_result (boost::indeterminate),
       m_cpg (nullptr), m_fn (nullptr),
       m_smt_solver (zctx)
-    {};
+      {
+        using namespace ufo;
+        z3n_set_param(":model_compress", false);
+        // ZParams<EZ3> params(zctx);
+        // params.set(":model_compress", false);
+        // m_smt_solver.set(params);
+      }
 
     void addCutPoint (const CutPoint &cp);
 

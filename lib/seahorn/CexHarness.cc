@@ -103,6 +103,10 @@ bool extractArrayContents(Expr e, IndexToValueMap &out, Expr &default_value) {
     }
     out.insert(std::make_pair(index, val));
     return extractArrayContents(array, out, default_value);
+  } else if (isOpX<LAMBDA>(e)) {
+    errs() << "Warning: Arrays are lambdas (wip): " << *e << "\n";
+    out.clear();
+    return false;
   }
   errs() << "Warning: unsupported array term " << *e << "\n";
   out.clear();

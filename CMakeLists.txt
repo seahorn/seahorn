@@ -77,7 +77,7 @@ set(CMAKE_FIND_LIBRARY_SUFFIXES ".a" ${CMAKE_FIND_LIBRARY_SUFFIXES})
 
 set (Boost_USE_STATIC_LIBS ON)
 set (BOOST_COMPONENTS system)
-find_package (Boost 1.55 REQUIRED COMPONENTS ${BOOST_COMPONENTS})
+  find_package (Boost 1.55 REQUIRED COMPONENTS ${BOOST_COMPONENTS})
 if (Boost_FOUND)
   include_directories (${Boost_INCLUDE_DIRS})
 endif ()
@@ -93,7 +93,7 @@ elseif(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
   set(CMAKE_INSTALL_RPATH "\$ORIGIN/../lib")
 else()
   set(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_PREFIX}/lib")
-endif ()  
+endif ()
 
 
 set (Z3_TAG "origin/deep_space" CACHE STRING "Z3 git tag to use")
@@ -372,7 +372,7 @@ include_directories(BEFORE
 
 add_subdirectory(lib)
 add_subdirectory(tools)
-add_subdirectory(units)
+  add_subdirectory(units)
 add_subdirectory(sea-rt)
 
 configure_file( include/seahorn/config.h.cmake

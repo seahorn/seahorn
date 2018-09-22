@@ -278,7 +278,7 @@ namespace seahorn {
         if (const ConstantInt *CI = dyn_cast<const ConstantInt> (BI->getOperand (1))) {
           APInt shift = CI->getValue ();
           if (CI->getType ()->isIntegerTy ()) {
-            APInt bitwidth (32, CI->getType ()->getIntegerBitWidth (), true);
+            APInt bitwidth (shift.getBitWidth(), CI->getType ()->getIntegerBitWidth (), true);
             if (shift.slt (bitwidth))
               ++SafeLeftShift;
             else

@@ -5,14 +5,14 @@
 #  - BASE_IMAGE: seahorn/seahorn (for use on Travis only), buildpack-deps (default)
 #
 
-ARG BASE_IMAGE=ubuntu
+ARG BASE_IMAGE=ubuntu:16.04
 FROM $BASE_IMAGE
 
-ARG BASE_IMAGE=ubuntu
+ARG BASE_IMAGE=ubuntu:16.04
 ENV SEAHORN=/opt/seahorn/bin/sea PATH="$PATH:/opt/seahorn/bin:/opt/llvm/bin"
 USER root
 
-RUN if [ "$BASE_IMAGE" != "seahorn/seahorn" ] && [ "$BASE_IMAGE" != "ubuntu" ] ; \
+RUN if [ "$BASE_IMAGE" != "seahorn/seahorn" ] && [ "$BASE_IMAGE" != "ubuntu:16.04" ] ; \
       then exit -1 ; \
       else echo "pulling from $BASE_IMAGE" ; \
     fi && \

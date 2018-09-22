@@ -1169,7 +1169,7 @@ namespace seahorn
 	  Expr bbV = sem().symb(*bb);
 	  m_smt_solver.assertExpr(mk<IMPL>(bbV, op::boolop::land(inv)));
 	}
-	ufo::Stats::stop ("BMC path-based: loading of crab invariants");
+	ufo::Stats::stop ("BMC path-based: loading of crab global invariants");
 	LOG("bmc", get_os(true)<< "End loading of crab invariants\n";);
       }
     }

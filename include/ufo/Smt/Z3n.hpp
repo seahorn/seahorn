@@ -443,7 +443,7 @@ public:
         efac(z.get_efac()) {}
 
   Z &getContext() { return z3; }
-  void set(const ZParams<Z> &p) { solver.set(p); }
+  void set(const ZParams<Z> &p) { solver.set(p); ctx.check_error();}
 
   template <typename OutputStream> OutputStream &toSmtLib(OutputStream &out) {
     ExprVector v;

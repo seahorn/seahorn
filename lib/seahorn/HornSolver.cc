@@ -22,7 +22,7 @@ static llvm::cl::opt<bool>
 
 static llvm::cl::opt<bool> EstimateSizeInvars(
     "horn-estimate-size-invars",
-             cl::desc ("Give an estimation about the size of all inferred invariants"), 
+             cl::desc ("Give an estimation about the size of all inferred invariants"),
              cl::init (false));
 
 static llvm::cl::opt<bool>
@@ -77,9 +77,9 @@ static llvm::cl::opt<bool>
 namespace seahorn {
   char HornSolver::ID = 0;
 
-bool HornSolver::runOnModule(Module &M) {
+  bool HornSolver::runOnModule(Module &M) {
     Stats::sset ("Result", "UNKNOWN");
-    
+
     HornifyModule &hm = getAnalysis<HornifyModule> ();
 
     // Load the Horn clause database
@@ -89,59 +89,59 @@ bool HornSolver::runOnModule(Module &M) {
     ZFixedPoint<EZ3> &fp = *m_fp;
 
     ZParams<EZ3> params (hm.getZContext ());
-  params.set(":engine", ChcEngine);
+    params.set(":engine", ChcEngine);
     // -- disable slicing so that we can use cover
     params.set (":xform.slice", false);
-  // params.set (":spacer.reset_obligation_queue", true);
-  // params.set (":pdr.flexible_trace", FlexTrace);
+    // params.set (":spacer.reset_obligation_queue", true);
+    // params.set (":pdr.flexible_trace", FlexTrace);
     params.set (":xform.inline-linear", false);
     params.set (":xform.inline-eager", false);
     // -- disable propagate_variable_equivalences in tail_simplifier
     params.set (":xform.tail_simplifier_pve", false);
     params.set (":xform.subsumption_checker", Subsumption);
-  params.set(":spacer.order_children", HornChildren ? 1U : 0U);
-  params.set(":spacer.max_num_contexts", PdrContexts);
-  params.set(":spacer.elim_aux", true);
-  params.set(":spacer.reach_dnf", true);
-  // params.set ("print_statistics", true);
-  params.set(":spacer.use_bg_invs", UseBgInvariants);
-  params.set(":spacer.weak_abs", WeakAbs);
-  params.set(":spacer.iuc", IUC);
-  params.set(":spacer.iuc.arith", IUCArith);
-  // -- less incremental but constraints are popped after pushed in
-  //    the solver
-  params.set(":spacer.keep_proxy", KeepProxy);
-  params.set(":spacer.ground_pobs", false);
-  params.set(":spacer.use_euf_gen", UseEufGen);
-  params.set(":spacer.max_level", HornMaxDepth);
+    params.set(":spacer.order_children", HornChildren ? 1U : 0U);
+    params.set(":spacer.max_num_contexts", PdrContexts);
+    params.set(":spacer.elim_aux", true);
+    params.set(":spacer.reach_dnf", true);
+    // params.set ("print_statistics", true);
+    params.set(":spacer.use_bg_invs", UseBgInvariants);
+    params.set(":spacer.weak_abs", WeakAbs);
+    params.set(":spacer.iuc", IUC);
+    params.set(":spacer.iuc.arith", IUCArith);
+    // -- less incremental but constraints are popped after pushed in
+    //    the solver
+    params.set(":spacer.keep_proxy", KeepProxy);
+    params.set(":spacer.ground_pobs", false);
+    params.set(":spacer.use_euf_gen", UseEufGen);
+    params.set(":spacer.max_level", HornMaxDepth);
     fp.set (params);
-    
+
     db.loadZFixedPoint (fp, SkipConstraints);
-    
+
     Stats::resume ("Horn");
     m_result = fp.query ();
     Stats::stop ("Horn");
-    
-  if (m_result)
-    outs() << "sat";
-  else if (!m_result)
-    outs() << "unsat";
-  else
-    outs() << "unknown";
+
+    if (m_result)
+      outs() << "sat";
+    else if (!m_result)
+      outs() << "unsat";
+    else
+      outs() << "unknown";
     outs () << "\n";
 
-  if (m_result)
-    Stats::sset("Result", "FALSE");
-  else if (!m_result)
-    Stats::sset("Result", "TRUE");
-    
-  LOG("answer", if (m_result || !m_result) errs() << fp.getAnswer() << "\n";);
+    if (m_result)
+      Stats::sset("Result", "FALSE");
+    else if (!m_result)
+      Stats::sset("Result", "TRUE");
 
-  if (PrintAnswer && !m_result) {
+    LOG("answer", if (m_result || !m_result) errs() << fp.getAnswer() << "\n";);
+
+    if (PrintAnswer && !m_result) {
       HornDbModel dbModel;
       initDBModelFromFP(dbModel, db, fp);
       printInvars(M, dbModel);
-  } else if (PrintAnswer && m_result)
+    } else if (PrintAnswer && m_result)
       printCex ();
 
     if (EstimateSizeInvars)
@@ -158,31 +158,31 @@ void HornSolver::getAnalysisUsage(AnalysisUsage &AU) const {
 void HornSolver::printCex() {
     ZFixedPoint<EZ3> fp = *m_fp;
     //outs () << *fp.getCex () << "\n";
-    
+
     ExprVector rules;
     fp.getCexRules (rules);
     boost::reverse (rules);
   for (Expr r : rules) {
       Expr src;
       Expr dst;
-      
+
     if (isOpX<IMPL>(r)) {
         dst = r->arg (1);
         r = r->arg (0);
         src = isOpX<AND> (r) ? r->arg (0) : r;
     } else
         dst = r;
-      
+
     if (src) {
       if (!bind::isFapp(src))
         src.reset(0);
       else
         src = bind::fname(bind::fname(src));
       }
-      
+
     if (src)
       outs() << *src << " --> ";
-      
+
       dst = bind::fname (bind::fname (dst));
       outs () << *dst << "\n";
     }

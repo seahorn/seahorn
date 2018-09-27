@@ -71,10 +71,11 @@ namespace seahorn
       for (auto &I : boost::make_iterator_range (inst_begin(F), inst_end (F)))
       {
         if (!isa<CallInst> (&I)) continue;
-        // -- look through pointer casts
-        Value *v = I.stripPointerCasts ();
-        CallSite CS (const_cast<Value*> (v));
-        
+	
+        // // -- look through pointer casts
+        // Value *v = I.stripPointerCasts ();
+        // CallSite CS (const_cast<Value*> (v));
+	CallSite CS(&I);
         const Function *fn = CS.getCalledFunction ();
         
         // -- check if this is a call through a pointer cast

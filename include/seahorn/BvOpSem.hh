@@ -6,6 +6,10 @@
 #include "seahorn/OpSem.hh"
 #include "seahorn/Analysis/CanFail.hh"
 
+namespace llvm {
+  class GetElementPtrInst;
+}
+
 namespace seahorn
 {
 
@@ -69,9 +73,7 @@ namespace seahorn
     virtual bool isTracked (const Value &v);
     virtual Expr lookup (SymStore &s, const Value &v);
 
-    Expr symbolicIndexedOffset (SymStore &s,
-                                Type *ptrTy,
-                                ArrayRef<Value *> Indicies);
+    Expr symbolicIndexedOffset (SymStore &s, llvm::GetElementPtrInst& gep);
     unsigned storageSize (const llvm::Type *t) const;
     unsigned fieldOff (const StructType *t, unsigned field) const;
 

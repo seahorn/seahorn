@@ -525,8 +525,7 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
     if (!base)
       return;
 
-    SmallVector<Value *, 8> Indicies(gep.op_begin() + 1, gep.op_end());
-    Expr off = m_sem.symbolicIndexedOffset(m_s, ptrOp->getType(), Indicies);
+    Expr off = m_sem.symbolicIndexedOffset(m_s, gep);
     if (!off)
       return;
 
@@ -1045,38 +1044,30 @@ void BvOpSem::execPhi(SymStore &s, const BasicBlock &bb, const BasicBlock &from,
   v.resetActiveLit();
 }
 
-Expr BvOpSem::symbolicIndexedOffset(SymStore &s, Type *ptrTy,
-                                    ArrayRef<Value *> Indicies) {
+Expr BvOpSem::symbolicIndexedOffset(SymStore &s, GetElementPtrInst& gep) {
   unsigned ptrSz = pointerSizeInBits();
-  Type *Ty = ptrTy;
-  assert(Ty->isPointerTy());
 
   // numeric offset
   uint64_t noffset = 0;
   // symbolic offset
   Expr soffset;
 
-  generic_gep_type_iterator<Value *const *> TI =
-      gep_type_begin(ptrTy, Indicies);
-  for (unsigned CurIDX = 0, EndIDX = Indicies.size(); CurIDX != EndIDX;
-       ++CurIDX, ++TI) {
+  for(auto TI = gep_type_begin(&gep), TE = gep_type_end(&gep); TI != TE; ++TI) {  
+    Value* CurVal = TI.getOperand();
     if (StructType *STy = TI.getStructTypeOrNull()) {
-      unsigned fieldNo = cast<ConstantInt>(Indicies[CurIDX])->getZExtValue();
+      unsigned fieldNo = cast<ConstantInt>(CurVal)->getZExtValue();
       noffset += fieldOff(STy, fieldNo);
-      Ty = STy->getElementType(fieldNo);
     } else {
-      Ty = cast<SequentialType>(Ty)->getElementType();
-      if (ConstantInt *ci = dyn_cast<ConstantInt>(Indicies[CurIDX])) {
+      assert(TI.isSequential());
+      unsigned sz = storageSize(TI.getIndexedType());
+      if (ConstantInt *ci = dyn_cast<ConstantInt>(CurVal)) {
         int64_t arrayIdx = ci->getSExtValue();
-        noffset += (uint64_t)arrayIdx * storageSize(Ty);
+        noffset += (uint64_t)arrayIdx * sz;
       } else {
-        Expr a = lookup(s, *Indicies[CurIDX]);
+        Expr a = lookup(s, *CurVal);
         assert(a);
-        a = mk<BMUL>(a, bv::bvnum(storageSize(Ty), ptrSz, m_efac));
-        if (soffset)
-          soffset = mk<BADD>(soffset, a);
-        else
-          soffset = a;
+        a = mk<BMUL>(a, bv::bvnum(sz, ptrSz, m_efac));
+	soffset = (soffset ? mk<BADD>(soffset, a): a);
       }
     }
   }

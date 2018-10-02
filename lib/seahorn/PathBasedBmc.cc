@@ -636,7 +636,7 @@ namespace seahorn
     using namespace crab_llvm;
     const Function& fun = *(this->m_fn);
     std::vector<const llvm::BasicBlock *> trace_blocks;
-
+    
     LOG("bmc-details", errs () << "Trace=";);
     for (int i = 0; i < trace.size(); i++) {
       trace_blocks.push_back(trace.bb(i));
@@ -683,7 +683,7 @@ namespace seahorn
 
 
       //ufo::Stats::resume ("BMC path-based: blocking clause");
-
+      
       LOG("bmc-details",
 	  errs () << "\nRelevant Crab statements:\n";
 	  for(auto &s: relevant_stmts) {
@@ -695,7 +695,7 @@ namespace seahorn
 	    errs () << ":\n";
 	    crab::outs () << "\t" << *(s.m_s) << "\n";
 	  });
-
+      
       // -- Refine the Boolean abstraction from a minimal infeasible
       //    sequence of crab statements.
       /*
@@ -733,20 +733,31 @@ namespace seahorn
 	    auto p = s.m_parent.get_edge();
 	    Expr src = sem().symb(*p.first);
 	    Expr dst = sem().symb(*p.second);
-
+	    
 	    Expr edge;
 	    if (isCriticalEdge(p.first, p.second)) {
 	      edge = bind::boolConst(mk<TUPLE>(src,dst));
-	    } else {
+	      LOG("bmc-crab-blocking-clause",
+		  errs () << "Critical edge for branch between "
+		          << p.first->getName() << " and " << p.second->getName() << ":"
+		          << *edge << "\n";);
+	      active_bool_lits.insert(src);
+	    } else {	      
 	      edge = mk<AND>(src, dst);
+	      LOG("bmc-crab-blocking-clause",
+		  errs () << "Non-critical edge for branch between "
+		          << p.first->getName() << " and " << p.second->getName() << ":"
+		          << *edge << "\n";);	      
 	    }
-	    active_bool_lits.insert(src);
 	    active_bool_lits.insert(edge);
 	  } else {
 	    const BasicBlock* BB = s.m_parent.get_basic_block();
 	    active_bool_lits.insert(sem().symb(*BB));
+	    LOG("bmc-crab-blocking-clause",
+		errs () << "basic block " << BB->getName () 
+		        << *(sem().symb(*BB)) << "\n";);	    
 	  }
-	  continue;
+	      continue;
 	} else if (s.m_s->is_assign() || s.m_s->is_bool_assign_var()) {
 	  const PHINode * Phi = nullptr;
 
@@ -773,14 +784,21 @@ namespace seahorn
 	    const BasicBlock* dst_BB = Phi->getParent();
 	    Expr src = sem().symb(*src_BB);
 	    Expr dst = sem().symb(*dst_BB);
-
 	    Expr edge;
 	    if (isCriticalEdge(src_BB, dst_BB)) {
 	      edge = bind::boolConst(mk<TUPLE>(src,dst));
+	      LOG("bmc-crab-blocking-clause",
+	    	  errs () << "Critical edge for PHI Node between "
+	    	          << src_BB->getName() << " and " << dst_BB->getName() << ":"
+	    	          << *edge << "\n";);
+	      active_bool_lits.insert(src);	      
 	    } else {
 	      edge = mk<AND>(src, dst);
+	      LOG("bmc-crab-blocking-clause",
+	    	  errs () << "Non-critical edge for PHI Node between "
+	    	          << src_BB->getName() << " and " << dst_BB->getName() << ":"
+	    	          << *edge << "\n";);
 	    }
-	    active_bool_lits.insert(src);
 	    active_bool_lits.insert(edge);
 	    continue;
 	  } else {
@@ -789,9 +807,12 @@ namespace seahorn
 	    const BasicBlock* BB = s.m_parent.get_basic_block();
 	    assert(BB);
 	    active_bool_lits.insert(sem().symb(*BB));
+	    LOG("bmc-crab-blocking-clause",
+		errs () << "basic block for assignment " << BB->getName () 
+		        << *(sem().symb(*BB)) << "\n";);	      
 	    continue;
 	  }
-	}
+	  }
 
 	// sanity check: this should not happen.
 	crab::outs() << "TODO: inference of active bool literals for "
@@ -800,11 +821,11 @@ namespace seahorn
 	// the SMT solver next.
 	//ufo::Stats::stop ("BMC path-based: blocking clause");
 	return true;
-      }
-
+      } // end for
+      
       // -- Finally, evaluate the symbolic boolean variables in their
       //    corresponding symbolic stores.
-
+      
       // Symbolic states are associated with cutpoints
       m_active_bool_lits.clear();
       auto &cps = getCps();
@@ -827,12 +848,13 @@ namespace seahorn
 	    auto t = getTuple(e);
 	    if (s.isDefined(t.first) && s.isDefined(t.second)) {
 	      m_active_bool_lits.push_back(bind::boolConst(mk<TUPLE>(s.eval(t.first),
-							       s.eval(t.second))));
+								     s.eval(t.second))));
 	      found = true;
 	      break;
 	    }
 	  }
 	}
+	
 	if (!found) {
 	  // Sanity check
 	  errs() << "Path-based BMC ERROR: cannot produce an unsat core from Crab\n";
@@ -841,7 +863,15 @@ namespace seahorn
 	  return true;
 	}
       }
-    }
+
+      /////////////////////////	
+      //// DEBUGGING
+      // Expr crab_bc = op::boolop::lneg(op::boolop::land(m_active_bool_lits));
+      // llvm::errs() << "Blocking clause using crab: " << *crab_bc << "\n";
+      // m_active_bool_lits.clear();
+      // return true;
+      /////////////////////////	      
+    } 
     return res;
   }
   #endif
@@ -969,7 +999,12 @@ namespace seahorn
       //ufo::Stats::stop ("BMC path-based: SMT unsat core");
 
       LOG("bmc",
-	  get_os() << "Size of unsat core=" << unsat_core.size() << "\n";);
+	  get_os() << "Size of unsat core=" << unsat_core.size() << "\n";
+	  errs() << "unsat core=\n";
+	  for (auto e: unsat_core) {
+	    errs () << *e << "\n";
+	  }
+	  );
 
       //ufo::Stats::resume ("BMC path-based: blocking clause");
       // -- Refine the Boolean abstraction using the unsat core
@@ -1369,6 +1404,7 @@ namespace seahorn
     LOG("bmc-details",
 	errs() << "Added blocking clause to refine Boolean abstraction: "
 	       << *bc << "\n";);
+    
     m_smt_solver.assertExpr(bc);
     auto res = m_blocking_clauses.insert(bc);
     bool ok = res.second;

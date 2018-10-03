@@ -81,6 +81,11 @@ CrabDom ("horn-bmc-crab-dom",
      clEnumValEnd),
    llvm::cl::init (crab_llvm::INTERVALS));
 
+static llvm::cl::opt<bool>
+LayeredCrabSolving ("horn-bmc-crab-layered-solving",
+   llvm::cl::desc ("Try only-boolean reasoning before using --horn-bmc-crab-dom to prove path unsatisfiability"),
+   llvm::cl::init (false));
+
 namespace bmc_detail
 { enum muc_method_t { MUC_NONE, MUC_DELETION, MUC_ASSUMPTIONS, MUC_BINARY_SEARCH }; }
 
@@ -659,15 +664,17 @@ namespace seahorn
     if (populate_constraints_map) {
       // postmap contains the forward invariants
       // premap contains necessary preconditions
-      res = m_crab_path->path_analyze(params, trace_blocks, relevant_stmts,
-				      postmap, premap/*unused*/);
+      res = m_crab_path->path_analyze(params, trace_blocks, LayeredCrabSolving,
+				      relevant_stmts, postmap, premap/*unused*/);
+				      
       // translate postmap (crab linear constraints) to path_constraints (Expr)
       crabToSea c2s(*m_ls, *(m_crab_global->get_heap_abstraction()), fun, sem().efac());
       crab_path_map cm(postmap);
       c2s.convert(trace_blocks.begin(), trace_blocks.end(), cm, path_constraints);
 
     } else {
-      res = m_crab_path->path_analyze(params, trace_blocks, relevant_stmts);
+      res = m_crab_path->path_analyze(params, trace_blocks, LayeredCrabSolving,
+				      relevant_stmts);
     }
 
     if (!res) {

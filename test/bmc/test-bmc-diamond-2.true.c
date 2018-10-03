@@ -1,4 +1,6 @@
-// RUN: %sea bpf -O0 --horn-bmc-crab --horn-bmc-muc=assume  --bmc=path --bound=10  --horn-stats --inline --log=bmc "%s" 2>&1 | OutputCheck %s
+// RUN: %sea bpf -O0 --bmc=mono --bound=10  --horn-stats --inline --log=bmc "%s" 2>&1 | OutputCheck %s
+// RUN: %sea bpf -O0 --horn-bmc-crab=false --horn-bmc-muc=assume  --bmc=path --bound=10  --horn-stats --inline --log=bmc "%s" 2>&1 | OutputCheck %s
+// RUN: %sea bpf -O0 --horn-bmc-crab=true --horn-bmc-muc=assume  --bmc=path --bound=10  --horn-stats --inline --log=bmc "%s" 2>&1 | OutputCheck %s
 // CHECK: ^unsat$
 
 /** 

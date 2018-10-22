@@ -2,19 +2,20 @@ digraph unnamed {
 	graph [center=true, ratio=true, bgcolor=lightgray, fontname=Helvetica];
 	node  [fontname=Helvetica, fontsize=11];
 
-	Node0x7fa52140c520 [shape=record,label="{\{void\}:S}"];
-	Node0x7fa52140c5d0 [shape=record,label="{\{0:i32\}:SMR}"];
-	Node0x7fa52140c780 [shape=record,label="{\{0:i32\}:SMR}"];
-	Node0x7fa521409c68[  label ="x.y"];
-	Node0x7fa521409c68 -> Node0x7fa52140c5d0[arrowtail=tee,color=gray63];
-	Node0x7fa5214099f8[  label ="y"];
-	Node0x7fa5214099f8 -> Node0x7fa52140c5d0[arrowtail=tee,color=gray63];
-	Node0x7fa521409988[  label ="x"];
-	Node0x7fa521409988 -> Node0x7fa52140c5d0[arrowtail=tee,color=gray63];
-	Node0x7fa521409ad8[  label ="z"];
-	Node0x7fa521409ad8 -> Node0x7fa52140c780[arrowtail=tee,color=gray63];
-	Node0x7fa521409a68[  label ="w"];
-	Node0x7fa521409a68 -> Node0x7fa52140c780[arrowtail=tee,color=gray63];
-	Node0x7fa521409820[ color=blue, label ="main#1"];
-	Node0x7fa521409820 -> Node0x7fa52140c520[tailclip=false,color=gray63];
+	Node0x2a75690 [shape=record,label="{\{void\}:S}"];
+	Node0x2a75740 [shape=record,label="{\{0:i32\}:SMR}"];
+	Node0x2a753e0 [shape=record,label="{\{0:i32\}:SMR}"];
+	Node0x2a78360 [shape=record,label="{\{0:i32\}:SMR}"];
+	Node0x2a642a8[ shape=plaintext, label ="x"];
+	Node0x2a642a8 -> Node0x2a75740[arrowtail=tee,label="0, unknown",fontsize=8,color=purple];
+	Node0x2a64318[ shape=plaintext, label ="y"];
+	Node0x2a64318 -> Node0x2a75740[arrowtail=tee,label="0, unknown",fontsize=8,color=purple];
+	Node0x2a643a8[ shape=plaintext, label ="w"];
+	Node0x2a643a8 -> Node0x2a753e0[arrowtail=tee,label="0, unknown",fontsize=8,color=purple];
+	Node0x2a64438[ shape=plaintext, label ="z"];
+	Node0x2a64438 -> Node0x2a78360[arrowtail=tee,label="0, unknown",fontsize=8,color=purple];
+	Node0x2a64828[ shape=plaintext, label ="x.y"];
+	Node0x2a64828 -> Node0x2a75740[arrowtail=tee,label="0, unknown",fontsize=8,color=purple];
+	Node0x2a63f90[ shape=plaintext,fontcolor=blue, label ="main#1"];
+	Node0x2a63f90 -> Node0x2a75690[tailclip=false,color=gray63,label="0, unknown",fontsize=8];
 }

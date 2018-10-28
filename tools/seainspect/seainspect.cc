@@ -37,7 +37,7 @@ ApiConfig("api-config",
          llvm::cl::init(""), llvm::cl::value_desc("api-string"));
 
 static llvm::cl::opt<std::string>
-DefaultDataLayout("-data-layout",
+DefaultDataLayout("data-layout",
         llvm::cl::desc("data layout string to use if not specified by module"),
         llvm::cl::init(""), llvm::cl::value_desc("layout-string"));
 

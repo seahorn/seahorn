@@ -275,7 +275,7 @@ llvm::Optional<size_t> SimpleMemoryCheck::getAllocSize(Value *Ptr) {
   if (!isKnownAlloc(Ptr))
     return None;
 
-  ObjectSizeOffsetVisitor OSOV(*m_DL, m_TLI, *m_Ctx, true);
+  ObjectSizeOffsetVisitor OSOV(*m_DL, m_TLI, *m_Ctx, {});
   auto OffsetAlign = OSOV.compute(Ptr);
   if (!OSOV.knownSize(OffsetAlign))
     return llvm::None;
@@ -1083,9 +1083,9 @@ void SimpleMemoryCheck::printStats(
   OS << "\n=========== Start of Simple Memory Check Stats ===========\n";
   OS << "Format:\tAll instructions (Heap/Stack/Global)\n\n";
 
-  SmallPtrSet<Value *, 64> AllAllocSites;
-  SmallPtrSet<Value *, 64> AllInterestingAllocSites;
-  SmallPtrSet<Value *, 64> AllOtherAllocSites;
+  SmallPtrSet<Value *, 32> AllAllocSites;
+  SmallPtrSet<Value *, 32> AllInterestingAllocSites;
+  SmallPtrSet<Value *, 32> AllOtherAllocSites;
   DenseSet<Instruction *> AllInstructions;
   AllInstructions.insert(UninterestingMIs.begin(), UninterestingMIs.end());
 

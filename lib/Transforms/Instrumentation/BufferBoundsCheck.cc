@@ -117,7 +117,6 @@ public:
   virtual unsigned int getAllocSiteId(const llvm::Value &ptr) = 0;
   virtual const llvm::Value *getAllocValue(unsigned int id) = 0;
   virtual const char *getDsaName() const = 0;
-  virtual ~DsaWrapper() {}
 };
 
 // A wrapper for seahorn dsa

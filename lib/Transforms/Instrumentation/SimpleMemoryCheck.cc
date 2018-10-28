@@ -275,7 +275,10 @@ llvm::Optional<size_t> SimpleMemoryCheck::getAllocSize(Value *Ptr) {
   if (!isKnownAlloc(Ptr))
     return None;
 
-  ObjectSizeOffsetVisitor OSOV(*m_DL, m_TLI, *m_Ctx, {});
+  llvm::ObjectSizeOpts Opts;
+  Opts.RoundToAlign = true;
+  Opts.EvalMode = llvm::ObjectSizeOpts::Mode::Max;
+  ObjectSizeOffsetVisitor OSOV(*m_DL, m_TLI, *m_Ctx, Opts);
   auto OffsetAlign = OSOV.compute(Ptr);
   if (!OSOV.knownSize(OffsetAlign))
     return llvm::None;
@@ -465,6 +468,11 @@ CheckContext SimpleMemoryCheck::getUnsafeCandidates(Instruction *Inst,
   assert(Arg);
 
   PtrOrigin Origin = trackPtrOrigin(Arg);
+  if (Origin.Offset < 0) {
+    errs() << "WARNING SMC \tApplied negative offsets, "
+           << "overriding offset as 0\n";
+    Origin.Offset = 0;
+  }
 
   auto *Ty = LI ? LI->getType()
                 : SI->getPointerOperand()->getType()->getPointerElementType();

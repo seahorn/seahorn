@@ -51,7 +51,8 @@ public:
 
 std::unique_ptr<llvm::Module> createCexHarness(BmcTraceWrapper &trace,
                                                const DataLayout &dl,
-                                               const TargetLibraryInfo &tli);
+                                               const TargetLibraryInfo &tli,
+                                               llvm::LLVMContext &context);
 } // namespace seahorn
 
 #endif

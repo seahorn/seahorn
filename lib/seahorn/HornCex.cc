@@ -95,8 +95,9 @@ namespace seahorn {
 
   template <typename O> class SvCompCex;
   static void dumpSvCompCex (BmcTrace &trace, std::string CexFile);
-static void dumpLLVMCex(BmcTraceWrapper &trace, StringRef CexFile,
-                        const DataLayout &dl, const TargetLibraryInfo &tli);
+    static void dumpLLVMCex(BmcTraceWrapper &trace, StringRef CexFile,
+                            const DataLayout &dl, const TargetLibraryInfo &tli,
+                            llvm::LLVMContext &context);
   static void dumpLLVMBitcode(const Module &M, StringRef BcFile);
 
   char HornCex::ID = 0;
@@ -341,7 +342,7 @@ bool HornCex::runOnFunction(Module &M, Function &F) {
     if (memSim) {
       traceW.reset(new BmcTraceMemSim(*memSim));
     }
-    dumpLLVMCex(*traceW, HornCexFileRef, dl, tli);
+    dumpLLVMCex(*traceW, HornCexFileRef, dl, tli, F.getContext());
     } else if (HornCexFileRef.endswith(".xml")) {
       dumpSvCompCex (trace, HornCexFileRef);
     } else if (!HornCexFileRef.empty()) {
@@ -519,8 +520,9 @@ static void dumpSvCompCex(BmcTrace &trace, std::string CexFile) {
   }
 
 static void dumpLLVMCex(BmcTraceWrapper &trace, StringRef CexFile,
-                        const DataLayout &dl, const TargetLibraryInfo &tli) {
-    std::unique_ptr<Module> Harness = createCexHarness(trace, dl, tli);
+                        const DataLayout &dl, const TargetLibraryInfo &tli,
+                        LLVMContext &context) {
+    std::unique_ptr<Module> Harness = createCexHarness(trace, dl, tli, context);
     std::error_code error_code;
     llvm::tool_output_file out(CexFile, error_code, sys::fs::F_None);
     assert (!error_code);

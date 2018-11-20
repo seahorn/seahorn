@@ -187,7 +187,7 @@ bool HornCex::runOnFunction(Module &M, Function &F) {
 
     // -- release trace resources
     bbTrace.clear ();
-    
+
     // -- abort if cpTrace is not well formed and it cannot be fixed.
     bool isCpTraceOK = true;
     if (cpTrace.empty()) {
@@ -237,7 +237,7 @@ bool HornCex::runOnFunction(Module &M, Function &F) {
 	prev = cp;
       }
     }
-      
+
     if (!isCpTraceOK) {
       return false;
     }
@@ -520,18 +520,18 @@ static void dumpSvCompCex(BmcTrace &trace, std::string CexFile) {
 
 static void dumpLLVMCex(BmcTraceWrapper &trace, StringRef CexFile,
                         const DataLayout &dl, const TargetLibraryInfo &tli) {
-      std::unique_ptr<Module> Harness = createCexHarness(trace, dl, tli);
+    std::unique_ptr<Module> Harness = createCexHarness(trace, dl, tli);
     std::error_code error_code;
     llvm::tool_output_file out(CexFile, error_code, sys::fs::F_None);
     assert (!error_code);
     verifyModule(*Harness, &errs());
-  if (CexFile.endswith(".ll"))
-    out.os() << *Harness;
-  else
-    WriteBitcodeToFile(Harness.get(), out.os());
+    if (CexFile.endswith(".ll"))
+        out.os() << *Harness;
+    else
+        WriteBitcodeToFile(Harness.get(), out.os());
     out.os ().close ();
     out.keep ();
-  }
+}
 
   static void dumpLLVMBitcode(const Module &M, StringRef BcFile) {
     std::error_code error_code;

@@ -117,7 +117,7 @@ std::unique_ptr<Module> createCexHarness(BmcTraceWrapper &trace,
                                          const DataLayout &dl,
                                          const TargetLibraryInfo &tli) {
 
-  static LLVMContext TheContext;  
+  static LLVMContext TheContext;
   std::unique_ptr<Module> Harness =
       make_unique<Module>("harness", TheContext);
   Harness->setDataLayout(dl);
@@ -263,21 +263,30 @@ std::unique_ptr<Module> createCexHarness(BmcTraceWrapper &trace,
         RT->print(RSO);
 
         name = Twine("__seahorn_get_value_").concat(RSO.str()).str();
-    } else if (RT->getSequentialElementType()) {
-      name = "__seahorn_get_value_ptr";
-      ArgTypes.push_back(Type::getInt32Ty(TheContext));
+    } else if (RT->isPointerTy() ||
+               RT->getTypeID() == llvm::ArrayType::ArrayTyID) {
+        Type *elmTy = nullptr;
+        if (RT->isPointerTy())
+            elmTy = RT->getPointerElementType();
+        else
+            elmTy = RT->getSequentialElementType();
+
+        name = "__seahorn_get_value_ptr";
+        ArgTypes.push_back(Type::getInt32Ty(TheContext));
 
         // If we can tell how big the return type is, tell the
         // callback function.  Otherwise pass zero.
-        if (RT->getSequentialElementType ()->isSized ())
-        Args.push_back(ConstantInt::get(
-            Type::getInt32Ty(TheContext),
-            dl.getTypeStoreSizeInBits(RT->getSequentialElementType())));
-      else
-        Args.push_back(
-            ConstantInt::get(Type::getInt32Ty(TheContext), 0));
-    } else
+        if (elmTy->isSized ())
+            Args.push_back(ConstantInt::get(
+                               Type::getInt32Ty(TheContext),
+                               dl.getTypeStoreSizeInBits(elmTy)));
+        else
+            Args.push_back(
+                ConstantInt::get(Type::getInt32Ty(TheContext), 0));
+    } else {
+        errs() << "WARNING: Unknown type: " << *RT << "\n";
         assert (false && "Unknown return type");
+    }
 
     Constant *GetValue = Harness->getOrInsertFunction(
         name, FunctionType::get(RT, makeArrayRef(ArgTypes), false));

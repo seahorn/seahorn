@@ -1,4 +1,4 @@
-// RUN: %sea clp --clp-fapp "%s" -o "%s".clp && cat "%s".clp | OutputCheck %s
+// RUN: %sea clp --clp-fapp "%s" -o "%s".clp; OutputCheck --file-to-check="%s".clp "%s"
 // CHECK: ^main_verifier_error
 
 // we only check that there is a rule head with signature main_verifier_error

@@ -78,22 +78,23 @@ ln -s place_where_you_unpacked_clang/bin/clang++ clang++
 
 # Test #
 
-Tests require `lit` and `OutputCheck`. These can be installed using
+Running tests require several python packages:
 
 ``` shell
 pip install lit OutputCheck
+easy_install networkx
+apt-get install libgraphviz-dev
+easy_install pygraphviz
+
 ```
 
-Test can be run using
+
+Tests can be run using:
 
 ``` shell
-  $ cmake --build . --target test-simple
-  $ cmake --build . --target test-solve
-  $ cmake --build . --target test-abc
-  $ cmake --build . --target test-dsa
+$ EXPORT SEAHORN=<install_dir>/bin/sea
+$ cmake --build . --target test-all
 ```
-
-__Note: `test-dsa` requires additional python packages__
 
 
 # Usage #

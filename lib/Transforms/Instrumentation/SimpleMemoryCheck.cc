@@ -31,6 +31,12 @@ static llvm::cl::opt<bool>
                   llvm::cl::init(false));
 
 static llvm::cl::opt<bool>
+    PrintSMCSummary("print-smc-summary",
+                    llvm::cl::desc(
+                        "Print Simple Memory Check statistics summary"),
+                    llvm::cl::init(false));
+
+static llvm::cl::opt<bool>
     PrintEmptyAS("print-empty-alloc-sites",
                  llvm::cl::desc("Print empty allocation sites"),
                  llvm::cl::init(false));
@@ -56,7 +62,7 @@ struct PtrOrigin {
   llvm::Value *Ptr;
   int64_t Offset;
 
-  void dump(llvm::raw_ostream &OS = llvm::dbgs()) const {
+  void dump(llvm::raw_ostream &OS = llvm::errs()) const {
     OS << '<';
     if (Ptr)
       Ptr->print(OS);
@@ -75,7 +81,7 @@ struct CheckContext {
   SmallVector<Value *, 8> InterestingAllocSites;
   SmallVector<Value *, 8> OtherAllocSites;
 
-  void dump(llvm::raw_ostream &OS = llvm::dbgs()) {
+  void dump(llvm::raw_ostream &OS = llvm::errs()) {
     OS << "CheckContext : " << (F ? ValueToString(F) : "nullptr") << " {\n";
     OS << "  MI: ";
     if (MI)
@@ -252,7 +258,7 @@ private:
   void createAssume(Value *Cond, Function *F, IRBuilder<> &IRB);
 
   void printStats(std::vector<CheckContext> &Checks,
-                  std::vector<Instruction *> &UninterestingMIs);
+                  std::vector<Instruction *> &UninterestingMIs, bool Detailed);
 };
 
 llvm::Pass *createSimpleMemoryCheckPass() { return new SimpleMemoryCheck(); }
@@ -434,7 +440,7 @@ struct TypeSimilarity {
            std::make_pair(Other.First, Other.Second);
   }
 
-  void dump(raw_ostream &OS = llvm::dbgs()) const {
+  void dump(raw_ostream &OS = llvm::errs()) const {
     dumpOne(OS, "First", First, FlattenedFirst);
     dumpOne(OS, "Second", Second, FlattenedSecond);
     OS << "Similarity: " << Similarity << ", ";
@@ -861,7 +867,7 @@ void SimpleMemoryCheck::emitAllocSiteInstrumentation(CheckContext &Candidate,
     auto *GT = IRB.CreateICmpSGT(OAI8, TrackedEnd);
     createAssume(GT, OtherAllocInst->getFunction(), IRB);
 
-    SMC_LOG(dbgs() << "Instrumented other alloc site for " << AV->getName()
+    SMC_LOG(errs() << "Instrumented other alloc site for " << AV->getName()
                    << ":\n");
     // FIXME: undefined symbols llvm::Value::dump() while porting to 5.0  
     //SMC_LOG(OtherAllocInst->getParent()->dump());
@@ -895,7 +901,7 @@ bool SimpleMemoryCheck::runOnModule(llvm::Module &M) {
   m_DL = &M.getDataLayout();
   m_SDSA = llvm::make_unique<SeaDsa>(this);
 
-  SMC_LOG(dbgs() << " ========== SMC (" << (sea_dsa::IsTypeAware ? "" : "Not ")
+  SMC_LOG(errs() << " ========== SMC (" << (sea_dsa::IsTypeAware ? "" : "Not ")
                  << "Type-aware) ==========\n");
   LOG("smc-dsa", m_SDSA->viewGraph(*main));
 
@@ -951,26 +957,25 @@ bool SimpleMemoryCheck::runOnModule(llvm::Module &M) {
 
           CheckCandidates.emplace_back(std::move(Check));
 
-          SMC_LOG(dbgs() << (CheckCandidates.size() - 1) << ": ");
-          SMC_LOG(CheckCandidates.back().dump());
-
-          if (CheckCandidates.size() >= SMCAnalysisThreshold) {
+          if (CheckCandidates.size() <= SMCAnalysisThreshold) {
+            SMC_LOG(errs() << (CheckCandidates.size() - 1) << ": ");
+            SMC_LOG(CheckCandidates.back().dump(errs()));
+          } else if (CheckCandidates.size() == SMCAnalysisThreshold + 1) {
             SMC_LOG(errs() << "Skipping SMC analysis after reaching the"
                               " threshold of "
                            << SMCAnalysisThreshold.getValue() << "\n");
-            goto skip;
           }
         }
       }
     }
   }
 
-skip:
+  if (PrintSMCStats || PrintSMCSummary) {
+    printStats(CheckCandidates, UninterestingMIs, PrintSMCStats);
+  }
 
   if (PrintSMCStats) {
-    printStats(CheckCandidates, UninterestingMIs);
-
-    dbgs() << "\n~~~~~~  TypeSimilarityCache  ~~~~~~\n";
+    errs() << "\n~~~~~~  TypeSimilarityCache  ~~~~~~\n";
 
     std::vector<TypeSimilarity> TySims;
     TySims.reserve(TSC.size());
@@ -986,15 +991,15 @@ skip:
     for (auto &TySim : TySims) {
       if (TySim.Similarity < 0.8f)
         break;
-      dbgs() << "\n" << (i++) << ":\n";
-      TySim.dump(dbgs());
+      errs() << "\n" << (i++) << ":\n";
+      TySim.dump(errs());
     }
 
     return false;
   }
 
   if (CheckCandidates.empty()) {
-    SMC_LOG(dbgs() << "No check candidates!\n");
+    SMC_LOG(errs() << "No check candidates!\n");
     return true;
   }
 
@@ -1003,9 +1008,9 @@ skip:
 
   assert(CheckCandidates.size() > CheckId);
   auto &Check = CheckCandidates[CheckId];
-  SMC_LOG(dbgs() << "Emitting instrumentation for check [" << CheckId
+  SMC_LOG(errs() << "Emitting instrumentation for check [" << CheckId
                  << "], alloc (" << AllocSiteId << ")\n");
-  SMC_LOG(Check.dump());
+  SMC_LOG(Check.dump(errs()));
 
   emitGlobalInstrumentation(Check, AllocSiteId);
   emitMemoryInstInstrumentation(Check);
@@ -1013,7 +1018,7 @@ skip:
 
   // SMC_LOG(M.dump());
 
-  SMC_LOG(dbgs() << " ========== SMC (" << (sea_dsa::IsTypeAware ? "" : "Not ")
+  SMC_LOG(errs() << " ========== SMC (" << (sea_dsa::IsTypeAware ? "" : "Not ")
                  << "Type-aware) ==========\n");
   return true;
 }
@@ -1076,7 +1081,7 @@ struct SizeStats {
     return Stats;
   }
 
-  void dump(llvm::raw_ostream &OS = llvm::dbgs(), bool NewLine = true) const {
+  void dump(llvm::raw_ostream &OS = llvm::errs(), bool NewLine = true) const {
     OS << "Min " << Min << ", Avg " << (N > 0 ? (Sum / N) : 0) << ", Max "
        << Max;
     if (NewLine)
@@ -1086,8 +1091,8 @@ struct SizeStats {
 
 void SimpleMemoryCheck::printStats(
     std::vector<CheckContext> &Checks,
-    std::vector<Instruction *> &UninterestingMIs) {
-  raw_ostream &OS = outs();
+    std::vector<Instruction *> &UninterestingMIs, bool Detailed) {
+  raw_ostream &OS = errs();
   OS << "\n=========== Start of Simple Memory Check Stats ===========\n";
   OS << "Format:\tAll instructions (Heap/Stack/Global)\n\n";
 
@@ -1096,10 +1101,12 @@ void SimpleMemoryCheck::printStats(
   SmallPtrSet<Value *, 32> AllOtherAllocSites;
   DenseSet<Instruction *> AllInstructions;
   AllInstructions.insert(UninterestingMIs.begin(), UninterestingMIs.end());
+  unsigned TotalSimple = 0;
 
   for (auto &Check : Checks) {
     AllInstructions.insert(Check.MI);
 
+    TotalSimple += Check.InterestingAllocSites.size();
     for (auto *AS : Check.InterestingAllocSites) {
       AllAllocSites.insert(AS);
       AllInterestingAllocSites.insert(AS);
@@ -1123,9 +1130,15 @@ void SimpleMemoryCheck::printStats(
      << CountOfHeap(AllOtherAllocSites) << "/"
      << CountOfStack(AllOtherAllocSites) << "/"
      << CountOfGlobal(AllOtherAllocSites) << ")\n";
+  OS << "Total Simple AS to instrument\t" << TotalSimple << "\n";
 
   OS << "\n\n";
-  for (size_t i = 0, e = Checks.size(); i != e; ++i) {
+
+  if (!Detailed)
+    return;
+
+  for (size_t i = 0, e = Checks.size(); i != e &&
+                                        i <= SMCAnalysisThreshold; ++i) {
     const auto &C = Checks[i];
     OS << "MI " << i << (isa<LoadInst>(C.MI) ? "\tLoad" : "\tStore") << " "
        << C.AccessedBytes;
@@ -1141,6 +1154,7 @@ void SimpleMemoryCheck::printStats(
     size_t DifficultGlobalCnt = 0;
     size_t DifficultStackCnt = 0;
     size_t DifficultHeapCnt = 0;
+
     for (auto *AS : C.OtherAllocSites) {
       if (getAllocSize(AS))
         continue;

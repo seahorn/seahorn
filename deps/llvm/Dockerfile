@@ -1,5 +1,5 @@
 #
-# llvm-3.8 Dockerfile for SeaHorn
+# llvm-5.0 Dockerfile for SeaHorn
 # This produces packages in /llvm.
 # Arguments:
 #  - UBUNTU:     trusty, xenial
@@ -27,7 +27,7 @@ RUN mkdir -p /llvm/repo
 WORKDIR /llvm/repo
 
 # Checkout LLVM.
-RUN git clone https://github.com/llvm-mirror/llvm/ ./ -b release_38 --depth=1
+RUN git clone https://github.com/llvm-mirror/llvm/ ./ -b release_50 --depth=1
 WORKDIR /llvm/build
 
 # Build configuration.

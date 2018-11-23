@@ -3,12 +3,10 @@ branches:
   except:
   - dev
   - deep-dev
-  - deep-dev-5.0
 cache: apt
 branches:
   except:
   - deep-dev
-  - deep-dev-5.0  
 env:
   matrix:
      - os: linux
@@ -26,13 +24,13 @@ script:
   ### extract SeaHorn in a separate container and run tests
   - 'if [ "$TRAVIS_EVENT_TYPE" = "cron" ] ;
        then docker build -t seahorn_container -f docker/seahorn.Dockerfile . ;
-       else docker build --build-arg BASE_IMAGE=seahorn/seahorn -t seahorn_container -f docker/seahorn.Dockerfile . ;
+       else docker build --build-arg BASE_IMAGE=seahorn/seahorn-llvm5 -t seahorn_container -f docker/seahorn.Dockerfile . ;
      fi '
   - 'if [ "$TRAVIS_EVENT_TYPE" = "cron" ] ;
      then docker run -v `pwd`:/host -it seahorn_container /bin/sh -c "cd share/seahorn/test; lit simple; lit solve; lit abc; lit dsa; lit tutorial; lit smc"
        && docker login -u "$DOCKER_USER" -p "$DOCKER_PWD"
-       && docker tag seahorn_container seahorn/seahorn:nightly
-       && docker push seahorn/seahorn:nightly ;
+       && docker tag seahorn_container seahorn/seahorn-llvm5:nightly
+       && docker push seahorn/seahorn-llvm5:nightly ;
      else docker run -v `pwd`:/host -it seahorn_container /bin/sh -c "cd share/seahorn/test; lit simple; lit solve; lit abc; lit dsa; lit tutorial; lit smc" ;
      fi '
 

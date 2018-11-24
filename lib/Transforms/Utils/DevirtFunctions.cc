@@ -25,7 +25,9 @@
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/ADT/Statistic.h"
-
+#include <llvm/Analysis/AliasAnalysis.h>
+#include <llvm/Analysis/BasicAliasAnalysis.h>
+#include <llvm/Analysis/CFLAndersAliasAnalysis.h>
 #include "seahorn/Transforms/Utils/Local.hh"
 
 #include "avy/AvyDebug.h"
@@ -109,6 +111,8 @@ namespace
     {
       AU.setPreservesAll ();
       AU.addRequired<CallGraphWrapperPass> ();
+      AU.addRequired<BasicAAWrapperPass>();
+      AU.addRequired<CFLAndersAAWrapperPass>();
       AU.addPreserved<CallGraphWrapperPass> ();
     }
     
@@ -137,7 +141,7 @@ namespace
   // Pass statistics
   STATISTIC(FuncAdded, "Number of bounce functions added");
   STATISTIC(CSConvert, "Number of call sites resolved");
-
+  STATISTIC(MayAliassAdded, "Number of may alias");
   static inline PointerType * getVoidPtrType (LLVMContext & C)
   {
     Type * Int8Type  = IntegerType::getInt8Ty(C);
@@ -167,6 +171,11 @@ namespace
   Function* DevirtualizeFunctions::mkBounceFn (CallSite &CS)
   {
     ++FuncAdded;
+    Function * FN = CS.getInstruction()->getParent()->getParent();
+    assert(FN);
+    Module * M = FN->getParent();
+
+    assert (M);
 
     AliasSetId id = typeAliasId (CS);
     {
@@ -174,19 +183,69 @@ namespace
       auto it = m_bounceMap.find (id);
       if (it != m_bounceMap.end ()) return it->second;
     }
-    
+
     // -- no direct calls in this alias set, nothing to construct
     if (m_aliasSets.count (id) <= 0) return nullptr;
-    
-    AliasSet &Targets = m_aliasSets [id];
-    
+
+    // AliasSet &Targets = m_aliasSets [id];
+
+    AliasSet &rough_set = m_aliasSets[id];
+
+
+
+
+
+
+    // get access to current alias analys using getAnalysis<>() api
+    // -- possibly request CFLAndersen, or just AliasAnalysis
+    // use AliasAnalysis API to check for aliasing where AA is AliasResult
+    // more details are here: https://llvm.org/docs/AliasAnalysis.html
+    // note that documentation is old, so look at phasar as well
+
+
+    std::vector<llvm::Function*> Targets;
+    for (const Function* f : rough_set){
+//      auto& BasicAAWP = getAnalysis<BasicAAWrapperPass>();
+//      llvm::BasicAAResult BAAResult = llvm::createLegacyPMBasicAAResult(BasicAAWP, *f);
+//      llvm::AAResults AARes = llvm::createLegacyPMAAResults(BasicAAWP, *f, BAAResult);
+      llvm::CFLAndersAAResult& AARes = getAnalysis<CFLAndersAAWrapperPass>().getResult();
+      switch (AARes.alias(MemoryLocation(CS.getCalledValue()) , MemoryLocation(f))){
+        case llvm::MayAlias:
+          LOG("devirt",
+              errs ()<< *CS.getInstruction () << "\n"<<" may alias with:\n";
+                        errs () << "\t" << f->getName () << "\n";);
+          Targets.push_back(const_cast<Function*>(f));
+          break;
+        case llvm::MustAlias:
+          LOG("devirt",
+              errs ()<< *CS.getInstruction () << "\n"<<" must alias with:\n";
+                      errs () << "\t" << f->getName () << "\n";);
+          Targets.push_back(const_cast<Function*>(f));
+          break;
+        case llvm::PartialAlias:
+          LOG("devirt",
+              errs ()<< *CS.getInstruction () << "\n"<<" partially alias with:\n";
+                      errs () << "\t" << f->getName () << "\n";);
+          Targets.push_back(const_cast<Function*>(f));
+          break;
+        case llvm::NoAlias:
+          LOG("devirt",
+              errs ()<< *CS.getInstruction () << "\n"<<" not alias with:\n";
+                      errs () << "\t" << f->getName () << "\n";);
+          break;
+        default:
+          LOG("devirt",
+              errs ()<< "default\n";);
+          break;
+      }
+    }
 
     LOG("devirt",
-        errs () << "Building a bounce for call site:\n"
+        errs () << "Building a bounce for call site:\n" << "in "<<FN->getName()<<"\n"
         << *CS.getInstruction () << " using:\n";
         for (auto &f : Targets)
           errs () << "\t" << f->getName () << "\n";);
-        
+
     // Create a bounce function that has a function signature almost
     // identical to the function being called.  The only difference is
     // that it will have an additional pointer argument at the
@@ -195,12 +254,11 @@ namespace
     Value* ptr = CS.getCalledValue();
     SmallVector<Type*, 8> TP;
     TP.push_back (ptr->getType ());
-    for (auto i = CS.arg_begin(), e = CS.arg_end (); i != e; ++i) 
+    for (auto i = CS.arg_begin(), e = CS.arg_end (); i != e; ++i)
       TP.push_back ((*i)->getType());
-    
+
     FunctionType* NewTy = FunctionType::get (CS.getType(), TP, false);
-    Module * M = CS.getInstruction()->getParent()->getParent()->getParent();
-    assert (M);
+
     Function* F = Function::Create (NewTy,
                                     GlobalValue::InternalLinkage,
                                     "seahorn.bounce",
@@ -399,7 +457,9 @@ namespace
   
   void DevirtualizeFunctions::visitCallSite (CallSite &CS)
   {
+    errs()<<"visiting:"<<CS.getInstruction()->getParent()->getParent()->getName()<<"\n";
     // -- skip direct calls
+
     if (!isIndirectCall (CS)) return;
     
     // This is an indirect call site.  Put it in the worklist of call
@@ -461,6 +521,8 @@ namespace
 namespace seahorn
 {
   Pass* createDevirtualizeFunctionsPass () {return new DevirtualizeFunctions ();}
+  Pass* createCFLAAFunctionPass() {return llvm::createCFLAndersAAWrapperPass();}
+  Pass* createBasicAAWrapperPass() {return llvm::createBasicAAWrapperPass();}
 }
 
 // Pass registration

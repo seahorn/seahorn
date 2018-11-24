@@ -191,23 +191,14 @@ namespace
 
     AliasSet &rough_set = m_aliasSets[id];
 
-
-
-
-
-
     // get access to current alias analys using getAnalysis<>() api
     // -- possibly request CFLAndersen, or just AliasAnalysis
     // use AliasAnalysis API to check for aliasing where AA is AliasResult
     // more details are here: https://llvm.org/docs/AliasAnalysis.html
     // note that documentation is old, so look at phasar as well
 
-
     std::vector<llvm::Function*> Targets;
     for (const Function* f : rough_set){
-//      auto& BasicAAWP = getAnalysis<BasicAAWrapperPass>();
-//      llvm::BasicAAResult BAAResult = llvm::createLegacyPMBasicAAResult(BasicAAWP, *f);
-//      llvm::AAResults AARes = llvm::createLegacyPMAAResults(BasicAAWP, *f, BAAResult);
       llvm::CFLAndersAAResult& AARes = getAnalysis<CFLAndersAAWrapperPass>().getResult();
       switch (AARes.alias(MemoryLocation(CS.getCalledValue()) , MemoryLocation(f))){
         case llvm::MayAlias:

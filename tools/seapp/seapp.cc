@@ -315,6 +315,8 @@ int main(int argc, char **argv) {
     pass_manager.add(seahorn::createWrapMemPass());
   else if (OnlyStripExtern) {
     // -- remove useless declarations
+    pass_manager.add(seahorn::createCFLAAFunctionPass());
+
     pass_manager.add(seahorn::createDevirtualizeFunctionsPass());
     pass_manager.add(seahorn::createStripUselessDeclarationsPass());
   } else if (MixedSem) {
@@ -404,6 +406,7 @@ int main(int argc, char **argv) {
 
     // -- resolve indirect calls
     if (DevirtualizeFuncs)
+      pass_manager.add(seahorn::createCFLAAFunctionPass());
       pass_manager.add(seahorn::createDevirtualizeFunctionsPass());
 
     // -- externalize uses of address-taken functions

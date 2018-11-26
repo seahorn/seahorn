@@ -92,13 +92,13 @@ static llvm::cl::opt<bool> InstrumentMemIntrinsics(
 static llvm::cl::list<std::string> InstrumentOnlyType(
     "abc-instrument-only-type",
     llvm::cl::desc("Only instrument pointers of this user-defined type"),
-    llvm::cl::ZeroOrMore);
+    llvm::cl::ZeroOrMore, llvm::cl::CommaSeparated);
 // Consider only user-defined types
 static llvm::cl::list<std::string> InstrumentExceptType(
     "abc-instrument-except-type",
     llvm::cl::desc(
         "Instrument all pointers except those from this user-defined type"),
-    llvm::cl::ZeroOrMore);
+    llvm::cl::ZeroOrMore, llvm::cl::CommaSeparated);
 
 namespace seahorn {
 

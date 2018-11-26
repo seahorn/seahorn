@@ -65,7 +65,7 @@ static llvm::cl::list<std::string> IgnoreExternalFunctions(
     "horn-bv-ignore-external-functions",
     llvm::cl::desc(
         "These functions are not modeled as uninterpreted functions"),
-    llvm::cl::ZeroOrMore);
+    llvm::cl::ZeroOrMore, llvm::cl::CommaSeparated);
 
 static const Value *extractUniqueScalar(CallSite &cs) {
   if (!EnableUniqueScalars)

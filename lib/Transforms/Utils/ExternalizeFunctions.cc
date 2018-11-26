@@ -26,7 +26,7 @@ using namespace llvm;
 static llvm::cl::list<std::string>
 ExternalizeFunctionNames("externalize-function",
                          llvm::cl::desc("Set the linkage to external"),
-                         llvm::cl::ZeroOrMore);
+                         llvm::cl::ZeroOrMore, llvm::cl::CommaSeparated);
 
 namespace seahorn
 {
@@ -60,10 +60,9 @@ namespace seahorn
     ExternalizeFunctions (): ModulePass (ID) {}
     
     virtual bool runOnModule (Module &M) {
-
       if (ExternalizeFunctionNames.begin() == ExternalizeFunctionNames.end())
         return false;
-      
+
       SmallPtrSet<Function*, 16> externalizeFunctions;
       for (auto name : ExternalizeFunctionNames) {
         #ifndef EXTERN_FUNCTIONS_USE_REGEX
@@ -71,6 +70,7 @@ namespace seahorn
           externalizeFunctions.insert (F);
         #else
         MatchRegex filter (name);
+
         for (auto& F: M) {
           if (filter (&F)) {
             externalizeFunctions.insert (&F);

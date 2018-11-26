@@ -81,7 +81,7 @@ NoVerification("horn-no-verif",
 static llvm::cl::list<std::string>
 AbstractFunctions("horn-abstract",
 		  llvm::cl::desc("Abstract all calls to these functions"),
-		  llvm::cl::ZeroOrMore);
+		  llvm::cl::ZeroOrMore, llvm::cl::CommaSeparated);
 
 namespace seahorn
 {

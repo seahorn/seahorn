@@ -13,7 +13,7 @@ using namespace llvm;
 static llvm::cl::list<std::string>
 InlineOnly("horn-inline-only",
            llvm::cl::desc("Inline only selected functions"),
-           llvm::cl::ZeroOrMore);
+           llvm::cl::ZeroOrMore, llvm::cl::CommaSeparated);
 
 namespace seahorn
 {

@@ -22,7 +22,7 @@
 static llvm::cl::list<std::string>
 FuncNamesToKeep("slice-function",
                 llvm::cl::desc("Slice program onto these functions"),
-                llvm::cl::ZeroOrMore);
+                llvm::cl::ZeroOrMore, llvm::cl::CommaSeparated);
 
 namespace seahorn {
 

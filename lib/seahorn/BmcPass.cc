@@ -65,12 +65,20 @@ public:
         m_failure_analysis(nullptr) {}
 
   virtual bool runOnModule(Module &M) {
+    LOG("bmc-pass", errs() << "Start BmcPass\n";);
     m_failure_analysis = getAnalysisIfAvailable<seahorn::CanFail>();
 
-    for (Function &F : M)
-      if (F.getName().equals("main"))
-        return runOnFunction(F);
-    return false;
+    Function *main = M.getFunction("main");
+    if (!main || main->isDeclaration()) {
+      errs() << "WARNING: The program has no main() function.\n";
+      errs() << "WARNING: Possibly all assertions have been "
+             << "discharged by the front-end\n";
+      errs() << "WARNING: Alternatively, use --entry ENTRY option to specify a"
+             << "custom entry point\n";
+      return false;
+    }
+
+    return runOnFunction(*main);
   }
 
   void getAnalysisUsage(AnalysisUsage &AU) const {
@@ -88,7 +96,7 @@ public:
   }
 
   virtual bool runOnFunction(Function &F) {
-
+    LOG("bmc-pass", errs() << "Starting BMC on " << F.getName() << "\n";);
     if (m_failure_analysis) {
       bool canFail = false;
       if (!canFail) {
@@ -113,7 +121,7 @@ public:
 
       if (!canFail) {
         errs() << "WARNING: no assertion was found ";
-        errs() << "so either program does not have assertions or frontend "
+        errs() << "so either program does not have assertions or front-end "
                   "discharged them.\n";
         return false;
       }

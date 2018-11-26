@@ -42,6 +42,8 @@ public:
         Function *NF = Function::Create(NFTy, GlobalValue::ExternalLinkage,
                                         F.getName() + ".stub");
         NF->copyAttributesFrom(&F);
+        // -- stub is a declaration and has no personality
+        NF->setPersonalityFn(nullptr);
         F.getParent()->getFunctionList().insert(F.getIterator(), NF);
 
         // replace each use &foo with &foo_stub() where foo_stub is a

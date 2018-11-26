@@ -96,12 +96,13 @@ class Clang(sea.LimitedCmd):
 
         if not all (_bc_or_ll_file (f) for f  in args.in_files):
             argv = ['-c', '-emit-llvm', '-D__SEAHORN__']
-            
-            # New for clang 5.0: to avoid add optnone if -O0
-            # Otherwise, seaopt cannot optimize.
-            argv.append('-Xclang')
-            argv.append('-disable-O0-optnone')
-            
+
+            # in clang-5.0 to ensure that compilation is done without
+            # optimizations and also does not mark produced bitcode
+            # to not be optimized or not be inlined, compile
+            # with optimizations (-O1) and ask clang to not apply them
+            args.extend (['-O1', '-Xclang', '-disable-llvm-optzns'])
+
             if not self.plusplus:
                 ## this is an invalid argument with C++/ObjC++ with clang 3.8
                 argv.append('-fgnu89-inline')

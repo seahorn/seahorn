@@ -15,6 +15,7 @@
 #include "llvm/Transforms/Utils/Cloning.h"
 #include "llvm/Transforms/Utils/Local.h"
 
+#include "avy/AvyDebug.h"
 #include "boost/range.hpp"
 
 static llvm::cl::opt<bool>
@@ -70,12 +71,14 @@ static void removeMetadataIfFunctionIsEmpty(Function &f) {
 }
 
 bool MixedSemantics::runOnModule(Module &M) {
+  LOG("mixed-sem", errs() << "Starting MixedSemantics\n";);
   Function *main = M.getFunction("main");
   if (!main)
     return false;
 
   CanFail &CF = getAnalysis<CanFail>();
   if (!CF.canFail(main)) {
+    LOG("mixed-sem", errs() << "main() cannot fail\n";);
     // -- this benefits the legacy front-end.
     // -- it might create issues in some applications where mixed-semantics is
     // applied
@@ -84,6 +87,7 @@ bool MixedSemantics::runOnModule(Module &M) {
     removeMetadataIfFunctionIsEmpty(*main);
     return false;
   }
+  LOG("mixed-sem", errs() << "main() can fail, reducing\n";);
 
   main->setName("orig.main");
   FunctionType *mainTy = main->getFunctionType();

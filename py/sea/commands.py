@@ -101,7 +101,7 @@ class Clang(sea.LimitedCmd):
             # optimizations and also does not mark produced bitcode
             # to not be optimized or not be inlined, compile
             # with optimizations (-O1) and ask clang to not apply them
-            args.extend (['-O1', '-Xclang', '-disable-llvm-optzns'])
+            argv.extend (['-O1', '-Xclang', '-disable-llvm-optzns'])
 
             if not self.plusplus:
                 ## this is an invalid argument with C++/ObjC++ with clang 3.8

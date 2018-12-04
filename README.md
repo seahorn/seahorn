@@ -5,7 +5,7 @@
     <th>Windows</th><th>Ubuntu</th><th>OS X</th><th>Chat with us</th><th>Stories</th>
   </tr>
     <td>TBD</td>
-    <td><a href="https://travis-ci.org/seahorn/seahorn"><img src="https://travis-ci.org/seahorn/seahorn.svg?branch=master" title="Ubuntu 12.04 LTS 64bit, g++-5"/></a></td>
+    <td><a href="https://travis-ci.org/seahorn/seahorn"><img src="https://travis-ci.org/seahorn/seahorn.svg?branch=deep-dev-5.0" title="Ubuntu 12.04 LTS 64bit, g++-5"/></a></td>
     <td>TBD</td>
     <td><a href="https://gitter.im/seahorn/seahorn?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge"><img src="https://badges.gitter.im/seahorn/seahorn.svg" title="Gitter"/></a></td>
     <td> <a href="http://waffle.io/seahorn/seahorn/"><img src="https://badge.waffle.io/seahorn/seahorn.svg?label=ready&title=Ready"/></a></td>
@@ -78,22 +78,23 @@ ln -s place_where_you_unpacked_clang/bin/clang++ clang++
 
 # Test #
 
-Tests require `lit` and `OutputCheck`. These can be installed using
+Running tests require several python packages:
 
 ``` shell
 pip install lit OutputCheck
+easy_install networkx
+apt-get install libgraphviz-dev
+easy_install pygraphviz
+
 ```
 
-Test can be run using
+
+Tests can be run using:
 
 ``` shell
-  $ cmake --build . --target test-simple
-  $ cmake --build . --target test-solve
-  $ cmake --build . --target test-abc
-  $ cmake --build . --target test-dsa
+$ EXPORT SEAHORN=<install_dir>/bin/sea
+$ cmake --build . --target test-all
 ```
-
-__Note: `test-dsa` requires additional python packages__
 
 
 # Usage #

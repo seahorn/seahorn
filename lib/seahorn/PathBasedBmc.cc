@@ -1007,10 +1007,10 @@ namespace seahorn
 
       LOG("bmc",
 	  get_os() << "Size of unsat core=" << unsat_core.size() << "\n";
-	  errs() << "unsat core=\n";
-	  for (auto e: unsat_core) {
-	    errs () << *e << "\n";
-	  }
+	  // errs() << "unsat core=\n";
+	  // for (auto e: unsat_core) {
+	  //   errs () << *e << "\n";
+	  // }
 	  );
 
       //ufo::Stats::resume ("BMC path-based: blocking clause");

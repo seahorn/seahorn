@@ -78,8 +78,8 @@ add_lit_testsuite(test-tutorial "Regression tests for the SeaHorn tutorial"
 add_lit_testsuite(test-bmc "Regression tests for BMC"
   -v
   ${CMAKE_CURRENT_SOURCE_DIR}/bmc
-  PARAMS
-  test_dir=${CMAKE_CURRENT_BINARY_DIR}
+  ARGS
+  --path=${CMAKE_INSTALL_PREFIX}/bin
   DEPENDS seahorn
   )
 

@@ -289,7 +289,7 @@ void GateAnalysisPass::print(llvm::raw_ostream &os,
   os << "GateAnalysisPass::print\n";
 }
 
-llvm::FunctionPass *seahorn::createGateAnalysisPass() {
+llvm::FunctionPass *createGateAnalysisPass() {
   return new GateAnalysisPass();
 }
 

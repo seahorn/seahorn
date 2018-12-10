@@ -12,6 +12,7 @@
 #include "seahorn/Support/Stats.hh"
 
 #include "seahorn/Analysis/CanFail.hh"
+#include "seahorn/Analysis/GateAnalysis.hh"
 #include "seahorn/Bmc.hh"
 #include "seahorn/BvOpSem.hh"
 #include "seahorn/BvOpSem2.hh"
@@ -89,6 +90,7 @@ public:
     AU.addRequired<seahorn::NameValues>();
     AU.addRequired<seahorn::TopologicalOrder>();
     AU.addRequired<CutPointGraph>();
+    AU.addRequired<seahorn::GateAnalysisPass>();
     AU.addRequired<TargetLibraryInfoWrapperPass>();
 
     // Crab passes are required by path-based BMC even when XHornBmcCrab is not
@@ -139,6 +141,7 @@ public:
     const CutPointGraph &cpg = getAnalysis<CutPointGraph>(F);
     const CutPoint &src = cpg.getCp(F.getEntryBlock());
     const CutPoint *dst = nullptr;
+    // const GateAnalysis &GA = getAnalysis<GateAnalysisPass>(F).getGateAnalysis();
 
     // -- find return instruction. Assume it is unique
     for (auto &bb : F)

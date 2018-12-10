@@ -82,6 +82,10 @@ PrintMemStats("mem-stats",
        llvm::cl::desc("Print statistics about all memory graphs"),
        llvm::cl::init(false));
 
+static llvm::cl::opt<bool>
+    PrintGSA("print-gsa",
+             llvm::cl::desc("Print Gating conditions (Gated SSA / GSA)"),
+             llvm::cl::init(false));
 
 int main(int argc, char **argv) {
 
@@ -178,6 +182,8 @@ int main(int argc, char **argv) {
   if (CfgOnlyViewer)
     pass_manager.add (seahorn::createCFGOnlyViewerPass ());
 
+  if (PrintGSA)
+    pass_manager.add(seahorn::createGateAnalysisPass());
 
   if (!AsmOutputFilename.empty ())
     pass_manager.add (createPrintModulePass (asmOutput->os ()));

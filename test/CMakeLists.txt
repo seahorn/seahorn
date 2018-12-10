@@ -90,6 +90,14 @@ add_lit_testsuite(test-bmc "Regression tests for BMC"
   DEPENDS seahorn
   )
 
+add_lit_testsuite(test-gsa "Regression tests for Gated SSA"
+  -v
+  ${CMAKE_CURRENT_SOURCE_DIR}/gsa
+  ARGS
+  --path=${CMAKE_INSTALL_PREFIX}/bin
+  DEPENDS seahorn
+  )
+
 add_lit_testsuite(test-formats "Regression test for external formats"
   -v
   ${CMAKE_CURRENT_SOURCE_DIR}/formats

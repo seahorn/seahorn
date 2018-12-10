@@ -9,6 +9,8 @@
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Instructions.h"
 
+#include "llvm/Analysis/PostDominators.h"
+
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/SparseBitVector.h"
@@ -20,6 +22,11 @@
 
 #define GSA_LOG(...) LOG("gsa", __VA_ARGS__)
 
+static llvm::cl::opt<bool>
+    GsaDumpAfter("gsa-dump-after",
+                 llvm::cl::desc("Dump function after running"),
+                 llvm::cl::init(false));
+
 using namespace llvm;
 
 namespace seahorn {
@@ -29,6 +36,8 @@ namespace {
 class GateAnalysisImpl : public seahorn::GateAnalysis {
   Function &m_function;
   DominatorTree &m_DT;
+  PostDominatorTree &m_PDT;
+
   DenseMap<BasicBlock *, unsigned> m_BBToIdx;
   DenseMap<BasicBlock *, SparseBitVector<>> m_reach;
 
@@ -37,9 +46,17 @@ class GateAnalysisImpl : public seahorn::GateAnalysis {
   DenseMap<BranchInst *, Value *> m_negBranchConditions;
 
 public:
-  GateAnalysisImpl(Function &f, DominatorTree &dt) : m_function(f), m_DT(dt) {
+  GateAnalysisImpl(Function &f, DominatorTree &dt, PostDominatorTree &pdt)
+      : m_function(f), m_DT(dt), m_PDT(pdt) {
     initReach();
     calculate();
+
+    if (GsaDumpAfter) {
+      errs() << "Dumping IR after running Gated SSA analysis pass on function: "
+             << f.getName() << "\n==========================================\n";
+      f.print(errs());
+      errs() << "\n";
+    }
   }
 
   Gate getGatingCondition(PHINode *PN, size_t incomingArcIndex) const override;
@@ -49,8 +66,9 @@ private:
   void initReach();
   void processSwitch(SwitchInst *SI);
   void processPhi(PHINode *PN);
-  Value *getReachingCase(BasicBlock *destBB, BasicBlock *incomingBB,
-                         TerminatorInst *terminator);
+  BasicBlock *getGatingBlock(PHINode *PN, BasicBlock *incomingBB);
+  Value *getReachingCmp(BasicBlock *destBB, BasicBlock *incomingBB,
+                        TerminatorInst *terminator);
   bool flowsTo(BasicBlock *src, BasicBlock *succ, BasicBlock *incoming,
                BasicBlock *dest);
 };
@@ -138,10 +156,10 @@ void GateAnalysisImpl::processPhi(PHINode *PN) {
 
   unsigned i = 0;
   for (auto *incomingBB : PN->blocks()) {
-    BasicBlock *NCD = m_DT.findNearestCommonDominator(currentBB, incomingBB);
+    BasicBlock *NCD = getGatingBlock(PN, incomingBB);
     TerminatorInst *terminator = NCD->getTerminator();
     Value *condition = GetCondition(terminator);
-    Value *reachingVal = getReachingCase(currentBB, incomingBB, terminator);
+    Value *reachingVal = getReachingCmp(currentBB, incomingBB, terminator);
 
     m_gates[{PN, i}] = Gate{condition, reachingVal};
 
@@ -153,9 +171,21 @@ void GateAnalysisImpl::processPhi(PHINode *PN) {
   }
 }
 
-Value *GateAnalysisImpl::getReachingCase(BasicBlock *destBB,
-                                         BasicBlock *incomingBB,
-                                         TerminatorInst *terminator) {
+BasicBlock *GateAnalysisImpl::getGatingBlock(PHINode *PN,
+                                             BasicBlock *incomingBB) {
+  BasicBlock *currentBB = PN->getParent();
+
+  DomTreeNode *DTN = m_DT.getNode(incomingBB);
+  while (m_PDT.dominates(incomingBB, DTN->getBlock()) &&
+         !m_DT.dominates(DTN->getBlock(), currentBB))
+    DTN = DTN->getIDom();
+
+  return DTN->getBlock();
+}
+
+Value *GateAnalysisImpl::getReachingCmp(BasicBlock *destBB,
+                                        BasicBlock *incomingBB,
+                                        TerminatorInst *terminator) {
   if (auto *BI = dyn_cast<BranchInst>(terminator)) {
     assert(BI->isConditional());
     BasicBlock *trueSucc = BI->getSuccessor(0);
@@ -205,7 +235,9 @@ void GateAnalysisImpl::processSwitch(SwitchInst *SI) {
   assert(SI);
 
   SmallDenseSet<Value *, 4> caseValues;
+  SmallDenseMap<Value *, unsigned> caseValueToIncoming;
   DenseMap<BasicBlock *, SmallDenseSet<Value *, 2>> destValues;
+  DenseMap<BasicBlock *, unsigned> destToIdx;
 
   BasicBlock *defaultDest = SI->getDefaultDest();
   assert(defaultDest && "No default destination");
@@ -215,40 +247,71 @@ void GateAnalysisImpl::processSwitch(SwitchInst *SI) {
   for (auto &caseHandle : SI->cases()) {
     assert(caseHandle.getCaseSuccessor() != defaultDest && "Unnecessary case");
 
-    caseValues.insert(caseHandle.getCaseValue());
-    destValues[caseHandle.getCaseSuccessor()].insert(caseHandle.getCaseValue());
+    auto *thisVal = caseHandle.getCaseValue();
+    unsigned thisIdx = caseHandle.getCaseIndex();
+    caseValues.insert(thisVal);
+    caseValueToIncoming[thisVal] = thisIdx;
+    BasicBlock *dest = caseHandle.getCaseSuccessor();
+    destValues[caseHandle.getCaseSuccessor()].insert(thisVal);
+    destToIdx[dest] = thisIdx;
   }
 
   assert(!caseValues.empty() && "Empty switch?");
   assert(!destValues.empty() && "Unconditional switch?");
 
-  IRBuilder<> IRB(SI);
   // Generate value for default destination.
+  SmallVector<Value *, 4> sortedCaseValue(caseValues.begin(), caseValues.end());
+  std::sort(sortedCaseValue.begin(), sortedCaseValue.end(),
+            [&caseValueToIncoming](Value *first, Value *second) {
+              return caseValueToIncoming[first] < caseValueToIncoming[second];
+            });
+
+  SmallVector<std::pair<Value *, Value *>, 4> sortedCaseValueToCmp;
   SmallDenseMap<Value *, Value *, 4> caseValueToCmp;
-  for (Value *V : caseValues) {
+  IRBuilder<> IRB(SI);
+
+  for (Value *V : sortedCaseValue) {
     Value *cmp = IRB.CreateICmpEQ(caseVal, V, "seahorn.gsa.cmp");
+    sortedCaseValueToCmp.push_back({V, cmp});
     caseValueToCmp[V] = cmp;
   }
 
   Value *defaultCond = ConstantInt::getFalse(m_function.getContext());
-  for (auto &valueToCmp : caseValueToCmp)
+  for (auto &valueToCmp : sortedCaseValueToCmp)
     defaultCond =
         IRB.CreateOr(defaultCond, valueToCmp.second, "seahorn.gsa.default.or");
-  defaultCond = IRB.CreateNeg(defaultCond, "seahorn.gsa.default.cond");
+  defaultCond = IRB.CreateICmpEQ(defaultCond,
+                                 ConstantInt::getFalse(m_function.getContext()),
+                                 "seahorn.gsa.default.cond");
   m_switchConditions[{SI, defaultDest}] = defaultCond;
 
-  for (auto &destToValues : destValues) {
+  using DestValuesPair = std::pair<BasicBlock *, SmallDenseSet<Value *, 2>>;
+  std::vector<DestValuesPair> sortedDestValues(destValues.begin(),
+                                               destValues.end());
+  std::sort(
+      sortedDestValues.begin(), sortedDestValues.end(),
+      [&destToIdx](const DestValuesPair &first, const DestValuesPair &second) {
+        return destToIdx[first.first] < destToIdx[second.first];
+      });
+
+  for (auto &destToValues : sortedDestValues) {
     assert(!destToValues.second.empty() && "No values for switch destination");
     SmallVector<Value *, 2> values(destToValues.second.begin(),
                                    destToValues.second.end());
-    Value *cond = values.front();
+    std::sort(values.begin(), values.end(),
+              [&caseValueToIncoming](Value *first, Value *second) {
+                return caseValueToIncoming[first] < caseValueToIncoming[second];
+              });
+
+    Value *cond = caseValueToCmp[values.front()];
     for (size_t i = 1, e = values.size(); i < e; ++i)
-      cond = IRB.CreateOr(cond, values[i], "seahorn.gsa.cond.or");
+      cond =
+          IRB.CreateOr(cond, caseValueToCmp[values[i]], "seahorn.gsa.cond.or");
 
     m_switchConditions[{SI, destToValues.first}] = cond;
   }
 
-  GSA_LOG(SI->getParent()->print(errs()); errs() << "\n");
+  // GSA_LOG(SI->getParent()->print(errs()); errs() << "\n");
 }
 
 bool GateAnalysisImpl::flowsTo(BasicBlock *src, BasicBlock *succ,
@@ -272,6 +335,7 @@ char GateAnalysisPass::ID = 0;
 
 void GateAnalysisPass::getAnalysisUsage(AnalysisUsage &AU) const {
   AU.addRequired<DominatorTreeWrapperPass>();
+  AU.addRequired<PostDominatorTreeWrapperPass>();
   AU.setPreservesAll();
 }
 
@@ -279,8 +343,9 @@ bool GateAnalysisPass::runOnFunction(llvm::Function &F) {
   GSA_LOG(llvm::errs() << "GSA: Running on " << F.getName() << "\n");
 
   auto &DT = getAnalysis<DominatorTreeWrapperPass>().getDomTree();
+  auto &PDT = getAnalysis<PostDominatorTreeWrapperPass>().getPostDomTree();
 
-  m_analysis = llvm::make_unique<GateAnalysisImpl>(F, DT);
+  m_analysis = llvm::make_unique<GateAnalysisImpl>(F, DT, PDT);
   return false;
 }
 

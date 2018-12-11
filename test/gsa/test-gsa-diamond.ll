@@ -4,61 +4,73 @@
 
 ; CHECK: GSA: Running on main
 ; Function Attrs: nounwind
-define i32 @main() #0 {
-bb:
-  %tmp = call i32 @nd()
-  switch i32 %tmp, label %bb7 [ i32 0, label %bb1
-                                i32 2, label %bb2
-                                i32 3, label %bb1
-                                i32 5, label %bb3
-                                i32 7, label %bb4
-                                i32 8, label %sink ]
+define i32 @main(i1 %a, i1 %b, i1 %c, i1 %d) #0 {
+bb0:
+  %tmp1 = call i32 @nd()
+  %tmp2 = call i32 @nd()
+  %tmp3 = call i32 @nd()
+  br i1 %a, label %bb1, label %bb5
 
 bb1:
-  br label %sink
+  br i1 %b, label %bb2, label %bb3
 
 bb2:
-  br label %sink
+  br label %bb4
 
 bb3:
-  br label %sink
+  br i1 %c, label %bb4, label %bb6
 
 bb4:
-  %tmp1 = call i32 @nd()
-  %cond = icmp eq i32 %tmp1, 42
-  br i1 %cond, label %bb5, label %bb6
+  %val4 = phi i32 [%tmp1, %bb2], [%tmp2, %bb3]
+; CHECK:      %val4 = phi i32
+; CHECK-NEXT:	0: bb4 <- bb2	gate: i1 %b
+; CHECK-NEXT:	gating condition: i1 %b
+; CHECK-NEXT:	1: bb4 <- bb3	gate: i1 %c
+; CHECK-NEXT:	gating condition: i1 %c
+
+  br label %bb7
 
 bb5:
-  br label %sink
+  br label %bb6
 
 bb6:
-  br label %sink
+  %val6 = phi i32 [%tmp1, %bb3], [%tmp3, %bb5]
+; CHECK:      %val6 = phi i32
+; CHECK-NEXT: 0: bb6 <- bb3	gate: i1 %c
+; CHECK-NEXT: gating condition:   %seahorn.gsa.br.neg.c = icmp eq i1 %c, false
+; CHECK-NEXT: 1: bb6 <- bb5	gate: i1 %a
+; CHECK-NEXT: gating condition:   %seahorn.gsa.br.neg.a = icmp eq i1 %a, false
+
+  br label %bb7
 
 bb7:
-  br label %sink
+  %val7 = phi i32 [%val4, %bb4], [%val6, %bb6]
+; CHECK:      %val7 = phi i32
+; CHECK-NEXT: 0: bb7 <- bb4	gate: i1 %b
+; CHECK-NEXT: gating condition: i1 %b
+; CHECK-NEXT: 1: bb7 <- bb6	gate: i1 %a
+; CHECK-NEXT: gating condition: i1 %a
 
-sink:
-  %val = phi i32 [1, %bb1 ], [2, %bb2], [3, %bb3], [5, %bb5], [6, %bb6], [7, %bb7], [8, %bb]
-  ; CHECK:  %val = phi i32
-  ; CHECK-NEXT: 0: sink <- bb1
-  ; CHECK-NEXT: gating condition:   %seahorn.gsa.cond.or = or i1 %seahorn.gsa.cmp, %seahorn.gsa.cmp2
-  ; CHECK-NEXT: 1: sink <- bb2
-  ; CHECK-NEXT: gating condition:   %seahorn.gsa.cmp1 = icmp eq i32 %tmp, 2
-  ; CHECK-NEXT: 2: sink <- bb3
-  ; CHECK-NEXT: gating condition:   %seahorn.gsa.cmp3 = icmp eq i32 %tmp, 5
-  ; CHECK-NEXT: 3: sink <- bb5
-  ; CHECK-NEXT: gating condition:   %cond = icmp eq i32 %tmp1, 42
-  ; CHECK-NEXT: 4: sink <- bb6
-  ; CHECK-NEXT: gating condition:   %seahorn.gsa.br.neg.cond = icmp eq i1 %cond, false
-  ; CHECK-NEXT: 5: sink <- bb7
-  ; CHECK-NEXT: gating condition:   %seahorn.gsa.default.cond = icmp eq i1 %seahorn.gsa.default.or10, false
-  ; CHECK-NEXT: 6: sink <- bb
-  ; CHECK-NEXT: gating condition:   %seahorn.gsa.cmp5 = icmp eq i32 %tmp, 8
+  br i1 %d, label %bb8, label %bb9
 
-  br label %bb21
+bb8:
+  %val8 = add i32 %val7, %tmp2
+  br label %bb10
 
-bb21:
-  ret i32 %val
+bb9:
+  %val9 = add i32 %val7, %tmp3
+  br label %bb10
+
+bb10:
+  %val10 = phi i32 [%val8, %bb8], [%val9, %bb9]
+; CHECK:      %val10 = phi i32
+; CHECK-NEXT: 0: bb10 <- bb8	gate: i1 %d
+; CHECK-NEXT: gating condition: i1 %d
+; CHECK-NEXT: 1: bb10 <- bb9	gate: i1 %d
+; CHECK-NEXT: gating condition:   %seahorn.gsa.br.neg.d = icmp eq i1 %d, false
+
+  %add10 = add i32 %val10, 42
+  ret i32 %add10
 }
 
 ; Function Attrs: argmemonly nounwind

@@ -177,6 +177,7 @@ BasicBlock *GateAnalysisImpl::getGatingBlock(PHINode *PN,
 
   DomTreeNode *DTN = m_DT.getNode(incomingBB);
   while (m_PDT.dominates(incomingBB, DTN->getBlock()) &&
+         m_PDT.dominates(currentBB, DTN->getBlock()) &&
          !m_DT.dominates(DTN->getBlock(), currentBB))
     DTN = DTN->getIDom();
 

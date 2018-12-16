@@ -29,6 +29,7 @@ add_llvm_library (seahorn.LIB
   MemSimulator.cc
   ZOption.cc
   BoogieWriter.cc
+  BvOpSem2.cc
   )
 
 if (HAVE_CRAB_LLVM)

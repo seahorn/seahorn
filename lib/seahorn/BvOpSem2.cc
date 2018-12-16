@@ -1047,22 +1047,11 @@ void Bv2OpSem::exec(SymStore &s, const Instruction &inst, ExprVector &side) {
 
 void Bv2OpSem::execPhi(SymStore &s, const BasicBlock &bb, const BasicBlock &from,
                       ExprVector &side, Expr act) {
-  /// TODO: all PHINodes must be executed together as a block.
-  /// TODO: so need phiStep in addition to intraStep and intraBr
-
-  // OpSemContext C(s, side);
-  // C.update_bb(bb);
-  // C.m_prev = &from;
-  // C.m_act = act;
-  // for (; isa<PHINode>(C.m_inst); ) {
-  //   intraStep(C);
-  // }
-
-  // act is ignored since phi node only introduces a definition
-  OpSemPhiVisitor v(s, *this, side, from);
-  v.setActiveLit(act);
-  v.visit(const_cast<BasicBlock &>(bb));
-  v.resetActiveLit();
+  OpSemContext C(s, side);
+  C.update_bb(bb);
+  C.m_act = act;
+  C.m_prev = &from;
+  intraPhi(C);
 }
 
 Expr Bv2OpSem::symbolicIndexedOffset(SymStore &s, GetElementPtrInst& gep) {
@@ -1274,6 +1263,17 @@ void Bv2OpSem::execBr(SymStore &s, const BasicBlock &src, const BasicBlock &dst,
     return true;
   }
 
+  void Bv2OpSem::intraPhi(OpSemContext &C) {
+    assert(C.m_prev);
+
+    // XXX TODO: replace old code once regular semantics is ready
+
+    // act is ignored since phi node only introduces a definition
+    OpSemPhiVisitor v(C.m_values, *this, C.m_side, *C.m_prev);
+    v.setActiveLit(C.m_act);
+    v.visit(const_cast<BasicBlock &>(*C.m_bb));
+    v.resetActiveLit();
+  }
   /// \brief Executes one intra-procedural branch instruction in the
   /// current context. Assumes that current instruction is a branch
   void Bv2OpSem::intraBr(OpSemContext &C, const BasicBlock &dst) {

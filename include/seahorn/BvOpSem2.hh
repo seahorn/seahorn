@@ -90,6 +90,10 @@ namespace seahorn
     /// current context. Assumes that current instruction is a branch
     void intraBr(OpSemContext &C, const BasicBlock &dst);
 
+    /// \brief Execute all PHINode instructions of the current basic block
+    /// \brief assuming that control flows from previous basic block
+    void intraPhi(OpSemContext &C);
+
     Expr errorFlag (const BasicBlock &BB) override;
 
     void exec (SymStore &s, const BasicBlock &bb,

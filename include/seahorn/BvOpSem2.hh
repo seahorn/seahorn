@@ -34,14 +34,32 @@ namespace seahorn
     /// Previous basic block (if known)
     const BasicBlock *m_prev;
 
+
+    /// Current memory region for loads/reads
+    Expr m_inMem;
+    /// Current memory region for stores/writes
+    Expr m_outMem;
+    /// true if current in/out memory is a unique scalar memory cell
+    bool m_uniq;
+
+    /// Parameters for the current function call
+    ExprVector m_fparams;
+
     OpSemContext(SymStore &values, ExprVector &side) :
       m_func(nullptr), m_bb(nullptr), m_inst(nullptr),
-      m_values(values), m_side(side), m_prev(nullptr) {}
+      m_values(values), m_side(side), m_prev(nullptr), m_uniq(false) {}
 
-    void add_side_safe(Expr v) { boolop::limp(m_act, v); }
-    void reset_side() {m_side.clear();}
+    void regParam(Expr v) {m_fparams.push_back(v);}
+    void resetParams() {m_fparams.clear();}
+
+    void addSideSafe(Expr v) { m_side.push_back(boolop::limp(m_act, v)); }
+    void addSide(Expr v) {m_side.push_back(v);}
+    void addDef(Expr v, Expr u) {addSide(mk<EQ>(v, u));}
+    void addDefSafe(Expr v, Expr u) {addSideSafe(mk<EQ>(v,u));}
+    void resetSide() {m_side.clear();}
     Expr read(Expr v) {return m_values.read(v);}
 
+    ExprFactory &getExprFactory() const {return m_values.getExprFactory();}
     void update_bb(const BasicBlock &bb) {
       if (!m_func) m_func = bb.getParent();
       assert(m_func == bb.getParent());
@@ -51,6 +69,11 @@ namespace seahorn
     }
   };
 
+  namespace bvop_details {
+    class OpSemBase;
+    class OpSemVisitor;
+    class OpSemPhiVisitor;
+  }
   /**
      Bit-precise operational semantics for LLVM (take 2)
 
@@ -62,24 +85,36 @@ namespace seahorn
    */
   class Bv2OpSem : public OpSem
   {
+    friend class bvop_details::OpSemBase;
+    friend class bvop_details::OpSemVisitor;
+    friend class bvop_details::OpSemPhiVisitor;
+
     Pass &m_pass;
     TrackLevel m_trackLvl;
 
     const DataLayout *m_td;
     const CanFail *m_canFail;
 
+    /// Useful constants
+    Expr trueE;
+    Expr falseE;
+    Expr zeroE;
+    Expr oneE;
+    Expr trueBv;
+    Expr falseBv;
+    Expr nullBv;
+    /// MAX_PTR value
+    Expr maxPtrE;
+
+
     /// Evaluates constant expression into a value
     Optional<GenericValue> getConstantValue(const Constant *C);
 
   public:
     Bv2OpSem (ExprFactory &efac, Pass &pass, const DataLayout &dl,
-             TrackLevel trackLvl = MEM) :
-      OpSem (efac), m_pass (pass), m_trackLvl (trackLvl), m_td(&dl)
-    {m_canFail = pass.getAnalysisIfAvailable<CanFail> ();}
+              TrackLevel trackLvl = MEM);
 
-    Bv2OpSem (const Bv2OpSem& o) :
-      OpSem (o), m_pass (o.m_pass), m_trackLvl (o.m_trackLvl),
-      m_td (o.m_td), m_canFail (o.m_canFail) {}
+    Bv2OpSem (const Bv2OpSem& o);
 
     /// \brief Executes one intra-procedural instructions in the
     /// current context Assumes that current instruction is not a

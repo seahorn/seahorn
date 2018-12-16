@@ -84,8 +84,10 @@ static bool isShadowMem(const Value &V, const Value **out) {
   return res;
 }
 
-namespace {
+namespace seahorn {
+namespace bvop_details {
 struct OpSemBase {
+  OpSemContext &m_ctx;
   SymStore &m_s;
   ExprFactory &m_efac;
   Bv2OpSem &m_sem;
@@ -106,46 +108,32 @@ struct OpSemBase {
 
   Expr m_largestPtr;
 
-  /// -- current read memory
-  Expr m_inMem;
-  /// -- current write memory
-  Expr m_outMem;
-  /// --- true if the current read/write is to unique memory location
-  bool m_uniq;
+  OpSemBase(OpSemContext &ctx, Bv2OpSem &sem)
+    : m_ctx(ctx), m_s(m_ctx.m_values), m_efac(m_ctx.getExprFactory()),
+      m_sem(sem), m_side(m_ctx.m_side),
+      m_cur_startMem(nullptr), m_cur_endMem(nullptr), m_largestPtr(nullptr) {
 
-  /// -- parameters for a function call
-  ExprVector m_fparams;
+    trueE = m_sem.trueE;
+    falseE = m_sem.falseE;
+    zeroE = m_sem.zeroE;
+    oneE = m_sem.oneE;
+    trueBv = m_sem.trueBv;
+    falseBv = m_sem.falseBv;
+    nullBv = m_sem.nullBv;
 
-  Expr m_activeLit;
+    m_ctx.m_uniq = false;
+    m_ctx.m_act = trueE;
 
-  OpSemBase(SymStore &s, Bv2OpSem &sem, ExprVector &side)
-      : m_s(s), m_efac(m_s.getExprFactory()), m_sem(sem), m_side(side),
-        m_cur_startMem(nullptr), m_cur_endMem(nullptr), m_largestPtr(nullptr),
-        m_inMem(nullptr), m_outMem(nullptr) {
-    trueE = mk<TRUE>(m_efac);
-    falseE = mk<FALSE>(m_efac);
+    m_largestPtr = m_sem.maxPtrE;
 
-    zeroE = mkTerm<mpz_class>(0, m_efac);
-    oneE = mkTerm<mpz_class>(1, m_efac);
-    trueBv = bv::bvnum(1, 1, m_efac);
-    falseBv = bv::bvnum(0, 1, m_efac);
-    nullBv = bv::bvnum(0, m_sem.pointerSizeInBits(), m_efac);
-    m_uniq = false;
-    resetActiveLit();
+    // -- first two arguments are reserved for error flag,
+    // -- the other is function activation
+    ctx.regParam(falseE);
+    ctx.regParam(falseE);
+    ctx.regParam(falseE);
 
-    mpz_class val;
-    if (ptrSz() == 64) {
-      val = 0x000000000FFFFFFF;
-    } else if (ptrSz() == 32) {
-      val = 0x0FFFFFFF;
-    } else {
-      assert(false && "Unexpected pointer size");
-    }
-    m_largestPtr = bv::bvnum(val, ptrSz(), m_efac);
-    // -- first two arguments are reserved for error flag
-    m_fparams.push_back(falseE);
-    m_fparams.push_back(falseE);
-    m_fparams.push_back(falseE);
+    // TODO: fix this
+    //    m_fparams = ???;
   }
 
   Expr memStart(unsigned id) { return m_sem.memStart(id); }
@@ -166,9 +154,6 @@ struct OpSemBase {
       m_s.write(symb(v), val);
   }
 
-  void resetActiveLit() { m_activeLit = trueE; }
-  void setActiveLit(Expr act) { m_activeLit = act; }
-
   // -- add conditional side condition
   void addCondSide(Expr c) { side(c, true); }
 
@@ -176,9 +161,9 @@ struct OpSemBase {
     if (!v)
       return;
     if (!GlobalConstraints2 || conditional)
-      m_side.push_back(boolop::limp(m_activeLit, v));
+      m_ctx.addSideSafe(v);
     else
-      m_side.push_back(v);
+      m_ctx.addSide(v);
   }
 
   void bside(Expr lhs, Expr rhs, bool conditional = false) {
@@ -209,8 +194,7 @@ struct OpSemBase {
 };
 
 struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
-  OpSemVisitor(SymStore &s, Bv2OpSem &sem, ExprVector &side)
-      : OpSemBase(s, sem, side) {}
+  OpSemVisitor(OpSemContext &ctx, Bv2OpSem &sem) : OpSemBase(ctx, sem) {}
 
   void addAlignConstraint(Expr e, unsigned sz) {
     switch (sz) {
@@ -552,7 +536,7 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
     // -- unknown/indirect function call
     if (!f) {
       // XXX Use DSA and/or Devirt to handle better
-      assert(m_fparams.size() == 3);
+      assert(m_ctx.m_fparams.size() == 3);
       visitInstruction(I);
       return;
     }
@@ -562,7 +546,7 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
 
     // skip intrinsic functions
     if (F.isIntrinsic()) {
-      assert(m_fparams.size() == 3);
+      assert(m_ctx.m_fparams.size() == 3);
       return;
     }
 
@@ -571,23 +555,23 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
       if (F.getName().equals("verifier.assume.not"))
         c = boolop::lneg(c);
 
-      assert(m_fparams.size() == 3);
+      assert(m_ctx.m_fparams.size() == 3);
       // -- assumption is only active when error flag is false
       if (!isOpX<TRUE>(c))
         addCondSide(boolop::lor(m_s.read(m_sem.errorFlag(BB)), c));
-    } else if (F.getName().equals("calloc") && m_inMem && m_outMem &&
+    } else if (F.getName().equals("calloc") && m_ctx.m_inMem && m_ctx.m_outMem &&
                m_sem.isTracked(I)) {
       havoc(I);
-      assert(m_fparams.size() == 3);
-      assert(!m_uniq);
+      assert(m_ctx.m_fparams.size() == 3);
+      assert(!m_ctx.m_uniq);
 
       if (IgnoreCalloc2)
-        m_side.push_back(mk<EQ>(m_outMem, m_inMem));
+        m_side.push_back(mk<EQ>(m_ctx.m_outMem, m_ctx.m_inMem));
       else {
         // XXX This is potentially unsound if the corresponding DSA
         // XXX node corresponds to multiple allocation sites
         errs() << "WARNING: zero-initializing DSA node due to calloc()\n";
-        side(m_outMem,
+        side(m_ctx.m_outMem,
              op::array::constArray(bv::bvsort(ptrSz(), m_efac), nullBv));
       }
     }
@@ -596,28 +580,28 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
       const FunctionInfo &fi = m_sem.getFunctionInfo(F);
 
       // enabled
-      m_fparams[0] = m_activeLit; // activation literal
+      m_ctx.m_fparams[0] = m_ctx.m_act; // activation literal
       // error flag in
-      m_fparams[1] = (m_s.read(m_sem.errorFlag(BB)));
+      m_ctx.m_fparams[1] = (m_s.read(m_sem.errorFlag(BB)));
       // error flag out
-      m_fparams[2] = (m_s.havoc(m_sem.errorFlag(BB)));
+      m_ctx.m_fparams[2] = (m_s.havoc(m_sem.errorFlag(BB)));
       for (const Argument *arg : fi.args)
-        m_fparams.push_back(m_s.read(symb(*CS.getArgument(arg->getArgNo()))));
+        m_ctx.m_fparams.push_back(m_s.read(symb(*CS.getArgument(arg->getArgNo()))));
       for (const GlobalVariable *gv : fi.globals)
-        m_fparams.push_back(m_s.read(symb(*gv)));
+        m_ctx.m_fparams.push_back(m_s.read(symb(*gv)));
 
       if (fi.ret)
-        m_fparams.push_back(m_s.havoc(symb(I)));
+        m_ctx.m_fparams.push_back(m_s.havoc(symb(I)));
 
-      LOG("arg_error", if (m_fparams.size() != bind::domainSz(fi.sumPred)) {
+      LOG("arg_error", if (m_ctx.m_fparams.size() != bind::domainSz(fi.sumPred)) {
         errs() << "Call instruction: " << I << "\n";
         errs() << "Caller: " << PF << "\n";
         errs() << "Callee: " << F << "\n";
         // errs () << "Sum predicate: " << *fi.sumPred << "\n";
-        errs() << "m_fparams.size: " << m_fparams.size() << "\n";
+        errs() << "m_ctx.m_fparams.size: " << m_ctx.m_fparams.size() << "\n";
         errs() << "Domain size: " << bind::domainSz(fi.sumPred) << "\n";
-        errs() << "m_fparams\n";
-        for (auto r : m_fparams)
+        errs() << "m_ctx.m_fparams\n";
+        for (auto r : m_ctx.m_fparams)
           errs() << *r << "\n";
         errs() << "regions: " << fi.regions.size()
                << " args: " << fi.args.size()
@@ -636,13 +620,13 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
           errs() << "ret: " << *fi.ret << "\n";
       });
 
-      assert(m_fparams.size() == bind::domainSz(fi.sumPred));
-      m_side.push_back(bind::fapp(fi.sumPred, m_fparams));
+      assert(m_ctx.m_fparams.size() == bind::domainSz(fi.sumPred));
+      m_side.push_back(bind::fapp(fi.sumPred, m_ctx.m_fparams));
 
-      m_fparams.clear();
-      m_fparams.push_back(falseE);
-      m_fparams.push_back(falseE);
-      m_fparams.push_back(falseE);
+      m_ctx.resetParams();
+      m_ctx.regParam(falseE);
+      m_ctx.regParam(falseE);
+      m_ctx.regParam(falseE);
     } else if (F.getName().startswith("shadow.mem") && m_sem.isTracked(I)) {
       if (F.getName().equals("shadow.mem.init")) {
         m_s.havoc(symb(I));
@@ -686,27 +670,27 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
 
       } else if (F.getName().equals("shadow.mem.load")) {
         const Value &v = *CS.getArgument(1);
-        m_inMem = m_s.read(symb(v));
-        m_uniq = extractUniqueScalar(CS) != nullptr;
+        m_ctx.m_inMem = m_s.read(symb(v));
+        m_ctx.m_uniq = extractUniqueScalar(CS) != nullptr;
         if (PartMem2) {
           m_cur_startMem = memStart(shadow_dsa::getShadowId(CS));
           m_cur_endMem = memEnd(shadow_dsa::getShadowId(CS));
         }
       } else if (F.getName().equals("shadow.mem.store")) {
-        m_inMem = m_s.read(symb(*CS.getArgument(1)));
-        m_outMem = m_s.havoc(symb(I));
-        m_uniq = extractUniqueScalar(CS) != nullptr;
+        m_ctx.m_inMem = m_s.read(symb(*CS.getArgument(1)));
+        m_ctx.m_outMem = m_s.havoc(symb(I));
+        m_ctx.m_uniq = extractUniqueScalar(CS) != nullptr;
         if (PartMem2) {
           m_cur_startMem = memStart(shadow_dsa::getShadowId(CS));
           m_cur_endMem = memEnd(shadow_dsa::getShadowId(CS));
         }
       } else if (F.getName().equals("shadow.mem.arg.ref"))
-        m_fparams.push_back(m_s.read(symb(*CS.getArgument(1))));
+        m_ctx.m_fparams.push_back(m_s.read(symb(*CS.getArgument(1))));
       else if (F.getName().equals("shadow.mem.arg.mod")) {
-        m_fparams.push_back(m_s.read(symb(*CS.getArgument(1))));
-        m_fparams.push_back(m_s.havoc(symb(I)));
+        m_ctx.m_fparams.push_back(m_s.read(symb(*CS.getArgument(1))));
+        m_ctx.m_fparams.push_back(m_s.havoc(symb(I)));
       } else if (F.getName().equals("shadow.mem.arg.new"))
-        m_fparams.push_back(m_s.havoc(symb(I)));
+        m_ctx.m_fparams.push_back(m_s.havoc(symb(I)));
       else if (!PF.getName().equals("main") &&
                F.getName().equals("shadow.mem.in")) {
         m_s.read(symb(*CS.getArgument(1)));
@@ -773,8 +757,8 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
           side(mk<EQ>(lhs, uf));
         }
       } else {
-        if (m_fparams.size() > 3) {
-          m_fparams.resize(3);
+        if (m_ctx.m_fparams.size() > 3) {
+          m_ctx.m_fparams.resize(3);
           errs() << "WARNING: skipping a call to " << F.getName()
                  << " (recursive call?)\n";
         }
@@ -809,11 +793,11 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
       return;
 
     Expr lhs = havoc(I);
-    if (!m_inMem)
+    if (!m_ctx.m_inMem)
       return;
 
-    if (m_uniq) {
-      Expr rhs = m_inMem;
+    if (m_ctx.m_uniq) {
+      Expr rhs = m_ctx.m_inMem;
       if (I.getType()->isIntegerTy(1))
         rhs = mk<NEQ>(rhs, falseBv);
       if (UseWrite2)
@@ -821,7 +805,7 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
       else
         side(lhs, rhs);
     } else if (Expr op0 = lookup(*I.getPointerOperand())) {
-      Expr rhs = op::array::select(m_inMem, op0);
+      Expr rhs = op::array::select(m_ctx.m_inMem, op0);
 
       if (PartMem2) {
         side(mk<BULE>(m_s.read(m_cur_startMem), op0));
@@ -855,7 +839,7 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
         side(lhs, rhs);
     }
 
-    m_inMem.reset();
+    m_ctx.m_inMem.reset();
   }
 
   void visitStoreInst(StoreInst &I) {
@@ -870,7 +854,7 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
       }
     }
 
-    if (!m_inMem || !m_outMem || !m_sem.isTracked(*I.getOperand(0)))
+    if (!m_ctx.m_inMem || !m_ctx.m_outMem || !m_sem.isTracked(*I.getOperand(0)))
       return;
 
     Expr v = lookup(*I.getOperand(0));
@@ -878,9 +862,9 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
     if (v && I.getOperand(0)->getType()->isIntegerTy(1))
       v = boolToBv(v);
 
-    if (m_uniq) {
+    if (m_ctx.m_uniq) {
       if (v)
-        side(m_outMem, v);
+        side(m_ctx.m_outMem, v);
     } else {
       if (m_sem.sizeInBits(*I.getOperand(0)) < ptrSz())
         v = bv::zext(v, ptrSz());
@@ -908,12 +892,12 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
           unsigned sz = I.getAlignment();
           addAlignConstraint(idx, sz);
         }
-        side(m_outMem, op::array::store(m_inMem, idx, v));
+        side(m_ctx.m_outMem, op::array::store(m_ctx.m_inMem, idx, v));
       }
     }
 
-    m_inMem.reset();
-    m_outMem.reset();
+    m_ctx.m_inMem.reset();
+    m_ctx.m_outMem.reset();
   }
 
   void visitCastInst(CastInst &I) {
@@ -960,11 +944,7 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
 };
 
 struct OpSemPhiVisitor : public InstVisitor<OpSemPhiVisitor>, OpSemBase {
-  const BasicBlock &m_dst;
-
-  OpSemPhiVisitor(SymStore &s, Bv2OpSem &sem, ExprVector &side,
-                  const BasicBlock &dst)
-      : OpSemBase(s, sem, side), m_dst(dst) {}
+  OpSemPhiVisitor(OpSemContext &ctx, Bv2OpSem &sem) : OpSemBase(ctx, sem) {}
 
   void visitBasicBlock(BasicBlock &BB) {
     // -- evaluate all phi-nodes atomically. First read all incoming
@@ -979,7 +959,7 @@ struct OpSemPhiVisitor : public InstVisitor<OpSemPhiVisitor>, OpSemBase {
       // skip phi nodes that are not tracked
       if (!m_sem.isTracked(*phi))
         continue;
-      const Value &v = *phi->getIncomingValueForBlock(&m_dst);
+      const Value &v = *phi->getIncomingValueForBlock(m_ctx.m_prev);
       ops.push_back(lookup(v));
     }
 
@@ -997,9 +977,48 @@ struct OpSemPhiVisitor : public InstVisitor<OpSemPhiVisitor>, OpSemBase {
     }
   }
 };
-} // namespace
+}} // namespace
+
 
 namespace seahorn {
+Bv2OpSem::Bv2OpSem (ExprFactory &efac, Pass &pass, const DataLayout &dl,
+          TrackLevel trackLvl) :
+  OpSem (efac), m_pass (pass), m_trackLvl (trackLvl), m_td(&dl) {
+  m_canFail = pass.getAnalysisIfAvailable<CanFail> ();
+
+  trueE = mk<TRUE>(m_efac);
+  falseE = mk<FALSE>(m_efac);
+
+  zeroE = mkTerm<mpz_class>(0, m_efac);
+  oneE = mkTerm<mpz_class>(1, m_efac);
+  trueBv = bv::bvnum(1, 1, m_efac);
+  falseBv = bv::bvnum(0, 1, m_efac);
+  nullBv = bv::bvnum(0, pointerSizeInBits(), m_efac);
+
+  mpz_class val;
+  switch (pointerSizeInBits()) {
+  case 64:
+    // TODO: take alignment into account
+    val = 0x000000000FFFFFFF;
+    break;
+  case 32:
+    // TODO: take alignment into account
+    val = 0x0FFFFFFF;
+    break;
+  default:
+    LOG("opsem", errs() << "Unsupported pointer size: "
+        << pointerSizeInBits() << "\n";);
+    llvm_unreachable("Unexpected pointer size");
+  }
+  maxPtrE = bv::bvnum(val, pointerSizeInBits(), m_efac);
+}
+
+Bv2OpSem::Bv2OpSem (const Bv2OpSem& o) :
+  OpSem (o), m_pass (o.m_pass), m_trackLvl (o.m_trackLvl),
+  m_td (o.m_td), m_canFail (o.m_canFail),
+  trueE(o.trueE), falseE(o.falseE), zeroE(o.zeroE), oneE(o.oneE),
+  trueBv(o.trueBv), falseBv(o.falseBv), nullBv(o.nullBv) {}
+
 Expr Bv2OpSem::errorFlag(const BasicBlock &BB) {
   // -- if BB belongs to a function that cannot fail, errorFlag is always false
   if (m_canFail && !m_canFail->canFail(BB.getParent()))
@@ -1029,11 +1048,6 @@ void Bv2OpSem::exec(SymStore &s, const BasicBlock &bb, ExprVector &side,
   while (intraStep(C)) {
     /* do nothing */  ;
   }
-
-  // OpSemVisitor v(s, *this, side);
-  // v.setActiveLit(act);
-  // v.visit(const_cast<BasicBlock &>(bb));
-  // v.resetActiveLit();
 }
 
 void Bv2OpSem::exec(SymStore &s, const Instruction &inst, ExprVector &side) {
@@ -1258,8 +1272,12 @@ void Bv2OpSem::execBr(SymStore &s, const BasicBlock &src, const BasicBlock &dst,
   bool Bv2OpSem::intraStep(OpSemContext &C) {
     if (C.m_inst == C.m_bb->end()) return false;
     if (isa<TerminatorInst> (C.m_inst)) return false;
+
+    const Instruction &inst = *(C.m_inst);
     ++C.m_inst;
-    /// XXX execute instruction
+
+    bvop_details::OpSemVisitor v(C, *this);
+    v.visit(const_cast<Instruction&>(inst));
     return true;
   }
 
@@ -1269,10 +1287,8 @@ void Bv2OpSem::execBr(SymStore &s, const BasicBlock &src, const BasicBlock &dst,
     // XXX TODO: replace old code once regular semantics is ready
 
     // act is ignored since phi node only introduces a definition
-    OpSemPhiVisitor v(C.m_values, *this, C.m_side, *C.m_prev);
-    v.setActiveLit(C.m_act);
+    bvop_details::OpSemPhiVisitor v(C, *this);
     v.visit(const_cast<BasicBlock &>(*C.m_bb));
-    v.resetActiveLit();
   }
   /// \brief Executes one intra-procedural branch instruction in the
   /// current context. Assumes that current instruction is a branch
@@ -1290,20 +1306,20 @@ void Bv2OpSem::execBr(SymStore &s, const BasicBlock &src, const BasicBlock &dst,
         assert(gv.hasValue());
         if (gv->IntVal.isOneValue() && br->getSuccessor(0) != &dst ||
             gv->IntVal.isNullValue() && br->getSuccessor(1) != &dst) {
-          C.reset_side();
-          C.add_side_safe(C.read(errorFlag(*C.m_bb)));
+          C.resetSide();
+          C.addSideSafe(C.read(errorFlag(*C.m_bb)));
         }
       } else if (Expr target = lookup(C.m_values, c)) {
         Expr cond = br->getSuccessor(0) == &dst ? target : mk<NEG>(target);
         cond = boolop::lor(C.read(errorFlag(*C.m_bb)), cond);
-        C.add_side_safe(cond);
+        C.addSideSafe(cond);
         C.update_bb(dst);
       }
     }
     else {
       if (br->getSuccessor(0) != &dst) {
-        C.reset_side();
-        C.add_side_safe(C.read(errorFlag(*C.m_bb)));
+        C.resetSide();
+        C.addSideSafe(C.read(errorFlag(*C.m_bb)));
       } else {
         C.update_bb(dst);
       }

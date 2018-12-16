@@ -132,8 +132,6 @@ struct OpSemBase {
     ctx.regParam(falseE);
     ctx.regParam(falseE);
 
-    // TODO: fix this
-    //    m_fparams = ???;
   }
 
   Expr memStart(unsigned id) { return m_sem.memStart(id); }
@@ -146,9 +144,11 @@ struct OpSemBase {
   }
 
   Expr lookup(const Value &v) { return m_sem.getOperandValue(v, m_ctx); }
+
   Expr havoc(const Value &v) {
     return m_sem.isSkipped(v) ? Expr(0) : m_s.havoc(symb(v));
   }
+
   void write(const Value &v, Expr val) {
     if (m_sem.isSkipped(v)) return;
     m_s.write(symb(v), val);
@@ -191,10 +191,233 @@ struct OpSemBase {
       return falseBv;
     return mk<ITE>(b, trueBv, falseBv);
   }
+
+  void setValue(const Value &v, Expr e) {
+    Expr symReg = symb(v);
+    assert(symReg);
+
+    if (e) {
+      m_ctx.m_values.write(symReg, e);
+    } else {
+      m_sem.unhandledValue(v, m_ctx);
+      m_ctx.m_values.havoc(symReg);
+    }
+  }
 };
 
 struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
   OpSemVisitor(OpSemContext &ctx, Bv2OpSem &sem) : OpSemBase(ctx, sem) {}
+
+
+  // Opcode Implementations
+  void visitReturnInst(ReturnInst &I) {
+    // -- skip return argument of main
+    if (I.getParent()->getParent()->getName().equals("main"))
+      return;
+
+    // read the operand of return instruction so that the read is observable
+    // b symstore
+    if (I.getNumOperands() > 0)
+      lookup(*I.getOperand(0));
+  }
+  void visitBranchInst(BranchInst &I) {
+    if (I.isConditional())
+      lookup(*I.getCondition());
+  }
+
+  void visitSwitchInst(SwitchInst &I) {
+    llvm_unreachable("switch instructions are not supported. Must be lowered.");
+  }
+  void visitIndirectBrInst(IndirectBrInst &I) {llvm_unreachable(nullptr);}
+
+  void visitBinaryOperator(BinaryOperator &I) {
+    Type *ty = I.getOperand(0)->getType();
+    Expr op0 = lookup(*I.getOperand(0));
+    Expr op1 = lookup(*I.getOperand(1));
+    Expr res;
+
+    if (ty->isVectorTy()) {
+      llvm_unreachable(nullptr);
+    }
+
+    if (op0 && op1) {
+      switch(I.getOpcode()) {
+      default:
+        errs() << "Unknown binary operator: " << I << "\n";
+        llvm_unreachable(nullptr);
+        break;
+      case Instruction::Add:   res = mk<BADD>(op0, op1); break;
+      case Instruction::Sub:   res = mk<BSUB>(op0, op1); break;
+      case Instruction::Mul:   res = mk<BMUL>(op0, op1); break;
+      case Instruction::FAdd:  break;
+      case Instruction::FSub:  break;
+      case Instruction::FMul:  break;
+      case Instruction::FDiv:  break;
+      case Instruction::FRem:  break;
+      case Instruction::UDiv:  res = mk<BUDIV>(op0, op1); break;
+      case Instruction::SDiv:  res = mk<BSDIV>(op0, op1); break;
+      case Instruction::URem:  res = mk<BUREM>(op0, op1); break;
+      case Instruction::SRem:  res = mk<BSREM>(op0, op1); break;
+      case Instruction::And:
+        res = ty->isIntegerTy(1) ? mk<AND>(op0, op1) : mk<BAND>(op0, op1);
+        break;
+      case Instruction::Or:
+        res = ty->isIntegerTy(1) ? mk<OR>(op0, op1) : mk<BOR>(op0, op1);
+      case Instruction::Xor:
+        res = ty->isIntegerTy(1) ? mk<XOR>(op0, op1) : mk<BXOR>(op0, op1);
+      }
+    }
+
+    setValue(I, res);
+  }
+
+  void visitICmpInst(ICmpInst &I) {
+    Type *ty = I.getOperand(0)->getType();
+    Expr op0 = lookup(*I.getOperand(0));
+    Expr op1 = lookup(*I.getOperand(1));
+    Expr res;
+
+    if (op0 && op1) {
+      switch (I.getPredicate()) {
+      case ICmpInst::ICMP_EQ:  res = executeICMP_EQ(op0,  op1, ty, m_ctx); break;
+      case ICmpInst::ICMP_NE:  res = executeICMP_NE(op0,  op1, ty, m_ctx); break;
+      case ICmpInst::ICMP_ULT: res = executeICMP_ULT(op0, op1, ty, m_ctx); break;
+      case ICmpInst::ICMP_SLT: res = executeICMP_SLT(op0, op1, ty, m_ctx); break;
+      case ICmpInst::ICMP_UGT: res = executeICMP_UGT(op0, op1, ty, m_ctx); break;
+      case ICmpInst::ICMP_SGT: res = executeICMP_SGT(op0, op1, ty, m_ctx); break;
+      case ICmpInst::ICMP_ULE: res = executeICMP_ULE(op0, op1, ty, m_ctx); break;
+      case ICmpInst::ICMP_SLE: res = executeICMP_SLE(op0, op1, ty, m_ctx); break;
+      case ICmpInst::ICMP_UGE: res = executeICMP_UGE(op0, op1, ty, m_ctx); break;
+      case ICmpInst::ICMP_SGE: res = executeICMP_SGE(op0, op1, ty, m_ctx); break;
+      default:
+        errs() << "Unknown ICMP predicate" << I;
+        llvm_unreachable(nullptr);
+      }
+    }
+    setValue(I, res);
+  }
+
+  void visitFCmpInst(FCmpInst &I) {llvm_unreachable(nullptr);}
+  // void visitAllocaInst(AllocaInst &I);
+  // void visitLoadInst(LoadInst &I);
+  // void visitStoreInst(StoreInst &I);
+  // void visitGetElementPtrInst(GetElementPtrInst &I);
+  void visitPHINode(PHINode &PN) {
+    llvm_unreachable("PHI nodes are handled by a different visitor!");
+  }
+  void visitTruncInst(TruncInst &I) {
+    setValue(I, executeTruncInst(*I.getOperand(0), *I.getType(), m_ctx));
+  }
+  void visitZExtInst(ZExtInst &I) {
+    setValue(I, executeZExtInst(*I.getOperand(0), *I.getType(), m_ctx));
+  }
+  void visitSExtInst(SExtInst &I) {
+    setValue(I, executeSExtInst(*I.getOperand(0), *I.getType(), m_ctx));
+  }
+
+  // floating point instructions
+  void visitFPTruncInst(FPTruncInst &I) {llvm_unreachable(nullptr);}
+  void visitFPExtInst(FPExtInst &I) {llvm_unreachable(nullptr);}
+  void visitUIToFPInst(UIToFPInst &I) {llvm_unreachable(nullptr);}
+  void visitSIToFPInst(SIToFPInst &I) {llvm_unreachable(nullptr);}
+  void visitFPToUIInst(FPToUIInst &I) {llvm_unreachable(nullptr);}
+  void visitFPToSIInst(FPToSIInst &I) {llvm_unreachable(nullptr);}
+
+  // void visitPtrToIntInst(PtrToIntInst &I);
+  // void visitIntToPtrInst(IntToPtrInst &I);
+  // void visitBitCastInst(BitCastInst &I);
+
+  void visitSelectInst(SelectInst &I) {
+    Type *ty = I.getOperand(0)->getType();
+    Expr cond = lookup(*I.getCondition());
+    Expr op0 = lookup(*I.getTrueValue());
+    Expr op1 = lookup(*I.getFalseValue());
+
+    Expr res = executeSelectInst(cond, op0, op1, ty, m_ctx);
+    setValue(I, res);
+  }
+
+
+  // void visitCallSite(CallSite CS);
+  // void visitIntrinsicInst(IntrinsicInst &I);
+
+  // void visitDbgDeclareInst(DbgDeclareInst &I);
+  // void visitDbgValueInst(DbgValueInst &I);
+  // void visitDbgInfoIntrinsic(DbgInfoIntrinsic &I);
+
+  // void visitMemSetInst(MemSetInst &I);
+  // void visitMemCpyInst(MemCpyInst &I);
+  // void visitMemMoveInst(MemMoveInst &I);
+  // void visitMemTransferInst(MemTransferInst &I);
+  // void visitMemIntrinsic(MemIntrinsic &I);
+
+  void visitVAStartInst(VAStartInst &I) {llvm_unreachable(nullptr);}
+  void visitVAEndInst(VAEndInst &I) {llvm_unreachable(nullptr);}
+  void visitVACopyInst(VACopyInst &I) {llvm_unreachable(nullptr);}
+
+  void visitUnreachableInst(UnreachableInst &I) { /* do nothing */ }
+
+  void visitShl(BinaryOperator &I) {
+    Type *ty = I.getType();
+    if (ty->isVectorTy()) {llvm_unreachable(nullptr);}
+
+    Expr op0 = lookup(*I.getOperand(0));
+    Expr op1 = lookup(*I.getOperand(1));
+    Expr res;
+
+    if (op0 && op1) {
+      res = mk<BSHL>(op0, op1);
+    }
+
+    setValue(I, res);
+  }
+
+  void visitLShr(BinaryOperator &I) {
+    Type *ty = I.getType();
+    if (ty->isVectorTy()) {llvm_unreachable(nullptr);}
+
+    Expr op0 = lookup(*I.getOperand(0));
+    Expr op1 = lookup(*I.getOperand(1));
+    Expr res;
+
+    if (op0 && op1) {
+      res = mk<BLSHR>(op0, op1);
+    }
+
+    setValue(I, res);
+  }
+
+  void visitAShr(BinaryOperator &I) {
+    Type *ty = I.getType();
+    if (ty->isVectorTy()) {llvm_unreachable(nullptr);}
+
+    Expr op0 = lookup(*I.getOperand(0));
+    Expr op1 = lookup(*I.getOperand(1));
+    Expr res;
+
+    if (op0 && op1) {
+      res = mk<BASHR>(op0, op1);
+    }
+
+    setValue(I, res);
+  }
+
+  void visitVAArgInst(VAArgInst &I) {llvm_unreachable(nullptr);}
+
+  void visitExtractElementInst(ExtractElementInst &I) {
+    llvm_unreachable(nullptr);
+  }
+  void visitInsertElementInst(InsertElementInst &I) {llvm_unreachable(nullptr);}
+  void visitShuffleVectorInst(ShuffleVectorInst &I) {llvm_unreachable(nullptr);}
+
+  // void visitExtractValueInst(ExtractValueInst &I);
+  // void visitInsertValueInst(InsertValueInst &I);
+
+  void visitInstruction(Instruction &I) {
+    errs() << I << "\n";
+    llvm_unreachable("No semantics to this instruction yet!");
+  }
+
 
   void addAlignConstraint(Expr e, unsigned sz) {
     switch (sz) {
@@ -211,12 +434,6 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
     }
   }
 
-  /// base case. if all else fails.
-  void visitInstruction(Instruction &I) { havoc(I); }
-
-  /// skip PHI nodes
-  void visitPHINode(PHINode &I) { /* do nothing */
-  }
 
   void visitCmpInst(CmpInst &I) {
     Expr lhs = havoc(I);
@@ -280,164 +497,179 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
       side(lhs, rhs);
   }
 
-  void visitSelectInst(SelectInst &I) {
-    if (m_sem.isSkipped(I)) return;
 
-    Expr lhs = havoc(I);
-    Expr cond = lookup(*I.getCondition());
-    Expr op0 = lookup(*I.getTrueValue());
-    Expr op1 = lookup(*I.getFalseValue());
-
-    if (cond && op0 && op1) {
-      Expr rhs = mk<ITE>(cond, op0, op1);
-      if (UseWrite2)
-        write(I, rhs);
-      else
-        side(lhs, rhs);
-    }
+  Expr executeSelectInst(Expr cond, Expr op0, Expr op1,
+                         Type *ty, OpSemContext &ctx) {
+    if (ty->isVectorTy()) {llvm_unreachable(nullptr);}
+    return cond && op0 && op1 ? mk<ITE>(cond, op0, op1) : Expr(0);
   }
 
-  void visitBinaryOperator(BinaryOperator &I) {
-    if (m_sem.isSkipped(I))
-      return;
+  Expr executeTruncInst(const Value &v, const Type &ty, OpSemContext &ctx) {
+    if (v.getType()->isVectorTy()) {llvm_unreachable(nullptr);}
 
-    const Value &v0 = *(I.getOperand(0));
-    const Value &v1 = *(I.getOperand(1));
+    Expr op0 = lookup(v);
+    if (!op0) return Expr();
 
-    Expr op0 = lookup(v0);
-    Expr op1 = lookup(v1);
-    if (!(op0 && op1))
-      return;
+    uint64_t width = m_sem.sizeInBits(ty);
+    Expr res = bv::extract(width - 1, 0, op0);
+    return ty.isIntegerTy(1) ? bvToBool(res) : res;
+  }
 
-    Expr lhs = havoc(I);
-    Expr rhs;
-    switch (I.getOpcode()) {
-    case BinaryOperator::Add:
-      rhs = mk<BADD>(op0, op1);
-      break;
-    case BinaryOperator::Sub:
-      rhs = mk<BSUB>(op0, op1);
-      break;
-    case BinaryOperator::Mul:
-      rhs = mk<BMUL>(op0, op1);
-      break;
-    case BinaryOperator::UDiv:
-      rhs = mk<BUDIV>(op0, op1);
-      break;
-    case BinaryOperator::SDiv:
-      rhs = mk<BSDIV>(op0, op1);
-      break;
-    case BinaryOperator::Shl:
-      rhs = mk<BSHL>(op0, op1);
-      break;
-    case BinaryOperator::AShr:
-      rhs = mk<BASHR>(op0, op1);
-      break;
-    case BinaryOperator::SRem:
-      rhs = mk<BSREM>(op0, op1);
-      break;
-    case BinaryOperator::URem:
-      rhs = mk<BUREM>(op0, op1);
-      break;
-    case BinaryOperator::And:
-      if (v0.getType()->isIntegerTy(1) && v1.getType()->isIntegerTy(1))
-        rhs = mk<AND>(op0, op1);
-      else
-        rhs = mk<BAND>(op0, op1);
-      break;
-    case BinaryOperator::Or:
-      if (v0.getType()->isIntegerTy(1) && v1.getType()->isIntegerTy(1))
-        rhs = mk<OR>(op0, op1);
-      else
-        rhs = mk<BOR>(op0, op1);
-      break;
-    case BinaryOperator::Xor:
-      if (v0.getType()->isIntegerTy(1) && v1.getType()->isIntegerTy(1))
-        rhs = mk<XOR>(op0, op1);
-      else
-        rhs = mk<BXOR>(op0, op1);
-      break;
-    case BinaryOperator::LShr:
-      rhs = mk<BLSHR>(op0, op1);
-      break;
+  Expr executeZExtInst(const Value &v, const Type &ty, OpSemContext &ctx) {
+    if (v.getType()->isVectorTy()) {llvm_unreachable(nullptr);}
+
+    Expr op0 = lookup(v);
+    if (!op0) return Expr();
+    if (v.getType()->isIntegerTy(1)) op0 = boolToBv(op0);
+    return bv::zext(op0, m_sem.sizeInBits(ty));
+  }
+
+
+  Expr executeSExtInst(const Value &v, const Type &ty, OpSemContext &ctx) {
+    if (v.getType()->isVectorTy()) {llvm_unreachable(nullptr);}
+
+    Expr op0 = lookup(v);
+    if (!op0) return Expr();
+    if (v.getType()->isIntegerTy(1)) op0 = boolToBv(op0);
+    return bv::sext(op0, m_sem.sizeInBits(ty));
+  }
+
+  Expr executeICMP_EQ (Expr op0, Expr op1, Type *ty, OpSemContext ctx) {
+    switch(ty->getTypeID()) {
+    case Type::IntegerTyID:
+      return mk<EQ>(op0, op1);
+    case Type::PointerTyID:
+      return mk<EQ>(op0, op1);
     default:
-      break;
+      errs() << "Unhandled ICMP_EQ predicate: " << *ty << "\n";
+      llvm_unreachable(nullptr);
     }
-
-    if (UseWrite2)
-      write(I, rhs);
-    else
-      side(lhs, rhs);
+    llvm_unreachable(nullptr);
   }
 
-  void visitReturnInst(ReturnInst &I) {
-    // -- skip return argument of main
-    if (I.getParent()->getParent()->getName().equals("main"))
-      return;
-
-    if (I.getNumOperands() > 0)
-      lookup(*I.getOperand(0));
+  Expr executeICMP_NE (Expr op0, Expr op1, Type *ty, OpSemContext ctx) {
+    switch(ty->getTypeID()) {
+    case Type::IntegerTyID:
+      return mk<NEQ>(op0, op1);
+    case Type::PointerTyID:
+      return mk<NEQ>(op0, op1);
+    default:
+      errs() << "Unhandled ICMP_NE predicate: " << *ty << "\n";
+      llvm_unreachable(nullptr);
+    }
+    llvm_unreachable(nullptr);
   }
 
-  void visitBranchInst(BranchInst &I) {
-    if (I.isConditional())
-      lookup(*I.getCondition());
+  Expr executeICMP_ULT (Expr op0, Expr op1, Type *ty, OpSemContext ctx) {
+    switch(ty->getTypeID()) {
+    case Type::IntegerTyID:
+      return mk<BULT>(op0, op1);
+    case Type::PointerTyID:
+      return mk<BULT>(op0, op1);
+    default:
+      errs() << "Unhandled ICMP_ULT predicate: " << *ty << "\n";
+      llvm_unreachable(nullptr);
+    }
+    llvm_unreachable(nullptr);
   }
 
-  void visitTruncInst(TruncInst &I) {
-    if (m_sem.isSkipped(I))
-      return;
-    Expr lhs = havoc(I);
-    Expr op0 = lookup(*I.getOperand(0));
-
-    if (!op0)
-      return;
-
-    uint64_t width = m_sem.sizeInBits(I);
-    Expr rhs = bv::extract(width - 1, 0, op0);
-
-    if (I.getType()->isIntegerTy(1))
-      rhs = bvToBool(rhs);
-
-    if (UseWrite2)
-      write(I, rhs);
-    else
-      side(lhs, rhs);
+  Expr executeICMP_SLT (Expr op0, Expr op1, Type *ty, OpSemContext ctx) {
+    switch(ty->getTypeID()) {
+    case Type::IntegerTyID:
+      return mk<BSLT>(op0, op1);
+    case Type::PointerTyID:
+      return mk<BSLT>(op0, op1);
+    default:
+      errs() << "Unhandled ICMP_SLT predicate: " << *ty << "\n";
+      llvm_unreachable(nullptr);
+    }
+    llvm_unreachable(nullptr);
   }
 
-  void visitZExtInst(ZExtInst &I) {
-    if (m_sem.isSkipped(I))
-      return;
-    Expr lhs = havoc(I);
-    Expr op0 = lookup(*I.getOperand(0));
-    if (!op0)
-      return;
-
-    if (I.getOperand(0)->getType()->isIntegerTy(1))
-      op0 = boolToBv(op0);
-
-    Expr rhs = bv::zext(op0, m_sem.sizeInBits(I));
-    if (UseWrite2)
-      write(I, rhs);
-    else
-      side(lhs, rhs);
+  Expr executeICMP_UGT (Expr op0, Expr op1, Type *ty, OpSemContext ctx) {
+    switch(ty->getTypeID()) {
+    case Type::IntegerTyID:
+      return mk<BUGT>(op0, op1);
+    case Type::PointerTyID:
+      return mk<BUGT>(op0, op1);
+    default:
+      errs() << "Unhandled ICMP_UGT predicate: " << *ty << "\n";
+      llvm_unreachable(nullptr);
+    }
+    llvm_unreachable(nullptr);
   }
-  void visitSExtInst(SExtInst &I) {
-    if (m_sem.isSkipped(I))
-      return;
-    Expr lhs = havoc(I);
-    Expr op0 = lookup(*I.getOperand(0));
-    if (!op0)
-      return;
 
-    if (I.getOperand(0)->getType()->isIntegerTy(1))
-      op0 = boolToBv(op0);
+  Expr executeICMP_SGT (Expr op0, Expr op1, Type *ty, OpSemContext ctx) {
 
-    Expr rhs = bv::sext(op0, m_sem.sizeInBits(I));
-    if (UseWrite2)
-      write(I, rhs);
-    else
-      side(lhs, rhs);
+    switch(ty->getTypeID()) {
+    case Type::IntegerTyID:
+      if (ty->isIntegerTy(1)) {
+        if (isOpX<TRUE>(op1))
+          // icmp sgt op0, i1 true  == !op0
+          return boolop::lneg(op0);
+        else
+          return bvToBool(mk<BSGT>(boolToBv(op0), boolToBv(op1)));
+      }
+      return mk<BSGT>(op0, op1);
+    case Type::PointerTyID:
+      return mk<BSGT>(op0, op1);
+    default:
+      errs() << "Unhandled ICMP_SGT predicate: " << *ty << "\n";
+      llvm_unreachable(nullptr);
+    }
+    llvm_unreachable(nullptr);
+  }
+
+  Expr executeICMP_ULE(Expr op0, Expr op1, Type *ty, OpSemContext ctx) {
+    switch(ty->getTypeID()) {
+    case Type::IntegerTyID:
+      return mk<BULE>(op0, op1);
+    case Type::PointerTyID:
+      return mk<BULE>(op0, op1);
+    default:
+      errs() << "Unhandled ICMP_ULE predicate: " << *ty << "\n";
+      llvm_unreachable(nullptr);
+    }
+    llvm_unreachable(nullptr);
+  }
+
+  Expr executeICMP_SLE(Expr op0, Expr op1, Type *ty, OpSemContext ctx) {
+    switch(ty->getTypeID()) {
+    case Type::IntegerTyID:
+      return mk<BSLE>(op0, op1);
+    case Type::PointerTyID:
+      return mk<BSLE>(op0, op1);
+    default:
+      errs() << "Unhandled ICMP_SLE predicate: " << *ty << "\n";
+      llvm_unreachable(nullptr);
+    }
+    llvm_unreachable(nullptr);
+  }
+
+  Expr executeICMP_UGE(Expr op0, Expr op1, Type *ty, OpSemContext ctx) {
+    switch(ty->getTypeID()) {
+    case Type::IntegerTyID:
+      return mk<BUGE>(op0, op1);
+    case Type::PointerTyID:
+      return mk<BUGE>(op0, op1);
+    default:
+      errs() << "Unhandled ICMP_SLE predicate: " << *ty << "\n";
+      llvm_unreachable(nullptr);
+    }
+    llvm_unreachable(nullptr);
+  }
+
+  Expr executeICMP_SGE(Expr op0, Expr op1, Type *ty, OpSemContext ctx) {
+    switch(ty->getTypeID()) {
+    case Type::IntegerTyID:
+      return mk<BSGE>(op0, op1);
+    case Type::PointerTyID:
+      return mk<BSGE>(op0, op1);
+    default:
+      errs() << "Unhandled ICMP_SGE predicate: " << *ty << "\n";
+      llvm_unreachable(nullptr);
+    }
+    llvm_unreachable(nullptr);
   }
 
   void visitPtrToIntInst(PtrToIntInst &I) {
@@ -1263,7 +1495,7 @@ bool Bv2OpSem::isSkipped(const Value &v) {
   // -- TODO: support arrays and struct values
   switch (ty->getTypeID()) {
   case Type::VoidTyID:
-    llvm_unreachable("Unexpected void type");
+    return false;
   case Type::HalfTyID:
   case Type::FloatTyID:
   case Type::DoubleTyID:
@@ -1325,14 +1557,25 @@ void Bv2OpSem::execBr(SymStore &s, const BasicBlock &src, const BasicBlock &dst,
   intraBr(C, dst);
 }
 
-  /// \brief Executes one intra-procedural instructions in the current context
-  /// Assumes that current instruction is not a branch
+  /// \brief Executes one intra-procedural instructions in the current
+  /// context. Returns false if there are no more instructions to
+  /// execute after the last one
   bool Bv2OpSem::intraStep(OpSemContext &C) {
     if (C.m_inst == C.m_bb->end()) return false;
-    if (isa<TerminatorInst> (C.m_inst)) return false;
 
     const Instruction &inst = *(C.m_inst);
-    ++C.m_inst;
+
+    // branch instructions must be executed to read the condition
+    // on which the branch depends. This does not execute the branch
+    // itself and does not advance instruction pointer in the context
+    bool res = true;
+    if (!isa<TerminatorInst>(C.m_inst)) {
+      ++C.m_inst;
+    } else if (isa<BranchInst>(C.m_inst)) {
+      res = false;
+    } else {
+      return false;
+    }
 
     // if instruction is skipped, execution it is a noop
     if (isSkipped(inst)) {
@@ -1342,7 +1585,7 @@ void Bv2OpSem::execBr(SymStore &s, const BasicBlock &src, const BasicBlock &dst,
 
     bvop_details::OpSemVisitor v(C, *this);
     v.visit(const_cast<Instruction&>(inst));
-    return true;
+    return res;
   }
 
   void Bv2OpSem::intraPhi(OpSemContext &C) {
@@ -1400,6 +1643,11 @@ void Bv2OpSem::skipInst(const Instruction &inst, OpSemContext &ctx) {
       << " in " << inst.getParent()->getParent()->getName() << "\n");
 }
 
+void Bv2OpSem::unhandledValue(const Value &v, OpSemContext &ctx) {
+  if (const Instruction *inst = dyn_cast<const Instruction>(&v))
+    return unhandledInst(*inst, ctx);
+  LOG("opsem", errs() << "WARNING: unhandled value: " << v << "\n";);
+}
 void Bv2OpSem::unhandledInst(const Instruction &inst, OpSemContext &ctx) {
   if (ctx.m_ignored.count(&inst)) return;
   ctx.m_ignored.insert(&inst);

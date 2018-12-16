@@ -198,8 +198,7 @@ namespace seahorn
     void skipInst(const Instruction &inst, OpSemContext &ctx);
     /// Reports (and records) an instruction as not being handled by
     /// the semantics
-    /// XXX Not clear whether there is a difference between unhandled and skipped
-    /// XXX Perhaps only one method is needed
     void unhandledInst(const Instruction &inst, OpSemContext &ctx);
+    void unhandledValue(const Value &v, OpSemContext &ctx);
   };
 }

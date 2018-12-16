@@ -138,14 +138,14 @@ struct OpSemBase {
 
   Expr memStart(unsigned id) { return m_sem.memStart(id); }
   Expr memEnd(unsigned id) { return m_sem.memEnd(id); }
-  Expr symb(const Value &I) { return m_sem.symb(I); }
+  Expr symb(const Value &v) { return m_sem.symb(v); }
   unsigned ptrSz() { return m_sem.pointerSizeInBits(); }
 
   Expr read(const Value &v) {
     return m_sem.isSkipped(v) ? Expr(0) : m_s.read(symb(v));
   }
 
-  Expr lookup(const Value &v) { return m_sem.lookup(m_s, v); }
+  Expr lookup(const Value &v) { return m_sem.getOperandValue(v, m_ctx); }
   Expr havoc(const Value &v) {
     return m_sem.isSkipped(v) ? Expr(0) : m_s.havoc(symb(v));
   }
@@ -1132,6 +1132,24 @@ unsigned Bv2OpSem::fieldOff(const StructType *t, unsigned field) const {
       ->getElementOffset(field);
 }
 
+Expr Bv2OpSem::getOperandValue(const Value &v, OpSemContext &ctx) {
+  Expr symVal = symb(v);
+  if (symVal)
+    return isSymReg(symVal) ? ctx.m_values.read(symVal) : symVal;
+  return Expr(0);
+}
+
+bool Bv2OpSem::isSymReg(Expr v) {
+  // a symbolic register is any expression that resolves to an
+  // llvm::Value XXX it might be better to register registers with a
+  // SymStore and XXX let register be only expressions that are
+  // explicitly marked as registers
+  if (!isOpX<FAPP>(v)) return false;
+  Expr u = bind::fname(v);
+  u = bind::fname(u);
+  return isOpX<VALUE>(v);
+}
+
 Expr Bv2OpSem::symb(const Value &I) {
   assert(!isa<UndefValue>(&I));
 
@@ -1286,14 +1304,6 @@ bool Bv2OpSem::isSkipped(const Value &v) {
   llvm_unreachable(nullptr);
 }
 
-Expr Bv2OpSem::lookup(SymStore &s, const Value &v) {
-  Expr u = symb(v);
-  // if u is defined it is either an fapp or a constant
-  if (u)
-    return bind::isFapp(u) ? s.read(u) : u;
-  return Expr(0);
-}
-
 void Bv2OpSem::execEdg(SymStore &s, const BasicBlock &src, const BasicBlock &dst,
                       ExprVector &side) {
   exec(s, src, side, trueE);
@@ -1363,7 +1373,7 @@ void Bv2OpSem::execBr(SymStore &s, const BasicBlock &src, const BasicBlock &dst,
           C.resetSide();
           C.addSideSafe(C.read(errorFlag(*C.m_bb)));
         }
-      } else if (Expr target = lookup(C.m_values, c)) {
+      } else if (Expr target = getOperandValue(c, C)) {
         Expr cond = br->getSuccessor(0) == &dst ? target : mk<NEG>(target);
         cond = boolop::lor(C.read(errorFlag(*C.m_bb)), cond);
         C.addSideSafe(cond);

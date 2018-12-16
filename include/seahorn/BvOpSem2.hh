@@ -178,7 +178,13 @@ namespace seahorn
     /// exist. It is not executed, has no effect on the execution
     /// context, and no instruction that is not skipped depends on it
     bool isSkipped(const Value &v);
-    virtual Expr lookup (SymStore &s, const Value &v);
+
+
+    /// \brief Returns true if the given expression is a symbolic register
+    bool isSymReg(Expr v);
+
+    Expr getOperandValue(const Value &v, OpSemContext &ctx);
+    Expr lookup (SymStore &s, const Value &v) {llvm_unreachable(nullptr);}
 
     Expr symbolicIndexedOffset (SymStore &s, llvm::GetElementPtrInst& gep);
     unsigned storageSize (const llvm::Type *t) const;

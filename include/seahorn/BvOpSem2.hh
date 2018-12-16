@@ -45,6 +45,9 @@ namespace seahorn
     /// Parameters for the current function call
     ExprVector m_fparams;
 
+    /// Instructions that where ignored by the semantics
+    DenseSet<const Instruction*> m_ignored;
+
     OpSemContext(SymStore &values, ExprVector &side) :
       m_func(nullptr), m_bb(nullptr), m_inst(nullptr),
       m_values(values), m_side(side), m_prev(nullptr), m_uniq(false) {}
@@ -149,9 +152,32 @@ namespace seahorn
     virtual Expr memStart (unsigned id);
     virtual Expr memEnd (unsigned id);
 
-    virtual Expr symb (const Value &v);
-    virtual const Value &conc (Expr v);
-    virtual bool isTracked (const Value &v);
+    /**
+       \brief Returns a symbolic expression corresponding to a value.
+       If the value is a register, returns the corresponding symbolic register.
+
+       If the value is a constant, returns a corresponding symbolic constant.
+
+       If the value is a basic block, returns a symbolic Boolean
+       register that is set to true whenever the block is executed.
+
+       see also conc()
+     */
+    Expr symb (const Value &v) override;
+
+    /**
+       \brief Returns a concrete representation of a given symbolic
+              expression. Assumes that the input expression has
+              concrete representation.
+     */
+    const Value &conc (Expr v) override;
+
+    /// \brief Indicates whether an instruction/value is skipped by
+    /// the semantics. An instruction is skipped means that, from the
+    /// perspective of the semantics, the instruction does not
+    /// exist. It is not executed, has no effect on the execution
+    /// context, and no instruction that is not skipped depends on it
+    bool isSkipped(const Value &v);
     virtual Expr lookup (SymStore &s, const Value &v);
 
     Expr symbolicIndexedOffset (SymStore &s, llvm::GetElementPtrInst& gep);
@@ -161,5 +187,13 @@ namespace seahorn
     uint64_t sizeInBits (const llvm::Value &v) const;
     uint64_t sizeInBits (const llvm::Type &t) const;
     unsigned pointerSizeInBits () const;
+
+    /// Reports (and records) an instruction as skipped by the semantics
+    void skipInst(const Instruction &inst, OpSemContext &ctx);
+    /// Reports (and records) an instruction as not being handled by
+    /// the semantics
+    /// XXX Not clear whether there is a difference between unhandled and skipped
+    /// XXX Perhaps only one method is needed
+    void unhandledInst(const Instruction &inst, OpSemContext &ctx);
   };
 }

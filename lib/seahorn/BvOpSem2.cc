@@ -142,16 +142,16 @@ struct OpSemBase {
   unsigned ptrSz() { return m_sem.pointerSizeInBits(); }
 
   Expr read(const Value &v) {
-    return m_sem.isTracked(v) ? m_s.read(symb(v)) : Expr(0);
+    return m_sem.isSkipped(v) ? Expr(0) : m_s.read(symb(v));
   }
 
   Expr lookup(const Value &v) { return m_sem.lookup(m_s, v); }
   Expr havoc(const Value &v) {
-    return m_sem.isTracked(v) ? m_s.havoc(symb(v)) : Expr(0);
+    return m_sem.isSkipped(v) ? Expr(0) : m_s.havoc(symb(v));
   }
   void write(const Value &v, Expr val) {
-    if (val && m_sem.isTracked(v))
-      m_s.write(symb(v), val);
+    if (m_sem.isSkipped(v)) return;
+    m_s.write(symb(v), val);
   }
 
   // -- add conditional side condition
@@ -281,8 +281,7 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
   }
 
   void visitSelectInst(SelectInst &I) {
-    if (!m_sem.isTracked(I))
-      return;
+    if (m_sem.isSkipped(I)) return;
 
     Expr lhs = havoc(I);
     Expr cond = lookup(*I.getCondition());
@@ -299,7 +298,7 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
   }
 
   void visitBinaryOperator(BinaryOperator &I) {
-    if (!m_sem.isTracked(I))
+    if (m_sem.isSkipped(I))
       return;
 
     const Value &v0 = *(I.getOperand(0));
@@ -386,7 +385,7 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
   }
 
   void visitTruncInst(TruncInst &I) {
-    if (!m_sem.isTracked(I))
+    if (m_sem.isSkipped(I))
       return;
     Expr lhs = havoc(I);
     Expr op0 = lookup(*I.getOperand(0));
@@ -407,7 +406,7 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
   }
 
   void visitZExtInst(ZExtInst &I) {
-    if (!m_sem.isTracked(I))
+    if (m_sem.isSkipped(I))
       return;
     Expr lhs = havoc(I);
     Expr op0 = lookup(*I.getOperand(0));
@@ -424,7 +423,7 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
       side(lhs, rhs);
   }
   void visitSExtInst(SExtInst &I) {
-    if (!m_sem.isTracked(I))
+    if (m_sem.isSkipped(I))
       return;
     Expr lhs = havoc(I);
     Expr op0 = lookup(*I.getOperand(0));
@@ -442,7 +441,7 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
   }
 
   void visitPtrToIntInst(PtrToIntInst &I) {
-    if (!m_sem.isTracked(I))
+    if (m_sem.isSkipped(I))
       return;
     Expr lhs = havoc(I);
     Expr op0 = lookup(*I.getOperand(0));
@@ -468,7 +467,7 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
   }
 
   void visitIntToPtrInst(IntToPtrInst &I) {
-    if (!m_sem.isTracked(I))
+    if (m_sem.isSkipped(I))
       return;
     Expr lhs = havoc(I);
     Expr op0 = lookup(*I.getOperand(0));
@@ -495,7 +494,7 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
 
   void visitGetElementPtrInst(GetElementPtrInst &gep) {
 
-    if (!m_sem.isTracked(gep))
+    if (m_sem.isSkipped(gep))
       return;
     Expr lhs = havoc(gep);
 
@@ -560,7 +559,7 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
       if (!isOpX<TRUE>(c))
         addCondSide(boolop::lor(m_s.read(m_sem.errorFlag(BB)), c));
     } else if (F.getName().equals("calloc") && m_ctx.m_inMem && m_ctx.m_outMem &&
-               m_sem.isTracked(I)) {
+               !m_sem.isSkipped(I)) {
       havoc(I);
       assert(m_ctx.m_fparams.size() == 3);
       assert(!m_ctx.m_uniq);
@@ -627,7 +626,7 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
       m_ctx.regParam(falseE);
       m_ctx.regParam(falseE);
       m_ctx.regParam(falseE);
-    } else if (F.getName().startswith("shadow.mem") && m_sem.isTracked(I)) {
+    } else if (F.getName().startswith("shadow.mem") && !m_sem.isSkipped(I)) {
       if (F.getName().equals("shadow.mem.init")) {
         m_s.havoc(symb(I));
         unsigned id = shadow_dsa::getShadowId(CS);
@@ -706,7 +705,7 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
     } else {
       if (f->isDeclaration() &&
           !f->getFunctionType()->getReturnType()->isVoidTy() &&
-          m_sem.isTracked(I) &&
+          !m_sem.isSkipped(I) &&
           // we model external calls as interpreted functions
           EnableModelExternalCalls2 &&
           // user didn't say to ignore the function in particular
@@ -722,7 +721,7 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
         sorts.reserve(CS.arg_size());
         bool cannot_infer_types = false;
         for (auto &a : CS.args()) {
-          if (!m_sem.isTracked(*a)) {
+          if (m_sem.isSkipped(*a)) {
             continue;
           }
           Expr e = lookup(*a);
@@ -769,7 +768,7 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
   }
 
   void visitAllocaInst(AllocaInst &I) {
-    if (!m_sem.isTracked(I))
+    if (m_sem.isSkipped(I))
       return;
 
     Expr lhs = havoc(I);
@@ -789,7 +788,7 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
       }
     }
 
-    if (!m_sem.isTracked(I))
+    if (m_sem.isSkipped(I))
       return;
 
     Expr lhs = havoc(I);
@@ -854,7 +853,7 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
       }
     }
 
-    if (!m_ctx.m_inMem || !m_ctx.m_outMem || !m_sem.isTracked(*I.getOperand(0)))
+    if (!m_ctx.m_inMem || !m_ctx.m_outMem || m_sem.isSkipped(*I.getOperand(0)))
       return;
 
     Expr v = lookup(*I.getOperand(0));
@@ -901,7 +900,7 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
   }
 
   void visitCastInst(CastInst &I) {
-    if (!m_sem.isTracked(I))
+    if (m_sem.isSkipped(I))
       return;
 
     Expr lhs = havoc(I);
@@ -925,7 +924,7 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
     const Module &M = *F.getParent();
     for (const GlobalVariable &g :
          boost::make_iterator_range(M.global_begin(), M.global_end())) {
-      if (m_sem.isTracked(g)) {
+      if (!m_sem.isSkipped(g)) {
         havoc(g);
         if (InferMemSafety2)
           // globals are non-null
@@ -957,7 +956,7 @@ struct OpSemPhiVisitor : public InstVisitor<OpSemPhiVisitor>, OpSemBase {
 
     for (; PHINode *phi = dyn_cast<PHINode>(curr); ++curr) {
       // skip phi nodes that are not tracked
-      if (!m_sem.isTracked(*phi))
+      if (m_sem.isSkipped(*phi))
         continue;
       const Value &v = *phi->getIncomingValueForBlock(m_ctx.m_prev);
       ops.push_back(lookup(v));
@@ -966,7 +965,7 @@ struct OpSemPhiVisitor : public InstVisitor<OpSemPhiVisitor>, OpSemBase {
     curr = BB.begin();
     for (unsigned i = 0; isa<PHINode>(curr); ++curr) {
       PHINode &phi = *cast<PHINode>(curr);
-      if (!m_sem.isTracked(phi))
+      if (m_sem.isSkipped(phi))
         continue;
       Expr lhs = havoc(phi);
       Expr op0 = ops[i++];
@@ -1113,7 +1112,7 @@ Expr Bv2OpSem::symbolicIndexedOffset(SymStore &s, GetElementPtrInst& gep) {
 }
 
 unsigned Bv2OpSem::pointerSizeInBits() const {
-  return m_td->getPointerSizeInBits();
+ return m_td->getPointerSizeInBits();
 }
 
 uint64_t Bv2OpSem::sizeInBits(const llvm::Type &t) const {
@@ -1142,39 +1141,43 @@ Expr Bv2OpSem::symb(const Value &I) {
 
   // -- constants are mapped to values
   if (const Constant *cv = dyn_cast<const Constant>(&I)) {
-    if (const ConstantInt *c = dyn_cast<const ConstantInt>(&I)) {
-      if (c->getType()->isIntegerTy(1))
-        return c->isOne() ? mk<TRUE>(m_efac) : mk<FALSE>(m_efac);
-      mpz_class k = toMpz(c->getValue());
-      return bv::bvnum(k, sizeInBits(I), m_efac);
-    } else if (cv->isNullValue() || isa<ConstantPointerNull>(&I))
+    // -- easy common cases
+    if (cv->isNullValue() || isa<ConstantPointerNull>(&I))
       return bv::bvnum(0, sizeInBits(*cv), m_efac);
-    else if (const ConstantExpr *ce = dyn_cast<const ConstantExpr>(&I)) {
-      // XXX Need a better handling of constant expressions
-      // XXX Perhaps fold using constant folding first, than evaluate the result
-      // -- if this is a cast, and not into a Boolean, strip it
-      if (ce->isCast() &&
-          (ce->getType()->isIntegerTy() || ce->getType()->isPointerTy()) &&
-          !ce->getType()->isIntegerTy(1))
+    else if (const ConstantInt *ci = dyn_cast<const ConstantInt>(&I)) {
+      if (ci->getType()->isIntegerTy(1))
+        return ci->isOne() ? trueE : falseE;
+      mpz_class k = toMpz(ci->getValue());
+      return bv::bvnum(k, sizeInBits(I), m_efac);
+    }
 
-      {
-        if (const ConstantInt *val =
-                dyn_cast<const ConstantInt>(ce->getOperand(0))) {
-          mpz_class k = toMpz(val->getValue());
+    if (cv->getType()->isIntegerTy()) {
+      auto GVO = getConstantValue(cv);
+      if (GVO.hasValue()) {
+        GenericValue gv = GVO.getValue();
+        mpz_class k = toMpz(gv.IntVal);
+        if (cv->getType()->isIntegerTy(1)) {
+          return k == 1 ? trueE : falseE;
+        } else {
           return bv::bvnum(k, sizeInBits(I), m_efac);
         }
-        // -- strip cast
-        else
-          return symb(*ce->getOperand(0));
       }
     }
+
+    LOG("opsem", errs()
+        << "WARNING: Treating unsupported constant as non-det: "
+        << I << "\n";);
   }
 
-  // -- everything else is mapped to a constant
+
+  // everything else is mapped to a symbolic register with a
+  // non-deterministic initial value
   Expr v = mkTerm<const Value *>(&I, m_efac);
 
+  // pseudo register corresponding to memory blocks
   const Value *scalar = nullptr;
   if (isShadowMem(I, &scalar)) {
+    // if memory is single cell, allocate regular register
     if (scalar) {
       assert(scalar->getType()->isPointerTy());
       Type &eTy = *cast<PointerType>(scalar->getType())->getElementType();
@@ -1184,6 +1187,8 @@ Expr Bv2OpSem::symb(const Value &I) {
           sizeInBits(eTy));
     }
 
+    // if tracking memory content, create array-valued register for
+    // the pseudo-assignment
     if (m_trackLvl >= MEM) {
       Expr ptrTy = bv::bvsort(pointerSizeInBits(), m_efac);
       Expr valTy = ptrTy;
@@ -1192,11 +1197,13 @@ Expr Bv2OpSem::symb(const Value &I) {
     }
   }
 
-  if (isTracked(I))
-    return I.getType()->isIntegerTy(1) ? bind::boolConst(v)
-                                       : bv::bvConst(v, sizeInBits(I));
+  // -- unexpected, return error to be handled elsewhere
+  if (isSkipped(I)) return Expr(0);
 
-  return Expr(0);
+  assert(I.getType()->isIntegerTy());
+
+  return I.getType()->isIntegerTy(1) ?
+    bind::boolConst(v) : bv::bvConst(v, sizeInBits(I));
 }
 
 const Value &Bv2OpSem::conc(Expr v) {
@@ -1209,16 +1216,16 @@ const Value &Bv2OpSem::conc(Expr v) {
   return *getTerm<const Value *>(v);
 }
 
-bool Bv2OpSem::isTracked(const Value &v) {
+bool Bv2OpSem::isSkipped(const Value &v) {
+  // skip shadow.mem instructions if memory is not a unique scalar
+  // and we are now ignoring memory instructions
   const Value *scalar = nullptr;
+  if (isShadowMem(v, &scalar)) {
+    return scalar == nullptr && m_trackLvl < MEM;
+  }
 
-  // -- shadow values represent memory regions
-  // -- only track them when memory is tracked
-  if (isShadowMem(v, &scalar))
-    return scalar != nullptr || m_trackLvl >= MEM;
-
-  // -- a pointer
-  if (v.getType()->isPointerTy()) {
+  const Type *ty = v.getType();
+  if (ty->isPointerTy()) {
     // -- XXX A hack because shadow.mem generates not well formed
     // -- bitcode that contains future references. A register that
     // -- is defined later is used to name a shadow region in the
@@ -1229,13 +1236,54 @@ bool Bv2OpSem::isTracked(const Value &v) {
       if (const CallInst *ci = dyn_cast<const CallInst>(*v.user_begin()))
         if (const Function *fn = ci->getCalledFunction())
           if (fn->getName().startswith("shadow.mem"))
-            return false;
-
-    return m_trackLvl >= PTR;
+            return true;
+    return m_trackLvl < PTR;
   }
 
-  // -- always track integer registers
-  return v.getType()->isIntegerTy();
+
+  // -- explicitly name all types that we support
+  // -- TODO: support arrays and struct values
+  switch (ty->getTypeID()) {
+  case Type::VoidTyID:
+    llvm_unreachable("Unexpected void type");
+  case Type::HalfTyID:
+  case Type::FloatTyID:
+  case Type::DoubleTyID:
+  case Type::X86_FP80TyID:
+  case Type::FP128TyID:
+  case Type::PPC_FP128TyID:
+    // floating types are not supported
+    // TODO: integrate floating branch
+    return true;
+  case Type::LabelTyID:
+    llvm_unreachable("Unexpected label type");
+  case Type::MetadataTyID:
+    llvm_unreachable("Unexpected metadata type");
+  case Type::X86_MMXTyID:
+    LOG("opsem", errs() << "Warning: Unsupported X86 type\n");
+    return true;
+  case Type::TokenTyID:
+    llvm_unreachable("Unexpected token type");
+  case Type::IntegerTyID:
+    return false;
+  case Type::FunctionTyID:
+    llvm_unreachable("Unexpected function type");
+  case Type::StructTyID:
+    LOG("opsem", errs() << "Unsupported struct type\n";);
+    return true;
+  case Type::ArrayTyID:
+    LOG("opsem", errs() << "Unsupported array type\n";);
+    return true;
+  case Type::PointerTyID:
+    llvm_unreachable(nullptr);
+  case Type::VectorTyID:
+    LOG("opsem", errs() << "Unsupported vector type\n";);
+    return true;
+  default:
+    LOG("opsem", errs() << "Unknown type: " << *ty << "\n";);
+    llvm_unreachable(nullptr);
+  }
+  llvm_unreachable(nullptr);
 }
 
 Expr Bv2OpSem::lookup(SymStore &s, const Value &v) {
@@ -1275,6 +1323,12 @@ void Bv2OpSem::execBr(SymStore &s, const BasicBlock &src, const BasicBlock &dst,
 
     const Instruction &inst = *(C.m_inst);
     ++C.m_inst;
+
+    // if instruction is skipped, execution it is a noop
+    if (isSkipped(inst)) {
+      skipInst(inst, C);
+      return true;
+    }
 
     bvop_details::OpSemVisitor v(C, *this);
     v.visit(const_cast<Instruction&>(inst));
@@ -1324,6 +1378,24 @@ void Bv2OpSem::execBr(SymStore &s, const BasicBlock &src, const BasicBlock &dst,
         C.update_bb(dst);
       }
     }
+}
+
+void Bv2OpSem::skipInst(const Instruction &inst, OpSemContext &ctx) {
+  const Value *s;
+  if (isShadowMem(inst, &s)) return;
+  if (ctx.m_ignored.count(&inst)) return;
+  ctx.m_ignored.insert(&inst);
+  LOG("opsem", errs() << "WARNING: skipping instruction: " << inst
+      << " @ " << inst.getParent()->getName()
+      << " in " << inst.getParent()->getParent()->getName() << "\n");
+}
+
+void Bv2OpSem::unhandledInst(const Instruction &inst, OpSemContext &ctx) {
+  if (ctx.m_ignored.count(&inst)) return;
+  ctx.m_ignored.insert(&inst);
+  LOG("opsem", errs() << "WARNING: unhadled instruction: " << inst
+      << " @ " << inst.getParent()->getName()
+      << " in " << inst.getParent()->getParent()->getName() << "\n");
 }
 
 /// Adapted from llvm::ExecutionEngine

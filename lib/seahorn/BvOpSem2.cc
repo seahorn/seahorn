@@ -322,8 +322,12 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
   void visitFPToUIInst(FPToUIInst &I) {llvm_unreachable(nullptr);}
   void visitFPToSIInst(FPToSIInst &I) {llvm_unreachable(nullptr);}
 
-  // void visitPtrToIntInst(PtrToIntInst &I);
-  // void visitIntToPtrInst(IntToPtrInst &I);
+  void visitPtrToIntInst(PtrToIntInst &I) {
+    setValue(I, executePtrToIntInst(*I.getOperand(0), I.getType(), m_ctx));
+  }
+  void visitIntToPtrInst(IntToPtrInst &I) {
+    setValue(I, executeIntToPtrInst(*I.getOperand(0), I.getType(), m_ctx));
+  }
 
   void visitBitCastInst(BitCastInst &I) {
     setValue(I, executeBitCastInst(*I.getOperand(0), I.getType(), m_ctx));
@@ -536,7 +540,7 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
     return bv::sext(op0, m_sem.sizeInBits(ty));
   }
 
-  Expr executeICMP_EQ (Expr op0, Expr op1, Type *ty, OpSemContext ctx) {
+  Expr executeICMP_EQ (Expr op0, Expr op1, Type *ty, OpSemContext &ctx) {
     switch(ty->getTypeID()) {
     case Type::IntegerTyID:
       return mk<EQ>(op0, op1);
@@ -549,7 +553,7 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
     llvm_unreachable(nullptr);
   }
 
-  Expr executeICMP_NE (Expr op0, Expr op1, Type *ty, OpSemContext ctx) {
+  Expr executeICMP_NE (Expr op0, Expr op1, Type *ty, OpSemContext &ctx) {
     switch(ty->getTypeID()) {
     case Type::IntegerTyID:
       return mk<NEQ>(op0, op1);
@@ -562,7 +566,7 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
     llvm_unreachable(nullptr);
   }
 
-  Expr executeICMP_ULT (Expr op0, Expr op1, Type *ty, OpSemContext ctx) {
+  Expr executeICMP_ULT (Expr op0, Expr op1, Type *ty, OpSemContext &ctx) {
     switch(ty->getTypeID()) {
     case Type::IntegerTyID:
       return mk<BULT>(op0, op1);
@@ -575,7 +579,7 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
     llvm_unreachable(nullptr);
   }
 
-  Expr executeICMP_SLT (Expr op0, Expr op1, Type *ty, OpSemContext ctx) {
+  Expr executeICMP_SLT (Expr op0, Expr op1, Type *ty, OpSemContext &ctx) {
     switch(ty->getTypeID()) {
     case Type::IntegerTyID:
       return mk<BSLT>(op0, op1);
@@ -588,7 +592,7 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
     llvm_unreachable(nullptr);
   }
 
-  Expr executeICMP_UGT (Expr op0, Expr op1, Type *ty, OpSemContext ctx) {
+  Expr executeICMP_UGT (Expr op0, Expr op1, Type *ty, OpSemContext &ctx) {
     switch(ty->getTypeID()) {
     case Type::IntegerTyID:
       return mk<BUGT>(op0, op1);
@@ -601,7 +605,7 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
     llvm_unreachable(nullptr);
   }
 
-  Expr executeICMP_SGT (Expr op0, Expr op1, Type *ty, OpSemContext ctx) {
+  Expr executeICMP_SGT (Expr op0, Expr op1, Type *ty, OpSemContext &ctx) {
 
     switch(ty->getTypeID()) {
     case Type::IntegerTyID:
@@ -622,7 +626,7 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
     llvm_unreachable(nullptr);
   }
 
-  Expr executeICMP_ULE(Expr op0, Expr op1, Type *ty, OpSemContext ctx) {
+  Expr executeICMP_ULE(Expr op0, Expr op1, Type *ty, OpSemContext &ctx) {
     switch(ty->getTypeID()) {
     case Type::IntegerTyID:
       return mk<BULE>(op0, op1);
@@ -635,7 +639,7 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
     llvm_unreachable(nullptr);
   }
 
-  Expr executeICMP_SLE(Expr op0, Expr op1, Type *ty, OpSemContext ctx) {
+  Expr executeICMP_SLE(Expr op0, Expr op1, Type *ty, OpSemContext &ctx) {
     switch(ty->getTypeID()) {
     case Type::IntegerTyID:
       return mk<BSLE>(op0, op1);
@@ -648,7 +652,7 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
     llvm_unreachable(nullptr);
   }
 
-  Expr executeICMP_UGE(Expr op0, Expr op1, Type *ty, OpSemContext ctx) {
+  Expr executeICMP_UGE(Expr op0, Expr op1, Type *ty, OpSemContext &ctx) {
     switch(ty->getTypeID()) {
     case Type::IntegerTyID:
       return mk<BUGE>(op0, op1);
@@ -661,7 +665,7 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
     llvm_unreachable(nullptr);
   }
 
-  Expr executeICMP_SGE(Expr op0, Expr op1, Type *ty, OpSemContext ctx) {
+  Expr executeICMP_SGE(Expr op0, Expr op1, Type *ty, OpSemContext &ctx) {
     switch(ty->getTypeID()) {
     case Type::IntegerTyID:
       return mk<BSGE>(op0, op1);
@@ -674,56 +678,34 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
     llvm_unreachable(nullptr);
   }
 
-  void visitPtrToIntInst(PtrToIntInst &I) {
-    if (m_sem.isSkipped(I))
-      return;
-    Expr lhs = havoc(I);
-    Expr op0 = lookup(*I.getOperand(0));
-    if (!op0)
-      return;
+  Expr executePtrToIntInst(const Value &op, const Type *ty, OpSemContext &ctx) {
+    Expr res = lookup(op);
+    if (!res) return Expr();
 
-    uint64_t dsz = m_sem.sizeInBits(I);
-    uint64_t ssz = m_sem.sizeInBits(*I.getOperand(0));
+    uint64_t dsz = m_sem.sizeInBits(*ty);
+    uint64_t ssz = m_sem.sizeInBits(op);
 
-    Expr rhs;
+    if (dsz > ssz)
+      res = bv::zext(res, dsz);
+    else if (dsz < ssz)
+      res = bv::extract(dsz - 1, 0, res);
 
-    if (dsz == ssz)
-      rhs = op0;
-    else if (dsz > ssz)
-      rhs = bv::zext(op0, dsz);
-    else
-      rhs = bv::extract(dsz - 1, 0, op0);
-
-    if (UseWrite2)
-      write(I, rhs);
-    else
-      side(lhs, rhs);
+    return res;
   }
 
-  void visitIntToPtrInst(IntToPtrInst &I) {
-    if (m_sem.isSkipped(I))
-      return;
-    Expr lhs = havoc(I);
-    Expr op0 = lookup(*I.getOperand(0));
-    if (!op0)
-      return;
+  Expr executeIntToPtrInst(const Value &op, const Type *ty, OpSemContext &ctx) {
+    Expr res = lookup(op);
+    if (!res) return Expr();
 
-    uint64_t dsz = m_sem.sizeInBits(I);
-    uint64_t ssz = m_sem.sizeInBits(*I.getOperand(0));
+    uint64_t dsz = m_sem.sizeInBits(*ty);
+    uint64_t ssz = m_sem.sizeInBits(op);
 
-    Expr rhs;
+    if (dsz > ssz)
+      res = bv::zext(res, dsz);
+    else if (dsz < ssz)
+      res = bv::extract(dsz - 1, 0, res);
 
-    if (dsz == ssz)
-      rhs = op0;
-    else if (dsz > ssz)
-      rhs = bv::zext(op0, dsz);
-    else
-      rhs = bv::extract(dsz - 1, 0, op0);
-
-    if (UseWrite2)
-      write(I, rhs);
-    else
-      side(lhs, rhs);
+    return res;
   }
 
   void visitGetElementPtrInst(GetElementPtrInst &gep) {

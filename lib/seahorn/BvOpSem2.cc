@@ -145,7 +145,7 @@ struct OpSemBase {
   Expr lookup(const Value &v) { return m_sem.getOperandValue(v, m_ctx); }
 
   Expr havoc(const Value &v) {
-    return m_sem.isSkipped(v) ? Expr(0) : m_s.havoc(symb(v));
+    return m_sem.isSkipped(v) ? Expr(0) : m_ctx.m_values.havoc(symb(v));
   }
 
   void write(const Value &v, Expr val) {
@@ -336,7 +336,35 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
   }
 
   void visitFCmpInst(FCmpInst &I) { llvm_unreachable(nullptr); }
-  // void visitAllocaInst(AllocaInst &I);
+
+  void visitAllocaInst_wip(AllocaInst &I) {
+    Type *ty = I.getType()->getElementType();
+    unsigned typeSz = (size_t)m_sem.m_td->getTypeAllocSize(ty);
+
+    if (const Constant *cv = dyn_cast<const Constant>(I.getOperand(0))) {
+      auto ogv = m_sem.getConstantValue(cv);
+      if (!ogv.hasValue()) {
+        llvm_unreachable(nullptr);
+      }
+      unsigned nElts = ogv.getValue().IntVal.getZExtValue();
+      unsigned memSz = typeSz * nElts;
+      LOG("opsem", errs() << "Alloca of " << memSz << " bytes: " << I << "\n";);
+    } else {
+      Expr nElts = lookup(*I.getOperand(0));
+      LOG("opsem", errs() << "Alloca of " << nElts << "*" << typeSz
+                          << " bytes: " << I << "\n";);
+    }
+
+
+    // allocate new address
+    // XXX ignores allocation size
+    Expr addr = havoc(I);
+
+    // -- alloca always returns a non-zero address
+    m_ctx.addSide(mk<BUGT>(addr, nullBv));
+    setValue(I, addr);
+  }
+
   void visitLoadInst(LoadInst &I) {
     setValue(I, executeLoadInst(*I.getPointerOperand(), I.getAlignment(),
                                 I.getType(), m_ctx));
@@ -674,11 +702,25 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
   void visitDbgInfoIntrinsic(DbgInfoIntrinsic &I) { /* nothing */
   }
 
-  // void visitMemSetInst(MemSetInst &I);
-  // void visitMemCpyInst(MemCpyInst &I);
-  // void visitMemMoveInst(MemMoveInst &I);
-  // void visitMemTransferInst(MemTransferInst &I);
-  // void visitMemIntrinsic(MemIntrinsic &I);
+  void visitMemSetInst(MemSetInst &I) {
+    LOG("opsem", errs() << "Skipping memset: " << I << "\n";);
+  }
+  void visitMemCpyInst(MemCpyInst &I) {
+    LOG("opsem", errs() << "Skipping memcpy: " << I << "\n";);
+  }
+
+  void visitMemMoveInst(MemMoveInst &I) {
+    LOG("opsem", errs() << "Skipping memmove: " << I << "\n";);
+  }
+  void visitMemTransferInst(MemTransferInst &I) {
+    LOG("opsem", errs() << "Unknown memtransfer: " << I << "\n";);
+    llvm_unreachable(nullptr);
+  }
+
+  void visitMemIntrinsic(MemIntrinsic &I) {
+    LOG("opsem", errs() << "Unknown memory intrinsic: " << I << "\n";);
+    llvm_unreachable(nullptr);
+  }
 
   void visitVAStartInst(VAStartInst &I) { llvm_unreachable(nullptr); }
   void visitVAEndInst(VAEndInst &I) { llvm_unreachable(nullptr); }
@@ -1176,7 +1218,7 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
     // read the error flag to make it live
     m_s.read(m_sem.errorFlag(BB));
   }
-};
+}; // namespace bvop_details
 
 struct OpSemPhiVisitor : public InstVisitor<OpSemPhiVisitor>, OpSemBase {
   OpSemPhiVisitor(OpSemContext &ctx, Bv2OpSem &sem) : OpSemBase(ctx, sem) {}

@@ -298,8 +298,14 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
 
   void visitFCmpInst(FCmpInst &I) {llvm_unreachable(nullptr);}
   // void visitAllocaInst(AllocaInst &I);
-  // void visitLoadInst(LoadInst &I);
-  // void visitStoreInst(StoreInst &I);
+  void visitLoadInst(LoadInst &I) {
+    setValue(I, executeLoadInst(*I.getPointerOperand(),
+                                I.getAlignment(), I.getType(), m_ctx));
+  }
+  void visitStoreInst(StoreInst &I) {
+    executeStoreInst(*I.getPointerOperand(), *I.getValueOperand(),
+                     I.getAlignment(), m_ctx);
+  }
   // void visitGetElementPtrInst(GetElementPtrInst &I);
   void visitPHINode(PHINode &PN) {
     llvm_unreachable("PHI nodes are handled by a different visitor!");
@@ -995,122 +1001,76 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
     side(mk<BUGT>(lhs, nullBv));
   }
 
-  void visitLoadInst(LoadInst &I) {
-    if (InferMemSafety2) {
-      Value *pop = I.getPointerOperand()->stripPointerCasts();
-      // -- successful load through a gep implies that the base
-      // -- address of the gep is not null
-      if (GetElementPtrInst *gep = dyn_cast<GetElementPtrInst>(pop)) {
-        Expr base = lookup(*gep->getPointerOperand());
-        if (base)
-          side(mk<BUGT>(base, nullBv), true);
-      }
-    }
-
-    if (m_sem.isSkipped(I))
-      return;
-
-    Expr lhs = havoc(I);
-    if (!m_ctx.m_inMem)
-      return;
+  Expr executeLoadInst(const Value &addr, unsigned alignment, const Type *ty, OpSemContext ctx) {
+    Expr res;
+    if (!m_ctx.m_inMem) return res;
 
     if (m_ctx.m_uniq) {
-      Expr rhs = m_ctx.m_inMem;
-      if (I.getType()->isIntegerTy(1))
-        rhs = mk<NEQ>(rhs, falseBv);
-      if (UseWrite2)
-        write(I, rhs);
-      else
-        side(lhs, rhs);
-    } else if (Expr op0 = lookup(*I.getPointerOperand())) {
-      Expr rhs = op::array::select(m_ctx.m_inMem, op0);
+      res = m_ctx.m_inMem;
+      if (ty->isIntegerTy(1)) res = bvToBool(res);
+    } else if (Expr op0 = lookup(addr)) {
+      res = op::array::select(m_ctx.m_inMem, op0);
+      if (ty->isIntegerTy(1))
+        res = mk<NEQ>(res, nullBv);
+      else if (m_sem.sizeInBits(*ty) < ptrSz())
+        res = bv::extract(m_sem.sizeInBits(*ty) - 1, 0, res);
 
-      if (PartMem2) {
-        side(mk<BULE>(m_s.read(m_cur_startMem), op0));
-        side(mk<BULE>(mk<BADD>(op0, bv::bvnum(ptrSz(), ptrSz(), m_efac)),
-                      m_s.read(m_cur_endMem)));
-
-        side(mk<BULT>(op0, m_largestPtr));
-
-        /// addresses must be aligned
-        unsigned sz = I.getAlignment();
-        addAlignConstraint(op0, sz);
-      }
-
-      if (I.getType()->isIntegerTy(1))
-        rhs = mk<NEQ>(rhs, nullBv);
-      else if (m_sem.sizeInBits(I) < ptrSz())
-        rhs = bv::extract(m_sem.sizeInBits(I) - 1, 0, rhs);
-
-      if (m_sem.sizeInBits(I) > ptrSz()) {
+      if (m_sem.sizeInBits(*ty) > ptrSz()) {
         errs() << "WARNING: fat integers not supported: "
-               << "size " << m_sem.sizeInBits(I) << " > "
-               << "pointer size " << ptrSz() << " in" << I << "\n"
+               << "size " << m_sem.sizeInBits(*ty) << " > "
+               << "pointer size " << ptrSz() << " in load of" << addr << "\n"
                << "Ignored instruction.\n";
-        return;
+        llvm_unreachable(nullptr);
       }
-      assert(m_sem.sizeInBits(I) <= ptrSz() && "Fat integers not supported");
-
-      if (UseWrite2)
-        write(I, rhs);
-      else
-        side(lhs, rhs);
+      assert(m_sem.sizeInBits(*ty) <= ptrSz() && "Fat integers not supported");
     }
 
     m_ctx.m_inMem.reset();
+    return res;
   }
 
-  void visitStoreInst(StoreInst &I) {
-    if (InferMemSafety2) {
-      Value *pop = I.getPointerOperand()->stripPointerCasts();
-      // -- successful load through a gep implies that the base
-      // -- address of the gep is not null
-      if (GetElementPtrInst *gep = dyn_cast<GetElementPtrInst>(pop)) {
-        Expr base = lookup(*gep->getPointerOperand());
-        if (base)
-          side(mk<BUGT>(base, nullBv), true);
-      }
+  void executeStoreInst(const Value &addr, const Value &val,
+                        unsigned alignment, OpSemContext ctx) {
+
+    if (!m_ctx.m_inMem || !m_ctx.m_outMem || m_sem.isSkipped(val)) {
+      LOG("opsem", errs() << "Skipping store to "
+          << addr << " of " << val << "\n";);
+      m_ctx.m_inMem.reset();
+      m_ctx.m_outMem.reset();
+      return;
     }
 
-    if (!m_ctx.m_inMem || !m_ctx.m_outMem || m_sem.isSkipped(*I.getOperand(0)))
-      return;
+    Expr v = lookup(val);
 
-    Expr v = lookup(*I.getOperand(0));
-
-    if (v && I.getOperand(0)->getType()->isIntegerTy(1))
+    if (v && val.getType()->isIntegerTy(1))
       v = boolToBv(v);
 
     if (m_ctx.m_uniq) {
       if (v)
-        side(m_ctx.m_outMem, v);
+        m_ctx.addDef(m_ctx.m_outMem, v);
     } else {
-      if (m_sem.sizeInBits(*I.getOperand(0)) < ptrSz())
+      if (m_sem.sizeInBits(val) < ptrSz())
         v = bv::zext(v, ptrSz());
 
-      if (m_sem.sizeInBits(*I.getOperand(0)) > ptrSz()) {
+      if (m_sem.sizeInBits(val) > ptrSz()) {
         errs() << "WARNING: fat pointers are not supported: "
-               << "size " << m_sem.sizeInBits(*I.getOperand(0)) << " > "
-               << "pointer size " << ptrSz() << " in" << I << "\n"
-               << "Ignored instruction.\n";
-        return;
+               << "size " << m_sem.sizeInBits(val) << " > "
+               << "pointer size " << ptrSz() << " in store of "
+               << val << " to addr " << addr << "\n";
+        llvm_unreachable(nullptr);
       }
 
-      assert(m_sem.sizeInBits(*I.getOperand(0)) <= ptrSz() &&
+      assert(m_sem.sizeInBits(val) <= ptrSz() &&
              "Fat pointers are not supported");
 
-      Expr idx = lookup(*I.getPointerOperand());
+      Expr idx = lookup(addr);
       if (idx && v) {
-        if (PartMem2) {
-          side(mk<BULE>(m_s.read(m_cur_startMem), idx));
-          side(mk<BULE>(mk<BADD>(idx, bv::bvnum(ptrSz(), ptrSz(), m_efac)),
-                        m_s.read(m_cur_endMem)));
-
-          side(mk<BULT>(idx, m_largestPtr));
-          /// addresses must be aligned
-          unsigned sz = I.getAlignment();
-          addAlignConstraint(idx, sz);
-        }
-        side(m_ctx.m_outMem, op::array::store(m_ctx.m_inMem, idx, v));
+        m_ctx.addDef(m_ctx.m_outMem,
+                     op::array::store(m_ctx.m_inMem, idx, v));
+      }
+      else {
+        LOG("opsem", errs() << "Skipping store to "
+            << addr << " of " << val << "\n";);
       }
     }
 

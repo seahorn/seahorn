@@ -345,11 +345,14 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
 
 
   // void visitCallSite(CallSite CS);
-  // void visitIntrinsicInst(IntrinsicInst &I);
+  void visitIntrinsicInst(IntrinsicInst &I) {
+    // interpret by non-determinism (and a warning)
+    setValue(I, Expr());
+  }
 
-  // void visitDbgDeclareInst(DbgDeclareInst &I);
-  // void visitDbgValueInst(DbgValueInst &I);
-  // void visitDbgInfoIntrinsic(DbgInfoIntrinsic &I);
+  void visitDbgDeclareInst(DbgDeclareInst &I) { /* nothing */ }
+  void visitDbgValueInst(DbgValueInst &I) { /* nothing */ }
+  void visitDbgInfoIntrinsic(DbgInfoIntrinsic &I) { /* nothing */ }
 
   // void visitMemSetInst(MemSetInst &I);
   // void visitMemCpyInst(MemCpyInst &I);

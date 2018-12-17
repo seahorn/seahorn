@@ -83,6 +83,7 @@ struct CheckContext {
   size_t AccessedBytes = 0;
   SmallVector<Value *, 8> InterestingAllocSites;
   SmallVector<Value *, 8> OtherAllocSites;
+  sea_dsa::Graph *DsaGraph;
 
   void dump(llvm::raw_ostream &OS = llvm::errs()) {
     OS << "CheckContext : " << (F ? ValueToString(F) : "nullptr") << " {\n";
@@ -103,16 +104,28 @@ struct CheckContext {
 
     OS << "\n  AccessedBytes: " << AccessedBytes;
 
+    auto PrintDsaAllocSite = [this, &OS] (const llvm::Value& v) {
+      auto optAS = DsaGraph->getAllocSite(v);
+      assert(optAS.hasValue());
+      sea_dsa::DsaAllocSite &AS = **optAS;
+      if (AS.hasCallPaths())
+        AS.printCallPaths(OS);
+    };
+
+
     OS << "\n  InterestingAllocSites: {\n";
     unsigned i = 0;
     for (auto *V : InterestingAllocSites) {
       OS << "    " << (i++) << ": " << ValueToString(V);
 
-      if (auto *I = dyn_cast<Instruction>(V))
+      if (auto *I = dyn_cast<Instruction>(V)) {
         OS << "  (" << ValueToString(I->getFunction()) << ", "
            << ValueToString(I->getParent()) << ")";
+      }
 
       OS << ",\n";
+
+      PrintDsaAllocSite(*V);
     }
 
     unsigned Others = 0;
@@ -125,6 +138,8 @@ struct CheckContext {
            << ValueToString(I->getParent()) << ")";
 
       OS << ",\n";
+
+      PrintDsaAllocSite(*V);
 
       const unsigned SkipOthersAfter = 8;
       if (Others++ > SkipOthersAfter) {
@@ -192,14 +207,27 @@ public:
       : m_abc(abc),
         m_dsa(&this->m_abc->getAnalysis<sea_dsa::DsaInfoPass>().getDsaInfo()) {}
 
-  SmallVector<Value *, 8> getAllocSites(Value *V, const Function &F) {
-    auto *C = getCell(V, F);
+
+  sea_dsa::Graph &getGraph(const Function &F) {
+    auto *G = m_dsa->getDsaGraph(F);
+    assert(G);
+    return *G;
+  }
+
+  sea_dsa::Node &getNode(const Value &V, const Function &F) {
+    auto *C = getCell(&V, F);
     assert(C);
     auto *N = C->getNode();
     assert(N);
 
+    return *N;
+  }
+
+  SmallVector<Value *, 8> getAllocSites(Value *V, const Function &F) {
+    sea_dsa::Node &N = getNode(*V, F);
+
     SmallVector<Value *, 8> Sites;
-    for (auto *S : N->getAllocSites()) {
+    for (auto *S : N.getAllocSites()) {
       if (auto *GV = dyn_cast<const GlobalValue>(S))
         if (GV->isDeclaration())
           continue;
@@ -498,6 +526,7 @@ CheckContext SimpleMemoryCheck::getUnsafeCandidates(Instruction *Inst,
   Check.Collapsed = m_SDSA->getCell(Origin.Ptr,
                                     F)->getNode()->isOffsetCollapsed();
   Check.AccessedBytes = size_t(LastRead);
+  Check.DsaGraph = &m_SDSA->getGraph(F);
 
   if (Optional<size_t> AllocSize = getAllocSize(Origin.Ptr)) {
     if (int64_t(Origin.Offset) + Sz > int64_t(*AllocSize)) {
@@ -534,20 +563,20 @@ CheckContext SimpleMemoryCheck::getUnsafeCandidates(Instruction *Inst,
                  AllocTy->getStructName().endswith("::vector3")))
               Interesting = false;
 
-        // Heap alloc tends to return i8* instead of precise type.
-        if (!isa<CallInst>(AS) && !isa<InvokeInst>(AS)) {
-          if (TSC.count({BarrierTy, AllocTy}) == 0)
-            TSC[{BarrierTy, AllocTy}] =
-                TypeSimilarity(BarrierTy, AllocTy, m_Ctx, m_DL);
-
-          auto &TySim = TSC[{BarrierTy, AllocTy}];
+//        // Heap alloc tends to return i8* instead of precise type.
+//        if (!isa<CallInst>(AS) && !isa<InvokeInst>(AS)) {
+//          if (TSC.count({BarrierTy, AllocTy}) == 0)
+//            TSC[{BarrierTy, AllocTy}] =
+//                TypeSimilarity(BarrierTy, AllocTy, m_Ctx, m_DL);
+//
+//          auto &TySim = TSC[{BarrierTy, AllocTy}];
 //
 //          if (TySim.Similarity < 0.8f)
 //            Interesting = false;
 //          else if (auto *Arg = dyn_cast<Argument>(Check.Barrier))
 //            if (Arg->getName() == "this" && TySim.MatchPosition > 1)
 //              Interesting = false;
-        }
+//        }
 
         // Discard vtables.
 //        if (auto *C = dyn_cast<Constant>(AS))

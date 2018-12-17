@@ -7,7 +7,6 @@
 #include "ufo/ufo_iterators.hpp"
 #include "llvm/Support/CommandLine.h"
 
-
 using namespace seahorn;
 using namespace llvm;
 using namespace ufo;
@@ -36,19 +35,19 @@ static llvm::cl::opt<bool> IgnoreCalloc2(
 
 static llvm::cl::opt<bool>
     UseWrite2("horn-bv2-use-write",
-             llvm::cl::desc("Write to store instead of havoc"), cl::init(false),
-             cl::Hidden);
+              llvm::cl::desc("Write to store instead of havoc"),
+              cl::init(false), cl::Hidden);
 
 static llvm::cl::opt<bool>
     PartMem2("horn-bv2-part-mem",
-            llvm::cl::desc(
-                "Add constraints to partition memory into disjoint segments"),
-            cl::init(false), cl::Hidden);
+             llvm::cl::desc(
+                 "Add constraints to partition memory into disjoint segments"),
+             cl::init(false), cl::Hidden);
 
 static llvm::cl::opt<unsigned>
     PartMemSize2("horn-bv2-part-mem-size",
-                llvm::cl::desc("Maximum memory region size in KB"), cl::init(4),
-                cl::Hidden);
+                 llvm::cl::desc("Maximum memory region size in KB"),
+                 cl::init(4), cl::Hidden);
 
 static llvm::cl::opt<bool> EnableModelExternalCalls2(
     "horn-bv2-enable-external-calls",
@@ -108,9 +107,9 @@ struct OpSemBase {
   Expr m_largestPtr;
 
   OpSemBase(OpSemContext &ctx, Bv2OpSem &sem)
-    : m_ctx(ctx), m_s(m_ctx.m_values), m_efac(m_ctx.getExprFactory()),
-      m_sem(sem), m_side(m_ctx.m_side),
-      m_cur_startMem(nullptr), m_cur_endMem(nullptr), m_largestPtr(nullptr) {
+      : m_ctx(ctx), m_s(m_ctx.m_values), m_efac(m_ctx.getExprFactory()),
+        m_sem(sem), m_side(m_ctx.m_side), m_cur_startMem(nullptr),
+        m_cur_endMem(nullptr), m_largestPtr(nullptr) {
 
     trueE = m_sem.trueE;
     falseE = m_sem.falseE;
@@ -130,7 +129,6 @@ struct OpSemBase {
     ctx.regParam(falseE);
     ctx.regParam(falseE);
     ctx.regParam(falseE);
-
   }
 
   Expr memStart(unsigned id) { return m_sem.memStart(id); }
@@ -142,6 +140,8 @@ struct OpSemBase {
     return m_sem.isSkipped(v) ? Expr(0) : m_s.read(symb(v));
   }
 
+  Expr read(Expr v) { return m_s.read(v); }
+
   Expr lookup(const Value &v) { return m_sem.getOperandValue(v, m_ctx); }
 
   Expr havoc(const Value &v) {
@@ -149,7 +149,8 @@ struct OpSemBase {
   }
 
   void write(const Value &v, Expr val) {
-    if (m_sem.isSkipped(v)) return;
+    if (m_sem.isSkipped(v))
+      return;
     m_s.write(symb(v), val);
   }
 
@@ -207,7 +208,6 @@ struct OpSemBase {
 struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
   OpSemVisitor(OpSemContext &ctx, Bv2OpSem &sem) : OpSemBase(ctx, sem) {}
 
-
   // Opcode Implementations
   void visitReturnInst(ReturnInst &I) {
     // -- skip return argument of main
@@ -227,7 +227,7 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
   void visitSwitchInst(SwitchInst &I) {
     llvm_unreachable("switch instructions are not supported. Must be lowered.");
   }
-  void visitIndirectBrInst(IndirectBrInst &I) {llvm_unreachable(nullptr);}
+  void visitIndirectBrInst(IndirectBrInst &I) { llvm_unreachable(nullptr); }
 
   void visitBinaryOperator(BinaryOperator &I) {
     Type *ty = I.getOperand(0)->getType();
@@ -240,23 +240,42 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
     }
 
     if (op0 && op1) {
-      switch(I.getOpcode()) {
+      switch (I.getOpcode()) {
       default:
         errs() << "Unknown binary operator: " << I << "\n";
         llvm_unreachable(nullptr);
         break;
-      case Instruction::Add:   res = mk<BADD>(op0, op1); break;
-      case Instruction::Sub:   res = mk<BSUB>(op0, op1); break;
-      case Instruction::Mul:   res = mk<BMUL>(op0, op1); break;
-      case Instruction::FAdd:  break;
-      case Instruction::FSub:  break;
-      case Instruction::FMul:  break;
-      case Instruction::FDiv:  break;
-      case Instruction::FRem:  break;
-      case Instruction::UDiv:  res = mk<BUDIV>(op0, op1); break;
-      case Instruction::SDiv:  res = mk<BSDIV>(op0, op1); break;
-      case Instruction::URem:  res = mk<BUREM>(op0, op1); break;
-      case Instruction::SRem:  res = mk<BSREM>(op0, op1); break;
+      case Instruction::Add:
+        res = mk<BADD>(op0, op1);
+        break;
+      case Instruction::Sub:
+        res = mk<BSUB>(op0, op1);
+        break;
+      case Instruction::Mul:
+        res = mk<BMUL>(op0, op1);
+        break;
+      case Instruction::FAdd:
+        break;
+      case Instruction::FSub:
+        break;
+      case Instruction::FMul:
+        break;
+      case Instruction::FDiv:
+        break;
+      case Instruction::FRem:
+        break;
+      case Instruction::UDiv:
+        res = mk<BUDIV>(op0, op1);
+        break;
+      case Instruction::SDiv:
+        res = mk<BSDIV>(op0, op1);
+        break;
+      case Instruction::URem:
+        res = mk<BUREM>(op0, op1);
+        break;
+      case Instruction::SRem:
+        res = mk<BSREM>(op0, op1);
+        break;
       case Instruction::And:
         res = ty->isIntegerTy(1) ? mk<AND>(op0, op1) : mk<BAND>(op0, op1);
         break;
@@ -278,16 +297,36 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
 
     if (op0 && op1) {
       switch (I.getPredicate()) {
-      case ICmpInst::ICMP_EQ:  res = executeICMP_EQ(op0,  op1, ty, m_ctx); break;
-      case ICmpInst::ICMP_NE:  res = executeICMP_NE(op0,  op1, ty, m_ctx); break;
-      case ICmpInst::ICMP_ULT: res = executeICMP_ULT(op0, op1, ty, m_ctx); break;
-      case ICmpInst::ICMP_SLT: res = executeICMP_SLT(op0, op1, ty, m_ctx); break;
-      case ICmpInst::ICMP_UGT: res = executeICMP_UGT(op0, op1, ty, m_ctx); break;
-      case ICmpInst::ICMP_SGT: res = executeICMP_SGT(op0, op1, ty, m_ctx); break;
-      case ICmpInst::ICMP_ULE: res = executeICMP_ULE(op0, op1, ty, m_ctx); break;
-      case ICmpInst::ICMP_SLE: res = executeICMP_SLE(op0, op1, ty, m_ctx); break;
-      case ICmpInst::ICMP_UGE: res = executeICMP_UGE(op0, op1, ty, m_ctx); break;
-      case ICmpInst::ICMP_SGE: res = executeICMP_SGE(op0, op1, ty, m_ctx); break;
+      case ICmpInst::ICMP_EQ:
+        res = executeICMP_EQ(op0, op1, ty, m_ctx);
+        break;
+      case ICmpInst::ICMP_NE:
+        res = executeICMP_NE(op0, op1, ty, m_ctx);
+        break;
+      case ICmpInst::ICMP_ULT:
+        res = executeICMP_ULT(op0, op1, ty, m_ctx);
+        break;
+      case ICmpInst::ICMP_SLT:
+        res = executeICMP_SLT(op0, op1, ty, m_ctx);
+        break;
+      case ICmpInst::ICMP_UGT:
+        res = executeICMP_UGT(op0, op1, ty, m_ctx);
+        break;
+      case ICmpInst::ICMP_SGT:
+        res = executeICMP_SGT(op0, op1, ty, m_ctx);
+        break;
+      case ICmpInst::ICMP_ULE:
+        res = executeICMP_ULE(op0, op1, ty, m_ctx);
+        break;
+      case ICmpInst::ICMP_SLE:
+        res = executeICMP_SLE(op0, op1, ty, m_ctx);
+        break;
+      case ICmpInst::ICMP_UGE:
+        res = executeICMP_UGE(op0, op1, ty, m_ctx);
+        break;
+      case ICmpInst::ICMP_SGE:
+        res = executeICMP_SGE(op0, op1, ty, m_ctx);
+        break;
       default:
         errs() << "Unknown ICMP predicate" << I;
         llvm_unreachable(nullptr);
@@ -296,11 +335,11 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
     setValue(I, res);
   }
 
-  void visitFCmpInst(FCmpInst &I) {llvm_unreachable(nullptr);}
+  void visitFCmpInst(FCmpInst &I) { llvm_unreachable(nullptr); }
   // void visitAllocaInst(AllocaInst &I);
   void visitLoadInst(LoadInst &I) {
-    setValue(I, executeLoadInst(*I.getPointerOperand(),
-                                I.getAlignment(), I.getType(), m_ctx));
+    setValue(I, executeLoadInst(*I.getPointerOperand(), I.getAlignment(),
+                                I.getType(), m_ctx));
   }
   void visitStoreInst(StoreInst &I) {
     executeStoreInst(*I.getPointerOperand(), *I.getValueOperand(),
@@ -321,12 +360,12 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
   }
 
   // floating point instructions
-  void visitFPTruncInst(FPTruncInst &I) {llvm_unreachable(nullptr);}
-  void visitFPExtInst(FPExtInst &I) {llvm_unreachable(nullptr);}
-  void visitUIToFPInst(UIToFPInst &I) {llvm_unreachable(nullptr);}
-  void visitSIToFPInst(SIToFPInst &I) {llvm_unreachable(nullptr);}
-  void visitFPToUIInst(FPToUIInst &I) {llvm_unreachable(nullptr);}
-  void visitFPToSIInst(FPToSIInst &I) {llvm_unreachable(nullptr);}
+  void visitFPTruncInst(FPTruncInst &I) { llvm_unreachable(nullptr); }
+  void visitFPExtInst(FPExtInst &I) { llvm_unreachable(nullptr); }
+  void visitUIToFPInst(UIToFPInst &I) { llvm_unreachable(nullptr); }
+  void visitSIToFPInst(SIToFPInst &I) { llvm_unreachable(nullptr); }
+  void visitFPToUIInst(FPToUIInst &I) { llvm_unreachable(nullptr); }
+  void visitFPToSIInst(FPToSIInst &I) { llvm_unreachable(nullptr); }
 
   void visitPtrToIntInst(PtrToIntInst &I) {
     setValue(I, executePtrToIntInst(*I.getOperand(0), I.getType(), m_ctx));
@@ -349,16 +388,291 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
     setValue(I, res);
   }
 
+  void visitCallSite(CallSite CS) {
+    if (!CS.isCall()) {
+      llvm_unreachable("invoke instructions "
+                       "are not supported and must be lowered");
+    }
 
-  // void visitCallSite(CallSite CS);
-  void visitIntrinsicInst(IntrinsicInst &I) {
-    // interpret by non-determinism (and a warning)
-    setValue(I, Expr());
+    const Function *f = CS.getCalledFunction();
+    if (!f) {
+      visitIndirectCall(CS);
+      return;
+    }
+
+    // -- should be handled by visitIntrinsicInst
+    assert(!f->isIntrinsic());
+
+    if (f->getName().startswith("verifier.assume")) {
+      visitVerifierAssumeCall(CS);
+      return;
+    }
+
+    if (f->getName().equals("calloc")) {
+      visitCallocCall(CS);
+      return;
+    }
+
+    if (f->getName().startswith("shadow.mem")) {
+      visitShadowMemCall(CS);
+      return;
+    }
+
+    if (f->isDeclaration()) {
+      visitExternalCall(CS);
+      return;
+    }
+
+    if (m_sem.hasFunctionInfo(*f)) {
+      visitKnownFunctionCall(CS);
+    }
+
+    errs() << "Unhandled call instruction: " << *CS.getInstruction() << "\n";
+    llvm_unreachable(nullptr);
   }
 
-  void visitDbgDeclareInst(DbgDeclareInst &I) { /* nothing */ }
-  void visitDbgValueInst(DbgValueInst &I) { /* nothing */ }
-  void visitDbgInfoIntrinsic(DbgInfoIntrinsic &I) { /* nothing */ }
+  void visitIndirectCall(CallSite CS) {
+    // treat as non-det and issue a warning
+    setValue(*CS.getInstruction(), Expr());
+  }
+
+  void visitVerifierAssumeCall(CallSite CS) {
+    Function &f = *CS.getCalledFunction();
+
+    Expr op = lookup(*CS.getArgument(0));
+    if (f.getName().equals("verifier.assume.not"))
+      op = boolop::lneg(op);
+
+    if (!isOpX<TRUE>(op))
+      m_ctx.addSideSafe(boolop::lor(
+          m_ctx.read(m_sem.errorFlag(*(CS.getInstruction()->getParent()))),
+          op));
+  }
+
+  void visitCallocCall(CallSite CS) {
+    if (!m_ctx.m_inMem || !m_ctx.m_outMem) {
+      LOG("opsem", errs() << "Warning: treating calloc() as nop\n";);
+      return;
+    }
+
+    assert(!m_ctx.m_uniq);
+
+    if (IgnoreCalloc2) {
+      LOG("opsem", "Warning: treating calloc() as malloc()\n";);
+      m_ctx.addDef(m_ctx.m_outMem, m_ctx.m_inMem);
+    } else {
+      LOG("opsem", "Warning: allowing calloc() to "
+                   "zero initialize ALL of its memory region\n";);
+      m_ctx.addDef(m_ctx.m_outMem,
+                   op::array::constArray(bv::bvsort(ptrSz(), m_efac), nullBv));
+    }
+
+    // get a fresh pointer
+    const Instruction &inst = *CS.getInstruction();
+    setValue(inst, havoc(inst));
+  }
+
+  void visitShadowMemCall(CallSite CS) {
+    const Instruction &inst = *CS.getInstruction();
+
+    const Function &F = *CS.getCalledFunction();
+    if (F.getName().equals("shadow.mem.init")) {
+      unsigned id = shadow_dsa::getShadowId(CS);
+      assert(id >= 0);
+      setValue(inst, havoc(inst));
+      return;
+    }
+
+    if (F.getName().equals("shadow.mem.load")) {
+      const Value &v = *CS.getArgument(1);
+      m_ctx.m_inMem = m_ctx.read(symb(v));
+      m_ctx.m_uniq = extractUniqueScalar(CS) != nullptr;
+      return;
+    }
+
+    if (F.getName().equals("shadow.mem.store")) {
+      m_ctx.m_inMem = m_ctx.read(symb(*CS.getArgument(1)));
+      m_ctx.m_outMem = m_ctx.m_values.havoc(symb(inst));
+      m_ctx.m_uniq = extractUniqueScalar(CS) != nullptr;
+      return;
+    }
+
+    if (F.getName().equals("shadow.mem.arg.ref")) {
+      m_ctx.m_fparams.push_back(m_ctx.read(symb(*CS.getArgument(1))));
+      return;
+    }
+
+    if (F.getName().equals("shadow.mem.arg.mod")) {
+      m_ctx.m_fparams.push_back(m_ctx.read(symb(*CS.getArgument(1))));
+      m_ctx.m_fparams.push_back(m_ctx.m_values.havoc(symb(inst)));
+      return;
+    }
+
+    if (F.getName().equals("shadow.mem.arg.new")) {
+      m_ctx.m_fparams.push_back(m_ctx.m_values.havoc(symb(inst)));
+      return;
+    }
+
+    const Function &PF = *inst.getParent()->getParent();
+
+    if (F.getName().equals("shadow.mem.in")) {
+      if (PF.getName().equals("main"))
+        setValue(inst, havoc(inst));
+      else
+        m_ctx.read(symb(*CS.getArgument(1)));
+      return;
+    }
+
+    if (F.getName().equals("shadow.mem.out")) {
+      if (PF.getName().equals("main"))
+        setValue(inst, havoc(inst));
+      else
+        m_ctx.read(symb(*CS.getArgument(1)));
+      return;
+    }
+
+    if (F.getName().equals("shadow.mem.arg.init")) {
+      if (PF.getName().equals("main"))
+        setValue(inst, havoc(inst));
+      return;
+    }
+
+    errs() << "Unknown shadow.mem call: " << inst << "\n";
+    llvm_unreachable(nullptr);
+  }
+
+  void visitExternalCall(CallSite CS) {
+    if (!EnableModelExternalCalls2)
+      return;
+    Function &F = *CS.getCalledFunction();
+    if (F.getFunctionType()->getReturnType()->isVoidTy())
+      return;
+
+    if (std::find(IgnoreExternalFunctions2.begin(),
+                  IgnoreExternalFunctions2.end(),
+                  F.getName()) == IgnoreExternalFunctions2.end())
+      return;
+
+    const Instruction &inst = *CS.getInstruction();
+    // Treat the call as an uninterpreted function
+    Expr res;
+    ExprVector fargs;
+    ExprVector sorts;
+    fargs.reserve(CS.arg_size());
+    sorts.reserve(CS.arg_size());
+
+    bool is_typed = true;
+    for (auto &a : CS.args()) {
+      if (m_sem.isSkipped(*a))
+        continue;
+
+      Expr e = lookup(*a);
+      if (!e)
+        continue;
+      fargs.push_back(e);
+      Expr s = bind::typeOf(e);
+      if (!s) {
+        // bind::typeOf is partially defined
+        is_typed = false;
+        break;
+      }
+      sorts.push_back(s);
+    }
+
+    if (is_typed) {
+      // return type of the function
+      Expr symReg = symb(inst);
+      Expr ty = bind::typeOf(symReg);
+      if (!ty) {
+        is_typed = false;
+      } else {
+        sorts.push_back(ty);
+      }
+    }
+
+    if (is_typed) {
+      LOG("opsem", errs() << "Modelling " << inst
+                          << " with an uninterpreted function\n";);
+      Expr name = mkTerm<const Function *>(CS.getCalledFunction(), m_efac);
+      Expr d = bind::fdecl(name, sorts);
+      res = bind::fapp(d, fargs);
+    }
+
+    setValue(inst, res);
+  }
+
+  void visitKnownFunctionCall(CallSite CS) {
+    const Function &F = *CS.getCalledFunction();
+    const FunctionInfo &fi = m_sem.getFunctionInfo(F);
+    const Instruction &inst = *CS.getInstruction();
+    const BasicBlock &BB = *inst.getParent();
+
+    // enabled
+    m_ctx.m_fparams[0] = m_ctx.m_act; // activation literal
+    // error flag in
+    m_ctx.m_fparams[1] = (m_ctx.read(m_sem.errorFlag(BB)));
+    // error flag out
+    m_ctx.m_fparams[2] = (m_ctx.m_values.havoc(m_sem.errorFlag(BB)));
+    for (const Argument *arg : fi.args)
+      m_ctx.m_fparams.push_back(
+          m_s.read(symb(*CS.getArgument(arg->getArgNo()))));
+    for (const GlobalVariable *gv : fi.globals)
+      m_ctx.m_fparams.push_back(m_s.read(symb(*gv)));
+
+    if (fi.ret) {
+      Expr v = m_ctx.m_values.havoc(symb(inst));
+      setValue(inst, v);
+      m_ctx.m_fparams.push_back(v);
+    }
+
+    LOG("arg_error", if (m_ctx.m_fparams.size() != bind::domainSz(fi.sumPred)) {
+      const Instruction &I = *CS.getInstruction();
+      const Function &PF = *BB.getParent();
+      errs() << "Call instruction: " << I << "\n";
+      errs() << "Caller: " << PF << "\n";
+      errs() << "Callee: " << F << "\n";
+      // errs () << "Sum predicate: " << *fi.sumPred << "\n";
+      errs() << "m_ctx.m_fparams.size: " << m_ctx.m_fparams.size() << "\n";
+      errs() << "Domain size: " << bind::domainSz(fi.sumPred) << "\n";
+      errs() << "m_ctx.m_fparams\n";
+      for (auto r : m_ctx.m_fparams)
+        errs() << *r << "\n";
+      errs() << "regions: " << fi.regions.size() << " args: " << fi.args.size()
+             << " globals: " << fi.globals.size() << " ret: " << fi.ret << "\n";
+      errs() << "regions\n";
+      for (auto r : fi.regions)
+        errs() << *r << "\n";
+      errs() << "args\n";
+      for (auto r : fi.args)
+        errs() << *r << "\n";
+      errs() << "globals\n";
+      for (auto r : fi.globals)
+        errs() << *r << "\n";
+      if (fi.ret)
+        errs() << "ret: " << *fi.ret << "\n";
+    });
+
+    assert(m_ctx.m_fparams.size() == bind::domainSz(fi.sumPred));
+    m_ctx.addSide(bind::fapp(fi.sumPred, m_ctx.m_fparams));
+
+    m_ctx.resetParams();
+    m_ctx.regParam(falseE);
+    m_ctx.regParam(falseE);
+    m_ctx.regParam(falseE);
+  }
+
+  void visitIntrinsicInst(IntrinsicInst &I) {
+    // interpret by non-determinism (and a warning)
+    if (!I.getType()->isVoidTy())
+      setValue(I, Expr());
+  }
+
+  void visitDbgDeclareInst(DbgDeclareInst &I) { /* nothing */
+  }
+  void visitDbgValueInst(DbgValueInst &I) { /* nothing */
+  }
+  void visitDbgInfoIntrinsic(DbgInfoIntrinsic &I) { /* nothing */
+  }
 
   // void visitMemSetInst(MemSetInst &I);
   // void visitMemCpyInst(MemCpyInst &I);
@@ -366,15 +680,18 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
   // void visitMemTransferInst(MemTransferInst &I);
   // void visitMemIntrinsic(MemIntrinsic &I);
 
-  void visitVAStartInst(VAStartInst &I) {llvm_unreachable(nullptr);}
-  void visitVAEndInst(VAEndInst &I) {llvm_unreachable(nullptr);}
-  void visitVACopyInst(VACopyInst &I) {llvm_unreachable(nullptr);}
+  void visitVAStartInst(VAStartInst &I) { llvm_unreachable(nullptr); }
+  void visitVAEndInst(VAEndInst &I) { llvm_unreachable(nullptr); }
+  void visitVACopyInst(VACopyInst &I) { llvm_unreachable(nullptr); }
 
-  void visitUnreachableInst(UnreachableInst &I) { /* do nothing */ }
+  void visitUnreachableInst(UnreachableInst &I) { /* do nothing */
+  }
 
   void visitShl(BinaryOperator &I) {
     Type *ty = I.getType();
-    if (ty->isVectorTy()) {llvm_unreachable(nullptr);}
+    if (ty->isVectorTy()) {
+      llvm_unreachable(nullptr);
+    }
 
     Expr op0 = lookup(*I.getOperand(0));
     Expr op1 = lookup(*I.getOperand(1));
@@ -389,7 +706,9 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
 
   void visitLShr(BinaryOperator &I) {
     Type *ty = I.getType();
-    if (ty->isVectorTy()) {llvm_unreachable(nullptr);}
+    if (ty->isVectorTy()) {
+      llvm_unreachable(nullptr);
+    }
 
     Expr op0 = lookup(*I.getOperand(0));
     Expr op1 = lookup(*I.getOperand(1));
@@ -404,7 +723,9 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
 
   void visitAShr(BinaryOperator &I) {
     Type *ty = I.getType();
-    if (ty->isVectorTy()) {llvm_unreachable(nullptr);}
+    if (ty->isVectorTy()) {
+      llvm_unreachable(nullptr);
+    }
 
     Expr op0 = lookup(*I.getOperand(0));
     Expr op1 = lookup(*I.getOperand(1));
@@ -417,13 +738,17 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
     setValue(I, res);
   }
 
-  void visitVAArgInst(VAArgInst &I) {llvm_unreachable(nullptr);}
+  void visitVAArgInst(VAArgInst &I) { llvm_unreachable(nullptr); }
 
   void visitExtractElementInst(ExtractElementInst &I) {
     llvm_unreachable(nullptr);
   }
-  void visitInsertElementInst(InsertElementInst &I) {llvm_unreachable(nullptr);}
-  void visitShuffleVectorInst(ShuffleVectorInst &I) {llvm_unreachable(nullptr);}
+  void visitInsertElementInst(InsertElementInst &I) {
+    llvm_unreachable(nullptr);
+  }
+  void visitShuffleVectorInst(ShuffleVectorInst &I) {
+    llvm_unreachable(nullptr);
+  }
 
   // void visitExtractValueInst(ExtractValueInst &I);
   // void visitInsertValueInst(InsertValueInst &I);
@@ -432,7 +757,6 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
     errs() << I << "\n";
     llvm_unreachable("No semantics to this instruction yet!");
   }
-
 
   void addAlignConstraint(Expr e, unsigned sz) {
     switch (sz) {
@@ -449,17 +773,22 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
     }
   }
 
-  Expr executeSelectInst(Expr cond, Expr op0, Expr op1,
-                         Type *ty, OpSemContext &ctx) {
-    if (ty->isVectorTy()) {llvm_unreachable(nullptr);}
+  Expr executeSelectInst(Expr cond, Expr op0, Expr op1, Type *ty,
+                         OpSemContext &ctx) {
+    if (ty->isVectorTy()) {
+      llvm_unreachable(nullptr);
+    }
     return cond && op0 && op1 ? mk<ITE>(cond, op0, op1) : Expr(0);
   }
 
   Expr executeTruncInst(const Value &v, const Type &ty, OpSemContext &ctx) {
-    if (v.getType()->isVectorTy()) {llvm_unreachable(nullptr);}
+    if (v.getType()->isVectorTy()) {
+      llvm_unreachable(nullptr);
+    }
 
     Expr op0 = lookup(v);
-    if (!op0) return Expr();
+    if (!op0)
+      return Expr();
 
     uint64_t width = m_sem.sizeInBits(ty);
     Expr res = bv::extract(width - 1, 0, op0);
@@ -467,26 +796,33 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
   }
 
   Expr executeZExtInst(const Value &v, const Type &ty, OpSemContext &ctx) {
-    if (v.getType()->isVectorTy()) {llvm_unreachable(nullptr);}
+    if (v.getType()->isVectorTy()) {
+      llvm_unreachable(nullptr);
+    }
 
     Expr op0 = lookup(v);
-    if (!op0) return Expr();
-    if (v.getType()->isIntegerTy(1)) op0 = boolToBv(op0);
+    if (!op0)
+      return Expr();
+    if (v.getType()->isIntegerTy(1))
+      op0 = boolToBv(op0);
     return bv::zext(op0, m_sem.sizeInBits(ty));
   }
 
-
   Expr executeSExtInst(const Value &v, const Type &ty, OpSemContext &ctx) {
-    if (v.getType()->isVectorTy()) {llvm_unreachable(nullptr);}
+    if (v.getType()->isVectorTy()) {
+      llvm_unreachable(nullptr);
+    }
 
     Expr op0 = lookup(v);
-    if (!op0) return Expr();
-    if (v.getType()->isIntegerTy(1)) op0 = boolToBv(op0);
+    if (!op0)
+      return Expr();
+    if (v.getType()->isIntegerTy(1))
+      op0 = boolToBv(op0);
     return bv::sext(op0, m_sem.sizeInBits(ty));
   }
 
-  Expr executeICMP_EQ (Expr op0, Expr op1, Type *ty, OpSemContext &ctx) {
-    switch(ty->getTypeID()) {
+  Expr executeICMP_EQ(Expr op0, Expr op1, Type *ty, OpSemContext &ctx) {
+    switch (ty->getTypeID()) {
     case Type::IntegerTyID:
       return mk<EQ>(op0, op1);
     case Type::PointerTyID:
@@ -498,8 +834,8 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
     llvm_unreachable(nullptr);
   }
 
-  Expr executeICMP_NE (Expr op0, Expr op1, Type *ty, OpSemContext &ctx) {
-    switch(ty->getTypeID()) {
+  Expr executeICMP_NE(Expr op0, Expr op1, Type *ty, OpSemContext &ctx) {
+    switch (ty->getTypeID()) {
     case Type::IntegerTyID:
       return mk<NEQ>(op0, op1);
     case Type::PointerTyID:
@@ -511,8 +847,8 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
     llvm_unreachable(nullptr);
   }
 
-  Expr executeICMP_ULT (Expr op0, Expr op1, Type *ty, OpSemContext &ctx) {
-    switch(ty->getTypeID()) {
+  Expr executeICMP_ULT(Expr op0, Expr op1, Type *ty, OpSemContext &ctx) {
+    switch (ty->getTypeID()) {
     case Type::IntegerTyID:
       return mk<BULT>(op0, op1);
     case Type::PointerTyID:
@@ -524,8 +860,8 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
     llvm_unreachable(nullptr);
   }
 
-  Expr executeICMP_SLT (Expr op0, Expr op1, Type *ty, OpSemContext &ctx) {
-    switch(ty->getTypeID()) {
+  Expr executeICMP_SLT(Expr op0, Expr op1, Type *ty, OpSemContext &ctx) {
+    switch (ty->getTypeID()) {
     case Type::IntegerTyID:
       return mk<BSLT>(op0, op1);
     case Type::PointerTyID:
@@ -537,8 +873,8 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
     llvm_unreachable(nullptr);
   }
 
-  Expr executeICMP_UGT (Expr op0, Expr op1, Type *ty, OpSemContext &ctx) {
-    switch(ty->getTypeID()) {
+  Expr executeICMP_UGT(Expr op0, Expr op1, Type *ty, OpSemContext &ctx) {
+    switch (ty->getTypeID()) {
     case Type::IntegerTyID:
       return mk<BUGT>(op0, op1);
     case Type::PointerTyID:
@@ -550,9 +886,9 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
     llvm_unreachable(nullptr);
   }
 
-  Expr executeICMP_SGT (Expr op0, Expr op1, Type *ty, OpSemContext &ctx) {
+  Expr executeICMP_SGT(Expr op0, Expr op1, Type *ty, OpSemContext &ctx) {
 
-    switch(ty->getTypeID()) {
+    switch (ty->getTypeID()) {
     case Type::IntegerTyID:
       if (ty->isIntegerTy(1)) {
         if (isOpX<TRUE>(op1))
@@ -572,7 +908,7 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
   }
 
   Expr executeICMP_ULE(Expr op0, Expr op1, Type *ty, OpSemContext &ctx) {
-    switch(ty->getTypeID()) {
+    switch (ty->getTypeID()) {
     case Type::IntegerTyID:
       return mk<BULE>(op0, op1);
     case Type::PointerTyID:
@@ -585,7 +921,7 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
   }
 
   Expr executeICMP_SLE(Expr op0, Expr op1, Type *ty, OpSemContext &ctx) {
-    switch(ty->getTypeID()) {
+    switch (ty->getTypeID()) {
     case Type::IntegerTyID:
       return mk<BSLE>(op0, op1);
     case Type::PointerTyID:
@@ -598,7 +934,7 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
   }
 
   Expr executeICMP_UGE(Expr op0, Expr op1, Type *ty, OpSemContext &ctx) {
-    switch(ty->getTypeID()) {
+    switch (ty->getTypeID()) {
     case Type::IntegerTyID:
       return mk<BUGE>(op0, op1);
     case Type::PointerTyID:
@@ -611,7 +947,7 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
   }
 
   Expr executeICMP_SGE(Expr op0, Expr op1, Type *ty, OpSemContext &ctx) {
-    switch(ty->getTypeID()) {
+    switch (ty->getTypeID()) {
     case Type::IntegerTyID:
       return mk<BSGE>(op0, op1);
     case Type::PointerTyID:
@@ -625,7 +961,8 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
 
   Expr executePtrToIntInst(const Value &op, const Type *ty, OpSemContext &ctx) {
     Expr res = lookup(op);
-    if (!res) return Expr();
+    if (!res)
+      return Expr();
 
     uint64_t dsz = m_sem.sizeInBits(*ty);
     uint64_t ssz = m_sem.sizeInBits(op);
@@ -640,7 +977,8 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
 
   Expr executeIntToPtrInst(const Value &op, const Type *ty, OpSemContext &ctx) {
     Expr res = lookup(op);
-    if (!res) return Expr();
+    if (!res)
+      return Expr();
 
     uint64_t dsz = m_sem.sizeInBits(*ty);
     uint64_t ssz = m_sem.sizeInBits(op);
@@ -686,248 +1024,6 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
     }
   }
 
-  void visitCallSite(CallSite CS) {
-    assert(CS.isCall());
-    const Function *f = CS.getCalledFunction();
-
-    Instruction &I = *CS.getInstruction();
-    BasicBlock &BB = *I.getParent();
-
-    // -- unknown/indirect function call
-    if (!f) {
-      // XXX Use DSA and/or Devirt to handle better
-      assert(m_ctx.m_fparams.size() == 3);
-      visitInstruction(I);
-      return;
-    }
-
-    const Function &F = *f;
-    const Function &PF = *I.getParent()->getParent();
-
-    // skip intrinsic functions
-    if (F.isIntrinsic()) {
-      assert(m_ctx.m_fparams.size() == 3);
-      return;
-    }
-
-    if (F.getName().startswith("verifier.assume")) {
-      Expr c = lookup(*CS.getArgument(0));
-      if (F.getName().equals("verifier.assume.not"))
-        c = boolop::lneg(c);
-
-      assert(m_ctx.m_fparams.size() == 3);
-      // -- assumption is only active when error flag is false
-      if (!isOpX<TRUE>(c))
-        addCondSide(boolop::lor(m_s.read(m_sem.errorFlag(BB)), c));
-    } else if (F.getName().equals("calloc") && m_ctx.m_inMem && m_ctx.m_outMem &&
-               !m_sem.isSkipped(I)) {
-      havoc(I);
-      assert(m_ctx.m_fparams.size() == 3);
-      assert(!m_ctx.m_uniq);
-
-      if (IgnoreCalloc2)
-        m_side.push_back(mk<EQ>(m_ctx.m_outMem, m_ctx.m_inMem));
-      else {
-        // XXX This is potentially unsound if the corresponding DSA
-        // XXX node corresponds to multiple allocation sites
-        errs() << "WARNING: zero-initializing DSA node due to calloc()\n";
-        side(m_ctx.m_outMem,
-             op::array::constArray(bv::bvsort(ptrSz(), m_efac), nullBv));
-      }
-    }
-
-    else if (m_sem.hasFunctionInfo(F)) {
-      const FunctionInfo &fi = m_sem.getFunctionInfo(F);
-
-      // enabled
-      m_ctx.m_fparams[0] = m_ctx.m_act; // activation literal
-      // error flag in
-      m_ctx.m_fparams[1] = (m_s.read(m_sem.errorFlag(BB)));
-      // error flag out
-      m_ctx.m_fparams[2] = (m_s.havoc(m_sem.errorFlag(BB)));
-      for (const Argument *arg : fi.args)
-        m_ctx.m_fparams.push_back(m_s.read(symb(*CS.getArgument(arg->getArgNo()))));
-      for (const GlobalVariable *gv : fi.globals)
-        m_ctx.m_fparams.push_back(m_s.read(symb(*gv)));
-
-      if (fi.ret)
-        m_ctx.m_fparams.push_back(m_s.havoc(symb(I)));
-
-      LOG("arg_error", if (m_ctx.m_fparams.size() != bind::domainSz(fi.sumPred)) {
-        errs() << "Call instruction: " << I << "\n";
-        errs() << "Caller: " << PF << "\n";
-        errs() << "Callee: " << F << "\n";
-        // errs () << "Sum predicate: " << *fi.sumPred << "\n";
-        errs() << "m_ctx.m_fparams.size: " << m_ctx.m_fparams.size() << "\n";
-        errs() << "Domain size: " << bind::domainSz(fi.sumPred) << "\n";
-        errs() << "m_ctx.m_fparams\n";
-        for (auto r : m_ctx.m_fparams)
-          errs() << *r << "\n";
-        errs() << "regions: " << fi.regions.size()
-               << " args: " << fi.args.size()
-               << " globals: " << fi.globals.size() << " ret: " << fi.ret
-               << "\n";
-        errs() << "regions\n";
-        for (auto r : fi.regions)
-          errs() << *r << "\n";
-        errs() << "args\n";
-        for (auto r : fi.args)
-          errs() << *r << "\n";
-        errs() << "globals\n";
-        for (auto r : fi.globals)
-          errs() << *r << "\n";
-        if (fi.ret)
-          errs() << "ret: " << *fi.ret << "\n";
-      });
-
-      assert(m_ctx.m_fparams.size() == bind::domainSz(fi.sumPred));
-      m_side.push_back(bind::fapp(fi.sumPred, m_ctx.m_fparams));
-
-      m_ctx.resetParams();
-      m_ctx.regParam(falseE);
-      m_ctx.regParam(falseE);
-      m_ctx.regParam(falseE);
-    } else if (F.getName().startswith("shadow.mem") && !m_sem.isSkipped(I)) {
-      if (F.getName().equals("shadow.mem.init")) {
-        m_s.havoc(symb(I));
-        unsigned id = shadow_dsa::getShadowId(CS);
-        assert(id >= 0);
-
-        // -- add constraints only if asked
-        if (PartMem2) {
-
-          Expr memStartE = memStart(id);
-          Expr memEndE = memEnd(id);
-          memStartE = m_s.havoc(memStartE);
-          memEndE = m_s.havoc(memEndE);
-
-          // -- start < end
-          side(mk<BULT>(memStartE, memEndE));
-
-          // -- end < largestPtr
-          side(mk<BULT>(memEndE, m_largestPtr));
-
-          if (PartMemSize2 > 0) {
-            // -- end - start <= PartMemSize2 KB
-            side(mk<BULE>(mk<BSUB>(memEndE, memStartE),
-                          bv::bvnum(PartMemSize2 * 1024, ptrSz(), m_efac)));
-          }
-
-          // -- old_end < new_start
-          if (m_cur_endMem)
-            side(mk<BULT>(m_s.read(m_cur_endMem), memStartE));
-
-          // -- remember last choice
-          m_cur_startMem = memStart(id);
-          m_cur_endMem = memEnd(id);
-
-          /// start addresses are aligned:
-          ///   In addition to enforce that all pointers are
-          ///   aligned, we also need to enforce that the start
-          ///   address is also aligned.
-          addAlignConstraint(memStartE, ptrSz() / 8 /*bytes*/);
-        }
-
-      } else if (F.getName().equals("shadow.mem.load")) {
-        const Value &v = *CS.getArgument(1);
-        m_ctx.m_inMem = m_s.read(symb(v));
-        m_ctx.m_uniq = extractUniqueScalar(CS) != nullptr;
-        if (PartMem2) {
-          m_cur_startMem = memStart(shadow_dsa::getShadowId(CS));
-          m_cur_endMem = memEnd(shadow_dsa::getShadowId(CS));
-        }
-      } else if (F.getName().equals("shadow.mem.store")) {
-        m_ctx.m_inMem = m_s.read(symb(*CS.getArgument(1)));
-        m_ctx.m_outMem = m_s.havoc(symb(I));
-        m_ctx.m_uniq = extractUniqueScalar(CS) != nullptr;
-        if (PartMem2) {
-          m_cur_startMem = memStart(shadow_dsa::getShadowId(CS));
-          m_cur_endMem = memEnd(shadow_dsa::getShadowId(CS));
-        }
-      } else if (F.getName().equals("shadow.mem.arg.ref"))
-        m_ctx.m_fparams.push_back(m_s.read(symb(*CS.getArgument(1))));
-      else if (F.getName().equals("shadow.mem.arg.mod")) {
-        m_ctx.m_fparams.push_back(m_s.read(symb(*CS.getArgument(1))));
-        m_ctx.m_fparams.push_back(m_s.havoc(symb(I)));
-      } else if (F.getName().equals("shadow.mem.arg.new"))
-        m_ctx.m_fparams.push_back(m_s.havoc(symb(I)));
-      else if (!PF.getName().equals("main") &&
-               F.getName().equals("shadow.mem.in")) {
-        m_s.read(symb(*CS.getArgument(1)));
-      } else if (!PF.getName().equals("main") &&
-                 F.getName().equals("shadow.mem.out")) {
-        m_s.read(symb(*CS.getArgument(1)));
-      } else if (!PF.getName().equals("main") &&
-                 F.getName().equals("shadow.mem.arg.init")) {
-        // regions initialized in main are global. We want them to
-        // flow to the arguments
-        /* do nothing */
-      }
-    } else {
-      if (f->isDeclaration() &&
-          !f->getFunctionType()->getReturnType()->isVoidTy() &&
-          !m_sem.isSkipped(I) &&
-          // we model external calls as interpreted functions
-          EnableModelExternalCalls2 &&
-          // user didn't say to ignore the function in particular
-          (std::find(IgnoreExternalFunctions2.begin(),
-                     IgnoreExternalFunctions2.end(),
-                     f->getName()) == IgnoreExternalFunctions2.end())) {
-
-        // Treat the call as an uninterpreted function
-        Expr lhs = havoc(I);
-        ExprVector fargs;
-        ExprVector sorts;
-        fargs.reserve(CS.arg_size());
-        sorts.reserve(CS.arg_size());
-        bool cannot_infer_types = false;
-        for (auto &a : CS.args()) {
-          if (m_sem.isSkipped(*a)) {
-            continue;
-          }
-          Expr e = lookup(*a);
-          fargs.push_back(e);
-          Expr s = bind::typeOf(e);
-          if (!s) {
-            // bind::typeOf is partially defined
-            cannot_infer_types = true;
-            break;
-          }
-          sorts.push_back(s);
-        }
-        if (!cannot_infer_types) {
-          // return type of the function
-          Expr lhs_ty = bind::typeOf(lhs);
-          if (!lhs_ty) {
-            cannot_infer_types = true;
-          } else {
-            sorts.push_back(lhs_ty);
-          }
-        }
-
-        if (cannot_infer_types) {
-          fargs.clear();
-          sorts.clear();
-          visitInstruction(*CS.getInstruction());
-        } else {
-          errs() << "Modelling " << I << " with an uninterpreted function\n";
-          Expr name = mkTerm<const Function *>(f, m_efac);
-          Expr d = bind::fdecl(name, sorts);
-          Expr uf = bind::fapp(d, fargs);
-          side(mk<EQ>(lhs, uf));
-        }
-      } else {
-        if (m_ctx.m_fparams.size() > 3) {
-          m_ctx.m_fparams.resize(3);
-          errs() << "WARNING: skipping a call to " << F.getName()
-                 << " (recursive call?)\n";
-        }
-
-        visitInstruction(*CS.getInstruction());
-      }
-    }
-  }
-
   void visitAllocaInst(AllocaInst &I) {
     if (m_sem.isSkipped(I))
       return;
@@ -937,13 +1033,16 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
     side(mk<BUGT>(lhs, nullBv));
   }
 
-  Expr executeLoadInst(const Value &addr, unsigned alignment, const Type *ty, OpSemContext ctx) {
+  Expr executeLoadInst(const Value &addr, unsigned alignment, const Type *ty,
+                       OpSemContext ctx) {
     Expr res;
-    if (!m_ctx.m_inMem) return res;
+    if (!m_ctx.m_inMem)
+      return res;
 
     if (m_ctx.m_uniq) {
       res = m_ctx.m_inMem;
-      if (ty->isIntegerTy(1)) res = bvToBool(res);
+      if (ty->isIntegerTy(1))
+        res = bvToBool(res);
     } else if (Expr op0 = lookup(addr)) {
       res = op::array::select(m_ctx.m_inMem, op0);
       if (ty->isIntegerTy(1))
@@ -965,12 +1064,12 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
     return res;
   }
 
-  void executeStoreInst(const Value &addr, const Value &val,
-                        unsigned alignment, OpSemContext ctx) {
+  void executeStoreInst(const Value &addr, const Value &val, unsigned alignment,
+                        OpSemContext ctx) {
 
     if (!m_ctx.m_inMem || !m_ctx.m_outMem || m_sem.isSkipped(val)) {
-      LOG("opsem", errs() << "Skipping store to "
-          << addr << " of " << val << "\n";);
+      LOG("opsem",
+          errs() << "Skipping store to " << addr << " of " << val << "\n";);
       m_ctx.m_inMem.reset();
       m_ctx.m_outMem.reset();
       return;
@@ -991,8 +1090,8 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
       if (m_sem.sizeInBits(val) > ptrSz()) {
         errs() << "WARNING: fat pointers are not supported: "
                << "size " << m_sem.sizeInBits(val) << " > "
-               << "pointer size " << ptrSz() << " in store of "
-               << val << " to addr " << addr << "\n";
+               << "pointer size " << ptrSz() << " in store of " << val
+               << " to addr " << addr << "\n";
         llvm_unreachable(nullptr);
       }
 
@@ -1001,12 +1100,10 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
 
       Expr idx = lookup(addr);
       if (idx && v) {
-        m_ctx.addDef(m_ctx.m_outMem,
-                     op::array::store(m_ctx.m_inMem, idx, v));
-      }
-      else {
-        LOG("opsem", errs() << "Skipping store to "
-            << addr << " of " << val << "\n";);
+        m_ctx.addDef(m_ctx.m_outMem, op::array::store(m_ctx.m_inMem, idx, v));
+      } else {
+        LOG("opsem",
+            errs() << "Skipping store to " << addr << " of " << val << "\n";);
       }
     }
 
@@ -1021,11 +1118,12 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
         ty->getTypeID() == Type::VectorTyID)
       llvm_unreachable("Vector types are unsupported");
 
-
     Expr res = lookup(op);
-    if (!res) return Expr();
+    if (!res)
+      return Expr();
 
-    if (ty->isPointerTy()) return res;
+    if (ty->isPointerTy())
+      return res;
 
     if (ty->isIntegerTy()) {
       if (opTy->isFloatTy())
@@ -1042,7 +1140,7 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
         llvm_unreachable("bitcast to float not supported");
       else
         return res;
-    } else if(ty->isDoubleTy()) {
+    } else if (ty->isDoubleTy()) {
       if (opTy->isIntegerTy())
         llvm_unreachable("bitcast to double not supported");
       else
@@ -1051,7 +1149,6 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
 
     llvm_unreachable("Invalid bitcast");
   }
-
 
   void initGlobals(const BasicBlock &BB) {
     const Function &F = *BB.getParent();
@@ -1115,14 +1212,14 @@ struct OpSemPhiVisitor : public InstVisitor<OpSemPhiVisitor>, OpSemBase {
     }
   }
 };
-}} // namespace
-
+} // namespace bvop_details
+} // namespace seahorn
 
 namespace seahorn {
-Bv2OpSem::Bv2OpSem (ExprFactory &efac, Pass &pass, const DataLayout &dl,
-          TrackLevel trackLvl) :
-  OpSem (efac), m_pass (pass), m_trackLvl (trackLvl), m_td(&dl) {
-  m_canFail = pass.getAnalysisIfAvailable<CanFail> ();
+Bv2OpSem::Bv2OpSem(ExprFactory &efac, Pass &pass, const DataLayout &dl,
+                   TrackLevel trackLvl)
+    : OpSem(efac), m_pass(pass), m_trackLvl(trackLvl), m_td(&dl) {
+  m_canFail = pass.getAnalysisIfAvailable<CanFail>();
 
   trueE = mk<TRUE>(m_efac);
   falseE = mk<FALSE>(m_efac);
@@ -1144,18 +1241,17 @@ Bv2OpSem::Bv2OpSem (ExprFactory &efac, Pass &pass, const DataLayout &dl,
     val = 0x0FFFFFFF;
     break;
   default:
-    LOG("opsem", errs() << "Unsupported pointer size: "
-        << pointerSizeInBits() << "\n";);
+    LOG("opsem",
+        errs() << "Unsupported pointer size: " << pointerSizeInBits() << "\n";);
     llvm_unreachable("Unexpected pointer size");
   }
   maxPtrE = bv::bvnum(val, pointerSizeInBits(), m_efac);
 }
 
-Bv2OpSem::Bv2OpSem (const Bv2OpSem& o) :
-  OpSem (o), m_pass (o.m_pass), m_trackLvl (o.m_trackLvl),
-  m_td (o.m_td), m_canFail (o.m_canFail),
-  trueE(o.trueE), falseE(o.falseE), zeroE(o.zeroE), oneE(o.oneE),
-  trueBv(o.trueBv), falseBv(o.falseBv), nullBv(o.nullBv) {}
+Bv2OpSem::Bv2OpSem(const Bv2OpSem &o)
+    : OpSem(o), m_pass(o.m_pass), m_trackLvl(o.m_trackLvl), m_td(o.m_td),
+      m_canFail(o.m_canFail), trueE(o.trueE), falseE(o.falseE), zeroE(o.zeroE),
+      oneE(o.oneE), trueBv(o.trueBv), falseBv(o.falseBv), nullBv(o.nullBv) {}
 
 Expr Bv2OpSem::errorFlag(const BasicBlock &BB) {
   // -- if BB belongs to a function that cannot fail, errorFlag is always false
@@ -1175,16 +1271,17 @@ Expr Bv2OpSem::memEnd(unsigned id) {
 }
 
 void Bv2OpSem::exec(SymStore &s, const BasicBlock &bb, ExprVector &side,
-                   Expr act) {
+                    Expr act) {
   OpSemContext C(s, side);
   C.update_bb(bb);
   C.m_act = act;
 
   // skip PHI instructions
-  for (; isa<PHINode>(C.m_inst); ++C.m_inst) ;
+  for (; isa<PHINode>(C.m_inst); ++C.m_inst)
+    ;
 
   while (intraStep(C)) {
-    /* do nothing */  ;
+    /* do nothing */;
   }
 }
 
@@ -1197,8 +1294,8 @@ void Bv2OpSem::exec(SymStore &s, const Instruction &inst, ExprVector &side) {
   // v.visit(const_cast<Instruction &>(inst));
 }
 
-void Bv2OpSem::execPhi(SymStore &s, const BasicBlock &bb, const BasicBlock &from,
-                      ExprVector &side, Expr act) {
+void Bv2OpSem::execPhi(SymStore &s, const BasicBlock &bb,
+                       const BasicBlock &from, ExprVector &side, Expr act) {
   OpSemContext C(s, side);
   C.update_bb(bb);
   C.m_act = act;
@@ -1206,7 +1303,7 @@ void Bv2OpSem::execPhi(SymStore &s, const BasicBlock &bb, const BasicBlock &from
   intraPhi(C);
 }
 
-Expr Bv2OpSem::symbolicIndexedOffset(SymStore &s, GetElementPtrInst& gep) {
+Expr Bv2OpSem::symbolicIndexedOffset(SymStore &s, GetElementPtrInst &gep) {
   unsigned ptrSz = pointerSizeInBits();
 
   // numeric offset
@@ -1214,8 +1311,9 @@ Expr Bv2OpSem::symbolicIndexedOffset(SymStore &s, GetElementPtrInst& gep) {
   // symbolic offset
   Expr soffset;
 
-  for(auto TI = gep_type_begin(&gep), TE = gep_type_end(&gep); TI != TE; ++TI) {
-    Value* CurVal = TI.getOperand();
+  for (auto TI = gep_type_begin(&gep), TE = gep_type_end(&gep); TI != TE;
+       ++TI) {
+    Value *CurVal = TI.getOperand();
     if (StructType *STy = TI.getStructTypeOrNull()) {
       unsigned fieldNo = cast<ConstantInt>(CurVal)->getZExtValue();
       noffset += fieldOff(STy, fieldNo);
@@ -1229,7 +1327,7 @@ Expr Bv2OpSem::symbolicIndexedOffset(SymStore &s, GetElementPtrInst& gep) {
         Expr a = lookup(s, *CurVal);
         assert(a);
         a = mk<BMUL>(a, bv::bvnum(sz, ptrSz, m_efac));
-	soffset = (soffset ? mk<BADD>(soffset, a): a);
+        soffset = (soffset ? mk<BADD>(soffset, a) : a);
       }
     }
   }
@@ -1251,7 +1349,7 @@ Expr Bv2OpSem::symbolicIndexedOffset(SymStore &s, GetElementPtrInst& gep) {
 }
 
 unsigned Bv2OpSem::pointerSizeInBits() const {
- return m_td->getPointerSizeInBits();
+  return m_td->getPointerSizeInBits();
 }
 
 uint64_t Bv2OpSem::sizeInBits(const llvm::Type &t) const {
@@ -1283,7 +1381,8 @@ bool Bv2OpSem::isSymReg(Expr v) {
   // llvm::Value XXX it might be better to register registers with a
   // SymStore and XXX let register be only expressions that are
   // explicitly marked as registers
-  if (!isOpX<FAPP>(v)) return false;
+  if (!isOpX<FAPP>(v))
+    return false;
   Expr u = bind::fname(v);
   u = bind::fname(u);
   return isOpX<VALUE>(v);
@@ -1321,11 +1420,9 @@ Expr Bv2OpSem::symb(const Value &I) {
       }
     }
 
-    LOG("opsem", errs()
-        << "WARNING: Treating unsupported constant as non-det: "
-        << I << "\n";);
+    LOG("opsem", errs() << "WARNING: Treating unsupported constant as non-det: "
+                        << I << "\n";);
   }
-
 
   // everything else is mapped to a symbolic register with a
   // non-deterministic initial value
@@ -1355,12 +1452,13 @@ Expr Bv2OpSem::symb(const Value &I) {
   }
 
   // -- unexpected, return error to be handled elsewhere
-  if (isSkipped(I)) return Expr(0);
+  if (isSkipped(I))
+    return Expr(0);
 
   assert(I.getType()->isIntegerTy());
 
-  return I.getType()->isIntegerTy(1) ?
-    bind::boolConst(v) : bv::bvConst(v, sizeInBits(I));
+  return I.getType()->isIntegerTy(1) ? bind::boolConst(v)
+                                     : bv::bvConst(v, sizeInBits(I));
 }
 
 const Value &Bv2OpSem::conc(Expr v) {
@@ -1396,7 +1494,6 @@ bool Bv2OpSem::isSkipped(const Value &v) {
             return true;
     return m_trackLvl < PTR;
   }
-
 
   // -- explicitly name all types that we support
   // -- TODO: support arrays and struct values
@@ -1443,8 +1540,8 @@ bool Bv2OpSem::isSkipped(const Value &v) {
   llvm_unreachable(nullptr);
 }
 
-void Bv2OpSem::execEdg(SymStore &s, const BasicBlock &src, const BasicBlock &dst,
-                      ExprVector &side) {
+void Bv2OpSem::execEdg(SymStore &s, const BasicBlock &src,
+                       const BasicBlock &dst, ExprVector &side) {
   exec(s, src, side, trueE);
   execBr(s, src, dst, side, trueE);
   execPhi(s, dst, src, side, trueE);
@@ -1456,7 +1553,7 @@ void Bv2OpSem::execEdg(SymStore &s, const BasicBlock &src, const BasicBlock &dst
 }
 
 void Bv2OpSem::execBr(SymStore &s, const BasicBlock &src, const BasicBlock &dst,
-                     ExprVector &side, Expr act) {
+                      ExprVector &side, Expr act) {
   OpSemContext C(s, side);
   C.update_bb(src);
   C.m_inst = BasicBlock::const_iterator(src.getTerminator());
@@ -1464,90 +1561,93 @@ void Bv2OpSem::execBr(SymStore &s, const BasicBlock &src, const BasicBlock &dst,
   intraBr(C, dst);
 }
 
-  /// \brief Executes one intra-procedural instructions in the current
-  /// context. Returns false if there are no more instructions to
-  /// execute after the last one
-  bool Bv2OpSem::intraStep(OpSemContext &C) {
-    if (C.m_inst == C.m_bb->end()) return false;
+/// \brief Executes one intra-procedural instructions in the current
+/// context. Returns false if there are no more instructions to
+/// execute after the last one
+bool Bv2OpSem::intraStep(OpSemContext &C) {
+  if (C.m_inst == C.m_bb->end())
+    return false;
 
-    const Instruction &inst = *(C.m_inst);
+  const Instruction &inst = *(C.m_inst);
 
-    // branch instructions must be executed to read the condition
-    // on which the branch depends. This does not execute the branch
-    // itself and does not advance instruction pointer in the context
-    bool res = true;
-    if (!isa<TerminatorInst>(C.m_inst)) {
-      ++C.m_inst;
-    } else if (isa<BranchInst>(C.m_inst)) {
-      res = false;
-    } else {
-      return false;
-    }
-
-    // if instruction is skipped, execution it is a noop
-    if (isSkipped(inst)) {
-      skipInst(inst, C);
-      return true;
-    }
-
-    bvop_details::OpSemVisitor v(C, *this);
-    v.visit(const_cast<Instruction&>(inst));
-    return res;
-  }
-
-  void Bv2OpSem::intraPhi(OpSemContext &C) {
-    assert(C.m_prev);
-
-    // XXX TODO: replace old code once regular semantics is ready
-
-    // act is ignored since phi node only introduces a definition
-    bvop_details::OpSemPhiVisitor v(C, *this);
-    v.visit(const_cast<BasicBlock &>(*C.m_bb));
-  }
-  /// \brief Executes one intra-procedural branch instruction in the
-  /// current context. Assumes that current instruction is a branch
-  void Bv2OpSem::intraBr(OpSemContext &C, const BasicBlock &dst) {
-    const BranchInst *br = dyn_cast<const BranchInst>(C.m_inst);
-    if (!br) return;
-
-    // next instruction
+  // branch instructions must be executed to read the condition
+  // on which the branch depends. This does not execute the branch
+  // itself and does not advance instruction pointer in the context
+  bool res = true;
+  if (!isa<TerminatorInst>(C.m_inst)) {
     ++C.m_inst;
+  } else if (isa<BranchInst>(C.m_inst)) {
+    res = false;
+  } else {
+    return false;
+  }
 
-    if (br->isConditional()) {
-      const Value &c = *br->getCondition();
-      if (const Constant *cv = dyn_cast<const Constant>(&c)) {
-        auto gv = getConstantValue(cv);
-        assert(gv.hasValue());
-        if (gv->IntVal.isOneValue() && br->getSuccessor(0) != &dst ||
-            gv->IntVal.isNullValue() && br->getSuccessor(1) != &dst) {
-          C.resetSide();
-          C.addSideSafe(C.read(errorFlag(*C.m_bb)));
-        }
-      } else if (Expr target = getOperandValue(c, C)) {
-        Expr cond = br->getSuccessor(0) == &dst ? target : mk<NEG>(target);
-        cond = boolop::lor(C.read(errorFlag(*C.m_bb)), cond);
-        C.addSideSafe(cond);
-        C.update_bb(dst);
-      }
-    }
-    else {
-      if (br->getSuccessor(0) != &dst) {
+  // if instruction is skipped, execution it is a noop
+  if (isSkipped(inst)) {
+    skipInst(inst, C);
+    return true;
+  }
+
+  bvop_details::OpSemVisitor v(C, *this);
+  v.visit(const_cast<Instruction &>(inst));
+  return res;
+}
+
+void Bv2OpSem::intraPhi(OpSemContext &C) {
+  assert(C.m_prev);
+
+  // XXX TODO: replace old code once regular semantics is ready
+
+  // act is ignored since phi node only introduces a definition
+  bvop_details::OpSemPhiVisitor v(C, *this);
+  v.visit(const_cast<BasicBlock &>(*C.m_bb));
+}
+/// \brief Executes one intra-procedural branch instruction in the
+/// current context. Assumes that current instruction is a branch
+void Bv2OpSem::intraBr(OpSemContext &C, const BasicBlock &dst) {
+  const BranchInst *br = dyn_cast<const BranchInst>(C.m_inst);
+  if (!br)
+    return;
+
+  // next instruction
+  ++C.m_inst;
+
+  if (br->isConditional()) {
+    const Value &c = *br->getCondition();
+    if (const Constant *cv = dyn_cast<const Constant>(&c)) {
+      auto gv = getConstantValue(cv);
+      assert(gv.hasValue());
+      if (gv->IntVal.isOneValue() && br->getSuccessor(0) != &dst ||
+          gv->IntVal.isNullValue() && br->getSuccessor(1) != &dst) {
         C.resetSide();
         C.addSideSafe(C.read(errorFlag(*C.m_bb)));
-      } else {
-        C.update_bb(dst);
       }
+    } else if (Expr target = getOperandValue(c, C)) {
+      Expr cond = br->getSuccessor(0) == &dst ? target : mk<NEG>(target);
+      cond = boolop::lor(C.read(errorFlag(*C.m_bb)), cond);
+      C.addSideSafe(cond);
+      C.update_bb(dst);
     }
+  } else {
+    if (br->getSuccessor(0) != &dst) {
+      C.resetSide();
+      C.addSideSafe(C.read(errorFlag(*C.m_bb)));
+    } else {
+      C.update_bb(dst);
+    }
+  }
 }
 
 void Bv2OpSem::skipInst(const Instruction &inst, OpSemContext &ctx) {
   const Value *s;
-  if (isShadowMem(inst, &s)) return;
-  if (ctx.m_ignored.count(&inst)) return;
+  if (isShadowMem(inst, &s))
+    return;
+  if (ctx.m_ignored.count(&inst))
+    return;
   ctx.m_ignored.insert(&inst);
-  LOG("opsem", errs() << "WARNING: skipping instruction: " << inst
-      << " @ " << inst.getParent()->getName()
-      << " in " << inst.getParent()->getParent()->getName() << "\n");
+  LOG("opsem", errs() << "WARNING: skipping instruction: " << inst << " @ "
+                      << inst.getParent()->getName() << " in "
+                      << inst.getParent()->getParent()->getName() << "\n");
 }
 
 void Bv2OpSem::unhandledValue(const Value &v, OpSemContext &ctx) {
@@ -1556,11 +1656,12 @@ void Bv2OpSem::unhandledValue(const Value &v, OpSemContext &ctx) {
   LOG("opsem", errs() << "WARNING: unhandled value: " << v << "\n";);
 }
 void Bv2OpSem::unhandledInst(const Instruction &inst, OpSemContext &ctx) {
-  if (ctx.m_ignored.count(&inst)) return;
+  if (ctx.m_ignored.count(&inst))
+    return;
   ctx.m_ignored.insert(&inst);
-  LOG("opsem", errs() << "WARNING: unhadled instruction: " << inst
-      << " @ " << inst.getParent()->getName()
-      << " in " << inst.getParent()->getParent()->getName() << "\n");
+  LOG("opsem", errs() << "WARNING: unhadled instruction: " << inst << " @ "
+                      << inst.getParent()->getName() << " in "
+                      << inst.getParent()->getParent()->getName() << "\n");
 }
 
 /// Adapted from llvm::ExecutionEngine
@@ -1581,32 +1682,31 @@ Optional<GenericValue> Bv2OpSem::getConstantValue(const Constant *C) {
       break;
     case Type::StructTyID: {
       // if the whole struct is 'undef' just reserve memory for the value.
-      if(StructType *STy = dyn_cast<StructType>(C->getType())) {
+      if (StructType *STy = dyn_cast<StructType>(C->getType())) {
         unsigned int elemNum = STy->getNumElements();
         Result.AggregateVal.resize(elemNum);
         for (unsigned int i = 0; i < elemNum; ++i) {
           Type *ElemTy = STy->getElementType(i);
           if (ElemTy->isIntegerTy())
             Result.AggregateVal[i].IntVal =
-              APInt(ElemTy->getPrimitiveSizeInBits(), 0);
+                APInt(ElemTy->getPrimitiveSizeInBits(), 0);
           else if (ElemTy->isAggregateType()) {
             const Constant *ElemUndef = UndefValue::get(ElemTy);
             Result.AggregateVal[i] = getConstantValue(ElemUndef).getValue();
           }
         }
       }
-    }
-      break;
+    } break;
     case Type::VectorTyID:
       // if the whole vector is 'undef' just reserve memory for the value.
-      auto* VTy = dyn_cast<VectorType>(C->getType());
+      auto *VTy = dyn_cast<VectorType>(C->getType());
       Type *ElemTy = VTy->getElementType();
       unsigned int elemNum = VTy->getNumElements();
       Result.AggregateVal.resize(elemNum);
       if (ElemTy->isIntegerTy())
         for (unsigned int i = 0; i < elemNum; ++i)
           Result.AggregateVal[i].IntVal =
-            APInt(ElemTy->getPrimitiveSizeInBits(), 0);
+              APInt(ElemTy->getPrimitiveSizeInBits(), 0);
       break;
     }
     return Result;
@@ -1622,7 +1722,7 @@ Optional<GenericValue> Bv2OpSem::getConstantValue(const Constant *C) {
       APInt Offset(m_td->getPointerSizeInBits(), 0);
       cast<GEPOperator>(CE)->accumulateConstantOffset(*m_td, Offset);
 
-      char* tmp = (char*) Result.PointerVal;
+      char *tmp = (char *)Result.PointerVal;
       Result = PTOGV(tmp + Offset.getSExtValue());
       return Result;
     }
@@ -1650,7 +1750,7 @@ Optional<GenericValue> Bv2OpSem::getConstantValue(const Constant *C) {
       GV.FloatVal = float(GV.DoubleVal);
       return GV;
     }
-    case Instruction::FPExt:{
+    case Instruction::FPExt: {
       // FIXME long double
       GenericValue GV = getConstantValue(Op0).getValue();
       GV.DoubleVal = double(GV.FloatVal);
@@ -1664,8 +1764,7 @@ Optional<GenericValue> Bv2OpSem::getConstantValue(const Constant *C) {
         GV.DoubleVal = GV.IntVal.roundToDouble();
       else if (CE->getType()->isX86_FP80Ty()) {
         APFloat apf = APFloat::getZero(APFloat::x87DoubleExtended());
-        (void)apf.convertFromAPInt(GV.IntVal,
-                                   false,
+        (void)apf.convertFromAPInt(GV.IntVal, false,
                                    APFloat::rmNearestTiesToEven);
         GV.IntVal = apf.bitcastToAPInt();
       }
@@ -1679,8 +1778,7 @@ Optional<GenericValue> Bv2OpSem::getConstantValue(const Constant *C) {
         GV.DoubleVal = GV.IntVal.signedRoundToDouble();
       else if (CE->getType()->isX86_FP80Ty()) {
         APFloat apf = APFloat::getZero(APFloat::x87DoubleExtended());
-        (void)apf.convertFromAPInt(GV.IntVal,
-                                   true,
+        (void)apf.convertFromAPInt(GV.IntVal, true,
                                    APFloat::rmNearestTiesToEven);
         GV.IntVal = apf.bitcastToAPInt();
       }
@@ -1699,7 +1797,7 @@ Optional<GenericValue> Bv2OpSem::getConstantValue(const Constant *C) {
         uint64_t v;
         bool ignored;
         (void)apf.convertToInteger(makeMutableArrayRef(v), BitWidth,
-                                   CE->getOpcode()==Instruction::FPToSI,
+                                   CE->getOpcode() == Instruction::FPToSI,
                                    APFloat::rmTowardZero, &ignored);
         GV.IntVal = v; // endian?
       }
@@ -1707,7 +1805,8 @@ Optional<GenericValue> Bv2OpSem::getConstantValue(const Constant *C) {
     }
     case Instruction::PtrToInt: {
       auto OGV = getConstantValue(Op0);
-      if (!OGV.hasValue()) return llvm::None;
+      if (!OGV.hasValue())
+        return llvm::None;
       GenericValue GV = OGV.getValue();
 
       uint32_t PtrWidth = m_td->getTypeSizeInBits(Op0->getType());
@@ -1727,9 +1826,10 @@ Optional<GenericValue> Bv2OpSem::getConstantValue(const Constant *C) {
     }
     case Instruction::BitCast: {
       GenericValue GV = getConstantValue(Op0).getValue();
-      Type* DestTy = CE->getType();
+      Type *DestTy = CE->getType();
       switch (Op0->getType()->getTypeID()) {
-      default: llvm_unreachable("Invalid bitcast operand");
+      default:
+        llvm_unreachable("Invalid bitcast operand");
       case Type::IntegerTyID:
         assert(DestTy->isFloatingPointTy() && "invalid bitcast");
         if (DestTy->isFloatTy())
@@ -1768,59 +1868,95 @@ Optional<GenericValue> Bv2OpSem::getConstantValue(const Constant *C) {
       GenericValue RHS = getConstantValue(CE->getOperand(1)).getValue();
       GenericValue GV;
       switch (CE->getOperand(0)->getType()->getTypeID()) {
-      default: llvm_unreachable("Bad add type!");
+      default:
+        llvm_unreachable("Bad add type!");
       case Type::IntegerTyID:
         switch (CE->getOpcode()) {
-        default: llvm_unreachable("Invalid integer opcode");
-        case Instruction::Add: GV.IntVal = LHS.IntVal + RHS.IntVal; break;
-        case Instruction::Sub: GV.IntVal = LHS.IntVal - RHS.IntVal; break;
-        case Instruction::Mul: GV.IntVal = LHS.IntVal * RHS.IntVal; break;
-        case Instruction::UDiv:GV.IntVal = LHS.IntVal.udiv(RHS.IntVal); break;
-        case Instruction::SDiv:GV.IntVal = LHS.IntVal.sdiv(RHS.IntVal); break;
-        case Instruction::URem:GV.IntVal = LHS.IntVal.urem(RHS.IntVal); break;
-        case Instruction::SRem:GV.IntVal = LHS.IntVal.srem(RHS.IntVal); break;
-        case Instruction::And: GV.IntVal = LHS.IntVal & RHS.IntVal; break;
-        case Instruction::Or:  GV.IntVal = LHS.IntVal | RHS.IntVal; break;
-        case Instruction::Xor: GV.IntVal = LHS.IntVal ^ RHS.IntVal; break;
+        default:
+          llvm_unreachable("Invalid integer opcode");
+        case Instruction::Add:
+          GV.IntVal = LHS.IntVal + RHS.IntVal;
+          break;
+        case Instruction::Sub:
+          GV.IntVal = LHS.IntVal - RHS.IntVal;
+          break;
+        case Instruction::Mul:
+          GV.IntVal = LHS.IntVal * RHS.IntVal;
+          break;
+        case Instruction::UDiv:
+          GV.IntVal = LHS.IntVal.udiv(RHS.IntVal);
+          break;
+        case Instruction::SDiv:
+          GV.IntVal = LHS.IntVal.sdiv(RHS.IntVal);
+          break;
+        case Instruction::URem:
+          GV.IntVal = LHS.IntVal.urem(RHS.IntVal);
+          break;
+        case Instruction::SRem:
+          GV.IntVal = LHS.IntVal.srem(RHS.IntVal);
+          break;
+        case Instruction::And:
+          GV.IntVal = LHS.IntVal & RHS.IntVal;
+          break;
+        case Instruction::Or:
+          GV.IntVal = LHS.IntVal | RHS.IntVal;
+          break;
+        case Instruction::Xor:
+          GV.IntVal = LHS.IntVal ^ RHS.IntVal;
+          break;
         }
         break;
       case Type::FloatTyID:
         switch (CE->getOpcode()) {
-        default: llvm_unreachable("Invalid float opcode");
+        default:
+          llvm_unreachable("Invalid float opcode");
         case Instruction::FAdd:
-          GV.FloatVal = LHS.FloatVal + RHS.FloatVal; break;
+          GV.FloatVal = LHS.FloatVal + RHS.FloatVal;
+          break;
         case Instruction::FSub:
-          GV.FloatVal = LHS.FloatVal - RHS.FloatVal; break;
+          GV.FloatVal = LHS.FloatVal - RHS.FloatVal;
+          break;
         case Instruction::FMul:
-          GV.FloatVal = LHS.FloatVal * RHS.FloatVal; break;
+          GV.FloatVal = LHS.FloatVal * RHS.FloatVal;
+          break;
         case Instruction::FDiv:
-          GV.FloatVal = LHS.FloatVal / RHS.FloatVal; break;
+          GV.FloatVal = LHS.FloatVal / RHS.FloatVal;
+          break;
         case Instruction::FRem:
-          GV.FloatVal = std::fmod(LHS.FloatVal,RHS.FloatVal); break;
+          GV.FloatVal = std::fmod(LHS.FloatVal, RHS.FloatVal);
+          break;
         }
         break;
       case Type::DoubleTyID:
         switch (CE->getOpcode()) {
-        default: llvm_unreachable("Invalid double opcode");
+        default:
+          llvm_unreachable("Invalid double opcode");
         case Instruction::FAdd:
-          GV.DoubleVal = LHS.DoubleVal + RHS.DoubleVal; break;
+          GV.DoubleVal = LHS.DoubleVal + RHS.DoubleVal;
+          break;
         case Instruction::FSub:
-          GV.DoubleVal = LHS.DoubleVal - RHS.DoubleVal; break;
+          GV.DoubleVal = LHS.DoubleVal - RHS.DoubleVal;
+          break;
         case Instruction::FMul:
-          GV.DoubleVal = LHS.DoubleVal * RHS.DoubleVal; break;
+          GV.DoubleVal = LHS.DoubleVal * RHS.DoubleVal;
+          break;
         case Instruction::FDiv:
-          GV.DoubleVal = LHS.DoubleVal / RHS.DoubleVal; break;
+          GV.DoubleVal = LHS.DoubleVal / RHS.DoubleVal;
+          break;
         case Instruction::FRem:
-          GV.DoubleVal = std::fmod(LHS.DoubleVal,RHS.DoubleVal); break;
+          GV.DoubleVal = std::fmod(LHS.DoubleVal, RHS.DoubleVal);
+          break;
         }
         break;
       case Type::X86_FP80TyID:
       case Type::PPC_FP128TyID:
       case Type::FP128TyID: {
-        const fltSemantics &Sem = CE->getOperand(0)->getType()->getFltSemantics();
+        const fltSemantics &Sem =
+            CE->getOperand(0)->getType()->getFltSemantics();
         APFloat apfLHS = APFloat(Sem, LHS.IntVal);
         switch (CE->getOpcode()) {
-        default: llvm_unreachable("Invalid long double opcode");
+        default:
+          llvm_unreachable("Invalid long double opcode");
         case Instruction::FAdd:
           apfLHS.add(APFloat(Sem, RHS.IntVal), APFloat::rmNearestTiesToEven);
           GV.IntVal = apfLHS.bitcastToAPInt();
@@ -1836,8 +1972,7 @@ Optional<GenericValue> Bv2OpSem::getConstantValue(const Constant *C) {
           GV.IntVal = apfLHS.bitcastToAPInt();
           break;
         case Instruction::FDiv:
-          apfLHS.divide(APFloat(Sem, RHS.IntVal),
-                        APFloat::rmNearestTiesToEven);
+          apfLHS.divide(APFloat(Sem, RHS.IntVal), APFloat::rmNearestTiesToEven);
           GV.IntVal = apfLHS.bitcastToAPInt();
           break;
         case Instruction::FRem:
@@ -1845,8 +1980,7 @@ Optional<GenericValue> Bv2OpSem::getConstantValue(const Constant *C) {
           GV.IntVal = apfLHS.bitcastToAPInt();
           break;
         }
-      }
-        break;
+      } break;
       }
       return GV;
     }
@@ -1872,7 +2006,7 @@ Optional<GenericValue> Bv2OpSem::getConstantValue(const Constant *C) {
   case Type::X86_FP80TyID:
   case Type::FP128TyID:
   case Type::PPC_FP128TyID:
-    Result.IntVal = cast <ConstantFP>(C)->getValueAPF().bitcastToAPInt();
+    Result.IntVal = cast<ConstantFP>(C)->getValueAPF().bitcastToAPInt();
     break;
   case Type::IntegerTyID:
     Result.IntVal = cast<ConstantInt>(C)->getValue();
@@ -1882,18 +2016,19 @@ Optional<GenericValue> Bv2OpSem::getConstantValue(const Constant *C) {
       Result.PointerVal = nullptr;
     else if (const Function *F = dyn_cast<Function>(C))
       /// XXX TODO
-      //Result = PTOGV(getPointerToFunctionOrStub(const_cast<Function*>(F)));
+      // Result = PTOGV(getPointerToFunctionOrStub(const_cast<Function*>(F)));
       return llvm::None;
     else if (const GlobalVariable *GV = dyn_cast<GlobalVariable>(C))
       // XXX TODO
-      // Result = PTOGV(getOrEmitGlobalVariable(const_cast<GlobalVariable*>(GV)));
+      // Result =
+      // PTOGV(getOrEmitGlobalVariable(const_cast<GlobalVariable*>(GV)));
       return llvm::None;
     else
       llvm_unreachable("Unknown constant pointer type!");
     break;
   case Type::VectorTyID: {
     unsigned elemNum;
-    Type* ElemTy;
+    Type *ElemTy;
     const ConstantDataVector *CDV = dyn_cast<ConstantDataVector>(C);
     const ConstantVector *CV = dyn_cast<ConstantVector>(C);
     const ConstantAggregateZero *CAZ = dyn_cast<ConstantAggregateZero>(C);
@@ -1902,7 +2037,7 @@ Optional<GenericValue> Bv2OpSem::getConstantValue(const Constant *C) {
       elemNum = CDV->getNumElements();
       ElemTy = CDV->getElementType();
     } else if (CV || CAZ) {
-      VectorType* VTy = dyn_cast<VectorType>(C->getType());
+      VectorType *VTy = dyn_cast<VectorType>(C->getType());
       elemNum = VTy->getNumElements();
       ElemTy = VTy->getElementType();
     } else {
@@ -1911,7 +2046,7 @@ Optional<GenericValue> Bv2OpSem::getConstantValue(const Constant *C) {
 
     Result.AggregateVal.resize(elemNum);
     // Check if vector holds floats.
-    if(ElemTy->isFloatTy()) {
+    if (ElemTy->isFloatTy()) {
       if (CAZ) {
         GenericValue floatZero;
         floatZero.FloatVal = 0.f;
@@ -1919,14 +2054,16 @@ Optional<GenericValue> Bv2OpSem::getConstantValue(const Constant *C) {
                   floatZero);
         break;
       }
-      if(CV) {
+      if (CV) {
         for (unsigned i = 0; i < elemNum; ++i)
           if (!isa<UndefValue>(CV->getOperand(i)))
-            Result.AggregateVal[i].FloatVal = cast<ConstantFP>(
-              CV->getOperand(i))->getValueAPF().convertToFloat();
+            Result.AggregateVal[i].FloatVal =
+                cast<ConstantFP>(CV->getOperand(i))
+                    ->getValueAPF()
+                    .convertToFloat();
         break;
       }
-      if(CDV)
+      if (CDV)
         for (unsigned i = 0; i < elemNum; ++i)
           Result.AggregateVal[i].FloatVal = CDV->getElementAsFloat(i);
 
@@ -1941,14 +2078,16 @@ Optional<GenericValue> Bv2OpSem::getConstantValue(const Constant *C) {
                   doubleZero);
         break;
       }
-      if(CV) {
+      if (CV) {
         for (unsigned i = 0; i < elemNum; ++i)
           if (!isa<UndefValue>(CV->getOperand(i)))
-            Result.AggregateVal[i].DoubleVal = cast<ConstantFP>(
-              CV->getOperand(i))->getValueAPF().convertToDouble();
+            Result.AggregateVal[i].DoubleVal =
+                cast<ConstantFP>(CV->getOperand(i))
+                    ->getValueAPF()
+                    .convertToDouble();
         break;
       }
-      if(CDV)
+      if (CDV)
         for (unsigned i = 0; i < elemNum; ++i)
           Result.AggregateVal[i].DoubleVal = CDV->getElementAsDouble(i);
 
@@ -1963,28 +2102,27 @@ Optional<GenericValue> Bv2OpSem::getConstantValue(const Constant *C) {
                   intZero);
         break;
       }
-      if(CV) {
+      if (CV) {
         for (unsigned i = 0; i < elemNum; ++i)
           if (!isa<UndefValue>(CV->getOperand(i)))
-            Result.AggregateVal[i].IntVal = cast<ConstantInt>(
-              CV->getOperand(i))->getValue();
-          else {
             Result.AggregateVal[i].IntVal =
-              APInt(CV->getOperand(i)->getType()->getPrimitiveSizeInBits(), 0);
+                cast<ConstantInt>(CV->getOperand(i))->getValue();
+          else {
+            Result.AggregateVal[i].IntVal = APInt(
+                CV->getOperand(i)->getType()->getPrimitiveSizeInBits(), 0);
           }
         break;
       }
-      if(CDV)
+      if (CDV)
         for (unsigned i = 0; i < elemNum; ++i)
-          Result.AggregateVal[i].IntVal = APInt(
-            CDV->getElementType()->getPrimitiveSizeInBits(),
-            CDV->getElementAsInteger(i));
+          Result.AggregateVal[i].IntVal =
+              APInt(CDV->getElementType()->getPrimitiveSizeInBits(),
+                    CDV->getElementAsInteger(i));
 
       break;
     }
     llvm_unreachable("Unknown constant pointer type!");
-  }
-    break;
+  } break;
 
   default:
     SmallString<256> Msg;

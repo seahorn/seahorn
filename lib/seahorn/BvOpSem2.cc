@@ -1,4 +1,3 @@
-// Symbolic execution (loosely) based on semantics used in UFO
 #include "llvm/IR/GetElementPtrTypeIterator.h"
 
 #include "seahorn/BvOpSem2.hh"
@@ -325,7 +324,10 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
 
   // void visitPtrToIntInst(PtrToIntInst &I);
   // void visitIntToPtrInst(IntToPtrInst &I);
-  // void visitBitCastInst(BitCastInst &I);
+
+  void visitBitCastInst(BitCastInst &I) {
+    setValue(I, executeBitCastInst(*I.getOperand(0), I.getType(), m_ctx));
+  }
 
   void visitSelectInst(SelectInst &I) {
     Type *ty = I.getOperand(0)->getType();
@@ -1131,20 +1133,44 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
     m_ctx.m_outMem.reset();
   }
 
-  void visitCastInst(CastInst &I) {
-    if (m_sem.isSkipped(I))
-      return;
+  Expr executeBitCastInst(const Value &op, Type *ty, OpSemContext &ctx) {
+    Type *opTy = op.getType();
 
-    Expr lhs = havoc(I);
-    const Value &v0 = *I.getOperand(0);
-    Expr u = lookup(v0);
+    if (opTy->getTypeID() == Type::VectorTyID ||
+        ty->getTypeID() == Type::VectorTyID)
+      llvm_unreachable("Vector types are unsupported");
 
-    // -- what can this be? Might need to do something here.
-    if (UseWrite2)
-      write(I, lookup(v0));
-    else
-      side(lhs, lookup(v0));
+
+    Expr res = lookup(op);
+    if (!res) return Expr();
+
+    if (ty->isPointerTy()) return res;
+
+    if (ty->isIntegerTy()) {
+      if (opTy->isFloatTy())
+        llvm_unreachable("bitcast from float to int is not supported");
+      else if (opTy->isDoubleTy())
+        llvm_unreachable("bitcast from double to int is not supported");
+      else if (opTy->isIntegerTy()) {
+        return res;
+      } else {
+        llvm_unreachable("Invalid bitcast");
+      }
+    } else if (ty->isFloatTy()) {
+      if (opTy->isIntegerTy())
+        llvm_unreachable("bitcast to float not supported");
+      else
+        return res;
+    } else if(ty->isDoubleTy()) {
+      if (opTy->isIntegerTy())
+        llvm_unreachable("bitcast to double not supported");
+      else
+        return res;
+    }
+
+    llvm_unreachable("Invalid bitcast");
   }
+
 
   void initGlobals(const BasicBlock &BB) {
     const Function &F = *BB.getParent();

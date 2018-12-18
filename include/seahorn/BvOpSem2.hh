@@ -162,9 +162,6 @@ namespace seahorn
     void execBr (SymStore &s, const BasicBlock &src, const BasicBlock &dst,
                  ExprVector &side, Expr act) override;
 
-    virtual Expr memStart (unsigned id);
-    virtual Expr memEnd (unsigned id);
-
     /**
        \brief Returns a symbolic expression corresponding to a value.
        If the value is a register, returns the corresponding symbolic register.

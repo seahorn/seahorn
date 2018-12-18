@@ -13,11 +13,6 @@ using namespace ufo;
 
 using gep_type_iterator = generic_gep_type_iterator<>;
 
-static llvm::cl::opt<bool> GlobalConstraints2(
-    "horn-bv2-global-constraints",
-    llvm::cl::desc("Maximize the use of global (i.e., unguarded) constraints"),
-    cl::init(false));
-
 static llvm::cl::opt<bool> EnableUniqueScalars2(
     "horn-bv2-singleton-aliases",
     llvm::cl::desc("Treat singleton alias sets as scalar values"),
@@ -34,22 +29,6 @@ static llvm::cl::opt<bool> IgnoreCalloc2(
     llvm::cl::desc(
         "Treat calloc same as malloc, ignore that memory is initialized"),
     cl::init(false), cl::Hidden);
-
-static llvm::cl::opt<bool>
-    UseWrite2("horn-bv2-use-write",
-              llvm::cl::desc("Write to store instead of havoc"),
-              cl::init(false), cl::Hidden);
-
-static llvm::cl::opt<bool>
-    PartMem2("horn-bv2-part-mem",
-             llvm::cl::desc(
-                 "Add constraints to partition memory into disjoint segments"),
-             cl::init(false), cl::Hidden);
-
-static llvm::cl::opt<unsigned>
-    PartMemSize2("horn-bv2-part-mem-size",
-                 llvm::cl::desc("Maximum memory region size in KB"),
-                 cl::init(4), cl::Hidden);
 
 static llvm::cl::opt<bool> EnableModelExternalCalls2(
     "horn-bv2-enable-external-calls",
@@ -133,8 +112,6 @@ struct OpSemBase {
     ctx.pushParameter(falseE);
   }
 
-  Expr memStart(unsigned id) { return m_sem.memStart(id); }
-  Expr memEnd(unsigned id) { return m_sem.memEnd(id); }
   Expr symb(const Value &v) { return m_sem.symb(v); }
   unsigned ptrSz() { return m_sem.pointerSizeInBits(); }
 
@@ -154,28 +131,6 @@ struct OpSemBase {
     if (m_sem.isSkipped(v))
       return;
     m_s.write(symb(v), val);
-  }
-
-  // -- add conditional side condition
-  void addCondSide(Expr c) { side(c, true); }
-
-  void side(Expr v, bool conditional = false) {
-    if (!v)
-      return;
-    if (!GlobalConstraints2 || conditional)
-      m_ctx.addSideSafe(v);
-    else
-      m_ctx.addSide(v);
-  }
-
-  void bside(Expr lhs, Expr rhs, bool conditional = false) {
-    if (lhs && rhs)
-      side(mk<IFF>(lhs, rhs), conditional);
-  }
-
-  void side(Expr lhs, Expr rhs, bool conditional = false) {
-    if (lhs && rhs)
-      side(mk<EQ>(lhs, rhs), conditional);
   }
 
   /// convert bv1 to bool
@@ -812,21 +767,6 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
     llvm_unreachable("No semantics to this instruction yet!");
   }
 
-  void addAlignConstraint(Expr e, unsigned sz) {
-    switch (sz) {
-    case 4:
-      side(mk<EQ>(bv::extract(2 - 1, 0, e), bv::bvnum(0, 2, m_efac)));
-      break;
-    case 8:
-      side(mk<EQ>(bv::extract(3 - 1, 0, e), bv::bvnum(0, 3, m_efac)));
-      break;
-    default:
-      // FIXME: expensive encoding
-      side(mk<EQ>(mk<BUREM>(e, bv::bvnum(sz, ptrSz(), m_efac)),
-                  bv::bvnum(0, ptrSz(), m_efac)));
-    }
-  }
-
   Expr executeSelectInst(Expr cond, Expr op0, Expr op1, Type *ty,
                          OpSemContext &ctx) {
     if (ty->isVectorTy()) {
@@ -1059,9 +999,9 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
     if (m_sem.isSkipped(I))
       return;
 
-    Expr lhs = havoc(I);
+    Expr res = havoc(I);
     // -- alloca always returns a non-zero address
-    side(mk<BUGT>(lhs, nullBv));
+    m_ctx.addSide(mk<BUGT>(res, nullBv));
   }
 
   Expr executeLoadInst(const Value &addr, unsigned alignment, const Type *ty,
@@ -1217,31 +1157,25 @@ struct OpSemPhiVisitor : public InstVisitor<OpSemPhiVisitor>, OpSemBase {
   void visitBasicBlock(BasicBlock &BB) {
     // -- evaluate all phi-nodes atomically. First read all incoming
     // -- values, then update phi-nodes all together.
-    ExprVector ops;
+    llvm::SmallVector<Expr, 8> ops;
 
     auto curr = BB.begin();
     if (!isa<PHINode>(curr))
       return;
 
+    // -- evaluate all incoming values in parallel
     for (; PHINode *phi = dyn_cast<PHINode>(curr); ++curr) {
       // skip phi nodes that are not tracked
-      if (m_sem.isSkipped(*phi))
-        continue;
+      if (m_sem.isSkipped(*phi)) continue;
       const Value &v = *phi->getIncomingValueForBlock(m_ctx.m_prev);
       ops.push_back(lookup(v));
     }
 
+    // -- set values to all PHINode registers
     curr = BB.begin();
-    for (unsigned i = 0; isa<PHINode>(curr); ++curr) {
-      PHINode &phi = *cast<PHINode>(curr);
-      if (m_sem.isSkipped(phi))
-        continue;
-      Expr lhs = havoc(phi);
-      Expr op0 = ops[i++];
-      if (UseWrite2)
-        write(phi, op0);
-      else
-        side(lhs, op0);
+    for (unsigned i = 0; PHINode *phi = dyn_cast<PHINode>(curr); ++curr) {
+      if (m_sem.isSkipped(*phi)) continue;
+      setValue(*phi, ops[i++]);
     }
   }
 };
@@ -1291,16 +1225,6 @@ Expr Bv2OpSem::errorFlag(const BasicBlock &BB) {
   if (m_canFail && !m_canFail->canFail(BB.getParent()))
     return falseE;
   return this->OpSem::errorFlag(BB);
-}
-
-Expr Bv2OpSem::memStart(unsigned id) {
-  Expr sort = bv::bvsort(pointerSizeInBits(), m_efac);
-  return shadow_dsa::memStartVar(id, sort);
-}
-
-Expr Bv2OpSem::memEnd(unsigned id) {
-  Expr sort = bv::bvsort(pointerSizeInBits(), m_efac);
-  return shadow_dsa::memEndVar(id, sort);
 }
 
 void Bv2OpSem::exec(SymStore &s, const BasicBlock &bb, ExprVector &side,
@@ -1646,7 +1570,7 @@ void Bv2OpSem::intraPhi(OpSemContext &C) {
 
   // act is ignored since phi node only introduces a definition
   bvop_details::OpSemPhiVisitor v(C, *this);
-  v.visit(const_cast<BasicBlock &>(*C.m_bb));
+  v.visitBasicBlock(const_cast<BasicBlock &>(*C.m_bb));
 }
 /// \brief Executes one intra-procedural branch instruction in the
 /// current context. Assumes that current instruction is a branch

@@ -673,7 +673,7 @@ class SimpleMemoryChecks(sea.LimitedCmd):
                          help='Check id to instrement', default=0)
         ap.add_argument ('--smc-instrument-alloc', type=int, dest='smc_instrument_alloc',
                          help='Allocation site id to instrument', default=0)
-        ap.add_argument ('--sea-dsa-type-aware', default=True, action='store_true',
+        ap.add_argument ('--sea-dsa-type-aware', default=False, action='store_true',
                          dest='smc_type_aware', help='Use type-aware SeaDsa')
 
         add_in_out_args (ap)

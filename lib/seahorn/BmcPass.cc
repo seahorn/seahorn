@@ -1,21 +1,3 @@
-/**
-SeaHorn Verification Framework
-Copyright (c) 2016 Carnegie Mellon University.
-All Rights Reserved.
-
-THIS SOFTWARE IS PROVIDED "AS IS," WITH NO WARRANTIES
-WHATSOEVER. CARNEGIE MELLON UNIVERSITY EXPRESSLY DISCLAIMS TO THE
-FULLEST EXTENT PERMITTEDBY LAW ALL EXPRESS, IMPLIED, AND STATUTORY
-WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE WARRANTIES OF
-MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, AND
-NON-INFRINGEMENT OF PROPRIETARY RIGHTS.
-
-Released under a modified BSD license, please see license.txt for full
-terms.
-
-DM-0002198
-*/
-
 #include "llvm/Analysis/TargetLibraryInfo.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/Instructions.h"
@@ -32,6 +14,7 @@ DM-0002198
 #include "seahorn/Analysis/CanFail.hh"
 #include "seahorn/Bmc.hh"
 #include "seahorn/BvOpSem.hh"
+#include "seahorn/BvOpSem2.hh"
 #include "seahorn/PathBasedBmc.hh"
 #include "seahorn/UfoOpSem.hh"
 // prerequisite for CrabLlvm
@@ -40,6 +23,14 @@ DM-0002198
 #ifdef HAVE_CRAB_LLVM
 #include "crab_llvm/CrabLlvm.hh"
 #endif
+
+
+// XXX temporary debugging aid
+static llvm::cl::opt<bool> HornBv2(
+    "horn-bv2",
+    llvm::cl::desc("Use bv2 semantics"),
+    llvm::cl::init(false), llvm::cl::Hidden);
+
 
 namespace {
 using namespace llvm;
@@ -154,7 +145,12 @@ public:
     }
 
     ExprFactory efac;
-    BvOpSem sem(efac, *this, F.getParent()->getDataLayout(), MEM);
+
+    std::unique_ptr<OpSem> sem;
+    if (HornBv2)
+      sem.reset(new Bv2OpSem (efac, *this, F.getParent()->getDataLayout(), MEM));
+    else
+      sem.reset(new BvOpSem(efac, *this, F.getParent()->getDataLayout(), MEM));
 
     EZ3 zctx(efac);
     std::unique_ptr<BmcEngine> bmc;
@@ -164,15 +160,15 @@ public:
           getAnalysis<TargetLibraryInfoWrapperPass>().getTLI();
 #ifdef HAVE_CRAB_LLVM
       crab_llvm::CrabLlvmPass &crab = getAnalysis<crab_llvm::CrabLlvmPass>();
-      bmc.reset(new PathBasedBmcEngine(sem, zctx, &crab, tli));
+      bmc.reset(new PathBasedBmcEngine(*sem, zctx, &crab, tli));
 #else
-      bmc.reset(new PathBasedBmcEngine(sem, zctx, tli));
+      bmc.reset(new PathBasedBmcEngine(*sem, zctx, tli));
 #endif
       break;
     }
     case mono_bmc:
     default:
-      bmc.reset(new BmcEngine(sem, zctx));
+      bmc.reset(new BmcEngine(*sem, zctx));
     }
 
     bmc->addCutPoint(src);

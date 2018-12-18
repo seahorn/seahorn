@@ -1197,7 +1197,7 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
         havoc(g);
         if (InferMemSafety2)
           // globals are non-null
-          side(mk<BUGT>(lookup(g), nullBv));
+          m_ctx.addSide(mk<BUGT>(lookup(g), nullBv));
       }
     }
   }
@@ -1207,7 +1207,7 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
     initGlobals(BB);
 
     // read the error flag to make it live
-    m_s.read(m_sem.errorFlag(BB));
+    m_ctx.read(m_sem.errorFlag(BB));
   }
 }; // namespace bvop_details
 
@@ -1308,6 +1308,11 @@ void Bv2OpSem::exec(SymStore &s, const BasicBlock &bb, ExprVector &side,
   OpSemContext C(s, side);
   C.update_bb(bb);
   C.m_act = act;
+
+  // XXX this needs to be revised
+  // do the setup necessary for a basic block
+  bvop_details::OpSemVisitor v(C, *this);
+  v.visitBasicBlock(const_cast<BasicBlock&>(bb));
 
   // skip PHI instructions
   for (; isa<PHINode>(C.m_inst); ++C.m_inst)

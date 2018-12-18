@@ -312,7 +312,6 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
                           << " bytes: " << I << "\n";);
     }
 
-
     // allocate new address
     // XXX ignores allocation size
     Expr addr = havoc(I);
@@ -331,10 +330,9 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
                      I.getAlignment(), m_ctx);
   }
 
-
   void visitGetElementPtrInst(GetElementPtrInst &I) {
-    Expr val = executeGEPOperation(*I.getPointerOperand(),
-                                   gep_type_begin(I), gep_type_end(I), m_ctx);
+    Expr val = executeGEPOperation(*I.getPointerOperand(), gep_type_begin(I),
+                                   gep_type_end(I), m_ctx);
     setValue(I, val);
   }
 
@@ -432,6 +430,7 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
     Function &f = *CS.getCalledFunction();
 
     Expr op = lookup(*CS.getArgument(0));
+
     if (f.getName().equals("verifier.assume.not"))
       op = boolop::lneg(op);
 
@@ -457,8 +456,7 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
       LOG("opsem", "Warning: allowing calloc() to "
                    "zero initialize ALL of its memory region\n";);
       m_ctx.addDef(m_ctx.read(m_ctx.getMemWriteRegister()),
-                              op::array::constArray(bv::bvsort(ptrSz(), m_efac),
-                                                    nullBv));
+                   op::array::constArray(bv::bvsort(ptrSz(), m_efac), nullBv));
     }
 
     // get a fresh pointer
@@ -985,9 +983,8 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
     return res;
   }
 
-  Expr executeGEPOperation(const Value &ptr,
-                           gep_type_iterator it, gep_type_iterator end,
-                           OpSemContext &ctx) {
+  Expr executeGEPOperation(const Value &ptr, gep_type_iterator it,
+                           gep_type_iterator end, OpSemContext &ctx) {
     Expr res;
     Expr addr = lookup(ptr);
     Expr offset = m_sem.symbolicIndexedOffset(it, end, ctx);
@@ -1007,7 +1004,8 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
   Expr executeLoadInst(const Value &addr, unsigned alignment, const Type *ty,
                        OpSemContext &ctx) {
     Expr res;
-    if (!ctx.getMemReadRegister()) return res;
+    if (!ctx.getMemReadRegister())
+      return res;
 
     if (ctx.isMemScalar()) {
       res = ctx.read(ctx.getMemReadRegister());
@@ -1071,9 +1069,9 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
 
       Expr idx = lookup(addr);
       if (idx && v) {
-        ctx.addDef(ctx.read(ctx.getMemWriteRegister()),
-                     op::array::store(ctx.read(ctx.getMemReadRegister()),
-                                      idx, v));
+        ctx.addDef(
+            ctx.read(ctx.getMemWriteRegister()),
+            op::array::store(ctx.read(ctx.getMemReadRegister()), idx, v));
       } else {
         LOG("opsem",
             errs() << "Skipping store to " << addr << " of " << val << "\n";);
@@ -1131,15 +1129,20 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
       return;
 
     const Module &M = *F.getParent();
-    for (const GlobalVariable &g :
-         boost::make_iterator_range(M.global_begin(), M.global_end())) {
-      // TODO: skip globals that are not part of execution like @llvm.used
-      if (!m_sem.isSkipped(g)) {
-        havoc(g);
-        if (InferMemSafety2)
-          // globals are non-null
-          m_ctx.addSide(mk<BUGT>(lookup(g), nullBv));
+    for (const GlobalVariable &g : M.globals()) {
+      if (m_sem.isSkipped(g))
+        continue;
+      if (g.getSection().equals("llvm.metadata")) {
+        LOG("opsem", errs() << "Skipping llvm.metadata global: " << g.getName()
+                            << "\n";);
+        continue;
       }
+      Expr symReg = symb(g);
+      assert(symReg);
+      Expr val = m_ctx.m_values.havoc(symReg);
+      if (InferMemSafety2)
+        // globals are non-null
+        m_ctx.addSide(mk<BUGT>(val, nullBv));
     }
   }
 
@@ -1167,7 +1170,8 @@ struct OpSemPhiVisitor : public InstVisitor<OpSemPhiVisitor>, OpSemBase {
     // -- evaluate all incoming values in parallel
     for (; PHINode *phi = dyn_cast<PHINode>(curr); ++curr) {
       // skip phi nodes that are not tracked
-      if (m_sem.isSkipped(*phi)) continue;
+      if (m_sem.isSkipped(*phi))
+        continue;
       const Value &v = *phi->getIncomingValueForBlock(m_ctx.m_prev);
       ops.push_back(lookup(v));
     }
@@ -1175,7 +1179,8 @@ struct OpSemPhiVisitor : public InstVisitor<OpSemPhiVisitor>, OpSemBase {
     // -- set values to all PHINode registers
     curr = BB.begin();
     for (unsigned i = 0; PHINode *phi = dyn_cast<PHINode>(curr); ++curr) {
-      if (m_sem.isSkipped(*phi)) continue;
+      if (m_sem.isSkipped(*phi))
+        continue;
       setValue(*phi, ops[i++]);
     }
   }
@@ -1214,6 +1219,10 @@ Bv2OpSem::Bv2OpSem(ExprFactory &efac, Pass &pass, const DataLayout &dl,
     llvm_unreachable("Unexpected pointer size");
   }
   maxPtrE = bv::bvnum(val, pointerSizeInBits(), m_efac);
+
+  // -- hack to get ENode::dump() to compile by forcing a use
+  LOG("dump.debug", trueE->dump(););
+
 }
 
 Bv2OpSem::Bv2OpSem(const Bv2OpSem &o)
@@ -1237,7 +1246,7 @@ void Bv2OpSem::exec(SymStore &s, const BasicBlock &bb, ExprVector &side,
   // XXX this needs to be revised
   // do the setup necessary for a basic block
   bvop_details::OpSemVisitor v(C, *this);
-  v.visitBasicBlock(const_cast<BasicBlock&>(bb));
+  v.visitBasicBlock(const_cast<BasicBlock &>(bb));
 
   // skip PHI instructions
   for (; isa<PHINode>(C.m_inst); ++C.m_inst)
@@ -1266,7 +1275,6 @@ void Bv2OpSem::execPhi(SymStore &s, const BasicBlock &bb,
   intraPhi(C);
 }
 
-
 Expr Bv2OpSem::symbolicIndexedOffset(gep_type_iterator TI, gep_type_iterator TE,
                                      OpSemContext &ctx) {
   unsigned ptrSz = pointerSizeInBits();
@@ -1277,7 +1285,7 @@ Expr Bv2OpSem::symbolicIndexedOffset(gep_type_iterator TI, gep_type_iterator TE,
   Expr soffset;
 
   for (; TI != TE; ++TI) {
-    Value* CurVal = TI.getOperand();
+    Value *CurVal = TI.getOperand();
     if (StructType *STy = TI.getStructTypeOrNull()) {
       unsigned fieldNo = cast<ConstantInt>(CurVal)->getZExtValue();
       noffset += fieldOff(STy, fieldNo);
@@ -1291,7 +1299,7 @@ Expr Bv2OpSem::symbolicIndexedOffset(gep_type_iterator TI, gep_type_iterator TE,
         Expr a = getOperandValue(*CurVal, ctx);
         assert(a);
         a = mk<BMUL>(a, bv::bvnum(sz, ptrSz, m_efac));
-        soffset = (soffset ? mk<BADD>(soffset, a): a);
+        soffset = (soffset ? mk<BADD>(soffset, a) : a);
       }
     }
   }
@@ -1299,7 +1307,7 @@ Expr Bv2OpSem::symbolicIndexedOffset(gep_type_iterator TI, gep_type_iterator TE,
   Expr res;
   if (noffset > 0)
     res = bv::bvnum(/* cast to make clang on osx happy */
-      (unsigned long int)noffset, ptrSz, m_efac);
+                    (unsigned long int)noffset, ptrSz, m_efac);
   if (soffset)
     res = res ? mk<BADD>(soffset, res) : soffset;
 
@@ -1311,7 +1319,6 @@ Expr Bv2OpSem::symbolicIndexedOffset(gep_type_iterator TI, gep_type_iterator TE,
 
   return res;
 }
-
 
 unsigned Bv2OpSem::pointerSizeInBits() const {
   return m_td->getPointerSizeInBits();
@@ -1342,18 +1349,21 @@ Expr Bv2OpSem::getOperandValue(const Value &v, OpSemContext &ctx) {
 }
 
 bool Bv2OpSem::isSymReg(Expr v) {
-  if (this->OpSem::isSymReg(v)) return true;
+  if (this->OpSem::isSymReg(v))
+    return true;
   // TODO: memStart and memEnd
 
   // a symbolic register is any expression that resolves to an
   // llvm::Value XXX it might be better to register registers with a
   // SymStore and XXX let register be only expressions that are
   // explicitly marked as registers
-  if (!isOpX<FAPP>(v)) return false;
+  if (!isOpX<FAPP>(v))
+    return false;
 
   Expr u = bind::fname(v);
   u = bind::fname(u);
-  if (isOpX<VALUE>(u)) return true;
+  if (isOpX<VALUE>(u))
+    return true;
 
   errs() << "Unexpected symbolic value: " << *v << "\n";
   llvm_unreachable(nullptr);
@@ -1369,11 +1379,14 @@ Expr Bv2OpSem::symb(const Value &I) {
   // -- constants are mapped to values
   if (const Constant *cv = dyn_cast<const Constant>(&I)) {
     // -- easy common cases
-    if (cv->isNullValue() || isa<ConstantPointerNull>(&I))
-      return bv::bvnum(0, sizeInBits(*cv), m_efac);
-    else if (const ConstantInt *ci = dyn_cast<const ConstantInt>(&I)) {
+    if (cv->isNullValue() || isa<ConstantPointerNull>(&I)) {
+      return cv->getType()->isIntegerTy(1)
+                 ? falseE
+                 : bv::bvnum(0, sizeInBits(*cv), m_efac);
+    } else if (const ConstantInt *ci = dyn_cast<const ConstantInt>(&I)) {
       if (ci->getType()->isIntegerTy(1))
         return ci->isOne() ? trueE : falseE;
+
       mpz_class k = toMpz(ci->getValue());
       return bv::bvnum(k, sizeInBits(I), m_efac);
     }
@@ -1389,10 +1402,15 @@ Expr Bv2OpSem::symb(const Value &I) {
           return bv::bvnum(k, sizeInBits(I), m_efac);
         }
       }
+    } else if (cv->getType()->isPointerTy()) {
+      LOG("opsem", errs() << "Warning: interpreting a pointer "
+                             "to constant memory as non-deterministic: "
+                          << I << "\n";);
+    } else {
+      LOG("opsem", errs() << "Warning: treating a "
+                             "constant as non-deterministic: "
+                          << I << "\n";);
     }
-
-    LOG("opsem", errs() << "WARNING: Treating unsupported constant as non-det: "
-                        << I << "\n";);
   }
 
   // everything else is mapped to a symbolic register with a
@@ -1427,10 +1445,10 @@ Expr Bv2OpSem::symb(const Value &I) {
     return Expr(0);
 
   const Type &ty = *I.getType();
-  switch(ty.getTypeID()) {
+  switch (ty.getTypeID()) {
   case Type::IntegerTyID:
     return ty.isIntegerTy(1) ? bind::boolConst(v)
-      : bv::bvConst(v, sizeInBits(ty));
+                             : bv::bvConst(v, sizeInBits(ty));
   case Type::PointerTyID:
     return bv::bvConst(v, sizeInBits(ty));
   default:
@@ -1643,7 +1661,6 @@ void Bv2OpSem::unhandledInst(const Instruction &inst, OpSemContext &ctx) {
                       << inst.getParent()->getParent()->getName() << "\n");
 }
 
-
 Expr Bv2OpSem::memStart(unsigned id) {
   // TODO: reimplement
   Expr sort = bv::bvsort(pointerSizeInBits(), m_efac);
@@ -1655,7 +1672,6 @@ Expr Bv2OpSem::memEnd(unsigned id) {
   Expr sort = bv::bvsort(pointerSizeInBits(), m_efac);
   return shadow_dsa::memEndVar(id, sort);
 }
-
 
 /// Adapted from llvm::ExecutionEngine
 Optional<GenericValue> Bv2OpSem::getConstantValue(const Constant *C) {

@@ -128,6 +128,8 @@ namespace seahorn
     virtual Expr memStart (unsigned id) = 0;
     virtual Expr memEnd (unsigned id) = 0;
 
+    virtual bool isSymReg(Expr v) { return v == m_errorFlag;}
+
   };
 
 

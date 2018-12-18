@@ -128,9 +128,9 @@ struct OpSemBase {
 
     // -- first two arguments are reserved for error flag,
     // -- the other is function activation
-    ctx.regParam(falseE);
-    ctx.regParam(falseE);
-    ctx.regParam(falseE);
+    ctx.pushParameter(falseE);
+    ctx.pushParameter(falseE);
+    ctx.pushParameter(falseE);
   }
 
   Expr memStart(unsigned id) { return m_sem.memStart(id); }
@@ -535,18 +535,18 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
     }
 
     if (F.getName().equals("shadow.mem.arg.ref")) {
-      m_ctx.m_fparams.push_back(m_ctx.read(symb(*CS.getArgument(1))));
+      m_ctx.pushParameter(m_ctx.read(symb(*CS.getArgument(1))));
       return;
     }
 
     if (F.getName().equals("shadow.mem.arg.mod")) {
-      m_ctx.m_fparams.push_back(m_ctx.read(symb(*CS.getArgument(1))));
-      m_ctx.m_fparams.push_back(m_ctx.m_values.havoc(symb(inst)));
+      m_ctx.pushParameter(m_ctx.read(symb(*CS.getArgument(1))));
+      m_ctx.pushParameter(m_ctx.m_values.havoc(symb(inst)));
       return;
     }
 
     if (F.getName().equals("shadow.mem.arg.new")) {
-      m_ctx.m_fparams.push_back(m_ctx.m_values.havoc(symb(inst)));
+      m_ctx.pushParameter(m_ctx.m_values.havoc(symb(inst)));
       return;
     }
 
@@ -645,21 +645,20 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
     const BasicBlock &BB = *inst.getParent();
 
     // enabled
-    m_ctx.m_fparams[0] = m_ctx.m_act; // activation literal
+    m_ctx.setParameter(0, m_ctx.m_act); // activation literal
     // error flag in
-    m_ctx.m_fparams[1] = (m_ctx.read(m_sem.errorFlag(BB)));
+    m_ctx.setParameter(1, m_ctx.read(m_sem.errorFlag(BB)));
     // error flag out
-    m_ctx.m_fparams[2] = (m_ctx.m_values.havoc(m_sem.errorFlag(BB)));
+    m_ctx.setParameter(2, m_ctx.m_values.havoc(m_sem.errorFlag(BB)));
     for (const Argument *arg : fi.args)
-      m_ctx.m_fparams.push_back(
-          m_s.read(symb(*CS.getArgument(arg->getArgNo()))));
+      m_ctx.pushParameter(m_s.read(symb(*CS.getArgument(arg->getArgNo()))));
     for (const GlobalVariable *gv : fi.globals)
-      m_ctx.m_fparams.push_back(m_s.read(symb(*gv)));
+      m_ctx.pushParameter(m_s.read(symb(*gv)));
 
     if (fi.ret) {
       Expr v = m_ctx.m_values.havoc(symb(inst));
       setValue(inst, v);
-      m_ctx.m_fparams.push_back(v);
+      m_ctx.pushParameter(v);
     }
 
     LOG("arg_error", if (m_ctx.m_fparams.size() != bind::domainSz(fi.sumPred)) {
@@ -692,10 +691,10 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
     assert(m_ctx.m_fparams.size() == bind::domainSz(fi.sumPred));
     m_ctx.addSide(bind::fapp(fi.sumPred, m_ctx.m_fparams));
 
-    m_ctx.resetParams();
-    m_ctx.regParam(falseE);
-    m_ctx.regParam(falseE);
-    m_ctx.regParam(falseE);
+    m_ctx.resetParameters();
+    m_ctx.pushParameter(falseE);
+    m_ctx.pushParameter(falseE);
+    m_ctx.pushParameter(falseE);
   }
 
   void visitIntrinsicInst(IntrinsicInst &I) {
@@ -1407,15 +1406,21 @@ Expr Bv2OpSem::getOperandValue(const Value &v, OpSemContext &ctx) {
 }
 
 bool Bv2OpSem::isSymReg(Expr v) {
+  if (this->OpSem::isSymReg(v)) return true;
+  // TODO: memStart and memEnd
+
   // a symbolic register is any expression that resolves to an
   // llvm::Value XXX it might be better to register registers with a
   // SymStore and XXX let register be only expressions that are
   // explicitly marked as registers
-  if (!isOpX<FAPP>(v))
-    return false;
+  if (!isOpX<FAPP>(v)) return false;
+
   Expr u = bind::fname(v);
   u = bind::fname(u);
-  return isOpX<VALUE>(v);
+  if (isOpX<VALUE>(v)) return true;
+
+  errs() << "Unexpected symbolic value: " << *v << "\n";
+  llvm_unreachable(nullptr);
 }
 
 Expr Bv2OpSem::symb(const Value &I) {

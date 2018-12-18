@@ -52,8 +52,14 @@ namespace seahorn
       m_func(nullptr), m_bb(nullptr), m_inst(nullptr),
       m_values(values), m_side(side), m_prev(nullptr), m_uniq(false) {}
 
-    void regParam(Expr v) {m_fparams.push_back(v);}
-    void resetParams() {m_fparams.clear();}
+    void pushParameter(Expr v) {m_fparams.push_back(v);}
+    void setParameter(unsigned idx, Expr v) {m_fparams[idx] = v;}
+    void resetParameters() {m_fparams.clear();}
+
+    void setMemReadRegister(Expr r) {m_inMem = r;}
+    Expr getMemReadRegister() {return m_inMem;}
+    void setMemWriteRegister(Expr r) {m_outMem = r;}
+    Expr getMemWriteRegister() {return m_outMem;}
 
     void addSideSafe(Expr v) { m_side.push_back(boolop::limp(m_act, v)); }
     void addSide(Expr v) {m_side.push_back(v);}
@@ -181,7 +187,7 @@ namespace seahorn
 
 
     /// \brief Returns true if the given expression is a symbolic register
-    bool isSymReg(Expr v);
+    bool isSymReg(Expr v) override;
 
     Expr getOperandValue(const Value &v, OpSemContext &ctx);
     Expr lookup (SymStore &s, const Value &v) {llvm_unreachable(nullptr);}

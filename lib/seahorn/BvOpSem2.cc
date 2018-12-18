@@ -693,7 +693,7 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
     });
 
     assert(m_ctx.m_fparams.size() == bind::domainSz(fi.sumPred));
-    m_ctx.addSide(bind::fapp(fi.sumPred, m_ctx.m_fparams));
+    m_ctx.addSide(bind::fapp(fi.sumPred, m_ctx.getParameters()));
 
     m_ctx.resetParameters();
     m_ctx.pushParameter(falseE);

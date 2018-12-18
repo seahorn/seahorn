@@ -57,6 +57,7 @@ namespace seahorn
     void pushParameter(Expr v) {m_fparams.push_back(v);}
     void setParameter(unsigned idx, Expr v) {m_fparams[idx] = v;}
     void resetParameters() {m_fparams.clear();}
+    ExprVector &getParameters() {return m_fparams;}
 
     void setMemReadRegister(Expr r) {m_readRegister= r;}
     Expr getMemReadRegister() {return m_readRegister;}

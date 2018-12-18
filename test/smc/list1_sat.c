@@ -1,6 +1,5 @@
 // RUN: %sea smc -O3 --inline --horn-sea-dsa "%s" 2>&1 | OutputCheck %s
 // CHECK: ^sat$
-// XFAIL: *
 
 #include <stdio.h>
 #include <stdlib.h>

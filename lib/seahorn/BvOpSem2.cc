@@ -1634,6 +1634,20 @@ void Bv2OpSem::unhandledInst(const Instruction &inst, OpSemContext &ctx) {
                       << inst.getParent()->getParent()->getName() << "\n");
 }
 
+
+Expr Bv2OpSem::memStart(unsigned id) {
+  // TODO: reimplement
+  Expr sort = bv::bvsort(pointerSizeInBits(), m_efac);
+  return shadow_dsa::memStartVar(id, sort);
+}
+
+Expr Bv2OpSem::memEnd(unsigned id) {
+  // TODO: reimplement
+  Expr sort = bv::bvsort(pointerSizeInBits(), m_efac);
+  return shadow_dsa::memEndVar(id, sort);
+}
+
+
 /// Adapted from llvm::ExecutionEngine
 Optional<GenericValue> Bv2OpSem::getConstantValue(const Constant *C) {
   // If its undefined, return the garbage.

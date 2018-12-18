@@ -2,6 +2,7 @@
 
 #include "llvm/Pass.h"
 #include "llvm/IR/DataLayout.h"
+#include "llvm/IR/GetElementPtrTypeIterator.h"
 #include "llvm/ExecutionEngine/GenericValue.h"
 #include "seahorn/OpSem.hh"
 #include "seahorn/Analysis/CanFail.hh"
@@ -189,6 +190,10 @@ namespace seahorn
     /// context, and no instruction that is not skipped depends on it
     bool isSkipped(const Value &v);
 
+
+    bool isTracked(const Value &v) override {return !isSkipped(v);}
+    Expr memStart(unsigned id) override;
+    Expr memEnd(unsigned id) override;
 
     /// \brief Returns true if the given expression is a symbolic register
     bool isSymReg(Expr v) override;

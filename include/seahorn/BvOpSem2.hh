@@ -35,12 +35,14 @@ namespace seahorn
     const BasicBlock *m_prev;
 
 
-    /// Current memory region for loads/reads
-    Expr m_inMem;
-    /// Current memory region for stores/writes
-    Expr m_outMem;
+    /// Meta register that contains the name of the register to be
+    /// used in next memory load
+    Expr m_readRegister;
+    /// Meta register that contains the name of the register to be
+    /// used in next memory store
+    Expr m_writeRegister;
     /// true if current in/out memory is a unique scalar memory cell
-    bool m_uniq;
+    bool m_scalar;
 
     /// Parameters for the current function call
     ExprVector m_fparams;
@@ -50,16 +52,18 @@ namespace seahorn
 
     OpSemContext(SymStore &values, ExprVector &side) :
       m_func(nullptr), m_bb(nullptr), m_inst(nullptr),
-      m_values(values), m_side(side), m_prev(nullptr), m_uniq(false) {}
+      m_values(values), m_side(side), m_prev(nullptr), m_scalar(false) {}
 
     void pushParameter(Expr v) {m_fparams.push_back(v);}
     void setParameter(unsigned idx, Expr v) {m_fparams[idx] = v;}
     void resetParameters() {m_fparams.clear();}
 
-    void setMemReadRegister(Expr r) {m_inMem = r;}
-    Expr getMemReadRegister() {return m_inMem;}
-    void setMemWriteRegister(Expr r) {m_outMem = r;}
-    Expr getMemWriteRegister() {return m_outMem;}
+    void setMemReadRegister(Expr r) {m_readRegister= r;}
+    Expr getMemReadRegister() {return m_readRegister;}
+    void setMemWriteRegister(Expr r) {m_writeRegister = r;}
+    Expr getMemWriteRegister() {return m_writeRegister;}
+    bool isMemScalar() {return m_scalar;}
+    void setMemScalar(bool v) {m_scalar = v;}
 
     void addSideSafe(Expr v) { m_side.push_back(boolop::limp(m_act, v)); }
     void addSide(Expr v) {m_side.push_back(v);}
@@ -67,6 +71,8 @@ namespace seahorn
     void addDefSafe(Expr v, Expr u) {addSideSafe(mk<EQ>(v,u));}
     void resetSide() {m_side.clear();}
     Expr read(Expr v) {return m_values.read(v);}
+    Expr havoc(Expr v) {return m_values.havoc(v);}
+    void write(Expr v, Expr u) {m_values.write(v, u);}
 
     ExprFactory &getExprFactory() const {return m_values.getExprFactory();}
     void update_bb(const BasicBlock &bb) {

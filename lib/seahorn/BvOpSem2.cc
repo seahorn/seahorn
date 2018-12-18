@@ -121,7 +121,7 @@ struct OpSemBase {
     falseBv = m_sem.falseBv;
     nullBv = m_sem.nullBv;
 
-    m_ctx.m_uniq = false;
+    m_ctx.setMemScalar(false);
     m_ctx.m_act = trueE;
 
     m_largestPtr = m_sem.maxPtrE;
@@ -139,10 +139,10 @@ struct OpSemBase {
   unsigned ptrSz() { return m_sem.pointerSizeInBits(); }
 
   Expr read(const Value &v) {
-    return m_sem.isSkipped(v) ? Expr(0) : m_s.read(symb(v));
+    return m_sem.isSkipped(v) ? Expr(0) : m_ctx.read(symb(v));
   }
 
-  Expr read(Expr v) { return m_s.read(v); }
+  Expr read(Expr v) { return m_ctx.read(v); }
 
   Expr lookup(const Value &v) { return m_sem.getOperandValue(v, m_ctx); }
 
@@ -487,21 +487,23 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
   }
 
   void visitCallocCall(CallSite CS) {
-    if (!m_ctx.m_inMem || !m_ctx.m_outMem) {
+    if (!m_ctx.getMemReadRegister() || !m_ctx.getMemReadRegister()) {
       LOG("opsem", errs() << "Warning: treating calloc() as nop\n";);
       return;
     }
 
-    assert(!m_ctx.m_uniq);
+    assert(!m_ctx.isMemScalar());
 
     if (IgnoreCalloc2) {
       LOG("opsem", "Warning: treating calloc() as malloc()\n";);
-      m_ctx.addDef(m_ctx.m_outMem, m_ctx.m_inMem);
+      m_ctx.addDef(read(m_ctx.getMemWriteRegister()),
+                   read(m_ctx.getMemReadRegister()));
     } else {
       LOG("opsem", "Warning: allowing calloc() to "
                    "zero initialize ALL of its memory region\n";);
-      m_ctx.addDef(m_ctx.m_outMem,
-                   op::array::constArray(bv::bvsort(ptrSz(), m_efac), nullBv));
+      m_ctx.addDef(m_ctx.read(m_ctx.getMemWriteRegister()),
+                              op::array::constArray(bv::bvsort(ptrSz(), m_efac),
+                                                    nullBv));
     }
 
     // get a fresh pointer
@@ -522,15 +524,17 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
 
     if (F.getName().equals("shadow.mem.load")) {
       const Value &v = *CS.getArgument(1);
-      m_ctx.m_inMem = m_ctx.read(symb(v));
-      m_ctx.m_uniq = extractUniqueScalar(CS) != nullptr;
+      m_ctx.setMemReadRegister(symb(v));
+      m_ctx.setMemScalar(extractUniqueScalar(CS) != nullptr);
       return;
     }
 
     if (F.getName().equals("shadow.mem.store")) {
-      m_ctx.m_inMem = m_ctx.read(symb(*CS.getArgument(1)));
-      m_ctx.m_outMem = m_ctx.m_values.havoc(symb(inst));
-      m_ctx.m_uniq = extractUniqueScalar(CS) != nullptr;
+      Expr symReg = symb(inst);
+      m_ctx.setMemReadRegister(symb(*CS.getArgument(1)));
+      m_ctx.m_values.havoc(symReg);
+      m_ctx.setMemWriteRegister(symReg);
+      m_ctx.setMemScalar(extractUniqueScalar(CS) != nullptr);
       return;
     }
 
@@ -1061,17 +1065,16 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
   }
 
   Expr executeLoadInst(const Value &addr, unsigned alignment, const Type *ty,
-                       OpSemContext ctx) {
+                       OpSemContext &ctx) {
     Expr res;
-    if (!m_ctx.m_inMem)
-      return res;
+    if (!ctx.getMemReadRegister()) return res;
 
-    if (m_ctx.m_uniq) {
-      res = m_ctx.m_inMem;
+    if (ctx.isMemScalar()) {
+      res = ctx.read(ctx.getMemReadRegister());
       if (ty->isIntegerTy(1))
         res = bvToBool(res);
     } else if (Expr op0 = lookup(addr)) {
-      res = op::array::select(m_ctx.m_inMem, op0);
+      res = op::array::select(ctx.read(ctx.getMemReadRegister()), op0);
       if (ty->isIntegerTy(1))
         res = mk<NEQ>(res, nullBv);
       else if (m_sem.sizeInBits(*ty) < ptrSz())
@@ -1087,18 +1090,19 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
       assert(m_sem.sizeInBits(*ty) <= ptrSz() && "Fat integers not supported");
     }
 
-    m_ctx.m_inMem.reset();
+    ctx.setMemReadRegister(Expr());
     return res;
   }
 
   void executeStoreInst(const Value &addr, const Value &val, unsigned alignment,
-                        OpSemContext ctx) {
+                        OpSemContext &ctx) {
 
-    if (!m_ctx.m_inMem || !m_ctx.m_outMem || m_sem.isSkipped(val)) {
+    if (!ctx.getMemReadRegister() || !ctx.getMemWriteRegister() ||
+        m_sem.isSkipped(val)) {
       LOG("opsem",
           errs() << "Skipping store to " << addr << " of " << val << "\n";);
-      m_ctx.m_inMem.reset();
-      m_ctx.m_outMem.reset();
+      ctx.setMemReadRegister(Expr());
+      ctx.setMemWriteRegister(Expr());
       return;
     }
 
@@ -1107,9 +1111,9 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
     if (v && val.getType()->isIntegerTy(1))
       v = boolToBv(v);
 
-    if (m_ctx.m_uniq) {
+    if (ctx.isMemScalar()) {
       if (v)
-        m_ctx.addDef(m_ctx.m_outMem, v);
+        ctx.addDef(ctx.read(ctx.getMemWriteRegister()), v);
     } else {
       if (m_sem.sizeInBits(val) < ptrSz())
         v = bv::zext(v, ptrSz());
@@ -1127,15 +1131,17 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
 
       Expr idx = lookup(addr);
       if (idx && v) {
-        m_ctx.addDef(m_ctx.m_outMem, op::array::store(m_ctx.m_inMem, idx, v));
+        ctx.addDef(ctx.read(ctx.getMemWriteRegister()),
+                     op::array::store(ctx.read(ctx.getMemReadRegister()),
+                                      idx, v));
       } else {
         LOG("opsem",
             errs() << "Skipping store to " << addr << " of " << val << "\n";);
       }
     }
 
-    m_ctx.m_inMem.reset();
-    m_ctx.m_outMem.reset();
+    ctx.setMemReadRegister(Expr());
+    ctx.setMemWriteRegister(Expr());
   }
 
   Expr executeBitCastInst(const Value &op, Type *ty, OpSemContext &ctx) {
@@ -1401,7 +1407,7 @@ unsigned Bv2OpSem::fieldOff(const StructType *t, unsigned field) const {
 Expr Bv2OpSem::getOperandValue(const Value &v, OpSemContext &ctx) {
   Expr symVal = symb(v);
   if (symVal)
-    return isSymReg(symVal) ? ctx.m_values.read(symVal) : symVal;
+    return isSymReg(symVal) ? ctx.read(symVal) : symVal;
   return Expr(0);
 }
 

@@ -186,7 +186,10 @@ namespace seahorn
     Expr getOperandValue(const Value &v, OpSemContext &ctx);
     Expr lookup (SymStore &s, const Value &v) {llvm_unreachable(nullptr);}
 
-    Expr symbolicIndexedOffset (SymStore &s, llvm::GetElementPtrInst& gep);
+    using gep_type_iterator = generic_gep_type_iterator<>;
+    Expr symbolicIndexedOffset (gep_type_iterator it, gep_type_iterator end,
+                                OpSemContext &ctx);
+
     unsigned storageSize (const llvm::Type *t) const;
     unsigned fieldOff (const StructType *t, unsigned field) const;
 

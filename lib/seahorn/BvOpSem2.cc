@@ -11,6 +11,8 @@ using namespace seahorn;
 using namespace llvm;
 using namespace ufo;
 
+using gep_type_iterator = generic_gep_type_iterator<>;
+
 static llvm::cl::opt<bool> GlobalConstraints2(
     "horn-bv2-global-constraints",
     llvm::cl::desc("Maximize the use of global (i.e., unguarded) constraints"),
@@ -373,7 +375,14 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
     executeStoreInst(*I.getPointerOperand(), *I.getValueOperand(),
                      I.getAlignment(), m_ctx);
   }
-  // void visitGetElementPtrInst(GetElementPtrInst &I);
+
+
+  void visitGetElementPtrInst(GetElementPtrInst &I) {
+    Expr val = executeGEPOperation(*I.getPointerOperand(),
+                                   gep_type_begin(I), gep_type_end(I), m_ctx);
+    setValue(I, val);
+  }
+
   void visitPHINode(PHINode &PN) {
     llvm_unreachable("PHI nodes are handled by a different visitor!");
   }
@@ -1033,37 +1042,14 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
     return res;
   }
 
-  void visitGetElementPtrInst(GetElementPtrInst &gep) {
+  Expr executeGEPOperation(const Value &ptr,
+                           gep_type_iterator it, gep_type_iterator end,
+                           OpSemContext &ctx) {
+    Expr res;
+    Expr addr = lookup(ptr);
+    Expr offset = m_sem.symbolicIndexedOffset(it, end, ctx);
 
-    if (m_sem.isSkipped(gep))
-      return;
-    Expr lhs = havoc(gep);
-
-    Value *ptrOp = gep.getPointerOperand();
-    Expr base = lookup(*ptrOp);
-    if (!base)
-      return;
-
-    Expr off = m_sem.symbolicIndexedOffset(m_s, gep);
-    if (!off)
-      return;
-
-    if (UseWrite2)
-      write(gep, mk<BADD>(base, off));
-    else
-      side(lhs, mk<BADD>(base, off));
-
-    if (InferMemSafety2) {
-      // -- extra constraints that exclude undefined behavior
-      if (!gep.isInBounds() || gep.getPointerAddressSpace() != 0)
-        return;
-      // -- base > 0 -> lhs > 0
-      // side (mk<OR> (mk<EQ> (base, nullBv),
-      // mk<NEQ> (read (gep), nullBv)), true);
-
-      // lhs >= base
-      side(mk<BUGE>(read(gep), base));
-    }
+    return addr && offset ? mk<BADD>(addr, offset) : Expr();
   }
 
   void visitAllocaInst(AllocaInst &I) {
@@ -1345,7 +1331,9 @@ void Bv2OpSem::execPhi(SymStore &s, const BasicBlock &bb,
   intraPhi(C);
 }
 
-Expr Bv2OpSem::symbolicIndexedOffset(SymStore &s, GetElementPtrInst &gep) {
+
+Expr Bv2OpSem::symbolicIndexedOffset(gep_type_iterator TI, gep_type_iterator TE,
+                                     OpSemContext &ctx) {
   unsigned ptrSz = pointerSizeInBits();
 
   // numeric offset
@@ -1353,9 +1341,8 @@ Expr Bv2OpSem::symbolicIndexedOffset(SymStore &s, GetElementPtrInst &gep) {
   // symbolic offset
   Expr soffset;
 
-  for (auto TI = gep_type_begin(&gep), TE = gep_type_end(&gep); TI != TE;
-       ++TI) {
-    Value *CurVal = TI.getOperand();
+  for (; TI != TE; ++TI) {
+    Value* CurVal = TI.getOperand();
     if (StructType *STy = TI.getStructTypeOrNull()) {
       unsigned fieldNo = cast<ConstantInt>(CurVal)->getZExtValue();
       noffset += fieldOff(STy, fieldNo);
@@ -1366,10 +1353,10 @@ Expr Bv2OpSem::symbolicIndexedOffset(SymStore &s, GetElementPtrInst &gep) {
         int64_t arrayIdx = ci->getSExtValue();
         noffset += (uint64_t)arrayIdx * sz;
       } else {
-        Expr a = lookup(s, *CurVal);
+        Expr a = getOperandValue(*CurVal, ctx);
         assert(a);
         a = mk<BMUL>(a, bv::bvnum(sz, ptrSz, m_efac));
-        soffset = (soffset ? mk<BADD>(soffset, a) : a);
+        soffset = (soffset ? mk<BADD>(soffset, a): a);
       }
     }
   }
@@ -1377,7 +1364,7 @@ Expr Bv2OpSem::symbolicIndexedOffset(SymStore &s, GetElementPtrInst &gep) {
   Expr res;
   if (noffset > 0)
     res = bv::bvnum(/* cast to make clang on osx happy */
-                    (unsigned long int)noffset, ptrSz, m_efac);
+      (unsigned long int)noffset, ptrSz, m_efac);
   if (soffset)
     res = res ? mk<BADD>(soffset, res) : soffset;
 
@@ -1389,6 +1376,7 @@ Expr Bv2OpSem::symbolicIndexedOffset(SymStore &s, GetElementPtrInst &gep) {
 
   return res;
 }
+
 
 unsigned Bv2OpSem::pointerSizeInBits() const {
   return m_td->getPointerSizeInBits();

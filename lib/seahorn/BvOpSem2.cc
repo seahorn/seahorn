@@ -1133,6 +1133,7 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
     const Module &M = *F.getParent();
     for (const GlobalVariable &g :
          boost::make_iterator_range(M.global_begin(), M.global_end())) {
+      // TODO: skip globals that are not part of execution like @llvm.used
       if (!m_sem.isSkipped(g)) {
         havoc(g);
         if (InferMemSafety2)
@@ -1352,7 +1353,7 @@ bool Bv2OpSem::isSymReg(Expr v) {
 
   Expr u = bind::fname(v);
   u = bind::fname(u);
-  if (isOpX<VALUE>(v)) return true;
+  if (isOpX<VALUE>(u)) return true;
 
   errs() << "Unexpected symbolic value: " << *v << "\n";
   llvm_unreachable(nullptr);
@@ -1425,10 +1426,18 @@ Expr Bv2OpSem::symb(const Value &I) {
   if (isSkipped(I))
     return Expr(0);
 
-  assert(I.getType()->isIntegerTy());
-
-  return I.getType()->isIntegerTy(1) ? bind::boolConst(v)
-                                     : bv::bvConst(v, sizeInBits(I));
+  const Type &ty = *I.getType();
+  switch(ty.getTypeID()) {
+  case Type::IntegerTyID:
+    return ty.isIntegerTy(1) ? bind::boolConst(v)
+      : bv::bvConst(v, sizeInBits(ty));
+  case Type::PointerTyID:
+    return bv::bvConst(v, sizeInBits(ty));
+  default:
+    errs() << "Error: unhandled type: " << ty << " of " << I << "\n";
+    llvm_unreachable(nullptr);
+  }
+  llvm_unreachable(nullptr);
 }
 
 const Value &Bv2OpSem::conc(Expr v) {

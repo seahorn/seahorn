@@ -168,6 +168,8 @@ namespace expr
       inline Expr zext (Expr v, unsigned width)
       {return mk<BZEXT> (v, bvsort (width, v->efac ()));}
 
+      inline Expr concat(Expr v, Expr u) {return mk<BCONCAT>(v, u);}
+
     }
 
   }

@@ -792,6 +792,9 @@ template <typename U> struct BasicExprUnmarshal {
     case Z3_OP_BASHR:
       e = mknary<BASHR>(args.begin(), args.end());
       break;
+    case Z3_OP_CONCAT:
+      e = mknary<BCONCAT>(args.begin(), args.end());
+      break;
     default:
       return U::unmarshal(z, efac, cache, seen);
     }

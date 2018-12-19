@@ -97,7 +97,9 @@ class OpSemMemManager {
   unsigned m_id;
 
   Expr m_nullPtr;
-  Expr m_stackPtr;
+  /// \brief Register that contains the value of the stack pointer on
+  /// function entry
+  Expr m_sp0;
 
 public:
   OpSemMemManager(Bv2OpSem &sem, OpSemContext &ctx)
@@ -107,9 +109,9 @@ public:
       m_freshPtrName(mkTerm<std::string>("sea.ptr", m_efac)),
       m_id(0) {
       m_nullPtr = bv::bvnum(0, ptrSz(), m_efac);
-      m_stackPtr = bv::bvConst(mkTerm<std::string>("sea.sp0", m_efac),
-                               ptrSz());
-      m_ctx.declareRegister(m_stackPtr);
+      m_sp0 = bv::bvConst(mkTerm<std::string>("sea.sp0", m_efac),
+                          ptrSz());
+      m_ctx.declareRegister(m_sp0);
     }
 
 
@@ -147,8 +149,7 @@ public:
   }
 
   PtrTy mkStackPtr(Expr name, AllocInfo &allocInfo) {
-    Expr sp0 = m_stackPtr;
-    Expr res = m_ctx.read(sp0);
+    Expr res = m_ctx.read(m_sp0);
     if (allocInfo.m_start > 0)
       res = mk<BSUB>(res, bv::bvnum(allocInfo.m_start, ptrSz(), m_efac));
     return res;

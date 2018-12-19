@@ -163,6 +163,8 @@ namespace seahorn
 
     Bv2OpSem (const Bv2OpSem& o);
 
+    const DataLayout &getTD() {assert(m_td); return *m_td;}
+
     /// \brief Executes one intra-procedural instructions in the
     /// current context Assumes that current instruction is not a
     /// branch Returns true if instruction was executed and false if

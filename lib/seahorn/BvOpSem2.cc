@@ -6,6 +6,7 @@
 
 #include "ufo/ufo_iterators.hpp"
 #include "llvm/Support/CommandLine.h"
+#include "llvm/Support/Format.h"
 #include "llvm/Support/MathExtras.h"
 
 using namespace seahorn;
@@ -66,7 +67,6 @@ static bool isShadowMem(const Value &V, const Value **out) {
 
 namespace seahorn {
 
-
 namespace bvop_details {
 
 /// \brief Memory manager for OpSem machine
@@ -78,10 +78,28 @@ class OpSemMemManager {
     unsigned m_end;
     unsigned m_sz;
 
-    AllocInfo(unsigned id, unsigned start, unsigned end, unsigned sz) :
-      m_id(id), m_start(start), m_end(end), m_sz(sz) {}
+    AllocInfo(unsigned id, unsigned start, unsigned end, unsigned sz)
+        : m_id(id), m_start(start), m_end(end), m_sz(sz) {}
   };
 
+  struct FuncAllocInfo {
+    const Function *m_fn;
+    unsigned m_start;
+    unsigned m_end;
+
+    FuncAllocInfo(const Function &fn, unsigned start, unsigned end)
+        : m_fn(&fn), m_start(start), m_end(end) {}
+  };
+
+  struct GlobalAllocInfo {
+    const GlobalVariable *m_gv;
+    unsigned m_start;
+    unsigned m_end;
+    unsigned m_sz;
+    GlobalAllocInfo(const GlobalVariable &gv, unsigned start, unsigned end,
+                    unsigned sz)
+        : m_gv(&gv), m_start(start), m_end(end), m_sz(sz) {}
+  };
 
   Bv2OpSem &m_sem;
   OpSemContext &m_ctx;
@@ -93,6 +111,8 @@ class OpSemMemManager {
   Expr m_allocaName;
   Expr m_freshPtrName;
   std::vector<AllocInfo> m_allocas;
+  std::vector<FuncAllocInfo> m_funcs;
+  std::vector<GlobalAllocInfo> m_globals;
 
   unsigned m_id;
 
@@ -103,22 +123,18 @@ class OpSemMemManager {
 
 public:
   OpSemMemManager(Bv2OpSem &sem, OpSemContext &ctx)
-    : m_sem(sem), m_ctx(ctx), m_efac(ctx.getExprFactory()),
-      m_wordSz(4), m_alignment(m_wordSz),
-      m_allocaName(mkTerm<std::string>("sea.alloca", m_efac)),
-      m_freshPtrName(mkTerm<std::string>("sea.ptr", m_efac)),
-      m_id(0) {
-      m_nullPtr = bv::bvnum(0, ptrSz(), m_efac);
-      m_sp0 = bv::bvConst(mkTerm<std::string>("sea.sp0", m_efac),
-                          ptrSz());
-      m_ctx.declareRegister(m_sp0);
-    }
-
+      : m_sem(sem), m_ctx(ctx), m_efac(ctx.getExprFactory()), m_wordSz(4),
+        m_alignment(m_wordSz),
+        m_allocaName(mkTerm<std::string>("sea.alloca", m_efac)),
+        m_freshPtrName(mkTerm<std::string>("sea.ptr", m_efac)), m_id(0) {
+    m_nullPtr = bv::bvnum(0, ptrSz(), m_efac);
+    m_sp0 = bv::bvConst(mkTerm<std::string>("sea.sp0", m_efac), ptrSz());
+    m_ctx.declareRegister(m_sp0);
+  }
 
   using PtrTy = Expr;
 
-
-  unsigned ptrSz() {return m_wordSz*8;}
+  unsigned ptrSz() { return m_wordSz * 8; }
 
   PtrTy mkAlignedPtr(Expr name, uint32_t align) {
     unsigned alignBits = llvm::Log2_32(align);
@@ -158,32 +174,68 @@ public:
   /// \brief Allocates memory on the stack
   PtrTy salloc(Expr bytes, unsigned align = 0) {
     LOG("opsem", errs() << "Warning: unsound handling of dynamically "
-        "sized stack allocation of " << bytes << " bytes\n";);
+                           "sized stack allocation of "
+                        << bytes << " bytes\n";);
     return freshPtr();
   }
 
   /// \brief Allocates memory on the heap
-  PtrTy halloc(unsigned bytes, unsigned align = 0) {
-    return freshPtr();
-  }
+  PtrTy halloc(unsigned bytes, unsigned align = 0) { return freshPtr(); }
 
   /// \brief Allocates memory on the heap
-  PtrTy halloc(Expr bytes, unsigned align = 0) {
-    return freshPtr();
-  }
+  PtrTy halloc(Expr bytes, unsigned align = 0) { return freshPtr(); }
 
   /// \brief Allocates memory in global (data/bss) segment for given global
   PtrTy galloc(const GlobalVariable &gv, unsigned align = 0) {
-    return freshPtr();
+    uint64_t gvSz = m_sem.getTD().getTypeAllocSize(gv.getValueType());
+
+    unsigned start =
+        !m_globals.empty()
+            ? m_globals.back().m_end
+            : (m_funcs.empty() ? 0x08048000 : m_funcs.back().m_end);
+
+    start = llvm::alignTo(start, m_alignment);
+    unsigned end = llvm::alignTo(start + gvSz, m_alignment);
+    m_globals.emplace_back(gv, start, end, gvSz);
+    return bv::bvnum(start, ptrSz(), m_efac);
   }
 
   /// \brief Allocates memory in code segment for the code of a given function
   PtrTy falloc(const Function &fn) {
-    return freshPtr();
+    assert(m_globals.empty() && "Cannot allocate functions after globals");
+    unsigned start = m_funcs.empty() ? 0x08048000 : m_funcs.back().m_end;
+    unsigned end = llvm::alignTo(start + 4, m_alignment);
+    m_funcs.emplace_back(fn, start, end);
+    return bv::bvnum(start, ptrSz(), m_efac);
   }
 
-  Expr loadValueFromMem(PtrTy ptr, Expr memReg,
-                        const llvm::Type &ty, uint32_t align) {
+  PtrTy getPtrToFunction(const Function &F) {
+    return bv::bvnum(getFunctionAddr(F), ptrSz(), m_efac);
+  }
+
+  unsigned getFunctionAddr(const Function &F) {
+    for (auto &fi : m_funcs)
+      if (fi.m_fn == &F)
+        return fi.m_start;
+    falloc(F);
+    return m_funcs.back().m_start;
+  }
+
+  PtrTy getPtrToGlobalVariable(const GlobalVariable &gv) {
+    return bv::bvnum(getGlobalVariableAddr(gv), ptrSz(), m_efac);
+  }
+
+  unsigned getGlobalVariableAddr(const GlobalVariable &gv) {
+    for (auto &gi : m_globals)
+      if (gi.m_gv == &gv)
+        return gi.m_start;
+
+    galloc(gv);
+    return m_globals.back().m_start;
+  }
+
+  Expr loadValueFromMem(PtrTy ptr, Expr memReg, const llvm::Type &ty,
+                        uint32_t align) {
     assert(ptr);
     Expr mem = m_ctx.read(memReg);
     Expr res = op::array::select(mem, ptr);
@@ -203,12 +255,12 @@ public:
     return res;
   }
 
-  Expr storeValueToMem(Expr _val, PtrTy ptr,
-                       Expr memReadReg, Expr memWriteReg,
+  Expr storeValueToMem(Expr _val, PtrTy ptr, Expr memReadReg, Expr memWriteReg,
                        const llvm::Type &ty, uint32_t align) {
     assert(ptr);
     Expr val = _val;
-    if (ty.isIntegerTy(1)) val = m_sem.boolToBv(val);
+    if (ty.isIntegerTy(1))
+      val = m_sem.boolToBv(val);
     if (m_sem.sizeInBits(ty) < ptrSz())
       val = bv::zext(val, ptrSz());
 
@@ -220,7 +272,6 @@ public:
       llvm_unreachable(nullptr);
     }
 
-
     Expr mem = m_ctx.read(memReadReg);
 
     Expr res = op::array::store(mem, ptr, val);
@@ -228,25 +279,38 @@ public:
     return res;
   }
 
-
   void onFunctionEntry(const Function &fn) {
-    Expr res = m_ctx.read(m_stackPtr);
+    Expr res = m_ctx.read(m_sp0);
 
     // XXX hard coded values
     // align of 4
-    m_ctx.addDef(bv::bvnum(0, 2, m_efac),
-                 bv::extract(2-1, 0, res));
+    m_ctx.addDef(bv::bvnum(0, 2, m_efac), bv::extract(2 - 1, 0, res));
     // 3GB upper limit
     m_ctx.addSide(mk<BULE>(res, bv::bvnum(0xC0000000, ptrSz(), m_efac)));
     // 9MB stack
-    m_ctx.addSide(mk<BUGE>(res,
-                           bv::bvnum(0xC0000000 - 9437184, ptrSz(), m_efac)));
+    m_ctx.addSide(
+        mk<BUGE>(res, bv::bvnum(0xC0000000 - 9437184, ptrSz(), m_efac)));
   }
 
-  void onModuleEntry(const Module &M) {
+  void onModuleEntry(const Module &M) {}
 
+  void dumpGlobalsMap() {
+    errs() << "Functions: \n";
+    if (m_funcs.empty())
+      errs() << "NONE\n";
+    for (auto &fi : m_funcs) {
+      errs() << llvm::format_hex(fi.m_start, 16, true) << " @"
+             << fi.m_fn->getName() << "\n";
+    }
+
+    errs() << "Globals: \n";
+    if (m_globals.empty())
+      errs() << "NONE\n";
+    for (auto &gi : m_globals) {
+      errs() << llvm::format_hex(gi.m_start, 16, true) << " @"
+             << gi.m_gv->getName();
+    }
   }
-
 };
 
 struct OpSemBase {
@@ -318,8 +382,8 @@ struct OpSemBase {
   }
 
   /// convert bv1 to bool
-  Expr bvToBool(Expr bv) {return m_sem.bvToBool(bv);}
-  Expr boolToBv(Expr b) {return m_sem.boolToBv(b);}
+  Expr bvToBool(Expr bv) { return m_sem.bvToBool(bv); }
+  Expr boolToBv(Expr b) { return m_sem.boolToBv(b); }
 
   void setValue(const Value &v, Expr e) {
     Expr symReg = symb(v);
@@ -469,7 +533,6 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
   void visitAllocaInst(AllocaInst &I) {
     Type *ty = I.getType()->getElementType();
     unsigned typeSz = (size_t)m_sem.m_td->getTypeAllocSize(ty);
-
 
     Expr addr;
     if (const Constant *cv = dyn_cast<const Constant>(I.getOperand(0))) {
@@ -1194,8 +1257,9 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
 
     Expr v = lookup(val);
     Expr res;
-    if (v && ctx.isMemScalar() ) {
-      if (val.getType()->isIntegerTy(1)) v = boolToBv(v);
+    if (v && ctx.isMemScalar()) {
+      if (val.getType()->isIntegerTy(1))
+        v = boolToBv(v);
       res = v;
       ctx.write(ctx.getMemWriteRegister(), res);
     } else {
@@ -1265,11 +1329,27 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
   void visitModule(Module &M) {
     m_ctx.onModuleEntry(M);
 
+    for (const Function &fn : M.functions()) {
+      if (fn.hasAddressTaken()) {
+        // XXX hard-coded. should be based on use
+        // XXX some functions have their address taken for llvm.used
+        if (fn.getName().equals("verifier.error") ||
+            fn.getName().startswith("verifier.assume") ||
+            fn.getName().equals("seahorn.fail") ||
+            fn.getName().startswith("shadow.mem"))
+          continue;
+        Expr symReg = symb(fn);
+        assert(symReg);
+        m_ctx.write(symReg, m_ctx.getMemManager()->falloc(fn));
+      }
+    }
+
     for (const GlobalVariable &gv : M.globals()) {
-      if (m_sem.isSkipped(gv)) continue;
+      if (m_sem.isSkipped(gv))
+        continue;
       if (gv.getSection().equals("llvm.metadata")) {
         LOG("opsem", errs() << "Skipping llvm.metadata global: " << gv.getName()
-            << "\n";);
+                            << "\n";);
         continue;
       }
       Expr symReg = symb(gv);
@@ -1277,12 +1357,7 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
       m_ctx.write(symReg, m_ctx.getMemManager()->galloc(gv));
     }
 
-    for (const Function &fn : M.functions()) {
-      if (!fn.hasAddressTaken()) continue;
-      Expr symReg = symb(fn);
-      assert(symReg);
-      m_ctx.write(symReg, m_ctx.getMemManager()->falloc(fn));
-    }
+    LOG("opsem", m_ctx.getMemManager()->dumpGlobalsMap());
   }
 
   void visitBasicBlock(BasicBlock &BB) {
@@ -1333,9 +1408,9 @@ struct OpSemPhiVisitor : public InstVisitor<OpSemPhiVisitor>, OpSemBase {
 } // namespace seahorn
 
 namespace seahorn {
-OpSemContext::OpSemContext(SymStore &values, ExprVector &side) :
-  m_func(nullptr), m_bb(nullptr), m_inst(nullptr),
-  m_values(values), m_side(side), m_prev(nullptr), m_scalar(false) {}
+OpSemContext::OpSemContext(SymStore &values, ExprVector &side)
+    : m_func(nullptr), m_bb(nullptr), m_inst(nullptr), m_values(values),
+      m_side(side), m_prev(nullptr), m_scalar(false) {}
 
 OpSemContext::~OpSemContext() {}
 void OpSemContext::setMemManager(bvop_details::OpSemMemManager *man) {
@@ -1348,14 +1423,12 @@ Expr OpSemContext::loadValueFromMem(Expr ptr, const llvm::Type &ty,
   return m_memManager->loadValueFromMem(ptr, getMemReadRegister(), ty, align);
 }
 
-Expr OpSemContext::storeValueToMem(Expr val, Expr ptr,
-                                   const llvm::Type &ty, uint32_t align) {
+Expr OpSemContext::storeValueToMem(Expr val, Expr ptr, const llvm::Type &ty,
+                                   uint32_t align) {
   assert(getMemReadRegister());
   assert(getMemWriteRegister());
-  return m_memManager->storeValueToMem(val, ptr,
-                                       getMemReadRegister(),
-                                       getMemWriteRegister(),
-                                       ty, align);
+  return m_memManager->storeValueToMem(val, ptr, getMemReadRegister(),
+                                       getMemWriteRegister(), ty, align);
 }
 
 void OpSemContext::onFunctionEntry(const Function &fn) {
@@ -1365,19 +1438,16 @@ void OpSemContext::onModuleEntry(const Module &M) {
   return m_memManager->onModuleEntry(M);
 }
 
-void OpSemContext::declareRegister(Expr v) {
-  m_registers.insert(v);
-}
-bool OpSemContext::isKnownRegister(Expr v) {
-  return m_registers.count(v);
-}
+void OpSemContext::declareRegister(Expr v) { m_registers.insert(v); }
+bool OpSemContext::isKnownRegister(Expr v) { return m_registers.count(v); }
 
 Bv2OpSem::Bv2OpSem(ExprFactory &efac, Pass &pass, const DataLayout &dl,
                    TrackLevel trackLvl)
     : OpSem(efac), m_pass(pass), m_trackLvl(trackLvl), m_td(&dl) {
   m_canFail = pass.getAnalysisIfAvailable<CanFail>();
-  auto *p =  pass.getAnalysisIfAvailable<TargetLibraryInfoWrapperPass>();
-  if (p) m_tli = &p->getTLI();
+  auto *p = pass.getAnalysisIfAvailable<TargetLibraryInfoWrapperPass>();
+  if (p)
+    m_tli = &p->getTLI();
 
   trueE = mk<TRUE>(m_efac);
   falseE = mk<FALSE>(m_efac);
@@ -1405,10 +1475,8 @@ Bv2OpSem::Bv2OpSem(ExprFactory &efac, Pass &pass, const DataLayout &dl,
   }
   maxPtrE = bv::bvnum(val, pointerSizeInBits(), m_efac);
 
-
   // -- hack to get ENode::dump() to compile by forcing a use
   LOG("dump.debug", trueE->dump(););
-
 }
 
 Expr Bv2OpSem::boolToBv(Expr b) {
@@ -1556,7 +1624,8 @@ bool Bv2OpSem::isSymReg(Expr v, OpSemContext &C) {
   if (this->OpSem::isSymReg(v))
     return true;
 
-  if (C.isKnownRegister(v)) return true;
+  if (C.isKnownRegister(v))
+    return true;
 
   // TODO: memStart and memEnd
 
@@ -2231,13 +2300,12 @@ Optional<GenericValue> Bv2OpSem::getConstantValue(const Constant *C) {
     if (isa<ConstantPointerNull>(C))
       Result.PointerVal = nullptr;
     else if (const Function *F = dyn_cast<Function>(C))
-      /// XXX TODO
-      // Result = PTOGV(getPointerToFunctionOrStub(const_cast<Function*>(F)));
+      // TODO:
+      // Result = PTOGV((void*)ctx.getPtrToFunction(*F));
       return llvm::None;
     else if (const GlobalVariable *GV = dyn_cast<GlobalVariable>(C))
-      // XXX TODO
-      // Result =
-      // PTOGV(getOrEmitGlobalVariable(const_cast<GlobalVariable*>(GV)));
+      // TODO:
+      // Result = PTOGV((void*)ctx.getPtrToGlobal(*GV));
       return llvm::None;
     else
       llvm_unreachable("Unknown constant pointer type!");

@@ -64,7 +64,97 @@ static bool isShadowMem(const Value &V, const Value **out) {
 }
 
 namespace seahorn {
+
+
 namespace bvop_details {
+
+/// \brief Memory manager for OpSem machine
+class OpSemMemManager {
+
+  struct AllocInfo {
+    unsigned m_id;
+    unsigned m_start;
+    unsigned m_end;
+    unsigned m_sz;
+
+    AllocInfo(unsigned id, unsigned start, unsigned end, unsigned sz) :
+      m_id(id), m_start(start), m_end(end), m_sz(sz) {}
+  };
+
+
+  Bv2OpSem &m_sem;
+  OpSemContext &m_ctx;
+  ExprFactory &m_efac;
+
+  unsigned m_wordSz;
+  unsigned m_alignment;
+
+  Expr m_sp0;
+  std::vector<AllocInfo> m_allocas;
+
+  unsigned m_id;
+
+
+public:
+  OpSemMemManager(Bv2OpSem &sem, OpSemContext &ctx)
+    : m_sem(sem), m_ctx(ctx), m_efac(ctx.getExprFactory()),
+      m_wordSz(4), m_alignment(2),
+      m_sp0(bind::boolConst (mkTerm<std::string> ("sea.sp0", m_efac))),
+      m_id(0)
+    {}
+
+
+  using PtrTy = Expr;
+
+  PtrTy getStackPtr() {return m_sp0;}
+
+  unsigned ptrSz() {return m_wordSz*8;}
+
+  PtrTy mkAlignedPtr(Expr name, unsigned align) {
+    return bv::concat(bv::bvConst(name, ptrSz() - align),
+                      bv::bvnum(0, align, m_efac));
+  }
+
+  PtrTy freshPtr() {
+    Expr name = mkTerm<std::string>("sea.ptr." + std::to_string(m_id++), m_efac);
+    return mkAlignedPtr(name, m_alignment);
+  }
+
+  PtrTy salloc(unsigned bytes, unsigned align = 0) {
+    assert(align == 0 && "Alignment not implemented");
+
+    unsigned start = m_allocas.empty() ? 0 : m_allocas.back().m_end;
+    m_allocas.emplace_back(m_allocas.size() + 1, start, start + bytes, bytes);
+
+    Expr name = mkTerm<std::string>("sea.alloca." +
+                                    std::to_string(m_allocas.back().m_id),
+                                    m_efac);
+    return mkAlignedPtr(name, m_alignment);
+  }
+
+  PtrTy salloc(Expr bytes, unsigned align = 0) {
+    return freshPtr();
+  }
+
+  PtrTy halloc(unsigned bytes, unsigned align = 0) {
+    return freshPtr();
+  }
+
+  PtrTy halloc(Expr bytes, unsigned align = 0) {
+    return freshPtr();
+  }
+
+  PtrTy galloc(unsigned bytes, unsigned align = 0) {
+    return freshPtr();
+  }
+
+  PtrTy galloc(Expr bytes, unsigned align = 0) {
+    return freshPtr();
+  }
+
+
+};
+
 struct OpSemBase {
   OpSemContext &m_ctx;
   SymStore &m_s;
@@ -294,10 +384,11 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
 
   void visitFCmpInst(FCmpInst &I) { llvm_unreachable(nullptr); }
 
-  void visitAllocaInst_wip(AllocaInst &I) {
+  void visitAllocaInst(AllocaInst &I) {
     Type *ty = I.getType()->getElementType();
     unsigned typeSz = (size_t)m_sem.m_td->getTypeAllocSize(ty);
 
+    Expr addr;
     if (const Constant *cv = dyn_cast<const Constant>(I.getOperand(0))) {
       auto ogv = m_sem.getConstantValue(cv);
       if (!ogv.hasValue()) {
@@ -306,18 +397,16 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
       unsigned nElts = ogv.getValue().IntVal.getZExtValue();
       unsigned memSz = typeSz * nElts;
       LOG("opsem", errs() << "Alloca of " << memSz << " bytes: " << I << "\n";);
+      addr = m_ctx.getMemManager()->salloc(memSz);
     } else {
       Expr nElts = lookup(*I.getOperand(0));
       LOG("opsem", errs() << "Alloca of " << nElts << "*" << typeSz
                           << " bytes: " << I << "\n";);
+      addr = m_ctx.getMemManager()->freshPtr();
     }
 
-    // allocate new address
-    // XXX ignores allocation size
-    Expr addr = havoc(I);
-
     // -- alloca always returns a non-zero address
-    m_ctx.addSide(mk<BUGT>(addr, nullBv));
+    if (addr) m_ctx.addSide(mk<BUGT>(addr, nullBv));
     setValue(I, addr);
   }
 
@@ -992,15 +1081,6 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
     return addr && offset ? mk<BADD>(addr, offset) : Expr();
   }
 
-  void visitAllocaInst(AllocaInst &I) {
-    if (m_sem.isSkipped(I))
-      return;
-
-    Expr res = havoc(I);
-    // -- alloca always returns a non-zero address
-    m_ctx.addSide(mk<BUGT>(res, nullBv));
-  }
-
   Expr executeLoadInst(const Value &addr, unsigned alignment, const Type *ty,
                        OpSemContext &ctx) {
     Expr res;
@@ -1189,10 +1269,21 @@ struct OpSemPhiVisitor : public InstVisitor<OpSemPhiVisitor>, OpSemBase {
 } // namespace seahorn
 
 namespace seahorn {
+OpSemContext::OpSemContext(SymStore &values, ExprVector &side) :
+  m_func(nullptr), m_bb(nullptr), m_inst(nullptr),
+  m_values(values), m_side(side), m_prev(nullptr), m_scalar(false) {}
+
+OpSemContext::~OpSemContext() {}
+void OpSemContext::setMemManager(bvop_details::OpSemMemManager *man) {
+  m_memManager.reset(man);
+}
+
 Bv2OpSem::Bv2OpSem(ExprFactory &efac, Pass &pass, const DataLayout &dl,
                    TrackLevel trackLvl)
     : OpSem(efac), m_pass(pass), m_trackLvl(trackLvl), m_td(&dl) {
   m_canFail = pass.getAnalysisIfAvailable<CanFail>();
+  auto *p =  pass.getAnalysisIfAvailable<TargetLibraryInfoWrapperPass>();
+  if (p) m_tli = &p->getTLI();
 
   trueE = mk<TRUE>(m_efac);
   falseE = mk<FALSE>(m_efac);
@@ -1242,6 +1333,8 @@ void Bv2OpSem::exec(SymStore &s, const BasicBlock &bb, ExprVector &side,
   OpSemContext C(s, side);
   C.update_bb(bb);
   C.m_act = act;
+
+  C.setMemManager(new bvop_details::OpSemMemManager(*this, C));
 
   // XXX this needs to be revised
   // do the setup necessary for a basic block

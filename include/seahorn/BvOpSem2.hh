@@ -1,6 +1,7 @@
 #pragma once
 
 #include "llvm/Pass.h"
+#include "llvm/Analysis/TargetLibraryInfo.h"
 #include "llvm/IR/DataLayout.h"
 #include "llvm/IR/GetElementPtrTypeIterator.h"
 #include "llvm/ExecutionEngine/GenericValue.h"
@@ -13,6 +14,10 @@ namespace llvm {
 
 namespace seahorn
 {
+
+  namespace bvop_details {
+    class OpSemMemManager;
+  }
 
   struct OpSemContext {
     /// currently executing function
@@ -51,9 +56,12 @@ namespace seahorn
     /// Instructions that where ignored by the semantics
     DenseSet<const Instruction*> m_ignored;
 
-    OpSemContext(SymStore &values, ExprVector &side) :
-      m_func(nullptr), m_bb(nullptr), m_inst(nullptr),
-      m_values(values), m_side(side), m_prev(nullptr), m_scalar(false) {}
+    std::unique_ptr<bvop_details::OpSemMemManager> m_memManager;
+
+    OpSemContext(SymStore &values, ExprVector &side);
+    ~OpSemContext();
+    void setMemManager(bvop_details::OpSemMemManager *man);
+    bvop_details::OpSemMemManager* getMemManager() {return m_memManager.get();}
 
     void pushParameter(Expr v) {m_fparams.push_back(v);}
     void setParameter(unsigned idx, Expr v) {m_fparams[idx] = v;}
@@ -110,6 +118,7 @@ namespace seahorn
     TrackLevel m_trackLvl;
 
     const DataLayout *m_td;
+    const TargetLibraryInfo *m_tli;
     const CanFail *m_canFail;
 
     /// Useful constants

@@ -96,6 +96,7 @@ class OpSemMemManager {
 
   unsigned m_id;
 
+  Expr nullPtr;
 
 public:
   OpSemMemManager(Bv2OpSem &sem, OpSemContext &ctx)
@@ -103,8 +104,9 @@ public:
       m_wordSz(4), m_alignment(m_wordSz),
       m_allocaName(mkTerm<std::string>("sea.alloca", m_efac)),
       m_freshPtrName(mkTerm<std::string>("sea.ptr", m_efac)),
-      m_id(0)
-    {}
+      m_id(0) {
+      nullPtr = bv::bvnum(0, ptrSz(), m_efac);
+    }
 
 
   using PtrTy = Expr;
@@ -167,6 +169,51 @@ public:
     return freshPtr();
   }
 
+  Expr loadValueFromMem(PtrTy ptr, Expr memReg,
+                        const llvm::Type &ty, uint32_t align) {
+    assert(ptr);
+    Expr mem = m_ctx.read(memReg);
+    Expr res = op::array::select(mem, ptr);
+    if (ty.isIntegerTy(1))
+      res = mk<NEQ>(res, nullPtr);
+    else if (m_sem.sizeInBits(ty) < ptrSz()) {
+      res = bv::extract(m_sem.sizeInBits(ty) - 1, 0, res);
+    }
+
+    if (m_sem.sizeInBits(ty) > ptrSz()) {
+      errs() << "Warning: fat integers not supported: "
+             << "size " << m_sem.sizeInBits(ty) << " > "
+             << "pointer size " << ptrSz() << " in load of" << ptr << "\n"
+             << "Ignored instruction.\n";
+      llvm_unreachable(nullptr);
+    }
+    return res;
+  }
+
+  Expr storeValueToMem(Expr _val, PtrTy ptr,
+                       Expr memReadReg, Expr memWriteReg,
+                       const llvm::Type &ty, uint32_t align) {
+    assert(ptr);
+    Expr val = _val;
+    if (ty.isIntegerTy(1)) val = m_sem.boolToBv(val);
+    if (m_sem.sizeInBits(ty) < ptrSz())
+      val = bv::zext(val, ptrSz());
+
+    if (m_sem.sizeInBits(ty) > ptrSz()) {
+      errs() << "Warning: fat pointers are not supported: "
+             << "size " << m_sem.sizeInBits(ty) << " > "
+             << "pointer size " << ptrSz() << " in store of " << *val
+             << " to addr " << *ptr << "\n";
+      llvm_unreachable(nullptr);
+    }
+
+
+    Expr mem = m_ctx.read(memReadReg);
+
+    Expr res = op::array::store(mem, ptr, val);
+    m_ctx.write(memWriteReg, res);
+    return res;
+  }
 
 };
 
@@ -239,20 +286,8 @@ struct OpSemBase {
   }
 
   /// convert bv1 to bool
-  Expr bvToBool(Expr bv) {
-    if (bv == trueBv)
-      return trueE;
-    if (bv == falseBv)
-      return falseE;
-    return mk<EQ>(bv, trueBv);
-  }
-  Expr boolToBv(Expr b) {
-    if (isOpX<TRUE>(b))
-      return trueBv;
-    if (isOpX<FALSE>(b))
-      return falseBv;
-    return mk<ITE>(b, trueBv, falseBv);
-  }
+  Expr bvToBool(Expr bv) {return m_sem.bvToBool(bv);}
+  Expr boolToBv(Expr b) {return m_sem.boolToBv(b);}
 
   void setValue(const Value &v, Expr e) {
     Expr symReg = symb(v);
@@ -429,7 +464,7 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
                                 I.getType(), m_ctx));
   }
   void visitStoreInst(StoreInst &I) {
-    executeStoreInst(*I.getPointerOperand(), *I.getValueOperand(),
+    executeStoreInst(*I.getValueOperand(), *I.getPointerOperand(),
                      I.getAlignment(), m_ctx);
   }
 
@@ -1106,27 +1141,14 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
       if (ty->isIntegerTy(1))
         res = bvToBool(res);
     } else if (Expr op0 = lookup(addr)) {
-      res = op::array::select(ctx.read(ctx.getMemReadRegister()), op0);
-      if (ty->isIntegerTy(1))
-        res = mk<NEQ>(res, nullBv);
-      else if (m_sem.sizeInBits(*ty) < ptrSz())
-        res = bv::extract(m_sem.sizeInBits(*ty) - 1, 0, res);
-
-      if (m_sem.sizeInBits(*ty) > ptrSz()) {
-        errs() << "WARNING: fat integers not supported: "
-               << "size " << m_sem.sizeInBits(*ty) << " > "
-               << "pointer size " << ptrSz() << " in load of" << addr << "\n"
-               << "Ignored instruction.\n";
-        llvm_unreachable(nullptr);
-      }
-      assert(m_sem.sizeInBits(*ty) <= ptrSz() && "Fat integers not supported");
+      res = ctx.loadValueFromMem(op0, *ty, alignment);
     }
 
     ctx.setMemReadRegister(Expr());
     return res;
   }
 
-  void executeStoreInst(const Value &addr, const Value &val, unsigned alignment,
+  Expr executeStoreInst(const Value &val, const Value &addr, unsigned alignment,
                         OpSemContext &ctx) {
 
     if (!ctx.getMemReadRegister() || !ctx.getMemWriteRegister() ||
@@ -1135,45 +1157,28 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
           errs() << "Skipping store to " << addr << " of " << val << "\n";);
       ctx.setMemReadRegister(Expr());
       ctx.setMemWriteRegister(Expr());
-      return;
+      return Expr();
     }
 
     Expr v = lookup(val);
-
-    if (v && val.getType()->isIntegerTy(1))
-      v = boolToBv(v);
-
-    if (ctx.isMemScalar()) {
-      if (v)
-        ctx.addDef(ctx.read(ctx.getMemWriteRegister()), v);
+    Expr res;
+    if (v && ctx.isMemScalar() ) {
+      if (val.getType()->isIntegerTy(1)) v = boolToBv(v);
+      res = v;
+      ctx.write(ctx.getMemWriteRegister(), res);
     } else {
-      if (m_sem.sizeInBits(val) < ptrSz())
-        v = bv::zext(v, ptrSz());
-
-      if (m_sem.sizeInBits(val) > ptrSz()) {
-        errs() << "WARNING: fat pointers are not supported: "
-               << "size " << m_sem.sizeInBits(val) << " > "
-               << "pointer size " << ptrSz() << " in store of " << val
-               << " to addr " << addr << "\n";
-        llvm_unreachable(nullptr);
-      }
-
-      assert(m_sem.sizeInBits(val) <= ptrSz() &&
-             "Fat pointers are not supported");
-
-      Expr idx = lookup(addr);
-      if (idx && v) {
-        ctx.addDef(
-            ctx.read(ctx.getMemWriteRegister()),
-            op::array::store(ctx.read(ctx.getMemReadRegister()), idx, v));
-      } else {
-        LOG("opsem",
-            errs() << "Skipping store to " << addr << " of " << val << "\n";);
-      }
+      Expr p = lookup(addr);
+      if (v && p)
+        res = m_ctx.storeValueToMem(v, p, *val.getType(), alignment);
     }
+
+    if (!res)
+      LOG("opsem",
+          errs() << "Skipping store to " << addr << " of " << val << "\n";);
 
     ctx.setMemReadRegister(Expr());
     ctx.setMemWriteRegister(Expr());
+    return res;
   }
 
   Expr executeBitCastInst(const Value &op, Type *ty, OpSemContext &ctx) {
@@ -1305,6 +1310,23 @@ void OpSemContext::setMemManager(bvop_details::OpSemMemManager *man) {
   m_memManager.reset(man);
 }
 
+Expr OpSemContext::loadValueFromMem(Expr ptr, const llvm::Type &ty,
+                                    uint32_t align) {
+  assert(getMemReadRegister());
+  return m_memManager->loadValueFromMem(ptr, getMemReadRegister(), ty, align);
+}
+
+Expr OpSemContext::storeValueToMem(Expr val, Expr ptr,
+                                   const llvm::Type &ty, uint32_t align) {
+  assert(getMemReadRegister());
+  assert(getMemWriteRegister());
+  return m_memManager->storeValueToMem(val, ptr,
+                                       getMemReadRegister(),
+                                       getMemWriteRegister(),
+                                       ty, align);
+}
+
+
 Bv2OpSem::Bv2OpSem(ExprFactory &efac, Pass &pass, const DataLayout &dl,
                    TrackLevel trackLvl)
     : OpSem(efac), m_pass(pass), m_trackLvl(trackLvl), m_td(&dl) {
@@ -1344,6 +1366,22 @@ Bv2OpSem::Bv2OpSem(ExprFactory &efac, Pass &pass, const DataLayout &dl,
   // -- hack to get ENode::dump() to compile by forcing a use
   LOG("dump.debug", trueE->dump(););
 
+}
+
+Expr Bv2OpSem::boolToBv(Expr b) {
+  if (isOpX<TRUE>(b))
+    return trueBv;
+  if (isOpX<FALSE>(b))
+    return falseBv;
+  return mk<ITE>(b, trueBv, falseBv);
+}
+
+Expr Bv2OpSem::bvToBool(Expr bv) {
+  if (bv == trueBv)
+    return trueE;
+  if (bv == falseBv)
+    return falseE;
+  return mk<EQ>(bv, trueBv);
 }
 
 Bv2OpSem::Bv2OpSem(const Bv2OpSem &o)

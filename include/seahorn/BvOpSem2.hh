@@ -75,6 +75,10 @@ namespace seahorn
     bool isMemScalar() {return m_scalar;}
     void setMemScalar(bool v) {m_scalar = v;}
 
+    Expr loadValueFromMem(Expr ptr, const llvm::Type &ty, uint32_t align);
+    Expr storeValueToMem(Expr val, Expr ptr,
+                         const llvm::Type &ty, uint32_t align);
+
     void addSideSafe(Expr v) { m_side.push_back(boolop::limp(m_act, v)); }
     void addSide(Expr v) {m_side.push_back(v);}
     void addDef(Expr v, Expr u) {addSide(mk<EQ>(v, u));}
@@ -229,5 +233,8 @@ namespace seahorn
     /// the semantics
     void unhandledInst(const Instruction &inst, OpSemContext &ctx);
     void unhandledValue(const Value &v, OpSemContext &ctx);
+
+    Expr boolToBv(Expr b);
+    Expr bvToBool(Expr bv);
   };
 }

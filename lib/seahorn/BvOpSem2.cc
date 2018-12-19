@@ -129,6 +129,7 @@ public:
     return mkAlignedPtr(name, m_alignment);
   }
 
+  /// \brief Allocates memory on the stack
   PtrTy salloc(unsigned bytes, uint32_t align = 0) {
 
     align = std::max(align, m_alignment);
@@ -153,23 +154,30 @@ public:
     return res;
   }
 
+  /// \brief Allocates memory on the stack
   PtrTy salloc(Expr bytes, unsigned align = 0) {
+    LOG("opsem", errs() << "Warning: unsound handling of dynamically "
+        "sized stack allocation of " << bytes << " bytes\n";);
     return freshPtr();
   }
 
+  /// \brief Allocates memory on the heap
   PtrTy halloc(unsigned bytes, unsigned align = 0) {
     return freshPtr();
   }
 
+  /// \brief Allocates memory on the heap
   PtrTy halloc(Expr bytes, unsigned align = 0) {
     return freshPtr();
   }
 
-  PtrTy galloc(unsigned bytes, unsigned align = 0) {
+  /// \brief Allocates memory in global (data/bss) segment for given global
+  PtrTy galloc(const GlobalVariable &gv, unsigned align = 0) {
     return freshPtr();
   }
 
-  PtrTy galloc(Expr bytes, unsigned align = 0) {
+  /// \brief Allocates memory in code segment for the code of a given function
+  PtrTy falloc(const Function &fn) {
     return freshPtr();
   }
 
@@ -1256,18 +1264,26 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
   void visitModule(Module &M) {
     m_ctx.onModuleEntry(M);
 
-    for (const GlobalVariable &g : M.globals()) {
-      if (m_sem.isSkipped(g)) continue;
-      if (g.getSection().equals("llvm.metadata")) {
-        LOG("opsem", errs() << "Skipping llvm.metadata global: " << g.getName()
+    for (const GlobalVariable &gv : M.globals()) {
+      if (m_sem.isSkipped(gv)) continue;
+      if (gv.getSection().equals("llvm.metadata")) {
+        LOG("opsem", errs() << "Skipping llvm.metadata global: " << gv.getName()
             << "\n";);
         continue;
       }
-      Expr symReg = symb(g);
+      Expr symReg = symb(gv);
       assert(symReg);
-      m_ctx.write(symReg, m_ctx.getMemManager()->freshPtr());
+      m_ctx.write(symReg, m_ctx.getMemManager()->galloc(gv));
+    }
+
+    for (const Function &fn : M.functions()) {
+      if (!fn.hasAddressTaken()) continue;
+      Expr symReg = symb(fn);
+      assert(symReg);
+      m_ctx.write(symReg, m_ctx.getMemManager()->falloc(fn));
     }
   }
+
   void visitBasicBlock(BasicBlock &BB) {
     Function &F = *BB.getParent();
     /// -- check if globals need to be initialized

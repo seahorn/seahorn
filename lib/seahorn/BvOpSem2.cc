@@ -96,7 +96,8 @@ class OpSemMemManager {
 
   unsigned m_id;
 
-  Expr nullPtr;
+  Expr m_nullPtr;
+  Expr m_stackPtr;
 
 public:
   OpSemMemManager(Bv2OpSem &sem, OpSemContext &ctx)
@@ -105,7 +106,10 @@ public:
       m_allocaName(mkTerm<std::string>("sea.alloca", m_efac)),
       m_freshPtrName(mkTerm<std::string>("sea.ptr", m_efac)),
       m_id(0) {
-      nullPtr = bv::bvnum(0, ptrSz(), m_efac);
+      m_nullPtr = bv::bvnum(0, ptrSz(), m_efac);
+      m_stackPtr = bv::bvConst(mkTerm<std::string>("sea.sp0", m_efac),
+                               ptrSz());
+      m_ctx.declareRegister(m_stackPtr);
     }
 
 
@@ -142,7 +146,7 @@ public:
   }
 
   PtrTy mkStackPtr(Expr name, AllocInfo &allocInfo) {
-    Expr sp0 = m_sem.stackPtr();
+    Expr sp0 = m_stackPtr;
     Expr res = m_ctx.read(sp0);
     if (allocInfo.m_start > 0)
       res = mk<BSUB>(res, bv::bvnum(allocInfo.m_start, ptrSz(), m_efac));
@@ -175,7 +179,7 @@ public:
     Expr mem = m_ctx.read(memReg);
     Expr res = op::array::select(mem, ptr);
     if (ty.isIntegerTy(1))
-      res = mk<NEQ>(res, nullPtr);
+      res = mk<NEQ>(res, m_nullPtr);
     else if (m_sem.sizeInBits(ty) < ptrSz()) {
       res = bv::extract(m_sem.sizeInBits(ty) - 1, 0, res);
     }
@@ -213,6 +217,25 @@ public:
     Expr res = op::array::store(mem, ptr, val);
     m_ctx.write(memWriteReg, res);
     return res;
+  }
+
+
+  void onFunctionEntry(const Function &fn) {
+    Expr res = m_ctx.read(m_stackPtr);
+
+    // XXX hard coded values
+    // align of 4
+    m_ctx.addDef(bv::bvnum(0, 2, m_efac),
+                 bv::extract(2-1, 0, res));
+    // 3GB upper limit
+    m_ctx.addSide(mk<BULE>(res, bv::bvnum(0xC0000000, ptrSz(), m_efac)));
+    // 9MB stack
+    m_ctx.addSide(mk<BUGE>(res,
+                           bv::bvnum(0xC0000000 - 9437184, ptrSz(), m_efac)));
+  }
+
+  void onModuleEntry(const Module &M) {
+
   }
 
 };
@@ -1228,42 +1251,34 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
       return;
 
     const Module &M = *F.getParent();
+  }
+
+  void visitModule(Module &M) {
+    m_ctx.onModuleEntry(M);
+
     for (const GlobalVariable &g : M.globals()) {
-      if (m_sem.isSkipped(g))
-        continue;
+      if (m_sem.isSkipped(g)) continue;
       if (g.getSection().equals("llvm.metadata")) {
         LOG("opsem", errs() << "Skipping llvm.metadata global: " << g.getName()
-                            << "\n";);
+            << "\n";);
         continue;
       }
       Expr symReg = symb(g);
       assert(symReg);
-      Expr val = m_ctx.m_values.havoc(symReg);
-      if (InferMemSafety2)
-        // globals are non-null
-        m_ctx.addSide(mk<BUGT>(val, nullBv));
+      m_ctx.write(symReg, m_ctx.getMemManager()->freshPtr());
     }
   }
-
   void visitBasicBlock(BasicBlock &BB) {
+    Function &F = *BB.getParent();
     /// -- check if globals need to be initialized
-    initGlobals(BB);
+    if (&F.getEntryBlock() == &BB) {
+      if (F.getName().equals("main"))
+        visitModule(*F.getParent());
+      m_ctx.onFunctionEntry(*BB.getParent());
+    }
 
     // read the error flag to make it live
     m_ctx.read(m_sem.errorFlag(BB));
-
-    if (&BB.getParent()->getEntryBlock() == &BB) {
-      // XXX This should be part of memory manager
-      Expr res = m_ctx.read(m_sem.stackPtr());
-      // XXX hard code alignment of 4
-      m_ctx.addDef(bv::bvnum(0, 2, m_efac),
-                   bv::extract(2-1, 0, res));
-      // 3GB upper limit
-      m_ctx.addSide(mk<BULE>(res, bv::bvnum(0xC0000000, ptrSz(), m_efac)));
-      // 9MB stack
-      m_ctx.addSide(mk<BUGE>(res,
-                             bv::bvnum(0xC0000000 - 9437184, ptrSz(), m_efac)));
-    }
   }
 }; // namespace bvop_details
 
@@ -1326,6 +1341,19 @@ Expr OpSemContext::storeValueToMem(Expr val, Expr ptr,
                                        ty, align);
 }
 
+void OpSemContext::onFunctionEntry(const Function &fn) {
+  m_memManager->onFunctionEntry(fn);
+}
+void OpSemContext::onModuleEntry(const Module &M) {
+  return m_memManager->onModuleEntry(M);
+}
+
+void OpSemContext::declareRegister(Expr v) {
+  m_registers.insert(v);
+}
+bool OpSemContext::isKnownRegister(Expr v) {
+  return m_registers.count(v);
+}
 
 Bv2OpSem::Bv2OpSem(ExprFactory &efac, Pass &pass, const DataLayout &dl,
                    TrackLevel trackLvl)
@@ -1360,8 +1388,6 @@ Bv2OpSem::Bv2OpSem(ExprFactory &efac, Pass &pass, const DataLayout &dl,
   }
   maxPtrE = bv::bvnum(val, pointerSizeInBits(), m_efac);
 
-  m_stackPtr = bv::bvConst(mkTerm<std::string>("sea.sp0", m_efac),
-                           pointerSizeInBits());
 
   // -- hack to get ENode::dump() to compile by forcing a use
   LOG("dump.debug", trueE->dump(););
@@ -1399,7 +1425,7 @@ Expr Bv2OpSem::errorFlag(const BasicBlock &BB) {
 void Bv2OpSem::exec(SymStore &s, const BasicBlock &bb, ExprVector &side,
                     Expr act) {
   OpSemContext C(s, side);
-  C.update_bb(bb);
+  C.onBasicBlockEntry(bb);
   C.m_act = act;
 
   C.setMemManager(new bvop_details::OpSemMemManager(*this, C));
@@ -1420,7 +1446,7 @@ void Bv2OpSem::exec(SymStore &s, const BasicBlock &bb, ExprVector &side,
 
 void Bv2OpSem::exec(SymStore &s, const Instruction &inst, ExprVector &side) {
   OpSemContext C(s, side);
-  C.update_bb(*(inst.getParent()));
+  C.onBasicBlockEntry(*(inst.getParent()));
   C.m_inst = BasicBlock::const_iterator(&inst);
   intraStep(C);
   // OpSemVisitor v(s, *this, side);
@@ -1430,7 +1456,7 @@ void Bv2OpSem::exec(SymStore &s, const Instruction &inst, ExprVector &side) {
 void Bv2OpSem::execPhi(SymStore &s, const BasicBlock &bb,
                        const BasicBlock &from, ExprVector &side, Expr act) {
   OpSemContext C(s, side);
-  C.update_bb(bb);
+  C.onBasicBlockEntry(bb);
   C.m_act = act;
   C.m_prev = &from;
   intraPhi(C);
@@ -1505,15 +1531,15 @@ unsigned Bv2OpSem::fieldOff(const StructType *t, unsigned field) const {
 Expr Bv2OpSem::getOperandValue(const Value &v, OpSemContext &ctx) {
   Expr symVal = symb(v);
   if (symVal)
-    return isSymReg(symVal) ? ctx.read(symVal) : symVal;
+    return isSymReg(symVal, ctx) ? ctx.read(symVal) : symVal;
   return Expr(0);
 }
 
-bool Bv2OpSem::isSymReg(Expr v) {
+bool Bv2OpSem::isSymReg(Expr v, OpSemContext &C) {
   if (this->OpSem::isSymReg(v))
     return true;
 
-  if (v == m_stackPtr) return true;
+  if (C.isKnownRegister(v)) return true;
 
   // TODO: memStart and memEnd
 
@@ -1716,7 +1742,7 @@ void Bv2OpSem::execEdg(SymStore &s, const BasicBlock &src,
 void Bv2OpSem::execBr(SymStore &s, const BasicBlock &src, const BasicBlock &dst,
                       ExprVector &side, Expr act) {
   OpSemContext C(s, side);
-  C.update_bb(src);
+  C.onBasicBlockEntry(src);
   C.m_inst = BasicBlock::const_iterator(src.getTerminator());
   C.m_act = act;
   intraBr(C, dst);
@@ -1787,14 +1813,14 @@ void Bv2OpSem::intraBr(OpSemContext &C, const BasicBlock &dst) {
       Expr cond = br->getSuccessor(0) == &dst ? target : mk<NEG>(target);
       cond = boolop::lor(C.read(errorFlag(*C.m_bb)), cond);
       C.addSideSafe(cond);
-      C.update_bb(dst);
+      C.onBasicBlockEntry(dst);
     }
   } else {
     if (br->getSuccessor(0) != &dst) {
       C.resetSide();
       C.addSideSafe(C.read(errorFlag(*C.m_bb)));
     } else {
-      C.update_bb(dst);
+      C.onBasicBlockEntry(dst);
     }
   }
 }

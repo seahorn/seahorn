@@ -8,6 +8,8 @@
 #include "seahorn/OpSem.hh"
 #include "seahorn/Analysis/CanFail.hh"
 
+#include<boost/container/flat_set.hpp>
+
 namespace llvm {
   class GetElementPtrInst;
 }
@@ -56,6 +58,9 @@ namespace seahorn
     /// Instructions that where ignored by the semantics
     DenseSet<const Instruction*> m_ignored;
 
+    /// \brief Declared symbolic registers
+    boost::container::flat_set<Expr> m_registers;
+
     std::unique_ptr<bvop_details::OpSemMemManager> m_memManager;
 
     OpSemContext(SymStore &values, ExprVector &side);
@@ -89,13 +94,26 @@ namespace seahorn
     void write(Expr v, Expr u) {m_values.write(v, u);}
 
     ExprFactory &getExprFactory() const {return m_values.getExprFactory();}
-    void update_bb(const BasicBlock &bb) {
+
+    /// \brief Called when a module is entered
+    void onModuleEntry(const Module &M);
+    /// \brief Called when a function is entered
+    void onFunctionEntry(const Function &fn);
+    /// \brief Called when a function returns
+    void onFunctionExit(const Function &fn) {/* nothing */}
+
+    /// \brief Call when a basic block is entered
+    void onBasicBlockEntry(const BasicBlock &bb) {
       if (!m_func) m_func = bb.getParent();
       assert(m_func == bb.getParent());
       if (m_bb) m_prev = m_bb;
       m_bb = &bb;
       m_inst = bb.begin();
     }
+
+    void declareRegister(Expr v);
+    bool isKnownRegister(Expr v);
+
   };
 
   namespace bvop_details {
@@ -136,8 +154,6 @@ namespace seahorn
     /// MAX_PTR value
     Expr maxPtrE;
 
-    Expr m_stackPtr;
-
     /// Evaluates constant expression into a value
     Optional<GenericValue> getConstantValue(const Constant *C);
 
@@ -147,7 +163,6 @@ namespace seahorn
 
     Bv2OpSem (const Bv2OpSem& o);
 
-    Expr stackPtr() {return m_stackPtr;}
     /// \brief Executes one intra-procedural instructions in the
     /// current context Assumes that current instruction is not a
     /// branch Returns true if instruction was executed and false if
@@ -211,7 +226,8 @@ namespace seahorn
     Expr memEnd(unsigned id) override;
 
     /// \brief Returns true if the given expression is a symbolic register
-    bool isSymReg(Expr v) override;
+    bool isSymReg(Expr v) override {llvm_unreachable(nullptr);}
+    bool isSymReg(Expr v, OpSemContext &ctx);
 
     Expr getOperandValue(const Value &v, OpSemContext &ctx);
     Expr lookup (SymStore &s, const Value &v) {llvm_unreachable(nullptr);}

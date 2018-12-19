@@ -121,6 +121,11 @@ class OpSemMemManager {
   /// function entry
   Expr m_sp0;
 
+// TODO: turn into user-controlled parameters
+#define MAX_STACK_ADDR 0xC0000000
+#define MIN_STACK_ADDR (MAX_STACK_ADDR - 9437184)
+#define TEXT_SEGMENT_START 0x08048000
+
 public:
   OpSemMemManager(Bv2OpSem &sem, OpSemContext &ctx)
       : m_sem(sem), m_ctx(ctx), m_efac(ctx.getExprFactory()), m_wordSz(4),
@@ -179,11 +184,42 @@ public:
     return freshPtr();
   }
 
-  /// \brief Allocates memory on the heap
-  PtrTy halloc(unsigned bytes, unsigned align = 0) { return freshPtr(); }
+  /// \brief Address at which heap starts (initial value of brk)
+  unsigned brk0Addr() {
+    if (!m_globals.empty())
+      return m_globals.back().m_end;
+    if (!m_funcs.empty())
+      return m_funcs.back().m_end;
+    return TEXT_SEGMENT_START;
+  }
+
+  /// \brief Pointer to start of the heap
+  PtrTy brk0Ptr() { return bv::bvnum(brk0Addr(), ptrSz(), m_efac); }
 
   /// \brief Allocates memory on the heap
-  PtrTy halloc(Expr bytes, unsigned align = 0) { return freshPtr(); }
+  PtrTy halloc(unsigned _bytes, unsigned align = 0) {
+    Expr res = freshPtr();
+
+    unsigned bytes = llvm::alignTo(_bytes, std::max(align, m_alignment));
+
+    // -- pointer is in the heap: between brk at the beginning and end of stack
+    m_ctx.addSide(
+        mk<BULT>(res, bv::bvnum(MIN_STACK_ADDR - bytes, ptrSz(), m_efac)));
+    m_ctx.addSide(mk<BUGT>(res, brk0Ptr()));
+    return res;
+  }
+
+  /// \brief Allocates memory on the heap
+  PtrTy halloc(Expr bytes, unsigned align = 0) {
+    Expr res = freshPtr();
+
+    // -- pointer is in the heap: between brk at the beginning and end of stack
+    m_ctx.addSide(mk<BULT>(res, bv::bvnum(MIN_STACK_ADDR, ptrSz(), m_efac)));
+    m_ctx.addSide(mk<BUGT>(res, brk0Ptr()));
+    // TODO: take size of pointer into account,
+    // it cannot be that close to the stack
+    return res;
+  }
 
   /// \brief Allocates memory in global (data/bss) segment for given global
   PtrTy galloc(const GlobalVariable &gv, unsigned align = 0) {
@@ -192,7 +228,7 @@ public:
     unsigned start =
         !m_globals.empty()
             ? m_globals.back().m_end
-            : (m_funcs.empty() ? 0x08048000 : m_funcs.back().m_end);
+            : (m_funcs.empty() ? TEXT_SEGMENT_START : m_funcs.back().m_end);
 
     start = llvm::alignTo(start, m_alignment);
     unsigned end = llvm::alignTo(start + gvSz, m_alignment);
@@ -286,10 +322,9 @@ public:
     // align of 4
     m_ctx.addDef(bv::bvnum(0, 2, m_efac), bv::extract(2 - 1, 0, res));
     // 3GB upper limit
-    m_ctx.addSide(mk<BULE>(res, bv::bvnum(0xC0000000, ptrSz(), m_efac)));
+    m_ctx.addSide(mk<BULE>(res, bv::bvnum(MIN_STACK_ADDR, ptrSz(), m_efac)));
     // 9MB stack
-    m_ctx.addSide(
-        mk<BUGE>(res, bv::bvnum(0xC0000000 - 9437184, ptrSz(), m_efac)));
+    m_ctx.addSide(mk<BUGE>(res, bv::bvnum(MAX_STACK_ADDR, ptrSz(), m_efac)));
   }
 
   void onModuleEntry(const Module &M) {}

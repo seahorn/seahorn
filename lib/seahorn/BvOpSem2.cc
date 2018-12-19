@@ -6,6 +6,7 @@
 
 #include "ufo/ufo_iterators.hpp"
 #include "llvm/Support/CommandLine.h"
+#include "llvm/Support/MathExtras.h"
 
 using namespace seahorn;
 using namespace llvm;
@@ -86,10 +87,11 @@ class OpSemMemManager {
   OpSemContext &m_ctx;
   ExprFactory &m_efac;
 
-  unsigned m_wordSz;
-  unsigned m_alignment;
+  uint32_t m_wordSz;
+  uint32_t m_alignment;
 
-  Expr m_sp0;
+  Expr m_allocaName;
+  Expr m_freshPtrName;
   std::vector<AllocInfo> m_allocas;
 
   unsigned m_id;
@@ -98,38 +100,51 @@ class OpSemMemManager {
 public:
   OpSemMemManager(Bv2OpSem &sem, OpSemContext &ctx)
     : m_sem(sem), m_ctx(ctx), m_efac(ctx.getExprFactory()),
-      m_wordSz(4), m_alignment(2),
-      m_sp0(bind::boolConst (mkTerm<std::string> ("sea.sp0", m_efac))),
+      m_wordSz(4), m_alignment(m_wordSz),
+      m_allocaName(mkTerm<std::string>("sea.alloca", m_efac)),
+      m_freshPtrName(mkTerm<std::string>("sea.ptr", m_efac)),
       m_id(0)
     {}
 
 
   using PtrTy = Expr;
 
-  PtrTy getStackPtr() {return m_sp0;}
 
   unsigned ptrSz() {return m_wordSz*8;}
 
-  PtrTy mkAlignedPtr(Expr name, unsigned align) {
-    return bv::concat(bv::bvConst(name, ptrSz() - align),
-                      bv::bvnum(0, align, m_efac));
+  PtrTy mkAlignedPtr(Expr name, uint32_t align) {
+    unsigned alignBits = llvm::Log2_32(align);
+    return bv::concat(bv::bvConst(name, ptrSz() - alignBits),
+                      bv::bvnum(0, alignBits, m_efac));
   }
 
   PtrTy freshPtr() {
-    Expr name = mkTerm<std::string>("sea.ptr." + std::to_string(m_id++), m_efac);
+    Expr name = op::variant::variant(m_id++, m_freshPtrName);
     return mkAlignedPtr(name, m_alignment);
   }
 
-  PtrTy salloc(unsigned bytes, unsigned align = 0) {
-    assert(align == 0 && "Alignment not implemented");
+  PtrTy salloc(unsigned bytes, uint32_t align = 0) {
 
+    align = std::max(align, m_alignment);
     unsigned start = m_allocas.empty() ? 0 : m_allocas.back().m_end;
-    m_allocas.emplace_back(m_allocas.size() + 1, start, start + bytes, bytes);
+    start = llvm::alignTo(start, align);
 
-    Expr name = mkTerm<std::string>("sea.alloca." +
-                                    std::to_string(m_allocas.back().m_id),
-                                    m_efac);
-    return mkAlignedPtr(name, m_alignment);
+    unsigned end = start + bytes;
+    end = llvm::alignTo(end, align);
+
+    m_allocas.emplace_back(m_allocas.size() + 1, start, end, bytes);
+
+    Expr name = op::variant::variant(m_allocas.back().m_id, m_allocaName);
+
+    return mkStackPtr(name, m_allocas.back());
+  }
+
+  PtrTy mkStackPtr(Expr name, AllocInfo &allocInfo) {
+    Expr sp0 = m_sem.stackPtr();
+    Expr res = m_ctx.read(sp0);
+    if (allocInfo.m_start > 0)
+      res = mk<BSUB>(res, bv::bvnum(allocInfo.m_start, ptrSz(), m_efac));
+    return res;
   }
 
   PtrTy salloc(Expr bytes, unsigned align = 0) {
@@ -388,6 +403,7 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
     Type *ty = I.getType()->getElementType();
     unsigned typeSz = (size_t)m_sem.m_td->getTypeAllocSize(ty);
 
+
     Expr addr;
     if (const Constant *cv = dyn_cast<const Constant>(I.getOperand(0))) {
       auto ogv = m_sem.getConstantValue(cv);
@@ -405,8 +421,6 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
       addr = m_ctx.getMemManager()->freshPtr();
     }
 
-    // -- alloca always returns a non-zero address
-    if (addr) m_ctx.addSide(mk<BUGT>(addr, nullBv));
     setValue(I, addr);
   }
 
@@ -1232,6 +1246,19 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
 
     // read the error flag to make it live
     m_ctx.read(m_sem.errorFlag(BB));
+
+    if (&BB.getParent()->getEntryBlock() == &BB) {
+      // XXX This should be part of memory manager
+      Expr res = m_ctx.read(m_sem.stackPtr());
+      // XXX hard code alignment of 4
+      m_ctx.addDef(bv::bvnum(0, 2, m_efac),
+                   bv::extract(2-1, 0, res));
+      // 3GB upper limit
+      m_ctx.addSide(mk<BULE>(res, bv::bvnum(0xC0000000, ptrSz(), m_efac)));
+      // 9MB stack
+      m_ctx.addSide(mk<BUGE>(res,
+                             bv::bvnum(0xC0000000 - 9437184, ptrSz(), m_efac)));
+    }
   }
 }; // namespace bvop_details
 
@@ -1310,6 +1337,9 @@ Bv2OpSem::Bv2OpSem(ExprFactory &efac, Pass &pass, const DataLayout &dl,
     llvm_unreachable("Unexpected pointer size");
   }
   maxPtrE = bv::bvnum(val, pointerSizeInBits(), m_efac);
+
+  m_stackPtr = bv::bvConst(mkTerm<std::string>("sea.sp0", m_efac),
+                           pointerSizeInBits());
 
   // -- hack to get ENode::dump() to compile by forcing a use
   LOG("dump.debug", trueE->dump(););
@@ -1444,6 +1474,9 @@ Expr Bv2OpSem::getOperandValue(const Value &v, OpSemContext &ctx) {
 bool Bv2OpSem::isSymReg(Expr v) {
   if (this->OpSem::isSymReg(v))
     return true;
+
+  if (v == m_stackPtr) return true;
+
   // TODO: memStart and memEnd
 
   // a symbolic register is any expression that resolves to an

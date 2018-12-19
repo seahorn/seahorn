@@ -132,6 +132,7 @@ namespace seahorn
     /// MAX_PTR value
     Expr maxPtrE;
 
+    Expr m_stackPtr;
 
     /// Evaluates constant expression into a value
     Optional<GenericValue> getConstantValue(const Constant *C);
@@ -142,6 +143,7 @@ namespace seahorn
 
     Bv2OpSem (const Bv2OpSem& o);
 
+    Expr stackPtr() {return m_stackPtr;}
     /// \brief Executes one intra-procedural instructions in the
     /// current context Assumes that current instruction is not a
     /// branch Returns true if instruction was executed and false if

@@ -12,7 +12,7 @@
 #include "seahorn/Support/Stats.hh"
 
 #include "seahorn/Analysis/CanFail.hh"
-#include "seahorn/Analysis/GateAnalysis.hh"
+#include "seahorn/Analysis/ControlDependenceAnalysis.hh"
 #include "seahorn/Bmc.hh"
 #include "seahorn/BvOpSem.hh"
 #include "seahorn/BvOpSem2.hh"
@@ -90,7 +90,7 @@ public:
     AU.addRequired<seahorn::NameValues>();
     AU.addRequired<seahorn::TopologicalOrder>();
     AU.addRequired<CutPointGraph>();
-    AU.addRequired<seahorn::GateAnalysisPass>();
+    AU.addRequired<seahorn::ControlDependenceAnalysisPass>();
     AU.addRequired<TargetLibraryInfoWrapperPass>();
 
     // Crab passes are required by path-based BMC even when XHornBmcCrab is not

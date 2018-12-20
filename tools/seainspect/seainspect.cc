@@ -87,6 +87,11 @@ static llvm::cl::opt<bool>
              llvm::cl::desc("Print Gating conditions (Gated SSA / GSA)"),
              llvm::cl::init(false));
 
+static llvm::cl::opt<bool>
+    PrintCDA("print-cda",
+             llvm::cl::desc("Print Control Dependence Analysis (CDA)"),
+             llvm::cl::init(false));
+
 int main(int argc, char **argv) {
 
   llvm::llvm_shutdown_obj shutdown;  // calls llvm_shutdown() on exit
@@ -184,6 +189,9 @@ int main(int argc, char **argv) {
 
   if (PrintGSA)
     pass_manager.add(seahorn::createGateAnalysisPass());
+
+  if (PrintCDA)
+    pass_manager.add(seahorn::createControlDependenceAnalysisPass());
 
   if (!AsmOutputFilename.empty ())
     pass_manager.add (createPrintModulePass (asmOutput->os ()));

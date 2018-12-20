@@ -6,4 +6,5 @@ add_llvm_library (SeaAnalysis
   WeakTopologicalOrder.cc
   ApiAnalysisPass.cc
   CanReadUndef.cc
-  GateAnalysis.cc)
+  GateAnalysis.cc
+  ControlDependenceAnalysis.cc)

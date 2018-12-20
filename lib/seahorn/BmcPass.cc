@@ -19,6 +19,7 @@
 #include "seahorn/UfoOpSem.hh"
 // prerequisite for CrabLlvm
 #include "seahorn/Transforms/Scalar/LowerCstExpr.hh"
+#include "avy/AvyDebug.h"
 
 #ifdef HAVE_CRAB_LLVM
 #include "crab_llvm/CrabLlvm.hh"

@@ -2,12 +2,7 @@
 
 #include "llvm/IR/InstVisitor.h"
 #include "ufo/Expr.hpp"
-#include "ufo/ExprLlvm.hpp"
 #include "seahorn/SymStore.hh"
-#include "seahorn/Analysis/CutPointGraph.hh"
-
-#include "avy/AvyDebug.h"
-
 
 namespace seahorn
 {
@@ -40,7 +35,7 @@ namespace seahorn
     /// return value. NULL if the function is void or return is not tracked
     const llvm::Value* ret;
 
-    FunctionInfo () : ret(NULL) {}
+    FunctionInfo () : ret(nullptr) {}
 
     template <typename OutputIterator>
     void evalArgs (OpSem &sem, SymStore &s, OutputIterator out) const;
@@ -126,38 +121,6 @@ namespace seahorn
     virtual Expr memEnd (unsigned id) = 0;
 
     virtual bool isSymReg(Expr v) { return v == m_errorFlag;}
-
-  };
-
-
-  /// Very abstract operational semantics
-  /// Highly non-deterministic. Used to identify live symbols
-  class IntLightOpSem : public OpSem
-  {
-  public:
-    IntLightOpSem (ExprFactory &efac) : OpSem (efac) {}
-
-    /// Execute all instructions in the basic block. Modifies the
-    /// store s and stores side condition in side
-    virtual void exec (SymStore &s, const BasicBlock &bb,
-                       ExprVector &side);
-
-    /// Executes a single instruction
-    virtual void exec (SymStore &s, const Instruction &inst,
-                       ExprVector &side);
-
-    /// Executes all phi-instructions on the (from,bb)-edge.
-    virtual void execPhi (SymStore &s, const BasicBlock &bb,
-                          const BasicBlock &from, ExprVector &side);
-
-    virtual void execEdg (SymStore &s, const BasicBlock &src,
-                          const BasicBlock &dst, ExprVector &side);
-    virtual void execBr (SymStore &s, const BasicBlock &src, const BasicBlock &dst,
-                         ExprVector &side);
-    virtual Expr symb (const Value &I);
-    virtual const Value &conc (Expr v);
-    virtual bool isTracked (const Value &v);
-    virtual Expr lookup (SymStore &s, const Value &v);
 
   };
 

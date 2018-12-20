@@ -9,6 +9,7 @@
 
 #include "boost/algorithm/string/replace.hpp"
 #include <memory>
+#include "avy/AvyDebug.h"
 
 using namespace llvm;
 namespace seahorn {

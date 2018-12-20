@@ -1,14 +1,14 @@
 // Symbolic execution (loosely) based on semantics used in UFO
 #include "llvm/IR/GetElementPtrTypeIterator.h"
+#include "llvm/Support/CommandLine.h"
 
 #include "seahorn/BvOpSem.hh"
 #include "seahorn/Support/CFG.hh"
 #include "seahorn/Transforms/Instrumentation/ShadowMemDsa.hh"
 
+#include "ufo/ExprLlvm.hpp"
 #include "ufo/ufo_iterators.hpp"
-#include "llvm/Support/CommandLine.h"
-
-//#include <queue>
+#include "avy/AvyDebug.h"
 
 using namespace seahorn;
 using namespace llvm;
@@ -1052,7 +1052,7 @@ Expr BvOpSem::symbolicIndexedOffset(SymStore &s, GetElementPtrInst& gep) {
   // symbolic offset
   Expr soffset;
 
-  for(auto TI = gep_type_begin(&gep), TE = gep_type_end(&gep); TI != TE; ++TI) {  
+  for(auto TI = gep_type_begin(&gep), TE = gep_type_end(&gep); TI != TE; ++TI) {
     Value* CurVal = TI.getOperand();
     if (StructType *STy = TI.getStructTypeOrNull()) {
       unsigned fieldNo = cast<ConstantInt>(CurVal)->getZExtValue();

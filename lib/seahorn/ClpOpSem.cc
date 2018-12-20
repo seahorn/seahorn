@@ -11,7 +11,8 @@
 #include "seahorn/Transforms/Instrumentation/ShadowMemDsa.hh"
 
 #include "ufo/ufo_iterators.hpp"
-
+#include "ufo/ExprLlvm.hpp"
+#include "avy/AvyDebug.h"
 
 using namespace seahorn;
 using namespace llvm;
@@ -617,7 +618,7 @@ namespace seahorn
     Value& base = *gep.getPointerOperand ();
     Expr res = lookup (s, base);
     if (!res) return res;
-    
+
     for(auto GTI = gep_type_begin(&gep), GTE = gep_type_end(&gep); GTI != GTE; ++GTI) {
       if (const StructType *st = GTI.getStructTypeOrNull()) {
 	if (const ConstantInt *ci = dyn_cast<const ConstantInt>(GTI.getOperand())) {

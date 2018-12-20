@@ -1,6 +1,7 @@
 #pragma once
 #include <seahorn/OpSem.hh>
 namespace seahorn {
+  class CpEdge;
   /**
    * Verification Condition (VC) generator for loop-free code.  Given
    * an operational semantics (OpSem) and loop-free code block,

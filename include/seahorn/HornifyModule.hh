@@ -14,7 +14,7 @@
 #include "seahorn/LiveSymbols.hh"
 
 #include "seahorn/HornClauseDB.hh"
-
+#include "seahorn/Analysis/CutPointGraph.hh"
 namespace seahorn
 {
   using namespace expr;

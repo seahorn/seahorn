@@ -1,10 +1,13 @@
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/FileSystem.h"
 
+#include "seahorn/Analysis/CutPointGraph.hh"
 #include "seahorn/Support/CFG.hh"
 #include "seahorn/VCGen.hh"
 #include "ufo/Stats.hh"
 #include "ufo/smt/EZ3.hh"
+
+#include "avy/AvyDebug.h"
 
 static llvm::cl::opt<bool> SplitCriticalEdgesOnly(
     "horn-split-only-critical",

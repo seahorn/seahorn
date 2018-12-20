@@ -9,6 +9,9 @@
 #include "llvm/Support/Format.h"
 #include "llvm/Support/MathExtras.h"
 
+#include "ufo/ExprLlvm.hpp"
+#include "avy/AvyDebug.h"
+
 using namespace seahorn;
 using namespace llvm;
 using namespace ufo;

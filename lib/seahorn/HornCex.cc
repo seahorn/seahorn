@@ -31,6 +31,7 @@
 #include "seahorn/Transforms/Utils/Local.hh"
 
 #include "ufo/Stats.hh"
+#include "avy/AvyDebug.h"
 
 #ifdef HAVE_CRAB_LLVM
 #include "crab_llvm/CrabLlvm.hh"

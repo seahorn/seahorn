@@ -30,6 +30,7 @@ add_llvm_library (seahorn.LIB
   ZOption.cc
   BoogieWriter.cc
   BvOpSem2.cc
+  VCGen.cc
   )
 
 if (HAVE_CRAB_LLVM)

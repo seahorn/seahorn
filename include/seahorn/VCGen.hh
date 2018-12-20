@@ -1,5 +1,5 @@
 #pragma once
-
+#include <seahorn/OpSem.hh>
 namespace seahorn {
   /**
    * Verification Condition (VC) generator for loop-free code.  Given

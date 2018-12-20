@@ -315,6 +315,30 @@ public:
     return res;
   }
 
+  Expr MemSet(PtrTy ptr, Expr _val, unsigned len,
+              Expr memReadReg, Expr memWriteReg,
+              uint32_t align) {
+    Expr res;
+
+    unsigned width;
+    if (align == 4 && bv::isBvNum(_val, width) && width == 8) {
+      unsigned val = bv::toMpz(_val).get_ui();
+      val = val & 0xFF;
+      val = val | (val << 8) | (val << 16) | (val << 24);
+
+      res = m_ctx.read(memReadReg);
+      for (unsigned i = 0; i < len; i+=4) {
+        Expr idx = ptr;
+        if (i > 0)
+          idx = mk<BADD>(ptr, bv::bvnum(i, ptrSz(), m_efac));
+        res = op::array::store(res, idx, bv::bvnum(val, ptrSz(), m_efac));
+      }
+    }
+
+    m_ctx.write(memWriteReg, res);
+    return res;
+  }
+
   void onFunctionEntry(const Function &fn) {
     Expr res = m_ctx.read(m_sp0);
 
@@ -751,11 +775,18 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
     }
 
     if (F.getName().equals("shadow.mem.store")) {
-      Expr symReg = symb(inst);
-      m_ctx.setMemReadRegister(symb(*CS.getArgument(1)));
-      m_ctx.m_values.havoc(symReg);
-      m_ctx.setMemWriteRegister(symReg);
+      Expr memOut = symb(inst);
+      Expr memIn = symb(*CS.getArgument(1));
+      m_ctx.setMemReadRegister(memIn);
+      m_ctx.m_values.havoc(memOut);
+      m_ctx.setMemWriteRegister(memOut);
       m_ctx.setMemScalar(extractUniqueScalar(CS) != nullptr);
+
+      LOG("opsem.mem.store",
+          errs() << "mem.store: " << inst << "\n";
+          errs() << "arg1: " << *CS.getArgument(1) << "\n";
+          errs() << "mem.store: memIn is "
+          << *memIn << " memOut is " << *memOut << "\n";);
       return;
     }
 
@@ -936,7 +967,9 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
   }
 
   void visitMemSetInst(MemSetInst &I) {
-    LOG("opsem", errs() << "Skipping memset: " << I << "\n";);
+    executeMemSetInst(*I.getDest(), *I.getValue(),
+                      *I.getLength(), I.getAlignment(), m_ctx);
+
   }
   void visitMemCpyInst(MemCpyInst &I) {
     LOG("opsem", errs() << "Skipping memcpy: " << I << "\n";);
@@ -1312,6 +1345,43 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
     return res;
   }
 
+  Expr executeMemSetInst(const Value &dst, const Value &val,
+                         const Value &length, unsigned alignment,
+                         OpSemContext &ctx) {
+    if (!ctx.getMemReadRegister() || !ctx.getMemWriteRegister() ||
+        m_sem.isSkipped(dst) || m_sem.isSkipped(val)) {
+      LOG("opsem", errs() << "Warning: Skipping memset\n");
+      ctx.setMemReadRegister(Expr());
+      ctx.setMemWriteRegister(Expr());
+      return Expr();
+    }
+
+    if (ctx.isMemScalar())
+      llvm_unreachable("memset to scalars is not supported");
+
+    Expr res;
+    Expr addr = lookup(dst);
+
+    assert(val.getType()->isIntegerTy(8));
+    Expr v = lookup(val);
+    Expr len = lookup(length);
+    if (v && addr) {
+      if (const ConstantInt *ci = dyn_cast<const ConstantInt>(&length)) {
+        res = m_ctx.MemSet(addr, v, ci->getZExtValue(), alignment);
+      }
+      else
+        llvm_unreachable("Unsupported memset with symbolic length");
+    }
+
+    if (!res)
+      LOG("opsem", errs() << "Skipping memset\n";);
+
+    ctx.setMemReadRegister(Expr());
+    ctx.setMemWriteRegister(Expr());
+    return res;
+  }
+
+
   Expr executeBitCastInst(const Value &op, Type *ty, OpSemContext &ctx) {
     Type *opTy = op.getType();
 
@@ -1464,6 +1534,15 @@ Expr OpSemContext::storeValueToMem(Expr val, Expr ptr, const llvm::Type &ty,
   assert(getMemWriteRegister());
   return m_memManager->storeValueToMem(val, ptr, getMemReadRegister(),
                                        getMemWriteRegister(), ty, align);
+}
+
+Expr OpSemContext::MemSet(Expr ptr, Expr val, unsigned len, uint32_t align) {
+  assert(getMemReadRegister());
+  assert(getMemWriteRegister());
+  return m_memManager->MemSet(ptr, val, len,
+                              getMemReadRegister(),
+                              getMemWriteRegister(),
+                              align);
 }
 
 void OpSemContext::onFunctionEntry(const Function &fn) {

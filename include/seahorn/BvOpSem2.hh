@@ -28,6 +28,7 @@ namespace seahorn
     const BasicBlock *m_bb;
     /// the next instruction to be executed
     BasicBlock::const_iterator m_inst;
+
     /// A map from symbolic registers to symbolic values
     /// XXX for now lives outside of the context
     SymStore &m_values;
@@ -95,6 +96,7 @@ namespace seahorn
     void write(Expr v, Expr u) {m_values.write(v, u);}
 
     ExprFactory &getExprFactory() const {return m_values.getExprFactory();}
+    ExprFactory &efac() const {return getExprFactory();}
 
     /// \brief Called when a module is entered
     void onModuleEntry(const Module &M);
@@ -183,9 +185,6 @@ namespace seahorn
 
     void exec (SymStore &s, const BasicBlock &bb,
                ExprVector &side, Expr act) override;
-
-    void exec (SymStore &s, const Instruction &inst,
-                       ExprVector &side) override;
 
     void execPhi (SymStore &s, const BasicBlock &bb,
                   const BasicBlock &from, ExprVector &side, Expr act) override;

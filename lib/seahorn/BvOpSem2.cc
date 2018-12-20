@@ -1642,15 +1642,6 @@ void Bv2OpSem::exec(SymStore &s, const BasicBlock &bb, ExprVector &side,
   }
 }
 
-void Bv2OpSem::exec(SymStore &s, const Instruction &inst, ExprVector &side) {
-  OpSemContext C(s, side);
-  C.onBasicBlockEntry(*(inst.getParent()));
-  C.m_inst = BasicBlock::const_iterator(&inst);
-  intraStep(C);
-  // OpSemVisitor v(s, *this, side);
-  // v.visit(const_cast<Instruction &>(inst));
-}
-
 void Bv2OpSem::execPhi(SymStore &s, const BasicBlock &bb,
                        const BasicBlock &from, ExprVector &side, Expr act) {
   OpSemContext C(s, side);

@@ -45,8 +45,9 @@ namespace seahorn
     template <typename OutputIterator>
     void evalArgs (OpSem &sem, SymStore &s, OutputIterator out) const;
   };
+
   /// maps llvm::Function to seahorn::FunctionInfo
-  typedef DenseMap<const llvm::Function*, FunctionInfo> FuncInfoMap;
+  using FuncInfoMap = DenseMap<const llvm::Function*, FunctionInfo> ;
 
   /**
    * Operational Semantics for LLVM instructions and basic blocks.
@@ -87,10 +88,6 @@ namespace seahorn
     /// optionally conditioned on the activation literal
     virtual void exec (SymStore &s, const BasicBlock &bb,
                        ExprVector &side, Expr act) = 0;
-
-    /// Executes a single instruction
-    virtual void exec (SymStore &s, const Instruction &inst,
-                       ExprVector &side) = 0;
 
     /// Executes all phi-instructions on the (from,bb)-edge.
     /// act is an optional activation literal

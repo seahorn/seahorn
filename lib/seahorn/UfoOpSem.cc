@@ -1007,11 +1007,6 @@ void UfoOpSem::exec(SymStore &s, const BasicBlock &bb, ExprVector &side,
   v.resetActiveLit();
 }
 
-void UfoOpSem::exec(SymStore &s, const Instruction &inst, ExprVector &side) {
-  OpSemVisitor v(s, *this, side);
-  v.visit(const_cast<Instruction &>(inst));
-}
-
 void UfoOpSem::execPhi(SymStore &s, const BasicBlock &bb,
                        const BasicBlock &from, ExprVector &side, Expr act) {
   // act is ignored since phi node only introduces a definition

@@ -94,25 +94,99 @@ void GateAnalysisImpl::calculate() {
     processPhi(PN);
 }
 
+struct SuccInfo {
+  SmallDenseMap<BasicBlock *, llvm::Optional<Value *>> SuccToIncoming;
+
+  void dump(raw_ostream &OS) const {
+    for (auto &SuccValuePair : SuccToIncoming) {
+      errs() << "\tsucc: " << SuccValuePair.first->getName() << ": ";
+      Value *V = SuccValuePair.second.getValueOr(nullptr);
+      if (!V)
+        errs() << "T";
+      else
+        errs() << V->getName();
+
+      errs() << "\n";
+    }
+  }
+};
 
 void GateAnalysisImpl::processPhi(PHINode *PN) {
   assert(PN);
   GSA_LOG(PN->print(errs()); errs() << "\n");
-  BasicBlock *currentBB = PN->getParent();
+
+  BasicBlock *const currentBB = PN->getParent();
+
+  SmallDenseMap<BasicBlock *, Value *> incomingBlockToValue;
+  for (unsigned i = 0, e = PN->getNumIncomingValues(); i != e; ++i)
+    incomingBlockToValue[PN->getIncomingBlock(i)] = PN->getIncomingValue(i);
+
+  ArrayRef<CDInfo> cdInfo = m_CDA.getCDBlocks(currentBB);
+  DenseMap<BasicBlock *, Value *> flowingValues;
+
+  IRBuilder<> IRB(PN);
+  Type *const phiTy = PN->getType();
+  UndefValue *const Undef = UndefValue::get(phiTy);
+
+  unsigned cdNum = 0;
+  for (const CDInfo &info : cdInfo) {
+    BasicBlock *BB = info.CDBlock;
+    TerminatorInst *TI = BB->getTerminator();
+    assert(isa<BranchInst>(TI) && "Only BranchInst is supported right now");
+
+    SmallDenseMap<BasicBlock *, Value *, 2> SuccToVal;
+    for (auto *S : successors(BB)) {
+      SuccToVal[S] = Undef;
+
+      if (S == currentBB) {
+        SuccToVal[S] = incomingBlockToValue[BB];
+        continue;
+      }
+
+      for (auto &BlockValuePair : incomingBlockToValue) {
+        if (m_PDT.dominates(BlockValuePair.first, S)) {
+          SuccToVal[S] = BlockValuePair.second;
+        }
+      }
+
+      if (SuccToVal[S] != Undef)
+        continue;
+
+      for (unsigned i = cdNum - 1; i < cdNum; --i) {
+        BasicBlock *OtherCD = cdInfo[i].CDBlock;
+        if (m_CDA.isReachable(S, OtherCD)) {
+          assert(flowingValues.count(OtherCD));
+          SuccToVal[S] = flowingValues[OtherCD];
+          break;
+        }
+      }
+    }
+
+    auto *BI = cast<BranchInst>(TI);
+    assert(SuccToVal.size() <= 2 && SuccToVal.size() >= 1);
+    if (SuccToVal.size() == 1) {
+      auto &SuccValPair = *SuccToVal.begin();
+      assert(SuccValPair.second != Undef);
+      flowingValues[BB] = SuccValPair.second;
+    } else if (SuccToVal.size() == 2) {
+      BasicBlock *TrueDest = BI->getSuccessor(0);
+      BasicBlock *FalseDest = BI->getSuccessor(1);
+      Value *TrueVal = SuccToVal[TrueDest];
+      Value *FalseVal = SuccToVal[FalseDest];
+
+      Value *Ite = IRB.CreateSelect(BI->getCondition(), TrueVal, FalseVal,
+                                    {"seahorn.gsa.gamma.", BB->getName()});
+      flowingValues[BB] = Ite;
+    }
+
+    ++cdNum;
+  }
 
   unsigned i = 0;
   for (auto *incomingBB : PN->blocks()) {
     BasicBlock *NCD = getGatingBlock(PN, incomingBB);
     TerminatorInst *terminator = NCD->getTerminator();
-    Value *condition = GetCondition(terminator);
-    // Value *reachingVal = getReachingCmp(currentBB, incomingBB, terminator);
 
-    // m_gates[{PN, i}] = Gate{condition, reachingVal};
-
-    //    GSA_LOG(errs() << "\t" << i << ": " << currentBB->getName() << " <- "
-    //                   << incomingBB->getName() << "\tgate: ";
-    //            condition->print(errs()); errs() << "\n\t\tgating condition:
-    //            "; reachingVal->print(errs()); errs() << "\n");
     ++i;
   }
 }
@@ -207,7 +281,7 @@ void GateAnalysisPass::getAnalysisUsage(AnalysisUsage &AU) const {
 }
 
 bool GateAnalysisPass::runOnFunction(llvm::Function &F) {
-  GSA_LOG(llvm::errs() << "GSA: Running on " << F.getName() << "\n");
+  GSA_LOG(llvm::errs() << "\nGSA: Running on " << F.getName() << "\n");
 
   auto &DT = getAnalysis<DominatorTreeWrapperPass>().getDomTree();
   auto &PDT = getAnalysis<PostDominatorTreeWrapperPass>().getPostDomTree();

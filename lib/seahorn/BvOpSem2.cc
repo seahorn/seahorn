@@ -322,9 +322,9 @@ public:
     // align of 4
     m_ctx.addDef(bv::bvnum(0, 2, m_efac), bv::extract(2 - 1, 0, res));
     // 3GB upper limit
-    m_ctx.addSide(mk<BULE>(res, bv::bvnum(MIN_STACK_ADDR, ptrSz(), m_efac)));
+    m_ctx.addSide(mk<BULE>(res, bv::bvnum(MAX_STACK_ADDR, ptrSz(), m_efac)));
     // 9MB stack
-    m_ctx.addSide(mk<BUGE>(res, bv::bvnum(MAX_STACK_ADDR, ptrSz(), m_efac)));
+    m_ctx.addSide(mk<BUGE>(res, bv::bvnum(MIN_STACK_ADDR, ptrSz(), m_efac)));
   }
 
   void onModuleEntry(const Module &M) {}

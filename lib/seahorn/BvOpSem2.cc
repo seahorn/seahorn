@@ -171,8 +171,7 @@ public:
 
   PtrTy mkStackPtr(Expr name, AllocInfo &allocInfo) {
     Expr res = m_ctx.read(m_sp0);
-    if (allocInfo.m_start > 0)
-      res = mk<BSUB>(res, bv::bvnum(allocInfo.m_start, ptrSz(), m_efac));
+    res = mk<BSUB>(res, bv::bvnum(allocInfo.m_end, ptrSz(), m_efac));
     return res;
   }
 

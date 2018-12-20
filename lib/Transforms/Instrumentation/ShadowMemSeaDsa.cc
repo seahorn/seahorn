@@ -343,7 +343,7 @@ bool ShadowMemSeaDsa::runOnFunction(Function &F) {
   Graph &G = m_dsa->getGraph(F);
 
   LOG(
-      "shadow", errs() << "Looking into globals\n";
+      "shadow", errs() << "ShadowMemSeaDsa: Looking into globals\n";
       for (auto &kv
            : boost::make_iterator_range(G.globals_begin(), G.globals_end())) {
         errs() << "Node for: " << *kv.first << "\n";

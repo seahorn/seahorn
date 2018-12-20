@@ -338,7 +338,7 @@ void LargeHornifyFunction::runOnFunction(Function &F) {
     params.set(":smt.arith.ignore_int", true);
   smt.set(params);
 
-  VCGen lsem(m_sem);
+  VCGen vcgen(m_sem);
 
   DenseSet<const BasicBlock *> reached;
   reached.insert(&cpg.begin()->bb());
@@ -363,7 +363,7 @@ void LargeHornifyFunction::runOnFunction(Function &F) {
 
       ExprVector side;
       side.push_back(boolop::lneg((s.read(m_sem.errorFlag(cp.bb())))));
-      lsem.execCpEdg(s, *edge, side);
+      vcgen.execCpEdg(s, *edge, side);
       Expr tau = mknary<AND>(mk<TRUE>(m_efac), side);
       expr::filter(tau, bind::IsConst(),
                    std::inserter(allVars, allVars.begin()));

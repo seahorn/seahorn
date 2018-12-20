@@ -84,6 +84,21 @@ namespace expr
           isOpX<MPZ> (v->arg (0)) && isOpX<BVSORT> (v->arg (1));
       }
 
+      inline bool isBvNum(Expr v, unsigned &w) {
+        if (isOpX<BIND>(v) && v->arity() == 2 &&
+            isOpX<MPZ>(v->arg(0)) && isOpX<BVSORT>(v->arg(1))) {
+          w = width(v->arg(1));
+          return true;
+        }
+        return false;
+      }
+
+      inline bool isBvNum(Expr v) {
+        unsigned w;
+        return isBvNum(v, w);
+      }
+
+
       inline mpz_class toMpz (Expr v)
       {
         assert (is_bvnum (v));

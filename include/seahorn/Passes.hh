@@ -103,6 +103,7 @@ namespace seahorn
   llvm::Pass* createBoogieWriterPass(llvm::raw_ostream* out, bool use_crab);
 
   llvm::FunctionPass* createGateAnalysisPass();
+  llvm::FunctionPass* createControlDependenceAnalysisPass();
 }
 
 #ifdef HAVE_LLVM_SEAHORN

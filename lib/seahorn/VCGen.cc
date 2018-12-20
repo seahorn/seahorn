@@ -5,7 +5,7 @@
 #include "seahorn/Support/CFG.hh"
 #include "seahorn/VCGen.hh"
 #include "ufo/Stats.hh"
-#include "ufo/smt/EZ3.hh"
+#include "ufo/Smt/EZ3.hh"
 
 #include "avy/AvyDebug.h"
 

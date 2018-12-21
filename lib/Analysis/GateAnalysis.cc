@@ -60,7 +60,9 @@ public:
 
 private:
   void calculate();
-  void processPhi(PHINode *PN);
+  void processPhi(PHINode *PN, IRBuilder<> &IRB);
+  DenseMap<BasicBlock *, Value *> processIncomingValues(PHINode *PN,
+                                                        IRBuilder<> &IRB);
   BasicBlock *getGatingBlock(PHINode *PN, BasicBlock *incomingBB);
   Value *getReachingCmp(BasicBlock *destBB, BasicBlock *incomingBB,
                         TerminatorInst *terminator);
@@ -84,14 +86,27 @@ Value *GetCondition(TerminatorInst *TI) {
 
 void GateAnalysisImpl::calculate() {
   std::vector<PHINode *> phis;
+  DenseMap<BasicBlock *, std::unique_ptr<IRBuilder<>>> builders;
 
-  for (auto &BB : m_function)
+  for (auto &BB : m_function) {
+    Instruction *insertionPoint = nullptr;
+    for (auto &I : BB) {
+      if (!isa<PHINode>(I)) {
+        insertionPoint = &I;
+        break;
+      }
+    }
+
+    assert(insertionPoint);
+    builders.insert({&BB, llvm::make_unique<IRBuilder<>>(insertionPoint)});
+
     for (auto &I : BB)
       if (auto *PN = dyn_cast<PHINode>(&I))
         phis.push_back(PN);
+  }
 
   for (PHINode *PN : phis)
-    processPhi(PN);
+    processPhi(PN, *builders[PN->getParent()]);
 }
 
 struct SuccInfo {
@@ -111,26 +126,61 @@ struct SuccInfo {
   }
 };
 
-void GateAnalysisImpl::processPhi(PHINode *PN) {
+DenseMap<BasicBlock *, Value *>
+GateAnalysisImpl::processIncomingValues(PHINode *PN, IRBuilder<> &IRB) {
+  assert(PN);
+
+  BasicBlock *const currentBB = PN->getParent();
+  UndefValue *const Undef = UndefValue::get(PN->getType());
+
+  DenseMap<BasicBlock *, Value *> incomingBlockToValue;
+  for (unsigned i = 0, e = PN->getNumIncomingValues(); i != e; ++i) {
+    BasicBlock *incomingBlock = PN->getIncomingBlock(i);
+    Value *incomingValue = PN->getIncomingValue(i);
+    incomingBlockToValue[incomingBlock] = incomingValue;
+
+    TerminatorInst *TI = incomingBlock->getTerminator();
+    assert(isa<BranchInst>(TI) && "Other termiantors not supported yet");
+    auto *BI = dyn_cast<BranchInst>(TI);
+    if (BI->isUnconditional())
+      continue;
+
+    Value *cond = GetCondition(TI);
+    BasicBlock *trueDest = BI->getSuccessor(0);
+    BasicBlock *falseDest = BI->getSuccessor(1);
+    assert(trueDest == currentBB || falseDest == currentBB);
+    Value *SI =
+        IRB.CreateSelect(cond, trueDest == currentBB ? incomingValue : Undef,
+                         falseDest == currentBB ? incomingValue : Undef,
+                         {"seahorn.gsa.gamma.crit.", incomingBlock->getName()});
+    incomingBlockToValue[incomingBlock] = SI;
+  }
+
+  return incomingBlockToValue;
+}
+
+void GateAnalysisImpl::processPhi(PHINode *PN, IRBuilder<> &IRB) {
   assert(PN);
   GSA_LOG(PN->print(errs()); errs() << "\n");
 
   BasicBlock *const currentBB = PN->getParent();
 
-  SmallDenseMap<BasicBlock *, Value *> incomingBlockToValue;
-  for (unsigned i = 0, e = PN->getNumIncomingValues(); i != e; ++i)
-    incomingBlockToValue[PN->getIncomingBlock(i)] = PN->getIncomingValue(i);
+  DenseMap<BasicBlock *, Value *> incomingBlockToValue =
+      processIncomingValues(PN, IRB);
 
   ArrayRef<CDInfo> cdInfo = m_CDA.getCDBlocks(currentBB);
-  DenseMap<BasicBlock *, Value *> flowingValues;
+  DenseMap<BasicBlock *, Value *> flowingValues(incomingBlockToValue.begin(),
+                                                incomingBlockToValue.end());
 
-  IRBuilder<> IRB(PN);
   Type *const phiTy = PN->getType();
   UndefValue *const Undef = UndefValue::get(phiTy);
 
   unsigned cdNum = 0;
   for (const CDInfo &info : cdInfo) {
     BasicBlock *BB = info.CDBlock;
+    if (flowingValues.count(BB) > 0)
+      continue;
+
     TerminatorInst *TI = BB->getTerminator();
     assert(isa<BranchInst>(TI) && "Only BranchInst is supported right now");
 
@@ -140,12 +190,18 @@ void GateAnalysisImpl::processPhi(PHINode *PN) {
 
       if (S == currentBB) {
         SuccToVal[S] = incomingBlockToValue[BB];
+        errs() << "1) SuccToVal[" << S->getName() << "] = incoming for "
+               << BB->getName() << ": " << SuccToVal[S]->getName() << "\n";
         continue;
       }
 
       for (auto &BlockValuePair : incomingBlockToValue) {
         if (m_PDT.dominates(BlockValuePair.first, S)) {
           SuccToVal[S] = BlockValuePair.second;
+          errs() << "2) SuccToVal[" << S->getName() << "] = postdom for "
+                 << BlockValuePair.first->getName() << ": "
+                 << SuccToVal[S]->getName() << "\n";
+          break;
         }
       }
 
@@ -157,6 +213,9 @@ void GateAnalysisImpl::processPhi(PHINode *PN) {
         if (m_CDA.isReachable(S, OtherCD)) {
           assert(flowingValues.count(OtherCD));
           SuccToVal[S] = flowingValues[OtherCD];
+          errs() << "3) SuccToVal[" << S->getName() << "] = flow for CD "
+                 << OtherCD->getName() << ": " << SuccToVal[S]->getName()
+                 << "\n";
           break;
         }
       }
@@ -180,14 +239,6 @@ void GateAnalysisImpl::processPhi(PHINode *PN) {
     }
 
     ++cdNum;
-  }
-
-  unsigned i = 0;
-  for (auto *incomingBB : PN->blocks()) {
-    BasicBlock *NCD = getGatingBlock(PN, incomingBB);
-    TerminatorInst *terminator = NCD->getTerminator();
-
-    ++i;
   }
 }
 

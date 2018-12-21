@@ -19,6 +19,8 @@ enum TrackLevel {
 };
 
 class OpSem;
+class OpSemContext;
+using OpSemContextPtr = std::unique_ptr<OpSemContext>;
 
 /// \brief Operational Semantics Context
 ///
@@ -49,17 +51,24 @@ public:
 
     m_act = m_trueE;
   }
+  OpSemContext(SymStore &values, ExprVector &side, const OpSemContext &o)
+      : m_values(o.m_values), m_side(o.m_side), m_act(o.m_act),
+        m_trueE(o.m_trueE), m_falseE(o.m_falseE) {}
   OpSemContext(const OpSemContext &) = delete;
   virtual ~OpSemContext() {}
 
-  SymStore &values() {return m_values;}
+  SymStore &values() { return m_values; }
   Expr read(Expr v) { return m_values.read(v); }
   Expr havoc(Expr v) { return m_values.havoc(v); }
   void write(Expr v, Expr u) { m_values.write(v, u); }
 
+  OpSemContext &act(Expr v) {
+    setActLit(v);
+    return *this;
+  }
   void setActLit(Expr v) { m_act = v; }
   Expr getActLit() const { return m_act; }
-  ExprVector &side() {return m_side;}
+  ExprVector &side() { return m_side; }
   void addSideSafe(Expr v) { m_side.push_back(boolop::limp(m_act, v)); }
   void addSide(Expr v) { m_side.push_back(v); }
   void addDef(Expr v, Expr u) { addSide(mk<EQ>(v, u)); }
@@ -76,9 +85,11 @@ public:
   /// \brief Called when a function returns
   virtual void onFunctionExit(const Function &fn) {}
   virtual void onBasicBlockEntry(const BasicBlock &bb) {}
-};
 
-using OpSemContextPtr = std::unique_ptr<OpSemContext> ;
+  virtual OpSemContextPtr fork(SymStore &values, ExprVector &side) {
+    return OpSemContextPtr(new OpSemContext(values, side, *this));
+  }
+};
 
 /// Information about a function for VC-generation
 struct FunctionInfo {

@@ -128,7 +128,7 @@ void VCGen::genVcForCpEdge(SymStore &s, const CpEdge &edge, ExprVector &side) {
       bbV = s.havoc(m_sem.symb(bb));
       m_sem.exec(s, bb, side, trueE);
     } else {
-      execEdgBb(s, edge, bb, side);
+      genVcForBasicBlockOnEdge(s, edge, bb, side);
       bbV = s.read(m_sem.symb(bb));
     }
     first = false;
@@ -136,7 +136,7 @@ void VCGen::genVcForCpEdge(SymStore &s, const CpEdge &edge, ExprVector &side) {
     checkSideAtBb(head, side, bbV, *smt, edge, bb);
   }
 
-  execEdgBb(s, edge, target.bb(), side, true);
+  genVcForBasicBlockOnEdge(s, edge, target.bb(), side, true);
 
   checkSideAtEnd(head, side, *smt);
 }
@@ -155,8 +155,9 @@ struct FwdReachPred : public std::unary_function<const BasicBlock &, bool> {
 };
 } // namespace sem_detail
 
-void VCGen::execEdgBb(SymStore &s, const CpEdge &edge, const BasicBlock &bb,
-                      ExprVector &side, bool last) {
+void VCGen::genVcForBasicBlockOnEdge(SymStore &s, const CpEdge &edge,
+                                     const BasicBlock &bb, ExprVector &side,
+                                     bool last) {
   ExprVector edges;
 
   if (last)

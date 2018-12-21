@@ -15,8 +15,13 @@ namespace seahorn {
     OpSem &m_sem;
     Expr trueE;
 
-    void execEdgBb (SymStore &s, const CpEdge &edge,
-                    const BasicBlock &bb, ExprVector &side, bool last = false);
+    /// \brief Generate VC for a basic block \p bb on the edge
+    ///
+    /// Helper method to generate a part of the VC corresponding for a given
+    /// basic block on the edge
+    void genVcForBasicBlockOnEdge(SymStore &s, const CpEdge &edge,
+                                  const BasicBlock &bb, ExprVector &side,
+                                  bool last = false);
 
     /// \brief Initialize SMT solver for eager VC checking
     void initSmt(std::unique_ptr<ufo::EZ3> &zctx,

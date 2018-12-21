@@ -29,7 +29,6 @@ public:
   /// the next instruction to be executed
   BasicBlock::const_iterator m_inst;
 
-
   /// Previous basic block (if known)
   const BasicBlock *m_prev;
 
@@ -86,7 +85,6 @@ public:
   /// \brief Called when a function returns
   void onFunctionExit(const Function &fn) override {}
 
-
   /// \brief Call when a basic block is entered
   void onBasicBlockEntry(const BasicBlock &bb) override {
     if (!m_func)
@@ -101,17 +99,14 @@ public:
   void declareRegister(Expr v);
   bool isKnownRegister(Expr v);
 
-
-  std::unique_ptr<OpSemContext> fork(SymStore &values, ExprVector &side,
-                                     OpSemContext &_ctx) {
-    return std::unique_ptr<OpSemContext>(
-        new Bv2OpSemContext(values, side, ctx(_ctx)));
+  OpSemContextPtr fork(SymStore &values, ExprVector &side) {
+    return OpSemContextPtr(new Bv2OpSemContext(values, side, *this));
   }
+
 private:
   Bv2OpSemContext &ctx(OpSemContext &ctx) {
     return static_cast<Bv2OpSemContext &>(ctx);
   }
-
 };
 
 namespace bvop_details {
@@ -165,6 +160,9 @@ public:
     return *m_td;
   }
 
+  OpSemContextPtr mkContext(SymStore &values, ExprVector &side) override {
+    return OpSemContextPtr(new Bv2OpSemContext(values, side));
+  }
   /// \brief Executes one intra-procedural instructions in the
   /// current context Assumes that current instruction is not a
   /// branch Returns true if instruction was executed and false if
@@ -180,9 +178,35 @@ public:
 
   Expr errorFlag(const BasicBlock &BB) override;
 
+  Bv2OpSemContext &ctx(OpSemContext &_ctx) {
+    return static_cast<Bv2OpSemContext &>(_ctx);
+  }
+  void exec(const BasicBlock &bb, OpSemContext &_ctx) override {
+    exec(bb, ctx(_ctx));
+  }
+  void execPhi(const BasicBlock &bb, const BasicBlock &from,
+               OpSemContext &_ctx) override {
+    execPhi(bb, from, ctx(_ctx));
+  }
+  void execEdg(const BasicBlock &src, const BasicBlock &dst,
+               OpSemContext &_ctx) override {
+    execEdg(src, dst, ctx(_ctx));
+  }
+  void execBr(const BasicBlock &src, const BasicBlock &dst,
+              OpSemContext &_ctx) override {
+    execBr(src, dst, ctx(_ctx));
+  }
+
+  void exec(const BasicBlock &bb, Bv2OpSemContext &ctx);
+  void execPhi(const BasicBlock &bb, const BasicBlock &from,
+               Bv2OpSemContext &ctx);
+  void execEdg(const BasicBlock &src, const BasicBlock &dst,
+               Bv2OpSemContext &ctx);
+  void execBr(const BasicBlock &src, const BasicBlock &dst,
+              Bv2OpSemContext &ctx);
+
   void exec(SymStore &s, const BasicBlock &bb, ExprVector &side,
             Expr act) override;
-
   void execPhi(SymStore &s, const BasicBlock &bb, const BasicBlock &from,
                ExprVector &side, Expr act) override;
 

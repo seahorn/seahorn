@@ -142,7 +142,7 @@ public:
   ExprFactory &getExprFactory() { return m_efac; }
   ExprFactory &efac() { return m_efac; }
 
-  OpSemContextPtr mkContext(SymStore &values, ExprVector &side) {
+  virtual OpSemContextPtr mkContext(SymStore &values, ExprVector &side) {
     return std::unique_ptr<OpSemContext>(new OpSemContext(values, side));
   }
 

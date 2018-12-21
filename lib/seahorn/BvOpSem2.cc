@@ -1625,42 +1625,43 @@ Expr Bv2OpSem::errorFlag(const BasicBlock &BB) {
   return this->OpSem::errorFlag(BB);
 }
 
-void Bv2OpSem::exec(SymStore &s, const BasicBlock &bb, ExprVector &side,
-                    Expr act) {
-  Bv2OpSemContext C(s, side);
-  assert (&s.getExprFactory() == &C.efac());
-  C.onBasicBlockEntry(bb);
-  C.setActLit(act);
+void Bv2OpSem::exec(const BasicBlock &bb, Bv2OpSemContext &ctx) {
+  ctx.onBasicBlockEntry(bb);
 
-  // assert(&s.getExprFactory() == &C.getExprFactory());
-  // errs() << "s.m_efac: " << &s.getExprFactory() << "\n";
-  // errs() << "C.efac(): " << &C.getExprFactory() << "\n";
-  // errs().flush();
-  // assert(false);
-  // std::exit(32);
-  C.setMemManager(new bvop_details::OpSemMemManager(*this, C));
+  if (!ctx.getMemManager())
+    ctx.setMemManager(
+        new bvop_details::OpSemMemManager(*this, ctx));
 
-  // XXX this needs to be revised
-  // do the setup necessary for a basic block
-  bvop_details::OpSemVisitor v(C, *this);
+  bvop_details::OpSemVisitor v(ctx, *this);
   v.visitBasicBlock(const_cast<BasicBlock &>(bb));
-
   // skip PHI instructions
-  for (; isa<PHINode>(C.m_inst); ++C.m_inst)
+  for (; isa<PHINode>(ctx.m_inst); ++ctx.m_inst)
     ;
 
-  while (intraStep(C)) {
+  while (intraStep(ctx)) {
     /* do nothing */;
   }
 }
 
+void Bv2OpSem::exec(SymStore &s, const BasicBlock &bb, ExprVector &side,
+                    Expr act) {
+  Bv2OpSemContext ctx(s, side);
+  ctx.setActLit(act);
+  return this->exec(bb, ctx);
+}
+
+void Bv2OpSem::execPhi(const BasicBlock &bb, const BasicBlock &from,
+                       Bv2OpSemContext &ctx) {
+  ctx.onBasicBlockEntry(bb);
+  ctx.m_prev = &from;
+  intraPhi(ctx);
+}
+
 void Bv2OpSem::execPhi(SymStore &s, const BasicBlock &bb,
                        const BasicBlock &from, ExprVector &side, Expr act) {
-  Bv2OpSemContext C(s, side);
-  C.onBasicBlockEntry(bb);
-  C.setActLit(act);
-  C.m_prev = &from;
-  intraPhi(C);
+  Bv2OpSemContext ctx(s, side);
+  ctx.setActLit(act);
+  this->execPhi(bb, from, ctx);
 }
 
 Expr Bv2OpSem::symbolicIndexedOffset(gep_type_iterator TI, gep_type_iterator TE,
@@ -1929,6 +1930,18 @@ bool Bv2OpSem::isSkipped(const Value &v) {
   llvm_unreachable(nullptr);
 }
 
+void Bv2OpSem::execEdg(const BasicBlock &src, const BasicBlock &dst,
+                       Bv2OpSemContext &ctx) {
+  exec(src, ctx.act(trueE));
+  execBr(src, dst, ctx);
+  execPhi(dst, src, ctx);
+
+  // an edge into a basic block that does not return includes the block itself
+  const TerminatorInst *term = dst.getTerminator();
+  if (term && isa<const UnreachableInst>(term))
+    exec(dst, ctx);
+}
+
 void Bv2OpSem::execEdg(SymStore &s, const BasicBlock &src,
                        const BasicBlock &dst, ExprVector &side) {
   exec(s, src, side, trueE);
@@ -1941,13 +1954,18 @@ void Bv2OpSem::execEdg(SymStore &s, const BasicBlock &src,
     exec(s, dst, side, trueE);
 }
 
+void Bv2OpSem::execBr(const BasicBlock &src, const BasicBlock &dst,
+                      Bv2OpSemContext &ctx) {
+  ctx.onBasicBlockEntry(src);
+  ctx.m_inst = BasicBlock::const_iterator(src.getTerminator());
+  intraBr(ctx, dst);
+}
+
 void Bv2OpSem::execBr(SymStore &s, const BasicBlock &src, const BasicBlock &dst,
                       ExprVector &side, Expr act) {
-  Bv2OpSemContext C(s, side);
-  C.onBasicBlockEntry(src);
-  C.m_inst = BasicBlock::const_iterator(src.getTerminator());
-  C.setActLit(act);
-  intraBr(C, dst);
+  Bv2OpSemContext ctx(s, side);
+  ctx.setActLit(act);
+  this->execBr(src, dst, ctx);
 }
 
 /// \brief Executes one intra-procedural instructions in the current

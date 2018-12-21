@@ -9,8 +9,8 @@
 #include "llvm/Support/Format.h"
 #include "llvm/Support/MathExtras.h"
 
-#include "ufo/ExprLlvm.hpp"
 #include "avy/AvyDebug.h"
+#include "ufo/ExprLlvm.hpp"
 
 using namespace seahorn;
 using namespace llvm;
@@ -105,7 +105,7 @@ class OpSemMemManager {
   };
 
   Bv2OpSem &m_sem;
-  OpSemContext &m_ctx;
+  Bv2OpSemContext &m_ctx;
   ExprFactory &m_efac;
 
   uint32_t m_wordSz;
@@ -130,7 +130,7 @@ class OpSemMemManager {
 #define TEXT_SEGMENT_START 0x08048000
 
 public:
-  OpSemMemManager(Bv2OpSem &sem, OpSemContext &ctx)
+  OpSemMemManager(Bv2OpSem &sem, Bv2OpSemContext &ctx)
       : m_sem(sem), m_ctx(ctx), m_efac(ctx.getExprFactory()), m_wordSz(4),
         m_alignment(m_wordSz),
         m_allocaName(mkTerm<std::string>("sea.alloca", m_efac)),
@@ -317,9 +317,8 @@ public:
     return res;
   }
 
-  Expr MemSet(PtrTy ptr, Expr _val, unsigned len,
-              Expr memReadReg, Expr memWriteReg,
-              uint32_t align) {
+  Expr MemSet(PtrTy ptr, Expr _val, unsigned len, Expr memReadReg,
+              Expr memWriteReg, uint32_t align) {
     Expr res;
 
     unsigned width;
@@ -329,7 +328,7 @@ public:
       val = val | (val << 8) | (val << 16) | (val << 24);
 
       res = m_ctx.read(memReadReg);
-      for (unsigned i = 0; i < len; i+=4) {
+      for (unsigned i = 0; i < len; i += 4) {
         Expr idx = ptr;
         if (i > 0)
           idx = mk<BADD>(ptr, bv::bvnum(i, ptrSz(), m_efac));
@@ -375,7 +374,7 @@ public:
 };
 
 struct OpSemBase {
-  OpSemContext &m_ctx;
+  Bv2OpSemContext &m_ctx;
   SymStore &m_s;
   ExprFactory &m_efac;
   Bv2OpSem &m_sem;
@@ -396,7 +395,7 @@ struct OpSemBase {
 
   Expr m_largestPtr;
 
-  OpSemBase(OpSemContext &ctx, Bv2OpSem &sem)
+  OpSemBase(Bv2OpSemContext &ctx, Bv2OpSem &sem)
       : m_ctx(ctx), m_s(m_ctx.m_values), m_efac(m_ctx.getExprFactory()),
         m_sem(sem), m_side(m_ctx.m_side), m_cur_startMem(nullptr),
         m_cur_endMem(nullptr), m_largestPtr(nullptr) {
@@ -460,7 +459,7 @@ struct OpSemBase {
 };
 
 struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
-  OpSemVisitor(OpSemContext &ctx, Bv2OpSem &sem) : OpSemBase(ctx, sem) {}
+  OpSemVisitor(Bv2OpSemContext &ctx, Bv2OpSem &sem) : OpSemBase(ctx, sem) {}
 
   // Opcode Implementations
   void visitReturnInst(ReturnInst &I) {
@@ -784,11 +783,10 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
       m_ctx.setMemWriteRegister(memOut);
       m_ctx.setMemScalar(extractUniqueScalar(CS) != nullptr);
 
-      LOG("opsem.mem.store",
-          errs() << "mem.store: " << inst << "\n";
+      LOG("opsem.mem.store", errs() << "mem.store: " << inst << "\n";
           errs() << "arg1: " << *CS.getArgument(1) << "\n";
-          errs() << "mem.store: memIn is "
-          << *memIn << " memOut is " << *memOut << "\n";);
+          errs() << "mem.store: memIn is " << *memIn << " memOut is " << *memOut
+                 << "\n";);
       return;
     }
 
@@ -969,9 +967,8 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
   }
 
   void visitMemSetInst(MemSetInst &I) {
-    executeMemSetInst(*I.getDest(), *I.getValue(),
-                      *I.getLength(), I.getAlignment(), m_ctx);
-
+    executeMemSetInst(*I.getDest(), *I.getValue(), *I.getLength(),
+                      I.getAlignment(), m_ctx);
   }
   void visitMemCpyInst(MemCpyInst &I) {
     LOG("opsem", errs() << "Skipping memcpy: " << I << "\n";);
@@ -1069,14 +1066,14 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
   }
 
   Expr executeSelectInst(Expr cond, Expr op0, Expr op1, Type *ty,
-                         OpSemContext &ctx) {
+                         Bv2OpSemContext &ctx) {
     if (ty->isVectorTy()) {
       llvm_unreachable(nullptr);
     }
     return cond && op0 && op1 ? mk<ITE>(cond, op0, op1) : Expr(0);
   }
 
-  Expr executeTruncInst(const Value &v, const Type &ty, OpSemContext &ctx) {
+  Expr executeTruncInst(const Value &v, const Type &ty, Bv2OpSemContext &ctx) {
     if (v.getType()->isVectorTy()) {
       llvm_unreachable(nullptr);
     }
@@ -1090,7 +1087,7 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
     return ty.isIntegerTy(1) ? bvToBool(res) : res;
   }
 
-  Expr executeZExtInst(const Value &v, const Type &ty, OpSemContext &ctx) {
+  Expr executeZExtInst(const Value &v, const Type &ty, Bv2OpSemContext &ctx) {
     if (v.getType()->isVectorTy()) {
       llvm_unreachable(nullptr);
     }
@@ -1103,7 +1100,7 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
     return bv::zext(op0, m_sem.sizeInBits(ty));
   }
 
-  Expr executeSExtInst(const Value &v, const Type &ty, OpSemContext &ctx) {
+  Expr executeSExtInst(const Value &v, const Type &ty, Bv2OpSemContext &ctx) {
     if (v.getType()->isVectorTy()) {
       llvm_unreachable(nullptr);
     }
@@ -1116,7 +1113,7 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
     return bv::sext(op0, m_sem.sizeInBits(ty));
   }
 
-  Expr executeICMP_EQ(Expr op0, Expr op1, Type *ty, OpSemContext &ctx) {
+  Expr executeICMP_EQ(Expr op0, Expr op1, Type *ty, Bv2OpSemContext &ctx) {
     switch (ty->getTypeID()) {
     case Type::IntegerTyID:
       return mk<EQ>(op0, op1);
@@ -1129,7 +1126,7 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
     llvm_unreachable(nullptr);
   }
 
-  Expr executeICMP_NE(Expr op0, Expr op1, Type *ty, OpSemContext &ctx) {
+  Expr executeICMP_NE(Expr op0, Expr op1, Type *ty, Bv2OpSemContext &ctx) {
     switch (ty->getTypeID()) {
     case Type::IntegerTyID:
       return mk<NEQ>(op0, op1);
@@ -1142,7 +1139,7 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
     llvm_unreachable(nullptr);
   }
 
-  Expr executeICMP_ULT(Expr op0, Expr op1, Type *ty, OpSemContext &ctx) {
+  Expr executeICMP_ULT(Expr op0, Expr op1, Type *ty, Bv2OpSemContext &ctx) {
     switch (ty->getTypeID()) {
     case Type::IntegerTyID:
       return mk<BULT>(op0, op1);
@@ -1155,7 +1152,7 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
     llvm_unreachable(nullptr);
   }
 
-  Expr executeICMP_SLT(Expr op0, Expr op1, Type *ty, OpSemContext &ctx) {
+  Expr executeICMP_SLT(Expr op0, Expr op1, Type *ty, Bv2OpSemContext &ctx) {
     switch (ty->getTypeID()) {
     case Type::IntegerTyID:
       return mk<BSLT>(op0, op1);
@@ -1168,7 +1165,7 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
     llvm_unreachable(nullptr);
   }
 
-  Expr executeICMP_UGT(Expr op0, Expr op1, Type *ty, OpSemContext &ctx) {
+  Expr executeICMP_UGT(Expr op0, Expr op1, Type *ty, Bv2OpSemContext &ctx) {
     switch (ty->getTypeID()) {
     case Type::IntegerTyID:
       return mk<BUGT>(op0, op1);
@@ -1181,7 +1178,7 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
     llvm_unreachable(nullptr);
   }
 
-  Expr executeICMP_SGT(Expr op0, Expr op1, Type *ty, OpSemContext &ctx) {
+  Expr executeICMP_SGT(Expr op0, Expr op1, Type *ty, Bv2OpSemContext &ctx) {
 
     switch (ty->getTypeID()) {
     case Type::IntegerTyID:
@@ -1202,7 +1199,7 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
     llvm_unreachable(nullptr);
   }
 
-  Expr executeICMP_ULE(Expr op0, Expr op1, Type *ty, OpSemContext &ctx) {
+  Expr executeICMP_ULE(Expr op0, Expr op1, Type *ty, Bv2OpSemContext &ctx) {
     switch (ty->getTypeID()) {
     case Type::IntegerTyID:
       return mk<BULE>(op0, op1);
@@ -1215,7 +1212,7 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
     llvm_unreachable(nullptr);
   }
 
-  Expr executeICMP_SLE(Expr op0, Expr op1, Type *ty, OpSemContext &ctx) {
+  Expr executeICMP_SLE(Expr op0, Expr op1, Type *ty, Bv2OpSemContext &ctx) {
     switch (ty->getTypeID()) {
     case Type::IntegerTyID:
       return mk<BSLE>(op0, op1);
@@ -1228,7 +1225,7 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
     llvm_unreachable(nullptr);
   }
 
-  Expr executeICMP_UGE(Expr op0, Expr op1, Type *ty, OpSemContext &ctx) {
+  Expr executeICMP_UGE(Expr op0, Expr op1, Type *ty, Bv2OpSemContext &ctx) {
     switch (ty->getTypeID()) {
     case Type::IntegerTyID:
       return mk<BUGE>(op0, op1);
@@ -1241,7 +1238,7 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
     llvm_unreachable(nullptr);
   }
 
-  Expr executeICMP_SGE(Expr op0, Expr op1, Type *ty, OpSemContext &ctx) {
+  Expr executeICMP_SGE(Expr op0, Expr op1, Type *ty, Bv2OpSemContext &ctx) {
     switch (ty->getTypeID()) {
     case Type::IntegerTyID:
       return mk<BSGE>(op0, op1);
@@ -1254,7 +1251,8 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
     llvm_unreachable(nullptr);
   }
 
-  Expr executePtrToIntInst(const Value &op, const Type *ty, OpSemContext &ctx) {
+  Expr executePtrToIntInst(const Value &op, const Type *ty,
+                           Bv2OpSemContext &ctx) {
     Expr res = lookup(op);
     if (!res)
       return Expr();
@@ -1270,7 +1268,8 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
     return res;
   }
 
-  Expr executeIntToPtrInst(const Value &op, const Type *ty, OpSemContext &ctx) {
+  Expr executeIntToPtrInst(const Value &op, const Type *ty,
+                           Bv2OpSemContext &ctx) {
     Expr res = lookup(op);
     if (!res)
       return Expr();
@@ -1287,7 +1286,7 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
   }
 
   Expr executeGEPOperation(const Value &ptr, gep_type_iterator it,
-                           gep_type_iterator end, OpSemContext &ctx) {
+                           gep_type_iterator end, Bv2OpSemContext &ctx) {
     Expr res;
     Expr addr = lookup(ptr);
     Expr offset = m_sem.symbolicIndexedOffset(it, end, ctx);
@@ -1296,7 +1295,7 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
   }
 
   Expr executeLoadInst(const Value &addr, unsigned alignment, const Type *ty,
-                       OpSemContext &ctx) {
+                       Bv2OpSemContext &ctx) {
     Expr res;
     if (!ctx.getMemReadRegister())
       return res;
@@ -1314,7 +1313,7 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
   }
 
   Expr executeStoreInst(const Value &val, const Value &addr, unsigned alignment,
-                        OpSemContext &ctx) {
+                        Bv2OpSemContext &ctx) {
 
     if (!ctx.getMemReadRegister() || !ctx.getMemWriteRegister() ||
         m_sem.isSkipped(val)) {
@@ -1349,7 +1348,7 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
 
   Expr executeMemSetInst(const Value &dst, const Value &val,
                          const Value &length, unsigned alignment,
-                         OpSemContext &ctx) {
+                         Bv2OpSemContext &ctx) {
     if (!ctx.getMemReadRegister() || !ctx.getMemWriteRegister() ||
         m_sem.isSkipped(dst) || m_sem.isSkipped(val)) {
       LOG("opsem", errs() << "Warning: Skipping memset\n");
@@ -1370,8 +1369,7 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
     if (v && addr) {
       if (const ConstantInt *ci = dyn_cast<const ConstantInt>(&length)) {
         res = m_ctx.MemSet(addr, v, ci->getZExtValue(), alignment);
-      }
-      else
+      } else
         llvm_unreachable("Unsupported memset with symbolic length");
     }
 
@@ -1383,8 +1381,7 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
     return res;
   }
 
-
-  Expr executeBitCastInst(const Value &op, Type *ty, OpSemContext &ctx) {
+  Expr executeBitCastInst(const Value &op, Type *ty, Bv2OpSemContext &ctx) {
     Type *opTy = op.getType();
 
     if (opTy->getTypeID() == Type::VectorTyID ||
@@ -1482,7 +1479,7 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
 }; // namespace bvop_details
 
 struct OpSemPhiVisitor : public InstVisitor<OpSemPhiVisitor>, OpSemBase {
-  OpSemPhiVisitor(OpSemContext &ctx, Bv2OpSem &sem) : OpSemBase(ctx, sem) {}
+  OpSemPhiVisitor(Bv2OpSemContext &ctx, Bv2OpSem &sem) : OpSemBase(ctx, sem) {}
 
   void visitBasicBlock(BasicBlock &BB) {
     // -- evaluate all phi-nodes atomically. First read all incoming
@@ -1515,47 +1512,55 @@ struct OpSemPhiVisitor : public InstVisitor<OpSemPhiVisitor>, OpSemBase {
 } // namespace seahorn
 
 namespace seahorn {
-OpSemContext::OpSemContext(SymStore &values, ExprVector &side)
-    : m_func(nullptr), m_bb(nullptr), m_inst(nullptr), m_values(values),
-      m_side(side), m_prev(nullptr), m_scalar(false) {}
+Bv2OpSemContext::Bv2OpSemContext(SymStore &values, ExprVector &side)
+    : OpSemContext(values, side), m_func(nullptr), m_bb(nullptr),
+      m_inst(nullptr), m_values(values), m_side(side), m_prev(nullptr),
+      m_scalar(false) {}
 
-OpSemContext::~OpSemContext() {}
-void OpSemContext::setMemManager(bvop_details::OpSemMemManager *man) {
+Bv2OpSemContext::Bv2OpSemContext(SymStore &values, ExprVector &side,
+                                 const Bv2OpSemContext &o)
+    : OpSemContext(values, side), m_func(o.m_func), m_bb(o.m_bb),
+      m_inst(o.m_inst), m_values(o.m_values), m_side(o.m_side), m_act(o.m_act),
+      m_prev(o.m_prev), m_readRegister(o.m_readRegister),
+      m_writeRegister(o.m_writeRegister), m_scalar(o.m_scalar),
+      m_fparams(o.m_fparams), m_ignored(o.m_ignored),
+      m_registers(o.m_registers), m_memManager(nullptr) {}
+
+Bv2OpSemContext::~Bv2OpSemContext() {}
+void Bv2OpSemContext::setMemManager(bvop_details::OpSemMemManager *man) {
   m_memManager.reset(man);
 }
 
-Expr OpSemContext::loadValueFromMem(Expr ptr, const llvm::Type &ty,
-                                    uint32_t align) {
+Expr Bv2OpSemContext::loadValueFromMem(Expr ptr, const llvm::Type &ty,
+                                       uint32_t align) {
   assert(getMemReadRegister());
   return m_memManager->loadValueFromMem(ptr, getMemReadRegister(), ty, align);
 }
 
-Expr OpSemContext::storeValueToMem(Expr val, Expr ptr, const llvm::Type &ty,
-                                   uint32_t align) {
+Expr Bv2OpSemContext::storeValueToMem(Expr val, Expr ptr, const llvm::Type &ty,
+                                      uint32_t align) {
   assert(getMemReadRegister());
   assert(getMemWriteRegister());
   return m_memManager->storeValueToMem(val, ptr, getMemReadRegister(),
                                        getMemWriteRegister(), ty, align);
 }
 
-Expr OpSemContext::MemSet(Expr ptr, Expr val, unsigned len, uint32_t align) {
+Expr Bv2OpSemContext::MemSet(Expr ptr, Expr val, unsigned len, uint32_t align) {
   assert(getMemReadRegister());
   assert(getMemWriteRegister());
-  return m_memManager->MemSet(ptr, val, len,
-                              getMemReadRegister(),
-                              getMemWriteRegister(),
-                              align);
+  return m_memManager->MemSet(ptr, val, len, getMemReadRegister(),
+                              getMemWriteRegister(), align);
 }
 
-void OpSemContext::onFunctionEntry(const Function &fn) {
+void Bv2OpSemContext::onFunctionEntry(const Function &fn) {
   m_memManager->onFunctionEntry(fn);
 }
-void OpSemContext::onModuleEntry(const Module &M) {
+void Bv2OpSemContext::onModuleEntry(const Module &M) {
   return m_memManager->onModuleEntry(M);
 }
 
-void OpSemContext::declareRegister(Expr v) { m_registers.insert(v); }
-bool OpSemContext::isKnownRegister(Expr v) { return m_registers.count(v); }
+void Bv2OpSemContext::declareRegister(Expr v) { m_registers.insert(v); }
+bool Bv2OpSemContext::isKnownRegister(Expr v) { return m_registers.count(v); }
 
 Bv2OpSem::Bv2OpSem(ExprFactory &efac, Pass &pass, const DataLayout &dl,
                    TrackLevel trackLvl)
@@ -1625,7 +1630,7 @@ Expr Bv2OpSem::errorFlag(const BasicBlock &BB) {
 
 void Bv2OpSem::exec(SymStore &s, const BasicBlock &bb, ExprVector &side,
                     Expr act) {
-  OpSemContext C(s, side);
+  Bv2OpSemContext C(s, side);
   C.onBasicBlockEntry(bb);
   C.m_act = act;
 
@@ -1647,7 +1652,7 @@ void Bv2OpSem::exec(SymStore &s, const BasicBlock &bb, ExprVector &side,
 
 void Bv2OpSem::execPhi(SymStore &s, const BasicBlock &bb,
                        const BasicBlock &from, ExprVector &side, Expr act) {
-  OpSemContext C(s, side);
+  Bv2OpSemContext C(s, side);
   C.onBasicBlockEntry(bb);
   C.m_act = act;
   C.m_prev = &from;
@@ -1655,7 +1660,7 @@ void Bv2OpSem::execPhi(SymStore &s, const BasicBlock &bb,
 }
 
 Expr Bv2OpSem::symbolicIndexedOffset(gep_type_iterator TI, gep_type_iterator TE,
-                                     OpSemContext &ctx) {
+                                     Bv2OpSemContext &ctx) {
   unsigned ptrSz = pointerSizeInBits();
 
   // numeric offset
@@ -1720,14 +1725,14 @@ unsigned Bv2OpSem::fieldOff(const StructType *t, unsigned field) const {
       ->getElementOffset(field);
 }
 
-Expr Bv2OpSem::getOperandValue(const Value &v, OpSemContext &ctx) {
+Expr Bv2OpSem::getOperandValue(const Value &v, Bv2OpSemContext &ctx) {
   Expr symVal = symb(v);
   if (symVal)
     return isSymReg(symVal, ctx) ? ctx.read(symVal) : symVal;
   return Expr(0);
 }
 
-bool Bv2OpSem::isSymReg(Expr v, OpSemContext &C) {
+bool Bv2OpSem::isSymReg(Expr v, Bv2OpSemContext &C) {
   if (this->OpSem::isSymReg(v))
     return true;
 
@@ -1934,7 +1939,7 @@ void Bv2OpSem::execEdg(SymStore &s, const BasicBlock &src,
 
 void Bv2OpSem::execBr(SymStore &s, const BasicBlock &src, const BasicBlock &dst,
                       ExprVector &side, Expr act) {
-  OpSemContext C(s, side);
+  Bv2OpSemContext C(s, side);
   C.onBasicBlockEntry(src);
   C.m_inst = BasicBlock::const_iterator(src.getTerminator());
   C.m_act = act;
@@ -1944,7 +1949,7 @@ void Bv2OpSem::execBr(SymStore &s, const BasicBlock &src, const BasicBlock &dst,
 /// \brief Executes one intra-procedural instructions in the current
 /// context. Returns false if there are no more instructions to
 /// execute after the last one
-bool Bv2OpSem::intraStep(OpSemContext &C) {
+bool Bv2OpSem::intraStep(Bv2OpSemContext &C) {
   if (C.m_inst == C.m_bb->end())
     return false;
 
@@ -1973,7 +1978,7 @@ bool Bv2OpSem::intraStep(OpSemContext &C) {
   return res;
 }
 
-void Bv2OpSem::intraPhi(OpSemContext &C) {
+void Bv2OpSem::intraPhi(Bv2OpSemContext &C) {
   assert(C.m_prev);
 
   // XXX TODO: replace old code once regular semantics is ready
@@ -1984,7 +1989,7 @@ void Bv2OpSem::intraPhi(OpSemContext &C) {
 }
 /// \brief Executes one intra-procedural branch instruction in the
 /// current context. Assumes that current instruction is a branch
-void Bv2OpSem::intraBr(OpSemContext &C, const BasicBlock &dst) {
+void Bv2OpSem::intraBr(Bv2OpSemContext &C, const BasicBlock &dst) {
   const BranchInst *br = dyn_cast<const BranchInst>(C.m_inst);
   if (!br)
     return;
@@ -2018,7 +2023,7 @@ void Bv2OpSem::intraBr(OpSemContext &C, const BasicBlock &dst) {
   }
 }
 
-void Bv2OpSem::skipInst(const Instruction &inst, OpSemContext &ctx) {
+void Bv2OpSem::skipInst(const Instruction &inst, Bv2OpSemContext &ctx) {
   const Value *s;
   if (isShadowMem(inst, &s))
     return;
@@ -2030,12 +2035,12 @@ void Bv2OpSem::skipInst(const Instruction &inst, OpSemContext &ctx) {
                       << inst.getParent()->getParent()->getName() << "\n");
 }
 
-void Bv2OpSem::unhandledValue(const Value &v, OpSemContext &ctx) {
+void Bv2OpSem::unhandledValue(const Value &v, Bv2OpSemContext &ctx) {
   if (const Instruction *inst = dyn_cast<const Instruction>(&v))
     return unhandledInst(*inst, ctx);
   LOG("opsem", errs() << "WARNING: unhandled value: " << v << "\n";);
 }
-void Bv2OpSem::unhandledInst(const Instruction &inst, OpSemContext &ctx) {
+void Bv2OpSem::unhandledInst(const Instruction &inst, Bv2OpSemContext &ctx) {
   if (ctx.m_ignored.count(&inst))
     return;
   ctx.m_ignored.insert(&inst);

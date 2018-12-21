@@ -26,7 +26,21 @@ static llvm::cl::opt<bool> LargeStepReduce(
 
 namespace seahorn {
 using namespace ufo;
-void VCGen::checkSideSat1(unsigned &head,
+
+void VCGen::initSmt(std::unique_ptr<ufo::EZ3> &zctx,
+                    std::unique_ptr<ufo::ZSolver<ufo::EZ3> > &smt) {
+  if (!LargeStepReduce) return;
+  errs() << "\nE";
+  // XXX Consider using global EZ3
+  zctx.reset(new EZ3(m_sem.efac()));
+  smt.reset(new ZSolver<EZ3>(*zctx));
+  ZParams<EZ3> params(*zctx);
+  params.set(":smt.array.weak", true);
+  params.set(":smt.arith.ignore_int", true);
+  smt->set(params);
+}
+
+void VCGen::checkSideAtBb(unsigned &head,
                           ExprVector &side,
                           Expr bbV, ZSolver<EZ3> &smt,
                           const CpEdge &edge,
@@ -72,27 +86,40 @@ void VCGen::checkSideSat1(unsigned &head,
     errs() << e.msg() << "\n";
     // std::exit (1);
   }
-
 }
 
-void VCGen::execCpEdg(SymStore &s, const CpEdge &edge, ExprVector &side) {
+void VCGen::checkSideAtEnd(unsigned &head, ExprVector &side,
+                           ufo::ZSolver<ufo::EZ3> &smt) {
+  if (!LargeStepReduce) return;
+  bind::IsConst isConst;
+    for (unsigned sz = side.size(); head < sz; ++head) {
+      ufo::ScopedStats __st__("VCGen.smt");
+      Expr e = side[head];
+      if (!bind::isFapp(e) || isConst(e))
+        smt.assertExpr(e);
+    }
+
+    try {
+      ufo::ScopedStats __st__("VCGen.smt.last");
+      auto res = smt.solve();
+      if (!res) {
+        Stats::count("VCGen.smt.last.unsat");
+        side.push_back(mk<FALSE>(m_sem.efac()));
+      }
+    } catch (z3::exception &e) {
+      errs() << e.msg() << "\n";
+    }
+}
+
+
+void VCGen::genVcForCpEdge(SymStore &s, const CpEdge &edge, ExprVector &side) {
   const CutPoint &target = edge.target();
 
   std::unique_ptr<EZ3> zctx;
   std::unique_ptr<ZSolver<EZ3>> smt;
-  if (LargeStepReduce) {
-    errs() << "\nE";
-    // XXX Consider using global EZ3
-    zctx.reset(new EZ3(m_sem.efac()));
-    smt.reset(new ZSolver<EZ3>(*zctx));
-    ZParams<EZ3> params(*zctx);
-    params.set(":smt.array.weak", true);
-    params.set(":smt.arith.ignore_int", true);
-    smt->set(params);
-  }
+  initSmt(zctx, smt);
 
   unsigned head = side.size();
-  bind::IsConst isConst;
 
   bool first = true;
   for (const BasicBlock &bb : edge) {
@@ -104,33 +131,14 @@ void VCGen::execCpEdg(SymStore &s, const CpEdge &edge, ExprVector &side) {
       execEdgBb(s, edge, bb, side);
       bbV = s.read(m_sem.symb(bb));
     }
-
-    checkSideSat1(head, side, bbV, *smt, edge, bb);
-
     first = false;
+
+    checkSideAtBb(head, side, bbV, *smt, edge, bb);
   }
 
   execEdgBb(s, edge, target.bb(), side, true);
 
-  if (LargeStepReduce) {
-    for (unsigned sz = side.size(); head < sz; ++head) {
-      ufo::ScopedStats __st__("VCGen.smt");
-      Expr e = side[head];
-      if (!bind::isFapp(e) || isConst(e))
-        smt->assertExpr(e);
-    }
-
-    try {
-      ufo::ScopedStats __st__("VCGen.smt.last");
-      auto res = smt->solve();
-      if (!res) {
-        Stats::count("VCGen.smt.last.unsat");
-        side.push_back(mk<FALSE>(m_sem.efac()));
-      }
-    } catch (z3::exception &e) {
-      errs() << e.msg() << "\n";
-    }
-  }
+  checkSideAtEnd(head, side, *smt);
 }
 namespace sem_detail {
 struct FwdReachPred : public std::unary_function<const BasicBlock &, bool> {

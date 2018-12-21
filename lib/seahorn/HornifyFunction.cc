@@ -363,7 +363,7 @@ void LargeHornifyFunction::runOnFunction(Function &F) {
 
       ExprVector side;
       side.push_back(boolop::lneg((s.read(m_sem.errorFlag(cp.bb())))));
-      vcgen.execCpEdg(s, *edge, side);
+      vcgen.genVcForCpEdge(s, *edge, side);
       Expr tau = mknary<AND>(mk<TRUE>(m_efac), side);
       expr::filter(tau, bind::IsConst(),
                    std::inserter(allVars, allVars.begin()));

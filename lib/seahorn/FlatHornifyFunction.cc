@@ -270,7 +270,7 @@ namespace seahorn
     m_db.addRule (allVars, rule);
     allVars.clear ();
 
-    VCGen lsem (m_sem);
+    VCGen vcgen(m_sem);
 
     for (const CutPoint &cp : cpg)
       {
@@ -290,7 +290,7 @@ namespace seahorn
 
           ExprVector side;
           side.push_back (boolop::lneg ((s.read (m_sem.errorFlag (cp.bb ())))));
-          lsem.execCpEdg (s, *edge, side);
+          vcgen.genVcForCpEdge(s, *edge, side);
           Expr tau = mknary<AND> (mk<TRUE> (m_efac), side);
           expr::filter (tau, bind::IsConst(),
                         std::inserter (allVars, allVars.begin ()));

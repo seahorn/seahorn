@@ -45,7 +45,7 @@ void BmcEngine::encode(bool assert_formula) {
 
       m_states.push_back(m_states.back());
       SymStore &s = m_states.back();
-      vcgen.execCpEdg(s, *edg, m_side);
+      vcgen.genVcForCpEdge(s, *edg, m_side);
     }
     prev = cp;
   }

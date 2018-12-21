@@ -65,6 +65,11 @@ public:
 
   ArrayRef<CDInfo> getCDBlocks(BasicBlock *BB) const override;
   bool isReachable(BasicBlock *Src, BasicBlock *Dst) const override;
+  virtual unsigned getBBTopoIdx(llvm::BasicBlock *BB) const override {
+    auto it = m_BBToIdx.find(BB);
+    assert(it != m_BBToIdx.end());
+    return it->second;
+  }
 
 private:
   void calculate();

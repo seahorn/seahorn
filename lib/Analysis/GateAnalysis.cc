@@ -168,7 +168,20 @@ void GateAnalysisImpl::processPhi(PHINode *PN, IRBuilder<> &IRB) {
   DenseMap<BasicBlock *, Value *> incomingBlockToValue =
       processIncomingValues(PN, IRB);
 
-  ArrayRef<CDInfo> cdInfo = m_CDA.getCDBlocks(currentBB);
+  std::vector<CDInfo> cdInfo;
+  for (unsigned i = 0, e = PN->getNumIncomingValues(); i != e; ++i) {
+    auto *BB = PN->getIncomingBlock(i);
+    for (const CDInfo &info : m_CDA.getCDBlocks(BB))
+      cdInfo.push_back(info);
+  }
+
+  std::sort(cdInfo.begin(), cdInfo.end(),
+            [this](const CDInfo &first, const CDInfo &second) {
+              return m_CDA.getBBTopoIdx(first.CDBlock) >
+                     m_CDA.getBBTopoIdx(second.CDBlock);
+            });
+  cdInfo.erase(std::unique(cdInfo.begin(), cdInfo.end()), cdInfo.end());
+
   DenseMap<BasicBlock *, Value *> flowingValues(incomingBlockToValue.begin(),
                                                 incomingBlockToValue.end());
 
@@ -184,18 +197,13 @@ void GateAnalysisImpl::processPhi(PHINode *PN, IRBuilder<> &IRB) {
     TerminatorInst *TI = BB->getTerminator();
     assert(isa<BranchInst>(TI) && "Only BranchInst is supported right now");
 
+    errs() << "Considering CDInfo " << BB->getName() << "\n";
+
     SmallDenseMap<BasicBlock *, Value *, 2> SuccToVal;
     for (auto *S : successors(BB)) {
       SuccToVal[S] = Undef;
 
-      if (S == currentBB) {
-        SuccToVal[S] = incomingBlockToValue[BB];
-        errs() << "1) SuccToVal[" << S->getName() << "] = incoming for "
-               << BB->getName() << ": " << SuccToVal[S]->getName() << "\n";
-        continue;
-      }
-
-      for (auto &BlockValuePair : incomingBlockToValue) {
+      for (auto &BlockValuePair : flowingValues) {
         if (m_PDT.dominates(BlockValuePair.first, S)) {
           SuccToVal[S] = BlockValuePair.second;
           errs() << "2) SuccToVal[" << S->getName() << "] = postdom for "
@@ -233,8 +241,11 @@ void GateAnalysisImpl::processPhi(PHINode *PN, IRBuilder<> &IRB) {
       Value *TrueVal = SuccToVal[TrueDest];
       Value *FalseVal = SuccToVal[FalseDest];
 
+      const char *namePrefix = (TrueVal != Undef && FalseVal != Undef)
+                                   ? "seahorn.gsa.thin_gamma."
+                                   : "seahorn.gsa.gamma.";
       Value *Ite = IRB.CreateSelect(BI->getCondition(), TrueVal, FalseVal,
-                                    {"seahorn.gsa.gamma.", BB->getName()});
+                                    {namePrefix, BB->getName()});
       flowingValues[BB] = Ite;
     }
 

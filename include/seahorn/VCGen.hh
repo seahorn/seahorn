@@ -1,5 +1,7 @@
 #pragma once
-#include <seahorn/OpSem.hh>
+#include "seahorn/OpSem.hh"
+#include "ufo/Smt/EZ3.hh"
+
 namespace seahorn {
   class CpEdge;
   /**
@@ -15,6 +17,11 @@ namespace seahorn {
 
     void execEdgBb (SymStore &s, const CpEdge &edge,
                     const BasicBlock &bb, ExprVector &side, bool last = false);
+
+    void checkSideSat1(unsigned &head, ExprVector &side,
+                       Expr bbV, ufo::ZSolver<ufo::EZ3> &smt,
+                       const CpEdge &edg,
+                       const BasicBlock &bb);
 
   public:
     VCGen (OpSem &sem)

@@ -26,6 +26,55 @@ static llvm::cl::opt<bool> LargeStepReduce(
 
 namespace seahorn {
 using namespace ufo;
+void VCGen::checkSideSat1(unsigned &head,
+                          ExprVector &side,
+                          Expr bbV, ZSolver<EZ3> &smt,
+                          const CpEdge &edge,
+                          const BasicBlock &bb) {
+  if (!LargeStepReduce) return;
+  bind::IsConst isConst;
+
+  for (unsigned sz = side.size(); head < sz; ++head) {
+    ufo::ScopedStats __st__("VCGen.smt");
+    Expr e = side[head];
+    if (!bind::isFapp(e) || isConst(e))
+      smt.assertExpr(e);
+  }
+
+  errs() << ".";
+  errs().flush();
+
+  TimeIt<llvm::raw_ostream &> _t_("smt-solving", errs(), 0.1);
+
+  ufo::ScopedStats __st__("VCGen.smt");
+  Expr a[1] = {bbV};
+
+  LOG("pedge", std::error_code EC;
+      raw_fd_ostream file("/tmp/p-edge.smt2", EC, sys::fs::F_Text);
+      if (!EC) {
+        file << "(set-info :original \"" << edge.source().bb().getName()
+             << " --> " << bb.getName() << " --> "
+             << edge.target().bb().getName() << "\")\n";
+        smt.toSmtLibAssuming(file, a);
+        file.close();
+      });
+
+  try {
+    auto res = smt.solveAssuming(a);
+    if (!res) {
+      errs() << "F";
+      errs().flush();
+      Stats::count("VCGen.smt.unsat");
+      smt.assertExpr(boolop::lneg(bbV));
+      side.push_back(boolop::lneg(bbV));
+    }
+  } catch (z3::exception &e) {
+    errs() << e.msg() << "\n";
+    // std::exit (1);
+  }
+
+}
+
 void VCGen::execCpEdg(SymStore &s, const CpEdge &edge, ExprVector &side) {
   const CutPoint &target = edge.target();
 
@@ -56,46 +105,7 @@ void VCGen::execCpEdg(SymStore &s, const CpEdge &edge, ExprVector &side) {
       bbV = s.read(m_sem.symb(bb));
     }
 
-    if (LargeStepReduce) {
-      for (unsigned sz = side.size(); head < sz; ++head) {
-        ufo::ScopedStats __st__("VCGen.smt");
-        Expr e = side[head];
-        if (!bind::isFapp(e) || isConst(e))
-          smt->assertExpr(e);
-      }
-
-      errs() << ".";
-      errs().flush();
-
-      TimeIt<llvm::raw_ostream &> _t_("smt-solving", errs(), 0.1);
-
-      ufo::ScopedStats __st__("VCGen.smt");
-      Expr a[1] = {bbV};
-
-      LOG("pedge", std::error_code EC;
-          raw_fd_ostream file("/tmp/p-edge.smt2", EC, sys::fs::F_Text);
-          if (!EC) {
-            file << "(set-info :original \"" << edge.source().bb().getName()
-                 << " --> " << bb.getName() << " --> "
-                 << edge.target().bb().getName() << "\")\n";
-            smt->toSmtLibAssuming(file, a);
-            file.close();
-          });
-
-      try {
-        auto res = smt->solveAssuming(a);
-        if (!res) {
-          errs() << "F";
-          errs().flush();
-          Stats::count("VCGen.smt.unsat");
-          smt->assertExpr(boolop::lneg(bbV));
-          side.push_back(boolop::lneg(bbV));
-        }
-      } catch (z3::exception &e) {
-        errs() << e.msg() << "\n";
-        // std::exit (1);
-      }
-    }
+    checkSideSat1(head, side, bbV, *smt, edge, bb);
 
     first = false;
   }

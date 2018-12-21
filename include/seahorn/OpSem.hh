@@ -86,12 +86,14 @@ public:
   virtual void onFunctionExit(const Function &fn) {}
   virtual void onBasicBlockEntry(const BasicBlock &bb) {}
 
+  /// \brief Fork context using given symbolic store and a side condition
   virtual OpSemContextPtr fork(SymStore &values, ExprVector &side) {
     return OpSemContextPtr(new OpSemContext(values, side, *this));
   }
 };
 
-/// Information about a function for VC-generation
+/// \brief Tracks information about a function
+/// Used to generate function summaries during vcgen
 struct FunctionInfo {
   /// Summary predicate
   Expr sumPred;
@@ -113,12 +115,8 @@ struct FunctionInfo {
 /// maps llvm::Function to seahorn::FunctionInfo
 using FuncInfoMap = DenseMap<const llvm::Function *, FunctionInfo>;
 
-/**
- * Operational Semantics for LLVM instructions and basic blocks.
- * Provides symbolic-executor-like interface by transforming an
- * input symbolic state to an output symbolic state and
- * side-conditions.
- */
+
+/// \brief Abstract interface for Operational Semantics
 class OpSem {
 protected:
   ExprFactory &m_efac;
@@ -142,47 +140,57 @@ public:
   ExprFactory &getExprFactory() { return m_efac; }
   ExprFactory &efac() { return m_efac; }
 
+  /// \brief Create context/state for OpSem using given symstore and side
+  /// Sub-classes can override it to customize the context
   virtual OpSemContextPtr mkContext(SymStore &values, ExprVector &side) {
     return std::unique_ptr<OpSemContext>(new OpSemContext(values, side));
   }
 
-  /// Executes all instructions in the basic block. Modifies the
-  /// store s and returns a side condition. The side-constraints are
-  /// optionally conditioned on the activation literal
+  /// \brief Executes all instructions (except for PHINode) of a given
+  /// basic block
   virtual void exec(const BasicBlock &bb, OpSemContext &ctx) {
     exec(ctx.values(), bb, ctx.side(), ctx.getActLit());
   }
 
-  /// Executes all phi-instructions on the (from,bb)-edge.
-  /// act is an optional activation literal
+  /// \brief Executes all PHINode instructions in \bb assuming that
+  /// previously executing basic block was \p from
   virtual void execPhi(const BasicBlock &bb, const BasicBlock &from,
                        OpSemContext &ctx) {
     execPhi(ctx.values(), bb, from, ctx.side(), ctx.getActLit());
   }
 
-  /// Executes a (src,dst) CFG edge
+  /// \brief Executes all instructions of \p src (excluding PHINode)
+  /// and all PHINode instructions of \p dst
   virtual void execEdg(const BasicBlock &src, const BasicBlock &dst,
                        OpSemContext &ctx) {
     execEdg(ctx.values(), src, dst, ctx.side());
   }
 
-  /// Executes the branch instruction in src that leads to dst
-  /// act is an optional activation literal
+  /// \brief Execute the branch instruction of \p src assuming that
+  /// control flows to \p dst. Side condition is extended with the
+  /// symbolic value of the branch condition (if any)
   virtual void execBr(const BasicBlock &src, const BasicBlock &dst,
                       OpSemContext &ctx) {
     execBr(ctx.values(), src, dst, ctx.side(), ctx.getActLit());
   }
 
-  /// symbolic constant corresponding to the value
+  /// \brief Returns a symbolic register correspond to llvm::Value
   virtual Expr symb(const Value &v) = 0;
-  /// value corresponding to the symbolic constant
+  /// \brief Returns an llvm::Value corresponding to a symbolic
+  /// register
   virtual const Value &conc(Expr v) = 0;
-  /// true if value is tracked
+  /// \brief Returns true if \p v is tracked by the semantics If \p v
+  /// is not tracked, it is assumed that it is not executed (if an
+  /// instruction) and that it does not influence a value of any
+  /// instruction that is tracked.
   virtual bool isTracked(const Value &v) = 0;
-  /// Expr corresponding to the value in the current store. The
-  /// value can be a constant
+  /// \brief Returns a symbolic value of \p v in the given store \p s
+  /// \p v is either a constant or has a corresponding symbolic
+  /// register
   virtual Expr lookup(SymStore &s, const Value &v) = 0;
-  /// true if all calls to fn will be abstracted
+
+  /// \brief Returns true if the semantics ignores a call to the given
+  /// function
   virtual bool isAbstracted(const Function &fn) { return false; }
 
   virtual FunctionInfo &getFunctionInfo(const Function &F) {
@@ -193,13 +201,22 @@ public:
     return m_fmap.count(&F) > 0;
   }
 
+  /// \brief Returns special symbolic register that represents that an
+  /// error has occurred
   virtual Expr errorFlag(const BasicBlock &BB) { return m_errorFlag; }
+
+  /// \brief Returns special symbolic register that contains the value
+  /// at which memory region with id \p id begins
   virtual Expr memStart(unsigned id) = 0;
+  /// \brief Returns special symbolic register that contains the value
+  /// at which memory region with id \p id ends
   virtual Expr memEnd(unsigned id) = 0;
 
+  /// \brief Returns true if \p v is a symbolic register known to this
+  /// OpSem object
   virtual bool isSymReg(Expr v) { return v == m_errorFlag; }
 
-  /// old interface
+  /// Deprecated old interface
   virtual void exec(SymStore &s, const BasicBlock &bb, ExprVector &side,
                     Expr act) = 0;
 

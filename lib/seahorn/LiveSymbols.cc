@@ -112,8 +112,9 @@ void LiveSymbols::localPass() {
     //     m_f.getName ().equals ("main")) continue;
 
     SymStore s(m_gstore, true);
+    OpSemContextPtr ctx = m_sem.mkContext(s, m_side);
     // -- execute the basic block and the condition of the terminator
-    symExec(s, *bb);
+    symExec(*ctx, *bb);
 
     LOG("live", errs() << "After executing " << bb->getName() << "\n"
                        << "Got live vars: " << s.uses().size() << "\n";
@@ -131,8 +132,9 @@ void LiveSymbols::localPass() {
     for (auto it = llvm::succ_begin(bb), end = llvm::succ_end(bb); it != end;
          ++it) {
       SymStore ss(m_gstore, true);
+      OpSemContextPtr cctx = m_sem.mkContext(ss, m_side);
       // -- execute the phi-nodes
-      symExecPhi(ss, *(*it), *bb);
+      symExecPhi(*ctx, *(*it), *bb);
 
       li.addEdgeDef(ss.defs());
 
@@ -190,14 +192,14 @@ void LiveSymbols::globalPass() {
   } while (dirty);
 }
 
-void LiveSymbols::symExec(SymStore &s, const BasicBlock &bb) {
-  m_semantics.exec(s, bb, m_side, trueE);
+void LiveSymbols::symExec(OpSemContext &ctx, const BasicBlock &bb) {
+  m_sem.exec(bb, ctx);
   m_side.clear();
 }
 
-void LiveSymbols::symExecPhi(SymStore &s, const BasicBlock &bb,
+void LiveSymbols::symExecPhi(OpSemContext &ctx, const BasicBlock &bb,
                              const BasicBlock &from) {
-  m_semantics.execPhi(s, bb, from, m_side, trueE);
+  m_sem.execPhi(bb, from, ctx);
   m_side.clear();
 }
 

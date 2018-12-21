@@ -78,6 +78,8 @@ public:
   virtual void onBasicBlockEntry(const BasicBlock &bb) {}
 };
 
+using OpSemContextPtr = std::unique_ptr<OpSemContext> ;
+
 /// Information about a function for VC-generation
 struct FunctionInfo {
   /// Summary predicate
@@ -129,7 +131,7 @@ public:
   ExprFactory &getExprFactory() { return m_efac; }
   ExprFactory &efac() { return m_efac; }
 
-  std::unique_ptr<OpSemContext> mkContext(SymStore &values, ExprVector &side) {
+  OpSemContextPtr mkContext(SymStore &values, ExprVector &side) {
     return std::unique_ptr<OpSemContext>(new OpSemContext(values, side));
   }
 

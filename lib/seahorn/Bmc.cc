@@ -33,7 +33,7 @@ void BmcEngine::encode(bool assert_formula) {
 
   assert(m_cpg);
   assert(m_fn);
-  VCGen sexec(m_sem);
+  VCGen vcgen(m_sem);
   m_states.push_back(SymStore(m_efac));
 
   const CutPoint *prev = nullptr;
@@ -45,7 +45,7 @@ void BmcEngine::encode(bool assert_formula) {
 
       m_states.push_back(m_states.back());
       SymStore &s = m_states.back();
-      sexec.execCpEdg(s, *edg, m_side);
+      vcgen.execCpEdg(s, *edg, m_side);
     }
     prev = cp;
   }

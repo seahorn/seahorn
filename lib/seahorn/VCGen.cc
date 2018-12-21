@@ -119,27 +119,37 @@ void VCGen::genVcForCpEdge(SymStore &s, const CpEdge &edge, ExprVector &side) {
   std::unique_ptr<ZSolver<EZ3>> smt;
   initSmt(zctx, smt);
 
+  // remember what was added since last call to smt
   unsigned head = side.size();
 
-  bool first = true;
+  bool isEntry = true;
   for (const BasicBlock &bb : edge) {
     Expr bbV;
-    if (first) {
+    if (isEntry) {
+      // -- initialize bb-exec register
       bbV = s.havoc(m_sem.symb(bb));
+      // -- compute side-conditions for the entry block of the edge
       m_sem.exec(s, bb, side, trueE);
     } else {
+      // -- generate side-conditions for bb
       genVcForBasicBlockOnEdge(s, edge, bb, side);
+      // -- check current value of bb-exec register
       bbV = s.read(m_sem.symb(bb));
     }
-    first = false;
+    isEntry = false;
 
+    // -- check that the current side condition is consistent
     checkSideAtBb(head, side, bbV, *smt, edge, bb);
   }
 
+  // -- generate side condition for the last basic block on the edge
+  // -- this executes only PHINode instructions in target.bb()
   genVcForBasicBlockOnEdge(s, edge, target.bb(), side, true);
 
+  // -- check consistency of side-conditions at the end
   checkSideAtEnd(head, side, *smt);
 }
+
 namespace sem_detail {
 struct FwdReachPred : public std::unary_function<const BasicBlock &, bool> {
   const CutPointGraph &m_cpg;
@@ -155,6 +165,24 @@ struct FwdReachPred : public std::unary_function<const BasicBlock &, bool> {
 };
 } // namespace sem_detail
 
+
+/// \brief Naive quadratic implementation of at-most-one
+static Expr mkAtMostOne(ExprVector &vec) {
+  assert(!vec.empty());
+  ExprVector res;
+  for (unsigned i = 0, e = vec.size(); i < e; ++i) {
+    ExprVector exactly_vi; // exactly  vec[i]
+    exactly_vi.push_back(vec[i]);
+    for (unsigned j = 0; j < e; ++j) {
+      if (vec[i] == vec[j]) continue;
+      exactly_vi.push_back(mk<NEG>(vec[j]));
+    }
+    // at this point: exactly_vi is vi && !vj for all j
+    res.push_back(op::boolop::land(exactly_vi));
+  }
+  return mknary<OR>(res);
+}
+
 void VCGen::genVcForBasicBlockOnEdge(SymStore &s, const CpEdge &edge,
                                      const BasicBlock &bb, ExprVector &side,
                                      bool last) {
@@ -167,10 +195,9 @@ void VCGen::genVcForBasicBlockOnEdge(SymStore &s, const CpEdge &edge,
   sem_detail::FwdReachPred reachable(edge.parent(), edge.source());
 
   // compute predecessors, relative to the source cut-point
-  llvm::SmallVector<const BasicBlock *, 4> preds;
+  llvm::SmallVector<const BasicBlock *, 16> preds;
   for (const BasicBlock *p : seahorn::preds(bb))
-    if (reachable(p))
-      preds.push_back(p);
+    if (reachable(p)) preds.push_back(p);
 
   // -- compute source of all the edges
   for (const BasicBlock *pred : preds)
@@ -205,32 +232,17 @@ void VCGen::genVcForBasicBlockOnEdge(SymStore &s, const CpEdge &edge,
       e = mk<AND>(e, bind::boolConst(mk<TUPLE>(e, bbV)));
   }
 
-  if (EnforceAtMostOnePredecessor) {
-    if (edges.size() > 1) {
-      // Naive quadratic encoding of exactly-one predecessor.
-      // TODO: linear encoding based on adders.
-      ExprVector exactly_one;
-      for (unsigned i = 0, e = edges.size(); i < e; ++i) {
-        ExprVector exactly_ei; // exactly predecessor edges[i]
-        exactly_ei.push_back(edges[i]);
-        for (unsigned j = 0; j < e; ++j) {
-          if (edges[i] == edges[j])
-            continue;
-          exactly_ei.push_back(mk<NEG>(edges[j]));
-        }
-        exactly_one.push_back(op::boolop::land(exactly_ei));
-      }
-      // this enforces at-most-one predecessor.
-      // if !bbV (i.e., bb is not reachable) then bb won't have
-      // predecessors.
-      side.push_back(mk<IMPL>(bbV, mknary<OR>(exactly_one)));
-    }
+  if (EnforceAtMostOnePredecessor && edges.size() > 1) {
+    // this enforces at-most-one predecessor.
+    // if !bbV (i.e., bb is not reachable) then bb won't have
+    // predecessors.
+    side.push_back(mk<IMPL>(bbV, mkAtMostOne(edges)));
   }
 
   // -- encode control flow
   // -- b_j -> (b1 & e_{1,j} | b2 & e_{2,j} | ...)
   side.push_back(
-      mk<IMPL>(bbV, mknary<OR>(mk<FALSE>(m_sem.getExprFactory()), edges)));
+      mk<IMPL>(bbV, mknary<OR>(mk<FALSE>(m_sem.efac()), edges)));
 
   // unique node with no successors is asserted to always be reachable
   if (last)
@@ -249,6 +261,7 @@ void VCGen::genVcForBasicBlockOnEdge(SymStore &s, const CpEdge &edge,
     m_sem.execBr(es, *pred, bb, side, edges[idx]);
     // -- definition of phi nodes
     m_sem.execPhi(es, bb, *pred, side, edges[idx]);
+    // -- collect all uses since `es` is local
     s.uses(es.uses());
 
     for (const Instruction &inst : bb) {
@@ -257,13 +270,14 @@ void VCGen::genVcForBasicBlockOnEdge(SymStore &s, const CpEdge &edge,
       if (!m_sem.isTracked(inst))
         continue;
 
+      // -- record the value of PHINode after taking `pred --> bb` edge
       phiConstraints[idx].push_back(es.read(m_sem.symb(inst)));
     }
 
     idx++;
   }
 
-  // create new values for phi-node variables
+  // create new values for PHINode registers
   ExprVector newPhi;
   for (const Instruction &inst : bb) {
     if (!isa<PHINode>(inst))
@@ -273,7 +287,7 @@ void VCGen::genVcForBasicBlockOnEdge(SymStore &s, const CpEdge &edge,
     newPhi.push_back(s.havoc(m_sem.symb(inst)));
   }
 
-  // connect new phi-node variables with constructed phi-node constraints
+  // connect new PHINode register values with constructed PHINode values
   for (unsigned j = 0; j < edges.size(); ++j)
     for (unsigned i = 0; i < newPhi.size(); ++i)
       side.push_back(

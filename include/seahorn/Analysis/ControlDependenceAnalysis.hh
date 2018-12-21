@@ -36,6 +36,10 @@ llvm::FunctionPass *createControlDependenceAnalysisPass();
 struct CDInfo {
   llvm::BasicBlock *CDBlock;
   llvm::Value *Condition;
+
+  bool operator==(const CDInfo &other) const {
+    return CDBlock == other.CDBlock;
+  }
 };
 
 class ControlDependenceAnalysis {
@@ -45,6 +49,7 @@ public:
   virtual llvm::ArrayRef<CDInfo> getCDBlocks(llvm::BasicBlock *BB) const = 0;
   virtual bool
   isReachable(llvm::BasicBlock *Src, llvm::BasicBlock *Dst) const = 0;
+  virtual unsigned getBBTopoIdx(llvm::BasicBlock *BB) const = 0;
 };
 
 }

@@ -41,7 +41,6 @@ private:
   Expr m_trueE;
   Expr m_falseE;
 
-
 public:
   OpSemContext(SymStore &values, ExprVector &side)
       : m_values(values), m_side(side) {
@@ -53,20 +52,21 @@ public:
   OpSemContext(const OpSemContext &) = delete;
   virtual ~OpSemContext() {}
 
-
+  SymStore &values() {return m_values;}
   Expr read(Expr v) { return m_values.read(v); }
   Expr havoc(Expr v) { return m_values.havoc(v); }
   void write(Expr v, Expr u) { m_values.write(v, u); }
 
-  void setActLit(Expr v) {m_act = v;}
-  Expr getActLit() const {return m_act;}
+  void setActLit(Expr v) { m_act = v; }
+  Expr getActLit() const { return m_act; }
+  ExprVector &side() {return m_side;}
   void addSideSafe(Expr v) { m_side.push_back(boolop::limp(m_act, v)); }
   void addSide(Expr v) { m_side.push_back(v); }
   void addDef(Expr v, Expr u) { addSide(mk<EQ>(v, u)); }
   void addDefSafe(Expr v, Expr u) { addSideSafe(mk<EQ>(v, u)); }
   void resetSide() { m_side.clear(); }
 
-  ExprFactory &getExprFactory() const {return m_values.getExprFactory();}
+  ExprFactory &getExprFactory() const { return m_values.getExprFactory(); }
   ExprFactory &efac() const { return getExprFactory(); }
 
   /// \brief Called when a module is entered
@@ -76,7 +76,6 @@ public:
   /// \brief Called when a function returns
   virtual void onFunctionExit(const Function &fn) {}
   virtual void onBasicBlockEntry(const BasicBlock &bb) {}
-
 };
 
 /// Information about a function for VC-generation
@@ -137,22 +136,29 @@ public:
   /// Executes all instructions in the basic block. Modifies the
   /// store s and returns a side condition. The side-constraints are
   /// optionally conditioned on the activation literal
-  virtual void exec(SymStore &s, const BasicBlock &bb, ExprVector &side,
-                    Expr act) = 0;
+  virtual void exec(const BasicBlock &bb, OpSemContext &ctx) {
+    exec(ctx.values(), bb, ctx.side(), ctx.getActLit());
+  }
 
   /// Executes all phi-instructions on the (from,bb)-edge.
   /// act is an optional activation literal
-  virtual void execPhi(SymStore &s, const BasicBlock &bb,
-                       const BasicBlock &from, ExprVector &side, Expr act) = 0;
+  virtual void execPhi(const BasicBlock &bb, const BasicBlock &from,
+                       OpSemContext &ctx) {
+    execPhi(ctx.values(), bb, from, ctx.side(), ctx.getActLit());
+  }
 
   /// Executes a (src,dst) CFG edge
-  virtual void execEdg(SymStore &s, const BasicBlock &src,
-                       const BasicBlock &dst, ExprVector &side) = 0;
+  virtual void execEdg(const BasicBlock &src, const BasicBlock &dst,
+                       OpSemContext &ctx) {
+    execEdg(ctx.values(), src, dst, ctx.side());
+  }
 
   /// Executes the branch instruction in src that leads to dst
   /// act is an optional activation literal
-  virtual void execBr(SymStore &s, const BasicBlock &src, const BasicBlock &dst,
-                      ExprVector &side, Expr act) = 0;
+  virtual void execBr(const BasicBlock &src, const BasicBlock &dst,
+                      OpSemContext &ctx) {
+    execBr(ctx.values(), src, dst, ctx.side(), ctx.getActLit());
+  }
 
   /// symbolic constant corresponding to the value
   virtual Expr symb(const Value &v) = 0;
@@ -179,6 +185,19 @@ public:
   virtual Expr memEnd(unsigned id) = 0;
 
   virtual bool isSymReg(Expr v) { return v == m_errorFlag; }
+
+  /// old interface
+  virtual void exec(SymStore &s, const BasicBlock &bb, ExprVector &side,
+                    Expr act) = 0;
+
+  virtual void execPhi(SymStore &s, const BasicBlock &bb,
+                       const BasicBlock &from, ExprVector &side, Expr act) = 0;
+
+  virtual void execEdg(SymStore &s, const BasicBlock &src,
+                       const BasicBlock &dst, ExprVector &side) = 0;
+
+  virtual void execBr(SymStore &s, const BasicBlock &src, const BasicBlock &dst,
+                      ExprVector &side, Expr act) = 0;
 };
 
 template <typename OutputIterator>

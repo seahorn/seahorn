@@ -375,10 +375,8 @@ public:
 
 struct OpSemBase {
   Bv2OpSemContext &m_ctx;
-  SymStore &m_s;
   ExprFactory &m_efac;
   Bv2OpSem &m_sem;
-  ExprVector &m_side;
 
   Expr trueE;
   Expr falseE;
@@ -396,9 +394,8 @@ struct OpSemBase {
   Expr m_largestPtr;
 
   OpSemBase(Bv2OpSemContext &ctx, Bv2OpSem &sem)
-      : m_ctx(ctx), m_s(m_ctx.m_values), m_efac(m_ctx.getExprFactory()),
-        m_sem(sem), m_side(m_ctx.m_side), m_cur_startMem(nullptr),
-        m_cur_endMem(nullptr), m_largestPtr(nullptr) {
+      : m_ctx(ctx), m_efac(m_ctx.getExprFactory()), m_sem(sem),
+        m_cur_startMem(nullptr), m_cur_endMem(nullptr), m_largestPtr(nullptr) {
 
     trueE = m_sem.trueE;
     falseE = m_sem.falseE;
@@ -409,7 +406,7 @@ struct OpSemBase {
     nullBv = m_sem.nullBv;
 
     m_ctx.setMemScalar(false);
-    m_ctx.m_act = trueE;
+    m_ctx.setActLit(trueE);
 
     m_largestPtr = m_sem.maxPtrE;
 
@@ -432,13 +429,13 @@ struct OpSemBase {
   Expr lookup(const Value &v) { return m_sem.getOperandValue(v, m_ctx); }
 
   Expr havoc(const Value &v) {
-    return m_sem.isSkipped(v) ? Expr(0) : m_ctx.m_values.havoc(symb(v));
+    return m_sem.isSkipped(v) ? Expr(0) : m_ctx.havoc(symb(v));
   }
 
   void write(const Value &v, Expr val) {
     if (m_sem.isSkipped(v))
       return;
-    m_s.write(symb(v), val);
+    m_ctx.write(symb(v), val);
   }
 
   /// convert bv1 to bool
@@ -450,10 +447,10 @@ struct OpSemBase {
     assert(symReg);
 
     if (e) {
-      m_ctx.m_values.write(symReg, e);
+      m_ctx.write(symReg, e);
     } else {
       m_sem.unhandledValue(v, m_ctx);
-      m_ctx.m_values.havoc(symReg);
+      m_ctx.havoc(symReg);
     }
   }
 };
@@ -779,7 +776,7 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
       Expr memOut = symb(inst);
       Expr memIn = symb(*CS.getArgument(1));
       m_ctx.setMemReadRegister(memIn);
-      m_ctx.m_values.havoc(memOut);
+      m_ctx.havoc(memOut);
       m_ctx.setMemWriteRegister(memOut);
       m_ctx.setMemScalar(extractUniqueScalar(CS) != nullptr);
 
@@ -797,12 +794,12 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
 
     if (F.getName().equals("shadow.mem.arg.mod")) {
       m_ctx.pushParameter(m_ctx.read(symb(*CS.getArgument(1))));
-      m_ctx.pushParameter(m_ctx.m_values.havoc(symb(inst)));
+      m_ctx.pushParameter(m_ctx.havoc(symb(inst)));
       return;
     }
 
     if (F.getName().equals("shadow.mem.arg.new")) {
-      m_ctx.pushParameter(m_ctx.m_values.havoc(symb(inst)));
+      m_ctx.pushParameter(m_ctx.havoc(symb(inst)));
       return;
     }
 
@@ -901,18 +898,18 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
     const BasicBlock &BB = *inst.getParent();
 
     // enabled
-    m_ctx.setParameter(0, m_ctx.m_act); // activation literal
+    m_ctx.setParameter(0, m_ctx.getActLit()); // activation literal
     // error flag in
     m_ctx.setParameter(1, m_ctx.read(m_sem.errorFlag(BB)));
     // error flag out
-    m_ctx.setParameter(2, m_ctx.m_values.havoc(m_sem.errorFlag(BB)));
+    m_ctx.setParameter(2, m_ctx.havoc(m_sem.errorFlag(BB)));
     for (const Argument *arg : fi.args)
-      m_ctx.pushParameter(m_s.read(symb(*CS.getArgument(arg->getArgNo()))));
+      m_ctx.pushParameter(m_ctx.read(symb(*CS.getArgument(arg->getArgNo()))));
     for (const GlobalVariable *gv : fi.globals)
-      m_ctx.pushParameter(m_s.read(symb(*gv)));
+      m_ctx.pushParameter(m_ctx.read(symb(*gv)));
 
     if (fi.ret) {
-      Expr v = m_ctx.m_values.havoc(symb(inst));
+      Expr v = m_ctx.havoc(symb(inst));
       setValue(inst, v);
       m_ctx.pushParameter(v);
     }
@@ -1514,17 +1511,17 @@ struct OpSemPhiVisitor : public InstVisitor<OpSemPhiVisitor>, OpSemBase {
 namespace seahorn {
 Bv2OpSemContext::Bv2OpSemContext(SymStore &values, ExprVector &side)
     : OpSemContext(values, side), m_func(nullptr), m_bb(nullptr),
-      m_inst(nullptr), m_values(values), m_side(side), m_prev(nullptr),
-      m_scalar(false) {}
+      m_inst(nullptr), m_prev(nullptr), m_scalar(false) {}
 
 Bv2OpSemContext::Bv2OpSemContext(SymStore &values, ExprVector &side,
                                  const Bv2OpSemContext &o)
     : OpSemContext(values, side), m_func(o.m_func), m_bb(o.m_bb),
-      m_inst(o.m_inst), m_values(o.m_values), m_side(o.m_side), m_act(o.m_act),
-      m_prev(o.m_prev), m_readRegister(o.m_readRegister),
+      m_inst(o.m_inst), m_prev(o.m_prev), m_readRegister(o.m_readRegister),
       m_writeRegister(o.m_writeRegister), m_scalar(o.m_scalar),
       m_fparams(o.m_fparams), m_ignored(o.m_ignored),
-      m_registers(o.m_registers), m_memManager(nullptr) {}
+      m_registers(o.m_registers), m_memManager(nullptr) {
+  setActLit(o.getActLit());
+}
 
 Bv2OpSemContext::~Bv2OpSemContext() {}
 void Bv2OpSemContext::setMemManager(bvop_details::OpSemMemManager *man) {
@@ -1631,9 +1628,16 @@ Expr Bv2OpSem::errorFlag(const BasicBlock &BB) {
 void Bv2OpSem::exec(SymStore &s, const BasicBlock &bb, ExprVector &side,
                     Expr act) {
   Bv2OpSemContext C(s, side);
+  assert (&s.getExprFactory() == &C.efac());
   C.onBasicBlockEntry(bb);
-  C.m_act = act;
+  C.setActLit(act);
 
+  // assert(&s.getExprFactory() == &C.getExprFactory());
+  // errs() << "s.m_efac: " << &s.getExprFactory() << "\n";
+  // errs() << "C.efac(): " << &C.getExprFactory() << "\n";
+  // errs().flush();
+  // assert(false);
+  // std::exit(32);
   C.setMemManager(new bvop_details::OpSemMemManager(*this, C));
 
   // XXX this needs to be revised
@@ -1654,7 +1658,7 @@ void Bv2OpSem::execPhi(SymStore &s, const BasicBlock &bb,
                        const BasicBlock &from, ExprVector &side, Expr act) {
   Bv2OpSemContext C(s, side);
   C.onBasicBlockEntry(bb);
-  C.m_act = act;
+  C.setActLit(act);
   C.m_prev = &from;
   intraPhi(C);
 }
@@ -1942,7 +1946,7 @@ void Bv2OpSem::execBr(SymStore &s, const BasicBlock &src, const BasicBlock &dst,
   Bv2OpSemContext C(s, side);
   C.onBasicBlockEntry(src);
   C.m_inst = BasicBlock::const_iterator(src.getTerminator());
-  C.m_act = act;
+  C.setActLit(act);
   intraBr(C, dst);
 }
 

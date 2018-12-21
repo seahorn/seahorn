@@ -27,14 +27,56 @@ class OpSem;
 /// of OpSemContext and expects it to be passed when required
 class OpSemContext {
 private:
+  /// A map from symbolic registers to symbolic values
+  /// XXX for now lives outside of the context
   SymStore &m_values;
+
+  /// Side-condition to keep extra constraints (e.g., path condition)
+  /// XXX for now lives outside of the context
   ExprVector &m_side;
 
+  /// Activation literal for protecting conditions
+  Expr m_act;
+
+  Expr m_trueE;
+  Expr m_falseE;
+
+
 public:
-  OpSemContext(SymStore values, ExprVector &side)
-      : m_values(values), m_side(side) {}
+  OpSemContext(SymStore &values, ExprVector &side)
+      : m_values(values), m_side(side) {
+    m_trueE = mk<TRUE>(efac());
+    m_falseE = mk<FALSE>(efac());
+
+    m_act = m_trueE;
+  }
   OpSemContext(const OpSemContext &) = delete;
   virtual ~OpSemContext() {}
+
+
+  Expr read(Expr v) { return m_values.read(v); }
+  Expr havoc(Expr v) { return m_values.havoc(v); }
+  void write(Expr v, Expr u) { m_values.write(v, u); }
+
+  void setActLit(Expr v) {m_act = v;}
+  Expr getActLit() const {return m_act;}
+  void addSideSafe(Expr v) { m_side.push_back(boolop::limp(m_act, v)); }
+  void addSide(Expr v) { m_side.push_back(v); }
+  void addDef(Expr v, Expr u) { addSide(mk<EQ>(v, u)); }
+  void addDefSafe(Expr v, Expr u) { addSideSafe(mk<EQ>(v, u)); }
+  void resetSide() { m_side.clear(); }
+
+  ExprFactory &getExprFactory() const {return m_values.getExprFactory();}
+  ExprFactory &efac() const { return getExprFactory(); }
+
+  /// \brief Called when a module is entered
+  virtual void onModuleEntry(const Module &M) {}
+  /// \brief Called when a function is entered
+  virtual void onFunctionEntry(const Function &fn) {}
+  /// \brief Called when a function returns
+  virtual void onFunctionExit(const Function &fn) {}
+  virtual void onBasicBlockEntry(const BasicBlock &bb) {}
+
 };
 
 /// Information about a function for VC-generation

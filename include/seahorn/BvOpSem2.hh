@@ -29,16 +29,6 @@ public:
   /// the next instruction to be executed
   BasicBlock::const_iterator m_inst;
 
-  /// A map from symbolic registers to symbolic values
-  /// XXX for now lives outside of the context
-  SymStore &m_values;
-
-  /// Side-condition to keep extra constraints (e.g., path condition)
-  /// XXX for now lives outside of the context
-  ExprVector &m_side;
-
-  /// Activation literal for protecting conditions
-  Expr m_act;
 
   /// Previous basic block (if known)
   const BasicBlock *m_prev;
@@ -68,6 +58,7 @@ public:
                   const Bv2OpSemContext &other);
   Bv2OpSemContext(const Bv2OpSemContext &) = delete;
   ~Bv2OpSemContext() override;
+
   void setMemManager(bvop_details::OpSemMemManager *man);
   bvop_details::OpSemMemManager *getMemManager() { return m_memManager.get(); }
 
@@ -88,28 +79,16 @@ public:
                        uint32_t align);
   Expr MemSet(Expr ptr, Expr val, unsigned len, uint32_t align);
 
-  void addSideSafe(Expr v) { m_side.push_back(boolop::limp(m_act, v)); }
-  void addSide(Expr v) { m_side.push_back(v); }
-  void addDef(Expr v, Expr u) { addSide(mk<EQ>(v, u)); }
-  void addDefSafe(Expr v, Expr u) { addSideSafe(mk<EQ>(v, u)); }
-  void resetSide() { m_side.clear(); }
-  Expr read(Expr v) { return m_values.read(v); }
-  Expr havoc(Expr v) { return m_values.havoc(v); }
-  void write(Expr v, Expr u) { m_values.write(v, u); }
-
-  ExprFactory &getExprFactory() const { return m_values.getExprFactory(); }
-  ExprFactory &efac() const { return getExprFactory(); }
-
   /// \brief Called when a module is entered
-  void onModuleEntry(const Module &M);
+  void onModuleEntry(const Module &M) override;
   /// \brief Called when a function is entered
-  void onFunctionEntry(const Function &fn);
+  void onFunctionEntry(const Function &fn) override;
   /// \brief Called when a function returns
-  void onFunctionExit(const Function &fn) { /* nothing */
-  }
+  void onFunctionExit(const Function &fn) override {}
+
 
   /// \brief Call when a basic block is entered
-  void onBasicBlockEntry(const BasicBlock &bb) {
+  void onBasicBlockEntry(const BasicBlock &bb) override {
     if (!m_func)
       m_func = bb.getParent();
     assert(m_func == bb.getParent());
@@ -122,15 +101,17 @@ public:
   void declareRegister(Expr v);
   bool isKnownRegister(Expr v);
 
-  Bv2OpSemContext &ctx(OpSemContext &ctx) {
-    return static_cast<Bv2OpSemContext &>(ctx);
-  }
 
   std::unique_ptr<OpSemContext> fork(SymStore &values, ExprVector &side,
                                      OpSemContext &_ctx) {
     return std::unique_ptr<OpSemContext>(
         new Bv2OpSemContext(values, side, ctx(_ctx)));
   }
+private:
+  Bv2OpSemContext &ctx(OpSemContext &ctx) {
+    return static_cast<Bv2OpSemContext &>(ctx);
+  }
+
 };
 
 namespace bvop_details {

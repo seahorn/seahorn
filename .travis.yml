@@ -28,7 +28,7 @@ script:
        && docker login -u "$DOCKER_USER" -p "$DOCKER_PWD"
        && docker tag seahorn_container seahorn/seahorn-llvm5:nightly
        && docker push seahorn/seahorn-llvm5:nightly ;
-     else docker run -v `pwd`:/host -it seahorn_container /bin/sh -c "cd share/seahorn/test; lit simple; lit solve; lit abc; lit dsa; lit tutorial; lit bmc; lit smc; lit gsa" ;
+     else docker run -v `pwd`:/host -it seahorn_container /bin/sh -c "cd share/seahorn/test; lit simple; lit solve; lit abc; lit dsa; lit tutorial; lit bmc; lit smc; lit opsem; lit gsa" ;
      fi '
 
   #- /usr/bin/cmake --build . --target test-inc

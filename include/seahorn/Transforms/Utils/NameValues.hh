@@ -16,8 +16,7 @@ namespace seahorn
     bool runOnModule (Module &M);
     bool runOnFunction (Function &F);
     void getAnalysisUsage (AnalysisUsage &AU) const { AU.setPreservesAll (); }
-    virtual StringRef getPassName () const {return "NameValues";}
-
+    StringRef getPassName() const override { return "NameValues"; }
   };
 
     inline Pass *createNameValuesPass(){return new NameValues();}

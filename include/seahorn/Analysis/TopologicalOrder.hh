@@ -50,8 +50,8 @@ public:
   const_reverse_iterator rend() const { return m_order.rend(); }
   llvm::iterator_range<const_reverse_iterator> rtopoOrder() const {return llvm::make_range(rbegin(), rend());}
 
-  virtual void print(raw_ostream &out, const Module *m) const;
-  virtual StringRef getPassName() const { return "TopologicalOrder"; }
+  void print(raw_ostream &out, const Module *m) const override;
+  StringRef getPassName() const override { return "TopologicalOrder"; }
 };
 
 } // namespace seahorn

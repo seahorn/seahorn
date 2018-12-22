@@ -1,4 +1,6 @@
+#include "llvm/Analysis/PostDominators.h"
 #include "llvm/Analysis/TargetLibraryInfo.h"
+#include "llvm/IR/Dominators.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/Module.h"
@@ -13,6 +15,7 @@
 
 #include "seahorn/Analysis/CanFail.hh"
 #include "seahorn/Analysis/ControlDependenceAnalysis.hh"
+#include "seahorn/Analysis/GateAnalysis.hh"
 #include "seahorn/Bmc.hh"
 #include "seahorn/BvOpSem.hh"
 #include "seahorn/BvOpSem2.hh"
@@ -29,6 +32,10 @@
 // XXX temporary debugging aid
 static llvm::cl::opt<bool> HornBv2("horn-bv2",
                                    llvm::cl::desc("Use bv2 semantics"),
+                                   llvm::cl::init(false), llvm::cl::Hidden);
+
+static llvm::cl::opt<bool> HornGSA("horn-gsa",
+                                   llvm::cl::desc("Use Gated SSA for bmc"),
                                    llvm::cl::init(false), llvm::cl::Hidden);
 
 namespace seahorn {
@@ -84,8 +91,6 @@ public:
   }
 
   void getAnalysisUsage(AnalysisUsage &AU) const {
-    AU.setPreservesAll();
-
     AU.addRequired<seahorn::CanFail>();
     AU.addRequired<seahorn::NameValues>();
     AU.addRequired<seahorn::TopologicalOrder>();
@@ -101,6 +106,14 @@ public:
       WARN << "Crab requested (by --horn-bmc-crab) but not available!";
 #endif
     }
+
+    if (HornGSA) {
+      AU.addRequiredTransitive<llvm::DominatorTreeWrapperPass>();
+      AU.addRequiredTransitive<llvm::PostDominatorTreeWrapperPass>();
+      AU.addRequired<seahorn::GateAnalysisPass>();
+    }
+
+    AU.setPreservesAll();
   }
 
   virtual bool runOnFunction(Function &F) {
@@ -138,7 +151,8 @@ public:
     const CutPointGraph &cpg = getAnalysis<CutPointGraph>(F);
     const CutPoint &src = cpg.getCp(F.getEntryBlock());
     const CutPoint *dst = nullptr;
-    // const GateAnalysis &GA = getAnalysis<GateAnalysisPass>(F).getGateAnalysis();
+    const GateAnalysis *GSA =
+        HornGSA ? &getAnalysis<GateAnalysisPass>(F).getGateAnalysis() : nullptr;
 
     // -- find return instruction. Assume it is unique
     for (auto &bb : F)

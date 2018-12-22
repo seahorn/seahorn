@@ -22,42 +22,42 @@ namespace seahorn
 
   class HornClauseDB;
   class HornRule
-  { 
+  {
     ExprVector m_vars;
     Expr m_head;
-    Expr m_body; 
-    
+    Expr m_body;
+
   public:
     template <typename Range>
-    HornRule (Range &v, Expr b) : 
-      m_vars (boost::begin (v), boost::end (v)), 
-      m_head (b), m_body (mk<TRUE>(b->efac ())) 
+    HornRule (Range &v, Expr b) :
+      m_vars (boost::begin (v), boost::end (v)),
+      m_head (b), m_body (mk<TRUE>(b->efac ()))
     {
       if ((b->arity () == 2) && isOpX<IMPL> (b))
-      { 
+      {
         m_body = b->left ();
         m_head = b->right ();
       }
-      else 
-      { assert (bind::isFapp (b)); }      
+      else
+      { assert (bind::isFapp (b)); }
     }
 
     template <typename Range>
-    HornRule (Range &v, Expr head, Expr body) : 
-      m_vars (boost::begin (v), boost::end (v)), 
-      m_head (head), m_body (body) 
+    HornRule (Range &v, Expr head, Expr body) :
+      m_vars (boost::begin (v), boost::end (v)),
+      m_head (head), m_body (body)
     { }
-    
-    HornRule (const HornRule &r) : 
-      m_vars (r.m_vars), 
-      m_head (r.m_head), m_body (r.m_body) 
-    {} 
-    
+
+    HornRule (const HornRule &r) :
+      m_vars (r.m_vars),
+      m_head (r.m_head), m_body (r.m_body)
+    {}
+
     size_t hash () const
     {
       size_t res = expr::hash_value (m_head);
       boost::hash_combine (res, m_body);
-      boost::hash_combine (res, boost::hash_range (m_vars.begin (), 
+      boost::hash_combine (res, boost::hash_range (m_vars.begin (),
                                                    m_vars.end ()));
       return res;
     }
@@ -76,24 +76,24 @@ namespace seahorn
 
     // return only the head of the horn clause
     Expr head () const {return m_head;}
-    
+
     // return the implication body => head
-    Expr get () const 
-    { 
-      if (isOpX<TRUE> (m_body)) 
+    Expr get () const
+    {
+      if (isOpX<TRUE> (m_body))
         return m_head;
-      else 
+      else
         return mk<IMPL> (m_body, m_head);
     }
 
-    const ExprVector &vars () const {return m_vars;} 
+    const ExprVector &vars () const {return m_vars;}
 
     template<typename OutputIterator>
     void used_relations (HornClauseDB &db, OutputIterator out);
   };
 
 
-  class HornClauseDB 
+  class HornClauseDB
   {
     friend class HornRule;
   public:
@@ -109,7 +109,7 @@ namespace seahorn
       {return bind::isFdecl (e) && m_db.hasRelation (e);}
     };
   private:
-    
+
     ExprFactory &m_efac;
     expr_set_type m_rels;
     mutable ExprVector m_vars;
@@ -117,38 +117,38 @@ namespace seahorn
     ExprVector m_queries;
     std::map<Expr, ExprVector> m_constraints;
     std::map<Expr, ExprVector> m_invariants;
-    
+
     /// indexes
 
-    
+
     typedef boost::container::flat_set<HornRule*> horn_set_type;
     typedef std::map<Expr, horn_set_type > index_type;
     /// maps a relation to rules it appears in the body
     index_type m_body_idx;
     /// maps a relation to rules it appears in the head
     index_type m_head_idx;
-    
+
     const ExprVector &getVars () const;
 
     /// empty set sentinel
     static horn_set_type m_empty_set;
-    
+
     /// resets all indexes
     void resetIndexes ();
 
   public:
 
     HornClauseDB (ExprFactory &efac) : m_efac (efac) {}
-    
+
     ExprFactory &getExprFactory () {return m_efac;}
-    
+
     void registerRelation (Expr fdecl) {m_rels.insert (fdecl);}
     const expr_set_type& getRelations () const {return m_rels;}
     bool hasRelation (Expr fdecl) const
     { return m_rels.count (fdecl) > 0; }
     /// number of relational predicates
     unsigned relSize () { return m_rels.size ();}
-    
+
     /// -- build use/def indexes
     void buildIndexes ();
 
@@ -161,7 +161,7 @@ namespace seahorn
       if (it == m_body_idx.end ()) return m_empty_set;
       return it->second;
     }
-    
+
     /// -- returns rules that define fdecl
     /// -- i.e., rules in which fdecl appears in the head
     /// -- requires indexes (see buildIndexes())
@@ -176,6 +176,8 @@ namespace seahorn
     void addRule (const Range &vars, Expr rule)
     {
       if (isOpX<TRUE> (rule)) return;
+      assert(std::all_of(boost::begin(vars), boost::end(vars),
+                         bind::IsConst()));
       addRule (HornRule (vars, rule));
     }
 
@@ -184,15 +186,15 @@ namespace seahorn
       m_rules.push_back (rule);
       boost::copy (rule.vars (), std::back_inserter (m_vars));
       resetIndexes ();
-      
+
     }
-    
+
     const ExprVector &getVars ()
     {
       // -- remove duplicates
       std::sort (m_vars.begin (), m_vars.end ());
       m_vars.erase (std::unique (m_vars.begin (), m_vars.end ()), m_vars.end ());
-      
+
       return m_vars;
     }
 
@@ -209,26 +211,26 @@ namespace seahorn
     void addQuery (Expr q) {m_queries.push_back (q);}
     ExprVector getQueries () const {return m_queries;}
     bool hasQuery () const {return !m_queries.empty ();}
-    
+
 
     bool hasConstraints (Expr reln) const {return m_constraints.count (reln) > 0;}
-    
+
     /// Add constraint to a predicate
     /// Adds constraint Forall V . pred -> lemma
     void addConstraint (Expr pred, Expr lemma);
-    
+
     /// Returns the current constraints for the predicate
     Expr getConstraints (Expr pred) const;
 
     bool hasInvariants (Expr reln) const {return m_invariants.count (reln) > 0;}
-    
+
     /// Add invariant to a predicate
     /// Adds invariant Forall V . pred -> lemma
     void addInvariant (Expr pred, Expr lemma);
-    
+
     /// Returns the current invariants for the predicate
     Expr getInvariants (Expr pred) const;
-    
+
 
     raw_ostream& write (raw_ostream& o) const;
 
@@ -240,10 +242,10 @@ namespace seahorn
     {
       ufo::ScopedStats _st_("HornClauseDB::loadZFixedPoint");
       for (auto &p: getRelations ())
-        fp.registerRelation (p); 
+        fp.registerRelation (p);
 
       for (auto &rule: getRules ())
-        fp.addRule (rule.vars (), rule.get ()); 
+        fp.addRule (rule.vars (), rule.get ());
 
       for (auto &r : getRelations ())
         if (!skipConstraints && (hasConstraints (r) || hasInvariants (r)))
@@ -260,13 +262,13 @@ namespace seahorn
 	  if (hasConstraints (r))
 	    fp.addCover (pred, getConstraints (pred));
 	  if (hasInvariants (r))
-	    fp.addInvariant (pred, getInvariants (pred));	  
+	    fp.addInvariant (pred, getInvariants (pred));
         }
 
       if (!skipQuery) fp.addQueries (getQueries ());
     }
 
-    
+
   };
 
   template<typename OutputIterator>

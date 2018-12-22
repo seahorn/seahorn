@@ -578,6 +578,7 @@ public:
     if (isOpX<TRUE>(rule))
       return;
 
+    assert(std::all_of(boost::begin(vars), boost::end(vars), bind::IsConst()));
     boost::copy(vars, std::back_inserter(m_vars));
     m_rules.push_back(rule);
 
@@ -716,6 +717,9 @@ public:
     }
 
     for (const Expr &v : fp.getVars()) {
+      if (!bind::IsConst()(v)) {
+        std::cerr << "FP var not a constant: " << *v << "\n";
+      }
       assert(bind::IsConst()(v));
       out << "(declare-var " << fp.z3.toSmtLib(v) << " ";
       Expr ty = bind::typeOf(v);

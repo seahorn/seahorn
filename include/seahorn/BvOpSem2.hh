@@ -110,13 +110,14 @@ public:
   Expr getRegister(const llvm::Value &v) const {
     return m_valueToRegister.lookup(&v);
   }
+  Expr getConstantValue(const llvm::Constant &c);
 
   OpSemContextPtr fork(SymStore &values, ExprVector &side) {
     return OpSemContextPtr(new Bv2OpSemContext(values, side, *this));
   }
 
 private:
-  Bv2OpSemContext &ctx(OpSemContext &ctx) {
+  static Bv2OpSemContext &ctx(OpSemContext &ctx) {
     return static_cast<Bv2OpSemContext &>(ctx);
   }
 };
@@ -139,6 +140,7 @@ class Bv2OpSem : public OpSem {
   friend class bvop_details::OpSemBase;
   friend class bvop_details::OpSemVisitor;
   friend class bvop_details::OpSemPhiVisitor;
+  friend class Bv2OpSemContext;
 
   Pass &m_pass;
   TrackLevel m_trackLvl;
@@ -190,7 +192,7 @@ public:
 
   Expr errorFlag(const BasicBlock &BB) override;
 
-  Bv2OpSemContext &ctx(OpSemContext &_ctx) {
+  static Bv2OpSemContext &ctx(OpSemContext &_ctx) {
     return static_cast<Bv2OpSemContext &>(_ctx);
   }
   void exec(const BasicBlock &bb, OpSemContext &_ctx) override {
@@ -262,6 +264,10 @@ public:
   /// \brief Returns true if the given expression is a symbolic register
   bool isSymReg(Expr v) override { llvm_unreachable(nullptr); }
   bool isSymReg(Expr v, Bv2OpSemContext &ctx);
+
+  Expr mkSymbReg(const Value &v, OpSemContext &_ctx) {
+    return ctx(_ctx).mkRegister(v);
+  }
 
   Expr getOperandValue(const Value &v, Bv2OpSemContext &ctx);
   Expr lookup(SymStore &s, const Value &v) { llvm_unreachable(nullptr); }

@@ -440,25 +440,55 @@ struct OpSemBase {
     ctx.pushParameter(falseE);
   }
 
-  Expr symb(const Value &v) { return m_sem.symb(v); }
   unsigned ptrSz() { return m_sem.pointerSizeInBits(); }
 
   Expr read(const Value &v) {
-    return m_sem.isSkipped(v) ? Expr(0) : m_ctx.read(symb(v));
-  }
+    if (m_sem.isSkipped(v)) return Expr();
 
-  Expr read(Expr v) { return m_ctx.read(v); }
+    Expr reg;
+    if (reg = m_ctx.getRegister(v)) return m_ctx.read(reg);
+
+    if (const Constant *cv = dyn_cast<Constant>(&v)) {
+      return m_ctx.getConstantValue(*cv);
+    }
+
+    reg = m_ctx.mkRegister(v);
+    if (reg) return m_ctx.read(reg);
+
+    errs() << "Error: failed to read a value for: " << v << "\n";
+    llvm_unreachable(nullptr);
+  }
 
   Expr lookup(const Value &v) { return m_sem.getOperandValue(v, m_ctx); }
 
   Expr havoc(const Value &v) {
-    return m_sem.isSkipped(v) ? Expr(0) : m_ctx.havoc(symb(v));
+    if (m_sem.isSkipped(v)) return Expr();
+
+    Expr reg;
+    if (reg = m_ctx.getRegister(v)) return m_ctx.havoc(reg);
+
+    assert(!isa<Constant>(v));
+    reg = m_ctx.mkRegister(v);
+    if (reg) return m_ctx.havoc(reg);
+    errs() << "Error: failed to havoc: " << v << "\n";
+    llvm_unreachable(nullptr);
   }
 
   void write(const Value &v, Expr val) {
     if (m_sem.isSkipped(v))
       return;
-    m_ctx.write(symb(v), val);
+
+    Expr reg;
+    if (reg = m_ctx.getRegister(v)) m_ctx.write(reg, val);
+    else {
+      assert (!isa<Constant>(v));
+      reg = m_ctx.mkRegister(v);
+      if (reg) m_ctx.write(reg, val);
+      else {
+        errs() << "Error: failed to write: " << v << "\n";
+        llvm_unreachable(nullptr);
+      }
+    }
   }
 
   /// convert bv1 to bool
@@ -466,19 +496,17 @@ struct OpSemBase {
   Expr boolToBv(Expr b) { return m_sem.boolToBv(b); }
 
   void setValue(const Value &v, Expr e) {
-    Expr symReg = symb(v);
-    assert(symReg);
-
-    if (e) {
-      m_ctx.write(symReg, e);
-    } else {
+    if (e)
+      write(v, e);
+    else {
       m_sem.unhandledValue(v, m_ctx);
-      m_ctx.havoc(symReg);
+      havoc(v);
     }
   }
 };
 
-struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
+class OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
+public:
   OpSemVisitor(Bv2OpSemContext &ctx, Bv2OpSem &sem) : OpSemBase(ctx, sem) {}
 
   // Opcode Implementations
@@ -722,7 +750,13 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
     }
 
     if (f->isDeclaration()) {
-      visitExternalCall(CS);
+      if (f->arg_empty() &&
+          (f->getName().startswith("nd") ||
+           f->getName().startswith("nondet.") ||
+           f->getName().startswith("verifier.nondet")))
+        visitNondetCall(CS);
+      else
+        visitExternalCall(CS);
       return;
     }
 
@@ -743,6 +777,7 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
     Function &f = *CS.getCalledFunction();
 
     Expr op = lookup(*CS.getArgument(0));
+    assert(op);
 
     if (f.getName().equals("verifier.assume.not"))
       op = boolop::lneg(op);
@@ -763,8 +798,8 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
 
     if (IgnoreCalloc2) {
       LOG("opsem", "Warning: treating calloc() as malloc()\n";);
-      m_ctx.addDef(read(m_ctx.getMemWriteRegister()),
-                   read(m_ctx.getMemReadRegister()));
+      m_ctx.addDef(m_ctx.read(m_ctx.getMemWriteRegister()),
+                   m_ctx.read(m_ctx.getMemReadRegister()));
     } else {
       LOG("opsem", "Warning: allowing calloc() to "
                    "zero initialize ALL of its memory region\n";);
@@ -790,14 +825,14 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
 
     if (F.getName().equals("shadow.mem.load")) {
       const Value &v = *CS.getArgument(1);
-      m_ctx.setMemReadRegister(symb(v));
+      m_ctx.setMemReadRegister(m_ctx.mkRegister(v));
       m_ctx.setMemScalar(extractUniqueScalar(CS) != nullptr);
       return;
     }
 
     if (F.getName().equals("shadow.mem.store")) {
-      Expr memOut = symb(inst);
-      Expr memIn = symb(*CS.getArgument(1));
+      Expr memOut = m_ctx.mkRegister(inst);
+      Expr memIn = m_ctx.getRegister(*CS.getArgument(1));
       m_ctx.setMemReadRegister(memIn);
       m_ctx.havoc(memOut);
       m_ctx.setMemWriteRegister(memOut);
@@ -811,18 +846,21 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
     }
 
     if (F.getName().equals("shadow.mem.arg.ref")) {
-      m_ctx.pushParameter(m_ctx.read(symb(*CS.getArgument(1))));
+      m_ctx.pushParameter(lookup(*CS.getArgument(1)));
       return;
     }
 
     if (F.getName().equals("shadow.mem.arg.mod")) {
-      m_ctx.pushParameter(m_ctx.read(symb(*CS.getArgument(1))));
-      m_ctx.pushParameter(m_ctx.havoc(symb(inst)));
+      m_ctx.pushParameter(lookup(*CS.getArgument(1)));
+      Expr reg = m_ctx.mkRegister(inst);
+      assert(reg);
+      m_ctx.pushParameter(m_ctx.havoc(reg));
       return;
     }
 
     if (F.getName().equals("shadow.mem.arg.new")) {
-      m_ctx.pushParameter(m_ctx.havoc(symb(inst)));
+      Expr reg = m_ctx.mkRegister(inst);
+      m_ctx.pushParameter(m_ctx.havoc(reg));
       return;
     }
 
@@ -832,7 +870,7 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
       if (PF.getName().equals("main"))
         setValue(inst, havoc(inst));
       else
-        m_ctx.read(symb(*CS.getArgument(1)));
+        lookup(*CS.getArgument(1));
       return;
     }
 
@@ -840,7 +878,7 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
       if (PF.getName().equals("main"))
         setValue(inst, havoc(inst));
       else
-        m_ctx.read(symb(*CS.getArgument(1)));
+        lookup(*CS.getArgument(1));
       return;
     }
 
@@ -854,19 +892,29 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
     llvm_unreachable(nullptr);
   }
 
+  void visitNondetCall(CallSite CS) {
+    const Instruction &inst = *CS.getInstruction();
+    if (!inst.getType()->isVoidTy()) {
+      setValue(inst, m_ctx.havoc(m_ctx.mkRegister(inst)));
+    }
+  }
   void visitExternalCall(CallSite CS) {
-    if (!EnableModelExternalCalls2)
-      return;
     Function &F = *CS.getCalledFunction();
     if (F.getFunctionType()->getReturnType()->isVoidTy())
       return;
 
-    if (std::find(IgnoreExternalFunctions2.begin(),
-                  IgnoreExternalFunctions2.end(),
-                  F.getName()) == IgnoreExternalFunctions2.end())
-      return;
-
     const Instruction &inst = *CS.getInstruction();
+
+    if (!EnableModelExternalCalls2 ||
+        std::find(IgnoreExternalFunctions2.begin(),
+                  IgnoreExternalFunctions2.end(),
+                  F.getName()) == IgnoreExternalFunctions2.end()) {
+      setValue(inst, Expr());
+      return;
+    }
+
+
+
     // Treat the call as an uninterpreted function
     Expr res;
     ExprVector fargs;
@@ -894,7 +942,7 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
 
     if (is_typed) {
       // return type of the function
-      Expr symReg = symb(inst);
+      Expr symReg = m_ctx.mkRegister(inst);
       Expr ty = bind::typeOf(symReg);
       if (!ty) {
         is_typed = false;
@@ -927,12 +975,13 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
     // error flag out
     m_ctx.setParameter(2, m_ctx.havoc(m_sem.errorFlag(BB)));
     for (const Argument *arg : fi.args)
-      m_ctx.pushParameter(m_ctx.read(symb(*CS.getArgument(arg->getArgNo()))));
+      m_ctx.pushParameter(lookup(*CS.getArgument(arg->getArgNo())));
     for (const GlobalVariable *gv : fi.globals)
-      m_ctx.pushParameter(m_ctx.read(symb(*gv)));
+      m_ctx.pushParameter(lookup(*gv));
 
     if (fi.ret) {
-      Expr v = m_ctx.havoc(symb(inst));
+      Expr reg = m_ctx.mkRegister(inst);
+      Expr v = m_ctx.havoc(reg);
       setValue(inst, v);
       m_ctx.pushParameter(v);
     }
@@ -1496,7 +1545,7 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
             fn.getName().equals("seahorn.fail") ||
             fn.getName().startswith("shadow.mem"))
           continue;
-        Expr symReg = symb(fn);
+        Expr symReg = m_ctx.mkRegister(fn);
         assert(symReg);
         m_ctx.write(symReg, m_ctx.getMemManager()->falloc(fn));
       }
@@ -1510,7 +1559,7 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
                             << "\n";);
         continue;
       }
-      Expr symReg = symb(gv);
+      Expr symReg = m_ctx.mkRegister(gv);
       assert(symReg);
       m_ctx.write(symReg, m_ctx.getMemManager()->galloc(gv));
     }
@@ -1628,6 +1677,7 @@ Expr Bv2OpSemContext::mkRegister(const llvm::BasicBlock &bb) {
   if (Expr r = getRegister(bb)) return r;
   Expr reg = bind::boolConst(mkTerm<const BasicBlock *>(&bb, efac()));
   declareRegister(reg);
+  m_valueToRegister.insert(std::make_pair(&bb, reg));
   return reg;
 }
 
@@ -1665,8 +1715,10 @@ Expr Bv2OpSemContext::mkRegister(const llvm::Instruction &inst) {
     case Type::IntegerTyID:
       reg = ty.isIntegerTy(1) ? bind::boolConst(v)
         : bv::bvConst(v, m_sem.sizeInBits(ty));
+      break;
     case Type::PointerTyID:
       reg = bv::bvConst(v, m_sem.sizeInBits(ty));
+      break;
     default:
       errs() << "Error: unhandled type: " << ty << " of " << inst << "\n";
       llvm_unreachable(nullptr);
@@ -1674,6 +1726,7 @@ Expr Bv2OpSemContext::mkRegister(const llvm::Instruction &inst) {
   }
   assert(reg);
   declareRegister(reg);
+  m_valueToRegister.insert(std::make_pair(&inst, reg));
   return reg;
 }
 
@@ -1688,6 +1741,40 @@ Expr Bv2OpSemContext::mkRegister(const llvm::Value &v) {
   llvm_unreachable(nullptr);
 }
 
+Expr Bv2OpSemContext::getConstantValue(const llvm::Constant &c) {
+  // -- easy common cases
+  if (c.isNullValue() || isa<ConstantPointerNull>(&c)) {
+    return c.getType()->isIntegerTy(1)
+      ? m_falseE
+      : bv::bvnum(0, m_sem.sizeInBits(c), efac());
+  } else if (const ConstantInt *ci = dyn_cast<const ConstantInt>(&c)) {
+      if (ci->getType()->isIntegerTy(1))
+        return ci->isOne() ? m_trueE : m_falseE;
+
+      mpz_class k = toMpz(ci->getValue());
+      return bv::bvnum(k, m_sem.sizeInBits(c), efac());
+  }
+
+  if (c.getType()->isIntegerTy()) {
+      auto GVO = m_sem.getConstantValue(&c);
+      if (GVO.hasValue()) {
+        GenericValue gv = GVO.getValue();
+        mpz_class k = toMpz(gv.IntVal);
+        if (c.getType()->isIntegerTy(1)) {
+          return k == 1 ? m_trueE : m_falseE;
+        } else {
+          return bv::bvnum(k, m_sem.sizeInBits(c), efac());
+        }
+      }
+  } else if (c.getType()->isPointerTy()) {
+    LOG("opsem", errs() << "Warning: unhandled constant pointer "
+        << c << "\n";);
+  } else {
+    LOG("opsem", errs() << "Warning: unhandled constant "
+        << c << "\n";);
+  }
+  return Expr();
+}
 Bv2OpSem::Bv2OpSem(ExprFactory &efac, Pass &pass, const DataLayout &dl,
                    TrackLevel trackLvl)
     : OpSem(efac), m_pass(pass), m_trackLvl(trackLvl), m_td(&dl) {
@@ -1860,11 +1947,26 @@ unsigned Bv2OpSem::fieldOff(const StructType *t, unsigned field) const {
 }
 
 Expr Bv2OpSem::getOperandValue(const Value &v, Bv2OpSemContext &ctx) {
-  Expr symVal = symb(v);
-  if (symVal)
-    return isSymReg(symVal, ctx) ? ctx.read(symVal) : symVal;
-  return Expr(0);
+  Expr res;
+  if (const BasicBlock *bb = dyn_cast<BasicBlock>(&v)) {
+      Expr reg = ctx.getRegister(v);
+      if (reg) res = ctx.read(reg);
+  } else if (const Constant *cv = dyn_cast<Constant>(&v)) {
+    res = ctx.getConstantValue(*cv);
+    assert(res);
+  } else {
+    Expr reg = ctx.getRegister(v);
+    if (reg) res = ctx.read(reg);
+  }
+  return res;
 }
+
+// Expr Bv2OpSem::getOperandValue(const Value &v, Bv2OpSemContext &ctx) {
+//   Expr symVal = symb(v);
+//   if (symVal)
+//     return isSymReg(symVal, ctx) ? ctx.read(symVal) : symVal;
+//   return Expr(0);
+// }
 
 bool Bv2OpSem::isSymReg(Expr v, Bv2OpSemContext &C) {
   if (this->OpSem::isSymReg(v))
@@ -1892,92 +1994,8 @@ bool Bv2OpSem::isSymReg(Expr v, Bv2OpSemContext &C) {
 }
 
 Expr Bv2OpSem::symb(const Value &I) {
-  assert(!isa<UndefValue>(&I));
-
-  // -- basic blocks are mapped to Bool constants
-  if (const BasicBlock *bb = dyn_cast<const BasicBlock>(&I))
-    return bind::boolConst(mkTerm<const BasicBlock *>(bb, m_efac));
-
-  // -- constants are mapped to values
-  if (const Constant *cv = dyn_cast<const Constant>(&I)) {
-    // -- easy common cases
-    if (cv->isNullValue() || isa<ConstantPointerNull>(&I)) {
-      return cv->getType()->isIntegerTy(1)
-                 ? falseE
-                 : bv::bvnum(0, sizeInBits(*cv), m_efac);
-    } else if (const ConstantInt *ci = dyn_cast<const ConstantInt>(&I)) {
-      if (ci->getType()->isIntegerTy(1))
-        return ci->isOne() ? trueE : falseE;
-
-      mpz_class k = toMpz(ci->getValue());
-      return bv::bvnum(k, sizeInBits(I), m_efac);
-    }
-
-    if (cv->getType()->isIntegerTy()) {
-      auto GVO = getConstantValue(cv);
-      if (GVO.hasValue()) {
-        GenericValue gv = GVO.getValue();
-        mpz_class k = toMpz(gv.IntVal);
-        if (cv->getType()->isIntegerTy(1)) {
-          return k == 1 ? trueE : falseE;
-        } else {
-          return bv::bvnum(k, sizeInBits(I), m_efac);
-        }
-      }
-    } else if (cv->getType()->isPointerTy()) {
-      LOG("opsem", errs() << "Warning: interpreting a pointer "
-                             "to constant memory as non-deterministic: "
-                          << I << "\n";);
-    } else {
-      LOG("opsem", errs() << "Warning: treating a "
-                             "constant as non-deterministic: "
-                          << I << "\n";);
-    }
-  }
-
-  // everything else is mapped to a symbolic register with a
-  // non-deterministic initial value
-  Expr v = mkTerm<const Value *>(&I, m_efac);
-
-  // pseudo register corresponding to memory blocks
-  const Value *scalar = nullptr;
-  if (isShadowMem(I, &scalar)) {
-    // if memory is single cell, allocate regular register
-    if (scalar) {
-      assert(scalar->getType()->isPointerTy());
-      Type &eTy = *cast<PointerType>(scalar->getType())->getElementType();
-      // -- create a constant with the name v[scalar]
-      return bv::bvConst(
-          op::array::select(v, mkTerm<const Value *>(scalar, m_efac)),
-          sizeInBits(eTy));
-    }
-
-    // if tracking memory content, create array-valued register for
-    // the pseudo-assignment
-    if (m_trackLvl >= MEM) {
-      Expr ptrTy = bv::bvsort(pointerSizeInBits(), m_efac);
-      Expr valTy = ptrTy;
-      Expr memTy = sort::arrayTy(ptrTy, valTy);
-      return bind::mkConst(v, memTy);
-    }
-  }
-
-  // -- unexpected, return error to be handled elsewhere
-  if (isSkipped(I))
-    return Expr(0);
-
-  const Type &ty = *I.getType();
-  switch (ty.getTypeID()) {
-  case Type::IntegerTyID:
-    return ty.isIntegerTy(1) ? bind::boolConst(v)
-                             : bv::bvConst(v, sizeInBits(ty));
-  case Type::PointerTyID:
-    return bv::bvConst(v, sizeInBits(ty));
-  default:
-    errs() << "Error: unhandled type: " << ty << " of " << I << "\n";
-    llvm_unreachable(nullptr);
-  }
-  llvm_unreachable(nullptr);
+  llvm_unreachable("OpSem::symb() is deprecated. "
+                   "Use OpSem::getOperandValue() instead.");
 }
 
 const Value &Bv2OpSem::conc(Expr v) {
@@ -2195,7 +2213,7 @@ void Bv2OpSem::unhandledInst(const Instruction &inst, Bv2OpSemContext &ctx) {
   if (ctx.m_ignored.count(&inst))
     return;
   ctx.m_ignored.insert(&inst);
-  LOG("opsem", errs() << "WARNING: unhadled instruction: " << inst << " @ "
+  LOG("opsem", errs() << "WARNING: unhandled instruction: " << inst << " @ "
                       << inst.getParent()->getName() << " in "
                       << inst.getParent()->getParent()->getName() << "\n");
 }

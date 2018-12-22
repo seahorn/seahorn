@@ -39,7 +39,7 @@ private:
 
   /// Activation literal for protecting conditions
   Expr m_act;
-
+protected:
   Expr m_trueE;
   Expr m_falseE;
 
@@ -175,7 +175,14 @@ public:
   }
 
   /// \brief Returns a symbolic register correspond to llvm::Value
+  /// Deprecated. See mkSymbReg
   virtual Expr symb(const Value &v) = 0;
+
+  /// \brief Returns a symbolic register correspond to llvm::Value
+  virtual Expr mkSymbReg(const Value &v, OpSemContext &ctx) {
+    return symb(v);
+  }
+
   /// \brief Returns an llvm::Value corresponding to a symbolic
   /// register
   virtual const Value &conc(Expr v) = 0;

@@ -127,7 +127,7 @@ void VCGen::genVcForCpEdge(SymStore &s, const CpEdge &edge, ExprVector &side) {
     Expr bbV;
     if (isEntry) {
       // -- initialize bb-exec register
-      bbV = ctx->havoc(m_sem.symb(bb));
+      bbV = ctx->havoc(m_sem.mkSymbReg(bb, *ctx));
       // -- compute side-conditions for the entry block of the edge
       ctx->setActLit(trueE);
       m_sem.exec(bb, *ctx);
@@ -135,7 +135,7 @@ void VCGen::genVcForCpEdge(SymStore &s, const CpEdge &edge, ExprVector &side) {
       // -- generate side-conditions for bb
       genVcForBasicBlockOnEdge(*ctx, edge, bb);
       // -- check current value of bb-exec register
-      bbV = ctx->read(m_sem.symb(bb));
+      bbV = ctx->read(m_sem.mkSymbReg(bb, *ctx));
     }
     isEntry = false;
 
@@ -202,11 +202,11 @@ void VCGen::genVcForBasicBlockOnEdge(OpSemContext &ctx, const CpEdge &edge,
 
   // -- compute source of all the edges
   for (const BasicBlock *pred : preds)
-    edges.push_back(ctx.read(m_sem.symb(*pred)));
+    edges.push_back(ctx.read(m_sem.mkSymbReg(*pred, ctx)));
 
   assert(preds.size() == edges.size());
   // -- update constant representing current bb
-  Expr bbV = ctx.havoc(m_sem.symb(bb));
+  Expr bbV = ctx.havoc(m_sem.mkSymbReg(bb, ctx));
 
   // -- update destination of all the edges
 
@@ -273,7 +273,7 @@ void VCGen::genVcForBasicBlockOnEdge(OpSemContext &ctx, const CpEdge &edge,
         continue;
 
       // -- record the value of PHINode after taking `pred --> bb` edge
-      phiConstraints[idx].push_back(ectx->read(m_sem.symb(inst)));
+      phiConstraints[idx].push_back(ectx->read(m_sem.mkSymbReg(inst, ctx)));
     }
 
     idx++;
@@ -286,7 +286,7 @@ void VCGen::genVcForBasicBlockOnEdge(OpSemContext &ctx, const CpEdge &edge,
       break;
     if (!m_sem.isTracked(inst))
       continue;
-    newPhi.push_back(ctx.havoc(m_sem.symb(inst)));
+    newPhi.push_back(ctx.havoc(m_sem.mkSymbReg(inst, ctx)));
   }
 
   // connect new PHINode register values with constructed PHINode values

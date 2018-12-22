@@ -478,7 +478,8 @@ bool ShadowMemSeaDsa::runOnFunction(Function &F) {
           if (dstC.getOffset() != 0)
             continue;
 
-          if (&dstC != &srcC) {
+
+          if (!(dstC == srcC)) {
             errs()
                 << "Warning: ignoring memtransfer between different DSA nodes: "
                 << *mti << " @ " << mti->getParent()->getParent()->getName()

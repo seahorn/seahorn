@@ -55,7 +55,7 @@ add_lit_testsuite(test-opsem "Regression test for Operational Semantics"
   ${CMAKE_CURRENT_SOURCE_DIR}/opsem
   ARGS
   --path=${CMAKE_INSTALL_PREFIX}/bin
-  DEPENDS install
+  DEPENDS seahorn install
   )
 
 add_lit_testsuite(test-inc "Regression test for Inconsistency Analysis"

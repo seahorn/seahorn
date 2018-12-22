@@ -46,17 +46,6 @@ class Bv2OpSem : public OpSem {
   const TargetLibraryInfo *m_tli;
   const CanFail *m_canFail;
 
-  /// Useful constants
-  Expr trueE;
-  Expr falseE;
-  Expr zeroE;
-  Expr oneE;
-  Expr trueBv;
-  Expr falseBv;
-  Expr nullBv;
-  /// MAX_PTR value
-  Expr maxPtrE;
-
   /// Evaluates constant expression into a value
   Optional<GenericValue> getConstantValue(const Constant *C);
 
@@ -182,8 +171,6 @@ public:
   void unhandledInst(const Instruction &inst, bvop_details::Bv2OpSemContext &ctx);
   void unhandledValue(const Value &v, bvop_details::Bv2OpSemContext &ctx);
 
-  Expr boolToBv(Expr b);
-  Expr bvToBool(Expr bv);
 private:
   static bvop_details::Bv2OpSemContext &ctx(OpSemContext &_ctx);
 };

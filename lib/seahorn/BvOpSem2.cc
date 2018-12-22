@@ -74,6 +74,7 @@ namespace seahorn {
 namespace bvop_details {
 
 class Bv2OpSemContext : public OpSemContext {
+  friend class OpSemBase;
 public:
   Bv2OpSem &m_sem;
   /// currently executing function
@@ -110,12 +111,22 @@ public:
 
   std::unique_ptr<bvop_details::OpSemMemManager> m_memManager;
 
+  Expr zeroE;
+  Expr oneE;
+  Expr trueBv;
+  Expr falseBv;
+  Expr nullBv;
+  Expr maxPtrE;
+
   Bv2OpSemContext(Bv2OpSem &sem, SymStore &values, ExprVector &side);
   Bv2OpSemContext(SymStore &values, ExprVector &side,
                   const Bv2OpSemContext &other);
   Bv2OpSemContext(const Bv2OpSemContext &) = delete;
   ~Bv2OpSemContext() override;
 
+  unsigned ptrSz();
+  Expr boolToBv(Expr b);
+  Expr bvToBool(Expr b);
   void setMemManager(bvop_details::OpSemMemManager *man);
   bvop_details::OpSemMemManager *getMemManager() { return m_memManager.get(); }
 
@@ -402,7 +413,7 @@ public:
     assert(ptr);
     Expr val = _val;
     if (ty.isIntegerTy(1))
-      val = m_sem.boolToBv(val);
+      val = m_ctx.boolToBv(val);
     if (m_sem.sizeInBits(ty) < ptrSz())
       val = bv::zext(val, ptrSz());
 
@@ -524,18 +535,18 @@ struct OpSemBase {
       : m_ctx(ctx), m_efac(m_ctx.getExprFactory()), m_sem(sem),
         m_cur_startMem(nullptr), m_cur_endMem(nullptr), m_largestPtr(nullptr) {
 
-    trueE = m_sem.trueE;
-    falseE = m_sem.falseE;
-    zeroE = m_sem.zeroE;
-    oneE = m_sem.oneE;
-    trueBv = m_sem.trueBv;
-    falseBv = m_sem.falseBv;
-    nullBv = m_sem.nullBv;
+    trueE = m_ctx.m_trueE;
+    falseE = m_ctx.m_falseE;
+    zeroE = m_ctx.zeroE;
+    oneE = m_ctx.oneE;
+    trueBv = m_ctx.trueBv;
+    falseBv = m_ctx.falseBv;
+    nullBv = m_ctx.nullBv;
 
     m_ctx.setMemScalar(false);
     m_ctx.setActLit(trueE);
 
-    m_largestPtr = m_sem.maxPtrE;
+    m_largestPtr = m_ctx.maxPtrE;
 
     // -- first two arguments are reserved for error flag,
     // -- the other is function activation
@@ -596,8 +607,8 @@ struct OpSemBase {
   }
 
   /// convert bv1 to bool
-  Expr bvToBool(Expr bv) { return m_sem.bvToBool(bv); }
-  Expr boolToBv(Expr b) { return m_sem.boolToBv(b); }
+  Expr bvToBool(Expr bv) { return m_ctx.bvToBool(bv); }
+  Expr boolToBv(Expr b) { return m_ctx.boolToBv(b); }
 
   void setValue(const Value &v, Expr e) {
     if (e)
@@ -1722,7 +1733,32 @@ namespace seahorn {
 Bv2OpSemContext::Bv2OpSemContext(Bv2OpSem &sem, SymStore &values,
                                  ExprVector &side)
   : OpSemContext(values, side), m_sem(sem), m_func(nullptr), m_bb(nullptr),
-    m_inst(nullptr), m_prev(nullptr), m_scalar(false) {}
+    m_inst(nullptr), m_prev(nullptr), m_scalar(false) {
+  zeroE = mkTerm<mpz_class>(0, efac());
+  oneE = mkTerm<mpz_class>(1, efac());
+  trueBv = bv::bvnum(1, 1, efac());
+  falseBv = bv::bvnum(0, 1, efac());
+  nullBv = bv::bvnum(0, ptrSz(), efac());
+
+  mpz_class val;
+  switch (ptrSz()) {
+  case 64:
+    // TODO: take alignment into account
+    val = 0x000000000FFFFFFF;
+    break;
+  case 32:
+    // TODO: take alignment into account
+    val = 0x0FFFFFFF;
+    break;
+  default:
+    LOG("opsem",
+        errs() << "Unsupported pointer size: " << ptrSz() << "\n";);
+    llvm_unreachable("Unexpected pointer size");
+  }
+  maxPtrE = bv::bvnum(val, ptrSz(), efac());
+
+
+}
 
 Bv2OpSemContext::Bv2OpSemContext(SymStore &values, ExprVector &side,
                                  const Bv2OpSemContext &o)
@@ -1730,11 +1766,18 @@ Bv2OpSemContext::Bv2OpSemContext(SymStore &values, ExprVector &side,
       m_inst(o.m_inst), m_prev(o.m_prev), m_readRegister(o.m_readRegister),
       m_writeRegister(o.m_writeRegister), m_scalar(o.m_scalar),
       m_fparams(o.m_fparams), m_ignored(o.m_ignored),
-      m_registers(o.m_registers), m_memManager(nullptr) {
+    m_registers(o.m_registers), m_memManager(nullptr),
+    zeroE(o.zeroE), oneE(o.oneE), trueBv(o.trueBv), falseBv(o.falseBv),
+    nullBv(o.nullBv), maxPtrE(o.maxPtrE) {
   setActLit(o.getActLit());
 }
 
 Bv2OpSemContext::~Bv2OpSemContext() {}
+unsigned Bv2OpSemContext::ptrSz() {
+  // XXX HACK for refactoring
+  return m_memManager ? m_memManager->ptrSz() : 32;
+}
+
 void Bv2OpSemContext::setMemManager(bvop_details::OpSemMemManager *man) {
   m_memManager.reset(man);
 }
@@ -1887,31 +1930,7 @@ Bv2OpSem::Bv2OpSem(ExprFactory &efac, Pass &pass, const DataLayout &dl,
   if (p)
     m_tli = &p->getTLI();
 
-  trueE = mk<TRUE>(m_efac);
-  falseE = mk<FALSE>(m_efac);
 
-  zeroE = mkTerm<mpz_class>(0, m_efac);
-  oneE = mkTerm<mpz_class>(1, m_efac);
-  trueBv = bv::bvnum(1, 1, m_efac);
-  falseBv = bv::bvnum(0, 1, m_efac);
-  nullBv = bv::bvnum(0, pointerSizeInBits(), m_efac);
-
-  mpz_class val;
-  switch (pointerSizeInBits()) {
-  case 64:
-    // TODO: take alignment into account
-    val = 0x000000000FFFFFFF;
-    break;
-  case 32:
-    // TODO: take alignment into account
-    val = 0x0FFFFFFF;
-    break;
-  default:
-    LOG("opsem",
-        errs() << "Unsupported pointer size: " << pointerSizeInBits() << "\n";);
-    llvm_unreachable("Unexpected pointer size");
-  }
-  maxPtrE = bv::bvnum(val, pointerSizeInBits(), m_efac);
 
   // -- hack to get ENode::dump() to compile by forcing a use
   LOG("dump.debug", trueE->dump(););
@@ -1921,7 +1940,7 @@ OpSemContextPtr Bv2OpSem::mkContext(SymStore &values, ExprVector &side) {
   return OpSemContextPtr(new bvop_details::Bv2OpSemContext(*this, values, side));
 }
 
-Expr Bv2OpSem::boolToBv(Expr b) {
+Expr Bv2OpSemContext::boolToBv(Expr b) {
   if (isOpX<TRUE>(b))
     return trueBv;
   if (isOpX<FALSE>(b))
@@ -1929,18 +1948,17 @@ Expr Bv2OpSem::boolToBv(Expr b) {
   return mk<ITE>(b, trueBv, falseBv);
 }
 
-Expr Bv2OpSem::bvToBool(Expr bv) {
+Expr Bv2OpSemContext::bvToBool(Expr bv) {
   if (bv == trueBv)
-    return trueE;
+    return m_trueE;
   if (bv == falseBv)
-    return falseE;
+    return m_falseE;
   return mk<EQ>(bv, trueBv);
 }
 
 Bv2OpSem::Bv2OpSem(const Bv2OpSem &o)
     : OpSem(o), m_pass(o.m_pass), m_trackLvl(o.m_trackLvl), m_td(o.m_td),
-      m_canFail(o.m_canFail), trueE(o.trueE), falseE(o.falseE), zeroE(o.zeroE),
-      oneE(o.oneE), trueBv(o.trueBv), falseBv(o.falseBv), nullBv(o.nullBv) {}
+      m_canFail(o.m_canFail) {}
 
 Expr Bv2OpSem::errorFlag(const BasicBlock &BB) {
   // -- if BB belongs to a function that cannot fail, errorFlag is always false

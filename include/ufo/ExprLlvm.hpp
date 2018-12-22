@@ -18,46 +18,46 @@
 namespace expr
 {
   using namespace llvm;
-  
+
   inline llvm::raw_ostream &operator<<(llvm::raw_ostream &OS, const Expr &p)
   {
     OS << p.get ();
     return OS;
   }
 
-  inline llvm::raw_ostream &operator<<(llvm::raw_ostream &OS, 
+  inline llvm::raw_ostream &operator<<(llvm::raw_ostream &OS,
 				       const ENode &n)
   {
     OS << boost::lexical_cast<std::string> (n);
     return OS;
   }
-  
+
   using namespace llvm;
   template<> struct TerminalTrait<const Function*>
   {
     static inline void print (std::ostream &OS, const Function *f,
                               int depth, bool brkt)
     {OS << f->getName ().str ();}
-    
+
     static inline bool less (const Function *f1, const Function *f2)
     {return f1 < f2;}
-    
+
     static inline bool equal_to (const Function *f1, const Function *f2)
     {return f1 == f2;}
-    
+
     static inline size_t hash (const Function *f)
     {
       boost::hash<const Function*> hasher;
       return hasher (f);
     }
   };
-    
-  
+
+
   template<> struct TerminalTrait<const BasicBlock*>
   {
-    static inline void print (std::ostream &OS, const BasicBlock* s, 
-			      int depth, bool brkt) 
-    { 
+    static inline void print (std::ostream &OS, const BasicBlock* s,
+			      int depth, bool brkt)
+    {
       OS << s->getParent ()->getName ().str () + "@" + s->getName ().str ();
     }
     static inline bool less (const BasicBlock* s1, const BasicBlock* s2)
@@ -71,14 +71,14 @@ namespace expr
       boost::hash<const BasicBlock *> hasher;
       return hasher (b);
     }
-    
-    
+
+
   };
-  
+
   template<> struct TerminalTrait<const Value*>
   {
-    static inline void print (std::ostream &OS, const Value* s, 
-			      int depth, bool brkt) 
+    static inline void print (std::ostream &OS, const Value* s,
+			      int depth, bool brkt)
     {
       // -- name instructions uniquely based on the name of their containing function
       if (const Instruction *inst = dyn_cast<const Instruction> (s))
@@ -92,10 +92,13 @@ namespace expr
         const Function *fn = arg->getParent ();
         if (fn) OS << fn->getName ().str () << "@";
       }
-      
-      if (s->hasName ())
+
+      if (s->hasName ()) {
 	OS << (isa<GlobalValue> (s) ? '@' : '%')
 	   << s->getName ().str ();
+      } else if (const Argument *arg = dyn_cast<const Argument>(s)) {
+        OS << "arg." << arg->getArgNo();
+      }
       else
 	{
           // names of constant expressions
@@ -103,7 +106,7 @@ namespace expr
 	  raw_string_ostream ss(ssstr);
 	  ss <<  *s;
           OS << ss.str ();
-          
+
           // std::string str = ss.str();
 	  // int f = str.find_first_not_of(' ');
           // std::string s1 = str.substr(f);
@@ -116,18 +119,18 @@ namespace expr
 
     static inline bool equal_to (const Value *v1, const Value *v2)
     { return v1 == v2; }
-    
+
     static inline size_t hash (const Value *v)
     {
       boost::hash<const Value*> hasher;
       return hasher (v);
     }
   };
-  
+
   typedef expr::Terminal<const llvm::BasicBlock*> BB;
   typedef expr::Terminal<const llvm::Value*> VALUE;
   typedef expr::Terminal<const llvm::Function*> FUNCTION;
-  
+
     /** Converts v to mpz_class. Assumes that v is signed */
   inline mpz_class toMpz (const APInt &v)
   {
@@ -137,7 +140,7 @@ namespace expr
 
     APInt abs;
     abs = v.isNegative () ? v.abs () : v;
-    
+
     const uint64_t *rawdata = abs.getRawData ();
     unsigned numWords = abs.getNumWords ();
 
@@ -147,18 +150,18 @@ namespace expr
 
     return v.isNegative () ? mpz_class(-res) : res;
   }
-  
+
   inline mpz_class toMpz (const Value *v)
   {
     if (const ConstantInt *k = dyn_cast<ConstantInt> (v))
       return toMpz (k->getValue ());
     if (isa<ConstantPointerNull> (v)) return 0;
-    
+
     assert (0 && "Not a number");
     return 0;
   }
 
-  /** Adapted from 
+  /** Adapted from
       https://llvm.org/svn/llvm-project/polly/branches/release_34/lib/Support/GICHelper.cpp
   */
   inline APInt toAPInt (const mpz_class &v)

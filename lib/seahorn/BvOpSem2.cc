@@ -15,6 +15,7 @@
 using namespace seahorn;
 using namespace llvm;
 using namespace ufo;
+using namespace seahorn::bvop_details;
 
 using gep_type_iterator = generic_gep_type_iterator<>;
 
@@ -71,6 +72,109 @@ static bool isShadowMem(const Value &V, const Value **out) {
 namespace seahorn {
 
 namespace bvop_details {
+
+class Bv2OpSemContext : public OpSemContext {
+public:
+  Bv2OpSem &m_sem;
+  /// currently executing function
+  const Function *m_func;
+  /// currently executing basic block
+  const BasicBlock *m_bb;
+  /// the next instruction to be executed
+  BasicBlock::const_iterator m_inst;
+
+  /// Previous basic block (if known)
+  const BasicBlock *m_prev;
+
+  /// Meta register that contains the name of the register to be
+  /// used in next memory load
+  Expr m_readRegister;
+  /// Meta register that contains the name of the register to be
+  /// used in next memory store
+  Expr m_writeRegister;
+  /// true if current in/out memory is a unique scalar memory cell
+  bool m_scalar;
+
+  /// Parameters for the current function call
+  ExprVector m_fparams;
+
+  /// Instructions that where ignored by the semantics
+  DenseSet<const Instruction *> m_ignored;
+
+  /// \brief Declared symbolic registers
+  boost::container::flat_set<Expr> m_registers;
+
+  // \brief Registers for llvm::Value
+  using ValueExprMap = DenseMap<const llvm::Value*, Expr>;
+  ValueExprMap  m_valueToRegister;
+
+  std::unique_ptr<bvop_details::OpSemMemManager> m_memManager;
+
+  Bv2OpSemContext(Bv2OpSem &sem, SymStore &values, ExprVector &side);
+  Bv2OpSemContext(SymStore &values, ExprVector &side,
+                  const Bv2OpSemContext &other);
+  Bv2OpSemContext(const Bv2OpSemContext &) = delete;
+  ~Bv2OpSemContext() override;
+
+  void setMemManager(bvop_details::OpSemMemManager *man);
+  bvop_details::OpSemMemManager *getMemManager() { return m_memManager.get(); }
+
+  void pushParameter(Expr v) { m_fparams.push_back(v); }
+  void setParameter(unsigned idx, Expr v) { m_fparams[idx] = v; }
+  void resetParameters() { m_fparams.clear(); }
+  ExprVector &getParameters() { return m_fparams; }
+
+  void setMemReadRegister(Expr r) { m_readRegister = r; }
+  Expr getMemReadRegister() { return m_readRegister; }
+  void setMemWriteRegister(Expr r) { m_writeRegister = r; }
+  Expr getMemWriteRegister() { return m_writeRegister; }
+  bool isMemScalar() { return m_scalar; }
+  void setMemScalar(bool v) { m_scalar = v; }
+
+  Expr loadValueFromMem(Expr ptr, const llvm::Type &ty, uint32_t align);
+  Expr storeValueToMem(Expr val, Expr ptr, const llvm::Type &ty,
+                       uint32_t align);
+  Expr MemSet(Expr ptr, Expr val, unsigned len, uint32_t align);
+  Expr MemCpy(Expr dPtr, Expr sPtr, unsigned len, uint32_t align);
+
+  /// \brief Called when a module is entered
+  void onModuleEntry(const Module &M) override;
+  /// \brief Called when a function is entered
+  void onFunctionEntry(const Function &fn) override;
+  /// \brief Called when a function returns
+  void onFunctionExit(const Function &fn) override {}
+
+  /// \brief Call when a basic block is entered
+  void onBasicBlockEntry(const BasicBlock &bb) override {
+    if (!m_func)
+      m_func = bb.getParent();
+    assert(m_func == bb.getParent());
+    if (m_bb)
+      m_prev = m_bb;
+    m_bb = &bb;
+    m_inst = bb.begin();
+  }
+
+  void declareRegister(Expr v);
+  bool isKnownRegister(Expr v);
+  Expr mkRegister(const llvm::Instruction &inst);
+  Expr mkRegister(const llvm::BasicBlock &bb);
+  Expr mkRegister(const llvm::Value &v);
+  Expr getRegister(const llvm::Value &v) const {
+    return m_valueToRegister.lookup(&v);
+  }
+  Expr getConstantValue(const llvm::Constant &c);
+
+  OpSemContextPtr fork(SymStore &values, ExprVector &side) {
+    return OpSemContextPtr(new Bv2OpSemContext(values, side, *this));
+  }
+
+private:
+  static Bv2OpSemContext &ctx(OpSemContext &ctx) {
+    return static_cast<Bv2OpSemContext &>(ctx);
+  }
+};
+
 
 /// \brief Memory manager for OpSem machine
 class OpSemMemManager {
@@ -1813,6 +1917,10 @@ Bv2OpSem::Bv2OpSem(ExprFactory &efac, Pass &pass, const DataLayout &dl,
   LOG("dump.debug", trueE->dump(););
 }
 
+OpSemContextPtr Bv2OpSem::mkContext(SymStore &values, ExprVector &side) {
+  return OpSemContextPtr(new bvop_details::Bv2OpSemContext(*this, values, side));
+}
+
 Expr Bv2OpSem::boolToBv(Expr b) {
   if (isOpX<TRUE>(b))
     return trueBv;
@@ -2698,5 +2806,14 @@ Optional<GenericValue> Bv2OpSem::getConstantValue(const Constant *C) {
 
   return Result;
 }
+
+Expr Bv2OpSem::mkSymbReg(const Value &v, OpSemContext &_ctx) {
+  return ctx(_ctx).mkRegister(v);
+}
+
+bvop_details::Bv2OpSemContext &Bv2OpSem::ctx(OpSemContext &_ctx) {
+  return static_cast<bvop_details::Bv2OpSemContext &>(_ctx);
+}
+
 
 } // namespace seahorn

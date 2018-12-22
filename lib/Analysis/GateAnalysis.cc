@@ -40,7 +40,7 @@ class GateAnalysisImpl : public seahorn::GateAnalysis {
   PostDominatorTree &m_PDT;
   ControlDependenceAnalysis &m_CDA;
 
-  DenseMap<std::pair<PHINode *, unsigned short>, Gate> m_gates;
+  DenseMap<PHINode *, Value *> m_gammas;
 
 public:
   GateAnalysisImpl(Function &f, DominatorTree &dt, PostDominatorTree &pdt,
@@ -56,18 +56,19 @@ public:
     }
   }
 
-  Gate getGatingCondition(PHINode *PN, size_t incomingArcIndex) const override;
+  Value *getGamma(PHINode *PN) const override {
+    auto it = m_gammas.find(PN);
+    assert(it != m_gammas.end());
+    return it->second;
+  }
+
+  bool isThinned() const override { return false; }
 
 private:
   void calculate();
   void processPhi(PHINode *PN, IRBuilder<> &IRB);
   DenseMap<BasicBlock *, Value *> processIncomingValues(PHINode *PN,
                                                         IRBuilder<> &IRB);
-  BasicBlock *getGatingBlock(PHINode *PN, BasicBlock *incomingBB);
-  Value *getReachingCmp(BasicBlock *destBB, BasicBlock *incomingBB,
-                        TerminatorInst *terminator);
-  bool flowsTo(BasicBlock *src, BasicBlock *succ, BasicBlock *incoming,
-               BasicBlock *dest);
 };
 
 Value *GetCondition(TerminatorInst *TI) {
@@ -108,23 +109,6 @@ void GateAnalysisImpl::calculate() {
   for (PHINode *PN : phis)
     processPhi(PN, *builders[PN->getParent()]);
 }
-
-struct SuccInfo {
-  SmallDenseMap<BasicBlock *, llvm::Optional<Value *>> SuccToIncoming;
-
-  void dump(raw_ostream &OS) const {
-    for (auto &SuccValuePair : SuccToIncoming) {
-      errs() << "\tsucc: " << SuccValuePair.first->getName() << ": ";
-      Value *V = SuccValuePair.second.getValueOr(nullptr);
-      if (!V)
-        errs() << "T";
-      else
-        errs() << V->getName();
-
-      errs() << "\n";
-    }
-  }
-};
 
 DenseMap<BasicBlock *, Value *>
 GateAnalysisImpl::processIncomingValues(PHINode *PN, IRBuilder<> &IRB) {
@@ -251,84 +235,15 @@ void GateAnalysisImpl::processPhi(PHINode *PN, IRBuilder<> &IRB) {
 
     ++cdNum;
   }
-}
 
-BasicBlock *GateAnalysisImpl::getGatingBlock(PHINode *PN,
-                                             BasicBlock *incomingBB) {
-  BasicBlock *currentBB = PN->getParent();
+  BasicBlock *IDomBlock = m_DT.getNode(currentBB)->getIDom()->getBlock();
+  assert(IDomBlock);
+  assert(flowingValues.count(IDomBlock));
 
-  DomTreeNode *DTN = m_DT.getNode(incomingBB);
-  while (m_PDT.dominates(incomingBB, DTN->getBlock()) &&
-         m_PDT.dominates(currentBB, DTN->getBlock()) &&
-         !m_DT.dominates(DTN->getBlock(), currentBB))
-    DTN = DTN->getIDom();
-
-  return DTN->getBlock();
-}
-
-Value *GateAnalysisImpl::getReachingCmp(BasicBlock *destBB,
-                                        BasicBlock *incomingBB,
-                                        TerminatorInst *terminator) {
-  //  if (auto *BI = dyn_cast<BranchInst>(terminator)) {
-  //    assert(BI->isConditional());
-  //    BasicBlock *trueSucc = BI->getSuccessor(0);
-  //    BasicBlock *falseSucc = BI->getSuccessor(1);
-  //    assert(trueSucc != falseSucc && "Unconditional branch");
-  //
-  //    Value *cond = BI->getCondition();
-  //    StringRef condName = cond->hasName() ? cond->getName() : "";
-  //
-  //    // Check which branch always flows to the incoming block.
-  //    if (flowsTo(BI->getParent(), trueSucc, incomingBB, destBB))
-  //      return cond;
-  //    if (flowsTo(BI->getParent(), falseSucc, incomingBB, destBB)) {
-  //      auto it = m_negBranchConditions.find(BI);
-  //      if (it != m_negBranchConditions.end())
-  //        return it->second;
-  //
-  //      Value *negCond =
-  //          IRBuilder<>(terminator)
-  //              .CreateICmpEQ(cond,
-  //                            ConstantInt::getFalse(m_function.getContext()),
-  //                            {"seahorn.gsa.br.neg.", condName});
-  //      m_negBranchConditions[BI] = negCond;
-  //      return negCond;
-  //    }
-  //
-  //    llvm_unreachable("Neither successor postdominates the incoming block");
-  //  }
-  //
-  //  auto *SI = dyn_cast<SwitchInst>(terminator);
-  //  assert(SI && "Must be branch or switch! Other terminators not
-  //  supported.");
-  //
-  //  SmallDenseSet<BasicBlock *, 4> destinations;
-  //  destinations.insert(succ_begin(terminator->getParent()),
-  //                      succ_end(terminator->getParent()));
-  //  for (BasicBlock *succ : destinations) {
-  //    if (flowsTo(SI->getParent(), succ, incomingBB, destBB)) {
-  //      assert(m_switchConditions.count({SI, succ}) > 0);
-  //      return m_switchConditions[{SI, succ}];
-  //    }
-  //  }
-
-  return nullptr;
-  llvm_unreachable("Unhandled case");
-}
-
-bool GateAnalysisImpl::flowsTo(BasicBlock *src, BasicBlock *succ,
-                               BasicBlock *incoming, BasicBlock *dest) {
-  if (succ == dest && incoming == src)
-    return true;
-
-  return m_CDA.isReachable(succ, incoming);
-}
-
-Gate GateAnalysisImpl::getGatingCondition(PHINode *PN,
-                                          size_t incomingArcIndex) const {
-  auto it = m_gates.find({PN, static_cast<unsigned short>(incomingArcIndex)});
-  assert(it != m_gates.end());
-  return it->second;
+  m_gammas[PN] = flowingValues[IDomBlock];
+  errs() << "Gamma for phi: " << PN->getName() << "\n\t";
+  m_gammas[PN]->print(errs());
+  errs() << "\n";
 }
 
 } // anonymous namespace

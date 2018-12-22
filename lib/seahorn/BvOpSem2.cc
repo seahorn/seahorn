@@ -1566,13 +1566,14 @@ struct OpSemPhiVisitor : public InstVisitor<OpSemPhiVisitor>, OpSemBase {
 } // namespace seahorn
 
 namespace seahorn {
-Bv2OpSemContext::Bv2OpSemContext(SymStore &values, ExprVector &side)
-    : OpSemContext(values, side), m_func(nullptr), m_bb(nullptr),
-      m_inst(nullptr), m_prev(nullptr), m_scalar(false) {}
+Bv2OpSemContext::Bv2OpSemContext(Bv2OpSem &sem, SymStore &values,
+                                 ExprVector &side)
+  : OpSemContext(values, side), m_sem(sem), m_func(nullptr), m_bb(nullptr),
+    m_inst(nullptr), m_prev(nullptr), m_scalar(false) {}
 
 Bv2OpSemContext::Bv2OpSemContext(SymStore &values, ExprVector &side,
                                  const Bv2OpSemContext &o)
-    : OpSemContext(values, side), m_func(o.m_func), m_bb(o.m_bb),
+  : OpSemContext(values, side), m_sem(o.m_sem), m_func(o.m_func), m_bb(o.m_bb),
       m_inst(o.m_inst), m_prev(o.m_prev), m_readRegister(o.m_readRegister),
       m_writeRegister(o.m_writeRegister), m_scalar(o.m_scalar),
       m_fparams(o.m_fparams), m_ignored(o.m_ignored),
@@ -1622,6 +1623,70 @@ void Bv2OpSemContext::onModuleEntry(const Module &M) {
 
 void Bv2OpSemContext::declareRegister(Expr v) { m_registers.insert(v); }
 bool Bv2OpSemContext::isKnownRegister(Expr v) { return m_registers.count(v); }
+
+Expr Bv2OpSemContext::mkRegister(const llvm::BasicBlock &bb) {
+  if (Expr r = getRegister(bb)) return r;
+  Expr reg = bind::boolConst(mkTerm<const BasicBlock *>(&bb, efac()));
+  declareRegister(reg);
+  return reg;
+}
+
+Expr Bv2OpSemContext::mkRegister(const llvm::Instruction &inst) {
+  if (Expr r = getRegister(inst)) return r;
+  Expr reg;
+  // everything else is mapped to a symbolic register with a
+  // non-deterministic initial value
+  Expr v = mkTerm<const Value *>(&inst, efac());
+
+  // pseudo register corresponding to memory blocks
+  const Value *scalar = nullptr;
+  if (isShadowMem(inst, &scalar)) {
+    // if memory is single cell, allocate regular register
+    if (scalar) {
+      assert(scalar->getType()->isPointerTy());
+      Type &eTy = *cast<PointerType>(scalar->getType())->getElementType();
+      // -- create a constant with the name v[scalar]
+      reg =  bv::bvConst(
+        op::array::select(v, mkTerm<const Value *>(scalar, efac())),
+        m_sem.sizeInBits(eTy));
+    }
+
+    // if tracking memory content, create array-valued register for
+    // the pseudo-assignment
+    else {//(true /*m_trackLvl >= MEM*/) {
+      Expr ptrTy = bv::bvsort(getMemManager()->ptrSz(), efac());
+      Expr valTy = ptrTy;
+      Expr memTy = sort::arrayTy(ptrTy, valTy);
+      reg =  bind::mkConst(v, memTy);
+    }
+  } else {
+    const Type &ty = *inst.getType();
+    switch (ty.getTypeID()) {
+    case Type::IntegerTyID:
+      reg = ty.isIntegerTy(1) ? bind::boolConst(v)
+        : bv::bvConst(v, m_sem.sizeInBits(ty));
+    case Type::PointerTyID:
+      reg = bv::bvConst(v, m_sem.sizeInBits(ty));
+    default:
+      errs() << "Error: unhandled type: " << ty << " of " << inst << "\n";
+      llvm_unreachable(nullptr);
+    }
+  }
+  assert(reg);
+  declareRegister(reg);
+  return reg;
+}
+
+Expr Bv2OpSemContext::mkRegister(const llvm::Value &v) {
+  if (const llvm::BasicBlock *bb = dyn_cast<llvm::BasicBlock>(&v)) {
+    return mkRegister(*bb);
+  }
+  if (const llvm::Instruction *inst = dyn_cast<llvm::Instruction>(&v)) {
+    return mkRegister(*inst);
+  }
+  errs() << "Error: cannot make symbolic register for " << v << "\n";
+  llvm_unreachable(nullptr);
+}
 
 Bv2OpSem::Bv2OpSem(ExprFactory &efac, Pass &pass, const DataLayout &dl,
                    TrackLevel trackLvl)
@@ -1709,7 +1774,7 @@ void Bv2OpSem::exec(const BasicBlock &bb, Bv2OpSemContext &ctx) {
 
 void Bv2OpSem::exec(SymStore &s, const BasicBlock &bb, ExprVector &side,
                     Expr act) {
-  Bv2OpSemContext ctx(s, side);
+  Bv2OpSemContext ctx(*this, s, side);
   ctx.setActLit(act);
   return this->exec(bb, ctx);
 }
@@ -1723,7 +1788,7 @@ void Bv2OpSem::execPhi(const BasicBlock &bb, const BasicBlock &from,
 
 void Bv2OpSem::execPhi(SymStore &s, const BasicBlock &bb,
                        const BasicBlock &from, ExprVector &side, Expr act) {
-  Bv2OpSemContext ctx(s, side);
+  Bv2OpSemContext ctx(*this, s, side);
   ctx.setActLit(act);
   this->execPhi(bb, from, ctx);
 }
@@ -2027,7 +2092,7 @@ void Bv2OpSem::execBr(const BasicBlock &src, const BasicBlock &dst,
 
 void Bv2OpSem::execBr(SymStore &s, const BasicBlock &src, const BasicBlock &dst,
                       ExprVector &side, Expr act) {
-  Bv2OpSemContext ctx(s, side);
+  Bv2OpSemContext ctx(*this, s, side);
   ctx.setActLit(act);
   this->execBr(src, dst, ctx);
 }

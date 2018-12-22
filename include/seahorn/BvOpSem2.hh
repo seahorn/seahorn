@@ -15,13 +15,14 @@ class GetElementPtrInst;
 }
 
 namespace seahorn {
-
+  class Bv2OpSem;
 namespace bvop_details {
 class OpSemMemManager;
 }
 
 class Bv2OpSemContext : public OpSemContext {
 public:
+  Bv2OpSem &m_sem;
   /// currently executing function
   const Function *m_func;
   /// currently executing basic block
@@ -50,9 +51,13 @@ public:
   /// \brief Declared symbolic registers
   boost::container::flat_set<Expr> m_registers;
 
+  // \brief Registers for llvm::Value
+  using ValueExprMap = DenseMap<const llvm::Value*, Expr>;
+  ValueExprMap  m_valueToRegister;
+
   std::unique_ptr<bvop_details::OpSemMemManager> m_memManager;
 
-  Bv2OpSemContext(SymStore &values, ExprVector &side);
+  Bv2OpSemContext(Bv2OpSem &sem, SymStore &values, ExprVector &side);
   Bv2OpSemContext(SymStore &values, ExprVector &side,
                   const Bv2OpSemContext &other);
   Bv2OpSemContext(const Bv2OpSemContext &) = delete;
@@ -99,6 +104,12 @@ public:
 
   void declareRegister(Expr v);
   bool isKnownRegister(Expr v);
+  Expr mkRegister(const llvm::Instruction &inst);
+  Expr mkRegister(const llvm::BasicBlock &bb);
+  Expr mkRegister(const llvm::Value &v);
+  Expr getRegister(const llvm::Value &v) const {
+    return m_valueToRegister.lookup(&v);
+  }
 
   OpSemContextPtr fork(SymStore &values, ExprVector &side) {
     return OpSemContextPtr(new Bv2OpSemContext(values, side, *this));
@@ -162,7 +173,7 @@ public:
   }
 
   OpSemContextPtr mkContext(SymStore &values, ExprVector &side) override {
-    return OpSemContextPtr(new Bv2OpSemContext(values, side));
+    return OpSemContextPtr(new Bv2OpSemContext(*this, values, side));
   }
   /// \brief Executes one intra-procedural instructions in the
   /// current context Assumes that current instruction is not a

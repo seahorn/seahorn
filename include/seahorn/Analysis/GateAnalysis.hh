@@ -19,8 +19,8 @@ public:
   virtual void getAnalysisUsage(llvm::AnalysisUsage &AU) const override;
   virtual bool runOnFunction(llvm::Function &F) override;
 
-  virtual llvm::StringRef getPassName() const override { return "GateAnalysisPass"; }
-  virtual void print (llvm::raw_ostream &os, const llvm::Module *M) const override;
+  llvm::StringRef getPassName() const override { return "GateAnalysisPass"; }
+  void print (llvm::raw_ostream &os, const llvm::Module *M) const override;
 
   GateAnalysis& getGateAnalysis() {
     assert(m_analysis);

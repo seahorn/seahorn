@@ -26,13 +26,11 @@ namespace seahorn
 {
   char CutPointGraph::ID = 0;
 
-  
   void CutPointGraph::getAnalysisUsage (AnalysisUsage &AU) const
   {
     AU.setPreservesAll ();
     AU.addRequiredTransitive<TopologicalOrder> ();
   }
-
 
   bool CutPointGraph::runOnFunction (llvm::Function &F)
   {

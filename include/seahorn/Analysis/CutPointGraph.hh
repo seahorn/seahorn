@@ -217,9 +217,9 @@ public:
   const CutPoint &front() const { return *m_cps.front(); }
   const CutPoint &back() const { return *m_cps.back(); }
 
-  virtual void print(raw_ostream &out, const Module *M) const;
+  void print(raw_ostream &out, const Module *M) const override;
 
-  virtual StringRef getPassName() const { return "CutPointGraph"; }
+  StringRef getPassName() const override { return "CutPointGraph"; }
 };
 
 } // namespace seahorn

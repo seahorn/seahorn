@@ -334,9 +334,32 @@ public:
           idx = mk<BADD>(ptr, bv::bvnum(i, ptrSz(), m_efac));
         res = op::array::store(res, idx, bv::bvnum(val, ptrSz(), m_efac));
       }
+      m_ctx.write(memWriteReg, res);
     }
 
-    m_ctx.write(memWriteReg, res);
+    return res;
+  }
+
+  Expr MemCpy(PtrTy dPtr, PtrTy sPtr, unsigned len,
+              Expr memReadReg, Expr memWriteReg, uint32_t align) {
+    Expr res;
+
+    if (align == 4) {
+      Expr srcMem = m_ctx.read(memReadReg);
+      res = srcMem;
+      for (unsigned i = 0; i < len; i += 4) {
+        Expr dIdx = dPtr;
+        Expr sIdx = sPtr;
+        if (i > 0) {
+          Expr offset = bv::bvnum(i, ptrSz(), m_efac);
+          dIdx = mk<BADD>(dPtr, offset);
+          sIdx = mk<BADD>(sPtr, offset);
+        }
+        Expr val = op::array::select(srcMem, sIdx);
+        res = op::array::store(res, dIdx, val);
+      }
+      m_ctx.write(memWriteReg, res);
+    }
     return res;
   }
 
@@ -968,7 +991,8 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
                       I.getAlignment(), m_ctx);
   }
   void visitMemCpyInst(MemCpyInst &I) {
-    LOG("opsem", errs() << "Skipping memcpy: " << I << "\n";);
+    executeMemCpyInst(*I.getDest(), *I.getSource(), *I.getLength(),
+                      I.getAlignment(), m_ctx);
   }
 
   void visitMemMoveInst(MemMoveInst &I) {
@@ -1378,6 +1402,39 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
     return res;
   }
 
+  Expr executeMemCpyInst(const Value &dst, const Value &src,
+                         const Value &length, unsigned alignment,
+                         Bv2OpSemContext &ctx) {
+    if (!ctx.getMemReadRegister() || !ctx.getMemWriteRegister() ||
+        m_sem.isSkipped(dst) || m_sem.isSkipped(src)) {
+      LOG("opsem", errs() << "Warning: Skipping memcpy\n");
+      ctx.setMemReadRegister(Expr());
+      ctx.setMemWriteRegister(Expr());
+      return Expr();
+    }
+
+    if (ctx.isMemScalar())
+      llvm_unreachable("memcpy to scalars is not supported");
+
+    Expr res;
+    Expr dstAddr = lookup(dst);
+    Expr srcAddr = lookup(src);
+    Expr len = lookup(length);
+    if (dstAddr && srcAddr) {
+      if (const ConstantInt *ci = dyn_cast<const ConstantInt>(&length)) {
+        res = m_ctx.MemCpy(dstAddr, srcAddr, ci->getZExtValue(), alignment);
+      } else
+        llvm_unreachable("Unsupported memcpy with symbolic length");
+    }
+
+    if (!res)
+      LOG("opsem", errs() << "Skipping memcpy\n";);
+
+    ctx.setMemReadRegister(Expr());
+    ctx.setMemWriteRegister(Expr());
+    return res;
+  }
+
   Expr executeBitCastInst(const Value &op, Type *ty, Bv2OpSemContext &ctx) {
     Type *opTy = op.getType();
 
@@ -1546,6 +1603,13 @@ Expr Bv2OpSemContext::MemSet(Expr ptr, Expr val, unsigned len, uint32_t align) {
   assert(getMemReadRegister());
   assert(getMemWriteRegister());
   return m_memManager->MemSet(ptr, val, len, getMemReadRegister(),
+                              getMemWriteRegister(), align);
+}
+
+Expr Bv2OpSemContext::MemCpy(Expr dPtr, Expr sPtr, unsigned len, uint32_t align) {
+  assert(getMemReadRegister());
+  assert(getMemWriteRegister());
+  return m_memManager->MemCpy(dPtr, sPtr, len, getMemReadRegister(),
                               getMemWriteRegister(), align);
 }
 

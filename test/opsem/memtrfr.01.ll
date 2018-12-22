@@ -1,7 +1,5 @@
 ; RUN: %seabmc "%s" 2>&1 | %oc %s
 ; CHECK: ^unsat$
-; fails now until memcpy is supported
-; XFAIL: *
 ; ModuleID = '/var/folders/_j/1_4mrwbs7y16zbvj79vwvhdc0000gn/T/sea-sytGp6/mem.02.pp.ms.bc'
 source_filename = "/tmp/mem.02.c"
 target datalayout = "e-m:o-p:32:32-f64:32:64-f80:128-n8:16:32-S128"
@@ -46,7 +44,7 @@ entry:
   call void @llvm.memset.p0i8.i32(i8* %2, i8 12, i32 32, i32 4, i1 false) #4
   %3 = getelementptr inbounds [32 x i8], [32 x i8]* %malloc13.i, i32 0, i32 0
   %4 = getelementptr inbounds [32 x i8], [32 x i8]* %malloc2.i, i32 0, i32 0
-  call void @llvm.memcpy.p0i8.p0i8.i32(i8* %3, i8* %4, i32 32, i32 1, i1 false) #4
+  call void @llvm.memcpy.p0i8.p0i8.i32(i8* %3, i8* %4, i32 32, i32 4, i1 false) #4
   ;; chose one of the allocation sites
   %c = call i1 @nondet.bool()
   %ptr = select i1 %c, [32 x i8]* %malloc2.i, [32 x i8]* %malloc13.i

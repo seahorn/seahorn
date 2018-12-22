@@ -77,6 +77,7 @@ public:
   Expr storeValueToMem(Expr val, Expr ptr, const llvm::Type &ty,
                        uint32_t align);
   Expr MemSet(Expr ptr, Expr val, unsigned len, uint32_t align);
+  Expr MemCpy(Expr dPtr, Expr sPtr, unsigned len, uint32_t align);
 
   /// \brief Called when a module is entered
   void onModuleEntry(const Module &M) override;

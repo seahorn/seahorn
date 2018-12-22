@@ -10,11 +10,6 @@ namespace seahorn {
 
 class GateAnalysis;
 
-struct Gate {
-  llvm::Value *Condition;
-  llvm::Value *Case;
-};
-
 class GateAnalysisPass : public llvm::FunctionPass {
 public:
   static char ID;
@@ -42,8 +37,8 @@ class GateAnalysis {
 public:
   virtual ~GateAnalysis() = default;
 
-  virtual Gate
-  getGatingCondition(llvm::PHINode *PN, size_t IncomingArcIndex) const = 0;
+  virtual llvm::Value* getGamma(llvm::PHINode *PN) const = 0;
+  virtual bool isThinned() const = 0;
 };
 
 }

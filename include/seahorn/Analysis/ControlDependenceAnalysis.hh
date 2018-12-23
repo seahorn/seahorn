@@ -1,5 +1,6 @@
 #pragma once
 
+#include "llvm/ADT/DenseMap.h"
 #include "llvm/Pass.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/Module.h"
@@ -24,13 +25,13 @@ public:
   llvm::StringRef getPassName() const override { return "ControlDependenceAnalysisPass"; }
   void print (llvm::raw_ostream &os, const llvm::Module *M) const override;
 
-  ControlDependenceAnalysis& getControlDependenceAnalysis() {
-    assert(m_analysis);
-    return *m_analysis;
+  ControlDependenceAnalysis& getControlDependenceAnalysis(const llvm::Function &F) {
+    assert(m_analyses.count(&F) > 0);
+    return *m_analyses[&F];
   }
 
 private:
-  std::unique_ptr<ControlDependenceAnalysis> m_analysis;
+  llvm::DenseMap<const llvm::Function *, std::unique_ptr<ControlDependenceAnalysis>> m_analyses;
 };
 
 llvm::ModulePass *createControlDependenceAnalysisPass();
@@ -55,4 +56,3 @@ public:
 };
 
 }
-

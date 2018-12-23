@@ -1,6 +1,7 @@
 #pragma once
 
 #include "llvm/Pass.h"
+#include "llvm/ADT/DenseMap.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/Module.h"
 
@@ -25,13 +26,13 @@ public:
   llvm::StringRef getPassName() const override { return "GateAnalysisPass"; }
   void print (llvm::raw_ostream &os, const llvm::Module *M) const override;
 
-  GateAnalysis& getGateAnalysis() {
-    assert(m_analysis);
-    return *m_analysis;
+  GateAnalysis& getGateAnalysis(const llvm::Function &F) {
+    assert(m_analyses.count(&F) > 0);
+    return *m_analyses[&F];
   }
 
 private:
-  std::unique_ptr<GateAnalysis> m_analysis;
+  llvm::DenseMap<const llvm::Function *, std::unique_ptr<GateAnalysis>> m_analyses;
 };
 
 llvm::ModulePass *createGateAnalysisPass();

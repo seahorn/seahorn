@@ -113,7 +113,7 @@ void ControlDependenceAnalysisImpl::calculate() {
   }
 
   for (BasicBlock &BB : m_function) {
-    errs() << BB.getName() << ":\n";
+    CDA_LOG(errs() << BB.getName() << ":\n");
     ReverseIDFCalculator calculator(m_PDT);
     SmallPtrSet<BasicBlock *, 1> incoming = {&BB};
 
@@ -130,10 +130,10 @@ void ControlDependenceAnalysisImpl::calculate() {
                      << "\tvalue: " << reachingVal->getName() << "\n");
       m_cdInfo[&BB].push_back({CD, reachingVal});
     }
-    errs() << "\n";
+    CDA_LOG(errs() << "\n");
   }
 
-  errs() << "\n";
+  CDA_LOG(errs() << "\n");
 
   BasicBlock *entry = &m_function.getEntryBlock();
 
@@ -385,7 +385,7 @@ bool ControlDependenceAnalysisPass::runOnFunction(llvm::Function &F) {
   PostDominatorTree PDT;
   PDT.recalculate(F);
 
-  m_analysis = llvm::make_unique<ControlDependenceAnalysisImpl>(F, DT, PDT);
+  m_analyses[&F] = llvm::make_unique<ControlDependenceAnalysisImpl>(F, DT, PDT);
   return false;
 }
 

@@ -89,8 +89,8 @@ public:
       return false;
     }
 
-    m_gsa =
-        HornGSA ? &getAnalysis<GateAnalysisPass>().getGateAnalysis() : nullptr;
+    m_gsa = HornGSA ? &getAnalysis<GateAnalysisPass>().getGateAnalysis(*main)
+                    : nullptr;
 
     return runOnFunction(*main);
   }

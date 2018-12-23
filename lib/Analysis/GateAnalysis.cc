@@ -256,13 +256,12 @@ void GateAnalysisPass::getAnalysisUsage(AnalysisUsage &AU) const {
 }
 
 bool GateAnalysisPass::runOnModule(llvm::Module &M) {
-  auto &CDA = getAnalysis<ControlDependenceAnalysisPass>()
-                  .getControlDependenceAnalysis();
+  auto &CDP = getAnalysis<ControlDependenceAnalysisPass>();
 
   bool changed = false;
   for (auto &F : M)
     if (!F.isDeclaration())
-      changed |= runOnFunction(F, CDA);
+      changed |= runOnFunction(F, CDP.getControlDependenceAnalysis(F));
 
   return changed;
 }
@@ -277,7 +276,7 @@ bool GateAnalysisPass::runOnFunction(llvm::Function &F,
   PostDominatorTree PDT;
   PDT.recalculate(F);
 
-  m_analysis = llvm::make_unique<GateAnalysisImpl>(F, DT, PDT, CDA);
+  m_analyses[&F] = llvm::make_unique<GateAnalysisImpl>(F, DT, PDT, CDA);
   return false;
 }
 

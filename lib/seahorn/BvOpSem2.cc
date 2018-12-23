@@ -627,11 +627,11 @@ struct OpSemBase {
   /// -- end of current memory segment
   Expr m_cur_endMem;
 
-  Expr m_largestPtr;
+  Expr m_maxPtrE;
 
   OpSemBase(Bv2OpSemContext &ctx, Bv2OpSem &sem)
       : m_ctx(ctx), m_efac(m_ctx.getExprFactory()), m_sem(sem),
-        m_cur_startMem(nullptr), m_cur_endMem(nullptr), m_largestPtr(nullptr) {
+        m_cur_startMem(nullptr), m_cur_endMem(nullptr), m_maxPtrE(nullptr) {
 
     trueE = m_ctx.m_trueE;
     falseE = m_ctx.m_falseE;
@@ -644,7 +644,7 @@ struct OpSemBase {
     m_ctx.setMemScalar(false);
     m_ctx.setActLit(trueE);
 
-    m_largestPtr = m_ctx.maxPtrE;
+    m_maxPtrE = m_ctx.maxPtrE;
 
     // -- first two arguments are reserved for error flag,
     // -- the other is function activation
@@ -1842,6 +1842,29 @@ Bv2OpSemContext::Bv2OpSemContext(Bv2OpSem &sem, SymStore &values,
   oneE = mkTerm<mpz_class>(1, efac());
   trueBv = bv::bvnum(1, 1, efac());
   falseBv = bv::bvnum(0, 1, efac());
+}
+
+Bv2OpSemContext::Bv2OpSemContext(SymStore &values, ExprVector &side,
+                                 const Bv2OpSemContext &o)
+    : OpSemContext(values, side), m_sem(o.m_sem), m_func(o.m_func),
+      m_bb(o.m_bb), m_inst(o.m_inst), m_prev(o.m_prev),
+      m_readRegister(o.m_readRegister), m_writeRegister(o.m_writeRegister),
+      m_scalar(o.m_scalar), m_fparams(o.m_fparams), m_ignored(o.m_ignored),
+      m_registers(o.m_registers), m_memManager(nullptr), zeroE(o.zeroE),
+      oneE(o.oneE), trueBv(o.trueBv), falseBv(o.falseBv), nullBv(o.nullBv),
+      maxPtrE(o.maxPtrE) {
+  setActLit(o.getActLit());
+}
+
+Bv2OpSemContext::~Bv2OpSemContext() {}
+unsigned Bv2OpSemContext::ptrSzInBits() {
+  assert(m_memManager);
+  // XXX HACK for refactoring
+  return m_memManager ? m_memManager->ptrSzInBits() : 32;
+}
+
+void Bv2OpSemContext::setMemManager(bvop_details::OpSemMemManager *man) {
+  m_memManager.reset(man);
   // TODO: move into MemManager
   nullBv = bv::bvnum(0, ptrSzInBits(), efac());
 
@@ -1862,28 +1885,6 @@ Bv2OpSemContext::Bv2OpSemContext(Bv2OpSem &sem, SymStore &values,
     llvm_unreachable("Unexpected pointer size");
   }
   maxPtrE = bv::bvnum(val, ptrSzInBits(), efac());
-}
-
-Bv2OpSemContext::Bv2OpSemContext(SymStore &values, ExprVector &side,
-                                 const Bv2OpSemContext &o)
-    : OpSemContext(values, side), m_sem(o.m_sem), m_func(o.m_func),
-      m_bb(o.m_bb), m_inst(o.m_inst), m_prev(o.m_prev),
-      m_readRegister(o.m_readRegister), m_writeRegister(o.m_writeRegister),
-      m_scalar(o.m_scalar), m_fparams(o.m_fparams), m_ignored(o.m_ignored),
-      m_registers(o.m_registers), m_memManager(nullptr), zeroE(o.zeroE),
-      oneE(o.oneE), trueBv(o.trueBv), falseBv(o.falseBv), nullBv(o.nullBv),
-      maxPtrE(o.maxPtrE) {
-  setActLit(o.getActLit());
-}
-
-Bv2OpSemContext::~Bv2OpSemContext() {}
-unsigned Bv2OpSemContext::ptrSzInBits() {
-  // XXX HACK for refactoring
-  return m_memManager ? m_memManager->ptrSzInBits() : 32;
-}
-
-void Bv2OpSemContext::setMemManager(bvop_details::OpSemMemManager *man) {
-  m_memManager.reset(man);
 }
 
 Expr Bv2OpSemContext::loadValueFromMem(Expr ptr, const llvm::Type &ty,

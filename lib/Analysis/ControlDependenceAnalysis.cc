@@ -121,6 +121,8 @@ void ControlDependenceAnalysisImpl::calculate() {
     SmallVector<BasicBlock *, 4> RDF;
     calculator.calculate(RDF);
 
+    (void)m_cdInfo[&BB]; // Init CD set.
+
     for (auto *CD : RDF) {
       CDA_LOG(errs() << "\t" << CD->getName());
       TerminatorInst *terminator = CD->getTerminator();

@@ -28,6 +28,15 @@ static llvm::cl::opt<bool>
                  llvm::cl::desc("Dump function after running"),
                  llvm::cl::init(false));
 
+static llvm::cl::opt<bool> ThinnedGsa("gsa-thinned",
+                                      llvm::cl::desc("Emit thin gammas"),
+                                      llvm::cl::init(true));
+
+static llvm::cl::opt<bool>
+    GsaReplacePhis("gsa-replace-phis",
+                   llvm::cl::desc("Replace phis with gammas"),
+                   llvm::cl::init(false));
+
 using namespace llvm;
 
 namespace seahorn {
@@ -133,11 +142,16 @@ GateAnalysisImpl::processIncomingValues(PHINode *PN, IRBuilder<> &IRB) {
     BasicBlock *trueDest = BI->getSuccessor(0);
     BasicBlock *falseDest = BI->getSuccessor(1);
     assert(trueDest == currentBB || falseDest == currentBB);
-    Value *SI =
-        IRB.CreateSelect(cond, trueDest == currentBB ? incomingValue : Undef,
-                         falseDest == currentBB ? incomingValue : Undef,
-                         {"seahorn.gsa.gamma.crit.", incomingBlock->getName()});
-    incomingBlockToValue[incomingBlock] = SI;
+
+    if (ThinnedGsa) {
+      incomingBlockToValue[incomingBlock] = incomingValue;
+    } else {
+      Value *SI = IRB.CreateSelect(
+          cond, trueDest == currentBB ? incomingValue : Undef,
+          falseDest == currentBB ? incomingValue : Undef,
+          {"seahorn.gsa.gamma.crit.", incomingBlock->getName()});
+      incomingBlockToValue[incomingBlock] = SI;
+    }
   }
 
   return incomingBlockToValue;
@@ -225,12 +239,16 @@ void GateAnalysisImpl::processPhi(PHINode *PN, IRBuilder<> &IRB) {
       Value *TrueVal = SuccToVal[TrueDest];
       Value *FalseVal = SuccToVal[FalseDest];
 
-      const char *namePrefix = (TrueVal != Undef && FalseVal != Undef)
-                                   ? "seahorn.gsa.thin_gamma."
-                                   : "seahorn.gsa.gamma.";
-      Value *Ite = IRB.CreateSelect(BI->getCondition(), TrueVal, FalseVal,
-                                    {namePrefix, BB->getName()});
-      flowingValues[BB] = Ite;
+      assert(TrueVal != Undef || FalseVal != Undef);
+      if (TrueVal == FalseVal) {
+        flowingValues[BB] = TrueVal;
+      } else if (ThinnedGsa && (TrueVal == Undef || FalseVal == Undef)) {
+        flowingValues[BB] = FalseVal == Undef ? TrueVal : FalseVal;
+      } else {
+        Value *Ite = IRB.CreateSelect(BI->getCondition(), TrueVal, FalseVal,
+                                      {"seahorn.gsa.gamma.", BB->getName()});
+        flowingValues[BB] = Ite;
+      }
     }
 
     ++cdNum;
@@ -240,10 +258,18 @@ void GateAnalysisImpl::processPhi(PHINode *PN, IRBuilder<> &IRB) {
   assert(IDomBlock);
   assert(flowingValues.count(IDomBlock));
 
+  Value *gamma = flowingValues[IDomBlock];
+  std::string newName = gamma->getName().str() + ".y." + PN->getName().str();
+  gamma->setName(newName);
   m_gammas[PN] = flowingValues[IDomBlock];
+
   errs() << "Gamma for phi: " << PN->getName() << "\n\t";
   m_gammas[PN]->print(errs());
   errs() << "\n";
+  if (GsaReplacePhis) {
+    PN->replaceAllUsesWith(gamma);
+    PN->removeFromParent();
+  }
 }
 
 } // anonymous namespace

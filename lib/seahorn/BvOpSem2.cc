@@ -75,6 +75,7 @@ namespace bvop_details {
 
 class Bv2OpSemContext : public OpSemContext {
   friend class OpSemBase;
+
 public:
   Bv2OpSem &m_sem;
   /// currently executing function
@@ -106,8 +107,8 @@ public:
   boost::container::flat_set<Expr> m_registers;
 
   // \brief Registers for llvm::Value
-  using ValueExprMap = DenseMap<const llvm::Value*, Expr>;
-  ValueExprMap  m_valueToRegister;
+  using ValueExprMap = DenseMap<const llvm::Value *, Expr>;
+  ValueExprMap m_valueToRegister;
 
   std::unique_ptr<bvop_details::OpSemMemManager> m_memManager;
 
@@ -185,7 +186,6 @@ private:
     return static_cast<Bv2OpSemContext &>(ctx);
   }
 };
-
 
 /// \brief Memory manager for OpSem machine
 class OpSemMemManager {
@@ -387,23 +387,89 @@ public:
     return m_globals.back().m_start;
   }
 
-  Expr loadValueFromMem(PtrTy ptr, Expr memReg, const llvm::Type &ty,
-                        uint32_t align) {
-    assert(ptr);
+  Expr loadIntFromMem(PtrTy ptr, Expr memReg, unsigned byteSz, uint64_t align) {
     Expr mem = m_ctx.read(memReg);
-    Expr res = op::array::select(mem, ptr);
-    if (ty.isIntegerTy(1))
-      res = mk<NEQ>(res, m_nullPtr);
-    else if (m_sem.sizeInBits(ty) < ptrSz()) {
-      res = bv::extract(m_sem.sizeInBits(ty) - 1, 0, res);
+    assert(byteSz <= m_wordSz);
+    Expr word = loadAlignedWordFromMem(ptr, mem);
+    if (byteSz < m_wordSz) {
+      word = bv::extract(byteSz * 8 - 1, 0, word);
+    }
+    return word;
+  }
+
+  PtrTy loadPtrFromMem(PtrTy ptr, Expr memReg, unsigned byteSz,
+                       uint64_t align) {
+    assert(byteSz == m_wordSz);
+    assert(align == 4 || align == 0);
+    Expr mem = m_ctx.read(memReg);
+    return loadAlignedWordFromMem(ptr, mem);
+  }
+
+  Expr loadAlignedWordFromMem(PtrTy ptr, Expr mem) {
+    return op::array::select(mem, ptr);
+  }
+
+  Expr storeIntToMem(Expr _val, PtrTy ptr, Expr memReadReg, unsigned byteSz,
+                     uint64_t align) {
+    Expr val = _val;
+    Expr mem = m_ctx.read(memReadReg);
+    assert(byteSz <= m_wordSz);
+
+    if (byteSz < m_wordSz) {
+      val = bv::zext(val, m_wordSz * 8);
     }
 
-    if (m_sem.sizeInBits(ty) > ptrSz()) {
-      errs() << "Warning: fat integers not supported: "
-             << "size " << m_sem.sizeInBits(ty) << " > "
-             << "pointer size " << ptrSz() << " in load of" << ptr << "\n"
-             << "Ignored instruction.\n";
+    return storeAlignedWordToMem(val, ptr, mem);
+  }
+
+  Expr storePtrToMem(PtrTy val, PtrTy ptr, Expr memReadReg, unsigned byteSz,
+                     uint64_t align) {
+    assert(byteSz == m_wordSz);
+    assert(align == 4 || align == 0);
+    Expr mem = m_ctx.read(memReadReg);
+    return storeAlignedWordToMem(val, ptr, mem);
+  }
+
+  Expr storeAlignedWordToMem(Expr val, PtrTy ptr, Expr mem) {
+    return op::array::store(mem, ptr, val);
+  }
+
+  Expr mkZeroE(unsigned width, ExprFactory &efac) {
+    return bv::bvnum(0, width, efac);
+  }
+  Expr mkOneE(unsigned width, ExprFactory &efac) {
+    return bv::bvnum(1, width, efac);
+  }
+
+  Expr loadValueFromMem(PtrTy ptr, Expr memReg, const llvm::Type &ty,
+                        uint64_t align) {
+    const unsigned byteSz =
+        m_sem.getTD().getTypeStoreSize(const_cast<llvm::Type *>(&ty));
+    ExprFactory &efac = ptr->efac();
+
+    Expr res;
+    switch (ty.getTypeID()) {
+    case Type::IntegerTyID:
+      res = loadIntFromMem(ptr, memReg, byteSz, align);
+      if (ty.isIntegerTy(1))
+        res = boolop::lneg(mk<EQ>(res, mkZeroE(byteSz * 8, efac)));
+      break;
+    case Type::FloatTyID:
+    case Type::DoubleTyID:
+    case Type::X86_FP80TyID:
+      errs() << "Error: load of float/double is not supported\n";
       llvm_unreachable(nullptr);
+      break;
+    case Type::VectorTyID:
+      errs() << "Error: load of vectors is not supported\n";
+    case Type::PointerTyID:
+      res = loadPtrFromMem(ptr, memReg, byteSz, align);
+      break;
+    default:
+      SmallString<256> msg;
+      raw_svector_ostream out(msg);
+      out << "Loading from type: " << ty << " is not supported\n";
+      report_fatal_error(out.str());
     }
     return res;
   }
@@ -412,22 +478,36 @@ public:
                        const llvm::Type &ty, uint32_t align) {
     assert(ptr);
     Expr val = _val;
-    if (ty.isIntegerTy(1))
-      val = m_ctx.boolToBv(val);
-    if (m_sem.sizeInBits(ty) < ptrSz())
-      val = bv::zext(val, ptrSz());
+    const unsigned byteSz =
+        m_sem.getTD().getTypeStoreSize(const_cast<llvm::Type *>(&ty));
+    ExprFactory &efac = ptr->efac();
 
-    if (m_sem.sizeInBits(ty) > ptrSz()) {
-      errs() << "Warning: fat pointers are not supported: "
-             << "size " << m_sem.sizeInBits(ty) << " > "
-             << "pointer size " << ptrSz() << " in store of " << *val
-             << " to addr " << *ptr << "\n";
+    Expr res;
+    switch (ty.getTypeID()) {
+    case Type::IntegerTyID:
+      if (ty.isIntegerTy(1)) {
+        val = boolop::lite(val, mkOneE(byteSz * 8, efac),
+                           mkZeroE(byteSz * 8, efac));
+      }
+      res = storeIntToMem(val, ptr, memReadReg, byteSz, align);
+      break;
+    case Type::FloatTyID:
+    case Type::DoubleTyID:
+    case Type::X86_FP80TyID:
+      errs() << "Error: store of float/double is not supported\n";
       llvm_unreachable(nullptr);
+      break;
+    case Type::VectorTyID:
+      errs() << "Error: store of vectors is not supported\n";
+    case Type::PointerTyID:
+      res = storePtrToMem(val, ptr, memReadReg, byteSz, align);
+      break;
+    default:
+      SmallString<256> msg;
+      raw_svector_ostream out(msg);
+      out << "Loading from type: " << ty << " is not supported\n";
+      report_fatal_error(out.str());
     }
-
-    Expr mem = m_ctx.read(memReadReg);
-
-    Expr res = op::array::store(mem, ptr, val);
     m_ctx.write(memWriteReg, res);
     return res;
   }
@@ -455,8 +535,8 @@ public:
     return res;
   }
 
-  Expr MemCpy(PtrTy dPtr, PtrTy sPtr, unsigned len,
-              Expr memReadReg, Expr memWriteReg, uint32_t align) {
+  Expr MemCpy(PtrTy dPtr, PtrTy sPtr, unsigned len, Expr memReadReg,
+              Expr memWriteReg, uint32_t align) {
     Expr res;
 
     if (align == 4) {
@@ -558,17 +638,20 @@ struct OpSemBase {
   unsigned ptrSz() { return m_sem.pointerSizeInBits(); }
 
   Expr read(const Value &v) {
-    if (m_sem.isSkipped(v)) return Expr();
+    if (m_sem.isSkipped(v))
+      return Expr();
 
     Expr reg;
-    if (reg = m_ctx.getRegister(v)) return m_ctx.read(reg);
+    if (reg = m_ctx.getRegister(v))
+      return m_ctx.read(reg);
 
     if (const Constant *cv = dyn_cast<Constant>(&v)) {
       return m_ctx.getConstantValue(*cv);
     }
 
     reg = m_ctx.mkRegister(v);
-    if (reg) return m_ctx.read(reg);
+    if (reg)
+      return m_ctx.read(reg);
 
     errs() << "Error: failed to read a value for: " << v << "\n";
     llvm_unreachable(nullptr);
@@ -577,14 +660,17 @@ struct OpSemBase {
   Expr lookup(const Value &v) { return m_sem.getOperandValue(v, m_ctx); }
 
   Expr havoc(const Value &v) {
-    if (m_sem.isSkipped(v)) return Expr();
+    if (m_sem.isSkipped(v))
+      return Expr();
 
     Expr reg;
-    if (reg = m_ctx.getRegister(v)) return m_ctx.havoc(reg);
+    if (reg = m_ctx.getRegister(v))
+      return m_ctx.havoc(reg);
 
     assert(!isa<Constant>(v));
     reg = m_ctx.mkRegister(v);
-    if (reg) return m_ctx.havoc(reg);
+    if (reg)
+      return m_ctx.havoc(reg);
     errs() << "Error: failed to havoc: " << v << "\n";
     llvm_unreachable(nullptr);
   }
@@ -594,11 +680,13 @@ struct OpSemBase {
       return;
 
     Expr reg;
-    if (reg = m_ctx.getRegister(v)) m_ctx.write(reg, val);
+    if (reg = m_ctx.getRegister(v))
+      m_ctx.write(reg, val);
     else {
-      assert (!isa<Constant>(v));
+      assert(!isa<Constant>(v));
       reg = m_ctx.mkRegister(v);
-      if (reg) m_ctx.write(reg, val);
+      if (reg)
+        m_ctx.write(reg, val);
       else {
         errs() << "Error: failed to write: " << v << "\n";
         llvm_unreachable(nullptr);
@@ -865,10 +953,9 @@ public:
     }
 
     if (f->isDeclaration()) {
-      if (f->arg_empty() &&
-          (f->getName().startswith("nd") ||
-           f->getName().startswith("nondet.") ||
-           f->getName().startswith("verifier.nondet")))
+      if (f->arg_empty() && (f->getName().startswith("nd") ||
+                             f->getName().startswith("nondet.") ||
+                             f->getName().startswith("verifier.nondet")))
         visitNondetCall(CS);
       else
         visitExternalCall(CS);
@@ -1027,8 +1114,6 @@ public:
       setValue(inst, Expr());
       return;
     }
-
-
 
     // Treat the call as an uninterpreted function
     Expr res;
@@ -1732,8 +1817,8 @@ struct OpSemPhiVisitor : public InstVisitor<OpSemPhiVisitor>, OpSemBase {
 namespace seahorn {
 Bv2OpSemContext::Bv2OpSemContext(Bv2OpSem &sem, SymStore &values,
                                  ExprVector &side)
-  : OpSemContext(values, side), m_sem(sem), m_func(nullptr), m_bb(nullptr),
-    m_inst(nullptr), m_prev(nullptr), m_scalar(false) {
+    : OpSemContext(values, side), m_sem(sem), m_func(nullptr), m_bb(nullptr),
+      m_inst(nullptr), m_prev(nullptr), m_scalar(false) {
   zeroE = mkTerm<mpz_class>(0, efac());
   oneE = mkTerm<mpz_class>(1, efac());
   trueBv = bv::bvnum(1, 1, efac());
@@ -1751,24 +1836,21 @@ Bv2OpSemContext::Bv2OpSemContext(Bv2OpSem &sem, SymStore &values,
     val = 0x0FFFFFFF;
     break;
   default:
-    LOG("opsem",
-        errs() << "Unsupported pointer size: " << ptrSz() << "\n";);
+    LOG("opsem", errs() << "Unsupported pointer size: " << ptrSz() << "\n";);
     llvm_unreachable("Unexpected pointer size");
   }
   maxPtrE = bv::bvnum(val, ptrSz(), efac());
-
-
 }
 
 Bv2OpSemContext::Bv2OpSemContext(SymStore &values, ExprVector &side,
                                  const Bv2OpSemContext &o)
-  : OpSemContext(values, side), m_sem(o.m_sem), m_func(o.m_func), m_bb(o.m_bb),
-      m_inst(o.m_inst), m_prev(o.m_prev), m_readRegister(o.m_readRegister),
-      m_writeRegister(o.m_writeRegister), m_scalar(o.m_scalar),
-      m_fparams(o.m_fparams), m_ignored(o.m_ignored),
-    m_registers(o.m_registers), m_memManager(nullptr),
-    zeroE(o.zeroE), oneE(o.oneE), trueBv(o.trueBv), falseBv(o.falseBv),
-    nullBv(o.nullBv), maxPtrE(o.maxPtrE) {
+    : OpSemContext(values, side), m_sem(o.m_sem), m_func(o.m_func),
+      m_bb(o.m_bb), m_inst(o.m_inst), m_prev(o.m_prev),
+      m_readRegister(o.m_readRegister), m_writeRegister(o.m_writeRegister),
+      m_scalar(o.m_scalar), m_fparams(o.m_fparams), m_ignored(o.m_ignored),
+      m_registers(o.m_registers), m_memManager(nullptr), zeroE(o.zeroE),
+      oneE(o.oneE), trueBv(o.trueBv), falseBv(o.falseBv), nullBv(o.nullBv),
+      maxPtrE(o.maxPtrE) {
   setActLit(o.getActLit());
 }
 
@@ -1803,7 +1885,8 @@ Expr Bv2OpSemContext::MemSet(Expr ptr, Expr val, unsigned len, uint32_t align) {
                               getMemWriteRegister(), align);
 }
 
-Expr Bv2OpSemContext::MemCpy(Expr dPtr, Expr sPtr, unsigned len, uint32_t align) {
+Expr Bv2OpSemContext::MemCpy(Expr dPtr, Expr sPtr, unsigned len,
+                             uint32_t align) {
   assert(getMemReadRegister());
   assert(getMemWriteRegister());
   return m_memManager->MemCpy(dPtr, sPtr, len, getMemReadRegister(),
@@ -1821,7 +1904,8 @@ void Bv2OpSemContext::declareRegister(Expr v) { m_registers.insert(v); }
 bool Bv2OpSemContext::isKnownRegister(Expr v) { return m_registers.count(v); }
 
 Expr Bv2OpSemContext::mkRegister(const llvm::BasicBlock &bb) {
-  if (Expr r = getRegister(bb)) return r;
+  if (Expr r = getRegister(bb))
+    return r;
   Expr reg = bind::boolConst(mkTerm<const BasicBlock *>(&bb, efac()));
   declareRegister(reg);
   m_valueToRegister.insert(std::make_pair(&bb, reg));
@@ -1829,7 +1913,8 @@ Expr Bv2OpSemContext::mkRegister(const llvm::BasicBlock &bb) {
 }
 
 Expr Bv2OpSemContext::mkRegister(const llvm::Instruction &inst) {
-  if (Expr r = getRegister(inst)) return r;
+  if (Expr r = getRegister(inst))
+    return r;
   Expr reg;
   // everything else is mapped to a symbolic register with a
   // non-deterministic initial value
@@ -1843,25 +1928,25 @@ Expr Bv2OpSemContext::mkRegister(const llvm::Instruction &inst) {
       assert(scalar->getType()->isPointerTy());
       Type &eTy = *cast<PointerType>(scalar->getType())->getElementType();
       // -- create a constant with the name v[scalar]
-      reg =  bv::bvConst(
-        op::array::select(v, mkTerm<const Value *>(scalar, efac())),
-        m_sem.sizeInBits(eTy));
+      reg = bv::bvConst(
+          op::array::select(v, mkTerm<const Value *>(scalar, efac())),
+          m_sem.sizeInBits(eTy));
     }
 
     // if tracking memory content, create array-valued register for
     // the pseudo-assignment
-    else {//(true /*m_trackLvl >= MEM*/) {
+    else { //(true /*m_trackLvl >= MEM*/) {
       Expr ptrTy = bv::bvsort(getMemManager()->ptrSz(), efac());
       Expr valTy = ptrTy;
       Expr memTy = sort::arrayTy(ptrTy, valTy);
-      reg =  bind::mkConst(v, memTy);
+      reg = bind::mkConst(v, memTy);
     }
   } else {
     const Type &ty = *inst.getType();
     switch (ty.getTypeID()) {
     case Type::IntegerTyID:
       reg = ty.isIntegerTy(1) ? bind::boolConst(v)
-        : bv::bvConst(v, m_sem.sizeInBits(ty));
+                              : bv::bvConst(v, m_sem.sizeInBits(ty));
       break;
     case Type::PointerTyID:
       reg = bv::bvConst(v, m_sem.sizeInBits(ty));
@@ -1892,33 +1977,32 @@ Expr Bv2OpSemContext::getConstantValue(const llvm::Constant &c) {
   // -- easy common cases
   if (c.isNullValue() || isa<ConstantPointerNull>(&c)) {
     return c.getType()->isIntegerTy(1)
-      ? m_falseE
-      : bv::bvnum(0, m_sem.sizeInBits(c), efac());
+               ? m_falseE
+               : bv::bvnum(0, m_sem.sizeInBits(c), efac());
   } else if (const ConstantInt *ci = dyn_cast<const ConstantInt>(&c)) {
-      if (ci->getType()->isIntegerTy(1))
-        return ci->isOne() ? m_trueE : m_falseE;
+    if (ci->getType()->isIntegerTy(1))
+      return ci->isOne() ? m_trueE : m_falseE;
 
-      mpz_class k = toMpz(ci->getValue());
-      return bv::bvnum(k, m_sem.sizeInBits(c), efac());
+    mpz_class k = toMpz(ci->getValue());
+    return bv::bvnum(k, m_sem.sizeInBits(c), efac());
   }
 
   if (c.getType()->isIntegerTy()) {
-      auto GVO = m_sem.getConstantValue(&c);
-      if (GVO.hasValue()) {
-        GenericValue gv = GVO.getValue();
-        mpz_class k = toMpz(gv.IntVal);
-        if (c.getType()->isIntegerTy(1)) {
-          return k == 1 ? m_trueE : m_falseE;
-        } else {
-          return bv::bvnum(k, m_sem.sizeInBits(c), efac());
-        }
+    auto GVO = m_sem.getConstantValue(&c);
+    if (GVO.hasValue()) {
+      GenericValue gv = GVO.getValue();
+      mpz_class k = toMpz(gv.IntVal);
+      if (c.getType()->isIntegerTy(1)) {
+        return k == 1 ? m_trueE : m_falseE;
+      } else {
+        return bv::bvnum(k, m_sem.sizeInBits(c), efac());
       }
+    }
   } else if (c.getType()->isPointerTy()) {
-    LOG("opsem", errs() << "Warning: unhandled constant pointer "
-        << c << "\n";);
+    LOG("opsem",
+        errs() << "Warning: unhandled constant pointer " << c << "\n";);
   } else {
-    LOG("opsem", errs() << "Warning: unhandled constant "
-        << c << "\n";);
+    LOG("opsem", errs() << "Warning: unhandled constant " << c << "\n";);
   }
   return Expr();
 }
@@ -1930,14 +2014,13 @@ Bv2OpSem::Bv2OpSem(ExprFactory &efac, Pass &pass, const DataLayout &dl,
   if (p)
     m_tli = &p->getTLI();
 
-
-
   // -- hack to get ENode::dump() to compile by forcing a use
   LOG("dump.debug", trueE->dump(););
 }
 
 OpSemContextPtr Bv2OpSem::mkContext(SymStore &values, ExprVector &side) {
-  return OpSemContextPtr(new bvop_details::Bv2OpSemContext(*this, values, side));
+  return OpSemContextPtr(
+      new bvop_details::Bv2OpSemContext(*this, values, side));
 }
 
 Expr Bv2OpSemContext::boolToBv(Expr b) {
@@ -1971,8 +2054,7 @@ void Bv2OpSem::exec(const BasicBlock &bb, Bv2OpSemContext &ctx) {
   ctx.onBasicBlockEntry(bb);
 
   if (!ctx.getMemManager())
-    ctx.setMemManager(
-        new bvop_details::OpSemMemManager(*this, ctx));
+    ctx.setMemManager(new bvop_details::OpSemMemManager(*this, ctx));
 
   bvop_details::OpSemVisitor v(ctx, *this);
   v.visitBasicBlock(const_cast<BasicBlock &>(bb));
@@ -2075,14 +2157,16 @@ unsigned Bv2OpSem::fieldOff(const StructType *t, unsigned field) const {
 Expr Bv2OpSem::getOperandValue(const Value &v, Bv2OpSemContext &ctx) {
   Expr res;
   if (const BasicBlock *bb = dyn_cast<BasicBlock>(&v)) {
-      Expr reg = ctx.getRegister(v);
-      if (reg) res = ctx.read(reg);
+    Expr reg = ctx.getRegister(v);
+    if (reg)
+      res = ctx.read(reg);
   } else if (const Constant *cv = dyn_cast<Constant>(&v)) {
     res = ctx.getConstantValue(*cv);
     assert(res);
   } else {
     Expr reg = ctx.getRegister(v);
-    if (reg) res = ctx.read(reg);
+    if (reg)
+      res = ctx.read(reg);
   }
   return res;
 }
@@ -2832,6 +2916,5 @@ Expr Bv2OpSem::mkSymbReg(const Value &v, OpSemContext &_ctx) {
 bvop_details::Bv2OpSemContext &Bv2OpSem::ctx(OpSemContext &_ctx) {
   return static_cast<bvop_details::Bv2OpSemContext &>(_ctx);
 }
-
 
 } // namespace seahorn

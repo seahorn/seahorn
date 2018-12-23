@@ -222,8 +222,8 @@ template <typename M> struct BasicExprMarshal {
       return ast;
     }
 
-    //    static int cnt = 0;
-    //    ++cnt;
+    static int cnt = 0;
+    ++cnt;
     //    if (cnt == 219)
     //        __asm__("int3");
 
@@ -432,9 +432,10 @@ template <typename M> struct BasicExprMarshal {
 
     if (res == nullptr)
       ctx.check_error();
-    if (res == nullptr)
-      errs() << "Failed to marshal: " << *e << "\n"
-             << "\t" << cnt << "\n";
+    if (res == nullptr) {
+      errs() << "Failed to marshal: " << *e << "\n";
+      errs() << "\t" << cnt << "\n";
+    }
 
     assert(res != NULL);
     z3::ast final(ctx, res);

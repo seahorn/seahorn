@@ -396,19 +396,25 @@ public:
   Expr loadIntFromMem(PtrTy ptr, Expr memReg, unsigned byteSz, uint64_t align) {
     Expr mem = m_ctx.read(memReg);
     SmallVector<Expr, 16> words;
+    // -- read all words
     for (unsigned i = 0; i < byteSz; i += wordSzInBytes()) {
-      words.push_back(loadAlignedWordFromMem(ptr, mem));
+      words.push_back(loadAlignedWordFromMem(ptrAdd(ptr, i), mem));
     }
 
     assert(!words.empty());
+
+    // -- concatenate the words together into a singe value
     Expr res;
     for (Expr &w : words)
       res = res ? bv::concat(w, res) : w;
 
     assert(res);
     assert(byteSz > wordSzInBytes() || words.size() == 1);
+    // -- extract actual bytes read (if fewer than word)
     if (byteSz < wordSzInBytes())
       res = bv::extract(byteSz * 8 - 1, 0, res);
+
+
     return res;
   }
 
@@ -433,7 +439,6 @@ public:
                      uint64_t align) {
     Expr val = _val;
     Expr mem = m_ctx.read(memReadReg);
-    assert(byteSz <= wordSzInBytes());
 
     SmallVector<Expr, 16> words;
     if (byteSz == wordSzInBytes()) {
@@ -442,13 +447,16 @@ public:
       val = bv::zext(val, wordSzInBytes() * 8);
       words.push_back(val);
     } else {
-      // TODO: cut input val into words
-      llvm_unreachable(nullptr);
+      for (unsigned i = 0; i < byteSz; i += wordSzInBytes()) {
+        unsigned lowBit = i * 8;
+        Expr slice = bv::extract(lowBit + wordSzInBits() - 1, lowBit, val);
+        words.push_back(slice);
+      }
     }
 
     Expr res;
     for (unsigned i = 0; i < words.size();  ++i) {
-      res = storeAlignedWordToMem(words[i], ptrAdd(ptr, i), mem);
+      res = storeAlignedWordToMem(words[i], ptrAdd(ptr, i*wordSzInBytes()), mem);
       mem = res;
     }
 

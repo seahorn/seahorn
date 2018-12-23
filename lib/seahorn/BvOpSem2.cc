@@ -353,8 +353,8 @@ public:
             ? m_globals.back().m_end
             : (m_funcs.empty() ? TEXT_SEGMENT_START : m_funcs.back().m_end);
 
-    start = llvm::alignTo(start, m_alignment);
-    unsigned end = llvm::alignTo(start + gvSz, m_alignment);
+    start = llvm::alignTo(start, std::max(align, m_alignment));
+    unsigned end = llvm::alignTo(start + gvSz, std::max(align, m_alignment));
     m_globals.emplace_back(gv, start, end, gvSz);
     return bv::bvnum(start, ptrSzInBits(), m_efac);
   }
@@ -395,12 +395,21 @@ public:
 
   Expr loadIntFromMem(PtrTy ptr, Expr memReg, unsigned byteSz, uint64_t align) {
     Expr mem = m_ctx.read(memReg);
-    assert(byteSz <= wordSzInBytes());
-    Expr word = loadAlignedWordFromMem(ptr, mem);
-    if (byteSz < wordSzInBytes()) {
-      word = bv::extract(byteSz * 8 - 1, 0, word);
+    SmallVector<Expr, 16> words;
+    for (unsigned i = 0; i < byteSz; i += wordSzInBytes()) {
+      words.push_back(loadAlignedWordFromMem(ptr, mem));
     }
-    return word;
+
+    assert(!words.empty());
+    Expr res;
+    for (Expr &w : words)
+      res = res ? bv::concat(w, res) : w;
+
+    assert(res);
+    assert(byteSz > wordSzInBytes() || words.size() == 1);
+    if (byteSz < wordSzInBytes())
+      res = bv::extract(byteSz * 8 - 1, 0, res);
+    return res;
   }
 
   PtrTy loadPtrFromMem(PtrTy ptr, Expr memReg, unsigned byteSz,
@@ -415,17 +424,35 @@ public:
     return op::array::select(mem, ptr);
   }
 
+  Expr ptrAdd(PtrTy ptr, int32_t _offset) {
+    if (_offset == 0) return ptr;
+    mpz_class offset(_offset);
+    return mk<BADD>(ptr, bv::bvnum(offset, ptrSzInBits(), ptr->efac()));
+  }
   Expr storeIntToMem(Expr _val, PtrTy ptr, Expr memReadReg, unsigned byteSz,
                      uint64_t align) {
     Expr val = _val;
     Expr mem = m_ctx.read(memReadReg);
     assert(byteSz <= wordSzInBytes());
 
-    if (byteSz < wordSzInBytes()) {
+    SmallVector<Expr, 16> words;
+    if (byteSz == wordSzInBytes()) {
+      words.push_back(val);
+    } else if (byteSz < wordSzInBytes()) {
       val = bv::zext(val, wordSzInBytes() * 8);
+      words.push_back(val);
+    } else {
+      // TODO: cut input val into words
+      llvm_unreachable(nullptr);
     }
 
-    return storeAlignedWordToMem(val, ptr, mem);
+    Expr res;
+    for (unsigned i = 0; i < words.size();  ++i) {
+      res = storeAlignedWordToMem(words[i], ptrAdd(ptr, i), mem);
+      mem = res;
+    }
+
+    return res;
   }
 
   Expr storePtrToMem(PtrTy val, PtrTy ptr, Expr memReadReg, unsigned byteSz,
@@ -457,7 +484,7 @@ public:
     switch (ty.getTypeID()) {
     case Type::IntegerTyID:
       res = loadIntFromMem(ptr, memReg, byteSz, align);
-      if (ty.isIntegerTy(1))
+      if (res && ty.isIntegerTy(1))
         res = boolop::lneg(mk<EQ>(res, mkZeroE(byteSz * 8, efac)));
       break;
     case Type::FloatTyID:

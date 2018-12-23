@@ -125,7 +125,10 @@ public:
   Bv2OpSemContext(const Bv2OpSemContext &) = delete;
   ~Bv2OpSemContext() override;
 
-  unsigned ptrSz();
+  unsigned wordSzInBytes();
+  unsigned wordSzInBits() { return wordSzInBytes() * 8; }
+  unsigned ptrSzInBits();
+
   Expr boolToBv(Expr b);
   Expr bvToBool(Expr b);
   void setMemManager(bvop_details::OpSemMemManager *man);
@@ -250,18 +253,20 @@ public:
         m_alignment(m_wordSz),
         m_allocaName(mkTerm<std::string>("sea.alloca", m_efac)),
         m_freshPtrName(mkTerm<std::string>("sea.ptr", m_efac)), m_id(0) {
-    m_nullPtr = bv::bvnum(0, ptrSz(), m_efac);
-    m_sp0 = bv::bvConst(mkTerm<std::string>("sea.sp0", m_efac), ptrSz());
+    m_nullPtr = bv::bvnum(0, ptrSzInBits(), m_efac);
+    m_sp0 = bv::bvConst(mkTerm<std::string>("sea.sp0", m_efac), ptrSzInBits());
     m_ctx.declareRegister(m_sp0);
   }
 
   using PtrTy = Expr;
 
-  unsigned ptrSz() { return m_wordSz * 8; }
+  unsigned ptrSzInBits() { return wordSzInBits(); }
+  unsigned wordSzInBytes() { return m_wordSz; }
+  unsigned wordSzInBits() { return m_wordSz * 8; }
 
   PtrTy mkAlignedPtr(Expr name, uint32_t align) {
     unsigned alignBits = llvm::Log2_32(align);
-    return bv::concat(bv::bvConst(name, ptrSz() - alignBits),
+    return bv::concat(bv::bvConst(name, ptrSzInBits() - alignBits),
                       bv::bvnum(0, alignBits, m_efac));
   }
 
@@ -289,7 +294,7 @@ public:
 
   PtrTy mkStackPtr(Expr name, AllocInfo &allocInfo) {
     Expr res = m_ctx.read(m_sp0);
-    res = mk<BSUB>(res, bv::bvnum(allocInfo.m_end, ptrSz(), m_efac));
+    res = mk<BSUB>(res, bv::bvnum(allocInfo.m_end, ptrSzInBits(), m_efac));
     return res;
   }
 
@@ -311,7 +316,7 @@ public:
   }
 
   /// \brief Pointer to start of the heap
-  PtrTy brk0Ptr() { return bv::bvnum(brk0Addr(), ptrSz(), m_efac); }
+  PtrTy brk0Ptr() { return bv::bvnum(brk0Addr(), ptrSzInBits(), m_efac); }
 
   /// \brief Allocates memory on the heap
   PtrTy halloc(unsigned _bytes, unsigned align = 0) {
@@ -320,8 +325,8 @@ public:
     unsigned bytes = llvm::alignTo(_bytes, std::max(align, m_alignment));
 
     // -- pointer is in the heap: between brk at the beginning and end of stack
-    m_ctx.addSide(
-        mk<BULT>(res, bv::bvnum(MIN_STACK_ADDR - bytes, ptrSz(), m_efac)));
+    m_ctx.addSide(mk<BULT>(
+        res, bv::bvnum(MIN_STACK_ADDR - bytes, ptrSzInBits(), m_efac)));
     m_ctx.addSide(mk<BUGT>(res, brk0Ptr()));
     return res;
   }
@@ -331,7 +336,8 @@ public:
     Expr res = freshPtr();
 
     // -- pointer is in the heap: between brk at the beginning and end of stack
-    m_ctx.addSide(mk<BULT>(res, bv::bvnum(MIN_STACK_ADDR, ptrSz(), m_efac)));
+    m_ctx.addSide(
+        mk<BULT>(res, bv::bvnum(MIN_STACK_ADDR, ptrSzInBits(), m_efac)));
     m_ctx.addSide(mk<BUGT>(res, brk0Ptr()));
     // TODO: take size of pointer into account,
     // it cannot be that close to the stack
@@ -350,7 +356,7 @@ public:
     start = llvm::alignTo(start, m_alignment);
     unsigned end = llvm::alignTo(start + gvSz, m_alignment);
     m_globals.emplace_back(gv, start, end, gvSz);
-    return bv::bvnum(start, ptrSz(), m_efac);
+    return bv::bvnum(start, ptrSzInBits(), m_efac);
   }
 
   /// \brief Allocates memory in code segment for the code of a given function
@@ -359,11 +365,11 @@ public:
     unsigned start = m_funcs.empty() ? 0x08048000 : m_funcs.back().m_end;
     unsigned end = llvm::alignTo(start + 4, m_alignment);
     m_funcs.emplace_back(fn, start, end);
-    return bv::bvnum(start, ptrSz(), m_efac);
+    return bv::bvnum(start, ptrSzInBits(), m_efac);
   }
 
   PtrTy getPtrToFunction(const Function &F) {
-    return bv::bvnum(getFunctionAddr(F), ptrSz(), m_efac);
+    return bv::bvnum(getFunctionAddr(F), ptrSzInBits(), m_efac);
   }
 
   unsigned getFunctionAddr(const Function &F) {
@@ -375,7 +381,7 @@ public:
   }
 
   PtrTy getPtrToGlobalVariable(const GlobalVariable &gv) {
-    return bv::bvnum(getGlobalVariableAddr(gv), ptrSz(), m_efac);
+    return bv::bvnum(getGlobalVariableAddr(gv), ptrSzInBits(), m_efac);
   }
 
   unsigned getGlobalVariableAddr(const GlobalVariable &gv) {
@@ -389,9 +395,9 @@ public:
 
   Expr loadIntFromMem(PtrTy ptr, Expr memReg, unsigned byteSz, uint64_t align) {
     Expr mem = m_ctx.read(memReg);
-    assert(byteSz <= m_wordSz);
+    assert(byteSz <= wordSzInBytes());
     Expr word = loadAlignedWordFromMem(ptr, mem);
-    if (byteSz < m_wordSz) {
+    if (byteSz < wordSzInBytes()) {
       word = bv::extract(byteSz * 8 - 1, 0, word);
     }
     return word;
@@ -399,7 +405,7 @@ public:
 
   PtrTy loadPtrFromMem(PtrTy ptr, Expr memReg, unsigned byteSz,
                        uint64_t align) {
-    assert(byteSz == m_wordSz);
+    assert(byteSz == wordSzInBytes());
     assert(align == 4 || align == 0);
     Expr mem = m_ctx.read(memReg);
     return loadAlignedWordFromMem(ptr, mem);
@@ -413,10 +419,10 @@ public:
                      uint64_t align) {
     Expr val = _val;
     Expr mem = m_ctx.read(memReadReg);
-    assert(byteSz <= m_wordSz);
+    assert(byteSz <= wordSzInBytes());
 
-    if (byteSz < m_wordSz) {
-      val = bv::zext(val, m_wordSz * 8);
+    if (byteSz < wordSzInBytes()) {
+      val = bv::zext(val, wordSzInBytes() * 8);
     }
 
     return storeAlignedWordToMem(val, ptr, mem);
@@ -424,7 +430,7 @@ public:
 
   Expr storePtrToMem(PtrTy val, PtrTy ptr, Expr memReadReg, unsigned byteSz,
                      uint64_t align) {
-    assert(byteSz == m_wordSz);
+    assert(byteSz == wordSzInBytes());
     assert(align == 4 || align == 0);
     Expr mem = m_ctx.read(memReadReg);
     return storeAlignedWordToMem(val, ptr, mem);
@@ -517,17 +523,27 @@ public:
     Expr res;
 
     unsigned width;
-    if (align == 4 && bv::isBvNum(_val, width) && width == 8) {
+    if (bv::isBvNum(_val, width) && width == 8) {
       unsigned val = bv::toMpz(_val).get_ui();
       val = val & 0xFF;
-      val = val | (val << 8) | (val << 16) | (val << 24);
+      switch (wordSzInBytes()) {
+      case 1:
+        break;
+      case 4:
+        assert(align == 0 || align == 4);
+        val = val | (val << 8) | (val << 16) | (val << 24);
+        break;
+      default:
+        llvm::report_fatal_error("Unsupported word sz for memset\n");
+      }
 
       res = m_ctx.read(memReadReg);
-      for (unsigned i = 0; i < len; i += 4) {
+      for (unsigned i = 0; i < len; i += wordSzInBytes()) {
         Expr idx = ptr;
         if (i > 0)
-          idx = mk<BADD>(ptr, bv::bvnum(i, ptrSz(), m_efac));
-        res = op::array::store(res, idx, bv::bvnum(val, ptrSz(), m_efac));
+          idx = mk<BADD>(ptr, bv::bvnum(i, ptrSzInBits(), m_efac));
+        res =
+            op::array::store(res, idx, bv::bvnum(val, wordSzInBits(), m_efac));
       }
       m_ctx.write(memWriteReg, res);
     }
@@ -539,14 +555,14 @@ public:
               Expr memWriteReg, uint32_t align) {
     Expr res;
 
-    if (align == 4) {
+    if (wordSzInBytes() == 1 || (wordSzInBytes() == 4 && align == 4)) {
       Expr srcMem = m_ctx.read(memReadReg);
       res = srcMem;
-      for (unsigned i = 0; i < len; i += 4) {
+      for (unsigned i = 0; i < len; i += wordSzInBytes()) {
         Expr dIdx = dPtr;
         Expr sIdx = sPtr;
         if (i > 0) {
-          Expr offset = bv::bvnum(i, ptrSz(), m_efac);
+          Expr offset = bv::bvnum(i, ptrSzInBits(), m_efac);
           dIdx = mk<BADD>(dPtr, offset);
           sIdx = mk<BADD>(sPtr, offset);
         }
@@ -565,9 +581,11 @@ public:
     // align of 4
     m_ctx.addDef(bv::bvnum(0, 2, m_efac), bv::extract(2 - 1, 0, res));
     // 3GB upper limit
-    m_ctx.addSide(mk<BULE>(res, bv::bvnum(MAX_STACK_ADDR, ptrSz(), m_efac)));
+    m_ctx.addSide(
+        mk<BULE>(res, bv::bvnum(MAX_STACK_ADDR, ptrSzInBits(), m_efac)));
     // 9MB stack
-    m_ctx.addSide(mk<BUGE>(res, bv::bvnum(MIN_STACK_ADDR, ptrSz(), m_efac)));
+    m_ctx.addSide(
+        mk<BUGE>(res, bv::bvnum(MIN_STACK_ADDR, ptrSzInBits(), m_efac)));
   }
 
   void onModuleEntry(const Module &M) {}
@@ -635,7 +653,7 @@ struct OpSemBase {
     ctx.pushParameter(falseE);
   }
 
-  unsigned ptrSz() { return m_sem.pointerSizeInBits(); }
+  unsigned ptrSzInBits() { return m_ctx.ptrSzInBits(); }
 
   Expr read(const Value &v) {
     if (m_sem.isSkipped(v))
@@ -1005,8 +1023,9 @@ public:
     } else {
       LOG("opsem", "Warning: allowing calloc() to "
                    "zero initialize ALL of its memory region\n";);
-      m_ctx.addDef(m_ctx.read(m_ctx.getMemWriteRegister()),
-                   op::array::constArray(bv::bvsort(ptrSz(), m_efac), nullBv));
+      m_ctx.addDef(
+          m_ctx.read(m_ctx.getMemWriteRegister()),
+          op::array::constArray(bv::bvsort(ptrSzInBits(), m_efac), nullBv));
     }
 
     // get a fresh pointer
@@ -1823,10 +1842,12 @@ Bv2OpSemContext::Bv2OpSemContext(Bv2OpSem &sem, SymStore &values,
   oneE = mkTerm<mpz_class>(1, efac());
   trueBv = bv::bvnum(1, 1, efac());
   falseBv = bv::bvnum(0, 1, efac());
-  nullBv = bv::bvnum(0, ptrSz(), efac());
+  // TODO: move into MemManager
+  nullBv = bv::bvnum(0, ptrSzInBits(), efac());
 
+  // TODO: move into MemManager
   mpz_class val;
-  switch (ptrSz()) {
+  switch (ptrSzInBits()) {
   case 64:
     // TODO: take alignment into account
     val = 0x000000000FFFFFFF;
@@ -1836,10 +1857,11 @@ Bv2OpSemContext::Bv2OpSemContext(Bv2OpSem &sem, SymStore &values,
     val = 0x0FFFFFFF;
     break;
   default:
-    LOG("opsem", errs() << "Unsupported pointer size: " << ptrSz() << "\n";);
+    LOG("opsem",
+        errs() << "Unsupported pointer size: " << ptrSzInBits() << "\n";);
     llvm_unreachable("Unexpected pointer size");
   }
-  maxPtrE = bv::bvnum(val, ptrSz(), efac());
+  maxPtrE = bv::bvnum(val, ptrSzInBits(), efac());
 }
 
 Bv2OpSemContext::Bv2OpSemContext(SymStore &values, ExprVector &side,
@@ -1855,9 +1877,9 @@ Bv2OpSemContext::Bv2OpSemContext(SymStore &values, ExprVector &side,
 }
 
 Bv2OpSemContext::~Bv2OpSemContext() {}
-unsigned Bv2OpSemContext::ptrSz() {
+unsigned Bv2OpSemContext::ptrSzInBits() {
   // XXX HACK for refactoring
-  return m_memManager ? m_memManager->ptrSz() : 32;
+  return m_memManager ? m_memManager->ptrSzInBits() : 32;
 }
 
 void Bv2OpSemContext::setMemManager(bvop_details::OpSemMemManager *man) {
@@ -1936,7 +1958,7 @@ Expr Bv2OpSemContext::mkRegister(const llvm::Instruction &inst) {
     // if tracking memory content, create array-valued register for
     // the pseudo-assignment
     else { //(true /*m_trackLvl >= MEM*/) {
-      Expr ptrTy = bv::bvsort(getMemManager()->ptrSz(), efac());
+      Expr ptrTy = bv::bvsort(getMemManager()->ptrSzInBits(), efac());
       Expr valTy = ptrTy;
       Expr memTy = sort::arrayTy(ptrTy, valTy);
       reg = bind::mkConst(v, memTy);

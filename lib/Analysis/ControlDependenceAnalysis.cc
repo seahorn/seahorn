@@ -365,16 +365,25 @@ bool ControlDependenceAnalysisImpl::isReachable(BasicBlock *Src,
 char ControlDependenceAnalysisPass::ID = 0;
 
 void ControlDependenceAnalysisPass::getAnalysisUsage(AnalysisUsage &AU) const {
-  AU.addRequired<DominatorTreeWrapperPass>();
-  AU.addRequired<PostDominatorTreeWrapperPass>();
   AU.setPreservesAll();
+}
+
+bool ControlDependenceAnalysisPass::runOnModule(llvm::Module &M) {
+  bool changed = false;
+  for (auto &F : M)
+    if (!F.isDeclaration())
+      changed |= runOnFunction(F);
+  return changed;
 }
 
 bool ControlDependenceAnalysisPass::runOnFunction(llvm::Function &F) {
   CDA_LOG(llvm::errs() << "CDA: Running on " << F.getName() << "\n");
 
-  auto &DT = getAnalysis<DominatorTreeWrapperPass>().getDomTree();
-  auto &PDT = getAnalysis<PostDominatorTreeWrapperPass>().getPostDomTree();
+  // auto &DT = getAnalysis<DominatorTreeWrapperPass>(F).getDomTree();
+  // auto &PDT = getAnalysis<PostDominatorTreeWrapperPass>(F).getPostDomTree();
+  DominatorTree DT(F);
+  PostDominatorTree PDT;
+  PDT.recalculate(F);
 
   m_analysis = llvm::make_unique<ControlDependenceAnalysisImpl>(F, DT, PDT);
   return false;
@@ -385,7 +394,7 @@ void ControlDependenceAnalysisPass::print(llvm::raw_ostream &os,
   os << "ControlDependenceAnalysisPass::print\n";
 }
 
-llvm::FunctionPass *createControlDependenceAnalysisPass() {
+llvm::ModulePass *createControlDependenceAnalysisPass() {
   return new ControlDependenceAnalysisPass();
 }
 

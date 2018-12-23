@@ -65,6 +65,8 @@ class BmcPass : public llvm::ModulePass {
   /// can-fail analysis
   CanFail *m_failure_analysis;
 
+  GateAnalysis *m_gsa;
+
 public:
   static char ID;
 
@@ -86,6 +88,9 @@ public:
              << "custom entry point\n";
       return false;
     }
+
+    m_gsa =
+        HornGSA ? &getAnalysis<GateAnalysisPass>().getGateAnalysis() : nullptr;
 
     return runOnFunction(*main);
   }
@@ -110,13 +115,14 @@ public:
     if (HornGSA) {
       AU.addRequiredTransitive<llvm::DominatorTreeWrapperPass>();
       AU.addRequiredTransitive<llvm::PostDominatorTreeWrapperPass>();
+      AU.addRequired<seahorn::ControlDependenceAnalysisPass>();
       AU.addRequired<seahorn::GateAnalysisPass>();
     }
 
     AU.setPreservesAll();
   }
 
-  virtual bool runOnFunction(Function &F) {
+  bool runOnFunction(Function &F) {
     LOG("bmc-pass", errs() << "Starting BMC on " << F.getName() << "\n";);
     if (m_failure_analysis) {
       bool canFail = false;
@@ -151,8 +157,6 @@ public:
     const CutPointGraph &cpg = getAnalysis<CutPointGraph>(F);
     const CutPoint &src = cpg.getCp(F.getEntryBlock());
     const CutPoint *dst = nullptr;
-    const GateAnalysis *GSA =
-        HornGSA ? &getAnalysis<GateAnalysisPass>(F).getGateAnalysis() : nullptr;
 
     // -- find return instruction. Assume it is unique
     for (auto &bb : F)

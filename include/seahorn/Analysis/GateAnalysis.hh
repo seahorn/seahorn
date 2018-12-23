@@ -2,22 +2,25 @@
 
 #include "llvm/Pass.h"
 #include "llvm/IR/Function.h"
+#include "llvm/IR/Module.h"
 
 #include <memory>
 #include <utility>
 
 namespace seahorn {
 
+class ControlDependenceAnalysis;
 class GateAnalysis;
 
-class GateAnalysisPass : public llvm::FunctionPass {
+class GateAnalysisPass : public llvm::ModulePass {
 public:
   static char ID;
 
-  GateAnalysisPass() : llvm::FunctionPass(ID) {}
+  GateAnalysisPass() : llvm::ModulePass(ID) {}
 
   virtual void getAnalysisUsage(llvm::AnalysisUsage &AU) const override;
-  virtual bool runOnFunction(llvm::Function &F) override;
+  bool runOnFunction(llvm::Function &F, ControlDependenceAnalysis &CDA);
+  bool runOnModule(llvm::Module &M) override;
 
   llvm::StringRef getPassName() const override { return "GateAnalysisPass"; }
   void print (llvm::raw_ostream &os, const llvm::Module *M) const override;
@@ -31,7 +34,7 @@ private:
   std::unique_ptr<GateAnalysis> m_analysis;
 };
 
-llvm::FunctionPass *createGateAnalysisPass();
+llvm::ModulePass *createGateAnalysisPass();
 
 class GateAnalysis {
 public:

@@ -251,19 +251,31 @@ void GateAnalysisImpl::processPhi(PHINode *PN, IRBuilder<> &IRB) {
 char GateAnalysisPass::ID = 0;
 
 void GateAnalysisPass::getAnalysisUsage(AnalysisUsage &AU) const {
-  AU.addRequired<DominatorTreeWrapperPass>();
-  AU.addRequired<PostDominatorTreeWrapperPass>();
   AU.addRequired<ControlDependenceAnalysisPass>();
   AU.setPreservesAll();
 }
 
-bool GateAnalysisPass::runOnFunction(llvm::Function &F) {
-  GSA_LOG(llvm::errs() << "\nGSA: Running on " << F.getName() << "\n");
-
-  auto &DT = getAnalysis<DominatorTreeWrapperPass>().getDomTree();
-  auto &PDT = getAnalysis<PostDominatorTreeWrapperPass>().getPostDomTree();
+bool GateAnalysisPass::runOnModule(llvm::Module &M) {
   auto &CDA = getAnalysis<ControlDependenceAnalysisPass>()
                   .getControlDependenceAnalysis();
+
+  bool changed = false;
+  for (auto &F : M)
+    if (!F.isDeclaration())
+      changed |= runOnFunction(F, CDA);
+
+  return changed;
+}
+
+bool GateAnalysisPass::runOnFunction(llvm::Function &F,
+                                     ControlDependenceAnalysis &CDA) {
+  GSA_LOG(llvm::errs() << "\nGSA: Running on " << F.getName() << "\n");
+
+  //  auto &DT = getAnalysis<DominatorTreeWrapperPass>(F).getDomTree();
+  //  auto &PDT = getAnalysis<PostDominatorTreeWrapperPass>(F).getPostDomTree();
+  DominatorTree DT(F);
+  PostDominatorTree PDT;
+  PDT.recalculate(F);
 
   m_analysis = llvm::make_unique<GateAnalysisImpl>(F, DT, PDT, CDA);
   return false;
@@ -274,9 +286,7 @@ void GateAnalysisPass::print(llvm::raw_ostream &os,
   os << "GateAnalysisPass::print\n";
 }
 
-llvm::FunctionPass *createGateAnalysisPass() {
-  return new GateAnalysisPass();
-}
+llvm::ModulePass *createGateAnalysisPass() { return new GateAnalysisPass(); }
 
 } // namespace seahorn
 

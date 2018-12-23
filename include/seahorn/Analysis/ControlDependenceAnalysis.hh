@@ -2,6 +2,7 @@
 
 #include "llvm/Pass.h"
 #include "llvm/IR/Function.h"
+#include "llvm/IR/Module.h"
 
 #include <memory>
 #include <vector>
@@ -10,14 +11,15 @@ namespace seahorn {
 
 class ControlDependenceAnalysis;
 
-class ControlDependenceAnalysisPass : public llvm::FunctionPass {
+class ControlDependenceAnalysisPass : public llvm::ModulePass {
 public:
   static char ID;
 
-  ControlDependenceAnalysisPass() : llvm::FunctionPass(ID) {}
+  ControlDependenceAnalysisPass() : llvm::ModulePass(ID) {}
 
   virtual void getAnalysisUsage(llvm::AnalysisUsage &AU) const override;
-  virtual bool runOnFunction(llvm::Function &F) override;
+  bool runOnFunction(llvm::Function &F);
+  bool runOnModule(llvm::Module &M) override;
 
   llvm::StringRef getPassName() const override { return "ControlDependenceAnalysisPass"; }
   void print (llvm::raw_ostream &os, const llvm::Module *M) const override;
@@ -31,7 +33,7 @@ private:
   std::unique_ptr<ControlDependenceAnalysis> m_analysis;
 };
 
-llvm::FunctionPass *createControlDependenceAnalysisPass();
+llvm::ModulePass *createControlDependenceAnalysisPass();
 
 struct CDInfo {
   llvm::BasicBlock *CDBlock;

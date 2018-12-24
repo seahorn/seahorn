@@ -1,8 +1,7 @@
-// RUN: %sea bpf -O0 --bmc=mono --bound=1  --horn-stats --inline --log=bmc "%s"
-// 2>&1 | OutputCheck %s RUN: %sea bpf -O0 --horn-bmc-crab=false  --bmc=path
-// --bound=1  --horn-stats --inline --log=bmc "%s" 2>&1 | OutputCheck %s
-// #: %sea bpf -O0 --horn-bmc-crab=true  --bmc=path --bound=1  --horn-stats
-// --inline --log=bmc "%s" 2>&1 | OutputCheck %s CHECK: ^unsat$
+// RUN: %sea bpf -O0 --bmc=mono --bound=1  --horn-stats --inline --log=bmc "%s" 2>&1 | OutputCheck %s
+// RUN: %sea bpf -O0 --horn-bmc-crab=false  --bmc=path --bound=1  --horn-stats --inline --log=bmc "%s" 2>&1 | OutputCheck %s
+// #: %sea bpf -O0 --horn-bmc-crab=true  --bmc=path --bound=1  --horn-stats --inline --log=bmc "%s" 2>&1 | OutputCheck %s
+// CHECK: ^unsat$
 
 /* Basic functionality */
 extern int nd(void);

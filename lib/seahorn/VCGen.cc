@@ -114,8 +114,8 @@ void VCGen::checkSideAtEnd(unsigned &head, ExprVector &side,
 void VCGen::genVcForCpEdge(SymStore &s, const CpEdge &edge, ExprVector &side) {
   const CutPoint &target = edge.target();
 
-  std::unique_ptr<EZ3> zctx;
-  std::unique_ptr<ZSolver<EZ3>> smt;
+  std::unique_ptr<EZ3> zctx(nullptr);
+  std::unique_ptr<ZSolver<EZ3>> smt(nullptr);
   initSmt(zctx, smt);
 
   OpSemContextPtr ctx = m_sem.mkContext(s, side);
@@ -140,7 +140,8 @@ void VCGen::genVcForCpEdge(SymStore &s, const CpEdge &edge, ExprVector &side) {
     isEntry = false;
 
     // -- check that the current side condition is consistent
-    checkSideAtBb(head, ctx->side(), bbV, *smt, edge, bb);
+    if (smt)
+      checkSideAtBb(head, ctx->side(), bbV, *smt, edge, bb);
   }
 
   // -- generate side condition for the last basic block on the edge
@@ -148,7 +149,8 @@ void VCGen::genVcForCpEdge(SymStore &s, const CpEdge &edge, ExprVector &side) {
   genVcForBasicBlockOnEdge(*ctx, edge, target.bb(), true);
 
   // -- check consistency of side-conditions at the end
-  checkSideAtEnd(head, ctx->side(), *smt);
+  if (smt)
+    checkSideAtEnd(head, ctx->side(), *smt);
 }
 
 namespace sem_detail {

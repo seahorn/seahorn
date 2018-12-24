@@ -28,6 +28,11 @@ static llvm::cl::opt<bool>
                  llvm::cl::desc("Dump function after running"),
                  llvm::cl::init(false));
 
+static llvm::cl::opt<bool>
+    GsaDumpBefore("gsa-dump-before",
+                  llvm::cl::desc("Dump function before running"),
+                  llvm::cl::init(false));
+
 static llvm::cl::opt<bool> ThinnedGsa("gsa-thinned",
                                       llvm::cl::desc("Emit thin gammas"),
                                       llvm::cl::init(true));
@@ -35,7 +40,7 @@ static llvm::cl::opt<bool> ThinnedGsa("gsa-thinned",
 static llvm::cl::opt<bool>
     GsaReplacePhis("gsa-replace-phis",
                    llvm::cl::desc("Replace phis with gammas"),
-                   llvm::cl::init(false));
+                   llvm::cl::init(true));
 
 using namespace llvm;
 
@@ -55,6 +60,15 @@ public:
   GateAnalysisImpl(Function &f, DominatorTree &dt, PostDominatorTree &pdt,
                    ControlDependenceAnalysis &cda)
       : m_function(f), m_DT(dt), m_PDT(pdt), m_CDA(cda) {
+    if (GsaDumpBefore) {
+      errs()
+          << "Dumping IR before running Gated SSA analysis pass on function: "
+          << f.getName() << "\n==========================================\n";
+      f.print(errs());
+      errs() << "\n";
+      f.viewCFG();
+    }
+
     calculate();
 
     if (GsaDumpAfter) {
@@ -187,26 +201,40 @@ void GateAnalysisImpl::processPhi(PHINode *PN, IRBuilder<> &IRB) {
   UndefValue *const Undef = UndefValue::get(phiTy);
 
   unsigned cdNum = 0;
+  GSA_LOG(errs() << "CDInfo size: " << cdInfo.size() << "\n");
   for (const CDInfo &info : cdInfo) {
     BasicBlock *BB = info.CDBlock;
-    if (flowingValues.count(BB) > 0)
-      continue;
+    GSA_LOG(errs() << "CDBlock: " << BB->getName() << "\n");
+    //    if (flowingValues.count(BB) > 0)
+    //      continue;
 
     TerminatorInst *TI = BB->getTerminator();
     assert(isa<BranchInst>(TI) && "Only BranchInst is supported right now");
 
-    errs() << "Considering CDInfo " << BB->getName() << "\n";
+    GSA_LOG(errs() << "Considering CDInfo " << BB->getName() << "\n");
 
     SmallDenseMap<BasicBlock *, Value *, 2> SuccToVal;
     for (auto *S : successors(BB)) {
+      GSA_LOG(errs() << "\tsuccessor " << S->getName() << "\n");
       SuccToVal[S] = Undef;
+
+      if (S == currentBB) {
+        SuccToVal[S] = incomingBlockToValue[BB];
+        GSA_LOG(errs() << "1) SuccToVal[" << S->getName()
+                       << "] = direct branch to " << currentBB->getName()
+                       << ": " << SuccToVal[S]->getName() << "\n");
+      }
+
+      if (SuccToVal[S] != Undef)
+        continue;
 
       for (auto &BlockValuePair : flowingValues) {
         if (m_PDT.dominates(BlockValuePair.first, S)) {
           SuccToVal[S] = BlockValuePair.second;
-          errs() << "2) SuccToVal[" << S->getName() << "] = postdom for "
-                 << BlockValuePair.first->getName() << ": "
-                 << SuccToVal[S]->getName() << "\n";
+          GSA_LOG(errs() << "2) SuccToVal[" << S->getName()
+                         << "] = postdom for cd "
+                         << BlockValuePair.first->getName() << ": "
+                         << SuccToVal[S]->getName() << "\n");
           break;
         }
       }
@@ -219,9 +247,9 @@ void GateAnalysisImpl::processPhi(PHINode *PN, IRBuilder<> &IRB) {
         if (m_CDA.isReachable(S, OtherCD)) {
           assert(flowingValues.count(OtherCD));
           SuccToVal[S] = flowingValues[OtherCD];
-          errs() << "3) SuccToVal[" << S->getName() << "] = flow for CD "
-                 << OtherCD->getName() << ": " << SuccToVal[S]->getName()
-                 << "\n";
+          GSA_LOG(errs() << "3) SuccToVal[" << S->getName()
+                         << "] = flow for CD " << OtherCD->getName() << ": "
+                         << SuccToVal[S]->getName() << "\n");
           break;
         }
       }
@@ -263,12 +291,12 @@ void GateAnalysisImpl::processPhi(PHINode *PN, IRBuilder<> &IRB) {
   gamma->setName(newName);
   m_gammas[PN] = flowingValues[IDomBlock];
 
-  errs() << "Gamma for phi: " << PN->getName() << "\n\t";
-  m_gammas[PN]->print(errs());
-  errs() << "\n";
+  GSA_LOG(errs() << "Gamma for phi: " << PN->getName() << "\n\t");
+  GSA_LOG(m_gammas[PN]->print(errs()));
+  GSA_LOG(errs() << "\n");
   if (GsaReplacePhis) {
     PN->replaceAllUsesWith(gamma);
-    PN->removeFromParent();
+    PN->eraseFromParent();
   }
 }
 
@@ -288,6 +316,13 @@ bool GateAnalysisPass::runOnModule(llvm::Module &M) {
   for (auto &F : M)
     if (!F.isDeclaration())
       changed |= runOnFunction(F, CDP.getControlDependenceAnalysis(F));
+
+  if (GsaReplacePhis)
+    for (auto &F : M)
+      if (!F.isDeclaration())
+        for (auto &BB : F)
+          for (auto &I : BB)
+            assert(!isa<PHINode>(I));
 
   return changed;
 }

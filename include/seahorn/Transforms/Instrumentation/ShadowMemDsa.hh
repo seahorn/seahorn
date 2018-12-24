@@ -182,11 +182,19 @@ namespace seahorn
           }
            
           return false;
-        }   
+        }
         else if (const PHINode *phi = dyn_cast<const PHINode> (val))
         {
           for (unsigned i = 0; i < phi->getNumIncomingValues (); ++i)
             wl.push (phi->getIncomingValue (i));
+        }
+        else if (const SelectInst *gamma = dyn_cast<const SelectInst> (val))
+        {
+          if (gamma->getName().startswith("seahorn.gsa")) {
+            wl.push (gamma->getTrueValue());
+            wl.push (gamma->getFalseValue());
+          }
+          else return false;
         }
         else return false;
       }

@@ -36,7 +36,7 @@ static llvm::cl::opt<bool> HornBv2("horn-bv2",
 
 static llvm::cl::opt<bool> HornGSA("horn-gsa",
                                    llvm::cl::desc("Use Gated SSA for bmc"),
-                                   llvm::cl::init(false), llvm::cl::Hidden);
+                                   llvm::cl::init(true), llvm::cl::Hidden);
 
 namespace seahorn {
 // Defined in PathBasedBmc.cc
@@ -183,6 +183,18 @@ public:
       LOG("cpg_bmc", cpg.print(llvm::errs(), F.getParent()));
       return false;
     }
+
+    std::vector<Instruction *> cdaGarbage;
+    for (auto &BB : F)
+      for (Instruction &I : BB) {
+        if (I.getName().startswith("seahorn.cda")) {
+          assert(I.getNumUses() == 0);
+          cdaGarbage.push_back(&I);
+        }
+        // assert(!isa<PHINode>(I));
+      }
+    for (auto *I : cdaGarbage)
+      I->eraseFromParent();
 
     ExprFactory efac;
 

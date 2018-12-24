@@ -420,10 +420,7 @@ public:
 
   PtrTy loadPtrFromMem(PtrTy ptr, Expr memReg, unsigned byteSz,
                        uint64_t align) {
-    assert(byteSz == wordSzInBytes());
-    assert(align == 4 || align == 0);
-    Expr mem = m_ctx.read(memReg);
-    return loadAlignedWordFromMem(ptr, mem);
+    return loadIntFromMem(ptr, memReg, byteSz, align);
   }
 
   Expr loadAlignedWordFromMem(PtrTy ptr, Expr mem) {
@@ -465,10 +462,7 @@ public:
 
   Expr storePtrToMem(PtrTy val, PtrTy ptr, Expr memReadReg, unsigned byteSz,
                      uint64_t align) {
-    assert(byteSz == wordSzInBytes());
-    assert(align == 4 || align == 0);
-    Expr mem = m_ctx.read(memReadReg);
-    return storeAlignedWordToMem(val, ptr, mem);
+    return storeIntToMem(val, ptr, memReadReg, byteSz, align);
   }
 
   Expr storeAlignedWordToMem(Expr val, PtrTy ptr, Expr mem) {

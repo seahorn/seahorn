@@ -237,10 +237,14 @@ protected:
   ExprFactory &get_efac() { return efac; }
 
   typedef std::unordered_set<Z3_func_decl> Z3_func_decl_set;
+  typedef std::unordered_set<Z3_ast> Z3_ast_set;
 
-  void allDecls(Z3_ast a, Z3_func_decl_set &seen) {
+  void allDecls(Z3_ast a, Z3_func_decl_set &seen, Z3_ast_set &visited) {
     if (Z3_get_ast_kind(ctx, a) != Z3_APP_AST)
       return;
+
+    if (visited.count(a) > 0) return;
+    visited.insert(a);
 
     Z3_app app = Z3_to_app(ctx, a);
     Z3_func_decl fdecl = Z3_get_app_decl(ctx, app);
@@ -251,7 +255,7 @@ protected:
       seen.insert(fdecl);
 
     for (unsigned i = 0; i < Z3_get_app_num_args(ctx, app); i++)
-      allDecls(Z3_get_app_arg(ctx, app, i), seen);
+      allDecls(Z3_get_app_arg(ctx, app, i), seen, visited);
   }
 
 public:
@@ -269,8 +273,9 @@ public:
   std::string toSmtLibDecls(Expr e) {
     std::ostringstream out;
     Z3_func_decl_set seen;
+    Z3_ast_set visited;
     z3::ast a(toAst(e));
-    allDecls(static_cast<Z3_ast>(a), seen);
+    allDecls(static_cast<Z3_ast>(a), seen, visited);
     for (Z3_func_decl fdecl : seen)
       out << Z3_func_decl_to_string(ctx, fdecl) << "\n";
     return out.str();

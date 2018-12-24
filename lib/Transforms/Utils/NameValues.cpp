@@ -7,6 +7,8 @@
 #include "llvm/IR/PassManager.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/IR/IntrinsicInst.h"
+#include "llvm/IR/DebugInfoMetadata.h"
 
 #include "avy/AvyDebug.h"
 #include <boost/algorithm/string/predicate.hpp>
@@ -86,6 +88,12 @@ bool NameValues::runOnFunction(Function &F) {
         LOG("nv", errs() << "Found instruction name: " << inst_name << "\n");
 
         I.setName("_" + inst_name);
+      } else if (DbgValueInst *dbgVal = dyn_cast<DbgValueInst>(&I)) {
+        Value *val = dbgVal->getValue();
+        if (val && isa<Argument>(val) && !val->hasName()) {
+          auto *varInfo = dbgVal->getVariable();
+          if (varInfo) val->setName(sanitizeName(varInfo->getName()));
+        }
       } else {
         if (I.hasName() && !I.getType()->isVoidTy()) {
           I.setName(sanitizeName(I.getName()));

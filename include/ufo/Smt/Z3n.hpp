@@ -461,8 +461,15 @@ public:
     assertions(std::back_inserter(asserts));
     out << z3.toSmtLibDecls(asserts);
     out << "\n";
+
+#ifdef ZSOLVER_PRETTY_PRINT
+    // -- inefficient due to lack of sharing between expressions
     for (const Expr &a : asserts)
       out << "(assert " << z3.toSmtLib(a) << ")\n";
+#else
+    out << "(assert " << z3.toSmtLib(mknary<AND>(mk<TRUE>(efac), asserts))
+        << ")\n";
+#endif
 
     out << "(check-sat";
     for (const Expr &a : rng)

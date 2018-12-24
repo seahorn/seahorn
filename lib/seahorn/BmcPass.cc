@@ -36,7 +36,7 @@ static llvm::cl::opt<bool> HornBv2("horn-bv2",
 
 static llvm::cl::opt<bool> HornGSA("horn-gsa",
                                    llvm::cl::desc("Use Gated SSA for bmc"),
-                                   llvm::cl::init(true), llvm::cl::Hidden);
+                                   llvm::cl::init(false), llvm::cl::Hidden);
 
 namespace seahorn {
 // Defined in PathBasedBmc.cc

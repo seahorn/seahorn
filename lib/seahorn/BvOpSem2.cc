@@ -2,6 +2,7 @@
 
 #include "seahorn/BvOpSem2.hh"
 #include "seahorn/Support/CFG.hh"
+#include "seahorn/Support/SeaLog.hh"
 #include "seahorn/Transforms/Instrumentation/ShadowMemDsa.hh"
 
 #include "ufo/ufo_iterators.hpp"
@@ -19,15 +20,13 @@ using namespace seahorn::bvop_details;
 
 using gep_type_iterator = generic_gep_type_iterator<>;
 
-static llvm::cl::opt<unsigned> WordSize(
-  "horn-bv2-word-size",
-  llvm::cl::desc("Word size in bytes: 1, 4"),
-  cl::init(4));
+static llvm::cl::opt<unsigned>
+    WordSize("horn-bv2-word-size", llvm::cl::desc("Word size in bytes: 1, 4"),
+             cl::init(4));
 
-static llvm::cl::opt<unsigned> PtrSize(
-  "horn-bv2-ptr-size",
-  llvm::cl::desc("Pointer size in bytes: 4"),
-  cl::init(4), cl::Hidden);
+static llvm::cl::opt<unsigned>
+    PtrSize("horn-bv2-ptr-size", llvm::cl::desc("Pointer size in bytes: 4"),
+            cl::init(4), cl::Hidden);
 
 static llvm::cl::opt<bool> EnableUniqueScalars2(
     "horn-bv2-singleton-aliases",
@@ -79,6 +78,7 @@ static bool isShadowMem(const Value &V, const Value **out) {
   return res;
 }
 
+namespace {}
 namespace seahorn {
 
 namespace bvop_details {
@@ -88,7 +88,7 @@ class Bv2OpSemContext : public OpSemContext {
 
 private:
   void setMemManager(OpSemMemManager *man);
-//TODO: make private
+  // TODO: make private
 public:
   Bv2OpSem &m_sem;
   /// currently executing function
@@ -267,10 +267,10 @@ class OpSemMemManager {
 
 public:
   OpSemMemManager(Bv2OpSem &sem, Bv2OpSemContext &ctx)
-    : m_sem(sem), m_ctx(ctx), m_efac(ctx.getExprFactory()), m_ptrSz(PtrSize),
-      m_wordSz(WordSize), m_alignment(m_wordSz),
-      m_allocaName(mkTerm<std::string>("sea.alloca", m_efac)),
-      m_freshPtrName(mkTerm<std::string>("sea.ptr", m_efac)), m_id(0) {
+      : m_sem(sem), m_ctx(ctx), m_efac(ctx.getExprFactory()), m_ptrSz(PtrSize),
+        m_wordSz(WordSize), m_alignment(m_wordSz),
+        m_allocaName(mkTerm<std::string>("sea.alloca", m_efac)),
+        m_freshPtrName(mkTerm<std::string>("sea.ptr", m_efac)), m_id(0) {
     assert((m_wordSz == 1 || m_wordSz == 4) && "Untested word size");
     assert((m_ptrSz == 4) && "Untested pointer size");
     m_nullPtr = bv::bvnum(0, ptrSzInBits(), m_efac);
@@ -340,9 +340,9 @@ public:
 
   /// \brief Allocates memory on the stack
   PtrTy salloc(Expr bytes, unsigned align = 0) {
-    LOG("opsem", errs() << "Warning: unsound handling of dynamically "
-                           "sized stack allocation of "
-                        << bytes << " bytes\n";);
+    LOG("opsem", WARN << "unsound handling of dynamically "
+                         "sized stack allocation of "
+                      << bytes << " bytes";);
     return freshPtr();
   }
 
@@ -454,7 +454,6 @@ public:
     if (byteSz < wordSzInBytes())
       res = bv::extract(byteSz * 8 - 1, 0, res);
 
-
     return res;
   }
 
@@ -468,7 +467,8 @@ public:
   }
 
   PtrTy ptrAdd(PtrTy ptr, int32_t _offset) {
-    if (_offset == 0) return ptr;
+    if (_offset == 0)
+      return ptr;
     mpz_class offset(_offset);
     return mk<BADD>(ptr, bv::bvnum(offset, ptrSzInBits(), ptr->efac()));
   }
@@ -501,8 +501,9 @@ public:
     }
 
     Expr res;
-    for (unsigned i = 0; i < words.size();  ++i) {
-      res = storeAlignedWordToMem(words[i], ptrAdd(ptr, i*wordSzInBytes()), mem);
+    for (unsigned i = 0; i < words.size(); ++i) {
+      res = storeAlignedWordToMem(words[i], ptrAdd(ptr, i * wordSzInBytes()),
+                                  mem);
       mem = res;
     }
 
@@ -1119,19 +1120,19 @@ public:
 
   void visitCallocCall(CallSite CS) {
     if (!m_ctx.getMemReadRegister() || !m_ctx.getMemReadRegister()) {
-      LOG("opsem", errs() << "Warning: treating calloc() as nop\n";);
+      LOG("opsem", WARN << "treating calloc() as nop";);
       return;
     }
 
     assert(!m_ctx.isMemScalar());
 
     if (IgnoreCalloc2) {
-      LOG("opsem", "Warning: treating calloc() as malloc()\n";);
+      LOG("opsem", WARN << "treating calloc() as malloc()";);
       m_ctx.addDef(m_ctx.read(m_ctx.getMemWriteRegister()),
                    m_ctx.read(m_ctx.getMemReadRegister()));
     } else {
-      LOG("opsem", "Warning: allowing calloc() to "
-                   "zero initialize ALL of its memory region\n";);
+      LOG("opsem", WARN << "allowing calloc() to "
+                           "zero initialize ALL of its memory region\n";);
       m_ctx.addDef(
           m_ctx.read(m_ctx.getMemWriteRegister()),
           op::array::constArray(bv::bvsort(ptrSzInBits(), m_efac), nullBv));
@@ -1694,8 +1695,8 @@ public:
 
     if (!ctx.getMemReadRegister() || !ctx.getMemWriteRegister() ||
         m_sem.isSkipped(val)) {
-      LOG("opsem",
-          errs() << "Skipping store to " << addr << " of " << val << "\n";);
+      LOG("opsem", errs() << "Skipping store to " << addr << " of " << val
+                          << "\n";);
       ctx.setMemReadRegister(Expr());
       ctx.setMemWriteRegister(Expr());
       return Expr();
@@ -1715,8 +1716,8 @@ public:
     }
 
     if (!res)
-      LOG("opsem",
-          errs() << "Skipping store to " << addr << " of " << val << "\n";);
+      LOG("opsem", errs() << "Skipping store to " << addr << " of " << val
+                          << "\n";);
 
     ctx.setMemReadRegister(Expr());
     ctx.setMemWriteRegister(Expr());
@@ -1728,14 +1729,16 @@ public:
                          Bv2OpSemContext &ctx) {
     if (!ctx.getMemReadRegister() || !ctx.getMemWriteRegister() ||
         m_sem.isSkipped(dst) || m_sem.isSkipped(val)) {
-      LOG("opsem", errs() << "Warning: Skipping memset\n");
+      LOG("opsem", WARN << "Skipping memset\n");
       ctx.setMemReadRegister(Expr());
       ctx.setMemWriteRegister(Expr());
       return Expr();
     }
 
-    if (ctx.isMemScalar())
-      llvm_unreachable("memset to scalars is not supported");
+    if (ctx.isMemScalar()) {
+      ERR << "memset to scalars is not supported";
+      llvm_unreachable(nullptr);
+    }
 
     Expr res;
     Expr addr = lookup(dst);
@@ -1763,7 +1766,7 @@ public:
                          Bv2OpSemContext &ctx) {
     if (!ctx.getMemReadRegister() || !ctx.getMemWriteRegister() ||
         m_sem.isSkipped(dst) || m_sem.isSkipped(src)) {
-      LOG("opsem", errs() << "Warning: Skipping memcpy\n");
+      LOG("opsem", WARN << "skipping memcpy");
       ctx.setMemReadRegister(Expr());
       ctx.setMemWriteRegister(Expr());
       return Expr();
@@ -1862,8 +1865,9 @@ public:
       if (m_sem.isSkipped(gv))
         continue;
       if (gv.getSection().equals("llvm.metadata")) {
-        LOG("opsem", errs() << "Skipping llvm.metadata global: " << gv.getName()
-                            << "\n";);
+        LOG("opsem", WARN << "Skipping global variable marked "
+                             "by llvm.metadata section: @"
+                          << gv.getName(););
         continue;
       }
       Expr symReg = m_ctx.mkRegister(gv);
@@ -1931,7 +1935,6 @@ Bv2OpSemContext::Bv2OpSemContext(Bv2OpSem &sem, SymStore &values,
   trueBv = bv::bvnum(1, 1, efac());
   falseBv = bv::bvnum(0, 1, efac());
 
-
   setMemManager(new OpSemMemManager(m_sem, *this));
 }
 
@@ -1971,8 +1974,8 @@ void Bv2OpSemContext::setMemManager(bvop_details::OpSemMemManager *man) {
     val = 0x0FFFFFFF;
     break;
   default:
-    LOG("opsem",
-        errs() << "Unsupported pointer size: " << ptrSzInBits() << "\n";);
+    LOG("opsem", errs() << "Unsupported pointer size: " << ptrSzInBits()
+                        << "\n";);
     llvm_unreachable("Unexpected pointer size");
   }
   maxPtrE = bv::bvnum(val, ptrSzInBits(), efac());
@@ -2007,18 +2010,20 @@ Expr Bv2OpSemContext::MemCpy(Expr dPtr, Expr sPtr, unsigned len,
                               getMemWriteRegister(), align);
 }
 
-Expr Bv2OpSemContext::inttoptr(Expr intValue, const Type &intTy, const Type &ptrTy) {
+Expr Bv2OpSemContext::inttoptr(Expr intValue, const Type &intTy,
+                               const Type &ptrTy) {
   return m_memManager->inttoptr(intValue, intTy, ptrTy);
 }
 
-Expr Bv2OpSemContext::ptrtoint(Expr ptrValue, const Type &ptrTy, const Type &intTy) {
+Expr Bv2OpSemContext::ptrtoint(Expr ptrValue, const Type &ptrTy,
+                               const Type &intTy) {
   return m_memManager->ptrtoint(ptrValue, ptrTy, intTy);
 }
 
-Expr Bv2OpSemContext::gep(Expr ptr, gep_type_iterator it, gep_type_iterator end) {
+Expr Bv2OpSemContext::gep(Expr ptr, gep_type_iterator it,
+                          gep_type_iterator end) {
   return m_memManager->gep(ptr, it, end);
 }
-
 
 void Bv2OpSemContext::onFunctionEntry(const Function &fn) {
   m_memManager->onFunctionEntry(fn);
@@ -2123,10 +2128,9 @@ Expr Bv2OpSemContext::getConstantValue(const llvm::Constant &c) {
       }
     }
   } else if (c.getType()->isPointerTy()) {
-    LOG("opsem",
-        errs() << "Warning: unhandled constant pointer " << c << "\n";);
+    LOG("opsem", WARN << "unhandled constant pointer " << c;);
   } else {
-    LOG("opsem", errs() << "Warning: unhandled constant " << c << "\n";);
+    LOG("opsem", WARN << "unhandled constant " << c;);
   }
   return Expr();
 }
@@ -2378,11 +2382,13 @@ bool Bv2OpSem::isSkipped(const Value &v) {
     // TODO: integrate floating branch
     return true;
   case Type::LabelTyID:
-    llvm_unreachable("Unexpected label type");
+    ERR << "Unexpected label type";
+    llvm_unreachable(nullptr);
   case Type::MetadataTyID:
-    llvm_unreachable("Unexpected metadata type");
+    ERR << "Unexpected metadata type";
+    llvm_unreachable(nullptr);
   case Type::X86_MMXTyID:
-    LOG("opsem", errs() << "Warning: Unsupported X86 type\n");
+    LOG("opsem", WARN << "Unsupported X86 type\n");
     return true;
   case Type::TokenTyID:
     llvm_unreachable("Unexpected token type");
@@ -2391,18 +2397,18 @@ bool Bv2OpSem::isSkipped(const Value &v) {
   case Type::FunctionTyID:
     llvm_unreachable("Unexpected function type");
   case Type::StructTyID:
-    LOG("opsem", errs() << "Unsupported struct type\n";);
+    LOG("opsem", WARN << "Unsupported struct type\n";);
     return true;
   case Type::ArrayTyID:
-    LOG("opsem", errs() << "Unsupported array type\n";);
+    LOG("opsem", WARN << "Unsupported array type\n";);
     return true;
   case Type::PointerTyID:
     llvm_unreachable(nullptr);
   case Type::VectorTyID:
-    LOG("opsem", errs() << "Unsupported vector type\n";);
+    LOG("opsem", WARN << "Unsupported vector type\n";);
     return true;
   default:
-    LOG("opsem", errs() << "Unknown type: " << *ty << "\n";);
+    LOG("opsem", ERR << "Unknown type: " << *ty << "\n";);
     llvm_unreachable(nullptr);
   }
   llvm_unreachable(nullptr);
@@ -2528,23 +2534,23 @@ void Bv2OpSem::skipInst(const Instruction &inst, Bv2OpSemContext &ctx) {
   if (ctx.m_ignored.count(&inst))
     return;
   ctx.m_ignored.insert(&inst);
-  LOG("opsem", errs() << "WARNING: skipping instruction: " << inst << " @ "
-                      << inst.getParent()->getName() << " in "
-                      << inst.getParent()->getParent()->getName() << "\n");
+  LOG("opsem", WARN << "skipping instruction: " << inst << " @ "
+                    << inst.getParent()->getName() << " in "
+                    << inst.getParent()->getParent()->getName(););
 }
 
 void Bv2OpSem::unhandledValue(const Value &v, Bv2OpSemContext &ctx) {
   if (const Instruction *inst = dyn_cast<const Instruction>(&v))
     return unhandledInst(*inst, ctx);
-  LOG("opsem", errs() << "WARNING: unhandled value: " << v << "\n";);
+  LOG("opsem", WARN << "unhandled value: " << v;);
 }
 void Bv2OpSem::unhandledInst(const Instruction &inst, Bv2OpSemContext &ctx) {
   if (ctx.m_ignored.count(&inst))
     return;
   ctx.m_ignored.insert(&inst);
-  LOG("opsem", errs() << "WARNING: unhandled instruction: " << inst << " @ "
-                      << inst.getParent()->getName() << " in "
-                      << inst.getParent()->getParent()->getName() << "\n");
+  LOG("opsem", WARN << "unhandled instruction: " << inst << " @ "
+                    << inst.getParent()->getName() << " in "
+                    << inst.getParent()->getParent()->getName());
 }
 
 Expr Bv2OpSem::memStart(unsigned id) {

@@ -27,6 +27,8 @@ if(NOT CMAKE_BUILD_TYPE)
     "Choose the type of build, options are: None Debug Release RelWithDebInfo MinSizeRel." FORCE)
 endif()
 
+option(SEA_ENABLE_LLD "Use lld as C and C++ linker." OFF)
+
 # Add path for custom modules
 list (APPEND CMAKE_MODULE_PATH
   "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
@@ -120,7 +122,6 @@ if (NOT Z3_FOUND)
   ExternalProject_Get_Property (z3 INSTALL_DIR)
   set(Z3_ROOT ${INSTALL_DIR} CACHE PATH "Forced location of Z3" FORCE)
   message(WARNING "No Z3 found. Run \n\tcmake --build . && cmake ${CMAKE_SOURCE_DIR}")
-  return()
 else()
   set_target_properties(z3 PROPERTIES EXCLUDE_FROM_ALL ON)
   include_directories(${Z3_INCLUDE_DIR})
@@ -136,11 +137,11 @@ ExternalProject_Add (llvm
   CMAKE_ARGS
   -DCMAKE_C_COMPILER=${CMAKE_C_COMPILER}
   -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}
-  -DCMAKE_LINKER=${CMAKE_LINKER}
   -DCMAKE_BUILD_TYPE:STRING=${CMAKE_BUILD_TYPE}
   -DCMAKE_INSTALL_PREFIX:PATH=<INSTALL_DIR>
   -DLLVM_TARGETS_TO_BUILD:STRING=X86 -DWITH_POLY:BOOL=OFF
   -DLLVM_ENABLE_PEDANTIC=OFF
+  -DLLVM_ENABLE_LLD=${SEA_ENABLE_LLD}
   -DLLVM_ENABLE_PIC=ON -DLLVM_REQUIRES_RTTI:BOOL=TRUE
   -DLLVM_INCLUDE_TESTS:BOOL=OFF
   -DLLVM_INCLUDE_GO_TESTS=OFF
@@ -160,7 +161,6 @@ if (NOT LLVM_FOUND)
   set (LLVM_DIR ${LLVM_ROOT}/lib/cmake/llvm CACHE PATH
     "Forced location of LLVM cmake config" FORCE)
   message (WARNING "No llvm found. Run \n\tcmake --build . && cmake ${CMAKE_SOURCE_DIR}")
-  return()
 else()
   set_target_properties(llvm PROPERTIES EXCLUDE_FROM_ALL ON)
 
@@ -184,6 +184,17 @@ else()
   link_directories(${LLVM_LIBRARY_DIRS})
   add_definitions(${LLVM_DEFINITIONS})
 
+endif()
+
+if (NOT Z3_FOUND)
+  message(WARNING "No suitable version of Z3 found.\
+                   Follow instructions above.")
+  return()
+endif()
+if(NOT LLVM_FOUND)
+  message(WARNING "No suitable version of LLVM found.\
+                   Follow instructions above.")
+  return()
 endif()
 
 set (PACKAGE_NAME SeaHorn)

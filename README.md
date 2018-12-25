@@ -34,6 +34,16 @@ _Note that the *install* target is required!_
 The install target installs SeaHorn all of it dependencies under `build/run`.
 The main executable is `build/run/bin/sea`.
 
+## Compiling with Clang on Linux
+
+Usually, compilation time with clang and lld linker are faster than
+other options on Linux. The magic cmake configuration line is
+something like the following:
+
+```
+ cmake -DCMAKE_INSTALL_PREFIX=run -DCMAKE_BUILD_TYPE="Release" -DCMAKE_CXX_COMPILER="clang++-6.0" -DCMAKE_C_COMPILER="clang-6.0" -DSEA_ENABLE_LLD="ON" -GNinja -DCMAKE_EXPORT_COMPILE_COMMANDS=1 ../
+```
+
 SeaHorn provides several components that are installed via the `extra`
 target. These components can be used by other projects outside of
 SeaHorn.

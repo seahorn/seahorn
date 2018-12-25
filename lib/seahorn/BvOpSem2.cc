@@ -157,6 +157,7 @@ public:
 
   Expr inttoptr(Expr intValue, const Type &intTy, const Type &ptrTy);
   Expr ptrtoint(Expr ptrValue, const Type &ptrTy, const Type &intTy);
+  Expr gep(Expr ptr, gep_type_iterator it, gep_type_iterator end);
 
   /// \brief Called when a module is entered
   void onModuleEntry(const Module &M) override;
@@ -433,11 +434,20 @@ public:
     return op::array::select(mem, ptr);
   }
 
-  Expr ptrAdd(PtrTy ptr, int32_t _offset) {
+  PtrTy ptrAdd(PtrTy ptr, int32_t _offset) {
     if (_offset == 0) return ptr;
     mpz_class offset(_offset);
     return mk<BADD>(ptr, bv::bvnum(offset, ptrSzInBits(), ptr->efac()));
   }
+
+  PtrTy ptrAdd(PtrTy ptr, Expr offset) {
+    if (bv::isBvNum(offset)) {
+      mpz_class _offset = bv::toMpz(offset);
+      return ptrAdd(ptr, _offset.get_si());
+    }
+    return mk<BADD>(ptr, offset);
+  }
+
   Expr storeIntToMem(Expr _val, PtrTy ptr, Expr memReadReg, unsigned byteSz,
                      uint64_t align) {
     Expr val = _val;
@@ -633,6 +643,11 @@ public:
     else if (ptrTySz > intTySz)
       res = bv::extract(intTySz - 1, 0, res);
     return res;
+  }
+
+  PtrTy gep(PtrTy ptr, gep_type_iterator it, gep_type_iterator end) {
+    Expr offset = m_sem.symbolicIndexedOffset(it, end, m_ctx);
+    return offset ? ptrAdd(ptr, offset) : Expr();
   }
 
   void onFunctionEntry(const Function &fn) {
@@ -1619,11 +1634,8 @@ public:
 
   Expr executeGEPOperation(const Value &ptr, gep_type_iterator it,
                            gep_type_iterator end, Bv2OpSemContext &ctx) {
-    Expr res;
     Expr addr = lookup(ptr);
-    Expr offset = m_sem.symbolicIndexedOffset(it, end, ctx);
-
-    return addr && offset ? mk<BADD>(addr, offset) : Expr();
+    return addr ? ctx.gep(addr, it, end) : Expr();
   }
 
   Expr executeLoadInst(const Value &addr, unsigned alignment, const Type *ty,
@@ -1968,6 +1980,10 @@ Expr Bv2OpSemContext::inttoptr(Expr intValue, const Type &intTy, const Type &ptr
 
 Expr Bv2OpSemContext::ptrtoint(Expr ptrValue, const Type &ptrTy, const Type &intTy) {
   return m_memManager->ptrtoint(ptrValue, ptrTy, intTy);
+}
+
+Expr Bv2OpSemContext::gep(Expr ptr, gep_type_iterator it, gep_type_iterator end) {
+  return m_memManager->gep(ptr, it, end);
 }
 
 

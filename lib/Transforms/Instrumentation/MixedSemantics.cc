@@ -15,7 +15,7 @@
 #include "llvm/Transforms/Utils/Cloning.h"
 #include "llvm/Transforms/Utils/Local.h"
 
-#include "avy/AvyDebug.h"
+#include "avy/SeaDebug.h"
 #include "boost/range.hpp"
 
 static llvm::cl::opt<bool>

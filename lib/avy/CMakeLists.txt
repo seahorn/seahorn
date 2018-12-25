@@ -1,1 +1,1 @@
-add_library(avy STATIC AvyDebug.cc)
+add_library(avy STATIC SeaDebug.cc)

@@ -1,6 +1,6 @@
-#ifndef __AVY__DEBUG__HPP_
-#define __AVY__DEBUG__HPP_
-#include "AvyAssert.h"
+#ifndef __SEA__DEBUG__HPP_
+#define __SEA__DEBUG__HPP_
+#include "SeaAssert.h"
 #include <set>
 #include <string>
 

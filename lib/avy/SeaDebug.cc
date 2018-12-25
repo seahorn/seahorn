@@ -1,6 +1,6 @@
 #include "llvm/Support/CommandLine.h"
 
-#include "avy/AvyDebug.h"
+#include "avy/SeaDebug.h"
 
 #include <set>
 #include <string>

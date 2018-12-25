@@ -7,7 +7,7 @@
 #include "boost/range.hpp"
 #include "llvm/Support/raw_ostream.h"
 
-#include "avy/AvyDebug.h"
+#include "avy/SeaDebug.h"
 
 #include "llvm/IR/Function.h"
 #include "llvm/IR/Instructions.h"

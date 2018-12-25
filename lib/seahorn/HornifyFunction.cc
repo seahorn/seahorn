@@ -6,7 +6,7 @@
 
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/FileSystem.h"
-#include "avy/AvyDebug.h"
+#include "avy/SeaDebug.h"
 
 static llvm::cl::opt<bool>
     ReduceFalse("horn-reduce-constraints",

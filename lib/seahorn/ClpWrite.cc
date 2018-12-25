@@ -5,7 +5,7 @@
 #include "ufo/ExprLlvm.hpp"
 #include "boost/algorithm/string/replace.hpp"
 #include "boost/algorithm/string/predicate.hpp"
-#include "avy/AvyDebug.h"
+#include "avy/SeaDebug.h"
 #include <unordered_map>
 
 static llvm::cl::opt<bool>

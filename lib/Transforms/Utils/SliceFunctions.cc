@@ -10,7 +10,7 @@
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Support/Debug.h"
-#include "avy/AvyDebug.h"
+#include "avy/SeaDebug.h"
 
 #include <set>
 #include <vector>

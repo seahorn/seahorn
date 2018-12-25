@@ -7,7 +7,7 @@
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Support/Debug.h"
 
-#include "avy/AvyDebug.h"
+#include "avy/SeaDebug.h"
 
 using namespace llvm;
 

@@ -12,7 +12,7 @@
 #include "llvm/Analysis/TargetLibraryInfo.h"
 #include "llvm/Analysis/MemoryBuiltins.h"
 
-#include "avy/AvyDebug.h"
+#include "avy/SeaDebug.h"
 #include "boost/range.hpp"
 #include "boost/range/algorithm/binary_search.hpp"
 #include "boost/range/algorithm/set_algorithm.hpp"

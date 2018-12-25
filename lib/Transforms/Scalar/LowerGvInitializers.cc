@@ -6,7 +6,7 @@
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Transforms/Utils/GlobalStatus.h"
 
-#include "avy/AvyDebug.h"
+#include "avy/SeaDebug.h"
 
 namespace seahorn {
 char LowerGvInitializers::ID = 0;

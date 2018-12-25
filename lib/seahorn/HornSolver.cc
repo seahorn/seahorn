@@ -10,7 +10,7 @@
 #include "boost/range/algorithm/reverse.hpp"
 
 #include <climits>
-#include "avy/AvyDebug.h"
+#include "avy/SeaDebug.h"
 
 using namespace llvm;
 

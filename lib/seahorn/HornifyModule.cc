@@ -33,7 +33,7 @@
 #include "seahorn/HornifyFunction.hh"
 #include "seahorn/IncHornifyFunction.hh"
 
-#include "avy/AvyDebug.h"
+#include "avy/SeaDebug.h"
 
 using namespace llvm;
 using namespace seahorn;

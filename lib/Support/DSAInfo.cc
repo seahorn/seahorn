@@ -55,7 +55,7 @@ DSAInfoToFile("dsa-info-to-file",
 #include "llvm/Analysis/MemoryBuiltins.h"
 
 #include "boost/range.hpp"
-#include "avy/AvyDebug.h"
+#include "avy/SeaDebug.h"
 
 namespace seahorn
 {

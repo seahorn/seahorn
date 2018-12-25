@@ -13,7 +13,7 @@
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/SetVector.h"
-#include "avy/AvyDebug.h"
+#include "avy/SeaDebug.h"
 #include "seahorn/Support/SortTopo.hh" 
 #include "llvm/ADT/PostOrderIterator.h"
 

@@ -13,7 +13,7 @@
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
 
-#include "avy/AvyDebug.h"
+#include "avy/SeaDebug.h"
 #include "boost/format.hpp"
 
 using namespace llvm;

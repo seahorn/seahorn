@@ -16,7 +16,7 @@
 #include "llvm/Transforms/Utils/Local.h"
 #include "llvm/Transforms/Utils/UnifyFunctionExitNodes.h"
 
-#include "avy/AvyDebug.h"
+#include "avy/SeaDebug.h"
 #include "sea_dsa/DsaAnalysis.hh"
 
 #define SMC_LOG(...) LOG("smc", __VA_ARGS__)

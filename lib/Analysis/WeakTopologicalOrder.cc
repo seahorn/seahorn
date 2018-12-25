@@ -3,7 +3,7 @@
 #include "llvm/Transforms/Utils/UnifyFunctionExitNodes.h"
 #include "llvm/Support/raw_ostream.h"
 
-#include "avy/AvyDebug.h"
+#include "avy/SeaDebug.h"
 
 using namespace llvm;
 

@@ -4,7 +4,7 @@
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/raw_ostream.h"
 
-#include "avy/AvyDebug.h"
+#include "avy/SeaDebug.h"
 
 // If enabled then crab invariants are added as lemmas.
 // Otherwise, they are added as invariants.

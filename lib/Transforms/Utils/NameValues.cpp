@@ -10,7 +10,7 @@
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/DebugInfoMetadata.h"
 
-#include "avy/AvyDebug.h"
+#include "avy/SeaDebug.h"
 #include <boost/algorithm/string/predicate.hpp>
 #include <boost/tokenizer.hpp>
 

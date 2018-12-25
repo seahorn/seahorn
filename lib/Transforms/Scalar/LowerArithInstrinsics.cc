@@ -6,7 +6,7 @@
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/ADT/Statistic.h"
 
-#include "avy/AvyDebug.h"
+#include "avy/SeaDebug.h"
 
 #include "boost/range.hpp"
 

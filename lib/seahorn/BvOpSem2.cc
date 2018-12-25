@@ -155,6 +155,9 @@ public:
   Expr MemSet(Expr ptr, Expr val, unsigned len, uint32_t align);
   Expr MemCpy(Expr dPtr, Expr sPtr, unsigned len, uint32_t align);
 
+  Expr inttoptr(Expr intValue, const Type &intTy, const Type &ptrTy);
+  Expr ptrtoint(Expr ptrValue, const Type &ptrTy, const Type &intTy);
+
   /// \brief Called when a module is entered
   void onModuleEntry(const Module &M) override;
   /// \brief Called when a function is entered
@@ -603,6 +606,32 @@ public:
       }
       m_ctx.write(memWriteReg, res);
     }
+    return res;
+  }
+
+  PtrTy inttoptr(Expr intVal, const Type &intTy, const Type &ptrTy) {
+    uint64_t intTySz = m_sem.sizeInBits(intTy);
+    uint64_t ptrTySz = m_sem.sizeInBits(ptrTy);
+    assert(ptrTySz == ptrSzInBits());
+
+    Expr res = intVal;
+    if (ptrTySz > intTySz)
+      res = bv::zext(res, ptrTySz);
+    else if (ptrTySz < intTySz)
+      res = bv::extract(ptrTySz - 1, 0, res);
+    return res;
+  }
+
+  Expr ptrtoint(PtrTy ptr, const Type &ptrTy, const Type &intTy) {
+    uint64_t ptrTySz = m_sem.sizeInBits(ptrTy);
+    uint64_t intTySz = m_sem.sizeInBits(intTy);
+    assert(ptrTySz == ptrSzInBits());
+
+    Expr res = ptr;
+    if (ptrTySz < intTySz)
+      res = bv::zext(res, intTySz);
+    else if (ptrTySz > intTySz)
+      res = bv::extract(intTySz - 1, 0, res);
     return res;
   }
 
@@ -1577,16 +1606,7 @@ public:
     Expr res = lookup(op);
     if (!res)
       return Expr();
-
-    uint64_t dsz = m_sem.sizeInBits(*ty);
-    uint64_t ssz = m_sem.sizeInBits(op);
-
-    if (dsz > ssz)
-      res = bv::zext(res, dsz);
-    else if (dsz < ssz)
-      res = bv::extract(dsz - 1, 0, res);
-
-    return res;
+    return ctx.ptrtoint(res, *op.getType(), *ty);
   }
 
   Expr executeIntToPtrInst(const Value &op, const Type *ty,
@@ -1594,16 +1614,7 @@ public:
     Expr res = lookup(op);
     if (!res)
       return Expr();
-
-    uint64_t dsz = m_sem.sizeInBits(*ty);
-    uint64_t ssz = m_sem.sizeInBits(op);
-
-    if (dsz > ssz)
-      res = bv::zext(res, dsz);
-    else if (dsz < ssz)
-      res = bv::extract(dsz - 1, 0, res);
-
-    return res;
+    return ctx.inttoptr(res, *op.getType(), *ty);
   }
 
   Expr executeGEPOperation(const Value &ptr, gep_type_iterator it,
@@ -1950,6 +1961,15 @@ Expr Bv2OpSemContext::MemCpy(Expr dPtr, Expr sPtr, unsigned len,
   return m_memManager->MemCpy(dPtr, sPtr, len, getMemReadRegister(),
                               getMemWriteRegister(), align);
 }
+
+Expr Bv2OpSemContext::inttoptr(Expr intValue, const Type &intTy, const Type &ptrTy) {
+  return m_memManager->inttoptr(intValue, intTy, ptrTy);
+}
+
+Expr Bv2OpSemContext::ptrtoint(Expr ptrValue, const Type &ptrTy, const Type &intTy) {
+  return m_memManager->ptrtoint(ptrValue, ptrTy, intTy);
+}
+
 
 void Bv2OpSemContext::onFunctionEntry(const Function &fn) {
   m_memManager->onFunctionEntry(fn);
@@ -2414,8 +2434,6 @@ bool Bv2OpSem::intraStep(Bv2OpSemContext &C) {
 
 void Bv2OpSem::intraPhi(Bv2OpSemContext &C) {
   assert(C.m_prev);
-
-  // XXX TODO: replace old code once regular semantics is ready
 
   // act is ignored since phi node only introduces a definition
   bvop_details::OpSemPhiVisitor v(C, *this);

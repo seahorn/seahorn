@@ -76,6 +76,9 @@ namespace bvop_details {
 class Bv2OpSemContext : public OpSemContext {
   friend class OpSemBase;
 
+private:
+  void setMemManager(OpSemMemManager *man);
+//TODO: make private
 public:
   Bv2OpSem &m_sem;
   /// currently executing function
@@ -119,6 +122,7 @@ public:
   Expr nullBv;
   Expr maxPtrE;
 
+public:
   Bv2OpSemContext(Bv2OpSem &sem, SymStore &values, ExprVector &side);
   Bv2OpSemContext(SymStore &values, ExprVector &side,
                   const Bv2OpSemContext &other);
@@ -131,7 +135,6 @@ public:
 
   Expr boolToBv(Expr b);
   Expr bvToBool(Expr b);
-  void setMemManager(bvop_details::OpSemMemManager *man);
   bvop_details::OpSemMemManager *getMemManager() { return m_memManager.get(); }
 
   void pushParameter(Expr v) { m_fparams.push_back(v); }
@@ -1871,6 +1874,9 @@ Bv2OpSemContext::Bv2OpSemContext(Bv2OpSem &sem, SymStore &values,
   oneE = mkTerm<mpz_class>(1, efac());
   trueBv = bv::bvnum(1, 1, efac());
   falseBv = bv::bvnum(0, 1, efac());
+
+
+  setMemManager(new OpSemMemManager(m_sem, *this));
 }
 
 Bv2OpSemContext::Bv2OpSemContext(SymStore &values, ExprVector &side,
@@ -2104,9 +2110,6 @@ Expr Bv2OpSem::errorFlag(const BasicBlock &BB) {
 
 void Bv2OpSem::exec(const BasicBlock &bb, Bv2OpSemContext &ctx) {
   ctx.onBasicBlockEntry(bb);
-
-  if (!ctx.getMemManager())
-    ctx.setMemManager(new bvop_details::OpSemMemManager(*this, ctx));
 
   bvop_details::OpSemVisitor v(ctx, *this);
   v.visitBasicBlock(const_cast<BasicBlock &>(bb));

@@ -19,6 +19,16 @@ using namespace seahorn::bvop_details;
 
 using gep_type_iterator = generic_gep_type_iterator<>;
 
+static llvm::cl::opt<unsigned> WordSize(
+  "horn-bv2-word-size",
+  llvm::cl::desc("Word size in bytes: 1, 4"),
+  cl::init(4));
+
+static llvm::cl::opt<unsigned> PtrSize(
+  "horn-bv2-ptr-size",
+  llvm::cl::desc("Pointer size in bytes: 4"),
+  cl::init(4), cl::Hidden);
+
 static llvm::cl::opt<bool> EnableUniqueScalars2(
     "horn-bv2-singleton-aliases",
     llvm::cl::desc("Treat singleton alias sets as scalar values"),
@@ -233,6 +243,7 @@ class OpSemMemManager {
   Bv2OpSemContext &m_ctx;
   ExprFactory &m_efac;
 
+  uint32_t m_ptrSz;
   uint32_t m_wordSz;
   uint32_t m_alignment;
 
@@ -256,10 +267,12 @@ class OpSemMemManager {
 
 public:
   OpSemMemManager(Bv2OpSem &sem, Bv2OpSemContext &ctx)
-      : m_sem(sem), m_ctx(ctx), m_efac(ctx.getExprFactory()), m_wordSz(4),
-        m_alignment(m_wordSz),
-        m_allocaName(mkTerm<std::string>("sea.alloca", m_efac)),
-        m_freshPtrName(mkTerm<std::string>("sea.ptr", m_efac)), m_id(0) {
+    : m_sem(sem), m_ctx(ctx), m_efac(ctx.getExprFactory()), m_ptrSz(PtrSize),
+      m_wordSz(WordSize), m_alignment(m_wordSz),
+      m_allocaName(mkTerm<std::string>("sea.alloca", m_efac)),
+      m_freshPtrName(mkTerm<std::string>("sea.ptr", m_efac)), m_id(0) {
+    assert((m_wordSz == 1 || m_wordSz == 4) && "Untested word size");
+    assert((m_ptrSz == 4) && "Untested pointer size");
     m_nullPtr = bv::bvnum(0, ptrSzInBits(), m_efac);
     m_sp0 = bv::bvConst(mkTerm<std::string>("sea.sp0", m_efac), ptrSzInBits());
     m_ctx.declareRegister(m_sp0);
@@ -267,7 +280,7 @@ public:
 
   using PtrTy = Expr;
 
-  unsigned ptrSzInBits() { return wordSzInBits(); }
+  unsigned ptrSzInBits() { return m_ptrSz * 8; }
   unsigned wordSzInBytes() { return m_wordSz; }
   unsigned wordSzInBits() { return m_wordSz * 8; }
 
@@ -275,6 +288,26 @@ public:
     unsigned alignBits = llvm::Log2_32(align);
     return bv::concat(bv::bvConst(name, ptrSzInBits() - alignBits),
                       bv::bvnum(0, alignBits, m_efac));
+  }
+
+  /// \brief Return sort of a pointer typed register based on the given
+  /// instruction
+  Expr mkPtrRegisterSort(const Instruction &inst) {
+    const Type *ty = inst.getType();
+    assert(ty);
+    unsigned sz = m_sem.sizeInBits(*ty);
+    assert(ty->isPointerTy());
+    assert(sz == ptrSzInBits());
+
+    return bv::bvsort(m_sem.sizeInBits(*ty), m_efac);
+  }
+
+  /// \brief Return sort of a memory/array typed register based on the
+  /// given instruction
+  Expr mkMemRegisterSort(const Instruction &inst) {
+    Expr ptrTy = bv::bvsort(ptrSzInBits(), m_efac);
+    Expr valTy = bv::bvsort(wordSzInBits(), m_efac);
+    return sort::arrayTy(ptrTy, valTy);
   }
 
   PtrTy freshPtr() {
@@ -2030,10 +2063,7 @@ Expr Bv2OpSemContext::mkRegister(const llvm::Instruction &inst) {
     // if tracking memory content, create array-valued register for
     // the pseudo-assignment
     else { //(true /*m_trackLvl >= MEM*/) {
-      Expr ptrTy = bv::bvsort(getMemManager()->ptrSzInBits(), efac());
-      Expr valTy = ptrTy;
-      Expr memTy = sort::arrayTy(ptrTy, valTy);
-      reg = bind::mkConst(v, memTy);
+      reg = bind::mkConst(v, m_memManager->mkMemRegisterSort(inst));
     }
   } else {
     const Type &ty = *inst.getType();
@@ -2043,7 +2073,7 @@ Expr Bv2OpSemContext::mkRegister(const llvm::Instruction &inst) {
                               : bv::bvConst(v, m_sem.sizeInBits(ty));
       break;
     case Type::PointerTyID:
-      reg = bv::bvConst(v, m_sem.sizeInBits(ty));
+      reg = bind::mkConst(v, m_memManager->mkPtrRegisterSort(inst));
       break;
     default:
       errs() << "Error: unhandled type: " << ty << " of " << inst << "\n";

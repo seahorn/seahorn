@@ -564,7 +564,7 @@ namespace seahorn {
 
   char Profiler::ID = 0;
 
-  ModulePass *createProfilerPass() 
+  Pass * createProfilerPass()
   {return new Profiler();}
 
 } // end namespace seahorn

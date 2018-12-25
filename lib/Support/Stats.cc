@@ -14,7 +14,7 @@ namespace ufo
   { return counters [n] = v; }
   unsigned Stats::get (const std::string &n) { return counters [n]; }
 
-  void Stats::sset (const std::string &n, std::string v) {ss [n] = v;}
+  void Stats::sset (const std::string &n, const std::string &v) {ss [n] = v;}
   std::string& Stats::sget (const std::string &n) {return ss[n];}
   
   void Stats::start (const std::string &name) { sw[name].start (); }

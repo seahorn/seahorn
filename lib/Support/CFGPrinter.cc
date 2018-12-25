@@ -276,7 +276,7 @@ namespace seahorn {
 
 
   
-  FunctionPass *createCFGPrinterPass () {
+  Pass * createCFGPrinterPass () {
     return new CFGPrinter();
   }
 

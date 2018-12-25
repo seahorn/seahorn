@@ -11,7 +11,7 @@ namespace llvm
     llvm::SmallVectorImpl <std::pair <const BasicBlock*, const BasicBlock*> > &m_edges;
     
   public:
-    BlockedEdges (llvm::SmallVectorImpl <std::pair <const BasicBlock*, const BasicBlock*> >
+    explicit BlockedEdges(llvm::SmallVectorImpl <std::pair <const BasicBlock*, const BasicBlock*> >
                   &edges) : m_edges (edges) 
     {
       std::sort (m_edges.begin (), m_edges.end ());
@@ -37,8 +37,8 @@ namespace llvm
     BlockedEdges &Visited;
     
   public:
-    po_iterator_storage (BlockedEdges &VSet) : Visited (VSet) {}
-    po_iterator_storage (const po_iterator_storage &S) : Visited (S.Visited) {}
+    explicit po_iterator_storage (BlockedEdges &VSet) : Visited (VSet) {}
+    po_iterator_storage (const po_iterator_storage &S) = default;
     
     bool insertEdge (Optional<const BasicBlock*> src, const BasicBlock *dst)
     {

@@ -2281,11 +2281,11 @@ unsigned Bv2OpSem::fieldOff(const StructType *t, unsigned field) const {
 
 Expr Bv2OpSem::getOperandValue(const Value &v, Bv2OpSemContext &ctx) {
   Expr res;
-  if (const BasicBlock *bb = dyn_cast<BasicBlock>(&v)) {
-    Expr reg = ctx.getRegister(v);
+  if (auto *bb = dyn_cast<BasicBlock>(&v)) {
+    Expr reg = ctx.getRegister(*bb);
     if (reg)
       res = ctx.read(reg);
-  } else if (const Constant *cv = dyn_cast<Constant>(&v)) {
+  } else if (auto *cv = dyn_cast<Constant>(&v)) {
     res = ctx.getConstantValue(*cv);
     assert(res);
   } else {

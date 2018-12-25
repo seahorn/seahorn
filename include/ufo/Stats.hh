@@ -145,7 +145,7 @@ namespace ufo
     static double avg (const std::string &n, double v);
     static unsigned uset (const std::string &n, unsigned v);
 
-    static void sset (const std::string &n, std::string v);
+    static void sset (const std::string &n, const std::string &v);
     static std::string& sget (const std::string &n);
     
     static void count (const std::string &name);

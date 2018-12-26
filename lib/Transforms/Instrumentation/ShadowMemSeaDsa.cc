@@ -275,6 +275,75 @@ private:
     return m_computeReadMod ? m_modList[&f].count(n) > 0 : n->isModified();
   }
 
+  void markCall(CallInst *ci) {
+    // use ci->getMetadata(seahorn) to test.
+    Module *m = ci->getParent()->getParent()->getParent();
+    ci->setMetadata(m->getMDKindID("shadow.mem"),
+                    MDNode::get(m->getContext(), None));
+  }
+
+  CallInst *mkShadowAllocInit(IRBuilder<> &B, Constant *fn, AllocaInst *a,
+                              const dsa::Cell &c) {
+    B.Insert(a, "shadow.mem." + Twine(getFieldId(c)));
+    CallInst *ci;
+    ci = B.CreateCall(
+        fn, {B.getInt32(getFieldId(c)), getUniqueScalar(*m_llvmCtx, B, c)});
+    markCall(ci);
+    B.CreateStore(ci, a);
+    return ci;
+  }
+  StoreInst *mkShadowStore(IRBuilder<> &B, const dsa::Cell &c) {
+    AllocaInst *v = getShadowForField(c);
+    return B.CreateStore(mkStoreFnCall(B, c, v), v);
+  }
+
+  CallInst *mkStoreFnCall(IRBuilder<> &B, const dsa::Cell &c, AllocaInst *v) {
+    auto *ci = B.CreateCall(m_memStoreFn,
+                            {m_B->getInt32(getFieldId(c)), m_B->CreateLoad(v),
+                             getUniqueScalar(*m_llvmCtx, B, c)});
+    markCall(ci);
+    return ci;
+  }
+
+  void mkShadowLoad(IRBuilder<> &B, const dsa::Cell &c) {
+    auto *ci = B.CreateCall(m_memLoadFn, {B.getInt32(getFieldId(c)),
+                                          B.CreateLoad(getShadowForField(c)),
+                                          getUniqueScalar(*m_llvmCtx, B, c)});
+    markCall(ci);
+  }
+
+  void mkArgRef(IRBuilder<> &B, const dsa::Cell &c, unsigned idx) {
+    AllocaInst *v = getShadowForField(c);
+    unsigned id = getFieldId(c);
+    auto *ci = B.CreateCall(m_argRefFn, {B.getInt32(id), m_B->CreateLoad(v),
+                                         m_B->getInt32(idx),
+                                         getUniqueScalar(*m_llvmCtx, B, c)});
+    markCall(ci);
+  }
+  void mkArgNewMod(IRBuilder<> &B, Constant *argFn, const dsa::Cell &c,
+                   unsigned idx) {
+    AllocaInst *v = getShadowForField(c);
+    unsigned id = getFieldId(c);
+    auto *ci =
+        B.CreateCall(argFn, {B.getInt32(id), B.CreateLoad(v), B.getInt32(idx),
+                             getUniqueScalar(*m_llvmCtx, B, c)});
+    B.CreateStore(ci, v);
+    markCall(ci);
+  }
+  void mkMarkIn(IRBuilder<> &B, const dsa::Cell &c, Value *v, unsigned idx) {
+    auto *ci =
+        B.CreateCall(m_markIn, {B.getInt32(getFieldId(c)), v, B.getInt32(idx),
+                                getUniqueScalar(*m_llvmCtx, B, c)});
+    markCall(ci);
+  }
+  void mkMarkOut(IRBuilder<> &B, const dsa::Cell &c, unsigned idx) {
+    auto *ci = B.CreateCall(m_markOut, {B.getInt32(getFieldId(c)),
+                                        B.CreateLoad(getShadowForField(c)),
+                                        B.getInt32(idx),
+                                        getUniqueScalar(*m_llvmCtx, B, c)});
+    markCall(ci);
+  }
+
 public:
   ShadowDsaImpl(dsa::GlobalAnalysis &dsa, TargetLibraryInfo *tli, CallGraph *cg,
                 Pass &pass, bool splitDsaNodes = false,
@@ -352,12 +421,7 @@ bool ShadowDsaImpl::runOnFunction(Function &F) {
     for (auto jt : it.second) {
       dsa::Cell c(const_cast<dsa::Node *>(n), jt.first);
       AllocaInst *a = jt.second;
-      B.Insert(a, "shadow.mem");
-      CallInst *ci;
-      ci = B.CreateCall(
-          fn, {B.getInt32(getFieldId(c)), getUniqueScalar(ctx, B, c)});
-      inits[c.getNode()][getOffset(c)] = ci;
-      B.CreateStore(ci, a);
+      inits[c.getNode()][getOffset(c)] = mkShadowAllocInit(B, fn, a, c);
     }
   }
 
@@ -399,16 +463,13 @@ bool ShadowDsaImpl::runOnFunction(Function &F) {
     if ((isRead(n, F) || isModified(n, F)) && retReach.count(n) <= 0) {
       assert(!inits[n].empty());
       /// initial value
-      B.CreateCall(m_markIn, {B.getInt32(getFieldId(c)), inits[n][0],
-                              B.getInt32(idx), getUniqueScalar(ctx, B, c)});
+      mkMarkIn(B, c, inits[n][0], idx);
     }
 
     if (isModified(n, F)) {
       assert(!inits[n].empty());
       /// final value
-      B.CreateCall(m_markOut, {B.getInt32(getFieldId(c)),
-                               B.CreateLoad(getShadowForField(c)),
-                               B.getInt32(idx), getUniqueScalar(ctx, B, c)});
+      mkMarkOut(B, c, idx);
     }
     ++idx;
   }
@@ -429,9 +490,7 @@ void ShadowDsaImpl::visitAllocaInst(AllocaInst &I) {
     return;
 
   m_B->SetInsertPoint(&I);
-  m_B->CreateCall(m_memLoadFn, {m_B->getInt32(getFieldId(c)),
-                                m_B->CreateLoad(getShadowForField(c)),
-                                getUniqueScalar(*m_llvmCtx, *m_B, c)});
+  mkShadowLoad(*m_B, c);
 }
 
 void ShadowDsaImpl::visitLoadInst(LoadInst &I) {
@@ -442,11 +501,8 @@ void ShadowDsaImpl::visitLoadInst(LoadInst &I) {
     return;
 
   m_B->SetInsertPoint(&I);
-  m_B->CreateCall(m_memLoadFn, {m_B->getInt32(getFieldId(c)),
-                                m_B->CreateLoad(getShadowForField(c)),
-                                getUniqueScalar(*m_llvmCtx, *m_B, c)});
+  mkShadowLoad(*m_B, c);
 }
-
 void ShadowDsaImpl::visitStoreInst(StoreInst &I) {
   if (!m_graph->hasCell(*(I.getOperand(1))))
     return;
@@ -455,12 +511,7 @@ void ShadowDsaImpl::visitStoreInst(StoreInst &I) {
     return;
 
   m_B->SetInsertPoint(&I);
-  AllocaInst *v = getShadowForField(c);
-  m_B->CreateStore(
-      m_B->CreateCall(m_memStoreFn,
-                      {m_B->getInt32(getFieldId(c)), m_B->CreateLoad(v),
-                       getUniqueScalar(*m_llvmCtx, *m_B, c)}),
-      v);
+  mkShadowStore(*m_B, c);
 }
 void ShadowDsaImpl::visitCallSite(CallSite CS) {
   if (CS.isIndirectCall())
@@ -542,19 +593,13 @@ void ShadowDsaImpl::visitDsaCallSite(dsa::DsaCallSite &CS) {
     // -- read only node ignore nodes that are only reachable
     // -- from the return of the function
     if (isRead(n, CF) && !isModified(n, CF) && retReach.count(n) <= 0) {
-      m_B->CreateCall(m_argRefFn, {m_B->getInt32(id), m_B->CreateLoad(v),
-                                   m_B->getInt32(idx),
-                                   getUniqueScalar(*m_llvmCtx, *m_B, callerC)});
+      mkArgRef(*m_B, callerC, idx);
     }
     // -- read/write or new node
     else if (isModified(n, CF)) {
       // -- n is new node iff it is reachable only from the return node
       Constant *argFn = retReach.count(n) ? m_argNewFn : m_argModFn;
-      m_B->CreateStore(
-          m_B->CreateCall(argFn, {m_B->getInt32(id), m_B->CreateLoad(v),
-                                  m_B->getInt32(idx),
-                                  getUniqueScalar(*m_llvmCtx, *m_B, callerC)}),
-          v);
+      mkArgNewMod(*m_B, argFn, callerC, idx);
     }
     idx++;
   }
@@ -569,12 +614,7 @@ void ShadowDsaImpl::visitCalloc(CallSite &CS) {
 
   if (c.getOffset() == 0) {
     m_B->SetInsertPoint(CS.getInstruction());
-    AllocaInst *v = getShadowForField(c);
-    m_B->CreateStore(
-        m_B->CreateCall(m_memStoreFn,
-                        {m_B->getInt32(getFieldId(c)), m_B->CreateLoad(v),
-                         getUniqueScalar(*m_llvmCtx, *m_B, c)}),
-        v);
+    mkShadowStore(*m_B, c);
   } else {
     // TODO: handle multiple nodes
     WARN << "skipping calloc instrumentation because cell "
@@ -590,10 +630,7 @@ void ShadowDsaImpl::visitAllocationFn(CallSite &CS) {
     return;
 
   m_B->SetInsertPoint(CS.getInstruction());
-  m_B->CreateCall(m_memLoadFn,
-                  {m_B->getInt32(getFieldId(c)),
-                   m_B->CreateLoad(getShadowForField(c),
-                                   getUniqueScalar(*m_llvmCtx, *m_B, c))});
+  mkShadowLoad(*m_B, c);
 }
 void ShadowDsaImpl::visitMemSetInst(MemSetInst &I) {
   Value &dst = *(I.getDest());
@@ -606,12 +643,7 @@ void ShadowDsaImpl::visitMemSetInst(MemSetInst &I) {
 
   if (c.getOffset() == 0) {
     m_B->SetInsertPoint(&I);
-    AllocaInst *v = getShadowForField(c);
-    m_B->CreateStore(
-        m_B->CreateCall(m_memStoreFn,
-                        {m_B->getInt32(getFieldId(c)), m_B->CreateLoad(v),
-                         getUniqueScalar(*m_llvmCtx, *m_B, c)}),
-        v);
+    mkShadowStore(*m_B, c);
   }
 }
 void ShadowDsaImpl::visitMemTransferInst(MemTransferInst &I) {
@@ -637,12 +669,7 @@ void ShadowDsaImpl::visitMemTransferInst(MemTransferInst &I) {
   }
 
   m_B->SetInsertPoint(&I);
-  AllocaInst *v = getShadowForField(dstC);
-  m_B->CreateStore(
-      m_B->CreateCall(m_memStoreFn,
-                      {m_B->getInt32(getFieldId(dstC)), m_B->CreateLoad(v),
-                       getUniqueScalar(*m_llvmCtx, *m_B, dstC)}),
-      v);
+  mkShadowStore(*m_B, dstC);
 }
 
 void ShadowDsaImpl::mkShadowFunctions(Module &M) {

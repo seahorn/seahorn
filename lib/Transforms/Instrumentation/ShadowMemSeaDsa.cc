@@ -783,7 +783,7 @@ void ShadowDsaImpl::updateReadMod(Function &F, NodeSet &readSet,
     // TODO: handle intrinsics (memset,memcpy) and other library functions
   }
 }
-}
+} // namespace
 
 namespace seahorn {
 

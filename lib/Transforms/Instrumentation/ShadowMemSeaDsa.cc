@@ -119,8 +119,7 @@ class ShadowDsaImpl : public InstVisitor<ShadowDsaImpl> {
 
   llvm::Constant *m_memLoadFn = nullptr;
   llvm::Constant *m_memStoreFn = nullptr;
-  llvm::Constant *m_memUniqLoadFn = nullptr;
-  llvm::Constant *m_memUniqStoreFn = nullptr;
+  llvm::Constant *m_memTrsfrLoadFn = nullptr;
   llvm::Constant *m_memShadowInitFn = nullptr;
   llvm::Constant *m_memShadowUniqInitFn = nullptr;
 
@@ -310,6 +309,19 @@ private:
                                           B.CreateLoad(getShadowForField(c)),
                                           getUniqueScalar(*m_llvmCtx, B, c)});
     markCall(ci);
+  }
+
+  void mkShadowMemTrsfr(IRBuilder<> &B, const dsa::Cell &dst,
+                        const dsa::Cell &src) {
+    // insert memtrfr.load for the read access
+    auto *ci =
+        B.CreateCall(m_memTrsfrLoadFn, {B.getInt32(getFieldId(src)),
+                                        B.CreateLoad(getShadowForField(src)),
+                                        getUniqueScalar(*m_llvmCtx, B, src)});
+    markCall(ci);
+
+    // insert normal mem.store for the write access
+    mkShadowStore(B, dst);
   }
 
   void mkArgRef(IRBuilder<> &B, const dsa::Cell &c, unsigned idx) {
@@ -662,14 +674,8 @@ void ShadowDsaImpl::visitMemTransferInst(MemTransferInst &I) {
   if (dstC.getOffset() != 0)
     return;
 
-  if (!(dstC == srcC)) {
-    WARN << "ignoring memtransfer between different DSA nodes: " << I << " @ "
-         << I.getParent()->getParent()->getName() << "\n";
-    return;
-  }
-
   m_B->SetInsertPoint(&I);
-  mkShadowStore(*m_B, dstC);
+  mkShadowMemTrsfr(*m_B, dstC, srcC);
 }
 
 void ShadowDsaImpl::mkShadowFunctions(Module &M) {
@@ -680,6 +686,9 @@ void ShadowDsaImpl::mkShadowFunctions(Module &M) {
 
   m_memLoadFn = M.getOrInsertFunction("shadow.mem.load", voidTy, m_Int32Ty,
                                       m_Int32Ty, i8PtrTy);
+
+  m_memTrsfrLoadFn = M.getOrInsertFunction("shadow.mem.trsfr.load", voidTy,
+                                           m_Int32Ty, m_Int32Ty, i8PtrTy);
 
   m_memStoreFn = M.getOrInsertFunction("shadow.mem.store", m_Int32Ty, m_Int32Ty,
                                        m_Int32Ty, i8PtrTy);

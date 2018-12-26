@@ -110,6 +110,10 @@ public:
   /// true if current in/out memory is a unique scalar memory cell
   bool m_scalar;
 
+  /// Additional memory read register that is used in memory transfer
+  /// instructions that read/write from multiple memory regions
+  Expr m_trfrReadReg;
+
   /// Parameters for the current function call
   ExprVector m_fparams;
 
@@ -158,6 +162,9 @@ public:
   Expr getMemWriteRegister() { return m_writeRegister; }
   bool isMemScalar() { return m_scalar; }
   void setMemScalar(bool v) { m_scalar = v; }
+
+  void setMemTrsfrReadReg(Expr r) { m_trfrReadReg = r; }
+  Expr getMemTrsfrReadReg() { return m_trfrReadReg; }
 
   Expr loadValueFromMem(Expr ptr, const llvm::Type &ty, uint32_t align);
   Expr storeValueToMem(Expr val, Expr ptr, const llvm::Type &ty,
@@ -630,12 +637,12 @@ public:
     return res;
   }
 
-  Expr MemCpy(PtrTy dPtr, PtrTy sPtr, unsigned len, Expr memReadReg,
-              Expr memWriteReg, uint32_t align) {
+  Expr MemCpy(PtrTy dPtr, PtrTy sPtr, unsigned len, Expr memTrsfrReadReg,
+              Expr memReadReg, Expr memWriteReg, uint32_t align) {
     Expr res;
 
     if (wordSzInBytes() == 1 || (wordSzInBytes() == 4 && align == 4)) {
-      Expr srcMem = m_ctx.read(memReadReg);
+      Expr srcMem = m_ctx.read(memTrsfrReadReg);
       res = srcMem;
       for (unsigned i = 0; i < len; i += wordSzInBytes()) {
         Expr dIdx = dPtr;
@@ -1075,7 +1082,15 @@ public:
       return;
     }
 
+    if (CS.getInstruction()->getMetadata("shadow.mem")) {
+      visitShadowMemCall(CS);
+      return;
+    }
+
     if (f->getName().startswith("shadow.mem")) {
+      WARN << "missing metadata on shadow.mem functions. "
+              "Probably using old ShadowMem pass. "
+              "Some features might not work as expected";
       visitShadowMemCall(CS);
       return;
     }
@@ -1161,6 +1176,16 @@ public:
       return;
     }
 
+    if (F.getName().equals("shadow.mem.trsfr.load")) {
+      const Value &v = *CS.getArgument(1);
+      m_ctx.setMemTrsfrReadReg(m_ctx.mkRegister(v));
+      if (extractUniqueScalar(CS) != nullptr) {
+        WARN << "unexpected unique scalar in mem.trsfr.load: " << inst;
+        llvm_unreachable(nullptr);
+      }
+      return;
+    }
+
     if (F.getName().equals("shadow.mem.store")) {
       Expr memOut = m_ctx.mkRegister(inst);
       Expr memIn = m_ctx.getRegister(*CS.getArgument(1));
@@ -1219,7 +1244,7 @@ public:
       return;
     }
 
-    errs() << "Unknown shadow.mem call: " << inst << "\n";
+    WARN << "unknown shadow.mem call: " << inst;
     llvm_unreachable(nullptr);
   }
 
@@ -1765,8 +1790,10 @@ public:
                          const Value &length, unsigned alignment,
                          Bv2OpSemContext &ctx) {
     if (!ctx.getMemReadRegister() || !ctx.getMemWriteRegister() ||
-        m_sem.isSkipped(dst) || m_sem.isSkipped(src)) {
+        !ctx.getMemTrsfrReadReg() || m_sem.isSkipped(dst) ||
+        m_sem.isSkipped(src)) {
       LOG("opsem", WARN << "skipping memcpy");
+      ctx.setMemTrsfrReadReg(Expr());
       ctx.setMemReadRegister(Expr());
       ctx.setMemWriteRegister(Expr());
       return Expr();
@@ -1789,6 +1816,7 @@ public:
     if (!res)
       LOG("opsem", errs() << "Skipping memcpy\n";);
 
+    ctx.setMemTrsfrReadReg(Expr());
     ctx.setMemReadRegister(Expr());
     ctx.setMemWriteRegister(Expr());
     return res;
@@ -1943,7 +1971,8 @@ Bv2OpSemContext::Bv2OpSemContext(SymStore &values, ExprVector &side,
     : OpSemContext(values, side), m_sem(o.m_sem), m_func(o.m_func),
       m_bb(o.m_bb), m_inst(o.m_inst), m_prev(o.m_prev),
       m_readRegister(o.m_readRegister), m_writeRegister(o.m_writeRegister),
-      m_scalar(o.m_scalar), m_fparams(o.m_fparams), m_ignored(o.m_ignored),
+      m_scalar(o.m_scalar), m_trfrReadReg(o.m_trfrReadReg),
+      m_fparams(o.m_fparams), m_ignored(o.m_ignored),
       m_registers(o.m_registers), m_memManager(nullptr), zeroE(o.zeroE),
       oneE(o.oneE), trueBv(o.trueBv), falseBv(o.falseBv), nullBv(o.nullBv),
       maxPtrE(o.maxPtrE) {
@@ -2004,10 +2033,12 @@ Expr Bv2OpSemContext::MemSet(Expr ptr, Expr val, unsigned len, uint32_t align) {
 
 Expr Bv2OpSemContext::MemCpy(Expr dPtr, Expr sPtr, unsigned len,
                              uint32_t align) {
+  assert(getMemTrsfrReadReg());
   assert(getMemReadRegister());
   assert(getMemWriteRegister());
-  return m_memManager->MemCpy(dPtr, sPtr, len, getMemReadRegister(),
-                              getMemWriteRegister(), align);
+  return m_memManager->MemCpy(dPtr, sPtr, len, getMemTrsfrReadReg(),
+                              getMemReadRegister(), getMemWriteRegister(),
+                              align);
 }
 
 Expr Bv2OpSemContext::inttoptr(Expr intValue, const Type &intTy,

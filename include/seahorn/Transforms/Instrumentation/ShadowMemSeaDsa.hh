@@ -13,10 +13,23 @@
 #include "boost/container/flat_set.hpp"
 
 namespace llvm {
-  class TargetLibraryInfo;
+class TargetLibraryInfo;
 }
 
 namespace seahorn {
+class ShadowMemSeaDsa2 : public llvm::ModulePass {
+public:
+  static char ID;
+  ShadowMemSeaDsa2() : llvm::ModulePass(ID) {}
+
+  bool runOnModule(llvm::Module &M) override;
+
+  bool runOnFunction(llvm::Function &F);
+  void getAnalysisUsage(llvm::AnalysisUsage &AU) const override ;
+  llvm::StringRef getPassName() const override {return "ShadowMemDsa2";}
+};
+
+
 class ShadowMemSeaDsa : public llvm::ModulePass {
   llvm::Constant *m_memLoadFn = nullptr;
   llvm::Constant *m_memStoreFn = nullptr;
@@ -38,7 +51,6 @@ class ShadowMemSeaDsa : public llvm::ModulePass {
   llvm::Constant *m_markUniqOut = nullptr;
 
   sea_dsa::GlobalAnalysis *m_dsa = nullptr;
-
 
   llvm::TargetLibraryInfo *m_tli = nullptr;
 

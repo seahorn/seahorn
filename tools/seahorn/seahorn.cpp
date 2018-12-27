@@ -29,6 +29,7 @@
 #include "seahorn/Houdini.hh"
 #include "seahorn/Passes.hh"
 #include "seahorn/PredicateAbstraction.hh"
+#include "seahorn/Transforms/Instrumentation/ShadowMemSeaDsa.hh"
 #include "seahorn/Transforms/Scalar/LowerCstExpr.hh"
 #include "seahorn/Transforms/Scalar/LowerGvInitializers.hh"
 #include "seahorn/Transforms/Scalar/PromoteVerifierCalls.hh"
@@ -309,8 +310,15 @@ int main(int argc, char **argv) {
     pass_manager.add(seahorn::createShadowMemDsaPass());
   }
 
-  // lowers shadow.mem variables created by ShadowMemDsa pass
+#ifndef USE_NEW_SHADOW_SEA_DSA
+  // -- this is dangerous since it might lower alloca instructions that
+  // -- shadow mem already instrumented.
+  // -- The old assumption was that mem2reg has nothing to lower
+  // -- before shadow.mem is scheduled. This is not true when analyzing
+  // -- unoptimized bitcode lowers shadow.mem variables created by ShadowMemDsa
+  // -- pass
   pass_manager.add(seahorn::createPromoteMemoryToRegisterPass());
+#endif
 
   pass_manager.add(new seahorn::RemoveUnreachableBlocksPass());
   pass_manager.add(seahorn::createStripLifetimePass());

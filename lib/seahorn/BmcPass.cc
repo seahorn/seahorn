@@ -18,20 +18,17 @@
 #include "seahorn/PathBasedBmc.hh"
 #include "seahorn/UfoOpSem.hh"
 // prerequisite for CrabLlvm
-#include "seahorn/Transforms/Scalar/LowerCstExpr.hh"
 #include "avy/SeaDebug.h"
-
+#include "seahorn/Support/SeaLog.hh"
+#include "seahorn/Transforms/Scalar/LowerCstExpr.hh"
 #ifdef HAVE_CRAB_LLVM
 #include "crab_llvm/CrabLlvm.hh"
 #endif
 
-
 // XXX temporary debugging aid
-static llvm::cl::opt<bool> HornBv2(
-    "horn-bv2",
-    llvm::cl::desc("Use bv2 semantics"),
-    llvm::cl::init(false), llvm::cl::Hidden);
-
+static llvm::cl::opt<bool> HornBv2("horn-bv2",
+                                   llvm::cl::desc("Use bv2 semantics"),
+                                   llvm::cl::init(false), llvm::cl::Hidden);
 
 namespace {
 using namespace llvm;
@@ -132,16 +129,18 @@ public:
       }
 
     if (dst == nullptr) {
-      // cpg.print(llvm::errs (), F.getParent());
-      errs() << "WARNING: BmcPass: function '" << F.getName()
-             << "' never returns\n";
+      ERR << "Function " << F.getName()
+          << " does not have a unique return block"
+             "This is not expected during BMC. Aborting.";
       return false;
     }
 
     if (!cpg.getEdge(src, *dst)) {
-      // cpg.print(llvm::errs (), F.getParent());
-      errs() << "WARNING: BmcPass: function '" << F.getName()
-             << "' never returns\n";
+      ERR << "No direct entry-to-exit path in " << F.getName() << ". "
+          << "Commonly caused by loops. Ensure the input to BMC is loop-free";
+
+      LOG("cpg_bmc",
+          cpg.print(llvm::errs(), F.getParent()));
       return false;
     }
 
@@ -149,7 +148,7 @@ public:
 
     std::unique_ptr<OpSem> sem;
     if (HornBv2)
-      sem.reset(new Bv2OpSem (efac, *this, F.getParent()->getDataLayout(), MEM));
+      sem.reset(new Bv2OpSem(efac, *this, F.getParent()->getDataLayout(), MEM));
     else
       sem.reset(new BvOpSem(efac, *this, F.getParent()->getDataLayout(), MEM));
 

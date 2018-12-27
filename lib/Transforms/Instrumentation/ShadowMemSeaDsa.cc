@@ -1,5 +1,6 @@
 #include "seahorn/Transforms/Instrumentation/ShadowMemSeaDsa.hh"
 #include "llvm/ADT/SCCIterator.h"
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/Analysis/AssumptionCache.h"
 #include "llvm/Analysis/CallGraph.h"
 #include "llvm/Analysis/MemoryBuiltins.h"
@@ -26,6 +27,7 @@
 #include "sea_dsa/DsaAnalysis.hh"
 #include "sea_dsa/Mapper.hh"
 #include "seahorn/Support/SeaLog.hh"
+#include "seahorn/Support/SortTopo.hh"
 
 llvm::cl::opt<bool> SplitFields("horn-sea-dsa-split",
                                 llvm::cl::desc("DSA: Split nodes by fields"),
@@ -385,6 +387,31 @@ private:
         m_pass.getAnalysis<llvm::AssumptionCacheTracker>().getAssumptionCache(
             F);
     PromoteMemToReg(allocas, DT, &AC);
+  }
+
+  /// \brief Infer which PHINodes corresponds to shadow pseudo-assignments
+  /// The type is stored as a meta-data on the node
+  void inferTypeOfPHINodes(Function &F) {
+    // -- order blocks in (rev)topological order
+    std::vector<const BasicBlock *> order;
+    seahorn::RevTopoSort(F, order);
+
+    // for every bb in topological order
+    for (auto *bb : llvm::reverse(order)) {
+      // for every PHINode
+      for (auto &phi : bb->phis()) {
+        // for every incoming value
+        for (auto &val : phi.incoming_values()) {
+          // if an incoming value has metadata, take it, and be done
+          if (auto *inst = dyn_cast<const Instruction>(&val)) {
+            if (auto *meta = inst->getMetadata("shadow.mem")) {
+              const_cast<PHINode *>(&phi)->setMetadata("shadow.mem", meta);
+              break;
+            }
+          }
+        }
+      }
+    }
   }
 
 public:

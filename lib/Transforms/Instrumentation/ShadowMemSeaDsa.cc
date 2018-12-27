@@ -1,9 +1,11 @@
 #include "seahorn/Transforms/Instrumentation/ShadowMemSeaDsa.hh"
 #include "llvm/ADT/SCCIterator.h"
+#include "llvm/Analysis/AssumptionCache.h"
 #include "llvm/Analysis/CallGraph.h"
 #include "llvm/Analysis/MemoryBuiltins.h"
 #include "llvm/Analysis/TargetLibraryInfo.h"
 #include "llvm/IR/DataLayout.h"
+#include "llvm/IR/Dominators.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/InstIterator.h"
 #include "llvm/IR/IntrinsicInst.h"
@@ -11,6 +13,7 @@
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 #include "llvm/Transforms/Utils/Local.h"
+#include "llvm/Transforms/Utils/PromoteMemToReg.h"
 #include "llvm/Transforms/Utils/UnifyFunctionExitNodes.h"
 
 #include "avy/SeaDebug.h"
@@ -356,6 +359,26 @@ private:
     markCall(ci);
   }
 
+  void runMem2Reg(Function &F) {
+    std::vector<AllocaInst *> allocas;
+
+    // -- for every node
+    for (auto &kv : m_shadows) {
+      // -- for every offset
+      for (auto &entry : kv.second) {
+        // -- only take allocas that are in some basic block
+        if (entry.second->getParent())
+          allocas.push_back(entry.second);
+      }
+    }
+
+    DominatorTree &DT =
+      m_pass.getAnalysis<llvm::DominatorTreeWrapperPass>(F).getDomTree();
+    AssumptionCache &AC =
+      m_pass.getAnalysis<llvm::AssumptionCacheTracker>().getAssumptionCache(F);
+    PromoteMemToReg(allocas, DT, &AC);
+  }
+
 public:
   ShadowDsaImpl(dsa::GlobalAnalysis &dsa, TargetLibraryInfo *tli, CallGraph *cg,
                 Pass &pass, bool splitDsaNodes = false,
@@ -486,10 +509,13 @@ bool ShadowDsaImpl::runOnFunction(Function &F) {
     ++idx;
   }
 
+  // -- convert new allocas to registers
+  runMem2Reg(F);
+
   m_B.reset(nullptr);
   m_llvmCtx = nullptr;
   m_graph = nullptr;
-
+  m_shadows.clear();
   return true;
 }
 
@@ -820,6 +846,8 @@ void ShadowMemSeaDsa::getAnalysisUsage(llvm::AnalysisUsage &AU) const {
   AU.addRequiredTransitive<dsa::DsaAnalysis>();
   AU.addRequired<llvm::CallGraphWrapperPass>();
   AU.addRequired<llvm::UnifyFunctionExitNodes>();
+  AU.addRequired<llvm::DominatorTreeWrapperPass>();
+  AU.addRequired<llvm::AssumptionCacheTracker>();
 }
 
 class StripShadowMem : public ModulePass {

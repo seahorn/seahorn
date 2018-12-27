@@ -277,20 +277,27 @@ private:
     return m_computeReadMod ? m_modList[&f].count(n) > 0 : n->isModified();
   }
 
-  void markCall(CallInst *ci) {
+  void markCall(CallInst *ci, Value *uniqueScalar = nullptr) {
     // use ci->getMetadata(seahorn) to test.
     Module *m = ci->getParent()->getParent()->getParent();
-    ci->setMetadata(m->getMDKindID("shadow.mem"),
-                    MDNode::get(m->getContext(), None));
+    MDNode *meta = MDNode::get(m->getContext(), None);
+
+    if (uniqueScalar) {
+      auto *naked = uniqueScalar->stripPointerCasts();
+      if (!isa<ConstantPointerNull>(naked)) {
+        meta = MDNode::get(m->getContext(), ValueAsMetadata::get(uniqueScalar));
+      }
+    }
+    ci->setMetadata("shadow.mem", meta);
   }
 
   CallInst *mkShadowAllocInit(IRBuilder<> &B, Constant *fn, AllocaInst *a,
                               const dsa::Cell &c) {
     B.Insert(a, "shadow.mem." + Twine(getFieldId(c)));
     CallInst *ci;
-    ci = B.CreateCall(
-        fn, {B.getInt32(getFieldId(c)), getUniqueScalar(*m_llvmCtx, B, c)});
-    markCall(ci);
+    Value *us = getUniqueScalar(*m_llvmCtx, B, c);
+    ci = B.CreateCall(fn, {B.getInt32(getFieldId(c)), us});
+    markCall(ci, us);
     B.CreateStore(ci, a);
     return ci;
   }
@@ -373,9 +380,10 @@ private:
     }
 
     DominatorTree &DT =
-      m_pass.getAnalysis<llvm::DominatorTreeWrapperPass>(F).getDomTree();
+        m_pass.getAnalysis<llvm::DominatorTreeWrapperPass>(F).getDomTree();
     AssumptionCache &AC =
-      m_pass.getAnalysis<llvm::AssumptionCacheTracker>().getAssumptionCache(F);
+        m_pass.getAnalysis<llvm::AssumptionCacheTracker>().getAssumptionCache(
+            F);
     PromoteMemToReg(allocas, DT, &AC);
   }
 

@@ -201,14 +201,18 @@ public:
   bool isKnownRegister(Expr v);
   Expr mkRegister(const llvm::Instruction &inst);
   Expr mkRegister(const llvm::BasicBlock &bb);
+  Expr mkRegister(const llvm::GlobalVariable &gv);
+  Expr mkRegister(const llvm::Function &fn);
   Expr mkRegister(const llvm::Value &v);
   Expr getRegister(const llvm::Value &v) const {
     Expr res = m_valueToRegister.lookup(&v);
-    if(!res && m_parent)
+    if (!res && m_parent)
       res = m_parent->getRegister(v);
     return res;
   }
 
+  Expr mkPtrRegisterSort(const Function &fn) const;
+  Expr mkPtrRegisterSort(const GlobalVariable &gv) const;
   Expr mkPtrRegisterSort(const Instruction &inst) const;
   Expr mkMemRegisterSort(const Instruction &inst) const;
 
@@ -309,7 +313,7 @@ public:
 
   /// \brief Return sort of a pointer typed register based on the given
   /// instruction
-  Expr mkPtrRegisterSort(const Instruction &inst) {
+  Expr mkPtrRegisterSort(const Instruction &inst) const {
     const Type *ty = inst.getType();
     assert(ty);
     unsigned sz = m_sem.sizeInBits(*ty);
@@ -319,9 +323,17 @@ public:
     return bv::bvsort(m_sem.sizeInBits(*ty), m_efac);
   }
 
+  Expr mkPtrRegisterSort(const Function &fn) const {
+    return bv::bvsort(ptrSzInBits(), m_efac);
+  }
+
+  Expr mkPtrRegisterSort(const GlobalVariable &gv) const {
+    return bv::bvsort(ptrSzInBits(), m_efac);
+  }
+
   /// \brief Return sort of a memory/array typed register based on the
   /// given instruction
-  Expr mkMemRegisterSort(const Instruction &inst) {
+  Expr mkMemRegisterSort(const Instruction &inst) const {
     Expr ptrTy = bv::bvsort(ptrSzInBits(), m_efac);
     Expr valTy = bv::bvsort(wordSzInBits(), m_efac);
     return sort::arrayTy(ptrTy, valTy);
@@ -731,7 +743,7 @@ public:
       errs() << "NONE\n";
     for (auto &gi : m_globals) {
       errs() << llvm::format_hex(gi.m_start, 16, true) << " @"
-             << gi.m_gv->getName();
+             << gi.m_gv->getName() << "\n";
     }
   }
 };
@@ -1901,7 +1913,7 @@ public:
           continue;
         Expr symReg = m_ctx.mkRegister(fn);
         assert(symReg);
-        m_ctx.write(symReg, m_ctx.getMemManager()->falloc(fn));
+        setValue(fn, m_ctx.getMemManager()->falloc(fn));
       }
     }
 
@@ -1916,7 +1928,7 @@ public:
       }
       Expr symReg = m_ctx.mkRegister(gv);
       assert(symReg);
-      m_ctx.write(symReg, m_ctx.getMemManager()->galloc(gv));
+      setValue(gv, m_ctx.getMemManager()->galloc(gv));
     }
 
     LOG("opsem", m_ctx.getMemManager()->dumpGlobalsMap());
@@ -2111,6 +2123,18 @@ Expr Bv2OpSemContext::mkPtrRegisterSort(const Instruction &inst) const {
   return m_memManager->mkPtrRegisterSort(inst);
 }
 
+Expr Bv2OpSemContext::mkPtrRegisterSort(const Function &fn) const {
+  if (m_parent)
+    return m_parent->mkPtrRegisterSort(fn);
+  return m_memManager->mkPtrRegisterSort(fn);
+}
+
+Expr Bv2OpSemContext::mkPtrRegisterSort(const GlobalVariable &gv) const {
+  if (m_parent)
+    return m_parent->mkPtrRegisterSort(gv);
+  return m_memManager->mkPtrRegisterSort(gv);
+}
+
 Expr Bv2OpSemContext::mkMemRegisterSort(const Instruction &inst) const {
   if (m_parent)
     return m_parent->mkMemRegisterSort(inst);
@@ -2164,14 +2188,45 @@ Expr Bv2OpSemContext::mkRegister(const llvm::Instruction &inst) {
   return reg;
 }
 
+Expr Bv2OpSemContext::mkRegister(const llvm::Function &fn) {
+  if (Expr r = getRegister(fn))
+    return r;
+
+  Expr reg;
+  Expr v = mkTerm<const Value *>(&fn, efac());
+
+  reg = bind::mkConst(v, mkPtrRegisterSort(fn));
+  declareRegister(reg);
+  m_valueToRegister.insert(std::make_pair(&fn, reg));
+  return reg;
+}
+
+Expr Bv2OpSemContext::mkRegister(const llvm::GlobalVariable &gv) {
+  if (Expr r = getRegister(gv))
+    return r;
+  Expr reg;
+  Expr v = mkTerm<const Value *>(&gv, efac());
+
+  reg = bind::mkConst(v, mkPtrRegisterSort(gv));
+  declareRegister(reg);
+  m_valueToRegister.insert(std::make_pair(&gv, reg));
+  return reg;
+}
+
 Expr Bv2OpSemContext::mkRegister(const llvm::Value &v) {
-  if (const llvm::BasicBlock *bb = dyn_cast<llvm::BasicBlock>(&v)) {
+  if (auto const *bb = dyn_cast<llvm::BasicBlock>(&v)) {
     return mkRegister(*bb);
   }
-  if (const llvm::Instruction *inst = dyn_cast<llvm::Instruction>(&v)) {
+  if (auto const *inst = dyn_cast<llvm::Instruction>(&v)) {
     return mkRegister(*inst);
   }
-  errs() << "Error: cannot make symbolic register for " << v << "\n";
+  if (auto const *fn = dyn_cast<llvm::Function>(&v)) {
+    return mkRegister(*fn);
+  }
+  if (auto const *gv = dyn_cast<llvm::GlobalVariable>(&v)) {
+    return mkRegister(*gv);
+  }
+  ERR << "cannot make symbolic register for " << v << "\n";
   llvm_unreachable(nullptr);
 }
 
@@ -2358,6 +2413,16 @@ Expr Bv2OpSem::getOperandValue(const Value &v, Bv2OpSemContext &ctx) {
     Expr reg = ctx.getRegister(*bb);
     if (reg)
       res = ctx.read(reg);
+  } else if (auto *fn = dyn_cast<Function>(&v)) {
+    if (Expr reg = ctx.getRegister(*fn)) {
+      res = ctx.read(reg);
+    } else
+      res = ctx.getConstantValue(*fn);
+  } else if (auto *gv = dyn_cast<GlobalVariable>(&v)) {
+    if (Expr reg = ctx.getRegister(*gv)) {
+      res = ctx.read(reg);
+    } else
+      res = ctx.getConstantValue(*gv);
   } else if (auto *cv = dyn_cast<Constant>(&v)) {
     res = ctx.getConstantValue(*cv);
     assert(res);

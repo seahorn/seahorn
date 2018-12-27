@@ -203,7 +203,10 @@ public:
   Expr mkRegister(const llvm::BasicBlock &bb);
   Expr mkRegister(const llvm::Value &v);
   Expr getRegister(const llvm::Value &v) const {
-    return m_valueToRegister.lookup(&v);
+    Expr res = m_valueToRegister.lookup(&v);
+    if(!res && m_parent)
+      res = m_parent->getRegister(v);
+    return res;
   }
 
   Expr mkPtrRegisterSort(const Instruction &inst) const;
@@ -766,7 +769,6 @@ struct OpSemBase {
     nullBv = m_ctx.nullBv;
 
     m_ctx.setMemScalar(false);
-    m_ctx.setActLit(trueE);
 
     m_maxPtrE = m_ctx.maxPtrE;
 
@@ -1134,10 +1136,11 @@ public:
     if (f.getName().equals("verifier.assume.not"))
       op = boolop::lneg(op);
 
-    if (!isOpX<TRUE>(op))
+    if (!isOpX<TRUE>(op)) {
       m_ctx.addSideSafe(boolop::lor(
           m_ctx.read(m_sem.errorFlag(*(CS.getInstruction()->getParent()))),
           op));
+    }
   }
 
   void visitCallocCall(CallSite CS) {
@@ -1178,14 +1181,18 @@ public:
 
     if (F.getName().equals("shadow.mem.load")) {
       const Value &v = *CS.getArgument(1);
-      m_ctx.setMemReadRegister(m_ctx.mkRegister(v));
+      Expr reg = m_ctx.mkRegister(v);
+      m_ctx.read(reg);
+      m_ctx.setMemReadRegister(reg);
       m_ctx.setMemScalar(extractUniqueScalar(CS) != nullptr);
       return;
     }
 
     if (F.getName().equals("shadow.mem.trsfr.load")) {
       const Value &v = *CS.getArgument(1);
-      m_ctx.setMemTrsfrReadReg(m_ctx.mkRegister(v));
+      Expr reg = m_ctx.mkRegister(v);
+      m_ctx.read(reg);
+      m_ctx.setMemTrsfrReadReg(reg);
       if (extractUniqueScalar(CS) != nullptr) {
         WARN << "unexpected unique scalar in mem.trsfr.load: " << inst;
         llvm_unreachable(nullptr);
@@ -1196,8 +1203,10 @@ public:
     if (F.getName().equals("shadow.mem.store")) {
       Expr memOut = m_ctx.mkRegister(inst);
       Expr memIn = m_ctx.getRegister(*CS.getArgument(1));
+      m_ctx.read(memIn);
+      setValue(inst, havoc(inst));
+
       m_ctx.setMemReadRegister(memIn);
-      m_ctx.havoc(memOut);
       m_ctx.setMemWriteRegister(memOut);
       m_ctx.setMemScalar(extractUniqueScalar(CS) != nullptr);
 
@@ -2356,16 +2365,11 @@ Expr Bv2OpSem::getOperandValue(const Value &v, Bv2OpSemContext &ctx) {
     Expr reg = ctx.getRegister(v);
     if (reg)
       res = ctx.read(reg);
+    else
+      WARN << "Failed to get register for: " << v << "\n";
   }
   return res;
 }
-
-// Expr Bv2OpSem::getOperandValue(const Value &v, Bv2OpSemContext &ctx) {
-//   Expr symVal = symb(v);
-//   if (symVal)
-//     return isSymReg(symVal, ctx) ? ctx.read(symVal) : symVal;
-//   return Expr(0);
-// }
 
 bool Bv2OpSem::isSymReg(Expr v, Bv2OpSemContext &C) {
   if (this->OpSem::isSymReg(v))

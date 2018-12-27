@@ -279,17 +279,10 @@ private:
     return m_computeReadMod ? m_modList[&f].count(n) > 0 : n->isModified();
   }
 
-  void markCall(CallInst *ci, Value *uniqueScalar = nullptr) {
+  void markCall(CallInst *ci) {
     // use ci->getMetadata(seahorn) to test.
     Module *m = ci->getParent()->getParent()->getParent();
     MDNode *meta = MDNode::get(m->getContext(), None);
-
-    if (uniqueScalar) {
-      auto *naked = uniqueScalar->stripPointerCasts();
-      if (!isa<ConstantPointerNull>(naked)) {
-        meta = MDNode::get(m->getContext(), ValueAsMetadata::get(uniqueScalar));
-      }
-    }
     ci->setMetadata("shadow.mem", meta);
   }
 
@@ -299,7 +292,7 @@ private:
     CallInst *ci;
     Value *us = getUniqueScalar(*m_llvmCtx, B, c);
     ci = B.CreateCall(fn, {B.getInt32(getFieldId(c)), us});
-    markCall(ci, us);
+    markCall(ci);
     B.CreateStore(ci, a);
     return ci;
   }
@@ -939,6 +932,13 @@ public:
 } // namespace seahorn
 
 namespace seahorn {
+bool isShadowMemInst(const llvm::Value &v) {
+  if (auto *inst = dyn_cast<const Instruction>(&v)) {
+    return inst->getMetadata("shadow.mem");
+  }
+  return false;
+}
+
 char ShadowMemSeaDsa::ID = 0;
 char StripShadowMem::ID = 0;
 Pass *createStripShadowMemPass() { return new StripShadowMem(); }

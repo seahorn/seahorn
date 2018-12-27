@@ -291,7 +291,7 @@ private:
     B.Insert(a, "shadow.mem." + Twine(getFieldId(c)));
     CallInst *ci;
     Value *us = getUniqueScalar(*m_llvmCtx, B, c);
-    ci = B.CreateCall(fn, {B.getInt32(getFieldId(c)), us});
+    ci = B.CreateCall(fn, {B.getInt32(getFieldId(c)), us}, "sm");
     markCall(ci);
     B.CreateStore(ci, a);
     return ci;
@@ -304,15 +304,17 @@ private:
   CallInst *mkStoreFnCall(IRBuilder<> &B, const dsa::Cell &c, AllocaInst *v) {
     auto *ci = B.CreateCall(m_memStoreFn,
                             {m_B->getInt32(getFieldId(c)), m_B->CreateLoad(v),
-                             getUniqueScalar(*m_llvmCtx, B, c)});
+                             getUniqueScalar(*m_llvmCtx, B, c)},
+                            "sm");
     markCall(ci);
     return ci;
   }
 
   void mkShadowLoad(IRBuilder<> &B, const dsa::Cell &c) {
-    auto *ci = B.CreateCall(m_memLoadFn, {B.getInt32(getFieldId(c)),
-                                          B.CreateLoad(getShadowForField(c)),
-                                          getUniqueScalar(*m_llvmCtx, B, c)});
+    auto *ci = B.CreateCall(m_memLoadFn,
+                            {B.getInt32(getFieldId(c)),
+                             B.CreateLoad(getShadowForField(c)),
+                             getUniqueScalar(*m_llvmCtx, B, c)});
     markCall(ci);
   }
 
@@ -341,9 +343,10 @@ private:
                    unsigned idx) {
     AllocaInst *v = getShadowForField(c);
     unsigned id = getFieldId(c);
-    auto *ci =
-        B.CreateCall(argFn, {B.getInt32(id), B.CreateLoad(v), B.getInt32(idx),
-                             getUniqueScalar(*m_llvmCtx, B, c)});
+    auto *ci = B.CreateCall(argFn,
+                            {B.getInt32(id), B.CreateLoad(v), B.getInt32(idx),
+                             getUniqueScalar(*m_llvmCtx, B, c)},
+                            "sh");
     B.CreateStore(ci, v);
     markCall(ci);
   }
@@ -539,6 +542,8 @@ bool ShadowDsaImpl::runOnFunction(Function &F) {
 
   // -- convert new allocas to registers
   runMem2Reg(F);
+  // -- infer types for PHINodes
+  inferTypeOfPHINodes(F);
 
   m_B.reset(nullptr);
   m_llvmCtx = nullptr;

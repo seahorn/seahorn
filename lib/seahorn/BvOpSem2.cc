@@ -88,8 +88,7 @@ class Bv2OpSemContext : public OpSemContext {
 
 private:
   void setMemManager(OpSemMemManager *man);
-  // TODO: make private
-public:
+
   Bv2OpSem &m_sem;
   /// currently executing function
   const Function *m_func;
@@ -127,11 +126,13 @@ public:
   using ValueExprMap = DenseMap<const llvm::Value *, Expr>;
   ValueExprMap m_valueToRegister;
 
-  std::unique_ptr<bvop_details::OpSemMemManager> m_memManager;
+  using OpSemMemManagerPtr = std::unique_ptr<bvop_details::OpSemMemManager>;
+  OpSemMemManagerPtr m_memManager;
 
   /// \brief Pointer to the parent of a forked context
   const Bv2OpSemContext *m_parent = nullptr;
 
+  /// Helper expressions to avoid creating them on-the-fly
   Expr zeroE;
   Expr oneE;
   Expr trueBv;
@@ -157,7 +158,20 @@ public:
   void pushParameter(Expr v) { m_fparams.push_back(v); }
   void setParameter(unsigned idx, Expr v) { m_fparams[idx] = v; }
   void resetParameters() { m_fparams.clear(); }
-  ExprVector &getParameters() { return m_fparams; }
+  const ExprVector &getParameters() const { return m_fparams; }
+
+  const BasicBlock *getCurrBb() const { return m_bb; }
+  void setPrevBb(const BasicBlock &prev) { m_prev = &prev; }
+  const BasicBlock *getPrevBb() const { return m_prev; }
+  const Instruction &getCurrentInst() const { return *m_inst; }
+  void setInstruction(const Instruction &inst) {
+    m_inst = BasicBlock::const_iterator(&inst);
+  }
+  bool isAtBbEnd() const { return m_inst == m_bb->end(); }
+  Bv2OpSemContext &operator++() {
+    ++m_inst;
+    return *this;
+  }
 
   void setMemReadRegister(Expr r) { m_readRegister = r; }
   Expr getMemReadRegister() { return m_readRegister; }
@@ -217,6 +231,11 @@ public:
   Expr mkMemRegisterSort(const Instruction &inst) const;
 
   Expr getConstantValue(const llvm::Constant &c);
+
+  bool isIgnored(const Instruction &inst) const {
+    return m_ignored.count(&inst);
+  }
+  void ignore(const Instruction &inst) { m_ignored.insert(&inst); }
 
   OpSemContextPtr fork(SymStore &values, ExprVector &side) {
     return OpSemContextPtr(new Bv2OpSemContext(values, side, *this));
@@ -1368,34 +1387,39 @@ public:
       m_ctx.pushParameter(v);
     }
 
-    LOG("arg_error", if (m_ctx.m_fparams.size() != bind::domainSz(fi.sumPred)) {
-      const Instruction &I = *CS.getInstruction();
-      const Function &PF = *BB.getParent();
-      errs() << "Call instruction: " << I << "\n";
-      errs() << "Caller: " << PF << "\n";
-      errs() << "Callee: " << F << "\n";
-      // errs () << "Sum predicate: " << *fi.sumPred << "\n";
-      errs() << "m_ctx.m_fparams.size: " << m_ctx.m_fparams.size() << "\n";
-      errs() << "Domain size: " << bind::domainSz(fi.sumPred) << "\n";
-      errs() << "m_ctx.m_fparams\n";
-      for (auto r : m_ctx.m_fparams)
-        errs() << *r << "\n";
-      errs() << "regions: " << fi.regions.size() << " args: " << fi.args.size()
-             << " globals: " << fi.globals.size() << " ret: " << fi.ret << "\n";
-      errs() << "regions\n";
-      for (auto r : fi.regions)
-        errs() << *r << "\n";
-      errs() << "args\n";
-      for (auto r : fi.args)
-        errs() << *r << "\n";
-      errs() << "globals\n";
-      for (auto r : fi.globals)
-        errs() << *r << "\n";
-      if (fi.ret)
-        errs() << "ret: " << *fi.ret << "\n";
-    });
+    LOG("arg_error",
 
-    assert(m_ctx.m_fparams.size() == bind::domainSz(fi.sumPred));
+        if (m_ctx.getParameters().size() != bind::domainSz(fi.sumPred)) {
+          const Instruction &I = *CS.getInstruction();
+          const Function &PF = *BB.getParent();
+          errs() << "Call instruction: " << I << "\n";
+          errs() << "Caller: " << PF << "\n";
+          errs() << "Callee: " << F << "\n";
+          // errs () << "Sum predicate: " << *fi.sumPred << "\n";
+          errs() << "m_ctx.getParameters().size: "
+                 << m_ctx.getParameters().size() << "\n";
+          errs() << "Domain size: " << bind::domainSz(fi.sumPred) << "\n";
+          errs() << "m_ctx.getParameters()\n";
+          for (auto r : m_ctx.getParameters())
+            errs() << *r << "\n";
+          errs() << "regions: " << fi.regions.size()
+                 << " args: " << fi.args.size()
+                 << " globals: " << fi.globals.size() << " ret: " << fi.ret
+                 << "\n";
+          errs() << "regions\n";
+          for (auto r : fi.regions)
+            errs() << *r << "\n";
+          errs() << "args\n";
+          for (auto r : fi.args)
+            errs() << *r << "\n";
+          errs() << "globals\n";
+          for (auto r : fi.globals)
+            errs() << *r << "\n";
+          if (fi.ret)
+            errs() << "ret: " << *fi.ret << "\n";
+        });
+
+    assert(m_ctx.getParameters().size() == bind::domainSz(fi.sumPred));
     m_ctx.addSide(bind::fapp(fi.sumPred, m_ctx.getParameters()));
 
     m_ctx.resetParameters();
@@ -1965,7 +1989,7 @@ struct OpSemPhiVisitor : public InstVisitor<OpSemPhiVisitor>, OpSemBase {
       // skip phi nodes that are not tracked
       if (m_sem.isSkipped(*phi))
         continue;
-      const Value &v = *phi->getIncomingValueForBlock(m_ctx.m_prev);
+      const Value &v = *phi->getIncomingValueForBlock(m_ctx.getPrevBb());
       ops.push_back(lookup(v));
     }
 
@@ -2312,7 +2336,7 @@ void Bv2OpSem::exec(const BasicBlock &bb, Bv2OpSemContext &ctx) {
   bvop_details::OpSemVisitor v(ctx, *this);
   v.visitBasicBlock(const_cast<BasicBlock &>(bb));
   // skip PHI instructions
-  for (; isa<PHINode>(ctx.m_inst); ++ctx.m_inst)
+  for (; isa<PHINode>(ctx.getCurrentInst()); ++ctx)
     ;
 
   while (intraStep(ctx)) {
@@ -2330,7 +2354,7 @@ void Bv2OpSem::exec(SymStore &s, const BasicBlock &bb, ExprVector &side,
 void Bv2OpSem::execPhi(const BasicBlock &bb, const BasicBlock &from,
                        Bv2OpSemContext &ctx) {
   ctx.onBasicBlockEntry(bb);
-  ctx.m_prev = &from;
+  ctx.setPrevBb(from);
   intraPhi(ctx);
 }
 
@@ -2574,7 +2598,7 @@ void Bv2OpSem::execEdg(SymStore &s, const BasicBlock &src,
 void Bv2OpSem::execBr(const BasicBlock &src, const BasicBlock &dst,
                       Bv2OpSemContext &ctx) {
   ctx.onBasicBlockEntry(src);
-  ctx.m_inst = BasicBlock::const_iterator(src.getTerminator());
+  ctx.setInstruction(*src.getTerminator());
   intraBr(ctx, dst);
 }
 
@@ -2589,22 +2613,25 @@ void Bv2OpSem::execBr(SymStore &s, const BasicBlock &src, const BasicBlock &dst,
 /// context. Returns false if there are no more instructions to
 /// execute after the last one
 bool Bv2OpSem::intraStep(Bv2OpSemContext &C) {
-  if (C.m_inst == C.m_bb->end())
+  if (C.isAtBbEnd())
     return false;
 
-  const Instruction &inst = *(C.m_inst);
+  const Instruction &inst = C.getCurrentInst();
 
+  // -- update instruction pointer in the context --
   // branch instructions must be executed to read the condition
   // on which the branch depends. This does not execute the branch
   // itself and does not advance instruction pointer in the context
   bool res = true;
-  if (!isa<TerminatorInst>(C.m_inst)) {
-    ++C.m_inst;
-  } else if (isa<BranchInst>(C.m_inst)) {
+  if (!isa<TerminatorInst>(&inst)) {
+    ++C;
+  } else if (isa<BranchInst>(&inst)) {
     res = false;
   } else {
     return false;
   }
+
+  // -- execute instruction --
 
   // if instruction is skipped, execution it is a noop
   if (isSkipped(inst)) {
@@ -2618,21 +2645,21 @@ bool Bv2OpSem::intraStep(Bv2OpSemContext &C) {
 }
 
 void Bv2OpSem::intraPhi(Bv2OpSemContext &C) {
-  assert(C.m_prev);
+  assert(C.getPrevBb());
 
   // act is ignored since phi node only introduces a definition
   bvop_details::OpSemPhiVisitor v(C, *this);
-  v.visitBasicBlock(const_cast<BasicBlock &>(*C.m_bb));
+  v.visitBasicBlock(const_cast<BasicBlock &>(*C.getCurrBb()));
 }
 /// \brief Executes one intra-procedural branch instruction in the
 /// current context. Assumes that current instruction is a branch
 void Bv2OpSem::intraBr(Bv2OpSemContext &C, const BasicBlock &dst) {
-  const BranchInst *br = dyn_cast<const BranchInst>(C.m_inst);
+  const BranchInst *br = dyn_cast<const BranchInst>(&C.getCurrentInst());
   if (!br)
     return;
 
   // next instruction
-  ++C.m_inst;
+  ++C;
 
   if (br->isConditional()) {
     const Value &c = *br->getCondition();
@@ -2642,18 +2669,18 @@ void Bv2OpSem::intraBr(Bv2OpSemContext &C, const BasicBlock &dst) {
       if (gv->IntVal.isOneValue() && br->getSuccessor(0) != &dst ||
           gv->IntVal.isNullValue() && br->getSuccessor(1) != &dst) {
         C.resetSide();
-        C.addSideSafe(C.read(errorFlag(*C.m_bb)));
+        C.addSideSafe(C.read(errorFlag(*C.getCurrBb())));
       }
     } else if (Expr target = getOperandValue(c, C)) {
       Expr cond = br->getSuccessor(0) == &dst ? target : mk<NEG>(target);
-      cond = boolop::lor(C.read(errorFlag(*C.m_bb)), cond);
+      cond = boolop::lor(C.read(errorFlag(*C.getCurrBb())), cond);
       C.addSideSafe(cond);
       C.onBasicBlockEntry(dst);
     }
   } else {
     if (br->getSuccessor(0) != &dst) {
       C.resetSide();
-      C.addSideSafe(C.read(errorFlag(*C.m_bb)));
+      C.addSideSafe(C.read(errorFlag(*C.getCurrBb())));
     } else {
       C.onBasicBlockEntry(dst);
     }
@@ -2664,9 +2691,9 @@ void Bv2OpSem::skipInst(const Instruction &inst, Bv2OpSemContext &ctx) {
   const Value *s;
   if (isShadowMem(inst, &s))
     return;
-  if (ctx.m_ignored.count(&inst))
+  if (ctx.isIgnored(inst))
     return;
-  ctx.m_ignored.insert(&inst);
+  ctx.ignore(inst);
   LOG("opsem", WARN << "skipping instruction: " << inst << " @ "
                     << inst.getParent()->getName() << " in "
                     << inst.getParent()->getParent()->getName(););
@@ -2678,9 +2705,8 @@ void Bv2OpSem::unhandledValue(const Value &v, Bv2OpSemContext &ctx) {
   LOG("opsem", WARN << "unhandled value: " << v;);
 }
 void Bv2OpSem::unhandledInst(const Instruction &inst, Bv2OpSemContext &ctx) {
-  if (ctx.m_ignored.count(&inst))
-    return;
-  ctx.m_ignored.insert(&inst);
+  if (ctx.isIgnored(inst)) return;
+  ctx.ignore(inst);
   LOG("opsem", WARN << "unhandled instruction: " << inst << " @ "
                     << inst.getParent()->getName() << " in "
                     << inst.getParent()->getParent()->getName());

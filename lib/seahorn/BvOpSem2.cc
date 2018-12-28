@@ -1,11 +1,10 @@
+#include "seahorn/BvOpSem2.hh"
 #include "llvm/IR/GetElementPtrTypeIterator.h"
 
-#include "seahorn/BvOpSem2.hh"
 #include "seahorn/Support/CFG.hh"
 #include "seahorn/Support/SeaLog.hh"
 #include "seahorn/Transforms/Instrumentation/ShadowMemDsa.hh"
 
-#include "ufo/ufo_iterators.hpp"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Format.h"
 #include "llvm/Support/MathExtras.h"
@@ -15,8 +14,6 @@
 
 using namespace seahorn;
 using namespace llvm;
-using namespace ufo;
-using namespace seahorn::bvop_details;
 
 using gep_type_iterator = generic_gep_type_iterator<>;
 
@@ -56,33 +53,33 @@ static llvm::cl::list<std::string> IgnoreExternalFunctions2(
         "These functions are not modeled as uninterpreted functions"),
     llvm::cl::ZeroOrMore, llvm::cl::CommaSeparated);
 
-static const Value *extractUniqueScalar(CallSite &cs) {
+namespace {
+const Value *extractUniqueScalar(CallSite &cs) {
   if (!EnableUniqueScalars2)
     return nullptr;
   else
     return seahorn::shadow_dsa::extractUniqueScalar(cs);
 }
 
-static const Value *extractUniqueScalar(const CallInst *ci) {
+const Value *extractUniqueScalar(const CallInst *ci) {
   if (!EnableUniqueScalars2)
     return nullptr;
   else
     return seahorn::shadow_dsa::extractUniqueScalar(ci);
 }
 
-static bool isShadowMem(const Value &V, const Value **out) {
+bool isShadowMem(const Value &V, const Value **out) {
   const Value *scalar;
   bool res = seahorn::shadow_dsa::isShadowMem(V, &scalar);
   if (EnableUniqueScalars2 && out)
     *out = scalar;
   return res;
 }
+}
 
-namespace {}
 namespace seahorn {
-
-namespace bvop_details {
-
+namespace details {
+class OpSemMemManager;
 class Bv2OpSemContext : public OpSemContext {
   friend class OpSemBase;
 
@@ -126,7 +123,7 @@ private:
   using ValueExprMap = DenseMap<const llvm::Value *, Expr>;
   ValueExprMap m_valueToRegister;
 
-  using OpSemMemManagerPtr = std::unique_ptr<bvop_details::OpSemMemManager>;
+  using OpSemMemManagerPtr = std::unique_ptr<OpSemMemManager>;
   OpSemMemManagerPtr m_memManager;
 
   /// \brief Pointer to the parent of a forked context
@@ -153,7 +150,7 @@ public:
 
   Expr boolToBv(Expr b);
   Expr bvToBool(Expr b);
-  bvop_details::OpSemMemManager *getMemManager() { return m_memManager.get(); }
+  OpSemMemManager *getMemManager() { return m_memManager.get(); }
 
   void pushParameter(Expr v) { m_fparams.push_back(v); }
   void setParameter(unsigned idx, Expr v) { m_fparams[idx] = v; }
@@ -1018,7 +1015,7 @@ public:
 
   void visitAllocaInst(AllocaInst &I) {
     Type *ty = I.getType()->getElementType();
-    unsigned typeSz = (size_t)m_sem.m_td->getTypeAllocSize(ty);
+    unsigned typeSz = (size_t)m_sem.getTD().getTypeAllocSize(ty);
 
     Expr addr;
     if (const Constant *cv = dyn_cast<const Constant>(I.getOperand(0))) {
@@ -1773,8 +1770,8 @@ public:
 
     if (!ctx.getMemReadRegister() || !ctx.getMemWriteRegister() ||
         m_sem.isSkipped(val)) {
-      LOG("opsem",
-          errs() << "Skipping store to " << addr << " of " << val << "\n";);
+      LOG("opsem", errs() << "Skipping store to " << addr << " of " << val
+                          << "\n";);
       ctx.setMemReadRegister(Expr());
       ctx.setMemWriteRegister(Expr());
       return Expr();
@@ -1794,8 +1791,8 @@ public:
     }
 
     if (!res)
-      LOG("opsem",
-          errs() << "Skipping store to " << addr << " of " << val << "\n";);
+      LOG("opsem", errs() << "Skipping store to " << addr << " of " << val
+                          << "\n";);
 
     ctx.setMemReadRegister(Expr());
     ctx.setMemWriteRegister(Expr());
@@ -1971,7 +1968,7 @@ public:
     // read the error flag to make it live
     m_ctx.read(m_sem.errorFlag(BB));
   }
-}; // namespace bvop_details
+}; 
 
 struct OpSemPhiVisitor : public InstVisitor<OpSemPhiVisitor>, OpSemBase {
   OpSemPhiVisitor(Bv2OpSemContext &ctx, Bv2OpSem &sem) : OpSemBase(ctx, sem) {}
@@ -2003,10 +2000,11 @@ struct OpSemPhiVisitor : public InstVisitor<OpSemPhiVisitor>, OpSemBase {
     }
   }
 };
-} // namespace bvop_details
-} // namespace seahorn
+}
+}
 
 namespace seahorn {
+namespace details {
 Bv2OpSemContext::Bv2OpSemContext(Bv2OpSem &sem, SymStore &values,
                                  ExprVector &side)
     : OpSemContext(values, side), m_sem(sem), m_func(nullptr), m_bb(nullptr),
@@ -2042,7 +2040,7 @@ unsigned Bv2OpSemContext::ptrSzInBits() const {
   return m_memManager ? m_memManager->ptrSzInBits() : 32;
 }
 
-void Bv2OpSemContext::setMemManager(bvop_details::OpSemMemManager *man) {
+void Bv2OpSemContext::setMemManager(OpSemMemManager *man) {
   m_memManager.reset(man);
   // TODO: move into MemManager
   nullBv = bv::bvnum(0, ptrSzInBits(), efac());
@@ -2059,8 +2057,8 @@ void Bv2OpSemContext::setMemManager(bvop_details::OpSemMemManager *man) {
     val = 0x0FFFFFFF;
     break;
   default:
-    LOG("opsem",
-        errs() << "Unsupported pointer size: " << ptrSzInBits() << "\n";);
+    LOG("opsem", errs() << "Unsupported pointer size: " << ptrSzInBits()
+                        << "\n";);
     llvm_unreachable("Unexpected pointer size");
   }
   maxPtrE = bv::bvnum(val, ptrSzInBits(), efac());
@@ -2287,23 +2285,6 @@ Expr Bv2OpSemContext::getConstantValue(const llvm::Constant &c) {
   }
   return Expr();
 }
-Bv2OpSem::Bv2OpSem(ExprFactory &efac, Pass &pass, const DataLayout &dl,
-                   TrackLevel trackLvl)
-    : OpSem(efac), m_pass(pass), m_trackLvl(trackLvl), m_td(&dl) {
-  m_canFail = pass.getAnalysisIfAvailable<CanFail>();
-  auto *p = pass.getAnalysisIfAvailable<TargetLibraryInfoWrapperPass>();
-  if (p)
-    m_tli = &p->getTLI();
-
-  // -- hack to get ENode::dump() to compile by forcing a use
-  LOG("dump.debug", trueE->dump(););
-}
-
-OpSemContextPtr Bv2OpSem::mkContext(SymStore &values, ExprVector &side) {
-  return OpSemContextPtr(
-      new bvop_details::Bv2OpSemContext(*this, values, side));
-}
-
 Expr Bv2OpSemContext::boolToBv(Expr b) {
   if (isOpX<TRUE>(b))
     return trueBv;
@@ -2319,6 +2300,23 @@ Expr Bv2OpSemContext::bvToBool(Expr bv) {
     return m_falseE;
   return mk<EQ>(bv, trueBv);
 }
+}
+
+Bv2OpSem::Bv2OpSem(ExprFactory &efac, Pass &pass, const DataLayout &dl,
+                   TrackLevel trackLvl)
+    : OpSem(efac), m_pass(pass), m_trackLvl(trackLvl), m_td(&dl) {
+  m_canFail = pass.getAnalysisIfAvailable<CanFail>();
+  auto *p = pass.getAnalysisIfAvailable<TargetLibraryInfoWrapperPass>();
+  if (p)
+    m_tli = &p->getTLI();
+
+  // -- hack to get ENode::dump() to compile by forcing a use
+  LOG("dump.debug", trueE->dump(););
+}
+
+OpSemContextPtr Bv2OpSem::mkContext(SymStore &values, ExprVector &side) {
+  return OpSemContextPtr(new details::Bv2OpSemContext(*this, values, side));
+}
 
 Bv2OpSem::Bv2OpSem(const Bv2OpSem &o)
     : OpSem(o), m_pass(o.m_pass), m_trackLvl(o.m_trackLvl), m_td(o.m_td),
@@ -2331,10 +2329,10 @@ Expr Bv2OpSem::errorFlag(const BasicBlock &BB) {
   return this->OpSem::errorFlag(BB);
 }
 
-void Bv2OpSem::exec(const BasicBlock &bb, Bv2OpSemContext &ctx) {
+void Bv2OpSem::exec(const BasicBlock &bb, details::Bv2OpSemContext &ctx) {
   ctx.onBasicBlockEntry(bb);
 
-  bvop_details::OpSemVisitor v(ctx, *this);
+  details::OpSemVisitor v(ctx, *this);
   v.visitBasicBlock(const_cast<BasicBlock &>(bb));
   // skip PHI instructions
   for (; isa<PHINode>(ctx.getCurrentInst()); ++ctx)
@@ -2347,13 +2345,13 @@ void Bv2OpSem::exec(const BasicBlock &bb, Bv2OpSemContext &ctx) {
 
 void Bv2OpSem::exec(SymStore &s, const BasicBlock &bb, ExprVector &side,
                     Expr act) {
-  Bv2OpSemContext ctx(*this, s, side);
+  details::Bv2OpSemContext ctx(*this, s, side);
   ctx.setActLit(act);
   return this->exec(bb, ctx);
 }
 
 void Bv2OpSem::execPhi(const BasicBlock &bb, const BasicBlock &from,
-                       Bv2OpSemContext &ctx) {
+                       details::Bv2OpSemContext &ctx) {
   ctx.onBasicBlockEntry(bb);
   ctx.setPrevBb(from);
   intraPhi(ctx);
@@ -2361,13 +2359,13 @@ void Bv2OpSem::execPhi(const BasicBlock &bb, const BasicBlock &from,
 
 void Bv2OpSem::execPhi(SymStore &s, const BasicBlock &bb,
                        const BasicBlock &from, ExprVector &side, Expr act) {
-  Bv2OpSemContext ctx(*this, s, side);
+  details::Bv2OpSemContext ctx(*this, s, side);
   ctx.setActLit(act);
   this->execPhi(bb, from, ctx);
 }
 
 Expr Bv2OpSem::symbolicIndexedOffset(gep_type_iterator TI, gep_type_iterator TE,
-                                     Bv2OpSemContext &ctx) {
+                                     details::Bv2OpSemContext &ctx) {
   unsigned ptrSz = pointerSizeInBits();
 
   // numeric offset
@@ -2432,7 +2430,7 @@ unsigned Bv2OpSem::fieldOff(const StructType *t, unsigned field) const {
       ->getElementOffset(field);
 }
 
-Expr Bv2OpSem::getOperandValue(const Value &v, Bv2OpSemContext &ctx) {
+Expr Bv2OpSem::getOperandValue(const Value &v, details::Bv2OpSemContext &ctx) {
   Expr res;
   if (auto *bb = dyn_cast<BasicBlock>(&v)) {
     Expr reg = ctx.getRegister(*bb);
@@ -2461,7 +2459,7 @@ Expr Bv2OpSem::getOperandValue(const Value &v, Bv2OpSemContext &ctx) {
   return res;
 }
 
-bool Bv2OpSem::isSymReg(Expr v, Bv2OpSemContext &C) {
+bool Bv2OpSem::isSymReg(Expr v, details::Bv2OpSemContext &C) {
   if (this->OpSem::isSymReg(v))
     return true;
 
@@ -2573,7 +2571,7 @@ bool Bv2OpSem::isSkipped(const Value &v) {
 }
 
 void Bv2OpSem::execEdg(const BasicBlock &src, const BasicBlock &dst,
-                       Bv2OpSemContext &ctx) {
+                       details::Bv2OpSemContext &ctx) {
   exec(src, ctx.act(trueE));
   execBr(src, dst, ctx);
   execPhi(dst, src, ctx);
@@ -2597,7 +2595,7 @@ void Bv2OpSem::execEdg(SymStore &s, const BasicBlock &src,
 }
 
 void Bv2OpSem::execBr(const BasicBlock &src, const BasicBlock &dst,
-                      Bv2OpSemContext &ctx) {
+                      details::Bv2OpSemContext &ctx) {
   ctx.onBasicBlockEntry(src);
   ctx.setInstruction(*src.getTerminator());
   intraBr(ctx, dst);
@@ -2605,7 +2603,7 @@ void Bv2OpSem::execBr(const BasicBlock &src, const BasicBlock &dst,
 
 void Bv2OpSem::execBr(SymStore &s, const BasicBlock &src, const BasicBlock &dst,
                       ExprVector &side, Expr act) {
-  Bv2OpSemContext ctx(*this, s, side);
+  details::Bv2OpSemContext ctx(*this, s, side);
   ctx.setActLit(act);
   this->execBr(src, dst, ctx);
 }
@@ -2613,7 +2611,7 @@ void Bv2OpSem::execBr(SymStore &s, const BasicBlock &src, const BasicBlock &dst,
 /// \brief Executes one intra-procedural instructions in the current
 /// context. Returns false if there are no more instructions to
 /// execute after the last one
-bool Bv2OpSem::intraStep(Bv2OpSemContext &C) {
+bool Bv2OpSem::intraStep(details::Bv2OpSemContext &C) {
   if (C.isAtBbEnd())
     return false;
 
@@ -2640,21 +2638,21 @@ bool Bv2OpSem::intraStep(Bv2OpSemContext &C) {
     return true;
   }
 
-  bvop_details::OpSemVisitor v(C, *this);
+  details::OpSemVisitor v(C, *this);
   v.visit(const_cast<Instruction &>(inst));
   return res;
 }
 
-void Bv2OpSem::intraPhi(Bv2OpSemContext &C) {
+void Bv2OpSem::intraPhi(details::Bv2OpSemContext &C) {
   assert(C.getPrevBb());
 
   // act is ignored since phi node only introduces a definition
-  bvop_details::OpSemPhiVisitor v(C, *this);
+  details::OpSemPhiVisitor v(C, *this);
   v.visitBasicBlock(const_cast<BasicBlock &>(*C.getCurrBb()));
 }
 /// \brief Executes one intra-procedural branch instruction in the
 /// current context. Assumes that current instruction is a branch
-void Bv2OpSem::intraBr(Bv2OpSemContext &C, const BasicBlock &dst) {
+void Bv2OpSem::intraBr(details::Bv2OpSemContext &C, const BasicBlock &dst) {
   const BranchInst *br = dyn_cast<const BranchInst>(&C.getCurrentInst());
   if (!br)
     return;
@@ -2688,7 +2686,8 @@ void Bv2OpSem::intraBr(Bv2OpSemContext &C, const BasicBlock &dst) {
   }
 }
 
-void Bv2OpSem::skipInst(const Instruction &inst, Bv2OpSemContext &ctx) {
+void Bv2OpSem::skipInst(const Instruction &inst,
+                        details::Bv2OpSemContext &ctx) {
   const Value *s;
   if (isShadowMem(inst, &s))
     return;
@@ -2700,13 +2699,15 @@ void Bv2OpSem::skipInst(const Instruction &inst, Bv2OpSemContext &ctx) {
                     << inst.getParent()->getParent()->getName(););
 }
 
-void Bv2OpSem::unhandledValue(const Value &v, Bv2OpSemContext &ctx) {
+void Bv2OpSem::unhandledValue(const Value &v, details::Bv2OpSemContext &ctx) {
   if (const Instruction *inst = dyn_cast<const Instruction>(&v))
     return unhandledInst(*inst, ctx);
   LOG("opsem", WARN << "unhandled value: " << v;);
 }
-void Bv2OpSem::unhandledInst(const Instruction &inst, Bv2OpSemContext &ctx) {
-  if (ctx.isIgnored(inst)) return;
+void Bv2OpSem::unhandledInst(const Instruction &inst,
+                             details::Bv2OpSemContext &ctx) {
+  if (ctx.isIgnored(inst))
+    return;
   ctx.ignore(inst);
   LOG("opsem", WARN << "unhandled instruction: " << inst << " @ "
                     << inst.getParent()->getName() << " in "
@@ -3198,8 +3199,8 @@ Expr Bv2OpSem::mkSymbReg(const Value &v, OpSemContext &_ctx) {
   return ctx(_ctx).mkRegister(v);
 }
 
-bvop_details::Bv2OpSemContext &Bv2OpSem::ctx(OpSemContext &_ctx) {
-  return static_cast<bvop_details::Bv2OpSemContext &>(_ctx);
+details::Bv2OpSemContext &Bv2OpSem::ctx(OpSemContext &_ctx) {
+  return static_cast<details::Bv2OpSemContext &>(_ctx);
 }
 
 } // namespace seahorn

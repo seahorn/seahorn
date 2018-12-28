@@ -9,6 +9,7 @@ def main (argv):
     import sea.commands
 
     cmds = [sea.commands.Bpf,
+            sea.commands.BndFrontEnd,
             sea.commands.CutLoops(),
             sea.commands.BndSmt,
             sea.commands.Pf,
@@ -36,7 +37,7 @@ def main (argv):
             sea.commands.ParAbc(),
             sea.commands.ClangParAbc,
             sea.commands.NdcInst(),
-            sea.commands.Ndc,            
+            sea.commands.Ndc,
             sea.commands.LinkRt(),
             sea.commands.WrapMem(),
             sea.commands.Exe,

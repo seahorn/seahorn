@@ -1563,6 +1563,8 @@ LfeClp= sea.SeqCmd ('lfe-clp', 'alias for lfe|horn-clp', [LegacyFrontEnd(), Seah
 BndSmt = sea.SeqCmd ('bnd-smt', 'alias for fe|unroll|cut-loops|ms|opt|horn',
                      FrontEnd.cmds + [Unroll(), CutLoops(), MixedSem (),
                                       Seaopt(), Seahorn()])
+BndFrontEnd = sea.SeqCmd('bnd-fe', 'Bounded front-end: alias for fe|unroll|cut-loops|opt',
+                         FrontEnd.cmds + [Unroll(), CutLoops(), Seaopt()])
 Bpf = sea.SeqCmd ('bpf', 'alias for fe|unroll|cut-loops|opt|horn --solve',
                   FrontEnd.cmds + [Unroll(), CutLoops(), Seaopt(), Seahorn(solve=True)])
 Crab = sea.SeqCmd ('crab', 'alias for fe|crab-inst', FrontEnd.cmds + [CrabInst()])

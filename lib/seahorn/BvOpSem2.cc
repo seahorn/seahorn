@@ -1138,7 +1138,8 @@ public:
     if (f->isDeclaration()) {
       if (f->arg_empty() && (f->getName().startswith("nd") ||
                              f->getName().startswith("nondet.") ||
-                             f->getName().startswith("verifier.nondet")))
+                             f->getName().startswith("verifier.nondet") ||
+                             f->getName().startswith("__VERIFIER_nondet")))
         visitNondetCall(CS);
       else
         visitExternalCall(CS);

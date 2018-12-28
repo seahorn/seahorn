@@ -456,6 +456,7 @@ namespace seahorn
     // AU.addRequiredTransitive<llvm::EQTDDataStructures>();
     AU.addRequiredTransitive<llvm::SteensgaardDataStructures> ();
     AU.addRequired<llvm::UnifyFunctionExitNodes> ();
+    AU.addPreserved<llvm::UnifyFunctionExitNodes>();
   } 
     
   //// XXX: Defined already in ShadowMemSeaDsa

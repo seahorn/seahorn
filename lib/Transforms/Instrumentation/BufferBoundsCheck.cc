@@ -14,7 +14,6 @@
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 #include "llvm/Transforms/Utils/Cloning.h"
 #include "llvm/Transforms/Utils/Local.h"
-#include "llvm/Transforms/Utils/UnifyFunctionExitNodes.h"
 
 #include "boost/format.hpp"
 
@@ -1468,7 +1467,6 @@ void Local::getAnalysisUsage(llvm::AnalysisUsage &AU) const {
   AU.addRequired<seahorn::DSAInfo>();     // run llvm dsa
   AU.addRequired<sea_dsa::DsaInfoPass>(); // run seahorn dsa
   AU.addRequired<llvm::TargetLibraryInfoWrapperPass>();
-  AU.addRequired<llvm::UnifyFunctionExitNodes>();
   AU.addRequired<CanAccessMemory>();
 }
 
@@ -2808,7 +2806,6 @@ void Global::getAnalysisUsage(llvm::AnalysisUsage &AU) const {
   AU.addRequired<seahorn::DSAInfo>();     // run llvm dsa
   AU.addRequired<sea_dsa::DsaInfoPass>(); // run seahorn dsa
   AU.addRequired<llvm::TargetLibraryInfoWrapperPass>();
-  AU.addRequired<llvm::UnifyFunctionExitNodes>();
   AU.addRequired<llvm::CallGraphWrapperPass>();
   // for debugging
   // AU.addRequired<ufo::NameValues> ();
@@ -3228,7 +3225,6 @@ void GlobalCCallbacks::getAnalysisUsage(llvm::AnalysisUsage &AU) const {
   AU.addRequired<seahorn::DSAInfo>();     // run llvm dsa
   AU.addRequired<sea_dsa::DsaInfoPass>(); // run seahorn dsa
   AU.addRequired<llvm::TargetLibraryInfoWrapperPass>();
-  AU.addRequired<llvm::UnifyFunctionExitNodes>();
   AU.addRequired<llvm::CallGraphWrapperPass>();
 }
 

@@ -705,6 +705,7 @@ void ShadowMemSeaDsaDeprecated::getAnalysisUsage(
   AU.addRequiredTransitive<DsaAnalysis>();
   AU.addRequired<llvm::CallGraphWrapperPass>();
   AU.addRequired<llvm::UnifyFunctionExitNodes>();
+  AU.addPreserved<llvm::UnifyFunctionExitNodes>();
 }
 
 } // namespace seahorn

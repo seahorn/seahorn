@@ -1,5 +1,4 @@
 #include "seahorn/Analysis/CutPointGraph.hh"
-#include "llvm/Transforms/Utils/UnifyFunctionExitNodes.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/IR/CFG.h"
 #include "llvm/IR/Instructions.h"
@@ -31,7 +30,6 @@ namespace seahorn
   void CutPointGraph::getAnalysisUsage (AnalysisUsage &AU) const
   {
     AU.setPreservesAll ();
-    AU.addRequired<UnifyFunctionExitNodes> ();
     AU.addRequiredTransitive<TopologicalOrder> ();
   }
 

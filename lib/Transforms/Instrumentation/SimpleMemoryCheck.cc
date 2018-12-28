@@ -14,7 +14,6 @@
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 #include "llvm/Transforms/Utils/Cloning.h"
 #include "llvm/Transforms/Utils/Local.h"
-#include "llvm/Transforms/Utils/UnifyFunctionExitNodes.h"
 
 #include "avy/SeaDebug.h"
 #include "sea_dsa/DsaAnalysis.hh"
@@ -981,7 +980,6 @@ void SimpleMemoryCheck::getAnalysisUsage(llvm::AnalysisUsage &AU) const {
   AU.setPreservesAll();
   AU.addRequired<sea_dsa::DsaInfoPass>(); // run seahorn dsa
   AU.addRequired<llvm::TargetLibraryInfoWrapperPass>();
-  AU.addRequired<llvm::UnifyFunctionExitNodes>();
   AU.addRequired<llvm::CallGraphWrapperPass>();
   // for debugging
   // AU.addRequired<ufo::NameValues> ();

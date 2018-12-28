@@ -27,7 +27,6 @@
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Support/ErrorHandling.h"
-#include "llvm/Transforms/Utils/UnifyFunctionExitNodes.h"
 
 #include "boost/unordered_map.hpp"
 #include "boost/unordered_set.hpp"
@@ -1013,7 +1012,6 @@ namespace seahorn
       AU.setPreservesAll();
       
       AU.addRequired<TargetLibraryInfoWrapperPass>();
-      AU.addRequired<UnifyFunctionExitNodes>();
       AU.addRequired<ufo::NameValues>();
       
       #ifdef HAVE_CRAB_LLVM

@@ -7,14 +7,12 @@
 #include "boost/range/algorithm/reverse.hpp"
 #include "boost/range/algorithm/sort.hpp"
 
-#include "llvm/Transforms/Utils/UnifyFunctionExitNodes.h"
 
 namespace seahorn {
 char TopologicalOrder::ID = 0;
 
 void TopologicalOrder::getAnalysisUsage(AnalysisUsage &AU) const {
   AU.setPreservesAll();
-  AU.addRequired<UnifyFunctionExitNodes>();
 }
 
 bool TopologicalOrder::runOnFunction(Function &F) {

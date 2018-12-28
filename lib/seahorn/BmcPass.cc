@@ -139,8 +139,7 @@ public:
       ERR << "No direct entry-to-exit path in " << F.getName() << ". "
           << "Commonly caused by loops. Ensure the input to BMC is loop-free";
 
-      LOG("cpg_bmc",
-          cpg.print(llvm::errs(), F.getParent()));
+      LOG("cpg_bmc", cpg.print(llvm::errs(), F.getParent()));
       return false;
     }
 
@@ -202,14 +201,18 @@ public:
     else if (!res)
       Stats::sset("Result", "TRUE");
 
-    LOG("bmc", if (!res) {
-      ExprVector core;
-      bmc->unsatCore(core);
-      errs() << "CORE BEGIN\n";
-      for (auto c : core)
-        errs() << *c << "\n";
-      errs() << "CORE END\n";
-    });
+    LOG("bmc_core",
+
+        // producing bmc core is expensive. Enable only if specifically
+        // requested
+        if (!res) {
+          ExprVector core;
+          bmc->unsatCore(core);
+          errs() << "CORE BEGIN\n";
+          for (auto c : core)
+            errs() << *c << "\n";
+          errs() << "CORE END\n";
+        });
 
     LOG("cex", if (res) {
       errs() << "Analyzed Function:\n" << F << "\n";

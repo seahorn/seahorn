@@ -15,8 +15,8 @@
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 #include "llvm/Transforms/Utils/Local.h"
 #include "llvm/Transforms/Utils/PromoteMemToReg.h"
-#include "llvm/Transforms/Utils/UnifyFunctionExitNodes.h"
 
+#include "seahorn/Transforms/Utils/Local.hh"
 #include "avy/SeaDebug.h"
 #include "boost/range.hpp"
 #include "boost/range/algorithm/binary_search.hpp"
@@ -491,23 +491,21 @@ bool ShadowDsaImpl::runOnFunction(Function &F) {
     }
   }
 
-  UnifyFunctionExitNodes &ufe =
-      m_pass.getAnalysis<llvm::UnifyFunctionExitNodes>(F);
-  BasicBlock *exit = ufe.getReturnBlock();
 
-  if (!exit) {
+  ReturnInst* _ret = nullptr;
+  seahorn::HasReturn(F, _ret);
+  if (!_ret) {
     // TODO: Need to think how to handle functions that do not return in
     // interprocedural encoding. For now, we print a warning and ignore this
     // case.
     WARN << "Function " << F.getName()
          << "never returns."
-            "Inter-procedural analysis with such functions might not be "
-            "supported.";
+      "Inter-procedural analysis with such functions might not be "
+      "supported.";
     return true;
   }
-
-  TerminatorInst *ret = exit->getTerminator();
-  assert(ret);
+  TerminatorInst *ret = cast<ReturnInst>(_ret);
+  BasicBlock *exit = ret->getParent();
 
   // split return basic block if it has more than just the return instruction
   if (exit->size() > 1) {
@@ -878,7 +876,6 @@ void ShadowMemSeaDsa::getAnalysisUsage(llvm::AnalysisUsage &AU) const {
   AU.setPreservesAll();
   AU.addRequiredTransitive<dsa::DsaAnalysis>();
   AU.addRequired<llvm::CallGraphWrapperPass>();
-  AU.addRequired<llvm::UnifyFunctionExitNodes>();
   AU.addRequired<llvm::DominatorTreeWrapperPass>();
   AU.addRequired<llvm::AssumptionCacheTracker>();
 }
@@ -908,7 +905,7 @@ public:
         CallInst *ci = cast<CallInst>(fn->user_back());
         Value *last = ci->getArgOperand(ci->getNumArgOperands() - 1);
         ci->eraseFromParent();
-        RecursivelyDeleteTriviallyDeadInstructions(last);
+        seahorn::RecursivelyDeleteTriviallyDeadInstructions(last);
       }
     }
 
@@ -927,7 +924,7 @@ public:
         Value *last = ci->getArgOperand(ci->getNumArgOperands() - 1);
         ci->replaceAllUsesWith(zero);
         ci->eraseFromParent();
-        RecursivelyDeleteTriviallyDeadInstructions(last);
+        seahorn::RecursivelyDeleteTriviallyDeadInstructions(last);
       }
     }
 

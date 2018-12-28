@@ -27,15 +27,15 @@ llvm::Function &createNewNondetFn(llvm::Module &m, llvm::Type &type,
 
 /// \brief Checks whether a basic block terminated with a return
 /// A return instruction is returned in the last parameter
-bool hasReturn(llvm::BasicBlock &bb, llvm::ReturnInst *&retInst);
+bool HasReturn(llvm::BasicBlock &bb, llvm::ReturnInst *&retInst);
 
 /// \brief Checks whether a function has a return
 /// A return instruction is returned in the last parameter
-bool hasReturn(llvm::Function &f, llvm::ReturnInst *&retInst);
+bool HasReturn(llvm::Function &f, llvm::ReturnInst *&retInst);
 
 /// \brief Checks whether a function has a unique return
 /// A return instruction is returned in the last parameter
-bool hasUniqueReturn(llvm::Function &f, llvm::ReturnInst *&retInst);
+bool HasUniqueReturn(llvm::Function &f, llvm::ReturnInst *&retInst);
 }
 
 namespace seahorn {

@@ -121,7 +121,7 @@ bool RecursivelyDeleteTriviallyDeadInstructions(Value *V,
   return llvm::RecursivelyDeleteTriviallyDeadInstructions(V, TLI);
 }
 
-bool hasReturn(BasicBlock &bb, ReturnInst *&retInst) {
+bool HasReturn(BasicBlock &bb, ReturnInst *&retInst) {
   if (auto *ret = dyn_cast<ReturnInst>(bb.getTerminator())) {
     retInst = ret;
     return true;
@@ -129,19 +129,19 @@ bool hasReturn(BasicBlock &bb, ReturnInst *&retInst) {
   return false;
 }
 
-bool hasReturn(Function &F, ReturnInst *&retInst) {
+bool HasReturn(Function &F, ReturnInst *&retInst) {
   for (auto &bb : F) {
-    if (hasReturn(bb, retInst))
+    if (HasReturn(bb, retInst))
       return true;
   }
   return false;
 }
 
-bool hasUniqueReturn(Function &F, ReturnInst *&retInst) {
+bool HasUniqueReturn(Function &F, ReturnInst *&retInst) {
   bool found = false;
 
   for (auto &bb : F) {
-    if (hasReturn(bb, retInst)) {
+    if (HasReturn(bb, retInst)) {
       // -- already found another one, so not unique
       if (found) return false;
       found = true;

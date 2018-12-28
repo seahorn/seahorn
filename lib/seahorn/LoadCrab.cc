@@ -663,8 +663,7 @@ Expr CrabInvToExpr(llvm::BasicBlock *B, CrabLlvmPass *crab,
     getAbsDomWrappee(abs, boxes);
     // Here we do project onto live variables before translation
     std::vector<crab_llvm::var_t> vars = ExprVecToCrab(live, crab);
-    crab::domains::domain_traits<boxes_domain_t>::project(boxes, vars.begin(),
-                                                          vars.end());
+    boxes.project(vars);
     BoxesToExpr t(*(crab->get_heap_abstraction()), *(B->getParent()), live);
     e = t.toExpr(boxes, efac);
   } else if (abs->getId() == GenericAbsDomWrapper::id_t::dis_intv) {

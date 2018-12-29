@@ -9,7 +9,7 @@
 #include "llvm/Support/Format.h"
 #include "llvm/Support/MathExtras.h"
 
-#include "avy/SeaDebug.h"
+#include "seahorn/Support/SeaDebug.h"
 #include "ufo/ExprLlvm.hpp"
 
 using namespace seahorn;

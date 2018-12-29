@@ -18,7 +18,7 @@
 #include "seahorn/PathBasedBmc.hh"
 #include "seahorn/UfoOpSem.hh"
 // prerequisite for CrabLlvm
-#include "avy/SeaDebug.h"
+#include "seahorn/Support/SeaDebug.h"
 #include "seahorn/Support/SeaLog.hh"
 #include "seahorn/Transforms/Scalar/LowerCstExpr.hh"
 #ifdef HAVE_CRAB_LLVM

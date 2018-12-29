@@ -1,6 +1,6 @@
 #include "seahorn/LiveSymbols.hh"
 #include "ufo/ExprLlvm.hpp"
-#include "avy/SeaDebug.h"
+#include "seahorn/Support/SeaDebug.h"
 #include "boost/range.hpp"
 #include "boost/range/algorithm.hpp"
 

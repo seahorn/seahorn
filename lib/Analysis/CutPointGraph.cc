@@ -7,7 +7,7 @@
 #include "seahorn/Support/CFG.hh"
 
 #include "boost/range.hpp"
-#include "avy/SeaDebug.h"
+#include "seahorn/Support/SeaDebug.h"
 
 enum ExtraCpHeuristics { H0, H1, H2};
 static llvm::cl::opt<ExtraCpHeuristics>

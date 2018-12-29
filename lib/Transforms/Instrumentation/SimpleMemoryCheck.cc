@@ -15,7 +15,7 @@
 #include "llvm/Transforms/Utils/Cloning.h"
 #include "llvm/Transforms/Utils/Local.h"
 
-#include "avy/SeaDebug.h"
+#include "seahorn/Support/SeaDebug.h"
 #include "sea_dsa/DsaAnalysis.hh"
 
 #define SMC_LOG(...) LOG("smc", __VA_ARGS__)

@@ -7,7 +7,7 @@
 #include <boost/lexical_cast.hpp>
 
 #include "ufo/ExprLlvm.hpp"
-#include "avy/SeaDebug.h"
+#include "seahorn/Support/SeaDebug.h"
 
 #include <sstream>
 

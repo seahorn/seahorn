@@ -4,22 +4,22 @@
 #include <set>
 #include <string>
 
-namespace avy {
+namespace seahorn {
 
-#ifndef NAVYLOG
+#ifndef NSEALOG
 #define LOG(TAG, CODE)                                                         \
   do {                                                                         \
-    if (::avy::AvyLogFlag && ::avy::AvyLog.count(TAG) > 0) {                   \
+    if (::seahorn::SeaLogFlag && ::seahorn::SeaLog.count(TAG) > 0) {                   \
       CODE;                                                                    \
     }                                                                          \
   } while (0)
 
-extern bool AvyLogFlag;
-extern std::set<std::string> AvyLog;
+extern bool SeaLogFlag;
+extern std::set<std::string> SeaLog;
 
-void AvyEnableLog(std::string x);
+void SeaEnableLog(std::string x);
 #else
-#define AvyEnableLog(X)
+#define SeaEnableLog(X)
 #define LOG(TAG, CODE)                                                         \
   do {                                                                         \
   } while (0)

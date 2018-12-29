@@ -13,7 +13,7 @@
 #include "llvm/Transforms/Utils/Local.h"
 #include "llvm/Transforms/Utils/UnifyFunctionExitNodes.h"
 
-#include "avy/SeaDebug.h"
+#include "seahorn/Support/SeaDebug.h"
 #include "boost/range.hpp"
 #include "boost/range/algorithm/binary_search.hpp"
 #include "boost/range/algorithm/set_algorithm.hpp"

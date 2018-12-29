@@ -8,7 +8,7 @@
 #include "seahorn/HornClauseDBBgl.hh"
 #include "seahorn/Analysis/WeakTopologicalOrder.hh"
 
-#include "avy/SeaDebug.h"
+#include "seahorn/Support/SeaDebug.h"
 namespace seahorn
 {
   using namespace llvm;

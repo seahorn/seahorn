@@ -7,7 +7,7 @@
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Support/Debug.h"
 
-#include "avy/SeaDebug.h"
+#include "seahorn/Support/SeaDebug.h"
 
 using namespace llvm;
 

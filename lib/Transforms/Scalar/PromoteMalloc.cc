@@ -4,7 +4,7 @@
 #include "llvm/IR/IRBuilder.h"
 
 #include "boost/range.hpp"
-#include "avy/SeaDebug.h"
+#include "seahorn/Support/SeaDebug.h"
 #include "llvm/Support/raw_ostream.h"
 
 using namespace llvm;

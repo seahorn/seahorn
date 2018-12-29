@@ -10,7 +10,7 @@
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/DebugInfoMetadata.h"
 
-#include "avy/SeaDebug.h"
+#include "seahorn/Support/SeaDebug.h"
 #include <boost/algorithm/string/predicate.hpp>
 #include <boost/tokenizer.hpp>
 
@@ -20,7 +20,6 @@ namespace seahorn {
 char NameValues::ID = 0;
 
 bool NameValues::runOnModule(Module &M) {
-  // avy::AvyEnableLog ("nv");
 
   for (Module::iterator FI = M.begin(), E = M.end(); FI != E; ++FI) {
     if (!(*FI).isDeclaration())

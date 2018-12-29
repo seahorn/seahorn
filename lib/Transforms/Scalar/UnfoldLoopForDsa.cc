@@ -11,7 +11,7 @@
 #include "llvm/ADT/SmallSet.h"
 
 #include "boost/range.hpp"
-#include "avy/SeaDebug.h"
+#include "seahorn/Support/SeaDebug.h"
 
 using namespace llvm;
 

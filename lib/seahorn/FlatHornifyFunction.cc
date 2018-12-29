@@ -3,7 +3,7 @@
 #include "seahorn/Support/CFG.hh"
 #include "seahorn/Support/ExprSeahorn.hh"
 
-#include "avy/SeaDebug.h"
+#include "seahorn/Support/SeaDebug.h"
 
 namespace seahorn
 {

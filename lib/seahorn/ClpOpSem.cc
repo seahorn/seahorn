@@ -12,7 +12,7 @@
 
 #include "ufo/ufo_iterators.hpp"
 #include "ufo/ExprLlvm.hpp"
-#include "avy/SeaDebug.h"
+#include "seahorn/Support/SeaDebug.h"
 
 using namespace seahorn;
 using namespace llvm;

@@ -13,7 +13,7 @@
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/raw_ostream.h"
 
-#include "avy/SeaDebug.h"
+#include "seahorn/Support/SeaDebug.h"
 
 // For proving absence of null dereferences this option better be
 // enabled. However, for finding code inconsistencies it might be

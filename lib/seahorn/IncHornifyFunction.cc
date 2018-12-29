@@ -10,7 +10,7 @@
 
 #include <boost/lexical_cast.hpp>
 #include <llvm/IR/DebugInfo.h>
-#include "avy/SeaDebug.h"
+#include "seahorn/Support/SeaDebug.h"
 
 
 

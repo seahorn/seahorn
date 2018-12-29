@@ -1,7 +1,7 @@
 #include "seahorn/MemSimulator.hh"
 #include "ufo/Expr.hpp"
 #include "llvm/IR/InstVisitor.h"
-#include "avy/SeaDebug.h"
+#include "seahorn/Support/SeaDebug.h"
 
 #include "llvm/Analysis/MemoryBuiltins.h"
 namespace seahorn {

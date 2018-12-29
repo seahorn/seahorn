@@ -8,7 +8,7 @@
 #include "llvm/Analysis/CallGraph.h"
 
 #include "boost/range.hpp"
-#include "avy/SeaDebug.h"
+#include "seahorn/Support/SeaDebug.h"
 
 
 using namespace llvm;

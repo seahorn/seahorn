@@ -9,7 +9,6 @@ set (SEAINSPECT_LIBS
   ${SEA_DSA_LIBS}
   ${Boost_SYSTEM_LIBRARY}  
   SeaSupport
-  avy
   ${RT_LIB}
   )
 

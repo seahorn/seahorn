@@ -17,7 +17,7 @@
 #include "llvm/Transforms/Utils/PromoteMemToReg.h"
 
 #include "seahorn/Transforms/Utils/Local.hh"
-#include "avy/SeaDebug.h"
+#include "seahorn/Support/SeaDebug.h"
 #include "boost/range.hpp"
 #include "boost/range/algorithm/binary_search.hpp"
 #include "boost/range/algorithm/set_algorithm.hpp"

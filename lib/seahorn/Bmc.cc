@@ -6,7 +6,7 @@
 #include "llvm/IR/DebugLoc.h"
 
 #include "boost/container/flat_set.hpp"
-#include "avy/SeaDebug.h"
+#include "seahorn/Support/SeaDebug.h"
 
 namespace seahorn {
 void BmcEngine::addCutPoint(const CutPoint &cp) {

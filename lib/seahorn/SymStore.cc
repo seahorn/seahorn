@@ -1,6 +1,6 @@
 #include "llvm/Support/raw_ostream.h"
 #include "ufo/ExprLlvm.hpp"
-#include "avy/SeaDebug.h"
+#include "seahorn/Support/SeaDebug.h"
 #include "seahorn/SymStore.hh"
 
 namespace seahorn

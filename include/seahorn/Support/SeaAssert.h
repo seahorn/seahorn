@@ -31,10 +31,10 @@
 #define SEA_ASSERT_H_
 
 #define SEA_UNREACHABLE() ::avy::assertion_failed("UNREACHABLE!", __FILE__, __LINE__)
-#include <cstdlib>
-#include <iostream>
+#include "../../../../../usr/include/c++/5/cstdlib"
+#include "../../../../../usr/include/c++/5/iostream"
 
-namespace avy
+namespace seahorn
 {
   inline void __attribute__ ((noreturn))  assertion_failed (char const *expr, char const * file, long line) 
   {

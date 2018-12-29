@@ -10,7 +10,7 @@
 
 #include "ufo/Smt/EZ3.hh"
 #include "ufo/Stats.hh"
-#include "avy/SeaDebug.h"
+#include "seahorn/Support/SeaDebug.h"
 
 using namespace seahorn;
 using namespace llvm;

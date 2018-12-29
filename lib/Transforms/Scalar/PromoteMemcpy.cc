@@ -12,7 +12,7 @@
 #include "llvm/Transforms/Utils/Local.h"
 #include "llvm/Transforms/Utils/SimplifyLibCalls.h"
 
-#include "avy/SeaDebug.h"
+#include "seahorn/Support/SeaDebug.h"
 
 #define PMCPY_LOG(...) LOG("promote-memcpy", __VA_ARGS__)
 

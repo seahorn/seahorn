@@ -7,7 +7,7 @@
 #include "ufo/Smt/EZ3.hh"
 #include "ufo/Stats.hh"
 
-#include "avy/SeaDebug.h"
+#include "seahorn/Support/SeaDebug.h"
 
 static llvm::cl::opt<bool> SplitCriticalEdgesOnly(
     "horn-split-only-critical",

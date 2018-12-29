@@ -28,7 +28,7 @@
 
 #include "seahorn/Transforms/Utils/Local.hh"
 
-#include "avy/SeaDebug.h"
+#include "seahorn/Support/SeaDebug.h"
 
 using namespace llvm;
 

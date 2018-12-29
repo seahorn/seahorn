@@ -22,7 +22,7 @@
 #include "boost/format.hpp"
 #include "boost/unordered_set.hpp"
 
-#include "avy/SeaDebug.h"
+#include "seahorn/Support/SeaDebug.h"
 
 
 /***

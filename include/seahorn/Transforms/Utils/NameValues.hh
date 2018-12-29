@@ -1,12 +1,11 @@
-#ifndef __NAME_VALUES__HPP_
-#define __NAME_VALUES__HPP_
+#pragma once
 
 #include "llvm/Pass.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/Function.h"
 
 
-namespace ufo
+namespace seahorn
 {
   using namespace llvm;
 
@@ -24,4 +23,3 @@ namespace ufo
     inline Pass *createNameValuesPass(){return new NameValues();}
 }
 
-#endif

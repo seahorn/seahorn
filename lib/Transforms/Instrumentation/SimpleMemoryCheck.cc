@@ -982,7 +982,7 @@ void SimpleMemoryCheck::getAnalysisUsage(llvm::AnalysisUsage &AU) const {
   AU.addRequired<llvm::TargetLibraryInfoWrapperPass>();
   AU.addRequired<llvm::CallGraphWrapperPass>();
   // for debugging
-  // AU.addRequired<ufo::NameValues> ();
+  // AU.addRequired<seahorn::NameValues> ();
 }
 
 template <typename ValTy, typename Container>

@@ -8,7 +8,7 @@
 **/
 
 #include "seahorn/config.h"
-#include "ufo/Passes/NameValues.hpp"
+#include "seahorn/Transforms/Utils/NameValues.hh"
 #include "seahorn/Support/CFG.hh"
 
 #ifdef HAVE_CRAB_LLVM
@@ -1012,7 +1012,7 @@ namespace seahorn
       AU.setPreservesAll();
       
       AU.addRequired<TargetLibraryInfoWrapperPass>();
-      AU.addRequired<ufo::NameValues>();
+      AU.addRequired<seahorn::NameValues>();
       
       #ifdef HAVE_CRAB_LLVM
       AU.addRequired<seahorn::TopologicalOrder>();      

@@ -43,7 +43,7 @@
 #include "crab_llvm/Transforms/InsertInvariants.hh"
 #endif
 
-#include "ufo/Passes/NameValues.hpp"
+#include "seahorn/Transforms/Utils/NameValues.hh"
 #include "ufo/Smt/EZ3.hh"
 #include "ufo/Stats.hh"
 
@@ -358,7 +358,7 @@ int main(int argc, char **argv) {
 
   if (!AsmOutputFilename.empty()) {
     if (!KeepShadows) {
-      pass_manager.add(new ufo::NameValues());
+      pass_manager.add(new seahorn::NameValues());
       // -- XXX might destroy names using by HornSolver later on.
       // -- XXX it is probably dangerous to strip shadows and solve at the same
       // time

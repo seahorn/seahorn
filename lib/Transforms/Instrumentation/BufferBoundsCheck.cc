@@ -1,6 +1,6 @@
 #include "seahorn/Transforms/Instrumentation/BufferBoundsCheck.hh"
 #include "seahorn/Analysis/CanAccessMemory.hh"
-#include "ufo/Passes/NameValues.hpp"
+#include "seahorn/Transforms/Utils/NameValues.hh"
 
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/ADT/SmallVector.h"
@@ -2808,7 +2808,7 @@ void Global::getAnalysisUsage(llvm::AnalysisUsage &AU) const {
   AU.addRequired<llvm::TargetLibraryInfoWrapperPass>();
   AU.addRequired<llvm::CallGraphWrapperPass>();
   // for debugging
-  // AU.addRequired<ufo::NameValues> ();
+  // AU.addRequired<seahorn::NameValues> ();
 }
 
 char Global::ID = 0;

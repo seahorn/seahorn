@@ -35,7 +35,7 @@
 #include "llvm_seahorn/Transforms/Scalar.h"
 #endif
 
-#include "ufo/Passes/NameValues.hpp"
+#include "seahorn/Transforms/Utils/NameValues.hh"
 #include "ufo/Smt/EZ3.hh"
 #include "ufo/Stats.hh"
 
@@ -335,7 +335,7 @@ int main(int argc, char **argv) {
   // array bound checking. WIP.
   else if (ArrayBoundsChecks > 0) {
     // XXX ABC might run sea-dsa which requires all values have a name
-    pass_manager.add(ufo::createNameValuesPass());
+    pass_manager.add(seahorn::createNameValuesPass());
     switch (ArrayBoundsChecks) {
     case LOCAL:
       pass_manager.add(seahorn::createLowerCstExprPass());

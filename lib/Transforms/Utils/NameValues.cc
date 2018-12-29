@@ -1,6 +1,6 @@
 #define DEBUG_TYPE "name-values"
 
-#include "ufo/Passes/NameValues.hpp"
+#include "seahorn/Transforms/Utils/NameValues.hh"
 
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/Instructions.h"
@@ -16,7 +16,7 @@
 
 using namespace llvm;
 
-namespace ufo {
+namespace seahorn {
 char NameValues::ID = 0;
 
 bool NameValues::runOnModule(Module &M) {
@@ -109,5 +109,5 @@ bool NameValues::runOnFunction(Function &F) {
 
 } // namespace ufo
 
-static llvm::RegisterPass<ufo::NameValues> X("name-values",
+static llvm::RegisterPass<seahorn::NameValues> X("name-values",
                                              "Names all unnamed values");

@@ -7,7 +7,7 @@
 
 #include "seahorn/config.h"
 
-#include "ufo/Passes/NameValues.hpp"
+#include "seahorn/Transforms/Utils/NameValues.hh"
 #include "ufo/Smt/EZ3.hh"
 #include "ufo/Stats.hh"
 
@@ -74,7 +74,7 @@ public:
     AU.setPreservesAll();
 
     AU.addRequired<seahorn::CanFail>();
-    AU.addRequired<ufo::NameValues>();
+    AU.addRequired<seahorn::NameValues>();
     AU.addRequired<seahorn::TopologicalOrder>();
     AU.addRequired<CutPointGraph>();
     AU.addRequired<TargetLibraryInfoWrapperPass>();

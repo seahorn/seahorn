@@ -1,6 +1,6 @@
 #include "seahorn/HornifyModule.hh"
 
-#include "ufo/Passes/NameValues.hpp"
+#include "seahorn/Transforms/Utils/NameValues.hh"
 
 #include "seahorn/Support/BoostLlvmGraphTraits.hh"
 #include "llvm/ADT/SCCIterator.h"
@@ -385,7 +385,7 @@ void HornifyModule::getAnalysisUsage(llvm::AnalysisUsage &AU) const {
   AU.setPreservesAll();
 
   AU.addRequired<seahorn::CanFail>();
-  AU.addRequired<ufo::NameValues>();
+  AU.addRequired<seahorn::NameValues>();
 
   AU.addRequired<llvm::CallGraphWrapperPass>();
   AU.addPreserved<llvm::CallGraphWrapperPass>();

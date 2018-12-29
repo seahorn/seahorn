@@ -116,11 +116,12 @@ private:
   /// Instructions that where ignored by the semantics
   DenseSet<const Instruction *> m_ignored;
 
+  using FlatExprSet = boost::container::flat_set<Expr>;
   /// \brief Declared symbolic registers
-  boost::container::flat_set<Expr> m_registers;
+  FlatExprSet m_registers;
 
-  // \brief Registers for llvm::Value
   using ValueExprMap = DenseMap<const llvm::Value *, Expr>;
+  // \brief Registers for \c llvm::Value
   ValueExprMap m_valueToRegister;
 
   using OpSemMemManagerPtr = std::unique_ptr<OpSemMemManager>;
@@ -138,14 +139,20 @@ private:
   Expr maxPtrE;
 
 public:
+  /// \brief Create a new context with given semantics, values, and side
   Bv2OpSemContext(Bv2OpSem &sem, SymStore &values, ExprVector &side);
+  /// \brief Clone a context with possibly new values and side condition
+  /// \sa Bv2OpSem::fork
   Bv2OpSemContext(SymStore &values, ExprVector &side,
                   const Bv2OpSemContext &other);
   Bv2OpSemContext(const Bv2OpSemContext &) = delete;
-  ~Bv2OpSemContext() override;
+  ~Bv2OpSemContext() override = default;
 
+  /// \brief Returns size of a memory word
   unsigned wordSzInBytes() const;
+  /// \brief Returns size in bits of a memory word
   unsigned wordSzInBits() const { return wordSzInBytes() * 8; }
+  /// \brief Returns size of a pointer in bits
   unsigned ptrSzInBits() const;
 
   Expr boolToBv(Expr b);
@@ -280,23 +287,36 @@ class OpSemMemManager {
   Bv2OpSemContext &m_ctx;
   ExprFactory &m_efac;
 
+  /// \brief Ptr size in bytes
   uint32_t m_ptrSz;
+  /// \brief Word size in bytes
   uint32_t m_wordSz;
+  /// \brief Preferred alignment in bytes
+  ///
+  /// Must be divisible by \t m_wordSz
   uint32_t m_alignment;
 
+  /// \brief Base name for non-deterministic allocation
   Expr m_allocaName;
+  /// \brief Base name for non-deterministic pointer
   Expr m_freshPtrName;
+
+  /// \brief All known stack allocations
   std::vector<AllocInfo> m_allocas;
+  /// \brief All known code allocations
   std::vector<FuncAllocInfo> m_funcs;
+  /// \brief All known global allocations
   std::vector<GlobalAllocInfo> m_globals;
 
-  unsigned m_id;
-
-  Expr m_nullPtr;
   /// \brief Register that contains the value of the stack pointer on
   /// function entry
   Expr m_sp0;
 
+  /// \brief Source of unique identifiers
+  mutable unsigned m_id;
+
+  /// \brief A null pointer expression (cache)
+  Expr m_nullPtr;
 // TODO: turn into user-controlled parameters
 #define MAX_STACK_ADDR 0xC0000000
 #define MIN_STACK_ADDR (MAX_STACK_ADDR - 9437184)
@@ -315,20 +335,25 @@ public:
     m_ctx.declareRegister(m_sp0);
   }
 
+  /// Right now everything is an expression. In the future, we might have other
+  /// types for PtrTy, such as a tuple of expressions
   using PtrTy = Expr;
 
   unsigned ptrSzInBits() const { return m_ptrSz * 8; }
   unsigned wordSzInBytes() const { return m_wordSz; }
   unsigned wordSzInBits() const { return m_wordSz * 8; }
 
+  /// \brief Creates a non-deterministic pointer that is aligned
+  ///
+  /// Top bits of the pointer are named by \p name and last \c log2(align) bits
+  /// are set to zero
   PtrTy mkAlignedPtr(Expr name, uint32_t align) const {
     unsigned alignBits = llvm::Log2_32(align);
     return bv::concat(bv::bvConst(name, ptrSzInBits() - alignBits),
                       bv::bvnum(0, alignBits, m_efac));
   }
 
-  /// \brief Return sort of a pointer typed register based on the given
-  /// instruction
+  /// \brief Returns sort of a pointer register for an instruction
   Expr mkPtrRegisterSort(const Instruction &inst) const {
     const Type *ty = inst.getType();
     assert(ty);
@@ -339,28 +364,31 @@ public:
     return bv::bvsort(m_sem.sizeInBits(*ty), m_efac);
   }
 
+  /// \brief Returns sort of a pointer register for a function pointer
   Expr mkPtrRegisterSort(const Function &fn) const {
     return bv::bvsort(ptrSzInBits(), m_efac);
   }
 
+  /// \brief Returns sort of a pointer register for a global pointer
   Expr mkPtrRegisterSort(const GlobalVariable &gv) const {
     return bv::bvsort(ptrSzInBits(), m_efac);
   }
 
-  /// \brief Return sort of a memory/array typed register based on the
-  /// given instruction
+  /// \brief Returns sort of memory-holding register for an instruction
   Expr mkMemRegisterSort(const Instruction &inst) const {
     Expr ptrTy = bv::bvsort(ptrSzInBits(), m_efac);
     Expr valTy = bv::bvsort(wordSzInBits(), m_efac);
     return sort::arrayTy(ptrTy, valTy);
   }
 
+  /// \brief Returns a fresh aligned pointer value
   PtrTy freshPtr() {
     Expr name = op::variant::variant(m_id++, m_freshPtrName);
     return mkAlignedPtr(name, m_alignment);
   }
 
-  /// \brief Allocates memory on the stack
+  /// \brief Allocates memory on the stack and returns a pointer to it
+  /// \param align is requested alignment. If 0, default alignment is used
   PtrTy salloc(unsigned bytes, uint32_t align = 0) {
 
     align = std::max(align, m_alignment);
@@ -377,13 +405,14 @@ public:
     return mkStackPtr(name, m_allocas.back());
   }
 
+  /// \brief Returns a pointer value for a given stack allocation
   PtrTy mkStackPtr(Expr name, AllocInfo &allocInfo) {
     Expr res = m_ctx.read(m_sp0);
     res = mk<BSUB>(res, bv::bvnum(allocInfo.m_end, ptrSzInBits(), m_efac));
     return res;
   }
 
-  /// \brief Allocates memory on the stack
+  /// \brief Allocates memory on the stack and returns a pointer to it
   PtrTy salloc(Expr bytes, unsigned align = 0) {
     LOG("opsem", WARN << "unsound handling of dynamically "
                          "sized stack allocation of "
@@ -391,7 +420,7 @@ public:
     return freshPtr();
   }
 
-  /// \brief Address at which heap starts (initial value of brk)
+  /// \brief Address at which heap starts (initial value of \c brk)
   unsigned brk0Addr() {
     if (!m_globals.empty())
       return m_globals.back().m_end;
@@ -403,7 +432,7 @@ public:
   /// \brief Pointer to start of the heap
   PtrTy brk0Ptr() { return bv::bvnum(brk0Addr(), ptrSzInBits(), m_efac); }
 
-  /// \brief Allocates memory on the heap
+  /// \brief Allocates memory on the heap and returns a pointer to it
   PtrTy halloc(unsigned _bytes, unsigned align = 0) {
     Expr res = freshPtr();
 
@@ -416,7 +445,7 @@ public:
     return res;
   }
 
-  /// \brief Allocates memory on the heap
+  /// \brief Allocates memory on the heap and returns pointer to it
   PtrTy halloc(Expr bytes, unsigned align = 0) {
     Expr res = freshPtr();
 
@@ -453,10 +482,12 @@ public:
     return bv::bvnum(start, ptrSzInBits(), m_efac);
   }
 
+  /// \brief Returns a function pointer value for a given function
   PtrTy getPtrToFunction(const Function &F) {
     return bv::bvnum(getFunctionAddr(F), ptrSzInBits(), m_efac);
   }
 
+  /// \brief Returns an address at which a given function resides
   unsigned getFunctionAddr(const Function &F) {
     for (auto &fi : m_funcs)
       if (fi.m_fn == &F)
@@ -465,10 +496,12 @@ public:
     return m_funcs.back().m_start;
   }
 
+  /// \brief Returns a pointer to a global variable
   PtrTy getPtrToGlobalVariable(const GlobalVariable &gv) {
     return bv::bvnum(getGlobalVariableAddr(gv), ptrSzInBits(), m_efac);
   }
 
+  /// \brief Returns an address of a global variable
   unsigned getGlobalVariableAddr(const GlobalVariable &gv) {
     for (auto &gi : m_globals)
       if (gi.m_gv == &gv)
@@ -478,6 +511,13 @@ public:
     return m_globals.back().m_start;
   }
 
+  /// \brief Loads an integer of a given size from memory register
+  ///
+  /// \param[in] ptr pointer being accessed
+  /// \param[in] memReg memory register into which \p ptr points
+  /// \param[in] byteSz size of the integer in bytes
+  /// \param[in] align known alignment of \p ptr
+  /// \return symbolic value of the read integer
   Expr loadIntFromMem(PtrTy ptr, Expr memReg, unsigned byteSz, uint64_t align) {
     Expr mem = m_ctx.read(memReg);
     SmallVector<Expr, 16> words;
@@ -502,15 +542,19 @@ public:
     return res;
   }
 
+  /// \brief Loads a pointer stored in memory
+  /// \sa loadIntFromMem
   PtrTy loadPtrFromMem(PtrTy ptr, Expr memReg, unsigned byteSz,
                        uint64_t align) {
     return loadIntFromMem(ptr, memReg, byteSz, align);
   }
 
+  /// \brief Loads one word from memory pointed by \p ptr
   Expr loadAlignedWordFromMem(PtrTy ptr, Expr mem) {
     return op::array::select(mem, ptr);
   }
 
+  /// \brief Pointer addition with numeric offset
   PtrTy ptrAdd(PtrTy ptr, int32_t _offset) const {
     if (_offset == 0)
       return ptr;
@@ -518,6 +562,7 @@ public:
     return mk<BADD>(ptr, bv::bvnum(offset, ptrSzInBits(), ptr->efac()));
   }
 
+  /// \brief Pointer addition with symbolic offset
   PtrTy ptrAdd(PtrTy ptr, Expr offset) const {
     if (bv::isBvNum(offset)) {
       mpz_class _offset = bv::toMpz(offset);
@@ -526,6 +571,11 @@ public:
     return mk<BADD>(ptr, offset);
   }
 
+  /// \brief Stores an integer into memory
+  ///
+  /// Returns an expression describing the state of memory in \c memReadReg
+  /// after the store
+  /// \sa loadIntFromMem
   Expr storeIntToMem(Expr _val, PtrTy ptr, Expr memReadReg, unsigned byteSz,
                      uint64_t align) {
     Expr val = _val;
@@ -555,22 +605,33 @@ public:
     return res;
   }
 
+  /// \brief Stores a pointer into memory
+  /// \sa storeIntToMem
   Expr storePtrToMem(PtrTy val, PtrTy ptr, Expr memReadReg, unsigned byteSz,
                      uint64_t align) {
     return storeIntToMem(val, ptr, memReadReg, byteSz, align);
   }
 
+  /// \brief Writes one aligned word into memory
   Expr storeAlignedWordToMem(Expr val, PtrTy ptr, Expr mem) {
     return op::array::store(mem, ptr, val);
   }
 
+  /// \brief Creates bit-vector of a given width filled with 0
   Expr mkZeroE(unsigned width, ExprFactory &efac) {
     return bv::bvnum(0, width, efac);
   }
+  // breif Creates a bit-vector for number 1 of a given width
   Expr mkOneE(unsigned width, ExprFactory &efac) {
     return bv::bvnum(1, width, efac);
   }
 
+  /// \brief Returns an expression corresponding to a load from memory
+  ///
+  /// \param[in] ptr is the pointer being dereferenced
+  /// \param[in] memReg is the memory register being read
+  /// \param[in] ty is the type of value being loaded
+  /// \param[in] align is the known alignment of the load
   Expr loadValueFromMem(PtrTy ptr, Expr memReg, const llvm::Type &ty,
                         uint64_t align) {
     const unsigned byteSz =
@@ -642,6 +703,7 @@ public:
     return res;
   }
 
+  /// \brief Executes symbolic memset with a concrete length
   Expr MemSet(PtrTy ptr, Expr _val, unsigned len, Expr memReadReg,
               Expr memWriteReg, uint32_t align) {
     Expr res;
@@ -675,6 +737,7 @@ public:
     return res;
   }
 
+  /// \brief Executes symbolic memcpy with concrete length
   Expr MemCpy(PtrTy dPtr, PtrTy sPtr, unsigned len, Expr memTrsfrReadReg,
               Expr memReadReg, Expr memWriteReg, uint32_t align) {
     Expr res;
@@ -698,6 +761,7 @@ public:
     return res;
   }
 
+  /// \brief Executes inttoptr conversion
   PtrTy inttoptr(Expr intVal, const Type &intTy, const Type &ptrTy) const {
     uint64_t intTySz = m_sem.sizeInBits(intTy);
     uint64_t ptrTySz = m_sem.sizeInBits(ptrTy);
@@ -711,6 +775,7 @@ public:
     return res;
   }
 
+  /// \brief Executes ptrtoint conversion
   Expr ptrtoint(PtrTy ptr, const Type &ptrTy, const Type &intTy) const {
     uint64_t ptrTySz = m_sem.sizeInBits(ptrTy);
     uint64_t intTySz = m_sem.sizeInBits(intTy);
@@ -724,11 +789,13 @@ public:
     return res;
   }
 
+  /// \brief Computes a pointer corresponding to the gep instruction
   PtrTy gep(PtrTy ptr, gep_type_iterator it, gep_type_iterator end) const {
     Expr offset = m_sem.symbolicIndexedOffset(it, end, m_ctx);
     return offset ? ptrAdd(ptr, offset) : Expr();
   }
 
+  /// \brief Called when a function is entered for the first time
   void onFunctionEntry(const Function &fn) {
     Expr res = m_ctx.read(m_sp0);
 
@@ -743,8 +810,10 @@ public:
         mk<BUGE>(res, bv::bvnum(MIN_STACK_ADDR, ptrSzInBits(), m_efac)));
   }
 
+  /// \breif Called when a module entered for the first time
   void onModuleEntry(const Module &M) {}
 
+  /// \brief Debug helper
   void dumpGlobalsMap() {
     errs() << "Functions: \n";
     if (m_funcs.empty())
@@ -1031,6 +1100,7 @@ public:
       Expr nElts = lookup(*I.getOperand(0));
       LOG("opsem", errs() << "Alloca of " << nElts << "*" << typeSz
                           << " bytes: " << I << "\n";);
+      WARN << "alloca of symbolic size is treated as non-deterministic";
       addr = m_ctx.getMemManager()->freshPtr();
     }
 
@@ -1053,6 +1123,7 @@ public:
   }
 
   void visitPHINode(PHINode &PN) {
+    // -- there is a special visitor for PHINodes
     llvm_unreachable("PHI nodes are handled by a different visitor!");
   }
   void visitTruncInst(TruncInst &I) {
@@ -1147,7 +1218,7 @@ public:
       visitKnownFunctionCall(CS);
     }
 
-    errs() << "Unhandled call instruction: " << *CS.getInstruction() << "\n";
+    ERR << "unhandled call instruction: " << *CS.getInstruction();
     llvm_unreachable(nullptr);
   }
 
@@ -1187,6 +1258,7 @@ public:
     } else {
       LOG("opsem", WARN << "allowing calloc() to "
                            "zero initialize ALL of its memory region\n";);
+      // TODO: move into MemManager
       m_ctx.addDef(
           m_ctx.read(m_ctx.getMemWriteRegister()),
           op::array::constArray(bv::bvsort(ptrSzInBits(), m_efac), nullBv));
@@ -1535,7 +1607,7 @@ public:
   // void visitInsertValueInst(InsertValueInst &I);
 
   void visitInstruction(Instruction &I) {
-    errs() << I << "\n";
+    ERR << I;
     llvm_unreachable("No semantics to this instruction yet!");
   }
 
@@ -1911,16 +1983,6 @@ public:
     llvm_unreachable("Invalid bitcast");
   }
 
-  void initGlobals(const BasicBlock &BB) {
-    const Function &F = *BB.getParent();
-    if (&F.getEntryBlock() != &BB)
-      return;
-    if (!F.getName().equals("main"))
-      return;
-
-    const Module &M = *F.getParent();
-  }
-
   void visitModule(Module &M) {
     m_ctx.onModuleEntry(M);
 
@@ -1968,7 +2030,7 @@ public:
     // read the error flag to make it live
     m_ctx.read(m_sem.errorFlag(BB));
   }
-}; 
+};
 
 struct OpSemPhiVisitor : public InstVisitor<OpSemPhiVisitor>, OpSemBase {
   OpSemPhiVisitor(Bv2OpSemContext &ctx, Bv2OpSem &sem) : OpSemBase(ctx, sem) {}
@@ -2030,7 +2092,6 @@ Bv2OpSemContext::Bv2OpSemContext(SymStore &values, ExprVector &side,
   setActLit(o.getActLit());
 }
 
-Bv2OpSemContext::~Bv2OpSemContext() = default;
 unsigned Bv2OpSemContext::ptrSzInBits() const {
 
   assert(m_memManager);
@@ -2559,6 +2620,7 @@ bool Bv2OpSem::isSkipped(const Value &v) {
     LOG("opsem", WARN << "Unsupported array type\n";);
     return true;
   case Type::PointerTyID:
+    // -- pointers are handled earlier in the procedure
     llvm_unreachable(nullptr);
   case Type::VectorTyID:
     LOG("opsem", WARN << "Unsupported vector type\n";);
@@ -2568,44 +2630,6 @@ bool Bv2OpSem::isSkipped(const Value &v) {
     llvm_unreachable(nullptr);
   }
   llvm_unreachable(nullptr);
-}
-
-void Bv2OpSem::execEdg(const BasicBlock &src, const BasicBlock &dst,
-                       details::Bv2OpSemContext &ctx) {
-  exec(src, ctx.act(trueE));
-  execBr(src, dst, ctx);
-  execPhi(dst, src, ctx);
-
-  // an edge into a basic block that does not return includes the block itself
-  const TerminatorInst *term = dst.getTerminator();
-  if (term && isa<const UnreachableInst>(term))
-    exec(dst, ctx);
-}
-
-void Bv2OpSem::execEdg(SymStore &s, const BasicBlock &src,
-                       const BasicBlock &dst, ExprVector &side) {
-  exec(s, src, side, trueE);
-  execBr(s, src, dst, side, trueE);
-  execPhi(s, dst, src, side, trueE);
-
-  // an edge into a basic block that does not return includes the block itself
-  const TerminatorInst *term = dst.getTerminator();
-  if (term && isa<const UnreachableInst>(term))
-    exec(s, dst, side, trueE);
-}
-
-void Bv2OpSem::execBr(const BasicBlock &src, const BasicBlock &dst,
-                      details::Bv2OpSemContext &ctx) {
-  ctx.onBasicBlockEntry(src);
-  ctx.setInstruction(*src.getTerminator());
-  intraBr(ctx, dst);
-}
-
-void Bv2OpSem::execBr(SymStore &s, const BasicBlock &src, const BasicBlock &dst,
-                      ExprVector &side, Expr act) {
-  details::Bv2OpSemContext ctx(*this, s, side);
-  ctx.setActLit(act);
-  this->execBr(src, dst, ctx);
 }
 
 /// \brief Executes one intra-procedural instructions in the current
@@ -2726,6 +2750,18 @@ Expr Bv2OpSem::memEnd(unsigned id) {
   return shadow_dsa::memEndVar(id, sort);
 }
 
+/// \brief Returns a symbolic register corresponding to a value
+Expr Bv2OpSem::mkSymbReg(const Value &v, OpSemContext &_ctx) {
+  return ctx(_ctx).mkRegister(v);
+}
+
+/// \brief Unwraps a context
+details::Bv2OpSemContext &Bv2OpSem::ctx(OpSemContext &_ctx) {
+  return static_cast<details::Bv2OpSemContext &>(_ctx);
+}
+
+
+/// \brief Returns a concrete value to which a constant evaluates
 /// Adapted from llvm::ExecutionEngine
 Optional<GenericValue> Bv2OpSem::getConstantValue(const Constant *C) {
   // If its undefined, return the garbage.
@@ -3195,12 +3231,44 @@ Optional<GenericValue> Bv2OpSem::getConstantValue(const Constant *C) {
   return Result;
 }
 
-Expr Bv2OpSem::mkSymbReg(const Value &v, OpSemContext &_ctx) {
-  return ctx(_ctx).mkRegister(v);
+/// --- legacy interface ---
+void Bv2OpSem::execEdg(const BasicBlock &src, const BasicBlock &dst,
+                       details::Bv2OpSemContext &ctx) {
+  exec(src, ctx.act(trueE));
+  execBr(src, dst, ctx);
+  execPhi(dst, src, ctx);
+
+  // an edge into a basic block that does not return includes the block itself
+  const TerminatorInst *term = dst.getTerminator();
+  if (term && isa<const UnreachableInst>(term))
+    exec(dst, ctx);
 }
 
-details::Bv2OpSemContext &Bv2OpSem::ctx(OpSemContext &_ctx) {
-  return static_cast<details::Bv2OpSemContext &>(_ctx);
+void Bv2OpSem::execEdg(SymStore &s, const BasicBlock &src,
+                       const BasicBlock &dst, ExprVector &side) {
+  exec(s, src, side, trueE);
+  execBr(s, src, dst, side, trueE);
+  execPhi(s, dst, src, side, trueE);
+
+  // an edge into a basic block that does not return includes the block itself
+  const TerminatorInst *term = dst.getTerminator();
+  if (term && isa<const UnreachableInst>(term))
+    exec(s, dst, side, trueE);
 }
+
+void Bv2OpSem::execBr(const BasicBlock &src, const BasicBlock &dst,
+                      details::Bv2OpSemContext &ctx) {
+  ctx.onBasicBlockEntry(src);
+  ctx.setInstruction(*src.getTerminator());
+  intraBr(ctx, dst);
+}
+
+void Bv2OpSem::execBr(SymStore &s, const BasicBlock &src, const BasicBlock &dst,
+                      ExprVector &side, Expr act) {
+  details::Bv2OpSemContext ctx(*this, s, side);
+  ctx.setActLit(act);
+  this->execBr(src, dst, ctx);
+}
+
 
 } // namespace seahorn

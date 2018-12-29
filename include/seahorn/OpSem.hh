@@ -18,7 +18,7 @@ enum TrackLevel {
   MEM
 };
 
-class OpSem;
+class LegacyOperationalSemantics;
 class OpSemContext;
 using OpSemContextPtr = std::unique_ptr<OpSemContext>;
 
@@ -109,7 +109,7 @@ struct FunctionInfo {
   FunctionInfo() : ret(nullptr) {}
 
   template <typename OutputIterator>
-  void evalArgs(OpSem &sem, SymStore &s, OutputIterator out) const;
+  void evalArgs(LegacyOperationalSemantics &sem, SymStore &s, OutputIterator out) const;
 };
 
 /// maps llvm::Function to seahorn::FunctionInfo
@@ -117,7 +117,7 @@ using FuncInfoMap = DenseMap<const llvm::Function *, FunctionInfo>;
 
 
 /// \brief Abstract interface for Operational Semantics
-class OpSem {
+class LegacyOperationalSemantics {
 protected:
   ExprFactory &m_efac;
   FuncInfoMap m_fmap;
@@ -127,15 +127,15 @@ protected:
   Expr m_errorFlag;
 
 public:
-  OpSem(ExprFactory &efac)
+  explicit LegacyOperationalSemantics(ExprFactory &efac)
       : m_efac(efac), trueE(mk<TRUE>(m_efac)), falseE(mk<FALSE>(m_efac)),
         m_errorFlag(
             bind::boolConst(mkTerm<std::string>("error.flag", m_efac))) {}
 
-  OpSem(const OpSem &o)
+  LegacyOperationalSemantics(const LegacyOperationalSemantics &o)
       : m_efac(o.m_efac), m_fmap(o.m_fmap), m_errorFlag(o.m_errorFlag) {}
 
-  virtual ~OpSem() {}
+  virtual ~LegacyOperationalSemantics() {}
 
   ExprFactory &getExprFactory() { return m_efac; }
   ExprFactory &efac() { return m_efac; }
@@ -238,7 +238,7 @@ public:
 };
 
 template <typename OutputIterator>
-void FunctionInfo::evalArgs(OpSem &sem, SymStore &s, OutputIterator out) const {
+void FunctionInfo::evalArgs(LegacyOperationalSemantics &sem, SymStore &s, OutputIterator out) const {
   for (auto *v : regions)
     *out++ = s.read(sem.symb(*v));
   for (auto *a : args)

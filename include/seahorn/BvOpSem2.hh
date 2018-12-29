@@ -27,7 +27,7 @@ class Bv2OpSemContext;
 
    Memory is modelled by arrays.
  */
-class Bv2OpSem : public OpSem {
+class Bv2OpSem : public LegacyOperationalSemantics {
   Pass &m_pass;
   TrackLevel m_trackLvl;
 

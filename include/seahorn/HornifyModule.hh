@@ -34,7 +34,7 @@ namespace seahorn
 
     const DataLayout *m_td;
     const CanFail *m_canFail;
-    boost::scoped_ptr<OpSem> m_sem;
+    boost::scoped_ptr<LegacyOperationalSemantics> m_sem;
 
     LiveSymbolsMap m_ls;
     PredDeclMap m_bbPreds;
@@ -76,7 +76,7 @@ namespace seahorn
         m_sem->getFunctionInfo (F).sumPred : Expr(0);
     }
     /// -- symbolic execution engine
-    OpSem &symExec () {return *m_sem;}
+    LegacyOperationalSemantics &symExec () {return *m_sem;}
 
     CutPointGraph &getCpg (Function &F)
     {return getAnalysis<CutPointGraph> (F);}

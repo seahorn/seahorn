@@ -11,7 +11,7 @@ class CpEdge;
  * block according to the given operational semantics.
  */
 class VCGen {
-  OpSem &m_sem;
+  LegacyOperationalSemantics &m_sem;
   Expr trueE;
 
   /// \brief Generate VC for a basic block \p bb on the edge
@@ -41,7 +41,7 @@ class VCGen {
                       ufo::ZSolver<ufo::EZ3> &smt);
 
 public:
-  VCGen(OpSem &sem) : m_sem(sem) { trueE = mk<TRUE>(m_sem.getExprFactory()); }
+  VCGen(LegacyOperationalSemantics &sem) : m_sem(sem) { trueE = mk<TRUE>(m_sem.getExprFactory()); }
 
   /// \brief Generate VC for a given edge in the CutPoint graph
   ///

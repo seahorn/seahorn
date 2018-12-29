@@ -588,7 +588,7 @@ namespace seahorn
   {
     // -- if BB belongs to a function that cannot fail, errorFlag is always false
     if (m_canFail && !m_canFail->canFail (BB.getParent ())) return falseE;
-    return this->OpSem::errorFlag (BB);
+    return this->LegacyOperationalSemantics::errorFlag (BB);
   }
 
   void ClpOpSem::exec (SymStore &s, const BasicBlock &bb, ExprVector &side,

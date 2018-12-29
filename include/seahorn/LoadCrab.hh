@@ -49,7 +49,7 @@ namespace seahorn {
     expr::Expr toExpr(crab_llvm::lin_cst_t cst, expr::ExprFactory &efac);
 
     /* Convert a crab linear expression into Expr using sem's semantics */    
-    expr::Expr toExpr(crab_llvm::lin_cst_t cst, OpSem& sem);    
+    expr::Expr toExpr(crab_llvm::lin_cst_t cst, LegacyOperationalSemantics& sem);
     
   private:
     crab_llvm::LinConsToExprImpl* m_impl;

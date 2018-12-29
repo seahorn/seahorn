@@ -145,7 +145,7 @@ public:
 
     ExprFactory efac;
 
-    std::unique_ptr<OpSem> sem;
+    std::unique_ptr<LegacyOperationalSemantics> sem;
     if (HornBv2)
       sem.reset(new Bv2OpSem(efac, *this, F.getParent()->getDataLayout(), MEM));
     else

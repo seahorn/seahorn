@@ -349,7 +349,7 @@ public:
   typedef boost::unordered_map<Expr, unsigned> BvWidthMap;
 
 private:
-  OpSem &m_sem;
+  LegacyOperationalSemantics &m_sem;
   BvWidthMap &m_width_map;
 
   class AdjustType : public std::unary_function<Expr, Expr> {
@@ -464,7 +464,7 @@ private:
   };
 
 public:
-  LinConToExprSem(OpSem &sem, BvWidthMap &map) : m_sem(sem), m_width_map(map) {}
+  LinConToExprSem(LegacyOperationalSemantics &sem, BvWidthMap &map) : m_sem(sem), m_width_map(map) {}
 
   VisitAction operator()(Expr exp) {
     if (isOpX<FAPP>(exp)) {      /* variable */
@@ -637,7 +637,7 @@ Expr LinConsToExpr::toExpr(lin_cst_t cst, ExprFactory &efac) {
   return m_impl->toExpr(cst, efac);
 }
 
-Expr LinConsToExpr::toExpr(lin_cst_t cst, OpSem &sem) {
+Expr LinConsToExpr::toExpr(lin_cst_t cst, LegacyOperationalSemantics &sem) {
   Expr e = m_impl->toExpr(cst, sem.getExprFactory());
   LinConToExprSem::BvWidthMap m;
   LinConToExprSem LCES(sem, m);

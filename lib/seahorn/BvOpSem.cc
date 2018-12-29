@@ -1009,7 +1009,7 @@ Expr BvOpSem::errorFlag(const BasicBlock &BB) {
   // -- if BB belongs to a function that cannot fail, errorFlag is always false
   if (m_canFail && !m_canFail->canFail(BB.getParent()))
     return falseE;
-  return this->OpSem::errorFlag(BB);
+  return this->LegacyOperationalSemantics::errorFlag(BB);
 }
 
 Expr BvOpSem::memStart(unsigned id) {

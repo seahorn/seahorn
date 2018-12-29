@@ -34,12 +34,12 @@ namespace seahorn
   public:
 
     #ifdef HAVE_CRAB_LLVM
-    PathBasedBmcEngine (OpSem &sem, ufo::EZ3 &zctx,
+    PathBasedBmcEngine (LegacyOperationalSemantics &sem, ufo::EZ3 &zctx,
 			crab_llvm::CrabLlvmPass *crab,
 			const llvm::TargetLibraryInfo& tli);
 
     #else
-    PathBasedBmcEngine (OpSem &sem, ufo::EZ3 &zctx,
+    PathBasedBmcEngine (LegacyOperationalSemantics &sem, ufo::EZ3 &zctx,
 			const llvm::TargetLibraryInfo& tli);
     #endif
 

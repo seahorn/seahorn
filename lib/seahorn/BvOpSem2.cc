@@ -2365,7 +2365,7 @@ Expr Bv2OpSemContext::bvToBool(Expr bv) {
 
 Bv2OpSem::Bv2OpSem(ExprFactory &efac, Pass &pass, const DataLayout &dl,
                    TrackLevel trackLvl)
-    : OpSem(efac), m_pass(pass), m_trackLvl(trackLvl), m_td(&dl) {
+    : LegacyOperationalSemantics(efac), m_pass(pass), m_trackLvl(trackLvl), m_td(&dl) {
   m_canFail = pass.getAnalysisIfAvailable<CanFail>();
   auto *p = pass.getAnalysisIfAvailable<TargetLibraryInfoWrapperPass>();
   if (p)
@@ -2380,14 +2380,14 @@ OpSemContextPtr Bv2OpSem::mkContext(SymStore &values, ExprVector &side) {
 }
 
 Bv2OpSem::Bv2OpSem(const Bv2OpSem &o)
-    : OpSem(o), m_pass(o.m_pass), m_trackLvl(o.m_trackLvl), m_td(o.m_td),
+    : LegacyOperationalSemantics(o), m_pass(o.m_pass), m_trackLvl(o.m_trackLvl), m_td(o.m_td),
       m_canFail(o.m_canFail) {}
 
 Expr Bv2OpSem::errorFlag(const BasicBlock &BB) {
   // -- if BB belongs to a function that cannot fail, errorFlag is always false
   if (m_canFail && !m_canFail->canFail(BB.getParent()))
     return falseE;
-  return this->OpSem::errorFlag(BB);
+  return this->LegacyOperationalSemantics::errorFlag(BB);
 }
 
 void Bv2OpSem::exec(const BasicBlock &bb, details::Bv2OpSemContext &ctx) {
@@ -2521,7 +2521,7 @@ Expr Bv2OpSem::getOperandValue(const Value &v, details::Bv2OpSemContext &ctx) {
 }
 
 bool Bv2OpSem::isSymReg(Expr v, details::Bv2OpSemContext &C) {
-  if (this->OpSem::isSymReg(v))
+  if (this->LegacyOperationalSemantics::isSymReg(v))
     return true;
 
   if (C.isKnownRegister(v))
@@ -2546,8 +2546,8 @@ bool Bv2OpSem::isSymReg(Expr v, details::Bv2OpSemContext &C) {
 }
 
 Expr Bv2OpSem::symb(const Value &I) {
-  llvm_unreachable("OpSem::symb() is deprecated. "
-                   "Use OpSem::getOperandValue() instead.");
+  llvm_unreachable("LegacyOperationalSemantics::symb() is deprecated. "
+                   "Use LegacyOperationalSemantics::getOperandValue() instead.");
 }
 
 const Value &Bv2OpSem::conc(Expr v) {

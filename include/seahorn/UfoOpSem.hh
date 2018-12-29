@@ -22,7 +22,7 @@ namespace seahorn {
  * This semantics is not very accurate. Should not be used for
  * low-level bit-precise reasoning.
  */
-class UfoOpSem : public OpSem {
+class UfoOpSem : public LegacyOperationalSemantics {
   Pass &m_pass;
   TrackLevel m_trackLvl;
 
@@ -37,12 +37,12 @@ private:
 public:
   UfoOpSem(ExprFactory &efac, Pass &pass, const DataLayout &dl,
            TrackLevel trackLvl = MEM, FunctionPtrSet abs_fns = FunctionPtrSet())
-      : OpSem(efac), m_pass(pass), m_trackLvl(trackLvl), m_abs_funcs(abs_fns),
+      : LegacyOperationalSemantics(efac), m_pass(pass), m_trackLvl(trackLvl), m_abs_funcs(abs_fns),
         m_td(&dl) {
     m_canFail = pass.getAnalysisIfAvailable<CanFail>();
   }
   UfoOpSem(const UfoOpSem &o)
-      : OpSem(o), m_pass(o.m_pass), m_trackLvl(o.m_trackLvl),
+      : LegacyOperationalSemantics(o), m_pass(o.m_pass), m_trackLvl(o.m_trackLvl),
         m_abs_funcs(o.m_abs_funcs), m_td(o.m_td), m_canFail(o.m_canFail) {}
 
   Expr errorFlag(const BasicBlock &BB) override;

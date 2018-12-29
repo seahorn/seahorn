@@ -40,7 +40,7 @@ namespace seahorn
   {
   protected:
     /// symbolic operational semantics
-    OpSem& m_sem;
+    LegacyOperationalSemantics& m_sem;
     /// expression factory
     ExprFactory &m_efac;
 
@@ -64,7 +64,7 @@ namespace seahorn
     ExprVector m_side;
 
   public:
-    BmcEngine (OpSem &sem, ufo::EZ3 &zctx) :
+    BmcEngine (LegacyOperationalSemantics &sem, ufo::EZ3 &zctx) :
       m_sem (sem), m_efac (sem.efac ()), m_result (boost::indeterminate),
       m_cpg (nullptr), m_fn (nullptr),
       m_smt_solver (zctx)
@@ -78,7 +78,7 @@ namespace seahorn
 
     void addCutPoint (const CutPoint &cp);
 
-    OpSem& sem () {return m_sem;}
+    LegacyOperationalSemantics& sem () {return m_sem;}
 
     ufo::EZ3 &zctx () { return m_smt_solver.getContext (); }
 

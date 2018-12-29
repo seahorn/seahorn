@@ -256,8 +256,8 @@ bool HornCex::runOnFunction(Module &M, Function &F) {
   UfoOpSem semUfo(efac, *this, M.getDataLayout(), MEM);
   BvOpSem semBv(efac, *this, M.getDataLayout(), MEM);
 
-  OpSem *sem =
-      UseBv ? static_cast<OpSem *>(&semBv) : static_cast<OpSem *>(&semUfo);
+  LegacyOperationalSemantics *sem =
+      UseBv ? static_cast<LegacyOperationalSemantics *>(&semBv) : static_cast<LegacyOperationalSemantics *>(&semUfo);
 
   const TargetLibraryInfo &tli =
       getAnalysis<TargetLibraryInfoWrapperPass>().getTLI();

@@ -28,7 +28,7 @@ namespace seahorn
 
      Pointers are not aligned
    */
-  class BvOpSem : public OpSem
+  class BvOpSem : public LegacyOperationalSemantics
   {
     Pass &m_pass;
     TrackLevel m_trackLvl;
@@ -40,12 +40,12 @@ namespace seahorn
   public:
     BvOpSem (ExprFactory &efac, Pass &pass, const DataLayout &dl,
              TrackLevel trackLvl = MEM) :
-      OpSem (efac), m_pass (pass), m_trackLvl (trackLvl), m_td(&dl)
+      LegacyOperationalSemantics (efac), m_pass (pass), m_trackLvl (trackLvl), m_td(&dl)
     {
       m_canFail = pass.getAnalysisIfAvailable<CanFail> ();
     }
     BvOpSem (const BvOpSem& o) :
-      OpSem (o), m_pass (o.m_pass), m_trackLvl (o.m_trackLvl),
+      LegacyOperationalSemantics (o), m_pass (o.m_pass), m_trackLvl (o.m_trackLvl),
       m_td (o.m_td), m_canFail (o.m_canFail) {}
 
     Expr errorFlag (const BasicBlock &BB) override;

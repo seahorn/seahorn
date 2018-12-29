@@ -1043,14 +1043,14 @@ boost::tribool PathBasedBmcEngine::path_encoding_and_solve_with_smt(
 }
 
 #ifdef HAVE_CRAB_LLVM
-PathBasedBmcEngine::PathBasedBmcEngine(OpSem &sem, ufo::EZ3 &zctx,
+PathBasedBmcEngine::PathBasedBmcEngine(LegacyOperationalSemantics &sem, ufo::EZ3 &zctx,
                                        crab_llvm::CrabLlvmPass *crab,
                                        const TargetLibraryInfo &tli)
     : BmcEngine(sem, zctx), m_incomplete(false), m_num_paths(0),
       m_aux_smt_solver(zctx), m_tli(tli), m_model(zctx), m_ls(nullptr),
       m_crab_global(crab), m_crab_path(nullptr) {}
 #else
-PathBasedBmcEngine::PathBasedBmcEngine(OpSem &sem, ufo::EZ3 &zctx,
+PathBasedBmcEngine::PathBasedBmcEngine(LegacyOperationalSemantics &sem, ufo::EZ3 &zctx,
                                        const TargetLibraryInfo &tli)
     : BmcEngine(sem, zctx), m_incomplete(false), m_num_paths(0),
       m_aux_smt_solver(zctx), m_tli(tli), m_model(zctx), m_ls(nullptr) {}

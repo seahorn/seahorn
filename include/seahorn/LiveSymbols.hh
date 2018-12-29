@@ -4,7 +4,7 @@
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/IR/Function.h"
 
-#include "seahorn/OpSem.hh"
+#include "seahorn/LegacyOperationalSemantics.hh"
 #include "seahorn/SymStore.hh"
 #include "ufo/Expr.hpp"
 

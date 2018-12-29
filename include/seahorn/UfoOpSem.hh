@@ -1,6 +1,6 @@
 #pragma once
 #include "seahorn/Analysis/CanFail.hh"
-#include "seahorn/OpSem.hh"
+#include "seahorn/LegacyOperationalSemantics.hh"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/IR/DataLayout.h"
 #include "llvm/Pass.h"

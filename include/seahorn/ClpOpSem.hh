@@ -3,7 +3,7 @@
 
 #include "llvm/Pass.h"
 #include "llvm/IR/DataLayout.h"
-#include "seahorn/OpSem.hh"
+#include "seahorn/LegacyOperationalSemantics.hh"
 #include "seahorn/Analysis/CanFail.hh"
 
 namespace llvm {

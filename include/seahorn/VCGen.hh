@@ -1,5 +1,5 @@
 #pragma once
-#include "seahorn/OpSem.hh"
+#include "seahorn/LegacyOperationalSemantics.hh"
 #include "ufo/Smt/EZ3.hh"
 
 namespace seahorn {

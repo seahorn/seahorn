@@ -7,7 +7,7 @@
 
 #ifdef HAVE_CRAB_LLVM
 #include "crab_llvm/crab_cfg.hh"
-#include "seahorn/OpSem.hh"
+#include "seahorn/LegacyOperationalSemantics.hh"
 #endif 
 
 namespace seahorn

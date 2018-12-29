@@ -1,7 +1,7 @@
 #pragma once
 
 #include "seahorn/Analysis/CanFail.hh"
-#include "seahorn/OpSem.hh"
+#include "seahorn/LegacyOperationalSemantics.hh"
 #include "llvm/Analysis/TargetLibraryInfo.h"
 #include "llvm/ExecutionEngine/GenericValue.h"
 #include "llvm/IR/DataLayout.h"

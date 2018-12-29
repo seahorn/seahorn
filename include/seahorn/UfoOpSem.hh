@@ -63,8 +63,8 @@ public:
               ExprVector &side, Expr act) override;
 
   Expr symb(const Value &v) override;
-  const Value &conc(Expr v) override;
-  bool isTracked(const Value &v) override;
+  const Value &conc(Expr v) const override;
+  bool isTracked(const Value &v) const override;
   Expr lookup(SymStore &s, const Value &v) override;
   bool isAbstracted(const Function &fn) override;
   Expr ptrArith(SymStore &s, llvm::GetElementPtrInst &gep);

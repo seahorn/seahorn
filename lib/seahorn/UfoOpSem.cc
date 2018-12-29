@@ -1112,7 +1112,7 @@ Expr UfoOpSem::symb(const Value &I) {
   return Expr(0);
 }
 
-const Value &UfoOpSem::conc(Expr v) {
+const Value &UfoOpSem::conc(Expr v) const {
   assert(isOpX<FAPP>(v));
   // name of the app
   Expr u = bind::fname(v);
@@ -1122,7 +1122,7 @@ const Value &UfoOpSem::conc(Expr v) {
   return *getTerm<const Value *>(v);
 }
 
-bool UfoOpSem::isTracked(const Value &v) {
+bool UfoOpSem::isTracked(const Value &v) const {
   const Value *scalar = nullptr;
 
   if (isa<UndefValue>(v))

@@ -64,8 +64,8 @@ namespace seahorn
                          ExprVector &side, Expr act);
 
     virtual Expr symb (const Value &v);
-    virtual const Value &conc (Expr v);
-    virtual bool isTracked (const Value &v);
+    virtual const Value &conc (Expr v) const;
+    virtual bool isTracked (const Value &v) const;
     virtual Expr lookup (SymStore &s, const Value &v);
     Expr ptrArith (SymStore &s, llvm::GetElementPtrInst& gep);
     unsigned storageSize (const llvm::Type *t);

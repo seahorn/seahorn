@@ -69,8 +69,8 @@ namespace seahorn
     virtual Expr memEnd (unsigned id);
 
     virtual Expr symb (const Value &v);
-    virtual const Value &conc (Expr v);
-    virtual bool isTracked (const Value &v);
+    virtual const Value &conc (Expr v) const;
+    virtual bool isTracked (const Value &v) const;
     virtual Expr lookup (SymStore &s, const Value &v);
 
     Expr symbolicIndexedOffset (SymStore &s, llvm::GetElementPtrInst& gep);

@@ -305,7 +305,7 @@ void IncSmallHornifyFunction::runOnFunction(Function &F) {
 
     ExprVector postArgs{trueE, falseE, falseE};
     const FunctionInfo &fi = m_sem.getFunctionInfo(F);
-    fi.evalArgs(m_sem, s, std::back_inserter(postArgs));
+    evalArgs(fi, m_sem, s, std::back_inserter(postArgs));
     std::copy_if(postArgs.begin() + 3, postArgs.end(),
                  std::inserter(allVars, allVars.begin()), bind::IsConst());
     Expr post = bind::fapp(fi.sumPred, postArgs);

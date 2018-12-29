@@ -122,7 +122,7 @@ void HornifyFunction::extractFunctionInfo(const BasicBlock &BB) {
   Expr trueE = mk<TRUE>(m_efac);
   Expr falseE = mk<FALSE>(m_efac);
   ExprVector postArgs{trueE, trueE, trueE};
-  fi.evalArgs(m_sem, s, std::back_inserter(postArgs));
+  evalArgs(fi, m_sem, s, std::back_inserter(postArgs));
   // -- use a mutable gate to put everything together
   expr::filter(mknary<OUT_G>(postArgs), bind::IsConst(),
                std::inserter(allVars, allVars.begin()));
@@ -271,7 +271,7 @@ void SmallHornifyFunction::runOnFunction(Function &F) {
     Expr falseE = mk<FALSE>(m_efac);
     ExprVector postArgs{mk<TRUE>(m_efac), falseE, falseE};
     const FunctionInfo &fi = m_sem.getFunctionInfo(F);
-    fi.evalArgs(m_sem, s, std::back_inserter(postArgs));
+    evalArgs(fi, m_sem, s, std::back_inserter(postArgs));
     // -- use a mutable gate to put everything together
     expr::filter(mknary<OUT_G>(postArgs), bind::IsConst(),
                  std::inserter(allVars, allVars.begin()));
@@ -493,7 +493,7 @@ void LargeHornifyFunction::runOnFunction(Function &F) {
     Expr falseE = mk<FALSE>(m_efac);
     ExprVector postArgs{mk<TRUE>(m_efac), falseE, falseE};
     const FunctionInfo &fi = m_sem.getFunctionInfo(F);
-    fi.evalArgs(m_sem, s, std::back_inserter(postArgs));
+    evalArgs(fi, m_sem, s, std::back_inserter(postArgs));
     // -- use a mutable gate to put everything together
     expr::filter(mknary<OUT_G>(postArgs), bind::IsConst(),
                  std::inserter(allVars, allVars.begin()));

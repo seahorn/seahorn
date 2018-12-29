@@ -200,7 +200,7 @@ namespace seahorn
       Expr falseE = mk<FALSE> (m_efac);
       ExprVector postArgs {mk<TRUE> (m_efac), falseE, falseE};
       const FunctionInfo &fi = m_sem.getFunctionInfo (F);
-      fi.evalArgs (m_sem, s, std::back_inserter (postArgs));
+      evalArgs (fi, m_sem, s, std::back_inserter (postArgs));
       std::copy_if (postArgs.begin () + 3, postArgs.end (),
                     std::inserter (allVars, allVars.begin ()),
                     bind::IsConst());
@@ -394,7 +394,7 @@ namespace seahorn
       Expr falseE = mk<FALSE> (m_efac);
       ExprVector postArgs {mk<TRUE> (m_efac), falseE, falseE};
       const FunctionInfo &fi = m_sem.getFunctionInfo (F);
-      fi.evalArgs (m_sem, s, std::back_inserter (postArgs));
+      evalArgs (fi, m_sem, s, std::back_inserter (postArgs));
       std::copy_if (postArgs.begin () + 3, postArgs.end (),
                     std::inserter (allVars, allVars.begin ()),
                     bind::IsConst());

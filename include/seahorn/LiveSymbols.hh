@@ -4,7 +4,7 @@
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/IR/Function.h"
 
-#include "seahorn/LegacyOperationalSemantics.hh"
+#include "seahorn/OperationalSemantics.hh"
 #include "seahorn/SymStore.hh"
 #include "ufo/Expr.hpp"
 
@@ -48,7 +48,7 @@ class LiveSymbols {
   const Function &m_f;
   ExprFactory &m_efac;
 
-  LegacyOperationalSemantics &m_sem;
+  OperationalSemantics &m_sem;
   ExprVector m_side;
 
   std::vector<const BasicBlock *> m_rtopo;
@@ -69,7 +69,7 @@ class LiveSymbols {
   void globalPass();
 
 public:
-  LiveSymbols(const Function &F, ExprFactory &efac, LegacyOperationalSemantics &semantics)
+  LiveSymbols(const Function &F, ExprFactory &efac, OperationalSemantics &semantics)
       : m_f(F), m_efac(efac), m_sem(semantics), m_gstore(efac) {
     trueE = mk<TRUE>(m_efac);
   }

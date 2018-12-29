@@ -2550,7 +2550,7 @@ Expr Bv2OpSem::symb(const Value &I) {
                    "Use LegacyOperationalSemantics::getOperandValue() instead.");
 }
 
-const Value &Bv2OpSem::conc(Expr v) {
+const Value &Bv2OpSem::conc(Expr v) const {
   assert(isOpX<FAPP>(v));
   // name of the app
   Expr u = bind::fname(v);
@@ -2560,7 +2560,7 @@ const Value &Bv2OpSem::conc(Expr v) {
   return *getTerm<const Value *>(v);
 }
 
-bool Bv2OpSem::isSkipped(const Value &v) {
+bool Bv2OpSem::isSkipped(const Value &v) const {
   // skip shadow.mem instructions if memory is not a unique scalar
   // and we are now ignoring memory instructions
   const Value *scalar = nullptr;

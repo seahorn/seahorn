@@ -705,7 +705,7 @@ namespace seahorn
     return Expr(0);
   }
 
-  const Value &ClpOpSem::conc (Expr v)
+  const Value &ClpOpSem::conc (Expr v) const
   {
     assert (isOpX<FAPP> (v));
     // name of the app
@@ -717,7 +717,7 @@ namespace seahorn
   }
 
 
-  bool ClpOpSem::isTracked (const Value &v)
+  bool ClpOpSem::isTracked (const Value &v) const
   {
     const Value* scalar;
 

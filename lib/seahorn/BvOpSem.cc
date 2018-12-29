@@ -1175,7 +1175,7 @@ Expr BvOpSem::symb(const Value &I) {
   return Expr(0);
 }
 
-const Value &BvOpSem::conc(Expr v) {
+const Value &BvOpSem::conc(Expr v) const {
   assert(isOpX<FAPP>(v));
   // name of the app
   Expr u = bind::fname(v);
@@ -1185,7 +1185,7 @@ const Value &BvOpSem::conc(Expr v) {
   return *getTerm<const Value *>(v);
 }
 
-bool BvOpSem::isTracked(const Value &v) {
+bool BvOpSem::isTracked(const Value &v) const {
   const Value *scalar = nullptr;
 
   // -- shadow values represent memory regions

@@ -119,16 +119,16 @@ public:
             expression. Assumes that the input expression has
             concrete representation.
    */
-  const Value &conc(Expr v) override;
+  const Value &conc(Expr v) const override;
 
   /// \brief Indicates whether an instruction/value is skipped by
   /// the semantics. An instruction is skipped means that, from the
   /// perspective of the semantics, the instruction does not
   /// exist. It is not executed, has no effect on the execution
   /// context, and no instruction that is not skipped depends on it
-  bool isSkipped(const Value &v);
+  bool isSkipped(const Value &v) const;
 
-  bool isTracked(const Value &v) override { return !isSkipped(v); }
+  bool isTracked(const Value &v) const override { return !isSkipped(v); }
   Expr memStart(unsigned id) override;
   Expr memEnd(unsigned id) override;
 

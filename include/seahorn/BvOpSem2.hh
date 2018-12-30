@@ -1,7 +1,7 @@
 #pragma once
 
 #include "seahorn/Analysis/CanFail.hh"
-#include "seahorn/LegacyOperationalSemantics.hh"
+#include "seahorn/OperationalSemantics.hh"
 #include "llvm/Analysis/TargetLibraryInfo.h"
 #include "llvm/ExecutionEngine/GenericValue.h"
 #include "llvm/IR/DataLayout.h"
@@ -27,7 +27,7 @@ class Bv2OpSemContext;
 
    Memory is modelled by arrays.
  */
-class Bv2OpSem : public LegacyOperationalSemantics {
+class Bv2OpSem : public OperationalSemantics {
   Pass &m_pass;
   TrackLevel m_trackLvl;
 
@@ -82,6 +82,7 @@ public:
     execBr(src, dst, ctx(_ctx));
   }
 
+protected:
   void exec(const BasicBlock &bb, seahorn::details::Bv2OpSemContext &ctx);
   void execPhi(const BasicBlock &bb, const BasicBlock &from,
                seahorn::details::Bv2OpSemContext &ctx);
@@ -90,30 +91,7 @@ public:
   void execBr(const BasicBlock &src, const BasicBlock &dst,
               seahorn::details::Bv2OpSemContext &ctx);
 
-  void exec(SymStore &s, const BasicBlock &bb, ExprVector &side,
-            Expr act) override;
-  void execPhi(SymStore &s, const BasicBlock &bb, const BasicBlock &from,
-               ExprVector &side, Expr act) override;
-
-  void execEdg(SymStore &s, const BasicBlock &src, const BasicBlock &dst,
-               ExprVector &side) override;
-
-  void execBr(SymStore &s, const BasicBlock &src, const BasicBlock &dst,
-              ExprVector &side, Expr act) override;
-
-  /**
-     \brief Returns a symbolic expression corresponding to a value.
-     If the value is a register, returns the corresponding symbolic register.
-
-     If the value is a constant, returns a corresponding symbolic constant.
-
-     If the value is a basic block, returns a symbolic Boolean
-     register that is set to true whenever the block is executed.
-
-     see also conc()
-   */
-  Expr symb(const Value &v) override;
-
+public:
   /**
      \brief Returns a concrete representation of a given symbolic
             expression. Assumes that the input expression has
@@ -129,8 +107,6 @@ public:
   bool isSkipped(const Value &v) const;
 
   bool isTracked(const Value &v) const override { return !isSkipped(v); }
-  Expr memStart(unsigned id) override;
-  Expr memEnd(unsigned id) override;
 
   /// \brief Returns true if the given expression is a symbolic register
   bool isSymReg(Expr v) override { llvm_unreachable(nullptr); }

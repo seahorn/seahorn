@@ -75,7 +75,7 @@ bool isShadowMem(const Value &V, const Value **out) {
     *out = scalar;
   return res;
 }
-}
+} // namespace
 
 namespace seahorn {
 namespace details {
@@ -1842,8 +1842,8 @@ public:
 
     if (!ctx.getMemReadRegister() || !ctx.getMemWriteRegister() ||
         m_sem.isSkipped(val)) {
-      LOG("opsem", errs() << "Skipping store to " << addr << " of " << val
-                          << "\n";);
+      LOG("opsem",
+          errs() << "Skipping store to " << addr << " of " << val << "\n";);
       ctx.setMemReadRegister(Expr());
       ctx.setMemWriteRegister(Expr());
       return Expr();
@@ -1863,8 +1863,8 @@ public:
     }
 
     if (!res)
-      LOG("opsem", errs() << "Skipping store to " << addr << " of " << val
-                          << "\n";);
+      LOG("opsem",
+          errs() << "Skipping store to " << addr << " of " << val << "\n";);
 
     ctx.setMemReadRegister(Expr());
     ctx.setMemWriteRegister(Expr());
@@ -2062,8 +2062,8 @@ struct OpSemPhiVisitor : public InstVisitor<OpSemPhiVisitor>, OpSemBase {
     }
   }
 };
-}
-}
+} // namespace details
+} // namespace seahorn
 
 namespace seahorn {
 namespace details {
@@ -2118,8 +2118,8 @@ void Bv2OpSemContext::setMemManager(OpSemMemManager *man) {
     val = 0x0FFFFFFF;
     break;
   default:
-    LOG("opsem", errs() << "Unsupported pointer size: " << ptrSzInBits()
-                        << "\n";);
+    LOG("opsem",
+        errs() << "Unsupported pointer size: " << ptrSzInBits() << "\n";);
     llvm_unreachable("Unexpected pointer size");
   }
   maxPtrE = bv::bvnum(val, ptrSzInBits(), efac());
@@ -2361,11 +2361,12 @@ Expr Bv2OpSemContext::bvToBool(Expr bv) {
     return m_falseE;
   return mk<EQ>(bv, trueBv);
 }
-}
+} // namespace details
 
 Bv2OpSem::Bv2OpSem(ExprFactory &efac, Pass &pass, const DataLayout &dl,
                    TrackLevel trackLvl)
-    : LegacyOperationalSemantics(efac), m_pass(pass), m_trackLvl(trackLvl), m_td(&dl) {
+    : OperationalSemantics(efac), m_pass(pass), m_trackLvl(trackLvl),
+      m_td(&dl) {
   m_canFail = pass.getAnalysisIfAvailable<CanFail>();
   auto *p = pass.getAnalysisIfAvailable<TargetLibraryInfoWrapperPass>();
   if (p)
@@ -2380,14 +2381,14 @@ OpSemContextPtr Bv2OpSem::mkContext(SymStore &values, ExprVector &side) {
 }
 
 Bv2OpSem::Bv2OpSem(const Bv2OpSem &o)
-    : LegacyOperationalSemantics(o), m_pass(o.m_pass), m_trackLvl(o.m_trackLvl), m_td(o.m_td),
-      m_canFail(o.m_canFail) {}
+    : OperationalSemantics(o), m_pass(o.m_pass), m_trackLvl(o.m_trackLvl),
+      m_td(o.m_td), m_canFail(o.m_canFail) {}
 
 Expr Bv2OpSem::errorFlag(const BasicBlock &BB) {
   // -- if BB belongs to a function that cannot fail, errorFlag is always false
   if (m_canFail && !m_canFail->canFail(BB.getParent()))
     return falseE;
-  return this->LegacyOperationalSemantics::errorFlag(BB);
+  return this->OperationalSemantics::errorFlag(BB);
 }
 
 void Bv2OpSem::exec(const BasicBlock &bb, details::Bv2OpSemContext &ctx) {
@@ -2404,25 +2405,11 @@ void Bv2OpSem::exec(const BasicBlock &bb, details::Bv2OpSemContext &ctx) {
   }
 }
 
-void Bv2OpSem::exec(SymStore &s, const BasicBlock &bb, ExprVector &side,
-                    Expr act) {
-  details::Bv2OpSemContext ctx(*this, s, side);
-  ctx.setActLit(act);
-  return this->exec(bb, ctx);
-}
-
 void Bv2OpSem::execPhi(const BasicBlock &bb, const BasicBlock &from,
                        details::Bv2OpSemContext &ctx) {
   ctx.onBasicBlockEntry(bb);
   ctx.setPrevBb(from);
   intraPhi(ctx);
-}
-
-void Bv2OpSem::execPhi(SymStore &s, const BasicBlock &bb,
-                       const BasicBlock &from, ExprVector &side, Expr act) {
-  details::Bv2OpSemContext ctx(*this, s, side);
-  ctx.setActLit(act);
-  this->execPhi(bb, from, ctx);
 }
 
 Expr Bv2OpSem::symbolicIndexedOffset(gep_type_iterator TI, gep_type_iterator TE,
@@ -2521,7 +2508,7 @@ Expr Bv2OpSem::getOperandValue(const Value &v, details::Bv2OpSemContext &ctx) {
 }
 
 bool Bv2OpSem::isSymReg(Expr v, details::Bv2OpSemContext &C) {
-  if (this->LegacyOperationalSemantics::isSymReg(v))
+  if (this->OperationalSemantics::isSymReg(v))
     return true;
 
   if (C.isKnownRegister(v))
@@ -2543,11 +2530,6 @@ bool Bv2OpSem::isSymReg(Expr v, details::Bv2OpSemContext &C) {
 
   errs() << "Unexpected symbolic value: " << *v << "\n";
   llvm_unreachable(nullptr);
-}
-
-Expr Bv2OpSem::symb(const Value &I) {
-  llvm_unreachable("LegacyOperationalSemantics::symb() is deprecated. "
-                   "Use LegacyOperationalSemantics::getOperandValue() instead.");
 }
 
 const Value &Bv2OpSem::conc(Expr v) const {
@@ -2738,18 +2720,6 @@ void Bv2OpSem::unhandledInst(const Instruction &inst,
                     << inst.getParent()->getParent()->getName());
 }
 
-Expr Bv2OpSem::memStart(unsigned id) {
-  // TODO: reimplement
-  Expr sort = bv::bvsort(pointerSizeInBits(), m_efac);
-  return shadow_dsa::memStartVar(id, sort);
-}
-
-Expr Bv2OpSem::memEnd(unsigned id) {
-  // TODO: reimplement
-  Expr sort = bv::bvsort(pointerSizeInBits(), m_efac);
-  return shadow_dsa::memEndVar(id, sort);
-}
-
 /// \brief Returns a symbolic register corresponding to a value
 Expr Bv2OpSem::mkSymbReg(const Value &v, OpSemContext &_ctx) {
   return ctx(_ctx).mkRegister(v);
@@ -2759,7 +2729,6 @@ Expr Bv2OpSem::mkSymbReg(const Value &v, OpSemContext &_ctx) {
 details::Bv2OpSemContext &Bv2OpSem::ctx(OpSemContext &_ctx) {
   return static_cast<details::Bv2OpSemContext &>(_ctx);
 }
-
 
 /// \brief Returns a concrete value to which a constant evaluates
 /// Adapted from llvm::ExecutionEngine
@@ -3231,7 +3200,6 @@ Optional<GenericValue> Bv2OpSem::getConstantValue(const Constant *C) {
   return Result;
 }
 
-/// --- legacy interface ---
 void Bv2OpSem::execEdg(const BasicBlock &src, const BasicBlock &dst,
                        details::Bv2OpSemContext &ctx) {
   exec(src, ctx.act(trueE));
@@ -3244,31 +3212,11 @@ void Bv2OpSem::execEdg(const BasicBlock &src, const BasicBlock &dst,
     exec(dst, ctx);
 }
 
-void Bv2OpSem::execEdg(SymStore &s, const BasicBlock &src,
-                       const BasicBlock &dst, ExprVector &side) {
-  exec(s, src, side, trueE);
-  execBr(s, src, dst, side, trueE);
-  execPhi(s, dst, src, side, trueE);
-
-  // an edge into a basic block that does not return includes the block itself
-  const TerminatorInst *term = dst.getTerminator();
-  if (term && isa<const UnreachableInst>(term))
-    exec(s, dst, side, trueE);
-}
-
 void Bv2OpSem::execBr(const BasicBlock &src, const BasicBlock &dst,
                       details::Bv2OpSemContext &ctx) {
   ctx.onBasicBlockEntry(src);
   ctx.setInstruction(*src.getTerminator());
   intraBr(ctx, dst);
 }
-
-void Bv2OpSem::execBr(SymStore &s, const BasicBlock &src, const BasicBlock &dst,
-                      ExprVector &side, Expr act) {
-  details::Bv2OpSemContext ctx(*this, s, side);
-  ctx.setActLit(act);
-  this->execBr(src, dst, ctx);
-}
-
 
 } // namespace seahorn

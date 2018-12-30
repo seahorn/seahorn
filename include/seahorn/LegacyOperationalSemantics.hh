@@ -21,17 +21,17 @@ public:
 
   /// \brief Returns a symbolic register correspond to llvm::Value
   /// Deprecated. See mkSymbReg
-  virtual Expr symb(const Value &v) = 0;
+  Expr symb(const Value &v) = 0;
 
   /// \brief Returns a symbolic register correspond to llvm::Value
   Expr mkSymbReg(const Value &v, OpSemContext &ctx) override { return symb(v); }
 
  /// \brief Returns special symbolic register that contains the value
   /// at which memory region with id \p id begins
-  virtual Expr memStart(unsigned id) = 0;
+  Expr memStart(unsigned id) override = 0;
   /// \brief Returns special symbolic register that contains the value
   /// at which memory region with id \p id ends
-  virtual Expr memEnd(unsigned id) = 0;
+  Expr memEnd(unsigned id) override = 0;
 
 
   void exec(const llvm::BasicBlock &bb, OpSemContext &ctx) override {

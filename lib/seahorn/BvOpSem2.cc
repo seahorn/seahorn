@@ -75,6 +75,8 @@ bool isShadowMem(const Value &V, const Value **out) {
     *out = scalar;
   return res;
 }
+
+const seahorn::details::Bv2OpSemContext &const_ctx(const OpSemContext &_ctx);
 } // namespace
 
 namespace seahorn {
@@ -2722,12 +2724,11 @@ void Bv2OpSem::unhandledInst(const Instruction &inst,
 
 /// \brief Returns a symbolic register corresponding to a value
 Expr Bv2OpSem::mkSymbReg(const Value &v, OpSemContext &_ctx) {
-  return ctx(_ctx).mkRegister(v);
+  return details::ctx(_ctx).mkRegister(v);
 }
 
-/// \brief Unwraps a context
-details::Bv2OpSemContext &Bv2OpSem::ctx(OpSemContext &_ctx) {
-  return static_cast<details::Bv2OpSemContext &>(_ctx);
+Expr Bv2OpSem::getSymbReg(const Value &v, const OpSemContext &_ctx) const {
+  return const_ctx(_ctx).getRegister(v);
 }
 
 /// \brief Returns a concrete value to which a constant evaluates
@@ -3220,3 +3221,18 @@ void Bv2OpSem::execBr(const BasicBlock &src, const BasicBlock &dst,
 }
 
 } // namespace seahorn
+
+namespace seahorn {
+namespace details {
+/// \brief Unwraps a context
+seahorn::details::Bv2OpSemContext &ctx(OpSemContext &_ctx) {
+  return static_cast<seahorn::details::Bv2OpSemContext &>(_ctx);
+}
+} // namespace details
+} // namespace seahorn
+namespace {
+// \brief Unwraps a const context
+const seahorn::details::Bv2OpSemContext &const_ctx(const OpSemContext &_ctx) {
+  return static_cast<const seahorn::details::Bv2OpSemContext &>(_ctx);
+}
+} // namespace

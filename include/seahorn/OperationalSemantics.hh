@@ -171,8 +171,15 @@ public:
   virtual void execBr(const llvm::BasicBlock &src, const llvm::BasicBlock &dst,
                       OpSemContext &ctx) = 0;
 
-  /// \brief Returns a symbolic register correspond to llvm::Value
+  /// \brief Returns a symbolic register correspond to llvm::Value \p v
+  ///
+  /// Creates a new register if one does not exists
   virtual Expr mkSymbReg(const llvm::Value &v, OpSemContext &ctx) = 0;
+
+  /// \brief Returns a symbolic register corresponding to llvm::Value \p v
+  ///
+  /// Returns null expression if the value has no corresponding symbolic register
+  virtual Expr getSymbReg(const llvm::Value &v, const OpSemContext &ctx) const = 0;
 
   /// \brief Returns an llvm::Value corresponding to a symbolic
   /// register

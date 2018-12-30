@@ -25,6 +25,9 @@ public:
 
   /// \brief Returns a symbolic register correspond to llvm::Value
   Expr mkSymbReg(const Value &v, OpSemContext &ctx) override { return symb(v); }
+  Expr getSymbReg(const Value &v, const OpSemContext &ctx) const override {
+    return const_cast<LegacyOperationalSemantics*>(this)->symb(v);
+  }
 
  /// \brief Returns special symbolic register that contains the value
   /// at which memory region with id \p id begins

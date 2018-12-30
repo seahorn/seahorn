@@ -17,7 +17,8 @@ class GetElementPtrInst;
 namespace seahorn {
 namespace details {
 class Bv2OpSemContext;
-}
+Bv2OpSemContext &ctx(OpSemContext &_ctx);
+} // namespace details
 /**
    Bit-precise operational semantics for LLVM (take 2)
 
@@ -67,19 +68,19 @@ public:
   Expr errorFlag(const BasicBlock &BB) override;
 
   void exec(const BasicBlock &bb, OpSemContext &_ctx) override {
-    exec(bb, ctx(_ctx));
+    exec(bb, details::ctx(_ctx));
   }
   void execPhi(const BasicBlock &bb, const BasicBlock &from,
                OpSemContext &_ctx) override {
-    execPhi(bb, from, ctx(_ctx));
+    execPhi(bb, from, details::ctx(_ctx));
   }
   void execEdg(const BasicBlock &src, const BasicBlock &dst,
                OpSemContext &_ctx) override {
-    execEdg(src, dst, ctx(_ctx));
+    execEdg(src, dst, details::ctx(_ctx));
   }
   void execBr(const BasicBlock &src, const BasicBlock &dst,
               OpSemContext &_ctx) override {
-    execBr(src, dst, ctx(_ctx));
+    execBr(src, dst, details::ctx(_ctx));
   }
 
 protected:
@@ -113,6 +114,7 @@ public:
   bool isSymReg(Expr v, seahorn::details::Bv2OpSemContext &ctx);
 
   Expr mkSymbReg(const Value &v, OpSemContext &_ctx) override;
+  Expr getSymbReg(const Value &v, const OpSemContext &_ctx) const override;
 
   Expr getOperandValue(const Value &v, seahorn::details::Bv2OpSemContext &ctx);
   Expr lookup(SymStore &s, const Value &v) { llvm_unreachable(nullptr); }
@@ -136,8 +138,5 @@ public:
   void unhandledInst(const Instruction &inst,
                      seahorn::details::Bv2OpSemContext &ctx);
   void unhandledValue(const Value &v, seahorn::details::Bv2OpSemContext &ctx);
-
-private:
-  static seahorn::details::Bv2OpSemContext &ctx(OpSemContext &_ctx);
 };
 } // namespace seahorn

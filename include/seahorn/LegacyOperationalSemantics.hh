@@ -9,7 +9,6 @@ namespace seahorn {
 using namespace llvm;
 using namespace expr;
 
-
 /// \brief Abstract interface for Operational Semantics
 class LegacyOperationalSemantics : public OperationalSemantics {
 public:
@@ -21,42 +20,39 @@ public:
 
   /// \brief Returns a symbolic register correspond to llvm::Value
   /// Deprecated. See mkSymbReg
-  Expr symb(const Value &v) = 0;
+  virtual Expr symb(const Value &v) = 0;
 
   /// \brief Returns a symbolic register correspond to llvm::Value
   Expr mkSymbReg(const Value &v, OpSemContext &ctx) override { return symb(v); }
   Expr getSymbReg(const Value &v, const OpSemContext &ctx) const override {
-    return const_cast<LegacyOperationalSemantics*>(this)->symb(v);
+    return const_cast<LegacyOperationalSemantics *>(this)->symb(v);
   }
 
- /// \brief Returns special symbolic register that contains the value
+  /// \brief Returns special symbolic register that contains the value
   /// at which memory region with id \p id begins
-  Expr memStart(unsigned id) override = 0;
+  virtual Expr memStart(unsigned id) = 0;
   /// \brief Returns special symbolic register that contains the value
   /// at which memory region with id \p id ends
-  Expr memEnd(unsigned id) override = 0;
-
+  virtual Expr memEnd(unsigned id) = 0;
 
   void exec(const llvm::BasicBlock &bb, OpSemContext &ctx) override {
     exec(ctx.values(), bb, ctx.side(), ctx.getActLit());
   }
 
   void execPhi(const llvm::BasicBlock &bb, const llvm::BasicBlock &from,
-                       OpSemContext &ctx) override {
+               OpSemContext &ctx) override {
     execPhi(ctx.values(), bb, from, ctx.side(), ctx.getActLit());
   }
 
   void execEdg(const llvm::BasicBlock &src, const llvm::BasicBlock &dst,
-                       OpSemContext &ctx) override {
+               OpSemContext &ctx) override {
     execEdg(ctx.values(), src, dst, ctx.side());
   }
 
   void execBr(const llvm::BasicBlock &src, const llvm::BasicBlock &dst,
-                      OpSemContext &ctx) override {
+              OpSemContext &ctx) override {
     execBr(ctx.values(), src, dst, ctx.side(), ctx.getActLit());
   }
-
-
 
   /// Deprecated old interface
   virtual void exec(SymStore &s, const BasicBlock &bb, ExprVector &side,

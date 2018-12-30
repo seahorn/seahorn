@@ -53,7 +53,8 @@ public:
   ///
   /// Modifies symbolic store \p s to represent the state at the end
   /// of the edge
-  virtual void genVcForCpEdge(SymStore &s, const CpEdge &edge,
+  virtual void genVcForCpEdgeLegacy(SymStore &s, const CpEdge &edge,
                               ExprVector &side);
+  virtual void genVcForCpEdge(OpSemContext &ctx, const CpEdge &edge);
 };
 } // namespace seahorn

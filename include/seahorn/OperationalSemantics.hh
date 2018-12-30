@@ -216,26 +216,6 @@ public:
   /// OpSem object
   virtual bool isSymReg(Expr v) { return v == m_errorFlag; }
 
-  /// \brief Temporary solution until trace generation in BmcEngine is adapted
-  /// to use OperationalSemantics
-  virtual Expr symb(const llvm::Value &v) {
-    llvm_unreachable("Unexpected call to symb(). "
-                     "OperationalSemantics has been used where "
-                     "LegacyOperationalSemantics is expected. ");
-  }
-  virtual Expr memStart(unsigned id) {
-    llvm_unreachable("Unexpected call to memStart(). "
-                     "OperationalSemantics has been used where "
-                     "LegacyOperationalSemantics is expected. ");
-  }
-  virtual Expr memEnd(unsigned id) {
-    llvm_unreachable("Unexpected call to memEnd(). "
-                     "OperationalSemantics has been used where "
-                     "LegacyOperationalSemantics is expected. ");
-  }
-
-
-
 };
 
 } // namespace seahorn

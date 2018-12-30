@@ -306,7 +306,7 @@ namespace seahorn
 
           ExprVector side;
           side.push_back (boolop::lneg ((s.read (m_sem.errorFlag (cp.bb ())))));
-          vcgen.genVcForCpEdge(s, *edge, side);
+          vcgen.genVcForCpEdgeLegacy(s, *edge, side);
           Expr tau = mknary<AND> (mk<TRUE> (m_efac), side);
           expr::filter (tau, bind::IsConst(),
                         std::inserter (allVars, allVars.begin ()));

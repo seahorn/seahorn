@@ -111,46 +111,50 @@ void VCGen::checkSideAtEnd(unsigned &head, ExprVector &side,
   }
 }
 
-void VCGen::genVcForCpEdge(SymStore &s, const CpEdge &edge, ExprVector &side) {
+void VCGen::genVcForCpEdgeLegacy(SymStore &s, const CpEdge &edge, ExprVector &side) {
+  OpSemContextPtr ctx = m_sem.mkContext(s, side);
+  genVcForCpEdge(*ctx, edge);
+}
+
+void VCGen::genVcForCpEdge(OpSemContext &ctx, const CpEdge &edge) {
   const CutPoint &target = edge.target();
 
   std::unique_ptr<EZ3> zctx(nullptr);
   std::unique_ptr<ZSolver<EZ3>> smt(nullptr);
   initSmt(zctx, smt);
 
-  OpSemContextPtr ctx = m_sem.mkContext(s, side);
   // remember what was added since last call to smt
-  unsigned head = ctx->side().size();
+  unsigned head = ctx.side().size();
 
   bool isEntry = true;
   for (const BasicBlock &bb : edge) {
     Expr bbV;
     if (isEntry) {
       // -- initialize bb-exec register
-      bbV = ctx->havoc(m_sem.mkSymbReg(bb, *ctx));
+      bbV = ctx.havoc(m_sem.mkSymbReg(bb, ctx));
       // -- compute side-conditions for the entry block of the edge
-      ctx->setActLit(trueE);
-      m_sem.exec(bb, *ctx);
+      ctx.setActLit(trueE);
+      m_sem.exec(bb, ctx);
     } else {
       // -- generate side-conditions for bb
-      genVcForBasicBlockOnEdge(*ctx, edge, bb);
+      genVcForBasicBlockOnEdge(ctx, edge, bb);
       // -- check current value of bb-exec register
-      bbV = ctx->read(m_sem.mkSymbReg(bb, *ctx));
+      bbV = ctx.read(m_sem.mkSymbReg(bb, ctx));
     }
     isEntry = false;
 
     // -- check that the current side condition is consistent
     if (smt)
-      checkSideAtBb(head, ctx->side(), bbV, *smt, edge, bb);
+      checkSideAtBb(head, ctx.side(), bbV, *smt, edge, bb);
   }
 
   // -- generate side condition for the last basic block on the edge
   // -- this executes only PHINode instructions in target.bb()
-  genVcForBasicBlockOnEdge(*ctx, edge, target.bb(), true);
+  genVcForBasicBlockOnEdge(ctx, edge, target.bb(), true);
 
   // -- check consistency of side-conditions at the end
   if (smt)
-    checkSideAtEnd(head, ctx->side(), *smt);
+    checkSideAtEnd(head, ctx.side(), *smt);
 }
 
 namespace sem_detail {

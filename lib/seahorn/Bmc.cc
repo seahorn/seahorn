@@ -28,14 +28,19 @@ boost::tribool BmcEngine::solve() {
 void BmcEngine::encode(bool assert_formula) {
 
   // -- only run the encoding once
-  if (!m_side.empty())
+  if (m_semCtx)
     return;
 
   assert(m_cpg);
   assert(m_fn);
-  VCGen vcgen(m_sem);
-  m_states.push_back(SymStore(m_efac));
 
+  m_semCtx = m_sem.mkContext(m_ctxState, m_side);
+  VCGen vcgen(m_sem);
+
+  // first state is the state in which execution starts
+  m_states.push_back(m_semCtx->values());
+
+  // -- for every pair of cut-points
   const CutPoint *prev = nullptr;
   for (const CutPoint *cp : m_cps) {
     if (prev) {
@@ -43,12 +48,14 @@ void BmcEngine::encode(bool assert_formula) {
       assert(edg);
       m_edges.push_back(edg);
 
-      m_states.push_back(m_states.back());
-      SymStore &s = m_states.back();
-      vcgen.genVcForCpEdge(s, *edg, m_side);
+      // generate vc for current edge
+      vcgen.genVcForCpEdge(*m_semCtx, *edg);
+      // store a copy of the state at the end of execution
+      m_states.push_back(m_semCtx->values());
     }
     prev = cp;
   }
+
   if (assert_formula) {
     for (Expr v : m_side)
       m_smt_solver.assertExpr(v);
@@ -106,7 +113,7 @@ BmcTrace::BmcTrace(BmcEngine &bmc, ufo::ZModel<ufo::EZ3> &model)
       const BasicBlock &BB = *it;
 
       if (it != edg->begin() &&
-          implicant.count(s.eval(m_bmc.sem().symb(BB))) <= 0)
+          implicant.count(s.eval(m_bmc.getSymbReg(BB))) <= 0)
         continue;
 
       m_bbs.push_back(&BB);
@@ -138,7 +145,7 @@ Expr BmcTrace::symb(unsigned loc, const llvm::Value &val) {
     return Expr();
   if (isa<Instruction>(val) && bmc_impl::isCallToVoidFn(cast<Instruction>(val)))
     return Expr();
-  Expr u = m_bmc.sem().symb(val);
+  Expr u = m_bmc.getSymbReg(val);
 
   unsigned stateidx = cpid(loc);
   // -- all registers except for PHI nodes at the entry to an edge
@@ -207,6 +214,9 @@ template <> raw_ostream &BmcTrace::print(raw_ostream &out) {
           }
           continue;
         } else if (f && f->getName().equals("shadow.mem.init")) {
+#if 0
+          // disabling since this is not supported by non-legacy
+          // OperationalSemantics
           out.changeColor(raw_ostream::RED);
           int64_t id = shadow_dsa::getShadowId(ci);
           assert(id >= 0);
@@ -219,6 +229,7 @@ template <> raw_ostream &BmcTrace::print(raw_ostream &out) {
           if (u)
             out << "  " << *memEnd << " " << *u << "\n";
           out.resetColor();
+#endif
           print_inst = false;
         }
       }

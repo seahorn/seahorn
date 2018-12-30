@@ -36,6 +36,9 @@ class BmcEngine {
 protected:
   /// symbolic operational semantics
   OperationalSemantics &m_sem;
+  /// \brief Context for OperationalSemantics
+  OpSemContextPtr m_semCtx;
+
   /// expression factory
   ExprFactory &m_efac;
 
@@ -55,13 +58,14 @@ protected:
 
   ufo::ZSolver<ufo::EZ3> m_smt_solver;
 
+  SymStore m_ctxState;
   /// path-condition for m_cps
   ExprVector m_side;
 
 public:
   BmcEngine(OperationalSemantics &sem, ufo::EZ3 &zctx)
       : m_sem(sem), m_efac(sem.efac()), m_result(boost::indeterminate),
-        m_cpg(nullptr), m_fn(nullptr), m_smt_solver(zctx) {
+        m_cpg(nullptr), m_fn(nullptr), m_smt_solver(zctx), m_ctxState(m_efac) {
     using namespace ufo;
     z3n_set_param(":model_compress", false);
     // ZParams<EZ3> params(zctx);
@@ -90,6 +94,13 @@ public:
   /// Returns the BMC trace (if available)
   virtual BmcTrace getTrace();
 
+  Expr getSymbReg(const llvm::Value &v) {
+    Expr reg;
+    if (m_semCtx) {
+      return m_sem.getSymbReg(v, *m_semCtx);
+    }
+    return reg;
+  }
   /// Dump unsat core
   /// Exposes internal details. Intendent to be used for debugging only
   virtual void unsatCore(ExprVector &out);

@@ -145,11 +145,13 @@ public:
 
     ExprFactory efac;
 
-    std::unique_ptr<LegacyOperationalSemantics> sem;
+    std::unique_ptr<OperationalSemantics> sem;
     if (HornBv2)
-      sem.reset(new Bv2OpSem(efac, *this, F.getParent()->getDataLayout(), MEM));
+      sem = llvm::make_unique<Bv2OpSem>(efac, *this,
+                                        F.getParent()->getDataLayout(), MEM);
     else
-      sem.reset(new BvOpSem(efac, *this, F.getParent()->getDataLayout(), MEM));
+      sem = llvm::make_unique<BvOpSem>(efac, *this,
+                                       F.getParent()->getDataLayout(), MEM);
 
     EZ3 zctx(efac);
     std::unique_ptr<BmcEngine> bmc;
@@ -157,17 +159,19 @@ public:
     case path_bmc: {
       const TargetLibraryInfo &tli =
           getAnalysis<TargetLibraryInfoWrapperPass>().getTLI();
+      // TODO: get rid of this ifdef!!!
 #ifdef HAVE_CRAB_LLVM
       crab_llvm::CrabLlvmPass &crab = getAnalysis<crab_llvm::CrabLlvmPass>();
-      bmc.reset(new PathBasedBmcEngine(*sem, zctx, &crab, tli));
+      bmc = llvm::make_unique<PathBasedBmcEngine>(static_cast<LegacyOperationalSemantics&>(*sem), zctx, &crab, tli);
 #else
-      bmc.reset(new PathBasedBmcEngine(*sem, zctx, tli));
+      bmc = llvm::make_unique<PathBasedBmcEngine>(static_cast<LegacyOperationalSemantics&>(*sem), zctx, tli);
 #endif
       break;
     }
     case mono_bmc:
     default:
-      bmc.reset(new BmcEngine(*sem, zctx));
+      // XXX: uses OperationalSemantics but trace generation still depends on LegacyOperationalSemantics
+      bmc = llvm::make_unique<BmcEngine>(*sem, zctx);
     }
 
     bmc->addCutPoint(src);

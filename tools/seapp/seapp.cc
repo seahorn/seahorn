@@ -37,7 +37,7 @@
 
 #include "seahorn/Transforms/Utils/NameValues.hh"
 #include "ufo/Smt/EZ3.hh"
-#include "ufo/Stats.hh"
+#include "seahorn/Support/Stats.hh"
 
 #include "seahorn/config.h"
 

@@ -3,7 +3,7 @@
 
 #include "llvm/Support/raw_ostream.h"
 
-#include "ufo/Stats.hh"
+#include "seahorn/Support/Stats.hh"
 
 #include "seahorn/HornClauseDBBgl.hh"
 #include "seahorn/Analysis/WeakTopologicalOrder.hh"

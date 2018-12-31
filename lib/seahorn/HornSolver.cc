@@ -3,7 +3,7 @@
 #include "seahorn/HornDbModel.hh"
 #include "seahorn/HornifyModule.hh"
 
-#include "ufo/Stats.hh"
+#include "seahorn/Support/Stats.hh"
 #include "llvm/IR/Function.h"
 #include "llvm/Support/CommandLine.h"
 

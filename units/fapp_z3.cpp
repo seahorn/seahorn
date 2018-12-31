@@ -6,7 +6,7 @@
 TEST_CASE("z3.fapp_test") {
   using namespace std;
   using namespace expr;
-  using namespace ufo;
+  
 
   ExprFactory efac;
 

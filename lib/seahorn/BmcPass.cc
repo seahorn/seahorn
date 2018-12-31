@@ -9,7 +9,7 @@
 
 #include "seahorn/Transforms/Utils/NameValues.hh"
 #include "ufo/Smt/EZ3.hh"
-#include "ufo/Stats.hh"
+#include "seahorn/Support/Stats.hh"
 
 #include "seahorn/Analysis/CanFail.hh"
 #include "seahorn/Bmc.hh"
@@ -33,7 +33,7 @@ static llvm::cl::opt<bool> HornBv2("horn-bv2",
 namespace {
 using namespace llvm;
 using namespace seahorn;
-using namespace ufo;
+
 
 class BmcPass : public llvm::ModulePass {
   /// bmc engine
@@ -153,7 +153,7 @@ public:
       sem = llvm::make_unique<BvOpSem>(efac, *this,
                                        F.getParent()->getDataLayout(), MEM);
 
-    EZ3 zctx(efac);
+    ufo::EZ3 zctx(efac);
     std::unique_ptr<BmcEngine> bmc;
     switch (m_engine) {
     case path_bmc: {

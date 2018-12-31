@@ -1,8 +1,7 @@
 #include "seahorn/Analysis/WeakTopologicalOrderPass.hh"
+#include "seahorn/Support/SeaDebug.h"
 
 #include "llvm/Support/raw_ostream.h"
-
-#include "seahorn/Support/SeaDebug.h"
 
 using namespace llvm;
 
@@ -30,7 +29,8 @@ bool WeakTopologicalOrderPass::runOnFunction(llvm::Function &F) {
 
   LOG("wto",
 
-      for (auto &B : F) {
+      for (auto &B
+           : F) {
         errs() << "Nested components for " << B.getName() << "\n";
         for (auto H :
              boost::make_iterator_range(m_wto.nested_components_begin(&B),

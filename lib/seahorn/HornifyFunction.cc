@@ -2,7 +2,7 @@
 #include "seahorn/LiveSymbols.hh"
 #include "seahorn/Support/CFG.hh"
 #include "seahorn/Support/ExprSeahorn.hh"
-#include "ufo/Stats.hh"
+#include "seahorn/Support/Stats.hh"
 
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/FileSystem.h"
@@ -22,7 +22,6 @@ static llvm::cl::opt<bool>
                llvm::cl::desc("Use weak solver for reducing constraints"),
                llvm::cl::init(true));
 
-#include "ufo/Stats.hh"
 namespace seahorn {
 
 void HornifyFunction::extractFunctionInfo(const BasicBlock &BB) {
@@ -378,8 +377,8 @@ void LargeHornifyFunction::runOnFunction(Function &F) {
       // allVars.insert (args.begin (), args.end ());
 
       if (ReduceFalse) {
-        ufo::ScopedStats __st__("HornifyFunction.reduce-false");
-        ufo::Stats::count("HornifyFunction.edge");
+        ScopedStats __st__("HornifyFunction.reduce-false");
+        Stats::count("HornifyFunction.edge");
         bind::IsConst isConst;
         for (auto &e : side) {
           // ignore uninterpreted functions, makes the problem easier to solve
@@ -410,7 +409,7 @@ void LargeHornifyFunction::runOnFunction(Function &F) {
                                << edge->target().bb().getName() << "\n";);
 
         if (!res) {
-          ufo::Stats::count("HornifyFunction.edge.false");
+          Stats::count("HornifyFunction.edge.false");
           continue; /* skip a rule with an inconsistent body */
         }
       }

@@ -17,7 +17,7 @@ namespace seabmc
 {
     using namespace expr;
     using namespace llvm;
-    using namespace ufo;
+    
     using namespace seahorn;
 
   class BMCModule : public llvm::ModulePass

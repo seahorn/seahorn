@@ -26,7 +26,7 @@ namespace seabmc
 {
   using namespace expr;
   using namespace llvm;
-  using namespace ufo;
+  
 
   class BMCFunction
   {

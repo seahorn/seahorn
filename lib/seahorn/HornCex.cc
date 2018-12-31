@@ -30,7 +30,7 @@
 #include "seahorn/Support/CFG.hh"
 #include "seahorn/Transforms/Utils/Local.hh"
 
-#include "ufo/Stats.hh"
+#include "seahorn/Support/Stats.hh"
 #include "seahorn/Support/SeaDebug.h"
 
 #ifdef HAVE_CRAB_LLVM

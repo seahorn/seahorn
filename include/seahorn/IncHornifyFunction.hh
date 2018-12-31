@@ -12,7 +12,7 @@
 namespace seahorn {
 using namespace expr;
 using namespace llvm;
-using namespace ufo;
+
 
 // Encoding to prove if a basic block is feasible. A block b is
 // feasible if there is a path from the entry to b and from b to the

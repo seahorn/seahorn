@@ -45,7 +45,7 @@
 
 #include "seahorn/Transforms/Utils/NameValues.hh"
 #include "ufo/Smt/EZ3.hh"
-#include "ufo/Stats.hh"
+#include "seahorn/Support/Stats.hh"
 
 void print_seahorn_version() {
   llvm::outs() << "SeaHorn (http://seahorn.github.io/):\n"
@@ -191,7 +191,7 @@ std::string getFileName(const std::string &str) {
 }
 
 int main(int argc, char **argv) {
-  ufo::ScopedStats _st("seahorn_total");
+  seahorn::ScopedStats _st("seahorn_total");
 
   llvm::llvm_shutdown_obj shutdown; // calls llvm_shutdown() on exit
   llvm::cl::AddExtraVersionPrinter(print_seahorn_version);
@@ -403,6 +403,6 @@ int main(int argc, char **argv) {
   if (!OutputFilename.empty())
     output->keep();
   if (PrintStats)
-    ufo::Stats::PrintBrunch(llvm::outs());
+    seahorn::Stats::PrintBrunch(llvm::outs());
   return 0;
 }

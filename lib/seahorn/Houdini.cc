@@ -15,7 +15,7 @@
 #include "seahorn/HornClauseDBWto.hh"
 #include <algorithm>
 
-#include "ufo/Stats.hh"
+#include "seahorn/Support/Stats.hh"
 
 using namespace llvm;
 

@@ -4,7 +4,7 @@
 #include "seahorn/UfoOpSem.hh"
 #include "seahorn/config.h"
 
-#include "ufo/Stats.hh"
+#include "seahorn/Support/Stats.hh"
 #include "seahorn/Support/SeaDebug.h"
 
 #ifdef HAVE_CRAB_LLVM
@@ -694,7 +694,7 @@ bool PathBasedBmcEngine::path_encoding_and_solve_with_ai(
         << " #Relevant statements " << relevant_stmts.size() << "/" << num_stmts
         << ".\n";);
 
-    // ufo::Stats::resume ("BMC path-based: blocking clause");
+    // Stats::resume ("BMC path-based: blocking clause");
 
     LOG("bmc-details", errs() << "\nRelevant Crab statements:\n";
         for (auto &s
@@ -836,7 +836,7 @@ bool PathBasedBmcEngine::path_encoding_and_solve_with_ai(
                    << "\n";
       // By returning true we pretend the query was sat so we run
       // the SMT solver next.
-      // ufo::Stats::stop ("BMC path-based: blocking clause");
+      // Stats::stop ("BMC path-based: blocking clause");
       return true;
     } // end for
 
@@ -965,7 +965,7 @@ boost::tribool PathBasedBmcEngine::path_encoding_and_solve_with_smt(
       toSmtLib(path_formula, "sat");
     }
   } else {
-    // ufo::Stats::resume ("BMC path-based: SMT unsat core");
+    // Stats::resume ("BMC path-based: SMT unsat core");
     // --- Compute minimal unsat core of the path formula
     bmc_detail::muc_method_t muc_method = MucMethod;
     if (!res) {
@@ -978,7 +978,7 @@ boost::tribool PathBasedBmcEngine::path_encoding_and_solve_with_smt(
       LOG("bmc", get_os() << "SMT returned unknown. Size of path formula="
                           << path_formula.size() << ". ");
 
-      ufo::Stats::count("BMC total number of unknown symbolic paths");
+      Stats::count("BMC total number of unknown symbolic paths");
 
       // -- Enqueue the unknown path formula
       m_unknown_path_formulas.push(std::make_pair(m_num_paths, path_formula));
@@ -1014,7 +1014,7 @@ boost::tribool PathBasedBmcEngine::path_encoding_and_solve_with_smt(
       break;
     }
     }
-    // ufo::Stats::stop ("BMC path-based: SMT unsat core");
+    // Stats::stop ("BMC path-based: SMT unsat core");
 
     LOG("bmc", get_os() << "Size of unsat core=" << unsat_core.size() << "\n";
         // errs() << "unsat core=\n";
@@ -1023,7 +1023,7 @@ boost::tribool PathBasedBmcEngine::path_encoding_and_solve_with_smt(
         // }
     );
 
-    // ufo::Stats::resume ("BMC path-based: blocking clause");
+    // Stats::resume ("BMC path-based: blocking clause");
     // -- Refine the Boolean abstraction using the unsat core
     ExprSet active_bool_set;
     for (Expr e : unsat_core) {
@@ -1036,7 +1036,7 @@ boost::tribool PathBasedBmcEngine::path_encoding_and_solve_with_smt(
       }
     }
     m_active_bool_lits.assign(active_bool_set.begin(), active_bool_set.end());
-    // ufo::Stats::stop ("BMC path-based: blocking clause");
+    // Stats::stop ("BMC path-based: blocking clause");
   }
 
   return res;
@@ -1131,15 +1131,15 @@ raw_ostream &PathBasedBmcEngine::toSmtLib(raw_ostream &o) {
 void PathBasedBmcEngine::encode(bool assert_formula /*unused*/) {
   /** Note that we never assert the encoding into the solver **/
 
-  ufo::Stats::resume("BMC path-based: precise encoding");
+  Stats::resume("BMC path-based: precise encoding");
   BmcEngine::encode(/*assert_formula=*/false);
-  ufo::Stats::stop("BMC path-based: precise encoding");
+  Stats::stop("BMC path-based: precise encoding");
 }
 
 static inline boost::tribool path_solver(ufo::ZSolver<ufo::EZ3> &solver) {
-  ufo::Stats::resume("BMC path-based: path solver");
+  Stats::resume("BMC path-based: path solver");
   boost::tribool res = solver.solve();
-  ufo::Stats::stop("BMC path-based: path solver");
+  Stats::stop("BMC path-based: path solver");
   return res;
 }
 
@@ -1159,7 +1159,7 @@ boost::tribool PathBasedBmcEngine::solve() {
 
   // -- Boolean abstraction
   LOG("bmc", get_os(true) << "Begin boolean abstraction\n";);
-  ufo::Stats::resume("BMC path-based: initial boolean abstraction");
+  Stats::resume("BMC path-based: initial boolean abstraction");
   ExprVector abs_side;
   bool_abstraction(m_side, abs_side);
   // XXX: we use m_smt_solver for keeping the abstraction. We do
@@ -1168,7 +1168,7 @@ boost::tribool PathBasedBmcEngine::solve() {
     LOG("bmc-details", errs() << "\t" << *v << "\n";);
     m_smt_solver.assertExpr(v);
   }
-  ufo::Stats::stop("BMC path-based: initial boolean abstraction");
+  Stats::stop("BMC path-based: initial boolean abstraction");
   LOG("bmc", get_os(true) << "End boolean abstraction\n";);
 
   // -- Numerical abstraction
@@ -1184,7 +1184,7 @@ boost::tribool PathBasedBmcEngine::solve() {
 
     if (UseCrabGlobalInvariants) {
       LOG("bmc", get_os(true) << "Begin loading of crab global invariants\n";);
-      ufo::Stats::resume("BMC path-based: loading of crab global invariants");
+      Stats::resume("BMC path-based: loading of crab global invariants");
 
       // -- Translate invariants
       crabToSea c2s(*m_ls, *(m_crab_global->get_heap_abstraction()), *m_fn,
@@ -1220,7 +1220,7 @@ boost::tribool PathBasedBmcEngine::solve() {
         Expr bbV = sem().symb(*bb);
         m_smt_solver.assertExpr(mk<IMPL>(bbV, op::boolop::land(inv)));
       }
-      ufo::Stats::stop("BMC path-based: loading of crab global invariants");
+      Stats::stop("BMC path-based: loading of crab global invariants");
       LOG("bmc", get_os(true) << "End loading of crab invariants\n";);
     }
   }
@@ -1269,12 +1269,12 @@ boost::tribool PathBasedBmcEngine::solve() {
    **/
   while ((bool)(m_result = path_solver(m_smt_solver))) {
     ++m_num_paths;
-    ufo::Stats::count("BMC total number of symbolic paths");
+    Stats::count("BMC total number of symbolic paths");
 
     LOG("bmc", get_os(true) << m_num_paths << ": ");
-    ufo::Stats::resume("BMC path-based: get model");
+    Stats::resume("BMC path-based: get model");
     ufo::ZModel<ufo::EZ3> model = m_smt_solver.getModel();
-    ufo::Stats::stop("BMC path-based: get model");
+    Stats::stop("BMC path-based: get model");
 
     LOG("bmc-details", errs() << "Model " << m_num_paths << " found: \n"
                               << model << "\n";);
@@ -1283,10 +1283,10 @@ boost::tribool PathBasedBmcEngine::solve() {
 #ifdef HAVE_CRAB_LLVM
     if (UseCrab) {
       BmcTrace trace(*this, model);
-      ufo::Stats::resume(
+      Stats::resume(
           "BMC path-based: solving path + learning clauses with AI");
       bool res = path_encoding_and_solve_with_ai(trace, path_constraints);
-      ufo::Stats::stop(
+      Stats::stop(
           "BMC path-based: solving path + learning clauses with AI");
 
       LOG("bmc-ai",
@@ -1308,7 +1308,7 @@ boost::tribool PathBasedBmcEngine::solve() {
       if (!res) {
         bool ok = add_blocking_clauses();
         if (ok) {
-          ufo::Stats::count("BMC number symbolic paths discharged by AI");
+          Stats::count("BMC number symbolic paths discharged by AI");
           continue;
         } else {
           errs() << "Path-based BMC ERROR: same blocking clause again "
@@ -1319,11 +1319,11 @@ boost::tribool PathBasedBmcEngine::solve() {
       }
     }
 #endif
-    ufo::Stats::resume(
+    Stats::resume(
         "BMC path-based: solving path + learning clauses with SMT");
     boost::tribool res =
         path_encoding_and_solve_with_smt(model, invariants, path_constraints);
-    ufo::Stats::stop(
+    Stats::stop(
         "BMC path-based: solving path + learning clauses with SMT");
     if (res) {
 #ifdef HAVE_CRAB_LLVM
@@ -1342,7 +1342,7 @@ boost::tribool PathBasedBmcEngine::solve() {
         m_result = boost::indeterminate;
         return m_result;
       }
-      ufo::Stats::count("BMC number symbolic paths discharged by SMT");
+      Stats::count("BMC number symbolic paths discharged by SMT");
     }
   }
 
@@ -1399,7 +1399,7 @@ boost::tribool PathBasedBmcEngine::solve() {
       }
     }
     // If we reach this point we were able to discharge all the paths!
-    ufo::Stats::uset("BMC total number of unknown symbolic paths", 0);
+    Stats::uset("BMC total number of unknown symbolic paths", 0);
     m_result = (bool)false;
   }
 
@@ -1417,7 +1417,7 @@ boost::tribool PathBasedBmcEngine::solve() {
 }
 
 bool PathBasedBmcEngine::add_blocking_clauses() {
-  ufo::Stats::resume("BMC path-based: adding blocking clauses");
+  Stats::resume("BMC path-based: adding blocking clauses");
 
   // -- Refine the Boolean abstraction
   Expr bc = mk<FALSE>(sem().efac());
@@ -1434,7 +1434,7 @@ bool PathBasedBmcEngine::add_blocking_clauses() {
   auto res = m_blocking_clauses.insert(bc);
   bool ok = res.second;
 
-  ufo::Stats::stop("BMC path-based: adding blocking clauses");
+  Stats::stop("BMC path-based: adding blocking clauses");
   return ok;
 }
 

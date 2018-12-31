@@ -4,17 +4,17 @@
 #include "seahorn/Transforms/Instrumentation/ShadowMemDsa.hh"
 #include "seahorn/UfoOpSem.hh"
 
-#include "ufo/ufo_iterators.hpp"
+#include "seahorn/Support/IteratorExtras.hh"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/FileSystem.h"
 
 #include "ufo/Smt/EZ3.hh"
-#include "ufo/Stats.hh"
+#include "seahorn/Support/Stats.hh"
 #include "seahorn/Support/SeaDebug.h"
 
 using namespace seahorn;
 using namespace llvm;
-using namespace ufo;
+
 
 static llvm::cl::opt<bool> GlobalConstraints(
     "horn-global-constraints",

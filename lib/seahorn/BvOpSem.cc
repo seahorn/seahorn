@@ -7,12 +7,11 @@
 #include "seahorn/Transforms/Instrumentation/ShadowMemDsa.hh"
 
 #include "ufo/ExprLlvm.hpp"
-#include "ufo/ufo_iterators.hpp"
+#include "seahorn/Support/IteratorExtras.hh"
 #include "seahorn/Support/SeaDebug.h"
 
 using namespace seahorn;
 using namespace llvm;
-using namespace ufo;
 
 static llvm::cl::opt<bool> GlobalConstraints(
     "horn-bv-global-constraints",

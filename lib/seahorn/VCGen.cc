@@ -5,7 +5,7 @@
 #include "seahorn/Support/CFG.hh"
 #include "seahorn/VCGen.hh"
 #include "ufo/Smt/EZ3.hh"
-#include "ufo/Stats.hh"
+#include "seahorn/Support/Stats.hh"
 
 #include "seahorn/Support/SeaDebug.h"
 
@@ -24,8 +24,9 @@ static llvm::cl::opt<bool> LargeStepReduce(
     llvm::cl::desc("Reduce constraints during large-step encoding"),
     llvm::cl::init(false), llvm::cl::Hidden);
 
-namespace seahorn {
 using namespace ufo;
+namespace seahorn {
+
 
 void VCGen::initSmt(std::unique_ptr<ufo::EZ3> &zctx,
                     std::unique_ptr<ufo::ZSolver<ufo::EZ3>> &smt) {
@@ -49,7 +50,7 @@ void VCGen::checkSideAtBb(unsigned &head, ExprVector &side, Expr bbV,
   bind::IsConst isConst;
 
   for (unsigned sz = side.size(); head < sz; ++head) {
-    ufo::ScopedStats __st__("VCGen.smt");
+    ScopedStats __st__("VCGen.smt");
     Expr e = side[head];
     if (!bind::isFapp(e) || isConst(e))
       smt.assertExpr(e);
@@ -60,7 +61,7 @@ void VCGen::checkSideAtBb(unsigned &head, ExprVector &side, Expr bbV,
 
   TimeIt<llvm::raw_ostream &> _t_("smt-solving", errs(), 0.1);
 
-  ufo::ScopedStats __st__("VCGen.smt");
+  ScopedStats __st__("VCGen.smt");
   Expr a[1] = {bbV};
 
   LOG("pedge", std::error_code EC;
@@ -93,14 +94,14 @@ void VCGen::checkSideAtEnd(unsigned &head, ExprVector &side,
     return;
   bind::IsConst isConst;
   for (unsigned sz = side.size(); head < sz; ++head) {
-    ufo::ScopedStats __st__("VCGen.smt");
+    ScopedStats __st__("VCGen.smt");
     Expr e = side[head];
     if (!bind::isFapp(e) || isConst(e))
       smt.assertExpr(e);
   }
 
   try {
-    ufo::ScopedStats __st__("VCGen.smt.last");
+    ScopedStats __st__("VCGen.smt.last");
     auto res = smt.solve();
     if (!res) {
       Stats::count("VCGen.smt.last.unsat");

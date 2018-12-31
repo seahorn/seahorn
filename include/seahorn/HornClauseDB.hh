@@ -10,7 +10,7 @@
 #include <boost/container/flat_set.hpp>
 
 #include "ufo/Expr.hpp"
-#include "ufo/Stats.hh"
+#include "seahorn/Support/Stats.hh"
 
 #include <algorithm>
 #include <map>
@@ -240,7 +240,7 @@ namespace seahorn
                           bool skipConstraints = false,
                           bool skipQuery = false) const
     {
-      ufo::ScopedStats _st_("HornClauseDB::loadZFixedPoint");
+      ScopedStats _st_("HornClauseDB::loadZFixedPoint");
       for (auto &p: getRelations ())
         fp.registerRelation (p);
 

@@ -26,7 +26,7 @@
 #include "seahorn/Analysis/CanFail.hh"
 #include "seahorn/Analysis/CutPointGraph.hh"
 #include "ufo/Smt/EZ3.hh"
-#include "ufo/Stats.hh"
+#include "seahorn/Support/Stats.hh"
 
 #include "seahorn/FlatHornifyFunction.hh"
 #include "seahorn/HornifyFunction.hh"

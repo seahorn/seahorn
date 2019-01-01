@@ -86,22 +86,20 @@ template <typename M> struct BasicExprMarshal {
     }
 
     else if (isOpX<MPQ>(e)) {
-      const MPQ &op = dynamic_cast<const MPQ &>(e->op());
-
+      const mpq_class &val = getTerm<mpq_class>(e);
       z3::sort sort(ctx, Z3_mk_real_sort(ctx));
-      std::string sname = boost::lexical_cast<std::string>(op.get());
+      std::string sname = boost::lexical_cast<std::string>(val);
       res = Z3_mk_numeral(ctx, sname.c_str(), sort);
     } else if (isOpX<MPZ>(e)) {
-      const MPZ &op = dynamic_cast<const MPZ &>(e->op());
+      const mpz_class &val = getTerm<mpz_class>(e);
       z3::sort sort(ctx, Z3_mk_int_sort(ctx));
-      std::string sname = boost::lexical_cast<std::string>(op.get());
+      std::string sname = boost::lexical_cast<std::string>(val);
       res = Z3_mk_numeral(ctx, sname.c_str(), sort);
     } else if (bv::is_bvnum(e)) {
       z3::sort sort(ctx, Z3_mk_bv_sort(ctx, bv::width(e->arg(1))));
-      const MPZ &num = dynamic_cast<const MPZ &>(e->arg(0)->op());
-
-      std::string val = boost::lexical_cast<std::string>(num.get());
-      res = Z3_mk_numeral(ctx, val.c_str(), sort);
+      const mpz_class &val = getTerm<mpz_class>(e->arg(0));
+      std::string sname = boost::lexical_cast<std::string>(val);
+      res = Z3_mk_numeral(ctx, sname.c_str(), sort);
     } else if (bind::isBoolVar(e)) {
       // XXX The name 'edge' is misleading. Should be changed.
       Expr edge = bind::name(e);

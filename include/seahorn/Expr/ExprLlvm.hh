@@ -1,6 +1,7 @@
 #pragma once
 
 #include "seahorn/Expr/Expr.hh"
+
 #include <boost/functional/hash.hpp>
 
 #include "llvm/ADT/APInt.h"
@@ -111,9 +112,9 @@ template <> struct TerminalTrait<const Value *> {
   }
 };
 
-typedef expr::Terminal<const llvm::BasicBlock *> BB;
-typedef expr::Terminal<const llvm::Value *> VALUE;
-typedef expr::Terminal<const llvm::Function *> FUNCTION;
+using BB = expr::Terminal<const llvm::BasicBlock *>;
+using VALUE = expr::Terminal<const llvm::Value *>;
+using FUNCTION = expr::Terminal<const llvm::Function *>;
 
 /** Converts v to mpz_class. Assumes that v is signed */
 inline mpz_class toMpz(const APInt &v) {
@@ -182,3 +183,4 @@ inline APInt toAPInt(unsigned numBits, const mpz_class &v) {
     return APInt(numBits, 0);
 }
 }
+

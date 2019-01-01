@@ -40,7 +40,7 @@
   struct __##NAME {                                                            \
     static inline std::string name() { return TEXT; }                          \
   };                                                                           \
-  typedef DefOp<__##NAME, BASE, STYLE> NAME;
+  using NAME = DefOp<__##NAME, BASE, STYLE>;
 
 namespace expr {
 /* create a namespace op */
@@ -547,14 +547,14 @@ inline void EFADeleter::operator()(void *p) { operator delete(p, m_efa); }
 template <typename T> struct TerminalTrait {};
 
 template <typename T, typename P = TerminalTrait<T>>
-class Terminal : public Operator {
+class Terminal : public expr::Operator {
 protected:
   T val;
 
 public:
-  typedef T base_type;
-  typedef P terminal_type;
-  typedef Terminal<T, P> this_type;
+  using base_type = T;
+  using terminal_type = P;
+  using this_type = Terminal<T, P>;
 
   Terminal(const base_type &v) : val(v) {}
 
@@ -582,9 +582,7 @@ public:
       return true;
 
     const this_type *prhs = dynamic_cast<const this_type *>(&rhs);
-    if (prhs == nullptr)
-      return false;
-    return terminal_type::equal_to(val, prhs->val);
+    return prhs ? terminal_type::equal_to(val, prhs->val) : false;
   }
 
   bool operator<(const Operator &rhs) const {
@@ -594,8 +592,8 @@ public:
 
     const this_type *prhs = dynamic_cast<const this_type *>(&rhs);
 
-    return (prhs == nullptr) ? typeid(this_type).before(typeid(rhs))
-                             : terminal_type::less(val, prhs->val);
+    return prhs ? terminal_type::less(val, prhs->val)
+                : typeid(this_type).before(typeid(rhs));
   }
 
   size_t hash() const { return terminal_type::hash(val); }
@@ -713,13 +711,14 @@ template <> struct TerminalTrait<mpq_class> {
 };
 
 namespace op {
-typedef Terminal<std::string> STRING;
-typedef Terminal<int> INT;
-typedef Terminal<unsigned int> UINT;
-typedef Terminal<unsigned long> ULONG;
+using STRING = Terminal<std::string>;
 
-typedef Terminal<mpq_class> MPQ;
-typedef Terminal<mpz_class> MPZ;
+using INT = Terminal<int>;
+using UINT = Terminal<unsigned int>;
+using ULONG = Terminal<unsigned long>;
+
+using MPQ = Terminal<mpq_class>;
+using MPZ = Terminal<mpz_class>;
 }
 
 namespace ps {
@@ -826,19 +825,6 @@ struct LISP {
 }
 using namespace ps;
 
-// compare two operators based on their address
-template <typename T> inline bool addrLT(const T &lhs, const Operator *rhs) {
-  if (rhs == nullptr || lhs == *rhs)
-    return false;
-
-  const T *prhs = dynamic_cast<const T *>(rhs);
-
-  if (prhs == nullptr)
-    return typeid(T).before(typeid(*rhs));
-
-  return &lhs < rhs;
-}
-
 // compare two operators based on their types
 inline bool typeLT(const Operator *lhs, const Operator *rhs) {
   if (lhs == nullptr && rhs != nullptr)
@@ -863,25 +849,27 @@ inline size_t typeHash(const Operator *op) {
 }
 
 template <typename T, typename B, typename P> struct DefOp : public B {
-  typedef DefOp<T, B, P> this_type;
-  typedef B base_type;
-  typedef T op_type;
-  typedef P ps_type;
+  using this_type = DefOp<T, B, P>;
+  using base_type = B;
+  using op_type = T;
+  using ps_type = P;
 
   void Print(std::ostream &OS, const std::vector<ENode *> &args, int depth = 0,
-             bool brkt = true) const {
+             bool brkt = true) const override {
     ps_type::print(OS, depth, brkt, op_type::name(), args);
   }
 
-  bool operator==(const Operator &rhs) const {
+  bool operator==(const Operator &rhs) const override {
     return typeid(*this) == typeid(rhs);
   }
 
-  bool operator<(const Operator &rhs) const { return typeLT(this, &rhs); }
+  bool operator<(const Operator &rhs) const override {
+    return typeLT(this, &rhs);
+  }
 
   size_t hash() const { return typeHash(this); }
 
-  this_type *clone(ExprFactoryAllocator &allocator) const {
+  this_type *clone(ExprFactoryAllocator &allocator) const override {
     return new (allocator) this_type(*this);
   }
 };
@@ -1148,7 +1136,7 @@ template <typename T> Expr mkTerm(T v, ExprFactory &f) {
 }
 
 template <typename T> T getTerm(Expr e) {
-  typedef Terminal<T> term_type;
+  using term_type = Terminal<T>;
   return dynamic_cast<const term_type &>(e->op()).get();
 }
 
@@ -1888,10 +1876,7 @@ inline Expr next(Expr e) { return variant(1, e); }
 inline Expr aux(Expr e) { return variant(2, e); }
 
 inline Expr mainVariant(Expr e) { return e->right(); }
-inline int variantNum(Expr e) {
-  const INT &v = dynamic_cast<const INT &>(e->left()->op());
-  return v.get();
-}
+inline int variantNum(Expr e) { return getTerm<int>(e->left()); }
 
 inline Expr prime(Expr e) { return variant(1, e); }
 inline bool isPrime(Expr e) { return variantNum(e) == 1; }
@@ -2250,7 +2235,7 @@ template <> struct TerminalTrait<op::bind::BoundVar> {
 };
 
 namespace op {
-typedef Terminal<bind::BoundVar> BVAR;
+using BVAR = Terminal<bind::BoundVar>;
 
 namespace bind {
 inline Expr bvar(unsigned idx, Expr type) {

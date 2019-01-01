@@ -11,7 +11,6 @@
 #include "llvm/Support/CommandLine.h"
 
 #include "ufo/Expr.hpp"
-#include "ufo/Smt/Z3n.hpp"
 #include "ufo/Smt/EZ3.hh"
 #include <vector>
 #include <boost/logic/tribool.hpp>

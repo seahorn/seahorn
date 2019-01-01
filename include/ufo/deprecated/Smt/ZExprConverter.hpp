@@ -6,7 +6,7 @@
 // --  used for CL options
 #include "Z3n.hpp"
 
-#include "ufo/ExprLlvm.hpp"
+#include "../ExprLlvm.hpp"
 #include "llvm/Support/raw_ostream.h"
 
 namespace ufo {

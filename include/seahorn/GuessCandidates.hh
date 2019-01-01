@@ -4,7 +4,6 @@
 #include "seahorn/HornifyModule.hh"
 
 #include "ufo/Expr.hpp"
-#include "ufo/Smt/Z3n.hpp"
 #include "ufo/Smt/EZ3.hh"
 #include <fstream>
 #include <iostream>

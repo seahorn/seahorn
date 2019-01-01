@@ -1,26 +1,10 @@
 /**
-SeaHorn Verification Framework
-Copyright (c) 2015 Carnegie Mellon University.
-All Rights Reserved.
-
-THIS SOFTWARE IS PROVIDED "AS IS," WITH NO WARRANTIES
-WHATSOEVER. CARNEGIE MELLON UNIVERSITY EXPRESSLY DISCLAIMS TO THE
-FULLEST EXTENT PERMITTEDBY LAW ALL EXPRESS, IMPLIED, AND STATUTORY
-WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE WARRANTIES OF
-MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, AND
-NON-INFRINGEMENT OF PROPRIETARY RIGHTS.
-
-Released under a modified BSD license, please see license.txt for full
-terms.
-
-DM-0002198
-
-Define tabular function interpretation
+   Define tabular function interpretation
 */
 #ifndef _EXPR_INTERP__H_
 #define _EXPR_INTERP__H_
 
-#include "ufo/Expr.hpp"
+#include "Expr.hpp"
 
 namespace expr
 {

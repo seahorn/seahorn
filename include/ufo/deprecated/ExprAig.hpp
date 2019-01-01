@@ -1,6 +1,6 @@
 #ifndef _EXPR_AIG__HPP_
 #define _EXPR_AIG__HPP_
-#include "ufo/Expr.hpp"
+#include "Expr.hpp"
 
 /** a basic simplifier */
 

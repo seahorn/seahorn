@@ -110,9 +110,9 @@ namespace expr
   {
   private:
     // // -- no default constructor
-    ENode () : id(0), count(0), fac(NULL) {}
+    ENode () : id(0), count(0), fac(nullptr) {}
     // // -- no copy constructor
-    ENode (const ENode &) : count(0), fac(NULL) {}
+    ENode (const ENode &) : count(0), fac(nullptr) {}
   protected:
     /** unique identifier of this expression node */
     unsigned int id;
@@ -152,14 +152,14 @@ namespace expr
     ENode* arg (size_t p) { return args [p]; }
 
     ENode* left ()
-    { return (args.size () > 0) ? args [0] : NULL; }
+    { return (args.size () > 0) ? args [0] : nullptr; }
 
     ENode* right ()
-    { return (args.size () > 1) ? args [1] : NULL; }
+    { return (args.size () > 1) ? args [1] : nullptr; }
 
     ENode *first () { return left (); }
     ENode *last ()
-    { return args.size () > 0 ? args [args.size () - 1] : NULL; }
+    { return args.size () > 0 ? args [args.size () - 1] : nullptr; }
 
 
     typedef std::vector<ENode*>::const_iterator args_iterator;
@@ -193,7 +193,7 @@ namespace expr
   }
   inline std::ostream &operator<<(std::ostream &OS, const ENode *v)
   {
-    if (v == NULL) OS << "NULL";
+    if (v == nullptr) OS << "nullptr";
     else OS << *v;
     return OS;
   }
@@ -650,7 +650,7 @@ namespace expr
       if (&rhs == this) return true;
 
       const this_type *prhs = dynamic_cast<const this_type*> (&rhs);
-      if (prhs == NULL) return false;
+      if (prhs == nullptr) return false;
       return terminal_type::equal_to (val, prhs->val);
     }
 
@@ -661,7 +661,7 @@ namespace expr
 
       const this_type *prhs = dynamic_cast<const this_type*> (&rhs);
 
-      return (prhs == NULL) ?
+      return (prhs == nullptr) ?
 	typeid(this_type).before (typeid (rhs)) :
 	terminal_type::less (val, prhs->val);
     }
@@ -930,11 +930,11 @@ namespace expr
   template <typename T>
   inline bool addrLT (const T &lhs, const Operator* rhs)
   {
-    if (rhs == NULL || lhs == *rhs) return false;
+    if (rhs == nullptr || lhs == *rhs) return false;
 
     const T *prhs = dynamic_cast<const T*>(rhs);
 
-    if (prhs == NULL)
+    if (prhs == nullptr)
       return typeid(T).before (typeid (*rhs));
 
     return &lhs < rhs;
@@ -944,10 +944,10 @@ namespace expr
   // compare two operators based on their types
   inline bool typeLT (const Operator *lhs, const Operator* rhs)
   {
-    if (lhs == NULL && rhs != NULL) return true;
-    if (lhs == NULL && rhs == NULL) return false;
+    if (lhs == nullptr && rhs != nullptr) return true;
+    if (lhs == nullptr && rhs == nullptr) return false;
 
-    if (rhs == NULL || *lhs == *rhs) return false;
+    if (rhs == nullptr || *lhs == *rhs) return false;
 
     if (typeid (*lhs) == typeid (*rhs)) return false;
 
@@ -956,7 +956,7 @@ namespace expr
 
   inline size_t typeHash (const Operator *op)
   {
-    if (op == NULL) return 0;
+    if (op == nullptr) return 0;
     std::hash<void*> hasher;
     return hasher (static_cast<void*>(const_cast<char*> (typeid (*op).name ())));
   }
@@ -1088,10 +1088,10 @@ namespace expr
 		 std::shared_ptr<R> r = std::make_shared<IdentityRewriter> ()) :
                  _skipKids(kids), expr(e), fn(new ExprFunctionoid<R> (r)) {}
 
-    bool isSkipKids () { return _skipKids && expr.get () == NULL; }
-    bool isChangeTo () { return _skipKids && expr.get () != NULL; }
-    bool isDoKids () { return !_skipKids && expr.get () == NULL; }
-    bool isChangeDoKidsRewrite () { return !_skipKids && expr.get () != NULL; }
+    bool isSkipKids () { return _skipKids && expr.get () == nullptr; }
+    bool isChangeTo () { return _skipKids && expr.get () != nullptr; }
+    bool isDoKids () { return !_skipKids && expr.get () == nullptr; }
+    bool isChangeDoKidsRewrite () { return !_skipKids && expr.get () != nullptr; }
 
     Expr rewrite (Expr v) { return fn->apply (v); }
 
@@ -1271,7 +1271,7 @@ namespace expr
   {
     const Operator *op = & (eptr(e)->op ());
     const O *top = dynamic_cast<const O*>(op);
-    return top != NULL;
+    return top != nullptr;
   }
 
   // -- usage isOpX<TYPE>(EXPR) . Returns true if top operator of
@@ -1637,7 +1637,7 @@ namespace expr
 	Expr operator() (Expr exp)
 	{
 	  // -- create true/false constants for convinience
-	  if (trueE == NULL)
+	  if (trueE == nullptr)
 	    {
 	      trueE = mk<TRUE> (exp->efac ());
 	      falseE = mk<FALSE> (exp->efac ());
@@ -1695,7 +1695,7 @@ namespace expr
 	Expr operator() (Expr exp)
 	{
 	  // -- create true/false constants for convinience
-	  if (trueE == NULL)
+	  if (trueE == nullptr)
 	    {
 	      trueE = mk<TRUE> (exp->efac ());
 	      falseE = mk<FALSE> (exp->efac ());
@@ -3041,7 +3041,7 @@ namespace expr
   }
 }
 
-#include "ExprBv.hh"
+#include "ExprBv.inc"
 
 namespace std
 {
@@ -3050,8 +3050,8 @@ namespace std
   {
     bool operator() (const expr::ENode *x, const expr::ENode *y) const
     {
-      if (x == NULL) return y != NULL;
-      if (y == NULL) return false;
+      if (x == nullptr) return y != nullptr;
+      if (y == nullptr) return false;
 
       return x->getId () < y->getId ();
     }

@@ -1,7 +1,7 @@
-#ifndef __EXPR__H_
-#define __EXPR__H_
-
+#pragma once
 #pragma clang diagnostic ignored "-Wpotentially-evaluated-expression"
+
+#include <typeinfo>
 
 #include "boost/functional/hash_fwd.hpp"
 #include <algorithm>
@@ -13,7 +13,6 @@
 #include <memory>
 #include <set>
 #include <string>
-#include <typeinfo>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
@@ -2992,5 +2991,3 @@ template <typename Range> Expr subBndVars(const Range &r, Expr e) {
 }
 }
 }
-
-#endif

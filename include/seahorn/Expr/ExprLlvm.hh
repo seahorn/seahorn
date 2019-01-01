@@ -1,7 +1,6 @@
 #pragma once
 
 #include "seahorn/Expr/Expr.hh"
-
 #include <boost/functional/hash.hpp>
 
 #include "llvm/ADT/APInt.h"

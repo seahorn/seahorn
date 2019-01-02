@@ -34,7 +34,12 @@
 #define mk_it_range boost::make_iterator_range
 
 #define NOP_BASE(NAME)                                                         \
-  struct NAME : public expr::Operator {};
+  struct NAME : public expr::Operator {                                        \
+    NAME(unsigned kind) : Operator(expr::OpFamilyId::NAME, kind) {}            \
+    static bool classof(const Operator *op) {                                  \
+      return op->getFamilyId() == expr::OpFamilyId::NAME;                      \
+    }                                                                          \
+  };
 
 #define NOP(NAME, TEXT, STYLE, BASE)                                           \
   struct __##NAME {                                                            \
@@ -70,11 +75,35 @@ inline ENode *eptr(Expr &e) { return e.get(); }
 
 class Operator;
 
+enum class OpFamilyId {
+  Terminal,
+  BoolOp,
+  ComparissonOp,
+  NumericOp,
+  MiscOp,
+  SimpleTypeOp,
+  ArrayOp,
+  VariantOp,
+  BindOp,
+  BinderOp,
+  BvOp,
+  GateOp,
+  MutModelOp,
+};
+
 /* An operator (a.k.a. a tag) of an expression node */
 class Operator {
+  OpFamilyId m_familyId : 16;
+  unsigned m_operKind : 16;
+
 public:
+  Operator() = delete;
+  Operator(OpFamilyId family, unsigned oper)
+      : m_familyId(family), m_operKind(oper) {}
   virtual ~Operator(){};
 
+  OpFamilyId getFamilyId() const { return m_familyId; }
+  unsigned getOperKind() const { return m_operKind; }
   /** Print an expression rooted at the operator
       OS    -- the output strream
       args  -- the arguments of the operator
@@ -556,7 +585,8 @@ public:
   using terminal_type = P;
   using this_type = Terminal<T, P>;
 
-  Terminal(const base_type &v) : val(v) {}
+  Terminal(const base_type &v)
+      : Operator(expr::OpFamilyId::Terminal, 0 /* kind */), val(v) {}
 
   base_type get() const { return val; }
 
@@ -848,11 +878,15 @@ inline size_t typeHash(const Operator *op) {
   return hasher(static_cast<void *>(const_cast<char *>(typeid(*op).name())));
 }
 
+
 template <typename T, typename B, typename P> struct DefOp : public B {
   using this_type = DefOp<T, B, P>;
   using base_type = B;
   using op_type = T;
   using ps_type = P;
+
+  DefOp() : B(0 /* kind */) {}
+  DefOp(DefOp const &) = default;
 
   void Print(std::ostream &OS, const std::vector<ENode *> &args, int depth = 0,
              bool brkt = true) const override {
@@ -1733,6 +1767,7 @@ struct NNF : public std::unary_function<Expr, VisitAction> {
 /// Gates are mutable and are not structurally hashed
 namespace op {
 struct GateOp : public expr::Operator {
+  GateOp(unsigned kind) : Operator(expr::OpFamilyId::GateOp, kind) {}
   virtual bool isMutable() const { return true; }
 };
 

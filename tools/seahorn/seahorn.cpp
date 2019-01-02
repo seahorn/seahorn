@@ -43,9 +43,9 @@
 #include "crab_llvm/Transforms/InsertInvariants.hh"
 #endif
 
+#include "seahorn/Support/Stats.hh"
 #include "seahorn/Transforms/Utils/NameValues.hh"
 #include "ufo/Smt/EZ3.hh"
-#include "seahorn/Support/Stats.hh"
 
 void print_seahorn_version() {
   llvm::outs() << "SeaHorn (http://seahorn.github.io/):\n"
@@ -304,21 +304,21 @@ int main(int argc, char **argv) {
 
   // -- initialize any global variables that are left
   pass_manager.add(new seahorn::LowerGvInitializers());
-  if (SeaHornDsa)
+  if (SeaHornDsa) {
     pass_manager.add(seahorn::createShadowMemSeaDsaPass());
-  else {
-    pass_manager.add(seahorn::createShadowMemDsaPass());
-  }
-
 #ifndef USE_NEW_SHADOW_SEA_DSA
-  // -- this is dangerous since it might lower alloca instructions that
-  // -- shadow mem already instrumented.
-  // -- The old assumption was that mem2reg has nothing to lower
-  // -- before shadow.mem is scheduled. This is not true when analyzing
-  // -- unoptimized bitcode lowers shadow.mem variables created by ShadowMemDsa
-  // -- pass
-  pass_manager.add(seahorn::createPromoteMemoryToRegisterPass());
+    // -- this is dangerous since it might lower alloca instructions that
+    // -- shadow mem already instrumented.
+    // -- The old assumption was that mem2reg has nothing to lower
+    // -- before shadow.mem is scheduled. This is not true when analyzing
+    // -- unoptimized bitcode lowers shadow.mem variables created by
+    // -- ShadowMemDsa pass
+    pass_manager.add(seahorn::createPromoteMemoryToRegisterPass());
 #endif
+  } else {
+    pass_manager.add(seahorn::createShadowMemDsaPass());
+    pass_manager.add(seahorn::createPromoteMemoryToRegisterPass());
+  }
 
   pass_manager.add(new seahorn::RemoveUnreachableBlocksPass());
   pass_manager.add(seahorn::createStripLifetimePass());

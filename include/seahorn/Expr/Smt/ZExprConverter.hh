@@ -56,7 +56,7 @@ template <typename M> struct BasicExprMarshal {
         return it->second;
     }
 
-    Z3_ast res = NULL;
+    Z3_ast res = nullptr;
 
     if (bind::isBVar(e)) {
       z3::ast sort(marshal(bind::type(e), ctx, cache, seen));
@@ -204,7 +204,7 @@ template <typename M> struct BasicExprMarshal {
 
       z3::ast body(marshal(bind::body(e), ctx, cache, seen));
       if (isOpX<FORALL>(e) || isOpX<EXISTS>(e)) {
-        res = Z3_mk_quantifier(ctx, isOpX<FORALL>(e), 0, 0, NULL, num_bound,
+        res = Z3_mk_quantifier(ctx, isOpX<FORALL>(e), 0, 0, nullptr, num_bound,
                                &bound_sorts[0], &bound_names[0], body);
       } else {
         assert(isOpX<LAMBDA>(e));
@@ -428,7 +428,7 @@ template <typename M> struct BasicExprMarshal {
     if (res == nullptr)
       errs() << "Failed to marshal: " << *e << "\n";
 
-    assert(res != NULL);
+    assert(res != nullptr);
     z3::ast final(ctx, res);
     seen.insert(expr_ast_map::value_type(e, final));
 

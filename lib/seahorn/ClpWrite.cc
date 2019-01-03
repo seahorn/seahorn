@@ -211,11 +211,11 @@ namespace seahorn
       
       if (isOpX<MPZ>(e)) 
       { 
-        const MPZ& op = dynamic_cast<const MPZ&>(e->op ());
-        if (op.get () < 0)
-          res = ExprStr ("(" + boost::lexical_cast<std::string>(op.get()) + ")");
+        mpz_class op = getTerm<mpz_class>(e);
+        if (op < 0)
+          res = ExprStr ("(" + boost::lexical_cast<std::string>(op) + ")");
         else
-          res = ExprStr (boost::lexical_cast<std::string>(op.get()));
+          res = ExprStr (boost::lexical_cast<std::string>(op));
       }
       else if (isOpX<MPQ>(e))
       { return M::print (e, parent, rels, efac, cache, seen); }      

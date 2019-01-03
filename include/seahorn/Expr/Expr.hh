@@ -27,9 +27,9 @@
 #include <boost/pool/poolfwd.hpp>
 #include <boost/ptr_container/ptr_vector.hpp>
 
-#include "llvm/Support/Casting.h"
-#include "llvm/ADT/iterator_range.h"
 #include "llvm/ADT/STLExtras.h"
+#include "llvm/ADT/iterator_range.h"
+#include "llvm/Support/Casting.h"
 
 #define mk_it_range llvm::make_range
 
@@ -73,8 +73,6 @@ inline const ENode *eptr(const ENode &p) { return &p; }
 inline ENode *eptr(const Expr &e) { return e.get(); }
 inline ENode *eptr(Expr &e) { return e.get(); }
 // inline ENode* eptr (Expr e) { return e.get (); }
-
-class Operator;
 
 enum class OpFamilyId {
   Terminal,
@@ -261,7 +259,7 @@ struct ENodeUniqueHash {
   }
 };
 
-struct ENodeUniqueEqual {
+struct ENodeUniqueEqual_SAVED {
   bool operator()(ENode *const &e1, ENode *const &e2) const {
     // -- same type
     if (typeid(e1->op()) == typeid(e2->op()))
@@ -271,6 +269,16 @@ struct ENodeUniqueEqual {
         if (e1->op() == e2->op())
           // -- children are equal as pointers
           return std::equal(e1->args_begin(), e1->args_end(), e2->args_begin());
+    return false;
+  }
+};
+
+struct ENodeUniqueEqual {
+  bool operator()(ENode *const &e1, ENode *const &e2) const {
+    // same arity, same operator, identical children
+    if (e1->arity() == e2->arity() && e1->op() == e2->op())
+      return std::equal(e1->args_begin(), e1->args_end(), e2->args_begin());
+
     return false;
   }
 };
@@ -589,12 +597,12 @@ public:
 
   base_type get() const { return val; }
 
-  this_type *clone(ExprFactoryAllocator &allocator) const {
+  this_type *clone(ExprFactoryAllocator &allocator) const override {
     return new (allocator) this_type(val);
   }
 
   void Print(std::ostream &OS, const std::vector<ENode *> &args, int depth = 0,
-             bool brkt = true) const {
+             bool brkt = true) const override {
     terminal_type::print(OS, val, depth, brkt);
   }
 
@@ -606,15 +614,15 @@ public:
     return terminal_type::less(val, rhs.val);
   }
 
-  bool operator==(const Operator &rhs) const {
+  bool operator==(const Operator &rhs) const override {
     if (&rhs == this)
       return true;
 
     auto *prhs = llvm::dyn_cast<this_type>(&rhs);
-    return prhs ? terminal_type::equal_to(val, prhs->val) : false;
+    return prhs && terminal_type::equal_to(val, prhs->val);
   }
 
-  bool operator<(const Operator &rhs) const {
+  bool operator<(const Operator &rhs) const override {
     // x < x is false
     if (&rhs == this)
       return false;
@@ -634,7 +642,7 @@ public:
     return terminal_type::getKind() < llvm::cast<TerminalBase>(&rhs)->m_kind;
   }
 
-  size_t hash() const { return terminal_type::hash(val); }
+  size_t hash() const override { return terminal_type::hash(val); }
 
   static bool classof(Operator const *op) {
     return llvm::isa<TerminalBase>(op) &&
@@ -894,8 +902,10 @@ struct DefOp : public B {
   }
 
   bool operator==(const Operator &rhs) const override {
-    return llvm::isa<base_type>(rhs) &&
-           llvm::cast<base_type>(&rhs)->m_kind == kind;
+    if (this == &rhs)
+      return true;
+    auto *prhs = llvm::dyn_cast<this_type>(&rhs);
+    return prhs && prhs->m_kind == kind;
   }
 
   bool operator<(const Operator &rhs) const override {
@@ -917,7 +927,8 @@ struct DefOp : public B {
   }
 
   static bool classof(Operator const *op) {
-    return llvm::isa<base_type>(op) && llvm::cast<base_type>(op)->m_kind == kind;
+    return llvm::isa<base_type>(op) &&
+           llvm::cast<base_type>(op)->m_kind == kind;
   }
 };
 
@@ -1159,9 +1170,7 @@ template <typename O, typename T> bool isOp(T e) {
 
 // -- usage isOpX<TYPE>(EXPR) . Returns true if top operator of
 // -- expression is of type TYPE.
-template <typename O, typename T> bool isOpX(T e) {
-  return isOp<O>(e);
-}
+template <typename O, typename T> bool isOpX(T e) { return isOp<O>(e); }
 
 /**********************************************************************/
 /* Creation */

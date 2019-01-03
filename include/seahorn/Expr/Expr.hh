@@ -19,7 +19,7 @@
 #include <gmpxx.h>
 
 /** boost */
-#include <boost/interprocess/containers/flat_set.hpp>
+#include <boost/container/flat_set.hpp>
 #include <boost/intrusive_ptr.hpp>
 #include <boost/lexical_cast.hpp>
 #include <boost/pool/pool.hpp>

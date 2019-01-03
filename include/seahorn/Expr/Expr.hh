@@ -31,11 +31,14 @@
 #include <boost/range/iterator_range.hpp>
 #include <boost/utility.hpp>
 
+#include "llvm/Support/Casting.h"
+
 #define mk_it_range boost::make_iterator_range
 
 #define NOP_BASE(NAME)                                                         \
   struct NAME : public expr::Operator {                                        \
-    NAME(unsigned kind) : Operator(expr::OpFamilyId::NAME, kind) {}            \
+    NAME##Kind m_kind;                                                         \
+    NAME(NAME##Kind k) : Operator(expr::OpFamilyId::NAME), m_kind(k) {}        \
     static bool classof(const Operator *op) {                                  \
       return op->getFamilyId() == expr::OpFamilyId::NAME;                      \
     }                                                                          \
@@ -45,7 +48,7 @@
   struct __##NAME {                                                            \
     static inline std::string name() { return TEXT; }                          \
   };                                                                           \
-  using NAME = DefOp<__##NAME, BASE, STYLE>;
+  using NAME = DefOp<__##NAME, BASE, STYLE, BASE##Kind, BASE##Kind::NAME>;
 
 namespace expr {
 /* create a namespace op */
@@ -93,17 +96,14 @@ enum class OpFamilyId {
 
 /* An operator (a.k.a. a tag) of an expression node */
 class Operator {
-  OpFamilyId m_familyId : 16;
-  unsigned m_operKind : 16;
+  OpFamilyId m_familyId;
 
 public:
   Operator() = delete;
-  Operator(OpFamilyId family, unsigned oper)
-      : m_familyId(family), m_operKind(oper) {}
+  Operator(OpFamilyId family) : m_familyId(family) {}
   virtual ~Operator(){};
 
   OpFamilyId getFamilyId() const { return m_familyId; }
-  unsigned getOperKind() const { return m_operKind; }
   /** Print an expression rooted at the operator
       OS    -- the output strream
       args  -- the arguments of the operator
@@ -205,7 +205,6 @@ public:
     std::cerr << std::endl;
   }
 
-  friend struct LessENode;
   friend class ExprFactory;
   friend struct std::less<expr::ENode *>;
 };
@@ -278,21 +277,6 @@ struct ENodeUniqueEqual {
   }
 };
 
-struct LessENode {
-  bool operator()(ENode *e1, ENode *e2) {
-    if (typeid(e1->op()) == typeid(e2->op())) {
-      if (e1->op() == e2->op())
-        return lexicographical_compare(e1->args_begin(), e1->args_end(),
-                                       e2->args_begin(), e2->args_end());
-      else
-        return e1->op() < e2->op();
-    }
-
-    // -- when all fails, order by type
-    return typeid(e1->op()).before(typeid(e2->op()));
-  }
-};
-
 /**
  * A type erasure of a cache
  */
@@ -339,14 +323,8 @@ public:
 
 class ExprFactory : boost::noncopyable {
 protected:
-#define UNORDERED_SET_UNIQUE_TABLE 1
-#ifndef UNORDERED_SET_UNIQUE_TABLE
-  // -- type of unique table entry
-  typedef std::set<ENode *, LessENode> unique_entry_type;
-#else
   typedef std::unordered_set<ENode *, ENodeUniqueHash, ENodeUniqueEqual>
       unique_entry_type;
-#endif
   typedef const char *unique_key_type;
   // -- type of the unique table
   typedef std::map<unique_key_type, unique_entry_type> unique_type;
@@ -509,7 +487,7 @@ public:
 inline ENode::ENode(ExprFactory &f, const Operator &o)
     : count(0), fac(&f), oper(o.clone(f.allocator), f.allocator.get_deleter(),
                               boost::pool_allocator<char>()) {}
-}
+} // namespace expr
 
 inline void *operator new(size_t n, expr::ExprFactoryAllocator &alloc) {
   return alloc.allocate(n);
@@ -574,9 +552,32 @@ inline EFADeleter ExprFactoryAllocator::get_deleter() {
 inline void EFADeleter::operator()(void *p) { operator delete(p, m_efa); }
 
 template <typename T> struct TerminalTrait {};
+enum class TerminalKind {
+  STRING,
+  INT,
+  UINT,
+  ULONG,
+  MPQ,
+  MPZ,
+  BVAR,
+  BVSORT,
+  LLVM_VALUE,
+  LLVM_BASICBLOCK,
+  LLVM_FUNCTION
+};
+
+struct TerminalBase : public expr::Operator {
+  TerminalKind m_kind;
+  TerminalBase(TerminalKind k)
+      : Operator(expr::OpFamilyId::Terminal), m_kind(k) {}
+
+  static bool classof(Operator const *op) {
+    return op->getFamilyId() == expr::OpFamilyId::Terminal;
+  }
+};
 
 template <typename T, typename P = TerminalTrait<T>>
-class Terminal : public expr::Operator {
+class Terminal : public TerminalBase {
 protected:
   T val;
 
@@ -586,7 +587,7 @@ public:
   using this_type = Terminal<T, P>;
 
   Terminal(const base_type &v)
-      : Operator(expr::OpFamilyId::Terminal, 0 /* kind */), val(v) {}
+      : TerminalBase(terminal_type::getKind()), val(v) {}
 
   base_type get() const { return val; }
 
@@ -611,7 +612,7 @@ public:
     if (&rhs == this)
       return true;
 
-    const this_type *prhs = dynamic_cast<const this_type *>(&rhs);
+    auto *prhs = llvm::dyn_cast<this_type>(&rhs);
     return prhs ? terminal_type::equal_to(val, prhs->val) : false;
   }
 
@@ -620,13 +621,27 @@ public:
     if (&rhs == this)
       return false;
 
-    const this_type *prhs = dynamic_cast<const this_type *>(&rhs);
+    if (this->getFamilyId() != rhs.getFamilyId())
+      return this->getFamilyId() < rhs.getFamilyId();
 
-    return prhs ? terminal_type::less(val, prhs->val)
-                : typeid(this_type).before(typeid(rhs));
+    // rhs is a Terminal
+
+    // check if rhs is this_type
+    auto *prhs = llvm::dyn_cast<this_type>(&rhs);
+
+    // use terminal trait defined less
+    if (prhs)
+      return terminal_type::less(val, prhs->val);
+    // order based on kinds
+    return terminal_type::getKind() < llvm::cast<TerminalBase>(&rhs)->m_kind;
   }
 
   size_t hash() const { return terminal_type::hash(val); }
+
+  static bool classof(Operator const *op) {
+    return llvm::isa<TerminalBase>(op) &&
+           llvm::cast<TerminalBase>(op)->m_kind == terminal_type::getKind();
+  }
 };
 
 template <> struct TerminalTrait<std::string> {
@@ -644,6 +659,7 @@ template <> struct TerminalTrait<std::string> {
     std::hash<std::string> hasher;
     return hasher(s);
   }
+  static TerminalKind getKind() { return TerminalKind::STRING; }
 };
 
 template <> struct TerminalTrait<int> {
@@ -656,6 +672,7 @@ template <> struct TerminalTrait<int> {
     std::hash<int> hasher;
     return hasher(i);
   }
+  static TerminalKind getKind() { return TerminalKind::INT; }
 };
 
 template <> struct TerminalTrait<unsigned int> {
@@ -673,6 +690,7 @@ template <> struct TerminalTrait<unsigned int> {
     std::hash<unsigned int> hasher;
     return hasher(i);
   }
+  static TerminalKind getKind() { return TerminalKind::UINT; }
 };
 
 template <> struct TerminalTrait<unsigned long> {
@@ -690,6 +708,8 @@ template <> struct TerminalTrait<unsigned long> {
     std::hash<unsigned long> hasher;
     return hasher(i);
   }
+
+  static TerminalKind getKind() { return TerminalKind::ULONG; }
 };
 
 template <> struct TerminalTrait<mpz_class> {
@@ -717,6 +737,8 @@ template <> struct TerminalTrait<mpz_class> {
     std::hash<std::string> hasher;
     return hasher(str);
   }
+
+  static TerminalKind getKind() { return TerminalKind::MPZ; }
 };
 
 template <> struct TerminalTrait<mpq_class> {
@@ -738,6 +760,8 @@ template <> struct TerminalTrait<mpq_class> {
     std::hash<std::string> hasher;
     return hasher(str);
   }
+
+  static TerminalKind getKind() { return TerminalKind::MPQ; }
 };
 
 namespace op {
@@ -749,7 +773,7 @@ using ULONG = Terminal<unsigned long>;
 
 using MPQ = Terminal<mpq_class>;
 using MPZ = Terminal<mpz_class>;
-}
+} // namespace op
 
 namespace ps {
 inline std::ostream &space(std::ostream &OS, size_t c) {
@@ -852,40 +876,18 @@ struct LISP {
     OS << ")";
   }
 };
-}
+} // namespace ps
 using namespace ps;
 
-// compare two operators based on their types
-inline bool typeLT(const Operator *lhs, const Operator *rhs) {
-  if (lhs == nullptr && rhs != nullptr)
-    return true;
-  if (lhs == nullptr && rhs == nullptr)
-    return false;
-
-  if (rhs == nullptr || *lhs == *rhs)
-    return false;
-
-  if (typeid(*lhs) == typeid(*rhs))
-    return false;
-
-  return typeid(*lhs).before(typeid(*rhs));
-}
-
-inline size_t typeHash(const Operator *op) {
-  if (op == nullptr)
-    return 0;
-  std::hash<void *> hasher;
-  return hasher(static_cast<void *>(const_cast<char *>(typeid(*op).name())));
-}
-
-
-template <typename T, typename B, typename P> struct DefOp : public B {
-  using this_type = DefOp<T, B, P>;
+template <typename T, typename B, typename P, typename K, K kind>
+struct DefOp : public B {
+  using this_type = DefOp<T, B, P, K, kind>;
+  using kind_type = K;
   using base_type = B;
   using op_type = T;
   using ps_type = P;
 
-  DefOp() : B(0 /* kind */) {}
+  DefOp() : B(kind) {}
   DefOp(DefOp const &) = default;
 
   void Print(std::ostream &OS, const std::vector<ENode *> &args, int depth = 0,
@@ -894,17 +896,30 @@ template <typename T, typename B, typename P> struct DefOp : public B {
   }
 
   bool operator==(const Operator &rhs) const override {
-    return typeid(*this) == typeid(rhs);
+    return llvm::isa<base_type>(rhs) &&
+           llvm::cast<base_type>(&rhs)->m_kind == kind;
   }
 
   bool operator<(const Operator &rhs) const override {
-    return typeLT(this, &rhs);
+    if (rhs.getFamilyId() != this->getFamilyId())
+      return this->getFamilyId() < rhs.getFamilyId();
+
+    return kind < llvm::cast<base_type>(&rhs)->m_kind;
   }
 
-  size_t hash() const { return typeHash(this); }
+  size_t hash() const override {
+    std::size_t seed = 0;
+    boost::hash_combine(seed, this->getFamilyId());
+    boost::hash_combine(seed, kind);
+    return seed;
+  }
 
   this_type *clone(ExprFactoryAllocator &allocator) const override {
     return new (allocator) this_type(*this);
+  }
+
+  static bool classof(Operator const *op) {
+    return llvm::isa<base_type>(op) && llvm::cast<base_type>(op)->m_kind == kind;
   }
 };
 
@@ -964,7 +979,7 @@ template <typename T> struct ExprFunctionoid : public ExprFn {
   ExprFunctionoid(fn_type f) : fn(f) {}
   Expr apply(Expr e) { return (*fn)(e); }
 };
-}
+} // namespace
 
 class VisitAction {
 public:
@@ -1141,15 +1156,13 @@ template <typename ExprVisitor> Expr visit(ExprVisitor &v, Expr expr) {
 // -- usage isOp<TYPE>(EXPR) . Returns true if top operator of
 // -- expression is a subclass of TYPE.
 template <typename O, typename T> bool isOp(T e) {
-  const Operator *op = &(eptr(e)->op());
-  const O *top = dynamic_cast<const O *>(op);
-  return top != nullptr;
+  return llvm::isa<O>(&eptr(e)->op());
 }
 
 // -- usage isOpX<TYPE>(EXPR) . Returns true if top operator of
 // -- expression is of type TYPE.
 template <typename O, typename T> bool isOpX(T e) {
-  return typeid(eptr(e)->op()) == typeid(O);
+  return isOp<O>(e);
 }
 
 /**********************************************************************/
@@ -1171,7 +1184,8 @@ template <typename T> Expr mkTerm(T v, ExprFactory &f) {
 
 template <typename T> T getTerm(Expr e) {
   using term_type = Terminal<T>;
-  return dynamic_cast<const term_type &>(e->op()).get();
+  assert(llvm::isa<term_type>(e->op()));
+  return llvm::dyn_cast<const term_type>(&e->op())->get();
 }
 
 /* Creates a unary expression with a given operator.
@@ -1248,6 +1262,7 @@ Expr mknary(const Operator &o, iterator bgn, iterator end) {
 /**********************************************************************/
 
 namespace op {
+enum class BoolOpKind { TRUE, FALSE, AND, OR, XOR, NEG, IMPL, ITE, IFF };
 // -- Boolean opearators
 NOP_BASE(BoolOp)
 
@@ -1760,15 +1775,21 @@ struct NNF : public std::unary_function<Expr, VisitAction> {
     return VisitAction::skipKids();
   }
 };
-}
-}
+} // namespace boolop
+} // namespace op
 
 /// Gates
 /// Gates are mutable and are not structurally hashed
 namespace op {
+enum class GateOpKind { OUT_G, AND_G, OR_G, NEG_G };
+
 struct GateOp : public expr::Operator {
-  GateOp(unsigned kind) : Operator(expr::OpFamilyId::GateOp, kind) {}
+  GateOpKind m_kind;
+  GateOp(GateOpKind k) : expr::Operator(expr::OpFamilyId::GateOp), m_kind(k) {}
   virtual bool isMutable() const { return true; }
+  static bool classof(expr::Operator const *op) {
+    return op->getFamilyId() == expr::OpFamilyId::GateOp;
+  }
 };
 
 /// an output gate
@@ -1813,10 +1834,24 @@ inline Expr lneg(Expr e1) {
 
   return mk<NEG_G>(e1);
 }
-}
-}
+} // namespace gate
+} // namespace op
 
 namespace op {
+enum class NumericOpKind {
+  PLUS,
+  MINUS,
+  MULT,
+  DIV,
+  IDIV,
+  MOD,
+  REM,
+  UN_MINUS,
+  ABS,
+  PINFTY,
+  NINFTY,
+  ITV
+};
 // -- Numeric operators
 NOP_BASE(NumericOp)
 
@@ -1845,11 +1880,12 @@ struct ITV_PS {
     OS << "]";
   }
 };
-}
+} // namespace numeric
 NOP(ITV, "itv", numeric::ITV_PS, NumericOp)
-}
+} // namespace op
 
 namespace op {
+enum class ComparissonOpKind { EQ, NEQ, LEQ, GEQ, LT, GT };
 // -- Comparisson operators
 NOP_BASE(ComparissonOp)
 
@@ -1859,9 +1895,10 @@ NOP(LEQ, "<=", INFIX, ComparissonOp)
 NOP(GEQ, ">=", INFIX, ComparissonOp)
 NOP(LT, "<", INFIX, ComparissonOp)
 NOP(GT, ">", INFIX, ComparissonOp)
-}
+} // namespace op
 
 namespace op {
+enum class MiscOpKind { NONDET, ASM, TUPLE };
 // -- Not yet sorted operators
 NOP_BASE(MiscOp)
 
@@ -1871,7 +1908,7 @@ NOP(NONDET, "nondet", FUNCTIONAL, MiscOp)
 NOP(ASM, "ASM", PREFIX, MiscOp)
 /** A tupple */
 NOP(TUPLE, "tuple", FUNCTIONAL, MiscOp)
-}
+} // namespace op
 
 namespace op {
 namespace variant {
@@ -1894,7 +1931,9 @@ struct PS_TAG {
     args[0]->Print(OS, depth, true);
   }
 };
-}
+} // namespace variant
+
+enum class VariantOpKind { VARIANT, TAG };
 NOP_BASE(VariantOp)
 NOP(VARIANT, "variant", variant::PS, VariantOp)
 NOP(TAG, "tag", variant::PS_TAG, VariantOp)
@@ -1930,10 +1969,19 @@ inline Expr tag(Expr e, const std::string &t) {
 inline Expr getTag(Expr e) { return e->left(); }
 
 inline std::string getTagStr(Expr e) { return getTerm<std::string>(getTag(e)); }
-}
-}
+} // namespace variant
+} // namespace op
 
 namespace op {
+enum class SimpleTypeOpKind {
+  INT_TY,
+  CHAR_TY,
+  REAL_TY,
+  VOID_TY,
+  BOOL_TY,
+  UNINT_TY,
+  ARRAY_TY
+};
 NOP_BASE(SimpleTypeOp)
 
 NOP(INT_TY, "INT", PREFIX, SimpleTypeOp)
@@ -1945,7 +1993,7 @@ NOP(BOOL_TY, "BOOL", PREFIX, SimpleTypeOp)
 NOP(UNINT_TY, "UNINT", PREFIX, SimpleTypeOp)
 /** Array Type */
 NOP(ARRAY_TY, "ARRAY", PREFIX, SimpleTypeOp)
-}
+} // namespace op
 
 namespace op {
 namespace sort {
@@ -1958,10 +2006,18 @@ inline Expr arrayTy(Expr indexTy, Expr valTy) {
 
 inline Expr arrayIndexTy(Expr a) { return a->left(); }
 inline Expr arrayValTy(Expr a) { return a->right(); }
-}
-}
+} // namespace sort
+} // namespace op
 
 namespace op {
+enum class ArrayOpKind {
+  SELECT,
+  STORE,
+  CONST_ARRAY,
+  ARRAY_MAP,
+  ARRAY_DEFAULT,
+  AS_ARRAY
+};
 /// Array operators
 NOP_BASE(ArrayOp)
 
@@ -1971,7 +2027,7 @@ NOP(CONST_ARRAY, "const-array", FUNCTIONAL, ArrayOp)
 NOP(ARRAY_MAP, "array-map", FUNCTIONAL, ArrayOp)
 NOP(ARRAY_DEFAULT, "array-default", FUNCTIONAL, ArrayOp)
 NOP(AS_ARRAY, "as-array", FUNCTIONAL, ArrayOp)
-}
+} // namespace op
 
 namespace op {
 namespace array {
@@ -1981,8 +2037,8 @@ inline Expr constArray(Expr domain, Expr v) {
   return mk<CONST_ARRAY>(domain, v);
 }
 inline Expr aDefault(Expr a) { return mk<ARRAY_DEFAULT>(a); }
-}
-}
+} // namespace array
+} // namespace op
 
 namespace op {
 
@@ -1999,7 +2055,8 @@ struct SCOPE_PS {
   }
 };
 struct FAPP_PS;
-}
+} // namespace bind
+enum class BindOpKind { BIND, FDECL, FAPP };
 NOP_BASE(BindOp)
 
 NOP(BIND, ":", INFIX, BindOp)
@@ -2207,7 +2264,7 @@ inline Expr reapp(Expr fapp, Expr fdecl) {
   _args.insert(_args.end(), ++(fapp->args_begin()), fapp->args_end());
   return mknary<FAPP>(_args);
 }
-}
+} // namespace bind
 
 namespace bind {
 /// returns true if an expression is a constant
@@ -2220,9 +2277,9 @@ public:
     return isOpX<FAPP>(e) && e->arity() == 1 && isOpX<FDECL>(fname(e));
   }
 };
-}
-}
-}
+} // namespace bind
+} // namespace op
+} // namespace expr
 
 namespace expr {
 namespace op {
@@ -2248,8 +2305,8 @@ inline std::ostream &operator<<(std::ostream &OS, const BoundVar &b) {
   b.Print(OS);
   return OS;
 }
-}
-}
+} // namespace bind
+} // namespace op
 
 template <> struct TerminalTrait<op::bind::BoundVar> {
   static inline void print(std::ostream &OS, const op::bind::BoundVar &b,
@@ -2267,6 +2324,8 @@ template <> struct TerminalTrait<op::bind::BoundVar> {
   }
 
   static inline size_t hash(const op::bind::BoundVar &b) { return b.hash(); }
+
+  static TerminalKind getKind() { return TerminalKind::BVAR; }
 };
 
 namespace op {
@@ -2300,14 +2359,14 @@ inline unsigned bvarId(Expr e) {
   assert(isOpX<BVAR>(t));
   return getTerm<BoundVar>(t).var;
 }
-}
-}
+} // namespace bind
+} // namespace op
 
 namespace details {
 template <typename Range> Expr absConstants(const Range &r, Expr e);
 
 template <typename Range> Expr subBndVars(const Range &r, Expr e);
-}
+} // namespace details
 
 namespace op {
 
@@ -2338,8 +2397,9 @@ struct BINDER {
     OS << ")";
   }
 };
-}
+} // namespace bind
 
+enum class BinderOpKind { FORALL, EXISTS, LAMBDA };
 NOP_BASE(BinderOp)
 /** Forall quantifier */
 NOP(FORALL, "forall", bind::BINDER, BinderOp)
@@ -2447,8 +2507,8 @@ inline Expr betaReduce(Expr lambda, Expr v0, Expr v1, Expr v2, Expr v3) {
   std::array<Expr, 4> a = {v0, v1, v2, v3};
   return betaReduce(lambda, a);
 }
-}
-}
+} // namespace bind
+} // namespace op
 
 /**********************************************************************/
 /* Visitors */
@@ -2593,7 +2653,7 @@ struct RW : public std::unary_function<Expr, VisitAction> {
     return VisitAction::changeDoKidsRewrite(exp, _r);
   }
 };
-}
+} // namespace
 
 /**********************************************************************/
 /* Utility Functions */
@@ -2714,7 +2774,7 @@ template <typename T> struct BS {
     return VisitAction::skipKids();
   }
 };
-}
+} // namespace
 
 /**
  * Very simple simplifier for Boolean Operators
@@ -2750,9 +2810,9 @@ inline Expr nnf(Expr exp) {
 
 /** Makes an expression pretty for printing */
 inline Expr pp(Expr exp) { return gather(nnf(exp)); }
-}
-}
-}
+} // namespace boolop
+} // namespace op
+} // namespace expr
 
 #include "ExprBv.inc"
 
@@ -2768,7 +2828,7 @@ template <> struct less<expr::ENode *> {
     return x->getId() < y->getId();
   }
 };
-}
+} // namespace std
 
 #include <boost/bimap.hpp>
 #include <boost/bimap/list_of.hpp>
@@ -2829,14 +2889,14 @@ public:
 
   size_t size() const { return cache.size(); }
 };
-}
+} // namespace expr
 
 namespace expr {
 inline size_t hash_value(Expr e) {
   std::hash<ENode *> hasher;
   return hasher(e.get());
 }
-}
+} // namespace expr
 
 /// implement boost::hash
 namespace boost {
@@ -2846,7 +2906,7 @@ struct hash<expr::Expr> : public std::unary_function<expr::Expr, std::size_t> {
     return expr::hash_value(v);
   }
 };
-}
+} // namespace boost
 
 /// implement std::hash
 namespace std {
@@ -2856,7 +2916,7 @@ struct hash<expr::Expr> : public std::unary_function<expr::Expr, std::size_t> {
     return expr::hash_value(v);
   }
 };
-}
+} // namespace std
 
 namespace expr {
 namespace details {
@@ -3009,5 +3069,5 @@ template <typename Range> Expr subBndVars(const Range &r, Expr e) {
   auto v = SUBBND<SubBnd<Range>>(a, 0);
   return dagVisit(v, e);
 }
-}
-}
+} // namespace details
+} // namespace expr

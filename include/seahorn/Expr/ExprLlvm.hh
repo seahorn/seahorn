@@ -45,6 +45,8 @@ template <> struct TerminalTrait<const Function *> {
     boost::hash<const Function *> hasher;
     return hasher(f);
   }
+
+  static TerminalKind getKind() {return TerminalKind::LLVM_FUNCTION;}
 };
 
 template <> struct TerminalTrait<const BasicBlock *> {
@@ -64,6 +66,8 @@ template <> struct TerminalTrait<const BasicBlock *> {
     boost::hash<const BasicBlock *> hasher;
     return hasher(b);
   }
+
+  static TerminalKind getKind() {return TerminalKind::LLVM_BASICBLOCK;}
 };
 
 template <> struct TerminalTrait<const Value *> {
@@ -110,6 +114,8 @@ template <> struct TerminalTrait<const Value *> {
     boost::hash<const Value *> hasher;
     return hasher(v);
   }
+
+  static TerminalKind getKind() {return TerminalKind::LLVM_VALUE;}
 };
 
 using BB = expr::Terminal<const llvm::BasicBlock *>;

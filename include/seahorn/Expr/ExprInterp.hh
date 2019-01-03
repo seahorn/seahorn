@@ -8,9 +8,14 @@
 
 namespace expr {
 namespace op {
+enum class MutModelOpKind { FTABLE, FENTRY };
 struct MutModelOp : public expr::Operator {
-  MutModelOp(unsigned k) : Operator(expr::OpFamilyId::MutModelOp, k) {}
+  MutModelOpKind m_kind;
+  MutModelOp(MutModelOpKind k) : Operator(expr::OpFamilyId::MutModelOp), m_kind(k) {}
   virtual bool isMutable() const { return true; }
+  static bool classof(expr::Operator const *op) {
+    return op->getFamilyId() == expr::OpFamilyId::MutModelOp;
+  }
 };
 
 namespace mdl {
@@ -61,7 +66,7 @@ struct FENT_PS {
     }
   }
 };
-}
+} // namespace mdl
 
 NOP(FTABLE, "ftab", mdl::FTAB_PS, MutModelOp);
 NOP(FENTRY, "fent", mdl::FENT_PS, MutModelOp);
@@ -93,8 +98,8 @@ inline Expr ftableEntry(Expr ftable, unsigned i) { return ftable->arg(i); }
 inline Expr ftableElseV(Expr ftable) {
   return ftable->arg(ftable->arity() - 1);
 }
-}
-}
-}
+} // namespace mdl
+} // namespace op
+} // namespace expr
 
 #endif /* _EXPR_INTERP__H_ */

@@ -1,5 +1,4 @@
 #pragma once
-#pragma clang diagnostic ignored "-Wpotentially-evaluated-expression"
 
 #include <typeinfo>
 
@@ -27,13 +26,12 @@
 #include <boost/pool/pool_alloc.hpp>
 #include <boost/pool/poolfwd.hpp>
 #include <boost/ptr_container/ptr_vector.hpp>
-#include <boost/range/adaptor/reversed.hpp>
-#include <boost/range/iterator_range.hpp>
-#include <boost/utility.hpp>
 
 #include "llvm/Support/Casting.h"
+#include "llvm/ADT/iterator_range.h"
+#include "llvm/ADT/STLExtras.h"
 
-#define mk_it_range boost::make_iterator_range
+#define mk_it_range llvm::make_range
 
 #define NOP_BASE(NAME)                                                         \
   struct NAME : public expr::Operator {                                        \
@@ -1646,7 +1644,7 @@ struct NormalizeOps : public std::unary_function<Expr, Expr> {
 
     boost::container::flat_set<Expr> args(newArgs.begin(), newArgs.end());
     Expr res = top;
-    for (Expr arg : boost::adaptors::reverse(args))
+    for (Expr arg : llvm::reverse(args))
       res = isOpX<AND>(exp) ? land(arg, res) : lor(arg, res);
 
     return res;

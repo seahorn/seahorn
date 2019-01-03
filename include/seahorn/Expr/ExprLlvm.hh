@@ -47,6 +47,7 @@ template <> struct TerminalTrait<const Function *> {
   }
 
   static TerminalKind getKind() {return TerminalKind::LLVM_FUNCTION;}
+  static std::string name() {return "llvm::Function";}
 };
 
 template <> struct TerminalTrait<const BasicBlock *> {
@@ -68,7 +69,9 @@ template <> struct TerminalTrait<const BasicBlock *> {
   }
 
   static TerminalKind getKind() {return TerminalKind::LLVM_BASICBLOCK;}
+  static std::string name() {return "llvm::BasicBlock";}
 };
+
 
 template <> struct TerminalTrait<const Value *> {
   static inline void print(std::ostream &OS, const Value *s, int depth,
@@ -116,6 +119,7 @@ template <> struct TerminalTrait<const Value *> {
   }
 
   static TerminalKind getKind() {return TerminalKind::LLVM_VALUE;}
+  static std::string name() {return "llvm::Value";}
 };
 
 using BB = expr::Terminal<const llvm::BasicBlock *>;

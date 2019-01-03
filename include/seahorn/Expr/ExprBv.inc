@@ -49,6 +49,7 @@ template <> struct TerminalTrait<const op::bv::BvSort> {
   static inline size_t hash(const op::bv::BvSort &b) { return b.hash(); }
 
   static TerminalKind getKind() {return TerminalKind::BVSORT;}
+  static std::string name() {return "op::bv::BvSort";}
 };
 
 namespace op {

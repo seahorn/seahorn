@@ -115,6 +115,7 @@ public:
   virtual bool isMutable() const { return false; }
   /* Returns a heap-allocated clone of this */
   virtual Operator *clone(ExprFactoryAllocator &allocator) const = 0;
+  virtual std::string name() const = 0;
 };
 
 inline std::ostream &operator<<(std::ostream &OS, const Operator &V) {
@@ -331,7 +332,7 @@ class ExprFactory : boost::noncopyable {
 protected:
   typedef std::unordered_set<ENode *, ENodeUniqueHash, ENodeUniqueEqual>
       unique_entry_type;
-  typedef const char *unique_key_type;
+  using unique_key_type = std::string;
   // -- type of the unique table
   typedef std::map<unique_key_type, unique_entry_type> unique_type;
 
@@ -358,7 +359,7 @@ protected:
   void Remove(ENode *val) {
     clearCaches(val);
     if (!val->isMutable()) {
-      unique_type::iterator it = unique.find(typeid(val->op()).name());
+      unique_type::iterator it = unique.find(val->op().name());
       // -- can only remove things that have been inserted before
       assert(it != unique.end());
       it->second.erase(val);
@@ -386,8 +387,7 @@ protected:
       return v;
     }
 
-    std::pair<unique_entry_type::iterator, bool> x =
-        unique[typeid(v->op()).name()].insert(v);
+    auto x = unique[v->op().name()].insert(v);
     if (x.second) {
       v->setId(uniqueId());
       return v;
@@ -606,6 +606,7 @@ public:
     terminal_type::print(OS, val, depth, brkt);
   }
 
+  std::string name() const { return terminal_type::name(); }
   bool operator==(const this_type &rhs) const {
     return terminal_type::equal_to(val, rhs.val);
   }
@@ -666,6 +667,7 @@ template <> struct TerminalTrait<std::string> {
     return hasher(s);
   }
   static TerminalKind getKind() { return TerminalKind::STRING; }
+  static std::string name() { return "std::string"; }
 };
 
 template <> struct TerminalTrait<int> {
@@ -679,6 +681,7 @@ template <> struct TerminalTrait<int> {
     return hasher(i);
   }
   static TerminalKind getKind() { return TerminalKind::INT; }
+  static std::string name() { return "int"; }
 };
 
 template <> struct TerminalTrait<unsigned int> {
@@ -697,6 +700,7 @@ template <> struct TerminalTrait<unsigned int> {
     return hasher(i);
   }
   static TerminalKind getKind() { return TerminalKind::UINT; }
+  static std::string name() { return "unsigned int"; }
 };
 
 template <> struct TerminalTrait<unsigned long> {
@@ -716,6 +720,7 @@ template <> struct TerminalTrait<unsigned long> {
   }
 
   static TerminalKind getKind() { return TerminalKind::ULONG; }
+  static std::string name() { return "unsigned long"; }
 };
 
 template <> struct TerminalTrait<mpz_class> {
@@ -745,6 +750,7 @@ template <> struct TerminalTrait<mpz_class> {
   }
 
   static TerminalKind getKind() { return TerminalKind::MPZ; }
+  static std::string name() { return "mpz_class"; }
 };
 
 template <> struct TerminalTrait<mpq_class> {
@@ -768,6 +774,7 @@ template <> struct TerminalTrait<mpq_class> {
   }
 
   static TerminalKind getKind() { return TerminalKind::MPQ; }
+  static std::string name() { return "mpq_class"; }
 };
 
 namespace op {
@@ -901,6 +908,7 @@ struct DefOp : public B {
     ps_type::print(OS, depth, brkt, op_type::name(), args);
   }
 
+  std::string name() const override { return op_type::name(); }
   bool operator==(const Operator &rhs) const override {
     if (this == &rhs)
       return true;
@@ -2333,6 +2341,7 @@ template <> struct TerminalTrait<op::bind::BoundVar> {
   static inline size_t hash(const op::bind::BoundVar &b) { return b.hash(); }
 
   static TerminalKind getKind() { return TerminalKind::BVAR; }
+  static std::string name() { return "bind::BoundVar"; }
 };
 
 namespace op {

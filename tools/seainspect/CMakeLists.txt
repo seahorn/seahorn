@@ -23,7 +23,7 @@ set(LLVM_LINK_COMPONENTS
   objcarcopts)
 
 
-add_executable(seainspect seainspect.cc)
+add_llvm_executable(seainspect seainspect.cc)
 target_link_libraries (seainspect ${SEAINSPECT_LIBS})
 llvm_config (seainspect ${LLVM_LINK_COMPONENTS})
 install(TARGETS seainspect RUNTIME DESTINATION bin)

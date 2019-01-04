@@ -23,7 +23,6 @@
 #include <boost/intrusive_ptr.hpp>
 #include <boost/lexical_cast.hpp>
 #include <boost/pool/pool.hpp>
-#include <boost/pool/pool_alloc.hpp>
 #include <boost/pool/poolfwd.hpp>
 #include <boost/ptr_container/ptr_vector.hpp>
 
@@ -124,15 +123,17 @@ inline std::ostream &operator<<(std::ostream &OS, const Operator &V) {
   return OS;
 }
 
+struct EFADeleter {
+  ExprFactoryAllocator *m_efa;
+  EFADeleter(ExprFactoryAllocator &efa) : m_efa(&efa) {}
+  EFADeleter(const EFADeleter &) = default;
+  EFADeleter &operator=(const EFADeleter &o) = default; 
+  void operator()(void *p);
+};
+
 /* An expression node (a.k.a. an enode). A pointer into an
    expression tree (or DAG)  */
 class ENode {
-private:
-  // // -- no default constructor
-  ENode() : id(0), count(0), fac(nullptr) {}
-  // // -- no copy constructor
-  ENode(const ENode &) : count(0), fac(nullptr) {}
-
 protected:
   /** unique identifier of this expression node */
   unsigned int id;
@@ -142,7 +143,7 @@ protected:
   ExprFactory *fac;
   std::vector<ENode *> args;
 
-  std::shared_ptr<Operator> oper;
+  std::unique_ptr<Operator, EFADeleter> m_oper;
 
   void Deref() {
     if (count > 0)
@@ -156,6 +157,9 @@ public:
   ENode(ExprFactory &f, const Operator &o);
   ~ENode();
 
+  ENode() = delete;
+  ENode(const ENode &) = delete;
+
   ExprFactory &getFactory() const { return *fac; }
   ExprFactory &efac() const { return getFactory(); }
 
@@ -164,7 +168,7 @@ public:
 
   void Ref() { count++; }
   bool isGarbage() const { return count == 0; }
-  bool isMutable() const { return oper->isMutable(); }
+  bool isMutable() const { return m_oper->isMutable(); }
 
   unsigned int use_count() { return count; }
 
@@ -193,9 +197,9 @@ public:
 
   size_t arity() const { return args.size(); }
 
-  const Operator &op() const { return *oper; }
+  const Operator &op() const { return *m_oper; }
   void Print(std::ostream &OS, int depth = 0, bool brkt = true) const {
-    oper->Print(OS, args, depth, brkt);
+    m_oper->Print(OS, args, depth, brkt);
   }
   void dump() const {
     Print(std::cerr, 0, false);
@@ -307,12 +311,6 @@ template <typename C> struct CacheStubTmpl : CacheStub {
     return p == static_cast<const void *>(&cache);
   }
   virtual void erase(ENode *val) { cache.erase(val); }
-};
-
-struct EFADeleter {
-  ExprFactoryAllocator &m_efa;
-  EFADeleter(ExprFactoryAllocator &efa) : m_efa(efa) {}
-  void operator()(void *p);
 };
 
 class ExprFactoryAllocator : boost::noncopyable {
@@ -494,8 +492,8 @@ public:
 };
 
 inline ENode::ENode(ExprFactory &f, const Operator &o)
-    : count(0), fac(&f), oper(o.clone(f.allocator), f.allocator.get_deleter(),
-                              boost::pool_allocator<char>()) {}
+    : count(0), fac(&f),
+      m_oper(o.clone(f.allocator), f.allocator.get_deleter()) {}
 } // namespace expr
 
 inline void *operator new(size_t n, expr::ExprFactoryAllocator &alloc) {
@@ -512,7 +510,7 @@ inline void ExprFactory::freeNode(ENode *n) {
     for (ENode *a : n->args)
       Deref(a);
     n->args.clear();
-    n->oper.reset();
+    n->m_oper.reset();
 
     if (freeList.size() < FREE_LIST_MAX_SIZE) {
       assert(n->count == 0);
@@ -530,8 +528,8 @@ inline ENode *ExprFactory::allocNode(const Operator &op) {
 
   ENode *res = freeList.back();
   freeList.pop_back();
-  res->oper.reset(op.clone(allocator), allocator.get_deleter(),
-                  boost::pool_allocator<char>());
+  res->m_oper = std::unique_ptr<Operator, EFADeleter>(op.clone(allocator),
+                                                      allocator.get_deleter());
   assert(res->count == 0);
   return res;
 }
@@ -558,7 +556,7 @@ inline EFADeleter ExprFactoryAllocator::get_deleter() {
   return EFADeleter(*this);
 }
 
-inline void EFADeleter::operator()(void *p) { operator delete(p, m_efa); }
+inline void EFADeleter::operator()(void *p) { operator delete(p, *m_efa); }
 
 template <typename T> struct TerminalTrait {};
 enum class TerminalKind {

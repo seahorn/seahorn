@@ -14,11 +14,12 @@
 #include "llvm/Pass.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/Support/Regex.h"
+#include "llvm/ADT/Optional.h"
 
 #include "seahorn/Support/SeaDebug.h"
+#include "seahorn/Support/SeaLog.hh"
 
-#include "boost/optional.hpp"
-#include <regex>
 
 using namespace llvm;
 
@@ -35,21 +36,18 @@ class ExternalizeFunctions : public ModulePass {
 
 #ifdef EXTERN_FUNCTIONS_USE_REGEX
   struct MatchRegex : public std::unary_function<Function *, bool> {
-    boost::optional<std::regex> m_re;
+    llvm::Optional<llvm::Regex> m_re;
     MatchRegex(std::string s) {
       if (s != "") {
-        try {
-          m_re = std::regex(s);
-        } catch (std::regex_error &e) {
-          errs() << "Warning: syntax error in the regex: " << e.what() << "\n";
+        m_re = llvm::Regex(s);
+        std::string Error;
+        if (!m_re->isValid(Error)) {
+          WARN << "Syntax error in regex '" << s << "' " << Error;
+          m_re = llvm::None;
         }
       }
     }
-    bool operator()(Function *F) {
-      if (!m_re)
-        return false; // this should not happen
-      return std::regex_match(F->getName().str(), *m_re);
-    }
+    bool operator()(Function *F) { return m_re && m_re->match(F->getName()); }
   };
 #endif
 
@@ -110,12 +108,9 @@ public:
       }
     }
 
-
     errs() << "Externalize before verify\n\n";
     llvm::verifyModule(M, &(errs()), nullptr);
     errs() << "Externalize after verify\n\n";
-
-
 
     return Change;
   }

@@ -3,6 +3,7 @@
 #include "seahorn/Transforms/Utils/NameValues.hh"
 
 #include "seahorn/Support/BoostLlvmGraphTraits.hh"
+#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/SCCIterator.h"
 #include "llvm/Analysis/CFG.h"
 #include "llvm/Analysis/CallGraph.h"
@@ -11,12 +12,11 @@
 #include "llvm/IR/InstIterator.h"
 #include "llvm/IR/Module.h"
 #include "llvm/Support/CommandLine.h"
+#include "llvm/Support/Regex.h"
 #include "llvm/Support/raw_ostream.h"
 
-#include "boost/optional.hpp"
-#include "boost/range.hpp"
+//#include "boost/range.hpp"
 #include "boost/scoped_ptr.hpp"
-#include <regex>
 
 #include "seahorn/Support/SortTopo.hh"
 
@@ -25,14 +25,15 @@
 
 #include "seahorn/Analysis/CanFail.hh"
 #include "seahorn/Analysis/CutPointGraph.hh"
-#include "ufo/Smt/EZ3.hh"
 #include "seahorn/Support/Stats.hh"
+#include "ufo/Smt/EZ3.hh"
 
 #include "seahorn/FlatHornifyFunction.hh"
 #include "seahorn/HornifyFunction.hh"
 #include "seahorn/IncHornifyFunction.hh"
 
 #include "seahorn/Support/SeaDebug.h"
+#include "seahorn/Support/SeaLog.hh"
 
 using namespace llvm;
 using namespace seahorn;
@@ -95,21 +96,19 @@ char HornifyModule::ID = 0;
 
 struct FunctionNameMatcher
     : public std::unary_function<const Function &, bool> {
-  boost::optional<std::regex> m_re;
+  llvm::Optional<llvm::Regex> m_re;
   FunctionNameMatcher(std::string s) {
     if (s != "") {
-      try {
-        m_re = std::regex(s);
-      } catch (std::regex_error &e) {
-        errs() << "Warning: syntax error in the regex: " << e.what() << "\n";
+      m_re = llvm::Regex(s);
+      std::string Error;
+      if (!m_re->isValid(Error)) {
+        WARN << "syntax error in regex '" << s << "' " << Error;
+        m_re = llvm::None;
       }
     }
   }
   bool operator()(const Function &fn) {
-    if (!m_re)
-      return false; // this should not happen
-    auto fn_name = fn.getName().str();
-    return std::regex_match(fn_name, *m_re);
+    return m_re && m_re->match(fn.getName());
   }
 };
 
@@ -343,8 +342,8 @@ bool HornifyModule::runOnFunction(Function &F) {
   // -- skip functions without a body
   if (F.isDeclaration() || F.empty())
     return false;
-  LOG("horn-step",
-      errs() << "HornifyModule: runOnFunction: " << F.getName() << "\n");
+  LOG("horn-step", errs() << "HornifyModule: runOnFunction: " << F.getName()
+                          << "\n");
 
   // XXX: between we run LiveSymbols and hornify function (see
   // below) the CFG can change because the construction of the

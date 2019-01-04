@@ -1,6 +1,6 @@
 set(Z3_ROOT "" CACHE PATH "Root of Z3 distribution.")
 find_path(Z3_INCLUDE_DIR NAMES z3.h z3++.h PATHS ${Z3_ROOT}/include NO_DEFAULT_PATH)
-find_library(Z3_LIBRARY NAMES z3 PATHS ${Z3_ROOT}/lib NO_DEFAULT_PATH)
+find_library(Z3_LIBRARY NAMES z3 PATHS ${Z3_ROOT}/lib ${Z3_ROOT}/bin NO_DEFAULT_PATH)
 
 mark_as_advanced(Z3_EXECUTABLE Z3_INCLUDE_DIR Z3_LIBRARY)
 find_program (Z3_EXECUTABLE

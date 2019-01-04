@@ -24,7 +24,7 @@ add_llvm_library (seahorn.LIB
   Bmc.cc    
   BmcPass.cc
   BvOpSem.cc
-  BvInt.cc
+  # BvInt.cc
   MemSimulator.cc
   ZOption.cc
   BoogieWriter.cc

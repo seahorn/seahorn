@@ -3,9 +3,9 @@
 
 #include "seahorn/Analysis/CutPointGraph.hh"
 #include "seahorn/Support/CFG.hh"
+#include "seahorn/Support/Stats.hh"
 #include "seahorn/VCGen.hh"
 #include "ufo/Smt/EZ3.hh"
-#include "seahorn/Support/Stats.hh"
 
 #include "seahorn/Support/SeaDebug.h"
 
@@ -26,7 +26,6 @@ static llvm::cl::opt<bool> LargeStepReduce(
 
 using namespace ufo;
 namespace seahorn {
-
 
 void VCGen::initSmt(std::unique_ptr<ufo::EZ3> &zctx,
                     std::unique_ptr<ufo::ZSolver<ufo::EZ3>> &smt) {
@@ -73,18 +72,13 @@ void VCGen::checkSideAtBb(unsigned &head, ExprVector &side, Expr bbV,
         file.close();
       });
 
-  try {
-    auto res = smt.solveAssuming(a);
-    if (!res) {
-      errs() << "F";
-      errs().flush();
-      Stats::count("VCGen.smt.unsat");
-      smt.assertExpr(boolop::lneg(bbV));
-      side.push_back(boolop::lneg(bbV));
-    }
-  } catch (z3::exception &e) {
-    errs() << e.msg() << "\n";
-    // std::exit (1);
+  auto res = smt.solveAssuming(a);
+  if (!res) {
+    errs() << "F";
+    errs().flush();
+    Stats::count("VCGen.smt.unsat");
+    smt.assertExpr(boolop::lneg(bbV));
+    side.push_back(boolop::lneg(bbV));
   }
 }
 
@@ -100,19 +94,16 @@ void VCGen::checkSideAtEnd(unsigned &head, ExprVector &side,
       smt.assertExpr(e);
   }
 
-  try {
-    ScopedStats __st__("VCGen.smt.last");
-    auto res = smt.solve();
-    if (!res) {
-      Stats::count("VCGen.smt.last.unsat");
-      side.push_back(mk<FALSE>(m_sem.efac()));
-    }
-  } catch (z3::exception &e) {
-    errs() << e.msg() << "\n";
+  ScopedStats __st__("VCGen.smt.last");
+  auto res = smt.solve();
+  if (!res) {
+    Stats::count("VCGen.smt.last.unsat");
+    side.push_back(mk<FALSE>(m_sem.efac()));
   }
 }
 
-void VCGen::genVcForCpEdgeLegacy(SymStore &s, const CpEdge &edge, ExprVector &side) {
+void VCGen::genVcForCpEdgeLegacy(SymStore &s, const CpEdge &edge,
+                                 ExprVector &side) {
   OpSemContextPtr ctx = m_sem.mkContext(s, side);
   genVcForCpEdge(*ctx, edge);
 }

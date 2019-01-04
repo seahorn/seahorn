@@ -260,6 +260,8 @@ struct ENodeUniqueHash {
   }
 };
 
+#if 0
+// Requires RTTI
 struct ENodeUniqueEqual_SAVED {
   bool operator()(ENode *const &e1, ENode *const &e2) const {
     // -- same type
@@ -273,6 +275,7 @@ struct ENodeUniqueEqual_SAVED {
     return false;
   }
 };
+#endif
 
 struct ENodeUniqueEqual {
   bool operator()(ENode *const &e1, ENode *const &e2) const {

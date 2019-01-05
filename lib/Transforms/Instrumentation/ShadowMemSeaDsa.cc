@@ -16,12 +16,12 @@
 #include "llvm/Transforms/Utils/Local.h"
 #include "llvm/Transforms/Utils/PromoteMemToReg.h"
 
-#include "seahorn/Transforms/Utils/Local.hh"
-#include "seahorn/Support/SeaDebug.h"
 #include "boost/range.hpp"
 #include "boost/range/algorithm/binary_search.hpp"
 #include "boost/range/algorithm/set_algorithm.hpp"
 #include "boost/range/algorithm/sort.hpp"
+#include "seahorn/Support/SeaDebug.h"
+#include "seahorn/Transforms/Utils/Local.hh"
 
 #include "sea_dsa/CallSite.hh"
 #include "sea_dsa/DsaAnalysis.hh"
@@ -139,6 +139,8 @@ class ShadowDsaImpl : public InstVisitor<ShadowDsaImpl> {
   llvm::Constant *m_markOut = nullptr;
   llvm::Constant *m_markUniqIn = nullptr;
   llvm::Constant *m_markUniqOut = nullptr;
+
+  llvm::Constant *m_memGlobalVarInitFn = nullptr;
 
   using ShadowsMap =
       llvm::DenseMap<const sea_dsa::Node *,
@@ -310,11 +312,18 @@ private:
     return ci;
   }
 
+  void mkShadowGlobalVarInit(IRBuilder<> &B, const dsa::Cell &c) {
+    auto *v = getShadowForField(c);
+    auto *ci = B.CreateCall(m_memGlobalVarInitFn,
+                            {m_B->getInt32(getFieldId(c)), m_B->CreateLoad(v),
+                             getUniqueScalar(*m_llvmCtx, B, c)},
+                            "sm");
+    markCall(ci);
+  }
   void mkShadowLoad(IRBuilder<> &B, const dsa::Cell &c) {
-    auto *ci = B.CreateCall(m_memLoadFn,
-                            {B.getInt32(getFieldId(c)),
-                             B.CreateLoad(getShadowForField(c)),
-                             getUniqueScalar(*m_llvmCtx, B, c)});
+    auto *ci = B.CreateCall(m_memLoadFn, {B.getInt32(getFieldId(c)),
+                                          B.CreateLoad(getShadowForField(c)),
+                                          getUniqueScalar(*m_llvmCtx, B, c)});
     markCall(ci);
   }
 
@@ -429,6 +438,8 @@ public:
   };
 
   bool runOnFunction(Function &F);
+  void visitFunction(Function &F);
+  void visitMainFunction(Function &F);
   void visitAllocaInst(AllocaInst &I);
   void visitLoadInst(LoadInst &I);
   void visitStoreInst(StoreInst &I);
@@ -491,8 +502,7 @@ bool ShadowDsaImpl::runOnFunction(Function &F) {
     }
   }
 
-
-  ReturnInst* _ret = nullptr;
+  ReturnInst *_ret = nullptr;
   seahorn::HasReturn(F, _ret);
   if (!_ret) {
     // TODO: Need to think how to handle functions that do not return in
@@ -500,8 +510,8 @@ bool ShadowDsaImpl::runOnFunction(Function &F) {
     // case.
     WARN << "Function " << F.getName()
          << "never returns."
-      "Inter-procedural analysis with such functions might not be "
-      "supported.";
+            "Inter-procedural analysis with such functions might not be "
+            "supported.";
     return true;
   }
   TerminatorInst *ret = cast<ReturnInst>(_ret);
@@ -550,6 +560,12 @@ bool ShadowDsaImpl::runOnFunction(Function &F) {
   return true;
 }
 
+void ShadowDsaImpl::visitFunction(Function &fn) {
+  if (fn.getName().equals("main")) {
+    visitMainFunction(fn);
+  }
+}
+void ShadowDsaImpl::visitMainFunction(Function &fn) {}
 void ShadowDsaImpl::visitAllocaInst(AllocaInst &I) {
   if (!m_graph->hasCell(I))
     return;
@@ -749,6 +765,9 @@ void ShadowDsaImpl::mkShadowFunctions(Module &M) {
 
   m_memStoreFn = M.getOrInsertFunction("shadow.mem.store", m_Int32Ty, m_Int32Ty,
                                        m_Int32Ty, i8PtrTy);
+
+  m_memGlobalVarInitFn = M.getOrInsertFunction(
+      "shadow.mem.global.init", m_Int32Ty, m_Int32Ty, m_Int32Ty, i8PtrTy);
 
   m_memShadowInitFn =
       M.getOrInsertFunction("shadow.mem.init", m_Int32Ty, m_Int32Ty, i8PtrTy);

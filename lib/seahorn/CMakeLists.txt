@@ -29,6 +29,7 @@ add_llvm_library (seahorn.LIB
   ZOption.cc
   BoogieWriter.cc
   BvOpSem2.cc
+  BvOpSem2Mem.cc
   VCGen.cc
   )
 

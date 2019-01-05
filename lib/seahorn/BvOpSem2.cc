@@ -280,9 +280,16 @@ class OpSemMemManager {
     unsigned m_start;
     unsigned m_end;
     unsigned m_sz;
+    /// Memory for the value of the global
+    char *m_mem;
     GlobalAllocInfo(const GlobalVariable &gv, unsigned start, unsigned end,
                     unsigned sz)
-        : m_gv(&gv), m_start(start), m_end(end), m_sz(sz) {}
+        : m_gv(&gv), m_start(start), m_end(end), m_sz(sz) {
+
+      m_mem = static_cast<char*>(::operator new(sz));
+    }
+
+    char* getMemory() {return m_mem;}
   };
 
   Bv2OpSem &m_sem;
@@ -472,6 +479,7 @@ public:
     start = llvm::alignTo(start, std::max(align, m_alignment));
     unsigned end = llvm::alignTo(start + gvSz, std::max(align, m_alignment));
     m_globals.emplace_back(gv, start, end, gvSz);
+    m_sem.initMemory(gv.getInitializer(), m_globals.back().getMemory());
     return bv::bvnum(start, ptrSzInBits(), m_efac);
   }
 

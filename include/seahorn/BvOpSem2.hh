@@ -46,9 +46,12 @@ public:
     assert(m_td);
     return *m_td;
   }
+  const DataLayout& getDataLayout() {return getTD();}
 
   /// \brief Evaluates constant expression into a value
   Optional<GenericValue> getConstantValue(const Constant *C);
+  void initMemory(const Constant *Init, void *Addr);
+  void storeValueToMemory(const GenericValue &Val, GenericValue *Ptr, Type *Ty); 
 
   OpSemContextPtr mkContext(SymStore &values, ExprVector &side) override;
 

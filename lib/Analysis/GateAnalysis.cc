@@ -19,7 +19,7 @@
 
 #include "seahorn/Analysis/ControlDependenceAnalysis.hh"
 
-#include "avy/AvyDebug.h"
+#include "seahorn/Support/SeaDebug.h"
 
 #define GSA_LOG(...) LOG("gsa", __VA_ARGS__)
 

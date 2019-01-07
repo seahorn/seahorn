@@ -56,9 +56,13 @@
    here since would not need crab_global_map and crab_path_map.
  **/
 
-static llvm::cl::opt<bool>
+namespace seahorn {
+bool XHornBmcCrab;
+}
+
+static llvm::cl::opt<bool, true>
     UseCrab("horn-bmc-crab", llvm::cl::desc("Use of Crab in Path-based BMC"),
-            llvm::cl::init(false));
+            llvm::cl::location(seahorn::XHornBmcCrab), llvm::cl::init(false));
 
 static llvm::cl::opt<bool> UseCrabGlobalInvariants(
     "horn-bmc-crab-invariants",

@@ -30,9 +30,21 @@ static llvm::cl::opt<bool> HornBv2("horn-bv2",
                                    llvm::cl::desc("Use bv2 semantics"),
                                    llvm::cl::init(false), llvm::cl::Hidden);
 
+namespace seahorn {
+// Defined in PathBasedBmc.cc
+extern bool XHornBmcCrab;
+}
+
 namespace {
 using namespace llvm;
 using namespace seahorn;
+
+
+#ifdef HAVE_CRAB_LLVM
+static constexpr bool HaveCrab = true;
+#else
+static constexpr bool HaveCrab = false;
+#endif
 
 
 class BmcPass : public llvm::ModulePass {
@@ -78,10 +90,15 @@ public:
     AU.addRequired<seahorn::TopologicalOrder>();
     AU.addRequired<CutPointGraph>();
     AU.addRequired<TargetLibraryInfoWrapperPass>();
+
+    if (XHornBmcCrab) {
 #ifdef HAVE_CRAB_LLVM
-    AU.addRequired<seahorn::LowerCstExprPass>();
-    AU.addRequired<crab_llvm::CrabLlvmPass>();
+      AU.addRequired<crab_llvm::CrabLlvmPass>();
+      AU.addRequired<seahorn::LowerCstExprPass>();
+#else
+      WARN << "Crab requested (by --horn-bmc-crab) but not available!";
 #endif
+    }
   }
 
   virtual bool runOnFunction(Function &F) {
@@ -154,18 +171,24 @@ public:
                                        F.getParent()->getDataLayout(), MEM);
 
     ufo::EZ3 zctx(efac);
-    std::unique_ptr<BmcEngine> bmc;
+    std::unique_ptr<BmcEngine> bmc = nullptr;
     switch (m_engine) {
     case path_bmc: {
       const TargetLibraryInfo &tli =
           getAnalysis<TargetLibraryInfoWrapperPass>().getTLI();
-      // TODO: get rid of this ifdef!!!
+
+      if (XHornBmcCrab && HaveCrab) {
 #ifdef HAVE_CRAB_LLVM
       crab_llvm::CrabLlvmPass &crab = getAnalysis<crab_llvm::CrabLlvmPass>();
-      bmc = llvm::make_unique<PathBasedBmcEngine>(static_cast<LegacyOperationalSemantics&>(*sem), zctx, &crab, tli);
-#else
-      bmc = llvm::make_unique<PathBasedBmcEngine>(static_cast<LegacyOperationalSemantics&>(*sem), zctx, tli);
+      bmc = llvm::make_unique<PathBasedBmcEngine>(
+          static_cast<LegacyOperationalSemantics&>(*sem), zctx, &crab, tli);
 #endif
+      } else {
+        if (XHornBmcCrab)
+          WARN << "Crab requested (by --horn-bmc-crab) but not available!";
+        bmc = llvm::make_unique<PathBasedBmcEngine>(
+            static_cast<LegacyOperationalSemantics &>(*sem), zctx, tli);
+      }
       break;
     }
     case mono_bmc:
@@ -174,6 +197,7 @@ public:
       bmc = llvm::make_unique<BmcEngine>(*sem, zctx);
     }
 
+    assert(bmc);
     bmc->addCutPoint(src);
     bmc->addCutPoint(*dst);
     LOG("bmc", errs() << "BMC from: " << src.bb().getName() << " to "

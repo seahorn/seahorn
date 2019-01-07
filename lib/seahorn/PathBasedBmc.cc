@@ -1053,12 +1053,12 @@ PathBasedBmcEngine::PathBasedBmcEngine(LegacyOperationalSemantics &sem, ufo::EZ3
     : BmcEngine(sem, zctx), m_incomplete(false), m_num_paths(0),
       m_aux_smt_solver(zctx), m_tli(tli), m_model(zctx), m_ls(nullptr),
       m_crab_global(crab), m_crab_path(nullptr) {}
-#else
+#endif
+
 PathBasedBmcEngine::PathBasedBmcEngine(LegacyOperationalSemantics &sem, ufo::EZ3 &zctx,
                                        const TargetLibraryInfo &tli)
     : BmcEngine(sem, zctx), m_incomplete(false), m_num_paths(0),
       m_aux_smt_solver(zctx), m_tli(tli), m_model(zctx), m_ls(nullptr) {}
-#endif
 
 PathBasedBmcEngine::~PathBasedBmcEngine() {
   if (m_ls)

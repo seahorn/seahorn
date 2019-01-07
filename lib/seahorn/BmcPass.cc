@@ -91,12 +91,15 @@ public:
     AU.addRequired<CutPointGraph>();
     AU.addRequired<TargetLibraryInfoWrapperPass>();
 
-    if (XHornBmcCrab) {
+    // Crab passes are required by path-based BMC even when XHornBmcCrab is not
+    // set.
+    if (m_engine == path_bmc) {
 #ifdef HAVE_CRAB_LLVM
       AU.addRequired<crab_llvm::CrabLlvmPass>();
       AU.addRequired<seahorn::LowerCstExprPass>();
 #else
-      WARN << "Crab requested (by --horn-bmc-crab) but not available!";
+      ERR << "Crab requested (by path_bmc) but not available!";
+      llvm_unreachable("No crab");
 #endif
     }
   }
@@ -177,15 +180,17 @@ public:
       const TargetLibraryInfo &tli =
           getAnalysis<TargetLibraryInfoWrapperPass>().getTLI();
 
-      if (XHornBmcCrab && HaveCrab) {
+      if (HaveCrab) {
 #ifdef HAVE_CRAB_LLVM
       crab_llvm::CrabLlvmPass &crab = getAnalysis<crab_llvm::CrabLlvmPass>();
       bmc = llvm::make_unique<PathBasedBmcEngine>(
           static_cast<LegacyOperationalSemantics&>(*sem), zctx, &crab, tli);
 #endif
       } else {
-        if (XHornBmcCrab)
-          WARN << "Crab requested (by --horn-bmc-crab) but not available!";
+        if (XHornBmcCrab) {
+          ERR << "Crab requested (by --horn-bmc-crab) but not available!";
+          llvm_unreachable("No crab");
+        }
         bmc = llvm::make_unique<PathBasedBmcEngine>(
             static_cast<LegacyOperationalSemantics &>(*sem), zctx, tli);
       }

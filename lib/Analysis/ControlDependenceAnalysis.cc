@@ -20,7 +20,7 @@
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/raw_ostream.h"
 
-#include "avy/AvyDebug.h"
+#include "seahorn/Support/SeaDebug.h"
 
 #define CDA_LOG(...) LOG("cda", __VA_ARGS__)
 

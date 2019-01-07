@@ -100,7 +100,6 @@ public:
     AU.addRequired<seahorn::NameValues>();
     AU.addRequired<seahorn::TopologicalOrder>();
     AU.addRequired<CutPointGraph>();
-    AU.addRequired<seahorn::ControlDependenceAnalysisPass>();
     AU.addRequired<TargetLibraryInfoWrapperPass>();
 
     // Crab passes are required by path-based BMC even when XHornBmcCrab is not

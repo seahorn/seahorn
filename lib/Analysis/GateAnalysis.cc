@@ -33,6 +33,11 @@ static llvm::cl::opt<bool>
                   llvm::cl::desc("Dump function before running"),
                   llvm::cl::init(false));
 
+static llvm::cl::opt<bool>
+    GsaViewDomTree("gsa-view-domtree",
+                  llvm::cl::desc("View Dominator Tree before GSA"),
+                  llvm::cl::init(false));
+
 static llvm::cl::opt<bool> ThinnedGsa("gsa-thinned",
                                       llvm::cl::desc("Emit thin gammas"),
                                       llvm::cl::init(true));
@@ -69,10 +74,13 @@ public:
       f.viewCFG();
     }
 
+    if (GsaViewDomTree)
+      m_DT.viewGraph();
+
     calculate();
 
     if (GsaDumpAfter) {
-      errs() << "Dumping IR after running Gated SSA analysis pass on function: "
+      errs() << "Dumping IR after running GatedSSA analysis pass on function: "
              << f.getName() << "\n==========================================\n";
       f.print(errs());
       errs() << "\n";

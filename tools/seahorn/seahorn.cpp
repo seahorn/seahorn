@@ -366,9 +366,7 @@ int main(int argc, char **argv) {
     }
     pass_manager.add(createPrintModulePass(asmOutput->os()));
   }
-
-  pass_manager.add(seahorn::createUnifyFunctionExitNodesPass());
-
+  
   if (Bmc) {
     llvm::raw_ostream *out = nullptr;
     if (!OutputFilename.empty())

@@ -210,8 +210,8 @@ template <typename M> struct BasicExprMarshal {
                                &bound_sorts[0], &bound_names[0], body);
       } else {
         assert(isOpX<LAMBDA>(e));
-        res = Z3_mk_lambda(ctx, num_bound, &bound_sorts[0], &bound_names[0],
-                           body);
+        res = Z3_mk_lambda(ctx, num_bound,
+                           &bound_sorts[0], &bound_names[0], body);
       }
     }
 
@@ -221,11 +221,6 @@ template <typename M> struct BasicExprMarshal {
       cache.insert(typename C::value_type(e, ast));
       return ast;
     }
-
-    static int cnt = 0;
-    ++cnt;
-    //    if (cnt == 219)
-    //        __asm__("int3");
 
     int arity = e->arity();
     /** other terminal expressions */
@@ -432,10 +427,8 @@ template <typename M> struct BasicExprMarshal {
 
     if (res == nullptr)
       ctx.check_error();
-    if (res == nullptr) {
+    if (res == nullptr)
       errs() << "Failed to marshal: " << *e << "\n";
-      errs() << "\t" << cnt << "\n";
-    }
 
     assert(res != NULL);
     z3::ast final(ctx, res);

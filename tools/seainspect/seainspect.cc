@@ -56,7 +56,6 @@ CfgOnlyDot("cfg-only-dot",
            llvm::cl::desc("Print CFG of function (without instructions) to dot format"),
            llvm::cl::init(false));
 
-
 static llvm::cl::opt<bool>
 CfgViewer("cfg-viewer",
           llvm::cl::desc("View CFG of function"),
@@ -83,13 +82,13 @@ PrintMemStats("mem-stats",
        llvm::cl::init(false));
 
 static llvm::cl::opt<bool>
-    PrintGSA("print-gsa",
-             llvm::cl::desc("Print Gating conditions (Gated SSA / GSA)"),
-             llvm::cl::init(false));
+    RunGSA("run-gsa",
+           llvm::cl::desc("Run Gated SSA (GSA) construction"),
+           llvm::cl::init(false));
 
 static llvm::cl::opt<bool>
-    PrintCDA("print-cda",
-             llvm::cl::desc("Print Control Dependence Analysis (CDA)"),
+    RunCDA("run-cda",
+             llvm::cl::desc("Run Control Dependence Analysis (CDA)"),
              llvm::cl::init(false));
 
 int main(int argc, char **argv) {
@@ -187,10 +186,10 @@ int main(int argc, char **argv) {
   if (CfgOnlyViewer)
     pass_manager.add (seahorn::createCFGOnlyViewerPass ());
 
-  if (PrintGSA)
+  if (RunGSA)
     pass_manager.add(seahorn::createGateAnalysisPass());
 
-  if (PrintCDA)
+  if (RunCDA)
     pass_manager.add(seahorn::createControlDependenceAnalysisPass());
 
   if (!AsmOutputFilename.empty ())

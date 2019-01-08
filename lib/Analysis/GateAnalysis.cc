@@ -26,26 +26,31 @@
 static llvm::cl::opt<bool>
     GsaDumpAfter("gsa-dump-after",
                  llvm::cl::desc("Dump function after running"),
-                 llvm::cl::init(false));
+                 llvm::cl::init(false), llvm::cl::Hidden);
 
 static llvm::cl::opt<bool>
     GsaDumpBefore("gsa-dump-before",
                   llvm::cl::desc("Dump function before running"),
-                  llvm::cl::init(false));
+                  llvm::cl::init(false), llvm::cl::Hidden);
+
+static llvm::cl::opt<bool>
+    GsaViewCFG("gsa-view-cfg",
+               llvm::cl::desc("View CFG before GSA"),
+               llvm::cl::init(false), llvm::cl::Hidden);
 
 static llvm::cl::opt<bool>
     GsaViewDomTree("gsa-view-domtree",
-                  llvm::cl::desc("View Dominator Tree before GSA"),
-                  llvm::cl::init(false));
+                   llvm::cl::desc("View Dominator Tree before GSA"),
+                   llvm::cl::init(false), llvm::cl::Hidden);
 
 static llvm::cl::opt<bool> ThinnedGsa("gsa-thinned",
                                       llvm::cl::desc("Emit thin gammas"),
-                                      llvm::cl::init(true));
+                                      llvm::cl::init(true), llvm::cl::Hidden);
 
 static llvm::cl::opt<bool>
     GsaReplacePhis("gsa-replace-phis",
                    llvm::cl::desc("Replace phis with gammas"),
-                   llvm::cl::init(true));
+                   llvm::cl::init(true), llvm::cl::Hidden);
 
 using namespace llvm;
 
@@ -71,8 +76,10 @@ public:
           << f.getName() << "\n==========================================\n";
       f.print(errs());
       errs() << "\n";
-      f.viewCFG();
     }
+
+    if (GsaViewCFG)
+      f.viewCFG();
 
     if (GsaViewDomTree)
       m_DT.viewGraph();
@@ -120,6 +127,10 @@ void GateAnalysisImpl::calculate() {
   std::vector<PHINode *> phis;
   DenseMap<BasicBlock *, std::unique_ptr<IRBuilder<>>> builders;
 
+  // Gammas need to be placed just after the last PHI nodes. This is because
+  // LLVM utilities expect PHIs to appear at the very beginning of basic blocks.
+  // We want to append gamma nodes (SelectInsts) after one another, as they can
+  // depend on previously executed gammas.
   for (auto &BB : m_function) {
     Instruction *insertionPoint = nullptr;
     for (auto &I : BB) {
@@ -141,6 +152,8 @@ void GateAnalysisImpl::calculate() {
     processPhi(PN, *builders[PN->getParent()]);
 }
 
+// Construct gating functions for incoming critical edges in the GSA mode.
+// Construct a mapping between incoming blocks to values.
 DenseMap<BasicBlock *, Value *>
 GateAnalysisImpl::processIncomingValues(PHINode *PN, IRBuilder<> &IRB) {
   assert(PN);
@@ -188,6 +201,7 @@ void GateAnalysisImpl::processPhi(PHINode *PN, IRBuilder<> &IRB) {
   DenseMap<BasicBlock *, Value *> incomingBlockToValue =
       processIncomingValues(PN, IRB);
 
+  // Collect all blocks the incoming blocks are control dependent on.
   std::vector<CDInfo> cdInfo;
   for (unsigned i = 0, e = PN->getNumIncomingValues(); i != e; ++i) {
     auto *BB = PN->getIncomingBlock(i);
@@ -195,37 +209,46 @@ void GateAnalysisImpl::processPhi(PHINode *PN, IRBuilder<> &IRB) {
       cdInfo.push_back(info);
   }
 
+  // Make sure CD blocks are sorted in reverse-topological order. We need this
+  // because we want to process them in order opposite to execution order.
   std::sort(cdInfo.begin(), cdInfo.end(),
             [this](const CDInfo &first, const CDInfo &second) {
               return m_CDA.getBBTopoIdx(first.CDBlock) >
                      m_CDA.getBBTopoIdx(second.CDBlock);
             });
+  // We can have repeated blocks if multiple incoming blocks have non-empty
+  // intersections of blocks they are control dependent on.
   cdInfo.erase(std::unique(cdInfo.begin(), cdInfo.end()), cdInfo.end());
 
+  // Mapping from blocks in cdInfo to values potentially guarded by gammas.
   DenseMap<BasicBlock *, Value *> flowingValues(incomingBlockToValue.begin(),
                                                 incomingBlockToValue.end());
 
   Type *const phiTy = PN->getType();
   UndefValue *const Undef = UndefValue::get(phiTy);
 
+  // For all blocks in cdInfo and inspect their successors to construct gamma
+  // nodes where needed.
   unsigned cdNum = 0;
   GSA_LOG(errs() << "CDInfo size: " << cdInfo.size() << "\n");
   for (const CDInfo &info : cdInfo) {
     BasicBlock *BB = info.CDBlock;
     GSA_LOG(errs() << "CDBlock: " << BB->getName() << "\n");
-    //    if (flowingValues.count(BB) > 0)
-    //      continue;
 
     TerminatorInst *TI = BB->getTerminator();
     assert(isa<BranchInst>(TI) && "Only BranchInst is supported right now");
 
     GSA_LOG(errs() << "Considering CDInfo " << BB->getName() << "\n");
 
+    // Collect all successors and associated values that flows when they are
+    // taken (or Undef if no such flow exists).
     SmallDenseMap<BasicBlock *, Value *, 2> SuccToVal;
     for (auto *S : successors(BB)) {
       GSA_LOG(errs() << "\tsuccessor " << S->getName() << "\n");
+      // Either no values flows.
       SuccToVal[S] = Undef;
 
+      // Or this is a direct branch to the PHI's parent block.
       if (S == currentBB) {
         SuccToVal[S] = incomingBlockToValue[BB];
         GSA_LOG(errs() << "1) SuccToVal[" << S->getName()
@@ -236,27 +259,14 @@ void GateAnalysisImpl::processPhi(PHINode *PN, IRBuilder<> &IRB) {
       if (SuccToVal[S] != Undef)
         continue;
 
+      // Or the successors unconditionally flows to an already processed block.
+      // Note that there can be at most one such block.
       for (auto &BlockValuePair : flowingValues) {
         if (m_PDT.dominates(BlockValuePair.first, S)) {
           SuccToVal[S] = BlockValuePair.second;
           GSA_LOG(errs() << "2) SuccToVal[" << S->getName()
                          << "] = postdom for cd "
                          << BlockValuePair.first->getName() << ": "
-                         << SuccToVal[S]->getName() << "\n");
-          break;
-        }
-      }
-
-      if (SuccToVal[S] != Undef)
-        continue;
-
-      for (unsigned i = cdNum - 1; i < cdNum; --i) {
-        BasicBlock *OtherCD = cdInfo[i].CDBlock;
-        if (m_CDA.isReachable(S, OtherCD)) {
-          assert(flowingValues.count(OtherCD));
-          SuccToVal[S] = flowingValues[OtherCD];
-          GSA_LOG(errs() << "3) SuccToVal[" << S->getName()
-                         << "] = flow for CD " << OtherCD->getName() << ": "
                          << SuccToVal[S]->getName() << "\n");
           break;
         }
@@ -275,12 +285,14 @@ void GateAnalysisImpl::processPhi(PHINode *PN, IRBuilder<> &IRB) {
       Value *TrueVal = SuccToVal[TrueDest];
       Value *FalseVal = SuccToVal[FalseDest];
 
+      // Construct gamma node only when necessary.
       assert(TrueVal != Undef || FalseVal != Undef);
       if (TrueVal == FalseVal) {
         flowingValues[BB] = TrueVal;
       } else if (ThinnedGsa && (TrueVal == Undef || FalseVal == Undef)) {
         flowingValues[BB] = FalseVal == Undef ? TrueVal : FalseVal;
       } else {
+        // Gammas as expressed as SelectInsts and placed in the analyzed IR.
         Value *Ite = IRB.CreateSelect(BI->getCondition(), TrueVal, FalseVal,
                                       {"seahorn.gsa.gamma.", BB->getName()});
         flowingValues[BB] = Ite;
@@ -314,6 +326,8 @@ char GateAnalysisPass::ID = 0;
 
 void GateAnalysisPass::getAnalysisUsage(AnalysisUsage &AU) const {
   AU.addRequired<ControlDependenceAnalysisPass>();
+  AU.addRequired<DominatorTreeWrapperPass>();
+  AU.addRequired<PostDominatorTreeWrapperPass>();
   AU.setPreservesAll();
 }
 
@@ -339,11 +353,8 @@ bool GateAnalysisPass::runOnFunction(llvm::Function &F,
                                      ControlDependenceAnalysis &CDA) {
   GSA_LOG(llvm::errs() << "\nGSA: Running on " << F.getName() << "\n");
 
-  //  auto &DT = getAnalysis<DominatorTreeWrapperPass>(F).getDomTree();
-  //  auto &PDT = getAnalysis<PostDominatorTreeWrapperPass>(F).getPostDomTree();
-  DominatorTree DT(F);
-  PostDominatorTree PDT;
-  PDT.recalculate(F);
+  auto &DT = getAnalysis<DominatorTreeWrapperPass>(F).getDomTree();
+  auto &PDT = getAnalysis<PostDominatorTreeWrapperPass>(F).getPostDomTree();
 
   m_analyses[&F] = llvm::make_unique<GateAnalysisImpl>(F, DT, PDT, CDA);
   return false;

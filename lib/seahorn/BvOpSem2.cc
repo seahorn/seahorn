@@ -9,6 +9,7 @@
 #include "llvm/Support/Format.h"
 #include "llvm/Support/MathExtras.h"
 
+#include "llvm/CodeGen/IntrinsicLowering.h"
 #include "seahorn/Support/SeaDebug.h"
 #include "ufo/ExprLlvm.hpp"
 
@@ -286,10 +287,10 @@ class OpSemMemManager {
                     unsigned sz)
         : m_gv(&gv), m_start(start), m_end(end), m_sz(sz) {
 
-      m_mem = static_cast<char*>(::operator new(sz));
+      m_mem = static_cast<char *>(::operator new(sz));
     }
 
-    char* getMemory() {return m_mem;}
+    char *getMemory() { return m_mem; }
   };
 
   Bv2OpSem &m_sem;
@@ -1509,9 +1510,27 @@ public:
   }
 
   void visitIntrinsicInst(IntrinsicInst &I) {
-    // interpret by non-determinism (and a warning)
-    if (!I.getType()->isVoidTy())
-      setValue(I, Expr());
+    switch (I.getIntrinsicID()) {
+    case Intrinsic::bswap: {
+      BasicBlock::iterator me(&I);
+      auto *parent = I.getParent();
+      bool atBegin(parent->begin() == me);
+      if (!atBegin)
+        --me;
+      IntrinsicLowering IL(m_sem.getDataLayout());
+      IL.LowerIntrinsicCall(&I);
+      if (atBegin) {
+        m_ctx.setInstruction(*parent->begin());
+      } else {
+        m_ctx.setInstruction(*me);
+        ++m_ctx;
+      }
+    } break;
+    default:
+      // interpret by non-determinism (and a warning)
+      if (!I.getType()->isVoidTy())
+        setValue(I, Expr());
+    }
   }
 
   void visitDbgDeclareInst(DbgDeclareInst &I) { /* nothing */
@@ -1852,8 +1871,8 @@ public:
 
     if (!ctx.getMemReadRegister() || !ctx.getMemWriteRegister() ||
         m_sem.isSkipped(val)) {
-      LOG("opsem",
-          errs() << "Skipping store to " << addr << " of " << val << "\n";);
+      LOG("opsem", errs() << "Skipping store to " << addr << " of " << val
+                          << "\n";);
       ctx.setMemReadRegister(Expr());
       ctx.setMemWriteRegister(Expr());
       return Expr();
@@ -1873,8 +1892,8 @@ public:
     }
 
     if (!res)
-      LOG("opsem",
-          errs() << "Skipping store to " << addr << " of " << val << "\n";);
+      LOG("opsem", errs() << "Skipping store to " << addr << " of " << val
+                          << "\n";);
 
     ctx.setMemReadRegister(Expr());
     ctx.setMemWriteRegister(Expr());
@@ -2128,8 +2147,8 @@ void Bv2OpSemContext::setMemManager(OpSemMemManager *man) {
     val = 0x0FFFFFFF;
     break;
   default:
-    LOG("opsem",
-        errs() << "Unsupported pointer size: " << ptrSzInBits() << "\n";);
+    LOG("opsem", errs() << "Unsupported pointer size: " << ptrSzInBits()
+                        << "\n";);
     llvm_unreachable("Unexpected pointer size");
   }
   maxPtrE = bv::bvnum(val, ptrSzInBits(), efac());

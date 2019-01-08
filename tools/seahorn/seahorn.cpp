@@ -366,7 +366,7 @@ int main(int argc, char **argv) {
     }
     pass_manager.add(createPrintModulePass(asmOutput->os()));
   }
-  
+
   if (Bmc) {
     llvm::raw_ostream *out = nullptr;
     if (!OutputFilename.empty())

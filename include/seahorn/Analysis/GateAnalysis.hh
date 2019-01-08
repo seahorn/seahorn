@@ -22,6 +22,11 @@ class GateAnalysis;
 ///   [1] Paul Havlak: Construction of Thinned Gated Single-Assignment Form.
 ///       LCPC 1993: 477-499,
 ///       https://pdfs.semanticscholar.org/55e2/51cc3ae1253443ac9a779de32474dd5e9a99.pdf
+///
+/// Known limitations:
+///   - Switch instructions are not supported at the moment; Switch statements
+///     are expected to be lowered to Branches.
+///   - Assumes the CFG is loop-free. This can be made to work with loops.
 class GateAnalysisPass : public llvm::ModulePass {
 public:
   static char ID;

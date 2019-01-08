@@ -183,18 +183,6 @@ public:
       return false;
     }
 
-    std::vector<Instruction *> cdaGarbage;
-    for (auto &BB : F)
-      for (Instruction &I : BB) {
-        if (I.getName().startswith("seahorn.cda")) {
-          assert(I.getNumUses() == 0);
-          cdaGarbage.push_back(&I);
-        }
-        // assert(!isa<PHINode>(I));
-      }
-    for (auto *I : cdaGarbage)
-      I->eraseFromParent();
-
     ExprFactory efac;
 
     std::unique_ptr<OperationalSemantics> sem;

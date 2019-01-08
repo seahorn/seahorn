@@ -35,16 +35,15 @@ class ControlDependenceAnalysisImpl
   Function &m_function;
 
   DenseMap<const BasicBlock *, unsigned> m_BBToIdx;
-  std::vector<BasicBlock *> m_postOrderBlocks;
+  std::vector<const BasicBlock *> m_postOrderBlocks;
   mutable DenseMap<const BasicBlock *, SparseBitVector<>> m_reach;
   DenseMap<const BasicBlock *, SmallVector<CDInfo, 4>> m_cdInfo;
 
 public:
-  ControlDependenceAnalysisImpl(Function &f, DominatorTree &dt,
-                                PostDominatorTree &pdt)
+  ControlDependenceAnalysisImpl(Function &f, PostDominatorTree &pdt)
       : m_function(f) {
     initReach();
-    calculate(dt, pdt);
+    calculate(pdt);
   }
 
   ArrayRef<CDInfo> getCDBlocks(BasicBlock *BB) const override;
@@ -59,15 +58,14 @@ public:
 private:
   // Calculates control dependence information using IteratedDominanceFrontier.
   // The resulting CD sets are sorted in reverse-topological order.
-  void calculate(DominatorTree &DT, PostDominatorTree &PDT);
+  void calculate(PostDominatorTree &PDT);
 
   // Initializes reachability information and PO numbering.
   void initReach();
 };
 
 
-void ControlDependenceAnalysisImpl::calculate(DominatorTree &DT,
-                                              PostDominatorTree &PDT) {
+void ControlDependenceAnalysisImpl::calculate(PostDominatorTree &PDT) {
   std::vector<PHINode *> phis;
 
   for (auto &BB : m_function)
@@ -106,8 +104,7 @@ void ControlDependenceAnalysisImpl::calculate(DominatorTree &DT,
               });
   }
 
-  CDA_LOG(for (BasicBlock *BB
-               : llvm::reverse(m_postOrderBlocks)) {
+  CDA_LOG(for (const BasicBlock *BB : llvm::reverse(m_postOrderBlocks)) {
     errs() << "cd(" << BB->getName() << "): ";
     for (const CDInfo &cdi : m_cdInfo[BB])
       errs() << cdi.CDBlock->getName() << ", ";
@@ -177,9 +174,7 @@ bool ControlDependenceAnalysisImpl::isReachable(BasicBlock *Src,
 char ControlDependenceAnalysisPass::ID = 0;
 
 void ControlDependenceAnalysisPass::getAnalysisUsage(AnalysisUsage &AU) const {
-  AU.addRequired<DominatorTreeWrapperPass>();
   AU.addRequired<PostDominatorTreeWrapperPass>();
-
   AU.setPreservesAll();
 }
 
@@ -194,10 +189,8 @@ bool ControlDependenceAnalysisPass::runOnModule(llvm::Module &M) {
 bool ControlDependenceAnalysisPass::runOnFunction(llvm::Function &F) {
   CDA_LOG(llvm::errs() << "CDA: Running on " << F.getName() << "\n");
 
-  auto &DT = getAnalysis<DominatorTreeWrapperPass>(F).getDomTree();
   auto &PDT = getAnalysis<PostDominatorTreeWrapperPass>(F).getPostDomTree();
-
-  m_analyses[&F] = llvm::make_unique<ControlDependenceAnalysisImpl>(F, DT, PDT);
+  m_analyses[&F] = llvm::make_unique<ControlDependenceAnalysisImpl>(F, PDT);
   return false;
 }
 

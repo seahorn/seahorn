@@ -19,107 +19,109 @@ DM-0002198
 #ifndef SEAHORN_PASSES__HH_
 #define SEAHORN_PASSES__HH_
 
+#include "seahorn/Bmc.hh"
 #include "seahorn/config.h"
 #include "llvm/Pass.h"
 #include "llvm/Support/raw_ostream.h"
-#include "seahorn/Bmc.hh"
 
-namespace seahorn
-{
-  llvm::Pass* createMarkInternalInlinePass ();
-  llvm::Pass* createMarkInternalAllocOrDeallocInlinePass ();
-  llvm::Pass* createMarkInternalConstructOrDestructInlinePass ();
-  llvm::Pass* createNondetInitPass ();
-  llvm::Pass* createDeadNondetElimPass ();
-  llvm::Pass* createDummyExitBlockPass ();
-  llvm::Pass* createDummyMainFunctionPass ();
-  llvm::Pass* createOneAssumePerBlockPass ();
-  llvm::Pass* createExternalizeAddressTakenFunctionsPass ();
-  llvm::Pass* createExternalizeFunctionsPass ();
-  llvm::Pass* createSliceFunctionsPass ();
-  llvm::Pass* createDevirtualizeFunctionsPass ();
-  llvm::Pass* createAbstractMemoryPass ();
-  llvm::Pass* createPromoteMemoryToRegisterPass ();
-  llvm::Pass* createLoadCrabPass ();
-  llvm::Pass* createShadowMemDsaPass (); // llvm dsa
-  llvm::Pass* createShadowMemSeaDsaPass (); // seahorn dsa
-  llvm::Pass* createStripShadowMemPass ();
+namespace seahorn {
+llvm::Pass *createMarkInternalInlinePass();
+llvm::Pass *createMarkInternalAllocOrDeallocInlinePass();
+llvm::Pass *createMarkInternalConstructOrDestructInlinePass();
+llvm::Pass *createNondetInitPass();
+llvm::Pass *createDeadNondetElimPass();
+llvm::Pass *createDummyExitBlockPass();
+llvm::Pass *createDummyMainFunctionPass();
+llvm::Pass *createOneAssumePerBlockPass();
+llvm::Pass *createExternalizeAddressTakenFunctionsPass();
+llvm::Pass *createExternalizeFunctionsPass();
+llvm::Pass *createSliceFunctionsPass();
+llvm::Pass *createDevirtualizeFunctionsPass();
+llvm::Pass *createAbstractMemoryPass();
+llvm::Pass *createPromoteMemoryToRegisterPass();
+llvm::Pass *createLoadCrabPass();
+llvm::Pass *createShadowMemDsaPass();    // llvm dsa
+llvm::Pass *createShadowMemSeaDsaPass(); // seahorn dsa
+llvm::Pass *createStripShadowMemPass();
 
-  llvm::Pass* createCutLoopsPass ();
-  llvm::Pass* createMarkFnEntryPass ();
-  llvm::Pass* createPromoteVerifierClassPass ();
-  llvm::Pass* createPromoteMallocPass ();
-  llvm::Pass* createKillVarArgFnPass ();
-  llvm::Pass* createLowerArithWithOverflowIntrinsicsPass ();
-  llvm::Pass* createLowerLibCxxAbiFunctionsPass ();
-  llvm::Pass* createSimplifyPointerLoopsPass ();
-  llvm::Pass* createSymbolizeConstantLoopBoundsPass ();
-  llvm::Pass* createLowerAssertPass ();
-  llvm::Pass* createUnfoldLoopForDsaPass ();
-  llvm::Pass* createStripLifetimePass ();
-  llvm::Pass* createStripUselessDeclarationsPass ();
+llvm::Pass *createCutLoopsPass();
+llvm::Pass *createMarkFnEntryPass();
+llvm::Pass *createPromoteVerifierClassPass();
+llvm::Pass *createPromoteMallocPass();
+llvm::Pass *createKillVarArgFnPass();
+llvm::Pass *createLowerArithWithOverflowIntrinsicsPass();
+llvm::Pass *createLowerLibCxxAbiFunctionsPass();
+llvm::Pass *createSimplifyPointerLoopsPass();
+llvm::Pass *createSymbolizeConstantLoopBoundsPass();
+llvm::Pass *createLowerAssertPass();
+llvm::Pass *createUnfoldLoopForDsaPass();
+llvm::Pass *createStripLifetimePass();
+llvm::Pass *createStripUselessDeclarationsPass();
 
-  llvm::Pass* createPromoteBoolLoadsPass ();
+llvm::Pass *createPromoteBoolLoadsPass();
 
-  llvm::Pass* createEnumVerifierCallsPass ();
+llvm::Pass *createEnumVerifierCallsPass();
 
-  llvm::Pass* createCanReadUndefPass ();
+llvm::Pass *createCanReadUndefPass();
 
-  llvm::Pass *createApiAnalysisPass(std::string &config);
+llvm::Pass *createApiAnalysisPass(std::string &config);
 
-  llvm::Pass* createBmcPass (bmc_engine_t engine, llvm::raw_ostream* out, bool solve);
+llvm::Pass *createBmcPass(bmc_engine_t engine, llvm::raw_ostream *out,
+                          bool solve);
 
-  llvm::Pass* createProfilerPass();
-  llvm::Pass* createCFGPrinterPass ();
-  llvm::Pass* createCFGOnlyPrinterPass ();
-  llvm::Pass* createCFGViewerPass ();
-  llvm::Pass* createCFGOnlyViewerPass ();
-  llvm::Pass* createDsaPrinterPass ();
-  llvm::Pass* createDsaViewerPass ();
+llvm::Pass *createProfilerPass();
+llvm::Pass *createCFGPrinterPass();
+llvm::Pass *createCFGOnlyPrinterPass();
+llvm::Pass *createCFGViewerPass();
+llvm::Pass *createCFGOnlyViewerPass();
+llvm::Pass *createDsaPrinterPass();
+llvm::Pass *createDsaViewerPass();
 
-  llvm::Pass* createPromoteSeahornAssumePass ();
-  llvm::Pass* createKleeInternalizePass ();
-  llvm::Pass* createWrapMemPass ();
-  llvm::Pass* createRenameNondetPass();
+llvm::Pass *createPromoteSeahornAssumePass();
+llvm::Pass *createKleeInternalizePass();
+llvm::Pass *createWrapMemPass();
+llvm::Pass *createRenameNondetPass();
 
-  llvm::Pass* createMixedSemanticsPass();
-  llvm::Pass* createRemoveUnreachableBlocksPass();
-  
-  llvm::Pass* createLowerGvInitializersPass();
-  llvm::Pass* createLowerCstExprPass();
-  
-  llvm::Pass* createNullCheckPass();
-  
-  llvm::Pass *createGlobalBufferBoundsCheck();
-  llvm::Pass *createLocalBufferBoundsCheck();
-  llvm::Pass *createGlobalCBufferBoundsCheckPass();
-  
-  llvm::Pass *createSimpleMemoryCheckPass();
-  
-  llvm::Pass *createCanFailPass();
-  
-  llvm::FunctionPass *createPromoteMemcpyPass();
+llvm::Pass *createMixedSemanticsPass();
+llvm::Pass *createRemoveUnreachableBlocksPass();
 
-  llvm::Pass *createBoogieWriterPass(llvm::raw_ostream* out, bool use_crab);
+llvm::Pass *createLowerGvInitializersPass();
+llvm::Pass *createLowerCstExprPass();
 
-  llvm::ModulePass *createControlDependenceAnalysisPass();
-  llvm::ModulePass *createGateAnalysisPass();
-}
+llvm::Pass *createNullCheckPass();
+
+llvm::Pass *createGlobalBufferBoundsCheck();
+llvm::Pass *createLocalBufferBoundsCheck();
+llvm::Pass *createGlobalCBufferBoundsCheckPass();
+
+llvm::Pass *createSimpleMemoryCheckPass();
+
+llvm::Pass *createCanFailPass();
+
+llvm::FunctionPass *createPromoteMemcpyPass();
+
+llvm::Pass *createBoogieWriterPass(llvm::raw_ostream *out, bool use_crab);
+
+llvm::ModulePass *createControlDependenceAnalysisPass();
+llvm::ModulePass *createGateAnalysisPass();
+llvm::Pass *createCHAPass();
+
+} // namespace seahorn
 
 #ifdef HAVE_LLVM_SEAHORN
 #include "llvm_seahorn/Transforms/Scalar.h"
-namespace seahorn
-{
-  inline llvm::FunctionPass* createInstCombine ()
-  {return llvm_seahorn::createInstructionCombiningPass ();}
+namespace seahorn {
+inline llvm::FunctionPass *createInstCombine() {
+  return llvm_seahorn::createInstructionCombiningPass();
 }
+} // namespace seahorn
 #else
 #include "llvm/Transforms/Scalar.h"
-namespace seahorn
-{
-  inline llvm::FunctionPass* createInstCombine()
-  {return llvm::createInstructionCombiningPass ();}
+namespace seahorn {
+inline llvm::FunctionPass *createInstCombine() {
+  return llvm::createInstructionCombiningPass();
 }
+} // namespace seahorn
 #endif
 
 #endif /* SEAHORN_PASSES__HH_ */

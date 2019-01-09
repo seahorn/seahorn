@@ -1399,6 +1399,8 @@ class InspectBitcode(sea.LimitedCmd):
                          dest='mem_viewer', help='View memory graph of all functions to dot format')
         ap.add_argument ('--mem-stats', default=False, action='store_true',
                          dest='mem_stats', help='Print stats about all memory graphs')
+        ap.add_argument ('--cha', default=False, action='store_true',
+                         dest='cha', help='Print results of the Class Hierarchy Analysis (for C++)')
         return ap
 
     def run (self, args, extra):
@@ -1419,7 +1421,8 @@ class InspectBitcode(sea.LimitedCmd):
         if args.mem_dot or args.mem_viewer:
             if args.dot_outdir is not "":
                 argv.extend(['-sea-dsa-dot-outdir={0}'.format(args.dot_outdir)])
-
+        if args.cha: argv.extend (['-cha'])
+        
         dsa = get_sea_horn_dsa (extra)
         if dsa is not None:
             ## we select the sea-dsa variant

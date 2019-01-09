@@ -7,4 +7,5 @@ add_llvm_library (SeaAnalysis
   ApiAnalysisPass.cc
   CanReadUndef.cc
   GateAnalysis.cc
-  ControlDependenceAnalysis.cc)
+  ControlDependenceAnalysis.cc
+  ClassHierarchyAnalysis.cc)

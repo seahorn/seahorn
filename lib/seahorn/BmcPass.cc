@@ -114,12 +114,8 @@ public:
 #endif
     }
 
-    if (HornGSA) {
-      AU.addRequiredTransitive<llvm::DominatorTreeWrapperPass>();
-      AU.addRequiredTransitive<llvm::PostDominatorTreeWrapperPass>();
-      AU.addRequired<seahorn::ControlDependenceAnalysisPass>();
+    if (HornGSA)
       AU.addRequired<seahorn::GateAnalysisPass>();
-    }
 
     AU.setPreservesAll();
   }

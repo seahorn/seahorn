@@ -23,26 +23,6 @@
 
 #define GSA_LOG(...) LOG("gsa", __VA_ARGS__)
 
-static llvm::cl::opt<bool>
-    GsaDumpAfter("gsa-dump-after",
-                 llvm::cl::desc("Dump function after running"),
-                 llvm::cl::init(false), llvm::cl::Hidden);
-
-static llvm::cl::opt<bool>
-    GsaDumpBefore("gsa-dump-before",
-                  llvm::cl::desc("Dump function before running"),
-                  llvm::cl::init(false), llvm::cl::Hidden);
-
-static llvm::cl::opt<bool>
-    GsaViewCFG("gsa-view-cfg",
-               llvm::cl::desc("View CFG before GSA"),
-               llvm::cl::init(false), llvm::cl::Hidden);
-
-static llvm::cl::opt<bool>
-    GsaViewDomTree("gsa-view-domtree",
-                   llvm::cl::desc("View Dominator Tree before GSA"),
-                   llvm::cl::init(false), llvm::cl::Hidden);
-
 static llvm::cl::opt<bool> ThinnedGsa("gsa-thinned",
                                       llvm::cl::desc("Emit thin gammas"),
                                       llvm::cl::init(true), llvm::cl::Hidden);
@@ -50,7 +30,7 @@ static llvm::cl::opt<bool> ThinnedGsa("gsa-thinned",
 static llvm::cl::opt<bool>
     GsaReplacePhis("gsa-replace-phis",
                    llvm::cl::desc("Replace phis with gammas"),
-                   llvm::cl::init(true), llvm::cl::Hidden);
+                   llvm::cl::init(true));
 
 using namespace llvm;
 
@@ -65,33 +45,29 @@ class GateAnalysisImpl : public seahorn::GateAnalysis {
   ControlDependenceAnalysis &m_CDA;
 
   DenseMap<PHINode *, Value *> m_gammas;
+  IRBuilder<> m_IRB;
 
 public:
   GateAnalysisImpl(Function &f, DominatorTree &dt, PostDominatorTree &pdt,
                    ControlDependenceAnalysis &cda)
-      : m_function(f), m_DT(dt), m_PDT(pdt), m_CDA(cda) {
-    if (GsaDumpBefore) {
-      errs()
-          << "Dumping IR before running Gated SSA analysis pass on function: "
-          << f.getName() << "\n==========================================\n";
-      f.print(errs());
-      errs() << "\n";
-    }
+      : m_function(f), m_DT(dt), m_PDT(pdt), m_CDA(cda), m_IRB(f.getContext()) {
+    LOG("gsa-dump-before",
+        errs()
+            << "Dumping IR before running Gated SSA analysis pass on function: "
+            << f.getName() << "\n==========================================\n";
+        f.print(errs()); errs() << "\n");
 
-    if (GsaViewCFG)
-      f.viewCFG();
+    LOG("gsa-view-cfg", f.viewCFG());
 
-    if (GsaViewDomTree)
-      m_DT.viewGraph();
+    LOG("gsa-view-cfg", m_DT.viewGraph());
 
     calculate();
 
-    if (GsaDumpAfter) {
-      errs() << "Dumping IR after running GatedSSA analysis pass on function: "
-             << f.getName() << "\n==========================================\n";
-      f.print(errs());
-      errs() << "\n";
-    }
+    LOG("gsa-dump-after",
+        errs()
+            << "Dumping IR after running GatedSSA analysis pass on function: "
+            << f.getName() << "\n==========================================\n";
+        f.print(errs()); errs() << "\n");
   }
 
   Value *getGamma(PHINode *PN) const override {
@@ -100,13 +76,13 @@ public:
     return it->second;
   }
 
-  bool isThinned() const override { return false; }
+  bool isThinned() const override { return ThinnedGsa; }
 
 private:
   void calculate();
-  void processPhi(PHINode *PN, IRBuilder<> &IRB);
-  DenseMap<BasicBlock *, Value *> processIncomingValues(PHINode *PN,
-                                                        IRBuilder<> &IRB);
+  void processPhi(PHINode *PN, Instruction *insertionPt);
+  DenseMap<BasicBlock *, Value *>
+  processIncomingValues(PHINode *PN, Instruction *insertionPt);
 };
 
 Value *GetCondition(TerminatorInst *TI) {
@@ -124,41 +100,36 @@ Value *GetCondition(TerminatorInst *TI) {
 }
 
 void GateAnalysisImpl::calculate() {
-  std::vector<PHINode *> phis;
-  DenseMap<BasicBlock *, std::unique_ptr<IRBuilder<>>> builders;
+  std::vector<PHINode *> phis; // All phis in the function.
+  DenseMap<BasicBlock *, Instruction *> insertionPts;
 
   // Gammas need to be placed just after the last PHI nodes. This is because
   // LLVM utilities expect PHIs to appear at the very beginning of basic blocks.
   // We want to append gamma nodes (SelectInsts) after one another, as they can
   // depend on previously executed gammas.
   for (auto &BB : m_function) {
-    Instruction *insertionPoint = nullptr;
-    for (auto &I : BB) {
-      if (!isa<PHINode>(I)) {
-        insertionPoint = &I;
-        break;
-      }
-    }
-
+    Instruction *insertionPoint = BB.getFirstNonPHI();
     assert(insertionPoint);
-    builders.insert({&BB, llvm::make_unique<IRBuilder<>>(insertionPoint)});
+    insertionPts.insert({&BB, insertionPoint});
 
-    for (auto &I : BB)
-      if (auto *PN = dyn_cast<PHINode>(&I))
-        phis.push_back(PN);
+    for (auto &PN : BB.phis())
+      phis.push_back(&PN);
   }
 
-  for (PHINode *PN : phis)
-    processPhi(PN, *builders[PN->getParent()]);
+  for (PHINode *PN : phis) {
+    auto *BB = PN->getParent();
+    processPhi(PN, insertionPts[BB]);
+  }
 }
 
 // Construct gating functions for incoming critical edges in the GSA mode.
 // Construct a mapping between incoming blocks to values.
 DenseMap<BasicBlock *, Value *>
-GateAnalysisImpl::processIncomingValues(PHINode *PN, IRBuilder<> &IRB) {
+GateAnalysisImpl::processIncomingValues(PHINode *PN, Instruction *insertionPt) {
   assert(PN);
 
   BasicBlock *const currentBB = PN->getParent();
+  m_IRB.SetInsertPoint(insertionPt);
   UndefValue *const Undef = UndefValue::get(PN->getType());
 
   DenseMap<BasicBlock *, Value *> incomingBlockToValue;
@@ -181,7 +152,7 @@ GateAnalysisImpl::processIncomingValues(PHINode *PN, IRBuilder<> &IRB) {
     if (ThinnedGsa) {
       incomingBlockToValue[incomingBlock] = incomingValue;
     } else {
-      Value *SI = IRB.CreateSelect(
+      Value *SI = m_IRB.CreateSelect(
           cond, trueDest == currentBB ? incomingValue : Undef,
           falseDest == currentBB ? incomingValue : Undef,
           {"seahorn.gsa.gamma.crit.", incomingBlock->getName()});
@@ -192,29 +163,27 @@ GateAnalysisImpl::processIncomingValues(PHINode *PN, IRBuilder<> &IRB) {
   return incomingBlockToValue;
 }
 
-void GateAnalysisImpl::processPhi(PHINode *PN, IRBuilder<> &IRB) {
+void GateAnalysisImpl::processPhi(PHINode *PN, Instruction *insertionPt) {
   assert(PN);
   GSA_LOG(PN->print(errs()); errs() << "\n");
 
   BasicBlock *const currentBB = PN->getParent();
-
   DenseMap<BasicBlock *, Value *> incomingBlockToValue =
-      processIncomingValues(PN, IRB);
+      processIncomingValues(PN, insertionPt);
 
   // Collect all blocks the incoming blocks are control dependent on.
-  std::vector<CDInfo> cdInfo;
+  std::vector<BasicBlock *> cdInfo;
   for (unsigned i = 0, e = PN->getNumIncomingValues(); i != e; ++i) {
     auto *BB = PN->getIncomingBlock(i);
-    for (const CDInfo &info : m_CDA.getCDBlocks(BB))
-      cdInfo.push_back(info);
+    for (BasicBlock *CDBlock : m_CDA.getCDBlocks(BB))
+      cdInfo.push_back(CDBlock);
   }
 
   // Make sure CD blocks are sorted in reverse-topological order. We need this
   // because we want to process them in order opposite to execution order.
   std::sort(cdInfo.begin(), cdInfo.end(),
-            [this](const CDInfo &first, const CDInfo &second) {
-              return m_CDA.getBBTopoIdx(first.CDBlock) >
-                     m_CDA.getBBTopoIdx(second.CDBlock);
+            [this](BasicBlock *first, BasicBlock *second) {
+              return m_CDA.getBBTopoIdx(first) > m_CDA.getBBTopoIdx(second);
             });
   // We can have repeated blocks if multiple incoming blocks have non-empty
   // intersections of blocks they are control dependent on.
@@ -226,13 +195,13 @@ void GateAnalysisImpl::processPhi(PHINode *PN, IRBuilder<> &IRB) {
 
   Type *const phiTy = PN->getType();
   UndefValue *const Undef = UndefValue::get(phiTy);
+  m_IRB.SetInsertPoint(insertionPt);
 
   // For all blocks in cdInfo and inspect their successors to construct gamma
   // nodes where needed.
   unsigned cdNum = 0;
   GSA_LOG(errs() << "CDInfo size: " << cdInfo.size() << "\n");
-  for (const CDInfo &info : cdInfo) {
-    BasicBlock *BB = info.CDBlock;
+  for (BasicBlock *BB : cdInfo) {
     GSA_LOG(errs() << "CDBlock: " << BB->getName() << "\n");
 
     TerminatorInst *TI = BB->getTerminator();
@@ -293,8 +262,8 @@ void GateAnalysisImpl::processPhi(PHINode *PN, IRBuilder<> &IRB) {
         flowingValues[BB] = FalseVal == Undef ? TrueVal : FalseVal;
       } else {
         // Gammas as expressed as SelectInsts and placed in the analyzed IR.
-        Value *Ite = IRB.CreateSelect(BI->getCondition(), TrueVal, FalseVal,
-                                      {"seahorn.gsa.gamma.", BB->getName()});
+        Value *Ite = m_IRB.CreateSelect(BI->getCondition(), TrueVal, FalseVal,
+                                        {"seahorn.gsa.gamma.", BB->getName()});
         flowingValues[BB] = Ite;
       }
     }
@@ -307,7 +276,7 @@ void GateAnalysisImpl::processPhi(PHINode *PN, IRBuilder<> &IRB) {
   assert(flowingValues.count(IDomBlock));
 
   Value *gamma = flowingValues[IDomBlock];
-  std::string newName = gamma->getName().str() + ".y." + PN->getName().str();
+  Twine newName = gamma->getName() + ".y." + PN->getName();
   gamma->setName(newName);
   m_gammas[PN] = flowingValues[IDomBlock];
 
@@ -339,12 +308,12 @@ bool GateAnalysisPass::runOnModule(llvm::Module &M) {
     if (!F.isDeclaration())
       changed |= runOnFunction(F, CDP.getControlDependenceAnalysis(F));
 
-  if (GsaReplacePhis)
-    for (auto &F : M)
-      if (!F.isDeclaration())
-        for (auto &BB : F)
-          for (auto &I : BB)
-            assert(!isa<PHINode>(I));
+  LOG("gsa", if (GsaReplacePhis) for (
+                 auto &F
+                 : M) if (!F.isDeclaration()) for (auto &BB
+                                                   : F) for (auto &I
+                                                             : BB)
+                 assert(!isa<PHINode>(I)));
 
   return changed;
 }
@@ -361,7 +330,7 @@ bool GateAnalysisPass::runOnFunction(llvm::Function &F,
 }
 
 void GateAnalysisPass::print(llvm::raw_ostream &os,
-                             const llvm::Module *M) const {
+                             const llvm::Module *) const {
   os << "GateAnalysisPass::print\n";
 }
 

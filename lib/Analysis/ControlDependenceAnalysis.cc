@@ -37,7 +37,7 @@ class ControlDependenceAnalysisImpl
   DenseMap<const BasicBlock *, unsigned> m_BBToIdx;
   std::vector<const BasicBlock *> m_postOrderBlocks;
   mutable DenseMap<const BasicBlock *, SparseBitVector<>> m_reach;
-  DenseMap<const BasicBlock *, SmallVector<CDInfo, 4>> m_cdInfo;
+  DenseMap<const BasicBlock *, SmallVector<BasicBlock *, 4>> m_cdInfo;
 
 public:
   ControlDependenceAnalysisImpl(Function &f, PostDominatorTree &pdt)
@@ -46,7 +46,7 @@ public:
     calculate(pdt);
   }
 
-  ArrayRef<CDInfo> getCDBlocks(BasicBlock *BB) const override;
+  ArrayRef<BasicBlock *> getCDBlocks(BasicBlock *BB) const override;
   bool isReachable(BasicBlock *Src, BasicBlock *Dst) const override;
   virtual unsigned getBBTopoIdx(llvm::BasicBlock *BB) const override {
     auto it = m_BBToIdx.find(BB);
@@ -64,15 +64,7 @@ private:
   void initReach();
 };
 
-
 void ControlDependenceAnalysisImpl::calculate(PostDominatorTree &PDT) {
-  std::vector<PHINode *> phis;
-
-  for (auto &BB : m_function)
-    for (auto &I : BB)
-      if (auto *PN = dyn_cast<PHINode>(&I))
-        phis.push_back(PN);
-
   for (BasicBlock &BB : m_function) {
     CDA_LOG(errs() << BB.getName() << ":\n");
     ReverseIDFCalculator calculator(PDT);
@@ -96,22 +88,22 @@ void ControlDependenceAnalysisImpl::calculate(PostDominatorTree &PDT) {
   BasicBlock *entry = &m_function.getEntryBlock();
 
   for (auto &BBToVec : m_cdInfo) {
-    SmallVectorImpl<CDInfo> &vec = BBToVec.second;
+    SmallVectorImpl<BasicBlock *> &vec = BBToVec.second;
     // Sort in reverse-topological order.
     std::sort(vec.begin(), vec.end(),
-              [this](const CDInfo &first, const CDInfo &second) {
-                return m_BBToIdx[first.CDBlock] < m_BBToIdx[second.CDBlock];
+              [this](const BasicBlock *first, const BasicBlock *second) {
+                return m_BBToIdx[first] < m_BBToIdx[second];
               });
   }
 
-  CDA_LOG(for (const BasicBlock *BB : llvm::reverse(m_postOrderBlocks)) {
+  CDA_LOG(for (const BasicBlock *BB
+               : llvm::reverse(m_postOrderBlocks)) {
     errs() << "cd(" << BB->getName() << "): ";
-    for (const CDInfo &cdi : m_cdInfo[BB])
-      errs() << cdi.CDBlock->getName() << ", ";
+    for (BasicBlock *CDBlock : m_cdInfo[BB])
+      errs() << CDBlock->getName() << ", ";
     errs() << "\n";
   });
 }
-
 
 void ControlDependenceAnalysisImpl::initReach() {
   m_postOrderBlocks.reserve(m_function.size());
@@ -153,7 +145,7 @@ void ControlDependenceAnalysisImpl::initReach() {
   }
 }
 
-llvm::ArrayRef<CDInfo>
+llvm::ArrayRef<llvm::BasicBlock *>
 ControlDependenceAnalysisImpl::getCDBlocks(llvm::BasicBlock *BB) const {
   auto it = m_cdInfo.find(BB);
   assert(it != m_cdInfo.end());

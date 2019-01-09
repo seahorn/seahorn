@@ -11,6 +11,9 @@ namespace seahorn {
 
 class ControlDependenceAnalysis;
 
+// Module pass because it is currently scheduled from BmcPass that is also a
+// module pass -- there's a PassManager bug when scheduling function passes from
+// module passes.
 class ControlDependenceAnalysisPass : public llvm::ModulePass {
 public:
   static char ID;
@@ -26,27 +29,24 @@ public:
   }
   void print(llvm::raw_ostream &os, const llvm::Module *M) const override;
 
+  bool hasAnalysisFor(const llvm::Function &F) const {
+    return m_analyses.count(&F) > 0;
+  }
+
   ControlDependenceAnalysis &
   getControlDependenceAnalysis(const llvm::Function &F) {
-    assert(m_analyses.count(&F) > 0);
+    assert(hasAnalysisFor(F));
     return *m_analyses[&F];
   }
 
 private:
+  // PIMPL idiom used here to minimize the amount of code in headers.
   llvm::DenseMap<const llvm::Function *,
                  std::unique_ptr<ControlDependenceAnalysis>>
       m_analyses;
 };
 
 llvm::ModulePass *createControlDependenceAnalysisPass();
-
-struct CDInfo {
-  llvm::BasicBlock *CDBlock;
-
-  bool operator==(const CDInfo &other) const {
-    return CDBlock == other.CDBlock;
-  }
-};
 
 /// Exposes Control Dependence Information on the basic-block-level.
 /// A basic block X is control dependent on a bacic block Y iff:
@@ -65,7 +65,8 @@ public:
   /// returns: All the blocks BB is control dependent-on. The returned array
   ///          is sorted in reverse-topological order as blocks appear in the
   ///          CFG.
-  virtual llvm::ArrayRef<CDInfo> getCDBlocks(llvm::BasicBlock *BB) const = 0;
+  virtual llvm::ArrayRef<llvm::BasicBlock *>
+  getCDBlocks(llvm::BasicBlock *BB) const = 0;
   virtual bool isReachable(llvm::BasicBlock *Src,
                            llvm::BasicBlock *Dst) const = 0;
   virtual unsigned getBBTopoIdx(llvm::BasicBlock *BB) const = 0;

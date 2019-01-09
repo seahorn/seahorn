@@ -47,7 +47,7 @@ namespace seahorn
 
   llvm::Pass* createCutLoopsPass ();
   llvm::Pass* createMarkFnEntryPass ();
-    llvm::Pass* createPromoteVerifierClassPass ();
+  llvm::Pass* createPromoteVerifierClassPass ();
   llvm::Pass* createPromoteMallocPass ();
   llvm::Pass* createKillVarArgFnPass ();
   llvm::Pass* createLowerArithWithOverflowIntrinsicsPass ();
@@ -94,16 +94,16 @@ namespace seahorn
   llvm::Pass *createLocalBufferBoundsCheck();
   llvm::Pass *createGlobalCBufferBoundsCheckPass();
   
-  llvm::Pass* createSimpleMemoryCheckPass();
+  llvm::Pass *createSimpleMemoryCheckPass();
   
-  llvm::Pass* createCanFailPass();
+  llvm::Pass *createCanFailPass();
   
-  llvm::FunctionPass* createPromoteMemcpyPass();
+  llvm::FunctionPass *createPromoteMemcpyPass();
 
-  llvm::Pass* createBoogieWriterPass(llvm::raw_ostream* out, bool use_crab);
+  llvm::Pass *createBoogieWriterPass(llvm::raw_ostream* out, bool use_crab);
 
-  llvm::ModulePass* createGateAnalysisPass();
-  llvm::ModulePass* createControlDependenceAnalysisPass();
+  llvm::ModulePass *createControlDependenceAnalysisPass();
+  llvm::ModulePass *createGateAnalysisPass();
 }
 
 #ifdef HAVE_LLVM_SEAHORN

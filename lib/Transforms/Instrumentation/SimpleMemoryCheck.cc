@@ -15,11 +15,6 @@
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 #include "llvm/Transforms/Utils/Cloning.h"
 #include "llvm/Transforms/Utils/Local.h"
-<<<<<<< HEAD
-=======
-#include "llvm/Transforms/Scalar.h"
-#include "llvm/Transforms/Utils/UnifyFunctionExitNodes.h"
->>>>>>> Fix for global declarations as alloc sites
 
 #include "seahorn/Support/SeaDebug.h"
 #include "sea_dsa/DsaAnalysis.hh"

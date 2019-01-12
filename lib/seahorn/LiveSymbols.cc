@@ -1,8 +1,8 @@
 #include "seahorn/LiveSymbols.hh"
-#include "ufo/ExprLlvm.hpp"
-#include "seahorn/Support/SeaDebug.h"
 #include "boost/range.hpp"
 #include "boost/range/algorithm.hpp"
+#include "seahorn/Support/SeaDebug.h"
+#include "ufo/ExprLlvm.hpp"
 
 #include "seahorn/Support/SortTopo.hh"
 #include "llvm/Analysis/CFG.h"
@@ -119,9 +119,8 @@ void LiveSymbols::localPass() {
     LOG("live", errs() << "After executing " << bb->getName() << "\n"
                        << "Got live vars: " << s.uses().size() << "\n";
         for (auto i
-             : s.uses()) errs()
-        << *i << " ";
-        errs() << "\n";);
+             : s.uses()) { errs() << *i << " "; } errs()
+        << "\n";);
 
     // -- live and defs based on what is read/written by symbolic execution
     li.setLive(s.uses());
@@ -129,13 +128,18 @@ void LiveSymbols::localPass() {
 
     // -- execute phi-nodes on the edges and update block's live
     // -- symbols and edge definitions
-    for (auto it = llvm::succ_begin(bb), end = llvm::succ_end(bb); it != end;
-         ++it) {
+    for (const llvm::BasicBlock *succ : llvm::successors(bb)) {
       SymStore ss(m_gstore, true);
       OpSemContextPtr cctx = m_sem.mkContext(ss, m_side);
       // -- execute the phi-nodes
-      symExecPhi(*ctx, *(*it), *bb);
+      symExecPhi(*cctx, *succ, *bb);
 
+      LOG("live", errs() << "After executing phiNodes on the edge: "
+                         << bb->getName() << "->" << succ->getName() << " got "
+                         << ss.uses().size() << " uses\n";
+          for (auto i
+               : ss.uses()) { errs() << *i << " "; } errs()
+          << "\n";);
       li.addEdgeDef(ss.defs());
 
       // compute extra live variables by finding new uses at the edge

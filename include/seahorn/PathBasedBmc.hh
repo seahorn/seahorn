@@ -35,10 +35,10 @@ public:
   PathBasedBmcEngine(LegacyOperationalSemantics &sem, ufo::EZ3 &zctx,
                      crab_llvm::CrabLlvmPass *crab,
                      const llvm::TargetLibraryInfo &tli);
-
-#endif
+#else
   PathBasedBmcEngine(LegacyOperationalSemantics &sem, ufo::EZ3 &zctx,
                      const llvm::TargetLibraryInfo &tli);
+#endif
 
   ~PathBasedBmcEngine();
 

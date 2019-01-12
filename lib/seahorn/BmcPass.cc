@@ -9,9 +9,9 @@
 
 #include "seahorn/config.h"
 
+#include "seahorn/Support/Stats.hh"
 #include "seahorn/Transforms/Utils/NameValues.hh"
 #include "ufo/Smt/EZ3.hh"
-#include "seahorn/Support/Stats.hh"
 
 #include "seahorn/Analysis/CanFail.hh"
 #include "seahorn/Analysis/ControlDependenceAnalysis.hh"
@@ -40,20 +40,13 @@ static llvm::cl::opt<bool> HornGSA("horn-gsa",
 
 namespace seahorn {
 // Defined in PathBasedBmc.cc
+// True if PathBasedBmc asks for crab.
 extern bool XHornBmcCrab;
-}
+} // namespace seahorn
 
 namespace {
 using namespace llvm;
 using namespace seahorn;
-
-
-#ifdef HAVE_CRAB_LLVM
-static constexpr bool HaveCrab = true;
-#else
-static constexpr bool HaveCrab = false;
-#endif
-
 
 class BmcPass : public llvm::ModulePass {
   /// bmc engine
@@ -102,15 +95,12 @@ public:
     AU.addRequired<CutPointGraph>();
     AU.addRequired<TargetLibraryInfoWrapperPass>();
 
-    // Crab passes are required by path-based BMC even when XHornBmcCrab is not
-    // set.
     if (m_engine == path_bmc) {
 #ifdef HAVE_CRAB_LLVM
-      AU.addRequired<crab_llvm::CrabLlvmPass>();
-      AU.addRequired<seahorn::LowerCstExprPass>();
-#else
-      ERR << "Crab requested (by path_bmc) but not available!";
-      llvm_unreachable("No crab");
+      if (XHornBmcCrab) {
+        AU.addRequired<crab_llvm::CrabLlvmPass>();
+        AU.addRequired<seahorn::LowerCstExprPass>();
+      }
 #endif
     }
 
@@ -196,25 +186,29 @@ public:
       const TargetLibraryInfo &tli =
           getAnalysis<TargetLibraryInfoWrapperPass>().getTLI();
 
-      if (HaveCrab) {
 #ifdef HAVE_CRAB_LLVM
-      crab_llvm::CrabLlvmPass &crab = getAnalysis<crab_llvm::CrabLlvmPass>();
-      bmc = llvm::make_unique<PathBasedBmcEngine>(
-          static_cast<LegacyOperationalSemantics&>(*sem), zctx, &crab, tli);
-#endif
-      } else {
-        if (XHornBmcCrab) {
-          ERR << "Crab requested (by --horn-bmc-crab) but not available!";
-          llvm_unreachable("No crab");
-        }
+      if (XHornBmcCrab) {
+        crab_llvm::CrabLlvmPass &crab = getAnalysis<crab_llvm::CrabLlvmPass>();
         bmc = llvm::make_unique<PathBasedBmcEngine>(
-            static_cast<LegacyOperationalSemantics &>(*sem), zctx, tli);
+            static_cast<LegacyOperationalSemantics &>(*sem), zctx, &crab, tli);
+      } else {
+        bmc = llvm::make_unique<PathBasedBmcEngine>(
+            static_cast<LegacyOperationalSemantics &>(*sem), zctx, nullptr,
+            tli);
       }
+#else
+      if (XHornBmcCrab) {
+        ERR << "Crab requested (by --horn-bmc-crab) but not available!";
+      }
+        bmc = llvm::make_unique<PathBasedBmcEngine>(
+            static_cast<LegacyOperationalSemantics &>(*sem), zctx, tli;
+#endif
       break;
     }
     case mono_bmc:
     default:
-      // XXX: uses OperationalSemantics but trace generation still depends on LegacyOperationalSemantics
+      // XXX: uses OperationalSemantics but trace generation still depends on
+      // LegacyOperationalSemantics
       bmc = llvm::make_unique<BmcEngine>(*sem, zctx);
     }
 

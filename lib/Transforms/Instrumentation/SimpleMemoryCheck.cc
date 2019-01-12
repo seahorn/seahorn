@@ -16,8 +16,9 @@
 #include "llvm/Transforms/Utils/Cloning.h"
 #include "llvm/Transforms/Utils/Local.h"
 
-#include "seahorn/Support/SeaDebug.h"
 #include "sea_dsa/DsaAnalysis.hh"
+#include "seahorn/Support/SeaDebug.h"
+#include "seahorn/Support/SeaLog.hh"
 
 #define SMC_LOG(...) LOG("smc", __VA_ARGS__)
 
@@ -43,6 +44,11 @@ static llvm::cl::opt<unsigned> SMCAnalysisThreshold(
     "smc-check-threshold",
     llvm::cl::desc("Max no. of analyzed memory instructions"),
     llvm::cl::init(100));
+
+static llvm::cl::opt<bool> SMCAnalyzeOnly(
+    "smc-analyze-only",
+    llvm::cl::desc("Perform SMC analysis only and don't instrument"),
+    llvm::cl::init(false));
 
 static llvm::cl::opt<unsigned> CheckToInstrumentID(
     "smc-instrument-check",
@@ -184,13 +190,12 @@ public:
 
     sea_dsa::Graph *g = m_dsa->getDsaGraph(fn);
     if (!g) {
-      errs() << "WARNING SMC: Sea Dsa graph not found for " << fn.getName()
-             << "\n";
+      WARN << "SMC: Sea Dsa graph not found for " << fn.getName();
       return nullptr;
     }
 
     if (!(g->hasCell(*ptr))) {
-      errs() << "WARNING SMC: Sea Dsa node not found for " << ptr << "\n";
+      WARN << "SMC: Sea Dsa node not found for " << ptr;
       return nullptr;
     }
 
@@ -501,8 +506,7 @@ CheckContext SimpleMemoryCheck::getUnsafeCandidates(Instruction *Inst,
 
   PtrOrigin Origin = trackPtrOrigin(Arg);
   if (Origin.Offset < 0) {
-    errs() << "WARNING SMC \tApplied negative offsets, "
-           << "overriding offset as 0\n";
+    WARN << "SMC: \tApplied negative offsets, overriding offset as 0";
     Origin.Offset = 0;
   }
 
@@ -1027,7 +1031,12 @@ bool SimpleMemoryCheck::runOnModule(llvm::Module &M) {
 
   if (CheckCandidates.empty()) {
     SMC_LOG(errs() << "No check candidates!\n");
-    return true;
+    return false;
+  }
+
+  if (SMCAnalyzeOnly) {
+    WARN << "SMC: exiting without instrumenting (--smc-analyze-only)";
+    return false;
   }
 
   size_t CheckId = CheckToInstrumentID;
@@ -1055,8 +1064,6 @@ void SimpleMemoryCheck::getAnalysisUsage(llvm::AnalysisUsage &AU) const {
   AU.addRequired<sea_dsa::DsaInfoPass>(); // run seahorn dsa
   AU.addRequired<llvm::TargetLibraryInfoWrapperPass>();
   AU.addRequired<llvm::CallGraphWrapperPass>();
-  // for debugging
-  // AU.addRequired<seahorn::NameValues> ();
 }
 
 template <typename ValTy, typename Container>
@@ -1126,6 +1133,9 @@ void SimpleMemoryCheck::printStats(
   SmallPtrSet<Value *, 32> AllInterestingAllocSites;
   SmallPtrSet<Value *, 32> AllOtherAllocSites;
   DenseSet<Instruction *> AllInstructions;
+  DenseSet<std::pair<Value *, Value *>> InterestingBarrierAllocSites;
+  DenseSet<std::pair<Value *, Value *>> OtherBarrierAllocSites;
+
   AllInstructions.insert(UninterestingMIs.begin(), UninterestingMIs.end());
   unsigned TotalSimple = 0;
 
@@ -1136,11 +1146,13 @@ void SimpleMemoryCheck::printStats(
     for (auto *AS : Check.InterestingAllocSites) {
       AllAllocSites.insert(AS);
       AllInterestingAllocSites.insert(AS);
+      InterestingBarrierAllocSites.insert({Check.Barrier, AS});
     }
 
     for (auto *AS : Check.OtherAllocSites) {
       AllAllocSites.insert(AS);
       AllOtherAllocSites.insert(AS);
+      OtherBarrierAllocSites.insert({Check.Barrier, AS});
     }
   }
 
@@ -1157,6 +1169,11 @@ void SimpleMemoryCheck::printStats(
      << CountOfStack(AllOtherAllocSites) << "/"
      << CountOfGlobal(AllOtherAllocSites) << ")\n";
   OS << "Total Simple AS to instrument\t" << TotalSimple << "\n";
+  OS << "Interesting <Barrier, AllocSite> pairs\t"
+     << InterestingBarrierAllocSites.size() << "\n";
+  OS << "Total <Barrier, AllocSite> pairs\t"
+     << (OtherBarrierAllocSites.size() + InterestingBarrierAllocSites.size())
+     << "\n";
 
   OS << "\n\n";
 

@@ -380,7 +380,7 @@ if (IS_DIRECTORY ${CMAKE_SOURCE_DIR}/crab-llvm AND
     EXISTS ${CMAKE_SOURCE_DIR}/crab-llvm/CMakeLists.txt)
   add_subdirectory(${CMAKE_SOURCE_DIR}/crab-llvm)
   set (HAVE_CRAB_LLVM TRUE)
-  include_directories (${CRABLLVM_INCLUDE_DIRS})  
+  include_directories (BEFORE ${CRABLLVM_INCLUDE_DIRS})  
 else()
   message (WARNING "No CRAB-LLVM found in ${CMAKE_SOURCE_DIR}/crab-llvm. Run\n\tcmake --build . --target extra && cmake ${CMAKE_SOURCE_DIR}")
 endif()

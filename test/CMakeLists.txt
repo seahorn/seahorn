@@ -7,7 +7,7 @@ add_lit_testsuite(test-all "Run all the tests"
   ${CMAKE_CURRENT_SOURCE_DIR}
   ARGS
   --path=${CMAKE_INSTALL_PREFIX}/bin
-  DEPENDS seahorn install
+  DEPENDS seahorn
   )
 
 add_lit_testsuite(test-simple "Run simple tests"
@@ -15,7 +15,7 @@ add_lit_testsuite(test-simple "Run simple tests"
   ${CMAKE_CURRENT_SOURCE_DIR}/simple
   ARGS
   --path=${CMAKE_INSTALL_PREFIX}/bin
-  DEPENDS seahorn install
+  DEPENDS seahorn
   )
 
 add_lit_testsuite(test-solve "Run more tests"
@@ -23,7 +23,7 @@ add_lit_testsuite(test-solve "Run more tests"
    ${CMAKE_CURRENT_SOURCE_DIR}/solve
    ARGS
    --path=${CMAKE_INSTALL_PREFIX}/bin
-   DEPENDS seahorn install
+   DEPENDS seahorn
    )
 
 add_lit_testsuite(pred-abs "Regression test on Predicate Abstraction"
@@ -31,7 +31,7 @@ add_lit_testsuite(pred-abs "Regression test on Predicate Abstraction"
    ${CMAKE_CURRENT_SOURCE_DIR}/predabs
    ARGS
   --path=${CMAKE_INSTALL_PREFIX}/bin
-   DEPENDS seahorn install
+   DEPENDS seahorn
    )
 
 add_lit_testsuite(test-abc "Regression test for Array Bounds Checks"
@@ -39,7 +39,7 @@ add_lit_testsuite(test-abc "Regression test for Array Bounds Checks"
   ${CMAKE_CURRENT_SOURCE_DIR}/abc
   ARGS
   --path=${CMAKE_INSTALL_PREFIX}/bin
-  DEPENDS seahorn install
+  DEPENDS seahorn
   )
 
 add_lit_testsuite(test-smc "Regression test for Simple Memory Safety Checks"
@@ -47,7 +47,7 @@ add_lit_testsuite(test-smc "Regression test for Simple Memory Safety Checks"
   ${CMAKE_CURRENT_SOURCE_DIR}/smc
   ARGS
   --path=${CMAKE_INSTALL_PREFIX}/bin
-  DEPENDS seahorn install
+  DEPENDS seahorn
   )
 
 add_lit_testsuite(test-opsem "Regression test for Operational Semantics"
@@ -55,7 +55,7 @@ add_lit_testsuite(test-opsem "Regression test for Operational Semantics"
   ${CMAKE_CURRENT_SOURCE_DIR}/opsem
   ARGS
   --path=${CMAKE_INSTALL_PREFIX}/bin
-  DEPENDS seahorn install
+  DEPENDS seahorn 
   )
 
 add_lit_testsuite(test-inc "Regression test for Inconsistency Analysis"
@@ -63,7 +63,7 @@ add_lit_testsuite(test-inc "Regression test for Inconsistency Analysis"
   ${CMAKE_CURRENT_SOURCE_DIR}/inc
   ARGS
   --path=${CMAKE_INSTALL_PREFIX}/bin
-  DEPENDS seahorn install
+  DEPENDS seahorn
   )
 
 add_lit_testsuite(test-dsa "Regression test for DSA"
@@ -71,7 +71,7 @@ add_lit_testsuite(test-dsa "Regression test for DSA"
   ${CMAKE_CURRENT_SOURCE_DIR}/dsa
   ARGS
   --path=${CMAKE_INSTALL_PREFIX}/bin
-  DEPENDS seahorn install
+  DEPENDS seahorn
   )
 
 add_lit_testsuite(test-tutorial "Regression tests for the SeaHorn tutorial"
@@ -79,7 +79,7 @@ add_lit_testsuite(test-tutorial "Regression tests for the SeaHorn tutorial"
   ${CMAKE_CURRENT_SOURCE_DIR}/tutorial
   ARGS
   --path=${CMAKE_INSTALL_PREFIX}/bin
-  DEPENDS seahorn install
+  DEPENDS seahorn
   )
 
 add_lit_testsuite(test-bmc "Regression tests for BMC"
@@ -87,7 +87,7 @@ add_lit_testsuite(test-bmc "Regression tests for BMC"
   ${CMAKE_CURRENT_SOURCE_DIR}/bmc
   ARGS
   --path=${CMAKE_INSTALL_PREFIX}/bin
-  DEPENDS seahorn install
+  DEPENDS seahorn
   )
 
 add_lit_testsuite(test-gsa "Regression tests for Gated SSA"
@@ -95,7 +95,7 @@ add_lit_testsuite(test-gsa "Regression tests for Gated SSA"
   ${CMAKE_CURRENT_SOURCE_DIR}/gsa
   ARGS
   --path=${CMAKE_INSTALL_PREFIX}/bin
-  DEPENDS seahorn install
+  DEPENDS seahorn
   )
 
 add_lit_testsuite(test-formats "Regression test for external formats"
@@ -103,9 +103,25 @@ add_lit_testsuite(test-formats "Regression test for external formats"
   ${CMAKE_CURRENT_SOURCE_DIR}/formats
   ARGS
   --path=${CMAKE_INSTALL_PREFIX}/bin
-  DEPENDS seahorn install
+  DEPENDS seahorn
   )
 
+if (CMAKE_GENERATOR STREQUAL "Ninja")
+  # Depending on install target does not work with make
+  add_dependencies(test-all install)
+  add_dependencies(test-opsem install)
+  add_dependencies(test-tutorial install)
+  add_dependencies(test-dsa install)
+  add_dependencies(test-formats install)
+  add_dependencies(test-gsa install)
+  add_dependencies(test-bmc install)
+  add_dependencies(test-simple install)
+  add_dependencies(test-solve install)
+  add_dependencies(pred-abs install)
+  add_dependencies(test-abc install)
+  add_dependencies(test-smc install)
+  add_dependencies(test-inc install)
+endif()
 install (DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/simple DESTINATION share/seahorn/test)
 install (DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/solve DESTINATION share/seahorn/test)
 install (DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/smc DESTINATION share/seahorn/test)

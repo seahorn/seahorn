@@ -242,7 +242,6 @@ This is an example of a C program annotated with a safety property:
       }
       sassert(k>=n);
     }
-
 ```
 SeaHorn follows [SV-COMP](http://sv-comp.sosy-lab.org) convention of
 encoding error locations by a call to the designated error function
@@ -252,6 +251,9 @@ safe. SeaHorn returns `sat` when `__VERIFIER_error()` is reachable and
 the program is unsafe. `sassert()` method is defined in
 `seahorn/seahorn.h`.
 
+## Ubutnu 18.04 Packages ##
+Suggested packages you may need before building seahorn on Ubuntu 18.04
+* `sudo apt install cmake git build-essential ninja-build llvm-6.0 clang-6.0 lld-6.0 libboost-dev subversion g++-7-multilib gcc-multilib lib32stdc++7 libgmp-dev libgmpxx4ldbl libgraphviz-dev libncurses5-dev ncurses-doc`
 
 # People #
 

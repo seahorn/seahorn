@@ -71,6 +71,7 @@ namespace seahorn {
         LOG ("slice",
              errs () << "SliceFunctions: deleted body of " << F.getName () <<"\n");
         F.deleteBody();
+        F.setComdat(nullptr);
         Change = true;
       }
       

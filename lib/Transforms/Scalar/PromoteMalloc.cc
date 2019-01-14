@@ -29,13 +29,13 @@ namespace
 
       SmallVector<Instruction*, 16> kill;
       
-      for (auto &I : boost::make_iterator_range (inst_begin (F), inst_end (F)))
+      for (auto &I : llvm::make_range(inst_begin (F), inst_end (F)))
       {
-        if (!isa<CallInst> (&I)) continue;
-
         Value *v = I.stripPointerCasts ();
+        if (!isa<CallInst>(v)) continue;
+
         CallSite CS (v);
-        
+
         const Function *fn = CS.getCalledFunction ();
         if (!fn && CS.getCalledValue ())
           fn = dyn_cast<const Function> (CS.getCalledValue ()->stripPointerCasts ());

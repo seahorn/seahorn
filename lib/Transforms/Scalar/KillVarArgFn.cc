@@ -37,8 +37,12 @@ namespace
     virtual bool runOnModule (Module &M) override
     {
       bool changed = false;
-      for (Module::iterator FI = M.begin (), E = M.end (); FI != E; ++FI)
-        if (FI->isVarArg ()) FI->deleteBody (), changed = true;
+      for (auto &F : M)
+        if (F.isVarArg()) {
+          F.deleteBody();
+          F.setComdat(nullptr);
+          changed = true;
+        }
       
       return changed;
     }

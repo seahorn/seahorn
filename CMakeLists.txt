@@ -15,7 +15,6 @@ if (NOT PACKAGE_VERSION)
   set (SeaHorn_VERSION_INFO ${PACKAGE_VERSION})
 endif()
 
-
 if (CMAKE_SOURCE_DIR STREQUAL CMAKE_BINARY_DIR )
   message (FATAL_ERROR
     "In-source builds are not allowed. Please clean your source tree and try again.")
@@ -39,6 +38,15 @@ endif()
 # Add path for custom modules
 list (APPEND CMAKE_MODULE_PATH
   "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
+
+# Getting git SHA-1
+list(APPEND CMAKE_MODULE_PATH 
+  "${CMAKE_CURRENT_SOURCE_DIR}/getGitRevisionModule/")
+
+include(GetGitRevisionDescription)
+get_git_head_revision(GIT_REFSPEC GIT_SHA1)
+
+configure_file("${CMAKE_CURRENT_SOURCE_DIR}/lib/Support/GitSHA1.cpp.in" "${CMAKE_CURRENT_SOURCE_DIR}/lib/Support/GitSHA1.cc" @ONLY)
 
 find_package (Git)
 if (GIT_FOUND)

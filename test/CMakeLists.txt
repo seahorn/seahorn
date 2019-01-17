@@ -106,6 +106,14 @@ add_lit_testsuite(test-formats "Regression test for external formats"
   DEPENDS seahorn
   )
 
+add_lit_testsuite(test-devirt "Regression test for devirtualization of functions"
+  -v
+  ${CMAKE_CURRENT_SOURCE_DIR}/devirt
+  ARGS
+  --path=${CMAKE_INSTALL_PREFIX}/bin
+  DEPENDS seahorn
+  )
+
 if (CMAKE_GENERATOR STREQUAL "Ninja")
   # Depending on install target does not work with make
   add_dependencies(test-all install)
@@ -121,6 +129,7 @@ if (CMAKE_GENERATOR STREQUAL "Ninja")
   add_dependencies(test-abc install)
   add_dependencies(test-smc install)
   add_dependencies(test-inc install)
+  add_dependencies(test-devirt install)  
 endif()
 install (DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/simple DESTINATION share/seahorn/test)
 install (DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/solve DESTINATION share/seahorn/test)
@@ -129,6 +138,7 @@ install (DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/opsem DESTINATION share/seahorn/t
 install (DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/abc DESTINATION share/seahorn/test)
 install (DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/bmc DESTINATION share/seahorn/test)
 install (DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/gsa DESTINATION share/seahorn/test)
+install (DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/devirt DESTINATION share/seahorn/test)
 install (DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/dsa DESTINATION share/seahorn/test
   PATTERN "*/check_graphs.py" EXCLUDE
   )

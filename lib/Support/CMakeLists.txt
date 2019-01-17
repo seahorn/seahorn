@@ -5,5 +5,6 @@ add_llvm_library (SeaSupport
   Profiler.cc
   CFGPrinter.cc
   SeaLog.cc
-        SeaDebug.cc
+  SeaDebug.cc
+  GitSHA1.cc
   )

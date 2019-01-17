@@ -47,9 +47,11 @@
 #include "seahorn/Transforms/Utils/NameValues.hh"
 #include "ufo/Smt/EZ3.hh"
 
+#include "seahorn/Support/GitSHA1.h"
 void print_seahorn_version() {
   llvm::outs() << "SeaHorn (http://seahorn.github.io/):\n"
-               << "  SeaHorn version " << SEAHORN_VERSION_INFO << "\n";
+               << "  SeaHorn version " << SEAHORN_VERSION_INFO << "\n"
+               << "  GitSHA1 " << g_GIT_SHA1 << "\n";
 }
 
 /// XXX HACK to force compiler to link this in

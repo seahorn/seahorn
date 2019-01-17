@@ -28,6 +28,7 @@ if(NOT CMAKE_BUILD_TYPE)
 endif()
 
 option(SEA_ENABLE_LLD "Use lld as C and C++ linker." OFF)
+
 option(USE_SEAHORN_EXPR "User SeaHorn version of Expr library" OFF)
 if(${USE_SEAHORN_EXPR})
   add_definitions(-DUSE_SEAHORN_EXPR=1)

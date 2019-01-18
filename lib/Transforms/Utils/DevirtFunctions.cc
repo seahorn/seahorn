@@ -9,6 +9,15 @@ using namespace llvm;
 
 namespace seahorn {
 
+static bool isIndirectCall(CallSite &CS) {
+  Value *v = CS.getCalledValue();
+  if (!v)
+    return false;
+
+  v = v->stripPointerCasts();
+  return !isa<Function>(v);
+}
+
 namespace devirt_impl {
 
 AliasSetId typeAliasId(CallSite &CS) {
@@ -72,15 +81,6 @@ void CallSiteResolverByTypes::getTargets(CallSite &CS, AliasSet &out) {
   }
 }
 /* End specific callsites resolver */
-
-static bool isIndirectCall(CallSite &CS) {
-  Value *v = CS.getCalledValue();
-  if (!v)
-    return false;
-
-  v = v->stripPointerCasts();
-  return !isa<Function>(v);
-}
 
 static inline PointerType *getVoidPtrType(LLVMContext &C) {
   Type *Int8Type = IntegerType::getInt8Ty(C);

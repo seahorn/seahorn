@@ -992,9 +992,9 @@ bool SimpleMemoryCheck::runOnModule(llvm::Module &M) {
             SMC_LOG(errs() << (CheckCandidates.size() - 1) << ": ");
             SMC_LOG(CheckCandidates.back().dump(errs()));
           } else if (CheckCandidates.size() == SMCAnalysisThreshold + 1) {
-            SMC_LOG(errs() << "Skipping SMC analysis after reaching the"
-                              " threshold of "
-                           << SMCAnalysisThreshold.getValue() << "\n");
+            SMC_LOG(WARN << "Skipping SMC analysis after reaching the"
+                            " threshold of "
+                         << SMCAnalysisThreshold.getValue() << "\n");
           }
         }
       }
@@ -1171,9 +1171,12 @@ void SimpleMemoryCheck::printStats(
   OS << "Total Simple AS to instrument\t" << TotalSimple << "\n";
   OS << "Interesting <Barrier, AllocSite> pairs\t"
      << InterestingBarrierAllocSites.size() << "\n";
-  OS << "Total <Barrier, AllocSite> pairs\t"
-     << (OtherBarrierAllocSites.size() + InterestingBarrierAllocSites.size())
-     << "\n";
+  const unsigned totalASBarrierPairs = OtherBarrierAllocSites.size() + InterestingBarrierAllocSites.size();
+  OS << "Total <Barrier, AllocSite> pairs\t" << totalASBarrierPairs << "\n";
+
+  errs() << "BRUNCH_STAT SMC_AS_BARRIER_INTERESTING "
+         << InterestingBarrierAllocSites.size() << "\n";
+  errs() << "BRUNCH_STAT SMC_AS_BARRIER_TOTAL " << totalASBarrierPairs << "\n";
 
   OS << "\n\n";
 

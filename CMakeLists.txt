@@ -38,7 +38,7 @@ list (APPEND CMAKE_MODULE_PATH
 
 # Getting git SHA-1
 list(APPEND CMAKE_MODULE_PATH 
-  "${CMAKE_CURRENT_SOURCE_DIR}/getGitRevisionModule/")
+  "${CMAKE_CURRENT_SOURCE_DIR}/cmake/getGitRevisionModule/")
 
 include(GetGitRevisionDescription)
 get_git_head_revision(GIT_REFSPEC GIT_SHA1)

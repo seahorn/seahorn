@@ -219,6 +219,11 @@ static llvm::cl::opt<bool>
                    llvm::cl::init(false));
 
 static llvm::cl::opt<bool>
+    NameValues("name-values",
+                   llvm::cl::desc("Run the NameValues pass"),
+                   llvm::cl::init(false));
+
+static llvm::cl::opt<bool>
     VerifyAfterAll("verify-after-all",
                    llvm::cl::desc("Run the verification pass after each transformation"),
                    llvm::cl::init(false));
@@ -590,6 +595,9 @@ int main(int argc, char **argv) {
     if (PromoteAssumptions)
       pm_wrapper.add(seahorn::createPromoteSeahornAssumePass());
   }
+
+  if (NameValues)
+    pm_wrapper.add(seahorn::createNameValuesPass());
 
   // --- verify if an undefined value can be read
   pm_wrapper.add(seahorn::createCanReadUndefPass());

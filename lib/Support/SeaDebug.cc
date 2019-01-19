@@ -6,6 +6,11 @@
 #include <string>
 
 #ifndef NSEALOG
+
+namespace sea_dsa {
+extern void SeaDsaEnableLog(std::string x);
+}
+
 using namespace seahorn;
 
 bool seahorn::SeaLogFlag = false;
@@ -16,6 +21,9 @@ void seahorn::SeaEnableLog(std::string x) {
     return;
   SeaLogFlag = true;
   SeaLog.insert(x);
+
+  // Enable logging in sea_dsa in case it uses the same tags.
+  sea_dsa::SeaDsaEnableLog(x);
 }
 
 namespace seahorn {

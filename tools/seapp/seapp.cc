@@ -224,6 +224,11 @@ static llvm::cl::opt<bool>
                    llvm::cl::init(false));
 
 static llvm::cl::opt<bool>
+    LowerSwitch("lower-switch",
+                llvm::cl::desc("Lower SwitchInstructions to branches"),
+                llvm::cl::init(true));
+
+static llvm::cl::opt<bool>
     VerifyAfterAll("verify-after-all",
                    llvm::cl::desc("Run the verification pass after each transformation"),
                    llvm::cl::init(false));
@@ -365,6 +370,7 @@ int main(int argc, char **argv) {
     pm_wrapper.add(seahorn::createStripUselessDeclarationsPass());
   } else if (MixedSem) {
     // -- apply mixed semantics
+    assert(LowerSwitch && "Lower switch must be enabled");
     pm_wrapper.add(llvm::createLowerSwitchPass());
     pm_wrapper.add(seahorn::createPromoteVerifierClassPass());
     pm_wrapper.add(seahorn::createCanFailPass());
@@ -495,7 +501,8 @@ int main(int argc, char **argv) {
     // eliminate unused calls to verifier.nondet() functions
     pm_wrapper.add(seahorn::createDeadNondetElimPass());
 
-    pm_wrapper.add(llvm::createLowerSwitchPass());
+    if (LowerSwitch)
+      pm_wrapper.add(llvm::createLowerSwitchPass());
 
     pm_wrapper.add(llvm::createDeadInstEliminationPass());
     pm_wrapper.add(seahorn::createRemoveUnreachableBlocksPass());

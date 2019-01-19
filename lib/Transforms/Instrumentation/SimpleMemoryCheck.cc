@@ -17,6 +17,7 @@
 #include "llvm/Transforms/Utils/Local.h"
 
 #include "sea_dsa/DsaAnalysis.hh"
+#include "sea_dsa/support/Brunch.hh"
 #include "seahorn/Support/SeaDebug.h"
 #include "seahorn/Support/SeaLog.hh"
 
@@ -922,7 +923,7 @@ bool SimpleMemoryCheck::runOnModule(llvm::Module &M) {
 
   Function *main = M.getFunction("main");
   if (!main) {
-    errs() << "Main not found: no buffer overflow checks added\n";
+    ERR << "Main not found: no buffer overflow checks added";
     return false;
   }
 
@@ -938,7 +939,8 @@ bool SimpleMemoryCheck::runOnModule(llvm::Module &M) {
 
   AttrBuilder AB;
   AB.addAttribute(Attribute::NoReturn);
-  AttributeList AS = AttributeList::get(*m_Ctx, AttributeList::FunctionIndex, AB);
+  AttributeList AS =
+      AttributeList::get(*m_Ctx, AttributeList::FunctionIndex, AB);
   m_errorFn = dyn_cast<Function>(M.getOrInsertFunction(
       "verifier.error", AS, Type::getVoidTy(*m_Ctx)));
 
@@ -960,6 +962,7 @@ bool SimpleMemoryCheck::runOnModule(llvm::Module &M) {
   std::vector<Instruction *> UninterestingMIs;
 
   TypeSimilarityCache TSC;
+  sea_dsa::BrunchTimer smcTimer("SMC_ANALYSIS");
 
   for (auto &F : M) {
     if (F.isDeclaration())
@@ -1000,6 +1003,8 @@ bool SimpleMemoryCheck::runOnModule(llvm::Module &M) {
       }
     }
   }
+
+  smcTimer.stop();
 
   if (PrintSMCStats || PrintSMCSummary) {
     printStats(CheckCandidates, UninterestingMIs, PrintSMCStats);
@@ -1051,8 +1056,6 @@ bool SimpleMemoryCheck::runOnModule(llvm::Module &M) {
   emitGlobalInstrumentation(Check, AllocSiteId);
   emitMemoryInstInstrumentation(Check);
   emitAllocSiteInstrumentation(Check, AllocSiteId);
-
-  // SMC_LOG(M.dump());
 
   SMC_LOG(errs() << " ========== SMC (" << (sea_dsa::IsTypeAware ? "" : "Not ")
                  << "Type-aware) ==========\n");
@@ -1174,9 +1177,9 @@ void SimpleMemoryCheck::printStats(
   const unsigned totalASBarrierPairs = OtherBarrierAllocSites.size() + InterestingBarrierAllocSites.size();
   OS << "Total <Barrier, AllocSite> pairs\t" << totalASBarrierPairs << "\n";
 
-  errs() << "BRUNCH_STAT SMC_AS_BARRIER_INTERESTING "
-         << InterestingBarrierAllocSites.size() << "\n";
-  errs() << "BRUNCH_STAT SMC_AS_BARRIER_TOTAL " << totalASBarrierPairs << "\n";
+  SEA_DSA_BRUNCH_STAT("SMC_AS_BARRIER_INTERESTING",
+                      InterestingBarrierAllocSites.size());
+  SEA_DSA_BRUNCH_STAT("SMC_AS_BARRIER_TOTAL", totalASBarrierPairs);
 
   OS << "\n\n";
 

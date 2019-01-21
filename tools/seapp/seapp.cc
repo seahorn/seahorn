@@ -224,10 +224,14 @@ static llvm::cl::opt<bool>
                    llvm::cl::init(false));
 
 static llvm::cl::opt<bool>
-    VerifyAfterAll("verify-after-all",
-                   llvm::cl::desc("Run the verification pass after each transformation"),
-                   llvm::cl::init(false));
+    PromoteBoolLoads("promote-bool-loads",
+                     llvm::cl::desc("Promote bool loads to sgt"),
+                     llvm::cl::init(true));
 
+static llvm::cl::opt<bool> VerifyAfterAll(
+    "verify-after-all",
+    llvm::cl::desc("Run the verification pass after each transformation"),
+    llvm::cl::init(false));
 
 // removes extension from filename if there is one
 std::string getFileName(const std::string &str) {
@@ -424,7 +428,8 @@ int main(int argc, char **argv) {
     pm_wrapper.add(seahorn::createPromoteMallocPass());
 
     // -- turn loads from _Bool from truc to sgt
-    pm_wrapper.add(seahorn::createPromoteBoolLoadsPass());
+    if (PromoteBoolLoads)
+      pm_wrapper.add(seahorn::createPromoteBoolLoadsPass());
 
     if (KillVaArg)
       pm_wrapper.add(seahorn::createKillVarArgFnPass());

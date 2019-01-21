@@ -24,8 +24,8 @@
 #include "llvm/Support/ToolOutputFile.h"
 #include "llvm/Support/raw_ostream.h"
 
-#include "llvm/Bitcode/BitcodeWriterPass.h"
 #include "llvm/Bitcode/BitcodeWriter.h"
+#include "llvm/Bitcode/BitcodeWriterPass.h"
 #include "llvm/Transforms/IPO.h"
 
 #include "llvm/IR/Verifier.h"
@@ -36,10 +36,10 @@
 #include "llvm_seahorn/Transforms/Scalar.h"
 #endif
 
+#include "seahorn/Support/SeaLog.hh"
+#include "seahorn/Support/Stats.hh"
 #include "seahorn/Transforms/Utils/NameValues.hh"
 #include "ufo/Smt/EZ3.hh"
-#include "seahorn/Support/Stats.hh"
-#include "seahorn/Support/SeaLog.hh"
 
 #include "seahorn/config.h"
 
@@ -218,10 +218,9 @@ static llvm::cl::opt<bool>
                    llvm::cl::desc("Abstract memory instructions"),
                    llvm::cl::init(false));
 
-static llvm::cl::opt<bool>
-    NameValues("name-values",
-                   llvm::cl::desc("Run the NameValues pass"),
-                   llvm::cl::init(false));
+static llvm::cl::opt<bool> NameValues("name-values",
+                                      llvm::cl::desc("Run the NameValues pass"),
+                                      llvm::cl::init(false));
 
 static llvm::cl::opt<bool>
     LowerSwitch("lower-switch",
@@ -233,11 +232,10 @@ static llvm::cl::opt<bool>
                      llvm::cl::desc("Promote bool loads to sgt"),
                      llvm::cl::init(true));
 
-static llvm::cl::opt<bool>
-    VerifyAfterAll("verify-after-all",
-                   llvm::cl::desc("Run the verification pass after each transformation"),
-                   llvm::cl::init(false));
-
+static llvm::cl::opt<bool> VerifyAfterAll(
+    "verify-after-all",
+    llvm::cl::desc("Run the verification pass after each transformation"),
+    llvm::cl::init(false));
 
 // removes extension from filename if there is one
 std::string getFileName(const std::string &str) {
@@ -257,24 +255,22 @@ class SeaPassManagerWrapper {
 public:
   SeaPassManagerWrapper() {
     if (VerifyAfterAll)
-      m_PM.add(seahorn::createDebugVerifierPass(++m_verifierInstanceID));
+      m_PM.add(seahorn::createDebugVerifierPass(++m_verifierInstanceID,
+                                                "Initial Verifier Pass"));
   }
   void add(llvm::Pass *pass) {
     m_PM.add(pass);
 
     if (VerifyAfterAll)
-      m_PM.add(seahorn::createDebugVerifierPass(++m_verifierInstanceID));
+      m_PM.add(seahorn::createDebugVerifierPass(++m_verifierInstanceID,
+                                                pass->getPassName()));
   }
 
-  void run(llvm::Module &m) {
-    m_PM.run(m);
-  }
+  void run(llvm::Module &m) { m_PM.run(m); }
 
-  llvm::legacy::PassManager &getPassManager() {
-    return m_PM;
-  }
+  llvm::legacy::PassManager &getPassManager() { return m_PM; }
 };
-}
+} // namespace
 
 int main(int argc, char **argv) {
   llvm::llvm_shutdown_obj shutdown; // calls llvm_shutdown() on exit
@@ -337,8 +333,8 @@ int main(int argc, char **argv) {
   // llvm::initializeIPA (Registry);
   // XXX: porting to 3.8
   llvm::initializeCallGraphWrapperPassPass(Registry);
-  // XXX: commented while porting to 5.0    
-  //llvm::initializeCallGraphPrinterPass(Registry);
+  // XXX: commented while porting to 5.0
+  // llvm::initializeCallGraphPrinterPass(Registry);
   llvm::initializeCallGraphViewerPass(Registry);
   // XXX: not sure if needed anymore
   llvm::initializeGlobalsAAWrapperPassPass(Registry);
@@ -450,7 +446,7 @@ int main(int argc, char **argv) {
     // turn all functions internal so that we can inline them if requested
     auto PreserveMain = [=](const llvm::GlobalValue &GV) {
       return GV.getName() == "main";
-    };    
+    };
     pm_wrapper.add(llvm::createInternalizePass(PreserveMain));
 
     if (LowerInvoke) {
@@ -469,8 +465,7 @@ int main(int argc, char **argv) {
       pm_wrapper.add(seahorn::createExternalizeAddressTakenFunctionsPass());
 
     // kill internal unused code
-    pm_wrapper.add(
-        llvm::createGlobalDCEPass()); // kill unused internal global
+    pm_wrapper.add(llvm::createGlobalDCEPass()); // kill unused internal global
 
     // -- global optimizations
     pm_wrapper.add(llvm::createGlobalOptimizerPass());
@@ -481,10 +476,10 @@ int main(int argc, char **argv) {
     // -- SSA
     pm_wrapper.add(llvm::createPromoteMemoryToRegisterPass());
     // -- Turn undef into nondet
-    pm_wrapper.add (seahorn::createNondetInitPass());
+    pm_wrapper.add(seahorn::createNondetInitPass());
 
     // -- Promote memcpy to loads-and-stores for easier alias analysis.
-    pm_wrapper.add (seahorn::createPromoteMemcpyPass());
+    pm_wrapper.add(seahorn::createPromoteMemcpyPass());
 
     // -- cleanup after SSA
     pm_wrapper.add(seahorn::createInstCombine());
@@ -523,7 +518,7 @@ int main(int argc, char **argv) {
     pm_wrapper.add(llvm::createCFGSimplificationPass());
 
     if (UnfoldLoopsForDsa) {
-    // --- help DSA to be more precise
+      // --- help DSA to be more precise
 #ifdef HAVE_LLVM_SEAHORN
       pm_wrapper.add(llvm_seahorn::createFakeLatchExitPass());
 #endif
@@ -580,8 +575,7 @@ int main(int argc, char **argv) {
     // -- BEFORE SCHEDULING PASSES HERE, THINK WHETHER THEY BELONG BEFORE
     // INLINE!
     pm_wrapper.add(llvm::createDeadInstEliminationPass());
-    pm_wrapper.add(
-        llvm::createGlobalDCEPass()); // kill unused internal global
+    pm_wrapper.add(llvm::createGlobalDCEPass()); // kill unused internal global
     pm_wrapper.add(llvm::createUnifyFunctionExitNodesPass());
 
     // -- moves loop initialization up

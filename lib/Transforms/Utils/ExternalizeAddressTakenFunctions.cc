@@ -64,7 +64,12 @@ public:
             }
           } else {
             if (GlobalAlias *a = dyn_cast<GlobalAlias>(FU)) {
-              a->setAliasee(NF);
+	      // A global cannot alias to an external function. The
+	      // solution that we adopt here is to replace all uses of
+	      // the alias with the new external function and remove
+	      // the alias.
+	      a->replaceAllUsesWith(NF);
+	      a->eraseFromParent();
               Changed = true;
             } else if (Constant *c = dyn_cast<Constant>(FU)) {
               if (isa<GlobalVariable>(c) &&

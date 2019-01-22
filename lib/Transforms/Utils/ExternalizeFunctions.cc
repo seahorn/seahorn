@@ -102,7 +102,7 @@ public:
       if (Function *aliasee = dyn_cast<Function>(GA->getAliasee())) {
         if (externalizeFunctions.count(aliasee) > 0) {
           GA->replaceAllUsesWith(aliasee);
-          M.getAliasList().erase(GA);
+          GA->eraseFromParent();
           Change = true;
         }
       }

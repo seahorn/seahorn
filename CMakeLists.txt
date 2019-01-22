@@ -46,7 +46,7 @@ list(APPEND CMAKE_MODULE_PATH
 include(GetGitRevisionDescription)
 get_git_head_revision(GIT_REFSPEC GIT_SHA1)
 
-configure_file("${CMAKE_CURRENT_SOURCE_DIR}/lib/Support/GitSHA1.cpp.in" "${CMAKE_CURRENT_SOURCE_DIR}/lib/Support/GitSHA1.cc" @ONLY)
+configure_file("${CMAKE_CURRENT_SOURCE_DIR}/lib/Support/GitSHA1.cc.in" "${CMAKE_CURRENT_SOURCE_DIR}/lib/Support/GitSHA1.cc" @ONLY)
 
 find_package (Git)
 if (GIT_FOUND)

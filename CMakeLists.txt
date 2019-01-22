@@ -56,6 +56,8 @@ if (GIT_FOUND)
     CACHE STRING "llvm-dsa repo")
   set (SEA_DSA_REPO "https://github.com/seahorn/sea-dsa"
     CACHE STRING "sea-dsa repo")
+  set (SEA_SVF_REPO "https://github.com/kuhar/SVF"
+    CACHE STRING "sea-svf repo")
   set (CRAB_LLVM_REPO "https://github.com/seahorn/crab-llvm"
     CACHE STRING "crab-llvm repo")
 
@@ -63,6 +65,8 @@ if (GIT_FOUND)
     ${GIT_EXECUTABLE} clone -b llvm-5.0 ${LLVM_DSA_REPO} ${CMAKE_SOURCE_DIR}/llvm-dsa)
   add_custom_target (sea-dsa-git
     ${GIT_EXECUTABLE} clone -b brunch ${SEA_DSA_REPO} ${CMAKE_SOURCE_DIR}/sea-dsa)
+  add_custom_target (sea-svf-git
+      ${GIT_EXECUTABLE} clone -b sea ${SEA_SVF_REPO} ${CMAKE_SOURCE_DIR}/sea-svf)
   add_custom_target (seahorn-llvm-git
     ${GIT_EXECUTABLE} clone -b llvm-5.0 ${SEAHORN_LLVM_REPO} ${CMAKE_SOURCE_DIR}/llvm-seahorn)
   add_custom_target (crab-llvm-git
@@ -71,7 +75,8 @@ if (GIT_FOUND)
     ${CMAKE_COMMAND} -E touch ${CMAKE_CURRENT_LIST_FILE}
     DEPENDS
     llvm-dsa-git
-    sea-dsa-git    
+    sea-dsa-git
+    sea-svf-git
     seahorn-llvm-git
     crab-llvm-git
   )
@@ -385,6 +390,16 @@ if (IS_DIRECTORY ${CMAKE_SOURCE_DIR}/sea-dsa AND
   set (SEA_DSA_LIBS SeaDsaAnalysis)
 else()
   message (WARNING "No SEA DSA found in ${CMAKE_SOURCE_DIR}/sea-dsa. Run\n\tcmake --build . --target extra && cmake ${CMAKE_SOURCE_DIR}")
+  return()
+endif()
+
+if (IS_DIRECTORY ${CMAKE_SOURCE_DIR}/sea-svf AND
+    EXISTS ${CMAKE_SOURCE_DIR}/sea-svf/lib/CMakeLists.txt)
+  include_directories (BEFORE sea-svf/include)
+  add_subdirectory (${CMAKE_SOURCE_DIR}/sea-svf)
+  set (SEA_SVF_LIBS LLVMSvf)
+else()
+  message (WARNING "No SEA SVF found in ${CMAKE_SOURCE_DIR}/sea-svf. Run\n\tcmake --build . --target extra && cmake ${CMAKE_SOURCE_DIR}")
   return()
 endif()
 

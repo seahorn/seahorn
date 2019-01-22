@@ -8,9 +8,11 @@
 /dsa-seahorn/
 /crab-llvm/
 /sea-dsa/
+/sea-svf/
 /llvm-dsa/
 *.pyc
 *.pyo
 /llvm-seahorn/
 /seahorn-llvm/
 /gtags.files
+/lib/Support/GitSHA1.cc

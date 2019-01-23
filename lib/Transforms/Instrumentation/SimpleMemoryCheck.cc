@@ -21,6 +21,8 @@
 #include "seahorn/Support/SeaDebug.h"
 #include "seahorn/Support/SeaLog.hh"
 
+#include "WPA/WPAPass.h"
+
 #define SMC_LOG(...) LOG("smc", __VA_ARGS__)
 
 using namespace llvm;
@@ -60,6 +62,18 @@ static llvm::cl::opt<unsigned> AllocToInstrumentID(
     "smc-instrument-alloc",
     llvm::cl::desc("Id of the allocation site to instrument"),
     llvm::cl::init(0));
+
+namespace {
+enum PointerAnalysisKind { Dsa, Andersen, Sparse };
+}
+
+static llvm::cl::opt<enum PointerAnalysisKind> SMCPTAKind(
+    "smc-pta", llvm::cl::desc("SMC pointer analysis to use"),
+    llvm::cl::values(clEnumValN(Dsa, "dsa", "Use SeaDsa"),
+                     clEnumValN(Andersen, "andersen", "Use SVF Andersen"),
+                     clEnumValN(Sparse, "sparse",
+                                "Use SVF Sparse Flow Sensitive PTA")),
+    llvm::cl::init(Dsa));
 
 namespace seahorn {
 
@@ -107,6 +121,8 @@ struct CheckContext {
     OS << "\n  AccessedBytes: " << AccessedBytes;
 
     auto PrintDsaAllocSite = [this, &OS] (const llvm::Value& v) {
+      if (!DsaGraph)
+        return;
       auto optAS = DsaGraph->getAllocSite(v);
       assert(optAS.hasValue());
       sea_dsa::DsaAllocSite &AS = **optAS;
@@ -178,8 +194,15 @@ private:
 };
 
 namespace {
+class PTAWrapper {
+public:
+  virtual SmallVector<Value *, 8> getAllocSites(Value *V,
+                                                const Function &F) = 0;
+  virtual ~PTAWrapper() = default;
+};
+
 // A wrapper for seahorn dsa
-class SeaDsa {
+class SeaDsa : public PTAWrapper {
   llvm::Pass *m_abc;
   sea_dsa::DsaInfo *m_dsa;
 
@@ -224,7 +247,7 @@ public:
     return *N;
   }
 
-  SmallVector<Value *, 8> getAllocSites(Value *V, const Function &F) {
+  SmallVector<Value *, 8> getAllocSites(Value *V, const Function &F) override {
     sea_dsa::Node &N = getNode(*V, F);
 
     SmallVector<Value *, 8> Sites;
@@ -237,9 +260,58 @@ public:
     }
 
     return Sites;
-  };
+  }
 
   void viewGraph(const Function &F) { m_dsa->getDsaGraph(F)->viewGraph(); }
+};
+
+class SVFPTAWrapper : public PTAWrapper {
+  std::unique_ptr<WPAPass> m_wpa = nullptr;
+  SVFModule m_svfModule;
+
+public:
+  SVFPTAWrapper(llvm::Module &M) : m_svfModule(M) {
+    m_wpa = llvm::make_unique<WPAPass>();
+
+    assert(SMCPTAKind != PointerAnalysisKind::Dsa);
+    errs() << "Warning: Running SVF PTA!\n";
+
+    if (SMCPTAKind == PointerAnalysisKind::Andersen) {
+      sea_dsa::BrunchTimer andersenTimer("SVF_ANDERSEN_PTA");
+      m_wpa->runPointerAnalysis(m_svfModule,
+                                PointerAnalysis::PTATY::Andersen_WPA);
+      andersenTimer.stop();
+    } else if (SMCPTAKind == PointerAnalysisKind::Sparse) {
+      sea_dsa::BrunchTimer sparseTimer("SVF_SPARSE_PTA");
+      m_wpa->runPointerAnalysis(m_svfModule,
+                                PointerAnalysis::PTATY::FSSPARSE_WPA);
+      sparseTimer.stop();
+    } else
+      llvm_unreachable("Unhandled PTA kind");
+  }
+
+  SmallVector<Value *, 8> getAllocSites(Value *V, const Function &) override {
+    PointerAnalysis &pta = m_wpa->getPTA();
+    assert(pta.getPAG());
+    PAG &pag = *pta.getPAG();
+
+    NodeID node = pag.getValueNode(V);
+
+    assert(node != 0);
+    SmallVector<Value *, 8> res;
+
+    for (NodeID id : pta.getPts(node))
+      if (const MemObj *obj = pag.getObject(id)) {
+        if (const llvm::Value *v = obj->getRefVal()) {
+          if (auto *gv = llvm::dyn_cast<GlobalValue>(v))
+            if (gv->isDeclaration())
+              continue;
+          res.push_back(const_cast<llvm::Value *>(v));
+        }
+      }
+
+    return res;
+  }
 };
 
 } // namespace
@@ -262,7 +334,9 @@ private:
   CallGraph *m_CG;
   const DataLayout *m_DL;
   const TargetLibraryInfo *m_TLI;
-  std::unique_ptr<SeaDsa> m_SDSA;
+  std::unique_ptr<SeaDsa> m_SDSA = nullptr;
+  std::unique_ptr<SVFPTAWrapper> m_SVF = nullptr;
+  PTAWrapper *m_PTA = nullptr;
 
   Function *m_assumeFn;
   Function *m_errorFn;
@@ -523,10 +597,10 @@ CheckContext SimpleMemoryCheck::getUnsafeCandidates(Instruction *Inst,
   Check.MI = Inst;
   Check.F = &F;
   Check.Barrier = Origin.Ptr;
-  Check.Collapsed = m_SDSA->getCell(Origin.Ptr,
-                                    F)->getNode()->isOffsetCollapsed();
+  Check.Collapsed = m_SDSA ? m_SDSA->getCell(Origin.Ptr,
+                                    F)->getNode()->isOffsetCollapsed() : false;
   Check.AccessedBytes = size_t(LastRead);
-  Check.DsaGraph = &m_SDSA->getGraph(F);
+  Check.DsaGraph = m_SDSA ? &m_SDSA->getGraph(F) : nullptr;
 
   if (Optional<size_t> AllocSize = getAllocSize(Origin.Ptr)) {
     if (int64_t(Origin.Offset) + Sz > int64_t(*AllocSize)) {
@@ -545,7 +619,7 @@ CheckContext SimpleMemoryCheck::getUnsafeCandidates(Instruction *Inst,
 
   assert(Origin.Ptr);
 
-  for (Value *AS : m_SDSA->getAllocSites(Origin.Ptr, F)) {
+  for (Value *AS : m_PTA->getAllocSites(Origin.Ptr, F)) {
     bool Interesting = isInterestingAllocSite(Origin.Ptr, LastRead, AS);
 
     if (Interesting /*&& Check.Collapsed*/) {
@@ -931,11 +1005,20 @@ bool SimpleMemoryCheck::runOnModule(llvm::Module &M) {
   m_M = &M;
   m_TLI = &getAnalysis<TargetLibraryInfoWrapperPass>().getTLI();
   m_DL = &M.getDataLayout();
-  m_SDSA = llvm::make_unique<SeaDsa>(this);
+
+  if (SMCPTAKind == PointerAnalysisKind::Dsa) {
+    m_SDSA = llvm::make_unique<SeaDsa>(this);
+    m_PTA = m_SDSA.get();
+  } else {
+    m_SVF = llvm::make_unique<SVFPTAWrapper>(M);
+    m_PTA = m_SVF.get();
+  }
+
+  assert(m_PTA);
 
   SMC_LOG(errs() << " ========== SMC (" << (sea_dsa::IsTypeAware ? "" : "Not ")
                  << "Type-aware) ==========\n");
-  LOG("smc-dsa", m_SDSA->viewGraph(*main));
+  LOG("smc-dsa", if (m_SDSA) m_SDSA->viewGraph(*main));
 
   AttrBuilder AB;
   AB.addAttribute(Attribute::NoReturn);
@@ -1064,7 +1147,8 @@ bool SimpleMemoryCheck::runOnModule(llvm::Module &M) {
 
 void SimpleMemoryCheck::getAnalysisUsage(llvm::AnalysisUsage &AU) const {
   AU.setPreservesAll();
-  AU.addRequired<sea_dsa::DsaInfoPass>(); // run seahorn dsa
+  if (SMCPTAKind == PointerAnalysisKind::Dsa)
+    AU.addRequired<sea_dsa::DsaInfoPass>(); // run seahorn dsa
   AU.addRequired<llvm::TargetLibraryInfoWrapperPass>();
   AU.addRequired<llvm::CallGraphWrapperPass>();
 }

@@ -8,4 +8,6 @@ add_llvm_library (SeaAnalysis
   CanReadUndef.cc
   GateAnalysis.cc
   ControlDependenceAnalysis.cc
-  ClassHierarchyAnalysis.cc)
+  ClassHierarchyAnalysis.cc
+  StaticTaint.cc
+  )

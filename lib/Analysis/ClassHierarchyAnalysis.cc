@@ -211,6 +211,8 @@ static Type *getNonPointerType(Type *pointer) {
 
 class ClassHierarchyAnalysis_Impl {
 public:
+  using function_vector_t = ClassHierarchyAnalysis::function_vector_t;
+
   ClassHierarchyAnalysis_Impl(Module &Module)
       : m_module(Module), m_num_graph_nodes(0), m_num_graph_edges(0),
         m_num_graph_closed_edges(0), m_num_potential_vtables(0),
@@ -223,7 +225,7 @@ public:
 
   // it's not const because it updates some counters for stats
   bool resolveVirtualCall(const llvm::ImmutableCallSite &CS,
-                          std::vector<llvm::Function *> &out);
+                          function_vector_t &out);
 
   void printVtables(raw_ostream &o) const;
 
@@ -631,7 +633,7 @@ bool mayBeVirtualCall(const ImmutableCallSite &CS) {
 }
 
 bool ClassHierarchyAnalysis_Impl::resolveVirtualCall(
-    const ImmutableCallSite &CS, std::vector<Function *> &out) {
+    const ImmutableCallSite &CS, function_vector_t &out) {
 
   // if not indirect call then we bail out ...
   if (CS.getCalledFunction()) {
@@ -704,8 +706,9 @@ void ClassHierarchyAnalysis_Impl::printVtables(raw_ostream &o) const {
     o << cxx_demangle(class_ty->getName().str()) << ":\n";
     for (unsigned i = 0, e = funs.size(); i < e; ++i) {
       if (funs[i]) {
-        o << "\t" << i << ":" << cxx_demangle(funs[i]->getName().str()) << " "
-          << *(funs[i]->getType()) << "\n";
+        o << "\t" << i << ": " << funs[i]->getName().str() << "   "
+          << "DEMANGLED NAME=" << cxx_demangle(funs[i]->getName().str())
+          << "   TYPE=" << *(funs[i]->getType()) << "\n";
       }
     }
   }
@@ -755,7 +758,7 @@ ClassHierarchyAnalysis::~ClassHierarchyAnalysis() {
 void ClassHierarchyAnalysis::calculate(void) { m_cha_impl->calculate(); }
 
 bool ClassHierarchyAnalysis::resolveVirtualCall(const ImmutableCallSite &CS,
-                                                std::vector<Function *> &out) {
+                                                function_vector_t &out) {
   return m_cha_impl->resolveVirtualCall(CS, out);
 }
 
@@ -774,6 +777,7 @@ void ClassHierarchyAnalysis::printStats(raw_ostream &o) const {
 /** LLVM pass **/
 class ClassHierarchyAnalysisPass : public ModulePass {
 public:
+  using function_vector_t = ClassHierarchyAnalysis::function_vector_t;
   static char ID;
 
   ClassHierarchyAnalysisPass() : ModulePass(ID), m_cha(nullptr) {}
@@ -798,7 +802,7 @@ public:
         for (auto &I : BB) {
           if (isa<CallInst>(I) || isa<InvokeInst>(I)) {
             ImmutableCallSite CS(&I);
-            std::vector<Function *> callees;
+            function_vector_t callees;
             if (m_cha->resolveVirtualCall(CS, callees)) {
               errs() << "** Found virtual call " << I << "\n";
               if (callees.empty()) {
@@ -824,8 +828,7 @@ public:
 
   void getAnalysisUsage(AnalysisUsage &AU) const { AU.setPreservesAll(); }
 
-  bool resolveVirtualCall(const ImmutableCallSite &CS,
-                          std::vector<Function *> &out) {
+  bool resolveVirtualCall(const ImmutableCallSite &CS, function_vector_t &out) {
     return m_cha->resolveVirtualCall(CS, out);
   }
 

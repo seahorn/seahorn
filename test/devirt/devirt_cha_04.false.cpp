@@ -1,6 +1,10 @@
 /* Diamond inheritance */
 
-// sea inspect -O0 --log=cha test_04.cpp --cha
+// RUN: %sea pf -O0 --devirt-functions-with-cha "%s"  2>&1 | OutputCheck %s
+// RUN: %sea pf -O3 --devirt-functions-with-cha "%s"  2>&1 | OutputCheck %s
+// CHECK: ^sat$
+
+#include "seahorn/seahorn.h"
 
 extern void foo(int);
 extern int nd_int();
@@ -23,15 +27,15 @@ class C: virtual public A {
  public:
   C(): A()  {}
   virtual ~C(){}
-  virtual int f() { return 10;}
+  virtual int f() { return 15;}
 };
 
-class D: public B, C {
+class D: public B, public C {
  public:
 
   D(): B(), C() {}
 
-  virtual int f() { return nd_int(); }
+  virtual int f() { return 20; }
 };
 
 
@@ -45,8 +49,19 @@ int main(int argc, char* argv[]) {
     p = new D();
   }
   
-  p->f();
-
+  int r1 = p->f();
+  sassert(r1 >= 5 && r1 <= 20);
   delete p;
+
+  C* q = 0;
+  if (nd_int()) {
+    q = new C();
+  } else {
+    q = new D();
+  }
+
+  int r2 = q->f();
+  delete q;
+  sassert(r2 >= 16 && r2 <= 20);
   return 0;
 }

@@ -5,13 +5,12 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "seahorn/Support/SeaDebug.h"
 #include "seahorn/Transforms/Utils/DevirtFunctions.hh"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Analysis/CallGraph.h"
 #include "llvm/Pass.h"
 #include "llvm/Support/raw_ostream.h"
-
-using namespace llvm;
 
 static llvm::cl::opt<bool>
     AllowIndirectCalls("allow-indirect-calls",
@@ -20,11 +19,17 @@ static llvm::cl::opt<bool>
                                       "(required for soundness)"),
                        llvm::cl::init(false));
 
+static llvm::cl::opt<bool>
+    ResolveCallsByCHA("devirt-functions-with-cha",
+                      llvm::cl::desc("Resolve indirect calls by using CHA "
+                                     "followed by types "
+                                     "(useful for C++ programs)"),
+                      llvm::cl::init(false));
+
 namespace seahorn {
 
-//  Currently, only type information is used to resolve indirect
-//  calls. In the future, we can combined with other resolvers such
-//  as: alias-based, CHA-based for C++, etc.
+using namespace llvm;
+
 class DevirtualizeFunctionsPass : public ModulePass {
 public:
   static char ID;
@@ -35,11 +40,23 @@ public:
     // -- Get the call graph
     CallGraph *CG = &(getAnalysis<CallGraphWrapperPass>().getCallGraph());
     DevirtualizeFunctions DF(CG);
-    // -- Choose the callsite resolver by types
-    CallSiteResolverByTypes typesCSR(M);
-    CallSiteResolver *CSR = &typesCSR;
-    // -- Resolve all the indirect calls
-    bool res = DF.resolveCallSites(M, CSR, AllowIndirectCalls);
+    bool res = false;
+    CallSiteResolver *CSR = nullptr;
+
+    if (ResolveCallsByCHA) {
+      LOG("devirt", errs() << "Devirtualizing indirect calls using CHA ...\n";);
+      // -- Resolve all the indirect calls using CHA
+      CallSiteResolverByCHA csr_cha(M);
+      CSR = &csr_cha;
+      res |= DF.resolveCallSites(M, CSR, AllowIndirectCalls);
+    }
+
+    LOG("devirt", errs() << "Devirtualizing indirect calls using types ...\n";);
+    // -- Resolve the rest of indirect calls using types
+    CallSiteResolverByTypes csr_types(M);
+    CSR = &csr_types;
+    res |= DF.resolveCallSites(M, CSR, AllowIndirectCalls);
+
     return res;
   }
 
@@ -49,9 +66,7 @@ public:
     AU.addPreserved<CallGraphWrapperPass>();
   }
 
-  StringRef getPassName() const {
-    return "DevirtualizeFunctions (considering only types)";
-  }
+  StringRef getPassName() const { return "DevirtualizeFunctions"; }
 };
 
 char DevirtualizeFunctionsPass::ID = 0;
@@ -63,6 +78,5 @@ Pass *createDevirtualizeFunctionsPass() {
 } // namespace seahorn
 
 // Pass registration
-static RegisterPass<seahorn::DevirtualizeFunctionsPass>
-    XX("devirt-functions",
-       "Devirtualize indirect function calls using only types");
+static llvm::RegisterPass<seahorn::DevirtualizeFunctionsPass>
+    XX("devirt-functions", "Devirtualize indirect function calls");

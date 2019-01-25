@@ -291,8 +291,12 @@ class Seapp(sea.LimitedCmd):
                          dest='lower_invoke', default=False,
                          action='store_true')
         ap.add_argument ('--devirt-functions',
-                         help='Devirtualize indirect functions',
+                         help='Devirtualize indirect functions using only types',
                          dest='devirt_funcs', default=False,
+                         action='store_true')
+        ap.add_argument ('--devirt-functions-with-cha',
+                         help='Devirtualize indirect functions using CHA (for C++) followed by types',
+                         dest='devirt_funcs_cha', default=False,
                          action='store_true')
         ap.add_argument ('--lower-assert',
                          help='Replace assertions with assumptions',
@@ -364,9 +368,11 @@ class Seapp(sea.LimitedCmd):
 
             if args.lower_invoke:
                 argv.append ('--lower-invoke')
-
-            if args.devirt_funcs:
+                
+            if args.devirt_funcs_cha or args.devirt_funcs:
                 argv.append ('--devirt-functions')
+            if args.devirt_funcs_cha:
+                argv.append ('--devirt-functions-with-cha')
 
             if args.enable_ext_funcs:
                 argv.append ('--externalize-addr-taken-funcs')

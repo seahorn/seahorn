@@ -1,7 +1,11 @@
 /* Simple inheritance but class hierarch graph will be imprecise
    because edge from D2 to D3 */
 
-// sea inspect -O0 --log=cha test_02.cpp --cha
+// RUN: %sea pf -O0 --devirt-functions-with-cha "%s"  2>&1 | OutputCheck %s
+// RUN: %sea pf -O3 --devirt-functions-with-cha "%s"  2>&1 | OutputCheck %s
+// CHECK: ^unsat$
+
+#include "seahorn/seahorn.h"
 
 extern void foo(int);
 extern int nd_int();
@@ -50,7 +54,8 @@ class D2: public B {
   }
   
   virtual int f2(int x)  {
-    return x + m_x + 10;
+    //return x + m_x + 10;
+    return x + 10;
   }  
 };
 
@@ -70,6 +75,7 @@ class D3: public B {
   
   virtual int f2(int x)  {
     // m_d.f2 is direct but f2 is indirect but the only possible callee is from D3.
+    // This is a recursive call!
     return m_d.f2(x) + f2(x);
   }  
 };
@@ -87,10 +93,13 @@ int main(int argc, char* argv[]) {
 
   // virtual call to non-pure method
   // possible callees are from classes B,D1,D2, and D3
-  p->f1();
+  int r1 = p->f1();
   // virtual call to pure method
   // possible callees are from classes D1,D2, and D3
-  p->f2(nd_int());  
+  int x = nd_int();
+  int r2 = p->f2(x);  
+
+  sassert(r1 >=0 && r1<=5);
 
   // another virtual call here (destructor)
   // possible callees are from classes B,D1,D2, and D3  

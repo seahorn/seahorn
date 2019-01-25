@@ -154,13 +154,14 @@ static llvm::cl::opt<bool>
 
 static llvm::cl::opt<bool>
     LowerGlobalInitializers("lower-gv-init",
-			    llvm::cl::desc("Lower some global initializers"),
-			    llvm::cl::init(true));
+                            llvm::cl::desc("Lower some global initializers"),
+                            llvm::cl::init(true));
 
-static llvm::cl::opt<bool> DevirtualizeFuncs(
-    "devirt-functions",
-    llvm::cl::desc("Devirtualize indirect calls using only types"),
-    llvm::cl::init(false));
+static llvm::cl::opt<bool>
+    DevirtualizeFuncs("devirt-functions",
+                      llvm::cl::desc("Devirtualize indirect calls "
+                                     "(by default using only types)"),
+                      llvm::cl::init(false));
 
 static llvm::cl::opt<bool> ExternalizeAddrTakenFuncs(
     "externalize-addr-taken-funcs",

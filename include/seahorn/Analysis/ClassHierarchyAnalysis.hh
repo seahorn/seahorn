@@ -1,6 +1,6 @@
 #pragma once
 
-#include <vector>
+#include "llvm/ADT/SmallVector.h"
 
 /** Perform Class Hierarch Analysis for C++ programs **/
 
@@ -17,6 +17,8 @@ class ClassHierarchyAnalysis_Impl;
 
 class ClassHierarchyAnalysis {
 public:
+  using function_vector_t = llvm::SmallVector<const llvm::Function *, 16>;
+
   ClassHierarchyAnalysis(llvm::Module &M);
 
   ~ClassHierarchyAnalysis();
@@ -31,7 +33,7 @@ public:
    * virtual call. out contains all the possible callees.
    */
   bool resolveVirtualCall(const llvm::ImmutableCallSite &CS,
-                          std::vector<llvm::Function *> &out);
+                          function_vector_t &out);
 
   /*
    * Print the class hierarchy graph

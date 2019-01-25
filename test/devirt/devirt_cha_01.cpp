@@ -1,6 +1,10 @@
 /* Simple inheritance but transitive closure is needed */
 
-// sea inspect -O0 --log=cha test_01.cpp --cha
+// RUN: %sea pf -O0 --devirt-functions-with-cha "%s"  2>&1 | OutputCheck %s
+// RUN: %sea pf -O3 --devirt-functions-with-cha "%s"  2>&1 | OutputCheck %s
+// CHECK: ^unsat$
+
+#include "seahorn/seahorn.h"
 
 extern void foo(int);
 extern int nd_int();
@@ -20,7 +24,7 @@ class D1: public B{
   D1(): B() {}
 
   virtual int f1() {
-    int x = 0;
+    int x = 1;
     if (nd_int()) {
       x++;
     }
@@ -47,7 +51,8 @@ class D2: public B {
   }
   
   virtual int f2(int x)  {
-    return x + m_x + 10;
+    //return x + m_x + 10;
+    return x + 10;
   }  
 };
 
@@ -61,7 +66,8 @@ class D3: public D2 {
   }
   
   virtual int f2(int x)  {
-    return x + m_x + 11;
+    //return x + m_x + 11;
+    return x + 11;
   }  
 };
 
@@ -75,7 +81,8 @@ class D4: public D3 {
   }
   
   virtual int f2(int x)  {
-    return x + m_x + 12;
+    //return x + m_x + 12;
+    return x + 12;
   }  
 };
 
@@ -88,9 +95,14 @@ int main(int argc, char* argv[]) {
     p = new D4();    
   }
   
-  p->f1();
-  p->f2(nd_int());  
+  int r1 = p->f1();
+  int x =  nd_int();
+  assume(x > 0);
+  int r2 = p->f2(x);  
 
+  sassert(r1 >= 1 && r1 <= 7);
+  sassert(r2 >= x +10 && r2 <= x + 12);
+  
   delete p;
   return 0;
 }

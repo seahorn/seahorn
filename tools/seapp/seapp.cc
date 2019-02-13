@@ -103,6 +103,11 @@ static llvm::cl::opt<bool>
     NullChecks("null-check", llvm::cl::desc("Insert null-dereference checks"),
                llvm::cl::init(false));
 
+static llvm::cl::opt<bool>
+    StaticTaint("static-taint",
+                   llvm::cl::desc("Static taint analysis."),
+llvm::cl::init(false));
+
 enum ArrayBoundsChecksEncoding {
   NONE = 0,
   LOCAL = 1,
@@ -589,6 +594,9 @@ int main(int argc, char **argv) {
       assert(!SelfCompose);
     } else if (SelfCompose)
       pm_wrapper.add(seahorn::createSelfCompositionPass());
+    if (StaticTaint) {
+      pm_wrapper.add(seahorn::createStaticTaintPass(true));
+    }
 
     // -- EVERYTHING IS MORE EXPENSIVE AFTER INLINING
     // -- BEFORE SCHEDULING PASSES HERE, THINK WHETHER THEY BELONG BEFORE

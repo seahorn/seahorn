@@ -13,6 +13,8 @@ namespace seahorn {
 
 class StaticTaint : public llvm::ModulePass {
   llvm::DenseSet<llvm::Value*> m_taint;
+  bool m_bPrintAnalysis;
+  llvm::DenseSet<llvm::CallInst*> m_tainted;
 
   llvm::DominatorTreeBase<llvm::BasicBlock, true> m_dm;
 
@@ -21,7 +23,10 @@ class StaticTaint : public llvm::ModulePass {
 public:
   static char ID;
 
-  StaticTaint(bool dump = false) : llvm::ModulePass(ID), m_dm() {}
+  StaticTaint(bool print = false) :
+	  llvm::ModulePass(ID),
+	  m_bPrintAnalysis(print),
+	  m_dm() {}
 
   bool isTainted(llvm::Value *v) { return m_taint.find(v) != m_taint.end(); }
 

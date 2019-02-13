@@ -309,6 +309,9 @@ class Seapp(sea.LimitedCmd):
         ap.add_argument ('--internalize', help='Create dummy definitions for all ' +
                          'external functions', default=self._internalize,
                          action='store_true', dest='internalize')
+        ap.add_argument ('--static-taint', help='Run static taint ' +
+                         'analysis', default=False,
+                         action='store_true', dest='static_taint')
         ap.add_argument ('--log', dest='log', default=None,
                          metavar='STR', help='Log level')
         ap.add_argument ('--taint-check', help="Instrument taint analysis checks",
@@ -390,6 +393,9 @@ class Seapp(sea.LimitedCmd):
 
             if args.entry is not None:
                 argv.append ('--entry-point={0}'.format (args.entry))
+
+            if args.static_taint:
+                argv.append('--static-taint')
 
             if args.kill_vaarg:
                 argv.append('--kill-vaarg=true')

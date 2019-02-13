@@ -5,14 +5,14 @@
 #include "llvm/IR/Function.h"
 
 #include "seahorn/LiveSymbols.hh"
-#include "seahorn/UfoSymExec.hh"
+#include "seahorn/UfoOpSem.hh"
 #include "ufo/Expr.hpp"
 #include "ufo/Smt/EZ3.hh"
 
 namespace seahorn {
 using namespace expr;
 using namespace llvm;
-using namespace ufo;
+
 
 // Encoding to prove if a basic block is feasible. A block b is
 // feasible if there is a path from the entry to b and from b to the

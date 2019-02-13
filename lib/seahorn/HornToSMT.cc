@@ -1,11 +1,13 @@
 #include "seahorn/HornToSMT.hh"
 #include "seahorn/HornClauseDBBgl.hh"
-#include "avy/AvyDebug.h"
+#include "seahorn/Support/SeaDebug.h"
+#include "seahorn/Support/SeaLog.hh"
 #include <boost/lexical_cast.hpp>
 #include <boost/graph/reverse_graph.hpp>
 #include <boost/graph/graph_traits.hpp>
 #include <boost/graph/breadth_first_search.hpp>
 #include <deque>
+
 namespace seahorn
 {
     using namespace expr;

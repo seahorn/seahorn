@@ -16,7 +16,7 @@ namespace seahorn
     bool runOnFunction (Function &F);
     void getAnalysisUsage (AnalysisUsage &AU) const;
 
-    virtual const char * getPassName() const {
+    StringRef getPassName() const override {
       return "RemoveUnreachableBlockPass";
     }
 

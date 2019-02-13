@@ -16,7 +16,7 @@ terms.
 #include "llvm/Analysis/CallGraph.h"
 #include "llvm/Support/raw_ostream.h"
 
-#include "avy/AvyDebug.h"
+#include "seahorn/Support/SeaDebug.h"
 
 #include <fstream>
 #include <set>
@@ -72,20 +72,17 @@ namespace
                                                               voidTy,
                                                               i8PtrTy, i8PtrTy,
                                                               i32Ty,
-                                                              i8PtrTy,
-                                                              NULL));
+                                                              i8PtrTy));
 
       m_kleeAssumeFn = cast<Function> (M.getOrInsertFunction ("klee_assume",
                                                               voidTy,
-                                                              m_intptrTy,
-                                                              NULL));
+                                                              m_intptrTy));
 
       m_kleeMkSymbolicFn = cast<Function> (M.getOrInsertFunction ("klee_make_symbolic",
                                                                   voidTy,
                                                                   i8PtrTy,
                                                                   m_intptrTy,
-                                                                  i8PtrTy,
-                                                                  NULL));
+                                                                  i8PtrTy));
 
       m_externalNames.insert (m_assertFailFn->getName ());
       m_externalNames.insert (m_kleeAssumeFn->getName ());
@@ -109,7 +106,7 @@ namespace
 	m_tli = &getAnalysis<TargetLibraryInfoWrapperPass> ().getTLI();
 
       // -- known library function
-      LibFunc::Func F;
+      LibFunc F;
       if (m_tli->getLibFunc (GV.getName(), F)) return false;
 
       if (m_externalNames.count (GV.getName()) > 0 ) return false;
@@ -213,6 +210,8 @@ namespace
 
       m_externalNames.insert ("__seahorn_mem_store");
       m_externalNames.insert ("__seahorn_mem_load");
+      m_externalNames.insert ("__seahorn_mem_init");
+      m_externalNames.insert ("__seahorn_mem_alloc");      
 
       // -- LLVM stuff
       m_externalNames.insert("llvm.used");
@@ -294,8 +293,9 @@ namespace
                                        {Builder.CreateGlobalStringPtr ("FAILED"),
 					Builder.CreateGlobalStringPtr ("__builtin.c"),
                                         Builder.getInt32 (0),
-					Builder.CreateConstGEP2_32 (fname->getType(), // llvm 3.8
-						         	    fname, 0, 0)});
+					   Builder.CreateConstGEP2_32 (
+					       cast<PointerType>(fname->getType()->getScalarType())->getElementType(), 
+					       fname, 0, 0)});
 
           }
 

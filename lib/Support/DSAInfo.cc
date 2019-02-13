@@ -55,7 +55,7 @@ DSAInfoToFile("dsa-info-to-file",
 #include "llvm/Analysis/MemoryBuiltins.h"
 
 #include "boost/range.hpp"
-#include "avy/AvyDebug.h"
+#include "seahorn/Support/SeaDebug.h"
 
 namespace seahorn
 {
@@ -65,7 +65,7 @@ namespace seahorn
                                  const TargetLibraryInfo* tli,
                                  const Value* V) {
     uint64_t Size;
-    if (getObjectSize (V, Size, *dl, tli, true))
+    if (getObjectSize (V, Size, *dl, tli))
       return (Size > 0);
     
     return false; 

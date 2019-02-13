@@ -5,12 +5,12 @@
  */
 
 #include "seahorn/Transforms/Instrumentation/SelfComposition.hh"
+#include "seahorn/Support/SeaDebug.h"
+#include "seahorn/Support/SeaLog.hh"
 
 #include "llvm/IR/InstIterator.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Transforms/Utils/Cloning.h"
-
-#include "avy/AvyDebug.h"
 
 #include <list>
 #include <unordered_set>
@@ -112,7 +112,7 @@ Value *SelfComposition::addShadowVar(IRBuilder<> &B, AllocaInst *var,
 
 GetElementPtrInst *SelfComposition::cloneOrigGEP(GetElementPtrInst *gep,
                                                  Instruction *shadow) {
-  GetElementPtrInst *clone = dynamic_cast<GetElementPtrInst *>(gep->clone());
+  GetElementPtrInst *clone = dyn_cast<GetElementPtrInst>(gep->clone());
   unsigned idx_i = 0;
   for (auto itIdx = clone->op_begin(), end = clone->op_end(); itIdx != end;
        itIdx++, idx_i++) {
@@ -228,7 +228,7 @@ void SelfComposition::connectShadowBB(IRBuilder<> &B, BasicBlock *postDom) {
     BasicBlock *shadowBB = (BasicBlock *)m_inst_to_shadow[bb];
     if (shadowBB == nullptr)
       continue;
-    BranchInst *branch = dynamic_cast<BranchInst *>(shadowBB->getTerminator());
+    BranchInst *branch = dyn_cast<BranchInst>(shadowBB->getTerminator());
     for (unsigned i = 0; i < branch->getNumSuccessors(); i++) {
       BasicBlock *succ = branch->getSuccessor(i);
       WorkList.push_back(succ);
@@ -241,12 +241,12 @@ void SelfComposition::connectShadowBB(IRBuilder<> &B, BasicBlock *postDom) {
   BasicBlock *postDomShadow = (BasicBlock *)m_inst_to_shadow[postDom];
 
   if (isa<BranchInst>(postDom->getTerminator())) {
-    BranchInst *branch = dynamic_cast<BranchInst *>(postDom->getTerminator());
+    BranchInst *branch = dyn_cast<BranchInst>(postDom->getTerminator());
     BranchInst *branchShadow =
-        dynamic_cast<BranchInst *>(postDomShadow->getTerminator());
+        dyn_cast<BranchInst>(postDomShadow->getTerminator());
 
     if (branch->isUnconditional()) {
-      BasicBlock *origSucc = dynamic_cast<BasicBlock *>(branch->getOperand(0));
+      BasicBlock *origSucc = dyn_cast<BasicBlock>(branch->getOperand(0));
       branch->setSuccessor(0, shadowSplit);
       branchShadow->setSuccessor(0, origSucc);
       m_updatedBranches.insert(branchShadow);
@@ -254,7 +254,7 @@ void SelfComposition::connectShadowBB(IRBuilder<> &B, BasicBlock *postDom) {
       assert(false);
     }
   } else {
-    ReturnInst *ret = dynamic_cast<ReturnInst *>(postDom->getTerminator());
+    ReturnInst *ret = dyn_cast<ReturnInst>(postDom->getTerminator());
     B.SetInsertPoint(ret);
     B.CreateBr(shadowSplit);
     ret->eraseFromParent();
@@ -271,18 +271,18 @@ void SelfComposition::updateInstruction(IRBuilder<> &B, Instruction *inst) {
     if (shadowDst == m_inst_to_shadow.end()) {
       uint64_t size = 0;
       if (isa<GetElementPtrInst>(dst)) {
-        Type *t = ((PointerType *)dynamic_cast<GetElementPtrInst *>(dst)
+        Type *t = ((PointerType *)dyn_cast<GetElementPtrInst>(dst)
                        ->getPointerOperandType())
                       ->getElementType();
         size = ((ArrayType *)t)->getNumElements();
-        dst = dynamic_cast<GetElementPtrInst *>(dst)->getPointerOperand();
+        dst = dyn_cast<GetElementPtrInst>(dst)->getPointerOperand();
       }
-      addShadowVar(B, dynamic_cast<AllocaInst *>(dst), size);
+      addShadowVar(B, dyn_cast<AllocaInst>(dst), size);
     }
   }
 
   assert(m_inst_to_shadow.find(inst) != m_inst_to_shadow.end());
-  Instruction *shadow = dynamic_cast<Instruction *>(m_inst_to_shadow[inst]);
+  Instruction *shadow = dyn_cast<Instruction>(m_inst_to_shadow[inst]);
   if (PHINode *phi = dyn_cast<PHINode>(shadow)) {
     SmallVector<BasicBlock*,8> preds;
     for (auto it = pred_begin(phi->getParent()),
@@ -394,7 +394,7 @@ bool SelfComposition::runOnFunction(Function &F) {
   if (F.isDeclaration())
     return false;
 #if DEBUG_SC
-  F.dump();
+  F.print(outs());
 #endif
   LLVMContext &ctx = F.getContext();
   IRBuilder<> B(ctx);
@@ -459,7 +459,7 @@ bool SelfComposition::runOnFunction(Function &F) {
   for (BasicBlock *bb : BBWorkList) {
     auto it = m_inst_to_shadow.find(bb);
     if (it != m_inst_to_shadow.end()) {
-      BasicBlock *shadowBB = dynamic_cast<BasicBlock *>(it->second);
+      BasicBlock *shadowBB = dyn_cast<BasicBlock>(it->second);
       for (auto instIt = bb->begin(), end = bb->end(),
                 shadowIt = shadowBB->begin();
            instIt != end; instIt++, shadowIt++) {
@@ -530,7 +530,7 @@ bool SelfComposition::runOnModule(llvm::Module &M) {
     return false;
 
   if (m_dumpOnly) {
-    M.dump();
+    M.print(errs(), nullptr);
     return false;
   }
 
@@ -542,7 +542,7 @@ bool SelfComposition::runOnModule(llvm::Module &M) {
     B.addAttribute(Attribute::NoReturn);
     B.addAttribute(Attribute::ReadNone);
 
-    AttributeSet as = AttributeSet::get(ctx, AttributeSet::FunctionIndex, B);
+    AttributeList as = AttributeList::get(ctx, AttributeList::FunctionIndex, B);
 
     m_errorFn = dyn_cast<Function>(M.getOrInsertFunction(
         "verifier.error", as, Type::getVoidTy(ctx), nullptr));
@@ -553,7 +553,7 @@ bool SelfComposition::runOnModule(llvm::Module &M) {
     change |= runOnFunction(F);
   }
 
-  M.dump();
+  M.print(errs(), nullptr);
   return change;
 }
 

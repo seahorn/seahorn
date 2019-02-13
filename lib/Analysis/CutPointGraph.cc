@@ -1,5 +1,4 @@
 #include "seahorn/Analysis/CutPointGraph.hh"
-#include "llvm/Transforms/Utils/UnifyFunctionExitNodes.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/IR/CFG.h"
 #include "llvm/IR/Instructions.h"
@@ -8,7 +7,7 @@
 #include "seahorn/Support/CFG.hh"
 
 #include "boost/range.hpp"
-#include "avy/AvyDebug.h"
+#include "seahorn/Support/SeaDebug.h"
 
 enum ExtraCpHeuristics { H0, H1, H2};
 static llvm::cl::opt<ExtraCpHeuristics>
@@ -20,22 +19,18 @@ ExtraCp("horn-extra-cps",
             clEnumValN (H1, "h1", /*"backedge-src",*/ 
                         "Add block if source of a back-edge"),
             clEnumValN (H2, "h2", /*"more-reach-cp-than-children",*/ 
-                        "Add block if it reaches more cutpoints than its successors"),
-            clEnumValEnd),
+                        "Add block if it reaches more cutpoints than its successors")),
         llvm::cl::init (H0));
             
 namespace seahorn
 {
   char CutPointGraph::ID = 0;
 
-  
   void CutPointGraph::getAnalysisUsage (AnalysisUsage &AU) const
   {
     AU.setPreservesAll ();
-    AU.addRequired<UnifyFunctionExitNodes> ();
     AU.addRequiredTransitive<TopologicalOrder> ();
   }
-
 
   bool CutPointGraph::runOnFunction (llvm::Function &F)
   {

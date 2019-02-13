@@ -11,7 +11,7 @@
 #include "llvm/ADT/SmallSet.h"
 
 #include "boost/range.hpp"
-#include "avy/AvyDebug.h"
+#include "seahorn/Support/SeaDebug.h"
 
 using namespace llvm;
 
@@ -48,7 +48,8 @@ namespace {
       // initialize passes we depend on
       initializeLoopSimplifyPass(*PassRegistry::getPassRegistry());
       initializeLoopInfoWrapperPassPass(*PassRegistry::getPassRegistry());
-      initializeLCSSAPass(*PassRegistry::getPassRegistry());
+      initializeLCSSAWrapperPassPass(*PassRegistry::getPassRegistry());
+      initializeLoopPassPass(*PassRegistry::getPassRegistry());
     }
 
     bool runOnLoop (Loop *L, LPPassManager &LPM) override
@@ -72,7 +73,7 @@ namespace {
       AU.addPreservedID(LCSSAID);
     }
     
-    virtual const char *getPassName () const 
+    virtual StringRef getPassName () const 
     {return "Unfold first iteration of loops if useful for DSA";}
     
   };

@@ -11,7 +11,7 @@
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Transforms/Scalar.h"
 
-#include "avy/AvyDebug.h"
+#include "seahorn/Support/SeaDebug.h"
 
 using namespace llvm;
 
@@ -164,13 +164,13 @@ public:
     B.SetInsertPoint(&*insertPt);
 
     AttrBuilder AB;
-    AttributeSet as = AttributeSet::get(ctx, AttributeSet::FunctionIndex, AB);
+    AttributeList as = AttributeList::get(ctx, AttributeList::FunctionIndex, AB);
 
     assumeFn = dyn_cast<Function>(
-        M->getOrInsertFunction("verifier.assume", as, voidTy, boolTy, NULL));
+        M->getOrInsertFunction("verifier.assume", as, voidTy, boolTy));
 
     nondetFn = dyn_cast<Function>(
-        M->getOrInsertFunction("verifier.nondet.sym.bound", as, intTy, NULL));
+        M->getOrInsertFunction("verifier.nondet.sym.bound", as, intTy));
 
     CallGraphWrapperPass *cgwp = getAnalysisIfAvailable<CallGraphWrapperPass>();
     cg = cgwp ? &cgwp->getCallGraph() : nullptr;
@@ -209,7 +209,7 @@ public:
           B.CreateBr(header);
           B.SetInsertPoint(header);
           Function *fn = dyn_cast<Function>(
-              M->getOrInsertFunction("verifier.nondet.bool", as, boolTy, NULL));
+              M->getOrInsertFunction("verifier.nondet.bool", as, boolTy));
           B.CreateCondBr(B.CreateCall(fn, None, "nd.loop.cond"), body, succ);
           BI->eraseFromParent();
           B.SetInsertPoint(&entry);
@@ -226,7 +226,7 @@ public:
     AU.addRequired<llvm::CallGraphWrapperPass>();
   }
 
-  virtual const char *getPassName() const {
+  virtual StringRef getPassName() const {
     return "Convert constant loop bounds into symbolic bounds";
   }
 };

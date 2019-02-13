@@ -1,23 +1,6 @@
-/**
-SeaHorn Verification Framework
-Copyright (c) 2015 Carnegie Mellon University.
-All Rights Reserved.
-
-THIS SOFTWARE IS PROVIDED "AS IS," WITH NO WARRANTIES
-WHATSOEVER. CARNEGIE MELLON UNIVERSITY EXPRESSLY DISCLAIMS TO THE
-FULLEST EXTENT PERMITTEDBY LAW ALL EXPRESS, IMPLIED, AND STATUTORY
-WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE WARRANTIES OF
-MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, AND
-NON-INFRINGEMENT OF PROPRIETARY RIGHTS.
-
-Released under a modified BSD license, please see license.txt for full
-terms.
-
-DM-0002198
-*/
-
-#ifndef __EZ3__H_
-#define __EZ3__H_
-#include "ufo/Smt/ZExprConverter.hpp"
-
+#pragma once
+#ifdef USE_SEAHORN_EXPR
+#include "seahorn/Expr/Smt/EZ3.hh"
+#else
+#include "ufo/deprecated/Smt/EZ3.hh"
 #endif

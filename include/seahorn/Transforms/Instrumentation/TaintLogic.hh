@@ -25,7 +25,7 @@ namespace seahorn
     std::vector<Value*> m_shadows;
     DenseMap<const Value*, Value*> m_inst_to_shadow;
     DenseMap<const Value*, BasicBlock*> m_taint_to_bb;
-    DominatorTreeBase<BasicBlock> m_dm;
+    DominatorTreeBase<BasicBlock, true> m_dm;
     Type *m_BoolTy;
 
     Value* allocaForValue (IRBuilder<>& B, const Value *n, uint64_t size=0);
@@ -46,7 +46,7 @@ namespace seahorn
     Value* getShadowTaintForGEP(IRBuilder<> B, Value* val)
     {
         assert(isa<GetElementPtrInst>(val));
-        GetElementPtrInst& gep = dynamic_cast<GetElementPtrInst&>(*val);
+        GetElementPtrInst& gep = *dyn_cast<GetElementPtrInst>(val);
         Value *ptr = gep.getPointerOperand();
         Value *taintVar = nullptr;
         if (isa<GetElementPtrInst>(ptr)){
@@ -87,7 +87,7 @@ namespace seahorn
     Value* createShadowTaintForGEP(IRBuilder<> B, Value* val)
     {
         assert(isa<GetElementPtrInst>(val));
-        GetElementPtrInst& gep = dynamic_cast<GetElementPtrInst&>(*val);
+        GetElementPtrInst& gep = *dyn_cast<GetElementPtrInst>(val);
         Value *ptr = gep.getPointerOperand();
         if (isa<GetElementPtrInst>(ptr)){
             return createShadowTaintForGEP(B, ptr);
@@ -159,7 +159,7 @@ namespace seahorn
     static char ID;
 
     TaintLogic (bool dumpOnly = false) :
-        m_dm(true),
+        m_dm(),
         m_dumpOnly(dumpOnly),
         llvm::ModulePass (ID), 
         m_errorFn (nullptr),
@@ -170,7 +170,7 @@ namespace seahorn
     virtual bool runOnFunction (Function &F);
     
     virtual void getAnalysisUsage (llvm::AnalysisUsage &AU) const;
-    virtual const char* getPassName () const {return "TaintLogic";}
+    virtual StringRef getPassName () const {return "TaintLogic";}
     
   };
 

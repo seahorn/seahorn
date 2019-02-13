@@ -2,6 +2,8 @@
 #include "seahorn/HornClauseDB.hh"
 #include "seahorn/HornToSMT.hh"
 #include "seahorn/HornUnroll.hh"
+#include "seahorn/Support/SeaDebug.h"
+#include "seahorn/Support/SeaLog.hh"
 #include "llvm/Support/CommandLine.h"
 
 #include "ufo/Smt/EZ3.hh"

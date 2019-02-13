@@ -12,7 +12,7 @@
 #include "llvm/Transforms/Utils/Local.h"
 #include "llvm/Transforms/Utils/SimplifyLibCalls.h"
 
-#include "avy/AvyDebug.h"
+#include "seahorn/Support/SeaDebug.h"
 
 #define PMCPY_LOG(...) LOG("promote-memcpy", __VA_ARGS__)
 
@@ -33,7 +33,7 @@ public:
     AU.addRequired<AssumptionCacheTracker>();
   }
 
-  const char *getPassName() const override { return "PromoteMemcpy"; }
+  StringRef getPassName() const override { return "PromoteMemcpy"; }
 
 private:
   Module *m_M = nullptr;

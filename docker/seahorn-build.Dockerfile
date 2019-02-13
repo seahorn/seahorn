@@ -48,21 +48,21 @@ RUN echo '#!/bin/sh' > switch.sh && \
 
 WORKDIR /deps
 RUN export PREFIX=$(cat /tmp/dockerutils/prefix.txt) && \
-    export DEPS_BASE=$(echo https://github.com/seahorn/seahorn-ext-deps/releases/download/v0.1/"$PREFIX") && \
-    curl -sSOL "$DEPS_BASE"_boost162.tar.gz && \
-    tar -xf "$PREFIX"_boost162.tar.gz && \
+    export DEPS_BASE=$(echo https://github.com/seahorn/seahorn-ext-deps/releases/download/5.0-deep-dev/"$PREFIX") && \
+    curl -sSOL "$DEPS_BASE"_boost_1_68.tar.gz && \
+    tar -xf "$PREFIX"_boost_1_68.tar.gz && \
     curl -sSOL "$DEPS_BASE"_z3.tar.gz && \
     tar -xf "$PREFIX"_z3.tar.gz && \
-    curl -sSOL "$DEPS_BASE"_llvm38.tar.gz && \
-    tar -xf "$PREFIX"_llvm38.tar.gz && \
+    curl -sSOL "$DEPS_BASE"_llvm50.tar.gz && \
+    tar -xf "$PREFIX"_llvm50.tar.gz && \
 #   ls -al --block-size=M 1>&2 && \
     mkdir -p /seahorn && \
     # download clang
-    mkdir /clang-3.8 && \
+    mkdir /clang-5.0 && \
     if [ "$UBUNTU" = "xenial" ] ; \
-      then curl -s http://releases.llvm.org/3.8.0/clang+llvm-3.8.0-x86_64-linux-gnu-ubuntu-16.04.tar.xz ; \
-      else curl -s http://releases.llvm.org/3.8.0/clang+llvm-3.8.0-x86_64-linux-gnu-ubuntu-14.04.tar.xz ; \
+      then curl -s http://releases.llvm.org/5.0.0/clang+llvm-5.0.0-linux-x86_64-ubuntu16.04.tar.xz ; \
+      else curl -s http://releases.llvm.org/5.0.0/clang+llvm-5.0.0-linux-x86_64-ubuntu14.04.tar.xz ; \
     fi \
-    | tar -xJf - -C /clang-3.8 --strip-components=1
+    | tar -xJf - -C /clang-5.0 --strip-components=1
     
 WORKDIR /seahorn

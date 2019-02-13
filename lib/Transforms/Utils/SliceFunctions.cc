@@ -10,7 +10,7 @@
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Support/Debug.h"
-#include "avy/AvyDebug.h"
+#include "seahorn/Support/SeaDebug.h"
 
 #include <set>
 #include <vector>
@@ -22,7 +22,7 @@
 static llvm::cl::list<std::string>
 FuncNamesToKeep("slice-function",
                 llvm::cl::desc("Slice program onto these functions"),
-                llvm::cl::ZeroOrMore);
+                llvm::cl::ZeroOrMore, llvm::cl::CommaSeparated);
 
 namespace seahorn {
 
@@ -71,6 +71,7 @@ namespace seahorn {
         LOG ("slice",
              errs () << "SliceFunctions: deleted body of " << F.getName () <<"\n");
         F.deleteBody();
+        F.setComdat(nullptr);
         Change = true;
       }
       
@@ -112,7 +113,7 @@ namespace seahorn {
       //AU.addRequired<llvm::CallGraphWrapperPass>();
     }
 
-    virtual const char* getPassName () const override
+    virtual StringRef getPassName () const override
     {return "SliceFunctions";}
 
    private:

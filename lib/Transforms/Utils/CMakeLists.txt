@@ -4,14 +4,16 @@ add_llvm_library(SeaTransformsUtils
   Local.cc
   MarkInternalInline.cc
   MarkInternalSpecialFunctions.cc
-  NameValues.cpp
+  NameValues.cc
   RemoveUnreachableBlocksPass.cc
   DummyMainFunction.cc
   ExternalizeAddressTakenFunctions.cc
   ExternalizeFunctions.cc
   DevirtFunctions.cc
+  DevirtFunctionsPass.cc
   SliceFunctions.cc
   Mem2Reg.cc
   OneAssumePerBlock.cc
   SliceFunctions.cc
+  DebugVerifier.cc
   )

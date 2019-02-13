@@ -8,7 +8,7 @@
 #include "llvm/Analysis/CallGraph.h"
 
 #include "boost/range.hpp"
-#include "avy/AvyDebug.h"
+#include "seahorn/Support/SeaDebug.h"
 
 
 using namespace llvm;
@@ -29,9 +29,9 @@ namespace seahorn
 
       LLVMContext &Context = M.getContext ();
       AttrBuilder B;
-      AttributeSet as = AttributeSet::get (Context, 
-                                           AttributeSet::FunctionIndex,
-                                           B);
+      AttributeList as = AttributeList::get (Context, 
+					     AttributeList::FunctionIndex,
+					     B);
 
       const DataLayout* DL = &M.getDataLayout ();
       Type* IntPtrTy = DL->getIntPtrType (Context, 0);
@@ -43,16 +43,16 @@ namespace seahorn
           (M.getOrInsertFunction ("malloc", 
                                   as,
                                   Type::getInt8Ty(Context)->getPointerTo(),
-                                  IntPtrTy,
-                                  NULL));
+                                  IntPtrTy));
+                                  
       if (cg) cg->getOrInsertFunction (m_mallocFn);
     
       m_freeFn = dyn_cast<Function> 
           (M.getOrInsertFunction ("free",
                                   as,
                                   Type::getVoidTy (Context),
-                                  Type::getInt8Ty(Context)->getPointerTo(),
-                                  NULL));
+                                  Type::getInt8Ty(Context)->getPointerTo()));
+                                  
       if (cg) cg->getOrInsertFunction (m_freeFn);
       
       for (auto &F : M) runOnFunction (F);
@@ -71,10 +71,11 @@ namespace seahorn
       for (auto &I : boost::make_iterator_range (inst_begin(F), inst_end (F)))
       {
         if (!isa<CallInst> (&I)) continue;
-        // -- look through pointer casts
-        Value *v = I.stripPointerCasts ();
-        CallSite CS (const_cast<Value*> (v));
-        
+	
+        // // -- look through pointer casts
+        // Value *v = I.stripPointerCasts ();
+        // CallSite CS (const_cast<Value*> (v));
+	CallSite CS(&I);
         const Function *fn = CS.getCalledFunction ();
         
         // -- check if this is a call through a pointer cast
@@ -137,7 +138,7 @@ namespace seahorn
       AU.addRequired<llvm::CallGraphWrapperPass>();
     }
     
-    virtual const char* getPassName () const 
+    virtual StringRef getPassName () const 
     {return "Lower Libc++abi functions";}
 
   };

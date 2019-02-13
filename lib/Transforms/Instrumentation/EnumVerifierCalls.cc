@@ -32,8 +32,7 @@ namespace
       
       m_errorFn = M.getOrInsertFunction ("seahorn.error",
                                          Type::getVoidTy (M.getContext ()), 
-                                         Type::getInt32Ty (M.getContext ()),
-                                         NULL);
+                                         Type::getInt32Ty (M.getContext ()));
 
       CallGraphWrapperPass *cgwp = getAnalysisIfAvailable<CallGraphWrapperPass> ();
       if (CallGraph *cg = cgwp ? &cgwp->getCallGraph () : nullptr) {

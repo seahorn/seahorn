@@ -3,11 +3,12 @@
 
 #include "llvm/Support/raw_ostream.h"
 
-#include "ufo/Stats.hh"
+#include "seahorn/Support/Stats.hh"
 
 #include "seahorn/HornClauseDBBgl.hh"
 #include "seahorn/Analysis/WeakTopologicalOrder.hh"
 
+#include "seahorn/Support/SeaDebug.h"
 namespace seahorn
 {
   using namespace llvm;
@@ -26,7 +27,7 @@ namespace seahorn
 
     HornClauseDBCallGraph &m_callgraph;
     wto_t m_wto;
-    
+
    public:
 
     typedef typename wto_t::iterator iterator;
@@ -49,14 +50,14 @@ namespace seahorn
     // -- corresponds to the outermost component and the last to the
     // -- innermost component.
 
-    head_iterator heads_begin (Expr fdecl) 
+    head_iterator heads_begin (Expr fdecl)
     { return m_wto.nested_components_begin(fdecl); }
-    head_iterator heads_end (Expr fdecl) 
+    head_iterator heads_end (Expr fdecl)
     { return m_wto.nested_components_end(fdecl); }
 
-    head_const_iterator heads_begin (Expr fdecl) const 
+    head_const_iterator heads_begin (Expr fdecl) const
     { return m_wto.nested_components_begin(fdecl); }
-    head_const_iterator heads_end (Expr fdecl) const 
+    head_const_iterator heads_end (Expr fdecl) const
     { return m_wto.nested_components_end(fdecl); }
 
     void buildWto () {
@@ -71,15 +72,15 @@ namespace seahorn
       }
 
       m_wto.buildWto(&m_callgraph, m_callgraph.entry());
-      
+
       Stats::stop ("wto");
 
-      LOG("horn-wto", 
+      LOG("horn-wto",
           errs () << "WTO="; m_wto.write(errs()); errs () << "\n";);
-          
+
       LOG("horn-wto",
           for (auto fdecl: m_callgraph.m_db.getRelations ()) {
-            errs () << "Heads of the wto nested components for " 
+            errs () << "Heads of the wto nested components for "
                     << *(bind::fname(fdecl)) << "={";
             auto it = heads_begin(fdecl);
             auto et = heads_end(fdecl);

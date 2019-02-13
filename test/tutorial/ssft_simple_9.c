@@ -1,5 +1,5 @@
 // RUN: %shorntest %t-harness.ll %t-debug %s --max-depth=5 --enable-indvar | OutputCheck %s
-// RUN: %shorntest %t-harness0.ll %t-debug0 %s --max-depth=5 -O0 --enable-indvar | OutputCheck %s --check-prefix=XFAIL_UNKNOWN
+// RUN: %shorntest %t-harness0.ll %t-debug0 %s --max-depth=5 -O0 --enable-indvar | OutputCheck %s
 // RUN: %shorntest %t-harness1.ll %t-debug1 %s --max-depth=5 -O1 --enable-indvar | OutputCheck %s
 // RUN: %shorntest %t-harness2.ll %t-debug2 %s --max-depth=5 -O2 --enable-indvar | OutputCheck %s
 // RUN: %shorntest %t-harness3.ll %t-debug3 %s --max-depth=5 -O3 --enable-indvar | OutputCheck %s

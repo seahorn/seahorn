@@ -160,7 +160,7 @@ namespace seahorn
     
     virtual bool runOnModule (llvm::Module &M);
     virtual void getAnalysisUsage (llvm::AnalysisUsage &AU) const;
-    virtual const char* getPassName () const
+    virtual StringRef getPassName () const
     {return "ArrayBoundsCheck using Local encoding";}
   };
 
@@ -318,7 +318,7 @@ namespace seahorn
     Global (): llvm::ModulePass (ID) { }
     virtual bool runOnModule (llvm::Module &M);
     virtual void getAnalysisUsage (llvm::AnalysisUsage &AU) const;
-    virtual const char* getPassName () const
+    virtual StringRef getPassName () const
     {return "ArrayBoundsCheck using Global encoding";}
     
   };
@@ -347,7 +347,7 @@ namespace seahorn
     GlobalCCallbacks ():  llvm::ModulePass (ID) { }
     virtual bool runOnModule (llvm::Module &M);
     virtual void getAnalysisUsage (llvm::AnalysisUsage &AU) const;
-    virtual const char* getPassName () const
+    virtual StringRef getPassName () const
     {return "ArrayBoundsCheck using Global encoding by calling C-defined functions";}
   };
 

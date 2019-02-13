@@ -8,7 +8,7 @@
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 #include "llvm/Transforms/Utils/Local.h"
 
-#include "avy/AvyDebug.h"
+#include "seahorn/Support/SeaDebug.h"
 #include "boost/range.hpp"
 #include "boost/range/algorithm/sort.hpp"
 #include "boost/range/algorithm/set_algorithm.hpp"
@@ -117,66 +117,57 @@ namespace seahorn
                                          Type::getVoidTy (ctx),
                                          Type::getInt32Ty (ctx),
                                          Type::getInt32Ty (ctx),
-                                         Type::getInt8PtrTy (ctx),
-                                         (Type*) 0);
+                                         Type::getInt8PtrTy (ctx));
     
     
     m_memStoreFn = M.getOrInsertFunction ("shadow.mem.store", 
                                           Type::getInt32Ty (ctx),
                                           Type::getInt32Ty (ctx),
                                           Type::getInt32Ty (ctx),
-                                          Type::getInt8PtrTy (ctx),
-                                          (Type*) 0);
+                                          Type::getInt8PtrTy (ctx));
       
     m_memShadowInitFn = M.getOrInsertFunction ("shadow.mem.init",
                                                Type::getInt32Ty (ctx),
                                                Type::getInt32Ty (ctx),
-                                               Type::getInt8PtrTy (ctx),
-                                               (Type*) 0);
+                                               Type::getInt8PtrTy (ctx));
     
     m_memShadowArgInitFn = M.getOrInsertFunction ("shadow.mem.arg.init",
                                                   Type::getInt32Ty (ctx),
                                                   Type::getInt32Ty (ctx),
-                                                  Type::getInt8PtrTy (ctx),
-                                                  (Type*) 0);
+                                                  Type::getInt8PtrTy (ctx));
     
     m_argRefFn = M.getOrInsertFunction ("shadow.mem.arg.ref",
                                         Type::getVoidTy (ctx),
                                         Type::getInt32Ty (ctx),
                                         Type::getInt32Ty (ctx),
                                         Type::getInt32Ty (ctx),
-                                        Type::getInt8PtrTy (ctx),
-                                        (Type*) 0);
+                                        Type::getInt8PtrTy (ctx));
     
      m_argModFn = M.getOrInsertFunction ("shadow.mem.arg.mod",
                                          Type::getInt32Ty (ctx),
                                          Type::getInt32Ty (ctx),
                                          Type::getInt32Ty (ctx),
                                          Type::getInt32Ty (ctx),
-                                         Type::getInt8PtrTy (ctx),
-                                         (Type*) 0);
+                                         Type::getInt8PtrTy (ctx));
      m_argNewFn = M.getOrInsertFunction ("shadow.mem.arg.new",
                                          Type::getInt32Ty (ctx),
                                          Type::getInt32Ty (ctx),
                                          Type::getInt32Ty (ctx),
                                          Type::getInt32Ty (ctx),
-                                         Type::getInt8PtrTy (ctx),
-                                         (Type*) 0);
+                                         Type::getInt8PtrTy (ctx));
     
      m_markIn = M.getOrInsertFunction ("shadow.mem.in",
                                        Type::getVoidTy (ctx),
                                        Type::getInt32Ty (ctx),
                                        Type::getInt32Ty (ctx),
                                        Type::getInt32Ty (ctx),
-                                       Type::getInt8PtrTy (ctx),
-                                       (Type*) 0);
+                                       Type::getInt8PtrTy (ctx));
      m_markOut = M.getOrInsertFunction ("shadow.mem.out",
                                         Type::getVoidTy (ctx),
                                         Type::getInt32Ty (ctx),
                                         Type::getInt32Ty (ctx),
                                         Type::getInt32Ty (ctx),
-                                        Type::getInt8PtrTy (ctx),
-                                        (Type*) 0);
+                                        Type::getInt8PtrTy (ctx));
      m_node_ids.clear ();
      for (Function &f : M) runOnFunction (f);
       
@@ -465,6 +456,7 @@ namespace seahorn
     // AU.addRequiredTransitive<llvm::EQTDDataStructures>();
     AU.addRequiredTransitive<llvm::SteensgaardDataStructures> ();
     AU.addRequired<llvm::UnifyFunctionExitNodes> ();
+    AU.addPreserved<llvm::UnifyFunctionExitNodes>();
   } 
     
   //// XXX: Defined already in ShadowMemSeaDsa

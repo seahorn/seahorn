@@ -4,7 +4,7 @@
 #include "llvm/IR/IRBuilder.h"
 
 #include "boost/range.hpp"
-#include "avy/AvyDebug.h"
+#include "seahorn/Support/SeaDebug.h"
 #include "llvm/Support/raw_ostream.h"
 
 using namespace llvm;
@@ -29,22 +29,24 @@ namespace
 
       SmallVector<Instruction*, 16> kill;
       
-      for (auto &I : boost::make_iterator_range (inst_begin (F), inst_end (F)))
+      for (auto &I : llvm::make_range(inst_begin (F), inst_end (F)))
       {
-        if (!isa<CallInst> (&I)) continue;
-
         Value *v = I.stripPointerCasts ();
+        if (!isa<CallInst>(v)) continue;
+
         CallSite CS (v);
-        
+
         const Function *fn = CS.getCalledFunction ();
         if (!fn && CS.getCalledValue ())
           fn = dyn_cast<const Function> (CS.getCalledValue ()->stripPointerCasts ());
         
         if (fn && fn->getName ().equals ("malloc"))
         {
-          
+
+	  unsigned addrSpace = 0;
           Value *nv = new AllocaInst (v->getType ()->getPointerElementType (),
-                                      CS.getArgument (0), "malloc", &I);
+				      addrSpace, CS.getArgument (0), "malloc", &I);
+                                      
           v->replaceAllUsesWith (nv);
           
           changed = true;
@@ -63,7 +65,7 @@ namespace
     void getAnalysisUsage (AnalysisUsage &AU) const
     {AU.setPreservesAll ();}
     
-    virtual const char *getPassName () const {return "PromoteMalloc";}
+    virtual StringRef getPassName () const {return "PromoteMalloc";}
     
   };
 

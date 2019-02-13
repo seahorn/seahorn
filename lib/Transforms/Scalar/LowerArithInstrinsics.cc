@@ -6,7 +6,7 @@
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/ADT/Statistic.h"
 
-#include "avy/AvyDebug.h"
+#include "seahorn/Support/SeaDebug.h"
 
 #include "boost/range.hpp"
 
@@ -100,7 +100,7 @@ namespace
     void getAnalysisUsage (AnalysisUsage &AU) const
     {AU.setPreservesAll ();}
     
-    virtual const char *getPassName () const 
+    virtual StringRef getPassName () const 
     {return "Lower Arithmetic with Overflow Intrinsics";}
     
   };

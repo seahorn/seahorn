@@ -6,7 +6,7 @@
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Transforms/Utils/GlobalStatus.h"
 
-#include "avy/AvyDebug.h"
+#include "seahorn/Support/SeaDebug.h"
 
 namespace seahorn {
 char LowerGvInitializers::ID = 0;
@@ -74,7 +74,7 @@ static Function &makeNewNondetFn(Module &m, Type &type, unsigned num,
   do
     name = boost::str(boost::format(prefix + "%d") % (c++));
   while (m.getNamedValue(name));
-  Function *res = dyn_cast<Function>(m.getOrInsertFunction(name, &type, NULL));
+  Function *res = dyn_cast<Function>(m.getOrInsertFunction(name, &type));
   assert(res);
   return *res;
 }

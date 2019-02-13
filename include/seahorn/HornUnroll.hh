@@ -49,7 +49,7 @@ public:
   /// Entry point in stand-alone mode
   virtual bool runOnModule(Module &M);
   virtual void getAnalysisUsage(AnalysisUsage &AU) const;
-  virtual const char *getPassName() const { return "HornUnrollPass"; }
+  virtual StringRef getPassName() const { return "HornUnrollPass"; }
 
   void unroll();
 

@@ -8,14 +8,13 @@
 #include "llvm/Support/CommandLine.h"
 
 #include "ufo/Expr.hpp"
-#include "ufo/Smt/Z3n.hpp"
 #include "ufo/Smt/EZ3.hh"
 #include <vector>
 #include <boost/logic/tribool.hpp>
 #include "seahorn/HornClauseDBWto.hh"
 #include <algorithm>
 
-#include "ufo/Stats.hh"
+#include "seahorn/Support/Stats.hh"
 
 using namespace llvm;
 

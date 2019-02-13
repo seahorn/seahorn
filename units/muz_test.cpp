@@ -5,7 +5,7 @@
 
 TEST_CASE("z3.muz_test") {
   using namespace std;
-  using namespace ufo;
+  
   using namespace expr;
   
   ExprFactory efac;

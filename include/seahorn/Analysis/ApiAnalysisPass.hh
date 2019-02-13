@@ -13,7 +13,7 @@
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/SetVector.h"
-#include "avy/AvyDebug.h"
+#include "seahorn/Support/SeaDebug.h"
 #include "seahorn/Support/SortTopo.hh" 
 #include "llvm/ADT/PostOrderIterator.h"
 
@@ -122,7 +122,7 @@ namespace seahorn
 
     virtual void getAnalysisUsage (AnalysisUsage &AU) const;
 
-    virtual const char* getPassName () const
+    virtual StringRef getPassName () const
     { return "ApiAnalysisPass"; }
   };
 }

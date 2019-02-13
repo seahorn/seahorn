@@ -1,6 +1,7 @@
 #include "seahorn/Transforms/Instrumentation/SimpleMemoryCheck.hh"
 
 #include "llvm/ADT/DenseMap.h"
+#include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/Analysis/CallGraph.h"
@@ -14,10 +15,10 @@
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 #include "llvm/Transforms/Utils/Cloning.h"
 #include "llvm/Transforms/Utils/Local.h"
-#include "llvm/Transforms/Utils/UnifyFunctionExitNodes.h"
 
-#include "avy/AvyDebug.h"
 #include "sea_dsa/DsaAnalysis.hh"
+#include "seahorn/Support/SeaDebug.h"
+#include "seahorn/Support/SeaLog.hh"
 
 #define SMC_LOG(...) LOG("smc", __VA_ARGS__)
 
@@ -28,10 +29,26 @@ static llvm::cl::opt<bool>
                   llvm::cl::desc("Print Simple Memory Check statistics"),
                   llvm::cl::init(false));
 
+static llvm::cl::opt<bool>
+    PrintSMCSummary("print-smc-summary",
+                    llvm::cl::desc(
+                        "Print Simple Memory Check statistics summary"),
+                    llvm::cl::init(false));
+
+static llvm::cl::opt<bool>
+    PrintEmptyAS("print-empty-alloc-sites",
+                 llvm::cl::desc("Print empty allocation sites"),
+                 llvm::cl::init(false));
+
 static llvm::cl::opt<unsigned> SMCAnalysisThreshold(
     "smc-check-threshold",
     llvm::cl::desc("Max no. of analyzed memory instructions"),
     llvm::cl::init(100));
+
+static llvm::cl::opt<bool> SMCAnalyzeOnly(
+    "smc-analyze-only",
+    llvm::cl::desc("Perform SMC analysis only and don't instrument"),
+    llvm::cl::init(false));
 
 static llvm::cl::opt<unsigned> CheckToInstrumentID(
     "smc-instrument-check",
@@ -49,7 +66,7 @@ struct PtrOrigin {
   llvm::Value *Ptr;
   int64_t Offset;
 
-  void dump(llvm::raw_ostream &OS = llvm::dbgs()) const {
+  void dump(llvm::raw_ostream &OS = llvm::errs()) const {
     OS << '<';
     if (Ptr)
       Ptr->print(OS);
@@ -67,18 +84,19 @@ struct CheckContext {
   size_t AccessedBytes = 0;
   SmallVector<Value *, 8> InterestingAllocSites;
   SmallVector<Value *, 8> OtherAllocSites;
+  sea_dsa::Graph *DsaGraph;
 
-  void dump(llvm::raw_ostream &OS = llvm::dbgs()) {
-    OS << "CheckContext : " << (F ? F->getName() : "nullptr") << " {\n";
+  void dump(llvm::raw_ostream &OS = llvm::errs()) {
+    OS << "CheckContext : " << (F ? ValueToString(F) : "nullptr") << " {\n";
     OS << "  MI: ";
     if (MI)
-      MI->print(OS);
+      OS << ValueToString(MI);
     else
       OS << " nullptr";
 
     OS << "\n  Barrier: ";
     if (Barrier)
-      Barrier->print(OS);
+      OS << ValueToString(Barrier);
     else
       OS << " nullptr";
 
@@ -87,28 +105,42 @@ struct CheckContext {
 
     OS << "\n  AccessedBytes: " << AccessedBytes;
 
+    auto PrintDsaAllocSite = [this, &OS] (const llvm::Value& v) {
+      auto optAS = DsaGraph->getAllocSite(v);
+      assert(optAS.hasValue());
+      sea_dsa::DsaAllocSite &AS = **optAS;
+      if (AS.hasCallPaths())
+        AS.printCallPaths(OS);
+    };
+
+
     OS << "\n  InterestingAllocSites: {\n";
     unsigned i = 0;
     for (auto *V : InterestingAllocSites) {
-      OS << "    " << (i++) << ": ";
-      V->print(OS);
-      if (auto *I = dyn_cast<Instruction>(V))
-        OS << "  (" << I->getFunction()->getName() << ", "
-           << I->getParent()->getName() << ")";
+      OS << "    " << (i++) << ": " << ValueToString(V);
+
+      if (auto *I = dyn_cast<Instruction>(V)) {
+        OS << "  (" << ValueToString(I->getFunction()) << ", "
+           << ValueToString(I->getParent()) << ")";
+      }
 
       OS << ",\n";
+
+      PrintDsaAllocSite(*V);
     }
 
     unsigned Others = 0;
     OS << "  }  OtherAllocSites: {\n";
     for (auto *V : OtherAllocSites) {
-      OS << "    " << (i++) << ": ";
-      V->print(OS);
+      OS << "    " << (i++) << ": " << ValueToString(V);
+
       if (auto *I = dyn_cast<Instruction>(V))
-        OS << "  (" << I->getFunction()->getName() << ", "
-           << I->getParent()->getName() << ")";
+        OS << "  (" << ValueToString(I->getFunction()) << ", "
+           << ValueToString(I->getParent()) << ")";
 
       OS << ",\n";
+
+      PrintDsaAllocSite(*V);
 
       const unsigned SkipOthersAfter = 8;
       if (Others++ > SkipOthersAfter) {
@@ -118,6 +150,29 @@ struct CheckContext {
       }
     }
     OS << "  }\n}\n";
+    OS.flush();
+  }
+
+private:
+  static llvm::StringRef ValueToString(llvm::Value *V) {
+    assert(V);
+    static llvm::DenseMap<llvm::Value *, std::string> Cache;
+
+    if (Cache.count(V) == 0) {
+      std::string Buff;
+      llvm::raw_string_ostream OS(Buff);
+      if (auto *F = dyn_cast<llvm::Function>(V))
+        OS << F->getName();
+      else if (auto *BB = dyn_cast<llvm::BasicBlock>(V))
+        OS << BB->getName();
+      else
+        V->print(OS);
+
+      OS.flush();
+      Cache[V] = Buff;
+    }
+
+    return Cache[V];
   }
 };
 
@@ -135,13 +190,12 @@ public:
 
     sea_dsa::Graph *g = m_dsa->getDsaGraph(fn);
     if (!g) {
-      errs() << "WARNING SMC: Sea Dsa graph not found for " << fn.getName()
-             << "\n";
+      WARN << "SMC: Sea Dsa graph not found for " << fn.getName();
       return nullptr;
     }
 
     if (!(g->hasCell(*ptr))) {
-      errs() << "WARNING SMC: Sea Dsa node not found for " << ptr << "\n";
+      WARN << "SMC: Sea Dsa node not found for " << ptr;
       return nullptr;
     }
 
@@ -153,15 +207,28 @@ public:
       : m_abc(abc),
         m_dsa(&this->m_abc->getAnalysis<sea_dsa::DsaInfoPass>().getDsaInfo()) {}
 
-  SmallVector<Value *, 8> getAllocSites(Value *V, const Function &F) {
-    auto *C = getCell(V, F);
+
+  sea_dsa::Graph &getGraph(const Function &F) {
+    auto *G = m_dsa->getDsaGraph(F);
+    assert(G);
+    return *G;
+  }
+
+  sea_dsa::Node &getNode(const Value &V, const Function &F) {
+    auto *C = getCell(&V, F);
     assert(C);
     auto *N = C->getNode();
     assert(N);
 
+    return *N;
+  }
+
+  SmallVector<Value *, 8> getAllocSites(Value *V, const Function &F) {
+    sea_dsa::Node &N = getNode(*V, F);
+
     SmallVector<Value *, 8> Sites;
-    for (auto *S : N->getAllocSites()) {
-      if (auto *GV = dyn_cast<const GlobalVariable>(S))
+    for (auto *S : N.getAllocSites()) {
+      if (auto *GV = dyn_cast<const GlobalValue>(S))
         if (GV->isDeclaration())
           continue;
 
@@ -170,6 +237,8 @@ public:
 
     return Sites;
   };
+
+  void viewGraph(const Function &F) { m_dsa->getDsaGraph(F)->viewGraph(); }
 };
 
 } // namespace
@@ -182,7 +251,7 @@ public:
   SimpleMemoryCheck() : llvm::ModulePass(ID) {}
   virtual bool runOnModule(llvm::Module &M);
   virtual void getAnalysisUsage(llvm::AnalysisUsage &AU) const;
-  virtual const char *getPassName() const { return "SimpleMemoryCheck"; }
+  virtual llvm::StringRef getPassName() const { return "SimpleMemoryCheck"; }
 
   llvm::Optional<size_t> getAllocSize(Value *Ptr);
 
@@ -220,14 +289,14 @@ private:
   void createAssume(Value *Cond, Function *F, IRBuilder<> &IRB);
 
   void printStats(std::vector<CheckContext> &Checks,
-                  std::vector<Instruction *> &UninterestingMIs);
+                  std::vector<Instruction *> &UninterestingMIs, bool Detailed);
 };
 
 llvm::Pass *createSimpleMemoryCheckPass() { return new SimpleMemoryCheck(); }
 
 bool SimpleMemoryCheck::isKnownAlloc(Value *Ptr) {
-  if (auto *AI = dyn_cast<AllocaInst>(Ptr))
-    return !AI->isArrayAllocation();
+  if (isa<AllocaInst>(Ptr))
+    return true;
 
   if (auto *CI = dyn_cast<CallInst>(Ptr))
     return isAllocationFn(CI, m_TLI);
@@ -243,18 +312,17 @@ llvm::Optional<size_t> SimpleMemoryCheck::getAllocSize(Value *Ptr) {
   if (!isKnownAlloc(Ptr))
     return None;
 
-  ObjectSizeOffsetEvaluator OSOE(*m_DL, m_TLI, *m_Ctx, true);
-  SizeOffsetEvalType OffsetAlign = OSOE.compute(Ptr);
-  if (!OSOE.knownSize(OffsetAlign))
+  llvm::ObjectSizeOpts Opts;
+  Opts.RoundToAlign = true;
+  Opts.EvalMode = llvm::ObjectSizeOpts::Mode::Max;
+  ObjectSizeOffsetVisitor OSOV(*m_DL, m_TLI, *m_Ctx, Opts);
+  auto OffsetAlign = OSOV.compute(Ptr);
+  if (!OSOV.knownSize(OffsetAlign))
     return llvm::None;
 
-  if (auto *Sz = dyn_cast<ConstantInt>(OffsetAlign.first)) {
-    const int64_t I = Sz->getSExtValue();
-    assert(I >= 0);
-    return size_t(I);
-  }
-
-  return llvm::None;
+  const int64_t I = OffsetAlign.first.getSExtValue();
+  assert(I >= 0);
+  return size_t(I);
 }
 
 PtrOrigin SimpleMemoryCheck::trackPtrOrigin(Value *Ptr) {
@@ -403,7 +471,7 @@ struct TypeSimilarity {
            std::make_pair(Other.First, Other.Second);
   }
 
-  void dump(raw_ostream &OS = llvm::dbgs()) const {
+  void dump(raw_ostream &OS = llvm::errs()) const {
     dumpOne(OS, "First", First, FlattenedFirst);
     dumpOne(OS, "Second", Second, FlattenedSecond);
     OS << "Similarity: " << Similarity << ", ";
@@ -437,6 +505,10 @@ CheckContext SimpleMemoryCheck::getUnsafeCandidates(Instruction *Inst,
   assert(Arg);
 
   PtrOrigin Origin = trackPtrOrigin(Arg);
+  if (Origin.Offset < 0) {
+    WARN << "SMC: \tApplied negative offsets, overriding offset as 0";
+    Origin.Offset = 0;
+  }
 
   auto *Ty = LI ? LI->getType()
                 : SI->getPointerOperand()->getType()->getPointerElementType();
@@ -450,8 +522,10 @@ CheckContext SimpleMemoryCheck::getUnsafeCandidates(Instruction *Inst,
   Check.MI = Inst;
   Check.F = &F;
   Check.Barrier = Origin.Ptr;
-  Check.Collapsed = m_SDSA->getCell(Origin.Ptr, F)->getNode()->isCollapsed();
+  Check.Collapsed = m_SDSA->getCell(Origin.Ptr,
+                                    F)->getNode()->isOffsetCollapsed();
   Check.AccessedBytes = size_t(LastRead);
+  Check.DsaGraph = &m_SDSA->getGraph(F);
 
   if (Optional<size_t> AllocSize = getAllocSize(Origin.Ptr)) {
     if (int64_t(Origin.Offset) + Sz > int64_t(*AllocSize)) {
@@ -473,12 +547,12 @@ CheckContext SimpleMemoryCheck::getUnsafeCandidates(Instruction *Inst,
   for (Value *AS : m_SDSA->getAllocSites(Origin.Ptr, F)) {
     bool Interesting = isInterestingAllocSite(Origin.Ptr, LastRead, AS);
 
-    if (true && Interesting /* && Check.Collapsed */) {
+    if (Interesting /*&& Check.Collapsed*/) {
       auto *BarrierPtrTy = Check.Barrier->getType();
-      auto *AllocPtrTry = AS->getType();
-      if (BarrierPtrTy->isPointerTy() && AllocPtrTry->isPointerTy()) {
+      auto *AllocPtrTy = AS->getType();
+      if (BarrierPtrTy->isPointerTy() && AllocPtrTy->isPointerTy()) {
         auto *BarrierTy = BarrierPtrTy->getPointerElementType();
-        auto *AllocTy = AllocPtrTry->getPointerElementType();
+        auto *AllocTy = AllocPtrTy->getPointerElementType();
 
         // Temporary hack for CASS. Disabled for now.
         if (auto *Arg = dyn_cast<Argument>(Check.Barrier))
@@ -488,25 +562,25 @@ CheckContext SimpleMemoryCheck::getUnsafeCandidates(Instruction *Inst,
                  AllocTy->getStructName().endswith("::vector3")))
               Interesting = false;
 
-        // Heap alloc tends to return i8* instead of precise type.
-        if (!isa<CallInst>(AS) && !isa<InvokeInst>(AS)) {
-          if (TSC.count({BarrierTy, AllocTy}) == 0)
-            TSC[{BarrierTy, AllocTy}] =
-                TypeSimilarity(BarrierTy, AllocTy, m_Ctx, m_DL);
-
-          auto &TySim = TSC[{BarrierTy, AllocTy}];
-
-          if (TySim.Similarity < 0.8f)
-            Interesting = false;
-          else if (auto *Arg = dyn_cast<Argument>(Check.Barrier))
-            if (Arg->getName() == "this" && TySim.MatchPosition > 1)
-              Interesting = false;
-        }
+//        // Heap alloc tends to return i8* instead of precise type.
+//        if (!isa<CallInst>(AS) && !isa<InvokeInst>(AS)) {
+//          if (TSC.count({BarrierTy, AllocTy}) == 0)
+//            TSC[{BarrierTy, AllocTy}] =
+//                TypeSimilarity(BarrierTy, AllocTy, m_Ctx, m_DL);
+//
+//          auto &TySim = TSC[{BarrierTy, AllocTy}];
+//
+//          if (TySim.Similarity < 0.8f)
+//            Interesting = false;
+//          else if (auto *Arg = dyn_cast<Argument>(Check.Barrier))
+//            if (Arg->getName() == "this" && TySim.MatchPosition > 1)
+//              Interesting = false;
+//        }
 
         // Discard vtables.
-        if (auto *C = dyn_cast<Constant>(AS))
-          if (C->getName().startswith("_ZTVN"))
-            Interesting = false;
+//        if (auto *C = dyn_cast<Constant>(AS))
+//          if (C->getName().startswith("_ZTVN"))
+//            Interesting = false;
       }
     }
 
@@ -534,7 +608,7 @@ namespace {
 Instruction *GetNextInst(Instruction *I) {
   if (I->isTerminator())
     return I;
-  return I->getParent()->getInstList().getNext(I);
+  return I->getParent()->getInstList().getNextNode(*I);    
 }
 
 Type *GetI8PtrTy(LLVMContext &Ctx) {
@@ -591,7 +665,7 @@ void UpdateCallGraph(CallGraph *CG, Function *Caller, CallInst *Callee) {
 
 Function *SimpleMemoryCheck::createNewNDFn(Type *Ty, Twine Name) {
   auto *Res =
-      dyn_cast<Function>(m_M->getOrInsertFunction(Name.str(), Ty, nullptr));
+      dyn_cast<Function>(m_M->getOrInsertFunction(Name.str(), Ty));
   assert(Res);
 
   if (m_CG)
@@ -710,7 +784,8 @@ void SimpleMemoryCheck::emitGlobalInstrumentation(CheckContext &Candidate,
   for (auto *AV : Candidate.OtherAllocSites)
     EmitOtherGVAssume(AV);
 
-  SMC_LOG(NDPtrBegin->getParent()->dump());
+  // FIXME: undefined symbols llvm::Value::dump() while porting to 5.0
+  //SMC_LOG(NDPtrBegin->getParent()->dump());
 }
 
 /**
@@ -732,8 +807,10 @@ void SimpleMemoryCheck::emitMemoryInstInstrumentation(CheckContext &Candidate) {
   IRB.SetInsertPoint(Term);
   IRB.CreateCall(m_errorFn);
 
-  SMC_LOG(cast<Instruction>(Candidate.Barrier)->getParent()->dump());
-  SMC_LOG(Term->getParent()->dump());
+
+  // FIXME: undefined symbols llvm::Value::dump() while porting to 5.0  
+  // SMC_LOG(cast<Instruction>(Candidate.Barrier)->getParent()->dump());
+  // SMC_LOG(Term->getParent()->dump());
 }
 
 /**
@@ -821,9 +898,10 @@ void SimpleMemoryCheck::emitAllocSiteInstrumentation(CheckContext &Candidate,
     auto *GT = IRB.CreateICmpSGT(OAI8, TrackedEnd);
     createAssume(GT, OtherAllocInst->getFunction(), IRB);
 
-    SMC_LOG(dbgs() << "Instrumented other alloc site for " << AV->getName()
+    SMC_LOG(errs() << "Instrumented other alloc site for " << AV->getName()
                    << ":\n");
-    SMC_LOG(OtherAllocInst->getParent()->dump());
+    // FIXME: undefined symbols llvm::Value::dump() while porting to 5.0  
+    //SMC_LOG(OtherAllocInst->getParent()->dump());
   };
 
   for (size_t i = 0; i < Candidate.InterestingAllocSites.size(); ++i) {
@@ -854,19 +932,21 @@ bool SimpleMemoryCheck::runOnModule(llvm::Module &M) {
   m_DL = &M.getDataLayout();
   m_SDSA = llvm::make_unique<SeaDsa>(this);
 
-  SMC_LOG(dbgs() << "\n\n ========== SMC  ==========\n");
+  SMC_LOG(errs() << " ========== SMC (" << (sea_dsa::IsTypeAware ? "" : "Not ")
+                 << "Type-aware) ==========\n");
+  LOG("smc-dsa", m_SDSA->viewGraph(*main));
 
   AttrBuilder AB;
   AB.addAttribute(Attribute::NoReturn);
-  AttributeSet AS = AttributeSet::get(*m_Ctx, AttributeSet::FunctionIndex, AB);
+  AttributeList AS = AttributeList::get(*m_Ctx, AttributeList::FunctionIndex, AB);
   m_errorFn = dyn_cast<Function>(M.getOrInsertFunction(
-      "verifier.error", AS, Type::getVoidTy(*m_Ctx), nullptr));
+      "verifier.error", AS, Type::getVoidTy(*m_Ctx)));
 
   AB.clear();
-  AS = AttributeSet::get(*m_Ctx, AttributeSet::FunctionIndex, AB);
+  AS = AttributeList::get(*m_Ctx, AttributeList::FunctionIndex, AB);
   m_assumeFn = dyn_cast<Function>(
       M.getOrInsertFunction("verifier.assume", AS, Type::getVoidTy(*m_Ctx),
-                            Type::getInt1Ty(*m_Ctx), nullptr));
+                            Type::getInt1Ty(*m_Ctx)));
 
   IRBuilder<> B(*m_Ctx);
   CallGraphWrapperPass *CGWP = getAnalysisIfAvailable<CallGraphWrapperPass>();
@@ -902,31 +982,31 @@ bool SimpleMemoryCheck::runOnModule(llvm::Module &M) {
           // noise.
           if (Check.InterestingAllocSites.empty() /*|| Check.Collapsed*/) {
             UninterestingMIs.push_back(I);
-            continue;
+            if (!PrintEmptyAS)
+              continue;
           }
 
           CheckCandidates.emplace_back(std::move(Check));
 
-          SMC_LOG(dbgs() << (CheckCandidates.size() - 1) << ": ");
-          SMC_LOG(CheckCandidates.back().dump());
-
-          if (CheckCandidates.size() >= SMCAnalysisThreshold) {
-            SMC_LOG(errs() << "Skipping SMC analysis after reaching the"
-                              " threshold of"
-                           << SMCAnalysisThreshold.getValue() << "\n");
-            goto skip;
+          if (CheckCandidates.size() <= SMCAnalysisThreshold) {
+            SMC_LOG(errs() << (CheckCandidates.size() - 1) << ": ");
+            SMC_LOG(CheckCandidates.back().dump(errs()));
+          } else if (CheckCandidates.size() == SMCAnalysisThreshold + 1) {
+            SMC_LOG(WARN << "Skipping SMC analysis after reaching the"
+                            " threshold of "
+                         << SMCAnalysisThreshold.getValue() << "\n");
           }
         }
       }
     }
   }
 
-skip:
+  if (PrintSMCStats || PrintSMCSummary) {
+    printStats(CheckCandidates, UninterestingMIs, PrintSMCStats);
+  }
 
   if (PrintSMCStats) {
-    printStats(CheckCandidates, UninterestingMIs);
-
-    dbgs() << "\n~~~~~~  TypeSimilarityCache  ~~~~~~\n";
+    errs() << "\n~~~~~~  TypeSimilarityCache  ~~~~~~\n";
 
     std::vector<TypeSimilarity> TySims;
     TySims.reserve(TSC.size());
@@ -942,16 +1022,21 @@ skip:
     for (auto &TySim : TySims) {
       if (TySim.Similarity < 0.8f)
         break;
-      dbgs() << "\n" << (i++) << ":\n";
-      TySim.dump(dbgs());
+      errs() << "\n" << (i++) << ":\n";
+      TySim.dump(errs());
     }
 
     return false;
   }
 
   if (CheckCandidates.empty()) {
-    SMC_LOG(dbgs() << "No check candidates!\n");
-    return true;
+    SMC_LOG(errs() << "No check candidates!\n");
+    return false;
+  }
+
+  if (SMCAnalyzeOnly) {
+    WARN << "SMC: exiting without instrumenting (--smc-analyze-only)";
+    return false;
   }
 
   size_t CheckId = CheckToInstrumentID;
@@ -959,9 +1044,9 @@ skip:
 
   assert(CheckCandidates.size() > CheckId);
   auto &Check = CheckCandidates[CheckId];
-  SMC_LOG(dbgs() << "Emitting instrumentation for check [" << CheckId
+  SMC_LOG(errs() << "Emitting instrumentation for check [" << CheckId
                  << "], alloc (" << AllocSiteId << ")\n");
-  SMC_LOG(Check.dump());
+  SMC_LOG(Check.dump(errs()));
 
   emitGlobalInstrumentation(Check, AllocSiteId);
   emitMemoryInstInstrumentation(Check);
@@ -969,7 +1054,8 @@ skip:
 
   // SMC_LOG(M.dump());
 
-  SMC_LOG(dbgs() << " ========== SMC  ==========\n");
+  SMC_LOG(errs() << " ========== SMC (" << (sea_dsa::IsTypeAware ? "" : "Not ")
+                 << "Type-aware) ==========\n");
   return true;
 }
 
@@ -977,10 +1063,7 @@ void SimpleMemoryCheck::getAnalysisUsage(llvm::AnalysisUsage &AU) const {
   AU.setPreservesAll();
   AU.addRequired<sea_dsa::DsaInfoPass>(); // run seahorn dsa
   AU.addRequired<llvm::TargetLibraryInfoWrapperPass>();
-  AU.addRequired<llvm::UnifyFunctionExitNodes>();
   AU.addRequired<llvm::CallGraphWrapperPass>();
-  // for debugging
-  // AU.addRequired<ufo::NameValues> ();
 }
 
 template <typename ValTy, typename Container>
@@ -1025,10 +1108,13 @@ struct SizeStats {
       Stats.Sum += *Size;
     }
 
+    if (Stats.Min == size_t(-1))
+      Stats.Min = 0;
+
     return Stats;
   }
 
-  void dump(llvm::raw_ostream &OS = llvm::dbgs(), bool NewLine = true) const {
+  void dump(llvm::raw_ostream &OS = llvm::errs(), bool NewLine = true) const {
     OS << "Min " << Min << ", Avg " << (N > 0 ? (Sum / N) : 0) << ", Max "
        << Max;
     if (NewLine)
@@ -1038,27 +1124,39 @@ struct SizeStats {
 
 void SimpleMemoryCheck::printStats(
     std::vector<CheckContext> &Checks,
-    std::vector<Instruction *> &UninterestingMIs) {
-  raw_ostream &OS = outs();
+    std::vector<Instruction *> &UninterestingMIs, bool Detailed) {
+  raw_ostream &OS = errs();
   OS << "\n=========== Start of Simple Memory Check Stats ===========\n";
   OS << "Format:\tAll instructions (Heap/Stack/Global)\n\n";
 
-  SmallPtrSet<Value *, 64> AllAllocSites;
-  SmallPtrSet<Value *, 64> AllInterestingAllocSites;
-  SmallPtrSet<Value *, 64> AllOtherAllocSites;
+  SmallPtrSet<Value *, 32> AllAllocSites;
+  SmallPtrSet<Value *, 32> AllInterestingAllocSites;
+  SmallPtrSet<Value *, 32> AllOtherAllocSites;
+  DenseSet<Instruction *> AllInstructions;
+  DenseSet<std::pair<Value *, Value *>> InterestingBarrierAllocSites;
+  DenseSet<std::pair<Value *, Value *>> OtherBarrierAllocSites;
+
+  AllInstructions.insert(UninterestingMIs.begin(), UninterestingMIs.end());
+  unsigned TotalSimple = 0;
+
   for (auto &Check : Checks) {
+    AllInstructions.insert(Check.MI);
+
+    TotalSimple += Check.InterestingAllocSites.size();
     for (auto *AS : Check.InterestingAllocSites) {
       AllAllocSites.insert(AS);
       AllInterestingAllocSites.insert(AS);
+      InterestingBarrierAllocSites.insert({Check.Barrier, AS});
     }
 
     for (auto *AS : Check.OtherAllocSites) {
       AllAllocSites.insert(AS);
       AllOtherAllocSites.insert(AS);
+      OtherBarrierAllocSites.insert({Check.Barrier, AS});
     }
   }
 
-  OS << "Discovered memory instructions\t" << Checks.size() << "\n";
+  OS << "Discovered memory instructions\t" << AllInstructions.size() << "\n";
   OS << "Discovered allocation sites\t" << AllAllocSites.size() << "\t("
      << CountOfHeap(AllAllocSites) << "/" << CountOfStack(AllAllocSites) << "/"
      << CountOfGlobal(AllAllocSites) << ")\n";
@@ -1066,13 +1164,27 @@ void SimpleMemoryCheck::printStats(
      << "\t(" << CountOfHeap(AllInterestingAllocSites) << "/"
      << CountOfStack(AllInterestingAllocSites) << "/"
      << CountOfGlobal(AllInterestingAllocSites) << ")\n";
-  OS << "Other allocation sites\t" << AllOtherAllocSites.size() << "\t("
+  OS << "Other allocation sites\t\t" << AllOtherAllocSites.size() << "\t("
      << CountOfHeap(AllOtherAllocSites) << "/"
      << CountOfStack(AllOtherAllocSites) << "/"
      << CountOfGlobal(AllOtherAllocSites) << ")\n";
+  OS << "Total Simple AS to instrument\t" << TotalSimple << "\n";
+  OS << "Interesting <Barrier, AllocSite> pairs\t"
+     << InterestingBarrierAllocSites.size() << "\n";
+  const unsigned totalASBarrierPairs = OtherBarrierAllocSites.size() + InterestingBarrierAllocSites.size();
+  OS << "Total <Barrier, AllocSite> pairs\t" << totalASBarrierPairs << "\n";
+
+  errs() << "BRUNCH_STAT SMC_AS_BARRIER_INTERESTING "
+         << InterestingBarrierAllocSites.size() << "\n";
+  errs() << "BRUNCH_STAT SMC_AS_BARRIER_TOTAL " << totalASBarrierPairs << "\n";
 
   OS << "\n\n";
-  for (size_t i = 0, e = Checks.size(); i != e; ++i) {
+
+  if (!Detailed)
+    return;
+
+  for (size_t i = 0, e = Checks.size(); i != e &&
+                                        i <= SMCAnalysisThreshold; ++i) {
     const auto &C = Checks[i];
     OS << "MI " << i << (isa<LoadInst>(C.MI) ? "\tLoad" : "\tStore") << " "
        << C.AccessedBytes;
@@ -1088,6 +1200,7 @@ void SimpleMemoryCheck::printStats(
     size_t DifficultGlobalCnt = 0;
     size_t DifficultStackCnt = 0;
     size_t DifficultHeapCnt = 0;
+
     for (auto *AS : C.OtherAllocSites) {
       if (getAllocSize(AS))
         continue;

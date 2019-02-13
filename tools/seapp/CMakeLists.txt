@@ -6,17 +6,15 @@ set (USED_LIBS
   ${SEA_DSA_LIBS}  
   SeaSupport
   ${LLVM_SEAHORN_LIBS}
-  avy
-  ${Z3_LIBRARY}
   ${Boost_SYSTEM_LIBRARY}
   ${GMPXX_LIB}
   ${GMP_LIB}
   ${RT_LIB})
 
-set(LLVM_LINK_COMPONENTS irreader bitwriter ipo scalaropts instrumentation core
+set(LLVM_LINK_COMPONENTS irreader bitwriter ipo scalaropts instrumentation core 
   # XXX not clear why these last two are required
   codegen objcarcopts)
-add_executable(seapp seapp.cc)
+add_llvm_executable(seapp seapp.cc)
 target_link_libraries (seapp ${USED_LIBS})
 llvm_config (seapp ${LLVM_LINK_COMPONENTS})
 install(TARGETS seapp RUNTIME DESTINATION bin)

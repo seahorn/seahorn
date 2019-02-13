@@ -5,7 +5,7 @@
 #include "llvm/ADT/SCCIterator.h"
 #include "llvm/Support/raw_ostream.h"
 
-#include "avy/AvyDebug.h"
+#include "seahorn/Support/SeaDebug.h"
 namespace seahorn
 {
   using namespace llvm;

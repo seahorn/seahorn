@@ -6,7 +6,7 @@
 
 #include "ufo/Expr.hpp"
 #include "ufo/Smt/EZ3.hh"
-#include "seahorn/UfoSymExec.hh"
+#include "seahorn/UfoOpSem.hh"
 
 #include "boost/smart_ptr/scoped_ptr.hpp"
 
@@ -17,7 +17,7 @@ namespace seabmc
 {
     using namespace expr;
     using namespace llvm;
-    using namespace ufo;
+    
     using namespace seahorn;
 
   class BMCModule : public llvm::ModulePass
@@ -47,7 +47,7 @@ namespace seabmc
     virtual bool runOnModule (Module &M);
     virtual bool runOnFunction (Function &F);
     virtual void getAnalysisUsage (AnalysisUsage &AU) const;
-    virtual const char* getPassName () const {return "BMCModule";}
+    virtual StringRef getPassName () const {return "BMCModule";}
 
     /// --- live symbols for a function
     const LiveSymbols& getLiveSybols (const Function &F) const;

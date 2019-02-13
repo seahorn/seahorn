@@ -8,8 +8,8 @@ def main (argv):
     import sea
     import sea.commands
 
-
     cmds = [sea.commands.Bpf,
+            sea.commands.BndFrontEnd,
             sea.commands.CutLoops(),
             sea.commands.BndSmt,
             sea.commands.Pf,
@@ -23,6 +23,7 @@ def main (argv):
             sea.commands.Seaopt(),
             sea.commands.Seahorn(),
             sea.commands.SeahornClp(),
+            sea.commands.Boogie,
             sea.commands.FrontEnd,
             sea.commands.LegacyFrontEnd(),
             sea.commands.CrabInst(),
@@ -36,16 +37,16 @@ def main (argv):
             sea.commands.ParAbc(),
             sea.commands.ClangParAbc,
             sea.commands.NdcInst(),
-            sea.commands.Ndc,            
+            sea.commands.Ndc,
             sea.commands.LinkRt(),
             sea.commands.WrapMem(),
             sea.commands.Exe,
             sea.commands.InspectBitcode(),
             sea.commands.Inspect,
             sea.commands.SimpleMemoryChecks(),
-            sea.commands.Smc
+            sea.commands.Smc,
+            sea.commands.SeaExeCex(),
     ]
-
 
     cmd = sea.AgregateCmd('sea', 'SeaHorn Verification Framework', cmds)
     return cmd.main (argv)

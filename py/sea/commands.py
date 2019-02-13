@@ -6,7 +6,12 @@ import os.path
 import sys
 import shutil
 
-from sea import add_in_out_args, add_tmp_dir_args, which, createWorkDir
+import subprocess
+
+from sea import add_in_args, add_in_out_args, add_tmp_dir_args, which, createWorkDir
+
+# To disable printing of commands and some warnings
+quiet=False
 
 # remaps a file based on working dir and a new extension
 def _remap_file_name (in_file, ext, work_dir):
@@ -82,15 +87,22 @@ class Clang(sea.LimitedCmd):
         if _bc_or_ll_file (args.in_files[0]): return 0
 
         if self.plusplus:
-            cmd_name = which (['clang++-mp-3.8', 'clang++-3.8', 'clang++'])
+            cmd_name = which (['clang++-mp-5.0', 'clang++-5.0', 'clang++'])
         else:
-            cmd_name = which (['clang-mp-3.8', 'clang-3.8', 'clang'])
+            cmd_name = which (['clang-mp-5.0', 'clang-5.0', 'clang'])
 
         if cmd_name is None: raise IOError ('clang not found')
-        self.clangCmd = sea.ExtCmd (cmd_name)
+        self.clangCmd = sea.ExtCmd (cmd_name,'',quiet)
 
         if not all (_bc_or_ll_file (f) for f  in args.in_files):
             argv = ['-c', '-emit-llvm', '-D__SEAHORN__']
+
+            # in clang-5.0 to ensure that compilation is done without
+            # optimizations and also does not mark produced bitcode
+            # to not be optimized or not be inlined, compile
+            # with optimizations (-O1) and ask clang to not apply them
+            argv.extend (['-O1', '-Xclang', '-disable-llvm-optzns'])
+
             if not self.plusplus:
                 ## this is an invalid argument with C++/ObjC++ with clang 3.8
                 argv.append('-fgnu89-inline')
@@ -131,9 +143,9 @@ class Clang(sea.LimitedCmd):
 
         if len(out_files) > 1:
             # link
-            cmd_name = which (['llvm-link-mp-3.8', 'llvm-link-3.8', 'llvm-link'])
+            cmd_name = which (['llvm-link-mp-5.0', 'llvm-link-5.0', 'llvm-link'])
             if cmd_name is None: raise IOError ('llvm-link not found')
-            self.linkCmd = sea.ExtCmd (cmd_name)
+            self.linkCmd = sea.ExtCmd (cmd_name,'',quiet)
 
             argv = []
             if args.llvm_asm: argv.append ('-S')
@@ -162,6 +174,9 @@ class LinkRt(sea.LimitedCmd):
                          help='Machine architecture MACHINE:[32,64]', default=32)
         ap.add_argument ('-g', default=False, action='store_true',
                          dest='debug_info', help='Compile with debug info')
+        ap.add_argument ('-alloc-mem', '--alloc-mem', default=False, action='store_true',
+                         dest='alloc_mem',
+                         help='Allocate memory for uninitialized memory')
         add_in_out_args (ap)
         return ap
 
@@ -171,10 +186,10 @@ class LinkRt(sea.LimitedCmd):
 
     def run (self, args, extra):
 
-        cmd_name = which (['clang++-mp-3.8', 'clang++-3.8', 'clang++'])
+        cmd_name = which (['clang++-mp-5.0', 'clang++-5.0', 'clang++'])
 
         if cmd_name is None: raise IOError ('clang++ not found')
-        self.clangCmd = sea.ExtCmd (cmd_name)
+        self.clangCmd = sea.ExtCmd (cmd_name,'',quiet)
 
         argv = []
         argv.append ('-m{0}'.format (args.machine))
@@ -189,11 +204,13 @@ class LinkRt(sea.LimitedCmd):
         lib_dir = os.path.dirname (sys.argv[0])
         lib_dir = os.path.dirname (lib_dir)
         lib_dir = os.path.join (lib_dir, 'lib')
-        libseart = os.path.join (lib_dir, 'libsea-rt.a')
+        if args.alloc_mem:
+            libseart = os.path.join (lib_dir, 'libsea-mem-rt.a')
+        else:
+            libseart = os.path.join (lib_dir, 'libsea-rt.a')
         argv.append (libseart)
 
-        ret = self.clangCmd.run (args, argv)
-        if ret <> 0: return ret
+        return self.clangCmd.run (args, argv)
 
     @property
     def stdout (self):
@@ -305,7 +322,7 @@ class Seapp(sea.LimitedCmd):
     def run (self, args, extra):
         cmd_name = which ('seapp')
         if cmd_name is None: raise IOError ('seapp not found')
-        self.seappCmd = sea.ExtCmd (cmd_name)
+        self.seappCmd = sea.ExtCmd (cmd_name,'',quiet)
 
         argv = list()
 
@@ -431,7 +448,7 @@ class MixedSem(sea.LimitedCmd):
     def run (self, args, extra):
         cmd_name = which ('seapp')
         if cmd_name is None: raise IOError ('seapp not found')
-        self.seappCmd = sea.ExtCmd (cmd_name)
+        self.seappCmd = sea.ExtCmd (cmd_name,'',quiet)
 
         argv = list()
         if args.out_file is not None: argv.extend (['-o', args.out_file])
@@ -535,7 +552,7 @@ class AbcInst(sea.LimitedCmd):
     def run (self, args, extra):
         cmd_name = which ('seapp')
         if cmd_name is None: raise IOError ('seapp not found')
-        self.seappCmd = sea.ExtCmd (cmd_name)
+        self.seappCmd = sea.ExtCmd (cmd_name,'',quiet)
 
         argv = list()
         if args.out_file is not None: argv.extend (['-o', args.out_file])
@@ -628,7 +645,7 @@ class NdcInst(sea.LimitedCmd):
     def run (self, args, extra):
         cmd_name = which ('seapp')
         if cmd_name is None: raise IOError ('seapp not found')
-        self.seappCmd = sea.ExtCmd (cmd_name)
+        self.seappCmd = sea.ExtCmd (cmd_name,'',quiet)
 
         argv = list()
         if args.out_file is not None: argv.extend (['-o', args.out_file])
@@ -670,7 +687,8 @@ class SimpleMemoryChecks(sea.LimitedCmd):
                          help='Check id to instrement', default=0)
         ap.add_argument ('--smc-instrument-alloc', type=int, dest='smc_instrument_alloc',
                          help='Allocation site id to instrument', default=0)
-
+        ap.add_argument ('--sea-dsa-type-aware', default=False, action='store_true',
+                         dest='smc_type_aware', help='Use type-aware SeaDsa')
 
         add_in_out_args (ap)
         _add_S_arg (ap)
@@ -679,13 +697,14 @@ class SimpleMemoryChecks(sea.LimitedCmd):
     def run (self, args, extra):
         cmd_name = which ('seapp')
         if cmd_name is None: raise IOError ('seapp not found')
-        self.seappCmd = sea.ExtCmd (cmd_name)
+        self.seappCmd = sea.ExtCmd (cmd_name,'',quiet)
 
         argv = list()
         if args.out_file is not None: argv.extend (['-o', args.out_file])
         if args.llvm_asm: argv.append ('-S')
 
         argv.append('--smc')
+        argv.append('--sea-dsa-type-aware={t}'.format(t=args.smc_type_aware))
 
         if args.print_smc_stats:
             argv.append('--print-smc-stats')
@@ -710,7 +729,7 @@ class WrapMem(sea.LimitedCmd):
     def __init__(self, quiet=False):
         super(WrapMem, self).__init__('wmem', 'Wrap external memory access with SeaRt calls',
                                        allow_extra=True)
-        self.seppCmd = None
+        self.seappCmd = None
 
     @property
     def stdout (self):
@@ -733,7 +752,7 @@ class WrapMem(sea.LimitedCmd):
     def run (self, args, extra):
         cmd_name = which ('seapp')
         if cmd_name is None: raise IOError ('seapp not found')
-        self.seappCmd = sea.ExtCmd (cmd_name)
+        self.seappCmd = sea.ExtCmd (cmd_name,'',quiet)
 
         if args.wmem_skip:
             if args.out_file is not None:
@@ -746,6 +765,37 @@ class WrapMem(sea.LimitedCmd):
             if args.llvm_asm: argv.append ('-S')
             argv.extend (args.in_files)
             return self.seappCmd.run (args, argv)
+
+class ExecHarness(sea.LimitedCmd):
+    def __init__(self, quiet=False):
+        super(ExecHarness, self).__init__('exec-harness', 'Execute an executable harness to see if it calls __VERIFIER_error',
+                                             allow_extra=True)
+        self.harnessCmd = None
+
+    @property
+    def stdout (self):
+        return self.harnessCmd.stdout
+
+    def mk_arg_parser (self, ap):
+        ap = super (ExecHarness, self).mk_arg_parser (ap)
+        add_in_args (ap)
+        return ap
+
+    def run (self, args, extra):
+        if len(args.in_files) != 1: raise IOError('ExecHarness expects the harness executable as an input')
+        eharness = os.path.abspath(args.in_files[0])
+
+        self.harnessCmd = sea.ExtCmd (eharness)
+        if args.cpu is None: args.cpu = 10
+
+        retval = self.harnessCmd.run (args, [eharness], stdout=subprocess.PIPE)
+
+        if "[sea] __VERIFIER_error was executed" in self.harnessCmd.stdout:
+            print ("__VERIFIER_error was executed")
+        else:
+            print ("__VERIFIER_error was not executed")
+
+        return retval
 
 class CutLoops(sea.LimitedCmd):
     def __init__(self, quiet=False):
@@ -771,7 +821,7 @@ class CutLoops(sea.LimitedCmd):
     def run (self, args, extra):
         cmd_name = which ('seapp')
         if cmd_name is None: raise IOError ('seapp not found')
-        self.seappCmd = sea.ExtCmd (cmd_name)
+        self.seappCmd = sea.ExtCmd (cmd_name,'',quiet)
 
         argv = list()
         if args.out_file is not None: argv.extend (['-o', args.out_file])
@@ -825,7 +875,7 @@ class Seaopt(sea.LimitedCmd):
     def run (self, args, extra):
         cmd_name = which (['seaopt'])
         if cmd_name is None: raise IOError ('`seaopt` from llvm-seahorn (https://github.com/seahorn/llvm-seahorn) is not found')
-        self.seaoptCmd = sea.ExtCmd (cmd_name)
+        self.seaoptCmd = sea.ExtCmd (cmd_name,'',quiet)
 
         argv = ['-f', '-funit-at-a-time']
         if args.out_file is not None:
@@ -845,9 +895,9 @@ class Seaopt(sea.LimitedCmd):
             argv.append ('--unroll-threshold={t}'.format
                          (t=args.unroll_threshold))
         if not args.enable_vectorize:
-            argv.extend (['--disable-loop-vectorization=true',
-                          '--disable-slp-vectorization=true',
-                          '--vectorize-slp-aggressive=false'])
+            argv.extend ([  '--disable-loop-vectorization=true'
+                          , '--disable-slp-vectorization=true'
+                         ])
 
         argv.extend (args.in_files)
         if args.llvm_asm: argv.append ('-S')
@@ -887,7 +937,7 @@ class Unroll(sea.LimitedCmd):
     def run (self, args, extra):
         cmd_name = which (['seaopt'])
         if cmd_name is None: raise IOError ('`seaopt` from llvm-seahorn (https://github.com/seahorn/llvm-seahorn) is not found')
-        self.seaoptCmd = sea.ExtCmd (cmd_name)
+        self.seaoptCmd = sea.ExtCmd (cmd_name,'',quiet)
 
         argv = ['-f', '-funit-at-a-time']
         if args.out_file is not None:
@@ -919,11 +969,12 @@ def _is_seahorn_opt (x):
     return False
 
 class Seahorn(sea.LimitedCmd):
-    def __init__ (self, solve=False, quiet=False):
+    def __init__ (self, solve=False, enable_boogie = False, quiet=False):
         super (Seahorn, self).__init__ ('horn', 'Generate (and solve) ' +
                                         'Constrained Horn Clauses in SMT-LIB format',
                                         allow_extra=True)
         self.solve = solve
+        self.enable_boogie = enable_boogie
 
     @property
     def stdout (self):
@@ -975,7 +1026,7 @@ class Seahorn(sea.LimitedCmd):
                          dest='crab', default=False, action='store_true')
         ap.add_argument ('--bmc',
                          help='Use BMC engine',
-                         dest='bmc', default=False, action='store_true')
+                         choices=['none', 'mono', 'path'], dest='bmc', default='none')
         ap.add_argument ('--max-depth',
                          help='Maximum depth of exploration',
                          dest='max_depth', default=sys.maxint)
@@ -984,22 +1035,27 @@ class Seahorn(sea.LimitedCmd):
     def run (self, args, extra):
         cmd_name = which ('seahorn')
         if cmd_name is None: raise IOError ('seahorn not found')
-        self.seahornCmd = sea.ExtCmd (cmd_name)
-
+        self.seahornCmd = sea.ExtCmd (cmd_name,'',quiet)
         argv = list()
 
         if args.max_depth <> sys.maxint:
             argv.append ('--horn-max-depth=' + str(args.max_depth))
 
-        if args.bmc:
+        if args.bmc != 'none':
             argv.append ('--horn-bmc')
+            if args.bmc == 'path':
+                argv.append ('--horn-bmc-engine=path')
 
         if args.crab:
             argv.append ('--horn-crab')
 
+        if self.enable_boogie:
+            argv.append ('--boogie')
+            # the translation uses crab to add invariants: disable crab warnings
+            argv.append ('--crab-disable-warnings')
+
         if args.solve or args.out_file is not None:
             argv.append ('--keep-shadows=true')
-
 
         if args.dsa != 'llvm':
             if "--dsa-stats" in extra:
@@ -1028,7 +1084,6 @@ class Seahorn(sea.LimitedCmd):
         if args.cex is not None and args.solve:
             argv.append ('-horn-cex-pass')
             argv.append ('-horn-cex={0}'.format (args.cex))
-            #argv.extend (['-log', 'cex'])
             if args.bv_cex:
                 argv.append ('--horn-cex-bv=true')
         if args.asm_out_file is not None: argv.extend (['-oll', args.asm_out_file])
@@ -1037,7 +1092,9 @@ class Seahorn(sea.LimitedCmd):
                       '-horn-sem-lvl={0}'.format (args.track),
                       '--horn-step={0}'.format (args.step)])
 
-        if args.verbose > 0: argv.extend (['-zverbose', str(args.verbose)])
+        if args.verbose > 0:
+            argv.extend (['-zverbose', str(args.verbose)])
+            argv.extend (['-cverbose', str(args.verbose)])
 
         if args.log is not None:
             for l in args.log.split (':'): argv.extend (['-log', l])
@@ -1104,7 +1161,7 @@ class SeahornClp(sea.LimitedCmd):
     def run (self, args, extra):
         cmd_name = which ('seahorn')
         if cmd_name is None: raise IOError ('seahorn not found')
-        self.seahornCmd = sea.ExtCmd (cmd_name)
+        self.seahornCmd = sea.ExtCmd (cmd_name,'',quiet)
 
         argv = list()
         if args.asm_out_file is not None: argv.extend (['-oll', args.asm_out_file])
@@ -1122,9 +1179,8 @@ class SeahornClp(sea.LimitedCmd):
         if args.out_file is not None: argv.extend (['-o', args.out_file])
         argv.extend (args.in_files)
 
-        # pick out extra seahorn options
+        # pick out extra seahorn/crab options
         argv.extend (filter (_is_seahorn_opt, extra))
-
 
         return self.seahornCmd.run (args, argv)
 
@@ -1169,7 +1225,7 @@ class LegacyFrontEnd (sea.LimitedCmd):
             return 1
 
         import subprocess
-        self.lfeCmd = sea.ExtCmd (cmd_name)
+        self.lfeCmd = sea.ExtCmd (cmd_name,'',quiet)
 
         argv = ['--no-seahorn', '-o', args.out_file]
         argv.append ('-m{0}'.format (args.machine))
@@ -1200,7 +1256,7 @@ class CrabInst (sea.LimitedCmd):
     def run (self, args, extra):
         cmd_name = which ('seahorn')
         if cmd_name is None: raise IOError ('seahorn not found')
-        self.seappCmd = sea.ExtCmd (cmd_name)
+        self.seappCmd = sea.ExtCmd (cmd_name,'',quiet)
 
         argv = list()
 
@@ -1210,7 +1266,7 @@ class CrabInst (sea.LimitedCmd):
         if args.out_file is not None: argv.extend (['-oll', args.out_file])
         argv.extend (args.in_files)
 
-        # pick out extra seahorn options
+        # pick out extra seahorn/crab options
         argv.extend (filter (_is_seahorn_opt, extra))
 
         return self.seappCmd.run (args, argv)
@@ -1359,12 +1415,14 @@ class InspectBitcode(sea.LimitedCmd):
                          dest='mem_viewer', help='View memory graph of all functions to dot format')
         ap.add_argument ('--mem-stats', default=False, action='store_true',
                          dest='mem_stats', help='Print stats about all memory graphs')
+        ap.add_argument ('--cha', default=False, action='store_true',
+                         dest='cha', help='Print results of the Class Hierarchy Analysis (for C++)')
         return ap
 
     def run (self, args, extra):
         cmd_name = which ('seainspect')
         if cmd_name is None: raise IOError ('seainspect not found')
-        self.seainspectCmd = sea.ExtCmd (cmd_name)
+        self.seainspectCmd = sea.ExtCmd (cmd_name,'',quiet)
 
         argv = list()
 
@@ -1379,7 +1437,8 @@ class InspectBitcode(sea.LimitedCmd):
         if args.mem_dot or args.mem_viewer:
             if args.dot_outdir is not "":
                 argv.extend(['-sea-dsa-dot-outdir={0}'.format(args.dot_outdir)])
-
+        if args.cha: argv.extend (['-cha'])
+        
         dsa = get_sea_horn_dsa (extra)
         if dsa is not None:
             ## we select the sea-dsa variant
@@ -1391,16 +1450,131 @@ class InspectBitcode(sea.LimitedCmd):
                 argv.extend (['--sea-dsa=cs'])
 
         argv.extend (args.in_files)
-        # pick out extra seahorn options
+        # pick out extra seahorn/crab options
         argv.extend (filter (_is_seahorn_opt, extra))
 
         return self.seainspectCmd.run (args, argv)
+
+class SeaExeCex(sea.LimitedCmd):
+    def __init__(self, quiet=False):
+        super (SeaExeCex, self).__init__('exe-cex',
+                                         'Executable Counterexamples',
+                                         allow_extra=True)
+    @property
+    def stdout (self):
+        return
+
+    def name_out_file (self, in_files, args=None, work_dir=None):
+        return _remap_file_name (in_files[0], '.exe', work_dir)
+
+    def mk_arg_parser (self, ap):
+        ap = super (SeaExeCex, self).mk_arg_parser (ap)
+        add_tmp_dir_args (ap)
+        add_in_out_args (ap)
+        _add_S_arg (ap)
+        ap.add_argument ('--harness', '-harness',
+                         dest='harness',
+                         help='Destination file for the harness',
+                         default=None, metavar='FILE')
+        ap.add_argument ('--bit-precise','-bit-precise',
+                         dest='bv_cex',
+                         help='Generate bit-precise counterexamples',
+                         default=False, action='store_true')
+        ap.add_argument ('--bit-mem-precise','-bit-mem-precise',
+                         dest='bv_part_mem',
+                         help='Generate bit- and memory-precise counterexamples',
+                         default=False, action='store_true')
+        ap.add_argument ('--alloc-mem', '-alloc-mem',
+                         default=False, action='store_true',
+                         dest='alloc_mem',
+                         help='Allocate space for uninitialized memory')
+        ap.add_argument ('--verify', '-verify',
+                         default=False, action='store_true',
+                         dest='verify',
+                         help='Verify the harness executes __VERIFIER_error')
+        return ap
+
+    def run(self, args, extra):
+        # FIXME: the -o is used both `sea pf` and `sea exe`. Thus,
+        # the output of `sea pf` is overwritten by the output of `sea exe`.
+        try:
+            harness_file = args.harness
+            if harness_file is None:
+                harness_file = 'harness.ll'
+
+            if args.out_file is None:
+                args.out_file = 'harness'
+
+            try:
+                os.remove(harness_file)
+            except OSError:
+                pass
+
+            ## `sea pf`: find counterexample and generate harness
+            c = sea.SeqCmd('','',
+                           [Clang(), Seapp(), MixedSem(), Seaopt(), \
+                            Seahorn(solve=True)])
+            argv = list ()
+            argv.extend(['-m64', '-g'])
+            argv.extend(extra)
+            # TODO: we should remove from `extra` the following options:
+            argv.extend(['--cex={0}'.format(harness_file)])
+            if args.bv_cex or args.bv_part_mem:
+                argv.extend(['--bv-cex'])
+            if args.bv_part_mem:
+                argv.extend(['--horn-bv-part-mem'])
+            res = c.run(args,  argv)
+            if res <> 0:
+                print('\n\nThe harness was not generated. Aborting ...\n');
+                return res
+
+            if not os.path.isfile(harness_file): # if program was safe
+                print('\n\nThe harness was not generated. Aborting ...\n');
+                # remove the .smt2 file
+                try:
+                    os.remove(args.out_file)
+                except OSError:
+                    pass
+                # some error code different from 0
+                return 1
+
+
+            ## `sea exe`: generate executable
+            c = sea.SeqCmd('','',
+                           [Clang(), Seapp(strip_extern=True,keep_lib_fn=True), \
+                            Seapp(internalize=True), WrapMem(), LinkRt()])
+            argv = list()
+            argv.extend(['-m64', '-g'])
+            argv.extend(extra)
+            # TODO: we should remove from `extra` the following options:
+            if args.alloc_mem:
+                argv.extend(['--alloc-mem'])
+            infiles = args.in_files
+            infiles.extend([harness_file])
+            res = c.run(args, argv)
+            if res <> 0:
+                print('\n\nThe executable counterexample was not generated. Aborting ...\n');
+            else:
+                print ('\n\nGenerated executable counterexample {0}'.format(args.out_file))
+
+            # Optionally verify the harness reaches __VERIFIER_error
+            if res == 0 and args.verify:
+                args.in_files = [args.out_file]
+                c = ExecHarness()
+                c.run(args, [])
+
+            return res
+
+        except Exception as e:
+            raise IOError(str(e))
 
 ## SeaHorn aliases
 FrontEnd = sea.SeqCmd ('fe', 'Front end: alias for clang|pp|ms|opt',
                        [Clang(), Seapp(), MixedSem(), Seaopt ()])
 Smt = sea.SeqCmd ('smt', 'alias for fe|horn', FrontEnd.cmds + [Seahorn()])
 Clp = sea.SeqCmd ('clp', 'alias for fe|horn-clp', FrontEnd.cmds + [SeahornClp()])
+Boogie= sea.SeqCmd ('boogie', 'alias for fe|horn --boogie',
+                    FrontEnd.cmds + [Seahorn(solve=False,enable_boogie=True)])
 Pf = sea.SeqCmd ('pf', 'alias for fe|horn --solve',
                  FrontEnd.cmds + [Seahorn(solve=True)])
 LfeSmt = sea.SeqCmd ('lfe-smt', 'alias for lfe|horn', [LegacyFrontEnd(), Seahorn()])
@@ -1408,6 +1582,8 @@ LfeClp= sea.SeqCmd ('lfe-clp', 'alias for lfe|horn-clp', [LegacyFrontEnd(), Seah
 BndSmt = sea.SeqCmd ('bnd-smt', 'alias for fe|unroll|cut-loops|ms|opt|horn',
                      FrontEnd.cmds + [Unroll(), CutLoops(), MixedSem (),
                                       Seaopt(), Seahorn()])
+BndFrontEnd = sea.SeqCmd('bnd-fe', 'Bounded front-end: alias for fe|unroll|cut-loops|opt',
+                         FrontEnd.cmds + [Unroll(), CutLoops(), Seaopt()])
 Bpf = sea.SeqCmd ('bpf', 'alias for fe|unroll|cut-loops|opt|horn --solve',
                   FrontEnd.cmds + [Unroll(), CutLoops(), Seaopt(), Seahorn(solve=True)])
 Crab = sea.SeqCmd ('crab', 'alias for fe|crab-inst', FrontEnd.cmds + [CrabInst()])

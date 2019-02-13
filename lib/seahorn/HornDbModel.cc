@@ -5,7 +5,7 @@
 #include "ufo/Expr.hpp"
 #include <vector>
 
-#include "ufo/Stats.hh"
+#include "seahorn/Support/Stats.hh"
 
 namespace seahorn
 {

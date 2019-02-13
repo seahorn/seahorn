@@ -21,6 +21,7 @@
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Transforms/IPO.h"
 
+#include "seahorn/Bmc.hh"
 #include "seahorn/HornCex.hh"
 #include "seahorn/HornSolver.hh"
 #include "seahorn/HornWrite.hh"
@@ -28,6 +29,7 @@
 #include "seahorn/Houdini.hh"
 #include "seahorn/Passes.hh"
 #include "seahorn/PredicateAbstraction.hh"
+#include "seahorn/Transforms/Instrumentation/ShadowMemSeaDsa.hh"
 #include "seahorn/Transforms/Scalar/LowerCstExpr.hh"
 #include "seahorn/Transforms/Scalar/LowerGvInitializers.hh"
 #include "seahorn/Transforms/Scalar/PromoteVerifierCalls.hh"
@@ -41,13 +43,14 @@
 #include "crab_llvm/Transforms/InsertInvariants.hh"
 #endif
 
-#include "ufo/Passes/NameValues.hpp"
+#include "seahorn/Support/Stats.hh"
+#include "seahorn/Transforms/Utils/NameValues.hh"
 #include "ufo/Smt/EZ3.hh"
-#include "ufo/Stats.hh"
 
+#include "seahorn/Support/GitSHA1.h"
 void print_seahorn_version() {
   llvm::outs() << "SeaHorn (http://seahorn.github.io/):\n"
-               << "  SeaHorn version " << SEAHORN_VERSION_INFO << "\n";
+               << "  SeaHorn version " << SEAHORN_VERSION_INFO <<"-"<<g_GIT_SHA1<< "\n";
 }
 
 /// XXX HACK to force compiler to link this in
@@ -61,6 +64,14 @@ struct ZVerboseOpt {
   void operator=(const int v) const { z3::set_param("verbose", v); }
 };
 ZVerboseOpt zverbose;
+
+#ifdef HAVE_CRAB_LLVM
+struct CVerboseOpt {
+  void operator=(unsigned level) const { crab::CrabEnableVerbosity(level); }
+};
+
+CVerboseOpt cverbose;
+#endif
 } // namespace seahorn
 
 static llvm::cl::opt<seahorn::ZTraceLogOpt, true, llvm::cl::parser<std::string>>
@@ -74,6 +85,13 @@ static llvm::cl::opt<seahorn::ZVerboseOpt, true, llvm::cl::parser<int>>
                   llvm::cl::location(seahorn::zverbose),
                   llvm::cl::value_desc("int"), llvm::cl::ValueRequired,
                   llvm::cl::Hidden);
+
+#ifdef HAVE_CRAB_LLVM
+static llvm::cl::opt<seahorn::CVerboseOpt, true, llvm::cl::parser<unsigned>>
+    CrabVerbose("cverbose", llvm::cl::desc("Enable crab verbose messages"),
+                llvm::cl::location(seahorn::cverbose),
+                llvm::cl::value_desc("uint"));
+#endif
 
 static llvm::cl::opt<std::string>
     InputFilename(llvm::cl::Positional,
@@ -118,11 +136,24 @@ static llvm::cl::opt<bool>
                 llvm::cl::desc("Do not strip shadow.mem functions"),
                 llvm::cl::init(false), llvm::cl::Hidden);
 
-static llvm::cl::opt<bool> Bmc(
-    "horn-bmc",
-    llvm::cl::desc(
-        "Use BMC engine. Currently restricted to intra-procedural analysis"),
-    llvm::cl::init(false));
+// To switch between llvm-dsa and sea-dsa
+static llvm::cl::opt<bool>
+    Bmc("horn-bmc",
+        llvm::cl::desc(
+            "Use BMC. Currently restricted to intra-procedural analysis"),
+        llvm::cl::init(false));
+
+static llvm::cl::opt<seahorn::bmc_engine_t>
+    BmcEngine("horn-bmc-engine", llvm::cl::desc("Choose BMC engine"),
+              llvm::cl::values(clEnumValN(seahorn::mono_bmc, "mono",
+                                          "Generate a single formula"),
+                               clEnumValN(seahorn::path_bmc, "path",
+                                          "Based on path enumeration")),
+              llvm::cl::init(seahorn::bmc_engine_t::mono_bmc));
+
+static llvm::cl::opt<bool>
+    BoogieOutput("boogie", llvm::cl::desc("Translate llvm bitcode to boogie"),
+                 llvm::cl::init(false));
 
 static llvm::cl::opt<bool> OneAssumePerBlock(
     "horn-one-assume-per-block",
@@ -147,6 +178,12 @@ static llvm::cl::opt<bool>
             llvm::cl::init(false));
 
 static llvm::cl::opt<bool>
+    MemDot("mem-dot",
+           llvm::cl::desc(
+               "Print SeaHorn Dsa memory graph of a function to dot format"),
+           llvm::cl::init(false));
+
+static llvm::cl::opt<bool>
     HornUnroll("horn-unroll",
                llvm::cl::desc("Enable unrolling of recursive CHC to bound N"),
                llvm::cl::init(false));
@@ -159,12 +196,6 @@ static llvm::cl::opt<bool>
 static llvm::cl::opt<unsigned> UBnd("horn-unroll-bound",
                                     llvm::cl::Hidden, llvm::cl::init(1));
 
-static llvm::cl::opt<bool>
-    MemDot("mem-dot",
-           llvm::cl::desc(
-               "Print SeaHorn Dsa memory graph of a function to dot format"),
-           llvm::cl::init(false));
-
 // removes extension from filename if there is one
 std::string getFileName(const std::string &str) {
   std::string filename = str;
@@ -175,20 +206,20 @@ std::string getFileName(const std::string &str) {
 }
 
 int main(int argc, char **argv) {
-  ufo::ScopedStats _st("seahorn_total");
+  seahorn::ScopedStats _st("seahorn_total");
 
   llvm::llvm_shutdown_obj shutdown; // calls llvm_shutdown() on exit
   llvm::cl::AddExtraVersionPrinter(print_seahorn_version);
   llvm::cl::ParseCommandLineOptions(
       argc, argv, "SeaHorn -- LLVM bitcode to Horn/SMT2 transformation\n");
 
-  llvm::sys::PrintStackTraceOnErrorSignal();
+  llvm::sys::PrintStackTraceOnErrorSignal(argv[0]);
   llvm::PrettyStackTraceProgram PSTP(argc, argv);
   llvm::EnableDebugBuffering = true;
 
   std::error_code error_code;
   llvm::SMDiagnostic err;
-  llvm::LLVMContext &context = llvm::getGlobalContext();
+  llvm::LLVMContext context;
   std::unique_ptr<llvm::Module> module;
   std::unique_ptr<llvm::tool_output_file> output;
   std::unique_ptr<llvm::tool_output_file> asmOutput;
@@ -237,13 +268,13 @@ int main(int argc, char **argv) {
 
   llvm::legacy::PassManager pass_manager;
   llvm::PassRegistry &Registry = *llvm::PassRegistry::getPassRegistry();
-  llvm::initializeAnalysis(Registry);
 
-  /// call graph and other IPA passes
-  // llvm::initializeIPA (Registry);
-  // XXX: porting to 3.8
+  llvm::initializeAnalysis(Registry);
+  llvm::initializeTransformUtils(Registry);
+  llvm::initializeScalarOpts(Registry);
+  llvm::initializeIPO(Registry);
   llvm::initializeCallGraphWrapperPassPass(Registry);
-  llvm::initializeCallGraphPrinterPass(Registry);
+  llvm::initializeCallGraphPrinterLegacyPassPass(Registry);
   llvm::initializeCallGraphViewerPass(Registry);
   // XXX: not sure if needed anymore
   llvm::initializeGlobalsAAWrapperPassPass(Registry);
@@ -258,13 +289,15 @@ int main(int argc, char **argv) {
   assert(dl && "Could not find Data Layout for the module");
 
   // turn all functions internal so that we can inline them if requested
-  pass_manager.add(
-      llvm::createInternalizePass(llvm::ArrayRef<const char *>("main")));
+  auto PreserveMain = [=](const llvm::GlobalValue &GV) {
+    return GV.getName() == "main";
+  };
+  pass_manager.add(llvm::createInternalizePass(PreserveMain));
   pass_manager.add(llvm::createGlobalDCEPass()); // kill unused internal global
 
   if (InlineAll) {
     pass_manager.add(seahorn::createMarkInternalInlinePass());
-    pass_manager.add(llvm::createAlwaysInlinerPass());
+    pass_manager.add(llvm::createAlwaysInlinerLegacyPass());
     pass_manager.add(
         llvm::createGlobalDCEPass()); // kill unused internal global
   }
@@ -286,14 +319,21 @@ int main(int argc, char **argv) {
 
   // -- initialize any global variables that are left
   pass_manager.add(new seahorn::LowerGvInitializers());
-  if (SeaHornDsa)
+  if (SeaHornDsa) {
     pass_manager.add(seahorn::createShadowMemSeaDsaPass());
-  else {
+#ifndef USE_NEW_SHADOW_SEA_DSA
+    // -- this is dangerous since it might lower alloca instructions that
+    // -- shadow mem already instrumented.
+    // -- The old assumption was that mem2reg has nothing to lower
+    // -- before shadow.mem is scheduled. This is not true when analyzing
+    // -- unoptimized bitcode lowers shadow.mem variables created by
+    // -- ShadowMemDsa pass
+    pass_manager.add(seahorn::createPromoteMemoryToRegisterPass());
+#endif
+  } else {
     pass_manager.add(seahorn::createShadowMemDsaPass());
+    pass_manager.add(seahorn::createPromoteMemoryToRegisterPass());
   }
-
-  // lowers shadow.mem variables created by ShadowMemDsa pass
-  pass_manager.add(seahorn::createPromoteMemoryToRegisterPass());
 
   pass_manager.add(new seahorn::RemoveUnreachableBlocksPass());
   pass_manager.add(seahorn::createStripLifetimePass());
@@ -305,7 +345,7 @@ int main(int argc, char **argv) {
   }
 
 #ifdef HAVE_CRAB_LLVM
-  if (Crab) {
+  if (Crab && !BoogieOutput) {
     /// -- insert invariants in the bitecode
     pass_manager.add(new crab_llvm::InsertInvariants());
     /// -- simplify invariants added in the bitecode
@@ -316,14 +356,15 @@ int main(int argc, char **argv) {
   // --- verify if an undefined value can be read
   pass_manager.add(seahorn::createCanReadUndefPass());
 
-  if (!Bmc) {
+  // Z3_open_log("log.txt");
+
+  if (!Bmc && !BoogieOutput)
     pass_manager.add(new seahorn::HornifyModule());
 
-    if (TaintAnalysis)
-        pass_manager.add(seahorn::createTaintAnalysisPass (UBnd.getValue()));
-    else if (UBnd.getValue() > 1)
-        pass_manager.add(seahorn::createHornUnrollPass(UBnd.getValue()));
-  }
+  if (TaintAnalysis) 
+    pass_manager.add(seahorn::createTaintAnalysisPass (UBnd.getValue()));
+  else if (UBnd.getValue() > 1)
+    pass_manager.add(seahorn::createHornUnrollPass(UBnd.getValue()));
 
   // FIXME: if StripShadowMemPass () is executed then DsaPrinterPass
   // crashes because the callgraph has not been updated so it can
@@ -337,7 +378,7 @@ int main(int argc, char **argv) {
 
   if (!AsmOutputFilename.empty()) {
     if (!KeepShadows) {
-      pass_manager.add(new ufo::NameValues());
+      pass_manager.add(new seahorn::NameValues());
       // -- XXX might destroy names using by HornSolver later on.
       // -- XXX it is probably dangerous to strip shadows and solve at the same
       // time
@@ -350,7 +391,15 @@ int main(int argc, char **argv) {
     llvm::raw_ostream *out = nullptr;
     if (!OutputFilename.empty())
       out = &output->os();
-    pass_manager.add(seahorn::createBmcPass(out, Solve));
+    pass_manager.add(seahorn::createBmcPass(BmcEngine, out, Solve));
+  } else if (BoogieOutput) {
+    llvm::raw_ostream *out = nullptr;
+    if (!OutputFilename.empty()) {
+      out = &output->os();
+    } else {
+      out = &llvm::outs();
+    }
+    pass_manager.add(seahorn::createBoogieWriterPass(out, Crab));
   } else {
     if (!OutputFilename.empty())
       pass_manager.add(new seahorn::HornWrite(output->os()));
@@ -363,7 +412,7 @@ int main(int argc, char **argv) {
     if (Solve) {
       pass_manager.add(new seahorn::HornSolver());
       if (Cex)
-        pass_manager.add(new seahorn::HornCex());
+        pass_manager.add(new seahorn::HornCex(BmcEngine));
     }
   }
 
@@ -374,6 +423,6 @@ int main(int argc, char **argv) {
   if (!OutputFilename.empty())
     output->keep();
   if (PrintStats)
-    ufo::Stats::PrintBrunch(llvm::outs());
+    seahorn::Stats::PrintBrunch(llvm::outs());
   return 0;
 }

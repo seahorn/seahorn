@@ -30,7 +30,8 @@ namespace seahorn
     bool canFail (const Function *f) const;
     bool mustFail (const Function *f) const
     {return m_must.count (f) > 0;}
-    
+
+    StringRef getPassName () const override {return "Can Fail";}
   };
 }
 #endif /* _CAN_FAIL__HH_ */

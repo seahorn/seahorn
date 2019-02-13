@@ -31,14 +31,14 @@ namespace llvm {
 
   template <> 
   struct GraphTraits<const seahorn::FunctionWrapper*> :public GraphTraits<const BasicBlock*> {
-    static const NodeType *getEntryNode(const seahorn::FunctionWrapper *FW) 
+    static NodeRef getEntryNode(const seahorn::FunctionWrapper *FW) 
     {return &FW->m_F->getEntryBlock();}
     // nodes_iterator/begin/end - Allow iteration over all nodes in the graph
-    typedef Function::const_iterator nodes_iterator;
+    using nodes_iterator = pointer_iterator<Function::const_iterator>;
     static nodes_iterator nodes_begin(const seahorn::FunctionWrapper *FW) 
-    { return FW->m_F->begin(); }
+    { return nodes_iterator(FW->m_F->begin()); }
     static nodes_iterator nodes_end  (const seahorn::FunctionWrapper *FW) 
-    { return FW->m_F->end(); }
+    { return nodes_iterator(FW->m_F->end()); }
     static size_t         size       (const seahorn::FunctionWrapper *FW) 
     { return FW->m_F->size(); }
   };
@@ -143,7 +143,7 @@ namespace llvm {
         raw_string_ostream OS(Str);
         SwitchInst::ConstCaseIt Case =
             SwitchInst::ConstCaseIt::fromSuccessorIndex(SI, SuccNo);
-        OS << Case.getCaseValue()->getValue();
+        OS << Case->getCaseValue()->getValue();
         return OS.str();
       }
       return "";
@@ -276,7 +276,7 @@ namespace seahorn {
 
 
   
-  FunctionPass *createCFGPrinterPass () {
+  Pass * createCFGPrinterPass () {
     return new CFGPrinter();
   }
 

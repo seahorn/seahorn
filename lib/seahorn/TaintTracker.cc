@@ -1,9 +1,10 @@
 #include "seahorn/TaintTracker.hh"
+#include "seahorn/Support/SeaDebug.h"
+#include "seahorn/Support/SeaLog.hh"
 #include "boost/function_output_iterator.hpp"
 #include <utility>
 #include "llvm/Support/CommandLine.h"
 
-#include "avy/AvyDebug.h"
 #include "ufo/Expr.hpp"
 
 // using namespace llvm;

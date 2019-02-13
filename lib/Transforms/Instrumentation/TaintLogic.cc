@@ -11,8 +11,6 @@
 
 #include "llvm/CodeGen/MachineDominators.h"
 
-#include "avy/AvyDebug.h"
-
 #define DEBUG_TAINT 1
 
 static llvm::cl::opt<bool> HasErrorFunc(
@@ -93,8 +91,7 @@ Value *TaintLogic::allocaForValue(IRBuilder<> &B, const Value *v,
 
 bool TaintLogic::isTaintVarExists(const Value *val) {
   if (isa<GetElementPtrInst>(val)) {
-    const GetElementPtrInst &gep =
-        dynamic_cast<const GetElementPtrInst &>(*val);
+    const GetElementPtrInst &gep = *dyn_cast<GetElementPtrInst>(val);
     unsigned size = gep.getNumOperands();
     for (unsigned i = 0; i < size; i++) {
       auto it = m_inst_to_shadow.find(gep.getOperand(i));
@@ -114,7 +111,7 @@ Value *TaintLogic::getShadowTaintVar(IRBuilder<> &B, Value *val) {
     taintVar = getShadowTaintForGEP(B, val);
   } else {
     if (isa<BitCastInst>(val))
-      val = dynamic_cast<const BitCastInst *>(val)->getOperand(0);
+      val = dyn_cast<BitCastInst>(val)->getOperand(0);
     if (m_inst_to_shadow.find(val) != m_inst_to_shadow.end())
       taintVar = m_inst_to_shadow[val];
   }
@@ -125,7 +122,7 @@ Value *TaintLogic::getShadowTaintVar(IRBuilder<> &B, Value *val) {
 Value *TaintLogic::addShadowTaintVar(IRBuilder<> &B, Value *var,
                                      uint64_t size) {
   if (isa<BitCastInst>(*var))
-    var = dynamic_cast<BitCastInst *>(var)->getOperand(0);
+    var = dyn_cast<BitCastInst>(var)->getOperand(0);
 
   auto it = m_inst_to_shadow.find(var);
   if (it != m_inst_to_shadow.end())
@@ -158,7 +155,7 @@ bool TaintLogic::isTaintLogicRequired(Instruction &inst) {
   auto bbTaint = m_inst_to_shadow.find(bb);
   if (bbTaint != m_inst_to_shadow.end()) {
     if (isa<BranchInst>(inst) &&
-        dynamic_cast<BranchInst &>(inst).isUnconditional()) {
+        dyn_cast<BranchInst>(&inst)->isUnconditional()) {
       BasicBlock *origin = m_taint_to_bb[bbTaint->second];
       m_dm.recalculate(*inst.getParent()->getParent());
       if (m_dm.dominates((BasicBlock *)inst.getOperand(0), origin)) {
@@ -172,7 +169,7 @@ bool TaintLogic::isTaintLogicRequired(Instruction &inst) {
 
   bool bTaint = false;
   if (isa<PHINode>(inst)) {
-    PHINode &phi = dynamic_cast<PHINode &>(inst);
+    PHINode &phi = *dyn_cast<PHINode>(&inst);
     unsigned size = phi.getNumIncomingValues();
     for (unsigned i = 0; i < size && !bTaint; i++) {
       if (m_inst_to_shadow.find(phi.getIncomingValue(i)) !=
@@ -180,7 +177,7 @@ bool TaintLogic::isTaintLogicRequired(Instruction &inst) {
         bTaint = true;
     }
   } else if (isa<BranchInst>(inst)) {
-    BranchInst &branchInst = dynamic_cast<BranchInst &>(inst);
+    BranchInst &branchInst = *dyn_cast<BranchInst>(&inst);
     if (branchInst.isUnconditional())
       bTaint = false;
     else
@@ -208,7 +205,7 @@ Value *TaintLogic::getOrCreateShadowForInst(IRBuilder<> &B, Instruction &inst) {
     Value *dst = inst.getOperand(1);
     if (isa<GetElementPtrInst>(dst)) {
       shadow = createShadowTaintForGEP(B, dst);
-      /*GetElementPtrInst& gep = dynamic_cast<GetElementPtrInst&>(*dst);
+      /*GetElementPtrInst& gep = dyn_cast<GetElementPtrInst>(*dst);
       Value *ptr = gep.getPointerOperand();
       it = m_inst_to_shadow.find(ptr);
       if (it == m_inst_to_shadow.end()) {
@@ -227,7 +224,7 @@ Value *TaintLogic::getOrCreateShadowForInst(IRBuilder<> &B, Instruction &inst) {
         shadow = it->second;
     }
   } else if (isa<BranchInst>(inst)) {
-    BranchInst &branchInst = dynamic_cast<BranchInst &>(inst);
+    BranchInst &branchInst = *dyn_cast<BranchInst>(&inst);
     if (branchInst.isConditional()) {
       Value *cond = branchInst.getOperand(0);
       Value *br1 = branchInst.getOperand(1);
@@ -258,7 +255,7 @@ Value *TaintLogic::getOrCreateShadowForInst(IRBuilder<> &B, Instruction &inst) {
         m_inst_to_shadow[br] = shadow;
     }
   } else if (isa<GetElementPtrInst>(inst)) {
-    GetElementPtrInst &gep = dynamic_cast<GetElementPtrInst &>(inst);
+    GetElementPtrInst &gep = *dyn_cast<GetElementPtrInst>(&inst);
     Value *ptr = gep.getPointerOperand();
     it = m_inst_to_shadow.find(ptr);
     if (it == m_inst_to_shadow.end()) {
@@ -330,8 +327,7 @@ void TaintLogic::insertTaintLogic(IRBuilder<> &B, Instruction &inst) {
     if (isa<StoreInst>(inst) && i == 1)
       continue;
     else if (isa<GetElementPtrInst>(inst) &&
-             dynamic_cast<GetElementPtrInst &>(inst).getPointerOperandIndex() ==
-                 i) {
+             dyn_cast<GetElementPtrInst>(&inst)->getPointerOperandIndex() == i) {
       shadow = getShadowTaintVar(B, &inst);
     } else if ((isa<SelectInst>(inst) || isa<BranchInst>(inst)) && i > 0) {
       continue;
@@ -347,7 +343,7 @@ void TaintLogic::insertTaintLogic(IRBuilder<> &B, Instruction &inst) {
   BasicBlock *bb = inst.getParent();
   auto bbTaint = m_inst_to_shadow.find(bb);
   if (isa<BranchInst>(inst)) {
-    BranchInst &branchInst = dynamic_cast<BranchInst &>(inst);
+    BranchInst &branchInst = *dyn_cast<BranchInst>(&inst);
     if (branchInst.isUnconditional() && bbTaint != m_inst_to_shadow.end()) {
       m_inst_to_shadow[branchInst.getOperand(0)] = bbTaint->second;
       return;
@@ -418,7 +414,7 @@ void TaintLogic::insertTaintLogic(IRBuilder<> &B, Instruction &inst) {
     } else
       B.CreateAlignedStore(taint[0], a, 1);
   } else {
-    BranchInst &branchInst = dynamic_cast<BranchInst &>(inst);
+    BranchInst &branchInst = *dyn_cast<BranchInst>(&inst);
     assert(branchInst.isConditional());
     Value *br1 = inst.getOperand(1);
     Value *br2 = inst.getOperand(2);
@@ -439,7 +435,7 @@ bool TaintLogic::runOnFunction(Function &F) {
   if (F.isDeclaration())
     return false;
 #if DEBUG_TAINT
-  F.dump();
+  F.print(outs());
 #endif
   LLVMContext &ctx = F.getContext();
   IRBuilder<> B(ctx);
@@ -502,7 +498,7 @@ bool TaintLogic::runOnModule(llvm::Module &M) {
     return false;
 
   if (m_dumpOnly) {
-    M.dump();
+    M.print(errs(), nullptr);
     return false;
   }
 
@@ -515,7 +511,7 @@ bool TaintLogic::runOnModule(llvm::Module &M) {
     B.addAttribute(Attribute::NoReturn);
     B.addAttribute(Attribute::ReadNone);
 
-    AttributeSet as = AttributeSet::get(ctx, AttributeSet::FunctionIndex, B);
+    AttributeList as = AttributeList::get(ctx, AttributeList::FunctionIndex, B);
 
     m_errorFn = dyn_cast<Function>(M.getOrInsertFunction(
         "verifier.error", as, Type::getVoidTy(ctx), nullptr));
@@ -527,7 +523,7 @@ bool TaintLogic::runOnModule(llvm::Module &M) {
   }
 
   errs() << "-- Inserted " << m_TaintChecksAdded << " taint checks.\n";
-  M.dump();
+  M.print(errs(), nullptr);
   return change;
 }
 

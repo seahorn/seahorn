@@ -13,7 +13,7 @@
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
 
-#include "avy/AvyDebug.h"
+#include "seahorn/Support/SeaDebug.h"
 #include "boost/format.hpp"
 
 using namespace llvm;
@@ -37,7 +37,7 @@ namespace seahorn
       do
         name = boost::str (boost::format (prefix + "%d") % (c++));
       while (m.getNamedValue (name));
-      Function *res = dyn_cast<Function>(m.getOrInsertFunction (name, &type, NULL));
+      Function *res = dyn_cast<Function>(m.getOrInsertFunction (name, &type));
       assert (res);
       return *res;
     }
@@ -149,7 +149,7 @@ namespace seahorn
     void getAnalysisUsage (AnalysisUsage &AU)
     { AU.setPreservesAll ();}
     
-    virtual const char* getPassName () const 
+    virtual StringRef getPassName () const 
     {return "Add dummy main function";}
   };
 

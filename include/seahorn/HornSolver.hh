@@ -31,7 +31,7 @@ namespace seahorn
     
     virtual bool runOnModule (Module &M);
     virtual void getAnalysisUsage (AnalysisUsage &AU) const;
-    virtual const char* getPassName () const {return "HornSolver";}
+    virtual StringRef getPassName () const {return "HornSolver";}
     ufo::ZFixedPoint<ufo::EZ3>& getZFixedPoint () {return *m_fp;}
     
     boost::tribool getResult () {return m_result;}

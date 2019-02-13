@@ -7,7 +7,7 @@
 #include <boost/lexical_cast.hpp>
 
 #include "ufo/ExprLlvm.hpp"
-#include "avy/AvyDebug.h"
+#include "seahorn/Support/SeaDebug.h"
 
 #include <sstream>
 
@@ -106,35 +106,36 @@ namespace seahorn
     return m_vars;
   }
 
-  void HornClauseDB::addConstraint (Expr pred, Expr lemma)
+  template<typename LemmaMap, typename ExprSet>
+  void addLemma (LemmaMap &m, const ExprSet &rels, Expr pred, Expr lemma)
   {
     assert (bind::isFapp (pred));
 
     if (isOpX<TRUE> (lemma)) return;
       
     Expr reln = bind::fname (pred);
-    assert (hasRelation (reln));
+    assert (rels.count(reln) > 0);
       
     ExprMap sub;
     unsigned idx = 0;
     for (auto it = ++pred->args_begin (), end = pred->args_end (); it != end; ++it)
       sub [*it] = bind::bvar (idx++, bind::typeOf (*it));
       
-    m_constraints [reln].push_back (replace (lemma, sub));
+    m[reln].push_back (replace (lemma, sub));
   }
 
-  Expr HornClauseDB::getConstraints (Expr pred) const
+  template<typename LemmaMap, typename ExprSet>
+  Expr getLemmas (const LemmaMap &m, const ExprSet &rels, Expr pred) 
   {
     assert (bind::isFapp (pred));
 
     Expr reln = bind::fname (pred);
-    assert (hasRelation (reln));
+    assert (rels.count(reln) > 0);
 
-    if (m_constraints.count (reln) <= 0) return mk<TRUE> (pred->efac ());
+    if (m.count (reln) <= 0) return mk<TRUE> (pred->efac ());
     
     Expr lemma = mknary<AND> (mk<TRUE> (pred->efac ()),
-                              m_constraints.at (reln).begin (), 
-                              m_constraints.at (reln).end ());
+                              m.at (reln).begin (), m.at (reln).end ());
     ExprMap sub;
     unsigned idx = 0;
     for (auto it = ++pred->args_begin (), end = pred->args_end (); it != end; ++it)
@@ -144,6 +145,27 @@ namespace seahorn
     }
           
     return replace (lemma, sub);
+  }
+  
+
+  void HornClauseDB::addConstraint (Expr pred, Expr lemma)
+  {
+    addLemma(m_constraints, m_rels, pred, lemma);
+  }
+
+  Expr HornClauseDB::getConstraints (Expr pred) const
+  {
+    return getLemmas(m_constraints, m_rels, pred);
+  }
+
+  void HornClauseDB::addInvariant (Expr pred, Expr lemma)
+  {
+    addLemma(m_invariants, m_rels, pred, lemma);
+  }
+
+  Expr HornClauseDB::getInvariants (Expr pred) const
+  {
+    return getLemmas(m_invariants, m_rels, pred);
   }
   
   raw_ostream& HornClauseDB::write (raw_ostream& o) const

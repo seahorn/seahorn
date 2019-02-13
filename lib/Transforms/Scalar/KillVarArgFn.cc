@@ -18,50 +18,43 @@ DM-0002198
 
 /// A pass to replace all variadic functions by their declarations
 
+#include "llvm/IR/Function.h"
+#include "llvm/IR/Instructions.h"
+#include "llvm/IR/Module.h"
 #include "llvm/Pass.h"
 #include "llvm/Support/raw_ostream.h"
-#include "llvm/IR/Instructions.h"
-#include "llvm/IR/Function.h"
-#include "llvm/IR/Module.h"
 
-namespace
-{
-  using namespace llvm;
-  class KillVarArgFn : public ModulePass
-  {
-  public:
-    static char ID;
+namespace {
+using namespace llvm;
+class KillVarArgFn : public ModulePass {
+public:
+  static char ID;
 
-    KillVarArgFn () : ModulePass (ID) {}
-    
-    virtual bool runOnModule (Module &M) override
-    {
-      bool changed = false;
-      for (Module::iterator FI = M.begin (), E = M.end (); FI != E; ++FI)
-        if (FI->isVarArg ()) FI->deleteBody (), changed = true;
-      
-      return changed;
-    }
-    
-    virtual void getAnalysisUsage (AnalysisUsage &AU) const override
-    {AU.setPreservesAll ();}
-    
-    
-  };
+  KillVarArgFn() : ModulePass(ID) {}
 
-  char KillVarArgFn::ID = 0;
-}
+  virtual bool runOnModule(Module &M) override {
+    bool changed = false;
+    for (auto &F : M)
+      if (F.isVarArg()) {
+        F.deleteBody();
+        F.setComdat(nullptr);
+        changed = true;
+      }
 
-namespace seahorn
-{
-  Pass *createKillVarArgFnPass ()
-  {return new KillVarArgFn ();} 
-}
+    return changed;
+  }
 
-static llvm::RegisterPass<KillVarArgFn> X ("kill-vaarg", "Remove variadic functions");
+  virtual void getAnalysisUsage(AnalysisUsage &AU) const override {
+    AU.setPreservesAll();
+  }
+};
 
+char KillVarArgFn::ID = 0;
+} // namespace
 
+namespace seahorn {
+Pass *createKillVarArgFnPass() { return new KillVarArgFn(); }
+} // namespace seahorn
 
-
-
-
+static llvm::RegisterPass<KillVarArgFn> X("kill-vaarg",
+                                          "Remove variadic functions");

@@ -40,9 +40,9 @@ RUN update-alternatives --install "/usr/bin/ld" "ld" "/usr/bin/ld.bfd" 10
 
 WORKDIR /boost
 
-RUN wget --output-document=boost.tar.bz2 https://downloads.sourceforge.net/project/boost/boost/1.62.0/boost_1_62_0.tar.bz2
+RUN wget --output-document=boost.tar.bz2 https://downloads.sourceforge.net/project/boost/boost/1.68.0/boost_1_68_0.tar.bz2
 
-RUN tar -xvf boost.tar.bz2 && mv -T /boost/boost_1_62_0 /boost/repo && rm boost.tar.bz2
+RUN tar -xvf boost.tar.bz2 && mv -T /boost/boost_1_68_0 /boost/repo && rm boost.tar.bz2
 
 RUN mkdir -p /boost/out
 
@@ -62,7 +62,7 @@ RUN cp -r /boost/repo/stage/lib /boost/out/boost/lib
 
 RUN ls 1>&2 /boost/out
 
-RUN cd /boost/out && tar -czvf /boost/boost162.tar.gz ./
+RUN cd /boost/out && tar -czvf /boost/boost_1_68.tar.gz ./
 
 RUN rm -rf /boost/out ; rm -rf /boost/repo ; rm -rf /tmp/dockerutils
 

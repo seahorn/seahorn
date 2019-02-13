@@ -230,7 +230,7 @@ namespace seahorn {
 
     void processPointerOperand (Value* V) {
       uint64_t Size;
-      if (getObjectSize (V, Size, *DL, TLI, true)) {
+      if (getObjectSize (V, Size, *DL, TLI)) {
         ++SafeMemAccess;
       } else {
         ++MemUnknown;        
@@ -239,7 +239,7 @@ namespace seahorn {
 
     void processMemIntrPointerOperand (Value* V, Value*N) {
       uint64_t Size;
-      if (getObjectSize (V, Size, *DL, TLI, true) && isa<ConstantInt> (N)) {
+      if (getObjectSize (V, Size, *DL, TLI) && isa<ConstantInt> (N)) {
         ++SafeMemAccess;
       } else {
         ++MemUnknown;        
@@ -559,12 +559,12 @@ namespace seahorn {
       }
     }
 
-    virtual const char* getPassName () const {return "Profiler";}
+    virtual StringRef getPassName () const {return "Profiler";}
   };
 
   char Profiler::ID = 0;
 
-  ModulePass *createProfilerPass() 
+  Pass * createProfilerPass()
   {return new Profiler();}
 
 } // end namespace seahorn

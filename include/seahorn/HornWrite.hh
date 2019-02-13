@@ -17,7 +17,7 @@ namespace seahorn
     static char ID;
     HornWrite (llvm::raw_fd_ostream &out) : llvm::ModulePass (ID), m_out (out) {}
     virtual ~HornWrite () {} 
-    virtual const char* getPassName () const {return "HornWrite";}
+    virtual StringRef getPassName () const {return "HornWrite";}
     
     virtual bool runOnModule (Module &M);
     virtual void getAnalysisUsage (AnalysisUsage &AU) const;

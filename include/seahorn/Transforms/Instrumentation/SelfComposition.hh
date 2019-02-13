@@ -16,7 +16,7 @@ namespace seahorn
 
   class SelfComposition : public llvm::ModulePass
   {
-    DominatorTreeBase<BasicBlock> m_postDm;
+    DominatorTreeBase<BasicBlock, true> m_postDm;
     DominatorTree m_dm;
     bool m_dumpOnly;
     Function * m_errorFn;
@@ -58,7 +58,7 @@ namespace seahorn
     static char ID;
 
     SelfComposition (bool dumpOnly = false) :
-        m_postDm(true),
+        m_postDm(),
         m_dm(),
         m_dumpOnly(dumpOnly),
         llvm::ModulePass (ID), 
@@ -70,7 +70,7 @@ namespace seahorn
     virtual bool runOnFunction (Function &F);
     
     virtual void getAnalysisUsage (llvm::AnalysisUsage &AU) const;
-    virtual const char* getPassName () const {return "SelfComposition";}
+    virtual StringRef getPassName () const {return "SelfComposition";}
     
   };
 

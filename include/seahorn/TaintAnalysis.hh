@@ -62,7 +62,7 @@ namespace seahorn
         /// Entry point in stand-alone mode
         virtual bool runOnModule (Module &M);
         virtual void getAnalysisUsage (AnalysisUsage &AU) const;
-        virtual const char* getPassName () const {return "TaintAnalysisPass";}
+        virtual StringRef getPassName () const {return "TaintAnalysisPass";}
 
     private:
         TaintAnalysis m_TaintAnalysis;

@@ -1,4 +1,3 @@
-#
 # z3/spacer Dockerfile for SeaHorn
 # This produces packages in /z3.
 # Arguments:
@@ -24,14 +23,10 @@ RUN echo '#!/bin/sh' > switch.sh && \
     echo 'VAL=$1;shift;while test $# -gt 0;do if [ "$1" = "$VAL" ];then echo $2;exit 0;fi;shift;shift;done' >> switch.sh && \
     chmod +x switch.sh
 
-# If BUILD_TYPE is Debug the additional flag is "-d". Save it to a temporary file,
-# as every run command runs in its own shell.
-RUN /tmp/dockerutils/switch.sh $BUILD_TYPE Debug "-d" Release "" > /tmp/dockerutils/out.txt
-
 # Install deps
 RUN \
   apt-get update && \
-  apt-get install -yqq binutils-gold
+  apt-get install -yqq binutils-gold cmake ninja-build   
 
 # Use gold instead of bfd for much faster linking.
 RUN update-alternatives --install "/usr/bin/ld" "ld" "/usr/bin/ld.gold" 20
@@ -42,18 +37,18 @@ RUN mkdir -p /z3/repo
 WORKDIR /z3/repo
 
 # Checkout z3/spacer3.
-RUN git clone https://bitbucket.org/spacer/code.git ./ -b spacer3 --depth=1
+RUN git clone https://github.com/agurfinkel/z3.git ./ -b deep_space --depth=1
 
 RUN mkdir -p /z3/out ; mkdir -p /z3/out/z3
 
 # Build selected configuration. Use the file with a saved flag to pick
 # release or debug configuration.
 
-RUN export IS_DEBUG=$(cat /tmp/dockerutils/out.txt) && \
-    python /z3/repo/scripts/mk_make.py --prefix=/z3/out/z3 --staticlib $IS_DEBUG
+RUN mkdir /z3/repo/build ; cd /z3/repo/build ; cmake -GNinja ../ \
+    -DCMAKE_BUILD_TYPE=$BUILD_TYPE -DCMAKE_INSTALL_PREFIX=/z3/out/z3 \
+    -DBUILD_LIBZ3_SHARED:BOOL=FALSE
 WORKDIR /z3/repo/build
-RUN make -j$(nproc)
-RUN make install -j$(nproc)
+RUN ninja && ninja install
 
 RUN cd /z3/out ; tar -czvf /z3/z3.tar.gz ./z3
 

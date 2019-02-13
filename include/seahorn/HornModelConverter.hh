@@ -6,7 +6,6 @@
 #include "seahorn/HornDbModel.hh"
 
 #include "ufo/Expr.hpp"
-#include "ufo/Smt/Z3n.hpp"
 #include "ufo/Smt/EZ3.hh"
 
 namespace seahorn

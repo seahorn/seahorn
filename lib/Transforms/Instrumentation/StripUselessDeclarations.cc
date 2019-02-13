@@ -64,7 +64,7 @@ namespace
                 m_tli = &getAnalysis<TargetLibraryInfoWrapperPass> ().getTLI();
 
             // known library function
-            LibFunc::Func libfn;
+            LibFunc libfn;
             if (m_tli->getLibFunc (name, libfn)) return false;
         }
 

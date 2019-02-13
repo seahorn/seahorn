@@ -22,7 +22,7 @@
 #include "llvm/IR/Dominators.h"
 #include "llvm/IR/Module.h"
 
-#include "avy/AvyDebug.h"
+#include "seahorn/Support/SeaDebug.h"
 using namespace llvm;
 
 namespace 

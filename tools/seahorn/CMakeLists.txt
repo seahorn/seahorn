@@ -7,7 +7,6 @@ set (USED_LIBS
   ${SEA_DSA_LIBS}    
   SeaSupport
   ${LLVM_SEAHORN_LIBS}
-  avy
   ${Z3_LIBRARY}
   ${Boost_SYSTEM_LIBRARY}
   ${GMPXX_LIB}
@@ -19,7 +18,7 @@ set (USED_LIBS
 set(LLVM_LINK_COMPONENTS bitwriter irreader ipo scalaropts instrumentation core
   # XXX not clear why these last two are required
   codegen objcarcopts)
-add_executable(seahorn seahorn.cpp)
+add_llvm_executable(seahorn seahorn.cpp)
 target_link_libraries (seahorn ${USED_LIBS})
 llvm_config (seahorn ${LLVM_LINK_COMPONENTS})
 install(TARGETS seahorn RUNTIME DESTINATION bin)

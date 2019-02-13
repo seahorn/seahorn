@@ -43,7 +43,7 @@ namespace seahorn
     bool runOnFunction (Function &F);
     
     virtual void getAnalysisUsage (llvm::AnalysisUsage &AU) const override;
-    virtual const char* getPassName () const {return "NullCheck";}
+    virtual StringRef getPassName () const {return "NullCheck";}
     
   };
 } // end namespace

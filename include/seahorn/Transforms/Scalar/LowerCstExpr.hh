@@ -34,7 +34,8 @@ namespace seahorn
     
     void getAnalysisUsage (AnalysisUsage &AU) const 
     {AU.setPreservesAll ();}
-    
+
+    StringRef getPassName () const override {return "LowerCstExpr";}
   };
 
 } 

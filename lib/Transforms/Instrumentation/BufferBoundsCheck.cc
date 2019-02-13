@@ -1,6 +1,6 @@
 #include "seahorn/Transforms/Instrumentation/BufferBoundsCheck.hh"
 #include "seahorn/Analysis/CanAccessMemory.hh"
-#include "ufo/Passes/NameValues.hpp"
+#include "seahorn/Transforms/Utils/NameValues.hh"
 
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/ADT/SmallVector.h"
@@ -14,7 +14,6 @@
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 #include "llvm/Transforms/Utils/Cloning.h"
 #include "llvm/Transforms/Utils/Local.h"
-#include "llvm/Transforms/Utils/UnifyFunctionExitNodes.h"
 
 #include "boost/format.hpp"
 
@@ -92,13 +91,13 @@ static llvm::cl::opt<bool> InstrumentMemIntrinsics(
 static llvm::cl::list<std::string> InstrumentOnlyType(
     "abc-instrument-only-type",
     llvm::cl::desc("Only instrument pointers of this user-defined type"),
-    llvm::cl::ZeroOrMore);
+    llvm::cl::ZeroOrMore, llvm::cl::CommaSeparated);
 // Consider only user-defined types
 static llvm::cl::list<std::string> InstrumentExceptType(
     "abc-instrument-except-type",
     llvm::cl::desc(
         "Instrument all pointers except those from this user-defined type"),
-    llvm::cl::ZeroOrMore);
+    llvm::cl::ZeroOrMore, llvm::cl::CommaSeparated);
 
 namespace seahorn {
 
@@ -110,6 +109,7 @@ protected:
   DsaWrapper(llvm::Pass *abc) : m_abc(abc) {}
 
 public:
+  virtual ~DsaWrapper() = default;
   /* tag only for debugging purposes */
   virtual bool shouldBeTrackedPtr(const llvm::Value &ptr,
                                   const llvm::Function &fn, int tag) = 0;
@@ -325,7 +325,7 @@ class WrapperObjectSizeOffsetVisitor
   APInt align(APInt Size, uint64_t Align) {
     const bool RoundToAlign = true; // always true
     if (RoundToAlign && Align)
-      return APInt(IntTyBits, RoundUpToAlignment(Size.getZExtValue(), Align));
+      return APInt(IntTyBits, alignTo(Size.getZExtValue(), Align));
     return Size;
   }
 
@@ -333,7 +333,7 @@ public:
   WrapperObjectSizeOffsetVisitor(const DataLayout *DL,
                                  const TargetLibraryInfo *TLI,
                                  LLVMContext &Context)
-      : DL(DL), TLI(TLI), vis(*DL, TLI, Context, true) {}
+    : DL(DL), TLI(TLI), vis(*DL, TLI, Context, {}) {}
 
   bool knownSize(SizeOffsetType &SizeOffset) {
     return SizeOffset.first.getBitWidth() > 1;
@@ -525,7 +525,7 @@ static uint64_t fieldOffset(const DataLayout *dl, const StructType *t,
 static Instruction *getNextInst(Instruction *I) {
   if (I->isTerminator())
     return I;
-  return I->getParent()->getInstList().getNext(I);
+  return I->getParent()->getInstList().getNextNode(*I);  
 }
 
 static Type *createIntTy(const DataLayout *dl, LLVMContext &ctx) {
@@ -616,42 +616,6 @@ static Value *computeGepOffset(const DataLayout *dl, IRBuilder<> B,
     return EmitGEPOffset(&B, *dl, gep, true);
   }
 }
-
-// //! extract offset from gep
-// static Value* computeGepOffset(const DataLayout* dl, IRBuilder<> B,
-//                                GetElementPtrInst *gep) {
-//   SmallVector<Value*, 4> ps;
-//   SmallVector<Type*, 4> ts;
-//   gep_type_iterator typeIt = gep_type_begin (*gep);
-//   for (unsigned i = 1; i < gep->getNumOperands (); ++i, ++typeIt) {
-//     ps.push_back (gep->getOperand (i));
-//     ts.push_back (*typeIt);
-//   }
-
-//   Type* IntTy = createIntTy (dl, B.getContext ());
-//   Value* base = createIntCst (IntTy, 0);
-//   Value* curVal = base;
-
-//   for (unsigned i = 0; i < ps.size (); ++i) {
-//     if (const StructType *st = dyn_cast<StructType> (ts [i])) {
-//       if (const ConstantInt *ci = dyn_cast<ConstantInt> (ps [i])) {
-//         uint64_t off = fieldOffset (dl, st, ci->getZExtValue ());
-//         curVal = createAdd(B, dl,
-//                                 curVal,
-//                                 createIntCst (IntTy, off));
-//       }
-//       else assert (false);
-//     }
-//     else if (SequentialType *seqt = dyn_cast<SequentialType> (ts [i]))
-//     { // arrays, pointers, and vectors
-//       unsigned sz = storageSize (dl, seqt->getElementType ());
-//       Value *lhs = curVal;
-//       Value *rhs = createMul (B, dl, ps[i], sz);
-//       curVal = createAdd (B, dl, lhs, rhs);
-//     }
-//   }
-//   return curVal;
-// }
 
 static void updateCallGraph(CallGraph *cg, Function *caller, CallInst *callee) {
   if (cg) {
@@ -1003,35 +967,27 @@ void Local::resolvePHIUsers(const Value *v,
 
 void Local::instrumentGepOffset(IRBuilder<> B, Instruction *insertPoint,
                                 const GetElementPtrInst *gep) {
-  SmallVector<const Value *, 4> ps;
-  SmallVector<const Type *, 4> ts;
-  gep_type_iterator typeIt = gep_type_begin(*gep);
-  for (unsigned i = 1; i < gep->getNumOperands(); ++i, ++typeIt) {
-    ps.push_back(gep->getOperand(i));
-    ts.push_back(*typeIt);
-  }
-
   const Value *base = gep->getPointerOperand();
   Value *gepBaseOff = m_offsets[base];
 
-  if (!gepBaseOff)
-    return;
-
+  if (!gepBaseOff) return;
+    
   B.SetInsertPoint(insertPoint);
   Value *curVal = gepBaseOff;
-  for (unsigned i = 0; i < ps.size(); ++i) {
-    if (const StructType *st = dyn_cast<const StructType>(ts[i])) {
-      if (const ConstantInt *ci = dyn_cast<const ConstantInt>(ps[i])) {
+  for(auto GTI = gep_type_begin(gep), GTE = gep_type_end(gep); GTI != GTE; ++GTI) {
+    if (const StructType *st = GTI.getStructTypeOrNull()) {
+      if (const ConstantInt *ci = dyn_cast<const ConstantInt>(GTI.getOperand())) {
         uint64_t off = fieldOffset(m_dl, st, ci->getZExtValue());
         curVal = createAdd(B, m_dl, curVal, createIntCst(m_IntPtrTy, off));
-      } else
-        assert(false);
-    } else if (const SequentialType *seqt =
-                   dyn_cast<const SequentialType>(ts[i])) {
-      // arrays, pointers, and vectors
-      unsigned sz = storageSize(m_dl, seqt->getElementType());
+      } else {
+	assert(false);
+      }
+    } else {
+      // otherwise we have a sequential type like an array or vector.
+      // Multiply the index by the size of the indexed type.
+      unsigned sz = storageSize(m_dl, GTI.getIndexedType());
       Value *LHS = curVal;
-      Value *RHS = createMul(B, m_dl, const_cast<Value *>(ps[i]), sz);
+      Value *RHS = createMul(B, m_dl, const_cast<Value *>(GTI.getOperand()), sz);
       curVal = createAdd(B, m_dl, LHS, RHS);
     }
   }
@@ -1309,10 +1265,10 @@ bool Local::runOnModule(llvm::Module &M) {
 
   AttrBuilder AB;
   AB.addAttribute(Attribute::NoReturn);
-  AttributeSet as = AttributeSet::get(ctx, AttributeSet::FunctionIndex, AB);
+  AttributeList as = AttributeList::get(ctx, AttributeList::FunctionIndex, AB);
 
   m_errorFn = dyn_cast<Function>(M.getOrInsertFunction(
-      "verifier.error", as, Type::getVoidTy(ctx), nullptr));
+      "verifier.error", as, Type::getVoidTy(ctx)));
 
   /* Shadow function parameters */
   std::vector<Function *> funcsToInstrument;
@@ -1511,7 +1467,6 @@ void Local::getAnalysisUsage(llvm::AnalysisUsage &AU) const {
   AU.addRequired<seahorn::DSAInfo>();     // run llvm dsa
   AU.addRequired<sea_dsa::DsaInfoPass>(); // run seahorn dsa
   AU.addRequired<llvm::TargetLibraryInfoWrapperPass>();
-  AU.addRequired<llvm::UnifyFunctionExitNodes>();
   AU.addRequired<CanAccessMemory>();
 }
 
@@ -1528,7 +1483,7 @@ Function &Global::InstVis::createNewNondetFn(Module &m, Type &type,
   do
     name = boost::str(boost::format(prefix + "%d") % (c++));
   while (m.getNamedValue(name));
-  Function *res = dyn_cast<Function>(m.getOrInsertFunction(name, &type, NULL));
+  Function *res = dyn_cast<Function>(m.getOrInsertFunction(name, &type));
   assert(res);
   if (m_cg)
     m_cg->getOrInsertFunction(res);
@@ -2666,14 +2621,14 @@ bool Global::runOnModule(llvm::Module &M) {
 
   AttrBuilder AB;
   AB.addAttribute(Attribute::NoReturn);
-  AttributeSet as = AttributeSet::get(ctx, AttributeSet::FunctionIndex, AB);
+  AttributeList as = AttributeList::get(ctx, AttributeList::FunctionIndex, AB);
   Function *errorFn = dyn_cast<Function>(
-      M.getOrInsertFunction("verifier.error", as, Type::getVoidTy(ctx), NULL));
+      M.getOrInsertFunction("verifier.error", as, Type::getVoidTy(ctx)));
 
   AB.clear();
-  as = AttributeSet::get(ctx, AttributeSet::FunctionIndex, AB);
+  as = AttributeList::get(ctx, AttributeList::FunctionIndex, AB);
   Function *assumeFn = dyn_cast<Function>(M.getOrInsertFunction(
-      "verifier.assume", as, Type::getVoidTy(ctx), Type::getInt1Ty(ctx), NULL));
+      "verifier.assume", as, Type::getVoidTy(ctx), Type::getInt1Ty(ctx)));
 
   // Type *intPtrTy = dl->getIntPtrType (ctx, 0);
   // //errs () << "intPtrTy is " << *intPtrTy << "\n";
@@ -2851,10 +2806,9 @@ void Global::getAnalysisUsage(llvm::AnalysisUsage &AU) const {
   AU.addRequired<seahorn::DSAInfo>();     // run llvm dsa
   AU.addRequired<sea_dsa::DsaInfoPass>(); // run seahorn dsa
   AU.addRequired<llvm::TargetLibraryInfoWrapperPass>();
-  AU.addRequired<llvm::UnifyFunctionExitNodes>();
   AU.addRequired<llvm::CallGraphWrapperPass>();
   // for debugging
-  // AU.addRequired<ufo::NameValues> ();
+  // AU.addRequired<seahorn::NameValues> ();
 }
 
 char Global::ID = 0;
@@ -2890,38 +2844,38 @@ bool GlobalCCallbacks::runOnModule(llvm::Module &M) {
   Type *i8PtrTy = Type::getInt8Ty(ctx)->getPointerTo();
 
   AttrBuilder AB;
-  AttributeSet as = AttributeSet::get(ctx, AttributeSet::FunctionIndex, AB);
+  AttributeList as = AttributeList::get(ctx, AttributeList::FunctionIndex, AB);
 
   Function *abc_init = dyn_cast<Function>(
-      M.getOrInsertFunction("sea_abc_init", as, voidTy, NULL));
+      M.getOrInsertFunction("sea_abc_init", as, voidTy));
   abc_init->addFnAttr(Attribute::AlwaysInline);
 
   Function *abc_alloc = dyn_cast<Function>(M.getOrInsertFunction(
-      "sea_abc_alloc", as, voidTy, i8PtrTy, intPtrTy, NULL));
+      "sea_abc_alloc", as, voidTy, i8PtrTy, intPtrTy));
   abc_alloc->addFnAttr(Attribute::AlwaysInline);
 
   Function *abc_log_ptr = dyn_cast<Function>(M.getOrInsertFunction(
-      "sea_abc_log_ptr", as, voidTy, i8PtrTy, intPtrTy, NULL));
+      "sea_abc_log_ptr", as, voidTy, i8PtrTy, intPtrTy));
   abc_log_ptr->addFnAttr(Attribute::AlwaysInline);
 
   Function *abc_log_load_ptr = dyn_cast<Function>(M.getOrInsertFunction(
-      "sea_abc_log_load_ptr", as, voidTy, i8PtrTy, i8PtrTy, NULL));
+      "sea_abc_log_load_ptr", as, voidTy, i8PtrTy, i8PtrTy));
   abc_log_load_ptr->addFnAttr(Attribute::AlwaysInline);
 
   Function *abc_log_store_ptr = dyn_cast<Function>(M.getOrInsertFunction(
-      "sea_abc_log_store_ptr", as, voidTy, i8PtrTy, i8PtrTy, NULL));
+      "sea_abc_log_store_ptr", as, voidTy, i8PtrTy, i8PtrTy));
   abc_log_store_ptr->addFnAttr(Attribute::AlwaysInline);
 
   Function *abc_assert_valid_ptr = dyn_cast<Function>(M.getOrInsertFunction(
-      "sea_abc_assert_valid_ptr", as, voidTy, i8PtrTy, intPtrTy, NULL));
+      "sea_abc_assert_valid_ptr", as, voidTy, i8PtrTy, intPtrTy));
   abc_assert_valid_ptr->addFnAttr(Attribute::AlwaysInline);
 
   Function *abc_assert_valid_offset = dyn_cast<Function>(M.getOrInsertFunction(
-      "sea_abc_assert_valid_offset", as, voidTy, intPtrTy, intPtrTy, NULL));
+      "sea_abc_assert_valid_offset", as, voidTy, intPtrTy, intPtrTy));
   abc_assert_valid_offset->addFnAttr(Attribute::AlwaysInline);
 
   Function *assumeFn = dyn_cast<Function>(M.getOrInsertFunction(
-      "verifier.assume", as, Type::getVoidTy(ctx), Type::getInt1Ty(ctx), NULL));
+      "verifier.assume", as, Type::getVoidTy(ctx), Type::getInt1Ty(ctx)));
 
   std::vector<Function *> sea_funcs = {abc_assert_valid_offset,
                                        abc_assert_valid_ptr,
@@ -3271,7 +3225,6 @@ void GlobalCCallbacks::getAnalysisUsage(llvm::AnalysisUsage &AU) const {
   AU.addRequired<seahorn::DSAInfo>();     // run llvm dsa
   AU.addRequired<sea_dsa::DsaInfoPass>(); // run seahorn dsa
   AU.addRequired<llvm::TargetLibraryInfoWrapperPass>();
-  AU.addRequired<llvm::UnifyFunctionExitNodes>();
   AU.addRequired<llvm::CallGraphWrapperPass>();
 }
 

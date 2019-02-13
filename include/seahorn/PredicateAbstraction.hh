@@ -10,7 +10,6 @@
 #include "seahorn/GuessCandidates.hh"
 
 #include "ufo/Expr.hpp"
-#include "ufo/Smt/Z3n.hpp"
 #include "ufo/Smt/EZ3.hh"
 #include "seahorn/HornClauseDBWto.hh"
 
@@ -70,7 +69,7 @@ namespace seahorn
 	    void releaseMemory () {m_fp.reset (nullptr);}
 	    virtual bool runOnModule (Module &M);
 	    virtual void getAnalysisUsage (AnalysisUsage &AU) const;
-	    virtual const char* getPassName () const {return "PredicateAbstraction";}
+	    virtual StringRef getPassName () const {return "PredicateAbstraction";}
 
 	    ufo::ZFixedPoint<ufo::EZ3>& getZFixedPoint () {return *m_fp;}
 

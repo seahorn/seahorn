@@ -8,7 +8,7 @@
 #include "llvm/Analysis/CallGraph.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Support/ErrorHandling.h"
-#include "avy/AvyDebug.h"
+#include "seahorn/Support/SeaDebug.h"
 
 using namespace llvm;
 
@@ -38,7 +38,7 @@ namespace seahorn
     void getAnalysisUsage (AnalysisUsage &AU) const
     {AU.setPreservesAll ();}
     
-    virtual const char* getPassName () const 
+    virtual StringRef getPassName () const 
     {return "LowerAssert";}
   };
 
@@ -72,16 +72,15 @@ namespace seahorn
     
     AttrBuilder B;
     
-    AttributeSet as = AttributeSet::get (Context, 
-                                         AttributeSet::FunctionIndex,
-                                         B);
+    AttributeList as = AttributeList::get (Context, 
+					   AttributeList::FunctionIndex,
+					   B);
     
     assumeFn = dyn_cast<Function>
         (M.getOrInsertFunction ("verifier.assume", 
                                 as,
                                 Type::getVoidTy (Context),
-                                Type::getInt1Ty (Context),
-                                NULL));
+                                Type::getInt1Ty (Context)));
     
     CallGraphWrapperPass *cgwp = getAnalysisIfAvailable<CallGraphWrapperPass> ();
     if (CallGraph *cg = cgwp ? &cgwp->getCallGraph () : nullptr) {

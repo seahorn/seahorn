@@ -10,6 +10,7 @@
 
 #include <boost/lexical_cast.hpp>
 #include <llvm/IR/DebugInfo.h>
+#include "seahorn/Support/SeaDebug.h"
 
 
 
@@ -38,7 +39,7 @@ std::string IncHornifyFunction::extractInfo(const BasicBlock &BB, unsigned crumb
     // XXX: llvm 3.8
     const DebugLoc &dloc = inst.getDebugLoc ();
     unsigned line = dloc.getLine ();
-    std::string file, dir; 
+    std::string file, dir;
     if (dloc.get ()) {
       file = dloc.get ()->getFilename ();
       dir = dloc.get ()->getDirectory ();
@@ -47,7 +48,7 @@ std::string IncHornifyFunction::extractInfo(const BasicBlock &BB, unsigned crumb
       file = "unknown file";
       dir = "unknown directory";
     }
-        
+
     // errs() << file << "\n";
     // errs() << inst << " | line: " << line << "\n";
     lines << line << " | ";
@@ -131,7 +132,7 @@ void IncSmallHornifyFunction::runOnFunction(Function &F) {
     all_debug_info += extractInfo(BB, idx);
     rflags.push_back(bind::boolConst(mkTerm(crumb_var, m_efac)));
     bbOrder[&BB] = idx++;
-    LOG("seahorn-inc", 
+    LOG("seahorn-inc",
         errs () << "Crum variable " << crumb_var << " --- " << BB.getName() << "\n");
   }
 
@@ -304,7 +305,7 @@ void IncSmallHornifyFunction::runOnFunction(Function &F) {
 
     ExprVector postArgs{trueE, falseE, falseE};
     const FunctionInfo &fi = m_sem.getFunctionInfo(F);
-    fi.evalArgs(m_sem, s, std::back_inserter(postArgs));
+    evalArgs(fi, m_sem, s, std::back_inserter(postArgs));
     std::copy_if(postArgs.begin() + 3, postArgs.end(),
                  std::inserter(allVars, allVars.begin()), bind::IsConst());
     Expr post = bind::fapp(fi.sumPred, postArgs);

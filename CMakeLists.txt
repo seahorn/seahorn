@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 2.8.11)
+cmake_minimum_required(VERSION 3.3)
 
 project (SeaHorn)
 set (SeaHorn_VERSION_MAJOR 0)
@@ -15,7 +15,6 @@ if (NOT PACKAGE_VERSION)
   set (SeaHorn_VERSION_INFO ${PACKAGE_VERSION})
 endif()
 
-
 if (CMAKE_SOURCE_DIR STREQUAL CMAKE_BINARY_DIR )
   message (FATAL_ERROR
     "In-source builds are not allowed. Please clean your source tree and try again.")
@@ -27,9 +26,27 @@ if(NOT CMAKE_BUILD_TYPE)
     "Choose the type of build, options are: None Debug Release RelWithDebInfo MinSizeRel." FORCE)
 endif()
 
+option(SEA_ENABLE_LLD "Use lld as C and C++ linker." OFF)
+
+option(SEA_ENABLE_ASSERTIONS "Enable assertions." OFF)
+
+option(USE_SEAHORN_EXPR "User SeaHorn version of Expr library" OFF)
+if(${USE_SEAHORN_EXPR})
+  add_definitions(-DUSE_SEAHORN_EXPR=1)
+endif()
+
 # Add path for custom modules
 list (APPEND CMAKE_MODULE_PATH
   "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
+
+# Getting git SHA-1
+list(APPEND CMAKE_MODULE_PATH 
+  "${CMAKE_CURRENT_SOURCE_DIR}/cmake/getGitRevisionModule/")
+
+include(GetGitRevisionDescription)
+get_git_head_revision(GIT_REFSPEC GIT_SHA1)
+
+configure_file("${CMAKE_CURRENT_SOURCE_DIR}/lib/Support/GitSHA1.cc.in" "${CMAKE_CURRENT_SOURCE_DIR}/lib/Support/GitSHA1.cc" @ONLY)
 
 find_package (Git)
 if (GIT_FOUND)
@@ -41,18 +58,22 @@ if (GIT_FOUND)
     CACHE STRING "sea-dsa repo")
   set (CRAB_LLVM_REPO "https://github.com/seahorn/crab-llvm"
     CACHE STRING "crab-llvm repo")
-  
-  add_custom_target (seahorn-llvm-git
-    ${GIT_EXECUTABLE} clone ${SEAHORN_LLVM_REPO} ${CMAKE_SOURCE_DIR}/llvm-seahorn)
+
   add_custom_target (llvm-dsa-git
-    ${GIT_EXECUTABLE} clone ${LLVM_DSA_REPO} ${CMAKE_SOURCE_DIR}/llvm-dsa)
+    ${GIT_EXECUTABLE} clone -b llvm-5.0 ${LLVM_DSA_REPO} ${CMAKE_SOURCE_DIR}/llvm-dsa)
   add_custom_target (sea-dsa-git
-    ${GIT_EXECUTABLE} clone ${SEA_DSA_REPO} ${CMAKE_SOURCE_DIR}/sea-dsa)
+    ${GIT_EXECUTABLE} clone -b llvm-5.0 ${SEA_DSA_REPO} ${CMAKE_SOURCE_DIR}/sea-dsa)
+  add_custom_target (seahorn-llvm-git
+    ${GIT_EXECUTABLE} clone -b llvm-5.0 ${SEAHORN_LLVM_REPO} ${CMAKE_SOURCE_DIR}/llvm-seahorn)
   add_custom_target (crab-llvm-git
-    ${GIT_EXECUTABLE} clone ${CRAB_LLVM_REPO} ${CMAKE_SOURCE_DIR}/crab-llvm)
+    ${GIT_EXECUTABLE} clone -b dev-llvm-5.0 ${CRAB_LLVM_REPO} ${CMAKE_SOURCE_DIR}/crab-llvm)
   add_custom_target (extra
     ${CMAKE_COMMAND} -E touch ${CMAKE_CURRENT_LIST_FILE}
-    DEPENDS seahorn-llvm-git llvm-dsa-git sea-dsa-git crab-llvm-git
+    DEPENDS
+    llvm-dsa-git
+    sea-dsa-git    
+    seahorn-llvm-git
+    crab-llvm-git
   )
 
 else()
@@ -73,7 +94,7 @@ set(CMAKE_FIND_LIBRARY_SUFFIXES ".a" ${CMAKE_FIND_LIBRARY_SUFFIXES})
 
 set (Boost_USE_STATIC_LIBS ON)
 set (BOOST_COMPONENTS system)
-find_package (Boost 1.55 REQUIRED COMPONENTS ${BOOST_COMPONENTS})
+  find_package (Boost 1.55 REQUIRED COMPONENTS ${BOOST_COMPONENTS})
 if (Boost_FOUND)
   include_directories (${Boost_INCLUDE_DIRS})
 endif ()
@@ -89,27 +110,24 @@ elseif(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
   set(CMAKE_INSTALL_RPATH "\$ORIGIN/../lib")
 else()
   set(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_PREFIX}/lib")
-endif ()  
+endif ()
 
 
-set (Z3_TAG "origin/spacer" CACHE STRING "Z3 git tag to use")
-set (Z3_REPO "https://bitbucket.org/spacer/code.git" CACHE STRING "Z3 repo")
-if (CMAKE_BUILD_TYPE STREQUAL "Debug")
-  set (Z3_DEBUG "-d")
-else()
-  set (Z3_DEBUG "")
-endif()
-
+set (Z3_TAG "origin/deep_space" CACHE STRING "Z3 git tag to use")
+set (Z3_REPO "https://github.com/agurfinkel/z3.git" CACHE STRING "Z3 repo")
 ExternalProject_Add(z3
   GIT_REPOSITORY  ${Z3_REPO}
   GIT_TAG ${Z3_TAG}
-  BUILD_IN_SOURCE 1
   INSTALL_DIR ${CMAKE_BINARY_DIR}/run
-  CONFIGURE_COMMAND env CC=${CMAKE_C_COMPILER} CXX=${CMAKE_CXX_COMPILER}
-  ./configure -p <INSTALL_DIR> -b build --staticlib ${Z3_DEBUG}
-  BUILD_COMMAND make -j3 -C build
-  INSTALL_COMMAND make -C build install
-  COMMAND ${CMAKE_COMMAND} -E touch ${CMAKE_CURRENT_LIST_FILE}
+  CMAKE_ARGS
+  -DCMAKE_C_COMPILER=${CMAKE_C_COMPILER}
+  -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}
+  -DCMAKE_LINKER=${CMAKE_LINKER}
+  -DCMAKE_BUILD_TYPE:STRING=${CMAKE_BUILD_TYPE}
+  -DCMAKE_INSTALL_PREFIX:PATH=<INSTALL_DIR>
+  -DBUILD_LIBZ3_SHARED:BOOL=FALSE  
+  TEST_AFTER_INSTALL 1
+  TEST_COMMAND ${CMAKE_COMMAND} -E touch ${CMAKE_CURRENT_LIST_FILE}
   LOG_CONFIGURE 1
   LOG_INSTALL 1
   LOG_BUILD 1)
@@ -127,21 +145,27 @@ else()
   install (PROGRAMS ${Z3_EXECUTABLE} DESTINATION bin)
 endif()
 
+option(SEAHORN_REQUIRES_RTTI "Enable RTTI support" ON)
+option(SEAHORN_REQUIRES_EH "Enable Exceptions" ON)
+ 
 ExternalProject_Add (llvm
-  SVN_REPOSITORY http://llvm.org/svn/llvm-project/llvm/tags/RELEASE_380/final/
+  SVN_REPOSITORY http://llvm.org/svn/llvm-project/llvm/tags/RELEASE_500/final/  
   SOURCE_DIR ${CMAKE_SOURCE_DIR}/ext/llvm
   INSTALL_DIR ${CMAKE_BINARY_DIR}/run
   CMAKE_ARGS
-  -DCMAKE_C_COMPILER=${CMAKE_C_COMPILER} -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}
+  -DCMAKE_C_COMPILER=${CMAKE_C_COMPILER}
+  -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}
   -DCMAKE_BUILD_TYPE:STRING=${CMAKE_BUILD_TYPE}
   -DCMAKE_INSTALL_PREFIX:PATH=<INSTALL_DIR>
   -DLLVM_TARGETS_TO_BUILD:STRING=X86 -DWITH_POLY:BOOL=OFF
   -DLLVM_ENABLE_PEDANTIC=OFF
-  -DLLVM_ENABLE_PIC=ON -DLLVM_REQUIRES_RTTI:BOOL=TRUE
+  -DLLVM_ENABLE_LLD=${SEA_ENABLE_LLD}
+  -DLLVM_ENABLE_ASSERTIONS=${SEA_ENABLE_ASSERTIONS}
+  -DLLVM_ENABLE_PIC=ON -DLLVM_REQUIRES_RTTI:BOOL=${SEAHORN_REQUIRES_RTTI}
   -DLLVM_INCLUDE_TESTS:BOOL=OFF
   -DLLVM_INCLUDE_GO_TESTS=OFF
   -DLLVM_INCLUDE_EXAMPLES=OFF
-  -DLLVM_INCLUDE_DOCS=OFF    
+  -DLLVM_INCLUDE_DOCS=OFF
   -DLLVM_BINDINGS_LIST=" "
   TEST_AFTER_INSTALL 1
   TEST_COMMAND ${CMAKE_COMMAND} -E touch ${CMAKE_CURRENT_LIST_FILE}
@@ -149,14 +173,13 @@ ExternalProject_Add (llvm
   LOG_BUILD 1
   LOG_INSTALL 1)
 
-find_package (LLVM 3.8.0 CONFIG NO_DEFAULT_PATH)
+find_package (LLVM 5.0.0 CONFIG NO_DEFAULT_PATH)
 if (NOT LLVM_FOUND)
   ExternalProject_Get_Property (llvm INSTALL_DIR)
   set (LLVM_ROOT ${INSTALL_DIR})
-  set (LLVM_DIR ${LLVM_ROOT}/share/llvm/cmake CACHE PATH
+  set (LLVM_DIR ${LLVM_ROOT}/lib/cmake/llvm CACHE PATH
     "Forced location of LLVM cmake config" FORCE)
   message (WARNING "No llvm found. Run \n\tcmake --build . && cmake ${CMAKE_SOURCE_DIR}")
-  return()
 else()
   set_target_properties(llvm PROPERTIES EXCLUDE_FROM_ALL ON)
 
@@ -173,13 +196,24 @@ else()
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${LLVM_CXXFLAGS}")
   set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${LLVM_LDFLAGS}")
 
-  set(LLVM_REQUIRES_RTTI TRUE)
-  set(LLVM_REQUIRES_EH TRUE)
+  set(LLVM_REQUIRES_RTTI ${SEAHORN_REQUIRES_RTTI})
+  set(LLVM_REQUIRES_EH ${SEAHORN_REQUIRES_EH})
 
   include_directories(${LLVM_INCLUDE_DIRS})
   link_directories(${LLVM_LIBRARY_DIRS})
   add_definitions(${LLVM_DEFINITIONS})
 
+endif()
+
+if (NOT Z3_FOUND)
+  message(WARNING "No suitable version of Z3 found.\
+                   Follow instructions above.")
+  return()
+endif()
+if(NOT LLVM_FOUND)
+  message(WARNING "No suitable version of LLVM found.\
+                   Follow instructions above.")
+  return()
 endif()
 
 set (PACKAGE_NAME SeaHorn)
@@ -235,10 +269,10 @@ if (EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/ext/llvm/LICENSE.TXT)
     RENAME llvm_license.txt)
 endif()
 
-if (EXISTS ${CMAKE_CURRENT_BINARY_DIR}/llvm-prefix/src/llvm-build/bin/clang-3.8)
+if (EXISTS ${CMAKE_CURRENT_BINARY_DIR}/llvm-prefix/src/llvm-build/bin/clang-5.0)
   install (
     PROGRAMS
-    ${CMAKE_CURRENT_BINARY_DIR}/llvm-prefix/src/llvm-build/bin/clang-3.8
+    ${CMAKE_CURRENT_BINARY_DIR}/llvm-prefix/src/llvm-build/bin/clang-5.0
     DESTINATION bin)
 endif()
 
@@ -344,15 +378,6 @@ else()
   message (WARNING "No LLVM-SEAHORN found in ${CMAKE_SOURCE_DIR}/llvm-seahorn. Run\n\tcmake --build . --target extra && cmake ${CMAKE_SOURCE_DIR}")
 endif()
 
-if (IS_DIRECTORY ${CMAKE_SOURCE_DIR}/crab-llvm AND
-    EXISTS ${CMAKE_SOURCE_DIR}/crab-llvm/CMakeLists.txt)
-  add_subdirectory(${CMAKE_SOURCE_DIR}/crab-llvm)
-  set (HAVE_CRAB_LLVM TRUE)
-  include_directories (${CRABLLVM_INCLUDE_DIRS})  
-else()
-  message (WARNING "No CRAB-LLVM found in ${CMAKE_SOURCE_DIR}/crab-llvm. Run\n\tcmake --build . --target extra && cmake ${CMAKE_SOURCE_DIR}")
-endif()
-
 if (IS_DIRECTORY ${CMAKE_SOURCE_DIR}/sea-dsa AND
     EXISTS ${CMAKE_SOURCE_DIR}/sea-dsa/src/DsaAnalysis.cc)
   include_directories (BEFORE sea-dsa/include)
@@ -361,6 +386,15 @@ if (IS_DIRECTORY ${CMAKE_SOURCE_DIR}/sea-dsa AND
 else()
   message (WARNING "No SEA DSA found in ${CMAKE_SOURCE_DIR}/sea-dsa. Run\n\tcmake --build . --target extra && cmake ${CMAKE_SOURCE_DIR}")
   return()
+endif()
+
+if (IS_DIRECTORY ${CMAKE_SOURCE_DIR}/crab-llvm AND
+    EXISTS ${CMAKE_SOURCE_DIR}/crab-llvm/CMakeLists.txt)
+  add_subdirectory(${CMAKE_SOURCE_DIR}/crab-llvm)
+  set (HAVE_CRAB_LLVM TRUE)
+  include_directories (BEFORE ${CRABLLVM_INCLUDE_DIRS})  
+else()
+  message (WARNING "No CRAB-LLVM found in ${CMAKE_SOURCE_DIR}/crab-llvm. Run\n\tcmake --build . --target extra && cmake ${CMAKE_SOURCE_DIR}")
 endif()
 
 ### add our include directories to the front, overriding directories
@@ -372,7 +406,7 @@ include_directories(BEFORE
 
 add_subdirectory(lib)
 add_subdirectory(tools)
-add_subdirectory(units)
+  add_subdirectory(units)
 add_subdirectory(sea-rt)
 
 configure_file( include/seahorn/config.h.cmake

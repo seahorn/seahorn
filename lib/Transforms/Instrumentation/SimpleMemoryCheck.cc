@@ -1308,24 +1308,27 @@ void SimpleMemoryCheck::printStats(std::vector<CheckContext> &InteresingChecks,
   SEA_DSA_BRUNCH_STAT("SMC_AS_BARRIER_UNINTERESTING", totalASBarrierPairs);
   SEA_DSA_BRUNCH_STAT("SMC_AS_BARRIER_TOTAL", AllAnyBarrierAllocSites.size());
 
-  LOG("alloc-sites", errs() << "All alloc sites:\n");
-  std::vector<std::pair<StringRef, std::string>> asLocations;
-  asLocations.reserve(AllAllocSites.size());
-  for (auto *AS : AllAllocSites) {
-    StringRef loc = "#Global";
-    if (auto *I = dyn_cast<Instruction>(AS))
-      loc = I->getFunction()->getName();
-    std::string buff;
-    raw_string_ostream rso(buff);
-    AS->print(rso);
-    rso.flush();
-    asLocations.push_back({loc, buff});
+  // Workaround issues with the preprocessor.
+  bool printAllocSites = false;
+  LOG("alloc-sites", printAllocSites = true);
+  if (printAllocSites) {
+    errs() << "All alloc sites:\n";
+    std::vector<std::pair<StringRef, std::string>> asLocations;
+    asLocations.reserve(AllAllocSites.size());
+    for (auto *AS : AllAllocSites) {
+      StringRef loc = "#Global";
+      if (auto *I = dyn_cast<Instruction>(AS))
+        loc = I->getFunction()->getName();
+      std::string buff;
+      raw_string_ostream rso(buff);
+      AS->print(rso);
+      rso.flush();
+      asLocations.push_back({loc, buff});
+    }
+    std::sort(asLocations.begin(), asLocations.end());
+    for (auto &P : asLocations)
+      errs() << P.second << "(" << P.first << ")\n";
   }
-  std::sort(asLocations.begin(), asLocations.end());
-
-  LOG("alloc-sites", for (auto &P
-                          : asLocations) errs() << P.second << "(" << P.first
-                         << ")\n");
 
   OS << "\n\n";
 

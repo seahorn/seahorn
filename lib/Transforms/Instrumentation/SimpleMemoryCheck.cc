@@ -223,7 +223,7 @@ public:
     }
 
     if (!(g->hasCell(*ptr))) {
-      WARN << "SMC: Sea Dsa node not found for " << ptr;
+      WARN << "SMC: Sea Dsa node not found for " << *ptr;
       return nullptr;
     }
 
@@ -617,14 +617,20 @@ CheckContext SimpleMemoryCheck::getUnsafeCandidates(Instruction *Inst,
   const uint32_t Sz = Bits < 8 ? 1 : Bits / 8;
   const int64_t LastRead = Origin.Offset + Sz;
 
+  const sea_dsa::Cell *OriginCell = m_SDSA ?
+                                    m_SDSA->getCell(Origin.Ptr, F) : nullptr;
+
   CheckContext Check;
   Check.MI = Inst;
   Check.F = &F;
   Check.Barrier = Origin.Ptr;
-  Check.Collapsed = m_SDSA ? m_SDSA->getCell(Origin.Ptr,
-                                    F)->getNode()->isOffsetCollapsed() : false;
+  Check.Collapsed = (m_SDSA && OriginCell) ?
+                    OriginCell->getNode()->isOffsetCollapsed() : false;
   Check.AccessedBytes = size_t(LastRead);
   Check.DsaGraph = m_SDSA ? &m_SDSA->getGraph(F) : nullptr;
+
+  if (m_SDSA && !OriginCell)
+    return Check;
 
   if (Optional<size_t> AllocSize = getAllocSize(Origin.Ptr)) {
     if (int64_t(Origin.Offset) + Sz > int64_t(*AllocSize)) {

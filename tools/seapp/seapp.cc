@@ -224,9 +224,15 @@ static llvm::cl::opt<bool>
                    llvm::cl::desc("Abstract memory instructions"),
                    llvm::cl::init(false));
 
-static llvm::cl::opt<bool> NameValues("name-values",
-                                      llvm::cl::desc("Run the NameValues pass"),
-                                      llvm::cl::init(false));
+static llvm::cl::opt<bool> NameValues(
+    "name-values",
+    llvm::cl::desc(
+        "Run the seahorn::NameValues pass (WARNING -- can be extremely slow)"),
+    llvm::cl::init(false));
+
+static llvm::cl::opt<bool>
+    InstNamer("instnamer", llvm::cl::desc("Run the llvm's instnamer pass"),
+              llvm::cl::init(false));
 
 static llvm::cl::opt<bool>
     LowerSwitch("lower-switch",
@@ -393,8 +399,11 @@ int main(int argc, char **argv) {
   }
   // array bound checking. WIP.
   else if (ArrayBoundsChecks > 0) {
-    // XXX ABC might run sea-dsa which requires all values have a name
-    pm_wrapper.add(seahorn::createNameValuesPass());
+    if (InstNamer)
+      pm_wrapper.add(llvm::createInstructionNamerPass());
+    else if (NameValues)
+      pm_wrapper.add(seahorn::createNameValuesPass());
+
     switch (ArrayBoundsChecks) {
     case LOCAL:
       pm_wrapper.add(seahorn::createLowerCstExprPass());
@@ -612,6 +621,9 @@ int main(int argc, char **argv) {
 
   if (NameValues)
     pm_wrapper.add(seahorn::createNameValuesPass());
+
+  if (InstNamer)
+    pm_wrapper.add(llvm::createInstructionNamerPass());
 
   // --- verify if an undefined value can be read
   pm_wrapper.add(seahorn::createCanReadUndefPass());

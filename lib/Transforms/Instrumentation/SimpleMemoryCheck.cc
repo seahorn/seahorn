@@ -16,6 +16,7 @@
 #include "llvm/Transforms/Utils/Cloning.h"
 #include "llvm/Transforms/Utils/Local.h"
 
+#include "sea_dsa/AllocWrapInfo.hh"
 #include "sea_dsa/DsaAnalysis.hh"
 #include "sea_dsa/support/Brunch.hh"
 #include "seahorn/Support/SeaDebug.h"
@@ -76,6 +77,11 @@ static llvm::cl::opt<enum PointerAnalysisKind> SMCPTAKind(
         clEnumValN(WaveDiff, "wave-diff", "Use SVF Andersen Wave Diff"),
         clEnumValN(Sparse, "sparse", "Use SVF Sparse Flow Sensitive PTA")),
     llvm::cl::init(Dsa));
+
+
+namespace sea_svf {
+extern const std::set<std::string> *SeaAllocWrappers;
+} // namespace sea_svf
 
 namespace seahorn {
 
@@ -270,11 +276,33 @@ public:
 };
 
 class SVFPTAWrapper : public PTAWrapper {
+  const sea_dsa::AllocWrapInfo *m_awi = nullptr;
+  const llvm::TargetLibraryInfo *m_tli = nullptr;
   std::unique_ptr<WPAPass> m_wpa = nullptr;
   SVFModule m_svfModule;
 
 public:
-  SVFPTAWrapper(llvm::Module &M) : m_svfModule(M) {
+  SVFPTAWrapper(llvm::Module &M, const sea_dsa::AllocWrapInfo *AWI = nullptr,
+                const llvm::TargetLibraryInfo *TLI = nullptr)
+      : m_svfModule(M), m_awi(AWI), m_tli(TLI) {
+    auto allocWrapper = llvm::make_unique<std::set<std::string>>();
+    if (m_awi) {
+      assert(m_tli);
+      // This is going to leak memory -- since it happens once, we don't care.
+      auto *allocs = new std::set<std::string>(m_awi->getAllocWrapperNames());
+      for (const llvm::Function &F : M)
+        if (F.hasName())
+          if (llvm::isAllocLikeFn(&F, m_tli, false))
+            allocs->insert(F.getName().str());
+          else if (F.isDeclaration() && F.getReturnType()->isPointerTy())
+            allocs->insert(F.getName().str());
+
+      errs() << "Sea Allocators:\n";
+      for (auto &name : *allocs)
+        errs() << "\t" << name << "\n";
+      sea_svf::SeaAllocWrappers = allocs;
+    }
+
     m_wpa = llvm::make_unique<WPAPass>();
 
     assert(SMCPTAKind != PointerAnalysisKind::Dsa);
@@ -1040,7 +1068,8 @@ bool SimpleMemoryCheck::runOnModule(llvm::Module &M) {
     m_SDSA = llvm::make_unique<SeaDsa>(this);
     m_PTA = m_SDSA.get();
   } else {
-    m_SVF = llvm::make_unique<SVFPTAWrapper>(M);
+    sea_dsa::AllocWrapInfo &AWI = getAnalysis<sea_dsa::AllocWrapInfo>();
+    m_SVF = llvm::make_unique<SVFPTAWrapper>(M, &AWI, m_TLI);
     m_PTA = m_SVF.get();
   }
 
@@ -1180,6 +1209,8 @@ bool SimpleMemoryCheck::runOnModule(llvm::Module &M) {
 
 void SimpleMemoryCheck::getAnalysisUsage(llvm::AnalysisUsage &AU) const {
   AU.setPreservesAll();
+  AU.addRequired<sea_dsa::AllocWrapInfo>();
+
   if (SMCPTAKind == PointerAnalysisKind::Dsa)
     AU.addRequired<sea_dsa::DsaInfoPass>(); // run seahorn dsa
   AU.addRequired<llvm::TargetLibraryInfoWrapperPass>();

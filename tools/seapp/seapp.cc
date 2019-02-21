@@ -244,6 +244,10 @@ static llvm::cl::opt<bool>
                      llvm::cl::desc("Promote bool loads to sgt"),
                      llvm::cl::init(true));
 
+static llvm::cl::opt<bool> StripDebug("strip-debug",
+                                      llvm::cl::desc("Strip debug info"),
+                                      llvm::cl::init(false));
+
 static llvm::cl::opt<bool> VerifyAfterAll(
     "verify-after-all",
     llvm::cl::desc("Run the verification pass after each transformation"),
@@ -624,6 +628,9 @@ int main(int argc, char **argv) {
 
   if (InstNamer)
     pm_wrapper.add(llvm::createInstructionNamerPass());
+
+  if (StripDebug)
+    pm_wrapper.add(llvm::createStripDeadDebugInfoPass());
 
   // --- verify if an undefined value can be read
   pm_wrapper.add(seahorn::createCanReadUndefPass());

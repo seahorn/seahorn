@@ -1342,7 +1342,7 @@ void SimpleMemoryCheck::printStats(std::vector<CheckContext> &InteresingChecks,
   SEA_DSA_BRUNCH_STAT("SMC_ALL_AS", AllAllocSites.size());
   SEA_DSA_BRUNCH_STAT("SMC_AS_BARRIER_INTERESTING",
                       InterestingBarrierAllocSites.size());
-  SEA_DSA_BRUNCH_STAT("SMC_AS_BARRIER_UNINTERESTING", totalASBarrierPairs);
+  SEA_DSA_BRUNCH_STAT("SMC_AS_BARRIER_CHECKS", totalASBarrierPairs);
   SEA_DSA_BRUNCH_STAT("SMC_AS_BARRIER_TOTAL", AllAnyBarrierAllocSites.size());
 
   // Workaround issues with the preprocessor.

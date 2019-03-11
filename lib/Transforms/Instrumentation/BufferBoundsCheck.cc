@@ -226,10 +226,10 @@ public:
 
 // A wrapper for llvm dsa
 class LlvmDsa : public DsaWrapper {
-  DSAInfo *m_dsa;
+  llvm_dsa::DsaInfoPass *m_dsa;
 
 public:
-  LlvmDsa(Pass *abc) : m_dsa(&(abc->getAnalysis<DSAInfo>())) {}
+  LlvmDsa(Pass *abc) : m_dsa(&(abc->getAnalysis<llvm_dsa::DsaInfoPass>())) {}
 
   const char *getDsaName() const { return "Llvm Dsa analysis"; }
 
@@ -1543,7 +1543,7 @@ void Local::getAnalysisUsage(llvm::AnalysisUsage &AU) const {
   AU.addRequired<ShadowFunctionPass>();
   if (!UseSeaDsa) {
     // run llvm dsa
-    AU.addRequired<seahorn::DSAInfo>();
+    AU.addRequired<llvm_dsa::DsaInfoPass>();
   } else {
     // run seahorn dsa
     AU.addRequired<sea_dsa::DsaInfoPass>();
@@ -2889,7 +2889,7 @@ void Global::getAnalysisUsage(llvm::AnalysisUsage &AU) const {
   AU.setPreservesAll();
   if (!UseSeaDsa) {
     // run llvm dsa
-    AU.addRequired<seahorn::DSAInfo>();
+    AU.addRequired<llvm_dsa::DsaInfoPass>();
   } else {
     // run seahorn dsa
     AU.addRequired<sea_dsa::DsaInfoPass>();
@@ -3316,7 +3316,7 @@ void GlobalCCallbacks::getAnalysisUsage(llvm::AnalysisUsage &AU) const {
   AU.setPreservesAll();
   if (!UseSeaDsa) {
     // run llvm dsa
-    AU.addRequired<seahorn::DSAInfo>();
+    AU.addRequired<llvm_dsa::DsaInfoPass>();
   } else {
     // run seahorn dsa
     AU.addRequired<sea_dsa::DsaInfoPass>();

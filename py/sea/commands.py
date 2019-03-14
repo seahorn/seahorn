@@ -325,6 +325,11 @@ class Seapp(sea.LimitedCmd):
         if args.out_file is not None: argv.extend (['-o', args.out_file])
         if args.llvm_asm: argv.append ('-S')
 
+        # disable sinking instructions to end of basic block
+        # this might create unwanted aliasing scenarios
+        # for now, there is no option to undo this switch
+        argv.append('--simplifycfg-sink-common=false')
+
         # internalize takes precedence over all other options and must run alone
         if self._strip_extern:
             argv.append ('--only-strip-extern=true')
@@ -437,6 +442,12 @@ class MixedSem(sea.LimitedCmd):
         self.seappCmd = sea.ExtCmd (cmd_name,'',quiet)
 
         argv = list()
+
+        # disable sinking instructions to end of basic block
+        # this might create unwanted aliasing scenarios
+        # for now, there is no option to undo this switch
+        argv.append('--simplifycfg-sink-common=false')
+
         if args.out_file is not None: argv.extend (['-o', args.out_file])
         if not args.ms_skip: argv.append ('--horn-mixed-sem')
         if args.reduce_main: argv.append ('--ms-reduce-main')
@@ -864,6 +875,13 @@ class Seaopt(sea.LimitedCmd):
         self.seaoptCmd = sea.ExtCmd (cmd_name,'',quiet)
 
         argv = ['-f', '-funit-at-a-time']
+
+        # disable sinking instructions to end of basic block
+        # this might create unwanted aliasing scenarios
+        # for now, there is no option to undo this switch
+        argv.append('--simplifycfg-sink-common=false')
+
+
         if args.out_file is not None:
             argv.extend (['-o', args.out_file])
         if args.opt_level > 0 and args.opt_level <= 3:

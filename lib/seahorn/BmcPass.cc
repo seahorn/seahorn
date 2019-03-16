@@ -201,7 +201,7 @@ public:
         ERR << "Crab requested (by --horn-bmc-crab) but not available!";
       }
         bmc = llvm::make_unique<PathBasedBmcEngine>(
-            static_cast<LegacyOperationalSemantics &>(*sem), zctx, tli;
+	    static_cast<LegacyOperationalSemantics &>(*sem), zctx, tli);
 #endif
       break;
     }

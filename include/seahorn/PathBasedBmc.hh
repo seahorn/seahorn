@@ -112,6 +112,12 @@ private:
   // blocking clause.
   bool path_encoding_and_solve_with_ai(BmcTrace &trace,
                                        invariants_map_t &path_constraints);
+  /// Out contains all invariants (per block) inferred by crab.
+  void load_invariants(crab_llvm::CrabLlvmPass& crab, const LiveSymbols& ls,
+		       DenseMap<const BasicBlock*, ExprVector>& out);
+  
+  /// Add the crab invariants in m_side after applying the symbolic store s.
+  void assert_invariants(const invariants_map_t& invariants, SymStore& s);    
 #endif
 
   // Return false if a blocking clause has been generated twice.

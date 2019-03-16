@@ -541,69 +541,118 @@ public:
 };
 
 #ifdef HAVE_CRAB_LLVM
-/** Begin convert from crab invariants to SeaHorn Expr **/
+// TODO: move to BmcEngine. 
+void PathBasedBmcEngine::load_invariants(crab_llvm::CrabLlvmPass& crab,
+					 const LiveSymbols& ls,
+					 DenseMap<const BasicBlock*, ExprVector>& invariants) {
+  
+  auto heap_info = crab.get_heap_abstraction();
+  for (const BasicBlock &bb : *m_fn) {
+    
+    // -- Get invariants from crab as crab linear constraints
+    auto pre = crab.get_pre(&bb);
+    if (!pre) continue;
+    crab_llvm::lin_cst_sys_t inv_csts= pre->to_linear_constraints();
+    if (inv_csts.is_true()) continue;
+    
+    // -- Translate crab linear constraints to ExprVector
+    const ExprVector& live = ls.live(&bb);
+    LinConsToExpr conv(*heap_info, *m_fn, live);
+    
+    ExprVector res;
+    for (auto cst: inv_csts) {
+      // XXX: will convert from crab semantics to BMC semantics.
+      Expr e = conv.toExpr(cst, sem());
+      if (isOpX<FALSE>(e)) {
+	res.clear();
+	res.push_back(e);
+      } else if (isOpX<TRUE>(e)) {
+	continue;
+      } else {
+	res.push_back(e);
+      }
+    }
+    if (res.empty()) continue;
+    invariants.insert({&bb, res});
+    
+    LOG("bmc-ai", 
+	errs() << "Global invariants at " << bb.getName() << ":\n";
+	if (res.empty()) {
+	  errs() << "\ttrue\n";
+	} else {
+	  for (auto e : res) {
+	    errs() << "\t" << *e << "\n";
+	  }
+	});
+  }
+}
 
-// Map from basic blocks to linear constraints
-// The map itself is hidden
-struct crab_map {
-  virtual ~crab_map() {}
-  virtual crab_llvm::lin_cst_sys_t operator()(const BasicBlock *b) = 0;
-};
+void PathBasedBmcEngine::assert_invariants(const invariants_map_t& invariants,
+					   SymStore& s) {
+  // s.print(errs());
+  // Apply the symbolic store
+  expr::fn_map<std::function<Expr(Expr)>> fmap([s](Expr e) { return s.at(e);});
+  for (auto &kv: invariants) {
+    const BasicBlock* bb = kv.first;
+    const ExprVector& inv = kv.second;
 
-class crab_global_map : public crab_map {
-public:
-  crab_global_map(crab_llvm::CrabLlvmPass &crab_global)
-      : m_crab_global(crab_global) {}
-  virtual crab_llvm::lin_cst_sys_t operator()(const BasicBlock *b) override {
-    auto pre = m_crab_global.get_pre(b);
-    if (pre) {
-      return pre->to_linear_constraints();
-    } else {
-      // usually if pre is null then it's because the block is
-      // unreachable. However, since we don't know for sure we just
-      // return true.
-      return crab_llvm::lin_cst_sys_t();
+    Expr sym_bb = s.at(sem().symb(*bb));
+    if (!sym_bb) continue;
+    
+    ExprVector eval_res;
+    for (auto e: inv) {
+      // XXX: we use replace instead of symbolic store eval
+      // because the latter does not go through linear constraints.
+      if (Expr eval_e = expr::replace(e, fmap)) {
+	eval_res.push_back(eval_e);
+      }      
+    }
+    if (!eval_res.empty()) {
+      // Add the invariants in m_side
+      m_side.push_back(mk<IMPL>(sym_bb, op::boolop::land(eval_res)));
     }
   }
+}
 
-private:
-  crab_llvm::CrabLlvmPass &m_crab_global;
-};
-
-class crab_path_map : public crab_map {
-public:
-  crab_path_map(typename crab_llvm::IntraCrabLlvm::invariant_map_t &inv_map)
-      : m_map(inv_map) {}
-  virtual crab_llvm::lin_cst_sys_t operator()(const BasicBlock *b) override {
-    auto it = m_map.find(b);
-    if (it != m_map.end()) {
-      return it->second->to_linear_constraints();
-    } else {
-      // if the block is not found then the value is assumed to be
-      // bottom.
-      return crab_llvm::lin_cst_t::get_false();
-    }
-  }
-
-private:
-  typename crab_llvm::IntraCrabLlvm::invariant_map_t &m_map;
-};
-
+/** Another conversion from crab invariants to SeaHorn Expr **/
 class crabToSea {
+public:
+  typedef typename crab_llvm::IntraCrabLlvm::invariant_map_t invariant_map_t;
+private:
+  class invariant_map_wrapper {
+  public:
+    invariant_map_wrapper(invariant_map_t &map): m_map(map) {}
+      
+    crab_llvm::lin_cst_sys_t operator()(const BasicBlock *b)  {
+      auto it = m_map.find(b);
+      if (it != m_map.end()) {
+	return it->second->to_linear_constraints();
+      } else {
+	// if the block is not found then the value is assumed to be
+	// bottom.
+	return crab_llvm::lin_cst_t::get_false();
+      }
+    }
+  private:
+    invariant_map_t &m_map;
+  };
+  
 public:
   crabToSea(const LiveSymbols &ls, crab_llvm::HeapAbstraction &heap_abs,
             const Function &fn, ExprFactory &efac)
       : m_ls(ls), m_heap_abs(heap_abs), m_fn(fn), m_efac(efac) {}
 
-  template <typename BBIterator, typename SeaMap>
-  void convert(BBIterator beg, BBIterator end, crab_map &in, SeaMap &out) {
-
+  template <typename BBIterator, typename OutMap>
+  void convert(BBIterator beg, BBIterator end, invariant_map_t &in, OutMap &out) {
     for (const BasicBlock *b : boost::make_iterator_range(beg, end)) {
       const ExprVector &live = m_ls.live(b);
       LinConsToExpr conv(m_heap_abs, m_fn, live);
-      crab_llvm::lin_cst_sys_t csts = in(b);
+      invariant_map_wrapper in_wrapper(in);
+      crab_llvm::lin_cst_sys_t csts = in_wrapper(b);
       ExprVector f;
       for (auto cst : csts) {
+	// XXX: Convert to Expr using Crab semantics (linear integer
+	// arithmetic).
         Expr e = conv.toExpr(cst, m_efac);
         if (isOpX<FALSE>(e)) {
           f.clear();
@@ -614,7 +663,7 @@ public:
           f.push_back(e);
         }
       }
-      out.insert(std::make_pair(b, f));
+      out.insert({b, f});
     }
   }
 
@@ -624,7 +673,6 @@ private:
   const Function &m_fn;
   ExprFactory &m_efac;
 };
-/** End convert from crab invariants to SeaHorn Expr **/
 
 /*
    It builds a sliced Crab CFG wrt trace and performs abstract
@@ -661,20 +709,22 @@ bool PathBasedBmcEngine::path_encoding_and_solve_with_ai(
   //    If bottom is inferred then relevant_stmts is a minimal subset of
   //    statements along the path that still implies bottom.
   std::vector<crab::cfg::statement_wrapper> relevant_stmts;
-  typename IntraCrabLlvm::invariant_map_t postmap, premap;
-  const bool populate_constraints_map = true;
+
+  ///============================================================////
+  /// JN: for now we set it to false because nobody uses path_constraints.
+  const bool populate_constraints_map = false;
+  ///============================================================////  
   bool res;
   if (populate_constraints_map) {
     // postmap contains the forward invariants
-    // premap contains necessary preconditions
+    // premap contains necessary preconditions    
+    typename IntraCrabLlvm::invariant_map_t postmap, premap;
     res = m_crab_path->path_analyze(params, trace_blocks, LayeredCrabSolving,
                                     relevant_stmts, postmap, premap /*unused*/);
 
     // translate postmap (crab linear constraints) to path_constraints (Expr)
-    crabToSea c2s(*m_ls, *(m_crab_global->get_heap_abstraction()), fun,
-                  sem().efac());
-    crab_path_map cm(postmap);
-    c2s.convert(trace_blocks.begin(), trace_blocks.end(), cm, path_constraints);
+    crabToSea c2s(*m_ls, *(m_crab_global->get_heap_abstraction()), fun, sem().efac());
+    c2s.convert(trace_blocks.begin(), trace_blocks.end(), postmap, path_constraints);
 
   } else {
     res = m_crab_path->path_analyze(params, trace_blocks, LayeredCrabSolving,
@@ -1148,13 +1198,41 @@ boost::tribool PathBasedBmcEngine::solve() {
   LOG("bmc", get_os(true) << "Begin precise encoding\n";);
   encode(/*assert_formula=*/false);
   LOG("bmc", get_os(true) << "End precise encoding\n";);
+  
+  // crab invariants
+  invariants_map_t invariants;
+  
+#ifdef HAVE_CRAB_LLVM
+  // Convert crab invariants to Expr
+  if (UseCrab && m_crab_global) {
+    // -- Compute live symbols so that invariant variables exclude
+    //    dead variables.
+    m_ls = new LiveSymbols(*m_fn, sem().efac(), sem());
+    m_ls->run();
 
-  LOG("bmc-details", errs() << "Begin precise encoding:\n";
-      for (Expr v
-           : m_side) errs()
-      << "\t" << *v << "\n";
-      errs() << "End precise encoding\n";);
+    if (UseCrabGlobalInvariants) {
+       LOG("bmc", get_os(true) << "Begin loading of crab global invariants\n";);
+       Stats::resume("BMC path-based: loading of crab global invariants");
+       load_invariants(*m_crab_global, *m_ls, invariants);
+       // Assumption: the program has been fully unrolled so there is
+       // exactly two cutpoint nodes (entry and exit). We use the symbolic
+       // store of the exit node.
+       auto& states = getStates();
+       if (states.size() == 2) {
+         SymStore& s = states[1];
+	 assert_invariants(invariants, s);
+       }
+       Stats::stop("BMC path-based: loading of crab global invariants");
+       LOG("bmc", get_os(true) << "End loading of crab invariants\n";);
+    }
+  }
+#endif
 
+  LOG("bmc-details", 
+      for (Expr v : m_side) {
+	errs() << "\t" << *v << "\n";
+      });
+  
   // -- Boolean abstraction
   LOG("bmc", get_os(true) << "Begin boolean abstraction\n";);
   Stats::resume("BMC path-based: initial boolean abstraction");
@@ -1168,62 +1246,7 @@ boost::tribool PathBasedBmcEngine::solve() {
   }
   Stats::stop("BMC path-based: initial boolean abstraction");
   LOG("bmc", get_os(true) << "End boolean abstraction\n";);
-
-  // -- Numerical abstraction
-  invariants_map_t invariants;
-#ifdef HAVE_CRAB_LLVM
-  // Convert crab invariants to Expr
-  if (UseCrab && m_crab_global) {
-
-    // -- Compute live symbols so that invariant variables exclude
-    //    dead variables.
-    m_ls = new LiveSymbols(*m_fn, sem().efac(), sem());
-    m_ls->run();
-
-    if (UseCrabGlobalInvariants) {
-      LOG("bmc", get_os(true) << "Begin loading of crab global invariants\n";);
-      Stats::resume("BMC path-based: loading of crab global invariants");
-
-      // -- Translate invariants
-      crabToSea c2s(*m_ls, *(m_crab_global->get_heap_abstraction()), *m_fn,
-                    sem().efac());
-      crab_global_map cm(*m_crab_global);
-      // convert references to pointers (FIXME: use make_transform_iterator)
-      std::vector<const BasicBlock *> bb_ptr_vector;
-      bb_ptr_vector.reserve(m_fn->size());
-      for (const BasicBlock &b : *m_fn) {
-        bb_ptr_vector.push_back(&b);
-      }
-      c2s.convert(bb_ptr_vector.begin(), bb_ptr_vector.end(), cm, invariants);
-
-      LOG("bmc-ai", for (auto &kv
-                         : invariants) {
-        errs() << "Global invariants at " << kv.first->getName() << ": ";
-        if (kv.second.empty()) {
-          errs() << "true\n";
-        } else {
-          errs() << "\n";
-          for (auto e : kv.second) {
-            errs() << "\t" << *e << "\n";
-          }
-        }
-      });
-
-      // -- Load the numerical abstraction (invariants) into the solver
-      for (auto &kv : invariants) {
-        const BasicBlock *bb = kv.first;
-        ExprVector inv = kv.second;
-        if (inv.empty())
-          continue;
-        Expr bbV = sem().symb(*bb);
-        m_smt_solver.assertExpr(mk<IMPL>(bbV, op::boolop::land(inv)));
-      }
-      Stats::stop("BMC path-based: loading of crab global invariants");
-      LOG("bmc", get_os(true) << "End loading of crab invariants\n";);
-    }
-  }
-#endif
-
+  
 #ifdef HAVE_CRAB_LLVM
   crab_llvm::CfgManager cfg_man;
   if (UseCrab && m_crab_global) {
@@ -1318,8 +1341,11 @@ boost::tribool PathBasedBmcEngine::solve() {
     }
 #endif
     Stats::resume("BMC path-based: solving path + learning clauses with SMT");
+    // XXX: the semantics of invariants and path_constraints (e.g.,
+    // linear integer arithmetic) might differ from the semantics used
+    // by the smt (e.g., bitvectors).
     boost::tribool res =
-        path_encoding_and_solve_with_smt(model, invariants, path_constraints);
+      path_encoding_and_solve_with_smt(model, invariants, path_constraints /*unused*/);
     Stats::stop("BMC path-based: solving path + learning clauses with SMT");
     if (res) {
 #ifdef HAVE_CRAB_LLVM
@@ -1402,8 +1428,11 @@ boost::tribool PathBasedBmcEngine::solve() {
   }
 
   if (m_num_paths == 0) {
-    errs() << "\nProgram is trivially unsat: initial boolean abstraction was "
-              "enough.\n";
+    errs() << "Boolean abstraction is already false. ";
+    if (UseCrabGlobalInvariants) {
+      errs() << "Option --horn-bmc-crab-invariants=true might have be helped.";
+    }
+    errs() << "\n";
   }
 
 #ifdef HAVE_CRAB_LLVM

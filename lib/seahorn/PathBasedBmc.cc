@@ -22,27 +22,9 @@
 #include "boost/unordered_map.hpp"
 
 /**
-  NOTE #1: certain parts of this implementation is VC
-  encoding-dependent. For instance, the generation of blocking clauses
-  and the boolean abstraction.
-
-  NOTE #2: the BMC engines can be used in two scenarios: (1) for validating a
-  CEX, and (2) for performing bounded-model checking rather than
-  invariant generation.
-
-  Sometimes, crab can fail at solving a path if it cannot build a
-  single path from boolean literals. When BMC is used in context (1)
-  this can be fixed by running SeaHorn with the options:
-
-    --horn-split-only-critical=true
-    --horn-at-most-one-predecessor=true
-
-  These options are used by VCGen. Although BMC uses
-  BvOpSem these options still can help since the CEX is first
-  generated using VCGen. There is no an equivalent of
-  --horn-at-most-one-predecessor for BvOpSem but we might want
-  to implement it in the future in cases crab also fails in scenario
-  (2).
+  Certain parts of this implementation is VC encoding-dependent. For
+  instance, the generation of blocking clauses and the boolean
+  abstraction.
 **/
 
 namespace seahorn {
@@ -425,116 +407,87 @@ public:
   std::string get_name() const override { return "Deletion MUC"; }
 };
 
-// Compute minimal unsatisfiable cores using binary search
-// Naive implementation of Junker's QuickXplain method.
+// Compute minimal unsatisfiable cores based on Junker's QuickXplain.
 class binary_search_muc : public minimal_unsat_core {
-private:
-  // minimum size of the formula to perform binary search on it
-  const unsigned threshold = 5;
 
-  typedef typename ExprVector::const_iterator const_iterator;
-  typedef boost::iterator_range<const_iterator> const_range;
+  /*
+    qx(base, target, skip) {
+       if (not skip) and unsat(base) then 
+          return empty;
+       if target is singleton then 
+          return target
 
-  boost::tribool check_with_assumptions(const_range f, const ExprVector &assume,
-                                        const_range more_assume) {
-    m_solver.reset();
-    for (Expr e : f) {
-      m_solver.assertExpr(e);
-    }
-    for (Expr e : assume) {
-      m_solver.assertExpr(e);
-    }
-    for (Expr e : more_assume) {
-      m_solver.assertExpr(e);
-    }
-    m_size_solver_calls.push_back(
-        std::distance(f.begin(), f.end()) + assume.size() +
-        std::distance(more_assume.begin(), more_assume.end()));
-    boost::tribool res;
-    {
+      <t1, t2> := partition(target);
+      c1 := qx(base U t2, t1, t2 == empty);  // minimize first half wrt second half
+      c2 := qx(base U c1, t2, c1 == empty);  // minimize second half wrt MUS of first half.
+      return c1 U c2;
+    } 
+
+    call qx(empty, formula, false);
+   */
+  void qx(const ExprVector& target, unsigned begin, unsigned end, bool skip, ExprVector& out) {
+    if (!skip) {
       scoped_solver ss(m_solver, MucTimeout);
-      res = ss.get().solve();
-    }
-    return res;
-  }
-
-  void run_with_assumptions(const_range f, const ExprVector &assume,
-                            ExprVector &core) {
-    ExprVector more_assume;
-    run_with_assumptions(
-        f, assume,
-        boost::make_iterator_range(more_assume.begin(), more_assume.end()),
-        core);
-  }
-
-  void run_with_assumptions(const_range f, const ExprVector &assume,
-                            const_range more_assume, ExprVector &core) {
-    assert(!(bool)check_with_assumptions(f, assume, more_assume));
-
-    unsigned size = std::distance(f.begin(), f.end());
-    if (size <= threshold) {
-      if (size == 0) {
-      } else if (size == 1) {
-        // core.reserve(size);
-        core.insert(core.end(), f.begin(), f.end());
-      } else {
-        deletion_muc muc(m_solver);
-        ExprVector small_f(f.begin(), f.end());
-        ExprVector small_core;
-        muc.run(small_f, assume, small_core);
-        core.insert(core.end(), small_core.begin(), small_core.end());
-        m_size_solver_calls.insert(m_size_solver_calls.end(),
-                                   muc.m_size_solver_calls.begin(),
-                                   muc.m_size_solver_calls.end());
+      boost::tribool res = ss.get().solve();
+      if (!res) {
+	return; 
       }
-      return;
-    }
-    const_iterator A_beg = f.begin();
-    const_iterator A_end = f.begin() + (size / 2);
-    const_iterator B_beg = A_end;
-    const_iterator B_end = f.end();
-    const_range A = boost::make_iterator_range(A_beg, A_end);
-    const_range B = boost::make_iterator_range(B_beg, B_end);
-    boost::tribool resA = boost::indeterminate;
-    boost::tribool resB = boost::indeterminate;
-    /*A*/
-    resA = check_with_assumptions(A, assume, more_assume);
-    if (!resA) {
-      return run_with_assumptions(A, assume, more_assume, core);
-    } else if (resA) {
-      /* B */
-      resB = check_with_assumptions(B, assume, more_assume);
-      if (!resB) {
-        return run_with_assumptions(B, assume, more_assume, core);
-      } else if (resB) {
-        /* do nothing */
-      } else {
-        // unknown
-        core.assign(f.begin(), f.end());
-        return;
-      }
-    } else {
-      core.assign(f.begin(), f.end());
-      return;
     }
 
-    // minimize A wrt {assumptions, B}
-    run_with_assumptions(A, assume, B, core);
-    // minimize B wrt {assumptions, core}
-    run_with_assumptions(
-        B, assume, boost::make_iterator_range(core.begin(), core.end()), core);
+    if (end - begin  == 1) {
+      out.push_back(target[begin]);
+      return ;
+    } 
+
+    assert(begin < end);
+    unsigned mid = (begin + end)/2;
+
+#if 1
+    m_solver.push();
+    for(auto it = target.begin()+mid, et= target.begin()+end; it!=et; ++it) {
+      m_solver.assertExpr(*it);
+    } 
+    unsigned old_out_size = out.size();
+    // minimize 1st half wrt 2nd half      
+    qx(target, begin, mid, end - mid < 1, out);
+    m_solver.pop();
+    m_solver.push();
+    for(unsigned i=old_out_size, e=out.size(); i<e; ++i) {
+      m_solver.assertExpr(out[i]);
+    }
+    // minimize 2nd half wrt MUS(1st half)
+    qx(target, mid, end, out.size() - old_out_size < 1, out);
+    m_solver.pop();
+#else
+    m_solver.push();
+    for(auto it = target.begin()+begin, et= target.begin()+mid; it!=et; ++it) {
+      m_solver.assertExpr(*it);
+    } 
+    unsigned old_out_size = out.size();
+    // minimize 2nd half wrt 1st half
+    qx(target, mid, end, mid - begin < 1, out);
+    m_solver.pop();
+    m_solver.push();
+    for(unsigned i=old_out_size, e=out.size(); i<e; ++i) {
+      m_solver.assertExpr(out[i]);
+    }
+    // minimize 1st half wrt MUS(2nd half)
+    qx(target, begin, mid, out.size() - old_out_size < 1, out);
+    m_solver.pop();
+#endif 
   }
-
+  
 public:
+  
   binary_search_muc(ufo::ZSolver<ufo::EZ3> &solver)
-      : minimal_unsat_core(solver) {}
+    : minimal_unsat_core(solver) {}
 
-  void run(const ExprVector &f, ExprVector &out) override {
-    ExprVector assume, more_assume;
-    run_with_assumptions(
-        boost::make_iterator_range(f.begin(), f.end()), assume,
-        boost::make_iterator_range(more_assume.begin(), more_assume.end()),
-        out);
+  void run(const ExprVector &formula, ExprVector &out) override {
+    unsigned i = 0;
+    unsigned j = formula.size();
+    bool skip = false; 
+    m_solver.reset();
+    qx(formula, i, j, skip, out);
   }
 
   std::string get_name() const override { return "QuickXplain"; }
@@ -1101,13 +1054,29 @@ PathBasedBmcEngine::PathBasedBmcEngine(LegacyOperationalSemantics &sem,
                                        const TargetLibraryInfo &tli)
     : BmcEngine(sem, zctx), m_incomplete(false), m_num_paths(0),
       m_aux_smt_solver(zctx), m_tli(tli), m_model(zctx), m_ls(nullptr),
-      m_crab_global(crab), m_crab_path(nullptr) {}
+      m_crab_global(crab), m_crab_path(nullptr) {
+  // Tuning m_aux_smt_solver
+  ufo::z3n_set_param(":model_compress", false);
+  ufo::z3n_set_param(":proof", false);
+  
+  //ufo::ZParams<ufo::EZ3> params(zctx);
+  //params.set(":model_compress", false);
+  //m_aux_smt_solver.set(params);    
+}
 #else
 PathBasedBmcEngine::PathBasedBmcEngine(LegacyOperationalSemantics &sem,
                                        ufo::EZ3 &zctx,
                                        const TargetLibraryInfo &tli)
     : BmcEngine(sem, zctx), m_incomplete(false), m_num_paths(0),
-      m_aux_smt_solver(zctx), m_tli(tli), m_model(zctx), m_ls(nullptr) {}
+      m_aux_smt_solver(zctx), m_tli(tli), m_model(zctx), m_ls(nullptr) {
+  // Tuning m_aux_smt_solver
+  ufo::z3n_set_param(":model_compress", false);
+  ufo::z3n_set_param(":proof", false);
+  
+  //ufo::ZParams<ufo::EZ3> params(zctx);
+  //params.set(":model_compress", false);
+  //m_aux_smt_solver.set(params);    
+}
 #endif
 
 PathBasedBmcEngine::~PathBasedBmcEngine() {
@@ -1307,7 +1276,7 @@ boost::tribool PathBasedBmcEngine::solve() {
 
     Stats::resume("BMC path-based: create a trace");
     BmcTrace trace(*this, model);
-    Stats::resume("BMC path-based: create a trace");
+    Stats::stop("BMC path-based: create a trace");
 
     invariants_map_t path_constraints;
 #ifdef HAVE_CRAB_LLVM

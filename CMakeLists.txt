@@ -66,7 +66,7 @@ if (GIT_FOUND)
   add_custom_target (seahorn-llvm-git
     ${GIT_EXECUTABLE} clone -b llvm-5.0 ${SEAHORN_LLVM_REPO} ${CMAKE_SOURCE_DIR}/llvm-seahorn)
   add_custom_target (crab-llvm-git
-    ${GIT_EXECUTABLE} clone -b dev-llvm-5.0 ${CRAB_LLVM_REPO} ${CMAKE_SOURCE_DIR}/crab-llvm)
+    ${GIT_EXECUTABLE} clone ${CRAB_LLVM_REPO} ${CMAKE_SOURCE_DIR}/crab-llvm)
   add_custom_target (extra
     ${CMAKE_COMMAND} -E touch ${CMAKE_CURRENT_LIST_FILE}
     DEPENDS

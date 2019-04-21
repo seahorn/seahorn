@@ -452,7 +452,7 @@ namespace seahorn
   void ShadowMemDsa::getAnalysisUsage (llvm::AnalysisUsage &AU) const
   {
     AU.setPreservesAll ();
-    AU.addRequired<seahorn::DSAInfo>(); // print stats about llvm dsa        
+    AU.addRequired<seahorn::llvm_dsa::DsaInfoPass>(); // print stats about llvm dsa
     // AU.addRequiredTransitive<llvm::EQTDDataStructures>();
     AU.addRequiredTransitive<llvm::SteensgaardDataStructures> ();
     AU.addRequired<llvm::UnifyFunctionExitNodes> ();

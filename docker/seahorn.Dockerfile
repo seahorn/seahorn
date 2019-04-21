@@ -33,7 +33,7 @@ RUN mkdir -p seahorn && \
             sudo curl build-essential vim-tiny gdb \
             python-dev python-setuptools python-pip libgraphviz-dev libc6-dev-i386 && \
         pip install lit OutputCheck && \
-        easy_install networkx pygraphviz && \
+        pip install networkx==2.2 pygraphviz && \
         # get supported llvm version
         mkdir /opt/llvm && \
         curl -sL https://github.com/seahorn/seahorn-ext-deps/releases/download/5.0-deep-dev/xenial_rel_llvm50.tar.gz \

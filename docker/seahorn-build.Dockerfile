@@ -24,7 +24,7 @@ RUN echo "Build type set to: $BUILD_TYPE" && \
                        libgmp-dev libmpfr-dev libiomp-dev \
                        python-dev python-pip python-setuptools && \
     pip install lit OutputCheck && \
-    easy_install networkx pygraphviz && \
+    pip install networkx==2.2 pygraphviz && \
     # Use gold instead of bfd for much faster linking.
     update-alternatives --install "/usr/bin/ld" "ld" "/usr/bin/ld.gold" 20 && \
     update-alternatives --install "/usr/bin/ld" "ld" "/usr/bin/ld.bfd" 10

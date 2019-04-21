@@ -25,10 +25,7 @@
 // To switch between llvm-dsa and sea-dsa
 static llvm::cl::opt<bool> UseSeaDsa("abc-sea-dsa",
                                      llvm::cl::desc("Use SeaHorn Dsa analysis"),
-                                     llvm::cl::init(false));
-
-// Notes: Local is obsolete and very incomplete. We keep it for
-// comparison with the other encodings just for toy programs.
+                                     llvm::cl::init(true));
 
 // BEGIN only for Global
 static llvm::cl::opt<unsigned int> TrackedAllocSite(
@@ -67,6 +64,13 @@ static llvm::cl::opt<bool> StoreBaseOnly(
     llvm::cl::init(false));
 // END only for Global
 
+// BEGIN only for Local
+static llvm::cl::opt<bool> InstrumentOnlyArrays(
+    "abc-only-arrays",
+    llvm::cl::desc("Instrument an access only if Dsa node is marked as array"),
+    llvm::cl::init(false));
+// END only for Local
+
 static llvm::cl::opt<unsigned int> TrackedDsaNode(
     "abc-dsa-node",
     llvm::cl::desc("Only instrument pointers within this dsa node"),
@@ -101,13 +105,9 @@ static llvm::cl::list<std::string> InstrumentExceptType(
 
 namespace seahorn {
 
-// Generic Wwapper for Dsa analysis.  This wrapper allows us to
+// Generic Wrapper for Dsa analyses.  This wrapper allows us to
 // switch from llvm dsa to seahorn dsa
 class DsaWrapper {
-protected:
-  llvm::Pass *m_abc;
-  DsaWrapper(llvm::Pass *abc) : m_abc(abc) {}
-
 public:
   virtual ~DsaWrapper() = default;
   /* tag only for debugging purposes */
@@ -123,24 +123,20 @@ class SeaDsa : public DsaWrapper {
   sea_dsa::DsaInfo *m_dsa;
 
   const sea_dsa::Cell *getCell(const llvm::Value &ptr, const llvm::Function &fn,
-                               int tag) {
+                               int /*tag*/) {
     if (!m_dsa) {
-      // errs () << "WARNING ABC: Sea Dsa information not found " << tag <<
-      // "\n";
       return nullptr;
     }
 
     sea_dsa::Graph *g = m_dsa->getDsaGraph(fn);
     if (!g) {
-      errs() << "WARNING ABC: Sea Dsa graph not found for " << fn.getName()
+      errs() << "Warning ABC: sea-dsa graph not found for " << fn.getName()
              << "\n";
-      //<< " " << tag << "\n";
       return nullptr;
     }
 
     if (!(g->hasCell(ptr))) {
-      errs() << "WARNING ABC: Sea Dsa node not found for " << ptr << "\n";
-      //<< " " << tag << "\n";
+      errs() << "Warning ABC: sea-dsa node not found for " << ptr << "\n";
       return nullptr;
     }
 
@@ -155,29 +151,33 @@ class SeaDsa : public DsaWrapper {
 
 public:
   SeaDsa(Pass *abc)
-      : DsaWrapper(abc),
-        m_dsa(&this->m_abc->getAnalysis<sea_dsa::DsaInfoPass>().getDsaInfo()) {}
+      : m_dsa(&abc->getAnalysis<sea_dsa::DsaInfoPass>().getDsaInfo()) {}
 
   const char *getDsaName() const { return "SeaHorn Dsa analysis"; }
 
   bool shouldBeTrackedPtr(const llvm::Value &ptr, const llvm::Function &fn,
                           int tag) {
     auto &v = *(ptr.stripPointerCasts());
-    if (!v.getType()->isPointerTy())
+    if (!v.getType()->isPointerTy()) {
       return false;
+    }
 
     // XXX: with GlobalCCallbacks sea global variables are before the abc
     // instrumentation starts.
-    if (ptr.getName().startswith("sea_"))
+    if (ptr.getName().startswith("sea_")) {
       return false;
+    }
 
     const sea_dsa::Cell *c = getCell(v, fn, tag);
-    if (!c)
+    if (!c) {
       return true;
+    }
 
     if (OnlySurface && hasSuccessors(*c)) {
-      // errs () << "DSA node of " << ptr << " has fields pointing to other
-      // nodes.\n";
+      return false;
+    }
+
+    if (InstrumentOnlyArrays && !c->getNode()->isArray()) {
       return false;
     }
 
@@ -192,7 +192,7 @@ public:
 
     if (TrackedAllocSite > 0) {
       if (c->getNode()->getAllocSites().empty()) {
-        // errs () << "WARNING ABC: Sea Dsa found node for " << v
+        // errs () << "Warning ABC: Sea Dsa found node for " << v
         //         << " without allocation site " << tag << "\n"
         //         << *(c->getNode ()) << "\n";
 
@@ -200,7 +200,6 @@ public:
         // We do this so at least be able to claim "all memory
         // accesses within dsa nodes with allocation sites are
         // safe."
-
         return false;
       }
 
@@ -208,7 +207,7 @@ public:
         auto const &s = c->getNode()->getAllocSites();
         return (std::find(s.begin(), s.end(), AV) != s.end());
       } else {
-        errs() << "WARNING ABC: allocation site " << TrackedAllocSite
+        errs() << "Warning ABC: allocation site " << TrackedAllocSite
                << " not understood by Sea Dsa\n";
         return true;
       }
@@ -227,13 +226,10 @@ public:
 
 // A wrapper for llvm dsa
 class LlvmDsa : public DsaWrapper {
-
-  DSAInfo *m_dsa;
+  llvm_dsa::DsaInfoPass *m_dsa;
 
 public:
-  LlvmDsa(Pass *abc) : DsaWrapper(abc), m_dsa(nullptr) {
-    m_dsa = &(abc->getAnalysis<DSAInfo>());
-  }
+  LlvmDsa(Pass *abc) : m_dsa(&(abc->getAnalysis<llvm_dsa::DsaInfoPass>())) {}
 
   const char *getDsaName() const { return "Llvm Dsa analysis"; }
 
@@ -260,7 +256,7 @@ public:
 
     if (!dsg || !gDsg) {
       errs()
-          << "WARNING ABC: Llvm Dsa graph not found. This should not happen.\n";
+          << "Warning ABC: llvm-dsa graph not found. This should not happen.\n";
       return true;
     }
 
@@ -268,7 +264,7 @@ public:
     if (!n)
       n = gDsg->getNodeForValue(&ptr).getNode();
     if (!n) {
-      errs() << "WARNING ABC: Llvm Dsa node not found "
+      errs() << "Warning ABC: llvm-dsa node not found "
              << *(ptr.stripPointerCasts()) << "\n";
       return true;
     }
@@ -283,7 +279,7 @@ public:
         const Value *v = m_dsa->getAllocValue(TrackedAllocSite);
         if (!v) {
           errs()
-              << "WARNING ABC:  Llvm Dsa not value found for allocation site\n";
+              << "Warning ABC:  llvm-dsa not value found for allocation site\n";
           return true;
         }
         const DSNode *alloc_n = dsg->getNodeForValue(v).getNode();
@@ -306,7 +302,9 @@ public:
   const llvm::Value *getAllocValue(unsigned int id) { return nullptr; }
 };
 
-// BEGIN common helpers to all ABC encodings
+/**
+ * BEGIN common helpers to all ABC instrumentations
+ **/
 
 // Similar to ObjectSizeOffsetVisitor in MemoryBuiltins but using
 // the dereferenceable attribute
@@ -333,7 +331,7 @@ public:
   WrapperObjectSizeOffsetVisitor(const DataLayout *DL,
                                  const TargetLibraryInfo *TLI,
                                  LLVMContext &Context)
-    : DL(DL), TLI(TLI), vis(*DL, TLI, Context, {}) {}
+      : DL(DL), TLI(TLI), vis(*DL, TLI, Context, {}) {}
 
   bool knownSize(SizeOffsetType &SizeOffset) {
     return SizeOffset.first.getBitWidth() > 1;
@@ -525,7 +523,7 @@ static uint64_t fieldOffset(const DataLayout *dl, const StructType *t,
 static Instruction *getNextInst(Instruction *I) {
   if (I->isTerminator())
     return I;
-  return I->getParent()->getInstList().getNextNode(*I);  
+  return I->getParent()->getInstList().getNextNode(*I);
 }
 
 static Type *createIntTy(const DataLayout *dl, LLVMContext &ctx) {
@@ -709,7 +707,300 @@ static Value *isInterestingMemoryAccess(Instruction *I, bool *IsWrite,
   }
   return nullptr;
 }
-// END common helpers to all ABC encodings
+
+/**
+ * END common helpers to all ABC instrumentations
+ **/
+
+class Local;
+
+/**
+ * Helper pass used by Local.
+ * For each function parameter for which we want to propagate its
+ * offset and size we add two more *undefined* function parameters for
+ * placeholding its offset and size which will be filled out later.
+ **/
+class ShadowFunctionPass : public ModulePass {
+
+  friend class Local;
+
+  typedef std::pair<StoreInst *, StoreInst *> StoreInstPair;
+  typedef std::pair<Value *, Value *> ValuePair;
+
+  const DataLayout *m_dl;
+  Value *m_ret_offset;
+  Value *m_ret_size;
+  DenseMap<const Function *, size_t> m_orig_arg_size;
+  // keep track of the store instructions for returning the shadow
+  // offset and size return parameters.
+  DenseMap<const Function *, StoreInstPair> m_ret_shadows;
+  Type *m_IntPtrTy;
+  CanAccessMemory *m_cam;
+
+  bool addFunShadowParams(Function *F, LLVMContext &ctx) {
+    if (F->isDeclaration())
+      return false;
+
+    if (F->getName().equals("main"))
+      return false;
+
+    // TODO: relax this case
+    if (F->hasAddressTaken())
+      return false;
+    // TODO: relax this case
+    const FunctionType *FTy = F->getFunctionType();
+    if (FTy->isVarArg())
+      return false;
+
+    if (!m_cam->canAccess(F))
+      return false;
+
+    // copy params
+    std::vector<llvm::Type *> ParamsTy(FTy->param_begin(), FTy->param_end());
+    // XXX: I use string because StringRef and Twine should not be
+    //      stored in a container.
+    std::vector<std::string> NewNames;
+    Function::arg_iterator FAI = F->arg_begin();
+    for (FunctionType::param_iterator I = FTy->param_begin(),
+                                      E = FTy->param_end();
+         I != E; ++I, ++FAI) {
+      Type *PTy = *I;
+      if (IsShadowableType(PTy)) {
+        ParamsTy.push_back(m_IntPtrTy);
+        std::string offset_name = FAI->getName().str() + ".shadow.offset";
+        NewNames.push_back(offset_name);
+        ParamsTy.push_back(m_IntPtrTy);
+        std::string size_name = FAI->getName().str() + ".shadow.size";
+        NewNames.push_back(size_name);
+      }
+    }
+    // create function type
+    Type *RetTy = F->getReturnType();
+    FunctionType *NFTy = FunctionType::get(
+        RetTy, ArrayRef<llvm::Type *>(ParamsTy), FTy->isVarArg());
+
+    // create new function
+    Function *NF = Function::Create(NFTy, F->getLinkage());
+    NF->copyAttributesFrom(F);
+    F->getParent()->getFunctionList().insert(F->getIterator(), NF);
+    NF->takeName(F);
+
+    // m_orig_arg_size [NF] = F->arg_size ();
+    assert(m_orig_arg_size.find(NF) == m_orig_arg_size.end());
+    m_orig_arg_size.insert(std::make_pair(NF, F->arg_size()));
+
+    // new parameter names
+    unsigned idx = 0;
+    for (Function::arg_iterator I = NF->arg_begin(), E = NF->arg_end(); I != E;
+         ++I, idx++) {
+      if (idx >= F->arg_size()) {
+        Value *newParam = &*I;
+        newParam->setName(NewNames[idx - F->arg_size()]);
+      }
+    }
+
+    ValueToValueMapTy ValueMap;
+    Function::arg_iterator DI = NF->arg_begin();
+    for (Function::arg_iterator I = F->arg_begin(), E = F->arg_end(); I != E;
+         ++I, ++DI) {
+      DI->setName(I->getName()); // Copy the name over.
+      // Add a mapping to our mapping.
+      const Value *V = &*I;
+      ValueMap[V] = &*DI;
+    }
+
+    SmallVector<ReturnInst *, 8> Returns; // Ignore returns.
+    CloneFunctionInto(NF, F, ValueMap, false, Returns);
+
+    IRBuilder<> B(ctx);
+
+    // placeholders for the variables that will feed the shadow
+    // variables for the return instruction of the function
+    if (IsShadowableType(RetTy)) {
+      ReturnInst *ret = getReturnInst(NF);
+      B.SetInsertPoint(ret);
+
+      // StoreInst* SI_Off =
+      //     B.CreateAlignedStore (UndefValue::get (m_IntPtrTy),
+      //                           m_ret_offset,
+      //                           m_dl->getABITypeAlignment
+      //                           (m_ret_offset->getType ()));
+
+      // StoreInst* SI_Size =
+      //     B.CreateAlignedStore (UndefValue::get (m_IntPtrTy),
+      //                           m_ret_size,
+      //                           m_dl->getABITypeAlignment
+      //                           (m_ret_size->getType
+      //                           ()));
+
+      StoreInst *SI_Off =
+          B.CreateStore(UndefValue::get(m_IntPtrTy), m_ret_offset);
+      StoreInst *SI_Size =
+          B.CreateStore(UndefValue::get(m_IntPtrTy), m_ret_size);
+
+      m_ret_shadows[NF] = std::make_pair(SI_Off, SI_Size);
+    }
+
+    // Replace all callers
+    while (!F->use_empty()) {
+      // here we know all uses are call instructions
+      CallSite CS(cast<Value>(F->user_back()));
+
+      Instruction *Call = CS.getInstruction();
+      // Copy the existing arguments
+      std::vector<Value *> Args;
+      Args.reserve(CS.arg_size());
+      CallSite::arg_iterator AI = CS.arg_begin();
+      for (unsigned i = 0, e = FTy->getNumParams(); i != e; ++i, ++AI)
+        Args.push_back(*AI);
+
+      B.SetInsertPoint(Call);
+
+      // insert placeholders for new arguments
+      unsigned added_new_args = NF->arg_size() - F->arg_size();
+      for (unsigned i = 0; i < added_new_args; i++)
+        Args.push_back(
+            UndefValue::get(m_IntPtrTy)); // for shadow formal parameters
+
+      // create new call
+      Instruction *New = B.CreateCall(NF, ArrayRef<Value *>(Args));
+      cast<CallInst>(New)->setCallingConv(CS.getCallingConv());
+      cast<CallInst>(New)->setAttributes(CS.getAttributes());
+      if (cast<CallInst>(Call)->isTailCall())
+        cast<CallInst>(New)->setTailCall();
+
+      if (Call->hasName())
+        New->takeName(Call);
+
+      // Replace all the uses of the old call
+      Call->replaceAllUsesWith(New);
+
+      // Remove the old call
+      Call->eraseFromParent();
+
+      // wire up shadow actual parameters of the call with the shadow
+      // formal parameters of its parent.
+      CallSite NCS(const_cast<CallInst *>(cast<CallInst>(New)));
+
+      size_t orig_arg_size = m_orig_arg_size[NCS.getCalledFunction()];
+      for (unsigned idx = 0, shadow_idx = orig_arg_size; idx < orig_arg_size;
+           idx++) {
+        const Value *ArgPtr = NCS.getArgument(idx);
+        if (IsShadowableType(ArgPtr->getType())) {
+          ValuePair shadow_pars =
+              findShadowArg(New->getParent()->getParent(), ArgPtr);
+          if (shadow_pars.first && shadow_pars.second) {
+            NCS.setArgument(shadow_idx, shadow_pars.first);
+            NCS.setArgument(shadow_idx + 1, shadow_pars.second);
+          }
+          shadow_idx += 2;
+        }
+      }
+    }
+
+    F->eraseFromParent();
+
+    return true;
+  }
+
+  bool IsShadowableFunction(const Function &F) const {
+    auto it = m_orig_arg_size.find(&F);
+    if (it == m_orig_arg_size.end()) {
+      return false;
+    } else {
+      return (F.arg_size() > it->second);
+    }
+  }
+
+  bool IsShadowableType(Type *ty) const { return ty->isPointerTy(); }
+
+  // Formal parameters of F are x1 x2 ... xn y1 ... ym where x1...xn
+  // are the original formal parameters and y1...ym are the shadow
+  // parameters to propagate offset and size. y1...ym is a sequence
+  // of offset,size,...,offset,size.
+  //
+  // This function returns the pair of shadow variables
+  // <offset,size> corresponding to Arg if there exists, otherwise
+  // returns a pair of null pointers.
+  ValuePair findShadowArg(Function *F, const Value *Arg) {
+    if (m_orig_arg_size.find(F) == m_orig_arg_size.end()) {
+      return ValuePair(nullptr, nullptr);
+    }
+
+    size_t shadow_idx = m_orig_arg_size[F];
+    Function::arg_iterator AI = F->arg_begin();
+    for (size_t idx = 0; idx < m_orig_arg_size[F]; ++AI, idx++) {
+      const Value *formalPar = &*AI;
+      if (formalPar == Arg) {
+        Value *shadowOffset = getArgument(F, shadow_idx);
+        Value *shadowSize = getArgument(F, shadow_idx + 1);
+        assert(shadowOffset && shadowSize);
+        return ValuePair(shadowOffset, shadowSize);
+      }
+
+      if (IsShadowableType(formalPar->getType()))
+        shadow_idx += 2;
+    }
+    return ValuePair(nullptr, nullptr);
+  }
+
+  StoreInstPair findShadowRet(Function *F) { return m_ret_shadows[F]; }
+
+  // return the number of original arguments before the pass added
+  // shadow parameters
+  size_t getOrigArgSize(const Function &F) {
+    assert(IsShadowableFunction(F));
+    return m_orig_arg_size[&F];
+  }
+
+public:
+  static char ID;
+
+  ShadowFunctionPass()
+      : ModulePass(ID), m_dl(nullptr), m_ret_offset(nullptr),
+        m_ret_size(nullptr), m_IntPtrTy(nullptr), m_cam(nullptr) {}
+
+  void getAnalysisUsage(llvm::AnalysisUsage &AU) const override {
+    AU.addRequired<CanAccessMemory>();
+  }
+
+  bool runOnModule(llvm::Module &M) override {
+
+    LLVMContext &ctx = M.getContext();
+    m_dl = &M.getDataLayout();
+    m_IntPtrTy = m_dl->getIntPtrType(ctx, 0);
+    m_cam = &getAnalysis<CanAccessMemory>();
+
+    std::vector<Function *> funcsToInstrument;
+    funcsToInstrument.reserve(std::distance(M.begin(), M.end()));
+    for (Function &F : M) {
+      if (!F.isDeclaration())
+        funcsToInstrument.push_back(&F);
+    }
+
+    // Insert shadow global variables for function return values
+    m_ret_offset = createGlobalInt(m_dl, M, 0, "ret.offset");
+    m_ret_size = createGlobalInt(m_dl, M, 0, "ret.size");
+    for (auto F : funcsToInstrument) {
+      // Insert shadow parameters for each function parameter of
+      // pointer type.
+      addFunShadowParams(F, ctx);
+    }
+
+    // we mark conservatively module as modified
+    return true;
+  }
+
+  llvm::StringRef getPassName() const override {
+    return "Shadow Function Parameters for Local instrumentation";
+  }
+};
+
+char ShadowFunctionPass::ID = 0;
+
+static llvm::RegisterPass<ShadowFunctionPass>
+    XX("abc-local-shadow-function-params",
+       "Add shadow parameters for local instrumentation");
 
 // TODO: update the call graph for Local
 Value *Local::lookupSize(const Value *ptr) {
@@ -726,220 +1017,6 @@ Value *Local::lookupOffset(const Value *ptr) {
     return it->second;
   else
     return nullptr;
-}
-
-Local::ValuePair Local::findShadowArg(Function *F, const Value *Arg) {
-  if (m_orig_arg_size.find(F) == m_orig_arg_size.end()) {
-    return ValuePair(nullptr, nullptr);
-  }
-
-  size_t shadow_idx = m_orig_arg_size[F];
-  Function::arg_iterator AI = F->arg_begin();
-  for (size_t idx = 0; idx < m_orig_arg_size[F]; ++AI, idx++) {
-    const Value *formalPar = &*AI;
-    if (formalPar == Arg) {
-      Value *shadowOffset = getArgument(F, shadow_idx);
-      Value *shadowSize = getArgument(F, shadow_idx + 1);
-      assert(shadowOffset && shadowSize);
-      return ValuePair(shadowOffset, shadowSize);
-    }
-
-    if (IsShadowableType(formalPar->getType()))
-      shadow_idx += 2;
-  }
-  return ValuePair(nullptr, nullptr);
-}
-
-Local::StoreInstPair Local::findShadowRet(Function *F) {
-  return m_ret_shadows[F];
-}
-
-bool Local::IsShadowableFunction(const Function &F) const {
-  auto it = m_orig_arg_size.find(&F);
-  if (it == m_orig_arg_size.end())
-    return false;
-  return (F.arg_size() > it->second);
-  // return (m_orig_arg_size.find (&F) != m_orig_arg_size.end ());
-}
-
-bool Local::IsShadowableType(Type *ty) const { return ty->isPointerTy(); }
-
-// return the number of original arguments before the pass added
-// shadow parameters
-size_t Local::getOrigArgSize(const Function &F) {
-  assert(IsShadowableFunction(F));
-  return m_orig_arg_size[&F];
-}
-
-// For each function parameter for which we want to propagate its
-// offset and size we add two more *undefined* function parameters
-// for placeholding its offset and size which will be filled out
-// later.
-bool Local::addFunShadowParams(Function *F, LLVMContext &ctx) {
-  if (F->isDeclaration())
-    return false;
-
-  if (F->getName().equals("main"))
-    return false;
-
-  // TODO: relax this case
-  if (F->hasAddressTaken())
-    return false;
-  // TODO: relax this case
-  const FunctionType *FTy = F->getFunctionType();
-  if (FTy->isVarArg())
-    return false;
-
-  CanAccessMemory &CM = getAnalysis<CanAccessMemory>();
-  if (!CM.canAccess(F))
-    return false;
-
-  // copy params
-  std::vector<llvm::Type *> ParamsTy(FTy->param_begin(), FTy->param_end());
-  // XXX: I use string because StringRef and Twine should not be
-  //      stored.
-  std::vector<std::string> NewNames;
-  Function::arg_iterator FAI = F->arg_begin();
-  for (FunctionType::param_iterator I = FTy->param_begin(),
-                                    E = FTy->param_end();
-       I != E; ++I, ++FAI) {
-    Type *PTy = *I;
-    if (IsShadowableType(PTy)) {
-      ParamsTy.push_back(m_IntPtrTy);
-      Twine offset_name = FAI->getName() + ".shadow.offset";
-      NewNames.push_back(offset_name.str());
-      ParamsTy.push_back(m_IntPtrTy);
-      Twine size_name = FAI->getName() + ".shadow.size";
-      NewNames.push_back(size_name.str());
-    }
-  }
-  // create function type
-  Type *RetTy = F->getReturnType();
-  FunctionType *NFTy = FunctionType::get(
-      RetTy, ArrayRef<llvm::Type *>(ParamsTy), FTy->isVarArg());
-
-  // create new function
-  Function *NF = Function::Create(NFTy, F->getLinkage());
-  NF->copyAttributesFrom(F);
-  F->getParent()->getFunctionList().insert(F->getIterator(), NF);
-  NF->takeName(F);
-
-  // m_orig_arg_size [NF] = F->arg_size ();
-  assert(m_orig_arg_size.find(NF) == m_orig_arg_size.end());
-  m_orig_arg_size.insert(std::make_pair(NF, F->arg_size()));
-
-  // new parameter names
-  unsigned idx = 0;
-  for (Function::arg_iterator I = NF->arg_begin(), E = NF->arg_end(); I != E;
-       ++I, idx++) {
-    if (idx >= F->arg_size()) {
-      Value *newParam = &*I;
-      newParam->setName(NewNames[idx - F->arg_size()]);
-    }
-  }
-
-  ValueToValueMapTy ValueMap;
-  Function::arg_iterator DI = NF->arg_begin();
-  for (Function::arg_iterator I = F->arg_begin(), E = F->arg_end(); I != E;
-       ++I, ++DI) {
-    DI->setName(I->getName()); // Copy the name over.
-    // Add a mapping to our mapping.
-    const Value *V = &*I;
-    ValueMap[V] = &*DI;
-  }
-
-  SmallVector<ReturnInst *, 8> Returns; // Ignore returns.
-  CloneFunctionInto(NF, F, ValueMap, false, Returns);
-
-  IRBuilder<> B(ctx);
-
-  // placeholders for the variables that will feed the shadow
-  // variables for the return instruction of the function
-  if (IsShadowableType(RetTy)) {
-    ReturnInst *ret = getReturnInst(NF);
-    B.SetInsertPoint(ret);
-
-    // StoreInst* SI_Off =
-    //     B.CreateAlignedStore (UndefValue::get (m_IntPtrTy),
-    //                           m_ret_offset,
-    //                           m_dl->getABITypeAlignment
-    //                           (m_ret_offset->getType ()));
-
-    // StoreInst* SI_Size =
-    //     B.CreateAlignedStore (UndefValue::get (m_IntPtrTy),
-    //                           m_ret_size,
-    //                           m_dl->getABITypeAlignment (m_ret_size->getType
-    //                           ()));
-
-    StoreInst *SI_Off =
-        B.CreateStore(UndefValue::get(m_IntPtrTy), m_ret_offset);
-    StoreInst *SI_Size = B.CreateStore(UndefValue::get(m_IntPtrTy), m_ret_size);
-
-    m_ret_shadows[NF] = std::make_pair(SI_Off, SI_Size);
-  }
-
-  // Replace all callers
-  while (!F->use_empty()) {
-    // here we know all uses are call instructions
-    CallSite CS(cast<Value>(F->user_back()));
-
-    Instruction *Call = CS.getInstruction();
-    // Copy the existing arguments
-    std::vector<Value *> Args;
-    Args.reserve(CS.arg_size());
-    CallSite::arg_iterator AI = CS.arg_begin();
-    for (unsigned i = 0, e = FTy->getNumParams(); i != e; ++i, ++AI)
-      Args.push_back(*AI);
-
-    B.SetInsertPoint(Call);
-
-    // insert placeholders for new arguments
-    unsigned added_new_args = NF->arg_size() - F->arg_size();
-    for (unsigned i = 0; i < added_new_args; i++)
-      Args.push_back(
-          UndefValue::get(m_IntPtrTy)); // for shadow formal parameters
-
-    // create new call
-    Instruction *New = B.CreateCall(NF, ArrayRef<Value *>(Args));
-    cast<CallInst>(New)->setCallingConv(CS.getCallingConv());
-    cast<CallInst>(New)->setAttributes(CS.getAttributes());
-    if (cast<CallInst>(Call)->isTailCall())
-      cast<CallInst>(New)->setTailCall();
-
-    if (Call->hasName())
-      New->takeName(Call);
-
-    // Replace all the uses of the old call
-    Call->replaceAllUsesWith(New);
-
-    // Remove the old call
-    Call->eraseFromParent();
-
-    // wire up shadow actual parameters of the call with the shadow
-    // formal parameters of its parent.
-    CallSite NCS(const_cast<CallInst *>(cast<CallInst>(New)));
-
-    size_t orig_arg_size = m_orig_arg_size[NCS.getCalledFunction()];
-    for (unsigned idx = 0, shadow_idx = orig_arg_size; idx < orig_arg_size;
-         idx++) {
-      const Value *ArgPtr = NCS.getArgument(idx);
-      if (IsShadowableType(ArgPtr->getType())) {
-        ValuePair shadow_pars =
-            findShadowArg(New->getParent()->getParent(), ArgPtr);
-        if (shadow_pars.first && shadow_pars.second) {
-          NCS.setArgument(shadow_idx, shadow_pars.first);
-          NCS.setArgument(shadow_idx + 1, shadow_pars.second);
-        }
-        shadow_idx += 2;
-      }
-    }
-  }
-
-  // -- Do not try to remove because others could have a pointer to
-  //    the function (e.g., callgraph).
-  // F->eraseFromParent ();
-
-  return true;
 }
 
 void Local::resolvePHIUsers(const Value *v,
@@ -970,24 +1047,28 @@ void Local::instrumentGepOffset(IRBuilder<> B, Instruction *insertPoint,
   const Value *base = gep->getPointerOperand();
   Value *gepBaseOff = m_offsets[base];
 
-  if (!gepBaseOff) return;
-    
+  if (!gepBaseOff)
+    return;
+
   B.SetInsertPoint(insertPoint);
   Value *curVal = gepBaseOff;
-  for(auto GTI = gep_type_begin(gep), GTE = gep_type_end(gep); GTI != GTE; ++GTI) {
+  for (auto GTI = gep_type_begin(gep), GTE = gep_type_end(gep); GTI != GTE;
+       ++GTI) {
     if (const StructType *st = GTI.getStructTypeOrNull()) {
-      if (const ConstantInt *ci = dyn_cast<const ConstantInt>(GTI.getOperand())) {
+      if (const ConstantInt *ci =
+              dyn_cast<const ConstantInt>(GTI.getOperand())) {
         uint64_t off = fieldOffset(m_dl, st, ci->getZExtValue());
         curVal = createAdd(B, m_dl, curVal, createIntCst(m_IntPtrTy, off));
       } else {
-	assert(false);
+        assert(false);
       }
     } else {
       // otherwise we have a sequential type like an array or vector.
       // Multiply the index by the size of the indexed type.
       unsigned sz = storageSize(m_dl, GTI.getIndexedType());
       Value *LHS = curVal;
-      Value *RHS = createMul(B, m_dl, const_cast<Value *>(GTI.getOperand()), sz);
+      Value *RHS =
+          createMul(B, m_dl, const_cast<Value *>(GTI.getOperand()), sz);
       curVal = createAdd(B, m_dl, LHS, RHS);
     }
   }
@@ -1003,6 +1084,8 @@ void Local::instrumentGepOffset(IRBuilder<> B, Instruction *insertPoint,
   Ptr = globalVariable | alloca | malloc | load | inttoptr | formal param |
   return | (getElementPtr (Ptr) | bitcast (Ptr) | phiNode (Ptr) ... (Ptr) )*
 
+  Important: currenty, we don't instrument pointers that are
+  originated from Load or IntToPtr instructions.
  */
 void Local::instrumentSizeAndOffsetPtrRec(Function *F, IRBuilder<> B,
                                           Instruction *insertPoint,
@@ -1119,11 +1202,13 @@ void Local::instrumentSizeAndOffsetPtrRec(Function *F, IRBuilder<> B,
     }
   }
 
-  if (isa<IntToPtrInst>(ptr)) { // TODO
+  if (isa<IntToPtrInst>(ptr)) {
+    // TODO
     return;
   }
 
-  if (isa<LoadInst>(ptr)) { // TODO
+  if (isa<LoadInst>(ptr)) {
+    // TODO
     return;
   }
 
@@ -1131,30 +1216,32 @@ void Local::instrumentSizeAndOffsetPtrRec(Function *F, IRBuilder<> B,
   if (const CallInst *CI = dyn_cast<CallInst>(ptr)) {
     CallSite CS(const_cast<CallInst *>(CI));
     Function *cf = CS.getCalledFunction();
-    if (cf && IsShadowableFunction(*cf)) {
+    if (cf && m_shadow_functions->IsShadowableFunction(*cf)) {
       B.SetInsertPoint(const_cast<CallInst *>(CI)); // just before CI
       auto it = B.GetInsertPoint();
       ++it; // just after CI
       B.SetInsertPoint(const_cast<llvm::BasicBlock *>(CI->getParent()), it);
 
       // m_offsets [ptr] =
-      //     B.CreateAlignedLoad (m_ret_offset,
+      //     B.CreateAlignedLoad (m_shadow_functions->m_ret_offset,
       //                          m_dl->getABITypeAlignment
-      //                          (m_ret_offset->getType ()));
-
-      // m_sizes [ptr] =
-      //     B.CreateAlignedLoad (m_ret_size,
-      //                          m_dl->getABITypeAlignment (m_ret_size->getType
+      //                          (m_shadow_functions->m_ret_offset->getType
       //                          ()));
 
-      m_offsets[ptr] = B.CreateLoad(m_ret_offset);
-      m_sizes[ptr] = B.CreateLoad(m_ret_size);
+      // m_sizes [ptr] =
+      //     B.CreateAlignedLoad (m_shadow_functions->m_ret_size,
+      //                          m_dl->getABITypeAlignment
+      //                          (m_shadow_functions->m_ret_size->getType
+      //                          ()));
+
+      m_offsets[ptr] = B.CreateLoad(m_shadow_functions->m_ret_offset);
+      m_sizes[ptr] = B.CreateLoad(m_shadow_functions->m_ret_size);
       return;
     }
   }
 
   /// if ptr is a function formal parameter
-  auto p = findShadowArg(F, ptr);
+  auto p = m_shadow_functions->findShadowArg(F, ptr);
   Value *shadowPtrOff = p.first;
   Value *shadowPtrSize = p.second;
   if (shadowPtrOff && shadowPtrSize) {
@@ -1246,51 +1333,31 @@ bool Local::instrumentCheck(Function &F, IRBuilder<> B, Instruction &inst,
 }
 
 bool Local::runOnModule(llvm::Module &M) {
-  if (M.begin() == M.end())
+  if (M.begin() == M.end()) {
     return false;
-
-  std::unique_ptr<DsaWrapper> dsa(new SeaDsa(this));
-  if (!UseSeaDsa) {
-    dsa.reset(new LlvmDsa(this));
   }
 
+  m_shadow_functions = &getAnalysis<ShadowFunctionPass>();
+
+  DsaWrapper *dsa = nullptr;
+  if (!UseSeaDsa) {
+    dsa = new LlvmDsa(this);
+  } else {
+    dsa = new SeaDsa(this);
+  }
   // errs () << " --- Using " << dsa->getDsaName () << "\n";
 
   LLVMContext &ctx = M.getContext();
   m_dl = &M.getDataLayout();
   m_tli = &getAnalysis<TargetLibraryInfoWrapperPass>().getTLI();
-
   m_IntPtrTy = m_dl->getIntPtrType(ctx, 0);
-  errs() << "intPtrTy is " << *m_IntPtrTy << "\n";
+  // errs() << "intPtrTy is " << *m_IntPtrTy << "\n";
 
   AttrBuilder AB;
   AB.addAttribute(Attribute::NoReturn);
   AttributeList as = AttributeList::get(ctx, AttributeList::FunctionIndex, AB);
-
-  m_errorFn = dyn_cast<Function>(M.getOrInsertFunction(
-      "verifier.error", as, Type::getVoidTy(ctx)));
-
-  /* Shadow function parameters */
-  std::vector<Function *> funcsToInstrument;
-  funcsToInstrument.reserve(std::distance(M.begin(), M.end()));
-  for (Function &F : M) {
-    if (!F.isDeclaration())
-      funcsToInstrument.push_back(&F);
-  }
-  // Insert shadow global variables for function return values
-  m_ret_offset = createGlobalInt(m_dl, M, 0, "ret.offset");
-  m_ret_size = createGlobalInt(m_dl, M, 0, "ret.size");
-  for (auto F : funcsToInstrument) {
-    addFunShadowParams(F, ctx);
-  }
-
-  // TODO: addFunShadowParams invalidates Dsa information since it
-  // adds shadow parameters by making new copies of the existing
-  // functions and then removing those functions.
-  if (TrackedDsaNode != 0) {
-    errs() << "WARNING ABC: Dsa is invalidated so we cannot use Dsa info ...\n";
-    TrackedDsaNode = 0;
-  }
+  m_errorFn = dyn_cast<Function>(
+      M.getOrInsertFunction("verifier.error", as, Type::getVoidTy(ctx)));
 
   /* Instrument load/store/memcpy/memmove/memset instructions */
   unsigned untracked_dsa_checks = 0;
@@ -1306,7 +1373,8 @@ bool Local::runOnModule(llvm::Module &M) {
       Instruction *I = &*i;
       if (LoadInst *LI = dyn_cast<LoadInst>(I)) {
         Value *ptr = LI->getPointerOperand();
-        if (ptr == m_ret_offset || ptr == m_ret_size)
+        if (ptr == m_shadow_functions->m_ret_offset ||
+            ptr == m_shadow_functions->m_ret_size)
           continue;
 
         if (dsa->shouldBeTrackedPtr(*ptr, F, __LINE__))
@@ -1316,7 +1384,8 @@ bool Local::runOnModule(llvm::Module &M) {
 
       } else if (StoreInst *SI = dyn_cast<StoreInst>(I)) {
         Value *ptr = SI->getPointerOperand();
-        if (ptr == m_ret_offset || ptr == m_ret_size)
+        if (ptr == m_shadow_functions->m_ret_offset ||
+            ptr == m_shadow_functions->m_ret_size)
           continue;
 
         if (dsa->shouldBeTrackedPtr(*ptr, F, __LINE__))
@@ -1373,15 +1442,15 @@ bool Local::runOnModule(llvm::Module &M) {
         //
         // The placeholders are filled out with the shadow
         // variables corresponding to p.
-        if (IsShadowableFunction(*cf)) {
-          size_t orig_arg_size = getOrigArgSize(*cf);
+        if (m_shadow_functions->IsShadowableFunction(*cf)) {
+          size_t orig_arg_size = m_shadow_functions->getOrigArgSize(*cf);
           unsigned shadow_idx = orig_arg_size;
           for (size_t idx = 0; idx < orig_arg_size; idx++) {
             const Value *ArgPtr = CS.getArgument(idx);
             // this could be a symptom of a bug
             if (isa<UndefValue>(ArgPtr) || isa<ConstantPointerNull>(ArgPtr))
               continue;
-            if (IsShadowableType(ArgPtr->getType())) {
+            if (m_shadow_functions->IsShadowableType(ArgPtr->getType())) {
               instrumentSizeAndOffsetPtr(F, B, inst, ArgPtr);
               Value *ptrSize = m_sizes[ArgPtr];
               Value *ptrOffset = m_offsets[ArgPtr];
@@ -1396,7 +1465,7 @@ bool Local::runOnModule(llvm::Module &M) {
       }
     } else if (const ReturnInst *ret = dyn_cast<ReturnInst>(inst)) {
       if (const Value *retVal = ret->getReturnValue()) {
-        if (IsShadowableType(retVal->getType())) {
+        if (m_shadow_functions->IsShadowableType(retVal->getType())) {
           // Resolving the shadow offset and size of the return
           // value of a function. At this point, F has this form:
           //    ...
@@ -1410,7 +1479,7 @@ bool Local::runOnModule(llvm::Module &M) {
           Value *ShadowOffset = m_offsets[retVal];
           Value *ShadowSize = m_sizes[retVal];
           if (ShadowOffset && ShadowSize) {
-            auto p = findShadowRet(F);
+            auto p = m_shadow_functions->findShadowRet(F);
             if (p.first)
               p.first->setOperand(0, ShadowOffset);
             if (p.second)
@@ -1420,7 +1489,8 @@ bool Local::runOnModule(llvm::Module &M) {
       }
     } else if (LoadInst *load = dyn_cast<LoadInst>(inst)) {
       Value *Ptr = load->getOperand(0);
-      if (Ptr == m_ret_size || Ptr == m_ret_offset)
+      if (Ptr == m_shadow_functions->m_ret_size ||
+          Ptr == m_shadow_functions->m_ret_offset)
         continue;
 
       m_mem_accesses++;
@@ -1430,7 +1500,8 @@ bool Local::runOnModule(llvm::Module &M) {
         m_trivial_checks++;
     } else if (StoreInst *store = dyn_cast<StoreInst>(inst)) {
       Value *Ptr = store->getOperand(1);
-      if (Ptr == m_ret_size || Ptr == m_ret_offset)
+      if (Ptr == m_shadow_functions->m_ret_size ||
+          Ptr == m_shadow_functions->m_ret_offset)
         continue;
 
       m_mem_accesses++;
@@ -1459,21 +1530,30 @@ bool Local::runOnModule(llvm::Module &M) {
            << " Total number of skipped checks because untracked Dsa node\n";
   }
 
+  delete dsa;
   return true;
 }
 
 void Local::getAnalysisUsage(llvm::AnalysisUsage &AU) const {
-  AU.setPreservesAll();
-  AU.addRequired<seahorn::DSAInfo>();     // run llvm dsa
-  AU.addRequired<sea_dsa::DsaInfoPass>(); // run seahorn dsa
+  // XXX: it does not preserve the call graph
+  // AU.setPreservesAll();
+
   AU.addRequired<llvm::TargetLibraryInfoWrapperPass>();
-  AU.addRequired<CanAccessMemory>();
+  // run before dsa
+  AU.addRequired<ShadowFunctionPass>();
+  if (!UseSeaDsa) {
+    // run llvm dsa
+    AU.addRequired<llvm_dsa::DsaInfoPass>();
+  } else {
+    // run seahorn dsa
+    AU.addRequired<sea_dsa::DsaInfoPass>();
+  }
 }
 
 char Local::ID = 0;
 
 static llvm::RegisterPass<Local>
-    X("abc-local", "Insert array buffer checks using local encoding");
+    X("abc-local", "Insert array buffer checks using local instrumentation");
 
 Function &Global::InstVis::createNewNondetFn(Module &m, Type &type,
                                              unsigned num, std::string prefix) {
@@ -1670,7 +1750,7 @@ void Global::InstVis::doInit(Module &M) {
       doAllocaSite(&GV, createIntCst(m_IntPtrTy, size), &*insertPt);
     } else {
       // this should not happen unless the global is external
-      errs() << "WARNING ABC: missing allocation site from global " << GV
+      errs() << "Warning ABC: missing allocation site from global " << GV
              << " because its size cannot be inferred statically.\n";
     }
   }
@@ -2426,13 +2506,13 @@ void Global::InstVis::visit(IntToPtrInst *I) {
 void Global::InstVis::visit(InsertValueInst *I) {
   // TODO
   if (m_dsa->getAllocSiteId(*I) == TrackedAllocSite)
-    errs() << "WARNING ABC: missing allocation site from " << *I << "\n";
+    errs() << "Warning ABC: missing allocation site from " << *I << "\n";
 }
 
 void Global::InstVis::visit(ExtractValueInst *I) {
   // TODO
   if (m_dsa->getAllocSiteId(*I) == TrackedAllocSite)
-    errs() << "WARNING ABC: missing allocation site from " << *I << "\n";
+    errs() << "Warning ABC: missing allocation site from " << *I << "\n";
 }
 
 void Global::InstVis::visit(AllocaInst *I) {
@@ -2458,7 +2538,7 @@ void Global::InstVis::visit(CallInst *I) {
     }
   } else {
     errs()
-        << "WARNING ABC: run devirt-functions to eliminate all indirect calls "
+        << "Warning ABC: run devirt-functions to eliminate all indirect calls "
         << *I << "\n";
   }
 
@@ -2600,9 +2680,11 @@ bool Global::runOnModule(llvm::Module &M) {
     return false;
   }
 
-  std::unique_ptr<DsaWrapper> dsa(new SeaDsa(this));
+  DsaWrapper *dsa = nullptr;
   if (!UseSeaDsa) {
-    dsa.reset(new LlvmDsa(this));
+    dsa = new LlvmDsa(this);
+  } else {
+    dsa = new SeaDsa(this);
   }
 
   // errs () << " --- Using " << dsa->getDsaName () << "\n";
@@ -2798,13 +2880,20 @@ bool Global::runOnModule(llvm::Module &M) {
            << " Total number of skipped checks because untracked Dsa node\n";
   }
   // errs () << M << "\n";
+
+  delete dsa;
   return true;
 }
 
 void Global::getAnalysisUsage(llvm::AnalysisUsage &AU) const {
   AU.setPreservesAll();
-  AU.addRequired<seahorn::DSAInfo>();     // run llvm dsa
-  AU.addRequired<sea_dsa::DsaInfoPass>(); // run seahorn dsa
+  if (!UseSeaDsa) {
+    // run llvm dsa
+    AU.addRequired<llvm_dsa::DsaInfoPass>();
+  } else {
+    // run seahorn dsa
+    AU.addRequired<sea_dsa::DsaInfoPass>();
+  }
   AU.addRequired<llvm::TargetLibraryInfoWrapperPass>();
   AU.addRequired<llvm::CallGraphWrapperPass>();
   // for debugging
@@ -2814,7 +2903,7 @@ void Global::getAnalysisUsage(llvm::AnalysisUsage &AU) const {
 char Global::ID = 0;
 
 static llvm::RegisterPass<Global>
-    Y("abc-global", "Insert array buffer checks using Global encoding");
+    Y("abc-global", "Insert array buffer checks using Global instrumentation");
 
 bool GlobalCCallbacks::runOnModule(llvm::Module &M) {
   if (M.begin() == M.end())
@@ -2830,9 +2919,11 @@ bool GlobalCCallbacks::runOnModule(llvm::Module &M) {
       &getAnalysis<TargetLibraryInfoWrapperPass>().getTLI();
   const DataLayout *dl = &M.getDataLayout();
 
-  std::unique_ptr<DsaWrapper> dsa(new SeaDsa(this));
+  DsaWrapper *dsa = nullptr;
   if (!UseSeaDsa) {
-    dsa.reset(new LlvmDsa(this));
+    dsa = new LlvmDsa(this);
+  } else {
+    dsa = new SeaDsa(this);
   }
 
   // errs () << " Using " << dsa->getDsaName () << "\n\n";
@@ -2846,16 +2937,16 @@ bool GlobalCCallbacks::runOnModule(llvm::Module &M) {
   AttrBuilder AB;
   AttributeList as = AttributeList::get(ctx, AttributeList::FunctionIndex, AB);
 
-  Function *abc_init = dyn_cast<Function>(
-      M.getOrInsertFunction("sea_abc_init", as, voidTy));
+  Function *abc_init =
+      dyn_cast<Function>(M.getOrInsertFunction("sea_abc_init", as, voidTy));
   abc_init->addFnAttr(Attribute::AlwaysInline);
 
-  Function *abc_alloc = dyn_cast<Function>(M.getOrInsertFunction(
-      "sea_abc_alloc", as, voidTy, i8PtrTy, intPtrTy));
+  Function *abc_alloc = dyn_cast<Function>(
+      M.getOrInsertFunction("sea_abc_alloc", as, voidTy, i8PtrTy, intPtrTy));
   abc_alloc->addFnAttr(Attribute::AlwaysInline);
 
-  Function *abc_log_ptr = dyn_cast<Function>(M.getOrInsertFunction(
-      "sea_abc_log_ptr", as, voidTy, i8PtrTy, intPtrTy));
+  Function *abc_log_ptr = dyn_cast<Function>(
+      M.getOrInsertFunction("sea_abc_log_ptr", as, voidTy, i8PtrTy, intPtrTy));
   abc_log_ptr->addFnAttr(Attribute::AlwaysInline);
 
   Function *abc_log_load_ptr = dyn_cast<Function>(M.getOrInsertFunction(
@@ -2965,7 +3056,7 @@ bool GlobalCCallbacks::runOnModule(llvm::Module &M) {
       // "\n";
       updateCallGraph(cg, main, CI);
     } else { // this should not happen unless global is external
-      errs() << "WARNING ABC: missing allocation site from global " << GV
+      errs() << "Warning ABC: missing allocation site from global " << GV
              << " because its size cannot be inferred statically.\n";
     }
   }
@@ -3196,7 +3287,7 @@ bool GlobalCCallbacks::runOnModule(llvm::Module &M) {
                                  B.CreateICmpSGT(vI, createNullCst(ctx))));
               }
             } else
-              errs() << "WARNING ABC: missing allocation site " << *I << "\n";
+              errs() << "Warning ABC: missing allocation site " << *I << "\n";
           }
         }
       }
@@ -3217,28 +3308,33 @@ bool GlobalCCallbacks::runOnModule(llvm::Module &M) {
            << " Total number of skipped checks because untracked Dsa node\n";
   }
 
+  delete dsa;
   return true;
 }
 
 void GlobalCCallbacks::getAnalysisUsage(llvm::AnalysisUsage &AU) const {
   AU.setPreservesAll();
-  AU.addRequired<seahorn::DSAInfo>();     // run llvm dsa
-  AU.addRequired<sea_dsa::DsaInfoPass>(); // run seahorn dsa
+  if (!UseSeaDsa) {
+    // run llvm dsa
+    AU.addRequired<llvm_dsa::DsaInfoPass>();
+  } else {
+    // run seahorn dsa
+    AU.addRequired<sea_dsa::DsaInfoPass>();
+  }
   AU.addRequired<llvm::TargetLibraryInfoWrapperPass>();
   AU.addRequired<llvm::CallGraphWrapperPass>();
 }
 
 char GlobalCCallbacks::ID = 0;
 
-
 } // end namespace seahorn
 
-namespace seahorn{
-    Pass *createGlobalBufferBoundsCheck(){return new Global();}
-    Pass *createLocalBufferBoundsCheck(){return new Local();}
-    Pass *createGlobalCBufferBoundsCheckPass(){return new GlobalCCallbacks();}
+namespace seahorn {
+Pass *createGlobalBufferBoundsCheck() { return new Global(); }
+Pass *createLocalBufferBoundsCheck() { return new Local(); }
+Pass *createGlobalCBufferBoundsCheckPass() { return new GlobalCCallbacks(); }
 
-}
-static llvm::RegisterPass<seahorn::GlobalCCallbacks> Z(
-    "abc-global-c",
-    "Insert array buffer checks using Global encoding by calling C functions");
+} // namespace seahorn
+static llvm::RegisterPass<seahorn::GlobalCCallbacks>
+    Z("abc-global-c", "Insert array buffer checks using Global instrumentation "
+                      "by calling C functions");

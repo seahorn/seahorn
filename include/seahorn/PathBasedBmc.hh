@@ -101,7 +101,7 @@ private:
   // If unsat then it produces a blocking clause.
   typedef DenseMap<const BasicBlock *, ExprVector> invariants_map_t;
   boost::tribool
-  path_encoding_and_solve_with_smt(ufo::ZModel<ufo::EZ3> &model,
+  path_encoding_and_solve_with_smt(const BmcTrace &trace,
                                    const invariants_map_t &invariants,
                                    const invariants_map_t &path_constraints);
 
@@ -112,6 +112,12 @@ private:
   // blocking clause.
   bool path_encoding_and_solve_with_ai(BmcTrace &trace,
                                        invariants_map_t &path_constraints);
+  /// Out contains all invariants (per block) inferred by crab.
+  void load_invariants(crab_llvm::CrabLlvmPass &crab, const LiveSymbols &ls,
+                       DenseMap<const BasicBlock *, ExprVector> &out);
+
+  /// Add the crab invariants in m_side after applying the symbolic store s.
+  void assert_invariants(const invariants_map_t &invariants, SymStore &s);
 #endif
 
   // Return false if a blocking clause has been generated twice.

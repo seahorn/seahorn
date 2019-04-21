@@ -90,11 +90,11 @@ BmcTrace::BmcTrace(BmcEngine &bmc, ufo::ZModel<ufo::EZ3> &model)
   // m_model = bmc.getModel ();
 
   // construct an implicant of the side condition
-  ExprVector trace;
-  trace.reserve(m_bmc.getFormula().size());
+  m_trace.reserve(m_bmc.getFormula().size());
   ExprMap bool_map /*unused*/;
-  bmc_impl::get_model_implicant(m_bmc.getFormula(), m_model, trace, bool_map);
-  boost::container::flat_set<Expr> implicant(trace.begin(), trace.end());
+  bmc_impl::get_model_implicant(m_bmc.getFormula(), m_model, m_trace,
+                                m_bool_map);
+  boost::container::flat_set<Expr> implicant(m_trace.begin(), m_trace.end());
 
   // construct the trace
 
@@ -272,11 +272,11 @@ void get_model_implicant(const ExprVector &f, ufo::ZModel<ufo::EZ3> &model,
   // XXX This is a partial implementation. Specialized to the
   // constraints expected to occur in m_side.
 
+  Expr bool_lit = nullptr;
   for (auto v : f) {
     // -- break IMPL into an OR
     // -- OR into a single disjunct
     // -- single disjunct into an AND
-    Expr bool_lit = nullptr;
     if (isOpX<IMPL>(v)) {
       assert(v->arity() == 2);
       Expr v0 = model(v->arg(0));

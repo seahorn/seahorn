@@ -220,16 +220,17 @@ public:
     LOG("bmc", errs() << "BMC from: " << src.bb().getName() << " to "
                       << dst->bb().getName() << "\n";);
 
+    Stats::resume("BMC");    
     bmc->encode();
     if (m_out)
       bmc->toSmtLib(*m_out);
 
     if (!m_solve) {
       LOG("bmc", errs() << "Stopping before solving\n";);
+      Stats::stop("BMC");      
       return false;
     }
 
-    Stats::resume("BMC");
     auto res = bmc->solve();
     Stats::stop("BMC");
 

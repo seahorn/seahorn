@@ -495,11 +495,30 @@ public:
 
 #ifdef HAVE_CRAB_LLVM
 // TODO: move to BmcEngine.
+
+struct crab_lin_cst_hasher {
+  size_t operator()(const crab_llvm::lin_cst_t& cst) const {
+    return cst.index();
+  }
+};
+
+struct crab_lin_cst_equal {
+  size_t operator()(const crab_llvm::lin_cst_t& c1,
+		    const crab_llvm::lin_cst_t& c2) const {
+    return c1.equal(c2);
+  }
+};
+
+typedef boost::unordered_map<crab_llvm::lin_cst_t,Expr,
+			     crab_lin_cst_hasher, crab_lin_cst_equal> lin_cst_to_exp_map;  
+
 void PathBasedBmcEngine::load_invariants(
     crab_llvm::CrabLlvmPass &crab, const LiveSymbols &ls,
     DenseMap<const BasicBlock *, ExprVector> &invariants) {
 
   auto heap_info = crab.get_heap_abstraction();
+
+  lin_cst_to_exp_map cache;  
   for (const BasicBlock &bb : *m_fn) {
 
     // -- Get invariants from crab as crab linear constraints
@@ -516,36 +535,42 @@ void PathBasedBmcEngine::load_invariants(
 
     ExprVector res;
     for (auto cst : inv_csts) {
-
-      if (!(cst.is_well_typed())) {
-        // Crab can generate invariants where variables might have
-        // different bitwidths.
-        // crab::outs() << "Discarded invariant " << cst << " because it's not
-        // well typed.\n";
-        continue;
-      }
-
       // XXX: will convert from crab semantics to BMC semantics.
-      Expr e = conv.toExpr(cst, sem());
+      auto it = cache.find(cst);
+      Expr e;
+      if (it == cache.end()) {
+	if (!(cst.is_well_typed())) {
+	  // Crab can generate invariants where variables might have
+	  // different bitwidths.
+	  continue;
+	}
+	e = conv.toExpr(cst, sem());
+      } else {
+	e = it->second;
+      }
+      
       if (isOpX<FALSE>(e)) {
         res.clear();
         res.push_back(e);
+	break;
       } else if (isOpX<TRUE>(e)) {
         continue;
       } else {
+	cache.insert({cst, e});	
         res.push_back(e);
       }
     }
-    if (res.empty())
-      continue;
-    invariants.insert({&bb, res});
-
-    LOG("bmc-ai", errs() << "Global invariants at " << bb.getName() << ":\n";
-        if (res.empty()) { errs() << "\ttrue\n"; } else {
-          for (auto e : res) {
-            errs() << "\t" << *e << "\n";
-          }
-        });
+    
+    if (!res.empty()) {
+      invariants.insert({&bb, res});
+      
+      LOG("bmc-ai", errs() << "Global invariants at " << bb.getName() << ":\n";
+	  if (res.empty()) { errs() << "\ttrue\n"; } else {
+	    for (auto e : res) {
+	      errs() << "\t" << *e << "\n";
+	    }
+	  });
+    }
   }
 }
 
@@ -684,9 +709,9 @@ bool PathBasedBmcEngine::path_encoding_and_solve_with_ai(
   if (populate_constraints_map) {
     // postmap contains the forward invariants
     // premap contains necessary preconditions
-    typename IntraCrabLlvm::invariant_map_t postmap, premap;
+    typename IntraCrabLlvm::invariant_map_t postmap;
     res = m_crab_path->path_analyze(params, trace_blocks, LayeredCrabSolving,
-                                    relevant_stmts, postmap, premap /*unused*/);
+                                    relevant_stmts, postmap);
 
     // translate postmap (crab linear constraints) to path_constraints (Expr)
     crabToSea c2s(*m_ls, *(m_crab_global->get_heap_abstraction()), fun,

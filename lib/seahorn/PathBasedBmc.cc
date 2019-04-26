@@ -709,9 +709,9 @@ bool PathBasedBmcEngine::path_encoding_and_solve_with_ai(
   if (populate_constraints_map) {
     // postmap contains the forward invariants
     // premap contains necessary preconditions
-    typename IntraCrabLlvm::invariant_map_t postmap, premap;
+    typename IntraCrabLlvm::invariant_map_t postmap;
     res = m_crab_path->path_analyze(params, trace_blocks, LayeredCrabSolving,
-                                    relevant_stmts, postmap, premap /*unused*/);
+                                    relevant_stmts, postmap);
 
     // translate postmap (crab linear constraints) to path_constraints (Expr)
     crabToSea c2s(*m_ls, *(m_crab_global->get_heap_abstraction()), fun,

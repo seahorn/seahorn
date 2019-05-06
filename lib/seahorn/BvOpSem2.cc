@@ -1037,8 +1037,10 @@ public:
         break;
       case Instruction::Or:
         res = ty->isIntegerTy(1) ? mk<OR>(op0, op1) : mk<BOR>(op0, op1);
+        break;
       case Instruction::Xor:
         res = ty->isIntegerTy(1) ? mk<XOR>(op0, op1) : mk<BXOR>(op0, op1);
+        break;
       }
     }
 

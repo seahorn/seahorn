@@ -312,13 +312,15 @@ private:
     return ci;
   }
 
-  void mkShadowGlobalVarInit(IRBuilder<> &B, const dsa::Cell &c) {
-    auto *v = getShadowForField(c);
-    auto *ci = B.CreateCall(m_memGlobalVarInitFn,
-                            {m_B->getInt32(getFieldId(c)), m_B->CreateLoad(v),
-                             getUniqueScalar(*m_llvmCtx, B, c)},
-                            "sm");
+  CallInst *mkShadowGlobalVarInit(IRBuilder<> &B, const dsa::Cell &c,
+                                  llvm::GlobalVariable &_u) {
+    Value *u = B.CreateBitCast(&_u, Type::getInt8PtrTy(*m_llvmCtx));
+    AllocaInst *v = getShadowForField(c);
+    auto *ci = B.CreateCall(
+        m_memGlobalVarInitFn,
+        {m_B->getInt32(getFieldId(c)), m_B->CreateLoad(v), u}, "sm");
     markCall(ci);
+    return ci;
   }
   void mkShadowLoad(IRBuilder<> &B, const dsa::Cell &c) {
     auto *ci = B.CreateCall(m_memLoadFn, {B.getInt32(getFieldId(c)),
@@ -565,7 +567,22 @@ void ShadowDsaImpl::visitFunction(Function &fn) {
     visitMainFunction(fn);
   }
 }
-void ShadowDsaImpl::visitMainFunction(Function &fn) {}
+void ShadowDsaImpl::visitMainFunction(Function &fn) {
+  // set insertion point to the beginning of the main function
+  m_B->SetInsertPoint(&*fn.getEntryBlock().begin());
+
+  // iterate over all globals
+  for (auto &gv : fn.getParent()->globals()) {
+    // skip globals that are used internally by llvm
+    if (gv.getSection().equals("llvm.metadata"))
+      continue;
+    // skip globals that do not appear in alias analysis
+    if (!m_graph->hasCell(gv)) continue;
+    // insert call to mkShadowGlobalVarInit()
+    mkShadowGlobalVarInit(*m_B, m_graph->getCell(gv), gv);
+  }
+}
+
 void ShadowDsaImpl::visitAllocaInst(AllocaInst &I) {
   if (!m_graph->hasCell(I))
     return;

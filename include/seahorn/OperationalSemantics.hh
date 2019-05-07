@@ -28,11 +28,14 @@ using OpSemContextPtr = std::unique_ptr<OpSemContext>;
 class OpSemContext {
 private:
   /// \brief A map from symbolic registers to symbolic values
-  /// XXX for now lives outside of the context
+  /// XXX The context keeps a reference to the store. The store itself lives outside of the context
+  /// XXX This is a temporary measure to keep new and old implementations together
   SymStore &m_values;
 
   /// \brief Side-condition to keep extra constraints (e.g., path condition)
-  /// XXX for now lives outside of the context
+  /// XXX The context keeps a reference to the side condition.
+  /// XXX The side condition itself lives outside of the context.
+  /// XXX This is a temporary measure to keep new and old implementations together
   ExprVector &m_side;
 
   /// \brief Activation literal for protecting conditions
@@ -64,11 +67,16 @@ public:
   OpSemContext(const OpSemContext &) = delete;
   virtual ~OpSemContext() = default;
 
+  /// Returns reference to the symbolic store
   SymStore &values() { return m_values; }
+  /// Returns the current value of a given register/expression in the store
   Expr read(Expr v) { return m_values.read(v); }
+  /// Writes a non-deterministic value at a given register
   Expr havoc(Expr v) { return m_values.havoc(v); }
+  /// Writes a given value at a given register
   void write(Expr v, Expr u) { m_values.write(v, u); }
 
+  /// Sets an expression to be used as an activation literal
   OpSemContext &act(Expr v) {
     setActLit(v);
     return *this;

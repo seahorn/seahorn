@@ -83,6 +83,9 @@ const seahorn::details::Bv2OpSemContext &const_ctx(const OpSemContext &_ctx);
 namespace seahorn {
 namespace details {
 class OpSemMemManager;
+/// \brief Operational Semantics Context, a.k.a. Symbolic Machine
+/// Keeps track of the state of the current symbolic machine and provides
+/// API to manipulate the machine.
 class Bv2OpSemContext : public OpSemContext {
   friend class OpSemBase;
 
@@ -116,7 +119,7 @@ private:
   /// Parameters for the current function call
   ExprVector m_fparams;
 
-  /// Instructions that where ignored by the semantics
+  /// Instructions that were ignored by the semantics
   DenseSet<const Instruction *> m_ignored;
 
   using FlatExprSet = boost::container::flat_set<Expr>;
@@ -128,6 +131,7 @@ private:
   ValueExprMap m_valueToRegister;
 
   using OpSemMemManagerPtr = std::unique_ptr<OpSemMemManager>;
+  /// \brief Memory manager for the machine
   OpSemMemManagerPtr m_memManager;
 
   /// \brief Pointer to the parent of a forked context
@@ -158,23 +162,40 @@ public:
   /// \brief Returns size of a pointer in bits
   unsigned ptrSzInBits() const;
 
+  /// \brief Converts bool expression to bit-vector expression
   Expr boolToBv(Expr b);
+  /// \brief Converts bit-vector expression to bool expression
   Expr bvToBool(Expr b);
+
+  /// \brief Returns the memory manager
   OpSemMemManager *getMemManager() { return m_memManager.get(); }
 
+  /// \brief Push parameter on a stack for a function call
   void pushParameter(Expr v) { m_fparams.push_back(v); }
+  /// \brief Update the value of \p idx parameter on the stack
   void setParameter(unsigned idx, Expr v) { m_fparams[idx] = v; }
+  /// \brief Reset all parameters 
   void resetParameters() { m_fparams.clear(); }
+  /// \brief Return the current parameter stack as a vector
   const ExprVector &getParameters() const { return m_fparams; }
 
+  /// \brief Return the currently executing basic block
   const BasicBlock *getCurrBb() const { return m_bb; }
+  /// \brief Set the previously executed basic block
   void setPrevBb(const BasicBlock &prev) { m_prev = &prev; }
+
+  /// \brief Return basic block executed prior to the current one (used to
+  /// resolve PHI instructions)
   const BasicBlock *getPrevBb() const { return m_prev; }
+  /// \brief Currently executed instruction
   const Instruction &getCurrentInst() const { return *m_inst; }
+  /// \brief Set instruction to be executed next
   void setInstruction(const Instruction &inst) {
     m_inst = BasicBlock::const_iterator(&inst);
   }
+  /// \brief True if executing the last instruction in the current basic block
   bool isAtBbEnd() const { return m_inst == m_bb->end(); }
+  /// \brief Move to next instructions in the basic block to execute
   Bv2OpSemContext &operator++() {
     ++m_inst;
     return *this;
@@ -190,14 +211,29 @@ public:
   void setMemTrsfrReadReg(Expr r) { m_trfrReadReg = r; }
   Expr getMemTrsfrReadReg() { return m_trfrReadReg; }
 
+  /// \brief Load value of type \p ty with alignment \align pointed by the
+  /// symbolic pointer \ptr. Memory register being read from must be set via
+  /// \f setMemReadRegister
   Expr loadValueFromMem(Expr ptr, const llvm::Type &ty, uint32_t align);
+
+  /// \brief Store a value \val to symbolic memory at address \p ptr
+  ///
+  /// Read and write memory registers must be set with setMemReadRegister and
+  /// setMemWriteRegister prior to this operation.
   Expr storeValueToMem(Expr val, Expr ptr, const llvm::Type &ty,
                        uint32_t align);
+
+  /// \brief Perform symbolic memset
   Expr MemSet(Expr ptr, Expr val, unsigned len, uint32_t align);
+
+  /// \brief Perform symbolic memcpy
   Expr MemCpy(Expr dPtr, Expr sPtr, unsigned len, uint32_t align);
 
+  /// \brief Execute inttoptr
   Expr inttoptr(Expr intValue, const Type &intTy, const Type &ptrTy) const;
+  /// \brief Execute ptrtoint
   Expr ptrtoint(Expr ptrValue, const Type &ptrTy, const Type &intTy) const;
+  /// \brief Execute gep
   Expr gep(Expr ptr, gep_type_iterator it, gep_type_iterator end) const;
 
   /// \brief Called when a module is entered
@@ -218,13 +254,23 @@ public:
     m_inst = bb.begin();
   }
 
+  /// \brief declare \p v as a new register for the machine
   void declareRegister(Expr v);
+  /// \brief Returns true if \p is a known register
   bool isKnownRegister(Expr v);
+
+  /// \brief Create a register of the correct sort to hold the value returned by
+  /// the instruction
   Expr mkRegister(const llvm::Instruction &inst);
+  /// \brief Create a register to hold control information of a basic block
   Expr mkRegister(const llvm::BasicBlock &bb);
+  /// \brief Create a register to hold a pointer to a global variable
   Expr mkRegister(const llvm::GlobalVariable &gv);
+  /// \brief Create a register to hold a pointer to a function
   Expr mkRegister(const llvm::Function &fn);
+  /// \brief Create a register to hold a value
   Expr mkRegister(const llvm::Value &v);
+  /// \brief Return a register that contains \p v, if it exists
   Expr getRegister(const llvm::Value &v) const {
     Expr res = m_valueToRegister.lookup(&v);
     if (!res && m_parent)
@@ -232,18 +278,28 @@ public:
     return res;
   }
 
+  /// \brief Return sort for a function pointer
   Expr mkPtrRegisterSort(const Function &fn) const;
+  /// \brief Return a sort for a pointer to global variable register
   Expr mkPtrRegisterSort(const GlobalVariable &gv) const;
+  /// \brief Return a sort for a pointer
   Expr mkPtrRegisterSort(const Instruction &inst) const;
+  /// \brief Return a sort for a memory register
   Expr mkMemRegisterSort(const Instruction &inst) const;
 
+  /// \brief Returns symbolic value of a constant expression \p c
   Expr getConstantValue(const llvm::Constant &c);
 
+  /// \brief Return true if \p inst is ignored by the semantics
   bool isIgnored(const Instruction &inst) const {
     return m_ignored.count(&inst);
   }
+
+  // \brief Mark \p inst to be ignored
   void ignore(const Instruction &inst) { m_ignored.insert(&inst); }
 
+  /// \brief Fork current context and update new copy with a given store and
+  /// side condition
   OpSemContextPtr fork(SymStore &values, ExprVector &side) {
     return OpSemContextPtr(new Bv2OpSemContext(values, side, *this));
   }
@@ -257,31 +313,46 @@ private:
 /// \brief Memory manager for OpSem machine
 class OpSemMemManager {
 
+  /// \brief Allocation information
   struct AllocInfo {
+    /// \brief numeric ID
     unsigned m_id;
+    /// \brief Start address of the allocation
     unsigned m_start;
+    /// \brief End address of the allocation
     unsigned m_end;
+    /// \brief Size of the allocation
     unsigned m_sz;
 
     AllocInfo(unsigned id, unsigned start, unsigned end, unsigned sz)
         : m_id(id), m_start(start), m_end(end), m_sz(sz) {}
   };
 
+  /// \brief Allocation information for functions whose address is taken
   struct FuncAllocInfo {
+    /// \brief Pointer to llvm::Function descriptor of the function
     const Function *m_fn;
+    /// \brief Start address of the allocation
     unsigned m_start;
+    /// \brief End address of the allocation
     unsigned m_end;
 
     FuncAllocInfo(const Function &fn, unsigned start, unsigned end)
         : m_fn(&fn), m_start(start), m_end(end) {}
   };
 
+  /// \brief Allocation information for a global variable
   struct GlobalAllocInfo {
+    /// \brief Pointer to llvm::GlobalVariable descriptor
     const GlobalVariable *m_gv;
+    /// \brief Start of allocation
     unsigned m_start;
+    /// \brief End of allocation
     unsigned m_end;
+    /// \brief Size of allocation
     unsigned m_sz;
-    /// Memory for the value of the global
+
+    /// \brief Uninitialized memory for the value of the global on the host machine
     char *m_mem;
     GlobalAllocInfo(const GlobalVariable &gv, unsigned start, unsigned end,
                     unsigned sz)
@@ -293,8 +364,11 @@ class OpSemMemManager {
     char *getMemory() { return m_mem; }
   };
 
+  /// \brief Parent Operational Semantics
   Bv2OpSem &m_sem;
+  /// \brief Parent Semantics Context
   Bv2OpSemContext &m_ctx;
+  /// \brief Parent expression factory
   ExprFactory &m_efac;
 
   /// \brief Ptr size in bytes
@@ -327,6 +401,7 @@ class OpSemMemManager {
 
   /// \brief A null pointer expression (cache)
   Expr m_nullPtr;
+
 // TODO: turn into user-controlled parameters
 #define MAX_STACK_ADDR 0xC0000000
 #define MIN_STACK_ADDR (MAX_STACK_ADDR - 9437184)

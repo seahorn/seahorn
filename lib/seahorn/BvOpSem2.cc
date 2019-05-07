@@ -9,9 +9,9 @@
 #include "llvm/Support/Format.h"
 #include "llvm/Support/MathExtras.h"
 
-#include "llvm/CodeGen/IntrinsicLowering.h"
 #include "seahorn/Support/SeaDebug.h"
 #include "ufo/ExprLlvm.hpp"
+#include "llvm/CodeGen/IntrinsicLowering.h"
 
 using namespace seahorn;
 using namespace llvm;
@@ -174,7 +174,7 @@ public:
   void pushParameter(Expr v) { m_fparams.push_back(v); }
   /// \brief Update the value of \p idx parameter on the stack
   void setParameter(unsigned idx, Expr v) { m_fparams[idx] = v; }
-  /// \brief Reset all parameters 
+  /// \brief Reset all parameters
   void resetParameters() { m_fparams.clear(); }
   /// \brief Return the current parameter stack as a vector
   const ExprVector &getParameters() const { return m_fparams; }
@@ -352,7 +352,8 @@ class OpSemMemManager {
     /// \brief Size of allocation
     unsigned m_sz;
 
-    /// \brief Uninitialized memory for the value of the global on the host machine
+    /// \brief Uninitialized memory for the value of the global on the host
+    /// machine
     char *m_mem;
     GlobalAllocInfo(const GlobalVariable &gv, unsigned start, unsigned end,
                     unsigned sz)
@@ -1449,6 +1450,11 @@ public:
       return;
     }
 
+    if (F.getName().equals("shadow.mem.global.init")) {
+      WARN << "Skipping initialization of a global: " << inst << "\n";
+      return;
+    }
+
     WARN << "unknown shadow.mem call: " << inst;
     llvm_unreachable(nullptr);
   }
@@ -1948,8 +1954,8 @@ public:
 
     if (!ctx.getMemReadRegister() || !ctx.getMemWriteRegister() ||
         m_sem.isSkipped(val)) {
-      LOG("opsem", errs() << "Skipping store to " << addr << " of " << val
-                          << "\n";);
+      LOG("opsem",
+          errs() << "Skipping store to " << addr << " of " << val << "\n";);
       ctx.setMemReadRegister(Expr());
       ctx.setMemWriteRegister(Expr());
       return Expr();
@@ -1969,8 +1975,8 @@ public:
     }
 
     if (!res)
-      LOG("opsem", errs() << "Skipping store to " << addr << " of " << val
-                          << "\n";);
+      LOG("opsem",
+          errs() << "Skipping store to " << addr << " of " << val << "\n";);
 
     ctx.setMemReadRegister(Expr());
     ctx.setMemWriteRegister(Expr());
@@ -2224,8 +2230,8 @@ void Bv2OpSemContext::setMemManager(OpSemMemManager *man) {
     val = 0x0FFFFFFF;
     break;
   default:
-    LOG("opsem", errs() << "Unsupported pointer size: " << ptrSzInBits()
-                        << "\n";);
+    LOG("opsem",
+        errs() << "Unsupported pointer size: " << ptrSzInBits() << "\n";);
     llvm_unreachable("Unexpected pointer size");
   }
   maxPtrE = bv::bvnum(val, ptrSzInBits(), efac());

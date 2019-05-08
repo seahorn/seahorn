@@ -83,6 +83,7 @@ const seahorn::details::Bv2OpSemContext &const_ctx(const OpSemContext &_ctx);
 namespace seahorn {
 namespace details {
 class OpSemMemManager;
+
 /// \brief Operational Semantics Context, a.k.a. Symbolic Machine
 /// Keeps track of the state of the current symbolic machine and provides
 /// API to manipulate the machine.
@@ -90,59 +91,78 @@ class Bv2OpSemContext : public OpSemContext {
   friend class OpSemBase;
 
 private:
+  /// \brief Set memory manager to be used by the machine
   void setMemManager(OpSemMemManager *man);
 
+  /// \brief Reference to parent operational semantics
   Bv2OpSem &m_sem;
-  /// currently executing function
+
+  /// \brief currently executing function
   const Function *m_func;
-  /// currently executing basic block
+
+  /// \brief Currently executing basic block
   const BasicBlock *m_bb;
-  /// the next instruction to be executed
+
+  /// \brief Current instruction to be executed
   BasicBlock::const_iterator m_inst;
 
-  /// Previous basic block (if known)
+  /// \brief Previous basic block (or null if not known)
   const BasicBlock *m_prev;
 
-  /// Meta register that contains the name of the register to be
+  /// \brief Meta register that contains the name of the register to be
   /// used in next memory load
   Expr m_readRegister;
-  /// Meta register that contains the name of the register to be
+
+  /// \brief Meta register that contains the name of the register to be
   /// used in next memory store
   Expr m_writeRegister;
-  /// true if current in/out memory is a unique scalar memory cell
+
+  /// \brief Indicates whether the current in/out memory is a unique scalar
+  /// memory cell. A unique scalar memory cell is a memory cell that contains a
+  /// scalar and is never aliased.
   bool m_scalar;
 
-  /// Additional memory read register that is used in memory transfer
+  /// \brief An additional memory read register that is used in memory transfer
   /// instructions that read/write from multiple memory regions
   Expr m_trfrReadReg;
 
-  /// Parameters for the current function call
+  /// \brief Parameters for the current function call
   ExprVector m_fparams;
 
-  /// Instructions that were ignored by the semantics
+  /// \brief Instructions that were ignored by the semantics
   DenseSet<const Instruction *> m_ignored;
 
   using FlatExprSet = boost::container::flat_set<Expr>;
+
   /// \brief Declared symbolic registers
   FlatExprSet m_registers;
 
   using ValueExprMap = DenseMap<const llvm::Value *, Expr>;
-  // \brief Registers for \c llvm::Value
+
+  // \brief Map from \c llvm::Value to machine registers
   ValueExprMap m_valueToRegister;
 
   using OpSemMemManagerPtr = std::unique_ptr<OpSemMemManager>;
+
   /// \brief Memory manager for the machine
   OpSemMemManagerPtr m_memManager;
 
   /// \brief Pointer to the parent of a forked context
   const Bv2OpSemContext *m_parent = nullptr;
 
-  /// Helper expressions to avoid creating them on-the-fly
+  /// Cache for helper expressions. Avoids creating them on the fly.
+
+  /// \brief Numeric zero
   Expr zeroE;
+  /// \brief Numeric one
   Expr oneE;
+  /// \brief 1-bit bit-vector set to 1
   Expr trueBv;
+  /// \brief 1-bit bit-vector set to 0
   Expr falseBv;
+  /// \brief bit-precise representation of null pointer
   Expr nullBv;
+  /// \brief bit-precise representation of maximum pointer value
   Expr maxPtrE;
 
 public:

@@ -84,8 +84,8 @@ namespace seahorn {
 namespace details {
 class OpSemMemManager;
 
-/// \brief Operational Semantics Context, a.k.a. Symbolic Machine
-/// Keeps track of the state of the current symbolic machine and provides
+/// \brief Operational Semantics Context, a.k.a. Semantic Machine
+/// Keeps track of the state of the current semantic machine and provides
 /// API to manipulate the machine.
 class Bv2OpSemContext : public OpSemContext {
   friend class OpSemBase;
@@ -126,10 +126,10 @@ private:
   /// instructions that read/write from multiple memory regions
   Expr m_trfrReadReg;
 
-  /// \brief Parameters for the current function call
+  /// \brief Argument stack for the current function call
   ExprVector m_fparams;
 
-  /// \brief Instructions that were ignored by the semantics
+  /// \brief Instructions that were treated as a noop by the machine
   DenseSet<const Instruction *> m_ignored;
 
   using FlatExprSet = boost::container::flat_set<Expr>;
@@ -139,7 +139,7 @@ private:
 
   using ValueExprMap = DenseMap<const llvm::Value *, Expr>;
 
-  // \brief Map from \c llvm::Value to machine registers
+  // \brief Map from \c llvm::Value to a registers
   ValueExprMap m_valueToRegister;
 
   using OpSemMemManagerPtr = std::unique_ptr<OpSemMemManager>;
@@ -147,7 +147,10 @@ private:
   /// \brief Memory manager for the machine
   OpSemMemManagerPtr m_memManager;
 
-  /// \brief Pointer to the parent of a forked context
+  /// \brief Pointer to the parent a parent context
+  ///
+  /// If not null, then the current context is a fork of the parent context
+  /// Otherwise, the current context is the main context
   const Bv2OpSemContext *m_parent = nullptr;
 
   /// Cache for helper expressions. Avoids creating them on the fly.

@@ -625,6 +625,16 @@ public:
     return m_globals.back().m_start;
   }
 
+  /// \brief Returns initial value of a global variable
+  ///
+  /// Returns (nullptr, 0) if the global variable has no known initializer
+  std::pair<char*, unsigned> getGlobalVariableInitValue(const GlobalVariable &gv) {
+    for (auto &gi : m_globals) {
+      if (gi.m_gv == &gv) return std::make_pair(gi.m_mem, gi.m_sz);
+    }
+    return std::make_pair(nullptr, 0);
+  }
+
   /// \brief Loads an integer of a given size from memory register
   ///
   /// \param[in] ptr pointer being accessed

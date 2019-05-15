@@ -252,6 +252,10 @@ public:
   /// \brief Perform symbolic memcpy
   Expr MemCpy(Expr dPtr, Expr sPtr, unsigned len, uint32_t align);
 
+  /// \brief Copy concrete memory into symbolic memory
+  Expr MemCpy(Expr dPtr, char* sPtr, unsigned len, uint32_t align)
+  {llvm_unreachable(nullptr);}
+
   /// \brief Execute inttoptr
   Expr inttoptr(Expr intValue, const Type &intTy, const Type &ptrTy) const;
   /// \brief Execute ptrtoint

@@ -8,13 +8,12 @@
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/FileSystem.h"
 
-#include "ufo/Smt/EZ3.hh"
-#include "seahorn/Support/Stats.hh"
 #include "seahorn/Support/SeaDebug.h"
+#include "seahorn/Support/Stats.hh"
+#include "ufo/Smt/EZ3.hh"
 
 using namespace seahorn;
 using namespace llvm;
-
 
 static llvm::cl::opt<bool> GlobalConstraints(
     "horn-global-constraints",
@@ -776,6 +775,10 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
         m_inMem = m_s.read(symb(*CS.getArgument(1)));
         m_outMem = m_s.havoc(symb(I));
         m_uniq = extractUniqueScalar(CS) != nullptr;
+      } else if (F.getName().equals("shadow.mem.global.init")) {
+        m_inMem = m_s.read(symb(*CS.getArgument(1)));
+        m_outMem = m_s.havoc(symb(I));
+        m_side.push_back(mk<EQ>(m_outMem, m_inMem));
       } else if (F.getName().equals("shadow.mem.arg.ref"))
         m_fparams.push_back(m_s.read(symb(*CS.getArgument(1))));
       else if (F.getName().equals("shadow.mem.arg.mod")) {

@@ -6,9 +6,9 @@
 #include "seahorn/Support/CFG.hh"
 #include "seahorn/Transforms/Instrumentation/ShadowMemDsa.hh"
 
-#include "ufo/ExprLlvm.hpp"
 #include "seahorn/Support/IteratorExtras.hh"
 #include "seahorn/Support/SeaDebug.h"
+#include "ufo/ExprLlvm.hpp"
 
 using namespace seahorn;
 using namespace llvm;
@@ -704,6 +704,14 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
           m_cur_startMem = memStart(shadow_dsa::getShadowId(CS));
           m_cur_endMem = memEnd(shadow_dsa::getShadowId(CS));
         }
+      } else if (F.getName().equals("shadow.mem.global.init")) {
+        m_inMem = m_s.read(symb(*CS.getArgument(1)));
+        m_outMem = m_s.havoc(symb(I));
+        if (PartMem) {
+          m_cur_startMem = memStart(shadow_dsa::getShadowId(CS));
+          m_cur_endMem = memEnd(shadow_dsa::getShadowId(CS));
+        }
+        m_side.push_back(mk<EQ>(m_outMem, m_inMem));
       } else if (F.getName().equals("shadow.mem.arg.ref"))
         m_fparams.push_back(m_s.read(symb(*CS.getArgument(1))));
       else if (F.getName().equals("shadow.mem.arg.mod")) {
@@ -1043,7 +1051,7 @@ void BvOpSem::execPhi(SymStore &s, const BasicBlock &bb, const BasicBlock &from,
   v.resetActiveLit();
 }
 
-Expr BvOpSem::symbolicIndexedOffset(SymStore &s, GetElementPtrInst& gep) {
+Expr BvOpSem::symbolicIndexedOffset(SymStore &s, GetElementPtrInst &gep) {
   unsigned ptrSz = pointerSizeInBits();
 
   // numeric offset
@@ -1051,8 +1059,9 @@ Expr BvOpSem::symbolicIndexedOffset(SymStore &s, GetElementPtrInst& gep) {
   // symbolic offset
   Expr soffset;
 
-  for(auto TI = gep_type_begin(&gep), TE = gep_type_end(&gep); TI != TE; ++TI) {
-    Value* CurVal = TI.getOperand();
+  for (auto TI = gep_type_begin(&gep), TE = gep_type_end(&gep); TI != TE;
+       ++TI) {
+    Value *CurVal = TI.getOperand();
     if (StructType *STy = TI.getStructTypeOrNull()) {
       unsigned fieldNo = cast<ConstantInt>(CurVal)->getZExtValue();
       noffset += fieldOff(STy, fieldNo);
@@ -1066,7 +1075,7 @@ Expr BvOpSem::symbolicIndexedOffset(SymStore &s, GetElementPtrInst& gep) {
         Expr a = lookup(s, *CurVal);
         assert(a);
         a = mk<BMUL>(a, bv::bvnum(sz, ptrSz, m_efac));
-	soffset = (soffset ? mk<BADD>(soffset, a): a);
+        soffset = (soffset ? mk<BADD>(soffset, a) : a);
       }
     }
   }

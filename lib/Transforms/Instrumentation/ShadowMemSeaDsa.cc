@@ -314,6 +314,12 @@ private:
 
   CallInst *mkShadowGlobalVarInit(IRBuilder<> &B, const dsa::Cell &c,
                                   llvm::GlobalVariable &_u) {
+
+    // Do not insert shadow.mem.global.init() if the global is a unique scalar
+    // Such scalars are initialized directly in the code
+    Value *scalar = getUniqueScalar(*m_llvmCtx, B, c);
+    if (!isa<ConstantPointerNull>(scalar)) return nullptr;
+
     Value *u = B.CreateBitCast(&_u, Type::getInt8PtrTy(*m_llvmCtx));
     AllocaInst *v = getShadowForField(c);
     auto *ci = B.CreateCall(

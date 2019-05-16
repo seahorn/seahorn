@@ -948,7 +948,7 @@ public:
 
     std::vector<std::string> intFnNames = {
         "shadow.mem.store", "shadow.mem.init", "shadow.mem.arg.init",
-        "shadow.mem.arg.mod"};
+        "shadow.mem.global.init", "shadow.mem.arg.mod"};
     Value *zero = ConstantInt::get(Type::getInt32Ty(M.getContext()), 0);
 
     for (auto &name : intFnNames) {

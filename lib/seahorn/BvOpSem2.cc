@@ -1488,6 +1488,7 @@ public:
     }
 
     if (F.getName().equals("shadow.mem.global.init")) {
+      setValue(inst, lookup(*CS.getArgument(1)));
       WARN << "Skipping initialization of a global: " << inst << "\n";
       return;
     }

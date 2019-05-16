@@ -320,6 +320,7 @@ private:
         m_memGlobalVarInitFn,
         {m_B->getInt32(getFieldId(c)), m_B->CreateLoad(v), u}, "sm");
     markCall(ci);
+    B.CreateStore(ci, v);
     return ci;
   }
   void mkShadowLoad(IRBuilder<> &B, const dsa::Cell &c) {

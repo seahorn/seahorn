@@ -253,8 +253,7 @@ public:
   Expr MemCpy(Expr dPtr, Expr sPtr, unsigned len, uint32_t align);
 
   /// \brief Copy concrete memory into symbolic memory
-  Expr MemCpy(Expr dPtr, char* sPtr, unsigned len, uint32_t align)
-  {llvm_unreachable(nullptr);}
+  Expr MemCpy(Expr dPtr, char* sPtr, unsigned len, uint32_t align = 0);
 
   /// \brief Execute inttoptr
   Expr inttoptr(Expr intValue, const Type &intTy, const Type &ptrTy) const;
@@ -316,6 +315,8 @@ public:
 
   /// \brief Returns symbolic value of a constant expression \p c
   Expr getConstantValue(const llvm::Constant &c);
+
+  std::pair<char*, unsigned> getGlobalVariableInitValue(const llvm::GlobalVariable &gv);
 
   /// \brief Return true if \p inst is ignored by the semantics
   bool isIgnored(const Instruction &inst) const {
@@ -882,6 +883,28 @@ public:
       }
       m_ctx.write(memWriteReg, res);
     }
+    return res;
+  }
+
+  /// \brief Executes symbolic memcpy from physical memory with concrete length
+  Expr MemCpy(PtrTy dPtr, char* sPtr, unsigned len, uint32_t align = 0) {
+    // same alignment behavior as galloc - default is word size of machine, can only be increased
+    align = std::max(align, m_alignment);
+    Expr res = m_ctx.read(m_ctx.getMemReadRegister());
+    unsigned sem_word_sz = wordSzInBytes();
+    for (unsigned i = 0; i < len; i += sem_word_sz) {
+      Expr offset = bv::bvnum(i, ptrSzInBits(), m_efac);
+      Expr dIdx = i == 0 ? dPtr : mk<BADD>(dPtr, offset);
+      unsigned word = 0;
+      for (int byte = sem_word_sz - 1; byte >= 0; byte--) {
+        word = word << 8;
+        if (i + byte < len)
+          word += sPtr[i + byte];
+      }
+      Expr val = bv::bvnum(word, sem_word_sz * 8, m_efac);
+      res = op::array::store(res, dIdx, val);
+    }
+    m_ctx.write(m_ctx.getMemWriteRegister(), res);
     return res;
   }
 
@@ -1488,8 +1511,29 @@ public:
     }
 
     if (F.getName().equals("shadow.mem.global.init")) {
+      Expr memOut = m_ctx.mkRegister(inst);
+      Expr memIn = m_ctx.getRegister(*CS.getArgument(1));
+      m_ctx.read(memIn);
       setValue(inst, lookup(*CS.getArgument(1)));
-      WARN << "Skipping initialization of a global: " << inst << "\n";
+
+      m_ctx.setMemReadRegister(memIn);
+      m_ctx.setMemWriteRegister(memOut);
+
+      LOG("opsem.mem.global.init", errs() << "mem.global.init: " << inst << "\n";
+          errs() << "arg1: " << *CS.getArgument(1) << "\n";
+          errs() << "memIn: " << *memIn << ", memOut: " << *memOut << "\n";
+          );
+
+      Value *gVal = (*CS.getArgument(2)).stripPointerCasts();
+      if (auto *gv = dyn_cast<llvm::GlobalVariable>(gVal)) {
+        auto gvVal = m_ctx.getGlobalVariableInitValue(*gv);
+        if (gvVal.first) {
+          m_ctx.MemCpy(lookup(*gv), gvVal.first, gvVal.second);
+        }
+      }
+      else {
+        WARN << "skipping global var init of " << inst << " to " << *gVal << "\n";
+      }
       return;
     }
 
@@ -2310,6 +2354,11 @@ Expr Bv2OpSemContext::MemCpy(Expr dPtr, Expr sPtr, unsigned len,
                               align);
 }
 
+Expr Bv2OpSemContext::MemCpy(Expr dPtr, char* sPtr, unsigned len, uint32_t align) {
+  assert(m_memManager);
+  return m_memManager->MemCpy(dPtr, sPtr, len, align);
+}
+
 Expr Bv2OpSemContext::inttoptr(Expr intValue, const Type &intTy,
                                const Type &ptrTy) const {
   if (m_parent)
@@ -2496,6 +2545,11 @@ Expr Bv2OpSemContext::getConstantValue(const llvm::Constant &c) {
   }
   return Expr();
 }
+
+std::pair<char*, unsigned> Bv2OpSemContext::getGlobalVariableInitValue(const llvm::GlobalVariable &gv) {
+  return m_memManager->getGlobalVariableInitValue(gv);
+}
+
 Expr Bv2OpSemContext::boolToBv(Expr b) {
   if (isOpX<TRUE>(b))
     return trueBv;

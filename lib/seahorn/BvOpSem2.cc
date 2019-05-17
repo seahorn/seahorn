@@ -253,7 +253,7 @@ public:
   Expr MemCpy(Expr dPtr, Expr sPtr, unsigned len, uint32_t align);
 
   /// \brief Copy concrete memory into symbolic memory
-  Expr MemCpy(Expr dPtr, char* sPtr, unsigned len, uint32_t align = 0);
+  Expr MemFill(Expr dPtr, char* sPtr, unsigned len, uint32_t align = 0);
 
   /// \brief Execute inttoptr
   Expr inttoptr(Expr intValue, const Type &intTy, const Type &ptrTy) const;
@@ -887,7 +887,7 @@ public:
   }
 
   /// \brief Executes symbolic memcpy from physical memory with concrete length
-  Expr MemCpy(PtrTy dPtr, char* sPtr, unsigned len, uint32_t align = 0) {
+  Expr MemFill(PtrTy dPtr, char* sPtr, unsigned len, uint32_t align = 0) {
     // same alignment behavior as galloc - default is word size of machine, can only be increased
     align = std::max(align, m_alignment);
     Expr res = m_ctx.read(m_ctx.getMemReadRegister());
@@ -1528,7 +1528,7 @@ public:
       if (auto *gv = dyn_cast<llvm::GlobalVariable>(gVal)) {
         auto gvVal = m_ctx.getGlobalVariableInitValue(*gv);
         if (gvVal.first) {
-          m_ctx.MemCpy(lookup(*gv), gvVal.first, gvVal.second);
+          m_ctx.MemFill(lookup(*gv), gvVal.first, gvVal.second);
         }
       }
       else {
@@ -2354,9 +2354,11 @@ Expr Bv2OpSemContext::MemCpy(Expr dPtr, Expr sPtr, unsigned len,
                               align);
 }
 
-Expr Bv2OpSemContext::MemCpy(Expr dPtr, char* sPtr, unsigned len, uint32_t align) {
+Expr Bv2OpSemContext::MemFill(Expr dPtr, char* sPtr, unsigned len, uint32_t align) {
   assert(m_memManager);
-  return m_memManager->MemCpy(dPtr, sPtr, len, align);
+  assert(getMemReadRegister());
+  assert(getMemWriteRegister());
+  return m_memManager->MemFill(dPtr, sPtr, len, align);
 }
 
 Expr Bv2OpSemContext::inttoptr(Expr intValue, const Type &intTy,

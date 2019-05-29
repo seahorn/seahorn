@@ -64,7 +64,7 @@ if (GIT_FOUND)
   add_custom_target (llvm-dsa-git
     ${GIT_EXECUTABLE} clone -b llvm-5.0 ${LLVM_DSA_REPO} ${CMAKE_SOURCE_DIR}/llvm-dsa)
   add_custom_target (sea-dsa-git
-    ${GIT_EXECUTABLE} clone -b brunch ${SEA_DSA_REPO} ${CMAKE_SOURCE_DIR}/sea-dsa)
+    ${GIT_EXECUTABLE} clone -b tea-dsa ${SEA_DSA_REPO} ${CMAKE_SOURCE_DIR}/sea-dsa)
   add_custom_target (sea-svf-git
       ${GIT_EXECUTABLE} clone -b sea ${SEA_SVF_REPO} ${CMAKE_SOURCE_DIR}/sea-svf)
   add_custom_target (seahorn-llvm-git

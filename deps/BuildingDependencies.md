@@ -9,7 +9,7 @@ docker run -v $(pwd):/host -it z3_xenial_rel
 This will automatically create a z3.tar file in the current working directory.
 
 For all the dependencies, the possible build arguments are:
-- UBUNTU: trusty, xenial
+- UBUNTU: trusty, xenial, bionic
 - BUILD_TYPE: Release, Debug
 
 Note that both `UBUNTU` and `BUILD_TYPE` are required arguments.

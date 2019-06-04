@@ -125,7 +125,7 @@ instructions specific to your editor:
 
 ## Remote Configuration for CLion
 For a detailed guide for a remote workflow with CLion check 
-[Clion-configuration](Clion-configuration.md).
+[Clion-configuration](CLion-configuration.md).
 
 # Usage #
 

@@ -26,7 +26,7 @@ license for academic use https://www.jetbrains.com/student/.
    e.g., `export DISPLAY=:0`.
 6. Run `./path-to-clion/bin/clion.sh`.
 
-## Remote host configuration
+## Remote configuration
 Based on the [Full Remote Mode guide](https://www.jetbrains.com/help/clion/remote-projects-support.html).
 Assumes that the remote host is running an Ubuntu.
 
@@ -45,19 +45,26 @@ Assumes that the remote host is running an Ubuntu.
    
    Note that the links and filenames might have been changed.
  
+2. On the local machine, clone seahorn and open it as a project in CLion.
 
-2. Open CLion settings:
+3. Open CLion's settings:
     * on Linux: `File` -> `Settings`.
     * on Mac: `CLion` -> `Preferences`.
 
-3. Go to `Build, Execution, Deployment` -> `Toolchains` and click `+` to add a
+4. Go to `Build, Execution, Deployment` -> `Toolchains` and click `+` to add a
    new toolchain:
     * Configure the SSH connection and provide paths to the executables:
     ![Sample Toolchain Configuration](clion-config/remote-toolchain-config.png)
     * Click the arrow up button to use this toolchain by default and
       confirm with `Apply`.
 
-4. Go to `Build, Execution, Deployment` -> `CMake` and click `+` to add a
+5. Go to `Build, Execution, Deployment` -> `Deployment` -> `Mappings` and set
+   the remote path to some absolute path on the remote machine. This directory,
+   that we will refer to as `DEPLOY_DIR`, will be synced with the project
+   directory. Note that it is not recommended for `DEPLOY_DIR` to be inside
+   `/tmp`, as it may be removed after a restart of the remote machine. 
+
+6. Go to `Build, Execution, Deployment` -> `CMake` and click `+` to add a
    new CMake configuration:
    * Make CLion use the remote toolchain and pass the necessary parameters to 
      CMake.
@@ -76,26 +83,26 @@ Assumes that the remote host is running an Ubuntu.
      ~~~
    * Confirm with `Apply`.
 
-5. To make remote build work: 
+7. To make remote build work: 
     * Select the `Remote-Release` CMake tab and click the refresh button.
       This is expected to fail and produce an error like this:
       
       ![CMake Indexing Failure](clion-config/remote-index-fail.png)
       
-      The error indicates where the current local directory is cloned to on the
-      remote machine: `/tmp/tmp.PRINTED_NAME`. All the local changes will be,
-      in the future synced with the copy of SeaHorn in this remote directory.
+      The error indicates where the current local directory is mapped on the
+      remote machine and should match the previousely configured deployment
+      directory: `DEPLOY_DIR`.
       
     * On the remote host, go to the directory from the error message, and run
       the suggested commands: 
       ```
-      cd /tmp/tmp.PRINTED_NAME
+      cd DEPLOY_DIR
       cd cmake-build-remote-release
-      cmake --build .  --target extra && cmake /tmp/tmp.PRINTED_NAME
-      cmake --build .  --target crab && cmake /tmp/tmp.PRINTED_NAME
+      cmake --build .  --target extra && cmake DEPLOY_DIR
+      cmake --build .  --target crab && cmake DEPLOY_DIR
       ```
      
-6. Make the indexing work:
+8. Make the indexing work:
     * Select the `Remote-Release` CMake tab and click the refresh button again.
       This time CLion should show output like this:
       

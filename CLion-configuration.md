@@ -54,7 +54,9 @@ Assumes that the remote host is running an Ubuntu.
 4. Go to `Build, Execution, Deployment` -> `Toolchains` and click `+` to add a
    new toolchain:
     * Configure the SSH connection and provide paths to the executables:
+    
     ![Sample Toolchain Configuration](clion-config/remote-toolchain-config.png)
+    
     * Click the arrow up button to use this toolchain by default and
       confirm with `Apply`.
 
@@ -62,7 +64,9 @@ Assumes that the remote host is running an Ubuntu.
    the remote path to some absolute path on the remote machine. This directory,
    that we will refer to as `DEPLOY_DIR`, will be synced with the project
    directory. Note that it is not recommended for `DEPLOY_DIR` to be inside
-   `/tmp`, as it may be removed after a restart of the remote machine. 
+   `/tmp`, as it may be removed after a restart of the remote machine.
+   
+   ![Sample Deployment Mapping](clion-config/remote-mapping.png)
 
 6. Go to `Build, Execution, Deployment` -> `CMake` and click `+` to add a
    new CMake configuration:

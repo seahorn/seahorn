@@ -1027,15 +1027,16 @@ struct OpSemBase {
     falseBv = m_ctx.falseBv;
     nullBv = m_ctx.nullBv;
 
-    m_ctx.setMemScalar(false);
-
     m_maxPtrE = m_ctx.maxPtrE;
 
+    // XXX AG: this is probably wrong since instances of OpSemBase are created
+    // XXX AG: for each instruction, not just once per function
+    // XXX AG: but not an issue at this point since function calls are not handled by the semantics 
     // -- first two arguments are reserved for error flag,
     // -- the other is function activation
-    ctx.pushParameter(falseE);
-    ctx.pushParameter(falseE);
-    ctx.pushParameter(falseE);
+    // ctx.pushParameter(falseE);
+    // ctx.pushParameter(falseE);
+    // ctx.pushParameter(falseE);
   }
 
   unsigned ptrSzInBits() { return m_ctx.ptrSzInBits(); }
@@ -2193,6 +2194,7 @@ public:
   }
 
   void visitModule(Module &M) {
+    LOG("opsem.module", errs() << M << "\n"; );
     m_ctx.onModuleEntry(M);
 
     for (const Function &fn : M.functions()) {

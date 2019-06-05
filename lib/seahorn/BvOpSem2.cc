@@ -460,7 +460,7 @@ public:
         m_wordSz(WordSize), m_alignment(m_wordSz),
         m_allocaName(mkTerm<std::string>("sea.alloca", m_efac)),
         m_freshPtrName(mkTerm<std::string>("sea.ptr", m_efac)), m_id(0) {
-    assert((m_wordSz == 1 || m_wordSz == 4) && "Untested word size");
+    assert((m_wordSz == 1 || m_wordSz == 4 || m_wordSz == 8) && "Untested word size");
     assert((m_ptrSz == 4) && "Untested pointer size");
     m_nullPtr = bv::bvnum(0, ptrSzInBits(), m_efac);
     m_sp0 = bv::bvConst(mkTerm<std::string>("sea.sp0", m_efac), ptrSzInBits());
@@ -527,7 +527,6 @@ public:
   /// \brief Allocates memory on the stack and returns a pointer to it
   /// \param align is requested alignment. If 0, default alignment is used
   PtrTy salloc(unsigned bytes, uint32_t align = 0) {
-
     align = std::max(align, m_alignment);
     unsigned start = m_allocas.empty() ? 0 : m_allocas.back().m_end;
     start = llvm::alignTo(start, align);
@@ -661,6 +660,45 @@ public:
     return std::make_pair(nullptr, 0);
   }
 
+  /// \brief Pointers have word address (high) and byte offset (low); returns number of bits for byte offset
+  ///
+  /// \return 0 if unsupported word size
+  unsigned getByteAlignmentBits() {
+    switch (wordSzInBytes()) {
+      // cases where ptrs are known to use a certain number of bits to denote byte offset
+      //   and the rest to denote word aligned address
+      case 2: return 1;
+      case 4: return 2;
+      case 8: return 3;
+      default:
+        WARN << "unsupported word size: " << wordSzInBytes()
+             << " unaligned reads may not work as intended\n";
+        return 0;
+    }
+  }
+
+  /// \brief Symbolic instructions to load a byte from memory, using word address and byte address
+  ///
+  /// \param[in] mem memory being accessed
+  /// \param[in] address pointer being accessed, unaligned
+  /// \param[in] offsetBits number of bits at end of pointers reserved for byte address
+  /// \return symbolic value of the byte at the specified address
+  Expr extractUnalignedByte(Expr mem, PtrTy address, unsigned offsetBits) {
+    // pointers are partitioned into word address (high bits) and offset (low bits)
+    PtrTy wordAddress = bv::extract(ptrSzInBits() - 1, offsetBits, address);
+    PtrTy byteOffset = bv::extract(offsetBits - 1, 0, address);
+
+    // aligned ptr is address with offset bits truncated to 0
+    PtrTy alignedPtr = bv::concat(wordAddress, bv::bvnum(0L, offsetBits, address->efac()));
+    Expr alignedWord = loadAlignedWordFromMem(alignedPtr, mem);
+
+    byteOffset = bv::zext(byteOffset, wordSzInBits() - 3);
+    // (x << 3) to get bit offset; zero extend to maintain word size
+    PtrTy bitOffset = bv::concat(byteOffset, bv::bvnum(0, 3, address->efac()));
+
+    return bv::extract(7, 0, mk<BLSHR>(alignedWord, bitOffset));
+  }
+
   /// \brief Loads an integer of a given size from memory register
   ///
   /// \param[in] ptr pointer being accessed
@@ -671,20 +709,28 @@ public:
   Expr loadIntFromMem(PtrTy ptr, Expr memReg, unsigned byteSz, uint64_t align) {
     Expr mem = m_ctx.read(memReg);
     SmallVector<Expr, 16> words;
-    // -- read all words
-    for (unsigned i = 0; i < byteSz; i += wordSzInBytes()) {
-      words.push_back(loadAlignedWordFromMem(ptrAdd(ptr, i), mem));
+    unsigned offsetBits = getByteAlignmentBits();
+    if (offsetBits != 0 && align % wordSzInBytes() != 0) {
+      for (unsigned i = 0; i < byteSz; i++) {
+        Expr byteOfWord = extractUnalignedByte(mem, ptrAdd(ptr, i), offsetBits);
+        words.push_back(byteOfWord);
+      }
+    }
+    else {
+        // -- read all words
+        for (unsigned i = 0; i < byteSz; i += wordSzInBytes()) {
+            words.push_back(loadAlignedWordFromMem(ptrAdd(ptr, i), mem));
+        }
     }
 
     assert(!words.empty());
 
-    // -- concatenate the words together into a singe value
+    // -- concatenate the words together into a single value
     Expr res;
     for (Expr &w : words)
       res = res ? bv::concat(w, res) : w;
 
     assert(res);
-    assert(byteSz > wordSzInBytes() || words.size() == 1);
     // -- extract actual bytes read (if fewer than word)
     if (byteSz < wordSzInBytes())
       res = bv::extract(byteSz * 8 - 1, 0, res);
@@ -731,11 +777,17 @@ public:
     Expr val = _val;
     Expr mem = m_ctx.read(memReadReg);
 
+    unsigned offsetBits = getByteAlignmentBits();
+    bool wordAligned = offsetBits == 0 || align % wordSzInBytes() == 0;
+    if (!wordAligned) {
+      return storeUnalignedIntToMem(val, ptr, mem, byteSz);
+    }
+
     SmallVector<Expr, 16> words;
     if (byteSz == wordSzInBytes()) {
       words.push_back(val);
     } else if (byteSz < wordSzInBytes()) {
-      val = bv::zext(val, wordSzInBytes() * 8);
+      val = bv::zext(val, wordSzInBits());
       words.push_back(val);
     } else {
       for (unsigned i = 0; i < byteSz; i += wordSzInBytes()) {
@@ -753,6 +805,55 @@ public:
     }
 
     return res;
+  }
+
+  /// \brief stores integer into memory, address is not word aligned
+  ///
+  /// \sa storeIntToMem
+  Expr storeUnalignedIntToMem(Expr val, PtrTy ptr, Expr mem, unsigned byteSz) {
+    unsigned offsetBits = getByteAlignmentBits();
+    assert(offsetBits != 0);
+
+    // for each byte (i) in val, load word w of i from memory, update one byte of w, write back result
+    Expr res;
+    for (unsigned i = 0; i < byteSz; i++) {
+      PtrTy wordAddress = bv::extract(ptrSzInBits() - 1, offsetBits, ptrAdd(ptr, i));
+      PtrTy byteOffset = bv::extract(offsetBits - 1, 0, ptrAdd(ptr, i));
+
+      PtrTy alignedPtr = bv::concat(wordAddress, bv::bvnum(0L, offsetBits, ptr->efac()));
+      Expr existingWord = loadAlignedWordFromMem(alignedPtr, mem);
+
+      unsigned lowBit = i * 8;
+      Expr byteToStore = bv::extract(lowBit + 7, lowBit, val);
+
+      Expr updatedWord = setByteOfWord(existingWord, byteToStore, byteOffset);
+      res = storeAlignedWordToMem(updatedWord, alignedPtr, mem);
+      mem = res;
+    }
+
+    return res;
+  }
+
+  /// \brief Given a word, updates a byte
+  ///
+  /// \param word existing word
+  /// \param byteData updated byte
+  /// \param byteOffset symbolic pointer indicating which byte to update
+  /// \return updated word
+  Expr setByteOfWord(Expr word, Expr byteData, PtrTy byteOffset) {
+    // (x << 3) to get bit offset; zero extend to maintain word size
+    byteOffset = bv::zext(byteOffset, wordSzInBits() - 3);
+    PtrTy bitOffset = bv::concat(byteOffset, bv::bvnum(0, 3, byteOffset->efac()));
+
+    // set a byte of existing word to 0
+    Expr lowestByteMask = bv::bvnum(0xff, wordSzInBits(), word->efac());
+    Expr addressByteMask = mk<BNOT>(mk<BSHL>(lowestByteMask, bitOffset));
+    word = mk<BAND>(word, addressByteMask);
+
+    // shift into position for zeroed part of existing word; mask and rewrite
+    Expr shiftedByte = mk<BSHL>(bv::zext(byteData, wordSzInBits()), bitOffset);
+
+    return mk<BOR>(word, shiftedByte);
   }
 
   /// \brief Stores a pointer into memory
@@ -921,13 +1022,11 @@ public:
     for (unsigned i = 0; i < len; i += sem_word_sz) {
       Expr offset = bv::bvnum(i, ptrSzInBits(), m_efac);
       Expr dIdx = i == 0 ? dPtr : mk<BADD>(dPtr, offset);
-      unsigned word = 0;
-      for (int byte = sem_word_sz - 1; byte >= 0; byte--) {
-        word = word << 8;
-        if (i + byte < len)
-          word += sPtr[i + byte];
-      }
-      Expr val = bv::bvnum(word, sem_word_sz * 8, m_efac);
+      // copy bytes from buffer to word - word must accommodate largest supported word size
+      assert(sizeof(unsigned long) >= sem_word_sz);
+      unsigned long word = 0;  // 8 bytes because assumed largest supported sem_word_sz = 8
+      std::memcpy(&word, sPtr + i, sem_word_sz);
+      Expr val = bv::bvnum(word, wordSzInBits(), m_efac);
       res = op::array::store(res, dIdx, val);
     }
     m_ctx.write(m_ctx.getMemWriteRegister(), res);
@@ -972,9 +1071,14 @@ public:
   void onFunctionEntry(const Function &fn) {
     Expr res = m_ctx.read(m_sp0);
 
+    // align of semantic_word_size, or 4 if it's less than 4
+    unsigned offsetBits = 2;
+    switch (wordSzInBytes()) {
+      case 8: offsetBits = 3;
+    }
+    m_ctx.addDef(bv::bvnum(0, offsetBits, m_efac), bv::extract(offsetBits - 1, 0, res));
+
     // XXX hard coded values
-    // align of 4
-    m_ctx.addDef(bv::bvnum(0, 2, m_efac), bv::extract(2 - 1, 0, res));
     // 3GB upper limit
     m_ctx.addSide(
         mk<BULE>(res, bv::bvnum(MAX_STACK_ADDR, ptrSzInBits(), m_efac)));

@@ -80,6 +80,21 @@ bool isShadowMem(const Value &V, const Value **out) {
 const seahorn::details::Bv2OpSemContext &const_ctx(const OpSemContext &_ctx);
 } // namespace
 
+namespace {
+/// \brief Work-arround for a bug in llvm::CallSite::getCalledFunction
+/// properly handle bitcast
+Function *getCalledFunction(CallSite &CS) {
+  Function *fn = CS.getCalledFunction();
+  if (fn) return fn;
+
+  Value *v = CS.getCalledValue();
+  if (v) v = v->stripPointerCasts();
+  fn = dyn_cast<Function>(v);
+
+  return fn;
+}
+
+}
 namespace seahorn {
 namespace details {
 class OpSemMemManager;
@@ -1320,7 +1335,7 @@ public:
                        "are not supported and must be lowered");
     }
 
-    const Function *f = CS.getCalledFunction();
+    const Function *f = getCalledFunction(CS);
     if (!f) {
       visitIndirectCall(CS);
       return;
@@ -1377,7 +1392,7 @@ public:
   }
 
   void visitVerifierAssumeCall(CallSite CS) {
-    Function &f = *CS.getCalledFunction();
+    Function &f = *getCalledFunction(CS);
 
     Expr op = lookup(*CS.getArgument(0));
     assert(op);
@@ -1421,7 +1436,7 @@ public:
   void visitShadowMemCall(CallSite CS) {
     const Instruction &inst = *CS.getInstruction();
 
-    const Function &F = *CS.getCalledFunction();
+    const Function &F = *getCalledFunction(CS);
     if (F.getName().equals("shadow.mem.init")) {
       unsigned id = shadow_dsa::getShadowId(CS);
       assert(id >= 0);
@@ -1548,7 +1563,7 @@ public:
     }
   }
   void visitExternalCall(CallSite CS) {
-    Function &F = *CS.getCalledFunction();
+    Function &F = *getCalledFunction(CS);
     if (F.getFunctionType()->getReturnType()->isVoidTy())
       return;
 
@@ -1601,7 +1616,7 @@ public:
     if (is_typed) {
       LOG("opsem", errs() << "Modelling " << inst
                           << " with an uninterpreted function\n";);
-      Expr name = mkTerm<const Function *>(CS.getCalledFunction(), m_efac);
+      Expr name = mkTerm<const Function *>(getCalledFunction(CS), m_efac);
       Expr d = bind::fdecl(name, sorts);
       res = bind::fapp(d, fargs);
     }
@@ -1610,7 +1625,7 @@ public:
   }
 
   void visitKnownFunctionCall(CallSite CS) {
-    const Function &F = *CS.getCalledFunction();
+    const Function &F = *getCalledFunction(CS);
     const FunctionInfo &fi = m_sem.getFunctionInfo(F);
     const Instruction &inst = *CS.getInstruction();
     const BasicBlock &BB = *inst.getParent();

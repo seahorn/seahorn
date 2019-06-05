@@ -1572,7 +1572,7 @@ public:
     if (!EnableModelExternalCalls2 ||
         std::find(IgnoreExternalFunctions2.begin(),
                   IgnoreExternalFunctions2.end(),
-                  F.getName()) == IgnoreExternalFunctions2.end()) {
+                  F.getName()) != IgnoreExternalFunctions2.end()) {
       setValue(inst, Expr());
       return;
     }

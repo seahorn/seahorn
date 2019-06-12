@@ -9,9 +9,9 @@
 #include "llvm/Support/Format.h"
 #include "llvm/Support/MathExtras.h"
 
-#include "llvm/CodeGen/IntrinsicLowering.h"
 #include "seahorn/Support/SeaDebug.h"
 #include "ufo/ExprLlvm.hpp"
+#include "llvm/CodeGen/IntrinsicLowering.h"
 
 using namespace seahorn;
 using namespace llvm;
@@ -80,65 +80,107 @@ bool isShadowMem(const Value &V, const Value **out) {
 const seahorn::details::Bv2OpSemContext &const_ctx(const OpSemContext &_ctx);
 } // namespace
 
+namespace {
+/// \brief Work-arround for a bug in llvm::CallSite::getCalledFunction
+/// properly handle bitcast
+Function *getCalledFunction(CallSite &CS) {
+  Function *fn = CS.getCalledFunction();
+  if (fn) return fn;
+
+  Value *v = CS.getCalledValue();
+  if (v) v = v->stripPointerCasts();
+  fn = dyn_cast<Function>(v);
+
+  return fn;
+}
+
+}
 namespace seahorn {
 namespace details {
 class OpSemMemManager;
+
+/// \brief Operational Semantics Context, a.k.a. Semantic Machine
+/// Keeps track of the state of the current semantic machine and provides
+/// API to manipulate the machine.
 class Bv2OpSemContext : public OpSemContext {
   friend class OpSemBase;
 
 private:
+  /// \brief Set memory manager to be used by the machine
   void setMemManager(OpSemMemManager *man);
 
+  /// \brief Reference to parent operational semantics
   Bv2OpSem &m_sem;
-  /// currently executing function
+
+  /// \brief currently executing function
   const Function *m_func;
-  /// currently executing basic block
+
+  /// \brief Currently executing basic block
   const BasicBlock *m_bb;
-  /// the next instruction to be executed
+
+  /// \brief Current instruction to be executed
   BasicBlock::const_iterator m_inst;
 
-  /// Previous basic block (if known)
+  /// \brief Previous basic block (or null if not known)
   const BasicBlock *m_prev;
 
-  /// Meta register that contains the name of the register to be
+  /// \brief Meta register that contains the name of the register to be
   /// used in next memory load
   Expr m_readRegister;
-  /// Meta register that contains the name of the register to be
+
+  /// \brief Meta register that contains the name of the register to be
   /// used in next memory store
   Expr m_writeRegister;
-  /// true if current in/out memory is a unique scalar memory cell
+
+  /// \brief Indicates whether the current in/out memory is a unique scalar
+  /// memory cell. A unique scalar memory cell is a memory cell that contains a
+  /// scalar and is never aliased.
   bool m_scalar;
 
-  /// Additional memory read register that is used in memory transfer
+  /// \brief An additional memory read register that is used in memory transfer
   /// instructions that read/write from multiple memory regions
   Expr m_trfrReadReg;
 
-  /// Parameters for the current function call
+  /// \brief Argument stack for the current function call
   ExprVector m_fparams;
 
-  /// Instructions that where ignored by the semantics
+  /// \brief Instructions that were treated as a noop by the machine
   DenseSet<const Instruction *> m_ignored;
 
   using FlatExprSet = boost::container::flat_set<Expr>;
+
   /// \brief Declared symbolic registers
   FlatExprSet m_registers;
 
   using ValueExprMap = DenseMap<const llvm::Value *, Expr>;
-  // \brief Registers for \c llvm::Value
+
+  // \brief Map from \c llvm::Value to a registers
   ValueExprMap m_valueToRegister;
 
   using OpSemMemManagerPtr = std::unique_ptr<OpSemMemManager>;
+
+  /// \brief Memory manager for the machine
   OpSemMemManagerPtr m_memManager;
 
-  /// \brief Pointer to the parent of a forked context
+  /// \brief Pointer to the parent a parent context
+  ///
+  /// If not null, then the current context is a fork of the parent context
+  /// Otherwise, the current context is the main context
   const Bv2OpSemContext *m_parent = nullptr;
 
-  /// Helper expressions to avoid creating them on-the-fly
+  /// Cache for helper expressions. Avoids creating them on the fly.
+
+  /// \brief Numeric zero
   Expr zeroE;
+  /// \brief Numeric one
   Expr oneE;
+  /// \brief 1-bit bit-vector set to 1
   Expr trueBv;
+  /// \brief 1-bit bit-vector set to 0
   Expr falseBv;
+  /// \brief bit-precise representation of null pointer
   Expr nullBv;
+  /// \brief bit-precise representation of maximum pointer value
   Expr maxPtrE;
 
 public:
@@ -158,23 +200,40 @@ public:
   /// \brief Returns size of a pointer in bits
   unsigned ptrSzInBits() const;
 
+  /// \brief Converts bool expression to bit-vector expression
   Expr boolToBv(Expr b);
+  /// \brief Converts bit-vector expression to bool expression
   Expr bvToBool(Expr b);
+
+  /// \brief Returns the memory manager
   OpSemMemManager *getMemManager() { return m_memManager.get(); }
 
+  /// \brief Push parameter on a stack for a function call
   void pushParameter(Expr v) { m_fparams.push_back(v); }
+  /// \brief Update the value of \p idx parameter on the stack
   void setParameter(unsigned idx, Expr v) { m_fparams[idx] = v; }
+  /// \brief Reset all parameters
   void resetParameters() { m_fparams.clear(); }
+  /// \brief Return the current parameter stack as a vector
   const ExprVector &getParameters() const { return m_fparams; }
 
+  /// \brief Return the currently executing basic block
   const BasicBlock *getCurrBb() const { return m_bb; }
+  /// \brief Set the previously executed basic block
   void setPrevBb(const BasicBlock &prev) { m_prev = &prev; }
+
+  /// \brief Return basic block executed prior to the current one (used to
+  /// resolve PHI instructions)
   const BasicBlock *getPrevBb() const { return m_prev; }
+  /// \brief Currently executed instruction
   const Instruction &getCurrentInst() const { return *m_inst; }
+  /// \brief Set instruction to be executed next
   void setInstruction(const Instruction &inst) {
     m_inst = BasicBlock::const_iterator(&inst);
   }
+  /// \brief True if executing the last instruction in the current basic block
   bool isAtBbEnd() const { return m_inst == m_bb->end(); }
+  /// \brief Move to next instructions in the basic block to execute
   Bv2OpSemContext &operator++() {
     ++m_inst;
     return *this;
@@ -190,14 +249,32 @@ public:
   void setMemTrsfrReadReg(Expr r) { m_trfrReadReg = r; }
   Expr getMemTrsfrReadReg() { return m_trfrReadReg; }
 
+  /// \brief Load value of type \p ty with alignment \align pointed by the
+  /// symbolic pointer \ptr. Memory register being read from must be set via
+  /// \f setMemReadRegister
   Expr loadValueFromMem(Expr ptr, const llvm::Type &ty, uint32_t align);
+
+  /// \brief Store a value \val to symbolic memory at address \p ptr
+  ///
+  /// Read and write memory registers must be set with setMemReadRegister and
+  /// setMemWriteRegister prior to this operation.
   Expr storeValueToMem(Expr val, Expr ptr, const llvm::Type &ty,
                        uint32_t align);
+
+  /// \brief Perform symbolic memset
   Expr MemSet(Expr ptr, Expr val, unsigned len, uint32_t align);
+
+  /// \brief Perform symbolic memcpy
   Expr MemCpy(Expr dPtr, Expr sPtr, unsigned len, uint32_t align);
 
+  /// \brief Copy concrete memory into symbolic memory
+  Expr MemFill(Expr dPtr, char *sPtr, unsigned len, uint32_t align = 0);
+
+  /// \brief Execute inttoptr
   Expr inttoptr(Expr intValue, const Type &intTy, const Type &ptrTy) const;
+  /// \brief Execute ptrtoint
   Expr ptrtoint(Expr ptrValue, const Type &ptrTy, const Type &intTy) const;
+  /// \brief Execute gep
   Expr gep(Expr ptr, gep_type_iterator it, gep_type_iterator end) const;
 
   /// \brief Called when a module is entered
@@ -218,13 +295,23 @@ public:
     m_inst = bb.begin();
   }
 
+  /// \brief declare \p v as a new register for the machine
   void declareRegister(Expr v);
+  /// \brief Returns true if \p is a known register
   bool isKnownRegister(Expr v);
+
+  /// \brief Create a register of the correct sort to hold the value returned by
+  /// the instruction
   Expr mkRegister(const llvm::Instruction &inst);
+  /// \brief Create a register to hold control information of a basic block
   Expr mkRegister(const llvm::BasicBlock &bb);
+  /// \brief Create a register to hold a pointer to a global variable
   Expr mkRegister(const llvm::GlobalVariable &gv);
+  /// \brief Create a register to hold a pointer to a function
   Expr mkRegister(const llvm::Function &fn);
+  /// \brief Create a register to hold a value
   Expr mkRegister(const llvm::Value &v);
+  /// \brief Return a register that contains \p v, if it exists
   Expr getRegister(const llvm::Value &v) const {
     Expr res = m_valueToRegister.lookup(&v);
     if (!res && m_parent)
@@ -232,18 +319,31 @@ public:
     return res;
   }
 
+  /// \brief Return sort for a function pointer
   Expr mkPtrRegisterSort(const Function &fn) const;
+  /// \brief Return a sort for a pointer to global variable register
   Expr mkPtrRegisterSort(const GlobalVariable &gv) const;
+  /// \brief Return a sort for a pointer
   Expr mkPtrRegisterSort(const Instruction &inst) const;
+  /// \brief Return a sort for a memory register
   Expr mkMemRegisterSort(const Instruction &inst) const;
 
+  /// \brief Returns symbolic value of a constant expression \p c
   Expr getConstantValue(const llvm::Constant &c);
 
+  std::pair<char *, unsigned>
+  getGlobalVariableInitValue(const llvm::GlobalVariable &gv);
+
+  /// \brief Return true if \p inst is ignored by the semantics
   bool isIgnored(const Instruction &inst) const {
     return m_ignored.count(&inst);
   }
+
+  // \brief Mark \p inst to be ignored
   void ignore(const Instruction &inst) { m_ignored.insert(&inst); }
 
+  /// \brief Fork current context and update new copy with a given store and
+  /// side condition
   OpSemContextPtr fork(SymStore &values, ExprVector &side) {
     return OpSemContextPtr(new Bv2OpSemContext(values, side, *this));
   }
@@ -257,31 +357,47 @@ private:
 /// \brief Memory manager for OpSem machine
 class OpSemMemManager {
 
+  /// \brief Allocation information
   struct AllocInfo {
+    /// \brief numeric ID
     unsigned m_id;
+    /// \brief Start address of the allocation
     unsigned m_start;
+    /// \brief End address of the allocation
     unsigned m_end;
+    /// \brief Size of the allocation
     unsigned m_sz;
 
     AllocInfo(unsigned id, unsigned start, unsigned end, unsigned sz)
         : m_id(id), m_start(start), m_end(end), m_sz(sz) {}
   };
 
+  /// \brief Allocation information for functions whose address is taken
   struct FuncAllocInfo {
+    /// \brief Pointer to llvm::Function descriptor of the function
     const Function *m_fn;
+    /// \brief Start address of the allocation
     unsigned m_start;
+    /// \brief End address of the allocation
     unsigned m_end;
 
     FuncAllocInfo(const Function &fn, unsigned start, unsigned end)
         : m_fn(&fn), m_start(start), m_end(end) {}
   };
 
+  /// \brief Allocation information for a global variable
   struct GlobalAllocInfo {
+    /// \brief Pointer to llvm::GlobalVariable descriptor
     const GlobalVariable *m_gv;
+    /// \brief Start of allocation
     unsigned m_start;
+    /// \brief End of allocation
     unsigned m_end;
+    /// \brief Size of allocation
     unsigned m_sz;
-    /// Memory for the value of the global
+
+    /// \brief Uninitialized memory for the value of the global on the host
+    /// machine
     char *m_mem;
     GlobalAllocInfo(const GlobalVariable &gv, unsigned start, unsigned end,
                     unsigned sz)
@@ -293,8 +409,11 @@ class OpSemMemManager {
     char *getMemory() { return m_mem; }
   };
 
+  /// \brief Parent Operational Semantics
   Bv2OpSem &m_sem;
+  /// \brief Parent Semantics Context
   Bv2OpSemContext &m_ctx;
+  /// \brief Parent expression factory
   ExprFactory &m_efac;
 
   /// \brief Ptr size in bytes
@@ -327,6 +446,7 @@ class OpSemMemManager {
 
   /// \brief A null pointer expression (cache)
   Expr m_nullPtr;
+
 // TODO: turn into user-controlled parameters
 #define MAX_STACK_ADDR 0xC0000000
 #define MIN_STACK_ADDR (MAX_STACK_ADDR - 9437184)
@@ -520,6 +640,18 @@ public:
 
     galloc(gv);
     return m_globals.back().m_start;
+  }
+
+  /// \brief Returns initial value of a global variable
+  ///
+  /// Returns (nullptr, 0) if the global variable has no known initializer
+  std::pair<char *, unsigned>
+  getGlobalVariableInitValue(const GlobalVariable &gv) {
+    for (auto &gi : m_globals) {
+      if (gi.m_gv == &gv)
+        return std::make_pair(gi.m_mem, gi.m_sz);
+    }
+    return std::make_pair(nullptr, 0);
   }
 
   /// \brief Loads an integer of a given size from memory register
@@ -772,6 +904,29 @@ public:
     return res;
   }
 
+  /// \brief Executes symbolic memcpy from physical memory with concrete length
+  Expr MemFill(PtrTy dPtr, char *sPtr, unsigned len, uint32_t align = 0) {
+    // same alignment behavior as galloc - default is word size of machine, can
+    // only be increased
+    align = std::max(align, m_alignment);
+    Expr res = m_ctx.read(m_ctx.getMemReadRegister());
+    unsigned sem_word_sz = wordSzInBytes();
+    for (unsigned i = 0; i < len; i += sem_word_sz) {
+      Expr offset = bv::bvnum(i, ptrSzInBits(), m_efac);
+      Expr dIdx = i == 0 ? dPtr : mk<BADD>(dPtr, offset);
+      unsigned word = 0;
+      for (int byte = sem_word_sz - 1; byte >= 0; byte--) {
+        word = word << 8;
+        if (i + byte < len)
+          word += sPtr[i + byte];
+      }
+      Expr val = bv::bvnum(word, sem_word_sz * 8, m_efac);
+      res = op::array::store(res, dIdx, val);
+    }
+    m_ctx.write(m_ctx.getMemWriteRegister(), res);
+    return res;
+  }
+
   /// \brief Executes inttoptr conversion
   PtrTy inttoptr(Expr intVal, const Type &intTy, const Type &ptrTy) const {
     uint64_t intTySz = m_sem.sizeInBits(intTy);
@@ -876,15 +1031,16 @@ struct OpSemBase {
     falseBv = m_ctx.falseBv;
     nullBv = m_ctx.nullBv;
 
-    m_ctx.setMemScalar(false);
-
     m_maxPtrE = m_ctx.maxPtrE;
 
+    // XXX AG: this is probably wrong since instances of OpSemBase are created
+    // XXX AG: for each instruction, not just once per function
+    // XXX AG: but not an issue at this point since function calls are not handled by the semantics 
     // -- first two arguments are reserved for error flag,
     // -- the other is function activation
-    ctx.pushParameter(falseE);
-    ctx.pushParameter(falseE);
-    ctx.pushParameter(falseE);
+    // ctx.pushParameter(falseE);
+    // ctx.pushParameter(falseE);
+    // ctx.pushParameter(falseE);
   }
 
   unsigned ptrSzInBits() { return m_ctx.ptrSzInBits(); }
@@ -1037,8 +1193,10 @@ public:
         break;
       case Instruction::Or:
         res = ty->isIntegerTy(1) ? mk<OR>(op0, op1) : mk<BOR>(op0, op1);
+        break;
       case Instruction::Xor:
         res = ty->isIntegerTy(1) ? mk<XOR>(op0, op1) : mk<BXOR>(op0, op1);
+        break;
       }
     }
 
@@ -1182,7 +1340,7 @@ public:
                        "are not supported and must be lowered");
     }
 
-    const Function *f = CS.getCalledFunction();
+    const Function *f = getCalledFunction(CS);
     if (!f) {
       visitIndirectCall(CS);
       return;
@@ -1239,7 +1397,7 @@ public:
   }
 
   void visitVerifierAssumeCall(CallSite CS) {
-    Function &f = *CS.getCalledFunction();
+    Function &f = *getCalledFunction(CS);
 
     Expr op = lookup(*CS.getArgument(0));
     assert(op);
@@ -1283,7 +1441,7 @@ public:
   void visitShadowMemCall(CallSite CS) {
     const Instruction &inst = *CS.getInstruction();
 
-    const Function &F = *CS.getCalledFunction();
+    const Function &F = *getCalledFunction(CS);
     if (F.getName().equals("shadow.mem.init")) {
       unsigned id = shadow_dsa::getShadowId(CS);
       assert(id >= 0);
@@ -1372,6 +1530,33 @@ public:
       return;
     }
 
+    if (F.getName().equals("shadow.mem.global.init")) {
+      Expr memOut = m_ctx.mkRegister(inst);
+      Expr memIn = m_ctx.getRegister(*CS.getArgument(1));
+      m_ctx.read(memIn);
+      setValue(inst, lookup(*CS.getArgument(1)));
+
+      m_ctx.setMemReadRegister(memIn);
+      m_ctx.setMemWriteRegister(memOut);
+
+      LOG("opsem.mem.global.init", errs()
+                                       << "mem.global.init: " << inst << "\n";
+          errs() << "arg1: " << *CS.getArgument(1) << "\n";
+          errs() << "memIn: " << *memIn << ", memOut: " << *memOut << "\n";);
+
+      Value *gVal = (*CS.getArgument(2)).stripPointerCasts();
+      if (auto *gv = dyn_cast<llvm::GlobalVariable>(gVal)) {
+        auto gvVal = m_ctx.getGlobalVariableInitValue(*gv);
+        if (gvVal.first) {
+          m_ctx.MemFill(lookup(*gv), gvVal.first, gvVal.second);
+        }
+      } else {
+        WARN << "skipping global var init of " << inst << " to " << *gVal
+             << "\n";
+      }
+      return;
+    }
+
     WARN << "unknown shadow.mem call: " << inst;
     llvm_unreachable(nullptr);
   }
@@ -1383,7 +1568,7 @@ public:
     }
   }
   void visitExternalCall(CallSite CS) {
-    Function &F = *CS.getCalledFunction();
+    Function &F = *getCalledFunction(CS);
     if (F.getFunctionType()->getReturnType()->isVoidTy())
       return;
 
@@ -1392,7 +1577,7 @@ public:
     if (!EnableModelExternalCalls2 ||
         std::find(IgnoreExternalFunctions2.begin(),
                   IgnoreExternalFunctions2.end(),
-                  F.getName()) == IgnoreExternalFunctions2.end()) {
+                  F.getName()) != IgnoreExternalFunctions2.end()) {
       setValue(inst, Expr());
       return;
     }
@@ -1436,7 +1621,7 @@ public:
     if (is_typed) {
       LOG("opsem", errs() << "Modelling " << inst
                           << " with an uninterpreted function\n";);
-      Expr name = mkTerm<const Function *>(CS.getCalledFunction(), m_efac);
+      Expr name = mkTerm<const Function *>(getCalledFunction(CS), m_efac);
       Expr d = bind::fdecl(name, sorts);
       res = bind::fapp(d, fargs);
     }
@@ -1445,7 +1630,7 @@ public:
   }
 
   void visitKnownFunctionCall(CallSite CS) {
-    const Function &F = *CS.getCalledFunction();
+    const Function &F = *getCalledFunction(CS);
     const FunctionInfo &fi = m_sem.getFunctionInfo(F);
     const Instruction &inst = *CS.getInstruction();
     const BasicBlock &BB = *inst.getParent();
@@ -1871,8 +2056,8 @@ public:
 
     if (!ctx.getMemReadRegister() || !ctx.getMemWriteRegister() ||
         m_sem.isSkipped(val)) {
-      LOG("opsem", errs() << "Skipping store to " << addr << " of " << val
-                          << "\n";);
+      LOG("opsem",
+          errs() << "Skipping store to " << addr << " of " << val << "\n";);
       ctx.setMemReadRegister(Expr());
       ctx.setMemWriteRegister(Expr());
       return Expr();
@@ -1892,8 +2077,8 @@ public:
     }
 
     if (!res)
-      LOG("opsem", errs() << "Skipping store to " << addr << " of " << val
-                          << "\n";);
+      LOG("opsem",
+          errs() << "Skipping store to " << addr << " of " << val << "\n";);
 
     ctx.setMemReadRegister(Expr());
     ctx.setMemWriteRegister(Expr());
@@ -2013,6 +2198,7 @@ public:
   }
 
   void visitModule(Module &M) {
+    LOG("opsem.module", errs() << M << "\n"; );
     m_ctx.onModuleEntry(M);
 
     for (const Function &fn : M.functions()) {
@@ -2147,8 +2333,8 @@ void Bv2OpSemContext::setMemManager(OpSemMemManager *man) {
     val = 0x0FFFFFFF;
     break;
   default:
-    LOG("opsem", errs() << "Unsupported pointer size: " << ptrSzInBits()
-                        << "\n";);
+    LOG("opsem",
+        errs() << "Unsupported pointer size: " << ptrSzInBits() << "\n";);
     llvm_unreachable("Unexpected pointer size");
   }
   maxPtrE = bv::bvnum(val, ptrSzInBits(), efac());
@@ -2187,6 +2373,14 @@ Expr Bv2OpSemContext::MemCpy(Expr dPtr, Expr sPtr, unsigned len,
   return m_memManager->MemCpy(dPtr, sPtr, len, getMemTrsfrReadReg(),
                               getMemReadRegister(), getMemWriteRegister(),
                               align);
+}
+
+Expr Bv2OpSemContext::MemFill(Expr dPtr, char *sPtr, unsigned len,
+                              uint32_t align) {
+  assert(m_memManager);
+  assert(getMemReadRegister());
+  assert(getMemWriteRegister());
+  return m_memManager->MemFill(dPtr, sPtr, len, align);
 }
 
 Expr Bv2OpSemContext::inttoptr(Expr intValue, const Type &intTy,
@@ -2375,6 +2569,12 @@ Expr Bv2OpSemContext::getConstantValue(const llvm::Constant &c) {
   }
   return Expr();
 }
+
+std::pair<char *, unsigned>
+Bv2OpSemContext::getGlobalVariableInitValue(const llvm::GlobalVariable &gv) {
+  return m_memManager->getGlobalVariableInitValue(gv);
+}
+
 Expr Bv2OpSemContext::boolToBv(Expr b) {
   if (isOpX<TRUE>(b))
     return trueBv;

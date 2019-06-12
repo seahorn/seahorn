@@ -2,7 +2,7 @@
 # boost Dockerfile for SeaHorn
 # This produces packages in /boost.
 # Arguments:
-#  - UBUNTU:     trusty, xenial
+#  - UBUNTU:     trusty, xenial, bionic
 #  - BUILD_TYPE: Debug, Release
 #
 

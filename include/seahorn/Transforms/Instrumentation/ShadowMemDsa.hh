@@ -115,6 +115,7 @@ namespace seahorn
     /// extracts unique scalar from a call to shadow.mem functions
     inline const Value *extractUniqueScalar (ImmutableCallSite cs)
     {
+      if (cs.getCalledFunction()->getName().equals("shadow.mem.global.init")) return nullptr;
       assert (cs.arg_size () > 0);
       // -- last argument
       const Value *v = cs.getArgument (cs.arg_size () - 1);

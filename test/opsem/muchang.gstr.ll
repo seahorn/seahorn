@@ -1,6 +1,5 @@
-; RUN: %seabmc "%s" 2>&1 | %oc %s
+; RUN: %seabmc --horn-bv2-word-size=1 "%s" 2>&1 | %oc %s
 ; CHECK: ^unsat$
-; XFAIL: *
 ;; ModuleID = '/tmp/sea-E9l3Jc/ggg.pp.ms.o.ul.cut.bc'
 source_filename = "/tmp/ggg.c"
 target datalayout = "e-m:e-p:32:32-f64:32:64-f80:32-n8:16:32-S128"

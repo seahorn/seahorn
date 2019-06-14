@@ -1069,8 +1069,9 @@ template <typename ExprVisitor> Expr dagVisit(ExprVisitor &v, Expr expr) {
 template <typename ExprVisitor>
 void dagVisit(ExprVisitor &v, const ExprVector &vec) {
   DagVisit<ExprVisitor> dv(v);
-  for (auto &e : vec)
-    e = dv(e);
+  for (auto &e : vec) {
+    dv(e);
+  }
 }
 
 template <typename ExprVisitor> Expr visit(ExprVisitor &v, Expr expr) {
@@ -1349,6 +1350,11 @@ struct CIRCSIZE : public std::unary_function<Expr, VisitAction> {
 inline unsigned circSize(Expr e) {
   CIRCSIZE csz;
   dagVisit(csz, e);
+  return csz.size();
+}
+inline unsigned circSize(const ExprVector &vec) {
+  CIRCSIZE csz;
+  dagVisit(csz, vec);
   return csz.size();
 }
 
@@ -2597,6 +2603,12 @@ template <typename T> Expr rewrite(std::shared_ptr<T> r, Expr e) {
 inline size_t dagSize(Expr e) {
   SIZE sz;
   dagVisit(sz, e);
+  return sz.count;
+}
+
+inline size_t dagSize(const ExprVector &vec) {
+  SIZE sz;
+  dagVisit(sz, vec);
   return sz.count;
 }
 

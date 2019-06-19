@@ -387,9 +387,12 @@ int main(int argc, char **argv) {
       out = &llvm::outs();
     }
     pass_manager.add(seahorn::createBoogieWriterPass(out, Crab));
-  } else {    
-    if (Crab) 
-      pass_manager.add(seahorn::createLoadCrabPass());
+  } else {
+    if (HoudiniInv || PredAbs || Solve) {
+      if (Crab) {
+	pass_manager.add(seahorn::createLoadCrabPass());
+      }
+    }
     if (HoudiniInv)
       pass_manager.add(new seahorn::HoudiniPass());
     if (PredAbs)

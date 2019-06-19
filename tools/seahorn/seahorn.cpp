@@ -330,14 +330,14 @@ int main(int argc, char **argv) {
     pass_manager.add(seahorn::createOneAssumePerBlockPass());
   }
 
-#ifdef HAVE_CRAB_LLVM
-  if (Crab && !BoogieOutput) {
-    /// -- insert invariants in the bitecode
-    pass_manager.add(new crab_llvm::InsertInvariants());
-    /// -- simplify invariants added in the bitecode
-    // pass_manager.add (seahorn::createInstCombine ());
-  }
-#endif
+// #ifdef HAVE_CRAB_LLVM
+//   if (Crab && !BoogieOutput) {
+//     /// -- insert invariants in the bitecode
+//     pass_manager.add(new crab_llvm::InsertInvariants());
+//     /// -- simplify invariants added in the bitecode
+//     // pass_manager.add (seahorn::createInstCombine ());
+//   }
+// #endif
 
   // --- verify if an undefined value can be read
   pass_manager.add(seahorn::createCanReadUndefPass());

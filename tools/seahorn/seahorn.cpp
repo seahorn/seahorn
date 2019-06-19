@@ -344,8 +344,14 @@ int main(int argc, char **argv) {
 
   // Z3_open_log("log.txt");
 
-  if (!Bmc && !BoogieOutput)
+  if (!Bmc && !BoogieOutput) {
     pass_manager.add(new seahorn::HornifyModule());
+    if (!OutputFilename.empty()) {
+      // -- XXX we dump the horn clauses into a file *before* we strip
+      // -- shadows. Otherwise, HornWrite can crash.
+      pass_manager.add(new seahorn::HornWrite(output->os()));
+    }
+  }
 
   // FIXME: if StripShadowMemPass () is executed then DsaPrinterPass
   // crashes because the callgraph has not been updated so it can
@@ -354,20 +360,20 @@ int main(int argc, char **argv) {
   // solution for now is to make sure that DsaPrinterPass is called
   // before StripShadowMemPass. A better solution is to make sure that
   // createStripShadowMemPass updates the callgraph.
-  if (MemDot)
+  if (MemDot) {
     pass_manager.add(sea_dsa::createDsaPrinterPass());
+  }
 
   if (!AsmOutputFilename.empty()) {
     if (!KeepShadows) {
       pass_manager.add(new seahorn::NameValues());
       // -- XXX might destroy names using by HornSolver later on.
-      // -- XXX it is probably dangerous to strip shadows and solve at the same
-      // time
+      // -- XXX it is probably dangerous to strip shadows and solve at the same time.
       pass_manager.add(seahorn::createStripShadowMemPass());
-    }
+    }    
     pass_manager.add(createPrintModulePass(asmOutput->os()));
   }
-
+ 
   if (Bmc) {
     llvm::raw_ostream *out = nullptr;
     if (!OutputFilename.empty())
@@ -381,10 +387,8 @@ int main(int argc, char **argv) {
       out = &llvm::outs();
     }
     pass_manager.add(seahorn::createBoogieWriterPass(out, Crab));
-  } else {
-    if (!OutputFilename.empty())
-      pass_manager.add(new seahorn::HornWrite(output->os()));
-    if (Crab)
+  } else {    
+    if (Crab) 
       pass_manager.add(seahorn::createLoadCrabPass());
     if (HoudiniInv)
       pass_manager.add(new seahorn::HoudiniPass());

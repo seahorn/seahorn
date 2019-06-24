@@ -1,4 +1,4 @@
-// RUN: %sea smc -O3 --inline --horn-sea-dsa "%s" 2>&1 | OutputCheck %s
+// RUN: %sea smc -O3 --inline --dsa=sea-cs "%s" 2>&1 | OutputCheck %s
 // CHECK: ^sat$
 
 #include <stdio.h>

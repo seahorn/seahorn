@@ -514,12 +514,12 @@ class AbcInst(sea.LimitedCmd):
                          default=False, action='store_true')
         ap.add_argument ('--abc-dsa',
                          help='Heap analysis used by abc instrumentation: '
-                         'context-insensitive Llvm Dsa, '
-                         'flat memory SeaHorn Dsa, '
-                         'context-insensitive SeaHorn Dsa, and '
-                         'context-sensitive SeaHorn Dsa',
+                         'llvm (context-insensitive Llvm Dsa), '
+                         'sea-flat (flat memory SeaHorn Dsa), '
+                         'sea-ci (context-insensitive SeaHorn Dsa), and '
+                         'sea-cs (context-sensitive SeaHorn Dsa)',
                          choices=['llvm','sea-flat','sea-ci','sea-cs'],
-                         dest='dsa', default='llvm')
+                         dest='dsa', default='sea-ci')
         ap.add_argument ('--abc-dsa-node', dest='abc_dsa',
                          help='Instrument only pointers that belong to this DSA node N',
                          type=int, default=0, metavar='N')
@@ -1013,12 +1013,12 @@ class Seahorn(sea.LimitedCmd):
                          choices=['reg', 'ptr', 'mem'], default='mem')
         ap.add_argument ('--dsa',
                          help='Heap analysis used by \'mem\' encoding: '
-                         'context-insensitive Llvm Dsa, '
-                         'flat memory SeaHorn Dsa, '
-                         'context-insensitive SeaHorn Dsa, and '
-                         'context-sensitive SeaHorn Dsa',
+                         'llvm (context-insensitive Llvm Dsa), '
+                         'sea-flat (flat memory SeaHorn Dsa), '
+                         'sea-ci (context-insensitive SeaHorn Dsa), and '
+                         'sea-cs (context-sensitive SeaHorn Dsa)',
                          choices=['llvm','sea-flat','sea-ci','sea-cs'],
-                         dest='dsa', default='llvm')
+                         dest='dsa', default='sea-ci')
         ap.add_argument ('--mem-dot',
                          help='Print Dsa memory graphs of all functions to dot format',
                          dest='mem_dot', default=False, action='store_true'),

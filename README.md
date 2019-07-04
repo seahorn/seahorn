@@ -104,7 +104,7 @@ easy_install pygraphviz
 Tests can be run using:
 
 ``` shell
-$ EXPORT SEAHORN=<install_dir>/bin/sea
+$ export SEAHORN=<install_dir>/bin/sea
 $ cmake --build . --target test-all
 ```
 

@@ -58,7 +58,7 @@ RUN mkdir -p seahorn && \
     # finish setting up permissions
     chmod -R 777 /opt/seahorn && \
     # make the environment more pleasant to use
-    ln -s /usr/bin/vim.tiny /usr/bin/vim && \
+    ln -sfn /usr/bin/vim.tiny /usr/bin/vim && \
     echo "PS1='\${debian_chroot:+(\$debian_chroot)}\[\033[01;32m\]\u@\h\[\033[00m\]:\[\033[01;34m\]\w\n\[\033[00m\]\\\$ '" >> /home/usea/.bashrc
 
 

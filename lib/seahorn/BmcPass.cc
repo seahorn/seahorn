@@ -24,6 +24,7 @@
 // prerequisite for CrabLlvm
 #include "seahorn/Support/SeaDebug.h"
 #include "seahorn/Support/SeaLog.hh"
+#include "seahorn/Support/Stats.hh"
 #include "seahorn/Transforms/Scalar/LowerCstExpr.hh"
 #ifdef HAVE_CRAB_LLVM
 #include "crab_llvm/CrabLlvm.hh"
@@ -222,6 +223,13 @@ public:
 
     Stats::resume("BMC");    
     bmc->encode();
+
+    const size_t dagSize = bmc->getFormulaDagSize();
+    Stats::sset("BMC_DAG_SIZE", std::to_string(dagSize));
+
+    const size_t circuitSize = bmc->getFormulaCircuitSize();
+    Stats::sset("BMC_CIRCUIT_SIZE", std::to_string(circuitSize));
+
     if (m_out)
       bmc->toSmtLib(*m_out);
 
@@ -243,9 +251,9 @@ public:
     outs() << "\n";
 
     if (res)
-      Stats::sset("Result", "FALSE");
+      Stats::sset("BMC_result", "FALSE");
     else if (!res)
-      Stats::sset("Result", "TRUE");
+      Stats::sset("BMC_result", "TRUE");
 
     LOG("bmc_core",
 

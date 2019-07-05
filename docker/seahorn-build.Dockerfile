@@ -2,7 +2,7 @@
 # Dockerfile for SeaHorn build image
 # produces a container containing dependencies
 # Arguments:
-#  - UBUNTU:     trusty, xenial
+#  - UBUNTU:     trusty, xenial, bionic
 #  - BUILD_TYPE: Debug, Release
 #
 
@@ -15,7 +15,10 @@ ARG BUILD_TYPE
 RUN echo "Build type set to: $BUILD_TYPE" && \
      # Install deps.
     apt-get update && \
-    apt-get install -yqq software-properties-common python-software-properties && \
+    apt-get install -yqq software-properties-common && \
+    if [ "$UBUNTU" = "trusty" ] ; \
+      then apt-get install -yqq python-software-properties ; \
+    fi && \
     add-apt-repository --yes ppa:ubuntu-toolchain-r/test && \
     apt-get update && \
     apt-get upgrade -yqq && \
@@ -59,9 +62,9 @@ RUN export PREFIX=$(cat /tmp/dockerutils/prefix.txt) && \
     mkdir -p /seahorn && \
     # download clang
     mkdir /clang-5.0 && \
-    if [ "$UBUNTU" = "xenial" ] ; \
-      then curl -s http://releases.llvm.org/5.0.0/clang+llvm-5.0.0-linux-x86_64-ubuntu16.04.tar.xz ; \
-      else curl -s http://releases.llvm.org/5.0.0/clang+llvm-5.0.0-linux-x86_64-ubuntu14.04.tar.xz ; \
+    if [ "$UBUNTU" = "trusty" ] ; \
+      then curl -s http://releases.llvm.org/5.0.0/clang+llvm-5.0.0-linux-x86_64-ubuntu14.04.tar.xz ; \
+      else curl -s http://releases.llvm.org/5.0.0/clang+llvm-5.0.0-linux-x86_64-ubuntu16.04.tar.xz ; \
     fi \
     | tar -xJf - -C /clang-5.0 --strip-components=1
     

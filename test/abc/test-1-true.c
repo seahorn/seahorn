@@ -4,18 +4,18 @@
 // See how we treat global variables, struct and one-dimensional arrays
 // The program is safe in terms of buffer overflow although A is
 // uninitialized. B is initialized since it is a global array.
-int x=6;
+int x = 6;
 
-struct foo { 
-  int x ; 
+struct foo {
+  int x;
   int y;
 };
 
 int B[10];
 
-int main(int argc, char **argv){
+int main(int argc, char **argv) {
   int A[5];
-  
+
   struct foo a;
   a.x = 59;
   x++;

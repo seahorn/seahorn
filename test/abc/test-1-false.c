@@ -1,18 +1,18 @@
 // RUN: %sea abc -O0 --abc-encoding=%abc_encoding %dsa "%s" %abc3_definitions 2>&1 | OutputCheck %s
 // CHECK: ^sat$
 
-int x=6;
+int x = 6;
 
-struct foo { 
-  int x ; 
+struct foo {
+  int x;
   int y;
 };
 
 int B[10];
 
-int main(int argc, char **argv){
+int main(int argc, char **argv) {
   int A[5];
-  
+
   struct foo a;
   a.x = 59;
   x++;

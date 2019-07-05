@@ -8,14 +8,14 @@ struct foo {
   int a[10];
 };
 
-extern void do_something(struct foo*);
+extern void do_something(struct foo *);
 
-int main (){
+int main() {
   struct foo f;
   int b[10];
   int i;
-  for (i=0;i<10;i++){
-    b[i]=i;
+  for (i = 0; i < 10; i++) {
+    b[i] = i;
   }
   memcpy(&(f.a), b, sizeof(int) * 10);
 

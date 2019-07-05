@@ -2,12 +2,12 @@
 // CHECK: ^unsat$
 
 // Used to avoid llvm to optimize away
-extern void read (int);
+extern void read(int);
 
 int MAX_ARRAY = 10;
 
 // To test loops that decrements a counter
-int main(int argc, char** argv) {
+int main(int argc, char **argv) {
   int a[MAX_ARRAY];
   int i;
   for (i = MAX_ARRAY - 1; i >= 0; i--) {

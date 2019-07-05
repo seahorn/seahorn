@@ -1,5 +1,6 @@
 // RUN: %sea pf -O0 --inline "%s" 2>&1 | OutputCheck %s
 // CHECK: ^unsat$
+
 #include <seahorn/seahorn.h>
 #include <stddef.h>
 #include <stdint.h>

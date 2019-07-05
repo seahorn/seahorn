@@ -57,7 +57,11 @@ RUN mkdir -p seahorn && \
     ln -s /clang-5.0/bin/clang clang && \
     ln -s /clang-5.0/bin/clang++ clang++ && \
     # finish setting up permissions
-    chmod -R 777 /opt/seahorn
+    chmod -R 777 /opt/seahorn && \
+    # make the environment more plesant to use
+    ln -s /usr/bin/vim.tiny /usr/bin/vim && \
+    export PS1='${debian_chroot:+($debian_chroot)}\[\033[01;32m\]\u@\h\[\033[00m\]:\[\033[01;34m\]\w\n\[\033[00m\]\$ '
+
 
 WORKDIR seahorn
 USER usea

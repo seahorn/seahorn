@@ -2,7 +2,7 @@
 # Dockerfile for SeaHorn binary
 # produces package in /seahorn/build
 # Arguments:
-#  - UBUNTU:     trusty, xenial
+#  - UBUNTU:     trusty, xenial, bionic
 #  - BUILD_TYPE: debug, release
 #  - TRAVIS:     true (optional, for use on Travis only)
 #

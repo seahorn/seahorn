@@ -9,11 +9,10 @@
 
 extern int nd(void);
 
-int main(void)
-{
+int main(void) {
   int x = nd();
   int y = nd();
-  assume (y>=0);
+  assume(y >= 0);
 
   int r;
   r = x;
@@ -22,7 +21,7 @@ int main(void)
     r = r + 1;
     c = c - 1;
   }
-  printf ("x=%d, y=%d, r=%d\n", x, y, r);
-  sassert (r == x + y);
+  printf("x=%d, y=%d, r=%d\n", x, y, r);
+  sassert(r == x + y);
   return 0;
 }

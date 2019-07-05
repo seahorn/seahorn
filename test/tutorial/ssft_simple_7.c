@@ -7,10 +7,12 @@
 
 int unknown(void);
 
-extern void __VERIFIER_assume (int);
-extern void __VERIFIER_error (void);
-void assert (int v) { if (!v) __VERIFIER_error (); }
-
+extern void __VERIFIER_assume(int);
+extern void __VERIFIER_error(void);
+void assert(int v) {
+  if (!v)
+    __VERIFIER_error();
+}
 
 #define static_assert assert
 
@@ -19,10 +21,11 @@ void assert (int v) { if (!v) __VERIFIER_error (); }
  */
 
 int main(void) {
-  int x= 0;
+  int x = 0;
   int n = unknown();
-  while(x<n) {
+  while (x < n) {
     x++;
   }
-  if(n>0) static_assert(x==n);
+  if (n > 0)
+    static_assert(x == n);
 }

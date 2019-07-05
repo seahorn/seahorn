@@ -7,28 +7,26 @@
 
 /** Convert this program into SSA **/
 int nd(void);
-char* ndc(void);
+char *ndc(void);
 
 extern void __VERIFIER_error(void);
-int main (void)
-{
-  int    i;
-  char * buf;
-  char   last;
-  
+int main(void) {
+  int i;
+  char *buf;
+  char last;
+
   i = nd();
   buf = ndc();
 
-  if (buf [i] == '\0')
-    {
-      int start = 0;
-      while (start < i)
-	{
-	  buf [start] = 'f';
-	  start++;
-	  last = buf [start - 1];
-	}
-      if (start>1 && last != 'f') __VERIFIER_error();
+  if (buf[i] == '\0') {
+    int start = 0;
+    while (start < i) {
+      buf[start] = 'f';
+      start++;
+      last = buf[start - 1];
     }
+    if (start > 1 && last != 'f')
+      __VERIFIER_error();
+  }
   return 0;
 }

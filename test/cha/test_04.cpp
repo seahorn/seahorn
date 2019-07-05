@@ -6,45 +6,43 @@ extern void foo(int);
 extern int nd_int();
 
 class A {
- public:
+public:
   A() {}
-  virtual ~A(){}
-  virtual int f() { return 5;} 
+  virtual ~A() {}
+  virtual int f() { return 5; }
 };
 
-class B: virtual public A {
- public:
-  B(): A()  {}
-  virtual ~B(){}
-  virtual int f() { return 10;}
+class B : virtual public A {
+public:
+  B() : A() {}
+  virtual ~B() {}
+  virtual int f() { return 10; }
 };
 
-class C: virtual public A {
- public:
-  C(): A()  {}
-  virtual ~C(){}
-  virtual int f() { return 10;}
+class C : virtual public A {
+public:
+  C() : A() {}
+  virtual ~C() {}
+  virtual int f() { return 10; }
 };
 
-class D: public B, C {
- public:
-
-  D(): B(), C() {}
+class D : public B, C {
+public:
+  D() : B(), C() {}
 
   virtual int f() { return nd_int(); }
 };
 
-
-int main(int argc, char* argv[]) {
-  A* p = 0;
+int main(int argc, char *argv[]) {
+  A *p = 0;
   if (nd_int()) {
     p = new B();
   } else if (nd_int()) {
-    p = new C();    
+    p = new C();
   } else {
     p = new D();
   }
-  
+
   p->f();
 
   delete p;

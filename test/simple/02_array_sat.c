@@ -5,19 +5,18 @@
 #define N 10
 
 int a[N];
-extern int nd ();
+extern int nd();
 
-int main ()
-{
+int main() {
   int i;
 
-  for (i=0;i<N;i++) {
+  for (i = 0; i < N; i++) {
     if (nd())
       a[i] = 0;
   }
 
-  for (i=0;i<N;i++)
-    sassert (a[i] == 0);
+  for (i = 0; i < N; i++)
+    sassert(a[i] == 0);
 
   return 42;
 }

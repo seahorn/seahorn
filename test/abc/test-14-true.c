@@ -4,7 +4,7 @@
 struct foo {
   int x;
   int y;
-}; 
+};
 
 struct foo gv_;
 struct foo *gv = &gv_;

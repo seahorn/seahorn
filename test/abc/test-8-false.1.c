@@ -6,7 +6,7 @@
 
 int p[2][2][2];
 
-int main(int arg, char **argv){
+int main(int arg, char **argv) {
 
   p[0][0][0] = 1;
   p[0][0][1] = 1;

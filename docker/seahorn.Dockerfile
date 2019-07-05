@@ -32,18 +32,17 @@ RUN mkdir -p seahorn && \
         apt-get install --no-install-recommends -yqq \
             sudo curl build-essential vim-tiny gdb \
             python-dev python-setuptools python-pip libgraphviz-dev libc6-dev-i386 && \
-        pip install lit OutputCheck && \
-        pip install networkx==2.2 pygraphviz && \
+        pip install --upgrade pip && \
+        python -m pip install setuptools --upgrade && \
+        python -m pip install lit OutputCheck && \
+        python -m pip install networkx==2.2 pygraphviz && \
         # get supported llvm version
         mkdir /opt/llvm && \
         curl -sL https://github.com/seahorn/seahorn-ext-deps/releases/download/5.0-deep-dev/xenial_rel_llvm50.tar.gz \
         | tar -xzf - -C /opt/llvm --strip-components=1 && \
         # download clang
         mkdir /clang-5.0 && \
-        if [ "$UBUNTU" = "xenial" ] ; \
-          then curl -s http://releases.llvm.org/5.0.0/clang+llvm-5.0.0-linux-x86_64-ubuntu16.04.tar.xz ; \
-          else curl -s http://releases.llvm.org/5.0.0/clang+llvm-5.0.0-linux-x86_64-ubuntu14.04.tar.xz ; \
-        fi \
+        curl -s http://releases.llvm.org/5.0.0/clang+llvm-5.0.0-linux-x86_64-ubuntu16.04.tar.xz \
         | tar -xJf - -C /clang-5.0 --strip-components=1 && \
         apt-get remove -yqq curl && \
         rm -rf /var/lib/apt/lists/* && \
@@ -58,9 +57,9 @@ RUN mkdir -p seahorn && \
     ln -s /clang-5.0/bin/clang++ clang++ && \
     # finish setting up permissions
     chmod -R 777 /opt/seahorn && \
-    # make the environment more plesant to use
+    # make the environment more pleasant to use
     ln -s /usr/bin/vim.tiny /usr/bin/vim && \
-    export PS1='${debian_chroot:+($debian_chroot)}\[\033[01;32m\]\u@\h\[\033[00m\]:\[\033[01;34m\]\w\n\[\033[00m\]\$ '
+    echo "PS1='\${debian_chroot:+(\$debian_chroot)}\[\033[01;32m\]\u@\h\[\033[00m\]:\[\033[01;34m\]\w\n\[\033[00m\]\\\$ '" >> /home/usea/.bashrc
 
 
 WORKDIR seahorn

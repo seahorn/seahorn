@@ -52,3 +52,11 @@ Dockerhub: `docker pull seahorn/seahorn`
 
 The tests will be located in `/opt/seahorn/share/seahorn/test` and can be run
 with `lit simple solve abc dsa`.
+
+## To push to dockerhub:
+1. `export DOCKER_ID_USER="username"`
+2. `docker login`
+3. Find the newly built image by running `docker image ls`.
+4. Tag this image with a tag matching the intended tag on dockerhub, e.g.,
+   `seahorn/seahorn-llvm5:latest`.
+5. `docker push`.

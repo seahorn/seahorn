@@ -127,6 +127,12 @@ class Clang(sea.LimitedCmd):
 
             if args.debug_info: argv.append ('-g')
 
+            ## Hack for OSX Mojave that no longer exposes libc and libstd headers by default
+            osx_sdk_dir = '/Applications/Xcode.app/Contents/Developer/Platforms/' + \
+                'MacOSX.platform/Developer/SDKs/MacOSX10.14.sdk'
+            if os.path.isdir(osx_sdk_dir):
+                argv.append('--sysroot=' + osx_sdk_dir)
+
             for in_file, out_file in zip(args.in_files, out_files):
                 if _bc_or_ll_file (in_file): continue
 

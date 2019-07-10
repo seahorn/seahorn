@@ -65,7 +65,7 @@ class Clang(sea.LimitedCmd):
                 self.plusplus = True
         else:
             in_file = 'merged.c'
-            if all (_plus_plus_file(f) for f in in_files):
+            if all ((_plus_plus_file(f) or _bc_or_ll_file(f)) for f in in_files):
                 self.plusplus = True
         ext = '.bc'
         # if args.llvm_asm: ext = '.ll'

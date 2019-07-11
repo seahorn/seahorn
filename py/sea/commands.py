@@ -37,6 +37,7 @@ def _plus_plus_file (name):
     ext = os.path.splitext (name)[1]
     return ext == '.cpp' or ext == '.cc'
 
+
 class Clang(sea.LimitedCmd):
     def __init__ (self, quiet=False, plusplus=False):
         super (Clang, self).__init__('clang', 'Compile', allow_extra=True)
@@ -72,6 +73,7 @@ class Clang(sea.LimitedCmd):
         return _remap_file_name (in_file, ext, work_dir)
 
     def run (self, args, extra):
+        print('Clang args:', args)
         out_files = []
         if len(args.in_files) == 1:
             out_files.append (args.out_file)
@@ -94,6 +96,8 @@ class Clang(sea.LimitedCmd):
         if cmd_name is None: raise IOError ('clang not found')
         self.clangCmd = sea.ExtCmd (cmd_name,'',quiet)
 
+        print("Is c++:", self.plusplus)
+
         if not all (_bc_or_ll_file (f) for f  in args.in_files):
             argv = ['-c', '-emit-llvm', '-D__SEAHORN__']
 
@@ -103,7 +107,7 @@ class Clang(sea.LimitedCmd):
             # with optimizations (-O1) and ask clang to not apply them
             argv.extend (['-O1', '-Xclang', '-disable-llvm-optzns'])
 
-            if not self.plusplus:
+            if not self.plusplus and not _bc_or_ll_file(f):
                 ## this is an invalid argument with C++/ObjC++ with clang 3.8
                 argv.append('-fgnu89-inline')
 
@@ -781,6 +785,7 @@ class ExecHarness(sea.LimitedCmd):
     def run (self, args, extra):
         if len(args.in_files) != 1: raise IOError('ExecHarness expects the harness executable as an input')
         eharness = os.path.abspath(args.in_files[0])
+        print('Args', args)
 
         self.harnessCmd = sea.ExtCmd (eharness)
         if args.cpu is None: args.cpu = 10
@@ -1514,6 +1519,7 @@ class SeaExeCex(sea.LimitedCmd):
             except OSError:
                 pass
 
+            print("Args", args)
             ## `sea pf`: find counterexample and generate harness
             c = sea.SeqCmd('','',
                            [Clang(), Seapp(), MixedSem(), Seaopt(), \

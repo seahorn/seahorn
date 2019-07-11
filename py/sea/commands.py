@@ -103,7 +103,7 @@ class Clang(sea.LimitedCmd):
             # with optimizations (-O1) and ask clang to not apply them
             argv.extend (['-O1', '-Xclang', '-disable-llvm-optzns'])
 
-            if not self.plusplus and not _bc_or_ll_file(f):
+            if not self.plusplus:
                 ## this is an invalid argument with C++/ObjC++ with clang 3.8
                 argv.append('-fgnu89-inline')
 

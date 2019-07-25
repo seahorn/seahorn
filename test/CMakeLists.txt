@@ -26,7 +26,7 @@ add_lit_testsuite(test-solve "Run more tests"
    DEPENDS seahorn
    )
 
-add_lit_testsuite(pred-abs "Regression test on Predicate Abstraction"
+add_lit_testsuite(pred-abs "Regression tests on Predicate Abstraction"
    -v
    ${CMAKE_CURRENT_SOURCE_DIR}/predabs
    ARGS
@@ -34,7 +34,7 @@ add_lit_testsuite(pred-abs "Regression test on Predicate Abstraction"
    DEPENDS seahorn
    )
 
-add_lit_testsuite(test-abc "Regression test for Array Bounds Checks"
+add_lit_testsuite(test-abc "Regression tests for Array Bounds Checks"
   #--show-tests
   ${CMAKE_CURRENT_SOURCE_DIR}/abc
   ARGS
@@ -42,7 +42,7 @@ add_lit_testsuite(test-abc "Regression test for Array Bounds Checks"
   DEPENDS seahorn
   )
 
-add_lit_testsuite(test-smc "Regression test for Simple Memory Safety Checks"
+add_lit_testsuite(test-smc "Regression tests for Simple Memory Safety Checks"
   -v
   ${CMAKE_CURRENT_SOURCE_DIR}/smc
   ARGS
@@ -50,7 +50,7 @@ add_lit_testsuite(test-smc "Regression test for Simple Memory Safety Checks"
   DEPENDS seahorn
   )
 
-add_lit_testsuite(test-opsem "Regression test for Operational Semantics"
+add_lit_testsuite(test-opsem "Regression tests for Operational Semantics"
   -v
   ${CMAKE_CURRENT_SOURCE_DIR}/opsem
   ARGS
@@ -58,7 +58,7 @@ add_lit_testsuite(test-opsem "Regression test for Operational Semantics"
   DEPENDS seahorn 
   )
 
-add_lit_testsuite(test-inc "Regression test for Inconsistency Analysis"
+add_lit_testsuite(test-inc "Regression tests for Inconsistency Analysis"
   -v
   ${CMAKE_CURRENT_SOURCE_DIR}/inc
   ARGS
@@ -66,7 +66,7 @@ add_lit_testsuite(test-inc "Regression test for Inconsistency Analysis"
   DEPENDS seahorn
   )
 
-add_lit_testsuite(test-dsa "Regression test for DSA"
+add_lit_testsuite(test-dsa "Regression tests for DSA"
   -v
   ${CMAKE_CURRENT_SOURCE_DIR}/dsa
   ARGS
@@ -98,7 +98,7 @@ add_lit_testsuite(test-gsa "Regression tests for Gated SSA"
   DEPENDS seahorn
   )
 
-add_lit_testsuite(test-formats "Regression test for external formats"
+add_lit_testsuite(test-formats "Regression tests for external formats"
   -v
   ${CMAKE_CURRENT_SOURCE_DIR}/formats
   ARGS
@@ -106,9 +106,17 @@ add_lit_testsuite(test-formats "Regression test for external formats"
   DEPENDS seahorn
   )
 
-add_lit_testsuite(test-devirt "Regression test for devirtualization of functions"
+add_lit_testsuite(test-devirt "Regression tests for devirtualization of functions"
   -v
   ${CMAKE_CURRENT_SOURCE_DIR}/devirt
+  ARGS
+  --path=${CMAKE_INSTALL_PREFIX}/bin
+  DEPENDS seahorn
+  )
+
+add_lit_testsuite(test-mcfuzz "Regression tests from the MCFuzz project"
+  -v
+  ${CMAKE_CURRENT_SOURCE_DIR}/mcfuzz
   ARGS
   --path=${CMAKE_INSTALL_PREFIX}/bin
   DEPENDS seahorn
@@ -138,6 +146,7 @@ if (CMAKE_GENERATOR STREQUAL "Ninja")
   add_dependencies(test-smc install)
   add_dependencies(test-inc install)
   add_dependencies(test-devirt install)
+  add_dependencies(test-mcfuzz install)
   add_dependencies(test-crab install)    
 endif()
 install (DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/simple DESTINATION share/seahorn/test)
@@ -148,6 +157,7 @@ install (DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/abc DESTINATION share/seahorn/tes
 install (DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/bmc DESTINATION share/seahorn/test)
 install (DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/gsa DESTINATION share/seahorn/test)
 install (DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/devirt DESTINATION share/seahorn/test)
+install (DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/mcfuzz DESTINATION share/seahorn/test)
 install (DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/crab DESTINATION share/seahorn/test)
 install (DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/dsa DESTINATION share/seahorn/test
   PATTERN "*/check_graphs.py" EXCLUDE

@@ -63,10 +63,25 @@ static llvm::cl::opt<unsigned>
     // 3: use additive IUC plugin
     IUCArith("horn-iuc-arith", cl::Hidden, cl::init(1));
 
-static llvm::cl::opt<bool>
-    UseBgInvariants("horn-use-bg-invs", cl::Hidden, cl::init(true),
-                    cl::desc("Use external invariants only in background"));
+namespace solver_detail {
+enum invariant_usage_t {
+    INACTIVE // add them but without using them (only debugging purposes)
+  , BG_ONLY  // use invariants only in background
+  , ALWAYS   // use invariants everywhere
+};
+}
 
+static llvm::cl::opt<enum solver_detail::invariant_usage_t>
+UseInvariant("horn-use-invs",
+  llvm::cl::desc("Tell the solver how to use invariants"),
+  llvm::cl::values(clEnumValN(solver_detail::INACTIVE,
+			      "inactive", "Add invariants but without using them"),
+		   clEnumValN(solver_detail::BG_ONLY,
+			      "bg", "Add invariants and using them only in background"),
+		   clEnumValN(solver_detail::ALWAYS,
+			      "always", "Add invariants and use them everywhere")),
+  llvm::cl::init(solver_detail::BG_ONLY));
+		   
 static llvm::cl::opt<unsigned>
     HornMaxDepth("horn-max-depth", cl::Hidden,
                  cl::desc("Maximum exploration depth"), cl::init(UINT_MAX));
@@ -105,7 +120,9 @@ namespace seahorn {
     params.set(":spacer.elim_aux", true);
     params.set(":spacer.reach_dnf", true);
     // params.set ("print_statistics", true);
-    params.set(":spacer.use_bg_invs", UseBgInvariants);
+    params.set(":spacer.use_bg_invs",
+	       UseInvariant == solver_detail::INACTIVE ||
+	       UseInvariant == solver_detail::BG_ONLY);
     params.set(":spacer.weak_abs", WeakAbs);
     params.set(":spacer.iuc", IUC);
     params.set(":spacer.iuc.arith", IUCArith);
@@ -119,6 +136,11 @@ namespace seahorn {
 
     db.loadZFixedPoint (fp, SkipConstraints);
 
+    if (UseInvariant == solver_detail::INACTIVE) {
+      params.set(":spacer.use_bg_invs", false);
+      fp.set(params);
+    }
+    
     Stats::resume ("Horn");
     m_result = fp.query ();
     Stats::stop ("Horn");

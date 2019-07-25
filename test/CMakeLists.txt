@@ -114,6 +114,14 @@ add_lit_testsuite(test-devirt "Regression test for devirtualization of functions
   DEPENDS seahorn
   )
 
+add_lit_testsuite(test-crab "Regression test for Crab"
+  -v
+  ${CMAKE_CURRENT_SOURCE_DIR}/crab
+  ARGS
+  --path=${CMAKE_INSTALL_PREFIX}/bin
+  DEPENDS seahorn
+  )
+
 if (CMAKE_GENERATOR STREQUAL "Ninja")
   # Depending on install target does not work with make
   add_dependencies(test-all install)
@@ -129,7 +137,8 @@ if (CMAKE_GENERATOR STREQUAL "Ninja")
   add_dependencies(test-abc install)
   add_dependencies(test-smc install)
   add_dependencies(test-inc install)
-  add_dependencies(test-devirt install)  
+  add_dependencies(test-devirt install)
+  add_dependencies(test-crab install)    
 endif()
 install (DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/simple DESTINATION share/seahorn/test)
 install (DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/solve DESTINATION share/seahorn/test)
@@ -139,6 +148,7 @@ install (DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/abc DESTINATION share/seahorn/tes
 install (DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/bmc DESTINATION share/seahorn/test)
 install (DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/gsa DESTINATION share/seahorn/test)
 install (DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/devirt DESTINATION share/seahorn/test)
+install (DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/crab DESTINATION share/seahorn/test)
 install (DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/dsa DESTINATION share/seahorn/test
   PATTERN "*/check_graphs.py" EXCLUDE
   )

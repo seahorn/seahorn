@@ -1,16 +1,8 @@
 #include "seahorn/LoadCrab.hh"
 #include "seahorn/config.h"
-
-#include "llvm/Support/CommandLine.h"
-#include "llvm/Support/raw_ostream.h"
-
 #include "seahorn/Support/SeaDebug.h"
 
-// If enabled then crab invariants are added as lemmas.
-// Otherwise, they are added as invariants.
-static llvm::cl::opt<bool>
-    AddExtLemmas("horn-add-lemmas", llvm::cl::Hidden, llvm::cl::init(false),
-                 llvm::cl::desc("Add crab invariants as external lemmas"));
+#include "llvm/Support/raw_ostream.h"
 
 namespace seahorn {
 char LoadCrab::ID = 0;
@@ -718,10 +710,7 @@ bool LoadCrab::runOnFunction(Function &F) {
                        << *v << " ";
         errs() << ")  " << *exp << "\n";);
 
-    if (AddExtLemmas)
-      db.addConstraint(bind::fapp(pred, live), exp);
-    else
-      db.addInvariant(bind::fapp(pred, live), exp);
+    db.addInvariant(bind::fapp(pred, live), exp);
   }
   return false;
 }

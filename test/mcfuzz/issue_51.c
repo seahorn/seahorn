@@ -5,7 +5,7 @@
 // RUN: %sea bpf -m64 -O3 --bmc=mono --inline --bound=8 --keep-shadows=true --horn-stats "%s" 2>&1 | OutputCheck %s
 
 // CHECK-L: unsat
-// XFdAIL: *
+// XFAIL: *
 
 // Based on https://github.com/MCFuzzer/MCFuzz/issues/53.
 // With the old bv-opsem we get sat.

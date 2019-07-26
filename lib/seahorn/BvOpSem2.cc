@@ -85,16 +85,18 @@ namespace {
 /// properly handle bitcast
 Function *getCalledFunction(CallSite &CS) {
   Function *fn = CS.getCalledFunction();
-  if (fn) return fn;
+  if (fn)
+    return fn;
 
   Value *v = CS.getCalledValue();
-  if (v) v = v->stripPointerCasts();
+  if (v)
+    v = v->stripPointerCasts();
   fn = dyn_cast<Function>(v);
 
   return fn;
 }
 
-}
+} // namespace
 namespace seahorn {
 namespace details {
 class OpSemMemManager;
@@ -489,6 +491,11 @@ public:
     assert(ty);
     unsigned sz = m_sem.sizeInBits(*ty);
     assert(ty->isPointerTy());
+    LOG("opsem", if (sz != ptrSzInBits()) {
+      WARN << "Unexpected size of type: " << *ty << " of instruction " << inst
+           << "\n"
+           << "sz is " << sz << " and ptrSzInBits is " << ptrSzInBits() << "\n";
+    });
     assert(sz == ptrSzInBits());
 
     return bv::bvsort(m_sem.sizeInBits(*ty), m_efac);
@@ -1035,7 +1042,8 @@ struct OpSemBase {
 
     // XXX AG: this is probably wrong since instances of OpSemBase are created
     // XXX AG: for each instruction, not just once per function
-    // XXX AG: but not an issue at this point since function calls are not handled by the semantics 
+    // XXX AG: but not an issue at this point since function calls are not
+    // handled by the semantics
     // -- first two arguments are reserved for error flag,
     // -- the other is function activation
     // ctx.pushParameter(falseE);
@@ -2198,7 +2206,7 @@ public:
   }
 
   void visitModule(Module &M) {
-    LOG("opsem.module", errs() << M << "\n"; );
+    LOG("opsem.module", errs() << M << "\n";);
     m_ctx.onModuleEntry(M);
 
     for (const Function &fn : M.functions()) {

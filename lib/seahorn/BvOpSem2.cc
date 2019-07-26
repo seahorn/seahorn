@@ -3021,7 +3021,8 @@ Optional<GenericValue> Bv2OpSem::getConstantValue(const Constant *C) {
     switch (CE->getOpcode()) {
     case Instruction::GetElementPtr: {
       // Compute the index
-      GenericValue Result = getConstantValue(Op0).getValue();
+      auto base = getConstantValue(Op0);
+      GenericValue Result = base.getValue();
       APInt Offset(m_td->getPointerSizeInBits(), 0);
       cast<GEPOperator>(CE)->accumulateConstantOffset(*m_td, Offset);
 
@@ -3317,15 +3318,18 @@ Optional<GenericValue> Bv2OpSem::getConstantValue(const Constant *C) {
   case Type::PointerTyID:
     if (isa<ConstantPointerNull>(C))
       Result.PointerVal = nullptr;
-    else if (const Function *F = dyn_cast<Function>(C))
+    else if (const Function *F = dyn_cast<Function>(C)) {
       // TODO:
       // Result = PTOGV((void*)ctx.getPtrToFunction(*F));
+      WARN << "Unhandled function pointer in a constant expression:  " << *C << "\n";
       return llvm::None;
-    else if (const GlobalVariable *GV = dyn_cast<GlobalVariable>(C))
+    } else if (const GlobalVariable *GV =
+                   dyn_cast<GlobalVariable>(C)) {
       // TODO:
       // Result = PTOGV((void*)ctx.getPtrToGlobal(*GV));
+      WARN << "Unhandled global variable in a constant expression: " << *C << "\n";
       return llvm::None;
-    else
+    } else
       llvm_unreachable("Unknown constant pointer type!");
     break;
   case Type::VectorTyID: {

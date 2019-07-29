@@ -122,6 +122,14 @@ add_lit_testsuite(test-mcfuzz "Regression tests from the MCFuzz project"
   DEPENDS seahorn
   )
 
+add_lit_testsuite(test-memssa "Regression tests for Memory SSA (ShadowMem)"
+  -v
+  ${CMAKE_CURRENT_SOURCE_DIR}/memssa
+  ARGS
+  --path=${CMAKE_INSTALL_PREFIX}/bin
+  DEPENDS seahorn
+  )
+
 add_lit_testsuite(test-crab "Regression test for Crab"
   -v
   ${CMAKE_CURRENT_SOURCE_DIR}/crab
@@ -147,7 +155,8 @@ if (CMAKE_GENERATOR STREQUAL "Ninja")
   add_dependencies(test-inc install)
   add_dependencies(test-devirt install)
   add_dependencies(test-mcfuzz install)
-  add_dependencies(test-crab install)    
+  add_dependencies(test-memssa install)
+  add_dependencies(test-crab install)
 endif()
 install (DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/simple DESTINATION share/seahorn/test)
 install (DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/solve DESTINATION share/seahorn/test)
@@ -158,6 +167,7 @@ install (DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/bmc DESTINATION share/seahorn/tes
 install (DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/gsa DESTINATION share/seahorn/test)
 install (DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/devirt DESTINATION share/seahorn/test)
 install (DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/mcfuzz DESTINATION share/seahorn/test)
+install (DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/memssa DESTINATION share/seahorn/test)
 install (DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/crab DESTINATION share/seahorn/test)
 install (DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/dsa DESTINATION share/seahorn/test
   PATTERN "*/check_graphs.py" EXCLUDE

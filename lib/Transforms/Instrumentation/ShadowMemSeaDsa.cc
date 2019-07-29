@@ -105,9 +105,9 @@ void argReachableNodes(const Function &fn, dsa::Graph &G, Set1 &reach,
 }
 
 class ShadowDsaImpl : public InstVisitor<ShadowDsaImpl> {
-
   dsa::GlobalAnalysis &m_dsa;
   TargetLibraryInfo *m_tli;
+  const DataLayout *m_dl;
   CallGraph *m_callGraph;
   Pass &m_pass;
 
@@ -172,6 +172,11 @@ class ShadowDsaImpl : public InstVisitor<ShadowDsaImpl> {
   std::unique_ptr<IRBuilder<>> m_B = nullptr;
   dsa::Graph *m_graph;
 
+  llvm::DenseMap<CallInst *, LoadInst *> m_shadowLoadToLoad;
+  llvm::DenseMap<CallInst *, StoreInst *> m_shadowStoreToStore;
+
+  const llvm::StringRef m_metadataTag = "shadow.mem";
+
 private:
   /// \brief Create shadow pseudo-functions in the module
   void mkShadowFunctions(Module &M);
@@ -210,14 +215,13 @@ private:
     if (n.size() == 0) {
       // XXX: what does it mean for a node to have 0 size?
       assert(offset == 0);
-      m_maxId++;
+      ++m_maxId;
       return id;
     }
 
     // -- allocate enough ids for the node and all its fields
     m_maxId += n.size();
     return id + offset;
-    return 0;
   }
 
   /// \breif Returns id of a field pointed to by the given cell \c
@@ -274,10 +278,10 @@ private:
   }
 
   void markCall(CallInst *ci) {
-    // use ci->getMetadata(seahorn) to test.
-    Module *m = ci->getParent()->getParent()->getParent();
+    // Use ci->getMetadata("shadow.mem") to test.
+    Module *m = ci->getModule();
     MDNode *meta = MDNode::get(m->getContext(), None);
-    ci->setMetadata("shadow.mem", meta);
+    ci->setMetadata(m_metadataTag, meta);
   }
 
   CallInst *mkShadowAllocInit(IRBuilder<> &B, Constant *fn, AllocaInst *a,
@@ -290,9 +294,12 @@ private:
     B.CreateStore(ci, a);
     return ci;
   }
-  StoreInst *mkShadowStore(IRBuilder<> &B, const dsa::Cell &c) {
+
+  CallInst *mkShadowStore(IRBuilder<> &B, const dsa::Cell &c) {
     AllocaInst *v = getShadowForField(c);
-    return B.CreateStore(mkStoreFnCall(B, c, v), v);
+    auto *ci = mkStoreFnCall(B, c, v);
+    B.CreateStore(ci, v);
+    return ci;
   }
 
   CallInst *mkStoreFnCall(IRBuilder<> &B, const dsa::Cell &c, AllocaInst *v) {
@@ -322,11 +329,13 @@ private:
     B.CreateStore(ci, v);
     return ci;
   }
-  void mkShadowLoad(IRBuilder<> &B, const dsa::Cell &c) {
+
+  CallInst *mkShadowLoad(IRBuilder<> &B, const dsa::Cell &c) {
     auto *ci = B.CreateCall(m_memLoadFn, {B.getInt32(getFieldId(c)),
                                           B.CreateLoad(getShadowForField(c)),
                                           getUniqueScalar(*m_llvmCtx, B, c)});
     markCall(ci);
+    return ci;
   }
 
   void mkShadowMemTrsfr(IRBuilder<> &B, const dsa::Cell &dst,
@@ -411,8 +420,8 @@ private:
         for (auto &val : phi.incoming_values()) {
           // if an incoming value has metadata, take it, and be done
           if (auto *inst = dyn_cast<const Instruction>(&val)) {
-            if (auto *meta = inst->getMetadata("shadow.mem")) {
-              const_cast<PHINode *>(&phi)->setMetadata("shadow.mem", meta);
+            if (auto *meta = inst->getMetadata(m_metadataTag)) {
+              const_cast<PHINode *>(&phi)->setMetadata(m_metadataTag, meta);
               break;
             }
           }
@@ -421,14 +430,29 @@ private:
     }
   }
 
+  /// \brief Put shadow loads into a solved form. This optimizes loads to use
+  /// the most recent non-clobbering defs.
+  /// Not that this is an optimization over the existing Memory SSA form.
+  void solveLoads(Function &F);
+
+  // Helper functions used by `solveLoads`.
+  using MaybeAllocSites = Optional<SmallDenseSet<Value *, 8>>;
+  using AllocSitesCache = DenseMap<Value *, MaybeAllocSites>;
+  bool isMemInit(const CallInst &memOp);
+  CallInst &getParentDef(CallInst &memOp);
+  const MaybeAllocSites &getAllAllocSites(Value &ptr, AllocSitesCache &cache);
+  bool mayClobber(CallInst &memDef, CallInst &memUse, AllocSitesCache &cache);
+
 public:
   ShadowDsaImpl(dsa::GlobalAnalysis &dsa, TargetLibraryInfo *tli, CallGraph *cg,
                 Pass &pass, bool splitDsaNodes = false,
                 bool computeReadMod = false)
-      : m_dsa(dsa), m_tli(tli), m_callGraph(cg), m_pass(pass),
+      : m_dsa(dsa), m_tli(tli), m_dl(nullptr), m_callGraph(cg), m_pass(pass),
         m_splitDsaNodes(splitDsaNodes), m_computeReadMod(computeReadMod) {}
 
   bool runOnModule(Module &M) {
+    m_dl = &M.getDataLayout();
+
     if (m_computeReadMod)
       doReadMod();
 
@@ -491,13 +515,13 @@ bool ShadowDsaImpl::runOnFunction(Function &F) {
   // allocate initial value for all used shadows
   DenseMap<const dsa::Node *, DenseMap<unsigned, Value *>> inits;
   B.SetInsertPoint(&*F.getEntryBlock().begin());
-  for (auto it : m_shadows) {
-    const dsa::Node *n = it.first;
+  for (const auto &nodeToShadow : m_shadows) {
+    const dsa::Node *n = nodeToShadow.first;
 
     Constant *fn =
         reach.count(n) <= 0 ? m_memShadowInitFn : m_memShadowArgInitFn;
 
-    for (auto jt : it.second) {
+    for (auto jt : nodeToShadow.second) {
       dsa::Cell c(const_cast<dsa::Node *>(n), jt.first);
       AllocaInst *a = jt.second;
       inits[c.getNode()][getOffset(c)] = mkShadowAllocInit(B, fn, a, c);
@@ -555,10 +579,15 @@ bool ShadowDsaImpl::runOnFunction(Function &F) {
   // -- infer types for PHINodes
   inferTypeOfPHINodes(F);
 
+  solveLoads(F);
+
   m_B.reset(nullptr);
   m_llvmCtx = nullptr;
   m_graph = nullptr;
   m_shadows.clear();
+  m_shadowLoadToLoad.clear();
+  m_shadowStoreToStore.clear();
+
   return true;
 }
 
@@ -567,6 +596,7 @@ void ShadowDsaImpl::visitFunction(Function &fn) {
     visitMainFunction(fn);
   }
 }
+
 void ShadowDsaImpl::visitMainFunction(Function &fn) {
   // set insertion point to the beginning of the main function
   m_B->SetInsertPoint(&*fn.getEntryBlock().begin());
@@ -604,8 +634,10 @@ void ShadowDsaImpl::visitLoadInst(LoadInst &I) {
     return;
 
   m_B->SetInsertPoint(&I);
-  mkShadowLoad(*m_B, c);
+  CallInst *memUse = mkShadowLoad(*m_B, c);
+  m_shadowLoadToLoad.insert({memUse, &I});
 }
+
 void ShadowDsaImpl::visitStoreInst(StoreInst &I) {
   if (!m_graph->hasCell(*(I.getOperand(1))))
     return;
@@ -614,8 +646,10 @@ void ShadowDsaImpl::visitStoreInst(StoreInst &I) {
     return;
 
   m_B->SetInsertPoint(&I);
-  mkShadowStore(*m_B, c);
+  CallInst *ci = mkShadowStore(*m_B, c);
+  m_shadowStoreToStore.insert({ci, &I});
 }
+
 void ShadowDsaImpl::visitCallSite(CallSite CS) {
   if (CS.isIndirectCall())
     return;
@@ -877,6 +911,221 @@ void ShadowDsaImpl::updateReadMod(Function &F, NodeSet &readSet,
     // TODO: handle intrinsics (memset,memcpy) and other library functions
   }
 }
+
+bool ShadowDsaImpl::isMemInit(const CallInst &memOp) {
+  assert(memOp.getMetadata(m_metadataTag));
+  auto *fn = memOp.getCalledFunction();
+  assert(fn);
+
+  SmallVector<Constant *, 5> memInitFunctions = {
+      m_memShadowInitFn, m_memGlobalVarInitFn, m_memShadowArgInitFn,
+      m_memShadowUniqArgInitFn, m_memShadowUniqInitFn};
+
+  return llvm::is_contained(memInitFunctions, fn);
+}
+
+CallInst &ShadowDsaImpl::getParentDef(CallInst &memOp) {
+  assert(memOp.getMetadata(m_metadataTag));
+
+  if (isMemInit(memOp))
+    return memOp;
+
+  auto *fn = memOp.getCalledFunction();
+  assert(fn);
+  assert(fn == m_memLoadFn || fn == m_memStoreFn || fn == m_memTrsfrLoadFn);
+
+  assert(memOp.getNumOperands() >= 1);
+  Value *defArg = memOp.getOperand(1);
+  assert(defArg);
+  assert(isa<CallInst>(defArg));
+  auto *def = cast<CallInst>(defArg);
+  auto *defFn = def->getCalledFunction();
+
+  assert(defFn);
+  assert(defFn == m_memStoreFn || defFn == m_argModFn || isMemInit(*def));
+
+  return *def;
+}
+
+const ShadowDsaImpl::MaybeAllocSites &
+ShadowDsaImpl::getAllAllocSites(Value &ptr, AllocSitesCache &cache) {
+  // Performs a simple walk over use-def chains until it finds all allocation
+  // sites or an instruction it cannot look thru (e.g., a load).
+  assert(ptr.getType()->isPointerTy());
+
+  auto *strippedInit = ptr.stripPointerCastsAndBarriers();
+  {
+    auto it = cache.find(strippedInit);
+    if (it != cache.end())
+      return it->second;
+  }
+
+  SmallDenseSet<Value *, 8> allocSites;
+  DenseSet<Value *> visited;
+  SmallVector<Value *, 8> worklist = {strippedInit};
+
+  while (!worklist.empty()) {
+    Value *current = worklist.pop_back_val();
+    assert(current);
+    Value *stripped = current->stripPointerCastsAndBarriers();
+    if (visited.count(stripped) > 0)
+      continue;
+
+    visited.insert(stripped);
+    LOG("shadow_optimizer", llvm::errs() << "Visiting: " << *stripped << "\n");
+
+    // In our memory model, all function calls returning pointers are considered
+    // allocating.
+    if (isa<AllocaInst>(stripped) || isa<Argument>(stripped) ||
+        isa<GlobalValue>(stripped) || isa<CallInst>(stripped)) {
+      allocSites.insert(stripped);
+      continue;
+    }
+
+    if (auto *gep = dyn_cast<GetElementPtrInst>(stripped)) {
+      worklist.push_back(gep->getPointerOperand());
+      continue;
+    }
+
+    if (auto *phi = dyn_cast<PHINode>(stripped)) {
+      for (Value *v : llvm::reverse(phi->incoming_values()))
+        worklist.push_back(v);
+
+      continue;
+    }
+
+    if (auto *gamma = dyn_cast<SelectInst>(stripped)) {
+      worklist.push_back(gamma->getFalseValue());
+      worklist.push_back(gamma->getTrueValue());
+      continue;
+    }
+
+    LOG("shadow_optimizer",
+        llvm::errs() << "Cannot retrieve all alloc sites for " << ptr
+                     << "\n\tbecause of the instruction: " << *stripped
+                     << "\n");
+    return (cache[strippedInit] = llvm::None);
+  }
+
+  return (cache[strippedInit] = allocSites);
+}
+
+bool ShadowDsaImpl::mayClobber(CallInst &memDef, CallInst &memUse, AllocSitesCache &cache) {
+  LOG("shadow_optimizer", llvm::errs() << "\n~~~~\nmayClobber(" << memDef
+                                       << ", " << memUse << ")?\n");
+
+  // Right now memUse must be a load instruction.
+  if (isMemInit(memDef))
+    return true;
+
+  // Get the corresponding pointers and check if these two pointers have
+  // disjoint allocation sites -- if not, they cannot alias.
+  // This can be extended further with offset tracking.
+
+  auto lit = m_shadowLoadToLoad.find(&memUse);
+  if (lit == m_shadowLoadToLoad.end())
+    return true;
+
+  auto getTypeSize = [this] (Type *ty) {
+    unsigned bits = m_dl->getTypeSizeInBits(ty);
+    return bits < 8 ? 1 : bits / 8;
+  };
+
+  LoadInst *concreteLoad = lit->second;
+  assert(concreteLoad);
+  assert(memUse.getNextNode() == concreteLoad);
+  Value *loadSrc = concreteLoad->getPointerOperand();
+  const unsigned loadedBytes = getTypeSize(concreteLoad->getType());
+
+  auto sit = m_shadowStoreToStore.find(&memDef);
+  if (sit == m_shadowStoreToStore.end())
+    return true;
+
+  StoreInst *concreteStore = sit->second;
+  assert(concreteStore);
+  assert(memDef.getNextNode() == concreteStore);
+  Value *storeDst = concreteStore->getPointerOperand();
+  const unsigned storedBytes =
+      getTypeSize(concreteStore->getValueOperand()->getType());
+
+  LOG("shadow_optimizer",
+      llvm::errs() << "alias(" << *loadSrc << ", " << *storeDst << ")?\n");
+
+  // If the offsets don't overlap, no clobbering may happen.
+  if (m_graph->hasCell(*loadSrc) && m_graph->hasCell(*storeDst)) {
+    const dsa::Cell &loadCell = m_graph->getCell(*loadSrc);
+    const dsa::Cell &storeCell = m_graph->getCell(*storeDst);
+    const unsigned loadStartOffset = loadCell.getOffset();
+    const unsigned loadEndOffset = loadStartOffset + loadedBytes;
+    const unsigned storeStartOffset = storeCell.getOffset();
+    const unsigned storeEndOffset = storeStartOffset + storedBytes;
+
+    LOG("shadow_optimizer",
+        llvm::errs() << "\tmayClobber[3]\n\tloadStart: " << loadStartOffset
+                     << ", loadEnd: " << loadEndOffset
+                     << "\n\tstoreStart: " << storeStartOffset
+                     << ", storeEnd: " << storeEndOffset << "\n");
+
+    if (loadEndOffset <= storeStartOffset || loadStartOffset >= storeEndOffset)
+      return false;
+  }
+
+  auto useAllocSites = getAllAllocSites(*loadSrc, cache);
+  if (!useAllocSites.hasValue())
+    return true;
+
+  LOG("shadow_optimizer", llvm::errs() << "\tmayClobber[4]\n");
+
+  auto defAllocSites = getAllAllocSites(*storeDst, cache);
+  if (!defAllocSites.hasValue())
+    return true;
+
+  LOG("shadow_optimizer", llvm::errs() << "\tmayClobber[5]\n");
+
+  for (auto *as : *useAllocSites)
+    if (defAllocSites->count(as) > 0)
+      return true;
+
+  LOG("shadow_optimizer", llvm::errs() << "\tmayClobber[6]\n");
+
+  return false;
+}
+
+void ShadowDsaImpl::solveLoads(Function &F) {
+  unsigned numOptimized = 0;
+
+  AllocSitesCache ptrToAllocSitesCache;
+
+  // Visit shadow loads in topological order.
+  for (auto *bb : llvm::inverse_post_order(&F.getEntryBlock()))
+    for (auto &inst : *bb)
+      if (auto *call = dyn_cast<CallInst>(&inst))
+        if (call->getCalledFunction() == m_memLoadFn) {
+          LOG("shadow_optimizer", llvm::errs() << "Solving " << *call << "\n");
+
+          // Find the first potentially clobbering memDef (shadow store or
+          // shadow init).
+          CallInst *oldDef = nullptr;
+          CallInst *def = &getParentDef(*call);
+          while (oldDef != def &&
+                 !mayClobber(*def, *call, ptrToAllocSitesCache)) {
+            oldDef = def;
+            def = &getParentDef(*def);
+          }
+
+          LOG("shadow_optimizer", llvm::errs() << "Def for: " << *call
+                                               << "\n\tis " << *def << "\n");
+
+          if (call->getOperand(1) != def) {
+            ++numOptimized;
+            call->setArgOperand(1, def);
+          }
+        }
+
+  LOG("shadow_optimizer", llvm::errs() << "MemSSA optimizer: " << numOptimized
+                                       << " load(s) solved.\n");
+}
+
 } // namespace
 
 namespace seahorn {

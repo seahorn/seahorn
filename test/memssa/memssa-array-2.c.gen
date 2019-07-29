@@ -1,0 +1,36 @@
+// RUN: %sea bpf -m32 -O0 --horn-bv2=true --horn-gsa=true --bmc=mono --bound=10 \
+// RUN:      --horn-stats --keep-shadows=true --inline --log=opsem "%s" 2>&1 | OutputCheck %s
+
+// RUN: %sea bpf -m32 -O0 --horn-bv2=true --horn-gsa=false --bmc=mono --bound=10 \
+// RUN:      --horn-stats --keep-shadows=true  --inline --log=opsem "%s" 2>&1 | OutputCheck %s
+// CHECK-L: sat
+
+extern int nd(void);
+extern void __VERIFIER_error(void) __attribute__((noreturn));
+extern void __VERIFIER_assume(int);
+#define assert(X)                                                              \
+  if (!(X)) {                                                                  \
+    __VERIFIER_error();                                                        \
+  }
+#define assume __VERIFIER_assume
+
+extern int *freshInt(void);
+extern void print(int *);
+
+int main() {
+  int *a = freshInt();
+  int *b = freshInt();
+
+  int *c = nd() ? a : b;
+  *c = 42;
+
+  int *d = nd() ? a : b;
+  *d = 13;
+
+  if (nd())
+    a[1] = 33;
+
+  int sum = a[1] + *d;
+  assert(sum > 20);
+  return 0;
+}

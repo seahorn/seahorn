@@ -13,13 +13,9 @@
 #include "llvm/IR/Verifier.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
-#include "llvm/Transforms/Utils/Local.h"
 #include "llvm/Transforms/Utils/PromoteMemToReg.h"
 
-#include "boost/range.hpp"
-#include "boost/range/algorithm/binary_search.hpp"
 #include "boost/range/algorithm/set_algorithm.hpp"
-#include "boost/range/algorithm/sort.hpp"
 #include "seahorn/Support/SeaDebug.h"
 #include "seahorn/Transforms/Utils/Local.hh"
 
@@ -318,7 +314,8 @@ private:
     // Do not insert shadow.mem.global.init() if the global is a unique scalar
     // Such scalars are initialized directly in the code
     Value *scalar = getUniqueScalar(*m_llvmCtx, B, c);
-    if (!isa<ConstantPointerNull>(scalar)) return nullptr;
+    if (!isa<ConstantPointerNull>(scalar))
+      return nullptr;
 
     Value *u = B.CreateBitCast(&_u, Type::getInt8PtrTy(*m_llvmCtx));
     AllocaInst *v = getShadowForField(c);
@@ -584,7 +581,8 @@ void ShadowDsaImpl::visitMainFunction(Function &fn) {
     if (gv.getSection().equals("llvm.metadata"))
       continue;
     // skip globals that do not appear in alias analysis
-    if (!m_graph->hasCell(gv)) continue;
+    if (!m_graph->hasCell(gv))
+      continue;
     // insert call to mkShadowGlobalVarInit()
     mkShadowGlobalVarInit(*m_B, m_graph->getCell(gv), gv);
   }

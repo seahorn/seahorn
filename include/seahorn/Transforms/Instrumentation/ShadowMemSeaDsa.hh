@@ -16,7 +16,7 @@ public:
 
   bool runOnFunction(llvm::Function &F);
   void getAnalysisUsage(llvm::AnalysisUsage &AU) const override;
-  llvm::StringRef getPassName() const override { return "ShadowMemDsa2"; }
+  llvm::StringRef getPassName() const override { return "ShadowMemSeaDsa"; }
 };
 
 bool isShadowMemInst(const llvm::Value *v);

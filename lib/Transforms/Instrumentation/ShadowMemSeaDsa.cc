@@ -16,14 +16,14 @@
 #include "llvm/Transforms/Utils/PromoteMemToReg.h"
 
 #include "boost/range/algorithm/set_algorithm.hpp"
-#include "seahorn/Support/SeaDebug.h"
-#include "seahorn/Transforms/Utils/Local.hh"
 
 #include "sea_dsa/CallSite.hh"
 #include "sea_dsa/DsaAnalysis.hh"
 #include "sea_dsa/Mapper.hh"
+#include "seahorn/Support/SeaDebug.h"
 #include "seahorn/Support/SeaLog.hh"
 #include "seahorn/Support/SortTopo.hh"
+#include "seahorn/Transforms/Utils/Local.hh"
 
 llvm::cl::opt<bool> SplitFields("horn-sea-dsa-split",
                                 llvm::cl::desc("DSA: Split nodes by fields"),
@@ -45,10 +45,9 @@ Value *getUniqueScalar(LLVMContext &ctx, IRBuilder<> &B, const dsa::Cell &c) {
     // -- a unique scalar is a single-cell global variable. We might be
     // -- able to extend this to single-cell local pointers, but these
     // -- are probably not very common.
-    if (v)
-      if (GlobalVariable *gv = dyn_cast<GlobalVariable>(v))
-        if (gv->getType()->getElementType()->isSingleValueType())
-          return B.CreateBitCast(v, Type::getInt8PtrTy(ctx));
+    if (GlobalVariable *gv = dyn_cast_or_null<GlobalVariable>(v))
+      if (gv->getType()->getElementType()->isSingleValueType())
+        return B.CreateBitCast(v, Type::getInt8PtrTy(ctx));
   }
   return ConstantPointerNull::get(Type::getInt8PtrTy(ctx));
 }
@@ -59,7 +58,7 @@ template <typename Set> void markReachableNodes(const dsa::Node *n, Set &set) {
   assert(!n->isForwarding() && "Cannot mark a forwarded node");
 
   if (set.insert(n).second)
-    for (auto const &edg : n->links())
+    for (const auto &edg : n->links())
       markReachableNodes(edg.second->getNode(), set);
 }
 
@@ -67,14 +66,11 @@ template <typename Set>
 void reachableNodes(const Function &fn, dsa::Graph &g, Set &inputReach,
                     Set &retReach) {
   // formal parameters
-  for (Function::const_arg_iterator I = fn.arg_begin(), E = fn.arg_end();
-       I != E; ++I) {
-    const Value &arg = *I;
-    if (g.hasCell(arg)) {
-      dsa::Cell &c = g.mkCell(arg, dsa::Cell());
+  for (const auto &formal : fn.args())
+    if (g.hasCell(formal)) {
+      dsa::Cell &c = g.mkCell(formal, dsa::Cell());
       markReachableNodes(c.getNode(), inputReach);
     }
-  }
 
   // globals
   for (auto &kv : llvm::make_range(g.globals_begin(), g.globals_end()))

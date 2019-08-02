@@ -1052,9 +1052,15 @@ bool ShadowDsaImpl::mayClobber(CallInst &memDef, CallInst &memUse, AllocSitesCac
       llvm::errs() << "alias(" << *loadSrc << ", " << *storeDst << ")?\n");
 
   // If the offsets don't overlap, no clobbering may happen.
-  if (m_graph->hasCell(*loadSrc) && m_graph->hasCell(*storeDst)) {
+  {
+    assert(m_graph->hasCell(*loadSrc));
+    assert(m_graph->hasCell(*storeDst));
     const dsa::Cell &loadCell = m_graph->getCell(*loadSrc);
     const dsa::Cell &storeCell = m_graph->getCell(*storeDst);
+    assert(loadCell.getNode() == storeCell.getNode());
+
+    // This works with arrays in SeaDsa because all array elements share the
+    // same abstract field.
     const unsigned loadStartOffset = loadCell.getOffset();
     const unsigned loadEndOffset = loadStartOffset + loadedBytes;
     const unsigned storeStartOffset = storeCell.getOffset();

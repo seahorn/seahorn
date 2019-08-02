@@ -34,6 +34,11 @@ llvm::cl::opt<bool>
                  llvm::cl::desc("DSA: Compute read/mod info locally"),
                  llvm::cl::init(false));
 
+llvm::cl::opt<bool> ShadowMemOptimize(
+    "horn-shadow-mem-optimize",
+    llvm::cl::desc("Use the solve form for ShadowMem (MemSSA)"),
+    llvm::cl::init(true));
+
 using namespace llvm;
 namespace dsa = sea_dsa;
 namespace {
@@ -134,6 +139,8 @@ class ShadowDsaImpl : public InstVisitor<ShadowDsaImpl> {
 
   llvm::Constant *m_memGlobalVarInitFn = nullptr;
 
+  llvm::SmallVector<llvm::Constant *, 5> m_memInitFunctions;
+
   using ShadowsMap =
       llvm::DenseMap<const sea_dsa::Node *,
                      llvm::DenseMap<unsigned, llvm::AllocaInst *>>;
@@ -172,12 +179,20 @@ class ShadowDsaImpl : public InstVisitor<ShadowDsaImpl> {
   std::unique_ptr<IRBuilder<>> m_B = nullptr;
   dsa::Graph *m_graph;
 
+  // Associate shadow and concrete instructions, used by the load solver.
+  // Alternatively, this could be implemented by walking instructions forward,
+  // starting from a shadow instructions, until the first concrete instructions
+  // is found, or by using some metadata.
   llvm::DenseMap<CallInst *, LoadInst *> m_shadowLoadToLoad;
   llvm::DenseMap<CallInst *, StoreInst *> m_shadowStoreToStore;
 
+  LoadInst *getConcreteLoad(CallInst &memUse);
+  void associateConcreteLoad(CallInst &shadowLoad, LoadInst &concreteLoad);
+  StoreInst *getConcreteStore(CallInst &memDef);
+  void associateConcreteStore(CallInst &shadowStore, StoreInst &concreteStore);
+
   const llvm::StringRef m_metadataTag = "shadow.mem";
 
-private:
   /// \brief Create shadow pseudo-functions in the module
   void mkShadowFunctions(Module &M);
 
@@ -359,6 +374,7 @@ private:
                                          getUniqueScalar(*m_llvmCtx, B, c)});
     markCall(ci);
   }
+
   void mkArgNewMod(IRBuilder<> &B, Constant *argFn, const dsa::Cell &c,
                    unsigned idx) {
     AllocaInst *v = getShadowForField(c);
@@ -370,12 +386,14 @@ private:
     B.CreateStore(ci, v);
     markCall(ci);
   }
+
   void mkMarkIn(IRBuilder<> &B, const dsa::Cell &c, Value *v, unsigned idx) {
     auto *ci =
         B.CreateCall(m_markIn, {B.getInt32(getFieldId(c)), v, B.getInt32(idx),
                                 getUniqueScalar(*m_llvmCtx, B, c)});
     markCall(ci);
   }
+
   void mkMarkOut(IRBuilder<> &B, const dsa::Cell &c, unsigned idx) {
     auto *ci = B.CreateCall(m_markOut, {B.getInt32(getFieldId(c)),
                                         B.CreateLoad(getShadowForField(c)),
@@ -579,7 +597,8 @@ bool ShadowDsaImpl::runOnFunction(Function &F) {
   // -- infer types for PHINodes
   inferTypeOfPHINodes(F);
 
-  solveLoads(F);
+  if (ShadowMemOptimize)
+    solveLoads(F);
 
   m_B.reset(nullptr);
   m_llvmCtx = nullptr;
@@ -634,8 +653,8 @@ void ShadowDsaImpl::visitLoadInst(LoadInst &I) {
     return;
 
   m_B->SetInsertPoint(&I);
-  CallInst *memUse = mkShadowLoad(*m_B, c);
-  m_shadowLoadToLoad.insert({memUse, &I});
+  CallInst &memUse = *mkShadowLoad(*m_B, c);
+  associateConcreteLoad(memUse, I);
 }
 
 void ShadowDsaImpl::visitStoreInst(StoreInst &I) {
@@ -646,8 +665,8 @@ void ShadowDsaImpl::visitStoreInst(StoreInst &I) {
     return;
 
   m_B->SetInsertPoint(&I);
-  CallInst *ci = mkShadowStore(*m_B, c);
-  m_shadowStoreToStore.insert({ci, &I});
+  CallInst &memDef = *mkShadowStore(*m_B, c);
+  associateConcreteStore(memDef, I);
 }
 
 void ShadowDsaImpl::visitCallSite(CallSite CS) {
@@ -839,6 +858,10 @@ void ShadowDsaImpl::mkShadowFunctions(Module &M) {
                                    m_Int32Ty, m_Int32Ty, i8PtrTy);
   m_markOut = M.getOrInsertFunction("shadow.mem.out", voidTy, m_Int32Ty,
                                     m_Int32Ty, m_Int32Ty, i8PtrTy);
+
+  m_memInitFunctions = {m_memShadowInitFn, m_memGlobalVarInitFn,
+                        m_memShadowArgInitFn, m_memShadowUniqArgInitFn,
+                        m_memShadowUniqInitFn};
 }
 
 void ShadowDsaImpl::doReadMod() {
@@ -912,16 +935,51 @@ void ShadowDsaImpl::updateReadMod(Function &F, NodeSet &readSet,
   }
 }
 
+LoadInst *ShadowDsaImpl::getConcreteLoad(CallInst &memUse) {
+  assert(memUse.getMetadata(m_metadataTag));
+  auto it = m_shadowLoadToLoad.find(&memUse);
+  if (it != m_shadowLoadToLoad.end()) {
+    // The concrete instruction should follow the shadow at the end of the
+    // shadow mem pass.
+    assert(it->second == memUse.getNextNode());
+    return it->second;
+  }
+
+  return nullptr;
+}
+
+void ShadowDsaImpl::associateConcreteLoad(CallInst &shadowLoad,
+                                          LoadInst &concreteLoad) {
+  assert(shadowLoad.getMetadata(m_metadataTag));
+  assert(shadowLoad.getCalledFunction() == m_memLoadFn);
+  m_shadowLoadToLoad.insert({&shadowLoad, &concreteLoad});
+}
+
+StoreInst *ShadowDsaImpl::getConcreteStore(CallInst &memDef) {
+  assert(memDef.getMetadata(m_metadataTag));
+  auto it = m_shadowStoreToStore.find(&memDef);
+  if (it != m_shadowStoreToStore.end()) {
+    // The concrete instruction should follow the shadow at the end of the
+    // shadow mem pass.
+    assert(it->second == memDef.getNextNode());
+    return it->second;
+  }
+
+  return nullptr;
+}
+
+void ShadowDsaImpl::associateConcreteStore(CallInst &shadowStore,
+                                           StoreInst &concreteStore) {
+  assert(shadowStore.getMetadata(m_metadataTag));
+  assert(shadowStore.getCalledFunction() == m_memStoreFn);
+  m_shadowStoreToStore.insert({&shadowStore, &concreteStore});
+}
+
 bool ShadowDsaImpl::isMemInit(const CallInst &memOp) {
   assert(memOp.getMetadata(m_metadataTag));
   auto *fn = memOp.getCalledFunction();
   assert(fn);
-
-  SmallVector<Constant *, 5> memInitFunctions = {
-      m_memShadowInitFn, m_memGlobalVarInitFn, m_memShadowArgInitFn,
-      m_memShadowUniqArgInitFn, m_memShadowUniqInitFn};
-
-  return llvm::is_contained(memInitFunctions, fn);
+  return llvm::is_contained(m_memInitFunctions, fn);
 }
 
 CallInst &ShadowDsaImpl::getParentDef(CallInst &memOp) {
@@ -974,13 +1032,18 @@ ShadowDsaImpl::getAllAllocSites(Value &ptr, AllocSitesCache &cache) {
     visited.insert(stripped);
     LOG("shadow_optimizer", llvm::errs() << "Visiting: " << *stripped << "\n");
 
-    // In our memory model, all function calls returning pointers are considered
-    // allocating.
     if (isa<AllocaInst>(stripped) || isa<Argument>(stripped) ||
-        isa<GlobalValue>(stripped) || isa<CallInst>(stripped)) {
+        isa<GlobalValue>(stripped)) {
       allocSites.insert(stripped);
       continue;
     }
+
+    // Check with the DSA if a call is considered an allocation site.
+    if (auto *ci = dyn_cast<CallInst>(stripped))
+      if (m_graph->hasAllocSiteForValue(*ci)) {
+        allocSites.insert(stripped);
+        continue;
+      }
 
     if (auto *gep = dyn_cast<GetElementPtrInst>(stripped)) {
       worklist.push_back(gep->getPointerOperand());
@@ -1010,40 +1073,31 @@ ShadowDsaImpl::getAllAllocSites(Value &ptr, AllocSitesCache &cache) {
   return (cache[strippedInit] = allocSites);
 }
 
-bool ShadowDsaImpl::mayClobber(CallInst &memDef, CallInst &memUse, AllocSitesCache &cache) {
+bool ShadowDsaImpl::mayClobber(CallInst &memDef, CallInst &memUse,
+                               AllocSitesCache &cache) {
   LOG("shadow_optimizer", llvm::errs() << "\n~~~~\nmayClobber(" << memDef
                                        << ", " << memUse << ")?\n");
 
-  // Right now memUse must be a load instruction.
   if (isMemInit(memDef))
     return true;
 
   // Get the corresponding pointers and check if these two pointers have
   // disjoint allocation sites -- if not, they cannot alias.
   // This can be extended further with offset tracking.
-
-  auto lit = m_shadowLoadToLoad.find(&memUse);
-  if (lit == m_shadowLoadToLoad.end())
-    return true;
-
-  auto getTypeSize = [this] (Type *ty) {
+  auto getTypeSize = [this](Type *ty) {
     unsigned bits = m_dl->getTypeSizeInBits(ty);
     return bits < 8 ? 1 : bits / 8;
   };
 
-  LoadInst *concreteLoad = lit->second;
-  assert(concreteLoad);
-  assert(memUse.getNextNode() == concreteLoad);
+  LoadInst *concreteLoad = getConcreteLoad(memUse);
+  if (!concreteLoad)
+    return true;
   Value *loadSrc = concreteLoad->getPointerOperand();
   const unsigned loadedBytes = getTypeSize(concreteLoad->getType());
 
-  auto sit = m_shadowStoreToStore.find(&memDef);
-  if (sit == m_shadowStoreToStore.end())
+  StoreInst *concreteStore = getConcreteStore(memDef);
+  if (!concreteStore)
     return true;
-
-  StoreInst *concreteStore = sit->second;
-  assert(concreteStore);
-  assert(memDef.getNextNode() == concreteStore);
   Value *storeDst = concreteStore->getPointerOperand();
   const unsigned storedBytes =
       getTypeSize(concreteStore->getValueOperand()->getType());

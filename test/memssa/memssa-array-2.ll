@@ -8,7 +8,7 @@
 ; CHECK-L: ret i32 42
 
 ; This is case is not optimized yet -- we don't look thru the memPhi / memGamma.
-; CHECK-L: MemSSA optimizer: 0 load(s) solved.
+; CHECK-L: MemSSA optimizer: 0 use(s) solved.
 
 ; CHECK-L: Module after shadow insertion:
 ; CHECK-L:  ret i32 42

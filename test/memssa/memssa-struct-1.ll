@@ -7,13 +7,13 @@
 ; CHECK-L: Module before shadow insertion:
 ; CHECK-L: ret i32 42
 
-; CHECK-L: MemSSA optimizer: 1 load(s) solved.
+; CHECK-L: MemSSA optimizer: 1 use(s) solved.
 
 ; CHECK-L: Module after shadow insertion:
-; CHECK-L:  %sm = call i32 @shadow.mem.store(i32 0, i32 %sm3, i8* null), !shadow.mem !3
-; CHECK-L:  %sm1 = call i32 @shadow.mem.store(i32 0, i32 %sm, i8* null), !shadow.mem !3
-; CHECK-L:  %sm2 = call i32 @shadow.mem.store(i32 0, i32 %sm1, i8* null), !shadow.mem !3
-; CHECK-L:  call void @shadow.mem.load(i32 0, i32 %sm, i8* null), !shadow.mem !3
+; CHECK-L:  %sm = call i32 @shadow.mem.store(i32 0, i32 %sm3, i8* null), !shadow.mem
+; CHECK-L:  %sm1 = call i32 @shadow.mem.store(i32 0, i32 %sm, i8* null), !shadow.mem
+; CHECK-L:  %sm2 = call i32 @shadow.mem.store(i32 0, i32 %sm1, i8* null), !shadow.mem
+; CHECK-L:  call void @shadow.mem.load(i32 0, i32 %sm, i8* null), !shadow.mem
 ; CHECK-L:  ret i32 42
 
 ; ModuleID = '/tmp/sea-U0ExWZ/memssa-struct-1.pp.ms.o.ul.cut.o.bc'

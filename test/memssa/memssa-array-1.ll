@@ -7,7 +7,7 @@
 ; CHECK-L: Module before shadow insertion:
 ; CHECK-L: ret i32 42
 
-; CHECK-L: MemSSA optimizer: 2 load(s) solved.
+; CHECK-L: MemSSA optimizer: 2 use(s) solved.
 
 ; CHECK-L: Module after shadow insertion:
 ; CHECK-L:  ret i32 42

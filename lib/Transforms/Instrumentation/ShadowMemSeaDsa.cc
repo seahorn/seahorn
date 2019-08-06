@@ -2,9 +2,11 @@
 #include "llvm/ADT/SCCIterator.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/Analysis/AssumptionCache.h"
+#include "llvm/Analysis/BasicAliasAnalysis.h"
 #include "llvm/Analysis/CallGraph.h"
 #include "llvm/Analysis/MemoryBuiltins.h"
 #include "llvm/Analysis/TargetLibraryInfo.h"
+#include "llvm/Analysis/TypeBasedAliasAnalysis.h"
 #include "llvm/IR/DataLayout.h"
 #include "llvm/IR/Dominators.h"
 #include "llvm/IR/IRBuilder.h"
@@ -38,8 +40,13 @@ llvm::cl::opt<bool>
 
 llvm::cl::opt<bool> ShadowMemOptimize(
     "horn-shadow-mem-optimize",
-    llvm::cl::desc("Use the solve form for ShadowMem (MemSSA)"),
+    llvm::cl::desc("Use the solved form for ShadowMem (MemSSA)"),
     llvm::cl::init(true));
+
+llvm::cl::opt<bool>
+    ShadowMemUseTBAA("horn-shadow-mem-use-tbaa",
+                     llvm::cl::desc("Use TypeBasedAA in the MemSSA optimizer"),
+                     llvm::cl::init(true));
 
 using namespace llvm;
 namespace dsa = sea_dsa;
@@ -111,6 +118,41 @@ void argReachableNodes(const Function &fn, dsa::Graph &G, Set1 &reach,
   set_union(reach, outReach);
 }
 
+/// Interface used to query BasicAA and TBAA, if available. This should ideally
+/// be replaced with llvm::AAResultsWrapperPass, but we hit crashes when calling
+/// alias -- this class is just a simple workaround.
+/// TODO: Investigate crashes in llvm::AAResultsWrapperPass.
+class LocalAAResultsWrapper {
+  llvm::BasicAAResult *m_baa = nullptr;
+  llvm::TypeBasedAAResult *m_tbaa = nullptr;
+
+public:
+  LocalAAResultsWrapper() = default;
+  LocalAAResultsWrapper(BasicAAResult *baa, TypeBasedAAResult *tbaa)
+      : m_baa(baa), m_tbaa(tbaa) {}
+  LocalAAResultsWrapper(const LocalAAResultsWrapper &) = default;
+  LocalAAResultsWrapper &operator=(const LocalAAResultsWrapper &) = default;
+
+  bool isNoAlias(Value &ptrA, Optional<unsigned> sizeA, Value &ptrB,
+                 Optional<unsigned> sizeB) {
+    if (!m_baa && !m_tbaa)
+      return false;
+
+    MemoryLocation A(&ptrA);
+    if (sizeA.hasValue())
+      A = MemoryLocation(&ptrA, *sizeA);
+
+    MemoryLocation B(&ptrB);
+    if (sizeB.hasValue())
+      A = MemoryLocation(&ptrB, *sizeB);
+
+    if (m_tbaa && m_tbaa->alias(A, B) == AliasResult::NoAlias)
+      return true;
+
+    return m_baa && m_baa->alias(A, B) == AliasResult::NoAlias;
+  }
+};
+
 class ShadowDsaImpl : public InstVisitor<ShadowDsaImpl> {
   dsa::GlobalAnalysis &m_dsa;
   dsa::AllocSiteInfo &m_asi;
@@ -180,7 +222,8 @@ class ShadowDsaImpl : public InstVisitor<ShadowDsaImpl> {
   // -- temporaries, used by visitor
   llvm::LLVMContext *m_llvmCtx = nullptr;
   std::unique_ptr<IRBuilder<>> m_B = nullptr;
-  dsa::Graph *m_graph;
+  dsa::Graph *m_graph = nullptr;
+  LocalAAResultsWrapper m_localAAResults;
 
   // Associate shadow and concrete instructions, used by the memUse solver.
   // Alternatively, this could be implemented by walking instructions forward,
@@ -515,9 +558,11 @@ public:
 
     mkShadowFunctions(M);
     m_nodeIds.clear();
+
+    bool changed = false;
     for (Function &F : M)
-      runOnFunction(F);
-    return false;
+      changed |= runOnFunction(F);
+    return changed;
   };
 
   bool runOnFunction(Function &F);
@@ -548,6 +593,25 @@ bool ShadowDsaImpl::runOnFunction(Function &F) {
 
   m_graph = &m_dsa.getGraph(F);
   m_shadows.clear();
+
+  // Alias analyses in LLVM are function passes, so we can only get the results
+  // once the function is known. The Pass Manager is not able to schedule the
+  // AA's here, construct them manually as a workaround.
+  std::unique_ptr<BasicAAResult> baa = nullptr;
+  if (m_tli) {
+    DominatorTree &dt =
+        m_pass.getAnalysis<llvm::DominatorTreeWrapperPass>(F).getDomTree();
+    AssumptionCache &ac =
+        m_pass.getAnalysis<llvm::AssumptionCacheTracker>().getAssumptionCache(
+            F);
+    baa = llvm::make_unique<BasicAAResult>(*m_dl, *m_tli, ac, &dt);
+  }
+
+  std::unique_ptr<TypeBasedAAResult> tbaa = nullptr;
+  if (ShadowMemUseTBAA)
+    tbaa = llvm::make_unique<TypeBasedAAResult>();
+
+  m_localAAResults = LocalAAResultsWrapper(baa.get(), tbaa.get());
 
   // -- instrument function F with pseudo-instructions
   m_llvmCtx = &F.getContext();
@@ -1154,7 +1218,6 @@ bool ShadowDsaImpl::mayClobber(CallInst &memDef, CallInst &memUse,
   if (!defPtr)
     return true;
 
-
   usePtr = usePtr->stripPointerCastsAndBarriers();
   defPtr = defPtr->stripPointerCastsAndBarriers();
   assert(m_graph->hasCell(*usePtr));
@@ -1192,23 +1255,28 @@ bool ShadowDsaImpl::mayClobber(CallInst &memDef, CallInst &memUse,
   }
   LOG("shadow_optimizer", llvm::errs() << "\tmayClobber[4]\n");
 
+  if (m_localAAResults.isNoAlias(*usePtr, usedBytes, *defPtr, defdBytes))
+    return false;
+
+  LOG("shadow_optimizer", llvm::errs() << "\tmayClobber[6]\n");
+
   auto useAllocSites = getAllAllocSites(*usePtr, cache);
   if (!useAllocSites.hasValue())
     return true;
 
-  LOG("shadow_optimizer", llvm::errs() << "\tmayClobber[5]\n");
+  LOG("shadow_optimizer", llvm::errs() << "\tmayClobber[7]\n");
 
   auto defAllocSites = getAllAllocSites(*defPtr, cache);
   if (!defAllocSites.hasValue())
     return true;
 
-  LOG("shadow_optimizer", llvm::errs() << "\tmayClobber[6]\n");
+  LOG("shadow_optimizer", llvm::errs() << "\tmayClobber[8]\n");
 
   for (auto *as : *useAllocSites)
     if (defAllocSites->count(as) > 0)
       return true;
 
-  LOG("shadow_optimizer", llvm::errs() << "\tmayClobber[7]\n");
+  LOG("shadow_optimizer", llvm::errs() << "\tmayClobber[9]\n");
 
   return false;
 }

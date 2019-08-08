@@ -296,11 +296,11 @@ void VCGen::genVcForBasicBlockOnEdge(OpSemContext &ctx, const CpEdge &edge,
     }
 
     assert(edges.size() > 0);
-    // TODO: Optimize ite construction by ensuring that each unique value appears
-    // only ones. For example,
-    // ite(c1, ite(c2, v, u), v) --reduces--> ite (c1 || !c2, v, u)
-    // This is easy in this case because conditions are known to be disjoint.
-    // This is basically compiling a known switch statement into if-then-else block
+    // TODO: Optimize ite construction by ensuring that each unique value
+    // appears only ones. For example, ite(c1, ite(c2, v, u), v) --reduces-->
+    // ite (c1 || !c2, v, u) This is easy in this case because conditions are
+    // known to be disjoint. This is basically compiling a known switch
+    // statement into if-then-else block
     for (unsigned i = 0; i < newPhi.size(); ++i) {
       // assume that path-conditions (edges) are disjoint and that
       // at least one must be true. Using the last edge condition as the
@@ -308,7 +308,7 @@ void VCGen::genVcForBasicBlockOnEdge(OpSemContext &ctx, const CpEdge &edge,
       // taken
       Expr val = phiVal[edges.size() - 1][i];
       for (unsigned j = edges.size() - 1; j > 0; --j) {
-        val = boolop::lite(edges[j - 1], phiVal[j - 1][i], val);
+        val = bind::lite(edges[j - 1], phiVal[j - 1][i], val);
       }
       // write an ite expression as the new PHINode value
       ctx.write(newPhi[i], val);

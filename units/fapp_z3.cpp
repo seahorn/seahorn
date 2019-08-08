@@ -12,6 +12,7 @@ TEST_CASE("z3.fapp_test") {
 
   Expr x = bind::intConst(mkTerm<string>("x", efac));
   Expr y = bind::intConst(mkTerm<string>("y", efac));
+  Expr z = bind::intConst(mkTerm<string>("z", efac));
 
   Expr iTy = mk<INT_TY>(efac);
   Expr bTy = mk<BOOL_TY>(efac);
@@ -32,6 +33,23 @@ TEST_CASE("z3.fapp_test") {
 
   errs() << "fapp: " << *fapp << "\n";
   errs() << "z3: " << z3_to_smtlib(z3, fapp) << "\n";
-
   CHECK(lexical_cast<string>(*fapp) == z3_to_smtlib(z3, fapp));
+
+  Expr lmd = bind::abs<LAMBDA>(std::array<Expr, 1>{x}, fapp);
+  errs() << "lmd: " << *lmd << "\n";
+
+  Expr lmd2 = bind::abs<LAMBDA>(std::array<Expr, 2>{x, y}, fapp);
+  errs() << "lmd2: " << *lmd2 << "\n"
+         << "body: " << *bind::body(lmd2) << "\n";
+  errs() << "lmd2_z3: " << z3_to_smtlib(z3, lmd2) << "\n"
+         << "body: " << z3_to_smtlib(z3, bind::body(lmd2)) << "\n";
+
+  Expr lmd3 = bind::abs<LAMBDA>(std::array<Expr, 1>{y}, lmd);
+  errs() << "lmd3: " << *lmd3 << "\n";
+
+  Expr tmp = bind::betaReduce(lmd3, z);
+  errs() << "tmp: " << *tmp << "\n";
+
+  Expr tmp1 = bind::betaReduce(lmd2, x, y);
+  errs() << "tmp1: " << *tmp1 << "\n";
 }

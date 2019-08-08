@@ -1,4 +1,6 @@
 ; RUN: %seabmc "%s" 2>&1 | %oc %s
+; RUN: %seabmc --horn-bv2-lambdas --log=opsem3 "%s" 2>&1 | %oc %s
+
 ;; Handling bswap intrinsic
 ; CHECK: ^unsat$
 ;; ModuleID = '/tmp/sea-UbOU1E/t6.pp.ms.o.ul.cut.bc'

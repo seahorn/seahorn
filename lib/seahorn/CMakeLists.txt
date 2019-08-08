@@ -21,7 +21,7 @@ add_llvm_library (seahorn.LIB
   HornClauseDB.cc
   HornClauseDBTransf.cc
   PathBasedBmc.cc
-  Bmc.cc    
+  Bmc.cc
   BmcPass.cc
   BvOpSem.cc
   # BvInt.cc
@@ -38,4 +38,3 @@ if (HAVE_CRAB_LLVM)
 endif()
 
 set_target_properties (seahorn.LIB PROPERTIES OUTPUT_NAME "seahorn")
-

@@ -1,6 +1,4 @@
-#include "llvm/Analysis/PostDominators.h"
 #include "llvm/Analysis/TargetLibraryInfo.h"
-#include "llvm/IR/Dominators.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/Module.h"
@@ -20,11 +18,9 @@
 #include "seahorn/BvOpSem.hh"
 #include "seahorn/BvOpSem2.hh"
 #include "seahorn/PathBasedBmc.hh"
-#include "seahorn/UfoOpSem.hh"
 // prerequisite for CrabLlvm
 #include "seahorn/Support/SeaDebug.h"
 #include "seahorn/Support/SeaLog.hh"
-#include "seahorn/Support/Stats.hh"
 #include "seahorn/Transforms/Scalar/LowerCstExpr.hh"
 #ifdef HAVE_CRAB_LLVM
 #include "crab_llvm/CrabLlvm.hh"
@@ -90,17 +86,17 @@ public:
   }
 
   void getAnalysisUsage(AnalysisUsage &AU) const {
-#ifdef HAVE_CRAB_LLVM    
+#ifdef HAVE_CRAB_LLVM
     if (m_engine == path_bmc) {
       if (XHornBmcCrab) {
         AU.addRequired<crab_llvm::CrabLlvmPass>();
         AU.addRequired<seahorn::LowerCstExprPass>();
-	// XXX: NameValues must be executed after LowerCstExprPass
-	// because the latter might introduce unnamed instructions.
+        // XXX: NameValues must be executed after LowerCstExprPass
+        // because the latter might introduce unnamed instructions.
       }
     }
 #endif
-        
+
     AU.addRequired<seahorn::CanFail>();
     AU.addRequired<seahorn::NameValues>();
     AU.addRequired<seahorn::TopologicalOrder>();
@@ -203,8 +199,8 @@ public:
       if (XHornBmcCrab) {
         ERR << "Crab requested (by --horn-bmc-crab) but not available!";
       }
-        bmc = llvm::make_unique<PathBasedBmcEngine>(
-	    static_cast<LegacyOperationalSemantics &>(*sem), zctx, tli);
+      bmc = llvm::make_unique<PathBasedBmcEngine>(
+          static_cast<LegacyOperationalSemantics &>(*sem), zctx, tli);
 #endif
       break;
     }
@@ -221,21 +217,27 @@ public:
     LOG("bmc", errs() << "BMC from: " << src.bb().getName() << " to "
                       << dst->bb().getName() << "\n";);
 
-    Stats::resume("BMC");    
+    Stats::resume("BMC");
     bmc->encode();
 
-    const size_t dagSize = bmc->getFormulaDagSize();
-    Stats::sset("BMC_DAG_SIZE", std::to_string(dagSize));
+    Stats::uset("BMC_DAG_SIZE", bmc->getFormulaDagSize());
+    Stats::uset("BMC_CIRCUIT_SIZE", bmc->getFormulaCircuitSize());
 
-    const size_t circuitSize = bmc->getFormulaCircuitSize();
-    Stats::sset("BMC_CIRCUIT_SIZE", std::to_string(circuitSize));
+    LOG("bmc.simplify",
+        // --
+        Expr vc = mknary<AND>(bmc->getFormula());
+        Expr vc_simpl = z3_simplify(bmc->zctx(), vc);
+        llvm::errs() << "VC:\n"
+                     << z3_to_smtlib(bmc->zctx(), vc) << "\n~~~~\n"
+                     << "Simplified VC:\n"
+                     << z3_to_smtlib(bmc->zctx(), vc_simpl) << "\n");
 
     if (m_out)
       bmc->toSmtLib(*m_out);
 
     if (!m_solve) {
       LOG("bmc", errs() << "Stopping before solving\n";);
-      Stats::stop("BMC");      
+      Stats::stop("BMC");
       return false;
     }
 
@@ -255,7 +257,7 @@ public:
     else if (!res)
       Stats::sset("BMC_result", "TRUE");
 
-    LOG("bmc_core",
+    LOG("bmc.core",
 
         // producing bmc core is expensive. Enable only if specifically
         // requested
@@ -278,7 +280,7 @@ public:
     return false;
   }
 
-  virtual StringRef getPassName() const { return "BmcPass"; }
+  StringRef getPassName() const override { return "BmcPass"; }
 };
 
 char BmcPass::ID = 0;

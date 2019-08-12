@@ -20,7 +20,7 @@ class Bv3OpSemContext;
 Bv3OpSemContext &ctx3(OpSemContext &_ctx);
 } // namespace details
 /**
-   Bit-precise operational semantics for LLVM (take 2)
+   Bit-precise operational semantics for LLVM (take 3)
 
    Fairly accurate representation of LLVM semantics without
    considering undefined behaviour. Most operators are mapped
@@ -46,7 +46,7 @@ public:
     assert(m_td);
     return *m_td;
   }
-  const DataLayout& getDataLayout() {return getTD();}
+  const DataLayout &getDataLayout() { return getTD(); }
 
   /// \brief Returns a concrete value to which a constant evaluates
   /// Adapted from llvm::ExecutionEngine
@@ -58,7 +58,7 @@ public:
 
   /// \brief Stores a value in \p Val to memory pointed by \p Ptr. The store is
   /// of type \p Ty
-  void storeValueToMemory(const GenericValue &Val, GenericValue *Ptr, Type *Ty); 
+  void storeValueToMemory(const GenericValue &Val, GenericValue *Ptr, Type *Ty);
 
   /// \brief Creates a new context
   OpSemContextPtr mkContext(SymStore &values, ExprVector &side) override;
@@ -143,9 +143,10 @@ public:
   /// \breif Returns offset of a filed in a structure
   unsigned fieldOff(const StructType *t, unsigned field) const;
 
-  /// \brief Size of the register (in bits) required to store \p v 
+  /// \brief Size of the register (in bits) required to store \p v
   uint64_t sizeInBits(const llvm::Value &v) const;
-  /// \brief Size of the register (in bits) required to store values of type \p t
+  /// \brief Size of the register (in bits) required to store values of type \p
+  /// t
   uint64_t sizeInBits(const llvm::Type &t) const;
   /// \brief Number of bits required to store a pointer
   unsigned pointerSizeInBits() const;

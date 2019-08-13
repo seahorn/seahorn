@@ -31,7 +31,7 @@ option(SEA_USE_SPLIT_DWARF "Use -gsplit-dwarf. Decreases linker pressure." OFF)
 
 option(SEA_ENABLE_ASSERTIONS "Enable assertions." OFF)
 
-option(USE_SEAHORN_EXPR "User SeaHorn version of Expr library" OFF)
+option(USE_SEAHORN_EXPR "User SeaHorn version of Expr library" ON)
 if(${USE_SEAHORN_EXPR})
   add_definitions(-DUSE_SEAHORN_EXPR=1)
 endif()

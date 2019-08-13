@@ -1,5 +1,4 @@
 ; RUN: %seabmc "%s" --horn-bv2-word-size=1 2>&1 | %oc %s
-; RUN: %seabmc "%s" --horn-bv2-word-size=2 2>&1 | %oc %s
 ; RUN: %seabmc "%s" --horn-bv2-word-size=4 2>&1 | %oc %s
 ; RUN: %seabmc "%s" --horn-bv2-word-size=8 2>&1 | %oc %s
 ; CHECK: ^unsat$

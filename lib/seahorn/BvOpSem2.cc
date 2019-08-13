@@ -667,6 +667,7 @@ public:
     switch (wordSzInBytes()) {
       // cases where ptrs are known to use a certain number of bits to denote byte offset
       //   and the rest to denote word aligned address
+      case 1: return 0;
       case 2: return 1;
       case 4: return 2;
       case 8: return 3;

@@ -406,7 +406,7 @@ include_directories(BEFORE
 
 add_subdirectory(lib)
 add_subdirectory(tools)
-  add_subdirectory(units)
+add_subdirectory(units)
 add_subdirectory(sea-rt)
 
 configure_file( include/seahorn/config.h.cmake

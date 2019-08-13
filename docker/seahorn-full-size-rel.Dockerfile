@@ -39,10 +39,14 @@ RUN cmake -GNinja \
     cmake --build . --target extra  && cmake .. && \
     cmake --build . --target crab  && cmake .. && \
     cmake --build . --target install && \
+    cmake --build . --target units_z3 && \
     cmake --build . --target package && \
     # symlink clang (from base image)
     ln -s /clang-5.0/bin/clang run/bin/clang && \
-    ln -s /clang-5.0/bin/clang++ run/bin/clang++
+    ln -s /clang-5.0/bin/clang++ run/bin/clang++ && \
+    if [ "$TRAVIS" == "true" ] ; \
+      then units/units_z3 ; \
+    fi
 
 ENV PATH "/seahorn/build/run/bin:$PATH"
 

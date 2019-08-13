@@ -22,6 +22,7 @@ add_executable(units_z3 EXCLUDE_FROM_ALL
   units_z3.cpp
   fapp_z3.cpp
   muz_test.cpp
+  lambdas_z3.cpp
   )
 llvm_config (units_z3 ${LLVM_LINK_COMPONENTS})
 

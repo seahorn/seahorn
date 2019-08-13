@@ -4,8 +4,8 @@
 /** Marshal and Unmarshal between Z3 ast and Expr*/
 
 // --  used for CL options
-#include "seahorn/Expr/Smt/Z3.hh"
 #include "seahorn/Expr/ExprLlvm.hh"
+#include "seahorn/Expr/Smt/Z3.hh"
 
 #include "llvm/Support/raw_ostream.h"
 
@@ -15,7 +15,7 @@ struct FailMarshal {
   template <typename C>
   static z3::ast marshal(Expr e, z3::context &ctx, C &cache,
                          expr_ast_map &seen) {
-    llvm::errs() << "Cannot marshal: " << *e << "\n";
+    llvm::errs() << "\nCannot marshal: " << *e << "\n";
     assert(0);
     exit(1);
   }
@@ -25,7 +25,7 @@ struct FailUnmarshal {
   template <typename C>
   static Expr unmarshal(const z3::ast &a, ExprFactory &efac, C &cache,
                         ast_expr_map &seen) {
-    llvm::errs() << "Cannot unmarshal: " << lexical_cast<std::string>(a)
+    llvm::errs() << "\nCannot unmarshal: " << lexical_cast<std::string>(a)
                  << "\n";
     assert(0);
     exit(1);
@@ -162,26 +162,35 @@ template <typename M> struct BasicExprMarshal {
 
     /** function application */
     else if (bind::isFapp(e)) {
+      if (bind::isFdecl(bind::fname(e))) {
+        z3::func_decl zfdecl(ctx,
+                             reinterpret_cast<Z3_func_decl>(static_cast<Z3_ast>(
+                                 marshal(bind::fname(e), ctx, cache, seen))));
 
-      z3::func_decl zfdecl(ctx,
-                           reinterpret_cast<Z3_func_decl>(static_cast<Z3_ast>(
-                               marshal(bind::fname(e), ctx, cache, seen))));
+        // -- marshall all arguments except for the first one
+        // -- (which is the fdecl)
+        std::vector<Z3_ast> args(e->arity());
+        z3::ast_vector pinned_args(ctx);
+        pinned_args.resize(e->arity());
 
-      // -- marshall all arguments except for the first one
-      // -- (which is the fdecl)
-      std::vector<Z3_ast> args(e->arity());
-      z3::ast_vector pinned_args(ctx);
-      pinned_args.resize(e->arity());
+        unsigned pos = 0;
+        for (ENode::args_iterator it = ++(e->args_begin()), end = e->args_end();
+             it != end; ++it) {
+          z3::ast a(marshal(*it, ctx, cache, seen));
+          pinned_args.push_back(a);
+          args[pos++] = a;
+        }
 
-      unsigned pos = 0;
-      for (ENode::args_iterator it = ++(e->args_begin()), end = e->args_end();
-           it != end; ++it) {
-        z3::ast a(marshal(*it, ctx, cache, seen));
-        pinned_args.push_back(a);
-        args[pos++] = a;
+        res = Z3_mk_app(ctx, zfdecl, e->arity() - 1, &args[0]);
+      } else if (isOpX<LAMBDA>(bind::fname(e))) {
+        z3::ast lmbd(marshal(bind::fname(e), ctx, cache, seen));
+        assert(e->arity() == 2 && "Only 1D arrays are supported");
+        z3::ast arg(marshal(e->arg(1), ctx, cache, seen));
+
+        // In Z3, selects are used for lambda applications.
+        // (Lambdas are of ArraySort.)
+        res = Z3_mk_select(ctx, lmbd, arg);
       }
-
-      res = Z3_mk_app(ctx, zfdecl, e->arity() - 1, &args[0]);
     }
     /** quantifier */
     else if (isOpX<FORALL>(e) || isOpX<EXISTS>(e) || isOpX<LAMBDA>(e)) {
@@ -208,8 +217,8 @@ template <typename M> struct BasicExprMarshal {
                                &bound_sorts[0], &bound_names[0], body);
       } else {
         assert(isOpX<LAMBDA>(e));
-        res = Z3_mk_lambda(ctx, num_bound,
-                           &bound_sorts[0], &bound_names[0], body);
+        res = Z3_mk_lambda(ctx, num_bound, &bound_sorts[0], &bound_names[0],
+                           body);
       }
     }
 

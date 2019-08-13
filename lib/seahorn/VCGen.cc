@@ -24,6 +24,10 @@ static llvm::cl::opt<bool> LargeStepReduce(
     llvm::cl::desc("Reduce constraints during large-step encoding"),
     llvm::cl::init(false), llvm::cl::Hidden);
 
+static llvm::cl::opt<bool> UseIte("horn-vcgen-use-ite",
+                                  llvm::cl::desc("Use ite-terms in VC"),
+                                  llvm::cl::init(false), llvm::cl::Hidden);
+
 using namespace ufo;
 namespace seahorn {
 
@@ -247,7 +251,10 @@ void VCGen::genVcForBasicBlockOnEdge(OpSemContext &ctx, const CpEdge &edge,
     ctx.addSide(bbV);
 
   /// -- generate constraints from the phi-nodes (keep them separate for now)
-  std::vector<ExprVector> phiConstraints(preds.size());
+  // a map from predecessor id to values of all phi-defined variables over that
+  // edge for example, phiVal[i][j] is the value of jth PHI-node when control
+  // flows from predecessor i
+  std::vector<ExprVector> phiVal(preds.size());
 
   unsigned idx = 0;
   for (const BasicBlock *pred : preds) {
@@ -271,27 +278,57 @@ void VCGen::genVcForBasicBlockOnEdge(OpSemContext &ctx, const CpEdge &edge,
         continue;
 
       // -- record the value of PHINode after taking `pred --> bb` edge
-      phiConstraints[idx].push_back(ectx->read(m_sem.mkSymbReg(inst, ctx)));
+      phiVal[idx].push_back(ectx->read(m_sem.mkSymbReg(inst, ctx)));
     }
 
     idx++;
   }
 
-  // create new values for PHINode registers
-  ExprVector newPhi;
-  for (const Instruction &inst : bb) {
-    if (!isa<PHINode>(inst))
-      break;
-    if (!m_sem.isTracked(inst))
-      continue;
-    newPhi.push_back(ctx.havoc(m_sem.mkSymbReg(inst, ctx)));
-  }
+  if (UseIte) {
+    // create symbolic registers for PHINodes
+    ExprVector newPhi;
+    for (const Instruction &inst : bb) {
+      if (!isa<PHINode>(inst))
+        break;
+      if (!m_sem.isTracked(inst))
+        continue;
+      newPhi.push_back(m_sem.mkSymbReg(inst, ctx));
+    }
 
-  // connect new PHINode register values with constructed PHINode values
-  for (unsigned j = 0; j < edges.size(); ++j)
-    for (unsigned i = 0; i < newPhi.size(); ++i)
-      ctx.addSide(
-          boolop::limp(edges[j], mk<EQ>(newPhi[i], phiConstraints[j][i])));
+    assert(edges.size() > 0);
+    // TODO: Optimize ite construction by ensuring that each unique value appears
+    // only ones. For example,
+    // ite(c1, ite(c2, v, u), v) --reduces--> ite (c1 || !c2, v, u)
+    // This is easy in this case because conditions are known to be disjoint.
+    // This is basically compiling a known switch statement into if-then-else block
+    for (unsigned i = 0; i < newPhi.size(); ++i) {
+      // assume that path-conditions (edges) are disjoint and that
+      // at least one must be true. Using the last edge condition as the
+      // default value. If all other edge conditions are false, the default is
+      // taken
+      Expr val = phiVal[edges.size() - 1][i];
+      for (unsigned j = edges.size() - 1; j > 0; --j) {
+        val = boolop::lite(edges[j - 1], phiVal[j - 1][i], val);
+      }
+      // write an ite expression as the new PHINode value
+      ctx.write(newPhi[i], val);
+    }
+  } else {
+    // create new havoced values for PHINodes
+    ExprVector newPhi;
+    for (const Instruction &inst : bb) {
+      if (!isa<PHINode>(inst))
+        break;
+      if (!m_sem.isTracked(inst))
+        continue;
+      newPhi.push_back(ctx.havoc(m_sem.mkSymbReg(inst, ctx)));
+    }
+
+    // connect new PHINode register values with constructed PHINode values
+    for (unsigned j = 0; j < edges.size(); ++j)
+      for (unsigned i = 0; i < newPhi.size(); ++i)
+        ctx.addSide(boolop::limp(edges[j], mk<EQ>(newPhi[i], phiVal[j][i])));
+  }
 
   // actions of the block. The side-conditions are not guarded by
   // the basic-block variable because it does not matter.

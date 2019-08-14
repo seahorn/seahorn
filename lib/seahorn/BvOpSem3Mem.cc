@@ -1,9 +1,9 @@
 /**
-   Memory related functions from Bv2OpSem.
+   Memory related functions from Bv3OpSem.
    Adapted from llvm::ExecutionEngine
  */
 
-#include "seahorn/BvOpSem2.hh"
+#include "seahorn/BvOpSem3.hh"
 #include "seahorn/Support/SeaDebug.h"
 #include "seahorn/Support/SeaLog.hh"
 
@@ -40,7 +40,7 @@ static void StoreIntToMemory(const APInt &IntVal, uint8_t *Dst,
 } // namespace
 namespace seahorn {
 /// from: llvm/lib/ExecutionEngine/ExecutionEngine.cpp
-void Bv2OpSem::storeValueToMemory(const GenericValue &Val, GenericValue *Ptr,
+void Bv3OpSem::storeValueToMemory(const GenericValue &Val, GenericValue *Ptr,
                                   Type *Ty) {
   const unsigned StoreBytes = getDataLayout().getTypeStoreSize(Ty);
 
@@ -89,7 +89,7 @@ void Bv2OpSem::storeValueToMemory(const GenericValue &Val, GenericValue *Ptr,
 }
 
 /// from: llvm/lib/ExecutionEngine/ExecutionEngine.cpp
-void Bv2OpSem::initMemory(const Constant *Init, void *Addr) {
+void Bv3OpSem::initMemory(const Constant *Init, void *Addr) {
   // LOG("opsem", errs() << "Initializing constant:\n"; Init->dump(););
 
   if (isa<UndefValue>(Init))

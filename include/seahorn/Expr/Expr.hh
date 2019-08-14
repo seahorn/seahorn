@@ -1243,11 +1243,11 @@ Expr mknary(Expr base, iterator bgn, iterator end) {
 /** boost::range versions of mknary */
 
 template <typename T, typename Range> Expr mknary(const Range &r) {
-  return mknary<T>(boost::begin(r), boost::end(r));
+  return mknary<T>(std::begin(r), std::end(r));
 }
 
 template <typename T, typename Range> Expr mknary(Expr base, const Range &r) {
-  return mknary<T>(base, boost::begin(r), boost::end(r));
+  return mknary<T>(base, std::begin(r), std::end(r));
 }
 
 /**********************************************************************/
@@ -1364,11 +1364,11 @@ inline Expr lneg(Expr e1) {
 }
 
 template <typename R> Expr land(const R &r) {
-  assert(boost::begin(r) != boost::end(r));
+  assert(std::begin(r) != std::end(r));
 
   // -- reduce unary AND to the operand
   if (boost::size(r) == 1)
-    return *boost::begin(r);
+    return *std::begin(r);
 
   // XXX add more logical simplifications
   return mknary<AND>(r);
@@ -2127,7 +2127,7 @@ template <typename Range> Expr fdecl(Expr fname, const Range &args) {
   assert(boost::size(args) > 0);
   ExprVector _args;
   _args.push_back(fname);
-  _args.insert(_args.end(), boost::begin(args), boost::end(args));
+  _args.insert(_args.end(), std::begin(args), std::end(args));
   return mknary<FDECL>(_args);
 }
 
@@ -2139,7 +2139,7 @@ inline Expr fapp(Expr fdecl) { return mk<FAPP>(fdecl); }
 template <typename Range> Expr fapp(Expr fdecl, const Range &args) {
   ExprVector _args;
   _args.push_back(fdecl);
-  _args.insert(_args.end(), boost::begin(args), boost::end(args));
+  _args.insert(_args.end(), std::begin(args), std::end(args));
   return mknary<FAPP>(_args);
 }
 

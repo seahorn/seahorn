@@ -1376,11 +1376,11 @@ public:
       }
       unsigned nElts = ogv.getValue().IntVal.getZExtValue();
       unsigned memSz = typeSz * nElts;
-      LOG("opsem", errs() << "Alloca of " << memSz << " bytes: " << I << "\n";);
+      LOG("opsem", errs() << "!3 Alloca of " << memSz << " bytes: " << I << "\n";);
       addr = m_ctx.getMemManager()->salloc(memSz);
     } else {
       Expr nElts = lookup(*I.getOperand(0));
-      LOG("opsem", errs() << "Alloca of " << nElts << "*" << typeSz
+      LOG("opsem", errs() << "!4 Alloca of " << nElts << "*" << typeSz
                           << " bytes: " << I << "\n";);
       WARN << "alloca of symbolic size is treated as non-deterministic";
       addr = m_ctx.getMemManager()->freshPtr();
@@ -2871,7 +2871,6 @@ bool Bv2OpSem::isSymReg(Expr v, details::Bv2OpSemContext &C) {
     return true;
 
   errs() << "Unexpected symbolic value: " << *v << "\n";
-  llvm_unreachable(nullptr);
 }
 
 const Value &Bv2OpSem::conc(Expr v) const {

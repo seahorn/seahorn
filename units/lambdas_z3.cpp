@@ -32,6 +32,7 @@ TEST_CASE("z3.lambdas_test") {
   EZ3 z3(efac);
 
   errs() << "arr: " << *arr1 << "\t" << z3_to_smtlib(z3, arr1) << "\n";
+  errs() << "arr_sort: " << *bind::sortOf(arr1) << "\n";
   errs() << "sel: " << *sel << "\t" << z3_to_smtlib(z3, sel) << "\n";
   errs() << "lmbd1: " << *lmbd1 << "\t" << z3_to_smtlib(z3, lmbd1) << "\n";
   errs() << "fappl: " << *fappl << "\t" << z3_to_smtlib(z3, fappl) << "\n";

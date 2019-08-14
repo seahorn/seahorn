@@ -91,17 +91,17 @@ public:
   }
 
   void getAnalysisUsage(AnalysisUsage &AU) const {
-#ifdef HAVE_CRAB_LLVM    
+#ifdef HAVE_CRAB_LLVM
     if (m_engine == path_bmc) {
       if (XHornBmcCrab) {
         AU.addRequired<crab_llvm::CrabLlvmPass>();
         AU.addRequired<seahorn::LowerCstExprPass>();
-	// XXX: NameValues must be executed after LowerCstExprPass
-	// because the latter might introduce unnamed instructions.
+        // XXX: NameValues must be executed after LowerCstExprPass
+        // because the latter might introduce unnamed instructions.
       }
     }
 #endif
-        
+
     AU.addRequired<seahorn::CanFail>();
     AU.addRequired<seahorn::NameValues>();
     AU.addRequired<seahorn::TopologicalOrder>();
@@ -207,8 +207,8 @@ public:
       if (XHornBmcCrab) {
         ERR << "Crab requested (by --horn-bmc-crab) but not available!";
       }
-        bmc = llvm::make_unique<PathBasedBmcEngine>(
-	    static_cast<LegacyOperationalSemantics &>(*sem), zctx, tli);
+      bmc = llvm::make_unique<PathBasedBmcEngine>(
+          static_cast<LegacyOperationalSemantics &>(*sem), zctx, tli);
 #endif
       break;
     }
@@ -225,7 +225,7 @@ public:
     LOG("bmc", errs() << "BMC from: " << src.bb().getName() << " to "
                       << dst->bb().getName() << "\n";);
 
-    Stats::resume("BMC");    
+    Stats::resume("BMC");
     bmc->encode();
 
     const size_t dagSize = bmc->getFormulaDagSize();
@@ -234,12 +234,17 @@ public:
     const size_t circuitSize = bmc->getFormulaCircuitSize();
     Stats::sset("BMC_CIRCUIT_SIZE", std::to_string(circuitSize));
 
+    ExprVector formula = bmc->getFormula();
+    Expr all = mknary<AND>(formula);
+    Expr simpl =  z3_simplify(bmc->zctx(), all);
+
+    LOG("opsem3", llvm::errs() << z3_to_smtlib(bmc->zctx(), simpl) << "\n");
     if (m_out)
       bmc->toSmtLib(*m_out);
 
     if (!m_solve) {
       LOG("bmc", errs() << "Stopping before solving\n";);
-      Stats::stop("BMC");      
+      Stats::stop("BMC");
       return false;
     }
 

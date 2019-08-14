@@ -99,17 +99,17 @@ Function *getCalledFunction(CallSite &CS) {
 } // namespace
 namespace seahorn {
 namespace details {
-class OpSemMemManager;
+class OpSem3Manager;
 
 /// \brief Operational Semantics Context, a.k.a. Semantic Machine
 /// Keeps track of the state of the current semantic machine and provides
 /// API to manipulate the machine.
 class Bv3OpSemContext : public OpSemContext {
-  friend class OpSemBase;
+  friend class OpSem3Base;
 
 private:
   /// \brief Set memory manager to be used by the machine
-  void setMemManager(OpSemMemManager *man);
+  void setMemManager(OpSem3Manager *man);
 
   /// \brief Reference to parent operational semantics
   Bv3OpSem &m_sem;
@@ -159,10 +159,10 @@ private:
   // \brief Map from \c llvm::Value to a registers
   ValueExprMap m_valueToRegister;
 
-  using OpSemMemManagerPtr = std::unique_ptr<OpSemMemManager>;
+  using OpSem3ManagerPtr = std::unique_ptr<OpSem3Manager>;
 
   /// \brief Memory manager for the machine
-  OpSemMemManagerPtr m_memManager;
+  OpSem3ManagerPtr m_memManager;
 
   /// \brief Pointer to the parent a parent context
   ///
@@ -208,7 +208,7 @@ public:
   Expr bvToBool(Expr b);
 
   /// \brief Returns the memory manager
-  OpSemMemManager *getMemManager() { return m_memManager.get(); }
+  OpSem3Manager *getMemManager() { return m_memManager.get(); }
 
   /// \brief Push parameter on a stack for a function call
   void pushParameter(Expr v) { m_fparams.push_back(v); }
@@ -357,7 +357,7 @@ private:
 };
 
 /// \brief Memory manager for OpSem machine
-class OpSemMemManager {
+class OpSem3Manager {
 
   /// \brief Allocation information
   struct AllocInfo {
@@ -455,12 +455,13 @@ class OpSemMemManager {
 #define TEXT_SEGMENT_START 0x08048000
 
 public:
-  OpSemMemManager(Bv3OpSem &sem, Bv3OpSemContext &ctx)
+  OpSem3Manager(Bv3OpSem &sem, Bv3OpSemContext &ctx)
       : m_sem(sem), m_ctx(ctx), m_efac(ctx.getExprFactory()), m_ptrSz(PtrSize),
         m_wordSz(WordSize), m_alignment(m_wordSz),
         m_allocaName(mkTerm<std::string>("sea.alloca", m_efac)),
         m_freshPtrName(mkTerm<std::string>("sea.ptr", m_efac)), m_id(0) {
-    assert((m_wordSz == 1 || m_wordSz == 4 || m_wordSz == 8) && "Untested word size");
+    assert((m_wordSz == 1 || m_wordSz == 4 || m_wordSz == 8) &&
+           "Untested word size");
     assert((m_ptrSz == 4) && "Untested pointer size");
     m_nullPtr = bv::bvnum(0, ptrSzInBits(), m_efac);
     m_sp0 = bv::bvConst(mkTerm<std::string>("sea.sp0", m_efac), ptrSzInBits());
@@ -660,36 +661,44 @@ public:
     return std::make_pair(nullptr, 0);
   }
 
-  /// \brief Pointers have word address (high) and byte offset (low); returns number of bits for byte offset
+  /// \brief Pointers have word address (high) and byte offset (low); returns
+  /// number of bits for byte offset
   ///
   /// \return 0 if unsupported word size
   unsigned getByteAlignmentBits() {
     switch (wordSzInBytes()) {
-      // cases where ptrs are known to use a certain number of bits to denote byte offset
-      //   and the rest to denote word aligned address
-      case 2: return 1;
-      case 4: return 2;
-      case 8: return 3;
-      default:
-        WARN << "unsupported word size: " << wordSzInBytes()
-             << " unaligned reads may not work as intended\n";
-        return 0;
+    // cases where ptrs are known to use a certain number of bits to denote byte
+    // offset
+    //   and the rest to denote word aligned address
+    case 2:
+      return 1;
+    case 4:
+      return 2;
+    case 8:
+      return 3;
+    default:
+      WARN << "unsupported word size: " << wordSzInBytes()
+           << " unaligned reads may not work as intended\n";
+      return 0;
     }
   }
 
-  /// \brief Symbolic instructions to load a byte from memory, using word address and byte address
+  /// \brief Symbolic instructions to load a byte from memory, using word
+  /// address and byte address
   ///
   /// \param[in] mem memory being accessed
   /// \param[in] address pointer being accessed, unaligned
-  /// \param[in] offsetBits number of bits at end of pointers reserved for byte address
-  /// \return symbolic value of the byte at the specified address
+  /// \param[in] offsetBits number of bits at end of pointers reserved for byte
+  /// address \return symbolic value of the byte at the specified address
   Expr extractUnalignedByte(Expr mem, PtrTy address, unsigned offsetBits) {
-    // pointers are partitioned into word address (high bits) and offset (low bits)
+    // pointers are partitioned into word address (high bits) and offset (low
+    // bits)
     PtrTy wordAddress = bv::extract(ptrSzInBits() - 1, offsetBits, address);
     PtrTy byteOffset = bv::extract(offsetBits - 1, 0, address);
 
     // aligned ptr is address with offset bits truncated to 0
-    PtrTy alignedPtr = bv::concat(wordAddress, bv::bvnum(0L, offsetBits, address->efac()));
+    PtrTy alignedPtr =
+        bv::concat(wordAddress, bv::bvnum(0L, offsetBits, address->efac()));
     Expr alignedWord = loadAlignedWordFromMem(alignedPtr, mem);
 
     byteOffset = bv::zext(byteOffset, wordSzInBits() - 3);
@@ -715,12 +724,11 @@ public:
         Expr byteOfWord = extractUnalignedByte(mem, ptrAdd(ptr, i), offsetBits);
         words.push_back(byteOfWord);
       }
-    }
-    else {
-        // -- read all words
-        for (unsigned i = 0; i < byteSz; i += wordSzInBytes()) {
-            words.push_back(loadAlignedWordFromMem(ptrAdd(ptr, i), mem));
-        }
+    } else {
+      // -- read all words
+      for (unsigned i = 0; i < byteSz; i += wordSzInBytes()) {
+        words.push_back(loadAlignedWordFromMem(ptrAdd(ptr, i), mem));
+      }
     }
 
     assert(!words.empty());
@@ -747,7 +755,8 @@ public:
 
   /// \brief Loads one word from memory pointed by \p ptr
   Expr loadAlignedWordFromMem(PtrTy ptr, Expr mem) {
-    return op::array::select(mem, ptr);
+    // return op::array::select(mem, ptr);
+    return bind::fapp(mem, ptr);
   }
 
   /// \brief Pointer addition with numeric offset
@@ -814,13 +823,16 @@ public:
     unsigned offsetBits = getByteAlignmentBits();
     assert(offsetBits != 0);
 
-    // for each byte (i) in val, load word w of i from memory, update one byte of w, write back result
+    // for each byte (i) in val, load word w of i from memory, update one byte
+    // of w, write back result
     Expr res;
     for (unsigned i = 0; i < byteSz; i++) {
-      PtrTy wordAddress = bv::extract(ptrSzInBits() - 1, offsetBits, ptrAdd(ptr, i));
+      PtrTy wordAddress =
+          bv::extract(ptrSzInBits() - 1, offsetBits, ptrAdd(ptr, i));
       PtrTy byteOffset = bv::extract(offsetBits - 1, 0, ptrAdd(ptr, i));
 
-      PtrTy alignedPtr = bv::concat(wordAddress, bv::bvnum(0L, offsetBits, ptr->efac()));
+      PtrTy alignedPtr =
+          bv::concat(wordAddress, bv::bvnum(0L, offsetBits, ptr->efac()));
       Expr existingWord = loadAlignedWordFromMem(alignedPtr, mem);
 
       unsigned lowBit = i * 8;
@@ -843,7 +855,8 @@ public:
   Expr setByteOfWord(Expr word, Expr byteData, PtrTy byteOffset) {
     // (x << 3) to get bit offset; zero extend to maintain word size
     byteOffset = bv::zext(byteOffset, wordSzInBits() - 3);
-    PtrTy bitOffset = bv::concat(byteOffset, bv::bvnum(0, 3, byteOffset->efac()));
+    PtrTy bitOffset =
+        bv::concat(byteOffset, bv::bvnum(0, 3, byteOffset->efac()));
 
     // set a byte of existing word to 0
     Expr lowestByteMask = bv::bvnum(0xff, wordSzInBits(), word->efac());
@@ -865,7 +878,19 @@ public:
 
   /// \brief Writes one aligned word into memory
   Expr storeAlignedWordToMem(Expr val, PtrTy ptr, Expr mem) {
-    return op::array::store(mem, ptr, val);
+    // return op::array::store(mem, ptr, val);
+    errs() << "\n\n~~~~~~~~~~~~\n";
+    Expr bvTy = bv::bvsort(ptrSzInBits(), m_efac);
+    Expr addr =
+        bind::mkConst(mkTerm<std::string>("addr", m_efac), bvTy);
+
+    Expr cmp = mk<EQ>(addr, ptr);
+    Expr fappl = op::bind::fapp(mem, ptr);
+    Expr ite = boolop::lite(cmp, val, fappl);
+    Expr lmbd = bind::abs<LAMBDA>(std::array<Expr, 1>{addr}, ite);
+    errs() << "\t" << *lmbd << "\n";
+
+    return lmbd;
   }
 
   /// \brief Creates bit-vector of a given width filled with 0
@@ -981,6 +1006,7 @@ public:
           idx = mk<BADD>(ptr, bv::bvnum(i, ptrSzInBits(), m_efac));
         res =
             op::array::store(res, idx, bv::bvnum(val, wordSzInBits(), m_efac));
+        LOG("opsem3", errs() << "MemSet " << *res << "\n");
       }
       m_ctx.write(memWriteReg, res);
     }
@@ -1006,6 +1032,7 @@ public:
         }
         Expr val = op::array::select(srcMem, sIdx);
         res = op::array::store(res, dIdx, val);
+        LOG("opsem3", errs() << "MemCpy " << *res << "\n");
       }
       m_ctx.write(memWriteReg, res);
     }
@@ -1022,12 +1049,15 @@ public:
     for (unsigned i = 0; i < len; i += sem_word_sz) {
       Expr offset = bv::bvnum(i, ptrSzInBits(), m_efac);
       Expr dIdx = i == 0 ? dPtr : mk<BADD>(dPtr, offset);
-      // copy bytes from buffer to word - word must accommodate largest supported word size
+      // copy bytes from buffer to word - word must accommodate largest
+      // supported word size
       assert(sizeof(unsigned long) >= sem_word_sz);
-      unsigned long word = 0;  // 8 bytes because assumed largest supported sem_word_sz = 8
+      unsigned long word =
+          0; // 8 bytes because assumed largest supported sem_word_sz = 8
       std::memcpy(&word, sPtr + i, sem_word_sz);
       Expr val = bv::bvnum(word, wordSzInBits(), m_efac);
       res = op::array::store(res, dIdx, val);
+      LOG("opsem3", errs() << "MemFill " << *res << "\n");
     }
     m_ctx.write(m_ctx.getMemWriteRegister(), res);
     return res;
@@ -1074,9 +1104,11 @@ public:
     // align of semantic_word_size, or 4 if it's less than 4
     unsigned offsetBits = 2;
     switch (wordSzInBytes()) {
-      case 8: offsetBits = 3;
+    case 8:
+      offsetBits = 3;
     }
-    m_ctx.addDef(bv::bvnum(0, offsetBits, m_efac), bv::extract(offsetBits - 1, 0, res));
+    m_ctx.addDef(bv::bvnum(0, offsetBits, m_efac),
+                 bv::extract(offsetBits - 1, 0, res));
 
     // XXX hard coded values
     // 3GB upper limit
@@ -1110,7 +1142,7 @@ public:
   }
 };
 
-struct OpSemBase {
+struct OpSem3Base {
   Bv3OpSemContext &m_ctx;
   ExprFactory &m_efac;
   Bv3OpSem &m_sem;
@@ -1130,7 +1162,7 @@ struct OpSemBase {
 
   Expr m_maxPtrE;
 
-  OpSemBase(Bv3OpSemContext &ctx, Bv3OpSem &sem)
+  OpSem3Base(Bv3OpSemContext &ctx, Bv3OpSem &sem)
       : m_ctx(ctx), m_efac(m_ctx.getExprFactory()), m_sem(sem),
         m_cur_startMem(nullptr), m_cur_endMem(nullptr), m_maxPtrE(nullptr) {
 
@@ -1144,7 +1176,7 @@ struct OpSemBase {
 
     m_maxPtrE = m_ctx.maxPtrE;
 
-    // XXX AG: this is probably wrong since instances of OpSemBase are created
+    // XXX AG: this is probably wrong since instances of OpSem3Base are created
     // XXX AG: for each instruction, not just once per function
     // XXX AG: but not an issue at this point since function calls are not
     // handled by the semantics
@@ -1179,18 +1211,38 @@ struct OpSemBase {
 
   Expr lookup(const Value &v) { return m_sem.getOperandValue(v, m_ctx); }
 
+  Expr wrapWithLambda(Expr reg, Expr val) {
+    if (!bind::isArrayConst(val))
+      return val;
+
+    Expr decl = bind::fname(val);
+    Expr s = bind::rangeTy(decl);
+    Expr idxTy = sort::arrayIndexTy(s);
+
+    Expr bvT = bind::mkConst(mkTerm<std::string>("t", val->efac()), idxTy);
+    Expr sel = op::array::select(val, bvT);
+    Expr lmbd1 = bind::abs<LAMBDA>(std::array<Expr, 1>{bvT}, sel);
+
+    val = lmbd1;
+
+    m_ctx.write(reg, val);
+    return val;
+  }
+
   Expr havoc(const Value &v) {
     if (m_sem.isSkipped(v))
       return Expr();
 
     Expr reg;
     if (reg = m_ctx.getRegister(v))
-      return m_ctx.havoc(reg);
+      return wrapWithLambda(reg, m_ctx.havoc(reg));
 
     assert(!isa<Constant>(v));
     reg = m_ctx.mkRegister(v);
-    if (reg)
-      return m_ctx.havoc(reg);
+    if (reg) {
+      LOG("opsem3", errs() << "havoc reg: " << *reg << "\n");
+      return wrapWithLambda(reg, m_ctx.havoc(reg));
+    }
     errs() << "Error: failed to havoc: " << v << "\n";
     llvm_unreachable(nullptr);
   }
@@ -1228,9 +1280,9 @@ struct OpSemBase {
   }
 };
 
-class OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
+class OpSem3Visitor : public InstVisitor<OpSem3Visitor>, OpSem3Base {
 public:
-  OpSemVisitor(Bv3OpSemContext &ctx, Bv3OpSem &sem) : OpSemBase(ctx, sem) {}
+  OpSem3Visitor(Bv3OpSemContext &ctx, Bv3OpSem &sem) : OpSem3Base(ctx, sem) {}
 
   // Opcode Implementations
   void visitReturnInst(ReturnInst &I) {
@@ -1375,11 +1427,12 @@ public:
       }
       unsigned nElts = ogv.getValue().IntVal.getZExtValue();
       unsigned memSz = typeSz * nElts;
-      LOG("opsem", errs() << "Alloca of " << memSz << " bytes: " << I << "\n";);
       addr = m_ctx.getMemManager()->salloc(memSz);
+      LOG("opsem", errs() << "!1 Alloca of " << memSz << " bytes: " << I
+                          << ":\n\taddr " << addr << "\n");
     } else {
       Expr nElts = lookup(*I.getOperand(0));
-      LOG("opsem", errs() << "Alloca of " << nElts << "*" << typeSz
+      LOG("opsem", errs() << "!2 Alloca of " << nElts << "*" << typeSz
                           << " bytes: " << I << "\n";);
       WARN << "alloca of symbolic size is treated as non-deterministic";
       addr = m_ctx.getMemManager()->freshPtr();
@@ -2359,8 +2412,8 @@ public:
   }
 };
 
-struct OpSemPhiVisitor : public InstVisitor<OpSemPhiVisitor>, OpSemBase {
-  OpSemPhiVisitor(Bv3OpSemContext &ctx, Bv3OpSem &sem) : OpSemBase(ctx, sem) {}
+struct OpSemPhiVisitor : public InstVisitor<OpSemPhiVisitor>, OpSem3Base {
+  OpSemPhiVisitor(Bv3OpSemContext &ctx, Bv3OpSem &sem) : OpSem3Base(ctx, sem) {}
 
   void visitBasicBlock(BasicBlock &BB) {
     // -- evaluate all phi-nodes atomically. First read all incoming
@@ -2403,7 +2456,7 @@ Bv3OpSemContext::Bv3OpSemContext(Bv3OpSem &sem, SymStore &values,
   trueBv = bv::bvnum(1, 1, efac());
   falseBv = bv::bvnum(0, 1, efac());
 
-  setMemManager(new OpSemMemManager(m_sem, *this));
+  setMemManager(new OpSem3Manager(m_sem, *this));
 }
 
 Bv3OpSemContext::Bv3OpSemContext(SymStore &values, ExprVector &side,
@@ -2428,7 +2481,7 @@ unsigned Bv3OpSemContext::ptrSzInBits() const {
   return m_memManager ? m_memManager->ptrSzInBits() : 32;
 }
 
-void Bv3OpSemContext::setMemManager(OpSemMemManager *man) {
+void Bv3OpSemContext::setMemManager(OpSem3Manager *man) {
   m_memManager.reset(man);
   // TODO: move into MemManager
   nullBv = bv::bvnum(0, ptrSzInBits(), efac());
@@ -2521,6 +2574,8 @@ void Bv3OpSemContext::onFunctionEntry(const Function &fn) {
   m_memManager->onFunctionEntry(fn);
 }
 void Bv3OpSemContext::onModuleEntry(const Module &M) {
+  LOG("opsem3", llvm::errs() << "onModuleEntry\n" << M << "\n");
+
   return m_memManager->onModuleEntry(M);
 }
 
@@ -2573,6 +2628,7 @@ Expr Bv3OpSemContext::mkRegister(const llvm::Instruction &inst) {
   if (isShadowMem(inst, &scalar)) {
     // if memory is single cell, allocate regular register
     if (scalar) {
+      LOG("opsem3", llvm::errs() << "scalar cell: " << inst << "\n");
       assert(scalar->getType()->isPointerTy());
       Type &eTy = *cast<PointerType>(scalar->getType())->getElementType();
       // -- create a constant with the name v[scalar]
@@ -2602,6 +2658,9 @@ Expr Bv3OpSemContext::mkRegister(const llvm::Instruction &inst) {
     }
   }
   assert(reg);
+
+  LOG("opsem3", llvm::errs() << "New reg " << *reg << "\n");
+
   declareRegister(reg);
   m_valueToRegister.insert(std::make_pair(&inst, reg));
   return reg;
@@ -2735,7 +2794,7 @@ Expr Bv3OpSem::errorFlag(const BasicBlock &BB) {
 void Bv3OpSem::exec(const BasicBlock &bb, details::Bv3OpSemContext &ctx) {
   ctx.onBasicBlockEntry(bb);
 
-  details::OpSemVisitor v(ctx, *this);
+  details::OpSem3Visitor v(ctx, *this);
   v.visitBasicBlock(const_cast<BasicBlock &>(bb));
   // skip PHI instructions
   for (; isa<PHINode>(ctx.getCurrentInst()); ++ctx)
@@ -2985,7 +3044,7 @@ bool Bv3OpSem::intraStep(details::Bv3OpSemContext &C) {
     return true;
   }
 
-  details::OpSemVisitor v(C, *this);
+  details::OpSem3Visitor v(C, *this);
   v.visit(const_cast<Instruction &>(inst));
   return res;
 }
@@ -3425,13 +3484,14 @@ Optional<GenericValue> Bv3OpSem::getConstantValue(const Constant *C) {
     else if (const Function *F = dyn_cast<Function>(C)) {
       // TODO:
       // Result = PTOGV((void*)ctx.getPtrToFunction(*F));
-      WARN << "Unhandled function pointer in a constant expression:  " << *C << "\n";
+      WARN << "Unhandled function pointer in a constant expression:  " << *C
+           << "\n";
       return llvm::None;
-    } else if (const GlobalVariable *GV =
-                   dyn_cast<GlobalVariable>(C)) {
+    } else if (const GlobalVariable *GV = dyn_cast<GlobalVariable>(C)) {
       // TODO:
       // Result = PTOGV((void*)ctx.getPtrToGlobal(*GV));
-      WARN << "Unhandled global variable in a constant expression: " << *C << "\n";
+      WARN << "Unhandled global variable in a constant expression: " << *C
+           << "\n";
       return llvm::None;
     } else
       llvm_unreachable("Unknown constant pointer type!");

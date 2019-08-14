@@ -2,7 +2,6 @@
 
 #include <typeinfo>
 
-#include "boost/functional/hash_fwd.hpp"
 #include <algorithm>
 #include <array>
 #include <functional>
@@ -18,8 +17,8 @@
 
 #include <gmpxx.h>
 
-/** boost */
 #include <boost/container/flat_set.hpp>
+#include <boost/functional/hash_fwd.hpp>
 #include <boost/intrusive_ptr.hpp>
 #include <boost/lexical_cast.hpp>
 #include <boost/pool/pool.hpp>
@@ -2189,6 +2188,7 @@ inline Expr realConst(Expr name) { return fapp(realConstDecl(name)); }
 inline bool isBoolConst(Expr v) { return isConst<BOOL_TY>(v); }
 inline bool isIntConst(Expr v) { return isConst<INT_TY>(v); }
 inline bool isRealConst(Expr v) { return isConst<REAL_TY>(v); }
+inline bool isArrayConst(Expr v) { return isConst<ARRAY_TY>(v); }
 
 inline Expr typeOf(Expr v) {
   using namespace bind;
@@ -2237,7 +2237,7 @@ inline Expr typeOf(Expr v) {
   // }
 
   std::cerr << "WARNING: could not infer type of: " << *v << "\n";
-  assert(0 && "Unreachable");
+  llvm_unreachable("Type inference failed");
   return Expr();
 }
 inline Expr sortOf(Expr v) { return typeOf(v); }
@@ -2579,7 +2579,7 @@ struct FV : public std::unary_function<Expr, VisitAction> {
 
   typedef FV<F, OutputIterator> this_type;
   FV(const this_type &o) : filter(o.filter), out(o.out), seen(o.seen) {
-    assert(0);
+    llvm_unreachable(nullptr);
   }
 
   FV(F f, OutputIterator o) : filter(f), out(o) {}
@@ -2640,7 +2640,9 @@ struct CV : public std::unary_function<Expr, VisitAction> {
   bool found;
   ExprSet seen;
 
-  CV(const CV &o) : e(o.e), found(o.found), seen(o.seen) { assert(0); }
+  CV(const CV &o) : e(o.e), found(o.found), seen(o.seen) {
+    llvm_unreachable(nullptr);
+  }
 
   CV(Expr exp) : e(exp), found(false) {}
 

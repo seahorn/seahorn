@@ -2099,6 +2099,7 @@ inline Expr realConst(Expr name) { return fapp(realConstDecl(name)); }
 inline bool isBoolConst(Expr v) { return isConst<BOOL_TY>(v); }
 inline bool isIntConst(Expr v) { return isConst<INT_TY>(v); }
 inline bool isRealConst(Expr v) { return isConst<REAL_TY>(v); }
+inline bool isArrayConst(Expr v) { return isConst<ARRAY_TY>(v); }
 
 inline Expr typeOf(Expr v) {
   using namespace bind;

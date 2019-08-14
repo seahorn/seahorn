@@ -36,12 +36,12 @@ public:
   virtual Expr memEnd(unsigned id) = 0;
 
   void exec(const llvm::BasicBlock &bb, OpSemContext &ctx) override {
-    exec(ctx.values(), bb, ctx.side(), ctx.getActLit());
+    exec(ctx.values(), bb, ctx.side(), ctx.getPathCond());
   }
 
   void execPhi(const llvm::BasicBlock &bb, const llvm::BasicBlock &from,
                OpSemContext &ctx) override {
-    execPhi(ctx.values(), bb, from, ctx.side(), ctx.getActLit());
+    execPhi(ctx.values(), bb, from, ctx.side(), ctx.getPathCond());
   }
 
   void execEdg(const llvm::BasicBlock &src, const llvm::BasicBlock &dst,
@@ -51,7 +51,7 @@ public:
 
   void execBr(const llvm::BasicBlock &src, const llvm::BasicBlock &dst,
               OpSemContext &ctx) override {
-    execBr(ctx.values(), src, dst, ctx.side(), ctx.getActLit());
+    execBr(ctx.values(), src, dst, ctx.side(), ctx.getPathCond());
   }
 
   /// Deprecated old interface

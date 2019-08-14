@@ -38,8 +38,14 @@ private:
   /// XXX This is a temporary measure to keep new and old implementations together
   ExprVector &m_side;
 
-  /// \brief Activation literal for protecting conditions
-  Expr m_act;
+  /// \brief Path condition for the current basic block
+  ///
+  /// A path condition for a basic block \p bb is a formula \p pc(bb) such that
+  /// \p pc(bb) is true iff \p bb is executed.
+  ///
+  /// Path condition is used to assert constraints that are true only when a
+  /// particular basic block is executed
+  Expr m_pathCond;
 
 protected:
   // -- cached values
@@ -58,16 +64,16 @@ public:
     m_trueE = mk<TRUE>(efac());
     m_falseE = mk<FALSE>(efac());
 
-    m_act = m_trueE;
+    m_pathCond = m_trueE;
   }
   /// \brief Copy constructor with optionally new \p values and \p side
   OpSemContext(SymStore &values, ExprVector &side, const OpSemContext &o)
-      : m_values(o.m_values), m_side(o.m_side), m_act(o.m_act),
+      : m_values(o.m_values), m_side(o.m_side), m_pathCond(o.m_pathCond),
         m_trueE(o.m_trueE), m_falseE(o.m_falseE) {}
   OpSemContext(const OpSemContext &) = delete;
   virtual ~OpSemContext() = default;
 
-  /// Returns reference to the symbolic store
+  /// Returns a reference to the symbolic store
   SymStore &values() { return m_values; }
   /// Returns the current value of a given register/expression in the store
   Expr read(Expr v) { return m_values.read(v); }
@@ -76,18 +82,23 @@ public:
   /// Writes a given value at a given register
   void write(Expr v, Expr u) { m_values.write(v, u); }
 
-  /// Sets an expression to be used as an activation literal
-  OpSemContext &act(Expr v) {
-    setActLit(v);
+  /// \brief sets path condition for the current basic block
+  OpSemContext &pc(Expr v){
+    setPathCond(v);
     return *this;
   }
-  void setActLit(Expr v) { m_act = v; }
-  Expr getActLit() const { return m_act; }
+  void setPathCond(Expr v) { m_pathCond = v; }
+  Expr getPathCond() const { return m_pathCond; }
   ExprVector &side() { return m_side; }
-  void addSideSafe(Expr v) { m_side.push_back(boolop::limp(m_act, v)); }
+  /// \brief Asserts that \p v must be true under current path condition
+  void addSideSafe(Expr v) { m_side.push_back(boolop::limp(m_pathCond, v)); }
+  /// \brief Asserts that \p v must be true unconditionally
   void addSide(Expr v) { m_side.push_back(v); }
+  /// \brief Asserts that \p v = \p u
   void addDef(Expr v, Expr u) { addSide(mk<EQ>(v, u)); }
+  /// \brief Asserts that \p v = \p u under current path condition
   void addDefSafe(Expr v, Expr u) { addSideSafe(mk<EQ>(v, u)); }
+  /// \brief Removes all assertions from the current side-condition
   void resetSide() { m_side.clear(); }
 
   ExprFactory &getExprFactory() const { return m_values.getExprFactory(); }

@@ -1749,7 +1749,7 @@ public:
     const BasicBlock &BB = *inst.getParent();
 
     // enabled
-    m_ctx.setParameter(0, m_ctx.getActLit()); // activation literal
+    m_ctx.setParameter(0, m_ctx.getPathCond()); // path condition
     // error flag in
     m_ctx.setParameter(1, m_ctx.read(m_sem.errorFlag(BB)));
     // error flag out
@@ -2417,7 +2417,7 @@ Bv2OpSemContext::Bv2OpSemContext(SymStore &values, ExprVector &side,
       m_registers(o.m_registers), m_memManager(nullptr), m_parent(&o),
       zeroE(o.zeroE), oneE(o.oneE), trueBv(o.trueBv), falseBv(o.falseBv),
       nullBv(o.nullBv), maxPtrE(o.maxPtrE) {
-  setActLit(o.getActLit());
+  setPathCond(o.getPathCond());
 }
 
 unsigned Bv2OpSemContext::ptrSzInBits() const {
@@ -3547,7 +3547,7 @@ Optional<GenericValue> Bv2OpSem::getConstantValue(const Constant *C) {
 
 void Bv2OpSem::execEdg(const BasicBlock &src, const BasicBlock &dst,
                        details::Bv2OpSemContext &ctx) {
-  exec(src, ctx.act(trueE));
+  exec(src, ctx.pc(trueE));
   execBr(src, dst, ctx);
   execPhi(dst, src, ctx);
 

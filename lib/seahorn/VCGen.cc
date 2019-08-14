@@ -45,7 +45,7 @@ void VCGen::initSmt(std::unique_ptr<ufo::EZ3> &zctx,
   smt->set(params);
 }
 
-void VCGen::checkSideAtBb(unsigned &head, ExprVector &side, Expr bbV,
+void VCGen::checkSideAtBb(unsigned &head, ExprVector &side, Expr pathCond,
                           ZSolver<EZ3> &smt, const CpEdge &edge,
                           const BasicBlock &bb) {
   if (!LargeStepReduce)
@@ -65,7 +65,7 @@ void VCGen::checkSideAtBb(unsigned &head, ExprVector &side, Expr bbV,
   TimeIt<llvm::raw_ostream &> _t_("smt-solving", errs(), 0.1);
 
   ScopedStats __st__("VCGen.smt");
-  Expr a[1] = {bbV};
+  Expr a[1] = {pathCond};
 
   LOG("pedge", std::error_code EC;
       raw_fd_ostream file("/tmp/p-edge.smt2", EC, sys::fs::F_Text); if (!EC) {
@@ -81,8 +81,8 @@ void VCGen::checkSideAtBb(unsigned &head, ExprVector &side, Expr bbV,
     errs() << "F";
     errs().flush();
     Stats::count("VCGen.smt.unsat");
-    smt.assertExpr(boolop::lneg(bbV));
-    side.push_back(boolop::lneg(bbV));
+    smt.assertExpr(boolop::lneg(pathCond));
+    side.push_back(boolop::lneg(pathCond));
   }
 }
 
@@ -129,7 +129,7 @@ void VCGen::genVcForCpEdge(OpSemContext &ctx, const CpEdge &edge) {
       // -- initialize bb-exec register
       bbV = ctx.havoc(m_sem.mkSymbReg(bb, ctx));
       // -- compute side-conditions for the entry block of the edge
-      ctx.setActLit(trueE);
+      ctx.setPathCond(trueE);
       m_sem.exec(bb, ctx);
     } else {
       // -- generate side-conditions for bb
@@ -261,7 +261,7 @@ void VCGen::genVcForBasicBlockOnEdge(OpSemContext &ctx, const CpEdge &edge,
     // clone s
     SymStore es(ctx.values());
     OpSemContextPtr ectx = ctx.fork(es, ctx.side());
-    ectx->setActLit(edges[idx]);
+    ectx->setPathCond(edges[idx]);
 
     // edge_ij -> phi_ij,
     // -- branch condition
@@ -333,10 +333,10 @@ void VCGen::genVcForBasicBlockOnEdge(OpSemContext &ctx, const CpEdge &edge,
   // actions of the block. The side-conditions are not guarded by
   // the basic-block variable because it does not matter.
   if (!last) {
-    m_sem.exec(bb, ctx.act(bbV));
+    m_sem.exec(bb, ctx.pc(bbV));
   } else if (const TerminatorInst *term = bb.getTerminator()) {
     if (isa<UnreachableInst>(term))
-      m_sem.exec(bb, ctx.act(trueE));
+      m_sem.exec(bb, ctx.pc(trueE));
   }
 }
 

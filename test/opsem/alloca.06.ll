@@ -1,4 +1,5 @@
 ; RUN: %seabmc "%s" 2>&1 | %oc %s
+
 ; CHECK: ^sat$
 ; ModuleID = 'alloca.01.ll'
 source_filename = "../test/bmc/test-bmc-1.false.c"

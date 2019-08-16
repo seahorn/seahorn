@@ -1,4 +1,5 @@
 ; RUN: %seabmc "%s" 2>&1 | %oc %s
+
 ; wide integers
 ; CHECK: ^unsat$
 ;; ModuleID = '/var/folders/_j/1_4mrwbs7y16zbvj79vwvhdc0000gn/T/sea-wVY0a8/t5.pp.ms.o.ul.cut.bc'

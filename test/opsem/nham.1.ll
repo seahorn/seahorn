@@ -1,4 +1,5 @@
 ; RUN: %seasmt "%s" 2>&1 | %oc %s
+
 ; ModuleID = 'nham/nham.pp.ms.o.ul.cut.ms.bc'
 ; check for something to make everyone happy
 ; CHECK: ^Warning: unhandled instruction:.*

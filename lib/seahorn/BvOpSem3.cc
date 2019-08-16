@@ -1000,14 +1000,32 @@ public:
       }
 
       res = m_ctx.read(memReadReg);
-      for (unsigned i = 0; i < len; i += wordSzInBytes()) {
-        Expr idx = ptr;
-        if (i > 0)
-          idx = mk<BADD>(ptr, bv::bvnum(i, ptrSzInBits(), m_efac));
-        res =
-            op::array::store(res, idx, bv::bvnum(val, wordSzInBits(), m_efac));
-        LOG("opsem3", errs() << "MemSet " << *res << "\n");
-      }
+      //      for (unsigned i = 0; i < len; i += wordSzInBytes()) {
+      //        Expr idx = ptr;
+      //        if (i > 0)
+      //          idx = mk<BADD>(ptr, bv::bvnum(i, ptrSzInBits(), m_efac));
+      //        //        res =
+      //        //            op::array::store(res, idx, bv::bvnum(val,
+      //        wordSzInBits(),
+      //        //            m_efac));
+      //        res = storeAlignedWordToMem(bv::bvnum(val, wordSzInBits(),
+      //        m_efac), idx,
+      //                                    res);
+      //      }
+      //
+      Expr end = mk<BADD>(
+          ptr, bv::bvnum(len - wordSzInBytes(), ptrSzInBits(), m_efac));
+      Expr bvTy = bv::bvsort(ptrSzInBits(), m_efac);
+      Expr bvVal = bv::bvnum(val, wordSzInBits(), m_efac);
+      Expr addr = bind::mkConst(mkTerm<std::string>("addr", m_efac), bvTy);
+
+      Expr cmp = mk<AND>(mk<BULE>(ptr, addr), mk<BULE>(addr, end));
+      Expr fappl = op::bind::fapp(res, ptr);
+      Expr ite = boolop::lite(cmp, bvVal, fappl);
+      Expr lmbd = bind::abs<LAMBDA>(std::array<Expr, 1>{addr}, ite);
+      res = lmbd;
+      LOG("opsem3", errs() << "MemSet " << *res << "\n");
+
       m_ctx.write(memWriteReg, res);
     }
 
@@ -1022,18 +1040,19 @@ public:
     if (wordSzInBytes() == 1 || (wordSzInBytes() == 4 && align == 4)) {
       Expr srcMem = m_ctx.read(memTrsfrReadReg);
       res = srcMem;
-      for (unsigned i = 0; i < len; i += wordSzInBytes()) {
-        Expr dIdx = dPtr;
-        Expr sIdx = sPtr;
-        if (i > 0) {
-          Expr offset = bv::bvnum(i, ptrSzInBits(), m_efac);
-          dIdx = mk<BADD>(dPtr, offset);
-          sIdx = mk<BADD>(sPtr, offset);
-        }
-        Expr val = op::array::select(srcMem, sIdx);
-        res = op::array::store(res, dIdx, val);
-        LOG("opsem3", errs() << "MemCpy " << *res << "\n");
-      }
+//      for (unsigned i = 0; i < len; i += wordSzInBytes()) {
+//        Expr dIdx = dPtr;
+//        Expr sIdx = sPtr;
+//        if (i > 0) {
+//          Expr offset = bv::bvnum(i, ptrSzInBits(), m_efac);
+//          dIdx = mk<BADD>(dPtr, offset);
+//          sIdx = mk<BADD>(sPtr, offset);
+//        }
+//        Expr val = op::array::select(srcMem, sIdx);
+//        res = op::array::store(res, dIdx, val);
+//        LOG("opsem3", errs() << "MemCpy " << *res << "\n");
+//      }
+
       m_ctx.write(memWriteReg, res);
     }
     return res;
@@ -1801,7 +1820,7 @@ public:
     const BasicBlock &BB = *inst.getParent();
 
     // enabled
-    m_ctx.setParameter(0, m_ctx.getActLit()); // activation literal
+    m_ctx.setParameter(0, m_ctx.getPathCond()); // activation literal
     // error flag in
     m_ctx.setParameter(1, m_ctx.read(m_sem.errorFlag(BB)));
     // error flag out
@@ -2469,7 +2488,7 @@ Bv3OpSemContext::Bv3OpSemContext(SymStore &values, ExprVector &side,
       m_registers(o.m_registers), m_memManager(nullptr), m_parent(&o),
       zeroE(o.zeroE), oneE(o.oneE), trueBv(o.trueBv), falseBv(o.falseBv),
       nullBv(o.nullBv), maxPtrE(o.maxPtrE) {
-  setActLit(o.getActLit());
+  setPathCond(o.getPathCond());
 }
 
 unsigned Bv3OpSemContext::ptrSzInBits() const {
@@ -3606,7 +3625,7 @@ Optional<GenericValue> Bv3OpSem::getConstantValue(const Constant *C) {
 
 void Bv3OpSem::execEdg(const BasicBlock &src, const BasicBlock &dst,
                        details::Bv3OpSemContext &ctx) {
-  exec(src, ctx.act(trueE));
+  exec(src, ctx.pc(trueE));
   execBr(src, dst, ctx);
   execPhi(dst, src, ctx);
 

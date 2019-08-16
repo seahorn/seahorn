@@ -1,22 +1,27 @@
 #include "seahorn/BvOpSem2.hh"
+
+#include "llvm/CodeGen/IntrinsicLowering.h"
 #include "llvm/IR/GetElementPtrTypeIterator.h"
-
-#include "seahorn/Support/CFG.hh"
-#include "seahorn/Support/SeaLog.hh"
-#include "seahorn/Transforms/Instrumentation/ShadowMemDsa.hh"
-
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Format.h"
 #include "llvm/Support/MathExtras.h"
 
+#include "seahorn/Support/CFG.hh"
 #include "seahorn/Support/SeaDebug.h"
+#include "seahorn/Support/SeaLog.hh"
+#include "seahorn/Transforms/Instrumentation/ShadowMemDsa.hh"
+
 #include "ufo/ExprLlvm.hpp"
-#include "llvm/CodeGen/IntrinsicLowering.h"
 
 using namespace seahorn;
 using namespace llvm;
 
 using gep_type_iterator = generic_gep_type_iterator<>;
+
+static llvm::cl::opt<bool>
+    HornUseLambdas("horn-bv2-lambdas",
+                   llvm::cl::desc("Use lambdas for array operations"),
+                   cl::init(false));
 
 static llvm::cl::opt<unsigned>
     WordSize("horn-bv2-word-size", llvm::cl::desc("Word size in bytes: 1, 4"),
@@ -78,9 +83,7 @@ bool isShadowMem(const Value &V, const Value **out) {
 }
 
 const seahorn::details::Bv2OpSemContext &const_ctx(const OpSemContext &_ctx);
-} // namespace
 
-namespace {
 /// \brief Work-arround for a bug in llvm::CallSite::getCalledFunction
 /// properly handle bitcast
 Function *getCalledFunction(CallSite &CS) {
@@ -96,6 +99,11 @@ Function *getCalledFunction(CallSite &CS) {
   return fn;
 }
 
+template <typename T, typename... Rest>
+auto as_std_array(const T &t, const Rest &... rest) ->
+    typename std::array<T, sizeof...(Rest) + 1> {
+  return {t, rest...};
+}
 } // namespace
 namespace seahorn {
 namespace details {
@@ -356,6 +364,102 @@ private:
   }
 };
 
+class OpSemMemRepr {
+protected:
+  OpSemMemManager &m_memManager;
+  Bv2OpSemContext &m_ctx;
+  ExprFactory &m_efac;
+  static constexpr unsigned BitsPerByte = 8;
+
+public:
+  OpSemMemRepr(OpSemMemManager &memManager, Bv2OpSemContext &ctx)
+      : m_memManager(memManager), m_ctx(ctx), m_efac(ctx.getExprFactory()) {}
+  virtual ~OpSemMemRepr() = default;
+
+  virtual Expr havocReg(Expr reg) = 0;
+  virtual Expr loadAlignedWordFromMem(Expr ptr, Expr mem) = 0;
+  virtual Expr storeAlignedWordToMem(Expr val, Expr ptr, unsigned ptrSzInBits,
+                                     Expr mem) = 0;
+
+  virtual Expr MemSet(Expr ptr, Expr _val, unsigned len, Expr memReadReg,
+                      Expr memWriteReg, unsigned wordSzInBytes,
+                      unsigned ptrSzInBits, uint32_t align) = 0;
+  virtual Expr MemCpy(Expr dPtr, Expr sPtr, unsigned len, Expr memTrsfrReadReg,
+                      Expr memReadReg, Expr memWriteReg, unsigned wordSzInBytes,
+                      unsigned ptrSzInBits, uint32_t align) = 0;
+  virtual Expr MemFill(Expr dPtr, char *sPtr, unsigned len,
+                       unsigned wordSzInBytes, unsigned ptrSzInBits,
+                       uint32_t align) = 0;
+};
+
+class OpSemMemArrayRepr : public OpSemMemRepr {
+public:
+  OpSemMemArrayRepr(OpSemMemManager &memManager, Bv2OpSemContext &ctx)
+      : OpSemMemRepr(memManager, ctx) {}
+
+  Expr havocReg(Expr reg) override { return m_ctx.havoc(reg); }
+
+  Expr loadAlignedWordFromMem(Expr ptr, Expr mem) override {
+    return op::array::select(mem, ptr);
+  }
+
+  Expr storeAlignedWordToMem(Expr val, Expr ptr, unsigned ptrSzInBits,
+                             Expr mem) override {
+    (void)ptrSzInBits;
+    return op::array::store(mem, ptr, val);
+  }
+
+  Expr MemSet(Expr ptr, Expr _val, unsigned len, Expr memReadReg,
+              Expr memWriteReg, unsigned wordSzInBytes, unsigned ptrSzInBits,
+              uint32_t align) override;
+  Expr MemCpy(Expr dPtr, Expr sPtr, unsigned len, Expr memTrsfrReadReg,
+              Expr memReadReg, Expr memWriteReg, unsigned wordSzInBytes,
+              unsigned ptrSzInBits, uint32_t align) override;
+  Expr MemFill(Expr dPtr, char *sPtr, unsigned len, unsigned wordSzInBytes,
+               unsigned ptrSzInBits, uint32_t align) override;
+};
+
+class OpSemMemLambdaRepr : public OpSemMemRepr {
+public:
+  OpSemMemLambdaRepr(OpSemMemManager &memManager, Bv2OpSemContext &ctx)
+      : OpSemMemRepr(memManager, ctx) {}
+
+  Expr havocReg(Expr reg) override {
+    assert(bind::isArrayConst(reg));
+    Expr lmbd = wrapArrayWithLambda(reg);
+    m_ctx.write(reg, lmbd);
+    return lmbd;
+  }
+
+  Expr loadAlignedWordFromMem(Expr ptr, Expr mem) override {
+    return bind::fapp(mem, ptr);
+  }
+
+  Expr storeAlignedWordToMem(Expr val, Expr ptr, unsigned ptrSzInBits,
+                             Expr mem) override;
+  Expr MemSet(Expr ptr, Expr _val, unsigned len, Expr memReadReg,
+              Expr memWriteReg, unsigned wordSzInBytes, unsigned ptrSzInBits,
+              uint32_t align) override;
+  Expr MemCpy(Expr dPtr, Expr sPtr, unsigned len, Expr memTrsfrReadReg,
+              Expr memReadReg, Expr memWriteReg, unsigned wordSzInBytes,
+              unsigned ptrSzInBits, uint32_t align) override;
+  Expr MemFill(Expr dPtr, char *sPtr, unsigned len, unsigned wordSzInBytes,
+               unsigned ptrSzInBits, uint32_t align) override;
+
+private:
+  Expr wrapArrayWithLambda(Expr arrVal) {
+    assert(bind::isArrayConst(arrVal));
+
+    Expr name = bind::fname(arrVal);
+    Expr rTy = bind::rangeTy(name);
+    Expr idxTy = sort::arrayIndexTy(rTy);
+
+    Expr bvAddr = bind::mkConst(mkTerm<std::string>("addr", m_efac), idxTy);
+    Expr sel = op::array::select(arrVal, bvAddr);
+    return bind::abs<LAMBDA>(as_std_array(bvAddr), sel);
+  }
+};
+
 /// \brief Memory manager for OpSem machine
 class OpSemMemManager {
 
@@ -418,6 +522,9 @@ class OpSemMemManager {
   /// \brief Parent expression factory
   ExprFactory &m_efac;
 
+  /// \brief Knows the memory representation and how to access it
+  std::unique_ptr<OpSemMemRepr> m_memRepr = nullptr;
+
   /// \brief Ptr size in bytes
   uint32_t m_ptrSz;
   /// \brief Word size in bytes
@@ -449,10 +556,10 @@ class OpSemMemManager {
   /// \brief A null pointer expression (cache)
   Expr m_nullPtr;
 
-// TODO: turn into user-controlled parameters
-#define MAX_STACK_ADDR 0xC0000000
-#define MIN_STACK_ADDR (MAX_STACK_ADDR - 9437184)
-#define TEXT_SEGMENT_START 0x08048000
+  // TODO: turn into user-controlled parameters
+  static constexpr unsigned MAX_STACK_ADDR = 0xC0000000;
+  static constexpr unsigned MIN_STACK_ADDR = (MAX_STACK_ADDR - 9437184);
+  static constexpr unsigned TEXT_SEGMENT_START = 0x08048000;
 
 public:
   OpSemMemManager(Bv2OpSem &sem, Bv2OpSemContext &ctx)
@@ -460,11 +567,17 @@ public:
         m_wordSz(WordSize), m_alignment(m_wordSz),
         m_allocaName(mkTerm<std::string>("sea.alloca", m_efac)),
         m_freshPtrName(mkTerm<std::string>("sea.ptr", m_efac)), m_id(0) {
-    assert((m_wordSz == 1 || m_wordSz == 4 || m_wordSz == 8) && "Untested word size");
+    assert((m_wordSz == 1 || m_wordSz == 4 || m_wordSz == 8) &&
+           "Untested word size");
     assert((m_ptrSz == 4) && "Untested pointer size");
     m_nullPtr = bv::bvnum(0, ptrSzInBits(), m_efac);
     m_sp0 = bv::bvConst(mkTerm<std::string>("sea.sp0", m_efac), ptrSzInBits());
     m_ctx.declareRegister(m_sp0);
+
+    if (HornUseLambdas)
+      m_memRepr = llvm::make_unique<OpSemMemLambdaRepr>(*this, ctx);
+    else
+      m_memRepr = llvm::make_unique<OpSemMemArrayRepr>(*this, ctx);
   }
 
   /// Right now everything is an expression. In the future, we might have other
@@ -660,38 +773,54 @@ public:
     return std::make_pair(nullptr, 0);
   }
 
-  /// \brief Pointers have word address (high) and byte offset (low); returns number of bits for byte offset
+  /// \brief Pointers have word address (high) and byte offset (low); returns
+  /// number of bits for byte offset
   ///
   /// \return 0 if unsupported word size
   unsigned getByteAlignmentBits() {
     switch (wordSzInBytes()) {
-      // cases where ptrs are known to use a certain number of bits to denote byte offset
-      //   and the rest to denote word aligned address
-      case 1: return 0;
-      case 2: return 1;
-      case 4: return 2;
-      case 8: return 3;
-      default:
-        WARN << "unsupported word size: " << wordSzInBytes()
-             << " unaligned reads may not work as intended\n";
-        return 0;
+    // cases where ptrs are known to use a certain number of bits to denote byte
+    // offset
+    //   and the rest to denote word aligned address
+    case 1:
+      return 0;
+    case 2:
+      return 1;
+    case 4:
+      return 2;
+    case 8:
+      return 3;
+    default:
+      WARN << "unsupported word size: " << wordSzInBytes()
+           << " unaligned reads may not work as intended\n";
+      return 0;
     }
   }
 
-  /// \brief Symbolic instructions to load a byte from memory, using word address and byte address
+  /// \brief Havocs a given register taking care of using the correct array
+  /// encoding.
+  ///
+  /// \param reg[in]
+  /// \return the havoced value.
+  Expr havocReg(Expr reg) { return m_memRepr->havocReg(reg); }
+
+  /// \brief Symbolic instructions to load a byte from memory, using word
+  /// address and byte address
   ///
   /// \param[in] mem memory being accessed
   /// \param[in] address pointer being accessed, unaligned
-  /// \param[in] offsetBits number of bits at end of pointers reserved for byte address
-  /// \return symbolic value of the byte at the specified address
+  /// \param[in] offsetBits number of bits at end of pointers reserved for byte
+  /// address \return symbolic value of the byte at the specified address
   Expr extractUnalignedByte(Expr mem, PtrTy address, unsigned offsetBits) {
-    // pointers are partitioned into word address (high bits) and offset (low bits)
+    // pointers are partitioned into word address (high bits) and offset (low
+    // bits)
     PtrTy wordAddress = bv::extract(ptrSzInBits() - 1, offsetBits, address);
     PtrTy byteOffset = bv::extract(offsetBits - 1, 0, address);
 
     // aligned ptr is address with offset bits truncated to 0
-    PtrTy alignedPtr = bv::concat(wordAddress, bv::bvnum(0L, offsetBits, address->efac()));
-    Expr alignedWord = loadAlignedWordFromMem(alignedPtr, mem);
+    PtrTy alignedPtr =
+        bv::concat(wordAddress, bv::bvnum(0L, offsetBits, address->efac()));
+    Expr alignedWord = m_memRepr->loadAlignedWordFromMem(alignedPtr, mem);
 
     byteOffset = bv::zext(byteOffset, wordSzInBits() - 3);
     // (x << 3) to get bit offset; zero extend to maintain word size
@@ -716,12 +845,11 @@ public:
         Expr byteOfWord = extractUnalignedByte(mem, ptrAdd(ptr, i), offsetBits);
         words.push_back(byteOfWord);
       }
-    }
-    else {
-        // -- read all words
-        for (unsigned i = 0; i < byteSz; i += wordSzInBytes()) {
-            words.push_back(loadAlignedWordFromMem(ptrAdd(ptr, i), mem));
-        }
+    } else {
+      // -- read all words
+      for (unsigned i = 0; i < byteSz; i += wordSzInBytes()) {
+        words.push_back(m_memRepr->loadAlignedWordFromMem(ptrAdd(ptr, i), mem));
+      }
     }
 
     assert(!words.empty());
@@ -744,11 +872,6 @@ public:
   PtrTy loadPtrFromMem(PtrTy ptr, Expr memReg, unsigned byteSz,
                        uint64_t align) {
     return loadIntFromMem(ptr, memReg, byteSz, align);
-  }
-
-  /// \brief Loads one word from memory pointed by \p ptr
-  Expr loadAlignedWordFromMem(PtrTy ptr, Expr mem) {
-    return op::array::select(mem, ptr);
   }
 
   /// \brief Pointer addition with numeric offset
@@ -800,8 +923,8 @@ public:
 
     Expr res;
     for (unsigned i = 0; i < words.size(); ++i) {
-      res = storeAlignedWordToMem(words[i], ptrAdd(ptr, i * wordSzInBytes()),
-                                  mem);
+      res = m_memRepr->storeAlignedWordToMem(
+          words[i], ptrAdd(ptr, i * wordSzInBytes()), ptrSzInBits(), mem);
       mem = res;
     }
 
@@ -815,20 +938,24 @@ public:
     unsigned offsetBits = getByteAlignmentBits();
     assert(offsetBits != 0);
 
-    // for each byte (i) in val, load word w of i from memory, update one byte of w, write back result
+    // for each byte (i) in val, load word w of i from memory, update one byte
+    // of w, write back result
     Expr res;
     for (unsigned i = 0; i < byteSz; i++) {
-      PtrTy wordAddress = bv::extract(ptrSzInBits() - 1, offsetBits, ptrAdd(ptr, i));
+      PtrTy wordAddress =
+          bv::extract(ptrSzInBits() - 1, offsetBits, ptrAdd(ptr, i));
       PtrTy byteOffset = bv::extract(offsetBits - 1, 0, ptrAdd(ptr, i));
 
-      PtrTy alignedPtr = bv::concat(wordAddress, bv::bvnum(0L, offsetBits, ptr->efac()));
-      Expr existingWord = loadAlignedWordFromMem(alignedPtr, mem);
+      PtrTy alignedPtr =
+          bv::concat(wordAddress, bv::bvnum(0L, offsetBits, ptr->efac()));
+      Expr existingWord = m_memRepr->loadAlignedWordFromMem(alignedPtr, mem);
 
       unsigned lowBit = i * 8;
       Expr byteToStore = bv::extract(lowBit + 7, lowBit, val);
 
       Expr updatedWord = setByteOfWord(existingWord, byteToStore, byteOffset);
-      res = storeAlignedWordToMem(updatedWord, alignedPtr, mem);
+      res = m_memRepr->storeAlignedWordToMem(updatedWord, alignedPtr,
+                                             ptrSzInBits(), mem);
       mem = res;
     }
 
@@ -844,7 +971,8 @@ public:
   Expr setByteOfWord(Expr word, Expr byteData, PtrTy byteOffset) {
     // (x << 3) to get bit offset; zero extend to maintain word size
     byteOffset = bv::zext(byteOffset, wordSzInBits() - 3);
-    PtrTy bitOffset = bv::concat(byteOffset, bv::bvnum(0, 3, byteOffset->efac()));
+    PtrTy bitOffset =
+        bv::concat(byteOffset, bv::bvnum(0, 3, byteOffset->efac()));
 
     // set a byte of existing word to 0
     Expr lowestByteMask = bv::bvnum(0xff, wordSzInBits(), word->efac());
@@ -864,16 +992,24 @@ public:
     return storeIntToMem(val, ptr, memReadReg, byteSz, align);
   }
 
-  /// \brief Writes one aligned word into memory
-  Expr storeAlignedWordToMem(Expr val, PtrTy ptr, Expr mem) {
-    return op::array::store(mem, ptr, val);
+  Expr wrapWithLambda(Expr arrVal) {
+    assert(bind::isArrayConst(arrVal));
+
+    Expr name = bind::fname(arrVal);
+    Expr rTy = bind::rangeTy(name);
+    Expr idxTy = sort::arrayIndexTy(rTy);
+
+    Expr bvAddr = bind::mkConst(mkTerm<std::string>("addr", m_efac), idxTy);
+    Expr sel = op::array::select(arrVal, bvAddr);
+    return bind::abs<LAMBDA>(as_std_array(bvAddr), sel);
   }
 
   /// \brief Creates bit-vector of a given width filled with 0
   Expr mkZeroE(unsigned width, ExprFactory &efac) {
     return bv::bvnum(0, width, efac);
   }
-  // breif Creates a bit-vector for number 1 of a given width
+
+  /// brief Creates a bit-vector for number 1 of a given width
   Expr mkOneE(unsigned width, ExprFactory &efac) {
     return bv::bvnum(1, width, efac);
   }
@@ -958,80 +1094,24 @@ public:
   /// \brief Executes symbolic memset with a concrete length
   Expr MemSet(PtrTy ptr, Expr _val, unsigned len, Expr memReadReg,
               Expr memWriteReg, uint32_t align) {
-    Expr res;
-
-    unsigned width;
-    if (bv::isBvNum(_val, width) && width == 8) {
-      unsigned val = bv::toMpz(_val).get_ui();
-      val = val & 0xFF;
-      switch (wordSzInBytes()) {
-      case 1:
-        break;
-      case 4:
-        assert(align == 0 || align == 4);
-        val = val | (val << 8) | (val << 16) | (val << 24);
-        break;
-      default:
-        llvm::report_fatal_error("Unsupported word sz for memset\n");
-      }
-
-      res = m_ctx.read(memReadReg);
-      for (unsigned i = 0; i < len; i += wordSzInBytes()) {
-        Expr idx = ptr;
-        if (i > 0)
-          idx = mk<BADD>(ptr, bv::bvnum(i, ptrSzInBits(), m_efac));
-        res =
-            op::array::store(res, idx, bv::bvnum(val, wordSzInBits(), m_efac));
-      }
-      m_ctx.write(memWriteReg, res);
-    }
-
-    return res;
+    return m_memRepr->MemSet(ptr, _val, len, memReadReg, memWriteReg,
+                             wordSzInBytes(), ptrSzInBits(), align);
   }
 
   /// \brief Executes symbolic memcpy with concrete length
   Expr MemCpy(PtrTy dPtr, PtrTy sPtr, unsigned len, Expr memTrsfrReadReg,
               Expr memReadReg, Expr memWriteReg, uint32_t align) {
-    Expr res;
-
-    if (wordSzInBytes() == 1 || (wordSzInBytes() == 4 && align == 4)) {
-      Expr srcMem = m_ctx.read(memTrsfrReadReg);
-      res = srcMem;
-      for (unsigned i = 0; i < len; i += wordSzInBytes()) {
-        Expr dIdx = dPtr;
-        Expr sIdx = sPtr;
-        if (i > 0) {
-          Expr offset = bv::bvnum(i, ptrSzInBits(), m_efac);
-          dIdx = mk<BADD>(dPtr, offset);
-          sIdx = mk<BADD>(sPtr, offset);
-        }
-        Expr val = op::array::select(srcMem, sIdx);
-        res = op::array::store(res, dIdx, val);
-      }
-      m_ctx.write(memWriteReg, res);
-    }
-    return res;
+    return m_memRepr->MemCpy(dPtr, sPtr, len, memTrsfrReadReg, memReadReg,
+                             memWriteReg, wordSzInBytes(), ptrSzInBits(),
+                             align);
   }
 
   /// \brief Executes symbolic memcpy from physical memory with concrete length
   Expr MemFill(PtrTy dPtr, char *sPtr, unsigned len, uint32_t align = 0) {
     // same alignment behavior as galloc - default is word size of machine, can
     // only be increased
-    align = std::max(align, m_alignment);
-    Expr res = m_ctx.read(m_ctx.getMemReadRegister());
-    unsigned sem_word_sz = wordSzInBytes();
-    for (unsigned i = 0; i < len; i += sem_word_sz) {
-      Expr offset = bv::bvnum(i, ptrSzInBits(), m_efac);
-      Expr dIdx = i == 0 ? dPtr : mk<BADD>(dPtr, offset);
-      // copy bytes from buffer to word - word must accommodate largest supported word size
-      assert(sizeof(unsigned long) >= sem_word_sz);
-      unsigned long word = 0;  // 8 bytes because assumed largest supported sem_word_sz = 8
-      std::memcpy(&word, sPtr + i, sem_word_sz);
-      Expr val = bv::bvnum(word, wordSzInBits(), m_efac);
-      res = op::array::store(res, dIdx, val);
-    }
-    m_ctx.write(m_ctx.getMemWriteRegister(), res);
-    return res;
+    return m_memRepr->MemFill(dPtr, sPtr, len, wordSzInBytes(), ptrSzInBits(),
+                              std::max(align, m_alignment));
   }
 
   /// \brief Executes inttoptr conversion
@@ -1062,6 +1142,19 @@ public:
     return res;
   }
 
+  /// \brief Checks if two pointers are equal.
+  Expr ptrEq(PtrTy p1, PtrTy p2) const { return mk<EQ>(p1, p2); }
+
+  /// \brief Checks if \p a <= \p b <= \p c.
+  Expr ptrInRangeCheck(PtrTy a, PtrTy b, PtrTy c) {
+    return mk<AND>(mk<BULE>(a, b), mk<BULE>(b, c));
+  }
+
+  /// \brief Calculates an offset of a pointer from its base.
+  Expr ptrOffsetFromBase(PtrTy base, PtrTy ptr) {
+    return mk<BSUB>(ptr, base);
+  }
+
   /// \brief Computes a pointer corresponding to the gep instruction
   PtrTy gep(PtrTy ptr, gep_type_iterator it, gep_type_iterator end) const {
     Expr offset = m_sem.symbolicIndexedOffset(it, end, m_ctx);
@@ -1075,9 +1168,11 @@ public:
     // align of semantic_word_size, or 4 if it's less than 4
     unsigned offsetBits = 2;
     switch (wordSzInBytes()) {
-      case 8: offsetBits = 3;
+    case 8:
+      offsetBits = 3;
     }
-    m_ctx.addDef(bv::bvnum(0, offsetBits, m_efac), bv::extract(offsetBits - 1, 0, res));
+    m_ctx.addDef(bv::bvnum(0, offsetBits, m_efac),
+                 bv::extract(offsetBits - 1, 0, res));
 
     // XXX hard coded values
     // 3GB upper limit
@@ -1110,6 +1205,198 @@ public:
     }
   }
 };
+
+Expr OpSemMemArrayRepr::MemSet(Expr ptr, Expr _val, unsigned len,
+                               Expr memReadReg, Expr memWriteReg,
+                               unsigned wordSzInBytes, unsigned ptrSzInBits,
+                               uint32_t align) {
+  Expr res;
+
+  unsigned width;
+  if (bv::isBvNum(_val, width) && width == 8) {
+    unsigned val = bv::toMpz(_val).get_ui();
+    val = val & 0xFF;
+    switch (wordSzInBytes) {
+    case 1:
+      break;
+    case 4:
+      assert(align == 0 || align == 4);
+      val = val | (val << 8) | (val << 16) | (val << 24);
+      break;
+    default:
+      llvm::report_fatal_error("Unsupported word sz for memset\n");
+    }
+
+    res = m_ctx.read(memReadReg);
+    if (!HornUseLambdas) {
+      for (unsigned i = 0; i < len; i += wordSzInBytes) {
+        Expr idx = ptr;
+        if (i > 0)
+          idx = mk<BADD>(ptr, bv::bvnum(i, ptrSzInBits, m_efac));
+        res = op::array::store(
+            res, idx, bv::bvnum(val, wordSzInBytes * BitsPerByte, m_efac));
+      }
+    }
+    m_ctx.write(memWriteReg, res);
+  }
+
+  return res;
+}
+
+Expr OpSemMemArrayRepr::MemCpy(Expr dPtr, Expr sPtr, unsigned len,
+                               Expr memTrsfrReadReg, Expr memReadReg,
+                               Expr memWriteReg, unsigned wordSzInBytes,
+                               unsigned ptrSzInBits, uint32_t align) {
+  Expr res;
+
+  if (wordSzInBytes == 1 || (wordSzInBytes == 4 && align == 4)) {
+    Expr srcMem = m_ctx.read(memTrsfrReadReg);
+    res = srcMem;
+    for (unsigned i = 0; i < len; i += wordSzInBytes) {
+      Expr dIdx = dPtr;
+      Expr sIdx = sPtr;
+      if (i > 0) {
+        Expr offset = bv::bvnum(i, ptrSzInBits, m_efac);
+        dIdx = mk<BADD>(dPtr, offset);
+        sIdx = mk<BADD>(sPtr, offset);
+      }
+      Expr val = op::array::select(srcMem, sIdx);
+      res = op::array::store(res, dIdx, val);
+    }
+    m_ctx.write(memWriteReg, res);
+  }
+  return res;
+}
+
+Expr OpSemMemArrayRepr::MemFill(Expr dPtr, char *sPtr, unsigned len,
+                                unsigned wordSzInBytes, unsigned ptrSzInBits,
+                                uint32_t align) {
+  Expr res = m_ctx.read(m_ctx.getMemReadRegister());
+  unsigned sem_word_sz = wordSzInBytes;
+  for (unsigned i = 0; i < len; i += sem_word_sz) {
+    Expr offset = bv::bvnum(i, ptrSzInBits, m_efac);
+    Expr dIdx = i == 0 ? dPtr : mk<BADD>(dPtr, offset);
+    // copy bytes from buffer to word - word must accommodate largest
+    // supported word size
+    assert(sizeof(unsigned long) >= sem_word_sz);
+    // 8 bytes because assumed largest supported sem_word_sz = 8
+    uint64_t word = 0;
+    Expr val = bv::bvnum(word, wordSzInBytes * BitsPerByte, m_efac);
+    res = op::array::store(res, dIdx, val);
+  }
+  m_ctx.write(m_ctx.getMemWriteRegister(), res);
+  return res;
+}
+
+Expr OpSemMemLambdaRepr::storeAlignedWordToMem(Expr val, Expr ptr,
+                                               unsigned ptrSzInBits,
+                                               Expr mem) {
+  Expr bvTy = bv::bvsort(ptrSzInBits, m_efac);
+  Expr addr = bind::mkConst(mkTerm<std::string>("addr", m_efac), bvTy);
+
+  Expr fappl = op::bind::fapp(mem, ptr);
+  Expr ite = boolop::lite(m_memManager.ptrEq(addr, ptr), val, fappl);
+  return bind::abs<LAMBDA>(as_std_array(addr), ite);
+}
+
+Expr OpSemMemLambdaRepr::MemSet(Expr ptr, Expr _val, unsigned len,
+                                Expr memReadReg, Expr memWriteReg,
+                                unsigned wordSzInBytes, unsigned ptrSzInBits,
+                                uint32_t align) {
+  Expr res;
+
+  unsigned width;
+  if (bv::isBvNum(_val, width) && width == 8) {
+    unsigned val = bv::toMpz(_val).get_ui();
+    val = val & 0xFF;
+    switch (wordSzInBytes) {
+    case 1:
+      break;
+    case 4:
+      assert(align == 0 || align == 4);
+      val = val | (val << 8) | (val << 16) | (val << 24);
+      break;
+    default:
+      llvm::report_fatal_error("Unsupported word sz for memset\n");
+    }
+
+    res = m_ctx.read(memReadReg);
+
+    Expr last = m_memManager.ptrAdd(ptr, len - wordSzInBytes);
+    Expr bvTy = bv::bvsort(ptrSzInBits, m_efac);
+    Expr bvVal = bv::bvnum(val, wordSzInBytes * BitsPerByte, m_efac);
+    Expr addr = bind::mkConst(mkTerm<std::string>("addr", m_efac), bvTy);
+
+    Expr cmp = m_memManager.ptrInRangeCheck(ptr, addr, last);
+    Expr fappl = op::bind::fapp(res, ptr);
+    Expr ite = boolop::lite(cmp, bvVal, fappl);
+    Expr lmbd = bind::abs<LAMBDA>(as_std_array(addr), ite);
+    res = lmbd;
+    LOG("opsem3", errs() << "MemSet " << *res << "\n");
+
+    m_ctx.write(memWriteReg, res);
+  }
+
+  return res;
+}
+
+Expr OpSemMemLambdaRepr::MemCpy(Expr dPtr, Expr sPtr, unsigned len,
+                                Expr memTrsfrReadReg, Expr memReadReg,
+                                Expr memWriteReg, unsigned wordSzInBytes,
+                                unsigned ptrSzInBits, uint32_t align) {
+  Expr res;
+
+  if (wordSzInBytes == 1 || (wordSzInBytes == 4 && align == 4)) {
+    Expr srcMem = m_ctx.read(memTrsfrReadReg);
+
+    if (len > 0) {
+      unsigned bytesToCpy = len - wordSzInBytes;
+      Expr srcLast = m_memManager.ptrAdd(sPtr, bytesToCpy);
+      Expr dstLast = m_memManager.ptrAdd(dPtr, bytesToCpy);
+
+      Expr bvTy = bv::bvsort(ptrSzInBits, m_efac);
+      Expr addr = bind::mkConst(mkTerm<std::string>("addr", m_efac), bvTy);
+
+      Expr cmp = m_memManager.ptrInRangeCheck(dPtr, addr, dstLast);
+      Expr offset = m_memManager.ptrOffsetFromBase(dPtr, addr);
+      Expr readPtrInSrc = m_memManager.ptrAdd(sPtr, offset);
+
+      // Both reads are from the same memory but must not overlap.
+      Expr readFromSrc = op::bind::fapp(srcMem, readPtrInSrc);
+      Expr readFromDst = op::bind::fapp(srcMem, addr);
+
+      Expr ite = boolop::lite(cmp, readFromSrc, readFromDst);
+      Expr lmbd = bind::abs<LAMBDA>(as_std_array(addr), ite);
+      res = lmbd;
+      LOG("opsem3", errs() << "MemCpy " << *res << "\n");
+    }
+
+    m_ctx.write(memWriteReg, res);
+  }
+  return res;
+}
+
+Expr OpSemMemLambdaRepr::MemFill(Expr dPtr, char *sPtr, unsigned len,
+                                 unsigned wordSzInBytes, unsigned ptrSzInBits,
+                                 uint32_t align) {
+  Expr res = m_ctx.read(m_ctx.getMemReadRegister());
+  unsigned sem_word_sz = wordSzInBytes;
+  for (unsigned i = 0; i < len; i += sem_word_sz) {
+    Expr offset = bv::bvnum(i, ptrSzInBits, m_efac);
+    Expr dIdx = i == 0 ? dPtr : mk<BADD>(dPtr, offset);
+    // copy bytes from buffer to word - word must accommodate largest
+    // supported word size
+    assert(sizeof(unsigned long) >= sem_word_sz);
+    // 8 bytes because assumed largest supported sem_word_sz = 8
+    uint64_t word = 0;
+    std::memcpy(&word, sPtr + i, sem_word_sz);
+    Expr val = bv::bvnum(word, wordSzInBytes * BitsPerByte, m_efac);
+    res = storeAlignedWordToMem(val, dIdx, ptrSzInBits, res);
+  }
+  m_ctx.write(m_ctx.getMemWriteRegister(), res);
+  return res;
+}
+
 
 struct OpSemBase {
   Bv2OpSemContext &m_ctx;
@@ -1184,14 +1471,18 @@ struct OpSemBase {
     if (m_sem.isSkipped(v))
       return Expr();
 
+    assert(m_ctx.getMemManager());
+    OpSemMemManager &memManager = *m_ctx.getMemManager();
+
     Expr reg;
     if (reg = m_ctx.getRegister(v))
-      return m_ctx.havoc(reg);
+      return memManager.havocReg(reg);
+
+    // memManager;
 
     assert(!isa<Constant>(v));
-    reg = m_ctx.mkRegister(v);
-    if (reg)
-      return m_ctx.havoc(reg);
+    if (reg = m_ctx.mkRegister(v))
+      return memManager.havocReg(reg);
     errs() << "Error: failed to havoc: " << v << "\n";
     llvm_unreachable(nullptr);
   }
@@ -1376,7 +1667,8 @@ public:
       }
       unsigned nElts = ogv.getValue().IntVal.getZExtValue();
       unsigned memSz = typeSz * nElts;
-      LOG("opsem", errs() << "!3 Alloca of " << memSz << " bytes: " << I << "\n";);
+      LOG("opsem",
+          errs() << "!3 Alloca of " << memSz << " bytes: " << I << "\n";);
       addr = m_ctx.getMemManager()->salloc(memSz);
     } else {
       Expr nElts = lookup(*I.getOperand(0));
@@ -3425,13 +3717,14 @@ Optional<GenericValue> Bv2OpSem::getConstantValue(const Constant *C) {
     else if (const Function *F = dyn_cast<Function>(C)) {
       // TODO:
       // Result = PTOGV((void*)ctx.getPtrToFunction(*F));
-      WARN << "Unhandled function pointer in a constant expression:  " << *C << "\n";
+      WARN << "Unhandled function pointer in a constant expression:  " << *C
+           << "\n";
       return llvm::None;
-    } else if (const GlobalVariable *GV =
-                   dyn_cast<GlobalVariable>(C)) {
+    } else if (const GlobalVariable *GV = dyn_cast<GlobalVariable>(C)) {
       // TODO:
       // Result = PTOGV((void*)ctx.getPtrToGlobal(*GV));
-      WARN << "Unhandled global variable in a constant expression: " << *C << "\n";
+      WARN << "Unhandled global variable in a constant expression: " << *C
+           << "\n";
       return llvm::None;
     } else
       llvm_unreachable("Unknown constant pointer type!");

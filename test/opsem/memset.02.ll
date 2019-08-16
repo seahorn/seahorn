@@ -1,4 +1,5 @@
 ; RUN: %seabmc "%s" 2>&1 | %oc %s
+
 ; CHECK: ^unsat$
 ; ModuleID = '/var/folders/_j/1_4mrwbs7y16zbvj79vwvhdc0000gn/T/sea-sytGp6/mem.02.pp.ms.bc'
 source_filename = "/tmp/mem.02.c"

@@ -1,4 +1,5 @@
 ; RUN: %seabmc "%s" 2>&1 | %oc %s
+
 ; playing with alignment. Two variables are created, 
 ; checks that the third bit differs between them.
 ; CHECK: ^sat$

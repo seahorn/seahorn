@@ -238,6 +238,7 @@ public:
     Expr all = mknary<AND>(formula);
     Expr simpl =  z3_simplify(bmc->zctx(), all);
 
+    LOG("opsem3", llvm::errs() << z3_to_smtlib(bmc->zctx(), all) << "\n~~~~\n");
     LOG("opsem3", llvm::errs() << z3_to_smtlib(bmc->zctx(), simpl) << "\n");
     if (m_out)
       bmc->toSmtLib(*m_out);

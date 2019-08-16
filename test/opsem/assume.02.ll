@@ -1,4 +1,6 @@
 ; RUN: %seabmc "%s" 2>&1 | %oc %s
+; RUN: %seabmc --horn-bv2-lambdas --log=opsem3 "%s" 2>&1 | %oc %s
+
 ; CHECK: ^unsat$
 ; ModuleID = 'assume.02.ll'
 source_filename = "../test/bmc/test-bmc-1.false.c"

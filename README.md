@@ -2,13 +2,12 @@
 
 <table>
   <tr>
-    <th>Windows</th><th>Ubuntu</th><th>OS X</th><th>Chat with us</th><th>Stories</th>
+    <th>Windows</th><th>Ubuntu</th><th>OS X</th><th>Chat with us</th>
   </tr>
     <td>TBD</td>
     <td><a href="https://travis-ci.org/seahorn/seahorn"><img src="https://travis-ci.org/seahorn/seahorn.svg?branch=deep-dev-5.0" title="Ubuntu 12.04 LTS 64bit, g++-5"/></a></td>
     <td>TBD</td>
     <td><a href="https://gitter.im/seahorn/seahorn?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge"><img src="https://badges.gitter.im/seahorn/seahorn.svg" title="Gitter"/></a></td>
-    <td> <a href="http://waffle.io/seahorn/seahorn/"><img src="https://badge.waffle.io/seahorn/seahorn.svg?label=ready&title=Ready"/></a></td>
   </tr>
 </table>
 
@@ -22,14 +21,14 @@
 
 # Installation #
 
-* `cd seahorn ; mkdir build ; cd build`
-* `cmake -DCMAKE_INSTALL_PREFIX=run ../ `
+1. `cd seahorn ; mkdir build ; cd build` (The build directory can also be outside the source directory.)
+1. `cmake -DCMAKE_INSTALL_PREFIX=run ../ `
   (Add `-GNinja` to use the [Ninja](https://ninja-build.org/) generator instead of the default one.
    Build types (Release, Debug) can be set with `-DCMAKE_BUILD_TYPE=<TYPE>`.)
-* `cmake --build .` to build dependencies (Z3 and LLVM)
-* `cmake --build . --target extra && cmake ..` to download extra packages
-* `cmake --build . --target crab && cmake ..` to configure crab-llvm (if `extra` target was run)
-* `cmake --build . --target install` to build seahorn and install everything in `run` directory
+1. `cmake --build .` to build dependencies (Z3 and LLVM)
+1. `cmake --build . --target extra && cmake ..` to download extra packages
+1. `cmake --build . --target crab && cmake ..` to configure crab-llvm (if `extra` target was run)
+1. `cmake --build . --target install` to build seahorn and install everything in `run` directory
 
 _Note that the *install* target is required!_
 
@@ -43,10 +42,11 @@ other options on Linux. The magic cmake configuration line is
 something like the following:
 
 ```
- cmake -DCMAKE_INSTALL_PREFIX=run -DCMAKE_BUILD_TYPE="Release" -DCMAKE_CXX_COMPILER="clang++-6.0" -DCMAKE_C_COMPILER="clang-6.0" -DSEA_ENABLE_LLD="ON" -GNinja -DCMAKE_EXPORT_COMPILE_COMMANDS=1 ../
+ cmake -DCMAKE_INSTALL_PREFIX=run -DCMAKE_BUILD_TYPE="Release" -DCMAKE_CXX_COMPILER="clang++-8" -DCMAKE_C_COMPILER="clang-8" -DSEA_ENABLE_LLD="ON" -GNinja -DCMAKE_EXPORT_COMPILE_COMMANDS=1 ../
 ```
+This command should be run instead of the cmake command *2.* in the installation instructions above.
 
-SeaHorn provides several components that are installed via the `extra`
+SeaHorn provides several components that are automatically cloned and installed via the `extra`
 target. These components can be used by other projects outside of
 SeaHorn.
 
@@ -129,6 +129,10 @@ For a detailed guide for a remote workflow with CLion check
 
 # Usage #
 
+### Demo ###
+[![Demo](https://asciinema.org/a/261355.svg)](https://asciinema.org/a/261355)
+---
+
 SeaHorn provides a python script called `sea` to interact with
 users. Given a C program annotated with assertions, users just need to
 type: `sea pf file.c`
@@ -174,7 +178,6 @@ corresponds to a loop-free fragments.
 
 - `--bmc`: use BMC engine.
 
-
 `sea pf` is a pipeline that runs multiple commands. Individual parts
 of the pipeline can be run separately as well:
 
@@ -213,25 +216,25 @@ individual command CMD (e.g, `horn`), type `sea CMD --help` (e.g.,
 
 This is an example of a C program annotated with a safety property:
 ``` c
-    /* verification command: sea pf --horn-stats test.c */
-    #include "seahorn/seahorn.h"
-    extern int nd();
+/* verification command: sea pf --horn-stats test.c */
+#include "seahorn/seahorn.h"
+extern int nd();
 
-    int main(void){
-      int k=1;
-      int i=1;
-      int j=0;
-      int n = nd();
-      while(i<n) {
-        j=0;
-        while(j<i) {
-          k += (i-j);
-          j++;
+int main(void) {
+    int k = 1;
+    int i = 1;
+    int j = 0;
+    int n = nd();
+    while (i < n) {
+        j = 0;
+        while (j < i) {
+            k += (i - j);
+            j++;
         }
         i++;
-      }
-      sassert(k>=n);
     }
+    sassert(k >= n);
+}
 ```
 SeaHorn follows [SV-COMP](http://sv-comp.sosy-lab.org) convention of
 encoding error locations by a call to the designated error function
@@ -241,7 +244,7 @@ safe. SeaHorn returns `sat` when `__VERIFIER_error()` is reachable and
 the program is unsafe. `sassert()` method is defined in
 `seahorn/seahorn.h`.
 
-## Building SeaHorn on ubuntu 18.04 ##
+## Building SeaHorn on Ubuntu 18.04 ##
 
 The following packages are recommended to build SeaHorn on Ubuntu 18.04. Not
 everything is necessary for all configurations, but it is simpler to have these
@@ -249,7 +252,7 @@ installed. This assumes that `clang` is used as a compiler as per-instructions
 above.
 
 ```
-sudo apt install cmake git build-essential ninja-build llvm-6.0 clang-6.0 lld-6.0 libboost-dev subversion g++-7-multilib gcc-multilib lib32stdc++7 libgmp-dev libgmpxx4ldbl libgraphviz-dev libncurses5-dev ncurses-doc
+sudo apt install cmake git build-essential ninja-build llvm-8 clang-8 clang-tools-8 lld-8 libboost-dev subversion g++-7-multilib gcc-multilib lib32stdc++7 libgmp-dev libgmpxx4ldbl libgraphviz-dev libncurses5-dev ncurses-doc
 ```
 
 # Original Authors 
@@ -262,4 +265,4 @@ sudo apt install cmake git build-essential ninja-build llvm-6.0 clang-6.0 lld-6.
 
 * Jakub Kuderski
 * Nham Le
-
+* Charles Lei

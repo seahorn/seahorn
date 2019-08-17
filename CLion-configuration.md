@@ -79,7 +79,7 @@ Assumes that the remote host is running an Ubuntu.
      ~~~
      -DCMAKE_INSTALL_PREFIX=run
      -DCMAKE_BUILD_TYPE=Release -GNinja -DCMAKE_EXPORT_COMPILE_COMMANDS=1
-     -DCMAKE_C_COMPILER="clang-6.0" -DCMAKE_CXX_COMPILER="clang++-6.0"
+     -DCMAKE_C_COMPILER="clang-8" -DCMAKE_CXX_COMPILER="clang++-8"
      -DSEA_ENABLE_LLD=1
      -DBOOST_ROOT=~/seahorn-deps/boost
      -DLLVM_DIR=~/seahorn-deps/LLVM-5.0.2-Linux/lib/cmake/llvm

@@ -1,5 +1,6 @@
 ; aliased result iff aliased pointers
 ; RUN: %seabmc "%s" 2>&1 | %oc %s
+; RUN: %seabmc --horn-bv2-lambdas --log=opsem3 "%s" 2>&1 | %oc %s
 
 ; CHECK: ^unsat$
 ; ModuleID = 'ptr.01.ll'

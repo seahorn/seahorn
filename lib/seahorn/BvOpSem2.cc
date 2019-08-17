@@ -378,17 +378,17 @@ public:
 
   virtual Expr havocReg(Expr reg) = 0;
   virtual Expr loadAlignedWordFromMem(Expr ptr, Expr mem) = 0;
-  virtual Expr storeAlignedWordToMem(Expr val, Expr ptr, unsigned ptrSzInBits,
+  virtual Expr storeAlignedWordToMem(Expr val, Expr ptr, Expr ptrSort,
                                      Expr mem) = 0;
 
   virtual Expr MemSet(Expr ptr, Expr _val, unsigned len, Expr memReadReg,
-                      Expr memWriteReg, unsigned wordSzInBytes,
-                      unsigned ptrSzInBits, uint32_t align) = 0;
+                      Expr memWriteReg, unsigned wordSzInBytes, Expr ptrSort,
+                      uint32_t align) = 0;
   virtual Expr MemCpy(Expr dPtr, Expr sPtr, unsigned len, Expr memTrsfrReadReg,
                       Expr memReadReg, Expr memWriteReg, unsigned wordSzInBytes,
-                      unsigned ptrSzInBits, uint32_t align) = 0;
+                      Expr ptrSort, uint32_t align) = 0;
   virtual Expr MemFill(Expr dPtr, char *sPtr, unsigned len,
-                       unsigned wordSzInBytes, unsigned ptrSzInBits,
+                       unsigned wordSzInBytes, Expr ptrSort,
                        uint32_t align) = 0;
 };
 
@@ -403,20 +403,20 @@ public:
     return op::array::select(mem, ptr);
   }
 
-  Expr storeAlignedWordToMem(Expr val, Expr ptr, unsigned ptrSzInBits,
+  Expr storeAlignedWordToMem(Expr val, Expr ptr, Expr ptrSort,
                              Expr mem) override {
-    (void)ptrSzInBits;
+    (void)ptrSort;
     return op::array::store(mem, ptr, val);
   }
 
   Expr MemSet(Expr ptr, Expr _val, unsigned len, Expr memReadReg,
-              Expr memWriteReg, unsigned wordSzInBytes, unsigned ptrSzInBits,
+              Expr memWriteReg, unsigned wordSzInBytes, Expr ptrSort,
               uint32_t align) override;
   Expr MemCpy(Expr dPtr, Expr sPtr, unsigned len, Expr memTrsfrReadReg,
               Expr memReadReg, Expr memWriteReg, unsigned wordSzInBytes,
-              unsigned ptrSzInBits, uint32_t align) override;
+              Expr ptrSort, uint32_t align) override;
   Expr MemFill(Expr dPtr, char *sPtr, unsigned len, unsigned wordSzInBytes,
-               unsigned ptrSzInBits, uint32_t align) override;
+               Expr ptrSort, uint32_t align) override;
 };
 
 class OpSemMemLambdaRepr : public OpSemMemRepr {
@@ -435,16 +435,16 @@ public:
     return bind::fapp(mem, ptr);
   }
 
-  Expr storeAlignedWordToMem(Expr val, Expr ptr, unsigned ptrSzInBits,
+  Expr storeAlignedWordToMem(Expr val, Expr ptr, Expr ptrSort,
                              Expr mem) override;
   Expr MemSet(Expr ptr, Expr _val, unsigned len, Expr memReadReg,
-              Expr memWriteReg, unsigned wordSzInBytes, unsigned ptrSzInBits,
+              Expr memWriteReg, unsigned wordSzInBytes, Expr ptrSort,
               uint32_t align) override;
   Expr MemCpy(Expr dPtr, Expr sPtr, unsigned len, Expr memTrsfrReadReg,
               Expr memReadReg, Expr memWriteReg, unsigned wordSzInBytes,
-              unsigned ptrSzInBits, uint32_t align) override;
+              Expr ptrSort, uint32_t align) override;
   Expr MemFill(Expr dPtr, char *sPtr, unsigned len, unsigned wordSzInBytes,
-               unsigned ptrSzInBits, uint32_t align) override;
+               Expr ptrSort, uint32_t align) override;
 
 private:
   Expr wrapArrayWithLambda(Expr arrVal) {
@@ -585,6 +585,8 @@ public:
   using PtrTy = Expr;
 
   unsigned ptrSzInBits() const { return m_ptrSz * 8; }
+  PtrTy ptrSort() const { return bv::bvsort(ptrSzInBits(), m_efac); }
+
   unsigned wordSzInBytes() const { return m_wordSz; }
   unsigned wordSzInBits() const { return m_wordSz * 8; }
 
@@ -810,7 +812,8 @@ public:
   /// \param[in] mem memory being accessed
   /// \param[in] address pointer being accessed, unaligned
   /// \param[in] offsetBits number of bits at end of pointers reserved for byte
-  /// address \return symbolic value of the byte at the specified address
+  ///            address
+  /// \return symbolic value of the byte at the specified address
   Expr extractUnalignedByte(Expr mem, PtrTy address, unsigned offsetBits) {
     // pointers are partitioned into word address (high bits) and offset (low
     // bits)
@@ -924,7 +927,7 @@ public:
     Expr res;
     for (unsigned i = 0; i < words.size(); ++i) {
       res = m_memRepr->storeAlignedWordToMem(
-          words[i], ptrAdd(ptr, i * wordSzInBytes()), ptrSzInBits(), mem);
+          words[i], ptrAdd(ptr, i * wordSzInBytes()), ptrSort(), mem);
       mem = res;
     }
 
@@ -954,8 +957,8 @@ public:
       Expr byteToStore = bv::extract(lowBit + 7, lowBit, val);
 
       Expr updatedWord = setByteOfWord(existingWord, byteToStore, byteOffset);
-      res = m_memRepr->storeAlignedWordToMem(updatedWord, alignedPtr,
-                                             ptrSzInBits(), mem);
+      res = m_memRepr->storeAlignedWordToMem(updatedWord, alignedPtr, ptrSort(),
+                                             mem);
       mem = res;
     }
 
@@ -990,18 +993,6 @@ public:
   Expr storePtrToMem(PtrTy val, PtrTy ptr, Expr memReadReg, unsigned byteSz,
                      uint64_t align) {
     return storeIntToMem(val, ptr, memReadReg, byteSz, align);
-  }
-
-  Expr wrapWithLambda(Expr arrVal) {
-    assert(bind::isArrayConst(arrVal));
-
-    Expr name = bind::fname(arrVal);
-    Expr rTy = bind::rangeTy(name);
-    Expr idxTy = sort::arrayIndexTy(rTy);
-
-    Expr bvAddr = bind::mkConst(mkTerm<std::string>("addr", m_efac), idxTy);
-    Expr sel = op::array::select(arrVal, bvAddr);
-    return bind::abs<LAMBDA>(as_std_array(bvAddr), sel);
   }
 
   /// \brief Creates bit-vector of a given width filled with 0
@@ -1095,22 +1086,21 @@ public:
   Expr MemSet(PtrTy ptr, Expr _val, unsigned len, Expr memReadReg,
               Expr memWriteReg, uint32_t align) {
     return m_memRepr->MemSet(ptr, _val, len, memReadReg, memWriteReg,
-                             wordSzInBytes(), ptrSzInBits(), align);
+                             wordSzInBytes(), ptrSort(), align);
   }
 
   /// \brief Executes symbolic memcpy with concrete length
   Expr MemCpy(PtrTy dPtr, PtrTy sPtr, unsigned len, Expr memTrsfrReadReg,
               Expr memReadReg, Expr memWriteReg, uint32_t align) {
     return m_memRepr->MemCpy(dPtr, sPtr, len, memTrsfrReadReg, memReadReg,
-                             memWriteReg, wordSzInBytes(), ptrSzInBits(),
-                             align);
+                             memWriteReg, wordSzInBytes(), ptrSort(), align);
   }
 
   /// \brief Executes symbolic memcpy from physical memory with concrete length
   Expr MemFill(PtrTy dPtr, char *sPtr, unsigned len, uint32_t align = 0) {
     // same alignment behavior as galloc - default is word size of machine, can
     // only be increased
-    return m_memRepr->MemFill(dPtr, sPtr, len, wordSzInBytes(), ptrSzInBits(),
+    return m_memRepr->MemFill(dPtr, sPtr, len, wordSzInBytes(), ptrSort(),
                               std::max(align, m_alignment));
   }
 
@@ -1151,9 +1141,7 @@ public:
   }
 
   /// \brief Calculates an offset of a pointer from its base.
-  Expr ptrOffsetFromBase(PtrTy base, PtrTy ptr) {
-    return mk<BSUB>(ptr, base);
-  }
+  Expr ptrOffsetFromBase(PtrTy base, PtrTy ptr) { return mk<BSUB>(ptr, base); }
 
   /// \brief Computes a pointer corresponding to the gep instruction
   PtrTy gep(PtrTy ptr, gep_type_iterator it, gep_type_iterator end) const {
@@ -1206,33 +1194,32 @@ public:
   }
 };
 
+static uint64_t SpreadBytePatternAccrossWord(uint8_t pattern,
+                                             unsigned bytesInWord) {
+  assert(bytesInWord <= 8 && "Unsupported word size");
+  uint64_t res = 0;
+
+  for (unsigned i = 0; i != bytesInWord * 8; i += 8)
+    res |= pattern << i;
+
+  return res;
+}
+
 Expr OpSemMemArrayRepr::MemSet(Expr ptr, Expr _val, unsigned len,
                                Expr memReadReg, Expr memWriteReg,
-                               unsigned wordSzInBytes, unsigned ptrSzInBits,
+                               unsigned wordSzInBytes, Expr ptrSort,
                                uint32_t align) {
   Expr res;
 
   unsigned width;
   if (bv::isBvNum(_val, width) && width == 8) {
-    unsigned val = bv::toMpz(_val).get_ui();
-    val = val & 0xFF;
-    switch (wordSzInBytes) {
-    case 1:
-      break;
-    case 4:
-      assert(align == 0 || align == 4);
-      val = val | (val << 8) | (val << 16) | (val << 24);
-      break;
-    default:
-      llvm::report_fatal_error("Unsupported word sz for memset\n");
-    }
+    uint64_t val = bv::toMpz(_val).get_ui();
+    val = SpreadBytePatternAccrossWord(val & 0xFF, wordSzInBytes);
 
     res = m_ctx.read(memReadReg);
     if (!HornUseLambdas) {
       for (unsigned i = 0; i < len; i += wordSzInBytes) {
-        Expr idx = ptr;
-        if (i > 0)
-          idx = mk<BADD>(ptr, bv::bvnum(i, ptrSzInBits, m_efac));
+        Expr idx = m_memManager.ptrAdd(ptr, i);
         res = op::array::store(
             res, idx, bv::bvnum(val, wordSzInBytes * BitsPerByte, m_efac));
       }
@@ -1246,20 +1233,18 @@ Expr OpSemMemArrayRepr::MemSet(Expr ptr, Expr _val, unsigned len,
 Expr OpSemMemArrayRepr::MemCpy(Expr dPtr, Expr sPtr, unsigned len,
                                Expr memTrsfrReadReg, Expr memReadReg,
                                Expr memWriteReg, unsigned wordSzInBytes,
-                               unsigned ptrSzInBits, uint32_t align) {
+                               Expr ptrSort, uint32_t align) {
+  (void)memReadReg, ptrSort;
+
   Expr res;
 
   if (wordSzInBytes == 1 || (wordSzInBytes == 4 && align == 4)) {
     Expr srcMem = m_ctx.read(memTrsfrReadReg);
     res = srcMem;
     for (unsigned i = 0; i < len; i += wordSzInBytes) {
-      Expr dIdx = dPtr;
-      Expr sIdx = sPtr;
-      if (i > 0) {
-        Expr offset = bv::bvnum(i, ptrSzInBits, m_efac);
-        dIdx = mk<BADD>(dPtr, offset);
-        sIdx = mk<BADD>(sPtr, offset);
-      }
+      Expr dIdx = m_memManager.ptrAdd(dPtr, i);
+      Expr sIdx = m_memManager.ptrAdd(sPtr, i);
+
       Expr val = op::array::select(srcMem, sIdx);
       res = op::array::store(res, dIdx, val);
     }
@@ -1269,13 +1254,12 @@ Expr OpSemMemArrayRepr::MemCpy(Expr dPtr, Expr sPtr, unsigned len,
 }
 
 Expr OpSemMemArrayRepr::MemFill(Expr dPtr, char *sPtr, unsigned len,
-                                unsigned wordSzInBytes, unsigned ptrSzInBits,
+                                unsigned wordSzInBytes, Expr ptrSort,
                                 uint32_t align) {
   Expr res = m_ctx.read(m_ctx.getMemReadRegister());
   unsigned sem_word_sz = wordSzInBytes;
   for (unsigned i = 0; i < len; i += sem_word_sz) {
-    Expr offset = bv::bvnum(i, ptrSzInBits, m_efac);
-    Expr dIdx = i == 0 ? dPtr : mk<BADD>(dPtr, offset);
+    Expr dIdx = m_memManager.ptrAdd(dPtr, i);
     // copy bytes from buffer to word - word must accommodate largest
     // supported word size
     assert(sizeof(unsigned long) >= sem_word_sz);
@@ -1288,47 +1272,34 @@ Expr OpSemMemArrayRepr::MemFill(Expr dPtr, char *sPtr, unsigned len,
   return res;
 }
 
-Expr OpSemMemLambdaRepr::storeAlignedWordToMem(Expr val, Expr ptr,
-                                               unsigned ptrSzInBits,
+Expr OpSemMemLambdaRepr::storeAlignedWordToMem(Expr val, Expr ptr, Expr ptrSort,
                                                Expr mem) {
-  Expr bvTy = bv::bvsort(ptrSzInBits, m_efac);
-  Expr addr = bind::mkConst(mkTerm<std::string>("addr", m_efac), bvTy);
+  Expr addr = bind::mkConst(mkTerm<std::string>("addr", m_efac), ptrSort);
 
-  Expr fappl = op::bind::fapp(mem, ptr);
+  Expr fappl = op::bind::fapp(mem, addr);
   Expr ite = boolop::lite(m_memManager.ptrEq(addr, ptr), val, fappl);
   return bind::abs<LAMBDA>(as_std_array(addr), ite);
 }
 
 Expr OpSemMemLambdaRepr::MemSet(Expr ptr, Expr _val, unsigned len,
                                 Expr memReadReg, Expr memWriteReg,
-                                unsigned wordSzInBytes, unsigned ptrSzInBits,
+                                unsigned wordSzInBytes, Expr ptrSort,
                                 uint32_t align) {
   Expr res;
 
   unsigned width;
   if (bv::isBvNum(_val, width) && width == 8) {
-    unsigned val = bv::toMpz(_val).get_ui();
-    val = val & 0xFF;
-    switch (wordSzInBytes) {
-    case 1:
-      break;
-    case 4:
-      assert(align == 0 || align == 4);
-      val = val | (val << 8) | (val << 16) | (val << 24);
-      break;
-    default:
-      llvm::report_fatal_error("Unsupported word sz for memset\n");
-    }
+    uint64_t val = bv::toMpz(_val).get_ui();
+    val = SpreadBytePatternAccrossWord(val & 0xFF, wordSzInBytes);
 
     res = m_ctx.read(memReadReg);
 
     Expr last = m_memManager.ptrAdd(ptr, len - wordSzInBytes);
-    Expr bvTy = bv::bvsort(ptrSzInBits, m_efac);
     Expr bvVal = bv::bvnum(val, wordSzInBytes * BitsPerByte, m_efac);
-    Expr addr = bind::mkConst(mkTerm<std::string>("addr", m_efac), bvTy);
+    Expr addr = bind::mkConst(mkTerm<std::string>("addr", m_efac), ptrSort);
 
     Expr cmp = m_memManager.ptrInRangeCheck(ptr, addr, last);
-    Expr fappl = op::bind::fapp(res, ptr);
+    Expr fappl = op::bind::fapp(res, addr);
     Expr ite = boolop::lite(cmp, bvVal, fappl);
     Expr lmbd = bind::abs<LAMBDA>(as_std_array(addr), ite);
     res = lmbd;
@@ -1343,7 +1314,7 @@ Expr OpSemMemLambdaRepr::MemSet(Expr ptr, Expr _val, unsigned len,
 Expr OpSemMemLambdaRepr::MemCpy(Expr dPtr, Expr sPtr, unsigned len,
                                 Expr memTrsfrReadReg, Expr memReadReg,
                                 Expr memWriteReg, unsigned wordSzInBytes,
-                                unsigned ptrSzInBits, uint32_t align) {
+                                Expr ptrSort, uint32_t align) {
   Expr res;
 
   if (wordSzInBytes == 1 || (wordSzInBytes == 4 && align == 4)) {
@@ -1351,15 +1322,13 @@ Expr OpSemMemLambdaRepr::MemCpy(Expr dPtr, Expr sPtr, unsigned len,
 
     if (len > 0) {
       unsigned bytesToCpy = len - wordSzInBytes;
-      Expr srcLast = m_memManager.ptrAdd(sPtr, bytesToCpy);
       Expr dstLast = m_memManager.ptrAdd(dPtr, bytesToCpy);
 
-      Expr bvTy = bv::bvsort(ptrSzInBits, m_efac);
-      Expr addr = bind::mkConst(mkTerm<std::string>("addr", m_efac), bvTy);
+      Expr addr = bind::mkConst(mkTerm<std::string>("addr", m_efac), ptrSort);
 
       Expr cmp = m_memManager.ptrInRangeCheck(dPtr, addr, dstLast);
-      Expr offset = m_memManager.ptrOffsetFromBase(dPtr, addr);
-      Expr readPtrInSrc = m_memManager.ptrAdd(sPtr, offset);
+      Expr offset = m_memManager.ptrOffsetFromBase(dPtr, sPtr);
+      Expr readPtrInSrc = m_memManager.ptrAdd(addr, offset);
 
       // Both reads are from the same memory but must not overlap.
       Expr readFromSrc = op::bind::fapp(srcMem, readPtrInSrc);
@@ -1377,13 +1346,14 @@ Expr OpSemMemLambdaRepr::MemCpy(Expr dPtr, Expr sPtr, unsigned len,
 }
 
 Expr OpSemMemLambdaRepr::MemFill(Expr dPtr, char *sPtr, unsigned len,
-                                 unsigned wordSzInBytes, unsigned ptrSzInBits,
+                                 unsigned wordSzInBytes, Expr ptrSort,
                                  uint32_t align) {
+  (void)align;
+
   Expr res = m_ctx.read(m_ctx.getMemReadRegister());
   unsigned sem_word_sz = wordSzInBytes;
   for (unsigned i = 0; i < len; i += sem_word_sz) {
-    Expr offset = bv::bvnum(i, ptrSzInBits, m_efac);
-    Expr dIdx = i == 0 ? dPtr : mk<BADD>(dPtr, offset);
+    Expr dIdx = m_memManager.ptrAdd(dPtr, i);
     // copy bytes from buffer to word - word must accommodate largest
     // supported word size
     assert(sizeof(unsigned long) >= sem_word_sz);
@@ -1391,12 +1361,11 @@ Expr OpSemMemLambdaRepr::MemFill(Expr dPtr, char *sPtr, unsigned len,
     uint64_t word = 0;
     std::memcpy(&word, sPtr + i, sem_word_sz);
     Expr val = bv::bvnum(word, wordSzInBytes * BitsPerByte, m_efac);
-    res = storeAlignedWordToMem(val, dIdx, ptrSzInBits, res);
+    res = storeAlignedWordToMem(val, dIdx, ptrSort, res);
   }
   m_ctx.write(m_ctx.getMemWriteRegister(), res);
   return res;
 }
-
 
 struct OpSemBase {
   Bv2OpSemContext &m_ctx;

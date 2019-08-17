@@ -257,12 +257,12 @@ sudo apt install cmake git build-essential ninja-build llvm-8 clang-8 clang-tool
 
 # Original Authors 
 
-* [Arie Gurfinkel](arieg.bitbucket.org)
-* [Jorge Navas](http://jorgenavas.github.io/)
+* [Arie Gurfinkel](https://arieg.bitbucket.org/)
+* [Jorge Navas](https://jorgenavas.github.io/)
 * [Temesghen Kahsai](http://www.lememta.info/)
 
 # Contributors
 
-* Jakub Kuderski
-* Nham Le
-* Charles Lei
+* [Jakub Kuderski](https://github.com/kuhar)
+* [Nham Le](https://github.com/nhamlv-55)
+* [Charles Lei](https://github.com/mrthefakeperson)

@@ -1,4 +1,5 @@
 ; RUN: %seabmc "%s" 2>&1 | %oc %s
+; RUN: %seabmc --horn-bv2-lambdas --log=opsem3 "%s" 2>&1 | %oc %s
 
 ; wide integers
 ; CHECK: ^unsat$
@@ -34,7 +35,7 @@ define private i32 @orig.main() local_unnamed_addr #0 {
   %14 = icmp eq i32 %13, 234
   br i1 %14, label %16, label %15
 
-; <label>:15:                                     ; preds = %0
+; <label>:15:                                     ; pres = %0
   call void @verifier.error() #3
   unreachable
 

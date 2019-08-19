@@ -458,6 +458,9 @@ private:
     Expr sel = op::array::select(arrVal, bvAddr);
     return bind::abs<LAMBDA>(as_std_array(bvAddr), sel);
   }
+
+  Expr makeLinearITE(Expr addr, const ExprVector &ptrKeys,
+                     const ExprVector &vals, Expr fallback);
 };
 
 /// \brief Memory manager for OpSem machine
@@ -1257,13 +1260,15 @@ Expr OpSemMemArrayRepr::MemFill(Expr dPtr, char *sPtr, unsigned len,
                                 unsigned wordSzInBytes, Expr ptrSort,
                                 uint32_t align) {
   Expr res = m_ctx.read(m_ctx.getMemReadRegister());
-  unsigned sem_word_sz = wordSzInBytes;
+  const unsigned sem_word_sz = wordSzInBytes;
+
+  // 8 bytes because assumed largest supported sem_word_sz = 8
+  assert(sizeof(uint64_t) >= sem_word_sz);
+
   for (unsigned i = 0; i < len; i += sem_word_sz) {
     Expr dIdx = m_memManager.ptrAdd(dPtr, i);
     // copy bytes from buffer to word - word must accommodate largest
     // supported word size
-    assert(sizeof(unsigned long) >= sem_word_sz);
-    // 8 bytes because assumed largest supported sem_word_sz = 8
     unsigned long word = 0;
     Expr val = bv::bvnum(word, wordSzInBytes * BitsPerByte, m_efac);
     res = op::array::store(res, dIdx, val);
@@ -1345,24 +1350,55 @@ Expr OpSemMemLambdaRepr::MemCpy(Expr dPtr, Expr sPtr, unsigned len,
   return res;
 }
 
+Expr OpSemMemLambdaRepr::makeLinearITE(Expr addr, const ExprVector &ptrKeys,
+                                       const ExprVector &vals, Expr fallback) {
+  assert(ptrKeys.size() == vals.size());
+
+  Expr res = fallback;
+
+  for (size_t i = ptrKeys.size() - 1; i < ptrKeys.size(); --i) {
+    Expr k = ptrKeys[i];
+    Expr v = vals[i];
+
+    Expr cmp = m_memManager.ptrEq(addr, k);
+    res = boolop::lite(cmp, v, res);
+  }
+
+  return res;
+}
+
 Expr OpSemMemLambdaRepr::MemFill(Expr dPtr, char *sPtr, unsigned len,
                                  unsigned wordSzInBytes, Expr ptrSort,
                                  uint32_t align) {
   (void)align;
+  const unsigned sem_word_sz = wordSzInBytes;
+  assert(sizeof(uint64_t) >= sem_word_sz);
 
-  Expr res = m_ctx.read(m_ctx.getMemReadRegister());
-  unsigned sem_word_sz = wordSzInBytes;
+  Expr initial = m_ctx.read(m_ctx.getMemReadRegister());
+
+  Expr addr = bind::mkConst(mkTerm<std::string>("addr", m_efac), ptrSort);
+  ExprVector ptrs;
+  ptrs.reserve(len);
+  ExprVector vals;
+  vals.reserve(len);
+
   for (unsigned i = 0; i < len; i += sem_word_sz) {
-    Expr dIdx = m_memManager.ptrAdd(dPtr, i);
     // copy bytes from buffer to word - word must accommodate largest
     // supported word size
-    assert(sizeof(unsigned long) >= sem_word_sz);
-    // 8 bytes because assumed largest supported sem_word_sz = 8
     unsigned long word = 0;
     std::memcpy(&word, sPtr + i, sem_word_sz);
     Expr val = bv::bvnum(word, wordSzInBytes * BitsPerByte, m_efac);
-    res = storeAlignedWordToMem(val, dIdx, ptrSort, res);
+
+    ptrs.push_back(m_memManager.ptrAdd(dPtr, i));
+    vals.push_back(val);
   }
+
+  Expr fallback = loadAlignedWordFromMem(addr, initial);
+  Expr ite = makeLinearITE(addr, ptrs, vals, fallback);
+  Expr res = bind::abs<LAMBDA>(as_std_array(addr), ite);
+
+  LOG("opsem3", errs() << "MemFill: " << *res << "\n");
+
   m_ctx.write(m_ctx.getMemWriteRegister(), res);
   return res;
 }

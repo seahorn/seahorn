@@ -32,6 +32,7 @@
 #include <boost/range/adaptor/reversed.hpp>
 #include <boost/range/iterator_range.hpp>
 #include <boost/utility.hpp>
+#include <boost/container/stable_vector.hpp>
 
 #define mk_it_range boost::make_iterator_range
 
@@ -2872,7 +2873,7 @@ template <typename Range> struct AbsCst {
   const Range &m_r;
   std::unordered_map<Expr, unsigned> m_evmap;
 
-  std::vector<ABSCST<this_type>> m_pinned;
+  boost::container::stable_vector<ABSCST<this_type>> m_pinned;
 
   typedef std::map<unsigned, DagVisit<ABSCST<this_type>>> cache_type;
   cache_type m_cache;

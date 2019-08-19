@@ -19,6 +19,7 @@
 #include <gmpxx.h>
 
 #include <boost/container/flat_set.hpp>
+#include <boost/container/stable_vector.hpp>
 #include <boost/functional/hash_fwd.hpp>
 #include <boost/intrusive_ptr.hpp>
 #include <boost/lexical_cast.hpp>

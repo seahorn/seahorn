@@ -1213,7 +1213,7 @@ Expr OpSemMemArrayRepr::MemSet(Expr ptr, Expr _val, unsigned len,
 
   unsigned width;
   if (bv::isBvNum(_val, width) && width == 8) {
-    uint64_t val = bv::toMpz(_val).get_ui();
+    unsigned long val = bv::toMpz(_val).get_ui();
     val = SpreadBytePatternAccrossWord(val & 0xFF, wordSzInBytes);
 
     res = m_ctx.read(memReadReg);
@@ -1264,7 +1264,7 @@ Expr OpSemMemArrayRepr::MemFill(Expr dPtr, char *sPtr, unsigned len,
     // supported word size
     assert(sizeof(unsigned long) >= sem_word_sz);
     // 8 bytes because assumed largest supported sem_word_sz = 8
-    uint64_t word = 0;
+    unsigned long word = 0;
     Expr val = bv::bvnum(word, wordSzInBytes * BitsPerByte, m_efac);
     res = op::array::store(res, dIdx, val);
   }
@@ -1289,7 +1289,7 @@ Expr OpSemMemLambdaRepr::MemSet(Expr ptr, Expr _val, unsigned len,
 
   unsigned width;
   if (bv::isBvNum(_val, width) && width == 8) {
-    uint64_t val = bv::toMpz(_val).get_ui();
+    unsigned long val = bv::toMpz(_val).get_ui();
     val = SpreadBytePatternAccrossWord(val & 0xFF, wordSzInBytes);
 
     res = m_ctx.read(memReadReg);
@@ -1358,7 +1358,7 @@ Expr OpSemMemLambdaRepr::MemFill(Expr dPtr, char *sPtr, unsigned len,
     // supported word size
     assert(sizeof(unsigned long) >= sem_word_sz);
     // 8 bytes because assumed largest supported sem_word_sz = 8
-    uint64_t word = 0;
+    unsigned long word = 0;
     std::memcpy(&word, sPtr + i, sem_word_sz);
     Expr val = bv::bvnum(word, wordSzInBytes * BitsPerByte, m_efac);
     res = storeAlignedWordToMem(val, dIdx, ptrSort, res);

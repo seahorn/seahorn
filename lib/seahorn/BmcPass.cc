@@ -17,7 +17,6 @@
 #include "seahorn/Bmc.hh"
 #include "seahorn/BvOpSem.hh"
 #include "seahorn/BvOpSem2.hh"
-#include "seahorn/BvOpSem3.hh"
 #include "seahorn/PathBasedBmc.hh"
 // prerequisite for CrabLlvm
 #include "seahorn/Support/SeaDebug.h"
@@ -30,10 +29,6 @@
 // XXX temporary debugging aid
 static llvm::cl::opt<bool> HornBv2("horn-bv2",
                                    llvm::cl::desc("Use bv2 semantics"),
-                                   llvm::cl::init(false), llvm::cl::Hidden);
-
-static llvm::cl::opt<bool> HornBv3("horn-bv3",
-                                   llvm::cl::desc("Use bv3 semantics"),
                                    llvm::cl::init(false), llvm::cl::Hidden);
 
 static llvm::cl::opt<bool> HornGSA("horn-gsa",
@@ -176,10 +171,7 @@ public:
     ExprFactory efac;
 
     std::unique_ptr<OperationalSemantics> sem;
-    if (HornBv3)
-      sem = llvm::make_unique<Bv3OpSem>(efac, *this,
-                                        F.getParent()->getDataLayout(), MEM);
-    else if (HornBv2)
+    if (HornBv2)
       sem = llvm::make_unique<Bv2OpSem>(efac, *this,
                                         F.getParent()->getDataLayout(), MEM);
     else

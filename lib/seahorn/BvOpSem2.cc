@@ -12,6 +12,7 @@
 #include "seahorn/Transforms/Instrumentation/ShadowMemDsa.hh"
 
 #include "ufo/ExprLlvm.hpp"
+#include "ufo/Smt/EZ3.hh"
 
 using namespace seahorn;
 using namespace llvm;

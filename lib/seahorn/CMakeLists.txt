@@ -30,8 +30,6 @@ add_llvm_library (seahorn.LIB
   BoogieWriter.cc
   BvOpSem2.cc
   BvOpSem2Mem.cc
-  BvOpSem3.cc
-  BvOpSem3Mem.cc
   VCGen.cc
   )
 

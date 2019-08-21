@@ -378,7 +378,7 @@ public:
       : m_memManager(memManager), m_ctx(ctx), m_efac(ctx.getExprFactory()) {}
   virtual ~OpSemMemRepr() = default;
 
-  virtual Expr havocReg(Expr reg) = 0;
+  virtual Expr coerce(Expr reg, Expr val) = 0;
   virtual Expr loadAlignedWordFromMem(Expr ptr, Expr mem) = 0;
   virtual Expr storeAlignedWordToMem(Expr val, Expr ptr, Expr ptrSort,
                                      Expr mem) = 0;
@@ -399,7 +399,7 @@ public:
   OpSemMemArrayRepr(OpSemMemManager &memManager, Bv2OpSemContext &ctx)
       : OpSemMemRepr(memManager, ctx) {}
 
-  Expr havocReg(Expr reg) override { return m_ctx.havoc(reg); }
+  Expr coerce(Expr _, Expr val) override { return val; }
 
   Expr loadAlignedWordFromMem(Expr ptr, Expr mem) override {
     return op::array::select(mem, ptr);
@@ -426,11 +426,14 @@ public:
   OpSemMemLambdaRepr(OpSemMemManager &memManager, Bv2OpSemContext &ctx)
       : OpSemMemRepr(memManager, ctx) {}
 
-  Expr havocReg(Expr reg) override {
+  Expr coerce(Expr reg, Expr val) override {
+    if (!bind::isArrayConst(reg)) {
+      errs() << "havocReg not array const: " << *reg << "\n";
+      return val;
+    }
+
     assert(bind::isArrayConst(reg));
-    Expr lmbd = wrapArrayWithLambda(reg);
-    m_ctx.write(reg, lmbd);
-    return lmbd;
+    return coerceArrayToLambda(reg);
   }
 
   Expr loadAlignedWordFromMem(Expr ptr, Expr mem) override {
@@ -449,7 +452,7 @@ public:
                Expr ptrSort, uint32_t align) override;
 
 private:
-  Expr wrapArrayWithLambda(Expr arrVal) {
+  Expr coerceArrayToLambda(Expr arrVal) {
     assert(bind::isArrayConst(arrVal));
 
     Expr name = bind::fname(arrVal);
@@ -458,6 +461,7 @@ private:
 
     Expr bvAddr = bind::mkConst(mkTerm<std::string>("addr", m_efac), idxTy);
     Expr sel = op::array::select(arrVal, bvAddr);
+
     return bind::abs<LAMBDA>(as_std_array(bvAddr), sel);
   }
 
@@ -804,12 +808,13 @@ public:
     }
   }
 
-  /// \brief Havocs a given register taking care of using the correct array
-  /// encoding.
+  /// \brief Fixes the type of a havoced value to mach the representation used
+  /// by mem repr.
   ///
-  /// \param reg[in]
-  /// \return the havoced value.
-  Expr havocReg(Expr reg) { return m_memRepr->havocReg(reg); }
+  /// \param reg
+  /// \param val
+  /// \return the coerced value.
+  Expr coerce(Expr reg, Expr val) { return m_memRepr->coerce(reg, val); }
 
   /// \brief Symbolic instructions to load a byte from memory, using word
   /// address and byte address
@@ -1281,11 +1286,14 @@ Expr OpSemMemArrayRepr::MemFill(Expr dPtr, char *sPtr, unsigned len,
 
 Expr OpSemMemLambdaRepr::storeAlignedWordToMem(Expr val, Expr ptr, Expr ptrSort,
                                                Expr mem) {
-  Expr addr = bind::mkConst(mkTerm<std::string>("addr", m_efac), ptrSort);
+  Expr b0 = bind::bvar(0, ptrSort);
 
-  Expr fappl = op::bind::fapp(mem, addr);
-  Expr ite = boolop::lite(m_memManager.ptrEq(addr, ptr), val, fappl);
-  return bind::abs<LAMBDA>(as_std_array(addr), ite);
+  Expr fappl = op::bind::fapp(mem, b0);
+  Expr ite = boolop::lite(m_memManager.ptrEq(b0, ptr), val, fappl);
+
+  Expr addr = bind::mkConst(mkTerm<std::string>("addr", m_efac), ptrSort);
+  Expr decl = bind::fname(addr);
+  return mk<LAMBDA>(decl, ite);
 }
 
 Expr OpSemMemLambdaRepr::MemSet(Expr ptr, Expr _val, unsigned len,
@@ -1303,13 +1311,15 @@ Expr OpSemMemLambdaRepr::MemSet(Expr ptr, Expr _val, unsigned len,
 
     Expr last = m_memManager.ptrAdd(ptr, len - wordSzInBytes);
     Expr bvVal = bv::bvnum(val, wordSzInBytes * BitsPerByte, m_efac);
-    Expr addr = bind::mkConst(mkTerm<std::string>("addr", m_efac), ptrSort);
+    Expr b0 = bind::bvar(0, ptrSort);
 
-    Expr cmp = m_memManager.ptrInRangeCheck(ptr, addr, last);
-    Expr fappl = op::bind::fapp(res, addr);
+    Expr cmp = m_memManager.ptrInRangeCheck(ptr, b0, last);
+    Expr fappl = op::bind::fapp(res, b0);
     Expr ite = boolop::lite(cmp, bvVal, fappl);
-    Expr lmbd = bind::abs<LAMBDA>(as_std_array(addr), ite);
-    res = lmbd;
+
+    Expr addr = bind::mkConst(mkTerm<std::string>("addr", m_efac), ptrSort);
+    Expr decl = bind::fname(addr);
+    res = mk<LAMBDA>(decl, ite);
     LOG("opsem3", errs() << "MemSet " << *res << "\n");
 
     m_ctx.write(memWriteReg, res);
@@ -1331,19 +1341,19 @@ Expr OpSemMemLambdaRepr::MemCpy(Expr dPtr, Expr sPtr, unsigned len,
       unsigned bytesToCpy = len - wordSzInBytes;
       Expr dstLast = m_memManager.ptrAdd(dPtr, bytesToCpy);
 
-      Expr addr = bind::mkConst(mkTerm<std::string>("addr", m_efac), ptrSort);
-
-      Expr cmp = m_memManager.ptrInRangeCheck(dPtr, addr, dstLast);
+      Expr b0 = bind::bvar(0, ptrSort);
+      Expr cmp = m_memManager.ptrInRangeCheck(dPtr, b0, dstLast);
       Expr offset = m_memManager.ptrOffsetFromBase(dPtr, sPtr);
-      Expr readPtrInSrc = m_memManager.ptrAdd(addr, offset);
+      Expr readPtrInSrc = m_memManager.ptrAdd(b0, offset);
 
       // Both reads are from the same memory but must not overlap.
       Expr readFromSrc = op::bind::fapp(srcMem, readPtrInSrc);
-      Expr readFromDst = op::bind::fapp(srcMem, addr);
+      Expr readFromDst = op::bind::fapp(srcMem, b0);
 
       Expr ite = boolop::lite(cmp, readFromSrc, readFromDst);
-      Expr lmbd = bind::abs<LAMBDA>(as_std_array(addr), ite);
-      res = lmbd;
+      Expr addr = bind::mkConst(mkTerm<std::string>("addr", m_efac), ptrSort);
+      Expr decl = bind::fname(addr);
+      res = mk<LAMBDA>(decl, ite);
       LOG("opsem3", errs() << "MemCpy " << *res << "\n");
     }
 
@@ -1374,12 +1384,11 @@ Expr OpSemMemLambdaRepr::MemFill(Expr dPtr, char *sPtr, unsigned len,
                                  uint32_t align) {
   (void)align;
   const unsigned sem_word_sz = wordSzInBytes;
-  assert(sizeof(uint64_t) >= sem_word_sz);
+  assert(sizeof(unsigned long) >= sem_word_sz);
 
   Expr initial = m_ctx.read(m_ctx.getMemReadRegister());
   LOG("opsem3", errs() << "MemFill init: " << *initial << "\n");
 
-  Expr addr = bind::mkConst(mkTerm<std::string>("addr", m_efac), ptrSort);
   ExprVector ptrs;
   ptrs.reserve(len);
   ExprVector vals;
@@ -1396,9 +1405,12 @@ Expr OpSemMemLambdaRepr::MemFill(Expr dPtr, char *sPtr, unsigned len,
     vals.push_back(val);
   }
 
-  Expr fallback = loadAlignedWordFromMem(addr, initial);
-  Expr ite = makeLinearITE(addr, ptrs, vals, fallback);
-  Expr res = bind::abs<LAMBDA>(as_std_array(addr), ite);
+  Expr b0 = bind::bvar(0, ptrSort);
+  Expr fallback = loadAlignedWordFromMem(b0, initial);
+  Expr ite = makeLinearITE(b0, ptrs, vals, fallback);
+  Expr addr = bind::mkConst(mkTerm<std::string>("addr", m_efac), ptrSort);
+  Expr decl = bind::fname(addr);
+  Expr res = mk<LAMBDA>(decl, ite);
 
   LOG("opsem3", errs() << "MemFill: " << *res << "\n");
 
@@ -1475,6 +1487,12 @@ struct OpSemBase {
 
   Expr lookup(const Value &v) { return m_sem.getOperandValue(v, m_ctx); }
 
+  /// \brief Havocs the register corresponding to \p v.
+  ///
+  /// Creates a register for \p v if necessary. Writes a new fresh symbolic
+  /// constant to the store for \p v.
+  ///
+  /// \return the fresh value that was written or null (empty Expr).
   Expr havoc(const Value &v) {
     if (m_sem.isSkipped(v))
       return Expr();
@@ -1483,14 +1501,18 @@ struct OpSemBase {
     OpSemMemManager &memManager = *m_ctx.getMemManager();
 
     Expr reg;
-    if (reg = m_ctx.getRegister(v))
-      return memManager.havocReg(reg);
+    if (reg = m_ctx.getRegister(v)) {
+      Expr h = memManager.coerce(reg, m_ctx.havoc(reg));
+      m_ctx.write(reg, h);
+      return h;
+    }
 
-    // memManager;
+    if (reg = m_ctx.mkRegister(v)) {
+      Expr h = memManager.coerce(reg, m_ctx.havoc(reg));
+      m_ctx.write(reg, h);
+      return h;
+    }
 
-    assert(!isa<Constant>(v));
-    if (reg = m_ctx.mkRegister(v))
-      return memManager.havocReg(reg);
     errs() << "Error: failed to havoc: " << v << "\n";
     llvm_unreachable(nullptr);
   }

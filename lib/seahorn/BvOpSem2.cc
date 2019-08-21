@@ -10,6 +10,7 @@
 #include "seahorn/Support/CFG.hh"
 #include "seahorn/Support/SeaDebug.h"
 #include "seahorn/Support/SeaLog.hh"
+#include "seahorn/Support/Stats.hh"
 #include "seahorn/Transforms/Instrumentation/ShadowMemDsa.hh"
 
 #include "ufo/ExprLlvm.hpp"
@@ -215,6 +216,7 @@ public:
 
   void write(Expr v, Expr u) {
     if (SimplifyOnWrite) {
+      ScopedStats _st_("opsem.simplify");
       if (!m_z3)
         m_z3.reset(new ufo::EZ3(efac()));
       u = z3_simplify(*m_z3, u);

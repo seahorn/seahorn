@@ -2755,10 +2755,8 @@ void Bv2OpSemContext::setMemManager(OpSemMemManager *man) {
 
 Expr Bv2OpSemContext::havoc(Expr v) {
   assert(m_memManager);
-  errs() << "havoc: " << *v << "\n";
-  if (!bind::isArrayConst(v))
-    return OpSemContext::havoc(v);
-  return m_memManager->havocReg(v);
+  LOG("opsem3", errs() << "havoc: " << *v << "\n");
+  return OpSemContext::havoc(v);
 }
 
 Expr Bv2OpSemContext::loadValueFromMem(Expr ptr, const llvm::Type &ty,

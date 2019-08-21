@@ -34,9 +34,13 @@ class ControlDependenceAnalysisImpl
     : public seahorn::ControlDependenceAnalysis {
   Function &m_function;
 
+  /// \brief maps basic blocks to ids in a linearization of some topo order
   DenseMap<const BasicBlock *, unsigned> m_BBToIdx;
+  /// \brief list of basic blocks in topological order
   std::vector<const BasicBlock *> m_postOrderBlocks;
+  /// \brief a map from a basic blocks to all reachable blocks
   mutable DenseMap<const BasicBlock *, SparseBitVector<>> m_reach;
+  /// \brief maps a basic block to its control dependent blocks
   DenseMap<const BasicBlock *, SmallVector<BasicBlock *, 4>> m_cdInfo;
 
 public:
@@ -56,6 +60,7 @@ public:
   }
 
 private:
+  /// \brief Computes control dependence
   // Calculates control dependence information using IteratedDominanceFrontier.
   // The resulting CD sets are sorted in reverse-topological order.
   void calculate(PostDominatorTree &PDT);
@@ -65,6 +70,10 @@ private:
 };
 
 void ControlDependenceAnalysisImpl::calculate(PostDominatorTree &PDT) {
+  // XXX: Question: why is CD not computed incrementaly but upfront?
+  // XXX: Question: what is the connection between reachability and CD?
+  // XXX            seems like these are two independent concepts that are merged together
+  // XXX            for no apparent reason.
   for (BasicBlock &BB : m_function) {
     CDA_LOG(errs() << BB.getName() << ":\n");
     ReverseIDFCalculator calculator(PDT);
@@ -119,19 +128,23 @@ void ControlDependenceAnalysisImpl::initReach() {
     ++num;
   }
 
+  // XXX: inverseSucc == predecessors?
   std::vector<SmallDenseSet<BasicBlock *, 4>> inverseSuccessors(
       m_BBToIdx.size());
 
+  // XXX seems unnecessary since predecessors are already known to each basic
+  // block
+  // XXX initializing m_reach can also be done in the next loop
   for (auto &BB : m_function)
     for (auto *succ : successors(&BB)) {
       m_reach[&BB].set(m_BBToIdx[succ]);
       inverseSuccessors[m_BBToIdx[succ]].insert(&BB);
     }
 
+  // XXX comment what this is intending to do
   bool changed = true;
   while (changed) {
     changed = false;
-
     for (auto *BB : m_postOrderBlocks) {
       auto &currReach = m_reach[BB];
       for (BasicBlock *pred : inverseSuccessors[m_BBToIdx[BB]]) {

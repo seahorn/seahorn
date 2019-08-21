@@ -428,10 +428,8 @@ public:
       : OpSemMemRepr(memManager, ctx) {}
 
   Expr coerce(Expr reg, Expr val) override {
-    if (!bind::isArrayConst(reg)) {
-      errs() << "havocReg not array const: " << *reg << "\n";
+    if (!bind::isArrayConst(reg))
       return val;
-    }
 
     assert(bind::isArrayConst(reg));
     return coerceArrayToLambda(reg);

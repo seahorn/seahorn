@@ -451,6 +451,8 @@ public:
     for (const Expr &a : asserts)
       out << "(assert " << z3.toSmtLib(a) << ")\n";
 #else
+    Z3_set_ast_print_mode(z3.get_ctx(), Z3_PRINT_SMTLIB2_COMPLIANT);
+    //Z3_set_ast_print_mode(z3.get_ctx(), Z3_PRINT_LOW_LEVEL);
     out << "(assert " << z3.toSmtLib(mknary<AND>(mk<TRUE>(efac), asserts))
         << ")\n";
 #endif

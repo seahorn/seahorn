@@ -49,7 +49,7 @@ private:
 llvm::ModulePass *createControlDependenceAnalysisPass();
 
 /// Exposes Control Dependence Information on the basic-block-level.
-/// A basic block X is control dependent on a bacic block Y iff:
+/// A basic block X is control dependent on a basic block Y iff:
 ///   1) X != Y, and
 ///   2) there's some control flow from Y that reaches X, Y ~> X, and at least
 ///      one successor of Y can never reach X.

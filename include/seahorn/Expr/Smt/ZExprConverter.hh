@@ -182,11 +182,12 @@ template <typename M> struct BasicExprMarshal {
         }
 
         res = Z3_mk_app(ctx, zfdecl, e->arity() - 1, &args[0]);
-      } else if (isOpX<LAMBDA>(bind::fname(e))) {
+      } else {
+        // Assuming lmbd is of array sort.
         z3::ast lmbd(marshal(bind::fname(e), ctx, cache, seen));
         assert(e->arity() == 2 && "Only 1D arrays are supported");
-        z3::ast arg(marshal(e->arg(1), ctx, cache, seen));
 
+        z3::ast arg(marshal(e->arg(1), ctx, cache, seen));
         // In Z3, selects are used for lambda applications.
         // (Lambdas are of ArraySort.)
         res = Z3_mk_select(ctx, lmbd, arg);

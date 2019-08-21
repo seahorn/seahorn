@@ -166,8 +166,8 @@ template <typename M> struct BasicExprMarshal {
     else if (bind::isFapp(e)) {
       if (bind::isFdecl(bind::fname(e))) {
         z3::func_decl zfdecl(ctx,
-            reinterpret_cast<Z3_func_decl>(static_cast<Z3_ast>(
-                marshal(bind::fname(e), ctx, cache, seen))));
+                             reinterpret_cast<Z3_func_decl>(static_cast<Z3_ast>(
+                                 marshal(bind::fname(e), ctx, cache, seen))));
 
         // -- marshall all arguments except for the first one
         // -- (which is the fdecl)
@@ -177,18 +177,19 @@ template <typename M> struct BasicExprMarshal {
 
         unsigned pos = 0;
         for (ENode::args_iterator it = ++(e->args_begin()), end = e->args_end();
-        it != end; ++it) {
+             it != end; ++it) {
           z3::ast a(marshal(*it, ctx, cache, seen));
           pinned_args.push_back(a);
           args[pos++] = a;
         }
 
         res = Z3_mk_app(ctx, zfdecl, e->arity() - 1, &args[0]);
-      } else if (isOpX<LAMBDA>(bind::fname(e))) {
+      } else {
+        // Assuming lmbd is of array sort.
         z3::ast lmbd(marshal(bind::fname(e), ctx, cache, seen));
         assert(e->arity() == 2 && "Only 1D arrays are supported");
-        z3::ast arg(marshal(e->arg(1), ctx, cache, seen));
 
+        z3::ast arg(marshal(e->arg(1), ctx, cache, seen));
         // In Z3, selects are used for lambda applications.
         // (Lambdas are of ArraySort.)
         res = Z3_mk_select(ctx, lmbd, arg);
@@ -219,8 +220,8 @@ template <typename M> struct BasicExprMarshal {
                                &bound_sorts[0], &bound_names[0], body);
       } else {
         assert(isOpX<LAMBDA>(e));
-        res = Z3_mk_lambda(ctx, num_bound,
-                           &bound_sorts[0], &bound_names[0], body);
+        res = Z3_mk_lambda(ctx, num_bound, &bound_sorts[0], &bound_names[0],
+                           body);
       }
     }
 
@@ -400,7 +401,8 @@ template <typename M> struct BasicExprMarshal {
       res = Z3_mk_extract(ctx, bv::high(e), bv::low(e), a);
     } else if (isOpX<AND>(e) || isOpX<OR>(e) || isOpX<ITE>(e) ||
                isOpX<XOR>(e) || isOpX<PLUS>(e) || isOpX<MINUS>(e) ||
-               isOpX<MULT>(e) || isOpX<STORE>(e) || isOpX<ARRAY_MAP>(e)) {
+               isOpX<MULT>(e) || isOpX<STORE>(e) || isOpX<ARRAY_MAP>(e) ||
+               isOpX<BCONCAT>(e)) {
       std::vector<z3::ast> pinned;
       std::vector<Z3_ast> args;
 
@@ -430,6 +432,13 @@ template <typename M> struct BasicExprMarshal {
       } else if (isOp<ARRAY_MAP>(e)) {
         Z3_func_decl fdecl = reinterpret_cast<Z3_func_decl>(args[0]);
         res = Z3_mk_map(ctx, fdecl, e->arity() - 1, &args[1]);
+      } else if (isOp<BCONCAT>(e)) {
+        assert(args.size() > 2);
+        res = args.back();
+        for (unsigned sz = args.size(), i = sz - 2; i < sz; --i) {
+          res = Z3_mk_concat(ctx, args[i], res);
+          assert(res && "Creating concat failed");
+        }
       }
     } else
       return M::marshal(e, ctx, cache, seen);

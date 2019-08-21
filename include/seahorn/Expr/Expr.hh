@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <array>
+#include <deque>
 #include <functional>
 #include <iomanip>
 #include <iostream>
@@ -2961,7 +2962,7 @@ template <typename Range> struct AbsCst {
   const Range &m_r;
   std::unordered_map<Expr, unsigned> m_evmap;
 
-  std::vector<ABSCST<this_type>> m_pinned;
+  std::deque<ABSCST<this_type>> m_pinned;
 
   typedef std::map<unsigned, DagVisit<ABSCST<this_type>>> cache_type;
   cache_type m_cache;

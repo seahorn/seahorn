@@ -389,7 +389,6 @@ template <typename M> struct BasicExprMarshal {
         res = Z3_mk_bvlshr(ctx, t1, t2);
       else if (isOpX<BASHR>(e))
         res = Z3_mk_bvashr(ctx, t1, t2);
-
       else
         return M::marshal(e, ctx, cache, seen);
     } else if (isOpX<BEXTRACT>(e)) {
@@ -398,7 +397,8 @@ template <typename M> struct BasicExprMarshal {
       res = Z3_mk_extract(ctx, bv::high(e), bv::low(e), a);
     } else if (isOpX<AND>(e) || isOpX<OR>(e) || isOpX<ITE>(e) ||
                isOpX<XOR>(e) || isOpX<PLUS>(e) || isOpX<MINUS>(e) ||
-               isOpX<MULT>(e) || isOpX<STORE>(e) || isOpX<ARRAY_MAP>(e)) {
+               isOpX<MULT>(e) || isOpX<STORE>(e) || isOpX<ARRAY_MAP>(e) ||
+               isOpX<BCONCAT>(e)) {
       std::vector<z3::ast> pinned;
       std::vector<Z3_ast> args;
 
@@ -428,6 +428,13 @@ template <typename M> struct BasicExprMarshal {
       } else if (isOp<ARRAY_MAP>(e)) {
         Z3_func_decl fdecl = reinterpret_cast<Z3_func_decl>(args[0]);
         res = Z3_mk_map(ctx, fdecl, e->arity() - 1, &args[1]);
+      } else if (isOp<BCONCAT>(e)) {
+        assert(args.size() > 2);
+        res = args.back();
+        for (unsigned sz = args.size(), i = sz - 2; i < sz; --i) {
+          res = Z3_mk_concat(ctx, args[i], res);
+          assert(res && "Creating concat failed");
+        }
       }
     } else
       return M::marshal(e, ctx, cache, seen);

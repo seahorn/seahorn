@@ -6,6 +6,7 @@
 #include "boost/functional/hash_fwd.hpp"
 #include <algorithm>
 #include <array>
+#include <deque>
 #include <functional>
 #include <iomanip>
 #include <iostream>

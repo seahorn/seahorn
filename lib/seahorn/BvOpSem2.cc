@@ -219,7 +219,13 @@ public:
       ScopedStats _st_("opsem.simplify");
       if (!m_z3)
         m_z3.reset(new ufo::EZ3(efac()));
-      u = z3_simplify(*m_z3, u);
+
+      ufo::ZParams<ufo::EZ3> params(*m_z3);
+      params.set("ctrl_c", true);
+      params.set("timeout", 10000U /*ms*/);
+      params.set("flat", false);
+      params.set("ite_extra_rules", false /*default=false*/);
+      u = z3_simplify(*m_z3, u, params);
     }
     OpSemContext::write(v, u);
   }

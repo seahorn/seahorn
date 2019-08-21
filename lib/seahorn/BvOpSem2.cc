@@ -259,6 +259,8 @@ public:
   void setMemTrsfrReadReg(Expr r) { m_trfrReadReg = r; }
   Expr getMemTrsfrReadReg() { return m_trfrReadReg; }
 
+  Expr havoc(Expr v) override;
+
   /// \brief Load value of type \p ty with alignment \align pointed by the
   /// symbolic pointer \ptr. Memory register being read from must be set via
   /// \f setMemReadRegister
@@ -1375,6 +1377,7 @@ Expr OpSemMemLambdaRepr::MemFill(Expr dPtr, char *sPtr, unsigned len,
   assert(sizeof(uint64_t) >= sem_word_sz);
 
   Expr initial = m_ctx.read(m_ctx.getMemReadRegister());
+  LOG("opsem3", errs() << "MemFill init: " << *initial << "\n");
 
   Expr addr = bind::mkConst(mkTerm<std::string>("addr", m_efac), ptrSort);
   ExprVector ptrs;
@@ -2748,6 +2751,14 @@ void Bv2OpSemContext::setMemManager(OpSemMemManager *man) {
     llvm_unreachable("Unexpected pointer size");
   }
   maxPtrE = bv::bvnum(val, ptrSzInBits(), efac());
+}
+
+Expr Bv2OpSemContext::havoc(Expr v) {
+  assert(m_memManager);
+  errs() << "havoc: " << *v << "\n";
+  if (!bind::isArrayConst(v))
+    return OpSemContext::havoc(v);
+  return m_memManager->havocReg(v);
 }
 
 Expr Bv2OpSemContext::loadValueFromMem(Expr ptr, const llvm::Type &ty,

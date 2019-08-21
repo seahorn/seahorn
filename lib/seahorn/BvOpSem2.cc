@@ -5,6 +5,7 @@
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Format.h"
 #include "llvm/Support/MathExtras.h"
+#include <memory>
 
 #include "seahorn/Support/CFG.hh"
 #include "seahorn/Support/SeaDebug.h"
@@ -59,6 +60,11 @@ static llvm::cl::list<std::string> IgnoreExternalFunctions2(
     llvm::cl::desc(
         "These functions are not modeled as uninterpreted functions"),
     llvm::cl::ZeroOrMore, llvm::cl::CommaSeparated);
+
+static llvm::cl::opt<bool> SimplifyOnWrite(
+    "horn-bv2-simplify",
+    llvm::cl::desc("Simplify expressions as they are written to memory"),
+    llvm::cl::init(false));
 
 namespace {
 const Value *extractUniqueScalar(CallSite &cs) {
@@ -194,6 +200,9 @@ private:
   /// \brief bit-precise representation of maximum pointer value
   Expr maxPtrE;
 
+  /// \brief local simplifier
+  std::shared_ptr<ufo::EZ3> m_z3;
+
 public:
   /// \brief Create a new context with given semantics, values, and side
   Bv2OpSemContext(Bv2OpSem &sem, SymStore &values, ExprVector &side);
@@ -204,6 +213,14 @@ public:
   Bv2OpSemContext(const Bv2OpSemContext &) = delete;
   ~Bv2OpSemContext() override = default;
 
+  void write(Expr v, Expr u) {
+    if (SimplifyOnWrite) {
+      if (!m_z3)
+        m_z3.reset(new ufo::EZ3(efac()));
+      u = z3_simplify(*m_z3, u);
+    }
+    OpSemContext::write(v, u);
+  }
   /// \brief Returns size of a memory word
   unsigned wordSzInBytes() const;
   /// \brief Returns size in bits of a memory word
@@ -2737,7 +2754,7 @@ Bv2OpSemContext::Bv2OpSemContext(SymStore &values, ExprVector &side,
       m_fparams(o.m_fparams), m_ignored(o.m_ignored),
       m_registers(o.m_registers), m_memManager(nullptr), m_parent(&o),
       zeroE(o.zeroE), oneE(o.oneE), trueBv(o.trueBv), falseBv(o.falseBv),
-      nullBv(o.nullBv), maxPtrE(o.maxPtrE) {
+      nullBv(o.nullBv), maxPtrE(o.maxPtrE), m_z3(o.m_z3) {
   setPathCond(o.getPathCond());
 }
 

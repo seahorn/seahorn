@@ -1,5 +1,5 @@
 /**
-*/
+ */
 
 #ifndef __UFO_Z3N_HPP_
 #define __UFO_Z3N_HPP_
@@ -8,8 +8,8 @@
 
  */
 
-#include "z3.h"
 #include "z3++.h"
+#include "z3.h"
 
 #include <sstream>
 
@@ -73,6 +73,12 @@ public:
 namespace ufo {
 using namespace expr;
 
+// forward declarations
+template <typename Z> class ZSolver;
+template <typename Z> class ZModel;
+template <typename Z> class ZFixedPoint;
+template <typename Z> class ZParams;
+
 inline boost::tribool z3l_to_tribool(Z3_lbool l) {
   if (l == Z3_L_TRUE)
     return true;
@@ -91,6 +97,8 @@ template <typename Z> Expr z3_lite_simplify(Z &z3, Expr e) {
 template <typename Z> Expr z3_simplify(Z &z3, Expr e) {
   return z3_lite_simplify(z3, e);
 }
+
+template <typename Z> Expr z3_simplify(Z &z3, Expr e, ZParams<Z> &params);
 
 template <typename Z> Expr z3_forall_elim(Z &z3, Expr e, const ExprSet &vars) {
   z3::context &ctx = z3.get_ctx();
@@ -135,8 +143,8 @@ template <typename Z> Expr z3_forall_elim(Z &z3, Expr e, const ExprSet &vars) {
 template <typename Z> Expr z3_from_smtlib(Z &z3, std::string smt) {
   z3::context &ctx = z3.get_ctx();
 
-  z3::ast_vector av(ctx, Z3_parse_smtlib2_string(ctx, smt.c_str(), 0, NULL, NULL, 0,
-                                           NULL, NULL));
+  z3::ast_vector av(ctx, Z3_parse_smtlib2_string(ctx, smt.c_str(), 0, NULL,
+                                                 NULL, 0, NULL, NULL));
   ctx.check_error();
   z3::array<Z3_ast> args(av);
   z3::ast ast(ctx, Z3_mk_and(ctx, args.size(), args.ptr()));
@@ -146,8 +154,8 @@ template <typename Z> Expr z3_from_smtlib(Z &z3, std::string smt) {
 
 template <typename Z> Expr z3_from_smtlib_file(Z &z3, const char *fname) {
   z3::context &ctx = z3.get_ctx();
-  z3::ast_vector av(ctx,
-                    Z3_parse_smtlib2_file(ctx, fname, 0, NULL, NULL, 0, NULL, NULL));
+  z3::ast_vector av(
+      ctx, Z3_parse_smtlib2_file(ctx, fname, 0, NULL, NULL, 0, NULL, NULL));
   ctx.check_error();
   z3::array<Z3_ast> args(av);
   z3::ast ast(ctx, Z3_mk_and(ctx, args.size(), args.ptr()));
@@ -168,11 +176,6 @@ typedef std::unordered_map<z3::ast, Expr, z3::ast_ptr_hash,
     ast_expr_map;
 
 typedef std::unordered_map<Expr, z3::ast> expr_ast_map;
-
-template <typename Z> class ZSolver;
-template <typename Z> class ZModel;
-template <typename Z> class ZFixedPoint;
-template <typename Z> class ZParams;
 
 template <typename V> void z3n_set_param(char const *p, V v) {
   z3::set_param(p, v);
@@ -227,7 +230,8 @@ protected:
     if (Z3_get_ast_kind(ctx, a) != Z3_APP_AST)
       return;
 
-    if (visited.count(a) > 0) return;
+    if (visited.count(a) > 0)
+      return;
     visited.insert(a);
 
     Z3_app app = Z3_to_app(ctx, a);
@@ -278,6 +282,8 @@ public:
 
   friend Expr z3_lite_simplify<this_type>(this_type &z3, Expr e);
   friend Expr z3_simplify<this_type>(this_type &z3, Expr e);
+  friend Expr z3_simplify<this_type>(this_type &z3, Expr e,
+                                     ZParams<this_type> &params);
   friend Expr z3_forall_elim<this_type>(this_type &z3, Expr e,
                                         const ExprSet &vars);
   friend Expr z3_from_smtlib<this_type>(this_type &z3, std::string smt);
@@ -413,6 +419,14 @@ public:
   operator Z3_params() const { return static_cast<Z3_params>(params); }
 };
 
+/// \brief Simplify with user-supplied parameters
+template <typename Z> Expr z3_simplify(Z &z3, Expr e, ZParams<Z> &params) {
+  z3::context &ctx = z3.get_ctx();
+  z3::ast ast(z3.toAst(e));
+
+  return z3.toExpr(z3::ast(ctx, Z3_simplify_ex(ctx, ast, params)));
+}
+
 template <typename Z> class ZSolver {
 private:
   Z &z3;
@@ -432,7 +446,10 @@ public:
         efac(z.get_efac()) {}
 
   Z &getContext() { return z3; }
-  void set(const ZParams<Z> &p) { solver.set(p); ctx.check_error();}
+  void set(const ZParams<Z> &p) {
+    solver.set(p);
+    ctx.check_error();
+  }
 
   template <typename OutputStream> OutputStream &toSmtLib(OutputStream &out) {
     ExprVector v;

@@ -2287,7 +2287,7 @@ public:
     if (ty->isVectorTy()) {
       llvm_unreachable(nullptr);
     }
-    return cond && op0 && op1 ? mk<ITE>(cond, op0, op1) : Expr(0);
+    return cond && op0 && op1 ? bind::lite(cond, op0, op1) : Expr(0);
   }
 
   Expr executeTruncInst(const Value &v, const Type &ty, Bv2OpSemContext &ctx) {

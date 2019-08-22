@@ -2537,6 +2537,22 @@ inline Expr push_ite_lambda(Expr c, Expr lhs, Expr rhs) {
   return mknary<LAMBDA>(args);
 }
 
+/// \Brief create ite with lambda aware simplifications
+inline Expr lite(Expr c, Expr lhs, Expr rhs) {
+  if (isOpX<TRUE>(c))
+    return lhs;
+  if (isOpX<FALSE>(c))
+    return rhs;
+  if (lhs == rhs)
+    return lhs;
+
+  if (isOpX<LAMBDA>(lhs) && isOpX<LAMBDA>(rhs)) {
+    return push_ite_lambda(c, lhs, rhs);
+  }
+  return mk<ITE>(c, lhs, rhs);
+}
+
+
 template <typename Range> Expr betaReduce(Expr lambda, const Range &r) {
   // -- nullptr
   if (!lambda)

@@ -222,10 +222,17 @@ public:
 
       ufo::ZParams<ufo::EZ3> params(*m_z3);
       params.set("ctrl_c", true);
-      params.set("timeout", 10000U /*ms*/);
-      params.set("flat", false);
-      params.set("ite_extra_rules", false /*default=false*/);
-      u = z3_simplify(*m_z3, u, params);
+      // params.set("timeout", 10000U /*ms*/);
+      // params.set("flat", false);
+      // params.set("ite_extra_rules", false /*default=false*/);
+      Expr _u = z3_simplify(*m_z3, u, params);
+      LOG("opsem.simplify",
+          //
+          if (!isOpX<LAMBDA>(_u) && !isOpX<ITE>(_u) && dagSize(_u) > 100) {
+            errs() << "Term after simplification:\n"
+                   << m_z3->toSmtLib(_u) << "\n";
+          });
+      u = _u;
     }
     OpSemContext::write(v, u);
   }
@@ -453,11 +460,7 @@ public:
       : OpSemMemRepr(memManager, ctx) {}
 
   Expr coerce(Expr reg, Expr val) override {
-    if (!bind::isArrayConst(reg))
-      return val;
-
-    assert(bind::isArrayConst(reg));
-    return coerceArrayToLambda(reg);
+    return bind::isArrayConst(reg) ? coerceArrayToLambda(val) : val;
   }
 
   Expr loadAlignedWordFromMem(Expr ptr, Expr mem) override {

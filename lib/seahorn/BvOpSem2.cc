@@ -397,7 +397,7 @@ protected:
   OpSemMemManager &m_memManager;
   Bv2OpSemContext &m_ctx;
   ExprFactory &m_efac;
-  static constexpr unsigned BitsPerByte = 8;
+  static constexpr unsigned m_BitsPerByte = 8;
 
 public:
   OpSemMemRepr(OpSemMemManager &memManager, Bv2OpSemContext &ctx)
@@ -1255,7 +1255,7 @@ Expr OpSemMemArrayRepr::MemSet(Expr ptr, Expr _val, unsigned len,
       for (unsigned i = 0; i < len; i += wordSzInBytes) {
         Expr idx = m_memManager.ptrAdd(ptr, i);
         res = op::array::store(
-            res, idx, bv::bvnum(val, wordSzInBytes * BitsPerByte, m_efac));
+            res, idx, bv::bvnum(val, wordSzInBytes * m_BitsPerByte, m_efac));
       }
     }
     m_ctx.write(memWriteReg, res);
@@ -1294,14 +1294,16 @@ Expr OpSemMemArrayRepr::MemFill(Expr dPtr, char *sPtr, unsigned len,
   const unsigned sem_word_sz = wordSzInBytes;
 
   // 8 bytes because assumed largest supported sem_word_sz = 8
-  assert(sizeof(uint64_t) >= sem_word_sz);
+  assert(sizeof(unsigned long) >= sem_word_sz);
 
   for (unsigned i = 0; i < len; i += sem_word_sz) {
     Expr dIdx = m_memManager.ptrAdd(dPtr, i);
     // copy bytes from buffer to word - word must accommodate largest
     // supported word size
+    // 8 bytes because assumed largest supported sem_word_sz = 8
     unsigned long word = 0;
-    Expr val = bv::bvnum(word, wordSzInBytes * BitsPerByte, m_efac);
+    std::memcpy(&word, sPtr + i, sem_word_sz);
+    Expr val = bv::bvnum(word, wordSzInBytes * m_BitsPerByte, m_efac);
     res = op::array::store(res, dIdx, val);
   }
   m_ctx.write(m_ctx.getMemWriteRegister(), res);
@@ -1334,7 +1336,7 @@ Expr OpSemMemLambdaRepr::MemSet(Expr ptr, Expr _val, unsigned len,
     res = m_ctx.read(memReadReg);
 
     Expr last = m_memManager.ptrAdd(ptr, len - wordSzInBytes);
-    Expr bvVal = bv::bvnum(val, wordSzInBytes * BitsPerByte, m_efac);
+    Expr bvVal = bv::bvnum(val, wordSzInBytes * m_BitsPerByte, m_efac);
     Expr b0 = bind::bvar(0, ptrSort);
 
     Expr cmp = m_memManager.ptrInRangeCheck(ptr, b0, last);
@@ -1423,7 +1425,7 @@ Expr OpSemMemLambdaRepr::MemFill(Expr dPtr, char *sPtr, unsigned len,
     // supported word size
     unsigned long word = 0;
     std::memcpy(&word, sPtr + i, sem_word_sz);
-    Expr val = bv::bvnum(word, wordSzInBytes * BitsPerByte, m_efac);
+    Expr val = bv::bvnum(word, wordSzInBytes * m_BitsPerByte, m_efac);
 
     ptrs.push_back(m_memManager.ptrAdd(dPtr, i));
     vals.push_back(val);

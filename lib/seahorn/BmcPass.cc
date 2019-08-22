@@ -226,13 +226,12 @@ public:
     const size_t circuitSize = bmc->getFormulaCircuitSize();
     Stats::sset("BMC_CIRCUIT_SIZE", std::to_string(circuitSize));
 
-    ExprVector formula = bmc->getFormula();
-    Expr all = mknary<AND>(formula);
-    Expr simpl;
-    LOG("opsem3", simpl = z3_simplify(bmc->zctx(), all));
-
-    LOG("opsem3", llvm::errs() << z3_to_smtlib(bmc->zctx(), all) << "\n~~~~\n");
-    LOG("opsem3", llvm::errs() << z3_to_smtlib(bmc->zctx(), simpl) << "\n");
+    LOG("opsem3", ExprVector formula = bmc->getFormula();
+        Expr all = mknary<AND>(formula);
+        Expr simpl = z3_simplify(bmc->zctx(), all);
+        llvm::errs() << z3_to_smtlib(bmc->zctx(), all) << "\n~~~~\n";
+        llvm::errs() << z3_to_smtlib(bmc->zctx(), simpl) << "\n");
+    
     if (m_out)
       bmc->toSmtLib(*m_out);
 

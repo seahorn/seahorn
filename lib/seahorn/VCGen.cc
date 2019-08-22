@@ -186,6 +186,58 @@ static Expr mkAtMostOne(ExprVector &vec) {
   return mknary<OR>(res);
 }
 
+namespace {
+/// \Brief make lambda-aware ite
+Expr mk_lite(Expr c, Expr lhs, Expr rhs) {
+  if (isOpX<TRUE>(c))
+    return lhs;
+  if (isOpX<FALSE>(c))
+    return rhs;
+  if (lhs == rhs)
+    return lhs;
+
+  if (isOpX<LAMBDA>(lhs) && isOpX<LAMBDA>(rhs)) {
+    // (ite (lambda ( x ) lhs) (lambda ( x ) rhs))
+    ///                      ==
+    // (lambda ( y ) (ite c ((lambda ( x ) lhs) y) ((lambda ( x ) rhs) y)))
+
+    // pick one lambda term to extract abstracted terms
+    Expr lambda = isOpX<LAMBDA>(lhs) ? lhs : rhs;
+
+    // -- save abstracted term
+    ExprVector args;
+    args.reserve(lambda->arity());
+    for (unsigned i = 0, sz = bind::numBound(lambda); i < sz; ++i) {
+      args.push_back(bind::decl(lambda, i));
+    }
+
+    // -- create corresponding bound variables
+    ExprVector vars;
+    vars.reserve(lambda->arity());
+    // -- reserve a place for lambda
+    vars.push_back(Expr());
+
+    for (unsigned i = 0, sz = bind::numBound(lambda); i < sz; ++i)
+      vars.push_back(bind::bvar(i, bind::boundSort(lambda, i)));
+
+    // -- turn lhs into an application
+    vars[0] = lhs;
+    Expr _lhs = mknary<FAPP>(vars);
+
+    // -- turn rhs into an application
+    vars[0] = rhs;
+    Expr _rhs = mknary<FAPP>(vars);
+
+    // -- add body of new lambda
+    args.push_back(mk<ITE>(c, _lhs, _rhs));
+
+    // -- create lambda
+    return mknary<LAMBDA>(args);
+  }
+  return mk<ITE>(c, lhs, rhs);
+}
+} // namespace
+
 void VCGen::genVcForBasicBlockOnEdge(OpSemContext &ctx, const CpEdge &edge,
                                      const BasicBlock &bb, bool last) {
   ExprVector edges;
@@ -296,11 +348,11 @@ void VCGen::genVcForBasicBlockOnEdge(OpSemContext &ctx, const CpEdge &edge,
     }
 
     assert(edges.size() > 0);
-    // TODO: Optimize ite construction by ensuring that each unique value appears
-    // only ones. For example,
-    // ite(c1, ite(c2, v, u), v) --reduces--> ite (c1 || !c2, v, u)
-    // This is easy in this case because conditions are known to be disjoint.
-    // This is basically compiling a known switch statement into if-then-else block
+    // TODO: Optimize ite construction by ensuring that each unique value
+    // appears only ones. For example, ite(c1, ite(c2, v, u), v) --reduces-->
+    // ite (c1 || !c2, v, u) This is easy in this case because conditions are
+    // known to be disjoint. This is basically compiling a known switch
+    // statement into if-then-else block
     for (unsigned i = 0; i < newPhi.size(); ++i) {
       // assume that path-conditions (edges) are disjoint and that
       // at least one must be true. Using the last edge condition as the
@@ -308,7 +360,7 @@ void VCGen::genVcForBasicBlockOnEdge(OpSemContext &ctx, const CpEdge &edge,
       // taken
       Expr val = phiVal[edges.size() - 1][i];
       for (unsigned j = edges.size() - 1; j > 0; --j) {
-        val = boolop::lite(edges[j - 1], phiVal[j - 1][i], val);
+        val = mk_lite(edges[j - 1], phiVal[j - 1][i], val);
       }
       // write an ite expression as the new PHINode value
       ctx.write(newPhi[i], val);

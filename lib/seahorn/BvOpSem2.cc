@@ -5,7 +5,6 @@
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Format.h"
 #include "llvm/Support/MathExtras.h"
-#include <memory>
 
 #include "seahorn/Support/CFG.hh"
 #include "seahorn/Support/SeaDebug.h"
@@ -15,6 +14,9 @@
 
 #include "ufo/ExprLlvm.hpp"
 #include "ufo/Smt/EZ3.hh"
+
+#include <fstream>
+#include <memory>
 
 using namespace seahorn;
 using namespace llvm;
@@ -231,6 +233,14 @@ public:
           if (!isOpX<LAMBDA>(_u) && !isOpX<ITE>(_u) && dagSize(_u) > 100) {
             errs() << "Term after simplification:\n"
                    << m_z3->toSmtLib(_u) << "\n";
+          });
+
+      LOG("opsem.dump.subformulae",
+          if ((isOpX<EQ>(_u) || isOpX<NEG>(_u)) && dagSize(_u) > 100) {
+            static unsigned cnt = 0;
+            std::ofstream file("assert." + std::to_string(++cnt) + ".smt2");
+            file << m_z3->toSmtLibDecls(_u) << "\n";
+            file << "(assert " << m_z3->toSmtLib(_u) << ")\n";
           });
       u = _u;
     }

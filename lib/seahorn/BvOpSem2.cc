@@ -1228,17 +1228,6 @@ public:
   }
 };
 
-static uint64_t SpreadBytePatternAccrossWord(uint8_t pattern,
-                                             unsigned bytesInWord) {
-  assert(bytesInWord <= 8 && "Unsupported word size");
-  uint64_t res = 0;
-
-  for (unsigned i = 0; i != bytesInWord * 8; i += 8)
-    res |= pattern << i;
-
-  return res;
-}
-
 Expr OpSemMemArrayRepr::MemSet(Expr ptr, Expr _val, unsigned len,
                                Expr memReadReg, Expr memWriteReg,
                                unsigned wordSzInBytes, Expr ptrSort,
@@ -1247,8 +1236,10 @@ Expr OpSemMemArrayRepr::MemSet(Expr ptr, Expr _val, unsigned len,
 
   unsigned width;
   if (bv::isBvNum(_val, width) && width == 8) {
-    unsigned long val = bv::toMpz(_val).get_ui();
-    val = SpreadBytePatternAccrossWord(val & 0xFF, wordSzInBytes);
+    assert(wordSzInBytes < sizeof(unsigned long));
+    int byte = bv::toMpz(_val).get_ui();
+    unsigned long val = 0;
+    memset(&val, byte, wordSzInBytes);
 
     res = m_ctx.read(memReadReg);
     if (!HornUseLambdas) {
@@ -1330,8 +1321,10 @@ Expr OpSemMemLambdaRepr::MemSet(Expr ptr, Expr _val, unsigned len,
 
   unsigned width;
   if (bv::isBvNum(_val, width) && width == 8) {
-    unsigned long val = bv::toMpz(_val).get_ui();
-    val = SpreadBytePatternAccrossWord(val & 0xFF, wordSzInBytes);
+    assert(wordSzInBytes < sizeof(unsigned long));
+    int byte = bv::toMpz(_val).get_ui();
+    unsigned long val = 0;
+    memset(&val, byte, wordSzInBytes);
 
     res = m_ctx.read(memReadReg);
 

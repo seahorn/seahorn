@@ -1501,12 +1501,6 @@ void Bv2OpSemContext::setMemManager(OpSemMemManager *man) {
   maxPtrE = bv::bvnum(val, ptrSzInBits(), efac());
 }
 
-Expr Bv2OpSemContext::havoc(Expr v) {
-  assert(m_memManager);
-  LOG("opsem3", errs() << "havoc: " << *v << "\n");
-  return OpSemContext::havoc(v);
-}
-
 Expr Bv2OpSemContext::loadValueFromMem(Expr ptr, const llvm::Type &ty,
                                        uint32_t align) {
   assert(m_memManager);

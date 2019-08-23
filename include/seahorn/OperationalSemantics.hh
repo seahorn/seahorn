@@ -78,7 +78,7 @@ public:
   /// Returns the current value of a given register/expression in the store
   Expr read(Expr v) { return m_values.read(v); }
   /// Writes a non-deterministic value at a given register
-  virtual Expr havoc(Expr v) { return m_values.havoc(v); }
+  Expr havoc(Expr v) { return m_values.havoc(v); }
   /// Writes a given value at a given register
   void write(Expr v, Expr u) { m_values.write(v, u); }
 

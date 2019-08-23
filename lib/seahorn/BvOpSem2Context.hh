@@ -168,8 +168,6 @@ public:
   void setMemTrsfrReadReg(Expr r) { m_trfrReadReg = r; }
   Expr getMemTrsfrReadReg() { return m_trfrReadReg; }
 
-  Expr havoc(Expr v) override;
-
   /// \brief Load value of type \p ty with alignment \align pointed by the
   /// symbolic pointer \ptr. Memory register being read from must be set via
   /// \f setMemReadRegister

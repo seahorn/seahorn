@@ -838,7 +838,6 @@ public:
         m_ctx.setInstruction(*parent->begin());
       } else {
         m_ctx.setInstruction(*me);
-        ++m_ctx;
       }
     } break;
     default:
@@ -2022,30 +2021,26 @@ bool Bv2OpSem::intraStep(details::Bv2OpSemContext &C) {
 
   const Instruction &inst = C.getCurrentInst();
 
-  // -- update instruction pointer in the context --
-  // branch instructions must be executed to read the condition
-  // on which the branch depends. This does not execute the branch
-  // itself and does not advance instruction pointer in the context
-  bool res = true;
-  if (!isa<TerminatorInst>(&inst)) {
-    ++C;
-  } else if (isa<BranchInst>(&inst)) {
-    res = false;
-  } else {
+  // -- non-branch terminators are executed elsewhere
+  if (isa<TerminatorInst>(&inst) && !isa<BranchInst>(&inst))
     return false;
-  }
 
-  // -- execute instruction --
-
-  // if instruction is skipped, execution it is a noop
+  // -- either skip or execute the instruction
   if (isSkipped(inst)) {
     skipInst(inst, C);
-    return true;
+  } else {
+    // -- execute instruction
+    details::OpSemVisitor v(C, *this);
+    errs() << "Executing: " << inst << "\n";
+    v.visit(const_cast<Instruction &>(inst));
   }
 
-  details::OpSemVisitor v(C, *this);
-  v.visit(const_cast<Instruction &>(inst));
-  return res;
+  // -- advance instruction pointer if needed
+  if (!isa<TerminatorInst>(&inst)) {
+    ++C;
+    return true;
+  }
+  return false;
 }
 
 void Bv2OpSem::intraPhi(details::Bv2OpSemContext &C) {

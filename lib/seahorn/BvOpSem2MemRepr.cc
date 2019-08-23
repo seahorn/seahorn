@@ -120,7 +120,7 @@ Expr OpSemMemLambdaRepr::MemSet(Expr ptr, Expr _val, unsigned len,
     Expr addr = bind::mkConst(mkTerm<std::string>("addr", m_efac), ptrSort);
     Expr decl = bind::fname(addr);
     res = mk<LAMBDA>(decl, ite);
-    LOG("opsem3", errs() << "MemSet " << *res << "\n");
+    LOG("opsem.lambda", errs() << "MemSet " << *res << "\n");
 
     m_ctx.write(memWriteReg, res);
   }
@@ -154,7 +154,7 @@ Expr OpSemMemLambdaRepr::MemCpy(Expr dPtr, Expr sPtr, unsigned len,
       Expr addr = bind::mkConst(mkTerm<std::string>("addr", m_efac), ptrSort);
       Expr decl = bind::fname(addr);
       res = mk<LAMBDA>(decl, ite);
-      LOG("opsem3", errs() << "MemCpy " << *res << "\n");
+      LOG("opsem.lambda", errs() << "MemCpy " << *res << "\n");
     }
 
     m_ctx.write(memWriteReg, res);
@@ -200,7 +200,7 @@ Expr OpSemMemLambdaRepr::MemFill(Expr dPtr, char *sPtr, unsigned len,
   assert(sizeof(unsigned long) >= sem_word_sz);
 
   Expr initial = m_ctx.read(m_ctx.getMemReadRegister());
-  LOG("opsem3", errs() << "MemFill init: " << *initial << "\n");
+  LOG("opsem.lambda", errs() << "MemFill init: " << *initial << "\n");
 
   ExprVector ptrs;
   ptrs.reserve(len);
@@ -225,7 +225,7 @@ Expr OpSemMemLambdaRepr::MemFill(Expr dPtr, char *sPtr, unsigned len,
   Expr decl = bind::fname(addr);
   Expr res = mk<LAMBDA>(decl, ite);
 
-  LOG("opsem3", errs() << "MemFill: " << *res << "\n");
+  LOG("opsem.lambda", errs() << "MemFill: " << *res << "\n");
 
   m_ctx.write(m_ctx.getMemWriteRegister(), res);
   return res;

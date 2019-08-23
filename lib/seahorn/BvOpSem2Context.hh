@@ -126,6 +126,10 @@ public:
 
   /// \brief Returns the memory manager
   OpSemMemManager *getMemManager() { return m_memManager.get(); }
+  OpSemMemManager &mem() {
+    assert(getMemManager());
+    return *getMemManager();
+  }
 
   /// \brief Push parameter on a stack for a function call
   void pushParameter(Expr v) { m_fparams.push_back(v); }
@@ -204,7 +208,7 @@ public:
   void onFunctionExit(const Function &fn) override {}
 
   /// \brief Call when a basic block is entered
-  void onBasicBlockEntry(const BasicBlock &bb) override; 
+  void onBasicBlockEntry(const BasicBlock &bb) override;
 
   /// \brief declare \p v as a new register for the machine
   void declareRegister(Expr v);
@@ -367,9 +371,8 @@ class OpSemMemManager {
   static constexpr unsigned TEXT_SEGMENT_START = 0x08048000;
 
 public:
-  OpSemMemManager(Bv2OpSem &sem, Bv2OpSemContext &ctx,
-                   unsigned ptrSz, unsigned wordSz,
-                   bool useLambdas = false);
+  OpSemMemManager(Bv2OpSem &sem, Bv2OpSemContext &ctx, unsigned ptrSz,
+                  unsigned wordSz, bool useLambdas = false);
 
   /// Right now everything is an expression. In the future, we might have other
   /// types for PtrTy, such as a tuple of expressions
@@ -410,7 +413,10 @@ public:
   PtrTy mkStackPtr(Expr name, AllocInfo &allocInfo);
 
   /// \brief Allocates memory on the stack and returns a pointer to it
-  PtrTy salloc(Expr bytes, unsigned align = 0);
+  /// \param elemts is the number of elements being allocated
+  /// \param tyepSz is the size in bytes of each element
+  /// \param align requested alignment, or 0 for default alignment
+  PtrTy salloc(Expr elemts, unsigned typeSz, unsigned align = 0);
 
   /// \brief Address at which heap starts (initial value of \c brk)
   unsigned brk0Addr();
@@ -668,6 +674,5 @@ private:
                      const ExprVector &vals, Expr fallback);
 };
 
-
-} // namespace detail
+} // namespace details
 } // namespace seahorn

@@ -13,8 +13,8 @@ namespace details {
 using PtrTy = OpSemMemManager::PtrTy;
 
 OpSemMemManager::OpSemMemManager(Bv2OpSem &sem, Bv2OpSemContext &ctx,
-                                   unsigned ptrSz, unsigned wordSz,
-                                   bool useLambdas)
+                                 unsigned ptrSz, unsigned wordSz,
+                                 bool useLambdas)
     : m_sem(sem), m_ctx(ctx), m_efac(ctx.getExprFactory()), m_ptrSz(ptrSz),
       m_wordSz(wordSz), m_alignment(m_wordSz),
       m_allocaName(mkTerm<std::string>("sea.alloca", m_efac)),
@@ -101,10 +101,10 @@ PtrTy OpSemMemManager::mkStackPtr(Expr name, AllocInfo &allocInfo) {
 }
 
 /// \brief Allocates memory on the stack and returns a pointer to it
-PtrTy OpSemMemManager::salloc(Expr bytes, unsigned align) {
-  LOG("opsem", WARN << "unsound handling of dynamically "
-                       "sized stack allocation of "
-                    << *bytes << " bytes";);
+PtrTy OpSemMemManager::salloc(Expr elmts, unsigned typeSz, unsigned align) {
+  LOG("opsem", WARN << "imprecise handling of dynamically "
+                    << "sized stack allocation of " << *elmts
+                    << " elements of size " << typeSz << " bytes\n";);
   return freshPtr();
 }
 
@@ -257,7 +257,7 @@ Expr OpSemMemManager::coerce(Expr reg, Expr val) {
 ///            address
 /// \return symbolic value of the byte at the specified address
 Expr OpSemMemManager::extractUnalignedByte(Expr mem, PtrTy address,
-                                            unsigned offsetBits) {
+                                           unsigned offsetBits) {
   // pointers are partitioned into word address (high bits) and offset (low
   // bits)
   PtrTy wordAddress = bv::extract(ptrSzInBits() - 1, offsetBits, address);
@@ -283,7 +283,7 @@ Expr OpSemMemManager::extractUnalignedByte(Expr mem, PtrTy address,
 /// \param[in] align known alignment of \p ptr
 /// \return symbolic value of the read integer
 Expr OpSemMemManager::loadIntFromMem(PtrTy ptr, Expr memReg, unsigned byteSz,
-                                      uint64_t align) {
+                                     uint64_t align) {
   Expr mem = m_ctx.read(memReg);
   SmallVector<Expr, 16> words;
   unsigned offsetBits = getByteAlignmentBits();
@@ -317,7 +317,7 @@ Expr OpSemMemManager::loadIntFromMem(PtrTy ptr, Expr memReg, unsigned byteSz,
 /// \brief Loads a pointer stored in memory
 /// \sa loadIntFromMem
 PtrTy OpSemMemManager::loadPtrFromMem(PtrTy ptr, Expr memReg, unsigned byteSz,
-                                       uint64_t align) {
+                                      uint64_t align) {
   return loadIntFromMem(ptr, memReg, byteSz, align);
 }
 
@@ -344,7 +344,7 @@ PtrTy OpSemMemManager::ptrAdd(PtrTy ptr, Expr offset) const {
 /// after the store
 /// \sa loadIntFromMem
 Expr OpSemMemManager::storeIntToMem(Expr _val, PtrTy ptr, Expr memReadReg,
-                                     unsigned byteSz, uint64_t align) {
+                                    unsigned byteSz, uint64_t align) {
   Expr val = _val;
   Expr mem = m_ctx.read(memReadReg);
 
@@ -382,7 +382,7 @@ Expr OpSemMemManager::storeIntToMem(Expr _val, PtrTy ptr, Expr memReadReg,
 ///
 /// \sa storeIntToMem
 Expr OpSemMemManager::storeUnalignedIntToMem(Expr val, PtrTy ptr, Expr mem,
-                                              unsigned byteSz) {
+                                             unsigned byteSz) {
   unsigned offsetBits = getByteAlignmentBits();
   assert(offsetBits != 0);
 
@@ -417,7 +417,7 @@ Expr OpSemMemManager::storeUnalignedIntToMem(Expr val, PtrTy ptr, Expr mem,
 /// \param byteOffset symbolic pointer indicating which byte to update
 /// \return updated word
 Expr OpSemMemManager::setByteOfWord(Expr word, Expr byteData,
-                                     PtrTy byteOffset) {
+                                    PtrTy byteOffset) {
   // (x << 3) to get bit offset; zero extend to maintain word size
   byteOffset = bv::zext(byteOffset, wordSzInBits() - 3);
   PtrTy bitOffset = bv::concat(byteOffset, bv::bvnum(0, 3, byteOffset->efac()));
@@ -436,7 +436,7 @@ Expr OpSemMemManager::setByteOfWord(Expr word, Expr byteData,
 /// \brief Stores a pointer into memory
 /// \sa storeIntToMem
 Expr OpSemMemManager::storePtrToMem(PtrTy val, PtrTy ptr, Expr memReadReg,
-                                     unsigned byteSz, uint64_t align) {
+                                    unsigned byteSz, uint64_t align) {
   return storeIntToMem(val, ptr, memReadReg, byteSz, align);
 }
 
@@ -447,7 +447,7 @@ Expr OpSemMemManager::storePtrToMem(PtrTy val, PtrTy ptr, Expr memReadReg,
 /// \param[in] ty is the type of value being loaded
 /// \param[in] align is the known alignment of the load
 Expr OpSemMemManager::loadValueFromMem(PtrTy ptr, Expr memReg,
-                                        const llvm::Type &ty, uint64_t align) {
+                                       const llvm::Type &ty, uint64_t align) {
   const unsigned byteSz =
       m_sem.getTD().getTypeStoreSize(const_cast<llvm::Type *>(&ty));
   ExprFactory &efac = ptr->efac();
@@ -480,8 +480,8 @@ Expr OpSemMemManager::loadValueFromMem(PtrTy ptr, Expr memReg,
 }
 
 Expr OpSemMemManager::storeValueToMem(Expr _val, PtrTy ptr, Expr memReadReg,
-                                       Expr memWriteReg, const llvm::Type &ty,
-                                       uint32_t align) {
+                                      Expr memWriteReg, const llvm::Type &ty,
+                                      uint32_t align) {
   assert(ptr);
   Expr val = _val;
   const unsigned byteSz =
@@ -520,23 +520,23 @@ Expr OpSemMemManager::storeValueToMem(Expr _val, PtrTy ptr, Expr memReadReg,
 
 /// \brief Executes symbolic memset with a concrete length
 Expr OpSemMemManager::MemSet(PtrTy ptr, Expr _val, unsigned len,
-                              Expr memReadReg, Expr memWriteReg,
-                              uint32_t align) {
+                             Expr memReadReg, Expr memWriteReg,
+                             uint32_t align) {
   return m_memRepr->MemSet(ptr, _val, len, memReadReg, memWriteReg,
                            wordSzInBytes(), ptrSort(), align);
 }
 
 /// \brief Executes symbolic memcpy with concrete length
 Expr OpSemMemManager::MemCpy(PtrTy dPtr, PtrTy sPtr, unsigned len,
-                              Expr memTrsfrReadReg, Expr memReadReg,
-                              Expr memWriteReg, uint32_t align) {
+                             Expr memTrsfrReadReg, Expr memReadReg,
+                             Expr memWriteReg, uint32_t align) {
   return m_memRepr->MemCpy(dPtr, sPtr, len, memTrsfrReadReg, memReadReg,
                            memWriteReg, wordSzInBytes(), ptrSort(), align);
 }
 
 /// \brief Executes symbolic memcpy from physical memory with concrete length
 Expr OpSemMemManager::MemFill(PtrTy dPtr, char *sPtr, unsigned len,
-                               uint32_t align) {
+                              uint32_t align) {
   // same alignment behavior as galloc - default is word size of machine, can
   // only be increased
   return m_memRepr->MemFill(dPtr, sPtr, len, wordSzInBytes(), ptrSort(),
@@ -545,7 +545,7 @@ Expr OpSemMemManager::MemFill(PtrTy dPtr, char *sPtr, unsigned len,
 
 /// \brief Executes inttoptr conversion
 PtrTy OpSemMemManager::inttoptr(Expr intVal, const Type &intTy,
-                                 const Type &ptrTy) const {
+                                const Type &ptrTy) const {
   uint64_t intTySz = m_sem.sizeInBits(intTy);
   uint64_t ptrTySz = m_sem.sizeInBits(ptrTy);
   assert(ptrTySz == ptrSzInBits());
@@ -560,7 +560,7 @@ PtrTy OpSemMemManager::inttoptr(Expr intVal, const Type &intTy,
 
 /// \brief Executes ptrtoint conversion
 Expr OpSemMemManager::ptrtoint(PtrTy ptr, const Type &ptrTy,
-                                const Type &intTy) const {
+                               const Type &intTy) const {
   uint64_t ptrTySz = m_sem.sizeInBits(ptrTy);
   uint64_t intTySz = m_sem.sizeInBits(intTy);
   assert(ptrTySz == ptrSzInBits());
@@ -575,7 +575,7 @@ Expr OpSemMemManager::ptrtoint(PtrTy ptr, const Type &ptrTy,
 
 /// \brief Computes a pointer corresponding to the gep instruction
 PtrTy OpSemMemManager::gep(PtrTy ptr, gep_type_iterator it,
-                            gep_type_iterator end) const {
+                           gep_type_iterator end) const {
   Expr offset = m_sem.symbolicIndexedOffset(it, end, m_ctx);
   return offset ? ptrAdd(ptr, offset) : Expr();
 }

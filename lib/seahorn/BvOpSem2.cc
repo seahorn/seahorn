@@ -394,13 +394,13 @@ public:
       unsigned memSz = typeSz * nElts;
       LOG("opsem",
           errs() << "!3 Alloca of " << memSz << " bytes: " << I << "\n";);
-      addr = m_ctx.getMemManager()->salloc(memSz);
+      addr = m_ctx.mem().salloc(memSz);
     } else {
       Expr nElts = lookup(*I.getOperand(0));
       LOG("opsem", errs() << "!4 Alloca of " << nElts << "*" << typeSz
                           << " bytes: " << I << "\n";);
       WARN << "alloca of symbolic size is treated as non-deterministic";
-      addr = m_ctx.getMemManager()->freshPtr();
+      addr = m_ctx.mem().salloc(nElts, typeSz);
     }
 
     setValue(I, addr);

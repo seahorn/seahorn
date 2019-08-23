@@ -1,0 +1,623 @@
+#include "BvOpSem2Context.hh"
+
+#include "llvm/IR/GetElementPtrTypeIterator.h"
+#include "llvm/Support/Format.h"
+
+#include "seahorn/Support/SeaDebug.h"
+#include "seahorn/Support/SeaLog.hh"
+#include "ufo/ExprLlvm.hpp"
+
+namespace seahorn {
+namespace details {
+
+using PtrTy = OpSemMemManager::PtrTy;
+
+OpSemMemManager::OpSemMemManager(Bv2OpSem &sem, Bv2OpSemContext &ctx,
+                                   unsigned ptrSz, unsigned wordSz,
+                                   bool useLambdas)
+    : m_sem(sem), m_ctx(ctx), m_efac(ctx.getExprFactory()), m_ptrSz(ptrSz),
+      m_wordSz(wordSz), m_alignment(m_wordSz),
+      m_allocaName(mkTerm<std::string>("sea.alloca", m_efac)),
+      m_freshPtrName(mkTerm<std::string>("sea.ptr", m_efac)), m_id(0) {
+  assert((m_wordSz == 1 || m_wordSz == 4 || m_wordSz == 8) &&
+         "Untested word size");
+  assert((m_ptrSz == 4) && "Untested pointer size");
+  m_nullPtr = bv::bvnum(0, ptrSzInBits(), m_efac);
+  m_sp0 = bv::bvConst(mkTerm<std::string>("sea.sp0", m_efac), ptrSzInBits());
+  m_ctx.declareRegister(m_sp0);
+
+  if (useLambdas)
+    m_memRepr = llvm::make_unique<OpSemMemLambdaRepr>(*this, ctx);
+  else
+    m_memRepr = llvm::make_unique<OpSemMemArrayRepr>(*this, ctx);
+}
+
+/// \brief Creates a non-deterministic pointer that is aligned
+///
+/// Top bits of the pointer are named by \p name and last \c log2(align) bits
+/// are set to zero
+PtrTy OpSemMemManager::mkAlignedPtr(Expr name, uint32_t align) const {
+  unsigned alignBits = llvm::Log2_32(align);
+  return bv::concat(bv::bvConst(name, ptrSzInBits() - alignBits),
+                    bv::bvnum(0, alignBits, m_efac));
+}
+
+/// \brief Returns sort of a pointer register for an instruction
+Expr OpSemMemManager::mkPtrRegisterSort(const Instruction &inst) const {
+  const Type *ty = inst.getType();
+  assert(ty);
+  unsigned sz = m_sem.sizeInBits(*ty);
+  assert(ty->isPointerTy());
+  LOG("opsem", if (sz != ptrSzInBits()) {
+    WARN << "Unexpected size of type: " << *ty << " of instruction " << inst
+         << "\n"
+         << "sz is " << sz << " and ptrSzInBits is " << ptrSzInBits() << "\n";
+  });
+  assert(sz == ptrSzInBits());
+
+  return bv::bvsort(m_sem.sizeInBits(*ty), m_efac);
+}
+
+/// \brief Returns sort of a pointer register for a function pointer
+Expr OpSemMemManager::mkPtrRegisterSort(const Function &fn) const {
+  return bv::bvsort(ptrSzInBits(), m_efac);
+}
+
+/// \brief Returns sort of memory-holding register for an instruction
+Expr OpSemMemManager::mkMemRegisterSort(const Instruction &inst) const {
+  Expr ptrTy = bv::bvsort(ptrSzInBits(), m_efac);
+  Expr valTy = bv::bvsort(wordSzInBits(), m_efac);
+  return sort::arrayTy(ptrTy, valTy);
+}
+
+/// \brief Returns a fresh aligned pointer value
+PtrTy OpSemMemManager::freshPtr() {
+  Expr name = op::variant::variant(m_id++, m_freshPtrName);
+  return mkAlignedPtr(name, m_alignment);
+}
+
+/// \brief Allocates memory on the stack and returns a pointer to it
+/// \param align is requested alignment. If 0, default alignment is used
+PtrTy OpSemMemManager::salloc(unsigned bytes, uint32_t align) {
+  align = std::max(align, m_alignment);
+  unsigned start = m_allocas.empty() ? 0 : m_allocas.back().m_end;
+  start = llvm::alignTo(start, align);
+
+  unsigned end = start + bytes;
+  end = llvm::alignTo(end, align);
+
+  m_allocas.emplace_back(m_allocas.size() + 1, start, end, bytes);
+
+  Expr name = op::variant::variant(m_allocas.back().m_id, m_allocaName);
+
+  return mkStackPtr(name, m_allocas.back());
+}
+
+/// \brief Returns a pointer value for a given stack allocation
+PtrTy OpSemMemManager::mkStackPtr(Expr name, AllocInfo &allocInfo) {
+  Expr res = m_ctx.read(m_sp0);
+  res = mk<BSUB>(res, bv::bvnum(allocInfo.m_end, ptrSzInBits(), m_efac));
+  return res;
+}
+
+/// \brief Allocates memory on the stack and returns a pointer to it
+PtrTy OpSemMemManager::salloc(Expr bytes, unsigned align) {
+  LOG("opsem", WARN << "unsound handling of dynamically "
+                       "sized stack allocation of "
+                    << *bytes << " bytes";);
+  return freshPtr();
+}
+
+/// \brief Address at which heap starts (initial value of \c brk)
+unsigned OpSemMemManager::brk0Addr() {
+  if (!m_globals.empty())
+    return m_globals.back().m_end;
+  if (!m_funcs.empty())
+    return m_funcs.back().m_end;
+  return TEXT_SEGMENT_START;
+}
+
+/// \brief Pointer to start of the heap
+PtrTy OpSemMemManager::brk0Ptr() {
+  return bv::bvnum(brk0Addr(), ptrSzInBits(), m_efac);
+}
+
+/// \brief Allocates memory on the heap and returns a pointer to it
+PtrTy OpSemMemManager::halloc(unsigned _bytes, unsigned align) {
+  Expr res = freshPtr();
+
+  unsigned bytes = llvm::alignTo(_bytes, std::max(align, m_alignment));
+
+  // -- pointer is in the heap: between brk at the beginning and end of stack
+  m_ctx.addSide(
+      mk<BULT>(res, bv::bvnum(MIN_STACK_ADDR - bytes, ptrSzInBits(), m_efac)));
+  m_ctx.addSide(mk<BUGT>(res, brk0Ptr()));
+  return res;
+}
+
+/// \brief Allocates memory on the heap and returns pointer to it
+PtrTy OpSemMemManager::halloc(Expr bytes, unsigned align) {
+  Expr res = freshPtr();
+
+  // -- pointer is in the heap: between brk at the beginning and end of stack
+  m_ctx.addSide(
+      mk<BULT>(res, bv::bvnum(MIN_STACK_ADDR, ptrSzInBits(), m_efac)));
+  m_ctx.addSide(mk<BUGT>(res, brk0Ptr()));
+  // TODO: take size of pointer into account,
+  // it cannot be that close to the stack
+  return res;
+}
+
+/// \brief Allocates memory in global (data/bss) segment for given global
+PtrTy OpSemMemManager::galloc(const GlobalVariable &gv, unsigned align) {
+  uint64_t gvSz = m_sem.getTD().getTypeAllocSize(gv.getValueType());
+
+  unsigned start =
+      !m_globals.empty()
+          ? m_globals.back().m_end
+          : (m_funcs.empty() ? TEXT_SEGMENT_START : m_funcs.back().m_end);
+
+  start = llvm::alignTo(start, std::max(align, m_alignment));
+  unsigned end = llvm::alignTo(start + gvSz, std::max(align, m_alignment));
+  m_globals.emplace_back(gv, start, end, gvSz);
+  m_sem.initMemory(gv.getInitializer(), m_globals.back().getMemory());
+  return bv::bvnum(start, ptrSzInBits(), m_efac);
+}
+
+/// \brief Allocates memory in code segment for the code of a given function
+PtrTy OpSemMemManager::falloc(const Function &fn) {
+  assert(m_globals.empty() && "Cannot allocate functions after globals");
+  unsigned start = m_funcs.empty() ? 0x08048000 : m_funcs.back().m_end;
+  unsigned end = llvm::alignTo(start + 4, m_alignment);
+  m_funcs.emplace_back(fn, start, end);
+  return bv::bvnum(start, ptrSzInBits(), m_efac);
+}
+
+/// \brief Returns a function pointer value for a given function
+PtrTy OpSemMemManager::getPtrToFunction(const Function &F) {
+  return bv::bvnum(getFunctionAddr(F), ptrSzInBits(), m_efac);
+}
+
+/// \brief Returns an address at which a given function resides
+unsigned OpSemMemManager::getFunctionAddr(const Function &F) {
+  for (auto &fi : m_funcs)
+    if (fi.m_fn == &F)
+      return fi.m_start;
+  falloc(F);
+  return m_funcs.back().m_start;
+}
+
+/// \brief Returns a pointer to a global variable
+PtrTy OpSemMemManager::getPtrToGlobalVariable(const GlobalVariable &gv) {
+  return bv::bvnum(getGlobalVariableAddr(gv), ptrSzInBits(), m_efac);
+}
+
+/// \brief Returns an address of a global variable
+unsigned OpSemMemManager::getGlobalVariableAddr(const GlobalVariable &gv) {
+  for (auto &gi : m_globals)
+    if (gi.m_gv == &gv)
+      return gi.m_start;
+
+  galloc(gv);
+  return m_globals.back().m_start;
+}
+
+/// \brief Returns initial value of a global variable
+///
+/// Returns (nullptr, 0) if the global variable has no known initializer
+std::pair<char *, unsigned>
+OpSemMemManager::getGlobalVariableInitValue(const GlobalVariable &gv) {
+  for (auto &gi : m_globals) {
+    if (gi.m_gv == &gv)
+      return std::make_pair(gi.m_mem, gi.m_sz);
+  }
+  return std::make_pair(nullptr, 0);
+}
+
+/// \brief Pointers have word address (high) and byte offset (low); returns
+/// number of bits for byte offset
+///
+/// \return 0 if unsupported word size
+unsigned OpSemMemManager::getByteAlignmentBits() {
+  switch (wordSzInBytes()) {
+  // cases where ptrs are known to use a certain number of bits to denote byte
+  // offset
+  //   and the rest to denote word aligned address
+  case 1:
+    return 0;
+  case 2:
+    return 1;
+  case 4:
+    return 2;
+  case 8:
+    return 3;
+  default:
+    WARN << "unsupported word size: " << wordSzInBytes()
+         << " unaligned reads may not work as intended\n";
+    return 0;
+  }
+}
+
+/// \brief Fixes the type of a havoced value to mach the representation used
+/// by mem repr.
+///
+/// \param reg
+/// \param val
+/// \return the coerced value.
+Expr OpSemMemManager::coerce(Expr reg, Expr val) {
+  return m_memRepr->coerce(reg, val);
+}
+
+/// \brief Symbolic instructions to load a byte from memory, using word
+/// address and byte address
+///
+/// \param[in] mem memory being accessed
+/// \param[in] address pointer being accessed, unaligned
+/// \param[in] offsetBits number of bits at end of pointers reserved for byte
+///            address
+/// \return symbolic value of the byte at the specified address
+Expr OpSemMemManager::extractUnalignedByte(Expr mem, PtrTy address,
+                                            unsigned offsetBits) {
+  // pointers are partitioned into word address (high bits) and offset (low
+  // bits)
+  PtrTy wordAddress = bv::extract(ptrSzInBits() - 1, offsetBits, address);
+  PtrTy byteOffset = bv::extract(offsetBits - 1, 0, address);
+
+  // aligned ptr is address with offset bits truncated to 0
+  PtrTy alignedPtr =
+      bv::concat(wordAddress, bv::bvnum(0L, offsetBits, address->efac()));
+  Expr alignedWord = m_memRepr->loadAlignedWordFromMem(alignedPtr, mem);
+
+  byteOffset = bv::zext(byteOffset, wordSzInBits() - 3);
+  // (x << 3) to get bit offset; zero extend to maintain word size
+  PtrTy bitOffset = bv::concat(byteOffset, bv::bvnum(0, 3, address->efac()));
+
+  return bv::extract(7, 0, mk<BLSHR>(alignedWord, bitOffset));
+}
+
+/// \brief Loads an integer of a given size from memory register
+///
+/// \param[in] ptr pointer being accessed
+/// \param[in] memReg memory register into which \p ptr points
+/// \param[in] byteSz size of the integer in bytes
+/// \param[in] align known alignment of \p ptr
+/// \return symbolic value of the read integer
+Expr OpSemMemManager::loadIntFromMem(PtrTy ptr, Expr memReg, unsigned byteSz,
+                                      uint64_t align) {
+  Expr mem = m_ctx.read(memReg);
+  SmallVector<Expr, 16> words;
+  unsigned offsetBits = getByteAlignmentBits();
+  if (offsetBits != 0 && align % wordSzInBytes() != 0) {
+    for (unsigned i = 0; i < byteSz; i++) {
+      Expr byteOfWord = extractUnalignedByte(mem, ptrAdd(ptr, i), offsetBits);
+      words.push_back(byteOfWord);
+    }
+  } else {
+    // -- read all words
+    for (unsigned i = 0; i < byteSz; i += wordSzInBytes()) {
+      words.push_back(m_memRepr->loadAlignedWordFromMem(ptrAdd(ptr, i), mem));
+    }
+  }
+
+  assert(!words.empty());
+
+  // -- concatenate the words together into a single value
+  Expr res;
+  for (Expr &w : words)
+    res = res ? bv::concat(w, res) : w;
+
+  assert(res);
+  // -- extract actual bytes read (if fewer than word)
+  if (byteSz < wordSzInBytes())
+    res = bv::extract(byteSz * 8 - 1, 0, res);
+
+  return res;
+}
+
+/// \brief Loads a pointer stored in memory
+/// \sa loadIntFromMem
+PtrTy OpSemMemManager::loadPtrFromMem(PtrTy ptr, Expr memReg, unsigned byteSz,
+                                       uint64_t align) {
+  return loadIntFromMem(ptr, memReg, byteSz, align);
+}
+
+/// \brief Pointer addition with numeric offset
+PtrTy OpSemMemManager::ptrAdd(PtrTy ptr, int32_t _offset) const {
+  if (_offset == 0)
+    return ptr;
+  mpz_class offset(_offset);
+  return mk<BADD>(ptr, bv::bvnum(offset, ptrSzInBits(), ptr->efac()));
+}
+
+/// \brief Pointer addition with symbolic offset
+PtrTy OpSemMemManager::ptrAdd(PtrTy ptr, Expr offset) const {
+  if (bv::isBvNum(offset)) {
+    mpz_class _offset = bv::toMpz(offset);
+    return ptrAdd(ptr, _offset.get_si());
+  }
+  return mk<BADD>(ptr, offset);
+}
+
+/// \brief Stores an integer into memory
+///
+/// Returns an expression describing the state of memory in \c memReadReg
+/// after the store
+/// \sa loadIntFromMem
+Expr OpSemMemManager::storeIntToMem(Expr _val, PtrTy ptr, Expr memReadReg,
+                                     unsigned byteSz, uint64_t align) {
+  Expr val = _val;
+  Expr mem = m_ctx.read(memReadReg);
+
+  unsigned offsetBits = getByteAlignmentBits();
+  bool wordAligned = offsetBits == 0 || align % wordSzInBytes() == 0;
+  if (!wordAligned) {
+    return storeUnalignedIntToMem(val, ptr, mem, byteSz);
+  }
+
+  SmallVector<Expr, 16> words;
+  if (byteSz == wordSzInBytes()) {
+    words.push_back(val);
+  } else if (byteSz < wordSzInBytes()) {
+    val = bv::zext(val, wordSzInBits());
+    words.push_back(val);
+  } else {
+    for (unsigned i = 0; i < byteSz; i += wordSzInBytes()) {
+      unsigned lowBit = i * 8;
+      Expr slice = bv::extract(lowBit + wordSzInBits() - 1, lowBit, val);
+      words.push_back(slice);
+    }
+  }
+
+  Expr res;
+  for (unsigned i = 0; i < words.size(); ++i) {
+    res = m_memRepr->storeAlignedWordToMem(
+        words[i], ptrAdd(ptr, i * wordSzInBytes()), ptrSort(), mem);
+    mem = res;
+  }
+
+  return res;
+}
+
+/// \brief stores integer into memory, address is not word aligned
+///
+/// \sa storeIntToMem
+Expr OpSemMemManager::storeUnalignedIntToMem(Expr val, PtrTy ptr, Expr mem,
+                                              unsigned byteSz) {
+  unsigned offsetBits = getByteAlignmentBits();
+  assert(offsetBits != 0);
+
+  // for each byte (i) in val, load word w of i from memory, update one byte
+  // of w, write back result
+  Expr res;
+  for (unsigned i = 0; i < byteSz; i++) {
+    PtrTy wordAddress =
+        bv::extract(ptrSzInBits() - 1, offsetBits, ptrAdd(ptr, i));
+    PtrTy byteOffset = bv::extract(offsetBits - 1, 0, ptrAdd(ptr, i));
+
+    PtrTy alignedPtr =
+        bv::concat(wordAddress, bv::bvnum(0L, offsetBits, ptr->efac()));
+    Expr existingWord = m_memRepr->loadAlignedWordFromMem(alignedPtr, mem);
+
+    unsigned lowBit = i * 8;
+    Expr byteToStore = bv::extract(lowBit + 7, lowBit, val);
+
+    Expr updatedWord = setByteOfWord(existingWord, byteToStore, byteOffset);
+    res = m_memRepr->storeAlignedWordToMem(updatedWord, alignedPtr, ptrSort(),
+                                           mem);
+    mem = res;
+  }
+
+  return res;
+}
+
+/// \brief Given a word, updates a byte
+///
+/// \param word existing word
+/// \param byteData updated byte
+/// \param byteOffset symbolic pointer indicating which byte to update
+/// \return updated word
+Expr OpSemMemManager::setByteOfWord(Expr word, Expr byteData,
+                                     PtrTy byteOffset) {
+  // (x << 3) to get bit offset; zero extend to maintain word size
+  byteOffset = bv::zext(byteOffset, wordSzInBits() - 3);
+  PtrTy bitOffset = bv::concat(byteOffset, bv::bvnum(0, 3, byteOffset->efac()));
+
+  // set a byte of existing word to 0
+  Expr lowestByteMask = bv::bvnum(0xff, wordSzInBits(), word->efac());
+  Expr addressByteMask = mk<BNOT>(mk<BSHL>(lowestByteMask, bitOffset));
+  word = mk<BAND>(word, addressByteMask);
+
+  // shift into position for zeroed part of existing word; mask and rewrite
+  Expr shiftedByte = mk<BSHL>(bv::zext(byteData, wordSzInBits()), bitOffset);
+
+  return mk<BOR>(word, shiftedByte);
+}
+
+/// \brief Stores a pointer into memory
+/// \sa storeIntToMem
+Expr OpSemMemManager::storePtrToMem(PtrTy val, PtrTy ptr, Expr memReadReg,
+                                     unsigned byteSz, uint64_t align) {
+  return storeIntToMem(val, ptr, memReadReg, byteSz, align);
+}
+
+/// \brief Returns an expression corresponding to a load from memory
+///
+/// \param[in] ptr is the pointer being dereferenced
+/// \param[in] memReg is the memory register being read
+/// \param[in] ty is the type of value being loaded
+/// \param[in] align is the known alignment of the load
+Expr OpSemMemManager::loadValueFromMem(PtrTy ptr, Expr memReg,
+                                        const llvm::Type &ty, uint64_t align) {
+  const unsigned byteSz =
+      m_sem.getTD().getTypeStoreSize(const_cast<llvm::Type *>(&ty));
+  ExprFactory &efac = ptr->efac();
+
+  Expr res;
+  switch (ty.getTypeID()) {
+  case Type::IntegerTyID:
+    res = loadIntFromMem(ptr, memReg, byteSz, align);
+    if (res && ty.isIntegerTy(1))
+      res = boolop::lneg(mk<EQ>(res, mkZeroE(byteSz * 8, efac)));
+    break;
+  case Type::FloatTyID:
+  case Type::DoubleTyID:
+  case Type::X86_FP80TyID:
+    errs() << "Error: load of float/double is not supported\n";
+    llvm_unreachable(nullptr);
+    break;
+  case Type::VectorTyID:
+    errs() << "Error: load of vectors is not supported\n";
+  case Type::PointerTyID:
+    res = loadPtrFromMem(ptr, memReg, byteSz, align);
+    break;
+  default:
+    SmallString<256> msg;
+    raw_svector_ostream out(msg);
+    out << "Loading from type: " << ty << " is not supported\n";
+    report_fatal_error(out.str());
+  }
+  return res;
+}
+
+Expr OpSemMemManager::storeValueToMem(Expr _val, PtrTy ptr, Expr memReadReg,
+                                       Expr memWriteReg, const llvm::Type &ty,
+                                       uint32_t align) {
+  assert(ptr);
+  Expr val = _val;
+  const unsigned byteSz =
+      m_sem.getTD().getTypeStoreSize(const_cast<llvm::Type *>(&ty));
+  ExprFactory &efac = ptr->efac();
+
+  Expr res;
+  switch (ty.getTypeID()) {
+  case Type::IntegerTyID:
+    if (ty.isIntegerTy(1)) {
+      val = boolop::lite(val, mkOneE(byteSz * 8, efac),
+                         mkZeroE(byteSz * 8, efac));
+    }
+    res = storeIntToMem(val, ptr, memReadReg, byteSz, align);
+    break;
+  case Type::FloatTyID:
+  case Type::DoubleTyID:
+  case Type::X86_FP80TyID:
+    errs() << "Error: store of float/double is not supported\n";
+    llvm_unreachable(nullptr);
+    break;
+  case Type::VectorTyID:
+    errs() << "Error: store of vectors is not supported\n";
+  case Type::PointerTyID:
+    res = storePtrToMem(val, ptr, memReadReg, byteSz, align);
+    break;
+  default:
+    SmallString<256> msg;
+    raw_svector_ostream out(msg);
+    out << "Loading from type: " << ty << " is not supported\n";
+    report_fatal_error(out.str());
+  }
+  m_ctx.write(memWriteReg, res);
+  return res;
+}
+
+/// \brief Executes symbolic memset with a concrete length
+Expr OpSemMemManager::MemSet(PtrTy ptr, Expr _val, unsigned len,
+                              Expr memReadReg, Expr memWriteReg,
+                              uint32_t align) {
+  return m_memRepr->MemSet(ptr, _val, len, memReadReg, memWriteReg,
+                           wordSzInBytes(), ptrSort(), align);
+}
+
+/// \brief Executes symbolic memcpy with concrete length
+Expr OpSemMemManager::MemCpy(PtrTy dPtr, PtrTy sPtr, unsigned len,
+                              Expr memTrsfrReadReg, Expr memReadReg,
+                              Expr memWriteReg, uint32_t align) {
+  return m_memRepr->MemCpy(dPtr, sPtr, len, memTrsfrReadReg, memReadReg,
+                           memWriteReg, wordSzInBytes(), ptrSort(), align);
+}
+
+/// \brief Executes symbolic memcpy from physical memory with concrete length
+Expr OpSemMemManager::MemFill(PtrTy dPtr, char *sPtr, unsigned len,
+                               uint32_t align) {
+  // same alignment behavior as galloc - default is word size of machine, can
+  // only be increased
+  return m_memRepr->MemFill(dPtr, sPtr, len, wordSzInBytes(), ptrSort(),
+                            std::max(align, m_alignment));
+}
+
+/// \brief Executes inttoptr conversion
+PtrTy OpSemMemManager::inttoptr(Expr intVal, const Type &intTy,
+                                 const Type &ptrTy) const {
+  uint64_t intTySz = m_sem.sizeInBits(intTy);
+  uint64_t ptrTySz = m_sem.sizeInBits(ptrTy);
+  assert(ptrTySz == ptrSzInBits());
+
+  Expr res = intVal;
+  if (ptrTySz > intTySz)
+    res = bv::zext(res, ptrTySz);
+  else if (ptrTySz < intTySz)
+    res = bv::extract(ptrTySz - 1, 0, res);
+  return res;
+}
+
+/// \brief Executes ptrtoint conversion
+Expr OpSemMemManager::ptrtoint(PtrTy ptr, const Type &ptrTy,
+                                const Type &intTy) const {
+  uint64_t ptrTySz = m_sem.sizeInBits(ptrTy);
+  uint64_t intTySz = m_sem.sizeInBits(intTy);
+  assert(ptrTySz == ptrSzInBits());
+
+  Expr res = ptr;
+  if (ptrTySz < intTySz)
+    res = bv::zext(res, intTySz);
+  else if (ptrTySz > intTySz)
+    res = bv::extract(intTySz - 1, 0, res);
+  return res;
+}
+
+/// \brief Computes a pointer corresponding to the gep instruction
+PtrTy OpSemMemManager::gep(PtrTy ptr, gep_type_iterator it,
+                            gep_type_iterator end) const {
+  Expr offset = m_sem.symbolicIndexedOffset(it, end, m_ctx);
+  return offset ? ptrAdd(ptr, offset) : Expr();
+}
+/// \brief Called when a function is entered for the first time
+void OpSemMemManager::onFunctionEntry(const Function &fn) {
+  Expr res = m_ctx.read(m_sp0);
+
+  // align of semantic_word_size, or 4 if it's less than 4
+  unsigned offsetBits = 2;
+  switch (wordSzInBytes()) {
+  case 8:
+    offsetBits = 3;
+  }
+  m_ctx.addDef(bv::bvnum(0, offsetBits, m_efac),
+               bv::extract(offsetBits - 1, 0, res));
+
+  // XXX hard coded values
+  // 3GB upper limit
+  m_ctx.addSide(
+      mk<BULE>(res, bv::bvnum(MAX_STACK_ADDR, ptrSzInBits(), m_efac)));
+  // 9MB stack
+  m_ctx.addSide(
+      mk<BUGE>(res, bv::bvnum(MIN_STACK_ADDR, ptrSzInBits(), m_efac)));
+}
+
+/// \brief Debug helper
+void OpSemMemManager::dumpGlobalsMap() {
+  errs() << "Functions: \n";
+  if (m_funcs.empty())
+    errs() << "NONE\n";
+  for (auto &fi : m_funcs) {
+    errs() << llvm::format_hex(fi.m_start, 16, true) << " @"
+           << fi.m_fn->getName() << "\n";
+  }
+
+  errs() << "Globals: \n";
+  if (m_globals.empty())
+    errs() << "NONE\n";
+  for (auto &gi : m_globals) {
+    errs() << llvm::format_hex(gi.m_start, 16, true) << " @"
+           << gi.m_gv->getName() << "\n";
+  }
+}
+} // namespace details
+} // namespace seahorn

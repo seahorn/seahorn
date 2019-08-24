@@ -269,9 +269,8 @@ private:
   }
 };
 
-/// \brief Memory manager for OpSem machine
-class OpSemMemManager {
-
+/// \brief OpSemAllocator places pointers in virtual memory space
+class OpSemAllocator {
   /// \brief Allocation information
   struct AllocInfo {
     /// \brief numeric ID
@@ -324,12 +323,79 @@ class OpSemMemManager {
     char *getMemory() { return m_mem; }
   };
 
+  OpSemMemManager &m_mgr;
+  Bv2OpSemContext &m_ctx;
+  Bv2OpSem &m_sem;
+
+  ExprFactory &m_efac;
+  /// \brief All known stack allocations
+  std::vector<AllocInfo> m_allocas;
+  /// \brief All known code allocations
+  std::vector<FuncAllocInfo> m_funcs;
+  /// \brief All known global allocations
+  std::vector<GlobalAllocInfo> m_globals;
+
+  // TODO: turn into user-controlled parameters
+  unsigned MAX_STACK_ADDR = 0xC0000000;
+  unsigned MIN_STACK_ADDR = (MAX_STACK_ADDR - 9437184);
+  unsigned TEXT_SEGMENT_START = 0x08048000;
+
+public:
+  using AddrInterval = std::pair<unsigned, unsigned>;
+  OpSemAllocator(OpSemMemManager &mgr);
+
+  /// \brief Allocates memory on the stack and returns a pointer to it
+  /// \param align is requested alignment. If 0, default alignment is used
+  AddrInterval salloc(unsigned bytes, uint32_t align);
+
+  /// \brief Address at which heap starts (initial value of \c brk)
+  unsigned brk0Addr();
+
+  /// \brief Return the maximal legal range of the stack pointer
+  AddrInterval getStackRange() {
+    return { MIN_STACK_ADDR, MAX_STACK_ADDR };
+  }
+
+  /// \brief Allocates memory on the heap and returns a pointer to it
+  AddrInterval halloc(unsigned _bytes, unsigned align) {
+    llvm_unreachable("not implemented");
+  }
+
+  /// \brief Allocates memory in global (data/bss) segment for given global
+  /// \param bytes is the expected size of allocation
+  AddrInterval galloc(const GlobalVariable &gv, uint64_t bytes, unsigned align);
+
+  /// \brief Allocates memory in code segment for the code of a given function
+  AddrInterval falloc(const Function &fn, unsigned align);
+
+  /// \brief Returns an address at which a given function resides
+  unsigned getFunctionAddr(const Function &F, unsigned align);
+
+  /// \brief Returns an address of a global variable
+  unsigned getGlobalVariableAddr(const GlobalVariable &gv, unsigned bytes,
+                                 unsigned align);
+
+  /// \brief Returns initial value of a global variable
+  ///
+  /// Returns (nullptr, 0) if the global variable has no known initializer
+  std::pair<char *, unsigned>
+  getGlobalVariableInitValue(const GlobalVariable &gv);
+
+  void dumpGlobalsMap();
+};
+
+/// \brief Memory manager for OpSem machine
+class OpSemMemManager {
+
   /// \brief Parent Operational Semantics
   Bv2OpSem &m_sem;
   /// \brief Parent Semantics Context
   Bv2OpSemContext &m_ctx;
   /// \brief Parent expression factory
   ExprFactory &m_efac;
+
+  /// \brief Allocates memory regions in virtual memory
+  std::unique_ptr<OpSemAllocator> m_allocator;
 
   /// \brief Knows the memory representation and how to access it
   std::unique_ptr<OpSemMemRepr> m_memRepr;
@@ -343,17 +409,8 @@ class OpSemMemManager {
   /// Must be divisible by \t m_wordSz
   uint32_t m_alignment;
 
-  /// \brief Base name for non-deterministic allocation
-  Expr m_allocaName;
   /// \brief Base name for non-deterministic pointer
   Expr m_freshPtrName;
-
-  /// \brief All known stack allocations
-  std::vector<AllocInfo> m_allocas;
-  /// \brief All known code allocations
-  std::vector<FuncAllocInfo> m_funcs;
-  /// \brief All known global allocations
-  std::vector<GlobalAllocInfo> m_globals;
 
   /// \brief Register that contains the value of the stack pointer on
   /// function entry
@@ -365,11 +422,6 @@ class OpSemMemManager {
   /// \brief A null pointer expression (cache)
   Expr m_nullPtr;
 
-  // TODO: turn into user-controlled parameters
-  static constexpr unsigned MAX_STACK_ADDR = 0xC0000000;
-  static constexpr unsigned MIN_STACK_ADDR = (MAX_STACK_ADDR - 9437184);
-  static constexpr unsigned TEXT_SEGMENT_START = 0x08048000;
-
 public:
   OpSemMemManager(Bv2OpSem &sem, Bv2OpSemContext &ctx, unsigned ptrSz,
                   unsigned wordSz, bool useLambdas = false);
@@ -378,11 +430,45 @@ public:
   /// types for PtrTy, such as a tuple of expressions
   using PtrTy = Expr;
 
+  Bv2OpSem &sem() const { return m_sem; }
+  Bv2OpSemContext &ctx() const { return m_ctx; }
+
   unsigned ptrSzInBits() const { return m_ptrSz * 8; }
   PtrTy ptrSort() const { return bv::bvsort(ptrSzInBits(), m_efac); }
 
   unsigned wordSzInBytes() const { return m_wordSz; }
   unsigned wordSzInBits() const { return m_wordSz * 8; }
+
+  /// \brief Allocates memory on the stack and returns a pointer to it
+  /// \param align is requested alignment. If 0, default alignment is used
+  PtrTy salloc(unsigned bytes, uint32_t align = 0);
+
+  /// \brief Allocates memory on the stack and returns a pointer to it
+  PtrTy salloc(Expr elmts, unsigned typeSz, uint32_t align = 0);
+
+  /// \brief Returns a pointer value for a given stack allocation
+  PtrTy mkStackPtr(unsigned offset);
+
+  /// \brief Pointer to start of the heap
+  PtrTy brk0Ptr();
+
+  /// \brief Allocates memory on the heap and returns a pointer to it
+  PtrTy halloc(unsigned _bytes, uint32_t align = 0);
+
+  /// \brief Allocates memory on the heap and returns pointer to it
+  PtrTy halloc(Expr bytes, uint32_t align = 0);
+
+  /// \brief Allocates memory in global (data/bss) segment for given global
+  PtrTy galloc(const GlobalVariable &gv, uint32_t align = 0);
+
+  /// \brief Allocates memory in code segment for the code of a given function
+  PtrTy falloc(const Function &fn);
+
+  /// \brief Returns a function pointer value for a given function
+  PtrTy getPtrToFunction(const Function &F);
+
+  /// \brief Returns a pointer to a global variable
+  PtrTy getPtrToGlobalVariable(const GlobalVariable &gv);
 
   /// \brief Creates a non-deterministic pointer that is aligned
   ///
@@ -404,55 +490,6 @@ public:
 
   /// \brief Returns a fresh aligned pointer value
   PtrTy freshPtr();
-
-  /// \brief Allocates memory on the stack and returns a pointer to it
-  /// \param align is requested alignment. If 0, default alignment is used
-  PtrTy salloc(unsigned bytes, uint32_t align = 0);
-
-  /// \brief Returns a pointer value for a given stack allocation
-  PtrTy mkStackPtr(Expr name, AllocInfo &allocInfo);
-
-  /// \brief Allocates memory on the stack and returns a pointer to it
-  /// \param elemts is the number of elements being allocated
-  /// \param tyepSz is the size in bytes of each element
-  /// \param align requested alignment, or 0 for default alignment
-  PtrTy salloc(Expr elemts, unsigned typeSz, unsigned align = 0);
-
-  /// \brief Address at which heap starts (initial value of \c brk)
-  unsigned brk0Addr();
-
-  /// \brief Pointer to start of the heap
-  PtrTy brk0Ptr();
-
-  /// \brief Allocates memory on the heap and returns a pointer to it
-  PtrTy halloc(unsigned _bytes, unsigned align = 0);
-
-  /// \brief Allocates memory on the heap and returns pointer to it
-  PtrTy halloc(Expr bytes, unsigned align = 0);
-
-  /// \brief Allocates memory in global (data/bss) segment for given global
-  PtrTy galloc(const GlobalVariable &gv, unsigned align = 0);
-
-  /// \brief Allocates memory in code segment for the code of a given function
-  PtrTy falloc(const Function &fn);
-
-  /// \brief Returns a function pointer value for a given function
-  PtrTy getPtrToFunction(const Function &F);
-
-  /// \brief Returns an address at which a given function resides
-  unsigned getFunctionAddr(const Function &F);
-
-  /// \brief Returns a pointer to a global variable
-  PtrTy getPtrToGlobalVariable(const GlobalVariable &gv);
-
-  /// \brief Returns an address of a global variable
-  unsigned getGlobalVariableAddr(const GlobalVariable &gv);
-
-  /// \brief Returns initial value of a global variable
-  ///
-  /// Returns (nullptr, 0) if the global variable has no known initializer
-  std::pair<char *, unsigned>
-  getGlobalVariableInitValue(const GlobalVariable &gv);
 
   /// \brief Pointers have word address (high) and byte offset (low); returns
   /// number of bits for byte offset
@@ -565,7 +602,7 @@ public:
   /// \brief Checks if two pointers are equal.
   Expr ptrEq(PtrTy p1, PtrTy p2) const { return mk<EQ>(p1, p2); }
 
-  /// \brief Checks if \p a <= \p b <= \p c.
+  /// \brief Checks if \p a <= b <= c.
   Expr ptrInRangeCheck(PtrTy a, PtrTy b, PtrTy c) {
     return mk<AND>(mk<BULE>(a, b), mk<BULE>(b, c));
   }
@@ -579,11 +616,16 @@ public:
   /// \brief Called when a function is entered for the first time
   void onFunctionEntry(const Function &fn);
 
-  /// \breif Called when a module entered for the first time
+  /// \brief Called when a module entered for the first time
   void onModuleEntry(const Module &M) {}
 
   /// \brief Debug helper
-  void dumpGlobalsMap();
+  void dumpGlobalsMap() { return m_allocator->dumpGlobalsMap(); }
+
+  std::pair<char *, unsigned>
+  getGlobalVariableInitValue(const llvm::GlobalVariable &gv) {
+    return m_allocator->getGlobalVariableInitValue(gv);
+  }
 };
 
 /// \Brief Base class for memory representation

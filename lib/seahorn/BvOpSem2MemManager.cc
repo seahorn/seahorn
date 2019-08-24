@@ -17,11 +17,13 @@ OpSemMemManager::OpSemMemManager(Bv2OpSem &sem, Bv2OpSemContext &ctx,
                                  bool useLambdas)
     : m_sem(sem), m_ctx(ctx), m_efac(ctx.getExprFactory()), m_ptrSz(ptrSz),
       m_wordSz(wordSz), m_alignment(m_wordSz),
-      m_allocaName(mkTerm<std::string>("sea.alloca", m_efac)),
       m_freshPtrName(mkTerm<std::string>("sea.ptr", m_efac)), m_id(0) {
   assert((m_wordSz == 1 || m_wordSz == 4 || m_wordSz == 8) &&
          "Untested word size");
   assert((m_ptrSz == 4) && "Untested pointer size");
+
+  m_allocator = llvm::make_unique<OpSemAllocator>(*this);
+
   m_nullPtr = bv::bvnum(0, ptrSzInBits(), m_efac);
   m_sp0 = bv::bvConst(mkTerm<std::string>("sea.sp0", m_efac), ptrSzInBits());
   m_ctx.declareRegister(m_sp0);
@@ -79,24 +81,17 @@ PtrTy OpSemMemManager::freshPtr() {
 /// \brief Allocates memory on the stack and returns a pointer to it
 /// \param align is requested alignment. If 0, default alignment is used
 PtrTy OpSemMemManager::salloc(unsigned bytes, uint32_t align) {
+  assert(isa<AllocaInst>(m_ctx.getCurrentInst()));
   align = std::max(align, m_alignment);
-  unsigned start = m_allocas.empty() ? 0 : m_allocas.back().m_end;
-  start = llvm::alignTo(start, align);
+  auto region = m_allocator->salloc(bytes, align);
 
-  unsigned end = start + bytes;
-  end = llvm::alignTo(end, align);
-
-  m_allocas.emplace_back(m_allocas.size() + 1, start, end, bytes);
-
-  Expr name = op::variant::variant(m_allocas.back().m_id, m_allocaName);
-
-  return mkStackPtr(name, m_allocas.back());
+  return mkStackPtr(region.second);
 }
 
 /// \brief Returns a pointer value for a given stack allocation
-PtrTy OpSemMemManager::mkStackPtr(Expr name, AllocInfo &allocInfo) {
+PtrTy OpSemMemManager::mkStackPtr(unsigned offset) {
   Expr res = m_ctx.read(m_sp0);
-  res = mk<BSUB>(res, bv::bvnum(allocInfo.m_end, ptrSzInBits(), m_efac));
+  res = mk<BSUB>(res, bv::bvnum(offset, ptrSzInBits(), m_efac));
   return res;
 }
 
@@ -108,18 +103,9 @@ PtrTy OpSemMemManager::salloc(Expr elmts, unsigned typeSz, unsigned align) {
   return freshPtr();
 }
 
-/// \brief Address at which heap starts (initial value of \c brk)
-unsigned OpSemMemManager::brk0Addr() {
-  if (!m_globals.empty())
-    return m_globals.back().m_end;
-  if (!m_funcs.empty())
-    return m_funcs.back().m_end;
-  return TEXT_SEGMENT_START;
-}
-
 /// \brief Pointer to start of the heap
 PtrTy OpSemMemManager::brk0Ptr() {
-  return bv::bvnum(brk0Addr(), ptrSzInBits(), m_efac);
+  return bv::bvnum(m_allocator->brk0Addr(), ptrSzInBits(), m_efac);
 }
 
 /// \brief Allocates memory on the heap and returns a pointer to it
@@ -128,9 +114,10 @@ PtrTy OpSemMemManager::halloc(unsigned _bytes, unsigned align) {
 
   unsigned bytes = llvm::alignTo(_bytes, std::max(align, m_alignment));
 
+  auto stackRange = m_allocator->getStackRange();
   // -- pointer is in the heap: between brk at the beginning and end of stack
-  m_ctx.addSide(
-      mk<BULT>(res, bv::bvnum(MIN_STACK_ADDR - bytes, ptrSzInBits(), m_efac)));
+  m_ctx.addSide(mk<BULT>(
+      res, bv::bvnum(stackRange.first - bytes, ptrSzInBits(), m_efac)));
   m_ctx.addSide(mk<BUGT>(res, brk0Ptr()));
   return res;
 }
@@ -139,9 +126,10 @@ PtrTy OpSemMemManager::halloc(unsigned _bytes, unsigned align) {
 PtrTy OpSemMemManager::halloc(Expr bytes, unsigned align) {
   Expr res = freshPtr();
 
+  auto stackRange = m_allocator->getStackRange();
   // -- pointer is in the heap: between brk at the beginning and end of stack
   m_ctx.addSide(
-      mk<BULT>(res, bv::bvnum(MIN_STACK_ADDR, ptrSzInBits(), m_efac)));
+      mk<BULT>(res, bv::bvnum(stackRange.first, ptrSzInBits(), m_efac)));
   m_ctx.addSide(mk<BUGT>(res, brk0Ptr()));
   // TODO: take size of pointer into account,
   // it cannot be that close to the stack
@@ -151,67 +139,27 @@ PtrTy OpSemMemManager::halloc(Expr bytes, unsigned align) {
 /// \brief Allocates memory in global (data/bss) segment for given global
 PtrTy OpSemMemManager::galloc(const GlobalVariable &gv, unsigned align) {
   uint64_t gvSz = m_sem.getTD().getTypeAllocSize(gv.getValueType());
-
-  unsigned start =
-      !m_globals.empty()
-          ? m_globals.back().m_end
-          : (m_funcs.empty() ? TEXT_SEGMENT_START : m_funcs.back().m_end);
-
-  start = llvm::alignTo(start, std::max(align, m_alignment));
-  unsigned end = llvm::alignTo(start + gvSz, std::max(align, m_alignment));
-  m_globals.emplace_back(gv, start, end, gvSz);
-  m_sem.initMemory(gv.getInitializer(), m_globals.back().getMemory());
-  return bv::bvnum(start, ptrSzInBits(), m_efac);
+  auto range = m_allocator->galloc(gv, gvSz, std::max(align, m_alignment));
+  return bv::bvnum(range.first, ptrSzInBits(), m_efac);
 }
 
 /// \brief Allocates memory in code segment for the code of a given function
 PtrTy OpSemMemManager::falloc(const Function &fn) {
-  assert(m_globals.empty() && "Cannot allocate functions after globals");
-  unsigned start = m_funcs.empty() ? 0x08048000 : m_funcs.back().m_end;
-  unsigned end = llvm::alignTo(start + 4, m_alignment);
-  m_funcs.emplace_back(fn, start, end);
-  return bv::bvnum(start, ptrSzInBits(), m_efac);
+  auto range = m_allocator->falloc(fn, m_alignment);
+  return bv::bvnum(range.first, ptrSzInBits(), m_efac);
 }
 
 /// \brief Returns a function pointer value for a given function
 PtrTy OpSemMemManager::getPtrToFunction(const Function &F) {
-  return bv::bvnum(getFunctionAddr(F), ptrSzInBits(), m_efac);
-}
-
-/// \brief Returns an address at which a given function resides
-unsigned OpSemMemManager::getFunctionAddr(const Function &F) {
-  for (auto &fi : m_funcs)
-    if (fi.m_fn == &F)
-      return fi.m_start;
-  falloc(F);
-  return m_funcs.back().m_start;
+  return bv::bvnum(m_allocator->getFunctionAddr(F, m_alignment), ptrSzInBits(),
+                   m_efac);
 }
 
 /// \brief Returns a pointer to a global variable
 PtrTy OpSemMemManager::getPtrToGlobalVariable(const GlobalVariable &gv) {
-  return bv::bvnum(getGlobalVariableAddr(gv), ptrSzInBits(), m_efac);
-}
-
-/// \brief Returns an address of a global variable
-unsigned OpSemMemManager::getGlobalVariableAddr(const GlobalVariable &gv) {
-  for (auto &gi : m_globals)
-    if (gi.m_gv == &gv)
-      return gi.m_start;
-
-  galloc(gv);
-  return m_globals.back().m_start;
-}
-
-/// \brief Returns initial value of a global variable
-///
-/// Returns (nullptr, 0) if the global variable has no known initializer
-std::pair<char *, unsigned>
-OpSemMemManager::getGlobalVariableInitValue(const GlobalVariable &gv) {
-  for (auto &gi : m_globals) {
-    if (gi.m_gv == &gv)
-      return std::make_pair(gi.m_mem, gi.m_sz);
-  }
-  return std::make_pair(nullptr, 0);
+  uint64_t gvSz = m_sem.getTD().getTypeAllocSize(gv.getValueType());
+  return bv::bvnum(m_allocator->getGlobalVariableAddr(gv, gvSz, m_alignment),
+                   ptrSzInBits(), m_efac);
 }
 
 /// \brief Pointers have word address (high) and byte offset (low); returns
@@ -579,6 +527,7 @@ PtrTy OpSemMemManager::gep(PtrTy ptr, gep_type_iterator it,
   Expr offset = m_sem.symbolicIndexedOffset(it, end, m_ctx);
   return offset ? ptrAdd(ptr, offset) : Expr();
 }
+
 /// \brief Called when a function is entered for the first time
 void OpSemMemManager::onFunctionEntry(const Function &fn) {
   Expr res = m_ctx.read(m_sp0);
@@ -592,32 +541,16 @@ void OpSemMemManager::onFunctionEntry(const Function &fn) {
   m_ctx.addDef(bv::bvnum(0, offsetBits, m_efac),
                bv::extract(offsetBits - 1, 0, res));
 
+  auto stackRange = m_allocator->getStackRange();
+
   // XXX hard coded values
   // 3GB upper limit
   m_ctx.addSide(
-      mk<BULE>(res, bv::bvnum(MAX_STACK_ADDR, ptrSzInBits(), m_efac)));
+      mk<BULE>(res, bv::bvnum(stackRange.second, ptrSzInBits(), m_efac)));
   // 9MB stack
   m_ctx.addSide(
-      mk<BUGE>(res, bv::bvnum(MIN_STACK_ADDR, ptrSzInBits(), m_efac)));
+      mk<BUGE>(res, bv::bvnum(stackRange.first, ptrSzInBits(), m_efac)));
 }
 
-/// \brief Debug helper
-void OpSemMemManager::dumpGlobalsMap() {
-  errs() << "Functions: \n";
-  if (m_funcs.empty())
-    errs() << "NONE\n";
-  for (auto &fi : m_funcs) {
-    errs() << llvm::format_hex(fi.m_start, 16, true) << " @"
-           << fi.m_fn->getName() << "\n";
-  }
-
-  errs() << "Globals: \n";
-  if (m_globals.empty())
-    errs() << "NONE\n";
-  for (auto &gi : m_globals) {
-    errs() << llvm::format_hex(gi.m_start, 16, true) << " @"
-           << gi.m_gv->getName() << "\n";
-  }
-}
 } // namespace details
 } // namespace seahorn

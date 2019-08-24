@@ -70,20 +70,6 @@ OpSemAllocator::OpSemAllocator(OpSemMemManager &mgr)
 
 OpSemAllocator::~OpSemAllocator() = default;
 
-/// \brief Allocates memory on the stack and returns a pointer to it
-/// \param align is requested alignment. If 0, default alignment is used
-AddrInterval OpSemAllocator::salloc(unsigned bytes, uint32_t align) {
-  unsigned start = m_allocas.empty() ? 0 : m_allocas.back().m_end;
-  start = llvm::alignTo(start, align);
-
-  unsigned end = start + bytes;
-  end = llvm::alignTo(end, align);
-
-  m_allocas.emplace_back(m_allocas.size() + 1, start, end, bytes);
-
-  return std::make_pair(m_allocas.back().m_start, m_allocas.back().m_end);
-}
-
 /// \brief Address at which heap starts (initial value of \c brk)
 unsigned OpSemAllocator::brk0Addr() {
   if (!m_globals.empty())
@@ -167,8 +153,31 @@ void OpSemAllocator::dumpGlobalsMap() {
   }
 }
 
-std::unique_ptr<OpSemAllocator> mkOpSemAllocator(OpSemMemManager &mgr) {
-  return llvm::make_unique<OpSemAllocator>(mgr);
+class NormalOpSemAllocator : public OpSemAllocator {
+public:
+  NormalOpSemAllocator(OpSemMemManager &mgr) : OpSemAllocator(mgr) {}
+  ~NormalOpSemAllocator() = default;
+
+  /// \brief Allocates memory on the stack and returns a pointer to it
+  /// \param align is requested alignment. If 0, default alignment is used
+  AddrInterval salloc(unsigned bytes, uint32_t align) override {
+    unsigned start = m_allocas.empty() ? 0 : m_allocas.back().m_end;
+    start = llvm::alignTo(start, align);
+
+    unsigned end = start + bytes;
+    end = llvm::alignTo(end, align);
+
+    m_allocas.emplace_back(m_allocas.size() + 1, start, end, bytes);
+
+    return std::make_pair(m_allocas.back().m_start, m_allocas.back().m_end);
+  }
+};
+
+std::unique_ptr<OpSemAllocator> mkNormalOpSemAllocator(OpSemMemManager &mgr) {
+  return llvm::make_unique<NormalOpSemAllocator>(mgr);
+}
+std::unique_ptr<OpSemAllocator> mkStaticOpSemAllocator(OpSemMemManager &mgr) {
+  return llvm::make_unique<NormalOpSemAllocator>(mgr);
 }
 
 } // namespace details

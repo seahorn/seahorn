@@ -278,7 +278,8 @@ private:
 /// Note that in addition to the parameters passed directly, the allocator has
 /// access to the \p OpSemContext so it can depend on the current instruction
 /// being executed.
-lass OpSemAllocator {
+class OpSemAllocator {
+protected:
   struct AllocInfo;
   struct FuncAllocInfo;
   struct GlobalAllocInfo;
@@ -286,8 +287,8 @@ lass OpSemAllocator {
   OpSemMemManager &m_mgr;
   Bv2OpSemContext &m_ctx;
   Bv2OpSem &m_sem;
-
   ExprFactory &m_efac;
+
   /// \brief All known stack allocations
   std::vector<AllocInfo> m_allocas;
   /// \brief All known code allocations
@@ -302,13 +303,13 @@ lass OpSemAllocator {
 
 public:
   using AddrInterval = std::pair<unsigned, unsigned>;
-  OpSemAllocator(OpSemMemManager & mgr);
+  OpSemAllocator(OpSemMemManager &mgr);
 
-  ~OpSemAllocator();
+  virtual ~OpSemAllocator();
 
   /// \brief Allocates memory on the stack and returns a pointer to it
   /// \param align is requested alignment. If 0, default alignment is used
-  AddrInterval salloc(unsigned bytes, uint32_t align);
+  virtual AddrInterval salloc(unsigned bytes, uint32_t align) = 0;
 
   /// \brief Address at which heap starts (initial value of \c brk)
   unsigned brk0Addr();
@@ -317,35 +318,37 @@ public:
   AddrInterval getStackRange() { return {MIN_STACK_ADDR, MAX_STACK_ADDR}; }
 
   /// \brief Allocates memory on the heap and returns a pointer to it
-  AddrInterval halloc(unsigned _bytes, unsigned align) {
+  virtual AddrInterval halloc(unsigned _bytes, unsigned align) {
     llvm_unreachable("not implemented");
   }
 
   /// \brief Allocates memory in global (data/bss) segment for given global
   /// \param bytes is the expected size of allocation
-  AddrInterval galloc(const GlobalVariable &gv, uint64_t bytes, unsigned align);
+  virtual AddrInterval galloc(const GlobalVariable &gv, uint64_t bytes,
+                              unsigned align);
 
   /// \brief Allocates memory in code segment for the code of a given function
-  AddrInterval falloc(const Function &fn, unsigned align);
+  virtual AddrInterval falloc(const Function &fn, unsigned align);
 
   /// \brief Returns an address at which a given function resides
-  unsigned getFunctionAddr(const Function &F, unsigned align);
+  virtual unsigned getFunctionAddr(const Function &F, unsigned align);
 
   /// \brief Returns an address of a global variable
-  unsigned getGlobalVariableAddr(const GlobalVariable &gv, unsigned bytes,
-                                 unsigned align);
+  virtual unsigned getGlobalVariableAddr(const GlobalVariable &gv,
+                                         unsigned bytes, unsigned align);
 
   /// \brief Returns initial value of a global variable
   ///
-  /// Returns (nullptr, 0) if the global variable has no known initializer
-  std::pair<char *, unsigned> getGlobalVariableInitValue(
-      const GlobalVariable &gv);
+  /// Returns (nullptr, 0) if the global variable has no known initial value
+  virtual std::pair<char *, unsigned>
+  getGlobalVariableInitValue(const GlobalVariable &gv);
 
-  void dumpGlobalsMap();
+  virtual void dumpGlobalsMap();
 };
 
 /// \brief Creates an instance of OpSemAllocator
-std::unique_ptr<OpSemAllocator> mkOpSemAllocator(OpSemMemManager &mgr);
+std::unique_ptr<OpSemAllocator> mkNormalOpSemAllocator(OpSemMemManager &mgr);
+std::unique_ptr<OpSemAllocator> mkStaticOpSemAllocator(OpSemMemManager &mgr);
 
 /// \brief Memory manager for OpSem machine
 class OpSemMemManager {

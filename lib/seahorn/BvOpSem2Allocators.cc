@@ -96,7 +96,7 @@ AddrInterval OpSemAllocator::galloc(const GlobalVariable &gv, uint64_t bytes,
 
 AddrInterval OpSemAllocator::falloc(const Function &fn, unsigned alignment) {
   assert(m_globals.empty() && "Cannot allocate functions after globals");
-  unsigned start = m_funcs.empty() ? 0x08048000 : m_funcs.back().m_end;
+  unsigned start = m_funcs.empty() ? TEXT_SEGMENT_START : m_funcs.back().m_end;
   unsigned end = llvm::alignTo(start + 4, alignment);
   m_funcs.emplace_back(fn, start, end);
   return std::make_pair(start, end);

@@ -269,8 +269,16 @@ private:
   }
 };
 
-/// \brief OpSemAllocator places pointers in virtual memory space
-class OpSemAllocator {
+/// \brief  Lays out / allocates pointers in a virtual memory space
+///
+/// The class is responsible for laying out allocated object in memory.
+/// The exact semantics are yet to be determined. Currently, it is assumed
+/// that the layout respects stack / heap / text area separation.
+///
+/// Note that in addition to the parameters passed directly, the allocator has
+/// access to the \p OpSemContext so it can depend on the current instruction
+/// being executed.
+lass OpSemAllocator {
   struct AllocInfo;
   struct FuncAllocInfo;
   struct GlobalAllocInfo;
@@ -294,7 +302,7 @@ class OpSemAllocator {
 
 public:
   using AddrInterval = std::pair<unsigned, unsigned>;
-  OpSemAllocator(OpSemMemManager &mgr);
+  OpSemAllocator(OpSemMemManager & mgr);
 
   ~OpSemAllocator();
 
@@ -330,8 +338,8 @@ public:
   /// \brief Returns initial value of a global variable
   ///
   /// Returns (nullptr, 0) if the global variable has no known initializer
-  std::pair<char *, unsigned>
-  getGlobalVariableInitValue(const GlobalVariable &gv);
+  std::pair<char *, unsigned> getGlobalVariableInitValue(
+      const GlobalVariable &gv);
 
   void dumpGlobalsMap();
 };

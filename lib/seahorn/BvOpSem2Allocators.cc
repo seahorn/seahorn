@@ -22,9 +22,12 @@ struct OpSemAllocator::AllocInfo {
   unsigned m_end;
   /// \brief Size of the allocation
   unsigned m_sz;
+  /// \brief Instruction that caused the allocation
+  const AllocaInst *m_inst;
 
-  AllocInfo(unsigned id, unsigned start, unsigned end, unsigned sz)
-      : m_id(id), m_start(start), m_end(end), m_sz(sz) {}
+  AllocInfo(unsigned id, unsigned start, unsigned end, unsigned sz,
+            const AllocaInst *inst = nullptr)
+      : m_id(id), m_start(start), m_end(end), m_sz(sz), m_inst(inst) {}
 };
 
 /// \brief Allocation information for functions whose address is taken
@@ -167,7 +170,8 @@ public:
     unsigned end = start + bytes;
     end = llvm::alignTo(end, align);
 
-    m_allocas.emplace_back(m_allocas.size() + 1, start, end, bytes);
+    const AllocaInst *alloca = dyn_cast<AllocaInst>(&m_ctx.getCurrentInst());
+    m_allocas.emplace_back(m_allocas.size() + 1, start, end, bytes, alloca);
 
     return std::make_pair(m_allocas.back().m_start, m_allocas.back().m_end);
   }

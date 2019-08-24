@@ -271,57 +271,9 @@ private:
 
 /// \brief OpSemAllocator places pointers in virtual memory space
 class OpSemAllocator {
-  /// \brief Allocation information
-  struct AllocInfo {
-    /// \brief numeric ID
-    unsigned m_id;
-    /// \brief Start address of the allocation
-    unsigned m_start;
-    /// \brief End address of the allocation
-    unsigned m_end;
-    /// \brief Size of the allocation
-    unsigned m_sz;
-
-    AllocInfo(unsigned id, unsigned start, unsigned end, unsigned sz)
-        : m_id(id), m_start(start), m_end(end), m_sz(sz) {}
-  };
-
-  /// \brief Allocation information for functions whose address is taken
-  struct FuncAllocInfo {
-    /// \brief Pointer to llvm::Function descriptor of the function
-    const Function *m_fn;
-    /// \brief Start address of the allocation
-    unsigned m_start;
-    /// \brief End address of the allocation
-    unsigned m_end;
-
-    FuncAllocInfo(const Function &fn, unsigned start, unsigned end)
-        : m_fn(&fn), m_start(start), m_end(end) {}
-  };
-
-  /// \brief Allocation information for a global variable
-  struct GlobalAllocInfo {
-    /// \brief Pointer to llvm::GlobalVariable descriptor
-    const GlobalVariable *m_gv;
-    /// \brief Start of allocation
-    unsigned m_start;
-    /// \brief End of allocation
-    unsigned m_end;
-    /// \brief Size of allocation
-    unsigned m_sz;
-
-    /// \brief Uninitialized memory for the value of the global on the host
-    /// machine
-    char *m_mem;
-    GlobalAllocInfo(const GlobalVariable &gv, unsigned start, unsigned end,
-                    unsigned sz)
-        : m_gv(&gv), m_start(start), m_end(end), m_sz(sz) {
-
-      m_mem = static_cast<char *>(::operator new(sz));
-    }
-
-    char *getMemory() { return m_mem; }
-  };
+  struct AllocInfo;
+  struct FuncAllocInfo;
+  struct GlobalAllocInfo;
 
   OpSemMemManager &m_mgr;
   Bv2OpSemContext &m_ctx;
@@ -344,6 +296,8 @@ public:
   using AddrInterval = std::pair<unsigned, unsigned>;
   OpSemAllocator(OpSemMemManager &mgr);
 
+  ~OpSemAllocator();
+
   /// \brief Allocates memory on the stack and returns a pointer to it
   /// \param align is requested alignment. If 0, default alignment is used
   AddrInterval salloc(unsigned bytes, uint32_t align);
@@ -352,9 +306,7 @@ public:
   unsigned brk0Addr();
 
   /// \brief Return the maximal legal range of the stack pointer
-  AddrInterval getStackRange() {
-    return { MIN_STACK_ADDR, MAX_STACK_ADDR };
-  }
+  AddrInterval getStackRange() { return {MIN_STACK_ADDR, MAX_STACK_ADDR}; }
 
   /// \brief Allocates memory on the heap and returns a pointer to it
   AddrInterval halloc(unsigned _bytes, unsigned align) {
@@ -383,6 +335,9 @@ public:
 
   void dumpGlobalsMap();
 };
+
+/// \brief Creates an instance of OpSemAllocator
+std::unique_ptr<OpSemAllocator> mkOpSemAllocator(OpSemMemManager &mgr);
 
 /// \brief Memory manager for OpSem machine
 class OpSemMemManager {
@@ -425,6 +380,8 @@ class OpSemMemManager {
 public:
   OpSemMemManager(Bv2OpSem &sem, Bv2OpSemContext &ctx, unsigned ptrSz,
                   unsigned wordSz, bool useLambdas = false);
+
+  ~OpSemMemManager() = default;
 
   /// Right now everything is an expression. In the future, we might have other
   /// types for PtrTy, such as a tuple of expressions

@@ -12,9 +12,63 @@ namespace details {
 
 using AddrInterval = OpSemAllocator::AddrInterval;
 
+/// \brief Allocation information
+struct OpSemAllocator::AllocInfo {
+  /// \brief numeric ID
+  unsigned m_id;
+  /// \brief Start address of the allocation
+  unsigned m_start;
+  /// \brief End address of the allocation
+  unsigned m_end;
+  /// \brief Size of the allocation
+  unsigned m_sz;
+
+  AllocInfo(unsigned id, unsigned start, unsigned end, unsigned sz)
+      : m_id(id), m_start(start), m_end(end), m_sz(sz) {}
+};
+
+/// \brief Allocation information for functions whose address is taken
+struct OpSemAllocator::FuncAllocInfo {
+  /// \brief Pointer to llvm::Function descriptor of the function
+  const Function *m_fn;
+  /// \brief Start address of the allocation
+  unsigned m_start;
+  /// \brief End address of the allocation
+  unsigned m_end;
+
+  FuncAllocInfo(const Function &fn, unsigned start, unsigned end)
+      : m_fn(&fn), m_start(start), m_end(end) {}
+};
+
+/// \brief Allocation information for a global variable
+struct OpSemAllocator::GlobalAllocInfo {
+  /// \brief Pointer to llvm::GlobalVariable descriptor
+  const GlobalVariable *m_gv;
+  /// \brief Start of allocation
+  unsigned m_start;
+  /// \brief End of allocation
+  unsigned m_end;
+  /// \brief Size of allocation
+  unsigned m_sz;
+
+  /// \brief Uninitialized memory for the value of the global on the host
+  /// machine
+  char *m_mem;
+  GlobalAllocInfo(const GlobalVariable &gv, unsigned start, unsigned end,
+                  unsigned sz)
+      : m_gv(&gv), m_start(start), m_end(end), m_sz(sz) {
+
+    m_mem = static_cast<char *>(::operator new(sz));
+  }
+
+  char *getMemory() { return m_mem; }
+};
+
 OpSemAllocator::OpSemAllocator(OpSemMemManager &mgr)
     : m_mgr(mgr), m_ctx(mgr.ctx()), m_sem(mgr.sem()),
       m_efac(m_ctx.getExprFactory()) {}
+
+OpSemAllocator::~OpSemAllocator() = default;
 
 /// \brief Allocates memory on the stack and returns a pointer to it
 /// \param align is requested alignment. If 0, default alignment is used
@@ -111,6 +165,10 @@ void OpSemAllocator::dumpGlobalsMap() {
     errs() << llvm::format_hex(gi.m_start, 16, true) << " @"
            << gi.m_gv->getName() << "\n";
   }
+}
+
+std::unique_ptr<OpSemAllocator> mkOpSemAllocator(OpSemMemManager &mgr) {
+  return llvm::make_unique<OpSemAllocator>(mgr);
 }
 
 } // namespace details

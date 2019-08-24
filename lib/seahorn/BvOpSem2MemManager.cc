@@ -22,7 +22,7 @@ OpSemMemManager::OpSemMemManager(Bv2OpSem &sem, Bv2OpSemContext &ctx,
          "Untested word size");
   assert((m_ptrSz == 4) && "Untested pointer size");
 
-  m_allocator = llvm::make_unique<OpSemAllocator>(*this);
+  m_allocator = mkOpSemAllocator(*this);
 
   m_nullPtr = bv::bvnum(0, ptrSzInBits(), m_efac);
   m_sp0 = bv::bvConst(mkTerm<std::string>("sea.sp0", m_efac), ptrSzInBits());

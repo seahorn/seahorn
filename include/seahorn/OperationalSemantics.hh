@@ -28,15 +28,32 @@ using OpSemContextPtr = std::unique_ptr<OpSemContext>;
 class OpSemContext {
 private:
   /// \brief A map from symbolic registers to symbolic values
-  /// XXX The context keeps a reference to the store. The store itself lives outside of the context
-  /// XXX This is a temporary measure to keep new and old implementations together
+  /// XXX The context keeps a reference to the store. The store itself lives
+  /// outside of the context
+  /// XXX This is a temporary measure to keep new and old implementations
+  /// together
   SymStore &m_values;
 
   /// \brief Side-condition to keep extra constraints (e.g., path condition)
   /// XXX The context keeps a reference to the side condition.
   /// XXX The side condition itself lives outside of the context.
-  /// XXX This is a temporary measure to keep new and old implementations together
+  /// XXX This is a temporary measure to keep new and old implementations
+  /// together
   ExprVector &m_side;
+
+  /// \brief Constraints that are assumed to be true of the program
+  ///
+  /// Rely constraints reduce the executions considered. A counterexample that
+  /// does not satisfy a rely condition might still be consistent with concrete
+  /// operational semantics.
+  ExprVector m_rely;
+
+  /// \brief Constraints that are guaranteed to be true by the program
+  ///
+  /// If any of the constraints in a guarantee is false on an execution \p p,
+  /// then \p p is illegal execution that violates some guarantees of the
+  /// concrete operational semantics.
+  ExprVector m_guarantee;
 
   /// \brief Path condition for the current basic block
   ///
@@ -68,7 +85,8 @@ public:
   }
   /// \brief Copy constructor with optionally new \p values and \p side
   OpSemContext(SymStore &values, ExprVector &side, const OpSemContext &o)
-      : m_values(o.m_values), m_side(o.m_side), m_pathCond(o.m_pathCond),
+      : m_values(o.m_values), m_side(o.m_side), m_rely(o.m_rely),
+        m_guarantee(o.m_guarantee), m_pathCond(o.m_pathCond),
         m_trueE(o.m_trueE), m_falseE(o.m_falseE) {}
   OpSemContext(const OpSemContext &) = delete;
   virtual ~OpSemContext() = default;
@@ -83,7 +101,7 @@ public:
   void write(Expr v, Expr u) { m_values.write(v, u); }
 
   /// \brief sets path condition for the current basic block
-  OpSemContext &pc(Expr v){
+  OpSemContext &pc(Expr v) {
     setPathCond(v);
     return *this;
   }
@@ -91,13 +109,26 @@ public:
   Expr getPathCond() const { return m_pathCond; }
   ExprVector &side() { return m_side; }
   /// \brief Asserts that \p v must be true under current path condition
-  void addSideSafe(Expr v) { m_side.push_back(boolop::limp(m_pathCond, v)); }
+  void addScopedSide(Expr v) { m_side.push_back(boolop::limp(m_pathCond, v)); }
   /// \brief Asserts that \p v must be true unconditionally
   void addSide(Expr v) { m_side.push_back(v); }
   /// \brief Asserts that \p v = \p u
   void addDef(Expr v, Expr u) { addSide(mk<EQ>(v, u)); }
   /// \brief Asserts that \p v = \p u under current path condition
-  void addDefSafe(Expr v, Expr u) { addSideSafe(mk<EQ>(v, u)); }
+  void addScopedDef(Expr v, Expr u) { addScopedSide(mk<EQ>(v, u)); }
+  /// \brief Adds a rely constraint
+  void addRely(Expr v) {
+    m_rely.push_back(v);
+    // XXX: for now treat rely like a true assertion of the program
+    addSide(v);
+  }
+  /// \brief Adds a rely constraint under current path condition
+  void addScopedRely(Expr v) { addRely(boolop::limp(m_pathCond, v)); }
+  /// \brief Adds a guarantee
+  void addGuarantee(Expr v) { m_guarantee.push_back(v); }
+  /// \brief Adds a guarantee under current path condition
+  void addScopedGuarantee(Expr v) { addGuarantee(boolop::limp(m_pathCond, v)); }
+
   /// \brief Removes all assertions from the current side-condition
   void resetSide() { m_side.clear(); }
 
@@ -197,8 +228,10 @@ public:
 
   /// \brief Returns a symbolic register corresponding to llvm::Value \p v
   ///
-  /// Returns null expression if the value has no corresponding symbolic register
-  virtual Expr getSymbReg(const llvm::Value &v, const OpSemContext &ctx) const = 0;
+  /// Returns null expression if the value has no corresponding symbolic
+  /// register
+  virtual Expr getSymbReg(const llvm::Value &v,
+                          const OpSemContext &ctx) const = 0;
 
   /// \brief Returns an llvm::Value corresponding to a symbolic
   /// register
@@ -234,7 +267,6 @@ public:
   /// \brief Returns true if \p v is a symbolic register known to this
   /// OpSem object
   virtual bool isSymReg(Expr v) { return v == m_errorFlag; }
-
 };
 
 } // namespace seahorn

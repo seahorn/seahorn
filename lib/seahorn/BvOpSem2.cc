@@ -536,7 +536,7 @@ public:
       op = boolop::lneg(op);
 
     if (!isOpX<TRUE>(op)) {
-      m_ctx.addSideSafe(boolop::lor(
+      m_ctx.addScopedSide(boolop::lor(
           m_ctx.read(m_sem.errorFlag(*(CS.getInstruction()->getParent()))),
           op));
     }
@@ -2068,18 +2068,18 @@ void Bv2OpSem::intraBr(details::Bv2OpSemContext &C, const BasicBlock &dst) {
       if (gv->IntVal.isOneValue() && br->getSuccessor(0) != &dst ||
           gv->IntVal.isNullValue() && br->getSuccessor(1) != &dst) {
         C.resetSide();
-        C.addSideSafe(C.read(errorFlag(*C.getCurrBb())));
+        C.addScopedSide(C.read(errorFlag(*C.getCurrBb())));
       }
     } else if (Expr target = getOperandValue(c, C)) {
       Expr cond = br->getSuccessor(0) == &dst ? target : mk<NEG>(target);
       cond = boolop::lor(C.read(errorFlag(*C.getCurrBb())), cond);
-      C.addSideSafe(cond);
+      C.addScopedSide(cond);
       C.onBasicBlockEntry(dst);
     }
   } else {
     if (br->getSuccessor(0) != &dst) {
       C.resetSide();
-      C.addSideSafe(C.read(errorFlag(*C.getCurrBb())));
+      C.addScopedSide(C.read(errorFlag(*C.getCurrBb())));
     } else {
       C.onBasicBlockEntry(dst);
     }

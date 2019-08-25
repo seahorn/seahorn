@@ -311,8 +311,17 @@ public:
   /// \param align is requested alignment. If 0, default alignment is used
   virtual AddrInterval salloc(unsigned bytes, uint32_t align) = 0;
 
+  /// \brief Allocates memory on the stack
+  ///
+  /// \param bytes is a symbolic representation for number of bytes to allocate
+  virtual AddrInterval salloc(Expr bytes, uint32_t align) = 0;
+
   /// \brief Address at which heap starts (initial value of \c brk)
   unsigned brk0Addr();
+
+  bool isBadAddrInterval(AddrInterval range) {
+    return range == AddrInterval(0, 0);
+  }
 
   /// \brief Return the maximal legal range of the stack pointer
   AddrInterval getStackRange() { return {MIN_STACK_ADDR, MAX_STACK_ADDR}; }
@@ -601,7 +610,7 @@ public:
     return m_allocator->getGlobalVariableInitValue(gv);
   }
 
-  uint32_t getAlignment(const llvm::Value &v) const {return m_alignment;}
+  uint32_t getAlignment(const llvm::Value &v) const { return m_alignment; }
 };
 
 /// \Brief Base class for memory representation

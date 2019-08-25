@@ -1,6 +1,8 @@
 #include "BvOpSem2Context.hh"
 
 #include "llvm/IR/GetElementPtrTypeIterator.h"
+#include "llvm/IR/InstIterator.h"
+#include "llvm/IR/Instructions.h"
 #include "llvm/Support/Format.h"
 
 #include "seahorn/Support/SeaDebug.h"
@@ -24,10 +26,13 @@ struct OpSemAllocator::AllocInfo {
   unsigned m_sz;
   /// \brief Instruction that caused the allocation
   const AllocaInst *m_inst;
+  /// \brief True if this is a fixed size allocation
+  bool m_fixed;
 
   AllocInfo(unsigned id, unsigned start, unsigned end, unsigned sz,
-            const AllocaInst *inst = nullptr)
-      : m_id(id), m_start(start), m_end(end), m_sz(sz), m_inst(inst) {}
+            const AllocaInst *inst = nullptr, bool fixed = true)
+      : m_id(id), m_start(start), m_end(end), m_sz(sz), m_inst(inst),
+        m_fixed(fixed) {}
 };
 
 /// \brief Allocation information for functions whose address is taken
@@ -171,9 +176,15 @@ public:
     end = llvm::alignTo(end, align);
 
     const AllocaInst *alloca = dyn_cast<AllocaInst>(&m_ctx.getCurrentInst());
-    m_allocas.emplace_back(m_allocas.size() + 1, start, end, bytes, alloca);
+    m_allocas.emplace_back(m_allocas.size() + 1, start, end, bytes, alloca,
+                           true);
 
     return std::make_pair(m_allocas.back().m_start, m_allocas.back().m_end);
+  }
+
+  AddrInterval salloc(Expr bytes, uint32_t align) override {
+    /* not supported yet */
+    llvm_unreachable(nullptr);
   }
 };
 
@@ -232,26 +243,71 @@ public:
   }
 
   void onFunctionEntry(const Function &fn) override {
-    // TODO: pre-allocate all AllocaInst in fn
 
-    // TODO: deal with other types of allocations as well
+    for (auto &inst : instructions(fn)) {
+      if (auto *alloca = dyn_cast<AllocaInst>(&inst)) {
+        preAlloc(*alloca);
+      }
+    }
   }
 
-  /// \brief Allocates memory on the stack and returns a pointer to it
-  /// \param align is requested alignment. If 0, default alignment is used
-  AddrInterval salloc(unsigned bytes, uint32_t align) override {
-    // TODO: use statically allocated regions based on onFunctionEntry()
+  /// \brief Pre-allocate memory for alloca
+  void preAlloc(const AllocaInst &inst) {
+    Type *ty = inst.getType()->getElementType();
+    unsigned typeSz = (size_t)m_sem.getTD().getTypeAllocSize(ty);
 
+    if (const Constant *cv = dyn_cast<const Constant>(inst.getOperand(0))) {
+      auto ogv = m_sem.getConstantValue(cv);
+      if (!ogv.hasValue()) {
+        llvm_unreachable(nullptr);
+      }
+      unsigned nElts = ogv.getValue().IntVal.getZExtValue();
+      unsigned memSz = typeSz * nElts;
+      preAlloc(inst, memSz, true);
+    } else {
+      // -- allocate 4K for dynamically sized allocations
+      preAlloc(inst, 4 * 1024, false);
+    }
+  }
+
+  void preAlloc(const AllocaInst &inst, unsigned bytes,
+                bool isFixedSize = false) {
     unsigned start = m_allocas.empty() ? 0 : m_allocas.back().m_end;
+    uint32_t align = m_mem.getAlignment(inst);
     start = llvm::alignTo(start, align);
 
     unsigned end = start + bytes;
     end = llvm::alignTo(end, align);
 
-    const AllocaInst *alloca = dyn_cast<AllocaInst>(&m_ctx.getCurrentInst());
-    m_allocas.emplace_back(m_allocas.size() + 1, start, end, bytes, alloca);
+    m_allocas.emplace_back(m_allocas.size() + 1, start, end, bytes, &inst,
+                           isFixedSize);
+  }
 
-    return std::make_pair(m_allocas.back().m_start, m_allocas.back().m_end);
+  AddrInterval salloc(unsigned bytes, uint32_t align) override {
+    if (auto *alloca = dyn_cast<llvm::AllocaInst>(&m_ctx.getCurrentInst())) {
+      for (auto &ai : m_allocas) {
+        if (ai.m_inst == alloca)
+          return {ai.m_start, ai.m_end};
+      }
+    }
+    return {0, 0};
+  }
+
+  AddrInterval salloc(Expr bytes, uint32_t align = 0) override {
+    if (auto *alloca = dyn_cast<llvm::AllocaInst>(&m_ctx.getCurrentInst())) {
+      for (auto &ai : m_allocas) {
+        if (ai.m_inst == alloca) {
+          Expr inRange;
+          // TODO: figure proper bit-width
+          inRange = mk<BULE>(bytes, bv::bvnum(4 * 1024, 32, bytes->efac()));
+          LOG("opsem", errs() << "Adding range condition: " << *inRange
+                              << "\n";);
+          m_ctx.addScopedRely(inRange);
+          return {ai.m_start, ai.m_end};
+        }
+      }
+    }
+    return {0, 0};
   }
 };
 std::unique_ptr<OpSemAllocator> mkNormalOpSemAllocator(OpSemMemManager &mem) {

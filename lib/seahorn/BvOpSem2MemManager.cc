@@ -9,6 +9,21 @@
 
 namespace seahorn {
 namespace details {
+enum MemAllocatorKind { NORMAL_ALLOCATOR, STATIC_ALLOCATOR };
+}
+}
+
+static llvm::cl::opt<enum seahorn::details::MemAllocatorKind> MemAllocatorOpt(
+    "sea-opsem-allocator", llvm::cl::desc("A choice for memory allocator"),
+    llvm::cl::values(
+        clEnumValN(seahorn::details::MemAllocatorKind::NORMAL_ALLOCATOR,
+                   "normal", "Regular allocator"),
+        clEnumValN(seahorn::details::MemAllocatorKind::STATIC_ALLOCATOR,
+                   "static", "Static pre-allocation")),
+    llvm::cl::init(seahorn::details::MemAllocatorKind::NORMAL_ALLOCATOR));
+
+namespace seahorn {
+namespace details {
 
 using PtrTy = OpSemMemManager::PtrTy;
 
@@ -22,7 +37,11 @@ OpSemMemManager::OpSemMemManager(Bv2OpSem &sem, Bv2OpSemContext &ctx,
          "Untested word size");
   assert((m_ptrSz == 4) && "Untested pointer size");
 
-  m_allocator = mkNormalOpSemAllocator(*this);
+  if (MemAllocatorOpt == MemAllocatorKind::NORMAL_ALLOCATOR)
+    m_allocator = mkNormalOpSemAllocator(*this);
+  else if (MemAllocatorOpt == MemAllocatorKind::STATIC_ALLOCATOR)
+    m_allocator = mkStaticOpSemAllocator(*this);
+  assert(m_allocator);
 
   m_nullPtr = bv::bvnum(0, ptrSzInBits(), m_efac);
   m_sp0 = bv::bvConst(mkTerm<std::string>("sea.sp0", m_efac), ptrSzInBits());
@@ -97,10 +116,28 @@ PtrTy OpSemMemManager::mkStackPtr(unsigned offset) {
 
 /// \brief Allocates memory on the stack and returns a pointer to it
 PtrTy OpSemMemManager::salloc(Expr elmts, unsigned typeSz, unsigned align) {
-  LOG("opsem", WARN << "imprecise handling of dynamically "
-                    << "sized stack allocation of " << *elmts
-                    << " elements of size " << typeSz << " bytes\n";);
-  return freshPtr();
+  align = std::max(align, m_alignment);
+
+  // -- compute number of bytes needed
+  Expr bytes = elmts;
+  if (typeSz > 1) {
+    // TODO: factor out multiplication and number creation
+    bytes = mk<BMUL>(bytes, bv::bvnum(typeSz, 32, m_efac));
+  }
+
+  // allocate
+  auto region = m_allocator->salloc(bytes, align);
+
+  // -- if allocation failed, return some pointer
+  if (m_allocator->isBadAddrInterval(region)) {
+    LOG("opsem", WARN << "imprecise handling of dynamically "
+                      << "sized stack allocation of " << *elmts
+                      << " elements of size" << typeSz << " bytes\n";);
+    return freshPtr();
+  }
+
+  // -- have a good region, return pointer to it
+  return mkStackPtr(region.second);
 }
 
 /// \brief Pointer to start of the heap

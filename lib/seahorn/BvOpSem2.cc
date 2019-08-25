@@ -397,9 +397,8 @@ public:
       addr = m_ctx.mem().salloc(memSz);
     } else {
       Expr nElts = lookup(*I.getOperand(0));
-      LOG("opsem", errs() << "!4 Alloca of " << nElts << "*" << typeSz
-                          << " bytes: " << I << "\n";);
-      WARN << "alloca of symbolic size is treated as non-deterministic";
+      LOG("opsem", errs() << "!4 Alloca of (" << *nElts << " * " << typeSz
+                          << ") bytes: " << I << "\n";);
       addr = m_ctx.mem().salloc(nElts, typeSz);
     }
 
@@ -2031,7 +2030,7 @@ bool Bv2OpSem::intraStep(details::Bv2OpSemContext &C) {
   } else {
     // -- execute instruction
     details::OpSemVisitor v(C, *this);
-    errs() << "Executing: " << inst << "\n";
+    LOG("opsem.verbose", errs() << "Executing: " << inst << "\n";);
     v.visit(const_cast<Instruction &>(inst));
   }
 

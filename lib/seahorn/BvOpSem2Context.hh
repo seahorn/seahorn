@@ -317,6 +317,12 @@ public:
   /// \brief Return the maximal legal range of the stack pointer
   AddrInterval getStackRange() { return {MIN_STACK_ADDR, MAX_STACK_ADDR}; }
 
+  /// \brief Called whenever a new module is to be executed
+  virtual void onModuleEntry(const Module &M) {}
+
+  /// \brief Called whenever a new function is to be executed
+  virtual void onFunctionEntry(const Function &fn) {}
+
   /// \brief Allocates memory on the heap and returns a pointer to it
   virtual AddrInterval halloc(unsigned _bytes, unsigned align) {
     llvm_unreachable("not implemented");
@@ -585,7 +591,7 @@ public:
   void onFunctionEntry(const Function &fn);
 
   /// \brief Called when a module entered for the first time
-  void onModuleEntry(const Module &M) {}
+  void onModuleEntry(const Module &M); 
 
   /// \brief Debug helper
   void dumpGlobalsMap() { return m_allocator->dumpGlobalsMap(); }

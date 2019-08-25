@@ -528,8 +528,14 @@ PtrTy OpSemMemManager::gep(PtrTy ptr, gep_type_iterator it,
   return offset ? ptrAdd(ptr, offset) : Expr();
 }
 
+void OpSemMemManager::onModuleEntry(const Module &M) {
+  return m_allocator->onModuleEntry(M);
+}
+
 /// \brief Called when a function is entered for the first time
 void OpSemMemManager::onFunctionEntry(const Function &fn) {
+  m_allocator->onFunctionEntry(fn);
+
   Expr res = m_ctx.read(m_sp0);
 
   // align of semantic_word_size, or 4 if it's less than 4

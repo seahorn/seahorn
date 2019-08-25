@@ -177,11 +177,50 @@ public:
   }
 };
 
+/// \brief Allocator that statically pre-allocates memory regions
+///
+/// A fixed number (typically 1) memory region is allocated for each
+/// allocation instruction in the program under analysis.
+/// Dynamically sized allocations are under-approximated.
+///
+/// This allocator under-approximates concrete behavior that might cause
+/// unsoundness depending on the use / expectations. Use with caution
+class StaticOpSemAllocator : public OpSemAllocator {
+public:
+  StaticOpSemAllocator(OpSemMemManager &mgr) : OpSemAllocator(mgr) {}
+
+  void onModuleEntry(const Module &M) override {
+    // TODO: pre-allocate all globals of M
+  }
+  void onFunctionEntry(const Function &fn) override {
+    // TODO: pre-allocate all AllocaInst in fn
+
+    // TODO: deal with other types of allocations as well
+  }
+
+  /// \brief Allocates memory on the stack and returns a pointer to it
+  /// \param align is requested alignment. If 0, default alignment is used
+  AddrInterval salloc(unsigned bytes, uint32_t align) override {
+    // TODO: use statically allocated regions based on onFunctionEntry()
+
+    unsigned start = m_allocas.empty() ? 0 : m_allocas.back().m_end;
+    start = llvm::alignTo(start, align);
+
+    unsigned end = start + bytes;
+    end = llvm::alignTo(end, align);
+
+    const AllocaInst *alloca = dyn_cast<AllocaInst>(&m_ctx.getCurrentInst());
+    m_allocas.emplace_back(m_allocas.size() + 1, start, end, bytes, alloca);
+
+    return std::make_pair(m_allocas.back().m_start, m_allocas.back().m_end);
+  }
+
+};
 std::unique_ptr<OpSemAllocator> mkNormalOpSemAllocator(OpSemMemManager &mgr) {
   return llvm::make_unique<NormalOpSemAllocator>(mgr);
 }
 std::unique_ptr<OpSemAllocator> mkStaticOpSemAllocator(OpSemMemManager &mgr) {
-  return llvm::make_unique<NormalOpSemAllocator>(mgr);
+  return llvm::make_unique<StaticOpSemAllocator>(mgr);
 }
 
 } // namespace details

@@ -284,7 +284,7 @@ protected:
   struct FuncAllocInfo;
   struct GlobalAllocInfo;
 
-  OpSemMemManager &m_mgr;
+  OpSemMemManager &m_mem;
   Bv2OpSemContext &m_ctx;
   Bv2OpSem &m_sem;
   ExprFactory &m_efac;
@@ -303,7 +303,7 @@ protected:
 
 public:
   using AddrInterval = std::pair<unsigned, unsigned>;
-  OpSemAllocator(OpSemMemManager &mgr);
+  OpSemAllocator(OpSemMemManager &mem);
 
   virtual ~OpSemAllocator();
 
@@ -353,8 +353,8 @@ public:
 };
 
 /// \brief Creates an instance of OpSemAllocator
-std::unique_ptr<OpSemAllocator> mkNormalOpSemAllocator(OpSemMemManager &mgr);
-std::unique_ptr<OpSemAllocator> mkStaticOpSemAllocator(OpSemMemManager &mgr);
+std::unique_ptr<OpSemAllocator> mkNormalOpSemAllocator(OpSemMemManager &mem);
+std::unique_ptr<OpSemAllocator> mkStaticOpSemAllocator(OpSemMemManager &mem);
 
 /// \brief Memory manager for OpSem machine
 class OpSemMemManager {
@@ -591,7 +591,7 @@ public:
   void onFunctionEntry(const Function &fn);
 
   /// \brief Called when a module entered for the first time
-  void onModuleEntry(const Module &M); 
+  void onModuleEntry(const Module &M);
 
   /// \brief Debug helper
   void dumpGlobalsMap() { return m_allocator->dumpGlobalsMap(); }
@@ -600,6 +600,8 @@ public:
   getGlobalVariableInitValue(const llvm::GlobalVariable &gv) {
     return m_allocator->getGlobalVariableInitValue(gv);
   }
+
+  uint32_t getAlignment(const llvm::Value &v) const {return m_alignment;}
 };
 
 /// \Brief Base class for memory representation

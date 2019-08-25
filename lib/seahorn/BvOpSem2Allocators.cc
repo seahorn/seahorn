@@ -67,8 +67,8 @@ struct OpSemAllocator::GlobalAllocInfo {
   char *getMemory() { return m_mem; }
 };
 
-OpSemAllocator::OpSemAllocator(OpSemMemManager &mgr)
-    : m_mgr(mgr), m_ctx(mgr.ctx()), m_sem(mgr.sem()),
+OpSemAllocator::OpSemAllocator(OpSemMemManager &mem)
+    : m_mem(mem), m_ctx(mem.ctx()), m_sem(mem.sem()),
       m_efac(m_ctx.getExprFactory()) {}
 
 OpSemAllocator::~OpSemAllocator() = default;
@@ -158,7 +158,7 @@ void OpSemAllocator::dumpGlobalsMap() {
 
 class NormalOpSemAllocator : public OpSemAllocator {
 public:
-  NormalOpSemAllocator(OpSemMemManager &mgr) : OpSemAllocator(mgr) {}
+  NormalOpSemAllocator(OpSemMemManager &mem) : OpSemAllocator(mem) {}
   ~NormalOpSemAllocator() = default;
 
   /// \brief Allocates memory on the stack and returns a pointer to it
@@ -187,11 +187,50 @@ public:
 /// unsoundness depending on the use / expectations. Use with caution
 class StaticOpSemAllocator : public OpSemAllocator {
 public:
-  StaticOpSemAllocator(OpSemMemManager &mgr) : OpSemAllocator(mgr) {}
+  StaticOpSemAllocator(OpSemMemManager &mem) : OpSemAllocator(mem) {}
 
   void onModuleEntry(const Module &M) override {
     // TODO: pre-allocate all globals of M
+
+    for (const Function &fn : M.functions()) {
+      if (fn.hasAddressTaken()) {
+        // XXX hard-coded. should be based on use
+        // XXX some functions have their address taken for llvm.used
+        if (fn.getName().equals("verifier.error") ||
+            fn.getName().startswith("verifier.assume") ||
+            fn.getName().equals("seahorn.fail") ||
+            fn.getName().startswith("shadow.mem"))
+          continue;
+        OpSemAllocator::falloc(fn, m_mem.getAlignment(fn));
+      }
+    }
+
+    for (const GlobalVariable &gv : M.globals()) {
+      if (m_sem.isSkipped(gv))
+        continue;
+      if (gv.getSection().equals("llvm.metadata")) {
+        continue;
+      }
+      uint64_t bytes = m_sem.getTD().getTypeAllocSize(gv.getValueType());
+      OpSemAllocator::galloc(gv, bytes, m_mem.getAlignment(gv));
+    }
   }
+
+  AddrInterval galloc(const GlobalVariable &gv, uint64_t bytes,
+                      unsigned align) override {
+    for (auto &gi : m_globals)
+      if (gi.m_gv == &gv)
+        return {gi.m_start, gi.m_end};
+    return {0, 0};
+  }
+
+  AddrInterval falloc(const Function &fn, unsigned align) override {
+    for (auto &fi : m_funcs)
+      if (fi.m_fn == &fn)
+        return {fi.m_start, fi.m_end};
+    return {0, 0};
+  }
+
   void onFunctionEntry(const Function &fn) override {
     // TODO: pre-allocate all AllocaInst in fn
 
@@ -214,13 +253,12 @@ public:
 
     return std::make_pair(m_allocas.back().m_start, m_allocas.back().m_end);
   }
-
 };
-std::unique_ptr<OpSemAllocator> mkNormalOpSemAllocator(OpSemMemManager &mgr) {
-  return llvm::make_unique<NormalOpSemAllocator>(mgr);
+std::unique_ptr<OpSemAllocator> mkNormalOpSemAllocator(OpSemMemManager &mem) {
+  return llvm::make_unique<NormalOpSemAllocator>(mem);
 }
-std::unique_ptr<OpSemAllocator> mkStaticOpSemAllocator(OpSemMemManager &mgr) {
-  return llvm::make_unique<StaticOpSemAllocator>(mgr);
+std::unique_ptr<OpSemAllocator> mkStaticOpSemAllocator(OpSemMemManager &mem) {
+  return llvm::make_unique<StaticOpSemAllocator>(mem);
 }
 
 } // namespace details

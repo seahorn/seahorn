@@ -113,7 +113,7 @@ Function *getCalledFunction(CallSite &CS) {
 } // namespace
 namespace seahorn {
 namespace details {
-struct OpSemBase {
+struct OpSemVisitorBase {
   Bv2OpSemContext &m_ctx;
   ExprFactory &m_efac;
   Bv2OpSem &m_sem;
@@ -133,7 +133,7 @@ struct OpSemBase {
 
   Expr m_maxPtrE;
 
-  OpSemBase(Bv2OpSemContext &ctx, Bv2OpSem &sem)
+  OpSemVisitorBase(Bv2OpSemContext &ctx, Bv2OpSem &sem)
       : m_ctx(ctx), m_efac(m_ctx.getExprFactory()), m_sem(sem),
         m_cur_startMem(nullptr), m_cur_endMem(nullptr), m_maxPtrE(nullptr) {
 
@@ -147,7 +147,7 @@ struct OpSemBase {
 
     m_maxPtrE = m_ctx.maxPtrE;
 
-    // XXX AG: this is probably wrong since instances of OpSemBase are created
+    // XXX AG: this is probably wrong since instances of OpSemVisitorBase are created
     // XXX AG: for each instruction, not just once per function
     // XXX AG: but not an issue at this point since function calls are not
     // handled by the semantics
@@ -245,9 +245,9 @@ struct OpSemBase {
   }
 };
 
-class OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
+class OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemVisitorBase {
 public:
-  OpSemVisitor(Bv2OpSemContext &ctx, Bv2OpSem &sem) : OpSemBase(ctx, sem) {}
+  OpSemVisitor(Bv2OpSemContext &ctx, Bv2OpSem &sem) : OpSemVisitorBase(ctx, sem) {}
 
   // Opcode Implementations
   void visitReturnInst(ReturnInst &I) {
@@ -1375,8 +1375,8 @@ public:
   }
 };
 
-struct OpSemPhiVisitor : public InstVisitor<OpSemPhiVisitor>, OpSemBase {
-  OpSemPhiVisitor(Bv2OpSemContext &ctx, Bv2OpSem &sem) : OpSemBase(ctx, sem) {}
+struct OpSemPhiVisitor : public InstVisitor<OpSemPhiVisitor>, OpSemVisitorBase {
+  OpSemPhiVisitor(Bv2OpSemContext &ctx, Bv2OpSem &sem) : OpSemVisitorBase(ctx, sem) {}
 
   void visitBasicBlock(BasicBlock &BB) {
     // -- evaluate all phi-nodes atomically. First read all incoming

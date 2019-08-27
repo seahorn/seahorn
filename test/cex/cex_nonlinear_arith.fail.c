@@ -16,7 +16,7 @@ int main(int argc, char**argv) {
   __VERIFIER_assume (x >= 1);
   __VERIFIER_assume (x <= 100);  
   int y = x * x;
-  if (y > x) {
+  if (y == x) {
     __VERIFIER_error();
   }
   return 0;

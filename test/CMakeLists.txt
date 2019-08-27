@@ -140,6 +140,7 @@ add_lit_testsuite(test-crab "Regression test for Crab"
 
 add_lit_testsuite(test-cex "Regression test for executable counterexamples"
   -v
+  -j1
   ${CMAKE_CURRENT_SOURCE_DIR}/cex
   ARGS
   --path=${CMAKE_INSTALL_PREFIX}/bin

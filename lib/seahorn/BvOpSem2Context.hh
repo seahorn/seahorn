@@ -93,14 +93,6 @@ private:
   Expr zeroE;
   /// \brief Numeric one
   Expr oneE;
-  /// \brief 1-bit bit-vector set to 1
-  Expr trueBv;
-  /// \brief 1-bit bit-vector set to 0
-  Expr falseBv;
-  /// \brief bit-precise representation of null pointer
-  Expr nullBv;
-  /// \brief bit-precise representation of maximum pointer value
-  Expr maxPtrE;
 
   /// \brief local simplifier
   std::shared_ptr<ufo::EZ3> m_z3;
@@ -124,16 +116,12 @@ public:
   /// \brief Returns size of a pointer in bits
   unsigned ptrSzInBits() const;
 
-  /// \brief Converts bool expression to bit-vector expression
-  Expr boolToBv(Expr b);
-  /// \brief Converts bit-vector expression to bool expression
-  Expr bvToBool(Expr b);
-
   /// \brief Returns the memory manager
-  OpSemMemManager *getMemManager() { return m_memManager.get(); }
-  OpSemMemManager &mem() {
-    assert(getMemManager());
-    return *getMemManager();
+  OpSemMemManager *getMemManager() const { return m_memManager.get(); }
+  OpSemMemManager &mem() const {
+    assert(!m_parent || !m_memManager);
+    if (m_memManager) return *m_memManager;
+    if (m_parent) return m_parent->mem();
   }
 
   OpSemAlu &alu() const {
@@ -535,6 +523,9 @@ public:
 
   /// \brief Returns a fresh aligned pointer value
   PtrTy freshPtr();
+
+  /// \brief Returns a null ptr
+  PtrTy nullPtr() const;
 
   /// \brief Pointers have word address (high) and byte offset (low); returns
   /// number of bits for byte offset

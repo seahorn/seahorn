@@ -97,6 +97,10 @@ PtrTy OpSemMemManager::freshPtr() {
   return mkAlignedPtr(name, m_alignment);
 }
 
+PtrTy OpSemMemManager::nullPtr() const {
+  return m_nullPtr;
+}
+
 /// \brief Allocates memory on the stack and returns a pointer to it
 /// \param align is requested alignment. If 0, default alignment is used
 PtrTy OpSemMemManager::salloc(unsigned bytes, uint32_t align) {

@@ -122,30 +122,14 @@ struct OpSemVisitorBase {
   Expr falseE;
   Expr zeroE;
   Expr oneE;
-  Expr trueBv;
-  Expr falseBv;
-  Expr nullBv;
-
-  /// -- start of current memory segment
-  Expr m_cur_startMem;
-  /// -- end of current memory segment
-  Expr m_cur_endMem;
-
-  Expr m_maxPtrE;
 
   OpSemVisitorBase(Bv2OpSemContext &ctx, Bv2OpSem &sem)
-      : m_ctx(ctx), m_efac(m_ctx.getExprFactory()), m_sem(sem),
-        m_cur_startMem(nullptr), m_cur_endMem(nullptr), m_maxPtrE(nullptr) {
+      : m_ctx(ctx), m_efac(m_ctx.getExprFactory()), m_sem(sem) {
 
     trueE = m_ctx.m_trueE;
     falseE = m_ctx.m_falseE;
     zeroE = m_ctx.zeroE;
     oneE = m_ctx.oneE;
-    trueBv = m_ctx.trueBv;
-    falseBv = m_ctx.falseBv;
-    nullBv = m_ctx.nullBv;
-
-    m_maxPtrE = m_ctx.maxPtrE;
 
     // XXX AG: this is probably wrong since instances of OpSemVisitorBase are
     // created
@@ -231,10 +215,6 @@ struct OpSemVisitorBase {
       }
     }
   }
-
-  /// convert bv1 to bool
-  Expr bvToBool(Expr bv) { return m_ctx.bvToBool(bv); }
-  Expr boolToBv(Expr b) { return m_ctx.boolToBv(b); }
 
   void setValue(const Value &v, Expr e) {
     if (e)
@@ -561,7 +541,7 @@ public:
       // TODO: move into MemManager
       m_ctx.addDef(
           m_ctx.read(m_ctx.getMemWriteRegister()),
-          op::array::constArray(bv::bvsort(ptrSzInBits(), m_efac), nullBv));
+          op::array::constArray(m_ctx.mem().ptrSort(), m_ctx.mem().nullPtr()));
     }
 
     // get a fresh pointer
@@ -1159,7 +1139,7 @@ public:
     if (ctx.isMemScalar()) {
       res = ctx.read(ctx.getMemReadRegister());
       if (ty->isIntegerTy(1))
-        res = bvToBool(res);
+        res = ctx.alu().bv1ToBool(res);
     } else if (Expr op0 = lookup(addr)) {
       res = ctx.loadValueFromMem(op0, *ty, alignment);
     }
@@ -1184,7 +1164,7 @@ public:
     Expr res;
     if (v && ctx.isMemScalar()) {
       if (val.getType()->isIntegerTy(1))
-        v = boolToBv(v);
+        v = ctx.alu().boolToBv1(v);
       res = v;
       ctx.write(ctx.getMemWriteRegister(), res);
     } else {
@@ -1406,8 +1386,6 @@ Bv2OpSemContext::Bv2OpSemContext(Bv2OpSem &sem, SymStore &values,
       m_inst(nullptr), m_prev(nullptr), m_scalar(false) {
   zeroE = mkTerm<mpz_class>(0, efac());
   oneE = mkTerm<mpz_class>(1, efac());
-  trueBv = bv::bvnum(1, 1, efac());
-  falseBv = bv::bvnum(0, 1, efac());
 
   m_alu = mkBvOpSemAlu(*this);
   setMemManager(
@@ -1422,8 +1400,7 @@ Bv2OpSemContext::Bv2OpSemContext(SymStore &values, ExprVector &side,
       m_scalar(o.m_scalar), m_trfrReadReg(o.m_trfrReadReg),
       m_fparams(o.m_fparams), m_ignored(o.m_ignored),
       m_registers(o.m_registers), m_alu(nullptr), m_memManager(nullptr),
-      m_parent(&o), zeroE(o.zeroE), oneE(o.oneE), trueBv(o.trueBv),
-      falseBv(o.falseBv), nullBv(o.nullBv), maxPtrE(o.maxPtrE), m_z3(o.m_z3) {
+      m_parent(&o), zeroE(o.zeroE), oneE(o.oneE), m_z3(o.m_z3) {
   setPathCond(o.getPathCond());
 }
 
@@ -1458,18 +1435,15 @@ void Bv2OpSemContext::write(Expr v, Expr u) {
   OpSemContext::write(v, u);
 }
 unsigned Bv2OpSemContext::ptrSzInBits() const {
+  // XXX refactoring hack
+  if (!m_parent && !m_memManager)
+    return 32;
 
-  assert(m_memManager);
-  if (m_parent)
-    return m_parent->ptrSzInBits();
-  // XXX HACK for refactoring
-  return m_memManager ? m_memManager->ptrSzInBits() : 32;
+  return mem().ptrSzInBits();
 }
 
 void Bv2OpSemContext::setMemManager(OpSemMemManager *man) {
   m_memManager.reset(man);
-  // TODO: move into MemManager
-  nullBv = bv::bvnum(0, ptrSzInBits(), efac());
 
   // TODO: move into MemManager
   mpz_class val;
@@ -1487,7 +1461,6 @@ void Bv2OpSemContext::setMemManager(OpSemMemManager *man) {
         errs() << "Unsupported pointer size: " << ptrSzInBits() << "\n";);
     llvm_unreachable("Unexpected pointer size");
   }
-  maxPtrE = bv::bvnum(val, ptrSzInBits(), efac());
 }
 
 Expr Bv2OpSemContext::loadValueFromMem(Expr ptr, const llvm::Type &ty,
@@ -1535,31 +1508,24 @@ Expr Bv2OpSemContext::MemFill(Expr dPtr, char *sPtr, unsigned len,
 
 Expr Bv2OpSemContext::inttoptr(Expr intValue, const Type &intTy,
                                const Type &ptrTy) const {
-  if (m_parent)
-    return m_parent->inttoptr(intValue, intTy, ptrTy);
-  return m_memManager->inttoptr(intValue, intTy, ptrTy);
+  return mem().inttoptr(intValue, intTy, ptrTy);
 }
 
 Expr Bv2OpSemContext::ptrtoint(Expr ptrValue, const Type &ptrTy,
                                const Type &intTy) const {
-  assert(m_memManager);
-  if (m_parent)
-    return m_parent->ptrtoint(ptrValue, ptrTy, intTy);
-  return m_memManager->ptrtoint(ptrValue, ptrTy, intTy);
+  return mem().ptrtoint(ptrValue, ptrTy, intTy);
 }
 
 Expr Bv2OpSemContext::gep(Expr ptr, gep_type_iterator it,
                           gep_type_iterator end) const {
-  if (m_parent)
-    return m_parent->gep(ptr, it, end);
-  return m_memManager->gep(ptr, it, end);
+  return mem().gep(ptr, it, end);
 }
 
 void Bv2OpSemContext::onFunctionEntry(const Function &fn) {
-  m_memManager->onFunctionEntry(fn);
+  mem().onFunctionEntry(fn);
 }
 void Bv2OpSemContext::onModuleEntry(const Module &M) {
-  return m_memManager->onModuleEntry(M);
+  return mem().onModuleEntry(M);
 }
 
 void Bv2OpSemContext::onBasicBlockEntry(const BasicBlock &bb) {
@@ -1585,27 +1551,19 @@ Expr Bv2OpSemContext::mkRegister(const llvm::BasicBlock &bb) {
 }
 
 Expr Bv2OpSemContext::mkPtrRegisterSort(const Instruction &inst) const {
-  if (m_parent)
-    return m_parent->mkPtrRegisterSort(inst);
-  return m_memManager->mkPtrRegisterSort(inst);
+  return mem().mkPtrRegisterSort(inst);
 }
 
 Expr Bv2OpSemContext::mkPtrRegisterSort(const Function &fn) const {
-  if (m_parent)
-    return m_parent->mkPtrRegisterSort(fn);
-  return m_memManager->mkPtrRegisterSort(fn);
+  return mem().mkPtrRegisterSort(fn);
 }
 
 Expr Bv2OpSemContext::mkPtrRegisterSort(const GlobalVariable &gv) const {
-  if (m_parent)
-    return m_parent->mkPtrRegisterSort(gv);
-  return m_memManager->mkPtrRegisterSort(gv);
+  return mem().mkPtrRegisterSort(gv);
 }
 
 Expr Bv2OpSemContext::mkMemRegisterSort(const Instruction &inst) const {
-  if (m_parent)
-    return m_parent->mkMemRegisterSort(inst);
-  return m_memManager->mkMemRegisterSort(inst);
+  return mem().mkMemRegisterSort(inst);
 }
 
 Expr Bv2OpSemContext::mkRegister(const llvm::Instruction &inst) {
@@ -1700,9 +1658,7 @@ Expr Bv2OpSemContext::mkRegister(const llvm::Value &v) {
 Expr Bv2OpSemContext::getConstantValue(const llvm::Constant &c) {
   // -- easy common cases
   if (c.isNullValue() || isa<ConstantPointerNull>(&c)) {
-    return c.getType()->isIntegerTy(1)
-               ? alu().si(0, 1)
-               : /* ptr value */ bv::bvnum(0, m_sem.sizeInBits(c), efac());
+    return c.getType()->isIntegerTy(1) ? alu().si(0, 1) : mem().nullPtr();
   } else if (const ConstantInt *ci = dyn_cast<const ConstantInt>(&c)) {
     if (ci->getType()->isIntegerTy(1))
       return ci->isOne() ? alu().si(1, 1) : alu().si(0, 1);
@@ -1730,10 +1686,6 @@ std::pair<char *, unsigned>
 Bv2OpSemContext::getGlobalVariableInitValue(const llvm::GlobalVariable &gv) {
   return m_memManager->getGlobalVariableInitValue(gv);
 }
-
-Expr Bv2OpSemContext::boolToBv(Expr b) { return alu().boolToBv1(b); }
-
-Expr Bv2OpSemContext::bvToBool(Expr bv) { return alu().bv1ToBool(bv); }
 } // namespace details
 
 Bv2OpSem::Bv2OpSem(ExprFactory &efac, Pass &pass, const DataLayout &dl,

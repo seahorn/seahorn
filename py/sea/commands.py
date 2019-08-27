@@ -1062,7 +1062,7 @@ class Seahorn(sea.LimitedCmd):
         if self.enable_boogie:
             argv.append ('--boogie')
             # the translation uses crab to add invariants: disable crab warnings
-            argv.append ('--crab-disable-warnings')
+            # argv.append ('--crab-enable-warnings=false')
 
         if args.solve or args.out_file is not None:
             argv.append ('--keep-shadows=true')

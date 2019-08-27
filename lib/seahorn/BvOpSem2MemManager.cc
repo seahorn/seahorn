@@ -345,7 +345,7 @@ Expr OpSemMemManager::storeIntToMem(Expr _val, PtrTy ptr, Expr memReadReg,
   if (byteSz == wordSzInBytes()) {
     words.push_back(val);
   } else if (byteSz < wordSzInBytes()) {
-    val = bv::zext(val, wordSzInBits());
+    val = m_ctx.alu().doZext(val, wordSzInBits(), byteSz);
     words.push_back(val);
   } else {
     for (unsigned i = 0; i < byteSz; i += wordSzInBytes()) {
@@ -478,9 +478,8 @@ Expr OpSemMemManager::storeValueToMem(Expr _val, PtrTy ptr, Expr memReadReg,
   Expr res;
   switch (ty.getTypeID()) {
   case Type::IntegerTyID:
-    if (ty.isIntegerTy(1)) {
-      val = boolop::lite(val, mkOneE(byteSz * 8, efac),
-                         mkZeroE(byteSz * 8, efac));
+    if (ty.getScalarSizeInBits() < byteSz * 8) {
+      val = m_ctx.alu().doZext(val, byteSz * 8, ty.getScalarSizeInBits());
     }
     res = storeIntToMem(val, ptr, memReadReg, byteSz, align);
     break;

@@ -121,9 +121,16 @@ public:
 
   Expr doZext(Expr op, unsigned bitWidth, unsigned opBitWidth) override {
     Expr res = op;
-    if (opBitWidth == 1)
-      op = boolToBv1(op);
-    return bv::zext(op, bitWidth);
+    switch (opBitWidth) {
+    case 1:
+      if (isOpX<TRUE>(op))
+        return si(1, bitWidth);
+      else if (isOpX<FALSE>(op))
+        return si(0, bitWidth);
+      return mk<ITE>(op, si(1, bitWidth), si(0, bitWidth));
+    default:
+      return bv::zext(op, bitWidth);
+    }
   }
 
   Expr doSext(Expr op, unsigned bitWidth, unsigned opBitWidth) override {

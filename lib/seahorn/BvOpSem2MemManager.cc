@@ -443,9 +443,9 @@ Expr OpSemMemManager::loadValueFromMem(PtrTy ptr, Expr memReg,
   switch (ty.getTypeID()) {
   case Type::IntegerTyID:
     res = loadIntFromMem(ptr, memReg, byteSz, align);
-    if (res && ty.isIntegerTy(1))
-      res = boolop::lneg(mk<EQ>(res, mkZeroE(byteSz * 8, efac)));
-    break;
+    if (res && ty.getScalarSizeInBits() < byteSz * 8)
+      res = m_ctx.alu().doTrunc(res, ty.getScalarSizeInBits());
+   break;
   case Type::FloatTyID:
   case Type::DoubleTyID:
   case Type::X86_FP80TyID:

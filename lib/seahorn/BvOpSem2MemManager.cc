@@ -157,9 +157,8 @@ PtrTy OpSemMemManager::halloc(unsigned _bytes, unsigned align) {
 
   auto stackRange = m_allocator->getStackRange();
   // -- pointer is in the heap: between brk at the beginning and end of stack
-  m_ctx.addSide(mk<BULT>(
-      res, bv::bvnum(stackRange.first - bytes, ptrSzInBits(), m_efac)));
-  m_ctx.addSide(mk<BUGT>(res, brk0Ptr()));
+  m_ctx.addSide(ptrUlt(res, m_ctx.alu().si(stackRange.first - bytes, ptrSzInBits())));
+  m_ctx.addSide(ptrUgt(res, brk0Ptr()));
   return res;
 }
 
@@ -169,9 +168,8 @@ PtrTy OpSemMemManager::halloc(Expr bytes, unsigned align) {
 
   auto stackRange = m_allocator->getStackRange();
   // -- pointer is in the heap: between brk at the beginning and end of stack
-  m_ctx.addSide(
-      mk<BULT>(res, bv::bvnum(stackRange.first, ptrSzInBits(), m_efac)));
-  m_ctx.addSide(mk<BUGT>(res, brk0Ptr()));
+  m_ctx.addSide(ptrUlt(res, m_ctx.alu().si(stackRange.first, ptrSzInBits())));
+  m_ctx.addSide(ptrUgt(res, brk0Ptr()));
   // TODO: take size of pointer into account,
   // it cannot be that close to the stack
   return res;
@@ -577,7 +575,6 @@ Expr OpSemMemManager::ptrEq(PtrTy p1, PtrTy p2) const {
 Expr OpSemMemManager::ptrNe(PtrTy p1, PtrTy p2) const {
   return m_ctx.alu().doNe(p1, p2, ptrSzInBits());
 }
-
 Expr OpSemMemManager::ptrSub(PtrTy p1, PtrTy p2) const {
   return m_ctx.alu().doSub(p1, p2, ptrSzInBits());
 }

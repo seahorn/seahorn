@@ -13,7 +13,7 @@ extern int nd_int(void);
 
 int main(int argc, char**argv) {
   int x = nd_int();
-  __VERIFIER_assume (x >= 1);
+  __VERIFIER_assume (x >= 2);
   __VERIFIER_assume (x <= 100);  
   int y = x * x;
   if (y == x) {

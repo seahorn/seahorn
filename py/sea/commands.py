@@ -36,8 +36,14 @@ def _bc_or_ll_file (name):
 def _plus_plus_file (name):
     ext = os.path.splitext (name)[1]
     return ext == '.cpp' or ext == '.cc'
-
+    
 class Clang(sea.LimitedCmd):
+    """
+    Produce bitcode for each C/C++ file and link together the generated
+    bitcode files. If the input files are already bitcode then we
+    still link them together.
+    """
+    
     def __init__ (self, quiet=False, plusplus=False):
         super (Clang, self).__init__('clang', 'Compile', allow_extra=True)
         self.clangCmd = None
@@ -72,6 +78,21 @@ class Clang(sea.LimitedCmd):
         return _remap_file_name (in_file, ext, work_dir)
 
     def run (self, args, extra):
+
+        def link_bc_files(bc_files, args):
+            if len(bc_files) <= 1:
+                return 0
+            cmd_name = which (['llvm-link-mp-5.0', 'llvm-link-5.0', 'llvm-link'])
+            if cmd_name is None: raise IOError ('llvm-link not found')
+            self.linkCmd = sea.ExtCmd (cmd_name,'',quiet)
+
+            argv = []
+            if args.llvm_asm: argv.append ('-S')
+            if args.out_file is not None:
+                argv.extend (['-o', args.out_file])
+            argv.extend (bc_files)
+            return self.linkCmd.run (args, argv)
+        
         out_files = []
         if len(args.in_files) == 1:
             out_files.append (args.out_file)
@@ -83,8 +104,10 @@ class Clang(sea.LimitedCmd):
                     out_files.append(f)
                 else:
                     out_files.append(_remap_file_name (f, '.bc', workdir))
-        # do nothing on .bc and .ll files
-        if _bc_or_ll_file (args.in_files[0]): return 0
+                    
+        # do nothing on .bc and .ll files except link them together
+        if _bc_or_ll_file (args.in_files[0]):
+            return link_bc_files(out_files, args)
 
         if self.plusplus:
             cmd_name = which (['clang++-mp-5.0', 'clang++-5.0', 'clang++'])
@@ -147,20 +170,7 @@ class Clang(sea.LimitedCmd):
                 ret = self.clangCmd.run (args, argv1)
                 if ret <> 0: return ret
 
-        if len(out_files) > 1:
-            # link
-            cmd_name = which (['llvm-link-mp-5.0', 'llvm-link-5.0', 'llvm-link'])
-            if cmd_name is None: raise IOError ('llvm-link not found')
-            self.linkCmd = sea.ExtCmd (cmd_name,'',quiet)
-
-            argv = []
-            if args.llvm_asm: argv.append ('-S')
-            if args.out_file is not None:
-                argv.extend (['-o', args.out_file])
-            argv.extend (out_files)
-            return self.linkCmd.run (args, argv)
-
-        return 0
+        return link_bc_files(out_files, args)
 
     @property
     def stdout (self):

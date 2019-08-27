@@ -578,6 +578,12 @@ Expr OpSemMemManager::ptrNe(PtrTy p1, PtrTy p2) const {
   return m_ctx.alu().doNe(p1, p2, ptrSzInBits());
 }
 
+Expr OpSemMemManager::ptrSub(PtrTy p1, PtrTy p2) const {
+  return m_ctx.alu().doSub(p1, p2, ptrSzInBits());
+}
+
+
+
 /// \brief Executes ptrtoint conversion
 Expr OpSemMemManager::ptrtoint(PtrTy ptr, const Type &ptrTy,
                                const Type &intTy) const {

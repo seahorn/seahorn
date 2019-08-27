@@ -982,7 +982,7 @@ public:
     case Type::IntegerTyID:
       return ctx.alu().doEq(op0, op1, ty->getScalarSizeInBits());
     case Type::PointerTyID:
-      return mk<EQ>(op0, op1);
+      return ctx.mem().ptrEq(op0, op1);
     default:
       errs() << "Unhandled ICMP_EQ predicate: " << *ty << "\n";
       llvm_unreachable(nullptr);
@@ -995,7 +995,7 @@ public:
     case Type::IntegerTyID:
       return ctx.alu().doNe(op0, op1, ty->getScalarSizeInBits());
     case Type::PointerTyID:
-      return mk<NEQ>(op0, op1);
+      return ctx.mem().ptrNe(op0, op1);
     default:
       errs() << "Unhandled ICMP_NE predicate: " << *ty << "\n";
       llvm_unreachable(nullptr);
@@ -1008,7 +1008,7 @@ public:
     case Type::IntegerTyID:
       return ctx.alu().doUlt(op0, op1, ty->getScalarSizeInBits());
     case Type::PointerTyID:
-      return mk<BULT>(op0, op1);
+      return ctx.mem().ptrUlt(op0, op1);
     default:
       errs() << "Unhandled ICMP_ULT predicate: " << *ty << "\n";
       llvm_unreachable(nullptr);
@@ -1021,7 +1021,7 @@ public:
     case Type::IntegerTyID:
       return ctx.alu().doSlt(op0, op1, ty->getScalarSizeInBits());
     case Type::PointerTyID:
-      return mk<BSLT>(op0, op1);
+      return ctx.mem().ptrSlt(op0, op1);
     default:
       errs() << "Unhandled ICMP_SLT predicate: " << *ty << "\n";
       llvm_unreachable(nullptr);
@@ -1034,7 +1034,7 @@ public:
     case Type::IntegerTyID:
       return ctx.alu().doUgt(op0, op1, ty->getScalarSizeInBits());
     case Type::PointerTyID:
-      return mk<BUGT>(op0, op1);
+      return ctx.mem().ptrUgt(op0, op1);
     default:
       errs() << "Unhandled ICMP_UGT predicate: " << *ty << "\n";
       llvm_unreachable(nullptr);
@@ -1048,7 +1048,7 @@ public:
     case Type::IntegerTyID:
       return ctx.alu().doSgt(op0, op1, ty->getScalarSizeInBits());
     case Type::PointerTyID:
-      return mk<BSGT>(op0, op1);
+      return ctx.mem().ptrSgt(op0, op1);
     default:
       errs() << "Unhandled ICMP_SGT predicate: " << *ty << "\n";
       llvm_unreachable(nullptr);
@@ -1061,7 +1061,7 @@ public:
     case Type::IntegerTyID:
       return ctx.alu().doUle(op0, op1, ty->getScalarSizeInBits());
     case Type::PointerTyID:
-      return mk<BULE>(op0, op1);
+      return ctx.mem().ptrUle(op0, op1);
     default:
       errs() << "Unhandled ICMP_ULE predicate: " << *ty << "\n";
       llvm_unreachable(nullptr);
@@ -1074,7 +1074,7 @@ public:
     case Type::IntegerTyID:
       return ctx.alu().doSle(op0, op1, ty->getScalarSizeInBits());
     case Type::PointerTyID:
-      return mk<BSLE>(op0, op1);
+      return ctx.mem().ptrSle(op0, op1);
     default:
       errs() << "Unhandled ICMP_SLE predicate: " << *ty << "\n";
       llvm_unreachable(nullptr);
@@ -1087,7 +1087,7 @@ public:
     case Type::IntegerTyID:
       return ctx.alu().doUge(op0, op1, ty->getScalarSizeInBits());
     case Type::PointerTyID:
-      return mk<BUGE>(op0, op1);
+      return ctx.mem().ptrUge(op0, op1);
     default:
       errs() << "Unhandled ICMP_SLE predicate: " << *ty << "\n";
       llvm_unreachable(nullptr);
@@ -1100,7 +1100,7 @@ public:
     case Type::IntegerTyID:
       return ctx.alu().doSge(op0, op1, ty->getScalarSizeInBits());
     case Type::PointerTyID:
-      return mk<BSGE>(op0, op1);
+      return ctx.mem().ptrSge(op0, op1);
     default:
       errs() << "Unhandled ICMP_SGE predicate: " << *ty << "\n";
       llvm_unreachable(nullptr);

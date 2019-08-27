@@ -663,8 +663,10 @@ public:
     return mk<AND>(ptrUle(a, b), ptrUle(b, c));
   }
 
+  Expr ptrSub(PtrTy p1, PtrTy p2) const;
+
   /// \brief Calculates an offset of a pointer from its base.
-  Expr ptrOffsetFromBase(PtrTy base, PtrTy ptr) { return mk<BSUB>(ptr, base); }
+  Expr ptrOffsetFromBase(PtrTy base, PtrTy ptr) { return ptrSub(ptr, base); }
 
   /// \brief Computes a pointer corresponding to the gep instruction
   PtrTy gep(PtrTy ptr, gep_type_iterator it, gep_type_iterator end) const;

@@ -114,7 +114,8 @@ PtrTy OpSemMemManager::salloc(unsigned bytes, uint32_t align) {
 /// \brief Returns a pointer value for a given stack allocation
 PtrTy OpSemMemManager::mkStackPtr(unsigned offset) {
   Expr res = m_ctx.read(m_sp0);
-  res = m_ctx.alu().doSub(res, m_ctx.alu().si(offset, ptrSzInBits()), ptrSzInBits());
+  res = m_ctx.alu().doSub(res, m_ctx.alu().si(offset, ptrSzInBits()),
+                          ptrSzInBits());
   return res;
 }
 
@@ -126,7 +127,8 @@ PtrTy OpSemMemManager::salloc(Expr elmts, unsigned typeSz, unsigned align) {
   Expr bytes = elmts;
   if (typeSz > 1) {
     // TODO: factor out multiplication and number creation
-    bytes = m_ctx.alu().doMul(bytes, m_ctx.alu().si(typeSz, ptrSzInBits()), ptrSzInBits());
+    bytes = m_ctx.alu().doMul(bytes, m_ctx.alu().si(typeSz, ptrSzInBits()),
+                              ptrSzInBits());
   }
 
   // allocate
@@ -157,7 +159,8 @@ PtrTy OpSemMemManager::halloc(unsigned _bytes, unsigned align) {
 
   auto stackRange = m_allocator->getStackRange();
   // -- pointer is in the heap: between brk at the beginning and end of stack
-  m_ctx.addSide(ptrUlt(res, m_ctx.alu().si(stackRange.first - bytes, ptrSzInBits())));
+  m_ctx.addSide(
+      ptrUlt(res, m_ctx.alu().si(stackRange.first - bytes, ptrSzInBits())));
   m_ctx.addSide(ptrUgt(res, brk0Ptr()));
   return res;
 }
@@ -313,7 +316,8 @@ PtrTy OpSemMemManager::ptrAdd(PtrTy ptr, int32_t _offset) const {
   if (_offset == 0)
     return ptr;
   mpz_class offset(_offset);
-  return m_ctx.alu().doAdd(ptr, m_ctx.alu().si(offset, ptrSzInBits()), ptrSzInBits());
+  return m_ctx.alu().doAdd(ptr, m_ctx.alu().si(offset, ptrSzInBits()),
+                           ptrSzInBits());
 }
 
 /// \brief Pointer addition with symbolic offset
@@ -445,7 +449,7 @@ Expr OpSemMemManager::loadValueFromMem(PtrTy ptr, Expr memReg,
     res = loadIntFromMem(ptr, memReg, byteSz, align);
     if (res && ty.getScalarSizeInBits() < byteSz * 8)
       res = m_ctx.alu().doTrunc(res, ty.getScalarSizeInBits());
-   break;
+    break;
   case Type::FloatTyID:
   case Type::DoubleTyID:
   case Type::X86_FP80TyID:
@@ -578,8 +582,6 @@ Expr OpSemMemManager::ptrSub(PtrTy p1, PtrTy p2) const {
   return m_ctx.alu().doSub(p1, p2, ptrSzInBits());
 }
 
-
-
 /// \brief Executes ptrtoint conversion
 Expr OpSemMemManager::ptrtoint(PtrTy ptr, const Type &ptrTy,
                                const Type &intTy) const {
@@ -623,13 +625,11 @@ void OpSemMemManager::onFunctionEntry(const Function &fn) {
 
   auto stackRange = m_allocator->getStackRange();
 
-  // XXX hard coded values
-  // 3GB upper limit
-  m_ctx.addSide(
-      mk<BULE>(res, bv::bvnum(stackRange.second, ptrSzInBits(), m_efac)));
-  // 9MB stack
-  m_ctx.addSide(
-      mk<BUGE>(res, bv::bvnum(stackRange.first, ptrSzInBits(), m_efac)));
+  // XXX Currently hard coded for typical 32bit system
+  // -- 3GB upper limit
+  m_ctx.addSide(ptrUle(res, m_ctx.alu().si(stackRange.second, ptrSzInBits())));
+  // -- 9MB stack
+  m_ctx.addSide(ptrUge(res, m_ctx.alu().si(stackRange.first, ptrSzInBits())));
 }
 
 } // namespace details

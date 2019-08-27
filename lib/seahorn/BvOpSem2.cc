@@ -147,7 +147,8 @@ struct OpSemVisitorBase {
 
     m_maxPtrE = m_ctx.maxPtrE;
 
-    // XXX AG: this is probably wrong since instances of OpSemVisitorBase are created
+    // XXX AG: this is probably wrong since instances of OpSemVisitorBase are
+    // created
     // XXX AG: for each instruction, not just once per function
     // XXX AG: but not an issue at this point since function calls are not
     // handled by the semantics
@@ -247,7 +248,8 @@ struct OpSemVisitorBase {
 
 class OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemVisitorBase {
 public:
-  OpSemVisitor(Bv2OpSemContext &ctx, Bv2OpSem &sem) : OpSemVisitorBase(ctx, sem) {}
+  OpSemVisitor(Bv2OpSemContext &ctx, Bv2OpSem &sem)
+      : OpSemVisitorBase(ctx, sem) {}
 
   // Opcode Implementations
   void visitReturnInst(ReturnInst &I) {
@@ -287,13 +289,13 @@ public:
         llvm_unreachable(nullptr);
         break;
       case Instruction::Add:
-        res = mk<BADD>(op0, op1);
+        res = m_ctx.alu().doAdd(op0, op1, ty->getScalarSizeInBits());
         break;
       case Instruction::Sub:
-        res = mk<BSUB>(op0, op1);
+        res = m_ctx.alu().doSub(op0, op1, ty->getScalarSizeInBits());
         break;
       case Instruction::Mul:
-        res = mk<BMUL>(op0, op1);
+        res = m_ctx.alu().doMul(op0, op1, ty->getScalarSizeInBits());
         break;
       case Instruction::FAdd:
         break;
@@ -306,25 +308,25 @@ public:
       case Instruction::FRem:
         break;
       case Instruction::UDiv:
-        res = mk<BUDIV>(op0, op1);
+        res = m_ctx.alu().doUDiv(op0, op1, ty->getScalarSizeInBits());
         break;
       case Instruction::SDiv:
-        res = mk<BSDIV>(op0, op1);
+        res = m_ctx.alu().doSDiv(op0, op1, ty->getScalarSizeInBits());
         break;
       case Instruction::URem:
-        res = mk<BUREM>(op0, op1);
+        res = m_ctx.alu().doURem(op0, op1, ty->getScalarSizeInBits());
         break;
       case Instruction::SRem:
-        res = mk<BSREM>(op0, op1);
+        res = m_ctx.alu().doSRem(op0, op1, ty->getScalarSizeInBits());
         break;
       case Instruction::And:
-        res = ty->isIntegerTy(1) ? mk<AND>(op0, op1) : mk<BAND>(op0, op1);
+        res = m_ctx.alu().doAnd(op0, op1, ty->getScalarSizeInBits());
         break;
       case Instruction::Or:
-        res = ty->isIntegerTy(1) ? mk<OR>(op0, op1) : mk<BOR>(op0, op1);
+        res = m_ctx.alu().doOr(op0, op1, ty->getScalarSizeInBits());
         break;
       case Instruction::Xor:
-        res = ty->isIntegerTy(1) ? mk<XOR>(op0, op1) : mk<BXOR>(op0, op1);
+        res = m_ctx.alu().doXor(op0, op1, ty->getScalarSizeInBits());
         break;
       }
     }
@@ -970,9 +972,7 @@ public:
     if (!op0)
       return Expr();
 
-    uint64_t width = m_sem.sizeInBits(ty);
-    Expr res = bv::extract(width - 1, 0, op0);
-    return ty.isIntegerTy(1) ? bvToBool(res) : res;
+    return ctx.alu().doTrunc(op0, m_sem.sizeInBits(ty));
   }
 
   Expr executeZExtInst(const Value &v, const Type &ty, Bv2OpSemContext &ctx) {
@@ -983,9 +983,7 @@ public:
     Expr op0 = lookup(v);
     if (!op0)
       return Expr();
-    if (v.getType()->isIntegerTy(1))
-      op0 = boolToBv(op0);
-    return bv::zext(op0, m_sem.sizeInBits(ty));
+    return ctx.alu().doZext(op0, m_sem.sizeInBits(ty), m_sem.sizeInBits(v));
   }
 
   Expr executeSExtInst(const Value &v, const Type &ty, Bv2OpSemContext &ctx) {
@@ -996,15 +994,13 @@ public:
     Expr op0 = lookup(v);
     if (!op0)
       return Expr();
-    if (v.getType()->isIntegerTy(1))
-      op0 = boolToBv(op0);
-    return bv::sext(op0, m_sem.sizeInBits(ty));
+    return ctx.alu().doSext(op0, m_sem.sizeInBits(ty), m_sem.sizeInBits(v));
   }
 
   Expr executeICMP_EQ(Expr op0, Expr op1, Type *ty, Bv2OpSemContext &ctx) {
     switch (ty->getTypeID()) {
     case Type::IntegerTyID:
-      return mk<EQ>(op0, op1);
+      return ctx.alu().doEq(op0, op1, ty->getScalarSizeInBits());
     case Type::PointerTyID:
       return mk<EQ>(op0, op1);
     default:
@@ -1017,7 +1013,7 @@ public:
   Expr executeICMP_NE(Expr op0, Expr op1, Type *ty, Bv2OpSemContext &ctx) {
     switch (ty->getTypeID()) {
     case Type::IntegerTyID:
-      return mk<NEQ>(op0, op1);
+      return ctx.alu().doNe(op0, op1, ty->getScalarSizeInBits());
     case Type::PointerTyID:
       return mk<NEQ>(op0, op1);
     default:
@@ -1030,7 +1026,7 @@ public:
   Expr executeICMP_ULT(Expr op0, Expr op1, Type *ty, Bv2OpSemContext &ctx) {
     switch (ty->getTypeID()) {
     case Type::IntegerTyID:
-      return mk<BULT>(op0, op1);
+      return ctx.alu().doUlt(op0, op1, ty->getScalarSizeInBits());
     case Type::PointerTyID:
       return mk<BULT>(op0, op1);
     default:
@@ -1043,7 +1039,7 @@ public:
   Expr executeICMP_SLT(Expr op0, Expr op1, Type *ty, Bv2OpSemContext &ctx) {
     switch (ty->getTypeID()) {
     case Type::IntegerTyID:
-      return mk<BSLT>(op0, op1);
+      return ctx.alu().doSlt(op0, op1, ty->getScalarSizeInBits());
     case Type::PointerTyID:
       return mk<BSLT>(op0, op1);
     default:
@@ -1056,7 +1052,7 @@ public:
   Expr executeICMP_UGT(Expr op0, Expr op1, Type *ty, Bv2OpSemContext &ctx) {
     switch (ty->getTypeID()) {
     case Type::IntegerTyID:
-      return mk<BUGT>(op0, op1);
+      return ctx.alu().doUgt(op0, op1, ty->getScalarSizeInBits());
     case Type::PointerTyID:
       return mk<BUGT>(op0, op1);
     default:
@@ -1070,14 +1066,7 @@ public:
 
     switch (ty->getTypeID()) {
     case Type::IntegerTyID:
-      if (ty->isIntegerTy(1)) {
-        if (isOpX<TRUE>(op1))
-          // icmp sgt op0, i1 true  == !op0
-          return boolop::lneg(op0);
-        else
-          return bvToBool(mk<BSGT>(boolToBv(op0), boolToBv(op1)));
-      }
-      return mk<BSGT>(op0, op1);
+      return ctx.alu().doSgt(op0, op1, ty->getScalarSizeInBits());
     case Type::PointerTyID:
       return mk<BSGT>(op0, op1);
     default:
@@ -1090,7 +1079,7 @@ public:
   Expr executeICMP_ULE(Expr op0, Expr op1, Type *ty, Bv2OpSemContext &ctx) {
     switch (ty->getTypeID()) {
     case Type::IntegerTyID:
-      return mk<BULE>(op0, op1);
+      return ctx.alu().doUle(op0, op1, ty->getScalarSizeInBits());
     case Type::PointerTyID:
       return mk<BULE>(op0, op1);
     default:
@@ -1103,7 +1092,7 @@ public:
   Expr executeICMP_SLE(Expr op0, Expr op1, Type *ty, Bv2OpSemContext &ctx) {
     switch (ty->getTypeID()) {
     case Type::IntegerTyID:
-      return mk<BSLE>(op0, op1);
+      return ctx.alu().doSle(op0, op1, ty->getScalarSizeInBits());
     case Type::PointerTyID:
       return mk<BSLE>(op0, op1);
     default:
@@ -1116,7 +1105,7 @@ public:
   Expr executeICMP_UGE(Expr op0, Expr op1, Type *ty, Bv2OpSemContext &ctx) {
     switch (ty->getTypeID()) {
     case Type::IntegerTyID:
-      return mk<BUGE>(op0, op1);
+      return ctx.alu().doUge(op0, op1, ty->getScalarSizeInBits());
     case Type::PointerTyID:
       return mk<BUGE>(op0, op1);
     default:
@@ -1129,7 +1118,7 @@ public:
   Expr executeICMP_SGE(Expr op0, Expr op1, Type *ty, Bv2OpSemContext &ctx) {
     switch (ty->getTypeID()) {
     case Type::IntegerTyID:
-      return mk<BSGE>(op0, op1);
+      return ctx.alu().doSge(op0, op1, ty->getScalarSizeInBits());
     case Type::PointerTyID:
       return mk<BSGE>(op0, op1);
     default:
@@ -1376,7 +1365,8 @@ public:
 };
 
 struct OpSemPhiVisitor : public InstVisitor<OpSemPhiVisitor>, OpSemVisitorBase {
-  OpSemPhiVisitor(Bv2OpSemContext &ctx, Bv2OpSem &sem) : OpSemVisitorBase(ctx, sem) {}
+  OpSemPhiVisitor(Bv2OpSemContext &ctx, Bv2OpSem &sem)
+      : OpSemVisitorBase(ctx, sem) {}
 
   void visitBasicBlock(BasicBlock &BB) {
     // -- evaluate all phi-nodes atomically. First read all incoming
@@ -1419,6 +1409,7 @@ Bv2OpSemContext::Bv2OpSemContext(Bv2OpSem &sem, SymStore &values,
   trueBv = bv::bvnum(1, 1, efac());
   falseBv = bv::bvnum(0, 1, efac());
 
+  m_alu = mkBvOpSemAlu(*this);
   setMemManager(
       new OpSemMemManager(m_sem, *this, PtrSize, WordSize, UseLambdas));
 }
@@ -1430,9 +1421,9 @@ Bv2OpSemContext::Bv2OpSemContext(SymStore &values, ExprVector &side,
       m_readRegister(o.m_readRegister), m_writeRegister(o.m_writeRegister),
       m_scalar(o.m_scalar), m_trfrReadReg(o.m_trfrReadReg),
       m_fparams(o.m_fparams), m_ignored(o.m_ignored),
-      m_registers(o.m_registers), m_memManager(nullptr), m_parent(&o),
-      zeroE(o.zeroE), oneE(o.oneE), trueBv(o.trueBv), falseBv(o.falseBv),
-      nullBv(o.nullBv), maxPtrE(o.maxPtrE), m_z3(o.m_z3) {
+      m_registers(o.m_registers), m_alu(nullptr), m_memManager(nullptr),
+      m_parent(&o), zeroE(o.zeroE), oneE(o.oneE), trueBv(o.trueBv),
+      falseBv(o.falseBv), nullBv(o.nullBv), maxPtrE(o.maxPtrE), m_z3(o.m_z3) {
   setPathCond(o.getPathCond());
 }
 
@@ -1710,14 +1701,14 @@ Expr Bv2OpSemContext::getConstantValue(const llvm::Constant &c) {
   // -- easy common cases
   if (c.isNullValue() || isa<ConstantPointerNull>(&c)) {
     return c.getType()->isIntegerTy(1)
-               ? m_falseE
-               : bv::bvnum(0, m_sem.sizeInBits(c), efac());
+               ? alu().si(0, 1)
+               : /* ptr value */ bv::bvnum(0, m_sem.sizeInBits(c), efac());
   } else if (const ConstantInt *ci = dyn_cast<const ConstantInt>(&c)) {
     if (ci->getType()->isIntegerTy(1))
-      return ci->isOne() ? m_trueE : m_falseE;
+      return ci->isOne() ? alu().si(1, 1) : alu().si(0, 1);
 
     mpz_class k = toMpz(ci->getValue());
-    return bv::bvnum(k, m_sem.sizeInBits(c), efac());
+    return alu().si(k, m_sem.sizeInBits(c));
   }
 
   if (c.getType()->isIntegerTy()) {
@@ -1725,11 +1716,7 @@ Expr Bv2OpSemContext::getConstantValue(const llvm::Constant &c) {
     if (GVO.hasValue()) {
       GenericValue gv = GVO.getValue();
       mpz_class k = toMpz(gv.IntVal);
-      if (c.getType()->isIntegerTy(1)) {
-        return k == 1 ? m_trueE : m_falseE;
-      } else {
-        return bv::bvnum(k, m_sem.sizeInBits(c), efac());
-      }
+      return alu().si(k, m_sem.sizeInBits(c));
     }
   } else if (c.getType()->isPointerTy()) {
     LOG("opsem", WARN << "unhandled constant pointer " << c;);
@@ -1744,21 +1731,9 @@ Bv2OpSemContext::getGlobalVariableInitValue(const llvm::GlobalVariable &gv) {
   return m_memManager->getGlobalVariableInitValue(gv);
 }
 
-Expr Bv2OpSemContext::boolToBv(Expr b) {
-  if (isOpX<TRUE>(b))
-    return trueBv;
-  if (isOpX<FALSE>(b))
-    return falseBv;
-  return mk<ITE>(b, trueBv, falseBv);
-}
+Expr Bv2OpSemContext::boolToBv(Expr b) { return alu().boolToBv1(b); }
 
-Expr Bv2OpSemContext::bvToBool(Expr bv) {
-  if (bv == trueBv)
-    return m_trueE;
-  if (bv == falseBv)
-    return m_falseE;
-  return mk<EQ>(bv, trueBv);
-}
+Expr Bv2OpSemContext::bvToBool(Expr bv) { return alu().bv1ToBool(bv); }
 } // namespace details
 
 Bv2OpSem::Bv2OpSem(ExprFactory &efac, Pass &pass, const DataLayout &dl,

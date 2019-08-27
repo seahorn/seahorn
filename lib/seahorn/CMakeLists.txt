@@ -34,6 +34,7 @@ add_llvm_library (seahorn.LIB
   BvOpSem2MemRepr.cc
   BvOpSem2MemManager.cc
   BvOpSem2Allocators.cc
+  BvOpSem2Alu.cc
   VCGen.cc
   )
 

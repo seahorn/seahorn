@@ -9,6 +9,7 @@
 namespace seahorn {
 namespace details {
 
+class OpSemAlu;
 class OpSemMemManager;
 class OpSemMemRepr;
 class OpSemVisitorBase;
@@ -76,6 +77,10 @@ private:
   /// \brief Memory manager for the machine
   OpSemMemManagerPtr m_memManager;
 
+  using OpSemAluPtr = std::unique_ptr<OpSemAlu>;
+
+  /// \brief ALU for basic instructions
+  OpSemAluPtr m_alu;
   /// \brief Pointer to the parent a parent context
   ///
   /// If not null, then the current context is a fork of the parent context
@@ -129,6 +134,14 @@ public:
   OpSemMemManager &mem() {
     assert(getMemManager());
     return *getMemManager();
+  }
+
+  OpSemAlu &alu() const {
+    if (m_alu)
+      return *m_alu;
+    if (m_parent)
+      return m_parent->alu();
+    llvm_unreachable(nullptr);
   }
 
   /// \brief Push parameter on a stack for a function call
@@ -268,6 +281,55 @@ private:
     return static_cast<Bv2OpSemContext &>(ctx);
   }
 };
+
+/// \brief ALU for basic arithmetic and logic operations
+class OpSemAlu {
+protected:
+  Bv2OpSemContext &m_ctx;
+
+public:
+  OpSemAlu(Bv2OpSemContext &ctx);
+  virtual ~OpSemAlu() = default;
+
+  Bv2OpSemContext &ctx() const { return m_ctx; }
+  ExprFactory &efac() const { return m_ctx.efac(); }
+
+  // coerce between bv1 and bool.
+  // XXX: These should be hidden inside ALU implementation
+  // XXX: Should not be exposed to clients
+  virtual Expr boolToBv1(Expr e) = 0;
+  virtual Expr bv1ToBool(Expr e) = 0;
+
+  virtual Expr si(mpz_class k, unsigned bitWidth) = 0;
+  virtual Expr doAdd(Expr op0, Expr op1, unsigned bitWidth) = 0;
+  virtual Expr doSub(Expr op0, Expr op1, unsigned bitWidth) = 0;
+  virtual Expr doMul(Expr op0, Expr op1, unsigned bitWidth) = 0;
+  virtual Expr doUDiv(Expr op0, Expr op1, unsigned bitWidth) = 0;
+  virtual Expr doSDiv(Expr op0, Expr op1, unsigned bitWidth) = 0;
+  virtual Expr doURem(Expr op0, Expr op1, unsigned bitWidth) = 0;
+  virtual Expr doSRem(Expr op0, Expr op1, unsigned bitWidth) = 0;
+
+  virtual Expr doAnd(Expr op0, Expr op1, unsigned bitWidth) = 0;
+  virtual Expr doOr(Expr op0, Expr op1, unsigned bitWidth) = 0;
+  virtual Expr doXor(Expr op0, Expr op1, unsigned bitWidth) = 0;
+
+  virtual Expr doEq(Expr op0, Expr op1, unsigned bitWidth) = 0;
+  virtual Expr doNe(Expr op0, Expr op1, unsigned bitWidth) = 0;
+  virtual Expr doUlt(Expr op0, Expr op1, unsigned bitWidth) = 0;
+  virtual Expr doSlt(Expr op0, Expr op1, unsigned bitWidth) = 0;
+  virtual Expr doUgt(Expr op0, Expr op1, unsigned bitWidth) = 0;
+  virtual Expr doSgt(Expr op0, Expr op1, unsigned bitWidth) = 0;
+  virtual Expr doUle(Expr op0, Expr op1, unsigned bitWidth) = 0;
+  virtual Expr doSle(Expr op0, Expr op1, unsigned bitWidth) = 0;
+  virtual Expr doUge(Expr op0, Expr op1, unsigned bitWidth) = 0;
+  virtual Expr doSge(Expr op0, Expr op1, unsigned bitWidth) = 0;
+
+  virtual Expr doTrunc(Expr op, unsigned bitWidth) = 0;
+  virtual Expr doZext(Expr op, unsigned bitWidth, unsigned opBitWidth) = 0;
+  virtual Expr doSext(Expr op, unsigned bitWidth, unsigned opBitWidth) = 0;
+};
+
+std::unique_ptr<OpSemAlu> mkBvOpSemAlu(Bv2OpSemContext &ctx);
 
 /// \brief  Lays out / allocates pointers in a virtual memory space
 ///

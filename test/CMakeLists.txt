@@ -138,6 +138,14 @@ add_lit_testsuite(test-crab "Regression test for Crab"
   DEPENDS seahorn
   )
 
+add_lit_testsuite(test-cex "Regression test for executable counterexamples"
+  -v
+  ${CMAKE_CURRENT_SOURCE_DIR}/cex
+  ARGS
+  --path=${CMAKE_INSTALL_PREFIX}/bin
+  DEPENDS seahorn
+  )
+
 if (CMAKE_GENERATOR STREQUAL "Ninja")
   # Depending on install target does not work with make
   add_dependencies(test-all install)
@@ -157,6 +165,7 @@ if (CMAKE_GENERATOR STREQUAL "Ninja")
   add_dependencies(test-mcfuzz install)
   add_dependencies(test-memssa install)
   add_dependencies(test-crab install)
+  add_dependencies(test-cex install)  
 endif()
 install (DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/simple DESTINATION share/seahorn/test)
 install (DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/solve DESTINATION share/seahorn/test)
@@ -169,6 +178,7 @@ install (DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/devirt DESTINATION share/seahorn/
 install (DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/mcfuzz DESTINATION share/seahorn/test)
 install (DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/memssa DESTINATION share/seahorn/test)
 install (DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/crab DESTINATION share/seahorn/test)
+install (DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/cex DESTINATION share/seahorn/test)
 install (DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/dsa DESTINATION share/seahorn/test
   PATTERN "*/check_graphs.py" EXCLUDE
   )

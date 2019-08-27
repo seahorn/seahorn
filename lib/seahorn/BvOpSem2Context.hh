@@ -120,8 +120,10 @@ public:
   OpSemMemManager *getMemManager() const { return m_memManager.get(); }
   OpSemMemManager &mem() const {
     assert(!m_parent || !m_memManager);
-    if (m_memManager) return *m_memManager;
-    if (m_parent) return m_parent->mem();
+    if (m_memManager)
+      return *m_memManager;
+    if (m_parent)
+      return m_parent->mem();
   }
 
   OpSemAlu &alu() const {
@@ -292,6 +294,9 @@ public:
   virtual Expr intTy(unsigned bitWidth) = 0;
   /// \brief Boolean type of the ALU
   virtual Expr boolTy() = 0;
+
+  virtual bool isNum(Expr v) = 0;
+  virtual mpz_class toNum(Expr v) = 0;
 
   virtual Expr si(mpz_class k, unsigned bitWidth) = 0;
   virtual Expr doAdd(Expr op0, Expr op1, unsigned bitWidth) = 0;
@@ -640,12 +645,22 @@ public:
   /// \brief Executes ptrtoint conversion
   Expr ptrtoint(PtrTy ptr, const Type &ptrTy, const Type &intTy) const;
 
+  Expr ptrUlt(PtrTy p1, PtrTy p2) const;
+  Expr ptrSlt(PtrTy p1, PtrTy p2) const;
+  Expr ptrUle(PtrTy p1, PtrTy p2) const;
+  Expr ptrSle(PtrTy p1, PtrTy p2) const;
+  Expr ptrUgt(PtrTy p1, PtrTy p2) const;
+  Expr ptrSgt(PtrTy p1, PtrTy p2) const;
+  Expr ptrUge(PtrTy p1, PtrTy p2) const;
+  Expr ptrSge(PtrTy p1, PtrTy p2) const;
+
   /// \brief Checks if two pointers are equal.
-  Expr ptrEq(PtrTy p1, PtrTy p2) const { return mk<EQ>(p1, p2); }
+  Expr ptrEq(PtrTy p1, PtrTy p2) const;
+  Expr ptrNe(PtrTy p1, PtrTy p2) const;
 
   /// \brief Checks if \p a <= b <= c.
   Expr ptrInRangeCheck(PtrTy a, PtrTy b, PtrTy c) {
-    return mk<AND>(mk<BULE>(a, b), mk<BULE>(b, c));
+    return mk<AND>(ptrUle(a, b), ptrUle(b, c));
   }
 
   /// \brief Calculates an offset of a pointer from its base.

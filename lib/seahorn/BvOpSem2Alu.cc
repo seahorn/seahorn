@@ -31,6 +31,9 @@ public:
 
   Expr boolTy() override { return sort::boolTy(efac()); }
 
+  bool isNum(Expr v) override { return bv::isBvNum(v); }
+  mpz_class toNum(Expr v) override { return bv::toMpz(v); }
+
   /// \brief Converts a signed integer to an ALU expression
   Expr si(mpz_class v, unsigned bitWidth) override {
     switch (bitWidth) {

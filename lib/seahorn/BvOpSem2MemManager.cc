@@ -11,7 +11,7 @@ namespace seahorn {
 namespace details {
 enum MemAllocatorKind { NORMAL_ALLOCATOR, STATIC_ALLOCATOR };
 }
-}
+} // namespace seahorn
 
 static llvm::cl::opt<enum seahorn::details::MemAllocatorKind> MemAllocatorOpt(
     "sea-opsem-allocator", llvm::cl::desc("A choice for memory allocator"),
@@ -43,8 +43,9 @@ OpSemMemManager::OpSemMemManager(Bv2OpSem &sem, Bv2OpSemContext &ctx,
     m_allocator = mkStaticOpSemAllocator(*this);
   assert(m_allocator);
 
-  m_nullPtr = bv::bvnum(0, ptrSzInBits(), m_efac);
-  m_sp0 = bv::bvConst(mkTerm<std::string>("sea.sp0", m_efac), ptrSzInBits());
+  m_nullPtr = m_ctx.alu().si(0, ptrSzInBits());
+  m_sp0 = bind::mkConst(mkTerm<std::string>("sea.sp0", m_efac),
+                        m_ctx.alu().intTy(ptrSzInBits()));
   m_ctx.declareRegister(m_sp0);
 
   if (useLambdas)
@@ -59,8 +60,9 @@ OpSemMemManager::OpSemMemManager(Bv2OpSem &sem, Bv2OpSemContext &ctx,
 /// are set to zero
 PtrTy OpSemMemManager::mkAlignedPtr(Expr name, uint32_t align) const {
   unsigned alignBits = llvm::Log2_32(align);
-  return bv::concat(bv::bvConst(name, ptrSzInBits() - alignBits),
-                    bv::bvnum(0, alignBits, m_efac));
+  Expr wordPtr =
+      bind::mkConst(name, m_ctx.alu().intTy(ptrSzInBits() - alignBits));
+  return bv::concat(wordPtr, bv::bvnum(0, alignBits, m_efac));
 }
 
 /// \brief Returns sort of a pointer register for an instruction
@@ -76,18 +78,18 @@ Expr OpSemMemManager::mkPtrRegisterSort(const Instruction &inst) const {
   });
   assert(sz == ptrSzInBits());
 
-  return bv::bvsort(m_sem.sizeInBits(*ty), m_efac);
+  return m_ctx.alu().intTy(m_sem.sizeInBits(*ty));
 }
 
 /// \brief Returns sort of a pointer register for a function pointer
 Expr OpSemMemManager::mkPtrRegisterSort(const Function &fn) const {
-  return bv::bvsort(ptrSzInBits(), m_efac);
+  return m_ctx.alu().intTy(ptrSzInBits());
 }
 
 /// \brief Returns sort of memory-holding register for an instruction
 Expr OpSemMemManager::mkMemRegisterSort(const Instruction &inst) const {
-  Expr ptrTy = bv::bvsort(ptrSzInBits(), m_efac);
-  Expr valTy = bv::bvsort(wordSzInBits(), m_efac);
+  Expr ptrTy = m_ctx.alu().intTy(ptrSzInBits());
+  Expr valTy = m_ctx.alu().intTy(wordSzInBits());
   return sort::arrayTy(ptrTy, valTy);
 }
 
@@ -97,9 +99,7 @@ PtrTy OpSemMemManager::freshPtr() {
   return mkAlignedPtr(name, m_alignment);
 }
 
-PtrTy OpSemMemManager::nullPtr() const {
-  return m_nullPtr;
-}
+PtrTy OpSemMemManager::nullPtr() const { return m_nullPtr; }
 
 /// \brief Allocates memory on the stack and returns a pointer to it
 /// \param align is requested alignment. If 0, default alignment is used
@@ -114,7 +114,7 @@ PtrTy OpSemMemManager::salloc(unsigned bytes, uint32_t align) {
 /// \brief Returns a pointer value for a given stack allocation
 PtrTy OpSemMemManager::mkStackPtr(unsigned offset) {
   Expr res = m_ctx.read(m_sp0);
-  res = mk<BSUB>(res, bv::bvnum(offset, ptrSzInBits(), m_efac));
+  res = m_ctx.alu().doSub(res, m_ctx.alu().si(offset, ptrSzInBits()), ptrSzInBits());
   return res;
 }
 
@@ -126,7 +126,7 @@ PtrTy OpSemMemManager::salloc(Expr elmts, unsigned typeSz, unsigned align) {
   Expr bytes = elmts;
   if (typeSz > 1) {
     // TODO: factor out multiplication and number creation
-    bytes = mk<BMUL>(bytes, bv::bvnum(typeSz, 32, m_efac));
+    bytes = m_ctx.alu().doMul(bytes, m_ctx.alu().si(typeSz, ptrSzInBits()), ptrSzInBits());
   }
 
   // allocate
@@ -146,7 +146,7 @@ PtrTy OpSemMemManager::salloc(Expr elmts, unsigned typeSz, unsigned align) {
 
 /// \brief Pointer to start of the heap
 PtrTy OpSemMemManager::brk0Ptr() {
-  return bv::bvnum(m_allocator->brk0Addr(), ptrSzInBits(), m_efac);
+  return m_ctx.alu().si(m_allocator->brk0Addr(), ptrSzInBits());
 }
 
 /// \brief Allocates memory on the heap and returns a pointer to it
@@ -181,26 +181,26 @@ PtrTy OpSemMemManager::halloc(Expr bytes, unsigned align) {
 PtrTy OpSemMemManager::galloc(const GlobalVariable &gv, unsigned align) {
   uint64_t gvSz = m_sem.getTD().getTypeAllocSize(gv.getValueType());
   auto range = m_allocator->galloc(gv, gvSz, std::max(align, m_alignment));
-  return bv::bvnum(range.first, ptrSzInBits(), m_efac);
+  return m_ctx.alu().si(range.first, ptrSzInBits());
 }
 
 /// \brief Allocates memory in code segment for the code of a given function
 PtrTy OpSemMemManager::falloc(const Function &fn) {
   auto range = m_allocator->falloc(fn, m_alignment);
-  return bv::bvnum(range.first, ptrSzInBits(), m_efac);
+  return m_ctx.alu().si(range.first, ptrSzInBits());
 }
 
 /// \brief Returns a function pointer value for a given function
 PtrTy OpSemMemManager::getPtrToFunction(const Function &F) {
-  return bv::bvnum(m_allocator->getFunctionAddr(F, m_alignment), ptrSzInBits(),
-                   m_efac);
+  return m_ctx.alu().si(m_allocator->getFunctionAddr(F, m_alignment),
+                        ptrSzInBits());
 }
 
 /// \brief Returns a pointer to a global variable
 PtrTy OpSemMemManager::getPtrToGlobalVariable(const GlobalVariable &gv) {
   uint64_t gvSz = m_sem.getTD().getTypeAllocSize(gv.getValueType());
-  return bv::bvnum(m_allocator->getGlobalVariableAddr(gv, gvSz, m_alignment),
-                   ptrSzInBits(), m_efac);
+  return m_ctx.alu().si(
+      m_allocator->getGlobalVariableAddr(gv, gvSz, m_alignment), ptrSzInBits());
 }
 
 /// \brief Pointers have word address (high) and byte offset (low); returns
@@ -315,16 +315,16 @@ PtrTy OpSemMemManager::ptrAdd(PtrTy ptr, int32_t _offset) const {
   if (_offset == 0)
     return ptr;
   mpz_class offset(_offset);
-  return mk<BADD>(ptr, bv::bvnum(offset, ptrSzInBits(), ptr->efac()));
+  return m_ctx.alu().doAdd(ptr, m_ctx.alu().si(offset, ptrSzInBits()), ptrSzInBits());
 }
 
 /// \brief Pointer addition with symbolic offset
 PtrTy OpSemMemManager::ptrAdd(PtrTy ptr, Expr offset) const {
-  if (bv::isBvNum(offset)) {
-    mpz_class _offset = bv::toMpz(offset);
+  if (m_ctx.alu().isNum(offset)) {
+    mpz_class _offset = m_ctx.alu().toNum(offset);
     return ptrAdd(ptr, _offset.get_si());
   }
-  return mk<BADD>(ptr, offset);
+  return m_ctx.alu().doAdd(ptr, offset, ptrSzInBits());
 }
 
 /// \brief Stores an integer into memory
@@ -545,6 +545,37 @@ PtrTy OpSemMemManager::inttoptr(Expr intVal, const Type &intTy,
   else if (ptrTySz < intTySz)
     res = bv::extract(ptrTySz - 1, 0, res);
   return res;
+}
+
+Expr OpSemMemManager::ptrUlt(PtrTy p1, PtrTy p2) const {
+  return m_ctx.alu().doUlt(p1, p2, ptrSzInBits());
+}
+Expr OpSemMemManager::ptrUle(PtrTy p1, PtrTy p2) const {
+  return m_ctx.alu().doUle(p1, p2, ptrSzInBits());
+}
+Expr OpSemMemManager::ptrSlt(PtrTy p1, PtrTy p2) const {
+  return m_ctx.alu().doSlt(p1, p2, ptrSzInBits());
+}
+Expr OpSemMemManager::ptrSle(PtrTy p1, PtrTy p2) const {
+  return m_ctx.alu().doSle(p1, p2, ptrSzInBits());
+}
+Expr OpSemMemManager::ptrUgt(PtrTy p1, PtrTy p2) const {
+  return m_ctx.alu().doUgt(p1, p2, ptrSzInBits());
+}
+Expr OpSemMemManager::ptrUge(PtrTy p1, PtrTy p2) const {
+  return m_ctx.alu().doUge(p1, p2, ptrSzInBits());
+}
+Expr OpSemMemManager::ptrSgt(PtrTy p1, PtrTy p2) const {
+  return m_ctx.alu().doSgt(p1, p2, ptrSzInBits());
+}
+Expr OpSemMemManager::ptrSge(PtrTy p1, PtrTy p2) const {
+  return m_ctx.alu().doSge(p1, p2, ptrSzInBits());
+}
+Expr OpSemMemManager::ptrEq(PtrTy p1, PtrTy p2) const {
+  return m_ctx.alu().doEq(p1, p2, ptrSzInBits());
+}
+Expr OpSemMemManager::ptrNe(PtrTy p1, PtrTy p2) const {
+  return m_ctx.alu().doNe(p1, p2, ptrSzInBits());
 }
 
 /// \brief Executes ptrtoint conversion

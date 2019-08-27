@@ -25,9 +25,15 @@ public:
   }
   ~BvOpSemAlu() override = default;
 
+  Expr intTy(unsigned bitWidth) override {
+    return bitWidth == 1 ? boolTy() : bv::bvsort(bitWidth, efac());
+  }
+
+  Expr boolTy() override { return sort::boolTy(efac()); }
+
   /// \brief Converts a signed integer to an ALU expression
   Expr si(mpz_class v, unsigned bitWidth) override {
-    switch(bitWidth) {
+    switch (bitWidth) {
     case 1:
       return v == 1 ? m_trueE : m_falseE;
     default:

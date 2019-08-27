@@ -1582,9 +1582,9 @@ Expr Bv2OpSemContext::mkRegister(const llvm::Instruction &inst) {
       assert(scalar->getType()->isPointerTy());
       Type &eTy = *cast<PointerType>(scalar->getType())->getElementType();
       // -- create a constant with the name v[scalar]
-      reg = bv::bvConst(
+      reg = bind::mkConst(
           op::array::select(v, mkTerm<const Value *>(scalar, efac())),
-          m_sem.sizeInBits(eTy));
+          alu().intTy(m_sem.sizeInBits(eTy)));
     }
 
     // if tracking memory content, create array-valued register for
@@ -1596,9 +1596,8 @@ Expr Bv2OpSemContext::mkRegister(const llvm::Instruction &inst) {
     const Type &ty = *inst.getType();
     switch (ty.getTypeID()) {
     case Type::IntegerTyID:
-      reg = ty.isIntegerTy(1) ? bind::boolConst(v)
-                              : bv::bvConst(v, m_sem.sizeInBits(ty));
-      break;
+      reg = bind::mkConst(v, alu().intTy(m_sem.sizeInBits(ty)));
+     break;
     case Type::PointerTyID:
       reg = bind::mkConst(v, mkPtrRegisterSort(inst));
       break;

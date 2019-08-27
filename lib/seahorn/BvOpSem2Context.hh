@@ -288,6 +288,11 @@ public:
   virtual Expr boolToBv1(Expr e) = 0;
   virtual Expr bv1ToBool(Expr e) = 0;
 
+  /// \brief Integer type of a given bit width on the ALU
+  virtual Expr intTy(unsigned bitWidth) = 0;
+  /// \brief Boolean type of the ALU
+  virtual Expr boolTy() = 0;
+
   virtual Expr si(mpz_class k, unsigned bitWidth) = 0;
   virtual Expr doAdd(Expr op0, Expr op1, unsigned bitWidth) = 0;
   virtual Expr doSub(Expr op0, Expr op1, unsigned bitWidth) = 0;

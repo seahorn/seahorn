@@ -89,7 +89,7 @@ namespace seahorn {
           if (!(FuncsToKeep.count(aliasee) > 0)) {
             LOG ("slice", errs () << "SliceFunctions: removed alias " << *GA << "\n");
             GA->replaceAllUsesWith(aliasee);
-            M.getAliasList().erase(GA);
+	    GA->eraseFromParent();
             Change = true;
           }
         }

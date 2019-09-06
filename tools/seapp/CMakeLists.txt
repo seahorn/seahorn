@@ -13,7 +13,7 @@ set (USED_LIBS
 
 set(LLVM_LINK_COMPONENTS irreader bitwriter ipo scalaropts instrumentation core 
   # XXX not clear why these last two are required
-  codegen objcarcopts)
+  codegen objcarcopts Svf Cudd)
 add_llvm_executable(seapp seapp.cc)
 target_link_libraries (seapp ${USED_LIBS})
 llvm_config (seapp ${LLVM_LINK_COMPONENTS})

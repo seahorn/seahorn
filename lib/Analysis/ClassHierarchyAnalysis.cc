@@ -1,19 +1,22 @@
 #include "seahorn/Analysis/ClassHierarchyAnalysis.hh"
 
 #include "seahorn/Support/SeaDebug.h"
+#include "seahorn/Support/SeaLog.hh"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/SmallSet.h"
+#include "llvm/ADT/SmallVector.h"
 #include "llvm/IR/CallSite.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/Value.h"
-#include "llvm/Support/raw_ostream.h"
 
 #include <boost/algorithm/string/find.hpp>
 #include <boost/algorithm/string/predicate.hpp>
 #include <cxxabi.h>
 
 /*
+   #Background about virtual calls in LLVM#
+
    To implement virtual functions, C++ uses a special form of late
    binding known as the virtual table (aka vtable). The vtable is a
    lookup table of functions used to resolve function calls
@@ -25,7 +28,23 @@
    time. A vtable contains one entry for each virtual function that
    can be called by objects of the class. Each entry in this vtable is
    a function pointer that points to the **most-derived** function
-   accessible by that class.
+   accessible by that class (e.g., if a method is not implemented by a
+   subclass C then C's vtable will have a function pointer to some
+   ancestor's vtable).  Actually a vtable contains more than function
+   pointers. For instance, it contains also the type name identified
+   to the class (called typeinfo).
+
+   Second, the compiler adds a hidden pointer to the base class, which
+   we will call _vptr_. Very importantly, vptr is inherited by derived
+   classes. vptr is set (automatically) when a class object is created
+   so that it points to the virtual table for that class.
+
+   Resources:
+    - https://itanium-cxx-abi.github.io/cxx-abi/abi.html
+    - https://ww2.ii.uj.edu.pl/~kapela/pn/cpp_vtable.html
+
+   Examples of vtables
+   -------------------
 
    1. For simple inheritance the vtable might look like this:
 
@@ -38,7 +57,9 @@
 
      ;; vtable for D1
      @_ZTV2D1 = linkonce_odr unnamed_addr constant { [6 x i8*] }
-     { [6 x i8*] [i8* null,
+     { [6 x i8*] [
+                 ;; zero top-offset
+                 i8* null,
                  ;;typeinfo for D1
                  i8* bitcast ({ i8*, i8*, i8* }* @_ZTI2D1 to i8*),
                  ;; D1::~D1()
@@ -76,7 +97,13 @@
    bitcast (void (%class.C*)* @_ZThn4_N1CD0Ev to i8*), i8* bitcast (i32
    (%class.C*)* @_ZThn4_N1C1gEv to i8*)] }
 
-   3. For diamond inheritance the vtable my look like this:
+   In cases of multiple inheritance, the compiler usually puts
+   together multiple vtables in one.  Thunk functions are introduced
+   by the compiler to do some pointer correction when multiple vtables
+   are stored together.
+
+
+   3. For diamond *virtual* inheritance  the vtable my look like this:
       class A {
          virtual int f() { return 0;}
       };
@@ -102,11 +129,61 @@
                           i8* bitcast (void (%class.D*)* @_ZThn4_N1DD0Ev to
    i8*), i8* bitcast (i32 (%class.D*)* @_ZThn4_N1D1fEv to i8*)] }, align 8
 
-   Second, the compiler adds a hidden pointer to the base class,
-   which we will call _vptr_. Very importantly, vptr is inherited by
-   derived classes. vptr is set (automatically) when a class object is
-   created so that it points to the virtual table for that class.
+   #How we resolve virtual calls#
 
+   Assumption: a C++ class is identified in LLVM bitcode as a named
+   struct type.
+
+   Initialization:
+
+   1. Build a class hierarchy graph G. Each class in the module is a
+      node (see above how we identify a class). We have an edge from
+      c1 to c2 if c2 inherits from c1. Currently, the inheritance
+      relationship is very weak because it's only based on the LLVM
+      subtype relationship. Inheritance implies subtyping but not the
+      opposite.
+
+   2. We build a map from a class to its vtable.
+
+      A vtable is identified when the demangled name of a global
+      variable starts with "vtable for". A vtable in LLVM is a global
+      constant array. We scan each array element and check if it
+      contains a function. If yes, that is considered an entry in the
+      vtable.
+
+      We also identify the class associated to a vtable. While we scan
+      each constant array element, we also check if the demangled name
+      of an array element starts with "typeinfo for XXX". If yes, this
+      is the typeinfo from the class. From there, we can extract the
+      class name string XXX from which we can ask the Module to return
+      the type associated to that name. This approach only works if
+      the type is a named struct type. It's possible that the class
+      associated to the typeinfo is external. In that case, we won't
+      able to get from the Module a named struct type.
+
+      Phasar and SVF get the class by inspecting the constructor. They
+      identify a constructor as the function where the vptr is
+      initialized. The class is obtained from the formal parameter of
+      the constructor. We do not do that because when code is
+      optimized constructors are inlined.
+
+
+   For each indirect call we return the set of all possible callees as
+   follows:
+
+      First, we try to find the vtable index (i.e., which function is
+      being called) using some code pattern. If successful then we
+      extract the type of the first actual parameter and check if the
+      type is a pointer to a named struct type. If successful, let us
+      call this named struct type, the class C. Then, this is what we
+      do roughly in pseudocode:
+
+      callees := empty;
+      reachable := all reachable classes from C using G;
+      foreach c in reachable do:
+          f := get(vtable(c), index);
+          callees := callees U f;
+      return callees;
  */
 namespace seahorn {
 
@@ -134,29 +211,48 @@ static Type *getNonPointerType(Type *pointer) {
 
 class ClassHierarchyAnalysis_Impl {
 public:
-  ClassHierarchyAnalysis_Impl(Module &Module) : m_module(Module) {}
+  using function_vector_t = ClassHierarchyAnalysis::function_vector_t;
+
+  ClassHierarchyAnalysis_Impl(Module &Module)
+      : m_module(Module), m_num_graph_nodes(0), m_num_graph_edges(0),
+        m_num_graph_closed_edges(0), m_num_potential_vtables(0),
+        m_num_vtables(0), m_num_potential_virtual_calls(0),
+        m_num_resolved_virtual_calls(0) {}
 
   ~ClassHierarchyAnalysis_Impl() = default;
 
   void calculate(void);
 
+  // it's not const because it updates some counters for stats
   bool resolveVirtualCall(const llvm::ImmutableCallSite &CS,
-                          std::vector<llvm::Function *> &out) const;
+                          function_vector_t &out);
 
   void printVtables(raw_ostream &o) const;
 
   void printClassHierarchy(raw_ostream &o) const;
 
+  void printStats(raw_ostream &o) const;
+
 private:
   using graph_t =
       DenseMap<const StructType *, SmallSet<const StructType *, 16>>;
-  using vtable_t = DenseMap<const StructType *, std::vector<Function *>>;
+  using vtable_t = SmallVector<Function *, 16>;
+  using vtable_map_t = DenseMap<const StructType *, vtable_t>;
 
   Module &m_module;
   // -- class hierarchy graph (CHG)
   graph_t m_graph;
   // -- vtables
-  vtable_t m_vtables;
+  vtable_map_t m_vtables;
+
+  // some counters for stats
+  unsigned m_num_graph_nodes;
+  unsigned m_num_graph_edges;
+  unsigned m_num_graph_closed_edges;
+  unsigned m_num_potential_vtables;
+  unsigned m_num_vtables;
+  unsigned m_num_potential_virtual_calls;
+  unsigned m_num_resolved_virtual_calls;
 
   void buildCHG(void);
 
@@ -164,13 +260,11 @@ private:
 
   void closureCHG();
 
-  void addVtableEntry(const StructType *ty, Function *fun);
-
   bool hasVtable(const StructType *ty) const;
 
-  std::vector<Function *> &getVtable(const StructType *ty);
+  vtable_t &getVtable(const StructType *ty);
 
-  const std::vector<Function *> &getVtable(const StructType *ty) const;
+  const vtable_t &getVtable(const StructType *ty) const;
 
   void addCHGEdge(const StructType *src, const StructType *dest,
                   graph_t &graph);
@@ -182,36 +276,24 @@ private:
                             const FunctionType *callsite_type,
                             SmallSet<Function *, 16> &out) const;
 
-  static int extractVtableIndex(const ImmutableCallSite &CS);
+  static int getVtableIndex(const ImmutableCallSite &CS);
 
   static bool matchVirtualSignature(const llvm::FunctionType *type_call,
                                     const llvm::FunctionType *type_candidate);
 };
 
-void ClassHierarchyAnalysis_Impl::addVtableEntry(const StructType *ty,
-                                                 Function *fun) {
-  auto it = m_vtables.find(ty);
-  if (it != m_vtables.end()) {
-    it->second.push_back(fun);
-  } else {
-    std::vector<Function *> funs;
-    funs.push_back(fun);
-    m_vtables.insert({ty, funs});
-  }
-}
-
 bool ClassHierarchyAnalysis_Impl::hasVtable(const StructType *ty) const {
   return m_vtables.find(ty) != m_vtables.end();
 }
 
-std::vector<Function *> &
+ClassHierarchyAnalysis_Impl::vtable_t &
 ClassHierarchyAnalysis_Impl::getVtable(const StructType *ty) {
   assert(hasVtable(ty));
   auto it = m_vtables.find(ty);
   return it->second;
 }
 
-const std::vector<Function *> &
+const ClassHierarchyAnalysis_Impl::vtable_t &
 ClassHierarchyAnalysis_Impl::getVtable(const StructType *ty) const {
   assert(hasVtable(ty));
   auto it = m_vtables.find(ty);
@@ -242,8 +324,7 @@ bool ClassHierarchyAnalysis_Impl::hasCHGEdge(const StructType *src,
   }
 }
 
-int ClassHierarchyAnalysis_Impl::extractVtableIndex(
-    const ImmutableCallSite &CS) {
+int ClassHierarchyAnalysis_Impl::getVtableIndex(const ImmutableCallSite &CS) {
   /*
     Assume the virtual call looks exactly like this:
 
@@ -252,7 +333,8 @@ int ClassHierarchyAnalysis_Impl::extractVtableIndex(
      %35 = call i32 %34(%class.B* %30)
 
    */
-  if (const LoadInst *LI = dyn_cast<LoadInst>(CS.getCalledValue())) {
+  if (const LoadInst *LI =
+          dyn_cast<LoadInst>(CS.getCalledValue()->stripPointerCasts())) {
     if (const GetElementPtrInst *GEP =
             dyn_cast<GetElementPtrInst>(LI->getPointerOperand())) {
       if (ConstantInt *CI = dyn_cast<ConstantInt>(GEP->getOperand(1))) {
@@ -317,6 +399,7 @@ void ClassHierarchyAnalysis_Impl::closureCHG(void) {
     for (unsigned j = 0; j < num_nodes; ++j, ++jt) {
       if (m[i][j]) {
         addCHGEdge((*it).first, (*jt).first, closed_g);
+        m_num_graph_closed_edges++;
       }
     }
   }
@@ -324,8 +407,8 @@ void ClassHierarchyAnalysis_Impl::closureCHG(void) {
 }
 
 void ClassHierarchyAnalysis_Impl::buildCHG(void) {
-  // The construction of the class hierarchy graph is currently too
-  // rough. For instance, in cases like this
+  // The construction of the class hierarchy graph is currently
+  // imprecise.  For instance, in cases like this
   //    class A {
   //      B b;
   //    };
@@ -345,11 +428,13 @@ void ClassHierarchyAnalysis_Impl::buildCHG(void) {
   auto struct_types = m_module.getIdentifiedStructTypes();
   for (auto st : struct_types) {
     m_graph.insert({st, SmallSet<const StructType *, 16>()});
+    m_num_graph_nodes++;
   }
   for (auto st : struct_types) {
     for (auto sub_ty : st->subtypes()) {
       if (const StructType *sub_st_ty = dyn_cast<const StructType>(sub_ty)) {
         addCHGEdge(sub_st_ty, st, m_graph);
+        m_num_graph_edges++;
       }
     }
   }
@@ -358,6 +443,9 @@ void ClassHierarchyAnalysis_Impl::buildCHG(void) {
 void ClassHierarchyAnalysis_Impl::buildVtables(void) {
 
   const static std::string vtable_for_str = "vtable for";
+  const static std::string typeinfo_for_str = "typeinfo for";
+  const static std::string pure_virtual_str = "__cxa_pure_virtual";
+
   for (auto &gv : m_module.globals()) {
 
     // Vtables are constant global variables
@@ -381,120 +469,86 @@ void ClassHierarchyAnalysis_Impl::buildVtables(void) {
       continue;
     }
 
-    /*
-      XXX: from Phasar.
-
-      The goal is to associate a class with its vtable. It tries to
-      find the constructor of the class by searching for the
-      instruction that sets vptr via an store. If it finds the
-      constructor, the class is obtained from the argument to the
-      constructor.
-
-      This is how the constructor for class D1 might look like:
-
-      define linkonce_odr void @_ZN2D1C2Ev(%class.D1*) unnamed_addr #3 align 2 {
-         %2 = alloca %class.D1*, align 8
-         store %class.D1* %0, %class.D1** %2, align 8
-         %3 = load %class.D1*, %class.D1** %2, align 8
-         %4 = bitcast %class.D1* %3 to %class.B*
-         ;;; B::B()
-         call void @_ZN1BC2Ev(%class.B* %4)
-         %5 = bitcast %class.D1* %3 to i32 (...)***
-         store i32 (...)**
-               bitcast (i8** getelementptr inbounds ({[6 x i8*]}, {[6 x i8*]}*
-               @_ZTV2D1, i32 0, inrange i32 0, i32 2) to i32 (...)**), i32
-      (...)*** %5 ret void
-      }
-
-      Here, we would like to associate %class.D1* with @_ZTV2D1 (the
-      vtable for D1).
-
-      XXX: if the class inherits from multiple classes will have
-           multiple store ( bitcast( getelementptr( ....) ...) ...)
-           instructions.
-    */
-
-    if (gv.user_empty()) {
-      LOG("cha",
-          errs() << "The vtable " << demangled_gv_name << " has no users\n";);
-      continue;
-    }
-
-    // (from phasar): quite ad-hoc syntactic approach. It works only
-    // if the constructor is not inlined. It also relies on the order
-    // of a Value's users.
-    //
-    // The first use return a ConstExpr (GetElementPtr) inside a
-    // ConstExpr (Bitcast) inside a store We need to access directly
-    // the store as the ConstExpr are not linked to a basic block and
-    // so they can not be printed, we can not access the function in
-    // which they are directly, ...
-    auto base = gv.user_begin();
-    while (base != gv.user_end() &&
-           (base->user_empty() || base->user_begin()->user_empty() ||
-            isa<Constant>(*(base->user_begin()->user_begin())))) {
-      ++base;
-    }
-
-    if (base == gv.user_end()) {
-      continue;
-    }
-
-    // Find the constructor where vptr is initialized
-    auto store_vtable_inst =
-        dyn_cast<StoreInst>(*(base->user_begin()->user_begin()));
-    if (!store_vtable_inst) {
-      LOG("cha", errs() << "Cannot find the store instruction that initializes "
-                           "the vtable\n";);
-      continue;
-    }
-    Function *constructor = store_vtable_inst->getFunction();
-    if (!constructor) {
-      LOG("cha", errs() << "Cannot find function associated with "
-                        << *store_vtable_inst << "\n";);
-      continue;
-    }
-
-    if (constructor->arg_size() == 0) {
-      LOG("cha",
-          errs()
-              << "What we thought was a constructor is not a constructor\n";);
-      continue;
-    }
-
-    // We get the type of "this" (the first argument of the constructor)
-    Argument &this_ = *(constructor->arg_begin());
-
-    const StructType *this_type =
-        dyn_cast<const StructType>(getNonPointerType(this_.getType()));
-    if (!this_type) {
-      LOG("cha", errs() << "Cannot get type of this "
-                        << *(getNonPointerType(this_.getType())) << "\n";);
-      continue;
-    }
-
-    // At this point, `this_type` is the StructType of the class.
-    // Get all the functions from the vtable
+    // We inspect the global initializer and try to figure if it
+    // contains a vtable.  If yes, we extract typeinfo and functions
+    // from the vtable.
     Constant *gv_initializer = gv.getInitializer();
     for (unsigned i = 0, e = gv_initializer->getNumOperands(); i < e; ++i) {
       if (ConstantArray *CA =
               dyn_cast<ConstantArray>(gv_initializer->getAggregateElement(i))) {
+        // A vtable is a ConstantArray in LLVM so we are getting closer ...
+        m_num_potential_vtables++;
+
+        // We assume that a class can only have one typeinfo associated.
+        StructType *class_typeinfo = nullptr;
+        // the vtable
+        vtable_t vtable;
         for (unsigned j = 0; j < CA->getNumOperands(); ++j) {
           if (ConstantExpr *CE =
                   dyn_cast<ConstantExpr>(CA->getAggregateElement(j))) {
             if (CE->isCast()) {
               if (Constant *Cast =
                       ConstantExpr::getBitCast(CE, CE->getType())) {
+                /*
+                 * Get typeinfo of the class
+                 *
+                 * XXX: typeinfo can be a named struct type if it's
+                 *      internal to the module or i8* if it is
+                 *      external. This code below will succeed only if
+                 *      typeinfo is a named struct type.
+                 */
+                if (Cast->getOperand(0)->hasName()) {
+                  std::string demangled_name(
+                      cxx_demangle(Cast->getOperand(0)->getName().str()));
+                  size_t pos = demangled_name.find_last_of(typeinfo_for_str);
+                  if (pos != std::string::npos) {
+                    /* here we know that the cast contains the typeinfo_ptr */
+                    StructType *old_class_typeinfo = class_typeinfo;
+                    // XXX: sometimes the compiler add the prefix
+                    // "class." to the class name but not always.
+                    std::string class_name = demangled_name.substr(pos + 1);
+                    class_typeinfo =
+                        m_module.getTypeByName("class." + class_name);
+                    if (!class_typeinfo) {
+                      class_typeinfo = m_module.getTypeByName(class_name);
+                    }
+
+                    if (old_class_typeinfo && class_typeinfo &&
+                        old_class_typeinfo != class_typeinfo) {
+                      ERR << "Found a vtable with two different typeinfo: "
+                          << *old_class_typeinfo << " and " << *class_typeinfo;
+                      llvm_unreachable(nullptr);
+                    } else {
+                      if (old_class_typeinfo && !class_typeinfo) {
+                        // restore class_typeinfo
+                        class_typeinfo = old_class_typeinfo;
+                      }
+                    }
+                  }
+                }
+                // get the function and its offset
                 if (Function *VF = dyn_cast<Function>(Cast->getOperand(0))) {
-                  addVtableEntry(this_type, VF);
+                  if (VF->getName() == pure_virtual_str) {
+                    vtable.push_back(nullptr);
+                  } else {
+                    vtable.push_back(VF);
+                  }
                 }
               }
             }
           }
         }
+
+        if (class_typeinfo) {
+          m_vtables.insert({class_typeinfo, vtable});
+          m_num_vtables++;
+        } else {
+          WARN << "We found something that looks a vtable but we couldn't find "
+                  "typeinfo: "
+               << *CA;
+        }
       }
     }
-
   } // end outer loop
 }
 
@@ -527,23 +581,31 @@ void ClassHierarchyAnalysis_Impl::addCandidateFunction(
     const StructType *type, unsigned vtable_index,
     const FunctionType *callsite_type, SmallSet<Function *, 16> &out) const {
   if (hasVtable(type)) {
-    auto &callees = getVtable(type);
+    const vtable_t &callees = getVtable(type);
+    // XXX: a vtable can have null entries which mean virtual
+    // functions.
     if (vtable_index < callees.size()) {
-      Function *callee = callees[vtable_index];
-      if (matchVirtualSignature(callsite_type, callee->getFunctionType())) {
-        out.insert(callees[vtable_index]);
-      } else {
-        // LOG("cha", errs() << "Candidate callee type does not match "
-        //                   << "virtual call type\n";);
+      if (Function *callee = callees[vtable_index]) {
+        // XXX: callee can be null if we access to some vtable offset
+        // which is not a function.
+        if (matchVirtualSignature(callsite_type, callee->getFunctionType())) {
+          out.insert(callees[vtable_index]);
+        } else {
+          ERR << "Did not match " << *callsite_type << " and "
+              << *(callee->getFunctionType());
+        }
       }
     } else {
-      LOG("cha", errs() << "The vtable index is out-of-bounds\n";);
+      ERR << "Out-of-bounds access to vtable " << type->getName();
+      llvm_unreachable(nullptr);
     }
   }
 }
 
-bool ClassHierarchyAnalysis_Impl::resolveVirtualCall(
-    const ImmutableCallSite &CS, std::vector<Function *> &out) const {
+// Return the type of the first actual parameter if the call looks
+// virtual. (temporary for stats)
+bool mayBeVirtualCall(const ImmutableCallSite &CS) {
+
   // if not indirect call then we bail out ...
   if (CS.getCalledFunction()) {
     return false;
@@ -559,18 +621,47 @@ bool ClassHierarchyAnalysis_Impl::resolveVirtualCall(
   if (!CS_type) {
     return false;
   }
+  // Assume the first argument of CS is this, otherwise we bail out ...
+  const Value *this_ = CS.getArgOperand(0);
+  if (this_->getType()->isPointerTy()) {
+    if (const StructType *this_type =
+            dyn_cast<StructType>(this_->getType()->getPointerElementType())) {
+      return true;
+    }
+  }
+  return false;
+}
 
+bool ClassHierarchyAnalysis_Impl::resolveVirtualCall(
+    const ImmutableCallSite &CS, function_vector_t &out) {
+
+  // if not indirect call then we bail out ...
+  if (CS.getCalledFunction()) {
+    return false;
+  }
+
+  // If the callee is not a pointer to a function then we bail out ...
+  if (!CS.getCalledValue()->getType()->isPointerTy()) {
+    return false;
+  }
+
+  const FunctionType *CS_type = dyn_cast<FunctionType>(
+      CS.getCalledValue()->getType()->getPointerElementType());
+  if (!CS_type) {
+    return false;
+  }
   // Assume the first argument of CS is this, otherwise we bail out ...
   const Value *this_ = CS.getArgOperand(0);
   if (this_->getType()->isPointerTy()) {
     if (const StructType *this_type =
             dyn_cast<StructType>(this_->getType()->getPointerElementType())) {
 
-      int vtable_index = extractVtableIndex(CS);
+      m_num_potential_virtual_calls++;
+
+      int vtable_index = getVtableIndex(CS);
       if (vtable_index < 0) {
-        LOG("cha", errs() << "Cannot resolve " << *(CS.getInstruction()) << ": "
-                          << "cannot find vtable index for indirect call "
-                          << *CS.getInstruction() << "\n";);
+        WARN << "Cannot find vtable index for indirect call:\n "
+             << "\t" << *(CS.getInstruction());
         return false;
       }
 
@@ -595,12 +686,15 @@ bool ClassHierarchyAnalysis_Impl::resolveVirtualCall(
       std::copy(out_set.begin(), out_set.end(), std::back_inserter(out));
 
       // true means that the callsite looks like a virtual call
+      if (!out.empty()) {
+        m_num_resolved_virtual_calls++;
+      }
       return true;
     }
   }
 
-  LOG("cha", errs() << "Cannot resolve virtual call " << *CS.getInstruction()
-                    << " because first argument is not StructType\n";);
+  WARN << "Cannot resolve virtual call " << *CS.getInstruction()
+       << " because first argument is not StructType\n";
 
   return false;
 }
@@ -610,9 +704,12 @@ void ClassHierarchyAnalysis_Impl::printVtables(raw_ostream &o) const {
     const StructType *class_ty = kv.first;
     auto const &funs = kv.second;
     o << cxx_demangle(class_ty->getName().str()) << ":\n";
-    for (Function *f : funs) {
-      o << "\t" << cxx_demangle(f->getName().str()) << " " << *(f->getType())
-        << "\n";
+    for (unsigned i = 0, e = funs.size(); i < e; ++i) {
+      if (funs[i]) {
+        o << "\t" << i << ": " << funs[i]->getName().str() << "   "
+          << "DEMANGLED NAME=" << cxx_demangle(funs[i]->getName().str())
+          << "   TYPE=" << *(funs[i]->getType()) << "\n";
+      }
     }
   }
 }
@@ -634,6 +731,20 @@ void ClassHierarchyAnalysis_Impl::printClassHierarchy(raw_ostream &o) const {
   }
 }
 
+void ClassHierarchyAnalysis_Impl::printStats(raw_ostream &o) const {
+  errs() << "=== CHA stats===\n";
+  errs() << "BRUNCH_STAT GRAPH NUMBER NODES " << m_num_graph_nodes << "\n";
+  errs() << "BRUNCH_STAT GRAPH NUMBER EDGES " << m_num_graph_edges << "\n";
+  errs() << "BRUNCH_STAT GRAPH NUMBER CLOSED EDGES " << m_num_graph_closed_edges
+         << "\n";
+  errs() << "BRUNCH_STAT POTENTIAL VTABLES " << m_num_potential_vtables << "\n";
+  errs() << "BRUNCH_STAT IDENTIFIED VTABLES " << m_num_vtables << "\n";
+  errs() << "BRUNCH_STAT POTENTIAL VIRTUAL CALLS "
+         << m_num_potential_virtual_calls << "\n";
+  errs() << "BRUNCH_STAT RESOLVED VIRTUAL CALLS "
+         << m_num_resolved_virtual_calls << "\n";
+}
+
 /** ClassHierarchyAnalysis methods **/
 ClassHierarchyAnalysis::ClassHierarchyAnalysis(Module &M)
     : m_cha_impl(new ClassHierarchyAnalysis_Impl(M)) {}
@@ -644,12 +755,10 @@ ClassHierarchyAnalysis::~ClassHierarchyAnalysis() {
   }
 }
 
-void ClassHierarchyAnalysis::calculate(void) {
-  m_cha_impl->calculate();
-}
+void ClassHierarchyAnalysis::calculate(void) { m_cha_impl->calculate(); }
 
-bool ClassHierarchyAnalysis::resolveVirtualCall(
-    const ImmutableCallSite &CS, std::vector<Function *> &out) const {
+bool ClassHierarchyAnalysis::resolveVirtualCall(const ImmutableCallSite &CS,
+                                                function_vector_t &out) {
   return m_cha_impl->resolveVirtualCall(CS, out);
 }
 
@@ -661,9 +770,14 @@ void ClassHierarchyAnalysis::printVtables(raw_ostream &o) const {
   m_cha_impl->printVtables(o);
 }
 
+void ClassHierarchyAnalysis::printStats(raw_ostream &o) const {
+  m_cha_impl->printStats(o);
+}
+
 /** LLVM pass **/
 class ClassHierarchyAnalysisPass : public ModulePass {
 public:
+  using function_vector_t = ClassHierarchyAnalysis::function_vector_t;
   static char ID;
 
   ClassHierarchyAnalysisPass() : ModulePass(ID), m_cha(nullptr) {}
@@ -678,46 +792,43 @@ public:
     m_cha = new ClassHierarchyAnalysis(M);
     m_cha->calculate();
 
-    LOG("cha", errs() << "===================\n";
-        errs() << "       CHA         \n"; errs() << "===================\n";
-        m_cha->printClassHierarchy(errs()); errs() << "\n";
-        errs() << "==================\n"; errs() << "     Vtables      \n";
-        errs() << "==================\n"; m_cha->printVtables(errs());
-        errs() << "==================\n"; errs() << " Devirtualization \n";
-        errs() << "==================\n";
-
-        for (auto &F
-             : M) {
-          for (auto &BB : F) {
-            for (auto &I : BB) {
-              if (isa<CallInst>(I) || isa<InvokeInst>(I)) {
-                ImmutableCallSite CS(&I);
-                std::vector<Function *> callees;
-                if (m_cha->resolveVirtualCall(CS, callees)) {
-                  errs() << "Found virtual call " << I << "\n";
-                  if (callees.empty()) {
-                    errs() << "No found callees\n";
-                  } else {
-                    errs() << "Possible callees:\n";
-                    for (unsigned i = 0, e = callees.size(); i < e; ++i) {
-                      auto f = callees[i];
-                      errs() << "\t" << cxx_demangle(f->getName().str()) << " "
-                             << *(f->getType()) << "\n";
-                    }
-                  }
+    errs() << "=== Class Hierarchy Graph ===\n";
+    m_cha->printClassHierarchy(errs());
+    errs() << "\n=== Vtables ===\n";
+    m_cha->printVtables(errs());
+    errs() << "\n=== Devirtualization===\n";
+    for (auto &F : M) {
+      for (auto &BB : F) {
+        for (auto &I : BB) {
+          if (isa<CallInst>(I) || isa<InvokeInst>(I)) {
+            ImmutableCallSite CS(&I);
+            function_vector_t callees;
+            if (m_cha->resolveVirtualCall(CS, callees)) {
+              errs() << "** Found virtual call " << I << "\n";
+              if (callees.empty()) {
+                errs() << "\tno found callees\n";
+              } else {
+                errs() << "\tpossible callees:\n";
+                for (unsigned i = 0, e = callees.size(); i < e; ++i) {
+                  auto f = callees[i];
+                  errs() << "\t\t" << cxx_demangle(f->getName().str()) << " "
+                         << *(f->getType()) << "\n";
                 }
               }
             }
           }
-        });
+        }
+      }
+    }
+
+    m_cha->printStats(errs());
 
     return false;
   }
 
   void getAnalysisUsage(AnalysisUsage &AU) const { AU.setPreservesAll(); }
 
-  bool resolveVirtualCall(const ImmutableCallSite &CS,
-                          std::vector<Function *> &out) {
+  bool resolveVirtualCall(const ImmutableCallSite &CS, function_vector_t &out) {
     return m_cha->resolveVirtualCall(CS, out);
   }
 

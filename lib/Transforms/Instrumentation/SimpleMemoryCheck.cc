@@ -16,9 +16,13 @@
 #include "llvm/Transforms/Utils/Cloning.h"
 #include "llvm/Transforms/Utils/Local.h"
 
+#include "sea_dsa/AllocWrapInfo.hh"
 #include "sea_dsa/DsaAnalysis.hh"
+#include "sea_dsa/support/Brunch.hh"
 #include "seahorn/Support/SeaDebug.h"
 #include "seahorn/Support/SeaLog.hh"
+
+#include "WPA/WPAPass.h"
 
 #define SMC_LOG(...) LOG("smc", __VA_ARGS__)
 
@@ -59,6 +63,25 @@ static llvm::cl::opt<unsigned> AllocToInstrumentID(
     "smc-instrument-alloc",
     llvm::cl::desc("Id of the allocation site to instrument"),
     llvm::cl::init(0));
+
+namespace {
+enum PointerAnalysisKind { Dsa, Andersen, Wave, WaveDiff, Sparse };
+}
+
+static llvm::cl::opt<enum PointerAnalysisKind> SMCPTAKind(
+    "smc-pta", llvm::cl::desc("SMC pointer analysis to use"),
+    llvm::cl::values(
+        clEnumValN(Dsa, "dsa", "Use SeaDsa"),
+        clEnumValN(Andersen, "andersen", "Use SVF Andersen"),
+        clEnumValN(Wave, "wave", "Use SVF Andersen Wave"),
+        clEnumValN(WaveDiff, "wave-diff", "Use SVF Andersen Wave Diff"),
+        clEnumValN(Sparse, "sparse", "Use SVF Sparse Flow Sensitive PTA")),
+    llvm::cl::init(Dsa));
+
+
+namespace sea_svf {
+extern const std::set<std::string> *SeaAllocWrappers;
+} // namespace sea_svf
 
 namespace seahorn {
 
@@ -106,6 +129,8 @@ struct CheckContext {
     OS << "\n  AccessedBytes: " << AccessedBytes;
 
     auto PrintDsaAllocSite = [this, &OS] (const llvm::Value& v) {
+      if (!DsaGraph)
+        return;
       auto optAS = DsaGraph->getAllocSite(v);
       assert(optAS.hasValue());
       sea_dsa::DsaAllocSite &AS = **optAS;
@@ -177,8 +202,17 @@ private:
 };
 
 namespace {
+class PTAWrapper {
+public:
+  virtual SmallVector<Value *, 8> getAllocSites(Value *V,
+                                                const Function &F) = 0;
+  virtual ~PTAWrapper() {
+    SEA_DSA_BRUNCH_STAT("PTA_RSS_KB", sea_dsa::GetCurrentMemoryUsageKb());
+  }
+};
+
 // A wrapper for seahorn dsa
-class SeaDsa {
+class SeaDsa : public PTAWrapper {
   llvm::Pass *m_abc;
   sea_dsa::DsaInfo *m_dsa;
 
@@ -195,7 +229,7 @@ public:
     }
 
     if (!(g->hasCell(*ptr))) {
-      WARN << "SMC: Sea Dsa node not found for " << ptr;
+      WARN << "SMC: Sea Dsa node not found for " << *ptr;
       return nullptr;
     }
 
@@ -223,7 +257,7 @@ public:
     return *N;
   }
 
-  SmallVector<Value *, 8> getAllocSites(Value *V, const Function &F) {
+  SmallVector<Value *, 8> getAllocSites(Value *V, const Function &F) override {
     sea_dsa::Node &N = getNode(*V, F);
 
     SmallVector<Value *, 8> Sites;
@@ -236,9 +270,99 @@ public:
     }
 
     return Sites;
-  };
+  }
 
   void viewGraph(const Function &F) { m_dsa->getDsaGraph(F)->viewGraph(); }
+};
+
+class SVFPTAWrapper : public PTAWrapper {
+  const sea_dsa::AllocWrapInfo *m_awi = nullptr;
+  const llvm::TargetLibraryInfo *m_tli = nullptr;
+  std::unique_ptr<WPAPass> m_wpa = nullptr;
+  SVFModule m_svfModule;
+
+public:
+  SVFPTAWrapper(llvm::Module &M, const sea_dsa::AllocWrapInfo *AWI = nullptr,
+                const llvm::TargetLibraryInfo *TLI = nullptr)
+      : m_svfModule(M), m_awi(AWI), m_tli(TLI) {
+    auto allocWrapper = llvm::make_unique<std::set<std::string>>();
+    if (m_awi) {
+      assert(m_tli);
+      // This is going to leak memory -- since it happens once, we don't care.
+      auto *allocs = new std::set<std::string>(m_awi->getAllocWrapperNames());
+      for (const llvm::Function &F : M)
+        if (F.hasName())
+          if (llvm::isAllocLikeFn(&F, m_tli, false))
+            allocs->insert(F.getName().str());
+          else if (F.isDeclaration() && F.getReturnType()->isPointerTy())
+            allocs->insert(F.getName().str());
+
+      errs() << "Sea Allocators:\n";
+      for (auto &name : *allocs)
+        errs() << "\t" << name << "\n";
+      sea_svf::SeaAllocWrappers = allocs;
+    }
+
+    m_wpa = llvm::make_unique<WPAPass>();
+
+    assert(SMCPTAKind != PointerAnalysisKind::Dsa);
+    errs() << "Warning: Running SVF PTA!\n";
+
+    PointerAnalysis::PTATY PTAToRun;
+    StringRef PTAString;
+
+    switch (SMCPTAKind) {
+    case PointerAnalysisKind::Andersen:
+      PTAToRun = PointerAnalysis::PTATY::Andersen_WPA;
+      PTAString = "SVF_Andersen";
+      break;
+    case PointerAnalysisKind::Wave:
+      PTAToRun = PointerAnalysis::PTATY::AndersenWave_WPA;
+      PTAString = "SVF_Andersen_Wave";
+      break;
+    case PointerAnalysisKind::WaveDiff: {
+      PTAToRun = sea_dsa::IsTypeAware
+                     ? PointerAnalysis::PTATY::AndersenWaveDiffWithType_WPA
+                     : PointerAnalysis::PTATY ::AndersenWaveDiff_WPA;
+      PTAString = sea_dsa::IsTypeAware ? "SVF_Andersen_Diff_Wave_Type"
+                                       : "SVF_Andersen_Diff_Wave_NoType";
+    } break;
+    case PointerAnalysisKind::Sparse:
+      PTAToRun = PointerAnalysis::PTATY::FSSPARSE_WPA;
+      PTAString = "SVF_Sparse";
+      break;
+    default:
+      llvm_unreachable("Unhandled PTA kind!");
+    }
+
+    SEA_DSA_BRUNCH_STAT("PTA_KIND", PTAString);
+    sea_dsa::BrunchTimer timer("PTA");
+    m_wpa->runPointerAnalysis(m_svfModule, PTAToRun);
+    timer.stop();
+  }
+
+  SmallVector<Value *, 8> getAllocSites(Value *V, const Function &) override {
+    PointerAnalysis &pta = m_wpa->getPTA();
+    assert(pta.getPAG());
+    PAG &pag = *pta.getPAG();
+
+    NodeID node = pag.getValueNode(V);
+
+    assert(node != 0);
+    SmallVector<Value *, 8> res;
+
+    for (NodeID id : pta.getPts(node))
+      if (const MemObj *obj = pag.getObject(id)) {
+        if (const llvm::Value *v = obj->getRefVal()) {
+          if (auto *gv = llvm::dyn_cast<GlobalValue>(v))
+            if (gv->isDeclaration())
+              continue;
+          res.push_back(const_cast<llvm::Value *>(v));
+        }
+      }
+
+    return res;
+  }
 };
 
 } // namespace
@@ -261,7 +385,9 @@ private:
   CallGraph *m_CG;
   const DataLayout *m_DL;
   const TargetLibraryInfo *m_TLI;
-  std::unique_ptr<SeaDsa> m_SDSA;
+  std::unique_ptr<SeaDsa> m_SDSA = nullptr;
+  std::unique_ptr<SVFPTAWrapper> m_SVF = nullptr;
+  PTAWrapper *m_PTA = nullptr;
 
   Function *m_assumeFn;
   Function *m_errorFn;
@@ -288,7 +414,8 @@ private:
   CallInst *getNDPtr(Function *F, IRBuilder<> &IRB, Twine Name = "");
   void createAssume(Value *Cond, Function *F, IRBuilder<> &IRB);
 
-  void printStats(std::vector<CheckContext> &Checks,
+  void printStats(std::vector<CheckContext> &InterestingChecks,
+                  std::vector<CheckContext> &AllChecks,
                   std::vector<Instruction *> &UninterestingMIs, bool Detailed);
 };
 
@@ -518,14 +645,20 @@ CheckContext SimpleMemoryCheck::getUnsafeCandidates(Instruction *Inst,
   const uint32_t Sz = Bits < 8 ? 1 : Bits / 8;
   const int64_t LastRead = Origin.Offset + Sz;
 
+  const sea_dsa::Cell *OriginCell = m_SDSA ?
+                                    m_SDSA->getCell(Origin.Ptr, F) : nullptr;
+
   CheckContext Check;
   Check.MI = Inst;
   Check.F = &F;
   Check.Barrier = Origin.Ptr;
-  Check.Collapsed = m_SDSA->getCell(Origin.Ptr,
-                                    F)->getNode()->isOffsetCollapsed();
+  Check.Collapsed = (m_SDSA && OriginCell) ?
+                    OriginCell->getNode()->isOffsetCollapsed() : false;
   Check.AccessedBytes = size_t(LastRead);
-  Check.DsaGraph = &m_SDSA->getGraph(F);
+  Check.DsaGraph = m_SDSA ? &m_SDSA->getGraph(F) : nullptr;
+
+  if (m_SDSA && !OriginCell)
+    return Check;
 
   if (Optional<size_t> AllocSize = getAllocSize(Origin.Ptr)) {
     if (int64_t(Origin.Offset) + Sz > int64_t(*AllocSize)) {
@@ -544,7 +677,7 @@ CheckContext SimpleMemoryCheck::getUnsafeCandidates(Instruction *Inst,
 
   assert(Origin.Ptr);
 
-  for (Value *AS : m_SDSA->getAllocSites(Origin.Ptr, F)) {
+  for (Value *AS : m_PTA->getAllocSites(Origin.Ptr, F)) {
     bool Interesting = isInterestingAllocSite(Origin.Ptr, LastRead, AS);
 
     if (Interesting /*&& Check.Collapsed*/) {
@@ -922,7 +1055,7 @@ bool SimpleMemoryCheck::runOnModule(llvm::Module &M) {
 
   Function *main = M.getFunction("main");
   if (!main) {
-    errs() << "Main not found: no buffer overflow checks added\n";
+    ERR << "Main not found: no buffer overflow checks added";
     return false;
   }
 
@@ -930,15 +1063,26 @@ bool SimpleMemoryCheck::runOnModule(llvm::Module &M) {
   m_M = &M;
   m_TLI = &getAnalysis<TargetLibraryInfoWrapperPass>().getTLI();
   m_DL = &M.getDataLayout();
-  m_SDSA = llvm::make_unique<SeaDsa>(this);
+
+  if (SMCPTAKind == PointerAnalysisKind::Dsa) {
+    m_SDSA = llvm::make_unique<SeaDsa>(this);
+    m_PTA = m_SDSA.get();
+  } else {
+    sea_dsa::AllocWrapInfo &AWI = getAnalysis<sea_dsa::AllocWrapInfo>();
+    m_SVF = llvm::make_unique<SVFPTAWrapper>(M, &AWI, m_TLI);
+    m_PTA = m_SVF.get();
+  }
+
+  assert(m_PTA);
 
   SMC_LOG(errs() << " ========== SMC (" << (sea_dsa::IsTypeAware ? "" : "Not ")
                  << "Type-aware) ==========\n");
-  LOG("smc-dsa", m_SDSA->viewGraph(*main));
+  LOG("smc-dsa", if (m_SDSA) m_SDSA->viewGraph(*main));
 
   AttrBuilder AB;
   AB.addAttribute(Attribute::NoReturn);
-  AttributeList AS = AttributeList::get(*m_Ctx, AttributeList::FunctionIndex, AB);
+  AttributeList AS =
+      AttributeList::get(*m_Ctx, AttributeList::FunctionIndex, AB);
   m_errorFn = dyn_cast<Function>(M.getOrInsertFunction(
       "verifier.error", AS, Type::getVoidTy(*m_Ctx)));
 
@@ -957,9 +1101,11 @@ bool SimpleMemoryCheck::runOnModule(llvm::Module &M) {
   }
 
   std::vector<CheckContext> CheckCandidates;
+  std::vector<CheckContext> AllCandidates;
   std::vector<Instruction *> UninterestingMIs;
 
   TypeSimilarityCache TSC;
+  sea_dsa::BrunchTimer smcTimer("SMC_ANALYSIS");
 
   for (auto &F : M) {
     if (F.isDeclaration())
@@ -977,6 +1123,8 @@ bool SimpleMemoryCheck::runOnModule(llvm::Module &M) {
         if (I && (isa<LoadInst>(I) || isa<StoreInst>(I))) {
 
           CheckContext Check = getUnsafeCandidates(I, F, TSC);
+
+          AllCandidates.push_back(Check);
 
           // Skip collapsed DSA nodes for now, as they generate too much
           // noise.
@@ -1001,8 +1149,10 @@ bool SimpleMemoryCheck::runOnModule(llvm::Module &M) {
     }
   }
 
+  smcTimer.stop();
+
   if (PrintSMCStats || PrintSMCSummary) {
-    printStats(CheckCandidates, UninterestingMIs, PrintSMCStats);
+    printStats(CheckCandidates, AllCandidates, UninterestingMIs, PrintSMCStats);
   }
 
   if (PrintSMCStats) {
@@ -1052,8 +1202,6 @@ bool SimpleMemoryCheck::runOnModule(llvm::Module &M) {
   emitMemoryInstInstrumentation(Check);
   emitAllocSiteInstrumentation(Check, AllocSiteId);
 
-  // SMC_LOG(M.dump());
-
   SMC_LOG(errs() << " ========== SMC (" << (sea_dsa::IsTypeAware ? "" : "Not ")
                  << "Type-aware) ==========\n");
   return true;
@@ -1061,7 +1209,10 @@ bool SimpleMemoryCheck::runOnModule(llvm::Module &M) {
 
 void SimpleMemoryCheck::getAnalysisUsage(llvm::AnalysisUsage &AU) const {
   AU.setPreservesAll();
-  AU.addRequired<sea_dsa::DsaInfoPass>(); // run seahorn dsa
+  AU.addRequired<sea_dsa::AllocWrapInfo>();
+
+  if (SMCPTAKind == PointerAnalysisKind::Dsa)
+    AU.addRequired<sea_dsa::DsaInfoPass>(); // run seahorn dsa
   AU.addRequired<llvm::TargetLibraryInfoWrapperPass>();
   AU.addRequired<llvm::CallGraphWrapperPass>();
 }
@@ -1122,9 +1273,10 @@ struct SizeStats {
   }
 };
 
-void SimpleMemoryCheck::printStats(
-    std::vector<CheckContext> &Checks,
-    std::vector<Instruction *> &UninterestingMIs, bool Detailed) {
+void SimpleMemoryCheck::printStats(std::vector<CheckContext> &InteresingChecks,
+                                   std::vector<CheckContext> &AllChecks,
+                                   std::vector<Instruction *> &UninterestingMIs,
+                                   bool Detailed) {
   raw_ostream &OS = errs();
   OS << "\n=========== Start of Simple Memory Check Stats ===========\n";
   OS << "Format:\tAll instructions (Heap/Stack/Global)\n\n";
@@ -1135,24 +1287,36 @@ void SimpleMemoryCheck::printStats(
   DenseSet<Instruction *> AllInstructions;
   DenseSet<std::pair<Value *, Value *>> InterestingBarrierAllocSites;
   DenseSet<std::pair<Value *, Value *>> OtherBarrierAllocSites;
+  DenseSet<std::pair<Value *, Value *>> AllAnyBarrierAllocSites;
 
   AllInstructions.insert(UninterestingMIs.begin(), UninterestingMIs.end());
   unsigned TotalSimple = 0;
 
-  for (auto &Check : Checks) {
-    AllInstructions.insert(Check.MI);
-
+  for (auto &Check : InteresingChecks) {
     TotalSimple += Check.InterestingAllocSites.size();
     for (auto *AS : Check.InterestingAllocSites) {
-      AllAllocSites.insert(AS);
       AllInterestingAllocSites.insert(AS);
       InterestingBarrierAllocSites.insert({Check.Barrier, AS});
     }
 
     for (auto *AS : Check.OtherAllocSites) {
-      AllAllocSites.insert(AS);
       AllOtherAllocSites.insert(AS);
       OtherBarrierAllocSites.insert({Check.Barrier, AS});
+    }
+  }
+
+  for (auto &Check : AllChecks) {
+    AllInstructions.insert(Check.MI);
+
+    DenseSet<Value *> CombinedAllocSites;
+    CombinedAllocSites.insert(Check.OtherAllocSites.begin(),
+                              Check.OtherAllocSites.end());
+    CombinedAllocSites.insert(Check.InterestingAllocSites.begin(),
+                              Check.InterestingAllocSites.end());
+
+    for (auto *AS : CombinedAllocSites) {
+      AllAllocSites.insert(AS);
+      AllAnyBarrierAllocSites.insert({Check.Barrier, AS});
     }
   }
 
@@ -1171,21 +1335,46 @@ void SimpleMemoryCheck::printStats(
   OS << "Total Simple AS to instrument\t" << TotalSimple << "\n";
   OS << "Interesting <Barrier, AllocSite> pairs\t"
      << InterestingBarrierAllocSites.size() << "\n";
-  const unsigned totalASBarrierPairs = OtherBarrierAllocSites.size() + InterestingBarrierAllocSites.size();
+  const unsigned totalASBarrierPairs =
+      OtherBarrierAllocSites.size() + InterestingBarrierAllocSites.size();
   OS << "Total <Barrier, AllocSite> pairs\t" << totalASBarrierPairs << "\n";
 
-  errs() << "BRUNCH_STAT SMC_AS_BARRIER_INTERESTING "
-         << InterestingBarrierAllocSites.size() << "\n";
-  errs() << "BRUNCH_STAT SMC_AS_BARRIER_TOTAL " << totalASBarrierPairs << "\n";
+  SEA_DSA_BRUNCH_STAT("SMC_ALL_AS", AllAllocSites.size());
+  SEA_DSA_BRUNCH_STAT("SMC_AS_BARRIER_INTERESTING",
+                      InterestingBarrierAllocSites.size());
+  SEA_DSA_BRUNCH_STAT("SMC_AS_BARRIER_CHECKS", totalASBarrierPairs);
+  SEA_DSA_BRUNCH_STAT("SMC_AS_BARRIER_TOTAL", AllAnyBarrierAllocSites.size());
+
+  // Workaround issues with the preprocessor.
+  bool printAllocSites = false;
+  LOG("alloc-sites", printAllocSites = true);
+  if (printAllocSites) {
+    errs() << "All alloc sites:\n";
+    std::vector<std::pair<StringRef, std::string>> asLocations;
+    asLocations.reserve(AllAllocSites.size());
+    for (auto *AS : AllAllocSites) {
+      StringRef loc = "#Global";
+      if (auto *I = dyn_cast<Instruction>(AS))
+        loc = I->getFunction()->getName();
+      std::string buff;
+      raw_string_ostream rso(buff);
+      AS->print(rso);
+      rso.flush();
+      asLocations.push_back({loc, buff});
+    }
+    std::sort(asLocations.begin(), asLocations.end());
+    for (auto &P : asLocations)
+      errs() << P.second << "(" << P.first << ")\n";
+  }
 
   OS << "\n\n";
 
   if (!Detailed)
     return;
 
-  for (size_t i = 0, e = Checks.size(); i != e &&
-                                        i <= SMCAnalysisThreshold; ++i) {
-    const auto &C = Checks[i];
+  for (size_t i = 0, e = InteresingChecks.size();
+       i != e && i <= SMCAnalysisThreshold; ++i) {
+    const auto &C = InteresingChecks[i];
     OS << "MI " << i << (isa<LoadInst>(C.MI) ? "\tLoad" : "\tStore") << " "
        << C.AccessedBytes;
 

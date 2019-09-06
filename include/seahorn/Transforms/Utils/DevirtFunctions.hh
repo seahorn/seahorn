@@ -6,6 +6,8 @@
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/IR/InstVisitor.h"
 
+#include <memory>
+
 namespace llvm {
 class Module;
 class Function;
@@ -27,23 +29,44 @@ AliasSetId typeAliasId(const llvm::Function &F);
 AliasSetId typeAliasId(llvm::CallSite &CS);
 } // end namespace devirt_impl
 
+enum CallSiteResolverKind { RESOLVER_TYPES, RESOLVER_CHA };
+
 /*
-   Generic class API for resolving indirect calls
-*/
+ * Generic class API for resolving indirect calls
+ */
 class CallSiteResolver {
+  CallSiteResolverKind m_kind;
+
+protected:
+  CallSiteResolver(CallSiteResolverKind kind) : m_kind(kind) {}
+
 public:
   using AliasSet = llvm::SmallVector<const llvm::Function *, 16>;
 
   virtual ~CallSiteResolver() {}
+
+  CallSiteResolverKind get_kind() const { return m_kind; }
+
   /* out contains all the callees to resolve CS */
   virtual void getTargets(llvm::CallSite &CS, AliasSet &out) = 0;
 };
 
+// forward declaration
+class ClassHierarchyAnalysis;
+
 /*
-    Resolve an indirect call by selecting all functions defined in the
-    same module whose type signature matches with the callsite.
+ * Resolve an indirect call by selecting all functions defined in the
+ * same module whose type signature matches with the callsite.
  */
-class CallSiteResolverByTypes : public CallSiteResolver {
+class CallSiteResolverByTypes final : public CallSiteResolver {
+public:
+  CallSiteResolverByTypes(llvm::Module &M);
+
+  ~CallSiteResolverByTypes();
+
+  void getTargets(llvm::CallSite &CS, AliasSet &out);
+
+private:
   using AliasSetId = devirt_impl::AliasSetId;
   using TypeAliasSetMap = llvm::DenseMap<AliasSetId, AliasSet>;
 
@@ -53,10 +76,21 @@ class CallSiteResolverByTypes : public CallSiteResolver {
   TypeAliasSetMap m_typeAliasSets;
 
   void populateTypeAliasSets(void);
+};
 
+/*
+ *  Resolve C++ virtual calls using Class Hierarchy Analysis.
+ */
+class CallSiteResolverByCHA final : public CallSiteResolver {
 public:
-  CallSiteResolverByTypes(llvm::Module &M);
+  CallSiteResolverByCHA(llvm::Module &M);
+
+  ~CallSiteResolverByCHA();
+
   void getTargets(llvm::CallSite &CS, AliasSet &out);
+
+private:
+  std::unique_ptr<ClassHierarchyAnalysis> m_cha;
 };
 
 //

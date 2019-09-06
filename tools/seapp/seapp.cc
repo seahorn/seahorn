@@ -24,8 +24,8 @@
 #include "llvm/Support/ToolOutputFile.h"
 #include "llvm/Support/raw_ostream.h"
 
-#include "llvm/Bitcode/BitcodeWriterPass.h"
 #include "llvm/Bitcode/BitcodeWriter.h"
+#include "llvm/Bitcode/BitcodeWriterPass.h"
 #include "llvm/Transforms/IPO.h"
 
 #include "llvm/IR/Verifier.h"
@@ -36,10 +36,10 @@
 #include "llvm_seahorn/Transforms/Scalar.h"
 #endif
 
+#include "seahorn/Support/SeaLog.hh"
+#include "seahorn/Support/Stats.hh"
 #include "seahorn/Transforms/Utils/NameValues.hh"
 #include "ufo/Smt/EZ3.hh"
-#include "seahorn/Support/Stats.hh"
-#include "seahorn/Support/SeaLog.hh"
 
 #include "seahorn/config.h"
 
@@ -152,10 +152,16 @@ static llvm::cl::opt<bool>
     LowerInvoke("lower-invoke", llvm::cl::desc("Lower all invoke instructions"),
                 llvm::cl::init(true));
 
-static llvm::cl::opt<bool> DevirtualizeFuncs(
-    "devirt-functions",
-    llvm::cl::desc("Devirtualize indirect calls using only types"),
-    llvm::cl::init(false));
+static llvm::cl::opt<bool>
+    LowerGlobalInitializers("lower-gv-init",
+                            llvm::cl::desc("Lower some global initializers"),
+                            llvm::cl::init(true));
+
+static llvm::cl::opt<bool>
+    DevirtualizeFuncs("devirt-functions",
+                      llvm::cl::desc("Devirtualize indirect calls "
+                                     "(by default using only types)"),
+                      llvm::cl::init(false));
 
 static llvm::cl::opt<bool> ExternalizeAddrTakenFuncs(
     "externalize-addr-taken-funcs",
@@ -218,15 +224,29 @@ static llvm::cl::opt<bool>
                    llvm::cl::desc("Abstract memory instructions"),
                    llvm::cl::init(false));
 
+static llvm::cl::opt<bool> NameValues(
+    "name-values",
+    llvm::cl::desc(
+        "Run the seahorn::NameValues pass (WARNING -- can be extremely slow)"),
+    llvm::cl::init(false));
+
 static llvm::cl::opt<bool>
-    NameValues("name-values",
-                   llvm::cl::desc("Run the NameValues pass"),
-                   llvm::cl::init(false));
+    InstNamer("instnamer", llvm::cl::desc("Run the llvm's instnamer pass"),
+              llvm::cl::init(false));
+
+static llvm::cl::opt<bool>
+    LowerSwitch("lower-switch",
+                llvm::cl::desc("Lower SwitchInstructions to branches"),
+                llvm::cl::init(true));
 
 static llvm::cl::opt<bool>
     PromoteBoolLoads("promote-bool-loads",
                      llvm::cl::desc("Promote bool loads to sgt"),
                      llvm::cl::init(true));
+
+static llvm::cl::opt<bool> StripDebug("strip-debug",
+                                      llvm::cl::desc("Strip debug info"),
+                                      llvm::cl::init(false));
 
 static llvm::cl::opt<bool> VerifyAfterAll(
     "verify-after-all",
@@ -251,24 +271,22 @@ class SeaPassManagerWrapper {
 public:
   SeaPassManagerWrapper() {
     if (VerifyAfterAll)
-      m_PM.add(seahorn::createDebugVerifierPass(++m_verifierInstanceID));
+      m_PM.add(seahorn::createDebugVerifierPass(++m_verifierInstanceID,
+                                                "Initial Verifier Pass"));
   }
   void add(llvm::Pass *pass) {
     m_PM.add(pass);
 
     if (VerifyAfterAll)
-      m_PM.add(seahorn::createDebugVerifierPass(++m_verifierInstanceID));
+      m_PM.add(seahorn::createDebugVerifierPass(++m_verifierInstanceID,
+                                                pass->getPassName()));
   }
 
-  void run(llvm::Module &m) {
-    m_PM.run(m);
-  }
+  void run(llvm::Module &m) { m_PM.run(m); }
 
-  llvm::legacy::PassManager &getPassManager() {
-    return m_PM;
-  }
+  llvm::legacy::PassManager &getPassManager() { return m_PM; }
 };
-}
+} // namespace
 
 int main(int argc, char **argv) {
   llvm::llvm_shutdown_obj shutdown; // calls llvm_shutdown() on exit
@@ -331,8 +349,8 @@ int main(int argc, char **argv) {
   // llvm::initializeIPA (Registry);
   // XXX: porting to 3.8
   llvm::initializeCallGraphWrapperPassPass(Registry);
-  // XXX: commented while porting to 5.0    
-  //llvm::initializeCallGraphPrinterPass(Registry);
+  // XXX: commented while porting to 5.0
+  // llvm::initializeCallGraphPrinterPass(Registry);
   llvm::initializeCallGraphViewerPass(Registry);
   // XXX: not sure if needed anymore
   llvm::initializeGlobalsAAWrapperPassPass(Registry);
@@ -369,6 +387,7 @@ int main(int argc, char **argv) {
     pm_wrapper.add(seahorn::createStripUselessDeclarationsPass());
   } else if (MixedSem) {
     // -- apply mixed semantics
+    assert(LowerSwitch && "Lower switch must be enabled");
     pm_wrapper.add(llvm::createLowerSwitchPass());
     pm_wrapper.add(seahorn::createPromoteVerifierClassPass());
     pm_wrapper.add(seahorn::createCanFailPass());
@@ -384,8 +403,11 @@ int main(int argc, char **argv) {
   }
   // array bound checking. WIP.
   else if (ArrayBoundsChecks > 0) {
-    // XXX ABC might run sea-dsa which requires all values have a name
-    pm_wrapper.add(seahorn::createNameValuesPass());
+    if (InstNamer)
+      pm_wrapper.add(llvm::createInstructionNamerPass());
+    else if (NameValues)
+      pm_wrapper.add(seahorn::createNameValuesPass());
+
     switch (ArrayBoundsChecks) {
     case LOCAL:
       pm_wrapper.add(seahorn::createLowerCstExprPass());
@@ -443,7 +465,7 @@ int main(int argc, char **argv) {
     // turn all functions internal so that we can inline them if requested
     auto PreserveMain = [=](const llvm::GlobalValue &GV) {
       return GV.getName() == "main";
-    };    
+    };
     pm_wrapper.add(llvm::createInternalizePass(PreserveMain));
 
     if (LowerInvoke) {
@@ -462,22 +484,22 @@ int main(int argc, char **argv) {
       pm_wrapper.add(seahorn::createExternalizeAddressTakenFunctionsPass());
 
     // kill internal unused code
-    pm_wrapper.add(
-        llvm::createGlobalDCEPass()); // kill unused internal global
+    pm_wrapper.add(llvm::createGlobalDCEPass()); // kill unused internal global
 
     // -- global optimizations
     pm_wrapper.add(llvm::createGlobalOptimizerPass());
 
     // -- explicitly initialize globals in the beginning of main()
-    pm_wrapper.add(seahorn::createLowerGvInitializersPass());
+    if (LowerGlobalInitializers)
+      pm_wrapper.add(seahorn::createLowerGvInitializersPass());
 
     // -- SSA
     pm_wrapper.add(llvm::createPromoteMemoryToRegisterPass());
     // -- Turn undef into nondet
-    pm_wrapper.add (seahorn::createNondetInitPass());
+    pm_wrapper.add(seahorn::createNondetInitPass());
 
     // -- Promote memcpy to loads-and-stores for easier alias analysis.
-    pm_wrapper.add (seahorn::createPromoteMemcpyPass());
+    pm_wrapper.add(seahorn::createPromoteMemcpyPass());
 
     // -- cleanup after SSA
     pm_wrapper.add(seahorn::createInstCombine());
@@ -500,7 +522,8 @@ int main(int argc, char **argv) {
     // eliminate unused calls to verifier.nondet() functions
     pm_wrapper.add(seahorn::createDeadNondetElimPass());
 
-    pm_wrapper.add(llvm::createLowerSwitchPass());
+    if (LowerSwitch)
+      pm_wrapper.add(llvm::createLowerSwitchPass());
 
     pm_wrapper.add(llvm::createDeadInstEliminationPass());
     pm_wrapper.add(seahorn::createRemoveUnreachableBlocksPass());
@@ -515,7 +538,7 @@ int main(int argc, char **argv) {
     pm_wrapper.add(llvm::createCFGSimplificationPass());
 
     if (UnfoldLoopsForDsa) {
-    // --- help DSA to be more precise
+      // --- help DSA to be more precise
 #ifdef HAVE_LLVM_SEAHORN
       pm_wrapper.add(llvm_seahorn::createFakeLatchExitPass());
 #endif
@@ -572,8 +595,7 @@ int main(int argc, char **argv) {
     // -- BEFORE SCHEDULING PASSES HERE, THINK WHETHER THEY BELONG BEFORE
     // INLINE!
     pm_wrapper.add(llvm::createDeadInstEliminationPass());
-    pm_wrapper.add(
-        llvm::createGlobalDCEPass()); // kill unused internal global
+    pm_wrapper.add(llvm::createGlobalDCEPass()); // kill unused internal global
     pm_wrapper.add(llvm::createUnifyFunctionExitNodesPass());
 
     // -- moves loop initialization up
@@ -603,6 +625,12 @@ int main(int argc, char **argv) {
 
   if (NameValues)
     pm_wrapper.add(seahorn::createNameValuesPass());
+
+  if (InstNamer)
+    pm_wrapper.add(llvm::createInstructionNamerPass());
+
+  if (StripDebug)
+    pm_wrapper.add(llvm::createStripDeadDebugInfoPass());
 
   // --- verify if an undefined value can be read
   pm_wrapper.add(seahorn::createCanReadUndefPass());

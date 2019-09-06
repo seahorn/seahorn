@@ -18,11 +18,8 @@
 
 #include "sea_dsa/AllocWrapInfo.hh"
 #include "sea_dsa/DsaAnalysis.hh"
-#include "sea_dsa/support/Brunch.hh"
 #include "seahorn/Support/SeaDebug.h"
 #include "seahorn/Support/SeaLog.hh"
-
-#include "WPA/WPAPass.h"
 
 #define SMC_LOG(...) LOG("smc", __VA_ARGS__)
 
@@ -33,11 +30,10 @@ static llvm::cl::opt<bool>
                   llvm::cl::desc("Print Simple Memory Check statistics"),
                   llvm::cl::init(false));
 
-static llvm::cl::opt<bool>
-    PrintSMCSummary("print-smc-summary",
-                    llvm::cl::desc(
-                        "Print Simple Memory Check statistics summary"),
-                    llvm::cl::init(false));
+static llvm::cl::opt<bool> PrintSMCSummary(
+    "print-smc-summary",
+    llvm::cl::desc("Print Simple Memory Check statistics summary"),
+    llvm::cl::init(false));
 
 static llvm::cl::opt<bool>
     PrintEmptyAS("print-empty-alloc-sites",
@@ -54,34 +50,15 @@ static llvm::cl::opt<bool> SMCAnalyzeOnly(
     llvm::cl::desc("Perform SMC analysis only and don't instrument"),
     llvm::cl::init(false));
 
-static llvm::cl::opt<unsigned> CheckToInstrumentID(
-    "smc-instrument-check",
-    llvm::cl::desc("Id of the check to instrument"),
-    llvm::cl::init(0));
+static llvm::cl::opt<unsigned>
+    CheckToInstrumentID("smc-instrument-check",
+                        llvm::cl::desc("Id of the check to instrument"),
+                        llvm::cl::init(0));
 
 static llvm::cl::opt<unsigned> AllocToInstrumentID(
     "smc-instrument-alloc",
     llvm::cl::desc("Id of the allocation site to instrument"),
     llvm::cl::init(0));
-
-namespace {
-enum PointerAnalysisKind { Dsa, Andersen, Wave, WaveDiff, Sparse };
-}
-
-static llvm::cl::opt<enum PointerAnalysisKind> SMCPTAKind(
-    "smc-pta", llvm::cl::desc("SMC pointer analysis to use"),
-    llvm::cl::values(
-        clEnumValN(Dsa, "dsa", "Use SeaDsa"),
-        clEnumValN(Andersen, "andersen", "Use SVF Andersen"),
-        clEnumValN(Wave, "wave", "Use SVF Andersen Wave"),
-        clEnumValN(WaveDiff, "wave-diff", "Use SVF Andersen Wave Diff"),
-        clEnumValN(Sparse, "sparse", "Use SVF Sparse Flow Sensitive PTA")),
-    llvm::cl::init(Dsa));
-
-
-namespace sea_svf {
-extern const std::set<std::string> *SeaAllocWrappers;
-} // namespace sea_svf
 
 namespace seahorn {
 
@@ -128,7 +105,7 @@ struct CheckContext {
 
     OS << "\n  AccessedBytes: " << AccessedBytes;
 
-    auto PrintDsaAllocSite = [this, &OS] (const llvm::Value& v) {
+    auto PrintDsaAllocSite = [this, &OS](const llvm::Value &v) {
       if (!DsaGraph)
         return;
       auto optAS = DsaGraph->getAllocSite(v);
@@ -137,7 +114,6 @@ struct CheckContext {
       if (AS.hasCallPaths())
         AS.printCallPaths(OS);
     };
-
 
     OS << "\n  InterestingAllocSites: {\n";
     unsigned i = 0;
@@ -206,9 +182,7 @@ class PTAWrapper {
 public:
   virtual SmallVector<Value *, 8> getAllocSites(Value *V,
                                                 const Function &F) = 0;
-  virtual ~PTAWrapper() {
-    SEA_DSA_BRUNCH_STAT("PTA_RSS_KB", sea_dsa::GetCurrentMemoryUsageKb());
-  }
+  virtual ~PTAWrapper() = default;
 };
 
 // A wrapper for seahorn dsa
@@ -240,7 +214,6 @@ public:
   SeaDsa(Pass *abc)
       : m_abc(abc),
         m_dsa(&this->m_abc->getAnalysis<sea_dsa::DsaInfoPass>().getDsaInfo()) {}
-
 
   sea_dsa::Graph &getGraph(const Function &F) {
     auto *G = m_dsa->getDsaGraph(F);
@@ -275,96 +248,6 @@ public:
   void viewGraph(const Function &F) { m_dsa->getDsaGraph(F)->viewGraph(); }
 };
 
-class SVFPTAWrapper : public PTAWrapper {
-  const sea_dsa::AllocWrapInfo *m_awi = nullptr;
-  const llvm::TargetLibraryInfo *m_tli = nullptr;
-  std::unique_ptr<WPAPass> m_wpa = nullptr;
-  SVFModule m_svfModule;
-
-public:
-  SVFPTAWrapper(llvm::Module &M, const sea_dsa::AllocWrapInfo *AWI = nullptr,
-                const llvm::TargetLibraryInfo *TLI = nullptr)
-      : m_svfModule(M), m_awi(AWI), m_tli(TLI) {
-    auto allocWrapper = llvm::make_unique<std::set<std::string>>();
-    if (m_awi) {
-      assert(m_tli);
-      // This is going to leak memory -- since it happens once, we don't care.
-      auto *allocs = new std::set<std::string>(m_awi->getAllocWrapperNames());
-      for (const llvm::Function &F : M)
-        if (F.hasName())
-          if (llvm::isAllocLikeFn(&F, m_tli, false))
-            allocs->insert(F.getName().str());
-          else if (F.isDeclaration() && F.getReturnType()->isPointerTy())
-            allocs->insert(F.getName().str());
-
-      errs() << "Sea Allocators:\n";
-      for (auto &name : *allocs)
-        errs() << "\t" << name << "\n";
-      sea_svf::SeaAllocWrappers = allocs;
-    }
-
-    m_wpa = llvm::make_unique<WPAPass>();
-
-    assert(SMCPTAKind != PointerAnalysisKind::Dsa);
-    errs() << "Warning: Running SVF PTA!\n";
-
-    PointerAnalysis::PTATY PTAToRun;
-    StringRef PTAString;
-
-    switch (SMCPTAKind) {
-    case PointerAnalysisKind::Andersen:
-      PTAToRun = PointerAnalysis::PTATY::Andersen_WPA;
-      PTAString = "SVF_Andersen";
-      break;
-    case PointerAnalysisKind::Wave:
-      PTAToRun = PointerAnalysis::PTATY::AndersenWave_WPA;
-      PTAString = "SVF_Andersen_Wave";
-      break;
-    case PointerAnalysisKind::WaveDiff: {
-      PTAToRun = sea_dsa::IsTypeAware
-                     ? PointerAnalysis::PTATY::AndersenWaveDiffWithType_WPA
-                     : PointerAnalysis::PTATY ::AndersenWaveDiff_WPA;
-      PTAString = sea_dsa::IsTypeAware ? "SVF_Andersen_Diff_Wave_Type"
-                                       : "SVF_Andersen_Diff_Wave_NoType";
-    } break;
-    case PointerAnalysisKind::Sparse:
-      PTAToRun = PointerAnalysis::PTATY::FSSPARSE_WPA;
-      PTAString = "SVF_Sparse";
-      break;
-    default:
-      llvm_unreachable("Unhandled PTA kind!");
-    }
-
-    SEA_DSA_BRUNCH_STAT("PTA_KIND", PTAString);
-    sea_dsa::BrunchTimer timer("PTA");
-    m_wpa->runPointerAnalysis(m_svfModule, PTAToRun);
-    timer.stop();
-  }
-
-  SmallVector<Value *, 8> getAllocSites(Value *V, const Function &) override {
-    PointerAnalysis &pta = m_wpa->getPTA();
-    assert(pta.getPAG());
-    PAG &pag = *pta.getPAG();
-
-    NodeID node = pag.getValueNode(V);
-
-    assert(node != 0);
-    SmallVector<Value *, 8> res;
-
-    for (NodeID id : pta.getPts(node))
-      if (const MemObj *obj = pag.getObject(id)) {
-        if (const llvm::Value *v = obj->getRefVal()) {
-          if (auto *gv = llvm::dyn_cast<GlobalValue>(v))
-            if (gv->isDeclaration())
-              continue;
-          res.push_back(const_cast<llvm::Value *>(v));
-        }
-      }
-
-    return res;
-  }
-};
-
 } // namespace
 
 struct TypeSimilarity;
@@ -386,7 +269,6 @@ private:
   const DataLayout *m_DL;
   const TargetLibraryInfo *m_TLI;
   std::unique_ptr<SeaDsa> m_SDSA = nullptr;
-  std::unique_ptr<SVFPTAWrapper> m_SVF = nullptr;
   PTAWrapper *m_PTA = nullptr;
 
   Function *m_assumeFn;
@@ -645,15 +527,16 @@ CheckContext SimpleMemoryCheck::getUnsafeCandidates(Instruction *Inst,
   const uint32_t Sz = Bits < 8 ? 1 : Bits / 8;
   const int64_t LastRead = Origin.Offset + Sz;
 
-  const sea_dsa::Cell *OriginCell = m_SDSA ?
-                                    m_SDSA->getCell(Origin.Ptr, F) : nullptr;
+  const sea_dsa::Cell *OriginCell =
+      m_SDSA ? m_SDSA->getCell(Origin.Ptr, F) : nullptr;
 
   CheckContext Check;
   Check.MI = Inst;
   Check.F = &F;
   Check.Barrier = Origin.Ptr;
-  Check.Collapsed = (m_SDSA && OriginCell) ?
-                    OriginCell->getNode()->isOffsetCollapsed() : false;
+  Check.Collapsed = (m_SDSA && OriginCell)
+                        ? OriginCell->getNode()->isOffsetCollapsed()
+                        : false;
   Check.AccessedBytes = size_t(LastRead);
   Check.DsaGraph = m_SDSA ? &m_SDSA->getGraph(F) : nullptr;
 
@@ -695,25 +578,25 @@ CheckContext SimpleMemoryCheck::getUnsafeCandidates(Instruction *Inst,
                  AllocTy->getStructName().endswith("::vector3")))
               Interesting = false;
 
-//        // Heap alloc tends to return i8* instead of precise type.
-//        if (!isa<CallInst>(AS) && !isa<InvokeInst>(AS)) {
-//          if (TSC.count({BarrierTy, AllocTy}) == 0)
-//            TSC[{BarrierTy, AllocTy}] =
-//                TypeSimilarity(BarrierTy, AllocTy, m_Ctx, m_DL);
-//
-//          auto &TySim = TSC[{BarrierTy, AllocTy}];
-//
-//          if (TySim.Similarity < 0.8f)
-//            Interesting = false;
-//          else if (auto *Arg = dyn_cast<Argument>(Check.Barrier))
-//            if (Arg->getName() == "this" && TySim.MatchPosition > 1)
-//              Interesting = false;
-//        }
+        //        // Heap alloc tends to return i8* instead of precise type.
+        //        if (!isa<CallInst>(AS) && !isa<InvokeInst>(AS)) {
+        //          if (TSC.count({BarrierTy, AllocTy}) == 0)
+        //            TSC[{BarrierTy, AllocTy}] =
+        //                TypeSimilarity(BarrierTy, AllocTy, m_Ctx, m_DL);
+        //
+        //          auto &TySim = TSC[{BarrierTy, AllocTy}];
+        //
+        //          if (TySim.Similarity < 0.8f)
+        //            Interesting = false;
+        //          else if (auto *Arg = dyn_cast<Argument>(Check.Barrier))
+        //            if (Arg->getName() == "this" && TySim.MatchPosition > 1)
+        //              Interesting = false;
+        //        }
 
         // Discard vtables.
-//        if (auto *C = dyn_cast<Constant>(AS))
-//          if (C->getName().startswith("_ZTVN"))
-//            Interesting = false;
+        //        if (auto *C = dyn_cast<Constant>(AS))
+        //          if (C->getName().startswith("_ZTVN"))
+        //            Interesting = false;
       }
     }
 
@@ -741,7 +624,7 @@ namespace {
 Instruction *GetNextInst(Instruction *I) {
   if (I->isTerminator())
     return I;
-  return I->getParent()->getInstList().getNextNode(*I);    
+  return I->getParent()->getInstList().getNextNode(*I);
 }
 
 Type *GetI8PtrTy(LLVMContext &Ctx) {
@@ -797,8 +680,7 @@ void UpdateCallGraph(CallGraph *CG, Function *Caller, CallInst *Callee) {
 } // namespace
 
 Function *SimpleMemoryCheck::createNewNDFn(Type *Ty, Twine Name) {
-  auto *Res =
-      dyn_cast<Function>(m_M->getOrInsertFunction(Name.str(), Ty));
+  auto *Res = dyn_cast<Function>(m_M->getOrInsertFunction(Name.str(), Ty));
   assert(Res);
 
   if (m_CG)
@@ -918,7 +800,7 @@ void SimpleMemoryCheck::emitGlobalInstrumentation(CheckContext &Candidate,
     EmitOtherGVAssume(AV);
 
   // FIXME: undefined symbols llvm::Value::dump() while porting to 5.0
-  //SMC_LOG(NDPtrBegin->getParent()->dump());
+  // SMC_LOG(NDPtrBegin->getParent()->dump());
 }
 
 /**
@@ -939,11 +821,6 @@ void SimpleMemoryCheck::emitMemoryInstInstrumentation(CheckContext &Candidate) {
   auto *Term = SplitBlockAndInsertIfThen(And, Candidate.MI, true);
   IRB.SetInsertPoint(Term);
   IRB.CreateCall(m_errorFn);
-
-
-  // FIXME: undefined symbols llvm::Value::dump() while porting to 5.0  
-  // SMC_LOG(cast<Instruction>(Candidate.Barrier)->getParent()->dump());
-  // SMC_LOG(Term->getParent()->dump());
 }
 
 /**
@@ -1033,8 +910,6 @@ void SimpleMemoryCheck::emitAllocSiteInstrumentation(CheckContext &Candidate,
 
     SMC_LOG(errs() << "Instrumented other alloc site for " << AV->getName()
                    << ":\n");
-    // FIXME: undefined symbols llvm::Value::dump() while porting to 5.0  
-    //SMC_LOG(OtherAllocInst->getParent()->dump());
   };
 
   for (size_t i = 0; i < Candidate.InterestingAllocSites.size(); ++i) {
@@ -1064,16 +939,8 @@ bool SimpleMemoryCheck::runOnModule(llvm::Module &M) {
   m_TLI = &getAnalysis<TargetLibraryInfoWrapperPass>().getTLI();
   m_DL = &M.getDataLayout();
 
-  if (SMCPTAKind == PointerAnalysisKind::Dsa) {
-    m_SDSA = llvm::make_unique<SeaDsa>(this);
-    m_PTA = m_SDSA.get();
-  } else {
-    sea_dsa::AllocWrapInfo &AWI = getAnalysis<sea_dsa::AllocWrapInfo>();
-    m_SVF = llvm::make_unique<SVFPTAWrapper>(M, &AWI, m_TLI);
-    m_PTA = m_SVF.get();
-  }
-
-  assert(m_PTA);
+  m_SDSA = llvm::make_unique<SeaDsa>(this);
+  m_PTA = m_SDSA.get();
 
   SMC_LOG(errs() << " ========== SMC (" << (sea_dsa::IsTypeAware ? "" : "Not ")
                  << "Type-aware) ==========\n");
@@ -1083,14 +950,13 @@ bool SimpleMemoryCheck::runOnModule(llvm::Module &M) {
   AB.addAttribute(Attribute::NoReturn);
   AttributeList AS =
       AttributeList::get(*m_Ctx, AttributeList::FunctionIndex, AB);
-  m_errorFn = dyn_cast<Function>(M.getOrInsertFunction(
-      "verifier.error", AS, Type::getVoidTy(*m_Ctx)));
+  m_errorFn = dyn_cast<Function>(
+      M.getOrInsertFunction("verifier.error", AS, Type::getVoidTy(*m_Ctx)));
 
   AB.clear();
   AS = AttributeList::get(*m_Ctx, AttributeList::FunctionIndex, AB);
-  m_assumeFn = dyn_cast<Function>(
-      M.getOrInsertFunction("verifier.assume", AS, Type::getVoidTy(*m_Ctx),
-                            Type::getInt1Ty(*m_Ctx)));
+  m_assumeFn = dyn_cast<Function>(M.getOrInsertFunction(
+      "verifier.assume", AS, Type::getVoidTy(*m_Ctx), Type::getInt1Ty(*m_Ctx)));
 
   IRBuilder<> B(*m_Ctx);
   CallGraphWrapperPass *CGWP = getAnalysisIfAvailable<CallGraphWrapperPass>();
@@ -1105,7 +971,6 @@ bool SimpleMemoryCheck::runOnModule(llvm::Module &M) {
   std::vector<Instruction *> UninterestingMIs;
 
   TypeSimilarityCache TSC;
-  sea_dsa::BrunchTimer smcTimer("SMC_ANALYSIS");
 
   for (auto &F : M) {
     if (F.isDeclaration())
@@ -1148,8 +1013,6 @@ bool SimpleMemoryCheck::runOnModule(llvm::Module &M) {
       }
     }
   }
-
-  smcTimer.stop();
 
   if (PrintSMCStats || PrintSMCSummary) {
     printStats(CheckCandidates, AllCandidates, UninterestingMIs, PrintSMCStats);
@@ -1211,8 +1074,7 @@ void SimpleMemoryCheck::getAnalysisUsage(llvm::AnalysisUsage &AU) const {
   AU.setPreservesAll();
   AU.addRequired<sea_dsa::AllocWrapInfo>();
 
-  if (SMCPTAKind == PointerAnalysisKind::Dsa)
-    AU.addRequired<sea_dsa::DsaInfoPass>(); // run seahorn dsa
+  AU.addRequired<sea_dsa::DsaInfoPass>(); // run seahorn dsa
   AU.addRequired<llvm::TargetLibraryInfoWrapperPass>();
   AU.addRequired<llvm::CallGraphWrapperPass>();
 }
@@ -1339,11 +1201,12 @@ void SimpleMemoryCheck::printStats(std::vector<CheckContext> &InteresingChecks,
       OtherBarrierAllocSites.size() + InterestingBarrierAllocSites.size();
   OS << "Total <Barrier, AllocSite> pairs\t" << totalASBarrierPairs << "\n";
 
-  SEA_DSA_BRUNCH_STAT("SMC_ALL_AS", AllAllocSites.size());
-  SEA_DSA_BRUNCH_STAT("SMC_AS_BARRIER_INTERESTING",
-                      InterestingBarrierAllocSites.size());
-  SEA_DSA_BRUNCH_STAT("SMC_AS_BARRIER_CHECKS", totalASBarrierPairs);
-  SEA_DSA_BRUNCH_STAT("SMC_AS_BARRIER_TOTAL", AllAnyBarrierAllocSites.size());
+  // SEA_DSA_BRUNCH_STAT("SMC_ALL_AS", AllAllocSites.size());
+  // SEA_DSA_BRUNCH_STAT("SMC_AS_BARRIER_INTERESTING",
+  //                     InterestingBarrierAllocSites.size());
+  // SEA_DSA_BRUNCH_STAT("SMC_AS_BARRIER_CHECKS", totalASBarrierPairs);
+  // SEA_DSA_BRUNCH_STAT("SMC_AS_BARRIER_TOTAL",
+  // AllAnyBarrierAllocSites.size());
 
   // Workaround issues with the preprocessor.
   bool printAllocSites = false;

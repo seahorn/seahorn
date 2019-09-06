@@ -262,7 +262,7 @@ function type:
 	open main.mem.pdf  // replace with you favorite pdf viewer
 
 Read this
-[link](https://github.com/seahorn/sea-dsa/tree/tea-dsa#visualizing-memory-graphs-and-complete-call-graphs) for
+[link](https://github.com/seahorn/sea-dsa#visualizing-memory-graphs-and-complete-call-graphs) for
 more details.
 
 ## Building SeaHorn on Ubuntu 18.04 ##

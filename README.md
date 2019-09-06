@@ -258,11 +258,11 @@ command will generate a `FUN.mem.dot` file for each function `FUN` in
 the bitcode program.  For instance, to visualize the graph of the main
 function type:
 
-	dot -Tjpg main.mem.dot -o main.mem.jpg
-	open main.mem.jpg  // replace with you favorite jpg viewer
+	dot -Tpdf main.mem.dot -o main.mem.pdf
+	open main.mem.pdf  // replace with you favorite pdf viewer
 
 Read this
-[link](https://github.com/seahorn/sea-dsa/tree/tea-dsa#visualizing-memory-graphs) for
+[link](https://github.com/seahorn/sea-dsa/tree/tea-dsa#visualizing-memory-graphs-and-complete-call-graphs) for
 more details.
 
 ## Building SeaHorn on Ubuntu 18.04 ##

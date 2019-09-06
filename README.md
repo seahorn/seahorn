@@ -244,6 +244,27 @@ safe. SeaHorn returns `sat` when `__VERIFIER_error()` is reachable and
 the program is unsafe. `sassert()` method is defined in
 `seahorn/seahorn.h`.
 
+## Visualizing Memory Graphs ##
+
+Consider a C program `ex.c`. Then type:
+
+	sea inspect ex.c -sea-dsa=butd-cs -sea-dsa-type-aware --mem-dot 
+	 
+The options `-sea-dsa=butd-cs -sea-dsa-type-aware` enable the new
+sea-dsa analysis implemented in our
+FMCAD'19
+[paper](https://jorgenavas.github.io/papers/tea-dsa-fmcad19.pdf). This
+command will generate a `FUN.mem.dot` file for each function `FUN` in
+the bitcode program.  For instance, to visualize the graph of the main
+function type:
+
+	dot -Tjpg main.mem.dot -o main.mem.jpg
+	open main.mem.jpg  // replace with you favorite jpg viewer
+
+Read this
+[link](https://github.com/seahorn/sea-dsa/tree/tea-dsa#visualizing-memory-graphs) for
+more details.
+
 ## Building SeaHorn on Ubuntu 18.04 ##
 
 The following packages are recommended to build SeaHorn on Ubuntu 18.04. Not

@@ -108,6 +108,27 @@ $ export SEAHORN=<install_dir>/bin/sea
 $ cmake --build . --target test-all
 ```
 
+# Coverage #
+We can use `gcov` and `lcov` to generate test coverage information for SeaHorn. To build with coverage enabled,
+we need to run build under a different directory and use __`gcc`__ / __`g++`__ as compiler to avoid [gcc/gcov mismatching](https://stackoverflow.com/questions/12454175/gcov-out-of-memory-mismatched-version).
+
+Example steps for `opsem` tests coverage:
+1. `mkdir coverage; cd coverage`  create and enter coverage build directory
+2. `cmake -DCMAKE_INSTALL_PREFIX=run -DCMAKE_BUILD_TYPE=Coverage -DCMAKE_CXX_COMPILER=g++ -DCMAKE_C_COMPILER=gcc ../`
+configure cmake with coverage settings
+3. follow step 3 through 6 in *Installation* section to finish build
+4. `cmake --build . --target test-opsem` Run OpSem tests, now .gcda and .gcno files should be created
+under corresponding `CMakeFiles` directory
+
+5. `lcov  --directory lib/seahorn/CMakeFiles/seahorn.LIB.dir/ -c -o coverage.info` collect coverage data from desired module
+6. extract data from desired directories and generate html report:
+```shell script
+lcov --extract coverage.info "*/lib/seahorn/*" -o lib.info
+lcov --extract coverage.info "*/include/seahorn/*" -o header.info
+cat header.info lib.info > all.info
+genhtml all.info --output-directory coverage_report
+```
+then open `coverage_report/index.html` in browser to view the coverage report
 
 # Code indexing for IDEs and editors #
 

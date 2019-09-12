@@ -110,17 +110,27 @@ $ cmake --build . --target test-all
 
 # Coverage #
 We can use `gcov` and `lcov` to generate test coverage information for SeaHorn. To build with coverage enabled,
-we need to run build under a different directory and use __`gcc`__ / __`g++`__ as compiler to avoid [gcc/gcov mismatching](https://stackoverflow.com/questions/12454175/gcov-out-of-memory-mismatched-version).
+we need to run build under a different directory and set `CMAKE_BUILD_TYPE` to `Coverage` during cmake configuration.
 
 Example steps for `opsem` tests coverage:
 1. `mkdir coverage; cd coverage`  create and enter coverage build directory
-2. `cmake -DCMAKE_INSTALL_PREFIX=run -DCMAKE_BUILD_TYPE=Coverage -DCMAKE_CXX_COMPILER=g++ -DCMAKE_C_COMPILER=gcc ../`
-configure cmake with coverage settings
+2. `cmake -DCMAKE_BUILD_TYPE=Coverage <other flags as you wish> ../`
+configure cmake with `Coverage` build type, follow [Installation](https://github.com/seahorn/seahorn/tree/master#installation) or [Compiling with Clang on Linux
+](https://github.com/seahorn/seahorn/tree/master#compiling-with-clang-on-linux) to set other flags
 3. follow step 3 through 6 in *Installation* section to finish build
 4. `cmake --build . --target test-opsem` Run OpSem tests, now .gcda and .gcno files should be created
 under corresponding `CMakeFiles` directory
 
-5. `lcov  --directory lib/seahorn/CMakeFiles/seahorn.LIB.dir/ -c -o coverage.info` collect coverage data from desired module
+5. `lcov -c --directory lib/seahorn/CMakeFiles/seahorn.LIB.dir/ -o coverage.info` collect coverage data from desired module,
+if `clang` is used as the compiler instead of `gcc`, create a bash script `llvm-gcov.sh`:
+```shell script
+#!/bin/bash
+exec llvm-cov gcov "$@"
+```
+```shell script
+$ chmod +x llvm-gcov.sh
+```
+then append `--gcov-tool <path_to_wrapper_script>/llvm-gcov.sh` to the `lcov -c ...` command.
 6. extract data from desired directories and generate html report:
 ```shell script
 lcov --extract coverage.info "*/lib/seahorn/*" -o lib.info

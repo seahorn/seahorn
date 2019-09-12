@@ -146,6 +146,18 @@ else()
   install (PROGRAMS ${Z3_EXECUTABLE} DESTINATION bin)
 endif()
 
+
+# Find Yices
+SET(YICES2_HOME CACHE STRING "Yices2 installation directory")
+if(${USE_SEAHORN_EXPR})
+  find_package(Yices2 2.6.0)
+  if (YICES2_FOUND)
+    add_definitions(-DWITH_YICES2)
+    include_directories(${YICES2_INCLUDE_DIR})
+    message ("Found Yices2 at ${YICES2_HOME}")
+  endif()
+endif()  
+
 option(SEAHORN_REQUIRES_RTTI "Enable RTTI support" ON)
 option(SEAHORN_REQUIRES_EH "Enable Exceptions" ON)
  

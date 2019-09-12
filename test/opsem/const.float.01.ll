@@ -1,0 +1,50 @@
+; RUN: %seabmc "%s" 2>&1 | %oc %s
+; RUN: %seabmc --horn-bv2-lambdas --log=opsem3 "%s" 2>&1 | %oc %s
+;; attempt to invoke constant floating point values,
+;; should work after seahorn adds support for floats
+; CHECK: ^sat$
+; XFAIL: *
+; ModuleID = 'const.float.01.c'
+source_filename = "const.c"
+target datalayout = "e-m:e-p:32:32-f64:32:64-f80:32-n8:16:32-S128"
+target triple = "i386-pc-linux-gnu"
+
+@llvm.used = appending global [4 x i8*] [i8* bitcast (void ()* @seahorn.fail to i8*), i8* bitcast (void (i1)* @verifier.assume to i8*), i8* bitcast (void (i1)* @verifier.assume.not to i8*), i8* bitcast (void ()* @verifier.error to i8*)], section "llvm.metadata"
+
+declare float @nd() local_unnamed_addr #0
+
+declare void @verifier.assume(i1)
+
+declare void @verifier.assume.not(i1)
+
+declare void @seahorn.fail()
+
+; Function Attrs: noreturn
+declare void @verifier.error() #1
+
+declare void @seahorn.fn.enter() local_unnamed_addr
+
+; Function Attrs: nounwind
+define i32 @main() local_unnamed_addr #2 {
+entry:
+  tail call void @seahorn.fn.enter() #3
+  %0 = tail call float @nd() #3
+  %1 = fcmp olt float %0, 0x40091EB860000000
+  %.0.i = select i1 %1, float 0x40191EB860000000, float %0
+  %2 = fcmp ult float %.0.i, 0x40091EB860000000
+  tail call void @verifier.assume(i1 %2) #3
+  tail call void @seahorn.fail() #3
+  ret i32 42
+}
+
+attributes #0 = { "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "no-frame-pointer-elim"="false" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="pentium4" "target-features"="+fxsr,+mmx,+sse,+sse2,+x87" "unsafe-fp-math"="false" "use-soft-float"="false" }
+attributes #1 = { noreturn }
+attributes #2 = { nounwind "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "no-frame-pointer-elim"="false" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="pentium4" "target-features"="+fxsr,+mmx,+sse,+sse2,+x87" "unsafe-fp-math"="false" "use-soft-float"="false" }
+attributes #3 = { nounwind }
+
+!llvm.module.flags = !{!0, !1}
+!llvm.ident = !{!2}
+
+!0 = !{i32 1, !"NumRegisterParameters", i32 0}
+!1 = !{i32 1, !"wchar_size", i32 4}
+!2 = !{!"clang version 5.0.1-4 (tags/RELEASE_501/final)"}

@@ -103,6 +103,9 @@ inline Expr bvConst(Expr v, unsigned width) {
   return bind::mkConst(v, sort);
 }
 
+inline bool isBvConst(Expr v) {
+  return bind::isConst<BVSORT>(v);
+}
 } // namespace bv
 
 enum class BvOpKind {

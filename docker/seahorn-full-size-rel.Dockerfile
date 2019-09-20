@@ -19,7 +19,7 @@ ARG TRAVIS
 # always copy, and, if needed, remove and clone instead
 COPY . /seahorn
 RUN if [ "$TRAVIS" != "true" ] ; \
-      then cd / && rm -rf /seahorn && git clone https://github.com/seahorn/seahorn -b deep-dev-5.0 --depth=10 ; \
+      then cd / && rm -rf /seahorn && git clone https://github.com/seahorn/seahorn --depth=10 ; \
     fi && \
     mkdir -p /seahorn/build
 WORKDIR /seahorn/build

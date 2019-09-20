@@ -63,15 +63,14 @@ bool yices_solver_impl::add(expr::Expr exp){
   term_t yt = marshal_yices::encode_term(exp, get_cache());
   if (yt == NULL_TERM){
     llvm::errs() << "yices_solver_impl::add:  failed to encode: " << *exp << "\n";
-    return false;
+    llvm_unreachable(nullptr);
   }
   int32_t errcode = yices_assert_formula(d_ctx, yt);
   if (errcode == -1){
     llvm::errs() << "yices_solver_impl::add:  yices_assert_formula failed: "
 		 << yices::error_string() << "\n";
-    return false;
+    llvm_unreachable(nullptr);    
   }
-  
   return true;
 }
 

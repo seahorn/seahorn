@@ -19,7 +19,7 @@ ARG TRAVIS
 # always copy, and, if needed, remove and clone instead
 COPY . /seahorn
 RUN if [ "$TRAVIS" != "true" ] ; \
-      then cd / && rm -rf /seahorn && git clone https://github.com/seahorn/seahorn --depth=10 ; \
+      then cd / && rm -rf /seahorn && git clone https://github.com/seahorn/seahorn -b yices --depth=10 ; \
     fi && \
     mkdir -p /seahorn/build
 WORKDIR /seahorn/build
@@ -40,12 +40,13 @@ RUN cmake -GNinja \
     cmake --build . --target crab  && cmake .. && \
     cmake --build . --target install && \
     cmake --build . --target units_z3 && \
+    cmake --build . --target units_yices2 && \    
     cmake --build . --target package && \
     # symlink clang (from base image)
     ln -s /clang-5.0/bin/clang run/bin/clang && \
     ln -s /clang-5.0/bin/clang++ run/bin/clang++ && \
     if [ "$TRAVIS" == "true" ] ; \
-      then units/units_z3 ; \
+      then units/units_z3 && units/units_yices2 ; \
     fi
 
 ENV PATH "/seahorn/build/run/bin:$PATH"

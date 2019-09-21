@@ -20,14 +20,12 @@ RUN echo "Build type set to: $BUILD_TYPE" && \
       then apt-get install -yqq python-software-properties ; \
     fi && \
     add-apt-repository --yes ppa:ubuntu-toolchain-r/test && \
-    add-apt-repository --yes ppa:sri-csl/formal-methods && \
     apt-get update && \
     apt-get upgrade -yqq && \
     apt-get install -yqq binutils-gold cmake cmake-data xdot g++-5 \
                        ninja-build libgraphviz-dev libstdc++5 \
                        libgmp-dev libmpfr-dev libiomp-dev \
                        python-dev python-pip python-setuptools && \
-    apt-get install -yqq yices2 && \
     pip install lit OutputCheck && \
     pip install networkx==2.2 pygraphviz && \
     # Use gold instead of bfd for much faster linking.
@@ -58,6 +56,8 @@ RUN export PREFIX=$(cat /tmp/dockerutils/prefix.txt) && \
     tar -xf "$PREFIX"_boost_1_68.tar.gz && \
     curl -sSOL "$DEPS_BASE"_z3.tar.gz && \
     tar -xf "$PREFIX"_z3.tar.gz && \
+    curl -sSOL "$DEPS_BASE"_yices-2.6.1.tar.gz && \
+    tar -xf "$PREFIX"_yices-2.6.1.tar.gz && \
     curl -sSOL "$DEPS_BASE"_llvm50.tar.gz && \
     tar -xf "$PREFIX"_llvm50.tar.gz && \
 #   ls -al --block-size=M 1>&2 && \

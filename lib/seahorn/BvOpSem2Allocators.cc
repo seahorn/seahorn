@@ -100,6 +100,7 @@ AddrInterval OpSemAllocator::galloc(const GlobalVariable &gv, uint64_t bytes,
   m_globals.emplace_back(gv, start, end, bytes);
   if (gv.hasInitializer()) {
     ConstantExprEvaluator ce(m_sem.getDataLayout());
+    ce.setContext(m_ctx);
     ce.initMemory(gv.getInitializer(), m_globals.back().getMemory());
   } else
     LOG("opsem", WARN << "GV without an initializer: " << gv << "\n";);

@@ -779,16 +779,22 @@ private:
 /// Evaluates constant expressions
 class ConstantExprEvaluator {
   const DataLayout &m_td;
-  const DataLayout &getDataLayout() {
-    return m_td;
-  }
+  Bv2OpSemContext *m_ctx;
 
+  const DataLayout &getDataLayout() const { return m_td; }
+
+  bool hasContext() const { return m_ctx; }
+  Bv2OpSemContext &getContext() {
+    assert(m_ctx);
+    return *m_ctx;
+  }
   /// \brief Stores a value in \p Val to memory pointed by \p Ptr. The store is
   /// of type \p Ty
-  void storeValueToMemory(const GenericValue &Val, GenericValue *Ptr, Type *Ty); 
+  void storeValueToMemory(const GenericValue &Val, GenericValue *Ptr, Type *Ty);
 
 public:
-  ConstantExprEvaluator(const DataLayout &td) : m_td(td) {}
+  ConstantExprEvaluator(const DataLayout &td) : m_td(td), m_ctx(nullptr) {}
+  void setContext(Bv2OpSemContext &ctx) { m_ctx = &ctx; }
 
   /// \brief Evaluate a constant expression
   Optional<GenericValue> evaluate(const Constant *C);

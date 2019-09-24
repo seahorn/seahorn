@@ -1,7 +1,8 @@
 ; RUN: %seabmc "%s" 2>&1 | %oc %s
 ; RUN: %seabmc --horn-bv2-lambdas --log=opsem3 "%s" 2>&1 | %oc %s
 ;; attempt to invoke constant floating point values,
-;; should work after seahorn adds support for floats
+;; should work after seahorn adds support for floats;
+;; disabled because llvm_unreachable() doesn't work under release mode
 ; CHECK: ^sat$
 ; XFAIL: *
 ; ModuleID = 'const.float.01.c'

@@ -48,18 +48,6 @@ public:
   }
   const DataLayout& getDataLayout() {return getTD();}
 
-  /// \brief Returns a concrete value to which a constant evaluates
-  /// Adapted from llvm::ExecutionEngine
-  Optional<GenericValue> getConstantValue(const Constant *C);
-
-  /// \brief Initializes memory pointed by \p Addr with the value of the contant
-  /// \p Init. Assumes that \p Addr is sufficiently large
-  void initMemory(const Constant *Init, void *Addr);
-
-  /// \brief Stores a value in \p Val to memory pointed by \p Ptr. The store is
-  /// of type \p Ty
-  void storeValueToMemory(const GenericValue &Val, GenericValue *Ptr, Type *Ty); 
-
   /// \brief Creates a new context
   OpSemContextPtr mkContext(SymStore &values, ExprVector &side) override;
 

@@ -3,10 +3,9 @@
    Adapted from llvm::ExecutionEngine
  */
 
-#include "seahorn/BvOpSem2.hh"
+#include "BvOpSem2Context.hh"
 #include "seahorn/Support/SeaDebug.h"
 #include "seahorn/Support/SeaLog.hh"
-
 
 using namespace llvm;
 namespace {
@@ -39,9 +38,10 @@ static void StoreIntToMemory(const APInt &IntVal, uint8_t *Dst,
 
 } // namespace
 namespace seahorn {
+namespace details {
 /// from: llvm/lib/ExecutionEngine/ExecutionEngine.cpp
-void Bv2OpSem::storeValueToMemory(const GenericValue &Val, GenericValue *Ptr,
-                                  Type *Ty) {
+void ConstantExprEvaluator::storeValueToMemory(const GenericValue &Val,
+                                               GenericValue *Ptr, Type *Ty) {
   const unsigned StoreBytes = getDataLayout().getTypeStoreSize(Ty);
 
   switch (Ty->getTypeID()) {
@@ -89,7 +89,7 @@ void Bv2OpSem::storeValueToMemory(const GenericValue &Val, GenericValue *Ptr,
 }
 
 /// from: llvm/lib/ExecutionEngine/ExecutionEngine.cpp
-void Bv2OpSem::initMemory(const Constant *Init, void *Addr) {
+void ConstantExprEvaluator::initMemory(const Constant *Init, void *Addr) {
   // LOG("opsem", errs() << "Initializing constant:\n"; Init->dump(););
 
   if (isa<UndefValue>(Init))
@@ -120,8 +120,7 @@ void Bv2OpSem::initMemory(const Constant *Init, void *Addr) {
     const StructLayout *SL =
         getDataLayout().getStructLayout(cast<StructType>(CPS->getType()));
     for (unsigned i = 0, e = CPS->getNumOperands(); i != e; ++i)
-      initMemory(CPS->getOperand(i),
-                       (char *)Addr + SL->getElementOffset(i));
+      initMemory(CPS->getOperand(i), (char *)Addr + SL->getElementOffset(i));
     return;
   }
 
@@ -134,9 +133,10 @@ void Bv2OpSem::initMemory(const Constant *Init, void *Addr) {
   }
 
   if (Init->getType()->isFirstClassType()) {
-    auto valo = getConstantValue(Init);
+    auto valo = evaluate(Init);
     if (valo)
-      storeValueToMemory(valo.getValue(), (GenericValue *)Addr, Init->getType());
+      storeValueToMemory(valo.getValue(), (GenericValue *)Addr,
+                         Init->getType());
     return;
   }
 
@@ -144,4 +144,5 @@ void Bv2OpSem::initMemory(const Constant *Init, void *Addr) {
   llvm_unreachable("Unknown constant type to initialize memory with!");
 }
 
+} // namespace details
 } // namespace seahorn

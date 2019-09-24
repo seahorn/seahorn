@@ -776,5 +776,28 @@ private:
                      const ExprVector &vals, Expr fallback);
 };
 
+/// Evaluates constant expressions
+class ConstantExprEvaluator {
+  const DataLayout &m_td;
+  const DataLayout &getDataLayout() {
+    return m_td;
+  }
+
+  /// \brief Stores a value in \p Val to memory pointed by \p Ptr. The store is
+  /// of type \p Ty
+  void storeValueToMemory(const GenericValue &Val, GenericValue *Ptr, Type *Ty); 
+
+public:
+  ConstantExprEvaluator(const DataLayout &td) : m_td(td) {}
+
+  /// \brief Evaluate a constant expression
+  Optional<GenericValue> evaluate(const Constant *C);
+  Optional<GenericValue> operator()(const Constant *c) { return evaluate(c); }
+
+  /// \brief Initialize given memory with the value of a constant expression
+  /// from: llvm/lib/ExecutionEngine/ExecutionEngine.cpp
+  void initMemory(const Constant *Init, void *Addr);
+};
+
 } // namespace details
 } // namespace seahorn

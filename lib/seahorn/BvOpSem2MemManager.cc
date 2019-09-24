@@ -35,7 +35,7 @@ OpSemMemManager::OpSemMemManager(Bv2OpSem &sem, Bv2OpSemContext &ctx,
       m_freshPtrName(mkTerm<std::string>("sea.ptr", m_efac)), m_id(0) {
   assert((m_wordSz == 1 || m_wordSz == 4 || m_wordSz == 8) &&
          "Untested word size");
-  assert((m_ptrSz == 4) && "Untested pointer size");
+  assert((m_ptrSz == 4 || m_ptrSz == 8) && "Untested pointer size");
 
   if (MemAllocatorOpt == MemAllocatorKind::NORMAL_ALLOCATOR)
     m_allocator = mkNormalOpSemAllocator(*this);

@@ -98,7 +98,11 @@ AddrInterval OpSemAllocator::galloc(const GlobalVariable &gv, uint64_t bytes,
   start = llvm::alignTo(start, align);
   unsigned end = llvm::alignTo(start + bytes, align);
   m_globals.emplace_back(gv, start, end, bytes);
-  m_sem.initMemory(gv.getInitializer(), m_globals.back().getMemory());
+  if (gv.hasInitializer()) {
+    ConstantExprEvaluator ce(m_sem.getDataLayout());
+    ce.initMemory(gv.getInitializer(), m_globals.back().getMemory());
+  } else
+    LOG("opsem", WARN << "GV without an initializer: " << gv << "\n";);
   return std::make_pair(start, end);
 }
 
@@ -257,7 +261,8 @@ public:
     unsigned typeSz = (size_t)m_sem.getTD().getTypeAllocSize(ty);
 
     if (const Constant *cv = dyn_cast<const Constant>(inst.getOperand(0))) {
-      auto ogv = m_sem.getConstantValue(cv);
+      ConstantExprEvaluator ce(m_sem.getDataLayout());
+      auto ogv = ce.evaluate(cv);
       if (!ogv.hasValue()) {
         llvm_unreachable(nullptr);
       }
@@ -300,8 +305,8 @@ public:
           Expr inRange;
           // TODO: figure proper bit-width
           inRange = mk<BULE>(bytes, bv::bvnum(4 * 1024, 32, bytes->efac()));
-          LOG("opsem", errs() << "Adding range condition: " << *inRange
-                              << "\n";);
+          LOG("opsem", errs()
+                           << "Adding range condition: " << *inRange << "\n";);
           m_ctx.addScopedRely(inRange);
           return {ai.m_start, ai.m_end};
         }

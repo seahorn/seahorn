@@ -19,7 +19,7 @@ Expr OpSemMemArrayRepr::MemSet(Expr ptr, Expr _val, unsigned len,
 
   unsigned width;
   if (bv::isBvNum(_val, width) && width == 8) {
-    assert(wordSzInBytes < sizeof(unsigned long));
+    assert(wordSzInBytes <= sizeof(unsigned long));
     int byte = bv::toMpz(_val).get_ui();
     unsigned long val = 0;
     memset(&val, byte, wordSzInBytes);

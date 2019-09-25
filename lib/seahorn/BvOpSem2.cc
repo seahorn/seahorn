@@ -1194,14 +1194,17 @@ public:
                          Bv2OpSemContext &ctx) {
     if (!ctx.getMemReadRegister() || !ctx.getMemWriteRegister() ||
         m_sem.isSkipped(dst) || m_sem.isSkipped(val)) {
-      LOG("opsem", WARN << "Skipping memset\n");
+      LOG("opsem", WARN << "skipping memset because ";
+          if (m_sem.isSkipped(dst)) WARN << " skipped dst: " << dst << " ";
+          if (m_sem.isSkipped(val)) WARN << " skipped val: " << val;
+          WARN << "\n";);
       ctx.setMemReadRegister(Expr());
       ctx.setMemWriteRegister(Expr());
       return Expr();
     }
 
     if (ctx.isMemScalar()) {
-      ERR << "memset to scalars is not supported";
+      LOG("opsem", ERR << "memset to scalars is not supported";);
       llvm_unreachable(nullptr);
     }
 
@@ -1219,7 +1222,7 @@ public:
     }
 
     if (!res)
-      LOG("opsem", errs() << "Skipping memset\n";);
+      LOG("opsem", WARN << "interpreting memset as noop\n";);
 
     ctx.setMemReadRegister(Expr());
     ctx.setMemWriteRegister(Expr());
@@ -1232,7 +1235,8 @@ public:
     if (!ctx.getMemReadRegister() || !ctx.getMemWriteRegister() ||
         !ctx.getMemTrsfrReadReg() || m_sem.isSkipped(dst) ||
         m_sem.isSkipped(src)) {
-      LOG("opsem", WARN << "skipping memcpy");
+      LOG("opsem",
+          WARN << "skipping memcpy due to src argument: " << src << "\n";);
       ctx.setMemTrsfrReadReg(Expr());
       ctx.setMemReadRegister(Expr());
       ctx.setMemWriteRegister(Expr());
@@ -1254,7 +1258,7 @@ public:
     }
 
     if (!res)
-      LOG("opsem", errs() << "Skipping memcpy\n";);
+      LOG("opsem", WARN << "interpreting memcpy as noop\n";);
 
     ctx.setMemTrsfrReadReg(Expr());
     ctx.setMemReadRegister(Expr());

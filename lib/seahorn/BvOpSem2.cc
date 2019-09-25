@@ -30,8 +30,8 @@ static llvm::cl::opt<bool>
                cl::init(false));
 
 static llvm::cl::opt<unsigned>
-    WordSize("horn-bv2-word-size", llvm::cl::desc("Word size in bytes: 1, 4, 8"),
-             cl::init(4));
+    WordSize("horn-bv2-word-size",
+             llvm::cl::desc("Word size in bytes: 1, 4, 8"), cl::init(4));
 
 static llvm::cl::opt<unsigned>
     PtrSize("horn-bv2-ptr-size", llvm::cl::desc("Pointer size in bytes: 4, 8"),
@@ -1315,6 +1315,7 @@ public:
       }
     }
 
+    // -- allocate and layout globals
     for (const GlobalVariable &gv : M.globals()) {
       if (m_sem.isSkipped(gv))
         continue;
@@ -1327,6 +1328,16 @@ public:
       Expr symReg = m_ctx.mkRegister(gv);
       assert(symReg);
       setValue(gv, m_ctx.getMemManager()->galloc(gv));
+    }
+
+    // initialize globals
+    // must be done after allocations to deal with forward references
+    for (const GlobalVariable &gv : M.globals()) {
+      if (m_sem.isSkipped(gv))
+        continue;
+      if (gv.getSection().equals("llvm.metadata"))
+        continue;
+      m_ctx.mem().initGlobalVariable(gv);
     }
 
     LOG("opsem", m_ctx.getMemManager()->dumpGlobalsMap());

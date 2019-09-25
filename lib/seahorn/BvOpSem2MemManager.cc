@@ -204,6 +204,21 @@ PtrTy OpSemMemManager::getPtrToGlobalVariable(const GlobalVariable &gv) {
       m_allocator->getGlobalVariableAddr(gv, gvSz, m_alignment), ptrSzInBits());
 }
 
+void OpSemMemManager::initGlobalVariable(const GlobalVariable &gv) const {
+  if (!gv.hasInitializer()) {
+    LOG("opsem", WARN << "GV without an initializer: " << gv << "\n";);
+    return;
+  }
+
+  ConstantExprEvaluator ce(m_sem.getDataLayout());
+  ce.setContext(m_ctx);
+  char *bytes = m_allocator->getGlobalVariableMem(gv);
+  LOG("opsem", if (!bytes) ERR
+                   << "Unexpected nullptr storage for global: " << gv << "\n";);
+  assert(bytes);
+  ce.initMemory(gv.getInitializer(), bytes);
+}
+
 /// \brief Pointers have word address (high) and byte offset (low); returns
 /// number of bits for byte offset
 ///

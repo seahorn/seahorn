@@ -69,7 +69,7 @@ struct OpSemAllocator::GlobalAllocInfo {
     m_mem = static_cast<char *>(::operator new(sz));
   }
 
-  char *getMemory() { return m_mem; }
+  char *getMemory() const { return m_mem; }
 };
 
 OpSemAllocator::OpSemAllocator(OpSemMemManager &mem)
@@ -98,16 +98,6 @@ AddrInterval OpSemAllocator::galloc(const GlobalVariable &gv, uint64_t bytes,
   start = llvm::alignTo(start, align);
   unsigned end = llvm::alignTo(start + bytes, align);
   m_globals.emplace_back(gv, start, end, bytes);
-  // TODO: separate initialization. Allocation must happen first since
-  // TODO: the order of initialization of globals is not fixed. It is possible
-  // TODO: for an earlier declared global to reference a later declared global
-  // TODO: in its initializer
-  if (gv.hasInitializer()) {
-    ConstantExprEvaluator ce(m_sem.getDataLayout());
-    ce.setContext(m_ctx);
-    ce.initMemory(gv.getInitializer(), m_globals.back().getMemory());
-  } else
-    LOG("opsem", WARN << "GV without an initializer: " << gv << "\n";);
   return std::make_pair(start, end);
 }
 
@@ -138,6 +128,17 @@ unsigned OpSemAllocator::getGlobalVariableAddr(const GlobalVariable &gv,
   galloc(gv, bytes, align);
   return m_globals.back().m_start;
 }
+
+/// \brief Returns an address of memory segment to store value of the variable
+char *OpSemAllocator::getGlobalVariableMem(const GlobalVariable &gv) const {
+  for (auto &gi : m_globals)
+    if (gi.m_gv == &gv)
+      return gi.getMemory();
+
+  return nullptr;
+}
+
+
 
 /// \brief Returns initial value of a global variable
 ///

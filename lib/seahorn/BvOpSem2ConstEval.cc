@@ -358,8 +358,23 @@ Optional<GenericValue> ConstantExprEvaluator::evaluate(const Constant *C) {
     if (isa<ConstantPointerNull>(C))
       Result.PointerVal = nullptr;
     else if (const Function *F = dyn_cast<Function>(C)) {
-      // TODO:
-      // Result = PTOGV((void*)ctx.getPtrToFunction(*F));
+      if (m_ctx) {
+        Expr reg = m_ctx->getRegister(*F);
+        if (reg) {
+          Expr val = m_ctx->read(reg);
+          if (m_ctx->alu().isNum(val)) {
+            mpz_class addr = m_ctx->alu().toNum(val);
+            Result = PTOGV((void *)addr.get_ui());
+            break;
+          } else {
+            LOG("opsem", WARN << "Function address " << *F
+                              << " not numeric: " << *val << "\n";);
+          }
+        } else {
+          LOG("opsem",
+              WARN << "No register for function pointer: " << *F << "\n";);
+        }
+      }
       WARN << "Unhandled function pointer in a constant expression:  " << *C
            << "\n";
       return llvm::None;

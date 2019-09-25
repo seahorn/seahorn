@@ -412,6 +412,9 @@ public:
   virtual unsigned getGlobalVariableAddr(const GlobalVariable &gv,
                                          unsigned bytes, unsigned align);
 
+  /// \brief Returns an address of memory segment to store value of the variable
+  virtual char *getGlobalVariableMem(const GlobalVariable &gv) const;
+
   /// \brief Returns initial value of a global variable
   ///
   /// Returns (nullptr, 0) if the global variable has no known initial value
@@ -512,6 +515,9 @@ public:
 
   /// \brief Returns a pointer to a global variable
   PtrTy getPtrToGlobalVariable(const GlobalVariable &gv);
+
+  /// \brief Initialize memory used by the global variable
+  void initGlobalVariable(const GlobalVariable &gv) const;
 
   /// \brief Creates a non-deterministic pointer that is aligned
   ///

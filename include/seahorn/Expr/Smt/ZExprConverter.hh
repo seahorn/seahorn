@@ -751,18 +751,23 @@ template <typename U> struct BasicExprUnmarshal {
       e = mknary<BMUL>(args.begin(), args.end());
       break;
     case Z3_OP_BSDIV:
+    case Z3_OP_BSDIV_I:
       e = mknary<BSDIV>(args.begin(), args.end());
       break;
     case Z3_OP_BUDIV:
+    case Z3_OP_BUDIV_I:
       e = mknary<BUDIV>(args.begin(), args.end());
       break;
     case Z3_OP_BSREM:
+    case Z3_OP_BSREM_I:
       e = mknary<BSREM>(args.begin(), args.end());
       break;
     case Z3_OP_BUREM:
+    case Z3_OP_BUREM_I:
       e = mknary<BUREM>(args.begin(), args.end());
       break;
     case Z3_OP_BSMOD:
+    case Z3_OP_BSMOD_I:
       e = mknary<BSMOD>(args.begin(), args.end());
       break;
     case Z3_OP_ULEQ:

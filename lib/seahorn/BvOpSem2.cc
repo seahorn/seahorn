@@ -1678,11 +1678,15 @@ Expr Bv2OpSemContext::mkRegister(const llvm::Value &v) {
 
 Expr Bv2OpSemContext::getConstantValue(const llvm::Constant &c) {
   // -- easy common cases
-  if (c.isNullValue() || isa<ConstantPointerNull>(&c)) {
-    return c.getType()->isIntegerTy(1) ? alu().si(0, 1) : mem().nullPtr();
+  if (isa<ConstantPointerNull>(&c)) {
+    return mem().nullPtr();
   } else if (const ConstantInt *ci = dyn_cast<const ConstantInt>(&c)) {
     if (ci->getType()->isIntegerTy(1))
       return ci->isOne() ? alu().si(1, 1) : alu().si(0, 1);
+    else if (ci->isZero())
+      return alu().si(0, m_sem.sizeInBits(c));
+    else if (ci->isOne())
+      return alu().si(1, m_sem.sizeInBits(c));
 
     mpz_class k = toMpz(ci->getValue());
     return alu().si(k, m_sem.sizeInBits(c));

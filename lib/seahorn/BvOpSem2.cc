@@ -505,6 +505,11 @@ public:
   }
 
   void visitIndirectCall(CallSite CS) {
+    if (CS.getInstruction()->getType()->isVoidTy()) {
+      LOG("opsem", WARN << "Interpreting indirect call as noop: "
+                        << *CS.getInstruction() << "\n";);
+      return;
+    }
     // treat as non-det and issue a warning
     setValue(*CS.getInstruction(), Expr());
   }
@@ -1615,7 +1620,7 @@ Expr Bv2OpSemContext::mkRegister(const llvm::Instruction &inst) {
       reg = bind::mkConst(v, mkPtrRegisterSort(inst));
       break;
     default:
-      errs() << "Error: unhandled type: " << ty << " of " << inst << "\n";
+      ERR << "unhandled type: " << ty << " of " << inst << "\n";
       llvm_unreachable(nullptr);
     }
   }

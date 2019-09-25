@@ -1,5 +1,6 @@
 #include "BvOpSem2Context.hh"
 
+#include "llvm/Support/Format.h"
 using namespace llvm;
 
 namespace seahorn {
@@ -363,6 +364,25 @@ Optional<GenericValue> ConstantExprEvaluator::evaluate(const Constant *C) {
            << "\n";
       return llvm::None;
     } else if (const GlobalVariable *GV = dyn_cast<GlobalVariable>(C)) {
+      if (m_ctx) {
+        Expr reg = m_ctx->getRegister(*GV);
+        if (reg) {
+          Expr val = m_ctx->read(reg);
+          if (m_ctx->alu().isNum(val)) {
+            mpz_class num = m_ctx->alu().toNum(val);
+            Result = PTOGV((void *)num.get_ui());
+            LOG("opsem", errs() << "Evaluated addr of " << *GV << " to "
+                                << llvm::format_hex(num.get_ui(), 16, true)
+                                << "\n";);
+            break;
+          } else {
+            LOG("opsem", WARN << "Value of global " << *GV
+                              << " not numeric: " << *val << "\n";);
+          }
+        } else {
+          LOG("opsem", WARN << "No register for global: " << *GV << "\n";);
+        }
+      }
       // TODO:
       // Result = PTOGV((void*)ctx.getPtrToGlobal(*GV));
       WARN << "Unhandled global variable in a constant expression: " << *C

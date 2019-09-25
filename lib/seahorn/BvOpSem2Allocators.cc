@@ -98,6 +98,10 @@ AddrInterval OpSemAllocator::galloc(const GlobalVariable &gv, uint64_t bytes,
   start = llvm::alignTo(start, align);
   unsigned end = llvm::alignTo(start + bytes, align);
   m_globals.emplace_back(gv, start, end, bytes);
+  // TODO: separate initialization. Allocation must happen first since
+  // TODO: the order of initialization of globals is not fixed. It is possible
+  // TODO: for an earlier declared global to reference a later declared global
+  // TODO: in its initializer
   if (gv.hasInitializer()) {
     ConstantExprEvaluator ce(m_sem.getDataLayout());
     ce.setContext(m_ctx);

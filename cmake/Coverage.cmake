@@ -32,7 +32,7 @@
 
 include(CMakeDependentOption)
 
-set(COVERAGE_COMPILER_FLAGS  "-g -O0 --coverage" CACHE INTERNAL "")
+set(COVERAGE_COMPILER_FLAGS  "-g -O0 --coverage -DNDEBUG" CACHE INTERNAL "")
 set(COVERAGE_LINKER_FLAGS    "--coverage"        CACHE INTERNAL "")
 
 

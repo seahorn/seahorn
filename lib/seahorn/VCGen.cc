@@ -250,84 +250,107 @@ void VCGen::genVcForBasicBlockOnEdge(OpSemContext &ctx, const CpEdge &edge,
   if (last)
     ctx.addSide(bbV);
 
-  /// -- generate constraints from the phi-nodes (keep them separate for now)
-  // a map from predecessor id to values of all phi-defined variables over that
-  // edge for example, phiVal[i][j] is the value of jth PHI-node when control
-  // flows from predecessor i
-  std::vector<ExprVector> phiVal(preds.size());
-
+  // -- compute path condition for the current bb
   unsigned idx = 0;
   for (const BasicBlock *pred : preds) {
-    // clone s
-    SymStore es(ctx.values());
-    OpSemContextPtr ectx = ctx.fork(es, ctx.side());
-    ectx->setPathCond(edges[idx]);
-
-    // edge_ij -> phi_ij,
     // -- branch condition
+    OpSemContextPtr ectx = ctx.fork(ctx.values(), ctx.side());
+    ectx->setPathCond(edges[idx++]);
     m_sem.execBr(*pred, bb, *ectx);
-    // -- definition of phi nodes
-    m_sem.execPhi(bb, *pred, *ectx);
-    // -- collect all uses since `es` is local
-    ctx.values().uses(ectx->values().uses());
-
-    for (const Instruction &inst : bb) {
-      if (!isa<PHINode>(&inst))
-        break;
-      if (!m_sem.isTracked(inst))
-        continue;
-
-      // -- record the value of PHINode after taking `pred --> bb` edge
-      phiVal[idx].push_back(ectx->read(m_sem.mkSymbReg(inst, ctx)));
-    }
-
-    idx++;
   }
 
-  if (UseIte) {
-    // create symbolic registers for PHINodes
-    ExprVector newPhi;
-    for (const Instruction &inst : bb) {
-      if (!isa<PHINode>(inst))
-        break;
-      if (!m_sem.isTracked(inst))
-        continue;
-      newPhi.push_back(m_sem.mkSymbReg(inst, ctx));
+  // -- see if there are tracked PHINodes
+  bool hasPhi = false;
+  for (const Instruction &inst : bb) {
+    if (!isa<PHINode>(&inst))
+      break;
+    if (m_sem.isTracked(inst)) {
+      hasPhi = true;
+      break;
     }
+  }
 
-    assert(edges.size() > 0);
-    // TODO: Optimize ite construction by ensuring that each unique value
-    // appears only ones. For example, ite(c1, ite(c2, v, u), v) --reduces-->
-    // ite (c1 || !c2, v, u) This is easy in this case because conditions are
-    // known to be disjoint. This is basically compiling a known switch
-    // statement into if-then-else block
-    for (unsigned i = 0; i < newPhi.size(); ++i) {
-      // assume that path-conditions (edges) are disjoint and that
-      // at least one must be true. Using the last edge condition as the
-      // default value. If all other edge conditions are false, the default is
-      // taken
-      Expr val = phiVal[edges.size() - 1][i];
-      for (unsigned j = edges.size() - 1; j > 0; --j) {
-        val = bind::lite(edges[j - 1], phiVal[j - 1][i], val);
+  // -- compute values of PHINodes
+  if (hasPhi) {
+    /// -- generate constraints from the phi-nodes (keep them separate for now)
+    // a map from predecessor id to values of all phi-defined variables over
+    // that edge for example, phiVal[i][j] is the value of jth PHI-node when
+    // control flows from predecessor i
+    std::vector<ExprVector> phiVal(preds.size());
+
+    idx = 0;
+    for (const BasicBlock *pred : preds) {
+      // clone s
+      Stats::resume("vcgen.store.clone");
+      SymStore es(ctx.values());
+      Stats::stop("vcgen.store.clone");
+      OpSemContextPtr ectx = ctx.fork(es, ctx.side());
+      ectx->setPathCond(edges[idx]);
+
+      // edge_ij -> phi_ij,
+      // -- definition of phi nodes
+      m_sem.execPhi(bb, *pred, *ectx);
+      // -- collect all uses since `es` is local
+      ctx.values().uses(ectx->values().uses());
+
+      for (const Instruction &inst : bb) {
+        if (!isa<PHINode>(&inst))
+          break;
+        if (!m_sem.isTracked(inst))
+          continue;
+
+        // -- record the value of PHINode after taking `pred --> bb` edge
+        phiVal[idx].push_back(ectx->read(m_sem.mkSymbReg(inst, ctx)));
       }
-      // write an ite expression as the new PHINode value
-      ctx.write(newPhi[i], val);
-    }
-  } else {
-    // create new havoced values for PHINodes
-    ExprVector newPhi;
-    for (const Instruction &inst : bb) {
-      if (!isa<PHINode>(inst))
-        break;
-      if (!m_sem.isTracked(inst))
-        continue;
-      newPhi.push_back(ctx.havoc(m_sem.mkSymbReg(inst, ctx)));
+
+      idx++;
     }
 
-    // connect new PHINode register values with constructed PHINode values
-    for (unsigned j = 0; j < edges.size(); ++j)
-      for (unsigned i = 0; i < newPhi.size(); ++i)
-        ctx.addSide(boolop::limp(edges[j], mk<EQ>(newPhi[i], phiVal[j][i])));
+    if (UseIte) {
+      // create symbolic registers for PHINodes
+      ExprVector newPhi;
+      for (const Instruction &inst : bb) {
+        if (!isa<PHINode>(inst))
+          break;
+        if (!m_sem.isTracked(inst))
+          continue;
+        newPhi.push_back(m_sem.mkSymbReg(inst, ctx));
+      }
+
+      assert(edges.size() > 0);
+      // TODO: Optimize ite construction by ensuring that each unique value
+      // appears only ones. For example, ite(c1, ite(c2, v, u), v) --reduces-->
+      // ite (c1 || !c2, v, u) This is easy in this case because conditions are
+      // known to be disjoint. This is basically compiling a known switch
+      // statement into if-then-else block
+      for (unsigned i = 0; i < newPhi.size(); ++i) {
+        // assume that path-conditions (edges) are disjoint and that
+        // at least one must be true. Using the last edge condition as the
+        // default value. If all other edge conditions are false, the default is
+        // taken
+        Expr val = phiVal[edges.size() - 1][i];
+        for (unsigned j = edges.size() - 1; j > 0; --j) {
+          val = bind::lite(edges[j - 1], phiVal[j - 1][i], val);
+        }
+        // write an ite expression as the new PHINode value
+        ctx.write(newPhi[i], val);
+      }
+    } else {
+      // create new havoced values for PHINodes
+      ExprVector newPhi;
+      for (const Instruction &inst : bb) {
+        if (!isa<PHINode>(inst))
+          break;
+        if (!m_sem.isTracked(inst))
+          continue;
+        newPhi.push_back(ctx.havoc(m_sem.mkSymbReg(inst, ctx)));
+      }
+
+      // connect new PHINode register values with constructed PHINode values
+      for (unsigned j = 0; j < edges.size(); ++j)
+        for (unsigned i = 0; i < newPhi.size(); ++i)
+          ctx.addSide(boolop::limp(edges[j], mk<EQ>(newPhi[i], phiVal[j][i])));
+    }
   }
 
   // actions of the block. The side-conditions are not guarded by

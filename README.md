@@ -2,12 +2,13 @@
 
 <table>
   <tr>
-    <th>Windows</th><th>Ubuntu</th><th>OS X</th><th>Chat with us</th>
+    <th>Windows</th><th>Ubuntu</th><th>OS X</th><th>Chat with us</th><th>Coverage</th>
   </tr>
     <td>TBD</td>
     <td><a href="https://travis-ci.org/seahorn/seahorn"><img src="https://travis-ci.org/seahorn/seahorn.svg?branch=deep-dev-5.0" title="Ubuntu 12.04 LTS 64bit, g++-5"/></a></td>
     <td>TBD</td>
     <td><a href="https://gitter.im/seahorn/seahorn?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge"><img src="https://badges.gitter.im/seahorn/seahorn.svg" title="Gitter"/></a></td>
+    <td><a href="https://codecov.io/gh/seahorn/seahorn"><img src="https://codecov.io/gh/seahorn/seahorn/branch/master/graph/badge.svg" /></a></td>
   </tr>
 </table>
 

@@ -30,11 +30,10 @@ matrix:
    - env: BUILD_TYPE=Coverage
      script:
        - docker build --build-arg UBUNTU=xenial --build-arg BUILD_TYPE=$BUILD_TYPE --build-arg TRAVIS=true -t seahorn_xenial_build -f docker/seahorn-full-size-rel.Dockerfile .
-       - docker run -v $(pwd):/host -it seahorn_xenial_build /bin/sh -c "cp build/*.tar.gz /host/"
        - >
-        ci_env=$(bash <(curl -s https://codecov.io/env))
-        docker run $ci_env  -v $(pwd):/host -it seahorn_xenial_build /bin/sh -c
-        "bash /seahorn/docker/run_upload_cov.sh"
+         docker run  -v $(pwd):/host -it seahorn_xenial_build /bin/sh -c 
+         "bash /seahorn/docker/run_and_collect_cov.sh && mv /seahorn/build/all.info /host"
+         && bash <(curl -s https://codecov.io/bash) -Z -f all.info
 
 services:
   - docker

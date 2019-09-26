@@ -27,7 +27,7 @@ WORKDIR /seahorn/build
 ARG BUILD_TYPE
 # Build configuration.
 RUN cmake -GNinja \
-          -DCMAKE_BUILD_TYPE=$BUILD_TYPE \ 
+          -DCMAKE_BUILD_TYPE=$BUILD_TYPE \
           -DBOOST_ROOT=/deps/boost \
           -DZ3_ROOT=/deps/z3 \
           -DLLVM_DIR=/deps/LLVM-5.0.2-Linux/lib/cmake/llvm \
@@ -40,12 +40,12 @@ RUN cmake -GNinja \
     cmake --build . --target crab  && cmake .. && \
     cmake --build . --target install && \
     cmake --build . --target units_z3 && \
-    cmake --build . --target units_yices2 && \    
+    cmake --build . --target units_yices2 && \
     cmake --build . --target package && \
     # symlink clang (from base image)
     ln -s /clang-5.0/bin/clang run/bin/clang && \
     ln -s /clang-5.0/bin/clang++ run/bin/clang++ && \
-    if [ "$TRAVIS" == "true" ] ; \
+    if [ "$TRAVIS" = "true" ] ; \
       then units/units_z3 && units/units_yices2 ; \
     fi
 

@@ -6,7 +6,6 @@
 
 // CHECK-L: unsat
 // OLD-L: sat
-// XFAIL: *
 
 // Based on https://github.com/MCFuzzer/MCFuzz/issues/52.
 // With the old bv-opsem we get sat.

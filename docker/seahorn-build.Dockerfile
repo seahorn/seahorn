@@ -25,7 +25,8 @@ RUN echo "Build type set to: $BUILD_TYPE" && \
     apt-get install -yqq binutils-gold cmake cmake-data xdot g++-5 \
                        ninja-build libgraphviz-dev libstdc++5 \
                        libgmp-dev libmpfr-dev libiomp-dev \
-                       python-dev python-pip python-setuptools && \
+                       python-dev python-pip python-setuptools \
+                       lcov ggcov && \
     pip install lit OutputCheck && \
     pip install networkx==2.2 pygraphviz && \
     # Use gold instead of bfd for much faster linking.

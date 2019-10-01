@@ -401,7 +401,7 @@ template <typename M> struct BasicExprMarshal {
                isOpX<MULT>(e) || isOpX<STORE>(e) || isOpX<ARRAY_MAP>(e) ||
                isOpX<BCONCAT>(e) || isOpX<BADD>(e)) {
       std::vector<z3::ast> pinned;
-      std::vector<Z3_ast> args;
+      SmallVector<Z3_ast, 16> args;
 
       for (ENode::args_iterator it = e->args_begin(), end = e->args_end();
            it != end; ++it) {
@@ -676,8 +676,9 @@ template <typename U> struct BasicExprUnmarshal {
     }
 
     Expr e;
-    ExprVector args;
-    for (size_t i = 0; i < (size_t)Z3_get_app_num_args(ctx, app); i++)
+    SmallVector<Expr, 16> args;
+    unsigned arg_sz = (size_t)Z3_get_app_num_args(ctx, app);
+    for (size_t i = 0; i < arg_sz; i++)
       args.push_back(unmarshal(z3::ast(ctx, Z3_get_app_arg(ctx, app, i)), efac,
                                cache, seen));
 

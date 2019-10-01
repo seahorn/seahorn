@@ -437,8 +437,7 @@ template <typename M> struct BasicExprMarshal {
           res = Z3_mk_concat(ctx, args[i], res);
           assert(res && "Creating concat failed");
         }
-      }
-      else if (isOp<BADD>(e)) {
+      } else if (isOp<BADD>(e)) {
         // convert n-ary bv-add to binary since Z3 has no API to create it
         assert(args.size() > 2);
         res = args.back();
@@ -502,18 +501,10 @@ template <typename U> struct BasicExprUnmarshal {
       case Z3_REAL_SORT:
         return sort::realTy(efac);
       case Z3_BV_SORT:
-        return bv::bvsort(Z3_get_bv_sort_size(ctx, sort), efac);
       case Z3_ARRAY_SORT:
-        domain = unmarshal(
-            z3::ast(ctx,
-                    Z3_sort_to_ast(ctx, Z3_get_array_sort_domain(ctx, sort))),
-            efac, cache, seen);
-        range = unmarshal(
-            z3::ast(ctx,
-                    Z3_sort_to_ast(ctx, Z3_get_array_sort_range(ctx, sort))),
-            efac, cache, seen);
-        return sort::arrayTy(domain, range);
-      default:
+        // needs caching, handled below
+        break;
+     default:
         assert(0 && "Unsupported sort");
       }
     } else if (kind == Z3_VAR_AST) {
@@ -521,9 +512,7 @@ template <typename U> struct BasicExprUnmarshal {
       z3::ast zsort(ctx, Z3_sort_to_ast(ctx, Z3_get_sort(ctx, z)));
       Expr sort = unmarshal(zsort, efac, cache, seen);
       return bind::bvar(idx, sort);
-    }
-
-    else if (kind == Z3_FUNC_DECL_AST) {
+    } else if (kind == Z3_FUNC_DECL_AST) {
       {
         typename C::const_iterator it = cache.find(z);
         if (it != cache.end())
@@ -579,8 +568,8 @@ template <typename U> struct BasicExprUnmarshal {
       return mknary<LAMBDA>(args);
     }
 
-    if (kind != Z3_APP_AST)
-      errs() << boost::lexical_cast<std::string>(z) << "\n";
+    // if (kind != Z3_APP_AST)
+    //   errs() << boost::lexical_cast<std::string>(z) << "\n";
 
     assert(kind == Z3_APP_AST);
     Z3_app app = Z3_to_app(ctx, z);
@@ -628,16 +617,6 @@ template <typename U> struct BasicExprUnmarshal {
       }
     }
 
-    if (dkind == Z3_OP_EXTRACT) {
-      Expr arg = unmarshal(z3::ast(ctx, Z3_get_app_arg(ctx, app, 0)), efac,
-                           cache, seen);
-
-      Z3_func_decl d = Z3_get_app_decl(ctx, app);
-      unsigned high = Z3_get_decl_int_parameter(ctx, d, 0);
-      unsigned low = Z3_get_decl_int_parameter(ctx, d, 1);
-      return bv::extract(high, low, arg);
-    }
-
     if (dkind == Z3_OP_AS_ARRAY) {
       z3::ast zdecl(
           ctx, Z3_func_decl_to_ast(ctx, Z3_get_as_array_func_decl(ctx, z)));
@@ -653,6 +632,47 @@ template <typename U> struct BasicExprUnmarshal {
       typename ast_expr_map::const_iterator it = seen.find(z);
       if (it != seen.end())
         return it->second;
+    }
+
+    if (kind == Z3_SORT_AST) {
+      Z3_sort sort = reinterpret_cast<Z3_sort>(static_cast<Z3_ast>(z));
+      Expr domain, range;
+      Expr res;
+      switch (Z3_get_sort_kind(ctx, sort)) {
+      case Z3_BV_SORT:
+        res = bv::bvsort(Z3_get_bv_sort_size(ctx, sort), efac);
+        break;
+      case Z3_ARRAY_SORT:
+        domain = unmarshal(
+                           z3::ast(ctx,
+                                   Z3_sort_to_ast(ctx, Z3_get_array_sort_domain(ctx, sort))),
+                           efac, cache, seen);
+        range = unmarshal(
+                          z3::ast(ctx,
+                                  Z3_sort_to_ast(ctx, Z3_get_array_sort_range(ctx, sort))),
+                          efac, cache, seen);
+        res = sort::arrayTy(domain, range);
+        break;
+      default:
+        assert(0 && "Unsupported sort");
+        return Expr();
+      }
+
+      if (res)
+        cache.insert(typename C::value_type(z, res));
+      return res;
+    }
+
+    if (dkind == Z3_OP_EXTRACT) {
+      Expr arg = unmarshal(z3::ast(ctx, Z3_get_app_arg(ctx, app, 0)), efac,
+                           cache, seen);
+
+      Z3_func_decl d = Z3_get_app_decl(ctx, app);
+      unsigned high = Z3_get_decl_int_parameter(ctx, d, 0);
+      unsigned low = Z3_get_decl_int_parameter(ctx, d, 1);
+      Expr res = bv::extract(high, low, arg);
+      cache.insert(typename C::value_type(z, res));
+      return res;
     }
 
     Expr e;

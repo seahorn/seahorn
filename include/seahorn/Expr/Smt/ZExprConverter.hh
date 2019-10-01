@@ -138,9 +138,8 @@ template <typename M> struct BasicExprMarshal {
       std::vector<Z3_sort> domain(e->arity());
 
       for (size_t i = 0; i < bind::domainSz(e); ++i) {
-        z3::ast a(marshal(bind::domainTy(e, i), ctx, cache, seen));
-        pinned.push_back(a);
-        domain[i] = reinterpret_cast<Z3_sort>(static_cast<Z3_ast>(a));
+        pinned.push_back(marshal(bind::domainTy(e, i), ctx, cache, seen));
+        domain[i] = reinterpret_cast<Z3_sort>(static_cast<Z3_ast>(pinned.back()));
       }
 
       z3::sort range(ctx, reinterpret_cast<Z3_sort>(static_cast<Z3_ast>(
@@ -400,15 +399,14 @@ template <typename M> struct BasicExprMarshal {
                isOpX<XOR>(e) || isOpX<PLUS>(e) || isOpX<MINUS>(e) ||
                isOpX<MULT>(e) || isOpX<STORE>(e) || isOpX<ARRAY_MAP>(e) ||
                isOpX<BCONCAT>(e) || isOpX<BADD>(e)) {
-      std::vector<z3::ast> pinned;
+      z3::ast_vector pinned(ctx);
       SmallVector<Z3_ast, 16> args;
 
       for (ENode::args_iterator it = e->args_begin(), end = e->args_end();
            it != end; ++it) {
-        z3::ast a = z3::ast(ctx, marshal(*it, ctx, cache, seen));
-        args.push_back(a);
-        pinned.push_back(a);
-      }
+        pinned.push_back(marshal(*it, ctx, cache, seen));
+        args.push_back(pinned.back());
+     }
 
       if (isOp<ITE>(e)) {
         assert(e->arity() == 3);

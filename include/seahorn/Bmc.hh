@@ -123,10 +123,6 @@ public:
   /// get side condition
   const ExprVector &getFormula() const { return m_side; }
 
-  size_t getFormulaDagSize() { return expr::dagSize(m_side); }
-
-  size_t getFormulaCircuitSize() { return expr::dagSize(m_side); }
-
   /// get cut-point trace
   const SmallVector<const CutPoint *, 8> &getCps() const { return m_cps; }
 

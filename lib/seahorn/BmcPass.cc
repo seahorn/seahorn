@@ -220,8 +220,8 @@ public:
     Stats::resume("BMC");
     bmc->encode();
 
-    Stats::uset("BMC_DAG_SIZE", bmc->getFormulaDagSize());
-    Stats::uset("BMC_CIRCUIT_SIZE", bmc->getFormulaCircuitSize());
+    Stats::uset("bmc.dag_sz", dagSize(bmc->getFormula()));
+    Stats::uset("bmc.circ_sz", boolop::circSize(bmc->getFormula()));
 
     LOG("bmc.simplify",
         // --

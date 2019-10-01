@@ -253,9 +253,9 @@ public:
     outs() << "\n";
 
     if (res)
-      Stats::sset("BMC_result", "FALSE");
+      Stats::sset("Result", "FALSE");
     else if (!res)
-      Stats::sset("BMC_result", "TRUE");
+      Stats::sset("Result", "TRUE");
 
     LOG("bmc.core",
 

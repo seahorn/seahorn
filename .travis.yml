@@ -28,6 +28,7 @@ matrix:
           docker run -v $(pwd):/host -it seahorn_container /bin/sh -c "cd share/seahorn; lit test" ;
         fi
    - env: BUILD_TYPE=Coverage
+     if: type = cron
      script:
        - docker build --build-arg UBUNTU=xenial --build-arg BUILD_TYPE=$BUILD_TYPE --build-arg TRAVIS=true -t seahorn_xenial_build -f docker/seahorn-full-size-rel.Dockerfile .
        - >

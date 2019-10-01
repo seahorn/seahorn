@@ -545,82 +545,64 @@ template <typename U> struct BasicExprUnmarshal {
                     efac, cache, seen));
 
       return bind::fdecl(name, type);
-    } else if (kind == Z3_QUANTIFIER_AST) {
-      ExprVector args;
-      unsigned num_bound = Z3_get_quantifier_num_bound(ctx, z);
-      args.reserve(num_bound + 1);
-      for (unsigned i = 0; i < num_bound; ++i) {
-        Z3_func_decl decl =
-            Z3_mk_func_decl(ctx, Z3_get_quantifier_bound_name(ctx, z, i), 0,
-                            nullptr, Z3_get_quantifier_bound_sort(ctx, z, i));
-        z3::ast zdecl(ctx, Z3_func_decl_to_ast(ctx, decl));
-        args.push_back(unmarshal(zdecl, efac, cache, seen));
-        assert(args.back().get());
+    } 
+
+    Z3_app app;
+    Z3_func_decl fdecl;
+    Z3_decl_kind dkind;
+
+    if (kind == Z3_APP_AST) {
+      assert(kind == Z3_APP_AST);
+      app = Z3_to_app(ctx, z);
+      fdecl = Z3_get_app_decl(ctx, app);
+      dkind = Z3_get_decl_kind(ctx, fdecl);
+
+      if (dkind == Z3_OP_NOT) {
+        assert(Z3_get_app_num_args(ctx, app) == 1);
+        return mk<NEG>(unmarshal(z3::ast(ctx, Z3_get_app_arg(ctx, app, 0)), efac,
+                                 cache, seen));
       }
-      args.push_back(unmarshal(z3::ast(ctx, Z3_get_quantifier_body(ctx, z)),
-                               efac, cache, seen));
-      if (Z3_is_quantifier_forall(ctx, z))
-        return mknary<FORALL>(args);
-      else if (Z3_is_quantifier_exists(ctx, z))
-        return mknary<EXISTS>(args);
+      if (dkind == Z3_OP_UMINUS)
+        return mk<UN_MINUS>(unmarshal(z3::ast(ctx, Z3_get_app_arg(ctx, app, 0)),
+                                      efac, cache, seen));
 
-      assert(Z3_is_lambda(ctx, z));
-      return mknary<LAMBDA>(args);
-    }
+      // XXX ignore to_real and to_int operators
+      if (dkind == Z3_OP_TO_REAL || dkind == Z3_OP_TO_INT)
+        return unmarshal(z3::ast(ctx, Z3_get_app_arg(ctx, app, 0)), efac, cache,
+                         seen);
 
-    // if (kind != Z3_APP_AST)
-    //   errs() << boost::lexical_cast<std::string>(z) << "\n";
-
-    assert(kind == Z3_APP_AST);
-    Z3_app app = Z3_to_app(ctx, z);
-    Z3_func_decl fdecl = Z3_get_app_decl(ctx, app);
-    Z3_decl_kind dkind = Z3_get_decl_kind(ctx, fdecl);
-
-    if (dkind == Z3_OP_NOT) {
-      assert(Z3_get_app_num_args(ctx, app) == 1);
-      return mk<NEG>(unmarshal(z3::ast(ctx, Z3_get_app_arg(ctx, app, 0)), efac,
-                               cache, seen));
-    }
-    if (dkind == Z3_OP_UMINUS)
-      return mk<UN_MINUS>(unmarshal(z3::ast(ctx, Z3_get_app_arg(ctx, app, 0)),
+      if (dkind == Z3_OP_BNOT)
+        return mk<BNOT>(unmarshal(z3::ast(ctx, Z3_get_app_arg(ctx, app, 0)), efac,
+                                  cache, seen));
+      if (dkind == Z3_OP_BNEG)
+        return mk<BNEG>(unmarshal(z3::ast(ctx, Z3_get_app_arg(ctx, app, 0)), efac,
+                                  cache, seen));
+      if (dkind == Z3_OP_BREDAND)
+        return mk<BREDAND>(unmarshal(z3::ast(ctx, Z3_get_app_arg(ctx, app, 0)),
+                                     efac, cache, seen));
+      if (dkind == Z3_OP_BREDOR)
+        return mk<BREDOR>(unmarshal(z3::ast(ctx, Z3_get_app_arg(ctx, app, 0)),
                                     efac, cache, seen));
-
-    // XXX ignore to_real and to_int operators
-    if (dkind == Z3_OP_TO_REAL || dkind == Z3_OP_TO_INT)
-      return unmarshal(z3::ast(ctx, Z3_get_app_arg(ctx, app, 0)), efac, cache,
-                       seen);
-
-    if (dkind == Z3_OP_BNOT)
-      return mk<BNOT>(unmarshal(z3::ast(ctx, Z3_get_app_arg(ctx, app, 0)), efac,
-                                cache, seen));
-    if (dkind == Z3_OP_BNEG)
-      return mk<BNEG>(unmarshal(z3::ast(ctx, Z3_get_app_arg(ctx, app, 0)), efac,
-                                cache, seen));
-    if (dkind == Z3_OP_BREDAND)
-      return mk<BREDAND>(unmarshal(z3::ast(ctx, Z3_get_app_arg(ctx, app, 0)),
-                                   efac, cache, seen));
-    if (dkind == Z3_OP_BREDOR)
-      return mk<BREDOR>(unmarshal(z3::ast(ctx, Z3_get_app_arg(ctx, app, 0)),
-                                  efac, cache, seen));
-    if (dkind == Z3_OP_SIGN_EXT || dkind == Z3_OP_ZERO_EXT) {
-      Expr sort =
+      if (dkind == Z3_OP_SIGN_EXT || dkind == Z3_OP_ZERO_EXT) {
+        Expr sort =
           bv::bvsort(Z3_get_bv_sort_size(ctx, Z3_get_sort(ctx, z)), efac);
-      Expr arg = unmarshal(z3::ast(ctx, Z3_get_app_arg(ctx, app, 0)), efac,
-                           cache, seen);
-      switch (dkind) {
-      case Z3_OP_SIGN_EXT:
-        return mk<BSEXT>(arg, sort);
-      case Z3_OP_ZERO_EXT:
-        return mk<BZEXT>(arg, sort);
-      default:
-        assert(0);
+        Expr arg = unmarshal(z3::ast(ctx, Z3_get_app_arg(ctx, app, 0)), efac,
+                             cache, seen);
+        switch (dkind) {
+        case Z3_OP_SIGN_EXT:
+          return mk<BSEXT>(arg, sort);
+        case Z3_OP_ZERO_EXT:
+          return mk<BZEXT>(arg, sort);
+        default:
+          assert(0);
+        }
       }
-    }
 
-    if (dkind == Z3_OP_AS_ARRAY) {
-      z3::ast zdecl(
-          ctx, Z3_func_decl_to_ast(ctx, Z3_get_as_array_func_decl(ctx, z)));
-      return mk<AS_ARRAY>(unmarshal(zdecl, efac, cache, seen));
+      if (dkind == Z3_OP_AS_ARRAY) {
+        z3::ast zdecl(
+                      ctx, Z3_func_decl_to_ast(ctx, Z3_get_as_array_func_decl(ctx, z)));
+        return mk<AS_ARRAY>(unmarshal(zdecl, efac, cache, seen));
+      }
     }
 
     {
@@ -662,7 +644,32 @@ template <typename U> struct BasicExprUnmarshal {
         cache.insert(typename C::value_type(z, res));
       return res;
     }
+    else if (kind == Z3_QUANTIFIER_AST) {
+      SmallVector<Expr, 32> args;
+      unsigned num_bound = Z3_get_quantifier_num_bound(ctx, z);
+      args.reserve(num_bound + 1);
+      for (unsigned i = 0; i < num_bound; ++i) {
+        Z3_func_decl decl =
+          Z3_mk_func_decl(ctx, Z3_get_quantifier_bound_name(ctx, z, i), 0,
+                          nullptr, Z3_get_quantifier_bound_sort(ctx, z, i));
+        z3::ast zdecl(ctx, Z3_func_decl_to_ast(ctx, decl));
+        args.push_back(unmarshal(zdecl, efac, cache, seen));
+        assert(args.back().get());
+      }
+      args.push_back(unmarshal(z3::ast(ctx, Z3_get_quantifier_body(ctx, z)),
+                               efac, cache, seen));
+      if (Z3_is_quantifier_forall(ctx, z))
+        return mknary<FORALL>(args);
+      else if (Z3_is_quantifier_exists(ctx, z))
+        return mknary<EXISTS>(args);
 
+      assert(Z3_is_lambda(ctx, z));
+      Expr res =  mknary<LAMBDA>(args);
+      seen[z] = res;
+      return res;
+    }
+
+    assert(kind == Z3_APP_AST);
     if (dkind == Z3_OP_EXTRACT) {
       Expr arg = unmarshal(z3::ast(ctx, Z3_get_app_arg(ctx, app, 0)), efac,
                            cache, seen);
@@ -671,7 +678,7 @@ template <typename U> struct BasicExprUnmarshal {
       unsigned high = Z3_get_decl_int_parameter(ctx, d, 0);
       unsigned low = Z3_get_decl_int_parameter(ctx, d, 1);
       Expr res = bv::extract(high, low, arg);
-      cache.insert(typename C::value_type(z, res));
+      seen[z] = res;
       return res;
     }
 

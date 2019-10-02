@@ -58,28 +58,46 @@ static llvm::cl::opt<bool> CfgOnlyDot(
     llvm::cl::init(false));
 
 static llvm::cl::opt<bool> CfgViewer("cfg-viewer",
-                                     llvm::cl::desc("View CFG of function"),
-                                     llvm::cl::init(false));
+         llvm::cl::desc("View CFG of function"),
+	 llvm::cl::Hidden,
+         llvm::cl::init(false));
 
 static llvm::cl::opt<bool>
     CfgOnlyViewer("cfg-only-viewer",
-                  llvm::cl::desc("View CFG of function (without instructions)"),
-                  llvm::cl::init(false));
+         llvm::cl::desc("View CFG of function (without instructions)"),
+	 llvm::cl::Hidden,	  
+         llvm::cl::init(false));
 
 static llvm::cl::opt<bool>
     MemDot("mem-dot",
-           llvm::cl::desc("Print memory graph of a function to dot format"),
-           llvm::cl::init(false));
+         llvm::cl::desc("Print SeaDsa memory graph of a function to dot format"),
+         llvm::cl::init(false));
 
 static llvm::cl::opt<bool>
     MemViewer("mem-viewer",
-              llvm::cl::desc("View memory graph of a function to dot format"),
-              llvm::cl::init(false));
+         llvm::cl::desc("View SeaDsa memory graph of a function to dot format"),
+	 llvm::cl::Hidden,      
+         llvm::cl::init(false));
 
 static llvm::cl::opt<bool>
     PrintMemStats("mem-stats",
-                  llvm::cl::desc("Print statistics about all memory graphs"),
-                  llvm::cl::init(false));
+         llvm::cl::desc("Print statistics about all SeaDsa memory graphs"),
+         llvm::cl::init(false));
+
+static llvm::cl::opt<bool>
+    SMC("mem-smc-stats",
+	 llvm::cl::desc("Print statistics collected by our SMC (Simple Memory Checker)"),
+	 llvm::cl::init(false));
+
+static llvm::cl::opt<bool>
+    CallGraphDot("mem-callgraph-dot",
+	 llvm::cl::desc("Print complete SeaDsa call graph to dot format"),
+	 llvm::cl::init(false));
+
+static llvm::cl::opt<bool>
+    PrintCallGraphStats("mem-callgraph-stats",
+	 llvm::cl::desc("Print statistics about the complete SeaDsa call graph"),
+	 llvm::cl::init(false));
 
 static llvm::cl::opt<bool>
     RunGSA("run-gsa", llvm::cl::desc("Run Gated SSA (GSA) construction"),
@@ -90,7 +108,7 @@ static llvm::cl::opt<bool>
            llvm::cl::init(false));
 
 static llvm::cl::opt<bool>
-    RunCHA("cha", llvm::cl::desc("Print Class Hierarchy Analysis (CHA)"),
+    RunCHA("cha", llvm::cl::desc("Print Class Hierarchy Analysis (CHA) (very experimental)"),
            llvm::cl::init(false));
 
 int main(int argc, char **argv) {
@@ -169,12 +187,21 @@ int main(int argc, char **argv) {
   if (MemDot)
     pass_manager.add(sea_dsa::createDsaPrinterPass());
 
+  if (CallGraphDot)
+    pass_manager.add(sea_dsa::createDsaCallGraphPrinterPass());
+
+  if (PrintCallGraphStats)
+    pass_manager.add(sea_dsa::createDsaPrintCallGraphStatsPass());
+  
   if (MemViewer)
     pass_manager.add(sea_dsa::createDsaViewerPass());
 
   if (PrintMemStats)
     pass_manager.add(sea_dsa::createDsaPrintStatsPass());
 
+  if (SMC)
+    pass_manager.add(seahorn::createSimpleMemoryCheckPass());
+    
   if (Profiler)
     pass_manager.add(seahorn::createProfilerPass());
 

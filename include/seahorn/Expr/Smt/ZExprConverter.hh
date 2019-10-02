@@ -473,21 +473,7 @@ template <typename U> struct BasicExprUnmarshal {
 
     Z3_ast_kind kind = z.kind();
 
-    if (kind == Z3_NUMERAL_AST) {
-
-      Z3_sort sort = Z3_get_sort(ctx, z);
-      std::string snum = Z3_get_numeral_string(ctx, z);
-      switch (Z3_get_sort_kind(ctx, sort)) {
-      case Z3_REAL_SORT:
-        return mkTerm(mpq_class(snum), efac);
-      case Z3_INT_SORT:
-        return mkTerm(mpz_class(snum), efac);
-      case Z3_BV_SORT:
-        return bv::bvnum(mpz_class(snum), Z3_get_bv_sort_size(ctx, sort), efac);
-      default:
-        assert(0 && "Unsupported numeric constant");
-      }
-    } else if (kind == Z3_SORT_AST) {
+    if (kind == Z3_SORT_AST) {
       Z3_sort sort = reinterpret_cast<Z3_sort>(static_cast<Z3_ast>(z));
       Expr domain, range;
 
@@ -612,6 +598,26 @@ template <typename U> struct BasicExprUnmarshal {
       typename ast_expr_map::const_iterator it = seen.find(z);
       if (it != seen.end())
         return it->second;
+    }
+
+    if (kind == Z3_NUMERAL_AST) {
+      Expr res;
+      Z3_sort sort = Z3_get_sort(ctx, z);
+      std::string snum = Z3_get_numeral_string(ctx, z);
+      switch (Z3_get_sort_kind(ctx, sort)) {
+      case Z3_REAL_SORT:
+        res = mkTerm(mpq_class(snum), efac);
+      case Z3_INT_SORT:
+        res = mkTerm(mpz_class(snum), efac);
+      case Z3_BV_SORT:
+        res = bv::bvnum(mpz_class(snum), Z3_get_bv_sort_size(ctx, sort), efac);
+      default:
+        assert(0 && "Unsupported numeric constant");
+      }
+
+      if (res)
+        cache.insert(typename C::value_type(z, res));
+      return res;
     }
 
     if (kind == Z3_SORT_AST) {

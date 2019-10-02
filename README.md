@@ -276,26 +276,43 @@ safe. SeaHorn returns `sat` when `__VERIFIER_error()` is reachable and
 the program is unsafe. `sassert()` method is defined in
 `seahorn/seahorn.h`.
 
-## Visualizing Memory Graphs ##
+## Inspect Code ##
 
-Consider a C program `ex.c`. Then type:
+Apart from proving properties or producing counterexamples, it is
+sometimes useful to inspect the code under analysis to get an idea of
+its complexity. For this, SeaHorn provides a command `sea
+inspect`. For instance, given a C program `ex.c` type:
 
-	sea inspect ex.c -sea-dsa=butd-cs -sea-dsa-type-aware --mem-dot 
+	sea inspect ex.c --sea-dsa=cs+t --mem-dot 
 	 
-The options `-sea-dsa=butd-cs -sea-dsa-type-aware` enable the new
+The option `--sea-dsa=cs+t` enable the new context-, type-sensitive
 sea-dsa analysis implemented in our
 FMCAD'19
 [paper](https://jorgenavas.github.io/papers/tea-dsa-fmcad19.pdf). This
 command will generate a `FUN.mem.dot` file for each function `FUN` in
-the bitcode program.  For instance, to visualize the graph of the main
-function type:
+the bitcode program.  To visualize the graph of the main function
+type:
 
 	dot -Tpdf main.mem.dot -o main.mem.pdf
 	open main.mem.pdf  // replace with you favorite pdf viewer
 
 Read this
 [link](https://github.com/seahorn/sea-dsa#visualizing-memory-graphs-and-complete-call-graphs) for
-more details.
+more details about memory graphs.
+
+Type `sea inspect --help` for all options. Currently, these options are available:
+
+- `sea inspect profiler` prints the number of functions, basic blocks,
+  loops, etc.
+
+- `sea inspect --mem-callgraph-dot` prints to `dot` format the call
+  graph constructed by SeaDsa.
+
+- `sea inspect --mem-callgraph-stats` prints to standard output some
+  statstics about the call graph construction done by SeaDsa.
+ 
+- `sea inspect --mem-smc-stats` prints the number of memory accesses
+  that can be proven safe by SeaDsa.
 
 ## Building SeaHorn on Ubuntu 18.04 ##
 

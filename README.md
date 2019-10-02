@@ -285,7 +285,7 @@ inspect`. For instance, given a C program `ex.c` type:
 
 	sea inspect ex.c --sea-dsa=cs+t --mem-dot 
 	 
-The option `--sea-dsa=cs+t` enable the new context-, type-sensitive
+The option `--sea-dsa=cs+t` enables the new context-, type-sensitive
 sea-dsa analysis implemented in our
 FMCAD'19
 [paper](https://jorgenavas.github.io/papers/tea-dsa-fmcad19.pdf). This
@@ -302,7 +302,7 @@ more details about memory graphs.
 
 Type `sea inspect --help` for all options. Currently, these options are available:
 
-- `sea inspect profiler` prints the number of functions, basic blocks,
+- `sea inspect --profiler` prints the number of functions, basic blocks,
   loops, etc.
 
 - `sea inspect --mem-callgraph-dot` prints to `dot` format the call

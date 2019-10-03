@@ -934,7 +934,48 @@ public:
     llvm_unreachable(nullptr);
   }
 
-  // void visitExtractValueInst(ExtractValueInst &I);
+  void visitExtractValueInst(ExtractValueInst &I) {
+      if (!I.hasIndices()) {
+          ERR << I;
+          llvm_unreachable("At least one index must be specified.");
+      }
+      Expr val = executeExtractValueInst(I.getType(), *I.getAggregateOperand(),
+                                         I.getIndices(), m_ctx);
+      setValue(I, val);
+  }
+
+  Expr executeExtractValueInst(Type *retTy, Value &aggValue,
+                               ArrayRef<unsigned> indices,
+                               Bv2OpSemContext &ctx) {
+    Expr aggOp = lookup(aggValue);
+    if (!aggOp) {
+      return Expr();
+    }
+    // compute the offsets: begin and end of bits to extract from aggOp
+    const DataLayout DL = m_sem.getDataLayout();
+    Type *curTy = aggValue.getType();
+    uint64_t begin, end = 0;
+    for (unsigned idx : indices) {
+      if (auto *STy = dyn_cast<StructType>(curTy)) {
+        // current struct agg type
+        const StructLayout *SL = DL.getStructLayout(STy);
+        curTy = STy->getElementType(idx);
+//        curTy = *(STy->element_begin() + idx);
+        begin += SL->getElementOffsetInBits(idx);
+      } else if (auto *ATy = dyn_cast<ArrayType>(curTy)) {
+        // handle array agg type
+        curTy = ATy->getElementType();
+        uint64_t EltSize = DL.getTypeSizeInBits(curTy);
+        begin += idx * EltSize;
+      } else {
+        errs() << "Unhandled aggregate type to extract from: " << *curTy << "\n";
+        llvm_unreachable(nullptr);
+      }
+    }
+    assert(curTy->getTypeID() == retTy->getTypeID());
+    end = begin + DL.getTypeSizeInBits(retTy);
+    return bv::extract(end, begin, aggOp);
+  }
   // void visitInsertValueInst(InsertValueInst &I);
 
   void visitInstruction(Instruction &I) {
@@ -1704,6 +1745,14 @@ Expr Bv2OpSemContext::getConstantValue(const llvm::Constant &c) {
       mpz_class k = toMpz(gv.IntVal);
       return alu().si(k, m_sem.sizeInBits(c));
     }
+  } else if (c.getType()->isStructTy()) {
+    ConstantExprEvaluator ce(m_sem.getDataLayout());
+    auto GVO = ce.evaluate(&c);
+    if (GVO.hasValue()) {
+      GenericValue gv = GVO.getValue();
+      if (gv.AggregateVal.size() > 0)
+        return m_sem.agg(gv.AggregateVal, *this);
+    }
   } else if (c.getType()->isPointerTy()) {
     LOG("opsem", WARN << "unhandled constant pointer " << c;);
   } else {
@@ -2102,6 +2151,22 @@ void Bv2OpSem::execBr(const BasicBlock &src, const BasicBlock &dst,
   ctx.onBasicBlockEntry(src);
   ctx.setInstruction(*src.getTerminator());
   intraBr(ctx, dst);
+}
+
+Expr Bv2OpSem::agg(std::vector<GenericValue> elements,
+                   details::Bv2OpSemContext &ctx) {
+  Expr res, next = nullptr;
+  // only supporting structs with
+  for (GenericValue element : elements) {
+    if (element.AggregateVal.size() > 0) {
+      next = agg(element.AggregateVal, ctx);
+    } else { // assuming only dealing with int as terminal struct element
+      mpz_class k = toMpz(element.IntVal);
+      next = ctx.alu().si(k, element.IntVal.getBitWidth());
+    }
+    res = res ? bv::concat(res, next) : next;
+  }
+  return res ? res : Expr();
 }
 
 } // namespace seahorn

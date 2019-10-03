@@ -25,7 +25,7 @@ entry:
   %division = udiv i32 %z1, %z2
   %compare = icmp ne i32 %division, 1
   call void @verifier.assume(i1 %compare)
-    br label %verifier.error
+  br label %verifier.error
 
 verifier.error:
   call void @seahorn.fail()

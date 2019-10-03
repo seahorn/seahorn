@@ -25,7 +25,7 @@ entry:
   %multi = mul i32 %z1, %z2
   %compare = icmp eq i32 %multi, 45
   call void @verifier.assume(i1 %compare)
-    br label %verifier.error
+  br label %verifier.error
 
 verifier.error:
   call void @seahorn.fail()

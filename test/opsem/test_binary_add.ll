@@ -1,7 +1,7 @@
 ; RUN: %seabmc "%s" 2>&1 | %oc %s
 ; RUN: %seabmc --horn-bv2-lambdas --log=opsem3 "%s" 2>&1 | %oc %s
 
-; CHECK: ^unsat$
+; CHECK: ^sat$
 ; ModuleID = '../test/bmc/test_binary_operator.c'
 source_filename = "../test/bmc/test_binary_operator.c"
 target datalayout = "e-m:o-p:32:32-f64:32:64-f80:128-n8:16:32-S128"
@@ -18,14 +18,14 @@ define i32 @main() local_unnamed_addr #2 {
 entry:
   %x = alloca i32, align 4
   %y = alloca i32, align 4
-  store i32 5, i32* %x, align 4
+  store i32 42, i32* %x, align 4
   store i32 9, i32* %y, align 4
   %z1 = load i32, i32* %x, align 4
   %z2 = load i32, i32* %y, align 4
-  %multi = mul i32 %z1, %z2
-  %compare = icmp ne i32 %multi, 45
+  %add1 = add i32 %z2, %z1
+  %compare = icmp eq i32 %add1, 51
   call void @verifier.assume(i1 %compare)
-  br label %verifier.error
+    br label %verifier.error
 
 verifier.error:
   call void @seahorn.fail()

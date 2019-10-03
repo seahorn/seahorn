@@ -504,7 +504,35 @@ Optional<GenericValue> ConstantExprEvaluator::evaluate(const Constant *C) {
     }
     llvm_unreachable("Unknown constant pointer type!");
   } break;
-
+  case Type::StructTyID: {
+    if (auto *STy = dyn_cast<StructType>(C->getType())) {
+      auto *CS = dyn_cast<ConstantStruct>(C);
+      unsigned int elemNum = STy->getNumElements();
+      Result.AggregateVal.resize(elemNum);
+      // try populate all elements in the struct
+      for (unsigned int i = 0; i < elemNum; ++i) {
+        Type *ElemTy = STy->getElementType(i);
+        Constant *OPI = CS->getOperand(i);
+        if (isa<UndefValue>(OPI)) {
+          // if field not defined, just return default garbage
+          if (ElemTy->isIntegerTy())
+            Result.AggregateVal[i].IntVal =
+                APInt(ElemTy->getPrimitiveSizeInBits(), 0);
+          else if (ElemTy->isAggregateType()) {
+            const Constant *ElemUndef = UndefValue::get(ElemTy);
+            Result.AggregateVal[i] = evaluate(ElemUndef).getValue();
+          }
+        } else {
+          if (ElemTy->isIntegerTy())
+            Result.AggregateVal[i].IntVal =
+                cast<ConstantInt>(OPI)->getValue();
+          else if (ElemTy->isAggregateType()) {
+            Result.AggregateVal[i] = evaluate(OPI).getValue();
+          }
+        }
+      }
+    }
+  } break;
   default:
     SmallString<256> Msg;
     raw_svector_ostream OS(Msg);

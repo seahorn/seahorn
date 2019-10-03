@@ -15,10 +15,11 @@ uint32_t yices_model_impl::height  = 100;
 uint32_t yices_model_impl::offset  = 0;
 
 
-yices_model_impl::yices_model_impl(model_t *model, yices_solver_impl &solver, expr::ExprFactory &efac):
-  d_model(model),
-  d_solver(solver),
-  d_efac(efac)
+yices_model_impl::yices_model_impl(model_t *model, yices_solver_impl &solver,
+				   expr::ExprFactory &efac)
+  : d_model(model),
+    d_solver(solver),
+    d_efac(efac)
 {  }
 
 yices_model_impl::~yices_model_impl(){

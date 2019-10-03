@@ -18,7 +18,7 @@ static std::string error_string(){
 /* the yices solver; actually a yices context. */
 class yices_solver_impl : public solver::Solver {
   
-  typedef  std::map<expr::Expr, term_t> ycache_t;
+  using ycache_t = std::map<expr::Expr, term_t>;
   
   ctx_config_t *d_cfg;
   
@@ -30,6 +30,8 @@ class yices_solver_impl : public solver::Solver {
   ycache_t d_cache;
   
 public:
+
+  using model_ref = typename solver::Solver::model_ref;
   
   /* how should we set the default logic? */
   yices_solver_impl(seahorn::solver::solver_options *opts, expr::ExprFactory &efac);
@@ -48,8 +50,10 @@ public:
   void pop();
   
   /** Get a model */
-  solver::model *get_model();
-  
+  model_ref get_model();
+
+  /** Clear all assertions */
+  void reset();
   
   ycache_t& get_cache(void);
   

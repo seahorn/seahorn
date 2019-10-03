@@ -25,7 +25,13 @@ public:
     ERROR,
   };
 
-  /* assert a formula; sally includes a type here */
+  using model_ref = std::shared_ptr<model>;
+  
+  Solver(solver_options *options): d_options(options) { }
+  
+  virtual ~Solver() {}
+  
+  /* assert a formula */
   virtual bool add(expr::Expr exp) = 0;
   
   /** Check for satisfiability */
@@ -38,10 +44,11 @@ public:
   virtual void pop() = 0;
 
   /** Get a model */
-  virtual model *get_model() = 0;
-  
-  
-  Solver(solver_options *options): d_options(options) { }
+  virtual model_ref get_model() = 0;
+
+  /** Clear all assertions */
+  virtual void reset() = 0;
+    
 };
 }
 }

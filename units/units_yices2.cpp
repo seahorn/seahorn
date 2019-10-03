@@ -2,6 +2,7 @@
 #include "seahorn/Expr/Smt/ZExprConverter.hh"
 #include "seahorn/Expr/Smt/Solver.hh"
 #include "seahorn/Expr/Smt/Yices2SolverImpl.hh"
+#include "seahorn/Expr/Smt/Z3SolverImpl.hh"
 #include "seahorn/Expr/Smt/Model.hh"
 #include "seahorn/Expr/Smt/MarshalYices.hh"
 
@@ -9,10 +10,36 @@
 
 #include "doctest.h"
 
+using namespace std;
+using namespace expr;
+using namespace ufo;
+
+static void run(seahorn::solver::Solver *s, Expr e, const ExprVector& model_vars) {
+  if (bool success = s->add(e)){
+    seahorn::solver::Solver::result answer = s->check();
+    if(answer == seahorn::solver::Solver::ERROR){
+      errs() << "Solver::check failed!\n";
+    } else {
+      if (answer == seahorn::solver::Solver::SAT){
+	errs() << "SAT\n";
+	seahorn::solver::Solver::model_ref model = s->get_model();
+	for(unsigned i=0,e=model_vars.size();i<e;++i) {
+	  Expr valx = model->eval(model_vars[i], false);
+	  llvm::errs () << "val" << *model_vars[i] << " = " << *valx  << "\n";
+	}
+	errs () << *model << "\n";
+      } else if (answer == seahorn::solver::Solver::UNSAT) {
+	errs() << "UNSAT\n";	
+      } else {
+	errs() << "UNKNOWN\n";	
+      }
+    }
+  } else {
+    errs () << "Solver:add failed!\n";
+  }
+}
+
 TEST_CASE("yices2-int.test") {
-  using namespace std;
-  using namespace expr;
-  using namespace ufo;
   
   seahorn::solver::solver_options opts;
   expr::ExprFactory efac;
@@ -28,58 +55,20 @@ TEST_CASE("yices2-int.test") {
   std::vector<Expr> args({e1, e2, e4});
   Expr e = mknary<AND>(args.begin(), args.end());
 
-  llvm::errs() << "Asserting " << *e << "\n";
-
-  llvm::errs() << "==== Yices2\n";
-  llvm::errs() << "Result: ";
-  seahorn::yices::yices_solver_impl solver(&opts, efac);
+  errs() << "Asserting " << *e << "\n";
   
-  if (bool success = solver.add(e)){
-    seahorn::solver::Solver::result answer = solver.check();
-    if(answer == seahorn::solver::Solver::ERROR){
-      llvm::errs() << seahorn::yices::error_string() <<  "\n";
-    } else {
-      if (answer == seahorn::solver::Solver::SAT){
-	llvm::errs() << "SAT\n";
-	seahorn::solver::model *model = solver.get_model();
-	Expr valx = model->eval(x, false);
-	Expr valy = model->eval(y, false);
-	llvm::errs () << "valx = " << *valx  << "\n";
-	llvm::errs () << "valy = " << *valy  << "\n";
-	llvm::errs () << *model << "\n";
-	delete model;
-      } else if (answer == seahorn::solver::Solver::UNSAT) {
-	llvm::errs() << "UNSAT\n";	
-      } else {
-	llvm::errs() << "UNKNOWN\n";	
-      }
-    }
-  } else {
-    llvm::errs () << "fix your code Ian.\n";
-  }
-
- llvm:errs() << "==== Z3\n";
- EZ3 ctx(efac);
- ZSolver<EZ3> s(ctx);
- s.assertExpr(e);
- auto r = s.solve();
-
- llvm::errs() << "Result: ";
- if (r) {
-    llvm::errs() << "SAT\n";
-    auto m = s.getModel();
-    Expr xval = m.eval(x);
-    Expr yval = m.eval(y);
-    llvm::errs() << "xval = "  << *xval  << "\n";
-    llvm::errs() << "yval = "  << *yval  << "\n";
-    llvm::errs() << m <<  "\n";
-  } else if (!r) {
-    llvm::errs() << "UNSAT\n";
-  } else {
-    llvm::errs() << "UNKNOWN\n";
-  }
-
-  llvm::errs() << "FINISHED\n";
+  errs() << "==== Yices2\n";
+  seahorn::yices::yices_solver_impl yices_solver(&opts, efac);
+  errs() << "Result: ";
+  run(&yices_solver, e, {x,y});
+  
+  errs() << "==== Z3\n";
+  EZ3 ctx(efac);
+  seahorn::z3::z3_solver_impl z3_solver(&opts,ctx);
+  errs() << "Result: ";
+  run(&z3_solver, e, {x,y});
+  
+  errs() << "FINISHED\n\n\n";
 
   CHECK(true);
 }
@@ -103,58 +92,20 @@ TEST_CASE("yices2-bv.test") {
   std::vector<Expr> args({e1, e2, e4});
   Expr e = mknary<AND>(args.begin(), args.end());
 
-  llvm::errs() << "Asserting " << *e << "\n";
+  errs() << "Asserting " << *e << "\n";
 
-  llvm::errs() << "==== Yices2\n";
-  llvm::errs() << "Result: ";
-  seahorn::yices::yices_solver_impl solver(&opts, efac);
-  if (bool success = solver.add(e)){
-    seahorn::solver::Solver::result answer = solver.check();
-    if(answer == seahorn::solver::Solver::ERROR){
-      llvm::errs() << seahorn::yices::error_string() <<  "\n";
-    } else {
-      if (answer == seahorn::solver::Solver::SAT){
- 	llvm::errs() << "SAT\n";
- 	seahorn::solver::model *model = solver.get_model();
- 	Expr valx = model->eval(x, false);
- 	Expr valy = model->eval(y, false);
- 	llvm::errs () << "valx = " << *valx  << "\n";
- 	llvm::errs () << "valy = " << *valy  << "\n";
- 	llvm::errs () << *model << "\n";
- 	delete model;
-      } else if (answer == seahorn::solver::Solver::UNSAT) {
- 	llvm::errs() << "UNSAT\n";	
-      } else {
- 	llvm::errs() << "UNKNOWN\n";	
-      }
-    }
-  } else {
-    llvm::errs () << "fix your code Ian.\n";
-  }
+  errs() << "==== Yices2\n";
+  seahorn::yices::yices_solver_impl yices_solver(&opts, efac);
+  errs() << "Result: ";
+  run(&yices_solver, e, {x,y});
   
- llvm:errs() << "==== Z3\n";
- EZ3 ctx(efac);
- ZSolver<EZ3> s(ctx);
- s.assertExpr(e);
- auto r = s.solve();
-
- llvm::errs() << "Result: ";
- if (r) {
-    llvm::errs() << "SAT\n";
-    auto m = s.getModel();
-    Expr xval = m.eval(x);
-    Expr yval = m.eval(y);
-    llvm::errs() << "xval = "  << *xval  << "\n";
-    llvm::errs() << "yval = "  << *yval  << "\n";
-    llvm::errs() << m <<  "\n";
-  } else if (!r) {
-    llvm::errs() << "UNSAT\n";
-  } else {
-    llvm::errs() << "UNKNOWN\n";
-  }
-
-  llvm::errs() << "FINISHED\n";
-
+  errs() << "==== Z3\n";
+  EZ3 ctx(efac);
+  seahorn::z3::z3_solver_impl z3_solver(&opts,ctx);
+  errs() << "Result: ";
+  run(&z3_solver, e, {x,y});
+  
+  errs() << "FINISHED\n\n\n";
   CHECK(true);
 }
 
@@ -191,62 +142,20 @@ TEST_CASE("yices2-int-arr.test") {
   std::vector<Expr> args({e1, e2, e3, e4, e5, e6, e8});
   Expr e = mknary<AND>(args.begin(), args.end());
 
-  llvm::errs() << "Asserting " << *e << "\n";
+  errs() << "Asserting " << *e << "\n";
 
-  llvm::errs() << "==== Yices2\n";
-  llvm::errs() << "Result: ";
-  seahorn::yices::yices_solver_impl solver(&opts, efac);
+  errs() << "==== Yices2\n";
+  seahorn::yices::yices_solver_impl yices_solver(&opts, efac);
+  errs() << "Result: ";
+  run(&yices_solver, e, {x,y,a3});
   
-  if (bool success = solver.add(e)){
-    seahorn::solver::Solver::result answer = solver.check();
-    if(answer == seahorn::solver::Solver::ERROR){
-      llvm::errs() << seahorn::yices::error_string() <<  "\n";
-    } else {
-      if (answer == seahorn::solver::Solver::SAT){
-  	llvm::errs() << "SAT\n";
-  	seahorn::solver::model *model = solver.get_model();
-  	Expr valx = model->eval(x, false);
-  	Expr valy = model->eval(y, false);
-	Expr a3val = model->eval(a3, false);	
-  	llvm::errs () << "valx = " << *valx  << "\n";
-  	llvm::errs () << "valy = " << *valy  << "\n";
-	llvm::errs() << "a3val = "  << *a3val  << "\n";    	
-  	llvm::errs () << *model << "\n";
-  	delete model;
-      } else if (answer == seahorn::solver::Solver::UNSAT) {
-  	llvm::errs() << "UNSAT\n";	
-      } else {
-  	llvm::errs() << "UNKNOWN\n";	
-      }
-    }
-  } else {
-    llvm::errs () << "fix your code Ian.\n";
-  }
-
- llvm:errs() << "==== Z3\n";
- EZ3 ctx(efac);
- ZSolver<EZ3> s(ctx);
- s.assertExpr(e);
- auto r = s.solve();
-
- llvm::errs() << "Result: ";
- if (r) {
-    llvm::errs() << "SAT\n";
-    auto m = s.getModel();
-    Expr xval = m.eval(x);
-    Expr yval = m.eval(y);
-    Expr a3val = m.eval(a3);
-    llvm::errs() << "xval = "  << *xval  << "\n";
-    llvm::errs() << "yval = "  << *yval  << "\n";
-    llvm::errs() << "a3val = "  << *a3val  << "\n";    
-    llvm::errs() << m <<  "\n";
-  } else if (!r) {
-    llvm::errs() << "UNSAT\n";
-  } else {
-    llvm::errs() << "UNKNOWN\n";
-  }
-
-  llvm::errs() << "FINISHED\n";
+  errs() << "==== Z3\n";
+  EZ3 ctx(efac);
+  seahorn::z3::z3_solver_impl z3_solver(&opts,ctx);
+  errs() << "Result: ";
+  run(&z3_solver, e, {x,y,a3});
+  
+  errs() << "FINISHED\n";
 
   CHECK(true);
 }
@@ -288,62 +197,20 @@ TEST_CASE("yices2-int-bv.test") {
   std::vector<Expr> args({e1, e2, e3, e4, e5, e6, e8});
   Expr e = mknary<AND>(args.begin(), args.end());
 
-  llvm::errs() << "Asserting " << *e << "\n";
+  errs() << "Asserting " << *e << "\n";
 
-  llvm::errs() << "==== Yices2\n";
-  llvm::errs() << "Result: ";
-  seahorn::yices::yices_solver_impl solver(&opts, efac);
+  errs() << "==== Yices2\n";
+  seahorn::yices::yices_solver_impl yices_solver(&opts, efac);
+  errs() << "Result: ";
+  run(&yices_solver, e, {x,y,a3});
   
-  if (bool success = solver.add(e)){
-    seahorn::solver::Solver::result answer = solver.check();
-    if(answer == seahorn::solver::Solver::ERROR){
-      llvm::errs() << seahorn::yices::error_string() <<  "\n";
-    } else {
-      if (answer == seahorn::solver::Solver::SAT){
-  	llvm::errs() << "SAT\n";
-  	seahorn::solver::model *model = solver.get_model();
-  	Expr valx = model->eval(x, false);
-  	Expr valy = model->eval(y, false);
-	Expr a3val = model->eval(a3, false);	
-  	llvm::errs () << "valx = " << *valx  << "\n";
-  	llvm::errs () << "valy = " << *valy  << "\n";
-	llvm::errs() << "a3val = "  << *a3val  << "\n";    	
-  	llvm::errs () << *model << "\n";
-  	delete model;
-      } else if (answer == seahorn::solver::Solver::UNSAT) {
-  	llvm::errs() << "UNSAT\n";	
-      } else {
-  	llvm::errs() << "UNKNOWN\n";	
-      }
-    }
-  } else {
-    llvm::errs () << "fix your code Ian.\n";
-  }
-
- llvm:errs() << "==== Z3\n";
- EZ3 ctx(efac);
- ZSolver<EZ3> s(ctx);
- s.assertExpr(e);
- auto r = s.solve();
-
- llvm::errs() << "Result: ";
- if (r) {
-    llvm::errs() << "SAT\n";
-    auto m = s.getModel();
-    Expr xval = m.eval(x);
-    Expr yval = m.eval(y);
-    Expr a3val = m.eval(a3);
-    llvm::errs() << "xval = "  << *xval  << "\n";
-    llvm::errs() << "yval = "  << *yval  << "\n";
-    llvm::errs() << "a3val = "  << *a3val  << "\n";    
-    llvm::errs() << m <<  "\n";
-  } else if (!r) {
-    llvm::errs() << "UNSAT\n";
-  } else {
-    llvm::errs() << "UNKNOWN\n";
-  }
-
-  llvm::errs() << "FINISHED\n";
+  errs() << "==== Z3\n";
+  EZ3 ctx(efac);
+  seahorn::z3::z3_solver_impl z3_solver(&opts,ctx);
+  errs() << "Result: ";
+  run(&z3_solver, e, {x,y,a3});
+  
+  errs() << "FINISHED\n";
 
   CHECK(true);
 }

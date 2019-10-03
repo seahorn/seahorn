@@ -24,7 +24,8 @@ inline void yices_library_initialize(void){
 }
 
 /* how should we set the default logic? */
-yices_solver_impl::yices_solver_impl(seahorn::solver::solver_options *opts, expr::ExprFactory &efac):
+yices_solver_impl::yices_solver_impl(seahorn::solver::solver_options *opts,
+				     expr::ExprFactory &efac):
   Solver(opts),
   d_efac(efac) {
   
@@ -100,10 +101,15 @@ void yices_solver_impl::pop(){
   yices_pop(d_ctx);
 }
 
-/** Get a model   WHO FREES THE MODEL */
-solver::model* yices_solver_impl::get_model(){
-  model_t *model = yices_get_model(d_ctx, 1); //BD & JN: keep subst??
-  return new yices_model_impl(model, *this, d_efac);
+/** Clear all assertions */
+void yices_solver_impl::reset(){
+  yices_reset();
+}
+
+/** Get a model */
+yices_solver_impl::model_ref yices_solver_impl::get_model(){
+  model_t *model = yices_get_model(d_ctx, 1); 
+  return model_ref(new yices_model_impl(model, *this, d_efac));
 }
 }
 }

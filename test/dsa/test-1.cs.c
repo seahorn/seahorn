@@ -1,4 +1,4 @@
-// RUN: %sea inspect -O0 %cs_dsa --mem-dot %s --dot-outdir=%T/test-1.cs.c
+// RUN: %sea inspect -O0 %cs_dsa --mem-dot %s --mem-dot-outdir=%T/test-1.cs.c
 // RUN: %cmp-graphs %tests/test-1.cs.c.main.mem.dot %T/test-1.cs.c/main.mem.dot | OutputCheck %s -d
 // CHECK: ^OK$
 

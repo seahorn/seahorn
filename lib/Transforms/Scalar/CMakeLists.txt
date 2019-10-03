@@ -15,4 +15,5 @@ add_llvm_library (SeaTransformsScalar
   UnfoldLoopForDsa.cc
   PromoteSeahornAssume.cc
   PromoteMemcpy.cc
+  UnifyAssumes.cc
   )

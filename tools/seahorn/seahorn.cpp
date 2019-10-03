@@ -50,7 +50,8 @@
 #include "seahorn/Support/GitSHA1.h"
 void print_seahorn_version() {
   llvm::outs() << "SeaHorn (http://seahorn.github.io/):\n"
-               << "  SeaHorn version " << SEAHORN_VERSION_INFO <<"-"<<g_GIT_SHA1<< "\n";
+               << "  SeaHorn version " << SEAHORN_VERSION_INFO << "-"
+               << g_GIT_SHA1 << "\n";
 }
 
 /// XXX HACK to force compiler to link this in
@@ -159,6 +160,11 @@ static llvm::cl::opt<bool> OneAssumePerBlock(
     llvm::cl::desc(
         "Make sure there is at most one call to verifier.assume per block"),
     llvm::cl::init(false));
+
+static llvm::cl::opt<bool>
+    UnifyAssumes("horn-unify-assumes",
+                 llvm::cl::desc("One assume to rule them all"),
+                 llvm::cl::init(false));
 
 // To switch between llvm-dsa and sea-dsa
 static llvm::cl::opt<bool>
@@ -330,14 +336,17 @@ int main(int argc, char **argv) {
     pass_manager.add(seahorn::createOneAssumePerBlockPass());
   }
 
-// #ifdef HAVE_CRAB_LLVM
-//   if (Crab && !BoogieOutput) {
-//     /// -- insert invariants in the bitecode
-//     pass_manager.add(new crab_llvm::InsertInvariants());
-//     /// -- simplify invariants added in the bitecode
-//     // pass_manager.add (seahorn::createInstCombine ());
-//   }
-// #endif
+  if (UnifyAssumes) {
+    pass_manager.add(seahorn::createUnifyAssumesPass());
+  }
+  // #ifdef HAVE_CRAB_LLVM
+  //   if (Crab && !BoogieOutput) {
+  //     /// -- insert invariants in the bitecode
+  //     pass_manager.add(new crab_llvm::InsertInvariants());
+  //     /// -- simplify invariants added in the bitecode
+  //     // pass_manager.add (seahorn::createInstCombine ());
+  //   }
+  // #endif
 
   // --- verify if an undefined value can be read
   pass_manager.add(seahorn::createCanReadUndefPass());
@@ -368,12 +377,13 @@ int main(int argc, char **argv) {
     if (!KeepShadows) {
       pass_manager.add(new seahorn::NameValues());
       // -- XXX might destroy names using by HornSolver later on.
-      // -- XXX it is probably dangerous to strip shadows and solve at the same time.
+      // -- XXX it is probably dangerous to strip shadows and solve at the same
+      // time.
       pass_manager.add(seahorn::createStripShadowMemPass());
-    }    
+    }
     pass_manager.add(createPrintModulePass(asmOutput->os()));
   }
- 
+
   if (Bmc) {
     llvm::raw_ostream *out = nullptr;
     if (!OutputFilename.empty())
@@ -390,7 +400,7 @@ int main(int argc, char **argv) {
   } else {
     if (HoudiniInv || PredAbs || Solve) {
       if (Crab) {
-	pass_manager.add(seahorn::createLoadCrabPass());
+        pass_manager.add(seahorn::createLoadCrabPass());
       }
     }
     if (HoudiniInv)

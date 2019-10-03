@@ -25,7 +25,7 @@ entry:
   %subtract1 = sub i32 %z2, %z1
   %compare = icmp eq i32 %subtract1, 4
   call void @verifier.assume(i1 %compare)
-    br label %verifier.error
+  br label %verifier.error
 
 verifier.error:
   call void @seahorn.fail()

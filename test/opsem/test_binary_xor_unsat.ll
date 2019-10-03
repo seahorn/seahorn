@@ -25,7 +25,7 @@ entry:
   %xor1 = xor i32 %z1, %z2
   %compare = icmp ne i32 %xor1, 12
   call void @verifier.assume(i1 %compare)
-    br label %verifier.error
+  br label %verifier.error
 
 verifier.error:
   call void @seahorn.fail()

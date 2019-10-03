@@ -18,13 +18,13 @@ define i32 @main() local_unnamed_addr #2 {
 entry:
   %x = alloca i32, align 4
   %y = alloca i32, align 4
-  store i32 10, i32* %x, align 4
-  store i32 9, i32* %y, align 4
+  store i32 -23456, i32* %x, align 4
+  store i32 3456, i32* %y, align 4
   %z1 = load i32, i32* %x, align 4
   %z2 = load i32, i32* %y, align 4
-  %compare = icmp slt i32 %z1, %z2
+  %compare = icmp ult i32 %z1, %z2
   call void @verifier.assume(i1 %compare)
-    br label %verifier.error
+  br label %verifier.error
 
 verifier.error:
   call void @seahorn.fail()

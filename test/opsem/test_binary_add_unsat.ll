@@ -18,12 +18,12 @@ define i32 @main() local_unnamed_addr #2 {
 entry:
   %x = alloca i32, align 4
   %y = alloca i32, align 4
-  store i32 5, i32* %x, align 4
+  store i32 4294967295, i32* %x, align 4
   store i32 9, i32* %y, align 4
   %z1 = load i32, i32* %x, align 4
   %z2 = load i32, i32* %y, align 4
-  %multi = mul i32 %z1, %z2
-  %compare = icmp ne i32 %multi, 45
+  %add1 = sub i32 %z2, %z1
+  %compare = icmp eq i32 %add1, 4294967304
   call void @verifier.assume(i1 %compare)
   br label %verifier.error
 

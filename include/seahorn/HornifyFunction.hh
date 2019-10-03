@@ -19,7 +19,7 @@ namespace{
     {
       for (const llvm::BasicBlock& bb : F)
         if (llvm::isa<llvm::ReturnInst> (bb.getTerminator ())) return &bb;
-      return NULL;
+      return nullptr;
     }
 
 }

@@ -974,7 +974,6 @@ public:
     }
     assert(curTy->getTypeID() == retTy->getTypeID());
     end = begin + DL.getTypeSizeInBits(retTy);
-    errs() << "begin of EXTRACT: " << begin << "end of EXTRACT: " << end << "\n";
     return bv::extract(end, begin, aggOp);
   }
   // void visitInsertValueInst(InsertValueInst &I);

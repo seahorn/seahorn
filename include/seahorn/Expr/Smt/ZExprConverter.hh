@@ -449,6 +449,8 @@ template <typename M> struct BasicExprMarshal {
       ctx.check_error();
     if (res == nullptr)
       errs() << "Failed to marshal: " << *e << "\n";
+    if (!res)
+      errs()  << "Z3 err msg: " << Z3_get_error_msg(ctx, Z3_get_error_code(ctx)) << "\n";
 
     assert(res != nullptr);
     z3::ast final(ctx, res);

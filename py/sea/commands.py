@@ -151,10 +151,10 @@ class Clang(sea.LimitedCmd):
             if args.debug_info: argv.append ('-g')
 
             ## Hack for OSX Mojave that no longer exposes libc and libstd headers by default
-            osx_sdk_dirs = list('/Applications/Xcode.app/Contents/Developer/Platforms/' + \
-                               'MacOSX.platform/Developer/SDKs/MacOSX10.14.sdk', 
-                               '/Applications/Xcode.app/Contents/Developer/Platforms/' + \
-                               'MacOSX.platform/Developer/SDKs/MacOSX10.15.sdk') 
+            osx_sdk_dirs = ['/Applications/Xcode.app/Contents/Developer/Platforms/' + \
+                            'MacOSX.platform/Developer/SDKs/MacOSX10.14.sdk',
+                            '/Applications/Xcode.app/Contents/Developer/Platforms/' + \
+                            'MacOSX.platform/Developer/SDKs/MacOSX10.15.sdk']
 
             for osx_sdk_dir in osx_sdk_dirs:
                 if os.path.isdir(osx_sdk_dir):

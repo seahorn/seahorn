@@ -74,6 +74,7 @@ namespace ufo {
 using namespace expr;
 
 // forward declarations
+template <typename Z> class ZSimplifier;
 template <typename Z> class ZSolver;
 template <typename Z> class ZModel;
 template <typename Z> class ZFixedPoint;
@@ -171,11 +172,9 @@ template <typename Z> std::string z3_to_smtlib(Z &z3, Expr e) {
 
 namespace ufo {
 
-typedef std::unordered_map<z3::ast, Expr, z3::ast_ptr_hash,
-                           z3::ast_ptr_equal_to>
-    ast_expr_map;
-
-typedef std::unordered_map<Expr, z3::ast> expr_ast_map;
+using ast_expr_map = std::unordered_map<z3::ast, Expr, z3::ast_ptr_hash,
+                                        z3::ast_ptr_equal_to>;
+using expr_ast_map = std::unordered_map<Expr, z3::ast>;
 
 template <typename V> void z3n_set_param(char const *p, V v) {
   z3::set_param(p, v);
@@ -213,16 +212,26 @@ private:
 protected:
   z3::context &get_ctx() { return ctx; }
 
+  template <typename ExprToAstMap>
+  z3::ast toAst(Expr e, ExprToAstMap &seen) {
+    return M::marshal(e, get_ctx(), cache.left, seen);
+    
+  }
   z3::ast toAst(Expr e) {
     expr_ast_map seen;
-    return M::marshal(e, get_ctx(), cache.left, seen);
+    return toAst(e, seen);
+  }
+
+  template <typename AstToExprMap>
+  Expr toExpr(z3::ast a, AstToExprMap &seen) {
+    if (!a) return Expr();
+    return U::unmarshal(a, get_efac(), cache.right, seen);
+
   }
   Expr toExpr(z3::ast a) {
-    if (!a)
-      return Expr();
-
+    if (!a) return Expr();
     ast_expr_map seen;
-    return U::unmarshal(a, get_efac(), cache.right, seen);
+    return toExpr(a, seen);
   }
 
   ExprFactory &get_efac() { return efac; }
@@ -281,6 +290,7 @@ public:
   ExprFactory &getExprFactory() { return get_efac(); }
 
   friend class ZParams<this_type>;
+  friend class ZSimplifier<this_type>;
   friend class ZSolver<this_type>;
   friend class ZModel<this_type>;
   friend class ZFixedPoint<this_type>;
@@ -432,6 +442,41 @@ template <typename Z> Expr z3_simplify(Z &z3, Expr e, ZParams<Z> &params) {
   return z3.toExpr(z3::ast(ctx, Z3_simplify_ex(ctx, ast, params)));
 }
 
+template <typename Z>
+class ZSimplifier {
+private:
+  Z &z3;
+  z3::context &ctx;
+  ExprFactory &efac;
+
+  expr_ast_map m_expr_to_ast;
+  ast_expr_map m_ast_to_expr;
+  std::unordered_map<Expr,Expr> m_cache;
+public:
+  using this_type = ZSimplifier<Z>;
+  ZSimplifier(Z &z)
+    : z3(z), ctx(z.get_ctx()), efac(z.get_efac()) {}
+
+  ZSimplifier(const ZSimplifier&) = delete;
+
+  Z &getContext() { return z3; }
+
+  Expr simplify(Expr e) {
+    auto it = m_cache.find(e);
+    if (it != m_cache.end()) return it->second;
+
+    z3::ast ast(z3.toAst(e, m_expr_to_ast));
+    Expr res = z3.toExpr(z3::ast(ctx, Z3_simplify(ctx, ast)), m_ast_to_expr);
+    m_cache.insert({e, res});
+    return res;
+  }
+
+  void reset() {
+    m_expr_to_ast.clear();
+    m_ast_to_expr.clear();
+    m_cache.clear();
+  }
+};
 template <typename Z> class ZSolver {
 private:
   Z &z3;

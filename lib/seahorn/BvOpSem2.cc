@@ -960,7 +960,6 @@ public:
         // current struct agg type
         const StructLayout *SL = DL.getStructLayout(STy);
         curTy = STy->getElementType(idx);
-//        curTy = *(STy->element_begin() + idx);
         begin += SL->getElementOffsetInBits(idx);
       } else if (auto *ATy = dyn_cast<ArrayType>(curTy)) {
         // handle array agg type
@@ -973,7 +972,7 @@ public:
       }
     }
     assert(curTy->getTypeID() == retTy->getTypeID());
-    end = begin + DL.getTypeSizeInBits(retTy);
+    end = begin + DL.getTypeSizeInBits(retTy) - 1;
     errs() << "begin of EXTRACT: " << begin << "end of EXTRACT: " << end << "\n";
     return bv::extract(end, begin, aggOp);
   }
@@ -1751,10 +1750,11 @@ Expr Bv2OpSemContext::getConstantValue(const llvm::Constant &c) {
     auto GVO = ce.evaluate(&c);
     if (GVO.hasValue()) {
       GenericValue gv = GVO.getValue();
-      if (gv.AggregateVal.size() > 0)
+      if (gv.AggregateVal.size() > 0) {
         APInt aggBv = m_sem.agg(gv.AggregateVal, *this);
         mpz_class k = toMpz(aggBv);
         return alu().si(k, aggBv.getBitWidth());
+      }
     }
   } else if (c.getType()->isPointerTy()) {
     LOG("opsem", WARN << "unhandled constant pointer " << c;);
@@ -2156,18 +2156,24 @@ void Bv2OpSem::execBr(const BasicBlock &src, const BasicBlock &dst,
   intraBr(ctx, dst);
 }
 
-APInt Bv2OpSem::agg(std::vector<GenericValue> elements,
+APInt Bv2OpSem::agg(const std::vector<GenericValue> &elements,
                    details::Bv2OpSemContext &ctx) {
-  APInt res, next;
-  // only supporting structs with
-  for (GenericValue element : elements) {
-    if (element.AggregateVal.size() > 0) {
-      next = agg(element.AggregateVal, ctx);
-    } else { // assuming only dealing with int as terminal struct element
+  APInt res;
+  APInt next;
+  int resWidth = 0; // treat initial res as empty
+  for (const GenericValue &element : elements) {
+    if (element.AggregateVal.empty()) {
       next = element.IntVal;
+    } else { // assuming only dealing with int as terminal struct element
+      next = agg(element.AggregateVal, ctx);
     }
-    res <<= next.getBitWidth();
+    // lower index => LSB; higher index => MSB
+    int combinedWidth = resWidth + next.getBitWidth();
+    res = combinedWidth > res.getBitWidth() ? res.zext(combinedWidth) : res;
+    next = combinedWidth > next.getBitWidth() ? next.zext(combinedWidth) : next;
+    next <<= resWidth;
     res |= next;
+    resWidth = res.getBitWidth();
   }
   return res;
 }

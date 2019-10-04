@@ -121,7 +121,7 @@ public:
   /// \brief Deprecated
   Expr lookup(SymStore &s, const Value &v) { llvm_unreachable(nullptr); }
   /// \brief Given a vector of GenericValue, create a bitvector Expr of it
-  APInt agg(std::vector<GenericValue> elements,
+  APInt agg(const std::vector<GenericValue> &elements,
       seahorn::details::Bv2OpSemContext &ctx);
   using gep_type_iterator = generic_gep_type_iterator<>;
   /// \brief Returns symbolic representation of the gep offset

@@ -974,6 +974,7 @@ public:
     }
     assert(curTy->getTypeID() == retTy->getTypeID());
     end = begin + DL.getTypeSizeInBits(retTy);
+    errs() << "begin of EXTRACT: " << begin << "end of EXTRACT: " << end << "\n";
     return bv::extract(end, begin, aggOp);
   }
   // void visitInsertValueInst(InsertValueInst &I);
@@ -1751,7 +1752,9 @@ Expr Bv2OpSemContext::getConstantValue(const llvm::Constant &c) {
     if (GVO.hasValue()) {
       GenericValue gv = GVO.getValue();
       if (gv.AggregateVal.size() > 0)
-        return m_sem.agg(gv.AggregateVal, *this);
+        APInt aggBv = m_sem.agg(gv.AggregateVal, *this);
+        mpz_class k = toMpz(aggBv);
+        return alu().si(k, aggBv.getBitWidth());
     }
   } else if (c.getType()->isPointerTy()) {
     LOG("opsem", WARN << "unhandled constant pointer " << c;);
@@ -2153,20 +2156,20 @@ void Bv2OpSem::execBr(const BasicBlock &src, const BasicBlock &dst,
   intraBr(ctx, dst);
 }
 
-Expr Bv2OpSem::agg(std::vector<GenericValue> elements,
+APInt Bv2OpSem::agg(std::vector<GenericValue> elements,
                    details::Bv2OpSemContext &ctx) {
-  Expr res, next = nullptr;
+  APInt res, next;
   // only supporting structs with
   for (GenericValue element : elements) {
     if (element.AggregateVal.size() > 0) {
       next = agg(element.AggregateVal, ctx);
     } else { // assuming only dealing with int as terminal struct element
-      mpz_class k = toMpz(element.IntVal);
-      next = ctx.alu().si(k, element.IntVal.getBitWidth());
+      next = element.IntVal;
     }
-    res = res ? bv::concat(res, next) : next;
+    res <<= next.getBitWidth();
+    res |= next;
   }
-  return res ? res : Expr();
+  return res;
 }
 
 } // namespace seahorn

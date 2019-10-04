@@ -1429,15 +1429,18 @@ Bv2OpSemContext::Bv2OpSemContext(SymStore &values, ExprVector &side,
 void Bv2OpSemContext::write(Expr v, Expr u) {
   if (SimplifyOnWrite) {
     ScopedStats _st_("opsem.simplify");
-    if (!m_z3)
+    if (!m_z3) {
       m_z3.reset(new ufo::EZ3(efac()));
+      m_z3_simplifier.reset(new ufo::ZSimplifier<ufo::EZ3>(*m_z3));
+    }
 
     ufo::ZParams<ufo::EZ3> params(*m_z3);
     params.set("ctrl_c", true);
     // params.set("timeout", 10000U /*ms*/);
     // params.set("flat", false);
     // params.set("ite_extra_rules", false /*default=false*/);
-    Expr _u = z3_simplify(*m_z3, u, params);
+    //Expr _u = z3_simplify(*m_z3, u, params);
+    Expr _u = m_z3_simplifier->simplify(u);
     LOG("opsem.simplify",
         //
         if (!isOpX<LAMBDA>(_u) && !isOpX<ITE>(_u) && dagSize(_u) > 100) {

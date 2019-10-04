@@ -954,7 +954,7 @@ public:
     // compute the offsets: begin and end of bits to extract from aggOp
     const DataLayout DL = m_sem.getDataLayout();
     Type *curTy = aggValue.getType();
-    uint64_t begin, end = 0;
+    uint64_t begin = 0, end = 0;
     for (unsigned idx : indices) {
       if (auto *STy = dyn_cast<StructType>(curTy)) {
         // current struct agg type
@@ -974,6 +974,7 @@ public:
     }
     assert(curTy->getTypeID() == retTy->getTypeID());
     end = begin + DL.getTypeSizeInBits(retTy);
+    errs() << "begin of EXTRACT: " << begin << "end of EXTRACT: " << end << "\n";
     return bv::extract(end, begin, aggOp);
   }
   // void visitInsertValueInst(InsertValueInst &I);

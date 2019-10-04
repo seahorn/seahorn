@@ -101,8 +101,7 @@ Expr decode_type(type_t ytau, ExprFactory &efac){
   return etype;
 }
 
-
-term_t marshal_yices::encode_term(Expr e, std::map<Expr, term_t> &cache){
+term_t marshal_yices::encode_term(Expr e, ycache_t &cache){
   
   assert(e);
   
@@ -131,7 +130,7 @@ term_t marshal_yices::encode_term(Expr e, std::map<Expr, term_t> &cache){
     res = yices_bvconst_mpz(op::bv::width(e->right()),
 			    getTerm<mpz_class>(e->left()).get_mpz_t());
   } else if (bind::isBoolConst(e) || bind::isIntConst(e) || bind::isRealConst(e) ||
-	     op::bv::isBvConst(e)) {
+	     op::bv::isBvConst(e)) {        
     type_t var_type;
     if (bind::isBoolConst(e)){
       var_type = yices_bool_type();
@@ -149,7 +148,7 @@ term_t marshal_yices::encode_term(Expr e, std::map<Expr, term_t> &cache){
     int32_t errcode = yices_set_term_name(res, varname);
     if(errcode == -1){
       encode_term_fail(e, nullptr);
-    }    
+    }
   }
   else if (bind::isConst<ARRAY_TY>(e)) {
     if (bind::isFdecl(e->left())) {
@@ -230,7 +229,7 @@ term_t marshal_yices::encode_term(Expr e, std::map<Expr, term_t> &cache){
     return encode_term_fail(e, "zero arity unexpected");
   } else if (arity == 1) {
     term_t arg = encode_term(e->left(), cache);
-    
+
     if (isOpX<UN_MINUS>(e)) {
       res = yices_neg(arg);
     }
@@ -251,6 +250,9 @@ term_t marshal_yices::encode_term(Expr e, std::map<Expr, term_t> &cache){
     }
     else if (isOpX<BREDOR>(e)) {
       res = yices_redor(arg);
+    }
+    else if (isOpX<ASM>(e)) {
+      res = arg;
     }
     else {
       encode_term_fail(e, "unhandled arity 1 case");
@@ -572,7 +574,7 @@ Expr marshal_yices::decode_yval(yval_t &yval,  ExprFactory &efac, model_t *model
 
 // This only works for simple expressions; constants (either atomic or
 // uninterpreted function)
-Expr marshal_yices::eval(Expr expr,  ExprFactory &efac, std::map<Expr, term_t> &cache,
+Expr marshal_yices::eval(Expr expr,  ExprFactory &efac, ycache_t &cache,
 			 bool complete, model_t *model){
 
   term_t yt_var = encode_term(expr, cache);

@@ -6,6 +6,8 @@
 #include "seahorn/Expr/Smt/Yices2ModelImpl.hh"
 #include "seahorn/Expr/Smt/MarshalYices.hh"
 
+#include <vector>
+
 using namespace expr;
 
 namespace seahorn {
@@ -36,8 +38,7 @@ yices_solver_impl::yices_solver_impl(seahorn::solver::solver_options *opts,
   if ( opts != nullptr ){
     cfg = yices_new_config();
     /* iterate through the opts map and set the keys */
-    std::map<std::string, std::string>::iterator it;
-    for ( it = opts->begin(); it != opts->end(); it++ ){
+    for (auto it = opts->begin(), et=opts->end() ; it != et; ++it){
       yices_set_config(cfg, it->first.c_str(), it->second.c_str());
     }
   }
@@ -77,6 +78,8 @@ bool yices_solver_impl::add(expr::Expr exp){
 
 /** Check for satisfiability */
 solver::Solver::result yices_solver_impl::check(){
+  d_last_assumptions.clear();
+  
   //could have a param_t field for this call.
   smt_status_t stat = yices_check_context(d_ctx, nullptr);
   switch(stat){
@@ -85,10 +88,54 @@ solver::Solver::result yices_solver_impl::check(){
   case STATUS_UNKNOWN: return solver::Solver::UNKNOWN;
   case STATUS_INTERRUPTED: return solver::Solver::UNKNOWN;
   case STATUS_ERROR: return solver::Solver::ERROR;
-  default:
-    return solver::Solver::UNKNOWN;
+  default: return solver::Solver::UNKNOWN;
   }
-  return solver::Solver::UNKNOWN;
+}
+
+solver::Solver::result yices_solver_impl::check_with_assumptions(const ExprVector& a) {
+  d_last_assumptions.clear();
+  
+  std::vector<term_t> ya;
+  ya.reserve(a.size());
+  for (unsigned i=0, e=a.size();i<e;++i) {
+    term_t yt = marshal_yices::encode_term(a[i], get_cache());
+    d_last_assumptions.insert({yt, a[i]});
+    if (yt == NULL_TERM){
+      llvm::errs() << "yices_solver_impl::check_with_assumptions:  failed to encode: "
+		   << *a[i] << "\n";
+      llvm_unreachable(nullptr);
+    }
+    ya.push_back(yt);
+  }
+
+  smt_status_t stat = yices_check_context_with_assumptions(d_ctx, nullptr, ya.size(), &ya[0]);
+  switch(stat){
+  case STATUS_UNSAT: return solver::Solver::UNSAT;
+  case STATUS_SAT: return solver::Solver::SAT;
+  case STATUS_UNKNOWN: return solver::Solver::UNKNOWN;
+  case STATUS_INTERRUPTED: return solver::Solver::UNKNOWN;
+  case STATUS_ERROR: return solver::Solver::ERROR;
+  default: return solver::Solver::UNKNOWN;
+  }
+}
+
+/** Return an unsatisfiable core */
+void yices_solver_impl::unsat_core(ExprVector& out){
+  term_vector_t* v;
+  yices_init_term_vector(v);
+  int32_t errcode = yices_get_unsat_core(d_ctx, v);
+  if (errcode == -1) {
+    errs() << "yices_solver_impl::unsat_core: the solver is not unsat";
+    llvm_unreachable(nullptr);
+  }
+  for (unsigned i=0, e=v->size; i<e; ++i) {
+    auto it = d_last_assumptions.find(v->data[i]);
+    if (it == d_last_assumptions.end()) {
+      errs() << "yices_solver_impl::unsat_core: term in the unsat core is not an assumption\n";
+      llvm_unreachable(nullptr);
+    }
+    out.push_back(it->second);
+  }
 }
 
 /** Push a context */
@@ -103,7 +150,7 @@ void yices_solver_impl::pop(){
 
 /** Clear all assertions */
 void yices_solver_impl::reset(){
-  yices_reset();
+  yices_reset_context(d_ctx);  
 }
 
 /** Get a model */

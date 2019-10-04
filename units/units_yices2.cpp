@@ -15,6 +15,7 @@ using namespace expr;
 using namespace ufo;
 
 static void run(seahorn::solver::Solver *s, Expr e, const ExprVector& model_vars) {
+  s->push();
   if (bool success = s->add(e)){
     seahorn::solver::Solver::result answer = s->check();
     if(answer == seahorn::solver::Solver::ERROR){
@@ -37,6 +38,32 @@ static void run(seahorn::solver::Solver *s, Expr e, const ExprVector& model_vars
   } else {
     errs () << "Solver:add failed!\n";
   }
+  s->pop();
+}
+
+static void unsat_core(seahorn::solver::Solver *s, const ExprVector &f, ExprVector &out) {
+  ExprVector assumptions;
+  assumptions.reserve(f.size());
+
+  s->push();  
+  // for each v in f we create an impliciation b -> v
+  // where b is a boolean
+  for (Expr v : f) {
+    Expr a = bind::boolConst(mk<ASM>(v));
+    assumptions.push_back(a);
+    s->add(mk<IMPL>(a, v));
+  }
+
+  seahorn::solver::Solver::result  res = s->check_with_assumptions(assumptions);
+  if (res == seahorn::solver::Solver::UNSAT) {
+    s->unsat_core(out);
+  }
+  s->pop();
+
+  // unwrap the core from ASM to corresponding expressions
+  for(unsigned i=0,e=out.size();i<e;++i) {
+    out[i] = bind::fname(bind::fname(out[i]))->arg(0);    
+  }  
 }
 
 TEST_CASE("yices2-int.test") {
@@ -44,29 +71,53 @@ TEST_CASE("yices2-int.test") {
   seahorn::solver::solver_options opts;
   expr::ExprFactory efac;
 
+  seahorn::yices::yices_solver_impl yices_solver(&opts, efac);
+  seahorn::solver::Solver* ysolver = &yices_solver;
+  EZ3 ctx(efac);
+  seahorn::z3::z3_solver_impl z3_solver(&opts,ctx);
+  seahorn::solver::Solver* zsolver = &z3_solver;
+  
   Expr x = bind::intConst (mkTerm<string> ("x", efac));
   Expr y = bind::intConst (mkTerm<string> ("y", efac));
-
+  Expr z = bind::intConst (mkTerm<string> ("z", efac));
   Expr e1 = mk<EQ>(x, mkTerm<mpz_class>(0, efac));
   Expr e2 = mk<EQ>(y, mkTerm<mpz_class>(5, efac));
-  Expr e3 = mk<GT>(x, y);
-  Expr e4 = mk<GT>(y, x);
+  Expr e3 = mk<EQ>(z, mkTerm<mpz_class>(10, efac));  
+  Expr e4 = mk<GT>(x, y);
+  Expr e5 = mk<GT>(y, x);
 
-  std::vector<Expr> args({e1, e2, e4});
+  std::vector<Expr> args({e1, e2, e5});
   Expr e = mknary<AND>(args.begin(), args.end());
-
   errs() << "Asserting " << *e << "\n";
   
   errs() << "==== Yices2\n";
-  seahorn::yices::yices_solver_impl yices_solver(&opts, efac);
   errs() << "Result: ";
-  run(&yices_solver, e, {x,y});
+  run(ysolver, e, {x,y});
   
   errs() << "==== Z3\n";
-  EZ3 ctx(efac);
-  seahorn::z3::z3_solver_impl z3_solver(&opts,ctx);
   errs() << "Result: ";
-  run(&z3_solver, e, {x,y});
+  run(zsolver, e, {x,y});
+
+
+  ysolver->reset();  
+  ExprVector fv({e1, e2, e3, e4});
+  Expr f = mknary<AND>(fv.begin(), fv.end());
+  errs() << "\n\nAsserting " << *f << "\n";
+
+  errs() << "==== Yices2\n";  
+  errs() << "Result: ";
+  run(ysolver, f, {});
+  ExprVector core;
+  unsat_core(ysolver, fv, core);
+  errs() << "unsat core = " << *(mknary<AND>(core.begin(), core.end())) << "\n";
+
+  errs() << "==== Z3\n";  
+  errs() << "Result: ";
+  run(zsolver, f, {});
+  core.clear();
+  unsat_core(zsolver, fv, core);
+  errs() << "unsat core = " << *(mknary<AND>(core.begin(), core.end())) << "\n";
+  
   
   errs() << "FINISHED\n\n\n";
 
@@ -153,7 +204,7 @@ TEST_CASE("yices2-int-arr.test") {
   EZ3 ctx(efac);
   seahorn::z3::z3_solver_impl z3_solver(&opts,ctx);
   errs() << "Result: ";
-  run(&z3_solver, e, {x,y,a3});
+  run(&z3_solver, e, {x,y ,a3});
   
   errs() << "FINISHED\n";
 
@@ -214,5 +265,6 @@ TEST_CASE("yices2-int-bv.test") {
 
   CHECK(true);
 }
+
 
 #endif 

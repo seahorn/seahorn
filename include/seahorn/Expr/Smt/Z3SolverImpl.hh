@@ -37,6 +37,22 @@ public:
     }
     return m_last_result;
   }
+
+  virtual solver::Solver::result check_with_assumptions(const expr::ExprVector& a) override {
+    auto res = m_solver->solveAssuming(a);
+    if (res) {
+      m_last_result = SAT;
+    } else if (!res) {
+      m_last_result = UNSAT;
+    } else {
+      m_last_result = UNKNOWN; 
+    }
+    return m_last_result;
+  }
+
+  virtual void unsat_core(expr::ExprVector& out) override {
+    m_solver->unsatCore(std::back_inserter(out));
+  }
   
   /** Push a context */
   virtual void push() override {

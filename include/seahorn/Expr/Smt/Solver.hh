@@ -36,6 +36,12 @@ public:
   
   /** Check for satisfiability */
   virtual result check() = 0;
+
+  /** Check for satisfiability */
+  virtual result check_with_assumptions(const expr::ExprVector& a) = 0;
+
+  /** Return an unsatisfiable core */
+  virtual void unsat_core(expr::ExprVector& out) = 0;
   
   /** Push a context */
   virtual void push() = 0;

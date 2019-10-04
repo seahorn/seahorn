@@ -3,22 +3,24 @@
 
 #include <gmp.h>
 #include "yices.h"
-
 #include "seahorn/Expr/ExprLlvm.hh"
+#include <map>
 
 namespace seahorn {
 namespace yices {
 
+using ycache_t = std::map<expr::Expr, term_t>;
+
 class marshal_yices {
   
 public:
-  
-  static term_t encode_term(expr::Expr exp, std::map<expr::Expr, term_t> &cache);
+
+  static term_t encode_term(expr::Expr exp, ycache_t &cache);
   
   static type_t encode_type(expr::Expr exp);
-  
+
   static expr::Expr eval(expr::Expr expr,  expr::ExprFactory &efac,
-			 std::map<expr::Expr, term_t> &cache, bool complete, model_t *model);
+			 ycache_t &cache, bool complete, model_t *model);
   
   static expr::Expr decode_type(type_t yty, expr::ExprFactory &efac);
   

@@ -1,20 +1,18 @@
-#ifndef Z3_EXPR_CONVERTER__HPP_
-#define Z3_EXPR_CONVERTER__HPP_
-
+#pragma once
 /** Marshal and Unmarshal between Z3 ast and Expr*/
 
 // --  used for CL options
 #include "seahorn/Expr/ExprLlvm.hh"
 #include "seahorn/Expr/Smt/Z3.hh"
-
 #include "llvm/Support/raw_ostream.h"
 
 namespace ufo {
-
+using namespace expr;
+using namespace ufo;
 struct FailMarshal {
   template <typename C>
   static z3::ast marshal(Expr e, z3::context &ctx, C &cache,
-                         expr_ast_map &seen) {
+                         ::ufo::expr_ast_map &seen) {
     llvm::errs() << "\nCannot marshal: " << *e << "\n";
     assert(0);
     exit(1);
@@ -24,7 +22,7 @@ struct FailMarshal {
 struct FailUnmarshal {
   template <typename C>
   static Expr unmarshal(const z3::ast &a, ExprFactory &efac, C &cache,
-                        ast_expr_map &seen) {
+                        ::ufo::ast_expr_map &seen) {
     llvm::errs() << "\nCannot unmarshal: " << lexical_cast<std::string>(a)
                  << "\n";
     assert(0);
@@ -35,7 +33,7 @@ struct FailUnmarshal {
 template <typename M> struct BasicExprMarshal {
   template <typename C>
   static z3::ast marshal(Expr e, z3::context &ctx, C &cache,
-                         expr_ast_map &seen) {
+                         ::ufo::expr_ast_map &seen) {
     assert(e);
     if (isOpX<TRUE>(e))
       return z3::ast(ctx, Z3_mk_true(ctx));
@@ -51,7 +49,7 @@ template <typename M> struct BasicExprMarshal {
 
     /** check computed table */
     {
-      typename expr_ast_map::const_iterator it = seen.find(e);
+      typename ::ufo::expr_ast_map::const_iterator it = seen.find(e);
       if (it != seen.end())
         return it->second;
     }
@@ -139,7 +137,8 @@ template <typename M> struct BasicExprMarshal {
 
       for (size_t i = 0; i < bind::domainSz(e); ++i) {
         pinned.push_back(marshal(bind::domainTy(e, i), ctx, cache, seen));
-        domain[i] = reinterpret_cast<Z3_sort>(static_cast<Z3_ast>(pinned.back()));
+        domain[i] =
+            reinterpret_cast<Z3_sort>(static_cast<Z3_ast>(pinned.back()));
       }
 
       z3::sort range(ctx, reinterpret_cast<Z3_sort>(static_cast<Z3_ast>(
@@ -406,7 +405,7 @@ template <typename M> struct BasicExprMarshal {
            it != end; ++it) {
         pinned.push_back(marshal(*it, ctx, cache, seen));
         args.push_back(pinned.back());
-     }
+      }
 
       if (isOp<ITE>(e)) {
         assert(e->arity() == 3);
@@ -453,7 +452,7 @@ template <typename M> struct BasicExprMarshal {
 
     assert(res != nullptr);
     z3::ast final(ctx, res);
-    seen.insert(expr_ast_map::value_type(e, final));
+    seen.insert(::ufo::expr_ast_map::value_type(e, final));
 
     return final;
   }
@@ -462,7 +461,7 @@ template <typename M> struct BasicExprMarshal {
 template <typename U> struct BasicExprUnmarshal {
   template <typename C>
   static Expr unmarshal(const z3::ast &z, ExprFactory &efac, C &cache,
-                        ast_expr_map &seen) {
+                        ::ufo::ast_expr_map &seen) {
     z3::context &ctx = z.ctx();
 
     Z3_lbool bVal = Z3_get_bool_value(ctx, z);
@@ -488,7 +487,7 @@ template <typename U> struct BasicExprUnmarshal {
       case Z3_ARRAY_SORT:
         // needs caching, handled below
         break;
-     default:
+      default:
         assert(0 && "Unsupported sort");
       }
     } else if (kind == Z3_VAR_AST) {
@@ -529,7 +528,7 @@ template <typename U> struct BasicExprUnmarshal {
                     efac, cache, seen));
 
       return bind::fdecl(name, type);
-    } 
+    }
 
     Z3_app app;
     Z3_func_decl fdecl;
@@ -543,8 +542,8 @@ template <typename U> struct BasicExprUnmarshal {
 
       if (dkind == Z3_OP_NOT) {
         assert(Z3_get_app_num_args(ctx, app) == 1);
-        return mk<NEG>(unmarshal(z3::ast(ctx, Z3_get_app_arg(ctx, app, 0)), efac,
-                                 cache, seen));
+        return mk<NEG>(unmarshal(z3::ast(ctx, Z3_get_app_arg(ctx, app, 0)),
+                                 efac, cache, seen));
       }
       if (dkind == Z3_OP_UMINUS)
         return mk<UN_MINUS>(unmarshal(z3::ast(ctx, Z3_get_app_arg(ctx, app, 0)),
@@ -556,11 +555,11 @@ template <typename U> struct BasicExprUnmarshal {
                          seen);
 
       if (dkind == Z3_OP_BNOT)
-        return mk<BNOT>(unmarshal(z3::ast(ctx, Z3_get_app_arg(ctx, app, 0)), efac,
-                                  cache, seen));
+        return mk<BNOT>(unmarshal(z3::ast(ctx, Z3_get_app_arg(ctx, app, 0)),
+                                  efac, cache, seen));
       if (dkind == Z3_OP_BNEG)
-        return mk<BNEG>(unmarshal(z3::ast(ctx, Z3_get_app_arg(ctx, app, 0)), efac,
-                                  cache, seen));
+        return mk<BNEG>(unmarshal(z3::ast(ctx, Z3_get_app_arg(ctx, app, 0)),
+                                  efac, cache, seen));
       if (dkind == Z3_OP_BREDAND)
         return mk<BREDAND>(unmarshal(z3::ast(ctx, Z3_get_app_arg(ctx, app, 0)),
                                      efac, cache, seen));
@@ -569,7 +568,7 @@ template <typename U> struct BasicExprUnmarshal {
                                     efac, cache, seen));
       if (dkind == Z3_OP_SIGN_EXT || dkind == Z3_OP_ZERO_EXT) {
         Expr sort =
-          bv::bvsort(Z3_get_bv_sort_size(ctx, Z3_get_sort(ctx, z)), efac);
+            bv::bvsort(Z3_get_bv_sort_size(ctx, Z3_get_sort(ctx, z)), efac);
         Expr arg = unmarshal(z3::ast(ctx, Z3_get_app_arg(ctx, app, 0)), efac,
                              cache, seen);
         switch (dkind) {
@@ -584,7 +583,7 @@ template <typename U> struct BasicExprUnmarshal {
 
       if (dkind == Z3_OP_AS_ARRAY) {
         z3::ast zdecl(
-                      ctx, Z3_func_decl_to_ast(ctx, Z3_get_as_array_func_decl(ctx, z)));
+            ctx, Z3_func_decl_to_ast(ctx, Z3_get_as_array_func_decl(ctx, z)));
         return mk<AS_ARRAY>(unmarshal(zdecl, efac, cache, seen));
       }
     }
@@ -595,7 +594,7 @@ template <typename U> struct BasicExprUnmarshal {
         return it->second;
     }
     {
-      typename ast_expr_map::const_iterator it = seen.find(z);
+      typename ::ufo::ast_expr_map::const_iterator it = seen.find(z);
       if (it != seen.end())
         return it->second;
     }
@@ -607,10 +606,13 @@ template <typename U> struct BasicExprUnmarshal {
       switch (Z3_get_sort_kind(ctx, sort)) {
       case Z3_REAL_SORT:
         res = mkTerm(mpq_class(snum), efac);
+        break;
       case Z3_INT_SORT:
         res = mkTerm(mpz_class(snum), efac);
+        break;
       case Z3_BV_SORT:
         res = bv::bvnum(mpz_class(snum), Z3_get_bv_sort_size(ctx, sort), efac);
+        break;
       default:
         assert(0 && "Unsupported numeric constant");
       }
@@ -630,13 +632,13 @@ template <typename U> struct BasicExprUnmarshal {
         break;
       case Z3_ARRAY_SORT:
         domain = unmarshal(
-                           z3::ast(ctx,
-                                   Z3_sort_to_ast(ctx, Z3_get_array_sort_domain(ctx, sort))),
-                           efac, cache, seen);
+            z3::ast(ctx,
+                    Z3_sort_to_ast(ctx, Z3_get_array_sort_domain(ctx, sort))),
+            efac, cache, seen);
         range = unmarshal(
-                          z3::ast(ctx,
-                                  Z3_sort_to_ast(ctx, Z3_get_array_sort_range(ctx, sort))),
-                          efac, cache, seen);
+            z3::ast(ctx,
+                    Z3_sort_to_ast(ctx, Z3_get_array_sort_range(ctx, sort))),
+            efac, cache, seen);
         res = sort::arrayTy(domain, range);
         break;
       default:
@@ -647,15 +649,14 @@ template <typename U> struct BasicExprUnmarshal {
       if (res)
         cache.insert(typename C::value_type(z, res));
       return res;
-    }
-    else if (kind == Z3_QUANTIFIER_AST) {
+    } else if (kind == Z3_QUANTIFIER_AST) {
       SmallVector<Expr, 32> args;
       unsigned num_bound = Z3_get_quantifier_num_bound(ctx, z);
       args.reserve(num_bound + 1);
       for (unsigned i = 0; i < num_bound; ++i) {
         Z3_func_decl decl =
-          Z3_mk_func_decl(ctx, Z3_get_quantifier_bound_name(ctx, z, i), 0,
-                          nullptr, Z3_get_quantifier_bound_sort(ctx, z, i));
+            Z3_mk_func_decl(ctx, Z3_get_quantifier_bound_name(ctx, z, i), 0,
+                            nullptr, Z3_get_quantifier_bound_sort(ctx, z, i));
         z3::ast zdecl(ctx, Z3_func_decl_to_ast(ctx, decl));
         args.push_back(unmarshal(zdecl, efac, cache, seen));
         assert(args.back().get());
@@ -668,7 +669,7 @@ template <typename U> struct BasicExprUnmarshal {
         return mknary<EXISTS>(args);
 
       assert(Z3_is_lambda(ctx, z));
-      Expr res =  mknary<LAMBDA>(args);
+      Expr res = mknary<LAMBDA>(args);
       seen[z] = res;
       return res;
     }
@@ -865,9 +866,4 @@ template <typename U> struct BasicExprUnmarshal {
   }
 };
 
-typedef ZContext<BasicExprMarshal<FailMarshal>,
-                 BasicExprUnmarshal<FailUnmarshal>>
-    EZ3;
 } // namespace ufo
-
-#endif

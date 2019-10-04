@@ -190,14 +190,18 @@ using namespace boost;
  * \tparam M marshaler that converts from Expr to z3::ast
  * \tparam U unmarshaler that converts from z3::ast to Expr
  */
-template <typename M, typename U> class ZContext : boost::noncopyable {
+template <typename M, typename U>
+class ZContext  {
+public:
+
+  using expr_cache_map = boost::bimaps::unordered_set_of<Expr>;
+  using z_cache_map = boost::bimaps::unordered_set_of<z3::ast, z3::ast_ptr_hash, z3::ast_ptr_equal_to>;
+  using cache_type = boost::bimap<expr_cache_map, z_cache_map>;
+  using expr_cache_type = typename cache_type::left_map;
+  using z_cache_type = typename cache_type::right_map;
+
 private:
   typedef ZContext<M, U> this_type;
-  typedef bimap<
-      bimaps::unordered_set_of<Expr>,
-      bimaps::unordered_set_of<z3::ast, z3::ast_ptr_hash, z3::ast_ptr_equal_to>>
-      cache_type;
-
   ExprFactory &efac;
   z3::config m_c; // default config
   z3::context ctx;
@@ -249,6 +253,7 @@ protected:
 public:
   ZContext(ExprFactory &ef) : efac(ef), ctx(m_c) { init(); }
   ZContext(ExprFactory &ef, z3::config &c) : efac(ef), ctx(c) { init(); }
+  ZContext(const ZContext &) = delete;
 
   ~ZContext() { cache.clear(); }
 

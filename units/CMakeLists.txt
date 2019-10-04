@@ -4,11 +4,12 @@ include (CTest)
 # In the future we can group tests by linking dependencies and move them into
 # seperate directories.
 set (USED_LIBS_Z3_TESTS
-  ${Boost_SYSTEM_LIBRARY}
+  SeaSmt
+  SeaSupport
   ${Z3_LIBRARY}
   ${SEA_DSA_LIBS}
-  SeaSupport
   ${LLVM_SEAHORN_LIBS}
+  ${Boost_SYSTEM_LIBRARY}
   ${GMPXX_LIB}
   ${GMP_LIB}
   ${RT_LIB}

@@ -1,0 +1,517 @@
+#pragma once
+
+#include "seahorn/Expr/ExprLlvm.hh"
+#include "seahorn/Expr/Smt/ExprToZ.hh"
+#include "seahorn/Support/SeaLog.hh"
+#include "seahorn/Support/SeaDebug.h"
+
+#include "boost/lexical_cast.hpp"
+#include "llvm/Support/raw_ostream.h"
+
+namespace {
+inline Z3_ast mk_mpz_core(z3::context &ctx, const mpz_class &num) {
+  z3::sort sort(ctx, Z3_mk_int_sort(ctx));
+  std::string str_num = boost::lexical_cast<std::string>(num);
+  return Z3_mk_numeral(ctx, str_num.c_str(), sort);
+}
+
+inline Z3_ast mk_mpq_core(z3::context &ctx, const mpq_class &num) {
+  z3::sort sort(ctx, Z3_mk_real_sort(ctx));
+  std::string str_num = boost::lexical_cast<std::string>(num);
+  return Z3_mk_numeral(ctx, str_num.c_str(), sort);
+}
+
+inline Z3_ast mk_boolop_core(z3::context &ctx, const expr::Operator &op,
+                             unsigned arity, const std::vector<Z3_ast> &zargs) {
+  using namespace expr;
+  switch (llvm::cast<BoolOp>(op).m_kind) {
+  default:
+    break;
+  case BoolOpKind::TRUE:
+    return Z3_mk_true(ctx);
+  case BoolOpKind::FALSE:
+    return Z3_mk_false(ctx);
+  case BoolOpKind::AND:
+    return Z3_mk_and(ctx, arity, &zargs[0]);
+  case BoolOpKind::OR:
+    return Z3_mk_or(ctx, arity, &zargs[0]);
+  case BoolOpKind::XOR:
+    return Z3_mk_xor(ctx, zargs[0], zargs[1]);
+  case BoolOpKind::NEG:
+    return Z3_mk_not(ctx, zargs[0]);
+  case BoolOpKind::IMPL:
+    return Z3_mk_implies(ctx, zargs[0], zargs[1]);
+  case BoolOpKind::ITE:
+    return Z3_mk_ite(ctx, zargs[0], zargs[1], zargs[2]);
+  case BoolOpKind::IFF:
+    return Z3_mk_iff(ctx, zargs[0], zargs[1]);
+  }
+  return nullptr;
+}
+
+inline Z3_ast mk_compare_core(z3::context &ctx, const expr::Operator &op,
+                              unsigned arity,
+                              const std::vector<Z3_ast> &zargs) {
+  using namespace expr;
+  switch (llvm::cast<ComparissonOp>(op).m_kind) {
+  default:
+    break;
+  case ComparissonOpKind::EQ:
+    return Z3_mk_eq(ctx, zargs[0], zargs[1]);
+  case ComparissonOpKind::NEQ:
+    return Z3_mk_not(ctx, Z3_mk_eq(ctx, zargs[0], zargs[1]));
+  case ComparissonOpKind::LEQ:
+    return Z3_mk_le(ctx, zargs[0], zargs[1]);
+  case ComparissonOpKind::GEQ:
+    return Z3_mk_ge(ctx, zargs[0], zargs[1]);
+  case ComparissonOpKind::LT:
+    return Z3_mk_lt(ctx, zargs[0], zargs[1]);
+  case ComparissonOpKind::GT:
+    return Z3_mk_gt(ctx, zargs[0], zargs[1]);
+  }
+  return nullptr;
+}
+inline Z3_ast mk_type_core(z3::context &ctx, const expr::Operator &op,
+                           unsigned arity, const std::vector<Z3_ast> &zargs) {
+  using namespace expr;
+  switch (llvm::cast<SimpleTypeOp>(op).m_kind) {
+  default:
+    break;
+  case SimpleTypeOpKind::INT_TY:
+    return reinterpret_cast<Z3_ast>(Z3_mk_int_sort(ctx));
+  case SimpleTypeOpKind::REAL_TY:
+    return reinterpret_cast<Z3_ast>(Z3_mk_real_sort(ctx));
+  case SimpleTypeOpKind::BOOL_TY:
+    return reinterpret_cast<Z3_ast>(Z3_mk_bool_sort(ctx));
+  case SimpleTypeOpKind::ARRAY_TY: {
+    Z3_sort idx_sort = reinterpret_cast<Z3_sort>(zargs[0]);
+    Z3_sort val_sort = reinterpret_cast<Z3_sort>(zargs[1]);
+    return reinterpret_cast<Z3_ast>(Z3_mk_array_sort(ctx, idx_sort, val_sort));
+  }
+  }
+  return nullptr;
+}
+inline Z3_ast mk_numeric_core(z3::context &ctx, const expr::Operator &op,
+                              unsigned arity,
+                              const std::vector<Z3_ast> &zargs) {
+  using namespace expr;
+  switch (llvm::cast<NumericOp>(op).m_kind) {
+  default:
+    break;
+  case NumericOpKind::PLUS:
+    return Z3_mk_add(ctx, arity, &zargs[0]);
+  case NumericOpKind::MINUS:
+    return Z3_mk_sub(ctx, arity, &zargs[0]);
+  case NumericOpKind::MULT:
+    return Z3_mk_mul(ctx, arity, &zargs[0]);
+  case NumericOpKind::DIV:
+  case NumericOpKind::IDIV:
+    return Z3_mk_div(ctx, zargs[0], zargs[1]);
+  case NumericOpKind::MOD:
+    return Z3_mk_mod(ctx, zargs[0], zargs[1]);
+  case NumericOpKind::REM:
+    return Z3_mk_rem(ctx, zargs[0], zargs[1]);
+  case NumericOpKind::UN_MINUS:
+    return Z3_mk_unary_minus(ctx, zargs[0]);
+  }
+  return nullptr;
+}
+
+inline Z3_ast mk_array_core(z3::context &ctx, const expr::Operator &op,
+                            unsigned arity, const std::vector<Z3_ast> &zargs) {
+  using namespace expr;
+  switch (llvm::cast<ArrayOp>(op).m_kind) {
+  default:
+    break;
+  case ArrayOpKind::SELECT:
+    return Z3_mk_select(ctx, zargs[0], zargs[1]);
+  case ArrayOpKind::CONST_ARRAY: {
+    Z3_sort domain = reinterpret_cast<Z3_sort>(zargs[0]);
+    return Z3_mk_const_array(ctx, domain, zargs[1]);
+  }
+  case ArrayOpKind::STORE:
+    return Z3_mk_store(ctx, zargs[0], zargs[1], zargs[2]);
+  case ArrayOpKind::ARRAY_MAP: {
+    Z3_func_decl fdecl = reinterpret_cast<Z3_func_decl>(zargs[0]);
+    return Z3_mk_map(ctx, fdecl, arity - 1, &zargs[1]);
+  }
+  case ArrayOpKind::ARRAY_DEFAULT:
+    return Z3_mk_array_default(ctx, zargs[0]);
+  }
+  return nullptr;
+}
+
+inline Z3_ast mk_bind_core(z3::context &ctx, const expr::Operator &op,
+                           unsigned arity, const std::vector<Z3_ast> &zargs) {
+  using namespace expr;
+  switch (llvm::cast<BindOp>(op).m_kind) {
+  default:
+    break;
+  case BindOpKind::FAPP:
+    // LAMBDA Application
+    assert(Z3_get_sort_kind(ctx, Z3_get_sort(ctx, zargs[0])) == Z3_ARRAY_SORT);
+    // Assuming lmbd is of array sort.
+    assert(arity == 2 && "Only 1D arrays are supported");
+    // In Z3, selects are used for lambda applications.
+    // (Lambdas are of ArraySort.)
+    return Z3_mk_select(ctx, zargs[0], zargs[1]);
+  }
+  return nullptr;
+}
+
+inline Z3_ast mk_bvop_core(z3::context &ctx, const expr::Operator &op,
+                           unsigned arity, const std::vector<Z3_ast> &zargs) {
+  using namespace expr;
+  switch (llvm::cast<BvOp>(op).m_kind) {
+  default:
+    break;
+  case BvOpKind::BNOT:
+    return Z3_mk_bvnot(ctx, zargs[0]);
+  case BvOpKind::BNEG:
+    return Z3_mk_bvneg(ctx, zargs[0]);
+  case BvOpKind::BREDAND:
+    return Z3_mk_bvredand(ctx, zargs[0]);
+  case BvOpKind::BREDOR:
+    return Z3_mk_bvredor(ctx, zargs[0]);
+  case BvOpKind::BSEXT: {
+    auto in_width = Z3_get_bv_sort_size(ctx, Z3_get_sort(ctx, zargs[0]));
+    auto out_width =
+        Z3_get_bv_sort_size(ctx, reinterpret_cast<Z3_sort>(zargs[1]));
+    assert(in_width < out_width);
+    return Z3_mk_sign_ext(ctx, out_width - in_width, zargs[0]);
+  }
+  case BvOpKind::BZEXT: {
+    auto in_width = Z3_get_bv_sort_size(ctx, Z3_get_sort(ctx, zargs[0]));
+    auto out_width =
+        Z3_get_bv_sort_size(ctx, reinterpret_cast<Z3_sort>(zargs[1]));
+    assert(in_width < out_width);
+    return Z3_mk_zero_ext(ctx, out_width - in_width, zargs[0]);
+  }
+  case BvOpKind::BAND:
+    return Z3_mk_bvand(ctx, zargs[0], zargs[1]);
+  case BvOpKind::BOR:
+    return Z3_mk_bvor(ctx, zargs[0], zargs[1]);
+  case BvOpKind::BMUL:
+    return Z3_mk_bvmul(ctx, zargs[0], zargs[1]);
+  case BvOpKind::BSUB:
+    return Z3_mk_bvsub(ctx, zargs[0], zargs[1]);
+  case BvOpKind::BSDIV:
+    return Z3_mk_bvsdiv(ctx, zargs[0], zargs[1]);
+  case BvOpKind::BUDIV:
+    return Z3_mk_bvudiv(ctx, zargs[0], zargs[1]);
+  case BvOpKind::BSREM:
+    return Z3_mk_bvsrem(ctx, zargs[0], zargs[1]);
+  case BvOpKind::BUREM:
+    return Z3_mk_bvurem(ctx, zargs[0], zargs[1]);
+  case BvOpKind::BSMOD:
+    return Z3_mk_bvsmod(ctx, zargs[0], zargs[1]);
+  case BvOpKind::BULE:
+    return Z3_mk_bvule(ctx, zargs[0], zargs[1]);
+  case BvOpKind::BSLE:
+    return Z3_mk_bvsle(ctx, zargs[0], zargs[1]);
+  case BvOpKind::BUGE:
+    return Z3_mk_bvuge(ctx, zargs[0], zargs[1]);
+  case BvOpKind::BSGE:
+    return Z3_mk_bvsge(ctx, zargs[0], zargs[1]);
+  case BvOpKind::BULT:
+    return Z3_mk_bvult(ctx, zargs[0], zargs[1]);
+  case BvOpKind::BSLT:
+    return Z3_mk_bvslt(ctx, zargs[0], zargs[1]);
+  case BvOpKind::BUGT:
+    return Z3_mk_bvugt(ctx, zargs[0], zargs[1]);
+  case BvOpKind::BSGT:
+    return Z3_mk_bvsgt(ctx, zargs[0], zargs[1]);
+  case BvOpKind::BXOR:
+    return Z3_mk_bvxor(ctx, zargs[0], zargs[1]);
+  case BvOpKind::BNAND:
+    return Z3_mk_bvnand(ctx, zargs[0], zargs[1]);
+  case BvOpKind::BNOR:
+    return Z3_mk_bvnor(ctx, zargs[0], zargs[1]);
+  case BvOpKind::BXNOR:
+    return Z3_mk_bvxnor(ctx, zargs[0], zargs[1]);
+  case BvOpKind::BSHL:
+    return Z3_mk_bvshl(ctx, zargs[0], zargs[1]);
+  case BvOpKind::BLSHR:
+    return Z3_mk_bvlshr(ctx, zargs[0], zargs[1]);
+  case BvOpKind::BASHR:
+    return Z3_mk_bvashr(ctx, zargs[0], zargs[1]);
+  case BvOpKind::BCONCAT: {
+    if (arity == 2)
+      return Z3_mk_concat(ctx, zargs[0], zargs[1]);
+    Z3_ast res = zargs.back();
+    for (unsigned sz = zargs.size(), i = sz - 2; i < sz; --i) {
+      res = Z3_mk_concat(ctx, zargs[i], res);
+      assert(res && "Creating concat failed");
+    }
+    return res;
+  }
+  case BvOpKind::BADD: {
+    if (arity == 2)
+      return Z3_mk_bvadd(ctx, zargs[0], zargs[1]);
+    Z3_ast res = zargs.back();
+    for (unsigned sz = zargs.size(), i = sz - 2; i < sz; --i) {
+      res = Z3_mk_bvadd(ctx, zargs[i], res);
+      assert(res && "Creating bvadd failed");
+    }
+    return res;
+  }
+  }
+  return nullptr;
+}
+
+} // namespace
+
+namespace seahorn {
+template <typename C>
+z3::ast ExprToZ::marshal(expr::Expr _e, z3::context &ctx, C &cache,
+                         ufo::expr_ast_map &seen) {
+  using namespace expr;
+
+  // -- try global cache first
+  auto it = cache.find(_e);
+  if (it != cache.end())
+    return it->second;
+
+  z3::ast_vector pinned(ctx);
+
+  std::vector<Z3_ast> zargs;
+  ExprVector todo;
+  todo.push_back(_e);
+
+  Z3_ast res = nullptr;
+  while (!todo.empty()) {
+    res = nullptr;
+
+    Expr e = todo.back();
+    auto &op = e->op();
+    unsigned sz = todo.size();
+    auto family_id = op.getFamilyId();
+    unsigned arity = e->arity();
+
+    LOG("expr2z",
+        errs() << "marshal: " << *e << "\n";);
+
+    // expressions that are cached globally
+    switch (family_id) {
+    default:
+      break;
+    case OpFamilyId::Terminal:
+      switch (llvm::cast<TerminalBase>(op).m_kind) {
+      default:
+        break;
+      case TerminalKind::BVSORT:
+        res = reinterpret_cast<Z3_ast>(Z3_mk_bv_sort(ctx, bv::width(e)));
+      }
+      break;
+    case OpFamilyId::BindOp:
+      switch (llvm::cast<BindOp>(op).m_kind) {
+      default:
+        break;
+      case BindOpKind::FDECL: {
+        std::vector<Z3_sort> domain(arity);
+
+        for (unsigned i = 0, sz = bind::domainSz(e); i < sz; ++i) {
+          pinned.push_back(marshal(bind::domainTy(e, i), ctx, cache, seen));
+          domain[i] =
+              reinterpret_cast<Z3_sort>(static_cast<Z3_ast>(pinned.back()));
+        }
+
+        z3::sort range(ctx, reinterpret_cast<Z3_sort>(static_cast<Z3_ast>(
+                                marshal(bind::rangeTy(e), ctx, cache, seen))));
+
+        Expr fname = bind::fname(e);
+        std::string sname;
+        if (isOpX<STRING>(fname))
+          sname = getTerm<std::string>(fname);
+        else
+          sname = boost::lexical_cast<std::string>(*fname);
+
+        z3::symbol symname = ctx.str_symbol(sname.c_str());
+
+        res = reinterpret_cast<Z3_ast>(Z3_mk_func_decl(
+            ctx, symname, bind::domainSz(e), &domain[0], range));
+        break;
+      }
+      case BindOpKind::FAPP: {
+        if (bind::isFdecl(bind::fname(e))) {
+          z3::func_decl zfdecl(
+              ctx, reinterpret_cast<Z3_func_decl>(static_cast<Z3_ast>(
+                       marshal(bind::fname(e), ctx, cache, seen))));
+
+          // -- marshall all arguments except for the first one
+          // -- (which is the fdecl)
+          std::vector<Z3_ast> args(e->arity());
+          z3::ast_vector pinned_args(ctx);
+          pinned_args.resize(e->arity());
+
+          unsigned pos = 0;
+          for (ENode::args_iterator it = ++(e->args_begin()),
+                                    end = e->args_end();
+               it != end; ++it) {
+            z3::ast a(marshal(*it, ctx, cache, seen));
+            pinned_args.push_back(a);
+            args[pos++] = a;
+          }
+
+          res = Z3_mk_app(ctx, zfdecl, e->arity() - 1, &args[0]);
+        }
+        break;
+      }
+      case BindOpKind::BIND: {
+        if (bv::is_bvnum(e)) {
+          z3::sort sort(ctx, Z3_mk_bv_sort(ctx, bv::width(e->arg(1))));
+          const mpz_class &val = getTerm<mpz_class>(e->arg(0));
+          std::string sname = boost::lexical_cast<std::string>(val);
+          res = Z3_mk_numeral(ctx, sname.c_str(), sort);
+        }
+        break;
+      }
+      }
+      break;
+    }
+
+    if (res) {
+      todo.pop_back();
+      z3::ast ast(ctx, res);
+      cache.insert(typename C::value_type(e, ast));
+      continue;
+    }
+
+    // expressions that require special handling but are otherwise usual
+    if (isOpX<FORALL>(e) || isOpX<EXISTS>(e) || isOpX<LAMBDA>(e)) {
+      auto bodyE = bind::body(e);
+      Z3_ast bodyZ = nullptr;
+      auto cache_it = cache.find(bodyE);
+      if (cache_it != cache.end())
+        bodyZ = cache_it->second;
+      else {
+        auto seen_it = seen.find(bodyE);
+        if (seen_it != seen.end())
+          bodyZ = seen_it->second;
+        else {
+          // -- not found, push into todo list
+          todo.push_back(bodyE);
+          continue;
+        }
+      }
+
+      z3::ast body(ctx, bodyZ);
+
+      unsigned num_bound = bind::numBound(e);
+      z3::ast_vector pinned(ctx);
+      pinned.resize(num_bound);
+      std::vector<Z3_sort> bound_sorts;
+      bound_sorts.reserve(num_bound);
+      std::vector<Z3_symbol> bound_names;
+      bound_names.reserve(num_bound);
+
+      for (unsigned i = 0; i < num_bound; ++i) {
+        z3::ast z(marshal(bind::decl(e, i), ctx, cache, seen));
+        pinned.push_back(z);
+
+        Z3_func_decl decl = Z3_to_func_decl(ctx, z);
+        bound_sorts.push_back(Z3_get_range(ctx, decl));
+        bound_names.push_back(Z3_get_decl_name(ctx, decl));
+      }
+
+      if (isOpX<FORALL>(e) || isOpX<EXISTS>(e)) {
+        res = Z3_mk_quantifier(ctx, isOpX<FORALL>(e), 0, 0, nullptr, num_bound,
+                               &bound_sorts[0], &bound_names[0], body);
+      } else {
+        assert(isOpX<LAMBDA>(e));
+        res = Z3_mk_lambda(ctx, num_bound, &bound_sorts[0], &bound_names[0],
+                           body);
+      }
+    } else if (isOp<BEXTRACT>(e)) {
+      assert(bv::high(e) >= bv::low(e));
+      z3::ast a(ctx, marshal(bv::earg(e), ctx, cache, seen));
+      res = Z3_mk_extract(ctx, bv::high(e), bv::low(e), a);
+    } else if (bind::isBVar(e)) {
+      z3::ast sort(marshal(bind::type(e), ctx, cache, seen));
+      res = Z3_mk_bound(ctx, bind::bvarId(e),
+                        reinterpret_cast<Z3_sort>(static_cast<Z3_ast>(sort)));
+    }
+
+    if (res) {
+      z3::ast ast(ctx, res);
+      todo.pop_back();
+      seen.insert(ufo::expr_ast_map::value_type(e, ast));
+      continue;
+    }
+
+    // expressions that are cached locally
+    // process arguments
+    zargs.clear();
+    for (auto *arg : llvm::make_range(e->args_begin(), e->args_end())) {
+      auto cache_it = cache.find(arg);
+      if (cache_it != cache.end()) {
+        zargs.push_back(cache_it->second);
+        continue;
+      }
+      auto seen_it = seen.find(arg);
+      if (seen_it != seen.end()) {
+        zargs.push_back(seen_it->second);
+        continue;
+      }
+      todo.push_back(arg);
+    }
+    if (todo.size() > sz)
+      continue;
+
+    // all arguments are ready, construct expression
+
+    switch (family_id) {
+    case OpFamilyId::Terminal:
+      switch (llvm::cast<TerminalBase>(op).m_kind) {
+      case TerminalKind::MPQ: {
+        const mpq_class &num = getTerm<mpq_class>(e);
+        res = mk_mpq_core(ctx, num);
+        break;
+      }
+      case TerminalKind::MPZ: {
+        const mpz_class &num = getTerm<mpz_class>(e);
+        res = mk_mpz_core(ctx, num);
+        break;
+      }
+      }
+      break;
+    case OpFamilyId::BoolOp:
+      res = mk_boolop_core(ctx, op, arity, zargs);
+      break;
+    case OpFamilyId::ComparissonOp:
+      res = mk_compare_core(ctx, op, arity, zargs);
+      break;
+    case OpFamilyId::NumericOp:
+      res = mk_numeric_core(ctx, op, arity, zargs);
+      break;
+    case OpFamilyId::SimpleTypeOp:
+      res = mk_type_core(ctx, op, arity, zargs);
+      break;
+    case OpFamilyId::ArrayOp:
+      res = mk_array_core(ctx, op, arity, zargs);
+      break;
+    case OpFamilyId::BindOp:
+      res = mk_bind_core(ctx, op, arity, zargs);
+      break;
+    case OpFamilyId::BinderOp:
+    case OpFamilyId::BvOp:
+      res = mk_bvop_core(ctx, op, arity, zargs);
+      break;
+    default:
+      ERR << "Not convertable to Z3: " << *e << "\n";
+      std::exit(1);
+    }
+
+    if(!res) {
+      ERR << "failed to convert to z3: " << *e << "\n";
+      ERR << Z3_get_error_msg(ctx, Z3_get_error_code(ctx));
+    }
+    assert(res);
+    todo.pop_back();
+    seen.insert(ufo::expr_ast_map::value_type(e, z3::ast(ctx, res)));
+  }
+
+  assert(res);
+  return z3::ast(ctx, res);
+} // namespace seahorn
+} // namespace seahorn

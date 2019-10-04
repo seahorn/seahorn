@@ -1,4 +1,4 @@
-#include "seahorn/Expr/Smt/ZExprConverter.hh"
+#include "seahorn/Expr/Smt/EZ3.hh"
 #include "llvm/Support/raw_ostream.h"
 
 #include "doctest.h"

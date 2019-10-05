@@ -2,6 +2,7 @@
 
 #include "seahorn/Transforms/Utils/NameValues.hh"
 
+#include "seahorn/Expr/ExprLlvm.hh"
 #include "seahorn/Support/BoostLlvmGraphTraits.hh"
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/SCCIterator.h"
@@ -26,7 +27,7 @@
 #include "seahorn/Analysis/CanFail.hh"
 #include "seahorn/Analysis/CutPointGraph.hh"
 #include "seahorn/Support/Stats.hh"
-#include "ufo/Smt/EZ3.hh"
+#include "seahorn/Expr/Smt/EZ3.hh"
 
 #include "seahorn/FlatHornifyFunction.hh"
 #include "seahorn/HornifyFunction.hh"

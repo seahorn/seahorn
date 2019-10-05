@@ -7,6 +7,8 @@
 
 #include "boost/container/flat_set.hpp"
 #include "seahorn/Support/SeaDebug.h"
+#include "seahorn/Expr/ExprLlvm.hh"
+
 
 namespace seahorn {
 void BmcEngine::addCutPoint(const CutPoint &cp) {

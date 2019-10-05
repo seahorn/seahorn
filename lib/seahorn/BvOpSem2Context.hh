@@ -4,7 +4,8 @@
 #include "seahorn/Support/SeaDebug.h"
 #include "seahorn/Support/SeaLog.hh"
 
-#include "ufo/Smt/EZ3.hh"
+#include "seahorn/Expr/ExprLlvm.hh"
+#include "seahorn/Expr/Smt/EZ3.hh"
 
 namespace seahorn {
 namespace details {

@@ -1,5 +1,6 @@
 #include "BvOpSem2Context.hh"
 
+#include "seahorn/Expr/ExprLlvm.hh"
 #include "llvm/Support/Format.h"
 using namespace llvm;
 

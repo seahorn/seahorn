@@ -1,6 +1,6 @@
 #include "seahorn/MemSimulator.hh"
 #include "seahorn/Support/SeaDebug.h"
-#include "ufo/Expr.hpp"
+#include "seahorn/Expr/ExprLlvm.hh"
 #include "llvm/IR/InstVisitor.h"
 
 #include "llvm/Analysis/MemoryBuiltins.h"

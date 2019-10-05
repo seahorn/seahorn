@@ -8,7 +8,9 @@
 #include "seahorn/HornClauseDBBgl.hh"
 #include "seahorn/Analysis/WeakTopologicalOrder.hh"
 
+#include "seahorn/Expr/ExprLlvm.hh"
 #include "seahorn/Support/SeaDebug.h"
+
 namespace seahorn
 {
   using namespace llvm;

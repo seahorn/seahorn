@@ -263,7 +263,7 @@ inline Z3_ast mk_bvop_core(z3::context &ctx, const expr::Operator &op,
 
 namespace seahorn {
 template <typename C>
-z3::ast ExprToZ::marshal(expr::Expr _e, z3::context &ctx, C &cache,
+z3::ast ExprToZ::marshal(const expr::Expr &_e, z3::context &ctx, C &cache,
                          ufo::expr_ast_map &seen) {
   using namespace expr;
 

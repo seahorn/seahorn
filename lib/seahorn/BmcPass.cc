@@ -7,6 +7,7 @@
 
 #include "seahorn/config.h"
 
+#include "seahorn/Expr/ExprLlvm.hh"
 #include "seahorn/Support/Stats.hh"
 #include "seahorn/Transforms/Utils/NameValues.hh"
 #include "ufo/Smt/EZ3.hh"

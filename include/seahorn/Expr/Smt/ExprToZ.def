@@ -373,7 +373,7 @@ z3::ast ExprToZ::marshal(const expr::Expr &_e, z3::context &ctx, C &cache,
     if (res) {
       todo.pop_back();
       z3::ast ast(ctx, res);
-      cache.insert(typename C::value_type(e, ast));
+      cache.insert({e, ast});
       continue;
     }
 
@@ -435,7 +435,7 @@ z3::ast ExprToZ::marshal(const expr::Expr &_e, z3::context &ctx, C &cache,
     if (res) {
       z3::ast ast(ctx, res);
       todo.pop_back();
-      seen.insert(ufo::expr_ast_map::value_type(e, ast));
+      seen.insert({e, ast});
       continue;
     }
 
@@ -508,10 +508,10 @@ z3::ast ExprToZ::marshal(const expr::Expr &_e, z3::context &ctx, C &cache,
     }
     assert(res);
     todo.pop_back();
-    seen.insert(ufo::expr_ast_map::value_type(e, z3::ast(ctx, res)));
+    seen.insert({e, z3::ast(ctx, res)});
   }
 
   assert(res);
   return z3::ast(ctx, res);
-} // namespace seahorn
+} 
 } // namespace seahorn

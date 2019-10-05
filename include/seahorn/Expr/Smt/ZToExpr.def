@@ -139,12 +139,12 @@ expr::Expr ZToExpr::unmarshal(const z3::ast &z, expr::ExprFactory &efac,
   }
 
   {
-    typename C::const_iterator it = cache.find(z);
+    auto it = cache.find(z);
     if (it != cache.end())
       return it->second;
   }
   {
-    typename ::ufo::ast_expr_map::const_iterator it = seen.find(z);
+    auto it = seen.find(z);
     if (it != seen.end())
       return it->second;
   }
@@ -168,7 +168,7 @@ expr::Expr ZToExpr::unmarshal(const z3::ast &z, expr::ExprFactory &efac,
     }
 
     if (res)
-      cache.insert(typename C::value_type(z, res));
+      cache.insert({z, res});
     return res;
   }
 
@@ -406,12 +406,12 @@ expr::Expr ZToExpr::unmarshal(const z3::ast &z, expr::ExprFactory &efac,
     e = mknary<BCONCAT>(args.begin(), args.end());
     break;
   default:
-    assert(false);
     e = Expr();
+    ERR << "unknown expression: " << z.to_string() << "\n";
+    llvm_unreachable("unknown z3 expression");
   }
 
   seen[z] = e;
   return e;
 }
 } // namespace seahorn
-

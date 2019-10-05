@@ -2,6 +2,7 @@
 #include "seahorn/HornClauseDBTransf.hh"
 #include "seahorn/HornDbModel.hh"
 #include "seahorn/HornifyModule.hh"
+#include "seahorn/Expr/ExprLlvm.hh"
 
 #include "seahorn/Support/Stats.hh"
 #include "llvm/IR/Function.h"

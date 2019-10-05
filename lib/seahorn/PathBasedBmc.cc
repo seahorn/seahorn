@@ -1,4 +1,5 @@
 #include "seahorn/PathBasedBmc.hh"
+#include "seahorn/Expr/ExprLlvm.hh"
 #include "seahorn/Analysis/CutPointGraph.hh"
 #include "seahorn/Support/CFG.hh"
 #include "seahorn/UfoOpSem.hh"

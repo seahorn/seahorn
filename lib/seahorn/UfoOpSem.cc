@@ -10,7 +10,8 @@
 
 #include "seahorn/Support/SeaDebug.h"
 #include "seahorn/Support/Stats.hh"
-#include "ufo/Smt/EZ3.hh"
+#include "seahorn/Expr/ExprLlvm.hh"
+#include "seahorn/Expr/Smt/EZ3.hh"
 
 using namespace seahorn;
 using namespace llvm;

@@ -1,10 +1,6 @@
+#pragma once
 /**
- */
-
-#ifndef __UFO_Z3N_HPP_
-#define __UFO_Z3N_HPP_
-/**
-   New Z3 interface based of Z3 v4.
+   Z3 interface 
 
  */
 
@@ -24,6 +20,7 @@
 #include <boost/range/algorithm/sort.hpp>
 
 #include "seahorn/Expr/Expr.hh"
+#include "seahorn/Expr/ExprLlvm.hh"
 #include "seahorn/Expr/ExprInterp.hh"
 
 namespace z3 {
@@ -1008,4 +1005,3 @@ Expr z3_all_sat(Z &z3, Expr e, const Range &terms) {
 
 } // namespace ufo
 
-#endif

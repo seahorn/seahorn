@@ -2,8 +2,8 @@
 #define _MCMT_WRITER__H_
 
 #include "seahorn/HornClauseDB.hh"
-#include "ufo/Expr.hpp"
-#include "ufo/Smt/EZ3.hh"
+#include "seahorn/Expr/ExprLlvm.hh"
+#include "seahorn/Expr/Smt/EZ3.hh"
 
 #include "seahorn/config.h"
 

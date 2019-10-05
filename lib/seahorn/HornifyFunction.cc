@@ -1,6 +1,7 @@
 #include "seahorn/HornifyFunction.hh"
 #include "seahorn/LiveSymbols.hh"
 #include "seahorn/Support/CFG.hh"
+#include "seahorn/Expr/ExprLlvm.hh"
 #include "seahorn/Support/ExprSeahorn.hh"
 #include "seahorn/Support/Stats.hh"
 

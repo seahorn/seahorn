@@ -10,6 +10,7 @@
 #include "boost/algorithm/string/replace.hpp"
 #include <memory>
 #include "seahorn/Support/SeaDebug.h"
+#include "seahorn/Expr/ExprLlvm.hh"
 
 using namespace llvm;
 namespace seahorn {

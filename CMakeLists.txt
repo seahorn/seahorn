@@ -27,6 +27,10 @@ if(NOT CMAKE_BUILD_TYPE)
 endif()
 
 option(SEA_ENABLE_LLD "Use lld as C and C++ linker." OFF)
+if(SEA_ENABLE_LLD) 
+  set(CMAKE_EXE_LINKER_FLAGS "-fuse-ld=lld")
+endif()
+
 option(SEA_USE_SPLIT_DWARF "Use -gsplit-dwarf. Decreases linker pressure." OFF)
 
 option(SEA_ENABLE_ASSERTIONS "Enable assertions." OFF)

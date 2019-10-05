@@ -96,8 +96,8 @@ private:
   Expr oneE;
 
   /// \brief local simplifier
-  std::shared_ptr<ufo::EZ3> m_z3;
-  std::shared_ptr<ufo::ZSimplifier<ufo::EZ3>> m_z3_simplifier;
+  std::shared_ptr<EZ3> m_z3;
+  std::shared_ptr<ZSimplifier<EZ3>> m_z3_simplifier;
 
 public:
   /// \brief Create a new context with given semantics, values, and side
@@ -109,7 +109,7 @@ public:
   Bv2OpSemContext(const Bv2OpSemContext &) = delete;
   ~Bv2OpSemContext() override = default;
 
-  ufo::EZ3* getZ3() const {return m_z3.get();}
+  EZ3* getZ3() const {return m_z3.get();}
 
   /// \brief Writes value \p u into symbolic register \p v
   void write(Expr v, Expr u);

@@ -3,7 +3,7 @@
 
 /** Bit-Vector expressions
 
- * This file is included from middle of Expr.hpp
+ * This file is included from middle of Expr.hh
  */
 namespace expr {
 namespace op {

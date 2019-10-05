@@ -155,14 +155,14 @@ static bool isCriticalEdge(const BasicBlock *src, const BasicBlock *dst) {
   bool not_only_leaving = false;
   bool not_only_entering = false;
 
-  for (const BasicBlock *s : seahorn::succs(*src)) {
+  for (const BasicBlock *s : succs(*src)) {
     if (s != dst) {
       not_only_leaving = true;
       break;
     }
   }
 
-  for (const BasicBlock *p : seahorn::preds(*dst)) {
+  for (const BasicBlock *p : preds(*dst)) {
     if (p != src) {
       not_only_entering = true;
       break;
@@ -283,12 +283,12 @@ static void bool_abstraction(ExprVector &side, ExprVector &abs_side) {
 }
 
 struct scoped_solver {
-  ufo::ZSolver<ufo::EZ3> &m_solver;
+  ZSolver<EZ3> &m_solver;
 
 public:
-  scoped_solver(ufo::ZSolver<ufo::EZ3> &solver, unsigned timeout /* seconds*/)
+  scoped_solver(ZSolver<EZ3> &solver, unsigned timeout /* seconds*/)
       : m_solver(solver) {
-    ufo::ZParams<ufo::EZ3> params(m_solver.getContext());
+    ZParams<EZ3> params(m_solver.getContext());
     // We should check here for possible overflow if timeout is
     // given, e.g., in miliseconds.
     params.set(":timeout", timeout * 1000);
@@ -296,23 +296,23 @@ public:
   }
 
   ~scoped_solver() {
-    ufo::ZParams<ufo::EZ3> params(m_solver.getContext());
+    ZParams<EZ3> params(m_solver.getContext());
     params.set(":timeout", 4294967295u); // disable timeout
     m_solver.set(params);
   }
 
-  ufo::ZSolver<ufo::EZ3> &get() { return m_solver; }
+  ZSolver<EZ3> &get() { return m_solver; }
 };
 
 // Compute minimal unsatisfiable cores
 class minimal_unsat_core {
 protected:
-  ufo::ZSolver<ufo::EZ3> &m_solver;
+  ZSolver<EZ3> &m_solver;
 
   std::vector<unsigned> m_size_solver_calls;
 
 public:
-  minimal_unsat_core(ufo::ZSolver<ufo::EZ3> &solver) : m_solver(solver) {}
+  minimal_unsat_core(ZSolver<EZ3> &solver) : m_solver(solver) {}
 
   virtual void run(const ExprVector &f, ExprVector &core) = 0;
 
@@ -339,7 +339,7 @@ public:
 
 class muc_with_assumptions : public minimal_unsat_core {
 public:
-  muc_with_assumptions(ufo::ZSolver<ufo::EZ3> &solver)
+  muc_with_assumptions(ZSolver<EZ3> &solver)
       : minimal_unsat_core(solver) {}
 
   std::string get_name(void) const { return "MUC with assumptions"; }
@@ -398,7 +398,7 @@ private:
   }
 
 public:
-  deletion_muc(ufo::ZSolver<ufo::EZ3> &solver) : minimal_unsat_core(solver) {}
+  deletion_muc(ZSolver<EZ3> &solver) : minimal_unsat_core(solver) {}
 
   void run(const ExprVector &f, ExprVector &out) override {
     ExprVector assumptions;
@@ -480,7 +480,7 @@ class binary_search_muc : public minimal_unsat_core {
   
 public:
   
-  binary_search_muc(ufo::ZSolver<ufo::EZ3> &solver)
+  binary_search_muc(ZSolver<EZ3> &solver)
     : minimal_unsat_core(solver) {}
 
   void run(const ExprVector &formula, ExprVector &out) override {
@@ -1075,31 +1075,31 @@ boost::tribool PathBasedBmcEngine::path_encoding_and_solve_with_smt(
 
 #ifdef HAVE_CRAB_LLVM
 PathBasedBmcEngine::PathBasedBmcEngine(LegacyOperationalSemantics &sem,
-                                       ufo::EZ3 &zctx,
+                                       EZ3 &zctx,
                                        crab_llvm::CrabLlvmPass *crab,
                                        const TargetLibraryInfo &tli)
     : BmcEngine(sem, zctx), m_incomplete(false), m_num_paths(0),
       m_aux_smt_solver(zctx), m_tli(tli), m_model(zctx), m_ls(nullptr),
       m_crab_global(crab), m_crab_path(nullptr) {
   // Tuning m_aux_smt_solver
-  ufo::z3n_set_param(":model_compress", false);
-  ufo::z3n_set_param(":proof", false);
+  z3n_set_param(":model_compress", false);
+  z3n_set_param(":proof", false);
   
-  //ufo::ZParams<ufo::EZ3> params(zctx);
+  //ZParams<EZ3> params(zctx);
   //params.set(":model_compress", false);
   //m_aux_smt_solver.set(params);    
 }
 #else
 PathBasedBmcEngine::PathBasedBmcEngine(LegacyOperationalSemantics &sem,
-                                       ufo::EZ3 &zctx,
+                                       EZ3 &zctx,
                                        const TargetLibraryInfo &tli)
     : BmcEngine(sem, zctx), m_incomplete(false), m_num_paths(0),
       m_aux_smt_solver(zctx), m_tli(tli), m_model(zctx), m_ls(nullptr) {
   // Tuning m_aux_smt_solver
-  ufo::z3n_set_param(":model_compress", false);
-  ufo::z3n_set_param(":proof", false);
+  z3n_set_param(":model_compress", false);
+  z3n_set_param(":proof", false);
   
-  //ufo::ZParams<ufo::EZ3> params(zctx);
+  //ZParams<EZ3> params(zctx);
   //params.set(":model_compress", false);
   //m_aux_smt_solver.set(params);    
 }
@@ -1185,7 +1185,7 @@ void PathBasedBmcEngine::encode(bool assert_formula /*unused*/) {
   Stats::stop("BMC path-based: precise encoding");
 }
 
-static inline boost::tribool path_solver(ufo::ZSolver<ufo::EZ3> &solver) {
+static inline boost::tribool path_solver(ZSolver<EZ3> &solver) {
   Stats::resume("BMC path-based: enumeration path solver");
   boost::tribool res = solver.solve();
   Stats::stop("BMC path-based: enumeration path solver");
@@ -1294,7 +1294,7 @@ boost::tribool PathBasedBmcEngine::solve() {
 
     LOG("bmc", get_os(true) << m_num_paths << ": ");
     Stats::resume("BMC path-based: get model");
-    ufo::ZModel<ufo::EZ3> model = m_smt_solver.getModel();
+    ZModel<EZ3> model = m_smt_solver.getModel();
     Stats::stop("BMC path-based: get model");
 
     LOG("bmc-details", errs() << "Model " << m_num_paths << " found: \n"
@@ -1475,7 +1475,7 @@ BmcTrace PathBasedBmcEngine::getTrace() {
   return trace;
 }
 
-ufo::ZModel<ufo::EZ3> PathBasedBmcEngine::getModel() {
+ZModel<EZ3> PathBasedBmcEngine::getModel() {
   assert((bool)m_result);
   return m_model;
 }

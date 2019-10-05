@@ -2,7 +2,7 @@
 #include "llvm/Support/CommandLine.h"
 #include "llvm/IR/Value.h"
 #include "llvm/IR/Constants.h"
-#include "ufo/ExprLlvm.hpp"
+#include "seahorn/Expr/ExprLlvm.hh"
 #include "boost/algorithm/string/replace.hpp"
 #include "boost/algorithm/string/predicate.hpp"
 #include "seahorn/Support/SeaDebug.h"

@@ -12,7 +12,7 @@
 
 using namespace std;
 using namespace expr;
-using namespace ufo;
+using namespace seahorn;
 
 static void run(seahorn::solver::Solver *s, Expr e, const ExprVector& model_vars) {
   s->push();
@@ -127,7 +127,7 @@ TEST_CASE("yices2-int.test") {
 TEST_CASE("yices2-bv.test") {
   using namespace std;
   using namespace expr;
-  using namespace ufo;
+  using namespace seahorn;
   
   seahorn::solver::solver_options opts;
   expr::ExprFactory efac;
@@ -163,7 +163,7 @@ TEST_CASE("yices2-bv.test") {
 TEST_CASE("yices2-int-arr.test") {
   using namespace std;
   using namespace expr;
-  using namespace ufo;
+  using namespace seahorn;
   
   seahorn::solver::solver_options opts;
   expr::ExprFactory efac;
@@ -214,7 +214,7 @@ TEST_CASE("yices2-int-arr.test") {
 TEST_CASE("yices2-int-bv.test") {
   using namespace std;
   using namespace expr;
-  using namespace ufo;
+  using namespace seahorn;
   
   seahorn::solver::solver_options opts;
   expr::ExprFactory efac;

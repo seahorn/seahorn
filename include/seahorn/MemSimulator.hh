@@ -32,9 +32,9 @@ class MemSimulator {
   unsigned m_intMemStart;
 
   BmcTrace &m_trace;
-  ufo::ZModel<ufo::EZ3> m_model;
+  ZModel<EZ3> m_model;
 
-  ufo::EZ3 &zctx() { return m_trace.engine().zctx(); }
+  EZ3 &zctx() { return m_trace.engine().zctx(); }
 
 public:
   MemSimulator(BmcTrace &bmc_trace, const DataLayout &dl,

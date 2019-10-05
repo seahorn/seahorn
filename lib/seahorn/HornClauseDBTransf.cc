@@ -1,5 +1,5 @@
 #include "seahorn/HornClauseDBTransf.hh"
-#include "ufo/Expr.hpp"
+#include "seahorn/Expr/Expr.hh"
 
 namespace seahorn {
 using namespace expr;

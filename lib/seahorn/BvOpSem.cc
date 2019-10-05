@@ -8,7 +8,7 @@
 
 #include "seahorn/Support/IteratorExtras.hh"
 #include "seahorn/Support/SeaDebug.h"
-#include "ufo/ExprLlvm.hpp"
+#include "seahorn/Expr/ExprLlvm.hh"
 
 using namespace seahorn;
 using namespace llvm;

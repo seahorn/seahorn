@@ -1,7 +1,7 @@
 /**
    Not used. Should be removed when deprecated expressions are removed.
  */
-#include "ufo/deprecated/Expr.hpp"
+#include "ufo/deprecated/Expr.hh"
 
 using namespace expr;
 

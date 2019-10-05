@@ -27,8 +27,8 @@ bool LoadCrab::runOnFunction(llvm::Function &F) { return false; }
 /// Real implementation starts here
 #include "llvm/ADT/DenseSet.h"
 
-#include "ufo/Expr.hpp"
-#include "ufo/ExprLlvm.hpp"
+#include "seahorn/Expr/Expr.hh"
+#include "seahorn/Expr/ExprLlvm.hh"
 
 #include "seahorn/HornifyModule.hh"
 #include "seahorn/Transforms/Instrumentation/ShadowMemDsa.hh"

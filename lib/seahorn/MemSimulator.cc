@@ -6,7 +6,7 @@
 #include "llvm/Analysis/MemoryBuiltins.h"
 namespace seahorn {
 using namespace llvm;
-using namespace ufo;
+using namespace seahorn;
 using namespace expr;
 
 /*

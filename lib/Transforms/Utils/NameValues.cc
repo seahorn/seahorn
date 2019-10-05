@@ -106,7 +106,7 @@ bool NameValues::runOnFunction(Function &F) {
   return false;
 }
 
-} // namespace ufo
+} // namespace seahorn
 
 static llvm::RegisterPass<seahorn::NameValues> X("name-values",
                                              "Names all unnamed values");

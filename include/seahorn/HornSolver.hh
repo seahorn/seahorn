@@ -6,7 +6,7 @@
 #include "boost/logic/tribool.hpp"
 #include "seahorn/HornDbModel.hh"
 
-#include "ufo/Smt/EZ3.hh"
+#include "seahorn/Expr/Smt/EZ3.hh"
 
 namespace seahorn
 {
@@ -15,7 +15,7 @@ namespace seahorn
   class HornSolver : public llvm::ModulePass
   {
     boost::tribool m_result;
-    std::unique_ptr<ufo::ZFixedPoint <ufo::EZ3> >  m_fp;
+    std::unique_ptr<ZFixedPoint <EZ3> >  m_fp;
     
     void printCex ();
     void estimateSizeInvars (Module &M);
@@ -32,7 +32,7 @@ namespace seahorn
     virtual bool runOnModule (Module &M);
     virtual void getAnalysisUsage (AnalysisUsage &AU) const;
     virtual StringRef getPassName () const {return "HornSolver";}
-    ufo::ZFixedPoint<ufo::EZ3>& getZFixedPoint () {return *m_fp;}
+    ZFixedPoint<EZ3>& getZFixedPoint () {return *m_fp;}
     
     boost::tribool getResult () {return m_result;}
     void releaseMemory () {m_fp.reset (nullptr);}

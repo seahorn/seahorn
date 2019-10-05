@@ -9,8 +9,8 @@
 #include "seahorn/HornModelConverter.hh"
 #include "seahorn/GuessCandidates.hh"
 
-#include "ufo/Expr.hpp"
-#include "ufo/Smt/EZ3.hh"
+#include "seahorn/Expr/Expr.hh"
+#include "seahorn/Expr/Smt/EZ3.hh"
 #include "seahorn/HornClauseDBWto.hh"
 
 namespace seahorn
@@ -71,12 +71,12 @@ namespace seahorn
 	    virtual void getAnalysisUsage (AnalysisUsage &AU) const;
 	    virtual StringRef getPassName () const {return "PredicateAbstraction";}
 
-	    ufo::ZFixedPoint<ufo::EZ3>& getZFixedPoint () {return *m_fp;}
+	    ZFixedPoint<EZ3>& getZFixedPoint () {return *m_fp;}
 
 	    void printInvars(Function &F, HornDbModel &origModel);
 	    void printInvars(Module &M, HornDbModel &origModel);
 	private:
-	    std::unique_ptr<ufo::ZFixedPoint <ufo::EZ3> >  m_fp;
+	    std::unique_ptr<ZFixedPoint <EZ3> >  m_fp;
 	};
 }
 

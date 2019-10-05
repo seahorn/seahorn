@@ -6,7 +6,7 @@
 #include <boost/range/algorithm/copy.hpp>
 #include <boost/lexical_cast.hpp>
 
-#include "ufo/ExprLlvm.hpp"
+#include "seahorn/Expr/ExprLlvm.hh"
 #include "seahorn/Support/SeaDebug.h"
 
 #include <sstream>

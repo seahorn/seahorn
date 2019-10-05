@@ -39,7 +39,7 @@
 #include "seahorn/Support/SeaLog.hh"
 #include "seahorn/Support/Stats.hh"
 #include "seahorn/Transforms/Utils/NameValues.hh"
-#include "ufo/Smt/EZ3.hh"
+#include "seahorn/Expr/Smt/EZ3.hh"
 
 #include "seahorn/config.h"
 

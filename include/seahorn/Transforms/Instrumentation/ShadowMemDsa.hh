@@ -7,7 +7,7 @@
 #include "llvm/IR/Module.h"
 #include "llvm/Pass.h"
 
-#include "ufo/Expr.hpp"
+#include "seahorn/Expr/Expr.hh"
 
 #include <queue>
 

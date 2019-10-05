@@ -3,7 +3,7 @@
 #include "llvm/Pass.h"
 #include "llvm/IR/Module.h"
 #include "seahorn/config.h"
-#include "ufo/Expr.hpp"
+#include "seahorn/Expr/Expr.hh"
 
 #ifdef HAVE_CRAB_LLVM
 #include "crab_llvm/crab_cfg.hh"

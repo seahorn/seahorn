@@ -2,7 +2,7 @@
 #define __SYM_STORE_HH_
 /// A symbolic store is a map from symbolic registers to symbolic values.
 
-#include "ufo/Expr.hpp"
+#include "seahorn/Expr/Expr.hh"
 
 #include "llvm/Support/raw_ostream.h"
 #include <map>

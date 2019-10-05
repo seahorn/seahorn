@@ -5,8 +5,8 @@
 #include "seahorn/HornifyModule.hh"
 #include "seahorn/HornDbModel.hh"
 
-#include "ufo/Expr.hpp"
-#include "ufo/Smt/EZ3.hh"
+#include "seahorn/Expr/Expr.hh"
+#include "seahorn/Expr/Smt/EZ3.hh"
 
 namespace seahorn
 {

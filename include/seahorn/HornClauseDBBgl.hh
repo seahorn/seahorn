@@ -4,7 +4,7 @@
 /* View of a HornClauseDB as a BGL graph */
 
 #include "seahorn/HornClauseDB.hh"
-#include "ufo/Expr.hpp"
+#include "seahorn/Expr/Expr.hh"
 
 #include <boost/iterator/transform_iterator.hpp>
 #include <boost/graph/graph_traits.hpp>

@@ -6,8 +6,8 @@
 
 #include "boost/logic/tribool.hpp"
 
-#include "ufo/Expr.hpp"
-#include "ufo/Smt/EZ3.hh"
+#include "seahorn/Expr/Expr.hh"
+#include "seahorn/Expr/Smt/EZ3.hh"
 
 #include "seahorn/Analysis/CutPointGraph.hh"
 #include "seahorn/OperationalSemantics.hh"
@@ -24,10 +24,10 @@ namespace bmc_impl {
 bool isCallToVoidFn(const llvm::Instruction &I);
 /// computes an implicant of f (interpreted as a conjunction) that
 /// contains the given model
-void get_model_implicant(const ExprVector &f, ufo::ZModel<ufo::EZ3> &model,
+void get_model_implicant(const ExprVector &f, ZModel<EZ3> &model,
                          ExprVector &out, ExprMap &active_bool_map);
 // out is a minimal unsat core f based on assumptions
-void unsat_core(ufo::ZSolver<ufo::EZ3> &solver, const ExprVector &f,
+void unsat_core(ZSolver<EZ3> &solver, const ExprVector &f,
                 bool simplify, ExprVector &out);
 } // namespace bmc_impl
 
@@ -56,18 +56,18 @@ protected:
   const CutPointGraph *m_cpg;
   const llvm::Function *m_fn;
 
-  ufo::ZSolver<ufo::EZ3> m_smt_solver;
+  ZSolver<EZ3> m_smt_solver;
 
   SymStore m_ctxState;
   /// path-condition for m_cps
   ExprVector m_side;
 
 public:
-  BmcEngine(OperationalSemantics &sem, ufo::EZ3 &zctx)
+  BmcEngine(OperationalSemantics &sem, EZ3 &zctx)
       : m_sem(sem), m_efac(sem.efac()), m_result(boost::indeterminate),
         m_cpg(nullptr), m_fn(nullptr), m_smt_solver(zctx), m_ctxState(m_efac) {
 
-    ufo::z3n_set_param(":model_compress", false);
+    z3n_set_param(":model_compress", false);
     // ZParams<EZ3> params(zctx);
     // params.set(":model_compress", false);
     // m_smt_solver.set(params);
@@ -77,7 +77,7 @@ public:
 
   virtual OperationalSemantics &sem() { return m_sem; }
 
-  ufo::EZ3 &zctx() { return m_smt_solver.getContext(); }
+  EZ3 &zctx() { return m_smt_solver.getContext(); }
 
   /// constructs the path condition
   virtual void encode(bool assert_formula = true);
@@ -86,7 +86,7 @@ public:
   virtual boost::tribool solve();
 
   /// get model if side condition evaluated to sat.
-  virtual ufo::ZModel<ufo::EZ3> getModel() {
+  virtual ZModel<EZ3> getModel() {
     assert((bool)result());
     return m_smt_solver.getModel();
   }
@@ -136,7 +136,7 @@ public:
 class BmcTrace {
   BmcEngine &m_bmc;
 
-  ufo::ZModel<ufo::EZ3> m_model;
+  ZModel<EZ3> m_model;
 
   // for trace specific implicant
   ExprVector m_trace;
@@ -158,7 +158,7 @@ class BmcTrace {
   }
 
 public:
-  BmcTrace(BmcEngine &bmc, ufo::ZModel<ufo::EZ3> &model);
+  BmcTrace(BmcEngine &bmc, ZModel<EZ3> &model);
 
   BmcTrace(const BmcTrace &other)
       : m_bmc(other.m_bmc), m_model(other.m_model), m_bbs(other.m_bbs),

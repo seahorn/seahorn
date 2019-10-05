@@ -2,7 +2,7 @@
 
 #include "seahorn/OperationalSemantics.hh"
 #include "seahorn/SymStore.hh"
-#include "ufo/Expr.hpp"
+#include "seahorn/Expr/Expr.hh"
 #include "llvm/IR/InstVisitor.h"
 
 namespace seahorn {

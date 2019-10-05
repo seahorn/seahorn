@@ -86,7 +86,7 @@ BmcTrace BmcEngine::getTrace() {
   return BmcTrace(*this, model);
 }
 
-BmcTrace::BmcTrace(BmcEngine &bmc, ufo::ZModel<ufo::EZ3> &model)
+BmcTrace::BmcTrace(BmcEngine &bmc, ZModel<EZ3> &model)
     : m_bmc(bmc), m_model(model /*m_bmc.zctx()*/) {
   // assert ((bool)bmc.result ());
   // m_model = bmc.getModel ();
@@ -269,7 +269,7 @@ bool isCallToVoidFn(const llvm::Instruction &I) {
   return false;
 }
 
-void get_model_implicant(const ExprVector &f, ufo::ZModel<ufo::EZ3> &model,
+void get_model_implicant(const ExprVector &f, ZModel<EZ3> &model,
                          ExprVector &out, ExprMap &active_bool_map) {
   // XXX This is a partial implementation. Specialized to the
   // constraints expected to occur in m_side.
@@ -315,7 +315,7 @@ void get_model_implicant(const ExprVector &f, ufo::ZModel<ufo::EZ3> &model,
   }
 }
 
-void unsat_core(ufo::ZSolver<ufo::EZ3> &solver, const ExprVector &f,
+void unsat_core(ZSolver<EZ3> &solver, const ExprVector &f,
                 bool simplify, ExprVector &out) {
   solver.reset();
   ExprVector assumptions;

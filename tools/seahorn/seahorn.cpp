@@ -45,7 +45,7 @@
 
 #include "seahorn/Support/Stats.hh"
 #include "seahorn/Transforms/Utils/NameValues.hh"
-#include "ufo/Smt/EZ3.hh"
+#include "seahorn/Expr/Smt/EZ3.hh"
 
 #include "seahorn/Support/GitSHA1.h"
 void print_seahorn_version() {

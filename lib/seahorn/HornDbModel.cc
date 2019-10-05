@@ -2,7 +2,7 @@
 #include "seahorn/HornifyModule.hh"
 #include "seahorn/HornClauseDB.hh"
 
-#include "ufo/Expr.hpp"
+#include "seahorn/Expr/Expr.hh"
 #include <vector>
 
 #include "seahorn/Support/Stats.hh"

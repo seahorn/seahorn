@@ -32,11 +32,11 @@ namespace seahorn {
 class PathBasedBmcEngine : public BmcEngine {
 public:
 #ifdef HAVE_CRAB_LLVM
-  PathBasedBmcEngine(LegacyOperationalSemantics &sem, ufo::EZ3 &zctx,
+  PathBasedBmcEngine(LegacyOperationalSemantics &sem, EZ3 &zctx,
                      crab_llvm::CrabLlvmPass *crab,
                      const llvm::TargetLibraryInfo &tli);
 #else
-  PathBasedBmcEngine(LegacyOperationalSemantics &sem, ufo::EZ3 &zctx,
+  PathBasedBmcEngine(LegacyOperationalSemantics &sem, EZ3 &zctx,
                      const llvm::TargetLibraryInfo &tli);
 #endif
 
@@ -50,7 +50,7 @@ public:
   BmcTrace getTrace() override;
 
   // Return model if sat
-  ufo::ZModel<ufo::EZ3> getModel() override;
+  ZModel<EZ3> getModel() override;
 
   /// constructs the initial (precise) encoding
   /// but the encoding is not asserted in the solver.
@@ -76,14 +76,14 @@ private:
   // Count number of path
   unsigned m_num_paths;
   // used to solve a path formula
-  ufo::ZSolver<ufo::EZ3> m_aux_smt_solver;
+  ZSolver<EZ3> m_aux_smt_solver;
   const llvm::TargetLibraryInfo &m_tli;
 
   // Boolean literals that active the implicant: used to produce
   // blocking clauses for the Boolean abstraction.
   ExprVector m_active_bool_lits;
   // model of a path formula
-  ufo::ZModel<ufo::EZ3> m_model;
+  ZModel<EZ3> m_model;
   // live symbols
   LiveSymbols *m_ls;
 #ifdef HAVE_CRAB_LLVM

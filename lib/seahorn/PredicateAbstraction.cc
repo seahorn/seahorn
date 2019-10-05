@@ -10,8 +10,8 @@
 #include "llvm/IR/Function.h"
 #include "llvm/Support/CommandLine.h"
 
-#include "ufo/Expr.hpp"
-#include "ufo/Smt/EZ3.hh"
+#include "seahorn/Expr/Expr.hh"
+#include "seahorn/Expr/Smt/EZ3.hh"
 #include <vector>
 #include <boost/logic/tribool.hpp>
 #include "seahorn/HornClauseDBWto.hh"

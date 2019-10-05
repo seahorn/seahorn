@@ -6,7 +6,7 @@
 
 namespace seahorn {
 template 
-expr::Expr ZToExpr::unmarshal<typename ufo::EZ3::z_cache_type>(
-    const z3::ast &, expr::ExprFactory &, typename ufo::EZ3::z_cache_type &,
-    ufo::ast_expr_map &);
+expr::Expr ZToExpr::unmarshal<typename EZ3::z_cache_type>(
+        const z3::ast &, expr::ExprFactory &, typename EZ3::z_cache_type &,
+        ast_expr_map &);
 }

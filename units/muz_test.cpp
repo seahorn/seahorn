@@ -5,7 +5,7 @@
 
 TEST_CASE("z3.muz_test" * doctest::skip(true)) {
   using namespace std;
-  using namespace ufo;
+  using namespace seahorn;
   using namespace expr;
 
   ExprFactory efac;

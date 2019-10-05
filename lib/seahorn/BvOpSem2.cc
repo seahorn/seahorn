@@ -12,7 +12,7 @@
 #include "seahorn/Support/Stats.hh"
 #include "seahorn/Transforms/Instrumentation/ShadowMemDsa.hh"
 
-#include "ufo/ExprLlvm.hpp"
+#include "seahorn/Expr/ExprLlvm.hh"
 
 #include "BvOpSem2Context.hh"
 
@@ -75,19 +75,19 @@ const Value *extractUniqueScalar(CallSite &cs) {
   if (!EnableUniqueScalars2)
     return nullptr;
   else
-    return seahorn::shadow_dsa::extractUniqueScalar(cs);
+    return shadow_dsa::extractUniqueScalar(cs);
 }
 
 const Value *extractUniqueScalar(const CallInst *ci) {
   if (!EnableUniqueScalars2)
     return nullptr;
   else
-    return seahorn::shadow_dsa::extractUniqueScalar(ci);
+    return shadow_dsa::extractUniqueScalar(ci);
 }
 
 bool isShadowMem(const Value &V, const Value **out) {
   const Value *scalar;
-  bool res = seahorn::shadow_dsa::isShadowMem(V, &scalar);
+  bool res = shadow_dsa::isShadowMem(V, &scalar);
   if (EnableUniqueScalars2 && out)
     *out = scalar;
   return res;
@@ -1430,11 +1430,11 @@ void Bv2OpSemContext::write(Expr v, Expr u) {
   if (SimplifyOnWrite) {
     ScopedStats _st_("opsem.simplify");
     if (!m_z3) {
-      m_z3.reset(new ufo::EZ3(efac()));
-      m_z3_simplifier.reset(new ufo::ZSimplifier<ufo::EZ3>(*m_z3));
+      m_z3.reset(new EZ3(efac()));
+      m_z3_simplifier.reset(new ZSimplifier<EZ3>(*m_z3));
     }
 
-    ufo::ZParams<ufo::EZ3> params(*m_z3);
+    ZParams<EZ3> params(*m_z3);
     params.set("ctrl_c", true);
     // params.set("timeout", 10000U /*ms*/);
     // params.set("flat", false);
@@ -1731,7 +1731,7 @@ Bv2OpSem::Bv2OpSem(ExprFactory &efac, Pass &pass, const DataLayout &dl,
 }
 
 OpSemContextPtr Bv2OpSem::mkContext(SymStore &values, ExprVector &side) {
-  return OpSemContextPtr(new details::Bv2OpSemContext(*this, values, side));
+  return OpSemContextPtr(new seahorn::details::Bv2OpSemContext(*this, values, side));
 }
 
 Bv2OpSem::Bv2OpSem(const Bv2OpSem &o)
@@ -1745,10 +1745,10 @@ Expr Bv2OpSem::errorFlag(const BasicBlock &BB) {
   return this->OperationalSemantics::errorFlag(BB);
 }
 
-void Bv2OpSem::exec(const BasicBlock &bb, details::Bv2OpSemContext &ctx) {
+void Bv2OpSem::exec(const BasicBlock &bb, seahorn::details::Bv2OpSemContext &ctx) {
   ctx.onBasicBlockEntry(bb);
 
-  details::OpSemVisitor v(ctx, *this);
+  seahorn::details::OpSemVisitor v(ctx, *this);
   v.visitBasicBlock(const_cast<BasicBlock &>(bb));
   // skip PHI instructions
   for (; isa<PHINode>(ctx.getCurrentInst()); ++ctx)
@@ -1760,14 +1760,14 @@ void Bv2OpSem::exec(const BasicBlock &bb, details::Bv2OpSemContext &ctx) {
 }
 
 void Bv2OpSem::execPhi(const BasicBlock &bb, const BasicBlock &from,
-                       details::Bv2OpSemContext &ctx) {
+                       seahorn::details::Bv2OpSemContext &ctx) {
   ctx.onBasicBlockEntry(bb);
   ctx.setPrevBb(from);
   intraPhi(ctx);
 }
 
 Expr Bv2OpSem::symbolicIndexedOffset(gep_type_iterator TI, gep_type_iterator TE,
-                                     details::Bv2OpSemContext &ctx) {
+                                     seahorn::details::Bv2OpSemContext &ctx) {
   unsigned ptrSz = pointerSizeInBits();
 
   // numeric offset
@@ -1832,7 +1832,7 @@ unsigned Bv2OpSem::fieldOff(const StructType *t, unsigned field) const {
       ->getElementOffset(field);
 }
 
-Expr Bv2OpSem::getOperandValue(const Value &v, details::Bv2OpSemContext &ctx) {
+Expr Bv2OpSem::getOperandValue(const Value &v, seahorn::details::Bv2OpSemContext &ctx) {
   Expr res;
   if (auto *bb = dyn_cast<BasicBlock>(&v)) {
     Expr reg = ctx.getRegister(*bb);
@@ -1861,7 +1861,7 @@ Expr Bv2OpSem::getOperandValue(const Value &v, details::Bv2OpSemContext &ctx) {
   return res;
 }
 
-bool Bv2OpSem::isSymReg(Expr v, details::Bv2OpSemContext &C) {
+bool Bv2OpSem::isSymReg(Expr v, seahorn::details::Bv2OpSemContext &C) {
   if (this->OperationalSemantics::isSymReg(v))
     return true;
 
@@ -1970,7 +1970,7 @@ bool Bv2OpSem::isSkipped(const Value &v) const {
 /// \brief Executes one intra-procedural instructions in the current
 /// context. Returns false if there are no more instructions to
 /// execute after the last one
-bool Bv2OpSem::intraStep(details::Bv2OpSemContext &C) {
+bool Bv2OpSem::intraStep(seahorn::details::Bv2OpSemContext &C) {
   if (C.isAtBbEnd())
     return false;
 
@@ -1985,7 +1985,7 @@ bool Bv2OpSem::intraStep(details::Bv2OpSemContext &C) {
     skipInst(inst, C);
   } else {
     // -- execute instruction
-    details::OpSemVisitor v(C, *this);
+    seahorn::details::OpSemVisitor v(C, *this);
     LOG("opsem.verbose", errs() << "Executing: " << inst << "\n";);
     v.visit(const_cast<Instruction &>(inst));
   }
@@ -1998,16 +1998,16 @@ bool Bv2OpSem::intraStep(details::Bv2OpSemContext &C) {
   return false;
 }
 
-void Bv2OpSem::intraPhi(details::Bv2OpSemContext &C) {
+void Bv2OpSem::intraPhi(seahorn::details::Bv2OpSemContext &C) {
   assert(C.getPrevBb());
 
   // act is ignored since phi node only introduces a definition
-  details::OpSemPhiVisitor v(C, *this);
+  seahorn::details::OpSemPhiVisitor v(C, *this);
   v.visitBasicBlock(const_cast<BasicBlock &>(*C.getCurrBb()));
 }
 /// \brief Executes one intra-procedural branch instruction in the
 /// current context. Assumes that current instruction is a branch
-void Bv2OpSem::intraBr(details::Bv2OpSemContext &C, const BasicBlock &dst) {
+void Bv2OpSem::intraBr(seahorn::details::Bv2OpSemContext &C, const BasicBlock &dst) {
   const BranchInst *br = dyn_cast<const BranchInst>(&C.getCurrentInst());
   if (!br)
     return;
@@ -2043,7 +2043,7 @@ void Bv2OpSem::intraBr(details::Bv2OpSemContext &C, const BasicBlock &dst) {
 }
 
 void Bv2OpSem::skipInst(const Instruction &inst,
-                        details::Bv2OpSemContext &ctx) {
+                        seahorn::details::Bv2OpSemContext &ctx) {
   const Value *s;
   if (isShadowMem(inst, &s))
     return;
@@ -2055,13 +2055,13 @@ void Bv2OpSem::skipInst(const Instruction &inst,
                     << inst.getParent()->getParent()->getName(););
 }
 
-void Bv2OpSem::unhandledValue(const Value &v, details::Bv2OpSemContext &ctx) {
+void Bv2OpSem::unhandledValue(const Value &v, seahorn::details::Bv2OpSemContext &ctx) {
   if (const Instruction *inst = dyn_cast<const Instruction>(&v))
     return unhandledInst(*inst, ctx);
   LOG("opsem", WARN << "unhandled value: " << v;);
 }
 void Bv2OpSem::unhandledInst(const Instruction &inst,
-                             details::Bv2OpSemContext &ctx) {
+                             seahorn::details::Bv2OpSemContext &ctx) {
   if (ctx.isIgnored(inst))
     return;
   ctx.ignore(inst);
@@ -2072,7 +2072,7 @@ void Bv2OpSem::unhandledInst(const Instruction &inst,
 
 /// \brief Returns a symbolic register corresponding to a value
 Expr Bv2OpSem::mkSymbReg(const Value &v, OpSemContext &_ctx) {
-  return details::ctx(_ctx).mkRegister(v);
+  return seahorn::details::ctx(_ctx).mkRegister(v);
 }
 
 Expr Bv2OpSem::getSymbReg(const Value &v, const OpSemContext &_ctx) const {
@@ -2080,7 +2080,7 @@ Expr Bv2OpSem::getSymbReg(const Value &v, const OpSemContext &_ctx) const {
 }
 
 void Bv2OpSem::execEdg(const BasicBlock &src, const BasicBlock &dst,
-                       details::Bv2OpSemContext &ctx) {
+                       seahorn::details::Bv2OpSemContext &ctx) {
   exec(src, ctx.pc(trueE));
   execBr(src, dst, ctx);
   execPhi(dst, src, ctx);
@@ -2092,7 +2092,7 @@ void Bv2OpSem::execEdg(const BasicBlock &src, const BasicBlock &dst,
 }
 
 void Bv2OpSem::execBr(const BasicBlock &src, const BasicBlock &dst,
-                      details::Bv2OpSemContext &ctx) {
+                      seahorn::details::Bv2OpSemContext &ctx) {
   ctx.onBasicBlockEntry(src);
   ctx.setInstruction(*src.getTerminator());
   intraBr(ctx, dst);
@@ -2106,7 +2106,7 @@ namespace details {
 seahorn::details::Bv2OpSemContext &ctx(OpSemContext &_ctx) {
   return static_cast<seahorn::details::Bv2OpSemContext &>(_ctx);
 }
-} // namespace details
+} // namespace seahorn::details
 } // namespace seahorn
 namespace {
 // \brief Unwraps a const context

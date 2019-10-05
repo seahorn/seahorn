@@ -1,4 +1,4 @@
-#include "ufo/Smt/Z3n.hpp"
+#include "seahorn/Expr/Smt/Z3.hh"
 #include "llvm/Support/CommandLine.h"
 
 #include <string>

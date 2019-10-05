@@ -1,6 +1,6 @@
 #pragma once
 #include "seahorn/OperationalSemantics.hh"
-#include "ufo/Smt/EZ3.hh"
+#include "seahorn/Expr/Smt/EZ3.hh"
 
 namespace seahorn {
 class CpEdge;
@@ -22,8 +22,8 @@ class VCGen {
                                 const BasicBlock &bb, bool last = false);
 
   /// \brief Initialize SMT solver for eager VC checking
-  void initSmt(std::unique_ptr<ufo::EZ3> &zctx,
-               std::unique_ptr<ufo::ZSolver<ufo::EZ3>> &smt);
+  void initSmt(std::unique_ptr<EZ3> &zctx,
+               std::unique_ptr<ZSolver<EZ3>> &smt);
 
   /// \brief Check consistency of side-condition up-to a given basic block
   ///
@@ -36,7 +36,7 @@ class VCGen {
   /// \param edg the cut-point edge
   /// \param bb the basic block at which side-condition is checked
   void checkSideAtBb(unsigned &head, ExprVector &side, Expr pathCond,
-                     ufo::ZSolver<ufo::EZ3> &smt, const CpEdge &edg,
+                     ZSolver<EZ3> &smt, const CpEdge &edg,
                      const BasicBlock &bb);
 
   /// \brief Check consistency of side condition at the last block
@@ -44,7 +44,7 @@ class VCGen {
   /// If the side-condition is unsat, FALSE is added to the
   /// side-condition
   void checkSideAtEnd(unsigned &head, ExprVector &side,
-                      ufo::ZSolver<ufo::EZ3> &smt);
+                      ZSolver<EZ3> &smt);
 
 public:
   VCGen(OperationalSemantics &sem) : m_sem(sem) {

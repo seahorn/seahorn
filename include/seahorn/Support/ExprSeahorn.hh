@@ -5,7 +5,7 @@
  * Seahorn extensions to the Expr library
  */
 
-#include "ufo/Expr.hpp"
+#include "seahorn/Expr/Expr.hh"
 
 #include <boost/functional/hash.hpp>
 

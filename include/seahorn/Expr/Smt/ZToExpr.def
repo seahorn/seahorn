@@ -10,7 +10,7 @@
 namespace seahorn {
 template <typename C>
 expr::Expr ZToExpr::unmarshal(const z3::ast &z, expr::ExprFactory &efac,
-                              C &cache, ufo::ast_expr_map &seen) {
+                              C &cache, ast_expr_map &seen) {
   using namespace expr;
   z3::context &ctx = z.ctx();
 

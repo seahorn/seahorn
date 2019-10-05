@@ -5,7 +5,7 @@
 #include "seahorn/Support/CFG.hh"
 #include "seahorn/Support/Stats.hh"
 #include "seahorn/VCGen.hh"
-#include "ufo/Smt/EZ3.hh"
+#include "seahorn/Expr/Smt/EZ3.hh"
 
 #include "seahorn/Support/SeaDebug.h"
 
@@ -28,11 +28,11 @@ static llvm::cl::opt<bool> UseIte("horn-vcgen-use-ite",
                                   llvm::cl::desc("Use ite-terms in VC"),
                                   llvm::cl::init(false), llvm::cl::Hidden);
 
-using namespace ufo;
+using namespace seahorn;
 namespace seahorn {
 
-void VCGen::initSmt(std::unique_ptr<ufo::EZ3> &zctx,
-                    std::unique_ptr<ufo::ZSolver<ufo::EZ3>> &smt) {
+void VCGen::initSmt(std::unique_ptr<EZ3> &zctx,
+                    std::unique_ptr<ZSolver<EZ3>> &smt) {
   if (!LargeStepReduce)
     return;
   errs() << "\nE";
@@ -87,7 +87,7 @@ void VCGen::checkSideAtBb(unsigned &head, ExprVector &side, Expr pathCond,
 }
 
 void VCGen::checkSideAtEnd(unsigned &head, ExprVector &side,
-                           ufo::ZSolver<ufo::EZ3> &smt) {
+                           ZSolver<EZ3> &smt) {
   if (!LargeStepReduce)
     return;
   bind::IsConst isConst;

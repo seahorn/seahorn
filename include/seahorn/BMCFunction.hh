@@ -4,7 +4,7 @@
 #include "seahorn/BMCModule.hh"
 #include "llvm/IR/Function.h"
 
-#include "ufo/Expr.hpp"
+#include "ufo/Expr.hh"
 #include "ufo/Smt/EZ3.hh"
 #include "seahorn/UfoOpSem.hh"
 #include "seahorn/LiveSymbols.hh"

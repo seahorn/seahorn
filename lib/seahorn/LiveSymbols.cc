@@ -2,7 +2,7 @@
 #include "boost/range.hpp"
 #include "boost/range/algorithm.hpp"
 #include "seahorn/Support/SeaDebug.h"
-#include "ufo/ExprLlvm.hpp"
+#include "seahorn/Expr/ExprLlvm.hh"
 
 #include "seahorn/Support/SortTopo.hh"
 #include "llvm/Analysis/CFG.h"

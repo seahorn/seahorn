@@ -4,7 +4,7 @@
 #include "seahorn/HornClauseDB.hh"
 #include "seahorn/HornifyModule.hh"
 
-#include "ufo/Smt/EZ3.hh"
+#include "seahorn/Expr/Smt/EZ3.hh"
 
 namespace seahorn
 {

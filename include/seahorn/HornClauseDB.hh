@@ -9,7 +9,7 @@
 #include <boost/lexical_cast.hpp>
 #include <boost/container/flat_set.hpp>
 
-#include "ufo/Expr.hpp"
+#include "seahorn/Expr/Expr.hh"
 #include "seahorn/Support/Stats.hh"
 
 #include <algorithm>

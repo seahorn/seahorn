@@ -4,7 +4,7 @@
 #include "llvm/Pass.h"
 #include "llvm/IR/Module.h"
 
-#include "ufo/Expr.hpp"
+#include "ufo/Expr.hh"
 #include "ufo/Smt/EZ3.hh"
 #include "seahorn/UfoOpSem.hh"
 

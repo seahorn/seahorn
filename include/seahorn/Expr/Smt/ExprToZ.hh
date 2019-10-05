@@ -11,13 +11,13 @@ public:
   /// \p seen local map for current marshal call (in case it is recursive)
   template <typename C>
   static z3::ast marshal(const expr::Expr &e, z3::context &ctx, C &cache,
-                         ufo::expr_ast_map &seen);
+                         expr_ast_map &seen);
 };
 
 class ZToExpr {
 public:
   template <typename C>
   static expr::Expr unmarshal(const z3::ast &z, expr::ExprFactory &efac,
-                              C &cache, ::ufo::ast_expr_map &seen);
+                              C &cache, ast_expr_map &seen);
 };
 } // namespace seahorn

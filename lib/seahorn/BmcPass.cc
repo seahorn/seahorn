@@ -10,7 +10,7 @@
 #include "seahorn/Expr/ExprLlvm.hh"
 #include "seahorn/Support/Stats.hh"
 #include "seahorn/Transforms/Utils/NameValues.hh"
-#include "ufo/Smt/EZ3.hh"
+#include "seahorn/Expr/Smt/EZ3.hh"
 
 #include "seahorn/Analysis/CanFail.hh"
 #include "seahorn/Analysis/ControlDependenceAnalysis.hh"
@@ -68,7 +68,7 @@ public:
 
   virtual bool runOnModule(Module &M) {
     LOG("bmc-pass", errs() << "Start BmcPass\n";);
-    m_failure_analysis = getAnalysisIfAvailable<seahorn::CanFail>();
+    m_failure_analysis = getAnalysisIfAvailable<CanFail>();
 
     Function *main = M.getFunction("main");
     if (!main || main->isDeclaration()) {
@@ -91,21 +91,21 @@ public:
     if (m_engine == path_bmc) {
       if (XHornBmcCrab) {
         AU.addRequired<crab_llvm::CrabLlvmPass>();
-        AU.addRequired<seahorn::LowerCstExprPass>();
+        AU.addRequired<LowerCstExprPass>();
         // XXX: NameValues must be executed after LowerCstExprPass
         // because the latter might introduce unnamed instructions.
       }
     }
 #endif
 
-    AU.addRequired<seahorn::CanFail>();
-    AU.addRequired<seahorn::NameValues>();
-    AU.addRequired<seahorn::TopologicalOrder>();
+    AU.addRequired<CanFail>();
+    AU.addRequired<NameValues>();
+    AU.addRequired<TopologicalOrder>();
     AU.addRequired<CutPointGraph>();
     AU.addRequired<TargetLibraryInfoWrapperPass>();
 
     if (HornGSA)
-      AU.addRequired<seahorn::GateAnalysisPass>();
+      AU.addRequired<GateAnalysisPass>();
 
     AU.setPreservesAll();
   }
@@ -179,7 +179,7 @@ public:
       sem = llvm::make_unique<BvOpSem>(efac, *this,
                                        F.getParent()->getDataLayout(), MEM);
 
-    ufo::EZ3 zctx(efac);
+    EZ3 zctx(efac);
     std::unique_ptr<BmcEngine> bmc = nullptr;
     switch (m_engine) {
     case path_bmc: {

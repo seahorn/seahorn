@@ -4,8 +4,8 @@
 #include "seahorn/HornifyFunction.hh"
 #include "llvm/IR/Function.h"
 
-#include "ufo/Expr.hpp"
-#include "ufo/Smt/EZ3.hh"
+#include "seahorn/Expr/Expr.hh"
+#include "seahorn/Expr/Smt/EZ3.hh"
 #include "seahorn/UfoOpSem.hh"
 #include "seahorn/LiveSymbols.hh"
 

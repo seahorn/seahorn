@@ -38,7 +38,7 @@ struct ast_ptr_equal_to : public std::binary_function<ast, ast, bool> {
 };
 } // namespace z3
 
-namespace ufo {
+namespace seahorn {
 // -- fixedpoint class is missing from z3++.h
 class fixedpoint : public z3::object {
   Z3_fixedpoint m_fixedpoint;
@@ -65,9 +65,9 @@ public:
     check_error();
   }
 };
-} // namespace ufo
+} // namespace seahorn
 
-namespace ufo {
+namespace seahorn {
 using namespace expr;
 
 // forward declarations
@@ -165,9 +165,9 @@ template <typename Z> std::string z3_to_smtlib(Z &z3, Expr e) {
   return z3.toSmtLib(e);
 }
 
-} // namespace ufo
+} // namespace seahorn
 
-namespace ufo {
+namespace seahorn {
 
 using ast_expr_map = std::unordered_map<z3::ast, Expr, z3::ast_ptr_hash,
                                         z3::ast_ptr_equal_to>;
@@ -613,7 +613,7 @@ private:
 
   Z &z3;
   z3::context &ctx;
-  ufo::fixedpoint fp;
+  seahorn::fixedpoint fp;
   ExprFactory &efac;
 
   ExprVector m_rels;
@@ -949,9 +949,9 @@ public:
   }
 };
 
-} // namespace ufo
+} // namespace seahorn
 
-namespace ufo {
+namespace seahorn {
 template <typename Z> boost::tribool z3_is_sat(Z &z3, Expr e) {
   ZSolver<Z> s(z3);
   s.assertExpr(e);
@@ -1003,5 +1003,5 @@ Expr z3_all_sat(Z &z3, Expr e, const Range &terms) {
   return res;
 }
 
-} // namespace ufo
+} // namespace seahorn
 

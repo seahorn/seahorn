@@ -22,4 +22,4 @@ mk_zip_rng(Range1 &r1, Range2 &r2) {
                              mk_zip_it(boost::end(r1), boost::end(r2)));
 }
 
-} // namespace ufo
+} // namespace seahorn

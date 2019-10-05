@@ -3,7 +3,7 @@
 
 #include <vector>
 #include "seahorn/HornClauseDB.hh"
-#include "ufo/Expr.hpp"
+#include "seahorn/Expr/Expr.hh"
 
 namespace seahorn
 {

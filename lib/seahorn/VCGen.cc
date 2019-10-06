@@ -181,6 +181,20 @@ static Expr mkAtMostOne(ExprVector &vec) {
   return mknary<OR>(res);
 }
 
+namespace {
+bool hasTrackablePhiNode(const BasicBlock &bb, OperationalSemantics &sem) {
+  bool hasPhi = false;
+  for (const Instruction &inst : bb) {
+    if (!isa<PHINode>(&inst))
+      break;
+    if (sem.isTracked(inst)) {
+      return true;
+    }
+  }
+  return false;
+}
+}
+
 void VCGen::genVcForBasicBlockOnEdge(OpSemContext &ctx, const CpEdge &edge,
                                      const BasicBlock &bb, bool last) {
   ExprVector edges;
@@ -223,6 +237,12 @@ void VCGen::genVcForBasicBlockOnEdge(OpSemContext &ctx, const CpEdge &edge,
     }
   }
 
+  // bbV ==> at_least_one(edges)
+  // -- encode control flow
+  // -- b_j -> (b1 & e_{1,j} | b2 & e_{2,j} | ...)
+  ctx.addSide(mk<IMPL>(bbV, mknary<OR>(mk<FALSE>(m_sem.efac()), edges)));
+
+  // bbv ==> at_most_one(edges)
   if (EnforceAtMostOnePredecessor && edges.size() > 1) {
     // this enforces at-most-one predecessor.
     // if !bbV (i.e., bb is not reachable) then bb won't have
@@ -230,36 +250,26 @@ void VCGen::genVcForBasicBlockOnEdge(OpSemContext &ctx, const CpEdge &edge,
     ctx.addSide(mk<IMPL>(bbV, mkAtMostOne(edges)));
   }
 
-  // -- encode control flow
-  // -- b_j -> (b1 & e_{1,j} | b2 & e_{2,j} | ...)
-  ctx.addSide(mk<IMPL>(bbV, mknary<OR>(mk<FALSE>(m_sem.efac()), edges)));
-
   // unique node with no successors is asserted to always be reachable
   if (last)
     ctx.addSide(bbV);
 
-  // -- compute path condition for the current bb
+  // relate predecessors and conditions under which control flows from them
   unsigned idx = 0;
   for (const BasicBlock *pred : preds) {
-    // -- branch condition
-    OpSemContextPtr ectx = ctx.fork(ctx.values(), ctx.side());
-    ectx->setPathCond(edges[idx++]);
-    m_sem.execBr(*pred, bb, *ectx);
+    // -- save path condition
+    Expr savedPc = ctx.getPathCond();
+    // -- set path condition to the current edge
+    ctx.setPathCond(edges[idx++]);
+    // -- evaluate the condition of the branch
+    m_sem.execBr(*pred, bb, ctx);
+    // -- restore path condition
+    ctx.setPathCond(savedPc);
   }
 
   // -- see if there are tracked PHINodes
-  bool hasPhi = false;
-  for (const Instruction &inst : bb) {
-    if (!isa<PHINode>(&inst))
-      break;
-    if (m_sem.isTracked(inst)) {
-      hasPhi = true;
-      break;
-    }
-  }
-
   // -- compute values of PHINodes
-  if (hasPhi) {
+  if (hasTrackablePhiNode(bb, m_sem)) {
     /// -- generate constraints from the phi-nodes (keep them separate for now)
     // a map from predecessor id to values of all phi-defined variables over
     // that edge for example, phiVal[i][j] is the value of jth PHI-node when

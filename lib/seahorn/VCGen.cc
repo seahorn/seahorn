@@ -191,7 +191,7 @@ void VCGen::genVcForBasicBlockOnEdge(OpSemContext &ctx, const CpEdge &edge,
   // -- predicate for reachable from source
   sem_detail::FwdReachPred reachable(edge.parent(), edge.source());
 
-  // compute predecessors, relative to the source cut-point
+  // compute predecessors relative to the source cut-point
   llvm::SmallVector<const BasicBlock *, 16> preds;
   for (const BasicBlock *p : seahorn::preds(bb))
     if (reachable(p))
@@ -209,17 +209,17 @@ void VCGen::genVcForBasicBlockOnEdge(OpSemContext &ctx, const CpEdge &edge,
 
   // -- create edge variables only for critical edges.
   // -- for non critical edges, use (SRC && DST) instead
-  for (unsigned i = 0, e = preds.size(); i < e; ++i) {
+  for (unsigned i = 0, sz = preds.size(); i < sz; ++i) {
     // -- an edge is non-critical if dst has one predecessor, or src
     // -- has one successor
-    if (e == 1 || preds[i]->getTerminator()->getNumSuccessors() == 1)
+    if (sz == 1 || preds[i]->getTerminator()->getNumSuccessors() == 1)
       // -- single successor is non-critical
       edges[i] = mk<AND>(bbV, edges[i]);
-    else // -- critical edge, add edge variable
-    {
+    // -- critical edge, add edge variable
+    else {
       Expr edgV = bind::boolConst(mk<TUPLE>(edges[i], bbV));
       ctx.addSide(mk<IMPL>(edgV, edges[i]));
-      edges[i] = mk<AND>(edges[i], edgV);
+      edges[i] = edgV;
     }
   }
 

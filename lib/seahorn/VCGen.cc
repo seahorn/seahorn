@@ -2,17 +2,12 @@
 #include "llvm/Support/FileSystem.h"
 
 #include "seahorn/Analysis/CutPointGraph.hh"
+#include "seahorn/Expr/Smt/EZ3.hh"
 #include "seahorn/Support/CFG.hh"
 #include "seahorn/Support/Stats.hh"
 #include "seahorn/VCGen.hh"
-#include "seahorn/Expr/Smt/EZ3.hh"
 
 #include "seahorn/Support/SeaDebug.h"
-
-static llvm::cl::opt<bool> SplitCriticalEdgesOnly(
-    "horn-split-only-critical",
-    llvm::cl::desc("Introduce edge variables only for critical edges"),
-    llvm::cl::init(true), llvm::cl::Hidden);
 
 static llvm::cl::opt<bool> EnforceAtMostOnePredecessor(
     "horn-at-most-one-predecessor",
@@ -212,27 +207,20 @@ void VCGen::genVcForBasicBlockOnEdge(OpSemContext &ctx, const CpEdge &edge,
 
   // -- update destination of all the edges
 
-  if (SplitCriticalEdgesOnly) {
-    // -- create edge variables only for critical edges.
-    // -- for non critical edges, use (SRC && DST) instead
-
-    for (unsigned i = 0, e = preds.size(); i < e; ++i) {
-      // -- an edge is non-critical if dst has one predecessor, or src
-      // -- has one successor
-      if (e == 1 || preds[i]->getTerminator()->getNumSuccessors() == 1)
-        // -- single successor is non-critical
-        edges[i] = mk<AND>(bbV, edges[i]);
-      else // -- critical edge, add edge variable
-      {
-        Expr edgV = bind::boolConst(mk<TUPLE>(edges[i], bbV));
-        ctx.addSide(mk<IMPL>(edgV, edges[i]));
-        edges[i] = mk<AND>(edges[i], edgV);
-      }
+  // -- create edge variables only for critical edges.
+  // -- for non critical edges, use (SRC && DST) instead
+  for (unsigned i = 0, e = preds.size(); i < e; ++i) {
+    // -- an edge is non-critical if dst has one predecessor, or src
+    // -- has one successor
+    if (e == 1 || preds[i]->getTerminator()->getNumSuccessors() == 1)
+      // -- single successor is non-critical
+      edges[i] = mk<AND>(bbV, edges[i]);
+    else // -- critical edge, add edge variable
+    {
+      Expr edgV = bind::boolConst(mk<TUPLE>(edges[i], bbV));
+      ctx.addSide(mk<IMPL>(edgV, edges[i]));
+      edges[i] = mk<AND>(edges[i], edgV);
     }
-  } else {
-    // -- b_i & e_{i,j}
-    for (Expr &e : edges)
-      e = mk<AND>(e, bind::boolConst(mk<TUPLE>(e, bbV)));
   }
 
   if (EnforceAtMostOnePredecessor && edges.size() > 1) {

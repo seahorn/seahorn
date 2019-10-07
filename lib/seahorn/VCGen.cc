@@ -193,6 +193,45 @@ bool hasTrackablePhiNode(const BasicBlock &bb, OperationalSemantics &sem) {
   }
   return false;
 }
+
+void computePhiNodeValues(const BasicBlock &bb,
+                          const ArrayRef<const BasicBlock *> &preds,
+                          ExprVector &edges, OpSemContext &ctx,
+                          OperationalSemantics &sem,
+                          std::vector<ExprVector> &phiVal) {
+  phiVal.resize(preds.size());
+
+  unsigned idx = 0;
+  for (const BasicBlock *pred : preds) {
+    // clone s
+    Stats::resume("vcgen.store.clone");
+    SymStore es(ctx.values());
+    Stats::stop("vcgen.store.clone");
+    // XXX: ctx.fork() is very expensive because it copies complete
+    // XXX: content of the symbolic store. Can be fixed with a different
+    // interface
+    OpSemContextPtr ectx = ctx.fork(es, ctx.side());
+    ectx->setPathCond(edges[idx]);
+
+    // edge_ij -> phi_ij,
+    // -- definition of phi nodes
+    sem.execPhi(bb, *pred, *ectx);
+    // -- collect all uses since `es` is local
+    ctx.values().uses(ectx->values().uses());
+
+    for (const Instruction &inst : bb) {
+      if (!isa<PHINode>(&inst))
+        break;
+      if (!sem.isTracked(inst))
+        continue;
+
+      // -- record the value of PHINode after taking `pred --> bb` edge
+      phiVal[idx].push_back(ectx->read(sem.mkSymbReg(inst, ctx)));
+    }
+
+    idx++;
+  }
+}
 }
 
 void VCGen::genVcForBasicBlockOnEdge(OpSemContext &ctx, const CpEdge &edge,
@@ -275,34 +314,7 @@ void VCGen::genVcForBasicBlockOnEdge(OpSemContext &ctx, const CpEdge &edge,
     // that edge for example, phiVal[i][j] is the value of jth PHI-node when
     // control flows from predecessor i
     std::vector<ExprVector> phiVal(preds.size());
-
-    idx = 0;
-    for (const BasicBlock *pred : preds) {
-      // clone s
-      Stats::resume("vcgen.store.clone");
-      SymStore es(ctx.values());
-      Stats::stop("vcgen.store.clone");
-      OpSemContextPtr ectx = ctx.fork(es, ctx.side());
-      ectx->setPathCond(edges[idx]);
-
-      // edge_ij -> phi_ij,
-      // -- definition of phi nodes
-      m_sem.execPhi(bb, *pred, *ectx);
-      // -- collect all uses since `es` is local
-      ctx.values().uses(ectx->values().uses());
-
-      for (const Instruction &inst : bb) {
-        if (!isa<PHINode>(&inst))
-          break;
-        if (!m_sem.isTracked(inst))
-          continue;
-
-        // -- record the value of PHINode after taking `pred --> bb` edge
-        phiVal[idx].push_back(ectx->read(m_sem.mkSymbReg(inst, ctx)));
-      }
-
-      idx++;
-    }
+    computePhiNodeValues(bb, preds, edges, ctx, m_sem, phiVal);
 
     if (UseIte) {
       // create symbolic registers for PHINodes

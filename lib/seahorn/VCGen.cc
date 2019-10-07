@@ -22,6 +22,12 @@ static llvm::cl::opt<bool> LargeStepReduce(
 static llvm::cl::opt<bool> UseIte("horn-vcgen-use-ite",
                                   llvm::cl::desc("Use ite-terms in VC"),
                                   llvm::cl::init(false), llvm::cl::Hidden);
+static llvm::cl::opt<bool>
+    OnlyDataflow("horn-vcgen-only-dataflow",
+                 llvm::cl::desc("Encode dataflow dependencies only. Use with "
+                                "caution. This option might be unsound or "
+                                "imprecise depending on other configurations."),
+                 llvm::cl::init(false), llvm::cl::Hidden);
 
 using namespace seahorn;
 namespace seahorn {
@@ -290,8 +296,7 @@ void defPHINodesEq(const BasicBlock &bb, const ExprVector &edges,
 }
 
 Expr computePathCondForBb(const BasicBlock &bb, const CpEdge &cpEdge,
-                          OpSemContext &ctx,
-                          OperationalSemantics &sem) {
+                          OpSemContext &ctx, OperationalSemantics &sem) {
   ExprVector edges;
   // -- predicate for reachable from source
   sem_detail::FwdReachPred reachable(cpEdge.parent(), cpEdge.source());
@@ -382,10 +387,12 @@ void VCGen::genVcForBasicBlockOnEdge(OpSemContext &ctx, const CpEdge &edge,
 
   Expr bbV = trueE;
 
-  bbV =  computePathCondForBb(bb, edge, ctx, m_sem);
-  // unique node with no successors is asserted to always be reachable
-  if (last)
-    ctx.addSide(bbV);
+  if (!OnlyDataflow) {
+    bbV = computePathCondForBb(bb, edge, ctx, m_sem);
+    // unique node with no successors is asserted to always be reachable
+    if (last)
+      ctx.addSide(bbV);
+  }
 
   // actions of the block. The side-conditions are not guarded by
   // the basic-block variable because it does not matter.

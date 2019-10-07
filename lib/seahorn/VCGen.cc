@@ -288,17 +288,13 @@ void defPHINodesEq(const BasicBlock &bb, const ExprVector &edges,
     for (unsigned i = 0, phi_sz = newPhi.size(); i < phi_sz; ++i)
       ctx.addSide(boolop::limp(edges[j], mk<EQ>(newPhi[i], phiVal[j][i])));
 }
-}
 
-void VCGen::genVcForBasicBlockOnEdge(OpSemContext &ctx, const CpEdge &edge,
-                                     const BasicBlock &bb, bool last) {
+Expr computePathCondForBb(const BasicBlock &bb, const CpEdge &cpEdge,
+                          OpSemContext &ctx,
+                          OperationalSemantics &sem) {
   ExprVector edges;
-
-  if (last)
-    assert(&bb == &(edge.target().bb()));
-
   // -- predicate for reachable from source
-  sem_detail::FwdReachPred reachable(edge.parent(), edge.source());
+  sem_detail::FwdReachPred reachable(cpEdge.parent(), cpEdge.source());
 
   // compute predecessors relative to the source cut-point
   llvm::SmallVector<const BasicBlock *, 16> preds;
@@ -308,11 +304,11 @@ void VCGen::genVcForBasicBlockOnEdge(OpSemContext &ctx, const CpEdge &edge,
 
   // -- compute source of all the edges
   for (const BasicBlock *pred : preds)
-    edges.push_back(ctx.read(m_sem.mkSymbReg(*pred, ctx)));
+    edges.push_back(ctx.read(sem.mkSymbReg(*pred, ctx)));
 
   assert(preds.size() == edges.size());
   // -- update constant representing current bb
-  Expr bbV = ctx.havoc(m_sem.mkSymbReg(bb, ctx));
+  Expr bbV = ctx.havoc(sem.mkSymbReg(bb, ctx));
 
   // -- update destination of all the edges
 
@@ -335,7 +331,7 @@ void VCGen::genVcForBasicBlockOnEdge(OpSemContext &ctx, const CpEdge &edge,
   // bbV ==> at_least_one(edges)
   // -- encode control flow
   // -- b_j -> (b1 & e_{1,j} | b2 & e_{2,j} | ...)
-  ctx.addSide(mk<IMPL>(bbV, mknary<OR>(mk<FALSE>(m_sem.efac()), edges)));
+  ctx.addSide(mk<IMPL>(bbV, mknary<OR>(mk<FALSE>(sem.efac()), edges)));
 
   // bbv ==> at_most_one(edges)
   if (EnforceAtMostOnePredecessor && edges.size() > 1) {
@@ -345,10 +341,6 @@ void VCGen::genVcForBasicBlockOnEdge(OpSemContext &ctx, const CpEdge &edge,
     ctx.addSide(mk<IMPL>(bbV, mkAtMostOne(edges)));
   }
 
-  // unique node with no successors is asserted to always be reachable
-  if (last)
-    ctx.addSide(bbV);
-
   // relate predecessors and conditions under which control flows from them
   unsigned idx = 0;
   for (const BasicBlock *pred : preds) {
@@ -357,27 +349,43 @@ void VCGen::genVcForBasicBlockOnEdge(OpSemContext &ctx, const CpEdge &edge,
     // -- set path condition to the current edge
     ctx.setPathCond(edges[idx++]);
     // -- evaluate the condition of the branch
-    m_sem.execBr(*pred, bb, ctx);
+    sem.execBr(*pred, bb, ctx);
     // -- restore path condition
     ctx.setPathCond(savedPc);
   }
 
   // -- see if there are tracked PHINodes
   // -- compute values of PHINodes
-  if (hasTrackablePhiNode(bb, m_sem)) {
+  if (hasTrackablePhiNode(bb, sem)) {
     /// -- generate constraints from the phi-nodes (keep them separate for now)
     // a map from predecessor id to values of all phi-defined variables over
     // that edge for example, phiVal[i][j] is the value of jth PHI-node when
     // control flows from predecessor i
     std::vector<ExprVector> phiVal(preds.size());
-    computePhiNodeValues(bb, preds, edges, ctx, m_sem, phiVal);
+    computePhiNodeValues(bb, preds, edges, ctx, sem, phiVal);
 
     if (UseIte) {
-      defPHINodesIte(bb, edges, phiVal, ctx, m_sem);
+      defPHINodesIte(bb, edges, phiVal, ctx, sem);
     } else {
-      defPHINodesEq(bb, edges, phiVal, ctx, m_sem);
+      defPHINodesEq(bb, edges, phiVal, ctx, sem);
     }
   }
+
+  return bbV;
+}
+}
+
+void VCGen::genVcForBasicBlockOnEdge(OpSemContext &ctx, const CpEdge &edge,
+                                     const BasicBlock &bb, bool last) {
+
+  assert(!last || &bb == &(edge.target().bb()));
+
+  Expr bbV = trueE;
+
+  bbV =  computePathCondForBb(bb, edge, ctx, m_sem);
+  // unique node with no successors is asserted to always be reachable
+  if (last)
+    ctx.addSide(bbV);
 
   // actions of the block. The side-conditions are not guarded by
   // the basic-block variable because it does not matter.

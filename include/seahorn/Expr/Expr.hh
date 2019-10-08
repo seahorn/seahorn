@@ -2984,8 +2984,9 @@ public:
 
 namespace expr {
 inline size_t hash_value(Expr e) {
-  std::hash<ENode *> hasher;
-  return hasher(e.get());
+  if (!e) return 0;
+  std::hash<unsigned int> hasher;
+  return hasher(e->getId());
 }
 } // namespace expr
 

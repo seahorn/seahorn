@@ -1422,7 +1422,8 @@ Bv2OpSemContext::Bv2OpSemContext(SymStore &values, ExprVector &side,
       m_scalar(o.m_scalar), m_trfrReadReg(o.m_trfrReadReg),
       m_fparams(o.m_fparams), m_ignored(o.m_ignored),
       m_registers(o.m_registers), m_alu(nullptr), m_memManager(nullptr),
-      m_parent(&o), zeroE(o.zeroE), oneE(o.oneE), m_z3(o.m_z3) {
+      m_parent(&o), zeroE(o.zeroE), oneE(o.oneE), m_z3(o.m_z3),
+      m_z3_simplifier(o.m_z3_simplifier) {
   setPathCond(o.getPathCond());
 }
 
@@ -1439,7 +1440,7 @@ void Bv2OpSemContext::write(Expr v, Expr u) {
     // params.set("timeout", 10000U /*ms*/);
     // params.set("flat", false);
     // params.set("ite_extra_rules", false /*default=false*/);
-    //Expr _u = z3_simplify(*m_z3, u, params);
+    // Expr _u = z3_simplify(*m_z3, u, params);
     Expr _u = m_z3_simplifier->simplify(u);
     LOG("opsem.simplify",
         //
@@ -1731,7 +1732,8 @@ Bv2OpSem::Bv2OpSem(ExprFactory &efac, Pass &pass, const DataLayout &dl,
 }
 
 OpSemContextPtr Bv2OpSem::mkContext(SymStore &values, ExprVector &side) {
-  return OpSemContextPtr(new seahorn::details::Bv2OpSemContext(*this, values, side));
+  return OpSemContextPtr(
+      new seahorn::details::Bv2OpSemContext(*this, values, side));
 }
 
 Bv2OpSem::Bv2OpSem(const Bv2OpSem &o)
@@ -1745,7 +1747,8 @@ Expr Bv2OpSem::errorFlag(const BasicBlock &BB) {
   return this->OperationalSemantics::errorFlag(BB);
 }
 
-void Bv2OpSem::exec(const BasicBlock &bb, seahorn::details::Bv2OpSemContext &ctx) {
+void Bv2OpSem::exec(const BasicBlock &bb,
+                    seahorn::details::Bv2OpSemContext &ctx) {
   ctx.onBasicBlockEntry(bb);
 
   seahorn::details::OpSemVisitor v(ctx, *this);
@@ -1832,7 +1835,8 @@ unsigned Bv2OpSem::fieldOff(const StructType *t, unsigned field) const {
       ->getElementOffset(field);
 }
 
-Expr Bv2OpSem::getOperandValue(const Value &v, seahorn::details::Bv2OpSemContext &ctx) {
+Expr Bv2OpSem::getOperandValue(const Value &v,
+                               seahorn::details::Bv2OpSemContext &ctx) {
   Expr res;
   if (auto *bb = dyn_cast<BasicBlock>(&v)) {
     Expr reg = ctx.getRegister(*bb);
@@ -2007,7 +2011,8 @@ void Bv2OpSem::intraPhi(seahorn::details::Bv2OpSemContext &C) {
 }
 /// \brief Executes one intra-procedural branch instruction in the
 /// current context. Assumes that current instruction is a branch
-void Bv2OpSem::intraBr(seahorn::details::Bv2OpSemContext &C, const BasicBlock &dst) {
+void Bv2OpSem::intraBr(seahorn::details::Bv2OpSemContext &C,
+                       const BasicBlock &dst) {
   const BranchInst *br = dyn_cast<const BranchInst>(&C.getCurrentInst());
   if (!br)
     return;
@@ -2055,7 +2060,8 @@ void Bv2OpSem::skipInst(const Instruction &inst,
                     << inst.getParent()->getParent()->getName(););
 }
 
-void Bv2OpSem::unhandledValue(const Value &v, seahorn::details::Bv2OpSemContext &ctx) {
+void Bv2OpSem::unhandledValue(const Value &v,
+                              seahorn::details::Bv2OpSemContext &ctx) {
   if (const Instruction *inst = dyn_cast<const Instruction>(&v))
     return unhandledInst(*inst, ctx);
   LOG("opsem", WARN << "unhandled value: " << v;);
@@ -2106,7 +2112,7 @@ namespace details {
 seahorn::details::Bv2OpSemContext &ctx(OpSemContext &_ctx) {
   return static_cast<seahorn::details::Bv2OpSemContext &>(_ctx);
 }
-} // namespace seahorn::details
+} // namespace details
 } // namespace seahorn
 namespace {
 // \brief Unwraps a const context

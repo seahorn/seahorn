@@ -1,5 +1,6 @@
 #ifdef WITH_YICES2
-#include "seahorn/Expr/Smt/ZExprConverter.hh"
+/* Unit tests for yices2 and generic solver and model */
+ 
 #include "seahorn/Expr/Smt/Solver.hh"
 #include "seahorn/Expr/Smt/Yices2SolverImpl.hh"
 #include "seahorn/Expr/Smt/Z3SolverImpl.hh"
@@ -42,12 +43,13 @@ static void run(seahorn::solver::Solver *s, Expr e, const ExprVector& model_vars
 }
 
 static void unsat_core(seahorn::solver::Solver *s, const ExprVector &f, ExprVector &out) {
-  ExprVector assumptions;
-  assumptions.reserve(f.size());
 
-  s->push();  
+  s->push();
+
   // for each v in f we create an impliciation b -> v
   // where b is a boolean
+  ExprVector assumptions;
+  assumptions.reserve(f.size());
   for (Expr v : f) {
     Expr a = bind::boolConst(mk<ASM>(v));
     assumptions.push_back(a);
@@ -58,12 +60,13 @@ static void unsat_core(seahorn::solver::Solver *s, const ExprVector &f, ExprVect
   if (res == seahorn::solver::Solver::UNSAT) {
     s->unsat_core(out);
   }
-  s->pop();
-
+  
   // unwrap the core from ASM to corresponding expressions
   for(unsigned i=0,e=out.size();i<e;++i) {
     out[i] = bind::fname(bind::fname(out[i]))->arg(0);    
-  }  
+  }
+
+  s->pop();  
 }
 
 TEST_CASE("yices2-int.test") {
@@ -99,13 +102,13 @@ TEST_CASE("yices2-int.test") {
   run(zsolver, e, {x,y});
 
 
-  ysolver->reset();  
   ExprVector fv({e1, e2, e3, e4});
   Expr f = mknary<AND>(fv.begin(), fv.end());
   errs() << "\n\nAsserting " << *f << "\n";
 
   errs() << "==== Yices2\n";  
   errs() << "Result: ";
+  ysolver->reset();  
   run(ysolver, f, {});
   ExprVector core;
   unsat_core(ysolver, fv, core);
@@ -113,12 +116,12 @@ TEST_CASE("yices2-int.test") {
 
   errs() << "==== Z3\n";  
   errs() << "Result: ";
+  zsolver->reset();
   run(zsolver, f, {});
   core.clear();
   unsat_core(zsolver, fv, core);
   errs() << "unsat core = " << *(mknary<AND>(core.begin(), core.end())) << "\n";
-  
-  
+    
   errs() << "FINISHED\n\n\n";
 
   CHECK(true);

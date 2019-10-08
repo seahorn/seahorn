@@ -121,21 +121,22 @@ solver::Solver::result yices_solver_impl::check_with_assumptions(const ExprVecto
 
 /** Return an unsatisfiable core */
 void yices_solver_impl::unsat_core(ExprVector& out){
-  term_vector_t* v;
-  yices_init_term_vector(v);
-  int32_t errcode = yices_get_unsat_core(d_ctx, v);
+  term_vector_t v;
+  yices_init_term_vector(&v);
+  int32_t errcode = yices_get_unsat_core(d_ctx, &v);
   if (errcode == -1) {
     errs() << "yices_solver_impl::unsat_core: the solver is not unsat";
     llvm_unreachable(nullptr);
   }
-  for (unsigned i=0, e=v->size; i<e; ++i) {
-    auto it = d_last_assumptions.find(v->data[i]);
+  for (unsigned i=0, e=v.size; i<e; ++i) {
+    auto it = d_last_assumptions.find(v.data[i]);
     if (it == d_last_assumptions.end()) {
       errs() << "yices_solver_impl::unsat_core: term in the unsat core is not an assumption\n";
       llvm_unreachable(nullptr);
     }
     out.push_back(it->second);
   }
+  yices_delete_term_vector(&v);
 }
 
 /** Push a context */

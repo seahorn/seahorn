@@ -1,23 +1,23 @@
 #pragma once
 
 #include "seahorn/Expr/Smt/Solver.hh"
-#include "seahorn/Expr/Smt/Z3.hh"
+#include "seahorn/Expr/Smt/EZ3.hh"
 #include "seahorn/Expr/Smt/Z3ModelImpl.hh"
 
 namespace seahorn {
 namespace z3 {
 
 class z3_solver_impl : public solver::Solver {
-  std::unique_ptr<ufo::ZSolver<ufo::EZ3>> m_solver;
+  std::unique_ptr<ZSolver<EZ3>> m_solver;
   solver::Solver::result m_last_result;
   
 public:
 
   using model_ref = typename solver::Solver::model_ref;
   
-  z3_solver_impl(seahorn::solver::solver_options *opts, ufo::EZ3 &zctx)
+  z3_solver_impl(seahorn::solver::solver_options *opts, EZ3 &zctx)
     : solver::Solver(opts)
-    , m_solver(new ufo::ZSolver<ufo::EZ3>(zctx))
+    , m_solver(new ZSolver<EZ3>(zctx))
     , m_last_result(UNKNOWN) {}
 
   virtual bool add(expr::Expr exp) override {
@@ -72,7 +72,7 @@ public:
   /** Get a model */
   virtual model_ref get_model() override {
     assert(m_last_result == SAT);
-    ufo::ZModel<ufo::EZ3> model = m_solver->getModel();
+    ZModel<EZ3> model = m_solver->getModel();
     return model_ref(new z3_model_impl(model));
   }
   

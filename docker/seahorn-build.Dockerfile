@@ -58,7 +58,7 @@ RUN export PREFIX=$(cat /tmp/dockerutils/prefix.txt) && \
     curl -sSOL "$DEPS_BASE"_z3.tar.gz && \
     tar -xf "$PREFIX"_z3.tar.gz && \
     curl -sSOL "$DEPS_BASE"_yices-2.6.1.tar.gz && \
-    tar -xf "$PREFIX"_yices-2.6.1-static.tar.gz && \
+    tar -xf "$PREFIX"_yices-2.6.1.tar.gz && \
     curl -sSOL "$DEPS_BASE"_llvm50.tar.gz && \
     tar -xf "$PREFIX"_llvm50.tar.gz && \
 #   ls -al --block-size=M 1>&2 && \

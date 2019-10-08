@@ -30,6 +30,7 @@ RUN cmake -GNinja \
           -DCMAKE_BUILD_TYPE=$BUILD_TYPE \
           -DBOOST_ROOT=/deps/boost \
           -DZ3_ROOT=/deps/z3 \
+	  -DYICES2_HOME=/deps/yices-2.6.1 \
           -DLLVM_DIR=/deps/LLVM-5.0.2-Linux/lib/cmake/llvm \
           -DCMAKE_INSTALL_PREFIX=run \
           -DCMAKE_CXX_COMPILER=g++-5 \

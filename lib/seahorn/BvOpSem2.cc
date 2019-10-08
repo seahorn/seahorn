@@ -973,10 +973,64 @@ public:
     }
     assert(curTy->getTypeID() == retTy->getTypeID());
     end = begin + DL.getTypeSizeInBits(retTy) - 1;
-    errs() << "begin of EXTRACT: " << begin << "end of EXTRACT: " << end << "\n";
     return bv::extract(end, begin, aggOp);
   }
-  // void visitInsertValueInst(InsertValueInst &I);
+
+  void visitInsertValueInst(InsertValueInst &I) {
+    if (!I.hasIndices()) {
+      ERR << I;
+      llvm_unreachable("At least one index must be specified.");
+    }
+    Expr val = executeInsertValueInst(
+        *I.getAggregateOperand(), *I.getInsertedValueOperand(),
+        I.getIndices(), m_ctx);
+    setValue(I, val);
+  }
+
+  Expr executeInsertValueInst(Value &aggVal, Value &insertedVal,
+                              ArrayRef<unsigned> indices,
+                              Bv2OpSemContext &ctx) {
+    Expr aggOp = lookup(aggVal);
+    Expr insertedOp = lookup(insertedVal);
+    if (!aggOp || !insertedOp) {
+      return Expr();
+    }
+    // compute the offsets: begin and end of bits to extract from aggOp
+    const DataLayout DL = m_sem.getDataLayout();
+    Type *curTy = aggVal.getType();
+    uint64_t begin = 0, end = 0;
+    for (unsigned idx : indices) {
+      if (auto *STy = dyn_cast<StructType>(curTy)) {
+        // current struct agg type
+        const StructLayout *SL = DL.getStructLayout(STy);
+        curTy = STy->getElementType(idx);
+        begin += SL->getElementOffsetInBits(idx);
+      } else if (auto *ATy = dyn_cast<ArrayType>(curTy)) {
+        // handle array agg type
+        curTy = ATy->getElementType();
+        uint64_t EltSize = DL.getTypeSizeInBits(curTy);
+        begin += idx * EltSize;
+      } else {
+        errs() << "Unhandled aggregate type to insert into" << *curTy << "\n";
+        llvm_unreachable(nullptr);
+      }
+    }
+    unsigned insertSize = DL.getTypeSizeInBits(insertedVal.getType());
+    if (insertSize != DL.getTypeSizeInBits(curTy)) {
+      llvm_unreachable("inserted value width not matched!");
+    }
+    unsigned aggSize =  DL.getTypeSizeInBits(aggVal.getType());
+    end = begin + insertSize - 1;
+    Expr ret = insertedOp;
+    if (begin > 0)
+      ret = bv::concat(ret, bv::extract(begin - 1, 0, aggOp));
+
+    if (end < aggSize - 1)
+      ret = bv::concat( bv::extract(aggSize - 1, end + 1, aggOp), ret);
+
+    return ret;
+  }
+
 
   void visitInstruction(Instruction &I) {
     ERR << I;
@@ -1663,6 +1717,7 @@ Expr Bv2OpSemContext::mkRegister(const llvm::Instruction &inst) {
     const Type &ty = *inst.getType();
     switch (ty.getTypeID()) {
     case Type::IntegerTyID:
+    case Type::StructTyID: // treat aggregate types in register as int
       reg = bind::mkConst(v, alu().intTy(m_sem.sizeInBits(ty)));
       break;
     case Type::PointerTyID:
@@ -1751,7 +1806,7 @@ Expr Bv2OpSemContext::getConstantValue(const llvm::Constant &c) {
     if (GVO.hasValue()) {
       GenericValue gv = GVO.getValue();
       if (gv.AggregateVal.size() > 0) {
-        APInt aggBv = m_sem.agg(gv.AggregateVal, *this);
+        APInt aggBv = m_sem.agg(c.getType(), gv.AggregateVal, *this);
         mpz_class k = toMpz(aggBv);
         return alu().si(k, aggBv.getBitWidth());
       }
@@ -2005,8 +2060,7 @@ bool Bv2OpSem::isSkipped(const Value &v) const {
   case Type::FunctionTyID:
     llvm_unreachable("Unexpected function type");
   case Type::StructTyID:
-    LOG("opsem", WARN << "Unsupported struct type\n";);
-    return true;
+    return false;
   case Type::ArrayTyID:
     LOG("opsem", WARN << "Unsupported array type\n";);
     return true;
@@ -2156,16 +2210,27 @@ void Bv2OpSem::execBr(const BasicBlock &src, const BasicBlock &dst,
   intraBr(ctx, dst);
 }
 
-APInt Bv2OpSem::agg(const std::vector<GenericValue> &elements,
+APInt Bv2OpSem::agg(Type *aggTy, const std::vector<GenericValue> &elements,
                    details::Bv2OpSemContext &ctx) {
   APInt res;
   APInt next;
   int resWidth = 0; // treat initial res as empty
-  for (const GenericValue &element : elements) {
+  auto *STy = dyn_cast<StructType>(aggTy);
+  if (!STy)
+    llvm_unreachable("not supporting agg types other than struct");
+  const StructLayout *SL = getDataLayout().getStructLayout(STy);
+  for (int i = 0 ; i <  elements.size(); i++) {
+    const GenericValue element = elements[i];
     if (element.AggregateVal.empty()) {
       next = element.IntVal;
     } else { // assuming only dealing with int as terminal struct element
-      next = agg(element.AggregateVal, ctx);
+      next = agg(STy->getElementType(i), element.AggregateVal, ctx);
+    }
+    // Add padding to element
+    int elOffset = SL->getElementOffset(i);
+    if (elOffset > resWidth) {
+      res = res.zext(elOffset);
+      resWidth = elOffset;
     }
     // lower index => LSB; higher index => MSB
     int combinedWidth = resWidth + next.getBitWidth();
@@ -2175,6 +2240,9 @@ APInt Bv2OpSem::agg(const std::vector<GenericValue> &elements,
     res |= next;
     resWidth = res.getBitWidth();
   }
+  unsigned aggSize = getDataLayout().getTypeSizeInBits(STy);
+  if (res.getBitWidth() < aggSize)
+    res = res.zext(aggSize); // padding for last element
   return res;
 }
 

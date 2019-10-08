@@ -1,9 +1,10 @@
 #pragma once
 
+#include "seahorn/Expr/Expr.hh"
 #include "seahorn/Expr/ExprLlvm.hh"
 #include "seahorn/Expr/Smt/ExprToZ.hh"
-#include "seahorn/Support/SeaLog.hh"
 #include "seahorn/Support/SeaDebug.h"
+#include "seahorn/Support/SeaLog.hh"
 
 #include "boost/lexical_cast.hpp"
 #include "llvm/Support/raw_ostream.h"
@@ -268,9 +269,17 @@ z3::ast ExprToZ::marshal(const expr::Expr &_e, z3::context &ctx, C &cache,
   using namespace expr;
 
   // -- try global cache first
-  auto it = cache.find(_e);
-  if (it != cache.end())
-    return it->second;
+  {
+    auto it = cache.find(_e);
+    if (it != cache.end())
+      return it->second;
+  }
+  // -- try local cache second
+  {
+    auto it = seen.find(_e);
+    if (it != seen.end())
+      return it->second;
+  }
 
   z3::ast_vector pinned(ctx);
 
@@ -284,12 +293,10 @@ z3::ast ExprToZ::marshal(const expr::Expr &_e, z3::context &ctx, C &cache,
 
     Expr e = todo.back();
     auto &op = e->op();
-    unsigned sz = todo.size();
     auto family_id = op.getFamilyId();
     unsigned arity = e->arity();
 
-    LOG("expr2z",
-        errs() << "marshal: " << *e << "\n";);
+    LOG("expr2z", errs() << "marshal: " << *e << "\n";);
 
     // expressions that are cached globally
     switch (family_id) {
@@ -371,9 +378,12 @@ z3::ast ExprToZ::marshal(const expr::Expr &_e, z3::context &ctx, C &cache,
     }
 
     if (res) {
-      todo.pop_back();
       z3::ast ast(ctx, res);
-      cache.insert({e, ast});
+      todo.pop_back();
+      auto v = cache.insert({e, ast});
+      // global cache is one-to-one, but mapping from Expr to z3::ast is not!
+      // we keep extra mappings in local cache
+      if (!v.second) seen.insert({e, ast});
       continue;
     }
 
@@ -441,6 +451,7 @@ z3::ast ExprToZ::marshal(const expr::Expr &_e, z3::context &ctx, C &cache,
 
     // expressions that are cached locally
     // process arguments
+    unsigned sz = todo.size();
     zargs.clear();
     for (auto *arg : llvm::make_range(e->args_begin(), e->args_end())) {
       auto cache_it = cache.find(arg);
@@ -455,8 +466,12 @@ z3::ast ExprToZ::marshal(const expr::Expr &_e, z3::context &ctx, C &cache,
       }
       todo.push_back(arg);
     }
-    if (todo.size() > sz)
+    if (todo.size() > sz) {
+      LOG("expr2z", errs() << "TODO arguments are: \n";
+          for (unsigned i = sz; i < todo.size();
+               ++i) { errs() << i << ": " << *todo[i] << "\n"; });
       continue;
+    }
 
     // all arguments are ready, construct expression
 
@@ -502,7 +517,7 @@ z3::ast ExprToZ::marshal(const expr::Expr &_e, z3::context &ctx, C &cache,
       std::exit(1);
     }
 
-    if(!res) {
+    if (!res) {
       ERR << "failed to convert to z3: " << *e << "\n";
       ERR << Z3_get_error_msg(ctx, Z3_get_error_code(ctx));
     }
@@ -513,5 +528,5 @@ z3::ast ExprToZ::marshal(const expr::Expr &_e, z3::context &ctx, C &cache,
 
   assert(res);
   return z3::ast(ctx, res);
-} 
+}
 } // namespace seahorn

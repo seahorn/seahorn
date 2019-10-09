@@ -1,3 +1,9 @@
+/**  The transformation we do here looks roughly like this:
+        memcpy(Dst, Source, sizeof(BufferTy))
+          goes to
+      for each field_id in fields(BufferTy):
+        *GEP(Dst, field_id) = *GEP(Src, field_id)
+*/
 #include "llvm/Analysis/AssumptionCache.h"
 #include "llvm/Analysis/MemoryBuiltins.h"
 #include "llvm/IR/CallSite.h"
@@ -13,8 +19,10 @@
 #include "llvm/Transforms/Utils/SimplifyLibCalls.h"
 
 #include "seahorn/Support/SeaDebug.h"
+#include "seahorn/Support/SeaLog.hh"
 
 #define PMCPY_LOG(...) LOG("promote-memcpy", __VA_ARGS__)
+#define PMCPY_DBG_LOG(...) LOG("promote-memcpy.dbg", __VA_ARGS__)
 
 using namespace llvm;
 
@@ -55,47 +63,57 @@ bool PromoteMemcpy::simplifyMemCpy(MemCpyInst *MI) {
   unsigned MinAlign = std::min(DstAlign, SrcAlign);
   unsigned CopyAlign = MI->getAlignment();
 
-  if (CopyAlign < MinAlign)
+  if (CopyAlign < MinAlign) {
+    PMCPY_LOG(WARN << "unhandled alignment. Skipping memcpy: " << *MI;);
     return false;
+  }
 
+  // skip non-constant length memcpy()
   ConstantInt *MemOpLength = dyn_cast<ConstantInt>(MI->getLength());
-  if (!MemOpLength)
+  if (!MemOpLength) {
     return false;
+  }
 
   // Source and destination pointer types are always "i8*" for intrinsic.  See
   // if the size is something we can handle with a single primitive load/store.
   // A single load+store correctly handles overlapping memory in the memmove
   // case.
   uint64_t Size = MemOpLength->getLimitedValue();
-  if (Size == 0)
+  if (Size == 0) {
+    PMCPY_LOG(WARN << "unexpected 0 length memcpy: " << *MI;);
     return false;
-
+  }
   auto *SrcPtr = MI->getSource();
   auto *DstPtr = MI->getDest();
 
   unsigned SrcAddrSp = cast<PointerType>(SrcPtr->getType())->getAddressSpace();
   unsigned DstAddrSp = cast<PointerType>(DstPtr->getType())->getAddressSpace();
 
-  if (SrcAddrSp != DstAddrSp)
+  if (SrcAddrSp != DstAddrSp) {
+    llvm_unreachable("unexpected");
     return false;
+  }
 
   auto *SrcPtrTy = cast<PointerType>(SrcPtr->getType());
   auto *DstPtrTy = cast<PointerType>(DstPtr->getType());
 
-  if (SrcPtrTy != DstPtrTy)
-    return false;
-
-  if (!SrcPtrTy->getPointerElementType()->isFirstClassType()) {
-    PMCPY_LOG(errs() << "Not a first class type!\n");
+  if (SrcPtrTy != DstPtrTy) {
+    PMCPY_LOG(WARN << "memcpy between different types: " << *MI;);
     return false;
   }
 
-  PMCPY_LOG(errs() << "\nSrc:\t"; SrcPtr->print(errs());
-            SrcPtrTy->print(errs() << "\t"); errs() << "\nDst:\t";
-            DstPtr->print(errs()); DstPtrTy->print(errs() << "\t");
-            errs() << "\n"; errs().flush());
+  if (!SrcPtrTy->getPointerElementType()->isFirstClassType()) {
+    PMCPY_LOG(WARN << "Not a first class type! " << *MI;);
+    return false;
+  }
+
+  PMCPY_DBG_LOG(errs() << "\nSrc:\t"; SrcPtr->print(errs());
+                SrcPtrTy->print(errs() << "\t"); errs() << "\nDst:\t";
+                DstPtr->print(errs()); DstPtrTy->print(errs() << "\t");
+                errs() << "\n"; errs().flush());
 
   auto *BufferTy = dyn_cast<StructType>(SrcPtrTy->getPointerElementType());
+  // require src to be a struct
   if (!BufferTy)
     return false;
 
@@ -118,8 +136,7 @@ bool PromoteMemcpy::simplifyMemCpy(MemCpyInst *MI) {
   using Transfer = std::pair<Value *, Value *>;
   SmallVector<Transfer, 4> ToLower = {std::make_pair(SrcPtr, DstPtr)};
   while (!ToLower.empty()) {
-    Value *TrSrc;
-    Value *TrDst;
+    Value *TrSrc, *TrDst;
     std::tie(TrSrc, TrDst) = ToLower.pop_back_val();
     auto *Ty = TrSrc->getType();
     assert(Ty == TrDst->getType());
@@ -128,8 +145,8 @@ bool PromoteMemcpy::simplifyMemCpy(MemCpyInst *MI) {
       auto *NewLoad = Builder.CreateLoad(TrSrc, SrcPtr->getName() + ".pmcpy");
       auto *NewStore = Builder.CreateStore(NewLoad, TrDst);
 
-      PMCPY_LOG(errs() << "New load-store:\n\t"; NewLoad->print(errs());
-                errs() << "\n\t"; NewStore->print(errs()); errs() << "\n");
+      PMCPY_DBG_LOG(errs() << "New load-store:\n\t"; NewLoad->print(errs());
+                    errs() << "\n\t"; NewStore->print(errs()); errs() << "\n");
       continue;
     }
 
@@ -146,28 +163,8 @@ bool PromoteMemcpy::simplifyMemCpy(MemCpyInst *MI) {
     for (auto &P : llvm::reverse(TmpBuff))
       ToLower.push_back(P);
 
-    PMCPY_LOG(errs() << "\tSecond level\n");
+    PMCPY_DBG_LOG(errs() << "\tSecond level\n");
   }
-  //
-  //  for (unsigned i = 0, e = BufferTy->getStructNumElements(); i != e; ++i) {
-  //    auto *Idx = Constant::getIntegerValue(I32Ty, APInt(32, i));
-  //
-  //    auto *SrcGEP = Builder.CreateInBoundsGEP(nullptr, SrcPtr, {NullInt,
-  //    Idx},
-  //                                             "src.gep.pmcpy");
-  //    auto *NewLoad = Builder.CreateLoad(SrcGEP, SrcPtr->getName() +
-  //    ".pmcpy");
-  //
-  //    auto *DstGEP = Builder.CreateInBoundsGEP(nullptr, DstPtr, {NullInt,
-  //    Idx},
-  //                                             "buffer.gep.pmcpy");
-  //    auto *NewStore = Builder.CreateStore(NewLoad, DstGEP);
-  //
-  //    PMCPY_LOG(SrcGEP->print(errs() << "\n"); NewLoad->print(errs() << "\n");
-  //              DstGEP->print(errs() << "\n"); NewStore->print(errs() <<
-  //              "\n"); errs() << "\n");
-  //  }
-
   return true;
 }
 
@@ -183,13 +180,13 @@ bool PromoteMemcpy::runOnFunction(Function &F) {
 
   bool Changed = false;
   SmallVector<MemCpyInst *, 8> ToDeleteQueue;
-  PMCPY_LOG(
+  PMCPY_DBG_LOG(
       errs() << "\n############## Start Promote Memcpy ###################\n");
 
   for (auto &BB : F)
     for (auto &I : BB)
       if (auto *MCpy = dyn_cast<MemCpyInst>(&I)) {
-        PMCPY_LOG(MCpy->print(errs() << "Visiting: \n"); errs() << "\n");
+        PMCPY_DBG_LOG(MCpy->print(errs() << "Visiting: \n"); errs() << "\n");
 
         if (!simplifyMemCpy(MCpy))
           continue;
@@ -198,9 +195,9 @@ bool PromoteMemcpy::runOnFunction(Function &F) {
         Changed = true;
       }
 
-  PMCPY_LOG(errs() << "Removing dead memcpys in " << F.getName() << ":");
+  PMCPY_DBG_LOG(errs() << "Removing dead memcpys in " << F.getName() << ":");
   for (auto *MCpy : ToDeleteQueue) {
-    PMCPY_LOG(MCpy->print(errs() << "\n\t"));
+    PMCPY_DBG_LOG(MCpy->print(errs() << "\n\t"));
 
     // Using getArgOperand API to avoid looking through casts.
     auto *SrcPtr = dyn_cast<BitCastInst>(MCpy->getArgOperand(1));
@@ -208,16 +205,16 @@ bool PromoteMemcpy::runOnFunction(Function &F) {
 
     MCpy->eraseFromParent();
     if (SrcPtr && SrcPtr->hasNUses(0)) {
-      PMCPY_LOG(SrcPtr->print(errs() << "\n\t\tdeleting:\t"));
+      PMCPY_DBG_LOG(SrcPtr->print(errs() << "\n\t\tdeleting:\t"));
       SrcPtr->eraseFromParent();
     }
     if (DstPtr && DstPtr->hasNUses(0)) {
-      PMCPY_LOG(DstPtr->print(errs() << "\n\t\tdeleting:\t"));
+      PMCPY_DBG_LOG(DstPtr->print(errs() << "\n\t\tdeleting:\t"));
       DstPtr->eraseFromParent();
     }
   }
 
-  PMCPY_LOG(
+  PMCPY_DBG_LOG(
       errs() << "\n############## End Promote Memcpy ###################\n";
       errs().flush());
   return Changed;

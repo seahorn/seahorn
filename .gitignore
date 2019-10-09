@@ -16,3 +16,5 @@
 /seahorn-llvm/
 /gtags.files
 /lib/Support/GitSHA1.cc
+.lsp-cache.d
+.mainframer

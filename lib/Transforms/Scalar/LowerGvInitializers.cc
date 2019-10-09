@@ -7,7 +7,12 @@
 #include "llvm/Transforms/Utils/GlobalStatus.h"
 
 #include "seahorn/Support/SeaDebug.h"
+#include "seahorn/Support/SeaLog.hh"
 
+static llvm::cl::opt<bool>
+LowerGvStruct("lower-gv-init-struct",
+              llvm::cl::desc("Lower initializers of structs"),
+              llvm::cl::init(true));
 namespace seahorn {
 char LowerGvInitializers::ID = 0;
 
@@ -199,14 +204,14 @@ bool LowerGvInitializers::runOnModule(Module &M) {
     // Only deal with scalars and simple structs for now.
     // TODO: Support other kinds of initializers.
     if (ety->isIntegerTy() || ety->isPointerTy() ||
-        isa<ConstantStruct>(gv->getInitializer())) {
+        (LowerGvStruct && isa<ConstantStruct>(gv->getInitializer()))) {
       StoreInst *SI = Builder.CreateAlignedStore(gv->getInitializer(), gv,
                                                  DL->getABITypeAlignment(ety));
       LOG("lower-gv-init",
           errs() << "LowerGvInitializers: created a store " << *SI << "\n");
       change = true;
     } else if (ety->isStructTy())
-      errs() << "WARNING: Ignoring initializer for:  " << gv->getName() << "\n";
+      WARN << "not lowering an initializer for a global struct:  " << gv->getName();
   }
 
   // Iterate over global constructors

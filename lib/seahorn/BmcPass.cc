@@ -112,6 +112,7 @@ public:
 
   bool runOnFunction(Function &F) {
     LOG("bmc-pass", errs() << "Starting BMC on " << F.getName() << "\n";);
+    LOG("bmc.dumpf", errs() << F << "\n");
     if (m_failure_analysis) {
       bool canFail = false;
       if (!canFail) {

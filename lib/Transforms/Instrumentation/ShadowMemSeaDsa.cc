@@ -934,24 +934,29 @@ void ShadowDsaImpl::visitAllocationFn(CallSite &CS) {
 }
 
 void ShadowDsaImpl::visitMemSetInst(MemSetInst &I) {
+  LOG("dsa.memset", errs() << "Visitng memset: " << I << "\n";);
   Value &dst = *(I.getDest());
 
-  if (!m_graph->hasCell(dst))
+  if (!m_graph->hasCell(dst)) {
+    LOG("dsa.memset", errs() << "No DSA cell for " << dst << "\n";);
     return;
-  const dsa::Cell &c = m_graph->getCell(dst);
-  if (c.isNull())
-    return;
-
-  if (c.getOffset() == 0) {
-    m_B->SetInsertPoint(&I);
-
-    Optional<unsigned> len = llvm::None;
-    if (auto *sz = dyn_cast_or_null<ConstantInt>(I.getLength()))
-      len = sz->getLimitedValue();
-
-    CallInst &memDef = mkShadowStore(*m_B, c, len);
-    associateConcretePtr(memDef, dst, &I);
   }
+  const dsa::Cell &c = m_graph->getCell(dst);
+  if (c.isNull()) {
+    LOG("dsa.memset", errs() << "Dst cell is null\n";);
+    return;
+  }
+
+  // XXX: Don't remember why this check was needed. Disabling for now.
+  // if (c.getOffset() != 0) return;
+  m_B->SetInsertPoint(&I);
+
+  Optional<unsigned> len = llvm::None;
+  if (auto *sz = dyn_cast_or_null<ConstantInt>(I.getLength()))
+    len = sz->getLimitedValue();
+
+  CallInst &memDef = mkShadowStore(*m_B, c, len);
+  associateConcretePtr(memDef, dst, &I);
 }
 
 void ShadowDsaImpl::visitMemTransferInst(MemTransferInst &I) {
@@ -966,10 +971,12 @@ void ShadowDsaImpl::visitMemTransferInst(MemTransferInst &I) {
   const dsa::Cell &srcC = m_graph->getCell(src);
   if (dstC.isNull())
     return;
+
+  /* 
   // XXX don't remember why this check is needed
   if (dstC.getOffset() != 0)
     return;
-
+  */
   Optional<unsigned> len = llvm::None;
   if (auto *length = dyn_cast_or_null<ConstantInt>(I.getLength()))
     len = length->getLimitedValue();

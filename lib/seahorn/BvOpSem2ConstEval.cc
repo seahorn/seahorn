@@ -507,6 +507,8 @@ Optional<GenericValue> ConstantExprEvaluator::evaluate(const Constant *C) {
   case Type::StructTyID: {
     if (auto *STy = dyn_cast<StructType>(C->getType())) {
       auto *CS = dyn_cast<ConstantStruct>(C);
+      // XXX the cast might fail. this must be handled better
+      if (!CS) return llvm::None;
       unsigned int elemNum = STy->getNumElements();
       Result.AggregateVal.resize(elemNum);
       // try populate all elements in the struct
@@ -527,7 +529,10 @@ Optional<GenericValue> ConstantExprEvaluator::evaluate(const Constant *C) {
             Result.AggregateVal[i].IntVal =
                 cast<ConstantInt>(OPI)->getValue();
           else if (ElemTy->isAggregateType()) {
-            Result.AggregateVal[i] = evaluate(OPI).getValue();
+            auto val = evaluate(OPI);
+            if (val.hasValue())
+              Result.AggregateVal[i] = val.getValue();
+            else return llvm::None;
           }
         }
       }

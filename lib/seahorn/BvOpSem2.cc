@@ -1961,7 +1961,7 @@ Expr Bv2OpSem::getOperandValue(const Value &v,
       res = ctx.getConstantValue(*gv);
   } else if (auto *cv = dyn_cast<Constant>(&v)) {
     res = ctx.getConstantValue(*cv);
-    assert(res);
+    LOG("opsem", if (!res) WARN << "Failed to evaluate a constant " << v;);
   } else {
     Expr reg = ctx.getRegister(v);
     if (reg)

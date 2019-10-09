@@ -476,10 +476,14 @@ Expr OpSemMemManager::loadValueFromMem(PtrTy ptr, Expr memReg,
   case Type::PointerTyID:
     res = loadPtrFromMem(ptr, memReg, byteSz, align);
     break;
+  case Type::StructTyID:
+    WARN << "loading form struct type " << ty << " is not supported";
+    return res;
   default:
     SmallString<256> msg;
     raw_svector_ostream out(msg);
     out << "Loading from type: " << ty << " is not supported\n";
+    assert(false);
     report_fatal_error(out.str());
   }
   return res;
@@ -513,10 +517,14 @@ Expr OpSemMemManager::storeValueToMem(Expr _val, PtrTy ptr, Expr memReadReg,
   case Type::PointerTyID:
     res = storePtrToMem(val, ptr, memReadReg, byteSz, align);
     break;
+  case Type::StructTyID:
+    WARN << "Storing struct type " << ty << " is not supported\n";
+    return res;
   default:
     SmallString<256> msg;
     raw_svector_ostream out(msg);
     out << "Loading from type: " << ty << " is not supported\n";
+    assert(false);
     report_fatal_error(out.str());
   }
   m_ctx.write(memWriteReg, res);

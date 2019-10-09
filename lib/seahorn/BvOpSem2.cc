@@ -843,8 +843,10 @@ public:
   }
 
   void visitMemSetInst(MemSetInst &I) {
-    executeMemSetInst(*I.getDest(), *I.getValue(), *I.getLength(),
-                      I.getAlignment(), m_ctx);
+    Expr v = executeMemSetInst(*I.getDest(), *I.getValue(), *I.getLength(),
+                               I.getAlignment(), m_ctx);
+    if (!v)
+      WARN << "skipped memset: " << I << "\n";
   }
   void visitMemCpyInst(MemCpyInst &I) {
     executeMemCpyInst(*I.getDest(), *I.getSource(), *I.getLength(),
@@ -1256,7 +1258,7 @@ public:
     if (!ctx.getMemReadRegister() || !ctx.getMemWriteRegister() ||
         m_sem.isSkipped(val)) {
       LOG("opsem",
-          errs() << "Skipping store to " << addr << " of " << val << "\n";);
+          WARN << "skipping store to " << addr << " of " << val << "\n";);
       ctx.setMemReadRegister(Expr());
       ctx.setMemWriteRegister(Expr());
       return Expr();
@@ -1275,9 +1277,9 @@ public:
         res = m_ctx.storeValueToMem(v, p, *val.getType(), alignment);
     }
 
-    if (!res)
-      LOG("opsem",
-          errs() << "Skipping store to " << addr << " of " << val << "\n";);
+    LOG("opsem",
+        if (!res)
+          WARN << "Failed store to " << addr << " of " << val << "\n";);
 
     ctx.setMemReadRegister(Expr());
     ctx.setMemWriteRegister(Expr());
@@ -1289,10 +1291,11 @@ public:
                          Bv2OpSemContext &ctx) {
     if (!ctx.getMemReadRegister() || !ctx.getMemWriteRegister() ||
         m_sem.isSkipped(dst) || m_sem.isSkipped(val)) {
-      LOG("opsem", WARN << "skipping memset because ";
-          if (m_sem.isSkipped(dst)) WARN << " skipped dst: " << dst << " ";
-          if (m_sem.isSkipped(val)) WARN << " skipped val: " << val;
-          WARN << "\n";);
+      LOG("opsem", WARN << "skipping memset because";
+          if (m_sem.isSkipped(dst)) WARN << "\tskipped dst: " << dst;
+          if (m_sem.isSkipped(val)) WARN << "\tskipped val: " << val;
+          if (!ctx.getMemReadRegister()) WARN << "\tno read register set";
+          if (!ctx.getMemWriteRegister()) WARN << "\tno write register set";);
       ctx.setMemReadRegister(Expr());
       ctx.setMemWriteRegister(Expr());
       return Expr();

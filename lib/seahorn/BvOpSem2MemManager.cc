@@ -364,7 +364,7 @@ Expr OpSemMemManager::storeIntToMem(Expr _val, PtrTy ptr, Expr memReadReg,
   if (byteSz == wordSzInBytes()) {
     words.push_back(val);
   } else if (byteSz < wordSzInBytes()) {
-    val = m_ctx.alu().doZext(val, wordSzInBits(), byteSz);
+    val = m_ctx.alu().doZext(val, wordSzInBits(), byteSz*8);
     words.push_back(val);
   } else {
     for (unsigned i = 0; i < byteSz; i += wordSzInBytes()) {

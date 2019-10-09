@@ -13,10 +13,6 @@
 #include "seahorn/OperationalSemantics.hh"
 
 namespace seahorn {
-typedef enum { mono_bmc, path_bmc } bmc_engine_t;
-}
-
-namespace seahorn {
 using namespace expr;
 
 namespace bmc_impl {

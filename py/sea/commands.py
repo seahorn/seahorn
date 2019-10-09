@@ -311,6 +311,11 @@ class Seapp(sea.LimitedCmd):
                          help='Lower invoke instructions',
                          dest='lower_invoke', default=False,
                          action='store_true')
+        ap.add_argument('--no-lower-gv-init-structs',
+                        dest='no_lower_gv_init_structs',
+                        help='Do not lower global initializers for structs',
+                        default=False,
+                        action='store_true')
         ap.add_argument ('--devirt-functions',
                          help='Devirtualize indirect functions using only types',
                          dest='devirt_funcs', default=False,
@@ -394,7 +399,10 @@ class Seapp(sea.LimitedCmd):
 
             if args.lower_invoke:
                 argv.append ('--lower-invoke')
-                
+
+            if args.no_lower_gv_init_structs:
+                argv.append('--lower-gv-init-struct=false')
+
             if args.devirt_funcs_cha or args.devirt_funcs:
                 argv.append ('--devirt-functions')
             if args.devirt_funcs_cha:

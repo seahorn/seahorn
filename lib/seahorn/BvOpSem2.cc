@@ -2229,10 +2229,19 @@ APInt Bv2OpSem::agg(Type *aggTy, const std::vector<GenericValue> &elements,
   const StructLayout *SL = getDataLayout().getStructLayout(STy);
   for (int i = 0 ; i <  elements.size(); i++) {
     const GenericValue element = elements[i];
+    Type *ElmTy = STy->getElementType(i);
     if (element.AggregateVal.empty()) {
-      next = element.IntVal;
-    } else { // assuming only dealing with int as terminal struct element
-      next = agg(STy->getElementType(i), element.AggregateVal, ctx);
+      // Assuming only dealing with Int or Pointer as struct terminal elements
+      if (ElmTy->isIntegerTy())
+        next = element.IntVal;
+      else if (ElmTy->isPointerTy()){
+        uint64_t ptrBv = reinterpret_cast<uint64_t>(element.PointerVal);
+        next = APInt(getDataLayout().getTypeSizeInBits(ElmTy), ptrBv);
+      } else {
+        llvm_unreachable("Only support converting Int or Pointer in structs");
+      }
+    } else {
+      next = agg(ElmTy, element.AggregateVal, ctx);
     }
     // Add padding to element
     int elOffset = SL->getElementOffset(i);

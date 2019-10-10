@@ -1810,11 +1810,15 @@ Expr Bv2OpSemContext::getConstantValue(const llvm::Constant &c) {
     if (GVO.hasValue()) {
       GenericValue gv = GVO.getValue();
       if (gv.AggregateVal.size() > 0) {
-        APInt aggBv = m_sem.agg(c.getType(), gv.AggregateVal, *this);
-        expr::mpz_class k = toMpz(aggBv);
-        return alu().si(k, aggBv.getBitWidth());
+        auto aggBvO = m_sem.agg(c.getType(), gv.AggregateVal, *this);
+        if (aggBvO.hasValue()) {
+          APInt aggBv = aggBvO.getValue();
+          expr::mpz_class k = toMpz(aggBv);
+          return alu().si(k, aggBv.getBitWidth());
+        }
       }
     }
+    LOG("opsem", WARN << "unhandled constant struct " << c;);
   } else if (c.getType()->isPointerTy()) {
     LOG("opsem", WARN << "unhandled constant pointer " << c;);
   } else {
@@ -2218,7 +2222,7 @@ void Bv2OpSem::execBr(const BasicBlock &src, const BasicBlock &dst,
   intraBr(ctx, dst);
 }
 
-APInt Bv2OpSem::agg(Type *aggTy, const std::vector<GenericValue> &elements,
+Optional<APInt> Bv2OpSem::agg(Type *aggTy, const std::vector<GenericValue> &elements,
                    details::Bv2OpSemContext &ctx) {
   APInt res;
   APInt next;
@@ -2235,13 +2239,25 @@ APInt Bv2OpSem::agg(Type *aggTy, const std::vector<GenericValue> &elements,
       if (ElmTy->isIntegerTy())
         next = element.IntVal;
       else if (ElmTy->isPointerTy()){
-        uint64_t ptrBv = reinterpret_cast<uint64_t>(element.PointerVal);
+        auto ptrBv = reinterpret_cast<intptr_t>(GVTOP(element));
         next = APInt(getDataLayout().getTypeSizeInBits(ElmTy), ptrBv);
       } else {
-        llvm_unreachable("Only support converting Int or Pointer in structs");
+        // this should be handled in constant evaluation step
+        LOG("opsem",
+            WARN << "Unsupported type " << *ElmTy << " to convert in aggregate. \n";);
+        llvm_unreachable("Only support converting Int or Pointer in aggregates");
+        return llvm::None;
       }
     } else {
-      next = agg(ElmTy, element.AggregateVal, ctx);
+      auto AIO = agg(ElmTy, element.AggregateVal, ctx);
+      if (AIO.hasValue())
+        next = AIO.getValue();
+      else {
+        LOG("opsem",
+            WARN << "Nested struct conversion failed \n";);
+        llvm_unreachable();
+        return llvm::None;
+      }
     }
     // Add padding to element
     int elOffset = SL->getElementOffset(i);

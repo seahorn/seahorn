@@ -121,7 +121,7 @@ public:
   /// \brief Deprecated
   Expr lookup(SymStore &s, const Value &v) { llvm_unreachable(nullptr); }
   /// Convert aggregate GenericValue to APInt
-  APInt agg(Type *ty, const std::vector<GenericValue> &elements,
+  Optional<APInt> agg(Type *ty, const std::vector<GenericValue> &elements,
       seahorn::details::Bv2OpSemContext &ctx);
   using gep_type_iterator = generic_gep_type_iterator<>;
   /// \brief Returns symbolic representation of the gep offset

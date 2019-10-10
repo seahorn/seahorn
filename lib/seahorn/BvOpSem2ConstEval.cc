@@ -508,7 +508,10 @@ Optional<GenericValue> ConstantExprEvaluator::evaluate(const Constant *C) {
     auto *STy = dyn_cast<StructType>(C->getType());
     auto *CS = dyn_cast<ConstantStruct>(C);
     // XXX the cast might fail. this must be handled better
-    if (!CS || !STy) return llvm::None;
+    if (!CS || !STy) {
+      LOG("opsem", WARN << "Casting failed when trying to evaluate a struct! \n";);
+      return llvm::None;
+    }
     unsigned int elemNum = STy->getNumElements();
     Result.AggregateVal.resize(elemNum);
     // try populate all elements in the struct
@@ -527,13 +530,21 @@ Optional<GenericValue> ConstantExprEvaluator::evaluate(const Constant *C) {
           Result.AggregateVal[i].PointerVal = nullptr;
         }
       } else {
-        if (ElemTy->isIntegerTy())
-          Result.AggregateVal[i].IntVal = cast<ConstantInt>(OPI)->getValue();
-        else if (ElemTy->isAggregateType() || ElemTy->isPointerTy()) {
+        if (ElemTy->isAggregateType() ||
+            ElemTy->isIntegerTy() ||
+            ElemTy->isPointerTy()) {
           auto val = evaluate(OPI);
           if (val.hasValue())
             Result.AggregateVal[i] = val.getValue();
-          else return llvm::None;
+          else {
+            LOG("opsem",
+                WARN << "Evaluating struct, no value set on this index:" << i << "\n";);
+            return llvm::None;
+          }
+        } else {
+          LOG("opsem",
+              WARN << "Unsupported element type " << *ElemTy << " in const struct. \n";);
+          return llvm::None;
         }
       }
     }

@@ -890,6 +890,15 @@ struct LISP {
     OS << ")";
   }
 };
+
+struct ADDRESS {
+  static inline void print(std::ostream &OS, int depth, bool brkt,
+                           const std::string &name,
+                           const std::vector<ENode *> &args) {
+    assert(args.size() == 1);
+    OS << name << "!" << args.at(0)->getId();
+  }
+};
 } // namespace ps
 using namespace ps;
 
@@ -1929,7 +1938,7 @@ NOP_BASE(MiscOp)
 /** A non-deterministic value */
 NOP(NONDET, "nondet", FUNCTIONAL, MiscOp)
 /** An assumption */
-NOP(ASM, "ASM", PREFIX, MiscOp)
+NOP(ASM, "ASM", ADDRESS, MiscOp)
 /** A tupple */
 NOP(TUPLE, "tuple", FUNCTIONAL, MiscOp)
 } // namespace op

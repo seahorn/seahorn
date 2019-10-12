@@ -1,6 +1,6 @@
 #include "seahorn/Expr/Smt/EZ3.hh"
 #include "llvm/Support/raw_ostream.h"
-
+#include "boost/logic/tribool.hpp"
 #include "doctest.h"
 
 TEST_CASE("z3.muz_test" * doctest::skip(true)) {
@@ -71,7 +71,7 @@ TEST_CASE("z3.muz_test" * doctest::skip(true)) {
   Expr q = bind::fapp(fdecl, zero, zero);
 
   errs() << fp.toString(q) << "\n";
-  tribool res = fp.query(q);
+  boost::tribool res = fp.query(q);
   errs() << "Solving: " << (res ? "sat" : "unsat") << "\n";
-  CHECK(res == true);
+  CHECK(static_cast<bool>(res));
 }

@@ -1,14 +1,14 @@
 #include "seahorn/config.h"
 
 #ifdef HAVE_CRAB_LLVM
-#include "seahorn/PathBmc.hh"
 #include "seahorn/Bmc.hh" // for bmc_impl stuff
 #include "seahorn/Expr/ExprLlvm.hh"
+#include "seahorn/LoadCrab.hh"
+#include "seahorn/PathBmc.hh"
 #include "seahorn/Support/CFG.hh"
-#include "seahorn/UfoOpSem.hh"
 #include "seahorn/Support/SeaDebug.h"
 #include "seahorn/Support/Stats.hh"
-#include "seahorn/LoadCrab.hh"
+#include "seahorn/UfoOpSem.hh"
 
 #include "crab_llvm/CrabLlvm.hh"
 #include "crab_llvm/HeapAbstraction.hh"
@@ -29,8 +29,8 @@
 
 static llvm::cl::opt<bool>
     UseCrab("horn-bmc-crab",
-	    llvm::cl::desc("Use of Crab to solve paths in Path Bmc"),
-	    llvm::cl::init(false));
+            llvm::cl::desc("Use of Crab to solve paths in Path Bmc"),
+            llvm::cl::init(false));
 
 static llvm::cl::opt<crab_llvm::CrabDomain> CrabDom(
     "horn-bmc-crab-dom",
@@ -73,13 +73,14 @@ static llvm::cl::opt<enum bmc_detail::MucMethod> MucMethod(
     "horn-bmc-muc",
     llvm::cl::desc(
         "Method used to compute minimal unsatisfiable cores in Path-Based BMC"),
-    llvm::cl::values(clEnumValN(bmc_detail::MucMethod::MUC_NONE, "none", "None"),
-                     clEnumValN(bmc_detail::MucMethod::MUC_ASSUMPTIONS, "assume",
-                                "Solving with assumptions"),
+    llvm::cl::values(clEnumValN(bmc_detail::MucMethod::MUC_NONE, "none",
+                                "None"),
+                     clEnumValN(bmc_detail::MucMethod::MUC_ASSUMPTIONS,
+                                "assume", "Solving with assumptions"),
                      clEnumValN(bmc_detail::MucMethod::MUC_DELETION, "deletion",
                                 "Deletion-based method"),
-                     clEnumValN(bmc_detail::MucMethod::MUC_BINARY_SEARCH, "quickXplain",
-                                "QuickXplain method")),
+                     clEnumValN(bmc_detail::MucMethod::MUC_BINARY_SEARCH,
+                                "quickXplain", "QuickXplain method")),
     llvm::cl::init(bmc_detail::MucMethod::MUC_ASSUMPTIONS));
 
 static llvm::cl::opt<unsigned> PathTimeout(
@@ -332,8 +333,7 @@ public:
 
 class muc_with_assumptions : public minimal_unsat_core {
 public:
-  muc_with_assumptions(ZSolver<EZ3> &solver)
-      : minimal_unsat_core(solver) {}
+  muc_with_assumptions(ZSolver<EZ3> &solver) : minimal_unsat_core(solver) {}
 
   std::string get_name(void) const { return "MUC with assumptions"; }
 
@@ -406,47 +406,49 @@ class binary_search_muc : public minimal_unsat_core {
 
   /*
     qx(base, target, skip) {
-       if (not skip) and unsat(base) then 
+       if (not skip) and unsat(base) then
           return empty;
-       if target is singleton then 
+       if target is singleton then
           return target
 
       <t1, t2> := partition(target);
-      c1 := qx(base U t2, t1, t2 == empty);  // minimize first half wrt second half
-      c2 := qx(base U c1, t2, c1 == empty);  // minimize second half wrt MUS of first half.
-      return c1 U c2;
-    } 
+      c1 := qx(base U t2, t1, t2 == empty);  // minimize first half wrt second
+    half c2 := qx(base U c1, t2, c1 == empty);  // minimize second half wrt MUS
+    of first half. return c1 U c2;
+    }
 
     call qx(empty, formula, false);
    */
-  void qx(const ExprVector& target, unsigned begin, unsigned end, bool skip, ExprVector& out) {
+  void qx(const ExprVector &target, unsigned begin, unsigned end, bool skip,
+          ExprVector &out) {
     if (!skip) {
       scoped_solver ss(m_solver, MucTimeout);
       boost::tribool res = ss.get().solve();
       if (!res) {
-	return; 
+        return;
       }
     }
 
-    if (end - begin  == 1) {
+    if (end - begin == 1) {
       out.push_back(target[begin]);
-      return ;
-    } 
+      return;
+    }
 
     assert(begin < end);
-    unsigned mid = (begin + end)/2;
+    unsigned mid = (begin + end) / 2;
 
 #if 1
     m_solver.push();
-    for(auto it = target.begin()+mid, et= target.begin()+end; it!=et; ++it) {
+    for (auto it = target.begin() + mid, et = target.begin() + end; it != et;
+         ++it) {
       m_solver.assertExpr(*it);
-    } 
+    }
     unsigned old_out_size = out.size();
-    // minimize 1st half wrt 2nd half      
+    // minimize 1st half wrt 2nd half
     qx(target, begin, mid, end - mid < 1, out);
     m_solver.pop();
     m_solver.push();
-    for(unsigned i=old_out_size, e=out.size(); i<e; ++i) {
+    for (unsigned i = old_out_size, e = out.size(); i < e; ++i) {
       m_solver.assertExpr(out[i]);
     }
     // minimize 2nd half wrt MUS(1st half)
@@ -454,32 +456,31 @@ class binary_search_muc : public minimal_unsat_core {
     m_solver.pop();
 #else
     m_solver.push();
-    for(auto it = target.begin()+begin, et= target.begin()+mid; it!=et; ++it) {
+    for (auto it = target.begin() + begin, et = target.begin() + mid; it != et;
+         ++it) {
       m_solver.assertExpr(*it);
-    } 
+    }
     unsigned old_out_size = out.size();
     // minimize 2nd half wrt 1st half
     qx(target, mid, end, mid - begin < 1, out);
     m_solver.pop();
     m_solver.push();
-    for(unsigned i=old_out_size, e=out.size(); i<e; ++i) {
+    for (unsigned i = old_out_size, e = out.size(); i < e; ++i) {
       m_solver.assertExpr(out[i]);
     }
     // minimize 1st half wrt MUS(2nd half)
     qx(target, begin, mid, out.size() - old_out_size < 1, out);
     m_solver.pop();
-#endif 
+#endif
   }
-  
+
 public:
-  
-  binary_search_muc(ZSolver<EZ3> &solver)
-    : minimal_unsat_core(solver) {}
+  binary_search_muc(ZSolver<EZ3> &solver) : minimal_unsat_core(solver) {}
 
   void run(const ExprVector &formula, ExprVector &out) override {
     unsigned i = 0;
     unsigned j = formula.size();
-    bool skip = false; 
+    bool skip = false;
     m_solver.reset();
     qx(formula, i, j, skip, out);
   }
@@ -490,20 +491,21 @@ public:
 // TODO: move to BmcEngine.
 
 struct crab_lin_cst_hasher {
-  size_t operator()(const crab_llvm::lin_cst_t& cst) const {
+  size_t operator()(const crab_llvm::lin_cst_t &cst) const {
     return cst.index();
   }
 };
 
 struct crab_lin_cst_equal {
-  size_t operator()(const crab_llvm::lin_cst_t& c1,
-		    const crab_llvm::lin_cst_t& c2) const {
+  size_t operator()(const crab_llvm::lin_cst_t &c1,
+                    const crab_llvm::lin_cst_t &c2) const {
     return c1.equal(c2);
   }
 };
 
-typedef std::unordered_map<crab_llvm::lin_cst_t,Expr,
-			     crab_lin_cst_hasher, crab_lin_cst_equal> lin_cst_to_exp_map;  
+typedef std::unordered_map<crab_llvm::lin_cst_t, Expr, crab_lin_cst_hasher,
+                           crab_lin_cst_equal>
+    lin_cst_to_exp_map;
 
 void PathBmcEngine::load_invariants(
     crab_llvm::CrabLlvmPass &crab, const LiveSymbols &ls,
@@ -511,7 +513,7 @@ void PathBmcEngine::load_invariants(
 
   auto heap_info = crab.get_heap_abstraction();
 
-  lin_cst_to_exp_map cache;  
+  lin_cst_to_exp_map cache;
   for (const BasicBlock &bb : *m_fn) {
 
     // -- Get invariants from crab as crab linear constraints
@@ -532,43 +534,43 @@ void PathBmcEngine::load_invariants(
       auto it = cache.find(cst);
       Expr e;
       if (it == cache.end()) {
-	if (!(cst.is_well_typed())) {
-	  // Crab can generate invariants where variables might have
-	  // different bitwidths.
-	  continue;
-	}
-	e = conv.toExpr(cst, sem());
+        if (!(cst.is_well_typed())) {
+          // Crab can generate invariants where variables might have
+          // different bitwidths.
+          continue;
+        }
+        e = conv.toExpr(cst, sem());
       } else {
-	e = it->second;
+        e = it->second;
       }
-      
+
       if (isOpX<FALSE>(e)) {
         res.clear();
         res.push_back(e);
-	break;
+        break;
       } else if (isOpX<TRUE>(e)) {
         continue;
       } else {
-	cache.insert({cst, e});	
+        cache.insert({cst, e});
         res.push_back(e);
       }
     }
-    
+
     if (!res.empty()) {
       invariants.insert({&bb, res});
-      
+
       LOG("bmc-ai", errs() << "Global invariants at " << bb.getName() << ":\n";
-	  if (res.empty()) { errs() << "\ttrue\n"; } else {
-	    for (auto e : res) {
-	      errs() << "\t" << *e << "\n";
-	    }
-	  });
+          if (res.empty()) { errs() << "\ttrue\n"; } else {
+            for (auto e : res) {
+              errs() << "\t" << *e << "\n";
+            }
+          });
     }
   }
 }
 
 void PathBmcEngine::assert_invariants(const invariants_map_t &invariants,
-                                           SymStore &s) {
+                                      SymStore &s) {
   // s.print(errs());
   // Apply the symbolic store
   expr::fn_map<std::function<Expr(Expr)>> fmap([s](Expr e) { return s.at(e); });
@@ -1064,28 +1066,28 @@ boost::tribool PathBmcEngine::path_encoding_and_solve_with_smt(
   return res;
 }
 
-PathBmcEngine::PathBmcEngine(LegacyOperationalSemantics &sem,
-                                       EZ3 &zctx,
-                                       crab_llvm::CrabLlvmPass *crab,
-                                       const TargetLibraryInfo &tli)
-  : m_sem(sem), m_cpg(nullptr), m_fn(nullptr), m_ls(nullptr),
-    m_smt_solver(zctx), m_aux_smt_solver(zctx), m_ctxState(sem.efac()),
-    m_incomplete(false), m_num_paths(0),
-    m_tli(tli), m_model(zctx), 
-    m_crab_global(crab), m_crab_path(nullptr) {
-  
+PathBmcEngine::PathBmcEngine(LegacyOperationalSemantics &sem, EZ3 &zctx,
+                             crab_llvm::CrabLlvmPass *crab,
+                             const TargetLibraryInfo &tli)
+    : m_sem(sem), m_cpg(nullptr), m_fn(nullptr), m_ls(nullptr),
+      m_smt_solver(zctx), m_aux_smt_solver(zctx), m_ctxState(sem.efac()),
+      m_incomplete(false), m_num_paths(0), m_tli(tli), m_model(zctx),
+      m_crab_global(crab), m_crab_path(nullptr) {
+
   // Tuning m_aux_smt_solver
   z3n_set_param(":model_compress", false);
   z3n_set_param(":proof", false);
-  
-  //ZParams<EZ3> params(zctx);
-  //params.set(":model_compress", false);
-  //m_aux_smt_solver.set(params);    
+
+  // ZParams<EZ3> params(zctx);
+  // params.set(":model_compress", false);
+  // m_aux_smt_solver.set(params);
 }
 
 PathBmcEngine::~PathBmcEngine() {
-  if (m_ls) delete m_ls;
-  if (m_crab_path) delete m_crab_path;
+  if (m_ls)
+    delete m_ls;
+  if (m_crab_path)
+    delete m_crab_path;
 }
 
 void PathBmcEngine::addCutPoint(const CutPoint &cp) {
@@ -1097,7 +1099,6 @@ void PathBmcEngine::addCutPoint(const CutPoint &cp) {
   assert(m_cpg == &cp.parent());
   m_cps.push_back(&cp);
 }
-  
 
 // Print a path to a SMT-LIB file (for debugging purposes)
 void PathBmcEngine::toSmtLib(const ExprVector &f, std::string prefix) {
@@ -1164,7 +1165,7 @@ raw_ostream &PathBmcEngine::toSmtLib(raw_ostream &o) {
 
 void PathBmcEngine::encode() {
   Stats::resume("BMC path-based: precise encoding");
-  
+
   // -- only run the encoding once
   if (m_semCtx)
     return;
@@ -1239,7 +1240,8 @@ boost::tribool PathBmcEngine::solve() {
     }
   }
 
-  LOG("bmc-details", for (Expr v : m_precise_side) { errs() << "\t" << *v << "\n"; });
+  LOG("bmc-details", for (Expr v
+                          : m_precise_side) { errs() << "\t" << *v << "\n"; });
 
   // -- Boolean abstraction
   LOG("bmc", get_os(true) << "Begin boolean abstraction\n";);

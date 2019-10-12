@@ -2,8 +2,8 @@
 #include "llvm/Analysis/TargetLibraryInfo.h"
 #include "llvm/IR/Dominators.h"
 #include "llvm/IR/Function.h"
-#include "llvm/IR/Instructions.h"
 #include "llvm/IR/InstIterator.h"
+#include "llvm/IR/Instructions.h"
 #include "llvm/IR/Module.h"
 #include "llvm/Pass.h"
 #include "llvm/Support/raw_ostream.h"
@@ -20,9 +20,9 @@
 #include "seahorn/BvOpSem.hh"
 #include "seahorn/BvOpSem2.hh"
 #include "seahorn/PathBmc.hh"
-#include "seahorn/UfoOpSem.hh"
 #include "seahorn/Support/SeaDebug.h"
 #include "seahorn/Support/SeaLog.hh"
+#include "seahorn/UfoOpSem.hh"
 #ifdef HAVE_CRAB_LLVM
 ///#include "seahorn/Transforms/Scalar/LowerCstExpr.hh"
 #include "crab_llvm/CrabLlvm.hh"
@@ -49,14 +49,10 @@ namespace {
 using namespace llvm;
 using namespace seahorn;
 
-
 class BmcPass : public llvm::ModulePass {
 public:
   // Available BMC engines
-  typedef enum {
-      mono_bmc
-    , path_bmc
-  } bmc_engine_t;
+  typedef enum { mono_bmc, path_bmc } bmc_engine_t;
 
 private:
   /// bmc engine type
@@ -99,17 +95,17 @@ public:
   }
 
   void getAnalysisUsage(AnalysisUsage &AU) const {
-#ifdef HAVE_CRAB_LLVM    
+#ifdef HAVE_CRAB_LLVM
     if (m_engine == path_bmc) {
       AU.addRequired<crab_llvm::CrabLlvmPass>();
-      AU.addRequired<TargetLibraryInfoWrapperPass>();    
+      AU.addRequired<TargetLibraryInfoWrapperPass>();
     }
-#endif        
+#endif
     AU.addRequired<CanFail>();
     AU.addRequired<NameValues>();
     AU.addRequired<TopologicalOrder>();
     AU.addRequired<CutPointGraph>();
-    
+
     if (HornGSA)
       AU.addRequired<GateAnalysisPass>();
 
@@ -178,140 +174,139 @@ public:
 
     ExprFactory efac;
 
-    if (m_engine == mono_bmc){
+    if (m_engine == mono_bmc) {
 
       std::unique_ptr<OperationalSemantics> sem;
       if (HornBv2)
-	sem = llvm::make_unique<Bv2OpSem>(efac, *this,
-					  F.getParent()->getDataLayout(), MEM);
+        sem = llvm::make_unique<Bv2OpSem>(efac, *this,
+                                          F.getParent()->getDataLayout(), MEM);
       else
-	sem = llvm::make_unique<BvOpSem>(efac, *this,
-					 F.getParent()->getDataLayout(), MEM);
-      
+        sem = llvm::make_unique<BvOpSem>(efac, *this,
+                                         F.getParent()->getDataLayout(), MEM);
+
       EZ3 zctx(efac);
       // XXX: uses OperationalSemantics but trace generation still depends on
-      // LegacyOperationalSemantics      
+      // LegacyOperationalSemantics
       BmcEngine bmc(*sem, zctx);
 
       bmc.addCutPoint(src);
       bmc.addCutPoint(*dst);
       LOG("bmc", errs() << "BMC from: " << src.bb().getName() << " to "
-	                << dst->bb().getName() << "\n";);
+                        << dst->bb().getName() << "\n";);
 
-      Stats::resume("BMC");    
+      Stats::resume("BMC");
       bmc.encode();
 
       Stats::uset("bmc.dag_sz", dagSize(bmc.getFormula()));
       Stats::uset("bmc.circ_sz", boolop::circSize(bmc.getFormula()));
-      
+
       LOG("bmc.simplify",
-	  // --
-	  Expr vc = mknary<AND>(bmc.getFormula());
-	  Expr vc_simpl = z3_simplify(bmc.zctx(), vc);
-	  llvm::errs() << "VC:\n"
-	               << z3_to_smtlib(bmc.zctx(), vc) << "\n~~~~\n"
-	               << "Simplified VC:\n"
-	               << z3_to_smtlib(bmc.zctx(), vc_simpl) << "\n");
-      
+          // --
+          Expr vc = mknary<AND>(bmc.getFormula());
+          Expr vc_simpl = z3_simplify(bmc.zctx(), vc);
+          llvm::errs() << "VC:\n"
+                       << z3_to_smtlib(bmc.zctx(), vc) << "\n~~~~\n"
+                       << "Simplified VC:\n"
+                       << z3_to_smtlib(bmc.zctx(), vc_simpl) << "\n");
+
       if (m_out)
-	bmc.toSmtLib(*m_out);
+        bmc.toSmtLib(*m_out);
 
       if (!m_solve) {
-	LOG("bmc", errs() << "Stopping before solving\n";);
-	Stats::stop("BMC");      
-	return false;
+        LOG("bmc", errs() << "Stopping before solving\n";);
+        Stats::stop("BMC");
+        return false;
       }
 
       auto res = bmc.solve();
       Stats::stop("BMC");
 
       if (res)
-	outs() << "sat";
+        outs() << "sat";
       else if (!res)
-	outs() << "unsat";
+        outs() << "unsat";
       else
-	outs() << "unknown";
+        outs() << "unknown";
       outs() << "\n";
-    
+
       if (res)
-	Stats::sset("Result", "FALSE");
+        Stats::sset("Result", "FALSE");
       else if (!res)
-	Stats::sset("Result", "TRUE");
-      
-      LOG("bmc_core",	  
-	  // producing bmc core is expensive. Enable only if specifically
-	  // requested
-	  if (!res) {
-	    ExprVector core;
-	    bmc.unsatCore(core);
-	    errs() << "CORE BEGIN\n";
-	    for (auto c : core)
-	      errs() << *c << "\n";
-	    errs() << "CORE END\n";
-	  });
-      
+        Stats::sset("Result", "TRUE");
+
+      LOG("bmc_core",
+          // producing bmc core is expensive. Enable only if specifically
+          // requested
+          if (!res) {
+            ExprVector core;
+            bmc.unsatCore(core);
+            errs() << "CORE BEGIN\n";
+            for (auto c : core)
+              errs() << *c << "\n";
+            errs() << "CORE END\n";
+          });
+
       LOG("cex", if (res) {
-	  errs() << "Analyzed Function:\n" << F << "\n";
-	  BmcTrace trace(bmc.getTrace());
-	  errs() << "Trace \n";
-	  trace.print(errs());
-	});
+        errs() << "Analyzed Function:\n" << F << "\n";
+        BmcTrace trace(bmc.getTrace());
+        errs() << "Trace \n";
+        trace.print(errs());
+      });
     } else if (m_engine == path_bmc) {
-#ifdef HAVE_CRAB_LLVM      
-       const TargetLibraryInfo &tli =
-	 getAnalysis<TargetLibraryInfoWrapperPass>().getTLI();
-       
-       auto *crab = &getAnalysis<crab_llvm::CrabLlvmPass>();
-       
-       std::unique_ptr<OperationalSemantics> sem =
-	 llvm::make_unique<BvOpSem>(efac, *this,
-				    F.getParent()->getDataLayout(), MEM);
-       
-       EZ3 zctx(efac);
+#ifdef HAVE_CRAB_LLVM
+      const TargetLibraryInfo &tli =
+          getAnalysis<TargetLibraryInfoWrapperPass>().getTLI();
 
-       // XXX: use of legacy operational semantics
-       PathBmcEngine bmc(static_cast<LegacyOperationalSemantics &>(*sem),
-			 zctx, crab, tli);
+      auto *crab = &getAnalysis<crab_llvm::CrabLlvmPass>();
 
-       bmc.addCutPoint(src);
-       bmc.addCutPoint(*dst);
-       LOG("bmc", errs() << "Path BMC from: " << src.bb().getName() << " to "
-	                 << dst->bb().getName() << "\n";);
+      std::unique_ptr<OperationalSemantics> sem = llvm::make_unique<BvOpSem>(
+          efac, *this, F.getParent()->getDataLayout(), MEM);
 
-       Stats::resume("BMC");    
+      EZ3 zctx(efac);
 
-       if (!m_solve) {
-         LOG("bmc", errs() << "Stopping before solving\n";);
-         Stats::stop("BMC");      
-         return false;
-       }
+      // XXX: use of legacy operational semantics
+      PathBmcEngine bmc(static_cast<LegacyOperationalSemantics &>(*sem), zctx,
+                        crab, tli);
 
-       auto res = bmc.solve();
-       Stats::stop("BMC");
+      bmc.addCutPoint(src);
+      bmc.addCutPoint(*dst);
+      LOG("bmc", errs() << "Path BMC from: " << src.bb().getName() << " to "
+                        << dst->bb().getName() << "\n";);
 
-       if (res)
-	 outs() << "sat";
-       else if (!res)
-	 outs() << "unsat";
-       else
-	 outs() << "unknown";
-       outs() << "\n";
-       
-       if (res)
-	 Stats::sset("Result", "FALSE");
-       else if (!res)
-	 Stats::sset("Result", "TRUE");
-       
-        LOG("cex", if (res) {
-	    errs() << "Analyzed Function:\n" << F << "\n";
-	    PathBmcTrace trace(bmc.getTrace());
-	    errs() << "Trace \n";
-	    trace.print(errs());
-	  });
+      Stats::resume("BMC");
+
+      if (!m_solve) {
+        LOG("bmc", errs() << "Stopping before solving\n";);
+        Stats::stop("BMC");
+        return false;
+      }
+
+      auto res = bmc.solve();
+      Stats::stop("BMC");
+
+      if (res)
+        outs() << "sat";
+      else if (!res)
+        outs() << "unsat";
+      else
+        outs() << "unknown";
+      outs() << "\n";
+
+      if (res)
+        Stats::sset("Result", "FALSE");
+      else if (!res)
+        Stats::sset("Result", "TRUE");
+
+      LOG("cex", if (res) {
+        errs() << "Analyzed Function:\n" << F << "\n";
+        PathBmcTrace trace(bmc.getTrace());
+        errs() << "Trace \n";
+        trace.print(errs());
+      });
 #else
-	errs() << "The path BMC engine is not available without Crab.\n";
+      errs() << "The path BMC engine is not available without Crab.\n";
 #endif
-    } 
+    }
     return false;
   }
 

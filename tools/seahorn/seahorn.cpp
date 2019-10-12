@@ -42,9 +42,9 @@
 #include "crab_llvm/Transforms/InsertInvariants.hh"
 #endif
 
+#include "seahorn/Expr/Smt/EZ3.hh"
 #include "seahorn/Support/Stats.hh"
 #include "seahorn/Transforms/Utils/NameValues.hh"
-#include "seahorn/Expr/Smt/EZ3.hh"
 
 #include "seahorn/Support/GitSHA1.h"
 void print_seahorn_version() {
@@ -143,10 +143,7 @@ static llvm::cl::opt<bool>
         llvm::cl::init(false));
 
 // Available BMC engines
-enum class BmcEngineKind {
-    mono_bmc
-  , path_bmc
-};
+enum class BmcEngineKind { mono_bmc, path_bmc };
 
 static llvm::cl::opt<BmcEngineKind>
     BmcEngine("horn-bmc-engine", llvm::cl::desc("Choose BMC engine"),
@@ -393,16 +390,16 @@ int main(int argc, char **argv) {
     llvm::raw_ostream *out = nullptr;
     if (!OutputFilename.empty())
       out = &output->os();
-    
-    switch(BmcEngine) {
+
+    switch (BmcEngine) {
     case BmcEngineKind::path_bmc:
       pass_manager.add(seahorn::createPathBmcPass(out, Solve));
-      break;      
+      break;
     case BmcEngineKind::mono_bmc:
     default:
-      pass_manager.add(seahorn::createBmcPass(out, Solve));      
+      pass_manager.add(seahorn::createBmcPass(out, Solve));
     }
-    
+
   } else if (BoogieOutput) {
     llvm::raw_ostream *out = nullptr;
     if (!OutputFilename.empty()) {

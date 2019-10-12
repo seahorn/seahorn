@@ -143,18 +143,18 @@ static llvm::cl::opt<bool>
         llvm::cl::init(false));
 
 // Available BMC engines
-typedef enum {
+enum class BmcEngineKind {
     mono_bmc
   , path_bmc
-} BmcEngineKind;
+};
 
 static llvm::cl::opt<BmcEngineKind>
     BmcEngine("horn-bmc-engine", llvm::cl::desc("Choose BMC engine"),
-              llvm::cl::values(clEnumValN(mono_bmc, "mono",
+              llvm::cl::values(clEnumValN(BmcEngineKind::mono_bmc, "mono",
                                           "Solve a single formula"),
-                               clEnumValN(path_bmc, "path",
+                               clEnumValN(BmcEngineKind::path_bmc, "path",
                                           "Based on path enumeration")),
-              llvm::cl::init(mono_bmc));
+              llvm::cl::init(BmcEngineKind::mono_bmc));
 
 static llvm::cl::opt<bool>
     BoogieOutput("boogie", llvm::cl::desc("Translate llvm bitcode to boogie"),
@@ -395,10 +395,10 @@ int main(int argc, char **argv) {
       out = &output->os();
     
     switch(BmcEngine) {
-    case path_bmc:
+    case BmcEngineKind::path_bmc:
       pass_manager.add(seahorn::createPathBmcPass(out, Solve));
       break;      
-    case mono_bmc:
+    case BmcEngineKind::mono_bmc:
     default:
       pass_manager.add(seahorn::createBmcPass(out, Solve));      
     }

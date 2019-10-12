@@ -101,22 +101,14 @@ public:
   void getAnalysisUsage(AnalysisUsage &AU) const {
 #ifdef HAVE_CRAB_LLVM    
     if (m_engine == path_bmc) {
-      if (XHornBmcCrab) {
-        AU.addRequired<crab_llvm::CrabLlvmPass>();
-        // AU.addRequired<LowerCstExprPass>();
-	// XXX: NameValues must be executed after LowerCstExprPass
-	// because the latter might introduce unnamed instructions.
-      }
+      AU.addRequired<crab_llvm::CrabLlvmPass>();
+      AU.addRequired<TargetLibraryInfoWrapperPass>();    
     }
-#endif
-        
+#endif        
     AU.addRequired<CanFail>();
     AU.addRequired<NameValues>();
     AU.addRequired<TopologicalOrder>();
     AU.addRequired<CutPointGraph>();
-#ifdef HAVE_CRAB_LLVM        
-    AU.addRequired<TargetLibraryInfoWrapperPass>();
-#endif
     
     if (HornGSA)
       AU.addRequired<GateAnalysisPass>();
@@ -269,11 +261,8 @@ public:
        const TargetLibraryInfo &tli =
 	 getAnalysis<TargetLibraryInfoWrapperPass>().getTLI();
        
-       crab_llvm::CrabLlvmPass *crab = nullptr;
-       if (XHornBmcCrab) {
-         crab = &getAnalysis<crab_llvm::CrabLlvmPass>();
-       }
-
+       auto *crab = &getAnalysis<crab_llvm::CrabLlvmPass>();
+       
        std::unique_ptr<OperationalSemantics> sem =
 	 llvm::make_unique<BvOpSem>(efac, *this,
 				    F.getParent()->getDataLayout(), MEM);
@@ -282,7 +271,7 @@ public:
 
        // XXX: use of legacy operational semantics
        PathBmcEngine bmc(static_cast<LegacyOperationalSemantics &>(*sem),
-			 zctx, crab /* can be null*/, tli);
+			 zctx, crab, tli);
 
        bmc.addCutPoint(src);
        bmc.addCutPoint(*dst);

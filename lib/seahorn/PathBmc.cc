@@ -27,14 +27,10 @@
   false path and the boolean abstraction.
 **/
 
-namespace seahorn {
-// To tell BmcPass if we want crab enabled.
-bool XHornBmcCrab;
-} // namespace seahorn
-
-static llvm::cl::opt<bool, true>
-    UseCrab("horn-bmc-crab", llvm::cl::desc("Use of Crab to solve paths in Path Bmc"),
-            llvm::cl::location(seahorn::XHornBmcCrab), llvm::cl::init(false));
+static llvm::cl::opt<bool>
+    UseCrab("horn-bmc-crab",
+	    llvm::cl::desc("Use of Crab to solve paths in Path Bmc"),
+	    llvm::cl::init(false));
 
 static llvm::cl::opt<crab_llvm::CrabDomain> CrabDom(
     "horn-bmc-crab-dom",
@@ -65,7 +61,7 @@ static llvm::cl::opt<bool> LayeredCrabSolving(
     llvm::cl::init(false));
 
 namespace bmc_detail {
-enum muc_method_t {
+enum class MucMethod {
   MUC_NONE,
   MUC_DELETION,
   MUC_ASSUMPTIONS,
@@ -73,18 +69,18 @@ enum muc_method_t {
 };
 }
 
-static llvm::cl::opt<enum bmc_detail::muc_method_t> MucMethod(
+static llvm::cl::opt<enum bmc_detail::MucMethod> MucMethod(
     "horn-bmc-muc",
     llvm::cl::desc(
         "Method used to compute minimal unsatisfiable cores in Path-Based BMC"),
-    llvm::cl::values(clEnumValN(bmc_detail::MUC_NONE, "none", "None"),
-                     clEnumValN(bmc_detail::MUC_ASSUMPTIONS, "assume",
+    llvm::cl::values(clEnumValN(bmc_detail::MucMethod::MUC_NONE, "none", "None"),
+                     clEnumValN(bmc_detail::MucMethod::MUC_ASSUMPTIONS, "assume",
                                 "Solving with assumptions"),
-                     clEnumValN(bmc_detail::MUC_DELETION, "deletion",
+                     clEnumValN(bmc_detail::MucMethod::MUC_DELETION, "deletion",
                                 "Deletion-based method"),
-                     clEnumValN(bmc_detail::MUC_BINARY_SEARCH, "quickXplain",
+                     clEnumValN(bmc_detail::MucMethod::MUC_BINARY_SEARCH, "quickXplain",
                                 "QuickXplain method")),
-    llvm::cl::init(bmc_detail::MUC_ASSUMPTIONS));
+    llvm::cl::init(bmc_detail::MucMethod::MUC_ASSUMPTIONS));
 
 static llvm::cl::opt<unsigned> PathTimeout(
     "horn-bmc-path-timeout",
@@ -993,12 +989,12 @@ boost::tribool PathBmcEngine::path_encoding_and_solve_with_smt(
   } else {
     // Stats::resume ("BMC path-based: SMT unsat core");
     // --- Compute minimal unsat core of the path formula
-    bmc_detail::muc_method_t muc_method = MucMethod;
+    bmc_detail::MucMethod muc_method = MucMethod;
     if (!res) {
       LOG("bmc", get_os() << "SMT proved unsat. Size of path formula="
                           << path_formula.size() << ". ");
     } else {
-      muc_method = bmc_detail::MUC_NONE;
+      muc_method = bmc_detail::MucMethod::MUC_NONE;
       res = false;
       m_incomplete = true;
       LOG("bmc", get_os() << "SMT returned unknown. Size of path formula="
@@ -1016,23 +1012,23 @@ boost::tribool PathBmcEngine::path_encoding_and_solve_with_smt(
 
     ExprVector unsat_core;
     switch (muc_method) {
-    case bmc_detail::MUC_NONE: {
+    case bmc_detail::MucMethod::MUC_NONE: {
       unsat_core.assign(path_formula.begin(), path_formula.end());
       break;
     }
-    case bmc_detail::MUC_DELETION: {
+    case bmc_detail::MucMethod::MUC_DELETION: {
       deletion_muc muc(m_aux_smt_solver);
       muc.run(path_formula, unsat_core);
       LOG("bmc-unsat-core", errs() << "\n"; muc.print_stats(errs()));
       break;
     }
-    case bmc_detail::MUC_BINARY_SEARCH: {
+    case bmc_detail::MucMethod::MUC_BINARY_SEARCH: {
       binary_search_muc muc(m_aux_smt_solver);
       muc.run(path_formula, unsat_core);
       LOG("bmc-unsat-core", errs() << "\n"; muc.print_stats(errs()));
       break;
     }
-    case bmc_detail::MUC_ASSUMPTIONS:
+    case bmc_detail::MucMethod::MUC_ASSUMPTIONS:
     default: {
       muc_with_assumptions muc(m_aux_smt_solver);
       muc.run(path_formula, unsat_core);

@@ -140,7 +140,7 @@ inline mpz_class toMpz(const APInt &v) {
 
   // TODO: Check if this is true for all platforms.
   mpz_class res;
-  mpz_import(res.get_mpz_t(), numWords, 1, sizeof(uint64_t), 0, 0, rawdata);
+  mpz_import(res.get_mpz_t(), numWords, -1, sizeof(uint64_t), 0, 0, rawdata);
 
   return v.isNegative() ? mpz_class(-res) : res;
 }

@@ -182,8 +182,8 @@ private:
 
   // Defined only for z_number
   Expr exprFromNum(ikos::z_number n, ExprFactory &efac) {
-    const mpz_class mpz((mpz_class)n);
-    return mkTerm(mpz, efac);
+    const expr::mpz_class z(static_cast<::mpz_class>(n).get_mpz_t());
+    return mkTerm(z, efac);
   }
 
   Expr exprFromIntVar(varname_t v, ExprFactory &efac) {
@@ -353,9 +353,9 @@ private:
       return isOpX<MPZ>(e);
     }
 
-    mpz_class getNumber(Expr e) {
+    expr::mpz_class getNumber(Expr e) {
       assert(isNumber(e));
-      return getTerm<mpz_class>(e);
+      return getTerm<expr::mpz_class>(e);
     }
 
     bool isBv(Expr e) {

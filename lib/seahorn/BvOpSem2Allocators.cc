@@ -310,7 +310,7 @@ public:
         if (ai.m_inst == alloca) {
           Expr inRange;
           // TODO: figure proper bit-width
-          inRange = mk<BULE>(bytes, bv::bvnum(4 * 1024, 32, bytes->efac()));
+          inRange = mk<BULE>(bytes, bv::bvnum(4 * 1024UL, 32, bytes->efac()));
           LOG("opsem", errs()
                            << "Adding range condition: " << *inRange << "\n";);
           m_ctx.addScopedRely(inRange);

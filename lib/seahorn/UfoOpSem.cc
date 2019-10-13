@@ -120,8 +120,8 @@ struct OpSemBase {
       : m_s(s), m_efac(m_s.getExprFactory()), m_sem(sem), m_side(side) {
     trueE = mk<TRUE>(m_efac);
     falseE = mk<FALSE>(m_efac);
-    zeroE = mkTerm<mpz_class>(0, m_efac);
-    oneE = mkTerm<mpz_class>(1, m_efac);
+    zeroE = mkTerm<expr::mpz_class>(0UL, m_efac);
+    oneE = mkTerm<expr::mpz_class>(1UL, m_efac);
     m_uniq = false;
     resetActiveLit();
     // -- first two arguments are reserved for error flag
@@ -185,8 +185,8 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
     if (op0 == op1)
       return trueE;
     if (isOpX<MPZ>(op0) && isOpX<MPZ>(op1))
-      return getTerm<mpz_class>(op0) >= getTerm<mpz_class>(op1) ? trueE
-                                                                : falseE;
+      return getTerm<expr::mpz_class>(op0) >= getTerm<expr::mpz_class>(op1) ? trueE
+        : falseE;
 
     return mk<GEQ>(op0, op1);
   }
@@ -195,7 +195,7 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
     if (op0 == op1)
       return falseE;
     if (isOpX<MPZ>(op0) && isOpX<MPZ>(op1))
-      return getTerm<mpz_class>(op0) < getTerm<mpz_class>(op1) ? trueE : falseE;
+      return getTerm<expr::mpz_class>(op0) < getTerm<expr::mpz_class>(op1) ? trueE : falseE;
 
     return mk<LT>(op0, op1);
   }
@@ -333,9 +333,9 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
       return;
     Expr res;
 
-    Expr sixteen = mkTerm<mpz_class>(16, m_efac);
-    Expr thirtytwo = mkTerm<mpz_class>(32, m_efac);
-    Expr twoToSixteenMinusOne = mkTerm<mpz_class>(65535, m_efac);
+    Expr sixteen = mkTerm<expr::mpz_class>(16UL, m_efac);
+    Expr thirtytwo = mkTerm<expr::mpz_class>(32UL, m_efac);
+    Expr twoToSixteenMinusOne = mkTerm<expr::mpz_class>(65535UL, m_efac);
     switch (i.getOpcode()) {
     case BinaryOperator::And: {
       if (const ConstantInt *ci = dyn_cast<ConstantInt>(i.getOperand(1))) {
@@ -344,7 +344,7 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
           if (isMask_32(ci->getZExtValue())) {
             uint64_t v = ci->getZExtValue();
             rhs = mk<MOD>(
-                op0, mkTerm<mpz_class>((unsigned long int)(v + 1), m_efac));
+                op0, mkTerm<expr::mpz_class>((unsigned long int)(v + 1), m_efac));
           }
 
           if (UseWrite)
@@ -394,11 +394,11 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
     if (!EnableDiv)
       return Expr(nullptr);
 
-    mpz_class shift = expr::toMpz(op2->getValue());
-    mpz_class factor = 1;
-    for (unsigned long i = 0; i < shift.get_ui(); ++i)
+    uint64_t shift = op2->getValue().getZExtValue();
+    unsigned long factor = 1;
+    for (unsigned long i = 0; i < shift; ++i)
       factor = factor * 2;
-    Expr factorE = mkTerm<mpz_class>(factor, m_efac);
+    Expr factorE = mkTerm<expr::mpz_class>(factor, m_efac);
     if (RewriteDiv)
       return mk<IMPL>(mk<GEQ>(op1, zeroE), mk<EQ>(mk<MULT>(lhs, factorE), op1));
     else
@@ -448,23 +448,23 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
   }
 
   Expr doLeftShift(Expr op1, const ConstantInt *op2) {
-    mpz_class shift = expr::toMpz(op2->getValue());
-    mpz_class factor = 1;
-    for (unsigned long i = 0; i < shift.get_ui(); ++i) {
+    uint64_t shift = op2->getValue().getZExtValue();
+    unsigned long factor = 1;
+    for (unsigned long i = 0; i < shift; ++i) {
       factor = factor * 2;
     }
-    return mk<MULT>(op1, mkTerm<mpz_class>(factor, m_efac));
+    return mk<MULT>(op1, mkTerm<expr::mpz_class>(factor, m_efac));
   }
 
   Expr doAShr(Expr lhs, Expr op1, const ConstantInt *op2) {
     if (!EnableDiv)
       return Expr(nullptr);
 
-    mpz_class shift = expr::toMpz(op2->getValue());
-    mpz_class factor = 1;
-    for (unsigned long i = 0; i < shift.get_ui(); ++i)
+    uint64_t shift = op2->getValue().getZExtValue();
+    unsigned long factor = 1;
+    for (unsigned long i = 0; i < shift; ++i)
       factor = factor * 2;
-    Expr factorE = mkTerm<mpz_class>(factor, m_efac);
+    Expr factorE = mkTerm<expr::mpz_class>(factor, m_efac);
 
     if (RewriteDiv)
       return mk<EQ>(mk<MULT>(lhs, factorE), op1);
@@ -611,7 +611,7 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
       return;
 
     // sext maps (i1 1) to -1
-    Expr one = mkTerm<mpz_class>(is_signed ? -1 : 1, m_efac);
+    Expr one = mkTerm<expr::mpz_class>(is_signed ? -1L : 1L, m_efac);
 
     if (v0.getType()->isIntegerTy(1)) {
       if (const ConstantInt *ci = dyn_cast<ConstantInt>(&v0))
@@ -685,7 +685,7 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
                   dyn_cast<const ConstantInt>(MSI->getValue())) {
             // XXX This is potentially unsound if the corresponding DSA
             // XXX node corresponds to multiple allocation sites
-            Expr val = mkTerm<mpz_class>(expr::toMpz(c->getValue()), m_efac);
+            Expr val = mkTerm<expr::mpz_class>(expr::toMpz(c->getValue()), m_efac);
             errs() << "WARNING: initializing DSA node due to memset()\n";
             if (m_uniq) {
               side(m_outMem, val);
@@ -860,7 +860,7 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
       Expr rhs = m_inMem;
       if (I.getType()->isIntegerTy(1))
         // -- convert to Boolean
-        rhs = mk<NEQ>(rhs, mkTerm(mpz_class(0), m_efac));
+        rhs = mk<NEQ>(rhs, mkTerm(expr::mpz_class(), m_efac));
 
       if (UseWrite)
         write(I, rhs);
@@ -870,7 +870,7 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
       Expr rhs = op::array::select(m_inMem, op0);
       if (I.getType()->isIntegerTy(1))
         // -- convert to Boolean
-        rhs = mk<NEQ>(rhs, mkTerm(mpz_class(0), m_efac));
+        rhs = mk<NEQ>(rhs, mkTerm(expr::mpz_class(), m_efac));
 
       side(lhs, rhs, !ArrayGlobalConstraints);
     }
@@ -897,8 +897,8 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
     Expr v = lookup(*I.getOperand(0));
     if (v && I.getOperand(0)->getType()->isIntegerTy(1))
       // -- convert to int
-      v = boolop::lite(v, mkTerm(mpz_class(1), m_efac),
-                       mkTerm(mpz_class(0), m_efac));
+      v = boolop::lite(v, mkTerm(expr::mpz_class(1UL), m_efac),
+                       mkTerm(expr::mpz_class(), m_efac));
     if (m_uniq) {
       side(m_outMem, v);
     } else {
@@ -1031,7 +1031,7 @@ Expr UfoOpSem::ptrArith(SymStore &s, GetElementPtrInst &gep) {
     if (const StructType *st = GTI.getStructTypeOrNull()) {
       if (const ConstantInt *ci =
               dyn_cast<const ConstantInt>(GTI.getOperand())) {
-        Expr off = mkTerm<mpz_class>(fieldOff(st, ci->getZExtValue()), m_efac);
+        Expr off = mkTerm<expr::mpz_class>((unsigned long)fieldOff(st, ci->getZExtValue()), m_efac);
         res = mk<PLUS>(res, off);
       } else {
         assert(false);
@@ -1039,7 +1039,7 @@ Expr UfoOpSem::ptrArith(SymStore &s, GetElementPtrInst &gep) {
     } else {
       // otherwise we have a sequential type like an array or vector.
       // Multiply the index by the size of the indexed type.
-      Expr sz = mkTerm<mpz_class>(storageSize(GTI.getIndexedType()), m_efac);
+      Expr sz = mkTerm<expr::mpz_class>((unsigned long)storageSize(GTI.getIndexedType()), m_efac);
       res = mk<PLUS>(res, mk<MULT>(lookup(s, *GTI.getOperand()), sz));
     }
   }
@@ -1069,10 +1069,10 @@ Expr UfoOpSem::symb(const Value &I) {
     if (const ConstantInt *c = dyn_cast<const ConstantInt>(&I)) {
       if (c->getType()->isIntegerTy(1))
         return c->isOne() ? mk<TRUE>(m_efac) : mk<FALSE>(m_efac);
-      mpz_class k = toMpz(c->getValue());
-      return mkTerm<mpz_class>(k, m_efac);
+      expr::mpz_class k = toMpz(c->getValue());
+      return mkTerm<expr::mpz_class>(k, m_efac);
     } else if (cv->isNullValue() || isa<ConstantPointerNull>(&I))
-      return mkTerm<mpz_class>(0, m_efac);
+      return mkTerm<expr::mpz_class>(0UL, m_efac);
     else if (const ConstantExpr *ce = dyn_cast<const ConstantExpr>(&I)) {
       // -- if this is a cast, and not into a Boolean, strip it
       // -- XXX handle Boolean casts if needed
@@ -1083,8 +1083,8 @@ Expr UfoOpSem::symb(const Value &I) {
       {
         if (const ConstantInt *val =
                 dyn_cast<const ConstantInt>(ce->getOperand(0))) {
-          mpz_class k = toMpz(val->getValue());
-          return mkTerm<mpz_class>(k, m_efac);
+          expr::mpz_class k = toMpz(val->getValue());
+          return mkTerm<expr::mpz_class>(k, m_efac);
         }
         // -- strip cast
         else

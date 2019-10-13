@@ -61,13 +61,13 @@ TEST_CASE("z3.muz_test" * doctest::skip(true)) {
   vars.push_back(u);
   vars.push_back(v);
 
-  fp.addRule(vars, boolop::limp(mk<EQ>(x, mkTerm<mpz_class>(0, efac)), fapp));
+  fp.addRule(vars, boolop::limp(mk<EQ>(x, mkTerm<expr::mpz_class>(0UL, efac)), fapp));
   ExprVector body;
   body.push_back(pfapp);
-  body.push_back(mk<EQ>(x, mk<PLUS>(u, mkTerm<mpz_class>(1, efac))));
+  body.push_back(mk<EQ>(x, mk<PLUS>(u, mkTerm<expr::mpz_class>(1UL, efac))));
   fp.addRule(vars, boolop::limp(mknary<AND>(body), fapp));
 
-  Expr zero = mkTerm<mpz_class>(0, efac);
+  Expr zero = mkTerm<expr::mpz_class>(0UL, efac);
   Expr q = bind::fapp(fdecl, zero, zero);
 
   errs() << fp.toString(q) << "\n";

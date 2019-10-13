@@ -16,6 +16,7 @@
 #include <unordered_set>
 #include <vector>
 
+#include <seahorn/Expr/ExprGmp.hh>
 #include <gmpxx.h>
 
 #include <boost/container/flat_set.hpp>
@@ -724,34 +725,33 @@ template <> struct TerminalTrait<unsigned long> {
   static std::string name() { return "unsigned long"; }
 };
 
-template <> struct TerminalTrait<mpz_class> {
-  static inline void print(std::ostream &OS, const mpz_class &v, int depth,
+template <> struct TerminalTrait<expr::mpz_class> {
+  static inline void print(std::ostream &OS, const expr::mpz_class &v, int depth,
                            bool brkt) {
     /* print large numbers in hex */
-    if (v >= 65535 || v <= -65535)
+    if (v >= 65535UL || v <= -65535L)
       OS << std::hex << std::showbase;
 
-    OS << v;
+    OS << v.get_mpz_t();
 
     OS << std::dec << std::noshowbase;
   }
 
-  static inline bool less(const mpz_class &v1, const mpz_class &v2) {
+  static inline bool less(const expr::mpz_class &v1, const expr::mpz_class &v2) {
     return v1 < v2;
   }
 
-  static inline bool equal_to(const mpz_class &v1, const mpz_class &v2) {
+  static inline bool equal_to(const expr::mpz_class &v1, const expr::mpz_class &v2) {
     return v1 == v2;
   }
 
-  static inline size_t hash(const mpz_class &v) {
-    std::string str = boost::lexical_cast<std::string>(v);
+  static inline size_t hash(const expr::mpz_class &v) {
     std::hash<std::string> hasher;
-    return hasher(str);
+    return hasher(v.to_string());
   }
 
   static TerminalKind getKind() { return TerminalKind::MPZ; }
-  static std::string name() { return "mpz_class"; }
+  static std::string name() { return "expr::mpz_class"; }
 };
 
 template <> struct TerminalTrait<mpq_class> {
@@ -786,7 +786,7 @@ using UINT = Terminal<unsigned int>;
 using ULONG = Terminal<unsigned long>;
 
 using MPQ = Terminal<mpq_class>;
-using MPZ = Terminal<mpz_class>;
+using MPZ = Terminal<expr::mpz_class>;
 } // namespace op
 
 namespace ps {

@@ -129,19 +129,19 @@ struct OpSemBase {
     trueE = mk<TRUE>(m_efac);
     falseE = mk<FALSE>(m_efac);
 
-    zeroE = mkTerm<mpz_class>(0, m_efac);
-    oneE = mkTerm<mpz_class>(1, m_efac);
-    trueBv = bv::bvnum(1, 1, m_efac);
-    falseBv = bv::bvnum(0, 1, m_efac);
-    nullBv = bv::bvnum(0, m_sem.pointerSizeInBits(), m_efac);
+    zeroE = mkTerm<expr::mpz_class>(0UL, m_efac);
+    oneE = mkTerm<expr::mpz_class>(1UL, m_efac);
+    trueBv = bv::bvnum(1UL, 1, m_efac);
+    falseBv = bv::bvnum(0UL, 1, m_efac);
+    nullBv = bv::bvnum(0UL, m_sem.pointerSizeInBits(), m_efac);
     m_uniq = false;
     resetActiveLit();
 
-    mpz_class val;
+    expr::mpz_class val;
     if (ptrSz() == 64) {
-      val = 0x000000000FFFFFFF;
+      val = expr::mpz_class(0x000000000FFFFFFFU);
     } else if (ptrSz() == 32) {
-      val = 0x0FFFFFFF;
+      val = expr::mpz_class(0x0FFFFFFFU);
     } else {
       assert(false && "Unexpected pointer size");
     }
@@ -219,15 +219,15 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
   void addAlignConstraint(Expr e, unsigned sz) {
     switch (sz) {
     case 4:
-      side(mk<EQ>(bv::extract(2 - 1, 0, e), bv::bvnum(0, 2, m_efac)));
+      side(mk<EQ>(bv::extract(2 - 1, 0, e), bv::bvnum(0U, 2, m_efac)));
       break;
     case 8:
-      side(mk<EQ>(bv::extract(3 - 1, 0, e), bv::bvnum(0, 3, m_efac)));
+      side(mk<EQ>(bv::extract(3 - 1, 0, e), bv::bvnum(0U, 3, m_efac)));
       break;
     default:
       // FIXME: expensive encoding
       side(mk<EQ>(mk<BUREM>(e, bv::bvnum(sz, ptrSz(), m_efac)),
-                  bv::bvnum(0, ptrSz(), m_efac)));
+                  bv::bvnum(0U, ptrSz(), m_efac)));
     }
   }
 
@@ -1129,10 +1129,10 @@ Expr BvOpSem::symb(const Value &I) {
     if (const ConstantInt *c = dyn_cast<const ConstantInt>(&I)) {
       if (c->getType()->isIntegerTy(1))
         return c->isOne() ? mk<TRUE>(m_efac) : mk<FALSE>(m_efac);
-      mpz_class k = toMpz(c->getValue());
+      expr::mpz_class k = toMpz(c->getValue());
       return bv::bvnum(k, sizeInBits(I), m_efac);
     } else if (cv->isNullValue() || isa<ConstantPointerNull>(&I))
-      return bv::bvnum(0, sizeInBits(*cv), m_efac);
+      return bv::bvnum(0U, sizeInBits(*cv), m_efac);
     else if (const ConstantExpr *ce = dyn_cast<const ConstantExpr>(&I)) {
       // XXX Need a better handling of constant expressions
       // XXX Perhaps fold using constant folding first, than evaluate the result
@@ -1144,7 +1144,7 @@ Expr BvOpSem::symb(const Value &I) {
       {
         if (const ConstantInt *val =
                 dyn_cast<const ConstantInt>(ce->getOperand(0))) {
-          mpz_class k = toMpz(val->getValue());
+          expr::mpz_class k = toMpz(val->getValue());
           return bv::bvnum(k, sizeInBits(I), m_efac);
         }
         // -- strip cast

@@ -4,6 +4,7 @@
 #include <cstring>
 #include <gmp.h>
 #include <string>
+#include <cassert>
 
 namespace expr {
 
@@ -34,6 +35,8 @@ public:
     mpz_init(v.m_num);
   }
 
+  mpz_class(mpz_srcptr v) {mpz_init_set(m_num, v);}
+  mpz_class(int v) { mpz_init_set_si(m_num, v); }
   mpz_class(unsigned v) { mpz_init_set_ui(m_num, v); }
   mpz_class(unsigned long v) { mpz_init_set_ui(m_num, v); }
   mpz_class(signed long v) { mpz_init_set_si(m_num, v); }

@@ -123,7 +123,7 @@ term_t marshal_yices::encode_term(Expr e, ycache_t &cache){
   } else if (isOpX<INT>(e)) {
     res = yices_int64(getTerm<int>(e));    
   } else if (isOpX<MPQ>(e)) {
-    res = yices_mpq(getTerm<mpq_class>(e).get_mpq_t());
+    res = yices_mpq(getTerm<expr::mpq_class>(e).get_mpq_t());
   } else if (isOpX<MPZ>(e)) {
     res = yices_mpz(getTerm<expr::mpz_class>(e).get_mpz_t());    
   } else if (bv::is_bvnum(e)) {
@@ -457,7 +457,7 @@ Expr marshal_yices::decode_yval(yval_t &yval,  ExprFactory &efac, model_t *model
     if (errcode == -1){
       decode_term_fail("yices_val_get_rat failed: ", yices::error_string());
     } else {
-      mpq_class qpp(q);
+      expr::mpq_class qpp(q);
       res = mkTerm(qpp, efac);
     }
     mpq_clear(q);

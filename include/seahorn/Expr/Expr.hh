@@ -17,7 +17,6 @@
 #include <vector>
 
 #include <seahorn/Expr/ExprGmp.hh>
-#include <gmpxx.h>
 
 #include <boost/container/flat_set.hpp>
 #include <boost/functional/hash_fwd.hpp>
@@ -754,28 +753,27 @@ template <> struct TerminalTrait<expr::mpz_class> {
   static std::string name() { return "expr::mpz_class"; }
 };
 
-template <> struct TerminalTrait<mpq_class> {
-  static inline void print(std::ostream &OS, const mpq_class &v, int depth,
+template <> struct TerminalTrait<expr::mpq_class> {
+  static inline void print(std::ostream &OS, const expr::mpq_class &v, int depth,
                            bool brkt) {
-    OS << v;
+    OS << v.get_mpq_t();
   }
 
-  static inline bool less(const mpq_class &v1, const mpq_class &v2) {
+  static inline bool less(const expr::mpq_class &v1, const expr::mpq_class &v2) {
     return v1 < v2;
   }
 
-  static inline bool equal_to(const mpq_class &v1, const mpq_class &v2) {
+  static inline bool equal_to(const expr::mpq_class &v1, const expr::mpq_class &v2) {
     return v1 == v2;
   }
 
-  static inline size_t hash(const mpq_class &v) {
-    std::string str = boost::lexical_cast<std::string>(v);
+  static inline size_t hash(const expr::mpq_class &v) {
     std::hash<std::string> hasher;
-    return hasher(str);
+    return hasher(v.to_string());
   }
 
   static TerminalKind getKind() { return TerminalKind::MPQ; }
-  static std::string name() { return "mpq_class"; }
+  static std::string name() { return "expr::mpq_class"; }
 };
 
 namespace op {
@@ -785,7 +783,7 @@ using INT = Terminal<int>;
 using UINT = Terminal<unsigned int>;
 using ULONG = Terminal<unsigned long>;
 
-using MPQ = Terminal<mpq_class>;
+using MPQ = Terminal<expr::mpq_class>;
 using MPZ = Terminal<expr::mpz_class>;
 } // namespace op
 

@@ -16,9 +16,9 @@ inline Z3_ast mk_mpz_core(z3::context &ctx, const expr::mpz_class &num) {
   return Z3_mk_numeral(ctx, str_num.c_str(), sort);
 }
 
-inline Z3_ast mk_mpq_core(z3::context &ctx, const mpq_class &num) {
+inline Z3_ast mk_mpq_core(z3::context &ctx, const expr::mpq_class &num) {
   z3::sort sort(ctx, Z3_mk_real_sort(ctx));
-  std::string str_num = boost::lexical_cast<std::string>(num);
+  std::string str_num = num.to_string();
   return Z3_mk_numeral(ctx, str_num.c_str(), sort);
 }
 
@@ -479,7 +479,7 @@ z3::ast ExprToZ::marshal(const expr::Expr &_e, z3::context &ctx, C &cache,
     case OpFamilyId::Terminal:
       switch (llvm::cast<TerminalBase>(op).m_kind) {
       case TerminalKind::MPQ: {
-        const mpq_class &num = getTerm<mpq_class>(e);
+        const expr::mpq_class &num = getTerm<expr::mpq_class>(e);
         res = mk_mpq_core(ctx, num);
         break;
       }

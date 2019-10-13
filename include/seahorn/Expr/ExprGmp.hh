@@ -138,7 +138,6 @@ public:
     mpq_set_ui(m_num, v, 1);
   }
 
-
   mpq_class(const std::string &v, int base = 10) {
     mpq_init(m_num);
     if (mpq_set_str(m_num, v.c_str(), base) != 0) {

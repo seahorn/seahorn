@@ -83,9 +83,9 @@ TEST_CASE("yices2-int.test") {
   Expr x = bind::intConst (mkTerm<string> ("x", efac));
   Expr y = bind::intConst (mkTerm<string> ("y", efac));
   Expr z = bind::intConst (mkTerm<string> ("z", efac));
-  Expr e1 = mk<EQ>(x, mkTerm<mpz_class>(0, efac));
-  Expr e2 = mk<EQ>(y, mkTerm<mpz_class>(5, efac));
-  Expr e3 = mk<EQ>(z, mkTerm<mpz_class>(10, efac));  
+  Expr e1 = mk<EQ>(x, mkTerm<expr::mpz_class>(0, efac));
+  Expr e2 = mk<EQ>(y, mkTerm<expr::mpz_class>(5, efac));
+  Expr e3 = mk<EQ>(z, mkTerm<expr::mpz_class>(10, efac));  
   Expr e4 = mk<GT>(x, y);
   Expr e5 = mk<GT>(y, x);
 
@@ -138,8 +138,8 @@ TEST_CASE("yices2-bv.test") {
   Expr x = op::bv::bvConst (mkTerm<string> ("x", efac), 32);
   Expr y = op::bv::bvConst (mkTerm<string> ("y", efac), 32);
 
-  Expr e1 = mk<EQ>(x, op::bv::bvnum(mpz_class(0), 32, efac));
-  Expr e2 = mk<EQ>(y, op::bv::bvnum(mpz_class(5), 32, efac));
+  Expr e1 = mk<EQ>(x, op::bv::bvnum(expr::mpz_class(0), 32, efac));
+  Expr e2 = mk<EQ>(y, op::bv::bvnum(expr::mpz_class(5), 32, efac));
   Expr e3 = mk<BSGT>(x, y);
   Expr e4 = mk<BSGT>(y, x);
 
@@ -184,10 +184,10 @@ TEST_CASE("yices2-int-arr.test") {
   Expr a2 = bind::mkConst(mkTerm<string> ("a2", efac), ty);
   Expr a3 = bind::mkConst(mkTerm<string> ("a3", efac), ty);    
 
-  Expr e1 = mk<EQ>(i, mkTerm<mpz_class>(0, efac));
-  Expr e2 = mk<EQ>(j, mkTerm<mpz_class>(1, efac));
-  Expr e3 = mk<EQ>(x, mkTerm<mpz_class>(3, efac));
-  Expr e4 = mk<EQ>(y, mkTerm<mpz_class>(5, efac));
+  Expr e1 = mk<EQ>(i, mkTerm<expr::mpz_class>(0, efac));
+  Expr e2 = mk<EQ>(j, mkTerm<expr::mpz_class>(1, efac));
+  Expr e3 = mk<EQ>(x, mkTerm<expr::mpz_class>(3, efac));
+  Expr e4 = mk<EQ>(y, mkTerm<expr::mpz_class>(5, efac));
   Expr e5 = mk<EQ>(a2, op::array::store(a1, i, x));
   Expr e6 = mk<EQ>(a3, op::array::store(a2, j, y));
   Expr e7 = mk<GT>(op::array::select(a3,i), op::array::select(a3,j));
@@ -237,12 +237,12 @@ TEST_CASE("yices2-int-bv.test") {
   Expr a2 = bind::mkConst(mkTerm<string> ("a2", efac), ty);
   Expr a3 = bind::mkConst(mkTerm<string> ("a3", efac), ty);    
 
-  Expr e1 = mk<EQ>(i, mkTerm<mpz_class>(0, efac));
-  Expr e2 = mk<EQ>(j, mkTerm<mpz_class>(1, efac));
+  Expr e1 = mk<EQ>(i, mkTerm<expr::mpz_class>(0, efac));
+  Expr e2 = mk<EQ>(j, mkTerm<expr::mpz_class>(1, efac));
 
   
-  Expr e3 = mk<EQ>(x, op::bv::bvnum(mpz_class(0), 32, efac));
-  Expr e4 = mk<EQ>(y, op::bv::bvnum(mpz_class(5), 32, efac));
+  Expr e3 = mk<EQ>(x, op::bv::bvnum(expr::mpz_class(0), 32, efac));
+  Expr e4 = mk<EQ>(y, op::bv::bvnum(expr::mpz_class(5), 32, efac));
   Expr e5 = mk<EQ>(a2, op::array::store(a1, i, x));
   Expr e6 = mk<EQ>(a3, op::array::store(a2, j, y));
   Expr e7 = mk<BSGT>(op::array::select(a3,i), op::array::select(a3,j));

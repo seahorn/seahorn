@@ -729,11 +729,9 @@ template <> struct TerminalTrait<expr::mpz_class> {
                            bool brkt) {
     /* print large numbers in hex */
     if (v >= 65535UL || v <= -65535L)
-      OS << std::hex << std::showbase;
-
-    OS << v.get_mpz_t();
-
-    OS << std::dec << std::noshowbase;
+      OS << "0x" << v.to_string(16);
+    else
+      OS << v.to_string(10);
   }
 
   static inline bool less(const expr::mpz_class &v1, const expr::mpz_class &v2) {
@@ -756,7 +754,7 @@ template <> struct TerminalTrait<expr::mpz_class> {
 template <> struct TerminalTrait<expr::mpq_class> {
   static inline void print(std::ostream &OS, const expr::mpq_class &v, int depth,
                            bool brkt) {
-    OS << v.get_mpq_t();
+    OS << v.to_string();
   }
 
   static inline bool less(const expr::mpq_class &v1, const expr::mpq_class &v2) {

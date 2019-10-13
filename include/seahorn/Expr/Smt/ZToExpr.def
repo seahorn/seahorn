@@ -61,7 +61,7 @@ expr::Expr ZToExpr::unmarshal(const z3::ast &z, expr::ExprFactory &efac,
       name = mkTerm<std::string>(Z3_get_symbol_string(ctx, symname), efac);
       break;
     case Z3_INT_SYMBOL:
-      name = mkTerm<mpz_class>(Z3_get_symbol_int(ctx, symname), efac);
+      name = mkTerm<expr::mpz_class>((signed long)Z3_get_symbol_int(ctx, symname), efac);
       break;
     }
     assert(name);
@@ -158,10 +158,10 @@ expr::Expr ZToExpr::unmarshal(const z3::ast &z, expr::ExprFactory &efac,
       res = mkTerm(mpq_class(snum), efac);
       break;
     case Z3_INT_SORT:
-      res = mkTerm(mpz_class(snum), efac);
+      res = mkTerm<expr::mpz_class>(expr::mpz_class(snum), efac);
       break;
     case Z3_BV_SORT:
-      res = bv::bvnum(mpz_class(snum), Z3_get_bv_sort_size(ctx, sort), efac);
+      res = bv::bvnum(expr::mpz_class(snum), Z3_get_bv_sort_size(ctx, sort), efac);
       break;
     default:
       assert(0 && "Unsupported numeric constant");

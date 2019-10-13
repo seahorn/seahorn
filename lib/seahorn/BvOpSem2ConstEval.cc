@@ -364,7 +364,7 @@ Optional<GenericValue> ConstantExprEvaluator::evaluate(const Constant *C) {
         if (reg) {
           Expr val = m_ctx->read(reg);
           if (m_ctx->alu().isNum(val)) {
-            mpz_class addr = m_ctx->alu().toNum(val);
+            expr::mpz_class addr = m_ctx->alu().toNum(val);
             Result = PTOGV((void *)addr.get_ui());
             break;
           } else {
@@ -385,7 +385,7 @@ Optional<GenericValue> ConstantExprEvaluator::evaluate(const Constant *C) {
         if (reg) {
           Expr val = m_ctx->read(reg);
           if (m_ctx->alu().isNum(val)) {
-            mpz_class num = m_ctx->alu().toNum(val);
+            expr::mpz_class num = m_ctx->alu().toNum(val);
             Result = PTOGV((void *)num.get_ui());
             LOG("opsem", errs() << "Evaluated addr of " << *GV << " to "
                                 << llvm::format_hex(num.get_ui(), 16, true)

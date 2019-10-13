@@ -12,9 +12,9 @@ TEST_CASE("z3.lambdas_test") {
 
   Expr bv32Ty = bv::bvsort(32, efac);
   Expr arrTy = op::sort::arrayTy(bv32Ty, bv32Ty);
-  Expr bv0 = bv::bvnum(0, 32, efac);
-  Expr bv1 = bv::bvnum(1, 32, efac);
-  Expr bv2 = bv::bvnum(2, 32, efac);
+  Expr bv0 = bv::bvnum(0UL, 32, efac);
+  Expr bv1 = bv::bvnum(1UL, 32, efac);
+  Expr bv2 = bv::bvnum(2UL, 32, efac);
   Expr bvT = bv::bvConst(mkTerm<string>("t", efac), 32);
   Expr bvA = bv::bvConst(mkTerm<string>("a", efac), 32);
 

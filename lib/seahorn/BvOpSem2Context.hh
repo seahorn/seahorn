@@ -300,9 +300,8 @@ public:
   virtual Expr boolTy() = 0;
 
   virtual bool isNum(Expr v) = 0;
-  virtual mpz_class toNum(Expr v) = 0;
-
-  virtual Expr si(mpz_class k, unsigned bitWidth) = 0;
+  virtual expr::mpz_class toNum(Expr v) = 0;
+  virtual Expr si(expr::mpz_class k, unsigned bitWidth) = 0;
   virtual Expr doAdd(Expr op0, Expr op1, unsigned bitWidth) = 0;
   virtual Expr doSub(Expr op0, Expr op1, unsigned bitWidth) = 0;
   virtual Expr doMul(Expr op0, Expr op1, unsigned bitWidth) = 0;
@@ -618,12 +617,12 @@ public:
 
   /// \brief Creates bit-vector of a given width filled with 0
   Expr mkZeroE(unsigned width, ExprFactory &efac) {
-    return bv::bvnum(0, width, efac);
+    return bv::bvnum(0UL, width, efac);
   }
 
   /// brief Creates a bit-vector for number 1 of a given width
   Expr mkOneE(unsigned width, ExprFactory &efac) {
-    return bv::bvnum(1, width, efac);
+    return bv::bvnum(1UL, width, efac);
   }
 
   /// \brief Returns an expression corresponding to a load from memory

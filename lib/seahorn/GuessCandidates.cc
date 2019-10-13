@@ -22,9 +22,9 @@ namespace seahorn
         bvar_count ++;
       }
     }
-    Expr one = mkTerm<mpz_class> (1, fdecl->efac());
-    Expr zero = mkTerm<mpz_class> (0, fdecl->efac());
-    Expr two = mkTerm<mpz_class> (2, fdecl->efac());
+    Expr one = mkTerm<expr::mpz_class> (1UL, fdecl->efac());
+    Expr zero = mkTerm<expr::mpz_class> (0UL, fdecl->efac());
+    Expr two = mkTerm<expr::mpz_class> (2UL, fdecl->efac());
     if(bvar_count == 0)
     {
       lemmas.push_back(mk<TRUE>(fdecl->efac()));
@@ -66,11 +66,15 @@ namespace seahorn
         t_tokenizer tok(line, sep);
         std::string op = *(tok.begin());
         std::string number = *(++tok.begin());
-        int value = std::atoi(number.c_str());
-        if(op == "LEQ") lemmas.push_back(mk<LEQ>(bvar, mkTerm<mpz_class>(value, bvar->efac())));
-        else if(op == "GEQ") lemmas.push_back(mk<GEQ>(bvar, mkTerm<mpz_class>(value, bvar->efac())));
-        else if(op == "LT") lemmas.push_back(mk<LT>(bvar, mkTerm<mpz_class>(value, bvar->efac())));
-        else if(op == "GT") lemmas.push_back(mk<GT>(bvar, mkTerm<mpz_class>(value, bvar->efac())));
+        signed long value = std::atoi(number.c_str());
+        if(op == "LEQ")
+          lemmas.push_back(mk<LEQ>(bvar, mkTerm<expr::mpz_class>(value, bvar->efac())));
+        else if(op == "GEQ")
+          lemmas.push_back(mk<GEQ>(bvar, mkTerm<expr::mpz_class>(value, bvar->efac())));
+        else if(op == "LT")
+          lemmas.push_back(mk<LT>(bvar, mkTerm<expr::mpz_class>(value, bvar->efac())));
+        else if(op == "GT")
+          lemmas.push_back(mk<GT>(bvar, mkTerm<expr::mpz_class>(value, bvar->efac())));
       }
     }
     else
@@ -109,7 +113,7 @@ namespace seahorn
   //		// if there is only one bvar, create a int constant and make an lt expr
   //		else if(bvar_count == 1)
   //		{
-  //			Expr zero = mkTerm<mpz_class> (0, fdecl->efac());
+  //			Expr zero = mkTerm<expr::mpz_class> (0, fdecl->efac());
   //			//cand = mk<LT>(bvars[0], zero);
   //			bins.push_back(mk<LT>(bvars[0], zero));
   //		}
@@ -164,7 +168,7 @@ namespace seahorn
     // if there is only one bvar, create a int constant and make an lt expr
     else if(bvar_count == 1)
     {
-      Expr zero = mkTerm<mpz_class> (0, fdecl->efac());
+      Expr zero = mkTerm<expr::mpz_class> (0UL, fdecl->efac());
       //cand = mk<LT>(bvars[0], zero);
       bins.push_back(mk<LT>(bvars[0], zero));
     }

@@ -24,8 +24,8 @@ HornRule replaceNonVarsInHead(const HornRule &rule) {
       Expr v = bind::intConst(mkTerm<std::string>(vname, efac));
       new_body = boolop::land(
           new_body,
-          mk<OR>(mk<AND>(mk<EQ>(v, mkTerm(mpz_class(1), efac)), arg),
-                 mk<AND>(mk<EQ>(v, mkTerm(mpz_class(0), efac)), mk<NEG>(arg))));
+          mk<OR>(mk<AND>(mk<EQ>(v, mkTerm(expr::mpz_class(1UL), efac)), arg),
+                 mk<AND>(mk<EQ>(v, mkTerm(expr::mpz_class(0UL), efac)), mk<NEG>(arg))));
       new_args.push_back(v);
       new_vars.push_back(v);
     } else if (isOpX<PLUS>(arg) || isOpX<MINUS>(arg) || isOpX<MULT>(arg) ||

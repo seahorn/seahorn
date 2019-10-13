@@ -43,7 +43,7 @@ OpSemMemManager::OpSemMemManager(Bv2OpSem &sem, Bv2OpSemContext &ctx,
     m_allocator = mkStaticOpSemAllocator(*this);
   assert(m_allocator);
 
-  m_nullPtr = m_ctx.alu().si(0, ptrSzInBits());
+  m_nullPtr = m_ctx.alu().si(0UL, ptrSzInBits());
   m_sp0 = bind::mkConst(mkTerm<std::string>("sea.sp0", m_efac),
                         m_ctx.alu().intTy(ptrSzInBits()));
   m_ctx.declareRegister(m_sp0);
@@ -62,7 +62,7 @@ PtrTy OpSemMemManager::mkAlignedPtr(Expr name, uint32_t align) const {
   unsigned alignBits = llvm::Log2_32(align);
   Expr wordPtr =
       bind::mkConst(name, m_ctx.alu().intTy(ptrSzInBits() - alignBits));
-  return bv::concat(wordPtr, bv::bvnum(0, alignBits, m_efac));
+  return bv::concat(wordPtr, bv::bvnum(0UL, alignBits, m_efac));
 }
 
 /// \brief Returns sort of a pointer register for an instruction
@@ -114,7 +114,7 @@ PtrTy OpSemMemManager::salloc(unsigned bytes, uint32_t align) {
 /// \brief Returns a pointer value for a given stack allocation
 PtrTy OpSemMemManager::mkStackPtr(unsigned offset) {
   Expr res = m_ctx.read(m_sp0);
-  res = m_ctx.alu().doSub(res, m_ctx.alu().si(offset, ptrSzInBits()),
+  res = m_ctx.alu().doSub(res, m_ctx.alu().si((unsigned long)offset, ptrSzInBits()),
                           ptrSzInBits());
   return res;
 }
@@ -275,7 +275,7 @@ Expr OpSemMemManager::extractUnalignedByte(Expr mem, PtrTy address,
 
   byteOffset = bv::zext(byteOffset, wordSzInBits() - 3);
   // (x << 3) to get bit offset; zero extend to maintain word size
-  PtrTy bitOffset = bv::concat(byteOffset, bv::bvnum(0, 3, address->efac()));
+  PtrTy bitOffset = bv::concat(byteOffset, bv::bvnum(0U, 3, address->efac()));
 
   return bv::extract(7, 0, mk<BLSHR>(alignedWord, bitOffset));
 }
@@ -330,7 +330,7 @@ PtrTy OpSemMemManager::loadPtrFromMem(PtrTy ptr, Expr memReg, unsigned byteSz,
 PtrTy OpSemMemManager::ptrAdd(PtrTy ptr, int32_t _offset) const {
   if (_offset == 0)
     return ptr;
-  mpz_class offset(_offset);
+  expr::mpz_class offset((signed long)_offset);
   return m_ctx.alu().doAdd(ptr, m_ctx.alu().si(offset, ptrSzInBits()),
                            ptrSzInBits());
 }
@@ -338,7 +338,7 @@ PtrTy OpSemMemManager::ptrAdd(PtrTy ptr, int32_t _offset) const {
 /// \brief Pointer addition with symbolic offset
 PtrTy OpSemMemManager::ptrAdd(PtrTy ptr, Expr offset) const {
   if (m_ctx.alu().isNum(offset)) {
-    mpz_class _offset = m_ctx.alu().toNum(offset);
+    expr::mpz_class _offset = m_ctx.alu().toNum(offset);
     return ptrAdd(ptr, _offset.get_si());
   }
   return m_ctx.alu().doAdd(ptr, offset, ptrSzInBits());
@@ -426,10 +426,10 @@ Expr OpSemMemManager::setByteOfWord(Expr word, Expr byteData,
                                     PtrTy byteOffset) {
   // (x << 3) to get bit offset; zero extend to maintain word size
   byteOffset = bv::zext(byteOffset, wordSzInBits() - 3);
-  PtrTy bitOffset = bv::concat(byteOffset, bv::bvnum(0, 3, byteOffset->efac()));
+  PtrTy bitOffset = bv::concat(byteOffset, bv::bvnum(0U, 3, byteOffset->efac()));
 
   // set a byte of existing word to 0
-  Expr lowestByteMask = bv::bvnum(0xff, wordSzInBits(), word->efac());
+  Expr lowestByteMask = bv::bvnum(0xffU, wordSzInBits(), word->efac());
   Expr addressByteMask = mk<BNOT>(mk<BSHL>(lowestByteMask, bitOffset));
   word = mk<BAND>(word, addressByteMask);
 
@@ -643,7 +643,7 @@ void OpSemMemManager::onFunctionEntry(const Function &fn) {
   case 8:
     offsetBits = 3;
   }
-  m_ctx.addDef(bv::bvnum(0, offsetBits, m_efac),
+  m_ctx.addDef(bv::bvnum(0U, offsetBits, m_efac),
                bv::extract(offsetBits - 1, 0, res));
 
   auto stackRange = m_allocator->getStackRange();

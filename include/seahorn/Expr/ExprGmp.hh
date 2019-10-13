@@ -34,8 +34,18 @@ public:
     mpz_init(v.m_num);
   }
 
+  mpz_class(unsigned v) { mpz_init_set_ui(m_num, v); }
   mpz_class(unsigned long v) { mpz_init_set_ui(m_num, v); }
   mpz_class(signed long v) { mpz_init_set_si(m_num, v); }
+
+  mpz_class(const std::string &v, int base = 10) {
+    if (mpz_init_set_str(m_num, v.c_str(), base) != 0) {
+      assert(0);
+      std::exit(1);
+    }
+  }
+
+  int sgn() const { return mpz_sgn(m_num); }
 
   mpz_class &operator=(const mpz_class &v) {
     mpz_set(m_num, v.m_num);
@@ -58,9 +68,34 @@ public:
 
   signed long int get_si() const { return mpz_get_si(m_num); }
   unsigned long int get_ui() const { return mpz_get_ui(m_num); }
-  std::string to_string(unsigned base = 10) {
+  std::string to_string(unsigned base = 10) const {
     scoped_cstring res(mpz_get_str(0, base, m_num));
     return std::string(res.m_str);
+  }
+
+  bool operator<(unsigned long v) const { return mpz_cmp_ui(m_num, v) < 0; }
+  bool operator<(signed long v) const { return mpz_cmp_si(m_num, v) < 0; }
+  bool operator>(unsigned long v) const { return mpz_cmp_ui(m_num, v) > 0; }
+  bool operator>(signed long v) const { return mpz_cmp_si(m_num, v) > 0; }
+  bool operator<=(unsigned long v) const { return mpz_cmp_ui(m_num, v) <= 0; }
+  bool operator<=(signed long v) const { return mpz_cmp_si(m_num, v) <= 0; }
+  bool operator>=(unsigned long v) const { return mpz_cmp_ui(m_num, v) >= 0; }
+  bool operator>=(signed long v) const { return mpz_cmp_si(m_num, v) >= 0; }
+
+  bool operator<(const mpz_class &v) const {
+    return mpz_cmp(m_num, v.m_num) < 0;
+  }
+  bool operator>(const mpz_class &v) const {
+    return mpz_cmp(m_num, v.m_num) > 0;
+  }
+  bool operator<=(const mpz_class &v) const {
+    return mpz_cmp(m_num, v.m_num) <= 0;
+  }
+  bool operator>=(const mpz_class &v) const {
+    return mpz_cmp(m_num, v.m_num) >= 0;
+  }
+  bool operator==(const mpz_class &v) const {
+    return mpz_cmp(m_num, v.m_num) == 0;
   }
 };
 } // namespace expr

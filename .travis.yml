@@ -4,8 +4,9 @@ os: linux
 cache: apt
 branches:
   except:
-  - dev
-  - deep-dev
+  - ifc
+  - lambdas
+  - deep-dev-5.0
 matrix:
   include:
    - env: BUILD_TYPE=MinSizeRel

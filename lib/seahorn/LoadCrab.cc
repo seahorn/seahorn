@@ -182,7 +182,7 @@ private:
 
   // Defined only for z_number
   Expr exprFromNum(ikos::z_number n, ExprFactory &efac) {
-    const expr::mpz_class z(static_cast<::mpz_class>(n).get_mpz_t());
+    const expr::mpz_class z(n.get_mpz_t());
     return mkTerm(z, efac);
   }
 

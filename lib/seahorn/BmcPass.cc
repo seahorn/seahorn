@@ -18,11 +18,14 @@
 #include "seahorn/Bmc.hh"
 #include "seahorn/BvOpSem.hh"
 #include "seahorn/BvOpSem2.hh"
+#include "seahorn/DfCoiAnalysis.hh"
 #include "seahorn/PathBasedBmc.hh"
 // prerequisite for CrabLlvm
 #include "seahorn/Support/SeaDebug.h"
 #include "seahorn/Support/SeaLog.hh"
 #include "seahorn/Transforms/Scalar/LowerCstExpr.hh"
+
+
 #ifdef HAVE_CRAB_LLVM
 #include "crab_llvm/CrabLlvm.hh"
 #endif
@@ -35,6 +38,9 @@ static llvm::cl::opt<bool> HornBv2("horn-bv2",
 static llvm::cl::opt<bool> HornGSA("horn-gsa",
                                    llvm::cl::desc("Use Gated SSA for bmc"),
                                    llvm::cl::init(false), llvm::cl::Hidden);
+static llvm::cl::opt<bool> ComputeCoi("horn-bmc-coi",
+                                      llvm::cl::desc("Compute DataFlow-based COI"),
+                                      llvm::cl::init(false), llvm::cl::Hidden);
 
 namespace seahorn {
 // Defined in PathBasedBmc.cc
@@ -180,6 +186,10 @@ public:
       sem = llvm::make_unique<BvOpSem>(efac, *this,
                                        F.getParent()->getDataLayout(), MEM);
 
+    if(ComputeCoi) {
+      computeCoi(F, *sem);
+    }
+
     EZ3 zctx(efac);
     std::unique_ptr<BmcEngine> bmc = nullptr;
     switch (m_engine) {
@@ -283,6 +293,42 @@ public:
   }
 
   StringRef getPassName() const override { return "BmcPass"; }
+
+
+  void computeCoi(Function &F, OperationalSemantics &sem) {
+    DfCoiAnalysis dfCoi;
+
+    Module *m = F.getParent();
+    assert(m);
+    // -- compute dependnece of verifier.assume()
+    Function *assumeFn = m->getFunction("verifier.assume");
+    if(assumeFn) {
+      for (auto *u : assumeFn->users()) {
+        if (auto *CI = dyn_cast<CallInst>(u)) {
+          CallSite CS(CI);
+          if (CS.getCaller() != &F) continue;
+          dfCoi.analyze(*CI);
+        }
+      }
+    }
+
+    // -- compute dependence of verifier.assume.not()
+    assumeFn = m->getFunction("verifier.assume.not");
+    if (assumeFn) {
+      for (auto *u : assumeFn->users()) {
+        if (auto *CI = dyn_cast<CallInst>(u)) {
+          CallSite CS(CI);
+          if (CS.getCaller() != &F)
+            continue;
+          dfCoi.analyze(*CI);
+        }
+      }
+    }
+
+    // install dependence filter in operational semantics
+    auto &filter = dfCoi.getCoi();
+    sem.addToFilter(filter.begin(), filter.end());
+  }
 };
 
 char BmcPass::ID = 0;

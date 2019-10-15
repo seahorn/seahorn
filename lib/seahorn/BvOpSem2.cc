@@ -1416,6 +1416,7 @@ public:
             fn.getName().equals("seahorn.fail") ||
             fn.getName().startswith("shadow.mem"))
           continue;
+        if (m_sem.isSkipped(fn)) continue;
         Expr symReg = m_ctx.mkRegister(fn);
         assert(symReg);
         setValue(fn, m_ctx.getMemManager()->falloc(fn));
@@ -2010,6 +2011,7 @@ const Value &Bv2OpSem::conc(Expr v) const {
 }
 
 bool Bv2OpSem::isSkipped(const Value &v) const {
+  if (!OperationalSemantics::isTracked(v)) return true; 
   // skip shadow.mem instructions if memory is not a unique scalar
   // and we are now ignoring memory instructions
   const Value *scalar = nullptr;
@@ -2162,6 +2164,9 @@ void Bv2OpSem::skipInst(const Instruction &inst,
   if (isShadowMem(inst, &s))
     return;
   if (ctx.isIgnored(inst))
+    return;
+  if (!OperationalSemantics::isTracked(inst))
+    // silently ignore instructions that are filtered out
     return;
   ctx.ignore(inst);
   LOG("opsem", WARN << "skipping instruction: " << inst << " @ "

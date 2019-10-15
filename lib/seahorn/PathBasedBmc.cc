@@ -51,7 +51,7 @@ static llvm::cl::opt<crab_llvm::CrabDomain> CrabDom(
                                 "Reduced product of term-dis-int and zones."),
                      clEnumValN(crab_llvm::WRAPPED_INTERVALS, "w-int",
                                 "Wrapped interval domain")),
-    llvm::cl::init(crab_llvm::INTERVALS));
+    llvm::cl::init(crab_llvm::ZONES_SPLIT_DBM));
 #endif
 
 // It has only effect if UseCrab is enabled.

@@ -36,6 +36,7 @@ add_llvm_library (seahorn.LIB
   BvOpSem2Alu.cc
   BvOpSem2ConstEval.cc
   VCGen.cc
+  DfCoiAnalysis.cc
   )
 
 if (HAVE_CRAB_LLVM)

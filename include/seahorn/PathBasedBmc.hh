@@ -14,11 +14,11 @@ namespace llvm {
 class TargetLibraryInfo;
 }
 
-#ifdef HAVE_CRAB_LLVM
-namespace crab_llvm {
-class CrabLlvmPass;
-class IntraCrabLlvm;
-} // namespace crab_llvm
+#ifdef HAVE_CLAM
+namespace clam {
+class ClamPass;
+class IntraClam;
+} // namespace clam
 #endif
 
 /*
@@ -31,9 +31,9 @@ class IntraCrabLlvm;
 namespace seahorn {
 class PathBasedBmcEngine : public BmcEngine {
 public:
-#ifdef HAVE_CRAB_LLVM
+#ifdef HAVE_CLAM
   PathBasedBmcEngine(LegacyOperationalSemantics &sem, EZ3 &zctx,
-                     crab_llvm::CrabLlvmPass *crab,
+                     clam::ClamPass *crab,
                      const llvm::TargetLibraryInfo &tli);
 #else
   PathBasedBmcEngine(LegacyOperationalSemantics &sem, EZ3 &zctx,
@@ -86,11 +86,11 @@ private:
   ZModel<EZ3> m_model;
   // live symbols
   LiveSymbols *m_ls;
-#ifdef HAVE_CRAB_LLVM
+#ifdef HAVE_CLAM
   // crab instance that includes invariants and heab abstraction information
-  crab_llvm::CrabLlvmPass *m_crab_global;
+  clam::ClamPass *m_crab_global;
   // crab instance to run only paths
-  crab_llvm::IntraCrabLlvm *m_crab_path;
+  clam::IntraClam *m_crab_path;
 #endif
   // Temporary sanity check: bookeeping of all generated blocking
   // clauses.
@@ -105,7 +105,7 @@ private:
                                    const invariants_map_t &invariants,
                                    const invariants_map_t &path_constraints);
 
-#ifdef HAVE_CRAB_LLVM
+#ifdef HAVE_CLAM
   // Check feasibility of a path induced by trace using abstract
   // interpretation.
   // Return true (sat) or false (unsat). If unsat then it produces a
@@ -113,7 +113,7 @@ private:
   bool path_encoding_and_solve_with_ai(BmcTrace &trace,
                                        invariants_map_t &path_constraints);
   /// Out contains all invariants (per block) inferred by crab.
-  void load_invariants(crab_llvm::CrabLlvmPass &crab, const LiveSymbols &ls,
+  void load_invariants(clam::ClamPass &crab, const LiveSymbols &ls,
                        DenseMap<const BasicBlock *, ExprVector> &out);
 
   /// Add the crab invariants in m_side after applying the symbolic store s.

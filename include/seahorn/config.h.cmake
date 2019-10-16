@@ -3,11 +3,8 @@
 
 #define SEAHORN_VERSION_INFO "${SeaHorn_VERSION_INFO}"
 
-/** Define whether crab is available */
-#cmakedefine HAVE_CRAB ${HAVE_CRAB}
-
 /** Define whether crab-llvm is available */
-#cmakedefine HAVE_CRAB_LLVM ${HAVE_CRAB_LLVM}
+#cmakedefine HAVE_CLAM ${HAVE_CLAM}
 
 /** Define whether DSA library is available */
 #cmakedefine HAVE_DSA ${HAVE_DSA}

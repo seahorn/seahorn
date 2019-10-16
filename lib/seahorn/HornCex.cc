@@ -33,8 +33,8 @@
 #include "seahorn/Support/Stats.hh"
 #include "seahorn/Support/SeaDebug.h"
 
-#ifdef HAVE_CRAB_LLVM
-#include "crab_llvm/CrabLlvm.hh"
+#ifdef HAVE_CLAM
+#include "clam/Clam.hh"
 #endif
 
 #include "boost/algorithm/string/predicate.hpp"
@@ -265,8 +265,8 @@ bool HornCex::runOnFunction(Module &M, Function &F) {
   std::unique_ptr<BmcEngine> bmc;
   switch (m_engine) {
   case path_bmc: {
-#ifdef HAVE_CRAB_LLVM
-    crab_llvm::CrabLlvmPass &crab = getAnalysis<crab_llvm::CrabLlvmPass>();
+#ifdef HAVE_CLAM
+    clam::ClamPass &crab = getAnalysis<clam::ClamPass>();
     bmc.reset(new PathBasedBmcEngine(*sem, hm.getZContext(), &crab, tli));
 #else
     bmc.reset(new PathBasedBmcEngine(*sem, hm.getZContext(), tli));
@@ -395,8 +395,8 @@ void HornCex::getAnalysisUsage(AnalysisUsage &AU) const {
   AU.addRequired<HornifyModule>();
   AU.addRequired<HornSolver>();
   AU.addRequired<CanFail>();
-#ifdef HAVE_CRAB_LLVM
-  AU.addRequired<crab_llvm::CrabLlvmPass>();
+#ifdef HAVE_CLAM
+  AU.addRequired<clam::ClamPass>();
 #endif
 }
 

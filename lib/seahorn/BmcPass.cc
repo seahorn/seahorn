@@ -20,14 +20,14 @@
 #include "seahorn/BvOpSem2.hh"
 #include "seahorn/DfCoiAnalysis.hh"
 #include "seahorn/PathBasedBmc.hh"
-// prerequisite for CrabLlvm
+// prerequisite for Clam
 #include "seahorn/Support/SeaDebug.h"
 #include "seahorn/Support/SeaLog.hh"
 #include "seahorn/Transforms/Scalar/LowerCstExpr.hh"
 
 
-#ifdef HAVE_CRAB_LLVM
-#include "crab_llvm/CrabLlvm.hh"
+#ifdef HAVE_CLAM
+#include "clam/Clam.hh"
 #endif
 
 // XXX temporary debugging aid
@@ -93,10 +93,10 @@ public:
   }
 
   void getAnalysisUsage(AnalysisUsage &AU) const {
-#ifdef HAVE_CRAB_LLVM
+#ifdef HAVE_CLAM
     if (m_engine == path_bmc) {
       if (XHornBmcCrab) {
-        AU.addRequired<crab_llvm::CrabLlvmPass>();
+        AU.addRequired<clam::ClamPass>();
         AU.addRequired<LowerCstExprPass>();
         // XXX: NameValues must be executed after LowerCstExprPass
         // because the latter might introduce unnamed instructions.
@@ -197,9 +197,9 @@ public:
       const TargetLibraryInfo &tli =
           getAnalysis<TargetLibraryInfoWrapperPass>().getTLI();
 
-#ifdef HAVE_CRAB_LLVM
+#ifdef HAVE_CLAM
       if (XHornBmcCrab) {
-        crab_llvm::CrabLlvmPass &crab = getAnalysis<crab_llvm::CrabLlvmPass>();
+        clam::ClamPass &crab = getAnalysis<clam::ClamPass>();
         bmc = llvm::make_unique<PathBasedBmcEngine>(
             static_cast<LegacyOperationalSemantics &>(*sem), zctx, &crab, tli);
       } else {

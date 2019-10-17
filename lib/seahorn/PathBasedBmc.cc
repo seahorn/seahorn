@@ -10,6 +10,7 @@
 
 #ifdef HAVE_CLAM
 #include "clam/Clam.hh"
+#include "clam/CfgBuilder.hh"
 #include "clam/HeapAbstraction.hh"
 #include "clam/AbstractDomain.hh"
 #include "seahorn/LoadCrab.hh"

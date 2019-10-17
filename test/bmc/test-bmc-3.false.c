@@ -1,5 +1,4 @@
-// %sea bpf -O0 --bound=10 --bmc=path --horn-bmc-crab=true --horn-bmc-crab-invariants=true --horn-stats --inline "%s" 2>&1 | OutputCheck %s
-// RUN: %sea bpf -O0 --bound=10 --bmc=mono --inline "%s" 2>&1 | OutputCheck %s
+// RUN: %sea bpf -O0 --bound=10 --bmc=path --horn-bmc-crab=true --horn-bmc-crab-invariants=true --horn-stats --inline "%s" 2>&1 | OutputCheck %s
 // CHECK: ^sat$
 
 /* Test option --horn-bmc-crab-invariants */

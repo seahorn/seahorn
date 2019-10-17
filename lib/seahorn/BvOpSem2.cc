@@ -1809,10 +1809,10 @@ Expr Bv2OpSemContext::getConstantValue(const llvm::Constant &c) {
     auto GVO = ce.evaluate(&c);
     if (GVO.hasValue()) {
       GenericValue gv = GVO.getValue();
-      if (gv.AggregateVal.size() > 0) {
+      if (!gv.AggregateVal.empty()) {
         auto aggBvO = m_sem.agg(c.getType(), gv.AggregateVal, *this);
         if (aggBvO.hasValue()) {
-          APInt aggBv = aggBvO.getValue();
+          const APInt &aggBv = aggBvO.getValue();
           expr::mpz_class k = toMpz(aggBv);
           return alu().si(k, aggBv.getBitWidth());
         }
@@ -2244,7 +2244,7 @@ Optional<APInt> Bv2OpSem::agg(Type *aggTy, const std::vector<GenericValue> &elem
       } else {
         // this should be handled in constant evaluation step
         LOG("opsem",
-            WARN << "Unsupported type " << *ElmTy << " to convert in aggregate. \n";);
+            WARN << "unsupported type " << *ElmTy << " to convert in aggregate.";);
         llvm_unreachable("Only support converting Int or Pointer in aggregates");
         return llvm::None;
       }
@@ -2253,8 +2253,7 @@ Optional<APInt> Bv2OpSem::agg(Type *aggTy, const std::vector<GenericValue> &elem
       if (AIO.hasValue())
         next = AIO.getValue();
       else {
-        LOG("opsem",
-            WARN << "Nested struct conversion failed \n";);
+        LOG("opsem", WARN << "nested struct conversion failed";);
         llvm_unreachable();
         return llvm::None;
       }

@@ -505,11 +505,11 @@ Optional<GenericValue> ConstantExprEvaluator::evaluate(const Constant *C) {
     llvm_unreachable("Unknown constant pointer type!");
   } break;
   case Type::StructTyID: {
-    auto *STy = dyn_cast<StructType>(C->getType());
-    auto *CS = dyn_cast<ConstantStruct>(C);
-    // XXX the cast might fail. this must be handled better
-    if (!CS || !STy) {
-      LOG("opsem", WARN << "Casting failed when trying to evaluate a struct! \n";);
+    const auto *STy = dyn_cast<StructType>(C->getType());
+    const auto *CS = dyn_cast<ConstantStruct>(C);
+    const auto *CAZ = dyn_cast<ConstantAggregateZero>(C);
+    if (!STy) {
+      LOG("opsem", WARN << "unable to cast " << *C->getType() << " into a StructType";);
       return llvm::None;
     }
     unsigned int elemNum = STy->getNumElements();
@@ -517,7 +517,15 @@ Optional<GenericValue> ConstantExprEvaluator::evaluate(const Constant *C) {
     // try populate all elements in the struct
     for (unsigned int i = 0; i < elemNum; ++i) {
       Type *ElemTy = STy->getElementType(i);
-      Constant *OPI = CS->getOperand(i);
+      Constant *OPI;
+      if (CS)
+        OPI = CS->getOperand(i);
+      else if (CAZ)
+        OPI = UndefValue::get(ElemTy);
+      else {
+        LOG("opsem", WARN << "unsupported struct constant " << C;);
+        return llvm::None;
+      }
       if (isa<UndefValue>(OPI)) {
         // if field not defined, just return default garbage
         if (ElemTy->isIntegerTy()) {
@@ -538,12 +546,12 @@ Optional<GenericValue> ConstantExprEvaluator::evaluate(const Constant *C) {
             Result.AggregateVal[i] = val.getValue();
           else {
             LOG("opsem",
-                WARN << "Evaluating struct, no value set on this index:" << i << "\n";);
+                WARN << "evaluating struct, no value set on this index:" << i;);
             return llvm::None;
           }
         } else {
           LOG("opsem",
-              WARN << "Unsupported element type " << *ElemTy << " in const struct. \n";);
+              WARN << "unsupported element type " << *ElemTy << " in const struct.";);
           return llvm::None;
         }
       }

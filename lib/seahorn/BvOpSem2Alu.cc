@@ -20,8 +20,8 @@ public:
   BvOpSemAlu(Bv2OpSemContext &ctx) : OpSemAlu(ctx) {
     m_trueE = mk<TRUE>(efac());
     m_falseE = mk<FALSE>(efac());
-    m_trueBv1 = bv::bvnum(1, 1, efac());
-    m_falseBv1 = bv::bvnum(0, 1, efac());
+    m_trueBv1 = bv::bvnum(1U, 1, efac());
+    m_falseBv1 = bv::bvnum(0U, 1, efac());
   }
   ~BvOpSemAlu() override = default;
 
@@ -32,13 +32,13 @@ public:
   Expr boolTy() override { return sort::boolTy(efac()); }
 
   bool isNum(Expr v) override { return bv::isBvNum(v); }
-  mpz_class toNum(Expr v) override { return bv::toMpz(v); }
+  expr::mpz_class toNum(Expr v) override { return bv::toMpz(v); }
 
   /// \brief Converts a signed integer to an ALU expression
-  Expr si(mpz_class v, unsigned bitWidth) override {
+  Expr si(expr::mpz_class v, unsigned bitWidth) override {
     switch (bitWidth) {
     case 1:
-      return v == 1 ? m_trueE : m_falseE;
+      return v == 1U ? m_trueE : m_falseE;
     default:
       return bv::bvnum(v, bitWidth, efac());
     }
@@ -124,10 +124,10 @@ public:
     switch (opBitWidth) {
     case 1:
       if (isOpX<TRUE>(op))
-        return si(1, bitWidth);
+        return si(1U, bitWidth);
       else if (isOpX<FALSE>(op))
-        return si(0, bitWidth);
-      return mk<ITE>(op, si(1, bitWidth), si(0, bitWidth));
+        return si(0U, bitWidth);
+      return mk<ITE>(op, si(1U, bitWidth), si(0U, bitWidth));
     default:
       return bv::zext(op, bitWidth);
     }

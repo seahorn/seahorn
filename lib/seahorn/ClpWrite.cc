@@ -156,7 +156,7 @@ namespace seahorn
     static Expr negate (Expr e, ExprFactory &efac)
     {
       if (bind::isBoolConst (e) || bind::isIntConst (e))
-        return mk<EQ>(e, mkTerm<mpz_class> (0, efac)); 
+        return mk<EQ>(e, mkTerm<expr::mpz_class> (0UL, efac)); 
       if (isOpX<GT> (e))
         return mk<LEQ> (e->left (), e->right ());
       if (isOpX<GEQ> (e))
@@ -211,11 +211,11 @@ namespace seahorn
       
       if (isOpX<MPZ>(e)) 
       { 
-        mpz_class op = getTerm<mpz_class>(e);
-        if (op < 0)
-          res = ExprStr ("(" + boost::lexical_cast<std::string>(op) + ")");
+        expr::mpz_class op = getTerm<expr::mpz_class>(e);
+        if (op < 0UL)
+          res = ExprStr ("(" + op.to_string() + ")");
         else
-          res = ExprStr (boost::lexical_cast<std::string>(op));
+          res = ExprStr (op.to_string());
       }
       else if (isOpX<MPQ>(e))
       { return M::print (e, parent, rels, efac, cache, seen); }      

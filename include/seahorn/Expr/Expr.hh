@@ -16,7 +16,7 @@
 #include <unordered_set>
 #include <vector>
 
-#include <gmpxx.h>
+#include <seahorn/Expr/ExprGmp.hh>
 
 #include <boost/container/flat_set.hpp>
 #include <boost/functional/hash_fwd.hpp>
@@ -724,58 +724,54 @@ template <> struct TerminalTrait<unsigned long> {
   static std::string name() { return "unsigned long"; }
 };
 
-template <> struct TerminalTrait<mpz_class> {
-  static inline void print(std::ostream &OS, const mpz_class &v, int depth,
+template <> struct TerminalTrait<expr::mpz_class> {
+  static inline void print(std::ostream &OS, const expr::mpz_class &v, int depth,
                            bool brkt) {
     /* print large numbers in hex */
-    if (v >= 65535 || v <= -65535)
-      OS << std::hex << std::showbase;
-
-    OS << v;
-
-    OS << std::dec << std::noshowbase;
+    if (v >= 65535UL || v <= -65535L)
+      OS << "0x" << v.to_string(16);
+    else
+      OS << v.to_string(10);
   }
 
-  static inline bool less(const mpz_class &v1, const mpz_class &v2) {
+  static inline bool less(const expr::mpz_class &v1, const expr::mpz_class &v2) {
     return v1 < v2;
   }
 
-  static inline bool equal_to(const mpz_class &v1, const mpz_class &v2) {
+  static inline bool equal_to(const expr::mpz_class &v1, const expr::mpz_class &v2) {
     return v1 == v2;
   }
 
-  static inline size_t hash(const mpz_class &v) {
-    std::string str = boost::lexical_cast<std::string>(v);
+  static inline size_t hash(const expr::mpz_class &v) {
     std::hash<std::string> hasher;
-    return hasher(str);
+    return hasher(v.to_string());
   }
 
   static TerminalKind getKind() { return TerminalKind::MPZ; }
-  static std::string name() { return "mpz_class"; }
+  static std::string name() { return "expr::mpz_class"; }
 };
 
-template <> struct TerminalTrait<mpq_class> {
-  static inline void print(std::ostream &OS, const mpq_class &v, int depth,
+template <> struct TerminalTrait<expr::mpq_class> {
+  static inline void print(std::ostream &OS, const expr::mpq_class &v, int depth,
                            bool brkt) {
-    OS << v;
+    OS << v.to_string();
   }
 
-  static inline bool less(const mpq_class &v1, const mpq_class &v2) {
+  static inline bool less(const expr::mpq_class &v1, const expr::mpq_class &v2) {
     return v1 < v2;
   }
 
-  static inline bool equal_to(const mpq_class &v1, const mpq_class &v2) {
+  static inline bool equal_to(const expr::mpq_class &v1, const expr::mpq_class &v2) {
     return v1 == v2;
   }
 
-  static inline size_t hash(const mpq_class &v) {
-    std::string str = boost::lexical_cast<std::string>(v);
+  static inline size_t hash(const expr::mpq_class &v) {
     std::hash<std::string> hasher;
-    return hasher(str);
+    return hasher(v.to_string());
   }
 
   static TerminalKind getKind() { return TerminalKind::MPQ; }
-  static std::string name() { return "mpq_class"; }
+  static std::string name() { return "expr::mpq_class"; }
 };
 
 namespace op {
@@ -785,8 +781,8 @@ using INT = Terminal<int>;
 using UINT = Terminal<unsigned int>;
 using ULONG = Terminal<unsigned long>;
 
-using MPQ = Terminal<mpq_class>;
-using MPZ = Terminal<mpz_class>;
+using MPQ = Terminal<expr::mpq_class>;
+using MPZ = Terminal<expr::mpz_class>;
 } // namespace op
 
 namespace ps {
@@ -888,6 +884,15 @@ struct LISP {
     }
 
     OS << ")";
+  }
+};
+
+struct ADDRESS {
+  static inline void print(std::ostream &OS, int depth, bool brkt,
+                           const std::string &name,
+                           const std::vector<ENode *> &args) {
+    assert(args.size() == 1);
+    OS << name << "!" << args.at(0)->getId();
   }
 };
 } // namespace ps
@@ -1929,7 +1934,7 @@ NOP_BASE(MiscOp)
 /** A non-deterministic value */
 NOP(NONDET, "nondet", FUNCTIONAL, MiscOp)
 /** An assumption */
-NOP(ASM, "ASM", PREFIX, MiscOp)
+NOP(ASM, "ASM", ADDRESS, MiscOp)
 /** A tupple */
 NOP(TUPLE, "tuple", FUNCTIONAL, MiscOp)
 } // namespace op

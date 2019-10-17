@@ -19,13 +19,13 @@
 #include "seahorn/Bmc.hh"
 #include "seahorn/BvOpSem.hh"
 #include "seahorn/BvOpSem2.hh"
+#include "seahorn/DfCoiAnalysis.hh"
 #include "seahorn/PathBmc.hh"
+// prerequisite for Clam
 #include "seahorn/Support/SeaDebug.h"
 #include "seahorn/Support/SeaLog.hh"
-#include "seahorn/UfoOpSem.hh"
-#ifdef HAVE_CRAB_LLVM
-///#include "seahorn/Transforms/Scalar/LowerCstExpr.hh"
-#include "crab_llvm/CrabLlvm.hh"
+#ifdef HAVE_CLAM
+#include "clam/Clam.hh"
 #endif
 
 // XXX temporary debugging aid
@@ -36,14 +36,9 @@ static llvm::cl::opt<bool> HornBv2("horn-bv2",
 static llvm::cl::opt<bool> HornGSA("horn-gsa",
                                    llvm::cl::desc("Use Gated SSA for bmc"),
                                    llvm::cl::init(false), llvm::cl::Hidden);
-
-#ifdef HAVE_CRAB_LLVM
-namespace seahorn {
-// Defined in PathBmc.cc
-// True if PathBmc asks for crab.
-extern bool XHornBmcCrab;
-} // namespace seahorn
-#endif
+static llvm::cl::opt<bool> ComputeCoi("horn-bmc-coi",
+                                      llvm::cl::desc("Compute DataFlow-based COI"),
+                                      llvm::cl::init(false), llvm::cl::Hidden);
 
 namespace {
 using namespace llvm;
@@ -52,11 +47,14 @@ using namespace seahorn;
 class BmcPass : public llvm::ModulePass {
 public:
   // Available BMC engines
-  typedef enum { mono_bmc, path_bmc } bmc_engine_t;
+  enum class BmcEngineKind {
+    mono_bmc,
+    path_bmc
+  };
 
 private:
   /// bmc engine type
-  bmc_engine_t m_engine;
+  BmcEngineKind m_engine;
   /// output stream for encoded bmc problem
   raw_ostream *m_out;
   /// true if to run the solver, false if encode only
@@ -69,7 +67,7 @@ private:
 public:
   static char ID;
 
-  BmcPass(bmc_engine_t engine = mono_bmc, raw_ostream *out = nullptr,
+  BmcPass(BmcEngineKind engine = BmcEngineKind::mono_bmc, raw_ostream *out = nullptr,
           bool solve = true)
       : llvm::ModulePass(ID), m_engine(engine), m_out(out), m_solve(solve),
         m_failure_analysis(nullptr) {}
@@ -95,9 +93,9 @@ public:
   }
 
   void getAnalysisUsage(AnalysisUsage &AU) const {
-#ifdef HAVE_CRAB_LLVM
-    if (m_engine == path_bmc) {
-      AU.addRequired<crab_llvm::CrabLlvmPass>();
+#ifdef HAVE_CLAM
+    if (m_engine == BmcEngineKind::path_bmc) {
+      AU.addRequired<clam::ClamPass>();
       AU.addRequired<TargetLibraryInfoWrapperPass>();
     }
 #endif
@@ -174,7 +172,7 @@ public:
 
     ExprFactory efac;
 
-    if (m_engine == mono_bmc) {
+    if (m_engine == BmcEngineKind::mono_bmc) {
 
       std::unique_ptr<OperationalSemantics> sem;
       if (HornBv2)
@@ -184,6 +182,10 @@ public:
         sem = llvm::make_unique<BvOpSem>(efac, *this,
                                          F.getParent()->getDataLayout(), MEM);
 
+      if(ComputeCoi) {
+	computeCoi(F, *sem);
+      }
+      
       EZ3 zctx(efac);
       // XXX: uses OperationalSemantics but trace generation still depends on
       // LegacyOperationalSemantics
@@ -252,12 +254,12 @@ public:
         errs() << "Trace \n";
         trace.print(errs());
       });
-    } else if (m_engine == path_bmc) {
-#ifdef HAVE_CRAB_LLVM
+    } else if (m_engine == BmcEngineKind::path_bmc) {
+#ifdef HAVE_CLAM
       const TargetLibraryInfo &tli =
           getAnalysis<TargetLibraryInfoWrapperPass>().getTLI();
 
-      auto *crab = &getAnalysis<crab_llvm::CrabLlvmPass>();
+      auto *crab = &getAnalysis<clam::ClamPass>();
 
       std::unique_ptr<OperationalSemantics> sem = llvm::make_unique<BvOpSem>(
           efac, *this, F.getParent()->getDataLayout(), MEM);
@@ -311,16 +313,52 @@ public:
   }
 
   StringRef getPassName() const override { return "BmcPass"; }
+
+
+  void computeCoi(Function &F, OperationalSemantics &sem) {
+    DfCoiAnalysis dfCoi;
+
+    Module *m = F.getParent();
+    assert(m);
+    // -- compute dependnece of verifier.assume()
+    Function *assumeFn = m->getFunction("verifier.assume");
+    if(assumeFn) {
+      for (auto *u : assumeFn->users()) {
+        if (auto *CI = dyn_cast<CallInst>(u)) {
+          CallSite CS(CI);
+          if (CS.getCaller() != &F) continue;
+          dfCoi.analyze(*CI);
+        }
+      }
+    }
+
+    // -- compute dependence of verifier.assume.not()
+    assumeFn = m->getFunction("verifier.assume.not");
+    if (assumeFn) {
+      for (auto *u : assumeFn->users()) {
+        if (auto *CI = dyn_cast<CallInst>(u)) {
+          CallSite CS(CI);
+          if (CS.getCaller() != &F)
+            continue;
+          dfCoi.analyze(*CI);
+        }
+      }
+    }
+
+    // install dependence filter in operational semantics
+    auto &filter = dfCoi.getCoi();
+    sem.addToFilter(filter.begin(), filter.end());
+  }
 };
 
 char BmcPass::ID = 0;
 } // namespace
 namespace seahorn {
 Pass *createBmcPass(raw_ostream *out, bool solve) {
-  return new BmcPass(BmcPass::bmc_engine_t::mono_bmc, out, solve);
+  return new BmcPass(BmcPass::BmcEngineKind::mono_bmc, out, solve);
 }
 Pass *createPathBmcPass(raw_ostream *out, bool solve) {
-  return new BmcPass(BmcPass::bmc_engine_t::path_bmc, out, solve);
+  return new BmcPass(BmcPass::BmcEngineKind::path_bmc, out, solve);
 }
 
 } // namespace seahorn

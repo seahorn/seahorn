@@ -44,8 +44,8 @@ namespace
     {
       trueE  = mk<TRUE> (m_efac);
       falseE = mk<FALSE> (m_efac);
-      zero   = mkTerm<mpz_class> (0, m_efac);
-      one    = mkTerm<mpz_class> (1, m_efac);
+      zero   = mkTerm<expr::mpz_class> (0UL, m_efac);
+      one    = mkTerm<expr::mpz_class> (1UL, m_efac);
       // -- first two arguments are reserved for error flag
       m_fparams.push_back (falseE);
       m_fparams.push_back (falseE);
@@ -215,11 +215,10 @@ namespace
 
     Expr doLeftShift (Expr op1, const ConstantInt *op2)
     {
-      mpz_class shift = expr::toMpz (op2->getValue ());
-      mpz_class factor = 1;
-      for (unsigned long i = 0; i < shift.get_ui (); ++i)
-      { factor = factor * 2; }
-      Expr res = mk<MULT>(op1, mkTerm<mpz_class> (factor, m_efac));
+      uint64_t shift = op2->getValue().getZExtValue();
+      unsigned long factor = 1UL;
+      for (unsigned long i = 0; i < shift; ++i) { factor = factor * 2; }
+      Expr res = mk<MULT>(op1, mkTerm<expr::mpz_class>(factor, m_efac));
       return res;
     }
 
@@ -493,7 +492,7 @@ namespace
       //   Expr rhs = op::array::select (m_inMem, op0);
       //   if (I.getType ()->isIntegerTy (1))
       //     // -- convert to Boolean
-      //     rhs = mk<NEQ> (rhs, mkTerm (mpz_class(0), m_efac));
+      //     rhs = mk<NEQ> (rhs, mkTerm (expr::mpz_class(0), m_efac));
 
       //   m_side.push_back (mk<EQ> (lhs, rhs));
       // }
@@ -510,8 +509,8 @@ namespace
 
       // if (v && I.getOperand (0)->getType ()->isIntegerTy (1))
       //   // -- convert to int
-      //   v = boolop::lite (v, mkTerm (mpz_class (1), m_efac),
-      //                     mkTerm (mpz_class (0), m_efac));
+      //   v = boolop::lite (v, mkTerm (expr::mpz_class (1), m_efac),
+      //                     mkTerm (expr::mpz_class (0), m_efac));
 
       // if (idx && v)
       //   m_side.push_back (mk<EQ> (m_outMem,
@@ -621,15 +620,15 @@ namespace seahorn
     for(auto GTI = gep_type_begin(&gep), GTE = gep_type_end(&gep); GTI != GTE; ++GTI) {
       if (const StructType *st = GTI.getStructTypeOrNull()) {
 	if (const ConstantInt *ci = dyn_cast<const ConstantInt>(GTI.getOperand())) {
-	  Expr off = mkTerm<mpz_class>(fieldOff(st, ci->getZExtValue()), m_efac);
+	  Expr off = mkTerm<expr::mpz_class>((unsigned long)fieldOff(st, ci->getZExtValue()), m_efac);
 	  res = mk<PLUS>(res, off);
 	} else
 	  assert(0);
       } else {
-	// otherwise we have a sequential type like an array or vector.
-	// Multiply the index by the size of the indexed type.
-	Expr sz = mkTerm<mpz_class>(storageSize(GTI.getIndexedType()), m_efac);
-	res = mk<PLUS>(res, mk<MULT>(lookup(s, *GTI.getOperand()), sz));
+        // otherwise we have a sequential type like an array or vector.
+        // Multiply the index by the size of the indexed type.
+        Expr sz = mkTerm<expr::mpz_class>((unsigned long)storageSize(GTI.getIndexedType()), m_efac);
+        res = mk<PLUS>(res, mk<MULT>(lookup(s, *GTI.getOperand()), sz));
       }
     }
     return res;
@@ -657,11 +656,11 @@ namespace seahorn
       {
         if (c->getType ()->isIntegerTy (1))
           return c->isOne () ? trueE : falseE;
-        mpz_class k = toMpz (c->getValue ());
-        return mkTerm<mpz_class> (k, m_efac);
+        expr::mpz_class k = toMpz (c->getValue ());
+        return mkTerm<expr::mpz_class> (k, m_efac);
       }
       else if (cv->isNullValue () || isa<ConstantPointerNull> (&I))
-        return mkTerm<mpz_class> (0, m_efac);
+        return mkTerm<expr::mpz_class> (0UL, m_efac);
       else if (const ConstantExpr *ce = dyn_cast<const ConstantExpr> (&I))
       {
         // -- if this is a cast, and not into a Boolean, strip it
@@ -673,8 +672,8 @@ namespace seahorn
         {
           if (const ConstantInt* val = dyn_cast<const ConstantInt>(ce->getOperand (0)))
           {
-            mpz_class k = toMpz (val->getValue ());
-            return mkTerm<mpz_class> (k, m_efac);
+            expr::mpz_class k = toMpz (val->getValue ());
+            return mkTerm<expr::mpz_class> (k, m_efac);
           }
           // -- strip cast
           else return symb (*ce->getOperand (0));

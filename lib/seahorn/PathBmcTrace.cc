@@ -1,6 +1,6 @@
 #pragma once
 #include "seahorn/config.h"
-#ifdef HAVE_CRAB_LLVM
+#ifdef HAVE_CLAM
 
 #include "llvm/IR/DebugInfo.h"
 #include "llvm/IR/DebugLoc.h"

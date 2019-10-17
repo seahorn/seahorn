@@ -9,7 +9,7 @@ char LoadCrab::ID = 0;
 llvm::Pass *createLoadCrabPass() { return new LoadCrab(); }
 } // namespace seahorn
 
-#ifndef HAVE_CRAB_LLVM
+#ifndef HAVE_CLAM
 /// Dummy implementation when Crab is not compiled in
 namespace seahorn {
 void LoadCrab::getAnalysisUsage(llvm::AnalysisUsage &AU) const {
@@ -33,13 +33,13 @@ bool LoadCrab::runOnFunction(llvm::Function &F) { return false; }
 #include "seahorn/HornifyModule.hh"
 #include "seahorn/Transforms/Instrumentation/ShadowMemDsa.hh"
 
-#include "crab_llvm/CrabLlvm.hh"
-#include "crab_llvm/HeapAbstraction.hh"
-#include "crab_llvm/wrapper_domain.hh"
+#include "clam/Clam.hh"
+#include "clam/HeapAbstraction.hh"
+#include "clam/AbstractDomain.hh"
 
 #include "boost/unordered_map.hpp"
 
-namespace crab_llvm {
+namespace clam {
 
 using namespace llvm;
 using namespace expr;
@@ -182,8 +182,8 @@ private:
 
   // Defined only for z_number
   Expr exprFromNum(ikos::z_number n, ExprFactory &efac) {
-    const mpz_class mpz((mpz_class)n);
-    return mkTerm(mpz, efac);
+    const expr::mpz_class z(n.get_mpz_t());
+    return mkTerm(z, efac);
   }
 
   Expr exprFromIntVar(varname_t v, ExprFactory &efac) {
@@ -353,9 +353,9 @@ private:
       return isOpX<MPZ>(e);
     }
 
-    mpz_class getNumber(Expr e) {
+    expr::mpz_class getNumber(Expr e) {
       assert(isNumber(e));
-      return getTerm<mpz_class>(e);
+      return getTerm<expr::mpz_class>(e);
     }
 
     bool isBv(Expr e) {
@@ -591,19 +591,18 @@ private:
   }
 };
 
-} // end namespace crab_llvm
+} // end namespace clam
 
 namespace seahorn {
 using namespace llvm;
-using namespace crab_llvm;
+using namespace clam;
 using namespace expr;
 
 // Translate a range of Expr variables to Crab variables but only
 // those that can be mapped to llvm value.
 template <typename Range>
-static std::vector<crab_llvm::var_t> ExprVecToCrab(const Range &live,
-                                                   CrabLlvmPass *Crab) {
-  std::vector<crab_llvm::var_t> res;
+static std::vector<clam::var_t> ExprVecToCrab(const Range &live, ClamPass *Crab) {
+  std::vector<clam::var_t> res;
   for (auto l : live) {
     Expr u = bind::fname(bind::fname(l));
     if (isOpX<VALUE>(u)) {
@@ -613,7 +612,7 @@ static std::vector<crab_llvm::var_t> ExprVecToCrab(const Range &live,
 
       // we need to create a typed variable
       res.push_back(
-          crab_llvm::var_t(Crab->get_var_factory()[v], crab::UNK_TYPE, 0));
+          clam::var_t(Crab->get_var_factory()[v], crab::UNK_TYPE, 0));
     }
   }
   return res;
@@ -636,7 +635,7 @@ Expr LinConsToExpr::toExpr(lin_cst_t cst, LegacyOperationalSemantics &sem) {
   return dagVisit(LCES, e);
 }
 
-Expr CrabInvToExpr(llvm::BasicBlock *B, CrabLlvmPass *crab,
+Expr CrabInvToExpr(llvm::BasicBlock *B, ClamPass *crab,
                    const ExprVector &live, EZ3 &zctx, ExprFactory &efac) {
 
   Expr e = mk<TRUE>(efac);
@@ -654,7 +653,7 @@ Expr CrabInvToExpr(llvm::BasicBlock *B, CrabLlvmPass *crab,
     boxes_domain_t boxes;
     getAbsDomWrappee(abs, boxes);
     // Here we do project onto live variables before translation
-    std::vector<crab_llvm::var_t> vars = ExprVecToCrab(live, crab);
+    std::vector<clam::var_t> vars = ExprVecToCrab(live, crab);
     boxes.project(vars);
     BoxesToExpr t(*(crab->get_heap_abstraction()), *(B->getParent()), live);
     e = t.toExpr(boxes, efac);
@@ -688,7 +687,7 @@ bool LoadCrab::runOnModule(Module &M) {
 
 bool LoadCrab::runOnFunction(Function &F) {
   HornifyModule &hm = getAnalysis<HornifyModule>();
-  CrabLlvmPass &crab = getAnalysis<CrabLlvmPass>();
+  ClamPass &crab = getAnalysis<ClamPass>();
 
   auto &db = hm.getHornClauseDB();
 
@@ -718,7 +717,7 @@ bool LoadCrab::runOnFunction(Function &F) {
 void LoadCrab::getAnalysisUsage(AnalysisUsage &AU) const {
   AU.setPreservesAll();
   AU.addRequired<HornifyModule>();
-  AU.addRequired<CrabLlvmPass>();
+  AU.addRequired<ClamPass>();
 }
 
 } // end namespace seahorn

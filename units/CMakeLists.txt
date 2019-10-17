@@ -10,7 +10,6 @@ set (USED_LIBS_Z3_TESTS
   ${SEA_DSA_LIBS}
   ${LLVM_SEAHORN_LIBS}
   ${Boost_SYSTEM_LIBRARY}
-  ${GMPXX_LIB}
   ${GMP_LIB}
   ${RT_LIB}
   )
@@ -24,6 +23,7 @@ add_executable(units_z3 EXCLUDE_FROM_ALL
   fapp_z3.cpp
   muz_test.cpp
   lambdas_z3.cpp
+  units_expr.cpp
   )
 llvm_config (units_z3 ${LLVM_LINK_COMPONENTS})
 target_link_libraries(units_z3 ${USED_LIBS_Z3_TESTS})

@@ -37,10 +37,11 @@ add_llvm_library (seahorn.LIB
   BvOpSem2Alu.cc
   BvOpSem2ConstEval.cc
   VCGen.cc
+  DfCoiAnalysis.cc
   )
 
-if (HAVE_CRAB_LLVM)
-  target_link_libraries (seahorn.LIB ${CRABLLVM_LIBS})
+if (HAVE_CLAM)
+  target_link_libraries (seahorn.LIB ${CLAM_LIBS})
 endif()
 
 set_target_properties (seahorn.LIB PROPERTIES OUTPUT_NAME "seahorn")

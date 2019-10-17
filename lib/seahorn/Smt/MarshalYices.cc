@@ -123,12 +123,12 @@ term_t marshal_yices::encode_term(Expr e, ycache_t &cache){
   } else if (isOpX<INT>(e)) {
     res = yices_int64(getTerm<int>(e));    
   } else if (isOpX<MPQ>(e)) {
-    res = yices_mpq(getTerm<mpq_class>(e).get_mpq_t());
+    res = yices_mpq(getTerm<expr::mpq_class>(e).get_mpq_t());
   } else if (isOpX<MPZ>(e)) {
-    res = yices_mpz(getTerm<mpz_class>(e).get_mpz_t());    
+    res = yices_mpz(getTerm<expr::mpz_class>(e).get_mpz_t());    
   } else if (bv::is_bvnum(e)) {
     res = yices_bvconst_mpz(op::bv::width(e->right()),
-			    getTerm<mpz_class>(e->left()).get_mpz_t());
+			    getTerm<expr::mpz_class>(e->left()).get_mpz_t());
   } else if (bind::isBoolConst(e) || bind::isIntConst(e) || bind::isRealConst(e) ||
 	     op::bv::isBvConst(e)) {        
     type_t var_type;
@@ -444,7 +444,7 @@ Expr marshal_yices::decode_yval(yval_t &yval,  ExprFactory &efac, model_t *model
     mpz_init(z);
     errcode = yices_val_get_mpz(model, &yval, z);
     if(errcode != -1){
-      mpz_class zpp(z);
+      expr::mpz_class zpp(z);
       res = mkTerm(zpp, efac);
       mpz_clear(z);
       break;
@@ -457,7 +457,7 @@ Expr marshal_yices::decode_yval(yval_t &yval,  ExprFactory &efac, model_t *model
     if (errcode == -1){
       decode_term_fail("yices_val_get_rat failed: ", yices::error_string());
     } else {
-      mpq_class qpp(q);
+      expr::mpq_class qpp(q);
       res = mkTerm(qpp, efac);
     }
     mpq_clear(q);
@@ -482,7 +482,7 @@ Expr marshal_yices::decode_yval(yval_t &yval,  ExprFactory &efac, model_t *model
     cvals[n] = 0;
     // string in binary representation 
     std::string snum(cvals);
-    res = bv::bvnum(mpz_class(snum, 2), n, efac);
+    res = bv::bvnum(expr::mpz_class(snum, 2), n, efac);
 
     delete[] vals;
     delete[] cvals;

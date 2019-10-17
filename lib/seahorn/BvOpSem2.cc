@@ -1416,6 +1416,7 @@ public:
             fn.getName().equals("seahorn.fail") ||
             fn.getName().startswith("shadow.mem"))
           continue;
+        if (m_sem.isSkipped(fn)) continue;
         Expr symReg = m_ctx.mkRegister(fn);
         assert(symReg);
         setValue(fn, m_ctx.getMemManager()->falloc(fn));
@@ -1504,8 +1505,8 @@ Bv2OpSemContext::Bv2OpSemContext(Bv2OpSem &sem, SymStore &values,
                                  ExprVector &side)
     : OpSemContext(values, side), m_sem(sem), m_func(nullptr), m_bb(nullptr),
       m_inst(nullptr), m_prev(nullptr), m_scalar(false) {
-  zeroE = mkTerm<mpz_class>(0, efac());
-  oneE = mkTerm<mpz_class>(1, efac());
+  zeroE = mkTerm<expr::mpz_class>(0UL, efac());
+  oneE = mkTerm<expr::mpz_class>(1UL, efac());
 
   m_alu = mkBvOpSemAlu(*this);
   setMemManager(
@@ -1570,15 +1571,15 @@ void Bv2OpSemContext::setMemManager(OpSemMemManager *man) {
   m_memManager.reset(man);
 
   // TODO: move into MemManager
-  mpz_class val;
+  expr::mpz_class val;
   switch (ptrSzInBits()) {
   case 64:
     // TODO: take alignment into account
-    val = 0x000000000FFFFFFF;
+    val = expr::mpz_class(0x000000000FFFFFFFU);
     break;
   case 32:
     // TODO: take alignment into account
-    val = 0x0FFFFFFF;
+    val = expr::mpz_class(0x0FFFFFFFU);
     break;
   default:
     LOG("opsem",
@@ -1785,13 +1786,13 @@ Expr Bv2OpSemContext::getConstantValue(const llvm::Constant &c) {
     return mem().nullPtr();
   } else if (const ConstantInt *ci = dyn_cast<const ConstantInt>(&c)) {
     if (ci->getType()->isIntegerTy(1))
-      return ci->isOne() ? alu().si(1, 1) : alu().si(0, 1);
+      return ci->isOne() ? alu().si(1U, 1) : alu().si(0U, 1);
     else if (ci->isZero())
-      return alu().si(0, m_sem.sizeInBits(c));
+      return alu().si(0U, m_sem.sizeInBits(c));
     else if (ci->isOne())
-      return alu().si(1, m_sem.sizeInBits(c));
+      return alu().si(1U, m_sem.sizeInBits(c));
 
-    mpz_class k = toMpz(ci->getValue());
+    expr::mpz_class k = toMpz(ci->getValue());
     return alu().si(k, m_sem.sizeInBits(c));
   }
 
@@ -1800,7 +1801,7 @@ Expr Bv2OpSemContext::getConstantValue(const llvm::Constant &c) {
     auto GVO = ce.evaluate(&c);
     if (GVO.hasValue()) {
       GenericValue gv = GVO.getValue();
-      mpz_class k = toMpz(gv.IntVal);
+      expr::mpz_class k = toMpz(gv.IntVal);
       return alu().si(k, m_sem.sizeInBits(c));
     }
   } else if (c.getType()->isStructTy()) {
@@ -1810,7 +1811,7 @@ Expr Bv2OpSemContext::getConstantValue(const llvm::Constant &c) {
       GenericValue gv = GVO.getValue();
       if (gv.AggregateVal.size() > 0) {
         APInt aggBv = m_sem.agg(c.getType(), gv.AggregateVal, *this);
-        mpz_class k = toMpz(aggBv);
+        expr::mpz_class k = toMpz(aggBv);
         return alu().si(k, aggBv.getBitWidth());
       }
     }
@@ -2010,6 +2011,7 @@ const Value &Bv2OpSem::conc(Expr v) const {
 }
 
 bool Bv2OpSem::isSkipped(const Value &v) const {
+  if (!OperationalSemantics::isTracked(v)) return true; 
   // skip shadow.mem instructions if memory is not a unique scalar
   // and we are now ignoring memory instructions
   const Value *scalar = nullptr;
@@ -2162,6 +2164,9 @@ void Bv2OpSem::skipInst(const Instruction &inst,
   if (isShadowMem(inst, &s))
     return;
   if (ctx.isIgnored(inst))
+    return;
+  if (!OperationalSemantics::isTracked(inst))
+    // silently ignore instructions that are filtered out
     return;
   ctx.ignore(inst);
   LOG("opsem", WARN << "skipping instruction: " << inst << " @ "

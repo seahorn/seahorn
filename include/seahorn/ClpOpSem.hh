@@ -36,8 +36,8 @@ namespace seahorn
       LegacyOperationalSemantics (efac), m_pass (pass), m_trackLvl (trackLvl), m_td(&dl)
     {
       m_canFail = pass.getAnalysisIfAvailable<CanFail> ();
-      zero = mkTerm<mpz_class> (0, m_efac);
-      one  = mkTerm<mpz_class> (1, m_efac);
+      zero = mkTerm<expr::mpz_class>(0UL, m_efac);
+      one  = mkTerm<expr::mpz_class>(1UL, m_efac);
     }
 
     ClpOpSem (const ClpOpSem& o) :

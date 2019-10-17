@@ -1,7 +1,7 @@
 #pragma once
 #include "seahorn/config.h"
 
-#ifdef HAVE_CRAB_LLVM
+#ifdef HAVE_CLAM
 #include "seahorn/Expr/Expr.hh"
 #include "seahorn/Expr/Smt/EZ3.hh"
 #include "seahorn/Analysis/CutPointGraph.hh"
@@ -18,10 +18,10 @@ class TargetLibraryInfo;
 class raw_ostream;
 }
 
-namespace crab_llvm {
-class CrabLlvmPass;
-class IntraCrabLlvm;
-} // namespace crab_llvm
+namespace clam {
+class ClamPass;
+class IntraClam;
+} // namespace clam
 
 /*
   Instead of building a monolithic precise encoding of the program and
@@ -36,7 +36,7 @@ class PathBmcEngine {
 public:
   
   PathBmcEngine(LegacyOperationalSemantics &sem, EZ3 &zctx,
-		crab_llvm::CrabLlvmPass *crab_analysis,
+		clam::ClamPass *crab_analysis,
 		const llvm::TargetLibraryInfo &tli);
   
   virtual ~PathBmcEngine();
@@ -137,9 +137,9 @@ private:
 
   //// Crab stuff
   // crab instance that includes invariants and heap analysis information
-  crab_llvm::CrabLlvmPass *m_crab_global;
+  clam::ClamPass *m_crab_global;
   // crab instance to run only paths
-  crab_llvm::IntraCrabLlvm *m_crab_path;
+  clam::IntraClam *m_crab_path;
   
   // Temporary sanity check: bookeeping of all generated blocking clauses.
   std::unordered_set<Expr> m_blocking_clauses;
@@ -166,7 +166,7 @@ private:
   bool path_encoding_and_solve_with_ai(PathBmcTrace &trace,
                                        invariants_map_t &path_constraints);
   /// Out contains all invariants (per block) inferred by crab.
-  void load_invariants(crab_llvm::CrabLlvmPass &crab, const LiveSymbols &ls,
+  void load_invariants(clam::ClamPass &crab, const LiveSymbols &ls,
                        DenseMap<const BasicBlock *, ExprVector> &out);
 
   /// Add the crab invariants in m_side after applying the symbolic store s.

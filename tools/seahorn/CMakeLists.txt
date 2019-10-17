@@ -10,7 +10,6 @@ set (USED_LIBS
   ${LLVM_SEAHORN_LIBS}
   ${Z3_LIBRARY}
   ${Boost_SYSTEM_LIBRARY}
-  ${GMPXX_LIB}
   ${GMP_LIB}
   ${RT_LIB}
   )

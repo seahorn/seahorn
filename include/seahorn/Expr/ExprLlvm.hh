@@ -126,39 +126,41 @@ using BB = expr::Terminal<const llvm::BasicBlock *>;
 using VALUE = expr::Terminal<const llvm::Value *>;
 using FUNCTION = expr::Terminal<const llvm::Function *>;
 
-/** Converts v to mpz_class. Assumes that v is signed */
-inline mpz_class toMpz(const APInt &v) {
+/** Converts v to ::mpz_class. Assumes that v is signed */
+inline expr::mpz_class toMpz(const llvm::APInt &v) {
   // Based on:
   // https://llvm.org/svn/llvm-project/polly/trunk/lib/Support/GICHelper.cpp
   // return v.getSExtValue ();
 
-  APInt abs;
+  llvm::APInt abs;
   abs = v.isNegative() ? v.abs() : v;
 
   const uint64_t *rawdata = abs.getRawData();
   unsigned numWords = abs.getNumWords();
 
   // TODO: Check if this is true for all platforms.
-  mpz_class res;
-  mpz_import(res.get_mpz_t(), numWords, 1, sizeof(uint64_t), 0, 0, rawdata);
+  expr::mpz_class res;
+  mpz_import(res.get_mpz_t(), numWords, -1, sizeof(uint64_t), 0, 0, rawdata);
 
-  return v.isNegative() ? mpz_class(-res) : res;
+  if (v.isNegative())
+    res.neg();
+  return res;
 }
 
-inline mpz_class toMpz(const Value *v) {
+inline expr::mpz_class toMpz(const Value *v) {
   if (const ConstantInt *k = dyn_cast<ConstantInt>(v))
     return toMpz(k->getValue());
   if (isa<ConstantPointerNull>(v))
-    return 0;
+    return mpz_class();
 
   assert(0 && "Not a number");
-  return 0;
+  return mpz_class();
 }
 
 /** Adapted from
     https://llvm.org/svn/llvm-project/polly/branches/release_34/lib/Support/GICHelper.cpp
 */
-inline APInt toAPInt(const mpz_class &v) {
+inline APInt toAPInt(const expr::mpz_class &v) {
   uint64_t *p = nullptr;
   size_t sz;
 
@@ -168,7 +170,7 @@ inline APInt toAPInt(const mpz_class &v) {
     A = A.zext(A.getBitWidth() + 1);
     free(p);
 
-    if (sgn(v) == -1)
+    if (v.sgn() == -1)
       return -A;
     else
       return A;
@@ -176,7 +178,7 @@ inline APInt toAPInt(const mpz_class &v) {
     return APInt(1, 0);
 }
 
-inline APInt toAPInt(unsigned numBits, const mpz_class &v) {
+inline APInt toAPInt(unsigned numBits, const expr::mpz_class &v) {
   uint64_t *p = nullptr;
   size_t sz;
 
@@ -185,7 +187,7 @@ inline APInt toAPInt(unsigned numBits, const mpz_class &v) {
     APInt A(numBits, (unsigned)sz, p);
     free(p);
 
-    if (sgn(v) == -1)
+    if (v.sgn() == -1)
       return -A;
     else
       return A;

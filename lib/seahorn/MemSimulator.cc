@@ -40,8 +40,8 @@ struct MemSimVisitor : public InstVisitor<MemSimVisitor> {
 
   MemSimVisitor(MemSimulator &sim, ExprVector &side)
       : m_sim(sim), m_side(side) {
-    mpz_class val;
-    static const mpz_class ones64("0xFFFFFFFFFFFFFFFF");
+    expr::mpz_class val;
+    static const expr::mpz_class ones64(std::string("0xFFFFFFFFFFFFFFFF"));
     if (ptrSz() == 64)
       val = ones64;
     else if (ptrSz() == 32)
@@ -89,8 +89,8 @@ struct MemSimVisitor : public InstVisitor<MemSimVisitor> {
       u = v;
   }
 
-  void addPtrDiff(Expr gep, Expr base, const mpz_class &diff) {
-    if (diff == 0)
+  void addPtrDiff(Expr gep, Expr base, const expr::mpz_class &diff) {
+    if (diff == expr::mpz_class())
       addEq(gep, base);
     else
       // AG: base + diff == gep might be simpler
@@ -98,7 +98,7 @@ struct MemSimVisitor : public InstVisitor<MemSimVisitor> {
       add(mk<EQ>(mk<BSUB>(gep, base), ptrVal(diff)));
   }
 
-  Expr ptrVal(const mpz_class &v) { return bv::bvnum(v, ptrSz(), efac()); }
+  Expr ptrVal(const expr::mpz_class &v) { return bv::bvnum(v, ptrSz(), efac()); }
   Expr symb(const Value &V) { return m_sim.trace().symb(m_loc, V); }
   Expr oidE(Expr e) { return bind::fapp(m_oidFn, e); }
   Expr startE(Expr e) { return bind::fapp(m_oidStartFn, oidE(e)); }
@@ -196,14 +196,15 @@ struct MemSimVisitor : public InstVisitor<MemSimVisitor> {
     Expr gepPtr = symb(I);
     Expr basePtr = symb(*I.getPointerOperand());
     if (gepVal && baseVal && gepPtr && basePtr) {
-      mpz_class gepZ = bv::toMpz(gepVal);
-      mpz_class baseZ = bv::toMpz(baseVal);
+      expr::mpz_class gepZ = bv::toMpz(gepVal);
+      expr::mpz_class baseZ = bv::toMpz(baseVal);
 
       assert(baseZ <= gepZ);
       if (baseZ == gepZ)
         addEq(gepPtr, basePtr);
       else {
-        addPtrDiff(gepPtr, basePtr, gepZ - baseZ);
+        assert(0 && "Dead broken code in comment below");
+        addPtrDiff(gepPtr, basePtr, expr::mpz_class()/*gepZ - baseZ*/);
         add(mk<EQ>(oidE(gepPtr), oidE(basePtr)));
       }
     }

@@ -257,7 +257,6 @@ bool HornCex::runOnFunction(Module &M, Function &F) {
   const TargetLibraryInfo &tli =
       getAnalysis<TargetLibraryInfoWrapperPass>().getTLI();
 
-  
   BmcEngine bmc(*sem, hm.getZContext());
 
   // -- load the trace into the engine

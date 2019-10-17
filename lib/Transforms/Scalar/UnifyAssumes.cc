@@ -143,7 +143,7 @@ void UnifyAssumesPass::processCallInst(CallInst &CI, AllocaInst &flag) {
   IRBuilder<> B(bb);
   B.SetInsertPoint(&CI);
 
-  bool isNot = CI.getFunction()->getName().equals("verifier.assume.not");
+  bool isNot = CI.getCalledFunction()->getName().equals("verifier.assume.not");
   CallSite CS(&CI);
 
   Value *cond = CS.getArgument(0);

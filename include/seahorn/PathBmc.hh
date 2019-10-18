@@ -1,26 +1,77 @@
 #pragma once
 #include "seahorn/config.h"
 
-#ifdef HAVE_CLAM
 #include "seahorn/Expr/Expr.hh"
 #include "seahorn/Expr/Smt/EZ3.hh"
 #include "seahorn/Analysis/CutPointGraph.hh"
 #include "seahorn/LegacyOperationalSemantics.hh"
-#include "seahorn/LiveSymbols.hh"
-
 #include "boost/logic/tribool.hpp"
-
-#include <queue>
-#include <unordered_set>
 
 namespace llvm {
 class TargetLibraryInfo;
+class CallGraph;
+class DataLayout;
 class raw_ostream;
 }
+namespace sea_dsa {
+class AllocWrapInfo;
+}
+
+#ifndef HAVE_CLAM
+/* Dummy class for PathBmcEngine */
+class PathBmcEngine {
+  LegacyOperationalSemantics& m_sem;
+  SmallVector<const CutPoint *, 8> m_cps;
+  SmallVector<const CpEdge *, 8> m_cp_edges;
+  std::vector<SymStore> m_states;
+  ExprVector m_side;
+  ZModel<EZ3> m_model;
+public:
+  
+  PathBmcEngine(LegacyOperationalSemantics &sem, EZ3 &zctx,
+		const llvm::DataLayout &dl,
+		const llvm::TargetLibraryInfo &tli,
+		llvm::CallGraph &cg,
+		sea_dsa::AllocWrapInfo &awi)
+    : m_sem(sem), m_model(zctx) {}
+  
+  virtual ~PathBmcEngine() {}
+
+  void addCutPoint(const CutPoint& cp) {}
+
+  void encode() {}
+  
+  boost::tribool solve() {
+    llvm::errs() << "Warning: path bmc engine only available if Clam is available\n";
+    return boost:indeterminate;
+  }
+  
+  PathBmcTrace getTrace() { return PathBmcTrace(*this, m_model);}
+      
+  raw_ostream &toSmtLib(raw_ostream &out) { return out;}
+
+  boost::tribool result() { return boost::indeterminate;}
+  
+  LegacyOperationalSemantics &sem() { return m_sem;}
+
+  const SmallVector<const CutPoint *, 8> &getCps() const { return m_cps;}
+  
+  const SmallVector<const CpEdge *, 8> &getEdges() const { return m_cp_edges;}
+  
+  std::vector<SymStore> &getStates() { return m_states;}
+
+  Expr getSymbReg(const llvm::Value &v) { return Expr(); }
+
+  const ExprVector &getPreciseEncoding() const { return m_side;}
+};  
+#else
+#include "seahorn/LiveSymbols.hh"
+#include <queue>
+#include <unordered_set>
 
 namespace clam {
-class ClamPass;
 class IntraClam;
+class HeapAbstraction;
 } // namespace clam
 
 /*
@@ -36,8 +87,10 @@ class PathBmcEngine {
 public:
   
   PathBmcEngine(LegacyOperationalSemantics &sem, EZ3 &zctx,
-		clam::ClamPass *crab_analysis,
-		const llvm::TargetLibraryInfo &tli);
+		const llvm::DataLayout &dl,
+		const llvm::TargetLibraryInfo &tli,
+		llvm::CallGraph &cg,
+		sea_dsa::AllocWrapInfo &awi);
   
   virtual ~PathBmcEngine();
 
@@ -101,7 +154,7 @@ private:
   // the function
   const llvm::Function *m_fn;
   // live symbols 
-  LiveSymbols *m_ls;  
+  std::unique_ptr<LiveSymbols> m_ls;  
   // solver used for the boolean abstraction
   ZSolver<EZ3> m_smt_solver;
   // used to solve a path formula
@@ -124,8 +177,6 @@ private:
   // Count number of path
   unsigned m_num_paths;
   
-  const llvm::TargetLibraryInfo &m_tli;
-  
   // TORENAME (path conditions) Boolean literals that active the
   // implicant: used to produce blocking clauses for the Boolean
   // abstraction.
@@ -136,10 +187,15 @@ private:
   ZModel<EZ3> m_model;
 
   //// Crab stuff
-  // crab instance that includes invariants and heap analysis information
-  clam::ClamPass *m_crab_global;
-  // crab instance to run only paths
-  clam::IntraClam *m_crab_path;
+  // Stuff used by crab's (sea-dsa) heap abstraction.
+  const llvm::DataLayout &m_dl;
+  const llvm::TargetLibraryInfo &m_tli;
+  llvm::CallGraph &m_cg;
+  sea_dsa::AllocWrapInfo &m_awi;
+  // crab's heap abstraction 
+  std::unique_ptr<clam::HeapAbstraction> m_mem;
+  // crab instance to solve paths
+  std::unique_ptr<clam::IntraClam> m_crab_path;
   
   // Temporary sanity check: bookeeping of all generated blocking clauses.
   std::unordered_set<Expr> m_blocking_clauses;
@@ -165,8 +221,9 @@ private:
   // blocking clause.
   bool path_encoding_and_solve_with_ai(PathBmcTrace &trace,
                                        invariants_map_t &path_constraints);
+  
   /// Out contains all invariants (per block) inferred by crab.
-  void load_invariants(clam::ClamPass &crab, const LiveSymbols &ls,
+  void load_invariants(const clam::IntraClam& analysis,
                        DenseMap<const BasicBlock *, ExprVector> &out);
 
   /// Add the crab invariants in m_side after applying the symbolic store s.

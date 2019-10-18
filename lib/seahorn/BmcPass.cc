@@ -1,3 +1,4 @@
+#include "llvm/Analysis/CallGraph.h"
 #include "llvm/Analysis/PostDominators.h"
 #include "llvm/Analysis/TargetLibraryInfo.h"
 #include "llvm/IR/Dominators.h"
@@ -9,10 +10,8 @@
 #include "llvm/Support/raw_ostream.h"
 
 #include "seahorn/config.h"
-
 #include "seahorn/Support/Stats.hh"
 #include "seahorn/Transforms/Utils/NameValues.hh"
-
 #include "seahorn/Analysis/CanFail.hh"
 #include "seahorn/Analysis/ControlDependenceAnalysis.hh"
 #include "seahorn/Analysis/GateAnalysis.hh"
@@ -21,12 +20,10 @@
 #include "seahorn/BvOpSem2.hh"
 #include "seahorn/DfCoiAnalysis.hh"
 #include "seahorn/PathBmc.hh"
-// prerequisite for Clam
 #include "seahorn/Support/SeaDebug.h"
 #include "seahorn/Support/SeaLog.hh"
-#ifdef HAVE_CLAM
-#include "clam/Clam.hh"
-#endif
+
+#include "sea_dsa/AllocWrapInfo.hh"
 
 // XXX temporary debugging aid
 static llvm::cl::opt<bool> HornBv2("horn-bv2",
@@ -93,12 +90,10 @@ public:
   }
 
   void getAnalysisUsage(AnalysisUsage &AU) const {
-#ifdef HAVE_CLAM
-    if (m_engine == BmcEngineKind::path_bmc) {
-      AU.addRequired<clam::ClamPass>();
-      AU.addRequired<TargetLibraryInfoWrapperPass>();
-    }
-#endif
+    AU.addRequired<TargetLibraryInfoWrapperPass>();
+    AU.addRequired<sea_dsa::AllocWrapInfo>();
+    AU.addRequired<CallGraphWrapperPass>();    
+    
     AU.addRequired<CanFail>();
     AU.addRequired<NameValues>();
     AU.addRequired<TopologicalOrder>();
@@ -255,21 +250,22 @@ public:
         trace.print(errs());
       });
     } else if (m_engine == BmcEngineKind::path_bmc) {
-#ifdef HAVE_CLAM
-      const TargetLibraryInfo &tli =
-          getAnalysis<TargetLibraryInfoWrapperPass>().getTLI();
 
-      auto *crab = &getAnalysis<clam::ClamPass>();
-
+      auto const &dl = F.getParent()->getDataLayout();      
       std::unique_ptr<OperationalSemantics> sem = llvm::make_unique<BvOpSem>(
-          efac, *this, F.getParent()->getDataLayout(), MEM);
+          efac, *this, dl, MEM);
 
       EZ3 zctx(efac);
 
+      // XXX: needed by sea-dsa which is required by clam      
+      auto const &tli = getAnalysis<TargetLibraryInfoWrapperPass>().getTLI();
+      auto &cg = getAnalysis<CallGraphWrapperPass>().getCallGraph();      
+      auto &awi = getAnalysis<sea_dsa::AllocWrapInfo>();      
+      
       // XXX: use of legacy operational semantics
       PathBmcEngine bmc(static_cast<LegacyOperationalSemantics &>(*sem), zctx,
-                        crab, tli);
-
+			dl, tli, cg, awi);
+      
       bmc.addCutPoint(src);
       bmc.addCutPoint(*dst);
       LOG("bmc", errs() << "Path BMC from: " << src.bb().getName() << " to "
@@ -305,9 +301,6 @@ public:
         errs() << "Trace \n";
         trace.print(errs());
       });
-#else
-      errs() << "The path BMC engine is not available without Crab.\n";
-#endif
     }
     return false;
   }

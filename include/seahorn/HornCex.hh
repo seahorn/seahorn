@@ -12,14 +12,11 @@ namespace seahorn
   /*
    * Reconstructs a counterexample from HornSolver
    */
-  class HornCex : public llvm::ModulePass
-  {
-    bmc_engine_t m_engine;
-    
+  class HornCex : public llvm::ModulePass {
   public:
     static char ID;
     
-    HornCex (bmc_engine_t engine = mono_bmc) : ModulePass(ID), m_engine(engine) {}
+    HornCex () : ModulePass(ID) {}
     virtual ~HornCex () {}
     
     virtual bool runOnModule (Module &M);

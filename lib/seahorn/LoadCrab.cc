@@ -655,18 +655,18 @@ Expr CrabInvToExpr(llvm::BasicBlock *B, ClamPass *crab,
     // Here we do project onto live variables before translation
     std::vector<clam::var_t> vars = ExprVecToCrab(live, crab);
     boxes.project(vars);
-    BoxesToExpr t(*(crab->get_heap_abstraction()), *(B->getParent()), live);
+    BoxesToExpr t(crab->get_heap_abstraction(), *(B->getParent()), live);
     e = t.toExpr(boxes, efac);
   } else if (abs->getId() == GenericAbsDomWrapper::id_t::dis_intv) {
     // --- special translation of disjunctive interval constraints
     dis_interval_domain_t inv;
     getAbsDomWrappee(abs, inv);
-    DisIntervalToExpr t(*(crab->get_heap_abstraction()), *(B->getParent()),
+    DisIntervalToExpr t(crab->get_heap_abstraction(), *(B->getParent()),
                         live);
     e = t.toExpr(inv, efac);
   } else {
     // --- rest of domains translated to convex linear constraints
-    LinConsToExprImpl t(*(crab->get_heap_abstraction()), *(B->getParent()),
+    LinConsToExprImpl t(crab->get_heap_abstraction(), *(B->getParent()),
                         live);
     e = t.toExpr(abs->to_linear_constraints(), efac);
   }

@@ -19,9 +19,9 @@ DM-0002198
 #ifndef SEAHORN_PASSES__HH_
 #define SEAHORN_PASSES__HH_
 
-#include "seahorn/Bmc.hh"
 #include "seahorn/config.h"
 #include "llvm/Pass.h"
+#include "llvm/ADT/StringRef.h"
 #include "llvm/Support/raw_ostream.h"
 
 namespace seahorn {
@@ -66,8 +66,8 @@ llvm::Pass *createCanReadUndefPass();
 
 llvm::Pass *createApiAnalysisPass(std::string &config);
 
-llvm::Pass *createBmcPass(bmc_engine_t engine, llvm::raw_ostream *out,
-                          bool solve);
+llvm::Pass *createBmcPass(llvm::raw_ostream *out, bool solve);
+llvm::Pass *createPathBmcPass(llvm::raw_ostream *out, bool solve);
 
 llvm::Pass *createProfilerPass();
 llvm::Pass *createCFGPrinterPass();
@@ -105,7 +105,7 @@ llvm::Pass *createBoogieWriterPass(llvm::raw_ostream *out, bool use_crab);
 llvm::ModulePass *createControlDependenceAnalysisPass();
 llvm::ModulePass *createGateAnalysisPass();
 llvm::Pass *createCHAPass();
-llvm::ModulePass *createDebugVerifierPass(int instanceID, StringRef name);
+llvm::ModulePass *createDebugVerifierPass(int instanceID, llvm::StringRef name);
 llvm::Pass *createUnifyAssumesPass();
 } // namespace seahorn
 

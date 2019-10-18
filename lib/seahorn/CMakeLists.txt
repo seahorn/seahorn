@@ -20,7 +20,8 @@ add_llvm_library (seahorn.LIB
   ClpWrite.cc
   HornClauseDB.cc
   HornClauseDBTransf.cc
-  PathBasedBmc.cc
+  PathBmc.cc
+  PathBmcTrace.cc
   Bmc.cc
   BmcPass.cc
   BvOpSem.cc

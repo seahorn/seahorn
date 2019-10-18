@@ -48,6 +48,15 @@ llvm::cl::opt<bool>
                      llvm::cl::desc("Use TypeBasedAA in the MemSSA optimizer"),
                      llvm::cl::init(true));
 
+namespace seahorn {
+bool InterProcMemFlag;
+}
+
+static llvm::cl::opt<bool,true>  InterProcMem("horn-inter-proc-mem",
+                 llvm::cl::desc("Use inter-procedural encoding with memory"),
+                                              llvm::cl::location(seahorn::InterProcMemFlag),
+                                              llvm::cl::init(false));
+
 using namespace llvm;
 namespace dsa = sea_dsa;
 namespace {
@@ -185,6 +194,7 @@ class ShadowDsaImpl : public InstVisitor<ShadowDsaImpl> {
   llvm::Constant *m_argRefFn = nullptr;
   llvm::Constant *m_argModFn = nullptr;
   llvm::Constant *m_argNewFn = nullptr;
+  llvm::Constant *m_argModNodeFn = nullptr;
 
   llvm::Constant *m_markIn = nullptr;
   llvm::Constant *m_markOut = nullptr;
@@ -472,6 +482,20 @@ class ShadowDsaImpl : public InstVisitor<ShadowDsaImpl> {
     auto *ci = B.CreateCall(argFn,
                             {B.getInt32(id), B.CreateLoad(v), B.getInt32(idx),
                              getUniqueScalar(*m_llvmCtx, B, c)},
+                            "sh");
+    B.CreateStore(ci, v);
+    markDefCall(ci, bytes);
+    return *ci;
+  }
+
+  CallInst &mkArgNewModNode(IRBuilder<> &B, Constant *argFn, const dsa::Cell &c,
+                        unsigned idx, llvm::Optional<unsigned> bytes) {
+    AllocaInst *v = getShadowForField(c);
+    unsigned id = getFieldId(c);
+    unsigned node_id = c.getNode()->getId();
+    auto *ci = B.CreateCall(argFn,
+                            {B.getInt32(id), B.CreateLoad(v), B.getInt32(idx),
+                             getUniqueScalar(*m_llvmCtx, B, c),B.getInt32(node_id)},
                             "sh");
     B.CreateStore(ci, v);
     markDefCall(ci, bytes);
@@ -887,8 +911,14 @@ void ShadowDsaImpl::visitDsaCallSite(dsa::DsaCallSite &CS) {
     // -- read/write or new node
     else if (isModified(n, CF)) {
       // -- n is new node iff it is reachable only from the return node
-      Constant *argFn = retReach.count(n) ? m_argNewFn : m_argModFn;
-      mkArgNewMod(*m_B, argFn, callerC, idx, llvm::None);
+      Constant *argFn;
+      if (retReach.count(n))
+        mkArgNewMod(*m_B, m_argNewFn, callerC, idx, llvm::None);
+      else
+        if (seahorn::InterProcMemFlag)
+          mkArgNewModNode(*m_B, m_argModNodeFn, callerC, idx, llvm::None);
+        else
+          mkArgNewMod(*m_B, m_argModFn, callerC, idx, llvm::None);
       // Unclear how to get the associated concrete pointer here.
     }
     idx++;
@@ -1018,6 +1048,12 @@ void ShadowDsaImpl::mkShadowFunctions(Module &M) {
                                      m_Int32Ty, m_Int32Ty, i8PtrTy);
   m_argNewFn = M.getOrInsertFunction("shadow.mem.arg.new", m_Int32Ty, m_Int32Ty,
                                      m_Int32Ty, m_Int32Ty, i8PtrTy);
+
+  // same as m_argModFn but storing Id of node and offset
+  // can we have the same function name with one more parameter?
+  m_argModNodeFn =
+      M.getOrInsertFunction("shadow.mem.arg.mod.node", m_Int32Ty, m_Int32Ty,
+                            m_Int32Ty, m_Int32Ty, i8PtrTy, m_Int32Ty);
 
   m_markIn = M.getOrInsertFunction("shadow.mem.in", voidTy, m_Int32Ty,
                                    m_Int32Ty, m_Int32Ty, i8PtrTy);

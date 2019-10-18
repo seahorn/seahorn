@@ -93,6 +93,10 @@ static llvm::cl::list<std::string>
                       llvm::cl::ZeroOrMore, llvm::cl::CommaSeparated);
 
 namespace seahorn {
+extern bool InterProcMemFlag;
+}
+
+namespace seahorn {
 char HornifyModule::ID = 0;
 
 struct FunctionNameMatcher
@@ -142,6 +146,12 @@ bool HornifyModule::runOnModule(Module &M) {
   if (Step == hm_detail::CLP_SMALL_STEP ||
       Step == hm_detail::CLP_FLAT_SMALL_STEP)
     m_sem.reset(new ClpOpSem(m_efac, *this, M.getDataLayout(), TL));
+  // else if (InterProcMem) {
+  //   auto dsa_analysis = &getAnalysis<sea_dsa::ContextSensitiveGlobalPass>()
+  //                            .getCSGlobalAnalysis();
+  //   m_sem.reset(new UfoOpMemSem(m_efac, *this, M.getDataLayout(), TL, abs_fns,
+  //                               dsa_analysis));
+  // }
   else
     m_sem.reset(new UfoOpSem(m_efac, *this, M.getDataLayout(), TL, abs_fns));
 
@@ -392,6 +402,10 @@ void HornifyModule::getAnalysisUsage(llvm::AnalysisUsage &AU) const {
 
   AU.addRequired<seahorn::TopologicalOrder>();
   AU.addRequired<seahorn::CutPointGraph>();
+
+  // if (InterProcExplMem) { // for explicit memory usage vcgen
+  //   AU.addRequired<sea_dsa::ContextSensitiveGlobalPass>();
+  // }
 }
 
 const LiveSymbols &HornifyModule::getLiveSybols(const Function &F) const {

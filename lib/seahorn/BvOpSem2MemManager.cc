@@ -3,13 +3,13 @@
 #include "llvm/IR/GetElementPtrTypeIterator.h"
 #include "llvm/Support/Format.h"
 
+#include "seahorn/Expr/ExprLlvm.hh"
 #include "seahorn/Support/SeaDebug.h"
 #include "seahorn/Support/SeaLog.hh"
-#include "seahorn/Expr/ExprLlvm.hh"
 
 namespace seahorn {
 namespace details {
-enum MemAllocatorKind { NORMAL_ALLOCATOR, STATIC_ALLOCATOR };
+enum class MemAllocatorKind { NORMAL_ALLOCATOR, STATIC_ALLOCATOR };
 }
 } // namespace seahorn
 
@@ -21,6 +21,13 @@ static llvm::cl::opt<enum seahorn::details::MemAllocatorKind> MemAllocatorOpt(
         clEnumValN(seahorn::details::MemAllocatorKind::STATIC_ALLOCATOR,
                    "static", "Static pre-allocation")),
     llvm::cl::init(seahorn::details::MemAllocatorKind::NORMAL_ALLOCATOR));
+
+static llvm::cl::opt<bool> IgnoreAlignmentOpt(
+    "horn-opsem-ignore-alignment", // rename into sea-opsem-ignore-alignment
+                                   // when supported
+    llvm::cl::desc("Ignore alignment information and assume that all memory "
+                   "operations are word aligned"),
+    llvm::cl::init(false));
 
 namespace seahorn {
 namespace details {
@@ -114,8 +121,8 @@ PtrTy OpSemMemManager::salloc(unsigned bytes, uint32_t align) {
 /// \brief Returns a pointer value for a given stack allocation
 PtrTy OpSemMemManager::mkStackPtr(unsigned offset) {
   Expr res = m_ctx.read(m_sp0);
-  res = m_ctx.alu().doSub(res, m_ctx.alu().si((unsigned long)offset, ptrSzInBits()),
-                          ptrSzInBits());
+  res = m_ctx.alu().doSub(
+      res, m_ctx.alu().si((unsigned long)offset, ptrSzInBits()), ptrSzInBits());
   return res;
 }
 
@@ -292,7 +299,7 @@ Expr OpSemMemManager::loadIntFromMem(PtrTy ptr, Expr memReg, unsigned byteSz,
   Expr mem = m_ctx.read(memReg);
   SmallVector<Expr, 16> words;
   unsigned offsetBits = getByteAlignmentBits();
-  if (offsetBits != 0 && align % wordSzInBytes() != 0) {
+  if (!IgnoreAlignmentOpt && offsetBits != 0 && align % wordSzInBytes() != 0) {
     for (unsigned i = 0; i < byteSz; i++) {
       Expr byteOfWord = extractUnalignedByte(mem, ptrAdd(ptr, i), offsetBits);
       words.push_back(byteOfWord);
@@ -356,7 +363,7 @@ Expr OpSemMemManager::storeIntToMem(Expr _val, PtrTy ptr, Expr memReadReg,
 
   unsigned offsetBits = getByteAlignmentBits();
   bool wordAligned = offsetBits == 0 || align % wordSzInBytes() == 0;
-  if (!wordAligned) {
+  if (!IgnoreAlignmentOpt && !wordAligned) {
     return storeUnalignedIntToMem(val, ptr, mem, byteSz);
   }
 
@@ -364,7 +371,7 @@ Expr OpSemMemManager::storeIntToMem(Expr _val, PtrTy ptr, Expr memReadReg,
   if (byteSz == wordSzInBytes()) {
     words.push_back(val);
   } else if (byteSz < wordSzInBytes()) {
-    val = m_ctx.alu().doZext(val, wordSzInBits(), byteSz*8);
+    val = m_ctx.alu().doZext(val, wordSzInBits(), byteSz * 8);
     words.push_back(val);
   } else {
     for (unsigned i = 0; i < byteSz; i += wordSzInBytes()) {
@@ -426,7 +433,8 @@ Expr OpSemMemManager::setByteOfWord(Expr word, Expr byteData,
                                     PtrTy byteOffset) {
   // (x << 3) to get bit offset; zero extend to maintain word size
   byteOffset = bv::zext(byteOffset, wordSzInBits() - 3);
-  PtrTy bitOffset = bv::concat(byteOffset, bv::bvnum(0U, 3, byteOffset->efac()));
+  PtrTy bitOffset =
+      bv::concat(byteOffset, bv::bvnum(0U, 3, byteOffset->efac()));
 
   // set a byte of existing word to 0
   Expr lowestByteMask = bv::bvnum(0xffU, wordSzInBits(), word->efac());

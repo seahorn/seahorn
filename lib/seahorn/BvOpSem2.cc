@@ -1352,7 +1352,7 @@ public:
       if (const ConstantInt *ci = dyn_cast<const ConstantInt>(&length)) {
         res = m_ctx.MemCpy(dstAddr, srcAddr, ci->getZExtValue(), alignment);
       } else
-        llvm_unreachable("Unsupported memcpy with symbolic length");
+        LOG("opsem", WARN << "unsupported memcpy with symbolic length";);
     }
 
     if (!res)

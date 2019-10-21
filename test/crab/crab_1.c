@@ -1,4 +1,4 @@
-// RUN: %sea pf --max-depth=20 --crab --crab-dom=int "%s" 2>&1 | OutputCheck %s
+// RUN: %sea pf --max-depth=20 --crab "%s" 2>&1 | OutputCheck %s
 // CHECK: ^unsat$
 
 // Without --crab seahorn should not terminate.

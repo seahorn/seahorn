@@ -26,16 +26,11 @@
 #include "seahorn/HornifyModule.hh"
 
 #include "seahorn/Bmc.hh"
-#include "seahorn/PathBasedBmc.hh"
 #include "seahorn/Support/CFG.hh"
 #include "seahorn/Transforms/Utils/Local.hh"
 
 #include "seahorn/Support/Stats.hh"
 #include "seahorn/Support/SeaDebug.h"
-
-#ifdef HAVE_CRAB_LLVM
-#include "crab_llvm/CrabLlvm.hh"
-#endif
 
 #include "boost/algorithm/string/predicate.hpp"
 #include "boost/container/flat_set.hpp"
@@ -262,39 +257,25 @@ bool HornCex::runOnFunction(Module &M, Function &F) {
   const TargetLibraryInfo &tli =
       getAnalysis<TargetLibraryInfoWrapperPass>().getTLI();
 
-  std::unique_ptr<BmcEngine> bmc;
-  switch (m_engine) {
-  case path_bmc: {
-#ifdef HAVE_CRAB_LLVM
-    crab_llvm::CrabLlvmPass &crab = getAnalysis<crab_llvm::CrabLlvmPass>();
-    bmc.reset(new PathBasedBmcEngine(*sem, hm.getZContext(), &crab, tli));
-#else
-    bmc.reset(new PathBasedBmcEngine(*sem, hm.getZContext(), tli));
-#endif
-    break;
-  }
-  case mono_bmc:
-  default:
-    bmc.reset(new BmcEngine(*sem, hm.getZContext()));
-  }
+  BmcEngine bmc(*sem, hm.getZContext());
 
   // -- load the trace into the engine
   for (const CutPoint *cp : cpTrace)
-    bmc->addCutPoint(*cp);
+    bmc.addCutPoint(*cp);
 
   // -- construct BMC instance
-  bmc->encode();
+  bmc.encode();
 
   if (!HornCexSmtFilename.empty()) {
     std::error_code EC;
     raw_fd_ostream file(HornCexSmtFilename, EC, sys::fs::F_Text);
     if (!EC)
-      bmc->toSmtLib(file);
+      bmc.toSmtLib(file);
     else
       errs() << "Could not open: " << HornCexSmtFilename << "\n";
   }
 
-  auto res = bmc->solve();
+  auto res = bmc.solve();
 
   Stats::stop("CexValidation");
 
@@ -306,7 +287,7 @@ bool HornCex::runOnFunction(Module &M, Function &F) {
     errs() << "Warning: the BMC engine failed to validate cex\n";
     errs() << "Computing unsat core\n";
     ExprVector core;
-    bmc->unsatCore(core);
+    bmc.unsatCore(core);
     errs() << "Final core: " << core.size() << "\n";
     errs() << "Core is: \n";
     for (Expr c : core)
@@ -318,7 +299,7 @@ bool HornCex::runOnFunction(Module &M, Function &F) {
   LOG("cex", errs() << "Validated CEX by BMC engine.\n";);
 
   // get bmc trace
-  BmcTrace trace(bmc->getTrace());
+  BmcTrace trace(bmc.getTrace());
   LOG("cex", trace.print(errs()));
   std::unique_ptr<MemSimulator> memSim = nullptr;
 
@@ -395,9 +376,6 @@ void HornCex::getAnalysisUsage(AnalysisUsage &AU) const {
   AU.addRequired<HornifyModule>();
   AU.addRequired<HornSolver>();
   AU.addRequired<CanFail>();
-#ifdef HAVE_CRAB_LLVM
-  AU.addRequired<crab_llvm::CrabLlvmPass>();
-#endif
 }
 
 /*** Helper methods to create SV-COMP style counterexamples */

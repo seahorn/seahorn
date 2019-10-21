@@ -1,6 +1,6 @@
 #pragma once
-#include "seahorn/SymStore.hh"
 #include "seahorn/Expr/Expr.hh"
+#include "seahorn/SymStore.hh"
 
 #include "llvm/IR/InstVisitor.h"
 #include <memory>
@@ -173,6 +173,8 @@ class OperationalSemantics {
 protected:
   ExprFactory &m_efac;
 
+  llvm::DenseSet<const llvm::Value *> m_filter;
+
   /// maps llvm::Function to seahorn::FunctionInfo
   using FuncInfoMap = llvm::DenseMap<const llvm::Function *, FunctionInfo>;
   FuncInfoMap m_fmap;
@@ -194,6 +196,13 @@ public:
 
   ExprFactory &getExprFactory() const { return m_efac; }
   ExprFactory &efac() const { return m_efac; }
+
+  void resetFilter() {m_filter.clear();}
+  void addToFilter(const llvm::Value& v) {m_filter.insert(&v);}
+  template <typename Iterator>
+  void addToFilter(Iterator begin, Iterator end) {
+    m_filter.insert(begin, end);
+  }
 
   /// \brief Create context/state for OpSem using given symstore and side
   /// Sub-classes can override it to customize the context
@@ -240,7 +249,9 @@ public:
   /// is not tracked, it is assumed that it is not executed (if an
   /// instruction) and that it does not influence a value of any
   /// instruction that is tracked.
-  virtual bool isTracked(const llvm::Value &v) const = 0;
+  virtual bool isTracked(const llvm::Value &v) const {
+    return m_filter.empty() || m_filter.count(&v);
+  }
   /// \brief Returns a symbolic value of \p v in the given store \p s
   /// \p v is either a constant or has a corresponding symbolic
   /// register

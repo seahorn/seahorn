@@ -1352,7 +1352,7 @@ public:
       if (const ConstantInt *ci = dyn_cast<const ConstantInt>(&length)) {
         res = m_ctx.MemCpy(dstAddr, srcAddr, ci->getZExtValue(), alignment);
       } else
-        llvm_unreachable("Unsupported memcpy with symbolic length");
+        LOG("opsem", WARN << "unsupported memcpy with symbolic length";);
     }
 
     if (!res)
@@ -1416,6 +1416,7 @@ public:
             fn.getName().equals("seahorn.fail") ||
             fn.getName().startswith("shadow.mem"))
           continue;
+        if (m_sem.isSkipped(fn)) continue;
         Expr symReg = m_ctx.mkRegister(fn);
         assert(symReg);
         setValue(fn, m_ctx.getMemManager()->falloc(fn));
@@ -1808,12 +1809,16 @@ Expr Bv2OpSemContext::getConstantValue(const llvm::Constant &c) {
     auto GVO = ce.evaluate(&c);
     if (GVO.hasValue()) {
       GenericValue gv = GVO.getValue();
-      if (gv.AggregateVal.size() > 0) {
-        APInt aggBv = m_sem.agg(c.getType(), gv.AggregateVal, *this);
-        expr::mpz_class k = toMpz(aggBv);
-        return alu().si(k, aggBv.getBitWidth());
+      if (!gv.AggregateVal.empty()) {
+        auto aggBvO = m_sem.agg(c.getType(), gv.AggregateVal, *this);
+        if (aggBvO.hasValue()) {
+          const APInt &aggBv = aggBvO.getValue();
+          expr::mpz_class k = toMpz(aggBv);
+          return alu().si(k, aggBv.getBitWidth());
+        }
       }
     }
+    LOG("opsem", WARN << "unhandled constant struct " << c;);
   } else if (c.getType()->isPointerTy()) {
     LOG("opsem", WARN << "unhandled constant pointer " << c;);
   } else {
@@ -2010,6 +2015,7 @@ const Value &Bv2OpSem::conc(Expr v) const {
 }
 
 bool Bv2OpSem::isSkipped(const Value &v) const {
+  if (!OperationalSemantics::isTracked(v)) return true; 
   // skip shadow.mem instructions if memory is not a unique scalar
   // and we are now ignoring memory instructions
   const Value *scalar = nullptr;
@@ -2163,6 +2169,9 @@ void Bv2OpSem::skipInst(const Instruction &inst,
     return;
   if (ctx.isIgnored(inst))
     return;
+  if (!OperationalSemantics::isTracked(inst))
+    // silently ignore instructions that are filtered out
+    return;
   ctx.ignore(inst);
   LOG("opsem", WARN << "skipping instruction: " << inst << " @ "
                     << inst.getParent()->getName() << " in "
@@ -2213,7 +2222,7 @@ void Bv2OpSem::execBr(const BasicBlock &src, const BasicBlock &dst,
   intraBr(ctx, dst);
 }
 
-APInt Bv2OpSem::agg(Type *aggTy, const std::vector<GenericValue> &elements,
+Optional<APInt> Bv2OpSem::agg(Type *aggTy, const std::vector<GenericValue> &elements,
                    details::Bv2OpSemContext &ctx) {
   APInt res;
   APInt next;
@@ -2224,10 +2233,30 @@ APInt Bv2OpSem::agg(Type *aggTy, const std::vector<GenericValue> &elements,
   const StructLayout *SL = getDataLayout().getStructLayout(STy);
   for (int i = 0 ; i <  elements.size(); i++) {
     const GenericValue element = elements[i];
+    Type *ElmTy = STy->getElementType(i);
     if (element.AggregateVal.empty()) {
-      next = element.IntVal;
-    } else { // assuming only dealing with int as terminal struct element
-      next = agg(STy->getElementType(i), element.AggregateVal, ctx);
+      // Assuming only dealing with Int or Pointer as struct terminal elements
+      if (ElmTy->isIntegerTy())
+        next = element.IntVal;
+      else if (ElmTy->isPointerTy()){
+        auto ptrBv = reinterpret_cast<intptr_t>(GVTOP(element));
+        next = APInt(getDataLayout().getTypeSizeInBits(ElmTy), ptrBv);
+      } else {
+        // this should be handled in constant evaluation step
+        LOG("opsem",
+            WARN << "unsupported type " << *ElmTy << " to convert in aggregate.";);
+        llvm_unreachable("Only support converting Int or Pointer in aggregates");
+        return llvm::None;
+      }
+    } else {
+      auto AIO = agg(ElmTy, element.AggregateVal, ctx);
+      if (AIO.hasValue())
+        next = AIO.getValue();
+      else {
+        LOG("opsem", WARN << "nested struct conversion failed";);
+        llvm_unreachable();
+        return llvm::None;
+      }
     }
     // Add padding to element
     int elOffset = SL->getElementOffset(i);

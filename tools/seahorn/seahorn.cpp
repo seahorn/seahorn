@@ -21,7 +21,6 @@
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Transforms/IPO.h"
 
-#include "seahorn/Bmc.hh"
 #include "seahorn/HornCex.hh"
 #include "seahorn/HornSolver.hh"
 #include "seahorn/HornWrite.hh"
@@ -43,9 +42,9 @@
 #include "crab_llvm/Transforms/InsertInvariants.hh"
 #endif
 
+#include "seahorn/Expr/Smt/EZ3.hh"
 #include "seahorn/Support/Stats.hh"
 #include "seahorn/Transforms/Utils/NameValues.hh"
-#include "seahorn/Expr/Smt/EZ3.hh"
 
 #include "seahorn/Support/GitSHA1.h"
 void print_seahorn_version() {
@@ -143,13 +142,16 @@ static llvm::cl::opt<bool>
             "Use BMC. Currently restricted to intra-procedural analysis"),
         llvm::cl::init(false));
 
-static llvm::cl::opt<seahorn::bmc_engine_t>
+// Available BMC engines
+enum class BmcEngineKind { mono_bmc, path_bmc };
+
+static llvm::cl::opt<BmcEngineKind>
     BmcEngine("horn-bmc-engine", llvm::cl::desc("Choose BMC engine"),
-              llvm::cl::values(clEnumValN(seahorn::mono_bmc, "mono",
-                                          "Generate a single formula"),
-                               clEnumValN(seahorn::path_bmc, "path",
+              llvm::cl::values(clEnumValN(BmcEngineKind::mono_bmc, "mono",
+                                          "Solve a single formula"),
+                               clEnumValN(BmcEngineKind::path_bmc, "path",
                                           "Based on path enumeration")),
-              llvm::cl::init(seahorn::bmc_engine_t::mono_bmc));
+              llvm::cl::init(BmcEngineKind::mono_bmc));
 
 static llvm::cl::opt<bool>
     BoogieOutput("boogie", llvm::cl::desc("Translate llvm bitcode to boogie"),
@@ -388,7 +390,16 @@ int main(int argc, char **argv) {
     llvm::raw_ostream *out = nullptr;
     if (!OutputFilename.empty())
       out = &output->os();
-    pass_manager.add(seahorn::createBmcPass(BmcEngine, out, Solve));
+
+    switch (BmcEngine) {
+    case BmcEngineKind::path_bmc:
+      pass_manager.add(seahorn::createPathBmcPass(out, Solve));
+      break;
+    case BmcEngineKind::mono_bmc:
+    default:
+      pass_manager.add(seahorn::createBmcPass(out, Solve));
+    }
+
   } else if (BoogieOutput) {
     llvm::raw_ostream *out = nullptr;
     if (!OutputFilename.empty()) {
@@ -410,7 +421,7 @@ int main(int argc, char **argv) {
     if (Solve) {
       pass_manager.add(new seahorn::HornSolver());
       if (Cex)
-        pass_manager.add(new seahorn::HornCex(BmcEngine));
+        pass_manager.add(new seahorn::HornCex());
     }
   }
 

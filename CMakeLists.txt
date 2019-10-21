@@ -70,8 +70,8 @@ if (GIT_FOUND)
     CACHE STRING "llvm-dsa repo")
   set (SEA_DSA_REPO "https://github.com/seahorn/sea-dsa"
     CACHE STRING "sea-dsa repo")
-  set (CRAB_LLVM_REPO "https://github.com/seahorn/crab-llvm"
-    CACHE STRING "crab-llvm repo")
+  set (CLAM_REPO "https://github.com/seahorn/crab-llvm"
+    CACHE STRING "clam repo")
   
   add_custom_target (seahorn-llvm-git
     ${GIT_EXECUTABLE} clone ${SEAHORN_LLVM_REPO} ${CMAKE_SOURCE_DIR}/llvm-seahorn)
@@ -79,15 +79,15 @@ if (GIT_FOUND)
     ${GIT_EXECUTABLE} clone ${LLVM_DSA_REPO} ${CMAKE_SOURCE_DIR}/llvm-dsa)
   add_custom_target (sea-dsa-git
     ${GIT_EXECUTABLE} clone ${SEA_DSA_REPO} ${CMAKE_SOURCE_DIR}/sea-dsa)
-  add_custom_target (crab-llvm-git
-    ${GIT_EXECUTABLE} clone ${CRAB_LLVM_REPO} ${CMAKE_SOURCE_DIR}/crab-llvm)
+  add_custom_target (clam-git
+    ${GIT_EXECUTABLE} clone ${CLAM_REPO} ${CMAKE_SOURCE_DIR}/clam)
   add_custom_target (extra
     ${CMAKE_COMMAND} -E touch ${CMAKE_CURRENT_LIST_FILE}
     DEPENDS
     llvm-dsa-git
     sea-dsa-git    
     seahorn-llvm-git
-    crab-llvm-git
+    clam-git
   )
 
 else()
@@ -314,10 +314,10 @@ if (EXISTS ${CMAKE_CURRENT_BINARY_DIR}/z3-prefix/src/z3/build)
   install(FILES ${z3py} DESTINATION lib/z3py)
 endif()
 
-if (EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/crab-llvm/LICENSE)
-  install (FILES crab-llvm/LICENSE
+if (EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/clam/LICENSE)
+  install (FILES clam/LICENSE
     DESTINATION share/doc/seahorn
-    RENAME crab_llvm_license.txt)
+    RENAME clam_license.txt)
 endif()
 
 if (EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/share/seahorn.h)
@@ -413,13 +413,19 @@ else()
   return()
 endif()
 
-if (IS_DIRECTORY ${CMAKE_SOURCE_DIR}/crab-llvm AND
-    EXISTS ${CMAKE_SOURCE_DIR}/crab-llvm/CMakeLists.txt)
-  add_subdirectory(${CMAKE_SOURCE_DIR}/crab-llvm)
-  set (HAVE_CRAB_LLVM TRUE)
-  include_directories (BEFORE ${CRABLLVM_INCLUDE_DIRS})
+if (IS_DIRECTORY ${CMAKE_SOURCE_DIR}/clam AND
+    EXISTS ${CMAKE_SOURCE_DIR}/clam/CMakeLists.txt)
+  if (NOT CLAM_ALL_DOMAINS)
+    set(CLAM_ALL_DOMAINS OFF CACHE BOOL "Include all crab abstract domains" FORCE)
+  endif()
+  if (NOT CLAM_ENABLE_INTER)
+    set(CLAM_ENABLE_INTER OFF CACHE BOOL "Include crab inter-procedural analysis" FORCE)
+  endif()
+  add_subdirectory(${CMAKE_SOURCE_DIR}/clam)
+  set(HAVE_CLAM TRUE)
+  include_directories (BEFORE ${CLAM_INCLUDE_DIRS})
 else()
-  message (WARNING "No CRAB-LLVM found in ${CMAKE_SOURCE_DIR}/crab-llvm. Run\n\tcmake --build . --target extra && cmake ${CMAKE_SOURCE_DIR}")
+  message (WARNING "No Clam found in ${CMAKE_SOURCE_DIR}/clam. Run\n\tcmake --build . --target extra && cmake ${CMAKE_SOURCE_DIR}")
 endif()
 
 ### add our include directories to the front, overriding directories

@@ -45,14 +45,16 @@ public:
   yices_solver_impl(seahorn::solver::solver_options *opts, expr::ExprFactory &efac);
 
   ~yices_solver_impl();
+
+  solver::SolverKind get_kind() const { return solver::SolverKind::YICES2;}
   
   bool add(expr::Expr exp);
   
   /** Check for satisfiability */
-  solver::Solver::result check();
+  solver::SolverResult check();
 
   /** Check with assumptions */
-  solver::Solver::result check_with_assumptions(const expr::ExprVector& assumptions);
+  solver::SolverResult check_with_assumptions(const expr::ExprVector& assumptions);
 
   /** Return an unsatisfiable core */
   void unsat_core(expr::ExprVector& out); 

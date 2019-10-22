@@ -77,22 +77,22 @@ bool yices_solver_impl::add(expr::Expr exp){
 }
 
 /** Check for satisfiability */
-solver::Solver::result yices_solver_impl::check(){
+solver::SolverResult yices_solver_impl::check(){
   d_last_assumptions.clear();
   
   //could have a param_t field for this call.
   smt_status_t stat = yices_check_context(d_ctx, nullptr);
   switch(stat){
-  case STATUS_UNSAT: return solver::Solver::UNSAT;
-  case STATUS_SAT: return solver::Solver::SAT;
-  case STATUS_UNKNOWN: return solver::Solver::UNKNOWN;
-  case STATUS_INTERRUPTED: return solver::Solver::UNKNOWN;
-  case STATUS_ERROR: return solver::Solver::ERROR;
-  default: return solver::Solver::UNKNOWN;
+  case STATUS_UNSAT: return solver::SolverResult::UNSAT;
+  case STATUS_SAT: return solver::SolverResult::SAT;
+  case STATUS_UNKNOWN: return solver::SolverResult::UNKNOWN;
+  case STATUS_INTERRUPTED: return solver::SolverResult::UNKNOWN;
+  case STATUS_ERROR: return solver::SolverResult::ERROR;
+  default: return solver::SolverResult::UNKNOWN;
   }
 }
 
-solver::Solver::result yices_solver_impl::check_with_assumptions(const ExprVector& a) {
+solver::SolverResult yices_solver_impl::check_with_assumptions(const ExprVector& a) {
   d_last_assumptions.clear();
   
   std::vector<term_t> ya;
@@ -110,12 +110,12 @@ solver::Solver::result yices_solver_impl::check_with_assumptions(const ExprVecto
 
   smt_status_t stat = yices_check_context_with_assumptions(d_ctx, nullptr, ya.size(), &ya[0]);
   switch(stat){
-  case STATUS_UNSAT: return solver::Solver::UNSAT;
-  case STATUS_SAT: return solver::Solver::SAT;
-  case STATUS_UNKNOWN: return solver::Solver::UNKNOWN;
-  case STATUS_INTERRUPTED: return solver::Solver::UNKNOWN;
-  case STATUS_ERROR: return solver::Solver::ERROR;
-  default: return solver::Solver::UNKNOWN;
+  case STATUS_UNSAT: return solver::SolverResult::UNSAT;
+  case STATUS_SAT: return solver::SolverResult::SAT;
+  case STATUS_UNKNOWN: return solver::SolverResult::UNKNOWN;
+  case STATUS_INTERRUPTED: return solver::SolverResult::UNKNOWN;
+  case STATUS_ERROR: return solver::SolverResult::ERROR;
+  default: return solver::SolverResult::UNKNOWN;
   }
 }
 

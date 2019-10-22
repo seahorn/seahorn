@@ -9,7 +9,7 @@ namespace z3 {
 
 class z3_solver_impl : public solver::Solver {
   std::unique_ptr<ZSolver<EZ3>> m_solver;
-  solver::Solver::result m_last_result;
+  solver::SolverResult m_last_result;
   
 public:
 
@@ -18,34 +18,36 @@ public:
   z3_solver_impl(seahorn::solver::solver_options *opts, EZ3 &zctx)
     : solver::Solver(opts)
     , m_solver(new ZSolver<EZ3>(zctx))
-    , m_last_result(UNKNOWN) {}
+    , m_last_result(solver::SolverKind::UNKNOWN) {}
 
+  solver::SolverKind get_kind() const { return solver::SolverKind::Z3;}
+  
   virtual bool add(expr::Expr exp) override {
     m_solver->assertExpr(exp);
     return true;
   }
   
   /** Check for satisfiability */
-  virtual solver::Solver::result check() override {
+  virtual solver::SolverResult check() override {
     auto res = m_solver->solve();
     if (res) {
-      m_last_result = SAT;
+      m_last_result = solver::SolverKind::SAT;
     } else if (!res) {
-      m_last_result = UNSAT;
+      m_last_result = solver::SolverKind::UNSAT;
     } else {
-      m_last_result = UNKNOWN; 
+      m_last_result = solver::SolverKind::UNKNOWN; 
     }
     return m_last_result;
   }
 
-  virtual solver::Solver::result check_with_assumptions(const expr::ExprVector& a) override {
+  virtual solver::SolverResult check_with_assumptions(const expr::ExprVector& a) override {
     auto res = m_solver->solveAssuming(a);
     if (res) {
-      m_last_result = SAT;
+      m_last_result = solver::SolverKind::SAT;
     } else if (!res) {
-      m_last_result = UNSAT;
+      m_last_result = solver::SolverKind::UNSAT;
     } else {
-      m_last_result = UNKNOWN; 
+      m_last_result = solver::SolverKind::UNKNOWN; 
     }
     return m_last_result;
   }

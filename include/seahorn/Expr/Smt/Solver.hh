@@ -25,7 +25,7 @@ public:
     ERROR,
   };
 
-  using model_ref = std::shared_ptr<model>;
+  using model_ref = std::shared_ptr<Model>;
   
   Solver(solver_options *options): d_options(options) { }
   

@@ -9,7 +9,7 @@
 namespace seahorn {
 namespace yices {
 
-class yices_model_impl : public solver::model {
+class yices_model_impl : public solver::Model {
   
   /* printing defaults */
   static  uint32_t width;

@@ -6,7 +6,7 @@
 namespace seahorn {
 namespace z3 {
 
-class z3_model_impl: public solver::model {
+class z3_model_impl: public solver::Model {
   ZModel<EZ3> m_model;
   
 public:

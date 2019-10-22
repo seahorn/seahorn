@@ -25,20 +25,18 @@ inline void yices_library_initialize(void){
   }
 }
 
-/* how should we set the default logic? */
-yices_solver_impl::yices_solver_impl(seahorn::solver::solver_options *opts,
-				     expr::ExprFactory &efac):
-  Solver(opts),
-  d_efac(efac) {
+yices_solver_impl::yices_solver_impl(expr::ExprFactory &efac, solver_options opts)
+  : Solver(),
+    d_efac(efac) {
   
   yices_library_initialize();
   /* the yices configuration structure */
   ctx_config_t *cfg = nullptr;
   
-  if ( opts != nullptr ){
+  if (!opts.empty()){
     cfg = yices_new_config();
     /* iterate through the opts map and set the keys */
-    for (auto it = opts->begin(), et=opts->end() ; it != et; ++it){
+    for (auto it = opts.begin(), et=opts.end() ; it != et; ++it){
       yices_set_config(cfg, it->first.c_str(), it->second.c_str());
     }
   }

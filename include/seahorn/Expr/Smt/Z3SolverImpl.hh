@@ -8,6 +8,8 @@ namespace seahorn {
 namespace z3 {
 
 class z3_solver_impl : public solver::Solver {
+  expr::ExprFactory& m_efac;
+  std::unique_ptr<EZ3> m_zctx;
   std::unique_ptr<ZSolver<EZ3>> m_solver;
   solver::SolverResult m_last_result;
   
@@ -15,12 +17,18 @@ public:
 
   using model_ref = typename solver::Solver::model_ref;
   
-  z3_solver_impl(seahorn::solver::solver_options *opts, EZ3 &zctx)
+  z3_solver_impl(seahorn::solver::solver_options opts, expr::ExprFactory &efac)
     : solver::Solver(opts)
-    , m_solver(new ZSolver<EZ3>(zctx))
-    , m_last_result(solver::SolverKind::UNKNOWN) {}
+    , m_efac(efac)
+    , m_zctx(new EZ3(m_efac))
+    , m_solver(new ZSolver<EZ3>(*m_zctx))
+    , m_last_result(solver::SolverResult::UNKNOWN) {}
 
+  ~z3_solver_impl() = default;
+  
   solver::SolverKind get_kind() const { return solver::SolverKind::Z3;}
+
+  EZ3& get_context() { return *m_zctx;}
   
   virtual bool add(expr::Expr exp) override {
     m_solver->assertExpr(exp);
@@ -31,11 +39,11 @@ public:
   virtual solver::SolverResult check() override {
     auto res = m_solver->solve();
     if (res) {
-      m_last_result = solver::SolverKind::SAT;
+      m_last_result = solver::SolverResult::SAT;
     } else if (!res) {
-      m_last_result = solver::SolverKind::UNSAT;
+      m_last_result = solver::SolverResult::UNSAT;
     } else {
-      m_last_result = solver::SolverKind::UNKNOWN; 
+      m_last_result = solver::SolverResult::UNKNOWN; 
     }
     return m_last_result;
   }
@@ -43,11 +51,11 @@ public:
   virtual solver::SolverResult check_with_assumptions(const expr::ExprVector& a) override {
     auto res = m_solver->solveAssuming(a);
     if (res) {
-      m_last_result = solver::SolverKind::SAT;
+      m_last_result = solver::SolverResult::SAT;
     } else if (!res) {
-      m_last_result = solver::SolverKind::UNSAT;
+      m_last_result = solver::SolverResult::UNSAT;
     } else {
-      m_last_result = solver::SolverKind::UNKNOWN; 
+      m_last_result = solver::SolverResult::UNKNOWN; 
     }
     return m_last_result;
   }

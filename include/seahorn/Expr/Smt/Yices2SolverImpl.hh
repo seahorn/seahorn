@@ -41,8 +41,7 @@ private:
   
 public:
   
-  /* how should we set the default logic? */
-  yices_solver_impl(seahorn::solver::solver_options *opts, expr::ExprFactory &efac);
+  yices_solver_impl(seahorn::solver::solver_options opts, expr::ExprFactory &efac);
 
   ~yices_solver_impl();
 

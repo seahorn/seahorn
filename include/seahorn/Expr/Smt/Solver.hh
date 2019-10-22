@@ -25,13 +25,13 @@ enum class SolverResult {
 };
 
 class Solver {
-  solver_options *d_options;
+  solver_options d_options;
 public:
   
 
   using model_ref = std::shared_ptr<Model>;
   
-  Solver(solver_options *options): d_options(options) { }
+  Solver(solver_options options): d_options(options) { }
   
   virtual ~Solver() {}
 

@@ -17,8 +17,8 @@ public:
 
   using model_ref = typename solver::Solver::model_ref;
   
-  z3_solver_impl(seahorn::solver::solver_options opts, expr::ExprFactory &efac)
-    : solver::Solver(opts)
+  z3_solver_impl(expr::ExprFactory &efac)
+    : solver::Solver()
     , m_efac(efac)
     , m_zctx(new EZ3(m_efac))
     , m_solver(new ZSolver<EZ3>(*m_zctx))
@@ -29,6 +29,8 @@ public:
   solver::SolverKind get_kind() const { return solver::SolverKind::Z3;}
 
   EZ3& get_context() { return *m_zctx;}
+  
+  ZSolver<EZ3>& get_solver() { return *m_solver;}
   
   virtual bool add(expr::Expr exp) override {
     m_solver->assertExpr(exp);

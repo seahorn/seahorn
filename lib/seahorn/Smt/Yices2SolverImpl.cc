@@ -25,10 +25,9 @@ inline void yices_library_initialize(void){
   }
 }
 
-yices_solver_impl::yices_solver_impl(seahorn::solver::solver_options opts,
-				     expr::ExprFactory &efac):
-  Solver(opts),
-  d_efac(efac) {
+yices_solver_impl::yices_solver_impl(expr::ExprFactory &efac, solver_options opts)
+  : Solver(),
+    d_efac(efac) {
   
   yices_library_initialize();
   /* the yices configuration structure */

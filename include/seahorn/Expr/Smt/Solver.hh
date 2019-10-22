@@ -7,8 +7,6 @@
 namespace seahorn {
 namespace solver {
 
-typedef std::map<std::string, std::string> solver_options;
-
 /** Kind of solver **/
 enum class SolverKind { Z3 , YICES2};
 
@@ -25,13 +23,11 @@ enum class SolverResult {
 };
 
 class Solver {
-  solver_options d_options;
 public:
   
-
   using model_ref = std::shared_ptr<Model>;
   
-  Solver(solver_options options): d_options(options) { }
+  Solver() {}
   
   virtual ~Solver() {}
 

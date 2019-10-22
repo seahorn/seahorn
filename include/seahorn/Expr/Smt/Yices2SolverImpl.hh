@@ -15,6 +15,8 @@ static std::string error_string(){
   return res;
 }
 
+typedef std::map<std::string, std::string> solver_options;
+
 /* the yices solver; actually a yices context. */
 class yices_solver_impl : public solver::Solver {
 public:
@@ -26,7 +28,7 @@ public:
 private:
   
   using assumptions_map_t = std::unordered_map<term_t, expr::Expr>;
-  
+
   ctx_config_t *d_cfg;
   
   /* the context */
@@ -41,7 +43,7 @@ private:
   
 public:
   
-  yices_solver_impl(seahorn::solver::solver_options opts, expr::ExprFactory &efac);
+  yices_solver_impl(expr::ExprFactory &efac, solver_options opts = solver_options());
 
   ~yices_solver_impl();
 

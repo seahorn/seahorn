@@ -81,6 +81,7 @@ enum class OpFamilyId {
   MiscOp,
   SimpleTypeOp,
   ArrayOp,
+  StructOp,
   VariantOp,
   BindOp,
   BinderOp,
@@ -725,8 +726,8 @@ template <> struct TerminalTrait<unsigned long> {
 };
 
 template <> struct TerminalTrait<expr::mpz_class> {
-  static inline void print(std::ostream &OS, const expr::mpz_class &v, int depth,
-                           bool brkt) {
+  static inline void print(std::ostream &OS, const expr::mpz_class &v,
+                           int depth, bool brkt) {
     /* print large numbers in hex */
     if (v >= 65535UL || v <= -65535L)
       OS << "0x" << v.to_string(16);
@@ -734,11 +735,13 @@ template <> struct TerminalTrait<expr::mpz_class> {
       OS << v.to_string(10);
   }
 
-  static inline bool less(const expr::mpz_class &v1, const expr::mpz_class &v2) {
+  static inline bool less(const expr::mpz_class &v1,
+                          const expr::mpz_class &v2) {
     return v1 < v2;
   }
 
-  static inline bool equal_to(const expr::mpz_class &v1, const expr::mpz_class &v2) {
+  static inline bool equal_to(const expr::mpz_class &v1,
+                              const expr::mpz_class &v2) {
     return v1 == v2;
   }
 
@@ -752,16 +755,18 @@ template <> struct TerminalTrait<expr::mpz_class> {
 };
 
 template <> struct TerminalTrait<expr::mpq_class> {
-  static inline void print(std::ostream &OS, const expr::mpq_class &v, int depth,
-                           bool brkt) {
+  static inline void print(std::ostream &OS, const expr::mpq_class &v,
+                           int depth, bool brkt) {
     OS << v.to_string();
   }
 
-  static inline bool less(const expr::mpq_class &v1, const expr::mpq_class &v2) {
+  static inline bool less(const expr::mpq_class &v1,
+                          const expr::mpq_class &v2) {
     return v1 < v2;
   }
 
-  static inline bool equal_to(const expr::mpq_class &v1, const expr::mpq_class &v2) {
+  static inline bool equal_to(const expr::mpq_class &v1,
+                              const expr::mpq_class &v2) {
     return v1 == v2;
   }
 
@@ -2009,19 +2014,27 @@ enum class SimpleTypeOpKind {
   VOID_TY,
   BOOL_TY,
   UNINT_TY,
-  ARRAY_TY
+  ARRAY_TY,
+  STRUCT_TY
 };
 NOP_BASE(SimpleTypeOp)
 
+/// \brief Int type
 NOP(INT_TY, "INT", PREFIX, SimpleTypeOp)
+/// \brief Char type (UNUSED)
 NOP(CHAR_TY, "CHAR", PREFIX, SimpleTypeOp)
+/// \brief Real type
 NOP(REAL_TY, "REAL", PREFIX, SimpleTypeOp)
+/// \brief Void type
 NOP(VOID_TY, "VOID", PREFIX, SimpleTypeOp)
+/// \biref Boolean type
 NOP(BOOL_TY, "BOOL", PREFIX, SimpleTypeOp)
-/** Uninterpreted Type */
+/// \brief Uninterpreted type
 NOP(UNINT_TY, "UNINT", PREFIX, SimpleTypeOp)
-/** Array Type */
+/// \brief Array type
 NOP(ARRAY_TY, "ARRAY", PREFIX, SimpleTypeOp)
+/// \biref Struct type
+NOP(STRUCT_TY, "STRUCT", PREFIX, SimpleTypeOp)
 } // namespace op
 
 namespace op {
@@ -2032,9 +2045,15 @@ inline Expr realTy(ExprFactory &efac) { return mk<REAL_TY>(efac); }
 inline Expr arrayTy(Expr indexTy, Expr valTy) {
   return mk<ARRAY_TY>(indexTy, valTy);
 }
-
 inline Expr arrayIndexTy(Expr a) { return a->left(); }
 inline Expr arrayValTy(Expr a) { return a->right(); }
+
+inline Expr structTy(Expr ty) { return mk<STRUCT_TY>(ty); }
+inline Expr structTy(Expr ty1, Expr ty2) { return mk<STRUCT_TY>(ty1, ty2); }
+template <typename Range> Expr structTy(const Range &ty) {
+  return mknary<STRUCT_TY>(ty);
+}
+
 } // namespace sort
 } // namespace op
 
@@ -2067,6 +2086,59 @@ inline Expr constArray(Expr domain, Expr v) {
 }
 inline Expr aDefault(Expr a) { return mk<ARRAY_DEFAULT>(a); }
 } // namespace array
+} // namespace op
+
+namespace op {
+enum class StructOpKind { MK_STRUCT, EXTRACT_VALUE, INSERT_VALUE };
+NOP_BASE(StructOp)
+
+NOP(MK_STRUCT, "struct", FUNCTIONAL, StructOp)
+NOP(EXTRACT_VALUE, "extract-value", FUNCTIONAL, StructOp)
+NOP(INSERT_VALUE, "insert-value", FUNCTIONAL, StructOp)
+} // namespace op
+namespace op {
+namespace structop {
+
+inline Expr mk(Expr v) { return expr::mk<MK_STRUCT>(v); }
+inline Expr mk(Expr v0, Expr v1) { return expr::mk<MK_STRUCT>(v0, v1); }
+inline Expr mk(Expr v0, Expr v1, Expr v2) {
+  return expr::mk<MK_STRUCT>(v0, v1, v2);
+}
+template <typename R> Expr mk(const R &vals) { return mknary<MK_STRUCT>(vals); }
+} // namespace structop
+
+/// \brief Constructs insert-value expression. Non-simplifying
+inline Expr mkInsertVal(Expr st, unsigned idx, Expr v) {
+  mpz_class idxZ(idx);
+  expr::mk<INSERT_VALUE>(st, mkTerm(idxZ, st->efac()), v);
+}
+
+/// \brief Constructs extract-value expression. Non-simplifying.
+inline Expr mkExtractVal(Expr st, unsigned idx) {
+  mpz_class idxZ(idx);
+  expr::mk<EXTRACT_VALUE>(st, mkTerm(idxZ, st->efac()));
+}
+
+/// \brief insert-value at a given index. Simplifying.
+inline Expr insertVal(Expr st, unsigned idx, Expr v) {
+  if (!isOp<MK_STRUCT>(st))
+    return mkInsertVal(st, idx, v);
+  assert(idx < st->arity());
+  ExprVector kids(st->args_begin(), st->args_end());
+  kids[idx] = v;
+  return structop::mk(kids);
+}
+
+/// \breif extract-value from a given index. Simplifying.
+inline Expr extractVal(Expr st, unsigned idx) {
+  if (!isOp<MK_STRUCT>(st))
+    return mkExtractVal(st, idx);
+  return st->arg(idx);
+}
+
+/// \brief Returns true if \p st is a struct value
+inline bool isStructVal(Expr st) { return isOp<MK_STRUCT>(st); }
+
 } // namespace op
 
 namespace op {
@@ -2557,7 +2629,6 @@ inline Expr lite(Expr c, Expr lhs, Expr rhs) {
   return mk<ITE>(c, lhs, rhs);
 }
 
-
 template <typename Range> Expr betaReduce(Expr lambda, const Range &r) {
   // -- nullptr
   if (!lambda)
@@ -2989,7 +3060,8 @@ public:
 
 namespace expr {
 inline size_t hash_value(Expr e) {
-  if (!e) return 0;
+  if (!e)
+    return 0;
   std::hash<unsigned int> hasher;
   return hasher(e->getId());
 }

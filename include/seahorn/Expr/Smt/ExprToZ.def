@@ -54,20 +54,20 @@ inline Z3_ast mk_compare_core(z3::context &ctx, const expr::Operator &op,
                               unsigned arity,
                               const std::vector<Z3_ast> &zargs) {
   using namespace expr;
-  switch (llvm::cast<ComparissonOp>(op).m_kind) {
+  switch (llvm::cast<CompareOp>(op).m_kind) {
   default:
     break;
-  case ComparissonOpKind::EQ:
+  case CompareOpKind::EQ:
     return Z3_mk_eq(ctx, zargs[0], zargs[1]);
-  case ComparissonOpKind::NEQ:
+  case CompareOpKind::NEQ:
     return Z3_mk_not(ctx, Z3_mk_eq(ctx, zargs[0], zargs[1]));
-  case ComparissonOpKind::LEQ:
+  case CompareOpKind::LEQ:
     return Z3_mk_le(ctx, zargs[0], zargs[1]);
-  case ComparissonOpKind::GEQ:
+  case CompareOpKind::GEQ:
     return Z3_mk_ge(ctx, zargs[0], zargs[1]);
-  case ComparissonOpKind::LT:
+  case CompareOpKind::LT:
     return Z3_mk_lt(ctx, zargs[0], zargs[1]);
-  case ComparissonOpKind::GT:
+  case CompareOpKind::GT:
     return Z3_mk_gt(ctx, zargs[0], zargs[1]);
   }
   return nullptr;
@@ -493,7 +493,7 @@ z3::ast ExprToZ::marshal(const expr::Expr &_e, z3::context &ctx, C &cache,
     case OpFamilyId::BoolOp:
       res = mk_boolop_core(ctx, op, arity, zargs);
       break;
-    case OpFamilyId::ComparissonOp:
+    case OpFamilyId::CompareOp:
       res = mk_compare_core(ctx, op, arity, zargs);
       break;
     case OpFamilyId::NumericOp:

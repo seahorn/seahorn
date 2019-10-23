@@ -28,7 +28,7 @@ inline ENode *eptr(Expr &e) { return e.get(); }
 enum class OpFamilyId {
   Terminal,
   BoolOp,
-  ComparissonOp,
+  CompareOp,
   NumericOp,
   MiscOp,
   SimpleTypeOp,
@@ -510,3 +510,49 @@ inline void intrusive_ptr_add_ref(ENode *v) { v->Ref(); }
 inline void intrusive_ptr_release(ENode *v) { v->efac().Deref(v); }
 
 } // namespace expr
+
+
+// ========================== HASHING ======================================
+namespace expr {
+inline size_t hash_value(Expr e) {
+  if (!e)
+    return 0;
+  std::hash<unsigned int> hasher;
+  return hasher(e->getId());
+}
+} // namespace expr
+
+/// implement boost::hash
+namespace boost {
+template <>
+struct hash<expr::Expr> : public std::unary_function<expr::Expr, std::size_t> {
+  std::size_t operator()(const expr::Expr &v) const {
+    return expr::hash_value(v);
+  }
+};
+} // namespace boost
+
+/// implement std::hash<expr::Expr>
+namespace std {
+template <>
+struct hash<expr::Expr> : public std::unary_function<expr::Expr, std::size_t> {
+  std::size_t operator()(const expr::Expr &v) const {
+    return expr::hash_value(v);
+  }
+};
+} // namespace std
+
+/// std::less<expr::ENode*>
+namespace std {
+/** standard order of expressions by their id */
+template <> struct less<expr::ENode *> {
+  bool operator()(const expr::ENode *x, const expr::ENode *y) const {
+    if (x == nullptr)
+      return y != nullptr;
+    if (y == nullptr)
+      return false;
+
+    return x->getId() < y->getId();
+  }
+};
+} // namespace std

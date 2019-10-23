@@ -1,5 +1,9 @@
-#ifndef __EXPR_BV__HH_
-#define __EXPR_BV__HH_
+#pragma once
+
+#include "seahorn/Expr/ExprApi.hh"
+#include "seahorn/Expr/ExprCore.hh"
+#include "seahorn/Expr/ExprOpBool.hh"
+#include "seahorn/Expr/ExprOpCore.hh"
 
 /** Bit-Vector expressions
 
@@ -225,4 +229,3 @@ inline Expr concat(Expr v, Expr u) { return mk<BCONCAT>(v, u); }
 } // namespace op
 } // namespace expr
 
-#endif /*  __EXPR_BV__HH_ */

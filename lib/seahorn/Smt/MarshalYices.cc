@@ -5,6 +5,8 @@
 #include "seahorn/Expr/ExprOpBinder.hh"
 #include "seahorn/Expr/Smt/Yices2SolverImpl.hh"
 
+#include "boost/lexical_cast.hpp"
+
 using namespace expr;
 
 namespace seahorn {
@@ -31,7 +33,7 @@ static void decode_term_fail(std::string error_msg,
 static std::string get_function_name(Expr e) {
   Expr fname = bind::fname(e);
   std::string sname = isOpX<STRING>(fname) ? getTerm<std::string>(fname)
-                                           : lexical_cast<std::string>(*fname);
+                                           : boost::lexical_cast<std::string>(*fname);
   return sname;
 }
 
@@ -43,7 +45,7 @@ static std::string get_variable_name(Expr e) {
                           getTerm<std::string>(name)
                           :
                           // -- for non-string named variables use address
-                          "I" + lexical_cast<std::string, void *>(name.get());
+                          "I" + boost::lexical_cast<std::string, void *>(name.get());
   return sname;
 }
 

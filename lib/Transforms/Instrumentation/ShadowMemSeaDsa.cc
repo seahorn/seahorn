@@ -905,15 +905,6 @@ void ShadowDsaImpl::visitDsaCallSite(dsa::DsaCallSite &CS) {
     AllocaInst *v = getShadowForField(callerC);
     unsigned id = getFieldId(callerC);
 
-    errs() << "shadowMemSeaDsa\n";
-    errs() << "------------- CALLER -------------------------------------\n";
-    m_graph->dump();
-    errs() << "\n";
-
-    errs() << "------------- CALLEE -------------------------------------\n";
-    calleeG.dump();
-    errs() << "\n";
-
     // -- read only node ignore nodes that are only reachable
     // -- from the return of the function
     if (isRead(n, CF) && !isModified(n, CF) && retReach.count(n) <= 0) {

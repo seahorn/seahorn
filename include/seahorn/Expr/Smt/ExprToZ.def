@@ -352,8 +352,8 @@ z3::ast ExprToZ::marshal(const expr::Expr &_e, z3::context &ctx, C &cache,
           pinned_args.resize(e->arity());
 
           unsigned pos = 0;
-          for (ENode::args_iterator it = ++(e->args_begin()),
-                                    end = e->args_end();
+        for (auto it = ++(e->args_begin()),
+                                  end = e->args_end();
                it != end; ++it) {
             z3::ast a(marshal(*it, ctx, cache, seen));
             pinned_args.push_back(a);

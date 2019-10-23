@@ -2254,7 +2254,6 @@ Optional<APInt> Bv2OpSem::agg(Type *aggTy, const std::vector<GenericValue> &elem
         next = AIO.getValue();
       else {
         LOG("opsem", WARN << "nested struct conversion failed";);
-        llvm_unreachable();
         return llvm::None;
       }
     }

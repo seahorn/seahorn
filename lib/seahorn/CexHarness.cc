@@ -11,6 +11,7 @@
 #include <memory>
 #include "seahorn/Support/SeaDebug.h"
 #include "seahorn/Expr/ExprLlvm.hh"
+#include "seahorn/Expr/ExprOpBinder.hh"
 
 using namespace llvm;
 namespace seahorn {

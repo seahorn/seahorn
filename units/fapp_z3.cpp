@@ -1,12 +1,13 @@
 #include "seahorn/Expr/Smt/EZ3.hh"
 #include "llvm/Support/raw_ostream.h"
-
+#include "seahorn/Expr/ExprOpBinder.hh"
 #include "doctest.h"
 
 TEST_CASE("z3.fapp_test") {
   using namespace std;
   using namespace seahorn;
   using namespace expr;
+  using namespace expr::op;
 
   ExprFactory efac;
 

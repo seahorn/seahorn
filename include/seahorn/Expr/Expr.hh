@@ -36,7 +36,6 @@
 #include "seahorn/Expr/ExprOpCore.hh"
 
 #include "seahorn/Expr/ExprApi.hh"
-#include "seahorn/Expr/ExprVisitor.hh"
 
 #include "seahorn/Expr/ExprOpBool.hh"
 
@@ -49,7 +48,6 @@
 #include "seahorn/Expr/ExprOpStruct.hh"
 #include "seahorn/Expr/ExprOpVariant.hh"
 
-#include "seahorn/Expr/ExprOpBinder.hh"
 #include "seahorn/Expr/ExprOpBv.hh"
 
 #include "seahorn/Expr/ExprOpMisc.hh"

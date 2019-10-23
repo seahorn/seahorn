@@ -2,6 +2,7 @@
 
 #include "seahorn/Expr/Smt/MarshalYices.hh"
 #include "seahorn/Expr/ExprInterp.hh"
+#include "seahorn/Expr/ExprOpBinder.hh"
 #include "seahorn/Expr/Smt/Yices2SolverImpl.hh"
 
 using namespace expr;

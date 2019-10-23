@@ -5,7 +5,7 @@
 #include "seahorn/Expr/ExprCore.hh"
 #include "seahorn/Expr/ExprOpBool.hh"
 #include "seahorn/Expr/ExprOpCore.hh"
-
+#include "seahorn/Expr/ExprVisitor.hh"
 namespace expr {
 namespace op {
 namespace bind {

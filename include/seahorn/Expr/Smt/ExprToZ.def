@@ -1,6 +1,7 @@
 #pragma once
 
 #include "seahorn/Expr/Expr.hh"
+#include "seahorn/Expr/ExprOpBinder.hh"
 #include "seahorn/Expr/ExprLlvm.hh"
 #include "seahorn/Expr/Smt/ExprToZ.hh"
 #include "seahorn/Support/SeaDebug.h"

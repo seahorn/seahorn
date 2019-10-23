@@ -240,8 +240,8 @@ namespace seahorn
       {
         Expr fname = bind::fname (bind::fname (e));
         string fapp = boost::lexical_cast<std::string> (fname) ;              
-        ENode::args_iterator it = ++ (e->args_begin ());
-        ENode::args_iterator end = e->args_end ();
+        auto it = ++ (e->args_begin ());
+        auto end = e->args_end ();
 
         if (std::distance (it, end) > 0)
         {
@@ -329,7 +329,7 @@ namespace seahorn
                isOpX<MULT> (e))
       {
         vector<ExprStr> args;
-        for (ENode::args_iterator it = e->args_begin(), end = e->args_end();
+        for (auto it = e->args_begin(), end = e->args_end();
              it != end; ++it)
         {
           ExprStr a = print (*it, e, rels, efac, cache, seen);

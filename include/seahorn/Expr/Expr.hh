@@ -32,539 +32,15 @@
 
 #define mk_it_range llvm::make_range
 
-#define NOP_BASE(NAME)                                                         \
-  struct NAME : public expr::Operator {                                        \
-    NAME##Kind m_kind;                                                         \
-    NAME(NAME##Kind k) : Operator(expr::OpFamilyId::NAME), m_kind(k) {}        \
-    static bool classof(const Operator *op) {                                  \
-      return op->getFamilyId() == expr::OpFamilyId::NAME;                      \
-    }                                                                          \
-  };
-
-#define NOP(NAME, TEXT, STYLE, BASE)                                           \
-  struct __##NAME {                                                            \
-    static inline std::string name() { return TEXT; }                          \
-  };                                                                           \
-  using NAME = DefOp<__##NAME, BASE, STYLE, BASE##Kind, BASE##Kind::NAME>;
-
+#include "seahorn/Expr/ExprCore.hh"
 namespace expr {
 /* create a namespace op */
 namespace op {}
 
-using namespace expr::op;
-
-class ENode;
-class ExprFactory;
-class ExprFactoryAllocator;
-
-typedef boost::intrusive_ptr<ENode> Expr;
-typedef std::set<Expr> ExprSet;
-typedef std::vector<Expr> ExprVector;
-typedef std::pair<Expr, Expr> ExprPair;
-typedef std::map<Expr, Expr> ExprMap;
-
-/* Helper functions to convert from different wrappers over
-   expressions into a pointer to an expression node */
-inline ENode *eptr(ENode *p) { return p; }
-inline const ENode *eptr(const ENode *p) { return p; }
-inline ENode *eptr(ENode &p) { return &p; }
-inline const ENode *eptr(const ENode &p) { return &p; }
-inline ENode *eptr(const Expr &e) { return e.get(); }
-inline ENode *eptr(Expr &e) { return e.get(); }
-// inline ENode* eptr (Expr e) { return e.get (); }
-
-enum class OpFamilyId {
-  Terminal,
-  BoolOp,
-  ComparissonOp,
-  NumericOp,
-  MiscOp,
-  SimpleTypeOp,
-  ArrayOp,
-  StructOp,
-  VariantOp,
-  BindOp,
-  BinderOp,
-  BvOp,
-  GateOp,
-  MutModelOp,
-};
-
-/* An operator (a.k.a. a tag) of an expression node */
-class Operator {
-  OpFamilyId m_familyId;
-
-public:
-  Operator() = delete;
-  Operator(OpFamilyId family) : m_familyId(family) {}
-  virtual ~Operator(){};
-
-  OpFamilyId getFamilyId() const { return m_familyId; }
-  /** Print an expression rooted at the operator
-      OS    -- the output strream
-      args  -- the arguments of the operator
-      depth -- indentation level for any new line
-      brkt  -- whether the context in which the operator is printed
-            -- might be ambiguous and brakets might be required
-   **/
-  virtual void Print(std::ostream &OS, const std::vector<ENode *> &args,
-                     int depth = 0, bool brkt = true) const = 0;
-  virtual bool operator==(const Operator &rhs) const = 0;
-  virtual bool operator<(const Operator &rhs) const = 0;
-  virtual size_t hash() const = 0;
-  virtual bool isMutable() const { return false; }
-  /* Returns a heap-allocated clone of this */
-  virtual Operator *clone(ExprFactoryAllocator &allocator) const = 0;
-  virtual std::string name() const = 0;
-};
-
-inline std::ostream &operator<<(std::ostream &OS, const Operator &V) {
-  std::vector<ENode *> x;
-  V.Print(OS, x);
-  return OS;
-}
-
-struct EFADeleter {
-  ExprFactoryAllocator *m_efa;
-  EFADeleter(ExprFactoryAllocator &efa) : m_efa(&efa) {}
-  EFADeleter(const EFADeleter &) = default;
-  EFADeleter &operator=(const EFADeleter &o) = default;
-  void operator()(void *p);
-};
-
-/* An expression node (a.k.a. an enode). A pointer into an
-   expression tree (or DAG)  */
-class ENode {
-protected:
-  /** unique identifier of this expression node */
-  unsigned int id;
-  /** reference counter */
-  unsigned int count;
-
-  ExprFactory *fac;
-  std::vector<ENode *> args;
-
-  std::unique_ptr<Operator, EFADeleter> m_oper;
-
-  void Deref() {
-    if (count > 0)
-      count--;
-  }
-
-  /** assigns a unique id to the node */
-  void setId(unsigned int v) { id = v; }
-
-public:
-  ENode(ExprFactory &f, const Operator &o);
-  ~ENode();
-
-  ENode() = delete;
-  ENode(const ENode &) = delete;
-
-  ExprFactory &getFactory() const { return *fac; }
-  ExprFactory &efac() const { return getFactory(); }
-
-  /** returns the unique id of this expression */
-  unsigned int getId() const { return id; }
-
-  void Ref() { count++; }
-  bool isGarbage() const { return count == 0; }
-  bool isMutable() const { return m_oper->isMutable(); }
-
-  unsigned int use_count() { return count; }
-
-  ENode *operator[](size_t p) { return arg(p); }
-  ENode *arg(size_t p) { return args[p]; }
-
-  ENode *left() { return (args.size() > 0) ? args[0] : nullptr; }
-
-  ENode *right() { return (args.size() > 1) ? args[1] : nullptr; }
-
-  ENode *first() { return left(); }
-  ENode *last() { return args.size() > 0 ? args[args.size() - 1] : nullptr; }
-
-  typedef std::vector<ENode *>::const_iterator args_iterator;
-
-  bool args_empty() const { return args.empty(); }
-  args_iterator args_begin() const { return args.begin(); }
-  args_iterator args_end() const { return args.end(); }
-
-  template <typename iterator> void renew_args(iterator b, iterator e);
-
-  void push_back(ENode *a) {
-    args.push_back(a);
-    a->Ref();
-  }
-
-  size_t arity() const { return args.size(); }
-
-  const Operator &op() const { return *m_oper; }
-  void Print(std::ostream &OS, int depth = 0, bool brkt = true) const {
-    m_oper->Print(OS, args, depth, brkt);
-  }
-  void dump() const {
-    Print(std::cerr, 0, false);
-    std::cerr << std::endl;
-  }
-
-  friend class ExprFactory;
-  friend struct std::less<expr::ENode *>;
-};
-
-inline std::ostream &operator<<(std::ostream &OS, const ENode &V) {
-  V.Print(OS);
-  return OS;
-}
-inline std::ostream &operator<<(std::ostream &OS, const ENode *v) {
-  if (v == nullptr)
-    OS << "nullptr";
-  else
-    OS << *v;
-  return OS;
-}
-
-struct ENodeUniqueHash {
-  std::size_t operator()(const ENode *e) const {
-    size_t res = e->op().hash();
-
-    size_t a = e->arity();
-    if (a == 0)
-      return res;
-
-    ENode::args_iterator it = e->args_begin();
-    if (a >= 1)
-      boost::hash_combine(res, *it);
-
-    if (a >= 2)
-      boost::hash_combine(res, boost::hash_range(it, e->args_end()));
-
-    return res;
-
-    // if (a == 2)
-    // 	{
-    // 	  boost::hash_combine (res, *it);
-    // 	  ++it;
-    // 	  boost::hash_combine (res, *it);
-    // 	  return res;
-    // 	}
-    // if (a == 3)
-    // 	{
-    // 	  boost::hash_combine (res, *it);
-    // 	  it++;
-    // 	  boost::hash_combine (res, *it);
-    // 	  it++;
-    // 	  boost::hash_combine (res, *it);
-    // 	  return res;
-    // 	}
-
-    // // -- n-arry with more than 3 children
-    // boost::hash_combine (res,
-    // 			   boost::hash_range (e->args_begin (),
-    // 					      e->args_end ()));
-    // return res;
-  }
-};
-
-#if 0
-// Requires RTTI
-struct ENodeUniqueEqual_SAVED {
-  bool operator()(ENode *const &e1, ENode *const &e2) const {
-    // -- same type
-    if (typeid(e1->op()) == typeid(e2->op()))
-      // -- same number of children
-      if (e1->arity() == e2->arity())
-        // -- operators (if have data) are equal
-        if (e1->op() == e2->op())
-          // -- children are equal as pointers
-          return std::equal(e1->args_begin(), e1->args_end(), e2->args_begin());
-    return false;
-  }
-};
-#endif
-
-struct ENodeUniqueEqual {
-  bool operator()(ENode *const &e1, ENode *const &e2) const {
-    // same arity, same operator, identical children
-    if (e1->arity() == e2->arity() && e1->op() == e2->op())
-      return std::equal(e1->args_begin(), e1->args_end(), e2->args_begin());
-
-    return false;
-  }
-};
-
-/**
- * A type erasure of a cache
- */
-struct CacheStub {
-  /** true if the stub own the cahce pointer by p */
-  virtual bool owns(const void *p) = 0;
-  /** erases val from the underlying cache */
-  virtual void erase(ENode *val) = 0;
-  virtual ~CacheStub() {}
-};
-
-template <typename C> struct CacheStubTmpl : CacheStub {
-  C &cache;
-
-  CacheStubTmpl(C &c) : cache(c){};
-
-  virtual bool owns(const void *p) {
-    return p == static_cast<const void *>(&cache);
-  }
-  virtual void erase(ENode *val) { cache.erase(val); }
-};
-
-class ExprFactoryAllocator : boost::noncopyable {
-private:
-  /** pool for tiny objects */
-  boost::pool<> tiny;
-  /** pool for small objects */
-  boost::pool<> small;
-
-public:
-  ExprFactoryAllocator() : tiny(8, 65536), small(64, 65536){};
-
-  void *allocate(size_t n);
-  void free(void *block);
-
-  EFADeleter get_deleter();
-};
-
-class ExprFactory : boost::noncopyable {
-protected:
-  typedef std::unordered_set<ENode *, ENodeUniqueHash, ENodeUniqueEqual>
-      unique_entry_type;
-  using unique_key_type = std::string;
-  // -- type of the unique table
-  typedef std::map<unique_key_type, unique_entry_type> unique_type;
-
-  typedef boost::ptr_vector<CacheStub> caches_type;
-
-  /** pool allocator */
-  ExprFactoryAllocator allocator;
-
-  /** list of registered caches */
-  caches_type caches;
-
-  // -- unique table
-  unique_type unique;
-
-  /** counter for assigning unique ids*/
-  unsigned int idCount;
-
-  /** returns a unique id > 0 */
-  unsigned int uniqueId() { return ++idCount; }
-
-  /**
-   * Remove value from unique table
-   */
-  void Remove(ENode *val) {
-    clearCaches(val);
-    if (!val->isMutable()) {
-      unique_type::iterator it = unique.find(val->op().name());
-      // -- can only remove things that have been inserted before
-      assert(it != unique.end());
-      it->second.erase(val);
-      if (it->second.empty())
-        unique.erase(it);
-    }
-
-    freeNode(val);
-  }
-
-  /**
-   * Clear val from all registered caches
-   */
-  void clearCaches(ENode *val) {
-    for (CacheStub &c : caches)
-      c.erase(val);
-  }
-
-  /**
-   * Return the canonical (unique) representetive of the input
-   */
-  ENode *canonize(ENode *v) {
-    if (v->isMutable()) {
-      v->setId(uniqueId());
-      return v;
-    }
-
-    auto x = unique[v->op().name()].insert(v);
-    if (x.second) {
-      v->setId(uniqueId());
-      return v;
-    } else {
-      freeNode(v);
-      return *x.first;
-    }
-  }
-
-  ENode *mkExpr(const Operator &op) { return canonize(allocNode(op)); }
-
-  template <typename etype> ENode *mkExpr(const Operator &op, etype e) {
-    ENode *eVal = allocNode(op);
-    eVal->push_back(eptr(e));
-    return canonize(eVal);
-  }
-
-  /** binary */
-  template <typename etype>
-  ENode *mkExpr(const Operator &op, etype e1, etype e2) {
-    ENode *eVal = allocNode(op);
-    eVal->push_back(eptr(e1));
-    eVal->push_back(eptr(e2));
-    return canonize(eVal);
-  }
-
-  /** ternary */
-  template <typename etype>
-  ENode *mkExpr(const Operator &op, etype e1, etype e2, etype e3) {
-    ENode *eVal = allocNode(op);
-    eVal->push_back(eptr(e1));
-    eVal->push_back(eptr(e2));
-    eVal->push_back(eptr(e3));
-    return canonize(eVal);
-  }
-
-  /* n-ary
-     iterator ranges over cost ENode*
-  */
-  template <typename iterator>
-  ENode *mkNExpr(const Operator &op, iterator begin, iterator end) {
-    ENode *eVal = allocNode(op);
-    for (; begin != end; ++begin)
-      eVal->push_back(eptr(*begin));
-    return canonize(eVal);
-  }
-
-private:
-#define FREE_LIST_MAX_SIZE 1024 * 4
-  std::vector<ENode *> freeList;
-  void freeNode(ENode *n);
-  ENode *allocNode(const Operator &op);
-
-public:
-  ExprFactory() : idCount(0) {}
-
-  /** Derefernce a value */
-  void Deref(ENode *val) {
-    val->Deref();
-    if (val->isGarbage())
-      Remove(val);
-  }
-
-  /** User functions */
-  Expr mkTerm(const Operator &o) { return Expr(mkExpr(o)); }
-  Expr mkUnary(const Operator &o, Expr e) { return Expr(mkExpr(o, e.get())); }
-  Expr mkBin(const Operator &o, Expr e1, Expr e2) {
-    return Expr(mkExpr(o, e1.get(), e2.get()));
-  }
-  Expr mkTern(const Operator &o, Expr e1, Expr e2, Expr e3) {
-    return Expr(mkExpr(o, e1.get(), e2.get(), e3.get()));
-  }
-  template <typename iterator>
-  Expr mkNary(const Operator &o, iterator b, iterator e) {
-    return Expr(mkNExpr(o, b, e));
-  }
-
-  template <typename Range> Expr mkNary(const Operator &o, const Range &r) {
-    return mkNary(o, begin(r), end(r));
-  }
-
-  template <typename Cache> void registerCache(Cache &cache) {
-    // -- to avoid double registration
-    unregisterCache(cache);
-    caches.push_back(static_cast<CacheStub *>(new CacheStubTmpl<Cache>(cache)));
-  }
-
-  template <typename Cache> bool unregisterCache(const Cache &cache) {
-    const void *ptr = static_cast<const void *>(&cache);
-
-    for (caches_type::iterator it = caches.begin(), end = caches.end();
-         it != end; ++it)
-      if (it->owns(ptr)) {
-        caches.erase(it);
-        return true;
-      }
-    return false;
-  }
-
-  friend class ENode;
-};
-
-inline ENode::ENode(ExprFactory &f, const Operator &o)
-    : count(0), fac(&f),
-      m_oper(o.clone(f.allocator), f.allocator.get_deleter()) {}
-} // namespace expr
-
-inline void *operator new(size_t n, expr::ExprFactoryAllocator &alloc) {
-  return alloc.allocate(n);
-}
-
-inline void operator delete(void *p, expr::ExprFactoryAllocator &alloc) {
-  alloc.free(p);
-}
-
-namespace expr {
-inline void ExprFactory::freeNode(ENode *n) {
-  if (freeList.size() < FREE_LIST_MAX_SIZE) {
-    for (ENode *a : n->args)
-      Deref(a);
-    n->args.clear();
-    n->m_oper.reset();
-
-    if (freeList.size() < FREE_LIST_MAX_SIZE) {
-      assert(n->count == 0);
-      freeList.push_back(n);
-      return;
-    }
-  }
-
-  operator delete(static_cast<void *>(n), allocator);
-}
-
-inline ENode *ExprFactory::allocNode(const Operator &op) {
-  if (freeList.empty())
-    return new (allocator) ENode(*this, op);
-
-  ENode *res = freeList.back();
-  freeList.pop_back();
-  res->m_oper = std::unique_ptr<Operator, EFADeleter>(op.clone(allocator),
-                                                      allocator.get_deleter());
-  assert(res->count == 0);
-  return res;
-}
-
-inline void *ExprFactoryAllocator::allocate(size_t n) {
-  if (n <= tiny.get_requested_size())
-    return tiny.malloc();
-  else if (n <= small.get_requested_size())
-    return small.malloc();
-
-  return static_cast<void *>(new char[n]);
-}
-
-inline void ExprFactoryAllocator::free(void *block) {
-  if (tiny.is_from(block))
-    tiny.free(block);
-  else if (small.is_from(block))
-    small.free(block);
-  else
-    delete[] static_cast<char *const>(block);
-}
-
-inline EFADeleter ExprFactoryAllocator::get_deleter() {
-  return EFADeleter(*this);
-}
-
-inline void EFADeleter::operator()(void *p) { operator delete(p, *m_efa); }
-
 template <typename T> struct TerminalTrait {};
 enum class TerminalKind {
   STRING,
-  INT,
   UINT,
-  ULONG,
   MPQ,
   MPZ,
   BVAR,
@@ -672,20 +148,6 @@ template <> struct TerminalTrait<std::string> {
   static std::string name() { return "std::string"; }
 };
 
-template <> struct TerminalTrait<int> {
-  static inline void print(std::ostream &OS, int s, int depth, bool brkt) {
-    OS << s;
-  }
-  static inline bool less(const int &i1, const int &i2) { return i1 < i2; }
-  static inline bool equal_to(int i1, int i2) { return i1 == i2; }
-  static inline size_t hash(int i) {
-    std::hash<int> hasher;
-    return hasher(i);
-  }
-  static TerminalKind getKind() { return TerminalKind::INT; }
-  static std::string name() { return "int"; }
-};
-
 template <> struct TerminalTrait<unsigned int> {
   static inline void print(std::ostream &OS, unsigned int s, int depth,
                            bool brkt) {
@@ -703,26 +165,6 @@ template <> struct TerminalTrait<unsigned int> {
   }
   static TerminalKind getKind() { return TerminalKind::UINT; }
   static std::string name() { return "unsigned int"; }
-};
-
-template <> struct TerminalTrait<unsigned long> {
-  static inline void print(std::ostream &OS, unsigned long s, int depth,
-                           bool brkt) {
-    OS << s;
-  }
-  static inline bool less(const unsigned long &i1, const unsigned long &i2) {
-    return i1 < i2;
-  }
-  static inline bool equal_to(unsigned long l1, unsigned long l2) {
-    return l1 == l2;
-  }
-  static inline size_t hash(unsigned long i) {
-    std::hash<unsigned long> hasher;
-    return hasher(i);
-  }
-
-  static TerminalKind getKind() { return TerminalKind::ULONG; }
-  static std::string name() { return "unsigned long"; }
 };
 
 template <> struct TerminalTrait<expr::mpz_class> {
@@ -781,11 +223,7 @@ template <> struct TerminalTrait<expr::mpq_class> {
 
 namespace op {
 using STRING = Terminal<std::string>;
-
-using INT = Terminal<int>;
 using UINT = Terminal<unsigned int>;
-using ULONG = Terminal<unsigned long>;
-
 using MPQ = Terminal<expr::mpq_class>;
 using MPZ = Terminal<expr::mpz_class>;
 } // namespace op
@@ -952,7 +390,7 @@ struct DefOp : public B {
 };
 
 inline ENode::~ENode() {
-  for (args_iterator b = args.begin(), e = args.end(); b != e; ++b)
+  for (auto b = args.begin(), e = args.end(); b != e; ++b)
     efac().Deref(*b);
 }
 
@@ -965,7 +403,7 @@ template <typename iterator> void ENode::renew_args(iterator b, iterator e) {
     this->push_back(eptr(*b));
 
   // -- decrement reference count of all old arguments
-  for (args_iterator b = old.begin(), e = old.end(); b != e; ++b)
+  for (auto b = old.begin(), e = old.end(); b != e; ++b)
     efac().Deref(*b);
 }
 
@@ -1080,7 +518,7 @@ Expr visit(ExprVisitor &v, Expr expr, DagVisitCache &cache) {
       bool changed = false;
       std::vector<Expr> kids;
 
-      for (ENode::args_iterator b = res->args_begin(), e = res->args_end();
+      for (auto b = res->args_begin(), e = res->args_end();
            b != e; ++b) {
         Expr k = visit(v, *b, cache);
         kids.push_back(k);
@@ -1154,7 +592,7 @@ template <typename ExprVisitor> Expr visit(ExprVisitor &v, Expr expr) {
   bool changed = false;
   std::vector<Expr> kids;
 
-  for (ENode::args_iterator b = res->args_begin(), e = res->args_end(); b != e;
+  for (auto b = res->args_begin(), e = res->args_end(); b != e;
        ++b) {
     Expr k = visit(v, *b);
     kids.push_back(k);
@@ -1976,15 +1414,15 @@ namespace variant {
 /** Creates a variant of an expression. For example,
     `variant (1, e)` creates an expression `e_1`
 */
-inline Expr variant(int v, Expr e) {
-  return mk<VARIANT>(mkTerm(v, e->efac()), e);
+inline Expr variant(unsigned v, Expr e) {
+  return mk<VARIANT>(mkTerm<unsigned>(v, e->efac()), e);
 }
 
 inline Expr next(Expr e) { return variant(1, e); }
 inline Expr aux(Expr e) { return variant(2, e); }
 
 inline Expr mainVariant(Expr e) { return e->right(); }
-inline int variantNum(Expr e) { return getTerm<int>(e->left()); }
+inline int variantNum(Expr e) { return getTerm<unsigned>(e->left()); }
 
 inline Expr prime(Expr e) { return variant(1, e); }
 inline bool isPrime(Expr e) { return variantNum(e) == 1; }

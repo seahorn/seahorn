@@ -2,7 +2,6 @@ add_subdirectory(seahorn)
 add_subdirectory(Analysis)
 add_subdirectory(Transforms)
 add_subdirectory(Support)
-add_subdirectory(seahorn/Smt)
 
 #if (HAVE_DSA)
 #  target_link_libraries (shadow ${DSA_LIBS})

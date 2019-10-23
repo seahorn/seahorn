@@ -201,3 +201,120 @@ template <typename ExprVisitor> Expr visit(ExprVisitor &v, Expr expr) {
   return res;
 }
 } // namespace expr
+
+// useful visitors
+namespace expr {
+namespace {
+template <typename T>
+struct RW : public std::unary_function<Expr, VisitAction> {
+  std::shared_ptr<T> _r;
+
+  typedef RW<T> this_type;
+
+  RW(const this_type &o) : _r(o._r) {}
+  RW(std::shared_ptr<T> r) : _r(r) {}
+
+  VisitAction operator()(Expr exp) {
+    return VisitAction::changeDoKidsRewrite(exp, _r);
+  }
+};
+} // namespace
+
+/** Applies a rewriter */
+template <typename T> Expr rewrite(std::shared_ptr<T> r, Expr e) {
+  RW<T> rw(r);
+  return dagVisit(rw, e);
+}
+
+namespace {
+
+template <typename F, typename OutputIterator>
+struct FV : public std::unary_function<Expr, VisitAction> {
+  F filter;
+
+  OutputIterator out;
+  ExprSet seen;
+
+  typedef FV<F, OutputIterator> this_type;
+  FV(const this_type &o) : filter(o.filter), out(o.out), seen(o.seen) {
+    llvm_unreachable(nullptr);
+  }
+
+  FV(F f, OutputIterator o) : filter(f), out(o) {}
+  VisitAction operator()(Expr exp) {
+    if (seen.count(exp) > 0)
+      return VisitAction::skipKids();
+    seen.insert(exp);
+
+    if (filter(exp)) {
+      *(out++) = exp;
+      return VisitAction::skipKids();
+    }
+
+    return VisitAction::doKids();
+  }
+};
+} // namespace
+// -- collect all sub-expressions of exp that satisfy the filter
+template <typename F, typename OutputIterator>
+void filter(Expr exp, F filter, OutputIterator out) {
+  FV<F, OutputIterator> fv(filter, out);
+  dagVisit(fv, exp);
+}
+
+namespace {
+/** A wrapper to use any functional object as a replace-map */
+template <typename F> struct fn_map {
+  struct const_iterator {
+    ExprPair pair;
+    const_iterator() : pair(Expr(), Expr()) {}
+
+    const_iterator(Expr u, Expr v) : pair(u, v) {}
+
+    bool operator==(const const_iterator &other) const {
+      return pair == other.pair;
+    }
+
+    const ExprPair &operator*() const { return pair; }
+    const ExprPair *operator->() const { return &pair; }
+  };
+
+  const_iterator end_iterator;
+
+  /** the function */
+  F f;
+  fn_map(const F &fn) : f(fn) {}
+
+  const_iterator find(Expr exp) const {
+    Expr res = f(exp);
+    if (res)
+      return const_iterator(exp, res);
+    return end();
+  }
+
+  const_iterator end() const { return end_iterator; }
+};
+
+template <typename M>
+struct RV : public std::unary_function<Expr, VisitAction> {
+  typedef typename M::const_iterator const_iterator;
+
+  const M &map;
+  RV(const M &m) : map(m) {}
+  VisitAction operator()(Expr exp) const {
+    const_iterator it = map.find(exp);
+
+    return it == map.end() ? VisitAction::doKids()
+                           : VisitAction::changeTo(it->second);
+  }
+};
+
+} // namespace
+template <typename F> fn_map<F> mk_fn_map(const F &fn) { return fn_map<F>(fn); }
+
+template <typename M> Expr replace(Expr exp, const M &map) {
+  RV<M> rv(map);
+  return dagVisit(rv, exp);
+}
+
+} // namespace expr

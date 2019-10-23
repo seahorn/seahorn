@@ -648,14 +648,9 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
     Expr name = bind::fname(origE);
     Expr rTy = bind::rangeTy(name);
 
-    // this is a local variable!!!!!!! I forgot how to make this, check how I
-    // did with color
     newE = bind::mkConst(
         mkTerm<std::string>("copy_" + std::to_string(++m_copy_count), m_efac),
         rTy);
-
-    // TODO: the array has already a unique name, so we could "_copy" to the
-    // end so they will be easier to relate in the HC --- this is not true!!!
 
     auto it = m_tmprep.find(node_id);
 
@@ -693,28 +688,11 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
     GraphExplorer::getSafeNodesCallerGraph(CS,calleeG,callerG,simMap,safeCallerNodes);
 
     const Cell &c_arg_callee = calleeG.getCell(*arg);
-    errs() << "------------- CALLEE -------------------------------------\n";
-    calleeG.dump();
-    errs() << "\n";
-
-    errs() << "------------ CALLER --------------------------------------\n";
-    callerG.dump();
-    errs() << "\n";
-
-    // const Node * n_arg_callee = c_arg_callee.getNode();
-    // // this should only contain one link because it is the argument
-    // for (auto &links : n_arg_callee->getLinks()) {
-    //   const Cell &c_callee = *links.second;
-    //   ExplorationMap explored;
-    //   recVCGenMem(c_callee, *CS.getInstruction(), base_ptr, safeCallerNodes,
-    //               simMap, explored);
-    // }
     ExplorationMap explored;
     recVCGenMem(c_arg_callee, *CS.getInstruction(), base_ptr, safeCallerNodes,
                 simMap, explored);
   }
 
-  // we do need some mechanism to detect loops!!!
   void recVCGenMem(const Cell &c_callee, Instruction &i, Expr ptr,
                        SafeNodeSet safeNodes, SimulationMapper simMap,
                        ExplorationMap &explored) {
@@ -728,21 +706,17 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
     // than the previous approach
     auto it = safeNodes.find(n_caller);
     bool safeToCopy = it != safeNodes.end();
-    errs() << "processing callee node: " << n_callee->getId();
-    errs() << ", caller node: " << n_caller->getId() << "\n";
-    errs() << "modified: " << n_callee->isModified() << " safe: " << safeToCopy << "\n";
 
-    if (n_callee->isModified()) {// && safeToCopy) { // optimization, leave for later?
+    if (n_callee->isModified() && safeToCopy) {
       // generate copy conditions for this node, we are basically going to copy
       // the size of the node, this can be refined later
-      errs() << "safe to copy\n";
       // First get the name of the "original" logical array
       Expr copyA = freshArraySymbol(n_caller->getId());
 
       Expr tmpA = copyA;
 
       for (unsigned byte = 0; byte < c_callee.getNode()->size(); byte++){
-        Expr offset = mkTerm<expr::mpz_class>(byte, m_efac); // TODO: This will probably crash
+        Expr offset = mkTerm<expr::mpz_class>(byte, m_efac);
 
         Expr dirE = mk<PLUS>(ptr, offset);
         tmpA = mk<STORE>(tmpA, dirE, mk<SELECT>(copyA, dirE));
@@ -873,7 +847,7 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
         m_fparams.push_back(m_s.havoc(symb(I)));
 
       LOG(
-      "arg_error", if (true // m_fparams.size() != bind::domainSz(fi.sumPred)
+      "arg_error", if (m_fparams.size() != bind::domainSz(fi.sumPred)
                    ) {
         errs() << "Call instruction: " << I << "\n";
         errs() << "Caller: " << PF << "\n";
@@ -902,8 +876,7 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
 
   assert(m_fparams.size() == bind::domainSz(fi.sumPred));
 
-  // fresh arrays for the output from which we will copy
-  // TODO: !!!!! FIX THIS
+  // TODO: fresh arrays for the output from which we will copy
   // for(int i=3; i < m_fparams.size(); i++){ // we can skip the first 3 (just propagating errors)
   //   auto it = m_rep.find(m_fparams[i]);
   //   if (it != m_rep.end()) {
@@ -912,7 +885,6 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
   // }
 
   m_side.push_back(bind::fapp(fi.sumPred, m_fparams));
-
 
   // preparing for the next callsite
   m_nodeids.clear();

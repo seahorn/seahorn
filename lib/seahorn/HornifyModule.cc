@@ -36,6 +36,12 @@
 #include "seahorn/Support/SeaDebug.h"
 #include "seahorn/Support/SeaLog.hh"
 
+#include "seahorn/Transforms/Instrumentation/ShadowMemSeaDsa.hh"
+
+#include "seahorn/ClpOpSem.hh"
+#include "seahorn/UfoOpSem.hh"
+#include "seahorn/UfoOpMemSem.hh"
+
 using namespace llvm;
 using namespace seahorn;
 
@@ -146,12 +152,12 @@ bool HornifyModule::runOnModule(Module &M) {
   if (Step == hm_detail::CLP_SMALL_STEP ||
       Step == hm_detail::CLP_FLAT_SMALL_STEP)
     m_sem.reset(new ClpOpSem(m_efac, *this, M.getDataLayout(), TL));
-  // else if (InterProcMem) {
-  //   auto dsa_analysis = &getAnalysis<sea_dsa::ContextSensitiveGlobalPass>()
-  //                            .getCSGlobalAnalysis();
-  //   m_sem.reset(new UfoOpMemSem(m_efac, *this, M.getDataLayout(), TL, abs_fns,
-  //                               dsa_analysis));
-  // }
+  else if (InterProcMemFlag) {
+    ShadowMemSeaDsa * shadowmem_analysis =
+        getAnalysisIfAvailable<seahorn::ShadowMemSeaDsa>();
+    m_sem.reset(new UfoOpMemSem(m_efac, *this, M.getDataLayout(), TL, abs_fns,
+                                shadowmem_analysis));
+  }
   else
     m_sem.reset(new UfoOpSem(m_efac, *this, M.getDataLayout(), TL, abs_fns));
 
@@ -403,9 +409,7 @@ void HornifyModule::getAnalysisUsage(llvm::AnalysisUsage &AU) const {
   AU.addRequired<seahorn::TopologicalOrder>();
   AU.addRequired<seahorn::CutPointGraph>();
 
-  // if (InterProcExplMem) { // for explicit memory usage vcgen
-  //   AU.addRequired<sea_dsa::ContextSensitiveGlobalPass>();
-  // }
+  AU.addRequired<seahorn::ShadowMemSeaDsa>();
 }
 
 const LiveSymbols &HornifyModule::getLiveSybols(const Function &F) const {

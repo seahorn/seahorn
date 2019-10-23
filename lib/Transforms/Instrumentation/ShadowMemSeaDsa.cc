@@ -172,6 +172,13 @@ public:
 };
 
 class ShadowDsaImpl : public InstVisitor<ShadowDsaImpl> {
+public:
+  using NodeIdMap = llvm::DenseMap<const sea_dsa::Node *, unsigned>;
+
+  /// \brief A map from DsaNode to its numeric id
+  NodeIdMap m_nodeIds;
+
+private:
   dsa::GlobalAnalysis &m_dsa;
   dsa::AllocSiteInfo &m_asi;
   TargetLibraryInfo &m_tli;
@@ -208,7 +215,6 @@ class ShadowDsaImpl : public InstVisitor<ShadowDsaImpl> {
   using ShadowsMap =
       llvm::DenseMap<const sea_dsa::Node *,
                      llvm::DenseMap<unsigned, llvm::AllocaInst *>>;
-  using NodeIdMap = llvm::DenseMap<const sea_dsa::Node *, unsigned>;
 
   /// \brief A map from DsaNode to all the shadow pseudo-variable corresponding
   /// to it
@@ -220,9 +226,6 @@ class ShadowDsaImpl : public InstVisitor<ShadowDsaImpl> {
   /// the map connects a node to a pair of an offset and an AllocaInst that
   /// corresponds to the shadow variable
   ShadowsMap m_shadows;
-
-  /// \brief A map from DsaNode to its numeric id
-  NodeIdMap m_nodeIds;
 
   /// \brief The largest id used so far. Used to allocate fresh ids
   unsigned m_maxId = 0;
@@ -902,6 +905,15 @@ void ShadowDsaImpl::visitDsaCallSite(dsa::DsaCallSite &CS) {
     AllocaInst *v = getShadowForField(callerC);
     unsigned id = getFieldId(callerC);
 
+    errs() << "shadowMemSeaDsa\n";
+    errs() << "------------- CALLER -------------------------------------\n";
+    m_graph->dump();
+    errs() << "\n";
+
+    errs() << "------------- CALLEE -------------------------------------\n";
+    calleeG.dump();
+    errs() << "\n";
+
     // -- read only node ignore nodes that are only reachable
     // -- from the return of the function
     if (isRead(n, CF) && !isModified(n, CF) && retReach.count(n) <= 0) {
@@ -1393,11 +1405,17 @@ void ShadowDsaImpl::solveUses(Function &F) {
 
 namespace seahorn {
 
+ShadowMemSeaDsa::ShadowMemSeaDsa() : llvm::ModulePass(ID), m_shadow(nullptr) {
+ m_dsa = NULL;
+}
+
+ShadowMemSeaDsa::~ShadowMemSeaDsa() {}
+
 bool ShadowMemSeaDsa::runOnModule(llvm::Module &M) {
   if (M.begin() == M.end())
     return false;
 
-  dsa::GlobalAnalysis &dsa = getAnalysis<dsa::DsaAnalysis>().getDsaAnalysis();
+  m_dsa = &getAnalysis<dsa::DsaAnalysis>().getDsaAnalysis();
   TargetLibraryInfo &tli = getAnalysis<TargetLibraryInfoWrapperPass>().getTLI();
 
   CallGraph *cg = nullptr;
@@ -1410,8 +1428,8 @@ bool ShadowMemSeaDsa::runOnModule(llvm::Module &M) {
   LOG("shadow_verbose", errs() << "Module before shadow insertion:\n"
                                << M << "\n";);
 
-  ShadowDsaImpl impl(dsa, asi, tli, cg, *this, SplitFields, LocalReadMod);
-  bool res = impl.runOnModule(M);
+  m_shadow = std::unique_ptr<ShadowDsaImpl>(new ShadowDsaImpl(*m_dsa, asi, tli, cg, *this, SplitFields, LocalReadMod));
+  bool res = m_shadow->runOnModule(M);
   LOG("shadow_verbose", errs() << "Module after shadow insertion:\n"
                                << M << "\n";);
 
@@ -1428,6 +1446,28 @@ void ShadowMemSeaDsa::getAnalysisUsage(llvm::AnalysisUsage &AU) const {
   AU.addRequired<llvm::TargetLibraryInfoWrapperPass>();
   AU.addRequired<llvm::AssumptionCacheTracker>();
   AU.setPreservesAll();
+}
+
+bool ShadowMemSeaDsa::hasShadowId(const sea_dsa::Node * n) {
+  auto it = m_shadow->m_nodeIds.find(n);
+  return it != m_shadow->m_nodeIds.end();
+}
+unsigned ShadowMemSeaDsa::getNodeShadowId(const sea_dsa::Node * n){
+  return m_shadow->m_nodeIds.find(n)->getSecond();
+}
+
+sea_dsa::Graph &ShadowMemSeaDsa::getSummaryGraph(const llvm::Function &F) {
+  return m_dsa->getSummaryGraph(F);
+}
+bool ShadowMemSeaDsa::hasSummaryGraph(const llvm::Function &F){
+  return m_dsa->hasSummaryGraph(F);
+}
+
+sea_dsa::Graph &ShadowMemSeaDsa::getDsaGraph(const llvm::Function &F){
+  return m_dsa->getGraph(F);
+}
+bool ShadowMemSeaDsa::hasDsaGraph(const llvm::Function &F){
+  return m_dsa->hasGraph(F);
 }
 
 class StripShadowMem : public ModulePass {

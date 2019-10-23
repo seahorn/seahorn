@@ -268,7 +268,7 @@ term_t marshal_yices::encode_term(Expr e, ycache_t &cache) {
     else if (isOpX<REM>(e)) {
       encode_term_fail(e, "Integer remainder not supported in yices");
     }
-    /** Comparison Op */
+    /** Compare Op */
     else if (isOpX<EQ>(e))
       res = yices_eq(t1, t2);
     else if (isOpX<NEQ>(e))

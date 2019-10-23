@@ -1,4 +1,6 @@
 #include "seahorn/Expr/Smt/EZ3.hh"
+#include "seahorn/Expr/ExprOpBinder.hh"
+
 #include "llvm/Support/raw_ostream.h"
 
 #include "doctest.h"
@@ -7,6 +9,7 @@ TEST_CASE("z3.lambdas_test") {
   using namespace std;
   using namespace seahorn;
   using namespace expr;
+  using namespace expr::op;
 
   ExprFactory efac;
 

@@ -7,6 +7,7 @@
 #include "seahorn/Support/Stats.hh"
 #include "seahorn/VCGen.hh"
 
+#include "seahorn/Expr/ExprOpBinder.hh"
 #include "seahorn/Support/SeaDebug.h"
 
 static llvm::cl::opt<bool> EnforceAtMostOnePredecessor(

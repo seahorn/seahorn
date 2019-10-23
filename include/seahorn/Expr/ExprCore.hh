@@ -1,21 +1,6 @@
 /// Core of the Expr library
 #pragma once
 
-#define NOP_BASE(NAME)                                                         \
-  struct NAME : public expr::Operator {                                        \
-    NAME##Kind m_kind;                                                         \
-    NAME(NAME##Kind k) : Operator(expr::OpFamilyId::NAME), m_kind(k) {}        \
-    static bool classof(const Operator *op) {                                  \
-      return op->getFamilyId() == expr::OpFamilyId::NAME;                      \
-    }                                                                          \
-  };
-
-#define NOP(NAME, TEXT, STYLE, BASE)                                           \
-  struct __##NAME {                                                            \
-    static inline std::string name() { return TEXT; }                          \
-  };                                                                           \
-  using NAME = DefOp<__##NAME, BASE, STYLE, BASE##Kind, BASE##Kind::NAME>;
-
 namespace expr {
 
 namespace op {}
@@ -500,4 +485,28 @@ inline EFADeleter ExprFactoryAllocator::get_deleter() {
 }
 
 inline void EFADeleter::operator()(void *p) { operator delete(p, *m_efa); }
+
+template <typename iterator> void ENode::renew_args(iterator b, iterator e) {
+  std::vector<ENode *> old = args;
+  args = std::vector<ENode *>();
+
+  // -- increment reference count of all new arguments
+  for (; b != e; ++b)
+    this->push_back(eptr(*b));
+
+  // -- decrement reference count of all old arguments
+  for (auto b = old.begin(), e = old.end(); b != e; ++b)
+    efac().Deref(*b);
+}
+
+inline ENode::~ENode() {
+  for (auto b = args.begin(), e = args.end(); b != e; ++b)
+    efac().Deref(*b);
+}
+
+/** Required by boost::intrusive_ptr */
+inline void intrusive_ptr_add_ref(ENode *v) { v->Ref(); }
+
+inline void intrusive_ptr_release(ENode *v) { v->efac().Deref(v); }
+
 } // namespace expr

@@ -73,9 +73,9 @@ TEST_CASE("yices2-int.test") {
   
   expr::ExprFactory efac;
 
-  seahorn::yices::yices_solver_impl yices_solver(efac);
+  seahorn::solver::yices_solver_impl yices_solver(efac);
   seahorn::solver::Solver* ysolver = &yices_solver;
-  seahorn::z3::z3_solver_impl z3_solver(efac);
+  seahorn::solver::z3_solver_impl z3_solver(efac);
   seahorn::solver::Solver* zsolver = &z3_solver;
   
   Expr x = bind::intConst (mkTerm<string> ("x", efac));
@@ -146,12 +146,12 @@ TEST_CASE("yices2-bv.test") {
   errs() << "Asserting " << *e << "\n";
 
   errs() << "==== Yices2\n";
-  seahorn::yices::yices_solver_impl yices_solver(efac);
+  seahorn::solver::yices_solver_impl yices_solver(efac);
   errs() << "Result: ";
   run(&yices_solver, e, {x,y});
   
   errs() << "==== Z3\n";
-  seahorn::z3::z3_solver_impl z3_solver(efac);
+  seahorn::solver::z3_solver_impl z3_solver(efac);
   errs() << "Result: ";
   run(&z3_solver, e, {x,y});
   
@@ -194,12 +194,12 @@ TEST_CASE("yices2-int-arr.test") {
   errs() << "Asserting " << *e << "\n";
 
   errs() << "==== Yices2\n";
-  seahorn::yices::yices_solver_impl yices_solver(efac);
+  seahorn::solver::yices_solver_impl yices_solver(efac);
   errs() << "Result: ";
   run(&yices_solver, e, {x,y,a3});
   
   errs() << "==== Z3\n";
-  seahorn::z3::z3_solver_impl z3_solver(efac);
+  seahorn::solver::z3_solver_impl z3_solver(efac);
   errs() << "Result: ";
   run(&z3_solver, e, {x,y ,a3});
   
@@ -247,12 +247,12 @@ TEST_CASE("yices2-int-bv.test") {
   errs() << "Asserting " << *e << "\n";
 
   errs() << "==== Yices2\n";
-  seahorn::yices::yices_solver_impl yices_solver(efac);
+  seahorn::solver::yices_solver_impl yices_solver(efac);
   errs() << "Result: ";
   run(&yices_solver, e, {x,y,a3});
   
   errs() << "==== Z3\n";
-  seahorn::z3::z3_solver_impl z3_solver(efac);
+  seahorn::solver::z3_solver_impl z3_solver(efac);
   errs() << "Result: ";
   run(&z3_solver, e, {x,y,a3});
   

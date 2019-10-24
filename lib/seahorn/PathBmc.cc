@@ -1,9 +1,14 @@
 #include "seahorn/config.h"
 
 #ifdef HAVE_CLAM
-#include "seahorn/Bmc.hh" // for bmc_impl stuff
 #include "seahorn/Expr/ExprLlvm.hh"
 #include "seahorn/Expr/ExprSimplifier.hh"
+#include "seahorn/Expr/Smt/Solver.hh"
+#ifdef WITH_YICES2
+#include "seahorn/Expr/Smt/Yices2SolverImpl.hh"
+#endif 
+#include "seahorn/Expr/Smt/Z3SolverImpl.hh"
+#include "seahorn/Expr/Smt/Model.hh"
 #include "seahorn/LoadCrab.hh"
 #include "seahorn/PathBmc.hh"
 #include "seahorn/Support/CFG.hh"
@@ -19,9 +24,11 @@
 #include "clam/SeaDsaHeapAbstraction.hh"
 #include "clam/AbstractDomain.hh"
 
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/Analysis/TargetLibraryInfo.h"
 #include "llvm/Analysis/CallGraph.h"
 #include "llvm/Support/CommandLine.h"
+#include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/raw_ostream.h"
@@ -35,15 +42,24 @@
   false path and the boolean abstraction.
 **/
 
+static llvm::cl::opt<seahorn::solver::SolverKind>SmtSolver(
+    "horn-bmc-smt-solver",
+    llvm::cl::values(clEnumValN(seahorn::solver::SolverKind::Z3,
+				"z3", "z3 SMT solver"),
+		     clEnumValN(seahorn::solver::SolverKind::YICES2, 
+				"yices2", "Yices2 SMT solver")),
+    llvm::cl::desc("Choose SMT solver for the Path Bmc engine"),
+    llvm::cl::init(seahorn::solver::SolverKind::Z3));
+						  
 static llvm::cl::opt<bool>UseCrabGlobalInvariants(
     "horn-bmc-crab-invariants",
     llvm::cl::desc("Load crab invariants into the Path Bmc engine"),
     llvm::cl::init(true));
 
-static llvm::cl::opt<bool>
-    UseCrabForSolvingPaths("horn-bmc-crab",
-            llvm::cl::desc("Use of Crab to solve paths in Path Bmc engine"),
-            llvm::cl::init(false));
+static llvm::cl::opt<bool> UseCrabForSolvingPaths(
+    "horn-bmc-crab",
+    llvm::cl::desc("Use of Crab to solve paths in Path Bmc engine"),
+    llvm::cl::init(false));
 
 static llvm::cl::opt<clam::CrabDomain> CrabDom(
     "horn-bmc-crab-dom",
@@ -67,28 +83,26 @@ static llvm::cl::opt<bool> LayeredCrabSolving(
                    "--horn-bmc-crab-dom to prove path unsatisfiability"),
     llvm::cl::init(false));
 
-namespace bmc_detail {
 enum class MucMethod {
   MUC_NONE,
   MUC_DELETION,
   MUC_ASSUMPTIONS,
   MUC_BINARY_SEARCH
 };
-}
 
-static llvm::cl::opt<enum bmc_detail::MucMethod> MucMethod(
+static llvm::cl::opt<enum MucMethod> MucMethod(
     "horn-bmc-muc",
     llvm::cl::desc(
         "Method used to compute minimal unsatisfiable cores in Path-Based BMC"),
-    llvm::cl::values(clEnumValN(bmc_detail::MucMethod::MUC_NONE, "none",
+    llvm::cl::values(clEnumValN(MucMethod::MUC_NONE, "none",
                                 "None"),
-                     clEnumValN(bmc_detail::MucMethod::MUC_ASSUMPTIONS,
+                     clEnumValN(MucMethod::MUC_ASSUMPTIONS,
                                 "assume", "Solving with assumptions"),
-                     clEnumValN(bmc_detail::MucMethod::MUC_DELETION, "deletion",
+                     clEnumValN(MucMethod::MUC_DELETION, "deletion",
                                 "Deletion-based method"),
-                     clEnumValN(bmc_detail::MucMethod::MUC_BINARY_SEARCH,
+                     clEnumValN(MucMethod::MUC_BINARY_SEARCH,
                                 "quickXplain", "QuickXplain method")),
-    llvm::cl::init(bmc_detail::MucMethod::MUC_ASSUMPTIONS));
+    llvm::cl::init(MucMethod::MUC_ASSUMPTIONS));
 
 static llvm::cl::opt<unsigned> PathTimeout(
     "horn-bmc-path-timeout",
@@ -284,36 +298,43 @@ static void bool_abstraction(ExprVector &side, ExprVector &abs_side) {
 }
 
 struct scoped_solver {
-  ZSolver<EZ3> &m_solver;
+  solver::Solver &m_solver;
 
 public:
-  scoped_solver(ZSolver<EZ3> &solver, unsigned timeout /* seconds*/)
+  scoped_solver(solver::Solver &solver, unsigned timeout /* seconds*/)
       : m_solver(solver) {
-    ZParams<EZ3> params(m_solver.getContext());
-    // We should check here for possible overflow if timeout is
-    // given, e.g., in miliseconds.
-    params.set(":timeout", timeout * 1000);
-    m_solver.set(params);
+    if (m_solver.get_kind() == solver::SolverKind::Z3) {
+      solver::z3_solver_impl &z3 = static_cast<solver::z3_solver_impl&>(m_solver);
+      ZParams<EZ3> params(z3.get_context());
+      // We should check here for possible overflow if timeout is
+      // given, e.g., in miliseconds.
+      params.set(":timeout", timeout * 1000);
+      z3.get_solver().set(params);
+    } else {
+      // TODOX: add timeout capabilities to Yices2
+    }
   }
 
   ~scoped_solver() {
-    ZParams<EZ3> params(m_solver.getContext());
-    params.set(":timeout", 4294967295u); // disable timeout
-    m_solver.set(params);
+    if (m_solver.get_kind() == solver::SolverKind::Z3) {
+      solver::z3_solver_impl &z3 = static_cast<solver::z3_solver_impl&>(m_solver);
+      ZParams<EZ3> params(z3.get_context());
+      params.set(":timeout", 4294967295u); // disable timeout
+      z3.get_solver().set(params);
+    } 
   }
 
-  ZSolver<EZ3> &get() { return m_solver; }
+  solver::Solver &get() { return m_solver; }
 };
 
 // Compute minimal unsatisfiable cores
 class minimal_unsat_core {
 protected:
-  ZSolver<EZ3> &m_solver;
-
+  solver::Solver &m_solver;
   std::vector<unsigned> m_size_solver_calls;
 
 public:
-  minimal_unsat_core(ZSolver<EZ3> &solver) : m_solver(solver) {}
+  minimal_unsat_core(solver::Solver &solver): m_solver(solver) {}
 
   virtual void run(const ExprVector &f, ExprVector &core) = 0;
 
@@ -339,14 +360,68 @@ public:
 };
 
 class muc_with_assumptions : public minimal_unsat_core {
+  
+  void unsat_core(const ExprVector &f, bool simplify, ExprVector &out) {
+    m_solver.reset();
+    ExprVector assumptions;
+    assumptions.reserve(f.size());
+    for (Expr v : f) {
+      Expr a = bind::boolConst(mk<ASM>(v));
+      assumptions.push_back(a);
+      m_solver.add(mk<IMPL>(a, v));
+    }
+    
+    ExprVector core;
+    m_solver.push();
+    solver::SolverResult res = m_solver.check_with_assumptions(assumptions);
+    if (res == solver::SolverResult::UNSAT) {
+      m_solver.unsat_core(core);
+    }
+    m_solver.pop();
+    if (res == solver::SolverResult::SAT) {
+      return;
+    }
+
+    if (simplify) {
+      // simplify core
+      while (core.size() < assumptions.size()) {
+        assumptions.assign(core.begin(), core.end());
+        core.clear();
+        m_solver.push();
+        res = m_solver.check_with_assumptions(assumptions);
+        assert(res == solver::SolverResult::UNSAT);
+        m_solver.unsat_core(core);
+        m_solver.pop();
+      }
+    
+      // minimize simplified core
+      for (unsigned i = 0; i < core.size();) {
+        Expr saved = core[i];
+        core[i] = core.back();
+        res = m_solver.check_with_assumptions(
+            llvm::make_range(core.begin(), core.end() - 1));
+        if (res == solver::SolverResult::SAT)
+          core[i++] = saved;
+        else if (res == solver::SolverResult::UNSAT)
+          core.pop_back();
+        else
+          assert(0);
+      }
+    }
+
+    // unwrap the core from ASM to corresponding expressions
+    for (Expr c : core)
+      out.push_back(bind::fname(bind::fname(c))->arg(0));
+  }
+  
 public:
-  muc_with_assumptions(ZSolver<EZ3> &solver) : minimal_unsat_core(solver) {}
+  muc_with_assumptions(solver::Solver &solver) : minimal_unsat_core(solver) {}
 
   std::string get_name(void) const { return "MUC with assumptions"; }
 
   void run(const ExprVector &f, ExprVector &core) override {
     const bool simplify = false;
-    bmc_impl::unsat_core(m_solver, f, false, core);
+    unsat_core(f, false, core);
   }
 };
 
@@ -358,36 +433,36 @@ class deletion_muc : public minimal_unsat_core {
 
 private:
   typedef ExprVector::const_iterator const_iterator;
-  boost::tribool check(const_iterator it, const_iterator et,
-                       const ExprVector &assumptions) {
+  solver::SolverResult check(const_iterator it, const_iterator et,
+			     const ExprVector &assumptions) {
     m_solver.reset();
     for (Expr e : assumptions) {
-      m_solver.assertExpr(e);
+      m_solver.add(e);
     }
-    for (Expr e : boost::make_iterator_range(it, et)) {
-      m_solver.assertExpr(e);
+    for (Expr e : llvm::make_range(it, et)) {
+      m_solver.add(e);
     }
     m_size_solver_calls.push_back(assumptions.size() + std::distance(it, et));
-    boost::tribool res;
+    solver::SolverResult res;
     {
       scoped_solver ss(m_solver, MucTimeout);
-      res = ss.get().solve();
+      res = ss.get().check();
     }
     return res;
   }
 
   void run(const ExprVector &f, const ExprVector &assumptions,
            ExprVector &out) {
-    assert(!((bool)check(f.begin(), f.end(), assumptions)));
+    assert(check(f.begin(), f.end(), assumptions) == solver::SolverResult::UNSAT);
 
     out.insert(out.end(), f.begin(), f.end());
     for (unsigned i = 0; i < out.size();) {
       Expr saved = out[i];
       out[i] = out.back();
-      boost::tribool res = check(out.begin(), out.end() - 1, assumptions);
-      if (res) {
+      auto res = check(out.begin(), out.end() - 1, assumptions);
+      if (res == solver::SolverResult::SAT) {
         out[i++] = saved;
-      } else if (!res) {
+      } else if (res == solver::SolverResult::UNSAT) {
         out.pop_back();
       } else {
         // timeout
@@ -398,7 +473,7 @@ private:
   }
 
 public:
-  deletion_muc(ZSolver<EZ3> &solver) : minimal_unsat_core(solver) {}
+  deletion_muc(solver::Solver &solver): minimal_unsat_core(solver) {}
 
   void run(const ExprVector &f, ExprVector &out) override {
     ExprVector assumptions;
@@ -430,8 +505,8 @@ class binary_search_muc : public minimal_unsat_core {
           ExprVector &out) {
     if (!skip) {
       scoped_solver ss(m_solver, MucTimeout);
-      boost::tribool res = ss.get().solve();
-      if (!res) {
+      auto  res = ss.get().check();
+      if (res == solver::SolverResult::UNSAT) {
         return;
       }
     }
@@ -448,7 +523,7 @@ class binary_search_muc : public minimal_unsat_core {
     m_solver.push();
     for (auto it = target.begin() + mid, et = target.begin() + end; it != et;
          ++it) {
-      m_solver.assertExpr(*it);
+      m_solver.add(*it);
     }
     unsigned old_out_size = out.size();
     // minimize 1st half wrt 2nd half
@@ -456,7 +531,7 @@ class binary_search_muc : public minimal_unsat_core {
     m_solver.pop();
     m_solver.push();
     for (unsigned i = old_out_size, e = out.size(); i < e; ++i) {
-      m_solver.assertExpr(out[i]);
+      m_solver.add(out[i]);
     }
     // minimize 2nd half wrt MUS(1st half)
     qx(target, mid, end, out.size() - old_out_size < 1, out);
@@ -465,7 +540,7 @@ class binary_search_muc : public minimal_unsat_core {
     m_solver.push();
     for (auto it = target.begin() + begin, et = target.begin() + mid; it != et;
          ++it) {
-      m_solver.assertExpr(*it);
+      m_solver.add(*it);
     }
     unsigned old_out_size = out.size();
     // minimize 2nd half wrt 1st half
@@ -473,7 +548,7 @@ class binary_search_muc : public minimal_unsat_core {
     m_solver.pop();
     m_solver.push();
     for (unsigned i = old_out_size, e = out.size(); i < e; ++i) {
-      m_solver.assertExpr(out[i]);
+      m_solver.add(out[i]);
     }
     // minimize 1st half wrt MUS(2nd half)
     qx(target, begin, mid, out.size() - old_out_size < 1, out);
@@ -482,7 +557,7 @@ class binary_search_muc : public minimal_unsat_core {
   }
 
 public:
-  binary_search_muc(ZSolver<EZ3> &solver) : minimal_unsat_core(solver) {}
+  binary_search_muc(solver::Solver &solver): minimal_unsat_core(solver) {}
 
   void run(const ExprVector &formula, ExprVector &out) override {
     unsigned i = 0;
@@ -494,6 +569,7 @@ public:
 
   std::string get_name() const override { return "QuickXplain"; }
 };
+
 
 struct crab_lin_cst_hasher {
   size_t operator()(const clam::lin_cst_t &cst) const {
@@ -630,7 +706,7 @@ public:
   template <typename BBIterator, typename OutMap>
   void convert(BBIterator beg, BBIterator end, invariant_map_t &in,
                OutMap &out) {
-    for (const BasicBlock *b : boost::make_iterator_range(beg, end)) {
+    for (const BasicBlock *b : llvm::make_range(beg, end)) {
       const ExprVector &live = m_ls.live(b);
       LinConsToExpr conv(m_heap_abs, m_fn, live);
       invariant_map_wrapper in_wrapper(in);
@@ -669,7 +745,7 @@ private:
    bottom. If bottom then it computes a blocking clause for that
    path.
 
-   Modify m_active_bool_lits.
+   Modify m_path_cond_lits.
 
    NOTE: Currently, blocking clause is Boolean since the only
    abstraction we handle is Boolean.
@@ -756,7 +832,7 @@ bool PathBmcEngine::path_encoding_and_solve_with_ai(
         - a branch is translated into b and tuple(bb,bbi) => f
     */
 
-    std::set<Expr, lessExpr> active_bool_lits;
+    std::set<Expr, lessExpr> path_cond_lits;
     for (auto it = relevant_stmts.begin(); it != relevant_stmts.end(); ++it) {
       crab::cfg::statement_wrapper s = *it;
       if (s.m_s->is_havoc()) {
@@ -786,7 +862,7 @@ bool PathBmcEngine::path_encoding_and_solve_with_ai(
                 errs() << "Critical edge for branch between "
                        << p.first->getName() << " and " << p.second->getName()
                        << ":" << *edge << "\n";);
-            active_bool_lits.insert(src);
+            path_cond_lits.insert(src);
           } else {
             edge = mk<AND>(src, dst);
             LOG("bmc-crab-blocking-clause",
@@ -794,10 +870,10 @@ bool PathBmcEngine::path_encoding_and_solve_with_ai(
                        << p.first->getName() << " and " << p.second->getName()
                        << ":" << *edge << "\n";);
           }
-          active_bool_lits.insert(edge);
+          path_cond_lits.insert(edge);
         } else {
           const BasicBlock *BB = s.m_parent.get_basic_block();
-          active_bool_lits.insert(sem().symb(*BB));
+          path_cond_lits.insert(sem().symb(*BB));
           LOG("bmc-crab-blocking-clause", errs()
                                               << "basic block " << BB->getName()
                                               << *(sem().symb(*BB)) << "\n";);
@@ -839,7 +915,7 @@ bool PathBmcEngine::path_encoding_and_solve_with_ai(
                 errs() << "Critical edge for PHI Node between "
                        << src_BB->getName() << " and " << dst_BB->getName()
                        << ":" << *edge << "\n";);
-            active_bool_lits.insert(src);
+            path_cond_lits.insert(src);
           } else {
             edge = mk<AND>(src, dst);
             LOG("bmc-crab-blocking-clause",
@@ -847,14 +923,14 @@ bool PathBmcEngine::path_encoding_and_solve_with_ai(
                        << src_BB->getName() << " and " << dst_BB->getName()
                        << ":" << *edge << "\n";);
           }
-          active_bool_lits.insert(edge);
+          path_cond_lits.insert(edge);
           continue;
         } else {
           // XXX assignment is not originated from a PHI node
           assert(!s.m_parent.is_edge());
           const BasicBlock *BB = s.m_parent.get_basic_block();
           assert(BB);
-          active_bool_lits.insert(sem().symb(*BB));
+          path_cond_lits.insert(sem().symb(*BB));
           LOG("bmc-crab-blocking-clause",
               errs() << "basic block for assignment " << BB->getName()
                      << *(sem().symb(*BB)) << "\n";);
@@ -875,10 +951,10 @@ bool PathBmcEngine::path_encoding_and_solve_with_ai(
     //    corresponding symbolic stores.
 
     // Symbolic states are associated with cutpoints
-    m_active_bool_lits.clear();
+    m_path_cond_lits.clear();
     auto &cps = getCps();
     std::vector<SymStore> &states = getStates();
-    for (Expr e : active_bool_lits) {
+    for (Expr e : path_cond_lits) {
       // Find the state where e is defined.
       // XXX: this is expensive but don't know how to do it better.
       bool found = false;
@@ -887,7 +963,7 @@ bool PathBmcEngine::path_encoding_and_solve_with_ai(
         SymStore &s = states[i];
         Expr v = s.eval(e);
         if (v != e) {
-          m_active_bool_lits.push_back(v);
+          m_path_cond_lits.push_back(v);
           found = true;
           break;
         }
@@ -895,7 +971,7 @@ bool PathBmcEngine::path_encoding_and_solve_with_ai(
           // s.eval does not traverse function declarations
           auto t = getTuple(e);
           if (s.isDefined(t.first) && s.isDefined(t.second)) {
-            m_active_bool_lits.push_back(
+            m_path_cond_lits.push_back(
                 bind::boolConst(mk<TUPLE>(s.eval(t.first), s.eval(t.second))));
             found = true;
             break;
@@ -915,9 +991,9 @@ bool PathBmcEngine::path_encoding_and_solve_with_ai(
 
     /////////////////////////
     //// DEBUGGING
-    // Expr crab_bc = op::boolop::lneg(op::boolop::land(m_active_bool_lits));
+    // Expr crab_bc = op::boolop::lneg(op::boolop::land(m_path_cond_lits));
     // llvm::errs() << "Blocking clause using crab: " << *crab_bc << "\n";
-    // m_active_bool_lits.clear();
+    // m_path_cond_lits.clear();
     // return true;
     /////////////////////////
   }
@@ -931,27 +1007,19 @@ bool PathBmcEngine::path_encoding_and_solve_with_ai(
   it produces a blocking clause for that path. Otherwise, it
   produces a model.
 
-  Modify: m_aux_smt_solver, m_active_bool_lits, and m_model.
+  Modify: m_aux_smt_solver, m_path_cond_lits, and m_model.
 
   NOTE: Currently, blocking clauses are Boolean since the only
   abstraction we handle is Boolean.
 */
-boost::tribool PathBmcEngine::path_encoding_and_solve_with_smt(
+solver::SolverResult PathBmcEngine::path_encoding_and_solve_with_smt(
     const PathBmcTrace &cex, const invariants_map_t & /*invariants*/,
     // extra constraints inferred by
     // crab for current implicant
     const invariants_map_t & /*path_constraints*/) {
 
   const ExprVector &path_formula = cex.get_implicant_formula();
-  const ExprMap &active_bool_map = cex.get_implicant_bools_map();
-
-#if 0
-    // remove redundant literals
-    // XXX: possibly cause of non-determinism?
-    std::sort(path_formula.begin(), path_formula.end());
-    path_formula.erase(std::unique(path_formula.begin(), path_formula.end()),
-		       path_formula.end());
-#endif
+  const ExprMap &path_cond_map = cex.get_implicant_bools_map();
 
   LOG("bmc-details", errs() << "PATH FORMULA:\n";
       for (Expr e
@@ -969,32 +1037,34 @@ boost::tribool PathBmcEngine::path_encoding_and_solve_with_smt(
    * here invariants to make only those decisions which are
    * consistent with the invariants.
    *****************************************************************/
-  m_aux_smt_solver.reset();
+  m_aux_smt_solver->reset();
   // TODO: add here path_constraints to help
   for (Expr e : path_formula) {
-    m_aux_smt_solver.assertExpr(e);
+    m_aux_smt_solver->add(e);
   }
 
-  boost::tribool res;
+  solver::SolverResult res;
   {
-    scoped_solver ss(m_aux_smt_solver, PathTimeout);
-    res = ss.get().solve();
+    scoped_solver ss(*m_aux_smt_solver, PathTimeout);
+    res = ss.get().check();
   }
-  if (res) {
-    m_model = m_aux_smt_solver.getModel();
+  if (res == solver::SolverResult::SAT) {
+    m_model = m_aux_smt_solver->get_model();
     if (SmtOutDir != "") {
       toSmtLib(path_formula, "sat");
     }
   } else {
     // Stats::resume ("BMC path-based: SMT unsat core");
     // --- Compute minimal unsat core of the path formula
-    bmc_detail::MucMethod muc_method = MucMethod;
-    if (!res) {
+    enum MucMethod muc_method = MucMethod;
+    if (res == solver::SolverResult::UNSAT) {
       LOG("bmc", get_os() << "SMT proved unsat. Size of path formula="
                           << path_formula.size() << ". ");
     } else {
-      muc_method = bmc_detail::MucMethod::MUC_NONE;
-      res = false;
+      muc_method = MucMethod::MUC_NONE;
+      // We pretend the query is unsat to keep going but remember the
+      // unknown query in m_unknown_path_formulas.
+      res = solver::SolverResult::UNSAT;
       m_incomplete = true;
       LOG("bmc", get_os() << "SMT returned unknown. Size of path formula="
                           << path_formula.size() << ". ");
@@ -1011,25 +1081,25 @@ boost::tribool PathBmcEngine::path_encoding_and_solve_with_smt(
 
     ExprVector unsat_core;
     switch (muc_method) {
-    case bmc_detail::MucMethod::MUC_NONE: {
+    case MucMethod::MUC_NONE: {
       unsat_core.assign(path_formula.begin(), path_formula.end());
       break;
     }
-    case bmc_detail::MucMethod::MUC_DELETION: {
-      deletion_muc muc(m_aux_smt_solver);
+    case MucMethod::MUC_DELETION: {
+      deletion_muc muc(*m_aux_smt_solver);
       muc.run(path_formula, unsat_core);
       LOG("bmc-unsat-core", errs() << "\n"; muc.print_stats(errs()));
       break;
     }
-    case bmc_detail::MucMethod::MUC_BINARY_SEARCH: {
-      binary_search_muc muc(m_aux_smt_solver);
+    case MucMethod::MUC_BINARY_SEARCH: {
+      binary_search_muc muc(*m_aux_smt_solver);
       muc.run(path_formula, unsat_core);
       LOG("bmc-unsat-core", errs() << "\n"; muc.print_stats(errs()));
       break;
     }
-    case bmc_detail::MucMethod::MUC_ASSUMPTIONS:
+    case MucMethod::MUC_ASSUMPTIONS:
     default: {
-      muc_with_assumptions muc(m_aux_smt_solver);
+      muc_with_assumptions muc(*m_aux_smt_solver);
       muc.run(path_formula, unsat_core);
       LOG("bmc-unsat-core", errs() << "\n"; muc.print_stats(errs()));
       break;
@@ -1046,41 +1116,56 @@ boost::tribool PathBmcEngine::path_encoding_and_solve_with_smt(
 
     // Stats::resume ("BMC path-based: blocking clause");
     // -- Refine the Boolean abstraction using the unsat core
-    ExprSet active_bool_set;
+    ExprSet path_cond_set;
     for (Expr e : unsat_core) {
-      auto it = active_bool_map.find(e);
+      auto it = path_cond_map.find(e);
       // It's possible that an implicant has no active booleans.
       // For instance, corner cases where the whole program is a
       // single block.
-      if (it != active_bool_map.end()) {
-        active_bool_set.insert(it->second);
+      if (it != path_cond_map.end()) {
+        path_cond_set.insert(it->second);
       }
     }
-    m_active_bool_lits.assign(active_bool_set.begin(), active_bool_set.end());
+    m_path_cond_lits.assign(path_cond_set.begin(), path_cond_set.end());
     // Stats::stop ("BMC path-based: blocking clause");
   }
 
   return res;
 }
 
-PathBmcEngine::PathBmcEngine(LegacyOperationalSemantics &sem, EZ3 &zctx,
+PathBmcEngine::PathBmcEngine(LegacyOperationalSemantics &sem,
 			     const llvm::DataLayout &dl,
 			     const llvm::TargetLibraryInfo &tli,
 			     llvm::CallGraph &cg,
 			     sea_dsa::AllocWrapInfo &awi)
-    : m_sem(sem), m_cpg(nullptr), m_fn(nullptr), m_ls(nullptr),
-      m_smt_solver(zctx), m_aux_smt_solver(zctx), m_ctxState(sem.efac()),
-      m_incomplete(false), m_num_paths(0), m_model(zctx),
+    : m_sem(sem), m_cpg(nullptr), m_fn(nullptr), m_ls(nullptr), m_ctxState(sem.efac()),
+      m_smt_solver(nullptr), m_aux_smt_solver(nullptr), m_model(nullptr),
+      m_incomplete(false), m_num_paths(0),
       m_dl(dl), m_tli(tli), m_cg(cg), m_awi(awi),
       m_mem(nullptr), m_crab_path(nullptr) {
 
-  // Tuning m_aux_smt_solver
-  z3n_set_param(":model_compress", false);
-  z3n_set_param(":proof", false);
-
-  // ZParams<EZ3> params(zctx);
-  // params.set(":model_compress", false);
-  // m_aux_smt_solver.set(params);
+  if (SmtSolver == solver::SolverKind::Z3) {
+    m_smt_solver = llvm::make_unique<solver::z3_solver_impl>(sem.efac());
+    m_aux_smt_solver = llvm::make_unique<solver::z3_solver_impl>(sem.efac());
+    // Tuning m_aux_solver_solver's parameters
+    //auto &s = static_cast<solver::z3_solver_impl&>(*m_aux_smt_solver);
+    //ZParams<EZ3> params(s.get_context());
+    //params.set(":model_compress", false);
+    //params.set(":proof", false);
+    //s.get_solver().set(params);
+    
+    //z3n_set_param(":model_compress", false);
+    //z3n_set_param(":proof", false);
+  } else if (SmtSolver == solver::SolverKind::YICES2) {
+#ifdef WITH_YICES2    
+    m_smt_solver = llvm::make_unique<solver::yices_solver_impl>(sem.efac());
+    m_aux_smt_solver = llvm::make_unique<solver::yices_solver_impl>(sem.efac());
+#else
+    report_fatal_error("Compile with YICES2_HOME option");
+#endif     
+  } else {
+    report_fatal_error("Unsupported smt solver");
+  }
 }
 
 PathBmcEngine::~PathBmcEngine() {}
@@ -1138,23 +1223,23 @@ void PathBmcEngine::toSmtLib(const ExprVector &f, std::string prefix) {
   }
 
   // dump the formula to the file descriptor
-  m_aux_smt_solver.reset();
+  m_aux_smt_solver->reset();
   for (Expr e : f) {
-    m_aux_smt_solver.assertExpr(e);
+    m_aux_smt_solver->add(e);
   }
-  m_aux_smt_solver.toSmtLib(fd);
-  m_aux_smt_solver.reset();
+  m_aux_smt_solver->to_smt_lib(fd);
+  m_aux_smt_solver->reset();
 }
 
 raw_ostream &PathBmcEngine::toSmtLib(raw_ostream &o) {
   encode();
 
-  m_aux_smt_solver.reset();
+  m_aux_smt_solver->reset();
   for (Expr e : m_precise_side) {
-    m_aux_smt_solver.assertExpr(e);
+    m_aux_smt_solver->add(e);
   }
-  m_aux_smt_solver.toSmtLib(o);
-  m_aux_smt_solver.reset();
+  m_aux_smt_solver->to_smt_lib(o);
+  m_aux_smt_solver->reset();
   return o;
 }
 
@@ -1193,14 +1278,14 @@ void PathBmcEngine::encode() {
   Stats::stop("BMC path-based: precise encoding");
 }
 
-static inline boost::tribool path_solver(ZSolver<EZ3> &solver) {
+static inline solver::SolverResult path_solver(solver::Solver& solver) {
   Stats::resume("BMC path-based: enumeration path solver");
-  boost::tribool res = solver.solve();
+  auto res = solver.check();
   Stats::stop("BMC path-based: enumeration path solver");
   return res;
 }
 
-boost::tribool PathBmcEngine::solve() {
+solver::SolverResult PathBmcEngine::solve() {
   LOG("bmc", get_os(true) << "Starting path-based BMC \n";);
 
   // -- Precise encoding
@@ -1214,43 +1299,25 @@ boost::tribool PathBmcEngine::solve() {
   m_ls->run();
 
   // -- Heap analysis to improve precision of crab.
-  //    Note that this analysis requires the whole module. 
+  //    Note that this analysis requires the whole module.
+  LOG("bmc", get_os(true) << "Begin running memory analysis\n";);
+  Stats::resume("BMC path-based: memory analysis");      
   m_mem.reset(new clam::SeaDsaHeapAbstraction
 	  (*(m_fn->getParent()), m_cg, m_dl, m_tli, m_awi, false));
+  Stats::stop("BMC path-based: memory analysis");        
+  LOG("bmc", get_os(true) << "End memory analysis\n";);    
 
   clam::CrabBuilderManager cfg_builder_man;  
   // -- Initialize crab for solving paths
   if (UseCrabForSolvingPaths) {
     m_crab_path.reset(new clam::IntraClam(
 	 *(this->m_fn), m_tli, *m_mem, cfg_builder_man, crab::cfg::ARR));
-    
-    LOG("bmc", 
-      get_os() << "Processing symbolic paths\n";
-      switch (CrabDom) {
-      case clam::TERMS_INTERVALS:
-        get_os() << "Using term+interval domain for solving paths\n";
-        break;
-      case clam::WRAPPED_INTERVALS:
-        get_os() << "Using wrapped interval domain for solving paths\n";
-        break;
-      case clam::TERMS_ZONES:
-        get_os() << "Using terms+zones domain for solving paths\n";
-        break;
-      case clam::ZONES_SPLIT_DBM:
-        get_os() << "Using zones domain for solving paths\n";
-        break;
-      default:
-        get_os() << "Using interval domain for solving paths\n";
-      });
   }
-  
-  
+    
   // -- crab invariants
   invariants_map_t invariants;
-  
   // Run whole-program crab analysis and convert invariants to Expr
     if (UseCrabGlobalInvariants) {
-      
     LOG("bmc", get_os(true) << "Begin running crab analysis\n";);
     Stats::resume("BMC path-based: whole-program crab analysis");    
     clam::IntraClam crab_analysis(*(this->m_fn), m_tli, *m_mem,
@@ -1286,11 +1353,10 @@ boost::tribool PathBmcEngine::solve() {
   Stats::resume("BMC path-based: initial boolean abstraction");
   ExprVector abs_side;
   bool_abstraction(m_precise_side, abs_side);
-  // XXX: we use m_smt_solver for keeping the abstraction. We do
-  //      that so that PathBmcTrace access to the right solver.
+  // XXX: we use m_smt_solver for keeping the abstraction.
   for (Expr v : abs_side) {
     LOG("bmc-details", errs() << "\t" << *v << "\n";);
-    m_smt_solver.assertExpr(v);
+    m_smt_solver->add(v);
   }
   Stats::stop("BMC path-based: initial boolean abstraction");
   LOG("bmc", get_os(true) << "End boolean abstraction\n";);
@@ -1303,17 +1369,24 @@ boost::tribool PathBmcEngine::solve() {
    * unsat, blocking clauses are added to avoid exploring the same
    * path.
    **/
-  while ((bool)(m_result = path_solver(m_smt_solver))) {
+  while (true) {
+    
+    m_result = path_solver(*m_smt_solver);
+    // keep going while we can generate a path from the boolean
+    // abstraction
+    if (m_result != solver::SolverResult::SAT) {
+      break;
+    }
     ++m_num_paths;
     Stats::count("BMC total number of symbolic paths");
 
     LOG("bmc", get_os(true) << m_num_paths << ": ");
     Stats::resume("BMC path-based: get model");
-    ZModel<EZ3> model = m_smt_solver.getModel();
+    solver::Solver::model_ref model = m_smt_solver->get_model();
     Stats::stop("BMC path-based: get model");
 
     LOG("bmc-details", errs() << "Model " << m_num_paths << " found: \n"
-                              << model << "\n";);
+                              << *model << "\n";);
 
     Stats::resume("BMC path-based: create a cex");
     PathBmcTrace cex(*this, model);
@@ -1326,19 +1399,21 @@ boost::tribool PathBmcEngine::solve() {
       Stats::stop("BMC path-based: solving path + learning clauses with AI");
 
       LOG("bmc-ai",
-          errs() << "\nPath constraints (post-conditions) inferred by AI\n";
-          for (auto &kv
-               : path_constraints) {
-            errs() << "\t" << kv.first->getName() << ": ";
-            if (kv.second.empty()) {
-              errs() << "true\n";
-            } else {
-              errs() << "{";
-              for (auto e : kv.second) {
-                errs() << *e << ";";
-              }
-              errs() << "}\n";
-            }
+	  if (!path_constraints.empty()) {
+	    errs() << "\nPath constraints (post-conditions) inferred by AI\n";
+	    for (auto &kv
+		   : path_constraints) {
+	      errs() << "\t" << kv.first->getName() << ": ";
+	      if (kv.second.empty()) {
+		errs() << "true\n";
+	      } else {
+		errs() << "{";
+		for (auto e : kv.second) {
+		  errs() << *e << ";";
+		}
+		errs() << "}\n";
+	      }
+	    }
           });
 
       if (!res) {
@@ -1349,7 +1424,7 @@ boost::tribool PathBmcEngine::solve() {
         } else {
           errs() << "Path-based BMC ERROR: same blocking clause again "
                  << __LINE__ << "\n";
-          m_result = boost::indeterminate;
+          m_result = solver::SolverResult::UNKNOWN;
           return m_result;
         }
       }
@@ -1359,10 +1434,10 @@ boost::tribool PathBmcEngine::solve() {
     // XXX: the semantics of invariants and path_constraints (e.g.,
     // linear integer arithmetic) might differ from the semantics used
     // by the smt (e.g., bitvectors).
-    boost::tribool res = path_encoding_and_solve_with_smt(
+    solver::SolverResult res = path_encoding_and_solve_with_smt(
         cex, invariants, path_constraints /*unused*/);
     Stats::stop("BMC path-based: solving path + learning clauses with SMT");
-    if (res) {
+    if (res == solver::SolverResult::SAT) {
       if (UseCrabForSolvingPaths) {
         // Temporary: for profiling crab
         crab::CrabStats::PrintBrunch(crab::outs());
@@ -1376,7 +1451,7 @@ boost::tribool PathBmcEngine::solve() {
       if (!ok) {
         errs() << "Path-based BMC ERROR: same blocking clause again "
                << __LINE__ << "\n";
-        m_result = boost::indeterminate;
+        m_result = solver::SolverResult::UNKNOWN;
         return m_result;
       }
       Stats::count("BMC number symbolic paths discharged by SMT");
@@ -1384,7 +1459,7 @@ boost::tribool PathBmcEngine::solve() {
   }
 
   if (m_incomplete) {
-    m_result = indeterminate;
+    m_result = solver::SolverResult::UNKNOWN;
 
     LOG("bmc",
         get_os()
@@ -1396,9 +1471,9 @@ boost::tribool PathBmcEngine::solve() {
       auto kv = m_unknown_path_formulas.front();
       m_unknown_path_formulas.pop();
 
-      m_aux_smt_solver.reset();
+      m_aux_smt_solver->reset();
       for (Expr e : kv.second) {
-        m_aux_smt_solver.assertExpr(e);
+        m_aux_smt_solver->add(e);
       }
 
       unsigned timeout;
@@ -1412,20 +1487,20 @@ boost::tribool PathBmcEngine::solve() {
         it->second = timeout;
       }
 
-      boost::tribool res;
+      solver::SolverResult res;
       {
-        scoped_solver ss(m_aux_smt_solver, timeout);
-        res = ss.get().solve();
+        scoped_solver ss(*m_aux_smt_solver, timeout);
+        res = ss.get().check();
       }
-      if (res) {
-        m_model = m_aux_smt_solver.getModel();
+      if (res == solver::SolverResult::SAT) {
+        m_model = m_aux_smt_solver->get_model();
         if (SmtOutDir != "") {
           toSmtLib(kv.second, "sat");
         }
         LOG("bmc", get_os(true) << "Path " << kv.first << " proved sat!\n";);
-        m_result = (bool)true;
+        m_result = solver::SolverResult::SAT;
         return m_result;
-      } else if (!res) {
+      } else if (res == solver::SolverResult::UNSAT) {
         LOG("bmc", get_os(true) << "Path " << kv.first << " proved unsat!\n";);
       } else {
         LOG("bmc", get_os(true) << "Path " << kv.first
@@ -1437,7 +1512,7 @@ boost::tribool PathBmcEngine::solve() {
     }
     // If we reach this point we were able to discharge all the paths!
     Stats::uset("BMC total number of unknown symbolic paths", 0);
-    m_result = (bool)false;
+    m_result = solver::SolverResult::UNSAT;
   }
 
   if (m_num_paths == 0) {
@@ -1457,16 +1532,16 @@ bool PathBmcEngine::add_blocking_clauses() {
 
   // -- Refine the Boolean abstraction
   Expr bc = mk<FALSE>(sem().efac());
-  if (m_active_bool_lits.empty()) {
+  if (m_path_cond_lits.empty()) {
     errs() << "No found active boolean literals. Trivially unsat ... \n";
   } else {
-    bc = op::boolop::lneg(op::boolop::land(m_active_bool_lits));
+    bc = op::boolop::lneg(op::boolop::land(m_path_cond_lits));
   }
   LOG("bmc-details",
       errs() << "Added blocking clause to refine Boolean abstraction: " << *bc
              << "\n";);
 
-  m_smt_solver.assertExpr(bc);
+  m_smt_solver->add(bc);
   auto res = m_blocking_clauses.insert(bc);
   bool ok = res.second;
 

@@ -2,10 +2,9 @@
 #include "seahorn/config.h"
 
 #include "seahorn/Expr/Expr.hh"
-#include "seahorn/Expr/Smt/EZ3.hh"
+#include "seahorn/Expr/Smt/Solver.hh"
 #include "seahorn/Analysis/CutPointGraph.hh"
 #include "seahorn/LegacyOperationalSemantics.hh"
-#include "boost/logic/tribool.hpp"
 
 namespace llvm {
 class TargetLibraryInfo;
@@ -17,57 +16,69 @@ namespace sea_dsa {
 class AllocWrapInfo;
 }
 
+namespace seahorn {
+namespace solver {
+class Model;
+}
+}
+
+
 #ifndef HAVE_CLAM
 /* Dummy class for PathBmcEngine */
-class PathBmcEngine {
-  LegacyOperationalSemantics& m_sem;
-  SmallVector<const CutPoint *, 8> m_cps;
-  SmallVector<const CpEdge *, 8> m_cp_edges;
-  std::vector<SymStore> m_states;
-  ExprVector m_side;
-  ZModel<EZ3> m_model;
-public:
+// class PathBmcEngine {
+//   LegacyOperationalSemantics& m_sem;
+//   SmallVector<const CutPoint *, 8> m_cps;
+//   SmallVector<const CpEdge *, 8> m_cp_edges;
+//   std::vector<SymStore> m_states;
+//   ExprVector m_side;
+// public:
   
-  PathBmcEngine(LegacyOperationalSemantics &sem, EZ3 &zctx,
-		const llvm::DataLayout &dl,
-		const llvm::TargetLibraryInfo &tli,
-		llvm::CallGraph &cg,
-		sea_dsa::AllocWrapInfo &awi)
-    : m_sem(sem), m_model(zctx) {}
+//   PathBmcEngine(LegacyOperationalSemantics &sem,
+// 		const llvm::DataLayout &dl,
+// 		const llvm::TargetLibraryInfo &tli,
+// 		llvm::CallGraph &cg,
+// 		sea_dsa::AllocWrapInfo &awi)
+//     : m_sem(sem), m_model(zctx) {}
   
-  virtual ~PathBmcEngine() {}
+//   virtual ~PathBmcEngine() {}
 
-  void addCutPoint(const CutPoint& cp) {}
+//   void addCutPoint(const CutPoint& cp) {}
 
-  void encode() {}
+//   void encode() {}
   
-  boost::tribool solve() {
-    llvm::errs() << "Warning: path bmc engine only available if Clam is available\n";
-    return boost:indeterminate;
-  }
+//   solver::SolverResult solve() {
+//     llvm::errs() << "Warning: path bmc engine only available if Clam is available\n";
+//     return solver::SolverResult::UNKNOWN;
+//   }
   
-  PathBmcTrace getTrace() { return PathBmcTrace(*this, m_model);}
+//   PathBmcTrace getTrace() {
+//     EZ3 zctx;
+//     ZModel<EZ3> model;
+//     return PathBmcTrace(*this, model);
+//   }
       
-  raw_ostream &toSmtLib(raw_ostream &out) { return out;}
+//   raw_ostream &toSmtLib(raw_ostream &out) { return out;}
 
-  boost::tribool result() { return boost::indeterminate;}
+//   solver::SolverResult result() { return solver::SolverResult::UNKNOWN;}
   
-  LegacyOperationalSemantics &sem() { return m_sem;}
+//   LegacyOperationalSemantics &sem() { return m_sem;}
 
-  const SmallVector<const CutPoint *, 8> &getCps() const { return m_cps;}
+//   const SmallVector<const CutPoint *, 8> &getCps() const { return m_cps;}
   
-  const SmallVector<const CpEdge *, 8> &getEdges() const { return m_cp_edges;}
+//   const SmallVector<const CpEdge *, 8> &getEdges() const { return m_cp_edges;}
   
-  std::vector<SymStore> &getStates() { return m_states;}
+//   std::vector<SymStore> &getStates() { return m_states;}
 
-  Expr getSymbReg(const llvm::Value &v) { return Expr(); }
+//   Expr getSymbReg(const llvm::Value &v) { return Expr(); }
 
-  const ExprVector &getPreciseEncoding() const { return m_side;}
-};  
+//   const ExprVector &getPreciseEncoding() const { return m_side;}
+// };  
 #else
+
 #include "seahorn/LiveSymbols.hh"
 #include <queue>
 #include <unordered_set>
+#include <memory>
 
 namespace clam {
 class IntraClam;
@@ -82,11 +93,12 @@ class HeapAbstraction;
  */
 namespace seahorn {
 
+
 class PathBmcTrace;
 class PathBmcEngine {
 public:
   
-  PathBmcEngine(LegacyOperationalSemantics &sem, EZ3 &zctx,
+  PathBmcEngine(LegacyOperationalSemantics &sem, 
 		const llvm::DataLayout &dl,
 		const llvm::TargetLibraryInfo &tli,
 		llvm::CallGraph &cg,
@@ -95,13 +107,10 @@ public:
   virtual ~PathBmcEngine();
 
   void addCutPoint(const CutPoint& cp);
-
-  /// Construct the precise (monolithic) encoding
-  void encode();
   
   /// Enumerate paths until a path is satisfiable or there is no
   /// more paths.
-  boost::tribool solve();
+  solver::SolverResult solve();
 
   /// Returns the BMC trace (if available)
   PathBmcTrace getTrace();
@@ -111,7 +120,7 @@ public:
   raw_ostream &toSmtLib(raw_ostream &out);
 
   /// returns the latest result from solve()
-  boost::tribool result() { return m_result; }
+  solver::SolverResult result() { return m_result; }
   
   /// return the operational semantics
   LegacyOperationalSemantics &sem() {
@@ -155,37 +164,35 @@ private:
   const llvm::Function *m_fn;
   // live symbols 
   std::unique_ptr<LiveSymbols> m_ls;  
-  // solver used for the boolean abstraction
-  ZSolver<EZ3> m_smt_solver;
-  // used to solve a path formula
-  ZSolver<EZ3> m_aux_smt_solver;  
   // symbolic store
   SymStore m_ctxState;
   /// precise encoding of m_cps
   ExprVector m_precise_side;
-  /// last result
-  boost::tribool m_result;  
 
+  // solver used for the boolean abstraction
+  std::unique_ptr<solver::Solver> m_smt_solver;
+  // used to solve a path formula
+  std::unique_ptr<solver::Solver> m_aux_smt_solver;  
+  // model of a path formula
+  solver::Solver::model_ref m_model;
+  /// last result of the main solver (m_smt_solver)
+  solver::SolverResult m_result;  
+
+  // Boolean literals that active the implicant: used to produce
+  // blocking clauses for the Boolean abstraction.
+  ExprVector m_path_cond_lits;  
+  // Temporary sanity check: bookeeping of all generated blocking clauses.
+  std::unordered_set<Expr> m_blocking_clauses;
+  
   // TOREMOVE
   // Incomplete flag: if a SMT query returned unknown
   bool m_incomplete;
-
   // TOREMOVE  
   // Queue for unsolved path formulas
   std::queue<std::pair<unsigned, ExprVector>> m_unknown_path_formulas;
-  
   // Count number of path
   unsigned m_num_paths;
   
-  // TORENAME (path conditions) Boolean literals that active the
-  // implicant: used to produce blocking clauses for the Boolean
-  // abstraction.
-  ExprVector m_active_bool_lits;
-
-  // TOREMOVE
-  // model of a path formula
-  ZModel<EZ3> m_model;
-
   //// Crab stuff
   // Stuff used by crab's (sea-dsa) heap abstraction.
   const llvm::DataLayout &m_dl;
@@ -196,29 +203,32 @@ private:
   std::unique_ptr<clam::HeapAbstraction> m_mem;
   // crab instance to solve paths
   std::unique_ptr<clam::IntraClam> m_crab_path;
-  
-  // Temporary sanity check: bookeeping of all generated blocking clauses.
-  std::unordered_set<Expr> m_blocking_clauses;
 
-  // Check feasibility of a path induced by model using SMT solver.
-  // Return true (sat), false (unsat), or indeterminate (inconclusive).
-  // If unsat then it produces a blocking clause.
-  typedef DenseMap<const BasicBlock *, ExprVector> invariants_map_t;
-  boost::tribool
+
+
+  /// Construct the precise (monolithic) encoding
+  void encode();
+  
+  /// Check feasibility of a path induced by model using SMT solver.
+  /// Return true (sat), false (unsat), or indeterminate (inconclusive).
+  /// If unsat then it produces a blocking clause.
+  using invariants_map_t = DenseMap<const BasicBlock *, ExprVector>;
+  
+  solver::SolverResult
   path_encoding_and_solve_with_smt(const PathBmcTrace &trace,
                                    const invariants_map_t &invariants,
                                    const invariants_map_t &path_constraints);
 
-  // Return false if a blocking clause has been generated twice.
+  /// Return false if a blocking clause has been generated twice.
   bool add_blocking_clauses();
 
-  // For debugging
+  /// For debugging
   void toSmtLib(const ExprVector &path, std::string prefix = "");
   
-  // Check feasibility of a path induced by trace using abstract
-  // interpretation.
-  // Return true (sat) or false (unsat). If unsat then it produces a
-  // blocking clause.
+  /// Check feasibility of a path induced by trace using abstract
+  /// interpretation.
+  /// Return true (sat) or false (unsat). If unsat then it produces a
+  /// blocking clause.
   bool path_encoding_and_solve_with_ai(PathBmcTrace &trace,
                                        invariants_map_t &path_constraints);
   
@@ -233,10 +243,12 @@ private:
 
 // Copy-and-paste version of BmcTrace in Bmc.hh
 class PathBmcTrace {
+
+  friend class PathBmcEngine;
   
   PathBmcEngine &m_bmc;
-  
-  ZModel<EZ3> m_model;
+
+  solver::Solver::model_ref m_model;
   
   // for trace specific implicant
   ExprVector m_trace;
@@ -258,9 +270,15 @@ class PathBmcTrace {
     return loc == 0 || cpid(loc - 1) != cpid(loc);
   }
 
+  /// computes an implicant of f (interpreted as a conjunction) that
+  /// contains the given model
+  void get_model_implicant(const ExprVector &f);
+  
+  // Only PathBmcEngine calls the constructor
+  PathBmcTrace(PathBmcEngine &bmc, solver::Solver::model_ref model);
+  
 public:
-  PathBmcTrace(PathBmcEngine &bmc, ZModel<EZ3> &model);
-
+  
   PathBmcTrace(const PathBmcTrace &other)
       : m_bmc(other.m_bmc), m_model(other.m_model), m_bbs(other.m_bbs),
         m_cpId(other.m_cpId) {}

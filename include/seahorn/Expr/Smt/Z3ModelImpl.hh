@@ -4,9 +4,9 @@
 #include "seahorn/Expr/Smt/EZ3.hh"
 
 namespace seahorn {
-namespace z3 {
+namespace solver {
 
-class z3_model_impl: public solver::Model {
+class z3_model_impl: public Model {
   ZModel<EZ3> m_model;
   
 public:

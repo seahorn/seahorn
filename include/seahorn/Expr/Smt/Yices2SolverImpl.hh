@@ -5,26 +5,32 @@
 #include "seahorn/Expr/Smt/Solver.hh"
 #include <map>
 
-namespace seahorn {
-namespace yices {
+namespace llvm {
+class raw_ostream;
+}
 
+namespace seahorn {
+namespace solver {
+
+namespace yices {
 static std::string error_string(){
   char* emsg = yices_error_string();
   std::string res(emsg);
   yices_free_string(emsg);
   return res;
 }
-
-typedef std::map<std::string, std::string> solver_options;
+}
 
 /* the yices solver; actually a yices context. */
-class yices_solver_impl : public solver::Solver {
+class yices_solver_impl : public Solver {
 public:
   
-  using model_ref = typename solver::Solver::model_ref;
+  using model_ref = typename Solver::model_ref;
   
   using ycache_t = std::map<expr::Expr, term_t>;
 
+  using solver_options = std::map<std::string, std::string>;
+  
 private:
   
   using assumptions_map_t = std::unordered_map<term_t, expr::Expr>;
@@ -47,15 +53,15 @@ public:
 
   ~yices_solver_impl();
 
-  solver::SolverKind get_kind() const { return solver::SolverKind::YICES2;}
+  SolverKind get_kind() const { return SolverKind::YICES2;}
   
   bool add(expr::Expr exp);
   
   /** Check for satisfiability */
-  solver::SolverResult check();
+  SolverResult check();
 
   /** Check with assumptions */
-  solver::SolverResult check_with_assumptions(const expr::ExprVector& assumptions);
+  SolverResult check_with_assumptions(const expr_const_it_range& assumptions);
 
   /** Return an unsatisfiable core */
   void unsat_core(expr::ExprVector& out); 
@@ -71,6 +77,9 @@ public:
 
   /** Clear all assertions */
   void reset();
+
+  /** Print asserted formulas to SMT-LIB format **/
+  void to_smt_lib(llvm::raw_ostream& o);
   
   ycache_t& get_cache(void);
   

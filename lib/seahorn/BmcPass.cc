@@ -255,15 +255,13 @@ public:
       std::unique_ptr<OperationalSemantics> sem = llvm::make_unique<BvOpSem>(
           efac, *this, dl, MEM);
 
-      EZ3 zctx(efac);
-
       // XXX: needed by sea-dsa which is required by clam      
       auto const &tli = getAnalysis<TargetLibraryInfoWrapperPass>().getTLI();
       auto &cg = getAnalysis<CallGraphWrapperPass>().getCallGraph();      
       auto &awi = getAnalysis<sea_dsa::AllocWrapInfo>();      
       
       // XXX: use of legacy operational semantics
-      PathBmcEngine bmc(static_cast<LegacyOperationalSemantics &>(*sem), zctx,
+      PathBmcEngine bmc(static_cast<LegacyOperationalSemantics &>(*sem),
 			dl, tli, cg, awi);
       
       bmc.addCutPoint(src);
@@ -282,20 +280,20 @@ public:
       auto res = bmc.solve();
       Stats::stop("BMC");
 
-      if (res)
+      if (res == solver::SolverResult::SAT)
         outs() << "sat";
-      else if (!res)
+      else if (res == solver::SolverResult::UNSAT)
         outs() << "unsat";
       else
         outs() << "unknown";
       outs() << "\n";
 
-      if (res)
+      if (res == solver::SolverResult::SAT)
         Stats::sset("Result", "FALSE");
-      else if (!res)
+      else if (res == solver::SolverResult::UNSAT)
         Stats::sset("Result", "TRUE");
 
-      LOG("cex", if (res) {
+      LOG("cex", if (res == solver::SolverResult::SAT) {
         errs() << "Analyzed Function:\n" << F << "\n";
         PathBmcTrace trace(bmc.getTrace());
         errs() << "Trace \n";

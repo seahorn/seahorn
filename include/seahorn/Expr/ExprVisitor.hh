@@ -40,26 +40,33 @@ template <typename T> struct ExprFunctionoid : public ExprFn {
 } // namespace
 
 class VisitAction {
+protected:
+  bool m_skipKids;
+  Expr m_expr;
+
+private:
+  std::shared_ptr<ExprFn> m_fn;
+
 public:
   // skipKids or doKids
   VisitAction(bool kids = false)
-      : _skipKids(kids), fn(new ExprFunctionoid<IdentityRewriter>(
+      : m_skipKids(kids), m_fn(new ExprFunctionoid<IdentityRewriter>(
                              std::make_shared<IdentityRewriter>())) {}
 
   // changeTo or doKidsRewrite
   template <typename R>
   VisitAction(Expr e, bool kids = false,
               std::shared_ptr<R> r = std::make_shared<IdentityRewriter>())
-      : _skipKids(kids), expr(e), fn(new ExprFunctionoid<R>(r)) {}
+      : m_skipKids(kids), m_expr(e), m_fn(new ExprFunctionoid<R>(r)) {}
 
-  bool isSkipKids() { return _skipKids && expr.get() == nullptr; }
-  bool isChangeTo() { return _skipKids && expr.get() != nullptr; }
-  bool isDoKids() { return !_skipKids && expr.get() == nullptr; }
-  bool isChangeDoKidsRewrite() { return !_skipKids && expr.get() != nullptr; }
+  bool isSkipKids() { return m_skipKids && m_expr.get() == nullptr; }
+  bool isChangeTo() { return m_skipKids && m_expr.get() != nullptr; }
+  bool isDoKids() { return !m_skipKids && m_expr.get() == nullptr; }
+  bool isChangeDoKidsRewrite() { return !m_skipKids && m_expr.get() != nullptr; }
 
-  Expr rewrite(Expr v) { return fn->apply(v); }
+  Expr rewrite(Expr v) { return m_fn->apply(v); }
 
-  Expr getExpr() { return expr; }
+  Expr getExpr() { return m_expr; }
 
   static inline VisitAction skipKids() { return VisitAction(true); }
   static inline VisitAction doKids() { return VisitAction(false); }
@@ -76,12 +83,6 @@ public:
     return VisitAction(e, false, r);
   }
 
-protected:
-  bool _skipKids;
-  Expr expr;
-
-private:
-  std::shared_ptr<ExprFn> fn;
 };
 
 using DagVisitCache = std::unordered_map<ENode *, Expr>;

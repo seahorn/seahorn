@@ -694,7 +694,7 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
   }
 
   void recVCGenMem(const Cell &c_callee, Instruction &i, Expr ptr,
-                       SafeNodeSet safeNodes, SimulationMapper simMap,
+                       SafeNodeSet unsafeNodes, SimulationMapper simMap,
                        ExplorationMap &explored) {
 
     const Node * n_callee = c_callee.getNode();
@@ -704,27 +704,24 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
 
     // note that this checks modification in the bu graph, which is more precise
     // than the previous approach
-    auto it = safeNodes.find(n_caller);
-    bool safeToCopy = it != safeNodes.end();
-
-    if (n_callee->isModified() && safeToCopy) {
+    if (n_callee->isModified() && GraphExplorer::isSafeNode(unsafeNodes,n_caller)) {
+      errs() << "safe to copy\n";
       // generate copy conditions for this node, we are basically going to copy
       // the size of the node, this can be refined later
       // First get the name of the "original" logical array
-      Expr copyA = freshArraySymbol(n_caller->getId());
+      Expr origA = getOrigArraySymbol(n_caller->getId());
 
-      Expr tmpA = copyA;
+      Expr tmpA = origA;
 
       for (unsigned byte = 0; byte < c_callee.getNode()->size(); byte++){
         Expr offset = mkTerm<expr::mpz_class>(byte, m_efac);
 
         Expr dirE = mk<PLUS>(ptr, offset);
-        tmpA = mk<STORE>(tmpA, dirE, mk<SELECT>(copyA, dirE));
+        tmpA = mk<STORE>(tmpA, dirE, mk<SELECT>(origA, dirE));
       }
-      Expr origA = getOrigArraySymbol(n_caller->getId());
-
+      Expr copyA = freshArraySymbol(n_caller->getId());
       // Generating an literal per node in the callee to copy
-      m_side.push_back(mk<EQ>(origA,tmpA));
+      m_side.push_back(mk<EQ>(copyA,tmpA));
 
       // now we follow the pointers of the node
       for (auto &links : n_callee->getLinks()) {
@@ -735,7 +732,7 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
         if (explored.find(next_n) == explored.end()) { // not explored yet
           Expr offset = mkTerm<expr::mpz_class>(f.getOffset(), m_efac);
           Expr next_ptr = mk<SELECT>(tmpA, mk<PLUS>(ptr, offset));
-          recVCGenMem(next_c, i, next_ptr, safeNodes, simMap,explored);
+          recVCGenMem(next_c, i, next_ptr, unsafeNodes, simMap,explored);
         }
       }
     }
@@ -877,14 +874,18 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
       errs() << m_fparams.size() << " " << bind::domainSz(fi.sumPred) << "\n";
       assert(m_fparams.size() == bind::domainSz(fi.sumPred));
 
-      // TODO: fresh arrays for the output from which we will copy
-      // for(int i=3; i < m_fparams.size(); i++){ // we can skip the first 3
-      // (just propagating errors)
-      //   auto it = m_rep.find(m_fparams[i]);
-      //   if (it != m_rep.end()) {
-      //     m_fparams[i] = it->getSecond();
-      //   }
-      // }
+      for(auto it: m_rep){
+        unsigned node_id = it.getFirst();
+        Expr origA = getOrigArraySymbol(node_id);
+        Expr replaceA = it.getSecond();
+
+        for(int i=3; i < m_fparams.size(); i++){ // we can skip the first 3
+          if (m_fparams[i] == origA) {
+            m_fparams[i] = replaceA;
+            break;
+          }
+        }
+      }
 
       m_side.push_back(bind::fapp(fi.sumPred, m_fparams));
 

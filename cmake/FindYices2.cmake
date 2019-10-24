@@ -3,6 +3,7 @@
 #  YICES2_FOUND - System has yices2
 #  YICES2_INCLUDE_DIRS - The yices2 include directories
 #  YICES2_LIBRARIES - The libraries needed to use yices2
+#  YICES2_EXECUTABLE - The yices2 executable
 
 if (YICES2_HOME)
   find_path(YICES2_INCLUDE_DIR yices.h PATHS "${YICES2_HOME}/include")
@@ -14,6 +15,12 @@ if (YICES2_HOME)
   find_library(YICES2_LIBRARY yices PATHS "${YICES2_HOME}/lib")
 else() 
   find_library(YICES2_LIBRARY yices)
+endif()
+
+if (YICES2_HOME)
+  find_program(YICES2_EXECUTABLE yices-smt2 PATHS "${YICES2_HOME}/bin")
+else() 
+  find_program(YICES2_EXECUTABLE yices-smt2)
 endif()
 
 # If library found, check the version
@@ -39,9 +46,11 @@ if (YICES2_INCLUDE_DIR AND Yices2_FIND_VERSION)
   if ("${__YICES_H_VERSION}" VERSION_LESS "${Yices2_FIND_VERSION}")
      unset(YICES2_INCLUDE_DIR CACHE)
      unset(YICES2_LIBRARY CACHE)
+     unset(YICES2_EXECUTABLE CACHE)
   elseif (Yices2_FIND_VERSION_EXACT AND NOT "${__YICES_H_VERSION}" VERSION_EQUAL "${Yices2_FIND_VERSION}")
      unset(YICES2_INCLUDE_DIR CACHE)
-     unset(YICES2_LIBRARY CACHE) 
+     unset(YICES2_LIBRARY CACHE)
+     unset(YICES2_EXECUTABLE CACHE)
   endif()
 endif()
 
@@ -49,6 +58,6 @@ set(YICES2_LIBRARIES ${YICES2_LIBRARY})
 set(YICES2_INCLUDE_DIRS ${YICES2_INCLUDE_DIR})
 
 include(FindPackageHandleStandardArgs)
-find_package_handle_standard_args(Yices2 DEFAULT_MSG YICES2_LIBRARY YICES2_INCLUDE_DIR)
+find_package_handle_standard_args(Yices2 DEFAULT_MSG YICES2_LIBRARY YICES2_INCLUDE_DIR YICES2_EXECUTABLE)
 
-mark_as_advanced(YICES2_INCLUDE_DIR YICES2_LIBRARY) 
+mark_as_advanced(YICES2_INCLUDE_DIR YICES2_LIBRARY YICES2_EXECUTABLE) 

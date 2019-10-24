@@ -83,26 +83,26 @@ static llvm::cl::opt<bool> LayeredCrabSolving(
                    "--horn-bmc-crab-dom to prove path unsatisfiability"),
     llvm::cl::init(false));
 
-enum class MucMethod {
+enum class MucMethodKind {
   MUC_NONE,
   MUC_DELETION,
   MUC_ASSUMPTIONS,
   MUC_BINARY_SEARCH
 };
 
-static llvm::cl::opt<enum MucMethod> MucMethod(
+static llvm::cl::opt<enum MucMethodKind> MucMethod(
     "horn-bmc-muc",
     llvm::cl::desc(
         "Method used to compute minimal unsatisfiable cores in Path-Based BMC"),
-    llvm::cl::values(clEnumValN(MucMethod::MUC_NONE, "none",
+    llvm::cl::values(clEnumValN(MucMethodKind::MUC_NONE, "none",
                                 "None"),
-                     clEnumValN(MucMethod::MUC_ASSUMPTIONS,
+                     clEnumValN(MucMethodKind::MUC_ASSUMPTIONS,
                                 "assume", "Solving with assumptions"),
-                     clEnumValN(MucMethod::MUC_DELETION, "deletion",
+                     clEnumValN(MucMethodKind::MUC_DELETION, "deletion",
                                 "Deletion-based method"),
-                     clEnumValN(MucMethod::MUC_BINARY_SEARCH,
+                     clEnumValN(MucMethodKind::MUC_BINARY_SEARCH,
                                 "quickXplain", "QuickXplain method")),
-    llvm::cl::init(MucMethod::MUC_ASSUMPTIONS));
+    llvm::cl::init(MucMethodKind::MUC_ASSUMPTIONS));
 
 static llvm::cl::opt<unsigned> PathTimeout(
     "horn-bmc-path-timeout",
@@ -1056,12 +1056,12 @@ solver::SolverResult PathBmcEngine::path_encoding_and_solve_with_smt(
   } else {
     // Stats::resume ("BMC path-based: SMT unsat core");
     // --- Compute minimal unsat core of the path formula
-    enum MucMethod muc_method = MucMethod;
+    enum MucMethodKind muc_method = MucMethod;
     if (res == solver::SolverResult::UNSAT) {
       LOG("bmc", get_os() << "SMT proved unsat. Size of path formula="
                           << path_formula.size() << ". ");
     } else {
-      muc_method = MucMethod::MUC_NONE;
+      muc_method = MucMethodKind::MUC_NONE;
       // We pretend the query is unsat to keep going but remember the
       // unknown query in m_unknown_path_formulas.
       res = solver::SolverResult::UNSAT;
@@ -1081,23 +1081,23 @@ solver::SolverResult PathBmcEngine::path_encoding_and_solve_with_smt(
 
     ExprVector unsat_core;
     switch (muc_method) {
-    case MucMethod::MUC_NONE: {
+    case MucMethodKind::MUC_NONE: {
       unsat_core.assign(path_formula.begin(), path_formula.end());
       break;
     }
-    case MucMethod::MUC_DELETION: {
+    case MucMethodKind::MUC_DELETION: {
       deletion_muc muc(*m_aux_smt_solver);
       muc.run(path_formula, unsat_core);
       LOG("bmc-unsat-core", errs() << "\n"; muc.print_stats(errs()));
       break;
     }
-    case MucMethod::MUC_BINARY_SEARCH: {
+    case MucMethodKind::MUC_BINARY_SEARCH: {
       binary_search_muc muc(*m_aux_smt_solver);
       muc.run(path_formula, unsat_core);
       LOG("bmc-unsat-core", errs() << "\n"; muc.print_stats(errs()));
       break;
     }
-    case MucMethod::MUC_ASSUMPTIONS:
+    case MucMethodKind::MUC_ASSUMPTIONS:
     default: {
       muc_with_assumptions muc(*m_aux_smt_solver);
       muc.run(path_formula, unsat_core);

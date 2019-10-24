@@ -49,12 +49,12 @@ llvm::cl::opt<bool>
                      llvm::cl::init(true));
 
 namespace seahorn {
-bool InterProcMemFlag;
+bool InterProcMem;
 }
 
 static llvm::cl::opt<bool,true>  InterProcMem("horn-inter-proc-mem",
                  llvm::cl::desc("Use inter-procedural encoding with memory"),
-                                              llvm::cl::location(seahorn::InterProcMemFlag),
+                                              llvm::cl::location(seahorn::InterProcMem),
                                               llvm::cl::init(false));
 
 using namespace llvm;
@@ -914,11 +914,10 @@ void ShadowDsaImpl::visitDsaCallSite(dsa::DsaCallSite &CS) {
     // -- read/write or new node
     else if (isModified(n, CF)) {
       // -- n is new node iff it is reachable only from the return node
-      Constant *argFn;
       if (retReach.count(n))
         mkArgNewMod(*m_B, m_argNewFn, callerC, idx, llvm::None);
       else
-        if (seahorn::InterProcMemFlag)
+        if (seahorn::InterProcMem)
           mkArgNewModNode(*m_B, m_argModNodeFn, callerC, idx, llvm::None);
         else
           mkArgNewMod(*m_B, m_argModFn, callerC, idx, llvm::None);
@@ -1397,7 +1396,7 @@ void ShadowDsaImpl::solveUses(Function &F) {
 namespace seahorn {
 
 ShadowMemSeaDsa::ShadowMemSeaDsa() : llvm::ModulePass(ID), m_shadow(nullptr) {
- m_dsa = NULL;
+  m_dsa = nullptr;
 }
 
 ShadowMemSeaDsa::~ShadowMemSeaDsa() {}
@@ -1406,7 +1405,8 @@ bool ShadowMemSeaDsa::runOnModule(llvm::Module &M) {
   if (M.begin() == M.end())
     return false;
 
-  m_dsa = &getAnalysis<dsa::DsaAnalysis>().getDsaAnalysis();
+  m_dsa = &getAnalysisIfAvailable<dsa::DsaAnalysis>()->getDsaAnalysis();
+  assert(m_dsa);
   TargetLibraryInfo &tli = getAnalysis<TargetLibraryInfoWrapperPass>().getTLI();
 
   CallGraph *cg = nullptr;
@@ -1419,6 +1419,7 @@ bool ShadowMemSeaDsa::runOnModule(llvm::Module &M) {
   LOG("shadow_verbose", errs() << "Module before shadow insertion:\n"
                                << M << "\n";);
 
+  // TODO: replace by llvm::make_unique
   m_shadow = std::unique_ptr<ShadowDsaImpl>(new ShadowDsaImpl(*m_dsa, asi, tli, cg, *this, SplitFields, LocalReadMod));
   bool res = m_shadow->runOnModule(M);
   LOG("shadow_verbose", errs() << "Module after shadow insertion:\n"
@@ -1491,8 +1492,8 @@ public:
     }
 
     std::vector<std::string> intFnNames = {
-        "shadow.mem.store", "shadow.mem.init", "shadow.mem.arg.init",
-        "shadow.mem.global.init", "shadow.mem.arg.mod"};
+        "shadow.mem.store",       "shadow.mem.init",    "shadow.mem.arg.init",
+        "shadow.mem.global.init", "shadow.mem.arg.mod", "shadow.mem.arg.mod.node"};
     Value *zero = ConstantInt::get(Type::getInt32Ty(M.getContext()), 0);
 
     for (auto &name : intFnNames) {
@@ -1531,4 +1532,7 @@ Pass *createShadowMemSeaDsaPass() { return new ShadowMemSeaDsa(); }
 } // namespace seahorn
 
 static llvm::RegisterPass<seahorn::StripShadowMem>
-    Y("strip-shadow-dsa", "Remove shadow.mem pseudo-functions");
+    X("strip-shadow-dsa", "Remove shadow.mem pseudo-functions");
+
+static llvm::RegisterPass<seahorn::ShadowMemSeaDsa>
+    Y("shadow-mem-sea-dsa", "Add shadow mem instructions");

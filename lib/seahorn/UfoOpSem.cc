@@ -790,7 +790,7 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
         m_side.push_back(mk<EQ>(m_outMem, m_inMem));
       } else if (F.getName().equals("shadow.mem.arg.ref"))
         m_fparams.push_back(m_s.read(symb(*CS.getArgument(1))));
-      else if (F.getName().startswith("shadow.mem.arg.mod")) {
+      else if (F.getName().equals("shadow.mem.arg.mod")) {
         auto in_par = m_s.read(symb(*CS.getArgument(1)));
         m_fparams.push_back(in_par);
         m_inRegions.push_back(in_par);

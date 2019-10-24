@@ -99,7 +99,7 @@ static llvm::cl::list<std::string>
                       llvm::cl::ZeroOrMore, llvm::cl::CommaSeparated);
 
 namespace seahorn {
-extern bool InterProcMemFlag;
+extern bool InterProcMem;
 }
 
 namespace seahorn {
@@ -152,7 +152,7 @@ bool HornifyModule::runOnModule(Module &M) {
   if (Step == hm_detail::CLP_SMALL_STEP ||
       Step == hm_detail::CLP_FLAT_SMALL_STEP)
     m_sem.reset(new ClpOpSem(m_efac, *this, M.getDataLayout(), TL));
-  else if (InterProcMemFlag) {
+  else if (InterProcMem) {
     ShadowMemSeaDsa * shadowmem_analysis =
         getAnalysisIfAvailable<seahorn::ShadowMemSeaDsa>();
     m_sem.reset(new UfoOpMemSem(m_efac, *this, M.getDataLayout(), TL, abs_fns,

@@ -1,4 +1,6 @@
 #pragma once
+// This is a copy of UfoOpSem for prototyping purposes
+
 #include "seahorn/Analysis/CanFail.hh"
 #include "seahorn/LegacyOperationalSemantics.hh"
 #include "llvm/ADT/SmallPtrSet.h"
@@ -13,8 +15,6 @@
 namespace llvm {
 class GetElementPtrInst;
 }
-
-// TODO: a lot of duplicated code, reuse UfoOpSem
 
 namespace seahorn {
 /**

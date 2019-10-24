@@ -874,33 +874,34 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
           errs() << "ret: " << *fi.ret << "\n";
       });
 
-  assert(m_fparams.size() == bind::domainSz(fi.sumPred));
+      errs() << m_fparams.size() << " " << bind::domainSz(fi.sumPred) << "\n";
+      assert(m_fparams.size() == bind::domainSz(fi.sumPred));
 
-  // TODO: fresh arrays for the output from which we will copy
-  // for(int i=3; i < m_fparams.size(); i++){ // we can skip the first 3 (just propagating errors)
-  //   auto it = m_rep.find(m_fparams[i]);
-  //   if (it != m_rep.end()) {
-  //     m_fparams[i] = it->getSecond();
-  //   }
-  // }
+      // TODO: fresh arrays for the output from which we will copy
+      // for(int i=3; i < m_fparams.size(); i++){ // we can skip the first 3
+      // (just propagating errors)
+      //   auto it = m_rep.find(m_fparams[i]);
+      //   if (it != m_rep.end()) {
+      //     m_fparams[i] = it->getSecond();
+      //   }
+      // }
 
-  m_side.push_back(bind::fapp(fi.sumPred, m_fparams));
+      m_side.push_back(bind::fapp(fi.sumPred, m_fparams));
 
-  // preparing for the next callsite
-  m_nodeids.clear();
-  m_rep.clear();
-  m_tmprep.clear();
-  m_copy_count = 0;
+      // preparing for the next callsite
+      m_nodeids.clear();
+      m_rep.clear();
+      m_tmprep.clear();
+      m_copy_count = 0;
 
-  // reseting parameter structures
-  m_fparams.clear();
-  m_fparams.push_back(falseE);
-  m_fparams.push_back(falseE);
-  m_fparams.push_back(falseE);
+      // reseting parameter structures
+      m_fparams.clear();
+      m_fparams.push_back(falseE);
+      m_fparams.push_back(falseE);
+      m_fparams.push_back(falseE);
 
-  m_inRegions.clear();
-  m_outRegions.clear();
-
+      m_inRegions.clear();
+      m_outRegions.clear();
 
 } else if (F.getName().startswith("shadow.mem")) {
   if (!m_sem.isTracked(I))

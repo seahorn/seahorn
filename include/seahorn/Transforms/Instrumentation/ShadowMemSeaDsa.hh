@@ -1,5 +1,3 @@
-/// This file should be completely moved into C++ file.
-// TODO: remove this comment now? we want to use this pass in the vcgen
 #pragma once
 #include "llvm/Pass.h"
 
@@ -41,6 +39,7 @@ public:
   bool hasShadowId(const sea_dsa::Node *);
   unsigned getNodeShadowId(const sea_dsa::Node *);
 
+  // Obtain the bottom up dsa graph of the function
   sea_dsa::Graph & getSummaryGraph(const llvm::Function &F);
   bool hasSummaryGraph(const llvm::Function &F);
 

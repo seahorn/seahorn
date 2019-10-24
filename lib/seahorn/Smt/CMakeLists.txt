@@ -4,6 +4,7 @@ add_llvm_library (SeaSmt
   Yices2ModelImpl.cc
   ExprToZ.cc
   ZToExpr.cc
+  ExprUtil.cc
   )
 
 if (YICES2_FOUND)

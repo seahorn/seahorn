@@ -10,8 +10,8 @@ HornRule replaceNonVarsInHead(const HornRule &rule) {
   assert(bind::isFapp(h));
   ExprFactory &efac = h->efac();
 
-  ENode::args_iterator it = ++(h->args_begin());
-  ENode::args_iterator end = h->args_end();
+  auto it = ++(h->args_begin());
+  auto end = h->args_end();
   Expr new_body = mk<TRUE>(efac);
   ExprVector new_args, new_vars;
   unsigned int id = 0;

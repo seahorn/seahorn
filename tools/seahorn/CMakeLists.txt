@@ -1,11 +1,11 @@
-set (USED_LIBS 
+set (USED_LIBS
   seahorn.LIB
   SeaInstrumentation
   SeaTransformsScalar
   SeaTransformsUtils
   SeaAnalysis
   SeaSmt
-  ${SEA_DSA_LIBS}    
+  ${SEA_DSA_LIBS}
   SeaSupport
   ${LLVM_SEAHORN_LIBS}
   ${Z3_LIBRARY}

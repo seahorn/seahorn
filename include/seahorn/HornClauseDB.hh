@@ -10,6 +10,7 @@
 #include <boost/container/flat_set.hpp>
 
 #include "seahorn/Expr/Expr.hh"
+#include "seahorn/Expr/ExprOpBinder.hh"
 #include "seahorn/Support/Stats.hh"
 
 #include <algorithm>

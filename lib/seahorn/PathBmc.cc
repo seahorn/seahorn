@@ -3,6 +3,7 @@
 #ifdef HAVE_CLAM
 #include "seahorn/Bmc.hh" // for bmc_impl stuff
 #include "seahorn/Expr/ExprLlvm.hh"
+#include "seahorn/Expr/ExprSimplifier.hh"
 #include "seahorn/LoadCrab.hh"
 #include "seahorn/PathBmc.hh"
 #include "seahorn/Support/CFG.hh"

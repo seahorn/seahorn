@@ -3,6 +3,7 @@
 /// A symbolic store is a map from symbolic registers to symbolic values.
 
 #include "seahorn/Expr/Expr.hh"
+#include "seahorn/Expr/ExprVisitor.hh"
 
 #include "llvm/Support/raw_ostream.h"
 #include <map>

@@ -1,17 +1,22 @@
 #pragma once
 #include "seahorn/config.h"
 
+#include "seahorn/Analysis/CutPointGraph.hh"
 #include "seahorn/Expr/Expr.hh"
 #include "seahorn/Expr/Smt/Solver.hh"
-#include "seahorn/Analysis/CutPointGraph.hh"
 #include "seahorn/LegacyOperationalSemantics.hh"
+#include "seahorn/Support/SeaAssert.h"
+#include "seahorn/Support/SeaLog.hh"
+
+#include "llvm/ADT/SmallVector.h"
+#include <vector>
 
 namespace llvm {
 class TargetLibraryInfo;
 class CallGraph;
 class DataLayout;
 class raw_ostream;
-}
+} // namespace llvm
 namespace sea_dsa {
 class AllocWrapInfo;
 }
@@ -20,65 +25,58 @@ namespace seahorn {
 namespace solver {
 class Model;
 }
-}
-
+} // namespace seahorn
 
 #ifndef HAVE_CLAM
+namespace seahorn {
+class PathBmcTrace;
 /* Dummy class for PathBmcEngine */
-// class PathBmcEngine {
-//   LegacyOperationalSemantics& m_sem;
-//   SmallVector<const CutPoint *, 8> m_cps;
-//   SmallVector<const CpEdge *, 8> m_cp_edges;
-//   std::vector<SymStore> m_states;
-//   ExprVector m_side;
-// public:
-  
-//   PathBmcEngine(LegacyOperationalSemantics &sem,
-// 		const llvm::DataLayout &dl,
-// 		const llvm::TargetLibraryInfo &tli,
-// 		llvm::CallGraph &cg,
-// 		sea_dsa::AllocWrapInfo &awi)
-//     : m_sem(sem), m_model(zctx) {}
-  
-//   virtual ~PathBmcEngine() {}
+class PathBmcEngine {
+  LegacyOperationalSemantics &m_sem;
+  llvm::SmallVector<const CutPoint *, 8> m_cps;
+  llvm::SmallVector<const CpEdge *, 8> m_cp_edges;
+  std::vector<SymStore> m_states;
+  ExprVector m_side;
 
-//   void addCutPoint(const CutPoint& cp) {}
+public:
+  PathBmcEngine(seahorn::LegacyOperationalSemantics &sem,
+                const llvm::DataLayout &dl, const llvm::TargetLibraryInfo &tli,
+                llvm::CallGraph &cg, sea_dsa::AllocWrapInfo &awi)
+      : m_sem(sem) {}
 
-//   void encode() {}
-  
-//   solver::SolverResult solve() {
-//     llvm::errs() << "Warning: path bmc engine only available if Clam is available\n";
-//     return solver::SolverResult::UNKNOWN;
-//   }
-  
-//   PathBmcTrace getTrace() {
-//     EZ3 zctx;
-//     ZModel<EZ3> model;
-//     return PathBmcTrace(*this, model);
-//   }
-      
-//   raw_ostream &toSmtLib(raw_ostream &out) { return out;}
+  virtual ~PathBmcEngine() {}
 
-//   solver::SolverResult result() { return solver::SolverResult::UNKNOWN;}
-  
-//   LegacyOperationalSemantics &sem() { return m_sem;}
+  void addCutPoint(const CutPoint &cp) {}
 
-//   const SmallVector<const CutPoint *, 8> &getCps() const { return m_cps;}
-  
-//   const SmallVector<const CpEdge *, 8> &getEdges() const { return m_cp_edges;}
-  
-//   std::vector<SymStore> &getStates() { return m_states;}
+  void encode() {}
 
-//   Expr getSymbReg(const llvm::Value &v) { return Expr(); }
+  solver::SolverResult solve();
 
-//   const ExprVector &getPreciseEncoding() const { return m_side;}
-// };  
+  PathBmcTrace getTrace();
+
+  raw_ostream &toSmtLib(raw_ostream &out) { return out; }
+
+  solver::SolverResult result() { return solver::SolverResult::UNKNOWN; }
+
+  LegacyOperationalSemantics &sem() { return m_sem; }
+
+  const SmallVector<const CutPoint *, 8> &getCps() const { return m_cps; }
+
+  const SmallVector<const CpEdge *, 8> &getEdges() const { return m_cp_edges; }
+
+  std::vector<SymStore> &getStates() { return m_states; }
+
+  Expr getSymbReg(const llvm::Value &v) { return Expr(); }
+
+  const ExprVector &getPreciseEncoding() const { return m_side; }
+};
+} // namespace seahorn
 #else
 
 #include "seahorn/LiveSymbols.hh"
+#include <memory>
 #include <queue>
 #include <unordered_set>
-#include <memory>
 
 namespace clam {
 class IntraClam;
@@ -93,21 +91,17 @@ class HeapAbstraction;
  */
 namespace seahorn {
 
-
 class PathBmcTrace;
 class PathBmcEngine {
 public:
-  
-  PathBmcEngine(LegacyOperationalSemantics &sem, 
-		const llvm::DataLayout &dl,
-		const llvm::TargetLibraryInfo &tli,
-		llvm::CallGraph &cg,
-		sea_dsa::AllocWrapInfo &awi);
-  
+  PathBmcEngine(LegacyOperationalSemantics &sem, const llvm::DataLayout &dl,
+                const llvm::TargetLibraryInfo &tli, llvm::CallGraph &cg,
+                sea_dsa::AllocWrapInfo &awi);
+
   virtual ~PathBmcEngine();
 
-  void addCutPoint(const CutPoint& cp);
-  
+  void addCutPoint(const CutPoint &cp);
+
   /// Enumerate paths until a path is satisfiable or there is no
   /// more paths.
   solver::SolverResult solve();
@@ -121,7 +115,7 @@ public:
 
   /// returns the latest result from solve()
   solver::SolverResult result() { return m_result; }
-  
+
   /// return the operational semantics
   LegacyOperationalSemantics &sem() {
     return static_cast<LegacyOperationalSemantics &>(m_sem);
@@ -145,9 +139,8 @@ public:
   }
 
   const ExprVector &getPreciseEncoding() const { return m_precise_side; }
-  
-private:
 
+private:
   /// symbolic operational semantics
   OperationalSemantics &m_sem;
   /// context for OperationalSemantics
@@ -162,97 +155,94 @@ private:
   const CutPointGraph *m_cpg;
   // the function
   const llvm::Function *m_fn;
-  // live symbols 
-  std::unique_ptr<LiveSymbols> m_ls;  
+  // live symbols
+  std::unique_ptr<LiveSymbols> m_ls;
   // symbolic store
   SymStore m_ctxState;
   /// precise encoding of m_cps
   ExprVector m_precise_side;
 
-  // solver used for the boolean abstraction
-  std::unique_ptr<solver::Solver> m_smt_solver;
-  // used to solve a path formula
-  std::unique_ptr<solver::Solver> m_aux_smt_solver;  
+  // solver used to enumerate paths from the boolean abstraction
+  std::unique_ptr<solver::Solver> m_boolean_solver;
+  // solver used to solve a path formula over arrays, bitvectors, etc
+  std::unique_ptr<solver::Solver> m_smt_path_solver;
   // model of a path formula
   solver::Solver::model_ref m_model;
-  /// last result of the main solver (m_smt_solver)
-  solver::SolverResult m_result;  
+  /// last result of the main solver (m_boolean_solver)
+  solver::SolverResult m_result;
 
-  // Boolean literals that active the implicant: used to produce
-  // blocking clauses for the Boolean abstraction.
-  ExprVector m_path_cond_lits;  
-  // Temporary sanity check: bookeeping of all generated blocking clauses.
+  // Path condition of the spurious counterexample
+  ExprVector m_path_cond;
+  // Sanity check: bookeeping of all generated blocking clauses.
   std::unordered_set<Expr> m_blocking_clauses;
-  
-  // TOREMOVE
-  // Incomplete flag: if a SMT query returned unknown
-  bool m_incomplete;
-  // TOREMOVE  
+
   // Queue for unsolved path formulas
-  std::queue<std::pair<unsigned, ExprVector>> m_unknown_path_formulas;
+  std::queue<std::pair<unsigned, ExprVector>> m_unsolved_path_formulas;
   // Count number of path
   unsigned m_num_paths;
-  
+
   //// Crab stuff
   // Stuff used by crab's (sea-dsa) heap abstraction.
   const llvm::DataLayout &m_dl;
   const llvm::TargetLibraryInfo &m_tli;
   llvm::CallGraph &m_cg;
   sea_dsa::AllocWrapInfo &m_awi;
-  // crab's heap abstraction 
+  // crab's heap abstraction
   std::unique_ptr<clam::HeapAbstraction> m_mem;
   // crab instance to solve paths
-  std::unique_ptr<clam::IntraClam> m_crab_path;
+  std::unique_ptr<clam::IntraClam> m_crab_path_solver;
 
-
+  /****************** Helpers ****************/
+  using expr_invariants_map_t = DenseMap<const BasicBlock *, ExprVector>;
 
   /// Construct the precise (monolithic) encoding
   void encode();
-  
+
+  /// Refine the boolean abstraction by negating of the last visited
+  /// path. Return false if some error happened.
+  bool block_path();
+
   /// Check feasibility of a path induced by model using SMT solver.
   /// Return true (sat), false (unsat), or indeterminate (inconclusive).
   /// If unsat then it produces a blocking clause.
-  using invariants_map_t = DenseMap<const BasicBlock *, ExprVector>;
-  
-  solver::SolverResult
-  path_encoding_and_solve_with_smt(const PathBmcTrace &trace,
-                                   const invariants_map_t &invariants,
-                                   const invariants_map_t &path_constraints);
+  solver::SolverResult path_encoding_and_solve_with_smt(
+      const PathBmcTrace &trace, const expr_invariants_map_t &invariants,
+      const expr_invariants_map_t &path_constraints);
 
-  /// Return false if a blocking clause has been generated twice.
-  bool add_blocking_clauses();
-
-  /// For debugging
-  void toSmtLib(const ExprVector &path, std::string prefix = "");
-  
   /// Check feasibility of a path induced by trace using abstract
   /// interpretation.
   /// Return true (sat) or false (unsat). If unsat then it produces a
   /// blocking clause.
   bool path_encoding_and_solve_with_ai(PathBmcTrace &trace,
-                                       invariants_map_t &path_constraints);
-  
-  /// Out contains all invariants (per block) inferred by crab.
-  void load_invariants(const clam::IntraClam& analysis,
+                                       expr_invariants_map_t &path_constraints);
+
+  /// out contains all invariants (per block) inferred by crab.
+  void load_invariants(const clam::IntraClam &analysis,
                        DenseMap<const BasicBlock *, ExprVector> &out);
 
   /// Add the crab invariants in m_side after applying the symbolic store s.
-  void assert_invariants(const invariants_map_t &invariants, SymStore &s);
+  void assert_invariants(const expr_invariants_map_t &invariants, SymStore &s);
 
+  /// For debugging
+  void to_smt_lib(const ExprVector &path, std::string prefix = "");
 };
 
+} // end namespace seahorn
+#endif
+
+namespace seahorn {
 // Copy-and-paste version of BmcTrace in Bmc.hh
 class PathBmcTrace {
 
   friend class PathBmcEngine;
-  
+
   PathBmcEngine &m_bmc;
 
   solver::Solver::model_ref m_model;
-  
+
   // for trace specific implicant
   ExprVector m_trace;
-  
+
   ExprMap m_bool_map;
 
   /// the trace of basic blocks
@@ -273,19 +263,18 @@ class PathBmcTrace {
   /// computes an implicant of f (interpreted as a conjunction) that
   /// contains the given model
   void get_model_implicant(const ExprVector &f);
-  
+
   // Only PathBmcEngine calls the constructor
   PathBmcTrace(PathBmcEngine &bmc, solver::Solver::model_ref model);
-  
+
 public:
-  
   PathBmcTrace(const PathBmcTrace &other)
       : m_bmc(other.m_bmc), m_model(other.m_model), m_bbs(other.m_bbs),
         m_cpId(other.m_cpId) {}
 
   /// underlying BMC engine
   PathBmcEngine &engine() { return m_bmc; }
-  
+
   /// The number of basic blocks in the trace
   unsigned size() const { return m_bbs.size(); }
 
@@ -296,15 +285,14 @@ public:
   Expr symb(unsigned loc, const llvm::Value &inst);
   Expr eval(unsigned loc, const llvm::Value &inst, bool complete = false);
   Expr eval(unsigned loc, Expr v, bool complete = false);
-  
+
   void print(llvm::raw_ostream &o);
 
   ExprVector &get_implicant_formula() { return m_trace; }
   const ExprVector &get_implicant_formula() const { return m_trace; }
-  
+
   ExprMap &get_implicant_bools_map() { return m_bool_map; }
   const ExprMap &get_implicant_bools_map() const { return m_bool_map; }
 };
 
 } // namespace seahorn
-#endif 

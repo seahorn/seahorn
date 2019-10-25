@@ -21,7 +21,10 @@ add_llvm_library (seahorn.LIB
   HornClauseDB.cc
   HornClauseDBTransf.cc
   PathBmc.cc
+  PathBmcBoolAbs.cc  
+  PathBmcMuc.cc
   PathBmcTrace.cc
+  PathBmcUtil.cc  
   Bmc.cc
   BmcPass.cc
   BvOpSem.cc

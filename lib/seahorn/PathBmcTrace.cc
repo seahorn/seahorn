@@ -1,13 +1,13 @@
 #pragma once
+
 #include "seahorn/config.h"
-#ifdef HAVE_CLAM
 
 #include "llvm/IR/DebugInfo.h"
 #include "llvm/IR/DebugLoc.h"
 
 #include "seahorn/Bmc.hh"
-#include "seahorn/PathBmc.hh"
 #include "seahorn/Expr/Smt/Model.hh"
+#include "seahorn/PathBmc.hh"
 #include "seahorn/Support/SeaDebug.h"
 
 namespace seahorn {
@@ -59,15 +59,14 @@ void PathBmcTrace::get_model_implicant(const ExprVector &f) {
 
 PathBmcTrace::PathBmcTrace(PathBmcEngine &bmc, solver::Solver::model_ref model)
     : m_bmc(bmc), m_model(model) {
-  
+
   // construct an implicant of the precise condition
-  const ExprVector& encoding = m_bmc.getPreciseEncoding();
-  
+  const ExprVector &encoding = m_bmc.getPreciseEncoding();
+
   m_trace.reserve(encoding.size());
   ExprMap bool_map /*unused*/;
   get_model_implicant(encoding);
-  boost::container::flat_set<Expr>
-    implicant(m_trace.begin(), m_trace.end());
+  boost::container::flat_set<Expr> implicant(m_trace.begin(), m_trace.end());
 
   // construct the trace from the implicant
 
@@ -158,7 +157,7 @@ void PathBmcTrace::print(raw_ostream &out) {
   for (unsigned loc = 0; loc < size(); ++loc) {
     const BasicBlock &BB = *bb(loc);
     out << BB.getName() << ": \n";
-    
+
     for (auto &I : BB) {
       if (const DbgValueInst *dvi = dyn_cast<DbgValueInst>(&I)) {
         if (dvi->getValue() && dvi->getVariable()) {
@@ -186,7 +185,7 @@ void PathBmcTrace::print(raw_ostream &out) {
           }
           continue;
         } else if (f && f->getName().equals("shadow.mem.init")) {
-          #if 0
+#if 0
           // disabling since this is not supported by non-legacy
           // OperationalSemantics
           out.changeColor(raw_ostream::RED);
@@ -201,7 +200,7 @@ void PathBmcTrace::print(raw_ostream &out) {
           if (u)
             out << "  " << *memEnd << " " << *u << "\n";
           out.resetColor();
-          #endif
+#endif
           print_inst = false;
         }
       }
@@ -229,4 +228,3 @@ void PathBmcTrace::print(raw_ostream &out) {
 }
 
 } // end namespace seahorn
-#endif

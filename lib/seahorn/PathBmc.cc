@@ -946,11 +946,15 @@ solver::SolverResult PathBmcEngine::solve() {
   Stats::stop("BMC path-based: memory analysis");
   LOG("bmc", get_os(true) << "End memory analysis\n";);
 
-  clam::CrabBuilderManager cfg_builder_man;
+  clam::CrabBuilderParams  cfg_builder_params;
+  cfg_builder_params.simplify = false;
+  cfg_builder_params.set_array_precision_without_offsets();
+  clam::CrabBuilderManager cfg_builder_man(cfg_builder_params);
+  
   // -- Initialize crab for solving paths
   if (UseCrabForSolvingPaths) {
     m_crab_path_solver.reset(new clam::IntraClam(
-        *(this->m_fn), m_tli, *m_mem, cfg_builder_man, crab::cfg::ARR));
+        *(this->m_fn), m_tli, *m_mem, cfg_builder_man));
   }
 
   // -- crab invariants
@@ -959,8 +963,7 @@ solver::SolverResult PathBmcEngine::solve() {
   if (UseCrabGlobalInvariants) {
     LOG("bmc", get_os(true) << "Begin running crab analysis\n";);
     Stats::resume("BMC path-based: whole-program crab analysis");
-    clam::IntraClam crab_analysis(*(this->m_fn), m_tli, *m_mem, cfg_builder_man,
-                                  crab::cfg::ARR);
+    clam::IntraClam crab_analysis(*(this->m_fn), m_tli, *m_mem, cfg_builder_man);
 
     clam::AnalysisParams params;
     params.dom = CrabDom;

@@ -1,4 +1,5 @@
 #pragma once
+#include "llvm/IR/CallSite.h"
 #include "llvm/Pass.h"
 
 #include "sea_dsa/Global.hh"
@@ -10,13 +11,10 @@ namespace llvm {
 class Value;
 }
 
-namespace {
-// defined in ShadowMemSeaDsa.cc
-class ShadowDsaImpl;
-}
-
 #define USE_NEW_SHADOW_SEA_DSA 1
 namespace seahorn {
+// defined in ShadowMemSeaDsa.cc
+class ShadowDsaImpl;
 
 class ShadowMemSeaDsa : public llvm::ModulePass {
 
@@ -35,9 +33,6 @@ public:
   void getAnalysisUsage(llvm::AnalysisUsage &AU) const override;
   llvm::StringRef getPassName() const override { return "ShadowMemSeaDsa"; }
 
-  // TODO: should this be a cell?
-  bool hasShadowId(const sea_dsa::Node *);
-  unsigned getNodeShadowId(const sea_dsa::Node *);
 
   // Obtain the bottom up dsa graph of the function
   sea_dsa::Graph & getSummaryGraph(const llvm::Function &F);
@@ -45,7 +40,24 @@ public:
 
   sea_dsa::Graph & getDsaGraph(const llvm::Function &F);
   bool hasDsaGraph(const llvm::Function &F);
-};
+
+  // API of shadow mem instructions/shadow ids
+  bool shadowInstrIsCallSiteParam(llvm::CallSite &cs);
+  bool shadowInstrWrites(llvm::CallSite &cs);
+  bool shadowInstrReads(llvm::CallSite &cs);
+  llvm::Value * getShadowInAlloc(llvm::CallSite &cs);
+  llvm::Value *getShadowOutAlloc(llvm::CallSite &cs);
+
+  unsigned getShadowId(llvm::CallSite &cs);
+
+  // API of graphs/shadow ids
+  bool hasShadowId(const sea_dsa::Cell *);
+  unsigned getCellShadowId(const sea_dsa::Cell &c);
+
+  static const llvm::StringRef ARG_NEW;
+  static const llvm::StringRef ARG_READ;
+  static const llvm::StringRef ARG_MOD;
+  };
 
 bool isShadowMemInst(const llvm::Value *v);
 

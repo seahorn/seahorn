@@ -59,7 +59,7 @@ static llvm::cl::opt<bool,true>  InterProcMem("horn-inter-proc-mem",
 
 using namespace llvm;
 namespace dsa = sea_dsa;
-namespace {
+namespace seahorn {
 Value *getUniqueScalar(LLVMContext &ctx, IRBuilder<> &B, const dsa::Cell &c) {
   const dsa::Node *n = c.getNode();
   if (n && c.getOffset() == 0) {
@@ -172,12 +172,6 @@ public:
 };
 
 class ShadowDsaImpl : public InstVisitor<ShadowDsaImpl> {
-public:
-  using NodeIdMap = llvm::DenseMap<const sea_dsa::Node *, unsigned>;
-
-  /// \brief A map from DsaNode to its numeric id
-  NodeIdMap m_nodeIds;
-
 private:
   dsa::GlobalAnalysis &m_dsa;
   dsa::AllocSiteInfo &m_asi;
@@ -201,7 +195,6 @@ private:
   llvm::Constant *m_argRefFn = nullptr;
   llvm::Constant *m_argModFn = nullptr;
   llvm::Constant *m_argNewFn = nullptr;
-  llvm::Constant *m_argModNodeFn = nullptr;
 
   llvm::Constant *m_markIn = nullptr;
   llvm::Constant *m_markOut = nullptr;
@@ -211,6 +204,11 @@ private:
   llvm::Constant *m_memGlobalVarInitFn = nullptr;
 
   llvm::SmallVector<llvm::Constant *, 5> m_memInitFunctions;
+
+  using NodeIdMap = llvm::DenseMap<const sea_dsa::Node *, unsigned>;
+
+  /// \brief A map from DsaNode to its numeric id
+  NodeIdMap m_nodeIds;
 
   using ShadowsMap =
       llvm::DenseMap<const sea_dsa::Node *,
@@ -303,12 +301,6 @@ private:
     return id + offset;
   }
 
-  /// \breif Returns id of a field pointed to by the given cell \c
-  unsigned getFieldId(const dsa::Cell &c) {
-    assert(c.getNode());
-    return getFieldId(*c.getNode(), getOffset(c));
-  }
-
   /// \brief Returns shadow variable for a given field
   AllocaInst *getShadowForField(const dsa::Node &n, unsigned offset) {
     auto &offsetMap = m_shadows[&n];
@@ -323,10 +315,10 @@ private:
     return inst;
   }
 
-  /// \breif Returns shadow variable for a field pointed to by a cell \p cell
+  /// \brief Returns shadow variable for a field pointed to by a cell \p cell
   AllocaInst *getShadowForField(const dsa::Cell &cell) {
-    return getShadowForField(*cell.getNode(), getOffset(cell));
     assert(cell.getNode());
+    return getShadowForField(*cell.getNode(), getOffset(cell));
   }
 
   bool isRead(const dsa::Cell &c, const Function &f) {
@@ -491,20 +483,6 @@ private:
     return *ci;
   }
 
-  CallInst &mkArgNewModNode(IRBuilder<> &B, Constant *argFn, const dsa::Cell &c,
-                        unsigned idx, llvm::Optional<unsigned> bytes) {
-    AllocaInst *v = getShadowForField(c);
-    unsigned id = getFieldId(c);
-    unsigned node_id = c.getNode()->getId();
-    auto *ci = B.CreateCall(argFn,
-                            {B.getInt32(id), B.CreateLoad(v), B.getInt32(idx),
-                             getUniqueScalar(*m_llvmCtx, B, c),B.getInt32(node_id)},
-                            "sh");
-    B.CreateStore(ci, v);
-    markDefCall(ci, bytes);
-    return *ci;
-  }
-
   CallInst &mkMarkIn(IRBuilder<> &B, const dsa::Cell &c, Value *v, unsigned idx,
                      llvm::Optional<unsigned> bytes) {
     auto *ci =
@@ -580,6 +558,11 @@ private:
   const MaybeAllocSites &getAllAllocSites(Value &ptr, AllocSitesCache &cache);
   bool mayClobber(CallInst &memDef, CallInst &memUse, AllocSitesCache &cache);
 
+  // constants
+  StringRef M_SHADOW_ARG_NEW = "shadow.mem.arg.new";
+  StringRef M_SHADOW_ARG_MOD = "shadow.mem.arg.mod";
+  StringRef M_SHADOW_ARG_REF = "shadow.mem.arg.ref";
+
 public:
   ShadowDsaImpl(dsa::GlobalAnalysis &dsa, dsa::AllocSiteInfo &asi,
                 TargetLibraryInfo &tli, CallGraph *cg, Pass &pass,
@@ -620,7 +603,13 @@ public:
   const llvm::StringRef m_memDefTag = "shadow.mem.def";
   const llvm::StringRef m_memUseTag = "shadow.mem.use";
   const llvm::StringRef m_memPhiTag = "shadow.mem.phi";
+
+  /// \brief Returns id of a field pointed to by the given cell \c
+  unsigned getFieldId(const dsa::Cell &c);
+
 };
+
+// public methods of ShadowDsaImpl
 
 bool ShadowDsaImpl::runOnFunction(Function &F) {
   if (F.isDeclaration())
@@ -917,10 +906,7 @@ void ShadowDsaImpl::visitDsaCallSite(dsa::DsaCallSite &CS) {
       if (retReach.count(n))
         mkArgNewMod(*m_B, m_argNewFn, callerC, idx, llvm::None);
       else
-        if (seahorn::InterProcMem)
-          mkArgNewModNode(*m_B, m_argModNodeFn, callerC, idx, llvm::None);
-        else
-          mkArgNewMod(*m_B, m_argModFn, callerC, idx, llvm::None);
+        mkArgNewMod(*m_B, m_argModFn, callerC, idx, llvm::None);
       // Unclear how to get the associated concrete pointer here.
     }
     idx++;
@@ -1051,12 +1037,6 @@ void ShadowDsaImpl::mkShadowFunctions(Module &M) {
   m_argNewFn = M.getOrInsertFunction("shadow.mem.arg.new", m_Int32Ty, m_Int32Ty,
                                      m_Int32Ty, m_Int32Ty, i8PtrTy);
 
-  // same as m_argModFn but storing Id of node and offset
-  // can we have the same function name with one more parameter?
-  m_argModNodeFn =
-      M.getOrInsertFunction("shadow.mem.arg.mod.node", m_Int32Ty, m_Int32Ty,
-                            m_Int32Ty, m_Int32Ty, i8PtrTy, m_Int32Ty);
-
   m_markIn = M.getOrInsertFunction("shadow.mem.in", voidTy, m_Int32Ty,
                                    m_Int32Ty, m_Int32Ty, i8PtrTy);
   m_markOut = M.getOrInsertFunction("shadow.mem.out", voidTy, m_Int32Ty,
@@ -1184,7 +1164,7 @@ CallInst &ShadowDsaImpl::getParentDef(CallInst &memOp) {
 
   auto *fn = memOp.getCalledFunction();
   assert(fn);
-  assert(fn == m_memLoadFn || fn == m_memStoreFn || fn == m_memTrsfrLoadFn);
+  //assert(fn == m_memLoadFn || fn == m_memStoreFn || fn == m_memTrsfrLoadFn);
 
   assert(memOp.getNumOperands() >= 1);
   Value *defArg = memOp.getOperand(1);
@@ -1391,7 +1371,13 @@ void ShadowDsaImpl::solveUses(Function &F) {
                                        << " use(s) solved.\n");
 }
 
-} // namespace
+/// \brief Returns id of a field pointed to by the given cell \c
+unsigned ShadowDsaImpl::getFieldId(const dsa::Cell &c) {
+  assert(c.getNode());
+  return getFieldId(*c.getNode(), getOffset(c));
+}
+
+} // namespace seahorn
 
 namespace seahorn {
 
@@ -1440,14 +1426,6 @@ void ShadowMemSeaDsa::getAnalysisUsage(llvm::AnalysisUsage &AU) const {
   AU.setPreservesAll();
 }
 
-bool ShadowMemSeaDsa::hasShadowId(const sea_dsa::Node * n) {
-  auto it = m_shadow->m_nodeIds.find(n);
-  return it != m_shadow->m_nodeIds.end();
-}
-unsigned ShadowMemSeaDsa::getNodeShadowId(const sea_dsa::Node * n){
-  return m_shadow->m_nodeIds.find(n)->getSecond();
-}
-
 sea_dsa::Graph &ShadowMemSeaDsa::getSummaryGraph(const llvm::Function &F) {
   return m_dsa->getSummaryGraph(F);
 }
@@ -1460,6 +1438,52 @@ sea_dsa::Graph &ShadowMemSeaDsa::getDsaGraph(const llvm::Function &F){
 }
 bool ShadowMemSeaDsa::hasDsaGraph(const llvm::Function &F){
   return m_dsa->hasGraph(F);
+}
+
+bool ShadowMemSeaDsa::shadowInstrIsCallSiteParam(llvm::CallSite &cs) {
+  const auto name = cs->getFunction()->getName();
+  return name.equals(ARG_NEW) || name.startswith(ARG_MOD) ||
+         name.equals(ARG_READ);
+}
+
+bool ShadowMemSeaDsa::shadowInstrWrites(CallSite &cs) {
+  const Function *f = cs.getCalledFunction();
+  const auto name = f->getName();
+  return name.equals(ARG_NEW) || name.startswith(ARG_MOD);
+}
+
+bool ShadowMemSeaDsa::shadowInstrReads(CallSite &cs) {
+  const Function * f = cs.getCalledFunction();
+  const auto name = f->getName();
+  return name.equals(ARG_READ) || name.startswith(ARG_MOD);
+}
+
+unsigned ShadowMemSeaDsa::getShadowId(CallSite &cs) {
+  auto &ci = cast<ConstantInt>(*cs.getArgument(0));
+  return ci.getZExtValue();
+}
+
+llvm::Value * ShadowMemSeaDsa::getShadowInAlloc(CallSite &cs) {
+  assert(shadowInstrReads(cs));
+  return cs.getArgument(1);
+}
+// TODO: review this
+llvm::Value * ShadowMemSeaDsa::getShadowOutAlloc(CallSite &cs) {
+  auto name = cs->getFunction()->getName();
+  assert(shadowInstrWrites(cs));
+  return cs.getInstruction();
+}
+
+const llvm::StringRef ShadowMemSeaDsa::ARG_NEW = "shadow.mem.arg.new";
+const llvm::StringRef ShadowMemSeaDsa::ARG_READ = "shadow.mem.arg.ref";
+const llvm::StringRef ShadowMemSeaDsa::ARG_MOD = "shadow.mem.arg.mod";
+
+// bool ShadowMemSeaDsa::hasShadowId(const sea_dsa::Cell *c) {
+//   auto it = m_shadow->m_nodeIds.find(c->getNode());
+//   return it != m_shadow->m_nodeIds.end();
+// }
+unsigned ShadowMemSeaDsa::getCellShadowId(const dsa::Cell &c) {
+  return m_shadow->getFieldId(c);
 }
 
 class StripShadowMem : public ModulePass {

@@ -2,6 +2,8 @@
 #include "llvm/IR/GetElementPtrTypeIterator.h"
 
 #include "seahorn/Transforms/Instrumentation/ShadowMemDsa.hh"
+// ShadowMemDsa should be removed
+#include "seahorn/Transforms/Instrumentation/ShadowMemSeaDsa.hh"
 #include "seahorn/UfoOpMemSem.hh"
 
 #include "seahorn/Support/IteratorExtras.hh"
@@ -607,7 +609,7 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
       side(lhs, op0);
   }
 
-  Expr getOrigArraySymbol(unsigned node_id) {
+  Expr getInArraySymbol(unsigned node_id) {
     auto it = m_nodeids.find(node_id);
     assert(it != m_nodeids.end()); // there should be an entry for that always
 
@@ -617,7 +619,7 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
   // creates a new array symbol for array origE if it was not created already
   Expr freshArraySymbol(unsigned node_id) {
 
-    Expr origE = getOrigArraySymbol(node_id);
+    Expr origE = getInArraySymbol(node_id);
 
     auto it = m_rep.find(node_id);
     if (it == m_rep.end()) { // not copied yet
@@ -641,7 +643,7 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
   // copy
   void newTmpArraySymbol(unsigned node_id, Expr currE, Expr newE) {
 
-    Expr origE = getOrigArraySymbol(node_id);
+    Expr origE = getInArraySymbol(node_id);
 
     // create new name
     assert(bind::isArrayConst(origE));
@@ -666,6 +668,8 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
 
   }
 
+  using ExplSet = DenseSet<const Node *>;
+
   // we need the symbol of the pointer to generate the copy of the symbolic
   // address
   void VCgenMem(CallSite &CS, const Argument *arg, Expr base_ptr) {
@@ -682,25 +686,31 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
     Graph &calleeG = m_sem.m_shadowDsa->getSummaryGraph(*calleeF);
     Graph &callerG = m_sem.m_shadowDsa->getDsaGraph(*callerF);
 
-    SafeNodeSet safeCallerNodes;
+    SafeNodeSet unsafeCallerNodes;
     SimulationMapper simMap;
 
-    GraphExplorer::getSafeNodesCallerGraph(CS,calleeG,callerG,simMap,safeCallerNodes);
+    GraphExplorer::getSafeNodesCallerGraph(CS,calleeG,callerG,simMap,unsafeCallerNodes);
 
     const Cell &c_arg_callee = calleeG.getCell(*arg);
-    ExplorationMap explored;
-    recVCGenMem(c_arg_callee, *CS.getInstruction(), base_ptr, safeCallerNodes,
+    ExplSet explored;
+    recVCGenMem(c_arg_callee, *CS.getInstruction(), base_ptr, unsafeCallerNodes,
                 simMap, explored);
   }
 
   void recVCGenMem(const Cell &c_callee, Instruction &i, Expr ptr,
-                       SafeNodeSet unsafeNodes, SimulationMapper simMap,
-                       ExplorationMap &explored) {
+                   SafeNodeSet unsafeNodes, SimulationMapper simMap,
+                   ExplSet &explored) {
 
     const Node * n_callee = c_callee.getNode();
     const Cell &c_caller = simMap.get(c_callee);
     const Node *n_caller = c_caller.getNode();
-    explored[n_callee] = BLACK; // TODO: change by insert? // TODO: this should be a set
+
+    explored.insert(n_callee); // TODO: change by insert? // TODO: this should be a set
+
+    Expr origA = nullptr, tmpA = nullptr;
+    unsigned shadow_cell_id = m_sem.m_shadowDsa->getCellShadowId(c_caller);
+    origA = getInArraySymbol(shadow_cell_id);
+    tmpA = origA;
 
     // note that this checks modification in the bu graph, which is more precise
     // than the previous approach
@@ -709,33 +719,30 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
       // generate copy conditions for this node, we are basically going to copy
       // the size of the node, this can be refined later
       // First get the name of the "original" logical array
-      Expr origA = getOrigArraySymbol(n_caller->getId());
-
-      Expr tmpA = origA;
-
+      Expr copyA = freshArraySymbol(shadow_cell_id);
       for (unsigned byte = 0; byte < c_callee.getNode()->size(); byte++){
         Expr offset = mkTerm<expr::mpz_class>(byte, m_efac);
 
         Expr dirE = mk<PLUS>(ptr, offset);
-        tmpA = mk<STORE>(tmpA, dirE, mk<SELECT>(origA, dirE));
+        tmpA = mk<STORE>(tmpA, dirE, mk<SELECT>(copyA, dirE));
       }
-      Expr copyA = freshArraySymbol(n_caller->getId());
+
       // Generating an literal per node in the callee to copy
       m_side.push_back(mk<EQ>(copyA,tmpA));
+    }
 
-      // now we follow the pointers of the node
-      for (auto &links : n_callee->getLinks()) {
-        const Field &f = links.first;
-        const Cell &next_c = *links.second;
-        const Node *next_n = next_c.getNode();
+    for (auto &links : n_callee->getLinks()) {
+      const Field &f = links.first;
+      const Cell &next_c = *links.second;
+      const Node *next_n = next_c.getNode();
 
-        if (explored.find(next_n) == explored.end()) { // not explored yet
-          Expr offset = mkTerm<expr::mpz_class>(f.getOffset(), m_efac);
-          Expr next_ptr = mk<SELECT>(tmpA, mk<PLUS>(ptr, offset));
-          recVCGenMem(next_c, i, next_ptr, unsafeNodes, simMap,explored);
-        }
+      if (explored.find(next_n) == explored.end()) { // not explored yet
+        Expr offset = mkTerm<expr::mpz_class>(f.getOffset(), m_efac);
+        Expr next_ptr = mk<SELECT>(tmpA, mk<PLUS>(ptr, offset));
+        recVCGenMem(next_c, i, next_ptr, unsafeNodes, simMap, explored);
       }
     }
+    // now we follow the pointers of the node
   }
 
   void visitCallSite(CallSite CS) {
@@ -871,12 +878,11 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
           errs() << "ret: " << *fi.ret << "\n";
       });
 
-      errs() << m_fparams.size() << " " << bind::domainSz(fi.sumPred) << "\n";
       assert(m_fparams.size() == bind::domainSz(fi.sumPred));
 
       for(auto it: m_rep){
         unsigned node_id = it.getFirst();
-        Expr origA = getOrigArraySymbol(node_id);
+        Expr origA = getInArraySymbol(node_id);
         Expr replaceA = it.getSecond();
 
         for(int i=3; i < m_fparams.size(); i++){ // we can skip the first 3
@@ -904,64 +910,63 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
       m_inRegions.clear();
       m_outRegions.clear();
 
-} else if (F.getName().startswith("shadow.mem")) {
-  if (!m_sem.isTracked(I))
-    return;
+    } else if (F.getName().startswith("shadow.mem")) {
+      if (!m_sem.isTracked(I))
+        return;
 
-  if (F.getName().equals("shadow.mem.init"))
-    m_s.havoc(symb(I));
-  else if (F.getName().equals("shadow.mem.load")) {
-    const Value &v = *CS.getArgument(1);
-    m_inMem = m_s.read(symb(v));
-    m_uniq = extractUniqueScalar(CS) != nullptr;
-  } else if (F.getName().equals("shadow.mem.store")) {
-    m_inMem = m_s.read(symb(*CS.getArgument(1)));
-    m_outMem = m_s.havoc(symb(I));
-    m_uniq = extractUniqueScalar(CS) != nullptr;
-  } else if (F.getName().equals("shadow.mem.global.init")) {
-    m_inMem = m_s.read(symb(*CS.getArgument(1)));
-    m_outMem = m_s.havoc(symb(I));
-    m_side.push_back(mk<EQ>(m_outMem, m_inMem));
-  } else if (F.getName().equals("shadow.mem.arg.ref"))
-    m_fparams.push_back(m_s.read(symb(*CS.getArgument(1))));
-  else if (F.getName().equals("shadow.mem.arg.mod")) {
-    // we cannot know how to copy
-    auto in_par = m_s.read(symb(*CS.getArgument(1)));
-    m_fparams.push_back(in_par);
-    m_inRegions.push_back(in_par);
-    auto out_par = m_s.havoc(symb(I)); // creating new array
-    m_fparams.push_back(out_par);
-    m_outRegions.push_back(out_par);
-  } else if (F.getName().equals("shadow.mem.arg.mod.node")) {
-    auto in_par = m_s.read(symb(*CS.getArgument(1)));
-    m_fparams.push_back(in_par);
-    m_inRegions.push_back(in_par);
-    auto out_par = m_s.havoc(symb(I));
-    m_fparams.push_back(out_par);
-    m_outRegions.push_back(out_par);
-    // store node id to be able to copy later
-    auto &CI = cast<ConstantInt>(*CS.getArgument(4));
-    unsigned node_id = CI.getZExtValue();
-    errs() << "Processed node: " << node_id << " as ";
-    out_par->dump();
-    errs() << "\n";
-    m_nodeids.insert(std::make_pair(node_id, out_par));
-  } else if (F.getName().equals("shadow.mem.arg.new"))
-    m_fparams.push_back(m_s.havoc(symb(I)));
-  else if (!PF.getName().equals("main") && F.getName().equals("shadow.mem.in")) {
-    m_s.read(symb(*CS.getArgument(1)));
-  } else if (!PF.getName().equals("main") &&
-             F.getName().equals("shadow.mem.out")) {
-    m_s.read(symb(*CS.getArgument(1)));
-  } else if (!PF.getName().equals("main") &&
-             F.getName().equals("shadow.mem.arg.init")) {
-    // regions initialized in main are global. We want them to
-    // flow to the arguments
-    /* do nothing */
-  }
-}
-else {
-  if (m_fparams.size() > 3) {
+      if (F.getName().equals("shadow.mem.init"))
+        m_s.havoc(symb(I));
+      else if (F.getName().equals("shadow.mem.load")) {
+        const Value &v = *CS.getArgument(1);
+        m_inMem = m_s.read(symb(v));
+        m_uniq = extractUniqueScalar(CS) != nullptr;
+      } else if (F.getName().equals("shadow.mem.store")) {
+        m_inMem = m_s.read(symb(*CS.getArgument(1)));
+        m_outMem = m_s.havoc(symb(I));
+        m_uniq = extractUniqueScalar(CS) != nullptr;
+      } else if (F.getName().equals("shadow.mem.global.init")) {
+        m_inMem = m_s.read(symb(*CS.getArgument(1)));
+        m_outMem = m_s.havoc(symb(I));
+        m_side.push_back(mk<EQ>(m_outMem, m_inMem));
+      } else if (F.getName().equals(ShadowMemSeaDsa::ARG_READ)) {
+        unsigned shadow_id = m_sem.m_shadowDsa->getShadowId(CS);
+        const Value *shadow_a = m_sem.m_shadowDsa->getShadowInAlloc(CS);
+        auto in_par = m_s.read(symb(*shadow_a));
+        m_fparams.push_back(in_par);
+        m_nodeids.insert(std::make_pair(shadow_id, in_par));
+      } else if (F.getName().equals(ShadowMemSeaDsa::ARG_NEW)) {
+        unsigned shadow_id = m_sem.m_shadowDsa->getShadowId(CS);
+        const Value *shadow_a = m_sem.m_shadowDsa->getShadowOutAlloc(CS);
+        auto out_par = m_s.havoc(symb(*shadow_a));
+        m_fparams.push_back(out_par);
+        m_nodeids.insert(std::make_pair(shadow_id, out_par));
+      } else if (F.getName().startswith(ShadowMemSeaDsa::ARG_MOD)) {
+        auto in_par = m_s.read(symb(*m_sem.m_shadowDsa->getShadowInAlloc(CS)));
+        m_fparams.push_back(in_par);
+        m_inRegions.push_back(in_par);
+        // we need to store the id of the out array (the one that we will copy)
+        unsigned shadow_id = m_sem.m_shadowDsa->getShadowId(CS);
+        const Value *shadow_a = m_sem.m_shadowDsa->getShadowOutAlloc(CS);
+        auto out_par = m_s.havoc(symb(*shadow_a));
+        // creating new array
+        m_fparams.push_back(out_par);
+        m_outRegions.push_back(out_par);
+        m_nodeids.insert(std::make_pair(shadow_id, out_par));
+      } else if (!PF.getName().equals("main") &&
+                 F.getName().equals("shadow.mem.in")) {
+        m_s.read(symb(*CS.getArgument(1)));
+      } else if (!PF.getName().equals("main") &&
+                 F.getName().equals("shadow.mem.out")) {
+        m_s.read(symb(*CS.getArgument(1)));
+      } else if (!PF.getName().equals("main") &&
+                 F.getName().equals("shadow.mem.arg.init")) {
+        // regions initialized in main are global. We want them to
+        // flow to the arguments
+        /* do nothing */
+      }
+    }
+    else {
+      if (m_fparams.size() > 3) {
 
     if (m_sem.isAbstracted(*f)) {
       assert(m_inRegions.size() && m_outRegions.size());

@@ -155,6 +155,7 @@ bool HornifyModule::runOnModule(Module &M) {
   else if (InterProcMem) {
     ShadowMemSeaDsa * shadowmem_analysis =
         getAnalysisIfAvailable<seahorn::ShadowMemSeaDsa>();
+    assert(shadowmem_analysis);
     m_sem.reset(new UfoOpMemSem(m_efac, *this, M.getDataLayout(), TL, abs_fns,
                                 shadowmem_analysis));
   }

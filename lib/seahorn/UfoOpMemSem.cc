@@ -676,9 +676,11 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
     const Function *calleeF = CS.getCalledFunction();
     const Function *callerF = CS.getCaller();
 
-    errs() << "callee: " << calleeF->getGlobalIdentifier();
-    errs() << " caller: " << callerF->getGlobalIdentifier();
-    errs() << "\n";
+    LOG("inter_mem",
+        errs() << "callee: " << calleeF->getGlobalIdentifier();
+        errs() << " caller: " << callerF->getGlobalIdentifier();
+        errs() << "\n";
+        );
 
     if (!m_sem.m_shadowDsa->hasDsaGraph(*calleeF))
       return;
@@ -715,7 +717,7 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
     // note that this checks modification in the bu graph, which is more precise
     // than the previous approach
     if (n_callee->isModified() && GraphExplorer::isSafeNode(unsafeNodes,n_caller)) {
-      errs() << "safe to copy\n";
+      LOG("inter_mem", errs() << "safe to copy\n");
       // generate copy conditions for this node, we are basically going to copy
       // the size of the node, this can be refined later
       // First get the name of the "original" logical array

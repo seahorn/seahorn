@@ -13,6 +13,7 @@
 #include "seahorn/Transforms/Instrumentation/ShadowMemDsa.hh"
 
 #include "seahorn/Expr/ExprLlvm.hh"
+#include "seahorn/Expr/ExprOpBinder.hh"
 
 #include "BvOpSem2Context.hh"
 

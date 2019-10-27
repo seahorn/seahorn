@@ -7,7 +7,7 @@
 #include <map>
 
 namespace seahorn {
-namespace yices {
+namespace solver {
 
 using ycache_t = std::map<expr::Expr, term_t>;
 

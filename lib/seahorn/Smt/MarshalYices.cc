@@ -1,54 +1,65 @@
 #ifdef WITH_YICES2
 
-#include "seahorn/Expr/ExprInterp.hh"
 #include "seahorn/Expr/Smt/MarshalYices.hh"
+#include "seahorn/Expr/ExprInterp.hh"
+#include "seahorn/Expr/ExprOpBinder.hh"
 #include "seahorn/Expr/Smt/Yices2SolverImpl.hh"
+#include "llvm/Support/ErrorHandling.h"
+#include "llvm/Support/raw_ostream.h"
+
+#include "boost/lexical_cast.hpp"
 
 using namespace expr;
 
 namespace seahorn {
-namespace yices {
+namespace solver {
 
-static term_t encode_term_fail(Expr e, const char* error_msg) {
-  if (!error_msg){
+static term_t encode_term_fail(Expr e, const char *error_msg) {
+  if (!error_msg) {
     error_msg = yices::error_string().c_str();
   }
-  llvm::errs() << "encode_term: failed on "
-	       << *e
-	       << "\n"
-	       << error_msg
-	       << "\n";
-  llvm_unreachable(nullptr);
+  std::string str;  
+  raw_string_ostream str_os(str);
+  str_os << "encode_term: failed on "
+	 << *e
+	 << "\n"
+	 << error_msg
+	 << "\n";
+  report_fatal_error(str_os.str());
 }
 
 static void decode_term_fail(std::string error_msg, std::string yices_error_msg = "") {
+  std::string str;
+  raw_string_ostream str_os(str);  
   if (yices_error_msg.empty()) {
-    llvm::errs() << error_msg << "\n";
+    str_os << error_msg << "\n";
   } else {
-    llvm::errs() << error_msg << ":" << yices_error_msg << "\n";
+    str_os << error_msg << ":" << yices_error_msg << "\n";
   }
-  llvm_unreachable(nullptr);
+  report_fatal_error(str_os.str());
 }
 
-static std::string get_function_name(Expr e){
-  Expr fname = bind::fname(e);
-  std::string sname = isOpX<STRING>(fname) ?
-    getTerm<std::string>(fname) :
-    lexical_cast<std::string>(*fname);
+static std::string get_name(Expr e){
+  Expr fname; 
+  if (bind::isFapp(e)) {
+    // name of the app
+    fname = bind::fname (e);
+    // name of the fdecl
+    fname = bind::fname (fname);
+  } else if (bind::isFdecl(e)) {
+    // name of the fdecl
+    fname = bind::fname(e);    
+  } else {
+    fname = e;
+  }
+  
+  std::string sname;
+  if (isOpX<STRING>(fname))
+    sname = getTerm<std::string>(fname);
+  else
+    sname = boost::lexical_cast<std::string>(*fname);
   return sname;
 }
-
-static std::string get_variable_name(Expr e){
-  Expr name = bind::name(e);
-  std::string sname = isOpX<STRING>(name) ?
-    // -- for variables with string names, use the names
-    getTerm<std::string>(name)
-    :
-    // -- for non-string named variables use address
-    "I" + lexical_cast<std::string, void *>(name.get());
-  return sname;
-}
-
 
 type_t marshal_yices::encode_type(Expr e){
   
@@ -62,77 +73,72 @@ type_t marshal_yices::encode_type(Expr e){
   else if (isOpX<ARRAY_TY>(e)) {
     type_t domain = encode_type(e->left());
     type_t range = encode_type(e->right());
-    
-    if(domain != NULL_TYPE && range != NULL_TYPE){
+
+    if (domain != NULL_TYPE && range != NULL_TYPE) {
       res = yices_function_type1(domain, range);
     }
-  }
-  else if (isOpX<BVSORT>(e)){
+  } else if (isOpX<BVSORT>(e)) {
     res = yices_bv_type(bv::width(e));
     assert(res != NULL_TERM);
   } else {
     encode_term_fail(e, "Unhandled sort");
   }
-  
+
   return res;
 }
 
-
-Expr decode_type(type_t ytau, ExprFactory &efac){
+Expr decode_type(type_t ytau, ExprFactory &efac) {
   Expr etype = nullptr;
-  
-  if (yices_type_is_bool(ytau)){
+
+  if (yices_type_is_bool(ytau)) {
     etype = sort::boolTy(efac);
-  }
-  else if (yices_type_is_int(ytau)) {
+  } else if (yices_type_is_int(ytau)) {
     etype = sort::intTy(efac);
-  }
-  else if (yices_type_is_real(ytau)) {
+  } else if (yices_type_is_real(ytau)) {
     etype = sort::realTy(efac);
-  }
-  else if (yices_type_is_bitvector(ytau)){
+  } else if (yices_type_is_bitvector(ytau)) {
     uint32_t bvsize = yices_bvtype_size(ytau);
     etype = bv::bvsort(bvsize, efac);
   } else {
-    char* ytaustr = yices_type_to_string(ytau, 80, 100, 0);
+    char *ytaustr = yices_type_to_string(ytau, 80, 100, 0);
     yices_free_string(ytaustr);
     decode_term_fail("Unhandled sort");
   }
   return etype;
 }
 
-term_t marshal_yices::encode_term(Expr e, ycache_t &cache){
-  
+term_t marshal_yices::encode_term(Expr e, ycache_t &cache) {
+
   assert(e);
-  
+
   if (isOpX<TRUE>(e))
     return yices_true();
   if (isOpX<FALSE>(e))
     return yices_false();
-  
+
   /** check the cache */
   {
     auto it = cache.find(e);
     if (it != cache.end())
       return it->second;
   }
-  
+
   term_t res = NULL_TERM;
   if (bind::isBVar(e)) {
     encode_term_fail(e, nullptr);
-  } else if (isOpX<INT>(e)) {
-    res = yices_int64(getTerm<int>(e));    
+  } else if (isOpX<UINT>(e)) {
+    res = yices_int64(getTerm<unsigned>(e));
   } else if (isOpX<MPQ>(e)) {
     res = yices_mpq(getTerm<expr::mpq_class>(e).get_mpq_t());
   } else if (isOpX<MPZ>(e)) {
-    res = yices_mpz(getTerm<expr::mpz_class>(e).get_mpz_t());    
+    res = yices_mpz(getTerm<expr::mpz_class>(e).get_mpz_t());
   } else if (bv::is_bvnum(e)) {
     res = yices_bvconst_mpz(op::bv::width(e->right()),
-			    getTerm<expr::mpz_class>(e->left()).get_mpz_t());
-  } else if (bind::isBoolConst(e) || bind::isIntConst(e) || bind::isRealConst(e) ||
-	     op::bv::isBvConst(e)) {        
+                            getTerm<expr::mpz_class>(e->left()).get_mpz_t());
+  } else if (bind::isBoolConst(e) || bind::isIntConst(e) ||
+             bind::isRealConst(e) || op::bv::isBvConst(e)) {
     type_t var_type;
-    if (bind::isBoolConst(e)){
+    if (bind::isBoolConst(e)) {
       var_type = yices_bool_type();
     } else if (bind::isIntConst(e)) {
       var_type = yices_int_type();
@@ -140,72 +146,74 @@ term_t marshal_yices::encode_term(Expr e, ycache_t &cache){
       var_type = yices_real_type();
     } else if (op::bv::isBvConst(e)) {
       var_type = yices_bv_type(op::bv::width(e->left()->right()));
-    } 
-    std::string sname =  get_variable_name(e);
+    }
+    std::string sname =  get_name(e);
     const char* varname = sname.c_str();
     res =  yices_new_uninterpreted_term(var_type);
     // give a name
     int32_t errcode = yices_set_term_name(res, varname);
-    if(errcode == -1){
+    if (errcode == -1) {
       encode_term_fail(e, nullptr);
     }
-  }
-  else if (bind::isConst<ARRAY_TY>(e)) {
+  } else if (bind::isConst<ARRAY_TY>(e)) {
     if (bind::isFdecl(e->left())) {
       Expr fdecl = e->left();
       type_t var_type  = encode_type(fdecl->right());
-      std::string sname =  get_variable_name(fdecl);
+      std::string sname =  get_name(fdecl);
       const char* varname = sname.c_str();
       res =  yices_new_uninterpreted_term(var_type);
       // give a name
       int32_t errcode = yices_set_term_name(res, varname);
-      if(errcode == -1){
-	encode_term_fail(e, nullptr);
-      }    
+      if (errcode == -1) {
+        encode_term_fail(e, nullptr);
+      }
     } else {
-      encode_term_fail(e, nullptr);  
+      encode_term_fail(e, nullptr);
     }
   }
   /** function declaration */
   else if (bind::isFdecl(e)) {
+    errs() << "Translating fdecl  " << *e << "\n";
     uint32_t arity = e->arity();
     std::vector<type_t> domain(arity);
     for (size_t i = 0; i < bind::domainSz(e); ++i) {
       type_t yt_i = encode_type(bind::domainTy(e, i));
-      if (yt_i == NULL_TYPE){
-	encode_term_fail(e, "fdecl domain encode error");
-	return NULL_TERM;
+      if (yt_i == NULL_TYPE) {
+        encode_term_fail(e, "fdecl domain encode error");
+        return NULL_TERM;
       }
       domain[i] = yt_i;
     }
-    
+
     type_t range = encode_type(bind::rangeTy(e));
-    if (range == NULL_TYPE){
+    if (range == NULL_TYPE) {
       encode_term_fail(e, "fdecl range encode error");
       return NULL_TERM;
     }
-    
-    type_t declaration_type = yices_function_type(e->arity(), &domain[0], range);
+
+    type_t declaration_type =
+        yices_function_type(e->arity(), &domain[0], range);
     assert(declaration_type != NULL_TYPE);
-    
+
     res = yices_new_uninterpreted_term(declaration_type);
   }
   /** function application */
   else if (bind::isFapp(e)) {
+    errs() << "Translating fapp  " << *e << "\n";    
     if (bind::isFdecl(bind::fname(e))) {
       term_t yfdecl = encode_term(bind::fname(e), cache);
       assert(yfdecl != NULL_TERM);
-      
+
       uint32_t arity = e->arity() - 1;
       std::vector<term_t> args(arity);
       unsigned pos = 0;
-      for (ENode::args_iterator it = ++(e->args_begin()), end = e->args_end();
-	   it != end; ++it) {
-	term_t arg_i = encode_term(*it, cache);
-	assert(arg_i != NULL_TERM);
-	args[pos++] = arg_i;
+      for (auto it = ++(e->args_begin()), end = e->args_end(); it != end;
+           ++it) {
+        term_t arg_i = encode_term(*it, cache);
+        assert(arg_i != NULL_TERM);
+        args[pos++] = arg_i;
       }
-      
+
       res = yices_application(yfdecl, arity, &args[0]);
       assert(res != NULL_TERM);
     } else {
@@ -215,15 +223,14 @@ term_t marshal_yices::encode_term(Expr e, ycache_t &cache){
     encode_term_fail(e, nullptr);
   }
 
-  
   // -- cache the result for unmarshaling
-  if (res !=  NULL_TERM) {
+  if (res != NULL_TERM) {
     cache[e] = res;
     return res;
   }
-  
+
   int arity = e->arity();
-  
+
   /** other terminal expressions */
   if (arity == 0) {
     return encode_term_fail(e, "zero arity unexpected");
@@ -232,35 +239,29 @@ term_t marshal_yices::encode_term(Expr e, ycache_t &cache){
 
     if (isOpX<UN_MINUS>(e)) {
       res = yices_neg(arg);
-    }
-    else if (isOpX<NEG>(e)) {
+    } else if (isOpX<NEG>(e)) {
       res = yices_not(arg);
-    }
-    else if (isOpX<ARRAY_DEFAULT>(e)) {
+    } else if (isOpX<ARRAY_DEFAULT>(e)) {
       encode_term_fail(e, "Array default term not supported in yices");
-    }
-    else if (isOpX<BNOT>(e)) {
+    } else if (isOpX<BNOT>(e)) {
       res = yices_bvnot(arg);
-    }
-    else if (isOpX<BNEG>(e)) {
+    } else if (isOpX<BNEG>(e)) {
       res = yices_bvneg(arg);
-    }
-    else if (isOpX<BREDAND>(e)) {
+    } else if (isOpX<BREDAND>(e)) {
       res = yices_redand(arg);
-    }
-    else if (isOpX<BREDOR>(e)) {
+    } else if (isOpX<BREDOR>(e)) {
       res = yices_redor(arg);
-    }
-    else if (isOpX<ASM>(e)) {
+    } else if (isOpX<ASM>(e)) {
       res = arg;
-    }
-    else {
+    } else {
       encode_term_fail(e, "unhandled arity 1 case");
     }
-  }
-  else if (arity == 2){
+  } else if (arity == 2) {
     term_t t1 = encode_term(e->left(), cache);
-    term_t t2 = encode_term(e->right(), cache);
+    term_t t2;    
+    if (!isOpX<BSEXT>(e) && !isOpX<BZEXT>(e)) {    
+      t2 = encode_term(e->right(), cache);
+    }
     
     if (isOpX<AND>(e))
       res = yices_and2(t1, t2);
@@ -272,7 +273,7 @@ term_t marshal_yices::encode_term(Expr e, ycache_t &cache){
       res = yices_iff(t1, t2);
     else if (isOpX<XOR>(e))
       res = yices_xor2(t1, t2);
-    
+
     /** NumericOp */
     else if (isOpX<PLUS>(e))
       res = yices_add(t1, t2);
@@ -284,10 +285,10 @@ term_t marshal_yices::encode_term(Expr e, ycache_t &cache){
       res = yices_division(t1, t2);
     else if (isOpX<MOD>(e))
       res = yices_imod(t1, t2);
-    else if (isOpX<REM>(e)){
-      encode_term_fail(e,  "Integer remainder not supported in yices");
+    else if (isOpX<REM>(e)) {
+      encode_term_fail(e, "Integer remainder not supported in yices");
     }
-    /** Comparison Op */
+    /** Compare Op */
     else if (isOpX<EQ>(e))
       res = yices_eq(t1, t2);
     else if (isOpX<NEQ>(e))
@@ -315,10 +316,10 @@ term_t marshal_yices::encode_term(Expr e, ycache_t &cache){
       unsigned t2_sz = bv::width(e->arg(1));
       assert(t1_sz > 0);
       assert(t1_sz < t2_sz);
-      if (isOpX<BSEXT>(e)){
-	res = yices_sign_extend(t1, t2_sz - t1_sz);
-      }  else {
-	res = yices_zero_extend(t1, t2_sz - t1_sz);
+      if (isOpX<BSEXT>(e)) {
+        res = yices_sign_extend(t1, t2_sz - t1_sz);
+      } else {
+        res = yices_zero_extend(t1, t2_sz - t1_sz);
       }
     } else if (isOpX<BAND>(e))
       res = yices_bvand2(t1, t2);
@@ -378,17 +379,16 @@ term_t marshal_yices::encode_term(Expr e, ycache_t &cache){
     assert(bv::high(e) >= bv::low(e));
     term_t b = encode_term(bv::earg(e), cache);
     res = yices_bvextract(b, bv::low(e), bv::high(e));
-  } else if (isOpX<AND>(e) || isOpX<OR>(e) || isOpX<ITE>(e) ||
-	     isOpX<XOR>(e) || isOpX<PLUS>(e) || isOpX<MINUS>(e) ||
-	     isOpX<MULT>(e) || isOpX<STORE>(e)) {
-    
+  } else if (isOpX<AND>(e) || isOpX<OR>(e) || isOpX<ITE>(e) || isOpX<XOR>(e) ||
+             isOpX<PLUS>(e) || isOpX<MINUS>(e) || isOpX<MULT>(e) ||
+             isOpX<STORE>(e)) {
+
     std::vector<term_t> args;
-    for (ENode::args_iterator it = e->args_begin(), end = e->args_end();
-	 it != end; ++it) {
-      term_t yt  = encode_term(*it, cache);
+    for (auto it = e->args_begin(), end = e->args_end(); it != end; ++it) {
+      term_t yt = encode_term(*it, cache);
       args.push_back(yt);
     }
-    
+
     if (isOp<ITE>(e)) {
       assert(e->arity() == 3);
       res = yices_ite(args[0], args[1], args[2]);
@@ -398,7 +398,7 @@ term_t marshal_yices::encode_term(Expr e, ycache_t &cache){
       res = yices_or(args.size(), &args[0]);
     else if (isOp<PLUS>(e))
       res = yices_sum(args.size(), &args[0]);
-    else if (isOp<MINUS>(e)){
+    else if (isOp<MINUS>(e)) {
       term_t rhs = yices_sum(args.size() - 1, &args[1]);
       res = yices_sub(args[0], rhs);
     } else if (isOp<MULT>(e))
@@ -406,44 +406,46 @@ term_t marshal_yices::encode_term(Expr e, ycache_t &cache){
     else if (isOp<STORE>(e)) {
       assert(e->arity() == 3);
       res = yices_update1(args[0], args[1], args[2]);
-    } else  {
+    } else {
       encode_term_fail(e, "supported term in yices");
     }
   } else {
     encode_term_fail(e, "Unhandled case");
   }
 
-  if (res ==  NULL_TERM) {
-    encode_term_fail(e, yices::error_string().c_str());    
+  if (res == NULL_TERM) {
+    encode_term_fail(e, yices::error_string().c_str());
   }
-  
+
   cache[e] = res;
   return res;
 }
 
-Expr marshal_yices::decode_yval(yval_t &yval,  ExprFactory &efac, model_t *model, bool isArray, Expr domain, Expr range){
+Expr marshal_yices::decode_yval(yval_t &yval, ExprFactory &efac, model_t *model,
+                                bool isArray, Expr domain, Expr range) {
   Expr res = nullptr;
-  
+
   // for the yices2 API
   int32_t errcode;
-  
+
   /* atomic terms */
-  switch(yval.node_tag){
+  switch (yval.node_tag) {
   case YVAL_BOOL: {
     int32_t value;
     errcode = yices_val_get_bool(model, &yval, &value);
-    if(errcode == -1){
+    if (errcode == -1) {
       decode_term_fail("yices_val_get_bool failed: ", yices::error_string());
     }
     res = value == 1 ? mk<TRUE>(efac) : mk<FALSE>(efac);
     break;
   }
   case YVAL_RATIONAL: {
-    // We try to get the thing as an MPZ first, if that fails, then we get an MPQ.
+    // We try to get the thing as an MPZ first, if that fails, then we get an
+    // MPQ.
     mpz_t z;
     mpz_init(z);
     errcode = yices_val_get_mpz(model, &yval, z);
-    if(errcode != -1){
+    if (errcode != -1) {
       expr::mpz_class zpp(z);
       res = mkTerm(zpp, efac);
       mpz_clear(z);
@@ -454,7 +456,7 @@ Expr marshal_yices::decode_yval(yval_t &yval,  ExprFactory &efac, model_t *model
     mpq_t q;
     mpq_init(q);
     errcode = yices_val_get_mpq(model, &yval, q);
-    if (errcode == -1){
+    if (errcode == -1) {
       decode_term_fail("yices_val_get_rat failed: ", yices::error_string());
     } else {
       expr::mpq_class qpp(q);
@@ -465,22 +467,22 @@ Expr marshal_yices::decode_yval(yval_t &yval,  ExprFactory &efac, model_t *model
   }
   case YVAL_BV: {
     uint32_t n = yices_val_bitsize(model, &yval);
-    if (n == 0){
+    if (n == 0) {
       decode_term_fail("yices_val_bitsize failed");
     }
-    
-    int32_t* vals = new int32_t[n];
+
+    int32_t *vals = new int32_t[n];
     errcode = yices_val_get_bv(model, &yval, vals);
-    if (errcode == -1){
+    if (errcode == -1) {
       decode_term_fail("yices_val_get_bv failed: ", yices::error_string());
     }
 
-    char* cvals = new char[n+1];    
-    for(unsigned i = 0; i < n; i++){
-      cvals[n-i-1] = vals[i] ? '1' : '0';
+    char *cvals = new char[n + 1];
+    for (unsigned i = 0; i < n; i++) {
+      cvals[n - i - 1] = vals[i] ? '1' : '0';
     }
     cvals[n] = 0;
-    // string in binary representation 
+    // string in binary representation
     std::string snum(cvals);
     res = bv::bvnum(expr::mpz_class(snum, 2), n, efac);
 
@@ -506,10 +508,10 @@ Expr marshal_yices::decode_yval(yval_t &yval,  ExprFactory &efac, model_t *model
       2) a default value
      */
     uint32_t arity = yices_val_function_arity(model, &yval);
-    
-    if (isArray){
-      if (arity != 1){
-	decode_term_fail("Not expecting an array arity different from 1");
+
+    if (isArray) {
+      if (arity != 1) {
+        decode_term_fail("Not expecting an array arity different from 1");
       }
     }
 
@@ -517,49 +519,54 @@ Expr marshal_yices::decode_yval(yval_t &yval,  ExprFactory &efac, model_t *model
     yices_init_yval_vector(&yvec);
     yval_t def_val; // the default value
     errcode = yices_val_expand_function(model, &yval, &def_val, &yvec);
-    if (errcode == -1){
-      decode_term_fail("yices_val_expand_function failed: ", yices::error_string());
+    if (errcode == -1) {
+      decode_term_fail("yices_val_expand_function failed: ",
+                       yices::error_string());
     }
-    
-    Expr def_val_expr = decode_yval(def_val, efac, model, false, nullptr, nullptr);
 
-    // typedef for a mapping 
+    Expr def_val_expr =
+        decode_yval(def_val, efac, model, false, nullptr, nullptr);
+
+    // typedef for a mapping
     typedef std::pair<ExprVector, Expr> mapping_t;
     uint32_t num_mappings = yvec.size;
     // our sequence of mappings
     std::vector<mapping_t> entries(num_mappings);
-    for(unsigned i = 0; i < num_mappings;  i++){
+    for (unsigned i = 0; i < num_mappings; i++) {
       yval_t args[arity];
       yval_t val;
       errcode = yices_val_expand_mapping(model, &yvec.data[i], args, &val);
-      if (errcode == -1){
-	decode_term_fail("yices_val_expand_mapping failed: ", yices::error_string());
+      if (errcode == -1) {
+        decode_term_fail("yices_val_expand_mapping failed: ",
+                         yices::error_string());
       }
-      
-      for(unsigned j = 0; j < arity; j++){
-	Expr args_j_expr = decode_yval(args[j], efac, model, false, nullptr, nullptr);  
-	entries[i].first.push_back(args_j_expr);
+
+      for (unsigned j = 0; j < arity; j++) {
+        Expr args_j_expr =
+            decode_yval(args[j], efac, model, false, nullptr, nullptr);
+        entries[i].first.push_back(args_j_expr);
       }
-      entries[i].second = decode_yval(val, efac, model, false, nullptr, nullptr);
+      entries[i].second =
+          decode_yval(val, efac, model, false, nullptr, nullptr);
     }
-    
+
     yices_delete_yval_vector(&yvec);
     Expr exp_i;
-    
-    if (isArray){
+
+    if (isArray) {
       // make the array expr
-      exp_i = op::array::constArray (domain, def_val_expr);
-      for(unsigned i = 0; i < num_mappings;  i++){
-	exp_i = op::array::store(exp_i, entries[i].first[0], entries[i].second);
+      exp_i = op::array::constArray(domain, def_val_expr);
+      for (unsigned i = 0; i < num_mappings; i++) {
+        exp_i = op::array::store(exp_i, entries[i].first[0], entries[i].second);
       }
       res = exp_i;
     } else {
-      //make the function expr
+      // make the function expr
       std::vector<Expr> fentries(num_mappings);
-      for(unsigned i = 0; i < num_mappings;  i++){
-	fentries[i] = op::mdl::fentry(entries[i].first, entries[i].second);
+      for (unsigned i = 0; i < num_mappings; i++) {
+        fentries[i] = op::mdl::fentry(entries[i].first, entries[i].second);
       }
-      res = op::mdl::ftable (fentries, def_val_expr);
+      res = op::mdl::ftable(fentries, def_val_expr);
     }
 
     break;
@@ -574,49 +581,44 @@ Expr marshal_yices::decode_yval(yval_t &yval,  ExprFactory &efac, model_t *model
 
 // This only works for simple expressions; constants (either atomic or
 // uninterpreted function)
-Expr marshal_yices::eval(Expr expr,  ExprFactory &efac, ycache_t &cache,
-			 bool complete, model_t *model){
+Expr marshal_yices::eval(Expr expr, ExprFactory &efac, ycache_t &cache,
+                         bool complete, model_t *model) {
 
   term_t yt_var = encode_term(expr, cache);
   if(yt_var == NULL_TERM){
-    llvm_unreachable("Could not convert an Expr into a yices term");
+    report_fatal_error("Could not convert an Expr into a yices term");
   }
 
   yval_t yval;
   int32_t errcode = yices_get_value(model, yt_var, &yval);
-  if(errcode == -1){
-    decode_term_fail("yices_get_value failed: ", yices::error_string());    
+  if (errcode == -1) {
+    decode_term_fail("yices_get_value failed: ", yices::error_string());
   }
 
-  bool is_array = false;;
-  Expr expr_type = nullptr;
+  bool is_array = false;
   Expr domain = nullptr;
-  Expr range  = nullptr;
+  Expr range = nullptr;
 
-  if( bind::isBoolConst(expr) ) {
-    expr_type = bind::type(expr);
-  }
-  else if (bind::isIntConst(expr)){
-    expr_type = bind::type(expr);
-  }
-  else if (bind::isRealConst(expr)){
-    expr_type = bind::type(expr);
-  }
-  else if (bv::isBvConst(expr)){
-    expr_type = bind::type(expr);
-  }
-  else if (bind::isConst<ARRAY_TY>(expr)){
+  if (bind::isBoolConst(expr) || bind::isIntConst(expr) ||
+      bind::isRealConst(expr) || op::bv::isBvConst(expr)) {
+    // do nothing
+  } else if (bind::isConst<ARRAY_TY>(expr)){
     if (bind::isFdecl(expr->left())) {
       is_array = true;
-      expr_type = expr->left()->right();
+      Expr expr_type = expr->left()->right();
       domain = op::sort::arrayIndexTy(expr_type);
-      range  = op::sort::arrayValTy(expr_type);
+      range = op::sort::arrayValTy(expr_type);
     } else {
       decode_term_fail("eval failed with array constant");
     }
-  }
-  else {
-    decode_term_fail("eval failed: not expecting anything other than a constant expression");
+  } else {
+    if (isOpX<AND>(expr) && expr->arity() == 2) {
+      return op::boolop::land(eval(expr->left(), efac, cache, complete, model),
+			      eval(expr->right(), efac, cache, complete, model));
+    } 
+    
+    errs() << *expr << "\n";
+    decode_term_fail("eval failed: expecting only binary conjunction of constant expressions");
   }
   
   Expr res =  marshal_yices::decode_yval(yval, efac, model, is_array, domain, range);
@@ -625,7 +627,7 @@ Expr marshal_yices::eval(Expr expr,  ExprFactory &efac, ycache_t &cache,
   }
   return res;
 }
-}
-}
+} // namespace yices
+} // namespace seahorn
 
 #endif

@@ -18,11 +18,11 @@ using namespace seahorn;
 static void run(seahorn::solver::Solver *s, Expr e, const ExprVector& model_vars) {
   s->push();
   if (bool success = s->add(e)){
-    seahorn::solver::Solver::result answer = s->check();
-    if(answer == seahorn::solver::Solver::ERROR){
+    seahorn::solver::SolverResult answer = s->check();
+    if(answer == seahorn::solver::SolverResult::ERROR){
       errs() << "Solver::check failed!\n";
     } else {
-      if (answer == seahorn::solver::Solver::SAT){
+      if (answer == seahorn::solver::SolverResult::SAT){
 	errs() << "SAT\n";
 	seahorn::solver::Solver::model_ref model = s->get_model();
 	for(unsigned i=0,e=model_vars.size();i<e;++i) {
@@ -30,7 +30,7 @@ static void run(seahorn::solver::Solver *s, Expr e, const ExprVector& model_vars
 	  llvm::errs () << "val" << *model_vars[i] << " = " << *valx  << "\n";
 	}
 	errs () << *model << "\n";
-      } else if (answer == seahorn::solver::Solver::UNSAT) {
+      } else if (answer == seahorn::solver::SolverResult::UNSAT) {
 	errs() << "UNSAT\n";	
       } else {
 	errs() << "UNKNOWN\n";	
@@ -56,8 +56,8 @@ static void unsat_core(seahorn::solver::Solver *s, const ExprVector &f, ExprVect
     s->add(mk<IMPL>(a, v));
   }
 
-  seahorn::solver::Solver::result  res = s->check_with_assumptions(assumptions);
-  if (res == seahorn::solver::Solver::UNSAT) {
+  seahorn::solver::SolverResult  res = s->check_with_assumptions(assumptions);
+  if (res == seahorn::solver::SolverResult::UNSAT) {
     s->unsat_core(out);
   }
   
@@ -71,13 +71,11 @@ static void unsat_core(seahorn::solver::Solver *s, const ExprVector &f, ExprVect
 
 TEST_CASE("yices2-int.test") {
   
-  seahorn::solver::solver_options opts;
   expr::ExprFactory efac;
 
-  seahorn::yices::yices_solver_impl yices_solver(&opts, efac);
+  seahorn::solver::yices_solver_impl yices_solver(efac);
   seahorn::solver::Solver* ysolver = &yices_solver;
-  EZ3 ctx(efac);
-  seahorn::z3::z3_solver_impl z3_solver(&opts,ctx);
+  seahorn::solver::z3_solver_impl z3_solver(efac);
   seahorn::solver::Solver* zsolver = &z3_solver;
   
   Expr x = bind::intConst (mkTerm<string> ("x", efac));
@@ -132,7 +130,6 @@ TEST_CASE("yices2-bv.test") {
   using namespace expr;
   using namespace seahorn;
   
-  seahorn::solver::solver_options opts;
   expr::ExprFactory efac;
 
   Expr x = op::bv::bvConst (mkTerm<string> ("x", efac), 32);
@@ -149,13 +146,12 @@ TEST_CASE("yices2-bv.test") {
   errs() << "Asserting " << *e << "\n";
 
   errs() << "==== Yices2\n";
-  seahorn::yices::yices_solver_impl yices_solver(&opts, efac);
+  seahorn::solver::yices_solver_impl yices_solver(efac);
   errs() << "Result: ";
   run(&yices_solver, e, {x,y});
   
   errs() << "==== Z3\n";
-  EZ3 ctx(efac);
-  seahorn::z3::z3_solver_impl z3_solver(&opts,ctx);
+  seahorn::solver::z3_solver_impl z3_solver(efac);
   errs() << "Result: ";
   run(&z3_solver, e, {x,y});
   
@@ -168,7 +164,6 @@ TEST_CASE("yices2-int-arr.test") {
   using namespace expr;
   using namespace seahorn;
   
-  seahorn::solver::solver_options opts;
   expr::ExprFactory efac;
 
   // integer variables
@@ -199,13 +194,12 @@ TEST_CASE("yices2-int-arr.test") {
   errs() << "Asserting " << *e << "\n";
 
   errs() << "==== Yices2\n";
-  seahorn::yices::yices_solver_impl yices_solver(&opts, efac);
+  seahorn::solver::yices_solver_impl yices_solver(efac);
   errs() << "Result: ";
   run(&yices_solver, e, {x,y,a3});
   
   errs() << "==== Z3\n";
-  EZ3 ctx(efac);
-  seahorn::z3::z3_solver_impl z3_solver(&opts,ctx);
+  seahorn::solver::z3_solver_impl z3_solver(efac);
   errs() << "Result: ";
   run(&z3_solver, e, {x,y ,a3});
   
@@ -219,7 +213,6 @@ TEST_CASE("yices2-int-bv.test") {
   using namespace expr;
   using namespace seahorn;
   
-  seahorn::solver::solver_options opts;
   expr::ExprFactory efac;
 
   // integer variables
@@ -254,13 +247,12 @@ TEST_CASE("yices2-int-bv.test") {
   errs() << "Asserting " << *e << "\n";
 
   errs() << "==== Yices2\n";
-  seahorn::yices::yices_solver_impl yices_solver(&opts, efac);
+  seahorn::solver::yices_solver_impl yices_solver(efac);
   errs() << "Result: ";
   run(&yices_solver, e, {x,y,a3});
   
   errs() << "==== Z3\n";
-  EZ3 ctx(efac);
-  seahorn::z3::z3_solver_impl z3_solver(&opts,ctx);
+  seahorn::solver::z3_solver_impl z3_solver(efac);
   errs() << "Result: ";
   run(&z3_solver, e, {x,y,a3});
   

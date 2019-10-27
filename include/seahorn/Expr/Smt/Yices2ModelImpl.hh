@@ -7,9 +7,9 @@
 #include "seahorn/Expr/Smt/Yices2SolverImpl.hh"
 
 namespace seahorn {
-namespace yices {
+namespace solver {
 
-class yices_model_impl : public solver::model {
+class yices_model_impl : public Model {
   
   /* printing defaults */
   static  uint32_t width;

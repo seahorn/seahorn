@@ -22,7 +22,10 @@ add_llvm_library (seahorn.LIB
   HornClauseDB.cc
   HornClauseDBTransf.cc
   PathBmc.cc
+  PathBmcBoolAbs.cc  
+  PathBmcMuc.cc
   PathBmcTrace.cc
+  PathBmcUtil.cc  
   Bmc.cc
   BmcPass.cc
   BvOpSem.cc
@@ -41,8 +44,10 @@ add_llvm_library (seahorn.LIB
   DfCoiAnalysis.cc
   )
 
+add_subdirectory(Smt)
 if (HAVE_CLAM)
   target_link_libraries (seahorn.LIB ${CLAM_LIBS})
 endif()
+
 
 set_target_properties (seahorn.LIB PROPERTIES OUTPUT_NAME "seahorn")

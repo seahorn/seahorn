@@ -1,11 +1,12 @@
 #pragma once
+
 #include "seahorn/config.h"
-#ifdef HAVE_CLAM
 
 #include "llvm/IR/DebugInfo.h"
 #include "llvm/IR/DebugLoc.h"
 
 #include "seahorn/Bmc.hh"
+#include "seahorn/Expr/Smt/Model.hh"
 #include "seahorn/PathBmc.hh"
 #include "seahorn/Support/SeaDebug.h"
 
@@ -13,19 +14,59 @@ namespace seahorn {
 
 using namespace llvm;
 
-PathBmcTrace::PathBmcTrace(PathBmcEngine &bmc, ZModel<EZ3> &model)
+void PathBmcTrace::get_model_implicant(const ExprVector &f) {
+  // XXX This is a partial implementation. Specialized to the
+  // constraints expected to occur in m_side.
+  Expr bool_lit = nullptr;
+  for (auto v : f) {
+    // -- break IMPL into an OR
+    // -- OR into a single disjunct
+    // -- single disjunct into an AND
+    if (isOpX<IMPL>(v)) {
+      assert(v->arity() == 2);
+      Expr v0 = m_model->eval(v->arg(0), false);
+      Expr a0 = v->arg(0);
+      if (isOpX<FALSE>(v0))
+        continue;
+      else if (isOpX<TRUE>(v0)) {
+        v = mknary<OR>(mk<FALSE>(v0->efac()), ++(v->args_begin()),
+                       v->args_end());
+        bool_lit = a0;
+      } else
+        continue;
+    }
+
+    if (isOpX<OR>(v)) {
+      for (unsigned i = 0; i < v->arity(); ++i)
+        if (isOpX<TRUE>(m_model->eval(v->arg(i), false))) {
+          v = v->arg(i);
+          break;
+        }
+    }
+    if (isOpX<AND>(v)) {
+      for (unsigned i = 0; i < v->arity(); ++i) {
+        m_trace.push_back(v->arg(i));
+        if (bool_lit)
+          m_bool_map[v->arg(i)] = bool_lit;
+      }
+    } else {
+      m_trace.push_back(v);
+      if (bool_lit)
+        m_bool_map[v] = bool_lit;
+    }
+  }
+}
+
+PathBmcTrace::PathBmcTrace(PathBmcEngine &bmc, solver::Solver::model_ref model)
     : m_bmc(bmc), m_model(model) {
-  
+
   // construct an implicant of the precise condition
-  const ExprVector& encoding = m_bmc.getPreciseEncoding();
-  
+  const ExprVector &encoding = m_bmc.getPreciseEncoding();
+
   m_trace.reserve(encoding.size());
   ExprMap bool_map /*unused*/;
-  bmc_impl::get_model_implicant(encoding,
-				m_model, m_trace,
-                                m_bool_map);
-  boost::container::flat_set<Expr>
-    implicant(m_trace.begin(), m_trace.end());
+  get_model_implicant(encoding);
+  boost::container::flat_set<Expr> implicant(m_trace.begin(), m_trace.end());
 
   // construct the trace from the implicant
 
@@ -94,7 +135,7 @@ Expr PathBmcTrace::symb(unsigned loc, const Value &val) {
 Expr PathBmcTrace::eval(unsigned loc, const Value &val, bool complete) {
   Expr v = symb(loc, val);
   if (v)
-    v = m_model.eval(v, complete);
+    v = m_model->eval(v, complete);
   return v;
 }
 
@@ -108,7 +149,7 @@ Expr PathBmcTrace::eval(unsigned loc, Expr u, bool complete) {
 
   SymStore &store = m_bmc.getStates()[stateidx];
   Expr v = store.eval(u);
-  return m_model.eval(v, complete);
+  return m_model->eval(v, complete);
 }
 
 void PathBmcTrace::print(raw_ostream &out) {
@@ -116,7 +157,7 @@ void PathBmcTrace::print(raw_ostream &out) {
   for (unsigned loc = 0; loc < size(); ++loc) {
     const BasicBlock &BB = *bb(loc);
     out << BB.getName() << ": \n";
-    
+
     for (auto &I : BB) {
       if (const DbgValueInst *dvi = dyn_cast<DbgValueInst>(&I)) {
         if (dvi->getValue() && dvi->getVariable()) {
@@ -144,7 +185,7 @@ void PathBmcTrace::print(raw_ostream &out) {
           }
           continue;
         } else if (f && f->getName().equals("shadow.mem.init")) {
-          #if 0
+#if 0
           // disabling since this is not supported by non-legacy
           // OperationalSemantics
           out.changeColor(raw_ostream::RED);
@@ -159,7 +200,7 @@ void PathBmcTrace::print(raw_ostream &out) {
           if (u)
             out << "  " << *memEnd << " " << *u << "\n";
           out.resetColor();
-          #endif
+#endif
           print_inst = false;
         }
       }
@@ -187,4 +228,3 @@ void PathBmcTrace::print(raw_ostream &out) {
 }
 
 } // end namespace seahorn
-#endif

@@ -1,5 +1,5 @@
 #include "BvOpSem2Context.hh"
-
+#include "seahorn/Expr/ExprOpBinder.hh"
 namespace {
 template <typename T, typename... Rest>
 auto as_std_array(const T &t, const Rest &... rest) ->

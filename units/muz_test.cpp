@@ -13,8 +13,7 @@ TEST_CASE("z3.muz_test" * doctest::skip(true)) {
   errs() << "Size of AND: " << sizeof(AND) << "\n"
          << "Size of PLUS: " << sizeof(PLUS) << "\n"
          << "Size of STRING: " << sizeof(STRING) << "\n"
-         << "Size of INT: " << sizeof(INT) << "\n"
-         << "Size of ULONG: " << sizeof(ULONG) << "\n"
+         << "Size of UINT: " << sizeof(UINT) << "\n"
          << "Size of ENode: " << sizeof(ENode) << "\n";
 
   Expr x = bind::intConst(mkTerm<string>("x", efac));

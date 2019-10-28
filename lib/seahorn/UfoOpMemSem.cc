@@ -609,20 +609,24 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
       side(lhs, op0);
   }
 
-  Expr getInArraySymbol(unsigned node_id) {
-    auto it = m_nodeids.find(node_id);
+  Expr getInArraySymbol(unsigned shadow_id) {
+    auto it = m_nodeids.find(shadow_id);
     assert(it != m_nodeids.end()); // there should be an entry for that always
-
     return it->getSecond();
   }
 
+  void addInArraySymbol(unsigned shadow_id, Expr A){
+    LOG("inter_mem", errs() << "adding " << shadow_id << " as " << A << "\n");
+    auto pair = std::make_pair(shadow_id, A);
+    m_nodeids.insert(pair);
+    // m_tmprep.insert(pair);
+  }
   // creates a new array symbol for array origE if it was not created already
-  Expr freshArraySymbol(unsigned node_id) {
+  Expr getFreshArraySymbol(unsigned shadow_id) {
 
-    Expr origE = getInArraySymbol(node_id);
-
-    auto it = m_rep.find(node_id);
+    auto it = m_rep.find(shadow_id);
     if (it == m_rep.end()) { // not copied yet
+      Expr origE = getInArraySymbol(shadow_id);
       assert(bind::isArrayConst(origE));
       Expr name = bind::fname(origE);
       Expr rTy = bind::rangeTy(name);
@@ -631,19 +635,24 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
           mkTerm<std::string>("copy_" + std::to_string(++m_copy_count), m_efac),
           rTy);
 
-      m_rep.insert(std::make_pair(node_id, copyE));
-      m_tmprep.insert(std::make_pair(node_id, copyE));
+      m_rep.insert(std::make_pair(shadow_id, copyE));
       return copyE;
     } else
       return it->getSecond();
   }
 
+  Expr getCurrArraySymbol(unsigned shadow_id) {
+    auto it = m_tmprep.find(shadow_id);
+    assert(it == m_tmprep.end());
+    return it->getSecond();
+  }
+
   // creates a new array symbol for intermediate copies of an original array
   // origE. currE is the current intermediate name and newE is the new value to
   // copy
-  void newTmpArraySymbol(unsigned node_id, Expr currE, Expr newE) {
+  void newTmpArraySymbol(unsigned shadow_id, Expr &currE, Expr &newE) {
 
-    Expr origE = getInArraySymbol(node_id);
+    Expr origE = getInArraySymbol(shadow_id);
 
     // create new name
     assert(bind::isArrayConst(origE));
@@ -654,18 +663,17 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
         mkTerm<std::string>("copy_" + std::to_string(++m_copy_count), m_efac),
         rTy);
 
-    auto it = m_tmprep.find(node_id);
+    auto it = m_tmprep.find(shadow_id);
 
-    if (it == m_tmprep.end()) { // this should never happen
+    if (it == m_tmprep.end()) {
       currE = origE;
-      m_tmprep.insert(std::make_pair(node_id, newE));
+      m_tmprep.insert(std::make_pair(shadow_id, newE));
     }
     else{
       currE = it->getSecond();
-      m_tmprep.erase(node_id);
-      m_tmprep.insert(std::make_pair(node_id, newE));
+      m_tmprep.erase(shadow_id);
+      m_tmprep.insert(std::make_pair(shadow_id, newE));
     }
-
   }
 
   using ExplSet = DenseSet<const Node *>;
@@ -707,21 +715,21 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
     const Cell &c_caller = simMap.get(c_callee);
     const Node *n_caller = c_caller.getNode();
 
-    explored.insert(n_callee); // TODO: change by insert? // TODO: this should be a set
+    explored.insert(n_callee);
 
-    Expr origA = nullptr, tmpA = nullptr;
     unsigned shadow_cell_id = m_sem.m_shadowDsa->getCellShadowId(c_caller);
-    origA = getInArraySymbol(shadow_cell_id);
-    tmpA = origA;
+    Expr origA = getInArraySymbol(shadow_cell_id);
 
-    // note that this checks modification in the bu graph, which is more precise
+    // checking modification in the bu graph, which is more precise
     // than the previous approach
     if (n_callee->isModified() && GraphExplorer::isSafeNode(unsafeNodes,n_caller)) {
+      Expr copyA = getFreshArraySymbol(shadow_cell_id);
+      Expr tmpA = nullptr, nextA = nullptr;
+      newTmpArraySymbol(shadow_cell_id, tmpA, nextA);
       LOG("inter_mem", errs() << "safe to copy\n");
       // generate copy conditions for this node, we are basically going to copy
       // the size of the node, this can be refined later
       // First get the name of the "original" logical array
-      Expr copyA = freshArraySymbol(shadow_cell_id);
       for (unsigned byte = 0; byte < c_callee.getNode()->size(); byte++){
         Expr offset = mkTerm<expr::mpz_class>(byte, m_efac);
 
@@ -730,9 +738,9 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
       }
 
       // Generating an literal per node in the callee to copy
-      m_side.push_back(mk<EQ>(copyA,tmpA));
+      m_side.push_back(mk<EQ>(nextA, tmpA));
     }
-
+    // now we follow the pointers of the node
     for (auto &links : n_callee->getLinks()) {
       const Field &f = links.first;
       const Cell &next_c = *links.second;
@@ -740,14 +748,16 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
 
       if (explored.find(next_n) == explored.end()) { // not explored yet
         Expr offset = mkTerm<expr::mpz_class>(f.getOffset(), m_efac);
-        Expr next_ptr = mk<SELECT>(tmpA, mk<PLUS>(ptr, offset));
+        Expr next_ptr = mk<SELECT>(origA, mk<PLUS>(ptr, offset));
         recVCGenMem(next_c, i, next_ptr, unsafeNodes, simMap, explored);
       }
     }
-    // now we follow the pointers of the node
   }
 
   void visitCallSite(CallSite CS) {
+
+    LOG("inter_mem", errs() << "\nvisitCallSite: " << &CS << "\n");
+
     assert(CS.isCall());
     const Function *f = CS.getCalledFunction();
 
@@ -882,14 +892,18 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
 
       assert(m_fparams.size() == bind::domainSz(fi.sumPred));
 
-      for(auto it: m_rep){
-        unsigned node_id = it.getFirst();
-        Expr origA = getInArraySymbol(node_id);
+      for(auto it: m_tmprep){
+        unsigned shadow_id = it.getFirst();
+        Expr origA = getInArraySymbol(shadow_id);
         Expr replaceA = it.getSecond();
 
         for(int i=3; i < m_fparams.size(); i++){ // we can skip the first 3
           if (m_fparams[i] == origA) {
-            m_fparams[i] = replaceA;
+            m_side.push_back(mk<EQ>(m_fparams[i + 1],replaceA));
+            auto it2 = m_rep.find(shadow_id);
+            assert(it2 != m_rep.end());
+            m_fparams[i + 1] = it2->getSecond();
+            i++;
             break;
           }
         }
@@ -901,7 +915,6 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
       m_nodeids.clear();
       m_rep.clear();
       m_tmprep.clear();
-      m_copy_count = 0;
 
       // reseting parameter structures
       m_fparams.clear();
@@ -935,25 +948,21 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
         const Value *shadow_a = m_sem.m_shadowDsa->getShadowInAlloc(CS);
         auto in_par = m_s.read(symb(*shadow_a));
         m_fparams.push_back(in_par);
-        m_nodeids.insert(std::make_pair(shadow_id, in_par));
+        addInArraySymbol(shadow_id,in_par);
       } else if (F.getName().equals(ShadowMemSeaDsa::ARG_NEW)) {
         unsigned shadow_id = m_sem.m_shadowDsa->getShadowId(CS);
-        const Value *shadow_a = m_sem.m_shadowDsa->getShadowOutAlloc(CS);
-        auto out_par = m_s.havoc(symb(*shadow_a));
+        auto out_par = m_s.havoc(symb(*m_sem.m_shadowDsa->getShadowOutAlloc(CS)));
+        addInArraySymbol(shadow_id, out_par);
         m_fparams.push_back(out_par);
-        m_nodeids.insert(std::make_pair(shadow_id, out_par));
       } else if (F.getName().startswith(ShadowMemSeaDsa::ARG_MOD)) {
         auto in_par = m_s.read(symb(*m_sem.m_shadowDsa->getShadowInAlloc(CS)));
         m_fparams.push_back(in_par);
         m_inRegions.push_back(in_par);
-        // we need to store the id of the out array (the one that we will copy)
         unsigned shadow_id = m_sem.m_shadowDsa->getShadowId(CS);
-        const Value *shadow_a = m_sem.m_shadowDsa->getShadowOutAlloc(CS);
-        auto out_par = m_s.havoc(symb(*shadow_a));
-        // creating new array
+        addInArraySymbol(shadow_id, in_par);
+        auto out_par = m_s.havoc(symb(*m_sem.m_shadowDsa->getShadowOutAlloc(CS)));
         m_fparams.push_back(out_par);
         m_outRegions.push_back(out_par);
-        m_nodeids.insert(std::make_pair(shadow_id, out_par));
       } else if (!PF.getName().equals("main") &&
                  F.getName().equals("shadow.mem.in")) {
         m_s.read(symb(*CS.getArgument(1)));

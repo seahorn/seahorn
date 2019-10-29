@@ -612,10 +612,20 @@ Expr marshal_yices::eval(Expr expr, ExprFactory &efac, ycache_t &cache,
       decode_term_fail("eval failed with array constant");
     }
   } else {
+    if (isOpX<NEG>(expr)) {
+      return op::boolop::lneg(eval(expr->left(), efac, cache, complete, model));
+    } 
+    
     if (isOpX<AND>(expr) && expr->arity() == 2) {
       return op::boolop::land(eval(expr->left(), efac, cache, complete, model),
 			      eval(expr->right(), efac, cache, complete, model));
-    } 
+    } else if (isOpX<AND>(expr) && expr->arity() > 2) {
+      ExprVector r;
+      for (auto it = expr->args_begin(), end = expr->args_end(); it != end; ++it) {
+	r.push_back(eval(*it, efac, cache, complete, model));
+      }
+      return op::boolop::land(r);
+    }
     
     errs() << *expr << "\n";
     decode_term_fail("eval failed: expecting only binary conjunction of constant expressions");

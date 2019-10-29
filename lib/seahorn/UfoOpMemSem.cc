@@ -694,6 +694,9 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
       return;
 
     Graph &calleeG = m_sem.m_shadowDsa->getSummaryGraph(*calleeF);
+    if(!calleeG.hasCell(*arg)) // checking that the argument is a pointer
+      return;
+
     Graph &callerG = m_sem.m_shadowDsa->getDsaGraph(*callerF);
 
     SafeNodeSet unsafeCallerNodes;
@@ -730,11 +733,12 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
       // generate copy conditions for this node, we are basically going to copy
       // the size of the node, this can be refined later
       // First get the name of the "original" logical array
-      for (unsigned byte = 0; byte < c_callee.getNode()->size(); byte++){
-        Expr offset = mkTerm<expr::mpz_class>(byte, m_efac);
 
-        Expr dirE = mk<PLUS>(ptr, offset);
-        tmpA = mk<STORE>(tmpA, dirE, mk<SELECT>(copyA, dirE));
+        for(auto field : c_callee.getNode()->types()){
+          unsigned offset = field.getFirst(); // offset of the field
+          Expr e_offset = mkTerm<expr::mpz_class>(offset, m_efac);
+          Expr dirE = mk<PLUS>(ptr, e_offset);
+          tmpA = mk<STORE>(tmpA, dirE, mk<SELECT>(copyA, dirE));
       }
 
       // Generating an literal per node in the callee to copy
@@ -755,8 +759,6 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
   }
 
   void visitCallSite(CallSite CS) {
-
-    LOG("inter_mem", errs() << "\nvisitCallSite: " << &CS << "\n");
 
     assert(CS.isCall());
     const Function *f = CS.getCalledFunction();
@@ -852,9 +854,9 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
 
       for (const Argument *arg : fi.args) {
         // generate literals for copying, this needs to be done before generating the call
-        Expr ptr = m_s.read(symb(*CS.getArgument(arg->getArgNo())));
-        VCgenMem(CS, arg, ptr);
-        m_fparams.push_back(ptr);
+        Expr argE = m_s.read(symb(*CS.getArgument(arg->getArgNo())));
+        VCgenMem(CS, arg, argE);
+        m_fparams.push_back(argE);
       }
       for (const GlobalVariable *gv : fi.globals)
         m_fparams.push_back(m_s.read(symb(*gv)));

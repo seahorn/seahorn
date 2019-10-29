@@ -59,7 +59,7 @@ static llvm::cl::opt<bool,true>  InterProcMem("horn-inter-proc-mem",
 
 using namespace llvm;
 namespace dsa = sea_dsa;
-namespace seahorn {
+namespace {
 Value *getUniqueScalar(LLVMContext &ctx, IRBuilder<> &B, const dsa::Cell &c) {
   const dsa::Node *n = c.getNode();
   if (n && c.getOffset() == 0) {
@@ -1164,7 +1164,7 @@ CallInst &ShadowDsaImpl::getParentDef(CallInst &memOp) {
 
   auto *fn = memOp.getCalledFunction();
   assert(fn);
-  //assert(fn == m_memLoadFn || fn == m_memStoreFn || fn == m_memTrsfrLoadFn);
+  assert(fn == m_memLoadFn || fn == m_memStoreFn || fn == m_memTrsfrLoadFn);
 
   assert(memOp.getNumOperands() >= 1);
   Value *defArg = memOp.getOperand(1);
@@ -1406,7 +1406,7 @@ bool ShadowMemSeaDsa::runOnModule(llvm::Module &M) {
                                << M << "\n";);
 
   // TODO: replace by llvm::make_unique
-  m_shadow = std::unique_ptr<ShadowDsaImpl>(new ShadowDsaImpl(*m_dsa, asi, tli, cg, *this, SplitFields, LocalReadMod));
+  m_shadow = std::unique_ptr<ShadowDsaImpl>(new ::ShadowDsaImpl(*m_dsa, asi, tli, cg, *this, SplitFields, LocalReadMod));
   bool res = m_shadow->runOnModule(M);
   LOG("shadow_verbose", errs() << "Module after shadow insertion:\n"
                                << M << "\n";);

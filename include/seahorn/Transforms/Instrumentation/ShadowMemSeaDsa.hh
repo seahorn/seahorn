@@ -11,10 +11,13 @@ namespace llvm {
 class Value;
 }
 
-#define USE_NEW_SHADOW_SEA_DSA 1
-namespace seahorn {
+namespace {
 // defined in ShadowMemSeaDsa.cc
 class ShadowDsaImpl;
+}
+
+#define USE_NEW_SHADOW_SEA_DSA 1
+namespace seahorn {
 
 class ShadowMemSeaDsa : public llvm::ModulePass {
 

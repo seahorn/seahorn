@@ -559,9 +559,9 @@ private:
   bool mayClobber(CallInst &memDef, CallInst &memUse, AllocSitesCache &cache);
 
   // constants
-  StringRef M_SHADOW_ARG_NEW = "shadow.mem.arg.new";
-  StringRef M_SHADOW_ARG_MOD = "shadow.mem.arg.mod";
-  StringRef M_SHADOW_ARG_REF = "shadow.mem.arg.ref";
+  const StringRef m_shadowArgNew = "shadow.mem.arg.new";
+  const StringRef m_shadowArgMod = "shadow.mem.arg.mod";
+  const StringRef m_shadowArgRef = "shadow.mem.arg.ref";
 
 public:
   ShadowDsaImpl(dsa::GlobalAnalysis &dsa, dsa::AllocSiteInfo &asi,
@@ -1442,20 +1442,20 @@ bool ShadowMemSeaDsa::hasDsaGraph(const llvm::Function &F){
 
 bool ShadowMemSeaDsa::shadowInstrIsCallSiteParam(llvm::CallSite &cs) {
   const auto name = cs->getFunction()->getName();
-  return name.equals(ARG_NEW) || name.startswith(ARG_MOD) ||
-         name.equals(ARG_READ);
+  return name.equals(m_argNew) || name.startswith(m_argMod) ||
+         name.equals(m_argRef);
 }
 
 bool ShadowMemSeaDsa::shadowInstrWrites(CallSite &cs) {
   const Function *f = cs.getCalledFunction();
   const auto name = f->getName();
-  return name.equals(ARG_NEW) || name.startswith(ARG_MOD);
+  return name.equals(m_argNew) || name.startswith(m_argMod);
 }
 
 bool ShadowMemSeaDsa::shadowInstrReads(CallSite &cs) {
   const Function * f = cs.getCalledFunction();
   const auto name = f->getName();
-  return name.equals(ARG_READ) || name.startswith(ARG_MOD);
+  return name.equals(m_argRef) || name.startswith(m_argMod);
 }
 
 unsigned ShadowMemSeaDsa::getShadowId(CallSite &cs) {
@@ -1474,9 +1474,9 @@ llvm::Value * ShadowMemSeaDsa::getShadowOutAlloc(CallSite &cs) {
   return cs.getInstruction();
 }
 
-const llvm::StringRef ShadowMemSeaDsa::ARG_NEW = "shadow.mem.arg.new";
-const llvm::StringRef ShadowMemSeaDsa::ARG_READ = "shadow.mem.arg.ref";
-const llvm::StringRef ShadowMemSeaDsa::ARG_MOD = "shadow.mem.arg.mod";
+const llvm::StringRef ShadowMemSeaDsa::m_argNew = "shadow.mem.arg.new";
+const llvm::StringRef ShadowMemSeaDsa::m_argRef = "shadow.mem.arg.ref";
+const llvm::StringRef ShadowMemSeaDsa::m_argMod = "shadow.mem.arg.mod";
 
 // bool ShadowMemSeaDsa::hasShadowId(const sea_dsa::Cell *c) {
 //   auto it = m_shadow->m_nodeIds.find(c->getNode());

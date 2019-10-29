@@ -57,9 +57,9 @@ public:
   bool hasShadowId(const sea_dsa::Cell *);
   unsigned getCellShadowId(const sea_dsa::Cell &c);
 
-  static const llvm::StringRef ARG_NEW;
-  static const llvm::StringRef ARG_READ;
-  static const llvm::StringRef ARG_MOD;
+  static const llvm::StringRef m_argNew;
+  static const llvm::StringRef m_argRef;
+  static const llvm::StringRef m_argMod;
   };
 
 bool isShadowMemInst(const llvm::Value *v);

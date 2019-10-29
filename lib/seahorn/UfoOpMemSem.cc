@@ -945,18 +945,18 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
         m_inMem = m_s.read(symb(*CS.getArgument(1)));
         m_outMem = m_s.havoc(symb(I));
         m_side.push_back(mk<EQ>(m_outMem, m_inMem));
-      } else if (F.getName().equals(ShadowMemSeaDsa::ARG_READ)) {
+      } else if (F.getName().equals(ShadowMemSeaDsa::m_argRef)) {
         unsigned shadow_id = m_sem.m_shadowDsa->getShadowId(CS);
         const Value *shadow_a = m_sem.m_shadowDsa->getShadowInAlloc(CS);
         auto in_par = m_s.read(symb(*shadow_a));
         m_fparams.push_back(in_par);
         addInArraySymbol(shadow_id,in_par);
-      } else if (F.getName().equals(ShadowMemSeaDsa::ARG_NEW)) {
+      } else if (F.getName().equals(ShadowMemSeaDsa::m_argNew)) {
         unsigned shadow_id = m_sem.m_shadowDsa->getShadowId(CS);
         auto out_par = m_s.havoc(symb(*m_sem.m_shadowDsa->getShadowOutAlloc(CS)));
         addInArraySymbol(shadow_id, out_par);
         m_fparams.push_back(out_par);
-      } else if (F.getName().startswith(ShadowMemSeaDsa::ARG_MOD)) {
+      } else if (F.getName().startswith(ShadowMemSeaDsa::m_argMod)) {
         auto in_par = m_s.read(symb(*m_sem.m_shadowDsa->getShadowInAlloc(CS)));
         m_fparams.push_back(in_par);
         m_inRegions.push_back(in_par);

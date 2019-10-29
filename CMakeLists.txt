@@ -68,7 +68,7 @@ if (GIT_FOUND)
     CACHE STRING "seahorn-llvm repo")
   set (LLVM_DSA_REPO "https://github.com/seahorn/llvm-dsa"
     CACHE STRING "llvm-dsa repo")
-  set (SEA_DSA_REPO "https://github.com/seahorn/sea-dsa"
+  set (SEA_DSA_REPO "https://github.com/igcontreras/sea-dsa"
     CACHE STRING "sea-dsa repo")
   set (CLAM_REPO "https://github.com/seahorn/crab-llvm"
     CACHE STRING "clam repo")

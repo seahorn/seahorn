@@ -3,6 +3,9 @@
 
 #include "seahorn/config.h"
 
+#include "seahorn/Transforms/Instrumentation/ShadowMemSeaDsa.hh"
+#include "sea_dsa/DsaAnalysis.hh"
+
 #ifdef HAVE_DSA
 #include "dsa/DataStructure.h"
 #include "dsa/AllocatorIdentification.h"
@@ -27,6 +30,11 @@ namespace seahorn
       AU.addPreservedID(AllocIdentifyID);
       AU.addPreservedID(LocalDataStructuresID);
       AU.addPreservedID(SteensgaardDataStructuresID);
+      #endif
+
+      #ifdef USE_NEW_SHADOW_SEA_DSA
+      AU.addPreservedID(sea_dsa::DsaAnalysis::ID);
+      AU.addPreservedID(ShadowMemSeaDsa::ID);
       #endif
   }
 }

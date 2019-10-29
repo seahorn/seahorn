@@ -319,7 +319,7 @@ int main(int argc, char **argv) {
   // the ShadowMemSeaDsa pass is now added automatically because it is required
   // by HornifyModule
   if (SeaHornDsa) {
-    //    pass_manager.add(seahorn::createShadowMemSeaDsaPass());
+    pass_manager.add(seahorn::createShadowMemSeaDsaPass());
 #ifndef USE_NEW_SHADOW_SEA_DSA
     // -- this is dangerous since it might lower alloca instructions that
     // -- shadow mem already instrumented.

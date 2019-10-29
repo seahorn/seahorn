@@ -35,12 +35,11 @@
 #include "seahorn/Transforms/Utils/RemoveUnreachableBlocksPass.hh"
 #include "seahorn/config.h"
 
-#include "sea_dsa/DsaAnalysis.hh"
-
-#ifdef HAVE_CRAB_LLVM
-#include "crab_llvm/CrabLlvm.hh"
-#include "crab_llvm/Transforms/InsertInvariants.hh"
+#ifdef HAVE_CLAM
+#include "clam/Clam.hh"
 #endif
+
+#include "sea_dsa/DsaAnalysis.hh"
 
 #include "seahorn/Expr/Smt/EZ3.hh"
 #include "seahorn/Support/Stats.hh"
@@ -65,7 +64,7 @@ struct ZVerboseOpt {
 };
 ZVerboseOpt zverbose;
 
-#ifdef HAVE_CRAB_LLVM
+#ifdef HAVE_CLAM
 struct CVerboseOpt {
   void operator=(unsigned level) const { crab::CrabEnableVerbosity(level); }
 };
@@ -86,7 +85,7 @@ static llvm::cl::opt<seahorn::ZVerboseOpt, true, llvm::cl::parser<int>>
                   llvm::cl::value_desc("int"), llvm::cl::ValueRequired,
                   llvm::cl::Hidden);
 
-#ifdef HAVE_CRAB_LLVM
+#ifdef HAVE_CLAM
 static llvm::cl::opt<seahorn::CVerboseOpt, true, llvm::cl::parser<unsigned>>
     CrabVerbose("cverbose", llvm::cl::desc("Enable crab verbose messages"),
                 llvm::cl::location(seahorn::cverbose),
@@ -346,7 +345,7 @@ int main(int argc, char **argv) {
   if (UnifyAssumes) {
     pass_manager.add(seahorn::createUnifyAssumesPass());
   }
-  // #ifdef HAVE_CRAB_LLVM
+  // #ifdef HAVE_CLAM
   //   if (Crab && !BoogieOutput) {
   //     /// -- insert invariants in the bitecode
   //     pass_manager.add(new crab_llvm::InsertInvariants());

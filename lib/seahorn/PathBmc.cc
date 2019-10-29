@@ -71,7 +71,8 @@ seahorn::PathBmcTrace seahorn::PathBmcEngine::getTrace() {
  *        4.3.1 If sat then return "SAT"
  *        4.3.2 Otherwise, compute blocking clause to refine the boolean
  *              abstraction and go to 4.
- *
+ * 5. return "UNSAT" 
+ * 
  *  The current implementation is VCGen dependent. In particular, the
  *  functions:
  *  - extract_path_cond_from_crab_cex
@@ -576,8 +577,12 @@ bool PathBmcEngine::path_encoding_and_solve_with_ai(
   //    statements along the path that still implies bottom.
   std::vector<crab::cfg::statement_wrapper> cex_relevant_stmts;
 
+  bool compute_path_constraints = false;
+  LOG("bmc-crab", compute_path_constraints = true;);
   bool res;
-  if (false) { // currently disabled because path_constraints is unused.
+  // currently enabled only for debugging because path_constraints is
+  // unused.
+  if (compute_path_constraints) { 
     // crab_invariants contains the forward invariants for the cex:
     // one abstract state per cex's block
     crab_invariants_map_t crab_invariants;
@@ -593,7 +598,20 @@ bool PathBmcEngine::path_encoding_and_solve_with_ai(
         params, cex_blocks, LayeredCrabSolving, cex_relevant_stmts);
   }
 
-  if (!res) {
+  if (res) {
+    LOG("bmc-crab",
+	errs() << "Crab cannot prove unsat.\n"
+	       << "Post-conditions computed by crab:\n";
+	for (unsigned i=0,sz=cex_blocks.size();i<sz;++i) {
+	  auto it = path_constraints.find(cex_blocks[i]);
+	  if (it != path_constraints.end()) {
+	    errs() << cex_blocks[i]->getName() << ":\n";
+	    for (auto e: it->second) {
+	      errs() << "\t" << *e << "\n";	    
+	    }
+	  }
+	});
+  } else  {
     LOG("bmc", get_os() << "Crab proved unsat.";
         // count the number of llvm instructions in the path
         unsigned num_stmts = 0;
@@ -602,7 +620,7 @@ bool PathBmcEngine::path_encoding_and_solve_with_ai(
         << " #Relevant statements " << cex_relevant_stmts.size() << "/"
         << num_stmts << ".\n";);
 
-    LOG("bmc-details", errs() << "\nRelevant Crab statements:\n";
+    LOG("bmc-crab", errs() << "\nRelevant Crab statements:\n";
         for (auto &s
              : cex_relevant_stmts) {
           errs() << s.m_parent.get_name();

@@ -51,7 +51,7 @@ public:
   llvm::Value * getShadowInAlloc(llvm::CallSite &cs);
   llvm::Value *getShadowOutAlloc(llvm::CallSite &cs);
 
-  unsigned getShadowId(llvm::CallSite &cs);
+  const sea_dsa::Cell getCellShadowInstr(llvm::CallSite &cs);
 
   // API of graphs/shadow ids
   bool hasShadowId(const sea_dsa::Cell *);

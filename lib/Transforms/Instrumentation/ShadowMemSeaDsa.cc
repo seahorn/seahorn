@@ -225,6 +225,9 @@ private:
   /// corresponds to the shadow variable
   ShadowsMap m_shadows;
 
+  using ShadowsReverseMap = llvm::DenseMap<unsigned, std::pair<const sea_dsa::Node *, unsigned>>;
+  ShadowsReverseMap m_shadowsReverse;
+
   /// \brief The largest id used so far. Used to allocate fresh ids
   unsigned m_maxId = 0;
 
@@ -278,27 +281,6 @@ private:
   /// Returns 0 if \f m_splitDsaNodes is false
   unsigned getOffset(const dsa::Cell &c) {
     return m_splitDsaNodes ? c.getOffset() : 0;
-  }
-
-  /// \breif Returns a local id of a given field of DsaNode \p n
-  unsigned getFieldId(const dsa::Node &n, unsigned offset) {
-    auto it = m_nodeIds.find(&n);
-    if (it != m_nodeIds.end())
-      return it->second + offset;
-
-    // allocate new id for the node
-    unsigned id = m_maxId;
-    m_nodeIds[&n] = id;
-    if (n.size() == 0) {
-      // XXX: what does it mean for a node to have 0 size?
-      assert(offset == 0);
-      ++m_maxId;
-      return id;
-    }
-
-    // -- allocate enough ids for the node and all its fields
-    m_maxId += n.size();
-    return id + offset;
   }
 
   /// \brief Returns shadow variable for a given field
@@ -607,6 +589,8 @@ public:
   /// \brief Returns id of a field pointed to by the given cell \c
   unsigned getFieldId(const dsa::Cell &c);
 
+  /// \brief Returns the cell that corresponds to an internal id of a shadow
+  const sea_dsa::Cell getCellShadowId(unsigned id);
 };
 
 // public methods of ShadowDsaImpl
@@ -1374,7 +1358,39 @@ void ShadowDsaImpl::solveUses(Function &F) {
 /// \brief Returns id of a field pointed to by the given cell \c
 unsigned ShadowDsaImpl::getFieldId(const dsa::Cell &c) {
   assert(c.getNode());
-  return getFieldId(*c.getNode(), getOffset(c));
+  unsigned id = m_maxId; // in case allocation of new id for the node is needed
+
+  const sea_dsa::Node *n = c.getNode();
+  unsigned offset = c.getOffset();
+  auto it = m_nodeIds.find(n);
+  if (it != m_nodeIds.end()) {
+    id = it->second + offset;
+  }
+  else{
+    m_nodeIds[n] = id;
+    if (n->size() == 0) {
+      // XXX: what does it mean for a node to have 0 size?
+      assert(offset == 0);
+      ++m_maxId;
+    } else {
+      // -- allocate enough ids for the node and all its fields
+      m_maxId += n->size();
+      id = id + offset;
+    }
+  }
+  auto it2 = m_shadowsReverse.find(id);
+  if(it2 == m_shadowsReverse.end()){ // add to the reverse map if needed
+    m_shadowsReverse.insert(std::make_pair(id, std::make_pair(c.getNode(), c.getRawOffset())));
+  }
+
+  return id;
+}
+
+const sea_dsa::Cell ShadowDsaImpl::getCellShadowId(unsigned id) {
+  auto it = m_shadowsReverse.find(id);
+  assert(it != m_shadowsReverse.end());
+  auto pair = it->getSecond();
+  return sea_dsa::Cell(const_cast<sea_dsa::Node *>(pair.first), pair.second);
 }
 
 } // namespace seahorn
@@ -1458,9 +1474,10 @@ bool ShadowMemSeaDsa::shadowInstrReads(CallSite &cs) {
   return name.equals(m_argRef) || name.startswith(m_argMod);
 }
 
-unsigned ShadowMemSeaDsa::getShadowId(CallSite &cs) {
+const sea_dsa::Cell ShadowMemSeaDsa::getCellShadowInstr(CallSite &cs) {
   auto &ci = cast<ConstantInt>(*cs.getArgument(0));
-  return ci.getZExtValue();
+  unsigned shadow_id = ci.getZExtValue();
+  return m_shadow->getCellShadowId(shadow_id);
 }
 
 llvm::Value * ShadowMemSeaDsa::getShadowInAlloc(CallSite &cs) {
@@ -1517,7 +1534,7 @@ public:
 
     std::vector<std::string> intFnNames = {
         "shadow.mem.store",       "shadow.mem.init",    "shadow.mem.arg.init",
-        "shadow.mem.global.init", "shadow.mem.arg.mod", "shadow.mem.arg.mod.node"};
+        "shadow.mem.global.init", "shadow.mem.arg.mod"};
     Value *zero = ConstantInt::get(Type::getInt32Ty(M.getContext()), 0);
 
     for (auto &name : intFnNames) {

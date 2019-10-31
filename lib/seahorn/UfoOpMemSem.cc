@@ -610,39 +610,38 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
   }
 
   Expr getInArraySymbol(const Cell &c) {
-    auto it = m_nodeids.find(std::make_pair(c.getNode(),c.getRawOffset()));
+    auto it = m_nodeids.find({c.getNode(),c.getRawOffset()});
     assert(it != m_nodeids.end()); // there should be an entry for that always
     return it->getSecond();
   }
 
   void addInArraySymbol(const Cell &c, Expr A){
-    auto pair =
-        std::make_pair(std::make_pair(c.getNode(), c.getRawOffset()), A);
-    m_nodeids.insert(pair);
+    m_nodeids.insert({{c.getNode(), c.getRawOffset()}, A});
   }
+
+  Expr createVariant(Expr origE) {
+    Expr name = bind::fname(origE);
+    Expr rTy = bind::rangeTy(name);
+
+    return bind::mkConst(variant::variant(m_copy_count++, origE), rTy);
+  }
+
   // creates a new array symbol for array origE if it was not created already
   Expr getFreshArraySymbol(const Cell &c) {
 
-    auto it = m_rep.find(std::make_pair(c.getNode(), c.getRawOffset()));
+    auto it = m_rep.find({c.getNode(), c.getRawOffset()});
     if (it == m_rep.end()) { // not copied yet
       Expr origE = getInArraySymbol(c);
       assert(bind::isArrayConst(origE));
-      Expr name = bind::fname(origE);
-      Expr rTy = bind::rangeTy(name);
-
-      Expr copyE = bind::mkConst(
-          mkTerm<std::string>("copy_" + std::to_string(++m_copy_count), m_efac),
-          rTy);
-
-      m_rep.insert(std::make_pair(
-          std::make_pair(c.getNode(), c.getRawOffset()), copyE));
+      Expr copyE = createVariant(origE);
+      m_rep.insert({{c.getNode(), c.getRawOffset()}, copyE});
       return copyE;
-    } else
-      return it->getSecond();
+    }
+    else return it->getSecond();
   }
 
   Expr getCurrArraySymbol(const Cell &c) {
-    auto it = m_tmprep.find(std::make_pair(c.getNode(), c.getRawOffset()));
+    auto it = m_tmprep.find({c.getNode(), c.getRawOffset()});
     assert(it == m_tmprep.end());
     return it->getSecond();
   }
@@ -654,25 +653,18 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
 
     Expr origE = getInArraySymbol(c);
 
-    // create new name
-    assert(bind::isArrayConst(origE));
-    Expr name = bind::fname(origE);
-    Expr rTy = bind::rangeTy(name);
+    newE = createVariant(origE);
 
-    newE = bind::mkConst(variant::variant(m_copy_count++,name), rTy);
-
-    auto it = m_tmprep.find(std::make_pair(c.getNode(), c.getRawOffset()));
+    auto it = m_tmprep.find({c.getNode(), c.getRawOffset()});
 
     if (it == m_tmprep.end()) {
       currE = origE;
-      m_tmprep.insert(std::make_pair(
-          std::make_pair(c.getNode(), c.getRawOffset()), newE));
+      m_tmprep.insert({{c.getNode(), c.getRawOffset()}, newE});
     }
     else{
       currE = it->getSecond();
-      m_tmprep.erase(std::make_pair(c.getNode(), c.getRawOffset()));
-      m_tmprep.insert(std::make_pair(
-          std::make_pair(c.getNode(), c.getRawOffset()), newE));
+      m_tmprep.erase({c.getNode(), c.getRawOffset()});
+      m_tmprep.insert({{c.getNode(), c.getRawOffset()}, newE});
     }
   }
 

@@ -1380,7 +1380,7 @@ unsigned ShadowDsaImpl::getFieldId(const dsa::Cell &c) {
   }
   auto it2 = m_shadowsReverse.find(id);
   if(it2 == m_shadowsReverse.end()){ // add to the reverse map if needed
-    m_shadowsReverse.insert(std::make_pair(id, std::make_pair(c.getNode(), c.getRawOffset())));
+    m_shadowsReverse.insert({id, {c.getNode(), c.getRawOffset()}});
   }
 
   return id;
@@ -1421,8 +1421,8 @@ bool ShadowMemSeaDsa::runOnModule(llvm::Module &M) {
   LOG("shadow_verbose", errs() << "Module before shadow insertion:\n"
                                << M << "\n";);
 
-  // TODO: replace by llvm::make_unique
-  m_shadow = std::unique_ptr<ShadowDsaImpl>(new ::ShadowDsaImpl(*m_dsa, asi, tli, cg, *this, SplitFields, LocalReadMod));
+  m_shadow = llvm::make_unique<::ShadowDsaImpl>(
+      *m_dsa, asi, tli, cg, *this, SplitFields, LocalReadMod);
   bool res = m_shadow->runOnModule(M);
   LOG("shadow_verbose", errs() << "Module after shadow insertion:\n"
                                << M << "\n";);
@@ -1495,10 +1495,6 @@ const llvm::StringRef ShadowMemSeaDsa::m_argNew = "shadow.mem.arg.new";
 const llvm::StringRef ShadowMemSeaDsa::m_argRef = "shadow.mem.arg.ref";
 const llvm::StringRef ShadowMemSeaDsa::m_argMod = "shadow.mem.arg.mod";
 
-// bool ShadowMemSeaDsa::hasShadowId(const sea_dsa::Cell *c) {
-//   auto it = m_shadow->m_nodeIds.find(c->getNode());
-//   return it != m_shadow->m_nodeIds.end();
-// }
 unsigned ShadowMemSeaDsa::getCellShadowId(const dsa::Cell &c) {
   return m_shadow->getFieldId(c);
 }

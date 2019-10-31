@@ -49,12 +49,11 @@ public:
   bool shadowInstrWrites(llvm::CallSite &cs);
   bool shadowInstrReads(llvm::CallSite &cs);
   llvm::Value * getShadowInAlloc(llvm::CallSite &cs);
-  llvm::Value *getShadowOutAlloc(llvm::CallSite &cs);
+  llvm::Value * getShadowOutAlloc(llvm::CallSite &cs);
 
   const sea_dsa::Cell getCellShadowInstr(llvm::CallSite &cs);
 
   // API of graphs/shadow ids
-  bool hasShadowId(const sea_dsa::Cell *);
   unsigned getCellShadowId(const sea_dsa::Cell &c);
 
   static const llvm::StringRef m_argNew;

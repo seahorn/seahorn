@@ -313,10 +313,7 @@ int main(int argc, char **argv) {
   // -- initialize any global variables that are left
   pass_manager.add(new seahorn::LowerGvInitializers());
 
-  // TODO: get rid of the deprecaed dsa pass??
-
-  // the ShadowMemSeaDsa pass is now added automatically because it is required
-  // by HornifyModule
+  // TODO: get rid of the deprecated dsa pass??
   if (SeaHornDsa) {
     pass_manager.add(seahorn::createShadowMemSeaDsaPass());
 #ifndef USE_NEW_SHADOW_SEA_DSA

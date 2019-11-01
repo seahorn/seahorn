@@ -954,7 +954,6 @@ solver::SolverResult PathBmcEngine::solve() {
 
   clam::CrabBuilderParams  cfg_builder_params;
   cfg_builder_params.simplify = false;
-
   /// FIXME: the generation of blocking clause from Crab CEX's is not
   /// working. The translation from LLVM to Crab must be changed so
   /// that memory SSA form is not destroyed.

@@ -652,11 +652,9 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
   void newTmpArraySymbol(const Cell &c, Expr &currE, Expr &newE) {
 
     Expr origE = getInArraySymbol(c);
-
     newE = createVariant(origE);
 
     auto it = m_tmprep.find({c.getNode(), c.getRawOffset()});
-
     if (it == m_tmprep.end()) {
       currE = origE;
       m_tmprep.insert({{c.getNode(), c.getRawOffset()}, newE});
@@ -670,49 +668,60 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
 
   using ExplSet = DenseSet<const Node *>;
 
-  // we need the symbol of the pointer to generate the copy of the symbolic
-  // address
-  void VCgenMem(CallSite &CS, const Argument *arg, Expr base_ptr) {
+  void VCgenMemCallSite(CallSite &CS, const FunctionInfo &fi){
     const Function *calleeF = CS.getCalledFunction();
     const Function *callerF = CS.getCaller();
 
-    LOG("inter_mem",
-        errs() << "callee: " << calleeF->getGlobalIdentifier();
-        errs() << " caller: " << callerF->getGlobalIdentifier();
-        errs() << "\n";
-        );
+    LOG("inter_mem", errs() << "callee: " << calleeF->getGlobalIdentifier();
+        errs() << " caller: " << callerF->getGlobalIdentifier(); errs() << "\n";
+        CS.getInstruction()->dump(); errs() << "\n";);
 
     if (!m_sem.m_shadowDsa->hasDsaGraph(*calleeF))
       return;
 
     Graph &calleeG = m_sem.m_shadowDsa->getSummaryGraph(*calleeF);
-    if(!calleeG.hasCell(*arg)) // checking that the argument is a pointer
-      return;
-
     Graph &callerG = m_sem.m_shadowDsa->getDsaGraph(*callerF);
 
     SafeNodeSet unsafeCallerNodes;
     SimulationMapper simMap;
 
-    GraphExplorer::getSafeNodesCallerGraph(CS,calleeG,callerG,simMap,unsafeCallerNodes);
-
-    const Cell &c_arg_callee = calleeG.getCell(*arg);
+    GraphExplorer::getSafeNodesCallerGraph(CS, calleeG, callerG, simMap,
+                                           unsafeCallerNodes);
+    for (const Argument *arg : fi.args) {
+      // generate literals for copying, this needs to be done before generating
+      // the call
+      Expr argE = m_s.read(symb(*CS.getArgument(arg->getArgNo())));
+      if (calleeG.hasCell(*arg)){ // checking that the argument is a pointer
+        VCgenMemArg(calleeG.getCell(*arg), argE, unsafeCallerNodes, simMap);
+      }
+      m_fparams.push_back(argE);
+    }
+  }
+  void VCgenMemArg(const Cell c_arg_callee, Expr base_ptr,
+                   SafeNodeSet unsafeCallerNodes, SimulationMapper sm) {
     ExplSet explored;
-    recVCGenMem(c_arg_callee, *CS.getInstruction(), base_ptr, unsafeCallerNodes,
-                simMap, explored);
+    recVCGenMem(c_arg_callee, base_ptr, unsafeCallerNodes,
+              sm, explored);
   }
 
-  void recVCGenMem(const Cell &c_callee, Instruction &i, Expr ptr,
+  void recVCGenMem(const Cell &c_callee, Expr ptr,
                    SafeNodeSet unsafeNodes, SimulationMapper simMap,
                    ExplSet &explored) {
 
-    const Node * n_callee = c_callee.getNode();
+    const Node *n_callee = c_callee.getNode();
+    explored.insert(n_callee);
+
+    if (n_callee->size() == 0)
+      // the array was created but from the bu graph we know that it is not
+      // accessed
+      return;
+
     const Cell &c_caller = simMap.get(c_callee);
     const Node *n_caller = c_caller.getNode();
 
-    explored.insert(n_callee);
-
-    Expr origA = getInArraySymbol(c_caller);
+    if (n_caller->isOffsetCollapsed() || n_callee->isArray() || n_caller->isTypeCollapsed())
+      // the previous conditions causes the simulation not to be able to reconstruct the offset?
+      return;
 
     // checking modification in the bu graph, which is more precise
     // than the previous approach
@@ -735,15 +744,22 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
       m_side.push_back(mk<EQ>(nextA, tmpA));
     }
     // now we follow the pointers of the node
+
+    if(n_callee->getLinks().empty())
+      return;
+
+    Expr origA = getInArraySymbol(c_caller);
+
     for (auto &links : n_callee->getLinks()) {
       const Field &f = links.first;
       const Cell &next_c = *links.second;
       const Node *next_n = next_c.getNode();
 
+
       if (explored.find(next_n) == explored.end()) { // not explored yet
         Expr offset = mkTerm<expr::mpz_class>(f.getOffset(), m_efac);
         Expr next_ptr = mk<SELECT>(origA, mk<PLUS>(ptr, offset));
-        recVCGenMem(next_c, i, next_ptr, unsafeNodes, simMap, explored);
+        recVCGenMem(next_c, next_ptr, unsafeNodes, simMap, explored);
       }
     }
   }
@@ -842,21 +858,15 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
       // error flag out
       m_fparams[2] = (m_s.havoc(m_sem.errorFlag(BB)));
 
-      for (const Argument *arg : fi.args) {
-        // generate literals for copying, this needs to be done before generating the call
-        Expr argE = m_s.read(symb(*CS.getArgument(arg->getArgNo())));
-        VCgenMem(CS, arg, argE);
-        m_fparams.push_back(argE);
-      }
+      VCgenMemCallSite(CS, fi);
+
       for (const GlobalVariable *gv : fi.globals)
         m_fparams.push_back(m_s.read(symb(*gv)));
 
       if (fi.ret)
         m_fparams.push_back(m_s.havoc(symb(I)));
 
-      LOG(
-      "arg_error", if (m_fparams.size() != bind::domainSz(fi.sumPred)
-                   ) {
+      LOG("arg_error", if (m_fparams.size() != bind::domainSz(fi.sumPred)) {
         errs() << "Call instruction: " << I << "\n";
         errs() << "Caller: " << PF << "\n";
         errs() << "Callee: " << F << "\n";

@@ -205,14 +205,10 @@ private:
 
   llvm::SmallVector<llvm::Constant *, 5> m_memInitFunctions;
 
-  using NodeIdMap = llvm::DenseMap<const sea_dsa::Node *, unsigned>;
-
-  /// \brief A map from DsaNode to its numeric id
-  NodeIdMap m_nodeIds;
-
   using ShadowsMap =
       llvm::DenseMap<const sea_dsa::Node *,
                      llvm::DenseMap<unsigned, llvm::AllocaInst *>>;
+  using NodeIdMap = llvm::DenseMap<const sea_dsa::Node *, unsigned>;
 
   /// \brief A map from DsaNode to all the shadow pseudo-variable corresponding
   /// to it
@@ -224,6 +220,9 @@ private:
   /// the map connects a node to a pair of an offset and an AllocaInst that
   /// corresponds to the shadow variable
   ShadowsMap m_shadows;
+
+  /// \brief A map from DsaNode to its numeric id
+  NodeIdMap m_nodeIds;
 
   using ShadowsReverseMap = llvm::DenseMap<unsigned, std::pair<const sea_dsa::Node *, unsigned>>;
   ShadowsReverseMap m_shadowsReverse;
@@ -1361,7 +1360,7 @@ unsigned ShadowDsaImpl::getFieldId(const dsa::Cell &c) {
   unsigned id = m_maxId; // in case allocation of new id for the node is needed
 
   const sea_dsa::Node *n = c.getNode();
-  unsigned offset = c.getOffset();
+  unsigned offset = getOffset(c);
   auto it = m_nodeIds.find(n);
   if (it != m_nodeIds.end()) {
     id = it->second + offset;
@@ -1369,7 +1368,7 @@ unsigned ShadowDsaImpl::getFieldId(const dsa::Cell &c) {
   else{
     m_nodeIds[n] = id;
     if (n->size() == 0) {
-      // XXX: what does it mean for a node to have 0 size?
+      // the node is collapsed or never accessed
       assert(offset == 0);
       ++m_maxId;
     } else {

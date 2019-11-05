@@ -948,7 +948,7 @@ solver::SolverResult PathBmcEngine::solve() {
 
   clam::CrabBuilderParams  cfg_builder_params;
   cfg_builder_params.simplify = false;
-  cfg_builder_params.set_array_precision_without_offsets();
+  //cfg_builder_params.set_array_precision_without_offsets();
   clam::CrabBuilderManager cfg_builder_man(cfg_builder_params);
   
   // -- Initialize crab for solving paths

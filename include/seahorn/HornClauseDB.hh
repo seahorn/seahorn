@@ -4,6 +4,7 @@
 
 #include "llvm/Support/raw_ostream.h"
 
+#include <boost/functional/hash.hpp>
 #include <boost/range.hpp>
 #include <boost/range/algorithm/copy.hpp>
 #include <boost/lexical_cast.hpp>

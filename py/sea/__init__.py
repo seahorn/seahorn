@@ -90,8 +90,10 @@ def createWorkDir (dname=None, save=False, prefix='tmp-'):
         if not os.path.isdir (dname): os.mkdir (dname)
         workdir = dname
 
-    if not save:
+    if dname is None:
         atexit.register (shutil.rmtree, path=workdir)
+    else:
+        print "Warning: --temp-dir specified without the --save-temps option"
     return workdir
 
 def add_help_arg (ap):

@@ -629,7 +629,7 @@ bool PathBmcEngine::path_encoding_and_solve_with_ai(
 
     // -- Extract the path condition from the spurious cex.
     std::set<Expr> path_cond;
-    assert(m_cfg_builder_man.has_cfg(*m_fn));
+    assert(m_cfg_builder_man->has_cfg(*m_fn));
     if (!gen_path_cond_from_ai_cex(cex, cex_relevant_stmts, path_cond)) {
       // By returning true we pretend the query was sat so we run
       // the SMT solver next.

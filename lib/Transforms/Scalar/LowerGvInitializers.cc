@@ -228,6 +228,8 @@ bool LowerGvInitializers::runOnModule(Module &M) {
         Args.push_back(Builder.CreateCall(ndf));
       }
       CallInst *CI = Builder.CreateCall(Fn, Args);
+      CallingConv::ID cc = Fn->getCallingConv();
+      CI->setCallingConv(cc);
       LOG("lower-gv-init",
           errs() << "LowerGvInitializers: created a call " << *CI << "\n");
     }

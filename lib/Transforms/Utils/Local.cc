@@ -39,9 +39,8 @@ void reduceToRegion(Function &F, DenseSet<const BasicBlock *> &region) {
     if (region.count(&BB) <= 0) {
       dead.push_back(&BB);
       TerminatorInst *BBTerm = BB.getTerminator();
-      for (unsigned i = 0, e = BBTerm->getNumSuccessors(); i != e; ++i)
-        BBTerm->getSuccessor(i)->removePredecessor(&BB);
-      BB.dropAllReferences();
+      for (unsigned i = 0, e = BBTerm->getNumSuccessors(); i != e; ++i)  
+	BBTerm->getSuccessor(i)->removePredecessor(&BB);
       continue;
     }
 
@@ -69,6 +68,10 @@ void reduceToRegion(Function &F, DenseSet<const BasicBlock *> &region) {
       Builder.SetInsertPoint(&BB);
       Builder.CreateBr(kill == s1 ? s0 : s1);
     }
+  }
+
+  for (auto BB: dead) {
+    BB->dropAllReferences();
   }
 
   for (auto *bb : dead) {

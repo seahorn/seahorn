@@ -316,6 +316,11 @@ class Seapp(sea.LimitedCmd):
                         help='Do not lower global initializers for structs',
                         default=False,
                         action='store_true')
+        ap.add_argument('--no-lower-gv-init',
+                        dest='no_lower_gv_init',
+                        help='Do not lower global initializers',
+                        default=False,
+                        action='store_true')
         ap.add_argument ('--devirt-functions',
                          help='Devirtualize indirect functions using only types',
                          dest='devirt_funcs', default=False,
@@ -402,6 +407,9 @@ class Seapp(sea.LimitedCmd):
 
             if args.no_lower_gv_init_structs:
                 argv.append('--lower-gv-init-struct=false')
+
+            if args.no_lower_gv_init:
+                argv.append('--lower-gv-init=false')
 
             if args.devirt_funcs_cha or args.devirt_funcs:
                 argv.append ('--devirt-functions')
@@ -1069,6 +1077,11 @@ class Seahorn(sea.LimitedCmd):
         ap.add_argument ('--max-depth',
                          help='Maximum depth of exploration',
                          dest='max_depth', default=sys.maxint)
+        ap.add_argument('--no-lower-gv-init',
+                        dest='no_lower_gv_init',
+                        help='Do not lower global initializers',
+                        default=False,
+                        action='store_true')
         return ap
 
     def run (self, args, extra):
@@ -1141,6 +1154,10 @@ class Seahorn(sea.LimitedCmd):
             for l in args.ztrace.split (':'): argv.extend (['-ztrace', l])
 
         if args.out_file is not None: argv.extend (['-o', args.out_file])
+
+        if args.no_lower_gv_init:
+            argv.append('--lower-gv-init=false')
+
         argv.extend (args.in_files)
 
         # pick out extra seahorn options

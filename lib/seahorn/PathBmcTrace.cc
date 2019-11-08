@@ -8,6 +8,7 @@
 #include "seahorn/Bmc.hh"
 #include "seahorn/Expr/Smt/Model.hh"
 #include "seahorn/PathBmc.hh"
+#include "seahorn/PathBmcUtil.hh"
 #include "seahorn/Support/SeaDebug.h"
 
 namespace seahorn {
@@ -148,7 +149,19 @@ Expr PathBmcTrace::eval(unsigned loc, Expr u, bool complete) {
     return Expr();
 
   SymStore &store = m_bmc.getStates()[stateidx];
-  Expr v = store.eval(u);
+
+  Expr v;
+  if (path_bmc::expr_utils::isEdge(u)) {
+    // HACK: s.eval does not traverse function declarations
+    auto t = path_bmc::expr_utils::getEdge(u);
+    if (store.isDefined(t.first) && store.isDefined(t.second)) {
+      v = path_bmc::expr_utils::mkEdge(store.eval(t.first), store.eval(t.second));
+    }
+  } else {
+    v = store.eval(u);
+  }
+
+  assert(v);
   return m_model->eval(v, complete);
 }
 

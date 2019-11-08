@@ -36,5 +36,41 @@ scoped_solver::~scoped_solver() {
   }
 }
 
+
+namespace expr_utils {
+bool isEdge(Expr e) {
+  return expr::op::bind::isFdecl(e->left()) &&
+    isOpX<TUPLE>(e->left()->left());
+}
+
+std::pair<Expr, Expr> getEdge(Expr e) {
+  assert(isEdge(e));
+  Expr tuple = e->left()->left();
+  Expr src = tuple->left();
+  Expr dst = tuple->right();
+  return std::make_pair(src, dst);
+}
+
+expr::Expr mkEdge(expr::Expr e1, expr::Expr e2) {
+  return bind::boolConst(mk<TUPLE>(e1, e2)); 
+}
+
+// /*
+//  * Customized ordering to ensure that non-tuple expressions come
+//  * first than tuple expressions, otherwise standard ordering between
+//  * Expr's.
+//  */
+// struct lessExpr {
+//   bool operator()(Expr e1, Expr e2) const {
+//     if (!isEdge(e1) && isEdge(e2))
+//       return true;
+//     else if (isEdge(e1) && !isEdge(e2))
+//       return false;
+//     else
+//       return e1 < e2;
+//   }
+// };
+
+} // namespace expr_utils
 } // namespace path_bmc
 } // namespace seahorn

@@ -41,7 +41,6 @@ void reduceToRegion(Function &F, DenseSet<const BasicBlock *> &region) {
       TerminatorInst *BBTerm = BB.getTerminator();
       for (unsigned i = 0, e = BBTerm->getNumSuccessors(); i != e; ++i)
         BBTerm->getSuccessor(i)->removePredecessor(&BB);
-      BB.dropAllReferences();
       continue;
     }
 
@@ -71,6 +70,10 @@ void reduceToRegion(Function &F, DenseSet<const BasicBlock *> &region) {
     }
   }
 
+  for (auto BB: dead) {
+    BB->dropAllReferences();
+  }
+  
   for (auto *bb : dead) {
     if (bb->hasNUses(0))
       bb->eraseFromParent();

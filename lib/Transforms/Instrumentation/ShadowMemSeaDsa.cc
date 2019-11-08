@@ -1357,29 +1357,31 @@ void ShadowDsaImpl::solveUses(Function &F) {
 /// \brief Returns id of a field pointed to by the given cell \c
 unsigned ShadowDsaImpl::getFieldId(const dsa::Cell &c) {
   assert(c.getNode());
-  unsigned id = m_maxId; // in case allocation of new id for the node is needed
+  unsigned id; // in case allocation of new id for the node is needed
 
-  const sea_dsa::Node *n = c.getNode();
+  const sea_dsa::Node &n = *c.getNode();
   unsigned offset = getOffset(c);
-  auto it = m_nodeIds.find(n);
+  auto it = m_nodeIds.find(&n);
   if (it != m_nodeIds.end()) {
     id = it->second + offset;
   }
   else{
-    m_nodeIds[n] = id;
-    if (n->size() == 0) {
+    id = m_maxId;
+    m_nodeIds[&n] = id;
+    if (n.size() == 0) {
       // the node is collapsed or never accessed
       assert(offset == 0);
       ++m_maxId;
     } else {
       // -- allocate enough ids for the node and all its fields
-      m_maxId += n->size();
+      m_maxId += n.size();
       id = id + offset;
     }
   }
   auto it2 = m_shadowsReverse.find(id);
   if(it2 == m_shadowsReverse.end()){ // add to the reverse map if needed
-    m_shadowsReverse.insert({id, {c.getNode(), c.getRawOffset()}});
+    LOG("inter_mem", errs() << "<== add shadowsReverse " << id << " " << &n << " " << c.getRawOffset() << "\n";);
+    m_shadowsReverse.insert({id, {&n, c.getRawOffset()}});
   }
 
   return id;

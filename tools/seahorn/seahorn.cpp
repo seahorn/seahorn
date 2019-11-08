@@ -189,6 +189,11 @@ static llvm::cl::opt<bool>
                "Print SeaHorn Dsa memory graph of a function to dot format"),
            llvm::cl::init(false));
 
+static llvm::cl::opt<bool>
+    LowerGlobalInitializers("lower-gv-init",
+                            llvm::cl::desc("Lower some global initializers"),
+                            llvm::cl::init(true));
+
 // removes extension from filename if there is one
 std::string getFileName(const std::string &str) {
   std::string filename = str;
@@ -311,7 +316,9 @@ int main(int argc, char **argv) {
   pass_manager.add(llvm::createGlobalDCEPass()); // kill unused internal global
 
   // -- initialize any global variables that are left
-  pass_manager.add(new seahorn::LowerGvInitializers());
+  if (LowerGlobalInitializers) {
+    pass_manager.add(new seahorn::LowerGvInitializers());
+  }
   if (SeaHornDsa) {
     pass_manager.add(seahorn::createShadowMemSeaDsaPass());
 #ifndef USE_NEW_SHADOW_SEA_DSA

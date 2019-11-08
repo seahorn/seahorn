@@ -96,8 +96,22 @@ template <typename R> Expr land(const R &r) {
   if (boost::size(r) == 1)
     return *std::begin(r);
 
-  // XXX add more logical simplifications
-  return mknary<AND>(r);
+  auto& efac = (*std::begin(r))->efac();
+  ExprVector res;  
+  for (auto e: r) {
+    if (isOpX<FALSE>(e))
+      return mk<FALSE>(efac);
+    else if (!isOpX<TRUE>(e))
+      res.push_back(e);
+  }
+  
+  if (res.empty()) {
+    return mk<TRUE>(efac);
+  } else if (res.size() == 1) {
+    return *(res.begin());
+  } else {
+    return mknary<AND>(res.begin(), res.end());
+  }
 }
 
 unsigned circSize(Expr e);

@@ -673,8 +673,7 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
     const Function *callerF = CS.getCaller();
 
     LOG("inter_mem", errs() << "callee: " << calleeF->getGlobalIdentifier();
-        errs() << " caller: " << callerF->getGlobalIdentifier(); errs() << "\n";
-        CS.getInstruction()->dump(); errs() << "\n";);
+        errs() << " caller: " << callerF->getGlobalIdentifier(); errs() << "\n";);
 
     if (!m_sem.m_shadowDsa->hasDsaGraph(*calleeF))
       return;

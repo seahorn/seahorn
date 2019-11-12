@@ -39,16 +39,29 @@ public:
       if (!fn && CS.getCalledValue())
         fn = dyn_cast<const Function>(CS.getCalledValue()->stripPointerCasts());
 
-      if (fn && fn->getName().equals("malloc")) {
+      if (fn && (fn->getName().equals("malloc") ||
+                 fn->getName().equals("_Znwj" /* new */) ||
+                 fn->getName().equals("_Znaj" /* new[] */))) {
 
         unsigned addrSpace = 0;
-        Value *nv = new AllocaInst(v->getType()->getPointerElementType(),
-                                   addrSpace, CS.getArgument(0), "malloc", &I);
+        Value *nv = nullptr;
+        if (auto *ci = dyn_cast<Constant>(CS.getArgument(0))) {
+          // malloc(0) == nullptr
+          if (fn->getName().equals("malloc") && ci->isZeroValue()) {
+            nv = Constant::getNullValue(CS.getType());
+          }
+        }
+
+        if (!nv)
+          nv = new AllocaInst(v->getType()->getPointerElementType(),
+                              addrSpace, CS.getArgument(0), "malloc", &I);
 
         v->replaceAllUsesWith(nv);
 
         changed = true;
-      } else if (fn && fn->getName().equals("free"))
+      } else if (fn && (fn->getName().equals("free") ||
+                        fn->getName().equals("_ZdlPv" /* delete */) ||
+                        fn->getName().equals("_ZdaPv" /* delete[] */)))
         kill.push_back(&I);
     }
 

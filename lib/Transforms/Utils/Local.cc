@@ -91,6 +91,10 @@ void reduceToRegion(Function &F, DenseSet<const BasicBlock *> &region) {
         errs() << *(*UI) << "\n";
     }
   }
+
+  // -- no metatdata for declarations && empty functions are declarations
+  if (F.empty() && F.hasMetadata())
+    F.clearMetadata();
 }
 
 /// Reduce the function to only the BasicBlocks that are ancestors of exits
@@ -146,10 +150,11 @@ bool HasUniqueReturn(Function &F, ReturnInst *&retInst) {
   for (auto &bb : F) {
     if (HasReturn(bb, retInst)) {
       // -- already found another one, so not unique
-      if (found) return false;
+      if (found)
+        return false;
       found = true;
     }
   }
   return found;
 }
-}
+} // namespace seahorn

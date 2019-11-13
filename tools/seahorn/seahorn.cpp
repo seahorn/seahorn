@@ -301,6 +301,8 @@ int main(int argc, char **argv) {
   }
   pass_manager.add(new seahorn::RemoveUnreachableBlocksPass());
 
+  pass_manager.add(seahorn::createPromoteMallocPass());
+
   pass_manager.add(llvm::createPromoteMemoryToRegisterPass());
   pass_manager.add(new seahorn::PromoteVerifierCalls());
   pass_manager.add(llvm::createDeadInstEliminationPass());

@@ -59,12 +59,13 @@ bool LowerCstExprPass::runOnFunction(Function &F) {
 
         if (ConstantExpr *CstExp = hasCstExpr(PHI->getIncomingValue(i))) {
           // skip if CstExp is not the same as incoming PHI value
-          if (CstExp != PHI->getIncomingValue(i)) continue;
+          if (CstExp != PHI->getIncomingValue(i))
+            continue;
           Instruction *NewInst = lowerCstExpr(CstExp, InsertLoc);
           for (unsigned j = PHI->getNumIncomingValues(); j > i; --j) {
-            if ((PHI->getIncomingValue(j-1) == PHI->getIncomingValue(i)) &&
-                (PHI->getIncomingBlock(j-1) == PHI->getIncomingBlock(i))) {
-              PHI->setIncomingValue(j, NewInst);
+            if ((PHI->getIncomingValue(j - 1) == PHI->getIncomingValue(i)) &&
+                (PHI->getIncomingBlock(j - 1) == PHI->getIncomingBlock(i))) {
+              PHI->setIncomingValue(j - 1, NewInst);
             }
           }
           worklist.insert(NewInst);

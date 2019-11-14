@@ -17,6 +17,14 @@
 namespace seahorn {
 bool XGlobalConstraints;
 bool XArrayGlobalConstraints;
+bool XStrictlyLinear;
+bool XEnableDiv;
+bool XRewriteDiv;
+bool XEnableUniqueScalars;
+bool XInferMemSafety;
+bool XIgnoreCalloc;
+bool XIgnoreMemset;
+bool XUseWrite;
 }
 using namespace seahorn;
 using namespace llvm;
@@ -25,54 +33,56 @@ using namespace llvm;
 static llvm::cl::opt<bool, true> GlobalConstraints(
     "horn-global-constraints",
     llvm::cl::desc("Maximize the use of global (i.e., unguarded) constraints"),
-    llvm::cl::location(XGlobalConstraints),
+    llvm::cl::location(seahorn::XGlobalConstraints),
     cl::init(false));
 
 static llvm::cl::opt<bool, true> ArrayGlobalConstraints(
     "horn-array-global-constraints",
     llvm::cl::desc("Extend global constraints to arrays"),
-    llvm::cl::location(XArrayGlobalConstraints), cl::init(false));
+    llvm::cl::location(seahorn::XArrayGlobalConstraints), cl::init(false));
 
-static llvm::cl::opt<bool> StrictlyLinear(
+static llvm::cl::opt<bool, true> StrictlyLinear(
     "horn-strictly-la",
     llvm::cl::desc("Generate strictly Linear Arithmetic constraints"),
-    cl::init(true));
+    llvm::cl::location(seahorn::XStrictlyLinear), cl::init(true));
 
-static llvm::cl::opt<bool>
+static llvm::cl::opt<bool, true>
     EnableDiv("horn-enable-div", llvm::cl::desc("Enable division constraints."),
-              cl::init(true));
+              llvm::cl::location(seahorn::XEnableDiv), cl::init(true));
 
-static llvm::cl::opt<bool> RewriteDiv(
+static llvm::cl::opt<bool, true> RewriteDiv(
     "horn-rewrite-div",
     llvm::cl::desc("Rewrite division constraints to multiplications."),
-    cl::init(false));
+    llvm::cl::location(seahorn::XRewriteDiv), cl::init(false));
 
-static llvm::cl::opt<bool> EnableUniqueScalars(
+static llvm::cl::opt<bool,true> EnableUniqueScalars(
     "horn-singleton-aliases",
     llvm::cl::desc("Treat singleton alias sets as scalar values"),
-    cl::init(false));
+    llvm::cl::location(seahorn::XEnableUniqueScalars), cl::init(false));
 
-static llvm::cl::opt<bool> InferMemSafety(
+static llvm::cl::opt<bool,true> InferMemSafety(
     "horn-use-mem-safety",
     llvm::cl::desc("Rely on memory safety assumptions such as "
                    "successful load/store imply validity of their arguments"),
+    llvm::cl::location(seahorn::XInferMemSafety),
     cl::init(true), cl::Hidden);
 
-static llvm::cl::opt<bool> IgnoreCalloc(
+static llvm::cl::opt<bool,true> IgnoreCalloc(
     "horn-ignore-calloc",
     llvm::cl::desc(
         "Treat calloc same as malloc, ignore that memory is initialized"),
-    cl::init(false), cl::Hidden);
+    llvm::cl::location(seahorn::XIgnoreCalloc), cl::init(false), cl::Hidden);
 
-static llvm::cl::opt<bool>
+static llvm::cl::opt<bool,true>
     IgnoreMemset("horn-ignore-memset",
                  llvm::cl::desc("Ignore that memset writes into a memory"),
-                 cl::init(false), cl::Hidden);
+                 llvm::cl::location(seahorn::XIgnoreMemset),
+                 cl::init(false),
+                 cl::Hidden);
 
-static llvm::cl::opt<bool>
-    UseWrite("horn-use-write",
-             llvm::cl::desc("Write to store instead of havoc"), cl::init(false),
-             cl::Hidden);
+static llvm::cl::opt<bool, true> UseWrite(
+    "horn-use-write", llvm::cl::desc("Write to store instead of havoc"),
+    llvm::cl::location(seahorn::XUseWrite), cl::init(false), cl::Hidden);
 
 static const Value *extractUniqueScalar(CallSite &cs) {
   if (!EnableUniqueScalars)

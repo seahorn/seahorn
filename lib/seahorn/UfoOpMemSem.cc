@@ -20,28 +20,27 @@
 namespace seahorn {
 extern bool XGlobalConstraints;
 extern bool XArrayGlobalConstraints;
-// TODO: do as the first two (from UfoOpSem)
-bool StrictlyLinear = true;
-bool EnableDiv = true;
-bool RewriteDiv = true;
-bool EnableUniqueScalars = false;
-bool InferMemSafety = true;
-bool IgnoreCalloc = false;
-bool IgnoreMemset = false;
-bool UseWrite = false;
+extern bool XStrictlyLinear;
+extern bool XEnableDiv;
+extern bool XRewriteDiv;
+extern bool XEnableUniqueScalars;
+extern bool XInferMemSafety;
+extern bool XIgnoreCalloc;
+extern bool XIgnoreMemset;
+extern bool XUseWrite;
 } // namespace seahorn
 using namespace seahorn;
 using namespace llvm;
 
 static const Value *extractUniqueScalar(CallSite &cs) {
-  if (!EnableUniqueScalars)
+  if (!XEnableUniqueScalars)
     return nullptr;
   else
     return seahorn::shadow_dsa::extractUniqueScalar(cs);
 }
 
 static const Value *extractUniqueScalar(const CallInst *ci) {
-  if (!EnableUniqueScalars)
+  if (!XEnableUniqueScalars)
     return nullptr;
   else
     return seahorn::shadow_dsa::extractUniqueScalar(ci);
@@ -50,7 +49,7 @@ static const Value *extractUniqueScalar(const CallInst *ci) {
 static bool isShadowMem(const Value &V, const Value **out) {
   const Value *scalar;
   bool res = seahorn::shadow_dsa::isShadowMem(V, &scalar);
-  if (EnableUniqueScalars && out)
+  if (XEnableUniqueScalars && out)
     *out = scalar;
   return res;
 }
@@ -103,7 +102,6 @@ struct OpSemBase {
     oneE = mkTerm<expr::mpz_class>(1UL, m_efac);
     m_uniq = false;
     resetActiveLit();
-
     // -- first two arguments are reserved for error flag
     m_fparams.push_back(falseE);
     m_fparams.push_back(falseE);
@@ -165,9 +163,8 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
     if (op0 == op1)
       return trueE;
     if (isOpX<MPZ>(op0) && isOpX<MPZ>(op1))
-      return getTerm<expr::mpz_class>(op0) >= getTerm<expr::mpz_class>(op1)
-                 ? trueE
-                 : falseE;
+      return getTerm<expr::mpz_class>(op0) >= getTerm<expr::mpz_class>(op1) ? trueE
+        : falseE;
 
     return mk<GEQ>(op0, op1);
   }
@@ -176,9 +173,7 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
     if (op0 == op1)
       return falseE;
     if (isOpX<MPZ>(op0) && isOpX<MPZ>(op1))
-      return getTerm<expr::mpz_class>(op0) < getTerm<expr::mpz_class>(op1)
-                 ? trueE
-                 : falseE;
+      return getTerm<expr::mpz_class>(op0) < getTerm<expr::mpz_class>(op1) ? trueE : falseE;
 
     return mk<LT>(op0, op1);
   }
@@ -249,7 +244,7 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
       break;
     }
 
-    if (UseWrite)
+    if (XUseWrite)
       write(I, rhs);
     else
       side(lhs, rhs);
@@ -269,7 +264,7 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
 
       /* avoid creating nest ite expressions by always introducing fresh
        * constants */
-      if (false && UseWrite)
+      if (false && XUseWrite)
         write(I, rhs);
       else
         side(lhs, rhs);
@@ -326,11 +321,11 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
           Expr rhs;
           if (isMask_32(ci->getZExtValue())) {
             uint64_t v = ci->getZExtValue();
-            rhs = mk<MOD>(op0, mkTerm<expr::mpz_class>(
-                                   (unsigned long int)(v + 1), m_efac));
+            rhs = mk<MOD>(
+                op0, mkTerm<expr::mpz_class>((unsigned long int)(v + 1), m_efac));
           }
 
-          if (UseWrite)
+          if (XUseWrite)
             write(i, rhs);
           else
             side(lhs, rhs);
@@ -374,7 +369,7 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
   }
 
   Expr doLShr(Expr lhs, Expr op1, const ConstantInt *op2) {
-    if (!EnableDiv)
+    if (!XEnableDiv)
       return Expr(nullptr);
 
     uint64_t shift = op2->getValue().getZExtValue();
@@ -382,7 +377,7 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
     for (unsigned long i = 0; i < shift; ++i)
       factor = factor * 2;
     Expr factorE = mkTerm<expr::mpz_class>(factor, m_efac);
-    if (RewriteDiv)
+    if (XRewriteDiv)
       return mk<IMPL>(mk<GEQ>(op1, zeroE), mk<EQ>(mk<MULT>(lhs, factorE), op1));
     else
       return mk<IMPL>(mk<GEQ>(op1, zeroE), mk<EQ>(lhs, mk<DIV>(op1, factorE)));
@@ -424,7 +419,7 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
       break;
     }
 
-    if (UseWrite)
+    if (XUseWrite)
       write(I, rhs);
     else
       side(lhs, rhs);
@@ -440,7 +435,7 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
   }
 
   Expr doAShr(Expr lhs, Expr op1, const ConstantInt *op2) {
-    if (!EnableDiv)
+    if (!XEnableDiv)
       return Expr(nullptr);
 
     uint64_t shift = op2->getValue().getZExtValue();
@@ -449,7 +444,7 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
       factor = factor * 2;
     Expr factorE = mkTerm<expr::mpz_class>(factor, m_efac);
 
-    if (RewriteDiv)
+    if (XRewriteDiv)
       return mk<EQ>(mk<MULT>(lhs, factorE), op1);
     else
       return mk<EQ>(lhs, mk<DIV>(op1, factorE));
@@ -476,16 +471,16 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
     case BinaryOperator::Mul:
       // if StrictlyLinear, then require that at least one
       // argument is a constant
-      if (!StrictlyLinear || isOpX<MPZ>(op1) || isOpX<MPZ>(op2) ||
+      if (!XStrictlyLinear || isOpX<MPZ>(op1) || isOpX<MPZ>(op2) ||
           isOpX<MPQ>(op1) || isOpX<MPQ>(op2))
         rhs = mk<MULT>(op1, op2);
       break;
     case BinaryOperator::SDiv:
     case BinaryOperator::UDiv:
       // if StrictlyLinear then require that divisor is a constant
-      if (EnableDiv &&
-          (!StrictlyLinear || isOpX<MPZ>(op2) || isOpX<MPQ>(op2))) {
-        if (RewriteDiv) {
+      if (XEnableDiv &&
+          (!XStrictlyLinear || isOpX<MPZ>(op2) || isOpX<MPQ>(op2))) {
+        if (XRewriteDiv) {
           side(mk<MULT>(lhs, op2), op1, true);
           return;
         } else
@@ -495,7 +490,7 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
     case BinaryOperator::SRem:
     case BinaryOperator::URem:
       // if StrictlyLinear then require that divisor is a constant
-      if (EnableDiv && (!StrictlyLinear || isOpX<MPZ>(op2) || isOpX<MPQ>(op2)))
+      if (XEnableDiv && (!XStrictlyLinear || isOpX<MPZ>(op2) || isOpX<MPQ>(op2)))
         rhs = mk<REM>(op1, op2);
       break;
     case BinaryOperator::Shl:
@@ -514,13 +509,13 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
     }
 
     // -- always guard division
-    if (EnableDiv && (I.getOpcode() == BinaryOperator::SDiv ||
+    if (XEnableDiv && (I.getOpcode() == BinaryOperator::SDiv ||
                       I.getOpcode() == BinaryOperator::UDiv ||
                       I.getOpcode() == BinaryOperator::SRem ||
                       I.getOpcode() == BinaryOperator::URem ||
                       I.getOpcode() == BinaryOperator::AShr))
       side(lhs, rhs, true);
-    else if (UseWrite)
+    else if (XUseWrite)
       write(I, rhs);
     else
       side(lhs, rhs);
@@ -555,7 +550,7 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
       side(mk<IMPL>(mk<EQ>(op0, zeroE), mk<NEG>(lhs)));
       side(mk<IMPL>(mk<EQ>(op0, oneE), lhs));
 
-    } else if (UseWrite)
+    } else if (XUseWrite)
       write(I, op0);
     else
       side(lhs, op0);
@@ -573,7 +568,7 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
     if (op) {
       // XXX cannot use write because lhs is further constrained below
       side(lhs, op);
-      if (!InferMemSafety)
+      if (!XInferMemSafety)
         return;
 
       // -- extra constraints that exclude undefined behavior
@@ -603,7 +598,7 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
         op0 = mk<ITE>(op0, one, zeroE);
     }
 
-    if (UseWrite)
+    if (XUseWrite)
       write(I, op0);
     else
       side(lhs, op0);
@@ -611,11 +606,14 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
 
   Expr getInArraySymbol(const Cell &c) {
     auto it = m_nodeids.find({c.getNode(),c.getRawOffset()});
+    LOG("inter_mem", errs() << "--> getInArraySymbol " << c.getNode() << " " << c.getRawOffset() << "\n";);
     assert(it != m_nodeids.end()); // there should be an entry for that always
     return it->getSecond();
   }
 
   void addInArraySymbol(const Cell &c, Expr A){
+    LOG("inter_mem", errs() << "<-- addInArraySymbol " << c.getNode() << " "
+        << c.getRawOffset() << "\n";);
     m_nodeids.insert({{c.getNode(), c.getRawOffset()}, A});
   }
 
@@ -690,10 +688,9 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
       // generate literals for copying, this needs to be done before generating
       // the call
       Expr argE = m_s.read(symb(*CS.getArgument(arg->getArgNo())));
-      if (calleeG.hasCell(*arg)){ // checking that the argument is a pointer
-        VCgenMemArg(calleeG.getCell(*arg), argE, unsafeCallerNodes, simMap);
-      }
       m_fparams.push_back(argE);
+      if (calleeG.hasCell(*arg)) // checking that the argument is a pointer
+        VCgenMemArg(calleeG.getCell(*arg), argE, unsafeCallerNodes, simMap);
     }
   }
   void VCgenMemArg(const Cell c_arg_callee, Expr base_ptr,
@@ -764,7 +761,6 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
   }
 
   void visitCallSite(CallSite CS) {
-
     assert(CS.isCall());
     const Function *f = CS.getCalledFunction();
 
@@ -800,7 +796,7 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
                m_sem.isTracked(I)) {
       havoc(I);
       assert(m_fparams.size() == 3);
-      if (IgnoreCalloc)
+      if (XIgnoreCalloc)
         m_side.push_back(mk<EQ>(m_outMem, m_inMem));
       else {
         // XXX This is potentially unsound if the corresponding DSA
@@ -816,15 +812,14 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
     } else if (MemSetInst *MSI = dyn_cast<MemSetInst>(&I)) {
       if (m_inMem && m_outMem && m_sem.isTracked(*(MSI->getDest()))) {
         assert(m_fparams.size() == 3);
-        if (IgnoreMemset)
+        if (XIgnoreMemset)
           m_side.push_back(mk<EQ>(m_outMem, m_inMem));
         else {
           if (const ConstantInt *c =
                   dyn_cast<const ConstantInt>(MSI->getValue())) {
             // XXX This is potentially unsound if the corresponding DSA
             // XXX node corresponds to multiple allocation sites
-            Expr val =
-                mkTerm<expr::mpz_class>(expr::toMpz(c->getValue()), m_efac);
+            Expr val = mkTerm<expr::mpz_class>(expr::toMpz(c->getValue()), m_efac);
             errs() << "WARNING: initializing DSA node due to memset()\n";
             if (m_uniq) {
               side(m_outMem, val);
@@ -856,7 +851,6 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
       m_fparams[1] = (m_s.read(m_sem.errorFlag(BB)));
       // error flag out
       m_fparams[2] = (m_s.havoc(m_sem.errorFlag(BB)));
-
       VCgenMemCallSite(CS, fi);
 
       for (const GlobalVariable *gv : fi.globals)
@@ -886,7 +880,8 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
         for (auto r : fi.args)
           errs() << *r << "\n";
         errs() << "globals\n";
-        for (auto r : fi.globals)          errs() << *r << "\n";
+        for (auto r : fi.globals)
+          errs() << *r << "\n";
         if (fi.ret)
           errs() << "ret: " << *fi.ret << "\n";
       });
@@ -899,6 +894,8 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
         Cell c(n, pair.second);
         Expr origA = getInArraySymbol(c);
         Expr replaceA = it.getSecond();
+
+        LOG("inter_mem", errs() << "Replacing "; origA->dump(); errs() << " by "; replaceA->dump() ; errs() << "\n");
 
         for(int i=3; i < m_fparams.size(); i++){ // we can skip the first 3
           if (m_fparams[i] == origA) {
@@ -978,155 +975,151 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
         // flow to the arguments
         /* do nothing */
       }
-    }
-    else {
+    } else {
       if (m_fparams.size() > 3) {
 
-    if (m_sem.isAbstracted(*f)) {
-      assert(m_inRegions.size() && m_outRegions.size());
-      for (unsigned i = 0; i < m_inRegions.size(); i++) {
-        addCondSide(mk<EQ>(m_inRegions[i], m_outRegions[i]));
+        if (m_sem.isAbstracted(*f)) {
+          assert(m_inRegions.size() && m_outRegions.size());
+          for (unsigned i = 0; i < m_inRegions.size(); i++) {
+            addCondSide(mk<EQ>(m_inRegions[i], m_outRegions[i]));
+          }
+          errs() << "WARNING: abstracted unsoundly a call to " << F.getName()
+                 << "\n";
+        } else {
+          errs() << "WARNING: skipping a call to " << F.getName()
+                 << " (recursive call?)\n";
+        }
+
+        m_fparams.resize(3);
+        m_inRegions.clear();
+        m_outRegions.clear();
       }
-      errs() << "WARNING: abstracted unsoundly a call to " << F.getName()
-             << "\n";
+
+      visitInstruction(*CS.getInstruction());
+    }
+  }
+
+  void visitAllocaInst(AllocaInst &I) {
+    if (!m_sem.isTracked(I))
+      return;
+
+    // -- alloca always returns a non-zero address
+    Expr lhs = havoc(I);
+    side(mk<GT>(lhs, zeroE));
+  }
+
+  void visitLoadInst(LoadInst &I) {
+    if (XInferMemSafety) {
+      Value *pop = I.getPointerOperand()->stripPointerCasts();
+      // -- successful load through a gep implies that the base
+      // -- address of the gep is not null
+      if (GetElementPtrInst *gep = dyn_cast<GetElementPtrInst>(pop)) {
+        Expr base = lookup(*gep->getPointerOperand());
+        if (base)
+          addCondSide(mk<GT>(base, zeroE));
+      }
+    }
+
+    if (!m_sem.isTracked(I))
+      return;
+
+    // -- define (i.e., use) the value of the instruction
+    Expr lhs = havoc(I);
+    if (!m_inMem)
+      return;
+
+    if (m_uniq) {
+      Expr rhs = m_inMem;
+      if (I.getType()->isIntegerTy(1))
+        // -- convert to Boolean
+        rhs = mk<NEQ>(rhs, mkTerm(expr::mpz_class(), m_efac));
+
+      if (XUseWrite)
+        write(I, rhs);
+      else
+        side(lhs, rhs);
+    } else if (Expr op0 = lookup(*I.getPointerOperand())) {
+      Expr rhs = op::array::select(m_inMem, op0);
+      if (I.getType()->isIntegerTy(1))
+        // -- convert to Boolean
+        rhs = mk<NEQ>(rhs, mkTerm(expr::mpz_class(), m_efac));
+
+      side(lhs, rhs, !XArrayGlobalConstraints);
+    }
+
+    m_inMem.reset();
+  }
+
+  void visitStoreInst(StoreInst &I) {
+    if (XInferMemSafety) {
+      Value *pop = I.getPointerOperand()->stripPointerCasts();
+      // -- successful load through a gep implies that the base
+      // -- address of the gep is not null
+      if (GetElementPtrInst *gep = dyn_cast<GetElementPtrInst>(pop)) {
+        Expr base = lookup(*gep->getPointerOperand());
+        if (base)
+          addCondSide(mk<GT>(base, zeroE));
+      }
+    }
+
+    if (!m_inMem || !m_outMem || !m_sem.isTracked(*I.getOperand(0)))
+      return;
+
+    Expr act = XGlobalConstraints ? trueE : m_activeLit;
+    Expr v = lookup(*I.getOperand(0));
+    if (v && I.getOperand(0)->getType()->isIntegerTy(1))
+      // -- convert to int
+      v = boolop::lite(v, mkTerm(expr::mpz_class(1UL), m_efac),
+                       mkTerm(expr::mpz_class(), m_efac));
+    if (m_uniq) {
+      side(m_outMem, v);
     } else {
-      errs() << "WARNING: skipping a call to " << F.getName()
-             << " (recursive call?)\n";
+      Expr idx = lookup(*I.getPointerOperand());
+      if (idx && v)
+        side(m_outMem, op::array::store(m_inMem, idx, v),
+             !XArrayGlobalConstraints);
     }
 
-    m_fparams.resize(3);
-    m_inRegions.clear();
-    m_outRegions.clear();
+    m_inMem.reset();
+    m_outMem.reset();
   }
 
-  visitInstruction(*CS.getInstruction());
-}
-} // namespace
+  void visitCastInst(CastInst &I) {
+    if (!m_sem.isTracked(I))
+      return;
 
-const CallSite *getNextFuncall(CallSite *cs) { return NULL; }
+    Expr lhs = havoc(I);
+    const Value &v0 = *I.getOperand(0);
 
-void visitAllocaInst(AllocaInst &I) {
-  if (!m_sem.isTracked(I))
-    return;
-
-  // -- alloca always returns a non-zero address
-  Expr lhs = havoc(I);
-  side(mk<GT>(lhs, zeroE));
-}
-
-void visitLoadInst(LoadInst &I) {
-  if (InferMemSafety) {
-    Value *pop = I.getPointerOperand()->stripPointerCasts();
-    // -- successful load through a gep implies that the base
-    // -- address of the gep is not null
-    if (GetElementPtrInst *gep = dyn_cast<GetElementPtrInst>(pop)) {
-      Expr base = lookup(*gep->getPointerOperand());
-      if (base)
-        addCondSide(mk<GT>(base, zeroE));
-    }
-  }
-
-  if (!m_sem.isTracked(I))
-    return;
-
-  // -- define (i.e., use) the value of the instruction
-  Expr lhs = havoc(I);
-  if (!m_inMem)
-    return;
-
-  if (m_uniq) {
-    Expr rhs = m_inMem;
-    if (I.getType()->isIntegerTy(1))
-      // -- convert to Boolean
-      rhs = mk<NEQ>(rhs, mkTerm(expr::mpz_class(), m_efac));
-
-    if (UseWrite)
-      write(I, rhs);
+    Expr u = lookup(v0);
+    if (XUseWrite)
+      write(I, u);
     else
-      side(lhs, rhs);
-  } else if (Expr op0 = lookup(*I.getPointerOperand())) {
-    Expr rhs = op::array::select(m_inMem, op0);
-    if (I.getType()->isIntegerTy(1))
-      // -- convert to Boolean
-      rhs = mk<NEQ>(rhs, mkTerm(expr::mpz_class(), m_efac));
-
-    side(lhs, rhs, !XArrayGlobalConstraints);
+      side(lhs, u);
   }
 
-  m_inMem.reset();
-}
+  void initGlobals(const BasicBlock &BB) {
+    const Function &F = *BB.getParent();
+    if (&F.getEntryBlock() != &BB)
+      return;
+    if (!F.getName().equals("main"))
+      return;
 
-void visitStoreInst(StoreInst &I) {
-  if (InferMemSafety) {
-    Value *pop = I.getPointerOperand()->stripPointerCasts();
-    // -- successful load through a gep implies that the base
-    // -- address of the gep is not null
-    if (GetElementPtrInst *gep = dyn_cast<GetElementPtrInst>(pop)) {
-      Expr base = lookup(*gep->getPointerOperand());
-      if (base)
-        addCondSide(mk<GT>(base, zeroE));
-    }
+    const Module &M = *F.getParent();
+    for (const GlobalVariable &g :
+         boost::make_iterator_range(M.global_begin(), M.global_end()))
+      if (m_sem.isTracked(g))
+        havoc(g);
   }
 
-  if (!m_inMem || !m_outMem || !m_sem.isTracked(*I.getOperand(0)))
-    return;
+  void visitBasicBlock(BasicBlock &BB) {
+    /// -- check if globals need to be initialized
+    initGlobals(BB);
 
-  Expr act = XGlobalConstraints ? trueE : m_activeLit; // act not used?
-  Expr v = lookup(*I.getOperand(0));
-  if (v && I.getOperand(0)->getType()->isIntegerTy(1))
-    // -- convert to int
-    v = boolop::lite(v, mkTerm(expr::mpz_class(1UL), m_efac),
-                     mkTerm(expr::mpz_class(), m_efac));
-  if (m_uniq) {
-    side(m_outMem, v);
-  } else {
-    Expr idx = lookup(*I.getPointerOperand());
-    if (idx && v)
-      side(m_outMem, op::array::store(m_inMem, idx, v),
-           !XArrayGlobalConstraints);
+    // read the error flag to make it live
+    m_s.read(m_sem.errorFlag(BB));
   }
-
-  m_inMem.reset();
-  m_outMem.reset();
-}
-
-void visitCastInst(CastInst &I) {
-  if (!m_sem.isTracked(I))
-    return;
-
-  Expr lhs = havoc(I);
-  const Value &v0 = *I.getOperand(0);
-
-  Expr u = lookup(v0);
-  if (UseWrite)
-    write(I, u);
-  else
-    side(lhs, u);
-}
-
-void initGlobals(const BasicBlock &BB) {
-  const Function &F = *BB.getParent();
-  if (&F.getEntryBlock() != &BB)
-    return;
-  if (!F.getName().equals("main"))
-    return;
-
-  const Module &M = *F.getParent();
-  for (const GlobalVariable &g :
-       boost::make_iterator_range(M.global_begin(), M.global_end()))
-    if (m_sem.isTracked(g))
-      havoc(g);
-}
-
-void visitBasicBlock(BasicBlock &BB) {
-  /// -- check if globals need to be initialized
-  initGlobals(BB);
-
-  // read the error flag to make it live
-  m_s.read(m_sem.errorFlag(BB));
-}
-}
-;
+};
 
 struct OpSemPhiVisitor : public InstVisitor<OpSemPhiVisitor>, OpSemBase {
   const BasicBlock &m_dst;
@@ -1210,8 +1203,7 @@ Expr UfoOpMemSem::ptrArith(SymStore &s, GetElementPtrInst &gep) {
     if (const StructType *st = GTI.getStructTypeOrNull()) {
       if (const ConstantInt *ci =
               dyn_cast<const ConstantInt>(GTI.getOperand())) {
-        Expr off = mkTerm<expr::mpz_class>(
-            (unsigned long)fieldOff(st, ci->getZExtValue()), m_efac);
+        Expr off = mkTerm<expr::mpz_class>((unsigned long)fieldOff(st, ci->getZExtValue()), m_efac);
         res = mk<PLUS>(res, off);
       } else {
         assert(false);
@@ -1219,8 +1211,7 @@ Expr UfoOpMemSem::ptrArith(SymStore &s, GetElementPtrInst &gep) {
     } else {
       // otherwise we have a sequential type like an array or vector.
       // Multiply the index by the size of the indexed type.
-      Expr sz = mkTerm<expr::mpz_class>(
-          (unsigned long)storageSize(GTI.getIndexedType()), m_efac);
+      Expr sz = mkTerm<expr::mpz_class>((unsigned long)storageSize(GTI.getIndexedType()), m_efac);
       res = mk<PLUS>(res, mk<MULT>(lookup(s, *GTI.getOperand()), sz));
     }
   }
@@ -1363,8 +1354,8 @@ void UfoOpMemSem::execEdg(SymStore &s, const BasicBlock &src,
     exec(s, dst, side, trueE);
 }
 
-void UfoOpMemSem::execBr(SymStore &s, const BasicBlock &src,
-                         const BasicBlock &dst, ExprVector &side, Expr act) {
+void UfoOpMemSem::execBr(SymStore &s, const BasicBlock &src, const BasicBlock &dst,
+                      ExprVector &side, Expr act) {
   // the branch condition
   if (const BranchInst *br = dyn_cast<const BranchInst>(src.getTerminator())) {
     if (br->isConditional()) {

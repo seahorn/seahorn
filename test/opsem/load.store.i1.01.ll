@@ -1,5 +1,5 @@
-; RUN: %seabmc "%s" 2>&1 | %oc %s
-; RUN: %seabmc --horn-bv2-lambdas --log=opsem3 "%s" 2>&1 | %oc %s
+; RUN: %seabmc --lower-gv-init=false "%s" 2>&1 | %oc %s
+; RUN: %seabmc --lower-gv-init=false --horn-bv2-lambdas --log=opsem3 "%s" 2>&1 | %oc %s
 
 ; CHECK: ^unsat$
 ; ModuleID = 'tmp_bc/code.pp.ms.o.ul.cut.bc'

@@ -1243,8 +1243,6 @@ public:
 
     if (ctx.isMemScalar()) {
       res = ctx.read(ctx.getMemReadRegister());
-      if (ty->isIntegerTy(1))
-        res = ctx.alu().bv1ToBool(res);
     } else if (Expr op0 = lookup(addr)) {
       res = ctx.loadValueFromMem(op0, *ty, alignment);
     }
@@ -1268,8 +1266,6 @@ public:
     Expr v = lookup(val);
     Expr res;
     if (v && ctx.isMemScalar()) {
-      if (val.getType()->isIntegerTy(1))
-        v = ctx.alu().boolToBv1(v);
       res = v;
       ctx.write(ctx.getMemWriteRegister(), res);
     } else {

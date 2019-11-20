@@ -1114,6 +1114,7 @@ class Seahorn(sea.LimitedCmd):
                 argv.append ('--sea-dsa-stats')
             ## we tell abc to use sea-dsa
             argv.append ('--horn-sea-dsa')
+            argv.append ('--sea-dsa-type-aware')
             ## we select the sea-dsa variant
             if args.dsa == 'sea-flat':
                 argv.append ('--sea-dsa=flat')

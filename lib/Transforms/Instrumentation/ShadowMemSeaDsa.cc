@@ -227,6 +227,10 @@ private:
   using ShadowsReverseMap = llvm::DenseMap<unsigned, std::pair<const sea_dsa::Node *, unsigned>>;
   ShadowsReverseMap m_shadowsReverse;
 
+  using ShadowInstrMap =
+      llvm::DenseMap<Instruction *, std::pair<const sea_dsa::Node *, unsigned>>;
+  ShadowInstrMap m_shadowsInstrReverse; // for now only for shadow.mem.arg._
+
   /// \brief The largest id used so far. Used to allocate fresh ids
   unsigned m_maxId = 0;
 
@@ -275,13 +279,6 @@ private:
   /// \brief Computes Mod/Ref sets for the given function \p F
   void updateReadMod(Function &F, NodeSet &readSet, NodeSet &modSet);
 
-  /// \brief Returns the offset of the field pointed by \p c
-  ///
-  /// Returns 0 if \f m_splitDsaNodes is false
-  unsigned getOffset(const dsa::Cell &c) {
-    return m_splitDsaNodes ? c.getOffset() : 0;
-  }
-
   /// \brief Returns shadow variable for a given field
   AllocaInst *getShadowForField(const dsa::Node &n, unsigned offset) {
     auto &offsetMap = m_shadows[&n];
@@ -294,6 +291,10 @@ private:
     // -- inst is eventually added to the Module and it will take ownership
     offsetMap[offset] = inst;
     return inst;
+  }
+
+  void storeCellForInstruction(CallInst * i, const dsa::Cell &c){
+    m_shadowsInstrReverse[i] = {c.getNode(), c.getRawOffset()};
   }
 
   /// \brief Returns shadow variable for a field pointed to by a cell \p cell
@@ -447,6 +448,7 @@ private:
     auto *ci = B.CreateCall(m_argRefFn, {B.getInt32(id), m_B->CreateLoad(v),
                                          m_B->getInt32(idx),
                                          getUniqueScalar(*m_llvmCtx, B, c)});
+    storeCellForInstruction(ci,c);
     markUseCall(ci, bytes);
     return *ci;
   }
@@ -460,6 +462,7 @@ private:
                              getUniqueScalar(*m_llvmCtx, B, c)},
                             "sh");
     B.CreateStore(ci, v);
+    storeCellForInstruction(ci, c);
     markDefCall(ci, bytes);
     return *ci;
   }
@@ -589,7 +592,14 @@ public:
   unsigned getFieldId(const dsa::Cell &c);
 
   /// \brief Returns the cell that corresponds to an internal id of a shadow
-  const sea_dsa::Cell getCellShadowId(unsigned id);
+  const dsa::Cell getCellShadowId(unsigned id);
+
+  const dsa::Cell getCellCallInst(Instruction *i);
+
+  /// \brief Returns the offset of the field pointed by \p c
+  ///
+  /// Returns 0 if \f m_splitDsaNodes is false
+  unsigned getOffset(const dsa::Cell &c);
 };
 
 // public methods of ShadowDsaImpl
@@ -1357,7 +1367,7 @@ void ShadowDsaImpl::solveUses(Function &F) {
 /// \brief Returns id of a field pointed to by the given cell \c
 unsigned ShadowDsaImpl::getFieldId(const dsa::Cell &c) {
   assert(c.getNode());
-  unsigned id; // in case allocation of new id for the node is needed
+  unsigned id;
 
   const sea_dsa::Node &n = *c.getNode();
   unsigned offset = getOffset(c);
@@ -1378,21 +1388,24 @@ unsigned ShadowDsaImpl::getFieldId(const dsa::Cell &c) {
       id = id + offset;
     }
   }
-  auto it2 = m_shadowsReverse.find(id);
-  if(it2 == m_shadowsReverse.end()){ // add to the reverse map if needed
-    LOG("inter_mem", errs() << "<== add shadowsReverse " << id << " " << &n << " " << c.getRawOffset() << "\n";);
-    m_shadowsReverse.insert({id, {&n, c.getRawOffset()}});
-  }
-
   return id;
 }
 
-const sea_dsa::Cell ShadowDsaImpl::getCellShadowId(unsigned id) {
+const dsa::Cell ShadowDsaImpl::getCellCallInst(Instruction *i) {
+  auto it = m_shadowsInstrReverse.find(i);
+  assert(it != m_shadowsInstrReverse.end());
+  return dsa::Cell(const_cast<sea_dsa::Node *>(it->getSecond().first),it->getSecond().second);
+}
+
+const dsa::Cell ShadowDsaImpl::getCellShadowId(unsigned id) {
   auto it = m_shadowsReverse.find(id);
   assert(it != m_shadowsReverse.end());
   auto pair = it->getSecond();
-  return sea_dsa::Cell(const_cast<sea_dsa::Node *>(pair.first), pair.second);
+  return dsa::Cell(const_cast<sea_dsa::Node *>(pair.first), pair.second);
 }
+
+unsigned ShadowDsaImpl::getOffset(const dsa::Cell &c)
+{ return m_splitDsaNodes ? c.getOffset() : 0; }
 
 } // namespace seahorn
 
@@ -1475,10 +1488,15 @@ bool ShadowMemSeaDsa::shadowInstrReads(CallSite &cs) {
   return name.equals(m_argRef) || name.startswith(m_argMod);
 }
 
-const sea_dsa::Cell ShadowMemSeaDsa::getCellShadowInstr(CallSite &cs) {
-  auto &ci = cast<ConstantInt>(*cs.getArgument(0));
-  unsigned shadow_id = ci.getZExtValue();
-  return m_shadow->getCellShadowId(shadow_id);
+const dsa::Cell ShadowMemSeaDsa::getCellShadowInstr(CallSite &cs) {
+  return m_shadow->getCellCallInst(cs.getInstruction());
+  // auto &ci = cast<ConstantInt>(*cs.getArgument(0));
+  // unsigned shadow_id = ci.getZExtValue();
+  // return m_shadow->getCellShadowId(shadow_id);
+}
+
+unsigned ShadowMemSeaDsa::getOffset(const dsa::Cell &c) {
+  return m_shadow->getOffset(c);
 }
 
 llvm::Value * ShadowMemSeaDsa::getShadowInAlloc(CallSite &cs) {

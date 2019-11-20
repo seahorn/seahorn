@@ -605,16 +605,16 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
   }
 
   Expr getInArraySymbol(const Cell &c) {
-    auto it = m_nodeids.find({c.getNode(),c.getRawOffset()});
-    LOG("inter_mem", errs() << "--> getInArraySymbol " << c.getNode() << " " << c.getRawOffset() << "\n";);
+    auto it = m_nodeids.find({c.getNode(),m_sem.m_shadowDsa->getOffset(c)});
+    LOG("inter_mem", errs() << "--> getInArraySymbol\n" << " " << m_sem.m_shadowDsa->getOffset(c) << "\n";);
     assert(it != m_nodeids.end()); // there should be an entry for that always
     return it->getSecond();
   }
 
   void addInArraySymbol(const Cell &c, Expr A){
-    LOG("inter_mem", errs() << "<-- addInArraySymbol " << c.getNode() << " "
-        << c.getRawOffset() << "\n";);
-    m_nodeids.insert({{c.getNode(), c.getRawOffset()}, A});
+    LOG("inter_mem", errs() << "<-- addInArraySymbol\n"
+        << " " << m_sem.m_shadowDsa->getOffset(c) << "\n";);
+    m_nodeids.insert({{c.getNode(), m_sem.m_shadowDsa->getOffset(c)}, A});
   }
 
   Expr createVariant(Expr origE) {
@@ -627,19 +627,19 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
   // creates a new array symbol for array origE if it was not created already
   Expr getFreshArraySymbol(const Cell &c) {
 
-    auto it = m_rep.find({c.getNode(), c.getRawOffset()});
+    auto it = m_rep.find({c.getNode(), m_sem.m_shadowDsa->getOffset(c)});
     if (it == m_rep.end()) { // not copied yet
       Expr origE = getInArraySymbol(c);
       assert(bind::isArrayConst(origE));
       Expr copyE = createVariant(origE);
-      m_rep.insert({{c.getNode(), c.getRawOffset()}, copyE});
+      m_rep.insert({{c.getNode(), m_sem.m_shadowDsa->getOffset(c)}, copyE});
       return copyE;
     }
     else return it->getSecond();
   }
 
   Expr getCurrArraySymbol(const Cell &c) {
-    auto it = m_tmprep.find({c.getNode(), c.getRawOffset()});
+    auto it = m_tmprep.find({c.getNode(), m_sem.m_shadowDsa->getOffset(c)});
     assert(it == m_tmprep.end());
     return it->getSecond();
   }
@@ -652,15 +652,15 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
     Expr origE = getInArraySymbol(c);
     newE = createVariant(origE);
 
-    auto it = m_tmprep.find({c.getNode(), c.getRawOffset()});
+    auto it = m_tmprep.find({c.getNode(), m_sem.m_shadowDsa->getOffset(c)});
     if (it == m_tmprep.end()) {
       currE = origE;
-      m_tmprep.insert({{c.getNode(), c.getRawOffset()}, newE});
+      m_tmprep.insert({{c.getNode(), m_sem.m_shadowDsa->getOffset(c)}, newE});
     }
     else{
       currE = it->getSecond();
-      m_tmprep.erase({c.getNode(), c.getRawOffset()});
-      m_tmprep.insert({{c.getNode(), c.getRawOffset()}, newE});
+      m_tmprep.erase({c.getNode(), m_sem.m_shadowDsa->getOffset(c)});
+      m_tmprep.insert({{c.getNode(), m_sem.m_shadowDsa->getOffset(c)}, newE});
     }
   }
 
@@ -689,10 +689,12 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
       // the call
       Expr argE = m_s.read(symb(*CS.getArgument(arg->getArgNo())));
       m_fparams.push_back(argE);
-      if (calleeG.hasCell(*arg)) // checking that the argument is a pointer
+      if (calleeG.hasCell(*arg)){ // checking that the argument is a pointer
         VCgenMemArg(calleeG.getCell(*arg), argE, unsafeCallerNodes, simMap);
+      }
     }
   }
+
   void VCgenMemArg(const Cell c_arg_callee, Expr base_ptr,
                    SafeNodeSet unsafeCallerNodes, SimulationMapper sm) {
     ExplSet explored;
@@ -715,42 +717,40 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
     const Cell &c_caller = simMap.get(c_callee);
     const Node *n_caller = c_caller.getNode();
 
-    if (n_caller->isOffsetCollapsed() || n_callee->isArray() || n_caller->isTypeCollapsed())
+    if (n_caller->isOffsetCollapsed() || n_callee->isArray() || n_callee->isOffsetCollapsed())
       // the previous conditions causes the simulation not to be able to reconstruct the offset?
       return;
 
     // checking modification in the bu graph, which is more precise
     // than the previous approach
-    if (n_callee->isModified() && GraphExplorer::isSafeNode(unsafeNodes,n_caller)) {
-      Expr copyA = getFreshArraySymbol(c_caller);
-      Expr tmpA = nullptr, nextA = nullptr;
-      newTmpArraySymbol(c_caller, tmpA, nextA);
-      // generate copy conditions for this node, we are basically going to copy
-      // the size of the node, this can be refined later
-      // First get the name of the "original" logical array
+    if (n_callee->isModified() && !c_callee.getNode()->types().empty() &&
+        GraphExplorer::isSafeNode(unsafeNodes, n_caller)) {
 
-        for(auto field : c_callee.getNode()->types()){
-          unsigned offset = field.getFirst(); // offset of the field
-          Expr e_offset = mkTerm<expr::mpz_class>(offset, m_efac);
-          Expr dirE = mk<PLUS>(ptr, e_offset);
-          tmpA = mk<STORE>(tmpA, dirE, mk<SELECT>(copyA, dirE));
+      for(auto field : c_callee.getNode()->types()){
+        unsigned offset = field.getFirst(); // offset of the field
+
+        Cell c_caller_field(c_caller, offset);
+        Expr copyA = getFreshArraySymbol(c_caller_field);
+        Expr tmpA = nullptr, nextA = nullptr;
+        newTmpArraySymbol(c_caller_field, tmpA, nextA);
+
+        Expr e_offset = mkTerm<expr::mpz_class>(offset, m_efac);
+        Expr dirE = mk<PLUS>(ptr, e_offset);
+        tmpA = mk<STORE>(tmpA, dirE, mk<SELECT>(copyA, dirE));
+        m_side.push_back(mk<EQ>(nextA, tmpA));
       }
-
-      // Generating an literal per node in the callee to copy
-      m_side.push_back(mk<EQ>(nextA, tmpA));
     }
     // now we follow the pointers of the node
 
     if(n_callee->getLinks().empty())
       return;
 
-    Expr origA = getInArraySymbol(c_caller);
-
     for (auto &links : n_callee->getLinks()) {
       const Field &f = links.first;
       const Cell &next_c = *links.second;
       const Node *next_n = next_c.getNode();
 
+      Expr origA = getInArraySymbol(Cell(c_caller,f.getOffset()));
 
       if (explored.find(next_n) == explored.end()) { // not explored yet
         Expr offset = mkTerm<expr::mpz_class>(f.getOffset(), m_efac);

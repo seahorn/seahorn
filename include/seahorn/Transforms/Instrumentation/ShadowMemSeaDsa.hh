@@ -55,6 +55,7 @@ public:
 
   // API of graphs/shadow ids
   unsigned getCellShadowId(const sea_dsa::Cell &c);
+  unsigned getOffset(const sea_dsa::Cell &c);
 
   static const llvm::StringRef m_argNew;
   static const llvm::StringRef m_argRef;

@@ -606,14 +606,17 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
 
   Expr getInArraySymbol(const Cell &c) {
     auto it = m_nodeids.find({c.getNode(),m_sem.m_shadowDsa->getOffset(c)});
-    LOG("inter_mem", errs() << "--> getInArraySymbol\n" << " " << m_sem.m_shadowDsa->getOffset(c) << "\n";);
+    LOG("inter_mem", errs() << "--> getInArraySymbol\n"
+                            << " " << c.getNode() << " " <<
+                         m_sem.m_shadowDsa->getOffset(c) << "\n";);
     assert(it != m_nodeids.end()); // there should be an entry for that always
     return it->getSecond();
   }
 
   void addInArraySymbol(const Cell &c, Expr A){
-    LOG("inter_mem", errs() << "<-- addInArraySymbol\n"
-        << " " << m_sem.m_shadowDsa->getOffset(c) << "\n";);
+    LOG("inter_mem",
+        errs() << "<-- addInArraySymbol\n"
+        << " " << c.getNode() << " " << m_sem.m_shadowDsa->getOffset(c) << "\n";);
     m_nodeids.insert({{c.getNode(), m_sem.m_shadowDsa->getOffset(c)}, A});
   }
 
@@ -717,7 +720,8 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
     const Cell &c_caller = simMap.get(c_callee);
     const Node *n_caller = c_caller.getNode();
 
-    if (n_caller->isOffsetCollapsed() || n_callee->isArray() || n_callee->isOffsetCollapsed())
+    //if (n_caller->isOffsetCollapsed() || n_callee->isArray() || n_callee->isOffsetCollapsed())
+    if (n_callee->isArray())
       // the previous conditions causes the simulation not to be able to reconstruct the offset?
       return;
 
@@ -727,7 +731,7 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
         GraphExplorer::isSafeNode(unsafeNodes, n_caller)) {
 
       for(auto field : c_callee.getNode()->types()){
-        unsigned offset = field.getFirst(); // offset of the field
+        unsigned offset = field.getFirst();
 
         Cell c_caller_field(c_caller, offset);
         Expr copyA = getFreshArraySymbol(c_caller_field);
@@ -740,11 +744,11 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
         m_side.push_back(mk<EQ>(nextA, tmpA));
       }
     }
-    // now we follow the pointers of the node
 
     if(n_callee->getLinks().empty())
       return;
 
+    // now we follow the pointers of the node
     for (auto &links : n_callee->getLinks()) {
       const Field &f = links.first;
       const Cell &next_c = *links.second;

@@ -1,9 +1,12 @@
 #include "seahorn/CexHarness.hh"
-
+#include "llvm/Bitcode/BitcodeWriter.h"
 #include "llvm/IR/DataLayout.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/ValueMap.h"
+#include "llvm/IR/Verifier.h"
+#include "llvm/Support/FileSystem.h"
+#include "llvm/Support/ToolOutputFile.h"
 
 #include "seahorn/Transforms/Instrumentation/ShadowMemDsa.hh"
 
@@ -114,6 +117,22 @@ bool extractArrayContents(Expr e, IndexToValueMap &out, Expr &default_value) {
   errs() << "Warning: unsupported array term " << *e << "\n";
   out.clear();
   return false;
+}
+
+void dumpLLVMCex(BmcTraceWrapper &trace, StringRef CexFile,
+                        const DataLayout &dl, const TargetLibraryInfo &tli,
+                        LLVMContext &context) {
+  std::unique_ptr<Module> Harness = createCexHarness(trace, dl, tli, context);
+  std::error_code error_code;
+  llvm::tool_output_file out(CexFile, error_code, sys::fs::F_None);
+  assert(!error_code);
+  verifyModule(*Harness, &errs());
+  if (CexFile.endswith(".ll"))
+    out.os() << *Harness;
+  else
+    WriteBitcodeToFile(Harness.get(), out.os());
+  out.os().close();
+  out.keep();
 }
 
 std::unique_ptr<Module> createCexHarness(BmcTraceWrapper &trace,

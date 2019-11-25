@@ -1,13 +1,17 @@
 #include "llvm/Analysis/CallGraph.h"
 #include "llvm/Analysis/PostDominators.h"
 #include "llvm/Analysis/TargetLibraryInfo.h"
+#include "llvm/Bitcode/BitcodeWriter.h"
 #include "llvm/IR/Dominators.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/InstIterator.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/Module.h"
+#include "llvm/IR/Verifier.h"
 #include "llvm/Pass.h"
+#include "llvm/Support/FileSystem.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/Support/ToolOutputFile.h"
 
 #include "seahorn/config.h"
 #include "seahorn/Support/Stats.hh"
@@ -16,6 +20,7 @@
 #include "seahorn/Analysis/ControlDependenceAnalysis.hh"
 #include "seahorn/Analysis/GateAnalysis.hh"
 #include "seahorn/Bmc.hh"
+#include "seahorn/CexHarness.hh"
 #include "seahorn/BvOpSem.hh"
 #include "seahorn/BvOpSem2.hh"
 #include "seahorn/DfCoiAnalysis.hh"
@@ -25,6 +30,11 @@
 
 #include "sea_dsa/AllocWrapInfo.hh"
 
+namespace seahorn {
+// defined in HornCex.cc
+extern std::string HornCexFile;
+}
+
 // XXX temporary debugging aid
 static llvm::cl::opt<bool> HornBv2("horn-bv2",
                                    llvm::cl::desc("Use bv2 semantics"),
@@ -33,6 +43,7 @@ static llvm::cl::opt<bool> HornBv2("horn-bv2",
 static llvm::cl::opt<bool> HornGSA("horn-gsa",
                                    llvm::cl::desc("Use Gated SSA for bmc"),
                                    llvm::cl::init(false), llvm::cl::Hidden);
+
 static llvm::cl::opt<bool> ComputeCoi("horn-bmc-coi",
                                       llvm::cl::desc("Compute DataFlow-based COI"),
                                       llvm::cl::init(false), llvm::cl::Hidden);
@@ -243,12 +254,29 @@ public:
             errs() << "CORE END\n";
           });
 
+
+      
       LOG("cex", if (res) {
-        errs() << "Analyzed Function:\n" << F << "\n";
-        BmcTrace trace(bmc.getTrace());
-        errs() << "Trace \n";
-        trace.print(errs());
-      });
+	  errs() << "Analyzed Function:\n" << F << "\n";
+	  errs() << "Trace \n";
+	  BmcTrace trace(bmc.getTrace());	  
+	  trace.print(errs());
+	});
+
+      if (res) {
+	StringRef CexFileRef(HornCexFile);
+	if (CexFileRef != "") {
+	  if (CexFileRef.endswith(".ll") || CexFileRef.endswith(".bc")) {
+	    auto const &tli = getAnalysis<TargetLibraryInfoWrapperPass>().getTLI();	
+	    auto const &dl = F.getParent()->getDataLayout();
+	    BmcTrace trace(bmc.getTrace());	  	  
+	    BmcTraceWrapper trace_wrapper(trace);
+	    dumpLLVMCex(trace_wrapper, CexFileRef, dl, tli, F.getContext());
+	  } else {
+	    WARN << "The Bmc engine only generates harnesses in bitcode format";
+	  }
+	}
+      }
     } else if (m_engine == BmcEngineKind::path_bmc) {
 
       auto const &dl = F.getParent()->getDataLayout();      
@@ -299,6 +327,8 @@ public:
         errs() << "Trace \n";
         trace.print(errs());
       });
+
+      // TODO: generate a harness from PathBmcTrace
     }
     return false;
   }

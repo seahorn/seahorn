@@ -42,11 +42,17 @@
 
 #include <gmpxx.h>
 
-static llvm::cl::opt<std::string> HornCexFile(
+namespace seahorn {
+std::string HornCexFile;
+}
+
+static llvm::cl::opt<std::string, true> XHornCexFile(
     "horn-cex",
     llvm::cl::desc(
         "Counterexample in SV-COMP (.xml) or LLVM bitcode (.bc or .ll) format"),
-    llvm::cl::init(""), llvm::cl::value_desc("filename"));
+    llvm::cl::location(seahorn::HornCexFile),    
+    llvm::cl::init(""),
+    llvm::cl::value_desc("filename"));
 
 static llvm::cl::opt<bool>
     UseBv("horn-cex-bv",
@@ -91,9 +97,6 @@ namespace seahorn {
 
 template <typename O> class SvCompCex;
 static void dumpSvCompCex(BmcTrace &trace, std::string CexFile);
-static void dumpLLVMCex(BmcTraceWrapper &trace, StringRef CexFile,
-                        const DataLayout &dl, const TargetLibraryInfo &tli,
-                        llvm::LLVMContext &context);
 static void dumpLLVMBitcode(const Module &M, StringRef BcFile);
 
 char HornCex::ID = 0;
@@ -499,22 +502,6 @@ static void dumpSvCompCex(BmcTrace &trace, std::string CexFile) {
       svcomp.add_violation_node();
   }
   svcomp.footer();
-  out.keep();
-}
-
-static void dumpLLVMCex(BmcTraceWrapper &trace, StringRef CexFile,
-                        const DataLayout &dl, const TargetLibraryInfo &tli,
-                        LLVMContext &context) {
-  std::unique_ptr<Module> Harness = createCexHarness(trace, dl, tli, context);
-  std::error_code error_code;
-  llvm::tool_output_file out(CexFile, error_code, sys::fs::F_None);
-  assert(!error_code);
-  verifyModule(*Harness, &errs());
-  if (CexFile.endswith(".ll"))
-    out.os() << *Harness;
-  else
-    WriteBitcodeToFile(Harness.get(), out.os());
-  out.os().close();
   out.keep();
 }
 

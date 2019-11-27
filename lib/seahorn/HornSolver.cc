@@ -47,6 +47,9 @@ static llvm::cl::opt<unsigned> PdrContexts("horn-pdr-contexts", cl::Hidden,
 static llvm::cl::opt<bool> WeakAbs("horn-weak-abs", cl::Hidden, cl::init(true),
                                    cl::desc("Perform weak abstraction"));
 
+static llvm::cl::opt<bool> UseMbqi("horn-use-mbqi", cl::Hidden, cl::init(false),
+				   cl::desc("Use model-based quantifier instantiation"));
+
 static llvm::cl::opt<bool> KeepProxy("horn-keep-proxy", cl::Hidden,
                                      cl::init(false),
                                      cl::desc("Keep proxy variables"));
@@ -125,6 +128,7 @@ namespace seahorn {
 	       UseInvariant == solver_detail::INACTIVE ||
 	       UseInvariant == solver_detail::BG_ONLY);
     params.set(":spacer.weak_abs", WeakAbs);
+    params.set(":spacer.mbqi", UseMbqi);
     params.set(":spacer.iuc", IUC);
     params.set(":spacer.iuc.arith", IUCArith);
     // -- less incremental but constraints are popped after pushed in

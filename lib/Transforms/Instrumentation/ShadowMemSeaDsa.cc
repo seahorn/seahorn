@@ -652,9 +652,16 @@ bool ShadowDsaImpl::runOnFunction(Function &F) {
   std::set<const dsa::Node *> retReach;
   argReachableNodes(F, G, reach, retReach);
 
+  // sort according to the node id
+  std::vector<const dsa::Node *> sorted_reach(reach.begin(), reach.end());
+  std::sort(sorted_reach.begin(), sorted_reach.end(),
+            [&, this](const dsa::Node *n1, const dsa::Node *n2) {
+              return n1->getId() < n2->getId();
+            });
+
   // -- create shadows for all nodes that are modified by this
   // -- function and escape to a parent function
-  for (const dsa::Node *n : reach)
+  for (const dsa::Node *n : sorted_reach)
     if (isModified(n, F) || isRead(n, F)) {
       // TODO: allocate for all slices of n, not just offset 0
       getShadowForField(*n, 0);
@@ -701,7 +708,7 @@ bool ShadowDsaImpl::runOnFunction(Function &F) {
 
   B.SetInsertPoint(ret);
   unsigned idx = 0;
-  for (const dsa::Node *n : reach) {
+  for (const dsa::Node *n : sorted_reach) {
     // TODO: extend to work with all slices
     dsa::Cell c(const_cast<dsa::Node *>(n), 0);
 
@@ -857,6 +864,13 @@ void ShadowDsaImpl::visitDsaCallSite(dsa::DsaCallSite &CS) {
   std::set<const dsa::Node *> retReach;
   argReachableNodes(CF, calleeG, reach, retReach);
 
+  // sort according to the node id
+  std::vector<const dsa::Node *> sorted_reach(reach.begin(), reach.end());
+  std::sort(sorted_reach.begin(), sorted_reach.end(),
+            [&, this](const dsa::Node *n1, const dsa::Node *n2) {
+              return n1->getId() < n2->getId();
+            });
+
   // -- compute mapping between callee and caller graphs
   dsa::SimulationMapper simMap;
   dsa::Graph::computeCalleeCallerMapping(CS, calleeG, *m_graph, simMap);
@@ -866,7 +880,8 @@ void ShadowDsaImpl::visitDsaCallSite(dsa::DsaCallSite &CS) {
 
   m_B->SetInsertPoint(const_cast<Instruction *>(CS.getInstruction()));
   unsigned idx = 0;
-  for (const dsa::Node *n : reach) {
+
+  for (const dsa::Node *n : sorted_reach) {
     LOG("global_shadow", errs() << *n << "\n";
         const Value *v = n->getUniqueScalar();
         if (v) errs() << "value: " << *n->getUniqueScalar() << "\n";
@@ -1022,12 +1037,12 @@ void ShadowDsaImpl::mkShadowFunctions(Module &M) {
   m_memShadowArgInitFn = M.getOrInsertFunction("shadow.mem.arg.init", m_Int32Ty,
                                                m_Int32Ty, i8PtrTy);
 
-  m_argRefFn = M.getOrInsertFunction("shadow.mem.arg.ref", voidTy, m_Int32Ty,
+  m_argRefFn = M.getOrInsertFunction(m_shadowArgRef, voidTy, m_Int32Ty,
                                      m_Int32Ty, m_Int32Ty, i8PtrTy);
 
-  m_argModFn = M.getOrInsertFunction("shadow.mem.arg.mod", m_Int32Ty, m_Int32Ty,
+  m_argModFn = M.getOrInsertFunction(m_shadowArgMod, m_Int32Ty, m_Int32Ty,
                                      m_Int32Ty, m_Int32Ty, i8PtrTy);
-  m_argNewFn = M.getOrInsertFunction("shadow.mem.arg.new", m_Int32Ty, m_Int32Ty,
+  m_argNewFn = M.getOrInsertFunction(m_shadowArgNew, m_Int32Ty, m_Int32Ty,
                                      m_Int32Ty, m_Int32Ty, i8PtrTy);
 
   m_markIn = M.getOrInsertFunction("shadow.mem.in", voidTy, m_Int32Ty,

@@ -1,14 +1,41 @@
 #ifndef _CEXHARNESS__HH_
 #define _CEXHARNESS__HH_
 
+#include "llvm/ADT/StringRef.h"
+
 #include "seahorn/Bmc.hh"
 #include "seahorn/MemSimulator.hh"
-#include "llvm/Analysis/TargetLibraryInfo.h"
-#include "llvm/IR/DataLayout.h"
-#include "llvm/IR/Module.h"
+
+namespace llvm {
+class TargetLibraryInfo;
+class DataLayout;
+class LLVMContext;
+class Module;
+}
 
 namespace seahorn {
-using namespace llvm;
+
+class BmcTraceWrapper;
+
+/**
+ * createCexHarness: given a BMC trace (cex) it produces a harness
+ * written in LLVM bitcode.  A harness is a LLVM module containing the
+ * implementation of all external calls visited by the
+ * counterexample.
+ **/
+std::unique_ptr<llvm::Module> createCexHarness(BmcTraceWrapper &trace,
+                                               const llvm::DataLayout &dl,
+                                               const llvm::TargetLibraryInfo &tli,
+                                               llvm::LLVMContext &context);
+
+void dumpLLVMCex(BmcTraceWrapper &trace, llvm::StringRef CexFile,
+		 const llvm::DataLayout &dl, const llvm::TargetLibraryInfo &tli,
+		 llvm::LLVMContext &context);
+
+} // end namespace seahorn
+
+
+namespace seahorn {
 
 // Wrapper for BmcTrace and MemSimulator objects.
 //
@@ -49,10 +76,6 @@ public:
   virtual Expr eval(unsigned loc, Expr v, bool complete) override;
 };
 
-std::unique_ptr<llvm::Module> createCexHarness(BmcTraceWrapper &trace,
-                                               const DataLayout &dl,
-                                               const TargetLibraryInfo &tli,
-                                               llvm::LLVMContext &context);
 } // namespace seahorn
 
 #endif

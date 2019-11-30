@@ -8,6 +8,7 @@
 #include <cstring>
 #include <map>
 #include <functional>
+#include <stddef.h>
 
 extern "C" {
 
@@ -102,8 +103,8 @@ void* __emv(void* p) {
 
   bool is_legal_address (void *addr) {
     return (! is_dummy_address (addr) &&
-	    (intptr_t(addr) >= 0x100000 &&
-	     intptr_t(addr) <= 0xFFFFFFFFFFFF));
+	    (ptrdiff_t(addr) >= 0x100000 &&
+	     ptrdiff_t(addr) <= 0xFFFFFFFFFFFF));
   }
 
 /** Dummy implementation of memory wrapping functions */

@@ -28,6 +28,17 @@ extern bool XInferMemSafety;
 extern bool XIgnoreCalloc;
 extern bool XIgnoreMemset;
 extern bool XUseWrite;
+
+// counters for transformation
+extern unsigned m_fields_copied;
+extern unsigned m_params_copied;
+extern unsigned m_callsites_copied;
+
+extern unsigned m_node_array;
+extern unsigned m_node_ocollapsed;
+extern unsigned m_node_unbounded;
+
+extern unsigned m_node_unsafe;
 } // namespace seahorn
 using namespace seahorn;
 using namespace llvm;
@@ -673,6 +684,8 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
     const Function *calleeF = CS.getCalledFunction();
     const Function *callerF = CS.getCaller();
 
+    unsigned init_params = m_params_copied;
+
     LOG("inter_mem", errs() << "callee: " << calleeF->getGlobalIdentifier();
         errs() << " caller: " << callerF->getGlobalIdentifier(); errs() << "\n";);
 
@@ -693,9 +706,15 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
       Expr argE = m_s.read(symb(*CS.getArgument(arg->getArgNo())));
       m_fparams.push_back(argE);
       if (calleeG.hasCell(*arg)){ // checking that the argument is a pointer
+        unsigned init_fields = m_fields_copied;
         VCgenMemArg(calleeG.getCell(*arg), argE, unsafeCallerNodes, simMap);
+        if (init_fields < m_fields_copied)
+          m_params_copied++;
       }
     }
+
+    if (init_params < m_params_copied)
+      m_callsites_copied++;
   }
 
   void VCgenMemArg(const Cell c_arg_callee, Expr base_ptr,
@@ -720,11 +739,14 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
     const Cell &c_caller = simMap.get(c_callee);
     const Node *n_caller = c_caller.getNode();
 
-    //if (n_caller->isOffsetCollapsed() || n_callee->isArray() || n_callee->isOffsetCollapsed())
-    if (n_callee->isArray())
-      // the previous conditions causes the simulation not to be able to reconstruct the offset?
+    if (n_callee->isArray()){
+      m_node_array++;
       return;
+    }
 
+    if(n_callee->isOffsetCollapsed()){
+      m_node_ocollapsed++;
+    }
     // checking modification in the bu graph, which is more precise
     // than the previous approach
     if (n_callee->isModified() && !c_callee.getNode()->types().empty() &&
@@ -738,12 +760,16 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
         Expr tmpA = nullptr, nextA = nullptr;
         newTmpArraySymbol(c_caller_field, tmpA, nextA);
 
+        m_fields_copied++;
+
         Expr e_offset = mkTerm<expr::mpz_class>(offset, m_efac);
         Expr dirE = mk<PLUS>(ptr, e_offset);
         tmpA = mk<STORE>(tmpA, dirE, mk<SELECT>(copyA, dirE));
         m_side.push_back(mk<EQ>(nextA, tmpA));
       }
     }
+    else
+      m_node_unsafe++;
 
     if(n_callee->getLinks().empty())
       return;

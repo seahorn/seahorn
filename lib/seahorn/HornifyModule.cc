@@ -100,6 +100,14 @@ static llvm::cl::list<std::string>
 
 namespace seahorn {
 extern bool InterProcMem;
+// counters for copying the new inter-proc vcgen
+unsigned m_fields_copied = 0;
+unsigned m_params_copied = 0;
+unsigned m_callsites_copied = 0;
+
+unsigned m_node_array = 0;
+unsigned m_node_ocollapsed = 0;
+unsigned m_node_unsafe = 0;
 }
 
 namespace seahorn {
@@ -156,6 +164,7 @@ bool HornifyModule::runOnModule(Module &M) {
     ShadowMemSeaDsa * shadowmem_analysis =
         getAnalysisIfAvailable<seahorn::ShadowMemSeaDsa>();
     assert(shadowmem_analysis);
+
     m_sem.reset(new UfoOpMemSem(m_efac, *this, M.getDataLayout(), TL, abs_fns,
                                 shadowmem_analysis));
   }
@@ -294,6 +303,15 @@ bool HornifyModule::runOnModule(Module &M) {
     // assert (scc.size () == 1 && "Recursion not supported");
     if (f)
       Changed = (runOnFunction(*f) || Changed);
+  }
+
+  if(InterProcMem){
+    Stats::uset("NumCopiedBytes", m_fields_copied);
+    Stats::uset("NumCopiedParams", m_params_copied);
+    Stats::uset("NumCopiedCallSites", m_callsites_copied);
+    Stats::uset("NumCalleeArrayNodes", m_node_array);
+    Stats::uset("NumCalleeOffsetCollapsedNodes", m_node_ocollapsed);
+    Stats::uset("NumCalleeUnsafeNodes", m_node_unsafe);
   }
 
   if (!m_db.hasQuery()) {

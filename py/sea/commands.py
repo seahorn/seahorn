@@ -228,7 +228,11 @@ class LinkRt(sea.LimitedCmd):
         if args.alloc_mem:
             libseart = os.path.join (lib_dir, 'libsea-mem-rt.a')
         else:
-            libseart = os.path.join (lib_dir, 'libsea-rt.a')
+            libseart32 = os.path.join(lib_dir, 'libsea-rt-32.a')
+            if args.machine == 32 and os.path.exists(libseart32):
+                libseart = libseart32
+            else:
+                libseart = os.path.join (lib_dir, 'libsea-rt.a')
         argv.append (libseart)
 
         return self.clangCmd.run (args, argv)

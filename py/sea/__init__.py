@@ -119,6 +119,16 @@ def add_tmp_dir_args (ap):
                      help="Temporary directory", default=None)
     return ap
 
+def str2bool(v):
+    if isinstance(v, bool):
+        return v
+    if v.lower() in ('yes', 'true', 't', 'y', '1'):
+        return True
+    elif v.lower() in ('no', 'false', 'f', 'n', '0'):
+        return False
+    else:
+        raise argparse.ArgumentTypeError('Boolean value expected.')
+
 class CliCmd (object):
     def __init__ (self, name='', help='', allow_extra=False):
         self.name = name
@@ -137,6 +147,14 @@ class CliCmd (object):
         if work_dir is not None:
             out_file = os.path.join (work_dir, out_file)
         return out_file
+
+    def add_llvm_bool_arg(self, parser, name, default=False, help=None, dest=None):
+        dest_name = dest if dest else name
+        mutex_group = parser.add_mutually_exclusive_group(required=False)
+        mutex_group.add_argument('--' + name, dest=dest_name, type=str2bool, nargs='?', const=True, help=help)
+        mutex_group.add_argument('--no-' + name, dest=dest_name, type=lambda v:not(str2bool(v)),
+                                     nargs='?', const=False, help=help)
+        parser.set_defaults(**{dest_name:default})
 
     def main (self, argv):
         import argparse

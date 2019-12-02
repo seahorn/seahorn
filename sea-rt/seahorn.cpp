@@ -103,8 +103,8 @@ void* __emv(void* p) {
 
   bool is_legal_address (void *addr) {
     return (! is_dummy_address (addr) &&
-	    (ptrdiff_t(addr) >= 0x100000 &&
-	     ptrdiff_t(addr) <= 0xFFFFFFFFFFFF));
+	    (size_t(addr) >= 0x100000 &&
+	     size_t(addr) <= 0xFFFFFFFFFFFF));
   }
 
 /** Dummy implementation of memory wrapping functions */

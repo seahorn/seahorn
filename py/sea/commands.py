@@ -789,6 +789,7 @@ class WrapMem(sea.LimitedCmd):
         ap = super (WrapMem, self).mk_arg_parser (ap)
         ap.add_argument ('--no-wmem', dest='wmem_skip', help='Skipped wrap-mem pass',
                          default=False, action='store_true')
+        # self.add_llvm_bool_arg(ap, 'skip-wmem', dest='wmem_skip', help='Skipped wrap-mem pass')
         add_in_out_args (ap)
         _add_S_arg (ap)
         return ap

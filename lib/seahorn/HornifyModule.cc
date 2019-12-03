@@ -101,6 +101,9 @@ static llvm::cl::list<std::string>
 namespace seahorn {
 extern bool InterProcMem;
 // counters for copying the new inter-proc vcgen
+unsigned m_n_params = 0;
+unsigned m_n_callsites = 0;
+
 unsigned m_fields_copied = 0;
 unsigned m_params_copied = 0;
 unsigned m_callsites_copied = 0;
@@ -306,12 +309,25 @@ bool HornifyModule::runOnModule(Module &M) {
   }
 
   if(InterProcMem){
-    Stats::uset("NumCopiedBytes", m_fields_copied);
-    Stats::uset("NumCopiedParams", m_params_copied);
-    Stats::uset("NumCopiedCallSites", m_callsites_copied);
-    Stats::uset("NumCalleeArrayNodes", m_node_array);
-    Stats::uset("NumCalleeOffsetCollapsedNodes", m_node_ocollapsed);
-    Stats::uset("NumCalleeUnsafeNodes", m_node_unsafe);
+    // Stats::uset("NumCopiedBytes", m_fields_copied);
+    // Stats::uset("NumCopiedParams", m_params_copied);
+    // Stats::uset("NumCopiedCallSites", m_callsites_copied);
+    // Stats::uset("NumCalleeArrayNodes", m_node_array);
+    // Stats::uset("NumCalleeOffsetCollapsedNodes", m_node_ocollapsed);
+    // Stats::uset("NumCalleeUnsafeNodes", m_node_unsafe);
+    // these statistics should be dumped now, otherwise they won't be output if
+    // the solver doesn't finish
+    Stats::PrintLineCounter(llvm::outs(), "NumParams", m_n_params);
+    Stats::PrintLineCounter(llvm::outs(), "NumCallSites", m_n_callsites);
+    Stats::PrintLineCounter(llvm::outs(),"NumCopiedBytes",m_fields_copied);
+    Stats::PrintLineCounter(llvm::outs(), "NumCopiedParams", m_params_copied);
+    Stats::PrintLineCounter(llvm::outs(), "NumCopiedCallSites",
+                            m_callsites_copied);
+    Stats::PrintLineCounter(llvm::outs(), "NumCalleeArrayNodes", m_node_array);
+    Stats::PrintLineCounter(llvm::outs(), "NumCalleeOffsetCollapsedNodes",
+                            m_node_ocollapsed);
+    Stats::PrintLineCounter(llvm::outs(), "NumCalleeUnsafeNodes",
+                            m_node_unsafe);
   }
 
   if (!m_db.hasQuery()) {

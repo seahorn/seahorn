@@ -30,6 +30,9 @@ extern bool XIgnoreMemset;
 extern bool XUseWrite;
 
 // counters for transformation
+extern unsigned m_n_params;
+extern unsigned m_n_callsites;
+
 extern unsigned m_fields_copied;
 extern unsigned m_params_copied;
 extern unsigned m_callsites_copied;
@@ -685,9 +688,11 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
     const Function *callerF = CS.getCaller();
 
     unsigned init_params = m_params_copied;
+    m_n_callsites++;
 
     LOG("inter_mem", errs() << "callee: " << calleeF->getGlobalIdentifier();
-        errs() << " caller: " << callerF->getGlobalIdentifier(); errs() << "\n";);
+        errs() << " caller: " << callerF->getGlobalIdentifier();
+        errs() << "\n";);
 
     if (!m_sem.m_shadowDsa->hasDsaGraph(*calleeF))
       return;
@@ -707,6 +712,7 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
       m_fparams.push_back(argE);
       if (calleeG.hasCell(*arg)){ // checking that the argument is a pointer
         unsigned init_fields = m_fields_copied;
+        m_n_params++;
         VCgenMemArg(calleeG.getCell(*arg), argE, unsafeCallerNodes, simMap);
         if (init_fields < m_fields_copied)
           m_params_copied++;

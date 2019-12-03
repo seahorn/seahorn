@@ -129,7 +129,9 @@ public:
   /** Outputs all statistics to std output */
   static void Print(std::ostream &OS);
   static void Print(llvm::raw_ostream &OS);
-  static void PrintBrunch(llvm::raw_ostream &OS);
+  static void PrintLineCounter(llvm::raw_ostream &OS, const std::string s,
+                               unsigned n);
+  static void PrintBrunch(llvm::raw_ostream & OS);
 };
 
 /**

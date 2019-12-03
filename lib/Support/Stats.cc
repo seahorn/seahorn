@@ -68,6 +68,10 @@ void Stats::Print(llvm::raw_ostream &OS) {
   OS << "************** STATS END ***************** \n";
 }
 
+void Stats::PrintLineCounter(llvm::raw_ostream &OS,const std::string s,unsigned n) {
+  OS << "BRUNCH_STAT " << s << " " << n << "\n";
+}
+
 void Stopwatch::Print(std::ostream &out) const {
   long time = getTimeElapsed();
   long h = time / 3600000000L;

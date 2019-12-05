@@ -32,9 +32,11 @@ extern bool XUseWrite;
 // counters for transformation
 extern unsigned m_n_params;
 extern unsigned m_n_callsites;
+extern unsigned m_n_gv; // global variables
 
 extern unsigned m_fields_copied;
 extern unsigned m_params_copied;
+extern unsigned m_gv_copied;
 extern unsigned m_callsites_copied;
 
 extern unsigned m_node_array;
@@ -687,15 +689,15 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
     const Function *calleeF = CS.getCalledFunction();
     const Function *callerF = CS.getCaller();
 
-    unsigned init_params = m_params_copied;
-    m_n_callsites++;
+    if (!m_sem.m_shadowDsa->hasDsaGraph(*calleeF))
+      return;
 
     LOG("inter_mem", errs() << "callee: " << calleeF->getGlobalIdentifier();
         errs() << " caller: " << callerF->getGlobalIdentifier();
         errs() << "\n";);
 
-    if (!m_sem.m_shadowDsa->hasDsaGraph(*calleeF))
-      return;
+    unsigned init_params = m_params_copied;
+    m_n_callsites++;
 
     Graph &calleeG = m_sem.m_shadowDsa->getSummaryGraph(*calleeF);
     Graph &callerG = m_sem.m_shadowDsa->getDsaGraph(*callerF);
@@ -714,6 +716,17 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
         unsigned init_fields = m_fields_copied;
         m_n_params++;
         VCgenMemArg(calleeG.getCell(*arg), argE, unsafeCallerNodes, simMap);
+        if (init_fields < m_fields_copied)
+          m_params_copied++;
+      }
+    }
+    for (const GlobalVariable *gv : fi.globals){
+      Expr argE = m_s.read(symb(*gv));
+      m_fparams.push_back(m_s.read(symb(*gv)));
+      if (calleeG.hasCell(*gv)) {
+        unsigned init_fields = m_fields_copied;
+        //        m_n_gv++;
+        VCgenMemArg(calleeG.getCell(*gv), argE, unsafeCallerNodes, simMap);
         if (init_fields < m_fields_copied)
           m_params_copied++;
       }
@@ -773,9 +786,9 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
         tmpA = mk<STORE>(tmpA, dirE, mk<SELECT>(copyA, dirE));
         m_side.push_back(mk<EQ>(nextA, tmpA));
       }
-    }
-    else
+    } else if (!GraphExplorer::isSafeNode(unsafeNodes, n_caller)){
       m_node_unsafe++;
+    }
 
     if(n_callee->getLinks().empty())
       return;
@@ -889,16 +902,13 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
       m_fparams[2] = (m_s.havoc(m_sem.errorFlag(BB)));
       VCgenMemCallSite(CS, fi);
 
-      for (const GlobalVariable *gv : fi.globals)
-        m_fparams.push_back(m_s.read(symb(*gv)));
-
       if (fi.ret)
         m_fparams.push_back(m_s.havoc(symb(I)));
 
       LOG("arg_error", if (m_fparams.size() != bind::domainSz(fi.sumPred)) {
         errs() << "Call instruction: " << I << "\n";
-        errs() << "Caller: " << PF << "\n";
-        errs() << "Callee: " << F << "\n";
+          errs() << "Caller: " << PF << "\n";
+          errs() << "Callee: " << F << "\n";
         // errs () << "Sum predicate: " << *fi.sumPred << "\n";
         errs() << "m_fparams.size: " << m_fparams.size() << "\n";
         errs() << "Domain size: " << bind::domainSz(fi.sumPred) << "\n";

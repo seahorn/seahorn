@@ -103,9 +103,11 @@ extern bool InterProcMem;
 // counters for copying the new inter-proc vcgen
 unsigned m_n_params = 0;
 unsigned m_n_callsites = 0;
+unsigned m_n_gv = 0;
 
 unsigned m_fields_copied = 0;
 unsigned m_params_copied = 0;
+unsigned m_gv_copied = 0;
 unsigned m_callsites_copied = 0;
 
 unsigned m_node_array = 0;
@@ -319,8 +321,10 @@ bool HornifyModule::runOnModule(Module &M) {
     // the solver doesn't finish
     Stats::PrintLineCounter(llvm::outs(), "NumParams", m_n_params);
     Stats::PrintLineCounter(llvm::outs(), "NumCallSites", m_n_callsites);
-    Stats::PrintLineCounter(llvm::outs(),"NumCopiedBytes",m_fields_copied);
+    Stats::PrintLineCounter(llvm::outs(), "NumGlobalV", m_n_gv);
+    Stats::PrintLineCounter(llvm::outs(), "NumCopiedBytes",m_fields_copied);
     Stats::PrintLineCounter(llvm::outs(), "NumCopiedParams", m_params_copied);
+    Stats::PrintLineCounter(llvm::outs(), "NumCopiedGlobalV", m_gv_copied);
     Stats::PrintLineCounter(llvm::outs(), "NumCopiedCallSites",
                             m_callsites_copied);
     Stats::PrintLineCounter(llvm::outs(), "NumCalleeArrayNodes", m_node_array);
@@ -423,8 +427,33 @@ bool HornifyModule::runOnFunction(Function &F) {
   /// -- allocate LiveSymbols
   auto r = m_ls.insert(std::make_pair(&F, LiveSymbols(F, m_efac, *m_sem)));
   assert(r.second);
+
+  // SUPER HACK because reset counters because "run()" calls VisitCallSite
+  // TODO: store part of what is computed by LiveSymbols?
+  unsigned tmp_m_n_params = m_n_params;
+  unsigned tmp_m_n_callsites = m_n_callsites;
+  unsigned tmp_m_n_gv = m_n_gv;
+  unsigned tmp_m_fields_copied = m_fields_copied;
+  unsigned tmp_m_params_copied = m_params_copied;
+  unsigned tmp_m_gv_copied = m_gv_copied;
+  unsigned tmp_m_callsites_copied = m_callsites_copied;
+  unsigned tmp_m_node_array = m_node_array;
+  unsigned tmp_m_node_ocollapsed = m_node_ocollapsed;
+  unsigned tmp_m_node_unsafe = m_node_unsafe;
+
   /// -- run LiveSymbols
   r.first->second.run();
+
+  m_n_params = tmp_m_n_params;
+  m_n_callsites = tmp_m_n_callsites;
+  m_n_gv = tmp_m_n_gv;
+  m_fields_copied = tmp_m_fields_copied;
+  m_params_copied = tmp_m_params_copied;
+  m_gv_copied = tmp_m_gv_copied;
+  m_callsites_copied = tmp_m_callsites_copied;
+  m_node_array = tmp_m_node_array;
+  m_node_ocollapsed = tmp_m_node_ocollapsed;
+  m_node_unsafe = tmp_m_node_unsafe;
 
   /// -- hornify function
   hf->runOnFunction(F);

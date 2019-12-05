@@ -93,13 +93,14 @@ struct OpSemBase {
   // expression
   using NodeIdMap = DenseMap<std::pair<const sea_dsa::Node*, unsigned>, Expr>;
 
-  // new fields for explicit mem
+  // new fields for inter mem
   // current (write) memory copy
   int m_copy_count = 0;
+  // array names to replace for a cell
   NodeIdMap m_rep;
   // for the intermediate arrays
   NodeIdMap m_tmprep;
-  NodeIdMap m_nodeids;
+  NodeIdMap m_orig_array;
 
   /// -- parameters for a function call
   ExprVector m_fparams;
@@ -621,11 +622,11 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
   }
 
   Expr getInArraySymbol(const Cell &c) {
-    auto it = m_nodeids.find({c.getNode(),m_sem.m_shadowDsa->getOffset(c)});
+    auto it = m_orig_array.find({c.getNode(),m_sem.m_shadowDsa->getOffset(c)});
     LOG("inter_mem", errs() << "--> getInArraySymbol\n"
                             << " " << c.getNode() << " " <<
                          m_sem.m_shadowDsa->getOffset(c) << "\n";);
-    assert(it != m_nodeids.end()); // there should be an entry for that always
+    assert(it != m_orig_array.end()); // there should be an entry for that always
     return it->getSecond();
   }
 
@@ -633,7 +634,7 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
     LOG("inter_mem",
         errs() << "<-- addInArraySymbol\n"
         << " " << c.getNode() << " " << m_sem.m_shadowDsa->getOffset(c) << "\n";);
-    m_nodeids.insert({{c.getNode(), m_sem.m_shadowDsa->getOffset(c)}, A});
+    m_orig_array.insert({{c.getNode(), m_sem.m_shadowDsa->getOffset(c)}, A});
   }
 
   Expr createVariant(Expr origE) {
@@ -725,10 +726,10 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
       m_fparams.push_back(m_s.read(symb(*gv)));
       if (calleeG.hasCell(*gv)) {
         unsigned init_fields = m_fields_copied;
-        //        m_n_gv++;
+        m_n_gv++;
         VCgenMemArg(calleeG.getCell(*gv), argE, unsafeCallerNodes, simMap);
         if (init_fields < m_fields_copied)
-          m_params_copied++;
+          m_gv_copied++;
       }
     }
 
@@ -763,9 +764,9 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
       return;
     }
 
-    if(n_callee->isOffsetCollapsed()){
+    if(n_callee->isOffsetCollapsed())
       m_node_ocollapsed++;
-    }
+
     // checking modification in the bu graph, which is more precise
     // than the previous approach
     if (n_callee->isModified() && !c_callee.getNode()->types().empty() &&
@@ -958,7 +959,7 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
       m_side.push_back(bind::fapp(fi.sumPred, m_fparams));
 
       // preparing for the next callsite
-      m_nodeids.clear();
+      m_orig_array.clear();
       m_rep.clear();
       m_tmprep.clear();
 

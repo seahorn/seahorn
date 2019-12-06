@@ -44,7 +44,7 @@ static llvm::cl::opt<bool> HornChildren("horn-child-order", cl::Hidden,
 static llvm::cl::opt<unsigned> PdrContexts("horn-pdr-contexts", cl::Hidden,
                                            cl::init(500));
 
-static llvm::cl::opt<bool> WeakAbs("horn-weak-abs", cl::Hidden, cl::init(false),
+static llvm::cl::opt<bool> WeakAbs("horn-weak-abs", cl::Hidden, cl::init(true),
                                    cl::desc("Perform weak abstraction"));
 
 static llvm::cl::opt<bool> UseMbqi("horn-use-mbqi", cl::Hidden, cl::init(false),

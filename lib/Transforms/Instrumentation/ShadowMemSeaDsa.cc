@@ -204,10 +204,19 @@ private:
   llvm::Constant *m_memGlobalVarInitFn = nullptr;
 
   llvm::SmallVector<llvm::Constant *, 5> m_memInitFunctions;
-
+  // I know that std::map lookups are logarithmic but we want to preserve ordering ...
+  struct ShadowsMapLeq {
+    bool operator()(const dsa::Node *n1, const dsa::Node *n2) const {
+      return n1->getId() < n2->getId();
+    }
+  };
   using ShadowsMap =
-      llvm::DenseMap<const sea_dsa::Node *,
-                     llvm::DenseMap<unsigned, llvm::AllocaInst *>>;
+      std::map<const sea_dsa::Node *, std::map<unsigned, llvm::AllocaInst *>,
+               ShadowsMapLeq>;
+
+  // using ShadowsMap =
+  //     llvm::DenseMap<const sea_dsa::Node *,
+  //                    llvm::DenseMap<unsigned, llvm::AllocaInst *>>;
   using NodeIdMap = llvm::DenseMap<const sea_dsa::Node *, unsigned>;
 
   /// \brief A map from DsaNode to all the shadow pseudo-variable corresponding
@@ -757,6 +766,20 @@ void ShadowDsaImpl::visitMainFunction(Function &fn) {
   // set insertion point to the beginning of the main function
   m_B->SetInsertPoint(&*fn.getEntryBlock().begin());
 
+  std::vector<GlobalVariable *> global_vars;
+  global_vars.reserve(std::distance(fn.getParent()->globals().begin(),
+                                    fn.getParent()->globals().end()));
+  for (GlobalVariable &gv : llvm::make_range(fn.getParent()->globals().begin(),
+                                             fn.getParent()->globals().end())) {
+    global_vars.push_back(&gv);
+  }
+
+  // // TODO: sort by name, assertion with hasName
+  std::sort(global_vars.begin(), global_vars.end(),
+            [](GlobalVariable *v1, GlobalVariable *v2) {
+              return v1->getName() < v2->getName();
+            });
+
   // iterate over all globals
   for (auto &gv : fn.getParent()->globals()) {
     // skip globals that are used internally by llvm
@@ -1116,8 +1139,8 @@ void ShadowDsaImpl::updateReadMod(Function &F, NodeSet &readSet,
         if (!c.isNull())
           modSet.insert(c.getNode());
       } else if (m_dsa.hasGraph(*cf)) {
-        assert(&(m_dsa.getGraph(*cf)) == &G &&
-               "Computing local mod/ref in context sensitive mode");
+        // assert(&(m_dsa.getGraph(*cf)) == &G &&
+        //        "Computing local mod/ref in context sensitive mode");
         readSet.insert(m_readList[cf].begin(), m_readList[cf].end());
         modSet.insert(m_modList[cf].begin(), m_modList[cf].end());
       }

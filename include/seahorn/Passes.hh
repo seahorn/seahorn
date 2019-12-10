@@ -79,6 +79,7 @@ llvm::Pass *createPromoteSeahornAssumePass();
 llvm::Pass *createKleeInternalizePass();
 llvm::Pass *createWrapMemPass();
 llvm::Pass *createRenameNondetPass();
+llvm::Pass *createSeaExtendedPointerPass();
 
 llvm::Pass *createMixedSemanticsPass();
 llvm::Pass *createRemoveUnreachableBlocksPass();

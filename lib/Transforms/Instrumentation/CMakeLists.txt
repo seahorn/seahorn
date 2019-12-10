@@ -12,6 +12,7 @@ add_llvm_library(SeaInstrumentation
   NullCheck.cc
   BufferBoundsCheck.cc
   SimpleMemoryCheck.cc
+  ExtendedPointer.cc
   )
 
 if (HAVE_DSA)

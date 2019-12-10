@@ -210,6 +210,11 @@ static llvm::cl::opt<bool>
             llvm::cl::init(false));
 
 static llvm::cl::opt<bool>
+    ExtendedPointer("ext-ptr",
+            llvm::cl::desc("Check mem safety using extended pointer bits"),
+            llvm::cl::init(false));
+
+static llvm::cl::opt<bool>
     StripShadowMem("strip-shadow-mem",
                    llvm::cl::desc("Strip shadow memory functions"),
                    llvm::cl::init(false));
@@ -434,6 +439,9 @@ int main(int argc, char **argv) {
   else if (NullChecks) {
     pm_wrapper.add(seahorn::createLowerCstExprPass());
     pm_wrapper.add(seahorn::createNullCheckPass());
+  }
+  else if (ExtendedPointer) {
+    pm_wrapper.add(seahorn::createSeaExtendedPointerPass());
   }
   // default pre-processing pipeline
   else {

@@ -42,6 +42,8 @@
 #include "seahorn/UfoOpSem.hh"
 #include "seahorn/UfoOpMemSem.hh"
 
+#include "sea_dsa/CompleteCallGraph.hh"
+
 using namespace llvm;
 using namespace seahorn;
 
@@ -170,8 +172,14 @@ bool HornifyModule::runOnModule(Module &M) {
         getAnalysisIfAvailable<seahorn::ShadowMemSeaDsa>();
     assert(shadowmem_analysis);
 
-    m_sem.reset(new UfoOpMemSem(m_efac, *this, M.getDataLayout(), TL, abs_fns,
-                                shadowmem_analysis));
+    CompleteCallGraph *ccg =
+        getAnalysisIfAvailable<sea_dsa::CompleteCallGraph>();
+    std::shared_ptr<InterMemPreProc> preproc(new InterMemPreProc(ccg, shadowmem_analysis));
+
+    preproc->runOnModule(M);
+
+    m_sem.reset(new UfoOpMemSem(m_efac, *this, M.getDataLayout(), preproc, TL,
+                                abs_fns, shadowmem_analysis));
   }
   else
     m_sem.reset(new UfoOpSem(m_efac, *this, M.getDataLayout(), TL, abs_fns));
@@ -474,12 +482,12 @@ void HornifyModule::getAnalysisUsage(llvm::AnalysisUsage &AU) const {
   AU.addRequired<seahorn::NameValues>();
 
   AU.addRequired<llvm::CallGraphWrapperPass>();
-  AU.addPreserved<llvm::CallGraphWrapperPass>();
 
   AU.addRequired<seahorn::TopologicalOrder>();
   AU.addRequired<seahorn::CutPointGraph>();
 
   AU.addRequired<seahorn::ShadowMemSeaDsa>();
+  AU.addRequired<sea_dsa::CompleteCallGraph>();
 }
 
 const LiveSymbols &HornifyModule::getLiveSybols(const Function &F) const {

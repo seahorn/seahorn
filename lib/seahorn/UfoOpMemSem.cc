@@ -15,8 +15,6 @@
 #include "seahorn/Support/SeaDebug.h"
 #include "seahorn/Support/Stats.hh"
 
-#include "sea_dsa/DsaColor.hh"
-
 namespace seahorn {
 extern bool XGlobalConstraints;
 extern bool XArrayGlobalConstraints;
@@ -703,11 +701,9 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
     Graph &calleeG = m_sem.m_shadowDsa->getSummaryGraph(*calleeF);
     Graph &callerG = m_sem.m_shadowDsa->getDsaGraph(*callerF);
 
-    SafeNodeSet unsafeCallerNodes;
-    SimulationMapper simMap;
+    NodeSet &unsafeCallerNodes = m_sem.m_preproc->getSafeCallerNodesCallSite(CS);
+    SimulationMapper &simMap = m_sem.m_preproc->getSimulationCallSite(CS);
 
-    GraphExplorer::getSafeNodesCallerGraph(CS, calleeG, callerG, simMap,
-                                           unsafeCallerNodes);
     for (const Argument *arg : fi.args) {
       // generate literals for copying, this needs to be done before generating
       // the call
@@ -738,14 +734,14 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
   }
 
   void VCgenMemArg(const Cell c_arg_callee, Expr base_ptr,
-                   SafeNodeSet unsafeCallerNodes, SimulationMapper sm) {
+                   NodeSet unsafeCallerNodes, SimulationMapper sm) {
     ExplSet explored;
     recVCGenMem(c_arg_callee, base_ptr, unsafeCallerNodes,
               sm, explored);
   }
 
   void recVCGenMem(const Cell &c_callee, Expr ptr,
-                   SafeNodeSet unsafeNodes, SimulationMapper simMap,
+                   NodeSet unsafeNodes, SimulationMapper simMap,
                    ExplSet &explored) {
 
     const Node *n_callee = c_callee.getNode();

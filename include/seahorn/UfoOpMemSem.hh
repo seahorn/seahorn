@@ -11,6 +11,7 @@
 #include "seahorn/UfoOpSem.hh"
 
 #include "seahorn/Transforms/Instrumentation/ShadowMemSeaDsa.hh"
+#include "seahorn/InterMemPreProc.hh"
 
 namespace llvm {
 class GetElementPtrInst;
@@ -34,6 +35,8 @@ class UfoOpMemSem : public LegacyOperationalSemantics {
 public:
   typedef UfoOpSem::FunctionPtrSet FunctionPtrSet;
   ShadowMemSeaDsa *m_shadowDsa;
+  // std::unique_ptr<InterMemPreProc> m_preproc = nullptr;
+  std::shared_ptr<InterMemPreProc> m_preproc = nullptr;
 
 private:
   FunctionPtrSet m_abs_funcs;
@@ -42,16 +45,20 @@ private:
 
 public :
   UfoOpMemSem(ExprFactory &efac, Pass &pass, const DataLayout &dl,
-              TrackLevel trackLvl = MEM,
+              std::shared_ptr<InterMemPreProc> preproc, TrackLevel trackLvl = MEM,
               FunctionPtrSet abs_fns = FunctionPtrSet(),
               ShadowMemSeaDsa *dsa = NULL)
+      // CompleteCallGraph shouldn't be a pointer
       : LegacyOperationalSemantics(efac), m_pass(pass), m_trackLvl(trackLvl),
-        m_abs_funcs(abs_fns), m_td(&dl), m_shadowDsa(dsa) {
+        m_abs_funcs(abs_fns), m_td(&dl), m_shadowDsa(dsa),
+        m_preproc(preproc) {
     m_canFail = pass.getAnalysisIfAvailable<CanFail>();
   }
   UfoOpMemSem(const UfoOpMemSem &o)
-      : LegacyOperationalSemantics(o), m_pass(o.m_pass), m_trackLvl(o.m_trackLvl),
-        m_abs_funcs(o.m_abs_funcs), m_td(o.m_td), m_canFail(o.m_canFail), m_shadowDsa(o.m_shadowDsa) {}
+      : LegacyOperationalSemantics(o), m_pass(o.m_pass),
+        m_trackLvl(o.m_trackLvl), m_abs_funcs(o.m_abs_funcs), m_td(o.m_td),
+        m_canFail(o.m_canFail), m_shadowDsa(o.m_shadowDsa),
+        m_preproc(o.m_preproc) {} // TODO!!!! what do we do with preproc?
 
   Expr errorFlag(const BasicBlock &BB) override;
 

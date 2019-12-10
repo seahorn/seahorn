@@ -340,6 +340,12 @@ bool HornifyModule::runOnModule(Module &M) {
     m_db.addQuery(mk<TRUE>(m_efac));
   }
 
+  // DEBUG: printing clauses
+  LOG("print_clauses", errs() << "------- PRINTING CLAUSE DB ------\n";);
+  LOG("print_clauses", for (auto &cl : m_db.getRules()) {
+        cl.get()->dump();
+    });
+
   /**
      TODO:
        - name basic blocks so that there are no name clashes between functions

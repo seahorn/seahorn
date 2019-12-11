@@ -13,12 +13,13 @@ bool InterMemPreProc::runOnModule(Module &M) {
 
   dsaCG.buildDependencies(); // TODO: this is already done already in other passes
 
-  // store the contex insensitive unsafe nodes
-  std::unique_ptr<NodeSet> ci_unsafe_callee(new NodeSet());
 
   for (auto &F : M) {
     if (!m_shadowDsa->hasDsaGraph(F))
       continue;
+
+    // store the contex insensitive unsafe nodes
+    std::unique_ptr<NodeSet> ci_unsafe_callee(new NodeSet());
 
     auto call_sites = dsaCG.getUses(F);
     LOG("inter_mem", errs() << "Preprocessing " << F.getGlobalIdentifier(););

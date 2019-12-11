@@ -95,10 +95,18 @@ struct OpSemBase {
   // current (write) memory copy
   int m_copy_count = 0;
   // array names to replace for a cell
-  NodeIdMap m_rep;
-  // for the intermediate arrays
-  NodeIdMap m_tmprep;
-  NodeIdMap m_orig_array;
+  NodeIdMap m_rep_in;
+  NodeIdMap m_rep_out;
+  // for the intermediate arrays name for copies for a cell
+  NodeIdMap m_tmprep_in;
+  // this creates not deterministic vcgen (iterating over it to replace the new
+  // parameter names)
+  NodeIdMap m_tmprep_out;
+  // original arrays names for a cell
+  NodeIdMap m_orig_array_in;
+  NodeIdMap m_orig_array_out;
+
+  typedef enum {IN, OUT} ArrayOpt;
 
   /// -- parameters for a function call
   ExprVector m_fparams;
@@ -619,23 +627,39 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
       side(lhs, op0);
   }
 
-  Expr getInArraySymbol(const Cell &c) {
-    auto it = m_orig_array.find({c.getNode(),m_sem.m_shadowDsa->getOffset(c)});
-    LOG("inter_mem", errs() << "--> getInArraySymbol\n"
+  Expr getOrigArraySymbol(const Cell &c, ArrayOpt ao) {
+
+    NodeIdMap * map;
+    if(ao == IN)
+      map = &m_orig_array_in;
+    else
+      map = &m_orig_array_out;
+
+    auto it = map->find({c.getNode(),m_sem.m_shadowDsa->getOffset(c)});
+    LOG("inter_mem", errs() << "--> getArraySymbol\n"
                             << " " << c.getNode() << " " <<
                          m_sem.m_shadowDsa->getOffset(c) << "\n";);
-    assert(it != m_orig_array.end()); // there should be an entry for that always
+    assert(it != map->end()); // there should be an entry for that always
+    LOG("inter_mem", it->getSecond()->dump(); errs() << "\n";);
     return it->getSecond();
   }
 
-  void addInArraySymbol(const Cell &c, Expr A){
+  void addArraySymbol(const Cell &c, Expr A, ArrayOpt ao) {
+
+    NodeIdMap *map;
+    if (ao == IN)
+      map = &m_orig_array_in;
+    else
+      map = &m_orig_array_out;
+
     LOG("inter_mem",
-        errs() << "<-- addInArraySymbol\n"
-        << " " << c.getNode() << " " << m_sem.m_shadowDsa->getOffset(c) << "\n";);
-    m_orig_array.insert({{c.getNode(), m_sem.m_shadowDsa->getOffset(c)}, A});
+        errs() << "<-- addArraySymbol "; A->dump(); errs() << "\n"
+        << " " << c.getNode() << " " << m_sem.m_shadowDsa->getOffset(c) << " " << ao << "\n";);
+    map->insert({{c.getNode(), m_sem.m_shadowDsa->getOffset(c)}, A});
   }
 
   Expr createVariant(Expr origE) {
+    assert(bind::isArrayConst(origE));
     Expr name = bind::fname(origE);
     Expr rTy = bind::rangeTy(name);
 
@@ -643,42 +667,65 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
   }
 
   // creates a new array symbol for array origE if it was not created already
-  Expr getFreshArraySymbol(const Cell &c) {
+  Expr getFreshArraySymbol(const Cell &c, ArrayOpt ao) {
 
-    auto it = m_rep.find({c.getNode(), m_sem.m_shadowDsa->getOffset(c)});
-    if (it == m_rep.end()) { // not copied yet
-      Expr origE = getInArraySymbol(c);
-      assert(bind::isArrayConst(origE));
+    NodeIdMap *map;
+    if (ao == IN)
+      map = &m_rep_in;
+    else
+      map = &m_rep_out;
+
+    auto it = map->find({c.getNode(), m_sem.m_shadowDsa->getOffset(c)});
+    if (it == map->end()) { // not copied yet
+      Expr origE = getOrigArraySymbol(c,ao);
       Expr copyE = createVariant(origE);
-      m_rep.insert({{c.getNode(), m_sem.m_shadowDsa->getOffset(c)}, copyE});
+      map->insert({{c.getNode(), m_sem.m_shadowDsa->getOffset(c)}, copyE});
       return copyE;
     }
     else return it->getSecond();
   }
 
-  Expr getCurrArraySymbol(const Cell &c) {
-    auto it = m_tmprep.find({c.getNode(), m_sem.m_shadowDsa->getOffset(c)});
-    assert(it == m_tmprep.end());
+  Expr getCurrArraySymbol(const Cell &c, ArrayOpt ao) {
+    NodeIdMap *map;
+    if (ao == IN)
+      map = &m_tmprep_in;
+    else
+      map = &m_tmprep_out;
+
+    auto it = map->find({c.getNode(), m_sem.m_shadowDsa->getOffset(c)});
+    assert(it == map->end());
     return it->getSecond();
   }
 
   // creates a new array symbol for intermediate copies of an original array
   // origE. currE is the current intermediate name and newE is the new value to
   // copy
-  void newTmpArraySymbol(const Cell &c, Expr &currE, Expr &newE) {
+  void newTmpArraySymbol(const Cell &c, Expr &currE, Expr &newE, ArrayOpt ao) {
 
-    Expr origE = getInArraySymbol(c);
+    NodeIdMap *map;
+    if (ao == IN)
+      map = &m_tmprep_in;
+    else
+      map = &m_tmprep_out;
+
+    Expr origE = getOrigArraySymbol(c,IN);
     newE = createVariant(origE);
 
-    auto it = m_tmprep.find({c.getNode(), m_sem.m_shadowDsa->getOffset(c)});
-    if (it == m_tmprep.end()) {
-      currE = origE;
-      m_tmprep.insert({{c.getNode(), m_sem.m_shadowDsa->getOffset(c)}, newE});
+    auto it = map->find({c.getNode(), m_sem.m_shadowDsa->getOffset(c)});
+    if (it == map->end()) {
+      if(ao == IN){ // for the in arrays we need an empty array
+        currE = newE;
+        newE = createVariant(origE);
+      }
+      else{
+        currE = origE;
+      }
+      map->insert({{c.getNode(), m_sem.m_shadowDsa->getOffset(c)}, newE});
     }
     else{
       currE = it->getSecond();
-      m_tmprep.erase({c.getNode(), m_sem.m_shadowDsa->getOffset(c)});
-      m_tmprep.insert({{c.getNode(), m_sem.m_shadowDsa->getOffset(c)}, newE});
+      map->erase({c.getNode(), m_sem.m_shadowDsa->getOffset(c)});
+      map->insert({{c.getNode(), m_sem.m_shadowDsa->getOffset(c)}, newE});
     }
   }
 
@@ -688,56 +735,67 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
     const Function *calleeF = CS.getCalledFunction();
     const Function *callerF = CS.getCaller();
 
-    if (!m_sem.m_shadowDsa->hasDsaGraph(*calleeF))
-      return;
+    if (//calleeF->getName().startswith("seahorn.bounce") || //
+        !m_sem.m_shadowDsa->hasDsaGraph(*calleeF)) {
+      // do not copy, only generate arguments
+      for (const Argument *arg : fi.args)
+        m_fparams.push_back(m_s.read(symb(*CS.getArgument(arg->getArgNo()))));
+      for (const GlobalVariable *gv : fi.globals)
+        m_fparams.push_back(m_s.read(symb(*gv)));
+    } else {
 
-    LOG("inter_mem", errs() << "callee: " << calleeF->getGlobalIdentifier();
-        errs() << " caller: " << callerF->getGlobalIdentifier();
-        errs() << "\n";);
+      LOG("inter_mem", errs() << "callee: " << calleeF->getGlobalIdentifier();
+          errs() << " caller: " << callerF->getGlobalIdentifier();
+          errs() << "\n";);
 
-    unsigned init_params = m_params_copied;
-    m_n_callsites++;
+      unsigned init_params = m_params_copied;
+      m_n_callsites++;
 
-    Graph &calleeG = m_sem.m_shadowDsa->getSummaryGraph(*calleeF);
-    Graph &callerG = m_sem.m_shadowDsa->getDsaGraph(*callerF);
+      Graph &calleeG = m_sem.m_shadowDsa->getSummaryGraph(*calleeF);
+      Graph &callerG = m_sem.m_shadowDsa->getDsaGraph(*callerF);
 
-    NodeSet &unsafeCallerNodes = m_sem.m_preproc->getSafeCallerNodesCallSite(CS);
-    SimulationMapper &simMap = m_sem.m_preproc->getSimulationCallSite(CS);
+      NodeSet &unsafeCallerNodes = m_sem.m_preproc->getSafeCallerNodesCallSite(CS);
+      SimulationMapper &simMap = m_sem.m_preproc->getSimulationCallSite(CS);
 
-    for (const Argument *arg : fi.args) {
-      // generate literals for copying, this needs to be done before generating
-      // the call
-      Expr argE = m_s.read(symb(*CS.getArgument(arg->getArgNo())));
-      m_fparams.push_back(argE);
-      if (calleeG.hasCell(*arg)){ // checking that the argument is a pointer
-        unsigned init_fields = m_fields_copied;
-        m_n_params++;
-        VCgenMemArg(calleeG.getCell(*arg), argE, unsafeCallerNodes, simMap);
-        if (init_fields < m_fields_copied)
-          m_params_copied++;
+      for (const Argument *arg : fi.args) {
+        // generate literals for copying, this needs to be done before generating
+        // the call
+        Expr argE = m_s.read(symb(*CS.getArgument(arg->getArgNo())));
+        m_fparams.push_back(argE);
+        if (calleeG.hasCell(*arg)){ // checking that the argument is a pointer
+          unsigned init_fields = m_fields_copied;
+          m_n_params++;
+          VCgenMemArg(calleeG.getCell(*arg), argE, unsafeCallerNodes, simMap);
+          if (init_fields < m_fields_copied)
+            m_params_copied++;
+        }
       }
-    }
-    for (const GlobalVariable *gv : fi.globals){
-      Expr argE = m_s.read(symb(*gv));
-      m_fparams.push_back(m_s.read(symb(*gv)));
-      if (calleeG.hasCell(*gv)) {
-        unsigned init_fields = m_fields_copied;
-        m_n_gv++;
-        VCgenMemArg(calleeG.getCell(*gv), argE, unsafeCallerNodes, simMap);
-        if (init_fields < m_fields_copied)
-          m_gv_copied++;
+      for (const GlobalVariable *gv : fi.globals){
+        Expr argE = m_s.read(symb(*gv));
+        m_fparams.push_back(argE);
+        if (calleeG.hasCell(*gv)){
+          const Cell &c = calleeG.getCell(*gv);
+          if (!XEnableUniqueScalars || !c.getNode()->getUniqueScalar()) {
+            unsigned init_fields = m_fields_copied;
+            m_n_gv++;
+            VCgenMemArg(calleeG.getCell(*gv), argE, unsafeCallerNodes,
+                        simMap);
+            if (init_fields < m_fields_copied)
+              m_gv_copied++;
+          }
+        }
       }
-    }
 
-    if (init_params < m_params_copied)
-      m_callsites_copied++;
+      if (init_params < m_params_copied)
+        m_callsites_copied++;
+    }
   }
 
   void VCgenMemArg(const Cell c_arg_callee, Expr base_ptr,
                    NodeSet unsafeCallerNodes, SimulationMapper sm) {
     ExplSet explored;
-    recVCGenMem(c_arg_callee, base_ptr, unsafeCallerNodes,
-              sm, explored);
+    recVCGenMem(c_arg_callee, base_ptr, unsafeCallerNodes, sm,
+                explored);
   }
 
   void recVCGenMem(const Cell &c_callee, Expr ptr,
@@ -772,9 +830,9 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
         unsigned offset = field.getFirst();
 
         Cell c_caller_field(c_caller, offset);
-        Expr copyA = getFreshArraySymbol(c_caller_field);
+        Expr copyA = getFreshArraySymbol(c_caller_field,OUT);
         Expr tmpA = nullptr, nextA = nullptr;
-        newTmpArraySymbol(c_caller_field, tmpA, nextA);
+        newTmpArraySymbol(c_caller_field, tmpA, nextA,OUT);
 
         m_fields_copied++;
 
@@ -796,11 +854,12 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
       const Cell &next_c = *links.second;
       const Node *next_n = next_c.getNode();
 
-      Expr origA = getInArraySymbol(Cell(c_caller,f.getOffset()));
+      Expr origA = getOrigArraySymbol(Cell(c_caller,f.getOffset()),IN);
 
       if (explored.find(next_n) == explored.end()) { // not explored yet
         Expr offset = mkTerm<expr::mpz_class>(f.getOffset(), m_efac);
         Expr next_ptr = mk<SELECT>(origA, mk<PLUS>(ptr, offset));
+        // TODO: missing copy read
         recVCGenMem(next_c, next_ptr, unsafeNodes, simMap, explored);
       }
     }
@@ -931,20 +990,20 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
 
       assert(m_fparams.size() == bind::domainSz(fi.sumPred));
 
-      for(auto it: m_tmprep){
+      for(auto it: m_tmprep_out){
         const auto pair = it.getFirst();
-        Node * n = const_cast<Node*>(pair.first);
+        Node * n = const_cast<Node *>(pair.first);
         Cell c(n, pair.second);
-        Expr origA = getInArraySymbol(c);
-        Expr replaceA = it.getSecond();
+        Expr origInA = getOrigArraySymbol(c,IN);
+        Expr replaceOutA = it.getSecond();
 
-        LOG("inter_mem", errs() << "Replacing "; origA->dump(); errs() << " by "; replaceA->dump() ; errs() << "\n");
+        LOG("inter_mem", errs() << "Replacing by "; replaceOutA->dump() ; errs() << "\n");
 
         for(int i=3; i < m_fparams.size(); i++){ // we can skip the first 3
-          if (m_fparams[i] == origA) {
-            m_side.push_back(mk<EQ>(m_fparams[i + 1],replaceA));
-            auto it2 = m_rep.find(pair);
-            assert(it2 != m_rep.end());
+          if (m_fparams[i] == origInA) {
+            m_side.push_back(mk<EQ>(m_fparams[i + 1],replaceOutA));
+            auto it2 = m_rep_out.find(pair);
+            assert(it2 != m_rep_out.end());
             m_fparams[i + 1] = it2->getSecond();
             i++;
             break;
@@ -955,9 +1014,12 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
       m_side.push_back(bind::fapp(fi.sumPred, m_fparams));
 
       // preparing for the next callsite
-      m_orig_array.clear();
-      m_rep.clear();
-      m_tmprep.clear();
+      m_orig_array_in.clear();
+      m_orig_array_out.clear();
+      m_rep_in.clear();
+      m_rep_out.clear();
+      m_tmprep_in.clear();
+      m_tmprep_out.clear();
 
       // reseting parameter structures
       m_fparams.clear();
@@ -971,6 +1033,8 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
     } else if (F.getName().startswith("shadow.mem")) {
       if (!m_sem.isTracked(I))
         return;
+
+      LOG("inter_mem", errs() << F.getName() << "\n";);
 
       if (F.getName().equals("shadow.mem.init"))
         m_s.havoc(symb(I));
@@ -991,21 +1055,22 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
         const Value *shadow_a = m_sem.m_shadowDsa->getShadowInAlloc(CS);
         auto in_par = m_s.read(symb(*shadow_a));
         m_fparams.push_back(in_par);
-        addInArraySymbol(c,in_par);
+        addArraySymbol(c,in_par,IN);
       } else if (F.getName().equals(ShadowMemSeaDsa::m_argNew)) {
         const Cell &c = m_sem.m_shadowDsa->getCellShadowInstr(CS);
         auto out_par = m_s.havoc(symb(*m_sem.m_shadowDsa->getShadowOutAlloc(CS)));
-        addInArraySymbol(c, out_par);
+        addArraySymbol(c, out_par, IN);
         m_fparams.push_back(out_par);
       } else if (F.getName().startswith(ShadowMemSeaDsa::m_argMod)) {
         auto in_par = m_s.read(symb(*m_sem.m_shadowDsa->getShadowInAlloc(CS)));
         m_fparams.push_back(in_par);
         m_inRegions.push_back(in_par);
         const Cell &c = m_sem.m_shadowDsa->getCellShadowInstr(CS);
-        addInArraySymbol(c, in_par);
+        addArraySymbol(c, in_par, IN);
         auto out_par = m_s.havoc(symb(*m_sem.m_shadowDsa->getShadowOutAlloc(CS)));
         m_fparams.push_back(out_par);
         m_outRegions.push_back(out_par);
+        addArraySymbol(c, out_par, OUT);
       } else if (!PF.getName().equals("main") &&
                  F.getName().equals("shadow.mem.in")) {
         m_s.read(symb(*CS.getArgument(1)));

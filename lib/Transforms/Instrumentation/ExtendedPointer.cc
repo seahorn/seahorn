@@ -87,7 +87,7 @@ BasicBlock *ExtendedPointer::getErrorBB() {
   AB.addAttribute(Attribute::NoReturn);
   AttributeList as = AttributeList::get(ctx, AttributeList::FunctionIndex, AB);
   auto errorFn = dyn_cast<Function>(
-      Md->getOrInsertFunction("verifier.error", as, Type::getVoidTy(ctx)));
+      Md->getOrInsertFunction("__VERIFIER_error", as, Type::getVoidTy(ctx)));
   CallInst *TrapCall = Builder->CreateCall(errorFn);
   TrapCall->setDoesNotReturn();
   TrapCall->setDoesNotThrow();

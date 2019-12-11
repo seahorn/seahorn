@@ -825,7 +825,9 @@ void ShadowDsaImpl::visitCallSite(CallSite CS) {
     return;
   }
 
-  if (dsa::AllocSiteInfo::isAllocSite(*callInst)) {
+  if (dsa::AllocSiteInfo::isAllocSite(*callInst) &&
+      /* we don't want to treat specially allocation wrappers */
+      (callee->isDeclaration() || callee->empty())) {
     visitAllocationFn(CS);
     return;
   }

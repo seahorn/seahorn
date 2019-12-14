@@ -1506,8 +1506,7 @@ Bv2OpSemContext::Bv2OpSemContext(Bv2OpSem &sem, SymStore &values,
   oneE = mkTerm<expr::mpz_class>(1UL, efac());
 
   m_alu = mkBvOpSemAlu(*this);
-  setMemManager(
-      new OpSemMemManager(m_sem, *this, PtrSize, WordSize, UseLambdas));
+  setMemManager(mkRawMemManager(m_sem, *this, PtrSize, WordSize, UseLambdas));
 }
 
 Bv2OpSemContext::Bv2OpSemContext(SymStore &values, ExprVector &side,

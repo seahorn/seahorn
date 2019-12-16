@@ -55,6 +55,10 @@ const int TYPE_GUESS = sizeof(int);
 
 std::map<intptr_t, intptr_t, std::greater<intptr_t>> absptrmap;
 
+std::map<size_t, size_t, std::greater<size_t>> fatptrslot0; // (int)ptr : base
+std::map<size_t, size_t, std::greater<size_t>> fatptrslot1; // (int)ptr : size
+
+
 // Hook for gdb-like tools: do nothing here.
 void* __emv(void* p) {
   return p;
@@ -110,7 +114,7 @@ void* __emv(void* p) {
 /** Dummy implementation of memory wrapping functions */
 void __seahorn_mem_alloc(void* start, void* end, int64_t val, size_t sz)
 {}
-  
+
 void __seahorn_mem_init (void* addr, int64_t val, size_t sz)
 {}
 
@@ -161,5 +165,31 @@ void __assert_fail (const char * assertion, const char * file,
   exit(1);
 }
 
+
+void __sea_set_extptr_slot0(void* ptr, uint32_t base) {
+  fatptrslot0[(size_t)ptr] = (size_t)base;
+}
+
+void __sea_set_extptr_slot1(void *ptr, uint32_t size) {
+  fatptrslot1[(size_t)ptr] = (size_t)size;
+}
+
+uint32_t __sea_get_extptr_slot0(void *ptr) {
+  assert(fatptrslot0.count((size_t)ptr) != 0);
+  return (uint32_t)fatptrslot0[(size_t)ptr];
+}
+
+uint32_t __sea_get_extptr_slot1(void *ptr) {
+  assert(fatptrslot1.count((size_t)ptr) != 0);
+  return (uint32_t)fatptrslot1[(size_t)ptr];
+}
+
+void __sea_copy_extptr_slots(void *dst, void *src) {
+  assert(fatptrslot0.count((size_t)src) != 0 && fatptrslot1.count((size_t)src) != 0);
+  size_t dst_int = (size_t)dst;
+  size_t src_int = (size_t)src;
+  fatptrslot0[dst_int] = fatptrslot0[src_int];
+  fatptrslot1[dst_int] = fatptrslot1[src_int];
+}
 
 }

@@ -40,7 +40,7 @@ llvm::Pass *createDevirtualizeFunctionsPass();
 llvm::Pass *createAbstractMemoryPass();
 llvm::Pass *createPromoteMemoryToRegisterPass();
 llvm::Pass *createLoadCrabPass();
-llvm::Pass *createShadowMemDsaPass();    // llvm dsa
+llvm::Pass *createLlvmDsaShadowMemPass();    
 
 llvm::Pass *createCutLoopsPass();
 llvm::Pass *createMarkFnEntryPass();
@@ -123,21 +123,16 @@ inline llvm::FunctionPass *createInstCombine() {
 } // namespace seahorn
 #endif
 
-#ifdef USE_SHADOW_MEM_FROM_SEA_DSA
 #include "sea_dsa/ShadowMem.hh"
 namespace seahorn {
-llvm::Pass *createShadowMemSeaDsaPass() {
+llvm::Pass *createSeaDsaShadowMemPass() {
   return sea_dsa::createShadowMemPass();
 }
+
 llvm::Pass *createStripShadowMemPass(){
   return sea_dsa::createStripShadowMemPass();
 }
+
 }
-#else
-namespace seahorn {
-llvm::Pass *createShadowMemSeaDsaPass(); 
-llvm::Pass *createStripShadowMemPass();
-}
-#endif 
 
 #endif /* SEAHORN_PASSES__HH_ */

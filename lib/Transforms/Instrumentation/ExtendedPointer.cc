@@ -264,13 +264,13 @@ bool ExtendedPointer::runOnFunction(Function &F) {
 
   m_setFatSlot0 = cast<Function>(Mod->getOrInsertFunction(
     SEA_SET_FAT_SLOT0,
-    Type::getInt32Ty(*Ctx),
+    Type::getVoidTy(*Ctx),
     Type::getInt8PtrTy(*Ctx, 0),
     Type::getInt32Ty(*Ctx)
   ));
   m_setFatSlot1 = cast<Function>(Mod->getOrInsertFunction(
     SEA_SET_FAT_SLOT1,
-    Type::getInt32Ty(*Ctx),
+    Type::getVoidTy(*Ctx),
     Type::getInt8PtrTy(*Ctx, 0),
     Type::getInt32Ty(*Ctx)
   ));

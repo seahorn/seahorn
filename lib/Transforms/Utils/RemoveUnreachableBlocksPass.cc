@@ -3,6 +3,9 @@
 
 #include "seahorn/config.h"
 
+#include "sea_dsa/ShadowMem.hh"
+#include "sea_dsa/DsaAnalysis.hh"
+
 #ifdef HAVE_DSA
 #include "dsa/DataStructure.h"
 #include "dsa/AllocatorIdentification.h"
@@ -28,6 +31,9 @@ namespace seahorn
       AU.addPreservedID(LocalDataStructuresID);
       AU.addPreservedID(SteensgaardDataStructuresID);
       #endif
+      // Preserve Sea-DSA passes
+      AU.addPreservedID(sea_dsa::DsaAnalysis::ID);
+      AU.addPreservedID(sea_dsa::ShadowMemPass::ID);      
   }
 }
 

@@ -33,11 +33,12 @@
 using namespace llvm;
 
 #define DEBUG_TYPE "sea-bounds-checking"
-#define SEA_SET_FAT_SLOT0 "__sea_set_extptr_slot0"
-#define SEA_GET_FAT_SLOT0 "__sea_get_extptr_slot0"
-#define SEA_SET_FAT_SLOT1 "__sea_set_extptr_slot1"
-#define SEA_GET_FAT_SLOT1 "__sea_get_extptr_slot1"
-#define SEA_COPY_FAT_SLOTS "__sea_copy_extptr_slots"
+#define SEA_SET_FAT_SLOT0 "__sea_set_extptr_slot0_fp"
+#define SEA_GET_FAT_SLOT0 "__sea_get_extptr_slot0_fp"
+#define SEA_SET_FAT_SLOT1 "__sea_set_extptr_slot1_fp"
+#define SEA_GET_FAT_SLOT1 "__sea_get_extptr_slot1_fp"
+#define SEA_COPY_FAT_SLOTS "__sea_copy_extptr_slots_fp"
+#define SEA_RECOVER_FAT_PTR "__sea_recover_pointer_fp"
 
 
 //static cl::opt<bool> SingleErrorBB("bounds-checking-single-trap",
@@ -74,6 +75,8 @@ private:
   Function* m_getFatSlot0; // get ptr base
   Function* m_getFatSlot1; // get ptr size
   Function* m_copyFatSlots; // copy ptr info
+  Function* m_recoverFatPtr; // NEW: for ptr embed method only
+  Value* OrigPtr;
 
 
   BasicBlock *getErrorBB();
@@ -150,8 +153,7 @@ void ExtendedPointer::emitBranchToTrap(Value *Cmp) {
 bool ExtendedPointer::instrument(Value *Ptr, Value *InstVal,
                                 const DataLayout &DL) {
   uint64_t NeededSize = DL.getTypeStoreSize(InstVal->getType());
-  Type *IntTy = DL.getIntPtrType(Ptr->getType());
-  Value *NeededSizeVal = ConstantInt::get(IntTy, NeededSize);
+  Value *NeededSizeVal = ConstantInt::get(IntptrTy, NeededSize);
   DEBUG(dbgs() << "Instrument " << *Ptr << " for " << Twine(NeededSize)
                << " bytes\n");
 
@@ -162,13 +164,15 @@ bool ExtendedPointer::instrument(Value *Ptr, Value *InstVal,
     // get start and end by calling internalized functions
     Value *Start = Builder->CreateCall(m_getFatSlot0, Builder->CreateBitCast(Ptr, Builder->getInt8PtrTy()));
     Value *Size = Builder->CreateCall(m_getFatSlot1, Builder->CreateBitCast(Ptr, Builder->getInt8PtrTy()));
-    Value *PtrInt = Builder->CreatePtrToInt(Ptr, IntTy);
+    Value *recov = Builder->CreateCall(m_recoverFatPtr, Builder->CreateBitCast(Ptr, Builder->getInt8PtrTy()));
+    OrigPtr = Builder->CreateBitCast(recov, Ptr->getType());
+    Value *PtrInt = Builder->CreatePtrToInt(OrigPtr, IntptrTy);
     // Ptr >= Start
-    Value *CmpUnderFlow = Builder->CreateICmpULT(PtrInt, Builder->CreateIntCast(Start, IntTy, true));
+    Value *CmpUnderFlow = Builder->CreateICmpULT(PtrInt, Builder->CreateIntCast(Start, IntptrTy, true));
     // Start + Size >= Ptr + NeededSize
     Value *accessEnd = Builder->CreateAdd(PtrInt, NeededSizeVal);
     Value *ptrEnd = Builder->CreateAdd(Start, Size);
-    Value *CmpOverFlow = Builder->CreateICmpULT(Builder->CreateIntCast(ptrEnd, IntTy, true), accessEnd);
+    Value *CmpOverFlow = Builder->CreateICmpULT(Builder->CreateIntCast(ptrEnd, IntptrTy, true), accessEnd);
     Or = Builder->CreateOr(CmpUnderFlow, CmpOverFlow);
   } else {
     // size and offest statically computed
@@ -189,9 +193,10 @@ bool ExtendedPointer::instrument(Value *Ptr, Value *InstVal,
     Value *Cmp3 = Builder->CreateICmpULT(ObjSize, NeededSizeVal);
     Or = Builder->CreateOr(Cmp2, Cmp3);
     if (!SizeCI || SizeCI->getValue().slt(0)) {
-      Value *Cmp1 = Builder->CreateICmpSLT(Offset, ConstantInt::get(IntTy, 0));
+      Value *Cmp1 = Builder->CreateICmpSLT(Offset, ConstantInt::get(IntptrTy, 0));
       Or = Builder->CreateOr(Cmp1, Or);
     }
+    OrigPtr = Ptr;
   }
   emitBranchToTrap(Or);
 
@@ -201,41 +206,70 @@ bool ExtendedPointer::instrument(Value *Ptr, Value *InstVal,
 /* Record information of address Ptr, store/update the base address and size */
 bool ExtendedPointer::instrumentAddress(Value *Ptr, const DataLayout &DL,
                                         Value *BasePtr) {
+  Ptr->setName("raw_ptr");
+  Type *resultType;
   if (!BasePtr) {
-    Type *IntTy = DL.getIntPtrType(Ptr->getType());
-    // set_fat_slot0(Ptr, Base)
-    Builder->CreateCall(
+    if (auto *ALI = dyn_cast<AllocaInst>(Ptr)) {
+       resultType = ALI->getAllocatedType();
+    } else {
+      llvm_unreachable("only handling GEP instructions");
+    }
+    CallInst* withBase = Builder->CreateCall(
       m_setFatSlot0,
       {
-        Builder->CreateBitCast(Ptr, Builder->getInt8PtrTy()),
-        Builder->CreatePtrToInt(Ptr, Builder->getInt32Ty())
+        Constant::getNullValue(Builder->getInt8PtrTy()),
+        ConstantInt::get(IntptrTy, 0)
       }
     );
+    // set_fat_slot1(Ptr, Size)
+    CallInst* withSize = Builder->CreateCall(
+      m_setFatSlot1,
+      {
+        Constant::getNullValue(Builder->getInt8PtrTy()),
+        ConstantInt::get(IntptrTy, 0)
+      }
+    );
+    Value* casted = Builder->CreateBitCast(withSize, resultType->getPointerTo());
+    Ptr->replaceAllUsesWith(casted);
     Value *sizeVal;
     // alloca
     if (auto *ALI = dyn_cast<AllocaInst>(Ptr)) {
       uint64_t size = DL.getTypeStoreSize(ALI->getAllocatedType());
-      sizeVal = ConstantInt::get(Type::getInt32Ty(*Ctx), size);
+      sizeVal = ConstantInt::get(IntptrTy, size);
     } else {
       llvm_unreachable("unexpected lack of base address");
     }
-    // set_fat_slot1(Ptr, Size)
-    Builder->CreateCall(
-      m_setFatSlot1,
-      {
-        Builder->CreateBitCast(Ptr, Builder->getInt8PtrTy()),
-        sizeVal
-      }
-    );
+    // Type *IntTy = DL.getIntPtrType(Ptr->getType());
+    // set_fat_slot0(Ptr, Base)
+    Builder->SetInsertPoint(withBase);
+    Value *argA = Builder->CreateBitCast(Ptr, Builder->getInt8PtrTy());
+    Value *argB = Builder->CreatePtrToInt(Ptr, IntptrTy);
+    withBase->setArgOperand(0, argA);
+    withBase->setArgOperand(1, argB);
+    Builder->SetInsertPoint(withSize);
+    argA = Builder->CreateBitCast(withBase, Builder->getInt8PtrTy());
+    withSize->setArgOperand(0, argA);
+    withSize->setArgOperand(1, sizeVal);
   } else {
     // copy_fat_slots(Ptr, BasePtr)
-    Builder->CreateCall(
+    if (auto *GEP = dyn_cast<GetElementPtrInst>(Ptr)) {
+       resultType = GEP->getResultElementType();
+    } else {
+      llvm_unreachable("only handling GEP instructions");
+    }
+    CallInst* copied = Builder->CreateCall(
       m_copyFatSlots,
       {
-        Builder->CreateBitCast(Ptr, Builder->getInt8PtrTy()),
-        Builder->CreateBitCast(BasePtr, Builder->getInt8PtrTy()),
+        Constant::getNullValue(Builder->getInt8PtrTy()),
+        Constant::getNullValue(Builder->getInt8PtrTy())
       }
     );
+    Value* casted = Builder->CreateBitCast(copied, resultType->getPointerTo());
+    WARN << "casting  " << *Ptr << " to " << *casted << " with type " << *resultType->getPointerTo() << " \n";
+    Ptr->replaceAllUsesWith(casted);
+    Builder->SetInsertPoint(copied);
+    copied->setArgOperand(0, Builder->CreateBitCast(Ptr, Builder->getInt8PtrTy()));
+    copied->setArgOperand(1, Builder->CreateBitCast(BasePtr, Builder->getInt8PtrTy()));
   }
 
   return true;
@@ -258,26 +292,32 @@ bool ExtendedPointer::runOnFunction(Function &F) {
   IntptrTy = Type::getIntNTy(F.getContext(), LongSize);
 
   m_getFatSlot0 = cast<Function>(Mod->getOrInsertFunction(
-    SEA_GET_FAT_SLOT0, Type::getInt32Ty(*Ctx), Type::getInt8PtrTy(*Ctx, 0)));
+    SEA_GET_FAT_SLOT0, IntptrTy, Type::getInt8PtrTy(*Ctx, 0)));
   m_getFatSlot1 = cast<Function>(Mod->getOrInsertFunction(
-    SEA_GET_FAT_SLOT1, Type::getInt32Ty(*Ctx), Type::getInt8PtrTy(*Ctx, 0)));
+    SEA_GET_FAT_SLOT1, IntptrTy, Type::getInt8PtrTy(*Ctx, 0)));
 
   m_setFatSlot0 = cast<Function>(Mod->getOrInsertFunction(
     SEA_SET_FAT_SLOT0,
-    Type::getVoidTy(*Ctx),
     Type::getInt8PtrTy(*Ctx, 0),
-    Type::getInt32Ty(*Ctx)
+    Type::getInt8PtrTy(*Ctx, 0),
+    IntptrTy
   ));
   m_setFatSlot1 = cast<Function>(Mod->getOrInsertFunction(
     SEA_SET_FAT_SLOT1,
-    Type::getVoidTy(*Ctx),
     Type::getInt8PtrTy(*Ctx, 0),
-    Type::getInt32Ty(*Ctx)
+    Type::getInt8PtrTy(*Ctx, 0),
+    IntptrTy
   ));
 
   m_copyFatSlots = cast<Function>(Mod->getOrInsertFunction(
     SEA_COPY_FAT_SLOTS,
-    Type::getVoidTy(*Ctx),
+    Type::getInt8PtrTy(*Ctx, 0),
+    Type::getInt8PtrTy(*Ctx, 0),
+    Type::getInt8PtrTy(*Ctx, 0)
+  ));
+
+  m_recoverFatPtr = cast<Function>(Mod->getOrInsertFunction(
+    SEA_RECOVER_FAT_PTR,
     Type::getInt8PtrTy(*Ctx, 0),
     Type::getInt8PtrTy(*Ctx, 0)
   ));
@@ -285,7 +325,8 @@ bool ExtendedPointer::runOnFunction(Function &F) {
   // check HANDLE_MEMORY_INST in include/llvm/Instruction.def for memory
   // touching instructions
   std::vector<Instruction*> AccessWorkList;
-  std::vector<Instruction*> AddrWorkList; // new register is created for addr
+  std::vector<Instruction*> AllocaList; // new register is created for addr
+  std::vector<Instruction*> GEPList; // new register is created for addr
   for (inst_iterator i = inst_begin(F), e = inst_end(F); i != e; ++i) {
     Instruction *I = &*i;
     if (isa<LoadInst>(I) || isa<StoreInst>(I) || isa<AtomicCmpXchgInst>(I) ||
@@ -293,14 +334,16 @@ bool ExtendedPointer::runOnFunction(Function &F) {
       AccessWorkList.push_back(I);
       continue;
     }
-    if (isa<AllocaInst>(I) || isa<GetElementPtrInst>(I)) {
-      AddrWorkList.push_back(I);
+    if (isa<AllocaInst>(I)) {
+      AllocaList.push_back(I);
     }
-
+    if (isa<GetElementPtrInst>(I)) {
+      GEPList.push_back(I);
+    }
   }
 
   bool MadeChange = false;
-  for (Instruction *i : AddrWorkList) {
+  for (Instruction *i : AllocaList) {
     Inst = i;
     Builder->SetInsertPoint(Inst->getNextNode()); // insert after
     if (AllocaInst *ALI = dyn_cast<AllocaInst>(Inst)) {
@@ -308,7 +351,15 @@ bool ExtendedPointer::runOnFunction(Function &F) {
       if (allocTy->isArrayTy() || allocTy->isPointerTy() || allocTy->isStructTy()) {
         MadeChange |= instrumentAddress(ALI, DL);
       }
-    } else if (GetElementPtrInst *GEP = dyn_cast<GetElementPtrInst>(Inst)){
+    } else {
+      llvm_unreachable("unknown Instruction type");
+    }
+  }
+
+  for (Instruction *i : GEPList) {
+    Inst = i;
+    Builder->SetInsertPoint(Inst->getNextNode()); // insert after
+    if (GetElementPtrInst *GEP = dyn_cast<GetElementPtrInst>(Inst)){
       MadeChange |= instrumentAddress(GEP, DL, GEP->getPointerOperand());
     } else {
       llvm_unreachable("unknown Instruction type");
@@ -321,15 +372,19 @@ bool ExtendedPointer::runOnFunction(Function &F) {
     Builder->SetInsertPoint(Inst);
     if (LoadInst *LI = dyn_cast<LoadInst>(Inst)) {
       MadeChange |= instrument(LI->getPointerOperand(), LI, DL);
+      LI->setOperand(LI->getPointerOperandIndex(), OrigPtr);
     } else if (StoreInst *SI = dyn_cast<StoreInst>(Inst)) {
       MadeChange |=
           instrument(SI->getPointerOperand(), SI->getValueOperand(), DL);
+      SI->setOperand(SI->getPointerOperandIndex(), OrigPtr);
     } else if (AtomicCmpXchgInst *AI = dyn_cast<AtomicCmpXchgInst>(Inst)) {
       MadeChange |=
           instrument(AI->getPointerOperand(), AI->getCompareOperand(), DL);
+      AI->setOperand(AI->getPointerOperandIndex(), OrigPtr);
     } else if (AtomicRMWInst *AI = dyn_cast<AtomicRMWInst>(Inst)) {
       MadeChange |=
           instrument(AI->getPointerOperand(), AI->getValOperand(), DL);
+      AI->setOperand(AI->getPointerOperandIndex(), OrigPtr);
     } else {
       llvm_unreachable("unknown Instruction type");
     }

@@ -58,6 +58,9 @@ std::map<intptr_t, intptr_t, std::greater<intptr_t>> absptrmap;
 std::map<size_t, size_t, std::greater<size_t>> fatptrslot0; // (int)ptr : base
 std::map<size_t, size_t, std::greater<size_t>> fatptrslot1; // (int)ptr : size
 
+// 64-bit fat pointer: [8:base|8:size|48:addr]
+static uint16_t ptr_base; // 16 bit common base of stack allocated ptrs
+static bool ptr_base_set = false;
 
 // Hook for gdb-like tools: do nothing here.
 void* __emv(void* p) {
@@ -125,7 +128,7 @@ void __seahorn_mem_store (void *src, void *dst, size_t sz)
   /* if dst is a legal address */
     sealog("\tmemory write ");
     memcpy (dst, src, sz);
-    sealog("done\n");    
+    sealog("done\n");
   }
   /* else if dst is illegal, do nothing */
   else{
@@ -140,7 +143,7 @@ void __seahorn_mem_load (void *dst, void *src, size_t sz)
   /* if src is a legal address */
     sealog("\tmemory read ");
     memcpy (dst, src, sz);
-    sealog("done\n");        
+    sealog("done\n");
   }
   /* else, if src is illegal, return a dummy value */
   else {
@@ -166,30 +169,81 @@ void __assert_fail (const char * assertion, const char * file,
 }
 
 
-void __sea_set_extptr_slot0(void* ptr, uint32_t base) {
+void* __sea_set_extptr_slot0_fp(void* ptr, size_t base) {
+  if (!ptr_base_set) {
+    ptr_base_set = true;
+    ptr_base = (uint16_t)((size_t)ptr >> 48);
+  }
+  size_t base_bits = (size_t)base & 0xff;
+  size_t packed = (base_bits << 56) | (size_t)ptr;
+  return (void*)packed;
+}
+
+void* __sea_set_extptr_slot1_fp(void* ptr, size_t size) {
+  if (!ptr_base_set) {
+    ptr_base_set = true;
+    ptr_base = (uint16_t)((size_t)ptr >> 48);
+  }
+  assert(size < 512);
+  size_t packed = (size << 48) | (size_t)ptr;
+  return (void*)packed;
+}
+
+void* __sea_recover_pointer_fp(void* cooked) {
+  size_t cleared = (size_t) cooked & 0xffffffffffff;
+  size_t recov = cleared | (size_t) ptr_base << 48;
+  return (void*) recov;
+}
+
+size_t __sea_get_extptr_slot0_fp(void *ptr) {
+  size_t raw = (size_t)ptr >> 56; // 8 bits stored only
+  void* recov = __sea_recover_pointer_fp(ptr);
+  size_t recov_base = (size_t)recov & 0xffffffffffffff00;
+  return recov_base | raw;
+}
+
+size_t __sea_get_extptr_slot1_fp(void *ptr) {
+  size_t info_bits = (size_t)ptr >> 48;
+  return info_bits & 0xff;
+}
+
+void* __sea_copy_extptr_slots_fp(void *dst, void*src) {
+  size_t src_info = (size_t)src & 0xffff000000000000;
+  size_t dst_addr = (size_t)dst & 0xffffffffffff;
+  return (void*)(src_info | dst_addr);
+}
+
+void* __sea_set_extptr_slot0_hm(void* ptr, size_t base) {
   fatptrslot0[(size_t)ptr] = (size_t)base;
+  return ptr;
 }
 
-void __sea_set_extptr_slot1(void *ptr, uint32_t size) {
+void* __sea_set_extptr_slot1_hm(void *ptr, size_t size) {
   fatptrslot1[(size_t)ptr] = (size_t)size;
+  return ptr;
 }
 
-uint32_t __sea_get_extptr_slot0(void *ptr) {
+void* __sea_recover_pointer_hm(void* cooked) {
+  return cooked;
+}
+
+size_t __sea_get_extptr_slot0_hm(void *ptr) {
   assert(fatptrslot0.count((size_t)ptr) != 0);
-  return (uint32_t)fatptrslot0[(size_t)ptr];
+  return (size_t)fatptrslot0[(size_t)ptr];
 }
 
-uint32_t __sea_get_extptr_slot1(void *ptr) {
+size_t __sea_get_extptr_slot1_hm(void *ptr) {
   assert(fatptrslot1.count((size_t)ptr) != 0);
-  return (uint32_t)fatptrslot1[(size_t)ptr];
+  return fatptrslot1[(size_t)ptr];
 }
 
-void __sea_copy_extptr_slots(void *dst, void *src) {
+void* __sea_copy_extptr_slots_hm(void *dst, void *src) {
   assert(fatptrslot0.count((size_t)src) != 0 && fatptrslot1.count((size_t)src) != 0);
   size_t dst_int = (size_t)dst;
   size_t src_int = (size_t)src;
   fatptrslot0[dst_int] = fatptrslot0[src_int];
   fatptrslot1[dst_int] = fatptrslot1[src_int];
+  return dst;
 }
 
 }

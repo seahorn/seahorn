@@ -40,6 +40,13 @@ using namespace llvm;
 #define SEA_COPY_FAT_SLOTS "__sea_copy_extptr_slots_fp"
 #define SEA_RECOVER_FAT_PTR "__sea_recover_pointer_fp"
 
+#define SEA_SET_FAT_SLOT0 "__sea_set_extptr_slot0_hm"
+#define SEA_GET_FAT_SLOT0 "__sea_get_extptr_slot0_hm"
+#define SEA_SET_FAT_SLOT1 "__sea_set_extptr_slot1_hm"
+#define SEA_GET_FAT_SLOT1 "__sea_get_extptr_slot1_hm"
+#define SEA_COPY_FAT_SLOTS "__sea_copy_extptr_slots_hm"
+#define SEA_RECOVER_FAT_PTR "__sea_recover_pointer_hm"
+
 
 //static cl::opt<bool> SingleErrorBB("bounds-checking-single-trap",
 //                                  cl::desc("Use one trap block per function"));

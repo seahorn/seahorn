@@ -2,97 +2,59 @@
 #include "llvm/IR/GetElementPtrTypeIterator.h"
 
 #include "seahorn/Transforms/Instrumentation/ShadowMemDsa.hh"
-#include "seahorn/UfoOpSem.hh"
+#include "seahorn/UfoOpMemSem.hh"
 
 #include "seahorn/Support/IteratorExtras.hh"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/FileSystem.h"
 
-#include "seahorn/Support/SeaDebug.h"
-#include "seahorn/Support/Stats.hh"
 #include "seahorn/Expr/ExprLlvm.hh"
 #include "seahorn/Expr/Smt/EZ3.hh"
+#include "seahorn/Support/SeaDebug.h"
+#include "seahorn/Support/Stats.hh"
 
+#include "sea_dsa/Global.hh"
 
 namespace seahorn {
-bool XGlobalConstraints;
-bool XArrayGlobalConstraints;
-bool XStrictlyLinear;
-bool XEnableDiv;
-bool XRewriteDiv;
-bool XEnableUniqueScalars;
-bool XInferMemSafety;
-bool XIgnoreCalloc;
-bool XIgnoreMemset;
-bool XUseWrite;
-}
+extern bool XGlobalConstraints;
+extern bool XArrayGlobalConstraints;
+extern bool XStrictlyLinear;
+extern bool XEnableDiv;
+extern bool XRewriteDiv;
+extern bool XEnableUniqueScalars;
+extern bool XInferMemSafety;
+extern bool XIgnoreCalloc;
+extern bool XIgnoreMemset;
+extern bool XUseWrite;
+
+// counters for transformation
+extern unsigned m_n_params;
+extern unsigned m_n_callsites;
+extern unsigned m_n_gv; // global variables
+
+extern unsigned m_fields_copied;
+extern unsigned m_params_copied;
+extern unsigned m_gv_copied;
+extern unsigned m_callsites_copied;
+
+extern unsigned m_node_array;
+extern unsigned m_node_ocollapsed;
+extern unsigned m_node_unbounded;
+
+extern unsigned m_node_unsafe;
+} // namespace seahorn
 using namespace seahorn;
 using namespace llvm;
 
-
-static llvm::cl::opt<bool, true> GlobalConstraints(
-    "horn-global-constraints",
-    llvm::cl::desc("Maximize the use of global (i.e., unguarded) constraints"),
-    llvm::cl::location(seahorn::XGlobalConstraints),
-    cl::init(false));
-
-static llvm::cl::opt<bool, true> ArrayGlobalConstraints(
-    "horn-array-global-constraints",
-    llvm::cl::desc("Extend global constraints to arrays"),
-    llvm::cl::location(seahorn::XArrayGlobalConstraints), cl::init(false));
-
-static llvm::cl::opt<bool, true> StrictlyLinear(
-    "horn-strictly-la",
-    llvm::cl::desc("Generate strictly Linear Arithmetic constraints"),
-    llvm::cl::location(seahorn::XStrictlyLinear), cl::init(true));
-
-static llvm::cl::opt<bool, true>
-    EnableDiv("horn-enable-div", llvm::cl::desc("Enable division constraints."),
-              llvm::cl::location(seahorn::XEnableDiv), cl::init(true));
-
-static llvm::cl::opt<bool, true> RewriteDiv(
-    "horn-rewrite-div",
-    llvm::cl::desc("Rewrite division constraints to multiplications."),
-    llvm::cl::location(seahorn::XRewriteDiv), cl::init(false));
-
-static llvm::cl::opt<bool,true> EnableUniqueScalars(
-    "horn-singleton-aliases",
-    llvm::cl::desc("Treat singleton alias sets as scalar values"),
-    llvm::cl::location(seahorn::XEnableUniqueScalars), cl::init(false));
-
-static llvm::cl::opt<bool,true> InferMemSafety(
-    "horn-use-mem-safety",
-    llvm::cl::desc("Rely on memory safety assumptions such as "
-                   "successful load/store imply validity of their arguments"),
-    llvm::cl::location(seahorn::XInferMemSafety),
-    cl::init(true), cl::Hidden);
-
-static llvm::cl::opt<bool,true> IgnoreCalloc(
-    "horn-ignore-calloc",
-    llvm::cl::desc(
-        "Treat calloc same as malloc, ignore that memory is initialized"),
-    llvm::cl::location(seahorn::XIgnoreCalloc), cl::init(false), cl::Hidden);
-
-static llvm::cl::opt<bool,true>
-    IgnoreMemset("horn-ignore-memset",
-                 llvm::cl::desc("Ignore that memset writes into a memory"),
-                 llvm::cl::location(seahorn::XIgnoreMemset),
-                 cl::init(false),
-                 cl::Hidden);
-
-static llvm::cl::opt<bool, true> UseWrite(
-    "horn-use-write", llvm::cl::desc("Write to store instead of havoc"),
-    llvm::cl::location(seahorn::XUseWrite), cl::init(false), cl::Hidden);
-
 static const Value *extractUniqueScalar(CallSite &cs) {
-  if (!EnableUniqueScalars)
+  if (!XEnableUniqueScalars)
     return nullptr;
   else
     return seahorn::shadow_dsa::extractUniqueScalar(cs);
 }
 
 static const Value *extractUniqueScalar(const CallInst *ci) {
-  if (!EnableUniqueScalars)
+  if (!XEnableUniqueScalars)
     return nullptr;
   else
     return seahorn::shadow_dsa::extractUniqueScalar(ci);
@@ -101,7 +63,7 @@ static const Value *extractUniqueScalar(const CallInst *ci) {
 static bool isShadowMem(const Value &V, const Value **out) {
   const Value *scalar;
   bool res = seahorn::shadow_dsa::isShadowMem(V, &scalar);
-  if (EnableUniqueScalars && out)
+  if (XEnableUniqueScalars && out)
     *out = scalar;
   return res;
 }
@@ -110,7 +72,7 @@ namespace {
 struct OpSemBase {
   SymStore &m_s;
   ExprFactory &m_efac;
-  UfoOpSem &m_sem;
+  UfoOpMemSem &m_sem;
   ExprVector &m_side;
 
   Expr trueE;
@@ -125,6 +87,27 @@ struct OpSemBase {
   /// --- true if the current read/write is to unique memory location
   bool m_uniq;
 
+  // map to store the correspondence between node ids and their correspondent
+  // expression
+  using NodeIdMap = DenseMap<std::pair<const sea_dsa::Node*, unsigned>, Expr>;
+
+  // new fields for inter mem
+  // current (write) memory copy
+  int m_copy_count = 0;
+  // array names to replace for a cell
+  NodeIdMap m_rep_in;
+  NodeIdMap m_rep_out;
+  // for the intermediate arrays name for copies for a cell
+  NodeIdMap m_tmprep_in;
+  // this creates not deterministic vcgen (iterating over it to replace the new
+  // parameter names)
+  NodeIdMap m_tmprep_out;
+  // original arrays names for a cell
+  NodeIdMap m_orig_array_in;
+  NodeIdMap m_orig_array_out;
+
+  typedef enum {IN, OUT} ArrayOpt;
+
   /// -- parameters for a function call
   ExprVector m_fparams;
 
@@ -134,8 +117,8 @@ struct OpSemBase {
   ExprVector m_inRegions;
   ExprVector m_outRegions;
 
-  OpSemBase(SymStore &s, UfoOpSem &sem, ExprVector &side)
-      : m_s(s), m_efac(m_s.getExprFactory()), m_sem(sem), m_side(side) {
+  OpSemBase(SymStore &s, UfoOpMemSem &sem, ExprVector &side)
+    : m_s(s), m_efac(m_s.getExprFactory()), m_sem(sem), m_side(side) {
     trueE = mk<TRUE>(m_efac);
     falseE = mk<FALSE>(m_efac);
     zeroE = mkTerm<expr::mpz_class>(0UL, m_efac);
@@ -171,7 +154,7 @@ struct OpSemBase {
   void side(Expr v, bool conditional = false) {
     if (!v)
       return;
-    if (!GlobalConstraints || conditional)
+    if (!XGlobalConstraints || conditional)
       m_side.push_back(boolop::limp(m_activeLit, v));
     else
       m_side.push_back(v);
@@ -189,7 +172,7 @@ struct OpSemBase {
 };
 
 struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
-  OpSemVisitor(SymStore &s, UfoOpSem &sem, ExprVector &side)
+  OpSemVisitor(SymStore &s, UfoOpMemSem &sem, ExprVector &side)
       : OpSemBase(s, sem, side) {}
 
   /// base case. if all else fails.
@@ -284,7 +267,7 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
       break;
     }
 
-    if (UseWrite)
+    if (XUseWrite)
       write(I, rhs);
     else
       side(lhs, rhs);
@@ -304,7 +287,7 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
 
       /* avoid creating nest ite expressions by always introducing fresh
        * constants */
-      if (false && UseWrite)
+      if (false && XUseWrite)
         write(I, rhs);
       else
         side(lhs, rhs);
@@ -365,7 +348,7 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
                 op0, mkTerm<expr::mpz_class>((unsigned long int)(v + 1), m_efac));
           }
 
-          if (UseWrite)
+          if (XUseWrite)
             write(i, rhs);
           else
             side(lhs, rhs);
@@ -409,7 +392,7 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
   }
 
   Expr doLShr(Expr lhs, Expr op1, const ConstantInt *op2) {
-    if (!EnableDiv)
+    if (!XEnableDiv)
       return Expr(nullptr);
 
     uint64_t shift = op2->getValue().getZExtValue();
@@ -417,7 +400,7 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
     for (unsigned long i = 0; i < shift; ++i)
       factor = factor * 2;
     Expr factorE = mkTerm<expr::mpz_class>(factor, m_efac);
-    if (RewriteDiv)
+    if (XRewriteDiv)
       return mk<IMPL>(mk<GEQ>(op1, zeroE), mk<EQ>(mk<MULT>(lhs, factorE), op1));
     else
       return mk<IMPL>(mk<GEQ>(op1, zeroE), mk<EQ>(lhs, mk<DIV>(op1, factorE)));
@@ -459,7 +442,7 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
       break;
     }
 
-    if (UseWrite)
+    if (XUseWrite)
       write(I, rhs);
     else
       side(lhs, rhs);
@@ -475,7 +458,7 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
   }
 
   Expr doAShr(Expr lhs, Expr op1, const ConstantInt *op2) {
-    if (!EnableDiv)
+    if (!XEnableDiv)
       return Expr(nullptr);
 
     uint64_t shift = op2->getValue().getZExtValue();
@@ -484,7 +467,7 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
       factor = factor * 2;
     Expr factorE = mkTerm<expr::mpz_class>(factor, m_efac);
 
-    if (RewriteDiv)
+    if (XRewriteDiv)
       return mk<EQ>(mk<MULT>(lhs, factorE), op1);
     else
       return mk<EQ>(lhs, mk<DIV>(op1, factorE));
@@ -511,16 +494,16 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
     case BinaryOperator::Mul:
       // if StrictlyLinear, then require that at least one
       // argument is a constant
-      if (!StrictlyLinear || isOpX<MPZ>(op1) || isOpX<MPZ>(op2) ||
+      if (!XStrictlyLinear || isOpX<MPZ>(op1) || isOpX<MPZ>(op2) ||
           isOpX<MPQ>(op1) || isOpX<MPQ>(op2))
         rhs = mk<MULT>(op1, op2);
       break;
     case BinaryOperator::SDiv:
     case BinaryOperator::UDiv:
       // if StrictlyLinear then require that divisor is a constant
-      if (EnableDiv &&
-          (!StrictlyLinear || isOpX<MPZ>(op2) || isOpX<MPQ>(op2))) {
-        if (RewriteDiv) {
+      if (XEnableDiv &&
+          (!XStrictlyLinear || isOpX<MPZ>(op2) || isOpX<MPQ>(op2))) {
+        if (XRewriteDiv) {
           side(mk<MULT>(lhs, op2), op1, true);
           return;
         } else
@@ -530,7 +513,7 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
     case BinaryOperator::SRem:
     case BinaryOperator::URem:
       // if StrictlyLinear then require that divisor is a constant
-      if (EnableDiv && (!StrictlyLinear || isOpX<MPZ>(op2) || isOpX<MPQ>(op2)))
+      if (XEnableDiv && (!XStrictlyLinear || isOpX<MPZ>(op2) || isOpX<MPQ>(op2)))
         rhs = mk<REM>(op1, op2);
       break;
     case BinaryOperator::Shl:
@@ -549,13 +532,13 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
     }
 
     // -- always guard division
-    if (EnableDiv && (I.getOpcode() == BinaryOperator::SDiv ||
+    if (XEnableDiv && (I.getOpcode() == BinaryOperator::SDiv ||
                       I.getOpcode() == BinaryOperator::UDiv ||
                       I.getOpcode() == BinaryOperator::SRem ||
                       I.getOpcode() == BinaryOperator::URem ||
                       I.getOpcode() == BinaryOperator::AShr))
       side(lhs, rhs, true);
-    else if (UseWrite)
+    else if (XUseWrite)
       write(I, rhs);
     else
       side(lhs, rhs);
@@ -590,7 +573,7 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
       side(mk<IMPL>(mk<EQ>(op0, zeroE), mk<NEG>(lhs)));
       side(mk<IMPL>(mk<EQ>(op0, oneE), lhs));
 
-    } else if (UseWrite)
+    } else if (XUseWrite)
       write(I, op0);
     else
       side(lhs, op0);
@@ -608,7 +591,7 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
     if (op) {
       // XXX cannot use write because lhs is further constrained below
       side(lhs, op);
-      if (!InferMemSafety)
+      if (!XInferMemSafety)
         return;
 
       // -- extra constraints that exclude undefined behavior
@@ -638,10 +621,254 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
         op0 = mk<ITE>(op0, one, zeroE);
     }
 
-    if (UseWrite)
+    if (XUseWrite)
       write(I, op0);
     else
       side(lhs, op0);
+  }
+
+  Expr getOrigArraySymbol(const Cell &c, ArrayOpt ao) {
+
+    NodeIdMap * map;
+    if(ao == IN)
+      map = &m_orig_array_in;
+    else
+      map = &m_orig_array_out;
+
+    auto it = map->find({c.getNode(),getOffset(c)});
+    LOG("inter_mem", errs() << "--> getArraySymbol\n"
+        << " " << c.getNode() << " " <<
+        getOffset(c) << "\n";);
+    assert(it != map->end()); // there should be an entry for that always
+    // LOG("inter_mem", it->getSecond()->dump(); errs() << "\n";);
+    return it->getSecond();
+  }
+
+  unsigned getOffset(const Cell &c){
+    return m_sem.m_shadowDsa->splitDsaNodes() ? c.getOffset() : 0;
+  }
+
+  void addArraySymbol(const Cell &c, Expr A, ArrayOpt ao) {
+
+    NodeIdMap *map;
+    if (ao == IN)
+      map = &m_orig_array_in;
+    else
+      map = &m_orig_array_out;
+
+    LOG("inter_mem",
+        errs() << "<-- addArraySymbol "; A->dump(); errs() << "\n"
+        << " " << c.getNode() << " " << getOffset(c) << " " << ao << "\n";);
+    map->insert({{c.getNode(), getOffset(c)}, A});
+  }
+
+  Expr createVariant(Expr origE) {
+    assert(bind::isArrayConst(origE));
+    Expr name = bind::fname(origE);
+    Expr rTy = bind::rangeTy(name);
+
+    return bind::mkConst(variant::variant(m_copy_count++, origE), rTy);
+  }
+
+  // creates a new array symbol for array origE if it was not created already
+  Expr getFreshArraySymbol(const Cell &c, ArrayOpt ao) {
+
+    NodeIdMap *map;
+    if (ao == IN)
+      map = &m_rep_in;
+    else
+      map = &m_rep_out;
+
+    auto it = map->find({c.getNode(), getOffset(c)});
+    if (it == map->end()) { // not copied yet
+      Expr origE = getOrigArraySymbol(c,ao);
+      Expr copyE = createVariant(origE);
+      map->insert({{c.getNode(), getOffset(c)}, copyE});
+      return copyE;
+    }
+    else return it->getSecond();
+  }
+
+  Expr getCurrArraySymbol(const Cell &c, ArrayOpt ao) {
+    NodeIdMap *map;
+    if (ao == IN)
+      map = &m_tmprep_in;
+    else
+      map = &m_tmprep_out;
+
+    auto it = map->find({c.getNode(), getOffset(c)});
+    assert(it == map->end());
+    return it->getSecond();
+  }
+
+  // creates a new array symbol for intermediate copies of an original array
+  // origE. currE is the current intermediate name and newE is the new value to
+  // copy
+  void newTmpArraySymbol(const Cell &c, Expr &currE, Expr &newE, ArrayOpt ao) {
+
+    NodeIdMap *map;
+    if (ao == IN)
+      map = &m_tmprep_in;
+    else
+      map = &m_tmprep_out;
+
+    Expr origE = getOrigArraySymbol(c,IN);
+    newE = createVariant(origE);
+
+    auto it = map->find({c.getNode(), getOffset(c)});
+    if (it == map->end()) {
+      if(ao == IN){ // for the in arrays we need an empty array
+        currE = newE;
+        newE = createVariant(origE);
+      }
+      else{
+        currE = origE;
+      }
+      map->insert({{c.getNode(), getOffset(c)}, newE});
+    }
+    else{
+      currE = it->getSecond();
+      map->erase({c.getNode(), getOffset(c)});
+      map->insert({{c.getNode(), getOffset(c)}, newE});
+    }
+  }
+
+  using ExplSet = DenseSet<const Node *>;
+
+
+  void VCgenMemCallSite(CallSite &CS, const FunctionInfo &fi){
+
+    GlobalAnalysis &ga = m_sem.m_shadowDsa->getDsaAnalysis();
+    const Function *calleeF = CS.getCalledFunction();
+    const Function *callerF = CS.getCaller();
+
+    if (!ga.hasGraph(*calleeF)) {
+      // do not copy, only generate arguments
+      for (const Argument *arg : fi.args)
+        m_fparams.push_back(m_s.read(symb(*CS.getArgument(arg->getArgNo()))));
+      for (const GlobalVariable *gv : fi.globals)
+        m_fparams.push_back(m_s.read(symb(*gv)));
+    } else {
+
+      LOG("inter_mem", errs() << "callee: " << calleeF->getGlobalIdentifier();
+          errs() << " caller: " << callerF->getGlobalIdentifier();
+          errs() << "\n";);
+
+      unsigned init_params = m_params_copied;
+      LOG("inter_mem_counters", m_n_callsites++;);
+
+      Graph &calleeG = ga.getSummaryGraph(*calleeF);
+
+      NodeSet &unsafeCallerNodes = m_sem.m_preproc->getSafeCallerNodesCallSite(CS);
+      SimulationMapper &simMap = m_sem.m_preproc->getSimulationCallSite(CS);
+
+      for (const Argument *arg : fi.args) {
+        // generate literals for copying, this needs to be done before generating
+        // the call
+        Expr argE = m_s.read(symb(*CS.getArgument(arg->getArgNo())));
+        m_fparams.push_back(argE);
+        if (calleeG.hasCell(*arg)){ // checking that the argument is a pointer
+          unsigned init_fields = m_fields_copied;
+          LOG("inter_mem_counters", m_n_params++;);
+          VCgenMemArg(calleeG.getCell(*arg), argE, unsafeCallerNodes, simMap);
+          LOG("inter_mem_counters", if (init_fields < m_fields_copied)
+                                      m_params_copied++;);
+        }
+      }
+      for (const GlobalVariable *gv : fi.globals){
+        Expr argE = m_s.read(symb(*gv));
+        m_fparams.push_back(argE);
+        if (calleeG.hasCell(*gv)){
+          const Cell &c = calleeG.getCell(*gv);
+          if (!XEnableUniqueScalars || !c.getNode()->getUniqueScalar()) {
+            unsigned init_fields = m_fields_copied;
+            LOG("inter_mem_counters", m_n_gv++;);
+            VCgenMemArg(calleeG.getCell(*gv), argE, unsafeCallerNodes,
+                        simMap);
+            LOG("inter_mem_counters", if (init_fields < m_fields_copied)
+                                        m_gv_copied++;);
+          }
+        }
+      }
+
+      LOG("inter_mem_counters", if (init_params < m_params_copied)
+                                  m_callsites_copied++;);
+    }
+  }
+
+  void VCgenMemArg(const Cell &c_arg_callee, Expr base_ptr,
+                   NodeSet unsafeCallerNodes, SimulationMapper sm) {
+    ExplSet explored;
+    recVCGenMem(c_arg_callee, base_ptr, unsafeCallerNodes, sm,
+                explored);
+  }
+
+  void recVCGenMem(const Cell &c_callee, Expr ptr,
+                   NodeSet unsafeNodes, SimulationMapper simMap,
+                   ExplSet &explored) {
+
+    const Node *n_callee = c_callee.getNode();
+    explored.insert(n_callee);
+
+    if (n_callee->size() == 0)
+      // the array was created but from the bu graph we know that it is not
+      // accessed
+      return;
+
+    const Cell &c_caller = simMap.get(c_callee);
+    const Node *n_caller = c_caller.getNode();
+
+    if (n_callee->isArray()){
+      LOG("inter_mem_counters", m_node_array++;);
+      return;
+    }
+
+    LOG("inter_mem_counters", if(n_callee->isOffsetCollapsed())
+                                m_node_ocollapsed++;);
+
+    // checking modification in the bu graph, which is more precise
+    // than the previous approach
+    if (n_callee->isModified() && !c_callee.getNode()->types().empty() &&
+        GraphExplorer::isSafeNode(unsafeNodes, n_caller)) {
+
+      for(auto field : c_callee.getNode()->types()){
+        unsigned offset = field.getFirst();
+
+        Cell c_caller_field(c_caller, offset);
+        Expr copyA = getFreshArraySymbol(c_caller_field,OUT);
+        Expr tmpA = nullptr, nextA = nullptr;
+        newTmpArraySymbol(c_caller_field, tmpA, nextA,OUT);
+
+        LOG("inter_mem_counters", m_fields_copied++;);
+
+        Expr e_offset = mkTerm<expr::mpz_class>(offset, m_efac);
+        Expr dirE = mk<PLUS>(ptr, e_offset);
+        tmpA = mk<STORE>(tmpA, dirE, mk<SELECT>(copyA, dirE));
+        m_side.push_back(mk<EQ>(nextA, tmpA));
+      }
+    }
+    LOG("inter_mem_counters", if (!GraphExplorer::isSafeNode(unsafeNodes, n_caller)){
+      m_node_unsafe++;
+      });
+
+    if(n_callee->getLinks().empty())
+      return;
+
+    // now we follow the pointers of the node
+    for (auto &links : n_callee->getLinks()) {
+      const Field &f = links.first;
+      const Cell &next_c = *links.second;
+      const Node *next_n = next_c.getNode();
+
+      Expr origA = getOrigArraySymbol(Cell(c_caller,f.getOffset()),IN);
+
+      if (explored.find(next_n) == explored.end()) { // not explored yet
+        Expr offset = mkTerm<expr::mpz_class>(f.getOffset(), m_efac);
+        Expr next_ptr = mk<SELECT>(origA, mk<PLUS>(ptr, offset));
+        // TODO: missing copy read
+        recVCGenMem(next_c, next_ptr, unsafeNodes, simMap, explored);
+      }
+    }
   }
 
   void visitCallSite(CallSite CS) {
@@ -680,7 +907,7 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
                m_sem.isTracked(I)) {
       havoc(I);
       assert(m_fparams.size() == 3);
-      if (IgnoreCalloc)
+      if (XIgnoreCalloc)
         m_side.push_back(mk<EQ>(m_outMem, m_inMem));
       else {
         // XXX This is potentially unsound if the corresponding DSA
@@ -696,7 +923,7 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
     } else if (MemSetInst *MSI = dyn_cast<MemSetInst>(&I)) {
       if (m_inMem && m_outMem && m_sem.isTracked(*(MSI->getDest()))) {
         assert(m_fparams.size() == 3);
-        if (IgnoreMemset)
+        if (XIgnoreMemset)
           m_side.push_back(mk<EQ>(m_outMem, m_inMem));
         else {
           if (const ConstantInt *c =
@@ -735,18 +962,15 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
       m_fparams[1] = (m_s.read(m_sem.errorFlag(BB)));
       // error flag out
       m_fparams[2] = (m_s.havoc(m_sem.errorFlag(BB)));
-      for (const Argument *arg : fi.args)
-        m_fparams.push_back(m_s.read(symb(*CS.getArgument(arg->getArgNo()))));
-      for (const GlobalVariable *gv : fi.globals)
-        m_fparams.push_back(m_s.read(symb(*gv)));
+      VCgenMemCallSite(CS, fi);
 
       if (fi.ret)
         m_fparams.push_back(m_s.havoc(symb(I)));
 
       LOG("arg_error", if (m_fparams.size() != bind::domainSz(fi.sumPred)) {
         errs() << "Call instruction: " << I << "\n";
-        errs() << "Caller: " << PF << "\n";
-        errs() << "Callee: " << F << "\n";
+          errs() << "Caller: " << PF << "\n";
+          errs() << "Callee: " << F << "\n";
         // errs () << "Sum predicate: " << *fi.sumPred << "\n";
         errs() << "m_fparams.size: " << m_fparams.size() << "\n";
         errs() << "Domain size: " << bind::domainSz(fi.sumPred) << "\n";
@@ -771,8 +995,39 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
       });
 
       assert(m_fparams.size() == bind::domainSz(fi.sumPred));
+
+      for(auto it: m_tmprep_out){
+        const auto pair = it.getFirst();
+        Node * n = const_cast<Node *>(pair.first);
+        Cell c(n, pair.second);
+        Expr origInA = getOrigArraySymbol(c,IN);
+        Expr replaceOutA = it.getSecond();
+
+        LOG("inter_mem", errs() << "Replacing by "; replaceOutA->dump() ; errs() << "\n");
+
+        for(int i=3; i < m_fparams.size(); i++){ // we can skip the first 3
+          if (m_fparams[i] == origInA) {
+            m_side.push_back(mk<EQ>(m_fparams[i + 1],replaceOutA));
+            auto it2 = m_rep_out.find(pair);
+            assert(it2 != m_rep_out.end());
+            m_fparams[i + 1] = it2->getSecond();
+            i++;
+            break;
+          }
+        }
+      }
+
       m_side.push_back(bind::fapp(fi.sumPred, m_fparams));
 
+      // preparing for the next callsite
+      m_orig_array_in.clear();
+      m_orig_array_out.clear();
+      m_rep_in.clear();
+      m_rep_out.clear();
+      m_tmprep_in.clear();
+      m_tmprep_out.clear();
+
+      // reseting parameter structures
       m_fparams.clear();
       m_fparams.push_back(falseE);
       m_fparams.push_back(falseE);
@@ -780,9 +1035,17 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
 
       m_inRegions.clear();
       m_outRegions.clear();
+
     } else if (F.getName().startswith("shadow.mem")) {
       if (!m_sem.isTracked(I))
         return;
+
+      LOG("inter_mem", errs() << F.getName() << "\n";);
+
+      const GlobalAnalysis &ga = m_sem.m_shadowDsa->getDsaAnalysis();
+
+      CallInst *CI = dyn_cast<CallInst>(CS.getInstruction());
+      assert(CI);
 
       if (F.getName().equals("shadow.mem.init"))
         m_s.havoc(symb(I));
@@ -798,19 +1061,35 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
         m_inMem = m_s.read(symb(*CS.getArgument(1)));
         m_outMem = m_s.havoc(symb(I));
         m_side.push_back(mk<EQ>(m_outMem, m_inMem));
-      } else if (F.getName().equals("shadow.mem.arg.ref"))
-        m_fparams.push_back(m_s.read(symb(*CS.getArgument(1))));
-      else if (F.getName().equals("shadow.mem.arg.mod")) {
-        auto in_par = m_s.read(symb(*CS.getArgument(1)));
+      } else if (F.getName().equals("shadow.mem.arg.ref")) {
+        auto opt_c = m_sem.m_shadowDsa->getShadowMemCell(*CI);
+        assert(opt_c.hasValue());
+        const Value *shadow_a = m_sem.m_shadowDsa->getShadowMemVars(*CI).first;
+        auto in_par = m_s.read(symb(*shadow_a));
+        m_fparams.push_back(in_par);
+        addArraySymbol(opt_c.getValue(), in_par, IN);
+      } else if (F.getName().equals("shadow.mem.arg.new")) {
+        auto opt_c = m_sem.m_shadowDsa->getShadowMemCell(*CI);
+        assert(opt_c.hasValue());
+        auto out_par = // TODO: review this
+            m_s.havoc(symb(*m_sem.m_shadowDsa->getShadowMemVars(*CI).first));
+        addArraySymbol(opt_c.getValue(), out_par, IN);
+        m_fparams.push_back(out_par);
+      } else if (F.getName().startswith("shadow.mem.arg.mod")) {
+        auto in_par = m_s.read(symb(*m_sem.m_shadowDsa->getShadowMemVars(*CI).first));
         m_fparams.push_back(in_par);
         m_inRegions.push_back(in_par);
-        auto out_par = m_s.havoc(symb(I));
+        auto opt_c = m_sem.m_shadowDsa->getShadowMemCell(*CI);
+        assert(opt_c.hasValue());
+        const Cell &c = opt_c.getValue();
+        addArraySymbol(c, in_par, IN);
+        auto out_par =
+            m_s.havoc(symb(*m_sem.m_shadowDsa->getShadowMemVars(*CI).second));
         m_fparams.push_back(out_par);
         m_outRegions.push_back(out_par);
-      } else if (F.getName().equals("shadow.mem.arg.new"))
-        m_fparams.push_back(m_s.havoc(symb(I)));
-      else if (!PF.getName().equals("main") &&
-               F.getName().equals("shadow.mem.in")) {
+        addArraySymbol(c, out_par, OUT);
+      } else if (!PF.getName().equals("main") &&
+                 F.getName().equals("shadow.mem.in")) {
         m_s.read(symb(*CS.getArgument(1)));
       } else if (!PF.getName().equals("main") &&
                  F.getName().equals("shadow.mem.out")) {
@@ -855,7 +1134,7 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
   }
 
   void visitLoadInst(LoadInst &I) {
-    if (InferMemSafety) {
+    if (XInferMemSafety) {
       Value *pop = I.getPointerOperand()->stripPointerCasts();
       // -- successful load through a gep implies that the base
       // -- address of the gep is not null
@@ -880,7 +1159,7 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
         // -- convert to Boolean
         rhs = mk<NEQ>(rhs, mkTerm(expr::mpz_class(), m_efac));
 
-      if (UseWrite)
+      if (XUseWrite)
         write(I, rhs);
       else
         side(lhs, rhs);
@@ -890,14 +1169,14 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
         // -- convert to Boolean
         rhs = mk<NEQ>(rhs, mkTerm(expr::mpz_class(), m_efac));
 
-      side(lhs, rhs, !ArrayGlobalConstraints);
+      side(lhs, rhs, !XArrayGlobalConstraints);
     }
 
     m_inMem.reset();
   }
 
   void visitStoreInst(StoreInst &I) {
-    if (InferMemSafety) {
+    if (XInferMemSafety) {
       Value *pop = I.getPointerOperand()->stripPointerCasts();
       // -- successful load through a gep implies that the base
       // -- address of the gep is not null
@@ -911,7 +1190,7 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
     if (!m_inMem || !m_outMem || !m_sem.isTracked(*I.getOperand(0)))
       return;
 
-    Expr act = GlobalConstraints ? trueE : m_activeLit;
+    Expr act = XGlobalConstraints ? trueE : m_activeLit;
     Expr v = lookup(*I.getOperand(0));
     if (v && I.getOperand(0)->getType()->isIntegerTy(1))
       // -- convert to int
@@ -923,7 +1202,7 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
       Expr idx = lookup(*I.getPointerOperand());
       if (idx && v)
         side(m_outMem, op::array::store(m_inMem, idx, v),
-             !ArrayGlobalConstraints);
+             !XArrayGlobalConstraints);
     }
 
     m_inMem.reset();
@@ -938,7 +1217,7 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
     const Value &v0 = *I.getOperand(0);
 
     Expr u = lookup(v0);
-    if (UseWrite)
+    if (XUseWrite)
       write(I, u);
     else
       side(lhs, u);
@@ -970,7 +1249,7 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
 struct OpSemPhiVisitor : public InstVisitor<OpSemPhiVisitor>, OpSemBase {
   const BasicBlock &m_dst;
 
-  OpSemPhiVisitor(SymStore &s, UfoOpSem &sem, ExprVector &side,
+  OpSemPhiVisitor(SymStore &s, UfoOpMemSem &sem, ExprVector &side,
                   const BasicBlock &dst)
       : OpSemBase(s, sem, side), m_dst(dst) {}
 
@@ -997,7 +1276,7 @@ struct OpSemPhiVisitor : public InstVisitor<OpSemPhiVisitor>, OpSemBase {
       if (!m_sem.isTracked(phi))
         continue;
       Expr lhs = havoc(phi);
-      Expr act = GlobalConstraints ? trueE : m_activeLit;
+      Expr act = XGlobalConstraints ? trueE : m_activeLit;
       Expr op0 = ops[i++];
       side(lhs, op0);
     }
@@ -1006,31 +1285,31 @@ struct OpSemPhiVisitor : public InstVisitor<OpSemPhiVisitor>, OpSemBase {
 } // namespace
 
 namespace seahorn {
-Expr UfoOpSem::errorFlag(const BasicBlock &BB) {
+Expr UfoOpMemSem::errorFlag(const BasicBlock &BB) {
   // -- if BB belongs to a function that cannot fail, errorFlag is always false
   if (m_canFail && !m_canFail->canFail(BB.getParent()))
     return falseE;
   return this->LegacyOperationalSemantics::errorFlag(BB);
 }
 
-Expr UfoOpSem::memStart(unsigned id) {
+Expr UfoOpMemSem::memStart(unsigned id) {
   Expr sort = sort::intTy(m_efac);
   return shadow_dsa::memStartVar(id, sort);
 }
-Expr UfoOpSem::memEnd(unsigned id) {
+Expr UfoOpMemSem::memEnd(unsigned id) {
   Expr sort = sort::intTy(m_efac);
   return shadow_dsa::memEndVar(id, sort);
 }
-void UfoOpSem::exec(SymStore &s, const BasicBlock &bb, ExprVector &side,
-                    Expr act) {
+void UfoOpMemSem::exec(SymStore &s, const BasicBlock &bb, ExprVector &side,
+                       Expr act) {
   OpSemVisitor v(s, *this, side);
   v.setActiveLit(act);
   v.visit(const_cast<BasicBlock &>(bb));
   v.resetActiveLit();
 }
 
-void UfoOpSem::execPhi(SymStore &s, const BasicBlock &bb,
-                       const BasicBlock &from, ExprVector &side, Expr act) {
+void UfoOpMemSem::execPhi(SymStore &s, const BasicBlock &bb,
+                          const BasicBlock &from, ExprVector &side, Expr act) {
   // act is ignored since phi node only introduces a definition
   OpSemPhiVisitor v(s, *this, side, from);
   v.setActiveLit(act);
@@ -1038,7 +1317,7 @@ void UfoOpSem::execPhi(SymStore &s, const BasicBlock &bb,
   v.resetActiveLit();
 }
 
-Expr UfoOpSem::ptrArith(SymStore &s, GetElementPtrInst &gep) {
+Expr UfoOpMemSem::ptrArith(SymStore &s, GetElementPtrInst &gep) {
   Value &base = *gep.getPointerOperand();
   Expr res = lookup(s, base);
   if (!res)
@@ -1064,16 +1343,16 @@ Expr UfoOpSem::ptrArith(SymStore &s, GetElementPtrInst &gep) {
   return res;
 }
 
-unsigned UfoOpSem::storageSize(const llvm::Type *t) {
+unsigned UfoOpMemSem::storageSize(const llvm::Type *t) {
   return m_td->getTypeStoreSize(const_cast<Type *>(t));
 }
 
-unsigned UfoOpSem::fieldOff(const StructType *t, unsigned field) {
+unsigned UfoOpMemSem::fieldOff(const StructType *t, unsigned field) {
   return m_td->getStructLayout(const_cast<StructType *>(t))
       ->getElementOffset(field);
 }
 
-Expr UfoOpSem::symb(const Value &I) {
+Expr UfoOpMemSem::symb(const Value &I) {
   if (isa<UndefValue>(&I))
     return Expr(0);
   // assert (!isa<UndefValue>(&I));
@@ -1116,10 +1395,11 @@ Expr UfoOpSem::symb(const Value &I) {
 
   const Value *scalar = nullptr;
   if (isShadowMem(I, &scalar)) {
-    if (scalar)
+    if (scalar){
       // -- create a constant with the name v[scalar]
-      return bind::intConst(
-          op::array::select(v, mkTerm<const Value *>(scalar, m_efac)));
+        return bind::intConst(
+            op::array::select(v, mkTerm<const Value *>(scalar, m_efac)));
+    }
 
     if (m_trackLvl >= MEM) {
       Expr intTy = sort::intTy(m_efac);
@@ -1134,7 +1414,7 @@ Expr UfoOpSem::symb(const Value &I) {
   return Expr(0);
 }
 
-const Value &UfoOpSem::conc(Expr v) const {
+const Value &UfoOpMemSem::conc(Expr v) const {
   assert(isOpX<FAPP>(v));
   // name of the app
   Expr u = bind::fname(v);
@@ -1144,7 +1424,7 @@ const Value &UfoOpSem::conc(Expr v) const {
   return *getTerm<const Value *>(v);
 }
 
-bool UfoOpSem::isTracked(const Value &v) const {
+bool UfoOpMemSem::isTracked(const Value &v) const {
   const Value *scalar = nullptr;
 
   if (isa<UndefValue>(v))
@@ -1176,11 +1456,11 @@ bool UfoOpSem::isTracked(const Value &v) const {
   return v.getType()->isIntegerTy();
 }
 
-bool UfoOpSem::isAbstracted(const Function &fn) {
+bool UfoOpMemSem::isAbstracted(const Function &fn) {
   return (m_abs_funcs.count(&fn) > 0);
 }
 
-Expr UfoOpSem::lookup(SymStore &s, const Value &v) {
+Expr UfoOpMemSem::lookup(SymStore &s, const Value &v) {
   Expr u = symb(v);
   // if u is defined it is either an fapp or a constant
   if (u)
@@ -1188,8 +1468,8 @@ Expr UfoOpSem::lookup(SymStore &s, const Value &v) {
   return Expr(0);
 }
 
-void UfoOpSem::execEdg(SymStore &s, const BasicBlock &src,
-                       const BasicBlock &dst, ExprVector &side) {
+void UfoOpMemSem::execEdg(SymStore &s, const BasicBlock &src,
+                          const BasicBlock &dst, ExprVector &side) {
   exec(s, src, side, trueE);
   execBr(s, src, dst, side, trueE);
   execPhi(s, dst, src, side, trueE);
@@ -1200,7 +1480,7 @@ void UfoOpSem::execEdg(SymStore &s, const BasicBlock &src,
     exec(s, dst, side, trueE);
 }
 
-void UfoOpSem::execBr(SymStore &s, const BasicBlock &src, const BasicBlock &dst,
+void UfoOpMemSem::execBr(SymStore &s, const BasicBlock &src, const BasicBlock &dst,
                       ExprVector &side, Expr act) {
   // the branch condition
   if (const BranchInst *br = dyn_cast<const BranchInst>(src.getTerminator())) {

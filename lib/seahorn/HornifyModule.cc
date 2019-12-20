@@ -36,6 +36,12 @@
 #include "seahorn/Support/SeaDebug.h"
 #include "seahorn/Support/SeaLog.hh"
 
+#include "seahorn/ClpOpSem.hh"
+#include "seahorn/UfoOpSem.hh"
+#include "seahorn/UfoOpMemSem.hh"
+
+#include "sea_dsa/CompleteCallGraph.hh"
+
 using namespace llvm;
 using namespace seahorn;
 
@@ -92,6 +98,27 @@ static llvm::cl::list<std::string>
                       llvm::cl::desc("Abstract all calls to these functions"),
                       llvm::cl::ZeroOrMore, llvm::cl::CommaSeparated);
 
+static llvm::cl::opt<bool, true> InterProcMem(
+    "horn-inter-proc-mem",
+    llvm::cl::desc("Use inter-procedural encoding with memory"), llvm::cl::init(false));
+
+namespace seahorn {
+// counters for copying the new inter-proc vcgen
+// only updated if the log "inter_mem_counters" is active
+unsigned m_n_params = 0;
+unsigned m_n_callsites = 0;
+unsigned m_n_gv = 0;
+
+unsigned m_fields_copied = 0;
+unsigned m_params_copied = 0;
+unsigned m_gv_copied = 0;
+unsigned m_callsites_copied = 0;
+
+unsigned m_node_array = 0;
+unsigned m_node_ocollapsed = 0;
+unsigned m_node_unsafe = 0;
+}
+
 namespace seahorn {
 char HornifyModule::ID = 0;
 
@@ -142,6 +169,19 @@ bool HornifyModule::runOnModule(Module &M) {
   if (Step == hm_detail::CLP_SMALL_STEP ||
       Step == hm_detail::CLP_FLAT_SMALL_STEP)
     m_sem.reset(new ClpOpSem(m_efac, *this, M.getDataLayout(), TL));
+  else if (InterProcMem) {
+    ShadowMemPass * smp = getAnalysisIfAvailable<sea_dsa::ShadowMemPass>();
+    assert(smp);
+    ShadowMem &shadowmem_analysis =smp->getShadowMem();
+
+    CompleteCallGraph *ccg = getAnalysisIfAvailable<sea_dsa::CompleteCallGraph>();
+    std::shared_ptr<InterMemPreProc> preproc(new InterMemPreProc(ccg, shadowmem_analysis));
+
+    preproc->runOnModule(M);
+
+    m_sem.reset(new UfoOpMemSem(m_efac, *this, M.getDataLayout(), preproc, TL,
+                                abs_fns, &shadowmem_analysis));
+  }
   else
     m_sem.reset(new UfoOpSem(m_efac, *this, M.getDataLayout(), TL, abs_fns));
 
@@ -279,11 +319,39 @@ bool HornifyModule::runOnModule(Module &M) {
       Changed = (runOnFunction(*f) || Changed);
   }
 
+  LOG(
+      "inter_mem_counters", if (InterProcMem) {
+        outs() << "BRUNCH_STAT " << "NumParams" << " " << m_n_params << "\n";
+        outs() << "BRUNCH_STAT " << "NumCallSites" << " " <<  m_n_callsites << "\n";
+        outs() << "BRUNCH_STAT " << "NumGlobalV"
+               << " " << m_n_gv << "\n";
+        outs() << "BRUNCH_STAT " << "NumCopiedBytes"
+               << " " << m_fields_copied << "\n";
+        outs() << "BRUNCH_STAT " << "NumCopiedParams"
+               << " " <<  m_params_copied << "\n";
+        outs() << "BRUNCH_STAT " << "NumCopiedGlobalV"
+               << " " << m_gv_copied << "\n";
+        outs() << "BRUNCH_STAT "  << "NumCopiedCallSites"
+               << " " << m_callsites_copied << "\n";
+        outs() << "BRUNCH_STAT " << "NumCalleeArrayNodes"
+               << " " << m_node_array << "\n";
+        outs() << "BRUNCH_STAT " << "NumCalleeOffsetCollapsedNodes"
+               << " " << m_node_ocollapsed << "\n";
+        outs() << "BRUNCH_STAT " << "NumCalleeUnsafeNodes"
+               << " " << m_node_unsafe << "\n";
+      });
+
   if (!m_db.hasQuery()) {
     // --- This may happen if the exit block of main is unreachable
     //     but still the main function can fail.
     m_db.addQuery(mk<TRUE>(m_efac));
   }
+
+  // DEBUG: printing clauses
+  LOG("print_clauses", errs() << "------- PRINTING CLAUSE DB ------\n";);
+  LOG("print_clauses", for (auto &cl : m_db.getRules()) {
+        cl.get()->dump();
+    });
 
   /**
      TODO:
@@ -372,8 +440,34 @@ bool HornifyModule::runOnFunction(Function &F) {
   /// -- allocate LiveSymbols
   auto r = m_ls.insert(std::make_pair(&F, LiveSymbols(F, m_efac, *m_sem)));
   assert(r.second);
+
+  // HACK because reset counters because "run()" calls VisitCallSite
+  // TODO: store part of what is computed by LiveSymbols?
+  unsigned tmp_m_n_params = m_n_params;
+  unsigned tmp_m_n_callsites = m_n_callsites;
+  unsigned tmp_m_n_gv = m_n_gv;
+  unsigned tmp_m_fields_copied = m_fields_copied;
+  unsigned tmp_m_params_copied = m_params_copied;
+  unsigned tmp_m_gv_copied = m_gv_copied;
+  unsigned tmp_m_callsites_copied = m_callsites_copied;
+  unsigned tmp_m_node_array = m_node_array;
+  unsigned tmp_m_node_ocollapsed = m_node_ocollapsed;
+  unsigned tmp_m_node_unsafe = m_node_unsafe;
+
   /// -- run LiveSymbols
   r.first->second.run();
+
+  LOG("inter_mem_counters",
+      m_n_params = tmp_m_n_params;
+      m_n_callsites = tmp_m_n_callsites;
+      m_n_gv = tmp_m_n_gv;
+      m_fields_copied = tmp_m_fields_copied;
+      m_params_copied = tmp_m_params_copied;
+      m_gv_copied = tmp_m_gv_copied;
+      m_callsites_copied = tmp_m_callsites_copied;
+      m_node_array = tmp_m_node_array;
+      m_node_ocollapsed = tmp_m_node_ocollapsed;
+      m_node_unsafe = tmp_m_node_unsafe;);
 
   /// -- hornify function
   hf->runOnFunction(F);

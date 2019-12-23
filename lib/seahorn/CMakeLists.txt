@@ -40,6 +40,7 @@ add_llvm_library (seahorn.LIB
   BvOpSem2Alu.cc
   BvOpSem2ConstEval.cc
   BvOpSem2RawMemMgr.cc
+  BvOpSem2FatMemMgr.cc
   VCGen.cc
   DfCoiAnalysis.cc
   )

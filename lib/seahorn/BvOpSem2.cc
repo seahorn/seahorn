@@ -546,10 +546,8 @@ public:
     } else {
       LOG("opsem", WARN << "allowing calloc() to "
                            "zero initialize ALL of its memory region\n";);
-      // TODO: move into MemManager
-      m_ctx.addDef(
-          m_ctx.read(m_ctx.getMemWriteRegister()),
-          op::array::constArray(m_ctx.mem().ptrSort(), m_ctx.mem().nullPtr()));
+      m_ctx.addDef(m_ctx.read(m_ctx.getMemWriteRegister()),
+                   m_ctx.mem().zeroedMemory());
     }
 
     // get a fresh pointer
@@ -938,13 +936,13 @@ public:
   }
 
   void visitExtractValueInst(ExtractValueInst &I) {
-      if (!I.hasIndices()) {
-          ERR << I;
-          llvm_unreachable("At least one index must be specified.");
-      }
-      Expr val = executeExtractValueInst(I.getType(), *I.getAggregateOperand(),
-                                         I.getIndices(), m_ctx);
-      setValue(I, val);
+    if (!I.hasIndices()) {
+      ERR << I;
+      llvm_unreachable("At least one index must be specified.");
+    }
+    Expr val = executeExtractValueInst(I.getType(), *I.getAggregateOperand(),
+                                       I.getIndices(), m_ctx);
+    setValue(I, val);
   }
 
   Expr executeExtractValueInst(Type *retTy, Value &aggValue,
@@ -970,13 +968,19 @@ public:
         uint64_t EltSize = DL.getTypeSizeInBits(curTy);
         begin += idx * EltSize;
       } else {
-        errs() << "Unhandled aggregate type to extract from: " << *curTy << "\n";
+        errs() << "Unhandled aggregate type to extract from: " << *curTy
+               << "\n";
         llvm_unreachable(nullptr);
       }
     }
     assert(curTy->getTypeID() == retTy->getTypeID());
     end = begin + DL.getTypeSizeInBits(retTy) - 1;
-    return bv::extract(end, begin, aggOp);
+    Expr res = bv::extract(end, begin, aggOp);
+    // ensure that result is a pointer type after it has been extracted from the
+    // struct
+    if (retTy->isPointerTy())
+      res = ctx.mem().inttoptr(res, *DL.getIntPtrType(retTy), *retTy);
+    return res;
   }
 
   void visitInsertValueInst(InsertValueInst &I) {
@@ -984,9 +988,9 @@ public:
       ERR << I;
       llvm_unreachable("At least one index must be specified.");
     }
-    Expr val = executeInsertValueInst(
-        *I.getAggregateOperand(), *I.getInsertedValueOperand(),
-        I.getIndices(), m_ctx);
+    Expr val = executeInsertValueInst(*I.getAggregateOperand(),
+                                      *I.getInsertedValueOperand(),
+                                      I.getIndices(), m_ctx);
     setValue(I, val);
   }
 
@@ -1022,18 +1026,22 @@ public:
     if (insertSize != DL.getTypeSizeInBits(curTy)) {
       llvm_unreachable("inserted value width not matched!");
     }
-    unsigned aggSize =  DL.getTypeSizeInBits(aggVal.getType());
+    unsigned aggSize = DL.getTypeSizeInBits(aggVal.getType());
     end = begin + insertSize - 1;
+
     Expr ret = insertedOp;
+    if (insertedVal.getType()->isPointerTy())
+      ret = m_ctx.ptrtoint(insertedOp, *insertedVal.getType(),
+                           *DL.getIntPtrType(insertedVal.getType()));
+
     if (begin > 0)
       ret = bv::concat(ret, bv::extract(begin - 1, 0, aggOp));
 
     if (end < aggSize - 1)
-      ret = bv::concat( bv::extract(aggSize - 1, end + 1, aggOp), ret);
+      ret = bv::concat(bv::extract(aggSize - 1, end + 1, aggOp), ret);
 
     return ret;
   }
-
 
   void visitInstruction(Instruction &I) {
     ERR << I;
@@ -1045,7 +1053,14 @@ public:
     if (ty->isVectorTy()) {
       llvm_unreachable(nullptr);
     }
-    return cond && op0 && op1 ? bind::lite(cond, op0, op1) : Expr(0);
+    if (!(cond && op0 && op1))
+      return Expr(0);
+
+    // -- push ite over a struct
+    if (strct::isStructVal(op0))
+      return strct::push_ite_struct(cond, op0, op1);
+    // -- push ite over a lambda
+    return bind::lite(cond, op0, op1);
   }
 
   Expr executeTruncInst(const Value &v, const Type &ty, Bv2OpSemContext &ctx) {
@@ -1275,8 +1290,7 @@ public:
     }
 
     LOG("opsem",
-        if (!res)
-          WARN << "Failed store to " << addr << " of " << val << "\n";);
+        if (!res) WARN << "Failed store to " << addr << " of " << val << "\n";);
 
     ctx.setMemReadRegister(Expr());
     ctx.setMemWriteRegister(Expr());
@@ -1413,7 +1427,8 @@ public:
             fn.getName().equals("seahorn.fail") ||
             fn.getName().startswith("shadow.mem"))
           continue;
-        if (m_sem.isSkipped(fn)) continue;
+        if (m_sem.isSkipped(fn))
+          continue;
         Expr symReg = m_ctx.mkRegister(fn);
         assert(symReg);
         setValue(fn, m_ctx.getMemManager()->falloc(fn));
@@ -1506,7 +1521,7 @@ Bv2OpSemContext::Bv2OpSemContext(Bv2OpSem &sem, SymStore &values,
   oneE = mkTerm<expr::mpz_class>(1UL, efac());
 
   m_alu = mkBvOpSemAlu(*this);
-  setMemManager(mkRawMemManager(m_sem, *this, PtrSize, WordSize, UseLambdas));
+  setMemManager(mkFatMemManager(m_sem, *this, PtrSize, WordSize, UseLambdas));
 }
 
 Bv2OpSemContext::Bv2OpSemContext(SymStore &values, ExprVector &side,
@@ -1703,9 +1718,15 @@ Expr Bv2OpSemContext::mkRegister(const llvm::Instruction &inst) {
       assert(scalar->getType()->isPointerTy());
       Type &eTy = *cast<PointerType>(scalar->getType())->getElementType();
       // -- create a constant with the name v[scalar]
-      reg = bind::mkConst(
-          op::array::select(v, mkTerm<const Value *>(scalar, efac())),
-          alu().intTy(m_sem.sizeInBits(eTy)));
+      if (eTy.isPointerTy()) {
+        reg = bind::mkConst(
+            op::array::select(v, mkTerm<const Value *>(scalar, efac())),
+            mem().ptrSort());
+      } else {
+        reg = bind::mkConst(
+            op::array::select(v, mkTerm<const Value *>(scalar, efac())),
+            alu().intTy(m_sem.sizeInBits(eTy)));
+      }
     }
 
     // if tracking memory content, create array-valued register for
@@ -2011,7 +2032,8 @@ const Value &Bv2OpSem::conc(Expr v) const {
 }
 
 bool Bv2OpSem::isSkipped(const Value &v) const {
-  if (!OperationalSemantics::isTracked(v)) return true; 
+  if (!OperationalSemantics::isTracked(v))
+    return true;
   // skip shadow.mem instructions if memory is not a unique scalar
   // and we are now ignoring memory instructions
   const Value *scalar = nullptr;
@@ -2218,8 +2240,9 @@ void Bv2OpSem::execBr(const BasicBlock &src, const BasicBlock &dst,
   intraBr(ctx, dst);
 }
 
-Optional<APInt> Bv2OpSem::agg(Type *aggTy, const std::vector<GenericValue> &elements,
-                   details::Bv2OpSemContext &ctx) {
+Optional<APInt> Bv2OpSem::agg(Type *aggTy,
+                              const std::vector<GenericValue> &elements,
+                              details::Bv2OpSemContext &ctx) {
   APInt res;
   APInt next;
   int resWidth = 0; // treat initial res as empty
@@ -2227,21 +2250,22 @@ Optional<APInt> Bv2OpSem::agg(Type *aggTy, const std::vector<GenericValue> &elem
   if (!STy)
     llvm_unreachable("not supporting agg types other than struct");
   const StructLayout *SL = getDataLayout().getStructLayout(STy);
-  for (int i = 0 ; i <  elements.size(); i++) {
+  for (int i = 0; i < elements.size(); i++) {
     const GenericValue element = elements[i];
     Type *ElmTy = STy->getElementType(i);
     if (element.AggregateVal.empty()) {
       // Assuming only dealing with Int or Pointer as struct terminal elements
       if (ElmTy->isIntegerTy())
         next = element.IntVal;
-      else if (ElmTy->isPointerTy()){
+      else if (ElmTy->isPointerTy()) {
         auto ptrBv = reinterpret_cast<intptr_t>(GVTOP(element));
         next = APInt(getDataLayout().getTypeSizeInBits(ElmTy), ptrBv);
       } else {
         // this should be handled in constant evaluation step
-        LOG("opsem",
-            WARN << "unsupported type " << *ElmTy << " to convert in aggregate.";);
-        llvm_unreachable("Only support converting Int or Pointer in aggregates");
+        LOG("opsem", WARN << "unsupported type " << *ElmTy
+                          << " to convert in aggregate.";);
+        llvm_unreachable(
+            "Only support converting Int or Pointer in aggregates");
         return llvm::None;
       }
     } else {

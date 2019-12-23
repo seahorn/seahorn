@@ -639,6 +639,8 @@ public:
   virtual std::pair<char *, unsigned>
   getGlobalVariableInitValue(const llvm::GlobalVariable &gv) = 0;
 
+  virtual Expr zeroedMemory() const = 0;
+ 
   /// \brief Checks if \p a <= b <= c.
   Expr ptrInRangeCheck(PtrTy a, PtrTy b, PtrTy c) {
     return mk<AND>(ptrUle(a, b), ptrUle(b, c));
@@ -647,14 +649,20 @@ public:
   Expr ptrOffsetFromBase(PtrTy base, PtrTy ptr) { return ptrSub(ptr, base); }
 
   uint32_t getAlignment(const llvm::Value &v) const { return m_alignment; }
+
+  /// \brief returns a constant that represents zero-initilized memory region 
 };
 
 OpSemMemManager *mkRawMemManager(Bv2OpSem &sem, Bv2OpSemContext &ctx,
                                  unsigned ptrSz, unsigned wordSz,
                                  bool useLambdas = false);
 
-/// \Brief Base class for memory representation
-class OpSemMemRepr {
+OpSemMemManager *mkFatMemManager(Bv2OpSem &sem, Bv2OpSemContext &ctx,
+                                 unsigned ptrSz, unsigned wordSz,
+                                 bool useLambdas = false);
+
+    /// \Brief Base class for memory representation
+    class OpSemMemRepr {
 protected:
   OpSemMemManager &m_memManager;
   Bv2OpSemContext &m_ctx;

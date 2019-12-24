@@ -1,5 +1,5 @@
-#include "BvOpSem2Context.hh"
 #include "BvOpSem2RawMemMgr.hh"
+#include "BvOpSem2Context.hh"
 
 #include "llvm/IR/GetElementPtrTypeIterator.h"
 #include "llvm/Support/Format.h"
@@ -44,8 +44,7 @@ using PtrTy = RawMemManager::PtrTy;
 RawMemManager::RawMemManager(Bv2OpSem &sem, Bv2OpSemContext &ctx,
                              unsigned ptrSz, unsigned wordSz, bool useLambdas)
     : OpSemMemManager(sem, ctx, ptrSz, wordSz),
-      m_freshPtrName(mkTerm<std::string>("sea.ptr", m_efac)),
-      m_id(0) {
+      m_freshPtrName(mkTerm<std::string>("sea.ptr", m_efac)), m_id(0) {
   if (MemAllocatorOpt == MemAllocatorKind::NORMAL_ALLOCATOR)
     m_allocator = mkNormalOpSemAllocator(*this);
   else if (MemAllocatorOpt == MemAllocatorKind::STATIC_ALLOCATOR)
@@ -295,9 +294,8 @@ Expr RawMemManager::extractUnalignedByte(Expr mem, PtrTy address,
 /// \param[in] byteSz size of the integer in bytes
 /// \param[in] align known alignment of \p ptr
 /// \return symbolic value of the read integer
-Expr RawMemManager::loadIntFromMem(PtrTy ptr, Expr memReg, unsigned byteSz,
+Expr RawMemManager::loadIntFromMem(PtrTy ptr, MemValTy mem, unsigned byteSz,
                                    uint64_t align) {
-  Expr mem = m_ctx.read(memReg);
   SmallVector<Expr, 16> words;
   unsigned offsetBits = getByteAlignmentBits();
   if (!IgnoreAlignmentOpt && offsetBits != 0 && align % wordSzInBytes() != 0) {
@@ -329,9 +327,9 @@ Expr RawMemManager::loadIntFromMem(PtrTy ptr, Expr memReg, unsigned byteSz,
 
 /// \brief Loads a pointer stored in memory
 /// \sa loadIntFromMem
-PtrTy RawMemManager::loadPtrFromMem(PtrTy ptr, Expr memReg, unsigned byteSz,
+PtrTy RawMemManager::loadPtrFromMem(PtrTy ptr, MemValTy mem, unsigned byteSz,
                                     uint64_t align) {
-  return loadIntFromMem(ptr, memReg, byteSz, align);
+  return loadIntFromMem(ptr, mem, byteSz, align);
 }
 
 /// \brief Pointer addition with numeric offset
@@ -357,10 +355,9 @@ PtrTy RawMemManager::ptrAdd(PtrTy ptr, Expr offset) const {
 /// Returns an expression describing the state of memory in \c memReadReg
 /// after the store
 /// \sa loadIntFromMem
-Expr RawMemManager::storeIntToMem(Expr _val, PtrTy ptr, Expr memReadReg,
+Expr RawMemManager::storeIntToMem(Expr _val, PtrTy ptr, MemValTy mem,
                                   unsigned byteSz, uint64_t align) {
   Expr val = _val;
-  Expr mem = m_ctx.read(memReadReg);
 
   unsigned offsetBits = getByteAlignmentBits();
   bool wordAligned = offsetBits == 0 || align % wordSzInBytes() == 0;
@@ -395,7 +392,7 @@ Expr RawMemManager::storeIntToMem(Expr _val, PtrTy ptr, Expr memReadReg,
 /// \brief stores integer into memory, address is not word aligned
 ///
 /// \sa storeIntToMem
-Expr RawMemManager::storeUnalignedIntToMem(Expr val, PtrTy ptr, Expr mem,
+Expr RawMemManager::storeUnalignedIntToMem(Expr val, PtrTy ptr, MemValTy mem,
                                            unsigned byteSz) {
   unsigned offsetBits = getByteAlignmentBits();
   assert(offsetBits != 0);
@@ -449,18 +446,18 @@ Expr RawMemManager::setByteOfWord(Expr word, Expr byteData, PtrTy byteOffset) {
 
 /// \brief Stores a pointer into memory
 /// \sa storeIntToMem
-Expr RawMemManager::storePtrToMem(PtrTy val, PtrTy ptr, Expr memReadReg,
+Expr RawMemManager::storePtrToMem(PtrTy val, PtrTy ptr, MemValTy mem,
                                   unsigned byteSz, uint64_t align) {
-  return storeIntToMem(val, ptr, memReadReg, byteSz, align);
+  return storeIntToMem(val, ptr, mem, byteSz, align);
 }
 
 /// \brief Returns an expression corresponding to a load from memory
 ///
 /// \param[in] ptr is the pointer being dereferenced
-/// \param[in] memReg is the memory register being read
+/// \param[in] mem is the memory value being read from
 /// \param[in] ty is the type of value being loaded
 /// \param[in] align is the known alignment of the load
-Expr RawMemManager::loadValueFromMem(PtrTy ptr, Expr memReg,
+Expr RawMemManager::loadValueFromMem(PtrTy ptr, MemValTy mem,
                                      const llvm::Type &ty, uint64_t align) {
   const unsigned byteSz =
       m_sem.getTD().getTypeStoreSize(const_cast<llvm::Type *>(&ty));
@@ -469,7 +466,7 @@ Expr RawMemManager::loadValueFromMem(PtrTy ptr, Expr memReg,
   Expr res;
   switch (ty.getTypeID()) {
   case Type::IntegerTyID:
-    res = loadIntFromMem(ptr, memReg, byteSz, align);
+    res = loadIntFromMem(ptr, mem, byteSz, align);
     if (res && ty.getScalarSizeInBits() < byteSz * 8)
       res = m_ctx.alu().doTrunc(res, ty.getScalarSizeInBits());
     break;
@@ -482,7 +479,7 @@ Expr RawMemManager::loadValueFromMem(PtrTy ptr, Expr memReg,
   case Type::VectorTyID:
     errs() << "Error: load of vectors is not supported\n";
   case Type::PointerTyID:
-    res = loadPtrFromMem(ptr, memReg, byteSz, align);
+    res = loadPtrFromMem(ptr, mem, byteSz, align);
     break;
   case Type::StructTyID:
     WARN << "loading form struct type " << ty << " is not supported";
@@ -497,9 +494,8 @@ Expr RawMemManager::loadValueFromMem(PtrTy ptr, Expr memReg,
   return res;
 }
 
-Expr RawMemManager::storeValueToMem(Expr _val, PtrTy ptr, Expr memReadReg,
-                                    Expr memWriteReg, const llvm::Type &ty,
-                                    uint32_t align) {
+Expr RawMemManager::storeValueToMem(Expr _val, PtrTy ptr, MemValTy mem,
+                                    const llvm::Type &ty, uint32_t align) {
   assert(ptr);
   Expr val = _val;
   const unsigned byteSz =
@@ -512,7 +508,7 @@ Expr RawMemManager::storeValueToMem(Expr _val, PtrTy ptr, Expr memReadReg,
     if (ty.getScalarSizeInBits() < byteSz * 8) {
       val = m_ctx.alu().doZext(val, byteSz * 8, ty.getScalarSizeInBits());
     }
-    res = storeIntToMem(val, ptr, memReadReg, byteSz, align);
+    res = storeIntToMem(val, ptr, mem, byteSz, align);
     break;
   case Type::FloatTyID:
   case Type::DoubleTyID:
@@ -523,7 +519,7 @@ Expr RawMemManager::storeValueToMem(Expr _val, PtrTy ptr, Expr memReadReg,
   case Type::VectorTyID:
     errs() << "Error: store of vectors is not supported\n";
   case Type::PointerTyID:
-    res = storePtrToMem(val, ptr, memReadReg, byteSz, align);
+    res = storePtrToMem(val, ptr, mem, byteSz, align);
     break;
   case Type::StructTyID:
     WARN << "Storing struct type " << ty << " is not supported\n";
@@ -535,31 +531,29 @@ Expr RawMemManager::storeValueToMem(Expr _val, PtrTy ptr, Expr memReadReg,
     assert(false);
     report_fatal_error(out.str());
   }
-  m_ctx.write(memWriteReg, res);
   return res;
 }
 
 /// \brief Executes symbolic memset with a concrete length
-Expr RawMemManager::MemSet(PtrTy ptr, Expr _val, unsigned len, Expr memReadReg,
-                           Expr memWriteReg, uint32_t align) {
-  return m_memRepr->MemSet(ptr, _val, len, memReadReg, memWriteReg,
-                           wordSzInBytes(), ptrSort(), align);
+Expr RawMemManager::MemSet(PtrTy ptr, Expr _val, unsigned len, MemValTy mem,
+                           uint32_t align) {
+  return m_memRepr->MemSet(ptr, _val, len, mem, wordSzInBytes(), ptrSort(),
+                           align);
 }
 
 /// \brief Executes symbolic memcpy with concrete length
 Expr RawMemManager::MemCpy(PtrTy dPtr, PtrTy sPtr, unsigned len,
-                           Expr memTrsfrReadReg, Expr memReadReg,
-                           Expr memWriteReg, uint32_t align) {
-  return m_memRepr->MemCpy(dPtr, sPtr, len, memTrsfrReadReg, memReadReg,
-                           memWriteReg, wordSzInBytes(), ptrSort(), align);
+                           MemValTy memTrsfrRead, uint32_t align) {
+  return m_memRepr->MemCpy(dPtr, sPtr, len, memTrsfrRead, wordSzInBytes(),
+                           ptrSort(), align);
 }
 
 /// \brief Executes symbolic memcpy from physical memory with concrete length
 Expr RawMemManager::MemFill(PtrTy dPtr, char *sPtr, unsigned len,
-                            uint32_t align) {
+                            MemValTy mem, uint32_t align) {
   // same alignment behavior as galloc - default is word size of machine, can
   // only be increased
-  return m_memRepr->MemFill(dPtr, sPtr, len, wordSzInBytes(), ptrSort(),
+  return m_memRepr->MemFill(dPtr, sPtr, len, mem, wordSzInBytes(), ptrSort(),
                             std::max(align, m_alignment));
 }
 

@@ -280,19 +280,6 @@ void defPHINodesIte(const BasicBlock &bb, const ExprVector &edges,
   }
 }
 
-Expr mkEq(Expr phi, Expr val) {
-  if (!strct::isStructVal(phi))
-    return mk<EQ>(phi, val);
-
-  // push equality through struct
-  assert(strct::isStructVal(val));
-  llvm::SmallVector<Expr, 8> vals;
-  for (unsigned i = 0, sz = phi->arity(); i < sz; ++i)
-    vals.push_back(mkEq(phi->arg(i), val->arg(i)));
-
-  return mknary<AND>(mk<TRUE>(phi->efac()), vals.begin(), vals.end());
-}
-
 /// \brief Create definitions for PHINodes using equality expressions
 void defPHINodesEq(const BasicBlock &bb, const ExprVector &edges,
                    const std::vector<ExprVector> &phiVal, OpSemContext &ctx,
@@ -311,7 +298,7 @@ void defPHINodesEq(const BasicBlock &bb, const ExprVector &edges,
   // connect new PHINode register values with constructed PHINode values
   for (unsigned j = 0, sz = edges.size(); j < sz; ++j)
     for (unsigned i = 0, phi_sz = newPhi.size(); i < phi_sz; ++i)
-      ctx.addSide(boolop::limp(edges[j], mkEq(newPhi[i], phiVal[j][i])));
+      ctx.addSide(boolop::limp(edges[j], strct::mkEq(newPhi[i], phiVal[j][i])));
 }
 
 Expr computePathCondForBb(const BasicBlock &bb, const CpEdge &cpEdge,

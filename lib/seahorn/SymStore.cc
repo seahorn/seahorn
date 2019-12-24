@@ -48,19 +48,42 @@ Expr SymStore::havoc(Expr key) {
   if (m_Parent)
     val = m_Parent->havoc(key);
   else {
-    val = at(key);
+    // get the name of the key
+    Expr kname = bind::fname(bind::fname(key));
+    if (strct::isStructVal(kname)) {
+      // special case: name is a struct-value
+      // push havoc through a struct
+      // havoc({v1, ..., vn}) = {havoc(v1), ..., havoc(vn)}
+      // only applies to keys that are struct values
+      llvm::SmallVector<Expr, 8> kids;
+      for (unsigned i = 0, sz = kname->arity(); i < sz; ++i) {
+        kids.push_back(this->havoc(kname->arg(i)));
+      }
+      val = strct::mk(kids);
+    } else if (bind::isStructConst(key)) {
+      // -- special case: key is of sort struct
+      Expr keySort = bind::rangeTy(bind::fname(key));
+      llvm::SmallVector<Expr, 8> kids;
+      for (unsigned i = 0, sz = keySort->arity(); i < sz; ++i) {
+        Expr fld = bind::mkConst(strct::mkExtractVal(key, i), keySort->arg(i));
+        kids.push_back(this->havoc(fld));
+      }
+      val = strct::mk(kids);
+    } else {
+      // -- the usual case, either create a new value or update an old one
+      val = at(key);
+      Expr fdecl = val ? bind::fname(val) : bind::fname(key);
 
-    Expr fdecl = val ? bind::fname(val) : bind::fname(key);
+      Expr fname = bind::fname(fdecl);
+      int idx = 0;
+      if (val) {
+        idx = variant::variantNum(fname) + 1;
+        fname = variant::mainVariant(fname);
+      }
 
-    Expr fname = bind::fname(fdecl);
-    int idx = 0;
-    if (val) {
-      idx = variant::variantNum(fname) + 1;
-      fname = variant::mainVariant(fname);
+      fname = variant::variant(idx, fname);
+      val = bind::reapp(val ? val : key, bind::rename(fdecl, fname));
     }
-
-    fname = variant::variant(idx, fname);
-    val = bind::reapp(val ? val : key, bind::rename(fdecl, fname));
   }
 
   write(key, val);

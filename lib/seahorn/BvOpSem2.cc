@@ -30,6 +30,12 @@ static llvm::cl::opt<bool>
                llvm::cl::desc("Use lambdas for array operations"),
                cl::init(false));
 
+static llvm::cl::opt<bool> UseFatMemory(
+    "horn-bv2-fatmem",
+    llvm::cl::desc(
+        "Use fat-memory model with fat pointers and fat memory locations"),
+    cl::init(false));
+
 static llvm::cl::opt<unsigned>
     WordSize("horn-bv2-word-size",
              llvm::cl::desc("Word size in bytes: 1, 4, 8"), cl::init(4));
@@ -1514,7 +1520,13 @@ Bv2OpSemContext::Bv2OpSemContext(Bv2OpSem &sem, SymStore &values,
   oneE = mkTerm<expr::mpz_class>(1UL, efac());
 
   m_alu = mkBvOpSemAlu(*this);
-  setMemManager(mkFatMemManager(m_sem, *this, PtrSize, WordSize, UseLambdas));
+  OpSemMemManager *mem = nullptr;
+  if (UseFatMemory)
+    mem = mkFatMemManager(m_sem, *this, PtrSize, WordSize, UseLambdas);
+  else
+    mem = mkRawMemManager(m_sem, *this, PtrSize, WordSize, UseLambdas);
+  assert(mem);
+  setMemManager(mem);
 }
 
 Bv2OpSemContext::Bv2OpSemContext(SymStore &values, ExprVector &side,

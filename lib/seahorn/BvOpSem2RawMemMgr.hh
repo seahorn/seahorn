@@ -109,10 +109,10 @@ public:
   /// \brief Fixes the type of a havoced value to mach the representation used
   /// by mem repr.
   ///
-  /// \param reg
+  /// \param sort
   /// \param val
   /// \return the coerced value.
-  Expr coerce(Expr reg, Expr val);
+  Expr coerce(Expr sort, Expr val);
 
   /// \brief Symbolic instructions to load a byte from memory, using word
   /// address and byte address

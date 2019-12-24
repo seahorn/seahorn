@@ -184,13 +184,15 @@ struct OpSemVisitorBase {
 
     Expr reg;
     if (reg = m_ctx.getRegister(v)) {
-      Expr h = memManager.coerce(reg, m_ctx.havoc(reg));
+      Expr sort = bind::rangeTy(bind::fname(reg));
+      Expr h = memManager.coerce(sort, m_ctx.havoc(reg));
       m_ctx.write(reg, h);
       return h;
     }
 
     if (reg = m_ctx.mkRegister(v)) {
-      Expr h = memManager.coerce(reg, m_ctx.havoc(reg));
+      Expr sort = bind::rangeTy(bind::fname(reg));
+      Expr h = memManager.coerce(sort, m_ctx.havoc(reg));
       m_ctx.write(reg, h);
       return h;
     }
@@ -1512,7 +1514,7 @@ Bv2OpSemContext::Bv2OpSemContext(Bv2OpSem &sem, SymStore &values,
   oneE = mkTerm<expr::mpz_class>(1UL, efac());
 
   m_alu = mkBvOpSemAlu(*this);
-  setMemManager(mkRawMemManager(m_sem, *this, PtrSize, WordSize, UseLambdas));
+  setMemManager(mkFatMemManager(m_sem, *this, PtrSize, WordSize, UseLambdas));
 }
 
 Bv2OpSemContext::Bv2OpSemContext(SymStore &values, ExprVector &side,
@@ -1542,7 +1544,18 @@ void Bv2OpSemContext::write(Expr v, Expr u) {
     // params.set("flat", false);
     // params.set("ite_extra_rules", false /*default=false*/);
     // Expr _u = z3_simplify(*m_z3, u, params);
-    Expr _u = m_z3_simplifier->simplify(u);
+
+    Expr _u;
+
+    if (strct::isStructVal(u)) {
+      llvm::SmallVector<Expr, 8> kids;
+      for (unsigned i = 0, sz = u->arity(); i < sz; ++i)
+        kids.push_back(m_z3_simplifier->simplify(u->arg(i)));
+      _u = strct::mk(kids);
+    } else {
+      _u = m_z3_simplifier->simplify(u);
+    }
+
     LOG("opsem.simplify",
         //
         if (!isOpX<LAMBDA>(_u) && !isOpX<ITE>(_u) && dagSize(_u) > 100) {

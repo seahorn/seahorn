@@ -256,8 +256,8 @@ unsigned RawMemManager::getByteAlignmentBits() {
 /// \param reg
 /// \param val
 /// \return the coerced value.
-Expr RawMemManager::coerce(Expr reg, Expr val) {
-  return m_memRepr->coerce(reg, val);
+Expr RawMemManager::coerce(Expr sort, Expr val) {
+  return m_memRepr->coerce(sort, val);
 }
 
 /// \brief Symbolic instructions to load a byte from memory, using word

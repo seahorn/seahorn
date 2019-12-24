@@ -21,8 +21,8 @@ public:
   using FatPtrTy = OpSemMemManager::PtrTy;
   using RawPtrTy = OpSemMemManager::PtrTy;
 
-  using MemTy = Expr;
-  using FatMemTy = Expr;
+  using MemValTy = OpSemMemManager::MemValTy;
+  using FatMemValTy = OpSemMemManager::MemValTy;
 
 private:
   /// \brief Memory manager for raw pointers
@@ -47,6 +47,12 @@ private:
       return bind::mkConst(name, sort);
     }
   }
+
+  MemValTy mkRawMem(FatMemValTy fatMem) const {
+    assert(strct::isStructVal(fatMem));
+    return strct::extractVal(fatMem, 0);
+  }
+  FatMemValTy mkFatMem(MemValTy rawMem) const { return strct::mk(rawMem); }
 
 public:
   FatMemManager(Bv2OpSem &sem, Bv2OpSemContext &ctx, unsigned ptrSz,
@@ -130,7 +136,7 @@ public:
 
   /// \brief Returns sort of memory-holding register for an instruction
   Expr mkMemRegisterSort(const Instruction &inst) const {
-    return m_mem.mkMemRegisterSort(inst);
+    return sort::structTy(m_mem.mkMemRegisterSort(inst));
   }
 
   /// \brief Returns a fresh aligned pointer value
@@ -142,10 +148,22 @@ public:
   /// \brief Fixes the type of a havoced value to mach the representation used
   /// by mem repr.
   ///
-  /// \param reg
+  /// \param sort
   /// \param val
   /// \return the coerced value.
-  Expr coerce(Expr reg, Expr val) override { return m_mem.coerce(reg, val); }
+  Expr coerce(Expr sort, Expr val) override {
+    if (strct::isStructVal(val)) {
+      // recursively coerce struct-ty
+      llvm::SmallVector<Expr, 8> kids;
+      assert(isOp<STRUCT_TY>(sort));
+      assert(sort->arity() == val->arity());
+      for (unsigned i = 0, sz = val->arity(); i < sz; ++i)
+        kids.push_back(coerce(sort->arg(i), val->arg(i)));
+      return strct::mk(kids);
+    }
+
+    return m_mem.coerce(sort, val);
+  }
 
   /// \brief Loads an integer of a given size from memory register
   ///
@@ -154,16 +172,17 @@ public:
   /// \param[in] byteSz size of the integer in bytes
   /// \param[in] align known alignment of \p ptr
   /// \return symbolic value of the read integer
-  Expr loadIntFromMem(FatPtrTy ptr, MemValTy mem, unsigned byteSz,
+  Expr loadIntFromMem(FatPtrTy ptr, FatMemValTy mem, unsigned byteSz,
                       uint64_t align) {
-    return m_mem.loadIntFromMem(mkRawPtr(ptr), mem, byteSz, align);
+    return m_mem.loadIntFromMem(mkRawPtr(ptr), mkRawMem(mem), byteSz, align);
   }
 
   /// \brief Loads a pointer stored in memory
   /// \sa loadIntFromMem
-  FatPtrTy loadPtrFromMem(FatPtrTy ptr, MemValTy mem, unsigned byteSz,
+  FatPtrTy loadPtrFromMem(FatPtrTy ptr, FatMemValTy mem, unsigned byteSz,
                           uint64_t align) {
-    return mkFatPtr(m_mem.loadPtrFromMem(mkRawPtr(ptr), mem, byteSz, align));
+    return mkFatPtr(
+        m_mem.loadPtrFromMem(mkRawPtr(ptr), mkRawMem(mem), byteSz, align));
   }
 
   /// \brief Pointer addition with numeric offset
@@ -181,17 +200,18 @@ public:
   /// Returns an expression describing the state of memory in \c memReadReg
   /// after the store
   /// \sa loadIntFromMem
-  Expr storeIntToMem(Expr _val, FatPtrTy ptr, MemValTy mem, unsigned byteSz,
-                     uint64_t align) {
-    return m_mem.storeIntToMem(_val, mkRawPtr(ptr), mem, byteSz, align);
+  FatMemValTy storeIntToMem(Expr _val, FatPtrTy ptr, FatMemValTy mem,
+                            unsigned byteSz, uint64_t align) {
+    return mkFatMem(
+        m_mem.storeIntToMem(_val, mkRawPtr(ptr), mkRawMem(mem), byteSz, align));
   }
 
   /// \brief Stores a pointer into memory
   /// \sa storeIntToMem
-  Expr storePtrToMem(FatPtrTy val, FatPtrTy ptr, MemValTy mem, unsigned byteSz,
-                     uint64_t align) {
-    return m_mem.storePtrToMem(mkRawPtr(val), mkRawPtr(ptr), mem, byteSz,
-                               align);
+  FatMemValTy storePtrToMem(FatPtrTy val, FatPtrTy ptr, FatMemValTy mem,
+                            unsigned byteSz, uint64_t align) {
+    return mkFatMem(m_mem.storePtrToMem(mkRawPtr(val), mkRawPtr(ptr),
+                                        mkRawMem(mem), byteSz, align));
   }
 
   /// \brief Returns an expression corresponding to a load from memory
@@ -200,7 +220,7 @@ public:
   /// \param[in] memReg is the memory register being read
   /// \param[in] ty is the type of value being loaded
   /// \param[in] align is the known alignment of the load
-  Expr loadValueFromMem(FatPtrTy ptr, MemValTy mem, const llvm::Type &ty,
+  Expr loadValueFromMem(FatPtrTy ptr, FatMemValTy mem, const llvm::Type &ty,
                         uint64_t align) {
 
     const unsigned byteSz =
@@ -238,8 +258,8 @@ public:
     return res;
   }
 
-  Expr storeValueToMem(Expr _val, FatPtrTy ptr, MemValTy mem,
-                       const llvm::Type &ty, uint32_t align) {
+  FatMemValTy storeValueToMem(Expr _val, FatPtrTy ptr, FatMemValTy mem,
+                              const llvm::Type &ty, uint32_t align) {
     assert(ptr);
     Expr val = _val;
     const unsigned byteSz =
@@ -279,21 +299,25 @@ public:
   }
 
   /// \brief Executes symbolic memset with a concrete length
-  Expr MemSet(PtrTy ptr, Expr _val, unsigned len, Expr mem, uint32_t align) {
-    return m_mem.MemSet(mkRawPtr(ptr), _val, len, mem, align);
+  FatMemValTy MemSet(PtrTy ptr, Expr _val, unsigned len, FatMemValTy mem,
+                     uint32_t align) {
+    return mkFatMem(
+        m_mem.MemSet(mkRawPtr(ptr), _val, len, mkRawMem(mem), align));
   }
 
   /// \brief Executes symbolic memcpy with concrete length
-  Expr MemCpy(PtrTy dPtr, PtrTy sPtr, unsigned len, Expr memTrsfrRead,
-              uint32_t align) {
-    return m_mem.MemCpy(mkRawPtr(dPtr), mkRawPtr(sPtr), len, memTrsfrRead,
-                        align);
+  FatMemValTy MemCpy(PtrTy dPtr, PtrTy sPtr, unsigned len, Expr memTrsfrRead,
+                     uint32_t align) {
+    return mkFatMem(m_mem.MemCpy(mkRawPtr(dPtr), mkRawPtr(sPtr), len,
+                                 mkRawMem(memTrsfrRead), align));
   }
 
   /// \brief Executes symbolic memcpy from physical memory with concrete
   /// length
-  Expr MemFill(PtrTy dPtr, char *sPtr, unsigned len, MemValTy mem, uint32_t align = 0) {
-    return m_mem.MemFill(mkRawPtr(dPtr), sPtr, len, mem, align);
+  FatMemValTy MemFill(PtrTy dPtr, char *sPtr, unsigned len, FatMemValTy mem,
+                      uint32_t align = 0) {
+    return mkFatMem(
+        m_mem.MemFill(mkRawPtr(dPtr), sPtr, len, mkRawMem(mem), align));
   }
 
   /// \brief Executes inttoptr conversion
@@ -363,7 +387,9 @@ public:
     return m_mem.getGlobalVariableInitValue(gv);
   }
 
-  Expr zeroedMemory() const override { return m_mem.zeroedMemory(); }
+  FatMemValTy zeroedMemory() const override {
+    return mkFatMem(m_mem.zeroedMemory());
+  }
 };
 
 FatMemManager::FatMemManager(Bv2OpSem &sem, Bv2OpSemContext &ctx,

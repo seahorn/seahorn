@@ -534,10 +534,10 @@ public:
   /// \brief Fixes the type of a havoced value to mach the representation used
   /// by mem repr.
   ///
-  /// \param reg
+  /// \param sort
   /// \param val
   /// \return the coerced value.
-  virtual Expr coerce(Expr reg, Expr val) = 0;
+  virtual Expr coerce(Expr sort, Expr val) = 0;
 
   /// \brief Pointer addition with numeric offset
   virtual PtrTy ptrAdd(PtrTy ptr, int32_t _offset) const = 0;
@@ -671,7 +671,7 @@ public:
       : m_memManager(memManager), m_ctx(ctx), m_efac(ctx.getExprFactory()) {}
   virtual ~OpSemMemRepr() = default;
 
-  virtual Expr coerce(Expr reg, Expr val) = 0;
+  virtual Expr coerce(Expr sort, Expr val) = 0;
   virtual Expr loadAlignedWordFromMem(Expr ptr, Expr mem) = 0;
   virtual Expr storeAlignedWordToMem(Expr val, Expr ptr, Expr ptrSort,
                                      Expr mem) = 0;
@@ -717,8 +717,8 @@ public:
   OpSemMemLambdaRepr(OpSemMemManager &memManager, Bv2OpSemContext &ctx)
       : OpSemMemRepr(memManager, ctx) {}
 
-  Expr coerce(Expr reg, Expr val) override {
-    return bind::isArrayConst(reg) ? coerceArrayToLambda(val) : val;
+  Expr coerce(Expr sort, Expr val) override {
+    return isOp<ARRAY_TY>(sort) ? coerceArrayToLambda(val) : val;
   }
 
   Expr loadAlignedWordFromMem(Expr ptr, Expr mem) override {

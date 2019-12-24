@@ -433,6 +433,14 @@ std::unique_ptr<OpSemAllocator> mkStaticOpSemAllocator(OpSemMemManager &mem);
 
 /// \brief Memory manager for OpSem machine
 class OpSemMemManager {
+public:
+  /// \brief type for pointers
+  /// Currently all expressions are of opaque type Expr. The extra type
+  /// annotations are to communicate intend only.
+  using PtrTy = Expr;
+  using MemRegTy = Expr;
+  using MemValTy = Expr;
+
 protected:
   /// \brief Parent Operational Semantics
   Bv2OpSem &m_sem;
@@ -456,16 +464,12 @@ public:
 
   virtual ~OpSemMemManager() = default;
 
-  /// Right now everything is an expression. In the future, we might have other
-  /// types for PtrTy, such as a tuple of expressions
-  using PtrTy = Expr;
-
   Bv2OpSem &sem() const { return m_sem; }
   Bv2OpSemContext &ctx() const { return m_ctx; }
 
   unsigned ptrSzInBits() const { return m_ptrSz * 8; }
-  unsigned wordSzInBytes()const {return m_wordSz;}
-  unsigned wordSzInBits()const {return m_wordSz * 8;}
+  unsigned wordSzInBytes() const { return m_wordSz; }
+  unsigned wordSzInBits() const { return m_wordSz * 8; }
 
   virtual PtrTy ptrSort() const = 0;
 
@@ -527,12 +531,6 @@ public:
   /// \brief Returns a null ptr
   virtual PtrTy nullPtr() const = 0;
 
-  /// \brief Pointers have word address (high) and byte offset (low) = 0;
-  /// returns number of bits for byte offset
-  ///
-  /// \return 0 if unsupported word size
-  virtual unsigned getByteAlignmentBits() = 0;
-
   /// \brief Fixes the type of a havoced value to mach the representation used
   /// by mem repr.
   ///
@@ -541,6 +539,12 @@ public:
   /// \return the coerced value.
   virtual Expr coerce(Expr reg, Expr val) = 0;
 
+  /// \brief Pointer addition with numeric offset
+  virtual PtrTy ptrAdd(PtrTy ptr, int32_t _offset) const = 0;
+
+  /// \brief Pointer addition with symbolic offset
+  virtual PtrTy ptrAdd(PtrTy ptr, Expr offset) const = 0;
+
   /// \brief Loads an integer of a given size from memory register
   ///
   /// \param[in] ptr pointer being accessed
@@ -548,61 +552,54 @@ public:
   /// \param[in] byteSz size of the integer in bytes
   /// \param[in] align known alignment of \p ptr
   /// \return symbolic value of the read integer
-  virtual Expr loadIntFromMem(PtrTy ptr, Expr memReg, unsigned byteSz,
+  virtual Expr loadIntFromMem(PtrTy ptr, MemValTy mem, unsigned byteSz,
                               uint64_t align) = 0;
 
   /// \brief Loads a pointer stored in memory
   /// \sa loadIntFromMem
-  virtual PtrTy loadPtrFromMem(PtrTy ptr, Expr memReg, unsigned byteSz,
+  virtual PtrTy loadPtrFromMem(PtrTy ptr, MemValTy mem, unsigned byteSz,
                                uint64_t align) = 0;
-
-  /// \brief Pointer addition with numeric offset
-  virtual PtrTy ptrAdd(PtrTy ptr, int32_t _offset) const = 0;
-
-  /// \brief Pointer addition with symbolic offset
-  virtual PtrTy ptrAdd(PtrTy ptr, Expr offset) const = 0;
 
   /// \brief Stores an integer into memory
   ///
   /// Returns an expression describing the state of memory in \c memReadReg
   /// after the store
   /// \sa loadIntFromMem
-  virtual Expr storeIntToMem(Expr _val, PtrTy ptr, Expr memReadReg,
+  virtual Expr storeIntToMem(Expr _val, PtrTy ptr, MemValTy mem,
                              unsigned byteSz, uint64_t align) = 0;
 
   /// \brief Stores a pointer into memory
   /// \sa storeIntToMem
-  virtual Expr storePtrToMem(PtrTy val, PtrTy ptr, Expr memReadReg,
+  virtual Expr storePtrToMem(PtrTy val, PtrTy ptr, MemValTy mem,
                              unsigned byteSz, uint64_t align) = 0;
 
   /// \brief Returns an expression corresponding to a load from memory
   ///
   /// \param[in] ptr is the pointer being dereferenced
-  /// \param[in] memReg is the memory register being read
+  /// \param[in] mem is the memory value being read from
   /// \param[in] ty is the type of value being loaded
   /// \param[in] align is the known alignment of the load
-  virtual Expr loadValueFromMem(PtrTy ptr, Expr memReg, const llvm::Type &ty,
+  virtual Expr loadValueFromMem(PtrTy ptr, MemValTy mem, const llvm::Type &ty,
                                 uint64_t align) = 0;
 
-  virtual Expr storeValueToMem(Expr _val, PtrTy ptr, Expr memReadReg,
-                               Expr memWriteReg, const llvm::Type &ty,
-                               uint32_t align) = 0;
+  virtual Expr storeValueToMem(Expr _val, PtrTy ptr, MemValTy memIn,
+                               const llvm::Type &ty, uint32_t align) = 0;
 
   /// \brief Executes symbolic memset with a concrete length
-  virtual Expr MemSet(PtrTy ptr, Expr _val, unsigned len, Expr memReadReg,
-                      Expr memWriteReg, uint32_t align) = 0;
+  virtual Expr MemSet(PtrTy ptr, Expr _val, unsigned len, MemValTy mem,
+                      uint32_t align) = 0;
 
   /// \brief Executes symbolic memcpy with concrete length
-  virtual Expr MemCpy(PtrTy dPtr, PtrTy sPtr, unsigned len,
-                      Expr memTrsfrReadReg, Expr memReadReg, Expr memWriteReg,
+  virtual Expr MemCpy(PtrTy dPtr, PtrTy sPtr, unsigned len, Expr memTrsfrRead,
                       uint32_t align) = 0;
 
   /// \brief Executes symbolic memcpy from physical memory with concrete length
-  virtual Expr MemFill(PtrTy dPtr, char *sPtr, unsigned len,
+  virtual Expr MemFill(PtrTy dPtr, char *sPtr, unsigned len, MemValTy mem,
                        uint32_t align = 0) = 0;
 
   /// \brief Executes inttoptr conversion
-  virtual PtrTy inttoptr(Expr intVal, const Type &intTy, const Type &ptrTy) const = 0;
+  virtual PtrTy inttoptr(Expr intVal, const Type &intTy,
+                         const Type &ptrTy) const = 0;
 
   /// \brief Executes ptrtoint conversion
   virtual Expr ptrtoint(PtrTy ptr, const Type &ptrTy,
@@ -640,7 +637,7 @@ public:
   getGlobalVariableInitValue(const llvm::GlobalVariable &gv) = 0;
 
   virtual Expr zeroedMemory() const = 0;
- 
+
   /// \brief Checks if \p a <= b <= c.
   Expr ptrInRangeCheck(PtrTy a, PtrTy b, PtrTy c) {
     return mk<AND>(ptrUle(a, b), ptrUle(b, c));
@@ -650,7 +647,7 @@ public:
 
   uint32_t getAlignment(const llvm::Value &v) const { return m_alignment; }
 
-  /// \brief returns a constant that represents zero-initilized memory region 
+  /// \brief returns a constant that represents zero-initilized memory region
 };
 
 OpSemMemManager *mkRawMemManager(Bv2OpSem &sem, Bv2OpSemContext &ctx,
@@ -661,8 +658,8 @@ OpSemMemManager *mkFatMemManager(Bv2OpSem &sem, Bv2OpSemContext &ctx,
                                  unsigned ptrSz, unsigned wordSz,
                                  bool useLambdas = false);
 
-    /// \Brief Base class for memory representation
-    class OpSemMemRepr {
+/// \Brief Base class for memory representation
+class OpSemMemRepr {
 protected:
   OpSemMemManager &m_memManager;
   Bv2OpSemContext &m_ctx;
@@ -679,13 +676,11 @@ public:
   virtual Expr storeAlignedWordToMem(Expr val, Expr ptr, Expr ptrSort,
                                      Expr mem) = 0;
 
-  virtual Expr MemSet(Expr ptr, Expr _val, unsigned len, Expr memReadReg,
-                      Expr memWriteReg, unsigned wordSzInBytes, Expr ptrSort,
-                      uint32_t align) = 0;
-  virtual Expr MemCpy(Expr dPtr, Expr sPtr, unsigned len, Expr memTrsfrReadReg,
-                      Expr memReadReg, Expr memWriteReg, unsigned wordSzInBytes,
-                      Expr ptrSort, uint32_t align) = 0;
-  virtual Expr MemFill(Expr dPtr, char *sPtr, unsigned len,
+  virtual Expr MemSet(Expr ptr, Expr _val, unsigned len, Expr mem,
+                      unsigned wordSzInBytes, Expr ptrSort, uint32_t align) = 0;
+  virtual Expr MemCpy(Expr dPtr, Expr sPtr, unsigned len, Expr memTrsfrRead,
+                      unsigned wordSzInBytes, Expr ptrSort, uint32_t align) = 0;
+  virtual Expr MemFill(Expr dPtr, char *sPtr, unsigned len, Expr mem,
                        unsigned wordSzInBytes, Expr ptrSort,
                        uint32_t align) = 0;
 };
@@ -708,14 +703,12 @@ public:
     return op::array::store(mem, ptr, val);
   }
 
-  Expr MemSet(Expr ptr, Expr _val, unsigned len, Expr memReadReg,
-              Expr memWriteReg, unsigned wordSzInBytes, Expr ptrSort,
-              uint32_t align) override;
-  Expr MemCpy(Expr dPtr, Expr sPtr, unsigned len, Expr memTrsfrReadReg,
-              Expr memReadReg, Expr memWriteReg, unsigned wordSzInBytes,
-              Expr ptrSort, uint32_t align) override;
-  Expr MemFill(Expr dPtr, char *sPtr, unsigned len, unsigned wordSzInBytes,
-               Expr ptrSort, uint32_t align) override;
+  Expr MemSet(Expr ptr, Expr _val, unsigned len, Expr mem,
+              unsigned wordSzInBytes, Expr ptrSort, uint32_t align) override;
+  Expr MemCpy(Expr dPtr, Expr sPtr, unsigned len, Expr memTrsfrRead,
+              unsigned wordSzInBytes, Expr ptrSort, uint32_t align) override;
+  Expr MemFill(Expr dPtr, char *sPtr, unsigned len, Expr mem,
+               unsigned wordSzInBytes, Expr ptrSort, uint32_t align) override;
 };
 
 /// \brief Represent memory regions by lambda functions
@@ -734,14 +727,12 @@ public:
 
   Expr storeAlignedWordToMem(Expr val, Expr ptr, Expr ptrSort,
                              Expr mem) override;
-  Expr MemSet(Expr ptr, Expr _val, unsigned len, Expr memReadReg,
-              Expr memWriteReg, unsigned wordSzInBytes, Expr ptrSort,
-              uint32_t align) override;
-  Expr MemCpy(Expr dPtr, Expr sPtr, unsigned len, Expr memTrsfrReadReg,
-              Expr memReadReg, Expr memWriteReg, unsigned wordSzInBytes,
-              Expr ptrSort, uint32_t align) override;
-  Expr MemFill(Expr dPtr, char *sPtr, unsigned len, unsigned wordSzInBytes,
-               Expr ptrSort, uint32_t align) override;
+  Expr MemSet(Expr ptr, Expr _val, unsigned len, Expr mem,
+              unsigned wordSzInBytes, Expr ptrSort, uint32_t align) override;
+  Expr MemCpy(Expr dPtr, Expr sPtr, unsigned len, Expr memTrsfrRead,
+              unsigned wordSzInBytes, Expr ptrSort, uint32_t align) override;
+  Expr MemFill(Expr dPtr, char *sPtr, unsigned len, Expr mem,
+               unsigned wordSzInBytes, Expr ptrSort, uint32_t align) override;
 
 private:
   Expr coerceArrayToLambda(Expr arrVal);

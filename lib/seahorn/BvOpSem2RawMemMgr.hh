@@ -132,30 +132,37 @@ public:
   /// \param[in] byteSz size of the integer in bytes
   /// \param[in] align known alignment of \p ptr
   /// \return symbolic value of the read integer
-  Expr loadIntFromMem(PtrTy ptr, Expr memReg, unsigned byteSz, uint64_t align);
+  Expr loadIntFromMem(PtrTy ptr, MemValTy mem, unsigned byteSz, uint64_t align);
 
   /// \brief Loads a pointer stored in memory
   /// \sa loadIntFromMem
-  PtrTy loadPtrFromMem(PtrTy ptr, Expr memReg, unsigned byteSz, uint64_t align);
-
-  /// \brief Pointer addition with numeric offset
-  PtrTy ptrAdd(PtrTy ptr, int32_t _offset) const;
-
-  /// \brief Pointer addition with symbolic offset
-  PtrTy ptrAdd(PtrTy ptr, Expr offset) const;
+  PtrTy loadPtrFromMem(PtrTy ptr, MemValTy mem, unsigned byteSz,
+                       uint64_t align);
 
   /// \brief Stores an integer into memory
   ///
   /// Returns an expression describing the state of memory in \c memReadReg
   /// after the store
   /// \sa loadIntFromMem
-  Expr storeIntToMem(Expr _val, PtrTy ptr, Expr memReadReg, unsigned byteSz,
+  Expr storeIntToMem(Expr _val, PtrTy ptr, MemValTy mem, unsigned byteSz,
                      uint64_t align);
 
   /// \brief stores integer into memory, address is not word aligned
   ///
   /// \sa storeIntToMem
-  Expr storeUnalignedIntToMem(Expr val, PtrTy ptr, Expr mem, unsigned byteSz);
+  Expr storeUnalignedIntToMem(Expr val, PtrTy ptr, MemValTy mem,
+                              unsigned byteSz);
+
+  /// \brief Stores a pointer into memory
+  /// \sa storeIntToMem
+  Expr storePtrToMem(PtrTy val, PtrTy ptr, MemValTy mem, unsigned byteSz,
+                     uint64_t align);
+
+  /// \brief Pointer addition with numeric offset
+  PtrTy ptrAdd(PtrTy ptr, int32_t _offset) const;
+
+  /// \brief Pointer addition with symbolic offset
+  PtrTy ptrAdd(PtrTy ptr, Expr offset) const;
 
   /// \brief Given a word, updates a byte
   ///
@@ -164,11 +171,6 @@ public:
   /// \param byteOffset symbolic pointer indicating which byte to update
   /// \return updated word
   Expr setByteOfWord(Expr word, Expr byteData, PtrTy byteOffset);
-
-  /// \brief Stores a pointer into memory
-  /// \sa storeIntToMem
-  Expr storePtrToMem(PtrTy val, PtrTy ptr, Expr memReadReg, unsigned byteSz,
-                     uint64_t align);
 
   /// \brief Creates bit-vector of a given width filled with 0
   Expr mkZeroE(unsigned width, ExprFactory &efac) {
@@ -183,26 +185,26 @@ public:
   /// \brief Returns an expression corresponding to a load from memory
   ///
   /// \param[in] ptr is the pointer being dereferenced
-  /// \param[in] memReg is the memory register being read
+  /// \param[in] mem is the memory value being read from
   /// \param[in] ty is the type of value being loaded
   /// \param[in] align is the known alignment of the load
-  Expr loadValueFromMem(PtrTy ptr, Expr memReg, const llvm::Type &ty,
+  Expr loadValueFromMem(PtrTy ptr, MemValTy mem, const llvm::Type &ty,
                         uint64_t align);
 
-  Expr storeValueToMem(Expr _val, PtrTy ptr, Expr memReadReg, Expr memWriteReg,
+  Expr storeValueToMem(Expr _val, PtrTy ptr, MemValTy memIn,
                        const llvm::Type &ty, uint32_t align);
 
   /// \brief Executes symbolic memset with a concrete length
-  Expr MemSet(PtrTy ptr, Expr _val, unsigned len, Expr memReadReg,
-              Expr memWriteReg, uint32_t align);
+  Expr MemSet(PtrTy ptr, Expr _val, unsigned len, MemValTy mem, uint32_t align);
 
   /// \brief Executes symbolic memcpy with concrete length
-  Expr MemCpy(PtrTy dPtr, PtrTy sPtr, unsigned len, Expr memTrsfrReadReg,
-              Expr memReadReg, Expr memWriteReg, uint32_t align);
+  Expr MemCpy(PtrTy dPtr, PtrTy sPtr, unsigned len, Expr memTrsfrRead,
+              uint32_t align);
 
   /// \brief Executes symbolic memcpy from physical memory with concrete
   /// length
-  Expr MemFill(PtrTy dPtr, char *sPtr, unsigned len, uint32_t align = 0);
+  Expr MemFill(PtrTy dPtr, char *sPtr, unsigned len, MemValTy mem,
+               uint32_t align = 0);
 
   /// \brief Executes inttoptr conversion
   PtrTy inttoptr(Expr intVal, const Type &intTy, const Type &ptrTy) const;
@@ -242,8 +244,7 @@ public:
     return m_allocator->getGlobalVariableInitValue(gv);
   }
 
-  Expr zeroedMemory() const override; 
-
+  Expr zeroedMemory() const override;
 };
 } // namespace details
 } // namespace seahorn

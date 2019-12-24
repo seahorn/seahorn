@@ -1256,12 +1256,9 @@ public:
     if (!ctx.getMemReadRegister())
       return res;
 
-    if (ctx.isMemScalar()) {
-      res = ctx.read(ctx.getMemReadRegister());
-    } else if (Expr op0 = lookup(addr)) {
-      res = ctx.loadValueFromMem(op0, *ty, alignment);
-    }
-
+    // XXX avoid reading address if current read is from a scalar
+    Expr op0 = ctx.isMemScalar() ? Expr(nullptr) : lookup(addr);
+    res = ctx.loadValueFromMem(op0, *ty, alignment);
     ctx.setMemReadRegister(Expr());
     return res;
   }
@@ -1279,15 +1276,9 @@ public:
     }
 
     Expr v = lookup(val);
-    Expr res;
-    if (v && ctx.isMemScalar()) {
-      res = v;
-      ctx.write(ctx.getMemWriteRegister(), res);
-    } else {
-      Expr p = lookup(addr);
-      if (v && p)
-        res = m_ctx.storeValueToMem(v, p, *val.getType(), alignment);
-    }
+    // XXX avoid reading address if current read is from a scalar
+    Expr p = ctx.isMemScalar() ? Expr(nullptr) : lookup(addr);
+    Expr res = ctx.storeValueToMem(v, p, *val.getType(), alignment);
 
     LOG("opsem",
         if (!res) WARN << "Failed store to " << addr << " of " << val << "\n";);
@@ -1521,7 +1512,7 @@ Bv2OpSemContext::Bv2OpSemContext(Bv2OpSem &sem, SymStore &values,
   oneE = mkTerm<expr::mpz_class>(1UL, efac());
 
   m_alu = mkBvOpSemAlu(*this);
-  setMemManager(mkFatMemManager(m_sem, *this, PtrSize, WordSize, UseLambdas));
+  setMemManager(mkRawMemManager(m_sem, *this, PtrSize, WordSize, UseLambdas));
 }
 
 Bv2OpSemContext::Bv2OpSemContext(SymStore &values, ExprVector &side,
@@ -1603,7 +1594,14 @@ Expr Bv2OpSemContext::loadValueFromMem(Expr ptr, const llvm::Type &ty,
                                        uint32_t align) {
   assert(m_memManager);
   assert(getMemReadRegister());
-  return m_memManager->loadValueFromMem(ptr, getMemReadRegister(), ty, align);
+  Expr res;
+  if (isMemScalar())
+    res = read(getMemReadRegister());
+  else if (ptr) {
+    auto mem = read(getMemReadRegister());
+    return m_memManager->loadValueFromMem(ptr, mem, ty, align);
+  }
+  return res;
 }
 
 Expr Bv2OpSemContext::storeValueToMem(Expr val, Expr ptr, const llvm::Type &ty,
@@ -1611,16 +1609,27 @@ Expr Bv2OpSemContext::storeValueToMem(Expr val, Expr ptr, const llvm::Type &ty,
   assert(m_memManager);
   assert(getMemReadRegister());
   assert(getMemWriteRegister());
-  return m_memManager->storeValueToMem(val, ptr, getMemReadRegister(),
-                                       getMemWriteRegister(), ty, align);
+
+  Expr res;
+  if (val && isMemScalar()) {
+    res = val;
+    write(getMemWriteRegister(), res);
+  } else if (val && ptr) {
+    Expr inMem = read(getMemReadRegister());
+    res = m_memManager->storeValueToMem(val, ptr, inMem, ty, align);
+    write(getMemWriteRegister(), res);
+  }
+  return res;
 }
 
 Expr Bv2OpSemContext::MemSet(Expr ptr, Expr val, unsigned len, uint32_t align) {
   assert(m_memManager);
   assert(getMemReadRegister());
   assert(getMemWriteRegister());
-  return m_memManager->MemSet(ptr, val, len, getMemReadRegister(),
-                              getMemWriteRegister(), align);
+  Expr mem = read(getMemReadRegister());
+  Expr res = m_memManager->MemSet(ptr, val, len, mem, align);
+  write(getMemWriteRegister(), res);
+  return res;
 }
 
 Expr Bv2OpSemContext::MemCpy(Expr dPtr, Expr sPtr, unsigned len,
@@ -1629,9 +1638,10 @@ Expr Bv2OpSemContext::MemCpy(Expr dPtr, Expr sPtr, unsigned len,
   assert(getMemTrsfrReadReg());
   assert(getMemReadRegister());
   assert(getMemWriteRegister());
-  return m_memManager->MemCpy(dPtr, sPtr, len, getMemTrsfrReadReg(),
-                              getMemReadRegister(), getMemWriteRegister(),
-                              align);
+  Expr mem = read(getMemTrsfrReadReg());
+  Expr res = m_memManager->MemCpy(dPtr, sPtr, len, mem, align);
+  write(getMemWriteRegister(), res);
+  return res;
 }
 
 Expr Bv2OpSemContext::MemFill(Expr dPtr, char *sPtr, unsigned len,
@@ -1639,7 +1649,10 @@ Expr Bv2OpSemContext::MemFill(Expr dPtr, char *sPtr, unsigned len,
   assert(m_memManager);
   assert(getMemReadRegister());
   assert(getMemWriteRegister());
-  return m_memManager->MemFill(dPtr, sPtr, len, align);
+  Expr mem = read(getMemReadRegister());
+  Expr res = m_memManager->MemFill(dPtr, sPtr, len, mem, align);
+  write(getMemWriteRegister(), res);
+  return res;
 }
 
 Expr Bv2OpSemContext::inttoptr(Expr intValue, const Type &intTy,

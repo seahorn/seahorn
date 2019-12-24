@@ -281,27 +281,14 @@ void defPHINodesIte(const BasicBlock &bb, const ExprVector &edges,
 }
 
 Expr mkEq(Expr phi, Expr val) {
-  if (!bind::isStructConst(phi))
+  if (!strct::isStructVal(phi))
     return mk<EQ>(phi, val);
 
-  // expand equality over struct
-  // introduce new fresh constants for fields of structs as necessary
-
-  Expr phiSort = bind::rangeTy(bind::fname(phi));
+  // push equality through struct
+  assert(strct::isStructVal(val));
   llvm::SmallVector<Expr, 8> vals;
-
-  if (strct::isStructVal(val)) {
-    for (unsigned i = 0, sz = phiSort->arity(); i < sz; ++i) {
-      Expr lhs = bind::mkConst(strct::extractVal(phi, i), phiSort->arg(i));
-      vals.push_back(mk<EQ>(lhs, val->arg(i)));
-    }
-  } else {
-    for (unsigned i = 0, sz = phiSort->arity(); i < sz; ++i) {
-      Expr lhs = bind::mkConst(strct::extractVal(phi, i), phiSort->arg(i));
-      Expr rhs = bind::mkConst(strct::extractVal(val, i), phiSort->arg(i));
-      vals.push_back(mk<EQ>(lhs, rhs));
-    }
-  }
+  for (unsigned i = 0, sz = phi->arity(); i < sz; ++i)
+    vals.push_back(mkEq(phi->arg(i), val->arg(i)));
 
   return mknary<AND>(mk<TRUE>(phi->efac()), vals.begin(), vals.end());
 }
@@ -410,7 +397,7 @@ Expr computePathCondForBb(const BasicBlock &bb, const CpEdge &cpEdge,
 
   return bbV;
 }
-}
+} // namespace
 
 void VCGen::genVcForBasicBlockOnEdge(OpSemContext &ctx, const CpEdge &edge,
                                      const BasicBlock &bb, bool last) {

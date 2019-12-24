@@ -69,6 +69,17 @@ inline Expr push_ite_struct(Expr c, Expr lhs, Expr rhs) {
   return strct::mk(vals);
 }
 
+inline Expr mkEq(Expr lhs, Expr rhs) {
+  if (isStructVal(lhs) && isStructVal(rhs) && lhs->arity() == rhs->arity()) {
+    llvm::SmallVector<Expr, 8> kids;
+    for(unsigned i = 0, sz = lhs->arity(); i < sz; ++i) {
+      kids.push_back(mkEq(lhs->arg(i), rhs->arg(i)));
+    }
+    return mknary<AND>(mk<TRUE>(lhs->efac()), kids.begin(), kids.end());
+  }
+  return mk<EQ>(lhs, rhs);
+}
+
 } // namespace strct
 } // namespace op
 

@@ -31,9 +31,13 @@ private:
   /// \brief A null pointer expression (cache)
   FatPtrTy m_nullPtr;
 
+  /// \brief Converts a raw ptr to fat ptr with default value for fat
   FatPtrTy mkFatPtr(RawPtrTy rawPtr) const { return strct::mk(rawPtr); }
-  /// \brief Update a give fat pointer with a raw address value
+  /// \brief Update a given fat pointer with a raw address value
   FatPtrTy mkFatPtr(RawPtrTy rawPtr, FatPtrTy fat) const {
+    if (fat->arity() == 1)
+      return mkFatPtr(rawPtr);
+
     llvm::SmallVector<Expr, 8> kids;
     kids.push_back(rawPtr);
     for (unsigned i = 1, sz = fat->arity(); i < sz; ++i) {
@@ -41,26 +45,19 @@ private:
     }
     return strct::mk(kids);
   }
+  /// \brief Extracts a raw pointer out of a fat pointer
   RawPtrTy mkRawPtr(FatPtrTy fatPtr) const {
     assert(strct::isStructVal(fatPtr));
-    assert(strct::isStructVal(fatPtr) || bind::isStructConst(fatPtr));
-
-    if (strct::isStructVal(fatPtr))
-      return strct::extractVal(fatPtr, 0);
-    else /* structConst */ {
-      // create a constant with the name |(extract-val fat-ptr 0)|
-      // the name is unique
-      assert(isOpX<FAPP>(fatPtr));
-      Expr sort = bind::rangeTy(bind::fname(fatPtr))->arg(0);
-      Expr name = strct::extractVal(fatPtr, 0);
-      return bind::mkConst(name, sort);
-    }
+    return strct::extractVal(fatPtr, 0);
   }
 
+  /// \brief Extracts a raw memory value from a fat memory value
   MemValTy mkRawMem(FatMemValTy fatMem) const {
     assert(strct::isStructVal(fatMem));
     return strct::extractVal(fatMem, 0);
   }
+  /// \brief Creates a fat memory value from raw memory with default value for
+  /// fat
   FatMemValTy mkFatMem(MemValTy rawMem) const { return strct::mk(rawMem); }
 
 public:
@@ -73,49 +70,51 @@ public:
 
   /// \brief Allocates memory on the stack and returns a pointer to it
   /// \param align is requested alignment. If 0, default alignment is used
-  FatPtrTy salloc(unsigned bytes, uint32_t align = 0) {
+  FatPtrTy salloc(unsigned bytes, uint32_t align = 0) override {
     return mkFatPtr(m_mem.salloc(bytes, align));
   }
 
   /// \brief Allocates memory on the stack and returns a pointer to it
-  FatPtrTy salloc(Expr elmts, unsigned typeSz, uint32_t align = 0) {
+  FatPtrTy salloc(Expr elmts, unsigned typeSz, uint32_t align = 0) override {
     return mkFatPtr(m_mem.salloc(elmts, typeSz, align));
   }
 
   /// \brief Returns a pointer value for a given stack allocation
-  FatPtrTy mkStackPtr(unsigned offset) {
+  FatPtrTy mkStackPtr(unsigned offset) override {
     return mkFatPtr(m_mem.mkStackPtr(offset));
   }
 
   /// \brief Pointer to start of the heap
-  FatPtrTy brk0Ptr() { return mkFatPtr(m_mem.brk0Ptr()); }
+  FatPtrTy brk0Ptr() override { return mkFatPtr(m_mem.brk0Ptr()); }
 
   /// \brief Allocates memory on the heap and returns a pointer to it
-  FatPtrTy halloc(unsigned _bytes, uint32_t align = 0) {
+  FatPtrTy halloc(unsigned _bytes, uint32_t align = 0) override {
     return mkFatPtr(m_mem.halloc(_bytes, align));
   }
 
   /// \brief Allocates memory on the heap and returns pointer to it
-  FatPtrTy halloc(Expr bytes, uint32_t align = 0) {
+  FatPtrTy halloc(Expr bytes, uint32_t align = 0) override {
     return mkFatPtr(m_mem.halloc(bytes, align));
   }
 
   /// \brief Allocates memory in global (data/bss) segment for given global
-  FatPtrTy galloc(const GlobalVariable &gv, uint32_t align = 0) {
+  FatPtrTy galloc(const GlobalVariable &gv, uint32_t align = 0) override {
     return mkFatPtr(m_mem.galloc(gv, align));
   }
 
   /// \brief Allocates memory in code segment for the code of a given
   /// function
-  FatPtrTy falloc(const Function &fn) { return mkFatPtr(m_mem.falloc(fn)); }
+  FatPtrTy falloc(const Function &fn) override {
+    return mkFatPtr(m_mem.falloc(fn));
+  }
 
   /// \brief Returns a function pointer value for a given function
-  FatPtrTy getPtrToFunction(const Function &F) {
+  FatPtrTy getPtrToFunction(const Function &F) override {
     return mkFatPtr(m_mem.getPtrToFunction(F));
   }
 
   /// \brief Returns a pointer to a global variable
-  FatPtrTy getPtrToGlobalVariable(const GlobalVariable &gv) {
+  FatPtrTy getPtrToGlobalVariable(const GlobalVariable &gv) override {
     return mkFatPtr(getPtrToGlobalVariable(gv));
   }
 
@@ -149,7 +148,7 @@ public:
   }
 
   /// \brief Returns a fresh aligned pointer value
-  FatPtrTy freshPtr() { return mkFatPtr(m_mem.freshPtr()); }
+  FatPtrTy freshPtr() override { return mkFatPtr(m_mem.freshPtr()); }
 
   /// \brief Returns a null ptr
   FatPtrTy nullPtr() const override { return m_nullPtr; }
@@ -182,14 +181,14 @@ public:
   /// \param[in] align known alignment of \p ptr
   /// \return symbolic value of the read integer
   Expr loadIntFromMem(FatPtrTy ptr, FatMemValTy mem, unsigned byteSz,
-                      uint64_t align) {
+                      uint64_t align) override {
     return m_mem.loadIntFromMem(mkRawPtr(ptr), mkRawMem(mem), byteSz, align);
   }
 
   /// \brief Loads a pointer stored in memory
   /// \sa loadIntFromMem
   FatPtrTy loadPtrFromMem(FatPtrTy ptr, FatMemValTy mem, unsigned byteSz,
-                          uint64_t align) {
+                          uint64_t align) override {
     return mkFatPtr(
         m_mem.loadPtrFromMem(mkRawPtr(ptr), mkRawMem(mem), byteSz, align));
   }
@@ -212,7 +211,7 @@ public:
   /// after the store
   /// \sa loadIntFromMem
   FatMemValTy storeIntToMem(Expr _val, FatPtrTy ptr, FatMemValTy mem,
-                            unsigned byteSz, uint64_t align) {
+                            unsigned byteSz, uint64_t align) override {
     return mkFatMem(
         m_mem.storeIntToMem(_val, mkRawPtr(ptr), mkRawMem(mem), byteSz, align));
   }
@@ -220,7 +219,7 @@ public:
   /// \brief Stores a pointer into memory
   /// \sa storeIntToMem
   FatMemValTy storePtrToMem(FatPtrTy val, FatPtrTy ptr, FatMemValTy mem,
-                            unsigned byteSz, uint64_t align) {
+                            unsigned byteSz, uint64_t align) override {
     return mkFatMem(m_mem.storePtrToMem(mkRawPtr(val), mkRawPtr(ptr),
                                         mkRawMem(mem), byteSz, align));
   }
@@ -232,7 +231,7 @@ public:
   /// \param[in] ty is the type of value being loaded
   /// \param[in] align is the known alignment of the load
   Expr loadValueFromMem(FatPtrTy ptr, FatMemValTy mem, const llvm::Type &ty,
-                        uint64_t align) {
+                        uint64_t align) override {
 
     const unsigned byteSz =
         m_sem.getTD().getTypeStoreSize(const_cast<llvm::Type *>(&ty));
@@ -270,7 +269,7 @@ public:
   }
 
   FatMemValTy storeValueToMem(Expr _val, FatPtrTy ptr, FatMemValTy mem,
-                              const llvm::Type &ty, uint32_t align) {
+                              const llvm::Type &ty, uint32_t align) override {
     assert(ptr);
     Expr val = _val;
     const unsigned byteSz =
@@ -311,14 +310,14 @@ public:
 
   /// \brief Executes symbolic memset with a concrete length
   FatMemValTy MemSet(PtrTy ptr, Expr _val, unsigned len, FatMemValTy mem,
-                     uint32_t align) {
+                     uint32_t align) override {
     return mkFatMem(
         m_mem.MemSet(mkRawPtr(ptr), _val, len, mkRawMem(mem), align));
   }
 
   /// \brief Executes symbolic memcpy with concrete length
   FatMemValTy MemCpy(PtrTy dPtr, PtrTy sPtr, unsigned len, Expr memTrsfrRead,
-                     uint32_t align) {
+                     uint32_t align) override {
     return mkFatMem(m_mem.MemCpy(mkRawPtr(dPtr), mkRawPtr(sPtr), len,
                                  mkRawMem(memTrsfrRead), align));
   }
@@ -326,7 +325,7 @@ public:
   /// \brief Executes symbolic memcpy from physical memory with concrete
   /// length
   FatMemValTy MemFill(PtrTy dPtr, char *sPtr, unsigned len, FatMemValTy mem,
-                      uint32_t align = 0) {
+                      uint32_t align = 0) override {
     return mkFatMem(
         m_mem.MemFill(mkRawPtr(dPtr), sPtr, len, mkRawMem(mem), align));
   }
@@ -386,16 +385,18 @@ public:
   }
 
   /// \brief Called when a function is entered for the first time
-  void onFunctionEntry(const Function &fn) { m_mem.onFunctionEntry(fn); }
+  void onFunctionEntry(const Function &fn) override {
+    m_mem.onFunctionEntry(fn);
+  }
 
   /// \brief Called when a module entered for the first time
-  void onModuleEntry(const Module &M) { m_mem.onModuleEntry(M); }
+  void onModuleEntry(const Module &M) override { m_mem.onModuleEntry(M); }
 
   /// \brief Debug helper
-  void dumpGlobalsMap() { m_mem.dumpGlobalsMap(); }
+  void dumpGlobalsMap() override { m_mem.dumpGlobalsMap(); }
 
   std::pair<char *, unsigned>
-  getGlobalVariableInitValue(const llvm::GlobalVariable &gv) {
+  getGlobalVariableInitValue(const llvm::GlobalVariable &gv) override {
     return m_mem.getGlobalVariableInitValue(gv);
   }
 

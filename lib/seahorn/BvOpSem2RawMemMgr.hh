@@ -44,34 +44,34 @@ public:
 
   /// \brief Allocates memory on the stack and returns a pointer to it
   /// \param align is requested alignment. If 0, default alignment is used
-  PtrTy salloc(unsigned bytes, uint32_t align = 0);
+  PtrTy salloc(unsigned bytes, uint32_t align = 0) override;
 
   /// \brief Allocates memory on the stack and returns a pointer to it
-  PtrTy salloc(Expr elmts, unsigned typeSz, uint32_t align = 0);
+  PtrTy salloc(Expr elmts, unsigned typeSz, uint32_t align = 0) override;
 
   /// \brief Returns a pointer value for a given stack allocation
-  PtrTy mkStackPtr(unsigned offset);
+  PtrTy mkStackPtr(unsigned offset) override;
 
   /// \brief Pointer to start of the heap
-  PtrTy brk0Ptr();
+  PtrTy brk0Ptr() override;
 
   /// \brief Allocates memory on the heap and returns a pointer to it
-  PtrTy halloc(unsigned _bytes, uint32_t align = 0);
+  PtrTy halloc(unsigned _bytes, uint32_t align = 0) override;
 
   /// \brief Allocates memory on the heap and returns pointer to it
-  PtrTy halloc(Expr bytes, uint32_t align = 0);
+  PtrTy halloc(Expr bytes, uint32_t align = 0) override;
 
   /// \brief Allocates memory in global (data/bss) segment for given global
-  PtrTy galloc(const GlobalVariable &gv, uint32_t align = 0);
+  PtrTy galloc(const GlobalVariable &gv, uint32_t align = 0) override;
 
   /// \brief Allocates memory in code segment for the code of a given function
-  PtrTy falloc(const Function &fn);
+  PtrTy falloc(const Function &fn) override;
 
   /// \brief Returns a function pointer value for a given function
-  PtrTy getPtrToFunction(const Function &F);
+  PtrTy getPtrToFunction(const Function &F) override;
 
   /// \brief Returns a pointer to a global variable
-  PtrTy getPtrToGlobalVariable(const GlobalVariable &gv);
+  PtrTy getPtrToGlobalVariable(const GlobalVariable &gv) override;
 
   /// \brief Initialize memory used by the global variable
   void initGlobalVariable(const GlobalVariable &gv) const;
@@ -89,18 +89,18 @@ public:
   Expr mkPtrRegisterSort(const Function &fn) const;
 
   /// \brief Returns sort of a pointer register for a global pointer
-  Expr mkPtrRegisterSort(const GlobalVariable &gv) const { return ptrSort(); }
+  Expr mkPtrRegisterSort(const GlobalVariable &gv) const override { return ptrSort(); }
 
   /// \brief Returns sort of memory-holding register for an instruction
   Expr mkMemRegisterSort(const Instruction &inst) const;
 
   /// \brief Returns a fresh aligned pointer value
-  PtrTy freshPtr();
+  PtrTy freshPtr() override;
 
   /// \brief Returns a null ptr
   PtrTy nullPtr() const;
 
-  /// \brief Pointers have word address (high) and byte offset (low); returns
+  /// \brief Pointers have word address (high) and byte offset (low) override; returns
   /// number of bits for byte offset
   ///
   /// \return 0 if unsupported word size
@@ -112,7 +112,7 @@ public:
   /// \param sort
   /// \param val
   /// \return the coerced value.
-  Expr coerce(Expr sort, Expr val);
+  Expr coerce(Expr sort, Expr val) override;
 
   /// \brief Symbolic instructions to load a byte from memory, using word
   /// address and byte address
@@ -132,12 +132,12 @@ public:
   /// \param[in] byteSz size of the integer in bytes
   /// \param[in] align known alignment of \p ptr
   /// \return symbolic value of the read integer
-  Expr loadIntFromMem(PtrTy ptr, MemValTy mem, unsigned byteSz, uint64_t align);
+  Expr loadIntFromMem(PtrTy ptr, MemValTy mem, unsigned byteSz, uint64_t align) override;
 
   /// \brief Loads a pointer stored in memory
   /// \sa loadIntFromMem
   PtrTy loadPtrFromMem(PtrTy ptr, MemValTy mem, unsigned byteSz,
-                       uint64_t align);
+                       uint64_t align) override;
 
   /// \brief Stores an integer into memory
   ///
@@ -145,7 +145,7 @@ public:
   /// after the store
   /// \sa loadIntFromMem
   Expr storeIntToMem(Expr _val, PtrTy ptr, MemValTy mem, unsigned byteSz,
-                     uint64_t align);
+                     uint64_t align) override;
 
   /// \brief stores integer into memory, address is not word aligned
   ///
@@ -156,7 +156,7 @@ public:
   /// \brief Stores a pointer into memory
   /// \sa storeIntToMem
   Expr storePtrToMem(PtrTy val, PtrTy ptr, MemValTy mem, unsigned byteSz,
-                     uint64_t align);
+                     uint64_t align) override;
 
   /// \brief Pointer addition with numeric offset
   PtrTy ptrAdd(PtrTy ptr, int32_t _offset) const;
@@ -189,22 +189,22 @@ public:
   /// \param[in] ty is the type of value being loaded
   /// \param[in] align is the known alignment of the load
   Expr loadValueFromMem(PtrTy ptr, MemValTy mem, const llvm::Type &ty,
-                        uint64_t align);
+                        uint64_t align) override;
 
   Expr storeValueToMem(Expr _val, PtrTy ptr, MemValTy memIn,
-                       const llvm::Type &ty, uint32_t align);
+                       const llvm::Type &ty, uint32_t align) override;
 
   /// \brief Executes symbolic memset with a concrete length
-  Expr MemSet(PtrTy ptr, Expr _val, unsigned len, MemValTy mem, uint32_t align);
+  Expr MemSet(PtrTy ptr, Expr _val, unsigned len, MemValTy mem, uint32_t align) override;
 
   /// \brief Executes symbolic memcpy with concrete length
   Expr MemCpy(PtrTy dPtr, PtrTy sPtr, unsigned len, Expr memTrsfrRead,
-              uint32_t align);
+              uint32_t align) override;
 
   /// \brief Executes symbolic memcpy from physical memory with concrete
   /// length
   Expr MemFill(PtrTy dPtr, char *sPtr, unsigned len, MemValTy mem,
-               uint32_t align = 0);
+               uint32_t align = 0) override;
 
   /// \brief Executes inttoptr conversion
   PtrTy inttoptr(Expr intVal, const Type &intTy, const Type &ptrTy) const;
@@ -231,16 +231,16 @@ public:
   PtrTy gep(PtrTy ptr, gep_type_iterator it, gep_type_iterator end) const;
 
   /// \brief Called when a function is entered for the first time
-  void onFunctionEntry(const Function &fn);
+  void onFunctionEntry(const Function &fn) override;
 
   /// \brief Called when a module entered for the first time
-  void onModuleEntry(const Module &M);
+  void onModuleEntry(const Module &M) override;
 
   /// \brief Debug helper
-  void dumpGlobalsMap() { return m_allocator->dumpGlobalsMap(); }
+  void dumpGlobalsMap() override { return m_allocator->dumpGlobalsMap(); }
 
   std::pair<char *, unsigned>
-  getGlobalVariableInitValue(const llvm::GlobalVariable &gv) {
+  getGlobalVariableInitValue(const llvm::GlobalVariable &gv) override {
     return m_allocator->getGlobalVariableInitValue(gv);
   }
 

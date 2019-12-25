@@ -32,6 +32,15 @@ private:
   FatPtrTy m_nullPtr;
 
   FatPtrTy mkFatPtr(RawPtrTy rawPtr) const { return strct::mk(rawPtr); }
+  /// \brief Update a give fat pointer with a raw address value
+  FatPtrTy mkFatPtr(RawPtrTy rawPtr, FatPtrTy fat) const {
+    llvm::SmallVector<Expr, 8> kids;
+    kids.push_back(rawPtr);
+    for (unsigned i = 1, sz = fat->arity(); i < sz; ++i) {
+      kids.push_back(fat->arg(i));
+    }
+    return strct::mk(kids);
+  }
   RawPtrTy mkRawPtr(FatPtrTy fatPtr) const {
     assert(strct::isStructVal(fatPtr));
     assert(strct::isStructVal(fatPtr) || bind::isStructConst(fatPtr));
@@ -187,12 +196,14 @@ public:
 
   /// \brief Pointer addition with numeric offset
   FatPtrTy ptrAdd(FatPtrTy ptr, int32_t _offset) const {
-    return mkFatPtr(m_mem.ptrAdd(mkRawPtr(ptr), _offset));
+    PtrTy rawPtr = m_mem.ptrAdd(mkRawPtr(ptr), _offset);
+    return mkFatPtr(rawPtr, ptr);
   }
 
   /// \brief Pointer addition with symbolic offset
-  FatPtrTy ptrAdd(PtrTy ptr, Expr offset) const {
-    return mkFatPtr(ptrAdd(mkRawPtr(ptr), offset));
+  FatPtrTy ptrAdd(FatPtrTy ptr, Expr offset) const {
+    PtrTy rawPtr = ptrAdd(mkRawPtr(ptr), offset);
+    return mkFatPtr(rawPtr, ptr);
   }
 
   /// \brief Stores an integer into memory
@@ -370,7 +381,8 @@ public:
   /// \brief Computes a pointer corresponding to the gep instruction
   FatPtrTy gep(FatPtrTy ptr, gep_type_iterator it,
                gep_type_iterator end) const {
-    return mkFatPtr(m_mem.gep(mkRawPtr(ptr), it, end));
+    PtrTy rawPtr = m_mem.gep(mkRawPtr(ptr), it, end);
+    return mkFatPtr(rawPtr, ptr);
   }
 
   /// \brief Called when a function is entered for the first time

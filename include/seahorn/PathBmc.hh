@@ -191,8 +191,6 @@ private:
   sea_dsa::AllocWrapInfo &m_awi;
   // crab's cfg builder manager
   std::unique_ptr<clam::CrabBuilderManager> m_cfg_builder_man;
-  // crab's heap abstraction
-  std::unique_ptr<clam::HeapAbstraction> m_mem;
   // crab instance to solve paths
   std::unique_ptr<clam::IntraClam> m_crab_path_solver;
 

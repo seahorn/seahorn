@@ -187,7 +187,7 @@ void PathBmcEngine::load_invariants(
 
     // -- Translate crab linear constraints to ExprVector
     const ExprVector &live = m_ls->live(&bb);
-    LinConsToExpr conv(*m_mem, *m_fn, live);
+    LinConsToExpr conv(m_cfg_builder_man->get_heap_abstraction(), *m_fn, live);
 
     ExprVector res;
     for (auto cst : inv_csts) {
@@ -500,7 +500,7 @@ void PathBmcEngine::extract_post_conditions_from_ai_cex(
     expr_invariants_map_t &out) {
   
   const LiveSymbols &ls = *m_ls;
-  clam::HeapAbstraction &heap_abs = *m_mem;
+  clam::HeapAbstraction &heap_abs = m_cfg_builder_man->get_heap_abstraction();
   const Function &fn = *m_fn;
   ExprFactory &efac = sem().efac();
   
@@ -786,7 +786,7 @@ PathBmcEngine::PathBmcEngine(LegacyOperationalSemantics &sem,
       m_ctxState(sem.efac()), m_boolean_solver(nullptr),
       m_smt_path_solver(nullptr), m_model(nullptr), m_num_paths(0), m_dl(dl),
       m_tli(tli), m_cg(cg), m_awi(awi),
-      m_cfg_builder_man(nullptr), m_mem(nullptr), m_crab_path_solver(nullptr) {
+      m_cfg_builder_man(nullptr), m_crab_path_solver(nullptr) {
 
   if (SmtSolver == solver::SolverKind::Z3) {
     m_boolean_solver = llvm::make_unique<solver::z3_solver_impl>(sem.efac());
@@ -947,8 +947,9 @@ solver::SolverResult PathBmcEngine::solve() {
   //    Note that this analysis requires the whole module.
   LOG("bmc", get_os(true) << "Begin running memory analysis\n";);
   Stats::resume("BMC path-based: memory analysis");
-  m_mem.reset(new clam::SeaDsaHeapAbstraction(*(m_fn->getParent()), m_cg, m_dl,
-                                              m_tli, m_awi, false));
+  std::unique_ptr<clam::HeapAbstraction>
+    mem(new clam::SeaDsaHeapAbstraction(*(m_fn->getParent()),
+					m_cg, m_dl, m_tli, m_awi, false));
   Stats::stop("BMC path-based: memory analysis");
   LOG("bmc", get_os(true) << "End memory analysis\n";);
 
@@ -959,12 +960,12 @@ solver::SolverResult PathBmcEngine::solve() {
   /// that memory SSA form is not destroyed.
   ///cfg_builder_params.set_array_precision();
   cfg_builder_params.set_num_precision();
-  m_cfg_builder_man.reset(new clam::CrabBuilderManager(cfg_builder_params));
+  m_cfg_builder_man.reset(new clam::CrabBuilderManager(cfg_builder_params, &m_tli,
+						       std::move(mem)));
   
   // -- Initialize crab for solving paths
   if (UseCrabForSolvingPaths) {
-    m_crab_path_solver.reset(new clam::IntraClam(
-        *m_fn, m_tli, *m_mem, *m_cfg_builder_man));
+    m_crab_path_solver.reset(new clam::IntraClam(*m_fn, *m_cfg_builder_man));
   }
 
   // -- crab invariants
@@ -973,7 +974,7 @@ solver::SolverResult PathBmcEngine::solve() {
   if (UseCrabGlobalInvariants) {
     LOG("bmc", get_os(true) << "Begin running crab analysis\n";);
     Stats::resume("BMC path-based: whole-program crab analysis");
-    clam::IntraClam crab_analysis(*m_fn, m_tli, *m_mem, *m_cfg_builder_man);
+    clam::IntraClam crab_analysis(*m_fn, *m_cfg_builder_man);
 
     clam::AnalysisParams params;
     params.dom = CrabDom;

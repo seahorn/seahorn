@@ -1,8 +1,6 @@
 #
-# Minimal Dockerfile for SeaHorn
-# produces a lightweight container with SeaHorn
-# Arguments:
-#  - BASE_IMAGE: seahorn/seahorn (for use on Travis only), buildpack-deps (default)
+# Minimal Dockerfile for SeaHorn and verifyTrusty environment
+# produces a lightweight container with SeaHorn, trusty source code and compiled harness files
 #
 
 ARG BASE_IMAGE=ubuntu:16.04

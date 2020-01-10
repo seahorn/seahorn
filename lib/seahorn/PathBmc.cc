@@ -39,8 +39,8 @@ seahorn::PathBmcTrace seahorn::PathBmcEngine::getTrace() {
 #include "clam/CfgBuilder.hh"
 #include "clam/Clam.hh"
 #include "clam/HeapAbstraction.hh"
+#include "clam/DummyHeapAbstraction.hh"
 #include "clam/SeaDsaHeapAbstraction.hh"
-
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/Analysis/CallGraph.h"
 #include "llvm/Analysis/TargetLibraryInfo.h"
@@ -407,14 +407,18 @@ bool PathBmcEngine::gen_path_cond_from_ai_cex(
 	  }
 	}
       } else if (s.m_s->is_arr_assign()) {
-	if (const PHINode *PHI = dyn_cast<PHINode>(cfg_builder.get_instruction(*s.m_s))) {
-	  // The crab array assignment is in the incoming block of PHI
-	  src_BB = s.m_parent.get_basic_block();
-	  if (!src_BB) {
-	    src_BB = s.m_parent.get_edge().first;
-	    assert(src_BB);
+	typedef typename clam::cfg_ref_t::basic_block_t::arr_assign_t arr_assign_t;
+	auto assign = static_cast<const arr_assign_t*>(s.m_s);
+	if (boost::optional<const llvm::Value *> lhs = assign->lhs().name().get()) {
+	  if (const PHINode *PHI = dyn_cast<PHINode>(*lhs)) {
+	    // The crab array assignment is in the incoming block of PHI
+	    src_BB = s.m_parent.get_basic_block();
+	    if (!src_BB) {
+	      src_BB = s.m_parent.get_edge().first;
+	      assert(src_BB);
+	    }
+	    dst_BB = PHI->getParent();
 	  }
-	  dst_BB = PHI->getParent();
 	}
       }
 
@@ -500,7 +504,6 @@ void PathBmcEngine::extract_post_conditions_from_ai_cex(
     expr_invariants_map_t &out) {
   
   const LiveSymbols &ls = *m_ls;
-  clam::HeapAbstraction &heap_abs = m_cfg_builder_man->get_heap_abstraction();
   const Function &fn = *m_fn;
   ExprFactory &efac = sem().efac();
   
@@ -521,7 +524,7 @@ void PathBmcEngine::extract_post_conditions_from_ai_cex(
     // XXX: this will lose precision if the domain is not convex.
     clam::lin_cst_sys_t csts = get_crab_linear_constraints(b);
     ExprVector f;
-    LinConsToExpr conv(heap_abs, fn, live);
+    LinConsToExpr conv(m_cfg_builder_man->get_heap_abstraction(), fn, live);
     for (auto cst : csts) {
       // XXX: Convert to Expr using Crab semantics (linear integer
       // arithmetic).
@@ -573,6 +576,7 @@ bool PathBmcEngine::path_encoding_and_solve_with_ai(
   std::vector<crab_statement_t> cex_relevant_stmts;
 
   bool compute_path_constraints = false;
+  
   LOG("bmc-crab", compute_path_constraints = true;);
   bool res;
   // currently enabled only for debugging because path_constraints is
@@ -779,13 +783,12 @@ solver::SolverResult PathBmcEngine::path_encoding_and_solve_with_smt(
 }
 
 PathBmcEngine::PathBmcEngine(LegacyOperationalSemantics &sem,
-                             const llvm::DataLayout &dl,
-                             const llvm::TargetLibraryInfo &tli,
-                             llvm::CallGraph &cg, sea_dsa::AllocWrapInfo &awi)
+			     const llvm::TargetLibraryInfo &tli,
+			     sea_dsa::ShadowMem &sm)
     : m_sem(sem), m_cpg(nullptr), m_fn(nullptr), m_ls(nullptr),
       m_ctxState(sem.efac()), m_boolean_solver(nullptr),
-      m_smt_path_solver(nullptr), m_model(nullptr), m_num_paths(0), m_dl(dl),
-      m_tli(tli), m_cg(cg), m_awi(awi),
+      m_smt_path_solver(nullptr), m_model(nullptr), m_num_paths(0),
+      m_tli(tli), m_sm(sm),
       m_cfg_builder_man(nullptr), m_crab_path_solver(nullptr) {
 
   if (SmtSolver == solver::SolverKind::Z3) {
@@ -943,25 +946,13 @@ solver::SolverResult PathBmcEngine::solve() {
   m_ls.reset(new LiveSymbols(*m_fn, sem().efac(), sem()));
   m_ls->run();
 
-  // -- Heap analysis to improve precision of crab.
-  //    Note that this analysis requires the whole module.
-  LOG("bmc", get_os(true) << "Begin running memory analysis\n";);
-  Stats::resume("BMC path-based: memory analysis");
-  std::unique_ptr<clam::HeapAbstraction>
-    mem(new clam::SeaDsaHeapAbstraction(*(m_fn->getParent()),
-					m_cg, m_dl, m_tli, m_awi, false));
-  Stats::stop("BMC path-based: memory analysis");
-  LOG("bmc", get_os(true) << "End memory analysis\n";);
-
   clam::CrabBuilderParams  cfg_builder_params;
   cfg_builder_params.simplify = false;
-  /// FIXME: the generation of blocking clause from Crab CEX's is not
-  /// working. The translation from LLVM to Crab must be changed so
-  /// that memory SSA form is not destroyed.
-  ///cfg_builder_params.set_array_precision();
-  cfg_builder_params.set_num_precision();
-  m_cfg_builder_man.reset(new clam::CrabBuilderManager(cfg_builder_params, &m_tli,
-						       std::move(mem)));
+  cfg_builder_params.enable_memory_ssa();
+  cfg_builder_params.set_array_precision();
+  // TODO/FIXME: it should be sync with horn-bv-singleton-aliases
+  cfg_builder_params.lower_singleton_aliases = true;
+  m_cfg_builder_man.reset(new clam::CrabBuilderManager(cfg_builder_params, m_tli, m_sm));
   
   // -- Initialize crab for solving paths
   if (UseCrabForSolvingPaths) {
@@ -997,7 +988,7 @@ solver::SolverResult PathBmcEngine::solve() {
     Stats::stop("BMC path-based: loading of crab global invariants");
     LOG("bmc", get_os(true) << "End loading of crab invariants\n";);
   }
-
+  
   LOG("bmc-details", for (Expr v
                           : m_precise_side) { errs() << "\t" << *v << "\n"; });
 

@@ -13,12 +13,11 @@
 
 namespace llvm {
 class TargetLibraryInfo;
-class CallGraph;
 class DataLayout;
 class raw_ostream;
 } // namespace llvm
 namespace sea_dsa {
-class AllocWrapInfo;
+class ShadowMem;
 }
 
 namespace seahorn {
@@ -40,9 +39,8 @@ class PathBmcEngine {
 
 public:
   PathBmcEngine(seahorn::LegacyOperationalSemantics &sem,
-                const llvm::DataLayout &dl, const llvm::TargetLibraryInfo &tli,
-                llvm::CallGraph &cg, sea_dsa::AllocWrapInfo &awi)
-      : m_sem(sem) {}
+		const llvm::TargetLibraryInfo &tli, sea_dsa::ShadowMem &sm)
+    : m_sem(sem) {}
 
   virtual ~PathBmcEngine() {}
 
@@ -96,9 +94,8 @@ namespace seahorn {
 class PathBmcTrace;
 class PathBmcEngine {
 public:
-  PathBmcEngine(LegacyOperationalSemantics &sem, const llvm::DataLayout &dl,
-                const llvm::TargetLibraryInfo &tli, llvm::CallGraph &cg,
-                sea_dsa::AllocWrapInfo &awi);
+  PathBmcEngine(LegacyOperationalSemantics &sem,
+		const llvm::TargetLibraryInfo &tli, sea_dsa::ShadowMem &sm);
 
   virtual ~PathBmcEngine();
 
@@ -184,11 +181,9 @@ private:
   unsigned m_num_paths;
 
   //// Crab stuff
-  // Stuff used by crab's (sea-dsa) heap abstraction.
-  const llvm::DataLayout &m_dl;
-  const llvm::TargetLibraryInfo &m_tli;
-  llvm::CallGraph &m_cg;
-  sea_dsa::AllocWrapInfo &m_awi;
+  const llvm::TargetLibraryInfo &m_tli;  
+  // shadow mem pass   
+  sea_dsa::ShadowMem &m_sm;
   // crab's cfg builder manager
   std::unique_ptr<clam::CrabBuilderManager> m_cfg_builder_man;
   // crab instance to solve paths

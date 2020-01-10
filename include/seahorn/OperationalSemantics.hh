@@ -113,7 +113,7 @@ public:
   /// \brief Asserts that \p v must be true unconditionally
   void addSide(Expr v) { m_side.push_back(v); }
   /// \brief Asserts that \p v = \p u
-  void addDef(Expr v, Expr u) { addSide(mk<EQ>(v, u)); }
+  void addDef(Expr v, Expr u) { addSide(strct::mkEq(v, u)); }
   /// \brief Asserts that \p v = \p u under current path condition
   void addScopedDef(Expr v, Expr u) { addScopedSide(mk<EQ>(v, u)); }
   /// \brief Adds a rely constraint

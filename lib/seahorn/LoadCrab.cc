@@ -34,6 +34,7 @@ bool LoadCrab::runOnFunction(llvm::Function &F) { return false; }
 #include "seahorn/Transforms/Instrumentation/ShadowMemDsa.hh"
 
 #include "clam/Clam.hh"
+#include "clam/CfgBuilder.hh"
 #include "clam/HeapAbstraction.hh"
 #include "clam/AbstractDomain.hh"
 
@@ -196,7 +197,7 @@ private:
       return nullptr;
     }
     const Value *V = *(v.get());
-    if (const Value *Gv = m_heap_abs.getRegion(m_func, const_cast<Value *>(V))
+    if (const Value *Gv = m_heap_abs.getRegion(m_func, nullptr, const_cast<Value *>(V))
                               .getSingleton()) {
       /// -- The crab variable v corresponds to a global singleton
       ///    cell so we can grab a llvm Value from it. We search for
@@ -612,7 +613,8 @@ static std::vector<clam::var_t> ExprVecToCrab(const Range &live, ClamPass *Crab)
 
       // we need to create a typed variable
       res.push_back(
-          clam::var_t(Crab->get_var_factory()[v], crab::UNK_TYPE, 0));
+	  clam::var_t(Crab->get_cfg_builder_man().
+		      get_var_factory()[v], crab::UNK_TYPE, 0));
     }
   }
   return res;
@@ -655,18 +657,21 @@ Expr CrabInvToExpr(llvm::BasicBlock *B, ClamPass *crab,
     // Here we do project onto live variables before translation
     std::vector<clam::var_t> vars = ExprVecToCrab(live, crab);
     boxes.project(vars);
-    BoxesToExpr t(crab->get_heap_abstraction(), *(B->getParent()), live);
+    BoxesToExpr t(crab->get_cfg_builder_man().get_heap_abstraction(),
+		  *(B->getParent()), live);
     e = t.toExpr(boxes, efac);
   } else if (abs->getId() == GenericAbsDomWrapper::id_t::dis_intv) {
     // --- special translation of disjunctive interval constraints
     dis_interval_domain_t inv;
     getAbsDomWrappee(abs, inv);
-    DisIntervalToExpr t(crab->get_heap_abstraction(), *(B->getParent()),
+    DisIntervalToExpr t(crab->get_cfg_builder_man().get_heap_abstraction(),
+			*(B->getParent()),
                         live);
     e = t.toExpr(inv, efac);
   } else {
     // --- rest of domains translated to convex linear constraints
-    LinConsToExprImpl t(crab->get_heap_abstraction(), *(B->getParent()),
+    LinConsToExprImpl t(crab->get_cfg_builder_man().get_heap_abstraction(),
+			*(B->getParent()),
                         live);
     e = t.toExpr(abs->to_linear_constraints(), efac);
   }

@@ -228,7 +228,11 @@ class LinkRt(sea.LimitedCmd):
         if args.alloc_mem:
             libseart = os.path.join (lib_dir, 'libsea-mem-rt.a')
         else:
-            libseart = os.path.join (lib_dir, 'libsea-rt.a')
+            libseart32 = os.path.join(lib_dir, 'libsea-rt-32.a')
+            if args.machine == 32 and os.path.exists(libseart32):
+                libseart = libseart32
+            else:
+                libseart = os.path.join (lib_dir, 'libsea-rt.a')
         argv.append (libseart)
 
         return self.clangCmd.run (args, argv)
@@ -765,6 +769,46 @@ class SimpleMemoryChecks(sea.LimitedCmd):
         return self.seappCmd.run(args, argv)
 
 
+class RemoveTargetFeatures(sea.LimitedCmd):
+    def __init__(self, quiet=False):
+        super(RemoveTargetFeatures, self).__init__('rmtf', 'Remove redundant target-features from attributes',
+                                                   allow_extra=True)
+
+    @property
+    def stdout (self):
+        return self.seappCmd.stdout
+
+    def name_out_file (self, in_files, args=None, work_dir=None):
+        assert (len (in_files) == 1)
+
+        ext = '.rmtf.bc'
+        return _remap_file_name (in_files[0], ext, work_dir)
+
+    def mk_arg_parser (self, ap):
+        ap = super(RemoveTargetFeatures, self).mk_arg_parser (ap)
+        self.add_llvm_bool_arg(ap, 'rmtf', dest='rm_tar_feat', help='Remove target-features from attributes')
+        add_in_out_args(ap)
+        return ap
+
+    def run(self, args, _):
+        import re
+        if args.rm_tar_feat:
+            if args.out_file is not None:
+                fout = open(args.out_file, 'wt')
+                fin = open(args.in_files[0], 'rt')
+
+                for ln in fin:
+                   fout.write(re.sub(r'"target-features"="[^"]+"', '', ln))
+
+                fin.close()
+                fout.close()
+            return 0
+        else:
+            if args.out_file is not None:
+                shutil.copy2 (args.in_files[0], args.out_file)
+            return 0
+
+
 class WrapMem(sea.LimitedCmd):
     def __init__(self, quiet=False):
         super(WrapMem, self).__init__('wmem', 'Wrap external memory access with SeaRt calls',
@@ -785,6 +829,7 @@ class WrapMem(sea.LimitedCmd):
         ap = super (WrapMem, self).mk_arg_parser (ap)
         ap.add_argument ('--no-wmem', dest='wmem_skip', help='Skipped wrap-mem pass',
                          default=False, action='store_true')
+        # self.add_llvm_bool_arg(ap, 'skip-wmem', dest='wmem_skip', help='Skipped wrap-mem pass')
         add_in_out_args (ap)
         _add_S_arg (ap)
         return ap
@@ -1693,9 +1738,9 @@ Abc = sea.SeqCmd ('abc', 'alias for fe|abc-inst',
 ClangParAbc = sea.SeqCmd ('c-par-abc', 'alias for clang|pp|par-abc', [Clang(), Seapp(), ParAbc()])
 Ndc = sea.SeqCmd ('ndc', 'alias for fe|ndc-inst',
                   [Clang(), Seapp(), NdcInst(), MixedSem(), Seaopt(), Seahorn(solve=True)])
-Exe = sea.SeqCmd ('exe', 'alias for clang|pp --strip-extern|pp --internalize|wmem|linkrt',
+Exe = sea.SeqCmd ('exe', 'alias for clang|pp --strip-extern|pp --internalize|wmem|rmtf|linkrt',
                   [Clang(), Seapp(strip_extern=True,keep_lib_fn=True),
-                   Seapp(internalize=True), WrapMem(), LinkRt()])
+                   Seapp(internalize=True), WrapMem(), RemoveTargetFeatures(), LinkRt()])
 Inspect = sea.SeqCmd ('inspect', 'alias for fe + inspect-bitcode', FrontEnd.cmds + [InspectBitcode()])
 Smc = sea.SeqCmd ('smc', 'alias for fe|opt|smc',
                    [Clang(), Seapp(), SimpleMemoryChecks(), MixedSem(),

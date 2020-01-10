@@ -35,11 +35,6 @@ option(SEA_USE_SPLIT_DWARF "Use -gsplit-dwarf. Decreases linker pressure." OFF)
 
 option(SEA_ENABLE_ASSERTIONS "Enable assertions." OFF)
 
-option(ENABLE_SHADOW_MEM_FROM_SEA_DSA "Use shadow mem pass from SeaDsa" OFF)
-if (ENABLE_SHADOW_MEM_FROM_SEA_DSA)
-  set(USE_SHADOW_MEM_FROM_SEA_DSA TRUE)
-endif()
-
 # Add path for custom modules
 list (APPEND CMAKE_MODULE_PATH
   "${CMAKE_CURRENT_SOURCE_DIR}/cmake")

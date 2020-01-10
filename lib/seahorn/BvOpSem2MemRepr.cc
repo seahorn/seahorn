@@ -11,8 +11,7 @@ auto as_std_array(const T &t, const Rest &... rest) ->
 namespace seahorn {
 namespace details {
 
-Expr OpSemMemArrayRepr::MemSet(Expr ptr, Expr _val, unsigned len,
-                               Expr memReadReg, Expr memWriteReg,
+Expr OpSemMemArrayRepr::MemSet(Expr ptr, Expr _val, unsigned len, Expr mem,
                                unsigned wordSzInBytes, Expr ptrSort,
                                uint32_t align) {
   Expr res;
@@ -24,28 +23,27 @@ Expr OpSemMemArrayRepr::MemSet(Expr ptr, Expr _val, unsigned len,
     unsigned long val = 0;
     memset(&val, byte, wordSzInBytes);
 
-    res = m_ctx.read(memReadReg);
+    res = mem;
     for (unsigned i = 0; i < len; i += wordSzInBytes) {
       Expr idx = m_memManager.ptrAdd(ptr, i);
       res = op::array::store(
           res, idx, bv::bvnum(val, wordSzInBytes * m_BitsPerByte, m_efac));
     }
-    m_ctx.write(memWriteReg, res);
+    return res;
   }
 
   return res;
 }
 
 Expr OpSemMemArrayRepr::MemCpy(Expr dPtr, Expr sPtr, unsigned len,
-                               Expr memTrsfrReadReg, Expr memReadReg,
-                               Expr memWriteReg, unsigned wordSzInBytes,
+                               Expr memTrsfrRead, unsigned wordSzInBytes,
                                Expr ptrSort, uint32_t align) {
-  (void)memReadReg, ptrSort;
+  (void)ptrSort;
 
   Expr res;
 
   if (wordSzInBytes == 1 || (wordSzInBytes == 4 && align == 4)) {
-    Expr srcMem = m_ctx.read(memTrsfrReadReg);
+    Expr srcMem = memTrsfrRead;
     res = srcMem;
     for (unsigned i = 0; i < len; i += wordSzInBytes) {
       Expr dIdx = m_memManager.ptrAdd(dPtr, i);
@@ -54,15 +52,14 @@ Expr OpSemMemArrayRepr::MemCpy(Expr dPtr, Expr sPtr, unsigned len,
       Expr val = op::array::select(srcMem, sIdx);
       res = op::array::store(res, dIdx, val);
     }
-    m_ctx.write(memWriteReg, res);
   }
   return res;
 }
 
-Expr OpSemMemArrayRepr::MemFill(Expr dPtr, char *sPtr, unsigned len,
+Expr OpSemMemArrayRepr::MemFill(Expr dPtr, char *sPtr, unsigned len, Expr mem,
                                 unsigned wordSzInBytes, Expr ptrSort,
                                 uint32_t align) {
-  Expr res = m_ctx.read(m_ctx.getMemReadRegister());
+  Expr res = mem;
   const unsigned sem_word_sz = wordSzInBytes;
 
   // 8 bytes because assumed largest supported sem_word_sz = 8
@@ -78,7 +75,6 @@ Expr OpSemMemArrayRepr::MemFill(Expr dPtr, char *sPtr, unsigned len,
     Expr val = bv::bvnum(word, wordSzInBytes * m_BitsPerByte, m_efac);
     res = op::array::store(res, dIdx, val);
   }
-  m_ctx.write(m_ctx.getMemWriteRegister(), res);
   return res;
 }
 
@@ -94,8 +90,7 @@ Expr OpSemMemLambdaRepr::storeAlignedWordToMem(Expr val, Expr ptr, Expr ptrSort,
   return mk<LAMBDA>(decl, ite);
 }
 
-Expr OpSemMemLambdaRepr::MemSet(Expr ptr, Expr _val, unsigned len,
-                                Expr memReadReg, Expr memWriteReg,
+Expr OpSemMemLambdaRepr::MemSet(Expr ptr, Expr _val, unsigned len, Expr mem,
                                 unsigned wordSzInBytes, Expr ptrSort,
                                 uint32_t align) {
   Expr res;
@@ -107,7 +102,7 @@ Expr OpSemMemLambdaRepr::MemSet(Expr ptr, Expr _val, unsigned len,
     unsigned long val = 0;
     memset(&val, byte, wordSzInBytes);
 
-    res = m_ctx.read(memReadReg);
+    res = mem;
 
     Expr last = m_memManager.ptrAdd(ptr, len - wordSzInBytes);
     Expr bvVal = bv::bvnum(val, wordSzInBytes * m_BitsPerByte, m_efac);
@@ -121,21 +116,18 @@ Expr OpSemMemLambdaRepr::MemSet(Expr ptr, Expr _val, unsigned len,
     Expr decl = bind::fname(addr);
     res = mk<LAMBDA>(decl, ite);
     LOG("opsem.lambda", errs() << "MemSet " << *res << "\n");
-
-    m_ctx.write(memWriteReg, res);
   }
 
   return res;
 }
 
 Expr OpSemMemLambdaRepr::MemCpy(Expr dPtr, Expr sPtr, unsigned len,
-                                Expr memTrsfrReadReg, Expr memReadReg,
-                                Expr memWriteReg, unsigned wordSzInBytes,
+                                Expr memTrsfrRead, unsigned wordSzInBytes,
                                 Expr ptrSort, uint32_t align) {
   Expr res;
 
   if (wordSzInBytes == 1 || (wordSzInBytes == 4 && align == 4)) {
-    Expr srcMem = m_ctx.read(memTrsfrReadReg);
+    Expr srcMem = memTrsfrRead;
 
     if (len > 0) {
       unsigned bytesToCpy = len - wordSzInBytes;
@@ -156,8 +148,6 @@ Expr OpSemMemLambdaRepr::MemCpy(Expr dPtr, Expr sPtr, unsigned len,
       res = mk<LAMBDA>(decl, ite);
       LOG("opsem.lambda", errs() << "MemCpy " << *res << "\n");
     }
-
-    m_ctx.write(memWriteReg, res);
   }
   return res;
 }
@@ -192,14 +182,14 @@ Expr OpSemMemLambdaRepr::makeLinearITE(Expr addr, const ExprVector &ptrKeys,
   return res;
 }
 
-Expr OpSemMemLambdaRepr::MemFill(Expr dPtr, char *sPtr, unsigned len,
+Expr OpSemMemLambdaRepr::MemFill(Expr dPtr, char *sPtr, unsigned len, Expr mem,
                                  unsigned wordSzInBytes, Expr ptrSort,
                                  uint32_t align) {
   (void)align;
   const unsigned sem_word_sz = wordSzInBytes;
   assert(sizeof(unsigned long) >= sem_word_sz);
 
-  Expr initial = m_ctx.read(m_ctx.getMemReadRegister());
+  Expr initial = mem;
   LOG("opsem.lambda", errs() << "MemFill init: " << *initial << "\n");
 
   ExprVector ptrs;
@@ -227,7 +217,6 @@ Expr OpSemMemLambdaRepr::MemFill(Expr dPtr, char *sPtr, unsigned len,
 
   LOG("opsem.lambda", errs() << "MemFill: " << *res << "\n");
 
-  m_ctx.write(m_ctx.getMemWriteRegister(), res);
   return res;
 }
 

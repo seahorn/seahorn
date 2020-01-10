@@ -46,6 +46,7 @@ def main (argv):
             sea.commands.SimpleMemoryChecks(),
             sea.commands.Smc,
             sea.commands.SeaExeCex(),
+            sea.commands.RemoveTargetFeatures(),
     ]
 
     cmd = sea.AgregateCmd('sea', 'SeaHorn Verification Framework', cmds)

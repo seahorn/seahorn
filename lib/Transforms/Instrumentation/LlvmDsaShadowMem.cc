@@ -1,4 +1,4 @@
-#include "seahorn/Transforms/Instrumentation/ShadowMemDsa.hh"
+#include "seahorn/Transforms/Instrumentation/LlvmDsaShadowMem.hh"
 
 #ifdef HAVE_DSA
 #include "llvm/IR/DataLayout.h"
@@ -74,7 +74,7 @@ void argReachableNodes(DSCallSite CS, DSGraph &dsg, Set1 &reach,
   set_union(reach, outReach);
 }
 
-AllocaInst *ShadowMemDsa::allocaForNode(const DSNode *n) {
+AllocaInst *LlvmDsaShadowMem::allocaForNode(const DSNode *n) {
   auto it = m_shadows.find(n);
   if (it != m_shadows.end())
     return it->second;
@@ -84,7 +84,7 @@ AllocaInst *ShadowMemDsa::allocaForNode(const DSNode *n) {
   return a;
 }
 
-unsigned ShadowMemDsa::getId(const DSNode *n) {
+unsigned LlvmDsaShadowMem::getId(const DSNode *n) {
   auto it = m_node_ids.find(n);
   if (it != m_node_ids.end())
     return it->second;
@@ -93,7 +93,7 @@ unsigned ShadowMemDsa::getId(const DSNode *n) {
   return id;
 }
 
-bool ShadowMemDsa::runOnModule(llvm::Module &M) {
+bool LlvmDsaShadowMem::runOnModule(llvm::Module &M) {
   if (M.begin() == M.end())
     return false;
 
@@ -157,7 +157,7 @@ static Value *getUniqueScalar(LLVMContext &ctx, IRBuilder<> &B,
   return ConstantPointerNull::get(Type::getInt8PtrTy(ctx));
 }
 
-bool ShadowMemDsa::runOnFunction(Function &F) {
+bool LlvmDsaShadowMem::runOnFunction(Function &F) {
   if (F.isDeclaration())
     return false;
 
@@ -400,7 +400,7 @@ bool ShadowMemDsa::runOnFunction(Function &F) {
   return true;
 }
 
-void ShadowMemDsa::getAnalysisUsage(llvm::AnalysisUsage &AU) const {
+void LlvmDsaShadowMem::getAnalysisUsage(llvm::AnalysisUsage &AU) const {
   AU.setPreservesAll();
   AU.addRequired<seahorn::llvm_dsa::DsaInfoPass>(); // print stats about llvm
                                                     // dsa
@@ -469,16 +469,13 @@ void ShadowMemDsa::getAnalysisUsage(llvm::AnalysisUsage &AU) const {
 #endif
 
 namespace seahorn {
-char ShadowMemDsa::ID = 0;
-Pass *createShadowMemDsaPass() { return new ShadowMemDsa(); }
-//// XXX: Defined already in ShadowMemSeaDsa
-// char StripShadowMem::ID = 0;
-// Pass * createStripShadowMemPass () {return new StripShadowMem ();}
-
+char LlvmDsaShadowMem::ID = 0;
+Pass *createLlvmDsaShadowMemPass() { return new LlvmDsaShadowMem(); }
 } // namespace seahorn
 
-static llvm::RegisterPass<seahorn::ShadowMemDsa> X("shadow-dsa",
-                                                   "Shadow DSA nodes");
+static llvm::RegisterPass<seahorn::LlvmDsaShadowMem>
+X("shadow-dsa", "Shadow DSA nodes");
+  
 //// XXX: Defined already in ShadowMemSeaDsa
 // static llvm::RegisterPass<seahorn::StripShadowMem> Y ("strip-shadow-dsa",
 //                                                      "Remove shadow.mem

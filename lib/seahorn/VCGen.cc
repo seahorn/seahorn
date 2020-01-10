@@ -268,7 +268,12 @@ void defPHINodesIte(const BasicBlock &bb, const ExprVector &edges,
     // taken
     Expr val = phiVal[edges.size() - 1][i];
     for (unsigned j = edges.size() - 1; j > 0; --j) {
-      val = bind::lite(edges[j - 1], phiVal[j - 1][i], val);
+      Expr cond = edges[j - 1];
+      Expr lhs = phiVal[j - 1][i];
+      if (strct::isStructVal(val))
+        val = strct::push_ite_struct(cond, lhs, val);
+      else
+        val = bind::lite(cond, lhs, val);
     }
     // write an ite expression as the new PHINode value
     ctx.write(newPhi[i], val);
@@ -293,7 +298,7 @@ void defPHINodesEq(const BasicBlock &bb, const ExprVector &edges,
   // connect new PHINode register values with constructed PHINode values
   for (unsigned j = 0, sz = edges.size(); j < sz; ++j)
     for (unsigned i = 0, phi_sz = newPhi.size(); i < phi_sz; ++i)
-      ctx.addSide(boolop::limp(edges[j], mk<EQ>(newPhi[i], phiVal[j][i])));
+      ctx.addSide(boolop::limp(edges[j], strct::mkEq(newPhi[i], phiVal[j][i])));
 }
 
 Expr computePathCondForBb(const BasicBlock &bb, const CpEdge &cpEdge,
@@ -379,7 +384,7 @@ Expr computePathCondForBb(const BasicBlock &bb, const CpEdge &cpEdge,
 
   return bbV;
 }
-}
+} // namespace
 
 void VCGen::genVcForBasicBlockOnEdge(OpSemContext &ctx, const CpEdge &edge,
                                      const BasicBlock &bb, bool last) {

@@ -363,6 +363,7 @@ Optional<GenericValue> ConstantExprEvaluator::evaluate(const Constant *C) {
         Expr reg = m_ctx->getRegister(*F);
         if (reg) {
           Expr val = m_ctx->read(reg);
+          val = m_ctx->mem().ptrtoint(val, *C->getType(), *m_td.getIntPtrType(C->getType()));
           if (m_ctx->alu().isNum(val)) {
             expr::mpz_class addr = m_ctx->alu().toNum(val);
             Result = PTOGV((void *)addr.get_ui());
@@ -384,6 +385,8 @@ Optional<GenericValue> ConstantExprEvaluator::evaluate(const Constant *C) {
         Expr reg = m_ctx->getRegister(*GV);
         if (reg) {
           Expr val = m_ctx->read(reg);
+          val = m_ctx->mem().ptrtoint(val, *C->getType(),
+                                      *m_td.getIntPtrType(C->getType()));
           if (m_ctx->alu().isNum(val)) {
             expr::mpz_class num = m_ctx->alu().toNum(val);
             Result = PTOGV((void *)num.get_ui());

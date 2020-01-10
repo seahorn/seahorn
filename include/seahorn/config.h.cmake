@@ -15,7 +15,4 @@
 /** Define whether ldd is available */
 #cmakedefine HAVE_LDD ${HAVE_LDD}
 
-/** Use shadow mem pass from sea-dsa */
-#cmakedefine USE_SHADOW_MEM_FROM_SEA_DSA ${USE_SHADOW_MEM_FROM_SEA_DSA}
-
 #endif

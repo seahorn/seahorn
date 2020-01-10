@@ -1,4 +1,3 @@
-#include "llvm/Analysis/CallGraph.h"
 #include "llvm/Analysis/PostDominators.h"
 #include "llvm/Analysis/TargetLibraryInfo.h"
 #include "llvm/Bitcode/BitcodeWriter.h"
@@ -28,7 +27,7 @@
 #include "seahorn/Support/SeaDebug.h"
 #include "seahorn/Support/SeaLog.hh"
 
-#include "sea_dsa/AllocWrapInfo.hh"
+#include "sea_dsa/ShadowMem.hh"
 
 namespace seahorn {
 // defined in HornCex.cc
@@ -102,14 +101,13 @@ public:
 
   void getAnalysisUsage(AnalysisUsage &AU) const {
     AU.addRequired<TargetLibraryInfoWrapperPass>();
-    AU.addRequired<sea_dsa::AllocWrapInfo>();
-    AU.addRequired<CallGraphWrapperPass>();    
+    AU.addRequired<sea_dsa::ShadowMemPass>();
     
     AU.addRequired<CanFail>();
     AU.addRequired<NameValues>();
     AU.addRequired<TopologicalOrder>();
     AU.addRequired<CutPointGraph>();
-
+    
     if (HornGSA)
       AU.addRequired<GateAnalysisPass>();
 
@@ -283,15 +281,15 @@ public:
       std::unique_ptr<OperationalSemantics> sem = llvm::make_unique<BvOpSem>(
           efac, *this, dl, MEM);
 
-      // XXX: needed by sea-dsa which is required by clam      
       auto const &tli = getAnalysis<TargetLibraryInfoWrapperPass>().getTLI();
-      auto &cg = getAnalysis<CallGraphWrapperPass>().getCallGraph();      
-      auto &awi = getAnalysis<sea_dsa::AllocWrapInfo>();      
       
+      // Use ShadowMem to translate memory instructions to Crab arrays
+      // preserving memory SSA form.
+      auto &sm = getAnalysis<sea_dsa::ShadowMemPass>().getShadowMem();
+	
       // XXX: use of legacy operational semantics
-      PathBmcEngine bmc(static_cast<LegacyOperationalSemantics &>(*sem),
-			dl, tli, cg, awi);
-      
+      PathBmcEngine bmc(static_cast<LegacyOperationalSemantics &>(*sem), tli, sm);
+			
       bmc.addCutPoint(src);
       bmc.addCutPoint(*dst);
       LOG("bmc", errs() << "Path BMC from: " << src.bb().getName() << " to "

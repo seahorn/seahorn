@@ -16,7 +16,7 @@ NOP(EXTRACT_VALUE, "extract-value", FUNCTIONAL, StructOp)
 NOP(INSERT_VALUE, "insert-value", FUNCTIONAL, StructOp)
 } // namespace op
 namespace op {
-namespace structop {
+namespace strct {
 
 inline Expr mk(Expr v) { return expr::mk<MK_STRUCT>(v); }
 inline Expr mk(Expr v0, Expr v1) { return expr::mk<MK_STRUCT>(v0, v1); }
@@ -24,18 +24,17 @@ inline Expr mk(Expr v0, Expr v1, Expr v2) {
   return expr::mk<MK_STRUCT>(v0, v1, v2);
 }
 template <typename R> Expr mk(const R &vals) { return mknary<MK_STRUCT>(vals); }
-} // namespace structop
 
 /// \brief Constructs insert-value expression. Non-simplifying
 inline Expr mkInsertVal(Expr st, unsigned idx, Expr v) {
   mpz_class idxZ(idx);
-  expr::mk<INSERT_VALUE>(st, mkTerm(idxZ, st->efac()), v);
+  return expr::mk<INSERT_VALUE>(st, mkTerm(idxZ, st->efac()), v);
 }
 
 /// \brief Constructs extract-value expression. Non-simplifying.
 inline Expr mkExtractVal(Expr st, unsigned idx) {
   mpz_class idxZ(idx);
-  expr::mk<EXTRACT_VALUE>(st, mkTerm(idxZ, st->efac()));
+  return expr::mk<EXTRACT_VALUE>(st, mkTerm(idxZ, st->efac()));
 }
 
 /// \brief insert-value at a given index. Simplifying.
@@ -45,7 +44,7 @@ inline Expr insertVal(Expr st, unsigned idx, Expr v) {
   assert(idx < st->arity());
   ExprVector kids(st->args_begin(), st->args_end());
   kids[idx] = v;
-  return structop::mk(kids);
+  return strct::mk(kids);
 }
 
 /// \breif extract-value from a given index. Simplifying.
@@ -58,6 +57,30 @@ inline Expr extractVal(Expr st, unsigned idx) {
 /// \brief Returns true if \p st is a struct value
 inline bool isStructVal(Expr st) { return isOp<MK_STRUCT>(st); }
 
+inline Expr push_ite_struct(Expr c, Expr lhs, Expr rhs) {
+  assert(isStructVal(lhs));
+  assert(isStructVal(rhs));
+  assert(lhs->arity() == rhs->arity());
+
+  llvm::SmallVector<Expr, 8> vals;
+  for (unsigned i = 0, sz = lhs->arity(); i < sz; ++i) {
+    vals.push_back(boolop::lite(c, lhs->arg(i), rhs->arg(i)));
+  }
+  return strct::mk(vals);
+}
+
+inline Expr mkEq(Expr lhs, Expr rhs) {
+  if (isStructVal(lhs) && isStructVal(rhs) && lhs->arity() == rhs->arity()) {
+    llvm::SmallVector<Expr, 8> kids;
+    for(unsigned i = 0, sz = lhs->arity(); i < sz; ++i) {
+      kids.push_back(mkEq(lhs->arg(i), rhs->arg(i)));
+    }
+    return mknary<AND>(mk<TRUE>(lhs->efac()), kids.begin(), kids.end());
+  }
+  return mk<EQ>(lhs, rhs);
+}
+
+} // namespace strct
 } // namespace op
 
 

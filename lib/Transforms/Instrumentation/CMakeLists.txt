@@ -1,9 +1,7 @@
 add_llvm_library(SeaInstrumentation
   MixedSemantics.cc
   NondetInit.cc
-  ShadowMemDsa.cc
-  ShadowMemSeaDsa.cc
-  ShadowMemSeaDsa.deprecated.cc
+  LlvmDsaShadowMem.cc
   MarkFnEntry.cc
   EnumVerifierCalls.cc
   StripLifetime.cc

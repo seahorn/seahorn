@@ -111,15 +111,15 @@ namespace seahorn {
     ZParams<EZ3> params (hm.getZContext ());
     params.set(":engine", ChcEngine);
     // -- disable slicing so that we can use cover
-    params.set (":xform.slice", false); // z3 default true
+    params.set (":xform.slice", false);
     // params.set (":spacer.reset_obligation_queue", true);
     // params.set (":pdr.flexible_trace", FlexTrace);
     params.set (":xform.inline-linear", false);
     params.set (":xform.inline-eager", false);
     // -- disable propagate_variable_equivalences in tail_simplifier
-    params.set (":xform.tail_simplifier_pve", false); // z3 default true
+    params.set (":xform.tail_simplifier_pve", false);
     params.set (":xform.subsumption_checker", Subsumption);
-    params.set(":spacer.order_children", HornChildren ? 1U : 0U); // z3 default 0
+    params.set(":spacer.order_children", HornChildren ? 1U : 0U);
     params.set(":spacer.max_num_contexts", PdrContexts);
     params.set(":spacer.elim_aux", true);
     params.set(":spacer.reach_dnf", true);
@@ -127,15 +127,15 @@ namespace seahorn {
     params.set(":spacer.use_bg_invs",
 	       UseInvariant == solver_detail::INACTIVE ||
 	       UseInvariant == solver_detail::BG_ONLY);
-    params.set(":spacer.weak_abs", WeakAbs); //z3 default false
-    params.set(":spacer.mbqi", UseMbqi); //z3 default true
+    params.set(":spacer.weak_abs", WeakAbs);
+    params.set(":spacer.mbqi", UseMbqi);
     params.set(":spacer.iuc", IUC);
     params.set(":spacer.iuc.arith", IUCArith);
     // -- less incremental but constraints are popped after pushed in
     //    the solver
-    params.set(":spacer.keep_proxy", KeepProxy); // z3 default true
+    params.set(":spacer.keep_proxy", KeepProxy);
     params.set(":spacer.ground_pobs", false);
-    params.set(":spacer.use_euf_gen", UseEufGen); // z3 default false
+    params.set(":spacer.use_euf_gen", UseEufGen);
     params.set(":spacer.max_level", HornMaxDepth);
     fp.set (params);
 

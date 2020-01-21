@@ -33,20 +33,22 @@
 using namespace llvm;
 
 #define DEBUG_TYPE "sea-bounds-checking"
+
+#ifdef FAT_USE_FP
 #define SEA_SET_FAT_SLOT0 "__sea_set_extptr_slot0_fp"
 #define SEA_GET_FAT_SLOT0 "__sea_get_extptr_slot0_fp"
 #define SEA_SET_FAT_SLOT1 "__sea_set_extptr_slot1_fp"
 #define SEA_GET_FAT_SLOT1 "__sea_get_extptr_slot1_fp"
 #define SEA_COPY_FAT_SLOTS "__sea_copy_extptr_slots_fp"
 #define SEA_RECOVER_FAT_PTR "__sea_recover_pointer_fp"
-
+#else
 #define SEA_SET_FAT_SLOT0 "__sea_set_extptr_slot0_hm"
 #define SEA_GET_FAT_SLOT0 "__sea_get_extptr_slot0_hm"
 #define SEA_SET_FAT_SLOT1 "__sea_set_extptr_slot1_hm"
 #define SEA_GET_FAT_SLOT1 "__sea_get_extptr_slot1_hm"
 #define SEA_COPY_FAT_SLOTS "__sea_copy_extptr_slots_hm"
 #define SEA_RECOVER_FAT_PTR "__sea_recover_pointer_hm"
-
+#endif
 
 //static cl::opt<bool> SingleErrorBB("bounds-checking-single-trap",
 //                                  cl::desc("Use one trap block per function"));
@@ -90,7 +92,7 @@ private:
   void emitBranchToTrap(Value *Cmp = nullptr);
   bool instrument(Value *Ptr, Value *Val, const DataLayout &DL);
   bool instrumentAddress(Value *Ptr, const DataLayout &DL, Value *BasePtr = nullptr);
-  Value* memToShadow(Value *mem, BuilderTy *builder);
+  // Value* memToShadow(Value *mem, BuilderTy *builder);
 };
 }
 

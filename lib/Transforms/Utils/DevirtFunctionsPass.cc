@@ -13,7 +13,7 @@
 #include "llvm/Support/raw_ostream.h"
 
 static llvm::cl::opt<bool>
-    AllowIndirectCalls("allow-indirect-calls",
+    AllowIndirectCalls("devirt-allow-indirect-calls",
                        llvm::cl::desc("Allow creation of indirect calls "
                                       "during devirtualization "
                                       "(required for soundness)"),
@@ -39,23 +39,23 @@ public:
   virtual bool runOnModule(Module &M) {
     // -- Get the call graph
     CallGraph *CG = &(getAnalysis<CallGraphWrapperPass>().getCallGraph());
-    DevirtualizeFunctions DF(CG);
+    DevirtualizeFunctions DF(CG, AllowIndirectCalls);
     bool res = false;
     CallSiteResolver *CSR = nullptr;
 
     if (ResolveCallsByCHA) {
       LOG("devirt", errs() << "Devirtualizing indirect calls using CHA ...\n";);
-      // -- Resolve all the indirect calls using CHA
+      // -- Resolve first all the indirect calls using CHA
       CallSiteResolverByCHA csr_cha(M);
       CSR = &csr_cha;
-      res |= DF.resolveCallSites(M, CSR, AllowIndirectCalls);
+      res |= DF.resolveCallSites(M, CSR);
     }
 
     LOG("devirt", errs() << "Devirtualizing indirect calls using types ...\n";);
     // -- Resolve the rest of indirect calls using types
     CallSiteResolverByTypes csr_types(M);
     CSR = &csr_types;
-    res |= DF.resolveCallSites(M, CSR, AllowIndirectCalls);
+    res |= DF.resolveCallSites(M, CSR);
 
     return res;
   }

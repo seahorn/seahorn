@@ -1,4 +1,4 @@
-// RUN: %sea pf -O0 --devirt-functions=types "%s"  2>&1 | OutputCheck %s
+// RUN: %sea pf -O0 --devirt-functions=sea-dsa "%s"  2>&1 | OutputCheck %s
 // CHECK: ^unsat$
 
 #include "seahorn/seahorn.h"
@@ -28,7 +28,7 @@ int main(int argc, char** argv) {
 
   // If we resolve based only on types then we cannot prove this one.
   // Using aliasing we should be able to prove it.
-  //sassert(y>= 15);      
+  sassert(y>= 15);      
   return 0;
 }
 

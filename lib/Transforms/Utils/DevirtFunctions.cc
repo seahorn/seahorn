@@ -4,9 +4,14 @@
 #include "seahorn/Analysis/ClassHierarchyAnalysis.hh"
 #include "seahorn/Support/SeaDebug.h"
 #include "seahorn/Transforms/Utils/Local.hh"
+
 #include "llvm/Analysis/CallGraph.h"
+#include "llvm/IR/InstIterator.h"
+
+#include "sea_dsa/CompleteCallGraph.hh"
 
 using namespace llvm;
+using namespace sea_dsa;
 
 namespace seahorn {
 
@@ -61,6 +66,8 @@ AliasSetId typeAliasId(const Function &F) {
  * Begin specific callsites resolvers
  ***/
 
+
+/** begin Resolver by only types */
 CallSiteResolverByTypes::CallSiteResolverByTypes(Module &M)
   : CallSiteResolver(CallSiteResolverKind::RESOLVER_TYPES), m_M(M) {
   populateTypeAliasSets();
@@ -104,11 +111,14 @@ void CallSiteResolverByTypes::populateTypeAliasSets() {
   }
 }
 
-void CallSiteResolverByTypes::getTargets(CallSite &CS, AliasSet &out) {
+const CallSiteResolverByTypes::AliasSet*
+CallSiteResolverByTypes::getTargets(CallSite &CS)  {
   AliasSetId id = devirt_impl::typeAliasId(CS);
   auto it = m_targets_map.find(id);
   if (it != m_targets_map.end()) {
-    std::copy(it->second.begin(), it->second.end(), std::back_inserter(out));
+    return &it->second;
+  } else {
+    return nullptr;
   }
 }
 
@@ -126,8 +136,142 @@ void CallSiteResolverByTypes::cacheBounceFunction(CallSite&CS, Function* bounce)
   AliasSetId id = devirt_impl::typeAliasId(CS);    
   m_bounce_map.insert({id, bounce});
 }
+/** end Resolver by only types */
 
+/** begin Resolver by dsa+types */
+CallSiteResolverByDsa::CallSiteResolverByDsa(Module& M,
+					     CompleteCallGraphAnalysis& dsa,
+					     bool incomplete)
+  : CallSiteResolverByTypes(M)
+  , m_M(M), m_dsa(dsa), m_allow_incomplete(incomplete) {
+    
+  CallSiteResolver::m_kind = CallSiteResolverKind::RESOLVER_SEA_DSA;
+  
+  // build the target map
+  unsigned num_indirect_calls = 0;
+  unsigned num_complete_calls = 0;
+  unsigned num_resolved_calls = 0;
+  
+  for (auto &F: m_M) {
+    for (auto &I: llvm::make_range(inst_begin(&F), inst_end(&F))) {
+      if (!isa<CallInst>(&I) && !isa<InvokeInst>(&I))
+	continue;
+      CallSite CS(&I);
+      if (isIndirectCall(CS)) {
+	num_indirect_calls++;
+	if (m_allow_incomplete || m_dsa.isComplete(CS)) {
+	  num_complete_calls++;
+	  AliasSet dsa_targets;
+	  dsa_targets.append(m_dsa.begin(CS), m_dsa.end(CS));
+	  if (dsa_targets.empty()) {
+	    //m_stats.m_num_dsa_unresolved++;
+	    LOG("devirt", errs()
+		<< "WARNING Devirt (dsa): does not have any target for "
+		<< *(CS.getInstruction()) << "\n";);
+	    continue;
+	  }
+	  std::sort(dsa_targets.begin(), dsa_targets.end());
+	  
+	  LOG("devirt",
+	      errs() << "\nDsa-based targets: \n";
+	      for(auto F: dsa_targets) {
+		errs() << "\t" << F->getName() << "::" << *(F->getType()) << "\n";
+	      });
 
+	  const AliasSet* types_targets = CallSiteResolverByTypes::getTargets(CS);
+	  if (types_targets && !types_targets->empty()) {
+	    
+	    LOG("devirt",
+		errs() << "Type-based targets: \n";
+		for(auto F: *types_targets) {
+		  errs() << "\t" << F->getName() << "::" << *(F->getType())
+			 << "\n";
+		});
+	    
+	    // --- We filter out those dsa targets whose signature do not match.
+	    AliasSet refined_dsa_targets;
+	    std::set_intersection(dsa_targets.begin(), dsa_targets.end(),
+				  types_targets->begin(), types_targets->end(),
+				  std::back_inserter(refined_dsa_targets));
+	    if (refined_dsa_targets.empty()) {
+	      //m_stats.m_num_type_unresolved++;		  		    
+	      LOG("devirt",
+		  errs() << "WARNING Devirt (dsa): cannot resolve "
+		         << *(CS.getInstruction())
+		         << " after refining dsa targets with callsite type\n";);
+	    } else {
+	      num_resolved_calls++;
+	      m_targets_map.insert({CS.getInstruction(), refined_dsa_targets});
+	      LOG("devirt",
+		  errs() << "Devirt (dsa) resolved " << *(CS.getInstruction())
+		         << " with targets: \n";
+		  for(auto F: refined_dsa_targets) {
+		    errs() << "\t" << F->getName() << "::"
+			   << *(F->getType()) << "\n";  
+		  });
+	    }
+	  } else {
+	    //m_stats.m_num_type_unresolved++;		  
+	    LOG("devirt",
+		errs() << "WARNING Devirt (dsa): cannot resolve "
+		       << *(CS.getInstruction())
+		       << " because there is no function with same callsite type\n";);
+	  }
+	} else {
+	  //m_stats.m_num_dsa_unresolved++;
+	  LOG("devirt",
+	      errs() << "WARNING Devirt (dsa): cannot resolve "
+	             << *(CS.getInstruction())
+	             << " because the corresponding dsa node is not complete\n";
+	      
+	      AliasSet targets;
+	      targets.append(m_dsa.begin(CS), m_dsa.end(CS));
+	      errs() << "Dsa-based targets: \n";
+	      for(auto F: targets) {
+		errs() << "\t" << F->getName() << "::" << *(F->getType()) << "\n";
+	      };);
+	}
+      }
+    }
+  }
+}
+  
+const CallSiteResolverByDsa::AliasSet*
+CallSiteResolverByDsa::getTargets(CallSite& CS) {
+  auto it = m_targets_map.find(CS.getInstruction());
+  if (it != m_targets_map.end()) {
+    return &it->second;
+  } else {
+    return nullptr;
+  }
+}
+
+Function* CallSiteResolverByDsa::getBounceFunction(CallSite&CS) {
+  AliasSetId id = devirt_impl::typeAliasId(CS);
+  auto it = m_bounce_map.find(id);
+  if (it != m_bounce_map.end()) {
+    const AliasSet* cachedTargets = it->second.first;
+    const AliasSet* Targets = getTargets(CS);
+    if (cachedTargets && Targets) {
+      if (std::equal(cachedTargets->begin(), cachedTargets->end(),
+		     Targets->begin())) {
+	return it->second.second;
+      }
+    }
+  }
+  return nullptr;
+}
+  
+void CallSiteResolverByDsa::cacheBounceFunction(CallSite& CS, Function* bounce) {
+  const AliasSet* Targets = getTargets(CS);
+  if (Targets) {
+    AliasSetId id = devirt_impl::typeAliasId(CS);      
+    m_bounce_map.insert({id, {Targets, bounce}});
+  }
+}
+/** end Resolver by dsa+types */
+
+/** begin Resolver by class hierarchy analysis */
 CallSiteResolverByCHA::CallSiteResolverByCHA(Module &M)
     : CallSiteResolver(CallSiteResolverKind::RESOLVER_CHA),
       m_cha(make_unique<ClassHierarchyAnalysis>(M)) {
@@ -139,8 +283,13 @@ CallSiteResolverByCHA::CallSiteResolverByCHA(Module &M)
 
 CallSiteResolverByCHA::~CallSiteResolverByCHA() = default;
 
-void CallSiteResolverByCHA::getTargets(CallSite &CS, AliasSet &out) {
-  m_cha->resolveVirtualCall(CS, out);
+const CallSiteResolverByCHA::AliasSet*
+CallSiteResolverByCHA::getTargets(CallSite &CS) {
+  ImmutableCallSite ICS(CS.getInstruction());
+  if (!m_cha->isVCallResolved(ICS))
+    return nullptr;
+
+  return &(m_cha->getVCallCallees(ICS));
 }
 
 Function* CallSiteResolverByCHA::getBounceFunction(CallSite& CS) {
@@ -154,6 +303,7 @@ Function* CallSiteResolverByCHA::getBounceFunction(CallSite& CS) {
 void CallSiteResolverByCHA::cacheBounceFunction(CallSite&CS, Function* bounce) {
   // do nothing for now
 }
+/** end Resolver by class hierarchy analysis */
 
 /***
  * End specific callsites resolver
@@ -210,9 +360,8 @@ Function *DevirtualizeFunctions::mkBounceFn(CallSite &CS, CallSiteResolver *CSR)
     return bounce;
   }
     
-  AliasSet Targets;
-  CSR->getTargets(CS, Targets);
-  if (Targets.empty()) {
+  const AliasSet* Targets = CSR->getTargets(CS);
+  if (!Targets || Targets->empty()) {
     // cannot resolve the indirect call
     return nullptr;
   }
@@ -220,7 +369,7 @@ Function *DevirtualizeFunctions::mkBounceFn(CallSite &CS, CallSiteResolver *CSR)
   LOG("devirt", errs() << "Building a bounce for call site:\n"
                        << *CS.getInstruction() << " using:\n";
       for (auto &f
-           : Targets) {
+           : *Targets) {
         errs() << "\t" << f->getName() << " :: " << *(f->getType()) << "\n";
       });
 
@@ -259,7 +408,7 @@ Function *DevirtualizeFunctions::mkBounceFn(CallSite &CS, CallSiteResolver *CSR)
   // For each function target, create a basic block that will call that
   // function directly.
   DenseMap<const Function *, BasicBlock *> targets;
-  for (const Function *FL : Targets) {
+  for (const Function *FL : *Targets) {
     // Create the basic block for doing the direct call
     BasicBlock *BL = BasicBlock::Create(M->getContext(), FL->getName(), F);
     targets[FL] = BL;
@@ -333,7 +482,7 @@ Function *DevirtualizeFunctions::mkBounceFn(CallSite &CS, CallSiteResolver *CSR)
   Type *VoidPtrType = getVoidPtrType(M->getContext());
   Value *FArg = castTo(&*(F->arg_begin()), VoidPtrType, "", InsertPt);
   BasicBlock *tailBB = defaultBB;
-  for (const Function *FL : Targets) {
+  for (const Function *FL : *Targets) {
 
     // Cast the function pointer to an integer.  This can go in the entry
     // block.

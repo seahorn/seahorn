@@ -1,4 +1,4 @@
-// RUN: %sea abc -O3 --devirt-functions --abc-surface-only  --lower-invoke --symbolize-constant-loop-bounds --simplify-pointer-loops --abc-encoding=%abc_encoding %dsa "%s" %abc3_definitions 2>&1 | OutputCheck %s
+// RUN: %sea abc -O3 --devirt-functions=types --abc-surface-only  --lower-invoke --symbolize-constant-loop-bounds --simplify-pointer-loops --abc-encoding=%abc_encoding %dsa "%s" %abc3_definitions 2>&1 | OutputCheck %s
 // CHECK: ^unsat$
 
 #define N 10

@@ -325,12 +325,18 @@ class Seapp(sea.LimitedCmd):
                         help='Do not lower global initializers',
                         default=False,
                         action='store_true')
-        ap.add_argument ('--devirt-functions',
-                         help='Devirtualize indirect functions using only types',
-                         dest='devirt_funcs', default=False,
-                         action='store_true')
+        ap.add_argument('--devirt-functions',
+                        help="Devirtualize indirect calls (needed for soundness):\n"
+                        "- none : do not resolve indirect calls (default)\n"
+                        "- types: select all functions with same type signature\n"
+                        "- sea-dsa: use sea-dsa+types analysis to select the callees\n",
+                        dest='devirt_funcs',
+                        choices=['none','types','sea-dsa'],
+                        default='none')
         ap.add_argument ('--devirt-functions-with-cha',
-                         help='Devirtualize indirect functions using CHA (for C++) followed by types',
+                         help="Devirtualize indirect functions using CHA (for C++). "
+                         "This method only inspects the virtual tables to devirtualize. "
+                         "Use --devirt-function to devirtualize other calls",
                          dest='devirt_funcs_cha', default=False,
                          action='store_true')
         ap.add_argument ('--lower-assert',
@@ -417,8 +423,10 @@ class Seapp(sea.LimitedCmd):
             if args.no_lower_gv_init:
                 argv.append('--lower-gv-init=false')
 
-            if args.devirt_funcs_cha or args.devirt_funcs:
+            if args.devirt_funcs_cha or args.devirt_funcs != 'none':
                 argv.append ('--devirt-functions')
+            if args.devirt_funcs != 'none':
+                argv.append ('--devirt-functions-method={0}'.format(args.devirt_funcs))
             if args.devirt_funcs_cha:
                 argv.append ('--devirt-functions-with-cha')
 

@@ -7,6 +7,7 @@
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/IR/CallSite.h"
 #include "llvm/IR/Constants.h"
+#include "llvm/IR/InstIterator.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/Value.h"
 
@@ -223,10 +224,10 @@ public:
 
   void calculate(void);
 
-  // it's not const because it updates some counters for stats
-  bool resolveVirtualCall(const llvm::ImmutableCallSite &CS,
-                          function_vector_t &out);
+  bool isVCallResolved(const llvm::ImmutableCallSite &CS) const;
 
+  const function_vector_t& getVCallCallees(const llvm::ImmutableCallSite &CS);
+  
   void printVtables(raw_ostream &o) const;
 
   void printClassHierarchy(raw_ostream &o) const;
@@ -238,12 +239,18 @@ private:
       DenseMap<const StructType *, SmallSet<const StructType *, 16>>;
   using vtable_t = SmallVector<Function *, 16>;
   using vtable_map_t = DenseMap<const StructType *, vtable_t>;
-
+  using resolution_table_t = DenseMap<const Instruction*, function_vector_t>;
+  
   Module &m_module;
   // -- class hierarchy graph (CHG)
   graph_t m_graph;
   // -- vtables
   vtable_map_t m_vtables;
+  // -- remember resolved callsites that look like virtual calls
+  DenseSet<const Instruction*> m_resolved_virtual_calls;
+  // -- map a callsite to the set of all possible callees if the
+  // -- callsite is a virtual call.
+  resolution_table_t m_resolution_table;
 
   // some counters for stats
   unsigned m_num_graph_nodes;
@@ -276,6 +283,10 @@ private:
                             const FunctionType *callsite_type,
                             SmallSet<Function *, 16> &out) const;
 
+  // it's not const because it updates some counters for stats
+  bool resolveVirtualCall(const llvm::ImmutableCallSite &CS,
+                          function_vector_t &out);
+  
   static int getVtableIndex(const ImmutableCallSite &CS);
 
   static bool matchVirtualSignature(const llvm::FunctionType *type_call,
@@ -552,10 +563,23 @@ void ClassHierarchyAnalysis_Impl::buildVtables(void) {
   } // end outer loop
 }
 
-void ClassHierarchyAnalysis_Impl::calculate() {
+void ClassHierarchyAnalysis_Impl::calculate(void) {
   buildCHG();
   buildVtables();
   closureCHG();
+
+  for (auto &F: m_module) {
+    for (auto &I: llvm::make_range(inst_begin(&F), inst_end(&F))) {
+      if (!isa<CallInst>(&I) && !isa<InvokeInst>(&I))
+	continue;
+      ImmutableCallSite CS(&I);
+      function_vector_t callees;
+      if (resolveVirtualCall(CS, callees)) {
+	m_resolved_virtual_calls.insert(CS.getInstruction());
+	m_resolution_table.insert(std::make_pair(CS.getInstruction(), callees));
+      }
+    }
+  }
 }
 
 // In general, type_call and type_candidate are different because of the first
@@ -731,6 +755,16 @@ void ClassHierarchyAnalysis_Impl::printClassHierarchy(raw_ostream &o) const {
   }
 }
 
+bool ClassHierarchyAnalysis_Impl::
+isVCallResolved(const llvm::ImmutableCallSite &CS) const {
+  return m_resolved_virtual_calls.count(CS.getInstruction()) > 0;
+}
+
+const ClassHierarchyAnalysis_Impl::function_vector_t&
+ClassHierarchyAnalysis_Impl::getVCallCallees(const llvm::ImmutableCallSite &CS) {
+  return m_resolution_table[CS.getInstruction()];
+}
+
 void ClassHierarchyAnalysis_Impl::printStats(raw_ostream &o) const {
   errs() << "=== CHA stats===\n";
   errs() << "BRUNCH_STAT GRAPH NUMBER NODES " << m_num_graph_nodes << "\n";
@@ -747,19 +781,23 @@ void ClassHierarchyAnalysis_Impl::printStats(raw_ostream &o) const {
 
 /** ClassHierarchyAnalysis methods **/
 ClassHierarchyAnalysis::ClassHierarchyAnalysis(Module &M)
-    : m_cha_impl(new ClassHierarchyAnalysis_Impl(M)) {}
+  : m_cha_impl(make_unique<ClassHierarchyAnalysis_Impl>(M)) {}
 
-ClassHierarchyAnalysis::~ClassHierarchyAnalysis() {
-  if (m_cha_impl) {
-    delete m_cha_impl;
-  }
+ClassHierarchyAnalysis::~ClassHierarchyAnalysis(void) {
 }
 
-void ClassHierarchyAnalysis::calculate(void) { m_cha_impl->calculate(); }
+void ClassHierarchyAnalysis::calculate(void) {
+  m_cha_impl->calculate();
+}
 
-bool ClassHierarchyAnalysis::resolveVirtualCall(const ImmutableCallSite &CS,
-                                                function_vector_t &out) {
-  return m_cha_impl->resolveVirtualCall(CS, out);
+bool ClassHierarchyAnalysis::
+isVCallResolved(const llvm::ImmutableCallSite &CS) const {
+  return m_cha_impl->isVCallResolved(CS);
+}
+
+const ClassHierarchyAnalysis::function_vector_t&
+ClassHierarchyAnalysis::getVCallCallees(const llvm::ImmutableCallSite &CS) {
+  return m_cha_impl->getVCallCallees(CS);
 }
 
 void ClassHierarchyAnalysis::printClassHierarchy(raw_ostream &o) const {
@@ -777,19 +815,15 @@ void ClassHierarchyAnalysis::printStats(raw_ostream &o) const {
 /** LLVM pass **/
 class ClassHierarchyAnalysisPass : public ModulePass {
 public:
-  using function_vector_t = ClassHierarchyAnalysis::function_vector_t;
   static char ID;
 
-  ClassHierarchyAnalysisPass() : ModulePass(ID), m_cha(nullptr) {}
+  ClassHierarchyAnalysisPass()
+    : ModulePass(ID), m_cha(nullptr) {}
 
-  ~ClassHierarchyAnalysisPass() {
-    if (m_cha) {
-      delete m_cha;
-    }
-  }
+  ~ClassHierarchyAnalysisPass() = default;
 
   bool runOnModule(Module &M) {
-    m_cha = new ClassHierarchyAnalysis(M);
+    m_cha.reset(new ClassHierarchyAnalysis(M));
     m_cha->calculate();
 
     errs() << "=== Class Hierarchy Graph ===\n";
@@ -798,26 +832,25 @@ public:
     m_cha->printVtables(errs());
     errs() << "\n=== Devirtualization===\n";
     for (auto &F : M) {
-      for (auto &BB : F) {
-        for (auto &I : BB) {
-          if (isa<CallInst>(I) || isa<InvokeInst>(I)) {
-            ImmutableCallSite CS(&I);
-            function_vector_t callees;
-            if (m_cha->resolveVirtualCall(CS, callees)) {
-              errs() << "** Found virtual call " << I << "\n";
-              if (callees.empty()) {
-                errs() << "\tno found callees\n";
-              } else {
-                errs() << "\tpossible callees:\n";
-                for (unsigned i = 0, e = callees.size(); i < e; ++i) {
-                  auto f = callees[i];
-                  errs() << "\t\t" << cxx_demangle(f->getName().str()) << " "
-                         << *(f->getType()) << "\n";
-                }
-              }
-            }
-          }
-        }
+      for (auto &I: llvm::make_range(inst_begin(&F), inst_end(&F))) {
+	if (!isa<CallInst>(&I) && !isa<InvokeInst>(&I))
+	  continue;
+	ImmutableCallSite CS(&I);
+	if (!m_cha->isVCallResolved(CS)) {
+	  continue;
+	}
+	auto const& callees = m_cha->getVCallCallees(CS);
+	errs() << "** Found virtual call " << I << "\n";
+	if (callees.empty()) {
+	  errs() << "\tno found callees\n";
+	} else {
+	  errs() << "\tpossible callees:\n";
+	  for (unsigned i = 0, e = callees.size(); i < e; ++i) {
+	    auto f = callees[i];
+	    errs() << "\t\t" << cxx_demangle(f->getName().str()) << " "
+		   << *(f->getType()) << "\n";
+	  }
+	}
       }
     }
 
@@ -826,14 +859,16 @@ public:
     return false;
   }
 
-  void getAnalysisUsage(AnalysisUsage &AU) const { AU.setPreservesAll(); }
-
-  bool resolveVirtualCall(const ImmutableCallSite &CS, function_vector_t &out) {
-    return m_cha->resolveVirtualCall(CS, out);
+  void getAnalysisUsage(AnalysisUsage &AU) const {
+    AU.setPreservesAll();
   }
 
+  const ClassHierarchyAnalysis& getCHA() const {
+    return *m_cha;
+  }
+  
 private:
-  ClassHierarchyAnalysis *m_cha;
+  std::unique_ptr<ClassHierarchyAnalysis> m_cha;
 };
 
 char ClassHierarchyAnalysisPass::ID = 0;

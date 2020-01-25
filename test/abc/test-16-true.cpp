@@ -1,5 +1,5 @@
 /*
- * /ag/git/seahorn/build/run/bin/sea pf -O3 -g --lower-invoke  --devirt-functions  --enable-indvar --enable-loop-idiom  --abc=2 test-15-true.cpp  --show-invars --horn-global-constraints=true --horn-singleton-aliases=true --horn-make-undef-warning-error=false --abc-dsa-node=0 --abc=2 --abc-disable-underflow --track=mem --horn-stats  --verbose=1 [-DCONVERGE]
+ * /ag/git/seahorn/build/run/bin/sea pf -O3 -g --lower-invoke  --devirt-functions=types  --enable-indvar --enable-loop-idiom  --abc=2 test-15-true.cpp  --show-invars --horn-global-constraints=true --horn-singleton-aliases=true --horn-make-undef-warning-error=false --abc-dsa-node=0 --abc=2 --abc-disable-underflow --track=mem --horn-stats  --verbose=1 [-DCONVERGE]
  *
  * Converges with -DCONVERGE. Diverges otherwise.
  * */

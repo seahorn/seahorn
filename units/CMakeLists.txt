@@ -6,7 +6,6 @@ include (CTest)
 set (USED_LIBS_Z3_TESTS
   SeaSmt
   SeaSupport
-  ${Z3_LIBRARY}
   ${SEA_DSA_LIBS}
   ${LLVM_SEAHORN_LIBS}
   ${Boost_SYSTEM_LIBRARY}

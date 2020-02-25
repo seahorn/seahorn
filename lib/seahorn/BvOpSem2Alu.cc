@@ -140,6 +140,59 @@ public:
     return bv::sext(op, bitWidth);
   }
 
+  Expr Extract(std::pair<Expr, unsigned int> op, unsigned begin, unsigned end) {
+    Expr res = bv::extract(end, begin, op.first);
+    return (end == begin) ? bv1ToBool(res) : res;
+  }
+
+  Expr Concat(std::pair<Expr, unsigned int> opHigh,
+              std::pair<Expr, unsigned int> opLow) {
+    Expr opHighBv = opHigh.second == 1 ? boolToBv1(opHigh.first) : opHigh.first;
+    Expr opLowBv = opLow.second == 1 ? boolToBv1(opLow.first) : opLow.first;
+    return bv::concat(opHighBv, opLowBv);
+  }
+
+  Expr IsSaddNoOverflow(Expr op0, Expr op1, unsigned bitWidth) {
+    return mk<SADD_NO_OVERFLOW>(op0, op1);
+  }
+
+  Expr IsBaddNoUnderflow(Expr op0, Expr op1, unsigned bidWidth) {
+    return mk<SADD_NO_UNDERFLOW>(op0, op1);
+  }
+
+  Expr IsUaddNoOverflow(Expr op0, Expr op1, unsigned bidWidth) {
+    return mk<UADD_NO_OVERFLOW>(op0, op1);
+  }
+
+  Expr IsBsubNoOverflow(Expr op0, Expr op1, unsigned bitWidth) {
+    return mk<SSUB_NO_OVERFLOW>(op0, op1);
+  }
+
+  Expr IsSsubNoUnderflow(Expr op0, Expr op1, unsigned bidWidth) {
+    return mk<SSUB_NO_UNDERFLOW>(op0, op1);
+  }
+
+  Expr IsUsubNoUnderflow(Expr op0, Expr op1, unsigned bidWidth) {
+    return mk<USUB_NO_UNDERFLOW>(op0, op1);
+  }
+
+  Expr IsSmulNoOverflow(Expr op0, Expr op1, unsigned bidWidth) {
+    return mk<SMUL_NO_OVERFLOW>(op0, op1);
+  }
+
+  Expr IsUmulNoOverflow(Expr op0, Expr op1, unsigned bidWidth) {
+    return mk<UMUL_NO_OVERFLOW>(op0, op1);
+  }
+
+  Expr IsBmulNoUnderflow(Expr op0, Expr op1, unsigned bidWidth) {
+    return mk<SMUL_NO_UNDERFLOW>(op0, op1);
+  }
+
+
+  Expr doNot(Expr op0, unsigned bitWidth) {
+    return bitWidth == 1 ? mk<NEG>(op0) : bv::bvnot(op0);
+  }
+
   Expr boolToBv1(Expr b) {
     if (isOpX<TRUE>(b))
       return m_trueBv1;

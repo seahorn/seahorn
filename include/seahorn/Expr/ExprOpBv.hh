@@ -52,8 +52,8 @@ template <> struct TerminalTrait<const op::bv::BvSort> {
 
   static inline size_t hash(const op::bv::BvSort &b) { return b.hash(); }
 
-  static TerminalKind getKind() {return TerminalKind::BVSORT;}
-  static std::string name() {return "op::bv::BvSort";}
+  static TerminalKind getKind() { return TerminalKind::BVSORT; }
+  static std::string name() { return "op::bv::BvSort"; }
 };
 
 namespace op {
@@ -107,9 +107,7 @@ inline Expr bvConst(Expr v, unsigned width) {
   return bind::mkConst(v, sort);
 }
 
-inline bool isBvConst(Expr v) {
-  return bind::isConst<BVSORT>(v);
-}
+inline bool isBvConst(Expr v) { return bind::isConst<BVSORT>(v); }
 } // namespace bv
 
 enum class BvOpKind {
@@ -152,7 +150,19 @@ enum class BvOpKind {
   BEXT_ROTATE_LEFT,
   BEXT_ROTATE_RIGHT,
   INT2BV,
-  BV2INT
+  BV2INT,
+  // Add overflow
+  SADD_NO_OVERFLOW,
+  UADD_NO_OVERFLOW,
+  SADD_NO_UNDERFLOW,
+  // Sub overflow
+  SSUB_NO_OVERFLOW,
+  SSUB_NO_UNDERFLOW,
+  USUB_NO_UNDERFLOW,
+  // Mul overflow
+  SMUL_NO_OVERFLOW,
+  SMUL_NO_UNDERFLOW,
+  UMUL_NO_OVERFLOW
 };
 
 NOP_BASE(BvOp)
@@ -196,7 +206,18 @@ NOP(BEXT_ROTATE_LEFT, "bvextrotleft", FUNCTIONAL, BvOp)
 NOP(BEXT_ROTATE_RIGHT, "bvextrotright", FUNCTIONAL, BvOp)
 NOP(INT2BV, "int2bv", FUNCTIONAL, BvOp)
 NOP(BV2INT, "bv2int", FUNCTIONAL, BvOp)
-
+// Add w Overflow
+NOP(SADD_NO_OVERFLOW, "bvsadd_no_overflow", FUNCTIONAL, BvOp)
+NOP(UADD_NO_OVERFLOW, "bvuadd_no_overflow", FUNCTIONAL, BvOp)
+NOP(SADD_NO_UNDERFLOW, "bvbadd_no_underflow", FUNCTIONAL, BvOp)
+// Sub w Overflow
+NOP(SSUB_NO_OVERFLOW, "bvbsub_no_overflow", FUNCTIONAL, BvOp)
+NOP(SSUB_NO_UNDERFLOW, "bvssub_no_underflow", FUNCTIONAL, BvOp)
+NOP(USUB_NO_UNDERFLOW, "bvusub_no_underflow", FUNCTIONAL, BvOp)
+// Mul w Overflow
+NOP(SMUL_NO_OVERFLOW, "bvsmul_no_overflow", FUNCTIONAL, BvOp)
+NOP(UMUL_NO_OVERFLOW, "bvumul_no_overflow", FUNCTIONAL, BvOp)
+NOP(SMUL_NO_UNDERFLOW, "bvbmul_no_underflow", FUNCTIONAL, BvOp)
 namespace bv {
 /* XXX Add helper methods as needed */
 
@@ -228,4 +249,3 @@ inline Expr concat(Expr v, Expr u) { return mk<BCONCAT>(v, u); }
 } // namespace bv
 } // namespace op
 } // namespace expr
-

@@ -18,3 +18,6 @@
 /lib/Support/GitSHA1.cc
 .lsp-cache.d
 .mainframer
+.vscode/c_cpp_properties.json
+.vscode/launch.json
+.vscode/settings.json

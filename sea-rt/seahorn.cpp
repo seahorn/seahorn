@@ -168,7 +168,7 @@ void __assert_fail (const char * assertion, const char * file,
   exit(1);
 }
 
-
+// draft
 void* __sea_set_extptr_slot0_fp(void* ptr, size_t base) {
   if (!ptr_base_set) {
     ptr_base_set = true;
@@ -179,6 +179,7 @@ void* __sea_set_extptr_slot0_fp(void* ptr, size_t base) {
   return (void*)packed;
 }
 
+// draft
 void* __sea_set_extptr_slot1_fp(void* ptr, size_t size) {
   if (!ptr_base_set) {
     ptr_base_set = true;
@@ -189,12 +190,14 @@ void* __sea_set_extptr_slot1_fp(void* ptr, size_t size) {
   return (void*)packed;
 }
 
+// draft
 void* __sea_recover_pointer_fp(void* cooked) {
   size_t cleared = (size_t) cooked & 0xffffffffffff;
   size_t recov = cleared | (size_t) ptr_base << 48;
   return (void*) recov;
 }
 
+// draft
 size_t __sea_get_extptr_slot0_fp(void *ptr) {
   size_t raw = (size_t)ptr >> 56; // 8 bits stored only
   void* recov = __sea_recover_pointer_fp(ptr);
@@ -202,11 +205,13 @@ size_t __sea_get_extptr_slot0_fp(void *ptr) {
   return recov_base | raw;
 }
 
+// draft
 size_t __sea_get_extptr_slot1_fp(void *ptr) {
   size_t info_bits = (size_t)ptr >> 48;
   return info_bits & 0xff;
 }
 
+// draft
 void* __sea_copy_extptr_slots_fp(void *dst, void*src) {
   size_t src_info = (size_t)src & 0xffff000000000000;
   size_t dst_addr = (size_t)dst & 0xffffffffffff;

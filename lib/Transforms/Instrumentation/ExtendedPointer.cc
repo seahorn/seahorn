@@ -168,6 +168,17 @@ bool ExtendedPointer::instrument(Value *Ptr, Value *InstVal,
 
   SizeOffsetEvalType SizeOffset = ObjSizeEval->compute(Ptr);
   Value *Or;
+
+  /* Generates code for dynamic bounds check using fat ptr functions:
+    start := call get_fat_slot0(ptr)
+    size  := call get_fat_slot1(ptr)
+    recov := call recover_fatptr(ptr) (optional for fat encoding implementation)
+    is_underflow := (ptr < start)
+    ptr_end = start + size
+    access_end := ptr + needed_size
+    is_overflow := ptr_end < access_end
+    is_access_bad := is_underflow or is_overflow
+  */
   if (!ObjSizeEval->bothKnown(SizeOffset)) {
     WARN << "fatptr instrument " << *Ptr << " for " << Twine(NeededSize) << " bytes\n";
     // get start and end by calling internalized functions
@@ -217,6 +228,11 @@ bool ExtendedPointer::instrumentAddress(Value *Ptr, const DataLayout &DL,
                                         Value *BasePtr) {
   Ptr->setName("raw_ptr");
   Type *resultType;
+  /* BasePtr not provided: processing store instructions
+    with_base := call set_fat_slot0(ptr)
+    with_size_and_base := call set_fat_slot1(with_base)
+    replace_all(ptr, with_size_and_base)
+  */
   if (!BasePtr) {
     if (auto *ALI = dyn_cast<AllocaInst>(Ptr)) {
        resultType = ALI->getAllocatedType();
@@ -260,6 +276,10 @@ bool ExtendedPointer::instrumentAddress(Value *Ptr, const DataLayout &DL,
     withSize->setArgOperand(0, argA);
     withSize->setArgOperand(1, sizeVal);
   } else {
+    /* Additional BasePtr is provided: processing GEP
+      copied := call copy_fat_slots(ptr, base_ptr)
+      replace_all(ptr, copied)
+    */
     // copy_fat_slots(Ptr, BasePtr)
     if (auto *GEP = dyn_cast<GetElementPtrInst>(Ptr)) {
        resultType = GEP->getResultElementType();

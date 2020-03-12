@@ -39,8 +39,6 @@
 #include "seahorn/ClpOpSem.hh"
 #include "seahorn/UfoOpSem.hh"
 
-#include "sea_dsa/CompleteCallGraph.hh"
-
 using namespace llvm;
 using namespace seahorn;
 

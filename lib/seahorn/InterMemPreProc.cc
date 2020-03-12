@@ -1,10 +1,11 @@
+#include "llvm/ADT/SCCIterator.h"
+
 #include "seahorn/InterMemPreProc.hh"
-
-#include "sea_dsa/CallGraphWrapper.hh"
-#include "sea_dsa/Global.hh"
-
 #include "seahorn/Support/SeaDebug.h"
 
+#include "sea_dsa/DsaAnalysis.hh"
+#include "sea_dsa/CallGraphUtils.hh"
+#include "sea_dsa/Global.hh"
 
 namespace {
 
@@ -84,62 +85,67 @@ void mark_nodes_graph(Graph &g, const Function &F, NodeSet &f_safe,
 
 } // namespace
 
+using namespace llvm;
 
 namespace seahorn {
 // -- computes the safe nodes per callsite of a module
 bool InterMemPreProc::runOnModule(Module &M) {
 
-  auto &dsaCallGraph = m_ccg.getCompleteCallGraph();
-  CallGraphWrapper dsaCG(dsaCallGraph);
-
-  dsaCG.buildDependencies(); // TODO: this is already done already in other passes
   const GlobalAnalysis &ga = m_shadowDsa.getDsaAnalysis();
 
-  for (auto &F : M) {
-    if (!ga.hasGraph(F))
-      continue;
+  llvm::CallGraph &cg = m_ccg.getCompleteCallGraph();
+  for (auto it = scc_begin(&cg); !it.isAtEnd(); ++it) {
+    auto &scc = *it;
+    for (CallGraphNode *cgn : scc) {
+      Function *f_caller = cgn->getFunction();
+      if (!f_caller || f_caller->isDeclaration() || f_caller->empty() || !ga.hasGraph(*f_caller))
+        continue;
 
-    // store the context-insensitive unsafe nodes
-    std::unique_ptr<NodeSet> ci_unsafe_callee = llvm::make_unique<NodeSet>();
+      for (auto &callRecord : *cgn) {
+        llvm::Optional<DsaCallSite> dsaCS = call_graph_utils::getDsaCallSite(callRecord);
+        if (!dsaCS.hasValue())
+          continue;
+        DsaCallSite &cs = dsaCS.getValue();
+        const Function * f_callee = cs.getCallee();
+        if (!ga.hasSummaryGraph(*f_callee))
+          continue;
 
-    auto call_sites = dsaCG.getUses(F);
-    LOG("inter_mem", errs() << "Preprocessing " << F.getGlobalIdentifier(););
+        LOG("inter_mem", errs() << "Preprocessing " << f_caller->getGlobalIdentifier(););
 
-    for (auto it = call_sites.begin(); it != call_sites.end(); it++) {
+        ColorMap color_callee, color_caller;
+        NodeSet f_node_safe;
 
-      ColorMap color_callee, color_caller;
-      NodeSet f_node_safe;
+        const Graph &callerG = ga.getGraph(*f_caller);
+        const Graph &calleeG = ga.getSummaryGraph(*f_callee);
 
-      const Function *f_caller = it->getCallSite().getCaller();
+        std::unique_ptr<SimulationMapper> simMap = llvm::make_unique<SimulationMapper>();
 
-      const Graph &callerG = ga.getGraph(*f_caller);
-      const Graph &calleeG = ga.getSummaryGraph(F);
+        Graph::computeCalleeCallerMapping(cs, *(const_cast<Graph *>(&calleeG)),
+                                          *(const_cast<Graph *>(&callerG)),
+                                          *simMap);
 
-      std::unique_ptr<SimulationMapper> simMap =
-          llvm::make_unique<SimulationMapper>();
+        std::unique_ptr<NodeSet> unsafe_callee = llvm::make_unique<NodeSet>();
+        std::unique_ptr<NodeSet> unsafe_caller = llvm::make_unique<NodeSet>();
 
-      Graph::computeCalleeCallerMapping(*it, *(const_cast<Graph *>(&calleeG)),
-                                        *(const_cast<Graph *>(&callerG)),
-                                        *simMap);
+        mark_nodes_graph(*(const_cast<Graph *>(&calleeG)), *f_callee,
+                         *unsafe_callee, *unsafe_caller, *simMap);
 
-      std::unique_ptr<NodeSet> unsafe_callee = llvm::make_unique<NodeSet>();
-      std::unique_ptr<NodeSet> unsafe_caller = llvm::make_unique<NodeSet>();
+        if(m_unsafen_f_callee.find(f_callee) == m_unsafen_f_callee.end()){
+          std::unique_ptr<NodeSet> ci_unsafe = llvm::make_unique<NodeSet>();
+          m_unsafen_f_callee[f_callee] = std::move(ci_unsafe);
+        }
+        NodeSet &ci_unsafe_callee = *m_unsafen_f_callee[f_callee];
 
-      mark_nodes_graph(*(const_cast<Graph *>(&calleeG)), *it->getCallee(),
-                       *unsafe_callee, *unsafe_caller, *simMap);
+        for (auto n : *unsafe_callee)
+          if (!ci_unsafe_callee.count(n))
+            ci_unsafe_callee.insert(n);
 
-      for (auto n : *unsafe_callee)
-        if (!ci_unsafe_callee->count(n))
-          ci_unsafe_callee->insert(n);
-
-      const Instruction *inst = it->getInstruction();
-
-      m_sms[inst] = std::move(simMap);
-      m_unsafen_cs_callee[inst] = std::move(unsafe_callee);
-      m_unsafen_cs_caller[inst] = std::move(unsafe_caller);
-
+        const Instruction * I = cs.getInstruction();
+        m_sms[I] = std::move(simMap);
+        m_unsafen_cs_callee[I] = std::move(unsafe_callee);
+        m_unsafen_cs_caller[I] = std::move(unsafe_caller);
+      }
     }
-    m_unsafen_f_callee[&F] = std::move(ci_unsafe_callee);
   }
   return false;
 }

@@ -1,10 +1,9 @@
 #pragma once
 
-#include "sea_dsa/ShadowMem.hh"
-
 #include "sea_dsa/CompleteCallGraph.hh"
 #include "sea_dsa/DsaColor.hh"
 #include "sea_dsa/Mapper.hh"
+#include "sea_dsa/ShadowMem.hh"
 
 namespace seahorn {
 

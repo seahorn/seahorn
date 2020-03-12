@@ -778,7 +778,7 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
           sorts.clear();
           visitInstruction(*CS.getInstruction());
         } else {
-          errs() << "Modelling " << I << " with an uninterpreted function\n";
+          errs() << "Modeling " << I << " with an uninterpreted function\n";
           Expr name = mkTerm<const Function *>(f, m_efac);
           Expr d = bind::fdecl(name, sorts);
           Expr uf = bind::fapp(d, fargs);
@@ -787,10 +787,12 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
       } else {
         if (m_fparams.size() > 3) {
           m_fparams.resize(3);
-          errs() << "WARNING: skipping a call to " << F.getName()
-                 << " (recursive call?)\n";
+          errs() << "WARNING: a call to " << F.getName()
+                 << " was not inlined which is required by the BMC engine. "
+		 << "Possible reasons: " << F.getName() << " is recursive, "
+		 << "option --inline was not added, or "
+		 << F.getName() << " has \"optnone\" attribute.\n";
         }
-
         visitInstruction(*CS.getInstruction());
       }
     }

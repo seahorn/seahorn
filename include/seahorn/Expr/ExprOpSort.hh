@@ -52,6 +52,9 @@ inline Expr arrayValTy(Expr a) { return a->right(); }
 
 inline Expr structTy(Expr ty) { return mk<STRUCT_TY>(ty); }
 inline Expr structTy(Expr ty1, Expr ty2) { return mk<STRUCT_TY>(ty1, ty2); }
+inline Expr structTy(Expr ty1, Expr ty2, Expr ty3) {
+  return mk<STRUCT_TY>(ty1, ty2, ty3);
+}
 template <typename Range> Expr structTy(const Range &ty) {
   return mknary<STRUCT_TY>(ty);
 }

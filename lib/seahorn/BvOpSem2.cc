@@ -500,7 +500,9 @@ public:
                              f->getName().startswith("verifier.nondet") ||
                              f->getName().startswith("__VERIFIER_nondet")))
         visitNondetCall(CS);
-      else
+      else if (f->getName().startswith("__sea_")) {
+        visitFatPointerInstr(CS);
+      } else
         visitExternalCall(CS);
       return;
     }
@@ -511,6 +513,44 @@ public:
 
     ERR << "unhandled call instruction: " << *CS.getInstruction();
     llvm_unreachable(nullptr);
+  }
+
+  void visitFatPointerInstr(CallSite CS) {
+    const Function *f = getCalledFunction(CS);
+    const Instruction &I = *CS.getInstruction();
+
+    if (f->getName().equals("__sea_set_extptr_slot0_hm")) {
+      Expr ptr = lookup(*CS.getArgument(0));
+      Expr data = lookup(*CS.getArgument(1));
+      Expr res = m_ctx.mem().setFatData(ptr, 0 /*slot */, data);
+      setValue(I, res);
+    } else if (f->getName().equals("__sea_set_extptr_slot1_hm")) {
+      Expr ptr = lookup(*CS.getArgument(0));
+      Expr data = lookup(*CS.getArgument(1));
+      Expr res = m_ctx.mem().setFatData(ptr, 1 /*slot */, data);
+      setValue(I, res);
+    } else if (f->getName().equals("__sea_get_extptr_slot0_hm")) {
+      Expr ptr = lookup(*CS.getArgument(0));
+      Expr res = m_ctx.mem().getFatData(ptr, 0 /*slot */);
+      setValue(I, res);
+    } else if (f->getName().equals("__sea_get_extptr_slot1_hm")) {
+      Expr ptr = lookup(*CS.getArgument(0));
+      Expr res = m_ctx.mem().getFatData(ptr, 1 /*slot */);
+      setValue(I, res);
+    } else if (f->getName().equals("__sea_copy_extptr_slots_hm")) {
+      // convention is copy(dst, src)
+      Expr dst = lookup(*CS.getArgument(0));
+      Expr src = lookup(*CS.getArgument(1));
+
+      Expr slot0_data = m_ctx.mem().getFatData(src, 0 /*slot */);
+      Expr slot1_data = m_ctx.mem().getFatData(src, 1 /*slot */);
+      Expr res = m_ctx.mem().setFatData(dst, 0 /*slot */, slot0_data);
+      res = m_ctx.mem().setFatData(res, 1 /*slot */, slot1_data);
+      setValue(I, res);
+    } else if (f->getName().equals("__sea_recover_pointer_hm")) {
+      Expr fat_ptr = lookup(*CS.getArgument(0));
+      setValue(I, fat_ptr);
+    }
   }
 
   void visitIndirectCall(CallSite CS) {

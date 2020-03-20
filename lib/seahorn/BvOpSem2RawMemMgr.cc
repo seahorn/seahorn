@@ -606,6 +606,14 @@ Expr RawMemManager::ptrNe(PtrTy p1, PtrTy p2) const {
 Expr RawMemManager::ptrSub(PtrTy p1, PtrTy p2) const {
   return m_ctx.alu().doSub(p1, p2, ptrSzInBits());
 }
+Expr RawMemManager::getFatData(PtrTy p, unsigned SlotIdx) {
+  LOG("opsem", WARN << "getFatData() not implemented");
+  return Expr();
+}
+Expr RawMemManager::setFatData(PtrTy p, unsigned SlotIdx, Expr data) {
+  LOG("opsem", WARN << "setFatData() not implemented");
+  return Expr();
+}
 
 /// \brief Executes ptrtoint conversion
 Expr RawMemManager::ptrtoint(PtrTy ptr, const Type &ptrTy,

@@ -654,6 +654,7 @@ public:
   virtual std::pair<char *, unsigned>
   getGlobalVariableInitValue(const llvm::GlobalVariable &gv) = 0;
 
+  /// \brief returns a constant that represents zero-initialized memory region
   virtual Expr zeroedMemory() const = 0;
 
   /// \brief Checks if \p a <= b <= c.
@@ -665,7 +666,11 @@ public:
 
   uint32_t getAlignment(const llvm::Value &v) const { return m_alignment; }
 
-  /// \brief returns a constant that represents zero-initilized memory region
+  /// \brief returns Expr after getting data.
+  virtual Expr getFatData(PtrTy p, unsigned SlotIdx) = 0;
+
+  /// \brief returns Expr after setting data.
+  virtual Expr setFatData(PtrTy p, unsigned SlotIdx, Expr data) = 0;
 };
 
 OpSemMemManager *mkRawMemManager(Bv2OpSem &sem, Bv2OpSemContext &ctx,

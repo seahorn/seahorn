@@ -245,6 +245,12 @@ public:
   }
 
   Expr zeroedMemory() const override;
+
+  /// \brief Get the data for a given slot of a fat pointer
+  Expr getFatData(PtrTy p, unsigned SlotIdx) override;
+
+  /// \brief Set the data for a given slot of a fat pointer
+  Expr setFatData(PtrTy p, unsigned SlotIdx, Expr data) override;
 };
 } // namespace details
 } // namespace seahorn

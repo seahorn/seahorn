@@ -12,6 +12,9 @@
 namespace seahorn {
 namespace details {
 
+static const unsigned int g_slotBitWidth = 64;
+
+static const unsigned int g_maxFatSlots = 2;
 /// \brief provides Fat pointers and Fat memory to store them
 class FatMemManager : public OpSemMemManager {
 public:
@@ -32,7 +35,10 @@ private:
   FatPtrTy m_nullPtr;
 
   /// \brief Converts a raw ptr to fat ptr with default value for fat
-  FatPtrTy mkFatPtr(RawPtrTy rawPtr) const { return strct::mk(rawPtr); }
+  FatPtrTy mkFatPtr(RawPtrTy rawPtr) const {
+    return strct::mk(rawPtr, m_ctx.alu().si(0, g_slotBitWidth),
+                     m_ctx.alu().si(0, g_slotBitWidth));
+  }
   /// \brief Update a given fat pointer with a raw address value
   FatPtrTy mkFatPtr(RawPtrTy rawPtr, FatPtrTy fat) const {
     if (fat->arity() == 1)
@@ -66,7 +72,10 @@ public:
 
   ~FatMemManager() override = default;
 
-  FatPtrTy ptrSort() const override { return sort::structTy(m_mem.ptrSort()); }
+  FatPtrTy ptrSort() const override {
+    return sort::structTy(m_mem.ptrSort(), m_ctx.alu().intTy(g_slotBitWidth),
+                          m_ctx.alu().intTy(g_slotBitWidth));
+  }
 
   /// \brief Allocates memory on the stack and returns a pointer to it
   /// \param align is requested alignment. If 0, default alignment is used
@@ -133,7 +142,9 @@ public:
 
   /// \brief Returns sort of a pointer register for an instruction
   Expr mkPtrRegisterSort(const Instruction &inst) const {
-    return sort::structTy(m_mem.mkPtrRegisterSort(inst));
+    return sort::structTy(m_mem.mkPtrRegisterSort(inst),
+                          m_ctx.alu().intTy(g_slotBitWidth),
+                          m_ctx.alu().intTy(g_slotBitWidth));
   }
 
   /// \brief Returns sort of a pointer register for a function pointer
@@ -402,6 +413,18 @@ public:
 
   FatMemValTy zeroedMemory() const override {
     return mkFatMem(m_mem.zeroedMemory());
+  }
+
+  Expr getFatData(PtrTy p, unsigned SlotIdx) override {
+    assert(strct::isStructVal(p));
+    assert(SlotIdx < g_maxFatSlots);
+    return strct::extractVal(p, 1 + SlotIdx);
+  }
+
+  Expr setFatData(PtrTy p, unsigned SlotIdx, Expr data) override {
+    assert(strct::isStructVal(p));
+    assert(SlotIdx < g_maxFatSlots);
+    return strct::insertVal(p, 1 + SlotIdx, data);
   }
 };
 

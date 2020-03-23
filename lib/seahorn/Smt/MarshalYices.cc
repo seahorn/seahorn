@@ -173,7 +173,6 @@ term_t marshal_yices::encode_term(Expr e, ycache_t &cache) {
   }
   /** function declaration */
   else if (bind::isFdecl(e)) {
-    errs() << "Translating fdecl  " << *e << "\n";
     uint32_t arity = e->arity();
     std::vector<type_t> domain(arity);
     for (size_t i = 0; i < bind::domainSz(e); ++i) {
@@ -199,7 +198,6 @@ term_t marshal_yices::encode_term(Expr e, ycache_t &cache) {
   }
   /** function application */
   else if (bind::isFapp(e)) {
-    errs() << "Translating fapp  " << *e << "\n";    
     if (bind::isFdecl(bind::fname(e))) {
       term_t yfdecl = encode_term(bind::fname(e), cache);
       assert(yfdecl != NULL_TERM);
@@ -235,14 +233,17 @@ term_t marshal_yices::encode_term(Expr e, ycache_t &cache) {
   if (arity == 0) {
     return encode_term_fail(e, "zero arity unexpected");
   } else if (arity == 1) {
+
+    if (isOpX<ARRAY_DEFAULT>(e)) {
+      encode_term_fail(e, "array-default term not supported in yices");
+    }
+    
     term_t arg = encode_term(e->left(), cache);
 
     if (isOpX<UN_MINUS>(e)) {
       res = yices_neg(arg);
     } else if (isOpX<NEG>(e)) {
       res = yices_not(arg);
-    } else if (isOpX<ARRAY_DEFAULT>(e)) {
-      encode_term_fail(e, "Array default term not supported in yices");
     } else if (isOpX<BNOT>(e)) {
       res = yices_bvnot(arg);
     } else if (isOpX<BNEG>(e)) {
@@ -257,6 +258,13 @@ term_t marshal_yices::encode_term(Expr e, ycache_t &cache) {
       encode_term_fail(e, "unhandled arity 1 case");
     }
   } else if (arity == 2) {
+
+    if (isOpX<REM>(e)) {
+      encode_term_fail(e, "Integer remainder not supported in yices");
+    } else if (isOpX<CONST_ARRAY>(e)) {
+      encode_term_fail(e, "const-array term not supported in yices");
+    }
+      
     term_t t1 = encode_term(e->left(), cache);
     term_t t2;    
     if (!isOpX<BSEXT>(e) && !isOpX<BZEXT>(e)) {    
@@ -273,7 +281,6 @@ term_t marshal_yices::encode_term(Expr e, ycache_t &cache) {
       res = yices_iff(t1, t2);
     else if (isOpX<XOR>(e))
       res = yices_xor2(t1, t2);
-
     /** NumericOp */
     else if (isOpX<PLUS>(e))
       res = yices_add(t1, t2);
@@ -284,10 +291,7 @@ term_t marshal_yices::encode_term(Expr e, ycache_t &cache) {
     else if (isOpX<DIV>(e) || isOpX<IDIV>(e))
       res = yices_division(t1, t2);
     else if (isOpX<MOD>(e))
-      res = yices_imod(t1, t2);
-    else if (isOpX<REM>(e)) {
-      encode_term_fail(e, "Integer remainder not supported in yices");
-    }
+      res = yices_imod(t1, t2);    
     /** Compare Op */
     else if (isOpX<EQ>(e))
       res = yices_eq(t1, t2);
@@ -304,10 +308,6 @@ term_t marshal_yices::encode_term(Expr e, ycache_t &cache) {
     /** Array Select */
     else if (isOpX<SELECT>(e))
       res = yices_application1(t1, t2);
-    /** Array Const */
-    else if (isOpX<CONST_ARRAY>(e)) {
-      encode_term_fail(e, "Const array term not supported in yices");
-    }
     /** Bit-Vectors */
     else if (isOpX<BSEXT>(e) || isOpX<BZEXT>(e)) {
       assert(yices_term_is_bitvector(t1));

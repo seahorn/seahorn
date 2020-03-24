@@ -23,6 +23,7 @@ add_executable(units_z3 EXCLUDE_FROM_ALL
   muz_test.cpp
   lambdas_z3.cpp
   units_expr.cpp
+  units_finite_maps.cpp
   )
 llvm_config (units_z3 ${LLVM_LINK_COMPONENTS})
 target_link_libraries(units_z3 ${USED_LIBS_Z3_TESTS})

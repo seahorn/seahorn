@@ -250,7 +250,7 @@ def get_sea_horn_dsa (opts):
                y == 'llvm':
                 return y
     return None
-
+        
 class Seapp(sea.LimitedCmd):
     def __init__(self, quiet=False, internalize=False, strip_extern=False,
                  keep_lib_fn=False):
@@ -273,6 +273,14 @@ class Seapp(sea.LimitedCmd):
         # if args.llvm_asm: ext = '.pp.ll'
         return _remap_file_name (in_files[0], ext, work_dir)
 
+    import argparse
+    class DevirtAction(argparse.Action):
+        def __call__(self, parser, namespace, values, option_string=None):
+            if values is None:
+                setattr(namespace, self.dest, 'types')
+            else:
+                setattr(namespace, self.dest, values)
+    
     def mk_arg_parser (self, ap):
         ap = super (Seapp, self).mk_arg_parser (ap)
         ap.add_argument ('--inline', dest='inline', help='Inline all functions',
@@ -330,9 +338,11 @@ class Seapp(sea.LimitedCmd):
                         "- none : do not resolve indirect calls (default)\n"
                         "- types: select all functions with same type signature\n"
                         "- sea-dsa: use sea-dsa+types analysis to select the callees\n",
+                        nargs='?',
+                        default='none',
                         dest='devirt_funcs',
-                        choices=['none','types','sea-dsa'],
-                        default='none')
+                        metavar='none|types|sea-dsa',
+                        action=self.DevirtAction)
         ap.add_argument ('--devirt-functions-with-cha',
                          help="Devirtualize indirect functions using CHA (for C++). "
                          "This method only inspects the virtual tables to devirtualize. "

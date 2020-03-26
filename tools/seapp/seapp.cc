@@ -210,8 +210,8 @@ static llvm::cl::opt<bool>
             llvm::cl::init(false));
 
 static llvm::cl::opt<bool>
-    ExtendedPointer("ext-ptr",
-            llvm::cl::desc("Check mem safety using extended pointer bits"),
+    FatBoundsCheck("fat-bnd-check",
+            llvm::cl::desc("Instrument buffer bounds check  using extended pointer bits"),
             llvm::cl::init(false));
 
 static llvm::cl::opt<bool>
@@ -440,8 +440,8 @@ int main(int argc, char **argv) {
     pm_wrapper.add(seahorn::createLowerCstExprPass());
     pm_wrapper.add(seahorn::createNullCheckPass());
   }
-  else if (ExtendedPointer) {
-    pm_wrapper.add(seahorn::createSeaExtendedPointerPass());
+  else if (FatBoundsCheck) {
+    pm_wrapper.add(seahorn::createFatBufferBoundsCheckPass());
   }
   // default pre-processing pipeline
   else {

@@ -1,14 +1,21 @@
-//===- ExtendedPointer.cpp - Instrumentation for run-time bounds checking --===//
-//
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
-//
+/**
+SeaHorn Verification Framework
+Copyright (c) 2020 Arie Gurfinkel
+All Rights Reserved.
+
+Released under a modified BSD license, please see license.txt for full
+terms.
+
+Based on BufferBoundsCheck from LLVM project
+*/
+
+
 //===----------------------------------------------------------------------===//
 //
 // This file implements a pass that instruments the code to perform run-time
-// bounds checking on loads, stores, and other memory intrinsics.
+// bounds checking on loads, stores, and other memory intrinsics. Unlike the
+// original version, it uses "fat" pointers to store additional meta information
+// about memory being pointed
 //
 //===----------------------------------------------------------------------===//
 
@@ -60,9 +67,9 @@ STATISTIC(ChecksUnable, "Bounds checks unable to add");
 typedef IRBuilder<TargetFolder> BuilderTy;
 
 namespace {
-struct ExtendedPointer : public FunctionPass {
+struct FatBufferBoundsCheck : public FunctionPass {
   static char ID;
-  ExtendedPointer() : FunctionPass(ID){}
+  FatBufferBoundsCheck() : FunctionPass(ID){}
 
   bool runOnFunction(Function &F) override;
 
@@ -96,11 +103,11 @@ private:
 };
 }
 
-char ExtendedPointer::ID = 0;
+char FatBufferBoundsCheck::ID = 0;
 
 /// getErrorBB - create a basic block that traps. All overflowing conditions
 /// branch to this block. There's only one trap block per function.
-BasicBlock *ExtendedPointer::getErrorBB() {
+BasicBlock *FatBufferBoundsCheck::getErrorBB() {
   if (ErrorBB)
     return ErrorBB;
 
@@ -129,7 +136,7 @@ BasicBlock *ExtendedPointer::getErrorBB() {
 
 /// emitBranchToTrap - emit a branch instruction to a trap block.
 /// If Cmp is non-null, perform a jump only if its value evaluates to true.
-void ExtendedPointer::emitBranchToTrap(Value *Cmp) {
+void FatBufferBoundsCheck::emitBranchToTrap(Value *Cmp) {
   // check if the comparison is always false
   ConstantInt *C = dyn_cast_or_null<ConstantInt>(Cmp);
   if (C) {
@@ -159,7 +166,7 @@ void ExtendedPointer::emitBranchToTrap(Value *Cmp) {
 /// result from the load or the value being stored. It is used to determine the
 /// size of memory block that is touched.
 /// Returns true if any change was made to the IR, false otherwise.
-bool ExtendedPointer::instrument(Value *Ptr, Value *InstVal,
+bool FatBufferBoundsCheck::instrument(Value *Ptr, Value *InstVal,
                                 const DataLayout &DL) {
   uint64_t NeededSize = DL.getTypeStoreSize(InstVal->getType());
   Value *NeededSizeVal = ConstantInt::get(IntptrTy, NeededSize);
@@ -224,7 +231,7 @@ bool ExtendedPointer::instrument(Value *Ptr, Value *InstVal,
 }
 
 /* Record information of address Ptr, store/update the base address and size */
-bool ExtendedPointer::instrumentAddress(Value *Ptr, const DataLayout &DL,
+bool FatBufferBoundsCheck::instrumentAddress(Value *Ptr, const DataLayout &DL,
                                         Value *BasePtr) {
   Ptr->setName("raw_ptr");
   Type *resultType;
@@ -304,7 +311,7 @@ bool ExtendedPointer::instrumentAddress(Value *Ptr, const DataLayout &DL,
   return true;
 }
 
-bool ExtendedPointer::runOnFunction(Function &F) {
+bool FatBufferBoundsCheck::runOnFunction(Function &F) {
   Mod = F.getParent();
   const DataLayout &DL = F.getParent()->getDataLayout();
   TLI = &getAnalysis<TargetLibraryInfoWrapperPass>().getTLI();
@@ -421,9 +428,9 @@ bool ExtendedPointer::runOnFunction(Function &F) {
   return MadeChange;
 }
 namespace seahorn {
-FunctionPass *createSeaExtendedPointerPass() { return new ExtendedPointer(); }
+FunctionPass *createFatBufferBoundsCheckPass() { return new FatBufferBoundsCheck(); }
 }
 
-static RegisterPass<ExtendedPointer>
-    X("extended-pointer-pass", "Bounds checking based on extended pointer");
+static RegisterPass<FatBufferBoundsCheck>
+    X("fat-buffer-bounds-instrument", "Bounds checking based on extended pointer");
 

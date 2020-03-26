@@ -33,8 +33,8 @@ Based on BufferBoundsCheck from LLVM project
 #include "llvm/Transforms/Instrumentation.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 
-#include "seahorn/Support/SeaLog.hh"
 #include "seahorn/Support/SeaDebug.h"
+#include "seahorn/Support/SeaLog.hh"
 
 #include "seahorn/config.h"
 using namespace llvm;
@@ -172,26 +172,24 @@ bool FatBufferBoundsCheck::instrument(Value *Ptr, Value *InstVal,
                                       const DataLayout &DL) {
   uint64_t NeededSize = DL.getTypeStoreSize(InstVal->getType());
   Value *NeededSizeVal = ConstantInt::get(IntptrTy, NeededSize);
-  LOG("fat-bnd-check",
-      errs () << "Instrument " << *Ptr << " for " << Twine(NeededSize)
-      << " bytes\n");
+  LOG("fat-bnd-check", errs() << "Instrument " << *Ptr << " for "
+                              << Twine(NeededSize) << " bytes\n");
   SizeOffsetEvalType SizeOffset = ObjSizeEval->compute(Ptr);
   Value *Or;
 
-  /* Generates code for dynamic bounds check using fat ptr functions:
-    start := call get_fat_slot0(ptr)
-    size  := call get_fat_slot1(ptr)
-    recov := call recover_fatptr(ptr) (optional for fat encoding implementation)
-    is_underflow := (ptr < start)
-    ptr_end = start + size
-    access_end := ptr + needed_size
-    is_overflow := ptr_end < access_end
-    is_access_bad := is_underflow or is_overflow
-  */
   if (!ObjSizeEval->bothKnown(SizeOffset)) {
-    LOG("fat-bnd-check",
-        errs() << "fatptr instrument " << *Ptr << " for "
-        << Twine(NeededSize) << " bytes\n";);
+    LOG("fat-bnd-check", errs() << "fatptr instrument " << *Ptr << " for "
+                                << Twine(NeededSize) << " bytes\n";);
+    /* Generates code for dynamic bounds check using fat ptr functions:
+      start := call get_fat_slot0(ptr)
+      size  := call get_fat_slot1(ptr)
+      (optionally, for fat encoding implementation)
+      recov := call recover_fatptr(ptr)
+      is_underflow := (ptr < start) ptr_end = start + size
+      access_end := ptr + needed_size
+      is_overflow := ptr_end < access_end
+      is_access_bad := is_underflow or is_overflow
+    */
     // get start and end by calling internalized functions
     Value *Start = Builder->CreateCall(
         m_getFatSlot0, Builder->CreateBitCast(Ptr, Builder->getInt8PtrTy()));
@@ -212,9 +210,8 @@ bool FatBufferBoundsCheck::instrument(Value *Ptr, Value *InstVal,
     Or = Builder->CreateOr(CmpUnderFlow, CmpOverFlow);
   } else {
     // size and offest statically computed
-    LOG("fat-bnd-check",
-        errs() << "statically instrument " << *Ptr << " for " << Twine(NeededSize)
-        << " bytes\n";);
+    LOG("fat-bnd-check", errs() << "statically instrument " << *Ptr << " for "
+                                << Twine(NeededSize) << " bytes\n";);
     Value *Size = SizeOffset.first;
     Value *Offset = SizeOffset.second;
     ConstantInt *SizeCI = dyn_cast<ConstantInt>(Size);
@@ -245,6 +242,17 @@ bool FatBufferBoundsCheck::instrument(Value *Ptr, Value *InstVal,
 /* Record information of address Ptr, store/update the base address and size */
 bool FatBufferBoundsCheck::instrumentAddress(Value *Ptr, const DataLayout &DL,
                                              Value *BasePtr) {
+  /**
+     Rewrite pointer creation to embed base address and size in the extended part of the pointer.
+
+     This is a little tricky because need to ensure that the extended pointer
+     replaces the original pointer in all the existing code, but not in the
+     newly generated code.
+
+     The solution is to create new code with a placeholder for where the old
+     pointer goes. Replaces old pointer by new everywhere. Then plug the old
+     pointer into the placeholder left for it.
+   */
   Ptr->setName("raw_ptr");
   Type *resultType;
   /* BasePtr not provided: processing store instructions
@@ -256,7 +264,8 @@ bool FatBufferBoundsCheck::instrumentAddress(Value *Ptr, const DataLayout &DL,
     if (auto *ALI = dyn_cast<AllocaInst>(Ptr)) {
       resultType = ALI->getAllocatedType();
     } else {
-      llvm_unreachable("only handling GEP instructions");
+      ERR << "Unexpected instruction: " << *Ptr << "\n";
+      assert(false && "Unexpected instruction");
     }
     CallInst *withBase = Builder->CreateCall(
         m_setFatSlot0, {Constant::getNullValue(Builder->getInt8PtrTy()),
@@ -274,9 +283,9 @@ bool FatBufferBoundsCheck::instrumentAddress(Value *Ptr, const DataLayout &DL,
       uint64_t size = DL.getTypeStoreSize(ALI->getAllocatedType());
       sizeVal = ConstantInt::get(IntptrTy, size);
     } else {
-      llvm_unreachable("unexpected lack of base address");
+      ERR << "Could not determine base address: " << *Ptr;
+      assert(false && "unexpected lack of base address");
     }
-    // Type *IntTy = DL.getIntPtrType(Ptr->getType());
     // set_fat_slot0(Ptr, Base)
     Builder->SetInsertPoint(withBase);
     Value *argA = Builder->CreateBitCast(Ptr, Builder->getInt8PtrTy());
@@ -296,15 +305,16 @@ bool FatBufferBoundsCheck::instrumentAddress(Value *Ptr, const DataLayout &DL,
     if (auto *GEP = dyn_cast<GetElementPtrInst>(Ptr)) {
       resultType = GEP->getResultElementType();
     } else {
-      llvm_unreachable("only handling GEP instructions");
+      ERR << "Unexpected non-gep instruction: " << *Ptr << "\n";
+      assert(false && "only handling GEP instructions");
     }
     CallInst *copied = Builder->CreateCall(
         m_copyFatSlots, {Constant::getNullValue(Builder->getInt8PtrTy()),
                          Constant::getNullValue(Builder->getInt8PtrTy())});
     Value *casted = Builder->CreateBitCast(copied, resultType->getPointerTo());
-    LOG("fat-bnd-check",
-        errs() << "casting  " << *Ptr << " to " << *casted << " with type "
-        << *resultType->getPointerTo() << " \n";);
+    LOG("fat-bnd-check", errs() << "casting  " << *Ptr << " to " << *casted
+                                << " with type " << *resultType->getPointerTo()
+                                << " \n";);
     Ptr->replaceAllUsesWith(casted);
     Builder->SetInsertPoint(copied);
     copied->setArgOperand(0,

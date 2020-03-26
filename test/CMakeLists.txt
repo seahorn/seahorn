@@ -10,6 +10,14 @@ add_lit_testsuite(test-all "Run all the tests"
   DEPENDS seahorn
   )
 
+add_lit_testsuite(test-fat-ptr "Run fat ptr tests"
+  -v
+  ${CMAKE_CURRENT_SOURCE_DIR}/fat_ptr
+  ARGS
+  --path=${CMAKE_INSTALL_PREFIX}/bin
+  DEPENDS seahorn
+  )
+
 add_lit_testsuite(test-simple "Run simple tests"
   -v
   ${CMAKE_CURRENT_SOURCE_DIR}/simple

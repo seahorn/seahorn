@@ -1,5 +1,5 @@
 // RUN: %sea clang -m64 -S -o /tmp/bitcode.bc %s > /dev/null 2>&1
-// RUN: %seapp -ext-ptr -S -o /tmp/bitcode.fat.bc /tmp/bitcode.bc > /dev/null 2>&1 
+// RUN: %seapp -fat-bnd-check -S -o /tmp/bitcode.fat.bc /tmp/bitcode.bc > /dev/null 2>&1 
 // RUN: clang++ /tmp/bitcode.fat.bc %libsea-rt -o /tmp/cex.exe > /dev/null 2>&1
 // RUN: /tmp/cex.exe 2>&1 | OutputCheck %s
 

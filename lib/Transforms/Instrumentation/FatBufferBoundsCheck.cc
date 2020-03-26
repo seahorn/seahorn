@@ -34,6 +34,7 @@ Based on BufferBoundsCheck from LLVM project
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 
 #include "seahorn/Support/SeaLog.hh"
+#include "seahorn/Support/SeaDebug.h"
 
 #include "seahorn/config.h"
 using namespace llvm;
@@ -171,9 +172,9 @@ bool FatBufferBoundsCheck::instrument(Value *Ptr, Value *InstVal,
                                       const DataLayout &DL) {
   uint64_t NeededSize = DL.getTypeStoreSize(InstVal->getType());
   Value *NeededSizeVal = ConstantInt::get(IntptrTy, NeededSize);
-  DEBUG(dbgs() << "Instrument " << *Ptr << " for " << Twine(NeededSize)
-               << " bytes\n");
-
+  LOG("fat-bnd-check",
+      errs () << "Instrument " << *Ptr << " for " << Twine(NeededSize)
+      << " bytes\n");
   SizeOffsetEvalType SizeOffset = ObjSizeEval->compute(Ptr);
   Value *Or;
 
@@ -188,8 +189,9 @@ bool FatBufferBoundsCheck::instrument(Value *Ptr, Value *InstVal,
     is_access_bad := is_underflow or is_overflow
   */
   if (!ObjSizeEval->bothKnown(SizeOffset)) {
-    WARN << "fatptr instrument " << *Ptr << " for " << Twine(NeededSize)
-         << " bytes\n";
+    LOG("fat-bnd-check",
+        errs() << "fatptr instrument " << *Ptr << " for "
+        << Twine(NeededSize) << " bytes\n";);
     // get start and end by calling internalized functions
     Value *Start = Builder->CreateCall(
         m_getFatSlot0, Builder->CreateBitCast(Ptr, Builder->getInt8PtrTy()));
@@ -210,8 +212,9 @@ bool FatBufferBoundsCheck::instrument(Value *Ptr, Value *InstVal,
     Or = Builder->CreateOr(CmpUnderFlow, CmpOverFlow);
   } else {
     // size and offest statically computed
-    WARN << "statically instrument " << *Ptr << " for " << Twine(NeededSize)
-         << " bytes\n";
+    LOG("fat-bnd-check",
+        errs() << "statically instrument " << *Ptr << " for " << Twine(NeededSize)
+        << " bytes\n";);
     Value *Size = SizeOffset.first;
     Value *Offset = SizeOffset.second;
     ConstantInt *SizeCI = dyn_cast<ConstantInt>(Size);
@@ -299,8 +302,9 @@ bool FatBufferBoundsCheck::instrumentAddress(Value *Ptr, const DataLayout &DL,
         m_copyFatSlots, {Constant::getNullValue(Builder->getInt8PtrTy()),
                          Constant::getNullValue(Builder->getInt8PtrTy())});
     Value *casted = Builder->CreateBitCast(copied, resultType->getPointerTo());
-    WARN << "casting  " << *Ptr << " to " << *casted << " with type "
-         << *resultType->getPointerTo() << " \n";
+    LOG("fat-bnd-check",
+        errs() << "casting  " << *Ptr << " to " << *casted << " with type "
+        << *resultType->getPointerTo() << " \n";);
     Ptr->replaceAllUsesWith(casted);
     Builder->SetInsertPoint(copied);
     copied->setArgOperand(0,

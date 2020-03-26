@@ -159,9 +159,10 @@ static llvm::cl::opt<bool>
 
 static llvm::cl::opt<bool>
     DevirtualizeFuncs("devirt-functions",
-                      llvm::cl::desc("Devirtualize indirect calls "
-                                     "(by default using only types)"),
-                      llvm::cl::init(false));
+       llvm::cl::desc("Devirtualize indirect calls "
+		      "(disabled by default). "
+		      "If enabled then use --devirt-functions-method=types|sea-dsa to choose method."),
+       llvm::cl::init(false));
 
 static llvm::cl::opt<bool> ExternalizeAddrTakenFuncs(
     "externalize-addr-taken-funcs",

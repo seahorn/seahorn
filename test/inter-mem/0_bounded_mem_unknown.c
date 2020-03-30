@@ -1,5 +1,6 @@
 // RUN: sea pf -O0 --dsa=sea-cs --max-depth=10 --horn-shadow-mem-optimize=false %s
 // CHECK: ^unknown$
+// XFAIL: *
 
 #include <stdint.h>
 #include <stdbool.h>

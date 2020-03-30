@@ -1,6 +1,7 @@
 #pragma once
 
 #include "llvm/ADT/SmallVector.h"
+#include <memory>
 
 /** Perform Class Hierarch Analysis for C++ programs **/
 
@@ -28,13 +29,15 @@ public:
    */
   void calculate(void);
 
-  /*
-   * Return true if the callsite migth have been originated from a C++
-   * virtual call. out contains all the possible callees.
-   */
-  bool resolveVirtualCall(const llvm::ImmutableCallSite &CS,
-                          function_vector_t &out);
+  /* Return true if the callsite is a virtual call which has been
+     resolved */
+  bool isVCallResolved(const llvm::ImmutableCallSite &CS) const;
 
+  /* Return all possible callees for the C++ virtual call.
+   *  If CS is not a virtual call then it returns an empty set.
+   */
+  const function_vector_t& getVCallCallees(const llvm::ImmutableCallSite &CS);
+  
   /*
    * Print the class hierarchy graph
    */
@@ -51,7 +54,7 @@ public:
   void printStats(llvm::raw_ostream &o) const;
 
 private:
-  ClassHierarchyAnalysis_Impl *m_cha_impl;
+  std::unique_ptr<ClassHierarchyAnalysis_Impl> m_cha_impl;  
 };
 
 } // namespace seahorn

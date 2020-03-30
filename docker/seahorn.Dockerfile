@@ -42,7 +42,7 @@ RUN mkdir -p seahorn && \
         | tar -xzf - -C /opt/llvm --strip-components=1 && \
         # download clang
         mkdir /clang-5.0 && \
-        curl -s http://releases.llvm.org/5.0.0/clang+llvm-5.0.0-linux-x86_64-ubuntu16.04.tar.xz \
+        curl -s https://releases.llvm.org/5.0.0/clang+llvm-5.0.0-linux-x86_64-ubuntu16.04.tar.xz \
         | tar -xJf - -C /clang-5.0 --strip-components=1 && \
         apt-get remove -yqq curl && \
         rm -rf /var/lib/apt/lists/* && \

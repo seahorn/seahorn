@@ -1,6 +1,6 @@
 // RUN: %sea bpf -O3 -m64 --inline --step=large --track=ptr --horn-bv-global-constraints=true  \
 // RUN:           --enable-nondet-init --strip-extern --externalize-addr-taken-functions \
-// RUN:           --horn-bv-singleton-aliases=true --devirt-functions --horn-bv-ignore-calloc=false \
+// RUN:           --horn-bv-singleton-aliases=true --devirt-functions=types --horn-bv-ignore-calloc=false \
 // RUN:           --enable-indvar --enable-loop-idiom  --symbolize-constant-loop-bounds \
 // RUN:           --unfold-loops-for-dsa --simplify-pointer-loops  --horn-sea-dsa-split \
 // RUN:           --dsa=sea-ci --horn-bv-use-write --bmc=mono --bound=5 \

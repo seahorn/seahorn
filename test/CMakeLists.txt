@@ -200,6 +200,7 @@ install (DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/memssa DESTINATION share/seahorn/
 install (DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/crab DESTINATION share/seahorn/test)
 install (DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/cex DESTINATION share/seahorn/test)
 install (DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/dsa DESTINATION share/seahorn/test
+install (DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/inter-mem DESTINATION share/seahorn/test
   PATTERN "*/check_graphs.py" EXCLUDE
   )
 install (DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/tutorial DESTINATION share/seahorn/test

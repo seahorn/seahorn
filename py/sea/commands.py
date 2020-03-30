@@ -250,7 +250,7 @@ def get_sea_horn_dsa (opts):
                y == 'llvm':
                 return y
     return None
-
+        
 class Seapp(sea.LimitedCmd):
     def __init__(self, quiet=False, internalize=False, strip_extern=False,
                  keep_lib_fn=False):
@@ -273,6 +273,14 @@ class Seapp(sea.LimitedCmd):
         # if args.llvm_asm: ext = '.pp.ll'
         return _remap_file_name (in_files[0], ext, work_dir)
 
+    import argparse
+    class DevirtAction(argparse.Action):
+        def __call__(self, parser, namespace, values, option_string=None):
+            if values is None:
+                setattr(namespace, self.dest, 'types')
+            else:
+                setattr(namespace, self.dest, values)
+    
     def mk_arg_parser (self, ap):
         ap = super (Seapp, self).mk_arg_parser (ap)
         ap.add_argument ('--inline', dest='inline', help='Inline all functions',
@@ -325,12 +333,20 @@ class Seapp(sea.LimitedCmd):
                         help='Do not lower global initializers',
                         default=False,
                         action='store_true')
-        ap.add_argument ('--devirt-functions',
-                         help='Devirtualize indirect functions using only types',
-                         dest='devirt_funcs', default=False,
-                         action='store_true')
+        ap.add_argument('--devirt-functions',
+                        help="Devirtualize indirect calls (needed for soundness):\n"
+                        "- none : do not resolve indirect calls (default)\n"
+                        "- types: select all functions with same type signature\n"
+                        "- sea-dsa: use sea-dsa+types analysis to select the callees\n",
+                        nargs='?',
+                        default='none',
+                        dest='devirt_funcs',
+                        metavar='none|types|sea-dsa',
+                        action=self.DevirtAction)
         ap.add_argument ('--devirt-functions-with-cha',
-                         help='Devirtualize indirect functions using CHA (for C++) followed by types',
+                         help="Devirtualize indirect functions using CHA (for C++). "
+                         "This method only inspects the virtual tables to devirtualize. "
+                         "Use --devirt-function to devirtualize other calls",
                          dest='devirt_funcs_cha', default=False,
                          action='store_true')
         ap.add_argument ('--lower-assert',
@@ -417,8 +433,10 @@ class Seapp(sea.LimitedCmd):
             if args.no_lower_gv_init:
                 argv.append('--lower-gv-init=false')
 
-            if args.devirt_funcs_cha or args.devirt_funcs:
+            if args.devirt_funcs_cha or args.devirt_funcs != 'none':
                 argv.append ('--devirt-functions')
+            if args.devirt_funcs != 'none':
+                argv.append ('--devirt-functions-method={0}'.format(args.devirt_funcs))
             if args.devirt_funcs_cha:
                 argv.append ('--devirt-functions-with-cha')
 

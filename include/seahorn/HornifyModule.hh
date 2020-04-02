@@ -4,17 +4,18 @@
 #include "llvm/Pass.h"
 #include "llvm/IR/Module.h"
 
+#include "seahorn/LegacyOperationalSemantics.hh"
 #include "seahorn/Expr/Expr.hh"
 #include "seahorn/Expr/Smt/EZ3.hh"
-#include "seahorn/UfoOpSem.hh"
-#include "seahorn/ClpOpSem.hh"
 
 #include "boost/smart_ptr/scoped_ptr.hpp"
 
 #include "seahorn/LiveSymbols.hh"
 
-#include "seahorn/HornClauseDB.hh"
+#include "seahorn/Analysis/CanFail.hh"
 #include "seahorn/Analysis/CutPointGraph.hh"
+#include "seahorn/HornClauseDB.hh"
+
 namespace seahorn
 {
   using namespace expr;

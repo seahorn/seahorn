@@ -155,6 +155,16 @@ add_lit_testsuite(test-cex "Regression test for executable counterexamples"
   DEPENDS seahorn
   )
 
+add_lit_testsuite(test-inter-mem "Tests for inter-mem encoding"
+  -v
+  -j1
+  ${CMAKE_CURRENT_SOURCE_DIR}/inter-mem
+  ARGS
+  --path=${CMAKE_INSTALL_PREFIX}/bin
+  DEPENDS seahorn
+  )
+
+
 if (CMAKE_GENERATOR STREQUAL "Ninja")
   # Depending on install target does not work with make
   add_dependencies(test-all install)
@@ -174,7 +184,8 @@ if (CMAKE_GENERATOR STREQUAL "Ninja")
   add_dependencies(test-mcfuzz install)
   add_dependencies(test-memssa install)
   add_dependencies(test-crab install)
-  add_dependencies(test-cex install)  
+  add_dependencies(test-cex install)
+  add_dependencies(test-inter-mem install)
 endif()
 install (DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/simple DESTINATION share/seahorn/test)
 install (DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/solve DESTINATION share/seahorn/test)
@@ -197,3 +208,4 @@ install (DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/tutorial DESTINATION share/seahor
 install (FILES ${CMAKE_CURRENT_SOURCE_DIR}/lit.cfg DESTINATION share/seahorn/test)
 install (PROGRAMS ${CMAKE_CURRENT_SOURCE_DIR}/dsa/check_graphs.py DESTINATION share/seahorn/test/dsa)
 install (PROGRAMS ${CMAKE_CURRENT_SOURCE_DIR}/tutorial/seatest.py DESTINATION share/seahorn/test/tutorial)
+install (DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/inter-mem DESTINATION share/seahorn/test)

@@ -101,15 +101,13 @@ endif()
 # put static libraries first
 set(CMAKE_FIND_LIBRARY_SUFFIXES ".a" ${CMAKE_FIND_LIBRARY_SUFFIXES})
 
-set (Boost_USE_STATIC_LIBS ON)
-set (BOOST_COMPONENTS system)
-  find_package (Boost 1.55 REQUIRED COMPONENTS ${BOOST_COMPONENTS})
+set (Boost_USE_STATIC_LIBS ${SEAHORN_STATIC_EXE})
+# set (BOOST_COMPONENTS system)
+# find_package (Boost 1.65 REQUIRED COMPONENTS ${BOOST_COMPONENTS})
+find_package (Boost 1.65 REQUIRED)
 if (Boost_FOUND)
   include_directories (${Boost_INCLUDE_DIRS})
 endif ()
-
-include(ExternalProject)
-set_property(DIRECTORY PROPERTY EP_STEP_TARGETS configure build test)
 
 set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
 if(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")

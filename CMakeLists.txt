@@ -410,7 +410,7 @@ if (IS_DIRECTORY ${CMAKE_SOURCE_DIR}/sea-dsa AND
   add_subdirectory (${CMAKE_SOURCE_DIR}/sea-dsa)
   set (SEA_DSA_LIBS SeaDsaAnalysis)
 else()
-  message (WARNING "No SEA DSA found in ${CMAKE_SOURCE_DIR}/sea-dsa. Run\n\tcmake --build . --target extra && cmake ${CMAKE_SOURCE_DIR}")
+  message (WARNING "SeaDsa is required but not found in ${CMAKE_SOURCE_DIR}/sea-dsa. Run\n\tcmake --build . --target extra && cmake ${CMAKE_SOURCE_DIR}")
   return()
 endif()
 

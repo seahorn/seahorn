@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.3)
+cmake_minimum_required(VERSION 3.10.2)
 
 project (SeaHorn)
 set (SeaHorn_VERSION_MAJOR 0)

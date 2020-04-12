@@ -120,6 +120,8 @@ else()
 endif ()
 
 
+include(ExternalProject)
+set_property(DIRECTORY PROPERTY EP_STEP_TARGETS configure build test)
 set (Z3_TAG "origin/deep_space" CACHE STRING "Z3 git tag to use")
 set (Z3_REPO "https://github.com/agurfinkel/z3.git" CACHE STRING "Z3 repo")
 ExternalProject_Add(z3

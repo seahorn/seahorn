@@ -101,14 +101,6 @@ endif()
 # put static libraries first
 set(CMAKE_FIND_LIBRARY_SUFFIXES ".a" ${CMAKE_FIND_LIBRARY_SUFFIXES})
 
-set (Boost_USE_STATIC_LIBS ${SEAHORN_STATIC_EXE})
-# set (BOOST_COMPONENTS system)
-# find_package (Boost 1.65 REQUIRED COMPONENTS ${BOOST_COMPONENTS})
-find_package (Boost 1.65 REQUIRED)
-if (Boost_FOUND)
-  include_directories (${Boost_INCLUDE_DIRS})
-endif ()
-
 set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
 if(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
   set(CMAKE_MACOSX_RPATH TRUE)  
@@ -172,9 +164,6 @@ if (YICES2_FOUND)
   endif()
 endif()  
 
-option(SEAHORN_REQUIRES_RTTI "Enable RTTI support" ON)
-option(SEAHORN_REQUIRES_EH "Enable Exceptions" ON)
- 
 ExternalProject_Add (llvm
   SVN_REPOSITORY http://llvm.org/svn/llvm-project/llvm/tags/RELEASE_500/final/  
   SOURCE_DIR ${CMAKE_SOURCE_DIR}/ext/llvm
@@ -189,7 +178,7 @@ ExternalProject_Add (llvm
   -DLLVM_ENABLE_LLD=${SEA_ENABLE_LLD}
   -DLLVM_USE_SPLIT_DWARF=${SEA_USE_SPLIT_DWARF}
   -DLLVM_ENABLE_ASSERTIONS=${SEA_ENABLE_ASSERTIONS}
-  -DLLVM_ENABLE_PIC=ON -DLLVM_REQUIRES_RTTI:BOOL=${SEAHORN_REQUIRES_RTTI}
+  -DLLVM_ENABLE_PIC=ON 
   -DLLVM_INCLUDE_TESTS:BOOL=OFF
   -DLLVM_INCLUDE_GO_TESTS=OFF
   -DLLVM_INCLUDE_EXAMPLES=OFF
@@ -224,9 +213,6 @@ else()
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${LLVM_CXXFLAGS}")
   set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${LLVM_LDFLAGS}")
 
-  set(LLVM_REQUIRES_RTTI ${SEAHORN_REQUIRES_RTTI})
-  set(LLVM_REQUIRES_EH ${SEAHORN_REQUIRES_EH})
-
   include_directories(${LLVM_INCLUDE_DIRS})
   link_directories(${LLVM_LIBRARY_DIRS})
   add_definitions(${LLVM_DEFINITIONS})
@@ -243,6 +229,17 @@ if(NOT LLVM_FOUND)
                    Follow instructions above.")
   return()
 endif()
+
+set (Boost_USE_STATIC_LIBS ${SEAHORN_STATIC_EXE})
+find_package (Boost 1.65 REQUIRED)
+if (Boost_FOUND)
+  include_directories (${Boost_INCLUDE_DIRS})
+  if(NOT LLVM_ENABLE_EH)
+    add_definitions(-DBOOST_NO_EXCEPTIONS)
+  endif()
+endif ()
+
+
 
 set (PACKAGE_NAME SeaHorn)
 set(PACKAGE_STRING "${PACKAGE_NAME} ${PACKAGE_VERSION}")

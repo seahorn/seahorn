@@ -7,4 +7,5 @@ add_llvm_library (SeaSupport
   SeaLog.cc
   SeaDebug.cc
   GitSHA1.cc
+  BoostException.cc
   )

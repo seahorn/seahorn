@@ -1,7 +1,7 @@
 
 import z3
 
-from rule import *
+from .rule import *
 
 class Program:
     """ Program """
@@ -23,7 +23,7 @@ class Program:
         self.next = dict()
         for r in self.rules:
             head = r.head_pc().as_long()
-            if head not in self.next:
+            if head not in self.__next__:
                 self.next[head] = set()
             if head not in self.prev:
                 self.prev[head] = set() 
@@ -226,6 +226,6 @@ class Program:
             answer = fp.get_ground_sat_answer()
             first = answer.children()[-2]
             point = [x.as_long() for x in first.children()[1:-1]]
-            return zip(self.arguments[1:],point)
+            return list(zip(self.arguments[1:],point))
         else:
             return []

@@ -5,8 +5,8 @@ import sys
 import time
 import z3
 
-from program import *
-import stats
+from .program import *
+from . import stats
 
 debug = False
 
@@ -89,7 +89,7 @@ def piecewise(fp):
     for node in loops:
         # ...for all loops involving each node
         if loops[node]:
-            if debug: print '\nloop:', loops[node], '\n'
+            if debug: print('\nloop:', loops[node], '\n')
             loop = set([n for path in loops[node] for n in path])   # loop nodes
             entry = set([(n,node)
                 for n in program.prev[node] - loop])  # entry edges
@@ -110,14 +110,14 @@ def piecewise(fp):
                 for i in range(len(bits)):
                     rankings = ranking(bits[:i+1],variables)
                 if not rankings:
-                    if debug: print
+                    if debug: print()
                     del bits[:-1]
                     rankings = ranking(bits,variables)
-                if debug: print 'bit:', zip(arguments + ['-'
-                    for component in pieces],bits[-1])
+                if debug: print('bit:', list(zip(arguments + ['-'
+                    for component in pieces],bits[-1])))
                 pieces[0].extend(rankings)
-                if debug: print 'pieces:', [[z3.substitute_vars(x,*arguments)
-                    for x in component] for component in pieces]
+                if debug: print('pieces:', [[z3.substitute_vars(x,*arguments)
+                    for x in component] for component in pieces])
                 bit = program.get_bit(entry,node,'max',pieces,edges,exit)
             # check candidate ranking functions
             point = program.termination(entry,node,'max',pieces,edges,exit)
@@ -125,13 +125,13 @@ def piecewise(fp):
                 for x in component] for component in pieces]
             if point:
                 rank[node] = (False,point)
-                if debug: print '\nnon-terminating execution:', point
-                if debug: print '(partial) loop ranking functions:', pieces
+                if debug: print('\nnon-terminating execution:', point)
+                if debug: print('(partial) loop ranking functions:', pieces)
             else:
                 rank[node] = (True,pieces)
-                if debug: print '\nloop ranking functions:', pieces
-    if debug: print '\nranking functions:', rank
-    if all([r[0] for r in rank.values()]):
+                if debug: print('\nloop ranking functions:', pieces)
+    if debug: print('\nranking functions:', rank)
+    if all([r[0] for r in list(rank.values())]):
         stat("Result", "TRUE")
     else:
         stat("Result", "FALSE")
@@ -151,7 +151,7 @@ def lexicographic(fp):
     for node in loops:
         # ...for all loops involving each node
         if loops[node]:
-            if debug: print '\nloop:', loops[node]
+            if debug: print('\nloop:', loops[node])
             loop = set([n for path in loops[node] for n in path])   # loop nodes
             entry = set([(n,node)
                 for n in program.prev[node] - loop])  # entry edges
@@ -172,19 +172,19 @@ def lexicographic(fp):
                 for i in range(len(bits)):
                     rankings = ranking(bits[:i+1],variables)
                 if not rankings:
-                    if debug: print
-                    if debug: print 'bit:', zip(arguments + ['-'
-                        for component in pieces],bits[-1])
+                    if debug: print()
+                    if debug: print('bit:', list(zip(arguments + ['-'
+                        for component in pieces],bits[-1])))
                     bits = list()
                     rankings = [z3.IntSort().cast(0)]
                     pieces.insert(0,[])
                 else:
-                    if debug: print 'bit:', zip(arguments + ['-'
-                        for component in pieces],bits[-1])
+                    if debug: print('bit:', list(zip(arguments + ['-'
+                        for component in pieces],bits[-1])))
                 del pieces[0][1:]
                 pieces[0].extend(rankings)
-                if debug: print 'pieces:', [[z3.substitute_vars(x,*arguments)
-                        for x in component] for component in pieces]
+                if debug: print('pieces:', [[z3.substitute_vars(x,*arguments)
+                        for x in component] for component in pieces])
                 bit = program.get_bit(entry,node,'lex',pieces,edges,exit)
             # check candidate ranking functions
             point = program.termination(entry,node,'lex',pieces,edges,exit)
@@ -192,13 +192,13 @@ def lexicographic(fp):
                 for x in component] for component in pieces]
             if point:
                 rank[node] = (False,point)
-                if debug: print 'non-terminating execution:', point
-                if debug: print '(partial) loop ranking functions:', pieces
+                if debug: print('non-terminating execution:', point)
+                if debug: print('(partial) loop ranking functions:', pieces)
             else:
                 rank[node] = (True,pieces)
-                if debug: print 'loop ranking functions:', pieces
-    if debug: print '\nranking functions:', rank
-    if all([r[0] for r in rank.values()]):
+                if debug: print('loop ranking functions:', pieces)
+    if debug: print('\nranking functions:', rank)
+    if all([r[0] for r in list(rank.values())]):
         stat("Result", "TRUE")
         stat("Ranking-Function", rank)
     else:
@@ -243,9 +243,9 @@ def main(argv):
 
     # proving termination...
     if len(argv) < 3:
-        print 'please choose a ranking function template:'
-        print '    max\t\t(piecewise)'
-        print '    lex\t\t(lexicographic)'
+        print('please choose a ranking function template:')
+        print('    max\t\t(piecewise)')
+        print('    lex\t\t(lexicographic)')
     else:
         if argv[2] == 'max':
             # start = time.time()
@@ -263,7 +263,7 @@ def main(argv):
             # end = time.time()
             # print 'Time: %.2fs' % (end - start)
         else:
-            print 'unknown ranking function template'
+            print('unknown ranking function template')
 
 if __name__ == "__main__":
     main(sys.argv)

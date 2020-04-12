@@ -58,7 +58,7 @@ def lap (name):
             self._sw.reset ()
             return None
         def __exit__ (self, exc_type, exc_value, traceback):
-            print 'DONE', name, 'in', str(self._sw)
+            print('DONE', name, 'in', str(self._sw))
             return False
     return ContextManager (name)
   
@@ -95,10 +95,10 @@ def count (key):
 
 def brunch_print ():
     """ Prints the result in brunch format """
-    print '----------------------------------------------------------------------'
+    print('----------------------------------------------------------------------')
     for k in sorted (_statistics.keys ()):
-        print 'BRUNCH_STAT {name} {value}'.format (name=k, value=_statistics [k])
-    print '----------------------------------------------------------------------'
+        print('BRUNCH_STAT {name} {value}'.format (name=k, value=_statistics [k]))
+    print('----------------------------------------------------------------------')
         
 
 
@@ -125,10 +125,10 @@ def block(mark):
         def __init__ (self, mark):
             self._mark = mark
         def __enter__ (self):
-            print 'BEGIN:', mark
+            print('BEGIN:', mark)
             return None
         def __exit__ (self, exc_type, exc_value, traceback):
-            print 'END:', mark
+            print('END:', mark)
             return False
     return BlockMarkerContextManager (mark)
 

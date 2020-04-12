@@ -1,4 +1,4 @@
-from __future__ import print_function
+
 
 import sea
 
@@ -130,7 +130,7 @@ class Clang(sea.LimitedCmd):
                 ## this is an invalid argument with C++/ObjC++ with clang 3.8
                 argv.append('-fgnu89-inline')
 
-            argv.extend (filter (lambda s : s.startswith ('-D'), extra))
+            argv.extend ([s for s in extra if s.startswith ('-D')])
 
             if args.llvm_asm: argv.append ('-S')
             argv.append ('-m{0}'.format (args.machine))
@@ -173,7 +173,7 @@ class Clang(sea.LimitedCmd):
 
                 argv1.append (in_file)
                 ret = self.clangCmd.run (args, argv1)
-                if ret <> 0: return ret
+                if ret != 0: return ret
 
         return link_bc_files(out_files, args)
 
@@ -414,7 +414,7 @@ class Seapp(sea.LimitedCmd):
                 argv.append ('--promote-assumptions=false')
 
 
-            if args.abs_mem_lvl <> 'none':
+            if args.abs_mem_lvl != 'none':
                 argv.append ('--abstract-memory')
                 argv.append ('--abstract-memory-level={0}'.format(args.abs_mem_lvl))
 
@@ -1157,7 +1157,7 @@ class Seahorn(sea.LimitedCmd):
                          choices=['none', 'mono', 'path'], dest='bmc', default='none')
         ap.add_argument ('--max-depth',
                          help='Maximum depth of exploration',
-                         dest='max_depth', default=sys.maxint)
+                         dest='max_depth', default=sys.maxsize)
         ap.add_argument('--no-lower-gv-init',
                         dest='no_lower_gv_init',
                         help='Do not lower global initializers',
@@ -1171,7 +1171,7 @@ class Seahorn(sea.LimitedCmd):
         self.seahornCmd = sea.ExtCmd (cmd_name,'',quiet)
         argv = list()
 
-        if args.max_depth <> sys.maxint:
+        if args.max_depth != sys.maxsize:
             argv.append ('--horn-max-depth=' + str(args.max_depth))
 
         if args.bmc != 'none':
@@ -1247,7 +1247,7 @@ class Seahorn(sea.LimitedCmd):
         argv.extend (args.in_files)
 
         # pick out extra seahorn options
-        sea_argv = filter (_is_seahorn_opt, extra)
+        sea_argv = list(filter (_is_seahorn_opt, extra))
 
         ###
         ### Unfortunately this prints the warning too often
@@ -1326,7 +1326,7 @@ class SeahornClp(sea.LimitedCmd):
         argv.extend (args.in_files)
 
         # pick out extra seahorn/crab options
-        argv.extend (filter (_is_seahorn_opt, extra))
+        argv.extend (list(filter (_is_seahorn_opt, extra)))
 
         return self.seahornCmd.run (args, argv)
 
@@ -1418,7 +1418,7 @@ class CrabInst (sea.LimitedCmd):
             for l in args.crab_log.split (':'): argv.extend (['-crab-log', l])
         
         # pick out extra seahorn/crab options
-        argv.extend (filter (_is_seahorn_opt, extra))
+        argv.extend (list(filter (_is_seahorn_opt, extra)))
 
         return self.seappCmd.run (args, argv)
 
@@ -1642,7 +1642,7 @@ class InspectBitcode(sea.LimitedCmd):
         
         argv.extend (args.in_files)
         # pick out extra seahorn/crab options
-        argv.extend (filter (_is_seahorn_opt, extra))
+        argv.extend (list(filter (_is_seahorn_opt, extra)))
 
         return self.seainspectCmd.run (args, argv)
 
@@ -1715,7 +1715,7 @@ class SeaExeCex(sea.LimitedCmd):
             if args.bv_part_mem:
                 argv.extend(['--horn-bv-part-mem'])
             res = c.run(args,  argv)
-            if res <> 0:
+            if res != 0:
                 print('\n\nThe harness was not generated. Aborting ...\n');
                 return res
 
@@ -1743,7 +1743,7 @@ class SeaExeCex(sea.LimitedCmd):
             infiles = args.in_files
             infiles.extend([harness_file])
             res = c.run(args, argv)
-            if res <> 0:
+            if res != 0:
                 print('\n\nThe executable counterexample was not generated. Aborting ...\n');
             else:
                 print ('\n\nGenerated executable counterexample {0}'.format(args.out_file))

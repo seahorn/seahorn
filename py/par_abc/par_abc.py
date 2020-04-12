@@ -4,7 +4,7 @@ import sys
 import os
 import os.path
 import subprocess as sub
-from itertools import ifilterfalse 
+from itertools import filterfalse 
 import csv
 import re
 
@@ -172,12 +172,12 @@ def report_fatal_error (msg, returncode = None):
     if returncode is not None:          # returncode is a 16-bit integer
         exitcode = returncode // 256    # 8 most significant bits returned value by exit()
         returnsignal = returncode % 256 # 8 least significant bits returned value by waitpid()
-        if exitcode <> 0:
-            print "EXIT CODE " + str(exitcode)
+        if exitcode != 0:
+            print("EXIT CODE " + str(exitcode))
         if returnsignal == 9 or returnsignal == (128+9):
-            print "KILLED BY SIGNAL 9"
-        if returnsignal <> 0:
-            print "KILLED BY SIGNAL " + str(returnsignal)
+            print("KILLED BY SIGNAL 9")
+        if returnsignal != 0:
+            print("KILLED BY SIGNAL " + str(returnsignal))
     sys.exit("ERROR: " + msg)
 
 
@@ -246,7 +246,7 @@ def pp_opts (args):
             '--externalize-addr-taken-funcs']
     if args.extern_funcs is not None:
         opts.extend(['--externalize-functions={0}'.format(args.extern_funcs)])
-    if args.abs_mem_lvl <> 'none':
+    if args.abs_mem_lvl != 'none':
         opts.extend (['--abstract-memory={0}'.format(args.abs_mem_lvl)])
                       
     return opts
@@ -367,37 +367,37 @@ def prove_abc_cmmd (in_file, alloca_id, args, extra = []):
 def prove_abc (in_file, alloca_id, args, extra = []):
 
     if alloca_id is None:
-        print "--- Running parallel abc checker "
+        print("--- Running parallel abc checker ")
     else:
-        print "--- Running abc checker for allocation site id=" + str(alloca_id)
+        print("--- Running abc checker for allocation site id=" + str(alloca_id))
 
     pf_cmd = prove_abc_cmmd(in_file, alloca_id, args, extra)
 
-    if verbose: print " ".join(pf_cmd)
+    if verbose: print(" ".join(pf_cmd))
 
     p = sub.Popen(pf_cmd, shell=False, stdout=sub.PIPE, stderr=sub.STDOUT)
     results, _ = p.communicate()
     checks, ans, time, blks, invars_size, exitcode, signalcode = get_results (results, p.returncode, args.cpu)
     if time == float(args.cpu):
         if "WARNING: found call to verifier.error()" in results:
-            print "    SKIPPED: assertion found but unreachable from main"
+            print("    SKIPPED: assertion found but unreachable from main")
         else:
-            print " ".join(pf_cmd)                
-            print "    Timeout!"
+            print(" ".join(pf_cmd))                
+            print("    Timeout!")
     elif checks == 0 or blks == invars_size:
-        print "    Trivially safe (no checks or proven by frontend) "
+        print("    Trivially safe (no checks or proven by frontend) ")
     elif "WARNING: found call to verifier.error()" in results:
-        print "    SKIPPED: assertion found but unreachable from main"
+        print("    SKIPPED: assertion found but unreachable from main")
     elif verbose or args.zverbose > 0:
-        print " ".join(pf_cmd)        
-        print results
+        print(" ".join(pf_cmd))        
+        print(results)
     return (checks, ans, time, blks, invars_size, exitcode, signalcode)
 
 
 def print_results (outfile, num_allocas, orig_num_checks, isParallel):
-    print "========================================="
-    print " Parallel array bounds check analysis    "
-    print "========================================="
+    print("=========================================")
+    print(" Parallel array bounds check analysis    ")
+    print("=========================================")
     #print "Number of allocation sites=" + str(num_allocas)
     with open(outfile, 'rb') as csvfile:
         reader = csv.DictReader(csvfile)
@@ -408,15 +408,15 @@ def print_results (outfile, num_allocas, orig_num_checks, isParallel):
         unproven_allocas = [] 
         for row in reader:
             total_checks = total_checks + int(row["NumChecks"])
-            print "Results for allocation site id=" + str(row["AllocId"])
-            print "\tNumber of array bounds checks=" + str(row["NumChecks"])
+            print("Results for allocation site id=" + str(row["AllocId"]))
+            print("\tNumber of array bounds checks=" + str(row["NumChecks"]))
             ans = row["Answer"]
             if int(row["NumChecks"]) == 0: ans = 'True'
-            print "\tAnswer=" + str(ans)
+            print("\tAnswer=" + str(ans))
             time = 0.0 # it should whatever the timeout is
-            if row["Time"] <> 'None': time = float(row["Time"])
-            print "\tSolving time in seconds=" + str(time)
-            print "-----------------------------------------"
+            if row["Time"] != 'None': time = float(row["Time"])
+            print("\tSolving time in seconds=" + str(time))
+            print("-----------------------------------------")
             if ans == 'True' : 
                 safe_allocas = safe_allocas + 1
             elif ans == 'False': 
@@ -425,26 +425,26 @@ def print_results (outfile, num_allocas, orig_num_checks, isParallel):
                 unproven_allocas.append(row["AllocId"])
             total_time = total_time + time
 
-        print "************** BRUNCH STATS ***************** "
-        print "BRUNCH_STAT Original number of array bounds checks " + str(orig_num_checks)
-        print "BRUNCH_STAT Accumulated number of array bounds checks " + str(total_checks)
+        print("************** BRUNCH STATS ***************** ")
+        print("BRUNCH_STAT Original number of array bounds checks " + str(orig_num_checks))
+        print("BRUNCH_STAT Accumulated number of array bounds checks " + str(total_checks))
         if isParallel:
-            print "BRUNCH_STAT Time " + str(total_time) + " (Not actual time just added individual times)"
+            print("BRUNCH_STAT Time " + str(total_time) + " (Not actual time just added individual times)")
         else:
-            print "BRUNCH_STAT Time " + str(total_time)
+            print("BRUNCH_STAT Time " + str(total_time))
         if (safe_allocas == num_allocas):
-            print "BRUNCH_STAT Result TRUE"
+            print("BRUNCH_STAT Result TRUE")
         elif len(unsafe_allocas) > 0:
-            print "BRUNCH_STAT Result FALSE"
+            print("BRUNCH_STAT Result FALSE")
             for a in unsafe_allocas:
-                print "\tunsafe allocation site=" + str(a)
+                print("\tunsafe allocation site=" + str(a))
         elif len(unproven_allocas) > 0:
-            print "BRUNCH_STAT Result UNKNOWN"
-            print "Number of allocation sites=" + str(num_allocas)
-            print "Number of unknown allocation sites=" + str(len(unproven_allocas))
+            print("BRUNCH_STAT Result UNKNOWN")
+            print("Number of allocation sites=" + str(num_allocas))
+            print("Number of unknown allocation sites=" + str(len(unproven_allocas)))
             for a in unproven_allocas:
-                print "\tcould not prove allocation site=" + str(a)
-        print "************** BRUNCH STATS END ***************** "
+                print("\tcould not prove allocation site=" + str(a))
+        print("************** BRUNCH STATS END ***************** ")
 
 # return a list with all allocation sites 
 def get_alloc_sites (in_file, work_dir, args):
@@ -464,9 +464,9 @@ def get_alloc_sites (in_file, work_dir, args):
     out_file = remap_file_name (in_file, ext, work_dir)
     opts = opts + [in_file, '-o', out_file]
     p = sub.Popen(opts, shell=False, stdout=sub.PIPE, stderr=sub.STDOUT)
-    if verbose: print " ".join(opts)
+    if verbose: print(" ".join(opts))
     result, _ = p.communicate()
-    if p.returncode <> 0:
+    if p.returncode != 0:
         report_fatal_error('\n\n%s\n' % (result), p.returncode)
     allocas = []
     total_num_checks = get_num_checks (result)
@@ -518,16 +518,16 @@ def sea_par_abc(args, extra): # extra is unused
         alloc_site = None
         if args.alloc_site >= 0: alloc_site = args.alloc_site
         num_checks,ans,time,num_blks,invars_size,_,_ = prove_abc(in_file, alloc_site, args)
-        print "************** BRUNCH STATS ***************** "
-        print "BRUNCH_STAT Number of array bounds checks " + str(num_checks)
-        print "BRUNCH_STAT Time " + str(time)
+        print("************** BRUNCH STATS ***************** ")
+        print("BRUNCH_STAT Number of array bounds checks " + str(num_checks))
+        print("BRUNCH_STAT Time " + str(time))
         if ans == True: 
-            print "BRUNCH_STAT Result TRUE"
+            print("BRUNCH_STAT Result TRUE")
         elif ans == False:
-            print "BRUNCH_STAT Result FALSE"
+            print("BRUNCH_STAT Result FALSE")
         else:
-            print "BRUNCH_STAT Result UNKNOWN"
-        print "************** BRUNCH STATS END ***************** "
+            print("BRUNCH_STAT Result UNKNOWN")
+        print("************** BRUNCH STATS END ***************** ")
         ## XXX: do not write to a csv file because there is just one entry anyway.
         # fmt = csv_results_keys()
         # csv_results_header(args.csv_file, fmt)
@@ -541,10 +541,10 @@ def sea_par_abc(args, extra): # extra is unused
         (allocas, num_checks) = get_alloc_sites (in_file, work_dir, args)
         num_allocas = len(allocas)
         #if verbose: print "Allocation sites = " + str(allocas)
-        print "--- Found " + str(num_allocas) + " allocation sites"
+        print("--- Found " + str(num_allocas) + " allocation sites")
 
         if num_allocas == 0:
-            print "--- No allocation sites found so do nothing"
+            print("--- No allocation sites found so do nothing")
             return
         fmt = csv_results_keys()
         csv_results_header(args.csv_file, fmt)
@@ -579,7 +579,7 @@ def sea_par_abc(args, extra): # extra is unused
                     sea_abc_cmd.extend(['--externalize-functions={0}'.format(args.extern_funcs)])
                 if args.abstract_funcs is not None:
                     sea_abc_cmd.extend(['--abstract-functions={0}'.format(args.abstract_funcs)])
-                if args.abs_mem_lvl <> 'none':
+                if args.abs_mem_lvl != 'none':
                     sea_abc_cmd.extend (['--abstract-memory={0}'.format(args.abs_mem_lvl)])
                                          
                 if args.abc_no_under: sea_abc_cmd.extend(['--abc-disable-underflow'])
@@ -601,9 +601,9 @@ def sea_par_abc(args, extra): # extra is unused
                 xargs.append(' '.join(sea_abc_cmd))
                 if njobs == maxjobs or acc_njobs == num_allocas:
                     if verbose: 
-                        print "--- Running GNU parallel with "  + str(njobs) + " jobs."
+                        print("--- Running GNU parallel with "  + str(njobs) + " jobs.")
                         for a in xargs:
-                            print "\t" + str(a)
+                            print("\t" + str(a))
 
                     gnupar_opts = ['--no-notice']
                     #if verbose: gnupar_opts = gnupar_opts + ["--progress", "--eta"]
@@ -611,9 +611,9 @@ def sea_par_abc(args, extra): # extra is unused
                     #p = sub.Popen(xargs, shell=False, stdout=sub.PIPE, stderr=sub.STDOUT)
                     p = sub.Popen(xargs, shell=False)
                     result, _ = p.communicate()
-                    if p.returncode <> 0:  ## gnu parallel should not fail
+                    if p.returncode != 0:  ## gnu parallel should not fail
                         report_fatal_error('\n\n%s\n' % (result), p.returncode)
-                    if verbose or args.zverbose > 1: print str(result)
+                    if verbose or args.zverbose > 1: print(str(result))
                     njobs = 0; xargs = []
 
                 #assert (xargs == [])
@@ -663,7 +663,7 @@ def main (argv):
 
     all_opts = argv[1:]
     sea_opts = list(filter (_is_seahorn_opt, all_opts))
-    rest_opts = list(ifilterfalse (_is_seahorn_opt, all_opts))
+    rest_opts = list(filterfalse (_is_seahorn_opt, all_opts))
 
     #args = ap.parse_args (argv[1:])
     args = ap.parse_args (rest_opts)
@@ -691,6 +691,6 @@ if __name__ == '__main__':
     try:
         res = main (sys.argv)
     except Exception as e:
-        print str(e)
+        print(str(e))
     finally:
         sys.exit (res)

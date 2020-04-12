@@ -54,7 +54,7 @@ class TimeLimitedExec(threading.Thread):
                 mem_bytes = self.mem * 1024 * 1024
                 r.setrlimit (r.RLIMIT_AS, [mem_bytes, mem_bytes])
 
-        if self.verbose > 0: print self.cmd
+        if self.verbose > 0: print(self.cmd)
         self.p = subprocess.Popen(self.cmd,
                                   preexec_fn=set_limits,
                                   **self.kwargs)
@@ -72,12 +72,12 @@ class TimeLimitedExec(threading.Thread):
             return -1
 
         if self.is_alive():
-            print 'still alive, terminating'
+            print('still alive, terminating')
             self.p.terminate()
             self.join(5)
 
         if self.is_alive():
-            print 'still alive after attempt to terminate, sending kill'
+            print('still alive after attempt to terminate, sending kill')
             self.p.kill()
 
         return self.p.returncode
@@ -93,7 +93,7 @@ def createWorkDir (dname=None, save=False, prefix='tmp-'):
     if dname is None:
         atexit.register (shutil.rmtree, path=workdir)
     else:
-        print "Warning: --temp-dir specified without the --save-temps option"
+        print("Warning: --temp-dir specified without the --save-temps option")
     return workdir
 
 def add_help_arg (ap):
@@ -219,10 +219,10 @@ class _SeqCmdHelpAction(argparse.Action):
         if self._cmds is not None:
             cname = '|'.join ([c.name for c in self._cmds])
 
-            print ''
-            print 'This is a sequential command build out of:', cname
-            print 'Any of the following options of the sub-commands are allowed:'
-            print '\n\n'
+            print('')
+            print('This is a sequential command build out of:', cname)
+            print('Any of the following options of the sub-commands are allowed:')
+            print('\n\n')
 
             for c in self._cmds:
                 ap = argparse.ArgumentParser (c.name,
@@ -259,7 +259,7 @@ class SeqCmd (AgregateCmd):
             argv.extend (['-o', out_file])
             argv.extend (in_files)
             res = c.main (argv)
-            if res <> 0: return res
+            if res != 0: return res
 
             in_files = [out_file]
             out_file = None
@@ -283,7 +283,7 @@ class ExtCmd (LimitedCmd):
         argv = [self.name]
         argv.extend (extra)
 
-        if not self.quiet: print ' '.join (argv)
+        if not self.quiet: print(' '.join (argv))
 
         self.cmd = TimeLimitedExec (argv, args.cpu, args.mem, **popen_args)
         return self.cmd.Run ()

@@ -1366,7 +1366,7 @@ class LegacyFrontEnd (sea.LimitedCmd):
             print ('LEGACY FRONT-END HAS BEEN DEPRECATED')
             print ('THE FOLLOWING INSTRUCTIONS ARE PROBABLY INCORRECT')
             print ('No legacy front-end found at:', cmd_name)
-	    print ('Download from https://bitbucket.org/arieg/seahorn-gh/downloads/seahorn-svcomp15-r1.tar.bz2 (64bit) or https://bitbucket.org/arieg/seahorn-gh/downloads/lfe32-2015.tar.bz2 (32bit) and extract into `legacy` sub-directory')
+            print ('Download from https://bitbucket.org/arieg/seahorn-gh/downloads/seahorn-svcomp15-r1.tar.bz2 (64bit) or https://bitbucket.org/arieg/seahorn-gh/downloads/lfe32-2015.tar.bz2 (32bit) and extract into `legacy` sub-directory')
             print ('Only supported on Linux')
             return 1
 

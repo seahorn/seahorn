@@ -68,6 +68,9 @@ Expr make_lambda_map_keys(ExprVector keys, ExprFactory &efac) {
 }
 
 // creates a map for keys and values, assuming that they are sorted
+//
+// TO COMMENT: This function also outputs the lambda function for the keys,
+// assume that it is created, is this a bigger formula if done externally?
 Expr make_map_batch_values(ExprVector keys, ExprVector values, ExprFactory &efac, Expr &lambda_keys) {
 
   // assuming that there is a value for every key. If this is not available,
@@ -145,6 +148,64 @@ Expr make_map_sequence_gets(ExprVector keys, ExprVector values,
 
   return lmd_values;
 }
+
+// bind::fapp(fi.sumPred, csi.m_fparams);;
+// test with only one map
+
+// Takes a map (input and output), the used keys (assumed to be the same for
+// input and output) and generates the parameters necessary to encode this map
+// (`new_params`) and returns the extra literals that need to be performed in
+// the caller.
+// This function needs to be called per map
+
+Expr prepare_finite_maps_caller_callsite(Expr in_map, Expr map_keys,
+                                         ExprVector keys_used,
+                                         ExprFactory &efac,
+                                         ExprVector &new_params,
+                                         Expr &out_map) {
+
+
+  assert(keys_used.size() > 0); // if not, nothing to do? or return literals
+                                // with true
+
+  int count = 1;
+  // TODO
+  Expr BASE_IN_MAP_NAME = mkTerm<std::string>("map_in", efac);
+  Expr BASE_OUT_MAP_NAME = mkTerm<std::string>("map_out", efac);
+  Expr iTy = mk<INT_TY>(efac);
+
+  ExprVector extra_lits, out_values;
+
+  for (auto k : keys_used) {
+    new_params.push_back(k);
+    Expr vin = bind::mkConst(variant::variant(count, BASE_IN_MAP_NAME), iTy);
+    new_params.push_back(vin);
+
+    Expr vout = bind::mkConst(variant::variant(count, BASE_OUT_MAP_NAME), iTy);
+    new_params.push_back(vout);
+
+    extra_lits.push_back(
+        mk<EQ>(vin, finite_map::get_map_lambda(in_map, map_keys, k)));
+    out_values.push_back(vout);
+    count++;
+  }
+
+  Expr out_map_keys;
+  // TODO: out_map_keys is not necessary, we can pass it as a parameter instead
+  // of outputing it from make_map_batch_values, now we are duplicating work
+  out_map = finite_map::make_map_batch_values(keys_used, out_values, efac,
+                                              out_map_keys);
+
+  return mknary<AND>(extra_lits);
+}
+
+// TODO: review how heads are built
+// Expr prepare_finite_map_head(Expr in_map, Expr out_map, Expr map_keys,
+//                              ExprVector keys_used, ExprVector values,
+//                              ExprFactory &efac) {
+//   Expr call;
+//   return call;
+// }
 
 } // namespace finite_map
 } // namespace op

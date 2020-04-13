@@ -53,8 +53,6 @@ def main (argv):
     return cmd.main (argv)
 
 if __name__ == '__main__':
-    # unbuffered output
-    sys.stdout = os.fdopen (sys.stdout.fileno (), 'w', 0)
     path = os.path.abspath (sys.argv[0])
     path = os.path.dirname(path)
 

@@ -13,10 +13,6 @@
 
 #include "seahorn/config.h"
 
-#ifdef HAVE_DSA
-#include "dsa/AllocatorIdentification.h"
-#endif
-
 #include "llvm/Analysis/CallGraphSCCPass.h"
 
 using namespace llvm;
@@ -32,9 +28,6 @@ struct MarkInternalAllocOrDeallocInline : public ModulePass {
   void getAnalysisUsage(AnalysisUsage &AU) const {
     AU.setPreservesAll();
     AU.addRequired<llvm::TargetLibraryInfoWrapperPass>();
-#ifdef HAVE_DSA
-    AU.addRequired<llvm::AllocIdentify>();
-#endif
   }
 
   virtual StringRef getPassName() const {
@@ -64,7 +57,6 @@ struct MarkInternalAllocOrDeallocInline : public ModulePass {
       return false;
 
     bool Change = false;
-#ifndef HAVE_DSA
     // Mark any function that calls a function that (de)allocates
     // memory.
     const TargetLibraryInfo *TLI =
@@ -72,27 +64,6 @@ struct MarkInternalAllocOrDeallocInline : public ModulePass {
     for (Function &F : M)
       if (!F.isDeclaration() && F.hasLocalLinkage())
         Change |= markIfAllocationFn(F, TLI);
-#else
-    // Mark only allocator or deallocator wrappers
-    AllocIdentify *AI = &getAnalysis<AllocIdentify>();
-    for (auto fname :
-         boost::make_iterator_range(AI->alloc_begin(), AI->alloc_end()))
-      if (Function *F = M.getFunction(fname)) {
-        LOG("inline",
-            errs() << "INLINED ALLOCATION WRAPPER " << F->getName() << "\n");
-        F->addFnAttr(Attribute::AlwaysInline);
-        Change = true;
-      }
-
-    for (auto fname :
-         boost::make_iterator_range(AI->dealloc_begin(), AI->dealloc_end()))
-      if (Function *F = M.getFunction(fname)) {
-        LOG("inline",
-            errs() << "INLINED DEALLOCATION WRAPPER " << F->getName() << "\n");
-        F->addFnAttr(Attribute::AlwaysInline);
-        Change = true;
-      }
-#endif
     return Change;
   }
 };

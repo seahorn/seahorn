@@ -103,23 +103,6 @@ static llvm::cl::opt<bool>
     NullChecks("null-check", llvm::cl::desc("Insert null-dereference checks"),
                llvm::cl::init(false));
 
-enum ArrayBoundsChecksEncoding {
-  NONE = 0,
-  LOCAL = 1,
-  GLOBAL = 2,
-  GLOBAL_C = 3
-};
-static llvm::cl::opt<enum ArrayBoundsChecksEncoding> ArrayBoundsChecks(
-    "abc", llvm::cl::desc("Insert array bounds checks"),
-    llvm::cl::values(
-        clEnumValN(NONE, "none", "No array bounds check"),
-        clEnumValN(LOCAL, "local",
-                   "Use local encoding (each pointer individually)"),
-        clEnumValN(GLOBAL, "global", "Use global encoding"),
-        clEnumValN(GLOBAL_C, "global-c",
-                   "Use global encoding by calling C-defined functions")),
-    llvm::cl::init(NONE));
-
 static llvm::cl::opt<bool>
     SimpleMemoryChecks("smc", llvm::cl::desc("Insert simple memory checks"),
                        llvm::cl::init(false));
@@ -406,30 +389,6 @@ int main(int argc, char **argv) {
     pm_wrapper.add(llvm::createLCSSAPass());
     pm_wrapper.add(seahorn::createCutLoopsPass());
     // pm_wrapper.add (new seahorn::RemoveUnreachableBlocksPass ());
-  }
-  // array bound checking. WIP.
-  else if (ArrayBoundsChecks > 0) {
-    if (InstNamer)
-      pm_wrapper.add(llvm::createInstructionNamerPass());
-    else if (NameValues)
-      pm_wrapper.add(seahorn::createNameValuesPass());
-
-    switch (ArrayBoundsChecks) {
-    case LOCAL:
-      pm_wrapper.add(seahorn::createLowerCstExprPass());
-      pm_wrapper.add(seahorn::createLocalBufferBoundsCheck());
-      // -- Turn undef into nondet (undef might be created by Local)
-      pm_wrapper.add(seahorn::createNondetInitPass());
-      break;
-    case GLOBAL_C:
-      pm_wrapper.add(seahorn::createGlobalCBufferBoundsCheckPass());
-      // --- inline some special functions
-      pm_wrapper.add(llvm::createAlwaysInlinerLegacyPass());
-      break;
-    case GLOBAL:
-    default:
-      pm_wrapper.add(seahorn::createGlobalBufferBoundsCheck());
-    }
   }
   // checking for simple instances of memory safety. WIP
   else if (SimpleMemoryChecks) {

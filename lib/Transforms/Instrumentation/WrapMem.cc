@@ -25,13 +25,6 @@ DM-0002198
 #include "llvm/Support/raw_ostream.h"
 
 #include "seahorn/config.h"
-#ifdef HAVE_DSA
-#include "dsa/DSGraph.h"
-#include "dsa/DSNode.h"
-#include "dsa/DataStructure.h"
-#include "dsa/Steensgaard.hh"
-#endif
-
 #define DEBUG_TYPE "wrap-mem"
 
 using namespace llvm;
@@ -43,10 +36,6 @@ static llvm::cl::opt<bool> UseDsa(
 
 namespace {
 class WrapMem : public ModulePass {
-#ifdef HAVE_DSA
-  // TODO: use sea-dsa
-  DataStructures *m_dsa;
-#endif
 
   const DataLayout *m_dl;
   IntegerType *m_intPtrTy;
@@ -57,20 +46,10 @@ public:
   static char ID;
   WrapMem()
       : ModulePass(ID)
-#ifdef HAVE_DSA
-        ,
-        m_dsa(nullptr)
-#endif
   {
   }
 
   bool runOnModule(Module &M) {
-#ifdef HAVE_DSA
-    if (UseDsa) {
-      m_dsa = &getAnalysis<EQTDDataStructures>();
-      // m_dsa = &getAnalysis<SteensgaardDataStructures> ();
-    }
-#endif
     LLVMContext &C = M.getContext();
     m_dl = &M.getDataLayout();
     m_intPtrTy = m_dl->getIntPtrType(C, 0);
@@ -111,30 +90,13 @@ public:
     if (F.isDeclaration() || F.empty())
       return false;
 
-#ifdef HAVE_DSA
-    DSGraph *dsg = nullptr;
-    if (UseDsa) {
-      dsg = m_dsa->getDSGraph(F);
-    }
-#endif
-    LLVMContext &C = F.getContext();
+   LLVMContext &C = F.getContext();
     IRBuilder<> B(C);
     Type *i8PtrTy = B.getInt8PtrTy();
     for (BasicBlock &bb : F)
       for (Instruction &inst : bb) {
         if (LoadInst *load = dyn_cast<LoadInst>(&inst)) {
-#ifdef HAVE_DSA
-          if (dsg) {
-            DSNodeHandle &nh = dsg->getNodeForValue(load->getPointerOperand());
-            DSNode *n = nh.getNode();
-            if (!n)
-              continue;
-            // TODO: fine tune what nodes might be interesting to wrap
-            if (!n->isExternalNode())
-              continue;
-          }
-#endif
-          B.SetInsertPoint(load);
+         B.SetInsertPoint(load);
           AllocaInst *x = B.CreateAlloca(load->getType());
           uint64_t sz = m_dl->getTypeStoreSize(load->getType());
           // uint64_t sz = load->getAlignment();
@@ -144,18 +106,7 @@ public:
                         ConstantInt::get(m_intPtrTy, sz)});
           load->setOperand(load->getPointerOperandIndex(), x);
         } else if (StoreInst *store = dyn_cast<StoreInst>(&inst)) {
-#ifdef HAVE_DSA
-          if (dsg) {
-            DSNodeHandle &nh = dsg->getNodeForValue(store->getPointerOperand());
-            DSNode *n = nh.getNode();
-            if (!n)
-              continue;
-            // TODO: fine tune what nodes might be interesting to wrap
-            if (!n->isExternalNode())
-              continue;
-          }
-#endif
-          B.SetInsertPoint(store);
+         B.SetInsertPoint(store);
           AllocaInst *x = B.CreateAlloca(store->getValueOperand()->getType());
           B.SetInsertPoint(store->getNextNode());
           // uint64_t sz = store->getAlignment();
@@ -173,11 +124,7 @@ public:
   }
 
   void getAnalysisUsage(AnalysisUsage &AU) const {
-#ifdef HAVE_DSA
-    AU.addRequired<llvm::EQTDDataStructures>();
-    // AU.addRequiredTransitive<llvm::SteensgaardDataStructures> ();
-#endif
-    AU.setPreservesAll();
+   AU.setPreservesAll();
   }
 };
 char WrapMem::ID = 0;

@@ -40,7 +40,6 @@ llvm::Pass *createDevirtualizeFunctionsPass();
 llvm::Pass *createAbstractMemoryPass();
 llvm::Pass *createPromoteMemoryToRegisterPass();
 llvm::Pass *createLoadCrabPass();
-llvm::Pass *createLlvmDsaShadowMemPass();    
 
 llvm::Pass *createCutLoopsPass();
 llvm::Pass *createMarkFnEntryPass();

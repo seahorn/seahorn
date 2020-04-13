@@ -392,17 +392,8 @@ endif ()
 # add the include directory from the build tree
 include_directories(BEFORE ${CMAKE_CURRENT_BINARY_DIR}/include)
 
-if (IS_DIRECTORY ${CMAKE_SOURCE_DIR}/llvm-dsa AND
-    EXISTS ${CMAKE_SOURCE_DIR}/llvm-dsa/lib/DSA/Steensgaard.cpp)
-  include_directories (BEFORE llvm-dsa/include)
-  add_subdirectory (llvm-dsa/lib/AssistDS)
-  add_subdirectory (llvm-dsa/lib/DSA)
-  set (DSA_LIBS DSA AssistDS)
-  set (HAVE_DSA TRUE)
-else()
-  message (WARNING "No LLVM DSA found in ${CMAKE_SOURCE_DIR}/llvm-dsa. Run\n\tcmake --build . --target extra && cmake ${CMAKE_SOURCE_DIR}")
-  set (DSA_LIBS "")
-endif()
+# HAVE_DSA
+set(DSA_LIBS "")
 
 if (IS_DIRECTORY ${CMAKE_SOURCE_DIR}/llvm-seahorn AND
     EXISTS ${CMAKE_SOURCE_DIR}/llvm-seahorn/lib/CMakeLists.txt)

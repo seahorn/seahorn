@@ -166,11 +166,6 @@ static llvm::cl::opt<bool>
                  llvm::cl::desc("One assume to rule them all"),
                  llvm::cl::init(false));
 
-// To switch between llvm-dsa and sea-dsa
-static llvm::cl::opt<bool>
-    SeaHornDsa("horn-sea-dsa", llvm::cl::desc("Use Seahorn Dsa analysis"),
-               llvm::cl::init(false));
-
 static llvm::cl::opt<bool> HoudiniInv(
     "horn-houdini",
     llvm::cl::desc("Use Houdini algorithm to generate inductive invariants"),
@@ -320,12 +315,8 @@ int main(int argc, char **argv) {
   if (LowerGlobalInitializers) {
     pass_manager.add(new seahorn::LowerGvInitializers());
   }
-  if (SeaHornDsa) {
-    pass_manager.add(seahorn::createSeaDsaShadowMemPass());
-  } else {
-    pass_manager.add(seahorn::createLlvmDsaShadowMemPass());
-    pass_manager.add(seahorn::createPromoteMemoryToRegisterPass());
-  }
+
+  pass_manager.add(seahorn::createSeaDsaShadowMemPass());
 
   pass_manager.add(new seahorn::RemoveUnreachableBlocksPass());
   pass_manager.add(seahorn::createStripLifetimePass());

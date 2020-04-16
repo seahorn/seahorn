@@ -1,10 +1,10 @@
 cmake_minimum_required(VERSION 3.10.2)
 
 project (SeaHorn)
-set (SeaHorn_VERSION_MAJOR 0)
-set (SeaHorn_VERSION_MINOR 1)
+set (SeaHorn_VERSION_MAJOR 8)
+set (SeaHorn_VERSION_MINOR 0)
 set (SeaHorn_VERSION_PATCH 0)
-set (SeaHorn_VERSION_TWEAK "rc3")
+set (SeaHorn_VERSION_TWEAK "rc0")
 
 if (NOT PACKAGE_VERSION)
   set(PACKAGE_VERSION
@@ -190,7 +190,7 @@ ExternalProject_Add (llvm
   LOG_BUILD 1
   LOG_INSTALL 1)
 
-find_package (LLVM 5.0.0 CONFIG)
+find_package (LLVM 8.0.0 CONFIG)
 if (NOT LLVM_FOUND)
   ExternalProject_Get_Property (llvm INSTALL_DIR)
   set (LLVM_ROOT ${INSTALL_DIR})

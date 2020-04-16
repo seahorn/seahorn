@@ -162,10 +162,6 @@ static llvm::cl::opt<bool>
                        llvm::cl::desc("Promote verifier.assume to llvm.assume"),
                        llvm::cl::init(false));
 
-static llvm::cl::opt<std::string>
-    ApiConfig("api-config",
-              llvm::cl::desc("Comma separated API function calls"),
-              llvm::cl::init(""), llvm::cl::value_desc("api-string"));
 
 // static llvm::cl::opt<int>
 //     SROA_Threshold("sroa-threshold",
@@ -353,10 +349,7 @@ int main(int argc, char **argv) {
 
   assert(dl && "Could not find Data Layout for the module");
 
-  if (!ApiConfig.empty()) {
-    // -- api-config command. Deprecated.
-    pm_wrapper.add(seahorn::createApiAnalysisPass(ApiConfig));
-  } else if (RenameNondet)
+  if (RenameNondet)
     // -- ren-nondet utility pass
     pm_wrapper.add(seahorn::createRenameNondetPass());
   else if (StripShadowMem)

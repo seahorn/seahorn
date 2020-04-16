@@ -32,11 +32,6 @@ static llvm::cl::opt<std::string>
     AsmOutputFilename("oll", llvm::cl::desc("Output analyzed bitcode"),
                       llvm::cl::init(""), llvm::cl::value_desc("filename"));
 
-static llvm::cl::opt<std::string>
-    ApiConfig("api-config",
-              llvm::cl::desc("Comma separated API function calls"),
-              llvm::cl::init(""), llvm::cl::value_desc("api-string"));
-
 static llvm::cl::opt<std::string> DefaultDataLayout(
     "data-layout",
     llvm::cl::desc("data layout string to use if not specified by module"),
@@ -180,8 +175,6 @@ int main(int argc, char **argv) {
   assert(dl && "Could not find Data Layout for the module");
 
   // pass_manager.add (llvm::createVerifierPass());
-  if (!ApiConfig.empty())
-    pass_manager.add(seahorn::createApiAnalysisPass(ApiConfig));
 
   // XXX: run Dsa passes before CFG passes
   if (MemDot)

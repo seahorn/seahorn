@@ -4,7 +4,6 @@ add_llvm_library (SeaAnalysis
   CutPointGraph.cc
   TopologicalOrder.cc
   WeakTopologicalOrder.cc
-  ApiAnalysisPass.cc
   CanReadUndef.cc
   GateAnalysis.cc
   ControlDependenceAnalysis.cc

@@ -61,8 +61,6 @@ llvm::Pass *createEnumVerifierCallsPass();
 
 llvm::Pass *createCanReadUndefPass();
 
-llvm::Pass *createApiAnalysisPass(std::string &config);
-
 llvm::Pass *createBmcPass(llvm::raw_ostream *out, bool solve);
 llvm::Pass *createPathBmcPass(llvm::raw_ostream *out, bool solve);
 

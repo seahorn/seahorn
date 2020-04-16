@@ -65,24 +65,23 @@ configure_file("${CMAKE_CURRENT_SOURCE_DIR}/lib/Support/GitSHA1.cc.in" "${CMAKE_
 find_package (Git)
 if (GIT_FOUND)
   set (SEAHORN_LLVM_REPO "https://github.com/seahorn/llvm-seahorn"
-    CACHE STRING "seahorn-llvm repo")
+    CACHE STRING "llvm-seahorn repo")
   set (SEA_DSA_REPO "https://github.com/seahorn/sea-dsa"
     CACHE STRING "sea-dsa repo")
   set (CLAM_REPO "https://github.com/seahorn/crab-llvm"
     CACHE STRING "clam repo")
   
-  add_custom_target (seahorn-llvm-git
+  add_custom_target (llvm-seahorn-git
     ${GIT_EXECUTABLE} clone ${SEAHORN_LLVM_REPO} ${CMAKE_SOURCE_DIR}/llvm-seahorn)
   add_custom_target (sea-dsa-git
-    ${GIT_EXECUTABLE} clone ${SEA_DSA_REPO} ${CMAKE_SOURCE_DIR}/sea-dsa)
+    ${GIT_EXECUTABLE} clone -b dev8 ${SEA_DSA_REPO} ${CMAKE_SOURCE_DIR}/sea-dsa)
   add_custom_target (clam-git
     ${GIT_EXECUTABLE} clone ${CLAM_REPO} ${CMAKE_SOURCE_DIR}/clam)
   add_custom_target (extra
     ${CMAKE_COMMAND} -E touch ${CMAKE_CURRENT_LIST_FILE}
     DEPENDS
-    llvm-dsa-git
     sea-dsa-git    
-    seahorn-llvm-git
+    llvm-seahorn-git
     clam-git
   )
 

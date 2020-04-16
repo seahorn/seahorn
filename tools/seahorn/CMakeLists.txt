@@ -18,7 +18,7 @@ set(LLVM_LINK_COMPONENTS bitwriter irreader ipo scalaropts instrumentation core
   # XXX not clear why these last two are required
   codegen objcarcopts)
 add_llvm_executable(seahorn seahorn.cpp)
-target_link_libraries (seahorn ${USED_LIBS})
+target_link_libraries (seahorn PRIVATE ${USED_LIBS})
 llvm_config (seahorn ${LLVM_LINK_COMPONENTS})
 install(TARGETS seahorn RUNTIME DESTINATION bin)
 

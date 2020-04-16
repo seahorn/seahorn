@@ -48,7 +48,7 @@ add_llvm_library (seahorn.LIB
 
 add_subdirectory(Smt)
 if (HAVE_CLAM)
-  target_link_libraries (seahorn.LIB ${CLAM_LIBS})
+  target_link_libraries (seahorn.LIB PRIVATE ${CLAM_LIBS})
 endif()
 
 

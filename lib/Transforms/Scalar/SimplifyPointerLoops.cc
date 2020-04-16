@@ -186,7 +186,7 @@ namespace
 
     BranchInst* getLoopExitBr (Loop* TheLoop) {
       if (BasicBlock* Exit = TheLoop->getExitingBlock ()) {
-        TerminatorInst* TI = Exit->getTerminator ();
+        auto* TI = Exit->getTerminator ();
         if (BranchInst* BI = dyn_cast<BranchInst> (TI)) {
           if (BI->isConditional ())
             return BI;

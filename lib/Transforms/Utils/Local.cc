@@ -2,6 +2,7 @@
 
 #include "llvm/IR/CFG.h"
 #include "llvm/IR/Module.h"
+#include "llvm/IR/IRBuilder.h"
 #include "llvm/Transforms/Utils/Local.h"
 
 using namespace llvm;
@@ -38,7 +39,7 @@ void reduceToRegion(Function &F, DenseSet<const BasicBlock *> &region) {
 
     if (region.count(&BB) <= 0) {
       dead.push_back(&BB);
-      TerminatorInst *BBTerm = BB.getTerminator();
+      auto *BBTerm = BB.getTerminator();
       for (unsigned i = 0, e = BBTerm->getNumSuccessors(); i != e; ++i)
         BBTerm->getSuccessor(i)->removePredecessor(&BB);
       continue;

@@ -746,7 +746,7 @@ namespace seahorn
     execPhi (s, dst, src, side, trueE);
 
     // an edge into a basic block that does not return includes the block itself
-    const TerminatorInst *term = dst.getTerminator ();
+    const auto *term = dst.getTerminator ();
     if (term && isa<const UnreachableInst> (term)) exec (s, dst, side, trueE);
 
   }

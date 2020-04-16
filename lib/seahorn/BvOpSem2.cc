@@ -2152,7 +2152,7 @@ bool Bv2OpSem::intraStep(seahorn::details::Bv2OpSemContext &C) {
   const Instruction &inst = C.getCurrentInst();
 
   // -- non-branch terminators are executed elsewhere
-  if (isa<TerminatorInst>(&inst) && !isa<BranchInst>(&inst))
+  if (inst->isTerminator() && !isa<BranchInst>(&inst))
     return false;
 
   // -- either skip or execute the instruction
@@ -2166,7 +2166,7 @@ bool Bv2OpSem::intraStep(seahorn::details::Bv2OpSemContext &C) {
   }
 
   // -- advance instruction pointer if needed
-  if (!isa<TerminatorInst>(&inst)) {
+  if (!inst.isTerminator()) {
     ++C;
     return true;
   }
@@ -2266,7 +2266,7 @@ void Bv2OpSem::execEdg(const BasicBlock &src, const BasicBlock &dst,
   execPhi(dst, src, ctx);
 
   // an edge into a basic block that does not return includes the block itself
-  const TerminatorInst *term = dst.getTerminator();
+  const auto *term = dst.getTerminator();
   if (term && isa<const UnreachableInst>(term))
     exec(dst, ctx);
 }

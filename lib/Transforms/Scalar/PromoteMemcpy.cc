@@ -58,13 +58,15 @@ char PromoteMemcpy::ID = 0;
 bool PromoteMemcpy::simplifyMemCpy(MemCpyInst *MI) {
   assert(MI);
 
-  unsigned DstAlign = getKnownAlignment(MI->getDest(), *m_DL, MI, m_AC, m_DT);
-  unsigned SrcAlign = getKnownAlignment(MI->getSource(), *m_DL, MI, m_AC, m_DT);
-  unsigned MinAlign = std::min(DstAlign, SrcAlign);
-  unsigned CopyAlign = MI->getAlignment();
+  auto DstAlign = getKnownAlignment(MI->getDest(), *m_DL, MI, m_AC, m_DT);
+  auto SrcAlign = getKnownAlignment(MI->getSource(), *m_DL, MI, m_AC, m_DT);
 
-  if (CopyAlign < MinAlign) {
-    PMCPY_LOG(WARN << "unhandled alignment. Skipping memcpy: " << *MI;);
+  if (MI->getSourceAlignment() != SrcAlign) {
+    PMCPY_LOG(WARN << "unhandled SOURCE alignment. Skipping memcpy: " << *MI;);
+    return false;
+  }
+  else if (MI->getDestAlignment() != DstAlign) {
+    PMCPY_LOG(WARN << "unhandled DEST alignment. Skipping memcpy: " << *MI;);
     return false;
   }
 

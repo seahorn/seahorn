@@ -103,8 +103,8 @@ namespace seahorn
       ChecksAdded++;
     }
 
-    TerminatorInst* ThenTerm = nullptr;
-    TerminatorInst* ElseTerm = nullptr;
+    Instruction* ThenTerm = nullptr;
+    Instruction* ElseTerm = nullptr;
 
     SplitBlockAndInsertIfThenElse(isNull, I, &ThenTerm, &ElseTerm);
 

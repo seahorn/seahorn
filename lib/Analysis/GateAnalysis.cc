@@ -85,7 +85,7 @@ private:
   processIncomingValues(PHINode *PN, Instruction *insertionPt);
 };
 
-Value *GetCondition(TerminatorInst *TI) {
+Value *GetCondition(Instruction *TI) {
   if (auto *BI = dyn_cast<BranchInst>(TI)) {
     assert(BI->isConditional() && "Unconditional branches cannot be gates!");
     return BI->getCondition();
@@ -138,7 +138,7 @@ GateAnalysisImpl::processIncomingValues(PHINode *PN, Instruction *insertionPt) {
     Value *incomingValue = PN->getIncomingValue(i);
     incomingBlockToValue[incomingBlock] = incomingValue;
 
-    TerminatorInst *TI = incomingBlock->getTerminator();
+    auto *TI = incomingBlock->getTerminator();
     assert(isa<BranchInst>(TI) && "Other termiantors not supported yet");
     auto *BI = dyn_cast<BranchInst>(TI);
     if (BI->isUnconditional())
@@ -204,7 +204,7 @@ void GateAnalysisImpl::processPhi(PHINode *PN, Instruction *insertionPt) {
   for (BasicBlock *BB : cdInfo) {
     GSA_LOG(errs() << "CDBlock: " << BB->getName() << "\n");
 
-    TerminatorInst *TI = BB->getTerminator();
+    auto *TI = BB->getTerminator();
     assert(isa<BranchInst>(TI) && "Only BranchInst is supported right now");
 
     GSA_LOG(errs() << "Considering CDInfo " << BB->getName() << "\n");

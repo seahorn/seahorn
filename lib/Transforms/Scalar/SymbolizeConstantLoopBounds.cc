@@ -54,7 +54,7 @@ class SymbolizeConstantLoopBounds : public FunctionPass {
   }
 
   Instruction *getLoopExitCond(BasicBlock *ExitingLoop) {
-    TerminatorInst *TI = ExitingLoop->getTerminator();
+    auto*TI = ExitingLoop->getTerminator();
     if (BranchInst *BI = dyn_cast<BranchInst>(TI)) {
       if (BI->isConditional()) {
         return dyn_cast<Instruction>(BI->getCondition());

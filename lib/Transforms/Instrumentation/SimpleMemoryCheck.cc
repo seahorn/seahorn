@@ -861,8 +861,8 @@ void SimpleMemoryCheck::emitAllocSiteInstrumentation(CheckContext &Candidate,
     auto *And = dyn_cast<Instruction>(IRB.CreateAnd(NotActive, NDBool));
     assert(And);
 
-    TerminatorInst *ThenTerm;
-    TerminatorInst *ElseTerm;
+    Instruction *ThenTerm;
+    Instruction *ElseTerm;
     SplitBlockAndInsertIfThenElse(And, GetNextInst(And), &ThenTerm, &ElseTerm);
 
     auto *ThenBB = ThenTerm->getParent();

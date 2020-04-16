@@ -100,7 +100,7 @@ namespace seahorn
                                std::vector<std::pair<BranchInst*, bool> > &Branches) {
     for (auto it = pred_begin(BB), et = pred_end(BB); it != et; ++it) {
       BasicBlock* Pred = *it;
-      TerminatorInst* TI = Pred->getTerminator ();
+      auto* TI = Pred->getTerminator ();
       if (BranchInst* BI = dyn_cast<BranchInst> (TI)) {
         if (!BI->isConditional ())
           return getBranchToInsertAssume(Pred, Branches);

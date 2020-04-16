@@ -404,7 +404,7 @@ void VCGen::genVcForBasicBlockOnEdge(OpSemContext &ctx, const CpEdge &edge,
   // the basic-block variable because it does not matter.
   if (!last) {
     m_sem.exec(bb, ctx.pc(bbV));
-  } else if (const TerminatorInst *term = bb.getTerminator()) {
+  } else if (const auto *term = bb.getTerminator()) {
     if (isa<UnreachableInst>(term))
       m_sem.exec(bb, ctx.pc(trueE));
   }

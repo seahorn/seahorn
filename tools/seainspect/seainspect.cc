@@ -120,7 +120,7 @@ int main(int argc, char **argv) {
   llvm::SMDiagnostic err;
   static llvm::LLVMContext context;
   std::unique_ptr<llvm::Module> module;
-  std::unique_ptr<llvm::tool_output_file> asmOutput;
+  std::unique_ptr<llvm::ToolOutputFile> asmOutput;
 
   module = llvm::parseIRFile(InputFilename, err, context);
   if (module.get() == 0) {
@@ -135,7 +135,7 @@ int main(int argc, char **argv) {
   }
 
   if (!AsmOutputFilename.empty())
-    asmOutput = llvm::make_unique<llvm::tool_output_file>(
+    asmOutput = llvm::make_unique<llvm::ToolOutputFile>(
         AsmOutputFilename.c_str(), error_code, llvm::sys::fs::F_Text);
   if (error_code) {
     if (llvm::errs().has_colors())

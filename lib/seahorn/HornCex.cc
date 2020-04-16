@@ -484,7 +484,7 @@ static void debugLocToSvComp(const Instruction &inst, SvCompCex<O> &svcomp) {
 
 static void dumpSvCompCex(BmcTrace &trace, std::string CexFile) {
   std::error_code ec;
-  llvm::tool_output_file out(CexFile.c_str(), ec, llvm::sys::fs::F_Text);
+  llvm::ToolOutputFile out(CexFile.c_str(), ec, llvm::sys::fs::F_Text);
   if (ec) {
     errs() << "ERROR: Cannot open CEX file: " << ec.message() << "\n";
     return;
@@ -507,13 +507,13 @@ static void dumpSvCompCex(BmcTrace &trace, std::string CexFile) {
 
 static void dumpLLVMBitcode(const Module &M, StringRef BcFile) {
   std::error_code error_code;
-  tool_output_file sliceOutput(BcFile, error_code, sys::fs::F_None);
+  ToolOutputFile sliceOutput(BcFile, error_code, sys::fs::F_None);
   assert(!error_code);
   verifyModule(M, &errs());
   if (BcFile.endswith(".ll"))
     sliceOutput.os() << M;
   else
-    WriteBitcodeToFile(&M, sliceOutput.os());
+    WriteBitcodeToFile(M, sliceOutput.os());
   sliceOutput.os().close();
   sliceOutput.keep();
 }

@@ -45,8 +45,8 @@
 #include "seahorn/Transforms/Utils/NameValues.hh"
 
 #include "seahorn/Support/GitSHA1.h"
-void print_seahorn_version() {
-  llvm::outs() << "SeaHorn (http://seahorn.github.io/):\n"
+void print_seahorn_version(llvm::raw_ostream &OS) {
+  OS << "SeaHorn (http://seahorn.github.io/):\n"
                << "  SeaHorn version " << SEAHORN_VERSION_INFO << "-"
                << g_GIT_SHA1 << "\n";
 }
@@ -213,8 +213,8 @@ int main(int argc, char **argv) {
   llvm::SMDiagnostic err;
   llvm::LLVMContext context;
   std::unique_ptr<llvm::Module> module;
-  std::unique_ptr<llvm::tool_output_file> output;
-  std::unique_ptr<llvm::tool_output_file> asmOutput;
+  std::unique_ptr<llvm::ToolOutputFile> output;
+  std::unique_ptr<llvm::ToolOutputFile> asmOutput;
 
   module = llvm::parseIRFile(InputFilename, err, context);
   if (module.get() == 0) {
@@ -228,7 +228,7 @@ int main(int argc, char **argv) {
     return 3;
   }
   if (!AsmOutputFilename.empty())
-    asmOutput = llvm::make_unique<llvm::tool_output_file>(
+    asmOutput = llvm::make_unique<llvm::ToolOutputFile>(
         AsmOutputFilename.c_str(), error_code, llvm::sys::fs::F_Text);
   if (error_code) {
     if (llvm::errs().has_colors())
@@ -241,7 +241,7 @@ int main(int argc, char **argv) {
   }
 
   if (!OutputFilename.empty())
-    output = llvm::make_unique<llvm::tool_output_file>(
+    output = llvm::make_unique<llvm::ToolOutputFile>(
         OutputFilename.c_str(), error_code, llvm::sys::fs::F_None);
 
   if (error_code) {

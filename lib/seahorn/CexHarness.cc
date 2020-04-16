@@ -124,13 +124,13 @@ void dumpLLVMCex(BmcTraceWrapper &trace, StringRef CexFile,
                         LLVMContext &context) {
   std::unique_ptr<Module> Harness = createCexHarness(trace, dl, tli, context);
   std::error_code error_code;
-  llvm::tool_output_file out(CexFile, error_code, sys::fs::F_None);
+  llvm::ToolOutputFile out(CexFile, error_code, sys::fs::F_None);
   assert(!error_code);
   verifyModule(*Harness, &errs());
   if (CexFile.endswith(".ll"))
     out.os() << *Harness;
   else
-    WriteBitcodeToFile(Harness.get(), out.os());
+    WriteBitcodeToFile(*Harness, out.os());
   out.os().close();
   out.keep();
 }

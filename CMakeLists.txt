@@ -6,6 +6,11 @@ set (SeaHorn_VERSION_MINOR 0)
 set (SeaHorn_VERSION_PATCH 0)
 set (SeaHorn_VERSION_TWEAK "rc0")
 
+if(CMAKE_VERSION VERSION_GREATER "3.13.0")
+cmake_policy(SET CMP0074 NEW)
+cmake_policy(SET CMP0077 NEW)
+endif()
+
 if (NOT PACKAGE_VERSION)
   set(PACKAGE_VERSION
     "${SeaHorn_VERSION_MAJOR}.${SeaHorn_VERSION_MINOR}.${SeaHorn_VERSION_PATCH}")

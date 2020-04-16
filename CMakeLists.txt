@@ -66,8 +66,6 @@ find_package (Git)
 if (GIT_FOUND)
   set (SEAHORN_LLVM_REPO "https://github.com/seahorn/llvm-seahorn"
     CACHE STRING "seahorn-llvm repo")
-  set (LLVM_DSA_REPO "https://github.com/seahorn/llvm-dsa"
-    CACHE STRING "llvm-dsa repo")
   set (SEA_DSA_REPO "https://github.com/seahorn/sea-dsa"
     CACHE STRING "sea-dsa repo")
   set (CLAM_REPO "https://github.com/seahorn/crab-llvm"
@@ -75,8 +73,6 @@ if (GIT_FOUND)
   
   add_custom_target (seahorn-llvm-git
     ${GIT_EXECUTABLE} clone ${SEAHORN_LLVM_REPO} ${CMAKE_SOURCE_DIR}/llvm-seahorn)
-  add_custom_target (llvm-dsa-git
-    ${GIT_EXECUTABLE} clone ${LLVM_DSA_REPO} ${CMAKE_SOURCE_DIR}/llvm-dsa)
   add_custom_target (sea-dsa-git
     ${GIT_EXECUTABLE} clone ${SEA_DSA_REPO} ${CMAKE_SOURCE_DIR}/sea-dsa)
   add_custom_target (clam-git

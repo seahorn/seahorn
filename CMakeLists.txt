@@ -412,7 +412,7 @@ else()
 endif()
 
 if (IS_DIRECTORY ${CMAKE_SOURCE_DIR}/sea-dsa AND
-    EXISTS ${CMAKE_SOURCE_DIR}/sea-dsa/src/DsaAnalysis.cc)
+    EXISTS ${CMAKE_SOURCE_DIR}/sea-dsa/lib/seadsa/DsaAnalysis.cc)
   include_directories (BEFORE sea-dsa/include)
   add_subdirectory (${CMAKE_SOURCE_DIR}/sea-dsa)
   set (SEA_DSA_LIBS SeaDsaAnalysis)

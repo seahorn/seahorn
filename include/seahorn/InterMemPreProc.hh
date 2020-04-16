@@ -1,10 +1,9 @@
 #pragma once
 
-#include "sea_dsa/CompleteCallGraph.hh"
-#include "sea_dsa/Mapper.hh"
-#include "sea_dsa/ShadowMem.hh"
-
-#include <boost/container/flat_set.hpp>
+#include "seadsa/CompleteCallGraph.hh"
+#include "seadsa/Mapper.hh"
+#include "seadsa/ShadowMem.hh"
+#include "seadsa/DsaColor.hh"
 
 namespace seahorn {
 
@@ -16,13 +15,12 @@ namespace seahorn {
      */
 
   private:
-    using NodeSet = boost::container::flat_set<const sea_dsa::Node *>;
-    sea_dsa::CompleteCallGraph &m_ccg;
-    sea_dsa::ShadowMem &m_shadowDsa;
+    seadsa::CompleteCallGraph &m_ccg;
+    seadsa::ShadowMem &m_shadowDsa;
 
     using SimMapperMap =
         llvm::DenseMap<const llvm::Instruction *,
-                       std::unique_ptr<sea_dsa::SimulationMapper>>;
+                       std::unique_ptr<seadsa::SimulationMapper>>;
     SimMapperMap m_sms;
 
     using NodesCSMap = llvm::DenseMap<const llvm::Instruction *,
@@ -39,8 +37,8 @@ namespace seahorn {
         m_unsafen_f_callee; // set of unsafe nodes in the callee of a function
 
   public:
-    InterMemPreProc(sea_dsa::CompleteCallGraph &ccg,
-                    sea_dsa::ShadowMem &shadowDsa)
+    InterMemPreProc(seadsa::CompleteCallGraph &ccg,
+                    seadsa::ShadowMem &shadowDsa)
         : m_ccg(ccg), m_shadowDsa(shadowDsa){};
 
     /*! \brief For each CallSite of a module, it obtains the simulation relation
@@ -49,7 +47,7 @@ namespace seahorn {
      */
     bool runOnModule(llvm::Module &M);
     NodeSet &getUnsafeCallerNodesCallSite(const llvm::CallSite &cs);
-    bool isSafeNode(NodeSet &unsafe, const sea_dsa::Node *n);
-    sea_dsa::SimulationMapper &getSimulationCallSite(const llvm::CallSite &cs);
+    bool isSafeNode(NodeSet &unsafe, const seadsa::Node *n);
+    seadsa::SimulationMapper &getSimulationCallSite(const llvm::CallSite &cs);
   };
 } // namespace seahorn

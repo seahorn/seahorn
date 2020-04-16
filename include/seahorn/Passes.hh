@@ -122,14 +122,14 @@ inline llvm::FunctionPass *createInstCombine() {
 } // namespace seahorn
 #endif
 
-#include "sea_dsa/ShadowMem.hh"
+#include "seadsa/ShadowMem.hh"
 namespace seahorn {
 llvm::Pass *createSeaDsaShadowMemPass() {
-  return sea_dsa::createShadowMemPass();
+  return seadsa::createShadowMemPass();
 }
 
 llvm::Pass *createStripShadowMemPass(){
-  return sea_dsa::createStripShadowMemPass();
+  return seadsa::createStripShadowMemPass();
 }
 
 }

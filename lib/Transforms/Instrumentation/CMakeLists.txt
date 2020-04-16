@@ -13,4 +13,4 @@ add_llvm_library(SeaInstrumentation
   FatBufferBoundsCheck.cc
   )
 
-target_link_libraries (SeaInstrumentation PRIVATE ${SEA_DSA_LIBS})
+target_link_libraries (SeaInstrumentation PRIVATE ${SEADSA_LIBS})

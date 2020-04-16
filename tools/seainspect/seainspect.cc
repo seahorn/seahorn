@@ -20,7 +20,7 @@
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Transforms/IPO.h"
 
-#include "sea_dsa/DsaAnalysis.hh"
+#include "seadsa/DsaAnalysis.hh"
 #include "seahorn/Passes.hh"
 
 static llvm::cl::opt<std::string>
@@ -178,19 +178,19 @@ int main(int argc, char **argv) {
 
   // XXX: run Dsa passes before CFG passes
   if (MemDot)
-    pass_manager.add(sea_dsa::createDsaPrinterPass());
+    pass_manager.add(seadsa::createDsaPrinterPass());
 
   if (CallGraphDot)
-    pass_manager.add(sea_dsa::createDsaCallGraphPrinterPass());
+    pass_manager.add(seadsa::createDsaCallGraphPrinterPass());
 
   if (PrintCallGraphStats)
-    pass_manager.add(sea_dsa::createDsaPrintCallGraphStatsPass());
+    pass_manager.add(seadsa::createDsaPrintCallGraphStatsPass());
   
   if (MemViewer)
-    pass_manager.add(sea_dsa::createDsaViewerPass());
+    pass_manager.add(seadsa::createDsaViewerPass());
 
   if (PrintMemStats)
-    pass_manager.add(sea_dsa::createDsaPrintStatsPass());
+    pass_manager.add(seadsa::createDsaPrintStatsPass());
 
   if (SMC)
     pass_manager.add(seahorn::createSimpleMemoryCheckPass());

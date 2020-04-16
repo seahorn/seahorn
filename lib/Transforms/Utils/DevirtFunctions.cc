@@ -8,10 +8,10 @@
 #include "llvm/Analysis/CallGraph.h"
 #include "llvm/IR/InstIterator.h"
 
-#include "sea_dsa/CompleteCallGraph.hh"
+#include "seadsa/CompleteCallGraph.hh"
 
 using namespace llvm;
-using namespace sea_dsa;
+using namespace seadsa;
 
 namespace seahorn {
 
@@ -145,7 +145,7 @@ CallSiteResolverByDsa::CallSiteResolverByDsa(Module& M,
   : CallSiteResolverByTypes(M)
   , m_M(M), m_dsa(dsa), m_allow_incomplete(incomplete) {
     
-  CallSiteResolver::m_kind = CallSiteResolverKind::RESOLVER_SEA_DSA;
+  CallSiteResolver::m_kind = CallSiteResolverKind::RESOLVER_SEADSA;
   
   // build the target map
   unsigned num_indirect_calls = 0;

@@ -33,7 +33,7 @@ seahorn::PathBmcTrace seahorn::PathBmcEngine::getTrace() {
 #include "seahorn/Support/Stats.hh"
 #include "seahorn/UfoOpSem.hh"
 
-#include "sea_dsa/AllocWrapInfo.hh"
+#include "seadsa/AllocWrapInfo.hh"
 
 #include "clam/AbstractDomain.hh"
 #include "clam/CfgBuilder.hh"
@@ -860,7 +860,7 @@ solver::SolverResult PathBmcEngine::path_encoding_and_solve_with_smt(
 
 PathBmcEngine::PathBmcEngine(LegacyOperationalSemantics &sem,
 			     const llvm::TargetLibraryInfo &tli,
-			     sea_dsa::ShadowMem &sm)
+			     seadsa::ShadowMem &sm)
     : m_sem(sem), m_cpg(nullptr), m_fn(nullptr), m_ls(nullptr),
       m_ctxState(sem.efac()), m_boolean_solver(nullptr),
       m_smt_path_solver(nullptr), m_model(nullptr), m_num_paths(0),

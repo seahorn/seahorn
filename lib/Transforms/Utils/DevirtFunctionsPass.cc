@@ -14,8 +14,8 @@
 #include "llvm/Pass.h"
 #include "llvm/Support/raw_ostream.h"
 
-#include "sea_dsa/AllocWrapInfo.hh"
-#include "sea_dsa/CompleteCallGraph.hh"
+#include "seadsa/AllocWrapInfo.hh"
+#include "seadsa/CompleteCallGraph.hh"
 
 static llvm::cl::opt<seahorn::CallSiteResolverKind>
 Devirt("devirt-functions-method",
@@ -23,7 +23,7 @@ Devirt("devirt-functions-method",
       llvm::cl::values 
        (clEnumValN(seahorn::CallSiteResolverKind::RESOLVER_TYPES, "types",
 		  "Choose all possible functions with same type signature"),
-       clEnumValN(seahorn::CallSiteResolverKind::RESOLVER_SEA_DSA  , "sea-dsa",
+       clEnumValN(seahorn::CallSiteResolverKind::RESOLVER_SEADSA  , "sea-dsa",
 		  "Sea-Dsa selects the potential callees "
 		  "after discarding those with inconsistent types")),
       llvm::cl::init(seahorn::CallSiteResolverKind::RESOLVER_TYPES));
@@ -83,12 +83,12 @@ public:
       res |= DF.resolveCallSites(M, &*CSR);
       break;
     }
-    case CallSiteResolverKind::RESOLVER_SEA_DSA: {
+    case CallSiteResolverKind::RESOLVER_SEADSA: {
       LOG("devirt", errs() << "Devirtualizing indirect calls using sea-dsa+types ...\n";);
       auto &dl = M.getDataLayout();
       auto &tli = getAnalysis<TargetLibraryInfoWrapperPass>().getTLI();
-      auto &allocInfo = getAnalysis<sea_dsa::AllocWrapInfo>();
-      sea_dsa::CompleteCallGraphAnalysis ccga(dl, tli, allocInfo, cg, true);
+      auto &allocInfo = getAnalysis<seadsa::AllocWrapInfo>();
+      seadsa::CompleteCallGraphAnalysis ccga(dl, tli, allocInfo, cg, true);
       ccga.runOnModule(M);
       LOG("devirt-dsa-cg", ccga.printStats(M, errs()));
       CSR.reset(new CallSiteResolverByDsa(M, ccga, AllowIncompleteDsaNodes));
@@ -105,9 +105,9 @@ public:
     AU.setPreservesAll();
     AU.addPreserved<CallGraphWrapperPass>();
       
-    if (Devirt == CallSiteResolverKind::RESOLVER_SEA_DSA) {
+    if (Devirt == CallSiteResolverKind::RESOLVER_SEADSA) {
       AU.addRequired<TargetLibraryInfoWrapperPass>();
-      AU.addRequired<sea_dsa::AllocWrapInfo>();      
+      AU.addRequired<seadsa::AllocWrapInfo>();      
     }
   }
 

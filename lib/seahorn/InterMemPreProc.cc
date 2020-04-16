@@ -3,16 +3,15 @@
 #include "seahorn/InterMemPreProc.hh"
 #include "seahorn/Support/SeaDebug.h"
 
-#include "sea_dsa/DsaAnalysis.hh"
-#include "sea_dsa/CallGraphUtils.hh"
-#include "sea_dsa/Global.hh"
+#include "seadsa/DsaAnalysis.hh"
+#include "seadsa/CallGraphUtils.hh"
+#include "seadsa/Global.hh"
 
 namespace {
 
-using namespace sea_dsa;
+using namespace seadsa;
 using namespace llvm;
 
-using NodeSet = boost::container::flat_set<const sea_dsa::Node *>;
 enum class EColor { BLACK, GRAY }; // colors for exploration
 using ExplorationMap = DenseMap<const Node *, EColor>;
 

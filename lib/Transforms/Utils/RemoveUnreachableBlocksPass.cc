@@ -3,8 +3,8 @@
 
 #include "seahorn/config.h"
 
-#include "sea_dsa/ShadowMem.hh"
-#include "sea_dsa/DsaAnalysis.hh"
+#include "seadsa/ShadowMem.hh"
+#include "seadsa/DsaAnalysis.hh"
 
 using namespace llvm;
 
@@ -17,8 +17,8 @@ namespace seahorn
 
   void RemoveUnreachableBlocksPass::getAnalysisUsage (AnalysisUsage &AU) const {
       // Preserve Sea-DSA passes
-      AU.addPreservedID(sea_dsa::DsaAnalysis::ID);
-      AU.addPreservedID(sea_dsa::ShadowMemPass::ID);      
+      AU.addPreservedID(seadsa::DsaAnalysis::ID);
+      AU.addPreservedID(seadsa::ShadowMemPass::ID);      
   }
 }
 

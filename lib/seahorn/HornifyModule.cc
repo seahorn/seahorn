@@ -41,7 +41,7 @@
 
 using namespace llvm;
 using namespace seahorn;
-using namespace sea_dsa;
+using namespace seadsa;
 
 static llvm::cl::opt<enum TrackLevel>
     TL("horn-sem-lvl", llvm::cl::desc("Track level for symbolic execution"),
@@ -158,10 +158,10 @@ bool HornifyModule::runOnModule(Module &M) {
       Step == hm_detail::CLP_FLAT_SMALL_STEP)
     m_sem.reset(new ClpOpSem(m_efac, *this, M.getDataLayout(), TL));
   else if (InterProcMem) {
-    ShadowMemPass * smp = getAnalysisIfAvailable<sea_dsa::ShadowMemPass>();
+    ShadowMemPass * smp = getAnalysisIfAvailable<seadsa::ShadowMemPass>();
     assert(smp);
     ShadowMem &shadowmem_analysis = smp->getShadowMem();
-    CompleteCallGraph *ccg = getAnalysisIfAvailable<sea_dsa::CompleteCallGraph>();
+    CompleteCallGraph *ccg = getAnalysisIfAvailable<seadsa::CompleteCallGraph>();
     assert(ccg);
     std::shared_ptr<InterMemPreProc> preproc =
         std::make_shared<InterMemPreProc>(*ccg, shadowmem_analysis);
@@ -440,8 +440,8 @@ void HornifyModule::getAnalysisUsage(llvm::AnalysisUsage &AU) const {
   AU.addRequired<seahorn::CutPointGraph>();
 
   if (InterProcMem) {
-    AU.addRequired<sea_dsa::CompleteCallGraph>();
-    AU.addRequired<sea_dsa::ShadowMemPass>();
+    AU.addRequired<seadsa::CompleteCallGraph>();
+    AU.addRequired<seadsa::ShadowMemPass>();
   }
 }
 

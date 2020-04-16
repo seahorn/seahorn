@@ -16,7 +16,7 @@ class TargetLibraryInfo;
 class DataLayout;
 class raw_ostream;
 } // namespace llvm
-namespace sea_dsa {
+namespace seadsa {
 class ShadowMem;
 }
 
@@ -39,7 +39,7 @@ class PathBmcEngine {
 
 public:
   PathBmcEngine(seahorn::LegacyOperationalSemantics &sem,
-		const llvm::TargetLibraryInfo &tli, sea_dsa::ShadowMem &sm)
+		const llvm::TargetLibraryInfo &tli, seadsa::ShadowMem &sm)
     : m_sem(sem) {}
 
   virtual ~PathBmcEngine() {}
@@ -95,7 +95,7 @@ class PathBmcTrace;
 class PathBmcEngine {
 public:
   PathBmcEngine(LegacyOperationalSemantics &sem,
-		const llvm::TargetLibraryInfo &tli, sea_dsa::ShadowMem &sm);
+		const llvm::TargetLibraryInfo &tli, seadsa::ShadowMem &sm);
 
   virtual ~PathBmcEngine();
 
@@ -184,7 +184,7 @@ protected:
   //// Crab stuff
   const llvm::TargetLibraryInfo &m_tli;  
   // shadow mem pass   
-  sea_dsa::ShadowMem &m_sm;
+  seadsa::ShadowMem &m_sm;
   // crab's cfg builder manager
   std::unique_ptr<clam::CrabBuilderManager> m_cfg_builder_man;
   // crab instance to solve paths

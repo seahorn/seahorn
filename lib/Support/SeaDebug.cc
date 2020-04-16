@@ -7,7 +7,7 @@
 
 #ifndef NSEALOG
 
-namespace sea_dsa {
+namespace seadsa {
 extern void SeaDsaEnableLog(std::string x);
 }
 
@@ -22,8 +22,8 @@ void seahorn::SeaEnableLog(std::string x) {
   SeaLogFlag = true;
   SeaLog.insert(x);
 
-  // Enable logging in sea_dsa in case it uses the same tags.
-  sea_dsa::SeaDsaEnableLog(x);
+  // Enable logging in seadsa in case it uses the same tags.
+  seadsa::SeaDsaEnableLog(x);
 }
 
 namespace seahorn {

@@ -27,7 +27,7 @@
 #include "seahorn/Support/SeaDebug.h"
 #include "seahorn/Support/SeaLog.hh"
 
-#include "sea_dsa/ShadowMem.hh"
+#include "seadsa/ShadowMem.hh"
 
 namespace seahorn {
 // defined in HornCex.cc
@@ -101,7 +101,7 @@ public:
 
   void getAnalysisUsage(AnalysisUsage &AU) const {
     AU.addRequired<TargetLibraryInfoWrapperPass>();
-    AU.addRequired<sea_dsa::ShadowMemPass>();
+    AU.addRequired<seadsa::ShadowMemPass>();
     
     AU.addRequired<CanFail>();
     AU.addRequired<NameValues>();
@@ -285,7 +285,7 @@ public:
       
       // Use ShadowMem to translate memory instructions to Crab arrays
       // preserving memory SSA form.
-      auto &sm = getAnalysis<sea_dsa::ShadowMemPass>().getShadowMem();
+      auto &sm = getAnalysis<seadsa::ShadowMemPass>().getShadowMem();
 	
       // XXX: use of legacy operational semantics
       PathBmcEngine bmc(static_cast<LegacyOperationalSemantics &>(*sem), tli, sm);

@@ -7,7 +7,7 @@
 
 #include "seahorn/VCGen.hh"
 
-#include "sea_dsa/ShadowMem.hh"
+#include "seadsa/ShadowMem.hh"
 #include "seahorn/InterMemPreProc.hh"
 
 namespace llvm {
@@ -40,7 +40,6 @@ class UfoOpSem : public LegacyOperationalSemantics {
 
 
 public:
-  using NodeSet = boost::container::flat_set<const sea_dsa::Node *>;
   using FunctionPtrSet = SmallPtrSet<const Function *, 8>;
 
 private:
@@ -94,11 +93,11 @@ enum class ArrayOpt { IN, OUT };
 class MemUfoOpSem : public UfoOpSem {
 private:
   std::shared_ptr<InterMemPreProc> m_preproc = nullptr;
-  sea_dsa::ShadowMem *m_shadowDsa = nullptr;
+  seadsa::ShadowMem *m_shadowDsa = nullptr;
 
   // map to store the correspondence between node ids and their correspondent
   // expression
-  using NodeIdMap = DenseMap<std::pair<const sea_dsa::Node *, unsigned>, Expr>;
+  using NodeIdMap = DenseMap<std::pair<const seadsa::Node *, unsigned>, Expr>;
   // array names to replace for a cell
   NodeIdMap m_rep_in;
   NodeIdMap m_rep_out;
@@ -118,13 +117,13 @@ public:
   MemUfoOpSem(ExprFactory &efac, Pass &pass, const DataLayout &dl,
               std::shared_ptr<InterMemPreProc> preproc,
               TrackLevel trackLvl = MEM,
-              FunctionPtrSet abs_fns = FunctionPtrSet(), sea_dsa::ShadowMem *dsa = NULL)
+              FunctionPtrSet abs_fns = FunctionPtrSet(), seadsa::ShadowMem *dsa = NULL)
     : UfoOpSem(efac, pass, dl, trackLvl,abs_fns), m_shadowDsa(dsa), m_preproc(preproc) {}
 
   void execCallSite(CallSiteInfo &CS, ExprVector &side, SymStore &s) override;
 
 private:
-  unsigned getOffset(const sea_dsa::Cell &c);
+  unsigned getOffset(const seadsa::Cell &c);
 
   // creates the variant of an expression using m_copy_count
   Expr createVariant(Expr origE);
@@ -133,24 +132,24 @@ private:
   bool VCgenCallSite(CallSiteInfo &csi, const FunctionInfo &fi,
                      ExprVector &side, SymStore &s);
   // generates the literals to copy of an argument
-  void VCgenArg(const sea_dsa::Cell &c_arg_callee, Expr base_ptr,
-                NodeSet &unsafeCallerNodes, sea_dsa::SimulationMapper &sm,
+  void VCgenArg(const seadsa::Cell &c_arg_callee, Expr base_ptr,
+                NodeSet &unsafeCallerNodes, seadsa::SimulationMapper &sm,
                 ExprVector &side);
-  void recVCGenMem(const sea_dsa::Cell &c_callee, Expr ptr, NodeSet &unsafeNodes,
-                   sea_dsa::SimulationMapper &simMap, NodeSet &explored, ExprVector &side);
+  void recVCGenMem(const seadsa::Cell &c_callee, Expr ptr, NodeSet &unsafeNodes,
+                   seadsa::SimulationMapper &simMap, NodeSet &explored, ExprVector &side);
 
   // Internal methods to handle array expressions and cells.
   void addCIArraySymbol(CallInst *CI, Expr A, ArrayOpt ao);
-  void addArraySymbol(const sea_dsa::Cell &c, Expr A, ArrayOpt ao);
-  Expr getOrigArraySymbol(const sea_dsa::Cell &c, ArrayOpt ao);
+  void addArraySymbol(const seadsa::Cell &c, Expr A, ArrayOpt ao);
+  Expr getOrigArraySymbol(const seadsa::Cell &c, ArrayOpt ao);
   // creates a new array symbol for array origE if it was not created already
-  Expr getFreshArraySymbol(const sea_dsa::Cell &c, ArrayOpt ao);
+  Expr getFreshArraySymbol(const seadsa::Cell &c, ArrayOpt ao);
   // Expr getCurrArraySymbol(const Cell &c, ArrayOpt ao); // for encoding with scalars
 
   // creates a new array symbol for intermediate copies of an original array
   // origE. currE is the current intermediate name and newE is the new value to
   // copy
-  void newTmpArraySymbol(const sea_dsa::Cell &c, Expr &currE, Expr &newE, ArrayOpt ao);
+  void newTmpArraySymbol(const seadsa::Cell &c, Expr &currE, Expr &newE, ArrayOpt ao);
 
   // processes the shadow mem instructions prior to a callsite to obtain the
   // expressions that correspond to each of the cells involved.

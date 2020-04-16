@@ -16,9 +16,9 @@ class PointerType;
 class CallGraph;
 } // namespace llvm
 
-namespace sea_dsa {
+namespace seadsa {
 class CompleteCallGraphAnalysis;
-} // namespace sea_dsa
+} // namespace seadsa
 
 namespace seahorn {
 
@@ -33,7 +33,7 @@ AliasSetId typeAliasId(const llvm::Function &F);
 AliasSetId typeAliasId(llvm::CallSite &CS);
 } // end namespace devirt_impl
 
-enum class CallSiteResolverKind { RESOLVER_TYPES, RESOLVER_CHA, RESOLVER_SEA_DSA };
+enum class CallSiteResolverKind { RESOLVER_TYPES, RESOLVER_CHA, RESOLVER_SEADSA };
 
 /*
  * Generic class API for resolving indirect calls
@@ -109,7 +109,7 @@ public:
   using AliasSetId = CallSiteResolverByTypes::AliasSetId;  
   using AliasSet = CallSiteResolverByTypes::AliasSet;
   
-  CallSiteResolverByDsa(llvm::Module& M, sea_dsa::CompleteCallGraphAnalysis& dsa,
+  CallSiteResolverByDsa(llvm::Module& M, seadsa::CompleteCallGraphAnalysis& dsa,
 			bool incomplete);
     
   ~CallSiteResolverByDsa() = default;
@@ -128,7 +128,7 @@ private:
   // -- the module
   llvm::Module &m_M;
   // -- the pointer analysis to resolve function pointers
-  sea_dsa::CompleteCallGraphAnalysis &m_dsa;
+  seadsa::CompleteCallGraphAnalysis &m_dsa;
   // -- Resolve incomplete nodes (unsound, in general)
   bool m_allow_incomplete;
   // -- map from callsite to the corresponding alias set

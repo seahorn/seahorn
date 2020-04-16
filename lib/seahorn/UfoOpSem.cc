@@ -13,9 +13,9 @@
 #include "seahorn/Expr/ExprLlvm.hh"
 #include "seahorn/Expr/Smt/EZ3.hh"
 
-#include "sea_dsa/Global.hh"
+#include "seadsa/Global.hh"
 
-using namespace sea_dsa;
+using namespace seadsa;
 namespace seahorn {
 // counters for encoding with InterProcMem option
 InterMemStats g_im_stats;

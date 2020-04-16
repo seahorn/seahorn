@@ -16,8 +16,8 @@
 #include "llvm/Transforms/Utils/Cloning.h"
 #include "llvm/Transforms/Utils/Local.h"
 
-#include "sea_dsa/AllocWrapInfo.hh"
-#include "sea_dsa/DsaAnalysis.hh"
+#include "seadsa/AllocWrapInfo.hh"
+#include "seadsa/DsaAnalysis.hh"
 #include "seahorn/Support/SeaDebug.h"
 #include "seahorn/Support/SeaLog.hh"
 
@@ -84,7 +84,7 @@ struct CheckContext {
   size_t AccessedBytes = 0;
   SmallVector<Value *, 8> InterestingAllocSites;
   SmallVector<Value *, 8> OtherAllocSites;
-  sea_dsa::Graph *DsaGraph;
+  seadsa::Graph *DsaGraph;
 
   void dump(llvm::raw_ostream &OS = llvm::errs()) {
     OS << "CheckContext : " << (F ? ValueToString(F) : "nullptr") << " {\n";
@@ -110,7 +110,7 @@ struct CheckContext {
         return;
       auto optAS = DsaGraph->getAllocSite(v);
       assert(optAS.hasValue());
-      sea_dsa::DsaAllocSite &AS = **optAS;
+      seadsa::DsaAllocSite &AS = **optAS;
       if (AS.hasCallPaths())
         AS.printCallPaths(OS);
     };
@@ -188,15 +188,15 @@ public:
 // A wrapper for seahorn dsa
 class SeaDsa : public PTAWrapper {
   llvm::Pass *m_abc;
-  sea_dsa::DsaInfo *m_dsa;
+  seadsa::DsaInfo *m_dsa;
 
 public:
-  const sea_dsa::Cell *getCell(const llvm::Value *ptr,
+  const seadsa::Cell *getCell(const llvm::Value *ptr,
                                const llvm::Function &fn) {
     assert(ptr);
     assert(m_dsa);
 
-    sea_dsa::Graph *g = m_dsa->getDsaGraph(fn);
+    seadsa::Graph *g = m_dsa->getDsaGraph(fn);
     if (!g) {
       WARN << "SMC: Sea Dsa graph not found for " << fn.getName();
       return nullptr;
@@ -207,21 +207,21 @@ public:
       return nullptr;
     }
 
-    const sea_dsa::Cell &c = g->getCell(*ptr);
+    const seadsa::Cell &c = g->getCell(*ptr);
     return &c;
   }
 
   SeaDsa(Pass *abc)
       : m_abc(abc),
-        m_dsa(&this->m_abc->getAnalysis<sea_dsa::DsaInfoPass>().getDsaInfo()) {}
+        m_dsa(&this->m_abc->getAnalysis<seadsa::DsaInfoPass>().getDsaInfo()) {}
 
-  sea_dsa::Graph &getGraph(const Function &F) {
+  seadsa::Graph &getGraph(const Function &F) {
     auto *G = m_dsa->getDsaGraph(F);
     assert(G);
     return *G;
   }
 
-  sea_dsa::Node &getNode(const Value &V, const Function &F) {
+  seadsa::Node &getNode(const Value &V, const Function &F) {
     auto *C = getCell(&V, F);
     assert(C);
     auto *N = C->getNode();
@@ -231,7 +231,7 @@ public:
   }
 
   SmallVector<Value *, 8> getAllocSites(Value *V, const Function &F) override {
-    sea_dsa::Node &N = getNode(*V, F);
+    seadsa::Node &N = getNode(*V, F);
 
     SmallVector<Value *, 8> Sites;
     for (auto *S : N.getAllocSites()) {
@@ -527,7 +527,7 @@ CheckContext SimpleMemoryCheck::getUnsafeCandidates(Instruction *Inst,
   const uint32_t Sz = Bits < 8 ? 1 : Bits / 8;
   const int64_t LastRead = Origin.Offset + Sz;
 
-  const sea_dsa::Cell *OriginCell =
+  const seadsa::Cell *OriginCell =
       m_SDSA ? m_SDSA->getCell(Origin.Ptr, F) : nullptr;
 
   CheckContext Check;
@@ -942,7 +942,7 @@ bool SimpleMemoryCheck::runOnModule(llvm::Module &M) {
   m_SDSA = llvm::make_unique<SeaDsa>(this);
   m_PTA = m_SDSA.get();
 
-  SMC_LOG(errs() << " ========== SMC (" << (sea_dsa::IsTypeAware ? "" : "Not ")
+  SMC_LOG(errs() << " ========== SMC (" << (seadsa::IsTypeAware ? "" : "Not ")
                  << "Type-aware) ==========\n");
   LOG("smc-dsa", if (m_SDSA) m_SDSA->viewGraph(*main));
 
@@ -1065,16 +1065,16 @@ bool SimpleMemoryCheck::runOnModule(llvm::Module &M) {
   emitMemoryInstInstrumentation(Check);
   emitAllocSiteInstrumentation(Check, AllocSiteId);
 
-  SMC_LOG(errs() << " ========== SMC (" << (sea_dsa::IsTypeAware ? "" : "Not ")
+  SMC_LOG(errs() << " ========== SMC (" << (seadsa::IsTypeAware ? "" : "Not ")
                  << "Type-aware) ==========\n");
   return true;
 }
 
 void SimpleMemoryCheck::getAnalysisUsage(llvm::AnalysisUsage &AU) const {
   AU.setPreservesAll();
-  AU.addRequired<sea_dsa::AllocWrapInfo>();
+  AU.addRequired<seadsa::AllocWrapInfo>();
 
-  AU.addRequired<sea_dsa::DsaInfoPass>(); // run seahorn dsa
+  AU.addRequired<seadsa::DsaInfoPass>(); // run seahorn dsa
   AU.addRequired<llvm::TargetLibraryInfoWrapperPass>();
   AU.addRequired<llvm::CallGraphWrapperPass>();
 }
@@ -1201,11 +1201,11 @@ void SimpleMemoryCheck::printStats(std::vector<CheckContext> &InteresingChecks,
       OtherBarrierAllocSites.size() + InterestingBarrierAllocSites.size();
   OS << "Total <Barrier, AllocSite> pairs\t" << totalASBarrierPairs << "\n";
 
-  // SEA_DSA_BRUNCH_STAT("SMC_ALL_AS", AllAllocSites.size());
-  // SEA_DSA_BRUNCH_STAT("SMC_AS_BARRIER_INTERESTING",
+  // SEADSA_BRUNCH_STAT("SMC_ALL_AS", AllAllocSites.size());
+  // SEADSA_BRUNCH_STAT("SMC_AS_BARRIER_INTERESTING",
   //                     InterestingBarrierAllocSites.size());
-  // SEA_DSA_BRUNCH_STAT("SMC_AS_BARRIER_CHECKS", totalASBarrierPairs);
-  // SEA_DSA_BRUNCH_STAT("SMC_AS_BARRIER_TOTAL",
+  // SEADSA_BRUNCH_STAT("SMC_AS_BARRIER_CHECKS", totalASBarrierPairs);
+  // SEADSA_BRUNCH_STAT("SMC_AS_BARRIER_TOTAL",
   // AllAnyBarrierAllocSites.size());
 
   // Workaround issues with the preprocessor.

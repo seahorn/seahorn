@@ -38,7 +38,7 @@
 #include "clam/Clam.hh"
 #endif
 
-#include "sea_dsa/DsaAnalysis.hh"
+#include "seadsa/DsaAnalysis.hh"
 
 #include "seahorn/Expr/Smt/EZ3.hh"
 #include "seahorn/Support/Stats.hh"
@@ -361,7 +361,7 @@ int main(int argc, char **argv) {
   // before StripShadowMemPass. A better solution is to make sure that
   // createStripShadowMemPass updates the callgraph.
   if (MemDot) {
-    pass_manager.add(sea_dsa::createDsaPrinterPass());
+    pass_manager.add(seadsa::createDsaPrinterPass());
   }
 
   if (!AsmOutputFilename.empty()) {

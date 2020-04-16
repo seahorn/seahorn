@@ -15,6 +15,7 @@
 
 #include "sea_dsa/Global.hh"
 
+using namespace sea_dsa;
 namespace seahorn {
 // counters for encoding with InterProcMem option
 InterMemStats g_im_stats;

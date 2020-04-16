@@ -10,7 +10,9 @@
 namespace {
 
 using namespace sea_dsa;
+using namespace llvm;
 
+using NodeSet = boost::container::flat_set<const sea_dsa::Node *>;
 enum class EColor { BLACK, GRAY }; // colors for exploration
 using ExplorationMap = DenseMap<const Node *, EColor>;
 

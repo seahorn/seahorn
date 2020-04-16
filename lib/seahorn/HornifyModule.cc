@@ -41,6 +41,7 @@
 
 using namespace llvm;
 using namespace seahorn;
+using namespace sea_dsa;
 
 static llvm::cl::opt<enum TrackLevel>
     TL("horn-sem-lvl", llvm::cl::desc("Track level for symbolic execution"),

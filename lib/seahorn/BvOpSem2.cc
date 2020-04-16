@@ -851,13 +851,13 @@ public:
 
   void visitMemSetInst(MemSetInst &I) {
     Expr v = executeMemSetInst(*I.getDest(), *I.getValue(), *I.getLength(),
-                               I.getAlignment(), m_ctx);
+                               I.getDestAlignment(), m_ctx);
     if (!v)
       WARN << "skipped memset: " << I << "\n";
   }
   void visitMemCpyInst(MemCpyInst &I) {
     executeMemCpyInst(*I.getDest(), *I.getSource(), *I.getLength(),
-                      I.getAlignment(), m_ctx);
+                      I.getDestAlignment(), m_ctx);
   }
 
   void visitMemMoveInst(MemMoveInst &I) {
@@ -2152,7 +2152,7 @@ bool Bv2OpSem::intraStep(seahorn::details::Bv2OpSemContext &C) {
   const Instruction &inst = C.getCurrentInst();
 
   // -- non-branch terminators are executed elsewhere
-  if (inst->isTerminator() && !isa<BranchInst>(&inst))
+  if (inst.isTerminator() && !isa<BranchInst>(&inst))
     return false;
 
   // -- either skip or execute the instruction

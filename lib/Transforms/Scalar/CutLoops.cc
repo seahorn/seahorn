@@ -21,7 +21,7 @@
 #include "llvm/Analysis/ScalarEvolution.h"
 #include "llvm/IR/Dominators.h"
 #include "llvm/IR/Module.h"
-
+#include "llvm/Transforms/Utils.h"
 #include "seahorn/Support/SeaDebug.h"
 using namespace llvm;
 
@@ -185,8 +185,10 @@ bool CutLoops::runOnLoop (Loop *L, LPPassManager &LPM)
   for (BasicBlock *BB : blocks)
     loopInfo.removeBlock(BB);
 
+  // llvm8
+  loopInfo.erase(L);
   // llvm 3.8
-  loopInfo.markAsRemoved(L);
+  // loopInfo.markAsRemoved(L);
   // llvm 3.6
   //LPM.deleteLoopFromQueue (L);
   return true;

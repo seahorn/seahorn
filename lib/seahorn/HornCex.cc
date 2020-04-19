@@ -40,8 +40,6 @@
 #include "boost/range/algorithm/reverse.hpp"
 #include "boost/range/algorithm/sort.hpp"
 
-#include <gmpxx.h>
-
 namespace seahorn {
 std::string HornCexFile;
 }

@@ -1,10 +1,10 @@
 /**
 SeaHorn Verification Framework
-Copyright (c) 2016 Carnegie Mellon University.
+Copyright (c) 2020 Arie Gurfinkel 
 All Rights Reserved.
 
 THIS SOFTWARE IS PROVIDED "AS IS," WITH NO WARRANTIES
-WHATSOEVER. CARNEGIE MELLON UNIVERSITY EXPRESSLY DISCLAIMS TO THE
+WHATSOEVER. UNIVERSITY OF WATERLOO EXPRESSLY DISCLAIMS TO THE
 FULLEST EXTENT PERMITTEDBY LAW ALL EXPRESS, IMPLIED, AND STATUTORY
 WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE WARRANTIES OF
 MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, AND
@@ -12,8 +12,6 @@ NON-INFRINGEMENT OF PROPRIETARY RIGHTS.
 
 Released under a modified BSD license, please see license.txt for full
 terms.
-
-DM-0002198
 */
 
 #ifndef SEAHORN_PASSES__HH_
@@ -107,17 +105,22 @@ llvm::Pass *createUnifyAssumesPass();
 } // namespace seahorn
 
 #ifdef HAVE_LLVM_SEAHORN
-#include "llvm_seahorn/Transforms/Scalar.h"
+llvm::FunctionPass *
+createSeaInstructionCombiningPass(bool ExpensiveCombines = true);
+
 namespace seahorn {
-inline llvm::FunctionPass *createInstCombine() {
-  return llvm_seahorn::createInstructionCombiningPass();
+inline llvm::FunctionPass *createInstCombine(bool ExpensiveCombines = true) {
+  return createSeaInstructionCombiningPass(ExpensiveCombines);
 }
 } // namespace seahorn
 #else
-#include "llvm/Transforms/Scalar.h"
+namespace llvm {
+llvm::FunctionPass *
+createInstructionCombiningPass(bool ExpensiveCombines = true);
+}
 namespace seahorn {
-inline llvm::FunctionPass *createInstCombine() {
-  return llvm::createInstructionCombiningPass();
+inline llvm::FunctionPass *createInstCombine(bool ExpensiveCombines = true) {
+  return llvm::createInstructionCombiningPass(ExpensiveCombines);
 }
 } // namespace seahorn
 #endif

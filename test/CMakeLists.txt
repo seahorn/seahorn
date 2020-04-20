@@ -1,5 +1,7 @@
 # find lit. Assume we are using external lit installed from pip
 find_program(LIT_COMMAND lit)
+#message(STATUS "lit command is ${LIT_COMMAND}")
+set (LLVM_EXTERNAL_LIT "${LIT_COMMAND}" CACHE STRING "Command used to spawn lit" FORCE)
 
 # add the test suite
 add_lit_testsuite(test-all "Run all the tests"

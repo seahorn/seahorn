@@ -39,6 +39,7 @@
 #endif
 
 #include "seadsa/DsaAnalysis.hh"
+#include "seadsa/InitializePasses.hh"
 
 #include "seahorn/Expr/Smt/EZ3.hh"
 #include "seahorn/Support/Stats.hh"
@@ -270,6 +271,8 @@ int main(int argc, char **argv) {
   llvm::initializeCallGraphViewerPass(Registry);
   // XXX: not sure if needed anymore
   llvm::initializeGlobalsAAWrapperPassPass(Registry);
+
+  llvm::initializeDsaAnalysisPass(Registry);
 
   // add an appropriate DataLayout instance for the module
   const llvm::DataLayout *dl = &module->getDataLayout();

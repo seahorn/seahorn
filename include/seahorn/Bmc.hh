@@ -63,7 +63,7 @@ public:
       : m_sem(sem), m_efac(sem.efac()), m_result(boost::indeterminate),
         m_cpg(nullptr), m_fn(nullptr), m_smt_solver(zctx), m_ctxState(m_efac) {
 
-    z3n_set_param(":model_compress", false);
+    z3n_set_param(":model.compact", false);
     // ZParams<EZ3> params(zctx);
     // params.set(":model_compress", false);
     // m_smt_solver.set(params);

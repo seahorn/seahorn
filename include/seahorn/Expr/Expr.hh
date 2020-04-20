@@ -24,7 +24,11 @@
 #include <boost/lexical_cast.hpp>
 #include <boost/pool/pool.hpp>
 #include <boost/pool/poolfwd.hpp>
+
+#define BOOST_DISABLE_ASSERTS 1
+// boost/ptr_vector.hpp has BOOST_ASSERT that rely on rtti
 #include <boost/ptr_container/ptr_vector.hpp>
+#undef BOOST_DISABLE_ASSERTS
 
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/iterator_range.h"

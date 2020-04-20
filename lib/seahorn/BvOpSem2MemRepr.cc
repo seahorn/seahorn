@@ -54,7 +54,7 @@ Expr OpSemMemArrayRepr::MemCpy(Expr dPtr, Expr sPtr, unsigned len,
     }
   } else {
     ERR << "Word size and pointer are not aligned!";
-    llvm_unreachable(nullptr);
+    assert(false);
   }
   return res;
 }

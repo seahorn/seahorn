@@ -139,13 +139,23 @@ add_lit_testsuite(test-crab "Regression test for Crab"
   )
 
 add_lit_testsuite(test-cex "Regression test for executable counterexamples"
-  -v
-  -j1
-  ${CMAKE_CURRENT_SOURCE_DIR}/cex
-  ARGS
-  --path=${CMAKE_INSTALL_PREFIX}/bin
-  DEPENDS seahorn
-  )
+        -v
+        -j1
+        ${CMAKE_CURRENT_SOURCE_DIR}/cex
+        ARGS
+        --path=${CMAKE_INSTALL_PREFIX}/bin
+        DEPENDS seahorn
+        )
+
+# Add both and concrete fatptr tests in one target
+add_lit_testsuite(test-fatptr "Regression test for executable counterexamples"
+        -v
+        -j1
+        ${CMAKE_CURRENT_SOURCE_DIR}/fat_ptr_symbolic
+        ARGS
+        --path=${CMAKE_INSTALL_PREFIX}/bin
+        DEPENDS seahorn
+        )
 
 if (CMAKE_GENERATOR STREQUAL "Ninja")
   # Depending on install target does not work with make

@@ -12,8 +12,9 @@
 namespace seahorn {
 namespace details {
 
-static const int slotBitWidth = 64;
+static const unsigned int g_slotBitWidth = 64;
 
+static const unsigned int g_maxFatSlots = 2;
 /// \brief provides Fat pointers and Fat memory to store them
 class FatMemManager : public OpSemMemManager {
 public:
@@ -35,8 +36,8 @@ private:
 
   /// \brief Converts a raw ptr to fat ptr with default value for fat
   FatPtrTy mkFatPtr(RawPtrTy rawPtr) const {
-    return strct::mk(rawPtr, m_ctx.alu().si(0, slotBitWidth),
-                     m_ctx.alu().si(0, slotBitWidth));
+    return strct::mk(rawPtr, m_ctx.alu().si(0, g_slotBitWidth),
+                     m_ctx.alu().si(0, g_slotBitWidth));
   }
   /// \brief Update a given fat pointer with a raw address value
   FatPtrTy mkFatPtr(RawPtrTy rawPtr, FatPtrTy fat) const {
@@ -63,10 +64,7 @@ private:
   }
   /// \brief Creates a fat memory value from raw memory with default value for
   /// fat
-  FatMemValTy mkFatMem(MemValTy rawMem) const {
-    return strct::mk(rawMem, m_ctx.alu().si(0, slotBitWidth),
-                     m_ctx.alu().si(0, slotBitWidth));
-  }
+  FatMemValTy mkFatMem(MemValTy rawMem) const { return strct::mk(rawMem); }
 
 public:
   FatMemManager(Bv2OpSem &sem, Bv2OpSemContext &ctx, unsigned ptrSz,
@@ -75,8 +73,8 @@ public:
   ~FatMemManager() override = default;
 
   FatPtrTy ptrSort() const override {
-    return sort::structTy(m_mem.ptrSort(), m_ctx.alu().intTy(slotBitWidth),
-                          m_ctx.alu().intTy(slotBitWidth));
+    return sort::structTy(m_mem.ptrSort(), m_ctx.alu().intTy(g_slotBitWidth),
+                          m_ctx.alu().intTy(g_slotBitWidth));
   }
 
   /// \brief Allocates memory on the stack and returns a pointer to it
@@ -145,8 +143,8 @@ public:
   /// \brief Returns sort of a pointer register for an instruction
   Expr mkPtrRegisterSort(const Instruction &inst) const {
     return sort::structTy(m_mem.mkPtrRegisterSort(inst),
-                          m_ctx.alu().intTy(slotBitWidth),
-                          m_ctx.alu().intTy(slotBitWidth));
+                          m_ctx.alu().intTy(g_slotBitWidth),
+                          m_ctx.alu().intTy(g_slotBitWidth));
   }
 
   /// \brief Returns sort of a pointer register for a function pointer
@@ -419,13 +417,13 @@ public:
 
   Expr getFatData(PtrTy p, unsigned SlotIdx) override {
     assert(strct::isStructVal(p));
-    assert(SlotIdx < 2);
+    assert(SlotIdx < g_maxFatSlots);
     return strct::extractVal(p, 1 + SlotIdx);
   }
 
   Expr setFatData(PtrTy p, unsigned SlotIdx, Expr data) override {
     assert(strct::isStructVal(p));
-    assert(SlotIdx < 2);
+    assert(SlotIdx < g_maxFatSlots);
     return strct::insertVal(p, 1 + SlotIdx, data);
   }
 };

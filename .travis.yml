@@ -8,6 +8,7 @@ branches:
   - lambdas
   - deep-dev-5.0
   - dev8
+  - dev9
 matrix:
   include:
    - env: BUILD_TYPE=MinSizeRel

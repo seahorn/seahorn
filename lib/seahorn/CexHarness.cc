@@ -11,10 +11,10 @@
 #include "seahorn/Transforms/Instrumentation/ShadowMemDsa.hh"
 
 #include "boost/algorithm/string/replace.hpp"
-#include <memory>
-#include "seahorn/Support/SeaDebug.h"
 #include "seahorn/Expr/ExprLlvm.hh"
 #include "seahorn/Expr/ExprOpBinder.hh"
+#include "seahorn/Support/SeaDebug.h"
+#include <memory>
 
 using namespace llvm;
 namespace seahorn {
@@ -68,7 +68,8 @@ Constant *exprToLlvm(Type *ty, Expr e, LLVMContext &ctx, const DataLayout &dl) {
     return ConstantInt::getFalse(ctx);
   } else if (isOpX<MPZ>(e) || bv::is_bvnum(e)) {
     expr::mpz_class mpz;
-    mpz = isOpX<MPZ>(e) ? getTerm<expr::mpz_class>(e) : getTerm<expr::mpz_class>(e->arg(0));
+    mpz = isOpX<MPZ>(e) ? getTerm<expr::mpz_class>(e)
+                        : getTerm<expr::mpz_class>(e->arg(0));
     if (ty->isIntegerTy() || ty->isPointerTy()) {
       // JN: I think we can have the same issue as above but for now I leave
       // like it is.
@@ -120,8 +121,8 @@ bool extractArrayContents(Expr e, IndexToValueMap &out, Expr &default_value) {
 }
 
 void dumpLLVMCex(BmcTraceWrapper &trace, StringRef CexFile,
-                        const DataLayout &dl, const TargetLibraryInfo &tli,
-                        LLVMContext &context) {
+                 const DataLayout &dl, const TargetLibraryInfo &tli,
+                 LLVMContext &context) {
   std::unique_ptr<Module> Harness = createCexHarness(trace, dl, tli, context);
   std::error_code error_code;
   llvm::ToolOutputFile out(CexFile, error_code, sys::fs::F_None);
@@ -237,8 +238,11 @@ std::unique_ptr<Module> createCexHarness(BmcTraceWrapper &trace,
     auto &values = CFV.second;
 
     // This is where we will build the harness function
-    Function *HF = cast<Function>(Harness->getOrInsertFunction(
-        CF->getName(), cast<FunctionType>(CF->getFunctionType())));
+    Function *HF = cast<Function>(
+        Harness
+            ->getOrInsertFunction(CF->getName(),
+                                  cast<FunctionType>(CF->getFunctionType()))
+            .getCallee());
 
     Type *RT = CF->getReturnType();
     Type *pRT = nullptr;
@@ -310,7 +314,7 @@ std::unique_ptr<Module> createCexHarness(BmcTraceWrapper &trace,
       assert(false && "Unknown return type");
     }
 
-    Constant *GetValue = Harness->getOrInsertFunction(
+    FunctionCallee GetValue = Harness->getOrInsertFunction(
         name, FunctionType::get(RT, makeArrayRef(ArgTypes), false));
     assert(GetValue);
     Value *RetValue = Builder.CreateCall(GetValue, makeArrayRef(Args));
@@ -326,13 +330,16 @@ std::unique_ptr<Module> createCexHarness(BmcTraceWrapper &trace,
     // Hook for gdb-like tools. Used to translate virtual addresses to
     // physical ones if that's the case. This is useful so we can
     // inspect content of virtual addresses.
-    Function *EmvMapF =
-        cast<Function>(Harness->getOrInsertFunction("__emv", i8PtrTy, i8PtrTy));
+    Function *EmvMapF = cast<Function>(
+        Harness->getOrInsertFunction("__emv", i8PtrTy, i8PtrTy).getCallee());
     EmvMapF->addFnAttr(Attribute::NoInline);
 
     // Build function to initialize dsa nodes
-    Function *InitF = cast<Function>(Harness->getOrInsertFunction(
-        "__seahorn_mem_init_routine", Type::getVoidTy(TheContext)));
+    Function *InitF =
+        cast<Function>(Harness
+                           ->getOrInsertFunction("__seahorn_mem_init_routine",
+                                                 Type::getVoidTy(TheContext))
+                           .getCallee());
     // Build the body of the harness initialization function
     BasicBlock *BB = BasicBlock::Create(TheContext, "entry", InitF);
     IRBuilder<> Builder(BB);
@@ -340,11 +347,11 @@ std::unique_ptr<Module> createCexHarness(BmcTraceWrapper &trace,
     // Hook to allocate a dsa node
     Function *m_memAlloc = cast<Function>(Harness->getOrInsertFunction(
         "__seahorn_mem_alloc", Type::getVoidTy(TheContext), i8PtrTy, i8PtrTy,
-        intTy, intTy));
+        intTy, intTy).getCallee());
     // Hook to initialize a dsa node
     Function *m_memInit = cast<Function>(Harness->getOrInsertFunction(
         "__seahorn_mem_init", Type::getVoidTy(TheContext), i8PtrTy, intTy,
-        intTy));
+        intTy).getCallee());
 
     for (auto &kv : DsaAllocMap) {
       unsigned id = kv.first;

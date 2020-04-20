@@ -39,15 +39,12 @@ class WrapMem : public ModulePass {
 
   const DataLayout *m_dl;
   IntegerType *m_intPtrTy;
-  Function *m_memLoad;
-  Function *m_memStore;
+  FunctionCallee m_memLoad;
+  FunctionCallee m_memStore;
 
 public:
   static char ID;
-  WrapMem()
-      : ModulePass(ID)
-  {
-  }
+  WrapMem() : ModulePass(ID) {}
 
   bool runOnModule(Module &M) {
     LLVMContext &C = M.getContext();
@@ -57,19 +54,19 @@ public:
     /* void __sea_mem_load (void* dst, void* src, size_t sz)
        { memcpy (dst, src, sz); }
      */
-    m_memLoad = cast<Function>(M.getOrInsertFunction(
-        "__seahorn_mem_load", Type::getVoidTy(C), Type::getInt8PtrTy(C, 0),
-        Type::getInt8PtrTy(C, 0), m_intPtrTy));
+    m_memLoad = M.getOrInsertFunction("__seahorn_mem_load", Type::getVoidTy(C),
+                                      Type::getInt8PtrTy(C, 0),
+                                      Type::getInt8PtrTy(C, 0), m_intPtrTy);
     /* void __sea_mem_store (void *src, void *dst, size_t sz)
        { memcpy (dst, src, sz); }
     */
-    m_memStore = cast<Function>(M.getOrInsertFunction(
+    m_memStore = M.getOrInsertFunction(
         "__seahorn_mem_store", Type::getVoidTy(C), Type::getInt8PtrTy(C, 0),
-        Type::getInt8PtrTy(C, 0), m_intPtrTy));
+        Type::getInt8PtrTy(C, 0), m_intPtrTy);
 
     if (Function *Main = M.getFunction("main")) {
-      Function *memInit = cast<Function>(M.getOrInsertFunction(
-          "__seahorn_mem_init_routine", Type::getVoidTy(C)));
+      FunctionCallee memInit = M.getOrInsertFunction(
+          "__seahorn_mem_init_routine", Type::getVoidTy(C));
 
       BasicBlock &entry = Main->getEntryBlock();
       IRBuilder<> B(M.getContext());
@@ -90,13 +87,13 @@ public:
     if (F.isDeclaration() || F.empty())
       return false;
 
-   LLVMContext &C = F.getContext();
+    LLVMContext &C = F.getContext();
     IRBuilder<> B(C);
     Type *i8PtrTy = B.getInt8PtrTy();
     for (BasicBlock &bb : F)
       for (Instruction &inst : bb) {
         if (LoadInst *load = dyn_cast<LoadInst>(&inst)) {
-         B.SetInsertPoint(load);
+          B.SetInsertPoint(load);
           AllocaInst *x = B.CreateAlloca(load->getType());
           uint64_t sz = m_dl->getTypeStoreSize(load->getType());
           // uint64_t sz = load->getAlignment();
@@ -106,7 +103,7 @@ public:
                         ConstantInt::get(m_intPtrTy, sz)});
           load->setOperand(load->getPointerOperandIndex(), x);
         } else if (StoreInst *store = dyn_cast<StoreInst>(&inst)) {
-         B.SetInsertPoint(store);
+          B.SetInsertPoint(store);
           AllocaInst *x = B.CreateAlloca(store->getValueOperand()->getType());
           B.SetInsertPoint(store->getNextNode());
           // uint64_t sz = store->getAlignment();
@@ -123,9 +120,7 @@ public:
     return true;
   }
 
-  void getAnalysisUsage(AnalysisUsage &AU) const {
-   AU.setPreservesAll();
-  }
+  void getAnalysisUsage(AnalysisUsage &AU) const { AU.setPreservesAll(); }
 };
 char WrapMem::ID = 0;
 } // namespace

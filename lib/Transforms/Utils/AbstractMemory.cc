@@ -85,7 +85,7 @@ namespace seahorn
 	ImmutableCallSite CS (callee);
 	if (CS.getCalledFunction ()) {
 	  m_cg->getOrInsertFunction (CS.getCalledFunction ());
-	  (*m_cg)[caller]->addCalledFunction (CallSite (callee),
+	  (*m_cg)[caller]->addCalledFunction (callee,
 					      (*m_cg)[callee->getCalledFunction ()]);
 	}
       }
@@ -98,7 +98,7 @@ namespace seahorn
       do
         name = boost::str (boost::format (prefix + "%d") % (c++));
       while (m.getNamedValue (name));
-      Function *res = dyn_cast<Function>(m.getOrInsertFunction (name, &type));
+      Function *res = dyn_cast<Function>(m.getOrInsertFunction (name, &type).getCallee());
       assert (res);
       return *res;
     }
@@ -122,7 +122,7 @@ namespace seahorn
       while (m.getNamedValue (name));
       Function *res = dyn_cast<Function>(m.getOrInsertFunction
 					 (name, Type::getVoidTy (m.getContext()),
-					  &type));
+					  &type).getCallee());
       assert (res);
       return *res;
     }

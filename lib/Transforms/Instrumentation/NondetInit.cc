@@ -44,7 +44,7 @@ Function &createNewNondetFn(Module &m, Type &type, unsigned num,
   do
     name = prefix + std::to_string(c++);
   while (m.getNamedValue(name));
-  Function *res = dyn_cast<Function>(m.getOrInsertFunction(name, &type));
+  Function *res = dyn_cast<Function>(m.getOrInsertFunction(name, &type).getCallee());
   assert(res);
   return *res;
 }

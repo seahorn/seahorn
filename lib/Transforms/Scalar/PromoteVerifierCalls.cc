@@ -27,18 +27,22 @@ bool PromoteVerifierCalls::runOnModule(Module &M) {
 
   m_assumeFn = dyn_cast<Function>(
       M.getOrInsertFunction("verifier.assume", as, Type::getVoidTy(Context),
-                            Type::getInt1Ty(Context)));
+                            Type::getInt1Ty(Context))
+          .getCallee());
 
   Function *assumeNotFn = dyn_cast<Function>(
       M.getOrInsertFunction("verifier.assume.not", as, Type::getVoidTy(Context),
-                            Type::getInt1Ty(Context)));
+                            Type::getInt1Ty(Context))
+          .getCallee());
 
   m_assertFn = dyn_cast<Function>(
       M.getOrInsertFunction("verifier.assert", as, Type::getVoidTy(Context),
-                            Type::getInt1Ty(Context)));
+                            Type::getInt1Ty(Context))
+          .getCallee());
 
   m_failureFn = dyn_cast<Function>(
-      M.getOrInsertFunction("seahorn.fail", as, Type::getVoidTy(Context)));
+      M.getOrInsertFunction("seahorn.fail", as, Type::getVoidTy(Context))
+          .getCallee());
 
   B.addAttribute(Attribute::NoReturn);
   // XXX LLVM optimizer removes ReadNone functions even if they do not return!
@@ -46,7 +50,8 @@ bool PromoteVerifierCalls::runOnModule(Module &M) {
 
   as = AttributeList::get(Context, AttributeList::FunctionIndex, B);
   m_errorFn = dyn_cast<Function>(
-      M.getOrInsertFunction("verifier.error", as, Type::getVoidTy(Context)));
+      M.getOrInsertFunction("verifier.error", as, Type::getVoidTy(Context))
+          .getCallee());
 
   /* add our functions to llvm used */
   GlobalVariable *LLVMUsed = M.getGlobalVariable("llvm.used");
@@ -145,7 +150,7 @@ bool PromoteVerifierCalls::runOnFunction(Function &F) {
 
       CallInst *ci = Builder.CreateCall(nfn, cond);
       if (cg)
-        (*cg)[&F]->addCalledFunction(CallSite(ci),
+        (*cg)[&F]->addCalledFunction(ci,
                                      (*cg)[ci->getCalledFunction()]);
 
       toKill.push_back(&I);
@@ -155,7 +160,7 @@ bool PromoteVerifierCalls::runOnFunction(Function &F) {
       CallInst *ci = Builder.CreateCall(m_errorFn);
       ci->setDebugLoc(I.getDebugLoc());
       if (cg)
-        (*cg)[&F]->addCalledFunction(CallSite(ci),
+        (*cg)[&F]->addCalledFunction(ci,
                                      (*cg)[ci->getCalledFunction()]);
 
       toKill.push_back(&I);
@@ -174,7 +179,7 @@ bool PromoteVerifierCalls::runOnFunction(Function &F) {
       CallInst *ci = Builder.CreateCall(m_failureFn);
       ci->setDebugLoc(I.getDebugLoc());
       if (cg)
-        (*cg)[&F]->addCalledFunction(CallSite(ci),
+        (*cg)[&F]->addCalledFunction(ci,
                                      (*cg)[ci->getCalledFunction()]);
 
       toKill.push_back(&I);

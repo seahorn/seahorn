@@ -8,35 +8,6 @@
 #include "seahorn/Support/SeaLog.hh"
 
 using namespace llvm;
-namespace {
-/// from: llvm/lib/ExecutionEngine/ExecutionEngine.cpp
-/// StoreIntToMemory - Fills the StoreBytes bytes of memory starting from Dst
-/// with the integer held in IntVal.
-static void StoreIntToMemory(const APInt &IntVal, uint8_t *Dst,
-                             unsigned StoreBytes) {
-  assert((IntVal.getBitWidth() + 7) / 8 >= StoreBytes && "Integer too small!");
-  const uint8_t *Src = (const uint8_t *)IntVal.getRawData();
-
-  if (sys::IsLittleEndianHost) {
-    // Little-endian host - the source is ordered from LSB to MSB.  Order the
-    // destination from LSB to MSB: Do a straight copy.
-    memcpy(Dst, Src, StoreBytes);
-  } else {
-    // Big-endian host - the source is an array of 64 bit words ordered from
-    // LSW to MSW.  Each word is ordered from MSB to LSB.  Order the destination
-    // from MSB to LSB: Reverse the word order, but not the bytes in a word.
-    while (StoreBytes > sizeof(uint64_t)) {
-      StoreBytes -= sizeof(uint64_t);
-      // May not be aligned so use memcpy.
-      memcpy(Dst + StoreBytes, Src, sizeof(uint64_t));
-      Src += sizeof(uint64_t);
-    }
-
-    memcpy(Dst, Src + sizeof(uint64_t) - StoreBytes, StoreBytes);
-  }
-}
-
-} // namespace
 namespace seahorn {
 namespace details {
 /// from: llvm/lib/ExecutionEngine/ExecutionEngine.cpp

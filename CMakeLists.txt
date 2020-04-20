@@ -72,9 +72,9 @@ if (GIT_FOUND)
     CACHE STRING "clam repo")
   
   add_custom_target (llvm-seahorn-git
-    ${GIT_EXECUTABLE} clone -b dev8 ${SEAHORN_LLVM_REPO} ${CMAKE_SOURCE_DIR}/llvm-seahorn)
+    ${GIT_EXECUTABLE} clone ${SEAHORN_LLVM_REPO} ${CMAKE_SOURCE_DIR}/llvm-seahorn -b dev9)
   add_custom_target (sea-dsa-git
-    ${GIT_EXECUTABLE} clone -b dev8 ${SEA_DSA_REPO} ${CMAKE_SOURCE_DIR}/sea-dsa)
+    ${GIT_EXECUTABLE} clone ${SEA_DSA_REPO} ${CMAKE_SOURCE_DIR}/sea-dsa -b dev9)
   add_custom_target (clam-git
     ${GIT_EXECUTABLE} clone -b llvm-8.0 ${CLAM_REPO} ${CMAKE_SOURCE_DIR}/clam)
   add_custom_target (extra
@@ -189,7 +189,7 @@ ExternalProject_Add (llvm
   LOG_BUILD 1
   LOG_INSTALL 1)
 
-find_package (LLVM 8.0.0 CONFIG)
+find_package (LLVM 9.0.0 CONFIG)
 if (NOT LLVM_FOUND)
   ExternalProject_Get_Property (llvm INSTALL_DIR)
   set (LLVM_ROOT ${INSTALL_DIR})

@@ -48,13 +48,13 @@ class SymbolizeConstantLoopBounds : public FunctionPass {
 
   void updateCallGraph(Function *caller, CallInst *callee) {
     if (cg) {
-      (*cg)[caller]->addCalledFunction(CallSite(callee),
+      (*cg)[caller]->addCalledFunction(callee,
                                        (*cg)[callee->getCalledFunction()]);
     }
   }
 
   Instruction *getLoopExitCond(BasicBlock *ExitingLoop) {
-    auto*TI = ExitingLoop->getTerminator();
+    auto *TI = ExitingLoop->getTerminator();
     if (BranchInst *BI = dyn_cast<BranchInst>(TI)) {
       if (BI->isConditional()) {
         return dyn_cast<Instruction>(BI->getCondition());
@@ -164,13 +164,16 @@ public:
     B.SetInsertPoint(&*insertPt);
 
     AttrBuilder AB;
-    AttributeList as = AttributeList::get(ctx, AttributeList::FunctionIndex, AB);
+    AttributeList as =
+        AttributeList::get(ctx, AttributeList::FunctionIndex, AB);
 
     assumeFn = dyn_cast<Function>(
-        M->getOrInsertFunction("verifier.assume", as, voidTy, boolTy));
+        M->getOrInsertFunction("verifier.assume", as, voidTy, boolTy)
+            .getCallee());
 
     nondetFn = dyn_cast<Function>(
-        M->getOrInsertFunction("verifier.nondet.sym.bound", as, intTy));
+        M->getOrInsertFunction("verifier.nondet.sym.bound", as, intTy)
+            .getCallee());
 
     CallGraphWrapperPass *cgwp = getAnalysisIfAvailable<CallGraphWrapperPass>();
     cg = cgwp ? &cgwp->getCallGraph() : nullptr;
@@ -209,7 +212,8 @@ public:
           B.CreateBr(header);
           B.SetInsertPoint(header);
           Function *fn = dyn_cast<Function>(
-              M->getOrInsertFunction("verifier.nondet.bool", as, boolTy));
+              M->getOrInsertFunction("verifier.nondet.bool", as, boolTy)
+                  .getCallee());
           B.CreateCondBr(B.CreateCall(fn, None, "nd.loop.cond"), body, succ);
           BI->eraseFromParent();
           B.SetInsertPoint(&entry);

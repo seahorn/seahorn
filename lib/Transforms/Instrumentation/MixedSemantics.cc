@@ -158,7 +158,7 @@ bool MixedSemantics::runOnModule(Module &M) {
 
   std::vector<CallInst *> workList;
 
-  Constant *ndFn =
+  FunctionCallee ndFn =
       M.getOrInsertFunction("nondet.bool", Type::getInt1Ty(M.getContext()));
   for (BasicBlock &BB : *newM) {
     for (auto &I : BB) {
@@ -215,8 +215,9 @@ bool MixedSemantics::runOnModule(Module &M) {
 
   AttributeList as =
       AttributeList::get(M.getContext(), AttributeList::FunctionIndex, B);
-  auto failureFn = dyn_cast<Function>(M.getOrInsertFunction(
-      "seahorn.fail", as, Type::getVoidTy(M.getContext())));
+  auto failureFn = dyn_cast<Function>(
+      M.getOrInsertFunction("seahorn.fail", as, Type::getVoidTy(M.getContext()))
+          .getCallee());
 
   for (auto errB : errBlocks) {
     // --- add placeholder to indicate that the function can fail

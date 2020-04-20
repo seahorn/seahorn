@@ -128,7 +128,8 @@ BasicBlock *FatBufferBoundsCheck::getErrorBB() {
   // XXX ensure that they are always created uniformly with the right
   // XXX attributes.
   auto errorFn = dyn_cast<Function>(
-      Md->getOrInsertFunction("__VERIFIER_error", as, Type::getVoidTy(ctx)));
+      Md->getOrInsertFunction("__VERIFIER_error", as, Type::getVoidTy(ctx))
+          .getCallee());
   CallInst *TrapCall = Builder->CreateCall(errorFn);
   TrapCall->setDoesNotReturn();
   TrapCall->setDoesNotThrow();
@@ -243,7 +244,8 @@ bool FatBufferBoundsCheck::instrument(Value *Ptr, Value *InstVal,
 bool FatBufferBoundsCheck::instrumentAddress(Value *Ptr, const DataLayout &DL,
                                              Value *BasePtr) {
   /**
-     Rewrite pointer creation to embed base address and size in the extended part of the pointer.
+     Rewrite pointer creation to embed base address and size in the extended
+     part of the pointer.
 
      This is a little tricky because need to ensure that the extended pointer
      replaces the original pointer in all the existing code, but not in the
@@ -334,33 +336,43 @@ bool FatBufferBoundsCheck::runOnFunction(Function &F) {
   ErrorBB = nullptr;
   BuilderTy TheBuilder(F.getContext(), TargetFolder(DL));
   Builder = &TheBuilder;
-  ObjectSizeOffsetEvaluator TheObjSizeEval(DL, TLI, F.getContext(),
-                                           /*RoundToAlign=*/true);
+  ObjectSizeOpts EvalOpts;
+  EvalOpts.RoundToAlign = true;
+  ObjectSizeOffsetEvaluator TheObjSizeEval(DL, TLI, F.getContext(), EvalOpts);
   ObjSizeEval = &TheObjSizeEval;
 
   Ctx = &(F.getContext());
   int LongSize = DL.getPointerSizeInBits();
   IntptrTy = Type::getIntNTy(F.getContext(), LongSize);
 
-  m_getFatSlot0 = cast<Function>(Mod->getOrInsertFunction(
-      SEA_GET_FAT_SLOT0, IntptrTy, Type::getInt8PtrTy(*Ctx, 0)));
-  m_getFatSlot1 = cast<Function>(Mod->getOrInsertFunction(
-      SEA_GET_FAT_SLOT1, IntptrTy, Type::getInt8PtrTy(*Ctx, 0)));
+  m_getFatSlot0 =
+      cast<Function>(Mod->getOrInsertFunction(SEA_GET_FAT_SLOT0, IntptrTy,
+                                              Type::getInt8PtrTy(*Ctx, 0))
+                         .getCallee());
+  m_getFatSlot1 =
+      cast<Function>(Mod->getOrInsertFunction(SEA_GET_FAT_SLOT1, IntptrTy,
+                                              Type::getInt8PtrTy(*Ctx, 0))
+                         .getCallee());
 
   m_setFatSlot0 = cast<Function>(
       Mod->getOrInsertFunction(SEA_SET_FAT_SLOT0, Type::getInt8PtrTy(*Ctx, 0),
-                               Type::getInt8PtrTy(*Ctx, 0), IntptrTy));
+                               Type::getInt8PtrTy(*Ctx, 0), IntptrTy)
+          .getCallee());
   m_setFatSlot1 = cast<Function>(
       Mod->getOrInsertFunction(SEA_SET_FAT_SLOT1, Type::getInt8PtrTy(*Ctx, 0),
-                               Type::getInt8PtrTy(*Ctx, 0), IntptrTy));
+                               Type::getInt8PtrTy(*Ctx, 0), IntptrTy)
+          .getCallee());
 
-  m_copyFatSlots = cast<Function>(Mod->getOrInsertFunction(
-      SEA_COPY_FAT_SLOTS, Type::getInt8PtrTy(*Ctx, 0),
-      Type::getInt8PtrTy(*Ctx, 0), Type::getInt8PtrTy(*Ctx, 0)));
+  m_copyFatSlots = cast<Function>(
+      Mod->getOrInsertFunction(SEA_COPY_FAT_SLOTS, Type::getInt8PtrTy(*Ctx, 0),
+                               Type::getInt8PtrTy(*Ctx, 0),
+                               Type::getInt8PtrTy(*Ctx, 0))
+          .getCallee());
 
   m_recoverFatPtr = cast<Function>(
       Mod->getOrInsertFunction(SEA_RECOVER_FAT_PTR, Type::getInt8PtrTy(*Ctx, 0),
-                               Type::getInt8PtrTy(*Ctx, 0)));
+                               Type::getInt8PtrTy(*Ctx, 0))
+          .getCallee());
 
   // check HANDLE_MEMORY_INST in include/llvm/Instruction.def for memory
   // touching instructions

@@ -37,7 +37,7 @@ namespace seahorn
       do
         name = boost::str (boost::format (prefix + "%d") % (c++));
       while (m.getNamedValue (name));
-      Function *res = dyn_cast<Function>(m.getOrInsertFunction (name, &type));
+      Function *res = dyn_cast<Function>(m.getOrInsertFunction (name, &type).getCallee());
       assert (res);
       return *res;
     }

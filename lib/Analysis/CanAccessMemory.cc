@@ -4,7 +4,7 @@
 #include "llvm/Analysis/CallGraph.h"
 #include "llvm/ADT/SCCIterator.h"
 #include "llvm/Support/raw_ostream.h"
-
+#include "llvm/IR/CallSite.h"
 #include "seahorn/Support/SeaDebug.h"
 namespace seahorn
 {
@@ -31,7 +31,7 @@ namespace seahorn
         }
         if (const CallInst *CI = dyn_cast<CallInst> (I))
         {
-          CallSite CS (const_cast<CallInst*> (CI));
+          llvm::CallSite CS (const_cast<CallInst*> (CI));
           const Function *cf = CS.getCalledFunction ();
           if (cf && 
               ( cf->getName ().startswith ("llvm.memcpy") || 

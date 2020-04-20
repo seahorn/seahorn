@@ -192,7 +192,7 @@ class SeaDsa : public PTAWrapper {
 
 public:
   const seadsa::Cell *getCell(const llvm::Value *ptr,
-                               const llvm::Function &fn) {
+                              const llvm::Function &fn) {
     assert(ptr);
     assert(m_dsa);
 
@@ -673,14 +673,14 @@ void UpdateCallGraph(CallGraph *CG, Function *Caller, CallInst *Callee) {
   if (!CG)
     return;
 
-  (*CG)[Caller]->addCalledFunction(CallSite(Callee),
-                                   (*CG)[Callee->getCalledFunction()]);
+  (*CG)[Caller]->addCalledFunction(Callee, (*CG)[Callee->getCalledFunction()]);
 }
 
 } // namespace
 
 Function *SimpleMemoryCheck::createNewNDFn(Type *Ty, Twine Name) {
-  auto *Res = dyn_cast<Function>(m_M->getOrInsertFunction(Name.str(), Ty));
+  auto *Res =
+      dyn_cast<Function>(m_M->getOrInsertFunction(Name.str(), Ty).getCallee());
   assert(Res);
 
   if (m_CG)
@@ -951,12 +951,15 @@ bool SimpleMemoryCheck::runOnModule(llvm::Module &M) {
   AttributeList AS =
       AttributeList::get(*m_Ctx, AttributeList::FunctionIndex, AB);
   m_errorFn = dyn_cast<Function>(
-      M.getOrInsertFunction("verifier.error", AS, Type::getVoidTy(*m_Ctx)));
+      M.getOrInsertFunction("verifier.error", AS, Type::getVoidTy(*m_Ctx))
+          .getCallee());
 
   AB.clear();
   AS = AttributeList::get(*m_Ctx, AttributeList::FunctionIndex, AB);
-  m_assumeFn = dyn_cast<Function>(M.getOrInsertFunction(
-      "verifier.assume", AS, Type::getVoidTy(*m_Ctx), Type::getInt1Ty(*m_Ctx)));
+  m_assumeFn = dyn_cast<Function>(M.getOrInsertFunction("verifier.assume", AS,
+                                                        Type::getVoidTy(*m_Ctx),
+                                                        Type::getInt1Ty(*m_Ctx))
+                                      .getCallee());
 
   IRBuilder<> B(*m_Ctx);
   CallGraphWrapperPass *CGWP = getAnalysisIfAvailable<CallGraphWrapperPass>();

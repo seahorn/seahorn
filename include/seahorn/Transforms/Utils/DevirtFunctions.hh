@@ -203,7 +203,7 @@ public:
 
   // -- VISITOR IMPLEMENTATION --
 
-  void visitCallSite(llvm::CallSite &CS);
+  void visitCallSite(llvm::CallSite CS);
   void visitCallInst(llvm::CallInst &CI);
   void visitInvokeInst(llvm::InvokeInst &II);
 };

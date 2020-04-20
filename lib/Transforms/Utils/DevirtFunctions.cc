@@ -316,7 +316,7 @@ DevirtualizeFunctions::DevirtualizeFunctions(llvm::CallGraph *cg,
 
 DevirtualizeFunctions::~DevirtualizeFunctions() {} 
 
-void DevirtualizeFunctions::visitCallSite(CallSite &CS) {
+void DevirtualizeFunctions::visitCallSite(CallSite CS) {
   // -- skip direct calls
   if (!isIndirectCall(CS))
     return;
@@ -439,7 +439,7 @@ Function *DevirtualizeFunctions::mkBounceFn(CallSite &CS, CallSiteResolver *CSR)
     if (m_cg) {
       auto fl_cg = m_cg->getOrInsertFunction(const_cast<Function *>(FL));
       auto cf_cg = m_cg->getOrInsertFunction(directCall->getCalledFunction());
-      fl_cg->addCalledFunction(CallSite(directCall), cf_cg);
+      fl_cg->addCalledFunction(directCall, cf_cg);
     }
 
     // Add the return instruction for the basic block
@@ -546,7 +546,7 @@ void DevirtualizeFunctions::mkDirectCall(CallSite CS, CallSiteResolver *CSR) {
     if (m_cg) {
       m_cg->getOrInsertFunction(const_cast<Function *>(bounceFn));
       (*m_cg)[CI->getParent()->getParent()]->addCalledFunction(
-          CallSite(CN), (*m_cg)[CN->getCalledFunction()]);
+          CN, (*m_cg)[CN->getCalledFunction()]);
     }
 
     CN->setDebugLoc(CI->getDebugLoc());
@@ -572,7 +572,7 @@ void DevirtualizeFunctions::mkDirectCall(CallSite CS, CallSiteResolver *CSR) {
     if (m_cg) {
       m_cg->getOrInsertFunction(const_cast<Function *>(bounceFn));
       (*m_cg)[CI->getParent()->getParent()]->addCalledFunction(
-          CallSite(CN), (*m_cg)[CN->getCalledFunction()]);
+          CN, (*m_cg)[CN->getCalledFunction()]);
     }
 
     CN->setDebugLoc(CI->getDebugLoc());

@@ -8,16 +8,15 @@ set (USED_LIBS
   ${SEA_DSA_LIBS}
   SeaSupport
   ${LLVM_SEAHORN_LIBS}
-  ${Boost_SYSTEM_LIBRARY}
   ${GMP_LIB}
   ${RT_LIB}
   )
 
 
-set(LLVM_LINK_COMPONENTS bitwriter irreader ipo scalaropts instrumentation core
-  # XXX not clear why these last two are required
-  codegen objcarcopts)
-add_llvm_executable(seahorn seahorn.cpp)
+ set(LLVM_LINK_COMPONENTS BitWriter IRReader IPO ScalarOpts Instrumentation Core
+#   # XXX not clear why these last two are required
+   CodeGen ObjCARCOpts)
+add_llvm_executable(seahorn DISABLE_LLVM_LINK_LLVM_DYLIB seahorn.cpp)
 target_link_libraries (seahorn PRIVATE ${USED_LIBS})
 llvm_config (seahorn ${LLVM_LINK_COMPONENTS})
 install(TARGETS seahorn RUNTIME DESTINATION bin)

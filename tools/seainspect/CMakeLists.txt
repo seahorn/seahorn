@@ -23,7 +23,7 @@ set(LLVM_LINK_COMPONENTS
   objcarcopts)
 
 
-add_llvm_executable(seainspect seainspect.cc)
+add_llvm_executable(seainspect DISABLE_LLVM_LINK_LLVM_DYLIB seainspect.cc)
 target_link_libraries (seainspect PRIVATE ${SEAINSPECT_LIBS})
 llvm_config (seainspect ${LLVM_LINK_COMPONENTS})
 install(TARGETS seainspect RUNTIME DESTINATION bin)

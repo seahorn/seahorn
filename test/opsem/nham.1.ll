@@ -1,5 +1,7 @@
 ; RUN: %seasmt "%s" 2>&1 | %oc %s
-; RUN: %seasmt --horn-bv2-lambdas --horn-gsa --horn-vcgen-use-ite "%s" 2>&1 | %oc %s
+; RUN: %seasmt --horn-bv2-simplify=true --horn-bv2-lambdas --horn-gsa --horn-vcgen-use-ite "%s" 2>&1 | %oc %s
+; Worked in z3/deep_space. Gets stuck in rewriter in assert_expr() in z3/4.8.8
+; RAN: %seasmt --horn-bv2-lambdas --horn-gsa --horn-vcgen-use-ite "%s" 2>&1 | %oc %s
 
 ; ModuleID = 'nham/nham.pp.ms.o.ul.cut.ms.bc'
 ; check for something to make everyone happy

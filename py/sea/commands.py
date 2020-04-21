@@ -855,18 +855,18 @@ class Seaopt(sea.LimitedCmd):
             argv.append('-O{0}'.format (args.opt_level))
 
         if not args.enable_indvar:
-            argv.append ('--enable-indvar=false')
+            argv.append ('--seaopt-enable-indvar=false')
         if not args.enable_loop_idiom:
-            argv.append ('--enable-loop-idiom=false')
-        if not args.enable_nondet_init:
-            argv.append ('--enable-nondet-init=false')
+            argv.append ('--seaopt-enable-loop-idiom=false')
+        # if not args.enable_nondet_init:
+        #     argv.append ('--enable-nondet-init=false')
         if args.inline_threshold is not None:
             argv.append ('--inline-threshold={t}'.format(t=args.inline_threshold))
         if args.unroll_threshold is not None:
             argv.append ('--unroll-threshold={t}'.format
                          (t=args.unroll_threshold))
         if not args.enable_vectorize:
-            argv.extend ([  '--disable-loop-vectorization=true'
+            argv.extend ([  '--vectorize-loops=false'
                           , '--disable-slp-vectorization=true'
                          ])
 

@@ -1,4 +1,4 @@
-find_program(python3 REQUIRED)
+find_program(PYTHON python3 REQUIRED)
 
 set (SRC
   sea/__init__.py

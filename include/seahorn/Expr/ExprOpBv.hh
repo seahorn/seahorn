@@ -151,17 +151,17 @@ enum class BvOpKind {
   BEXT_ROTATE_RIGHT,
   INT2BV,
   BV2INT,
-  // TODO: Rename badd_no_underflow to sadd_no_underflow. Ditto for other Ops
+  // Add overflow
   SADD_NO_OVERFLOW,
   UADD_NO_OVERFLOW,
-  BADD_NO_UNDERFLOW,
+  SADD_NO_UNDERFLOW,
   // Sub overflow
-  BSUB_NO_OVERFLOW,
+  SSUB_NO_OVERFLOW,
   SSUB_NO_UNDERFLOW,
   USUB_NO_UNDERFLOW,
   // Mul overflow
   SMUL_NO_OVERFLOW,
-  BMUL_NO_UNDERFLOW,
+  SMUL_NO_UNDERFLOW,
   UMUL_NO_OVERFLOW
 };
 
@@ -209,15 +209,15 @@ NOP(BV2INT, "bv2int", FUNCTIONAL, BvOp)
 // Add w Overflow
 NOP(SADD_NO_OVERFLOW, "bvsadd_no_overflow", FUNCTIONAL, BvOp)
 NOP(UADD_NO_OVERFLOW, "bvuadd_no_overflow", FUNCTIONAL, BvOp)
-NOP(BADD_NO_UNDERFLOW, "bvbadd_no_underflow", FUNCTIONAL, BvOp)
+NOP(SADD_NO_UNDERFLOW, "bvbadd_no_underflow", FUNCTIONAL, BvOp)
 // Sub w Overflow
-NOP(BSUB_NO_OVERFLOW, "bvbsub_no_overflow", FUNCTIONAL, BvOp)
+NOP(SSUB_NO_OVERFLOW, "bvbsub_no_overflow", FUNCTIONAL, BvOp)
 NOP(SSUB_NO_UNDERFLOW, "bvssub_no_underflow", FUNCTIONAL, BvOp)
 NOP(USUB_NO_UNDERFLOW, "bvusub_no_underflow", FUNCTIONAL, BvOp)
 // Mul w Overflow
 NOP(SMUL_NO_OVERFLOW, "bvsmul_no_overflow", FUNCTIONAL, BvOp)
 NOP(UMUL_NO_OVERFLOW, "bvumul_no_overflow", FUNCTIONAL, BvOp)
-NOP(BMUL_NO_UNDERFLOW, "bvbmul_no_underflow", FUNCTIONAL, BvOp)
+NOP(SMUL_NO_UNDERFLOW, "bvbmul_no_underflow", FUNCTIONAL, BvOp)
 namespace bv {
 /* XXX Add helper methods as needed */
 
@@ -249,3 +249,4 @@ inline Expr concat(Expr v, Expr u) { return mk<BCONCAT>(v, u); }
 } // namespace bv
 } // namespace op
 } // namespace expr
+

@@ -339,7 +339,7 @@ expr::Expr ZToExpr::unmarshal(const z3::ast &z, expr::ExprFactory &efac,
     e = mknary<UMUL_NO_OVERFLOW>(args.begin(), args.end());
     break;
   case Z3_OP_BSMUL_NO_UDFL:
-    e = mknary<BMUL_NO_UNDERFLOW>(args.begin(), args.end());
+    e = mknary<SMUL_NO_UNDERFLOW>(args.begin(), args.end());
     break;
   case Z3_OP_BSDIV:
   case Z3_OP_BSDIV_I:

@@ -241,9 +241,9 @@ inline Z3_ast mk_bvop_core(z3::context &ctx, const expr::Operator &op,
     return Z3_mk_bvadd_no_overflow(ctx, zargs[0], zargs[1], true /* signed */);
   case BvOpKind::UADD_NO_OVERFLOW:
     return Z3_mk_bvadd_no_overflow(ctx, zargs[0], zargs[1], false /* signed */);
-  case BvOpKind::BADD_NO_UNDERFLOW:
+  case BvOpKind::SADD_NO_UNDERFLOW:
     return Z3_mk_bvadd_no_underflow(ctx, zargs[0], zargs[1]);
-  case BvOpKind::BSUB_NO_OVERFLOW:
+  case BvOpKind::SSUB_NO_OVERFLOW:
     return Z3_mk_bvsub_no_overflow(ctx, zargs[0], zargs[1]);
   case BvOpKind::SSUB_NO_UNDERFLOW:
     return Z3_mk_bvsub_no_underflow(ctx, zargs[0], zargs[1], true /* signed */);
@@ -253,7 +253,7 @@ inline Z3_ast mk_bvop_core(z3::context &ctx, const expr::Operator &op,
     return Z3_mk_bvmul_no_overflow(ctx, zargs[0], zargs[1], true /* signed */);
   case BvOpKind::UMUL_NO_OVERFLOW:
     return Z3_mk_bvmul_no_overflow(ctx, zargs[0], zargs[1], false /* signed */);
-  case BvOpKind::BMUL_NO_UNDERFLOW:
+  case BvOpKind::SMUL_NO_UNDERFLOW:
     return Z3_mk_bvmul_no_underflow(ctx, zargs[0], zargs[1]);
   case BvOpKind::BCONCAT: {
     if (arity == 2)

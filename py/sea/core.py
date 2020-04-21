@@ -200,7 +200,6 @@ class AgregateCmd (CliCmd):
         return argp
 
     def run (self, args=None, extra=[]):
-        print(args)
         return args.func(args, extra)
 
 class _SeqCmdHelpAction(argparse.Action):

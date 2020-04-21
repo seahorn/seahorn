@@ -841,7 +841,7 @@ class Seaopt(sea.LimitedCmd):
         if cmd_name is None: raise IOError ('`seaopt` from llvm-seahorn (https://github.com/seahorn/llvm-seahorn) is not found')
         self.seaoptCmd = sea.ExtCmd (cmd_name,'',quiet)
 
-        argv = ['-f', '-funit-at-a-time']
+        argv = ['-f']
 
         # disable sinking instructions to end of basic block
         # this might create unwanted aliasing scenarios
@@ -910,7 +910,7 @@ class Unroll(sea.LimitedCmd):
         if cmd_name is None: raise IOError ('`seaopt` from llvm-seahorn (https://github.com/seahorn/llvm-seahorn) is not found')
         self.seaoptCmd = sea.ExtCmd (cmd_name,'',quiet)
 
-        argv = ['-f', '-funit-at-a-time']
+        argv = ['-f']
         if args.out_file is not None:
             argv.extend (['-o', args.out_file])
 

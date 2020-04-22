@@ -185,8 +185,10 @@ bool CutLoops::runOnLoop (Loop *L, LPPassManager &LPM)
   for (BasicBlock *BB : blocks)
     loopInfo.removeBlock(BB);
 
-  // llvm8
+  // llvm8 and llvm9
   loopInfo.erase(L);
+  // llvm9
+  LPM.markLoopAsDeleted(*L);
   // llvm 3.8
   // loopInfo.markAsRemoved(L);
   // llvm 3.6

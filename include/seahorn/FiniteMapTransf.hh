@@ -18,17 +18,17 @@ namespace seahorn {
 struct FiniteMapTransRewriter : public std::unary_function<Expr, Expr> {
   // put Expr as a friend class have access to expr->args()??
 
-  HornClauseDB &m_db;
-  ExprSet m_vars; // expressions that are vars, this needs to be updated if new
-                  // variables are introduced while rewriting
+  // HornClauseDB &m_db;
+  // ExprSet m_vars; // expressions that are vars, this needs to be updated if new
+  //                 // variables are introduced while rewriting
   ExprFactory &m_efac;
   ExprMap &m_mkeys;
-  ExprMap &m_mapvars_keys;
-  ExprMap &m_mapvars_expr;
+  // ExprMap &m_mapvars_keys;
+  // ExprMap &m_mapvars_expr;
   Expr m_lmd_keys; // make this an ExprVector for predicate calls?
 
-  FiniteMapTransRewriter(ExprFactory &efac, ExprMap &mkeys, HornClauseDB &db, ExprSet &vars)
-    : m_efac(efac), m_mkeys(mkeys), m_db(db), m_vars(vars) {
+  FiniteMapTransRewriter(ExprFactory &efac, ExprMap &mkeys)
+    : m_efac(efac), m_mkeys(mkeys) {
     m_lmd_keys = nullptr;
   };
 

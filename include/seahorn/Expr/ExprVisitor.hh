@@ -55,9 +55,9 @@ public:
 
   // changeTo or doKidsRewrite
   template <typename R>
-  VisitAction(Expr e, bool kids = false,
+  VisitAction(Expr e, bool skipKids = false,
               std::shared_ptr<R> r = std::make_shared<IdentityRewriter>())
-      : m_skipKids(kids), m_expr(e), m_fn(new ExprFunctionoid<R>(r)) {}
+      : m_skipKids(skipKids), m_expr(e), m_fn(new ExprFunctionoid<R>(r)) {}
 
   bool isSkipKids() { return m_skipKids && m_expr.get() == nullptr; }
   bool isChangeTo() { return m_skipKids && m_expr.get() != nullptr; }
@@ -178,11 +178,11 @@ template <typename ExprVisitor> Expr visit(ExprVisitor &v, Expr expr) {
 
   Expr res = va.isChangeDoKidsRewrite() ? va.getExpr() : expr;
 
-  if (res->arity() == 0)
+  if (res->arity() == 0) // no need to rewrite the parameters
     return va.rewrite(res);
 
   bool changed = false;
-  std::vector<Expr> kids;
+  std::vector<Expr> kids; // Why not ExprVector?
 
   for (auto b = res->args_begin(), e = res->args_end(); b != e; ++b) {
     Expr k = visit(v, *b);

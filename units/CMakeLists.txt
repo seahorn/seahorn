@@ -24,6 +24,8 @@ add_executable(units_z3 EXCLUDE_FROM_ALL
   lambdas_z3.cpp
   units_expr.cpp
   units_finite_maps.cpp
+  units_finite_maps_trans.cpp
+  ../lib/seahorn/HornClauseDB.cc
   )
 llvm_config (units_z3 ${LLVM_LINK_COMPONENTS})
 target_link_libraries(units_z3 ${USED_LIBS_Z3_TESTS})

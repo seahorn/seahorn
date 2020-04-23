@@ -1,5 +1,6 @@
 /// Finite Maps
 #pragma once
+
 #include "seahorn/Expr/Expr.hh"
 #include "seahorn/Expr/ExprApi.hh"
 #include "seahorn/Expr/ExprCore.hh"
@@ -27,24 +28,31 @@ inline Expr constFiniteMap(ExprVector keys) {
   return expr::mknary<CONST_FINITE_MAP>(keys.begin(), keys.end());
 }
 
-inline Expr get(Expr a, Expr keys, Expr idx) { return expr::mk<GET>(a, idx); }
+inline Expr get(Expr map, Expr idx) {
+  return expr::mk<GET>(map, idx);
+}
+// inline Expr get(Expr map, Expr keys, Expr idx) { return expr::mk<GET>(map, idx); }
 // inline Expr get(Expr a, const ExprVector& keys, Expr idx) { return
 // mk<GET>(a, keys, idx); }
-inline Expr set(Expr a, Expr keys, Expr idx, Expr v) {
-  return expr::mk<SET>(a, idx, v);
+inline Expr set(Expr map, Expr idx, Expr v) {
+  return expr::mk<SET>(map, idx, v);
 }
+
+// inline Expr set(Expr map, Expr keys, Expr idx, Expr v) {
+//   return expr::mk<SET>(map, idx, v);
+// }
 // inline Expr set(Expr a, const ExprVector& keys, Expr idx, Expr v) { return
 // mk<GET>(a, keys, idx, v); }
 
 
 // fresh map with unitialized values
-Expr new_map_lambda(ExprFactory &efac) {
+inline Expr empty_map_lambda(ExprFactory &efac) {
   return mkTerm<expr::mpz_class>(0, efac);
   // TODO: change 0 by the same as unitialized memory
 }
 
 // creates a set of keys as a lambda function
-Expr make_lambda_map_keys(ExprVector keys, ExprFactory &efac) {
+inline Expr make_lambda_map_keys(ExprVector keys, ExprFactory &efac) {
 
   Expr x = bind::intConst(mkTerm<std::string>("x", efac));
 
@@ -71,7 +79,8 @@ Expr make_lambda_map_keys(ExprVector keys, ExprFactory &efac) {
 //
 // TO COMMENT: This function also outputs the lambda function for the keys,
 // assume that it is created, is this a bigger formula if done externally?
-Expr make_map_batch_values(ExprVector keys, ExprVector values, ExprFactory &efac, Expr &lambda_keys) {
+inline Expr make_map_batch_values(ExprVector keys, ExprVector values,
+                                  ExprFactory &efac, Expr &lambda_keys) {
 
   // assuming that there is a value for every key. If this is not available,
   // "initialize" it with the default value for uninitialized memory
@@ -96,7 +105,7 @@ Expr make_map_batch_values(ExprVector keys, ExprVector values, ExprFactory &efac
 
   count = 1;
 
-  Expr lmd_values = new_map_lambda(efac);
+  Expr lmd_values = empty_map_lambda(efac);
 
   for (auto v : values) {
     Expr pos_in_map = mkTerm<expr::mpz_class>(count, efac);
@@ -110,15 +119,15 @@ Expr make_map_batch_values(ExprVector keys, ExprVector values, ExprFactory &efac
   return lmd_values;
 }
 
-Expr get_map_lambda(Expr map, Expr keys, Expr key) {
+inline Expr get_map_lambda(Expr map, Expr keys, Expr key) {
 
   Expr pos_in_map = op::bind::betaReduce(keys, key);
 
   return op::bind::betaReduce(map, pos_in_map);
 }
 
-Expr set_map_lambda(Expr map, Expr keys, Expr key, Expr value,
-                    ExprFactory & efac) {
+inline Expr set_map_lambda(Expr map, Expr keys, Expr key, Expr value,
+                           ExprFactory &efac) {
 
   Expr x = bind::intConst(mkTerm<std::string>("x", efac));
 
@@ -130,14 +139,14 @@ Expr set_map_lambda(Expr map, Expr keys, Expr key, Expr value,
   return new_map;
 }
 
-Expr make_map_sequence_gets(ExprVector keys, ExprVector values,
-                            ExprFactory &efac, Expr &lambda_keys) {
+inline Expr make_map_sequence_gets(ExprVector keys, ExprVector values,
+                                   ExprFactory &efac, Expr &lambda_keys) {
 
   assert(keys.size() == values.size());
 
   lambda_keys = make_lambda_map_keys(keys, efac);
 
-  Expr lmd_values = new_map_lambda(efac);
+  Expr lmd_values = empty_map_lambda(efac);
 
   auto it_v = values.begin();
 
@@ -149,21 +158,17 @@ Expr make_map_sequence_gets(ExprVector keys, ExprVector values,
   return lmd_values;
 }
 
-// bind::fapp(fi.sumPred, csi.m_fparams);;
-// test with only one map
-
 // Takes a map (input and output), the used keys (assumed to be the same for
 // input and output) and generates the parameters necessary to encode this map
 // (`new_params`) and returns the extra literals that need to be performed in
 // the caller.
 // This function needs to be called per map
 
-Expr prepare_finite_maps_caller_callsite(Expr in_map, Expr map_keys,
-                                         ExprVector keys_used,
-                                         ExprFactory &efac,
-                                         ExprVector &new_params,
-                                         Expr &out_map) {
-
+inline Expr prepare_finite_maps_caller_callsite(Expr in_map, Expr map_keys,
+                                                ExprVector keys_used,
+                                                ExprFactory &efac,
+                                                ExprVector &new_params,
+                                                Expr &out_map) {
 
   assert(keys_used.size() > 0); // if not, nothing to do? or return literals
                                 // with true

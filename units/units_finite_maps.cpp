@@ -4,6 +4,7 @@
 #include "seahorn/Expr/ExprOpBinder.hh"
 #include "seahorn/Expr/ExprOpFiniteMap.hh"
 #include "seahorn/Expr/Smt/EZ3.hh"
+#include "seahorn/HornClauseDB.hh"
 #include "llvm/Support/raw_ostream.h"
 
 using namespace std;
@@ -16,7 +17,7 @@ TEST_CASE("expr.finite_map.create_map") {
   ExprFactory efac;
   ExprVector keys;
 
-  Expr key1 = bv::bvConst(mkTerm<std::string>("k1", efac), 32);
+  Expr key1 = bind::intConst(mkTerm<std::string>("k1", efac));
 
   keys.push_back(key1);
   Expr map = finite_map::constFiniteMap(keys);
@@ -39,7 +40,7 @@ TEST_CASE("expr.finite_map.set") {
 
   unsigned value = 30;
   Expr v = mkTerm<expr::mpz_class>(value, efac);
-  Expr map1 = finite_map::set(map, finite_map::constFiniteMap(keys),  key1, v);
+  Expr map1 = finite_map::set(map, key1, v);
 
   CHECK(map1);
   CHECK(boost::lexical_cast<std::string>(*map1) ==
@@ -60,7 +61,7 @@ TEST_CASE("expr.finite_map.get") {
   keys.push_back(key1);
   Expr map = finite_map::constFiniteMap(keys);
 
-  Expr eget = finite_map::get(map, finite_map::constFiniteMap(keys), key1);
+  Expr eget = finite_map::get(map, key1);
 
   CHECK(eget);
   CHECK(boost::lexical_cast<std::string>(*eget) == "get(defk(k1), k1)");
@@ -85,7 +86,7 @@ TEST_CASE("expr.finite_map.create_set_3") {
   map = map_keys;
 
   Expr v = mkTerm<expr::mpz_class>(31, efac);
-  map = finite_map::set(map, map_keys, key1, v);
+  map = finite_map::set(map, key1, v);
 
   CHECK(map);
   CHECK(boost::lexical_cast<std::string>(*map) ==
@@ -94,7 +95,7 @@ TEST_CASE("expr.finite_map.create_set_3") {
   errs() << *map << "\n";
 
   v = mkTerm<expr::mpz_class>(32, efac);
-  map = finite_map::set(map, map_keys, key2, v);
+  map = finite_map::set(map, key2, v);
   CHECK(map);
   CHECK(boost::lexical_cast<std::string>(*map) ==
         "set(set(defk(k1, k2, k3), k1, 31), k2, 32)");
@@ -102,7 +103,7 @@ TEST_CASE("expr.finite_map.create_set_3") {
   errs() << *map << "\n";
 
   v = mkTerm<expr::mpz_class>(33, efac);
-  map = finite_map::set(map, map_keys, key3, v);
+  map = finite_map::set(map, key3, v);
   CHECK(map);
   CHECK(boost::lexical_cast<std::string>(*map) ==
         "set(set(set(defk(k1, k2, k3), k1, 31), k2, 32), k3, 33)");
@@ -161,7 +162,7 @@ TEST_CASE("expr.finite_map.set_map_lambda") {
 
   Expr value = mkTerm<expr::mpz_class>(42, efac);
 
-  Expr map = finite_map::new_map_lambda(efac);
+  Expr map = finite_map::empty_map_lambda(efac);
   // set the value of k1
   map = finite_map::set_map_lambda(map, lambda_keys, k1, value, efac);
 
@@ -169,7 +170,7 @@ TEST_CASE("expr.finite_map.set_map_lambda") {
         "(lambda (INT) ite((B0:INT)=ite(k3=k1, 3, ite(k2=k1, 2, ite(k1=k1, 1, "
         "0))), 42, 0))");
 
-  errs() << "set(new_map, defk(k1,k2,k3),k1,42): " << *map << "\n";
+  errs() << "set(empty_map, defk(k1,k2,k3),k1,42): " << *map << "\n";
 
   EZ3 z3(efac);
 
@@ -198,7 +199,7 @@ TEST_CASE("expr.finite_map.get_after_set_map_lambda") {
 
   Expr value = mkTerm<expr::mpz_class>(42, efac);
 
-  Expr map = finite_map::new_map_lambda(efac); // init map
+  Expr map = finite_map::empty_map_lambda(efac); // init map
   map = finite_map::set_map_lambda(map, lambda_keys, k1, value, efac);
 
   CHECK(boost::lexical_cast<std::string>(map) ==
@@ -263,7 +264,7 @@ TEST_CASE("expr.finite_map.make_map_batch_values") {
 
   int count = 41;
   for (auto k : keys) {
-    u_map = finite_map::set(u_map, u_map, k1, mkTerm<expr::mpz_class>(count++, efac));
+    u_map = finite_map::set(u_map, k1, mkTerm<expr::mpz_class>(count++, efac));
     count++;
   }
 
@@ -274,7 +275,7 @@ TEST_CASE("expr.finite_map.make_map_batch_values") {
     Expr to_simp_true = mk<EQ>(get_value, values[i]);
     // cannot be simplified if constructed in a batch
     errs() << "simplifying: "
-           << *mk<EQ>(finite_map::get(u_map, u_map,keys[i]), values[i])
+           << *mk<EQ>(finite_map::get(u_map, keys[i]), values[i])
            << "\n";
     errs() << "orig:        " << *to_simp_true << "\n";
     errs() << "simplified:  " << *z3_simplify(z3, to_simp_true) << "\n\n";
@@ -317,7 +318,7 @@ TEST_CASE("expr.finite_map.make_map_sequence_gets") {
   Expr u_map_keys = u_map;
   int count = 41;
   for ( auto k : keys) {
-    u_map = finite_map::set(u_map, u_map_keys, k1,
+    u_map = finite_map::set(u_map, k1,
                             mkTerm<expr::mpz_class>(count, efac));
     count++;
   }
@@ -329,7 +330,7 @@ TEST_CASE("expr.finite_map.make_map_sequence_gets") {
     Expr to_simp_true = mk<EQ>(get_value, values[i]);
     // cannot be simplified if nothing is known about the keys (they may alias)
     errs() << "simplifying: "
-           << *mk<EQ>(finite_map::get(u_map, u_map_keys, keys[i]), values[i])
+           << *mk<EQ>(finite_map::get(u_map, keys[i]), values[i])
            << "\n";
     errs() << "orig:        " << *to_simp_true << "\n";
     errs() << "simplified:  " << *z3_simplify(z3, to_simp_true) << "\n\n";
@@ -357,7 +358,7 @@ bool register_rule_and_query(Expr query, ExprVector &qvars, ExprFactory &efac,
   return static_cast<bool>(res);
 }
 
-void set_params(EZ3 &z3, ZFixedPoint<EZ3> &fp) {
+inline void set_params(EZ3 &z3, ZFixedPoint<EZ3> &fp) {
 
   ZParams<EZ3> params(z3); // see HornSolver.cc for more default values
   params.set(":engine", "spacer");
@@ -401,11 +402,11 @@ TEST_CASE("expr.finite_map.map_in_body_1key") {
   values.push_back(mkTerm<expr::mpz_class>(1UL, efac));
 
   Expr unint = finite_map::constFiniteMap(keys);
-  Expr unint_ops = mk<EQ>(
-      x, finite_map::get(
-             finite_map::set(finite_map::set(unint, unint, keys[0], values[0]),
-                             unint, keys[0], solution),
-             unint, keys[0]));
+  Expr unint_ops =
+      mk<EQ>(x, finite_map::get(
+                    finite_map::set(finite_map::set(unint, keys[0], values[0]),
+                                    keys[0], solution),
+                    keys[0]));
 
   ExprVector vars;
   vars.push_back(v1);
@@ -483,13 +484,13 @@ TEST_CASE("expr.finite_map.map_in_body_2keys") {
 
   Expr unint = finite_map::constFiniteMap(keys);
   Expr unint_map = finite_map::set(
-      finite_map::set(finite_map::set(unint, unint, keys[0], values[0]), unint,
-                      keys[1], values[1]),
-      unint, keys[0], mkTerm<expr::mpz_class>(42, efac));
+      finite_map::set(finite_map::set(unint, keys[0], values[0]), keys[1],
+                      values[1]),
+      keys[0], mkTerm<expr::mpz_class>(42, efac));
 
   ExprVector unint_ops;
-  unint_ops.push_back(mk<EQ>(x, finite_map::get(unint_map, unint, keys[0])));
-  unint_ops.push_back(mk<EQ>(y, finite_map::get(unint_map, unint, keys[1])));
+  unint_ops.push_back(mk<EQ>(x, finite_map::get(unint_map, keys[0])));
+  unint_ops.push_back(mk<EQ>(y, finite_map::get(unint_map, keys[1])));
 
   ExprVector vars;
   vars.push_back(v1);
@@ -814,7 +815,6 @@ TEST_CASE("expr.finite_map.simple_query" * doctest::skip(true)) {
   using namespace expr::op;
   using namespace seahorn;
 
-  //  errs() << "begin test\n";
   ExprFactory efac;
 
   EZ3 z3(efac);
@@ -852,4 +852,244 @@ TEST_CASE("expr.finite_map.simple_query" * doctest::skip(true)) {
   // SAT
 }
 
+TEST_CASE("expr.finite_map.fm_type_declaration") {
 
+  ExprFactory efac;
+  Expr fmTy = op::sort::finiteMapTy(efac);
+
+  CHECK(boost::lexical_cast<std::string>(*fmTy) == "FINITE_MAP");
+}
+
+// same as map_in_body_1key but using HornClauseDB
+TEST_CASE("expr.finite_map.map_in_body_1key_HCDB" * doctest::skip(true)) {
+
+  ExprFactory efac;
+  // Expr k1 = bind::intConst(mkTerm<string>("k1", efac));
+  // Expr v1 = bind::intConst(mkTerm<string>("v1", efac));
+  Expr x = bind::intConst(mkTerm<string>("x", efac));
+
+  Expr iTy = mk<INT_TY>(efac);
+  Expr bTy = mk<BOOL_TY>(efac);
+
+  ExprVector ftype;
+  ftype.push_back(iTy);
+  ftype.push_back(bTy); // return type?
+
+  Expr fdecl = bind::fdecl(mkTerm<string>("f", efac), ftype);
+  Expr fapp = bind::fapp(fdecl,x);
+
+  EZ3 z3(efac);
+  ZFixedPoint<EZ3> fp(z3);
+  set_params(z3, fp);
+
+  HornClauseDB db(efac);
+
+  Expr solution = mkTerm<expr::mpz_class>(42, efac);
+
+  // ExprVector keys, values;
+  // keys.push_back(bind::intConst(k1));
+  // values.push_back(mkTerm<expr::mpz_class>(1UL, efac));
+
+  // Expr unint = finite_map::constFiniteMap(keys);
+  // Expr unint_ops = mk<EQ>(
+  //     x, finite_map::get(
+  //            finite_map::set(finite_map::set(unint, unint, keys[0], values[0]),
+  //                            unint, keys[0], solution),
+  //            unint, keys[0]));
+
+  ExprVector vars;
+  // vars.push_back(v1);
+  // vars.push_back(k1);
+  vars.push_back(x);
+
+  ExprSet allVars;
+  allVars.insert(++vars.begin(), vars.end());
+
+  ExprVector body;
+  // body.push_back(mk<EQ>(v1, mkTerm<expr::mpz_class>(1UL, efac)));
+  body.push_back(mk<EQ>(x, solution));
+  // Expr map_keys;
+  // Expr map = finite_map::make_map_batch_values(keys,values,efac,map_keys);
+  // Expr setop = finite_map::set_map_lambda(map, map_keys, k1, solution, efac);
+  // Expr getop = finite_map::get_map_lambda(setop, map_keys, k1);
+  // body.push_back(mk<EQ>(x, getop));
+
+  db.registerRelation(fdecl);
+  HornRule rule(allVars, fapp, mknary<AND>(body));
+  db.addRule(rule);
+
+  ExprVector qvars;
+  Expr query;
+
+  qvars.push_back(x);
+  query = mk<AND>(mk<NEQ>(x, solution), bind::fapp(fdecl, x));
+
+  errs() << "Expected: unsat\n";
+  db.addQuery(query);
+
+  db.loadZFixedPoint(fp, false); // SkipConstraints = false
+  // CHECK(!register_rule_and_query(query, qvars, efac, fp));
+
+  errs() << "query: " << *query << "\nfp content:\n";
+  errs() << fp.toString(query) << "\nend fp content\n";
+
+  boost::tribool res = fp.query();
+  errs() << "Solving: " << (res ? "sat" : "unsat") << "\n";
+
+  CHECK(static_cast<bool>(res));
+
+  // example with map operations in 1 literal:
+  // f(x) :-
+  //    v1=1,
+  //    x = get(set(mkmap((k1),(v1)),k1, 42)).
+  // query :- x /= 42, f(x).
+  // UNSAT
+}
+
+// same as map_in_body_1key but using HornClauseDB
+TEST_CASE("expr.finite_map.test_HCDB") {
+
+  ExprFactory efac;
+
+  Expr x = bind::intConst(mkTerm<string>("x", efac));
+
+  Expr iTy = mk<INT_TY>(efac);
+  Expr bTy = mk<BOOL_TY>(efac);
+
+  ExprVector ftype;
+  ftype.push_back(iTy);
+  ftype.push_back(bTy);
+
+  Expr fdecl = bind::fdecl(mkTerm<string>("f", efac), ftype);
+  Expr fapp = bind::fapp(fdecl, x);
+
+  EZ3 z3(efac);
+  ZFixedPoint<EZ3> fp(z3);
+  set_params(z3, fp);
+
+  HornClauseDB db(efac);
+
+  Expr solution = mkTerm<expr::mpz_class>(42, efac);
+
+  ExprVector vars;
+  vars.push_back(x);
+
+  ExprSet allVars;
+  allVars.insert(vars.begin(), vars.end());
+
+  ExprVector body;
+  body.push_back(mk<EQ>(x, solution));
+
+  db.registerRelation(fdecl);
+  HornRule rule(allVars, fapp, body[0]);
+  db.addRule(rule);
+
+  ExprVector qvars;
+  Expr query;
+
+  // Actual query ?- x \= 42, f(x). %% unsat
+  qvars.push_back(x);
+  query = mk<AND>(mk<NEQ>(x, solution), bind::fapp(fdecl, x));
+
+  // Register new relation to query without variables
+  ExprVector qtype;
+  qtype.push_back(mk<BOOL_TY>(efac));
+  Expr query_name = mkTerm<string>("query1", efac);
+  Expr qdecl = bind::fdecl(query_name, qtype);
+  db.registerRelation(qdecl);
+  Expr q_head = bind::fapp(qdecl);
+  Expr q_body = query;
+  ExprSet auxVars;
+  auxVars.insert(qvars.begin(), qvars.end());
+  HornRule query_rule(allVars, q_head, q_body);
+  db.addRule(query_rule);
+
+  // query with auxiliary relation
+  db.addQuery(q_head);
+
+  db.loadZFixedPoint(fp, false); // SkipConstraints = false
+
+  errs() << "query: " << *q_head << "\nfp content:\n";
+  errs() << fp.toString() << "\nend fp content\n";
+  errs() << "Expected: unsat\n";
+  boost::tribool res = fp.query();
+  errs() << "Solving: " << (res ? "sat" : "unsat") << "\n";
+
+  CHECK(!static_cast<bool>(res));
+
+  // example with 1 literal:
+  // f(x) :- x = 42.
+  // query1 :- x /= 42, f(x).
+  // UNSAT
+}
+
+// same as map_in_body_1key but using HornClauseDB
+TEST_CASE("expr.finite_map.test_map_type_HCDB") {
+
+  ExprFactory efac;
+  Expr mapTy = sort::finiteMapTy(efac);
+  Expr iTy = sort::intTy(efac);
+  Expr bTy = sort::boolTy(efac);
+
+  Expr x = bind::intConst(mkTerm<string>("x", efac));
+  Expr map1 = bind::mkConst(mkTerm<string>("m1", efac), mapTy);
+
+  ExprVector ftype;
+  ftype.push_back(iTy);
+  ftype.push_back(bTy);
+
+  Expr fdecl = bind::fdecl(mkTerm<string>("f", efac), ftype);
+  Expr fapp = bind::fapp(fdecl, x);
+
+  EZ3 z3(efac);
+  ZFixedPoint<EZ3> fp(z3);
+  set_params(z3, fp);
+
+  HornClauseDB db(efac);
+
+  Expr solution = mkTerm<expr::mpz_class>(42, efac);
+
+  ExprVector vars;
+  vars.push_back(x);
+
+  ExprSet allVars;
+  allVars.insert(vars.begin(), vars.end());
+
+  ExprVector keys;
+  keys.push_back(bind::intConst(mkTerm<string>("k1", efac)));
+
+  ExprVector body;
+  body.push_back(mk<EQ>(map1, finite_map::constFiniteMap(keys)));
+  body.push_back(mk<EQ>(x, solution));
+
+  db.registerRelation(fdecl);
+  HornRule rule(allVars, fapp, mknary<AND>(body));
+  db.addRule(rule);
+
+  ExprVector qvars;
+  Expr query;
+
+  // Actual query ?- x \= 42, f(x). %% unsat
+  qvars.push_back(x);
+  query = mk<AND>(mk<NEQ>(x, solution), bind::fapp(fdecl, x));
+
+  // Register new relation to query without variables
+  ExprVector qtype;
+  qtype.push_back(mk<BOOL_TY>(efac));
+  Expr query_name = mkTerm<string>("query1", efac);
+  Expr qdecl = bind::fdecl(query_name, qtype);
+  db.registerRelation(qdecl);
+  Expr q_head = bind::fapp(qdecl);
+  Expr q_body = query;
+  ExprSet auxVars;
+  auxVars.insert(qvars.begin(), qvars.end());
+  HornRule query_rule(allVars, q_head, q_body);
+  db.addRule(query_rule);
+
+  // query with auxiliary relation
+  db.addQuery(q_head);
+
+  errs() << "HornClauseDB with maps\n";
+  errs() << db << "\n";
+  // This cannot be solved by Z3
+}

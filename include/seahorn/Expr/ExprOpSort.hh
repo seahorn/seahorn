@@ -17,7 +17,8 @@ enum class SimpleTypeOpKind {
   BOOL_TY,
   UNINT_TY,
   ARRAY_TY,
-  STRUCT_TY
+  STRUCT_TY,
+  FINITE_MAP_TY
 };
 NOP_BASE(SimpleTypeOp)
 
@@ -37,6 +38,8 @@ NOP(UNINT_TY, "UNINT", PREFIX, SimpleTypeOp)
 NOP(ARRAY_TY, "ARRAY", PREFIX, SimpleTypeOp)
 /// \biref Struct type
 NOP(STRUCT_TY, "STRUCT", PREFIX, SimpleTypeOp)
+/// \biref FiniteMap type
+NOP(FINITE_MAP_TY, "FINITE_MAP", PREFIX, SimpleTypeOp)
 } // namespace op
 
 namespace op {
@@ -55,6 +58,8 @@ inline Expr structTy(Expr ty1, Expr ty2) { return mk<STRUCT_TY>(ty1, ty2); }
 template <typename Range> Expr structTy(const Range &ty) {
   return mknary<STRUCT_TY>(ty);
 }
+
+inline Expr finiteMapTy(ExprFactory &efac) { return mk<FINITE_MAP_TY>(efac); }
 
 } // namespace sort
 } // namespace op

@@ -64,13 +64,15 @@ struct ZVerboseOpt {
 };
 ZVerboseOpt zverbose;
 
-#ifdef HAVE_CLAM
 struct CVerboseOpt {
+#ifdef HAVE_CLAM
   void operator=(unsigned level) const { crab::CrabEnableVerbosity(level); }
+#endif
+
+  void operator=(unsigned level) const {}
 };
 
 CVerboseOpt cverbose;
-#endif
 } // namespace seahorn
 
 static llvm::cl::opt<seahorn::ZTraceLogOpt, true, llvm::cl::parser<std::string>>

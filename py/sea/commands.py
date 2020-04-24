@@ -865,6 +865,11 @@ class Seaopt(sea.LimitedCmd):
         if args.unroll_threshold is not None:
             argv.append ('--unroll-threshold={t}'.format
                          (t=args.unroll_threshold))
+
+        # do not allow partial unrolling that introduces complex runtime code
+        argv.extend(['--unroll-allow-partial=false',
+                     '--unroll-partial-threshold=0'])
+
         if not args.enable_vectorize:
             argv.extend ([  '--vectorize-loops=false'
                           , '--disable-slp-vectorization=true'

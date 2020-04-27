@@ -59,7 +59,12 @@ template <typename Range> Expr structTy(const Range &ty) {
   return mknary<STRUCT_TY>(ty);
 }
 
-inline Expr finiteMapTy(ExprFactory &efac) { return mk<FINITE_MAP_TY>(efac); }
+// inline Expr finiteMapTy(ExprFactory &efac) { return mk<FINITE_MAP_TY>(efac); }
+inline Expr finiteMapTy(Expr k) { return mk<FINITE_MAP_TY>(k); }
+inline Expr finiteMapTy(Expr k1, Expr k2) { return mk<FINITE_MAP_TY>(k1, k2); }
+template <typename Range> Expr finiteMapTy(const Range &ks) {
+  return mknary<FINITE_MAP_TY>(ks);
+}
 
 } // namespace sort
 } // namespace op

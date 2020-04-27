@@ -855,7 +855,9 @@ TEST_CASE("expr.finite_map.simple_query" * doctest::skip(true)) {
 TEST_CASE("expr.finite_map.fm_type_declaration") {
 
   ExprFactory efac;
-  Expr fmTy = op::sort::finiteMapTy(efac);
+  ExprVector keys;
+  keys.push_back(mkTerm<std::string>("k1", efac));
+  Expr fmTy = op::sort::finiteMapTy(keys);
 
   CHECK(boost::lexical_cast<std::string>(*fmTy) == "FINITE_MAP");
 }
@@ -1027,7 +1029,11 @@ TEST_CASE("expr.finite_map.test_HCDB") {
 TEST_CASE("expr.finite_map.test_map_type_HCDB") {
 
   ExprFactory efac;
-  Expr mapTy = sort::finiteMapTy(efac);
+
+  ExprVector keys;
+  keys.push_back(bind::intConst(mkTerm<string>("k1", efac)));
+
+  Expr mapTy = sort::finiteMapTy(keys);
   Expr iTy = sort::intTy(efac);
   Expr bTy = sort::boolTy(efac);
 
@@ -1054,9 +1060,6 @@ TEST_CASE("expr.finite_map.test_map_type_HCDB") {
 
   ExprSet allVars;
   allVars.insert(vars.begin(), vars.end());
-
-  ExprVector keys;
-  keys.push_back(bind::intConst(mkTerm<string>("k1", efac)));
 
   ExprVector body;
   body.push_back(mk<EQ>(map1, finite_map::constFiniteMap(keys)));

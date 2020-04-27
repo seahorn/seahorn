@@ -14,85 +14,164 @@ using namespace expr::op;
 
 namespace seahorn {
 
+using KeysPair = std::pair<ExprVector, Expr>;
+using KeysStack = std::vector<KeysPair>;
+
 // Rewrites a finite map operation whose arguments are already rewritten
+// The rewriter needs to be initialized for every clause
+// TODO: rename by FiniteMapClauseRewriter?
 struct FiniteMapTransRewriter : public std::unary_function<Expr, Expr> {
   // put Expr as a friend class have access to expr->args()??
 
-  // HornClauseDB &m_db;
-  // ExprSet m_vars; // expressions that are vars, this needs to be updated if new
-  //                 // variables are introduced while rewriting
+  HornClauseDB &m_db;
+  ExprSet m_evars; // set of vars of the expression being rewritten, it will be
+                   // updated if new vars are needed
   ExprFactory &m_efac;
-  ExprMap &m_mkeys;
-  // ExprMap &m_mapvars_keys;
-  // ExprMap &m_mapvars_expr;
-  Expr m_lmd_keys; // make this an ExprVector for predicate calls?
 
-  FiniteMapTransRewriter(ExprFactory &efac, ExprMap &mkeys)
-    : m_efac(efac), m_mkeys(mkeys) {
-    m_lmd_keys = nullptr;
-  };
+  // ExprMap m_fmapvars_keys;
+  ExprMap &m_fmapvars_vals;
+
+  // Used as a stack to keep the keys of the children
+  KeysStack &m_keys_children;
+
+  FiniteMapTransRewriter(ExprFactory &efac, KeysStack &mkeys, HornClauseDB &db,
+                         ExprSet evars, ExprMap fmapvars_vals)
+      : m_efac(efac), m_keys_children(mkeys), m_db(db), m_evars(evars),
+        m_fmapvars_vals(fmapvars_vals){};
 
   Expr operator()(Expr exp) {
-    Expr lmd_map;
+    // errs() << "Rewritting " << *exp << "\n";
+    Expr res;
     if (isOpX<CONST_FINITE_MAP>(exp)) {
       ExprVector keys(exp->args_begin(), exp->args_end());
-      m_lmd_keys = finite_map::make_lambda_map_keys(keys, m_efac);
-      lmd_map = finite_map::empty_map_lambda(m_efac);
+      m_keys_children.push_back(
+          { keys, finite_map::make_lambda_map_keys(keys, m_efac) });
+      Expr lkeys = finite_map::make_lambda_map_keys(keys, m_efac);
+      errs() << "-> Push: " << *lkeys << "\n";
+      res = finite_map::empty_map_lambda(m_efac);
     } else if (isOpX<GET>(exp)) {
-      assert(m_lmd_keys);
-      lmd_map =
-          finite_map::get_map_lambda(exp->left(), m_lmd_keys, exp->right());
+      assert(!m_keys_children.empty()); // check that it has
+      Expr map = exp->left();
+      if(bind::isFiniteMapConst(map)) // the map is a variable
+        res = finite_map::make_var_key(map, exp->right(), m_evars);
+      else { // the map is an ite expression or '0' (empty map)
+        KeysPair keys_child = m_keys_children.back();
+        Expr lmd_keys = keys_child.second;
+        res = finite_map::get_map_lambda(map, lmd_keys, exp->right());
+      }
+      m_keys_children.pop_back();
     } else if (isOpX<SET>(exp)) {
-      assert(m_lmd_keys);
+      assert(!m_keys_children.empty());
+      KeysPair keys_child = m_keys_children.back();
+      Expr lmd_keys = keys_child.second;
       ExprVector args(exp->args_begin(), exp->args_end());
-      Expr value = args[2];
-      lmd_map = finite_map::set_map_lambda(exp->left(), m_lmd_keys,
-                                           exp->right(), value, m_efac);
+      Expr map = exp->left();
+      if (bind::isFiniteMapConst(map)){ // the map is a variable
+        ExprVector svals;
+        for (auto k : keys_child.first)
+          svals.push_back(finite_map::make_var_key(map, k, m_evars));
+        // create map with symbolic values
+        map = finite_map::make_map_batch_values(keys_child.first, svals, m_efac, lmd_keys);
+      }
+      Expr value = args[2]; // TODO: can this be done without building args?
+      res = finite_map::set_map_lambda(map, lmd_keys,
+                                       exp->right(), value, m_efac);
+    } else if (bind::isFiniteMapConst(exp)){
+      errs() << "Map const found\n";
+      Expr name = bind::fname(exp);
+      Expr mTy = bind::rangeTy(name);
+      ExprVector keys(mTy->args_begin(), mTy->args_end()); // warning, local variable!!!!
+      Expr lmd_keys = finite_map::make_lambda_map_keys(keys, m_efac);
+      errs() << "-> Push: " << *lmd_keys << "\n";
+      m_keys_children.push_back(
+          {ExprVector(mTy->args_begin(), mTy->args_end()),
+           finite_map::make_lambda_map_keys(keys, m_efac)});
+      res = exp; // return the fmap variable as it is
     } else if (isOpX<EQ>(exp)) {
-      // this will be asked to the HCDB
-      // if (isMapVar(exp->right())) // if it is of type map
-      return exp;
+      errs() << "Rewritting EQ: exp" << *exp << "\n";
+      Expr el = exp->left();
+      Expr er = exp->right();
+
+      errs() << "left: " << *el << "\n";
+      errs() << "right: " << *er << "\n";
+
+      // the maps are already ite, how can I know the types?
+      assert(m_keys_children.size() >= 2);
+
+      // ExprVector keys2 = m_keys_children.back().first;
+      Expr lkeys2 = m_keys_children.back().second;
+      errs() << "lkeys2: " << *lkeys2 << "\n";
+      m_keys_children.pop_back();
+
+      ExprVector keys1 = m_keys_children.back().first;
+      Expr lkeys1 = m_keys_children.back().second;
+      errs() << "lkeys1: " << *lkeys1 << "\n";
+      m_keys_children.pop_back();
+
+      assert(lkeys1);
+      assert(lkeys2);
+
+      // to check this, they would need to be sorted first
+      // assert(keys1 == keys2);
+      res = finite_map::make_eq_maps_lambda(el, lkeys1, er, lkeys2, keys1,
+                                            m_efac, m_evars);
     } else { // do nothing
+      errs() << "Unexpected map expression: " << *exp << "\n"; // TODO put in log
+      assert(false && "Unexpected map expression");
       return exp;
     }
-    errs() << "Rewritten: " << *exp << "\n    " << *lmd_map << "\n";
-    return lmd_map;
+    errs() << "Rewritten: " << *exp << "\n   to: " << *res << "\n"; // TODO: put in
+                                                                 // log
+    return res;
   }
-
 };
 struct FiniteMapTransVisitor : public std::unary_function<Expr, VisitAction> {
 
-  ExprMap map_keys;
+  KeysStack fmap_keys;
+  ExprMap map_vals;
   ExprFactory &m_efac;
   std::shared_ptr<FiniteMapTransRewriter> m_rw;
 
-  FiniteMapTransVisitor(ExprFactory &efac)
-    : m_efac(efac){
-    m_rw = std::make_shared<FiniteMapTransRewriter>(m_efac, map_keys);
+  FiniteMapTransVisitor(ExprFactory &efac, HornClauseDB &db, ExprSet evars)
+      : m_efac(efac) {
+    m_rw = std::make_shared<FiniteMapTransRewriter>(m_efac, fmap_keys, db, evars, map_vals);
   }
   VisitAction operator()(Expr exp) {
-    if (isOpX<CONST_FINITE_MAP>(exp)) {
+    errs() << "Creating visit action for: " << *exp << "\n";
+    if (isFiniteMapOp(exp)) {
+      errs() << "---FiniteMapOp\n";
+      return VisitAction::changeDoKidsRewrite(exp, m_rw);
+    } else if (bind::isFiniteMapConst(exp)) {
+      errs() << "---FiniteMapConst\n";
       return VisitAction(exp, false, m_rw);
-    } else if (isOpX<GET>(exp)) {
-      return VisitAction(exp, false, m_rw);
-    } else if (isOpX<SET>(exp)) {
-      return VisitAction(exp, false, m_rw);
+    } else if (bind::isConst(exp)) {
+      errs() << "---No rewritting\n";
+      return VisitAction::skipKids();
+      // TODO Jorge: if set to true it is not rewritten!!
     } else if (isOpX<EQ>(exp)) {
+      errs() << "---EQ\n";
+      if (returnsFiniteMap(exp->left()) || returnsFiniteMap(exp->right()))
+        return VisitAction::changeDoKidsRewrite(exp, m_rw);
     } else if (isOpX<FAPP>(exp)) {
-      return VisitAction(exp, true, m_rw); // skip kids in fapps for now
+      errs() << "---FAPP\n";
+      // return VisitAction::changeDoKidsRewrite(exp, m_rw); // not implemented yet
     }
-    return VisitAction(exp, false, m_rw);
+    errs() << "---No rewritting\n";
+    // This step doesn't need to be rewritten but the kids do
+    return VisitAction::changeDoKids(exp);
   }
 
-  // // TODO: replace by FamilyId with FiniteMapOP
-  // bool isFiniteMapOp(Expr e) {
-  //   return isOpX<CONST_FINITE_MAP>(exp) || isOpX<GET>(exp) || isOpX<GET>(exp);
-  // }
+  // TODO: replace by FamilyId with FiniteMapOP?
+  bool isFiniteMapOp(Expr e) {
+    return isOpX<CONST_FINITE_MAP>(e) || isOpX<GET>(e) || isOpX<SET>(e);
+  }
+
+  bool returnsFiniteMap(Expr e) {
+    return isOpX<CONST_FINITE_MAP>(e) || isOpX<SET>(e) || bind::isFiniteMapConst(e);
+  }
 };
 
 void transformFiniteMapsHornClauses(HornClauseDB &db, ExprFactory &efac) {
-
-  FiniteMapTransVisitor fmv(efac);
 
   std::vector<HornRule> worklist;
   boost::copy(db.getRules(), std::back_inserter(worklist));
@@ -102,7 +181,8 @@ void transformFiniteMapsHornClauses(HornClauseDB &db, ExprFactory &efac) {
   for (auto rule : worklist) {
     ExprVector vars = rule.vars();
     ExprSet allVars(vars.begin(), vars.end());
-    // TODO: !!! the visitor needs to update these variables
+
+    FiniteMapTransVisitor fmv(efac, db, allVars);
 
     Expr new_head = visit(fmv, rule.head());
     Expr new_body = visit(fmv, rule.body());

@@ -139,6 +139,33 @@ inline Expr set_map_lambda(Expr map, Expr keys, Expr key, Expr value,
   return new_map;
 }
 
+inline Expr make_var_key(Expr m1, Expr k, ExprSet &evars) {
+  Expr tag = bind::intConst(variant::tag(k, m1));
+  evars.insert(tag);
+  return tag;
+}
+
+// check that one maps contains the same values as another. Both maps are
+// assumed to have the same keys `keys` but not necessarily in the same order,
+// that is why `ks1` and `ks2` are needed.
+inline Expr make_eq_maps_lambda(Expr m1, Expr ks1, Expr m2, Expr ks2, ExprVector keys, ExprFactory &efac, ExprSet &evars) {
+
+  Expr eq;
+  ExprVector conj;
+
+  bool is_var_m1 = bind::isFiniteMapConst(m1);
+  bool is_var_m2 = bind::isFiniteMapConst(m2);
+
+  for(auto k : keys) {
+    Expr e_m1 = is_var_m1 ? make_var_key(m1, k, evars) : get_map_lambda(m1, ks1, k);
+    Expr e_m2 = is_var_m2 ? make_var_key(m2, k, evars) : get_map_lambda(m2, ks2, k);
+    conj.push_back(mk<EQ>(e_m1, e_m2));
+  }
+
+  return mknary<AND>(conj);
+}
+
+// This function is just for testing
 inline Expr make_map_sequence_gets(ExprVector keys, ExprVector values,
                                    ExprFactory &efac, Expr &lambda_keys) {
 
@@ -164,6 +191,12 @@ inline Expr make_map_sequence_gets(ExprVector keys, ExprVector values,
 // the caller.
 // This function needs to be called per map
 
+// new vars will be added to `evars`
+//
+// TODO: make sure that the new variable names are not duplicated, how do I
+// get them?
+// int g_var_eqs_maps_count = 0; // TODO: remove this counter, just for testing
+// purposes to not duplicate names
 inline Expr prepare_finite_maps_caller_callsite(Expr in_map, Expr map_keys,
                                                 ExprVector keys_used,
                                                 ExprFactory &efac,

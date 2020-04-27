@@ -170,7 +170,7 @@ void dagVisit(ExprVisitor &v, const ExprVector &vec) {
 template <typename ExprVisitor> Expr visit(ExprVisitor &v, Expr expr) {
   VisitAction va = v(expr);
 
-  if (va.isSkipKids())
+  if (va.isSkipKids()) // if kids are skipped the expression is not rewritten
     return expr;
 
   if (va.isChangeTo())

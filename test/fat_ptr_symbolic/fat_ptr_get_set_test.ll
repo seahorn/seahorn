@@ -1,7 +1,7 @@
-; RUN: %seabmc_fatptr  "%s" 2>&1 | %oc %s
+    ; RUN: %seabmc_fatptr  "%s" 2>&1 | %oc %s
 
-; CHECK: ^unsat$
-; ModuleID = 'fatptr_get_set_test.ll'
+    ; CHECK: ^unsat$
+    ; ModuleID = 'fat_ptr_get_set_test.ll'
 
 source_filename = "/tmp/fat_ptr_outofbounds.01.c"
 target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
@@ -36,7 +36,7 @@ define i32 @main() #0 {
   %15 = icmp eq i64 %3, %13
   %16 = icmp eq i64 6, %14
   %17 = and i1 %15, %16
-  %18 = and i1 %17, %10  ; assert copy behaves as expect and previous assert is true
+  %18 = and i1 %17, %10  ; assert copy behaves as expected and previous assert is true
   %19 = call i8* @__sea_recover_pointer_hm(i8* %12)
   %20 = ptrtoint i8* %12 to i64
   %21 = ptrtoint i8* %19 to i64

@@ -79,10 +79,11 @@ Expr RawMemManager::mkPtrRegisterSort(const Instruction &inst) const {
   unsigned sz = m_sem.sizeInBits(*ty);
   assert(ty->isPointerTy());
   LOG("opsem", if (sz != ptrSzInBits()) {
-    WARN << "Unexpected size of type: " << *ty << " of instruction " << inst
-         << "\n"
-         << "sz is " << sz << " and ptrSzInBits is " << ptrSzInBits() << "\n";
-  });
+        ERR << "Unexpected size of type: " << *ty << " of instruction " << inst
+            << "\n"
+            << "sz is " << sz << " and ptrSzInBits is " << ptrSzInBits()
+            << "\n";
+      });
   assert(m_sem.sizeInBits(*ty) == ptrSzInBits());
 
   // return m_ctx.alu().intTy(m_sem.sizeInBits(*ty));
@@ -351,10 +352,14 @@ PtrTy RawMemManager::ptrAdd(PtrTy ptr, Expr offset) const {
 }
 
 /// \brief Stores an integer into memory
-///
+/// \param[in] ptr is the address at which _val will be stored
+/// \param[in] _val is the value being written
+/// \param[in] mem is the memory bank/register being written to
+/// \param[in] ty is the type of value being stored
+/// \param[in] align is the known alignment of the ptr
 /// Returns an expression describing the state of memory in \c memReadReg
 /// after the store
-/// \sa loadIntFromMem
+/// \sa storeIntFromMem
 Expr RawMemManager::storeIntToMem(Expr _val, PtrTy ptr, MemValTy mem,
                                   unsigned byteSz, uint64_t align) {
   Expr val = _val;

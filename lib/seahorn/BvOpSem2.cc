@@ -5,6 +5,7 @@
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Format.h"
 #include "llvm/Support/MathExtras.h"
+#include "llvm/Support/Regex.h"
 
 #include "seahorn/Support/CFG.hh"
 #include "seahorn/Support/SeaDebug.h"
@@ -24,6 +25,9 @@ using namespace llvm;
 using namespace seahorn;
 using namespace seahorn::details;
 using gep_type_iterator = generic_gep_type_iterator<>;
+
+static const llvm::Regex
+    fatptr_intrnsc_re("^__sea_([A-Za-z]|_)*(extptr|recover).*");
 
 static llvm::cl::opt<bool>
     UseLambdas("horn-bv2-lambdas",
@@ -500,7 +504,7 @@ public:
                              f->getName().startswith("verifier.nondet") ||
                              f->getName().startswith("__VERIFIER_nondet")))
         visitNondetCall(CS);
-      else if (f->getName().startswith("__sea_")) {
+      else if (fatptr_intrnsc_re.match(f->getName())) {
         visitFatPointerInstr(CS);
       } else
         visitExternalCall(CS);
@@ -517,6 +521,7 @@ public:
 
   void visitFatPointerInstr(CallSite CS) {
     const Function *f = getCalledFunction(CS);
+    assert(f);
     const Instruction &I = *CS.getInstruction();
 
     if (f->getName().equals("__sea_set_extptr_slot0_hm")) {

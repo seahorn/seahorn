@@ -1,8 +1,8 @@
+    ; RUN: %seabmc_fatptr  "%s" 2>&1 | %oc %s
 ; RUN: %seabmc_fatptr  "%s" 2>&1 | %oc %s
 
 ; CHECK: ^unsat$
-; ModuleID = 'fatptr_get_set_test.ll'
-
+; ModuleID = 'fat_ptr_store_load_unsat.ll'
 source_filename = "/tmp/fat_ptr_outofbounds.01.c"
 target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
 target triple = "x86_64-pc-linux-gnu"
@@ -10,6 +10,7 @@ target triple = "x86_64-pc-linux-gnu"
 declare void @verifier.assume(i1)
 declare void @verifier.assume.not(i1)
 declare void @seahorn.fail()
+declare void @sea_dsa_alias(i8*, i8*)
 declare i64 @__sea_get_extptr_slot0_hm(i8*)
 declare i64 @__sea_get_extptr_slot1_hm(i8*)
 declare i8* @__sea_set_extptr_slot0_hm(i8*, i64)
@@ -23,26 +24,22 @@ define i32 @main() #0 {
   %2 = bitcast i8* %1 to i8*
   %3 = ptrtoint i8* %1 to i64
   %4 = call i8* @__sea_set_extptr_slot0_hm(i8* %2, i64 %3)
+  call void @sea_dsa_alias(i8* %4, i8* %2) #3
   %5 = call i8* @__sea_set_extptr_slot1_hm(i8* %4, i64 6)
-  %6 = call i64 @__sea_get_extptr_slot0_hm(i8* %4)
-  %7 = call i64 @__sea_get_extptr_slot1_hm(i8* %5)
-  %8 = icmp eq i64 %3, %6
-  %9 = icmp eq i64 6, %7
-  %10 = and i1 %8, %9  ; assert both slot0 and slot1 have expected data
-  %11 = alloca i8, align 1
-  %12 = call i8* @__sea_copy_extptr_slots_hm(i8* %11, i8* %5)
-  %13 = call i64 @__sea_get_extptr_slot0_hm(i8* %12)
-  %14 = call i64 @__sea_get_extptr_slot1_hm(i8* %12)
-  %15 = icmp eq i64 %3, %13
-  %16 = icmp eq i64 6, %14
-  %17 = and i1 %15, %16
-  %18 = and i1 %17, %10  ; assert copy behaves as expect and previous assert is true
-  %19 = call i8* @__sea_recover_pointer_hm(i8* %12)
-  %20 = ptrtoint i8* %12 to i64
-  %21 = ptrtoint i8* %19 to i64
-  %22 = icmp eq i64 %21, %20
-  %23 = and i1 %22, %18  ; assert recover behaves as expected and previous assert is true
-  call void @verifier.assume.not(i1 %23)
+  call void @sea_dsa_alias(i8* %4, i8* %5) #3
+  %6 = call i8* @__sea_recover_pointer_hm(i8* %5)  ; data
+  call void @sea_dsa_alias(i8* %6, i8* %5) #3
+  %7 = bitcast i8* %6 to i8**
+  %8 = alloca i8, align 1
+  %9 = bitcast i8* %8 to i8**  ; address
+  store i8* %6, i8** %9, align 1
+  %10 = load i8*, i8** %9, align 1
+  %11 = call i8* @__sea_recover_pointer_hm(i8* %10)
+  call void @sea_dsa_alias(i8* %11, i8* %10) #3
+  %12 = ptrtoint i8* %11 to i64
+  %13 = ptrtoint i8* %6 to i64
+  %14 = icmp eq i64 %12, %13
+  call void @verifier.assume.not(i1 %14)
   br label %verifier.error
 
 verifier.error:

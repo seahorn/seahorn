@@ -42,7 +42,8 @@ Expr OpSemMemArrayRepr::MemCpy(Expr dPtr, Expr sPtr, unsigned len,
 
   Expr res;
 
-  if (wordSzInBytes == 1 || (wordSzInBytes == 4 && align == 4)) {
+  if (wordSzInBytes == 1 || (wordSzInBytes == 4 && align == 4) ||
+      (wordSzInBytes == 8 && (align == 4 || align == 8))) {
     Expr srcMem = memTrsfrRead;
     res = srcMem;
     for (unsigned i = 0; i < len; i += wordSzInBytes) {
@@ -53,7 +54,8 @@ Expr OpSemMemArrayRepr::MemCpy(Expr dPtr, Expr sPtr, unsigned len,
       res = op::array::store(res, dIdx, val);
     }
   } else {
-    ERR << "Word size and pointer are not aligned!";
+    LOG("opsem.array", errs() << "Word size and pointer are not aligned!"
+                              << "\n");
     assert(false);
   }
   return res;

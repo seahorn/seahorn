@@ -20,6 +20,14 @@ add_lit_testsuite(test-fat-ptr "Run fat ptr tests"
   DEPENDS seahorn
   )
 
+add_lit_testsuite(test-fat-ptr-sym "Run fat ptr symbolic tests"
+  -v
+  ${CMAKE_CURRENT_SOURCE_DIR}/fat_ptr_symbolic
+  ARGS
+  --path=${CMAKE_INSTALL_PREFIX}/bin
+  DEPENDS seahorn
+  )
+
 add_lit_testsuite(test-simple "Run simple tests"
   -v
   ${CMAKE_CURRENT_SOURCE_DIR}/simple
@@ -149,23 +157,13 @@ add_lit_testsuite(test-crab "Regression test for Crab"
   )
 
 add_lit_testsuite(test-cex "Regression test for executable counterexamples"
-        -v
-        -j1
-        ${CMAKE_CURRENT_SOURCE_DIR}/cex
-        ARGS
-        --path=${CMAKE_INSTALL_PREFIX}/bin
-        DEPENDS seahorn
-        )
-
-# Add both and concrete fatptr tests in one target
-add_lit_testsuite(test-fatptr "Regression test for executable counterexamples"
-        -v
-        -j1
-        ${CMAKE_CURRENT_SOURCE_DIR}/fat_ptr_symbolic
-        ARGS
-        --path=${CMAKE_INSTALL_PREFIX}/bin
-        DEPENDS seahorn
-        )
+  -v
+  -j1
+  ${CMAKE_CURRENT_SOURCE_DIR}/cex
+  ARGS
+  --path=${CMAKE_INSTALL_PREFIX}/bin
+  DEPENDS seahorn
+  )
 
 add_lit_testsuite(test-inter-mem "Tests for inter-mem encoding"
   -v
@@ -198,6 +196,7 @@ if (CMAKE_GENERATOR STREQUAL "Ninja")
   add_dependencies(test-crab install)
   add_dependencies(test-cex install)
   add_dependencies(test-inter-mem install)
+  add_dependencies(test-fat-ptr-sym install)
 endif()
 install (DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/simple DESTINATION share/seahorn/test)
 install (DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/solve DESTINATION share/seahorn/test)
@@ -210,8 +209,9 @@ install (DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/devirt DESTINATION share/seahorn/
 install (DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/mcfuzz DESTINATION share/seahorn/test)
 install (DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/memssa DESTINATION share/seahorn/test)
 install (DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/crab DESTINATION share/seahorn/test)
-install (DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/cex DESTINATION share/seahorn/test)
-install (DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/dsa DESTINATION share/seahorn/test
+install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/cex DESTINATION share/seahorn/test)
+install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/fat_ptr_symbolic DESTINATION share/seahorn/test)
+install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/dsa DESTINATION share/seahorn/test
   PATTERN "*/check_graphs.py" EXCLUDE
   )
 install (DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/tutorial DESTINATION share/seahorn/test

@@ -15,6 +15,7 @@ namespace details {OpSemMemManager::OpSemMemManager(Bv2OpSem &sem, Bv2OpSemConte
   assert((m_wordSz == 1 || m_wordSz == 4 || m_wordSz == 8) &&
          "Untested word size");
   assert((m_ptrSz == 4 || m_ptrSz == 8) && "Untested pointer size");
+  assert((m_wordSz >= m_ptrSz) && "Word size is less than pointer size");
 }
 } // namespace details
 } // namespace seahorn

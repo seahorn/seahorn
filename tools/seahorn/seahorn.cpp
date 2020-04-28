@@ -67,9 +67,9 @@ ZVerboseOpt zverbose;
 struct CVerboseOpt {
 #ifdef HAVE_CLAM
   void operator=(unsigned level) const { crab::CrabEnableVerbosity(level); }
-#endif
-
+#else
   void operator=(unsigned level) const {}
+#endif
 };
 
 CVerboseOpt cverbose;
@@ -87,12 +87,10 @@ static llvm::cl::opt<seahorn::ZVerboseOpt, true, llvm::cl::parser<int>>
                   llvm::cl::value_desc("int"), llvm::cl::ValueRequired,
                   llvm::cl::Hidden);
 
-#ifdef HAVE_CLAM
 static llvm::cl::opt<seahorn::CVerboseOpt, true, llvm::cl::parser<unsigned>>
     CrabVerbose("cverbose", llvm::cl::desc("Enable crab verbose messages"),
                 llvm::cl::location(seahorn::cverbose),
                 llvm::cl::value_desc("uint"));
-#endif
 
 static llvm::cl::opt<std::string>
     InputFilename(llvm::cl::Positional,

@@ -913,11 +913,8 @@ void PathBmcEngine::to_smt_lib(const ExprVector &f, std::string prefix) {
 
   // get absolute path to the directory
   SmallVector<char, 256> path;
-  EC = sys::fs::make_absolute(DirName, path);
-  if (EC) {
-    ERR << "Cannot find absolute path to " << DirName;
-    return;
-  }
+  llvm::sys::fs::make_absolute(DirName, path);
+
   // create the directory
   EC = sys::fs::create_directory(path, true /*ignore if dir exists*/);
   if (EC) {

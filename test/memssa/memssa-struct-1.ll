@@ -1,4 +1,4 @@
-; RUN: %horn --horn-bmc --keep-shadows=true --horn-sea-dsa --sea-dsa=ci \
+; RUN: %horn --horn-bmc --keep-shadows=true --sea-dsa=ci \
 ; RUN:       -horn-inter-proc -horn-sem-lvl=mem --horn-gsa=false \
 ; RUN:       --horn-step=large --horn-bv2=true --horn-stats \
 ; RUN:       --log="shadow_verbose" --log="shadow_optimizer" \

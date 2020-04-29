@@ -13,7 +13,7 @@ terms.
 #include "seahorn/Transforms/Utils/Local.hh"
 #include "llvm/IR/CallSite.h"
 #include "llvm/IR/IRBuilder.h"
-
+#include "llvm/Support/CommandLine.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Analysis/TargetLibraryInfo.h"
 

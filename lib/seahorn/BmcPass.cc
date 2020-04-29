@@ -11,6 +11,7 @@
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Support/ToolOutputFile.h"
+#include "llvm/Support/CommandLine.h"
 
 #include "seahorn/config.h"
 #include "seahorn/Support/Stats.hh"

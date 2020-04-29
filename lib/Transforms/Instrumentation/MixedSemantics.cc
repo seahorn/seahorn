@@ -14,6 +14,7 @@
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 #include "llvm/Transforms/Utils/Cloning.h"
 #include "llvm/Transforms/Utils/Local.h"
+#include "llvm/Support/CommandLine.h"
 
 #include "boost/range.hpp"
 #include "seahorn/Support/SeaDebug.h"

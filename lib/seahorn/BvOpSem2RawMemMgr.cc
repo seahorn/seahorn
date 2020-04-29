@@ -3,6 +3,7 @@
 
 #include "llvm/IR/GetElementPtrTypeIterator.h"
 #include "llvm/Support/Format.h"
+#include "llvm/Support/CommandLine.h"
 
 #include "seahorn/Expr/ExprLlvm.hh"
 #include "seahorn/Support/SeaDebug.h"

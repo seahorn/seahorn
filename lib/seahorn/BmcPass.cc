@@ -180,10 +180,10 @@ public:
 
       std::unique_ptr<OperationalSemantics> sem;
       if (HornBv2)
-        sem = llvm::make_unique<Bv2OpSem>(efac, *this,
+        sem = std::make_unique<Bv2OpSem>(efac, *this,
                                           F.getParent()->getDataLayout(), MEM);
       else
-        sem = llvm::make_unique<BvOpSem>(efac, *this,
+        sem = std::make_unique<BvOpSem>(efac, *this,
                                          F.getParent()->getDataLayout(), MEM);
 
       if(ComputeCoi) {

@@ -781,7 +781,7 @@ void ClassHierarchyAnalysis_Impl::printStats(raw_ostream &o) const {
 
 /** ClassHierarchyAnalysis methods **/
 ClassHierarchyAnalysis::ClassHierarchyAnalysis(Module &M)
-  : m_cha_impl(make_unique<ClassHierarchyAnalysis_Impl>(M)) {}
+  : m_cha_impl(std::make_unique<ClassHierarchyAnalysis_Impl>(M)) {}
 
 ClassHierarchyAnalysis::~ClassHierarchyAnalysis(void) {
 }

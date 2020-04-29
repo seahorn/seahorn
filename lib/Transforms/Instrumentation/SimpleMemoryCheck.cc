@@ -936,10 +936,10 @@ bool SimpleMemoryCheck::runOnModule(llvm::Module &M) {
 
   m_Ctx = &M.getContext();
   m_M = &M;
-  m_TLI = &getAnalysis<TargetLibraryInfoWrapperPass>().getTLI();
+  m_TLI = nullptr;
   m_DL = &M.getDataLayout();
 
-  m_SDSA = llvm::make_unique<SeaDsa>(this);
+  m_SDSA = std::make_unique<SeaDsa>(this);
   m_PTA = m_SDSA.get();
 
   SMC_LOG(errs() << " ========== SMC (" << (seadsa::IsTypeAware ? "" : "Not ")
@@ -985,6 +985,7 @@ bool SimpleMemoryCheck::runOnModule(llvm::Module &M) {
         F.getName().startswith("verifier."))
       continue;
 
+    m_TLI = &getAnalysis<TargetLibraryInfoWrapperPass>().getTLI(F);
     for (auto &BB : F) {
       for (auto &V : BB) {
         auto *I = dyn_cast<Instruction>(&V);

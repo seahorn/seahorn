@@ -56,9 +56,9 @@ RawMemManager::RawMemManager(Bv2OpSem &sem, Bv2OpSemContext &ctx,
   m_ctx.declareRegister(m_sp0);
 
   if (useLambdas)
-    m_memRepr = llvm::make_unique<OpSemMemLambdaRepr>(*this, ctx);
+    m_memRepr = std::make_unique<OpSemMemLambdaRepr>(*this, ctx);
   else
-    m_memRepr = llvm::make_unique<OpSemMemArrayRepr>(*this, ctx);
+    m_memRepr = std::make_unique<OpSemMemArrayRepr>(*this, ctx);
 }
 
 /// \brief Creates a non-deterministic pointer that is aligned

@@ -325,7 +325,7 @@ bool GateAnalysisPass::runOnFunction(llvm::Function &F,
   auto &DT = getAnalysis<DominatorTreeWrapperPass>(F).getDomTree();
   auto &PDT = getAnalysis<PostDominatorTreeWrapperPass>(F).getPostDomTree();
 
-  m_analyses[&F] = llvm::make_unique<GateAnalysisImpl>(F, DT, PDT, CDA);
+  m_analyses[&F] = std::make_unique<GateAnalysisImpl>(F, DT, PDT, CDA);
   return false;
 }
 

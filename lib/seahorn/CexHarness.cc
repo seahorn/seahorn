@@ -140,7 +140,7 @@ std::unique_ptr<Module> createCexHarness(BmcTraceWrapper &trace,
                                          const DataLayout &dl,
                                          const TargetLibraryInfo &tli,
                                          LLVMContext &TheContext) {
-  std::unique_ptr<Module> Harness = make_unique<Module>("harness", TheContext);
+  std::unique_ptr<Module> Harness = std::make_unique<Module>("harness", TheContext);
   Harness->setDataLayout(dl);
 
   ValueMap<const Function *, ExprVector> FuncValueMap;

@@ -322,10 +322,10 @@ public:
   }
 };
 std::unique_ptr<OpSemAllocator> mkNormalOpSemAllocator(OpSemMemManager &mem) {
-  return llvm::make_unique<NormalOpSemAllocator>(mem);
+  return std::make_unique<NormalOpSemAllocator>(mem);
 }
 std::unique_ptr<OpSemAllocator> mkStaticOpSemAllocator(OpSemMemManager &mem) {
-  return llvm::make_unique<StaticOpSemAllocator>(mem);
+  return std::make_unique<StaticOpSemAllocator>(mem);
 }
 
 } // namespace details

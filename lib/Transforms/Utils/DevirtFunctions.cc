@@ -274,7 +274,7 @@ void CallSiteResolverByDsa::cacheBounceFunction(CallSite& CS, Function* bounce) 
 /** begin Resolver by class hierarchy analysis */
 CallSiteResolverByCHA::CallSiteResolverByCHA(Module &M)
     : CallSiteResolver(CallSiteResolverKind::RESOLVER_CHA),
-      m_cha(make_unique<ClassHierarchyAnalysis>(M)) {
+      m_cha(std::make_unique<ClassHierarchyAnalysis>(M)) {
   m_cha->calculate();
 
   LOG("devirt", m_cha->printClassHierarchy(errs());

@@ -868,8 +868,8 @@ PathBmcEngine::PathBmcEngine(LegacyOperationalSemantics &sem,
       m_cfg_builder_man(nullptr), m_crab_path_solver(nullptr) {
 
   if (SmtSolver == solver::SolverKind::Z3) {
-    m_boolean_solver = llvm::make_unique<solver::z3_solver_impl>(sem.efac());
-    m_smt_path_solver = llvm::make_unique<solver::z3_solver_impl>(sem.efac());
+    m_boolean_solver = std::make_unique<solver::z3_solver_impl>(sem.efac());
+    m_smt_path_solver = std::make_unique<solver::z3_solver_impl>(sem.efac());
     // Tuning m_aux_solver_solver's parameters
     // auto &s = static_cast<solver::z3_solver_impl&>(*m_smt_path_solver);
     // ZParams<EZ3> params(s.get_context());
@@ -881,9 +881,9 @@ PathBmcEngine::PathBmcEngine(LegacyOperationalSemantics &sem,
     // z3n_set_param(":proof", false);
   } else if (SmtSolver == solver::SolverKind::YICES2) {
 #ifdef WITH_YICES2
-    m_boolean_solver = llvm::make_unique<solver::yices_solver_impl>(sem.efac());
+    m_boolean_solver = std::make_unique<solver::yices_solver_impl>(sem.efac());
     m_smt_path_solver =
-        llvm::make_unique<solver::yices_solver_impl>(sem.efac());
+        std::make_unique<solver::yices_solver_impl>(sem.efac());
 #else
     assertion_failed("Compile with YICES2_HOME option", __FILE__, __LINE__);
 #endif

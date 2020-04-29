@@ -211,7 +211,7 @@ public:
 };
 
 std::unique_ptr<OpSemAlu> mkBvOpSemAlu(Bv2OpSemContext &ctx) {
-  return llvm::make_unique<BvOpSemAlu>(ctx);
+  return std::make_unique<BvOpSemAlu>(ctx);
 }
 } // namespace details
 } // namespace seahorn

@@ -1,4 +1,4 @@
-add_llvm_library (SeaAnalysis
+add_llvm_library (SeaAnalysis DISABLE_LLVM_LINK_LLVM_DYLIB
   CanAccessMemory.cc
   CanFail.cc
   CutPointGraph.cc

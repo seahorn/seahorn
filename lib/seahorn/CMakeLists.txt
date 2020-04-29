@@ -1,4 +1,4 @@
-add_llvm_library (seahorn.LIB
+add_llvm_library (seahorn.LIB DISABLE_LLVM_LINK_LLVM_DYLIB
   LoadCrab.cc
   LiveSymbols.cc
   SymStore.cc

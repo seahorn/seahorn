@@ -1,4 +1,4 @@
-add_library (SeaSmt
+add_llvm_library (SeaSmt DISABLE_LLVM_LINK_LLVM_DYLIB
   MarshalYices.cc
   Yices2SolverImpl.cc
   Yices2ModelImpl.cc

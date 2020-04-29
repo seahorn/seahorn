@@ -1,4 +1,4 @@
-add_llvm_library(SeaTransformsUtils
+add_llvm_library(SeaTransformsUtils DISABLE_LLVM_LINK_LLVM_DYLIB
   AbstractMemory.cc
   DummyExitBlock.cc
   Local.cc

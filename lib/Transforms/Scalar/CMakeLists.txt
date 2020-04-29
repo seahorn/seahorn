@@ -1,4 +1,4 @@
-add_llvm_library (SeaTransformsScalar
+add_llvm_library (SeaTransformsScalar DISABLE_LLVM_LINK_LLVM_DYLIB
   LoopUnhoist.cc
   LowerCstExpr.cc
   LowerGvInitializers.cc

@@ -1,4 +1,4 @@
-add_llvm_library (SeaSupport
+add_llvm_library (SeaSupport DISABLE_LLVM_LINK_LLVM_DYLIB
   SortTopo.cc
   Stats.cc
   Profiler.cc

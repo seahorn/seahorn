@@ -1,4 +1,3 @@
-
 /// structures
 #pragma once
 #include "seahorn/Expr/ExprApi.hh"
@@ -6,6 +5,8 @@
 #include "seahorn/Expr/ExprOpBool.hh"
 #include "seahorn/Expr/ExprOpCore.hh"
 
+#include "llvm/ADT/SmallVector.h"
+ 
 namespace expr {
 namespace op {
 enum class StructOpKind { MK_STRUCT, EXTRACT_VALUE, INSERT_VALUE };

@@ -61,7 +61,7 @@ namespace
 
         if (KeepLibFn) {
             if (!m_tli)
-                m_tli = &getAnalysis<TargetLibraryInfoWrapperPass> ().getTLI();
+                m_tli = &getAnalysis<TargetLibraryInfoWrapperPass> ().getTLI(F);
 
             // known library function
             LibFunc libfn;

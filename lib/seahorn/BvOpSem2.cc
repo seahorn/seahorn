@@ -2064,7 +2064,7 @@ Bv2OpSem::Bv2OpSem(ExprFactory &efac, Pass &pass, const DataLayout &dl,
   m_canFail = pass.getAnalysisIfAvailable<CanFail>();
   auto *p = pass.getAnalysisIfAvailable<TargetLibraryInfoWrapperPass>();
   if (p)
-    m_tli = &p->getTLI();
+    m_tliWrapper = p;
 
   // -- hack to get ENode::dump() to compile by forcing a use
   LOG("dump.debug", trueE->dump(););

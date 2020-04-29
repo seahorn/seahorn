@@ -383,7 +383,7 @@ namespace seahorn {
     bool runOnModule (Module &M) override {
 
       DL = &M.getDataLayout ();
-      TLI = &getAnalysis<TargetLibraryInfoWrapperPass>().getTLI();
+      TLI = nullptr;
 
       /// Look at the callgraph 
       // CallGraphWrapperPass *cgwp = &getAnalysis<CallGraphWrapperPass> ();
@@ -444,7 +444,10 @@ namespace seahorn {
       }                        
 
 
-      for (auto &F: M) { runOnFunction (F); }
+      for (auto &F: M) {
+        TLI = &getAnalysis<TargetLibraryInfoWrapperPass>().getTLI(F);
+        runOnFunction(F);
+      }
       printReport (errs ());
 
       CanReadUndef undef;

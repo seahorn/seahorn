@@ -349,7 +349,7 @@ namespace
     {
       if (F.empty ()) return false;
 
-      m_tli = &getAnalysis<TargetLibraryInfoWrapperPass>().getTLI();
+      m_tli = &getAnalysis<TargetLibraryInfoWrapperPass>().getTLI(F);
       m_dl = &F.getParent()->getDataLayout ();
       m_se = &getAnalysis<ScalarEvolutionWrapperPass>().getSE();      
       LoopInfo* LI = &getAnalysis<LoopInfoWrapperPass>().getLoopInfo();      

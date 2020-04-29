@@ -534,12 +534,14 @@ namespace seahorn
     
     bool runOnModule (Module &M)
     {      
-      m_tli = &getAnalysis<TargetLibraryInfoWrapperPass>().getTLI();
       CallGraphWrapperPass *cgwp = getAnalysisIfAvailable<CallGraphWrapperPass> ();
       m_cg = cgwp ? &cgwp->getCallGraph () : nullptr;
                  
       bool Change = false;
-      for (auto &F: M) Change |= runOnFunction (F);
+      for (auto &F: M) {
+        m_tli = &getAnalysis<TargetLibraryInfoWrapperPass>().getTLI(F);
+        Change |= runOnFunction(F);
+      }
 
       // errs () << "After AbstractMemory pass \n" << M << "\n";
       

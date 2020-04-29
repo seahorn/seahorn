@@ -331,7 +331,7 @@ bool FatBufferBoundsCheck::instrumentAddress(Value *Ptr, const DataLayout &DL,
 bool FatBufferBoundsCheck::runOnFunction(Function &F) {
   Mod = F.getParent();
   const DataLayout &DL = F.getParent()->getDataLayout();
-  TLI = &getAnalysis<TargetLibraryInfoWrapperPass>().getTLI();
+  TLI = &getAnalysis<TargetLibraryInfoWrapperPass>().getTLI(F);
 
   ErrorBB = nullptr;
   BuilderTy TheBuilder(F.getContext(), TargetFolder(DL));

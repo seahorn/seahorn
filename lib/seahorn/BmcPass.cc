@@ -265,7 +265,7 @@ public:
 	StringRef CexFileRef(HornCexFile);
 	if (CexFileRef != "") {
 	  if (CexFileRef.endswith(".ll") || CexFileRef.endswith(".bc")) {
-	    auto const &tli = getAnalysis<TargetLibraryInfoWrapperPass>().getTLI();	
+	    auto const &tli = getAnalysis<TargetLibraryInfoWrapperPass>().getTLI(F);	
 	    auto const &dl = F.getParent()->getDataLayout();
 	    BmcTrace trace(bmc.getTrace());	  	  
 	    BmcTraceWrapper trace_wrapper(trace);
@@ -278,10 +278,10 @@ public:
     } else if (m_engine == BmcEngineKind::path_bmc) {
 
       auto const &dl = F.getParent()->getDataLayout();      
-      std::unique_ptr<OperationalSemantics> sem = llvm::make_unique<BvOpSem>(
+      std::unique_ptr<OperationalSemantics> sem = std::make_unique<BvOpSem>(
           efac, *this, dl, MEM);
 
-      auto const &tli = getAnalysis<TargetLibraryInfoWrapperPass>().getTLI();
+      auto const &tli = getAnalysis<TargetLibraryInfoWrapperPass>().getTLI(F);
       
       // Use ShadowMem to translate memory instructions to Crab arrays
       // preserving memory SSA form.

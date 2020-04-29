@@ -86,7 +86,7 @@ public:
     case CallSiteResolverKind::RESOLVER_SEADSA: {
       LOG("devirt", errs() << "Devirtualizing indirect calls using sea-dsa+types ...\n";);
       auto &dl = M.getDataLayout();
-      auto &tli = getAnalysis<TargetLibraryInfoWrapperPass>().getTLI();
+      auto &tli = getAnalysis<TargetLibraryInfoWrapperPass>();
       auto &allocInfo = getAnalysis<seadsa::AllocWrapInfo>();
       seadsa::CompleteCallGraphAnalysis ccga(dl, tli, allocInfo, cg, true);
       ccga.runOnModule(M);

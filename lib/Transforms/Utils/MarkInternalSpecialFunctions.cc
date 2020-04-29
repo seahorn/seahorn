@@ -59,11 +59,11 @@ struct MarkInternalAllocOrDeallocInline : public ModulePass {
     bool Change = false;
     // Mark any function that calls a function that (de)allocates
     // memory.
-    const TargetLibraryInfo *TLI =
-        &getAnalysis<TargetLibraryInfoWrapperPass>().getTLI();
-    for (Function &F : M)
-      if (!F.isDeclaration() && F.hasLocalLinkage())
-        Change |= markIfAllocationFn(F, TLI);
+   for (Function &F : M) 
+      if (!F.isDeclaration() && F.hasLocalLinkage()) {
+        auto &tli = getAnalysis<TargetLibraryInfoWrapperPass>().getTLI(F);
+        Change |= markIfAllocationFn(F, &tli);
+      }
     return Change;
   }
 };

@@ -256,7 +256,7 @@ bool HornCex::runOnFunction(Module &M, Function &F) {
       UseBv ? static_cast<LegacyOperationalSemantics *>(&semBv) : static_cast<LegacyOperationalSemantics *>(&semUfo);
 
   const TargetLibraryInfo &tli =
-      getAnalysis<TargetLibraryInfoWrapperPass>().getTLI();
+      getAnalysis<TargetLibraryInfoWrapperPass>().getTLI(F);
 
   BmcEngine bmc(*sem, hm.getZContext());
 
@@ -307,7 +307,7 @@ bool HornCex::runOnFunction(Module &M, Function &F) {
   if (UseBv) {
     const DataLayout &dl = M.getDataLayout();
     const TargetLibraryInfo &tli =
-        getAnalysis<TargetLibraryInfoWrapperPass>().getTLI();
+        getAnalysis<TargetLibraryInfoWrapperPass>().getTLI(F);
     if (MemSim) {
       memSim = std::unique_ptr<MemSimulator>(new MemSimulator(trace, dl, tli));
       bool simRes = memSim->simulate();

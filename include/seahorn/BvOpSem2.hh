@@ -33,7 +33,7 @@ class Bv2OpSem : public OperationalSemantics {
   TrackLevel m_trackLvl;
 
   const DataLayout *m_td;
-  const TargetLibraryInfo *m_tli;
+  const TargetLibraryInfoWrapperPass *m_tliWrapper;
   const CanFail *m_canFail;
 
 public:

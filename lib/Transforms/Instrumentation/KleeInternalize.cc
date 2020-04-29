@@ -15,7 +15,7 @@ terms.
 #include "llvm/Analysis/CallGraph.h"
 #include "llvm/Analysis/TargetLibraryInfo.h"
 #include "llvm/Support/raw_ostream.h"
-
+#include "llvm/Support/CommandLine.h"
 #include "seahorn/Support/SeaDebug.h"
 
 #include <fstream>
@@ -91,11 +91,12 @@ class KleeInternalize : public ModulePass {
       return false;
 
     if (!m_tli)
-      m_tli = &getAnalysis<TargetLibraryInfoWrapperPass>().getTLI();
+      if (auto *Fn = dyn_cast<Function>(&GV))
+        m_tli = &getAnalysis<TargetLibraryInfoWrapperPass>().getTLI(*Fn);
 
     // -- known library function
     LibFunc F;
-    if (m_tli->getLibFunc(GV.getName(), F))
+    if (m_tli && m_tli->getLibFunc(GV.getName(), F))
       return false;
 
     if (m_externalNames.count(GV.getName()) > 0)

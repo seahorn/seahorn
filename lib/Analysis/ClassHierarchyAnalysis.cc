@@ -1,5 +1,5 @@
 #include "seahorn/Analysis/ClassHierarchyAnalysis.hh"
-
+#include "llvm/Pass.h"
 #include "seahorn/Support/SeaDebug.h"
 #include "seahorn/Support/SeaLog.hh"
 #include "llvm/ADT/DenseMap.h"

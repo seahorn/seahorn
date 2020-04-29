@@ -5,6 +5,7 @@
 // This file is distributed under the MIT License. See LICENSE for details.
 //
 
+#include "llvm/InitializePasses.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/LegacyPassManager.h"
 #include "llvm/IR/Module.h"

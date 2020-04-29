@@ -1,3 +1,4 @@
+#include "llvm/InitializePasses.h"
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/Analysis/LoopInfo.h"

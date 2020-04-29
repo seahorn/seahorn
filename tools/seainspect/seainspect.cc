@@ -2,6 +2,7 @@
 // seainspect -- Utilities for program inspection
 ///
 
+#include "llvm/InitializePasses.h"
 #include "llvm/Bitcode/BitcodeWriter.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/LegacyPassManager.h"

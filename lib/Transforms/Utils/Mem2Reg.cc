@@ -24,7 +24,7 @@
 #include "llvm/Transforms/Utils.h"
 #include "llvm/Transforms/Utils/PromoteMemToReg.h"
 #include "llvm/Transforms/Utils/UnifyFunctionExitNodes.h"
-
+#include "llvm/InitializePasses.h"
 #include "seahorn/config.h"
 
 using namespace llvm;

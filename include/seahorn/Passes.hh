@@ -21,6 +21,7 @@ terms.
 #include "llvm/Pass.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/Transforms/InstCombine/InstCombine.h"
 
 namespace seahorn {
 llvm::Pass *createMarkInternalInlinePass();
@@ -114,10 +115,6 @@ inline llvm::FunctionPass *createInstCombine(bool ExpensiveCombines = true) {
 }
 } // namespace seahorn
 #else
-namespace llvm {
-llvm::FunctionPass *
-createInstructionCombiningPass(bool ExpensiveCombines = true);
-}
 namespace seahorn {
 inline llvm::FunctionPass *createInstCombine(bool ExpensiveCombines = true) {
   return llvm::createInstructionCombiningPass(ExpensiveCombines);

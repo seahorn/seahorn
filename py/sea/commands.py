@@ -110,9 +110,9 @@ class Clang(sea.LimitedCmd):
             return link_bc_files(out_files, args)
 
         if self.plusplus:
-            cmd_name = which (['clang++-mp-5.0', 'clang++-5.0', 'clang++'])
+            cmd_name = which (['clang++-mp-10', 'clang++-10', 'clang++'])
         else:
-            cmd_name = which (['clang-mp-5.0', 'clang-5.0', 'clang'])
+            cmd_name = which (['clang-mp-10', 'clang-10', 'clang'])
 
         if cmd_name is None: raise IOError ('clang not found')
         self.clangCmd = sea.ExtCmd (cmd_name,'',quiet)

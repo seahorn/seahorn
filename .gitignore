@@ -21,3 +21,4 @@
 .vscode/c_cpp_properties.json
 .vscode/launch.json
 .vscode/settings.json
+/.clangd/

@@ -1,10 +1,9 @@
 # SeaHorn builder image that builds binary SeaHorn release package
 # Primarily used by the CI
 # Arguments:
-#  - TRAVIS:     true (optional, for use on Travis only)
+#  - BUILD_TYPE: Debug, RelWithDebInfo, Coverage
 FROM seahorn/buildpack-deps-seahorn:bionic-llvm10
 
-ARG TRAVIS
 
 # Assume that docker-build is ran in the top-level SeaHorn directory
 COPY . /seahorn
@@ -15,9 +14,11 @@ RUN rm -rf /seahorn/build /seahorn/debug /seahorn/release && \
   rm -rf /seahorn/clam /seahorn/sea-dsa /seahorn/llvm-seahorn
 WORKDIR /seahorn/build
 
+ARG BUILD_TYPE=RelWithDebInfo
+
 # Build configuration
 RUN cmake .. -GNinja \
-  -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+  -DCMAKE_BUILD_TYPE=${BUILD_TYPE} \
   -DZ3_ROOT=/opt/z3-4.8.7 \
   -DYICES2_HOME=/opt/yices-2.6.1 \
   -DCMAKE_INSTALL_PREFIX=run \

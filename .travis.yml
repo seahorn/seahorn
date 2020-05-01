@@ -9,35 +9,34 @@ branches:
   - deep-dev-5.0
   - dev8
   - dev9
-  - dev10
 matrix:
   include:
-   - env: BUILD_TYPE=MinSizeRel
+   - env: BUILD_TYPE=RelWithDebInfo
      script:
-       - docker build --build-arg UBUNTU=xenial --build-arg BUILD_TYPE=$BUILD_TYPE --build-arg TRAVIS=true -t seahorn_xenial_build -f docker/seahorn-full-size-rel.Dockerfile .
-       - docker run -v $(pwd):/host -it seahorn_xenial_build /bin/sh -c "cp build/*.tar.gz /host/"
+       - docker build -t seahorn/seahorn-builder:bionic-llvm10 -f docker/seahorn-builder.Dockerfile .
+       - docker run -v $(pwd):/host -it seahorn/seahorn-builder:bionic-llvm10 /bin/sh -c "cp build/SeaHorn*.tar.gz /host/"
        - |
         if [ "$TRAVIS_EVENT_TYPE" = "cron" ]; then
           docker build -t seahorn_container -f docker/seahorn.Dockerfile . ;
         else
-          docker build --build-arg BASE_IMAGE=seahorn/seahorn-llvm5 -t seahorn_container -f docker/seahorn.Dockerfile . ;
+          docker build -t seahorn_container -f docker/seahorn.Dockerfile . ;
         fi
        - |
         if [ "$TRAVIS_EVENT_TYPE" = "cron" ]; then
-          docker run -v $(pwd):/host -it seahorn_container /bin/sh -c "cd share/seahorn/; lit test" &&
+          docker run -v $(pwd):/host -it seahorn_container /bin/sh -c "cd share/seahorn/; lit test/opsem test/simple test/mcfuzz" &&
           docker login -u "$DOCKER_USER" -p "$DOCKER_PWD" &&
-          docker tag seahorn_container seahorn/seahorn-llvm5:nightly &&
-          docker push seahorn/seahorn-llvm5:nightly ;
+          docker tag seahorn_container seahorn/seahorn-llvm10:nightly &&
+          docker push seahorn/seahorn-llvm10:nightly ;
         else
-          docker run -v $(pwd):/host -it seahorn_container /bin/sh -c "cd share/seahorn; lit test" ;
+          docker run -v $(pwd):/host -it seahorn_container /bin/sh -c "cd share/seahorn; lit test/opsem test/simple test/mcfuzz" ;
         fi
    - env: BUILD_TYPE=Coverage
      if: type = cron
      script:
-       - docker build --build-arg UBUNTU=xenial --build-arg BUILD_TYPE=$BUILD_TYPE --build-arg TRAVIS=true -t seahorn_xenial_build -f docker/seahorn-full-size-rel.Dockerfile .
+       - docker build --build-arg BUILD_TYPE=$BUILD_TYPE -t seahorn/seahorn-builder:bionic-llvm10 -f docker/seahorn-builder.Dockerfile .
        - >
-         docker run  -v $(pwd):/host -it seahorn_xenial_build /bin/sh -c 
-         "bash /seahorn/docker/run_and_collect_cov.sh && mv /seahorn/all.info /host"
+         docker run -v $(pwd):/host -it  seahorn/seahorn-builder:bionic-llvm10
+         /bin/bash -c "/seahorn/scripts/coverage/docker-run-lcov.sh && mv /seahorn/all.info /host"
          && bash <(curl -s https://codecov.io/bash) -Z -f all.info
 
 services:

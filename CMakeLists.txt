@@ -227,8 +227,8 @@ else()
       "\tCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}\n"
       "Runtime errors might occur.")
     if (LLVM_BUILD_TYPE MATCHES "Release|RelWithDebInfo" AND 
-        CMAKE_BUILD_TYPE MATCHES "Release|RelWithDebInfo")
-      message(STATUS "Assuming that mixing Release and RelWithDebInfo is allowed.")
+        CMAKE_BUILD_TYPE MATCHES "Release|RelWithDebInfo|Coverage")
+      message(STATUS "Assuming that mixing Release and RelWithDebInfo or Coverage is allowed.")
     else()
       message(FATAL_ERROR "Incompatible mix of LLVM_BUILD_TYPE and CMAKE_BUILD_TYPE")
     endif()

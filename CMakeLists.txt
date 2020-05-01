@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.10.2)
 
 project (SeaHorn)
-set (SeaHorn_VERSION_MAJOR 8)
+set (SeaHorn_VERSION_MAJOR 10)
 set (SeaHorn_VERSION_MINOR 0)
 set (SeaHorn_VERSION_PATCH 0)
 set (SeaHorn_VERSION_TWEAK "rc0")
@@ -80,7 +80,7 @@ if (GIT_FOUND)
   add_custom_target (sea-dsa-git
     ${GIT_EXECUTABLE} clone ${SEA_DSA_REPO} ${CMAKE_SOURCE_DIR}/sea-dsa -b dev10)
   add_custom_target (clam-git
-    ${GIT_EXECUTABLE} clone -b llvm-8.0 ${CLAM_REPO} ${CMAKE_SOURCE_DIR}/clam)
+    ${GIT_EXECUTABLE} clone ${CLAM_REPO} ${CMAKE_SOURCE_DIR}/clam -b llvm10)
   add_custom_target (extra
     ${CMAKE_COMMAND} -E touch ${CMAKE_CURRENT_LIST_FILE}
     DEPENDS

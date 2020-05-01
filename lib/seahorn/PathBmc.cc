@@ -859,7 +859,7 @@ solver::SolverResult PathBmcEngine::path_encoding_and_solve_with_smt(
 }
 
 PathBmcEngine::PathBmcEngine(LegacyOperationalSemantics &sem,
-			     const llvm::TargetLibraryInfo &tli,
+			     llvm::TargetLibraryInfoWrapperPass &tli,
 			     seadsa::ShadowMem &sm)
     : m_sem(sem), m_cpg(nullptr), m_fn(nullptr), m_ls(nullptr),
       m_ctxState(sem.efac()), m_boolean_solver(nullptr),

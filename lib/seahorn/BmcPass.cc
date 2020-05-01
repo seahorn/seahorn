@@ -266,11 +266,11 @@ public:
 	StringRef CexFileRef(HornCexFile);
 	if (CexFileRef != "") {
 	  if (CexFileRef.endswith(".ll") || CexFileRef.endswith(".bc")) {
-	    auto const &tli = getAnalysis<TargetLibraryInfoWrapperPass>().getTLI(F);	
+	    auto &tli = getAnalysis<TargetLibraryInfoWrapperPass>();
 	    auto const &dl = F.getParent()->getDataLayout();
 	    BmcTrace trace(bmc.getTrace());	  	  
 	    BmcTraceWrapper trace_wrapper(trace);
-	    dumpLLVMCex(trace_wrapper, CexFileRef, dl, tli, F.getContext());
+	    dumpLLVMCex(trace_wrapper, CexFileRef, dl, tli.getTLI(F), F.getContext());
 	  } else {
 	    WARN << "The Bmc engine only generates harnesses in bitcode format";
 	  }
@@ -282,13 +282,12 @@ public:
       std::unique_ptr<OperationalSemantics> sem = std::make_unique<BvOpSem>(
           efac, *this, dl, MEM);
 
-      auto const &tli = getAnalysis<TargetLibraryInfoWrapperPass>().getTLI(F);
-      
       // Use ShadowMem to translate memory instructions to Crab arrays
       // preserving memory SSA form.
       auto &sm = getAnalysis<seadsa::ShadowMemPass>().getShadowMem();
 	
       // XXX: use of legacy operational semantics
+      auto &tli = getAnalysis<TargetLibraryInfoWrapperPass>();
       PathBmcEngine bmc(static_cast<LegacyOperationalSemantics &>(*sem), tli, sm);
 			
       bmc.addCutPoint(src);

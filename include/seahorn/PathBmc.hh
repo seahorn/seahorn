@@ -13,6 +13,7 @@
 
 namespace llvm {
 class TargetLibraryInfo;
+class TargetLibraryInfoWrapperPass;
 class DataLayout;
 class raw_ostream;
 } // namespace llvm
@@ -39,7 +40,7 @@ class PathBmcEngine {
 
 public:
   PathBmcEngine(seahorn::LegacyOperationalSemantics &sem,
-		const llvm::TargetLibraryInfo &tli, seadsa::ShadowMem &sm)
+		llvm::TargetLibraryInfoWrapperPass &tli, seadsa::ShadowMem &sm)
     : m_sem(sem) {}
 
   virtual ~PathBmcEngine() {}
@@ -95,7 +96,7 @@ class PathBmcTrace;
 class PathBmcEngine {
 public:
   PathBmcEngine(LegacyOperationalSemantics &sem,
-		const llvm::TargetLibraryInfo &tli, seadsa::ShadowMem &sm);
+		llvm::TargetLibraryInfoWrapperPass &tli, seadsa::ShadowMem &sm);
 
   virtual ~PathBmcEngine();
 
@@ -182,7 +183,7 @@ protected:
   unsigned m_num_paths;
 
   //// Crab stuff
-  const llvm::TargetLibraryInfo &m_tli;  
+  llvm::TargetLibraryInfoWrapperPass &m_tli;  
   // shadow mem pass   
   seadsa::ShadowMem &m_sm;
   // crab's cfg builder manager

@@ -119,6 +119,8 @@ bool PromoteVerifierCalls::runOnFunction(Function &F) {
 
     if (fn && (fn->getName().equals("__VERIFIER_assume") ||
                fn->getName().equals("DISABLED__VERIFIER_assert") ||
+               // CBMC
+               fn->getName().equals("__CPROVER_assume") ||
                /** pagai embedded invariants */
                fn->getName().equals("llvm.invariant") ||
                /** my suggested name for pagai invariants */
@@ -132,6 +134,8 @@ bool PromoteVerifierCalls::runOnFunction(Function &F) {
         nfn = m_assumeFn;
       else if (fn->getName().equals("__VERIFIER_assert"))
         nfn = m_assertFn;
+      else if (fn->getName().equals("__CPROVER_assume"))
+        nfn = m_assumeFn;
       else
         continue;
 

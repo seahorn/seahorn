@@ -127,9 +127,7 @@ BasicBlock *FatBufferBoundsCheck::getErrorBB() {
   // XXX solution is to unify how seahorn-specific functions are accessed to
   // XXX ensure that they are always created uniformly with the right
   // XXX attributes.
-  auto errorFn = dyn_cast<Function>(
-      Md->getOrInsertFunction("__VERIFIER_error", as, Type::getVoidTy(ctx))
-          .getCallee());
+  auto errorFn = Md->getOrInsertFunction("__VERIFIER_error", as, Type::getVoidTy(ctx));
   CallInst *TrapCall = Builder->CreateCall(errorFn);
   TrapCall->setDoesNotReturn();
   TrapCall->setDoesNotThrow();
@@ -345,34 +343,58 @@ bool FatBufferBoundsCheck::runOnFunction(Function &F) {
   int LongSize = DL.getPointerSizeInBits();
   IntptrTy = Type::getIntNTy(F.getContext(), LongSize);
 
+  // XXX: technically we should no be creating functions in a non-module pass
+  // XXX: is it to create / lookup them on every function?
   m_getFatSlot0 =
       cast<Function>(Mod->getOrInsertFunction(SEA_GET_FAT_SLOT0, IntptrTy,
                                               Type::getInt8PtrTy(*Ctx, 0))
                          .getCallee());
+
+  m_getFatSlot0->setDoesNotThrow();
+  m_getFatSlot0->setDoesNotReadMemory();
+  m_getFatSlot0->addParamAttr(0, Attribute::NoCapture);
+
   m_getFatSlot1 =
       cast<Function>(Mod->getOrInsertFunction(SEA_GET_FAT_SLOT1, IntptrTy,
                                               Type::getInt8PtrTy(*Ctx, 0))
                          .getCallee());
+  m_getFatSlot1->setDoesNotThrow();
+  m_getFatSlot1->setDoesNotReadMemory();
+  m_getFatSlot1->addParamAttr(0, Attribute::NoCapture);
 
   m_setFatSlot0 = cast<Function>(
       Mod->getOrInsertFunction(SEA_SET_FAT_SLOT0, Type::getInt8PtrTy(*Ctx, 0),
                                Type::getInt8PtrTy(*Ctx, 0), IntptrTy)
           .getCallee());
+  m_setFatSlot0->setDoesNotThrow();
+  m_setFatSlot0->setDoesNotReadMemory();
+  m_setFatSlot0->addParamAttr(0, Attribute::Returned);
+
   m_setFatSlot1 = cast<Function>(
       Mod->getOrInsertFunction(SEA_SET_FAT_SLOT1, Type::getInt8PtrTy(*Ctx, 0),
                                Type::getInt8PtrTy(*Ctx, 0), IntptrTy)
           .getCallee());
+  m_setFatSlot1->setDoesNotThrow();
+  m_setFatSlot1->setDoesNotReadMemory();
+  m_setFatSlot1->addParamAttr(0, Attribute::Returned);
 
   m_copyFatSlots = cast<Function>(
       Mod->getOrInsertFunction(SEA_COPY_FAT_SLOTS, Type::getInt8PtrTy(*Ctx, 0),
                                Type::getInt8PtrTy(*Ctx, 0),
                                Type::getInt8PtrTy(*Ctx, 0))
           .getCallee());
+  m_copyFatSlots->setDoesNotThrow();
+  m_copyFatSlots->setDoesNotReadMemory();
+  m_copyFatSlots->addParamAttr(0, Attribute::Returned);
+  m_copyFatSlots->addParamAttr(1, Attribute::NoCapture);
 
   m_recoverFatPtr = cast<Function>(
       Mod->getOrInsertFunction(SEA_RECOVER_FAT_PTR, Type::getInt8PtrTy(*Ctx, 0),
                                Type::getInt8PtrTy(*Ctx, 0))
           .getCallee());
+  m_recoverFatPtr->setDoesNotThrow();
+  m_recoverFatPtr->setDoesNotReadMemory();
+  m_recoverFatPtr->addParamAttr(0, Attribute::Returned);
 
   // check HANDLE_MEMORY_INST in include/llvm/Instruction.def for memory
   // touching instructions

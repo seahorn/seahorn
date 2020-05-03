@@ -333,26 +333,11 @@ decide to go this route.
 might not need to set it explicitly.
 
 
-## Compiling with Clang on Linux
-
-Usually, compilation time with clang and lld linker are faster than
-other options on Linux. The magic cmake configuration line is
-something like the following:
-
-```
- cmake -DCMAKE_INSTALL_PREFIX=run -DCMAKE_BUILD_TYPE="Release" -DCMAKE_CXX_COMPILER="clang++-8" -DCMAKE_C_COMPILER="clang-8" -DSEA_ENABLE_LLD="ON" -GNinja -DCMAKE_EXPORT_COMPILE_COMMANDS=1 ../
-```
-This command should be run instead of the cmake command *2.* in the installation instructions above.
+## The **EXTRA** Target 
 
 SeaHorn provides several components that are automatically cloned and installed via the `extra`
 target. These components can be used by other projects outside of
 SeaHorn.
-
-* [llvm-dsa](https://github.com/seahorn/llvm-dsa): `git clone https://github.com/seahorn/llvm-dsa.git`
-
-  `llvm-dsa` is the legacy DSA implementation
-  from [PoolAlloc](https://llvm.org/svn/llvm-project/poolalloc/). DSA
-  is a heap analysis used by SeaHorn to disambiguate the heap.
 
 * [sea-dsa](https://github.com/seahorn/sea-dsa): `git clone https://github.com/seahorn/sea-dsa.git`
 
@@ -375,16 +360,18 @@ SeaHorn.
 
 SeaHorn doesn't come with its own version of Clang and expects to find it
 either in the build directory (`run/bin`) or in PATH. Make sure that the
-version of Clang matches the version of LLVM that comes with SeaHorn
-(currently 5.0). The easiest way to provide the right version of Clang is
-to download it from [llvm.org](http://releases.llvm.org/download.html),
+version of Clang matches the version of LLVM that was used to compile 
+SeaHorn (currently llvm10). The easiest way to provide the right version of 
+Clang is to download it from [llvm.org](http://releases.llvm.org/download.html),
 unpact it somewhere and create a symbolic link to `clang` and `clang++`
 in `run/bin`.
+
+```shell
+$ cd seahorn/build/run/bin
+$ ln -s <CLANG_ROOT>/bin/clang clang
+$ ln -s <CLANG_ROOT>/bin/clang++ clang++
 ```
-cd seahorn/build/run/bin
-ln -s place_where_you_unpacked_clang/bin/clang clang
-ln -s place_where_you_unpacked_clang/bin/clang++ clang++
-```
+where `<CLANG_ROOT>` is the location at which Clang was unpacked.
 
 ## Tests 
 

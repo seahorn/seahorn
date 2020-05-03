@@ -22,6 +22,11 @@ bool PromoteVerifierCalls::runOnModule(Module &M) {
 
   AttrBuilder B;
 
+  B.addAttribute(Attribute::NoUnwind);
+  B.addAttribute(Attribute::NoRecurse);
+  B.addAttribute(Attribute::NoFree);
+  B.addAttribute(Attribute::InaccessibleMemOnly);
+
   AttributeList as =
       AttributeList::get(Context, AttributeList::FunctionIndex, B);
 
@@ -29,20 +34,24 @@ bool PromoteVerifierCalls::runOnModule(Module &M) {
       M.getOrInsertFunction("verifier.assume", as, Type::getVoidTy(Context),
                             Type::getInt1Ty(Context))
           .getCallee());
+  m_assumeFn->setAttributes(as);
 
   Function *assumeNotFn = dyn_cast<Function>(
       M.getOrInsertFunction("verifier.assume.not", as, Type::getVoidTy(Context),
                             Type::getInt1Ty(Context))
           .getCallee());
+  assumeNotFn->setAttributes(as);
 
   m_assertFn = dyn_cast<Function>(
       M.getOrInsertFunction("verifier.assert", as, Type::getVoidTy(Context),
                             Type::getInt1Ty(Context))
           .getCallee());
+  m_assertFn->setAttributes(as);
 
   m_failureFn = dyn_cast<Function>(
       M.getOrInsertFunction("seahorn.fail", as, Type::getVoidTy(Context))
           .getCallee());
+  m_failureFn->setAttributes(as);
 
   B.addAttribute(Attribute::NoReturn);
   // XXX LLVM optimizer removes ReadNone functions even if they do not return!
@@ -52,6 +61,7 @@ bool PromoteVerifierCalls::runOnModule(Module &M) {
   m_errorFn = dyn_cast<Function>(
       M.getOrInsertFunction("verifier.error", as, Type::getVoidTy(Context))
           .getCallee());
+  m_errorFn->setAttributes(as);
 
   /* add our functions to llvm used */
   GlobalVariable *LLVMUsed = M.getGlobalVariable("llvm.used");

@@ -2,6 +2,8 @@
 #pragma once
 
 #include "seahorn/Expr/ExprCore.hh"
+#include "llvm/Support/ErrorHandling.h"
+#include <unordered_map>
 
 namespace expr {
 struct BoolExprFn {

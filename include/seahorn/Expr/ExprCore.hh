@@ -1,6 +1,19 @@
 /// Core of the Expr library
 #pragma once
 
+#include <boost/functional/hash_fwd.hpp>
+#include <boost/intrusive_ptr.hpp>
+#include <boost/pool/pool.hpp>
+#define BOOST_DISABLE_ASSERTS 1
+// boost/ptr_vector.hpp has BOOST_ASSERT that rely on rtti
+#include <boost/ptr_container/ptr_vector.hpp>
+#undef BOOST_DISABLE_ASSERTS
+
+#include <iostream>
+#include <map>
+#include <set>
+#include <unordered_set>
+#include <vector>
 namespace expr {
 
 namespace op {}

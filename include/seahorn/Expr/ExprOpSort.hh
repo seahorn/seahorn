@@ -5,7 +5,7 @@
 #include "seahorn/Expr/ExprCore.hh"
 #include "seahorn/Expr/ExprOpBool.hh"
 #include "seahorn/Expr/ExprOpCore.hh"
-
+#include <string>
 namespace expr {
 
 namespace op {
@@ -17,7 +17,8 @@ enum class SimpleTypeOpKind {
   BOOL_TY,
   UNINT_TY,
   ARRAY_TY,
-  STRUCT_TY
+  STRUCT_TY,
+  ANY_TY
 };
 NOP_BASE(SimpleTypeOp)
 
@@ -37,6 +38,8 @@ NOP(UNINT_TY, "UNINT", PREFIX, SimpleTypeOp)
 NOP(ARRAY_TY, "ARRAY", PREFIX, SimpleTypeOp)
 /// \biref Struct type
 NOP(STRUCT_TY, "STRUCT", PREFIX, SimpleTypeOp)
+/// \brief ANY type
+NOP(ANY_TY, "ANY", PREFIX, SimpleTypeOp)
 } // namespace op
 
 namespace op {
@@ -44,6 +47,7 @@ namespace sort {
 inline Expr intTy(ExprFactory &efac) { return mk<INT_TY>(efac); }
 inline Expr boolTy(ExprFactory &efac) { return mk<BOOL_TY>(efac); }
 inline Expr realTy(ExprFactory &efac) { return mk<REAL_TY>(efac); }
+inline Expr anyTy(ExprFactory &efac) { return mk<ANY_TY>(efac); }
 inline Expr arrayTy(Expr indexTy, Expr valTy) {
   return mk<ARRAY_TY>(indexTy, valTy);
 }
@@ -58,4 +62,4 @@ template <typename Range> Expr structTy(const Range &ty) {
 
 } // namespace sort
 } // namespace op
-}
+} // namespace expr

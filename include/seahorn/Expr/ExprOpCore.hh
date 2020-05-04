@@ -1,6 +1,8 @@
 /// Core operators and temrinals
 #pragma once
 #include "seahorn/Expr/ExprCore.hh"
+#include "seahorn/Expr/ExprGmp.hh"
+#include "llvm/Support/Casting.h"
 
 namespace expr {
 

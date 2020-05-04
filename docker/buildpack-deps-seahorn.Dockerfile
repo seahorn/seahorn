@@ -4,10 +4,12 @@
 # themselves. Used by the CI to start the build
 #
 
+ARG BASE_IMAGE=bionic-scm
 # Base image with usual build dependencies
-FROM buildpack-deps:bionic-scm
+FROM buildpack-deps:$BASE_IMAGE
 
 # Install dependencies
+ARG DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && \
   apt-get install -yqq software-properties-common && \
   apt-get update && \
@@ -19,9 +21,10 @@ RUN apt-get update && \
       python3-pip \
       less vim \
       sudo \
+      graphviz libgraphviz-dev python3-gv \
       lcov ggcov && \
   pip3 install lit OutputCheck && \
-  pip3 install networkx pygraphviz && \
+  pip3 install networkx && \
   mkdir seahorn
 
 # Install llvm10 from llvm repo since bionic comes with much older version

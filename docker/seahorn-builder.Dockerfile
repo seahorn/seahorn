@@ -1,9 +1,10 @@
 # SeaHorn builder image that builds binary SeaHorn release package
 # Primarily used by the CI
 # Arguments:
+#  - BASE-IMAGE: bionic-llvm10, focal-llvm10
 #  - BUILD_TYPE: Debug, RelWithDebInfo, Coverage
-FROM seahorn/buildpack-deps-seahorn:bionic-llvm10
-
+ARG BASE_IMAGE=bionic-llvm10
+FROM seahorn/buildpack-deps-seahorn:$BASE_IMAGE
 
 # Assume that docker-build is ran in the top-level SeaHorn directory
 COPY . /seahorn

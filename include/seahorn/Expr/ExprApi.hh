@@ -1,7 +1,7 @@
 /// Public API for constructing expressions
 #pragma once
-#include "seahorn/expr/ExprCore.hh"
-#include "seahorn/expr/ExprOpCore.hh"
+#include "seahorn/Expr/ExprCore.hh"
+#include "seahorn/Expr/ExprOpCore.hh"
 #include "llvm/Support/Casting.h"
 
 namespace expr {

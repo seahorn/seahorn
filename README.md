@@ -4,6 +4,7 @@
 ![os](https://img.shields.io/badge/os-linux-orange?logo=linux)
 ![os](https://img.shields.io/badge/os-macos-silver?logo=apple)
 [![travis](https://travis-ci.org/seahorn/seahorn.svg?branch=dev10)](https://travis-ci.org/github/seahorn/seahorn)
+[![Azure DevOps builds (branch)](https://img.shields.io/azure-devops/build/seahorn/seahorn/1/dev10?label=azure-build)](https://dev.azure.com/seahorn/seahorn/_build)
 [![codecov](https://codecov.io/gh/seahorn/seahorn/branch/master/graph/badge.svg)](https://codecov.io/gh/seahorn/seahorn)
 [![gitter](https://badges.gitter.im/seahorn/seahorn.svg)](https://gitter.im/seahorn/seahorn?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge)
 # About #

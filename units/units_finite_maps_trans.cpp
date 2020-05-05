@@ -271,7 +271,7 @@ TEST_CASE("expr.finite_map.transformation1" * doctest::skip(true)) {
   errs() << db << "\n";
   // This cannot be solved by Z3
 
-  removeFiniteMapsBodiesHornClauses(db);
+  removeFiniteMapsBodiesHornClausesTransf(db);
 
   errs() << "HornClauseDB without fmaps\n";
   errs() << db << "\n";
@@ -373,7 +373,7 @@ TEST_CASE("expr.finite_map.transformation_fmapvars" * doctest::skip(true)) {
   errs() << db << "\n";
   // This cannot be solved by Z3
 
-  removeFiniteMapsBodiesHornClauses(db);
+  removeFiniteMapsBodiesHornClausesTransf(db);
 
   errs() << "HornClauseDB without fmaps\n";
   errs() << db << "\n";
@@ -481,7 +481,7 @@ TEST_CASE("expr.finite_map.trans_fmap_args" * doctest::skip(true)) {
   db.addQuery(q_head); // This cannot be solved by Z3
   errs() << "HornClauseDB with fmaps\n" << db << "\n";
 
-  removeFiniteMapsBodiesHornClauses(db);
+  removeFiniteMapsBodiesHornClausesTransf(db);
 
   errs() << "HornClauseDB without fmaps\n" << db << "\n";
 
@@ -812,7 +812,7 @@ TEST_CASE("expr.finite_map.remove_map_arguments") {
   errs() << db << "\n";
   // This cannot be solved by Z3
 
-  removeFiniteMapsArgsHornClauses(db);
+  removeFiniteMapsArgsHornClausesTransf(db);
 
   // desired output:
 
@@ -837,7 +837,7 @@ TEST_CASE("expr.finite_map.remove_map_arguments") {
   // This cannot be solved by Z3
 
   // now apply local transformation only to the bodies
-  // removeFiniteMapsBodiesHornClauses(db);
+  // removeFiniteMapsBodiesHornClausesTransf(db);
 
   // errs() << "HornClauseDB without fmaps\n";
   // errs() << db << "\n";

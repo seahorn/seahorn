@@ -383,7 +383,7 @@ Expr processMapsRel(Expr fdecl, ExprFactory &efac){
 
 }
 
-void removeFiniteMapsArgsHornClauses(HornClauseDB &db) {
+void removeFiniteMapsArgsHornClausesTransf(HornClauseDB &db) {
 
   ExprFactory &efac = db.getExprFactory();
 
@@ -440,7 +440,7 @@ void removeFiniteMapsArgsHornClauses(HornClauseDB &db) {
   }
 }
 
-void removeFiniteMapsBodiesHornClauses(HornClauseDB &db) {
+void removeFiniteMapsBodiesHornClausesTransf(HornClauseDB &db) {
 
   ExprFactory &efac = db.getExprFactory();
 

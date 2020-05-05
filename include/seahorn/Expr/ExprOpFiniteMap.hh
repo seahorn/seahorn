@@ -24,7 +24,7 @@ NOP(SET, "set", FUNCTIONAL, FiniteMapOp)
 namespace op {
 namespace finite_map {
 
-inline Expr constFiniteMap(ExprVector keys) {
+inline Expr constFiniteMap(ExprVector &keys) {
   return expr::mknary<CONST_FINITE_MAP>(keys.begin(), keys.end());
 }
 
@@ -52,7 +52,7 @@ inline Expr empty_map_lambda(ExprFactory &efac) {
 }
 
 // creates a set of keys as a lambda function
-inline Expr make_lambda_map_keys(ExprVector keys, ExprFactory &efac) {
+inline Expr make_lambda_map_keys(ExprVector &keys, ExprFactory &efac) {
 
   Expr x = bind::intConst(mkTerm<std::string>("x", efac));
 
@@ -79,7 +79,7 @@ inline Expr make_lambda_map_keys(ExprVector keys, ExprFactory &efac) {
 //
 // TO COMMENT: This function also outputs the lambda function for the keys,
 // assume that it is created, is this a bigger formula if done externally?
-inline Expr make_map_batch_values(ExprVector keys, ExprVector values,
+inline Expr make_map_batch_values(ExprVector &keys, ExprVector &values,
                                   ExprFactory &efac, Expr &lambda_keys) {
 
   // assuming that there is a value for every key. If this is not available,
@@ -139,34 +139,67 @@ inline Expr set_map_lambda(Expr map, Expr keys, Expr key, Expr value,
   return new_map;
 }
 
-inline Expr make_var_key(Expr m1, Expr k, ExprSet &evars) {
-  Expr tag = bind::intConst(variant::tag(k, m1));
-  evars.insert(tag);
-  return tag;
+inline Expr make_variant_key(Expr m1, Expr k) {
+  // TODO: replace by |get(m1,k)|
+  return bind::intConst(variant::tag(m1, k));
 }
 
 // check that one maps contains the same values as another. Both maps are
 // assumed to have the same keys `keys` but not necessarily in the same order,
 // that is why `ks1` and `ks2` are needed.
-inline Expr make_eq_maps_lambda(Expr m1, Expr ks1, Expr m2, Expr ks2, ExprVector keys, ExprFactory &efac, ExprSet &evars) {
+inline Expr make_eq_maps_lambda(Expr m1, Expr ks1, Expr m2, Expr ks2,
+                                ExprVector &keys, ExprFactory &efac,
+                                ExprSet &evars) {
 
-  Expr eq;
   ExprVector conj;
 
   bool is_var_m1 = bind::isFiniteMapConst(m1);
   bool is_var_m2 = bind::isFiniteMapConst(m2);
 
-  for(auto k : keys) {
-    Expr e_m1 = is_var_m1 ? make_var_key(m1, k, evars) : get_map_lambda(m1, ks1, k);
-    Expr e_m2 = is_var_m2 ? make_var_key(m2, k, evars) : get_map_lambda(m2, ks2, k);
+  Expr e_m1, e_m2;
+
+  for (auto k : keys) {
+    if (is_var_m1) {
+      e_m1 = make_variant_key(m1, k);
+      evars.insert(e_m1);
+    }
+    else
+      e_m1 = get_map_lambda(m1, ks1, k);
+
+    if(is_var_m2) {
+      e_m2 = make_variant_key(m2, k);
+      evars.insert(e_m2);
+    }
+    else
+      e_m2 = get_map_lambda(m2, ks2, k);
     conj.push_back(mk<EQ>(e_m1, e_m2));
   }
-
   return mknary<AND>(conj);
 }
 
+inline void expand_map_vars(Expr map, Expr lmdks, ExprVector &keys, ExprVector &new_vars,
+                            ExprVector &extra_unifs, ExprFactory &efac,
+                            ExprSet &evars) {
+
+  Expr v, v_get;
+
+  for (auto k : keys) {
+    v = make_variant_key(map, k);
+    evars.insert(v);
+    if (evars.count(k) > 0) // TODO: maybe not necessary?
+      evars.insert(k);
+
+    new_vars.push_back(k);
+    new_vars.push_back(v);
+
+    v_get = get_map_lambda(map, lmdks, k);
+    extra_unifs.push_back(mk<EQ>(v, v_get));
+  }
+
+}
+
 // This function is just for testing
-inline Expr make_map_sequence_gets(ExprVector keys, ExprVector values,
+inline Expr make_map_sequence_gets(ExprVector &keys, ExprVector &values,
                                    ExprFactory &efac, Expr &lambda_keys) {
 
   assert(keys.size() == values.size());
@@ -198,7 +231,7 @@ inline Expr make_map_sequence_gets(ExprVector keys, ExprVector values,
 // int g_var_eqs_maps_count = 0; // TODO: remove this counter, just for testing
 // purposes to not duplicate names
 inline Expr prepare_finite_maps_caller_callsite(Expr in_map, Expr map_keys,
-                                                ExprVector keys_used,
+                                                ExprVector &keys_used,
                                                 ExprFactory &efac,
                                                 ExprVector &new_params,
                                                 Expr &out_map) {

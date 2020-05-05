@@ -48,7 +48,7 @@ TEST_CASE("expr.finite_map.test_map_ty") {
   errs() << db << "\n";
 }
 
-Expr visit_and_print(FiniteMapTransVisitor & fmv, Expr e, DagVisitCache &dvc){
+Expr visit_and_print(FiniteMapBodyVisitor &fmv, Expr e, DagVisitCache &dvc) {
 
   errs() << "\nTesting visit:" << *e << "--------\n";
   Expr trans = visit(fmv, e);
@@ -56,13 +56,13 @@ Expr visit_and_print(FiniteMapTransVisitor & fmv, Expr e, DagVisitCache &dvc){
   return trans;
 }
 
-TEST_CASE("expr.finite_map.fmap_1key") {
+TEST_CASE("expr.finite_map.fmap_1key" * doctest::skip(true)) {
 
   ExprFactory efac;
 
   HornClauseDB db(efac); // not necessary, remove!!
   ExprSet vars;
-  FiniteMapTransVisitor fmv(efac, db, vars);
+  FiniteMapBodyVisitor fmv(db, vars);
 
   DagVisitCache dvc;
 
@@ -89,13 +89,13 @@ TEST_CASE("expr.finite_map.fmap_1key") {
   visit_and_print(fmv, map_set_get, dvc);
 }
 
-TEST_CASE("expr.finite_map.fmap_2keys") {
+TEST_CASE("expr.finite_map.fmap_2keys" * doctest::skip(true)) {
 
   ExprFactory efac;
 
   HornClauseDB db(efac); // not necessary, remove!!
   ExprSet vars;
-  FiniteMapTransVisitor fmv(efac, db, vars);
+  FiniteMapBodyVisitor fmv(db, vars);
 
   DagVisitCache dvc;
 
@@ -114,16 +114,15 @@ TEST_CASE("expr.finite_map.fmap_2keys") {
   Expr map_set = finite_map::set(map, k1, v1);
   Expr map_set_get = finite_map::get(map_set, k1);
   visit_and_print(fmv, mk<EQ>(v1, map_set_get), dvc);
-
 }
 
-TEST_CASE("expr.finite_map.cmp_gets_fmap") {
+TEST_CASE("expr.finite_map.cmp_gets_fmap" * doctest::skip(true)) {
 
   ExprFactory efac;
 
   HornClauseDB db(efac); // not necessary, remove!!
   ExprSet vars;
-  FiniteMapTransVisitor fmv(efac, db, vars);
+  FiniteMapBodyVisitor fmv(db, vars);
 
   DagVisitCache dvc;
 
@@ -151,14 +150,14 @@ TEST_CASE("expr.finite_map.cmp_gets_fmap") {
   // SAT
 }
 
-// map unifications are not being transformed yet
+  // map unifications are not being transformed yet
 TEST_CASE("expr.finite_map.fmap_eq" * doctest::skip(true)) {
 
   ExprFactory efac;
 
   HornClauseDB db(efac); // not necessary, remove!!
   ExprSet vars;
-  FiniteMapTransVisitor fmv(efac, db, vars);
+  FiniteMapBodyVisitor fmv(db, vars);
 
   DagVisitCache dvc;
 
@@ -200,7 +199,7 @@ inline void set_params(EZ3 &z3, ZFixedPoint<EZ3> &fp) {
   fp.set(params);
 }
 
-TEST_CASE("expr.finite_map.transformation1") {
+TEST_CASE("expr.finite_map.transformation1" * doctest::skip(true)) {
 
   // Put clauses in the HCDB
   ExprFactory efac;
@@ -272,7 +271,7 @@ TEST_CASE("expr.finite_map.transformation1") {
   errs() << db << "\n";
   // This cannot be solved by Z3
 
-  transformFiniteMapsHornClauses(db, efac);
+  transformBodyFiniteMapsHornClauses(db, efac);
 
   errs() << "HornClauseDB without fmaps\n";
   errs() << db << "\n";
@@ -287,12 +286,12 @@ TEST_CASE("expr.finite_map.transformation1") {
 
   CHECK(!static_cast<bool>(res));
   // example with map operations in 1 literal:
-  // f(x) :- x = get(set(defk(k1), k1, 42), k1).
+  // f(x) :- x = get(set(defk(k1), k1, 42), k1), g(y).
   // query1 :- x /= 42, f(x).
   // UNSAT
 }
 
-TEST_CASE("expr.finite_map.transformation_fmapvars") {
+TEST_CASE("expr.finite_map.transformation_fmapvars" * doctest::skip(true)) {
 
   // Put clauses in the HCDB
   ExprFactory efac;
@@ -374,7 +373,7 @@ TEST_CASE("expr.finite_map.transformation_fmapvars") {
   errs() << db << "\n";
   // This cannot be solved by Z3
 
-  transformFiniteMapsHornClauses(db, efac);
+  transformBodyFiniteMapsHornClauses(db, efac);
 
   errs() << "HornClauseDB without fmaps\n";
   errs() << db << "\n";
@@ -393,4 +392,341 @@ TEST_CASE("expr.finite_map.transformation_fmapvars") {
   // f(x) :- x = get(set(defk(k1), k1, 42), k1).
   // query1 :- x /= 42, f(x).
   // UNSAT
+}
+
+TEST_CASE("expr.finite_map.trans_fmap_args" * doctest::skip(true)) {
+
+  // Put clauses in the HCDB
+  ExprFactory efac;
+
+  ExprVector keys;
+
+  Expr k1 = bind::intConst(mkTerm<string>("k1", efac));
+  Expr k2 = bind::intConst(mkTerm<string>("k2", efac));
+
+  keys.push_back(k1);
+  keys.push_back(k2);
+
+  Expr fmapTy = sort::finiteMapTy(keys);
+  Expr iTy = sort::intTy(efac);
+  Expr bTy = sort::boolTy(efac);
+
+  Expr fmap_var = bind::mkConst(mkTerm<string>("map1", efac), fmapTy);
+  Expr x = bind::intConst(mkTerm<string>("x", efac));
+
+  ExprVector ftype;
+  ftype.push_back(fmapTy); // map
+  ftype.push_back(iTy);    // key
+  ftype.push_back(iTy);    // value
+  ftype.push_back(bTy);    // return type of relation
+  Expr fdecl = bind::fdecl(mkTerm<string>("f", efac), ftype);
+  Expr fapp = bind::fapp(fdecl, x);
+
+  EZ3 z3(efac);
+  ZFixedPoint<EZ3> fp(z3);
+  set_params(z3, fp);
+  HornClauseDB db(efac);
+
+  Expr solution = mkTerm<expr::mpz_class>(42, efac);
+
+  ExprVector vars;
+  vars.push_back(x);
+  vars.push_back(k1);
+  vars.push_back(fmap_var);
+
+  ExprSet allVars;
+  allVars.insert(vars.begin(), vars.end());
+
+  ExprVector body;
+
+  Expr get = finite_map::get(fmap_var, keys[0]);
+  body.push_back(mk<EQ>(x, get));
+  // f(map_a, k1, x) :- x = get(map_a, k1), g(map_a).
+
+  db.registerRelation(fdecl);
+  HornRule rule(allVars, fapp, mknary<AND>(body));
+
+  db.addRule(rule);
+  ExprVector qvars, query, fargs;
+
+  // Actual query: UNSAT
+  // ?- x \= 42, f(set(defk(k1, k2), k1, 42), k1, x).
+  Expr set =
+      finite_map::set(finite_map::constFiniteMap(keys), keys[0], solution);
+  fargs.push_back(set);
+  fargs.push_back(k1);
+  fargs.push_back(x);
+  query.push_back(mk<NEQ>(x, solution));
+  query.push_back(bind::fapp(fdecl, fargs));
+
+  // query variables
+  qvars.push_back(x);
+  qvars.push_back(k1);
+  qvars.push_back(k2);
+
+  // Register new relation to query without variables
+  ExprVector qtype;
+  qtype.push_back(mk<BOOL_TY>(efac));
+  Expr query_name = mkTerm<string>("query1", efac);
+  Expr qdecl = bind::fdecl(query_name, qtype);
+  db.registerRelation(qdecl);
+  Expr q_head = bind::fapp(qdecl);
+  Expr q_body = mknary<AND>(query);
+  ExprSet auxVars;
+  auxVars.insert(qvars.begin(), qvars.end());
+  HornRule query_rule(allVars, q_head, q_body);
+  db.addRule(query_rule);
+
+  // query with auxiliary relation
+  db.addQuery(q_head); // This cannot be solved by Z3
+  errs() << "HornClauseDB with fmaps\n" << db << "\n";
+
+  transformBodyFiniteMapsHornClauses(db, efac);
+
+  errs() << "HornClauseDB without fmaps\n" << db << "\n";
+
+  // UNCOMMENT  WHEN TAGS ARE FIXED
+  // db.loadZFixedPoint(fp, false); // SkipConstraints = false
+
+  // // errs() << "query: " << *q_head << "\nfp content:\n";
+  // errs() << fp.toString() << "\nend fp content\n";
+  // errs() << "Expected: unsat\n";
+  // boost::tribool res = fp.query();
+  // errs() << "Solving: " << (res ? "sat" : "unsat") << "\n";
+
+  // CHECK(!static_cast<bool>(res));
+  // example with map operations in 1 literal:
+  // f(map_a, k1, x) :- x = get(map_a, k1).
+  // query1 :- x /= 42, map = set(defk(k1, k2), k1, 42), f(map, k1, x).
+  // UNSAT
+}
+
+TEST_CASE("expr.finite_map.trans_fmap_var_args" * doctest::skip(true)) {
+
+  // Put clauses in the HCDB
+  ExprFactory efac;
+
+  ExprVector keys;
+
+  Expr k1 = bind::intConst(mkTerm<string>("k1", efac));
+  Expr k2 = bind::intConst(mkTerm<string>("k2", efac));
+
+  keys.push_back(k1);
+  keys.push_back(k2);
+
+  Expr fmapTy = sort::finiteMapTy(keys);
+  Expr iTy = sort::intTy(efac);
+  Expr bTy = sort::boolTy(efac);
+
+  Expr fmap_var = bind::mkConst(mkTerm<string>("map1", efac), fmapTy);
+
+  // f(map_a, k1, x) :- x = get(map_a, k1).
+  // ?- x \= 42, map = set(defk(k1, k2), k1, 42), f(map, k1, x).
+}
+
+TEST_CASE("expr.finite_map.trans_fmap_fdecl") {
+
+  ExprFactory efac;
+  ExprVector keys;
+
+  Expr bTy = sort::boolTy(efac);
+
+  keys.push_back(mkTerm<std::string>("k1", efac));
+  keys.push_back(mkTerm<std::string>("k2", efac));
+  Expr finiteMapTy1 = op::sort::finiteMapTy(keys);
+
+  keys.push_back(mkTerm<std::string>("k3", efac));
+  keys.push_back(mkTerm<std::string>("k4", efac));
+  keys.push_back(mkTerm<std::string>("k5", efac));
+  Expr finiteMapTy2 = op::sort::finiteMapTy(keys);
+
+  Expr fname = mkTerm<std::string>("map_relation", efac);
+  ExprVector ftype;
+  ftype.push_back(finiteMapTy1);
+  ftype.push_back(finiteMapTy2); // TODO: include other types (e.g. array,
+  ftype.push_back(bTy);          // bool,bv)
+
+  Expr fdecl = bind::fdecl(fname, ftype);
+  errs() << "fdecl: " << *fdecl << "\n";
+
+  Expr fdeclT = processMapsRel(fdecl, efac);
+
+  CHECK(fdeclT != nullptr);
+  errs() << "fdecl transformed: " << *fdeclT << "\n";
+}
+
+TEST_CASE("expr.finite_map.fapp_type_checker") {
+
+  ExprFactory efac;
+  ExprVector keys;
+
+  Expr bTy = sort::boolTy(efac);
+
+  keys.push_back(mkTerm<std::string>("k1", efac));
+  Expr finiteMapTy1 = op::sort::finiteMapTy(keys);
+  Expr map1 = bind::mkConst(mkTerm<std::string>("map1", efac), finiteMapTy1);
+
+  keys.clear(); // change order, they should be the "same" fmap type
+  keys.push_back(mkTerm<std::string>("k2", efac));
+  keys.push_back(mkTerm<std::string>("k1", efac));
+  Expr finiteMapTy1b = op::sort::finiteMapTy(keys);
+  Expr map1b = bind::mkConst(mkTerm<std::string>("map1b", efac), finiteMapTy1);
+
+  Expr fname = mkTerm<std::string>("map_relation", efac);
+
+  ExprVector ftypes;
+  ftypes.push_back(finiteMapTy1);
+  ftypes.push_back(bTy);
+  Expr fdecl1 = bind::fdecl(fname, ftypes);
+  errs() << "fdecl: " << *fdecl1 << "\n";
+
+  ExprVector fargs;
+  fargs.push_back(map1);
+  Expr fapp1 = bind::fapp(fdecl1, fargs);
+  fargs[0] = map1b;
+  Expr fapp1_b = bind::fapp(fdecl1, fargs);
+
+  keys.clear();
+  keys.push_back(mkTerm<std::string>("k3", efac));
+  keys.push_back(mkTerm<std::string>("k4", efac));
+  keys.push_back(mkTerm<std::string>("k5", efac));
+  Expr finiteMapTy2 = op::sort::finiteMapTy(keys);
+  Expr map2 = bind::mkConst(mkTerm<std::string>("map2", efac), finiteMapTy1);
+  fargs[0] = map2;
+
+  Expr fapp2 = bind::fapp(fdecl1, fargs);
+  // this should violate an assertion
+
+}
+
+TEST_CASE("expr.finite_map.eq_type_checker") {
+
+  ExprFactory efac;
+
+  // Expr fmapTy = sort::finiteMapTy(keys);
+  Expr iTy = sort::intTy(efac);
+  Expr bTy = sort::boolTy(efac);
+
+  // Expr fmap_var = bind::mkConst(mkTerm<string>("map1", efac), fmapTy);
+  Expr x = bind::intConst(mkTerm<string>("x", efac));
+  Expr b = bind::boolConst(mkTerm<string>("b", efac));
+
+  Expr eq = mk<EQ>(x, b);
+  Expr eqType = bind::type(eq);
+  // errs() << "EQ type of: " << *eq << " is " << *eqType << "\n";
+
+  // CHECK(isOpX<BOOL_TY>(eqType));
+
+  HornClauseDB db(efac);
+  ExprSet vars;
+
+  vars.insert(x);
+  vars.insert(b);
+
+  FiniteMapBodyVisitor fmbv(db,vars);
+
+  Expr e1 = visit(fmbv, eq);
+
+}
+
+TEST_CASE("expr.finite_map.head_rewriter") {
+
+
+ExprFactory efac;
+  ExprVector keys;
+
+  Expr bTy = sort::boolTy(efac);
+
+  keys.push_back(mkTerm<std::string>("k1", efac));
+  Expr finiteMapTy1 = op::sort::finiteMapTy(keys);
+  Expr map1 = bind::mkConst(mkTerm<std::string>("map1", efac), finiteMapTy1);
+
+  Expr fname = mkTerm<std::string>("map_rel_test", efac);
+
+  ExprVector ftypes;
+  ftypes.push_back(finiteMapTy1);
+  ftypes.push_back(bTy);
+  Expr fdecl1 = bind::fdecl(fname, ftypes);
+  errs() << "fdecl: " << *fdecl1 << "\n";
+
+  ExprVector fargs;
+  fargs.push_back(map1);
+
+  Expr fapp1 = bind::fapp(fdecl1, fargs);
+  Expr newdecl = processMapsRel(fdecl1, efac);
+
+  ExprSet vars;
+  vars.insert(map1);
+  ExprVector unifs;
+  errs() << "fapp one key:" << *fapp1 << "\n";
+
+  Expr newfapp = headFiniteMapRewriter(fapp1, newdecl, vars, efac, unifs);
+  errs() << "New fapp:\n";
+  errs() << *newfapp << "\n";
+
+  errs() << "New unifs:\n";
+  for(auto e : unifs)
+    errs() << "\t"<< *e << "\n";
+
+  CHECK(!unifs.empty());
+
+  // ------------------------------------------------------------
+  keys.clear(); // change order, they should be the "same" fmap type
+  keys.push_back(mkTerm<std::string>("k2", efac));
+  keys.push_back(mkTerm<std::string>("k1", efac));
+  Expr finiteMapTy1b = op::sort::finiteMapTy(keys);
+  Expr map1b = bind::mkConst(mkTerm<std::string>("map1b", efac), finiteMapTy1);
+  fargs[0] = map1b;
+
+  unifs.clear();
+  vars.clear();
+  vars.insert(map1b);
+  vars.insert(keys[0]);
+  vars.insert(keys[1]);
+  Expr fapp1_b = bind::fapp(fdecl1, fargs);
+  errs() << "fapp two keys:" << *fapp1_b << "\n";
+
+  newfapp = headFiniteMapRewriter(fapp1_b, newdecl, vars, efac, unifs);
+  errs() << "New fapp:\n";
+  errs() << *newfapp << "\n";
+
+  errs() << "New unifs:\n";
+  for (auto e : unifs)
+    errs() << "\t" << *e << "\n";
+
+  CHECK(!unifs.empty());
+
+  // ------------------------------------------------------------
+  fargs[0] = map1b;
+
+  unifs.clear();
+  vars.clear();
+  vars.insert(keys[0]);
+  vars.insert(keys[1]);
+
+  fargs[0] = finite_map::constFiniteMap(keys);
+
+  fapp1_b = bind::fapp(fdecl1, fargs);
+  errs() << "fapp two keys no variable:" << *fapp1_b << "\n";
+
+  newfapp = headFiniteMapRewriter(fapp1_b, newdecl, vars, efac, unifs);
+  errs() << "New fapp:\n";
+  errs() << *newfapp << "\n";
+
+  errs() << "New unifs:\n";
+  for (auto e : unifs)
+    errs() << "\t" << *e << "\n";
+
+  CHECK(!unifs.empty());
+
+  // keys.clear();
+  // keys.push_back(mkTerm<std::string>("k3", efac));
+  // keys.push_back(mkTerm<std::string>("k4", efac));
+  // keys.push_back(mkTerm<std::string>("k5", efac));
+  // Expr finiteMapTy2 = op::sort::finiteMapTy(keys);
+  // Expr map2 = bind::mkConst(mkTerm<std::string>("map2", efac), finiteMapTy1);
+  // fargs[0] = map2;
+
+  // Expr fapp2 = bind::fapp(fdecl1, fargs);
+    // this should violate an assertion
 }

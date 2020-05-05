@@ -62,6 +62,8 @@ static llvm::cl::opt<unsigned> AllocToInstrumentID(
 
 namespace seahorn {
 
+/// Base + Offset representation for pointers
+/// XXX There must be an equivalent in LLVM already
 struct PtrOrigin {
   llvm::Value *Ptr;
   int64_t Offset;
@@ -76,16 +78,29 @@ struct PtrOrigin {
   }
 };
 
+/// Error Checking Context
+///
+/// Represents a single memory instruction that is interesting enough to apply
+/// deeper verification
 struct CheckContext {
+  /// A memory accessing instruction that might fail
   Instruction *MI = nullptr;
+  /// Some function
   Function *F = nullptr;
+  /// A register from which there is a direct flow to MI
   Value *Barrier = nullptr;
+  /// Whether something is collapsed
   bool Collapsed = false;
+  /// Number of bytes of \p Barrier accessed by \p MI
   size_t AccessedBytes = 0;
+  /// Allocation sites that cause a memory fault if flow to \p MI
   SmallVector<Value *, 8> InterestingAllocSites;
+  /// Allocation sites that do not cause a memory fault if flow to \p MI
   SmallVector<Value *, 8> OtherAllocSites;
+  /// Points-to graph on which the analysis is based
   seadsa::Graph *DsaGraph;
 
+  /// Debug dump
   void dump(llvm::raw_ostream &OS = llvm::errs()) {
     OS << "CheckContext : " << (F ? ValueToString(F) : "nullptr") << " {\n";
     OS << "  MI: ";
@@ -155,6 +170,7 @@ struct CheckContext {
   }
 
 private:
+  /// Caching toString method for llvm::Value
   static llvm::StringRef ValueToString(llvm::Value *V) {
     assert(V);
     static llvm::DenseMap<llvm::Value *, std::string> Cache;
@@ -191,6 +207,7 @@ class SeaDsa : public PTAWrapper {
   seadsa::DsaInfo *m_dsa;
 
 public:
+  /// Returns a cell for \p ptr in \p fn
   const seadsa::Cell *getCell(const llvm::Value *ptr,
                               const llvm::Function &fn) {
     assert(ptr);
@@ -215,12 +232,14 @@ public:
       : m_abc(abc),
         m_dsa(&this->m_abc->getAnalysis<seadsa::DsaInfoPass>().getDsaInfo()) {}
 
+  /// Returns points-to graph of \p F
   seadsa::Graph &getGraph(const Function &F) {
     auto *G = m_dsa->getDsaGraph(F);
     assert(G);
     return *G;
   }
 
+  /// Returns Dsa node to which \p V points-to
   seadsa::Node &getNode(const Value &V, const Function &F) {
     auto *C = getCell(&V, F);
     assert(C);
@@ -230,11 +249,14 @@ public:
     return *N;
   }
 
+  /// Returns all allocation sites from which \p V might have originated in \p F
   SmallVector<Value *, 8> getAllocSites(Value *V, const Function &F) override {
     seadsa::Node &N = getNode(*V, F);
 
     SmallVector<Value *, 8> Sites;
     for (auto *S : N.getAllocSites()) {
+      // XXX stripping declarations seems too much since some might be legal allocation functions
+      // XXX At least use attributes and TLI
       if (auto *GV = dyn_cast<const GlobalValue>(S))
         if (GV->isDeclaration())
           continue;
@@ -252,6 +274,8 @@ public:
 
 struct TypeSimilarity;
 
+/// Identifies potential (simple) memory faults and generates program slices
+/// corresponding to them
 class SimpleMemoryCheck : public llvm::ModulePass {
 public:
   static char ID;
@@ -260,6 +284,7 @@ public:
   virtual void getAnalysisUsage(llvm::AnalysisUsage &AU) const;
   virtual llvm::StringRef getPassName() const { return "SimpleMemoryCheck"; }
 
+  /// Returns size of a known allocation
   llvm::Optional<size_t> getAllocSize(Value *Ptr);
 
 private:
@@ -268,16 +293,23 @@ private:
   CallGraph *m_CG;
   const DataLayout *m_DL;
   const TargetLibraryInfo *m_TLI;
+  /// wrapper over SeaDsa analysis
   std::unique_ptr<SeaDsa> m_SDSA = nullptr;
+  /// wrapper over points-to analysis, possibly different from SeaDsa
   PTAWrapper *m_PTA = nullptr;
 
+  /// SeaHorn specific marker functions
   Function *m_assumeFn;
   Function *m_errorFn;
+
+  /// Instrumentation variables 
   Value *m_trackedBegin;
   Value *m_trackedEnd;
   Value *m_trackingEnabled;
 
+  /// Returns true if \p Ptr is a known memory allocation
   bool isKnownAlloc(Value *Ptr);
+  /// same as stripAndAccumulateConstantOffsets
   PtrOrigin trackPtrOrigin(Value *Ptr);
 
   using TypeSimilarityCache =
@@ -290,12 +322,18 @@ private:
   void emitMemoryInstInstrumentation(CheckContext &Candidate);
   void emitAllocSiteInstrumentation(CheckContext &Candidate, size_t AllocId);
 
+  //==---------------------------------------------------------------------==/
+  //==-- Helper Functions for Instrumentation ==--/
+  //==---------------------------------------------------------------------==/
   Function *createNewNDFn(Type *Ty, Twine Prefix = "");
   CallInst *getNDVal(size_t IntBitWidth, Function *F, IRBuilder<> &IRB,
                      Twine Name = "");
   CallInst *getNDPtr(Function *F, IRBuilder<> &IRB, Twine Name = "");
   void createAssume(Value *Cond, Function *F, IRBuilder<> &IRB);
 
+  //==---------------------------------------------------------------------==/
+  //==-- Stats
+  //==---------------------------------------------------------------------==/
   void printStats(std::vector<CheckContext> &InterestingChecks,
                   std::vector<CheckContext> &AllChecks,
                   std::vector<Instruction *> &UninterestingMIs, bool Detailed);
@@ -303,6 +341,8 @@ private:
 
 llvm::Pass *createSimpleMemoryCheckPass() { return new SimpleMemoryCheck(); }
 
+/// Returns true if \p Ptr is direct output of a known memory allocating
+/// function For example, \p Ptr is \p alloca, \p malloc(), or a global variable
 bool SimpleMemoryCheck::isKnownAlloc(Value *Ptr) {
   if (isa<AllocaInst>(Ptr))
     return true;
@@ -316,6 +356,8 @@ bool SimpleMemoryCheck::isKnownAlloc(Value *Ptr) {
   return false;
 }
 
+/// For a known allocation, returns its size if known
+/// \sa isKnownAlloc
 llvm::Optional<size_t> SimpleMemoryCheck::getAllocSize(Value *Ptr) {
   assert(Ptr);
   if (!isKnownAlloc(Ptr))
@@ -334,6 +376,7 @@ llvm::Optional<size_t> SimpleMemoryCheck::getAllocSize(Value *Ptr) {
   return size_t(I);
 }
 
+/// XXX replace with stripAndAccumulateConstantOffsets() from ValueTracking
 PtrOrigin SimpleMemoryCheck::trackPtrOrigin(Value *Ptr) {
   assert(Ptr);
 

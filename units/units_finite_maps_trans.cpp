@@ -599,7 +599,9 @@ TEST_CASE("expr.finite_map.fapp_type_checker") {
 
 }
 
-TEST_CASE("expr.finite_map.eq_type_checker") {
+// I commented the code of this naive type checker, it only works when there is
+// a map in both sides of the equality
+TEST_CASE("expr.finite_map.eq_type_checker" * doctest::skip(true)) {
 
   ExprFactory efac;
 
@@ -615,8 +617,6 @@ TEST_CASE("expr.finite_map.eq_type_checker") {
   Expr eqType = bind::type(eq);
   // errs() << "EQ type of: " << *eq << " is " << *eqType << "\n";
 
-  // CHECK(isOpX<BOOL_TY>(eqType));
-
   HornClauseDB db(efac);
   ExprSet vars;
 
@@ -626,7 +626,6 @@ TEST_CASE("expr.finite_map.eq_type_checker") {
   FiniteMapBodyVisitor fmbv(db,vars);
 
   Expr e1 = visit(fmbv, eq);
-
 }
 
 TEST_CASE("expr.finite_map.head_rewriter") {

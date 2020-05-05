@@ -27,23 +27,12 @@ namespace finite_map {
 inline Expr constFiniteMap(ExprVector &keys) {
   return expr::mknary<CONST_FINITE_MAP>(keys.begin(), keys.end());
 }
-
 inline Expr get(Expr map, Expr idx) {
   return expr::mk<GET>(map, idx);
 }
-// inline Expr get(Expr map, Expr keys, Expr idx) { return expr::mk<GET>(map, idx); }
-// inline Expr get(Expr a, const ExprVector& keys, Expr idx) { return
-// mk<GET>(a, keys, idx); }
 inline Expr set(Expr map, Expr idx, Expr v) {
   return expr::mk<SET>(map, idx, v);
 }
-
-// inline Expr set(Expr map, Expr keys, Expr idx, Expr v) {
-//   return expr::mk<SET>(map, idx, v);
-// }
-// inline Expr set(Expr a, const ExprVector& keys, Expr idx, Expr v) { return
-// mk<GET>(a, keys, idx, v); }
-
 
 // fresh map with unitialized values
 inline Expr empty_map_lambda(ExprFactory &efac) {

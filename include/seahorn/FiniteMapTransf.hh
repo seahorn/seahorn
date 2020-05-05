@@ -243,8 +243,7 @@ struct FiniteMapRewriter : public std::unary_function<Expr, Expr> {
       assert(false && "Unexpected map expression");
       return exp;
     }
-    errs() << "Rewritten: " << *exp << "\n   to: " << *res << "\n"; // TODO: put
-                                                                    // in log
+    errs() << "Rewritten: " << *exp << "\n   to: " << *res << "\n"; // TODO: LOG
     return res;
   }
   bool returnsFiniteMap(Expr e) {
@@ -384,7 +383,9 @@ Expr processMapsRel(Expr fdecl, ExprFactory &efac){
 
 }
 
-void transformPredicatesFiniteMapsHornClauses(HornClauseDB &db, ExprFactory &efac) {
+void removeFiniteMapsArgsHornClauses(HornClauseDB &db) {
+
+  ExprFactory &efac = db.getExprFactory();
 
   // std::vector<Expr> worklist;
   ExprVector worklist;
@@ -439,7 +440,9 @@ void transformPredicatesFiniteMapsHornClauses(HornClauseDB &db, ExprFactory &efa
   }
 }
 
-void transformBodyFiniteMapsHornClauses(HornClauseDB &db, ExprFactory &efac) {
+void removeFiniteMapsBodiesHornClauses(HornClauseDB &db) {
+
+  ExprFactory &efac = db.getExprFactory();
 
   std::vector<HornRule> worklist;
   boost::copy(db.getRules(), std::back_inserter(worklist));

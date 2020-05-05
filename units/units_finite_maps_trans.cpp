@@ -271,7 +271,7 @@ TEST_CASE("expr.finite_map.transformation1" * doctest::skip(true)) {
   errs() << db << "\n";
   // This cannot be solved by Z3
 
-  transformBodyFiniteMapsHornClauses(db, efac);
+  removeFiniteMapsBodiesHornClauses(db);
 
   errs() << "HornClauseDB without fmaps\n";
   errs() << db << "\n";
@@ -373,7 +373,7 @@ TEST_CASE("expr.finite_map.transformation_fmapvars" * doctest::skip(true)) {
   errs() << db << "\n";
   // This cannot be solved by Z3
 
-  transformBodyFiniteMapsHornClauses(db, efac);
+  removeFiniteMapsBodiesHornClauses(db);
 
   errs() << "HornClauseDB without fmaps\n";
   errs() << db << "\n";
@@ -481,7 +481,7 @@ TEST_CASE("expr.finite_map.trans_fmap_args" * doctest::skip(true)) {
   db.addQuery(q_head); // This cannot be solved by Z3
   errs() << "HornClauseDB with fmaps\n" << db << "\n";
 
-  transformBodyFiniteMapsHornClauses(db, efac);
+  removeFiniteMapsBodiesHornClauses(db);
 
   errs() << "HornClauseDB without fmaps\n" << db << "\n";
 
@@ -631,8 +631,7 @@ TEST_CASE("expr.finite_map.eq_type_checker") {
 
 TEST_CASE("expr.finite_map.head_rewriter") {
 
-
-ExprFactory efac;
+  ExprFactory efac;
   ExprVector keys;
 
   Expr bTy = sort::boolTy(efac);
@@ -719,6 +718,7 @@ ExprFactory efac;
 
   CHECK(!unifs.empty());
 
+  // ------------------------------------------------------------
   // keys.clear();
   // keys.push_back(mkTerm<std::string>("k3", efac));
   // keys.push_back(mkTerm<std::string>("k4", efac));
@@ -729,4 +729,117 @@ ExprFactory efac;
 
   // Expr fapp2 = bind::fapp(fdecl1, fargs);
     // this should violate an assertion
+}
+
+TEST_CASE("expr.finite_map.remove_map_arguments") {
+
+  ExprFactory efac;
+
+  HornClauseDB db(efac);
+
+  Expr iTy = sort::intTy(efac);
+  Expr bTy = sort::boolTy(efac);
+
+  Expr key1 = mkTerm<std::string>("k1", efac);
+  ExprVector keys;
+  keys.push_back(key1);
+  Expr fmapTy = sort::finiteMapTy(keys);
+
+  Expr k1 = bind::intConst(key1);
+  Expr v = bind::intConst(mkTerm<std::string>("v", efac));
+  Expr map_var = bind::mkConst(mkTerm<std::string>("map", efac), fmapTy);
+
+  Expr get_map = finite_map::get(map_var, k1);
+
+  ExprVector foo1_types;
+  foo1_types.push_back(fmapTy);
+  foo1_types.push_back(iTy);
+  foo1_types.push_back(iTy);
+  foo1_types.push_back(bTy);
+
+  Expr foo1_decl =
+      bind::fdecl(mkTerm<std::string>("foo1", efac), foo1_types);
+  ExprVector foo1_app_args;
+  foo1_app_args.push_back(map_var);
+  foo1_app_args.push_back(k1);
+  foo1_app_args.push_back(v);
+  Expr foo1_app = bind::fapp(foo1_decl, foo1_app_args);
+
+  // cl1 foo1(map, k1, v) :- v = get(map, k1).
+  Expr cl1 = boolop::limp(get_map,foo1_app);
+
+  ExprVector bar_types;
+  bar_types.push_back(fmapTy);
+  bar_types.push_back(bTy);
+  Expr bar_decl = bind::fdecl(mkTerm<std::string>("bar", efac), bar_types);
+  Expr bar_app = bind::fapp(bar_decl, map_var);
+
+  Expr foo2_decl = bind::fdecl(mkTerm<std::string>("foo2", efac), foo1_types);
+  Expr foo2_app = bind::fapp(foo2_decl, foo1_app_args); // reusing foo1_args
+
+  // cl2 foo2(map, k1, v) :- v = get(map, k1), bar(map).
+  Expr cl2 = boolop::limp(mk<AND>(get_map, bar_app), foo2_app);
+
+  Expr mapA_var = bind::mkConst(mkTerm<std::string>("mapA", efac), fmapTy);
+  Expr get_mapA = finite_map::get(mapA_var, k1);
+  bind::fapp(bar_decl, map_var);
+  Expr set =
+      finite_map::set(mapA_var, k1,
+                      mk<PLUS>(get_mapA, mkTerm<expr::mpz_class>(1, efac)));
+  Expr barA_app = bind::fapp(bar_decl, mapA_var);
+  ExprVector cl3_body;
+  cl3_body.push_back(mk<EQ>(map_var, set));
+  cl3_body.push_back(barA_app);
+
+  Expr foo3_decl = bind::fdecl(mkTerm<std::string>("foo3", efac), foo1_types);
+  Expr foo3_app = bind::fapp(foo3_decl, foo1_app_args); // reusing foo1_args
+
+  Expr cl3 = boolop::limp(mknary<AND>(cl3_body), foo3_app);
+  // cl3: foo(map, k1, x) :- map = set(mapA, k1, +(get(mapA, k1), 1)),
+  //                         bar(mapA).
+
+  db.registerRelation(foo1_decl);
+  db.registerRelation(foo2_decl);
+  db.registerRelation(foo3_decl);
+  db.registerRelation(bar_decl);
+
+  db.addRule(foo1_app_args, cl1);
+  db.addRule(foo1_app_args, cl2); // same vars as foo1
+  foo1_app_args.push_back(mapA_var);
+  db.addRule(foo1_app_args, cl3);
+
+  errs() << "HornClauseDB with fmaps in args\n";
+  errs() << db << "\n";
+  // This cannot be solved by Z3
+
+  removeFiniteMapsArgsHornClauses(db);
+
+  // desired output:
+
+  // cl1: FOO1(k1, map!k1, k1, v) :-
+  //              map = defk((k1), (map!k1)), // side condition (expanded)
+  //              v = get(map, k1).
+
+  // cl2: FOO2(k1, map!k1, k1, v) :-
+  //              map = defk((k1), (map!k1)), // side condition
+  //              v = get(map, k1),
+  //              map = defk((k1), (map!k1)), // duplicated bc twice in arguments
+  //              bar(k1, map!k1).
+
+  // cl3: FOO3(map_b_k1_v, k1, k1, x) :-
+  //               map_b = defk((k1),(map_b_k1_v)), // side condition for FOO3
+  //               map_b = set(map_a, k1, +(get(map_a, k1), 1)), // original
+  //               map_a = defk((k1),(map_a_k1_v)), // side condition for G
+  //               G(map_a_k1_v, k1).
+
+  errs() << "HornClauseDB without fmaps in args\n";
+  errs() << db << "\n";
+  // This cannot be solved by Z3
+
+  // now apply local transformation only to the bodies
+  // removeFiniteMapsBodiesHornClauses(db);
+
+  // errs() << "HornClauseDB without fmaps\n";
+  // errs() << db << "\n";
+  // This should be solvable by Z3
 }

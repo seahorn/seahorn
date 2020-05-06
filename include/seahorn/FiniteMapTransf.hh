@@ -173,7 +173,7 @@ Expr headFiniteMapRewriter(Expr oldHead, Expr newFdecl, ExprSet &vars,
     return oldHead;
 
   int arg_count = 0;
-  for (; arg_it != oldHead->args_end(); arg_it++, arg_count++) {
+  for (; arg_it != oldHead->args_end(); arg_it++, arg_count++, t_it++) {
     Expr arg = *arg_it;
     Expr argTy = *t_it;
     errs() << "\t processing: " << *arg << " of type " << *argTy << "\n"; // LOG
@@ -196,24 +196,34 @@ Expr headFiniteMapRewriter(Expr oldHead, Expr newFdecl, ExprSet &vars,
       newArgs.push_back(arg);
     }
   }
+
   return bind::fapp(newFdecl, newArgs);
 }
 
 struct FiniteMapArgsVisitor : public std::unary_function<Expr, VisitAction> {
 
-  Expr m_new_fdecl;
+  const Expr m_new_fdecl;
+  const Expr m_pred_name;
   HornClauseDB &m_db;
   ExprSet &m_evars;
 
-  FiniteMapArgsVisitor(HornClauseDB &db, ExprSet &evars, Expr new_fdecl)
-    : m_db(db), m_new_fdecl(new_fdecl), m_evars(evars) {}
+  FiniteMapArgsVisitor(HornClauseDB &db, ExprSet &evars, Expr pred_name,
+                       Expr new_fdecl)
+      : m_db(db), m_evars(evars), m_pred_name(pred_name),
+        m_new_fdecl(new_fdecl) {}
 
   VisitAction operator()(Expr exp) {
-    if (isOpX<FAPP>(exp)){
-      Expr fdecl = bind::name(exp);
-      if (m_db.hasRelation(fdecl)){
-        // TODO: check that it is the relation that we are rewriting. Assume
-        // different relations have different names?
+    if (isOpX<FAPP>(exp) && !bind::isConst(exp)){  // faster to check arity >= 2?
+      Expr fdecl = *exp->args_begin();
+      // errs() << "fdecl: " << *fdecl << "\n";
+      Expr fname = *fdecl->args_begin();
+      // errs() << "fname: " << *fname << "\n";
+
+      if (fname == m_pred_name) { // same function name, compare fdecls rather
+                                  // than names?
+        Expr fdecl = bind::name(exp);
+        errs() << *fdecl << "\n";
+        assert(m_db.hasRelation(fdecl));
         ExprVector newUnifs;
         Expr newFapp = headFiniteMapRewriter(exp, m_new_fdecl, m_evars, m_db.getExprFactory(), newUnifs);
         Expr newExp = mk<AND>(mknary<AND>(newUnifs), newFapp);
@@ -264,7 +274,7 @@ struct FiniteMapArgsVisitor : public std::unary_function<Expr, VisitAction> {
 
 };
 
-Expr processMapsRel(Expr fdecl, ExprFactory &efac){
+Expr processMapsDecl(Expr fdecl, ExprFactory &efac){
 
   assert(isOpX<FDECL>(fdecl));
 
@@ -303,15 +313,24 @@ void removeFiniteMapsArgsHornClausesTransf(HornClauseDB &db) {
   ExprVector worklist;
   boost::copy(db.getRelations(), std::back_inserter(worklist));
 
-  db.buildIndexes(); // how often do these indexes need to be rebuilt?, we are
+  // db.buildIndexes(); // how often do these indexes need to be rebuilt?, we are
                      // inserting the same clause several times, maybe update
                      // the indexes while inserting/removing a clause?
 
   for (auto predIt : worklist) {
     Expr predDecl = predIt;
 
+    if (predDecl->arity() == 0) // no arguments
+      continue;
+
       // create new relation declaration
-    Expr newPredDecl = processMapsRel(predDecl, efac);
+    Expr newPredDecl = processMapsDecl(predDecl, efac);
+
+    auto args = predDecl->args_begin();
+    Expr predName = *args;
+    errs() << "Removing args from " << *predName << "\n";
+
+    db.buildIndexes();
 
     // get clauses in pred definition, requires indexes (see
     // buildIndexes())
@@ -320,6 +339,7 @@ void removeFiniteMapsArgsHornClausesTransf(HornClauseDB &db) {
     // change the rules in this predicate
     for (auto rule : HCDefSet) {
       // be careful here because the rule may be a fact
+      errs() << "Def rule: " << *(rule->get()) << "\n";
       const ExprVector &vars = rule->vars();
       ExprSet allVars(vars.begin(), vars.end());
 
@@ -327,7 +347,7 @@ void removeFiniteMapsArgsHornClausesTransf(HornClauseDB &db) {
       Expr head = rule->head();
       Expr newHead = headFiniteMapRewriter(head,newPredDecl, allVars, efac, newUnifs);
 
-      FiniteMapArgsVisitor fmav(db,allVars,newPredDecl);
+      FiniteMapArgsVisitor fmav(db, allVars, predName, newPredDecl);
       Expr body = rule->body(); // TODO: change this
       Expr tmpBody = visit(fmav, body);
       // include new unificatons for the head
@@ -337,15 +357,19 @@ void removeFiniteMapsArgsHornClausesTransf(HornClauseDB &db) {
       db.removeRule(r);
     }
 
-    // get clauses that calls this predicate
-    auto HCUseSet = db.use(predDecl);
+    db.buildIndexes();
 
-    for (auto rule : HCUseSet) {
+    // TODO: this set needs to be copied!!!!!, ask!!!!
+    auto HCUseSet = db.use(predDecl);
+    // clauses that calls this predicate (duplicated work for rec clauses unless
+    // we skip processing the body of the pred definition above)
+    for (HornRule *rule : HCUseSet) {
+      errs() << "Calling rule: " << *(rule->get()) << "\n";
       const ExprVector &vars = rule->vars();
       ExprSet allVars(vars.begin(), vars.end());
 
       // only changes the calls in the body, adding needed unifications
-      FiniteMapArgsVisitor fmav(db, allVars, newPredDecl);
+      FiniteMapArgsVisitor fmav(db, allVars, predName, newPredDecl);
       // initialize it with the predicate that we want to process!! and use
       // only one visitor
 

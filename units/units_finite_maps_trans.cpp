@@ -549,7 +549,7 @@ TEST_CASE("expr.finite_map.trans_fmap_fdecl") {
   Expr fdecl = bind::fdecl(fname, ftype);
   errs() << "fdecl: " << *fdecl << "\n";
 
-  Expr fdeclT = processMapsRel(fdecl, efac);
+  Expr fdeclT = processMapsDecl(fdecl, efac);
 
   CHECK(fdeclT != nullptr);
   errs() << "fdecl transformed: " << *fdeclT << "\n";
@@ -651,7 +651,7 @@ TEST_CASE("expr.finite_map.head_rewriter") {
   fargs.push_back(map1);
 
   Expr fapp1 = bind::fapp(fdecl1, fargs);
-  Expr newdecl = processMapsRel(fdecl1, efac);
+  Expr newdecl = processMapsDecl(fdecl1, efac);
 
   ExprSet vars;
   vars.insert(map1);
@@ -748,13 +748,13 @@ TEST_CASE("expr.finite_map.remove_map_arguments") {
   Expr v = bind::intConst(mkTerm<std::string>("v", efac));
   Expr map_var = bind::mkConst(mkTerm<std::string>("map", efac), fmapTy);
 
-  Expr get_map = finite_map::get(map_var, k1);
+  Expr get_map = mk<EQ>(v, finite_map::get(map_var, k1));
 
   ExprVector foo1_types;
-  foo1_types.push_back(fmapTy);
-  foo1_types.push_back(iTy);
-  foo1_types.push_back(iTy);
-  foo1_types.push_back(bTy);
+  foo1_types.push_back(fmapTy); // map
+  foo1_types.push_back(iTy);    // key
+  foo1_types.push_back(iTy);    // value
+  foo1_types.push_back(bTy);    // return
 
   Expr foo1_decl =
       bind::fdecl(mkTerm<std::string>("foo1", efac), foo1_types);

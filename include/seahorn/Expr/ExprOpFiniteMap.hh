@@ -11,11 +11,19 @@
 namespace expr {
 
 namespace op {
-enum class FiniteMapOpKind { CONST_FINITE_MAP, SET, GET };
+enum class FiniteMapOpKind {
+  CONST_FINITE_MAP_KEYS,
+  CONST_FINITE_MAP_VALUES,
+  CONST_FINITE_MAP,
+  SET,
+  GET
+};
 /// FiniteMap operators
 NOP_BASE(FiniteMapOp)
 
-NOP(CONST_FINITE_MAP, "defk", FUNCTIONAL, FiniteMapOp)
+NOP(CONST_FINITE_MAP_KEYS, "defk", FUNCTIONAL, FiniteMapOp)
+NOP(CONST_FINITE_MAP_VALUES, "defv", FUNCTIONAL, FiniteMapOp)
+NOP(CONST_FINITE_MAP, "defmap", FUNCTIONAL, FiniteMapOp)
 NOP(GET, "get", FUNCTIONAL, FiniteMapOp)
 NOP(SET, "set", FUNCTIONAL, FiniteMapOp)
 
@@ -24,9 +32,21 @@ NOP(SET, "set", FUNCTIONAL, FiniteMapOp)
 namespace op {
 namespace finite_map {
 
-inline Expr constFiniteMap(ExprVector &keys) {
-  return expr::mknary<CONST_FINITE_MAP>(keys.begin(), keys.end());
+inline Expr constFiniteMapValues(ExprVector &values) {
+  return expr::mknary<CONST_FINITE_MAP_VALUES>(values.begin(), values.end());
 }
+
+inline Expr constFiniteMap(ExprVector &keys) {
+  return expr::mknary<CONST_FINITE_MAP_KEYS>(keys.begin(), keys.end());
+}
+// especial construct when ALL the values of the map are known (they can be
+// variables)
+inline Expr constFiniteMap(ExprVector &keys, ExprVector &values) {
+  assert(keys.size() == values.size());
+  return expr::mk<CONST_FINITE_MAP>(constFiniteMap(keys),
+                                    constFiniteMapValues(values));
+}
+
 inline Expr get(Expr map, Expr idx) {
   return expr::mk<GET>(map, idx);
 }
@@ -166,11 +186,13 @@ inline Expr make_eq_maps_lambda(Expr m1, Expr ks1, Expr m2, Expr ks2,
   return mknary<AND>(conj);
 }
 
-inline void expand_map_vars(Expr map, Expr lmdks, ExprVector &keys, ExprVector &new_vars,
-                            ExprVector &extra_unifs, ExprFactory &efac,
-                            ExprSet &evars) {
+inline void expand_map_vars(Expr map, Expr lmdks, ExprVector &keys,
+                            ExprVector &new_vars, ExprVector &extra_unifs,
+                            ExprFactory &efac, ExprSet &evars) {
 
   Expr v, v_get;
+
+  ExprVector map_values;
 
   for (auto k : keys) {
     v = make_variant_key(map, k);
@@ -181,10 +203,10 @@ inline void expand_map_vars(Expr map, Expr lmdks, ExprVector &keys, ExprVector &
     new_vars.push_back(k);
     new_vars.push_back(v);
 
-    v_get = get_map_lambda(map, lmdks, k);
-    extra_unifs.push_back(mk<EQ>(v, v_get));
+    map_values.push_back(v);
+    // v_get = get(map, k);
   }
-
+  extra_unifs.push_back(mk<EQ>(map, constFiniteMap(keys,map_values)));
 }
 
 // This function is just for testing

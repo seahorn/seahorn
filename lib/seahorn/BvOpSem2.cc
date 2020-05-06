@@ -517,6 +517,7 @@ public:
 
   void visitFatPointerInstr(CallSite CS) {
     const Function *f = getCalledFunction(CS);
+    assert(f);
     const Instruction &I = *CS.getInstruction();
 
     if (f->getName().equals("__sea_set_extptr_slot0_hm")) {

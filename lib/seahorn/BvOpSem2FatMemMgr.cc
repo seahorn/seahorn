@@ -283,10 +283,7 @@ public:
                             unsigned byteSz, uint64_t align) override {
     return mkFatMem(
         m_main.storeIntToMem(_val, mkRawPtr(ptr), mkRawMem(mem), byteSz, align),
-        m_slot0.storeIntToMem(m_ctx.alu().si(0, g_slotBitWidth), mkRawPtr(ptr),
-                              mkSlot0Mem(mem), g_slotByteWidth, align),
-        m_slot1.storeIntToMem(m_ctx.alu().si(1, g_slotBitWidth), mkRawPtr(ptr),
-                              mkSlot1Mem(mem), g_slotByteWidth, align));
+        mkSlot0Mem(mem), mkSlot1Mem(mem));
   }
 
   /// \brief Stores a pointer into memory
@@ -393,10 +390,7 @@ public:
                      uint32_t align) override {
     return mkFatMem(
         m_main.MemSet(mkRawPtr(ptr), _val, len, mkRawMem(mem), align),
-        m_slot0.MemSet(mkRawPtr(ptr), m_ctx.alu().si(0, g_slotBitWidth), len,
-                       mkSlot0Mem(mem), align),
-        m_slot1.MemSet(mkRawPtr(ptr), m_ctx.alu().si(0, g_slotBitWidth), len,
-                       mkSlot1Mem(mem), align));
+        mkSlot0Mem(mem), mkSlot1Mem(mem));
   }
 
   /// \brief Executes symbolic memcpy with concrete length
@@ -471,6 +465,9 @@ public:
   /// \brief Computes a pointer corresponding to the gep instruction
   FatPtrTy gep(FatPtrTy ptr, gep_type_iterator it,
                gep_type_iterator end) const {
+    // Here the resultant pointer automatically gets the same slot(s) data
+    // as the original. Therefore we don't require the client to manually
+    // update slot(s) data after a gep call.
     PtrTy rawPtr = m_main.gep(mkRawPtr(ptr), it, end);
     return mkFatPtr(rawPtr, ptr);
   }

@@ -13,6 +13,7 @@ namespace seahorn {
 namespace details {
 
 static const unsigned int g_slotBitWidth = 64;
+static const unsigned int g_slotByteWidth = g_slotBitWidth / 8;
 
 static const unsigned int g_maxFatSlots = 2;
 /// \brief provides Fat pointers and Fat memory to store them
@@ -43,7 +44,7 @@ private:
   /// \brief Converts a raw ptr to fat ptr with default value for fat
   FatPtrTy mkFatPtr(RawPtrTy rawPtr) const {
     return strct::mk(rawPtr, m_ctx.alu().si(0, g_slotBitWidth),
-                     m_ctx.alu().si(0, g_slotBitWidth));
+                     m_ctx.alu().si(1, g_slotBitWidth));
   }
 
   /// \brief Converts a raw ptr to fat ptr with default value for fat
@@ -108,63 +109,69 @@ public:
   /// \brief Allocates memory on the stack and returns a pointer to it
   /// \param align is requested alignment. If 0, default alignment is used
   FatPtrTy salloc(unsigned bytes, uint32_t align = 0) override {
-    return mkFatPtr(m_main.salloc(bytes, align), m_slot0.salloc(bytes, align),
-                    m_slot1.salloc(bytes, align));
+    auto e = m_main.salloc(bytes, align);
+    m_slot0.salloc(bytes, align);
+    m_slot1.salloc(bytes, align);
+    return mkFatPtr(e);
   }
 
   /// \brief Allocates memory on the stack and returns a pointer to it
   FatPtrTy salloc(Expr elmts, unsigned typeSz, uint32_t align = 0) override {
-    return mkFatPtr(m_main.salloc(elmts, typeSz, align),
-                    m_slot0.salloc(elmts, typeSz, align),
-                    m_slot1.salloc(elmts, typeSz, align));
+    auto e = m_main.salloc(elmts, typeSz, align);
+    m_slot0.salloc(elmts, typeSz, align);
+    m_slot1.salloc(elmts, typeSz, align);
+    return mkFatPtr(e);
   }
 
   /// \brief Returns a pointer value for a given stack allocation
   FatPtrTy mkStackPtr(unsigned offset) override {
-    return mkFatPtr(m_main.mkStackPtr(offset), m_slot0.mkStackPtr(offset),
-                    m_slot1.mkStackPtr(offset));
+    return mkFatPtr(m_main.mkStackPtr(offset));
   }
 
   /// \brief Pointer to start of the heap
-  FatPtrTy brk0Ptr() override {
-    return mkFatPtr(m_main.brk0Ptr(), m_slot0.brk0Ptr(), m_slot1.brk0Ptr());
-  }
+  FatPtrTy brk0Ptr() override { return mkFatPtr(m_main.brk0Ptr()); }
 
   /// \brief Allocates memory on the heap and returns a pointer to it
   FatPtrTy halloc(unsigned _bytes, uint32_t align = 0) override {
-    return mkFatPtr(m_main.halloc(_bytes, align), m_slot0.halloc(_bytes, align),
-                    m_slot1.halloc(_bytes, align));
+    m_slot0.halloc(_bytes, align);
+    m_slot1.halloc(_bytes, align);
+    return mkFatPtr(m_main.halloc(_bytes, align));
   }
 
   /// \brief Allocates memory on the heap and returns pointer to it
   FatPtrTy halloc(Expr bytes, uint32_t align = 0) override {
-    return mkFatPtr(m_main.halloc(bytes, align), m_slot0.halloc(bytes, align),
-                    m_slot1.halloc(bytes, align));
+    m_slot0.halloc(bytes, align);
+    m_slot1.halloc(bytes, align);
+    return mkFatPtr(m_main.halloc(bytes, align));
   }
 
   /// \brief Allocates memory in global (data/bss) segment for given global
   FatPtrTy galloc(const GlobalVariable &gv, uint32_t align = 0) override {
-    return mkFatPtr(m_main.galloc(gv, align), m_slot0.galloc(gv, align),
-                    m_slot1.galloc(gv, align));
+    m_slot0.galloc(gv, align);
+    m_slot1.galloc(gv, align);
+    return mkFatPtr(m_main.galloc(gv, align));
   }
 
   /// \brief Allocates memory in code segment for the code of a given
   /// function
   FatPtrTy falloc(const Function &fn) override {
-    return mkFatPtr(m_main.falloc(fn), m_slot0.falloc(fn), m_slot1.falloc(fn));
+    m_slot0.falloc(fn);
+    m_slot1.falloc(fn);
+    return mkFatPtr(m_main.falloc(fn));
   }
 
   /// \brief Returns a function pointer value for a given function
   FatPtrTy getPtrToFunction(const Function &F) override {
-    return mkFatPtr(m_main.getPtrToFunction(F), m_slot0.getPtrToFunction(F),
-                    m_slot1.getPtrToFunction(F));
+    m_slot0.getPtrToFunction(F);
+    m_slot1.getPtrToFunction(F);
+    return mkFatPtr(m_main.getPtrToFunction(F));
   }
 
   /// \brief Returns a pointer to a global variable
   FatPtrTy getPtrToGlobalVariable(const GlobalVariable &gv) override {
-    return mkFatPtr(m_main.getPtrToGlobalVariable(gv),
-                    m_slot0.getPtrToGlobalVariable(gv),
-                    m_slot1.getPtrToGlobalVariable(gv));
+    m_slot0.getPtrToGlobalVariable(gv);
+    m_slot1.getPtrToGlobalVariable(gv);
+    return mkFatPtr(m_main.getPtrToGlobalVariable(gv));
   }
 
   /// \brief Initialize memory used by the global variable
@@ -179,9 +186,9 @@ public:
   /// Top bits of the pointer are named by \p name and last \c log2(align)
   /// bits are set to zero
   FatPtrTy mkAlignedPtr(Expr name, uint32_t align) const {
-    return mkFatPtr(m_main.mkAlignedPtr(name, align),
-                    m_slot0.mkAlignedPtr(name, align),
-                    m_slot1.mkAlignedPtr(name, align));
+    m_slot0.mkAlignedPtr(name, align);
+    m_slot1.mkAlignedPtr(name, align);
+    return mkFatPtr(m_main.mkAlignedPtr(name, align));
   }
 
   /// \brief Returns sort of a pointer register for an instruction
@@ -252,9 +259,6 @@ public:
         m_slot0.loadIntFromMem(mkRawPtr(ptr), mkSlot0Mem(mem), byteSz, align);
     MemValTy slot1Val =
         m_slot1.loadIntFromMem(mkRawPtr(ptr), mkSlot1Mem(mem), byteSz, align);
-    LOG("opsem", WARN << "ptr:" << rawVal << " slot0:" << slot0Val
-                      << " slot1:" << slot1Val << "\n");
-    LOG("opsem", WARN << "FatMem:" << mem);
     return mkFatPtr(rawVal, slot0Val, slot1Val);
   }
 
@@ -279,8 +283,10 @@ public:
                             unsigned byteSz, uint64_t align) override {
     return mkFatMem(
         m_main.storeIntToMem(_val, mkRawPtr(ptr), mkRawMem(mem), byteSz, align),
-        m_main.storeIntToMem(0, mkRawPtr(ptr), mkSlot0Mem(mem), byteSz, align),
-        m_main.storeIntToMem(0, mkRawPtr(ptr), mkSlot1Mem(mem), byteSz, align));
+        m_slot0.storeIntToMem(m_ctx.alu().si(0, g_slotBitWidth), mkRawPtr(ptr),
+                              mkSlot0Mem(mem), g_slotByteWidth, align),
+        m_slot1.storeIntToMem(m_ctx.alu().si(1, g_slotBitWidth), mkRawPtr(ptr),
+                              mkSlot1Mem(mem), g_slotByteWidth, align));
   }
 
   /// \brief Stores a pointer into memory
@@ -294,10 +300,7 @@ public:
                                            mkSlot0Mem(mem), byteSz, align);
     MemValTy slot1 = m_slot1.storeIntToMem(getFatData(val, 1), mkRawPtr(ptr),
                                            mkSlot1Mem(mem), byteSz, align);
-    LOG("opsem", WARN << "ptr:" << main << " slot0:" << slot0
-                      << " slot1:" << slot1 << "\n");
-    Expr res = mkFatPtr(main, slot0, slot1);
-    LOG("opsem", WARN << "FatMem:" << res);
+    Expr res = mkFatMem(main, slot0, slot1);
     return res;
   }
 
@@ -333,7 +336,7 @@ public:
       res = loadPtrFromMem(ptr, mem, byteSz, align);
       break;
     case Type::StructTyID:
-      WARN << "loading form struct type " << ty << " is not supported";
+      errs() << "loading form struct type " << ty << " is not supported";
       return res;
     default:
       SmallString<256> msg;
@@ -390,8 +393,10 @@ public:
                      uint32_t align) override {
     return mkFatMem(
         m_main.MemSet(mkRawPtr(ptr), _val, len, mkRawMem(mem), align),
-        m_main.MemSet(mkRawPtr(ptr), _val, len, mkSlot0Mem(mem), align),
-        m_main.MemSet(mkRawPtr(ptr), _val, len, mkSlot1Mem(mem), align));
+        m_slot0.MemSet(mkRawPtr(ptr), m_ctx.alu().si(0, g_slotBitWidth), len,
+                       mkSlot0Mem(mem), align),
+        m_slot1.MemSet(mkRawPtr(ptr), m_ctx.alu().si(0, g_slotBitWidth), len,
+                       mkSlot1Mem(mem), align));
   }
 
   /// \brief Executes symbolic memcpy with concrete length
@@ -411,15 +416,13 @@ public:
                       uint32_t align = 0) override {
     return mkFatMem(
         m_main.MemFill(mkRawPtr(dPtr), sPtr, len, mkRawMem(mem), align),
-        m_main.MemFill(mkRawPtr(dPtr), sPtr, len, mkSlot0Mem(mem), align),
-        m_main.MemFill(mkRawPtr(dPtr), sPtr, len, mkSlot1Mem(mem), align));
+        m_slot0.MemFill(mkRawPtr(dPtr), sPtr, len, mkSlot0Mem(mem), align),
+        m_slot1.MemFill(mkRawPtr(dPtr), sPtr, len, mkSlot1Mem(mem), align));
   }
 
   /// \brief Executes inttoptr conversion
   FatPtrTy inttoptr(Expr intVal, const Type &intTy, const Type &ptrTy) const {
-    return mkFatPtr(m_main.inttoptr(intVal, intTy, ptrTy),
-                    m_slot0.inttoptr(intVal, intTy, ptrTy),
-                    m_slot1.inttoptr(intVal, intTy, ptrTy));
+    return mkFatPtr(m_main.inttoptr(intVal, intTy, ptrTy));
   }
 
   /// \brief Executes ptrtoint conversion. This only converts the raw ptr to
@@ -475,10 +478,16 @@ public:
   /// \brief Called when a function is entered for the first time
   void onFunctionEntry(const Function &fn) override {
     m_main.onFunctionEntry(fn);
+    m_slot0.onFunctionEntry(fn);
+    m_slot1.onFunctionEntry(fn);
   }
 
   /// \brief Called when a module entered for the first time
-  void onModuleEntry(const Module &M) override { m_main.onModuleEntry(M); }
+  void onModuleEntry(const Module &M) override {
+    m_main.onModuleEntry(M);
+    m_slot0.onModuleEntry(M);
+    m_slot1.onModuleEntry(M);
+  }
 
   /// \brief Debug helper
   void dumpGlobalsMap() override { m_main.dumpGlobalsMap(); }
@@ -511,8 +520,8 @@ FatMemManager::FatMemManager(Bv2OpSem &sem, Bv2OpSemContext &ctx,
                              unsigned ptrSz, unsigned wordSz, bool useLambdas)
     : OpSemMemManager(sem, ctx, ptrSz, wordSz),
       m_main(sem, ctx, ptrSz, wordSz, useLambdas),
-      m_slot0(sem, ctx, ptrSz, wordSz, useLambdas),
-      m_slot1(sem, ctx, ptrSz, wordSz, useLambdas) {
+      m_slot0(sem, ctx, ptrSz, g_slotByteWidth, useLambdas),
+      m_slot1(sem, ctx, ptrSz, g_slotByteWidth, useLambdas) {
 
   m_nullPtr = mkFatPtr(m_main.nullPtr());
 }

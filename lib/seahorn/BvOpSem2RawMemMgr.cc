@@ -355,11 +355,11 @@ PtrTy RawMemManager::ptrAdd(PtrTy ptr, Expr offset) const {
 /// \param[in] ptr is the address at which _val will be stored
 /// \param[in] _val is the value being written
 /// \param[in] mem is the memory bank/register being written to
-/// \param[in] ty is the type of value being stored
+/// \param[in] byteSz is the size of _val in bytes (should be =< word size)
 /// \param[in] align is the known alignment of the ptr
 /// Returns an expression describing the state of memory in \c memReadReg
 /// after the store
-/// \sa storeIntFromMem
+/// \sa storeIntToMem
 Expr RawMemManager::storeIntToMem(Expr _val, PtrTy ptr, MemValTy mem,
                                   unsigned byteSz, uint64_t align) {
   Expr val = _val;

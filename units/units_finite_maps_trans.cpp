@@ -730,18 +730,13 @@ TEST_CASE("expr.finite_map.head_rewriter") {
     // this should violate an assertion
 }
 
-TEST_CASE("expr.finite_map.remove_map_arguments") {
-
-  ExprFactory efac;
-
-  HornClauseDB db(efac);
+void test_rules_map_args(HornClauseDB &db, ExprVector & keys) {
+  ExprFactory &efac = db.getExprFactory();
 
   Expr iTy = sort::intTy(efac);
   Expr bTy = sort::boolTy(efac);
 
-  Expr key1 = mkTerm<std::string>("k1", efac);
-  ExprVector keys;
-  keys.push_back(key1);
+  Expr key1 = keys[0]; // mkTerm<std::string>("k1", efac);
   Expr fmapTy = sort::finiteMapTy(keys);
 
   Expr k1 = bind::intConst(key1);
@@ -807,6 +802,27 @@ TEST_CASE("expr.finite_map.remove_map_arguments") {
   foo1_app_args.push_back(mapA_var);
   db.addRule(foo1_app_args, cl3);
 
+}
+
+TEST_CASE("expr.finite_map.remove_map_arguments") {
+
+  ExprFactory efac;
+
+  HornClauseDB db(efac);
+
+  ExprVector keys;
+  keys.push_back(mkTerm<std::string>("k1", efac));
+
+  test_rules_map_args(db, keys);
+  // generates: with map containing only k1
+
+  // cl1 foo1(map, k1, v) :- v = get(map, k1).
+
+  // cl2 foo2(map, k1, v) :- v = get(map, k1), bar(map).
+
+  // cl3: foo(map, k1, x) :- map = set(mapA, k1, +(get(mapA, k1), 1)),
+  //                         bar(mapA).
+
   errs() << "HornClauseDB with fmaps in args\n";
   errs() << db << "\n";
   // This cannot be solved by Z3
@@ -816,20 +832,78 @@ TEST_CASE("expr.finite_map.remove_map_arguments") {
   // desired output:
 
   // cl1: FOO1(k1, map!k1, k1, v) :-
-  //              map = defk((k1), (map!k1)), // side condition (expanded)
+  //              map = defmap(defk(k1), defv(map!k1)), // side condition
   //              v = get(map, k1).
 
   // cl2: FOO2(k1, map!k1, k1, v) :-
-  //              map = defk((k1), (map!k1)), // side condition
+  //              map = defmap(defk(k1), defv(map!k1)), // side condition
   //              v = get(map, k1),
-  //              map = defk((k1), (map!k1)), // duplicated bc twice in arguments
-  //              bar(k1, map!k1).
+  //              // duplicated bc in arguments
+  //              map = defmap(defk(k1), defv(map!k1)),
+  //              twice bar(k1, map!k1).
 
-  // cl3: FOO3(map_b_k1_v, k1, k1, x) :-
-  //               map_b = defk((k1),(map_b_k1_v)), // side condition for FOO3
-  //               map_b = set(map_a, k1, +(get(map_a, k1), 1)), // original
-  //               map_a = defk((k1),(map_a_k1_v)), // side condition for G
-  //               G(map_a_k1_v, k1).
+  // cl3: FOO3(k1, map!k1, k1, x) :-
+  //               map = defmap(defk(k1), defv(map!k1)), // side condition
+  //               map = set(map_a, k1, +(get(map_a, k1), 1)), // original
+  //               mapA = defmap(defk(k1), defv(mapA!k1)) // side condition
+  //               for G G(mapA!k1, k1).
+
+  errs() << "HornClauseDB without fmaps in args\n";
+  errs() << db << "\n";
+  // This cannot be solved by Z3
+
+  // now apply local transformation only to the bodies
+  // removeFiniteMapsBodiesHornClausesTransf(db);
+
+  // errs() << "HornClauseDB without fmaps\n";
+  // errs() << db << "\n";
+  // This should be solvable by Z3
+}
+
+TEST_CASE("expr.finite_map.remove_map_arguments_2keys") {
+
+  ExprFactory efac;
+
+  HornClauseDB db(efac);
+
+  ExprVector keys;
+  keys.push_back(mkTerm<std::string>("k1", efac));
+  keys.push_back(mkTerm<std::string>("k2", efac));
+
+  test_rules_map_args(db, keys);
+  // generates: with map containing only k1
+
+  // cl1 foo1(map, k1, v) :- v = get(map, k1).
+
+  // cl2 foo2(map, k1, v) :- v = get(map, k1), bar(map).
+
+  // cl3: foo(map, k1, x) :- map = set(mapA, k1, +(get(mapA, k1), 1)),
+  //                         bar(mapA).
+
+  errs() << "HornClauseDB with fmaps in args\n";
+  errs() << db << "\n";
+  // This cannot be solved by Z3
+
+  removeFiniteMapsArgsHornClausesTransf(db);
+
+  // desired output:
+
+  // cl1: FOO1(k1, map!k1, k1, v) :-
+  //              map = defmap(defk(k1), defv(map!k1)), // side condition
+  //              v = get(map, k1).
+
+  // cl2: FOO2(k1, map!k1, k1, v) :-
+  //              map = defmap(defk(k1), defv(map!k1)), // side condition
+  //              v = get(map, k1),
+  //              // duplicated bc in arguments
+  //              map = defmap(defk(k1), defv(map!k1)),
+  //              twice bar(k1, map!k1).
+
+  // cl3: FOO3(k1, map!k1, k1, x) :-
+  //               map = defmap(defk(k1), defv(map!k1)), // side condition
+  //               map = set(map_a, k1, +(get(map_a, k1), 1)), // original
+  //               mapA = defmap(defk(k1), defv(mapA!k1)) // side condition
+  //               for G G(mapA!k1, k1).
 
   errs() << "HornClauseDB without fmaps in args\n";
   errs() << db << "\n";

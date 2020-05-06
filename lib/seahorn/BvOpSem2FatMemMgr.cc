@@ -292,10 +292,12 @@ public:
                             unsigned byteSz, uint64_t align) override {
     MemValTy main = m_main.storePtrToMem(mkRawPtr(val), mkRawPtr(ptr),
                                          mkRawMem(mem), byteSz, align);
-    MemValTy slot0 = m_slot0.storeIntToMem(getFatData(val, 0), mkRawPtr(ptr),
-                                           mkSlot0Mem(mem), byteSz, align);
-    MemValTy slot1 = m_slot1.storeIntToMem(getFatData(val, 1), mkRawPtr(ptr),
-                                           mkSlot1Mem(mem), byteSz, align);
+    MemValTy slot0 =
+        m_slot0.storeIntToMem(getFatData(val, 0), mkRawPtr(ptr),
+                              mkSlot0Mem(mem), g_slotByteWidth, align);
+    MemValTy slot1 =
+        m_slot1.storeIntToMem(getFatData(val, 1), mkRawPtr(ptr),
+                              mkSlot1Mem(mem), g_slotByteWidth, align);
     Expr res = mkFatMem(main, slot0, slot1);
     return res;
   }
@@ -409,8 +411,7 @@ public:
                       uint32_t align = 0) override {
     return mkFatMem(
         m_main.MemFill(mkRawPtr(dPtr), sPtr, len, mkRawMem(mem), align),
-        m_slot0.MemFill(mkRawPtr(dPtr), sPtr, len, mkSlot0Mem(mem), align),
-        m_slot1.MemFill(mkRawPtr(dPtr), sPtr, len, mkSlot1Mem(mem), align));
+        mkSlot0Mem(mem), mkSlot1Mem(mem));
   }
 
   /// \brief Executes inttoptr conversion

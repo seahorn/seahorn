@@ -290,7 +290,6 @@ public:
   /// \sa storeIntToMem
   FatMemValTy storePtrToMem(FatPtrTy val, FatPtrTy ptr, FatMemValTy mem,
                             unsigned byteSz, uint64_t align) override {
-    // assert that ptr is FatPtrTy
     MemValTy main = m_main.storePtrToMem(mkRawPtr(val), mkRawPtr(ptr),
                                          mkRawMem(mem), byteSz, align);
     MemValTy slot0 = m_slot0.storeIntToMem(getFatData(val, 0), mkRawPtr(ptr),

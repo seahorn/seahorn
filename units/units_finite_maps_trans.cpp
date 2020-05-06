@@ -844,7 +844,7 @@ TEST_CASE("expr.finite_map.remove_map_arguments") {
 
   // cl3: FOO3(k1, map!k1, k1, x) :-
   //               map = defmap(defk(k1), defv(map!k1)), // side condition
-  //               map = set(map_a, k1, +(get(map_a, k1), 1)), // original
+  //               map = set(mapA, k1, +(get(mapA, k1), 1)), // original
   //               mapA = defmap(defk(k1), defv(mapA!k1)) // side condition
   //               for G G(mapA!k1, k1).
 
@@ -888,22 +888,24 @@ TEST_CASE("expr.finite_map.remove_map_arguments_2keys") {
 
   // desired output:
 
-  // cl1: FOO1(k1, map!k1, k1, v) :-
-  //              map = defmap(defk(k1), defv(map!k1)), // side condition
+  // cl1: FOO1(k1, map!k1, k2, map!k2, k1, v) :-
+  //              // side condition
+  //              map = defmap(defk(k1, k2), defv(map!k1, map!k2)))),
   //              v = get(map, k1).
 
-  // cl2: FOO2(k1, map!k1, k1, v) :-
-  //              map = defmap(defk(k1), defv(map!k1)), // side condition
+  // cl2: FOO2(k1, map!k1, k2, map!k2, k1, v) :-
+  //              // side condition
+  //              map = defmap(defk(k1, k2), defv(map!k1, map!k2)))),
   //              v = get(map, k1),
   //              // duplicated bc in arguments
-  //              map = defmap(defk(k1), defv(map!k1)),
-  //              twice bar(k1, map!k1).
+  //              map = defmap(defk(k1, k2), defv(map!k1, map!k2)))),
+  //              bar(k1, map!k1).
 
-  // cl3: FOO3(k1, map!k1, k1, x) :-
-  //               map = defmap(defk(k1), defv(map!k1)), // side condition
-  //               map = set(map_a, k1, +(get(map_a, k1), 1)), // original
-  //               mapA = defmap(defk(k1), defv(mapA!k1)) // side condition
-  //               for G G(mapA!k1, k1).
+  // cl3: FOO3(k1, map!k1, k2, map!k2, k1, x) :-
+  //               map = defmap(defk(k1, k2), defv(map!k1, map!k2))))
+  //               map = set(mapA, k1, +(get(mapA, k1), 1)), // original
+  //               mapA = defmap(defk(k1, k2), defv(mapA!k1, mapA!k2)))),
+  //               G(k1, mapA!k1, k2, mapA!k2).
 
   errs() << "HornClauseDB without fmaps in args\n";
   errs() << db << "\n";

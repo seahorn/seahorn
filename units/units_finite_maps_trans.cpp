@@ -56,7 +56,7 @@ Expr visit_and_print(FiniteMapBodyVisitor &fmv, Expr e, DagVisitCache &dvc) {
   return trans;
 }
 
-TEST_CASE("expr.finite_map.fmap_1key" * doctest::skip(true)) {
+TEST_CASE("expr.finite_map.transf_1key") {
 
   ExprFactory efac;
 
@@ -89,7 +89,7 @@ TEST_CASE("expr.finite_map.fmap_1key" * doctest::skip(true)) {
   visit_and_print(fmv, map_set_get, dvc);
 }
 
-TEST_CASE("expr.finite_map.fmap_2keys" * doctest::skip(true)) {
+TEST_CASE("expr.finite_map.fmap_2keys") {
 
   ExprFactory efac;
 
@@ -116,7 +116,7 @@ TEST_CASE("expr.finite_map.fmap_2keys" * doctest::skip(true)) {
   visit_and_print(fmv, mk<EQ>(v1, map_set_get), dvc);
 }
 
-TEST_CASE("expr.finite_map.cmp_gets_fmap" * doctest::skip(true)) {
+TEST_CASE("expr.finite_map.cmp_gets_fmap") {
 
   ExprFactory efac;
 
@@ -151,7 +151,7 @@ TEST_CASE("expr.finite_map.cmp_gets_fmap" * doctest::skip(true)) {
 }
 
   // map unifications are not being transformed yet
-TEST_CASE("expr.finite_map.fmap_eq" * doctest::skip(true)) {
+TEST_CASE("expr.finite_map.fmap_eq") {
 
   ExprFactory efac;
 
@@ -165,7 +165,8 @@ TEST_CASE("expr.finite_map.fmap_eq" * doctest::skip(true)) {
   vars.insert(k1);
   Expr v1 = bind::intConst(mkTerm<std::string>("v1", efac));
   vars.insert(v1);
-  Expr map_var1 = mkTerm<std::string>("map1", efac); // not done yet
+  Expr mTy = sort::finiteMapTy(k1);
+  Expr map_var1 = bind::mkConst(mkTerm<std::string>("map1", efac),mTy);
   vars.insert(map_var1);
 
   ExprVector keys;
@@ -182,10 +183,11 @@ TEST_CASE("expr.finite_map.fmap_eq" * doctest::skip(true)) {
   Expr v2 = bind::intConst(mkTerm<std::string>("x", efac));
   vars.insert(v2);
 
+  // map1=set(defk(k1), k1, v1))
   Expr map_set_and_get =
       mk<AND>(map_eq, mk<EQ>(v2, finite_map::get(map_var1, k1)));
   dvc.clear();
-  visit_and_print(fmv, map_set_get, dvc);
+  visit_and_print(fmv, map_set_and_get, dvc);
 }
 
 inline void set_params(EZ3 &z3, ZFixedPoint<EZ3> &fp) {
@@ -199,7 +201,7 @@ inline void set_params(EZ3 &z3, ZFixedPoint<EZ3> &fp) {
   fp.set(params);
 }
 
-TEST_CASE("expr.finite_map.transformation1" * doctest::skip(true)) {
+TEST_CASE("expr.finite_map.transformation1") {
 
   // Put clauses in the HCDB
   ExprFactory efac;

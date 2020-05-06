@@ -35,7 +35,7 @@ struct FiniteMapRewriter : public std::unary_function<Expr, Expr> {
   // put Expr as a friend class have access to expr->args()??
 
   HornClauseDB &m_db;
-  ExprSet m_evars; // set of vars of the expression being rewritten, it will
+  ExprSet &m_evars; // set of vars of the expression being rewritten, it will
   // be updated if new vars are needed
   ExprFactory &m_efac;
 
@@ -45,20 +45,38 @@ struct FiniteMapRewriter : public std::unary_function<Expr, Expr> {
   // Used as a stack to keep the keys of the children
   TypesStack &m_types_children;
 
-  FiniteMapRewriter(TypesStack &mkeys, HornClauseDB &db, ExprSet evars,
-                    ExprMap type_lambda)
+  FiniteMapRewriter(TypesStack &mkeys, HornClauseDB &db, ExprSet &evars,
+                    ExprMap &type_lambda)
       : m_efac(db.getExprFactory()), m_types_children(mkeys), m_db(db),
         m_evars(evars), m_type_lambda(type_lambda) { };
 
   Expr operator()(Expr exp) {
+
+    errs() << "Rewritting " << *exp << "\n";
     Expr res;
-    if (isOpX<CONST_FINITE_MAP>(exp)) {
-      Expr mapTy = bind::type(exp);
-      m_types_children.push_back(mapTy);
+    if (isOpX<CONST_FINITE_MAP_KEYS>(exp)) {
       ExprVector keys(exp->args_begin(), exp->args_end());
-      m_type_lambda[mapTy] = finite_map::make_lambda_map_keys(keys, m_efac);
-      errs() << "-> Push: " << *m_type_lambda[mapTy] << "\n";
+      Expr mTy = sort::finiteMapTy(keys);
+      errs() << "-> Push: " << *mTy << "\n";
+      m_types_children.push_back(mTy);
+      Expr lmdKeys = finite_map::make_lambda_map_keys(keys, m_efac);
+      m_type_lambda[mTy] = lmdKeys;
+      // errs() << "-> Push: " << mTy << " " << *mTy << "\n";
       res = finite_map::empty_map_lambda(m_efac);
+
+    } else if (isOpX<CONST_FINITE_MAP>(exp)) {
+      assert(!m_types_children.empty());
+      Expr mTy = m_types_children.back();
+
+      ExprVector keys(mTy->args_begin(), mTy->args_end());
+
+      Expr valuesE = exp->right();
+      // errs() << "valuesE" << *valuesE << "\n";
+      ExprVector values(valuesE->args_begin(), valuesE->args_end());
+
+      Expr lmdKeys = m_type_lambda[mTy];
+      assert(lmdKeys);
+      res = finite_map::make_map_batch_values(keys, values, m_efac, lmdKeys);
 
     } else if (isOpX<GET>(exp)) {
       assert(!m_types_children.empty()); // check that it has a map
@@ -66,29 +84,29 @@ struct FiniteMapRewriter : public std::unary_function<Expr, Expr> {
       if (bind::isFiniteMapConst(map)) { // the map is a variable
         res = finite_map::make_variant_key(map, exp->right());
         m_evars.insert(res); // insert for later
-      } else {   // the map is an already expanded map expression
-        Expr mapTy = m_types_children.back();
-        Expr lmdKeys = m_type_lambda[mapTy];
-        assert(!lmdKeys);
+      } else {               // the map is an already expanded map expression
+        Expr mTy = m_types_children.back();
+
+        Expr lmdKeys = m_type_lambda[mTy];
+        assert(lmdKeys);
         res = finite_map::get_map_lambda(map, lmdKeys, exp->right());
       }
       m_types_children.pop_back();
-      // m_types_children.push_back(m_intTy);
 
     } else if (isOpX<SET>(exp)) {
-      // m_types_children.pop_back(); // extract value type
-      // m_types_children.pop_back(); // extract key type
       assert(!m_types_children.empty());
 
-      Expr mapTy = m_types_children.back(); // get map type
-      Expr lmd_keys = m_type_lambda[mapTy];
-      assert(!lmd_keys);
+      Expr mTy = m_types_children.back(); // get map type
+      // errs() << "<- Back: " << mTy << " " << *mTy << "\n";
+
+      Expr lmd_keys = m_type_lambda[mTy];
+      assert(lmd_keys);
       ExprVector args(exp->args_begin(), exp->args_end());
 
       Expr map = args[0];
 
       if (bind::isFiniteMapConst(map)) { // operating with a map variable
-        ExprVector mkeys(mapTy->args_begin(), mapTy->args_begin());
+        ExprVector mkeys(mTy->args_begin(), mTy->args_begin());
         ExprVector svals;
         for (auto k : mkeys) {
           Expr aux_var = finite_map::make_variant_key(map, k);
@@ -102,15 +120,14 @@ struct FiniteMapRewriter : public std::unary_function<Expr, Expr> {
       Expr value = args[2]; // TODO: can this be done without building args?
       res = finite_map::set_map_lambda(map, lmd_keys, key, value, m_efac);
 
-      // set returns a map with the same keys, so it is not necessary to pop to
-      // push the same map in m_types_children
+      // set returns a map with the same keys, so it is not necessary to pop
+      // to push the same map in m_types_children
 
     } else if (bind::isFiniteMapConst(exp)) {
 
       Expr name = bind::fname(exp);
       Expr mTy = bind::rangeTy(name);
-      ExprVector keys(mTy->args_begin(),
-                      mTy->args_end()); // warning, local variable!!!!
+      ExprVector keys(mTy->args_begin(), mTy->args_end());
       Expr lmd_keys = finite_map::make_lambda_map_keys(keys, m_efac);
 
       errs() << "-> Push: " << *mTy << "\n";
@@ -121,33 +138,32 @@ struct FiniteMapRewriter : public std::unary_function<Expr, Expr> {
         m_type_lambda[mTy] = finite_map::make_lambda_map_keys(keys, m_efac);
 
       res = exp; // return the fmap variable as it is
-    }  else if (isOpX<EQ>(exp)) {
+    } else if (isOpX<EQ>(exp)) {
 
       assert(m_types_children.size() >= 2);
       Expr el = exp->left();
       Expr er = exp->right();
-      if (returnsFiniteMap(el) || returnsFiniteMap(el)) {
-        Expr Ty2 = m_types_children.back();
-        m_types_children.pop_back();
-        Expr Ty1 = m_types_children.back();
-        m_types_children.pop_back();
+      // if (returnsFiniteMap(el) || returnsFiniteMap(el)) {
+      Expr Ty2 = m_types_children.back();
+      m_types_children.pop_back();
+      Expr Ty1 = m_types_children.back();
+      m_types_children.pop_back();
 
-        Expr lkeys2 = m_type_lambda[Ty2];
-        Expr lkeys1 = m_type_lambda[Ty1];
+      Expr lkeys2 = m_type_lambda[Ty2];
+      Expr lkeys1 = m_type_lambda[Ty1];
 
-        assert(lkeys1);
-        assert(lkeys2);
-        // only one keys vector is needed, just done for compare
-        ExprVector keys1(Ty1->args_begin(), Ty1->args_end());
-        ExprVector keys2(Ty2->args_begin(), Ty2->args_end());
-        assert(compare(keys1, keys2));
-        // check that both maps have the same keys
-        res = finite_map::make_eq_maps_lambda(el, lkeys1, er, lkeys2, keys1,
-                                              m_efac, m_evars);
-      }
+      assert(lkeys1);
+      assert(lkeys2);
+      // only one keys vector is needed, just done for compare
+      ExprVector keys1(Ty1->args_begin(), Ty1->args_end());
+      ExprVector keys2(Ty2->args_begin(), Ty2->args_end());
+      assert(compare(keys1, keys2));
+      // check that both maps have the same keys
+      res = finite_map::make_eq_maps_lambda(el, lkeys1, er, lkeys2, keys1,
+                                            m_efac, m_evars);
     } else if (isOpX<FAPP>(exp)) {
-      
-    } else { // do nothing
+      res = exp; // TODO:
+    } else {     // do nothing
       assert(false && "Unexpected map expression");
       return exp;
     }
@@ -215,9 +231,7 @@ struct FiniteMapArgsVisitor : public std::unary_function<Expr, VisitAction> {
   VisitAction operator()(Expr exp) {
     if (isOpX<FAPP>(exp) && !bind::isConst(exp)){  // faster to check arity >= 2?
       Expr fdecl = *exp->args_begin();
-      // errs() << "fdecl: " << *fdecl << "\n";
       Expr fname = *fdecl->args_begin();
-      // errs() << "fname: " << *fname << "\n";
 
       if (fname == m_pred_name) { // same function name, compare fdecls rather
                                   // than names?
@@ -241,12 +255,12 @@ struct FiniteMapArgsVisitor : public std::unary_function<Expr, VisitAction> {
     ExprMap m_map_vals;
     std::shared_ptr<FiniteMapRewriter> m_rw;
 
-    FiniteMapBodyVisitor(HornClauseDB &db, ExprSet evars) {
+    FiniteMapBodyVisitor(HornClauseDB &db, ExprSet &evars) {
       m_rw =
           std::make_shared<FiniteMapRewriter>(m_types, db, evars, m_map_vals);
     }
     VisitAction operator()(Expr exp) {
-      // errs() << "Creating visit action for: " << *exp << "\n";
+      errs() << "Creating visit action for: " << *exp << "\n";
       if (isFiniteMapOp(exp)) {
         return VisitAction::changeDoKidsRewrite(exp, m_rw);
       } else if (bind::isFiniteMapConst(exp)) {
@@ -269,7 +283,8 @@ struct FiniteMapArgsVisitor : public std::unary_function<Expr, VisitAction> {
 
   // TODO: replace by FamilyId with FiniteMapOP?
   bool isFiniteMapOp(Expr e) {
-    return isOpX<CONST_FINITE_MAP>(e) || isOpX<GET>(e) || isOpX<SET>(e);
+    return isOpX<CONST_FINITE_MAP_KEYS>(e) || isOpX<CONST_FINITE_MAP>(e) ||
+           isOpX<GET>(e) || isOpX<SET>(e);
   }
 
 };

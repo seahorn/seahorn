@@ -255,10 +255,10 @@ public:
                           uint64_t align) override {
     MemValTy rawVal =
         m_main.loadPtrFromMem(mkRawPtr(ptr), mkRawMem(mem), byteSz, align);
-    MemValTy slot0Val =
-        m_slot0.loadIntFromMem(mkRawPtr(ptr), mkSlot0Mem(mem), byteSz, align);
-    MemValTy slot1Val =
-        m_slot1.loadIntFromMem(mkRawPtr(ptr), mkSlot1Mem(mem), byteSz, align);
+    MemValTy slot0Val = m_slot0.loadIntFromMem(mkRawPtr(ptr), mkSlot0Mem(mem),
+                                               g_slotByteWidth, align);
+    MemValTy slot1Val = m_slot1.loadIntFromMem(mkRawPtr(ptr), mkSlot1Mem(mem),
+                                               g_slotByteWidth, align);
     return mkFatPtr(rawVal, slot0Val, slot1Val);
   }
 

@@ -274,7 +274,8 @@ int main(int argc, char **argv) {
   llvm::initializeGlobalsAAWrapperPassPass(Registry);
 
   llvm::initializeDsaAnalysisPass(Registry);
-
+  llvm::initializeAllocSiteInfoPass(Registry);
+  
   // add an appropriate DataLayout instance for the module
   const llvm::DataLayout *dl = &module->getDataLayout();
   if (!dl && !DefaultDataLayout.empty()) {

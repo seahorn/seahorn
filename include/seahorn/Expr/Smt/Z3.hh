@@ -377,6 +377,13 @@ public:
 
   Expr eval(Expr e, bool completion = false) {
     assert(model);
+    if (isOp<MK_STRUCT>(e)) {
+      ExprVector kids;
+      for (auto arg = e->args_begin(); arg != e->args_end(); ++arg) {
+        kids.push_back(eval(*arg));
+      }
+      return strct::mk(kids);
+    }
     z3::ast ast(z3.toAst(e));
 
     Z3_ast raw_val = NULL;
@@ -385,11 +392,12 @@ public:
       ctx.check_error();
       if (!isAsArray(val))
         return z3.toExpr(val);
-
-      Z3_func_decl fdecl = Z3_get_as_array_func_decl(ctx, val);
-      z3::func_interp zfunc(ctx, Z3_model_get_func_interp(ctx, model, fdecl));
-      ctx.check_error();
-      return finterpToExpr(zfunc);
+      else if (isAsArray(val)) {
+        Z3_func_decl fdecl = Z3_get_as_array_func_decl(ctx, val);
+        z3::func_interp zfunc(ctx, Z3_model_get_func_interp(ctx, model, fdecl));
+        ctx.check_error();
+        return finterpToExpr(zfunc);
+      }
     }
     ctx.check_error();
     return mk<NONDET>(efac);

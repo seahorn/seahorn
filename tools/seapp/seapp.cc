@@ -36,6 +36,8 @@
 #include "llvm_seahorn/Transforms/Scalar.h"
 #endif
 
+#include "seadsa/InitializePasses.hh"
+
 #include "seahorn/Support/SeaLog.hh"
 #include "seahorn/Support/Stats.hh"
 #include "seahorn/Transforms/Utils/NameValues.hh"
@@ -341,6 +343,8 @@ int main(int argc, char **argv) {
   // XXX: not sure if needed anymore
   llvm::initializeGlobalsAAWrapperPassPass(Registry);
 
+  llvm::initializeCompleteCallGraphPass(Registry);
+  
   // add an appropriate DataLayout instance for the module
   const llvm::DataLayout *dl = &module->getDataLayout();
   if (!dl && !DefaultDataLayout.empty()) {

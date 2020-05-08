@@ -1,6 +1,8 @@
 #include "seahorn/HornClauseDBTransf.hh"
 #include "seahorn/Expr/Expr.hh"
 
+#include "seahorn/FiniteMapTransf.hh"
+
 namespace seahorn {
 using namespace expr;
 
@@ -58,4 +60,109 @@ void normalizeHornClauseHeads(HornClauseDB &db) {
     db.addRule(new_rule);
   }
 }
+
+void removeFiniteMapsArgsHornClausesTransf(HornClauseDB &db) {
+
+  // return new db
+  // prebuild all the predicates that need to be rewritten and rewrite all at
+  // once
+
+  ExprFactory &efac = db.getExprFactory();
+
+  ExprVector worklist;
+  boost::copy(db.getRelations(), std::back_inserter(worklist));
+
+  // db.buildIndexes(); // how often do these indexes need to be rebuilt?, we are
+                     // inserting the same clause several times, maybe update
+                     // the indexes while inserting/removing a clause?
+
+  for (auto predIt : worklist) {
+    Expr predDecl = predIt;
+
+    if (predDecl->arity() == 0) // no arguments
+      continue;
+
+      // create new relation declaration
+    Expr newPredDecl = finite_map::mkMapsDecl(predDecl, efac);
+
+    auto args = predDecl->args_begin();
+    Expr predName = *args;
+    errs() << "Removing args from " << *predName << "\n";
+
+  }
+
+  // from here on, copy the DB
+  // get clauses in pred definition, requires indexes (see
+  // buildIndexes())
+  // auto HCDefSet = db.def(predDecl);
+
+  // // change the rules in this predicate
+  // for (auto rule : HCDefSet) {
+  //   // be careful here because the rule may be a fact
+  //   errs() << "Def rule: " << *(rule->get()) << "\n";
+  //   const ExprVector &vars = rule->vars();
+  //   ExprSet allVars(vars.begin(), vars.end());
+
+  //   FiniteMapArgsVisitor fmav(db, allVars, predName, newPredDecl);
+  //   Expr newRule = visit(fmav, rule->get());
+  //   db.addRule(allVars, newRule);
+  // }
+
+  // db.buildIndexes();
+
+  // // TODO: this set needs to be copied!!!!!, ask!!!!
+  // // copy original DB, read from there.
+  // auto HCUseSet = db.use(predDecl);
+  // // clauses that calls this predicate (duplicated work for rec clauses unless
+  // // we skip processing the body of the pred definition above)
+  // for (HornRule *rule : HCUseSet) {
+  //   errs() << "Calling rule: " << *(rule->get()) << "\n";
+  //   const ExprVector &vars = rule->vars();
+  //   ExprSet allVars(vars.begin(), vars.end());
+
+  //   // only changes the calls in the body, adding needed unifications
+  //   FiniteMapArgsVisitor fmav(db, allVars, predName, newPredDecl);
+  //   // initialize it with the predicate that we want to process!! and use
+  //   // only one visitor
+
+  //   HornRule newRule(allVars, visit(fmav, rule->get()));
+  //   db.addRule(newRule); // wait until the end to add and delete
+  // }
+  // db.registerRelation(newPredDecl);
+  // // remove old relation declaration
+  // // db.m_rels.remove(predIt) // (not public)
+  // }
+}
+
+void removeFiniteMapsBodiesHornClausesTransf(HornClauseDB &db) {
+
+  ExprFactory &efac = db.getExprFactory();
+
+  std::vector<HornRule> worklist;
+  boost::copy(db.getRules(), std::back_inserter(worklist));
+
+  // DagVisitCache dvc; // not used because we have to visit everything
+
+  // use 2 dbs
+  for (auto rule : worklist) {
+    ExprVector vars = rule.vars();
+    ExprSet allVars(vars.begin(), vars.end());
+
+    FiniteMapBodyVisitor fmv(db.getExprFactory(), allVars);
+
+    // map old predicates to new ones, and rewrite by predicate, not rule
+    Expr new_head = visit(fmv, rule.head());
+    // TODO only once
+    // * register relation with new parameters in db
+    // * "unregister" old relation?
+    Expr new_body = visit(fmv, rule.body());
+
+    HornRule new_rule(allVars, new_head, new_body);
+    // db.removeRule(rule);
+    db.addRule(new_rule);
+  }
+}
+
+
+
 } // namespace seahorn

@@ -1,15 +1,18 @@
-#ifndef _HORN_CLAUSE_DB_TRANSFORMATIONS__H_
-#define _HORN_CLAUSE_DB_TRANSFORMATIONS__H_
+#pragma once
 
 #include "seahorn/HornClauseDB.hh"
 
 namespace seahorn
 {
 
-  // Ensure all horn clause heads have only variables
-  void normalizeHornClauseHeads (HornClauseDB &db);
+// Ensure all horn clause heads have only variables
+void normalizeHornClauseHeads (HornClauseDB &db);
+
+// Remove arguments of type FiniteMap from Horn Clauses
+void removeFiniteMapsArgsHornClausesTransf(HornClauseDB &db);
+
+// Remove expressions of type FiniteMap from the horn clause bodies, excluding
+// calls to predicates
+void removeFiniteMapsBodiesHornClausesTransf(HornClauseDB & db);
 
 }
-
-
-#endif /* _HORN_CLAUSE_DB_TRANSFORMATIONS__H_ */

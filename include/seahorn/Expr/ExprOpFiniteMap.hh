@@ -54,14 +54,16 @@ inline Expr set(Expr map, Expr idx, Expr v) {
   return expr::mk<SET>(map, idx, v);
 }
 
-// fresh map with unitialized values
-inline Expr empty_map_lambda(ExprFactory &efac) {
+// \brief fresh map with unitialized values
+// old empty_map_lambda
+inline Expr mkEmptyMap(ExprFactory &efac) {
   return mkTerm<expr::mpz_class>(0, efac);
-  // TODO: change 0 by the same as unitialized memory
+  // TODO: change 0 by the same as unitialized memory?
 }
 
 // creates a set of keys as a lambda function
-inline Expr make_lambda_map_keys(ExprVector &keys, ExprFactory &efac) {
+// old make_lambda_map_keys
+inline Expr mkKeys(ExprVector &keys, ExprFactory &efac) {
 
   Expr x = bind::intConst(mkTerm<std::string>("x", efac));
 
@@ -85,11 +87,9 @@ inline Expr make_lambda_map_keys(ExprVector &keys, ExprFactory &efac) {
 }
 
 // creates a map for keys and values, assuming that they are sorted
-//
-// TO COMMENT: This function also outputs the lambda function for the keys,
-// assume that it is created, is this a bigger formula if done externally?
-inline Expr make_map_batch_values(ExprVector &keys, ExprVector &values,
-                                  ExprFactory &efac, Expr &lambda_keys) {
+// old make_map_batch_values
+inline Expr mkInitializedMap(ExprVector &keys, ExprVector &values,
+                             ExprFactory &efac, Expr &lambda_keys) {
 
   // assuming that there is a value for every key. If this is not available,
   // "initialize" it with the default value for uninitialized memory
@@ -114,7 +114,7 @@ inline Expr make_map_batch_values(ExprVector &keys, ExprVector &values,
 
   count = 1;
 
-  Expr lmd_values = empty_map_lambda(efac);
+  Expr lmd_values = mkEmptyMap(efac);
 
   for (auto v : values) {
     Expr pos_in_map = mkTerm<expr::mpz_class>(count, efac);
@@ -128,15 +128,19 @@ inline Expr make_map_batch_values(ExprVector &keys, ExprVector &values,
   return lmd_values;
 }
 
-inline Expr get_map_lambda(Expr map, Expr keys, Expr key) {
+// old get_map_lambda
+/// \brief Constructs get expression. Non-simplifying
+inline Expr mkGetVal(Expr map, Expr keys, Expr key) {
 
   Expr pos_in_map = op::bind::betaReduce(keys, key);
 
   return op::bind::betaReduce(map, pos_in_map);
 }
 
-inline Expr set_map_lambda(Expr map, Expr keys, Expr key, Expr value,
-                           ExprFactory &efac) {
+// old set_map_lambda
+/// \brief Constructs set expression. Non-simplifying
+inline Expr mkSetVal(Expr map, Expr keys, Expr key, Expr value,
+                     ExprFactory &efac) {
 
   Expr x = bind::intConst(mkTerm<std::string>("x", efac));
 
@@ -148,146 +152,57 @@ inline Expr set_map_lambda(Expr map, Expr keys, Expr key, Expr value,
   return new_map;
 }
 
-inline Expr make_variant_key(Expr m1, Expr k) {
-  // TODO: replace by |get(m1,k)|
-  return bind::intConst(variant::tag(m1, k));
-}
+// \brief expands the map types of fdecls into separate scalar variables
+inline Expr mkMapsDecl(Expr fdecl, ExprFactory &efac) {
 
-// check that one maps contains the same values as another. Both maps are
-// assumed to have the same keys `keys` but not necessarily in the same order,
-// that is why `ks1` and `ks2` are needed.
-inline Expr make_eq_maps_lambda(Expr m1, Expr ks1, Expr m2, Expr ks2,
-                                ExprVector &keys, ExprFactory &efac,
-                                ExprSet &evars) {
+  assert(isOpX<FDECL>(fdecl));
 
-  ExprVector conj;
+  ExprVector newTypes;
 
-  bool is_var_m1 = bind::isFiniteMapConst(m1);
-  bool is_var_m2 = bind::isFiniteMapConst(m2);
+  Expr iTy = op::sort::intTy(efac);
+  Expr fname = bind::fname(fdecl);
 
-  Expr e_m1, e_m2;
-
-  for (auto k : keys) {
-    if (is_var_m1) {
-      e_m1 = make_variant_key(m1, k);
-      evars.insert(e_m1);
-    }
-    else
-      e_m1 = get_map_lambda(m1, ks1, k);
-
-    if(is_var_m2) {
-      e_m2 = make_variant_key(m2, k);
-      evars.insert(e_m2);
-    }
-    else
-      e_m2 = get_map_lambda(m2, ks2, k);
-    conj.push_back(mk<EQ>(e_m1, e_m2));
+  for (auto tyIt = fdecl->args_begin(); tyIt != fdecl->args_end(); tyIt++) {
+    Expr type = *tyIt;
+    if (isOpX<FINITE_MAP_TY>(type)) {                 // the type is a FiniteMap
+      assert(type->args_begin() != type->args_end()); // the map has at
+                                                      // least one key
+      for (auto kIt = type->args_begin(); kIt != type->args_end(); kIt++) {
+        newTypes.push_back(iTy); // new argument for key
+        newTypes.push_back(iTy); // new argument for value
+      }
+    } else
+      newTypes.push_back(type);
   }
-  return mknary<AND>(conj);
+
+  Expr newfname = fdecl; // to go back easier, the new name includes the
+                         // old declaration
+
+  // change new name by fapp for prettier printing, can it be done with empty
+  // arguments?
+
+  return bind::fdecl(newfname, newTypes);
 }
 
-inline void expand_map_vars(Expr map, Expr lmdks, ExprVector &keys,
-                            ExprVector &new_vars, ExprVector &extra_unifs,
-                            ExprFactory &efac, ExprSet &evars) {
-
-  Expr v, v_get;
-
-  ExprVector map_values;
-
-  for (auto k : keys) {
-    v = make_variant_key(map, k);
-    evars.insert(v);
-    if (evars.count(k) > 0) // TODO: maybe not necessary?
-      evars.insert(k);
-
-    new_vars.push_back(k);
-    new_vars.push_back(v);
-
-    map_values.push_back(v);
-    // v_get = get(map, k);
-  }
-  extra_unifs.push_back(mk<EQ>(map, constFiniteMap(keys,map_values)));
-}
-
-// This function is just for testing
-inline Expr make_map_sequence_gets(ExprVector &keys, ExprVector &values,
-                                   ExprFactory &efac, Expr &lambda_keys) {
-
+// This function is just for testing // internal
+//
+// \brief builds an initialized map as a sequence of gets (as opposed to
+// mkInitializedMap), which builds one ite expression directly
+inline Expr make_map_sequence_gets(ExprVector & keys, ExprVector & values,
+                                   ExprFactory & efac, Expr & lambda_keys) {
   assert(keys.size() == values.size());
 
-  lambda_keys = make_lambda_map_keys(keys, efac);
-
-  Expr lmd_values = empty_map_lambda(efac);
+  lambda_keys = mkKeys(keys, efac);
+  Expr lmd_values = mkEmptyMap(efac);
 
   auto it_v = values.begin();
-
   for (auto k : keys) {
-    lmd_values = set_map_lambda(lmd_values, lambda_keys, k, *it_v, efac);
+    lmd_values = mkSetVal(lmd_values, lambda_keys, k, *it_v, efac);
     it_v++;
   }
 
   return lmd_values;
 }
-
-// Takes a map (input and output), the used keys (assumed to be the same for
-// input and output) and generates the parameters necessary to encode this map
-// (`new_params`) and returns the extra literals that need to be performed in
-// the caller.
-// This function needs to be called per map
-
-// new vars will be added to `evars`
-//
-// TODO: make sure that the new variable names are not duplicated, how do I
-// get them?
-// int g_var_eqs_maps_count = 0; // TODO: remove this counter, just for testing
-// purposes to not duplicate names
-inline Expr prepare_finite_maps_caller_callsite(Expr in_map, Expr map_keys,
-                                                ExprVector &keys_used,
-                                                ExprFactory &efac,
-                                                ExprVector &new_params,
-                                                Expr &out_map) {
-
-  assert(keys_used.size() > 0); // if not, nothing to do? or return literals
-                                // with true
-
-  int count = 1;
-  // TODO
-  Expr BASE_IN_MAP_NAME = mkTerm<std::string>("map_in", efac);
-  Expr BASE_OUT_MAP_NAME = mkTerm<std::string>("map_out", efac);
-  Expr iTy = mk<INT_TY>(efac);
-
-  ExprVector extra_lits, out_values;
-
-  for (auto k : keys_used) {
-    new_params.push_back(k);
-    Expr vin = bind::mkConst(variant::variant(count, BASE_IN_MAP_NAME), iTy);
-    new_params.push_back(vin);
-
-    Expr vout = bind::mkConst(variant::variant(count, BASE_OUT_MAP_NAME), iTy);
-    new_params.push_back(vout);
-
-    extra_lits.push_back(
-        mk<EQ>(vin, finite_map::get_map_lambda(in_map, map_keys, k)));
-    out_values.push_back(vout);
-    count++;
-  }
-
-  Expr out_map_keys;
-  // TODO: out_map_keys is not necessary, we can pass it as a parameter instead
-  // of outputing it from make_map_batch_values, now we are duplicating work
-  out_map = finite_map::make_map_batch_values(keys_used, out_values, efac,
-                                              out_map_keys);
-
-  return mknary<AND>(extra_lits);
-}
-
-// TODO: review how heads are built
-// Expr prepare_finite_map_head(Expr in_map, Expr out_map, Expr map_keys,
-//                              ExprVector keys_used, ExprVector values,
-//                              ExprFactory &efac) {
-//   Expr call;
-//   return call;
-// }
 
 } // namespace finite_map
 } // namespace op

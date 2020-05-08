@@ -23,9 +23,6 @@ add_executable(units_z3 EXCLUDE_FROM_ALL
   muz_test.cpp
   lambdas_z3.cpp
   units_expr.cpp
-  units_finite_maps.cpp
-  units_finite_maps_trans.cpp
-  ../lib/seahorn/HornClauseDB.cc
   )
 llvm_config (units_z3 ${LLVM_LINK_COMPONENTS})
 target_link_libraries(units_z3 ${USED_LIBS_Z3_TESTS})
@@ -40,3 +37,16 @@ llvm_config(units_yices2 ${LLVM_LINK_COMPONENTS})
 target_link_libraries(units_yices2 ${USED_LIBS_Z3_TESTS} SeaSmt)
 add_custom_target(test_yices2 units_yices2 DEPENDS units_yices2)
 add_test(NAME Smt_Solver_Tests COMMAND units_yices2)
+
+add_executable(units_finite_map EXCLUDE_FROM_ALL
+  units_finite_maps.cpp
+  units_finite_maps_trans.cpp
+  ../lib/seahorn/HornClauseDB.cc
+  ../lib/seahorn/HornClauseDBTransf.cc
+  ../lib/seahorn/FiniteMapTransf.cc
+  )
+llvm_config(units_finite_map ${LLVM_LINK_COMPONENTS})
+target_link_libraries(units_finite_map ${USED_LIBS_Z3_TESTS})
+add_custom_target(tests_finite_map units_finite_map DEPENDS units_finite_map)
+add_test(NAME Finite_Maps_Tests COMMAND units_finite_map)
+

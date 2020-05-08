@@ -1,3 +1,5 @@
+/**==-- Finite Maps Transformation Tests --==*/
+
 #include "doctest.h"
 #include "seahorn/Expr/Expr.hh"
 #include "seahorn/Expr/ExprApi.hh"
@@ -8,7 +10,9 @@
 #include "seahorn/Expr/Smt/EZ3.hh"
 #include "seahorn/FiniteMapTransf.hh"
 #include "seahorn/HornClauseDB.hh"
+#include "seahorn/HornClauseDBTransf.hh"
 #include "llvm/Support/raw_ostream.h"
+
 
 using namespace std;
 using namespace expr;
@@ -60,9 +64,8 @@ TEST_CASE("expr.finite_map.transf_1key") {
 
   ExprFactory efac;
 
-  HornClauseDB db(efac); // not necessary, remove!!
   ExprSet vars;
-  FiniteMapBodyVisitor fmv(db, vars);
+  FiniteMapBodyVisitor fmv(efac, vars);
 
   DagVisitCache dvc;
 
@@ -93,9 +96,8 @@ TEST_CASE("expr.finite_map.fmap_2keys") {
 
   ExprFactory efac;
 
-  HornClauseDB db(efac); // not necessary, remove!!
   ExprSet vars;
-  FiniteMapBodyVisitor fmv(db, vars);
+  FiniteMapBodyVisitor fmv(efac, vars);
 
   DagVisitCache dvc;
 
@@ -120,9 +122,8 @@ TEST_CASE("expr.finite_map.cmp_gets_fmap") {
 
   ExprFactory efac;
 
-  HornClauseDB db(efac); // not necessary, remove!!
   ExprSet vars;
-  FiniteMapBodyVisitor fmv(db, vars);
+  FiniteMapBodyVisitor fmv(efac, vars);
 
   DagVisitCache dvc;
 
@@ -155,9 +156,8 @@ TEST_CASE("expr.finite_map.fmap_eq") {
 
   ExprFactory efac;
 
-  HornClauseDB db(efac); // not necessary, remove!!
   ExprSet vars;
-  FiniteMapBodyVisitor fmv(db, vars);
+  FiniteMapBodyVisitor fmv(efac, vars);
 
   DagVisitCache dvc;
 
@@ -551,7 +551,7 @@ TEST_CASE("expr.finite_map.trans_fmap_fdecl") {
   Expr fdecl = bind::fdecl(fname, ftype);
   errs() << "fdecl: " << *fdecl << "\n";
 
-  Expr fdeclT = processMapsDecl(fdecl, efac);
+  Expr fdeclT = finite_map::mkMapsDecl(fdecl, efac);
 
   CHECK(fdeclT != nullptr);
   errs() << "fdecl transformed: " << *fdeclT << "\n";
@@ -619,18 +619,17 @@ TEST_CASE("expr.finite_map.eq_type_checker" * doctest::skip(true)) {
   Expr eqType = bind::type(eq);
   // errs() << "EQ type of: " << *eq << " is " << *eqType << "\n";
 
-  HornClauseDB db(efac);
   ExprSet vars;
 
   vars.insert(x);
   vars.insert(b);
 
-  FiniteMapBodyVisitor fmbv(db,vars);
+  FiniteMapBodyVisitor fmbv(efac,vars);
 
   Expr e1 = visit(fmbv, eq);
 }
 
-TEST_CASE("expr.finite_map.head_rewriter") {
+TEST_CASE("expr.finite_map.clause_rewriter" * doctest::skip(true)) {
 
   ExprFactory efac;
   ExprVector keys;
@@ -653,14 +652,14 @@ TEST_CASE("expr.finite_map.head_rewriter") {
   fargs.push_back(map1);
 
   Expr fapp1 = bind::fapp(fdecl1, fargs);
-  Expr newdecl = processMapsDecl(fdecl1, efac);
+  Expr newdecl = finite_map::mkMapsDecl(fdecl1, efac);
 
   ExprSet vars;
   vars.insert(map1);
   ExprVector unifs;
   errs() << "fapp one key:" << *fapp1 << "\n";
 
-  Expr newfapp = headFiniteMapRewriter(fapp1, newdecl, vars, efac, unifs);
+  Expr newfapp; // = mkFappArgs(fapp1, newdecl, vars, efac, unifs);
   errs() << "New fapp:\n";
   errs() << *newfapp << "\n";
 
@@ -668,7 +667,8 @@ TEST_CASE("expr.finite_map.head_rewriter") {
   for(auto e : unifs)
     errs() << "\t"<< *e << "\n";
 
-  CHECK(!unifs.empty());
+  CHECK(newfapp);
+  CHECK(newfapp != fapp1);
 
   // ------------------------------------------------------------
   keys.clear(); // change order, they should be the "same" fmap type
@@ -686,15 +686,12 @@ TEST_CASE("expr.finite_map.head_rewriter") {
   Expr fapp1_b = bind::fapp(fdecl1, fargs);
   errs() << "fapp two keys:" << *fapp1_b << "\n";
 
-  newfapp = headFiniteMapRewriter(fapp1_b, newdecl, vars, efac, unifs);
+  // newfapp = finite_map::mkFappArgs(fapp1_b, newdecl, vars, efac, unifs);
   errs() << "New fapp:\n";
   errs() << *newfapp << "\n";
 
-  errs() << "New unifs:\n";
-  for (auto e : unifs)
-    errs() << "\t" << *e << "\n";
-
-  CHECK(!unifs.empty());
+  CHECK(newfapp);
+  CHECK(newfapp != fapp1_b);
 
   // ------------------------------------------------------------
   fargs[0] = map1b;
@@ -709,15 +706,12 @@ TEST_CASE("expr.finite_map.head_rewriter") {
   fapp1_b = bind::fapp(fdecl1, fargs);
   errs() << "fapp two keys no variable:" << *fapp1_b << "\n";
 
-  newfapp = headFiniteMapRewriter(fapp1_b, newdecl, vars, efac, unifs);
+  // newfapp = mkFappArgs(fapp1_b, newdecl, vars, efac, unifs);
   errs() << "New fapp:\n";
   errs() << *newfapp << "\n";
 
-  errs() << "New unifs:\n";
-  for (auto e : unifs)
-    errs() << "\t" << *e << "\n";
-
-  CHECK(!unifs.empty());
+  CHECK(newfapp); // new body!
+  CHECK(newfapp != fapp1_b);
 
   // ------------------------------------------------------------
   // keys.clear();

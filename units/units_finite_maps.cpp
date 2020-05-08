@@ -1,3 +1,6 @@
+/**==-- Finite Maps Expr Tests --==*/
+#define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
+
 #include "doctest.h"
 #include "seahorn/Expr/Expr.hh"
 #include "seahorn/Expr/ExprApi.hh"
@@ -121,14 +124,14 @@ TEST_CASE("expr.finite_map.create_keys_lambda") {
 
   keys.push_back(bind::intConst(mkTerm<string>("k1", efac)));
 
-  Expr lambda_keys = finite_map::make_lambda_map_keys(keys, efac);
+  Expr lambda_keys = finite_map::mkKeys(keys, efac);
   CHECK(boost::lexical_cast<std::string>(lambda_keys) ==
         "(lambda (INT) ite(k1=(B0:INT), 1, 0))");
 
   errs() << "lambda_keys of def(k1): " << *lambda_keys << "\n";
 
   keys.push_back(bind::intConst(mkTerm<std::string>("k2", efac)));
-  lambda_keys = finite_map::make_lambda_map_keys(keys, efac);
+  lambda_keys = finite_map::mkKeys(keys, efac);
 
   CHECK(boost::lexical_cast<std::string>(lambda_keys) ==
         "(lambda (INT) ite(k2=(B0:INT), 2, ite(k1=(B0:INT), 1, 0)))");
@@ -136,7 +139,7 @@ TEST_CASE("expr.finite_map.create_keys_lambda") {
   errs() << "lambda_keys of def(k1, k2): " << *lambda_keys << "\n";
 
   keys.push_back(bind::intConst(mkTerm<std::string>("k3", efac)));
-  lambda_keys = finite_map::make_lambda_map_keys(keys, efac);
+  lambda_keys = finite_map::mkKeys(keys, efac);
 
   CHECK(boost::lexical_cast<std::string>(lambda_keys) ==
         "(lambda (INT) ite(k3=(B0:INT), 3, ite(k2=(B0:INT), 2, "
@@ -144,7 +147,7 @@ TEST_CASE("expr.finite_map.create_keys_lambda") {
   errs() << "lambda_keys of def(k1, k2, k3)): " << *lambda_keys << "\n";
 }
 
-TEST_CASE("expr.finite_map.set_map_lambda") {
+TEST_CASE("expr.finite_map.mkSetVal") {
 
   ExprFactory efac;
 
@@ -155,16 +158,16 @@ TEST_CASE("expr.finite_map.set_map_lambda") {
   keys.push_back(bind::intConst(mkTerm<std::string>("k2", efac)));
   keys.push_back(bind::intConst(mkTerm<std::string>("k3", efac)));
 
-  Expr lambda_keys = finite_map::make_lambda_map_keys(keys, efac);
+  Expr lambda_keys = finite_map::mkKeys(keys, efac);
   CHECK(boost::lexical_cast<std::string>(lambda_keys) ==
         "(lambda (INT) ite(k3=(B0:INT), 3, ite(k2=(B0:INT), 2, "
         "ite(k1=(B0:INT), 1, 0))))");
 
   Expr value = mkTerm<expr::mpz_class>(42, efac);
 
-  Expr map = finite_map::empty_map_lambda(efac);
+  Expr map = finite_map::mkEmptyMap(efac);
   // set the value of k1
-  map = finite_map::set_map_lambda(map, lambda_keys, k1, value, efac);
+  map = finite_map::mkSetVal(map, lambda_keys, k1, value, efac);
 
   CHECK(boost::lexical_cast<std::string>(map) ==
         "(lambda (INT) ite((B0:INT)=ite(k3=k1, 3, ite(k2=k1, 2, ite(k1=k1, 1, "
@@ -177,7 +180,7 @@ TEST_CASE("expr.finite_map.set_map_lambda") {
   errs() << *z3_simplify(z3, map) << "\n";
 }
 
-TEST_CASE("expr.finite_map.get_after_set_map_lambda") {
+TEST_CASE("expr.finite_map.get_after_mkSetVal") {
   using namespace std;
   using namespace expr;
   using namespace expr::op;
@@ -192,21 +195,21 @@ TEST_CASE("expr.finite_map.get_after_set_map_lambda") {
   keys.push_back(bind::intConst(mkTerm<std::string>("k2", efac)));
   keys.push_back(bind::intConst(mkTerm<std::string>("k3", efac)));
 
-  Expr lambda_keys = finite_map::make_lambda_map_keys(keys, efac);
+  Expr lambda_keys = finite_map::mkKeys(keys, efac);
   CHECK(boost::lexical_cast<std::string>(lambda_keys) ==
         "(lambda (INT) ite(k3=(B0:INT), 3, ite(k2=(B0:INT), 2, "
         "ite(k1=(B0:INT), 1, 0))))");
 
   Expr value = mkTerm<expr::mpz_class>(42, efac);
 
-  Expr map = finite_map::empty_map_lambda(efac); // init map
-  map = finite_map::set_map_lambda(map, lambda_keys, k1, value, efac);
+  Expr map = finite_map::mkEmptyMap(efac); // init map
+  map = finite_map::mkSetVal(map, lambda_keys, k1, value, efac);
 
   CHECK(boost::lexical_cast<std::string>(map) ==
         "(lambda (INT) ite((B0:INT)=ite(k3=k1, 3, ite(k2=k1, 2, ite(k1=k1, 1, "
         "0))), 42, 0))");
 
-  Expr get_value = finite_map::get_map_lambda(map, lambda_keys, k1);
+  Expr get_value = finite_map::mkGetVal(map, lambda_keys, k1);
 
   CHECK(boost::lexical_cast<std::string>(get_value) ==
         "ite(ite(k3=k1, 3, ite(k2=k1, 2, ite(k1=k1, 1, 0)))=ite(k3=k1, 3, "
@@ -226,7 +229,7 @@ TEST_CASE("expr.finite_map.get_after_set_map_lambda") {
         "true");
 }
 
-TEST_CASE("expr.finite_map.make_map_batch_values") {
+TEST_CASE("expr.finite_map.mkInitializedMap") {
 
   using namespace std;
   using namespace expr;
@@ -252,7 +255,7 @@ TEST_CASE("expr.finite_map.make_map_batch_values") {
 
   Expr lmd_keys, lmd_values;
 
-  lmd_values = finite_map::make_map_batch_values(keys, values, efac, lmd_keys);
+  lmd_values = finite_map::mkInitializedMap(keys, values, efac, lmd_keys);
 
   errs() << "\n----------\nkeys:   " << *lmd_keys << "\n";
   errs() << "values: " << *lmd_values << "\n";
@@ -271,7 +274,7 @@ TEST_CASE("expr.finite_map.make_map_batch_values") {
   errs() << "map:    " << *u_map << "\n\n";
 
   for (int i = 0; i < keys.size(); i++) {
-    Expr get_value = finite_map::get_map_lambda(lmd_values, lmd_keys, keys[i]);
+    Expr get_value = finite_map::mkGetVal(lmd_values, lmd_keys, keys[i]);
     Expr to_simp_true = mk<EQ>(get_value, values[i]);
     // cannot be simplified if constructed in a batch
     errs() << "simplifying: "
@@ -326,7 +329,7 @@ TEST_CASE("expr.finite_map.make_map_sequence_gets") {
   errs() << "map:    " << *u_map << "\n\n";
 
   for(int i = 0; i < keys.size(); i++) {
-    Expr get_value = finite_map::get_map_lambda(lmd_values, lmd_keys, keys[i]);
+    Expr get_value = finite_map::mkGetVal(lmd_values, lmd_keys, keys[i]);
     Expr to_simp_true = mk<EQ>(get_value, values[i]);
     // cannot be simplified if nothing is known about the keys (they may alias)
     errs() << "simplifying: "
@@ -416,9 +419,9 @@ TEST_CASE("expr.finite_map.map_in_body_1key") {
   ExprVector body;
   body.push_back(mk<EQ>(v1, mkTerm<expr::mpz_class>(1UL, efac)));
   Expr map_keys;
-  Expr map = finite_map::make_map_batch_values(keys,values,efac,map_keys);
-  Expr setop = finite_map::set_map_lambda(map, map_keys, k1, solution, efac);
-  Expr getop = finite_map::get_map_lambda(setop, map_keys, k1);
+  Expr map = finite_map::mkInitializedMap(keys,values,efac,map_keys);
+  Expr setop = finite_map::mkSetVal(map, map_keys, k1, solution, efac);
+  Expr getop = finite_map::mkGetVal(setop, map_keys, k1);
   body.push_back(mk<EQ>(x, getop));
 
   fp.set(params);
@@ -505,11 +508,11 @@ TEST_CASE("expr.finite_map.map_in_body_2keys") {
   Expr sol = mkTerm<expr::mpz_class>(42, efac);
 
   Expr map_keys;
-  Expr map = z3_simplify(z3, finite_map::make_map_batch_values(keys,values,efac,map_keys));
+  Expr map = z3_simplify(z3, finite_map::mkInitializedMap(keys,values,efac,map_keys));
   Expr setop =
-    z3_simplify(z3, finite_map::set_map_lambda(map, map_keys, k1, sol, efac));
-  body.push_back(mk<EQ>(x, z3_simplify(z3,finite_map::get_map_lambda(setop, map_keys, k1))));
-  body.push_back(mk<EQ>(y, z3_simplify(z3,finite_map::get_map_lambda(setop, map_keys, k2))));
+    z3_simplify(z3, finite_map::mkSetVal(map, map_keys, k1, sol, efac));
+  body.push_back(mk<EQ>(x, z3_simplify(z3,finite_map::mkGetVal(setop, map_keys, k1))));
+  body.push_back(mk<EQ>(y, z3_simplify(z3,finite_map::mkGetVal(setop, map_keys, k2))));
 
   fp.registerRelation(fdecl);
   fp.addRule(vars, boolop::limp(mknary<AND>(body), fapp));
@@ -554,43 +557,6 @@ TEST_CASE("expr.finite_map.map_in_body_2keys") {
   // this check is not working with no alias (the output is sat)
   errs() << "Expected: unsat\n";
   CHECK(!register_rule_and_query(mknary<AND>(query), qvars, efac, fp));
-}
-
-TEST_CASE("expr.finite_map.caller_callsite") {
-
-  ExprFactory efac;
-  Expr in_map, map_keys, out_map;
-  ExprVector keys_used, new_params;
-
-  ExprVector in_values;
-
-  Expr key_base = mkTerm<string>("k", efac);
-  int count = 1;
-
-#define MAX_K 2
-
-  for(int i = 0 ; i < MAX_K ; i++){
-    keys_used.push_back(
-                      bind::intConst(variant::variant(count, key_base)));
-    in_values.push_back(mkTerm<expr::mpz_class>(count + 40, efac));
-    count++;
-  }
-
-  in_map = finite_map::make_map_batch_values(keys_used, in_values, efac, map_keys);
-
-  errs() << "Map in: " << *in_map << "\n";
-  errs() << "Map keys: " << *map_keys << "\n";
-
-  Expr extra_lits = finite_map::prepare_finite_maps_caller_callsite(
-      in_map, map_keys, keys_used, efac, new_params, out_map);
-
-  EZ3 z3(efac);
-  errs() << "Extra literals: " << *z3_simplify(z3, extra_lits) << "\n";
-  errs() << "New params:\n";
-  for (auto e : new_params){
-    errs() << "\t" << *e << "\n";
-  }
-  errs() << "Out map lambda: " << *z3_simplify(z3, out_map) << "\n";
 }
 
 #ifdef BUGS
@@ -664,10 +630,10 @@ TEST_CASE("expr.finite_map.duplicated_and_query" * doctest::skip(true)) {
   ExprVector body;
   body.push_back(mk<EQ>(v1, mkTerm<expr::mpz_class>(1UL, efac)));
   Expr map_keys;
-  Expr map = finite_map::make_map_batch_values(keys,values,efac,map_keys);
-  Expr setop = finite_map::set_map_lambda(map, map_keys, k1, mkTerm<expr::mpz_class>(42, efac), efac);
-  body.push_back(mk<EQ>(x, z3_simplify(z3,finite_map::get_map_lambda(setop, map_keys, k1))));
-  body.push_back(mk<EQ>(y, z3_simplify(z3,finite_map::get_map_lambda(setop, map_keys, k2))));
+  Expr map = finite_map::mkInitializedMap(keys,values,efac,map_keys);
+  Expr setop = finite_map::mkSetVal(map, map_keys, k1, mkTerm<expr::mpz_class>(42, efac), efac);
+  body.push_back(mk<EQ>(x, z3_simplify(z3,finite_map::mkGetVal(setop, map_keys, k1))));
+  body.push_back(mk<EQ>(y, z3_simplify(z3,finite_map::mkGetVal(setop, map_keys, k2))));
 
   fp.set(params);
   fp.registerRelation(fdecl);
@@ -778,9 +744,9 @@ TEST_CASE("expr.finite_map.query_exists") {
   ExprVector body;
   body.push_back(mk<EQ>(v1, mkTerm<expr::mpz_class>(1UL, efac)));
   Expr map_keys;
-  Expr map = finite_map::make_map_batch_values(keys,values,efac,map_keys);
-  Expr setop = finite_map::set_map_lambda(map, map_keys, k1, solution, efac);
-  Expr getop = finite_map::get_map_lambda(setop, map_keys, k1);
+  Expr map = finite_map::mkInitializedMap(keys,values,efac,map_keys);
+  Expr setop = finite_map::mkSetVal(map, map_keys, k1, solution, efac);
+  Expr getop = finite_map::mkGetVal(setop, map_keys, k1);
   body.push_back(mk<EQ>(x, getop));
 
   fp.set(params);
@@ -911,9 +877,9 @@ TEST_CASE("expr.finite_map.map_in_body_1key_HCDB" * doctest::skip(true)) {
   // body.push_back(mk<EQ>(v1, mkTerm<expr::mpz_class>(1UL, efac)));
   body.push_back(mk<EQ>(x, solution));
   // Expr map_keys;
-  // Expr map = finite_map::make_map_batch_values(keys,values,efac,map_keys);
-  // Expr setop = finite_map::set_map_lambda(map, map_keys, k1, solution, efac);
-  // Expr getop = finite_map::get_map_lambda(setop, map_keys, k1);
+  // Expr map = finite_map::mkInitializedMap(keys,values,efac,map_keys);
+  // Expr setop = finite_map::mkSetVal(map, map_keys, k1, solution, efac);
+  // Expr getop = finite_map::mkGetVal(setop, map_keys, k1);
   // body.push_back(mk<EQ>(x, getop));
 
   db.registerRelation(fdecl);

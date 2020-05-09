@@ -66,8 +66,8 @@ RUN export PREFIX=$(cat /tmp/dockerutils/prefix.txt) && \
     # download clang
     mkdir /clang-5.0 && \
     if [ "$UBUNTU" = "trusty" ] ; \
-      then curl -s http://releases.llvm.org/5.0.0/clang+llvm-5.0.0-linux-x86_64-ubuntu14.04.tar.xz ; \
-      else curl -s http://releases.llvm.org/5.0.0/clang+llvm-5.0.0-linux-x86_64-ubuntu16.04.tar.xz ; \
+      then curl -s https://releases.llvm.org/5.0.0/clang+llvm-5.0.0-linux-x86_64-ubuntu14.04.tar.xz ; \
+      else curl -s https://releases.llvm.org/5.0.0/clang+llvm-5.0.0-linux-x86_64-ubuntu16.04.tar.xz ; \
     fi \
     | tar -xJf - -C /clang-5.0 --strip-components=1
     

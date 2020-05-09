@@ -159,9 +159,10 @@ static llvm::cl::opt<bool>
 
 static llvm::cl::opt<bool>
     DevirtualizeFuncs("devirt-functions",
-                      llvm::cl::desc("Devirtualize indirect calls "
-                                     "(by default using only types)"),
-                      llvm::cl::init(false));
+       llvm::cl::desc("Devirtualize indirect calls "
+		      "(disabled by default). "
+		      "If enabled then use --devirt-functions-method=types|sea-dsa to choose method."),
+       llvm::cl::init(false));
 
 static llvm::cl::opt<bool> ExternalizeAddrTakenFuncs(
     "externalize-addr-taken-funcs",
@@ -207,6 +208,11 @@ static llvm::cl::opt<bool>
 static llvm::cl::opt<bool>
     WrapMem("wrap-mem",
             llvm::cl::desc("Wrap memory accesses with special functions"),
+            llvm::cl::init(false));
+
+static llvm::cl::opt<bool>
+    FatBoundsCheck("fat-bnd-check",
+            llvm::cl::desc("Instrument buffer bounds check  using extended pointer bits"),
             llvm::cl::init(false));
 
 static llvm::cl::opt<bool>
@@ -434,6 +440,9 @@ int main(int argc, char **argv) {
   else if (NullChecks) {
     pm_wrapper.add(seahorn::createLowerCstExprPass());
     pm_wrapper.add(seahorn::createNullCheckPass());
+  }
+  else if (FatBoundsCheck) {
+    pm_wrapper.add(seahorn::createFatBufferBoundsCheckPass());
   }
   // default pre-processing pipeline
   else {

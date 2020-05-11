@@ -4,17 +4,90 @@
 #include "seahorn/Expr/ExprCore.hh"
 #include "seahorn/Expr/ExprOpBool.hh"
 #include "seahorn/Expr/ExprOpCore.hh"
+#include "seahorn/Expr/TypeChecker.hh"
+#include "seahorn/Expr/TypeCheckerUtils.hh"
 
 #include "llvm/ADT/SmallVector.h"
- 
+
 namespace expr {
 namespace op {
 enum class StructOpKind { MK_STRUCT, EXTRACT_VALUE, INSERT_VALUE };
+
+namespace typeCheck {
+namespace structType {
+struct Struct {
+  static inline Expr inferType(Expr exp, TypeChecker &tc) {
+    ExprVector childrenTypes;
+    bool wellFormed = true;
+
+    // create a vector with the types of the struct's children
+    // if any of the children are error types then leave and return an error
+    // type
+    for (auto b = exp->args_begin(), e = exp->args_end(); wellFormed && b != e;
+         b++) {
+      childrenTypes.push_back(tc.typeOf(*b));
+      wellFormed = correctTypeAny<ANY_TY>(*b, tc);
+    }
+
+    return wellFormed ? sort::structTy(childrenTypes)
+                      : sort::errorTy(exp->efac());
+  }
+};
+
+static inline Expr getStruct(Expr exp) { return exp->arg(0); }
+
+static inline unsigned getIndex(Expr exp) {
+  mpz_class idxZ = (getTerm<expr::mpz_class>(exp->arg(1)));
+  return idxZ.get_ui();
+}
+
+static inline bool structCheck(Expr exp, unsigned numChildren) {
+  return exp->arity() == numChildren && isOp<MPZ>(exp->arg(1)) &&
+         getIndex(exp) < getStruct(exp)->arity();
+}
+
+struct Insert {
+  static inline Expr inferType(Expr exp, TypeChecker &tc) {
+    if (!structCheck(exp, 3))
+      return sort::errorTy(exp->efac());
+
+    Expr st = getStruct(exp);
+    unsigned idx = getIndex(exp);
+    Expr v = exp->arg(2);
+
+    // Create a copy of the struct exp with the value v insert into
+    // the correct spot
+    ExprVector kids(st->args_begin(), st->args_end());
+    kids[idx] = v;
+
+    Expr copy = st->efac().mkNary(st->op(), kids.begin(), kids.end());
+
+    return tc.typeOf(copy);
+  }
+};
+
+struct Extract {
+  static inline Expr inferType(Expr exp, TypeChecker &tc) {
+    if (!structCheck(exp, 2))
+      return sort::errorTy(exp->efac());
+
+    Expr st = getStruct(exp);
+    unsigned idx = getIndex(exp);
+
+    return tc.typeOf(st->arg(idx));
+  }
+};
+} // namespace structType
+} // namespace typeCheck
+
 NOP_BASE(StructOp)
 
-NOP(MK_STRUCT, "struct", FUNCTIONAL, StructOp)
-NOP(EXTRACT_VALUE, "extract-value", FUNCTIONAL, StructOp)
-NOP(INSERT_VALUE, "insert-value", FUNCTIONAL, StructOp)
+NOP(MK_STRUCT, "struct", FUNCTIONAL, StructOp,
+              typeCheck::structType::Struct)
+NOP(EXTRACT_VALUE, "extract-value", FUNCTIONAL, StructOp,
+              typeCheck::structType::Extract)
+NOP(INSERT_VALUE, "insert-value", FUNCTIONAL, StructOp,
+              typeCheck::structType::Insert)
 } // namespace op
 namespace op {
 namespace strct {
@@ -73,7 +146,7 @@ inline Expr push_ite_struct(Expr c, Expr lhs, Expr rhs) {
 inline Expr mkEq(Expr lhs, Expr rhs) {
   if (isStructVal(lhs) && isStructVal(rhs) && lhs->arity() == rhs->arity()) {
     llvm::SmallVector<Expr, 8> kids;
-    for(unsigned i = 0, sz = lhs->arity(); i < sz; ++i) {
+    for (unsigned i = 0, sz = lhs->arity(); i < sz; ++i) {
       kids.push_back(mkEq(lhs->arg(i), rhs->arg(i)));
     }
     return mknary<AND>(mk<TRUE>(lhs->efac()), kids.begin(), kids.end());
@@ -84,6 +157,4 @@ inline Expr mkEq(Expr lhs, Expr rhs) {
 } // namespace strct
 } // namespace op
 
-
-
-}
+} // namespace expr

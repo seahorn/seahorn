@@ -11,10 +11,10 @@ enum class MiscOpKind { NONDET, ASM, TUPLE };
 NOP_BASE(MiscOp)
 
 /** A non-deterministic value */
-NOP(NONDET, "nondet", FUNCTIONAL, MiscOp)
+NOP(NONDET, "nondet", FUNCTIONAL, MiscOp, typeCheck::Any)
 /** An assumption */
-NOP(ASM, "ASM", ADDRESS, MiscOp)
+NOP(ASM, "ASM", ADDRESS, MiscOp, typeCheck::Any)
 /** A tupple */
-NOP(TUPLE, "tuple", FUNCTIONAL, MiscOp)
+NOP(TUPLE, "tuple", FUNCTIONAL, MiscOp, typeCheck::Any)
 } // namespace op
 } // namespace expr

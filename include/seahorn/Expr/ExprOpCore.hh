@@ -6,6 +6,20 @@
 
 namespace expr {
 
+class TypeCheckertc;
+namespace op {
+namespace typeCheck {
+struct Any;
+} // namespace typeCheck
+namespace sort {
+Expr terminalTy(ExprFactory &efac);
+Expr stringTerminalTy(ExprFactory &efac);
+Expr uintTerminalTy(ExprFactory &efac);
+Expr mpzTerminalTy(ExprFactory &efac);
+Expr mpqTerminalTy(ExprFactory &efac);
+} // namespace sort
+} // namespace op
+
 /// \brief A trait that must be impelemnted by a type \ T to be a terminal
 /// see example specializations below
 template <typename T> struct TerminalTrait {};
@@ -115,6 +129,10 @@ public:
     return llvm::isa<TerminalBase>(op) &&
            llvm::cast<TerminalBase>(op)->m_kind == terminal_type::getKind();
   }
+
+  Expr inferType(Expr exp, TypeChecker &tc) const override {
+    return terminal_type::inferType(exp, tc);
+  }
 };
 
 /// \brief Terminal traits for std::string
@@ -135,6 +153,9 @@ template <> struct TerminalTrait<std::string> {
   }
   static TerminalKind getKind() { return TerminalKind::STRING; }
   static std::string name() { return "std::string"; }
+  static inline Expr inferType(Expr exp, TypeChecker &tc) {
+    return sort::stringTerminalTy(exp->efac());
+  }
 };
 
 /// \brief Terminal traits for unsigned int
@@ -155,6 +176,9 @@ template <> struct TerminalTrait<unsigned int> {
   }
   static TerminalKind getKind() { return TerminalKind::UINT; }
   static std::string name() { return "unsigned int"; }
+  static inline Expr inferType(Expr exp, TypeChecker &tc) {
+    return sort::uintTerminalTy(exp->efac());
+  }
 };
 
 /// \brief Termianl traits for GMP integers
@@ -185,6 +209,9 @@ template <> struct TerminalTrait<expr::mpz_class> {
 
   static TerminalKind getKind() { return TerminalKind::MPZ; }
   static std::string name() { return "expr::mpz_class"; }
+  static inline Expr inferType(Expr exp, TypeChecker &tc) {
+    return sort::mpzTerminalTy(exp->efac());
+  }
 };
 
 /// \brief Terminal traits for GMP rationals
@@ -211,6 +238,9 @@ template <> struct TerminalTrait<expr::mpq_class> {
 
   static TerminalKind getKind() { return TerminalKind::MPQ; }
   static std::string name() { return "expr::mpq_class"; }
+  static inline Expr inferType(Expr exp, TypeChecker &tc) {
+    return sort::mpqTerminalTy(exp->efac());
+  }
 };
 
 // Define concise names for terminal operators
@@ -220,8 +250,6 @@ using UINT = Terminal<unsigned int>;
 using MPQ = Terminal<expr::mpq_class>;
 using MPZ = Terminal<expr::mpz_class>;
 } // namespace op
-
-
 
 // Functions for printing operators
 namespace ps {
@@ -349,13 +377,14 @@ using namespace ps;
 /// \p T is the type of the operator
 /// \p B is the base class
 /// \p K is the kind for custom RTTI
-template <typename T, typename B, typename P, typename K, K kind>
+template <typename T, typename B, typename P, typename K, K kind, typename C>
 struct DefOp : public B {
-  using this_type = DefOp<T, B, P, K, kind>;
+  using this_type = DefOp<T, B, P, K, kind, C>;
   using kind_type = K;
   using base_type = B;
   using op_type = T;
   using ps_type = P;
+  using checker_type = C;
 
   DefOp() : B(kind) {}
   DefOp(DefOp const &) = default;
@@ -396,6 +425,10 @@ struct DefOp : public B {
     return llvm::isa<base_type>(op) &&
            llvm::cast<base_type>(op)->m_kind == kind;
   }
+
+  Expr inferType(Expr exp, TypeChecker &tc) const override {
+    return checker_type::inferType(exp, tc);
+  }
 };
 
 } // namespace expr
@@ -411,8 +444,9 @@ struct DefOp : public B {
   };
 
 /// macro for defining a class for a single operator
-#define NOP(NAME, TEXT, STYLE, BASE)                                           \
+#define NOP(NAME, TEXT, STYLE, BASE, TYPECHECK)                                \
   struct __##NAME {                                                            \
     static inline std::string name() { return TEXT; }                          \
   };                                                                           \
-  using NAME = DefOp<__##NAME, BASE, STYLE, BASE##Kind, BASE##Kind::NAME>;
+  using NAME =                                                                 \
+      DefOp<__##NAME, BASE, STYLE, BASE##Kind, BASE##Kind::NAME, TYPECHECK>;

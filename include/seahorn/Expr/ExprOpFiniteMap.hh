@@ -6,6 +6,7 @@
 #include "seahorn/Expr/ExprOpBinder.hh"
 #include "seahorn/Expr/ExprOpBool.hh"
 #include "seahorn/Expr/ExprOpCore.hh"
+#include "seahorn/Expr/TypeCheckerUtils.hh"
 
 namespace expr {
 
@@ -18,15 +19,125 @@ enum class FiniteMapOpKind {
   SET,
   GET
 };
+
+namespace typeCheck {
+namespace finiteMapType {
+struct ValuesKeys;
+struct ValuesDefault;
+struct FiniteMap;
+struct Get;
+struct Set;
+} // namespace finiteMapType
+} // namespace typeCheck
+
 /// FiniteMap operators
 NOP_BASE(FiniteMapOp)
 
-NOP(CONST_FINITE_MAP_KEYS, "defk", FUNCTIONAL, FiniteMapOp)
-NOP(CONST_FINITE_MAP_VALUES, "defv", FUNCTIONAL, FiniteMapOp)
-NOP(CONST_FINITE_MAP, "defmap", FUNCTIONAL, FiniteMapOp)
-NOP(FINITE_MAP_VAL_DEFAULT, "fmap-default", FUNCTIONAL, FiniteMapOp)
-NOP(GET, "get", FUNCTIONAL, FiniteMapOp)
-NOP(SET, "set", FUNCTIONAL, FiniteMapOp)
+NOP(CONST_FINITE_MAP_KEYS, "defk", FUNCTIONAL, FiniteMapOp,
+    typeCheck::finiteMapType::ValuesKeys)
+NOP(CONST_FINITE_MAP_VALUES, "defv", FUNCTIONAL, FiniteMapOp,
+    typeCheck::finiteMapType::ValuesKeys)
+NOP(CONST_FINITE_MAP, "defmap", FUNCTIONAL, FiniteMapOp,
+    typeCheck::finiteMapType::FiniteMap)
+NOP(FINITE_MAP_VAL_DEFAULT, "fmap-default", FUNCTIONAL, FiniteMapOp,
+    typeCheck::finiteMapType::ValuesDefault)
+NOP(GET, "get", FUNCTIONAL, FiniteMapOp, typeCheck::finiteMapType::Get)
+NOP(SET, "set", FUNCTIONAL, FiniteMapOp, typeCheck::finiteMapType::Set)
+
+namespace typeCheck {
+namespace finiteMapType {
+
+struct ValuesKeys {
+  /// ensures that all children are the same type
+  /// \return the type of its children
+  static inline Expr inferType(Expr exp, TypeChecker &tc) {
+    auto returnFn = [](Expr exp, TypeChecker &tc) {
+      return tc.typeOf(exp->first());
+    };
+
+    return typeCheck::oneOrMore<ANY_TY>(
+        exp, tc, returnFn); // children can by of any type
+  }
+};
+struct ValuesDefault {
+  /// ensures that there is 1 child
+  /// \return the type of its child
+  static inline Expr inferType(Expr exp, TypeChecker &tc) {
+    auto returnFn = [](Expr exp, TypeChecker &tc) {
+      return tc.typeOf(exp->first());
+    };
+
+    return typeCheck::unary<ANY_TY>(exp, tc,
+                                    returnFn); // children can by of any type
+  }
+};
+
+struct FiniteMap {
+  /// ensures that the left child is a valid key type, and right is a valid value
+  /// \return: FINITE_MAP_TY
+  static inline Expr inferType(Expr exp, TypeChecker &tc) {
+    if (exp->arity() != 2)
+      return sort::errorTy(exp->efac());
+
+    Expr keys = exp->left();
+    Expr vals = exp->right();
+
+    if (!isOp<CONST_FINITE_MAP_KEYS>(keys))
+      return sort::errorTy(exp->efac());
+
+    if (!(isOp<CONST_FINITE_MAP_VALUES>(vals) ||
+          isOp<FINITE_MAP_VAL_DEFAULT>(vals)))
+      return sort::errorTy(exp->efac());
+
+    if (isOp<CONST_FINITE_MAP_VALUES>(vals)) {
+      if (keys->arity() != vals->arity())
+        return sort::errorTy(exp->efac());
+    }
+
+    ExprVector keyVector(keys->args_begin(), keys->args_end());
+    return sort::finiteMapTy(tc.typeOf(vals), keyVector);
+  }
+};
+
+static inline bool checkMap(Expr exp, TypeChecker &tc,
+                            unsigned numChildren) {
+  return exp->arity() == numChildren &&
+         correctTypeAny<FINITE_MAP_TY>(exp->first(), tc);
+}
+
+static inline void getFiniteMapTypes(Expr exp, TypeChecker &tc,
+                                     Expr &mapTy, Expr &indexTy, Expr &valTy) {
+  mapTy = tc.typeOf(exp->left());
+  indexTy =
+      tc.typeOf(sort::finiteMapKeyTy(mapTy)
+                        ->first()); // type of: FINITE_MAP_KEYS_TY -> first key
+  valTy = sort::finiteMapValTy(mapTy);
+}
+
+struct Get {
+  /// ensures that the expression's index type matches the map's index type
+  /// checks for the following children (in order): map, index
+  /// \return the map's value type
+  /// \note this is the same as array select
+  static inline Expr inferType(Expr exp, TypeChecker &tc) {
+    return typeCheck::mapType::select<FINITE_MAP_TY>(exp, tc,
+                                                     getFiniteMapTypes);
+  }
+};
+
+struct Set {
+  /// ensures that the index type and value type match the map's index and value types
+  /// checks for the following children (in order): map, index, value
+  /// \return FINITE_MAP_TY
+  /// \note this is the same as array store
+  static inline Expr inferType(Expr exp, TypeChecker &tc) {
+    return typeCheck::mapType::store<FINITE_MAP_TY>(exp, tc,
+                                                    getFiniteMapTypes);
+  }
+};
+
+} // namespace finiteMapType
+} // namespace typeCheck
 
 } // namespace op
 

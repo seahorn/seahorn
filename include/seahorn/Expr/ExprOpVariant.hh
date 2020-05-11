@@ -5,6 +5,9 @@
 #include "seahorn/Expr/ExprCore.hh"
 #include "seahorn/Expr/ExprOpBool.hh"
 #include "seahorn/Expr/ExprOpCore.hh"
+#include "seahorn/Expr/ExprOpTerminalSort.hh"
+#include "seahorn/Expr/TypeChecker.hh"
+#include "seahorn/Expr/TypeCheckerUtils.hh"
 
 #include <iostream>
 
@@ -33,9 +36,36 @@ struct PS_TAG {
 } // namespace variant
 
 enum class VariantOpKind { VARIANT, TAG };
+
+namespace typeCheck {
+namespace variantType {
+
+template <typename T>
+static inline Expr checkVariant(Expr exp, TypeChecker &tc) {
+  if (exp->arity() == 2 && correctTypeAny<T>(exp ->first(), tc))
+    return sort::anyTy(exp->efac());
+
+  return sort::errorTy(exp->efac());
+
+}
+
+struct Variant {
+  static inline Expr inferType(Expr exp, TypeChecker &tc) {
+    return checkVariant <UINT_TERMINAL_TY> (exp, tc);
+  }
+};
+
+struct Tag {
+  static inline Expr inferType(Expr exp, TypeChecker &tc) {
+    return checkVariant <ANY_TY>(exp, tc);
+  }
+};
+} // namespace variantType
+} // namespace typeCheck
+
 NOP_BASE(VariantOp)
-NOP(VARIANT, "variant", variant::PS, VariantOp)
-NOP(TAG, "tag", variant::PS_TAG, VariantOp)
+NOP(VARIANT, "variant", variant::PS, VariantOp, typeCheck::variantType::Variant)
+NOP(TAG, "tag", variant::PS_TAG, VariantOp, typeCheck::variantType::Tag)
 
 namespace variant {
 /** Creates a variant of an expression. For example,
@@ -70,4 +100,4 @@ inline Expr getTag(Expr e) { return e->left(); }
 inline std::string getTagStr(Expr e) { return getTerm<std::string>(getTag(e)); }
 } // namespace variant
 } // namespace op
-}
+} // namespace expr

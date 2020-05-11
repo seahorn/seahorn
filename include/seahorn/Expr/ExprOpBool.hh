@@ -3,23 +3,83 @@
 #include "seahorn/Expr/ExprApi.hh"
 #include "seahorn/Expr/ExprCore.hh"
 #include "seahorn/Expr/ExprOpCore.hh"
+#include "seahorn/Expr/ExprOpSort.hh"
+#include "seahorn/Expr/TypeChecker.hh"
+#include "seahorn/Expr/TypeCheckerUtils.hh"
 
 namespace expr {
 namespace op {
 enum class BoolOpKind { TRUE, FALSE, AND, OR, XOR, NEG, IMPL, ITE, IFF };
+
+namespace typeCheck {
+namespace boolType {
+
+struct OneOrMore {
+  /// \return BOOL_TY
+  /// Possible types of children: BOOL_TY
+  static inline Expr inferType(Expr exp, TypeChecker &tc) {
+    return typeCheck::oneOrMore<BOOL_TY, BOOL_TY>(exp, tc);
+  }
+};
+
+struct Unary {
+  /// \return BOOL_TY
+  /// Possible types of children: BOOL_TY
+  static inline Expr inferType(Expr exp, TypeChecker &tc) {
+    return typeCheck::unary<BOOL_TY, BOOL_TY>(exp, tc);
+  }
+};
+
+struct Binary {
+  /// \return BOOL_TY
+  /// Possible types of children: BOOL_TY
+  static inline Expr inferType(Expr exp, TypeChecker &tc) {
+    return typeCheck::binary<BOOL_TY, BOOL_TY>(exp, tc);
+  }
+};
+
+struct Nary {
+  /// \return BOOL_TY
+  /// Possible types of children: BOOL_TY
+  static inline Expr inferType(Expr exp, TypeChecker &tc) {
+    return typeCheck::nary<BOOL_TY, BOOL_TY>(exp, tc);
+  }
+};
+
+struct ITE {
+  static inline Expr inferType(Expr exp, TypeChecker &tc) {
+
+    // ite(a,b,c) : a is bool type, b and c are the same type
+    if (exp->arity() == 3 && isOp<BOOL_TY>(tc.typeOf(exp->arg(0))) &&
+        (tc.typeOf(exp->arg(1)) == tc.typeOf(exp->arg(2))))
+      return tc.typeOf(exp->arg(1));
+
+    return sort::errorTy(exp->efac());
+  }
+};
+
+struct TrueFalse {
+  static inline Expr inferType(Expr exp, TypeChecker &tc) {
+    return sort::boolTy(exp->efac());
+  }
+};
+
+} // namespace boolType
+} // namespace typeCheck
+
 // -- Boolean opearators
 NOP_BASE(BoolOp)
 
 /* operator definitions */
-NOP(TRUE, "true", PREFIX, BoolOp)
-NOP(FALSE, "false", PREFIX, BoolOp)
-NOP(AND, "&&", INFIX, BoolOp)
-NOP(OR, "||", INFIX, BoolOp)
-NOP(XOR, "^", INFIX, BoolOp)
-NOP(NEG, "!", PREFIX, BoolOp)
-NOP(IMPL, "->", INFIX, BoolOp)
-NOP(ITE, "ite", FUNCTIONAL, BoolOp)
-NOP(IFF, "<->", INFIX, BoolOp)
+NOP(TRUE, "true", PREFIX, BoolOp, typeCheck::boolType::TrueFalse)
+NOP(FALSE, "false", PREFIX, BoolOp, typeCheck::boolType::TrueFalse)
+NOP(AND, "&&", INFIX, BoolOp, typeCheck::boolType::Nary)
+NOP(OR, "||", INFIX, BoolOp, typeCheck::boolType::Nary)
+NOP(XOR, "^", INFIX, BoolOp, typeCheck::boolType::Nary)
+NOP(NEG, "!", PREFIX, BoolOp, typeCheck::boolType::Unary)
+NOP(IMPL, "->", INFIX, BoolOp, typeCheck::boolType::Binary)
+NOP(ITE, "ite", FUNCTIONAL, BoolOp, typeCheck::boolType::ITE)
+NOP(IFF, "<->", INFIX, BoolOp, typeCheck::boolType::Binary)
 
 namespace boolop {
 // -- logical AND. Applies simplifications
@@ -96,15 +156,15 @@ template <typename R> Expr land(const R &r) {
   if (boost::size(r) == 1)
     return *std::begin(r);
 
-  auto& efac = (*std::begin(r))->efac();
-  ExprVector res;  
-  for (auto e: r) {
+  auto &efac = (*std::begin(r))->efac();
+  ExprVector res;
+  for (auto e : r) {
     if (isOpX<FALSE>(e))
       return mk<FALSE>(efac);
     else if (!isOpX<TRUE>(e))
       res.push_back(e);
   }
-  
+
   if (res.empty()) {
     return mk<TRUE>(efac);
   } else if (res.size() == 1) {

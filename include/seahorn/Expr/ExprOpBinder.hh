@@ -52,6 +52,9 @@ template <> struct TerminalTrait<op::bind::BoundVar> {
 
   static TerminalKind getKind() { return TerminalKind::BVAR; }
   static std::string name() { return "bind::BoundVar"; }
+  static inline Expr inferType(Expr exp, TypeChecker &tc) {
+    return sort::bvarTerminalTy(exp->efac());
+  }
 };
 
 namespace op {
@@ -94,7 +97,6 @@ template <typename Range> Expr absConstants(const Range &r, Expr e);
 template <typename Range> Expr subBndVars(const Range &r, Expr e);
 } // namespace details
 
-
 namespace op {
 
 /**
@@ -126,14 +128,71 @@ struct BINDER {
 };
 } // namespace bind
 
+namespace typeCheck {
+namespace bindType {
+
+static inline bool binderCheck(Expr exp, TypeChecker &tc,
+                               ExprVector &boundTypes) {
+  if (exp->arity() == 0)
+    return false;
+
+  // makes sure that all of the binders arguments are constants and store their
+  // types
+  for (auto b = exp->args_begin(), e = exp->args_end() - 1; b != e; b++) {
+    if (!op::bind::IsConst()(*b))
+      return false;
+
+    Expr type = tc.typeOf(*b);
+    boundTypes.push_back(type);
+  }
+
+  return true;
+}
+
+struct Lambda {
+  /// ensures that all children except for the last (the body) are constants
+  /// \note does not check bound variables
+  /// \return FUNCTIONAL_TY
+  /// for example, for the expression lambda a, b, c ... :: body, the return
+  /// type is FUNCTIONAL_TY(typeOf(a), typeOf(b), ... , typeOf(body))
+  static inline Expr inferType(Expr exp, TypeChecker &tc) {
+    ExprVector boundTypes;
+    if (!binderCheck(exp, tc, boundTypes))
+      return sort::errorTy(exp->efac());
+
+    Expr body = exp->last();
+    boundTypes.push_back(tc.typeOf(body));
+
+    return mknary<FUNCTIONAL_TY>(boundTypes);
+  }
+};
+
+struct Quantifier {
+  /// ensures that: 1. all children except for the last (the body) are constants
+  ///  2. the body type is BOOL_TY
+  /// \note does not check bound variables
+  /// \return BOOL_TY
+  static inline Expr inferType(Expr exp, TypeChecker &tc) {
+    ExprVector boundTypes;
+    Expr body = exp->last();
+    if (!(binderCheck(exp, tc, boundTypes) &&
+          isOp<BOOL_TY>(tc.typeOf(body))))
+      return sort::errorTy(exp->efac());
+
+    return sort::boolTy(exp->efac());
+  }
+};
+} // namespace bindType
+} // namespace typeCheck
+
 enum class BinderOpKind { FORALL, EXISTS, LAMBDA };
 NOP_BASE(BinderOp)
 /** Forall quantifier */
-NOP(FORALL, "forall", bind::BINDER, BinderOp)
+NOP(FORALL, "forall", bind::BINDER, BinderOp, typeCheck::bindType::Quantifier)
 /** Exists */
-NOP(EXISTS, "exists", bind::BINDER, BinderOp)
+NOP(EXISTS, "exists", bind::BINDER, BinderOp, typeCheck::bindType::Quantifier)
 /** Lambda */
-NOP(LAMBDA, "lambda", bind::BINDER, BinderOp)
+NOP(LAMBDA, "lambda", bind::BINDER, BinderOp, typeCheck::bindType::Lambda)
 
 namespace bind {
 inline unsigned numBound(Expr e) {
@@ -292,7 +351,7 @@ inline Expr betaReduce(Expr lambda, Expr v0, Expr v1, Expr v2, Expr v3) {
 }
 } // namespace bind
 } // namespace op
-}
+} // namespace expr
 
 namespace expr {
 namespace details {

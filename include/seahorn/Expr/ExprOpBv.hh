@@ -4,6 +4,9 @@
 #include "seahorn/Expr/ExprCore.hh"
 #include "seahorn/Expr/ExprOpBool.hh"
 #include "seahorn/Expr/ExprOpCore.hh"
+#include "seahorn/Expr/ExprOpTerminalSort.hh"
+#include "seahorn/Expr/TypeChecker.hh"
+#include "seahorn/Expr/TypeCheckerUtils.hh"
 
 /** Bit-Vector expressions
 
@@ -54,6 +57,7 @@ template <> struct TerminalTrait<const op::bv::BvSort> {
 
   static TerminalKind getKind() { return TerminalKind::BVSORT; }
   static std::string name() { return "op::bv::BvSort"; }
+  static inline Expr inferType(Expr exp, TypeChecker &tc) { return sort::typeTy(exp->efac()); }
 };
 
 namespace op {
@@ -97,6 +101,12 @@ inline bool isBvNum(Expr v) {
   return isBvNum(v, w);
 }
 
+inline unsigned widthBvNum(Expr v) {
+  assert(isBvNum(v));
+  Expr sort = bind::rangeTy(v);
+  return width(sort);
+}
+
 inline mpz_class toMpz(Expr v) {
   assert(is_bvnum(v));
   return getTerm<mpz_class>(v->arg(0));
@@ -108,6 +118,13 @@ inline Expr bvConst(Expr v, unsigned width) {
 }
 
 inline bool isBvConst(Expr v) { return bind::isConst<BVSORT>(v); }
+
+inline unsigned widthBvConst(Expr v) {
+  assert(isBvConst(v));
+  Expr sort = bind::rangeTy(v->first());
+  return width(sort);
+}
+
 } // namespace bv
 
 enum class BvOpKind {
@@ -165,61 +182,234 @@ enum class BvOpKind {
   UMUL_NO_OVERFLOW
 };
 
+namespace typeCheck {
+namespace bvType {
+
+/// \return type of children
+static inline Expr returnType(Expr exp, TypeChecker &tc) {
+  return tc.typeOf(exp->first());
+}
+
+  /// \return: type of children
+  /// Possible types of children: BVSORT
+struct Unary {
+  static inline Expr inferType(Expr exp, TypeChecker &tc) {
+    return typeCheck::unary<BVSORT>(exp, tc, returnType);
+  }
+};
+
+  /// \return: type of children
+  /// Possible types of children: BVSORT
+struct Binary {
+  static inline Expr inferType(Expr exp, TypeChecker &tc) {
+    return typeCheck::binary<BVSORT>(exp, tc, returnType);
+  }
+};
+
+  /// \return: type of children
+  /// Possible types of children: BVSORT
+struct Nary {
+  static inline Expr inferType(Expr exp, TypeChecker &tc) {
+    return typeCheck::nary<BVSORT>(exp, tc, returnType);
+  }
+};
+
+  /// \return: BOOL_TY
+  /// Possible types of children: BVSORT
+struct BinaryBool {
+  static inline Expr inferType(Expr exp, TypeChecker &tc) {
+    return typeCheck::binary<BOOL_TY, BVSORT>(exp, tc);
+  }
+};
+
+  /// \return: BVSORT with sum of children's widths
+static inline Expr getExtendReturnType(Expr exp, TypeChecker &tc) {
+  unsigned width = 0;
+  for (auto b = exp->args_begin(), e = exp->args_end(); b != e; b++) {
+    Expr bvsort = isOp<BVSORT>(*b) ? *b : tc.typeOf(*b);
+    width += bv::width(bvsort);
+  }
+
+  return bv::bvsort(width, exp->efac());
+}
+
+struct Concat {
+
+  /// \return: BVSORT with sum of children's width
+  /// Possible types of children: BVSORT (children don't need matching widths)
+  static inline Expr inferType(Expr exp, TypeChecker &tc) {
+    auto returnTypeFn = [](Expr exp, TypeChecker &tc) {
+      return getExtendReturnType(exp, tc);
+    };
+    return typeCheck::checkChildrenAll<GreaterEqual, BVSORT>(exp, tc, 2,
+                                                             returnTypeFn);
+  }
+};
+
+struct Extend {
+  /// \return: BVSORT with sum of children's width
+  /// Expected Children (in order): BVSORT type, and bvsort(the operator, not an expresion of this type)
+  static inline Expr inferType(Expr exp, TypeChecker &tc) {
+    if (exp->arity() != 2)
+      return sort::errorTy(exp->efac());
+
+    Expr bv = exp->left();
+    Expr bvSort = exp->right(); // NOTE: bvSort should be the BVSORT operator,
+                                // so we shouldn't do tc.typeOf() on it
+
+    if (isOp<BVSORT>(tc.typeOf(bv)) && isOp<BVSORT>(bvSort))
+      return getExtendReturnType(exp, tc);
+
+    return sort::errorTy(exp->efac());
+  }
+};
+
+struct Extract {
+  /// \return: BVSORT with a width corresponding that specified in the expression
+  /// Expected Children types(in order): UINT_TERMINAL_TY, UINT_TERMINAL_TY, BVSORT
+  static inline Expr inferType(Expr exp, TypeChecker &tc) {
+    auto returnTypeFn = [](Expr exp, TypeChecker &tc) {
+      Expr high = exp->arg(0);
+      Expr low = exp->arg(1);
+      Expr bv = exp->arg(2);
+
+      unsigned width = bv::width(tc.typeOf(bv));
+      unsigned highValue = getTerm<unsigned>(high);
+      unsigned lowValue = getTerm<unsigned>(low);
+
+      if ((highValue >= lowValue) && (highValue < width))
+        return bv::bvsort(highValue - lowValue + 1, exp->efac());
+
+      return sort::errorTy(exp->efac());
+    };
+
+    return typeCheck::checkChildrenSpecific<Equal, UINT_TERMINAL_TY, UINT_TERMINAL_TY, BVSORT>(
+        exp, tc, 3, returnTypeFn);
+  }
+};
+
+  /// \return: INT_TY
+  /// Possible types of children: BVSORT
+struct Bv2Int {
+  static inline Expr inferType(Expr exp, TypeChecker &tc) {
+    return typeCheck::unary<INT_TY, BVSORT>(exp, tc);
+  }
+};
+
+  /// \return: BVSORT with a width corresponding that specified in the expression
+  /// Expected Children types(in order): UINT_TERMINAL_TY, INT_TY
+struct Int2Bv {
+  static inline Expr inferType(Expr exp, TypeChecker &tc) {
+    auto returnTypeFn = [](Expr exp, TypeChecker &tc) {
+      unsigned width = getTerm<unsigned>(exp->left());
+      return bv::bvsort(width, exp->efac());
+    };
+
+    return typeCheck::checkChildrenSpecific<Equal, UINT_TERMINAL_TY, INT_TY>(exp, tc, 2,
+                                                                 returnTypeFn);
+  }
+};
+
+  /// \return: BVSORT with a width matching the passed bv expression 
+  /// Expected Children types(in order): UINT_TERMINAL_TY, BVSORT
+struct Rotate {
+  static inline Expr inferType(Expr exp, TypeChecker &tc) {
+    auto returnTypeFn = [](Expr exp, TypeChecker &tc) {
+      return tc.typeOf(exp->right());
+    };
+
+    return typeCheck::checkChildrenSpecific<Equal, UINT_TERMINAL_TY, BVSORT>(exp, tc, 2,
+                                                                 returnTypeFn);
+  }
+};
+
+  /// \return: BVSORT with a width multiplied by the number of times its repeated
+  /// Expected Children types(in order): UINT_TERMINAL_TY, BVSORT
+struct Repeat {
+  static inline Expr inferType(Expr exp, TypeChecker &tc) {
+    auto returnTypeFn = [](Expr exp, TypeChecker &tc) {
+      unsigned timesRepeated = getTerm<unsigned>(exp->left());
+      unsigned width = bv::width(tc.typeOf(exp->right()));
+
+      return bv::bvsort(width * timesRepeated, exp->efac());
+    };
+
+    return typeCheck::checkChildrenSpecific<Equal, UINT_TERMINAL_TY, BVSORT>(exp, tc, 2,
+                                                                 returnTypeFn);
+  }
+};
+
+} // namespace bvType
+} // namespace typeCheck
+
 NOP_BASE(BvOp)
-NOP(BNOT, "bvnot", FUNCTIONAL, BvOp)
-NOP(BREDAND, "bvredand", FUNCTIONAL, BvOp)
-NOP(BREDOR, "bvredor", FUNCTIONAL, BvOp)
-NOP(BAND, "bvand", FUNCTIONAL, BvOp)
-NOP(BOR, "bvor", FUNCTIONAL, BvOp)
-NOP(BXOR, "bvxor", FUNCTIONAL, BvOp)
-NOP(BNAND, "bvnand", FUNCTIONAL, BvOp)
-NOP(BNOR, "bvnor", FUNCTIONAL, BvOp)
-NOP(BXNOR, "bvxnor", FUNCTIONAL, BvOp)
-NOP(BNEG, "bvneg", FUNCTIONAL, BvOp)
-NOP(BADD, "bvadd", FUNCTIONAL, BvOp)
-NOP(BSUB, "bvsub", FUNCTIONAL, BvOp)
-NOP(BMUL, "bvmul", FUNCTIONAL, BvOp)
-NOP(BUDIV, "bvudiv", FUNCTIONAL, BvOp)
-NOP(BSDIV, "bvsdiv", FUNCTIONAL, BvOp)
-NOP(BUREM, "bvurem", FUNCTIONAL, BvOp)
-NOP(BSREM, "bvsrem", FUNCTIONAL, BvOp)
-NOP(BSMOD, "bvsmod", FUNCTIONAL, BvOp)
-NOP(BULT, "bvult", FUNCTIONAL, BvOp)
-NOP(BSLT, "bvslt", FUNCTIONAL, BvOp)
-NOP(BULE, "bvule", FUNCTIONAL, BvOp)
-NOP(BSLE, "bvsle", FUNCTIONAL, BvOp)
-NOP(BUGE, "bvuge", FUNCTIONAL, BvOp)
-NOP(BSGE, "bvsge", FUNCTIONAL, BvOp)
-NOP(BUGT, "bvugt", FUNCTIONAL, BvOp)
-NOP(BSGT, "bvsgt", FUNCTIONAL, BvOp)
-NOP(BCONCAT, "concat", FUNCTIONAL, BvOp)
-NOP(BEXTRACT, "extract", FUNCTIONAL, BvOp)
-NOP(BSEXT, "bvsext", FUNCTIONAL, BvOp)
-NOP(BZEXT, "bvzext", FUNCTIONAL, BvOp)
-NOP(BREPEAT, "bvrepeat", FUNCTIONAL, BvOp)
-NOP(BSHL, "bvshl", FUNCTIONAL, BvOp)
-NOP(BLSHR, "bvlshr", FUNCTIONAL, BvOp)
-NOP(BASHR, "bvashr", FUNCTIONAL, BvOp)
-NOP(BROTATE_LEFT, "bvrotleft", FUNCTIONAL, BvOp)
-NOP(BROTATE_RIGHT, "bvrotright", FUNCTIONAL, BvOp)
-NOP(BEXT_ROTATE_LEFT, "bvextrotleft", FUNCTIONAL, BvOp)
-NOP(BEXT_ROTATE_RIGHT, "bvextrotright", FUNCTIONAL, BvOp)
-NOP(INT2BV, "int2bv", FUNCTIONAL, BvOp)
-NOP(BV2INT, "bv2int", FUNCTIONAL, BvOp)
+NOP(BNOT, "bvnot", FUNCTIONAL, BvOp, typeCheck::bvType::Unary)
+NOP(BREDAND, "bvredand", FUNCTIONAL, BvOp, typeCheck::bvType::Unary)
+NOP(BREDOR, "bvredor", FUNCTIONAL, BvOp, typeCheck::bvType::Unary)
+NOP(BAND, "bvand", FUNCTIONAL, BvOp, typeCheck::bvType::Nary)
+NOP(BOR, "bvor", FUNCTIONAL, BvOp, typeCheck::bvType::Nary)
+NOP(BXOR, "bvxor", FUNCTIONAL, BvOp, typeCheck::bvType::Nary)
+NOP(BNAND, "bvnand", FUNCTIONAL, BvOp, typeCheck::bvType::Nary)
+NOP(BNOR, "bvnor", FUNCTIONAL, BvOp, typeCheck::bvType::Nary)
+NOP(BXNOR, "bvxnor", FUNCTIONAL, BvOp, typeCheck::bvType::Nary)
+NOP(BNEG, "bvneg", FUNCTIONAL, BvOp, typeCheck::bvType::Unary)
+NOP(BADD, "bvadd", FUNCTIONAL, BvOp, typeCheck::bvType::Nary)
+NOP(BSUB, "bvsub", FUNCTIONAL, BvOp, typeCheck::bvType::Nary)
+NOP(BMUL, "bvmul", FUNCTIONAL, BvOp, typeCheck::bvType::Nary)
+NOP(BUDIV, "bvudiv", FUNCTIONAL, BvOp, typeCheck::bvType::Nary)
+NOP(BSDIV, "bvsdiv", FUNCTIONAL, BvOp, typeCheck::bvType::Nary)
+NOP(BUREM, "bvurem", FUNCTIONAL, BvOp, typeCheck::bvType::Nary)
+NOP(BSREM, "bvsrem", FUNCTIONAL, BvOp, typeCheck::bvType::Nary)
+NOP(BSMOD, "bvsmod", FUNCTIONAL, BvOp, typeCheck::bvType::Nary)
+NOP(BULT, "bvult", FUNCTIONAL, BvOp, typeCheck::bvType::Binary)
+NOP(BSLT, "bvslt", FUNCTIONAL, BvOp, typeCheck::bvType::Binary)
+NOP(BULE, "bvule", FUNCTIONAL, BvOp, typeCheck::bvType::Binary)
+NOP(BSLE, "bvsle", FUNCTIONAL, BvOp, typeCheck::bvType::Binary)
+NOP(BUGE, "bvuge", FUNCTIONAL, BvOp, typeCheck::bvType::Binary)
+NOP(BSGE, "bvsge", FUNCTIONAL, BvOp, typeCheck::bvType::Binary)
+NOP(BUGT, "bvugt", FUNCTIONAL, BvOp, typeCheck::bvType::Binary)
+NOP(BSGT, "bvsgt", FUNCTIONAL, BvOp, typeCheck::bvType::Binary)
+NOP(BCONCAT, "concat", FUNCTIONAL, BvOp, typeCheck::bvType::Concat)
+NOP(BEXTRACT, "extract", FUNCTIONAL, BvOp, typeCheck::bvType::Extract)
+NOP(BSEXT, "bvsext", FUNCTIONAL, BvOp, typeCheck::bvType::Extend)
+NOP(BZEXT, "bvzext", FUNCTIONAL, BvOp, typeCheck::bvType::Extend)
+NOP(BREPEAT, "bvrepeat", FUNCTIONAL, BvOp, typeCheck::bvType::Repeat)
+NOP(BSHL, "bvshl", FUNCTIONAL, BvOp, typeCheck::bvType::Binary)
+NOP(BLSHR, "bvlshr", FUNCTIONAL, BvOp, typeCheck::bvType::Binary)
+NOP(BASHR, "bvashr", FUNCTIONAL, BvOp, typeCheck::bvType::Binary)
+NOP(BROTATE_LEFT, "bvrotleft", FUNCTIONAL, BvOp,
+              typeCheck::bvType::Rotate)
+NOP(BROTATE_RIGHT, "bvrotright", FUNCTIONAL, BvOp,
+              typeCheck::bvType::Rotate)
+NOP(BEXT_ROTATE_LEFT, "bvextrotleft", FUNCTIONAL, BvOp,
+              typeCheck::bvType::Rotate)
+NOP(BEXT_ROTATE_RIGHT, "bvextrotright", FUNCTIONAL, BvOp,
+              typeCheck::bvType::Rotate)
+NOP(INT2BV, "int2bv", FUNCTIONAL, BvOp, typeCheck::bvType::Int2Bv)
+NOP(BV2INT, "bv2int", FUNCTIONAL, BvOp, typeCheck::bvType::Bv2Int)
 // Add w Overflow
-NOP(SADD_NO_OVERFLOW, "bvsadd_no_overflow", FUNCTIONAL, BvOp)
-NOP(UADD_NO_OVERFLOW, "bvuadd_no_overflow", FUNCTIONAL, BvOp)
-NOP(SADD_NO_UNDERFLOW, "bvbadd_no_underflow", FUNCTIONAL, BvOp)
+NOP(SADD_NO_OVERFLOW, "bvsadd_no_overflow", FUNCTIONAL, BvOp,
+              typeCheck::bvType::BinaryBool)
+NOP(UADD_NO_OVERFLOW, "bvuadd_no_overflow", FUNCTIONAL, BvOp,
+              typeCheck::bvType::BinaryBool)
+NOP(SADD_NO_UNDERFLOW, "bvbadd_no_underflow", FUNCTIONAL, BvOp,
+              typeCheck::bvType::BinaryBool)
 // Sub w Overflow
-NOP(SSUB_NO_OVERFLOW, "bvbsub_no_overflow", FUNCTIONAL, BvOp)
-NOP(SSUB_NO_UNDERFLOW, "bvssub_no_underflow", FUNCTIONAL, BvOp)
-NOP(USUB_NO_UNDERFLOW, "bvusub_no_underflow", FUNCTIONAL, BvOp)
+NOP(SSUB_NO_OVERFLOW, "bvbsub_no_overflow", FUNCTIONAL, BvOp,
+              typeCheck::bvType::BinaryBool)
+NOP(SSUB_NO_UNDERFLOW, "bvssub_no_underflow", FUNCTIONAL, BvOp,
+              typeCheck::bvType::BinaryBool)
+NOP(USUB_NO_UNDERFLOW, "bvusub_no_underflow", FUNCTIONAL, BvOp,
+              typeCheck::bvType::BinaryBool)
 // Mul w Overflow
-NOP(SMUL_NO_OVERFLOW, "bvsmul_no_overflow", FUNCTIONAL, BvOp)
-NOP(UMUL_NO_OVERFLOW, "bvumul_no_overflow", FUNCTIONAL, BvOp)
-NOP(SMUL_NO_UNDERFLOW, "bvbmul_no_underflow", FUNCTIONAL, BvOp)
+NOP(SMUL_NO_OVERFLOW, "bvsmul_no_overflow", FUNCTIONAL, BvOp,
+              typeCheck::bvType::BinaryBool)
+NOP(UMUL_NO_OVERFLOW, "bvumul_no_overflow", FUNCTIONAL, BvOp,
+              typeCheck::bvType::BinaryBool)
+NOP(SMUL_NO_UNDERFLOW, "bvbmul_no_underflow", FUNCTIONAL, BvOp,
+              typeCheck::bvType::BinaryBool)
 namespace bv {
-/* XXX Add helper methods as needed */
+/* XXX Add tc methods as needed */
 
 inline Expr bvnot(Expr v) { return mk<BNOT>(v); }
 

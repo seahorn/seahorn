@@ -26,15 +26,100 @@ struct SCOPE_PS {
   }
 };
 struct FAPP_PS;
+Expr rangeTy(Expr);
+Expr typeOf(Expr);
+inline bool isBVar(Expr e);
 } // namespace bind
+
+namespace typeCheck {
+namespace bindType {
+struct Bind;
+struct Fdecl;
+struct Fapp;
+} // namespace bindType
+} // namespace typeCheck
+
 enum class BindOpKind { BIND, FDECL, FAPP };
 NOP_BASE(BindOp)
 
-NOP(BIND, ":", INFIX, BindOp)
+NOP(BIND, ":", INFIX, BindOp, typeCheck::bindType::Bind)
 /** Function declaration */
-NOP(FDECL, "fdecl", PREFIX, BindOp)
+NOP(FDECL, "fdecl", PREFIX, BindOp, typeCheck::bindType::Fdecl)
+
 /** Function application */
-NOP(FAPP, "fapp", bind::FAPP_PS, BindOp)
+NOP(FAPP, "fapp", bind::FAPP_PS, BindOp, typeCheck::bindType::Fapp)
+
+namespace typeCheck {
+namespace bindType {
+
+struct Bind {
+  static inline Expr inferType(Expr exp, TypeChecker &tc) {
+    if (!(exp->arity() == 2 && isOp<TYPE_TY>(tc.typeOf(exp->right()))))
+      return sort::errorTy(exp->efac());
+
+    return exp->right();
+  }
+};
+struct Fdecl {
+  /// Checks that all arguments and return expression are types
+  /// \return FUNCTIONAL_TY
+  static inline Expr inferType(Expr exp, TypeChecker &tc) {
+    if (exp->arity() < 2)
+      return sort::errorTy(exp->efac());
+
+    auto isType = [&tc](Expr exp) -> bool {
+      return isOp<TYPE_TY>(tc.typeOf(exp));
+    };
+
+    auto begin = exp->args_begin();
+    std::advance(begin, 1); // note: name is the first child
+    auto end = exp->args_end();
+
+    if (std::all_of(begin, end, isType))
+      return mknary<FUNCTIONAL_TY>(begin, end);
+
+    return sort::errorTy(exp->efac());
+  }
+};
+
+struct Fapp {
+  /// Checks that the first child is FUNCTIONAL_TY type and its remaining
+  /// types match the Functional's argument types
+  /// \return type of the Functional's body
+  static inline Expr inferType(Expr exp, TypeChecker &tc) {
+    if (exp->arity() == 0)
+      return sort::errorTy(exp->efac());
+
+    Expr functionalType =
+        tc.typeOf(exp->first()); // functional types should be of the form :
+                                     // arg1Type, arg2Type ... -> returnType
+
+    if (!(isOp<FUNCTIONAL_TY>(functionalType) &&
+          exp->arity() == functionalType->arity()))
+      return sort::errorTy(exp->efac());
+
+    auto fappArgs = exp->args_begin();
+    std::advance(fappArgs, 1); // note: the first child is the fdecl
+    auto functionalArgs = functionalType->args_begin();
+
+    // Check that each fapp argument type matches its corresponding functional
+    // arguments
+    while (fappArgs != exp->args_end()) {
+      Expr fappArgType = tc.typeOf(*fappArgs);
+      Expr functionalArgType = *functionalArgs;
+
+      if (fappArgType != functionalArgType)
+        return sort::errorTy(exp->efac());
+
+      ++fappArgs;
+      ++functionalArgs;
+    }
+
+    return functionalType->last(); // type of the functional's body
+  }
+};
+} // namespace bindType
+} // namespace typeCheck
 
 namespace bind {
 inline Expr bind(Expr name, Expr value) { return mk<BIND>(name, value); }
@@ -67,6 +152,9 @@ inline Expr intConstDecl(Expr name) {
 }
 inline Expr realConstDecl(Expr name) {
   return constDecl(name, mk<REAL_TY>(name->efac()));
+}
+inline Expr unintConstDecl(Expr name) {
+  return constDecl(name, mk<UNINT_TY>(name->efac()));
 }
 
 template <typename Range> Expr fdecl(Expr fname, const Range &args) {
@@ -132,13 +220,15 @@ inline Expr mkConst(Expr name, Expr sort) {
 inline Expr boolConst(Expr name) { return fapp(boolConstDecl(name)); }
 inline Expr intConst(Expr name) { return fapp(intConstDecl(name)); }
 inline Expr realConst(Expr name) { return fapp(realConstDecl(name)); }
+inline Expr unintConst(Expr name) { return fapp(unintConstDecl(name)); }
 
 inline bool isBoolConst(Expr v) { return isConst<BOOL_TY>(v); }
 inline bool isIntConst(Expr v) { return isConst<INT_TY>(v); }
 inline bool isRealConst(Expr v) { return isConst<REAL_TY>(v); }
 inline bool isArrayConst(Expr v) { return isConst<ARRAY_TY>(v); }
-inline bool isStructConst(Expr v) { return isConst<STRUCT_TY>(v);}
+inline bool isStructConst(Expr v) { return isConst<STRUCT_TY>(v); }
 inline bool isFiniteMapConst(Expr v) { return isConst<FINITE_MAP_TY>(v); }
+inline bool isUnintConst(Expr v) { return isConst<UNINT_TY>(v); }
 
 inline Expr typeOf(Expr v) {
   using namespace bind;

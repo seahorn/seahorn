@@ -14,6 +14,15 @@
 #include <boost/lexical_cast.hpp>
 
 namespace expr {
+namespace op {
+namespace sort {
+
+inline Expr llvmValueTerminalTy(ExprFactory &efac);
+inline Expr llvmBasicBlockTerminalTy(ExprFactory &efac);
+inline Expr llvmFunctionTerminalTy(ExprFactory &efac);
+} // namespace sort
+} // namespace op
+
 using namespace llvm;
 
 inline llvm::raw_ostream &operator<<(llvm::raw_ostream &OS, const Expr &p) {
@@ -46,8 +55,11 @@ template <> struct TerminalTrait<const Function *> {
     return hasher(f);
   }
 
-  static TerminalKind getKind() {return TerminalKind::LLVM_FUNCTION;}
-  static std::string name() {return "llvm::Function";}
+  static TerminalKind getKind() { return TerminalKind::LLVM_FUNCTION; }
+  static std::string name() { return "llvm::Function"; }
+  static inline Expr inferType(Expr exp, TypeChecker &tc) {
+    return sort::llvmFunctionTerminalTy(exp->efac());
+  }
 };
 
 template <> struct TerminalTrait<const BasicBlock *> {
@@ -68,10 +80,12 @@ template <> struct TerminalTrait<const BasicBlock *> {
     return hasher(b);
   }
 
-  static TerminalKind getKind() {return TerminalKind::LLVM_BASICBLOCK;}
-  static std::string name() {return "llvm::BasicBlock";}
+  static TerminalKind getKind() { return TerminalKind::LLVM_BASICBLOCK; }
+  static std::string name() { return "llvm::BasicBlock"; }
+  static inline Expr inferType(Expr exp, TypeChecker &tc) {
+    return sort::llvmBasicBlockTerminalTy(exp->efac());
+  }
 };
-
 
 template <> struct TerminalTrait<const Value *> {
   static inline void print(std::ostream &OS, const Value *s, int depth,
@@ -118,8 +132,11 @@ template <> struct TerminalTrait<const Value *> {
     return hasher(v);
   }
 
-  static TerminalKind getKind() {return TerminalKind::LLVM_VALUE;}
-  static std::string name() {return "llvm::Value";}
+  static TerminalKind getKind() { return TerminalKind::LLVM_VALUE; }
+  static std::string name() { return "llvm::Value"; }
+  static inline Expr inferType(Expr exp, TypeChecker &tc) {
+    return sort::llvmValueTerminalTy(exp->efac());
+  }
 };
 
 using BB = expr::Terminal<const llvm::BasicBlock *>;
@@ -194,5 +211,4 @@ inline APInt toAPInt(unsigned numBits, const expr::mpz_class &v) {
   } else
     return APInt(numBits, 0);
 }
-}
-
+} // namespace expr

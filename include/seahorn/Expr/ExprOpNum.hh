@@ -4,6 +4,8 @@
 #include "seahorn/Expr/ExprCore.hh"
 #include "seahorn/Expr/ExprOpBool.hh"
 #include "seahorn/Expr/ExprOpCore.hh"
+#include "seahorn/Expr/TypeChecker.hh"
+#include "seahorn/Expr/TypeCheckerUtils.hh"
 
 namespace expr {
 
@@ -22,21 +24,54 @@ enum class NumericOpKind {
   NINFTY,
   ITV
 };
+
+namespace typeCheck {
+namespace numType {
+
+static inline Expr returnType(Expr exp, TypeChecker &tc) {
+  return tc.typeOf(exp->first());
+}
+struct Unary {
+  /// Possible types of children: any num type
+  /// \return: type of children
+  static inline Expr inferType(Expr exp, TypeChecker &tc) {
+    return typeCheck::unary<NUM_TYPES>(exp, tc, returnType);
+  }
+};
+
+struct Binary {
+  /// Possible types of children: any num type
+  /// \return: type of children
+  static inline Expr inferType(Expr exp, TypeChecker &tc) {
+    return typeCheck::binary<NUM_TYPES>(exp, tc, returnType);
+  }
+};
+
+struct Nary {
+  // Return type: type of children
+  // Possible types of children: any number type
+  static inline Expr inferType(Expr exp, TypeChecker &tc) {
+    return typeCheck::nary<NUM_TYPES>(exp, tc, returnType);
+  }
+};
+} // namespace numType
+} // namespace typeCheck
+
 // -- Numeric operators
 NOP_BASE(NumericOp)
 
-NOP(PLUS, "+", INFIX, NumericOp)
-NOP(MINUS, "-", INFIX, NumericOp)
-NOP(MULT, "*", INFIX, NumericOp)
-NOP(DIV, "/", INFIX, NumericOp)
-NOP(IDIV, "/", INFIX, NumericOp);
-NOP(MOD, "mod", INFIX, NumericOp)
-NOP(REM, "%", INFIX, NumericOp)
-NOP(UN_MINUS, "-", PREFIX, NumericOp)
-NOP(ABS, "abs", FUNCTIONAL, NumericOp)
+NOP(PLUS, "+", INFIX, NumericOp, typeCheck::numType::Nary)
+NOP(MINUS, "-", INFIX, NumericOp, typeCheck::numType::Nary)
+NOP(MULT, "*", INFIX, NumericOp, typeCheck::numType::Nary)
+NOP(DIV, "/", INFIX, NumericOp, typeCheck::numType::Nary)
+NOP(IDIV, "/", INFIX, NumericOp, typeCheck::numType::Nary)
+NOP(MOD, "mod", INFIX, NumericOp, typeCheck::numType::Nary)
+NOP(REM, "%", INFIX, NumericOp, typeCheck::numType::Nary)
+NOP(UN_MINUS, "-", PREFIX, NumericOp, typeCheck::numType::Nary)
+NOP(ABS, "abs", FUNCTIONAL, NumericOp, typeCheck::numType::Unary)
 
-NOP(PINFTY, "oo", PREFIX, NumericOp)
-NOP(NINFTY, "-oo", PREFIX, NumericOp)
+NOP(PINFTY, "oo", PREFIX, NumericOp, typeCheck::Any)
+NOP(NINFTY, "-oo", PREFIX, NumericOp, typeCheck::Any)
 
 namespace numeric {
 struct ITV_PS {
@@ -51,6 +86,6 @@ struct ITV_PS {
   }
 };
 } // namespace numeric
-NOP(ITV, "itv", numeric::ITV_PS, NumericOp)
+NOP(ITV, "itv", numeric::ITV_PS, NumericOp, typeCheck::numType::Binary)
 } // namespace op
-}
+} // namespace expr

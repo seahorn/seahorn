@@ -7,7 +7,7 @@ using namespace expr;
 
 namespace expr {
 namespace op {
-NOP(IABS, "I", PREFIX, MiscOp);
+NOP(IABS, "I", PREFIX, MiscOp, typeCheck::Any);
 
 namespace abs {
 inline Expr iabs(Expr v) { return mk<IABS>(v); }

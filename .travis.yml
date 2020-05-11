@@ -23,12 +23,12 @@ matrix:
         fi
        - |
         if [ "$TRAVIS_EVENT_TYPE" = "cron" ]; then
-          docker run -v $(pwd):/host -it seahorn_container /bin/bash -c "cd seahorn/share/seahorn/ && lit test/opsem test/mcfuzz" &&
+          docker run -v $(pwd):/host -it seahorn_container /bin/bash -c "cd seahorn/share/seahorn/ && lit -a --time-tests --max-time=1200 test/opsem test/mcfuzz" &&
           docker login -u "$DOCKER_USER" -p "$DOCKER_PWD" &&
           docker tag seahorn_container seahorn/seahorn-llvm10:nightly &&
           docker push seahorn/seahorn-llvm10:nightly ;
         else
-          docker run -v $(pwd):/host -it seahorn_container /bin/bash -c "cd seahorn/share/seahorn && lit test/opsem" ;
+          docker run -v $(pwd):/host -it seahorn_container /bin/bash -c "cd seahorn/share/seahorn && lit -a --time-tests --max-time=1200 test/opsem test/mcfuzz" ;
         fi
    - env: BUILD_TYPE=Coverage
      if: type = cron

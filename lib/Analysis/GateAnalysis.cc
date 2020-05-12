@@ -220,9 +220,11 @@ void GateAnalysisImpl::processPhi(PHINode *PN, Instruction *insertionPt) {
       // Or this is a direct branch to the PHI's parent block.
       if (S == currentBB) {
         SuccToVal[S] = incomingBlockToValue[BB];
-        GSA_LOG(errs() << "1) SuccToVal[" << S->getName()
-                       << "] = direct branch to " << currentBB->getName()
-                       << ": " << SuccToVal[S]->getName() << "\n");
+        GSA_LOG({
+          errs() << "1) SuccToVal[" << S->getName() << "] = direct branch to "
+                 << currentBB->getName() << ": " << SuccToVal[S]->getName()
+                 << "\n";
+        });
       }
 
       if (SuccToVal[S] != Undef)
@@ -233,17 +235,18 @@ void GateAnalysisImpl::processPhi(PHINode *PN, Instruction *insertionPt) {
       for (auto &BlockValuePair : flowingValues) {
         if (m_PDT.dominates(BlockValuePair.first, S)) {
           SuccToVal[S] = BlockValuePair.second;
-          GSA_LOG(errs() << "2) SuccToVal[" << S->getName()
-                         << "] = postdom for cd "
-                         << BlockValuePair.first->getName() << ": "
-                         << SuccToVal[S]->getName() << "\n");
+          GSA_LOG({
+            errs() << "2) SuccToVal[" << S->getName() << "] = postdom for cd "
+                   << BlockValuePair.first->getName() << ": "
+                   << SuccToVal[S]->getName() << "\n";
+          });
           break;
         }
       }
     }
 
     auto *BI = cast<BranchInst>(TI);
-    assert(SuccToVal.size() <= 2 && SuccToVal.size() >= 1);
+    assert(1 <= SuccToVal.size() && SuccToVal.size() <= 2);
     if (SuccToVal.size() == 1) {
       auto &SuccValPair = *SuccToVal.begin();
       assert(SuccValPair.second != Undef);
@@ -308,12 +311,14 @@ bool GateAnalysisPass::runOnModule(llvm::Module &M) {
     if (!F.isDeclaration())
       changed |= runOnFunction(F, CDP.getControlDependenceAnalysis(F));
 
-  LOG("gsa", if (GsaReplacePhis) for (
-                 auto &F
-                 : M) if (!F.isDeclaration()) for (auto &BB
-                                                   : F) for (auto &I
-                                                             : BB)
-                 assert(!isa<PHINode>(I)));
+  GSA_LOG({
+    if (GsaReplacePhis)
+      for (auto &F : M)
+        if (!F.isDeclaration())
+          for (auto &BB : F)
+            for (auto &I : BB)
+              assert(!isa<PHINode>(I));
+  });
 
   return changed;
 }

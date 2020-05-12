@@ -30,7 +30,8 @@ matrix:
         else
           ## generate something for travis to see
           travis_wait 120 sleep infinity &
-          docker run -v $(pwd):/host -it seahorn_container /bin/bash -c "cd seahorn/share/seahorn && lit -a --time-tests --max-time=1200 test/opsem test/mcfuzz" ;
+          docker run -v $(pwd):/host -it seahorn_container /bin/bash -c "cd seahorn/share/seahorn && lit -a --time-tests --max-time=1200 test/opsem " &&
+          docker run -v $(pwd):/host -it seahorn_container /bin/bash -c "cd seahorn/share/seahorn && lit -a --time-tests --max-time=1200 test/mcfuzz" &&
         fi
    - env: BUILD_TYPE=Coverage
      if: type = cron

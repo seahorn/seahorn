@@ -28,6 +28,8 @@ matrix:
           docker tag seahorn_container seahorn/seahorn-llvm10:nightly &&
           docker push seahorn/seahorn-llvm10:nightly ;
         else
+          ## generate something for travis to see
+          travis_wait 120 sleep infinity &
           docker run -v $(pwd):/host -it seahorn_container /bin/bash -c "cd seahorn/share/seahorn && lit -a --time-tests --max-time=1200 test/opsem test/mcfuzz" ;
         fi
    - env: BUILD_TYPE=Coverage

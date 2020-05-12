@@ -823,7 +823,8 @@ TEST_CASE("expr.finite_map.remove_map_arguments") {
   errs() << db << "\n";
   // This cannot be solved by Z3
 
-  removeFiniteMapsArgsHornClausesTransf(db);
+  HornClauseDB tdb(efac);
+  removeFiniteMapsArgsHornClausesTransf(db, tdb);
 
   // desired output:
 
@@ -845,11 +846,11 @@ TEST_CASE("expr.finite_map.remove_map_arguments") {
   //               for G G(mapA!k1, k1).
 
   errs() << "HornClauseDB without fmaps in args\n";
-  errs() << db << "\n";
+  errs() << tdb << "\n";
   // This cannot be solved by Z3
 
   // now apply local transformation only to the bodies
-  // removeFiniteMapsBodiesHornClausesTransf(db);
+  // removeFiniteMapsBodiesHornClausesTransf(tdb);
 
   // errs() << "HornClauseDB without fmaps\n";
   // errs() << db << "\n";
@@ -880,7 +881,8 @@ TEST_CASE("expr.finite_map.remove_map_arguments_2keys") {
   errs() << db << "\n";
   // This cannot be solved by Z3
 
-  removeFiniteMapsArgsHornClausesTransf(db);
+  HornClauseDB tdb(efac);
+  removeFiniteMapsArgsHornClausesTransf(db, tdb);
 
   // desired output:
 
@@ -904,13 +906,13 @@ TEST_CASE("expr.finite_map.remove_map_arguments_2keys") {
   //               G(k1, mapA!k1, k2, mapA!k2).
 
   errs() << "HornClauseDB without fmaps in args\n";
-  errs() << db << "\n";
+  errs() << tdb << "\n";
   // This cannot be solved by Z3
 
   // now apply local transformation only to the bodies
-  // removeFiniteMapsBodiesHornClausesTransf(db);
+  removeFiniteMapsBodiesHornClausesTransf(tdb);
 
-  // errs() << "HornClauseDB without fmaps\n";
-  // errs() << db << "\n";
+  errs() << "HornClauseDB without fmaps\n";
+  errs() << tdb << "\n";
   // This should be solvable by Z3
 }

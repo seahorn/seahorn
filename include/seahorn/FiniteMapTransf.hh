@@ -43,16 +43,14 @@ public:
 class FiniteMapArgsVisitor : public std::unary_function<Expr, VisitAction> {
 
 private:
-  const Expr m_new_fdecl;
-  const Expr m_pred_name;
+  const ExprMap &m_pred_decl_t;
   ExprFactory &m_efac;
   ExprSet &m_evars;
 
 public:
-  FiniteMapArgsVisitor(ExprFactory &efac, ExprSet &evars, Expr pred_name,
-                       Expr new_fdecl)
-    : m_efac(efac), m_evars(evars), m_pred_name(pred_name),
-      m_new_fdecl(new_fdecl) {}
+  FiniteMapArgsVisitor(ExprFactory &efac, ExprSet &evars,
+                       const ExprMap &pred_decl_t)
+      : m_efac(efac), m_evars(evars), m_pred_decl_t(pred_decl_t) {}
 
   VisitAction operator()(Expr exp);
 };

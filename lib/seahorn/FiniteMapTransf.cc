@@ -141,7 +141,7 @@ Expr mkFappArgs(Expr fapp, Expr newFdecl, ExprSet &vars, ExprFactory &efac,
       newArgs.push_back(arg);
     }
   }
-  return bind::fapp(newFdecl, newArgs);
+  return bind::fapp(newFdecl, newArgs); // building the declaration
 }
 
 }
@@ -276,21 +276,37 @@ Expr FiniteMapRewriter::operator()(Expr exp) {
 
   VisitAction FiniteMapArgsVisitor::operator()(Expr exp) {
 
-    // include different case for heads of rules
-    if (isOpX<FAPP>(exp) &&
-        !bind::isConst(exp)) { // faster to check arity >= 2?
-      Expr fdecl = *exp->args_begin();
-      Expr fname = *fdecl->args_begin();
+    if (isOpX<IMPL>(exp)) { // rule (or implication inside rule?)
+      Expr head = exp->right();
+      Expr body = exp->left();
+      Expr fdecl = *head->args_begin();
 
-      if (fname == m_pred_name) { // same function name, compare fdecls rather
-                                  // than names?
-        Expr fdecl = bind::name(exp);
-        LOG("fmap_transf", errs() << *fdecl << "\n";);
+      if (m_pred_decl_t.count(fdecl) == 0)
+        return VisitAction::changeDoKids(exp);
+
+      Expr newPredDecl = m_pred_decl_t.find(fdecl)->second;
+      ExprVector newUnifs;
+      Expr newFapp = mkFappArgs(head, newPredDecl, m_evars, m_efac, newUnifs);
+      Expr newExp = boolop::limp(mk<AND>(mknary<AND>(newUnifs), body), newFapp);
+
+      // efficiency: are we traversing the newly created unifs?
+      return VisitAction::changeDoKids(newExp);
+
+    } else if (isOpX<FAPP>(exp) &&
+               !bind::isConst(exp)) { // faster to check arity >= 2?
+      Expr fdecl = *exp->args_begin();
+
+      if (m_pred_decl_t.count(fdecl) > 0) { // needs to be transformed
         ExprVector newUnifs;
-        Expr newFapp = mkFappArgs(exp, m_new_fdecl, m_evars, m_efac, newUnifs);
+        Expr newPredDecl = m_pred_decl_t.find(fdecl)->second;
+        Expr newFapp =
+            mkFappArgs(exp, newPredDecl, m_evars, m_efac, newUnifs);
         Expr newExp = mk<AND>(mknary<AND>(newUnifs), newFapp);
+        LOG("fmap_transf", errs() << *newExp << "\n";);
         return VisitAction::changeDoKids(newExp);
       }
+    } else if (isOpX<FDECL>(exp)){
+      return VisitAction::skipKids();
     }
     return VisitAction::doKids();
   }

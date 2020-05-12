@@ -175,8 +175,8 @@ inline Expr mkMapsDecl(Expr fdecl, ExprFactory &efac) {
       newTypes.push_back(type);
   }
 
-  Expr newfname = fdecl; // to go back easier, the new name includes the
-                         // old declaration
+  Expr newfname = bind::fapp(fdecl); // to go back easier, the new name includes
+                                     // the old declaration
 
   // change new name by fapp for prettier printing, can it be done with empty
   // arguments?

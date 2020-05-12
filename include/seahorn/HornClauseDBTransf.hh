@@ -9,7 +9,7 @@ namespace seahorn
 void normalizeHornClauseHeads (HornClauseDB &db);
 
 // Remove arguments of type FiniteMap from Horn Clauses
-void removeFiniteMapsArgsHornClausesTransf(HornClauseDB &db);
+void removeFiniteMapsArgsHornClausesTransf(HornClauseDB &db, HornClauseDB &tdb);
 
 // Remove expressions of type FiniteMap from the horn clause bodies, excluding
 // calls to predicates

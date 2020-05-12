@@ -61,77 +61,37 @@ void normalizeHornClauseHeads(HornClauseDB &db) {
   }
 }
 
-void removeFiniteMapsArgsHornClausesTransf(HornClauseDB &db) {
+// -- tdb is an empty db that will contain db after transformation
+void removeFiniteMapsArgsHornClausesTransf(HornClauseDB &db, HornClauseDB &tdb) {
 
-  // return new db
-  // prebuild all the predicates that need to be rewritten and rewrite all at
-  // once
+  ExprFactory &efac = tdb.getExprFactory();
+  ExprMap predDeclTransf;
 
-  ExprFactory &efac = db.getExprFactory();
-
-  ExprVector worklist;
-  boost::copy(db.getRelations(), std::back_inserter(worklist));
-
-  // db.buildIndexes(); // how often do these indexes need to be rebuilt?, we are
-                     // inserting the same clause several times, maybe update
-                     // the indexes while inserting/removing a clause?
-
-  for (auto predIt : worklist) {
+  for (auto predIt : db.getRelations()) {
     Expr predDecl = predIt;
 
-    if (predDecl->arity() == 0) // no arguments
-      continue;
-
+    Expr newPredDecl;
+    if (predDecl->arity() < 2) // just only return?, is this assumption correct?
+      newPredDecl = predDecl;
+    else{
       // create new relation declaration
-    Expr newPredDecl = finite_map::mkMapsDecl(predDecl, efac);
+      newPredDecl = finite_map::mkMapsDecl(predDecl, efac);
 
-    auto args = predDecl->args_begin();
-    Expr predName = *args;
-    errs() << "Removing args from " << *predName << "\n";
-
+      if (newPredDecl != predDecl)
+        predDeclTransf[predDecl] = newPredDecl;
+    }
+    errs() << "Registering relation " << *newPredDecl << "\n";
+    tdb.registerRelation(newPredDecl); // register relation in transformed db
   }
 
-  // from here on, copy the DB
-  // get clauses in pred definition, requires indexes (see
-  // buildIndexes())
-  // auto HCDefSet = db.def(predDecl);
-
-  // // change the rules in this predicate
-  // for (auto rule : HCDefSet) {
-  //   // be careful here because the rule may be a fact
-  //   errs() << "Def rule: " << *(rule->get()) << "\n";
-  //   const ExprVector &vars = rule->vars();
-  //   ExprSet allVars(vars.begin(), vars.end());
-
-  //   FiniteMapArgsVisitor fmav(db, allVars, predName, newPredDecl);
-  //   Expr newRule = visit(fmav, rule->get());
-  //   db.addRule(allVars, newRule);
-  // }
-
-  // db.buildIndexes();
-
-  // // TODO: this set needs to be copied!!!!!, ask!!!!
-  // // copy original DB, read from there.
-  // auto HCUseSet = db.use(predDecl);
-  // // clauses that calls this predicate (duplicated work for rec clauses unless
-  // // we skip processing the body of the pred definition above)
-  // for (HornRule *rule : HCUseSet) {
-  //   errs() << "Calling rule: " << *(rule->get()) << "\n";
-  //   const ExprVector &vars = rule->vars();
-  //   ExprSet allVars(vars.begin(), vars.end());
-
-  //   // only changes the calls in the body, adding needed unifications
-  //   FiniteMapArgsVisitor fmav(db, allVars, predName, newPredDecl);
-  //   // initialize it with the predicate that we want to process!! and use
-  //   // only one visitor
-
-  //   HornRule newRule(allVars, visit(fmav, rule->get()));
-  //   db.addRule(newRule); // wait until the end to add and delete
-  // }
-  // db.registerRelation(newPredDecl);
-  // // remove old relation declaration
-  // // db.m_rels.remove(predIt) // (not public)
-  // }
+  for (const auto rule : db.getRules()){
+    const ExprVector &vars = rule.vars();
+    ExprSet allVars(vars.begin(), vars.end());
+    DagVisitCache dvc; // same for all the clauses??
+    FiniteMapArgsVisitor fmav(efac, allVars, predDeclTransf);
+    Expr newRule = visit(fmav, rule.get(),dvc);
+    tdb.addRule(allVars, newRule);
+  }
 }
 
 void removeFiniteMapsBodiesHornClausesTransf(HornClauseDB &db) {
@@ -150,10 +110,8 @@ void removeFiniteMapsBodiesHornClausesTransf(HornClauseDB &db) {
 
     HornRule new_rule(allVars, rule.head(), visit(fmv, rule.body(), dvc));
     db.removeRule(rule);
-
     db.addRule(new_rule);
   }
 }
-
 
 } // namespace seahorn

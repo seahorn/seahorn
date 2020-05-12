@@ -1,0 +1,31 @@
+# .pre-commit-config.yaml
+
+# Hooks are divided into active and passive
+# active hooks report and 'fix' things on failure
+# passive hooks only report failure.
+# In both cases, failure of a check will fail an action e.g. commit
+repos:
+- repo: https://github.com/talos-systems/conform
+  rev: master
+  # This hook runs the conform enforcer (passive check)
+  # See .conform.yaml for which rules are enforced
+  hooks:
+  - id: conform
+    stages:
+    - commit-msg
+
+- repo: https://github.com/pre-commit/pre-commit-hooks
+  rev: v2.4.0
+  hooks:
+  # This hook trims trailing whitespace (active check).
+  - id: trailing-whitespace
+  # Ensures that a file is either empty, or ends with one newline (active check).
+  - id: end-of-file-fixer
+
+- repo: https://gitlab.com/daverona/pre-commit-cpp
+  rev: 0.6.0               # use the most recent version
+  # This hook runs clang-format on changed C/C++ files
+  # This is an active check
+  hooks:
+  - id: clang-format
+    args: ["-style=LLVM"]

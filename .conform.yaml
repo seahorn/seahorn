@@ -1,0 +1,31 @@
+# Enabling a subset of options
+# Full list at
+#  https://github.com/talos-systems/conform/blob/master/README.md
+
+policies:
+  - type: commit
+    spec:
+      header:
+        length: 80
+        imperative: false
+        case: lower
+        invalidLastCharacters: .
+      body:
+        required: false
+      # Allow maximum of one commit ahead of master
+      # TODO: figure out intent, false for now
+      maximumOfOneCommit: false
+      conventional:
+        types:
+          - fix
+          - feat
+          - build
+          - ci
+          - docs
+          - style
+          - refactor
+          - perf
+          - test
+        scopes:
+          - "scope"
+        descriptionLength: 72

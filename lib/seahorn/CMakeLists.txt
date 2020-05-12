@@ -21,6 +21,7 @@ add_llvm_library (seahorn.LIB
   ClpWrite.cc
   HornClauseDB.cc
   HornClauseDBTransf.cc
+  FiniteMapTransf.cc
   PathBmc.cc
   PathBmcBoolAbs.cc  
   PathBmcMuc.cc

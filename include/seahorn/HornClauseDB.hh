@@ -261,10 +261,10 @@ namespace seahorn
           }
           Expr pred;
           pred = bind::fapp (r, args);
-	  if (hasConstraints (r))
-	    fp.addCover (pred, getConstraints (pred));
-	  if (hasInvariants (r))
-	    fp.addInvariant (pred, getInvariants (pred));
+          if (hasConstraints (r))
+            fp.addCover (pred, getConstraints (pred));
+          if (hasInvariants (r))
+            fp.addInvariant(pred, getInvariants(pred));
         }
 
       if (!skipQuery) fp.addQueries (getQueries ());

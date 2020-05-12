@@ -141,28 +141,19 @@ void removeFiniteMapsBodiesHornClausesTransf(HornClauseDB &db) {
   std::vector<HornRule> worklist;
   boost::copy(db.getRules(), std::back_inserter(worklist));
 
-  // DagVisitCache dvc; // not used because we have to visit everything
-
-  // use 2 dbs
   for (auto rule : worklist) {
     ExprVector vars = rule.vars();
     ExprSet allVars(vars.begin(), vars.end());
 
+    DagVisitCache dvc; // same for all the clauses??
     FiniteMapBodyVisitor fmv(db.getExprFactory(), allVars);
 
-    // map old predicates to new ones, and rewrite by predicate, not rule
-    Expr new_head = visit(fmv, rule.head());
-    // TODO only once
-    // * register relation with new parameters in db
-    // * "unregister" old relation?
-    Expr new_body = visit(fmv, rule.body());
+    HornRule new_rule(allVars, rule.head(), visit(fmv, rule.body(), dvc));
+    db.removeRule(rule);
 
-    HornRule new_rule(allVars, new_head, new_body);
-    // db.removeRule(rule);
     db.addRule(new_rule);
   }
 }
-
 
 
 } // namespace seahorn

@@ -55,14 +55,12 @@ inline Expr set(Expr map, Expr idx, Expr v) {
 }
 
 // \brief fresh map with unitialized values
-// old empty_map_lambda
 inline Expr mkEmptyMap(ExprFactory &efac) {
   return mkTerm<expr::mpz_class>(0, efac);
   // TODO: change 0 by the same as unitialized memory?
 }
 
 // creates a set of keys as a lambda function
-// old make_lambda_map_keys
 inline Expr mkKeys(ExprVector &keys, ExprFactory &efac) {
 
   Expr x = bind::intConst(mkTerm<std::string>("x", efac));
@@ -128,7 +126,6 @@ inline Expr mkInitializedMap(ExprVector &keys, ExprVector &values,
   return lmd_values;
 }
 
-// old get_map_lambda
 /// \brief Constructs get expression. Non-simplifying
 inline Expr mkGetVal(Expr map, Expr keys, Expr key) {
 
@@ -137,7 +134,6 @@ inline Expr mkGetVal(Expr map, Expr keys, Expr key) {
   return op::bind::betaReduce(map, pos_in_map);
 }
 
-// old set_map_lambda
 /// \brief Constructs set expression. Non-simplifying
 inline Expr mkSetVal(Expr map, Expr keys, Expr key, Expr value,
                      ExprFactory &efac) {

@@ -17,6 +17,12 @@ set(LLVM_LINK_COMPONENTS irreader bitwriter ipo scalaropts instrumentation core
     # XXX not clear why these last two are required
     codegen objcarcopts)
 
+add_executable(fp_units EXCLUDE_FROM_ALL fp_units.cc)
+target_link_libraries(fp_units PRIVATE seahorn.LIB ${USED_LIBS_Z3_TESTS} )
+llvm_config (fp_units ${LLVM_LINK_COMPONENTS})
+add_custom_target(test_fp fp_units DEPENDS fp_units)
+add_test(NAME Fp_Tests COMMAND fp_units)
+
 add_executable(units_z3 EXCLUDE_FROM_ALL
   units_z3.cpp
   fapp_z3.cpp

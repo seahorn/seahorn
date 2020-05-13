@@ -1,5 +1,8 @@
 #include "seahorn/Transforms/Instrumentation/SimpleMemoryCheck.hh"
 
+#include "seadsa/InitializePasses.hh"
+#include "seahorn/InitializePasses.hh"
+
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/SmallSet.h"
@@ -255,7 +258,8 @@ public:
 
     SmallVector<Value *, 8> Sites;
     for (auto *S : N.getAllocSites()) {
-      // XXX stripping declarations seems too much since some might be legal allocation functions
+      // XXX stripping declarations seems too much since some might be legal
+      // allocation functions
       // XXX At least use attributes and TLI
       if (auto *GV = dyn_cast<const GlobalValue>(S))
         if (GV->isDeclaration())
@@ -279,7 +283,10 @@ struct TypeSimilarity;
 class SimpleMemoryCheck : public llvm::ModulePass {
 public:
   static char ID;
-  SimpleMemoryCheck() : llvm::ModulePass(ID) {}
+  SimpleMemoryCheck() : llvm::ModulePass(ID) {
+    llvm::initializeSimpleMemoryCheckPass(
+        *llvm::PassRegistry::getPassRegistry());
+  }
   virtual bool runOnModule(llvm::Module &M);
   virtual void getAnalysisUsage(llvm::AnalysisUsage &AU) const;
   virtual llvm::StringRef getPassName() const { return "SimpleMemoryCheck"; }
@@ -302,7 +309,7 @@ private:
   Function *m_assumeFn;
   Function *m_errorFn;
 
-  /// Instrumentation variables 
+  /// Instrumentation variables
   Value *m_trackedBegin;
   Value *m_trackedEnd;
   Value *m_trackingEnabled;
@@ -1332,7 +1339,21 @@ void SimpleMemoryCheck::printStats(std::vector<CheckContext> &InteresingChecks,
 
 char SimpleMemoryCheck::ID = 0;
 
-static llvm::RegisterPass<SimpleMemoryCheck>
-    Y("smc", "Insert array buffer checks using simple encoding");
-
 } // end namespace seahorn
+
+using namespace seahorn;
+
+INITIALIZE_PASS_BEGIN(SimpleMemoryCheck, "smc",
+                      "Insert array buffer checks using simple encoding", false,
+                      false)
+INITIALIZE_PASS_DEPENDENCY(AllocWrapInfo)
+INITIALIZE_PASS_DEPENDENCY(DsaAnalysis)
+INITIALIZE_PASS_DEPENDENCY(DsaInfoPass)
+INITIALIZE_PASS_DEPENDENCY(TargetLibraryInfoWrapperPass)
+INITIALIZE_PASS_DEPENDENCY(CallGraphWrapperPass)
+INITIALIZE_PASS_END(SimpleMemoryCheck, "smc",
+                    "Insert array buffer checks using simple encoding", false,
+                    false)
+
+// static llvm::RegisterPass<SimpleMemoryCheck>
+//     Y("smc", "Insert array buffer checks using simple encoding");

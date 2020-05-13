@@ -25,7 +25,7 @@ namespace{
   Expr mkVarGet(Expr map, Expr k) {
     // -- create a constant with the name get(map,k)
     // TODO: get type of variable from map type?
-    return bind::intConst(finite_map::get(map, k));
+    return bind::intConst(variant::variant(0,finite_map::get(map, k)));
   }
 
   // \brief `m1` contains the same values as `m2`. Both maps are assumed to have

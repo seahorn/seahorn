@@ -743,11 +743,11 @@ Expr test_rules_map_args(HornClauseDB &db, ExprVector & keys) {
 
   Expr get_map = mk<EQ>(v, finite_map::get(map_var, k1));
 
-  ExprVector foo1_types;
-  foo1_types.push_back(fmapTy); // map
-  foo1_types.push_back(iTy);    // key
-  foo1_types.push_back(iTy);    // value
-  foo1_types.push_back(bTy);    // return
+  ExprVector foo1_types = {fmapTy, iTy, iTy, bTy};
+  // foo1_types.push_back(fmapTy); // map
+  // foo1_types.push_back(iTy);    // key
+  // foo1_types.push_back(iTy);    // value
+  // foo1_types.push_back(bTy);    // return
 
   Expr foo1_decl =
       bind::fdecl(mkTerm<std::string>("foo1", efac), foo1_types);

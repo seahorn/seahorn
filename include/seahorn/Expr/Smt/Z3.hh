@@ -1,6 +1,6 @@
 #pragma once
 /**
-   Z3 interface 
+   Z3 interface
 
  */
 
@@ -20,8 +20,8 @@
 #include <boost/range/algorithm/sort.hpp>
 
 #include "seahorn/Expr/Expr.hh"
-#include "seahorn/Expr/ExprLlvm.hh"
 #include "seahorn/Expr/ExprInterp.hh"
+#include "seahorn/Expr/ExprLlvm.hh"
 
 namespace z3 {
 struct ast_ptr_hash : public std::unary_function<ast, std::size_t> {
@@ -169,8 +169,8 @@ template <typename Z> std::string z3_to_smtlib(Z &z3, Expr e) {
 
 namespace seahorn {
 
-using ast_expr_map = std::unordered_map<z3::ast, Expr, z3::ast_ptr_hash,
-                                        z3::ast_ptr_equal_to>;
+using ast_expr_map =
+    std::unordered_map<z3::ast, Expr, z3::ast_ptr_hash, z3::ast_ptr_equal_to>;
 using expr_ast_map = std::unordered_map<Expr, z3::ast>;
 
 template <typename V> void z3n_set_param(char const *p, V v) {
@@ -186,12 +186,11 @@ using namespace boost;
  * \tparam M marshaler that converts from Expr to z3::ast
  * \tparam U unmarshaler that converts from z3::ast to Expr
  */
-template <typename M, typename U>
-class ZContext  {
+template <typename M, typename U> class ZContext {
 public:
-
   using expr_cache_map = boost::bimaps::unordered_set_of<Expr>;
-  using z_cache_map = boost::bimaps::unordered_set_of<z3::ast, z3::ast_ptr_hash, z3::ast_ptr_equal_to>;
+  using z_cache_map = boost::bimaps::unordered_set_of<z3::ast, z3::ast_ptr_hash,
+                                                      z3::ast_ptr_equal_to>;
   using cache_type = boost::bimap<expr_cache_map, z_cache_map>;
   using expr_cache_type = typename cache_type::left_map;
   using z_cache_type = typename cache_type::right_map;
@@ -209,24 +208,22 @@ private:
 protected:
   z3::context &get_ctx() { return ctx; }
 
-  template <typename ExprToAstMap>
-  z3::ast toAst(Expr e, ExprToAstMap &seen) {
+  template <typename ExprToAstMap> z3::ast toAst(Expr e, ExprToAstMap &seen) {
     return M::marshal(e, get_ctx(), cache.left, seen);
-    
   }
   z3::ast toAst(Expr e) {
     expr_ast_map seen;
     return toAst(e, seen);
   }
 
-  template <typename AstToExprMap>
-  Expr toExpr(z3::ast a, AstToExprMap &seen) {
-    if (!a) return Expr();
+  template <typename AstToExprMap> Expr toExpr(z3::ast a, AstToExprMap &seen) {
+    if (!a)
+      return Expr();
     return U::unmarshal(a, get_efac(), cache.right, seen);
-
   }
   Expr toExpr(z3::ast a) {
-    if (!a) return Expr();
+    if (!a)
+      return Expr();
     ast_expr_map seen;
     return toExpr(a, seen);
   }
@@ -439,8 +436,7 @@ template <typename Z> Expr z3_simplify(Z &z3, Expr e, ZParams<Z> &params) {
   return z3.toExpr(z3::ast(ctx, Z3_simplify_ex(ctx, ast, params)));
 }
 
-template <typename Z>
-class ZSimplifier {
+template <typename Z> class ZSimplifier {
 private:
   Z &z3;
   z3::context &ctx;
@@ -448,19 +444,20 @@ private:
 
   expr_ast_map m_expr_to_ast;
   ast_expr_map m_ast_to_expr;
-  std::unordered_map<Expr,Expr> m_cache;
+  std::unordered_map<Expr, Expr> m_cache;
+
 public:
   using this_type = ZSimplifier<Z>;
-  ZSimplifier(Z &z)
-    : z3(z), ctx(z.get_ctx()), efac(z.get_efac()) {}
+  ZSimplifier(Z &z) : z3(z), ctx(z.get_ctx()), efac(z.get_efac()) {}
 
-  ZSimplifier(const ZSimplifier&) = delete;
+  ZSimplifier(const ZSimplifier &) = delete;
 
   Z &getContext() { return z3; }
 
   Expr simplify(Expr e) {
     auto it = m_cache.find(e);
-    if (it != m_cache.end()) return it->second;
+    if (it != m_cache.end())
+      return it->second;
 
     z3::ast ast(z3.toAst(e, m_expr_to_ast));
     Expr res = z3.toExpr(z3::ast(ctx, Z3_simplify(ctx, ast)), m_ast_to_expr);
@@ -677,30 +674,10 @@ public:
     if (q)
       m_queries.push_back(q);
 
-    std::vector<Z3_ast> qs;
-    for (Expr e : m_queries)
-      qs.push_back(z3.toAst(e));
-
-    z3::ast ast = z3::ast(ctx, Z3_mk_and(ctx, qs.size(), &qs[0]));
-
-    // -- existentially quantify all variables
-    if (!m_vars.empty()) {
-      // getVars() removes duplicates
-      const ExprVector &vars = getVars();
-      z3::ast_vector pinned(ctx);
-      pinned.resize(vars.size());
-      std::vector<Z3_app> bound(vars.size());
-
-      unsigned cnt = 0;
-      for (Expr v : vars) {
-        z3::ast zv(z3.toAst(v));
-        pinned.push_back(zv);
-        bound[cnt++] = Z3_to_app(ctx, zv);
-      }
-      ast = z3::ast(ctx, Z3_mk_exists_const(ctx, 0, bound.size(), &bound[0], 0,
-                                            NULL, ast));
-    }
-
+    assert(m_queries.size() == 1);
+    assert(bind::isBoolConst(m_queries.at(0)) || isOp<TRUE>(m_queries.at(0)) ||
+           isOp<FALSE>(m_queries.at(0)));
+    z3::ast ast = z3::ast(z3.toAst(m_queries.at(0)));
     tribool res = z3l_to_tribool(Z3_fixedpoint_query(ctx, fp, ast));
     ctx.check_error();
     return res;
@@ -709,31 +686,10 @@ public:
   std::string toString(Expr query = Expr()) {
     if (query)
       m_queries.push_back(query);
-
-    std::vector<Z3_ast> qs;
-    for (Expr e : m_queries)
-      qs.push_back(z3.toAst(e));
-
-    z3::ast ast = z3::ast(ctx, Z3_mk_and(ctx, qs.size(), &qs[0]));
-
-    // -- existentially quantify all variables
-    if (!m_vars.empty()) {
-      // getVars() removes duplicates
-      const ExprVector &vars = getVars();
-      z3::ast_vector pinned(ctx);
-      pinned.resize(vars.size());
-      std::vector<Z3_app> bound(vars.size());
-
-      unsigned cnt = 0;
-      for (Expr v : vars) {
-        z3::ast zv(z3.toAst(v));
-        pinned.push_back(zv);
-        bound[cnt++] = Z3_to_app(ctx, zv);
-      }
-      ast = z3::ast(ctx, Z3_mk_exists_const(ctx, 0, bound.size(), &bound[0], 0,
-                                            NULL, ast));
-    }
-
+    assert(m_queries.size() == 1);
+    assert(bind::isBoolConst(m_queries.at(0)) || isOp<TRUE>(m_queries.at(0)) ||
+           isOp<FALSE>(m_queries.at(0)));
+    z3::ast ast = z3::ast(z3.toAst(m_queries.at(0)));
     Z3_ast qptr = static_cast<Z3_ast>(ast);
     Z3_string str = Z3_fixedpoint_to_string(ctx, fp, 1, &qptr);
     return std::string(str);
@@ -1004,4 +960,3 @@ Expr z3_all_sat(Z &z3, Expr e, const Range &terms) {
 }
 
 } // namespace seahorn
-

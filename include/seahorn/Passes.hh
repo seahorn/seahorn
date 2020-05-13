@@ -92,6 +92,8 @@ llvm::Pass *createGlobalBufferBoundsCheck();
 llvm::Pass *createLocalBufferBoundsCheck();
 llvm::Pass *createGlobalCBufferBoundsCheckPass();
 
+llvm::Pass *createFatBufferBoundsCheckPass();
+
 llvm::Pass *createSimpleMemoryCheckPass();
 
 llvm::Pass *createCanFailPass();

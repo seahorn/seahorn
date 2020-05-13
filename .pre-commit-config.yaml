@@ -1,0 +1,16 @@
+# .pre-commit-config.yaml
+
+# Hooks are divided into active and passive
+# active hooks report and 'fix' things on failure
+# passive hooks only report failure.
+# In both cases, failure of a check will fail an action e.g. commit
+repos:
+- repo: https://github.com/talos-systems/conform
+  rev: master
+  # This hook runs the conform enforcer (passive check)
+  # See .conform.yaml for which rules are enforced
+  hooks:
+  - id: conform
+    stages:
+    - commit-msg
+

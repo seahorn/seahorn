@@ -313,6 +313,7 @@ public:
   virtual Expr doAnd(Expr op0, Expr op1, unsigned bitWidth) = 0;
   virtual Expr doOr(Expr op0, Expr op1, unsigned bitWidth) = 0;
   virtual Expr doXor(Expr op0, Expr op1, unsigned bitWidth) = 0;
+  virtual Expr doNot(Expr op0, unsigned bitWidth) = 0;
 
   virtual Expr doEq(Expr op0, Expr op1, unsigned bitWidth) = 0;
   virtual Expr doNe(Expr op0, Expr op1, unsigned bitWidth) = 0;
@@ -328,6 +329,23 @@ public:
   virtual Expr doTrunc(Expr op, unsigned bitWidth) = 0;
   virtual Expr doZext(Expr op, unsigned bitWidth, unsigned opBitWidth) = 0;
   virtual Expr doSext(Expr op, unsigned bitWidth, unsigned opBitWidth) = 0;
+  virtual Expr Extract(std::pair<Expr, unsigned int> op, unsigned begin,
+                       unsigned end) = 0;
+  virtual Expr Concat(std::pair<Expr, unsigned int> opHigh,
+                      std::pair<Expr, unsigned int> opLow) = 0;
+
+  // Arithmetic intrinsics with overflow
+  virtual Expr IsSaddNoOverflow(Expr op0, Expr op1, unsigned bitWidth) = 0;
+  virtual Expr IsBaddNoUnderflow(Expr op0, Expr op1, unsigned bitWidth) = 0;
+  virtual Expr IsUaddNoOverflow(Expr op0, Expr op1, unsigned bitWidth) = 0;
+
+  virtual Expr IsBsubNoOverflow(Expr op0, Expr op1, unsigned bitWidth) = 0;
+  virtual Expr IsSsubNoUnderflow(Expr op0, Expr op1, unsigned bitWidth) = 0;
+  virtual Expr IsUsubNoUnderflow(Expr op0, Expr op1, unsigned bitWidth) = 0;
+
+  virtual Expr IsSmulNoOverflow(Expr op0, Expr op1, unsigned bitWidth) = 0;
+  virtual Expr IsUmulNoOverflow(Expr op0, Expr op1, unsigned bitWidth) = 0;
+  virtual Expr IsBmulNoUnderflow(Expr op0, Expr op1, unsigned bitWidth) = 0;
 };
 
 std::unique_ptr<OpSemAlu> mkBvOpSemAlu(Bv2OpSemContext &ctx);

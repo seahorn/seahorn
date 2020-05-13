@@ -36,6 +36,9 @@
 #include "seahorn/Support/SeaDebug.h"
 #include "seahorn/Support/SeaLog.hh"
 
+#include "seahorn/ClpOpSem.hh"
+#include "seahorn/UfoOpSem.hh"
+
 using namespace llvm;
 using namespace seahorn;
 
@@ -92,6 +95,17 @@ static llvm::cl::list<std::string>
                       llvm::cl::desc("Abstract all calls to these functions"),
                       llvm::cl::ZeroOrMore, llvm::cl::CommaSeparated);
 
+static llvm::cl::opt<bool>
+    InterProcMem("horn-inter-proc-mem",
+                 llvm::cl::desc("Use inter-procedural encoding with memory"),
+                 llvm::cl::init(false));
+
+namespace seahorn {
+// counters for copying the new inter-proc vcgen
+// only updated if the log "inter_mem_counters" is active
+extern InterMemStats g_im_stats;
+}
+
 namespace seahorn {
 char HornifyModule::ID = 0;
 
@@ -142,6 +156,20 @@ bool HornifyModule::runOnModule(Module &M) {
   if (Step == hm_detail::CLP_SMALL_STEP ||
       Step == hm_detail::CLP_FLAT_SMALL_STEP)
     m_sem.reset(new ClpOpSem(m_efac, *this, M.getDataLayout(), TL));
+  else if (InterProcMem) {
+    ShadowMemPass * smp = getAnalysisIfAvailable<sea_dsa::ShadowMemPass>();
+    assert(smp);
+    ShadowMem &shadowmem_analysis = smp->getShadowMem();
+    CompleteCallGraph *ccg = getAnalysisIfAvailable<sea_dsa::CompleteCallGraph>();
+    assert(ccg);
+    std::shared_ptr<InterMemPreProc> preproc =
+        std::make_shared<InterMemPreProc>(*ccg, shadowmem_analysis);
+
+    preproc->runOnModule(M);
+
+    m_sem.reset(new MemUfoOpSem(m_efac, *this, M.getDataLayout(), preproc, TL,
+                                abs_fns, &shadowmem_analysis));
+  }
   else
     m_sem.reset(new UfoOpSem(m_efac, *this, M.getDataLayout(), TL, abs_fns));
 
@@ -285,6 +313,14 @@ bool HornifyModule::runOnModule(Module &M) {
     m_db.addQuery(mk<TRUE>(m_efac));
   }
 
+  // DEBUG: printing clauses
+  LOG("print_clauses", errs() << "------- PRINTING CLAUSE DB ------\n";
+      for (auto &cl : m_db.getRules()) {
+        cl.get()->dump();
+      });
+
+  LOG("inter_mem_counters", if (InterProcMem) g_im_stats.print(););
+
   /**
      TODO:
        - name basic blocks so that there are no name clashes between functions
@@ -372,8 +408,17 @@ bool HornifyModule::runOnFunction(Function &F) {
   /// -- allocate LiveSymbols
   auto r = m_ls.insert(std::make_pair(&F, LiveSymbols(F, m_efac, *m_sem)));
   assert(r.second);
+
+  // HACK because reset counters because "run()" calls VisitCallSite
+  // TODO: store part of what is computed by LiveSymbols?
+  InterMemStats tmp_im_stats;
+
+  LOG("inter_mem_counters", g_im_stats.copyTo(tmp_im_stats););
+
   /// -- run LiveSymbols
   r.first->second.run();
+
+  LOG("inter_mem_counters", tmp_im_stats.copyTo(g_im_stats));
 
   /// -- hornify function
   hf->runOnFunction(F);
@@ -392,6 +437,11 @@ void HornifyModule::getAnalysisUsage(llvm::AnalysisUsage &AU) const {
 
   AU.addRequired<seahorn::TopologicalOrder>();
   AU.addRequired<seahorn::CutPointGraph>();
+
+  if (InterProcMem) {
+    AU.addRequired<sea_dsa::CompleteCallGraph>();
+    AU.addRequired<sea_dsa::ShadowMemPass>();
+  }
 }
 
 const LiveSymbols &HornifyModule::getLiveSybols(const Function &F) const {

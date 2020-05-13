@@ -56,9 +56,9 @@ TEST_CASE("typeOf.test") {
   e = boolop::lor(z, e);
 
   TypeChecker tc;
-  Expr ty = tc.typeOf(z);
+  Expr ty = tc.typeOf(e);
 
-  CHECK (e == boolSort);
+  CHECK (ty == boolSort);
   if (ty)
     llvm::errs() << "Type is " << *ty << "\n";
   else

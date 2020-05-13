@@ -106,9 +106,8 @@ public:
   VisitAction operator()(Expr exp) {
     if (m_rw->preVisit(exp)) 
       return VisitAction::changeDoKidsRewrite(exp, m_rw);
-    else {
+    else 
       return VisitAction::skipKids();
-    }
   }
 
   /// Returns known type of \ e

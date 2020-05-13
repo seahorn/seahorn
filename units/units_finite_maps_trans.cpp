@@ -533,13 +533,13 @@ TEST_CASE("expr.finite_map.trans_fmap_fdecl") {
 
   Expr bTy = sort::boolTy(efac);
 
-  keys.push_back(mkTerm<std::string>("k1", efac));
-  keys.push_back(mkTerm<std::string>("k2", efac));
+  keys.push_back(bind::intConst(mkTerm<std::string>("k1", efac)));
+  keys.push_back(bind::intConst(mkTerm<std::string>("k2", efac)));
   Expr finiteMapTy1 = op::sort::finiteMapTy(keys);
 
-  keys.push_back(mkTerm<std::string>("k3", efac));
-  keys.push_back(mkTerm<std::string>("k4", efac));
-  keys.push_back(mkTerm<std::string>("k5", efac));
+  keys.push_back(bind::intConst(mkTerm<std::string>("k3", efac)));
+  keys.push_back(bind::intConst(mkTerm<std::string>("k4", efac)));
+  keys.push_back(bind::intConst(mkTerm<std::string>("k5", efac)));
   Expr finiteMapTy2 = op::sort::finiteMapTy(keys);
 
   Expr fname = mkTerm<std::string>("map_relation", efac);
@@ -564,13 +564,13 @@ TEST_CASE("expr.finite_map.fapp_type_checker") {
 
   Expr bTy = sort::boolTy(efac);
 
-  keys.push_back(mkTerm<std::string>("k1", efac));
+  keys.push_back(bind::intConst(mkTerm<std::string>("k1", efac)));
   Expr finiteMapTy1 = op::sort::finiteMapTy(keys);
   Expr map1 = bind::mkConst(mkTerm<std::string>("map1", efac), finiteMapTy1);
 
   keys.clear(); // change order, they should be the "same" fmap type
-  keys.push_back(mkTerm<std::string>("k2", efac));
-  keys.push_back(mkTerm<std::string>("k1", efac));
+  keys.push_back(bind::intConst(mkTerm<std::string>("k2", efac)));
+  keys.push_back(bind::intConst(mkTerm<std::string>("k1", efac)));
   Expr finiteMapTy1b = op::sort::finiteMapTy(keys);
   Expr map1b = bind::mkConst(mkTerm<std::string>("map1b", efac), finiteMapTy1);
 
@@ -589,9 +589,9 @@ TEST_CASE("expr.finite_map.fapp_type_checker") {
   Expr fapp1_b = bind::fapp(fdecl1, fargs);
 
   keys.clear();
-  keys.push_back(mkTerm<std::string>("k3", efac));
-  keys.push_back(mkTerm<std::string>("k4", efac));
-  keys.push_back(mkTerm<std::string>("k5", efac));
+  keys.push_back(bind::intConst(mkTerm<std::string>("k3", efac)));
+  keys.push_back(bind::intConst(mkTerm<std::string>("k4", efac)));
+  keys.push_back(bind::intConst(mkTerm<std::string>("k5", efac)));
   Expr finiteMapTy2 = op::sort::finiteMapTy(keys);
   Expr map2 = bind::mkConst(mkTerm<std::string>("map2", efac), finiteMapTy1);
   fargs[0] = map2;
@@ -636,7 +636,7 @@ TEST_CASE("expr.finite_map.clause_rewriter" * doctest::skip(true)) {
 
   Expr bTy = sort::boolTy(efac);
 
-  keys.push_back(mkTerm<std::string>("k1", efac));
+  keys.push_back(bind::intConst(mkTerm<std::string>("k1", efac)));
   Expr finiteMapTy1 = op::sort::finiteMapTy(keys);
   Expr map1 = bind::mkConst(mkTerm<std::string>("map1", efac), finiteMapTy1);
 
@@ -672,8 +672,8 @@ TEST_CASE("expr.finite_map.clause_rewriter" * doctest::skip(true)) {
 
   // ------------------------------------------------------------
   keys.clear(); // change order, they should be the "same" fmap type
-  keys.push_back(mkTerm<std::string>("k2", efac));
-  keys.push_back(mkTerm<std::string>("k1", efac));
+  keys.push_back(bind::intConst(mkTerm<std::string>("k2", efac)));
+  keys.push_back(bind::intConst(mkTerm<std::string>("k1", efac)));
   Expr finiteMapTy1b = op::sort::finiteMapTy(keys);
   Expr map1b = bind::mkConst(mkTerm<std::string>("map1b", efac), finiteMapTy1);
   fargs[0] = map1b;
@@ -715,9 +715,9 @@ TEST_CASE("expr.finite_map.clause_rewriter" * doctest::skip(true)) {
 
   // ------------------------------------------------------------
   // keys.clear();
-  // keys.push_back(mkTerm<std::string>("k3", efac));
-  // keys.push_back(mkTerm<std::string>("k4", efac));
-  // keys.push_back(mkTerm<std::string>("k5", efac));
+  // keys.push_back(bind::intConst(mkTerm<std::string>("k3", efac)));
+  // keys.push_back(bind::intConst(mkTerm<std::string>("k4", efac)));
+  // keys.push_back(bind::intConst(mkTerm<std::string>("k5", efac)));
   // Expr finiteMapTy2 = op::sort::finiteMapTy(keys);
   // Expr map2 = bind::mkConst(mkTerm<std::string>("map2", efac), finiteMapTy1);
   // fargs[0] = map2;
@@ -726,7 +726,9 @@ TEST_CASE("expr.finite_map.clause_rewriter" * doctest::skip(true)) {
     // this should violate an assertion
 }
 
-void test_rules_map_args(HornClauseDB &db, ExprVector & keys) {
+Expr test_rules_map_args(HornClauseDB &db, ExprVector & keys) {
+  assert(!keys.empty());
+
   ExprFactory &efac = db.getExprFactory();
 
   Expr iTy = sort::intTy(efac);
@@ -798,6 +800,46 @@ void test_rules_map_args(HornClauseDB &db, ExprVector & keys) {
   foo1_app_args.push_back(mapA_var);
   db.addRule(foo1_app_args, cl3);
 
+  // query
+  Expr solution = mkTerm<expr::mpz_class>(42, efac);
+
+  ExprVector qtype;
+  qtype.push_back(mk<BOOL_TY>(efac));
+  Expr query_name = mkTerm<string>("query1", efac);
+  Expr qdecl = bind::fdecl(query_name, qtype);
+  Expr qHead = bind::fapp(qdecl);
+  ExprVector qBody;
+  //   Expr k1 = mkTerm<string>("k1", efac);
+  Expr mapVar = bind::mkConst(mkTerm<string>("m", efac), sort::finiteMapTy(k1));
+  Expr keyVar = bind::intConst(k1);
+  ExprVector values;
+  auto k_it = ++keys.begin();
+  values.push_back(solution);
+
+  Expr zero = mkTerm<expr::mpz_class>(0, efac);
+  // initialize the rest of the map with 0
+  while(k_it != keys.end()){
+    values.push_back(zero);
+    k_it++;
+  }
+
+  ExprVector qargs;
+  qargs.push_back(mapVar);
+  qargs.push_back(keyVar);
+  qargs.push_back(v);
+
+  qBody.push_back(mk<EQ>(mapVar, finite_map::constFiniteMap(keys, values)));
+  qBody.push_back(bind::fapp(foo2_decl, qargs));
+  qBody.push_back(mk<NEQ>(v, solution));
+
+  ExprSet vars(qargs.begin(), qargs.end());
+
+  HornRule query_rule(vars, boolop::limp(mknary<AND>(qBody), qHead));
+  db.addRule(query_rule);
+  db.registerRelation(qdecl);
+
+  db.addQuery(qHead);
+  return qHead;
 }
 
 TEST_CASE("expr.finite_map.remove_map_arguments") {
@@ -807,7 +849,7 @@ TEST_CASE("expr.finite_map.remove_map_arguments") {
   HornClauseDB db(efac);
 
   ExprVector keys;
-  keys.push_back(mkTerm<std::string>("k1", efac));
+  keys.push_back(bind::intConst(mkTerm<std::string>("k1", efac)));
 
   test_rules_map_args(db, keys);
   // generates: with map containing only k1
@@ -864,10 +906,10 @@ TEST_CASE("expr.finite_map.remove_map_arguments_2keys") {
   HornClauseDB db(efac);
 
   ExprVector keys;
-  keys.push_back(mkTerm<std::string>("k1", efac));
-  keys.push_back(mkTerm<std::string>("k2", efac));
+  keys.push_back(bind::intConst(mkTerm<std::string>("k1", efac)));
+  keys.push_back(bind::intConst(mkTerm<std::string>("k2", efac)));
 
-  test_rules_map_args(db, keys);
+  Expr query = test_rules_map_args(db, keys);
   // generates: with map containing only k1
 
   // cl1 foo1(map, k1, v) :- v = get(map, k1).
@@ -876,6 +918,10 @@ TEST_CASE("expr.finite_map.remove_map_arguments_2keys") {
 
   // cl3: foo(map, k1, x) :- map = set(mapA, k1, +(get(mapA, k1), 1)),
   //                         bar(mapA).
+
+  // queries with maps need to be added before transformation
+  // query :- m = defmap(defk(k1), 42), foo1(m, k1, v), v \= 42.
+  // UNSAT
 
   errs() << "HornClauseDB with fmaps in args\n";
   errs() << db << "\n";

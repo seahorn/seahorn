@@ -22,9 +22,10 @@ namespace{
     return v1 == v2;
   }
 
-  Expr mkVarGet(Expr m1, Expr k) {
-    // -- create a constant with the name get(m1,k)
-    return bind::intConst(finite_map::get(m1, k));
+  Expr mkVarGet(Expr map, Expr k) {
+    // -- create a constant with the name get(map,k)
+    // TODO: get type of variable from map type?
+    return bind::intConst(finite_map::get(map, k));
   }
 
   // \brief `m1` contains the same values as `m2`. Both maps are assumed to have
@@ -58,7 +59,9 @@ namespace{
   }
 
   Expr mkMapPrimitiveArgCore(Expr map, ExprFactory &efac) {
-    // TODO: include also the other primitive to create the map
+    assert(!bind::isFiniteMapConst(map));
+    // different for get and set -> not implemented here
+
     if (isOpX<CONST_FINITE_MAP_KEYS>(map))
       return finite_map::mkEmptyMap(efac);
     else if (isOpX<CONST_FINITE_MAP>(map)) {
@@ -68,8 +71,8 @@ namespace{
       Expr lmdKeys = finite_map::mkKeys(keys, efac);
       ExprVector values(valuesE->args_begin(), valuesE->args_end());
       return finite_map::mkInitializedMap(keys, values, efac, lmdKeys);
-    } else
-      return map; // already transformed map
+    } else // already transformed map: 0 or ite expr
+      return map;
   }
 
   // \brief expands a map into separate scalar variables
@@ -82,19 +85,16 @@ namespace{
     for (auto k : keys) {
       v = mkVarGet(map, k);
       evars.insert(v);
-
       new_vars.push_back(k);
       new_vars.push_back(v);
-
       map_values.push_back(v);
-      // v_get = get(map, k);
     }
     extra_unifs.push_back(
         mk<EQ>(map, finite_map::constFiniteMap(keys, map_values)));
   }
 
   // \brief expands the map arguments of fapps into separate scalar variables
-  Expr mkFappArgs(Expr fapp, Expr newFdecl, ExprSet &vars, ExprFactory &efac,
+  Expr mkFappArgsCore(Expr fapp, Expr newFdecl, ExprSet &vars, ExprFactory &efac,
                   ExprVector &extraUnifs) {
 
     assert(isOpX<FAPP>(fapp));
@@ -114,27 +114,27 @@ namespace{
       Expr arg = *arg_it;
       Expr argTy = *t_it;
 
-      // LOG("fmap_transf",
-      //     errs() << "\t processing: " << *arg << " of type " << *argTy <<
-      //     "\n";);
-
       if (isOpX<FINITE_MAP_TY>(argTy)) {
-        Expr map_vars_name;
+        Expr map_var_name;
         if (bind::isFiniteMapConst(arg)) {
-          map_vars_name = bind::name(arg); // TODO: check this
+          map_var_name = arg;
         } else {
-          map_vars_name = variant::variant(arg_count, fname);
+          map_var_name = variant::variant(arg_count, fname);
           // if there is no name, we create a variant with the name of the
           // function, make new variable (same as normalization)
         }
         Expr mTy = *t_it;
         ExprVector keys(mTy->args_begin(), mTy->args_end());
         Expr lmdks = finite_map::mkKeys(keys, efac);
-        mkVarsMap(arg, lmdks, keys, newArgs, extraUnifs, efac, vars);
+        mkVarsMap(map_var_name, lmdks, keys, newArgs, extraUnifs, efac, vars);
+        // new arguments are added to `newArgs` in the function above
       } else {
         newArgs.push_back(arg);
       }
     }
+
+    // assert(t_it == fdecl->args_end()); // same number of arguments and types?
+
     return bind::fapp(newFdecl, newArgs); // building the new fapp
   }
 }
@@ -197,7 +197,19 @@ Expr mkSetCore(Expr map, Expr key, Expr value, ExprMap &type_lambda,
   Expr lmd_keys = type_lambda[mTy];
   assert(lmd_keys);
 
-  map = mkMapPrimitiveArgCore(map, efac);
+  ExprVector extraUnifs;
+  if(bind::isFiniteMapConst(map)){
+    ExprVector keys(mTy->args_begin(), mTy->args_end());
+    ExprVector values;
+    for(auto k : keys){
+      Expr v = mkVarGet(map,k);
+      vars.insert(v);
+      values.push_back(v);
+    }
+    map = finite_map::mkInitializedMap(keys, values, efac, lmd_keys);
+  } else
+    map = mkMapPrimitiveArgCore(map, efac);
+
   Expr res = finite_map::mkSetVal(map, lmd_keys, key, value, efac);
 
   expr_type[res] = mTy;
@@ -270,6 +282,7 @@ VisitAction FiniteMapArgsVisitor::operator()(Expr exp) {
   if (isOpX<IMPL>(exp)) { // rule (or implication inside rule?)
     Expr head = exp->right();
     Expr body = exp->left();
+    assert(body); // facts!
     Expr fdecl = *head->args_begin();
 
     if (m_pred_decl_t.count(fdecl) == 0)
@@ -277,8 +290,14 @@ VisitAction FiniteMapArgsVisitor::operator()(Expr exp) {
 
     Expr newPredDecl = m_pred_decl_t.find(fdecl)->second;
     ExprVector newUnifs;
-    Expr newFapp = mkFappArgs(head, newPredDecl, m_evars, m_efac, newUnifs);
-    Expr newExp = boolop::limp(mk<AND>(mknary<AND>(newUnifs), body), newFapp);
+    Expr newFapp = mkFappArgsCore(head, newPredDecl, m_evars, m_efac, newUnifs);
+    Expr newBody;
+    if(!newUnifs.empty())
+      newBody = mk<AND>(mknary<AND>(newUnifs), body);
+    else
+      newBody = body;
+
+    Expr newExp = boolop::limp(newBody, newFapp);
 
     // efficiency: are we traversing the newly created unifs?
     return VisitAction::changeDoKids(newExp);
@@ -290,8 +309,9 @@ VisitAction FiniteMapArgsVisitor::operator()(Expr exp) {
     if (m_pred_decl_t.count(fdecl) > 0) { // needs to be transformed
       ExprVector newUnifs;
       Expr newPredDecl = m_pred_decl_t.find(fdecl)->second;
-      Expr newFapp = mkFappArgs(exp, newPredDecl, m_evars, m_efac, newUnifs);
-      Expr newExp = mk<AND>(mknary<AND>(newUnifs), newFapp);
+      Expr newExp = mkFappArgsCore(exp, newPredDecl, m_evars, m_efac, newUnifs);
+      if (!newUnifs.empty())
+        newExp = mk<AND>(mknary<AND>(newUnifs), newExp);
       LOG("fmap_transf", errs() << *newExp << "\n";);
       return VisitAction::changeDoKids(newExp);
     }

@@ -158,7 +158,7 @@ inline Expr mkMapsDecl(Expr fdecl, ExprFactory &efac) {
   Expr iTy = op::sort::intTy(efac);
   Expr fname = bind::fname(fdecl);
 
-  for (auto tyIt = fdecl->args_begin(); tyIt != fdecl->args_end(); tyIt++) {
+  for (auto tyIt = ++fdecl->args_begin(); tyIt != fdecl->args_end(); tyIt++) {
     Expr type = *tyIt;
     if (isOpX<FINITE_MAP_TY>(type)) {                 // the type is a FiniteMap
       assert(type->args_begin() != type->args_end()); // the map has at
@@ -173,9 +173,6 @@ inline Expr mkMapsDecl(Expr fdecl, ExprFactory &efac) {
 
   Expr newfname = bind::fapp(fdecl); // to go back easier, the new name includes
                                      // the old declaration
-
-  // change new name by fapp for prettier printing, can it be done with empty
-  // arguments?
 
   return bind::fdecl(newfname, newTypes);
 }

@@ -185,6 +185,11 @@ inline Expr typeOf(Expr v) {
   //     return array_ty;
   //   }
   // }
+  
+  if (isOpX <AND> (v) || isOpX <OR> (v) || isOpX <XOR> (v) ||  isOpX <IMPL> (v) 
+    || isOpX <ITE> (v) || isOpX <IFF> (v) || isOpX <NEG> (v)) { 
+      return mk<BOOL_TY> (v->efac());
+  }
 
   std::cerr << "WARNING: could not infer type of: " << *v << "\n";
   llvm_unreachable("Type inference failed");

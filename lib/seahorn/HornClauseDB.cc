@@ -171,13 +171,13 @@ namespace seahorn
   raw_ostream& HornClauseDB::write (raw_ostream& o) const
   {
     std::ostringstream oss;
-    oss << "Predicates:\n;";
+    oss << "Predicates:\n";
     for (auto &p : m_rels)
     { oss << p << "\n"; }
-    oss << "Clauses:\n;";
+    oss << "Clauses:\n";
     for (auto &r : m_rules)
     { oss << r.head () << " <- " << r.body () << ".\n"; }
-    oss << "Queries:\n;";
+    oss << "Queries:\n";
     for (auto &q : m_queries)
     { oss << q << "\n"; }
     o << oss.str ();

@@ -734,7 +734,7 @@ Expr test_rules_map_args(HornClauseDB &db, ExprVector & keys) {
   Expr iTy = sort::intTy(efac);
   Expr bTy = sort::boolTy(efac);
 
-  Expr key1 = keys[0]; // mkTerm<std::string>("k1", efac);
+  Expr key1 = keys[0];
   Expr fmapTy = sort::finiteMapTy(keys);
 
   Expr k1 = bind::intConst(key1);
@@ -744,25 +744,16 @@ Expr test_rules_map_args(HornClauseDB &db, ExprVector & keys) {
   Expr get_map = mk<EQ>(v, finite_map::get(map_var, k1));
 
   ExprVector foo1_types = {fmapTy, iTy, iTy, bTy};
-  // foo1_types.push_back(fmapTy); // map
-  // foo1_types.push_back(iTy);    // key
-  // foo1_types.push_back(iTy);    // value
-  // foo1_types.push_back(bTy);    // return
 
   Expr foo1_decl =
       bind::fdecl(mkTerm<std::string>("foo1", efac), foo1_types);
-  ExprVector foo1_app_args;
-  foo1_app_args.push_back(map_var);
-  foo1_app_args.push_back(k1);
-  foo1_app_args.push_back(v);
+  ExprVector foo1_app_args = {map_var, k1, v};
   Expr foo1_app = bind::fapp(foo1_decl, foo1_app_args);
 
   // cl1 foo1(map, k1, v) :- v = get(map, k1).
   Expr cl1 = boolop::limp(get_map,foo1_app);
 
-  ExprVector bar_types;
-  bar_types.push_back(fmapTy);
-  bar_types.push_back(bTy);
+  ExprVector bar_types = {fmapTy, bTy};
   Expr bar_decl = bind::fdecl(mkTerm<std::string>("bar", efac), bar_types);
   Expr bar_app = bind::fapp(bar_decl, map_var);
 
@@ -774,37 +765,40 @@ Expr test_rules_map_args(HornClauseDB &db, ExprVector & keys) {
 
   Expr mapA_var = bind::mkConst(mkTerm<std::string>("mapA", efac), fmapTy);
   Expr get_mapA = finite_map::get(mapA_var, k1);
-  bind::fapp(bar_decl, map_var);
+
   Expr set =
       finite_map::set(mapA_var, k1,
                       mk<PLUS>(get_mapA, mkTerm<expr::mpz_class>(1, efac)));
   Expr barA_app = bind::fapp(bar_decl, mapA_var);
-  ExprVector cl3_body;
-  cl3_body.push_back(mk<EQ>(map_var, set));
-  cl3_body.push_back(barA_app);
 
+  ExprVector cl3_body = {mk<EQ>(map_var, set), barA_app};
   Expr foo3_decl = bind::fdecl(mkTerm<std::string>("foo3", efac), foo1_types);
   Expr foo3_app = bind::fapp(foo3_decl, foo1_app_args); // reusing foo1_args
 
   Expr cl3 = boolop::limp(mknary<AND>(cl3_body), foo3_app);
   // cl3: foo(map, k1, x) :- map = set(mapA, k1, +(get(mapA, k1), 1)),
   //                         bar(mapA).
-
   db.registerRelation(foo1_decl);
   db.registerRelation(foo2_decl);
   db.registerRelation(foo3_decl);
   db.registerRelation(bar_decl);
 
-  db.addRule(foo1_app_args, cl1);
-  db.addRule(foo1_app_args, cl2); // same vars as foo1
-  foo1_app_args.push_back(mapA_var);
-  db.addRule(foo1_app_args, cl3);
+  ExprSet rule_vars(foo1_app_args.begin(), foo1_app_args.end());
+
+  for(auto k_it : keys){
+    Expr var = k_it;
+    rule_vars.insert(var);
+  }
+
+  db.addRule(rule_vars, cl1);
+  db.addRule(rule_vars, cl2); // same vars as foo1
+  rule_vars.insert(mapA_var);
+  db.addRule(rule_vars, cl3);
 
   // query
   Expr solution = mkTerm<expr::mpz_class>(42, efac);
 
-  ExprVector qtype;
-  qtype.push_back(mk<BOOL_TY>(efac));
+  ExprVector qtype = {bTy};
   Expr query_name = mkTerm<string>("query1", efac);
   Expr qdecl = bind::fdecl(query_name, qtype);
   Expr qHead = bind::fapp(qdecl);
@@ -823,20 +817,22 @@ Expr test_rules_map_args(HornClauseDB &db, ExprVector & keys) {
     k_it++;
   }
 
-  ExprVector qargs;
-  qargs.push_back(mapVar);
-  qargs.push_back(keyVar);
-  qargs.push_back(v);
+  ExprVector qargs = {mapVar, keyVar, v};
 
   qBody.push_back(mk<EQ>(mapVar, finite_map::constFiniteMap(keys, values)));
   qBody.push_back(bind::fapp(foo2_decl, qargs));
-  qBody.push_back(mk<NEQ>(v, solution));
+  qBody.push_back(mk<NEQ>(v, mk<PLUS>(solution,mkTerm<expr::mpz_class>(1, efac))));
 
   ExprSet vars(qargs.begin(), qargs.end());
 
+  for (auto it : keys) {
+    Expr var = it;
+    vars.insert(var);
+  }
+
+  db.registerRelation(qdecl);
   HornRule query_rule(vars, boolop::limp(mknary<AND>(qBody), qHead));
   db.addRule(query_rule);
-  db.registerRelation(qdecl);
 
   db.addQuery(qHead);
   return qHead;
@@ -904,7 +900,7 @@ TEST_CASE("expr.finite_map.remove_map_arguments") {
   // original query:
   // query :- m = defmap(defk(k1), defv(42)), foo1(m, k1, v), v \= 42.
   // UNSAT
-  tdb.addQuery(query);
+  // tdb.addQuery(query);
   tdb.loadZFixedPoint(fp, false); // SkipConstraints = false
 
   errs() << "query: " << *query << "\nfp content:\n";
@@ -915,6 +911,7 @@ TEST_CASE("expr.finite_map.remove_map_arguments") {
 
   CHECK(!static_cast<bool>(res));
 }
+
 
 TEST_CASE("expr.finite_map.remove_map_arguments_2keys") {
 
@@ -986,6 +983,7 @@ TEST_CASE("expr.finite_map.remove_map_arguments_2keys") {
   // original query:
   // query :- m = defmap(defk(k1,k2), defv(42,0)), foo1(m, k1, v), v \= 42.
   // UNSAT
+  query->dump();
   tdb.addQuery(query);
   tdb.loadZFixedPoint(fp, false); // SkipConstraints = false
 

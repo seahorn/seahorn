@@ -835,11 +835,171 @@ public:
         m_ctx.setInstruction(*me);
       }
     } break;
+    case Intrinsic::sadd_with_overflow: {
+      Type *ty = I.getOperand(0)->getType();
+      Expr op0;
+      Expr op1;
+      GetOpExprs(I, op0, op1);
+
+      // assume doAdd has same bitwidth as Op0
+      Expr add_res = m_ctx.alu().doAdd(op0, op1, ty->getScalarSizeInBits());
+      Expr is_overflow =
+          m_ctx.alu().IsSaddNoOverflow(op0, op1, ty->getScalarSizeInBits());
+      Expr is_underflow =
+          m_ctx.alu().IsBaddNoUnderflow(op0, op1, ty->getScalarSizeInBits());
+      if (!add_res || !is_overflow || !is_underflow) {
+        LOG("opsem", WARN << "An operation returned null:" << I);
+        setValue(I, Expr());
+      } else {
+        Expr is_carry = m_ctx.alu().doNot(
+            m_ctx.alu().doAnd(is_overflow, is_underflow, 1 /* bitwidth */),
+            1 /* bitwidth*/);
+        setValue(I, createArithmeticWithOverflowRecord(
+                        add_res, is_carry, ty->getScalarSizeInBits(),
+                        getCarryBitPadWidth(I)));
+      }
+    } break;
+    case Intrinsic::uadd_with_overflow: {
+      Type *ty = I.getOperand(0)->getType();
+      Expr op0;
+      Expr op1;
+      GetOpExprs(I, op0, op1);
+
+      // assume doAdd has same bitwidth as Op0
+      Expr add_res = m_ctx.alu().doAdd(op0, op1, ty->getScalarSizeInBits());
+      Expr is_overflow =
+          m_ctx.alu().IsUaddNoOverflow(op0, op1, ty->getScalarSizeInBits());
+      if (!add_res || !is_overflow) {
+        LOG("opsem", WARN << "An operation returned null:" << I);
+        setValue(I, Expr());
+      } else {
+        Expr is_carry = m_ctx.alu().doNot(is_overflow, 1 /* bitwidth */);
+        setValue(I, createArithmeticWithOverflowRecord(
+                        add_res, is_carry, ty->getScalarSizeInBits(),
+                        getCarryBitPadWidth(I)));
+      }
+    } break;
+    case Intrinsic::ssub_with_overflow: {
+      Type *ty = I.getOperand(0)->getType();
+      Expr op0;
+      Expr op1;
+      GetOpExprs(I, op0, op1);
+
+      // assume doSub has same bitwidth as Op0
+      Expr sub_res = m_ctx.alu().doSub(op0, op1, ty->getScalarSizeInBits());
+      Expr is_overflow =
+          m_ctx.alu().IsBsubNoOverflow(op0, op1, ty->getScalarSizeInBits());
+      Expr is_underflow =
+          m_ctx.alu().IsSsubNoUnderflow(op0, op1, ty->getScalarSizeInBits());
+      if (!sub_res || !is_overflow || !is_underflow) {
+        LOG("opsem", WARN << "An operation returned null:" << I);
+        setValue(I, Expr());
+      } else {
+        Expr is_carry = m_ctx.alu().doNot(
+            m_ctx.alu().doAnd(is_overflow, is_underflow, 1 /* bitwidth */),
+            1 /* bitwidth*/);
+        setValue(I, createArithmeticWithOverflowRecord(
+                        sub_res, is_carry, ty->getScalarSizeInBits(),
+                        getCarryBitPadWidth(I)));
+      }
+    } break;
+    case Intrinsic::usub_with_overflow: {
+      Type *ty = I.getOperand(0)->getType();
+      Expr op0;
+      Expr op1;
+      GetOpExprs(I, op0, op1);
+
+      // assume doSub has same bitwidth as Op0
+      Expr sub_res = m_ctx.alu().doSub(op0, op1, ty->getScalarSizeInBits());
+      Expr is_underflow =
+          m_ctx.alu().IsUsubNoUnderflow(op0, op1, ty->getScalarSizeInBits());
+      if (!sub_res || !is_underflow) {
+        LOG("opsem", WARN << "An operation returned null:" << I);
+        setValue(I, Expr());
+      } else {
+        Expr is_carry = m_ctx.alu().doNot(is_underflow, 1 /* bitwidth */);
+        setValue(I, createArithmeticWithOverflowRecord(
+                        sub_res, is_carry, ty->getScalarSizeInBits(),
+                        getCarryBitPadWidth(I)));
+      }
+    } break;
+    case Intrinsic::smul_with_overflow: {
+      Type *ty = I.getOperand(0)->getType();
+      Expr op0;
+      Expr op1;
+      GetOpExprs(I, op0, op1);
+
+      // assume doMul has same bitwidth as Op0
+      Expr mul_res = m_ctx.alu().doMul(op0, op1, ty->getScalarSizeInBits());
+      Expr is_overflow =
+          m_ctx.alu().IsSmulNoOverflow(op0, op1, ty->getScalarSizeInBits());
+      Expr is_underflow =
+          m_ctx.alu().IsBmulNoUnderflow(op0, op1, ty->getScalarSizeInBits());
+      if (!mul_res || !is_overflow || !is_underflow) {
+        LOG("opsem", WARN << "An operation returned null:" << I);
+        setValue(I, Expr());
+      } else {
+        Expr is_carry = m_ctx.alu().doNot(
+            m_ctx.alu().doAnd(is_overflow, is_underflow, 1 /* bitwidth */),
+            1 /* bitwidth*/);
+        setValue(I, createArithmeticWithOverflowRecord(
+                        mul_res, is_carry, ty->getScalarSizeInBits(),
+                        getCarryBitPadWidth(I)));
+      }
+    } break;
+    case Intrinsic::umul_with_overflow: {
+      Type *ty = I.getOperand(0)->getType();
+      Expr op0;
+      Expr op1;
+      GetOpExprs(I, op0, op1);
+
+      // assume doMul has same bitwidth as Op0
+      Expr mul_res = m_ctx.alu().doMul(op0, op1, ty->getScalarSizeInBits());
+      Expr is_overflow =
+          m_ctx.alu().IsUmulNoOverflow(op0, op1, ty->getScalarSizeInBits());
+      if (!mul_res || !is_overflow) {
+        LOG("opsem", WARN << "An operation returned null:" << I);
+        setValue(I, Expr());
+      } else {
+        Expr is_carry = m_ctx.alu().doNot(
+            m_ctx.alu().doAnd(is_overflow, is_overflow, 1 /* bitwidth */),
+            1 /* bitwidth*/);
+        setValue(I, createArithmeticWithOverflowRecord(
+                        mul_res, is_carry, ty->getScalarSizeInBits(),
+                        getCarryBitPadWidth(I)));
+      }
+    } break;
     default:
       // interpret by non-determinism (and a warning)
       if (!I.getType()->isVoidTy())
         setValue(I, Expr());
     }
+  }
+
+  void GetOpExprs(const IntrinsicInst &I, Expr &op0, Expr &op1) {
+    op0 = lookup(*I.getOperand(0));
+    op1 = lookup(*I.getOperand(1));
+  }
+
+  unsigned getCarryBitPadWidth(IntrinsicInst &I) {
+    const DataLayout &DL = m_sem.getDataLayout();
+    Type *curTy = I.getType();
+    auto *STy = dyn_cast<StructType>(curTy);
+    const StructLayout *SL = DL.getStructLayout(STy);
+    auto struc_size_in_bits = SL->getSizeInBits();
+    auto offset_in_bits = SL->getElementOffsetInBits(1);
+    auto carry_size_in_bits = (STy->getElementType(1))->getScalarSizeInBits();
+    return struc_size_in_bits - offset_in_bits - carry_size_in_bits;
+  }
+
+  Expr createArithmeticWithOverflowRecord(Expr &opResult, Expr &carryBit,
+                                          unsigned opResultBitWidth,
+                                          unsigned carryBitPadwidth) {
+    Expr carry = m_ctx.alu().Concat(
+        {m_ctx.alu().si(0U, carryBitPadwidth), carryBitPadwidth},
+        {carryBit, 1});
+    return m_ctx.alu().Concat({carry, carryBitPadwidth},
+                              {opResult, opResultBitWidth});
   }
 
   void visitDbgDeclareInst(DbgDeclareInst &I) { /* nothing */
@@ -983,7 +1143,8 @@ public:
     }
     assert(curTy->getTypeID() == retTy->getTypeID());
     end = begin + DL.getTypeSizeInBits(retTy) - 1;
-    Expr res = bv::extract(end, begin, aggOp);
+    Expr res = m_ctx.alu().Extract(
+        {aggOp, aggValue.getType()->getScalarSizeInBits()}, begin, end);
     // ensure that result is a pointer type after it has been extracted from the
     // struct
     if (retTy->isPointerTy())
@@ -1043,10 +1204,18 @@ public:
                            *DL.getIntPtrType(insertedVal.getType()));
 
     if (begin > 0)
-      ret = bv::concat(ret, bv::extract(begin - 1, 0, aggOp));
+      ret = m_ctx.alu().Concat(
+          {ret, insertedVal.getType()->getScalarSizeInBits()},
+          {m_ctx.alu().Extract({aggOp, aggVal.getType()->getScalarSizeInBits()},
+                               0, begin - 1),
+           begin});
 
     if (end < aggSize - 1)
-      ret = bv::concat(bv::extract(aggSize - 1, end + 1, aggOp), ret);
+      ret = m_ctx.alu().Concat(
+          {m_ctx.alu().Extract({aggOp, aggVal.getType()->getScalarSizeInBits()},
+                               end + 1, aggSize - 1),
+           aggSize - end - 1},
+          {ret, insertedVal.getType()->getScalarSizeInBits()});
 
     return ret;
   }

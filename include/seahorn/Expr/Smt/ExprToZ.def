@@ -237,6 +237,24 @@ inline Z3_ast mk_bvop_core(z3::context &ctx, const expr::Operator &op,
     return Z3_mk_bvlshr(ctx, zargs[0], zargs[1]);
   case BvOpKind::BASHR:
     return Z3_mk_bvashr(ctx, zargs[0], zargs[1]);
+  case BvOpKind::SADD_NO_OVERFLOW:
+    return Z3_mk_bvadd_no_overflow(ctx, zargs[0], zargs[1], true /* signed */);
+  case BvOpKind::UADD_NO_OVERFLOW:
+    return Z3_mk_bvadd_no_overflow(ctx, zargs[0], zargs[1], false /* signed */);
+  case BvOpKind::SADD_NO_UNDERFLOW:
+    return Z3_mk_bvadd_no_underflow(ctx, zargs[0], zargs[1]);
+  case BvOpKind::SSUB_NO_OVERFLOW:
+    return Z3_mk_bvsub_no_overflow(ctx, zargs[0], zargs[1]);
+  case BvOpKind::SSUB_NO_UNDERFLOW:
+    return Z3_mk_bvsub_no_underflow(ctx, zargs[0], zargs[1], true /* signed */);
+  case BvOpKind::USUB_NO_UNDERFLOW:
+    return Z3_mk_bvsub_no_underflow(ctx, zargs[0], zargs[1], false /* signed */);
+  case BvOpKind::SMUL_NO_OVERFLOW:
+    return Z3_mk_bvmul_no_overflow(ctx, zargs[0], zargs[1], true /* signed */);
+  case BvOpKind::UMUL_NO_OVERFLOW:
+    return Z3_mk_bvmul_no_overflow(ctx, zargs[0], zargs[1], false /* signed */);
+  case BvOpKind::SMUL_NO_UNDERFLOW:
+    return Z3_mk_bvmul_no_underflow(ctx, zargs[0], zargs[1]);
   case BvOpKind::BCONCAT: {
     if (arity == 2)
       return Z3_mk_concat(ctx, zargs[0], zargs[1]);
@@ -258,7 +276,7 @@ inline Z3_ast mk_bvop_core(z3::context &ctx, const expr::Operator &op,
     return res;
   }
   }
-  return nullptr;
+return nullptr;
 }
 
 } // namespace

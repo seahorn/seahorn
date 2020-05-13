@@ -851,7 +851,7 @@ TEST_CASE("expr.finite_map.remove_map_arguments") {
   ExprVector keys;
   keys.push_back(bind::intConst(mkTerm<std::string>("k1", efac)));
 
-  test_rules_map_args(db, keys);
+  Expr query = test_rules_map_args(db, keys);
   // generates: with map containing only k1
 
   // cl1 foo1(map, k1, v) :- v = get(map, k1).
@@ -892,11 +892,28 @@ TEST_CASE("expr.finite_map.remove_map_arguments") {
   // This cannot be solved by Z3
 
   // now apply local transformation only to the bodies
-  // removeFiniteMapsBodiesHornClausesTransf(tdb);
+  removeFiniteMapsBodiesHornClausesTransf(tdb);
 
-  // errs() << "HornClauseDB without fmaps\n";
-  // errs() << db << "\n";
+  errs() << "HornClauseDB without fmaps\n";
+  errs() << tdb << "\n";
   // This should be solvable by Z3
+  EZ3 z3(efac);
+  ZFixedPoint<EZ3> fp(z3);
+  set_params(z3, fp);
+
+  // original query:
+  // query :- m = defmap(defk(k1), defv(42)), foo1(m, k1, v), v \= 42.
+  // UNSAT
+  tdb.addQuery(query);
+  tdb.loadZFixedPoint(fp, false); // SkipConstraints = false
+
+  errs() << "query: " << *query << "\nfp content:\n";
+  errs() << fp.toString() << "\nend fp content\n";
+  errs() << "Expected: unsat\n";
+  boost::tribool res = fp.query();
+  errs() << "Solving: " << (res ? "sat" : "unsat") << "\n";
+
+  CHECK(!static_cast<bool>(res));
 }
 
 TEST_CASE("expr.finite_map.remove_map_arguments_2keys") {
@@ -961,4 +978,22 @@ TEST_CASE("expr.finite_map.remove_map_arguments_2keys") {
   errs() << "HornClauseDB without fmaps\n";
   errs() << tdb << "\n";
   // This should be solvable by Z3
+
+  EZ3 z3(efac);
+  ZFixedPoint<EZ3> fp(z3);
+  set_params(z3, fp);
+
+  // original query:
+  // query :- m = defmap(defk(k1,k2), defv(42,0)), foo1(m, k1, v), v \= 42.
+  // UNSAT
+  tdb.addQuery(query);
+  tdb.loadZFixedPoint(fp, false); // SkipConstraints = false
+
+  errs() << "query: " << *query << "\nfp content:\n";
+  errs() << fp.toString() << "\nend fp content\n";
+  errs() << "Expected: unsat\n";
+  boost::tribool res = fp.query();
+  errs() << "Solving: " << (res ? "sat" : "unsat") << "\n";
+
+  CHECK(!static_cast<bool>(res));
 }

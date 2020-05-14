@@ -12,46 +12,56 @@ namespace {
 
 //==-- main implementation goes here --==//
 class TCVR {
-  ExprVector expTypeStack;
+  ExprMap exprMap;
 
-  bool isConst (Expr exp) {
-   return bind::isBoolConst(exp) || bind::isIntConst(exp);
+  bool isBool(Expr exp) {
+    if (isOpX<TRUE>(exp) || isOpX<FALSE>(exp))
+      return true;
+    else if (bind::isBoolVar(exp) || bind::isBoolConst(exp))
+      return true;
+    else if (isOpX<AND>(exp) || isOpX<OR>(exp) || isOpX<XOR>(exp) ||
+             isOpX<IMPL>(exp) || isOpX<ITE>(exp) || isOpX<IFF>(exp) ||
+             isOpX<NEG>(exp))
+      return true;
+
+    return false;
   }
 
-  bool isVar (Expr exp) {
-   return bind::isBoolVar(exp) || bind::isIntVar(exp);
+  Expr inferType(Expr exp /*,TypeChecker & ty*/) {
+    if (isBool(exp))
+      return sort::boolTy(exp->efac());
+    else if (bind::isIntVar(exp) || bind::isIntConst(exp))
+      return sort::intTy(exp->efac());
+
+    return sort::anyTy(exp->efac());
   }
 
-  bool isValue (Expr exp) {
-    return isOpX<TRUE>(exp) || isOpX<FALSE>(exp);
+  bool isConst(Expr exp) {
+    return bind::isBoolConst(exp) || bind::isIntConst(exp);
   }
 
-  //returns true if children are of correct type
-  bool checkChildren (Expr exp) {
+  bool isVar(Expr exp) { return bind::isBoolVar(exp) || bind::isIntVar(exp); }
+
+  bool isValue(Expr exp) { return isOpX<TRUE>(exp) || isOpX<FALSE>(exp); }
+
+  // returns true if children are of correct type
+  bool checkChildren(Expr exp) {
 
     if (isOpX<ITE>(exp)) {
-      //ite (a,b,c) : a is bool, b and c same type
-      Expr c = expTypeStack.back(); 
-      expTypeStack.pop_back();
-
-      Expr b = expTypeStack.back(); 
-      expTypeStack.pop_back();
-
-      Expr a = expTypeStack.back(); 
-      expTypeStack.pop_back();
-
-      bool properTypes = (a == sort::boolTy (exp->efac())) && (b == c);
-      return properTypes;
+      // ite (a,b,c) : a is bool, b and c same type
+      bool aIsBool = exprMap[exp->arg(0)] == sort::boolTy(exp->efac());
+      bool bCSame = exprMap[exp->arg(1)] == exprMap[exp->arg(2)];
+      return aIsBool && bCSame;
     }
-    //default: check that chilren expressions are of the same types as the parent
 
-    int numChildren = exp->arity();
-    Expr parentType = bind::typeOf(exp);
+    // default: check that chilren expressions are of the same types as the
+    // parent
     bool properTypes = true;
+    Expr parentType = exprMap[exp];
 
-    for (int i = 0; i < numChildren; i ++) {
-      properTypes = properTypes && expTypeStack.back () == parentType;
-      expTypeStack.pop_back();
+    for (auto b = exp->args_begin(), e = exp->args_end(); b != e && properTypes;
+         ++b) {
+      properTypes = exprMap[*b] == parentType;
     }
 
     return properTypes;
@@ -59,16 +69,14 @@ class TCVR {
 
   /// Called after children have been visited
   Expr postVisit(Expr exp) {
-    LOG("tc", llvm::errs() << "post visiting expression: " << *exp << "\n";); 
+    LOG("tc", llvm::errs() << "post visiting expression: " << *exp << "\n";);
+
+    exprMap[exp] = inferType(exp);
 
     if (!checkChildren(exp)) {
-      LOG("tc", llvm::errs() << "improper types at:" << *exp  << "\n";);
-
-      expTypeStack.push_back(Expr());
-      return exp;
+      LOG("tc", llvm::errs() << "improper types at:" << *exp << "\n";);
+      exprMap[exp] = Expr();
     }
-
-      expTypeStack.push_back(bind::typeOf(exp));
 
     return exp;
   }
@@ -79,22 +87,19 @@ public:
   bool preVisit(Expr exp) {
     LOG("tc", llvm::errs() << "pre-visiting: " << *exp << "\n";);
 
-    if (isConst(exp) || isVar(exp) || isValue(exp)) {
-      expTypeStack.push_back(bind::typeOf(exp));
+    if (exprMap[exp]) {
+      return false;
+    } else if (isConst(exp) || isVar(exp) || isValue(exp)) {
+      exprMap[exp] = inferType(exp);
       return false;
     }
 
     return true;
   }
+
   Expr operator()(Expr exp) { return postVisit(exp); }
 
-  Expr knownTypeOf(Expr e) {
-    Expr type = expTypeStack.back();
-      LOG("tc", llvm::errs() << "final stack size: " << expTypeStack.size() << "\n";);
-//      assert(expTypeStack.size() == 1);
-    expTypeStack.clear();
-    return type;
-  }
+  Expr knownTypeOf(Expr e) { return e ? exprMap[e] : Expr(); }
 };
 
 //==-- Adapts visitor for pre- and post- traversal --==/
@@ -104,18 +109,15 @@ class TCV : public std::unary_function<Expr, VisitAction> {
 public:
   TCV() : m_rw(std::make_shared<TCVR>()) {}
   VisitAction operator()(Expr exp) {
-    if (m_rw->preVisit(exp)) 
+    if (m_rw->preVisit(exp))
       return VisitAction::changeDoKidsRewrite(exp, m_rw);
-    else 
+    else
       return VisitAction::skipKids();
   }
 
   /// Returns known type of \ e
   /// Should be called after visiting the expression to compute its type
-  Expr knownTypeOf(Expr e) {
-    return m_rw->knownTypeOf(e);
-    ;
-  }
+  Expr knownTypeOf(Expr e) { return m_rw->knownTypeOf(e); }
 };
 } // namespace
 
@@ -124,7 +126,7 @@ class TypeChecker::Impl {
 public:
   Expr typeOf(Expr e) {
     TCV _visitor;
-    Expr v = visit(_visitor, e);
+    Expr v = dagVisit(_visitor, e);
     return _visitor.knownTypeOf(v);
   }
 };

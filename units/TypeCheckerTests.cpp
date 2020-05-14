@@ -51,14 +51,14 @@ TEST_CASE("typeOf.test") {
   llvm::errs() << *e << "\n";
   // -- un-comment
   // -- fails with assertion failure inside typeOf()
-   // CHECK(bind::typeOf(e) == boolSort);
+  // CHECK(bind::typeOf(e) == boolSort);
 
-  e = boolop::lor(z, e);
+  e = boolop::lor(x, e);
 
   TypeChecker tc;
   Expr ty = tc.typeOf(e);
 
-  CHECK (ty == boolSort);
+  CHECK(ty == boolSort);
   if (ty)
     llvm::errs() << "Type is " << *ty << "\n";
   else
@@ -80,43 +80,41 @@ TEST_CASE("boolWellFormed.test") {
   Expr boolSort = sort::boolTy(efac);
 
   int size = 5;
-  Expr e [size];
-  
-  // e[0] = (!x && y)|| (x || z)
-  e[0] = boolop::land (boolop::lneg(x), y);
-  e[0] = boolop::lor(e[0], boolop::lor(x,z));
+  Expr e[size];
 
-  //e[1] = !(x -> y) && z 
-  e[1] = boolop::lneg(boolop::limp(x,y));
+  // e[0] = (!x && y)|| (x || z)
+  e[0] = boolop::land(boolop::lneg(x), y);
+  e[0] = boolop::lor(e[0], boolop::lor(x, z));
+
+  // e[1] = !(x -> y) && z
+  e[1] = boolop::lneg(boolop::limp(x, y));
   e[1] = boolop::land(e[1], z);
 
-  //e[2] =  ((!x && y)|| (x || z)) <-> (!(x -> y) && z )
-  e[2] = mk<IFF> (e[0], e[1]);
+  // e[2] =  ((!x && y)|| (x || z)) <-> (!(x -> y) && z )
+  e[2] = mk<IFF>(e[0], e[1]);
 
-  e[3] = mk<ITE> (a, x, mk<XOR>(b,y));
+  e[3] = mk<ITE>(a, x, mk<XOR>(b, y));
 
   e[4] = boolop::limp(mk<TRUE>(efac), mk<FALSE>(efac));
-  
+
   TypeChecker tc;
 
-  for (int i = 0; i < size; i ++) {
+  for (int i = 0; i < size; i++) {
     llvm::errs() << "Expression: " << *e[i] << "\n";
     Expr ty = tc.typeOf(e[i]);
 
-    CHECK (ty == boolSort);
+    CHECK(ty == boolSort);
     if (ty)
-      llvm::errs() << "Type is " << *ty << "\n\n\n\n";
+      llvm::errs() << "Type is " << *ty << "\n\n";
     else
       llvm::errs() << "Not well-formed expression. Type inference failed\n";
-
   }
-
 }
 TEST_CASE("notWellFormed.test") {
   seahorn::SeaEnableLog("tc");
   ExprFactory efac;
 
-  Expr xInt = intConst("intX", efac); // variable of type int  
+  Expr xInt = intConst("intX", efac); // variable of type int
 
   Expr yBool = boolConst("yBool", efac);
   Expr aBool = boolConst("aBool", efac);
@@ -124,26 +122,25 @@ TEST_CASE("notWellFormed.test") {
 
   Expr temp;
   int size = 2;
-  Expr e [size];
-  
-  // e[0] = yBool && (zBool && xInt)
-  e[0] = boolop::land (yBool, boolop::land (zBool, xInt));
+  Expr e[size];
 
-  //e[1] = (yBool -> zBool) -> !xInt
+  // e[0] = yBool && (zBool && xInt)
+  e[0] = boolop::land(yBool, boolop::land(zBool, xInt));
+
+  // e[1] = (yBool -> zBool) -> !xInt
   e[1] = boolop::limp(boolop::limp(yBool, zBool), boolop::lneg(xInt));
-  
+
   TypeChecker tc;
 
-  for (int i = 0; i < size; i ++) {
+  for (int i = 0; i < size; i++) {
     llvm::errs() << "Expression: " << *e[i] << "\n";
 
     Expr ty = tc.typeOf(e[i]);
 
-    CHECK (!ty);
+    CHECK(!ty);
     if (ty)
-      llvm::errs() << "Type is " << *ty << "\n";
+      llvm::errs() << "Type is " << *ty << "\n\n";
     else
       llvm::errs() << "Not well-formed expression. Type inference failed\n";
-
   }
 }

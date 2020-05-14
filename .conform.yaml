@@ -27,5 +27,5 @@ policies:
           - perf
           - test
         scopes:
-          - "scope"
+          - .*
         descriptionLength: 72

@@ -61,18 +61,16 @@ void normalizeHornClauseHeads(HornClauseDB &db) {
   }
 }
 
-template <typename Set, typename Predicate> void
-erase_if(Set &s, Predicate shouldRemove) {
-    for (auto it = s.begin(); it != s.end();) {
-      if (shouldRemove(*it)) {
-        it = s.erase(it);
+template <typename Set, typename Predicate> void erase_if(Set &s, Predicate shouldRemove) {
+  for(auto it = s.begin(); it!=s.end();){
+    if(shouldRemove(*it)){
+      it = s.erase(it);
     }
-      else {
-        ++it;        
+    else {
+      ++it;
     }
   }
 }
-
 // -- tdb is an empty db that will contain db after transformation
 void removeFiniteMapsArgsHornClausesTransf(HornClauseDB &db, HornClauseDB &tdb) {
 

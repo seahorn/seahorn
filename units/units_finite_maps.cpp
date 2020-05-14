@@ -373,7 +373,7 @@ inline void set_params(EZ3 &z3, ZFixedPoint<EZ3> &fp) {
 }
 
 // checking maps in the body of a rule
-TEST_CASE("expr.finite_map.map_in_body_1key") {
+TEST_CASE("expr.finite_map.map_in_body_1key" * doctest::skip(true)) {
 
   ExprFactory efac;
   Expr k1 = bind::intConst(mkTerm<string>("k1", efac));
@@ -445,7 +445,7 @@ TEST_CASE("expr.finite_map.map_in_body_1key") {
   // UNSAT
 }
 
-TEST_CASE("expr.finite_map.map_in_body_2keys") {
+TEST_CASE("expr.finite_map.map_in_body_2keys" * doctest::skip(true)) {
 
   ExprFactory efac;
   Expr k1 = bind::intConst(mkTerm<string>("k1", efac));

@@ -821,7 +821,7 @@ Expr test_rules_map_args(HornClauseDB &db, ExprVector & keys) {
 
   qBody.push_back(mk<EQ>(mapVar, finite_map::constFiniteMap(keys, values)));
   qBody.push_back(bind::fapp(foo2_decl, qargs));
-  qBody.push_back(mk<NEQ>(v, mk<PLUS>(solution,mkTerm<expr::mpz_class>(1, efac))));
+  qBody.push_back(mk<NEQ>(v, solution));
 
   ExprSet vars(qargs.begin(), qargs.end());
 
@@ -900,7 +900,7 @@ TEST_CASE("expr.finite_map.remove_map_arguments") {
   // original query:
   // query :- m = defmap(defk(k1), defv(42)), foo1(m, k1, v), v \= 42.
   // UNSAT
-  // tdb.addQuery(query);
+  tdb.addQuery(query);
   tdb.loadZFixedPoint(fp, false); // SkipConstraints = false
 
   errs() << "query: " << *query << "\nfp content:\n";

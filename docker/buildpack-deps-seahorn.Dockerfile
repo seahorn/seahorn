@@ -20,8 +20,9 @@ RUN apt-get update && \
       libboost-all-dev \
       python3-pip \
       less vim \
+      gcc-multilib \
       sudo \
-      graphviz libgraphviz-dev python3-gv \
+      graphviz libgraphviz-dev python3-pygraphviz \
       lcov ggcov && \
   pip3 install lit OutputCheck && \
   pip3 install networkx && \

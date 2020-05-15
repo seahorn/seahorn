@@ -12,29 +12,7 @@ namespace {
 
 //==-- main implementation goes here --==//
 class TCVR {
-  ExprMap exprMap;
-
-  bool isBool(Expr exp) {
-    if (isOpX<TRUE>(exp) || isOpX<FALSE>(exp))
-      return true;
-    else if (bind::isBoolVar(exp) || bind::isBoolConst(exp))
-      return true;
-    else if (isOpX<AND>(exp) || isOpX<OR>(exp) || isOpX<XOR>(exp) ||
-             isOpX<IMPL>(exp) || isOpX<ITE>(exp) || isOpX<IFF>(exp) ||
-             isOpX<NEG>(exp))
-      return true;
-
-    return false;
-  }
-
-  Expr inferType(Expr exp /*,TypeChecker & ty*/) {
-    if (isBool(exp))
-      return sort::boolTy(exp->efac());
-    else if (bind::isIntVar(exp) || bind::isIntConst(exp))
-      return sort::intTy(exp->efac());
-
-    return sort::anyTy(exp->efac());
-  }
+  ExprMap m_cache;
 
   bool isConst(Expr exp) {
     return bind::isBoolConst(exp) || bind::isIntConst(exp);
@@ -44,39 +22,81 @@ class TCVR {
 
   bool isValue(Expr exp) { return isOpX<TRUE>(exp) || isOpX<FALSE>(exp); }
 
-  // returns true if children are of correct type
-  bool checkChildren(Expr exp) {
+  Expr inferTypeITE(Expr exp) {
+    Expr boolSort = sort::boolTy(exp->efac());
 
-    if (isOpX<ITE>(exp)) {
-      // ite (a,b,c) : a is bool, b and c same type
-      bool aIsBool = exprMap[exp->arg(0)] == sort::boolTy(exp->efac());
-      bool bCSame = exprMap[exp->arg(1)] == exprMap[exp->arg(2)];
-      return aIsBool && bCSame;
-    }
+    // ite(a,b,c) : a is bool type, b and c are the same type
+    if (exp->arity() == 3 && m_cache.at(exp->arg(0)) == boolSort &&
+        (m_cache.at(exp->arg(1)) == m_cache.at(exp->arg(2))))
+      return boolSort;
+    else
+      return Expr();
+  }
 
-    // default: check that chilren expressions are of the same types as the
-    // parent
-    bool properTypes = true;
-    Expr parentType = exprMap[exp];
+  // ensures the expression has the correct number of children and all children
+  // are bool types
+  Expr boolCheckChildren(Expr exp, bool (*checkNumChildren)(int)) {
+    auto isBool = [this](Expr exp) {
+      return this->m_cache.at(exp) == sort::boolTy(exp->efac());
+    };
 
-    for (auto b = exp->args_begin(), e = exp->args_end(); b != e && properTypes;
-         ++b) {
-      properTypes = exprMap[*b] == parentType;
-    }
+    if (checkNumChildren(exp->arity()) &&
+        std::all_of(exp->args_begin(), exp->args_end(), isBool))
+      return sort::boolTy(exp->efac());
+    else
+      return Expr();
+  }
 
-    return properTypes;
+  Expr inferTypeIMP(Expr exp) {
+    auto checkNumChildren = [](int numChildren) -> bool {
+      return numChildren == 2;
+    };
+    return boolCheckChildren(exp, checkNumChildren);
+  }
+
+  Expr inferTypeNEG(Expr exp) {
+    auto checkNumChildren = [](int numChildren) -> bool {
+      return numChildren == 1;
+    };
+    return boolCheckChildren(exp, checkNumChildren);
+  }
+
+  Expr inferTypeBoolMulti(Expr exp) {
+    auto checkNumChildren = [](int numChildren) -> bool {
+      return numChildren >= 2;
+    };
+    return boolCheckChildren(exp, checkNumChildren);
+  }
+
+  Expr inferType(Expr exp /*,TypeChecker & ty*/) {
+    if (isOpX<TRUE>(exp) || isOpX<FALSE>(exp))
+      return sort::boolTy(exp->efac());
+    else if (bind::isBoolVar(exp) || bind::isBoolConst(exp))
+      return sort::boolTy(exp->efac());
+    else if (isOpX<AND>(exp) || isOpX<OR>(exp) || isOpX<XOR>(exp))
+      return inferTypeBoolMulti(exp);
+    else if (isOpX<NEG>(exp))
+      return inferTypeNEG(exp);
+    else if (isOpX<IMPL>(exp) || isOpX<IFF>(exp))
+      return inferTypeIMP(exp);
+    else if (isOpX<ITE>(exp))
+      return inferTypeITE(exp);
+    else if (bind::isIntVar(exp) || bind::isIntConst(exp))
+      return sort::intTy(exp->efac());
+
+    return sort::boolTy(exp->efac());
   }
 
   /// Called after children have been visited
   Expr postVisit(Expr exp) {
     LOG("tc", llvm::errs() << "post visiting expression: " << *exp << "\n";);
 
-    exprMap[exp] = inferType(exp);
+    Expr type = inferType(exp);
 
-    if (!checkChildren(exp)) {
-      LOG("tc", llvm::errs() << "improper types at:" << *exp << "\n";);
-      exprMap[exp] = Expr();
-    }
+    m_cache.insert({exp, type});
+    if (!type)
+      LOG("tc", llvm::errs()
+                    << "Expression is not well-formed: " << *exp << "\n";);
 
     return exp;
   }
@@ -87,10 +107,10 @@ public:
   bool preVisit(Expr exp) {
     LOG("tc", llvm::errs() << "pre-visiting: " << *exp << "\n";);
 
-    if (exprMap[exp]) {
+    if (m_cache.count(exp)) {
       return false;
     } else if (isConst(exp) || isVar(exp) || isValue(exp)) {
-      exprMap[exp] = inferType(exp);
+      m_cache.insert({exp, inferType(exp)});
       return false;
     }
 
@@ -99,7 +119,7 @@ public:
 
   Expr operator()(Expr exp) { return postVisit(exp); }
 
-  Expr knownTypeOf(Expr e) { return e ? exprMap[e] : Expr(); }
+  Expr knownTypeOf(Expr e) { return e ? m_cache.at(e) : Expr(); }
 };
 
 //==-- Adapts visitor for pre- and post- traversal --==/

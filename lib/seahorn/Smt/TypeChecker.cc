@@ -47,14 +47,14 @@ class TCVR {
       return Expr();
   }
 
-  Expr inferTypeIMP(Expr exp) {
+  Expr inferTypeBoolBinary(Expr exp) {
     auto checkNumChildren = [](int numChildren) -> bool {
       return numChildren == 2;
     };
     return boolCheckChildren(exp, checkNumChildren);
   }
 
-  Expr inferTypeNEG(Expr exp) {
+  Expr inferTypeBoolUnary(Expr exp) {
     auto checkNumChildren = [](int numChildren) -> bool {
       return numChildren == 1;
     };
@@ -76,9 +76,9 @@ class TCVR {
     else if (isOpX<AND>(exp) || isOpX<OR>(exp) || isOpX<XOR>(exp))
       return inferTypeBoolNary(exp);
     else if (isOpX<NEG>(exp))
-      return inferTypeNEG(exp);
+      return inferTypeBoolUnary(exp);
     else if (isOpX<IMPL>(exp) || isOpX<IFF>(exp))
-      return inferTypeIMP(exp);
+      return inferTypeBoolBinary(exp);
     else if (isOpX<ITE>(exp))
       return inferTypeITE(exp);
     else if (bind::isIntVar(exp) || bind::isIntConst(exp))

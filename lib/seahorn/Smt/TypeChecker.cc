@@ -61,7 +61,7 @@ class TCVR {
     return boolCheckChildren(exp, checkNumChildren);
   }
 
-  Expr inferTypeBoolMulti(Expr exp) {
+  Expr inferTypeBoolNary(Expr exp) {
     auto checkNumChildren = [](int numChildren) -> bool {
       return numChildren >= 2;
     };
@@ -74,7 +74,7 @@ class TCVR {
     else if (bind::isBoolVar(exp) || bind::isBoolConst(exp))
       return sort::boolTy(exp->efac());
     else if (isOpX<AND>(exp) || isOpX<OR>(exp) || isOpX<XOR>(exp))
-      return inferTypeBoolMulti(exp);
+      return inferTypeBoolNary(exp);
     else if (isOpX<NEG>(exp))
       return inferTypeNEG(exp);
     else if (isOpX<IMPL>(exp) || isOpX<IFF>(exp))

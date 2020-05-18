@@ -291,21 +291,16 @@ VisitAction FiniteMapArgsVisitor::operator()(Expr exp) {
     Expr newPredDecl = m_pred_decl_t.find(fdecl)->second;
     ExprVector newUnifs;
     Expr newFapp = mkFappArgsCore(head, newPredDecl, m_evars, m_efac, newUnifs);
-    Expr newBody;
-    if(!newUnifs.empty())
-      newBody = mk<AND>(mknary<AND>(newUnifs), body);
-    else
-      newBody = body;
+    Expr newBody = newUnifs.empty() ? body : mk<AND>(mknary<AND>(newUnifs), body);
 
     Expr newExp = boolop::limp(newBody, newFapp);
-
     // efficiency: are we traversing the newly created unifs?
     return VisitAction::changeDoKids(newExp);
 
   } else if (isOpX<FAPP>(exp) &&
              !bind::isConst(exp)) { // faster to check arity >= 2?
     Expr fdecl = *exp->args_begin();
-
+    errs() << "fapp found: " << *exp << "\n";
     if (m_pred_decl_t.count(fdecl) > 0) { // needs to be transformed
       ExprVector newUnifs;
       Expr newPredDecl = m_pred_decl_t.find(fdecl)->second;

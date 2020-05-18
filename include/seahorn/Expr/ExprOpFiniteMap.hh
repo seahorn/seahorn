@@ -153,6 +153,7 @@ inline Expr mkMapsDecl(Expr fdecl, ExprFactory &efac) {
 
   assert(isOpX<FDECL>(fdecl));
 
+  bool fmap_arg = false; // there are fmap args
   ExprVector newTypes;
 
   Expr iTy = op::sort::intTy(efac);
@@ -163,6 +164,7 @@ inline Expr mkMapsDecl(Expr fdecl, ExprFactory &efac) {
     if (isOpX<FINITE_MAP_TY>(type)) {                 // the type is a FiniteMap
       assert(type->args_begin() != type->args_end()); // the map has at
                                                       // least one key
+      fmap_arg = true;
       for (auto kIt = type->args_begin(); kIt != type->args_end(); kIt++) {
         newTypes.push_back(iTy); // new argument for key
         newTypes.push_back(iTy); // new argument for value
@@ -174,7 +176,7 @@ inline Expr mkMapsDecl(Expr fdecl, ExprFactory &efac) {
   Expr newfname = bind::fapp(fdecl); // to go back easier, the new name includes
                                      // the old declaration
 
-  return bind::fdecl(newfname, newTypes);
+  return fmap_arg ? bind::fdecl(newfname, newTypes) : fdecl;
 }
 
 // This function is just for testing // internal

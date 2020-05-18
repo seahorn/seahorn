@@ -90,7 +90,6 @@ void removeFiniteMapsArgsHornClausesTransf(HornClauseDB &db, HornClauseDB &tdb) 
       if (newPredDecl != predDecl)
         predDeclTransf[predDecl] = newPredDecl;
     }
-    errs() << "Registering relation " << *newPredDecl << "\n";
     tdb.registerRelation(newPredDecl); // register relation in transformed db
   }
 
@@ -100,19 +99,13 @@ void removeFiniteMapsArgsHornClausesTransf(HornClauseDB &db, HornClauseDB &tdb) 
     DagVisitCache dvc; // same for all the clauses??
     FiniteMapArgsVisitor fmav(efac, allVars, predDeclTransf);
     Expr newRule = visit(fmav, rule.get(),dvc);
-    // allVars.erase(std::remove_if(allVars.begin(), allVars.end(), [](Expr expr) {
-    //       return isOpX<FINITE_MAP_TY>(bind::rangeTy(bind::fname(expr)));
-    //        }));
 
-    // ExprSet newVars;
-    // for(auto v : allVars){
-    //   if(!isOpX<FINITE_MAP_TY>(bind::rangeTy(bind::fname(v)))
-    //      newVars}
-
-    erase_if(allVars, [](Expr expr) {
+    erase_if(
+        allVars, [](Expr expr) {
             return isOpX<FINITE_MAP_TY>(bind::rangeTy(bind::fname(expr)));
-             });
-      tdb.addRule(allVars, newRule);
+        });
+
+    tdb.addRule(allVars, newRule);
   }
 }
 
@@ -133,9 +126,9 @@ void removeFiniteMapsBodiesHornClausesTransf(HornClauseDB &db) {
     erase_if(
         allVars, [](Expr expr) {
             return isOpX<FINITE_MAP_TY>(bind::rangeTy(bind::fname(expr)));
-           
         });
-    HornRule new_rule(allVars, rule.head(), visit(fmv, rule.body(), dvc));
+
+   HornRule new_rule(allVars, rule.head(), visit(fmv, rule.body(), dvc));
 
     db.removeRule(rule);
     db.addRule(new_rule);

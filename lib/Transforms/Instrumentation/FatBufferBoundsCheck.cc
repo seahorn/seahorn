@@ -208,10 +208,9 @@ bool FatBufferBoundsCheck::instrument(Value *Ptr, Value *InstVal,
     if (ObjSizeEval->knownSize(SizeOffset)) {
       Size = SizeOffset.first;
       ++ChecksKnownSize;
-    }
-    else {
+    } else {
       Size = Builder->CreateCall(
-                                 m_getFatSlot1, Builder->CreateBitCast(Ptr, Builder->getInt8PtrTy()));
+          m_getFatSlot1, Builder->CreateBitCast(Ptr, Builder->getInt8PtrTy()));
     }
     assert(Size);
     Value *PtrAsInt = Builder->CreatePtrToInt(RawPtr, IntPtrTy);

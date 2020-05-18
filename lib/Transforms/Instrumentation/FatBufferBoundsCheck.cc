@@ -98,7 +98,7 @@ private:
   void emitBranchToTrap(Value *Cmp = nullptr);
   bool instrument(Value *Ptr, Value *Val, const DataLayout &DL, Value *&RawPtr);
   bool instrumentAlloca(AllocaInst *Ptr, const DataLayout &DL);
-  bool instrumentGep(GetElementPtrInst *Ptr);
+  bool instrumentGep(GetElementPtrInst *Ptr, Value *&RawPtr);
 };
 } // namespace
 
@@ -255,6 +255,7 @@ bool FatBufferBoundsCheck::instrumentAlloca(AllocaInst *Ptr,
     replace_all(ptr, with_size_and_base)
   */
 
+  Builder->SetInsertPoint(Ptr->getParent(), ++BasicBlock::iterator(Ptr));
   // -- forward created calls. Arguments will be filled later
   // -- create a call to set slot0
   CallInst *withBase = Builder->CreateCall(
@@ -290,7 +291,7 @@ bool FatBufferBoundsCheck::instrumentAlloca(AllocaInst *Ptr,
 }
 
 
-bool FatBufferBoundsCheck::instrumentGep(GetElementPtrInst *Ptr) {
+bool FatBufferBoundsCheck::instrumentGep(GetElementPtrInst *Ptr, Value *&RawPtr) {
   /*
     Transformation:
      copied := call copy_fat_slots(ptr, base_ptr)
@@ -300,6 +301,12 @@ bool FatBufferBoundsCheck::instrumentGep(GetElementPtrInst *Ptr) {
   auto GepTy = Ptr->getResultElementType();
   auto *BasePtr = Ptr->getPointerOperand();
 
+  Builder->SetInsertPoint(Ptr);
+  Value *RecovPtr = Builder->CreateCall(
+      m_recoverFatPtr, Builder->CreateBitCast(BasePtr, Builder->getInt8PtrTy()));
+  RawPtr = Builder->CreateBitCast(RecovPtr, BasePtr->getType());
+
+  Builder->SetInsertPoint(Ptr->getParent(), ++BasicBlock::iterator(Ptr));
   CallInst *SlotCopyCall = Builder->CreateCall(
       m_copyFatSlots, {Constant::getNullValue(Builder->getInt8PtrTy()),
                        Constant::getNullValue(Builder->getInt8PtrTy())});
@@ -407,7 +414,6 @@ bool FatBufferBoundsCheck::runOnFunction(Function &F) {
   bool MadeChange = false;
   for (Instruction *i : AllocaList) {
     Inst = i;
-    Builder->SetInsertPoint(Inst->getNextNode()); // insert after
     if (AllocaInst *ALI = dyn_cast<AllocaInst>(Inst)) {
       Type *allocTy = ALI->getAllocatedType();
       MadeChange |= instrumentAlloca(ALI, DL);
@@ -417,10 +423,11 @@ bool FatBufferBoundsCheck::runOnFunction(Function &F) {
   }
 
   for (Instruction *i : GEPList) {
+    Value *RawPtr = nullptr;
     Inst = i;
-    Builder->SetInsertPoint(Inst->getNextNode()); // insert after
     if (GetElementPtrInst *GEP = dyn_cast<GetElementPtrInst>(Inst)) {
-      MadeChange |= instrumentGep(GEP);
+      MadeChange |= instrumentGep(GEP, RawPtr);
+      GEP->setOperand(GEP->getPointerOperandIndex(), RawPtr);
     } else {
       llvm_unreachable("unknown Instruction type");
     }

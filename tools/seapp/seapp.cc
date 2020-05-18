@@ -23,13 +23,13 @@
 #include "llvm/Support/SourceMgr.h"
 #include "llvm/Support/ToolOutputFile.h"
 #include "llvm/Support/raw_ostream.h"
-#include "llvm/InitializePasses.h"
 #include "llvm/Bitcode/BitcodeWriter.h"
 #include "llvm/Bitcode/BitcodeWriterPass.h"
 #include "llvm/Transforms/IPO.h"
 
 #include "llvm/IR/Verifier.h"
 
+#include "seahorn/InitializePasses.hh"
 #include "seahorn/Passes.hh"
 
 #ifdef HAVE_LLVM_SEAHORN
@@ -399,6 +399,7 @@ int main(int argc, char **argv) {
     pm_wrapper.add(seahorn::createNullCheckPass());
   }
   else if (FatBoundsCheck) {
+    initializeFatBufferBoundsCheckPass(Registry);
     pm_wrapper.add(seahorn::createFatBufferBoundsCheckPass());
   }
   // default pre-processing pipeline

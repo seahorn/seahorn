@@ -18,6 +18,8 @@ Based on BufferBoundsCheck from LLVM project
 //
 //===----------------------------------------------------------------------===//
 
+#include "seahorn/InitializePasses.hh"
+
 #include "llvm/ADT/Statistic.h"
 #include "llvm/Analysis/MemoryBuiltins.h"
 #include "llvm/Analysis/TargetFolder.h"
@@ -456,6 +458,7 @@ FunctionPass *createFatBufferBoundsCheckPass() {
 }
 } // namespace seahorn
 
-static RegisterPass<FatBufferBoundsCheck>
-    X("fat-buffer-bounds-instrument",
-      "Bounds checking based on extended pointer");
+using namespace seahorn;
+using namespace llvm;
+INITIALIZE_PASS(FatBufferBoundsCheck, "fat-buffer-bounds-instrument",
+                "Bounds checking based on extended pointer", false, false)

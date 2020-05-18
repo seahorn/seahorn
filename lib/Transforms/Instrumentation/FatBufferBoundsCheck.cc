@@ -66,6 +66,7 @@ using namespace llvm;
 STATISTIC(ChecksAdded, "Bounds checks added");
 STATISTIC(ChecksSkipped, "Bounds checks skipped");
 STATISTIC(ChecksUnable, "Bounds checks unable to add");
+STATISTIC(ChecksFat, "Bounds checks that use fat pointers");
 
 typedef IRBuilder<TargetFolder> BuilderTy;
 
@@ -180,6 +181,14 @@ bool FatBufferBoundsCheck::instrument(Value *Ptr, Value *InstVal,
   RawPtr = Builder->CreateBitCast(RecovPtr, Ptr->getType());
 
   if (!ObjSizeEval->bothKnown(SizeOffset)) {
+
+    // -- skip anything that is globally allocated
+    if (isa<llvm::GlobalValue>(Ptr->stripPointerCastsAndInvariantGroups())) {
+      ++ChecksUnable;
+      return false;
+    }
+
+    ++ChecksFat;
     LOG("fat-bnd-check", errs() << "fatptr instrument " << *Ptr << " for "
                                 << Twine(NeededSize) << " bytes\n";);
     /* Generates code for dynamic bounds check using fat ptr functions:
@@ -290,8 +299,8 @@ bool FatBufferBoundsCheck::instrumentAlloca(AllocaInst *Ptr,
   return true;
 }
 
-
-bool FatBufferBoundsCheck::instrumentGep(GetElementPtrInst *Ptr, Value *&RawPtr) {
+bool FatBufferBoundsCheck::instrumentGep(GetElementPtrInst *Ptr,
+                                         Value *&RawPtr) {
   /*
     Transformation:
      copied := call copy_fat_slots(ptr, base_ptr)
@@ -303,7 +312,8 @@ bool FatBufferBoundsCheck::instrumentGep(GetElementPtrInst *Ptr, Value *&RawPtr)
 
   Builder->SetInsertPoint(Ptr);
   Value *RecovPtr = Builder->CreateCall(
-      m_recoverFatPtr, Builder->CreateBitCast(BasePtr, Builder->getInt8PtrTy()));
+      m_recoverFatPtr,
+      Builder->CreateBitCast(BasePtr, Builder->getInt8PtrTy()));
   RawPtr = Builder->CreateBitCast(RecovPtr, BasePtr->getType());
 
   Builder->SetInsertPoint(Ptr->getParent(), ++BasicBlock::iterator(Ptr));
@@ -340,7 +350,6 @@ bool FatBufferBoundsCheck::runOnFunction(Function &F) {
   ObjSizeEval = &TheObjSizeEval;
 
   IntPtrTy = DL.getIntPtrType(C);
-
 
   m_getFatSlot0 =
       cast<Function>(M->getOrInsertFunction(SEA_GET_FAT_SLOT0, IntPtrTy,
@@ -395,18 +404,16 @@ bool FatBufferBoundsCheck::runOnFunction(Function &F) {
   // check HANDLE_MEMORY_INST in include/llvm/Instruction.def for memory
   // touching instructions
   std::vector<Instruction *> AccessWorkList;
-  std::vector<AllocaInst *> AllocaList; // new register is created for addr
-  std::vector<GetElementPtrInst *> GEPList;    // new register is created for addr
+  std::vector<AllocaInst *> AllocaList;     // new register is created for addr
+  std::vector<GetElementPtrInst *> GEPList; // new register is created for addr
   for (auto i = inst_begin(F), e = inst_end(F); i != e; ++i) {
     Instruction *I = &*i;
     if (isa<LoadInst>(I) || isa<StoreInst>(I) || isa<AtomicCmpXchgInst>(I) ||
         isa<AtomicRMWInst>(I)) {
       AccessWorkList.push_back(I);
-    }
-    else if (isa<AllocaInst>(I)) {
+    } else if (isa<AllocaInst>(I)) {
       AllocaList.push_back(cast<AllocaInst>(I));
-    }
-    else if (isa<GetElementPtrInst>(I)) {
+    } else if (isa<GetElementPtrInst>(I)) {
       GEPList.push_back(cast<GetElementPtrInst>(I));
     }
   }

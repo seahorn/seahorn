@@ -67,6 +67,7 @@ STATISTIC(ChecksAdded, "Bounds checks added");
 STATISTIC(ChecksSkipped, "Bounds checks skipped");
 STATISTIC(ChecksUnable, "Bounds checks unable to add");
 STATISTIC(ChecksFat, "Bounds checks that use fat pointers");
+STATISTIC(ChecksKnownSize, "Bounds checks that have known size but not offset");
 
 typedef IRBuilder<TargetFolder> BuilderTy;
 
@@ -203,8 +204,16 @@ bool FatBufferBoundsCheck::instrument(Value *Ptr, Value *InstVal,
     */
     Value *Start = Builder->CreateCall(
         m_getFatSlot0, Builder->CreateBitCast(Ptr, Builder->getInt8PtrTy()));
-    Value *Size = Builder->CreateCall(
-        m_getFatSlot1, Builder->CreateBitCast(Ptr, Builder->getInt8PtrTy()));
+    Value *Size = nullptr;
+    if (ObjSizeEval->knownSize(SizeOffset)) {
+      Size = SizeOffset.first;
+      ++ChecksKnownSize;
+    }
+    else {
+      Size = Builder->CreateCall(
+                                 m_getFatSlot1, Builder->CreateBitCast(Ptr, Builder->getInt8PtrTy()));
+    }
+    assert(Size);
     Value *PtrAsInt = Builder->CreatePtrToInt(RawPtr, IntPtrTy);
     // Ptr >= Start
     Value *CmpUnderFlow = Builder->CreateICmpULT(PtrAsInt, Start);

@@ -35,7 +35,7 @@ Expr unintConst(const std::string &n, ExprFactory &efac) {
   return bind::unintConst(mkTerm<std::string>(n, efac));
 }
 
-void checkNotWellFormed (Expr e[], Expr error [], int size) {
+void checkNotWellFormed(Expr e[], Expr error[], int size) {
   TypeChecker tc;
 
   for (int i = 0; i < size; i++) {
@@ -51,7 +51,7 @@ void checkNotWellFormed (Expr e[], Expr error [], int size) {
   }
 }
 
-void checkWellFormed (Expr e[], int size, Expr type) {
+void checkWellFormed(Expr e[], int size, Expr type) {
   TypeChecker tc;
 
   for (int i = 0; i < size; i++) {
@@ -64,7 +64,6 @@ void checkWellFormed (Expr e[], int size, Expr type) {
     else
       llvm::errs() << "Not well-formed expression. Type inference failed\n";
   }
-
 }
 
 TEST_CASE("typeOf.test") {
@@ -161,14 +160,13 @@ TEST_CASE("notWellFormed.test") {
   error[2] = boolop::lor(zBool, xInt);
   e[2] = boolop::land(error[2], boolop::limp(yBool, zBool));
 
-  checkNotWellFormed (e, error, size);
+  checkNotWellFormed(e, error, size);
 }
 
 TEST_CASE("intWellFormed.test") {
- seahorn::SeaEnableLog("tc");
+  seahorn::SeaEnableLog("tc");
   // -- manages expressions
   ExprFactory efac;
-
 
   Expr x = intConst("x", efac);
   Expr y = intConst("y", efac);
@@ -180,9 +178,9 @@ TEST_CASE("intWellFormed.test") {
   Expr e[size];
   Expr temp;
 
-  e[0] = mk <PLUS> (x,y,z) ;
+  e[0] = mk<PLUS>(x, y, z);
 
-  e[1] = mk <PLUS> (mk<MINUS>(x, y),y,z) ;
+  e[1] = mk<PLUS>(mk<MINUS>(x, y), y, z);
 
   TypeChecker tc;
 
@@ -191,7 +189,7 @@ TEST_CASE("intWellFormed.test") {
 
 TEST_CASE("realWellFormed.test") {
 
- seahorn::SeaEnableLog("tc");
+  seahorn::SeaEnableLog("tc");
   // -- manages expressions
   ExprFactory efac;
 
@@ -207,18 +205,17 @@ TEST_CASE("realWellFormed.test") {
   Expr e[size];
 
   // e[0] = (aReal / bReal) * aReal * (aReal - bReal)
-  e[0] = mk <MULT>(mk<DIV>(aReal, bReal), aReal , mk<UN_MINUS>(aReal, bReal));
+  e[0] = mk<MULT>(mk<DIV>(aReal, bReal), aReal, mk<UN_MINUS>(aReal, bReal));
 
   // e[1] = abs ((aReal / bReal) * aReal * (aReal - bReal)) % cReal
-  e[1] = mk<REM> (mk<ABS> (e[0]), aReal);
-
+  e[1] = mk<REM>(mk<ABS>(e[0]), aReal);
 
   checkWellFormed(e, size, realSort);
 }
 
 TEST_CASE("unintWellFormed.test") {
 
- seahorn::SeaEnableLog("tc");
+  seahorn::SeaEnableLog("tc");
   // -- manages expressions
   ExprFactory efac;
 
@@ -233,19 +230,19 @@ TEST_CASE("unintWellFormed.test") {
   int size = 2;
   Expr e[size];
 
-  // e[0] = aUnint mod (bUnint / cUnint) 
-  e[0] = mk<MOD>(aUnint, mk<IDIV> (bUnint, cUnint));
+  // e[0] = aUnint mod (bUnint / cUnint)
+  e[0] = mk<MOD>(aUnint, mk<IDIV>(bUnint, cUnint));
 
-// e[1] =  aUnint - (aUnint * cUnint) - (aUnint * cUnint)
-  e[1] = mk<UN_MINUS> (aUnint, mk<MULT> (aUnint, cUnint), mk<MULT> (aUnint, cUnint));
+  // e[1] =  aUnint - (aUnint * cUnint) - (aUnint * cUnint)
+  e[1] =
+      mk<UN_MINUS>(aUnint, mk<MULT>(aUnint, cUnint), mk<MULT>(aUnint, cUnint));
 
   checkWellFormed(e, size, unintSort);
 }
 
-
 TEST_CASE("numNotWellFormed.test") {
 
- seahorn::SeaEnableLog("tc");
+  seahorn::SeaEnableLog("tc");
   // -- manages expressions
   ExprFactory efac;
 
@@ -262,13 +259,13 @@ TEST_CASE("numNotWellFormed.test") {
   Expr error[size];
 
   e[0] = mk<ABS>(eBool);
-  error [0] = e[0];
+  error[0] = e[0];
 
   e[1] = mk<ABS>(aInt, aInt);
-  error [1] = e[1];
+  error[1] = e[1];
 
-  e[2] = mk<DIV> (dUnint, mk<PLUS> (cReal, cReal), mk<MULT> (dUnint, dUnint));
-  error [2] = e[2];
+  e[2] = mk<DIV>(dUnint, mk<PLUS>(cReal, cReal), mk<MULT>(dUnint, dUnint));
+  error[2] = e[2];
 
   checkNotWellFormed(e, error, size);
 }

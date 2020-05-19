@@ -14,25 +14,64 @@ namespace {
 class TCVR {
   ExprMap m_cache;
   bool m_isWellFormed = true;
-  Expr m_notWellFormedExp;
+  Expr m_errorExp;
 
   bool isConst(Expr exp) {
-    return bind::isBoolConst(exp) || bind::isIntConst(exp);
+    return bind::isBoolConst(exp) || bind::isIntConst(exp) ||
+           bind::isRealConst(exp);
   }
 
   bool isValue(Expr exp) { return isOpX<TRUE>(exp) || isOpX<FALSE>(exp); }
 
-  template<unsigned int N> bool numChildrenEq (Expr exp) {
-      return exp->arity() == N;
+  template <unsigned int N> bool numOfChildrenEq(Expr exp) {
+    return exp->arity() == N;
   }
-  
-  template<unsigned int N> bool numChildrenGreaterEq (Expr exp) {
-      return exp->arity() >= N;
+
+  template <unsigned int N> bool numOfChildrenGreaterEq(Expr exp) {
+    return exp->arity() >= N;
+  }
+
+  bool isValidNumType(Expr exp) {
+    if (exp != nullptr &&
+        (isOp<INT_TY>(exp) || isOp<REAL_TY>(exp) || isOp<UNINT_TY>(exp)))
+      return true;
+    return false;
+  }
+
+  // ensures the expression has the correct number of children and all children
+  // are the same and correct type
+  Expr numTypeCheckChildren(Expr exp,
+                            std::function<bool(Expr exp)> checkNumChildren) {
+    if (!checkNumChildren(exp))
+      return Expr();
+
+    Expr type = m_cache.at(exp->first());
+    auto isSameType = [this, type](Expr exp) {
+      return type != nullptr && this->m_cache.at(exp) == type;
+    };
+
+    if (isValidNumType(type) &&
+        std::all_of(exp->args_begin(), exp->args_end(), isSameType))
+      return type;
+    else
+      return Expr();
+  }
+
+  Expr inferTypeNumUnary(Expr exp) {
+    std::function<bool(Expr)> checkNumChildren =
+        std::bind(&TCVR::numOfChildrenEq<1>, this, std::placeholders::_1);
+    return numTypeCheckChildren(exp, checkNumChildren);
+  }
+
+  Expr inferTypeNumNary(Expr exp) {
+    std::function<bool(Expr)> checkNumChildren = std::bind(
+        &TCVR::numOfChildrenGreaterEq<2>, this, std::placeholders::_1);
+    return numTypeCheckChildren(exp, checkNumChildren);
   }
 
   Expr inferTypeITE(Expr exp) {
     // ite(a,b,c) : a is bool type, b and c are the same type
-    if (numChildrenEq<3>(exp) && isOp<BOOL_TY>(m_cache.at(exp->arg(0))) &&
+    if (numOfChildrenEq<3>(exp) && isOp<BOOL_TY>(m_cache.at(exp->arg(0))) &&
         (m_cache.at(exp->arg(1)) == m_cache.at(exp->arg(2))))
       return sort::boolTy(exp->efac());
     else
@@ -41,9 +80,10 @@ class TCVR {
 
   // ensures the expression has the correct number of children and all children
   // are bool types
-  Expr boolCheckChildren(Expr exp, std::function <bool(Expr exp)> checkNumChildren) {
+  Expr boolCheckChildren(Expr exp,
+                         std::function<bool(Expr exp)> checkNumChildren) {
     auto isBool = [this](Expr exp) {
-      Expr type = this-> m_cache.at(exp);
+      Expr type = this->m_cache.at(exp);
 
       return type != nullptr && isOp<BOOL_TY>(this->m_cache.at(exp));
     };
@@ -56,24 +96,27 @@ class TCVR {
   }
 
   Expr inferTypeBoolBinary(Expr exp) {
-    std::function<bool(Expr)> checkNumChildren = std::bind (&TCVR::numChildrenEq<2>, this, std::placeholders::_1);
+    std::function<bool(Expr)> checkNumChildren =
+        std::bind(&TCVR::numOfChildrenEq<2>, this, std::placeholders::_1);
     return boolCheckChildren(exp, checkNumChildren);
   }
 
   Expr inferTypeBoolUnary(Expr exp) {
-    std::function<bool(Expr)> checkNumChildren = std::bind (&TCVR::numChildrenEq<1>, this, std::placeholders::_1);
+    std::function<bool(Expr)> checkNumChildren =
+        std::bind(&TCVR::numOfChildrenEq<1>, this, std::placeholders::_1);
     return boolCheckChildren(exp, checkNumChildren);
   }
 
   Expr inferTypeBoolNary(Expr exp) {
-    std::function<bool(Expr)> checkNumChildren = std::bind (&TCVR::numChildrenGreaterEq<2>, this, std::placeholders::_1);
+    std::function<bool(Expr)> checkNumChildren = std::bind(
+        &TCVR::numOfChildrenGreaterEq<2>, this, std::placeholders::_1);
     return boolCheckChildren(exp, checkNumChildren);
   }
 
-  Expr inferType(Expr exp /*,TypeChecker & ty*/) {
+  Expr inferType(Expr exp /*, TypeChecker & ty*/) {
     if (isOpX<TRUE>(exp) || isOpX<FALSE>(exp))
       return sort::boolTy(exp->efac());
-    else if (bind::isBoolVar(exp) || bind::isBoolConst(exp))
+    else if (bind::isBoolConst(exp))
       return sort::boolTy(exp->efac());
     else if (isOpX<AND>(exp) || isOpX<OR>(exp) || isOpX<XOR>(exp))
       return inferTypeBoolNary(exp);
@@ -83,17 +126,28 @@ class TCVR {
       return inferTypeBoolBinary(exp);
     else if (isOpX<ITE>(exp))
       return inferTypeITE(exp);
-    else if (bind::isIntVar(exp) || bind::isIntConst(exp))
-      return sort::intTy(exp->efac());
 
-    return sort::boolTy(exp->efac());
+    else if (bind::isIntConst(exp))
+      return sort::intTy(exp->efac());
+    else if (bind::isRealConst(exp))
+      return sort::realTy(exp->efac());
+    else if (bind::isUnintConst(exp))
+      return sort::unintTy(exp->efac());
+
+    else if (isOpX<PLUS>(exp) || isOpX<MINUS>(exp) || isOpX<MULT>(exp) ||
+             isOpX<DIV>(exp) || isOpX<IDIV>(exp) || isOpX<MOD>(exp) ||
+             isOpX<REM>(exp) || isOpX<UN_MINUS>(exp))
+      return inferTypeNumNary(exp);
+    else if (isOpX<ABS>(exp))
+      return inferTypeNumUnary(exp);
+
+    return sort::anyTy(exp->efac());
   }
 
   /// Called after children have been visited
   Expr postVisit(Expr exp) {
     LOG("tc", llvm::errs() << "post visiting expression: " << *exp << "\n";);
 
-    std::cout<<"inferType of: "<<exp<<std::endl;
     Expr type = inferType(exp);
 
     m_cache.insert({exp, type});
@@ -101,8 +155,8 @@ class TCVR {
       LOG("tc", llvm::errs()
                     << "Expression is not well-formed: " << *exp << "\n";);
 
-      if (m_isWellFormed) //only store the not well-formed expr for the bottom-most expr
-        m_notWellFormedExp = exp;
+      if (m_isWellFormed)
+        m_errorExp = exp;
 
       m_isWellFormed = false;
     }
@@ -111,6 +165,8 @@ class TCVR {
   }
 
 public:
+  TCVR() : m_isWellFormed(true) {}
+
   /// Called before children are visited
   /// Returns false to skip visiting children
   bool preVisit(Expr exp) {
@@ -130,9 +186,7 @@ public:
 
   Expr knownTypeOf(Expr e) { return e ? m_cache.at(e) : Expr(); }
 
-  Expr getNotWellFormed() {
-    return m_isWellFormed ? Expr() : m_notWellFormedExp;
-  }
+  Expr getErrorExp() { return m_isWellFormed ? Expr() : m_errorExp; }
 };
 
 //==-- Adapts visitor for pre- and post- traversal --==/
@@ -152,32 +206,31 @@ public:
   /// Should be called after visiting the expression to compute its type
   Expr knownTypeOf(Expr e) { return m_rw->knownTypeOf(e); }
 
-  Expr getNotWellFormed () {
-    return m_rw->getNotWellFormed();
-  }
+  Expr getErrorExp() { return m_rw->getErrorExp(); }
 };
 } // namespace
 
 namespace expr {
 class TypeChecker::Impl {
   Expr notWellFormedExp;
+
 public:
   Expr typeOf(Expr e) {
     TCV _visitor;
     Expr v = visit(_visitor, e);
-    notWellFormedExp = _visitor.getNotWellFormed();
+    notWellFormedExp = _visitor.getErrorExp();
 
     return _visitor.knownTypeOf(v);
   }
 
-  Expr getNotWellFormed () {
-    return notWellFormedExp;
-  }
+  Expr getErrorExp() { return notWellFormedExp; }
 };
 
 TypeChecker::TypeChecker() : m_impl(new TypeChecker::Impl()) {}
 TypeChecker::~TypeChecker() { delete m_impl; }
 Expr TypeChecker::typeOf(Expr e) { return m_impl->typeOf(e); }
-Expr TypeChecker::getNotWellFormed() { return m_impl->getNotWellFormed(); } //to be called after typeOf() or sortOf()
+Expr TypeChecker::getErrorExp() { // to be called after typeOf() or sortOf()
 
+  return m_impl->getErrorExp();
+}
 } // namespace expr

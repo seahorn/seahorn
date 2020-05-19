@@ -12,7 +12,7 @@ public:
   ~TypeChecker();
   Expr sortOf(Expr e) { return this->typeOf(e); }
   Expr typeOf(Expr e);
-  Expr getNotWellFormed(); // to be called of typeOf() or sortOf
+  Expr getErrorExp(); // to be called of typeOf() or sortOf
 };
 
 } // namespace expr

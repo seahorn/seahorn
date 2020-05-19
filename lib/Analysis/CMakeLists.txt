@@ -9,4 +9,5 @@ add_llvm_library (SeaAnalysis DISABLE_LLVM_LINK_LLVM_DYLIB
   ControlDependenceAnalysis.cc
   ClassHierarchyAnalysis.cc
   StaticTaint.cc
+  SeaBuiltinsInfo.cc
   )

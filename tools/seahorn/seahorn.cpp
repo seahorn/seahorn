@@ -288,6 +288,7 @@ int main(int argc, char **argv) {
 
   assert(dl && "Could not find Data Layout for the module");
 
+  pass_manager.add(seahorn::createSeaBuiltinsWrapperPass());
   // turn all functions internal so that we can inline them if requested
   auto PreserveMain = [=](const llvm::GlobalValue &GV) {
     return GV.getName() == "main";

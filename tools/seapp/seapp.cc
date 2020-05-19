@@ -8,6 +8,8 @@
 ///
 // SeaPP-- LLVM bitcode Pre-Processor for Verification
 ///
+#include "llvm/Bitcode/BitcodeWriter.h"
+#include "llvm/Bitcode/BitcodeWriterPass.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/LegacyPassManager.h"
 #include "llvm/IR/Module.h"
@@ -23,8 +25,6 @@
 #include "llvm/Support/SourceMgr.h"
 #include "llvm/Support/ToolOutputFile.h"
 #include "llvm/Support/raw_ostream.h"
-#include "llvm/Bitcode/BitcodeWriter.h"
-#include "llvm/Bitcode/BitcodeWriterPass.h"
 #include "llvm/Transforms/IPO.h"
 
 #include "llvm/IR/Verifier.h"
@@ -38,15 +38,14 @@
 
 #include "seadsa/InitializePasses.hh"
 
+#include "seahorn/Expr/Smt/EZ3.hh"
 #include "seahorn/Support/SeaLog.hh"
 #include "seahorn/Support/Stats.hh"
 #include "seahorn/Transforms/Utils/NameValues.hh"
-#include "seahorn/Expr/Smt/EZ3.hh"
 
 #include "seahorn/config.h"
 
-    void
-    print_seapp_version(llvm::raw_ostream &OS) {
+void print_seapp_version(llvm::raw_ostream &OS) {
   OS << "SeaHorn (http://seahorn.github.io/):\n"
      << "  SeaPP version " << SEAHORN_VERSION_INFO << "\n";
 }
@@ -143,12 +142,13 @@ static llvm::cl::opt<bool>
                             llvm::cl::desc("Lower some global initializers"),
                             llvm::cl::init(true));
 
-static llvm::cl::opt<bool>
-    DevirtualizeFuncs("devirt-functions",
-       llvm::cl::desc("Devirtualize indirect calls "
-		      "(disabled by default). "
-		      "If enabled then use --devirt-functions-method=types|sea-dsa to choose method."),
-       llvm::cl::init(false));
+static llvm::cl::opt<bool> DevirtualizeFuncs(
+    "devirt-functions",
+    llvm::cl::desc("Devirtualize indirect calls "
+                   "(disabled by default). "
+                   "If enabled then use "
+                   "--devirt-functions-method=types|sea-dsa to choose method."),
+    llvm::cl::init(false));
 
 static llvm::cl::opt<bool> ExternalizeAddrTakenFuncs(
     "externalize-addr-taken-funcs",
@@ -164,7 +164,6 @@ static llvm::cl::opt<bool>
     PromoteAssumptions("promote-assumptions",
                        llvm::cl::desc("Promote verifier.assume to llvm.assume"),
                        llvm::cl::init(false));
-
 
 // static llvm::cl::opt<int>
 //     SROA_Threshold("sroa-threshold",
@@ -192,10 +191,11 @@ static llvm::cl::opt<bool>
             llvm::cl::desc("Wrap memory accesses with special functions"),
             llvm::cl::init(false));
 
-static llvm::cl::opt<bool>
-    FatBoundsCheck("fat-bnd-check",
-            llvm::cl::desc("Instrument buffer bounds check  using extended pointer bits"),
-            llvm::cl::init(false));
+static llvm::cl::opt<bool> FatBoundsCheck(
+    "fat-bnd-check",
+    llvm::cl::desc(
+        "Instrument buffer bounds check  using extended pointer bits"),
+    llvm::cl::init(false));
 
 static llvm::cl::opt<bool>
     StripShadowMem("strip-shadow-mem",
@@ -344,7 +344,7 @@ int main(int argc, char **argv) {
   llvm::initializeGlobalsAAWrapperPassPass(Registry);
 
   llvm::initializeCompleteCallGraphPass(Registry);
-  
+
   // add an appropriate DataLayout instance for the module
   const llvm::DataLayout *dl = &module->getDataLayout();
   if (!dl && !DefaultDataLayout.empty()) {
@@ -353,6 +353,8 @@ int main(int argc, char **argv) {
   }
 
   assert(dl && "Could not find Data Layout for the module");
+
+  pm_wrapper.add(seahorn::createSeaBuiltinsWrapperPass());
 
   if (RenameNondet)
     // -- ren-nondet utility pass
@@ -397,8 +399,7 @@ int main(int argc, char **argv) {
   else if (NullChecks) {
     pm_wrapper.add(seahorn::createLowerCstExprPass());
     pm_wrapper.add(seahorn::createNullCheckPass());
-  }
-  else if (FatBoundsCheck) {
+  } else if (FatBoundsCheck) {
     initializeFatBufferBoundsCheckPass(Registry);
     pm_wrapper.add(seahorn::createFatBufferBoundsCheckPass());
   }

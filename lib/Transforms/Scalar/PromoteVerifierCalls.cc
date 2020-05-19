@@ -1,4 +1,6 @@
 #include "seahorn/Transforms/Scalar/PromoteVerifierCalls.hh"
+#include "seahorn/Analysis/SeaBuiltinsInfo.hh"
+
 #include "llvm/IR/CallSite.h"
 #include "llvm/IR/InstIterator.h"
 
@@ -18,50 +20,18 @@ char PromoteVerifierCalls::ID = 0;
 bool PromoteVerifierCalls::runOnModule(Module &M) {
   LOG("pvc", errs() << "Running promote-verifier-calls pass\n";);
 
-  LLVMContext &Context = M.getContext();
+  auto &SBI = getAnalysis<SeaBuiltinsInfoWrapperPass>().getSBI();
+  using SBIOp = SeaBuiltinsOp;
+  m_assumeFn = SBI.mkSeaBuiltinFn(SBIOp::ASSUME, M);
+  Function *assumeNotFn = SBI.mkSeaBuiltinFn(SBIOp::ASSUME_NOT, M);
+  m_assertFn = SBI.mkSeaBuiltinFn(SBIOp::ASSERT, M);
+  m_failureFn = SBI.mkSeaBuiltinFn(SBIOp::FAIL, M);
+  m_errorFn = SBI.mkSeaBuiltinFn(SBIOp::ERROR, M);
 
-  AttrBuilder B;
 
-  B.addAttribute(Attribute::NoUnwind);
-  B.addAttribute(Attribute::NoRecurse);
-  B.addAttribute(Attribute::NoFree);
-  B.addAttribute(Attribute::InaccessibleMemOnly);
 
-  AttributeList as =
-      AttributeList::get(Context, AttributeList::FunctionIndex, B);
-
-  m_assumeFn = dyn_cast<Function>(
-      M.getOrInsertFunction("verifier.assume", as, Type::getVoidTy(Context),
-                            Type::getInt1Ty(Context))
-          .getCallee());
-  m_assumeFn->setAttributes(as);
-
-  Function *assumeNotFn = dyn_cast<Function>(
-      M.getOrInsertFunction("verifier.assume.not", as, Type::getVoidTy(Context),
-                            Type::getInt1Ty(Context))
-          .getCallee());
-  assumeNotFn->setAttributes(as);
-
-  m_assertFn = dyn_cast<Function>(
-      M.getOrInsertFunction("verifier.assert", as, Type::getVoidTy(Context),
-                            Type::getInt1Ty(Context))
-          .getCallee());
-  m_assertFn->setAttributes(as);
-
-  m_failureFn = dyn_cast<Function>(
-      M.getOrInsertFunction("seahorn.fail", as, Type::getVoidTy(Context))
-          .getCallee());
-  m_failureFn->setAttributes(as);
-
-  B.addAttribute(Attribute::NoReturn);
-  // XXX LLVM optimizer removes ReadNone functions even if they do not return!
-  // B.addAttribute (Attribute::ReadNone);
-
-  as = AttributeList::get(Context, AttributeList::FunctionIndex, B);
-  m_errorFn = dyn_cast<Function>(
-      M.getOrInsertFunction("verifier.error", as, Type::getVoidTy(Context))
-          .getCallee());
-  m_errorFn->setAttributes(as);
+  // XXX DEPRECATED
+  // Do not keep unused functions in llvm.used
 
   /* add our functions to llvm used */
   GlobalVariable *LLVMUsed = M.getGlobalVariable("llvm.used");
@@ -92,9 +62,11 @@ bool PromoteVerifierCalls::runOnModule(Module &M) {
       llvm::ConstantArray::get(ATy, MergedVars), "llvm.used");
   LLVMUsed->setSection("llvm.metadata");
 
+  // XXX Not sure how useful this is, consider removing
   CallGraphWrapperPass *cgwp = getAnalysisIfAvailable<CallGraphWrapperPass>();
   if (CallGraph *cg = cgwp ? &cgwp->getCallGraph() : nullptr) {
     cg->getOrInsertFunction(m_assumeFn);
+    cg->getOrInsertFunction(assumeNotFn);
     cg->getOrInsertFunction(m_assertFn);
     cg->getOrInsertFunction(m_errorFn);
     cg->getOrInsertFunction(m_failureFn);
@@ -207,6 +179,7 @@ bool PromoteVerifierCalls::runOnFunction(Function &F) {
 }
 
 void PromoteVerifierCalls::getAnalysisUsage(AnalysisUsage &AU) const {
+  AU.addRequired<SeaBuiltinsInfoWrapperPass>();
   AU.setPreservesAll();
 }
 

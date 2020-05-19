@@ -5,14 +5,14 @@
 namespace expr {
 class TypeChecker {
   class Impl;
-  Impl *m_impl;
+  Impl* m_impl;
 
 public:
   TypeChecker();
   ~TypeChecker();
   Expr sortOf(Expr e) { return this->typeOf(e); }
   Expr typeOf(Expr e);
-  Expr getErrorExp(); // to be called of typeOf() or sortOf
+  Expr getErrorExp(); // to be called after typeOf() or sortOf()
 };
 
 } // namespace expr

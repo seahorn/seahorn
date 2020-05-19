@@ -10,6 +10,7 @@
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 
+#include "seahorn/Analysis/SeaBuiltinsInfo.hh"
 using namespace llvm;
 
 /* Replace assertions to calls to assume */
@@ -28,13 +29,15 @@ class LowerAssert : public ModulePass {
 public:
   LowerAssert() : ModulePass(ID), num_lowered_asserts(0) {}
 
-  bool runOnModule(Module &M);
+  bool runOnModule(Module &M) override;
 
   bool runOnFunction(Function &F);
 
-  void getAnalysisUsage(AnalysisUsage &AU) const { AU.setPreservesAll(); }
+  void getAnalysisUsage(AnalysisUsage &AU) const override {
+    AU.addRequired<SeaBuiltinsInfoWrapperPass>();
+    AU.setPreservesAll(); }
 
-  virtual StringRef getPassName() const { return "LowerAssert"; }
+  StringRef getPassName() const override { return "LowerAssert"; }
 };
 
 // C assert function is just a macro that calls an assertion handler
@@ -64,20 +67,9 @@ bool LowerAssert::runOnModule(Module &M) {
 
   LLVMContext &Context = M.getContext();
 
-  AttrBuilder B;
+  auto &SBI = getAnalysis<SeaBuiltinsInfoWrapperPass>().getSBI();
 
-  AttributeList as =
-      AttributeList::get(Context, AttributeList::FunctionIndex, B);
-
-  assumeFn = dyn_cast<Function>(
-      M.getOrInsertFunction("verifier.assume", as, Type::getVoidTy(Context),
-                            Type::getInt1Ty(Context)).getCallee());
-
-  CallGraphWrapperPass *cgwp = getAnalysisIfAvailable<CallGraphWrapperPass>();
-  if (CallGraph *cg = cgwp ? &cgwp->getCallGraph() : nullptr) {
-    cg->getOrInsertFunction(assumeFn);
-  }
-
+  assumeFn = SBI.mkSeaBuiltinFn(SeaBuiltinsOp::ASSUME, M);
   bool Changed = false;
   for (auto &F : M)
     Changed |= runOnFunction(F);
@@ -127,8 +119,7 @@ void LowerAssert::LowerFailCall(CallInst *CI, CallGraph *cg, Function *assumeFn,
             CallInst::Create(assumeFn, ConstantInt::getFalse(ctx), "", p.first);
         NCI->setDebugLoc(p.first->getDebugLoc());
         if (cg)
-          (*cg)[F]->addCalledFunction(NCI,
-                                      (*cg)[NCI->getCalledFunction()]);
+          (*cg)[F]->addCalledFunction(NCI, (*cg)[NCI->getCalledFunction()]);
         num_lowered_asserts++;
       }
       // otherwise the call to verifier.error is dead code.
@@ -167,8 +158,7 @@ void LowerAssert::LowerFailCall(CallInst *CI, CallGraph *cg, Function *assumeFn,
     num_lowered_asserts++;
 
     if (cg)
-      (*cg)[F]->addCalledFunction(NCI,
-                                  (*cg)[NCI->getCalledFunction()]);
+      (*cg)[F]->addCalledFunction(NCI, (*cg)[NCI->getCalledFunction()]);
   }
 }
 
@@ -177,8 +167,9 @@ bool LowerAssert::runOnFunction(Function &F) {
   CallGraph *cg = cgwp ? &cgwp->getCallGraph() : nullptr;
   IRBuilder<> B(F.getContext());
 
+  auto &SBI = getAnalysis<SeaBuiltinsInfoWrapperPass>().getSBI();
   std::vector<CallInst *> Worklist;
-  for (auto &BB : F)
+  for (auto &BB : F) {
     for (auto &I : BB) {
       CallInst *CI = dyn_cast<CallInst>(&I);
       if (!CI)
@@ -187,18 +178,19 @@ bool LowerAssert::runOnFunction(Function &F) {
       if (!CF)
         continue;
 
-      if (CF->getName().equals("verifier.assert")) {
-        // verifier assert
+      switch (SBI.getSeaBuiltinOp(*CI)) {
+      default:
+        if (isAssertionHandler(CF))
+          // assertion handler: __assert_fail, __assert_rtn, etc
+          Worklist.push_back(CI);
+        break;
+      case SeaBuiltinsOp::ASSERT:
+      case SeaBuiltinsOp::ERROR:
         Worklist.push_back(CI);
-      } else if (CF->getName().equals("verifier.error")) {
-        // verifier error
-        Worklist.push_back(CI);
-      } else if (isAssertionHandler(CF)) {
-        // assertion handler: __assert_fail, __assert_rtn, etc
-        Worklist.push_back(CI);
+        break;
       }
     }
-
+  }
   if (Worklist.empty())
     return true;
 
@@ -208,7 +200,7 @@ bool LowerAssert::runOnFunction(Function &F) {
 
     Function *CF = CI->getCalledFunction();
 
-    if (CF->getName().equals("verifier.assert")) {
+    if (SBI.getSeaBuiltinOp(*CI) == SeaBuiltinsOp::ASSERT) {
       CallSite CS(CI);
       Value *Cond = CS.getArgument(0);
       CallInst *NCI = CallInst::Create(
@@ -222,10 +214,9 @@ bool LowerAssert::runOnFunction(Function &F) {
       ReplaceInstWithInst(CI, NCI);
 
       if (cg)
-        (*cg)[&F]->addCalledFunction(NCI,
-                                     (*cg)[NCI->getCalledFunction()]);
+        (*cg)[&F]->addCalledFunction(NCI, (*cg)[NCI->getCalledFunction()]);
     } else if (isAssertionHandler(CF) ||
-               CF->getName().equals("verifier.error")) {
+               SBI.getSeaBuiltinOp(*CI) == SeaBuiltinsOp::ERROR) {
       LowerFailCall(CI, cg, assumeFn, F.getContext());
     }
   }

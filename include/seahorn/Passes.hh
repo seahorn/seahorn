@@ -14,8 +14,7 @@ Released under a modified BSD license, please see license.txt for full
 terms.
 */
 
-#ifndef SEAHORN_PASSES__HH_
-#define SEAHORN_PASSES__HH_
+#pragma once
 
 #include "seahorn/config.h"
 #include "llvm/Pass.h"
@@ -124,14 +123,15 @@ inline llvm::FunctionPass *createInstCombine(bool ExpensiveCombines = true) {
 
 #include "seadsa/ShadowMem.hh"
 namespace seahorn {
-llvm::Pass *createSeaDsaShadowMemPass() {
+inline llvm::Pass *createSeaDsaShadowMemPass() {
   return seadsa::createShadowMemPass();
 }
 
-llvm::Pass *createStripShadowMemPass(){
+inline llvm::Pass *createStripShadowMemPass(){
   return seadsa::createStripShadowMemPass();
 }
 
+llvm::ImmutablePass* createSeaBuiltinsWrapperPass();
+
 }
 
-#endif /* SEAHORN_PASSES__HH_ */

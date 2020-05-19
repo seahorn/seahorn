@@ -18,6 +18,7 @@
 #include "seahorn/Analysis/SeaBuiltinsInfo.hh"
 #include "seahorn/Passes.hh"
 #include "seahorn/Support/SeaDebug.h"
+#include "seahorn/Support/SeaLog.hh"
 
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/Statistic.h"
@@ -73,13 +74,13 @@ bool seahorn::canCutLoop(Loop *L) {
   DOG(errs() << "Checking loop to cut: " << *L << "\n";);
   BasicBlock *preheader = L->getLoopPreheader();
   if (!preheader) {
-    DOG(errs() << "Warning: no-cut: no pre-header\n");
+    DOG(WARN << "no-cut: no pre-header\n");
     return false;
   }
   BasicBlock *header = L->getHeader();
 
   if (!header) {
-    DOG(errs() << "Warning: no-cut: no header\n");
+    DOG(WARN << "no-cut: no header\n");
     return false;
   }
 
@@ -89,13 +90,13 @@ bool seahorn::canCutLoop(Loop *L) {
 
   // single exit
   if (!L->hasDedicatedExits()) {
-    DOG(errs() << "Warning: no-cut: multiple exits\n");
+    DOG(WARN << "no-cut: multiple exits\n");
     return false;
   }
 
   // -- no sub-loops
   if (L->begin() != L->end()) {
-    DOG(errs() << "Warning: no-cut: sub-loops\n");
+    DOG(WARN << "no-cut: sub-loops\n");
     return false;
   }
   SmallVector<BasicBlock *, 4> latches;
@@ -104,7 +105,7 @@ bool seahorn::canCutLoop(Loop *L) {
   for (BasicBlock *latch : latches) {
     BranchInst *bi = dyn_cast<BranchInst>(latch->getTerminator());
     if (!bi) {
-      DOG(errs() << "Warning: no-cut: unsupported latch\n" << *latch << "\n";);
+      DOG(WARN << "no-cut: unsupported latch\n" << *latch << "\n";);
       return false;
     }
   }
@@ -188,4 +189,4 @@ bool seahorn::CutLoop(Loop *L, seahorn::SeaBuiltinsInfo &SBI,
 Pass *seahorn::createCutLoopsPass() { return new CutLoopsPass(); }
 
 static llvm::RegisterPass<CutLoopsPass>
-    X("cut-loops", "Cut back-edges of all natural loops");
+    X(DEBUG_TYPE, "Cut back-edges of all natural loops");

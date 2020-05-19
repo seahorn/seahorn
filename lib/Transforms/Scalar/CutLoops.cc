@@ -71,7 +71,7 @@ public:
 char CutLoopsPass::ID = 0;
 
 bool seahorn::canCutLoop(Loop *L) {
-  DOG(errs() << "Checking loop to cut: " << *L << "\n";);
+  DOG(INFO << "Checking loop to cut: " << *L << "\n";);
   BasicBlock *preheader = L->getLoopPreheader();
   if (!preheader) {
     DOG(WARN << "no-cut: no pre-header\n");

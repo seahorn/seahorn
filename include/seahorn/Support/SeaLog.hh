@@ -12,12 +12,16 @@
 #include "llvm/Support/raw_ostream.h"
 
 #define FLOC(X, Y) llvm::sys::path::filename(X) + ":" + llvm::Twine(Y)
+#define INFO                                                                   \
+  ::seahorn::warn_ostream(llvm::errs())                                        \
+      .color(llvm::raw_ostream::GREEN)                                         \
+      .suffix(FLOC(__FILE__, __LINE__))
 #define WARN                                                                   \
-  ::seahorn::warn_ostream(llvm::errs())                                          \
+  ::seahorn::warn_ostream(llvm::errs())                                        \
       .color(llvm::raw_ostream::YELLOW)                                        \
       .suffix(FLOC(__FILE__, __LINE__))
 #define ERR                                                                    \
-  ::seahorn::warn_ostream(llvm::errs())                                          \
+  ::seahorn::warn_ostream(llvm::errs())                                        \
       .color(llvm::raw_ostream::RED)                                           \
       .prefix("Error: ")                                                       \
       .suffix(FLOC(__FILE__, __LINE__))

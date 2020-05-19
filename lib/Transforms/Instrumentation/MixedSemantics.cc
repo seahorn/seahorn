@@ -2,6 +2,7 @@
 #include "seahorn/Analysis/CanFail.hh"
 #include "seahorn/Transforms/Scalar/PromoteVerifierCalls.hh"
 #include "seahorn/Transforms/Utils/Local.hh"
+#include "seahorn/Analysis/SeaBuiltinsInfo.hh"
 
 #include "llvm/ADT/PostOrderIterator.h"
 #include "llvm/ADT/SCCIterator.h"
@@ -9,12 +10,12 @@
 #include "llvm/IR/CFG.h"
 #include "llvm/IR/GlobalValue.h"
 #include "llvm/IR/IRBuilder.h"
+#include "llvm/Support/CommandLine.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Transforms/Scalar.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 #include "llvm/Transforms/Utils/Cloning.h"
 #include "llvm/Transforms/Utils/Local.h"
-#include "llvm/Support/CommandLine.h"
 
 #include "boost/range.hpp"
 #include "seahorn/Support/SeaDebug.h"
@@ -28,7 +29,7 @@ using namespace llvm;
 
 char MixedSemantics::ID = 0;
 
-static void removeError(Function &F) {
+static void removeError(Function &F, SeaBuiltinsInfo &SBI) {
   for (auto &BB : F) {
     for (auto &I : BB) {
       CallInst *ci = dyn_cast<CallInst>(&I);
@@ -40,9 +41,7 @@ static void removeError(Function &F) {
       if (!cf->getName().equals("verifier.error"))
         continue;
 
-      auto assumeFn = F.getParent()->getOrInsertFunction(
-          "verifier.assume", Type::getVoidTy(F.getContext()),
-          Type::getInt1Ty(F.getContext()));
+      auto* assumeFn = SBI.mkSeaBuiltinFn(SeaBuiltinsOp::ASSUME, *F.getParent());
       ReplaceInstWithInst(ci, CallInst::Create(assumeFn, ConstantInt::getFalse(
                                                              F.getContext())));
       // does not matter what verifier.error() call is followed by in this bb
@@ -77,6 +76,8 @@ bool MixedSemantics::runOnModule(Module &M) {
   if (!main)
     return false;
 
+  auto &SBI = getAnalysis<SeaBuiltinsInfoWrapperPass>().getSBI();
+
   CanFail &CF = getAnalysis<CanFail>();
   if (!CF.canFail(main)) {
     LOG("mixed-sem", errs() << "main() cannot fail\n";);
@@ -84,11 +85,12 @@ bool MixedSemantics::runOnModule(Module &M) {
     // -- it might create issues in some applications where mixed-semantics is
     // applied
     if (ReduceMain)
-      reduceToReturnPaths(*main);
+      reduceToReturnPaths(*main, SBI);
     removeMetadataIfFunctionIsEmpty(*main);
     return false;
   }
   LOG("mixed-sem", errs() << "main() can fail, reducing\n";);
+
 
   main->setName("orig.main");
   FunctionType *mainTy = main->getFunctionType();
@@ -129,7 +131,7 @@ bool MixedSemantics::runOnModule(Module &M) {
       continue;
     if (!CF.canFail(&F)) {
       if (!F.isDeclaration())
-        reduceToReturnPaths(F);
+        reduceToReturnPaths(F, SBI);
       continue;
     }
 
@@ -149,8 +151,8 @@ bool MixedSemantics::runOnModule(Module &M) {
       CallInst *fcall = Builder.CreateCall(&F, fargs);
       Builder.CreateUnreachable();
       InlineFunction(fcall, IFI);
-      removeError(F);
-      reduceToReturnPaths(F);
+      removeError(F, SBI);
+      reduceToReturnPaths(F, SBI);
     } else {
       Builder.CreateRet(Builder.getInt32(42));
       errBlocks.push_back(bb);
@@ -227,7 +229,7 @@ bool MixedSemantics::runOnModule(Module &M) {
   }
 
   reduceToAncestors(*newM, SmallVector<const BasicBlock *, 4>(errBlocks.begin(),
-                                                              errBlocks.end()));
+                                                              errBlocks.end()), SBI);
 
   ExternalizeDeclarations(M);
 
@@ -237,6 +239,7 @@ bool MixedSemantics::runOnModule(Module &M) {
 void MixedSemantics::getAnalysisUsage(AnalysisUsage &AU) const {
   // XXX Removed since switches are assumed to be removed by pp pipeline
   // AU.addRequiredID (LowerSwitchID);
+  AU.addRequired<SeaBuiltinsInfoWrapperPass>();
   AU.addRequired<CallGraphWrapperPass>();
   AU.addRequired<CanFail>();
   AU.addRequired<PromoteVerifierCalls>();

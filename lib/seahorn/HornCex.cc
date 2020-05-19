@@ -13,6 +13,7 @@
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/ToolOutputFile.h"
 
+#include "seahorn/Analysis/SeaBuiltinsInfo.hh"
 #include "seahorn/CexHarness.hh"
 #include "seahorn/HornCex.hh"
 #include "seahorn/MemSimulator.hh"
@@ -120,6 +121,7 @@ bool HornCex::runOnFunction(Module &M, Function &F) {
 
   HornifyModule &hm = getAnalysis<HornifyModule>();
   const CutPointGraph &cpg = getAnalysis<CutPointGraph>(F);
+  auto &SBI = getAnalysis<SeaBuiltinsInfoWrapperPass>().getSBI();
 
   Stats::resume("CexValidation");
 
@@ -341,7 +343,7 @@ bool HornCex::runOnFunction(Module &M, Function &F) {
     llvm::DenseSet<const llvm::BasicBlock *> region;
     for (int i = 0; i < trace.size(); i++)
       region.insert(trace.bb(i));
-    reduceToRegion(F, region);
+    reduceToRegion(F, region, SBI);
     dumpLLVMBitcode(M, BmcSliceOutputFile.c_str());
     return true;
   }
@@ -362,7 +364,7 @@ bool HornCex::runOnFunction(Module &M, Function &F) {
         }
       }
     }
-    reduceToRegion(F, region);
+    reduceToRegion(F, region, SBI);
     dumpLLVMBitcode(M, CpSliceOutputFile.c_str());
     return true;
   }
@@ -373,6 +375,7 @@ bool HornCex::runOnFunction(Module &M, Function &F) {
 void HornCex::getAnalysisUsage(AnalysisUsage &AU) const {
   AU.setPreservesAll();
   AU.addRequired<TargetLibraryInfoWrapperPass>();
+  AU.addRequired<SeaBuiltinsInfoWrapperPass>();
   AU.addRequired<CutPointGraph>();
   AU.addRequired<HornifyModule>();
   AU.addRequired<HornSolver>();

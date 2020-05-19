@@ -1,8 +1,10 @@
 #include "seahorn/Transforms/Utils/Local.hh"
 
+#include "seahorn/Analysis/SeaBuiltinsInfo.hh"
+
 #include "llvm/IR/CFG.h"
-#include "llvm/IR/Module.h"
 #include "llvm/IR/IRBuilder.h"
+#include "llvm/IR/Module.h"
 #include "llvm/Transforms/Utils/Local.h"
 
 using namespace llvm;
@@ -24,16 +26,16 @@ void markAncestorBlocks(ArrayRef<const BasicBlock *> roots,
 }
 
 /// Reduce the given function to the basic blocks in a given region
-void reduceToRegion(Function &F, DenseSet<const BasicBlock *> &region) {
+void reduceToRegion(Function &F, DenseSet<const BasicBlock *> &region,
+                    SeaBuiltinsInfo &SBI) {
   std::vector<BasicBlock *> dead;
   dead.reserve(F.size());
 
   IRBuilder<> Builder(F.getContext());
-  FunctionCallee assumeFn = F.getParent()->getOrInsertFunction(
-      "verifier.assume", Builder.getVoidTy(), Builder.getInt1Ty());
-
-  FunctionCallee assumeNotFn = F.getParent()->getOrInsertFunction(
-      "verifier.assume.not", Builder.getVoidTy(), Builder.getInt1Ty());
+  Module *M = F.getParent();
+  assert(M);
+  auto *assumeFn = SBI.mkSeaBuiltinFn(SeaBuiltinsOp::ASSUME, *M);
+  auto *assumeNotFn = SBI.mkSeaBuiltinFn(SeaBuiltinsOp::ASSUME_NOT, *M);
 
   for (BasicBlock &BB : F) {
 
@@ -71,10 +73,10 @@ void reduceToRegion(Function &F, DenseSet<const BasicBlock *> &region) {
     }
   }
 
-  for (auto BB: dead) {
+  for (auto BB : dead) {
     BB->dropAllReferences();
   }
-  
+
   for (auto *bb : dead) {
     if (bb->hasNUses(0))
       bb->eraseFromParent();
@@ -99,14 +101,15 @@ void reduceToRegion(Function &F, DenseSet<const BasicBlock *> &region) {
 }
 
 /// Reduce the function to only the BasicBlocks that are ancestors of exits
-void reduceToAncestors(Function &F, ArrayRef<const BasicBlock *> exits) {
+void reduceToAncestors(Function &F, ArrayRef<const BasicBlock *> exits,
+                       SeaBuiltinsInfo &SBI) {
   removeUnreachableBlocks(F);
   DenseSet<const BasicBlock *> region;
   markAncestorBlocks(exits, region);
-  reduceToRegion(F, region);
+  reduceToRegion(F, region, SBI);
 }
 
-void reduceToReturnPaths(Function &F) {
+void reduceToReturnPaths(Function &F, SeaBuiltinsInfo &SBI) {
   if (F.isDeclaration())
     return;
 
@@ -115,7 +118,7 @@ void reduceToReturnPaths(Function &F) {
   for (auto &BB : F)
     if (isa<ReturnInst>(BB.getTerminator()))
       exits.push_back(&BB);
-  reduceToAncestors(F, exits);
+  reduceToAncestors(F, exits, SBI);
 }
 
 /// work around bug in llvm::RecursivelyDeleteTriviallyDeadInstructions

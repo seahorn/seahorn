@@ -82,7 +82,7 @@ class Clang(sea.LimitedCmd):
         def link_bc_files(bc_files, args):
             if len(bc_files) <= 1:
                 return 0
-            cmd_name = which (['llvm-link-mp-5.0', 'llvm-link-5.0', 'llvm-link'])
+            cmd_name = which (['llvm-link-mp-10', 'llvm-link-10', 'llvm-link'])
             if cmd_name is None: raise IOError ('llvm-link not found')
             self.linkCmd = sea.ExtCmd (cmd_name,'',quiet)
 
@@ -207,7 +207,7 @@ class LinkRt(sea.LimitedCmd):
 
     def run (self, args, extra):
 
-        cmd_name = which (['clang++-mp-5.0', 'clang++-5.0', 'clang++'])
+        cmd_name = which (['clang++-mp-10', 'clang++-10', 'clang++'])
 
         if cmd_name is None: raise IOError ('clang++ not found')
         self.clangCmd = sea.ExtCmd (cmd_name,'',quiet)

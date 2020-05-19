@@ -68,6 +68,9 @@ inline Expr intConstDecl(Expr name) {
 inline Expr realConstDecl(Expr name) {
   return constDecl(name, mk<REAL_TY>(name->efac()));
 }
+inline Expr unintConstDecl(Expr name) {
+  return constDecl(name, mk<UNINT_TY>(name->efac()));
+}
 
 template <typename Range> Expr fdecl(Expr fname, const Range &args) {
   // -- at least one value for range type
@@ -132,6 +135,7 @@ inline Expr mkConst(Expr name, Expr sort) {
 inline Expr boolConst(Expr name) { return fapp(boolConstDecl(name)); }
 inline Expr intConst(Expr name) { return fapp(intConstDecl(name)); }
 inline Expr realConst(Expr name) { return fapp(realConstDecl(name)); }
+inline Expr unintConst(Expr name) { return fapp(unintConstDecl(name)); }
 
 inline bool isBoolConst(Expr v) { return isConst<BOOL_TY>(v); }
 inline bool isIntConst(Expr v) { return isConst<INT_TY>(v); }
@@ -139,6 +143,7 @@ inline bool isRealConst(Expr v) { return isConst<REAL_TY>(v); }
 inline bool isArrayConst(Expr v) { return isConst<ARRAY_TY>(v); }
 inline bool isStructConst(Expr v) { return isConst<STRUCT_TY>(v);}
 inline bool isFiniteMapConst(Expr v) { return isConst<FINITE_MAP_TY>(v); }
+inline bool isUnintConst(Expr v) { return isConst<UNINT_TY>(v); }
 
 inline Expr typeOf(Expr v) {
   using namespace bind;

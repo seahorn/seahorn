@@ -53,6 +53,7 @@ namespace sort {
 inline Expr intTy(ExprFactory &efac) { return mk<INT_TY>(efac); }
 inline Expr boolTy(ExprFactory &efac) { return mk<BOOL_TY>(efac); }
 inline Expr realTy(ExprFactory &efac) { return mk<REAL_TY>(efac); }
+inline Expr unintTy(ExprFactory &efac) { return mk<UNINT_TY>(efac); }
 inline Expr anyTy(ExprFactory &efac) { return mk<ANY_TY>(efac); }
 inline Expr arrayTy(Expr indexTy, Expr valTy) {
   return mk<ARRAY_TY>(indexTy, valTy);

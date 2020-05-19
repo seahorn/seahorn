@@ -14,7 +14,11 @@
  * After the loops are cut, it is helpful to optimize once more with
  * seaopt -O3
  */
+#include "seahorn/Transforms/Scalar/CutLoops.hh"
+#include "seahorn/Analysis/SeaBuiltinsInfo.hh"
+#include "seahorn/Passes.hh"
 #include "seahorn/Support/SeaDebug.h"
+
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/Analysis/LoopPass.h"
@@ -23,16 +27,28 @@
 #include "llvm/IR/Module.h"
 #include "llvm/Transforms/Scalar.h"
 #include "llvm/Transforms/Utils.h"
-#include "seahorn/Analysis/SeaBuiltinsInfo.hh"
+
 using namespace llvm;
+using namespace seahorn;
 
 namespace {
-class CutLoops : public LoopPass {
+class CutLoopsPass : public LoopPass {
 public:
   static char ID;
-  CutLoops() : LoopPass(ID) {}
+  CutLoopsPass() : LoopPass(ID) {}
 
-  bool runOnLoop(Loop *L, LPPassManager &LPM) override;
+  bool runOnLoop(Loop *L, LPPassManager &LPM) override {
+    LOG("cut-loops", errs() << "Cutting loop: " << *L << "\n";);
+
+    if (!canCutLoop(L))
+      return false;
+
+    auto &SBI = getAnalysis<seahorn::SeaBuiltinsInfoWrapperPass>().getSBI();
+    auto *SE = getAnalysisIfAvailable<ScalarEvolutionWrapperPass>();
+    auto &LI = getAnalysis<LoopInfoWrapperPass>().getLoopInfo();
+    return CutLoop(L, SBI, &LPM, &LI, SE ? &SE->getSE() : nullptr);
+  }
+
   void getAnalysisUsage(AnalysisUsage &AU) const override {
     AU.addRequired<seahorn::SeaBuiltinsInfoWrapperPass>();
     AU.addRequired<DominatorTreeWrapperPass>();
@@ -49,17 +65,15 @@ public:
 };
 } // namespace
 
-char CutLoops::ID = 0;
+char CutLoopsPass::ID = 0;
 
-bool CutLoops::runOnLoop(Loop *L, LPPassManager &LPM) {
-  LOG("cut-loops", errs() << "Cutting loop: " << *L << "\n";);
-
+bool seahorn::canCutLoop(Loop *L) {
+  LOG("cut-loops", errs() << "Checking loop to cut: " << *L << "\n";);
   BasicBlock *preheader = L->getLoopPreheader();
   if (!preheader) {
     LOG("cut-loops", errs() << "Warning: no-cut: no pre-header\n");
     return false;
   }
-
   BasicBlock *header = L->getHeader();
 
   if (!header) {
@@ -82,7 +96,6 @@ bool CutLoops::runOnLoop(Loop *L, LPPassManager &LPM) {
     LOG("cut-loops", errs() << "Warning: no-cut: sub-loops\n");
     return false;
   }
-
   SmallVector<BasicBlock *, 4> latches;
   L->getLoopLatches(latches);
 
@@ -95,10 +108,23 @@ bool CutLoops::runOnLoop(Loop *L, LPPassManager &LPM) {
     }
   }
 
-  auto &SBI = getAnalysis<seahorn::SeaBuiltinsInfoWrapperPass>().getSBI();
+  return true;
+}
+
+bool seahorn::CutLoop(Loop *L, seahorn::SeaBuiltinsInfo &SBI,
+                      LPPassManager *LPM, LoopInfo *LI, ScalarEvolution *SE) {
+  assert(canCutLoop(L));
+
+  BasicBlock *header = L->getHeader();
+  assert(header);
+  Module *M = header->getParent()->getParent();
+  assert(M);
+  SmallVector<BasicBlock *, 4> latches;
+  L->getLoopLatches(latches);
 
   Function *assumeFn = SBI.mkSeaBuiltinFn(seahorn::SeaBuiltinsOp::ASSUME, *M);
-  Function *assumeNotFn = SBI.mkSeaBuiltinFn(seahorn::SeaBuiltinsOp::ASSUME_NOT, *M);
+  Function *assumeNotFn =
+      SBI.mkSeaBuiltinFn(seahorn::SeaBuiltinsOp::ASSUME_NOT, *M);
   for (BasicBlock *latch : latches) {
     BranchInst *bi = dyn_cast<BranchInst>(latch->getTerminator());
     if (bi->isUnconditional()) {
@@ -136,36 +162,29 @@ bool CutLoops::runOnLoop(Loop *L, LPPassManager &LPM) {
     ++BI;
   }
 
-  for (PHINode *P : phiNodes)
+  for (PHINode *P : phiNodes) {
     for (BasicBlock *latch : latches)
       P->removeIncomingValue(latch);
-
-  if (ScalarEvolutionWrapperPass *SEWP =
-          getAnalysisIfAvailable<ScalarEvolutionWrapperPass>()) {
-    ScalarEvolution &SE = SEWP->getSE();
-    SE.forgetLoop(L);
   }
 
-  LoopInfo &loopInfo = getAnalysis<LoopInfoWrapperPass>().getLoopInfo();
-  SmallPtrSet<BasicBlock *, 8> blocks;
-  blocks.insert(L->block_begin(), L->block_end());
-  for (BasicBlock *BB : blocks)
-    loopInfo.removeBlock(BB);
+  if (SE)
+    SE->forgetLoop(L);
 
-  // llvm8 and llvm9
-  loopInfo.erase(L);
-  // llvm9
-  LPM.markLoopAsDeleted(*L);
-  // llvm 3.8
-  // loopInfo.markAsRemoved(L);
-  // llvm 3.6
-  // LPM.deleteLoopFromQueue (L);
+  if (LI) {
+    SmallPtrSet<BasicBlock *, 8> blocks;
+    blocks.insert(L->block_begin(), L->block_end());
+
+    for (BasicBlock *BB : blocks)
+      LI->removeBlock(BB);
+
+    LI->erase(L);
+    LPM->markLoopAsDeleted(*L);
+  }
+
   return true;
 }
 
-namespace seahorn {
-Pass *createCutLoopsPass() { return new CutLoops(); }
-} // namespace seahorn
+Pass *seahorn::createCutLoopsPass() { return new CutLoopsPass(); }
 
-static llvm::RegisterPass<CutLoops> X("cut-loops",
-                                      "Cut back-edges of all natural loops");
+static llvm::RegisterPass<CutLoopsPass>
+    X("cut-loops", "Cut back-edges of all natural loops");

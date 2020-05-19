@@ -31,6 +31,8 @@
 using namespace llvm;
 using namespace seahorn;
 
+#define DEBUG_TYPE "cut-loops"
+
 namespace {
 class CutLoopsPass : public LoopPass {
 public:
@@ -38,7 +40,7 @@ public:
   CutLoopsPass() : LoopPass(ID) {}
 
   bool runOnLoop(Loop *L, LPPassManager &LPM) override {
-    LOG("cut-loops", errs() << "Cutting loop: " << *L << "\n";);
+    DOG(errs() << "Cutting loop: " << *L << "\n";);
 
     if (!canCutLoop(L))
       return false;
@@ -68,16 +70,16 @@ public:
 char CutLoopsPass::ID = 0;
 
 bool seahorn::canCutLoop(Loop *L) {
-  LOG("cut-loops", errs() << "Checking loop to cut: " << *L << "\n";);
+  DOG(errs() << "Checking loop to cut: " << *L << "\n";);
   BasicBlock *preheader = L->getLoopPreheader();
   if (!preheader) {
-    LOG("cut-loops", errs() << "Warning: no-cut: no pre-header\n");
+    DOG(errs() << "Warning: no-cut: no pre-header\n");
     return false;
   }
   BasicBlock *header = L->getHeader();
 
   if (!header) {
-    LOG("cut-loops", errs() << "Warning: no-cut: no header\n");
+    DOG(errs() << "Warning: no-cut: no header\n");
     return false;
   }
 
@@ -87,13 +89,13 @@ bool seahorn::canCutLoop(Loop *L) {
 
   // single exit
   if (!L->hasDedicatedExits()) {
-    LOG("cut-loops", errs() << "Warning: no-cut: multiple exits\n");
+    DOG(errs() << "Warning: no-cut: multiple exits\n");
     return false;
   }
 
   // -- no sub-loops
   if (L->begin() != L->end()) {
-    LOG("cut-loops", errs() << "Warning: no-cut: sub-loops\n");
+    DOG(errs() << "Warning: no-cut: sub-loops\n");
     return false;
   }
   SmallVector<BasicBlock *, 4> latches;
@@ -102,8 +104,7 @@ bool seahorn::canCutLoop(Loop *L) {
   for (BasicBlock *latch : latches) {
     BranchInst *bi = dyn_cast<BranchInst>(latch->getTerminator());
     if (!bi) {
-      LOG("cut-loops", errs() << "Warning: no-cut: unsupported latch\n"
-                              << *latch << "\n";);
+      DOG(errs() << "Warning: no-cut: unsupported latch\n" << *latch << "\n";);
       return false;
     }
   }

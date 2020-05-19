@@ -121,23 +121,30 @@ TEST_CASE("notWellFormed.test") {
   Expr zBool = boolVar("zBool", efac);
 
   Expr temp;
-  int size = 2;
+  int size = 3;
   Expr e[size];
+  Expr error[size];
 
-  // e[0] = yBool && (zBool && xInt)
-  e[0] = boolop::land(yBool, boolop::land(zBool, xInt));
+  // yBool && (zBool && xInt)
+  error[0] = boolop::land(zBool, xInt);
+  e[0] = boolop::land(yBool, error[0]);
 
-  // e[1] = (yBool -> zBool) -> !xInt
-  e[1] = boolop::limp(boolop::limp(yBool, zBool), boolop::lneg(xInt));
+  // (yBool -> zBool) -> !xInt
+  error[1] = boolop::lneg(xInt);
+  e[1] = boolop::limp(boolop::limp(yBool, zBool), error[1]);
+
+  // (zBool || xInt ) && (yBool -> zBool)
+  error[2] = boolop::lor(zBool, xInt);
+  e[2] = boolop::land(error[2], boolop::limp(yBool, zBool));
 
   TypeChecker tc;
 
   for (int i = 0; i < size; i++) {
     llvm::errs() << "Expression: " << *e[i] << "\n";
-
     Expr ty = tc.typeOf(e[i]);
 
     CHECK(!ty);
+    CHECK(tc.getNotWellFormed() == error[i]);
     if (ty)
       llvm::errs() << "Type is " << *ty << "\n\n";
     else

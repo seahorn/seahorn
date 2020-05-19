@@ -6,6 +6,7 @@
 
 namespace seahorn {
 
+#define DOG(CODE) LOG(DEBUG_TYPE, CODE)
 #ifndef NSEALOG
 #define LOG(TAG, CODE)                                                         \
   do {                                                                         \

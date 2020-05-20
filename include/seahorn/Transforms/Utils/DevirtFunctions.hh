@@ -2,6 +2,7 @@
 
 /**  Program transformation to replace indirect calls with direct calls **/
 
+#include "seahorn/config.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/IR/InstVisitor.h"
@@ -21,8 +22,6 @@ class CompleteCallGraphAnalysis;
 } // namespace seadsa
 
 namespace seahorn {
-
-//#define USE_BOUNCE_FUNCTIONS
 
 namespace devirt_impl {
 using AliasSetId = const llvm::PointerType *;

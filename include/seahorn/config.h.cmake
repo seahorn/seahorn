@@ -15,4 +15,7 @@
 /** Define whether ldd is available */
 #cmakedefine HAVE_LDD ${HAVE_LDD}
 
+/** Define whether devirt should use old bounce functions */
+#cmakedefine USE_BOUNCE_FUNCTIONS ${USE_BOUNCE_FUNCTIONS}
+
 #endif

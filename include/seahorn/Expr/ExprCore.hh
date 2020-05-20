@@ -47,6 +47,7 @@ enum class OpFamilyId {
   SimpleTypeOp,
   ArrayOp,
   StructOp,
+  FiniteMapOp,
   VariantOp,
   BindOp,
   BinderOp,

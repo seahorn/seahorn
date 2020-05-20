@@ -49,3 +49,10 @@ llvm_config(units_type_checker ${LLVM_LINK_COMPONENTS})
 target_link_libraries(units_type_checker PRIVATE ${USED_LIBS_Z3_TESTS})
 add_custom_target(test_type_checker units_type_checker DEPENDS units_type_checker)
 add_test(NAME Type_Checker_Tests COMMAND units_type_checker)
+
+
+add_executable(units_finite_map EXCLUDE_FROM_ALL units_finite_maps.cpp)
+llvm_config(units_finite_map ${LLVM_LINK_COMPONENTS})
+target_link_libraries(units_finite_map PRIVATE seahorn.LIB ${USED_LIBS_Z3_TESTS})
+add_custom_target(tests_finite_map units_finite_map DEPENDS units_finite_map)
+add_test(NAME Finite_Maps_Tests COMMAND units_finite_map)

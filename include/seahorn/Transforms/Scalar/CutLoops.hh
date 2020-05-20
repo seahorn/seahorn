@@ -5,6 +5,8 @@ class Loop;
 class LPPassManager;
 class LoopInfo;
 class ScalarEvolution;
+class DominatorTree;
+class AssumptionCache;
 } // namespace llvm
 
 namespace seahorn {
@@ -16,5 +18,7 @@ bool canCutLoop(llvm::Loop *L);
 /// Cuts a given loop and removes it from loop managing passes
 bool CutLoop(llvm::Loop *L, seahorn::SeaBuiltinsInfo &SBI,
              llvm::LPPassManager *LPM, llvm::LoopInfo *LI,
-             llvm::ScalarEvolution *SE);
+             llvm::ScalarEvolution *SE,
+             llvm::DominatorTree *DT,
+             llvm::AssumptionCache *AC);
 } // namespace seahorn

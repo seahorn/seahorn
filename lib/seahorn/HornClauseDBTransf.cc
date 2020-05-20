@@ -1,5 +1,5 @@
 #include "seahorn/HornClauseDBTransf.hh"
-#include "seahorn/Expr/Expr.hh"
+#include "seahorn/FiniteMapTransf.hh"
 
 namespace seahorn {
 using namespace expr;
@@ -58,4 +58,83 @@ void normalizeHornClauseHeads(HornClauseDB &db) {
     db.addRule(new_rule);
   }
 }
+
+template <typename Set, typename Predicate> void erase_if(Set &s, Predicate shouldRemove) {
+  for(auto it = s.begin(); it!=s.end();){
+    if(shouldRemove(*it)){
+      it = s.erase(it);
+    }
+    else {
+      ++it;
+    }
+  }
+}
+// -- tdb is an empty db that will contain db after transformation
+void removeFiniteMapsArgsHornClausesTransf(HornClauseDB &db, HornClauseDB &tdb) {
+
+  ExprFactory &efac = tdb.getExprFactory();
+  ExprMap predDeclTransf;
+
+  for (auto predIt : db.getRelations()) {
+    Expr predDecl = predIt;
+
+    Expr newPredDecl;
+    if (predDecl->arity() < 2) // just return type?, is this assumption correct?
+      newPredDecl = predDecl;
+    else{
+      // create new relation declaration
+      newPredDecl = finite_map::mkMapsDecl(predDecl, efac);
+
+      if (newPredDecl != predDecl)
+        predDeclTransf[predDecl] = newPredDecl;
+    }
+    tdb.registerRelation(newPredDecl); // register relation in transformed db
+  }
+
+  for (const auto rule : db.getRules()){
+    const ExprVector &vars = rule.vars();
+    ExprSet allVars(vars.begin(), vars.end());
+    DagVisitCache dvc; // TODO: same for all the clauses?
+    FiniteMapArgsVisitor fmav(efac, allVars, predDeclTransf);
+    Expr newRule = visit(fmav, rule.get(),dvc);
+
+    erase_if(allVars, [](Expr expr){
+           return isOpX<FINITE_MAP_TY>(bind::rangeTy(bind::fname(expr)));
+        });
+
+    tdb.addRule(allVars, newRule);
+  }
+
+  // copy queries
+  for( auto q : db.getQueries())
+    tdb.addQuery(q);
+
+}
+
+void removeFiniteMapsBodiesHornClausesTransf(HornClauseDB &db) {
+
+  ExprFactory &efac = db.getExprFactory();
+
+  std::vector<HornRule> worklist;
+  boost::copy(db.getRules(), std::back_inserter(worklist));
+
+  for (auto rule : worklist) {
+    ExprVector vars = rule.vars();
+    ExprSet allVars(vars.begin(), vars.end());
+
+    DagVisitCache dvc; // same for all the clauses?
+    FiniteMapBodyVisitor fmv(db.getExprFactory(), allVars);
+
+    erase_if(
+        allVars, [](Expr expr){
+           return isOpX<FINITE_MAP_TY>(bind::rangeTy(bind::fname(expr)));
+        });
+
+   HornRule new_rule(allVars, rule.head(), visit(fmv, rule.body(), dvc));
+
+    db.removeRule(rule);
+    db.addRule(new_rule);
+  }
+}
+
 } // namespace seahorn

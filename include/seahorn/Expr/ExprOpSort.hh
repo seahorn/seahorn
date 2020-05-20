@@ -17,7 +17,9 @@ enum class SimpleTypeOpKind {
   BOOL_TY,
   UNINT_TY,
   ARRAY_TY,
-  STRUCT_TY
+  STRUCT_TY,
+  FINITE_MAP_TY,
+  FINITE_MAP_KEYS_TY
 };
 NOP_BASE(SimpleTypeOp)
 
@@ -37,6 +39,9 @@ NOP(UNINT_TY, "UNINT", PREFIX, SimpleTypeOp)
 NOP(ARRAY_TY, "ARRAY", PREFIX, SimpleTypeOp)
 /// \biref Struct type
 NOP(STRUCT_TY, "STRUCT", PREFIX, SimpleTypeOp)
+/// \biref FiniteMap type
+NOP(FINITE_MAP_TY, "FINITE_MAP", PREFIX, SimpleTypeOp)
+NOP(FINITE_MAP_KEYS_TY, "FINITE_MAP_KS", PREFIX, SimpleTypeOp)
 } // namespace op
 
 namespace op {
@@ -54,6 +59,17 @@ inline Expr structTy(Expr ty) { return mk<STRUCT_TY>(ty); }
 inline Expr structTy(Expr ty1, Expr ty2) { return mk<STRUCT_TY>(ty1, ty2); }
 template <typename Range> Expr structTy(const Range &ty) {
   return mknary<STRUCT_TY>(ty);
+}
+
+inline Expr finiteMapTy(Expr valTy, Expr k) { return mk<FINITE_MAP_TY>(valTy, mk<FINITE_MAP_KEYS_TY>(k));
+}
+inline Expr finiteMapTy(Expr valTy, Expr k1, Expr k2) {
+  return mk<FINITE_MAP_TY>(valTy, mk<FINITE_MAP_KEYS_TY>(k1, k2));
+}
+template <typename Range>
+Expr finiteMapTy(Expr valTy, const Range &ks) {
+  // The keys already contain a type
+  return mk<FINITE_MAP_TY>(valTy, mknary<FINITE_MAP_KEYS_TY>(ks));
 }
 
 } // namespace sort

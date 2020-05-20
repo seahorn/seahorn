@@ -21,7 +21,8 @@ enum class SimpleTypeOpKind {
   STRUCT_TY,
   FINITE_MAP_TY,
   FINITE_MAP_KEYS_TY,
-  ANY_TY
+  ANY_TY,
+  ERROR_TY
 };
 NOP_BASE(SimpleTypeOp)
 
@@ -46,6 +47,8 @@ NOP(FINITE_MAP_TY, "FINITE_MAP", PREFIX, SimpleTypeOp)
 NOP(FINITE_MAP_KEYS_TY, "FINITE_MAP_KS", PREFIX, SimpleTypeOp)
 /// \brief ANY type
 NOP(ANY_TY, "ANY", PREFIX, SimpleTypeOp)
+/// \brief Error type
+NOP(ERROR_TY, "ERROR", PREFIX, SimpleTypeOp)
 } // namespace op
 
 namespace op {
@@ -55,6 +58,7 @@ inline Expr boolTy(ExprFactory &efac) { return mk<BOOL_TY>(efac); }
 inline Expr realTy(ExprFactory &efac) { return mk<REAL_TY>(efac); }
 inline Expr unintTy(ExprFactory &efac) { return mk<UNINT_TY>(efac); }
 inline Expr anyTy(ExprFactory &efac) { return mk<ANY_TY>(efac); }
+inline Expr errorTy(ExprFactory &efac) { return mk<ERROR_TY>(efac); }
 inline Expr arrayTy(Expr indexTy, Expr valTy) {
   return mk<ARRAY_TY>(indexTy, valTy);
 }

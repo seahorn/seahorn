@@ -35,7 +35,7 @@ class TCVR {
   Expr numTypeCheckChildren(Expr exp,
                             std::function<bool(Expr exp)> checkNumChildren) {
     if (!checkNumChildren(exp))
-      return Expr();
+      return sort::errorTy(exp->efac());
 
     Expr type = m_cache.at(exp->first());
     auto isSameType = [this, type](Expr exp) {
@@ -46,11 +46,11 @@ class TCVR {
         std::all_of(exp->args_begin(), exp->args_end(), isSameType))
       return type;
     else
-      return Expr();
+      return sort::errorTy(exp->efac());
   }
 
   Expr inferTypeNumUnary(Expr exp) {
-    std::function<bool(Expr)> checkNumChildren =  [] (Expr exp) -> bool {
+    std::function<bool(Expr)> checkNumChildren = [](Expr exp) -> bool {
       return exp->arity() == 1;
     };
 
@@ -70,7 +70,7 @@ class TCVR {
         (m_cache.at(exp->arg(1)) == m_cache.at(exp->arg(2))))
       return sort::boolTy(exp->efac());
     else
-      return Expr();
+      return sort::errorTy(exp->efac());
   }
 
   // ensures the expression has the correct number of children and all children
@@ -87,11 +87,11 @@ class TCVR {
         std::all_of(exp->args_begin(), exp->args_end(), isBool))
       return sort::boolTy(exp->efac());
     else
-      return Expr();
+      return sort::errorTy(exp->efac());
   }
 
   Expr inferTypeBoolBinary(Expr exp) {
-     std::function<bool(Expr)> checkNumChildren = [](Expr exp) -> bool {
+    std::function<bool(Expr)> checkNumChildren = [](Expr exp) -> bool {
       return exp->arity() == 2;
     };
     return boolCheckChildren(exp, checkNumChildren);
@@ -108,7 +108,6 @@ class TCVR {
     std::function<bool(Expr)> checkNumChildren = [](Expr exp) -> bool {
       return exp->arity() >= 2;
     };
-
     return boolCheckChildren(exp, checkNumChildren);
   }
 
@@ -150,7 +149,7 @@ class TCVR {
     Expr type = inferType(exp);
 
     m_cache.insert({exp, type});
-    if (!type) {
+    if (isOp<ERROR_TY>(type)) {
       LOG("tc", llvm::errs()
                     << "Expression is not well-formed: " << *exp << "\n";);
 

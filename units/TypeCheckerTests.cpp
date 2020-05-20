@@ -36,13 +36,14 @@ Expr unintConst(const std::string &n, ExprFactory &efac) {
 }
 
 void checkNotWellFormed(Expr e[], Expr error[], int size) {
+  Expr errorSort = sort::errorTy(e[0]->efac());
   TypeChecker tc;
 
   for (int i = 0; i < size; i++) {
     llvm::errs() << "Expression: " << *e[i] << "\n";
     Expr ty = tc.typeOf(e[i]);
 
-    CHECK(!ty);
+    CHECK(ty == errorSort);
     CHECK(tc.getErrorExp() == error[i]);
     if (ty)
       llvm::errs() << "Type is " << *ty << "\n\n";
@@ -143,7 +144,8 @@ TEST_CASE("notWellFormed.test") {
   Expr aBool = boolConst("aBool", efac);
   Expr zBool = boolConst("zBool", efac);
 
-  Expr temp;
+  Expr errorSort = sort::errorTy(efac);
+
   int size = 3;
   Expr e[size];
   Expr error[size];
@@ -251,8 +253,6 @@ TEST_CASE("numNotWellFormed.test") {
   Expr cReal = realConst("cReal", efac);
   Expr dUnint = unintConst("dUnint", efac);
   Expr eBool = boolConst("eBool", efac);
-
-  TypeChecker tc;
 
   int size = 3;
   Expr e[size];

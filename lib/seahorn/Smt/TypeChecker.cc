@@ -38,7 +38,7 @@ class TCVR {
       return sort::errorTy(exp->efac());
 
     Expr type = m_cache.at(exp->first());
-    auto isSameType = [this, type](Expr exp) {
+    auto isSameType = [this, &type](Expr exp) {
       return type != nullptr && this->m_cache.at(exp) == type;
     };
 

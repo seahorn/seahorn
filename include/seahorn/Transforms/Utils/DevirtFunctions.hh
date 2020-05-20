@@ -2,6 +2,7 @@
 
 /**  Program transformation to replace indirect calls with direct calls **/
 
+#include "seahorn/config.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/IR/InstVisitor.h"
@@ -33,18 +34,22 @@ AliasSetId typeAliasId(const llvm::Function &F);
 AliasSetId typeAliasId(llvm::CallSite &CS);
 } // end namespace devirt_impl
 
-enum class CallSiteResolverKind { RESOLVER_TYPES, RESOLVER_CHA, RESOLVER_SEADSA };
+enum class CallSiteResolverKind {
+  RESOLVER_TYPES,
+  RESOLVER_CHA,
+  RESOLVER_SEADSA
+};
 
 /*
  * Generic class API for resolving indirect calls
  */
 class CallSiteResolver {
 protected:
-  CallSiteResolverKind m_kind;  
+  CallSiteResolverKind m_kind;
   CallSiteResolver(CallSiteResolverKind kind) : m_kind(kind) {}
 
 public:
-  using AliasSetId = devirt_impl::AliasSetId;    
+  using AliasSetId = devirt_impl::AliasSetId;
   using AliasSet = llvm::SmallVector<const llvm::Function *, 16>;
 
   virtual ~CallSiteResolver() {}
@@ -53,14 +58,17 @@ public:
 
   /* Return all the possible callees for CS.
      It can return nullptr if not callees found. */
-  virtual const AliasSet* getTargets(llvm::CallSite &CS) = 0;
+  virtual const AliasSet *getTargets(llvm::CallSite &CS) = 0;
 
+#ifdef USE_BOUNCE_FUNCTIONS
   /* Return a bounce function that resolves CS. It can return null if
      no bounce function. */
-  virtual llvm::Function* getBounceFunction(llvm::CallSite &CS) = 0;
+  virtual llvm::Function *getBounceFunction(llvm::CallSite &CS) = 0;
 
   /* Cache a bounce function for the callee */
-  virtual void cacheBounceFunction(llvm::CallSite &CS, llvm::Function* bounce) = 0;
+  virtual void cacheBounceFunction(llvm::CallSite &CS,
+                                   llvm::Function *bounce) = 0;
+#endif
 };
 
 // forward declaration
@@ -70,33 +78,38 @@ class ClassHierarchyAnalysis;
  * Resolve an indirect call by selecting all functions defined in the
  * same module whose type signature matches with the callsite.
  */
-class CallSiteResolverByTypes: public CallSiteResolver {
+class CallSiteResolverByTypes : public CallSiteResolver {
 public:
-  using AliasSetId = CallSiteResolver::AliasSetId;  
+  using AliasSetId = CallSiteResolver::AliasSetId;
   using AliasSet = CallSiteResolver::AliasSet;
-  
+
   CallSiteResolverByTypes(llvm::Module &M);
 
   virtual ~CallSiteResolverByTypes();
 
-  const AliasSet* getTargets(llvm::CallSite &CS);
+  const AliasSet *getTargets(llvm::CallSite &CS);
 
-  llvm::Function* getBounceFunction(llvm::CallSite& CS);
-  
-  void cacheBounceFunction(llvm::CallSite& CS, llvm::Function* bounce);
-  
+#ifdef USE_BOUNCE_FUNCTIONS
+  llvm::Function *getBounceFunction(llvm::CallSite &CS);
+
+  void cacheBounceFunction(llvm::CallSite &CS, llvm::Function *bounce);
+#endif
+
 private:
-  /* invariant: the value in TargetsMap's entries is sorted */  
+  /* invariant: the value in TargetsMap's entries is sorted */
   using TargetsMap = llvm::DenseMap<AliasSetId, AliasSet>;
+#ifdef USE_BOUNCE_FUNCTIONS
   using BounceMap = llvm::DenseMap<AliasSetId, llvm::Function *>;
-  
+#endif
+
   // -- the module
   llvm::Module &m_M;
   // -- map from alias-id to the corresponding targets
   TargetsMap m_targets_map;
+#ifdef USE_BOUNCE_FUNCTIONS
   // -- map alias set id to an existing bounce function
   BounceMap m_bounce_map;
-  
+#endif
   void populateTypeAliasSets(void);
 };
 
@@ -104,27 +117,32 @@ private:
  * Resolve indirect call by using sea-dsa pointer analysis refined
  * with types.
  */
-class CallSiteResolverByDsa final: public CallSiteResolverByTypes {
+class CallSiteResolverByDsa final : public CallSiteResolverByTypes {
 public:
-  using AliasSetId = CallSiteResolverByTypes::AliasSetId;  
+  using AliasSetId = CallSiteResolverByTypes::AliasSetId;
   using AliasSet = CallSiteResolverByTypes::AliasSet;
-  
-  CallSiteResolverByDsa(llvm::Module& M, seadsa::CompleteCallGraphAnalysis& dsa,
-			bool incomplete);
-    
-  ~CallSiteResolverByDsa() = default;
-  
-  const AliasSet* getTargets(llvm::CallSite &CS);
 
-  llvm::Function* getBounceFunction(llvm::CallSite& CS);
-  
-  void cacheBounceFunction(llvm::CallSite&CS, llvm::Function* bounceFunction);  
-			   
+  CallSiteResolverByDsa(llvm::Module &M, seadsa::CompleteCallGraphAnalysis &dsa,
+                        bool incomplete);
+
+  ~CallSiteResolverByDsa() = default;
+
+  const AliasSet *getTargets(llvm::CallSite &CS);
+
+#ifdef USE_BOUNCE_FUNCTIONS
+  llvm::Function *getBounceFunction(llvm::CallSite &CS);
+
+  void cacheBounceFunction(llvm::CallSite &CS, llvm::Function *bounceFunction);
+#endif
+
 private:
-  /* invariant: the value in TargetsMap's entries is sorted */  
-  using TargetsMap = llvm::DenseMap<llvm::Instruction*, AliasSet>;
-  using BounceMap = std::multimap<AliasSetId, std::pair<const AliasSet*, llvm::Function *>>;
-  
+  /* invariant: the value in TargetsMap's entries is sorted */
+  using TargetsMap = llvm::DenseMap<llvm::Instruction *, AliasSet>;
+#ifdef USE_BOUNCE_FUNCTIONS
+  using BounceMap =
+      std::multimap<AliasSetId, std::pair<const AliasSet *, llvm::Function *>>;
+#endif
+
   // -- the module
   llvm::Module &m_M;
   // -- the pointer analysis to resolve function pointers
@@ -132,9 +150,11 @@ private:
   // -- Resolve incomplete nodes (unsound, in general)
   bool m_allow_incomplete;
   // -- map from callsite to the corresponding alias set
-  TargetsMap m_targets_map;  
+  TargetsMap m_targets_map;
+#ifdef USE_BOUNCE_FUNCTIONS
   // -- map from alias set id + dsa targets to an existing bounce function
-  BounceMap m_bounce_map;  
+  BounceMap m_bounce_map;
+#endif
 };
 
 /*
@@ -142,19 +162,21 @@ private:
  */
 class CallSiteResolverByCHA final : public CallSiteResolver {
 public:
-  using AliasSetId = CallSiteResolver::AliasSetId;  
+  using AliasSetId = CallSiteResolver::AliasSetId;
   using AliasSet = CallSiteResolver::AliasSet;
-  
+
   CallSiteResolverByCHA(llvm::Module &M);
 
   ~CallSiteResolverByCHA();
 
-  const AliasSet* getTargets(llvm::CallSite &CS);
+  const AliasSet *getTargets(llvm::CallSite &CS);
 
-  llvm::Function* getBounceFunction(llvm::CallSite& CS);
-  
-  void cacheBounceFunction(llvm::CallSite& CS, llvm::Function* bounce);
-  
+#ifdef USE_BOUNCE_FUNCTIONS
+  llvm::Function *getBounceFunction(llvm::CallSite &CS);
+
+  void cacheBounceFunction(llvm::CallSite &CS, llvm::Function *bounce);
+#endif
+
 private:
   std::unique_ptr<ClassHierarchyAnalysis> m_cha;
 };
@@ -176,8 +198,10 @@ private:
   // Call graph of the program
   llvm::CallGraph *m_cg;
 
+#ifdef USE_BOUNCE_FUNCTIONS
   /// maps alias set id to an existing bounce function
   llvm::DenseMap<AliasSetId, llvm::Function *> m_bounceMap;
+#endif
 
   // Worklist of call sites to transform
   llvm::SmallVector<llvm::Instruction *, 32> m_worklist;
@@ -185,18 +209,20 @@ private:
   // allow creating of indirect calls during devirtualization
   // (required for soundness)
   bool m_allowIndirectCalls;
-  
+
   /// turn the indirect call-site into a direct one
   void mkDirectCall(llvm::CallSite CS, CallSiteResolver *CSR);
 
+#ifdef USE_BOUNCE_FUNCTIONS
   /// create a bounce function that calls functions directly
   llvm::Function *mkBounceFn(llvm::CallSite &CS, CallSiteResolver *CSR);
+#endif
 
 public:
   DevirtualizeFunctions(llvm::CallGraph *cg, bool allowIndirectCalls);
 
   ~DevirtualizeFunctions();
-  
+
   // Resolve all indirect calls in the Module using a particular
   // callsite resolver.
   bool resolveCallSites(llvm::Module &M, CallSiteResolver *CSR);

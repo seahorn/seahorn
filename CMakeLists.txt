@@ -434,6 +434,15 @@ else()
   message (WARNING "No Clam found in ${CMAKE_SOURCE_DIR}/clam. Run\n\tcmake --build . --target extra && cmake ${CMAKE_SOURCE_DIR}")
 endif()
 
+# If enabled then devirtualization uses old code that replaces
+# indirect calls with special bounce functions.
+option(SEA_USE_BOUNCE_FUNCTIONS "Devirt uses old code that adds bounce functions" OFF)
+if (SEA_USE_BOUNCE_FUNCTIONS)
+  set(USE_BOUNCE_FUNCTIONS TRUE)
+else()
+  set(USE_BOUNCE_FUNCTIONS FALSE)
+endif()
+
 ### add our include directories to the front, overriding directories
 ### specified by external packages.
 include_directories(BEFORE

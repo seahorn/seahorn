@@ -7,6 +7,7 @@
 
 #include "llvm/Analysis/CallGraph.h"
 #include "llvm/IR/InstIterator.h"
+#include "llvm/Transforms/Utils/CallPromotionUtils.h"
 
 #include "seadsa/CompleteCallGraph.hh"
 
@@ -45,6 +46,53 @@ static inline Value *castTo(Value *V, Type *Ty, std::string Name,
   return CastInst::CreateZExtOrBitCast(V, Ty, Name, InsertPt);
 }
 
+///
+/// Create a sequence of if-then-else statements at the location of
+/// the callsite.  The "if" condition compares the callsite's called
+/// value with a function f from Callees.  The direct call to f is
+/// moved to the "then" block. The "else" block contains the next
+/// "if". For the last callsite's called value we don't create an
+/// "else" block.
+///
+/// For example, the call instruction below:
+///
+///   orig_bb:
+///     %t0 = call i32 %ptr()  with callees = {foo, bar}
+///     ...
+///
+/// Is replaced by the following:
+///
+///   orig_bb:
+///     %cond = icmp eq i32 ()* %ptr, @foo
+///     br i1 %cond, %then_bb, %else_bb
+///
+///   then_bb:
+///     %t1 = call i32 @foo()
+///     br merge_bb
+///
+///   else_bb:
+///     %t0 = call i32 %bar()
+///     br merge_bb
+///
+///   merge_bb:
+///     ; Uses of the original call instruction are replaced by uses of the phi
+///     ; node.
+///     %t2 = phi i32 [ %t0, %else_bb ], [ %t1, %then_bb ]
+///     ...
+///
+static void promoteIndirectCall(CallSite &CS,
+                                const std::vector<Function *> &Callees) {
+  for (unsigned i = 0, numCallees = Callees.size(); i < numCallees; ++i) {
+    // The last callee does not create an "else" block
+    // If there is only one callee we don't create an "else" block either.
+    if (i == numCallees - 1) {
+      llvm::promoteCall(CS, Callees[i]);
+    } else {
+      llvm::promoteCallWithIfThenElse(CS, Callees[i]);
+    }
+  }
+}
+
 namespace devirt_impl {
 
 AliasSetId typeAliasId(CallSite &CS) {
@@ -66,10 +114,9 @@ AliasSetId typeAliasId(const Function &F) {
  * Begin specific callsites resolvers
  ***/
 
-
 /** begin Resolver by only types */
 CallSiteResolverByTypes::CallSiteResolverByTypes(Module &M)
-  : CallSiteResolver(CallSiteResolverKind::RESOLVER_TYPES), m_M(M) {
+    : CallSiteResolver(CallSiteResolverKind::RESOLVER_TYPES), m_M(M) {
   populateTypeAliasSets();
 }
 
@@ -103,7 +150,7 @@ void CallSiteResolverByTypes::populateTypeAliasSets() {
       continue;
 
     // -- add F to its corresponding alias set (keep sorted the Targets)
-    AliasSet& Targets = m_targets_map[devirt_impl::typeAliasId(F)];    
+    AliasSet &Targets = m_targets_map[devirt_impl::typeAliasId(F)];
     // XXX: ordered by pointer addresses. Ideally we should use
     // something more deterministic.
     auto it = std::upper_bound(Targets.begin(), Targets.end(), &F);
@@ -111,8 +158,8 @@ void CallSiteResolverByTypes::populateTypeAliasSets() {
   }
 }
 
-const CallSiteResolverByTypes::AliasSet*
-CallSiteResolverByTypes::getTargets(CallSite &CS)  {
+const CallSiteResolverByTypes::AliasSet *
+CallSiteResolverByTypes::getTargets(CallSite &CS) {
   AliasSetId id = devirt_impl::typeAliasId(CS);
   auto it = m_targets_map.find(id);
   if (it != m_targets_map.end()) {
@@ -122,7 +169,8 @@ CallSiteResolverByTypes::getTargets(CallSite &CS)  {
   }
 }
 
-Function* CallSiteResolverByTypes::getBounceFunction(CallSite& CS) {
+#ifdef USE_BOUNCE_FUNCTIONS
+Function *CallSiteResolverByTypes::getBounceFunction(CallSite &CS) {
   AliasSetId id = devirt_impl::typeAliasId(CS);
   auto it = m_bounce_map.find(id);
   if (it != m_bounce_map.end()) {
@@ -132,112 +180,119 @@ Function* CallSiteResolverByTypes::getBounceFunction(CallSite& CS) {
   }
 }
 
-void CallSiteResolverByTypes::cacheBounceFunction(CallSite&CS, Function* bounce) {
-  AliasSetId id = devirt_impl::typeAliasId(CS);    
+void CallSiteResolverByTypes::cacheBounceFunction(CallSite &CS,
+                                                  Function *bounce) {
+  AliasSetId id = devirt_impl::typeAliasId(CS);
   m_bounce_map.insert({id, bounce});
 }
+#endif
+
 /** end Resolver by only types */
 
 /** begin Resolver by dsa+types */
-CallSiteResolverByDsa::CallSiteResolverByDsa(Module& M,
-					     CompleteCallGraphAnalysis& dsa,
-					     bool incomplete)
-  : CallSiteResolverByTypes(M)
-  , m_M(M), m_dsa(dsa), m_allow_incomplete(incomplete) {
-    
+CallSiteResolverByDsa::CallSiteResolverByDsa(Module &M,
+                                             CompleteCallGraphAnalysis &dsa,
+                                             bool incomplete)
+    : CallSiteResolverByTypes(M), m_M(M), m_dsa(dsa),
+      m_allow_incomplete(incomplete) {
+
   CallSiteResolver::m_kind = CallSiteResolverKind::RESOLVER_SEADSA;
-  
+
   // build the target map
   unsigned num_indirect_calls = 0;
   unsigned num_complete_calls = 0;
   unsigned num_resolved_calls = 0;
-  
-  for (auto &F: m_M) {
-    for (auto &I: llvm::make_range(inst_begin(&F), inst_end(&F))) {
+
+  for (auto &F : m_M) {
+    for (auto &I : llvm::make_range(inst_begin(&F), inst_end(&F))) {
       if (!isa<CallInst>(&I) && !isa<InvokeInst>(&I))
-	continue;
+        continue;
       CallSite CS(&I);
       if (isIndirectCall(CS)) {
-	num_indirect_calls++;
-	if (m_allow_incomplete || m_dsa.isComplete(CS)) {
-	  num_complete_calls++;
-	  AliasSet dsa_targets;
-	  dsa_targets.append(m_dsa.begin(CS), m_dsa.end(CS));
-	  if (dsa_targets.empty()) {
-	    //m_stats.m_num_dsa_unresolved++;
-	    LOG("devirt", errs()
-		<< "WARNING Devirt (dsa): does not have any target for "
-		<< *(CS.getInstruction()) << "\n";);
-	    continue;
-	  }
-	  std::sort(dsa_targets.begin(), dsa_targets.end());
-	  
-	  LOG("devirt",
-	      errs() << "\nDsa-based targets: \n";
-	      for(auto F: dsa_targets) {
-		errs() << "\t" << F->getName() << "::" << *(F->getType()) << "\n";
-	      });
+        num_indirect_calls++;
+        if (m_allow_incomplete || m_dsa.isComplete(CS)) {
+          num_complete_calls++;
+          AliasSet dsa_targets;
+          dsa_targets.append(m_dsa.begin(CS), m_dsa.end(CS));
+          if (dsa_targets.empty()) {
+            // m_stats.m_num_dsa_unresolved++;
+            LOG("devirt",
+                errs() << "WARNING Devirt (dsa): does not have any target for "
+                       << *(CS.getInstruction()) << "\n";);
+            continue;
+          }
+          std::sort(dsa_targets.begin(), dsa_targets.end());
 
-	  const AliasSet* types_targets = CallSiteResolverByTypes::getTargets(CS);
-	  if (types_targets && !types_targets->empty()) {
-	    
-	    LOG("devirt",
-		errs() << "Type-based targets: \n";
-		for(auto F: *types_targets) {
-		  errs() << "\t" << F->getName() << "::" << *(F->getType())
-			 << "\n";
-		});
-	    
-	    // --- We filter out those dsa targets whose signature do not match.
-	    AliasSet refined_dsa_targets;
-	    std::set_intersection(dsa_targets.begin(), dsa_targets.end(),
-				  types_targets->begin(), types_targets->end(),
-				  std::back_inserter(refined_dsa_targets));
-	    if (refined_dsa_targets.empty()) {
-	      //m_stats.m_num_type_unresolved++;		  		    
-	      LOG("devirt",
-		  errs() << "WARNING Devirt (dsa): cannot resolve "
-		         << *(CS.getInstruction())
-		         << " after refining dsa targets with callsite type\n";);
-	    } else {
-	      num_resolved_calls++;
-	      m_targets_map.insert({CS.getInstruction(), refined_dsa_targets});
-	      LOG("devirt",
-		  errs() << "Devirt (dsa) resolved " << *(CS.getInstruction())
-		         << " with targets: \n";
-		  for(auto F: refined_dsa_targets) {
-		    errs() << "\t" << F->getName() << "::"
-			   << *(F->getType()) << "\n";  
-		  });
-	    }
-	  } else {
-	    //m_stats.m_num_type_unresolved++;		  
-	    LOG("devirt",
-		errs() << "WARNING Devirt (dsa): cannot resolve "
-		       << *(CS.getInstruction())
-		       << " because there is no function with same callsite type\n";);
-	  }
-	} else {
-	  //m_stats.m_num_dsa_unresolved++;
-	  LOG("devirt",
-	      errs() << "WARNING Devirt (dsa): cannot resolve "
-	             << *(CS.getInstruction())
-	             << " because the corresponding dsa node is not complete\n";
-	      
-	      AliasSet targets;
-	      targets.append(m_dsa.begin(CS), m_dsa.end(CS));
-	      errs() << "Dsa-based targets: \n";
-	      for(auto F: targets) {
-		errs() << "\t" << F->getName() << "::" << *(F->getType()) << "\n";
-	      };);
-	}
+          LOG("devirt", errs() << "\nDsa-based targets: \n";
+              for (auto F
+                   : dsa_targets) {
+                errs() << "\t" << F->getName() << "::" << *(F->getType())
+                       << "\n";
+              });
+
+          const AliasSet *types_targets =
+              CallSiteResolverByTypes::getTargets(CS);
+          if (types_targets && !types_targets->empty()) {
+
+            LOG("devirt", errs() << "Type-based targets: \n";
+                for (auto F
+                     : *types_targets) {
+                  errs() << "\t" << F->getName() << "::" << *(F->getType())
+                         << "\n";
+                });
+
+            // --- We filter out those dsa targets whose signature do not match.
+            AliasSet refined_dsa_targets;
+            std::set_intersection(dsa_targets.begin(), dsa_targets.end(),
+                                  types_targets->begin(), types_targets->end(),
+                                  std::back_inserter(refined_dsa_targets));
+            if (refined_dsa_targets.empty()) {
+              // m_stats.m_num_type_unresolved++;
+              LOG("devirt",
+                  errs()
+                      << "WARNING Devirt (dsa): cannot resolve "
+                      << *(CS.getInstruction())
+                      << " after refining dsa targets with callsite type\n";);
+            } else {
+              num_resolved_calls++;
+              m_targets_map.insert({CS.getInstruction(), refined_dsa_targets});
+              LOG("devirt", errs() << "Devirt (dsa) resolved "
+                                   << *(CS.getInstruction())
+                                   << " with targets: \n";
+                  for (auto F
+                       : refined_dsa_targets) {
+                    errs() << "\t" << F->getName() << "::" << *(F->getType())
+                           << "\n";
+                  });
+            }
+          } else {
+            // m_stats.m_num_type_unresolved++;
+            LOG("devirt", errs() << "WARNING Devirt (dsa): cannot resolve "
+                                 << *(CS.getInstruction())
+                                 << " because there is no function with same "
+                                    "callsite type\n";);
+          }
+        } else {
+          // m_stats.m_num_dsa_unresolved++;
+          LOG("devirt",
+              errs() << "WARNING Devirt (dsa): cannot resolve "
+                     << *(CS.getInstruction())
+                     << " because the corresponding dsa node is not complete\n";
+
+              AliasSet targets; targets.append(m_dsa.begin(CS), m_dsa.end(CS));
+              errs() << "Dsa-based targets: \n"; for (auto F
+                                                      : targets) {
+                errs() << "\t" << F->getName() << "::" << *(F->getType())
+                       << "\n";
+              };);
+        }
       }
     }
   }
 }
-  
-const CallSiteResolverByDsa::AliasSet*
-CallSiteResolverByDsa::getTargets(CallSite& CS) {
+
+const CallSiteResolverByDsa::AliasSet *
+CallSiteResolverByDsa::getTargets(CallSite &CS) {
   auto it = m_targets_map.find(CS.getInstruction());
   if (it != m_targets_map.end()) {
     return &it->second;
@@ -246,29 +301,33 @@ CallSiteResolverByDsa::getTargets(CallSite& CS) {
   }
 }
 
-Function* CallSiteResolverByDsa::getBounceFunction(CallSite&CS) {
+#ifdef USE_BOUNCE_FUNCTIONS
+Function *CallSiteResolverByDsa::getBounceFunction(CallSite &CS) {
   AliasSetId id = devirt_impl::typeAliasId(CS);
   auto it = m_bounce_map.find(id);
   if (it != m_bounce_map.end()) {
-    const AliasSet* cachedTargets = it->second.first;
-    const AliasSet* Targets = getTargets(CS);
+    const AliasSet *cachedTargets = it->second.first;
+    const AliasSet *Targets = getTargets(CS);
     if (cachedTargets && Targets) {
       if (std::equal(cachedTargets->begin(), cachedTargets->end(),
-		     Targets->begin())) {
-	return it->second.second;
+                     Targets->begin())) {
+        return it->second.second;
       }
     }
   }
   return nullptr;
 }
-  
-void CallSiteResolverByDsa::cacheBounceFunction(CallSite& CS, Function* bounce) {
-  const AliasSet* Targets = getTargets(CS);
+
+void CallSiteResolverByDsa::cacheBounceFunction(CallSite &CS,
+                                                Function *bounce) {
+  const AliasSet *Targets = getTargets(CS);
   if (Targets) {
-    AliasSetId id = devirt_impl::typeAliasId(CS);      
+    AliasSetId id = devirt_impl::typeAliasId(CS);
     m_bounce_map.insert({id, {Targets, bounce}});
   }
 }
+#endif
+
 /** end Resolver by dsa+types */
 
 /** begin Resolver by class hierarchy analysis */
@@ -283,7 +342,7 @@ CallSiteResolverByCHA::CallSiteResolverByCHA(Module &M)
 
 CallSiteResolverByCHA::~CallSiteResolverByCHA() = default;
 
-const CallSiteResolverByCHA::AliasSet*
+const CallSiteResolverByCHA::AliasSet *
 CallSiteResolverByCHA::getTargets(CallSite &CS) {
   ImmutableCallSite ICS(CS.getInstruction());
   if (!m_cha->isVCallResolved(ICS))
@@ -292,7 +351,8 @@ CallSiteResolverByCHA::getTargets(CallSite &CS) {
   return &(m_cha->getVCallCallees(ICS));
 }
 
-Function* CallSiteResolverByCHA::getBounceFunction(CallSite& CS) {
+#ifdef USE_BOUNCE_FUNCTIONS
+Function *CallSiteResolverByCHA::getBounceFunction(CallSite &CS) {
   // Caching not implemented.
   // Caching cannot be based only on the function type signature. This
   // is because two different virtual calls to different methods can
@@ -300,21 +360,23 @@ Function* CallSiteResolverByCHA::getBounceFunction(CallSite& CS) {
   return nullptr;
 }
 
-void CallSiteResolverByCHA::cacheBounceFunction(CallSite&CS, Function* bounce) {
+void CallSiteResolverByCHA::cacheBounceFunction(CallSite &CS,
+                                                Function *bounce) {
   // do nothing for now
 }
+#endif
+
 /** end Resolver by class hierarchy analysis */
 
 /***
  * End specific callsites resolver
  ***/
 
-
 DevirtualizeFunctions::DevirtualizeFunctions(llvm::CallGraph *cg,
-					     bool allowIndirectCalls)
-  : m_cg(cg), m_allowIndirectCalls(allowIndirectCalls) {}
+                                             bool allowIndirectCalls)
+    : m_cg(cg), m_allowIndirectCalls(allowIndirectCalls) {}
 
-DevirtualizeFunctions::~DevirtualizeFunctions() {} 
+DevirtualizeFunctions::~DevirtualizeFunctions() {}
 
 void DevirtualizeFunctions::visitCallSite(CallSite CS) {
   // -- skip direct calls
@@ -340,11 +402,13 @@ void DevirtualizeFunctions::visitInvokeInst(InvokeInst &II) {
   visitCallSite(CS);
 }
 
+#ifdef USE_BOUNCE_FUNCTIONS
 /**
  * Creates a bounce function that calls functions in an alias set directly
  * All the work happens here.
  */
-Function *DevirtualizeFunctions::mkBounceFn(CallSite &CS, CallSiteResolver *CSR) {
+Function *DevirtualizeFunctions::mkBounceFn(CallSite &CS,
+                                            CallSiteResolver *CSR) {
   assert(isIndirectCall(CS) && "Not an indirect call");
 
   // We don't create a bounce function if the function has a
@@ -353,14 +417,15 @@ Function *DevirtualizeFunctions::mkBounceFn(CallSite &CS, CallSiteResolver *CSR)
     return nullptr;
   }
 
-  if (Function* bounce = CSR->getBounceFunction(CS)) {
-    LOG("devirt",
-	errs() << "Reusing bounce function for " << *(CS.getInstruction()) 
-	<< "\n\t" << bounce->getName() << "::" << *(bounce->getType()) << "\n";);
+  if (Function *bounce = CSR->getBounceFunction(CS)) {
+    LOG("devirt", errs() << "Reusing bounce function for "
+                         << *(CS.getInstruction()) << "\n\t"
+                         << bounce->getName() << "::" << *(bounce->getType())
+                         << "\n";);
     return bounce;
   }
-    
-  const AliasSet* Targets = CSR->getTargets(CS);
+
+  const AliasSet *Targets = CSR->getTargets(CS);
   if (!Targets || Targets->empty()) {
     // cannot resolve the indirect call
     return nullptr;
@@ -519,8 +584,31 @@ Function *DevirtualizeFunctions::mkBounceFn(CallSite &CS, CallSiteResolver *CSR)
   // Return the newly created bounce function.
   return F;
 }
+#endif
 
 void DevirtualizeFunctions::mkDirectCall(CallSite CS, CallSiteResolver *CSR) {
+#ifndef USE_BOUNCE_FUNCTIONS
+  const AliasSet *Targets = CSR->getTargets(CS);
+  if (!Targets || Targets->empty()) {
+    // cannot resolve the indirect call
+    return;
+  }
+
+  LOG("devirt", errs() << "Resolving indirect call site:\n"
+                       << *CS.getInstruction() << " using:\n";
+      for (auto &f
+           : *Targets) {
+        errs() << "\t" << f->getName() << " :: " << *(f->getType()) << "\n";
+      });
+
+  // HACK: remove constness
+  std::vector<Function *> Callees;
+  Callees.resize(Targets->size());
+  std::transform(Targets->begin(), Targets->end(), Callees.begin(),
+                 [](const Function *fn) { return const_cast<Function *>(fn); });
+  // promote indirect call to a bunch of direct calls
+  promoteIndirectCall(CS, Callees);
+#else
   const Function *bounceFn = mkBounceFn(CS, CSR);
   // -- something failed
   LOG("devirt", if (!bounceFn) errs() << "No bounce function for: "
@@ -579,8 +667,7 @@ void DevirtualizeFunctions::mkDirectCall(CallSite CS, CallSiteResolver *CSR) {
     CI->replaceAllUsesWith(CN);
     CI->eraseFromParent();
   }
-
-  return;
+#endif
 }
 
 bool DevirtualizeFunctions::resolveCallSites(Module &M, CallSiteResolver *CSR) {

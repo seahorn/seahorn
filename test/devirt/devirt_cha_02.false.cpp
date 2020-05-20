@@ -2,7 +2,7 @@
    because edge from D2 to D3 */
 
 // RUN: %sea pf -O0 --devirt-functions-with-cha "%s"  2>&1 | OutputCheck %s
-// CHECK: ^sat$
+// CHECK: ^unsat$
 
 #include "seahorn/seahorn.h"
 

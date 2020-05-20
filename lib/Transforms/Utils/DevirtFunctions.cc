@@ -7,6 +7,7 @@
 
 #include "llvm/Analysis/CallGraph.h"
 #include "llvm/IR/InstIterator.h"
+#include "llvm/Transforms/Utils/CallPromotionUtils.h"
 
 #include "seadsa/CompleteCallGraph.hh"
 
@@ -44,6 +45,54 @@ static inline Value *castTo(Value *V, Type *Ty, std::string Name,
   // Otherwise, insert a cast instruction.
   return CastInst::CreateZExtOrBitCast(V, Ty, Name, InsertPt);
 }
+
+
+/// 
+/// Create a sequence of if-then-else statements at the location of
+/// the callsite.  The "if" condition compares the callsite's called
+/// value with a function f from Callees.  The direct call to f is
+/// moved to the "then" block. The "else" block contains the next
+/// "if". For the last callsite's called value we don't create an
+/// "else" block.
+///
+/// For example, the call instruction below:
+///
+///   orig_bb:
+///     %t0 = call i32 %ptr()  with callees = {foo, bar}
+///     ...
+///
+/// Is replaced by the following:
+///
+///   orig_bb:
+///     %cond = icmp eq i32 ()* %ptr, @foo
+///     br i1 %cond, %then_bb, %else_bb
+///
+///   then_bb:
+///     %t1 = call i32 @foo()
+///     br merge_bb
+///
+///   else_bb:
+///     %t0 = call i32 %bar()
+///     br merge_bb
+///
+///   merge_bb:
+///     ; Uses of the original call instruction are replaced by uses of the phi
+///     ; node.
+///     %t2 = phi i32 [ %t0, %else_bb ], [ %t1, %then_bb ]
+///     ...
+///
+static void promoteIndirectCall(CallSite &CS, const std::vector<Function*> &Callees) {
+  for (unsigned i=0, numCallees = Callees.size(); i<numCallees; ++i) {
+    // The last callee does not create an "else" block
+    // If there is only one callee we don't create an "else" block either.
+    if (i == numCallees - 1) {
+      llvm::promoteCall(CS, Callees[i]);
+    } else {
+      llvm::promoteCallWithIfThenElse(CS, Callees[i]);
+    }
+  }
+}
+
 
 namespace devirt_impl {
 
@@ -122,6 +171,7 @@ CallSiteResolverByTypes::getTargets(CallSite &CS)  {
   }
 }
 
+#ifdef USE_BOUNCE_FUNCTIONS  
 Function* CallSiteResolverByTypes::getBounceFunction(CallSite& CS) {
   AliasSetId id = devirt_impl::typeAliasId(CS);
   auto it = m_bounce_map.find(id);
@@ -136,6 +186,8 @@ void CallSiteResolverByTypes::cacheBounceFunction(CallSite&CS, Function* bounce)
   AliasSetId id = devirt_impl::typeAliasId(CS);    
   m_bounce_map.insert({id, bounce});
 }
+#endif
+
 /** end Resolver by only types */
 
 /** begin Resolver by dsa+types */
@@ -246,6 +298,7 @@ CallSiteResolverByDsa::getTargets(CallSite& CS) {
   }
 }
 
+#ifdef USE_BOUNCE_FUNCTIONS  
 Function* CallSiteResolverByDsa::getBounceFunction(CallSite&CS) {
   AliasSetId id = devirt_impl::typeAliasId(CS);
   auto it = m_bounce_map.find(id);
@@ -269,6 +322,8 @@ void CallSiteResolverByDsa::cacheBounceFunction(CallSite& CS, Function* bounce) 
     m_bounce_map.insert({id, {Targets, bounce}});
   }
 }
+#endif
+
 /** end Resolver by dsa+types */
 
 /** begin Resolver by class hierarchy analysis */
@@ -292,6 +347,7 @@ CallSiteResolverByCHA::getTargets(CallSite &CS) {
   return &(m_cha->getVCallCallees(ICS));
 }
 
+#ifdef USE_BOUNCE_FUNCTIONS  
 Function* CallSiteResolverByCHA::getBounceFunction(CallSite& CS) {
   // Caching not implemented.
   // Caching cannot be based only on the function type signature. This
@@ -303,6 +359,8 @@ Function* CallSiteResolverByCHA::getBounceFunction(CallSite& CS) {
 void CallSiteResolverByCHA::cacheBounceFunction(CallSite&CS, Function* bounce) {
   // do nothing for now
 }
+#endif
+
 /** end Resolver by class hierarchy analysis */
 
 /***
@@ -340,6 +398,7 @@ void DevirtualizeFunctions::visitInvokeInst(InvokeInst &II) {
   visitCallSite(CS);
 }
 
+#ifdef USE_BOUNCE_FUNCTIONS  
 /**
  * Creates a bounce function that calls functions in an alias set directly
  * All the work happens here.
@@ -519,8 +578,31 @@ Function *DevirtualizeFunctions::mkBounceFn(CallSite &CS, CallSiteResolver *CSR)
   // Return the newly created bounce function.
   return F;
 }
+#endif
 
 void DevirtualizeFunctions::mkDirectCall(CallSite CS, CallSiteResolver *CSR) {
+#ifndef USE_BOUNCE_FUNCTIONS  
+  const AliasSet* Targets = CSR->getTargets(CS);
+  if (!Targets || Targets->empty()) {
+    // cannot resolve the indirect call
+    return;
+  }
+
+  LOG("devirt", errs() << "Resolving indirect call site:\n"
+                       << *CS.getInstruction() << " using:\n";
+      for (auto &f
+           : *Targets) {
+        errs() << "\t" << f->getName() << " :: " << *(f->getType()) << "\n";
+      });
+
+    // HACK: remove constness 
+    std::vector<Function*> Callees;
+    Callees.resize(Targets->size());
+    std::transform(Targets->begin(), Targets->end(), Callees.begin(),
+                   [](const Function* fn) { return const_cast<Function*>(fn);});
+    // promote indirect call to a bunch of direct calls
+    promoteIndirectCall(CS, Callees);
+#else  
   const Function *bounceFn = mkBounceFn(CS, CSR);
   // -- something failed
   LOG("devirt", if (!bounceFn) errs() << "No bounce function for: "
@@ -579,8 +661,7 @@ void DevirtualizeFunctions::mkDirectCall(CallSite CS, CallSiteResolver *CSR) {
     CI->replaceAllUsesWith(CN);
     CI->eraseFromParent();
   }
-
-  return;
+#endif   
 }
 
 bool DevirtualizeFunctions::resolveCallSites(Module &M, CallSiteResolver *CSR) {

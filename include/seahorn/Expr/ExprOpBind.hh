@@ -140,12 +140,6 @@ inline bool isArrayConst(Expr v) { return isConst<ARRAY_TY>(v); }
 inline bool isStructConst(Expr v) { return isConst<STRUCT_TY>(v);}
 inline bool isFiniteMapConst(Expr v) { return isConst<FINITE_MAP_TY>(v); }
 
-inline bool isConst(Expr v) {
-  return isConst<BOOL_TY>(v) || isConst<INT_TY>(v) || isConst<REAL_TY>(v) ||
-         isConst<ARRAY_TY>(v) || isConst<STRUCT_TY>(v) ||
-         isConst<FINITE_MAP_TY>(v);
-}
-
 inline Expr typeOf(Expr v) {
   using namespace bind;
   if (isOpX<VARIANT>(v))
@@ -191,8 +185,6 @@ inline Expr typeOf(Expr v) {
   //     return array_ty;
   //   }
   // }
-
-  // TODO: add here ops for FINITE_MAP
 
   std::cerr << "WARNING: could not infer type of: " << *v << "\n";
   llvm_unreachable("Type inference failed");

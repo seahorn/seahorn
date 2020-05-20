@@ -71,12 +71,8 @@ public:
 
   VisitAction operator()(Expr exp);
 
-  // TODO: replace by FamilyId with FiniteMapOP?
-  bool isFiniteMapOp(Expr e) {
-    return isOpX<CONST_FINITE_MAP_KEYS>(e) || isOpX<CONST_FINITE_MAP>(e) ||
-           isOpX<GET>(e) || isOpX<SET>(e);
-  }
-
+private:
+  bool isVisitFiniteMapOp(Expr e);
 };
 
 

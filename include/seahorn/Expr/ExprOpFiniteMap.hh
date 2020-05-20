@@ -1,7 +1,6 @@
 /// Finite Maps
 #pragma once
 
-#include "seahorn/Expr/Expr.hh"
 #include "seahorn/Expr/ExprApi.hh"
 #include "seahorn/Expr/ExprCore.hh"
 #include "seahorn/Expr/ExprOpBinder.hh"
@@ -14,6 +13,7 @@ namespace op {
 enum class FiniteMapOpKind {
   CONST_FINITE_MAP_KEYS,
   CONST_FINITE_MAP_VALUES,
+  FINITE_MAP_VAL_DEFAULT,
   CONST_FINITE_MAP,
   SET,
   GET
@@ -24,6 +24,7 @@ NOP_BASE(FiniteMapOp)
 NOP(CONST_FINITE_MAP_KEYS, "defk", FUNCTIONAL, FiniteMapOp)
 NOP(CONST_FINITE_MAP_VALUES, "defv", FUNCTIONAL, FiniteMapOp)
 NOP(CONST_FINITE_MAP, "defmap", FUNCTIONAL, FiniteMapOp)
+NOP(FINITE_MAP_VAL_DEFAULT, "fmap-default", FUNCTIONAL, FiniteMapOp)
 NOP(GET, "get", FUNCTIONAL, FiniteMapOp)
 NOP(SET, "set", FUNCTIONAL, FiniteMapOp)
 
@@ -32,41 +33,56 @@ NOP(SET, "set", FUNCTIONAL, FiniteMapOp)
 namespace op {
 namespace finite_map {
 
+// --------------- finite map primitives ------------------------------------------
 inline Expr constFiniteMapValues(ExprVector &values) {
-  return expr::mknary<CONST_FINITE_MAP_VALUES>(values.begin(), values.end());
+  return mknary<CONST_FINITE_MAP_VALUES>(values.begin(), values.end());
 }
 
-inline Expr constFiniteMap(ExprVector &keys) {
-  return expr::mknary<CONST_FINITE_MAP_KEYS>(keys.begin(), keys.end());
+inline Expr constFiniteMapKeys(ExprVector &keys) {
+  assert(keys.size() > 0);
+  return mknary<CONST_FINITE_MAP_KEYS>(keys.begin(), keys.end());
 }
-// especial construct when ALL the values of the map are known (they can be
+inline Expr constFiniteMap(ExprVector &keys, Expr vTy) {
+  return mk<CONST_FINITE_MAP>(constFiniteMapKeys(keys),
+                              mk<FINITE_MAP_VAL_DEFAULT>(vTy));
+}
+// construct when ALL the values of the map are known (they can be
 // variables)
 inline Expr constFiniteMap(ExprVector &keys, ExprVector &values) {
   assert(keys.size() == values.size());
-  return expr::mk<CONST_FINITE_MAP>(constFiniteMap(keys),
-                                    constFiniteMapValues(values));
+  return mk<CONST_FINITE_MAP>(constFiniteMapKeys(keys),
+                              constFiniteMapValues(values));
 }
 
-inline Expr get(Expr map, Expr idx) {
-  return expr::mk<GET>(map, idx);
-}
-inline Expr set(Expr map, Expr idx, Expr v) {
-  return expr::mk<SET>(map, idx, v);
-}
+inline Expr get(Expr map, Expr idx) { return mk<GET>(map, idx); }
+inline Expr set(Expr map, Expr idx, Expr v) { return mk<SET>(map, idx, v); }
 
-// \brief fresh map with unitialized values
-inline Expr mkEmptyMap(ExprFactory &efac) {
-  return mkTerm<expr::mpz_class>(0, efac);
-  // TODO: change 0 by the same as unitialized memory?
+
+
+// --------------- finite map sort ------------------------------------------
+inline Expr valTy(Expr fmTy) { return fmTy->left(); }
+inline Expr keys(Expr fmTy) { return fmTy->right(); }
+
+
+
+// --------------- transformation to lambda functions ------------------------
+// \brief fresh map with unitialized values of type ty, returns '0'
+// TODO: change 0 by the same as unitialized memory?
+inline Expr mkEmptyMap(Expr ty, ExprFactory &efac) {
+  if(isOpX<INT_TY>(ty))
+    return mkTerm<mpz_class>(0, efac); // is this an int already?
+  else
+    return bv::bvnum(mkTerm<mpz_class>(0, efac), ty);
 }
 
 // creates a set of keys as a lambda function
 inline Expr mkKeys(ExprVector &keys, ExprFactory &efac) {
 
   Expr x = bind::intConst(mkTerm<std::string>("x", efac));
+  // TODO: what do we use as variable name for the lambda function?
 
   Expr lmd_bot = bind::abs<LAMBDA>(std::array<Expr, 1>{x},
-                                   mkTerm<expr::mpz_class>(0, efac));
+                                   mkTerm<mpz_class>(0, efac));
   // up to here, it will be the same for all keysets
 
   int count = 1;
@@ -74,7 +90,7 @@ inline Expr mkKeys(ExprVector &keys, ExprFactory &efac) {
   Expr lmd_tmp = lmd_bot;
 
   for (auto key : keys) {
-    Expr nA = mkTerm<expr::mpz_class>(count, efac);
+    Expr nA = mkTerm<mpz_class>(count, efac);
     Expr cmp = mk<EQ>(key, x);
     Expr ite = boolop::lite(cmp, nA, op::bind::betaReduce(lmd_tmp, x));
     lmd_tmp = bind::abs<LAMBDA>(std::array<Expr, 1>{x}, ite);
@@ -86,7 +102,7 @@ inline Expr mkKeys(ExprVector &keys, ExprFactory &efac) {
 
 // creates a map for keys and values, assuming that they are sorted
 // old make_map_batch_values
-inline Expr mkInitializedMap(ExprVector &keys, ExprVector &values,
+inline Expr mkInitializedMap(ExprVector &keys, Expr vTy, ExprVector &values,
                              ExprFactory &efac, Expr &lambda_keys) {
 
   // assuming that there is a value for every key. If this is not available,
@@ -94,6 +110,7 @@ inline Expr mkInitializedMap(ExprVector &keys, ExprVector &values,
   assert(keys.size() == values.size());
 
   Expr x = bind::intConst(mkTerm<std::string>("x", efac));
+  // internal variable for the keys lambda term, it can be of any kind
 
   Expr lmd_bot = bind::abs<LAMBDA>(std::array<Expr, 1>{x},
                                    mkTerm<expr::mpz_class>(0, efac));
@@ -112,14 +129,14 @@ inline Expr mkInitializedMap(ExprVector &keys, ExprVector &values,
 
   count = 1;
 
-  Expr lmd_values = mkEmptyMap(efac);
-
+  Expr lmd_values = mkEmptyMap(vTy, efac);
+  Expr y = bind::mkConst(mkTerm<std::string>("y", efac), vTy);
+  // internal variable for the values lambda term, it must be of the value kind
   for (auto v : values) {
-    Expr pos_in_map = mkTerm<expr::mpz_class>(count, efac);
-    Expr cmp = mk<EQ>(x, pos_in_map);
-    Expr ite =
-        boolop::lite(cmp, v, op::bind::betaReduce(lmd_values, x));
-    lmd_values = bind::abs<LAMBDA>(std::array<Expr, 1>{x}, ite);
+    Expr pos_in_map = mkTerm<mpz_class>(count, efac);
+    Expr cmp = mk<EQ>(y, pos_in_map);
+    Expr ite = boolop::lite(cmp, v, op::bind::betaReduce(lmd_values, y));
+    lmd_values = bind::abs<LAMBDA>(std::array<Expr, 1>{y}, ite);
     count++;
   }
 
@@ -138,7 +155,9 @@ inline Expr mkGetVal(Expr map, Expr keys, Expr key) {
 inline Expr mkSetVal(Expr map, Expr keys, Expr key, Expr value,
                      ExprFactory &efac) {
 
-  Expr x = bind::intConst(mkTerm<std::string>("x", efac));
+  Expr kTy = bind::rangeTy(bind::fname(key)); // TODO: efficiency?
+  Expr x = bind::mkConst(mkTerm<std::string>("x", efac), kTy);
+  // this internal variable needs to be of the same sort as keys
 
   Expr pos_in_map = op::bind::betaReduce(keys, key);
   Expr cmp = mk<EQ>(x, pos_in_map);
@@ -156,18 +175,21 @@ inline Expr mkMapsDecl(Expr fdecl, ExprFactory &efac) {
   bool fmap_arg = false; // there are fmap args
   ExprVector newTypes;
 
-  Expr iTy = op::sort::intTy(efac);
   Expr fname = bind::fname(fdecl);
 
   for (auto tyIt = ++fdecl->args_begin(); tyIt != fdecl->args_end(); tyIt++) {
     Expr type = *tyIt;
     if (isOpX<FINITE_MAP_TY>(type)) {                 // the type is a FiniteMap
-      assert(type->args_begin() != type->args_end()); // the map has at
-                                                      // least one key
       fmap_arg = true;
-      for (auto kIt = type->args_begin(); kIt != type->args_end(); kIt++) {
-        newTypes.push_back(iTy); // new argument for key
-        newTypes.push_back(iTy); // new argument for value
+      Expr vTy = finite_map::valTy(type);
+      Expr ksTy = finite_map::keys(type);
+      assert(ksTy->args_begin() != ksTy->args_end()); // the map has at
+                                                      // least one key
+      auto ksIt = ksTy->args_begin();
+      Expr kTy = bind::rangeTy(bind::fname(*ksIt)); // type of the key
+      for (; ksIt != ksTy->args_end(); ksIt++) {
+        newTypes.push_back(kTy); // new argument for key
+        newTypes.push_back(vTy); // new argument for value
       }
     } else
       newTypes.push_back(type);
@@ -175,28 +197,7 @@ inline Expr mkMapsDecl(Expr fdecl, ExprFactory &efac) {
 
   Expr newfname = bind::fapp(fdecl); // to go back easier, the new name includes
                                      // the old declaration
-
   return fmap_arg ? bind::fdecl(newfname, newTypes) : fdecl;
-}
-
-// This function is just for testing // internal
-//
-// \brief builds an initialized map as a sequence of gets (as opposed to
-// mkInitializedMap), which builds one ite expression directly
-inline Expr make_map_sequence_gets(ExprVector & keys, ExprVector & values,
-                                   ExprFactory & efac, Expr & lambda_keys) {
-  assert(keys.size() == values.size());
-
-  lambda_keys = mkKeys(keys, efac);
-  Expr lmd_values = mkEmptyMap(efac);
-
-  auto it_v = values.begin();
-  for (auto k : keys) {
-    lmd_values = mkSetVal(lmd_values, lambda_keys, k, *it_v, efac);
-    it_v++;
-  }
-
-  return lmd_values;
 }
 
 } // namespace finite_map

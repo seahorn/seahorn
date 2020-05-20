@@ -84,6 +84,9 @@ static llvm::cl::opt<bool>
 static llvm::cl::opt<bool> CutLoops("horn-cut-loops",
                                     llvm::cl::desc("Cut all natural loops"),
                                     llvm::cl::init(false));
+static llvm::cl::opt<unsigned>
+    PeelLoops("horn-peel-loops", llvm::cl::desc("Number of iterations to peel"),
+              llvm::cl::init(0));
 
 static llvm::cl::opt<bool> SymbolizeLoops(
     "horn-symbolize-loops",
@@ -383,11 +386,19 @@ int main(int argc, char **argv) {
     pm_wrapper.add(seahorn::createMixedSemanticsPass());
     pm_wrapper.add(seahorn::createRemoveUnreachableBlocksPass());
     pm_wrapper.add(seahorn::createPromoteMallocPass());
-  } else if (CutLoops) {
+  } else if (CutLoops || PeelLoops > 0) {
     // -- cut loops to turn a program into loop-free program
     pm_wrapper.add(llvm::createLoopSimplifyPass());
+    pm_wrapper.add(llvm::createLoopSimplifyCFGPass());
+    pm_wrapper.add(llvm::createLoopRotatePass(1024));
     pm_wrapper.add(llvm::createLCSSAPass());
-    pm_wrapper.add(seahorn::createCutLoopsPass());
+    if (PeelLoops > 0)
+      pm_wrapper.add(seahorn::createLoopPeelerPass(PeelLoops));
+    if (CutLoops) {
+      pm_wrapper.add(seahorn::createBackEdgeCutterPass());
+      // -- disabled. back-edge-cutter should be more robust
+      // pm_wrapper.add(seahorn::createCutLoopsPass());
+    }
     // pm_wrapper.add (new seahorn::RemoveUnreachableBlocksPass ());
   }
   // checking for simple instances of memory safety. WIP

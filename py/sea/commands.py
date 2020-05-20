@@ -776,8 +776,10 @@ class CutLoops(sea.LimitedCmd):
 
     def mk_arg_parser (self, ap):
         ap = super (CutLoops, self).mk_arg_parser (ap)
-        ap.add_argument ('--log', dest='log', default=None,
+        ap.add_argument('--log', dest='log', default=None,
                          metavar='STR', help='Log level')
+        ap.add_argument('--peel', dest='peel', default=0, metavar='NUM',
+                        type=int, help='Number of iterations to peel loops')
         add_in_out_args (ap)
         _add_S_arg (ap)
         return ap
@@ -789,6 +791,10 @@ class CutLoops(sea.LimitedCmd):
 
         argv = list()
         if args.out_file is not None: argv.extend (['-o', args.out_file])
+
+        if args.peel > 0:
+            argv.append('-horn-peel-loops=' + str(args.peel))
+
         argv.append ('--horn-cut-loops')
         if args.llvm_asm: argv.append ('-S')
         argv.extend (args.in_files)

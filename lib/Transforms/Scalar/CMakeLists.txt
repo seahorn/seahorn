@@ -16,4 +16,6 @@ add_llvm_library (SeaTransformsScalar DISABLE_LLVM_LINK_LLVM_DYLIB
   PromoteSeahornAssume.cc
   PromoteMemcpy.cc
   UnifyAssumes.cc
+  LoopPeeler.cc
+  BackedgeCutter.cc
   )

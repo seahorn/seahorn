@@ -17,11 +17,14 @@ terms.
 #pragma once
 
 #include "seahorn/config.h"
-#include "llvm/Pass.h"
 #include "llvm/ADT/StringRef.h"
+#include "llvm/Pass.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Transforms/InstCombine/InstCombine.h"
 
+namespace llvm {
+class LoopPass;
+}
 namespace seahorn {
 llvm::Pass *createMarkInternalInlinePass();
 llvm::Pass *createMarkInternalAllocOrDeallocInlinePass();
@@ -127,11 +130,11 @@ inline llvm::Pass *createSeaDsaShadowMemPass() {
   return seadsa::createShadowMemPass();
 }
 
-inline llvm::Pass *createStripShadowMemPass(){
+inline llvm::Pass *createStripShadowMemPass() {
   return seadsa::createStripShadowMemPass();
 }
 
-llvm::ImmutablePass* createSeaBuiltinsWrapperPass();
-
-}
-
+llvm::ImmutablePass *createSeaBuiltinsWrapperPass();
+llvm::Pass* createLoopPeelerPass(unsigned Num = 1);
+llvm::Pass* createBackEdgeCutterPass();
+} // namespace seahorn

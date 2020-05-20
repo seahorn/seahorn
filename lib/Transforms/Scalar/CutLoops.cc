@@ -36,6 +36,8 @@ using namespace llvm;
 using namespace seahorn;
 
 #define DEBUG_TYPE "cut-loops"
+STATISTIC(NumLoopsCut, "Number of loops cut");
+STATISTIC(NumLoopsNotCut, "Number of loops failed to cut");
 
 namespace {
 class CutLoopsPass : public FunctionPass {
@@ -59,8 +61,13 @@ public:
     auto *ACWP = getAnalysisIfAvailable<AssumptionCacheTracker>();
     auto *AC = ACWP ? &ACWP->getAssumptionCache(F) : nullptr;
 
-    return CutLoop(L, SBI, nullptr /* LPM */, &LI, SE ? &SE->getSE() : nullptr,
-                   DT, AC);
+    bool res = CutLoop(L, SBI, nullptr /* LPM */, &LI,
+                       SE ? &SE->getSE() : nullptr, DT, AC);
+    if (res)
+      ++NumLoopsCut;
+    else
+      ++NumLoopsNotCut;
+    return res;
   }
 
   void getAnalysisUsage(AnalysisUsage &AU) const override {

@@ -129,6 +129,11 @@ class Clang(sea.LimitedCmd):
             if not self.plusplus:
                 ## this is an invalid argument with C++/ObjC++ with clang 3.8
                 argv.append('-fgnu89-inline')
+            else:
+                ## flags to tell clang to build C++ type information for vtables.
+                argv.append('-flto')
+                argv.append('-fvisibility=hidden')                                
+                argv.append('-fwhole-program-vtables')
 
             argv.extend ([s for s in extra if s.startswith ('-D')])
 

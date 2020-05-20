@@ -100,13 +100,17 @@ void removeFiniteMapsArgsHornClausesTransf(HornClauseDB &db, HornClauseDB &tdb) 
     FiniteMapArgsVisitor fmav(efac, allVars, predDeclTransf);
     Expr newRule = visit(fmav, rule.get(),dvc);
 
-    erase_if(
-        allVars, [](Expr expr) {
-            return isOpX<FINITE_MAP_TY>(bind::rangeTy(bind::fname(expr)));
+    erase_if(allVars, [](Expr expr){
+           return isOpX<FINITE_MAP_TY>(bind::rangeTy(bind::fname(expr)));
         });
 
     tdb.addRule(allVars, newRule);
   }
+
+  // copy queries
+  for( auto q : db.getQueries())
+    tdb.addQuery(q);
+
 }
 
 void removeFiniteMapsBodiesHornClausesTransf(HornClauseDB &db) {
@@ -124,8 +128,8 @@ void removeFiniteMapsBodiesHornClausesTransf(HornClauseDB &db) {
     FiniteMapBodyVisitor fmv(db.getExprFactory(), allVars);
 
     erase_if(
-        allVars, [](Expr expr) {
-            return isOpX<FINITE_MAP_TY>(bind::rangeTy(bind::fname(expr)));
+        allVars, [](Expr expr){
+           return isOpX<FINITE_MAP_TY>(bind::rangeTy(bind::fname(expr)));
         });
 
    HornRule new_rule(allVars, rule.head(), visit(fmv, rule.body(), dvc));

@@ -61,21 +61,6 @@ static Expr mkFun(const std::string &name, ExprVector sort) {
   return bind::fdecl(mkTerm(name, sort.at(0)->efac()), sort);
 }
 
-// Change this to work with HornClauseDB // TODO: remove!
-bool register_rule_and_query(Expr query, ExprVector &qvars,
-                             ZFixedPoint<EZ3> &fp) {
-
-  Expr qdecl = mkFun("query1", {sort::boolTy(qvars.at(0)->efac())});
-  fp.registerRelation(qdecl);
-  Expr q = bind::fapp(qdecl);
-  fp.addRule(qvars, boolop::limp(query, q));
-
-  errs() << fp.toString(q) << "\n";
-  boost::tribool res = fp.query(q);
-  errs() << "Solving: " << (res ? "sat" : "unsat") << "\n";
-  return static_cast<bool>(res);
-}
-
 static Expr registerQueryHornClauseDB(Expr query, ExprSet qvars,
                                       HornClauseDB &db) {
 
@@ -737,7 +722,6 @@ TEST_CASE("expr.finite_map.full_transf_1key") {
   // original query:
   // query :- m = defmap(defmap(defk(k1), fmap-default(INT)), defv(42)), foo1(m, k1, v), v \= 42.
   // UNSAT
-  tdb.addQuery(query);
 
   CHECK(!solveHornClauseDBZ3(tdb));
 }
@@ -789,8 +773,6 @@ TEST_CASE("expr.finite_map.full_transf_2keys") {
   errs() << "HornClauseDB without fmaps   ------------ \n";
   errs() << tdb << "\n";
   // This should be solvable by Z3
-
-  tdb.addQuery(query); // do this in the transformation
 
   CHECK(!solveHornClauseDBZ3(tdb));
 }

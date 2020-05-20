@@ -455,8 +455,10 @@ int main(int argc, char **argv) {
     }
 
     // -- resolve indirect calls
-    if (DevirtualizeFuncs)
+    if (DevirtualizeFuncs) {
+      pm_wrapper.add(llvm::createWholeProgramDevirtPass(nullptr, nullptr));
       pm_wrapper.add(seahorn::createDevirtualizeFunctionsPass());
+    }
 
     // -- externalize uses of address-taken functions
     if (ExternalizeAddrTakenFuncs)

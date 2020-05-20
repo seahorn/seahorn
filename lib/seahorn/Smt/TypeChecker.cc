@@ -23,14 +23,6 @@ class TCVR {
 
   bool isValue(Expr exp) { return isOpX<TRUE>(exp) || isOpX<FALSE>(exp); }
 
-  template <unsigned int N> bool numOfChildrenEq(Expr exp) {
-    return exp->arity() == N;
-  }
-
-  template <unsigned int N> bool numOfChildrenGreaterEq(Expr exp) {
-    return exp->arity() >= N;
-  }
-
   bool isValidNumType(Expr exp) {
     if (exp != nullptr &&
         (isOp<INT_TY>(exp) || isOp<REAL_TY>(exp) || isOp<UNINT_TY>(exp)))
@@ -58,20 +50,23 @@ class TCVR {
   }
 
   Expr inferTypeNumUnary(Expr exp) {
-    std::function<bool(Expr)> checkNumChildren =
-        std::bind(&TCVR::numOfChildrenEq<1>, this, std::placeholders::_1);
+    std::function<bool(Expr)> checkNumChildren =  [] (Expr exp) -> bool {
+      return exp->arity() == 1;
+    };
+
     return numTypeCheckChildren(exp, checkNumChildren);
   }
 
   Expr inferTypeNumNary(Expr exp) {
-    std::function<bool(Expr)> checkNumChildren = std::bind(
-        &TCVR::numOfChildrenGreaterEq<2>, this, std::placeholders::_1);
+    std::function<bool(Expr)> checkNumChildren = [](Expr exp) -> bool {
+      return exp->arity() >= 2;
+    };
     return numTypeCheckChildren(exp, checkNumChildren);
   }
 
   Expr inferTypeITE(Expr exp) {
     // ite(a,b,c) : a is bool type, b and c are the same type
-    if (numOfChildrenEq<3>(exp) && isOp<BOOL_TY>(m_cache.at(exp->arg(0))) &&
+    if (exp->arity() == 3 && isOp<BOOL_TY>(m_cache.at(exp->arg(0))) &&
         (m_cache.at(exp->arg(1)) == m_cache.at(exp->arg(2))))
       return sort::boolTy(exp->efac());
     else
@@ -96,20 +91,24 @@ class TCVR {
   }
 
   Expr inferTypeBoolBinary(Expr exp) {
-    std::function<bool(Expr)> checkNumChildren =
-        std::bind(&TCVR::numOfChildrenEq<2>, this, std::placeholders::_1);
+     std::function<bool(Expr)> checkNumChildren = [](Expr exp) -> bool {
+      return exp->arity() == 2;
+    };
     return boolCheckChildren(exp, checkNumChildren);
   }
 
   Expr inferTypeBoolUnary(Expr exp) {
-    std::function<bool(Expr)> checkNumChildren =
-        std::bind(&TCVR::numOfChildrenEq<1>, this, std::placeholders::_1);
+    std::function<bool(Expr)> checkNumChildren = [](Expr exp) -> bool {
+      return exp->arity() == 1;
+    };
     return boolCheckChildren(exp, checkNumChildren);
   }
 
   Expr inferTypeBoolNary(Expr exp) {
-    std::function<bool(Expr)> checkNumChildren = std::bind(
-        &TCVR::numOfChildrenGreaterEq<2>, this, std::placeholders::_1);
+    std::function<bool(Expr)> checkNumChildren = [](Expr exp) -> bool {
+      return exp->arity() >= 2;
+    };
+
     return boolCheckChildren(exp, checkNumChildren);
   }
 

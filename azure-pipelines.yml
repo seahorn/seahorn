@@ -1,5 +1,6 @@
-
 trigger:
+- dev10
+pr:
 - dev10
 
 resources:

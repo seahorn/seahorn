@@ -43,6 +43,7 @@ using namespace llvm;
 
 #define DEBUG_TYPE "sea-bounds-checking"
 
+#define SEA_DSA_ALIAS "sea_dsa_alias"
 #ifdef FAT_USE_FP
 #define SEA_SET_FAT_SLOT0 "__sea_set_extptr_slot0_fp"
 #define SEA_GET_FAT_SLOT0 "__sea_get_extptr_slot0_fp"
@@ -95,6 +96,7 @@ private:
   Function *m_getFatSlot1;   // get ptr size
   Function *m_copyFatSlots;  // copy ptr info
   Function *m_recoverFatPtr; // NEW: for ptr embed method only
+  Function *m_seaDsaAlias;   // sea_dsa_alias
 
   BasicBlock *getErrorBB();
   void emitBranchToTrap(Value *Cmp = nullptr);
@@ -177,9 +179,12 @@ bool FatBufferBoundsCheck::instrument(Value *Ptr, Value *InstVal,
   SizeOffsetEvalType SizeOffset = ObjSizeEval->compute(Ptr);
   Value *Or;
 
+  auto *ArgPtr = Builder->CreateBitCast(Ptr, Builder->getInt8PtrTy());
   Value *RecovPtr = Builder->CreateCall(
-      m_recoverFatPtr, Builder->CreateBitCast(Ptr, Builder->getInt8PtrTy()));
+      m_recoverFatPtr, ArgPtr);
   RawPtr = Builder->CreateBitCast(RecovPtr, Ptr->getType());
+
+  Builder->CreateCall(m_seaDsaAlias, {ArgPtr, RecovPtr});
 
   if (!ObjSizeEval->bothKnown(SizeOffset)) {
 
@@ -297,12 +302,19 @@ bool FatBufferBoundsCheck::instrumentAlloca(AllocaInst *Ptr,
   withBase->setArgOperand(1, argB);
 
   // set_fat_slot1(Ptr, Size)
-  argA = Builder->CreateBitCast(withBase, Builder->getInt8PtrTy());
-  withSize->setArgOperand(0, argA);
+  auto argC = Builder->CreateBitCast(withBase, Builder->getInt8PtrTy());
+  withSize->setArgOperand(0, argC);
   Builder->SetInsertPoint(withSize);
   auto size = DL.getTypeStoreSize(AllocedTy);
   auto *sizeVal = ConstantInt::get(IntPtrTy, size);
   withSize->setArgOperand(1, sizeVal);
+
+  Builder->SetInsertPoint(withSize->getParent(),
+                          ++BasicBlock::iterator(withSize));
+  Builder->CreateCall(m_seaDsaAlias, {argA, argC});
+  Builder->CreateCall(
+      m_seaDsaAlias,
+      {argC, Builder->CreateBitCast(withSize, Builder->getInt8PtrTy())});
 
   return true;
 }
@@ -319,9 +331,10 @@ bool FatBufferBoundsCheck::instrumentGep(GetElementPtrInst *Ptr,
   auto *BasePtr = Ptr->getPointerOperand();
 
   Builder->SetInsertPoint(Ptr);
-  Value *RecovPtr = Builder->CreateCall(
-      m_recoverFatPtr,
-      Builder->CreateBitCast(BasePtr, Builder->getInt8PtrTy()));
+  auto *ArgBasePtr = Builder->CreateBitCast(BasePtr, Builder->getInt8PtrTy());
+  Value *RecovPtr = Builder->CreateCall(m_recoverFatPtr, ArgBasePtr);
+
+  Builder->CreateCall(m_seaDsaAlias, {ArgBasePtr, RecovPtr});
   RawPtr = Builder->CreateBitCast(RecovPtr, BasePtr->getType());
 
   Builder->SetInsertPoint(Ptr->getParent(), ++BasicBlock::iterator(Ptr));
@@ -335,10 +348,13 @@ bool FatBufferBoundsCheck::instrumentGep(GetElementPtrInst *Ptr,
                            << " with type " << *GepTy->getPointerTo() << "\n";);
 
   Builder->SetInsertPoint(SlotCopyCall);
-  SlotCopyCall->setArgOperand(
-      0, Builder->CreateBitCast(Ptr, Builder->getInt8PtrTy()));
-  SlotCopyCall->setArgOperand(
-      1, Builder->CreateBitCast(BasePtr, Builder->getInt8PtrTy()));
+  auto *Arg0 = Builder->CreateBitCast(Ptr, Builder->getInt8PtrTy());
+  auto *Arg1 = Builder->CreateBitCast(BasePtr, Builder->getInt8PtrTy());
+  SlotCopyCall->setArgOperand(0, Arg0);
+  SlotCopyCall->setArgOperand(1, Arg1);
+
+  Builder->SetInsertPoint(Ptr->getParent(), ++BasicBlock::iterator(SlotCopyCall));
+  Builder->CreateCall(m_seaDsaAlias, {Arg0, SlotCopyCall});
   return true;
 }
 
@@ -382,7 +398,7 @@ bool FatBufferBoundsCheck::runOnFunction(Function &F) {
           .getCallee());
   m_setFatSlot0->setDoesNotThrow();
   m_setFatSlot0->setDoesNotReadMemory();
-  m_setFatSlot0->addParamAttr(0, Attribute::Returned);
+  // m_setFatSlot0->addParamAttr(0, Attribute::Returned);
 
   m_setFatSlot1 = cast<Function>(
       M->getOrInsertFunction(SEA_SET_FAT_SLOT1, Type::getInt8PtrTy(C, 0),
@@ -390,7 +406,7 @@ bool FatBufferBoundsCheck::runOnFunction(Function &F) {
           .getCallee());
   m_setFatSlot1->setDoesNotThrow();
   m_setFatSlot1->setDoesNotReadMemory();
-  m_setFatSlot1->addParamAttr(0, Attribute::Returned);
+  // m_setFatSlot1->addParamAttr(0, Attribute::Returned);
 
   m_copyFatSlots = cast<Function>(
       M->getOrInsertFunction(SEA_COPY_FAT_SLOTS, Type::getInt8PtrTy(C, 0),
@@ -398,7 +414,7 @@ bool FatBufferBoundsCheck::runOnFunction(Function &F) {
           .getCallee());
   m_copyFatSlots->setDoesNotThrow();
   m_copyFatSlots->setDoesNotReadMemory();
-  m_copyFatSlots->addParamAttr(0, Attribute::Returned);
+  // m_copyFatSlots->addParamAttr(0, Attribute::Returned);
   m_copyFatSlots->addParamAttr(1, Attribute::NoCapture);
 
   m_recoverFatPtr = cast<Function>(
@@ -407,8 +423,12 @@ bool FatBufferBoundsCheck::runOnFunction(Function &F) {
           .getCallee());
   m_recoverFatPtr->setDoesNotThrow();
   m_recoverFatPtr->setDoesNotReadMemory();
-  m_recoverFatPtr->addParamAttr(0, Attribute::Returned);
+  // m_recoverFatPtr->addParamAttr(0, Attribute::Returned);
 
+  m_seaDsaAlias = cast<Function>(
+      M->getOrInsertFunction(SEA_DSA_ALIAS, Type::getVoidTy(C),
+                             Type::getInt8PtrTy(C, 0), Type::getInt8PtrTy(C, 0))
+          .getCallee());
   // check HANDLE_MEMORY_INST in include/llvm/Instruction.def for memory
   // touching instructions
   std::vector<Instruction *> AccessWorkList;

@@ -7,6 +7,7 @@
 #include "llvm/Support/MathExtras.h"
 #include "llvm/Support/Regex.h"
 
+#include "seahorn/CallUtils.hh"
 #include "seahorn/Support/CFG.hh"
 #include "seahorn/Support/SeaDebug.h"
 #include "seahorn/Support/SeaLog.hh"
@@ -105,22 +106,6 @@ bool isShadowMem(const Value &V, const Value **out) {
 }
 
 const seahorn::details::Bv2OpSemContext &const_ctx(const OpSemContext &_ctx);
-
-/// \brief Work-arround for a bug in llvm::CallSite::getCalledFunction
-/// properly handle bitcast
-Function *getCalledFunction(CallSite &CS) {
-  Function *fn = CS.getCalledFunction();
-  if (fn)
-    return fn;
-
-  Value *v = CS.getCalledValue();
-  if (v)
-    v = v->stripPointerCasts();
-  fn = dyn_cast<Function>(v);
-
-  return fn;
-}
-
 } // namespace
 namespace seahorn {
 
@@ -466,7 +451,7 @@ public:
                        "are not supported and must be lowered");
     }
 
-    const Function *f = getCalledFunction(CS);
+    auto *f = getCalledFunction(CS);
     if (!f) {
       visitIndirectCall(CS);
       return;
@@ -520,7 +505,7 @@ public:
   }
 
   void visitFatPointerInstr(CallSite CS) {
-    const Function *f = getCalledFunction(CS);
+    auto *f = getCalledFunction(CS);
     assert(f);
     const Instruction &I = *CS.getInstruction();
 
@@ -569,7 +554,7 @@ public:
   }
 
   void visitVerifierAssumeCall(CallSite CS) {
-    Function &f = *getCalledFunction(CS);
+    auto &f = *getCalledFunction(CS);
 
     Expr op = lookup(*CS.getArgument(0));
     assert(op);
@@ -611,7 +596,7 @@ public:
   void visitShadowMemCall(CallSite CS) {
     const Instruction &inst = *CS.getInstruction();
 
-    const Function &F = *getCalledFunction(CS);
+    const auto &F = *getCalledFunction(CS);
     if (F.getName().equals("shadow.mem.init")) {
       unsigned id = shadow_dsa::getShadowId(CS);
       assert(id >= 0);
@@ -738,7 +723,7 @@ public:
     }
   }
   void visitExternalCall(CallSite CS) {
-    Function &F = *getCalledFunction(CS);
+    auto &F = *getCalledFunction(CS);
     if (F.getFunctionType()->getReturnType()->isVoidTy())
       return;
 
@@ -823,7 +808,8 @@ public:
       m_ctx.pushParameter(v);
     }
 
-    LOG("arg_error",
+    LOG(
+        "arg_error",
 
         if (m_ctx.getParameters().size() != bind::domainSz(fi.sumPred)) {
           const Instruction &I = *CS.getInstruction();
@@ -1782,14 +1768,16 @@ void Bv2OpSemContext::write(Expr v, Expr u) {
       _u = m_z3_simplifier->simplify(u);
     }
 
-    LOG("opsem.simplify",
+    LOG(
+        "opsem.simplify",
         //
         if (!isOpX<LAMBDA>(_u) && !isOpX<ITE>(_u) && dagSize(_u) > 100) {
           errs() << "Term after simplification:\n"
                  << m_z3->toSmtLib(_u) << "\n";
         });
 
-    LOG("opsem.dump.subformulae",
+    LOG(
+        "opsem.dump.subformulae",
         if ((isOpX<EQ>(_u) || isOpX<NEG>(_u)) && dagSize(_u) > 100) {
           static unsigned cnt = 0;
           std::ofstream file("assert." + std::to_string(++cnt) + ".smt2");

@@ -8,32 +8,33 @@
 #include "llvm/IR/Module.h"
 #include "llvm/IR/Verifier.h"
 #include "llvm/Pass.h"
-#include "llvm/Support/FileSystem.h"
-#include "llvm/Support/raw_ostream.h"
-#include "llvm/Support/ToolOutputFile.h"
 #include "llvm/Support/CommandLine.h"
+#include "llvm/Support/FileSystem.h"
+#include "llvm/Support/ToolOutputFile.h"
+#include "llvm/Support/raw_ostream.h"
 
-#include "seahorn/config.h"
-#include "seahorn/Support/Stats.hh"
-#include "seahorn/Transforms/Utils/NameValues.hh"
 #include "seahorn/Analysis/CanFail.hh"
 #include "seahorn/Analysis/ControlDependenceAnalysis.hh"
 #include "seahorn/Analysis/GateAnalysis.hh"
 #include "seahorn/Bmc.hh"
-#include "seahorn/CexHarness.hh"
 #include "seahorn/BvOpSem.hh"
 #include "seahorn/BvOpSem2.hh"
+#include "seahorn/CallUtils.hh"
+#include "seahorn/CexHarness.hh"
 #include "seahorn/DfCoiAnalysis.hh"
 #include "seahorn/PathBmc.hh"
 #include "seahorn/Support/SeaDebug.h"
 #include "seahorn/Support/SeaLog.hh"
+#include "seahorn/Support/Stats.hh"
+#include "seahorn/Transforms/Utils/NameValues.hh"
+#include "seahorn/config.h"
 
 #include "seadsa/ShadowMem.hh"
 
 namespace seahorn {
 // defined in HornCex.cc
 extern std::string HornCexFile;
-}
+} // namespace seahorn
 
 // XXX temporary debugging aid
 static llvm::cl::opt<bool> HornBv2("horn-bv2",
@@ -44,9 +45,9 @@ static llvm::cl::opt<bool> HornGSA("horn-gsa",
                                    llvm::cl::desc("Use Gated SSA for bmc"),
                                    llvm::cl::init(false), llvm::cl::Hidden);
 
-static llvm::cl::opt<bool> ComputeCoi("horn-bmc-coi",
-                                      llvm::cl::desc("Compute DataFlow-based COI"),
-                                      llvm::cl::init(false), llvm::cl::Hidden);
+static llvm::cl::opt<bool>
+    ComputeCoi("horn-bmc-coi", llvm::cl::desc("Compute DataFlow-based COI"),
+               llvm::cl::init(false), llvm::cl::Hidden);
 
 namespace {
 using namespace llvm;
@@ -55,10 +56,7 @@ using namespace seahorn;
 class BmcPass : public llvm::ModulePass {
 public:
   // Available BMC engines
-  enum class BmcEngineKind {
-    mono_bmc,
-    path_bmc
-  };
+  enum class BmcEngineKind { mono_bmc, path_bmc };
 
 private:
   /// bmc engine type
@@ -75,8 +73,8 @@ private:
 public:
   static char ID;
 
-  BmcPass(BmcEngineKind engine = BmcEngineKind::mono_bmc, raw_ostream *out = nullptr,
-          bool solve = true)
+  BmcPass(BmcEngineKind engine = BmcEngineKind::mono_bmc,
+          raw_ostream *out = nullptr, bool solve = true)
       : llvm::ModulePass(ID), m_engine(engine), m_out(out), m_solve(solve),
         m_failure_analysis(nullptr) {}
 
@@ -103,12 +101,12 @@ public:
   void getAnalysisUsage(AnalysisUsage &AU) const {
     AU.addRequired<TargetLibraryInfoWrapperPass>();
     AU.addRequired<seadsa::ShadowMemPass>();
-    
+
     AU.addRequired<CanFail>();
     AU.addRequired<NameValues>();
     AU.addRequired<TopologicalOrder>();
     AU.addRequired<CutPointGraph>();
-    
+
     if (HornGSA)
       AU.addRequired<GateAnalysisPass>();
 
@@ -128,10 +126,7 @@ public:
         for (auto &I : boost::make_iterator_range(inst_begin(F), inst_end(F))) {
           if (!isa<CallInst>(&I))
             continue;
-          // -- look through pointer casts
-          Value *v = I.stripPointerCasts();
-          CallSite CS(const_cast<Value *>(v));
-          const Function *fn = CS.getCalledFunction();
+          const auto *fn = getCalledFunction(cast<CallInst>(I));
           canFail |= (fn == failureFn);
         }
       }
@@ -182,15 +177,15 @@ public:
       std::unique_ptr<OperationalSemantics> sem;
       if (HornBv2)
         sem = std::make_unique<Bv2OpSem>(efac, *this,
-                                          F.getParent()->getDataLayout(), MEM);
+                                         F.getParent()->getDataLayout(), MEM);
       else
         sem = std::make_unique<BvOpSem>(efac, *this,
-                                         F.getParent()->getDataLayout(), MEM);
+                                        F.getParent()->getDataLayout(), MEM);
 
-      if(ComputeCoi) {
-	computeCoi(F, *sem);
+      if (ComputeCoi) {
+        computeCoi(F, *sem);
       }
-      
+
       EZ3 zctx(efac);
       // XXX: uses OperationalSemantics but trace generation still depends on
       // LegacyOperationalSemantics
@@ -241,7 +236,8 @@ public:
       else if (!res)
         Stats::sset("Result", "TRUE");
 
-      LOG("bmc_core",
+      LOG(
+          "bmc_core",
           // producing bmc core is expensive. Enable only if specifically
           // requested
           if (!res) {
@@ -253,43 +249,44 @@ public:
             errs() << "CORE END\n";
           });
 
-
-      
-      LOG("cex", if (res) {
-	  errs() << "Analyzed Function:\n" << F << "\n";
-	  errs() << "Trace \n";
-	  BmcTrace trace(bmc.getTrace());	  
-	  trace.print(errs());
-	});
+      LOG(
+          "cex", if (res) {
+            errs() << "Analyzed Function:\n" << F << "\n";
+            errs() << "Trace \n";
+            BmcTrace trace(bmc.getTrace());
+            trace.print(errs());
+          });
 
       if (res) {
-	StringRef CexFileRef(HornCexFile);
-	if (CexFileRef != "") {
-	  if (CexFileRef.endswith(".ll") || CexFileRef.endswith(".bc")) {
-	    auto &tli = getAnalysis<TargetLibraryInfoWrapperPass>();
-	    auto const &dl = F.getParent()->getDataLayout();
-	    BmcTrace trace(bmc.getTrace());	  	  
-	    BmcTraceWrapper trace_wrapper(trace);
-	    dumpLLVMCex(trace_wrapper, CexFileRef, dl, tli.getTLI(F), F.getContext());
-	  } else {
-	    WARN << "The Bmc engine only generates harnesses in bitcode format";
-	  }
-	}
+        StringRef CexFileRef(HornCexFile);
+        if (CexFileRef != "") {
+          if (CexFileRef.endswith(".ll") || CexFileRef.endswith(".bc")) {
+            auto &tli = getAnalysis<TargetLibraryInfoWrapperPass>();
+            auto const &dl = F.getParent()->getDataLayout();
+            BmcTrace trace(bmc.getTrace());
+            BmcTraceWrapper trace_wrapper(trace);
+            dumpLLVMCex(trace_wrapper, CexFileRef, dl, tli.getTLI(F),
+                        F.getContext());
+          } else {
+            WARN << "The Bmc engine only generates harnesses in bitcode format";
+          }
+        }
       }
     } else if (m_engine == BmcEngineKind::path_bmc) {
 
-      auto const &dl = F.getParent()->getDataLayout();      
-      std::unique_ptr<OperationalSemantics> sem = std::make_unique<BvOpSem>(
-          efac, *this, dl, MEM);
+      auto const &dl = F.getParent()->getDataLayout();
+      std::unique_ptr<OperationalSemantics> sem =
+          std::make_unique<BvOpSem>(efac, *this, dl, MEM);
 
       // Use ShadowMem to translate memory instructions to Crab arrays
       // preserving memory SSA form.
       auto &sm = getAnalysis<seadsa::ShadowMemPass>().getShadowMem();
-	
+
       // XXX: use of legacy operational semantics
       auto &tli = getAnalysis<TargetLibraryInfoWrapperPass>();
-      PathBmcEngine bmc(static_cast<LegacyOperationalSemantics &>(*sem), tli, sm);
-			
+      PathBmcEngine bmc(static_cast<LegacyOperationalSemantics &>(*sem), tli,
+                        sm);
+
       bmc.addCutPoint(src);
       bmc.addCutPoint(*dst);
       LOG("bmc", errs() << "Path BMC from: " << src.bb().getName() << " to "
@@ -319,12 +316,13 @@ public:
       else if (res == solver::SolverResult::UNSAT)
         Stats::sset("Result", "TRUE");
 
-      LOG("cex", if (res == solver::SolverResult::SAT) {
-        errs() << "Analyzed Function:\n" << F << "\n";
-        PathBmcTrace trace(bmc.getTrace());
-        errs() << "Trace \n";
-        trace.print(errs());
-      });
+      LOG(
+          "cex", if (res == solver::SolverResult::SAT) {
+            errs() << "Analyzed Function:\n" << F << "\n";
+            PathBmcTrace trace(bmc.getTrace());
+            errs() << "Trace \n";
+            trace.print(errs());
+          });
 
       // TODO: generate a harness from PathBmcTrace
     }
@@ -333,7 +331,6 @@ public:
 
   StringRef getPassName() const override { return "BmcPass"; }
 
-
   void computeCoi(Function &F, OperationalSemantics &sem) {
     DfCoiAnalysis dfCoi;
 
@@ -341,11 +338,12 @@ public:
     assert(m);
     // -- compute dependnece of verifier.assume()
     Function *assumeFn = m->getFunction("verifier.assume");
-    if(assumeFn) {
+    if (assumeFn) {
       for (auto *u : assumeFn->users()) {
         if (auto *CI = dyn_cast<CallInst>(u)) {
           CallSite CS(CI);
-          if (CS.getCaller() != &F) continue;
+          if (CS.getCaller() != &F)
+            continue;
           dfCoi.analyze(*CI);
         }
       }

@@ -49,6 +49,8 @@ void checkNotWellFormed(Expr e[], Expr error[], int size) {
       llvm::errs() << "Type is " << *ty << "\n\n";
     else
       llvm::errs() << "Not well-formed expression. Type inference failed\n";
+
+    tc.reset();
   }
 }
 
@@ -64,6 +66,8 @@ void checkWellFormed(Expr e[], int size, Expr type) {
       llvm::errs() << "Type is " << *ty << "\n\n";
     else
       llvm::errs() << "Not well-formed expression. Type inference failed\n";
+
+    tc.reset();
   }
 }
 

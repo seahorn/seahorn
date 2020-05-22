@@ -5,11 +5,10 @@
 #include "seahorn/Support/SeaDebug.h"
 #include "llvm/Support/raw_ostream.h"
 
-
 using namespace expr;
 namespace {
 // local code in this namespace
- 
+
 //==-- main implementation goes here --==//
 class TCVR {
   ExprMap m_cache;
@@ -24,7 +23,7 @@ class TCVR {
 
   bool isValue(Expr exp) { return isOpX<TRUE>(exp) || isOpX<FALSE>(exp); }
 
-  Expr inferType(Expr exp , TypeChecker & tc) {
+  Expr inferType(Expr exp, TypeChecker &tc) {
     if (isOpX<TRUE>(exp) || isOpX<FALSE>(exp))
       return sort::boolTy(exp->efac());
     else if (bind::isBoolConst(exp))
@@ -94,16 +93,13 @@ public:
 
   Expr operator()(Expr exp) { return postVisit(exp); }
 
-  Expr knownTypeOf(Expr e) { 
-    if (m_isWellFormed) {
-      m_errorExp = Expr();
-    }
+  Expr knownTypeOf(Expr e) { return e ? m_cache.at(e) : Expr(); }
+
+  Expr getErrorExp() { return m_isWellFormed ? Expr() : m_errorExp; }
+  void reset() {
+    m_errorExp = Expr();
     m_isWellFormed = true;
-
-    return e ? m_cache.at(e) : Expr(); 
   }
-
-  Expr getErrorExp() { return m_errorExp; }
 };
 
 //==-- Adapts visitor for pre- and post- traversal --==/
@@ -124,14 +120,16 @@ public:
   Expr knownTypeOf(Expr e) { return m_rw->knownTypeOf(e); }
 
   Expr getErrorExp() { return m_rw->getErrorExp(); }
+  void reset() { m_rw->reset(); }
 };
 } // namespace
 
 namespace expr {
 class TypeChecker::Impl {
   TCV m_visitor;
+
 public:
-  Impl (TypeChecker *tc) : m_visitor(tc) {}
+  Impl(TypeChecker *tc) : m_visitor(tc) {}
 
   Expr typeOf(Expr e) {
     Expr v = visit(m_visitor, e);
@@ -140,6 +138,7 @@ public:
   }
 
   Expr getErrorExp() { return m_visitor.getErrorExp(); }
+  void reset() { m_visitor.reset(); }
 };
 
 TypeChecker::TypeChecker() : m_impl(new TypeChecker::Impl(this)) {}
@@ -148,5 +147,6 @@ Expr TypeChecker::typeOf(Expr e) { return m_impl->typeOf(e); }
 Expr TypeChecker::getErrorExp() { // to be called after typeOf() or sortOf()
   return m_impl->getErrorExp();
 }
+void TypeChecker::reset() { m_impl->reset(); }
 
 } // namespace expr

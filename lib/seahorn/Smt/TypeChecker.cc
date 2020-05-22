@@ -149,12 +149,4 @@ Expr TypeChecker::getErrorExp() { // to be called after typeOf() or sortOf()
   return m_impl->getErrorExp();
 }
 
-namespace op{
-namespace typeCheck {
-    inline Expr ANY::inferType(Expr exp, TypeChecker &tc) {
-      std::cout<<""<<std::endl;
-      return sort::anyTy(exp->efac());
-    }
-  } // namespace typeCheck
-} // namespace op
 } // namespace expr

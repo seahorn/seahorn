@@ -15,9 +15,14 @@ public:
 };
 
 namespace op {
+namespace sort {
+inline Expr anyTy(ExprFactory &efac);
+}
 namespace typeCheck {
 struct ANY {
-  static inline Expr inferType(Expr exp, TypeChecker &tc);
+  static inline Expr inferType(Expr exp, TypeChecker &tc) {
+    return sort::anyTy(exp->efac());
+  }
 };
 } // namespace typeCheck
 } // namespace op

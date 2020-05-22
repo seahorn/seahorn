@@ -24,94 +24,6 @@ class TCVR {
 
   bool isValue(Expr exp) { return isOpX<TRUE>(exp) || isOpX<FALSE>(exp); }
 
-  bool isValidNumType(Expr exp) {
-    if (exp != nullptr &&
-        (isOp<INT_TY>(exp) || isOp<REAL_TY>(exp) || isOp<UNINT_TY>(exp)))
-      return true;
-    return false;
-  }
-
-  // ensures the expression has the correct number of children and all children
-  // are the same and correct type
-  Expr numTypeCheckChildren(Expr exp,
-                            std::function<bool(Expr exp)> checkNumChildren) {
-    if (!checkNumChildren(exp))
-      return sort::errorTy(exp->efac());
-
-    Expr type = m_cache.at(exp->first());
-    auto isSameType = [this, &type](Expr exp) {
-      return type != nullptr && this->m_cache.at(exp) == type;
-    };
-
-    if (isValidNumType(type) &&
-        std::all_of(exp->args_begin(), exp->args_end(), isSameType))
-      return type;
-    else
-      return sort::errorTy(exp->efac());
-  }
-
-  Expr inferTypeNumUnary(Expr exp) {
-    std::function<bool(Expr)> checkNumChildren = [](Expr exp) -> bool {
-      return exp->arity() == 1;
-    };
-
-    return numTypeCheckChildren(exp, checkNumChildren);
-  }
-
-  Expr inferTypeNumNary(Expr exp) {
-    std::function<bool(Expr)> checkNumChildren = [](Expr exp) -> bool {
-      return exp->arity() >= 2;
-    };
-    return numTypeCheckChildren(exp, checkNumChildren);
-  }
-
-  Expr inferTypeITE(Expr exp) {
-    // ite(a,b,c) : a is bool type, b and c are the same type
-    if (exp->arity() == 3 && isOp<BOOL_TY>(m_cache.at(exp->arg(0))) &&
-        (m_cache.at(exp->arg(1)) == m_cache.at(exp->arg(2))))
-      return sort::boolTy(exp->efac());
-    else
-      return sort::errorTy(exp->efac());
-  }
-
-  // ensures the expression has the correct number of children and all children
-  // are bool types
-  Expr boolCheckChildren(Expr exp,
-                         std::function<bool(Expr exp)> checkNumChildren) {
-    auto isBool = [this](Expr exp) {
-      Expr type = this->m_cache.at(exp);
-
-      return type != nullptr && isOp<BOOL_TY>(type);
-    };
-
-    if (checkNumChildren(exp) &&
-        std::all_of(exp->args_begin(), exp->args_end(), isBool))
-      return sort::boolTy(exp->efac());
-    else
-      return sort::errorTy(exp->efac());
-  }
-
-  Expr inferTypeBoolBinary(Expr exp) {
-    std::function<bool(Expr)> checkNumChildren = [](Expr exp) -> bool {
-      return exp->arity() == 2;
-    };
-    return boolCheckChildren(exp, checkNumChildren);
-  }
-
-  Expr inferTypeBoolUnary(Expr exp) {
-    std::function<bool(Expr)> checkNumChildren = [](Expr exp) -> bool {
-      return exp->arity() == 1;
-    };
-    return boolCheckChildren(exp, checkNumChildren);
-  }
-
-  Expr inferTypeBoolNary(Expr exp) {
-    std::function<bool(Expr)> checkNumChildren = [](Expr exp) -> bool {
-      return exp->arity() >= 2;
-    };
-    return boolCheckChildren(exp, checkNumChildren);
-  }
-
   Expr inferType(Expr exp , TypeChecker & tc) {
     if (isOpX<TRUE>(exp) || isOpX<FALSE>(exp))
       return sort::boolTy(exp->efac());
@@ -133,12 +45,12 @@ class TCVR {
     else if (bind::isUnintConst(exp))
       return sort::unintTy(exp->efac());
 
-    else if (isOpX<PLUS>(exp) || isOpX<MINUS>(exp) || isOpX<MULT>(exp) ||
-             isOpX<DIV>(exp) || isOpX<IDIV>(exp) || isOpX<MOD>(exp) ||
-             isOpX<REM>(exp) || isOpX<UN_MINUS>(exp))
-      return inferTypeNumNary(exp);
-    else if (isOpX<ABS>(exp))
-      return inferTypeNumUnary(exp);
+    // else if (isOpX<PLUS>(exp) || isOpX<MINUS>(exp) || isOpX<MULT>(exp) ||
+    //          isOpX<DIV>(exp) || isOpX<IDIV>(exp) || isOpX<MOD>(exp) ||
+    //          isOpX<REM>(exp) || isOpX<UN_MINUS>(exp))
+    //   return inferTypeNumNary(exp);
+    // else if (isOpX<ABS>(exp))
+    //   return inferTypeNumUnary(exp);
 
     return exp->inferType(exp, tc);
   }
@@ -239,11 +151,10 @@ Expr TypeChecker::getErrorExp() { // to be called after typeOf() or sortOf()
 
 namespace op{
 namespace typeCheck {
-    Expr ANY::inferType(Expr exp, TypeChecker &tc) {
-      std::cout<<"ANY123 -------------"<<std::endl;
-
+    inline Expr ANY::inferType(Expr exp, TypeChecker &tc) {
+      std::cout<<""<<std::endl;
       return sort::anyTy(exp->efac());
     }
-  } // namesapce typeCheck
+  } // namespace typeCheck
 } // namespace op
 } // namespace expr

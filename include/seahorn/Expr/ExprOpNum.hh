@@ -22,18 +22,71 @@ enum class NumericOpKind {
   NINFTY,
   ITV
 };
+
+namespace typeCheck {
+namespace numType {
+
+static inline bool isValidNumType(Expr exp) {
+  if (exp != nullptr &&
+      (isOp<INT_TY>(exp) || isOp<REAL_TY>(exp) || isOp<UNINT_TY>(exp)))
+    return true;
+  else
+    return false;
+}
+
+// ensures: 1. correct number of children, 2. all children are of the correct
+// type, 3. all children are of the same type
+static inline Expr checkChildren(Expr exp,
+                                 std::function<bool(Expr exp)> checkNumChildren,
+                                 TypeChecker &tc) {
+  if (!checkNumChildren(exp))
+    return sort::errorTy(exp->efac());
+
+  Expr type = tc.typeOf(exp->first());
+
+  auto isSameType = [&tc, &type](Expr exp) {
+    return type != nullptr && tc.typeOf(exp) == type;
+  };
+
+  if (isValidNumType(type) &&
+      std::all_of(exp->args_begin(), exp->args_end(), isSameType))
+    return type;
+  else
+    return sort::errorTy(exp->efac());
+}
+
+struct UNARY {
+  static inline Expr inferType(Expr exp, TypeChecker &tc) {
+    std::function<bool(Expr)> checkNumChildren = [](Expr exp) -> bool {
+      return exp->arity() == 1;
+    };
+    return checkChildren(exp, checkNumChildren, tc);
+  }
+};
+
+struct NARY {
+  static inline Expr inferType(Expr exp, TypeChecker &tc) {
+    std::function<bool(Expr)> checkNumChildren = [](Expr exp) -> bool {
+      return exp->arity() >= 2;
+    };
+    return checkChildren(exp, checkNumChildren, tc);
+  }
+};
+} // namespace numType
+} // namespace typeCheck
+
 // -- Numeric operators
 NOP_BASE(NumericOp)
 
-NOP(PLUS, "+", INFIX, NumericOp)
-NOP(MINUS, "-", INFIX, NumericOp)
-NOP(MULT, "*", INFIX, NumericOp)
-NOP(DIV, "/", INFIX, NumericOp)
-NOP(IDIV, "/", INFIX, NumericOp);
-NOP(MOD, "mod", INFIX, NumericOp)
-NOP(REM, "%", INFIX, NumericOp)
-NOP(UN_MINUS, "-", PREFIX, NumericOp)
-NOP(ABS, "abs", FUNCTIONAL, NumericOp)
+NOP_TYPECHECK(PLUS, "+", INFIX, NumericOp, typeCheck::numType::NARY)
+NOP_TYPECHECK(MINUS, "-", INFIX, NumericOp, typeCheck::numType::NARY)
+NOP_TYPECHECK(MULT, "*", INFIX, NumericOp, typeCheck::numType::NARY)
+NOP_TYPECHECK(DIV, "/", INFIX, NumericOp, typeCheck::numType::NARY)
+NOP_TYPECHECK(IDIV, "/", INFIX, NumericOp, typeCheck::numType::NARY)
+NOP_TYPECHECK(MOD, "mod", INFIX, NumericOp, typeCheck::numType::NARY)
+NOP_TYPECHECK(REM, "%", INFIX, NumericOp, typeCheck::numType::NARY)
+NOP_TYPECHECK(UN_MINUS, "-", PREFIX, NumericOp, typeCheck::numType::NARY)
+NOP_TYPECHECK(ABS, "abs", FUNCTIONAL, NumericOp, typeCheck::numType::UNARY)
 
 NOP(PINFTY, "oo", PREFIX, NumericOp)
 NOP(NINFTY, "-oo", PREFIX, NumericOp)

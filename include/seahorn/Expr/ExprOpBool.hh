@@ -11,11 +11,11 @@ namespace op {
 enum class BoolOpKind { TRUE, FALSE, AND, OR, XOR, NEG, IMPL, ITE, IFF };
 
 namespace typeCheck {
-
+namespace boolType {
 // ensures the expression has the correct number of children and all children
 // are bool types
 static inline Expr
-boolCheckChildren(Expr exp, std::function<bool(Expr exp)> checkNumChildren,
+checkChildren(Expr exp, std::function<bool(Expr exp)> checkNumChildren,
                   TypeChecker &tc) {
   auto isBool = [&tc](Expr exp) {
     Expr type = tc.typeOf(exp);
@@ -29,30 +29,30 @@ boolCheckChildren(Expr exp, std::function<bool(Expr exp)> checkNumChildren,
   else
     return sort::errorTy(exp->efac());
 }
-struct BOOL_UNARY {
+struct UNARY {
   static inline Expr inferType(Expr exp, TypeChecker &tc) {
     std::function<bool(Expr)> checkNumChildren = [](Expr exp) -> bool {
       return exp->arity() == 1;
     };
-    return typeCheck::boolCheckChildren(exp, checkNumChildren, tc);
+    return checkChildren(exp, checkNumChildren, tc);
   }
 };
 
-struct BOOL_BINARY {
+struct BINARY {
   static inline Expr inferType(Expr exp, TypeChecker &tc) {
     std::function<bool(Expr)> checkNumChildren = [](Expr exp) -> bool {
       return exp->arity() == 2;
     };
-    return typeCheck::boolCheckChildren(exp, checkNumChildren, tc);
+    return checkChildren(exp, checkNumChildren, tc);
   }
 };
 
-struct BOOL_NARY {
+struct NARY {
   static inline Expr inferType(Expr exp, TypeChecker &tc) {
     std::function<bool(Expr)> checkNumChildren = [](Expr exp) -> bool {
       return exp->arity() >= 2;
     };
-    return typeCheck::boolCheckChildren(exp, checkNumChildren, tc);
+    return checkChildren(exp, checkNumChildren, tc);
   }
 };
 
@@ -67,6 +67,7 @@ struct ITE {
       return sort::errorTy(exp->efac());
   }
 };
+} //namespace boolType
 } // namespace typeCheck
 
 // -- Boolean opearators
@@ -75,13 +76,13 @@ NOP_BASE(BoolOp)
 /* operator definitions */
 NOP(TRUE, "true", PREFIX, BoolOp)
 NOP(FALSE, "false", PREFIX, BoolOp)
-NOP_TYPECHECK(AND, "&&", INFIX, BoolOp, typeCheck::BOOL_NARY)
-NOP_TYPECHECK(OR, "||", INFIX, BoolOp, typeCheck::BOOL_NARY)
-NOP_TYPECHECK(XOR, "^", INFIX, BoolOp, typeCheck::BOOL_NARY)
-NOP_TYPECHECK(NEG, "!", PREFIX, BoolOp, typeCheck::BOOL_UNARY)
-NOP_TYPECHECK(IMPL, "->", INFIX, BoolOp, typeCheck::BOOL_BINARY)
-NOP_TYPECHECK(ITE, "ite", FUNCTIONAL, BoolOp, typeCheck::ITE)
-NOP_TYPECHECK(IFF, "<->", INFIX, BoolOp, typeCheck::BOOL_BINARY)
+NOP_TYPECHECK(AND, "&&", INFIX, BoolOp, typeCheck::boolType::NARY)
+NOP_TYPECHECK(OR, "||", INFIX, BoolOp, typeCheck::boolType::NARY)
+NOP_TYPECHECK(XOR, "^", INFIX, BoolOp, typeCheck::boolType::NARY)
+NOP_TYPECHECK(NEG, "!", PREFIX, BoolOp, typeCheck::boolType::UNARY)
+NOP_TYPECHECK(IMPL, "->", INFIX, BoolOp, typeCheck::boolType::BINARY)
+NOP_TYPECHECK(ITE, "ite", FUNCTIONAL, BoolOp, typeCheck::boolType::ITE)
+NOP_TYPECHECK(IFF, "<->", INFIX, BoolOp, typeCheck::boolType::BINARY)
 
 namespace boolop {
 // -- logical AND. Applies simplifications

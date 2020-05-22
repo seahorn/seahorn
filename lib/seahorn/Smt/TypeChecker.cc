@@ -19,7 +19,7 @@ class TCVR {
 
   bool isConst(Expr exp) {
     return bind::isBoolConst(exp) || bind::isIntConst(exp) ||
-           bind::isRealConst(exp);
+           bind::isRealConst(exp) || bind::isUnintConst(exp);
   }
 
   bool isValue(Expr exp) { return isOpX<TRUE>(exp) || isOpX<FALSE>(exp); }

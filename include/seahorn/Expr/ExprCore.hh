@@ -22,6 +22,7 @@ using namespace expr::op;
 class ENode;
 class ExprFactory;
 class ExprFactoryAllocator;
+class TypeChecker;
 
 using Expr = boost::intrusive_ptr<ENode>;
 using ExprSet = std::set<Expr>;
@@ -86,6 +87,7 @@ public:
   /// \brief Returns heap-allocted copy of the operator
   virtual Operator *clone(ExprFactoryAllocator &allocator) const = 0;
   virtual std::string name() const = 0;
+  virtual Expr inferType(Expr exp, TypeChecker &tc) const = 0;
 };
 
 inline std::ostream &operator<<(std::ostream &OS, const Operator &V) {
@@ -178,6 +180,10 @@ public:
   void dump() const {
     Print(std::cerr, 0, false);
     std::cerr << std::endl;
+  }
+
+  Expr inferType(Expr exp, TypeChecker &tc) {
+    return m_oper->inferType(exp, tc);
   }
 
   friend class ExprFactory;
@@ -524,7 +530,6 @@ inline void intrusive_ptr_add_ref(ENode *v) { v->Ref(); }
 inline void intrusive_ptr_release(ENode *v) { v->efac().Deref(v); }
 
 } // namespace expr
-
 
 // ========================== HASHING ======================================
 namespace expr {

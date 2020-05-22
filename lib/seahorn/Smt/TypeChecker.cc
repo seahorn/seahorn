@@ -5,16 +5,17 @@
 #include "seahorn/Support/SeaDebug.h"
 #include "llvm/Support/raw_ostream.h"
 
-using namespace expr;
 
+using namespace expr;
 namespace {
 // local code in this namespace
-
+ 
 //==-- main implementation goes here --==//
 class TCVR {
   ExprMap m_cache;
   bool m_isWellFormed = true;
   Expr m_errorExp;
+  TypeChecker *m_tc;
 
   bool isConst(Expr exp) {
     return bind::isBoolConst(exp) || bind::isIntConst(exp) ||
@@ -80,7 +81,7 @@ class TCVR {
     auto isBool = [this](Expr exp) {
       Expr type = this->m_cache.at(exp);
 
-      return type != nullptr && isOp<BOOL_TY>(this->m_cache.at(exp));
+      return type != nullptr && isOp<BOOL_TY>(type);
     };
 
     if (checkNumChildren(exp) &&
@@ -111,19 +112,19 @@ class TCVR {
     return boolCheckChildren(exp, checkNumChildren);
   }
 
-  Expr inferType(Expr exp /*, TypeChecker & ty*/) {
+  Expr inferType(Expr exp , TypeChecker & tc) {
     if (isOpX<TRUE>(exp) || isOpX<FALSE>(exp))
       return sort::boolTy(exp->efac());
     else if (bind::isBoolConst(exp))
       return sort::boolTy(exp->efac());
-    else if (isOpX<AND>(exp) || isOpX<OR>(exp) || isOpX<XOR>(exp))
-      return inferTypeBoolNary(exp);
-    else if (isOpX<NEG>(exp))
-      return inferTypeBoolUnary(exp);
-    else if (isOpX<IMPL>(exp) || isOpX<IFF>(exp))
-      return inferTypeBoolBinary(exp);
-    else if (isOpX<ITE>(exp))
-      return inferTypeITE(exp);
+    // else if (isOpX<AND>(exp) || isOpX<OR>(exp) || isOpX<XOR>(exp))
+    //   return inferTypeBoolNary(exp);
+    // else if (isOpX<NEG>(exp))
+    //   return inferTypeBoolUnary(exp);
+    // else if (isOpX<IMPL>(exp) || isOpX<IFF>(exp))
+    //   return inferTypeBoolBinary(exp);
+    // else if (isOpX<ITE>(exp))
+    //   return inferTypeITE(exp);
 
     else if (bind::isIntConst(exp))
       return sort::intTy(exp->efac());
@@ -139,14 +140,14 @@ class TCVR {
     else if (isOpX<ABS>(exp))
       return inferTypeNumUnary(exp);
 
-    return sort::anyTy(exp->efac());
+    return exp->inferType(exp, tc);
   }
 
   /// Called after children have been visited
   Expr postVisit(Expr exp) {
     LOG("tc", llvm::errs() << "post visiting expression: " << *exp << "\n";);
 
-    Expr type = inferType(exp);
+    Expr type = inferType(exp, *m_tc);
 
     m_cache.insert({exp, type});
     if (isOp<ERROR_TY>(type)) {
@@ -163,7 +164,7 @@ class TCVR {
   }
 
 public:
-  TCVR() : m_isWellFormed(true) {}
+  TCVR(TypeChecker *tc) : m_isWellFormed(true), m_tc(tc) {}
 
   /// Called before children are visited
   /// Returns false to skip visiting children
@@ -173,18 +174,24 @@ public:
     if (m_cache.count(exp) || !m_isWellFormed) {
       return false;
     } else if (isConst(exp) || isValue(exp)) {
-      m_cache.insert({exp, inferType(exp)});
+      m_cache.insert({exp, inferType(exp, *m_tc)});
       return false;
     }
-
     return true;
   }
 
   Expr operator()(Expr exp) { return postVisit(exp); }
 
-  Expr knownTypeOf(Expr e) { return e ? m_cache.at(e) : Expr(); }
+  Expr knownTypeOf(Expr e) { 
+    if (m_isWellFormed) {
+      m_errorExp = Expr();
+    }
+    m_isWellFormed = true;
 
-  Expr getErrorExp() { return m_isWellFormed ? Expr() : m_errorExp; }
+    return e ? m_cache.at(e) : Expr(); 
+  }
+
+  Expr getErrorExp() { return m_errorExp; }
 };
 
 //==-- Adapts visitor for pre- and post- traversal --==/
@@ -192,7 +199,7 @@ class TCV : public std::unary_function<Expr, VisitAction> {
   std::shared_ptr<TCVR> m_rw;
 
 public:
-  TCV() : m_rw(std::make_shared<TCVR>()) {}
+  TCV(TypeChecker *tc) : m_rw(std::make_shared<TCVR>(tc)) {}
   VisitAction operator()(Expr exp) {
     if (m_rw->preVisit(exp))
       return VisitAction::changeDoKidsRewrite(exp, m_rw);
@@ -210,25 +217,33 @@ public:
 
 namespace expr {
 class TypeChecker::Impl {
-  Expr notWellFormedExp;
-
+  TCV m_visitor;
 public:
-  Expr typeOf(Expr e) {
-    TCV _visitor;
-    Expr v = visit(_visitor, e);
-    notWellFormedExp = _visitor.getErrorExp();
+  Impl (TypeChecker *tc) : m_visitor(tc) {}
 
-    return _visitor.knownTypeOf(v);
+  Expr typeOf(Expr e) {
+    Expr v = visit(m_visitor, e);
+
+    return m_visitor.knownTypeOf(v);
   }
 
-  Expr getErrorExp() { return notWellFormedExp; }
+  Expr getErrorExp() { return m_visitor.getErrorExp(); }
 };
 
-TypeChecker::TypeChecker() : m_impl(new TypeChecker::Impl()) {}
+TypeChecker::TypeChecker() : m_impl(new TypeChecker::Impl(this)) {}
 TypeChecker::~TypeChecker() { delete m_impl; }
 Expr TypeChecker::typeOf(Expr e) { return m_impl->typeOf(e); }
 Expr TypeChecker::getErrorExp() { // to be called after typeOf() or sortOf()
-
   return m_impl->getErrorExp();
 }
+
+namespace op{
+namespace typeCheck {
+    Expr ANY::inferType(Expr exp, TypeChecker &tc) {
+      std::cout<<"ANY123 -------------"<<std::endl;
+
+      return sort::anyTy(exp->efac());
+    }
+  } // namesapce typeCheck
+} // namespace op
 } // namespace expr

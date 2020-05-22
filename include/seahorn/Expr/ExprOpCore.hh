@@ -2,6 +2,7 @@
 #pragma once
 #include "seahorn/Expr/ExprCore.hh"
 #include "seahorn/Expr/ExprGmp.hh"
+#include "seahorn/Expr/TypeChecker.hh"
 #include "llvm/Support/Casting.h"
 
 namespace expr {
@@ -114,6 +115,11 @@ public:
   static bool classof(Operator const *op) {
     return llvm::isa<TerminalBase>(op) &&
            llvm::cast<TerminalBase>(op)->m_kind == terminal_type::getKind();
+  }
+
+//TODO
+  Expr inferType (Expr exp, TypeChecker &tc) const override {
+    return Expr();
   }
 };
 
@@ -349,13 +355,14 @@ using namespace ps;
 /// \p T is the type of the operator
 /// \p B is the base class
 /// \p K is the kind for custom RTTI
-template <typename T, typename B, typename P, typename K, K kind>
+template <typename T, typename B, typename P, typename K, K kind, typename C>
 struct DefOp : public B {
-  using this_type = DefOp<T, B, P, K, kind>;
+  using this_type = DefOp<T, B, P, K, kind, C>;
   using kind_type = K;
   using base_type = B;
   using op_type = T;
   using ps_type = P;
+  using typeChecker_type = C;
 
   DefOp() : B(kind) {}
   DefOp(DefOp const &) = default;
@@ -396,6 +403,10 @@ struct DefOp : public B {
     return llvm::isa<base_type>(op) &&
            llvm::cast<base_type>(op)->m_kind == kind;
   }
+
+  Expr inferType (Expr exp, TypeChecker &tc) const override {
+    return typeChecker_type::inferType(exp, tc);
+  }
 };
 
 } // namespace expr
@@ -411,8 +422,11 @@ struct DefOp : public B {
   };
 
 /// macro for defining a class for a single operator
-#define NOP(NAME, TEXT, STYLE, BASE)                                           \
+#define NOP_TYPECHECK(NAME, TEXT, STYLE, BASE, TYPECHECK)                                           \
   struct __##NAME {                                                            \
     static inline std::string name() { return TEXT; }                          \
   };                                                                           \
-  using NAME = DefOp<__##NAME, BASE, STYLE, BASE##Kind, BASE##Kind::NAME>;
+  using NAME = DefOp<__##NAME, BASE, STYLE, BASE##Kind, BASE##Kind::NAME, TYPECHECK>;
+
+/// macro for defining a class for a single operator
+#define NOP(NAME, TEXT, STYLE, BASE) NOP_TYPECHECK(NAME, TEXT, STYLE, BASE, typeCheck::ANY)

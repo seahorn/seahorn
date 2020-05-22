@@ -3,23 +3,85 @@
 #include "seahorn/Expr/ExprApi.hh"
 #include "seahorn/Expr/ExprCore.hh"
 #include "seahorn/Expr/ExprOpCore.hh"
+#include "seahorn/Expr/ExprOpSort.hh"
+#include "seahorn/Expr/TypeChecker.hh"
 
 namespace expr {
 namespace op {
 enum class BoolOpKind { TRUE, FALSE, AND, OR, XOR, NEG, IMPL, ITE, IFF };
+
+namespace typeCheck {
+
+// ensures the expression has the correct number of children and all children
+// are bool types
+static inline Expr
+boolCheckChildren(Expr exp, std::function<bool(Expr exp)> checkNumChildren,
+                  TypeChecker &tc) {
+  auto isBool = [&tc](Expr exp) {
+    Expr type = tc.typeOf(exp);
+
+    return type != nullptr && isOp<BOOL_TY>(type);
+  };
+
+  if (checkNumChildren(exp) &&
+      std::all_of(exp->args_begin(), exp->args_end(), isBool))
+    return sort::boolTy(exp->efac());
+  else
+    return sort::errorTy(exp->efac());
+}
+struct BOOL_UNARY {
+  static inline Expr inferType(Expr exp, TypeChecker &tc) {
+    std::function<bool(Expr)> checkNumChildren = [](Expr exp) -> bool {
+      return exp->arity() == 1;
+    };
+    return typeCheck::boolCheckChildren(exp, checkNumChildren, tc);
+  }
+};
+
+struct BOOL_BINARY {
+  static inline Expr inferType(Expr exp, TypeChecker &tc) {
+    std::function<bool(Expr)> checkNumChildren = [](Expr exp) -> bool {
+      return exp->arity() == 2;
+    };
+    return typeCheck::boolCheckChildren(exp, checkNumChildren, tc);
+  }
+};
+
+struct BOOL_NARY {
+  static inline Expr inferType(Expr exp, TypeChecker &tc) {
+    std::function<bool(Expr)> checkNumChildren = [](Expr exp) -> bool {
+      return exp->arity() >= 2;
+    };
+    return typeCheck::boolCheckChildren(exp, checkNumChildren, tc);
+  }
+};
+
+struct ITE {
+  static inline Expr inferType(Expr exp, TypeChecker &tc) {
+
+    // ite(a,b,c) : a is bool type, b and c are the same type
+    if (exp->arity() == 3 && isOp<BOOL_TY>(tc.typeOf(exp->arg(0))) &&
+        (tc.typeOf(exp->arg(1)) == tc.typeOf(exp->arg(2))))
+      return sort::boolTy(exp->efac());
+    else
+      return sort::errorTy(exp->efac());
+  }
+};
+} // namespace typeCheck
+
 // -- Boolean opearators
 NOP_BASE(BoolOp)
 
 /* operator definitions */
 NOP(TRUE, "true", PREFIX, BoolOp)
 NOP(FALSE, "false", PREFIX, BoolOp)
-NOP(AND, "&&", INFIX, BoolOp)
-NOP(OR, "||", INFIX, BoolOp)
-NOP(XOR, "^", INFIX, BoolOp)
-NOP(NEG, "!", PREFIX, BoolOp)
-NOP(IMPL, "->", INFIX, BoolOp)
-NOP(ITE, "ite", FUNCTIONAL, BoolOp)
-NOP(IFF, "<->", INFIX, BoolOp)
+NOP_TYPECHECK(AND, "&&", INFIX, BoolOp, typeCheck::BOOL_NARY)
+NOP_TYPECHECK(OR, "||", INFIX, BoolOp, typeCheck::BOOL_NARY)
+NOP_TYPECHECK(XOR, "^", INFIX, BoolOp, typeCheck::BOOL_NARY)
+NOP_TYPECHECK(NEG, "!", PREFIX, BoolOp, typeCheck::BOOL_UNARY)
+NOP_TYPECHECK(IMPL, "->", INFIX, BoolOp, typeCheck::BOOL_BINARY)
+NOP_TYPECHECK(ITE, "ite", FUNCTIONAL, BoolOp, typeCheck::ITE)
+NOP_TYPECHECK(IFF, "<->", INFIX, BoolOp, typeCheck::BOOL_BINARY)
 
 namespace boolop {
 // -- logical AND. Applies simplifications
@@ -96,15 +158,15 @@ template <typename R> Expr land(const R &r) {
   if (boost::size(r) == 1)
     return *std::begin(r);
 
-  auto& efac = (*std::begin(r))->efac();
-  ExprVector res;  
-  for (auto e: r) {
+  auto &efac = (*std::begin(r))->efac();
+  ExprVector res;
+  for (auto e : r) {
     if (isOpX<FALSE>(e))
       return mk<FALSE>(efac);
     else if (!isOpX<TRUE>(e))
       res.push_back(e);
   }
-  
+
   if (res.empty()) {
     return mk<TRUE>(efac);
   } else if (res.size() == 1) {

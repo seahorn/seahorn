@@ -145,7 +145,7 @@ public:
 
   PtrTy loadPtrFromMem(PtrTy ptr, MemValTy mem, unsigned byteSz,
                        uint64_t align) override {
-    auto res = base().loadIntFromMem(
+    auto res = base().loadPtrFromMem(
         BasePtrTy(std::move(ptr)), BaseMemValTy(std::move(mem)), byteSz, align);
     return toPtrTy(res);
   }

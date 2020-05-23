@@ -31,7 +31,7 @@ public:
 
     Expr v() const { return m_v; }
     Expr toExpr() const { return v(); }
-    explicit operator  Expr() const { return toExpr(); }
+    explicit operator Expr() const { return toExpr(); }
   };
 
   /// MemValTy representation for this manager
@@ -51,11 +51,11 @@ public:
   /// Right now everything is an expression. In the future, we might have
   /// other types for PtrTy, such as a tuple of expressions
   using BasePtrTy = OpSemMemManager::PtrTy;
-  using FatPtrTy = OpSemMemManager::PtrTy;
   using RawPtrTy = OpSemMemManager::PtrTy;
-
   using BaseMemValTy = OpSemMemManager::MemValTy;
-  using FatMemValTy = OpSemMemManager::MemValTy;
+
+  using FatMemValTy = MemValTyImpl;
+  using FatPtrTy = PtrTyImpl;
 
   using PtrTy = FatPtrTy;
   using MemValTy = FatMemValTy;
@@ -90,37 +90,37 @@ private:
 
   /// \brief Update a given fat pointer with a raw address value
   FatPtrTy mkFatPtr(RawPtrTy rawPtr, FatPtrTy fat) const {
-    if (fat->arity() == 1)
+    if (fat.v()->arity() == 1)
       return mkFatPtr(rawPtr);
 
     llvm::SmallVector<Expr, 8> kids;
     kids.push_back(rawPtr);
-    for (unsigned i = 1, sz = fat->arity(); i < sz; ++i) {
-      kids.push_back(fat->arg(i));
+    for (unsigned i = 1, sz = fat.v()->arity(); i < sz; ++i) {
+      kids.push_back(fat.v()->arg(i));
     }
     return strct::mk(kids);
   }
 
   /// \brief Extracts a raw pointer out of a fat pointer
   RawPtrTy mkRawPtr(FatPtrTy fatPtr) const {
-    assert(strct::isStructVal(fatPtr));
-    return strct::extractVal(fatPtr, 0);
+    assert(strct::isStructVal(fatPtr.v()));
+    return strct::extractVal(fatPtr.v(), 0);
   }
 
   /// \brief Extracts a raw memory value from a fat memory value
   BaseMemValTy mkRawMem(FatMemValTy fatMem) const {
-    assert(strct::isStructVal(fatMem));
-    return strct::extractVal(fatMem, 0);
+    assert(strct::isStructVal(fatMem.v()));
+    return strct::extractVal(fatMem.v(), 0);
   }
 
   BaseMemValTy mkSlot0Mem(FatMemValTy fatMem) const {
-    assert(strct::isStructVal(fatMem));
-    return strct::extractVal(fatMem, 1);
+    assert(strct::isStructVal(fatMem.v()));
+    return strct::extractVal(fatMem.v(), 1);
   }
 
   BaseMemValTy mkSlot1Mem(FatMemValTy fatMem) const {
-    assert(strct::isStructVal(fatMem));
-    return strct::extractVal(fatMem, 2);
+    assert(strct::isStructVal(fatMem.v()));
+    return strct::extractVal(fatMem.v(), 2);
   }
 
   /// \brief Creates a fat memory value from raw memory with default value for
@@ -136,7 +136,7 @@ public:
 
   ~FatMemManager() = default;
 
-  FatPtrTy ptrSort() const {
+  PtrSortTy ptrSort() const {
     return sort::structTy(m_main.ptrSort(), m_ctx.alu().intTy(g_slotBitWidth),
                           m_ctx.alu().intTy(g_slotBitWidth));
   }
@@ -234,7 +234,7 @@ public:
   }
 
   /// \brief Returns sort of a pointer register for a function pointer
-  Expr mkPtrRegisterSort(const Function &fn) const { return ptrSort(); }
+  PtrSortTy mkPtrRegisterSort(const Function &fn) const { return ptrSort(); }
 
   /// \brief Returns sort of a pointer register for a global pointer
   Expr mkPtrRegisterSort(const GlobalVariable &gv) const { return ptrSort(); }
@@ -305,7 +305,7 @@ public:
 
   /// \brief Pointer addition with symbolic offset
   FatPtrTy ptrAdd(FatPtrTy ptr, Expr offset) const {
-    BasePtrTy rawPtr = ptrAdd(mkRawPtr(ptr), offset);
+    BasePtrTy rawPtr = ptrAdd(mkRawPtr(ptr), offset).v();
     return mkFatPtr(rawPtr, ptr);
   }
 
@@ -333,7 +333,7 @@ public:
     BaseMemValTy slot1 =
         m_slot1.storeIntToMem(getFatData(val, 1), mkRawPtr(ptr),
                               mkSlot1Mem(mem), g_slotByteWidth, align);
-    Expr res = mkFatMem(main, slot0, slot1);
+    auto res = mkFatMem(main, slot0, slot1);
     return res;
   }
 
@@ -348,7 +348,7 @@ public:
 
     const unsigned byteSz =
         m_sem.getTD().getTypeStoreSize(const_cast<llvm::Type *>(&ty));
-    ExprFactory &efac = ptr->efac();
+    ExprFactory &efac = ptr.v()->efac();
 
     Expr res;
     switch (ty.getTypeID()) {
@@ -366,7 +366,7 @@ public:
     case Type::VectorTyID:
       errs() << "Error: load of vectors is not supported\n";
     case Type::PointerTyID:
-      res = loadPtrFromMem(ptr, mem, byteSz, align);
+      res = loadPtrFromMem(ptr, mem, byteSz, align).v();
       break;
     case Type::StructTyID:
       errs() << "loading form struct type " << ty << " is not supported";
@@ -383,19 +383,19 @@ public:
 
   FatMemValTy storeValueToMem(Expr _val, FatPtrTy ptr, FatMemValTy mem,
                               const llvm::Type &ty, uint32_t align) {
-    assert(ptr);
+    assert(ptr.v());
     Expr val = _val;
     const unsigned byteSz =
         m_sem.getTD().getTypeStoreSize(const_cast<llvm::Type *>(&ty));
-    ExprFactory &efac = ptr->efac();
+    ExprFactory &efac = ptr.v()->efac();
 
-    Expr res;
+    FatMemValTy res(Expr(nullptr));
     switch (ty.getTypeID()) {
     case Type::IntegerTyID:
       if (ty.getScalarSizeInBits() < byteSz * 8) {
         val = m_ctx.alu().doZext(val, byteSz * 8, ty.getScalarSizeInBits());
       }
-      res = storeIntToMem(val, ptr, mem, byteSz, align);
+       res = storeIntToMem(val, ptr, mem, byteSz, align);
       break;
     case Type::FloatTyID:
     case Type::DoubleTyID:
@@ -422,7 +422,7 @@ public:
   }
 
   /// \brief Executes symbolic memset with a concrete length
-  FatMemValTy MemSet(BasePtrTy ptr, Expr _val, unsigned len, FatMemValTy mem,
+  FatMemValTy MemSet(FatPtrTy ptr, Expr _val, unsigned len, FatMemValTy mem,
                      uint32_t align) {
     return mkFatMem(
         m_main.MemSet(mkRawPtr(ptr), _val, len, mkRawMem(mem), align),
@@ -430,8 +430,8 @@ public:
   }
 
   /// \brief Executes symbolic memcpy with concrete length
-  FatMemValTy MemCpy(BasePtrTy dPtr, BasePtrTy sPtr, unsigned len,
-                     Expr memTrsfrRead, uint32_t align) {
+  FatMemValTy MemCpy(FatPtrTy dPtr, FatPtrTy sPtr, unsigned len,
+                     FatMemValTy memTrsfrRead, uint32_t align) {
     return mkFatMem(m_main.MemCpy(mkRawPtr(dPtr), mkRawPtr(sPtr), len,
                                   mkRawMem(memTrsfrRead), align),
                     m_slot0.MemCpy(mkRawPtr(dPtr), mkRawPtr(sPtr), len,
@@ -442,7 +442,7 @@ public:
 
   /// \brief Executes symbolic memcpy from physical memory with concrete
   /// length
-  FatMemValTy MemFill(BasePtrTy dPtr, char *sPtr, unsigned len, FatMemValTy mem,
+  FatMemValTy MemFill(FatPtrTy dPtr, char *sPtr, unsigned len, FatMemValTy mem,
                       uint32_t align = 0) {
     return mkFatMem(
         m_main.MemFill(mkRawPtr(dPtr), sPtr, len, mkRawMem(mem), align),
@@ -535,16 +535,16 @@ public:
                     m_slot1.zeroedMemory());
   }
 
-  Expr getFatData(BasePtrTy p, unsigned SlotIdx) {
-    assert(strct::isStructVal(p));
+  Expr getFatData(FatPtrTy p, unsigned SlotIdx) {
+    assert(strct::isStructVal(p.v()));
     assert(SlotIdx < g_maxFatSlots);
-    return strct::extractVal(p, 1 + SlotIdx);
+    return strct::extractVal(p.v(), 1 + SlotIdx);
   }
 
-  BasePtrTy setFatData(BasePtrTy p, unsigned SlotIdx, Expr data) {
-    assert(strct::isStructVal(p));
+  FatPtrTy setFatData(FatPtrTy p, unsigned SlotIdx, Expr data) {
+    assert(strct::isStructVal(p.v()));
     assert(SlotIdx < g_maxFatSlots);
-    return strct::insertVal(p, 1 + SlotIdx, data);
+    return strct::insertVal(p.v(), 1 + SlotIdx, data);
   }
 };
 
@@ -552,11 +552,9 @@ FatMemManager::FatMemManager(Bv2OpSem &sem, Bv2OpSemContext &ctx,
                              unsigned ptrSz, unsigned wordSz, bool useLambdas)
     : OpSemMemManagerBase(sem, ctx, ptrSz, wordSz),
       m_main(sem, ctx, ptrSz, wordSz, useLambdas),
+      m_nullPtr(mkFatPtr(m_main.nullPtr())),
       m_slot0(sem, ctx, ptrSz, g_slotByteWidth, useLambdas),
-      m_slot1(sem, ctx, ptrSz, g_slotByteWidth, useLambdas) {
-
-  m_nullPtr = mkFatPtr(m_main.nullPtr());
-}
+      m_slot1(sem, ctx, ptrSz, g_slotByteWidth, useLambdas) {}
 
 OpSemMemManager *mkFatMemManager(Bv2OpSem &sem, Bv2OpSemContext &ctx,
                                  unsigned ptrSz, unsigned wordSz,

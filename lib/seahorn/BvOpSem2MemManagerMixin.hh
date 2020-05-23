@@ -21,260 +21,268 @@ public:
   using BaseMemRegTy = typename Base::MemRegTy;
   using BaseMemValTy = typename Base::MemValTy;
 
+protected:
+  Base &base() { return static_cast<Base &>(*this); }
+  Base const &base() const { return static_cast<Base const &>(*this); }
+  auto toPtrTy(BasePtrTy &p) const { return static_cast<PtrTy>(p); }
+  auto toMemValTy(BaseMemValTy &m) const { return static_cast<MemValTy>(m); }
+
+public:
   template <typename... Ts>
   OpSemMemManagerMixin(Ts &&... Args)
       : BaseT(std::forward<Ts>(Args)...),
-        OpSemMemManager(Base::sem(), Base::ctx(), Base::ptrSzInBytes(),
-                        Base::wordSzInBytes()) {}
+        OpSemMemManager(base().sem(), base().ctx(), base().ptrSzInBytes(),
+                        base().wordSzInBytes()) {}
   virtual ~OpSemMemManagerMixin() = default;
 
-  // XXX importing ptrSort directly from base did not work for some reason
-  // using Base::ptrSort;
-  PtrSortTy ptrSort() const override { return Base::ptrSort(); }
+  PtrSortTy ptrSort() const override { return base().ptrSort(); }
 
   PtrTy salloc(unsigned bytes, uint32_t align = 0) override {
-    auto res = Base::salloc(bytes, align);
-    return static_cast<PtrTy>(res);
+    auto res = base().salloc(bytes, align);
+    return toPtrTy(res);
   }
 
   PtrTy salloc(Expr elmts, unsigned typeSz, uint32_t align = 0) override {
-    auto res = Base::salloc(elmts, typeSz, align);
-    return static_cast<PtrTy>(res);
+    auto res = base().salloc(elmts, typeSz, align);
+    return toPtrTy(res);
   }
 
   PtrTy mkStackPtr(unsigned offset) override {
-    auto res = Base::mkStackPtr(offset);
-    return static_cast<PtrTy>(res);
+    auto res = base().mkStackPtr(offset);
+    return toPtrTy(res);
   }
 
   PtrTy brk0Ptr() override {
-    auto res = Base::brk0Ptr();
-    return static_cast<PtrTy>(res);
+    auto res = base().brk0Ptr();
+    return toPtrTy(res);
   }
 
   PtrTy halloc(unsigned _bytes, uint32_t align = 0) override {
-    auto res = Base::halloc(_bytes, align);
-    return static_cast<PtrTy>(res);
+    auto res = base().halloc(_bytes, align);
+    return toPtrTy(res);
   }
 
   PtrTy halloc(Expr bytes, uint32_t align = 0) override {
-    auto res = Base::halloc(bytes, align);
-    return static_cast<PtrTy>(res);
+    auto res = base().halloc(bytes, align);
+    return toPtrTy(res);
   }
 
   PtrTy galloc(const GlobalVariable &gv, uint32_t align = 0) override {
-    auto res = Base::galloc(gv, align);
-    return static_cast<PtrTy>(res);
+    auto res = base().galloc(gv, align);
+    return toPtrTy(res);
   }
 
   PtrTy falloc(const Function &fn) override {
-    auto res = Base::falloc(fn);
-    return static_cast<PtrTy>(res);
+    auto res = base().falloc(fn);
+    return toPtrTy(res);
   }
 
   PtrTy getPtrToFunction(const Function &F) override {
-    auto res = Base::getPtrToFunction(F);
-    return static_cast<PtrTy>(res);
+    auto res = base().getPtrToFunction(F);
+    return toPtrTy(res);
   }
 
   PtrTy getPtrToGlobalVariable(const GlobalVariable &gv) override {
-    auto res = Base::getPtrToGlobalVariable(gv);
-    return static_cast<PtrTy>(res);
+    auto res = base().getPtrToGlobalVariable(gv);
+    return toPtrTy(res);
   }
 
   void initGlobalVariable(const GlobalVariable &gv) const {
-    Base::initGlobalVariable(gv);
+    base().initGlobalVariable(gv);
   }
 
   PtrTy mkAlignedPtr(Expr name, uint32_t align) const override {
-    auto res = Base::mkAlignedPtr(name, align);
-    return static_cast<PtrTy>(res);
+    auto res = base().mkAlignedPtr(name, align);
+    return toPtrTy(res);
   }
 
   PtrSortTy mkPtrRegisterSort(const Instruction &inst) const override {
-    return Base::mkPtrRegisterSort(inst);
+    return base().mkPtrRegisterSort(inst);
   }
 
   PtrSortTy mkPtrRegisterSort(const Function &fn) const override {
-    return Base::mkPtrRegisterSort(fn);
+    return base().mkPtrRegisterSort(fn);
   }
 
   PtrSortTy mkPtrRegisterSort(const GlobalVariable &gv) const override {
-    return Base::mkPtrRegisterSort(gv);
+    return base().mkPtrRegisterSort(gv);
   }
 
   MemSortTy mkMemRegisterSort(const Instruction &inst) const override {
-    return Base::mkMemRegisterSort(inst);
+    return base().mkMemRegisterSort(inst);
   }
 
   PtrTy freshPtr() override {
-    auto res = Base::freshPtr();
-    return static_cast<PtrTy>(res);
+    auto res = base().freshPtr();
+    return toPtrTy(res);
   }
 
   PtrTy nullPtr() const override {
-    auto res = Base::nullPtr();
-    return static_cast<PtrTy>(res);
+    auto res = base().nullPtr();
+    return toPtrTy(res);
   }
 
   // XXX figure out proper typing
-  Expr coerce(Expr sort, Expr val) override { return Base::coerce(sort, val); }
+  Expr coerce(Expr sort, Expr val) override { return base().coerce(sort, val); }
 
   /// \brief Pointer addition with symbolic offset
   PtrTy ptrAdd(PtrTy ptr, Expr offset) const override {
-    auto res = Base::ptrAdd(BasePtrTy(std::move(ptr)), offset);
-    return static_cast<PtrTy>(res);
+    auto res = base().ptrAdd(BasePtrTy(std::move(ptr)), offset);
+    return toPtrTy(res);
   }
 
   PtrTy ptrAdd(PtrTy ptr, int32_t _offset) const override {
-    auto res = Base::ptrAdd(BasePtrTy(std::move(ptr)), _offset);
-    return static_cast<PtrTy>(res);
+    auto res = base().ptrAdd(BasePtrTy(std::move(ptr)), _offset);
+    return toPtrTy(res);
   }
 
   Expr loadIntFromMem(PtrTy ptr, MemValTy mem, unsigned byteSz,
                       uint64_t align) override {
-    auto res = Base::loadIntFromMem(
+    auto res = base().loadIntFromMem(
         BasePtrTy(std::move(ptr)), BaseMemValTy(std::move(mem)), byteSz, align);
     return res;
   }
 
   PtrTy loadPtrFromMem(PtrTy ptr, MemValTy mem, unsigned byteSz,
                        uint64_t align) override {
-    auto res = Base::loadIntFromMem(
+    auto res = base().loadIntFromMem(
         BasePtrTy(std::move(ptr)), BaseMemValTy(std::move(mem)), byteSz, align);
-    return static_cast<PtrTy>(res);
+    return toPtrTy(res);
   }
 
   MemValTy storeIntToMem(Expr _val, PtrTy ptr, MemValTy mem, unsigned byteSz,
                          uint64_t align) override {
-    auto res = Base::storeIntToMem(_val, BasePtrTy(std::move(ptr)),
-                                   BaseMemValTy(std::move(mem)), byteSz, align);
-    return static_cast<MemValTy>(res);
+    auto res =
+        base().storeIntToMem(_val, BasePtrTy(std::move(ptr)),
+                             BaseMemValTy(std::move(mem)), byteSz, align);
+    return toMemValTy(res);
   }
 
   MemValTy storePtrToMem(PtrTy val, PtrTy ptr, MemValTy mem, unsigned byteSz,
                          uint64_t align) override {
-    auto res = Base::storePtrToMem(BasePtrTy(val), BasePtrTy(std::move(ptr)),
-                                   BaseMemValTy(std::move(mem)), byteSz, align);
-    return static_cast<MemValTy>(res);
+    auto res =
+        base().storePtrToMem(BasePtrTy(val), BasePtrTy(std::move(ptr)),
+                             BaseMemValTy(std::move(mem)), byteSz, align);
+    return toMemValTy(res);
   }
 
   Expr loadValueFromMem(PtrTy ptr, MemValTy mem, const llvm::Type &ty,
                         uint64_t align) override {
-    auto res = Base::loadValueFromMem(BasePtrTy(std::move(ptr)),
-                                      BaseMemValTy(std::move(mem)), ty, align);
+    auto res = base().loadValueFromMem(BasePtrTy(std::move(ptr)),
+                                       BaseMemValTy(std::move(mem)), ty, align);
     return res;
   }
 
   MemValTy storeValueToMem(Expr _val, PtrTy ptr, MemValTy memIn,
                            const llvm::Type &ty, uint32_t align) override {
-    auto res = Base::storeValueToMem(_val, BasePtrTy(std::move(ptr)),
-                                     BaseMemValTy(std::move(memIn)), ty, align);
-    return static_cast<MemValTy>(res);
+    auto res =
+        base().storeValueToMem(_val, BasePtrTy(std::move(ptr)),
+                               BaseMemValTy(std::move(memIn)), ty, align);
+    return toMemValTy(res);
   }
 
   MemValTy MemSet(PtrTy ptr, Expr _val, unsigned len, MemValTy mem,
                   uint32_t align) override {
-    auto res = Base::MemSet(BasePtrTy(std::move(ptr)), _val, len,
-                            BaseMemValTy(std::move(mem)), align);
-    return static_cast<MemValTy>(res);
+    auto res = base().MemSet(BasePtrTy(std::move(ptr)), _val, len,
+                             BaseMemValTy(std::move(mem)), align);
+    return toMemValTy(res);
   }
 
   MemValTy MemCpy(PtrTy dPtr, PtrTy sPtr, unsigned len, MemValTy memTrsfrRead,
                   uint32_t align) override {
     auto res =
-        Base::MemCpy(BasePtrTy(std::move(dPtr)), BasePtrTy(std::move(sPtr)),
-                     len, BaseMemValTy(std::move(memTrsfrRead)), align);
-    return static_cast<MemValTy>(res);
+        base().MemCpy(BasePtrTy(std::move(dPtr)), BasePtrTy(std::move(sPtr)),
+                      len, BaseMemValTy(std::move(memTrsfrRead)), align);
+    return toMemValTy(res);
   }
 
   MemValTy MemFill(PtrTy dPtr, char *sPtr, unsigned len, MemValTy mem,
                    uint32_t align = 0) override {
-    auto res = Base::MemFill(BasePtrTy(std::move(dPtr)), sPtr, len,
-                             BaseMemValTy(std::move(mem)), align);
-    return static_cast<MemValTy>(res);
+    auto res = base().MemFill(BasePtrTy(std::move(dPtr)), sPtr, len,
+                              BaseMemValTy(std::move(mem)), align);
+    return toMemValTy(res);
   }
 
   PtrTy inttoptr(Expr intVal, const Type &intTy,
                  const Type &ptrTy) const override {
-    auto res = Base::inttoptr(intVal, intTy, ptrTy);
-    return static_cast<PtrTy>(res);
+    auto res = base().inttoptr(intVal, intTy, ptrTy);
+    return toPtrTy(res);
   }
 
   Expr ptrtoint(PtrTy ptr, const Type &ptrTy,
                 const Type &intTy) const override {
-    auto res = Base::ptrtoint(BasePtrTy(std::move(ptr)), ptrTy, intTy);
+    auto res = base().ptrtoint(BasePtrTy(std::move(ptr)), ptrTy, intTy);
     return res;
   }
 
   Expr ptrUlt(PtrTy p1, PtrTy p2) const override {
-    return Base::ptrUlt(BasePtrTy(std::move(p1)), BasePtrTy(std::move(p2)));
+    return base().ptrUlt(BasePtrTy(std::move(p1)), BasePtrTy(std::move(p2)));
   }
 
   Expr ptrSlt(PtrTy p1, PtrTy p2) const override {
-    return Base::ptrSlt(BasePtrTy(std::move(p1)), BasePtrTy(std::move(p2)));
+    return base().ptrSlt(BasePtrTy(std::move(p1)), BasePtrTy(std::move(p2)));
   }
   Expr ptrUle(PtrTy p1, PtrTy p2) const override {
-    return Base::ptrUle(BasePtrTy(std::move(p1)), BasePtrTy(std::move(p2)));
+    return base().ptrUle(BasePtrTy(std::move(p1)), BasePtrTy(std::move(p2)));
   }
   Expr ptrSle(PtrTy p1, PtrTy p2) const override {
-    return Base::ptrSle(BasePtrTy(std::move(p1)), BasePtrTy(std::move(p2)));
+    return base().ptrSle(BasePtrTy(std::move(p1)), BasePtrTy(std::move(p2)));
   }
   Expr ptrUgt(PtrTy p1, PtrTy p2) const override {
-    return Base::ptrUgt(BasePtrTy(std::move(p1)), BasePtrTy(std::move(p2)));
+    return base().ptrUgt(BasePtrTy(std::move(p1)), BasePtrTy(std::move(p2)));
   }
   Expr ptrSgt(PtrTy p1, PtrTy p2) const override {
-    return Base::ptrSgt(BasePtrTy(std::move(p1)), BasePtrTy(std::move(p2)));
+    return base().ptrSgt(BasePtrTy(std::move(p1)), BasePtrTy(std::move(p2)));
   }
   Expr ptrUge(PtrTy p1, PtrTy p2) const override {
-    return Base::ptrUge(BasePtrTy(std::move(p1)), BasePtrTy(std::move(p2)));
+    return base().ptrUge(BasePtrTy(std::move(p1)), BasePtrTy(std::move(p2)));
   }
   Expr ptrSge(PtrTy p1, PtrTy p2) const override {
-    return Base::ptrSge(BasePtrTy(std::move(p1)), BasePtrTy(std::move(p2)));
+    return base().ptrSge(BasePtrTy(std::move(p1)), BasePtrTy(std::move(p2)));
   }
   Expr ptrEq(PtrTy p1, PtrTy p2) const override {
-    return Base::ptrEq(BasePtrTy(std::move(p1)), BasePtrTy(std::move(p2)));
+    return base().ptrEq(BasePtrTy(std::move(p1)), BasePtrTy(std::move(p2)));
   }
   Expr ptrNe(PtrTy p1, PtrTy p2) const override {
-    return Base::ptrNe(BasePtrTy(std::move(p1)), BasePtrTy(std::move(p2)));
+    return base().ptrNe(BasePtrTy(std::move(p1)), BasePtrTy(std::move(p2)));
   }
   Expr ptrSub(PtrTy p1, PtrTy p2) const override {
-    return Base::ptrSub(BasePtrTy(std::move(p1)), BasePtrTy(std::move(p2)));
+    return base().ptrSub(BasePtrTy(std::move(p1)), BasePtrTy(std::move(p2)));
   }
 
   PtrTy gep(PtrTy ptr, gep_type_iterator it,
             gep_type_iterator end) const override {
-    auto res = Base::gep(BasePtrTy(std::move(ptr)), it, end);
-    return static_cast<PtrTy>(res);
+    auto res = base().gep(BasePtrTy(std::move(ptr)), it, end);
+    return toPtrTy(res);
   }
 
   void onFunctionEntry(const Function &fn) override {
-    Base::onFunctionEntry(fn);
+    base().onFunctionEntry(fn);
   }
 
-  void onModuleEntry(const Module &M) override { Base::onModuleEntry(M); }
+  void onModuleEntry(const Module &M) override { base().onModuleEntry(M); }
 
-  void dumpGlobalsMap() override { Base::dumpGlobalsMap(); }
+  void dumpGlobalsMap() override { base().dumpGlobalsMap(); }
 
   std::pair<char *, unsigned>
   getGlobalVariableInitValue(const llvm::GlobalVariable &gv) override {
-    return Base::getGlobalVariableInitValue(gv);
+    return base().getGlobalVariableInitValue(gv);
   }
 
   MemValTy zeroedMemory() const override {
-    auto res = Base::zeroedMemory();
-    return static_cast<MemValTy>(res);
+    auto res = base().zeroedMemory();
+    return toMemValTy(res);
   }
 
   Expr getFatData(PtrTy p, unsigned SlotIdx) override {
-    auto res = Base::getFatData(BasePtrTy(std::move(p)), SlotIdx);
+    auto res = base().getFatData(BasePtrTy(std::move(p)), SlotIdx);
     return res;
   }
 
   /// \brief returns Expr after setting data.
   PtrTy setFatData(PtrTy p, unsigned SlotIdx, Expr data) override {
-    auto res = Base::setFatData(BasePtrTy(std::move(p)), SlotIdx, data);
-    return static_cast<PtrTy>(res);
+    auto res = base().setFatData(BasePtrTy(std::move(p)), SlotIdx, data);
+    return toPtrTy(res);
   }
 };
 } // namespace seahorn

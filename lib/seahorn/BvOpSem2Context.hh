@@ -459,6 +459,9 @@ public:
   using MemRegTy = Expr;
   using MemValTy = Expr;
 
+  using PtrSortTy = Expr;
+  using MemSortTy = Expr;
+
 protected:
   /// \brief Parent Operational Semantics
   Bv2OpSem &m_sem;
@@ -486,10 +489,11 @@ public:
   Bv2OpSemContext &ctx() const { return m_ctx; }
 
   unsigned ptrSzInBits() const { return m_ptrSz * 8; }
+  unsigned ptrSzInBytes() const { return m_ptrSz; }
   unsigned wordSzInBytes() const { return m_wordSz; }
   unsigned wordSzInBits() const { return m_wordSz * 8; }
 
-  virtual PtrTy ptrSort() const = 0;
+  virtual PtrSortTy ptrSort() const = 0;
 
   /// \brief Allocates memory on the stack and returns a pointer to it
   /// \param align is requested alignment. If 0, default alignment is used
@@ -532,16 +536,16 @@ public:
   virtual PtrTy mkAlignedPtr(Expr name, uint32_t align) const = 0;
 
   /// \brief Returns sort of a pointer register for an instruction
-  virtual Expr mkPtrRegisterSort(const Instruction &inst) const = 0;
+  virtual PtrSortTy mkPtrRegisterSort(const Instruction &inst) const = 0;
 
   /// \brief Returns sort of a pointer register for a function pointer
-  virtual Expr mkPtrRegisterSort(const Function &fn) const = 0;
+  virtual PtrSortTy mkPtrRegisterSort(const Function &fn) const = 0;
 
   /// \brief Returns sort of a pointer register for a global pointer
-  virtual Expr mkPtrRegisterSort(const GlobalVariable &gv) const = 0;
+  virtual PtrSortTy mkPtrRegisterSort(const GlobalVariable &gv) const = 0;
 
   /// \brief Returns sort of memory-holding register for an instruction
-  virtual Expr mkMemRegisterSort(const Instruction &inst) const = 0;
+  virtual MemSortTy mkMemRegisterSort(const Instruction &inst) const = 0;
 
   /// \brief Returns a fresh aligned pointer value
   virtual PtrTy freshPtr() = 0;
@@ -583,13 +587,13 @@ public:
   /// Returns an expression describing the state of memory in \c memReadReg
   /// after the store
   /// \sa loadIntFromMem
-  virtual Expr storeIntToMem(Expr _val, PtrTy ptr, MemValTy mem,
-                             unsigned byteSz, uint64_t align) = 0;
+  virtual MemValTy storeIntToMem(Expr _val, PtrTy ptr, MemValTy mem,
+                                 unsigned byteSz, uint64_t align) = 0;
 
   /// \brief Stores a pointer into memory
   /// \sa storeIntToMem
-  virtual Expr storePtrToMem(PtrTy val, PtrTy ptr, MemValTy mem,
-                             unsigned byteSz, uint64_t align) = 0;
+  virtual MemValTy storePtrToMem(PtrTy val, PtrTy ptr, MemValTy mem,
+                                 unsigned byteSz, uint64_t align) = 0;
 
   /// \brief Returns an expression corresponding to a load from memory
   ///
@@ -600,20 +604,20 @@ public:
   virtual Expr loadValueFromMem(PtrTy ptr, MemValTy mem, const llvm::Type &ty,
                                 uint64_t align) = 0;
 
-  virtual Expr storeValueToMem(Expr _val, PtrTy ptr, MemValTy memIn,
-                               const llvm::Type &ty, uint32_t align) = 0;
+  virtual MemValTy storeValueToMem(Expr _val, PtrTy ptr, MemValTy memIn,
+                                   const llvm::Type &ty, uint32_t align) = 0;
 
   /// \brief Executes symbolic memset with a concrete length
-  virtual Expr MemSet(PtrTy ptr, Expr _val, unsigned len, MemValTy mem,
-                      uint32_t align) = 0;
+  virtual MemValTy MemSet(PtrTy ptr, Expr _val, unsigned len, MemValTy mem,
+                          uint32_t align) = 0;
 
   /// \brief Executes symbolic memcpy with concrete length
-  virtual Expr MemCpy(PtrTy dPtr, PtrTy sPtr, unsigned len, Expr memTrsfrRead,
-                      uint32_t align) = 0;
+  virtual MemValTy MemCpy(PtrTy dPtr, PtrTy sPtr, unsigned len,
+                          MemValTy memTrsfrRead, uint32_t align) = 0;
 
   /// \brief Executes symbolic memcpy from physical memory with concrete length
-  virtual Expr MemFill(PtrTy dPtr, char *sPtr, unsigned len, MemValTy mem,
-                       uint32_t align = 0) = 0;
+  virtual MemValTy MemFill(PtrTy dPtr, char *sPtr, unsigned len, MemValTy mem,
+                           uint32_t align = 0) = 0;
 
   /// \brief Executes inttoptr conversion
   virtual PtrTy inttoptr(Expr intVal, const Type &intTy,
@@ -655,7 +659,7 @@ public:
   getGlobalVariableInitValue(const llvm::GlobalVariable &gv) = 0;
 
   /// \brief returns a constant that represents zero-initialized memory region
-  virtual Expr zeroedMemory() const = 0;
+  virtual MemValTy zeroedMemory() const = 0;
 
   /// \brief Checks if \p a <= b <= c.
   Expr ptrInRangeCheck(PtrTy a, PtrTy b, PtrTy c) {
@@ -670,7 +674,7 @@ public:
   virtual Expr getFatData(PtrTy p, unsigned SlotIdx) = 0;
 
   /// \brief returns Expr after setting data.
-  virtual Expr setFatData(PtrTy p, unsigned SlotIdx, Expr data) = 0;
+  virtual PtrTy setFatData(PtrTy p, unsigned SlotIdx, Expr data) = 0;
 };
 
 OpSemMemManager *mkRawMemManager(Bv2OpSem &sem, Bv2OpSemContext &ctx,

@@ -8,7 +8,8 @@
 #include "seahorn/Support/SeaLog.hh"
 
 namespace seahorn {
-namespace details {OpSemMemManager::OpSemMemManager(Bv2OpSem &sem, Bv2OpSemContext &ctx,
+namespace details {
+OpSemMemManagerBase::OpSemMemManagerBase(Bv2OpSem &sem, Bv2OpSemContext &ctx,
                                  unsigned ptrSz, unsigned wordSz)
     : m_sem(sem), m_ctx(ctx), m_efac(ctx.getExprFactory()), m_ptrSz(ptrSz),
       m_wordSz(wordSz), m_alignment(m_wordSz) {
@@ -17,5 +18,9 @@ namespace details {OpSemMemManager::OpSemMemManager(Bv2OpSem &sem, Bv2OpSemConte
   assert((m_ptrSz == 4 || m_ptrSz == 8) && "Untested pointer size");
   assert((m_wordSz >= m_ptrSz) && "Word size is less than pointer size");
 }
+
+OpSemMemManager::OpSemMemManager(Bv2OpSem &sem, Bv2OpSemContext &ctx,
+                                         unsigned ptrSz, unsigned wordSz) :
+  OpSemMemManagerBase(sem, ctx, ptrSz, wordSz) {}
 } // namespace details
 } // namespace seahorn

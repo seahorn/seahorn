@@ -449,19 +449,7 @@ public:
 std::unique_ptr<OpSemAllocator> mkNormalOpSemAllocator(OpSemMemManager &mem);
 std::unique_ptr<OpSemAllocator> mkStaticOpSemAllocator(OpSemMemManager &mem);
 
-/// \brief Memory manager for OpSem machine
-class OpSemMemManager {
-public:
-  /// \brief type for pointers
-  /// Currently all expressions are of opaque type Expr. The extra type
-  /// annotations are to communicate intend only.
-  using PtrTy = Expr;
-  using MemRegTy = Expr;
-  using MemValTy = Expr;
-
-  using PtrSortTy = Expr;
-  using MemSortTy = Expr;
-
+class OpSemMemManagerBase {
 protected:
   /// \brief Parent Operational Semantics
   Bv2OpSem &m_sem;
@@ -478,13 +466,12 @@ protected:
   ///
   /// Must be divisible by \t m_wordSz
   uint32_t m_alignment;
-
-public:
-  OpSemMemManager(Bv2OpSem &sem, Bv2OpSemContext &ctx, unsigned ptrSz,
+  OpSemMemManagerBase(Bv2OpSem &sem, Bv2OpSemContext &ctx, unsigned ptrSz,
                   unsigned wordSz);
 
-  virtual ~OpSemMemManager() = default;
+  virtual ~OpSemMemManagerBase() = default;
 
+public:
   Bv2OpSem &sem() const { return m_sem; }
   Bv2OpSemContext &ctx() const { return m_ctx; }
 
@@ -492,6 +479,27 @@ public:
   unsigned ptrSzInBytes() const { return m_ptrSz; }
   unsigned wordSzInBytes() const { return m_wordSz; }
   unsigned wordSzInBits() const { return m_wordSz * 8; }
+  uint32_t getAlignment(const llvm::Value &v) const { return m_alignment; }
+
+};
+/// \brief Memory manager for OpSem machine
+class OpSemMemManager : public OpSemMemManagerBase {
+public:
+  /// \brief type for pointers
+  /// Currently all expressions are of opaque type Expr. The extra type
+  /// annotations are to communicate intend only.
+  using PtrTy = Expr;
+  using MemRegTy = Expr;
+  using MemValTy = Expr;
+
+  using PtrSortTy = Expr;
+  using MemSortTy = Expr;
+
+public:
+  OpSemMemManager(Bv2OpSem &sem, Bv2OpSemContext &ctx, unsigned ptrSz,
+                  unsigned wordSz);
+
+  virtual ~OpSemMemManager() = default;
 
   virtual PtrSortTy ptrSort() const = 0;
 
@@ -668,7 +676,6 @@ public:
   /// \brief Calculates an offset of a pointer from its base.
   Expr ptrOffsetFromBase(PtrTy base, PtrTy ptr) { return ptrSub(ptr, base); }
 
-  uint32_t getAlignment(const llvm::Value &v) const { return m_alignment; }
 
   /// \brief returns Expr after getting data.
   virtual Expr getFatData(PtrTy p, unsigned SlotIdx) = 0;

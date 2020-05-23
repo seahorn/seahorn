@@ -1,6 +1,8 @@
 #include "BvOpSem2Context.hh"
 #include "BvOpSem2RawMemMgr.hh"
 
+#include "BvOpSem2MemManagerMixin.hh"
+
 #include "llvm/IR/GetElementPtrTypeIterator.h"
 #include "llvm/Support/Format.h"
 
@@ -506,7 +508,7 @@ public:
     return strct::extractVal(p, 1 + SlotIdx);
   }
 
-  Expr setFatData(PtrTy p, unsigned SlotIdx, Expr data) override {
+  PtrTy setFatData(PtrTy p, unsigned SlotIdx, Expr data) override {
     assert(strct::isStructVal(p));
     assert(SlotIdx < g_maxFatSlots);
     return strct::insertVal(p, 1 + SlotIdx, data);
@@ -529,5 +531,12 @@ OpSemMemManager *mkFatMemManager(Bv2OpSem &sem, Bv2OpSemContext &ctx,
   return new FatMemManager(sem, ctx, ptrSz, wordSz, useLambdas);
 };
 
+OpSemMemManager *mkFatMemManagerMixin(Bv2OpSem &sem, Bv2OpSemContext &ctx,
+                                      unsigned ptrSz, unsigned wordSz,
+                                      bool useLambdas) {
+  FatMemManager *fat = new OpSemMemManagerMixin<FatMemManager>(
+      sem, ctx, ptrSz, wordSz, useLambdas);
+  return fat;
+}
 } // namespace details
 } // namespace seahorn

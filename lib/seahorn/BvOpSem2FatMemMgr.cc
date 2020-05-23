@@ -21,14 +21,44 @@ static const unsigned int g_maxFatSlots = 2;
 /// \brief provides Fat pointers and Fat memory to store them
 class FatMemManager : public OpSemMemManager {
 public:
+  /// PtrTy representation for this manager
+  ///
+  /// Currently internal representation is just an Expr
+  struct PtrTyImpl {
+    Expr m_v;
+    PtrTyImpl(Expr &&e) : m_v(std::move(e)) {}
+    PtrTyImpl(const Expr &e) : m_v(e) {}
+
+    Expr v() const { return m_v; }
+    Expr toExpr() const { return v(); }
+    operator Expr() const { return toExpr(); }
+  };
+
+  /// MemValTy representation for this manager
+  ///
+  /// Currently internal representation is just an Expr
+  struct MemValTyImpl {
+    Expr m_v;
+    MemValTyImpl(Expr &&e) : m_v(std::move(e)) {}
+    MemValTyImpl(const Expr &e) : m_v(e) {}
+
+    Expr v() const { return m_v; }
+    Expr toExpr() const { return v(); }
+    operator Expr() const { return toExpr(); }
+  };
+
+public:
   /// Right now everything is an expression. In the future, we might have
   /// other types for PtrTy, such as a tuple of expressions
-  using PtrTy = OpSemMemManager::PtrTy;
+  using BasePtrTy = OpSemMemManager::PtrTy;
   using FatPtrTy = OpSemMemManager::PtrTy;
   using RawPtrTy = OpSemMemManager::PtrTy;
 
-  using MemValTy = OpSemMemManager::MemValTy;
+  using BaseMemValTy = OpSemMemManager::MemValTy;
   using FatMemValTy = OpSemMemManager::MemValTy;
+
+  using PtrTy = FatPtrTy;
+  using MemValTy = FatMemValTy;
 
   // TODO: change all slot0,1 methods to return these types for easier reading
   using Slot0ValTy = Expr;
@@ -75,25 +105,25 @@ private:
   }
 
   /// \brief Extracts a raw memory value from a fat memory value
-  MemValTy mkRawMem(FatMemValTy fatMem) const {
+  BaseMemValTy mkRawMem(FatMemValTy fatMem) const {
     assert(strct::isStructVal(fatMem));
     return strct::extractVal(fatMem, 0);
   }
 
-  MemValTy mkSlot0Mem(FatMemValTy fatMem) const {
+  BaseMemValTy mkSlot0Mem(FatMemValTy fatMem) const {
     assert(strct::isStructVal(fatMem));
     return strct::extractVal(fatMem, 1);
   }
 
-  MemValTy mkSlot1Mem(FatMemValTy fatMem) const {
+  BaseMemValTy mkSlot1Mem(FatMemValTy fatMem) const {
     assert(strct::isStructVal(fatMem));
     return strct::extractVal(fatMem, 2);
   }
 
   /// \brief Creates a fat memory value from raw memory with default value for
   /// fat
-  FatMemValTy mkFatMem(MemValTy rawMem, MemValTy slot0Mem,
-                       MemValTy slot1Mem) const {
+  FatMemValTy mkFatMem(BaseMemValTy rawMem, BaseMemValTy slot0Mem,
+                       BaseMemValTy slot1Mem) const {
     return strct::mk(rawMem, slot0Mem, slot1Mem);
   }
 
@@ -255,24 +285,24 @@ public:
   /// \sa loadIntFromMem
   FatPtrTy loadPtrFromMem(FatPtrTy ptr, FatMemValTy mem, unsigned byteSz,
                           uint64_t align) override {
-    MemValTy rawVal =
+    BaseMemValTy rawVal =
         m_main.loadPtrFromMem(mkRawPtr(ptr), mkRawMem(mem), byteSz, align);
-    MemValTy slot0Val = m_slot0.loadIntFromMem(mkRawPtr(ptr), mkSlot0Mem(mem),
-                                               g_slotByteWidth, align);
-    MemValTy slot1Val = m_slot1.loadIntFromMem(mkRawPtr(ptr), mkSlot1Mem(mem),
-                                               g_slotByteWidth, align);
+    BaseMemValTy slot0Val = m_slot0.loadIntFromMem(
+        mkRawPtr(ptr), mkSlot0Mem(mem), g_slotByteWidth, align);
+    BaseMemValTy slot1Val = m_slot1.loadIntFromMem(
+        mkRawPtr(ptr), mkSlot1Mem(mem), g_slotByteWidth, align);
     return mkFatPtr(rawVal, slot0Val, slot1Val);
   }
 
   /// \brief Pointer addition with numeric offset
   FatPtrTy ptrAdd(FatPtrTy ptr, int32_t _offset) const {
-    PtrTy rawPtr = m_main.ptrAdd(mkRawPtr(ptr), _offset);
+    BasePtrTy rawPtr = m_main.ptrAdd(mkRawPtr(ptr), _offset);
     return mkFatPtr(rawPtr, ptr);
   }
 
   /// \brief Pointer addition with symbolic offset
   FatPtrTy ptrAdd(FatPtrTy ptr, Expr offset) const {
-    PtrTy rawPtr = ptrAdd(mkRawPtr(ptr), offset);
+    BasePtrTy rawPtr = ptrAdd(mkRawPtr(ptr), offset);
     return mkFatPtr(rawPtr, ptr);
   }
 
@@ -292,12 +322,12 @@ public:
   /// \sa storeIntToMem
   FatMemValTy storePtrToMem(FatPtrTy val, FatPtrTy ptr, FatMemValTy mem,
                             unsigned byteSz, uint64_t align) override {
-    MemValTy main = m_main.storePtrToMem(mkRawPtr(val), mkRawPtr(ptr),
-                                         mkRawMem(mem), byteSz, align);
-    MemValTy slot0 =
+    BaseMemValTy main = m_main.storePtrToMem(mkRawPtr(val), mkRawPtr(ptr),
+                                             mkRawMem(mem), byteSz, align);
+    BaseMemValTy slot0 =
         m_slot0.storeIntToMem(getFatData(val, 0), mkRawPtr(ptr),
                               mkSlot0Mem(mem), g_slotByteWidth, align);
-    MemValTy slot1 =
+    BaseMemValTy slot1 =
         m_slot1.storeIntToMem(getFatData(val, 1), mkRawPtr(ptr),
                               mkSlot1Mem(mem), g_slotByteWidth, align);
     Expr res = mkFatMem(main, slot0, slot1);
@@ -389,7 +419,7 @@ public:
   }
 
   /// \brief Executes symbolic memset with a concrete length
-  FatMemValTy MemSet(PtrTy ptr, Expr _val, unsigned len, FatMemValTy mem,
+  FatMemValTy MemSet(BasePtrTy ptr, Expr _val, unsigned len, FatMemValTy mem,
                      uint32_t align) override {
     return mkFatMem(
         m_main.MemSet(mkRawPtr(ptr), _val, len, mkRawMem(mem), align),
@@ -397,8 +427,8 @@ public:
   }
 
   /// \brief Executes symbolic memcpy with concrete length
-  FatMemValTy MemCpy(PtrTy dPtr, PtrTy sPtr, unsigned len, Expr memTrsfrRead,
-                     uint32_t align) override {
+  FatMemValTy MemCpy(BasePtrTy dPtr, BasePtrTy sPtr, unsigned len,
+                     Expr memTrsfrRead, uint32_t align) override {
     return mkFatMem(m_main.MemCpy(mkRawPtr(dPtr), mkRawPtr(sPtr), len,
                                   mkRawMem(memTrsfrRead), align),
                     m_slot0.MemCpy(mkRawPtr(dPtr), mkRawPtr(sPtr), len,
@@ -409,7 +439,7 @@ public:
 
   /// \brief Executes symbolic memcpy from physical memory with concrete
   /// length
-  FatMemValTy MemFill(PtrTy dPtr, char *sPtr, unsigned len, FatMemValTy mem,
+  FatMemValTy MemFill(BasePtrTy dPtr, char *sPtr, unsigned len, FatMemValTy mem,
                       uint32_t align = 0) override {
     return mkFatMem(
         m_main.MemFill(mkRawPtr(dPtr), sPtr, len, mkRawMem(mem), align),
@@ -470,7 +500,7 @@ public:
     // Here the resultant pointer automatically gets the same slot(s) data
     // as the original. Therefore we don't require the client to manually
     // update slot(s) data after a gep call.
-    PtrTy rawPtr = m_main.gep(mkRawPtr(ptr), it, end);
+    BasePtrTy rawPtr = m_main.gep(mkRawPtr(ptr), it, end);
     return mkFatPtr(rawPtr, ptr);
   }
 
@@ -502,13 +532,13 @@ public:
                     m_slot1.zeroedMemory());
   }
 
-  Expr getFatData(PtrTy p, unsigned SlotIdx) override {
+  Expr getFatData(BasePtrTy p, unsigned SlotIdx) override {
     assert(strct::isStructVal(p));
     assert(SlotIdx < g_maxFatSlots);
     return strct::extractVal(p, 1 + SlotIdx);
   }
 
-  PtrTy setFatData(PtrTy p, unsigned SlotIdx, Expr data) override {
+  BasePtrTy setFatData(BasePtrTy p, unsigned SlotIdx, Expr data) override {
     assert(strct::isStructVal(p));
     assert(SlotIdx < g_maxFatSlots);
     return strct::insertVal(p, 1 + SlotIdx, data);

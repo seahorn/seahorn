@@ -35,6 +35,7 @@ Based on BufferBoundsCheck from LLVM project
 #include "llvm/Transforms/Instrumentation.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 
+#include "seahorn/Analysis/SeaBuiltinsInfo.hh"
 #include "seahorn/Support/SeaDebug.h"
 #include "seahorn/Support/SeaLog.hh"
 
@@ -60,9 +61,10 @@ using namespace llvm;
 #define SEA_RECOVER_FAT_PTR "__sea_recover_pointer_hm"
 #endif
 
-// static cl::opt<bool> SingleErrorBB("bounds-checking-single-trap",
-//                                  cl::desc("Use one trap block per
-//                                  function"));
+static cl::opt<bool>
+    UseFatSlots("horn-bnd-chk-slots",
+                cl::desc("Use instrumentation based on fat slots"),
+                cl::init(true));
 
 STATISTIC(ChecksAdded, "Bounds checks added");
 STATISTIC(ChecksSkipped, "Bounds checks skipped");
@@ -81,10 +83,12 @@ struct FatBufferBoundsCheck : public FunctionPass {
 
   void getAnalysisUsage(AnalysisUsage &AU) const override {
     AU.addRequired<TargetLibraryInfoWrapperPass>();
+    AU.addRequired<seahorn::SeaBuiltinsInfoWrapperPass>();
   }
 
 private:
   const TargetLibraryInfo *TLI;
+  seahorn::SeaBuiltinsInfo *SBI;
   ObjectSizeOffsetEvaluator *ObjSizeEval;
   BuilderTy *Builder;
   Instruction *Inst;
@@ -97,6 +101,8 @@ private:
   Function *m_copyFatSlots;  // copy ptr info
   Function *m_recoverFatPtr; // NEW: for ptr embed method only
   Function *m_seaDsaAlias;   // sea_dsa_alias
+
+  Function *m_seaIsDereferenceable; // sea.is_dereferenceable
 
   BasicBlock *getErrorBB();
   void emitBranchToTrap(Value *Cmp = nullptr);
@@ -115,8 +121,8 @@ BasicBlock *FatBufferBoundsCheck::getErrorBB() {
     return ErrorBB;
 
   Function *Fn = Inst->getParent()->getParent();
-  Module *Md = Fn->getParent();
-  LLVMContext &ctx = Md->getContext();
+  Module &M = *Fn->getParent();
+  LLVMContext &ctx = M.getContext();
   IRBuilder<>::InsertPointGuard Guard(*Builder);
   ErrorBB = BasicBlock::Create(Fn->getContext(), "bound_overflow", Fn);
   Builder->SetInsertPoint(ErrorBB);
@@ -124,13 +130,7 @@ BasicBlock *FatBufferBoundsCheck::getErrorBB() {
   AttrBuilder AB;
   AB.addAttribute(Attribute::NoReturn);
   AttributeList as = AttributeList::get(ctx, AttributeList::FunctionIndex, AB);
-  // XXX use generic __VERIFIER_error() function to ensure that it is properly
-  // XXX lifted to verifier.error() with PromoteVerifierCalls pass. A better
-  // XXX solution is to unify how seahorn-specific functions are accessed to
-  // XXX ensure that they are always created uniformly with the right
-  // XXX attributes.
-  auto errorFn =
-      Md->getOrInsertFunction("__VERIFIER_error", as, Type::getVoidTy(ctx));
+  auto errorFn = SBI->mkSeaBuiltinFn(seahorn::SeaBuiltinsOp::ERROR, M);
   CallInst *TrapCall = Builder->CreateCall(errorFn);
   TrapCall->setDoesNotReturn();
   TrapCall->setDoesNotThrow();
@@ -179,53 +179,67 @@ bool FatBufferBoundsCheck::instrument(Value *Ptr, Value *InstVal,
   SizeOffsetEvalType SizeOffset = ObjSizeEval->compute(Ptr);
   Value *Or;
 
-  auto *ArgPtr = Builder->CreateBitCast(Ptr, Builder->getInt8PtrTy());
-  Value *RecovPtr = Builder->CreateCall(
-      m_recoverFatPtr, ArgPtr);
-  RawPtr = Builder->CreateBitCast(RecovPtr, Ptr->getType());
-
-  Builder->CreateCall(m_seaDsaAlias, {ArgPtr, RecovPtr});
+  if (UseFatSlots) {
+    auto *ArgPtr = Builder->CreateBitCast(Ptr, Builder->getInt8PtrTy());
+    Value *RecovPtr = Builder->CreateCall(m_recoverFatPtr, ArgPtr);
+    RawPtr = Builder->CreateBitCast(RecovPtr, Ptr->getType());
+    Builder->CreateCall(m_seaDsaAlias, {ArgPtr, RecovPtr});
+  } else {
+    RawPtr = Ptr;
+  }
 
   if (!ObjSizeEval->bothKnown(SizeOffset)) {
 
-    // -- skip anything that is globally allocated
-    if (isa<llvm::GlobalValue>(Ptr->stripPointerCastsAndInvariantGroups())) {
-      ++ChecksUnable;
-      return false;
-    }
+    if (UseFatSlots) {
+      // -- skip anything that is globally allocated
+      if (isa<llvm::GlobalValue>(Ptr->stripPointerCastsAndInvariantGroups())) {
+        ++ChecksUnable;
+        return false;
+      }
 
-    ++ChecksFat;
-    LOG("fat-bnd-check", errs() << "fatptr instrument " << *Ptr << " for "
-                                << Twine(NeededSize) << " bytes\n";);
-    /* Generates code for dynamic bounds check using fat ptr functions:
-      start := call get_fat_slot0(ptr)
-      size  := call get_fat_slot1(ptr)
-      (optionally, for fat encoding implementation)
-      recov := call recover_fatptr(ptr)
-      is_underflow := (ptr < start) ptr_end = start + size
-      access_end := ptr + needed_size
-      is_overflow := ptr_end < access_end
-      is_access_bad := is_underflow or is_overflow
-    */
-    Value *Start = Builder->CreateCall(
-        m_getFatSlot0, Builder->CreateBitCast(Ptr, Builder->getInt8PtrTy()));
-    Value *Size = nullptr;
-    if (ObjSizeEval->knownSize(SizeOffset)) {
-      Size = SizeOffset.first;
-      ++ChecksKnownSize;
+      ++ChecksFat;
+      LOG("fat-bnd-check", errs() << "fatptr instrument " << *Ptr << " for "
+                                  << Twine(NeededSize) << " bytes\n";);
+      /* Generates code for dynamic bounds check using fat ptr functions:
+        start := call get_fat_slot0(ptr)
+        size  := call get_fat_slot1(ptr)
+        (optionally, for fat encoding implementation)
+        recov := call recover_fatptr(ptr)
+        is_underflow := (ptr < start) ptr_end = start + size
+        access_end := ptr + needed_size
+        is_overflow := ptr_end < access_end
+        is_access_bad := is_underflow or is_overflow
+      */
+      Value *Start = Builder->CreateCall(
+          m_getFatSlot0, Builder->CreateBitCast(Ptr, Builder->getInt8PtrTy()));
+      Value *Size = nullptr;
+      if (ObjSizeEval->knownSize(SizeOffset)) {
+        Size = SizeOffset.first;
+        ++ChecksKnownSize;
+      } else {
+        Size = Builder->CreateCall(
+            m_getFatSlot1,
+            Builder->CreateBitCast(Ptr, Builder->getInt8PtrTy()));
+      }
+      assert(Size);
+      Value *PtrAsInt = Builder->CreatePtrToInt(RawPtr, IntPtrTy);
+      // Ptr >= Start
+      Value *CmpUnderFlow = Builder->CreateICmpULT(PtrAsInt, Start);
+      // Start + Size >= Ptr + NeededSize
+      Value *AccessEnd = Builder->CreateAdd(PtrAsInt, NeededSizeVal);
+      Value *PtrEnd = Builder->CreateAdd(Start, Size);
+      Value *CmpOverFlow = Builder->CreateICmpULT(PtrEnd, AccessEnd);
+      Or = Builder->CreateOr(CmpUnderFlow, CmpOverFlow);
     } else {
-      Size = Builder->CreateCall(
-          m_getFatSlot1, Builder->CreateBitCast(Ptr, Builder->getInt8PtrTy()));
+      ++ChecksFat;
+      LOG("fat-bnd-check", errs() << "fatptr instrument " << *Ptr << " for "
+                                  << Twine(NeededSize) << " bytes\n";);
+      auto isDerefCall = Builder->CreateCall(
+          m_seaIsDereferenceable,
+          {Builder->CreateBitCast(Ptr, Builder->getInt8PtrTy()),
+           NeededSizeVal});
+      Or = Builder->CreateNot(isDerefCall);
     }
-    assert(Size);
-    Value *PtrAsInt = Builder->CreatePtrToInt(RawPtr, IntPtrTy);
-    // Ptr >= Start
-    Value *CmpUnderFlow = Builder->CreateICmpULT(PtrAsInt, Start);
-    // Start + Size >= Ptr + NeededSize
-    Value *AccessEnd = Builder->CreateAdd(PtrAsInt, NeededSizeVal);
-    Value *PtrEnd = Builder->CreateAdd(Start, Size);
-    Value *CmpOverFlow = Builder->CreateICmpULT(PtrEnd, AccessEnd);
-    Or = Builder->CreateOr(CmpUnderFlow, CmpOverFlow);
   } else {
     // size and offest statically computed
     LOG("fat-bnd-check", errs() << "statically instrument " << *Ptr << " for "
@@ -353,7 +367,8 @@ bool FatBufferBoundsCheck::instrumentGep(GetElementPtrInst *Ptr,
   SlotCopyCall->setArgOperand(0, Arg0);
   SlotCopyCall->setArgOperand(1, Arg1);
 
-  Builder->SetInsertPoint(Ptr->getParent(), ++BasicBlock::iterator(SlotCopyCall));
+  Builder->SetInsertPoint(Ptr->getParent(),
+                          ++BasicBlock::iterator(SlotCopyCall));
   Builder->CreateCall(m_seaDsaAlias, {Arg0, SlotCopyCall});
   return true;
 }
@@ -364,6 +379,7 @@ bool FatBufferBoundsCheck::runOnFunction(Function &F) {
 
   const auto &DL = M->getDataLayout();
   TLI = &getAnalysis<TargetLibraryInfoWrapperPass>().getTLI(F);
+  SBI = &getAnalysis<seahorn::SeaBuiltinsInfoWrapperPass>().getSBI();
 
   ErrorBB = nullptr;
   BuilderTy TheBuilder(F.getContext(), TargetFolder(DL));
@@ -375,96 +391,107 @@ bool FatBufferBoundsCheck::runOnFunction(Function &F) {
 
   IntPtrTy = DL.getIntPtrType(C);
 
-  m_getFatSlot0 =
-      cast<Function>(M->getOrInsertFunction(SEA_GET_FAT_SLOT0, IntPtrTy,
-                                            Type::getInt8PtrTy(C, 0))
-                         .getCallee());
+  m_seaIsDereferenceable =
+      SBI->mkSeaBuiltinFn(seahorn::SeaBuiltinsOp::IS_DEREFERENCEABLE, *M);
 
-  m_getFatSlot0->setDoesNotThrow();
-  m_getFatSlot0->setDoesNotReadMemory();
-  m_getFatSlot0->addParamAttr(0, Attribute::NoCapture);
+  if (UseFatSlots) {
+    m_getFatSlot0 =
+        cast<Function>(M->getOrInsertFunction(SEA_GET_FAT_SLOT0, IntPtrTy,
+                                              Type::getInt8PtrTy(C, 0))
+                           .getCallee());
 
-  m_getFatSlot1 =
-      cast<Function>(M->getOrInsertFunction(SEA_GET_FAT_SLOT1, IntPtrTy,
-                                            Type::getInt8PtrTy(C, 0))
-                         .getCallee());
-  m_getFatSlot1->setDoesNotThrow();
-  m_getFatSlot1->setDoesNotReadMemory();
-  m_getFatSlot1->addParamAttr(0, Attribute::NoCapture);
+    m_getFatSlot0->setDoesNotThrow();
+    m_getFatSlot0->setDoesNotReadMemory();
+    m_getFatSlot0->addParamAttr(0, Attribute::NoCapture);
 
-  m_setFatSlot0 = cast<Function>(
-      M->getOrInsertFunction(SEA_SET_FAT_SLOT0, Type::getInt8PtrTy(C, 0),
-                             Type::getInt8PtrTy(C, 0), IntPtrTy)
-          .getCallee());
-  m_setFatSlot0->setDoesNotThrow();
-  m_setFatSlot0->setDoesNotReadMemory();
-  // m_setFatSlot0->addParamAttr(0, Attribute::Returned);
+    m_getFatSlot1 =
+        cast<Function>(M->getOrInsertFunction(SEA_GET_FAT_SLOT1, IntPtrTy,
+                                              Type::getInt8PtrTy(C, 0))
+                           .getCallee());
+    m_getFatSlot1->setDoesNotThrow();
+    m_getFatSlot1->setDoesNotReadMemory();
+    m_getFatSlot1->addParamAttr(0, Attribute::NoCapture);
 
-  m_setFatSlot1 = cast<Function>(
-      M->getOrInsertFunction(SEA_SET_FAT_SLOT1, Type::getInt8PtrTy(C, 0),
-                             Type::getInt8PtrTy(C, 0), IntPtrTy)
-          .getCallee());
-  m_setFatSlot1->setDoesNotThrow();
-  m_setFatSlot1->setDoesNotReadMemory();
-  // m_setFatSlot1->addParamAttr(0, Attribute::Returned);
+    m_setFatSlot0 = cast<Function>(
+        M->getOrInsertFunction(SEA_SET_FAT_SLOT0, Type::getInt8PtrTy(C, 0),
+                               Type::getInt8PtrTy(C, 0), IntPtrTy)
+            .getCallee());
+    m_setFatSlot0->setDoesNotThrow();
+    m_setFatSlot0->setDoesNotReadMemory();
+    // m_setFatSlot0->addParamAttr(0, Attribute::Returned);
 
-  m_copyFatSlots = cast<Function>(
-      M->getOrInsertFunction(SEA_COPY_FAT_SLOTS, Type::getInt8PtrTy(C, 0),
-                             Type::getInt8PtrTy(C, 0), Type::getInt8PtrTy(C, 0))
-          .getCallee());
-  m_copyFatSlots->setDoesNotThrow();
-  m_copyFatSlots->setDoesNotReadMemory();
-  // m_copyFatSlots->addParamAttr(0, Attribute::Returned);
-  m_copyFatSlots->addParamAttr(1, Attribute::NoCapture);
+    m_setFatSlot1 = cast<Function>(
+        M->getOrInsertFunction(SEA_SET_FAT_SLOT1, Type::getInt8PtrTy(C, 0),
+                               Type::getInt8PtrTy(C, 0), IntPtrTy)
+            .getCallee());
+    m_setFatSlot1->setDoesNotThrow();
+    m_setFatSlot1->setDoesNotReadMemory();
+    // m_setFatSlot1->addParamAttr(0, Attribute::Returned);
 
-  m_recoverFatPtr = cast<Function>(
-      M->getOrInsertFunction(SEA_RECOVER_FAT_PTR, Type::getInt8PtrTy(C, 0),
-                             Type::getInt8PtrTy(C, 0))
-          .getCallee());
-  m_recoverFatPtr->setDoesNotThrow();
-  m_recoverFatPtr->setDoesNotReadMemory();
-  // m_recoverFatPtr->addParamAttr(0, Attribute::Returned);
+    m_copyFatSlots =
+        cast<Function>(M->getOrInsertFunction(
+                            SEA_COPY_FAT_SLOTS, Type::getInt8PtrTy(C, 0),
+                            Type::getInt8PtrTy(C, 0), Type::getInt8PtrTy(C, 0))
+                           .getCallee());
+    m_copyFatSlots->setDoesNotThrow();
+    m_copyFatSlots->setDoesNotReadMemory();
+    // m_copyFatSlots->addParamAttr(0, Attribute::Returned);
+    m_copyFatSlots->addParamAttr(1, Attribute::NoCapture);
 
-  m_seaDsaAlias = cast<Function>(
-      M->getOrInsertFunction(SEA_DSA_ALIAS, Type::getVoidTy(C),
-                             Type::getInt8PtrTy(C, 0), Type::getInt8PtrTy(C, 0))
-          .getCallee());
+    m_recoverFatPtr = cast<Function>(
+        M->getOrInsertFunction(SEA_RECOVER_FAT_PTR, Type::getInt8PtrTy(C, 0),
+                               Type::getInt8PtrTy(C, 0))
+            .getCallee());
+    m_recoverFatPtr->setDoesNotThrow();
+    m_recoverFatPtr->setDoesNotReadMemory();
+    // m_recoverFatPtr->addParamAttr(0, Attribute::Returned);
+
+    m_seaDsaAlias =
+        cast<Function>(M->getOrInsertFunction(SEA_DSA_ALIAS, Type::getVoidTy(C),
+                                              Type::getInt8PtrTy(C, 0),
+                                              Type::getInt8PtrTy(C, 0))
+                           .getCallee());
+  }
+
   // check HANDLE_MEMORY_INST in include/llvm/Instruction.def for memory
   // touching instructions
-  std::vector<Instruction *> AccessWorkList;
+
   std::vector<AllocaInst *> AllocaList;     // new register is created for addr
   std::vector<GetElementPtrInst *> GEPList; // new register is created for addr
+  std::vector<Instruction *> AccessWorkList;
   for (auto i = inst_begin(F), e = inst_end(F); i != e; ++i) {
     Instruction *I = &*i;
     if (isa<LoadInst>(I) || isa<StoreInst>(I) || isa<AtomicCmpXchgInst>(I) ||
         isa<AtomicRMWInst>(I)) {
       AccessWorkList.push_back(I);
-    } else if (isa<AllocaInst>(I)) {
+    } else if (false && isa<AllocaInst>(I)) {
       AllocaList.push_back(cast<AllocaInst>(I));
-    } else if (isa<GetElementPtrInst>(I)) {
+    } else if (false && isa<GetElementPtrInst>(I)) {
       GEPList.push_back(cast<GetElementPtrInst>(I));
     }
   }
 
   bool MadeChange = false;
-  for (Instruction *i : AllocaList) {
-    Inst = i;
-    if (AllocaInst *ALI = dyn_cast<AllocaInst>(Inst)) {
-      Type *allocTy = ALI->getAllocatedType();
-      MadeChange |= instrumentAlloca(ALI, DL);
-    } else {
-      llvm_unreachable("unknown Instruction type");
+  if (UseFatSlots) {
+    for (Instruction *i : AllocaList) {
+      Inst = i;
+      if (AllocaInst *ALI = dyn_cast<AllocaInst>(Inst)) {
+        Type *allocTy = ALI->getAllocatedType();
+        MadeChange |= instrumentAlloca(ALI, DL);
+      } else {
+        llvm_unreachable("unknown Instruction type");
+      }
     }
-  }
 
-  for (Instruction *i : GEPList) {
-    Value *RawPtr = nullptr;
-    Inst = i;
-    if (GetElementPtrInst *GEP = dyn_cast<GetElementPtrInst>(Inst)) {
-      MadeChange |= instrumentGep(GEP, RawPtr);
-      GEP->setOperand(GEP->getPointerOperandIndex(), RawPtr);
-    } else {
-      llvm_unreachable("unknown Instruction type");
+    for (Instruction *i : GEPList) {
+      Value *RawPtr = nullptr;
+      Inst = i;
+      if (GetElementPtrInst *GEP = dyn_cast<GetElementPtrInst>(Inst)) {
+        MadeChange |= instrumentGep(GEP, RawPtr);
+        GEP->setOperand(GEP->getPointerOperandIndex(), RawPtr);
+      } else {
+        llvm_unreachable("unknown Instruction type");
+      }
     }
   }
 

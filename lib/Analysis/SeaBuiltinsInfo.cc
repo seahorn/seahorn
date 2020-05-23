@@ -7,6 +7,8 @@
 #include "llvm/IR/InstrTypes.h"
 #include "llvm/IR/Module.h"
 
+#include "llvm/ADT/StringSwitch.h"
+
 using namespace seahorn;
 using namespace llvm;
 
@@ -16,6 +18,7 @@ using namespace llvm;
 #define VERIFIER_ASSUME_NOT_FN "verifier.assume.not"
 #define VERIFIER_ASSERT_FN "verifier.assert"
 #define VERIFIER_ASSERT_NOT_FN "verifier.assert.not"
+#define SEA_IS_DEREFERENCEABLE "sea.is_dereferenceable"
 
 SeaBuiltinsOp
 seahorn::SeaBuiltinsInfo::getSeaBuiltinOp(const llvm::CallBase &cb) const {
@@ -24,17 +27,13 @@ seahorn::SeaBuiltinsInfo::getSeaBuiltinOp(const llvm::CallBase &cb) const {
   if (!F)
     return SBIOp::UNKNOWN;
 
-  StringRef n = F->getName();
-  if (n.equals(VERIFIER_ERROR_FN))
-    return SBIOp::ERROR;
-  else if (n.equals(SEAHORN_FAIL_FN))
-    return SBIOp::FAIL;
-  else if (n.equals(VERIFIER_ASSUME_FN))
-    return SBIOp::ASSUME;
-  else if (n.equals(VERIFIER_ASSUME_NOT_FN))
-    return SBIOp::ASSUME_NOT;
-
-  return SBIOp::UNKNOWN;
+  return StringSwitch<SBIOp>(F->getName())
+    .Case(VERIFIER_ERROR_FN, SBIOp::ERROR)
+    .Case(SEAHORN_FAIL_FN, SBIOp::FAIL)
+    .Case(VERIFIER_ASSUME_FN, SBIOp::ASSUME)
+    .Case(VERIFIER_ASSUME_NOT_FN, SBIOp::ASSUME_NOT)
+    .Case(SEA_IS_DEREFERENCEABLE, SBIOp::IS_DEREFERENCEABLE)
+    .Default(SBIOp::UNKNOWN);
 }
 
 llvm::Function *SeaBuiltinsInfo::mkSeaBuiltinFn(SeaBuiltinsOp op,
@@ -50,6 +49,8 @@ llvm::Function *SeaBuiltinsInfo::mkSeaBuiltinFn(SeaBuiltinsOp op,
   case SBIOp::ASSUME:
   case SBIOp::ASSUME_NOT:
     return mkAssertAssumeFn(M, op);
+  case SBIOp::IS_DEREFERENCEABLE:
+    return mkIsDereferenceable(M);
   }
   llvm_unreachable(nullptr);
 }
@@ -116,21 +117,36 @@ Function *SeaBuiltinsInfo::mkAssertAssumeFn(Module &M, SeaBuiltinsOp op) {
   return FN;
 }
 
+Function *SeaBuiltinsInfo::mkIsDereferenceable(Module &M) {
+  auto &C = M.getContext();
+  auto *IntPtrTy = M.getDataLayout().getIntPtrType(C);
+  auto FC = M.getOrInsertFunction(SEA_IS_DEREFERENCEABLE, Type::getInt1Ty(C), Type::getInt8PtrTy(C), IntPtrTy);
+  auto *FN = dyn_cast<Function>(FC.getCallee());
+  if (FN) {
+    FN->setOnlyAccessesInaccessibleMemory();
+    FN->setDoesNotThrow();
+    FN->setDoesNotFreeMemory();
+    FN->setDoesNotRecurse();
+    FN->addParamAttr(0, Attribute::NoCapture);
+    // XXX maybe even add the following
+    // FN->setDoesNotAccessMemory();
+  }
+  return FN;
+}
+
 SeaBuiltinsInfoWrapperPass::SeaBuiltinsInfoWrapperPass() : ImmutablePass(ID) {
   initializeSeaBuiltinsInfoWrapperPassPass(*PassRegistry::getPassRegistry());
 }
 
 char seahorn::SeaBuiltinsInfoWrapperPass::ID = 0;
 
-
 llvm::ImmutablePass *seahorn::createSeaBuiltinsWrapperPass() {
   return new SeaBuiltinsInfoWrapperPass();
 }
 
-
-
 namespace llvm {
 using namespace seahorn;
-INITIALIZE_PASS(SeaBuiltinsInfoWrapperPass, "sea-builtins", "Information and construciton of builtin seahorn functions",
+INITIALIZE_PASS(SeaBuiltinsInfoWrapperPass, "sea-builtins",
+                "Information and construciton of builtin seahorn functions",
                 false, true)
-}
+} // namespace llvm

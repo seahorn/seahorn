@@ -10,12 +10,13 @@ class Module;
 namespace seahorn {
 
 enum class SeaBuiltinsOp {
-  ERROR,      /* verifier.error */
-  FAIL,       /* seahorn.fail */
-  ASSUME,     /* verifier.assume */
-  ASSUME_NOT, /* verifier.assume.not */
-  ASSERT,     /* verifier.assert */
-  ASSERT_NOT, /* verifier.assert.not */
+  ERROR,              /* verifier.error */
+  FAIL,               /* seahorn.fail */
+  ASSUME,             /* verifier.assume */
+  ASSUME_NOT,         /* verifier.assume.not */
+  ASSERT,             /* verifier.assert */
+  ASSERT_NOT,         /* verifier.assert.not */
+  IS_DEREFERENCEABLE, /* sea.is_dereferenceable */
   UNKNOWN
 };
 
@@ -24,6 +25,7 @@ class SeaBuiltinsInfo {
   llvm::Function *mkFailFn(llvm::Module &M);
   llvm::Function *mkErrorFn(llvm::Module &M);
   llvm::Function *mkAssertAssumeFn(llvm::Module &M, SeaBuiltinsOp);
+  llvm::Function *mkIsDereferenceable(llvm::Module &M);
 
 public:
   SeaBuiltinsOp getSeaBuiltinOp(const llvm::CallBase &cb) const;

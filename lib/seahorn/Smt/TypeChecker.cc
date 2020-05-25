@@ -78,10 +78,6 @@ public:
   Expr knownTypeOf(Expr e) { return e ? m_cache.at(e) : Expr(); }
 
   Expr getErrorExp() { return m_isWellFormed ? Expr() : m_errorExp; }
-  void reset() {
-    m_errorExp = Expr();
-    m_isWellFormed = true;
-  }
 };
 
 //==-- Adapts visitor for pre- and post- traversal --==/
@@ -102,7 +98,6 @@ public:
   Expr knownTypeOf(Expr e) { return m_rw->knownTypeOf(e); }
 
   Expr getErrorExp() { return m_rw->getErrorExp(); }
-  void reset() { m_rw->reset(); }
 };
 } // namespace
 
@@ -120,7 +115,6 @@ public:
   }
 
   Expr getErrorExp() { return m_visitor.getErrorExp(); }
-  void reset() { m_visitor.reset(); }
 };
 
 TypeChecker::TypeChecker() : m_impl(new TypeChecker::Impl(this)) {}
@@ -129,6 +123,9 @@ Expr TypeChecker::typeOf(Expr e) { return m_impl->typeOf(e); }
 Expr TypeChecker::getErrorExp() { // to be called after typeOf() or sortOf()
   return m_impl->getErrorExp();
 }
-void TypeChecker::reset() { m_impl->reset(); }
+void TypeChecker::reset() { 
+  delete m_impl;
+  m_impl = new TypeChecker::Impl(this);
+ }
 
 } // namespace expr

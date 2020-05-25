@@ -10,76 +10,69 @@ using namespace expr;
 using namespace expr::op;
 
 namespace {
-// just for checking if two sets of keys are the same, only use in debug mode
-template <typename T> bool compare(std::vector<T> &v1, std::vector<T> &v2) {
-  std::sort(v1.begin(), v1.end());
-  std::sort(v2.begin(), v2.end());
-  return v1 == v2;
+Expr mkVarGet(Expr map, Expr k, Expr vTy) {
+  // -- create a constant with the name get(map,k)
+  return bind::mkConst(variant::variant(0,finite_map::get(map, k)), vTy);
 }
 
-  Expr mkVarGet(Expr map, Expr k, Expr vTy) {
-    // -- create a constant with the name get(map,k)
-    return bind::mkConst(variant::variant(0,finite_map::get(map, k)), vTy);
+// \brief `m1` contains the same values as `m2`. Both maps are assumed to have
+// the same keys `keys` but not necessarily in the same order, that is why
+// `ks1` and `ks2` are needed.
+Expr mkEqCore(Expr m1, Expr ks1, Expr m2, Expr ks2, ExprVector &keys, Expr vTy,
+              ExprFactory &efac, ExprSet &evars) {
+
+  ExprVector conj;
+
+  bool is_var_m1 = bind::isFiniteMapConst(m1);
+  bool is_var_m2 = bind::isFiniteMapConst(m2);
+
+  Expr e_m1, e_m2;
+
+  for (auto k : keys) {
+    if (is_var_m1) {
+      e_m1 = mkVarGet(m1, k, vTy);
+      evars.insert(e_m1);
+    } else
+      e_m1 = finite_map::mkGetVal(m1, ks1, k);
+
+    if (is_var_m2) {
+      e_m2 = mkVarGet(m2, k, vTy);
+      evars.insert(e_m2);
+    } else
+      e_m2 = finite_map::mkGetVal(m2, ks2, k);
+    conj.push_back(mk<EQ>(e_m1, e_m2));
+  }
+  return mknary<AND>(conj);
+}
+
+Expr mkInitFMapCore(Expr map, ExprMap &type_lambda, ExprMap &expr_type,
+                    ExprFactory &efac) {
+
+  // defmap(defk(keys), default(valTy)))
+  //      or
+  // defmap(defk(keys), defv(values)))
+
+  // build keys
+  Expr defk = map->left();
+  assert(isOpX<CONST_FINITE_MAP_KEYS>(defk));
+  ExprVector keys(defk->args_begin(), defk->args_end());
+
+  Expr vTy, valuesE = map->right();
+  if (isOpX<FINITE_MAP_VAL_DEFAULT>(valuesE)) { // non init values
+    vTy = valuesE->left();                      // type of the values
+  } else {
+    assert(isOpX<CONST_FINITE_MAP_VALUES>(valuesE)); // initialized values
+    vTy = bind::typeOf(*valuesE->args_begin());
+    // already expanded, can they be of unknown type?
   }
 
-  // \brief `m1` contains the same values as `m2`. Both maps are assumed to have
-  // the same keys `keys` but not necessarily in the same order, that is why
-  // `ks1` and `ks2` are needed.
-  Expr mkEqCore(Expr m1, Expr ks1, Expr m2, Expr ks2, ExprVector &keys, Expr vTy,
-                ExprFactory &efac, ExprSet &evars) {
+  Expr fmTy = sort::finiteMapTy(vTy, keys);
+  expr_type[map] = fmTy;
+  Expr lmdKeys = finite_map::mkKeys(keys, efac);
+  type_lambda[fmTy] = lmdKeys;
 
-    ExprVector conj;
-
-    bool is_var_m1 = bind::isFiniteMapConst(m1);
-    bool is_var_m2 = bind::isFiniteMapConst(m2);
-
-    Expr e_m1, e_m2;
-
-    for (auto k : keys) {
-      if (is_var_m1) {
-        e_m1 = mkVarGet(m1, k, vTy);
-        evars.insert(e_m1);
-      } else
-        e_m1 = finite_map::mkGetVal(m1, ks1, k);
-
-      if (is_var_m2) {
-        e_m2 = mkVarGet(m2, k, vTy);
-        evars.insert(e_m2);
-      } else
-        e_m2 = finite_map::mkGetVal(m2, ks2, k);
-      conj.push_back(mk<EQ>(e_m1, e_m2));
-    }
-    return mknary<AND>(conj);
-  }
-
-  Expr mkInitFMapCore(Expr map, ExprMap &type_lambda, ExprMap &expr_type,
-                      ExprFactory &efac) {
-
-    // defmap(defk(keys), default(valTy)))
-    //      or
-    // defmap(defk(keys), defv(values)))
-
-    // build keys
-    Expr defk = map->left();
-    assert(isOpX<CONST_FINITE_MAP_KEYS>(defk));
-    ExprVector keys(defk->args_begin(), defk->args_end());
-
-    Expr vTy, valuesE = map->right();
-    if (isOpX<FINITE_MAP_VAL_DEFAULT>(valuesE)) { // non init values
-      vTy = valuesE->left();                      // type of the values
-    } else {
-      assert(isOpX<CONST_FINITE_MAP_VALUES>(valuesE)); // initialized values
-      vTy = bind::typeOf(*valuesE->args_begin());
-      // already expanded, can they be of unknown type?
-    }
-
-    Expr fmTy = sort::finiteMapTy(vTy, keys);
-    expr_type[map] = fmTy;
-    Expr lmdKeys = finite_map::mkKeys(keys, efac);
-    type_lambda[fmTy] = lmdKeys;
-
-    return map;
-  }
+  return map;
+}
 
   Expr mkFMapPrimitiveArgCore(Expr map, ExprMap &type_lambda,
                               ExprMap &expr_type, ExprFactory &efac) {
@@ -110,14 +103,15 @@ template <typename T> bool compare(std::vector<T> &v1, std::vector<T> &v2) {
                  ExprFactory &efac, ExprSet &evars) {
 
     Expr v, v_get;
-    ExprVector map_values;
+    ExprVector map_values(keys.size());
+    auto val_it = map_values.begin();
 
     for (auto k : keys) {
       v = mkVarGet(map, k, vTy);
       evars.insert(v);
       new_vars.push_back(k);
       new_vars.push_back(v);
-      map_values.push_back(v);
+      *val_it++ = v;
     }
     extra_unifs.push_back(
         mk<EQ>(map, finite_map::constFiniteMap(keys, map_values)));
@@ -156,7 +150,7 @@ template <typename T> bool compare(std::vector<T> &v1, std::vector<T> &v2) {
         Expr ksTy = finite_map::keys(argTy);
         ExprVector keys(ksTy->args_begin(), ksTy->args_end());
         Expr lmdks = finite_map::mkKeys(keys, efac);
-        errs() << "mkVarsMap: " << *map_var_name << "\n";
+
         mkVarsMap(map_var_name, lmdks, keys, finite_map::valTy(argTy), newArgs,
                   extraUnifs, efac, vars);
         // new arguments are added to `newArgs` in the function above
@@ -255,15 +249,9 @@ Expr FiniteMapRewriter::operator()(Expr exp) {
     Expr lkeysl = m_type_lambda[fmTyl];
     Expr lkeysr = m_type_lambda[fmTyr];
 
-    // assert(lkeys1);
-    // assert(lkeys2);
-    // // only one keys vector is needed, just done for compare
     Expr ksTyl = finite_map::keys(fmTyl);
     Expr vTy = finite_map::valTy(fmTyl);
     ExprVector keys(ksTyl->args_begin(), ksTyl->args_end());
-    // ExprVector keysr(fmTyr->args_begin(), fmTyr->args_end());
-    // assert(compare(keys, keysr));
-    // check that both maps have the same keys
     res = mkEqCore(fml, lkeysl, fmr, lkeysr, keys, vTy, m_efac, m_evars);
   } else { // do nothing
     assert(false && "Unexpected map expression");
@@ -300,7 +288,6 @@ VisitAction FiniteMapArgsVisitor::operator()(Expr exp) {
   } else if (isOpX<FAPP>(exp) &&
              !bind::IsConst()(exp)) { // faster to check arity >= 2?
     Expr fdecl = *exp->args_begin();
-    errs() << "fapp found: " << *exp << "\n";
     if (m_pred_decl_t.count(fdecl) > 0) { // needs to be transformed
       ExprVector newUnifs;
       Expr newPredDecl = m_pred_decl_t.find(fdecl)->second;
@@ -320,7 +307,7 @@ VisitAction FiniteMapArgsVisitor::operator()(Expr exp) {
 //  FiniteMapBodyVisitor
 // ----------------------------------------------------------------------
 
-bool returnsFiniteMap(Expr e) {
+static bool returnsFiniteMap(Expr e) {
   return isOpX<CONST_FINITE_MAP>(e) || isOpX<SET>(e) ||
          bind::isFiniteMapConst(e);
 }

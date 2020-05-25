@@ -450,12 +450,13 @@ TEST_CASE("expr.finite_map.transf_body") {
   errs() << db << "\n";
   // This cannot be solved by Z3
 
-  removeFiniteMapsBodiesHornClausesTransf(db);
+  HornClauseDB tdb(efac);
+  removeFiniteMapsHornClausesTransf(db, tdb);
 
   errs() << "HornClauseDB without fmaps\n";
-  errs() << db << "\n";
+  errs() << tdb << "\n";
 
-  CHECK(!solveHornClauseDBZ3(db));
+  CHECK(!solveHornClauseDBZ3(tdb));
   // UNSAT
 }
 
@@ -495,12 +496,13 @@ TEST_CASE("expr.finite_map.transf_body_fmapvars") {
   errs() << db << "\n";
   // This cannot be solved by Z3
 
-  removeFiniteMapsBodiesHornClausesTransf(db);
+  HornClauseDB tdb(efac);
+  removeFiniteMapsHornClausesTransf(db, tdb);
   errs() << "HornClauseDB without fmaps\n";
-  errs() << db << "\n";
+  errs() << tdb << "\n";
 
   errs() << "Expected: unsat\n";
-  CHECK(!solveHornClauseDBZ3(db));
+  CHECK(!solveHornClauseDBZ3(tdb));
 }
 
 // TODO: add args transformation
@@ -535,10 +537,11 @@ TEST_CASE("expr.finite_map.trans_fmap_args" * doctest::skip(true)) {
   registerQueryHornClauseDB(mknary<AND>(query), {x, k1, k2}, db);
   errs() << "HornClauseDB with fmaps\n" << db << "\n";
 
-  removeFiniteMapsBodiesHornClausesTransf(db);
-  errs() << "HornClauseDB without fmaps\n" << db << "\n";
+  HornClauseDB tdb(efac);
+  removeFiniteMapsHornClausesTransf(db, tdb);
+  errs() << "HornClauseDB without fmaps\n" << tdb << "\n";
 
-  CHECK(!solveHornClauseDBZ3(db));
+  CHECK(!solveHornClauseDBZ3(tdb));
 }
 
 TEST_CASE("expr.finite_map.fmap_fdecl") {
@@ -710,12 +713,7 @@ TEST_CASE("expr.finite_map.full_transf_1key") {
   errs() << db << "\n";
 
   HornClauseDB tdb(efac);
-  removeFiniteMapsArgsHornClausesTransf(db, tdb);
-
-  errs() << "HornClauseDB without fmaps in args\n";
-  errs() << tdb << "\n";
-  // apply local transformation only to the bodies
-  removeFiniteMapsBodiesHornClausesTransf(tdb);
+  removeFiniteMapsHornClausesTransf(db, tdb);
 
   errs() << "HornClauseDB without fmaps\n";
   errs() << tdb << "\n";
@@ -740,9 +738,9 @@ TEST_CASE("expr.finite_map.full_transf_2keys") {
   // This cannot be solved by Z3
 
   HornClauseDB tdb(efac);
-  removeFiniteMapsArgsHornClausesTransf(db, tdb);
+  removeFiniteMapsHornClausesTransf(db, tdb);
 
-  // desired output:
+  // Intermediate output:
 
   // cl1: FOO1(k1, |get(map,k1)|, k2, |get(map,k2)|, k1, v) :-
   //              // side condition
@@ -762,13 +760,6 @@ TEST_CASE("expr.finite_map.full_transf_2keys") {
   //               map = set(mapA, k1, +(get(mapA, k1), 1)), // original
   //               mapA = defmap(defk(k1, k2), defv(mapA!k1, mapA!k2)))),
   //               G(k1, mapA!k1, k2, mapA!k2).
-
-  errs() << "HornClauseDB without fmaps in args ------------ \n";
-  errs() << tdb << "\n";
-  // This cannot be solved by Z3
-
-  // apply local transformation only to the bodies
-  removeFiniteMapsBodiesHornClausesTransf(tdb);
 
   errs() << "HornClauseDB without fmaps   ------------ \n";
   errs() << tdb << "\n";

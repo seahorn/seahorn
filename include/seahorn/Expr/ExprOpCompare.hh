@@ -17,7 +17,7 @@ namespace compareType {
     static inline bool checkChildren (Expr exp, TypeChecker &tc) {
         return exp->arity() == 2 && (tc.typeOf(exp->arg(0)) == tc.typeOf(exp->arg(1)));
     }
-   struct EQUALITY {
+   struct Equality {
   static inline Expr inferType(Expr exp, TypeChecker &tc) {
     if (checkChildren(exp, tc))
       return sort::boolTy(exp->efac());
@@ -25,7 +25,7 @@ namespace compareType {
       return sort::errorTy(exp->efac());
   }
 };
-struct INEQUALITY {
+struct Inequality {
     static inline bool isNumType (Expr exp) {
         if (isOp<INT_TY>(exp) || isOp<REAL_TY>(exp) || isOp<UNINT_TY>(exp)) 
             return true;
@@ -45,11 +45,11 @@ struct INEQUALITY {
 // -- Compare operators
 NOP_BASE(CompareOp)
 
-NOP_TYPECHECK(EQ, "=", INFIX, CompareOp, typeCheck::compareType::EQUALITY)
-NOP_TYPECHECK(NEQ, "!=", INFIX, CompareOp, typeCheck::compareType::EQUALITY)
-NOP_TYPECHECK(LEQ, "<=", INFIX, CompareOp, typeCheck::compareType::INEQUALITY)
-NOP_TYPECHECK(GEQ, ">=", INFIX, CompareOp, typeCheck::compareType::INEQUALITY)
-NOP_TYPECHECK(LT, "<", INFIX, CompareOp, typeCheck::compareType::INEQUALITY)
-NOP_TYPECHECK(GT, ">", INFIX, CompareOp, typeCheck::compareType::INEQUALITY)
+NOP_TYPECHECK(EQ, "=", INFIX, CompareOp, typeCheck::compareType::Equality)
+NOP_TYPECHECK(NEQ, "!=", INFIX, CompareOp, typeCheck::compareType::Equality)
+NOP_TYPECHECK(LEQ, "<=", INFIX, CompareOp, typeCheck::compareType::Inequality)
+NOP_TYPECHECK(GEQ, ">=", INFIX, CompareOp, typeCheck::compareType::Inequality)
+NOP_TYPECHECK(LT, "<", INFIX, CompareOp, typeCheck::compareType::Inequality)
+NOP_TYPECHECK(GT, ">", INFIX, CompareOp, typeCheck::compareType::Inequality)
 } // namespace op
 } // namespace expr

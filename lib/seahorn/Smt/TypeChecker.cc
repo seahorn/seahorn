@@ -14,7 +14,7 @@ class TCVR {
   ExprMap m_cache;
   bool m_isWellFormed = true;
   Expr m_errorExp;
-  TypeChecker *m_tc;
+  TypeChecker* const m_tc;
 
   bool isConst(Expr exp) {
     return bind::isBoolConst(exp) || bind::isIntConst(exp) ||
@@ -24,32 +24,14 @@ class TCVR {
   bool isValue(Expr exp) { return isOpX<TRUE>(exp) || isOpX<FALSE>(exp); }
 
   Expr inferType(Expr exp, TypeChecker &tc) {
-    if (isOpX<TRUE>(exp) || isOpX<FALSE>(exp))
+    if (bind::isBoolConst(exp))
       return sort::boolTy(exp->efac());
-    else if (bind::isBoolConst(exp))
-      return sort::boolTy(exp->efac());
-    // else if (isOpX<AND>(exp) || isOpX<OR>(exp) || isOpX<XOR>(exp))
-    //   return inferTypeBoolNary(exp);
-    // else if (isOpX<NEG>(exp))
-    //   return inferTypeBoolUnary(exp);
-    // else if (isOpX<IMPL>(exp) || isOpX<IFF>(exp))
-    //   return inferTypeBoolBinary(exp);
-    // else if (isOpX<ITE>(exp))
-    //   return inferTypeITE(exp);
-
     else if (bind::isIntConst(exp))
       return sort::intTy(exp->efac());
     else if (bind::isRealConst(exp))
       return sort::realTy(exp->efac());
     else if (bind::isUnintConst(exp))
       return sort::unintTy(exp->efac());
-
-    // else if (isOpX<PLUS>(exp) || isOpX<MINUS>(exp) || isOpX<MULT>(exp) ||
-    //          isOpX<DIV>(exp) || isOpX<IDIV>(exp) || isOpX<MOD>(exp) ||
-    //          isOpX<REM>(exp) || isOpX<UN_MINUS>(exp))
-    //   return inferTypeNumNary(exp);
-    // else if (isOpX<ABS>(exp))
-    //   return inferTypeNumUnary(exp);
 
     return exp->inferType(exp, tc);
   }

@@ -12,9 +12,19 @@ namespace {
 //==-- main implementation goes here --==//
 class TCVR {
   ExprMap m_cache;
-  bool m_isWellFormed = true;
+  bool m_isWellFormed;
   Expr m_errorExp;
-  TypeChecker* const m_tc;
+  TypeChecker *const m_tc;
+  Expr m_topMost;
+
+  void reset(Expr exp) {
+    if (m_isWellFormed)
+      m_errorExp = Expr();
+
+    m_topMost = Expr();
+    m_isWellFormed = true;
+    m_cache.clear();
+  }
 
   bool isConst(Expr exp) {
     return bind::isBoolConst(exp) || bind::isIntConst(exp) ||
@@ -57,12 +67,17 @@ class TCVR {
   }
 
 public:
-  TCVR(TypeChecker *tc) : m_isWellFormed(true), m_tc(tc) {}
+  TCVR(TypeChecker *tc) : m_isWellFormed(true), m_tc(tc), m_topMost(Expr()) {}
 
   /// Called before children are visited
   /// Returns false to skip visiting children
   bool preVisit(Expr exp) {
     LOG("tc", llvm::errs() << "pre-visiting: " << *exp << "\n";);
+
+    if (!m_topMost) {
+      LOG("tc", llvm::errs() << "top most expression: " << *exp << "\n";);
+      m_topMost = exp;
+    }
 
     if (m_cache.count(exp) || !m_isWellFormed) {
       return false;
@@ -75,9 +90,16 @@ public:
 
   Expr operator()(Expr exp) { return postVisit(exp); }
 
-  Expr knownTypeOf(Expr e) { return e ? m_cache.at(e) : Expr(); }
+  Expr knownTypeOf(Expr e) {
+    Expr knownType = e ? m_cache.at(e) : Expr();
 
-  Expr getErrorExp() { return m_isWellFormed ? Expr() : m_errorExp; }
+    if (e == m_topMost) // done traversing entire expression
+      reset(e);
+
+    return knownType;
+  }
+
+  Expr getErrorExp() { return m_errorExp; }
 };
 
 //==-- Adapts visitor for pre- and post- traversal --==/
@@ -123,9 +145,4 @@ Expr TypeChecker::typeOf(Expr e) { return m_impl->typeOf(e); }
 Expr TypeChecker::getErrorExp() { // to be called after typeOf() or sortOf()
   return m_impl->getErrorExp();
 }
-void TypeChecker::reset() { 
-  delete m_impl;
-  m_impl = new TypeChecker::Impl(this);
- }
-
 } // namespace expr

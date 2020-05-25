@@ -12,7 +12,6 @@ public:
   Expr sortOf(Expr e) { return this->typeOf(e); }
   Expr typeOf(Expr e);
   Expr getErrorExp(); // to be called after typeOf() or sortOf()
-  void reset();
 };
 
 namespace op {

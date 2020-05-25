@@ -49,8 +49,6 @@ void checkNotWellFormed(Expr e[], Expr error[], int size) {
       llvm::errs() << "Type is " << *ty << "\n\n";
     else
       llvm::errs() << "Not well-formed expression. Type inference failed\n";
-
-    tc.reset();
   }
 }
 
@@ -66,8 +64,6 @@ void checkWellFormed(Expr e[], int size, Expr type) {
       llvm::errs() << "Type is " << *ty << "\n\n";
     else
       llvm::errs() << "Not well-formed expression. Type inference failed\n";
-
-    tc.reset();
   }
 }
 
@@ -178,13 +174,13 @@ TEST_CASE("intWellFormed.test") {
 
   Expr intSort = sort::intTy(efac);
 
-  int size = 1;
+  int size = 2;
   Expr e[size];
   Expr temp;
 
   e[0] = mk<PLUS>(x, y, z);
 
-  // e[1] = mk<PLUS>(mk<MINUS>(x, y), y, z);
+  e[1] = mk<PLUS>(mk<MINUS>(x, y), y, z);
 
   TypeChecker tc;
 

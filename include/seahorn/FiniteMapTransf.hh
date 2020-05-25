@@ -15,7 +15,8 @@ using namespace expr::op;
 
 namespace seahorn {
 
-// Rewrites a finite map operation whose arguments are already rewritten
+// Rewrites a finite map operation to remove finite map terms. The arguments of
+// the operation are assumed to be already rewritten (no finite map terms).
 // The rewriter needs to be initialized for every clause
 class FiniteMapRewriter : public std::unary_function<Expr, Expr> {
   // put Expr as a friend class have access to expr->args()??

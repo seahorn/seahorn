@@ -9,11 +9,9 @@ namespace seahorn
 // Ensure all horn clause heads have only variables
 void normalizeHornClauseHeads (HornClauseDB &db);
 
-// Remove arguments of type FiniteMap from Horn Clauses
-void removeFiniteMapsArgsHornClausesTransf(HornClauseDB &db, HornClauseDB &tdb);
+// Rewrites the Horn Clauses to remove Finite Map terms (new relations are
+// created for the relations that contain Finite Maps as arguments)
+void removeFiniteMapsHornClausesTransf(HornClauseDB &db, HornClauseDB &tdb);
 
-// Remove expressions of type FiniteMap from the horn clause bodies, excluding
-// calls to predicates
-void removeFiniteMapsBodiesHornClausesTransf(HornClauseDB & db);
 
 }

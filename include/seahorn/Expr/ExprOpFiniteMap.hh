@@ -85,7 +85,7 @@ inline Expr mkKeys(ExprVector &keys, ExprFactory &efac) {
                                    mkTerm<mpz_class>(0, efac));
   // up to here, it will be the same for all keysets
 
-  int count = 1;
+  unsigned count = 1;
 
   Expr lmd_tmp = lmd_bot;
 
@@ -109,25 +109,9 @@ inline Expr mkInitializedMap(ExprVector &keys, Expr vTy, ExprVector &values,
   // "initialize" it with the default value for uninitialized memory
   assert(keys.size() == values.size());
 
-  Expr x = bind::intConst(mkTerm<std::string>("x", efac));
-  // internal variable for the keys lambda term, it can be of any kind
+  lambda_keys = mkKeys(keys, efac);
 
-  Expr lmd_bot = bind::abs<LAMBDA>(std::array<Expr, 1>{x},
-                                   mkTerm<expr::mpz_class>(0, efac));
-  int count = 1;
-  Expr lmd_tmp = lmd_bot;
-
-  for (auto key : keys) {
-    Expr nA = mkTerm<expr::mpz_class>(count, efac);
-    Expr cmp = mk<EQ>(key, x);
-    Expr ite = boolop::lite(cmp, nA, op::bind::betaReduce(lmd_tmp, x));
-    lmd_tmp = bind::abs<LAMBDA>(std::array<Expr, 1>{x}, ite);
-    count++;
-  }
-
-  lambda_keys = lmd_tmp;
-
-  count = 1;
+  unsigned count = 1;
 
   Expr lmd_values = mkEmptyMap(vTy, efac);
   Expr y = bind::mkConst(mkTerm<std::string>("y", efac), vTy);

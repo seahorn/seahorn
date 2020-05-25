@@ -12,7 +12,7 @@ public:
   Expr sortOf(Expr e) { return this->typeOf(e); }
   Expr typeOf(Expr e);
   Expr getErrorExp(); // to be called after typeOf() or sortOf()
-  void reset(); 
+  void reset();
 };
 
 namespace op {
@@ -20,7 +20,7 @@ namespace sort {
 inline Expr anyTy(ExprFactory &efac);
 }
 namespace typeCheck {
-struct ANY {
+struct Any {
   static inline Expr inferType(Expr exp, TypeChecker &tc) {
     return sort::anyTy(exp->efac());
   }

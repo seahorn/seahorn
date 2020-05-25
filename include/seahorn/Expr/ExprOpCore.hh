@@ -117,10 +117,8 @@ public:
            llvm::cast<TerminalBase>(op)->m_kind == terminal_type::getKind();
   }
 
-//TODO
-  Expr inferType (Expr exp, TypeChecker &tc) const override {
-    return Expr();
-  }
+  // TODO
+  Expr inferType(Expr exp, TypeChecker &tc) const override { return Expr(); }
 };
 
 /// \brief Terminal traits for std::string
@@ -226,8 +224,6 @@ using UINT = Terminal<unsigned int>;
 using MPQ = Terminal<expr::mpq_class>;
 using MPZ = Terminal<expr::mpz_class>;
 } // namespace op
-
-
 
 // Functions for printing operators
 namespace ps {
@@ -404,7 +400,7 @@ struct DefOp : public B {
            llvm::cast<base_type>(op)->m_kind == kind;
   }
 
-  Expr inferType (Expr exp, TypeChecker &tc) const override {
+  Expr inferType(Expr exp, TypeChecker &tc) const override {
     return typeChecker_type::inferType(exp, tc);
   }
 };
@@ -422,11 +418,13 @@ struct DefOp : public B {
   };
 
 /// macro for defining a class for a single operator
-#define NOP_TYPECHECK(NAME, TEXT, STYLE, BASE, TYPECHECK)                                           \
+#define NOP_TYPECHECK(NAME, TEXT, STYLE, BASE, TYPECHECK)                      \
   struct __##NAME {                                                            \
     static inline std::string name() { return TEXT; }                          \
   };                                                                           \
-  using NAME = DefOp<__##NAME, BASE, STYLE, BASE##Kind, BASE##Kind::NAME, TYPECHECK>;
+  using NAME =                                                                 \
+      DefOp<__##NAME, BASE, STYLE, BASE##Kind, BASE##Kind::NAME, TYPECHECK>;
 
 /// macro for defining a class for a single operator
-#define NOP(NAME, TEXT, STYLE, BASE) NOP_TYPECHECK(NAME, TEXT, STYLE, BASE, typeCheck::ANY)
+#define NOP(NAME, TEXT, STYLE, BASE)                                           \
+  NOP_TYPECHECK(NAME, TEXT, STYLE, BASE, typeCheck::Any)

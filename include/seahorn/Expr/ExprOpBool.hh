@@ -14,9 +14,9 @@ namespace typeCheck {
 namespace boolType {
 // ensures the expression has the correct number of children and all children
 // are bool types
-static inline Expr
-checkChildren(Expr exp, std::function<bool(Expr exp)> checkNumChildren,
-                  TypeChecker &tc) {
+static inline Expr checkChildren(Expr exp,
+                                 std::function<bool(Expr exp)> checkNumChildren,
+                                 TypeChecker &tc) {
   auto isBool = [&tc](Expr exp) {
     Expr type = tc.typeOf(exp);
 
@@ -74,7 +74,7 @@ struct TrueFalse {
   }
 };
 
-} //namespace boolType
+} // namespace boolType
 } // namespace typeCheck
 
 // -- Boolean opearators

@@ -69,12 +69,14 @@ template <typename Set, typename Predicate> void erase_if(Set &s, Predicate shou
     }
   }
 }
+
 // -- tdb is an empty db that will contain db after transformation
-void removeFiniteMapsArgsHornClausesTransf(HornClauseDB &db, HornClauseDB &tdb) {
+void removeFiniteMapsHornClausesTransf(HornClauseDB &db, HornClauseDB &tdb) {
 
   ExprFactory &efac = tdb.getExprFactory();
   ExprMap predDeclTransf;
 
+  // Remove Finite Maps arguments
   for (auto predIt : db.getRelations()) {
     Expr predDecl = predIt;
 
@@ -109,14 +111,9 @@ void removeFiniteMapsArgsHornClausesTransf(HornClauseDB &db, HornClauseDB &tdb) 
   for( auto q : db.getQueries())
     tdb.addQuery(q);
 
-}
-
-void removeFiniteMapsBodiesHornClausesTransf(HornClauseDB &db) {
-
-  ExprFactory &efac = db.getExprFactory();
-
+  // Remove Finite Maps from Bodies
   std::vector<HornRule> worklist;
-  boost::copy(db.getRules(), std::back_inserter(worklist));
+  boost::copy(tdb.getRules(), std::back_inserter(worklist));
 
   for (auto rule : worklist) {
     ExprVector vars = rule.vars();
@@ -130,10 +127,10 @@ void removeFiniteMapsBodiesHornClausesTransf(HornClauseDB &db) {
            return isOpX<FINITE_MAP_TY>(bind::rangeTy(bind::fname(expr)));
         });
 
-   HornRule new_rule(allVars, rule.head(), visit(fmv, rule.body(), dvc));
+    HornRule new_rule(allVars, rule.head(), visit(fmv, rule.body(), dvc));
 
-    db.removeRule(rule);
-    db.addRule(new_rule);
+    tdb.removeRule(rule);
+    tdb.addRule(new_rule);
   }
 }
 

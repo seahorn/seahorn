@@ -288,15 +288,15 @@ TEST_CASE("compareWellFormed.test") {
   Expr e[size];
 
   // (xBool && yBool && !xBool)= yBool
-  e[0] = mk<EQ> (mk<AND>(xBool, yBool, mk<NEG>(xBool)), yBool);
+  e[0] = mk<EQ>(mk<AND>(xBool, yBool, mk<NEG>(xBool)), yBool);
 
   // ((xInt-yInt)+ yInt) <= abs(zInt)
   e[1] = mk<LEQ>(mk<PLUS>(mk<MINUS>(xInt, yInt), yInt), mk<ABS>(zInt));
 
-// (xReal >= yReal) != xBool
+  // (xReal >= yReal) != xBool
   e[2] = mk<NEQ>(mk<GEQ>(xReal, yReal), xBool);
 
-//  (xReal mod yReal ) < xRreal
+  //  (xReal mod yReal ) < xRreal
   e[3] = mk<LT>(mk<MOD>(xReal, yReal), xReal);
 
   checkWellFormed(e, size, boolSort);
@@ -320,28 +320,25 @@ TEST_CASE("compareNotWellFormed.test") {
   Expr e[size];
   Expr error[size];
 
-  
-  error[0] = mk<LT> (xBool, yBool);
+  error[0] = mk<LT>(xBool, yBool);
 
   // xBool && (xBool < yBool )
-  e[0] = mk<AND> (xBool, error[0]);
+  e[0] = mk<AND>(xBool, error[0]);
 
-  error[1] = mk <GEQ>(xReal,xReal,yReal);
+  error[1] = mk<GEQ>(xReal, xReal, yReal);
 
-  //yBool != [>=(xReal, xReal, yReal)]
-  e[1] = mk <NEQ>(yBool, error[1]);
+  // yBool != [>=(xReal, xReal, yReal)]
+  e[1] = mk<NEQ>(yBool, error[1]);
 
+  error[2] = mk<EQ>(xReal, xInt);
 
-  error [2] = mk <EQ> (xReal, xInt);
+  // ((xReal == xInt) > xReal )|| yBool
+  e[2] = mk<OR>(mk<GT>(error[2], xReal), yBool);
 
-  // ((xReal == xInt) > xReal )|| yBool 
-  e[2] = mk <OR>(mk <GT> (error[2], xReal), yBool);
+  error[3] = mk<EQ>(mk<IMPL>(xBool, yBool), xReal);
 
-
-  error [3] = mk<EQ> (mk<IMPL>(xBool, yBool), xReal);
-
-// (xBool -> yBool ) == xReal
+  // (xBool -> yBool ) == xReal
   e[3] = error[3];
 
-  checkNotWellFormed(e,error, size);
+  checkNotWellFormed(e, error, size);
 }

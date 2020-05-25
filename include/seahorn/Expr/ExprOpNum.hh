@@ -64,7 +64,7 @@ struct Unary {
   }
 };
 
-struct nary {
+struct Nary {
   static inline Expr inferType(Expr exp, TypeChecker &tc) {
     std::function<bool(Expr)> checkNumChildren = [](Expr exp) -> bool {
       return exp->arity() >= 2;
@@ -78,14 +78,14 @@ struct nary {
 // -- Numeric operators
 NOP_BASE(NumericOp)
 
-NOP_TYPECHECK(PLUS, "+", INFIX, NumericOp, typeCheck::numType::nary)
-NOP_TYPECHECK(MINUS, "-", INFIX, NumericOp, typeCheck::numType::nary)
-NOP_TYPECHECK(MULT, "*", INFIX, NumericOp, typeCheck::numType::nary)
-NOP_TYPECHECK(DIV, "/", INFIX, NumericOp, typeCheck::numType::nary)
-NOP_TYPECHECK(IDIV, "/", INFIX, NumericOp, typeCheck::numType::nary)
-NOP_TYPECHECK(MOD, "mod", INFIX, NumericOp, typeCheck::numType::nary)
-NOP_TYPECHECK(REM, "%", INFIX, NumericOp, typeCheck::numType::nary)
-NOP_TYPECHECK(UN_MINUS, "-", PREFIX, NumericOp, typeCheck::numType::nary)
+NOP_TYPECHECK(PLUS, "+", INFIX, NumericOp, typeCheck::numType::Nary)
+NOP_TYPECHECK(MINUS, "-", INFIX, NumericOp, typeCheck::numType::Nary)
+NOP_TYPECHECK(MULT, "*", INFIX, NumericOp, typeCheck::numType::Nary)
+NOP_TYPECHECK(DIV, "/", INFIX, NumericOp, typeCheck::numType::Nary)
+NOP_TYPECHECK(IDIV, "/", INFIX, NumericOp, typeCheck::numType::Nary)
+NOP_TYPECHECK(MOD, "mod", INFIX, NumericOp, typeCheck::numType::Nary)
+NOP_TYPECHECK(REM, "%", INFIX, NumericOp, typeCheck::numType::Nary)
+NOP_TYPECHECK(UN_MINUS, "-", PREFIX, NumericOp, typeCheck::numType::Nary)
 NOP_TYPECHECK(ABS, "abs", FUNCTIONAL, NumericOp, typeCheck::numType::Unary)
 
 NOP(PINFTY, "oo", PREFIX, NumericOp)

@@ -78,23 +78,22 @@ void removeFiniteMapsHornClausesTransf(HornClauseDB &db, HornClauseDB &tdb) {
   ExprMap predDeclTransf;
 
   // Remove Finite Maps arguments
-  for (auto predIt : db.getRelations()) {
-    Expr predDecl = predIt;
+  for (auto &predIt : db.getRelations()) {
 
     Expr newPredDecl;
-    if (predDecl->arity() < 2) // just return type?, is this assumption correct?
-      newPredDecl = predDecl;
+    if (predIt->arity() < 2) // just return type?, is this assumption correct?
+      newPredDecl = predIt;
     else {
       // create new relation declaration
-      newPredDecl = finite_map::mkMapsDecl(predDecl, efac);
+      newPredDecl = finite_map::mkMapsDecl(predIt, efac);
 
-      if (newPredDecl != predDecl)
-        predDeclTransf[predDecl] = newPredDecl;
+      if (newPredDecl != predIt)
+        predDeclTransf[predIt] = newPredDecl;
     }
     tdb.registerRelation(newPredDecl); // register relation in transformed db
   }
 
-  for (const auto rule : db.getRules()) {
+  for (const auto &rule : db.getRules()) {
     const ExprVector &vars = rule.vars();
     ExprSet allVars(vars.begin(), vars.end());
     DagVisitCache dvc; // TODO: same for all the clauses?
@@ -109,7 +108,7 @@ void removeFiniteMapsHornClausesTransf(HornClauseDB &db, HornClauseDB &tdb) {
   }
 
   // copy queries
-  for (auto q : db.getQueries())
+  for (auto &q : db.getQueries())
     tdb.addQuery(q);
 
   // Remove Finite Maps from Bodies

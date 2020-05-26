@@ -2,10 +2,17 @@
 #pragma once
 #include "seahorn/Expr/ExprCore.hh"
 #include "seahorn/Expr/ExprGmp.hh"
-#include "seahorn/Expr/TypeChecker.hh"
+// #include "seahorn/Expr/TypeChecker.hh"
 #include "llvm/Support/Casting.h"
 
 namespace expr {
+
+class TypeChecker;
+namespace op {
+namespace typeCheck {
+struct Any;
+} // namespace typeCheck
+} // namespace op
 
 /// \brief A trait that must be impelemnted by a type \ T to be a terminal
 /// see example specializations below

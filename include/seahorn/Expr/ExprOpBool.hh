@@ -12,47 +12,22 @@ enum class BoolOpKind { TRUE, FALSE, AND, OR, XOR, NEG, IMPL, ITE, IFF };
 
 namespace typeCheck {
 namespace boolType {
-// ensures the expression has the correct number of children and all children
-// are bool types
-static inline Expr checkChildren(Expr exp,
-                                 std::function<bool(Expr exp)> checkNumChildren,
-                                 TypeChecker &tc) {
-  auto isBool = [&tc](Expr exp) {
-    Expr type = tc.typeOf(exp);
 
-    return type != nullptr && isOp<BOOL_TY>(type);
-  };
-
-  if (checkNumChildren(exp) &&
-      std::all_of(exp->args_begin(), exp->args_end(), isBool))
-    return sort::boolTy(exp->efac());
-  else
-    return sort::errorTy(exp->efac());
-}
 struct Unary {
   static inline Expr inferType(Expr exp, TypeChecker &tc) {
-    std::function<bool(Expr)> checkNumChildren = [](Expr exp) -> bool {
-      return exp->arity() == 1;
-    };
-    return checkChildren(exp, checkNumChildren, tc);
+    return checkChildren<Equal, 1, BOOL_TY, BOOL_TY>(exp, tc);
   }
 };
 
 struct Binary {
   static inline Expr inferType(Expr exp, TypeChecker &tc) {
-    std::function<bool(Expr)> checkNumChildren = [](Expr exp) -> bool {
-      return exp->arity() == 2;
-    };
-    return checkChildren(exp, checkNumChildren, tc);
+    return checkChildren<Equal, 2, BOOL_TY, BOOL_TY>(exp, tc);
   }
 };
 
 struct Nary {
   static inline Expr inferType(Expr exp, TypeChecker &tc) {
-    std::function<bool(Expr)> checkNumChildren = [](Expr exp) -> bool {
-      return exp->arity() >= 2;
-    };
-    return checkChildren(exp, checkNumChildren, tc);
+    return checkChildren<GreaterEqual, 2, BOOL_TY, BOOL_TY>(exp, tc);
   }
 };
 

@@ -4,6 +4,7 @@
 #include "seahorn/Expr/ExprCore.hh"
 #include "seahorn/Expr/ExprOpBool.hh"
 #include "seahorn/Expr/ExprOpCore.hh"
+#include "seahorn/Expr/TypeChecker.hh"
 
 namespace expr {
 
@@ -25,51 +26,23 @@ enum class NumericOpKind {
 
 namespace typeCheck {
 namespace numType {
-
-static inline bool isValidNumType(Expr exp) {
-  if (exp != nullptr &&
-      (isOp<INT_TY>(exp) || isOp<REAL_TY>(exp) || isOp<UNINT_TY>(exp)))
-    return true;
-  else
-    return false;
-}
-
-// ensures: 1. correct number of children, 2. all children are of the correct
-// type, 3. all children are of the same type
-static inline Expr checkChildren(Expr exp,
-                                 std::function<bool(Expr exp)> checkNumChildren,
-                                 TypeChecker &tc) {
-  if (!checkNumChildren(exp))
-    return sort::errorTy(exp->efac());
-
-  Expr type = tc.typeOf(exp->first());
-
-  auto isSameType = [&tc, &type](Expr exp) {
-    return type != nullptr && tc.typeOf(exp) == type;
-  };
-
-  if (isValidNumType(type) &&
-      std::all_of(exp->args_begin(), exp->args_end(), isSameType))
-    return type;
-  else
-    return sort::errorTy(exp->efac());
-}
+  template <Comparison compareType, unsigned int numChildren>
+  static inline Expr getType(Expr exp, TypeChecker &tc) {
+    if (checkNumChildren<compareType, numChildren>(exp) && correctType<INT_TY, REAL_TY, UNINT_TY>(exp->first(), tc) && sameType(exp, tc)) 
+      return tc.typeOf(exp->first());
+    else
+      return sort::errorTy(exp->efac());
+  }
 
 struct Unary {
   static inline Expr inferType(Expr exp, TypeChecker &tc) {
-    std::function<bool(Expr)> checkNumChildren = [](Expr exp) -> bool {
-      return exp->arity() == 1;
-    };
-    return checkChildren(exp, checkNumChildren, tc);
+    return getType<Equal, 1> (exp, tc);
   }
 };
 
 struct Nary {
   static inline Expr inferType(Expr exp, TypeChecker &tc) {
-    std::function<bool(Expr)> checkNumChildren = [](Expr exp) -> bool {
-      return exp->arity() >= 2;
-    };
-    return checkChildren(exp, checkNumChildren, tc);
+    return getType<GreaterEqual, 2> (exp, tc);
   }
 };
 } // namespace numType

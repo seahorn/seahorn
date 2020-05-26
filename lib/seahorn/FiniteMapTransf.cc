@@ -19,7 +19,7 @@ Expr mkVarGet(Expr map, Expr k, Expr vTy) {
 // the same keys `keys` but not necessarily in the same order, that is why
 // `ks1` and `ks2` are needed.
 Expr mkEqCore(Expr m1, Expr ks1, Expr m2, Expr ks2, const ExprVector &keys,
-              Expr vTy, ExprFactory &efac, ExprSet &evars) {
+              Expr vTy, ExprSet &evars, ExprFactory &efac) {
 
   ExprVector conj;
 
@@ -90,7 +90,7 @@ Expr mkInitFMapCore(Expr map, ExprMap &type_lambda, ExprMap &expr_type,
         assert(isOpX<CONST_FINITE_MAP_VALUES>(valuesE)); // initialized values
         ExprVector values(valuesE->args_begin(), valuesE->args_end());
         ExprVector keys(defk->args_begin(), defk->args_end());
-        return finite_map::mkInitializedMap(keys, vTy, values, efac, lmdKeys);
+        return finite_map::mkInitializedMap(keys, vTy, values, lmdKeys, efac);
       }
     }
     else // already transformed map: 0 or ite expr
@@ -99,8 +99,8 @@ Expr mkInitFMapCore(Expr map, ExprMap &type_lambda, ExprMap &expr_type,
 
   // \brief expands a map into separate scalar variables
   void mkVarsMap(Expr map, Expr lmdks, const ExprVector &keys, Expr vTy,
-                 ExprVector &new_vars, ExprVector &extra_unifs,
-                 ExprFactory &efac, ExprSet &evars) {
+                 ExprVector &new_vars, ExprVector &extra_unifs, ExprSet &evars,
+                 ExprFactory &efac) {
 
     Expr v, v_get;
     ExprVector map_values(keys.size());
@@ -118,8 +118,8 @@ Expr mkInitFMapCore(Expr map, ExprMap &type_lambda, ExprMap &expr_type,
   }
 
   // \brief expands the map arguments of fapps into separate scalar variables
-  Expr mkFappArgsCore(Expr fapp, Expr newFdecl, ExprSet &vars, ExprFactory &efac,
-                  ExprVector &extraUnifs) {
+  Expr mkFappArgsCore(Expr fapp, Expr newFdecl, ExprSet &vars,
+                      ExprVector &extraUnifs, ExprFactory &efac) {
 
     assert(isOpX<FAPP>(fapp));
 
@@ -152,7 +152,7 @@ Expr mkInitFMapCore(Expr map, ExprMap &type_lambda, ExprMap &expr_type,
         Expr lmdks = finite_map::mkKeys(keys, efac);
 
         mkVarsMap(map_var_name, lmdks, keys, finite_map::valTy(argTy), newArgs,
-                  extraUnifs, efac, vars);
+                  extraUnifs, vars, efac);
         // new arguments are added to `newArgs` in the function above
       } else {
         newArgs.push_back(arg);
@@ -196,7 +196,7 @@ Expr mkSetCore(Expr map, Expr key, Expr value, ExprMap &type_lambda,
       vars.insert(v);
       values.push_back(v);
     }
-    map = finite_map::mkInitializedMap(keys, vTy, values, efac, lmdKeys);
+    map = finite_map::mkInitializedMap(keys, vTy, values, lmdKeys, efac);
   } else
     map = mkFMapPrimitiveArgCore(map, type_lambda, expr_type, efac);
 
@@ -252,7 +252,7 @@ Expr FiniteMapRewriter::operator()(Expr exp) {
     Expr ksTyl = finite_map::keys(fmTyl);
     Expr vTy = finite_map::valTy(fmTyl);
     ExprVector keys(ksTyl->args_begin(), ksTyl->args_end());
-    res = mkEqCore(fml, lkeysl, fmr, lkeysr, keys, vTy, m_efac, m_evars);
+    res = mkEqCore(fml, lkeysl, fmr, lkeysr, keys, vTy, m_evars, m_efac);
   } else { // do nothing
     assert(false && "Unexpected map expression");
     return exp;
@@ -278,7 +278,7 @@ VisitAction FiniteMapArgsVisitor::operator()(Expr exp) {
 
     Expr newPredDecl = m_pred_decl_t.find(fdecl)->second;
     ExprVector newUnifs;
-    Expr newFapp = mkFappArgsCore(head, newPredDecl, m_evars, m_efac, newUnifs);
+    Expr newFapp = mkFappArgsCore(head, newPredDecl, m_evars, newUnifs, m_efac);
     Expr newBody = newUnifs.empty() ? body : mk<AND>(mknary<AND>(newUnifs), body);
 
     Expr newExp = boolop::limp(newBody, newFapp);
@@ -291,7 +291,7 @@ VisitAction FiniteMapArgsVisitor::operator()(Expr exp) {
     if (m_pred_decl_t.count(fdecl) > 0) { // needs to be transformed
       ExprVector newUnifs;
       Expr newPredDecl = m_pred_decl_t.find(fdecl)->second;
-      Expr newExp = mkFappArgsCore(exp, newPredDecl, m_evars, m_efac, newUnifs);
+      Expr newExp = mkFappArgsCore(exp, newPredDecl, m_evars, newUnifs, m_efac);
       if (!newUnifs.empty())
         newExp = mk<AND>(mknary<AND>(newUnifs), newExp);
       LOG("fmap_transf", errs() << *newExp << "\n";);

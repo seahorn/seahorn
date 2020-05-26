@@ -178,14 +178,12 @@ inline Expr mkMapsDecl(Expr fdecl, ExprFactory &efac) {
 
   Expr fname = bind::fname(fdecl);
 
-  for (auto tyIt = ++fdecl->args_begin(); tyIt != fdecl->args_end(); tyIt++) {
-    Expr type = *tyIt;
-    if (isOpX<FINITE_MAP_TY>(type)) {                 // the type is a FiniteMap
+  for (auto type : llvm::make_range(++fdecl->args_begin(), fdecl->args_end())) {
+    if (isOpX<FINITE_MAP_TY>(type)) { // the type is a FiniteMap
       fmap_arg = true;
       Expr vTy = finite_map::valTy(type);
       Expr ksTy = finite_map::keys(type);
-      assert(ksTy->args_begin() != ksTy->args_end()); // the map has at
-                                                      // least one key
+      assert(ksTy->arity() > 0); // the map has at least one key
       auto ksIt = ksTy->args_begin();
       Expr kTy = bind::rangeTy(bind::fname(*ksIt)); // type of the key
       for (; ksIt != ksTy->args_end(); ksIt++) {

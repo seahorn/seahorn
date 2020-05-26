@@ -18,8 +18,8 @@ Expr mkVarGet(Expr map, Expr k, Expr vTy) {
 // \brief `m1` contains the same values as `m2`. Both maps are assumed to have
 // the same keys `keys` but not necessarily in the same order, that is why
 // `ks1` and `ks2` are needed.
-Expr mkEqCore(Expr m1, Expr ks1, Expr m2, Expr ks2, ExprVector &keys, Expr vTy,
-              ExprFactory &efac, ExprSet &evars) {
+Expr mkEqCore(Expr m1, Expr ks1, Expr m2, Expr ks2, const ExprVector &keys,
+              Expr vTy, ExprFactory &efac, ExprSet &evars) {
 
   ExprVector conj;
 
@@ -98,7 +98,7 @@ Expr mkInitFMapCore(Expr map, ExprMap &type_lambda, ExprMap &expr_type,
   }
 
   // \brief expands a map into separate scalar variables
-  void mkVarsMap(Expr map, Expr lmdks, ExprVector &keys, Expr vTy,
+  void mkVarsMap(Expr map, Expr lmdks, const ExprVector &keys, Expr vTy,
                  ExprVector &new_vars, ExprVector &extra_unifs,
                  ExprFactory &efac, ExprSet &evars) {
 

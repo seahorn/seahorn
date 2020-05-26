@@ -89,6 +89,12 @@ inline Expr mkKeys(const ExprVector &keys, ExprFactory &efac) {
 
   Expr lmd_tmp = lmd_bot;
 
+  // this loop creates a lambda term for the keys. The lambda term is of the form:
+  // lmd1x.(ite x == k1 1 0)
+  // lmdnx.(ite x == kn lmdn-1(x))
+  //
+  // the lambda returns the position of the value corresponding to a key in the
+  // lambda term that represents the values
   for (auto key : keys) {
     Expr nA = mkTerm<mpz_class>(count, efac);
     Expr cmp = mk<EQ>(key, x);
@@ -103,13 +109,13 @@ inline Expr mkKeys(const ExprVector &keys, ExprFactory &efac) {
 // creates a map for keys and values, assuming that they are sorted
 inline Expr mkInitializedMap(const ExprVector &keys, Expr vTy,
                              const ExprVector &values, ExprFactory &efac,
-                             Expr &lambda_keys) {
+                             Expr &lmdKeys) {
 
   // assuming that there is a value for every key. If this is not available,
   // "initialize" it with the default value for uninitialized memory
   assert(keys.size() == values.size());
 
-  lambda_keys = mkKeys(keys, efac);
+  lmdKeys = mkKeys(keys, efac);
 
   unsigned count = 1;
 
@@ -127,26 +133,41 @@ inline Expr mkInitializedMap(const ExprVector &keys, Expr vTy,
   return lmd_values;
 }
 
-/// \brief Constructs get expression. Non-simplifying
-inline Expr mkGetVal(Expr map, Expr keys, Expr key) {
+/// \brief Constructs get expression. Non-simplifying. None of the parameters
+/// should contain map terms, they should be expanded to lambdas
+//      `map` contains the values of the map as a lambda term
+//      `lmdKeys` represents the keys of the map as a lambda term
+//      `key` is an expression of type int or bv
+inline Expr mkGetVal(Expr map, Expr lmdKeys, Expr key) {
 
-  Expr pos_in_map = op::bind::betaReduce(keys, key);
+  assert(isOpX<LAMBDA>(map));
+  assert(isOpX<LAMBDA>(lmdKeys));
+
+  Expr pos_in_map = op::bind::betaReduce(lmdKeys, key);
 
   return op::bind::betaReduce(map, pos_in_map);
 }
 
-/// \brief Constructs set expression. Non-simplifying
-inline Expr mkSetVal(Expr map, Expr keys, Expr key, Expr value,
+/// \brief Constructs set expression. Non-simplifying. None of the parameters
+/// should contain map terms, they should be expanded to lambdas
+//      `map` contains the values of the map as a lambda term
+//      `lmdKeys` represents the keys of the map as a lambda term
+inline Expr mkSetVal(Expr map, Expr lmdKeys, Expr key, Expr value,
                      ExprFactory &efac) {
+
+  assert(isOpX<LAMBDA>(map));
+  assert(isOpX<LAMBDA>(lmdKeys));
 
   Expr kTy = bind::rangeTy(bind::fname(key)); // TODO: efficiency?
   Expr x = bind::mkConst(mkTerm<std::string>("x", efac), kTy);
   // this internal variable needs to be of the same sort as keys
 
-  Expr pos_in_map = op::bind::betaReduce(keys, key);
+  Expr pos_in_map = op::bind::betaReduce(lmdKeys, key);
+  // pos_in_map is the position in which the value for key: lmdKeys(key)
   Expr cmp = mk<EQ>(x, pos_in_map);
   Expr ite = boolop::lite(cmp, value, op::bind::betaReduce(map, pos_in_map));
   Expr new_map = bind::abs<LAMBDA>(std::array<Expr, 1>{x}, ite);
+  // lx.(ite (lmdKeys(key) == x) value map(lmdKeys(key)))
 
   return new_map;
 }

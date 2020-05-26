@@ -97,7 +97,7 @@ void removeFiniteMapsHornClausesTransf(HornClauseDB &db, HornClauseDB &tdb) {
     const ExprVector &vars = rule.vars();
     ExprSet allVars(vars.begin(), vars.end());
     DagVisitCache dvc; // TODO: same for all the clauses?
-    FiniteMapArgsVisitor fmav(efac, allVars, predDeclTransf);
+    FiniteMapArgsVisitor fmav(allVars, predDeclTransf, efac);
     Expr newRule = visit(fmav, rule.get(),dvc);
 
     erase_if(allVars, [](Expr expr){
@@ -120,7 +120,7 @@ void removeFiniteMapsHornClausesTransf(HornClauseDB &db, HornClauseDB &tdb) {
     ExprSet allVars(vars.begin(), vars.end());
 
     DagVisitCache dvc; // same for all the clauses?
-    FiniteMapBodyVisitor fmv(db.getExprFactory(), allVars);
+    FiniteMapBodyVisitor fmv(allVars, efac);
 
     erase_if(
         allVars, [](Expr expr){

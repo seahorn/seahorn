@@ -86,8 +86,8 @@ inline Expr mkKeys(const ExprVector &keys, ExprFactory &efac) {
   Expr lmd_tmp = lmd_bot;
 
   // this loop creates a lambda term for the keys. The lambda term is of the
-  // form: lmd1x.(ite x == k1 1 0)
-  //       lmdnx.(ite x == kn lmdn-1(x))
+  // form: l1 x.(ite x == k1 1 0)
+  //       ln x.(ite x == kn (ln-1 x))
   //
   // the lambda function returns the position of the value corresponding to a
   // key in the lambda term that represents the values
@@ -113,45 +113,51 @@ inline Expr mkInitializedMap(const ExprVector &keys, Expr vTy,
 
   lmdKeys = mkKeys(keys, efac);
 
-  unsigned count = 1;
-
-  Expr lmd_values = mkEmptyMap(vTy, efac);
+  Expr lmdMap = mkEmptyMap(vTy, efac);
   Expr y = bind::mkConst(mkTerm<std::string>("y", efac), vTy);
   // internal variable for the values lambda term, it must be of the value kind
+
+  // assuming that mkKeys assigns the position in the map starting at 1
+  unsigned count = 1;
+
+  // we create lmd expressions for the map values of the form:
+  //
+  // l1 x.(ite (x == 1) v1 emtpy-map)
+  // ln x.(ite (x == n) vn (ln-1 x))
   for (auto v : values) {
     Expr pos_in_map = mkTerm<mpz_class>(count, efac);
     Expr cmp = mk<EQ>(y, pos_in_map);
-    Expr ite = boolop::lite(cmp, v, op::bind::betaReduce(lmd_values, y));
-    lmd_values = bind::abs<LAMBDA>(std::array<Expr, 1>{y}, ite);
+    Expr ite = boolop::lite(cmp, v, op::bind::betaReduce(lmdMap, y));
+    lmdMap = bind::abs<LAMBDA>(std::array<Expr, 1>{y}, ite);
     count++;
   }
 
-  return lmd_values;
+  return lmdMap;
 }
 
 /// \brief Constructs get expression. Non-simplifying. None of the parameters
 /// should contain map terms, they should be expanded to lambdas
-//      `map` contains the values of the map as a lambda term
+//      `lmdMap` contains the values of the map as a lambda term
 //      `lmdKeys` represents the keys of the map as a lambda term
 //      `key` is an expression of type int or bv
-inline Expr mkGetVal(Expr map, Expr lmdKeys, Expr key) {
+inline Expr mkGetVal(Expr lmdMap, Expr lmdKeys, Expr key) {
 
-  assert(isOpX<LAMBDA>(map));
+  assert(isOpX<LAMBDA>(lmdMap));
   assert(isOpX<LAMBDA>(lmdKeys));
 
   Expr pos_in_map = op::bind::betaReduce(lmdKeys, key);
 
-  return op::bind::betaReduce(map, pos_in_map);
+  return op::bind::betaReduce(lmdMap, pos_in_map);
 }
 
 /// \brief Constructs set expression. Non-simplifying. None of the parameters
 /// should contain map terms, they should be expanded to lambdas
-//      `map` contains the values of the map as a lambda term
+//      `lmdMap` contains the values of the map as a lambda term
 //      `lmdKeys` represents the keys of the map as a lambda term
-inline Expr mkSetVal(Expr map, Expr lmdKeys, Expr key, Expr value,
+inline Expr mkSetVal(Expr lmdMap, Expr lmdKeys, Expr key, Expr value,
                      ExprFactory &efac) {
 
-  assert(isOpX<LAMBDA>(map));
+  assert(isOpX<LAMBDA>(lmdMap));
   assert(isOpX<LAMBDA>(lmdKeys));
 
   Expr kTy = bind::rangeTy(bind::fname(key)); // TODO: efficiency?
@@ -161,11 +167,10 @@ inline Expr mkSetVal(Expr map, Expr lmdKeys, Expr key, Expr value,
   Expr pos_in_map = op::bind::betaReduce(lmdKeys, key);
   // pos_in_map is the position in which the value for key: lmdKeys(key)
   Expr cmp = mk<EQ>(x, pos_in_map);
-  Expr ite = boolop::lite(cmp, value, op::bind::betaReduce(map, pos_in_map));
-  Expr new_map = bind::abs<LAMBDA>(std::array<Expr, 1>{x}, ite);
-  // lx.(ite (lmdKeys(key) == x) value map(lmdKeys(key)))
+  Expr ite = boolop::lite(cmp, value, op::bind::betaReduce(lmdMap, x));
 
-  return new_map;
+  // lx.(ite ((lmdKeys key) == x) value (lmdMap x))
+  return bind::abs<LAMBDA>(std::array<Expr, 1>{x}, ite);
 }
 
 // \brief expands the map types of fdecls into separate scalar variables

@@ -15,26 +15,34 @@ using namespace expr::op;
 
 namespace seahorn {
 
-// Rewrites a finite map operation to remove finite map terms. The arguments of
-// the operation are assumed to be already rewritten (no finite map terms).
-// The rewriter needs to be initialized for every clause
+struct FMapExprsInfo {
+
+  // -- set of vars of the expression being rewritten, it will
+  // be updated if new vars are needed
+  ExprSet &m_vars;
+  // -- to cache the type of a map expr
+  ExprMap &m_type;
+  // -- to cache the lambda expr generated for the keys a map type
+  ExprMap &m_type_lmd;
+  ExprFactory &m_efac;
+
+  FMapExprsInfo(ExprSet &vars, ExprMap &types, ExprMap &type_lmds,
+                ExprFactory &efac)
+      : m_vars(vars), m_type(types), m_type_lmd(type_lmds), m_efac(efac) {}
+};
+
+// Rewrites a finite map operation to remove finite map terms. The arguments
+// of the operation are assumed to be already rewritten (no finite map
+// terms). The rewriter needs to be initialized for every clause
 class FiniteMapRewriter : public std::unary_function<Expr, Expr> {
   // put Expr as a friend class have access to expr->args()??
 
-  ExprSet &m_evars; // set of vars of the expression being rewritten, it will
-  // be updated if new vars are needed
-  ExprFactory &m_efac;
-
-  // -- to cache the type of a map expr
-  ExprMap &m_expr_type;
-  // -- to cache the lambdas generated for a map type
-  ExprMap &m_type_lambda;
+  FMapExprsInfo m_fmei;
 
 public:
   FiniteMapRewriter(ExprSet &evars, ExprMap &expr_type, ExprMap &type_lambda,
                     ExprFactory &efac)
-      : m_evars(evars), m_expr_type(expr_type), m_type_lambda(type_lambda),
-        m_efac(efac){};
+    : m_fmei(evars, expr_type, type_lambda, efac){};
 
   Expr operator()(Expr exp);
 };

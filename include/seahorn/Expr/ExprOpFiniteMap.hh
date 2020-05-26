@@ -108,8 +108,8 @@ inline Expr mkKeys(const ExprVector &keys, ExprFactory &efac) {
 
 // creates a map for keys and values, assuming that they are sorted
 inline Expr mkInitializedMap(const ExprVector &keys, Expr vTy,
-                             const ExprVector &values, ExprFactory &efac,
-                             Expr &lmdKeys) {
+                             const ExprVector &values, Expr &lmdKeys,
+                             ExprFactory &efac) {
 
   // assuming that there is a value for every key. If this is not available,
   // "initialize" it with the default value for uninitialized memory

@@ -42,7 +42,7 @@ class FiniteMapRewriter : public std::unary_function<Expr, Expr> {
 public:
   FiniteMapRewriter(ExprSet &evars, ExprMap &expr_type, ExprMap &type_lambda,
                     ExprFactory &efac)
-    : m_fmei(evars, expr_type, type_lambda, efac){};
+      : m_fmei(evars, expr_type, type_lambda, efac){};
 
   Expr operator()(Expr exp);
 };

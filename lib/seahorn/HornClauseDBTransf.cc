@@ -25,7 +25,8 @@ HornRule replaceNonVarsInHead(const HornRule &rule) {
       new_body = boolop::land(
           new_body,
           mk<OR>(mk<AND>(mk<EQ>(v, mkTerm(expr::mpz_class(1UL), efac)), arg),
-                 mk<AND>(mk<EQ>(v, mkTerm(expr::mpz_class(0UL), efac)), mk<NEG>(arg))));
+                 mk<AND>(mk<EQ>(v, mkTerm(expr::mpz_class(0UL), efac)),
+                         mk<NEG>(arg))));
       new_args.push_back(v);
       new_vars.push_back(v);
     } else if (isOpX<PLUS>(arg) || isOpX<MINUS>(arg) || isOpX<MULT>(arg) ||
@@ -59,12 +60,12 @@ void normalizeHornClauseHeads(HornClauseDB &db) {
   }
 }
 
-template <typename Set, typename Predicate> void erase_if(Set &s, Predicate shouldRemove) {
-  for(auto it = s.begin(); it!=s.end();){
-    if(shouldRemove(*it)){
+template <typename Set, typename Predicate>
+void erase_if(Set &s, Predicate shouldRemove) {
+  for (auto it = s.begin(); it != s.end();) {
+    if (shouldRemove(*it)) {
       it = s.erase(it);
-    }
-    else {
+    } else {
       ++it;
     }
   }
@@ -83,7 +84,7 @@ void removeFiniteMapsHornClausesTransf(HornClauseDB &db, HornClauseDB &tdb) {
     Expr newPredDecl;
     if (predDecl->arity() < 2) // just return type?, is this assumption correct?
       newPredDecl = predDecl;
-    else{
+    else {
       // create new relation declaration
       newPredDecl = finite_map::mkMapsDecl(predDecl, efac);
 
@@ -93,22 +94,22 @@ void removeFiniteMapsHornClausesTransf(HornClauseDB &db, HornClauseDB &tdb) {
     tdb.registerRelation(newPredDecl); // register relation in transformed db
   }
 
-  for (const auto rule : db.getRules()){
+  for (const auto rule : db.getRules()) {
     const ExprVector &vars = rule.vars();
     ExprSet allVars(vars.begin(), vars.end());
     DagVisitCache dvc; // TODO: same for all the clauses?
     FiniteMapArgsVisitor fmav(allVars, predDeclTransf, efac);
-    Expr newRule = visit(fmav, rule.get(),dvc);
+    Expr newRule = visit(fmav, rule.get(), dvc);
 
-    erase_if(allVars, [](Expr expr){
-           return isOpX<FINITE_MAP_TY>(bind::rangeTy(bind::fname(expr)));
-        });
+    erase_if(allVars, [](Expr expr) {
+      return isOpX<FINITE_MAP_TY>(bind::rangeTy(bind::fname(expr)));
+    });
 
     tdb.addRule(allVars, newRule);
   }
 
   // copy queries
-  for( auto q : db.getQueries())
+  for (auto q : db.getQueries())
     tdb.addQuery(q);
 
   // Remove Finite Maps from Bodies
@@ -122,10 +123,9 @@ void removeFiniteMapsHornClausesTransf(HornClauseDB &db, HornClauseDB &tdb) {
     DagVisitCache dvc; // same for all the clauses?
     FiniteMapBodyVisitor fmv(allVars, efac);
 
-    erase_if(
-        allVars, [](Expr expr){
-           return isOpX<FINITE_MAP_TY>(bind::rangeTy(bind::fname(expr)));
-        });
+    erase_if(allVars, [](Expr expr) {
+      return isOpX<FINITE_MAP_TY>(bind::rangeTy(bind::fname(expr)));
+    });
 
     HornRule new_rule(allVars, rule.head(), visit(fmv, rule.body(), dvc));
 

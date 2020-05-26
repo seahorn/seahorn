@@ -18,12 +18,14 @@ using namespace expr;
 using namespace expr::op;
 using namespace seahorn;
 
-static Expr mkIntKey(unsigned n, ExprFactory &efac){
-  return bind::intConst(mkTerm("k" + boost::lexical_cast<std::string>(n), efac));
+static Expr mkIntKey(unsigned n, ExprFactory &efac) {
+  return bind::intConst(
+      mkTerm("k" + boost::lexical_cast<std::string>(n), efac));
 }
 
 static Expr mkBvKey(unsigned n, unsigned width, ExprFactory &efac) {
-  return bv::bvConst(mkTerm("j" + boost::lexical_cast<std::string>(n), efac), width);
+  return bv::bvConst(mkTerm("j" + boost::lexical_cast<std::string>(n), efac),
+                     width);
 }
 
 static Expr mkFMapConstInt(const std::string name, const ExprVector keys) {
@@ -42,8 +44,8 @@ static Expr mkIntConst(const std::string name, ExprFactory &efac) {
   return bind::intConst(mkTerm(name, efac));
 }
 
-static Expr mkBvConst(const std::string name,
-                       unsigned width, ExprFactory &efac) {
+static Expr mkBvConst(const std::string name, unsigned width,
+                      ExprFactory &efac) {
   return bv::bvConst(mkTerm(name, efac), width);
 }
 
@@ -94,13 +96,13 @@ static bool solveHornClauseDBZ3(HornClauseDB &db) {
 TEST_CASE("expr.finite_map.create_map") {
 
   ExprFactory efac;
-  Expr map = mkConstFiniteMap({mkIntKey(1, efac)}, sort::intTy(efac) );
+  Expr map = mkConstFiniteMap({mkIntKey(1, efac)}, sort::intTy(efac));
 
   CHECK(map);
   CHECK(boost::lexical_cast<std::string>(*map) ==
         "defmap(defk(k1), fmap-default(INT))");
 
-  map = mkConstFiniteMap({mkBvKey(1, 32, efac)}, bv::bvsort(64,efac));
+  map = mkConstFiniteMap({mkBvKey(1, 32, efac)}, bv::bvsort(64, efac));
 
   CHECK(map);
   CHECK(boost::lexical_cast<std::string>(*map) ==
@@ -112,10 +114,12 @@ TEST_CASE("expr.finite_map.set") {
   ExprFactory efac;
 
   Expr k1 = mkIntKey(1, efac);
-  Expr map = finite_map::set(mkConstFiniteMap({k1},sort::intTy(efac)), k1, mkInt(30, efac));
+  Expr map = finite_map::set(mkConstFiniteMap({k1}, sort::intTy(efac)), k1,
+                             mkInt(30, efac));
 
   CHECK(map);
-  CHECK(boost::lexical_cast<std::string>(*map) == "set(defmap(defk(k1), fmap-default(INT)), k1, 30)");
+  CHECK(boost::lexical_cast<std::string>(*map) ==
+        "set(defmap(defk(k1), fmap-default(INT)), k1, 30)");
 }
 
 TEST_CASE("expr.finite_map.get") {
@@ -126,7 +130,8 @@ TEST_CASE("expr.finite_map.get") {
   Expr eget = finite_map::get(mkConstFiniteMap({k1}, sort::intTy(efac)), k1);
 
   CHECK(eget);
-  CHECK(boost::lexical_cast<std::string>(*eget) == "get(defmap(defk(k1), fmap-default(INT)), k1)");
+  CHECK(boost::lexical_cast<std::string>(*eget) ==
+        "get(defmap(defk(k1), fmap-default(INT)), k1)");
 }
 
 TEST_CASE("expr.finite_map.create_set_3") {
@@ -153,7 +158,8 @@ TEST_CASE("expr.finite_map.create_set_3") {
   map = finite_map::set(map, k3, mkInt(33, efac));
   CHECK(map);
   CHECK(boost::lexical_cast<std::string>(*map) ==
-        "set(set(set(defmap(defk(k1, k2, k3), fmap-default(INT)), k1, 31), k2, 32), k3, 33)");
+        "set(set(set(defmap(defk(k1, k2, k3), fmap-default(INT)), k1, 31), k2, "
+        "32), k3, 33)");
 }
 
 TEST_CASE("expr.finite_map.create_keys_lambda") {
@@ -184,8 +190,8 @@ TEST_CASE("expr.finite_map.mkSetVal") {
 
   ExprFactory efac;
 
-  Expr k1 = mkIntKey(1,efac);
-  ExprVector keys = {k1,mkIntKey(2, efac), mkIntKey(3, efac)};
+  Expr k1 = mkIntKey(1, efac);
+  ExprVector keys = {k1, mkIntKey(2, efac), mkIntKey(3, efac)};
   Expr lambda_keys = finite_map::mkKeys(keys, efac);
   CHECK(boost::lexical_cast<std::string>(lambda_keys) ==
         "(lambda (INT) ite(k3=(B0:INT), 3, ite(k2=(B0:INT), 2, "
@@ -243,7 +249,8 @@ TEST_CASE("expr.finite_map.mkInitializedMap") {
   ExprFactory efac;
   EZ3 z3(efac);
 
-  ExprVector keys = {mkIntKey(11, efac), mkIntKey(12, efac), mkIntKey(13, efac)};
+  ExprVector keys = {mkIntKey(11, efac), mkIntKey(12, efac),
+                     mkIntKey(13, efac)};
   ExprVector values = {mkInt(41, efac), mkInt(42, efac), mkInt(43, efac)};
 
   Expr lmdKeys;
@@ -263,9 +270,8 @@ TEST_CASE("expr.finite_map.mkInitializedMap") {
     Expr to_simp_true = mk<EQ>(get_value, values[i]);
     // cannot be simplified if constructed in a batch
     Expr simp = z3_simplify(z3, to_simp_true);
-    errs()
-      << "simplifying: "
-      << *mk<EQ>(finite_map::get(u_map, keys[i]), values[i]) << "\n";
+    errs() << "simplifying: "
+           << *mk<EQ>(finite_map::get(u_map, keys[i]), values[i]) << "\n";
     errs() << "orig:        " << *to_simp_true << "\n";
     errs() << "simplified:  " << *simp << "\n\n";
     CHECK(boost::lexical_cast<std::string>(simp) != "false");
@@ -282,7 +288,7 @@ TEST_CASE("expr.finite_map.fm_type_declaration") {
   CHECK(isOpX<FINITE_MAP_KEYS_TY>(finite_map::keys(fmTy)));
 
   keys.push_back(mkIntKey(5, efac));
-  fmTy = sort::finiteMapTy(bv::bvsort(64,efac), keys);
+  fmTy = sort::finiteMapTy(bv::bvsort(64, efac), keys);
   errs() << "Finite map type: " << fmTy << "\n";
 
   CHECK(isOpX<FINITE_MAP_TY>(fmTy));
@@ -308,7 +314,7 @@ TEST_CASE("expr.finite_map.test_map_type_HCDB") {
   ExprVector body = {mk<EQ>(map1, mkConstFiniteMap(keys, iTy)),
                      mk<EQ>(x, solution)};
   ExprSet vars = {x};
-  db.addRule(vars, boolop::limp(mknary<AND>(body),  fapp));
+  db.addRule(vars, boolop::limp(mknary<AND>(body), fapp));
 
   // ?- x \= 42, f(x). %% unsat
   registerQueryHornClauseDB(mk<AND>(mk<NEQ>(x, solution), fapp), vars, db);
@@ -319,7 +325,7 @@ TEST_CASE("expr.finite_map.test_map_type_HCDB") {
   Expr y = mkBvConst("y", 32, efac);
   Expr solutionBv = mkBvNum(42UL, 32, efac);
   ExprVector gbody = {mk<EQ>(map1, mkConstFiniteMap(keys, bv32Ty)),
-                     mk<EQ>(x, solutionBv)};
+                      mk<EQ>(x, solutionBv)};
   ExprSet varsBv = {y};
   // ?- y \= 42, g(y). %% unsat
   registerQueryHornClauseDB(mk<AND>(mk<NEQ>(y, solutionBv), gapp), varsBv, db);
@@ -356,7 +362,8 @@ TEST_CASE("expr.finite_map.transf_1key") {
 
   CHECK(k1 == visit_body({k1, v1}, k1, efac));
 
-  Expr map = mkConstFiniteMap({k1}, sort::intTy(efac)); // defk is not transformed
+  Expr map =
+      mkConstFiniteMap({k1}, sort::intTy(efac)); // defk is not transformed
   CHECK(map == visit_body({k1, v1}, map, efac));
 
   Expr map_set = finite_map::set(map, k1, v1);
@@ -392,8 +399,8 @@ TEST_CASE("expr.finite_map.cmp_gets_fmap") {
   // get(set(defk(k2,k1), k1, 30), k1) =  get(set(defk(k2), k2, 30), k2)
   Expr set2 = finite_map::set(mkConstFiniteMap({k2}, sort::intTy(efac)), k2,
                               mkInt(40, efac));
-  Expr set1 = finite_map::set(mkConstFiniteMap({k1, k2}, sort::intTy(efac)),
-                              k1, mkInt(40, efac));
+  Expr set1 = finite_map::set(mkConstFiniteMap({k1, k2}, sort::intTy(efac)), k1,
+                              mkInt(40, efac));
   CHECK(visit_body({k1, k2},
                    mk<EQ>(finite_map::get(set1, k1), finite_map::get(set2, k2)),
                    efac));
@@ -407,13 +414,13 @@ TEST_CASE("expr.finite_map.fmap_eq") {
 
   Expr k1 = mkIntKey(1, efac);
   Expr v1 = mkIntConst("v1", efac);
-  Expr map_var1 = mkFMapConstInt("map1",{k1});
+  Expr map_var1 = mkFMapConstInt("map1", {k1});
 
   Expr map_set =
       finite_map::set(mkConstFiniteMap({k1}, sort::intTy(efac)), k1, v1);
   Expr map_set_get = finite_map::get(map_set, k1);
 
-  ExprSet vars = {k1,v1,map_var1};
+  ExprSet vars = {k1, v1, map_var1};
   Expr map_eq = mk<EQ>(map_var1, map_set);
   // map1=set(defmap(defk(k1), fmap-default(INT)), k1, v1))
   CHECK(visit_body(vars, map_eq, efac));
@@ -443,7 +450,8 @@ TEST_CASE("expr.finite_map.transf_body") {
   db.registerRelation(fdecl);
   // f(x) :- x = get(set(defmap(defk(k1), fmap-default(INT)), k1, 42), k1).
   ExprSet allVars = {x, keys[0]};
-  db.addRule(allVars, boolop::limp(mk<EQ>(x, finite_map::get(set, keys[0])), fapp));
+  db.addRule(allVars,
+             boolop::limp(mk<EQ>(x, finite_map::get(set, keys[0])), fapp));
 
   // ?- x \= 42, f(x).
   registerQueryHornClauseDB(mk<AND>(mk<NEQ>(x, solution), fapp), {x}, db);
@@ -482,13 +490,13 @@ TEST_CASE("expr.finite_map.transf_body_fmapvars") {
   Expr set = finite_map::set(mkConstFiniteMap({k1, k2}, sort::intTy(efac)), k1,
                              solution);
   Expr get = finite_map::get(fmap_var, k1);
-  ExprVector body = { mk<EQ>(fmap_var, set), mk<EQ>(x, get)};
+  ExprVector body = {mk<EQ>(fmap_var, set), mk<EQ>(x, get)};
 
   db.registerRelation(fdecl);
   // f(x) :- map1 = set(defk(k1,k2), k1, 42), x = get(map1, k1).
   ExprSet vars = {x, k1, k2, fmap_var};
-  db.addRule(vars,
-             boolop::limp(mk<AND>(mk<EQ>(fmap_var, set), mk<EQ>(x, get)), fapp));
+  db.addRule(
+      vars, boolop::limp(mk<AND>(mk<EQ>(fmap_var, set), mk<EQ>(x, get)), fapp));
 
   // ?- x \= 42, f(x). %% unsat
   registerQueryHornClauseDB(mk<AND>(mk<NEQ>(x, solution), bind::fapp(fdecl, x)),
@@ -513,7 +521,7 @@ TEST_CASE("expr.finite_map.trans_fmap_args" * doctest::skip(true)) {
   ExprFactory efac;
   HornClauseDB db(efac);
 
-  Expr k1 = mkIntKey(1,efac);
+  Expr k1 = mkIntKey(1, efac);
   Expr k2 = mkIntKey(2, efac);
   ExprVector keys = {k1, k2};
 
@@ -527,7 +535,7 @@ TEST_CASE("expr.finite_map.trans_fmap_args" * doctest::skip(true)) {
 
   // f(map_a, k1, x) :- x = get(map_a, k1).
   ExprSet vars = {x, k1, fmap_var};
-  Expr fapp = bind::fapp(fdecl, fmap_var, k1,x);
+  Expr fapp = bind::fapp(fdecl, fmap_var, k1, x);
   db.addRule(vars, boolop::limp(finite_map::get(fmap_var, keys[0]), fapp));
 
   Expr solution = mkInt(42, efac);
@@ -587,7 +595,8 @@ TEST_CASE("expr.finite_map.clause_rewriter") {
   Expr k2 = mkIntKey(2, efac);
 
   Expr map1 = mkFMapConstInt("map1", {k1});
-  Expr fdecl1 = mkFun("map_rel_test", {bind::rangeTy(bind::fname(map1)), sort::boolTy(efac)});
+  Expr fdecl1 = mkFun("map_rel_test",
+                      {bind::rangeTy(bind::fname(map1)), sort::boolTy(efac)});
 
   ExprMap predtransf;
   predtransf[fdecl1] = finite_map::mkMapsDecl(fdecl1, efac);
@@ -611,7 +620,7 @@ TEST_CASE("expr.finite_map.clause_rewriter") {
 
   // ------------------------------------------------------------
   // non-normalized call with map
-  ExprVector keys = {k1,k2};
+  ExprVector keys = {k1, k2};
   fapp1_b = bind::fapp(fdecl1, {mkConstFiniteMap(keys, sort::intTy(efac))});
   newE = visit_args({map2, k1, k2}, efac, fapp1_b, predtransf);
 
@@ -620,7 +629,7 @@ TEST_CASE("expr.finite_map.clause_rewriter") {
   CHECK(isOpX<AND>(newE));
 }
 
-Expr test_rules_map_args(HornClauseDB &db, ExprVector & keys) {
+Expr test_rules_map_args(HornClauseDB &db, ExprVector &keys) {
   assert(!keys.empty());
 
   ExprFactory &efac = db.getExprFactory();
@@ -641,7 +650,7 @@ Expr test_rules_map_args(HornClauseDB &db, ExprVector & keys) {
   ExprVector foo1_app_args = {map_var, k1, v};
   Expr foo1_app = bind::fapp(foo1_decl, foo1_app_args);
   // cl1 foo1(map, k1, v) :- v = get(map, k1).
-  Expr cl1 = boolop::limp(get_map,foo1_app);
+  Expr cl1 = boolop::limp(get_map, foo1_app);
 
   Expr bar_decl = mkFun("bar", {bind::rangeTy(bind::fname(map_var)), bTy});
 
@@ -668,7 +677,7 @@ Expr test_rules_map_args(HornClauseDB &db, ExprVector & keys) {
 
   ExprSet rule_vars(foo1_app_args.begin(), foo1_app_args.end());
 
-  for(auto k_it : keys){
+  for (auto k_it : keys) {
     Expr var = k_it;
     rule_vars.insert(var);
   }
@@ -686,7 +695,7 @@ Expr test_rules_map_args(HornClauseDB &db, ExprVector & keys) {
 
   Expr zero = mkInt(0, efac);
   // initialize the rest of the map with 0
-  while(k_it != keys.end()){
+  while (k_it != keys.end()) {
     values.push_back(zero);
     k_it++;
   }
@@ -720,7 +729,8 @@ TEST_CASE("expr.finite_map.full_transf_1key") {
   errs() << "HornClauseDB without fmaps\n";
   errs() << tdb << "\n";
   // original query:
-  // query :- m = defmap(defmap(defk(k1), fmap-default(INT)), defv(42)), foo1(m, k1, v), v \= 42.
+  // query :- m = defmap(defmap(defk(k1), fmap-default(INT)), defv(42)),
+  //          foo1(m, k1, v), v \= 42.
   // UNSAT
 
   CHECK(!solveHornClauseDBZ3(tdb));

@@ -34,21 +34,21 @@ namespace op {
 namespace finite_map {
 
 // --------------- finite map primitives ------------------------------------------
-inline Expr constFiniteMapValues(ExprVector &values) {
+inline Expr constFiniteMapValues(const ExprVector &values) {
   return mknary<CONST_FINITE_MAP_VALUES>(values.begin(), values.end());
 }
 
-inline Expr constFiniteMapKeys(ExprVector &keys) {
+inline Expr constFiniteMapKeys(const ExprVector &keys) {
   assert(keys.size() > 0);
   return mknary<CONST_FINITE_MAP_KEYS>(keys.begin(), keys.end());
 }
-inline Expr constFiniteMap(ExprVector &keys, Expr vTy) {
+inline Expr constFiniteMap(const ExprVector &keys, Expr vTy) {
   return mk<CONST_FINITE_MAP>(constFiniteMapKeys(keys),
                               mk<FINITE_MAP_VAL_DEFAULT>(vTy));
 }
 // construct when ALL the values of the map are known (they can be
 // variables)
-inline Expr constFiniteMap(ExprVector &keys, ExprVector &values) {
+inline Expr constFiniteMap(const ExprVector &keys, const ExprVector &values) {
   assert(keys.size() == values.size());
   return mk<CONST_FINITE_MAP>(constFiniteMapKeys(keys),
                               constFiniteMapValues(values));
@@ -76,7 +76,7 @@ inline Expr mkEmptyMap(Expr ty, ExprFactory &efac) {
 }
 
 // creates a set of keys as a lambda function
-inline Expr mkKeys(ExprVector &keys, ExprFactory &efac) {
+inline Expr mkKeys(const ExprVector &keys, ExprFactory &efac) {
 
   Expr x = bind::intConst(mkTerm<std::string>("x", efac));
   // TODO: what do we use as variable name for the lambda function?
@@ -101,9 +101,9 @@ inline Expr mkKeys(ExprVector &keys, ExprFactory &efac) {
 }
 
 // creates a map for keys and values, assuming that they are sorted
-// old make_map_batch_values
-inline Expr mkInitializedMap(ExprVector &keys, Expr vTy, ExprVector &values,
-                             ExprFactory &efac, Expr &lambda_keys) {
+inline Expr mkInitializedMap(const ExprVector &keys, Expr vTy,
+                             const ExprVector &values, ExprFactory &efac,
+                             Expr &lambda_keys) {
 
   // assuming that there is a value for every key. If this is not available,
   // "initialize" it with the default value for uninitialized memory

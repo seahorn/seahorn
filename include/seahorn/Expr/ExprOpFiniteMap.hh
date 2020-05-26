@@ -33,7 +33,7 @@ NOP(SET, "set", FUNCTIONAL, FiniteMapOp)
 namespace op {
 namespace finite_map {
 
-// --------------- finite map primitives ------------------------------------------
+// --------------- finite map primitives ---------------------
 inline Expr constFiniteMapValues(const ExprVector &values) {
   return mknary<CONST_FINITE_MAP_VALUES>(values.begin(), values.end());
 }
@@ -57,19 +57,15 @@ inline Expr constFiniteMap(const ExprVector &keys, const ExprVector &values) {
 inline Expr get(Expr map, Expr idx) { return mk<GET>(map, idx); }
 inline Expr set(Expr map, Expr idx, Expr v) { return mk<SET>(map, idx, v); }
 
-
-
 // --------------- finite map sort ------------------------------------------
 inline Expr valTy(Expr fmTy) { return fmTy->left(); }
 inline Expr keys(Expr fmTy) { return fmTy->right(); }
-
-
 
 // --------------- transformation to lambda functions ------------------------
 // \brief fresh map with unitialized values of type ty, returns '0'
 // TODO: change 0 by the same as unitialized memory?
 inline Expr mkEmptyMap(Expr ty, ExprFactory &efac) {
-  if(isOpX<INT_TY>(ty))
+  if (isOpX<INT_TY>(ty))
     return mkTerm<mpz_class>(0, efac); // is this an int already?
   else
     return bv::bvnum(mkTerm<mpz_class>(0, efac), ty);
@@ -81,20 +77,20 @@ inline Expr mkKeys(const ExprVector &keys, ExprFactory &efac) {
   Expr x = bind::intConst(mkTerm<std::string>("x", efac));
   // TODO: what do we use as variable name for the lambda function?
 
-  Expr lmd_bot = bind::abs<LAMBDA>(std::array<Expr, 1>{x},
-                                   mkTerm<mpz_class>(0, efac));
+  Expr lmd_bot =
+      bind::abs<LAMBDA>(std::array<Expr, 1>{x}, mkTerm<mpz_class>(0, efac));
   // up to here, it will be the same for all keysets
 
   unsigned count = 1;
 
   Expr lmd_tmp = lmd_bot;
 
-  // this loop creates a lambda term for the keys. The lambda term is of the form:
-  // lmd1x.(ite x == k1 1 0)
-  // lmdnx.(ite x == kn lmdn-1(x))
+  // this loop creates a lambda term for the keys. The lambda term is of the
+  // form: lmd1x.(ite x == k1 1 0)
+  //       lmdnx.(ite x == kn lmdn-1(x))
   //
-  // the lambda returns the position of the value corresponding to a key in the
-  // lambda term that represents the values
+  // the lambda function returns the position of the value corresponding to a
+  // key in the lambda term that represents the values
   for (auto key : keys) {
     Expr nA = mkTerm<mpz_class>(count, efac);
     Expr cmp = mk<EQ>(key, x);
@@ -207,4 +203,4 @@ inline Expr mkMapsDecl(Expr fdecl, ExprFactory &efac) {
 
 } // namespace finite_map
 } // namespace op
-}
+} // namespace expr

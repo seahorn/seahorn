@@ -1,8 +1,8 @@
 #pragma once
 
 #include "seahorn/Expr/Expr.hh"
-#include "seahorn/Expr/ExprOpBind.hh"
 #include "seahorn/Expr/ExprCore.hh"
+#include "seahorn/Expr/ExprOpBind.hh"
 #include "seahorn/Expr/ExprOpFiniteMap.hh"
 #include "seahorn/Expr/ExprVisitor.hh"
 #include "seahorn/HornClauseDB.hh"
@@ -39,7 +39,6 @@ public:
   Expr operator()(Expr exp);
 };
 
-
 // Top-down visitor to rewrite maps in arguments of predicate fapps
 class FiniteMapArgsVisitor : public std::unary_function<Expr, VisitAction> {
 
@@ -75,7 +74,6 @@ public:
 private:
   bool isVisitFiniteMapOp(Expr e);
 };
-
 
 // TODO: this converts the output of z3 back to the original clauses
 // with maps

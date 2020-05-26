@@ -26,7 +26,7 @@ static Expr mkBvKey(unsigned n, unsigned width, ExprFactory &efac) {
   return bv::bvConst(mkTerm("j" + boost::lexical_cast<std::string>(n), efac), width);
 }
 
-static Expr mkFMapConstInt(const std::string name, ExprVector keys) {
+static Expr mkFMapConstInt(const std::string name, const ExprVector keys) {
   ExprFactory &efac = keys.at(0)->efac();
   Expr finiteMapTy = sort::finiteMapTy(sort::intTy(efac), keys);
   return bind::mkConst(mkTerm(name, efac), finiteMapTy);
@@ -34,7 +34,7 @@ static Expr mkFMapConstInt(const std::string name, ExprVector keys) {
 
 // -- version with the ExprVector by value so that the initialization with {}
 // -- can be used directly in the arguments
-static Expr mkConstFiniteMap(ExprVector keys, Expr vTy) {
+static Expr mkConstFiniteMap(const ExprVector keys, Expr vTy) {
   return finite_map::constFiniteMap(keys, vTy);
 }
 
@@ -246,9 +246,9 @@ TEST_CASE("expr.finite_map.mkInitializedMap") {
   ExprVector keys = {mkIntKey(11, efac), mkIntKey(12, efac), mkIntKey(13, efac)};
   ExprVector values = {mkInt(41, efac), mkInt(42, efac), mkInt(43, efac)};
 
-  Expr lmd_keys;
+  Expr lmdKeys;
   Expr lmd_values = finite_map::mkInitializedMap(keys, sort::intTy(efac),
-                                                 values, efac, lmd_keys);
+                                                 values, lmdKeys, efac);
 
   Expr u_map = mkConstFiniteMap(keys, sort::intTy(efac)); // uninterpreted map
 
@@ -259,7 +259,7 @@ TEST_CASE("expr.finite_map.mkInitializedMap") {
   errs() << "map:    " << *u_map << "\n\n";
 
   for (int i = 0; i < keys.size(); i++) {
-    Expr get_value = finite_map::mkGetVal(lmd_values, lmd_keys, keys[i]);
+    Expr get_value = finite_map::mkGetVal(lmd_values, lmdKeys, keys[i]);
     Expr to_simp_true = mk<EQ>(get_value, values[i]);
     // cannot be simplified if constructed in a batch
     Expr simp = z3_simplify(z3, to_simp_true);
@@ -329,9 +329,9 @@ TEST_CASE("expr.finite_map.test_map_type_HCDB") {
   // This cannot be solved by Z3
 }
 
-Expr visit_body(ExprSet vars, ExprFactory &efac, Expr e) {
+Expr visit_body(ExprSet vars, Expr e, ExprFactory &efac) {
   DagVisitCache dvc;
-  FiniteMapBodyVisitor fmv(efac, vars);
+  FiniteMapBodyVisitor fmv(vars, efac);
   errs() << "\nTesting visit:" << *e << " --------\n";
   Expr te = visit(fmv, e, dvc);
   errs() << "Transformed:" << *te << "\n";
@@ -340,7 +340,7 @@ Expr visit_body(ExprSet vars, ExprFactory &efac, Expr e) {
 
 Expr visit_args(ExprSet vars, ExprFactory &efac, Expr e, ExprMap predTransf) {
   DagVisitCache dvc;
-  FiniteMapArgsVisitor fmv(efac, vars, predTransf);
+  FiniteMapArgsVisitor fmv(vars, predTransf, efac);
   errs() << "\nTesting visit:" << *e << " --------\n";
   Expr te = visit(fmv, e, dvc);
   errs() << "Transformed:" << *te << "\n";
@@ -354,16 +354,16 @@ TEST_CASE("expr.finite_map.transf_1key") {
   Expr k1 = mkIntKey(1, efac);
   Expr v1 = mkIntConst("v1", efac);
 
-  CHECK(k1 == visit_body({k1,v1}, efac, k1));
+  CHECK(k1 == visit_body({k1, v1}, k1, efac));
 
   Expr map = mkConstFiniteMap({k1}, sort::intTy(efac)); // defk is not transformed
-  CHECK(map == visit_body({k1, v1}, efac, map));
+  CHECK(map == visit_body({k1, v1}, map, efac));
 
   Expr map_set = finite_map::set(map, k1, v1);
-  CHECK(map_set != visit_body({k1, v1}, efac, map_set));
+  CHECK(map_set != visit_body({k1, v1}, map_set, efac));
 
   Expr map_get = finite_map::get(map_set, k1);
-  CHECK(map_get != visit_body({k1, v1}, efac, finite_map::get(map_set, k1)));
+  CHECK(map_get != visit_body({k1, v1}, finite_map::get(map_set, k1), efac));
 }
 
 TEST_CASE("expr.finite_map.fmap_2keys") {
@@ -377,7 +377,8 @@ TEST_CASE("expr.finite_map.fmap_2keys") {
   Expr map_set =
       finite_map::set(mkConstFiniteMap({k1, k2}, sort::intTy(efac)), k1, v1);
 
-  CHECK(visit_body({k1, k2, v1}, efac, mk<EQ>(v1, finite_map::get(map_set, k1))));
+  CHECK(
+      visit_body({k1, k2, v1}, mk<EQ>(v1, finite_map::get(map_set, k1)), efac));
 }
 
 TEST_CASE("expr.finite_map.cmp_gets_fmap") {
@@ -393,8 +394,9 @@ TEST_CASE("expr.finite_map.cmp_gets_fmap") {
                               mkInt(40, efac));
   Expr set1 = finite_map::set(mkConstFiniteMap({k1, k2}, sort::intTy(efac)),
                               k1, mkInt(40, efac));
-  CHECK(visit_body({k1, k2}, efac,
-                   mk<EQ>(finite_map::get(set1, k1), finite_map::get(set2, k2))));
+  CHECK(visit_body({k1, k2},
+                   mk<EQ>(finite_map::get(set1, k1), finite_map::get(set2, k2)),
+                   efac));
   // SAT
 }
 
@@ -414,11 +416,11 @@ TEST_CASE("expr.finite_map.fmap_eq") {
   ExprSet vars = {k1,v1,map_var1};
   Expr map_eq = mk<EQ>(map_var1, map_set);
   // map1=set(defmap(defk(k1), fmap-default(INT)), k1, v1))
-  CHECK(visit_body(vars, efac, map_eq));
+  CHECK(visit_body(vars, map_eq, efac));
 
   // v1 = get(map1, k1), map1=set(defmap(defk(k1), fmap-default(INT)), k1, v1))
   Expr ne = visit_body(
-      vars, efac, mk<AND>(map_eq, mk<EQ>(finite_map::get(map_var1, k1), v1)));
+      vars, mk<AND>(map_eq, mk<EQ>(finite_map::get(map_var1, k1), v1)), efac);
   CHECK(boost::lexical_cast<std::string>(z3_simplify(z3, ne)) != "false");
 }
 

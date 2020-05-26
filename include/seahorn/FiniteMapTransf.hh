@@ -31,10 +31,10 @@ class FiniteMapRewriter : public std::unary_function<Expr, Expr> {
   ExprMap &m_type_lambda;
 
 public:
-  FiniteMapRewriter(ExprFactory &efac, ExprSet &evars, ExprMap &expr_type,
-                    ExprMap &type_lambda)
-      : m_efac(efac), m_evars(evars), m_expr_type(expr_type),
-        m_type_lambda(type_lambda){};
+  FiniteMapRewriter(ExprSet &evars, ExprMap &expr_type, ExprMap &type_lambda,
+                    ExprFactory &efac)
+      : m_evars(evars), m_expr_type(expr_type), m_type_lambda(type_lambda),
+        m_efac(efac){};
 
   Expr operator()(Expr exp);
 };
@@ -49,9 +49,9 @@ private:
   ExprSet &m_evars;
 
 public:
-  FiniteMapArgsVisitor(ExprFactory &efac, ExprSet &evars,
-                       const ExprMap &pred_decl_t)
-      : m_efac(efac), m_evars(evars), m_pred_decl_t(pred_decl_t) {}
+  FiniteMapArgsVisitor(ExprSet &evars, const ExprMap &pred_decl_t,
+                       ExprFactory &efac)
+      : m_evars(evars), m_pred_decl_t(pred_decl_t), m_efac(efac) {}
 
   VisitAction operator()(Expr exp);
 };
@@ -65,9 +65,9 @@ private:
   std::shared_ptr<FiniteMapRewriter> m_rw;
 
 public:
-  FiniteMapBodyVisitor(ExprFactory &efac, ExprSet &evars) {
-    m_rw = std::make_shared<FiniteMapRewriter>(efac, evars, m_exp_types,
-                                               m_map_lambda);
+  FiniteMapBodyVisitor(ExprSet &evars, ExprFactory &efac) {
+    m_rw = std::make_shared<FiniteMapRewriter>(evars, m_exp_types, m_map_lambda,
+                                               efac);
   }
 
   VisitAction operator()(Expr exp);

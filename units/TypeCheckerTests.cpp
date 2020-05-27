@@ -13,6 +13,7 @@
 #include "seahorn/Expr/ExprGmp.hh"
 #include "seahorn/Expr/ExprLlvm.hh"
 #include "seahorn/Expr/TypeChecker.hh"
+#include "seahorn/Expr/ExprOpBv.hh"
 
 #include "seahorn/Support/SeaDebug.h"
 
@@ -33,6 +34,10 @@ Expr realConst(const std::string &n, ExprFactory &efac) {
 
 Expr unintConst(const std::string &n, ExprFactory &efac) {
   return bind::unintConst(mkTerm<std::string>(n, efac));
+}
+
+Expr bvConst(const std::string &n, ExprFactory &efac, unsigned width) {
+  return bv::bvConst(mkTerm<std::string>(n, efac), width);
 }
 
 void checkNotWellFormed(Expr e[], Expr error[], int size) {
@@ -341,4 +346,102 @@ TEST_CASE("compareNotWellFormed.test") {
   e[3] = error[3];
 
   checkNotWellFormed(e, error, size);
+}
+TEST_CASE("bvWellFormed.test") {
+  seahorn::SeaEnableLog("tc");
+  // -- manages expressions
+  ExprFactory efac;
+
+Expr aInt = intConst ("aInt", efac);
+
+Expr bvSort = bv::bvsort(10, efac);
+Expr bvSort5 = bv::bvsort(5, efac);
+
+Expr a10 = bvConst ("a10", efac, 10);
+Expr b10 = bvConst ("b10", efac, 10);
+Expr c10 = bvConst ("c10", efac, 10);
+// Expr d10 = bv::bvnum(aInt, bvSort); //TODO
+
+Expr a5 = bvConst ("a5", efac, 5);
+Expr b5 = bvConst ("b5", efac, 5);
+Expr c5 = bvConst ("c5", efac, 5);
+
+int size = 6;
+  Expr e[size];
+
+  e[0] = mk<BNOT>(mk<BOR>(a10,b10));
+
+  e[1] = mk <BAND>(mk<BREDAND>(a10), b10);
+
+  e[2] = mk <BREDOR>(mk<BXNOR> (mk<BNEG>(a10), mk<BOR>(b10,c10)));
+
+  e[3] = mk <BSUB>(mk<BCONCAT>(a5, b5), a10);
+
+  e[4] = mk <BADD>(mk<BNAND>(a10, b10), mk<BSHL>(c10, c10));
+
+  e[5] = mk<BSHL> (bv::sext(a5, 5), a10);
+
+  checkWellFormed(e, size, bvSort);
+
+}
+TEST_CASE("bvNotWellFormed.test") {
+  seahorn::SeaEnableLog("tc");
+  // -- manages expressions
+  ExprFactory efac;
+
+Expr aInt = intConst("aInt", efac);
+Expr aUnint = unintConst("aUnint", efac);
+Expr aReal = realConst("aReal", efac);
+
+Expr bvSort = bv::bvsort(10, efac);
+Expr bvSort5 = bv::bvsort(5, efac);
+Expr bvSort3 = bv::bvsort(3, efac);
+
+Expr a10 = bvConst ("a10", efac, 10);
+Expr b10 = bvConst ("b10", efac, 10);
+Expr c10 = bvConst ("c10", efac, 10);
+
+Expr a7 = bvConst ("a7", efac, 7);
+
+Expr a5 = bvConst ("a5", efac, 5);
+Expr b5 = bvConst ("b5", efac, 5);
+Expr c5 = bvConst ("c5", efac, 5);
+
+int size = 11;
+Expr e[size];
+Expr error[size];
+
+error[0] = mk<BNOT> (a10, a10); //too many arguments: Unary
+e[0] = error[0];
+
+error [1] = mk <BREDAND>(aInt); // wrong type of argument Unary
+e[1] = mk<BMUL>(mk<BSLE>(error[1], a10), b10);
+
+error [2] = mk <BSDIV> (a10); // not enough arguments Nary
+e[2] = mk<BSGT>(error[2], a10);
+
+error [3] = mk <BSGT> (a10, aUnint); // wrong type of argument: Nary
+e[3] = mk<BSHL>(b10, error[3]);
+
+error [4] =  mk <BASHR>(a5);//not enough arguments : binary
+e[4] = error[4];
+
+error [5] = mk <BSHL>(a10, b10, c10); //too many arguments : binary
+e[5] = mk<BNAND>(a10, mk<BREDOR>(error[5]));
+
+error [6] =  mk<BCONCAT>(a7);//not enough arguments : concat
+e[6] = error[6];//mk<BCONCAT>(error[6], a3);
+
+error [7] = mk <BCONCAT>(a5, aReal);//wrong type of arugment 
+e[7] = mk<BNOT>(error[7]);
+
+error[8] = mk<BUGT>(a10, mk<BCONCAT>(a5, a10)); //widths do not match
+e[8] = error[8];
+
+error[9] = mk<BSEXT>(a10, b10); // should be {bv, bvsort}
+e[9] = mk<BCONCAT>(error[9], a5);
+
+error[10] = mk<BSEXT>(a10, bvSort, b10);
+e[10] = error[10];
+checkNotWellFormed(e,error, size);
 }

@@ -98,6 +98,12 @@ inline bool isBvNum(Expr v) {
   return isBvNum(v, w);
 }
 
+inline unsigned widthBvNum(Expr v) {
+  assert(isBvNum(v));
+  Expr sort = bind::rangeTy(v);
+  return width(sort);
+  }
+
 inline mpz_class toMpz(Expr v) {
   assert(is_bvnum(v));
   return getTerm<mpz_class>(v->arg(0));
@@ -109,6 +115,13 @@ inline Expr bvConst(Expr v, unsigned width) {
 }
 
 inline bool isBvConst(Expr v) { return bind::isConst<BVSORT>(v); }
+
+inline unsigned widthBvConst(Expr v) {
+  assert(isBvConst(v));
+  Expr sort = bind::rangeTy(v->first());
+  return width(sort);
+  }
+
 } // namespace bv
 
 enum class BvOpKind {
@@ -169,10 +182,10 @@ enum class BvOpKind {
 namespace typeCheck {
 namespace bvType {
 
-template <Comparison compareType, unsigned int numChildren>
+template <Comparison compareType, unsigned int numChildren, typename T>
 static inline Expr checkChildren(Expr exp, TypeChecker &tc) {
   if (checkNumChildren<compareType, numChildren>(exp) &&
-      checkType<BVSORT>(exp, tc))
+      checkType<T>(exp, tc))
     return tc.typeOf(exp->first());
   else
     return sort::errorTy(exp->efac());
@@ -180,13 +193,66 @@ static inline Expr checkChildren(Expr exp, TypeChecker &tc) {
 
 struct Unary {
   static inline Expr inferType(Expr exp, TypeChecker &tc) {
-    return checkChildren<Equal, 1>(exp, tc);
+    return checkChildren<Equal, 1, BVSORT>(exp, tc);
+  }
+};
+
+struct Binary {
+  static inline Expr inferType(Expr exp, TypeChecker &tc) {
+    return checkChildren<Equal, 2, BVSORT>(exp, tc);
   }
 };
 
 struct Nary {
   static inline Expr inferType(Expr exp, TypeChecker &tc) {
-    return checkChildren<GreaterEqual, 2>(exp, tc);
+    return checkChildren<GreaterEqual, 2, BVSORT>(exp, tc);
+  }
+};
+
+struct NaryBool {
+  static inline Expr inferType(Expr exp, TypeChecker &tc) {
+    return typeCheck::checkChildren<GreaterEqual, 2, BOOL_TY, BVSORT>(exp, tc);
+  }
+};
+
+ static inline unsigned totalWidth(Expr exp1, Expr exp2, TypeChecker &tc) {
+    unsigned width1 = bv::width(tc.typeOf(exp1));
+    unsigned width2 = bv::width(tc.typeOf(exp2));
+    return width1 + width2;
+  }
+
+ static inline Expr extend(Expr exp, TypeChecker &tc) {
+    if (checkNumChildren<Equal, 2>(exp) && correctType <BVSORT>(exp->left(), tc) && correctType<BVSORT>(exp->right(), tc)) // note: they can have different widths
+      return bv::bvsort(totalWidth(exp->left(), exp->right(), tc), exp->efac());
+    else
+      return sort::errorTy(exp->efac());
+  }
+struct Concat {
+  static inline Expr inferType(Expr exp, TypeChecker &tc) {
+    return extend(exp, tc);
+  }
+};
+
+struct Extend {
+  static inline Expr inferType(Expr exp, TypeChecker &tc) {
+    Expr type = extend (exp, tc);
+
+    if (!isOp<ERROR_TY>(type) && isOp<BVSORT>(exp->right()))//expected children: 1. bit vector 2. bvsort
+      return type;
+    else
+      return sort::errorTy(exp->efac());
+  }
+};
+
+// struct Int2Bv {
+//   static inline Expr inferType(Expr exp, TypeChecker &tc) {
+      //    width ???/
+//   }
+// };
+
+struct Bv2Int {
+  static inline Expr inferType(Expr exp, TypeChecker &tc) {
+    return typeCheck::checkChildren  <Equal, 1, INT_TY, BVSORT>(exp, tc);
   }
 };
 
@@ -203,49 +269,49 @@ NOP_TYPECHECK(BXOR, "bvxor", FUNCTIONAL, BvOp, typeCheck::bvType::Nary)
 NOP_TYPECHECK(BNAND, "bvnand", FUNCTIONAL, BvOp, typeCheck::bvType::Nary)
 NOP_TYPECHECK(BNOR, "bvnor", FUNCTIONAL, BvOp, typeCheck::bvType::Nary)
 NOP_TYPECHECK(BXNOR, "bvxnor", FUNCTIONAL, BvOp, typeCheck::bvType::Nary)
-NOP(BNEG, "bvneg", FUNCTIONAL, BvOp)
-NOP(BADD, "bvadd", FUNCTIONAL, BvOp)
-NOP(BSUB, "bvsub", FUNCTIONAL, BvOp)
-NOP(BMUL, "bvmul", FUNCTIONAL, BvOp)
-NOP(BUDIV, "bvudiv", FUNCTIONAL, BvOp)
-NOP(BSDIV, "bvsdiv", FUNCTIONAL, BvOp)
-NOP(BUREM, "bvurem", FUNCTIONAL, BvOp)
-NOP(BSREM, "bvsrem", FUNCTIONAL, BvOp)
-NOP(BSMOD, "bvsmod", FUNCTIONAL, BvOp)
-NOP(BULT, "bvult", FUNCTIONAL, BvOp)
-NOP(BSLT, "bvslt", FUNCTIONAL, BvOp)
-NOP(BULE, "bvule", FUNCTIONAL, BvOp)
-NOP(BSLE, "bvsle", FUNCTIONAL, BvOp)
-NOP(BUGE, "bvuge", FUNCTIONAL, BvOp)
-NOP(BSGE, "bvsge", FUNCTIONAL, BvOp)
-NOP(BUGT, "bvugt", FUNCTIONAL, BvOp)
-NOP(BSGT, "bvsgt", FUNCTIONAL, BvOp)
-NOP(BCONCAT, "concat", FUNCTIONAL, BvOp)
+NOP_TYPECHECK(BNEG, "bvneg", FUNCTIONAL, BvOp, typeCheck::bvType::Unary)
+NOP_TYPECHECK(BADD, "bvadd", FUNCTIONAL, BvOp, typeCheck::bvType::Nary)
+NOP_TYPECHECK(BSUB, "bvsub", FUNCTIONAL, BvOp, typeCheck::bvType::Nary)
+NOP_TYPECHECK(BMUL, "bvmul", FUNCTIONAL, BvOp, typeCheck::bvType::Nary)
+NOP_TYPECHECK(BUDIV, "bvudiv", FUNCTIONAL, BvOp, typeCheck::bvType::Nary)
+NOP_TYPECHECK(BSDIV, "bvsdiv", FUNCTIONAL, BvOp, typeCheck::bvType::Nary)
+NOP_TYPECHECK(BUREM, "bvurem", FUNCTIONAL, BvOp, typeCheck::bvType::Nary)
+NOP_TYPECHECK(BSREM, "bvsrem", FUNCTIONAL, BvOp, typeCheck::bvType::Nary)
+NOP_TYPECHECK(BSMOD, "bvsmod", FUNCTIONAL, BvOp, typeCheck::bvType::Nary)
+NOP_TYPECHECK(BULT, "bvult", FUNCTIONAL, BvOp, typeCheck::bvType::Nary)
+NOP_TYPECHECK(BSLT, "bvslt", FUNCTIONAL, BvOp, typeCheck::bvType::Nary)
+NOP_TYPECHECK(BULE, "bvule", FUNCTIONAL, BvOp, typeCheck::bvType::Nary)
+NOP_TYPECHECK(BSLE, "bvsle", FUNCTIONAL, BvOp, typeCheck::bvType::Nary)
+NOP_TYPECHECK(BUGE, "bvuge", FUNCTIONAL, BvOp, typeCheck::bvType::Nary)
+NOP_TYPECHECK(BSGE, "bvsge", FUNCTIONAL, BvOp, typeCheck::bvType::Nary)
+NOP_TYPECHECK(BUGT, "bvugt", FUNCTIONAL, BvOp, typeCheck::bvType::Nary)
+NOP_TYPECHECK(BSGT, "bvsgt", FUNCTIONAL, BvOp, typeCheck::bvType::Nary)
+NOP_TYPECHECK(BCONCAT, "concat", FUNCTIONAL, BvOp, typeCheck::bvType::Concat)
 NOP(BEXTRACT, "extract", FUNCTIONAL, BvOp)
-NOP(BSEXT, "bvsext", FUNCTIONAL, BvOp)
-NOP(BZEXT, "bvzext", FUNCTIONAL, BvOp)
+NOP_TYPECHECK(BSEXT, "bvsext", FUNCTIONAL, BvOp, typeCheck::bvType::Extend)
+NOP_TYPECHECK(BZEXT, "bvzext", FUNCTIONAL, BvOp, typeCheck::bvType::Extend)
 NOP(BREPEAT, "bvrepeat", FUNCTIONAL, BvOp)
-NOP(BSHL, "bvshl", FUNCTIONAL, BvOp)
-NOP(BLSHR, "bvlshr", FUNCTIONAL, BvOp)
-NOP(BASHR, "bvashr", FUNCTIONAL, BvOp)
+NOP_TYPECHECK(BSHL, "bvshl", FUNCTIONAL, BvOp, typeCheck::bvType::Binary)
+NOP_TYPECHECK(BLSHR, "bvlshr", FUNCTIONAL, BvOp, typeCheck::bvType::Binary)
+NOP_TYPECHECK(BASHR, "bvashr", FUNCTIONAL, BvOp, typeCheck::bvType::Binary)
 NOP(BROTATE_LEFT, "bvrotleft", FUNCTIONAL, BvOp)
 NOP(BROTATE_RIGHT, "bvrotright", FUNCTIONAL, BvOp)
 NOP(BEXT_ROTATE_LEFT, "bvextrotleft", FUNCTIONAL, BvOp)
 NOP(BEXT_ROTATE_RIGHT, "bvextrotright", FUNCTIONAL, BvOp)
 NOP(INT2BV, "int2bv", FUNCTIONAL, BvOp)
-NOP(BV2INT, "bv2int", FUNCTIONAL, BvOp)
+NOP_TYPECHECK(BV2INT, "bv2int", FUNCTIONAL, BvOp, typeCheck::bvType::Bv2Int)
 // Add w Overflow
-NOP(SADD_NO_OVERFLOW, "bvsadd_no_overflow", FUNCTIONAL, BvOp)
-NOP(UADD_NO_OVERFLOW, "bvuadd_no_overflow", FUNCTIONAL, BvOp)
-NOP(SADD_NO_UNDERFLOW, "bvbadd_no_underflow", FUNCTIONAL, BvOp)
+NOP_TYPECHECK(SADD_NO_OVERFLOW, "bvsadd_no_overflow", FUNCTIONAL, BvOp, typeCheck::bvType::NaryBool)
+NOP_TYPECHECK(UADD_NO_OVERFLOW, "bvuadd_no_overflow", FUNCTIONAL, BvOp, typeCheck::bvType::NaryBool)
+NOP_TYPECHECK(SADD_NO_UNDERFLOW, "bvbadd_no_underflow", FUNCTIONAL, BvOp, typeCheck::bvType::NaryBool)
 // Sub w Overflow
-NOP(SSUB_NO_OVERFLOW, "bvbsub_no_overflow", FUNCTIONAL, BvOp)
-NOP(SSUB_NO_UNDERFLOW, "bvssub_no_underflow", FUNCTIONAL, BvOp)
-NOP(USUB_NO_UNDERFLOW, "bvusub_no_underflow", FUNCTIONAL, BvOp)
+NOP_TYPECHECK(SSUB_NO_OVERFLOW, "bvbsub_no_overflow", FUNCTIONAL, BvOp, typeCheck::bvType::NaryBool)
+NOP_TYPECHECK(SSUB_NO_UNDERFLOW, "bvssub_no_underflow", FUNCTIONAL, BvOp, typeCheck::bvType::NaryBool)
+NOP_TYPECHECK(USUB_NO_UNDERFLOW, "bvusub_no_underflow", FUNCTIONAL, BvOp, typeCheck::bvType::NaryBool)
 // Mul w Overflow
-NOP(SMUL_NO_OVERFLOW, "bvsmul_no_overflow", FUNCTIONAL, BvOp)
-NOP(UMUL_NO_OVERFLOW, "bvumul_no_overflow", FUNCTIONAL, BvOp)
-NOP(SMUL_NO_UNDERFLOW, "bvbmul_no_underflow", FUNCTIONAL, BvOp)
+NOP_TYPECHECK(SMUL_NO_OVERFLOW, "bvsmul_no_overflow", FUNCTIONAL, BvOp, typeCheck::bvType::NaryBool)
+NOP_TYPECHECK(UMUL_NO_OVERFLOW, "bvumul_no_overflow", FUNCTIONAL, BvOp, typeCheck::bvType::NaryBool)
+NOP_TYPECHECK(SMUL_NO_UNDERFLOW, "bvbmul_no_underflow", FUNCTIONAL, BvOp, typeCheck::bvType::NaryBool)
 namespace bv {
 /* XXX Add helper methods as needed */
 

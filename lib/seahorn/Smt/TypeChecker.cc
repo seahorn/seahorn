@@ -47,7 +47,11 @@ class TCVR {
     else if (bind::isUnintConst(exp))
       return sort::unintTy(exp->efac());
     else if (bv::isBvConst(exp))
-      return bv::bvsort(bv::width(exp->arg(0)->arg(1)), exp->efac());
+      return bv::bvsort(bv::widthBvConst(exp), exp->efac());
+    else if (bv::isBvNum(exp))
+      return bv::bvsort(bv::widthBvNum(exp), exp->efac());
+    else if (isOp<BVSORT>(exp))
+      return exp;
 
     return exp->inferType(exp, tc);
   }

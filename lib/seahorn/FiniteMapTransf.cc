@@ -197,30 +197,6 @@ static Expr mkInitFMapCore(Expr map, FMapExprsInfo &fmei) {
   return map;
 }
 
-// -- rewrites a map term (if not already) to be used in a map primitive
-static Expr mkFMapPrimitiveArgCore(Expr map, FMapExprsInfo &fmei) {
-  assert(!bind::isFiniteMapConst(map));
-
-  if (isOpX<CONST_FINITE_MAP>(map)) {
-    Expr defk = map->left();
-    assert(isOpX<CONST_FINITE_MAP_KEYS>(defk));
-    Expr lmdKeys = fmei.m_type_lmd[map];
-    Expr fmTy = fmei.m_type[map];
-    Expr res, valuesE = map->right();
-    Expr vTy = finite_map::valTy(fmTy);
-    if (isOpX<FINITE_MAP_VAL_DEFAULT>(valuesE)) { // non init values
-      return finite_map::mkEmptyMap(vTy, fmei.m_efac);
-    } else {
-      assert(isOpX<CONST_FINITE_MAP_VALUES>(valuesE)); // initialized values
-      ExprVector values(valuesE->args_begin(), valuesE->args_end());
-      ExprVector keys(defk->args_begin(), defk->args_end());
-      return finite_map::mkInitializedMap(keys, vTy, values, lmdKeys,
-                                          fmei.m_efac);
-    }
-  } else // already transformed map: 0 or ite expr
-    return map;
-}
-
 // -- rewrites a map get primitive
 static Expr mkGetCore(Expr map, Expr key, FMapExprsInfo &fmei) {
 
@@ -232,8 +208,6 @@ static Expr mkGetCore(Expr map, Expr key, FMapExprsInfo &fmei) {
     res = mkVarGet(map, key, finite_map::valTy(fmTy));
     fmei.m_vars.insert(res);
   } else {
-    // if not, rewrite the map term
-    // Expr lmap = mkFMapPrimitiveArgCore(map, fmei);
     Expr lmdKeys = fmei.m_type_lmd[fmTy];
     assert(lmdKeys);
     res = finite_map::mkGetVal(map, lmdKeys, key);
@@ -261,9 +235,7 @@ static Expr mkSetCore(Expr map, Expr key, Expr value, FMapExprsInfo &fmei) {
       values.push_back(v);
     }
     map = finite_map::mkInitializedMap(keys, vTy, values, lmdKeys, fmei.m_efac);
-  } // else
-    // // if not, rewrite the map term
-    // map = mkFMapPrimitiveArgCore(map, fmei);
+  }
 
   Expr res = finite_map::mkSetVal(map, lmdKeys, key, value, fmei.m_efac);
 
@@ -302,8 +274,6 @@ Expr FiniteMapRewriter::operator()(Expr exp) {
   } else if (bind::isFiniteMapConst(exp)) {
     res = mkFMapConstCore(exp, m_fmei);
   } else if (isOpX<EQ>(exp)) {
-    // Expr fml = mkFMapPrimitiveArgCore(exp->left(), m_fmei);
-    // Expr fmr = mkFMapPrimitiveArgCore(exp->right(), m_fmei);
     Expr fml = exp->left();
     Expr fmr = exp->right();
 

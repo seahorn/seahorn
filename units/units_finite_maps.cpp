@@ -253,20 +253,17 @@ TEST_CASE("expr.finite_map.mkInitializedMap") {
                      mkIntKey(13, efac)};
   ExprVector values = {mkInt(41, efac), mkInt(42, efac), mkInt(43, efac)};
 
-  Expr lmdKeys;
-  Expr lmd_values = finite_map::mkInitializedMap(keys, sort::intTy(efac),
-                                                 values, lmdKeys, efac);
+  Expr lmdKeys = finite_map::mkKeys(keys, efac);
+  Expr lmdValues = finite_map::mkInitializedMap(keys, sort::intTy(efac), values,
+                                                lmdKeys, efac);
 
-  Expr u_map = mkConstFiniteMap(keys, sort::intTy(efac)); // uninterpreted map
+  Expr u_map = finite_map::constFiniteMap(keys, values); // uninterpreted map
 
-  int count = 41;
-  for (auto k : keys)
-    u_map = finite_map::set(u_map, k, mkInt(count++, efac));
-
-  errs() << "map:    " << *u_map << "\n\n";
+  errs() << "lmdKeys:    " << *lmdValues << "\n\n";
+  errs() << "lmdValues:    " << *lmdValues << "\n\n";
 
   for (int i = 0; i < keys.size(); i++) {
-    Expr get_value = finite_map::mkGetVal(lmd_values, lmdKeys, keys[i]);
+    Expr get_value = finite_map::mkGetVal(lmdValues, lmdKeys, keys[i]);
     Expr to_simp_true = mk<EQ>(get_value, values[i]);
     // cannot be simplified if constructed in a batch
     Expr simp = z3_simplify(z3, to_simp_true);
@@ -277,7 +274,6 @@ TEST_CASE("expr.finite_map.mkInitializedMap") {
     CHECK(boost::lexical_cast<std::string>(simp) != "false");
   }
 }
-
 TEST_CASE("expr.finite_map.fm_type_declaration") {
 
   ExprFactory efac;
@@ -362,9 +358,8 @@ TEST_CASE("expr.finite_map.transf_1key") {
 
   CHECK(k1 == visit_body({k1, v1}, k1, efac));
 
-  Expr map =
-      mkConstFiniteMap({k1}, sort::intTy(efac)); // defk is not transformed
-  CHECK(map == visit_body({k1, v1}, map, efac));
+  Expr map = mkConstFiniteMap({k1}, sort::intTy(efac));
+  CHECK(map != visit_body({k1, v1}, map, efac));
 
   Expr map_set = finite_map::set(map, k1, v1);
   CHECK(map_set != visit_body({k1, v1}, map_set, efac));

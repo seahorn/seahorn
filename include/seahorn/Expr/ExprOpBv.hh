@@ -4,6 +4,7 @@
 #include "seahorn/Expr/ExprCore.hh"
 #include "seahorn/Expr/ExprOpBool.hh"
 #include "seahorn/Expr/ExprOpCore.hh"
+#include "seahorn/Expr/TypeChecker.hh"
 
 /** Bit-Vector expressions
 
@@ -165,16 +166,43 @@ enum class BvOpKind {
   UMUL_NO_OVERFLOW
 };
 
+namespace typeCheck {
+namespace bvType {
+
+template <Comparison compareType, unsigned int numChildren>
+static inline Expr checkChildren(Expr exp, TypeChecker &tc) {
+  if (checkNumChildren<compareType, numChildren>(exp) &&
+      checkType<BVSORT>(exp, tc))
+    return tc.typeOf(exp->first());
+  else
+    return sort::errorTy(exp->efac());
+}
+
+struct Unary {
+  static inline Expr inferType(Expr exp, TypeChecker &tc) {
+    return checkChildren<Equal, 1>(exp, tc);
+  }
+};
+
+struct Nary {
+  static inline Expr inferType(Expr exp, TypeChecker &tc) {
+    return checkChildren<GreaterEqual, 2>(exp, tc);
+  }
+};
+
+} // namespace bvType
+} // namespace typeCheck
+
 NOP_BASE(BvOp)
-NOP(BNOT, "bvnot", FUNCTIONAL, BvOp)
-NOP(BREDAND, "bvredand", FUNCTIONAL, BvOp)
-NOP(BREDOR, "bvredor", FUNCTIONAL, BvOp)
-NOP(BAND, "bvand", FUNCTIONAL, BvOp)
-NOP(BOR, "bvor", FUNCTIONAL, BvOp)
-NOP(BXOR, "bvxor", FUNCTIONAL, BvOp)
-NOP(BNAND, "bvnand", FUNCTIONAL, BvOp)
-NOP(BNOR, "bvnor", FUNCTIONAL, BvOp)
-NOP(BXNOR, "bvxnor", FUNCTIONAL, BvOp)
+NOP_TYPECHECK(BNOT, "bvnot", FUNCTIONAL, BvOp, typeCheck::bvType::Unary)
+NOP_TYPECHECK(BREDAND, "bvredand", FUNCTIONAL, BvOp, typeCheck::bvType::Unary)
+NOP_TYPECHECK(BREDOR, "bvredor", FUNCTIONAL, BvOp, typeCheck::bvType::Unary)
+NOP_TYPECHECK(BAND, "bvand", FUNCTIONAL, BvOp, typeCheck::bvType::Nary)
+NOP_TYPECHECK(BOR, "bvor", FUNCTIONAL, BvOp, typeCheck::bvType::Nary)
+NOP_TYPECHECK(BXOR, "bvxor", FUNCTIONAL, BvOp, typeCheck::bvType::Nary)
+NOP_TYPECHECK(BNAND, "bvnand", FUNCTIONAL, BvOp, typeCheck::bvType::Nary)
+NOP_TYPECHECK(BNOR, "bvnor", FUNCTIONAL, BvOp, typeCheck::bvType::Nary)
+NOP_TYPECHECK(BXNOR, "bvxnor", FUNCTIONAL, BvOp, typeCheck::bvType::Nary)
 NOP(BNEG, "bvneg", FUNCTIONAL, BvOp)
 NOP(BADD, "bvadd", FUNCTIONAL, BvOp)
 NOP(BSUB, "bvsub", FUNCTIONAL, BvOp)

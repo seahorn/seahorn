@@ -27,8 +27,8 @@ enum class NumericOpKind {
 namespace typeCheck {
 namespace numType {
   template <Comparison compareType, unsigned int numChildren>
-  static inline Expr getType(Expr exp, TypeChecker &tc) {
-    if (checkNumChildren<compareType, numChildren>(exp) && correctType<INT_TY, REAL_TY, UNINT_TY>(exp->first(), tc) && sameType(exp, tc)) 
+  static inline Expr checkChildren(Expr exp, TypeChecker &tc) {
+    if (checkNumChildren<compareType, numChildren>(exp) && checkType<INT_TY, REAL_TY, UNINT_TY>(exp, tc)) 
       return tc.typeOf(exp->first());
     else
       return sort::errorTy(exp->efac());
@@ -36,13 +36,13 @@ namespace numType {
 
 struct Unary {
   static inline Expr inferType(Expr exp, TypeChecker &tc) {
-    return getType<Equal, 1> (exp, tc);
+    return checkChildren<Equal, 1> (exp, tc);
   }
 };
 
 struct Nary {
   static inline Expr inferType(Expr exp, TypeChecker &tc) {
-    return getType<GreaterEqual, 2> (exp, tc);
+    return checkChildren<GreaterEqual, 2> (exp, tc);
   }
 };
 } // namespace numType

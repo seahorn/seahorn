@@ -61,13 +61,19 @@ static inline bool correctType(Expr exp, TypeChecker &tc) {
   return correctType<T2, types...>(exp, tc);
 }
 
+// returns true if 1. the type of the expression matches any of the passed types,
+//and 2. all children are of the same type
+template <typename T, typename... types>
+static inline bool checkType(Expr exp, TypeChecker &tc) {
+  return correctType<T, types ...>(exp->first(), tc) && sameType(exp, tc);
+}
+
 // ensures: 1. correct number of children, 2. all children are the same type, 3.
 // all children are of the correct type
 template <Comparison compareType, unsigned int numChildren, typename returnType, typename T, typename... types>
 static inline Expr checkChildren(Expr exp, TypeChecker &tc) {
 
-  if (checkNumChildren <compareType, numChildren>(exp) && correctType<T, types...>(exp->first(), tc) &&
-      sameType(exp, tc))
+  if (checkNumChildren <compareType, numChildren>(exp) && checkType<T, types ...> (exp, tc))
     return mk<returnType>(exp->efac());
   else
     return sort::errorTy(exp->efac());

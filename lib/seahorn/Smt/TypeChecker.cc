@@ -28,10 +28,14 @@ class TCVR {
 
   bool isConst(Expr exp) {
     return bind::isBoolConst(exp) || bind::isIntConst(exp) ||
-           bind::isRealConst(exp) || bind::isUnintConst(exp);
+           bind::isRealConst(exp) || bind::isUnintConst(exp) || bv::isBvConst (exp);
   }
 
   bool isValue(Expr exp) { return isOpX<TRUE>(exp) || isOpX<FALSE>(exp); }
+
+  bool isSimpleType(Expr exp) {
+    return isConst(exp) || isValue(exp) || bv::is_bvnum(exp);
+  }
 
   Expr inferType(Expr exp, TypeChecker &tc) {
     if (bind::isBoolConst(exp))
@@ -42,6 +46,8 @@ class TCVR {
       return sort::realTy(exp->efac());
     else if (bind::isUnintConst(exp))
       return sort::unintTy(exp->efac());
+    else if (bv::isBvConst(exp))
+      return bv::bvsort(bv::width(exp->arg(0)->arg(1)), exp->efac());
 
     return exp->inferType(exp, tc);
   }
@@ -81,7 +87,7 @@ public:
 
     if (m_cache.count(exp) || !m_isWellFormed) {
       return false;
-    } else if (isConst(exp) || isValue(exp)) {
+    } else if (isSimpleType(exp)) {
       m_cache.insert({exp, inferType(exp, *m_tc)});
       return false;
     }

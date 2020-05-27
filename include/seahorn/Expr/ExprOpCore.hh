@@ -2,7 +2,6 @@
 #pragma once
 #include "seahorn/Expr/ExprCore.hh"
 #include "seahorn/Expr/ExprGmp.hh"
-// #include "seahorn/Expr/TypeChecker.hh"
 #include "llvm/Support/Casting.h"
 
 namespace expr {
@@ -54,8 +53,8 @@ struct TerminalBase : public expr::Operator {
 
 /// \brief Terminal Operator
 /// \p T is the type wrapped by the terminal, and \p P is the implementation of
-/// terminal traits for \p T
-template <typename T, typename P = TerminalTrait<T>>
+/// terminal traits for \p T , C is the tyepChecker
+template <typename T, typename P = TerminalTrait<T>, typename C = typeCheck::Any>
 class Terminal : public TerminalBase {
 protected:
   T val;
@@ -64,6 +63,7 @@ public:
   using base_type = T;
   using terminal_type = P;
   using this_type = Terminal<T, P>;
+  using typeChecker_type = C;
 
   Terminal(const base_type &v)
       : TerminalBase(terminal_type::getKind()), val(v) {}
@@ -125,7 +125,7 @@ public:
   }
 
   // TODO
-  Expr inferType(Expr exp, TypeChecker &tc) const override { return Expr(); }
+  Expr inferType(Expr exp, TypeChecker &tc) const override { return typeChecker_type::inferType(exp, tc); }
 };
 
 /// \brief Terminal traits for std::string

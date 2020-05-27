@@ -67,14 +67,14 @@ public:
 class FiniteMapBodyVisitor : public std::unary_function<Expr, VisitAction> {
 
 private:
-  ExprMap m_exp_types;
+  ExprMap m_types;
   ExprMap m_map_lambda;
   std::shared_ptr<FiniteMapRewriter> m_rw;
 
 public:
   FiniteMapBodyVisitor(ExprSet &evars, ExprFactory &efac) {
-    m_rw = std::make_shared<FiniteMapRewriter>(evars, m_exp_types, m_map_lambda,
-                                               efac);
+    m_rw =
+        std::make_shared<FiniteMapRewriter>(evars, m_types, m_map_lambda, efac);
   }
 
   VisitAction operator()(Expr exp);

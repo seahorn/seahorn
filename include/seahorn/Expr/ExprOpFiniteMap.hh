@@ -104,14 +104,12 @@ inline Expr mkKeys(const ExprVector &keys, ExprFactory &efac) {
 
 // creates a map for keys and values, assuming that they are sorted
 inline Expr mkInitializedMap(const ExprVector &keys, Expr vTy,
-                             const ExprVector &values, Expr &lmdKeys,
+                             const ExprVector &values, const Expr lmdKeys,
                              ExprFactory &efac) {
 
   // assuming that there is a value for every key. If this is not available,
   // "initialize" it with the default value for uninitialized memory
   assert(keys.size() == values.size());
-
-  lmdKeys = mkKeys(keys, efac);
 
   Expr lmdMap = mkEmptyMap(vTy, efac);
   Expr y = bind::mkConst(mkTerm<std::string>("y", efac), vTy);
@@ -145,9 +143,7 @@ inline Expr mkGetVal(Expr lmdMap, Expr lmdKeys, Expr key) {
   assert(isOpX<LAMBDA>(lmdMap));
   assert(isOpX<LAMBDA>(lmdKeys));
 
-  Expr pos_in_map = op::bind::betaReduce(lmdKeys, key);
-
-  return op::bind::betaReduce(lmdMap, pos_in_map);
+  return op::bind::betaReduce(lmdMap, op::bind::betaReduce(lmdKeys, key));
 }
 
 /// \brief Constructs set expression. Non-simplifying. None of the parameters

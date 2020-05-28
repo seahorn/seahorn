@@ -23,31 +23,42 @@ enum class SimpleTypeOpKind {
   ANY_TY,
   ERROR_TY
 };
+
+namespace typeCheck {
+  namespace simpleType {
+struct Simple {
+  static inline Expr inferType(Expr exp, TypeChecker &tc) {
+    return exp;
+  }
+};
+  } // simpleType
+} // typeCheck
+
 NOP_BASE(SimpleTypeOp)
 
 /// \brief Int type
-NOP(INT_TY, "INT", PREFIX, SimpleTypeOp)
+NOP_TYPECHECK(INT_TY, "INT", PREFIX, SimpleTypeOp, typeCheck::simpleType::Simple)
 /// \brief Char type (UNUSED)
-NOP(CHAR_TY, "CHAR", PREFIX, SimpleTypeOp)
+NOP_TYPECHECK(CHAR_TY, "CHAR", PREFIX, SimpleTypeOp, typeCheck::simpleType::Simple)
 /// \brief Real type
-NOP(REAL_TY, "REAL", PREFIX, SimpleTypeOp)
+NOP_TYPECHECK(REAL_TY, "REAL", PREFIX, SimpleTypeOp, typeCheck::simpleType::Simple)
 /// \brief Void type
-NOP(VOID_TY, "VOID", PREFIX, SimpleTypeOp)
+NOP_TYPECHECK(VOID_TY, "VOID", PREFIX, SimpleTypeOp, typeCheck::simpleType::Simple)
 /// \biref Boolean type
-NOP(BOOL_TY, "BOOL", PREFIX, SimpleTypeOp)
+NOP_TYPECHECK(BOOL_TY, "BOOL", PREFIX, SimpleTypeOp, typeCheck::simpleType::Simple)
 /// \brief Uninterpreted type
-NOP(UNINT_TY, "UNINT", PREFIX, SimpleTypeOp)
+NOP_TYPECHECK(UNINT_TY, "UNINT", PREFIX, SimpleTypeOp, typeCheck::simpleType::Simple)
 /// \brief Array type
-NOP(ARRAY_TY, "ARRAY", PREFIX, SimpleTypeOp)
+NOP_TYPECHECK(ARRAY_TY, "ARRAY", PREFIX, SimpleTypeOp, typeCheck::simpleType::Simple)
 /// \biref Struct type
-NOP(STRUCT_TY, "STRUCT", PREFIX, SimpleTypeOp)
+NOP(STRUCT_TY, "STRUCT", PREFIX, SimpleTypeOp, typeCheck::simpleType::Simple)
 /// \biref FiniteMap type
-NOP(FINITE_MAP_TY, "FINITE_MAP", PREFIX, SimpleTypeOp)
-NOP(FINITE_MAP_KEYS_TY, "FINITE_MAP_KS", PREFIX, SimpleTypeOp)
+NOP(FINITE_MAP_TY, "FINITE_MAP", PREFIX, SimpleTypeOp, typeCheck::simpleType::Simple)
+NOP(FINITE_MAP_KEYS_TY, "FINITE_MAP_KS", PREFIX, SimpleTypeOp, typeCheck::simpleType::Simple)
 /// \brief ANY type
-NOP(ANY_TY, "ANY", PREFIX, SimpleTypeOp)
+NOP_TYPECHECK(ANY_TY, "ANY", PREFIX, SimpleTypeOp, typeCheck::simpleType::Simple)
 /// \brief Error type
-NOP(ERROR_TY, "ERROR", PREFIX, SimpleTypeOp)
+NOP_TYPECHECK(ERROR_TY, "ERROR", PREFIX, SimpleTypeOp, typeCheck::simpleType::Simple)
 } // namespace op
 
 namespace op {

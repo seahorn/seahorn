@@ -131,7 +131,8 @@ Expr OpSemMemLambdaRepr::MemCpy(Expr dPtr, Expr sPtr, unsigned len,
                                 Expr ptrSort, uint32_t align) {
   Expr res;
 
-  if (wordSzInBytes == 1 || (wordSzInBytes == 4 && align == 4)) {
+  if (wordSzInBytes == 1 || (wordSzInBytes == 4 && align == 4) ||
+      (wordSzInBytes == 8 && (align == 4 || align == 8))) {
     Expr srcMem = memTrsfrRead;
 
     if (len > 0) {
@@ -152,7 +153,14 @@ Expr OpSemMemLambdaRepr::MemCpy(Expr dPtr, Expr sPtr, unsigned len,
       Expr decl = bind::fname(addr);
       res = mk<LAMBDA>(decl, ite);
       LOG("opsem.lambda", errs() << "MemCpy " << *res << "\n");
+    } else {
+      // result is the same as source
+      res = memTrsfrRead;
     }
+  } else {
+    LOG("opsem.lambda", errs() << "Word size and pointer are not aligned!"
+                               << "\n");
+    assert(false);
   }
   return res;
 }

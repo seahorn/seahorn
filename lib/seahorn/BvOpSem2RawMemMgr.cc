@@ -674,6 +674,8 @@ void RawMemManager::onFunctionEntry(const Function &fn) {
 Expr RawMemManager::zeroedMemory() const {
   return m_memRepr->FilledMemory(ptrSort(), m_ctx.alu().si(0, wordSzInBits()));
 }
-
+const std::unique_ptr<OpSemAllocator> &RawMemManager::getMAllocator() const {
+  return m_allocator;
+}
 } // namespace details
 } // namespace seahorn

@@ -41,6 +41,11 @@ static llvm::cl::opt<bool> UseFatMemory(
         "Use fat-memory model with fat pointers and fat memory locations"),
     cl::init(false));
 
+static llvm::cl::opt<bool> UseWideMemory(
+    "horn-bv2-widemem",
+    llvm::cl::desc("Use wide-memory model with pointers and object sizes"),
+    cl::init(false));
+
 static llvm::cl::opt<unsigned>
     WordSize("horn-bv2-word-size",
              llvm::cl::desc("Word size in bytes: 1, 4, 8"), cl::init(4));
@@ -1723,8 +1728,11 @@ Bv2OpSemContext::Bv2OpSemContext(Bv2OpSem &sem, SymStore &values,
   OpSemMemManager *mem = nullptr;
   if (UseFatMemory)
     mem = mkFatMemManager(m_sem, *this, PtrSize, WordSize, UseLambdas);
-  else
+  else if (UseWideMemory) {
+    mem = mkWideMemManager(m_sem, *this, PtrSize, WordSize, UseLambdas);
+  } else {
     mem = mkRawMemManager(m_sem, *this, PtrSize, WordSize, UseLambdas);
+  }
   assert(mem);
   setMemManager(mem);
 }

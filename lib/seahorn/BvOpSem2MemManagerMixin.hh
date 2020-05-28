@@ -13,9 +13,11 @@ public:
   using PtrTy = Expr;
   using MemRegTy = Expr;
   using MemValTy = Expr;
+  using PtrSortTy = Expr;
+  using MemSortTy = Expr;
 
-  using PtrSortTy = typename Base::PtrSortTy;
-  using MemSortTy = typename Base::MemSortTy;
+  using BasePtrSortTy = typename Base::PtrSortTy;
+  using BaseMemSortTy = typename Base::MemSortTy;
 
   using BasePtrTy = typename Base::PtrTy;
   using BaseMemRegTy = typename Base::MemRegTy;
@@ -26,6 +28,12 @@ protected:
   Base const &base() const { return static_cast<Base const &>(*this); }
   auto toPtrTy(BasePtrTy &&p) const { return static_cast<PtrTy>(p); }
   auto toMemValTy(BaseMemValTy &&m) const { return static_cast<MemValTy>(m); }
+  auto toPtrSortTy(BasePtrSortTy &&s) const {
+    return static_cast<PtrSortTy>(s);
+  }
+  auto toMemSortTy(BaseMemSortTy &&s) const {
+    return static_cast<MemSortTy>(s);
+  }
 
 public:
   template <typename... Ts>
@@ -35,7 +43,10 @@ public:
                         base().wordSzInBytes()) {}
   virtual ~OpSemMemManagerMixin() = default;
 
-  PtrSortTy ptrSort() const override { return base().ptrSort(); }
+  PtrSortTy ptrSort() const override {
+    auto res = base().ptrSort();
+    return toPtrSortTy(std::move(res));
+  }
 
   PtrTy salloc(unsigned bytes, uint32_t align = 0) override {
     auto res = base().salloc(bytes, align);
@@ -97,19 +108,23 @@ public:
   }
 
   PtrSortTy mkPtrRegisterSort(const Instruction &inst) const override {
-    return base().mkPtrRegisterSort(inst);
+    auto res = base().mkPtrRegisterSort(inst);
+    return toPtrSortTy(std::move(res));
   }
 
   PtrSortTy mkPtrRegisterSort(const Function &fn) const override {
-    return base().mkPtrRegisterSort(fn);
+    auto res = base().mkPtrRegisterSort(fn);
+    return toPtrSortTy(std::move(res));
   }
 
   PtrSortTy mkPtrRegisterSort(const GlobalVariable &gv) const override {
-    return base().mkPtrRegisterSort(gv);
+    auto res = base().mkPtrRegisterSort(gv);
+    return toPtrSortTy(std::move(res));
   }
 
   MemSortTy mkMemRegisterSort(const Instruction &inst) const override {
-    return base().mkMemRegisterSort(inst);
+    auto res = base().mkMemRegisterSort(inst);
+    return toMemSortTy(std::move(res));
   }
 
   PtrTy freshPtr() override {

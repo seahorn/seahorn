@@ -429,6 +429,9 @@ public:
   /// \brief Returns an address at which a given function resides
   virtual unsigned getFunctionAddr(const Function &F, unsigned align);
 
+  virtual AddrInterval getFunctionAddrAndSize(const Function &F,
+                                              unsigned int align);
+
   /// \brief Returns an address of a global variable
   virtual unsigned getGlobalVariableAddr(const GlobalVariable &gv,
                                          unsigned bytes, unsigned align);
@@ -486,7 +489,7 @@ class OpSemMemManager : public OpSemMemManagerBase {
 public:
   /// \brief type for pointers
   /// Currently all expressions are of opaque type Expr. The extra type
-  /// annotations are to communicate intend only.
+  /// annotations are to communicate intent only.
   using PtrTy = Expr;
   using MemRegTy = Expr;
   using MemValTy = Expr;
@@ -689,6 +692,10 @@ OpSemMemManager *mkRawMemManager(Bv2OpSem &sem, Bv2OpSemContext &ctx,
 OpSemMemManager *mkFatMemManager(Bv2OpSem &sem, Bv2OpSemContext &ctx,
                                  unsigned ptrSz, unsigned wordSz,
                                  bool useLambdas = false);
+
+OpSemMemManager *mkWideMemManager(Bv2OpSem &sem, Bv2OpSemContext &ctx,
+                                  unsigned ptrSz, unsigned wordSz,
+                                  bool useLambdas = false);
 
 /// \Brief Base class for memory representation
 class OpSemMemRepr {

@@ -47,7 +47,6 @@ public:
     explicit operator Expr() const { return toExpr(); }
   };
 
-public:
   /// Right now everything is an expression. In the future, we might have
   /// other types for PtrTy, such as a tuple of expressions
   using BasePtrTy = OpSemMemManager::PtrTy;
@@ -376,12 +375,11 @@ public:
       raw_svector_ostream out(msg);
       out << "Loading from type: " << ty << " is not supported\n";
       assert(false);
-      report_fatal_error(out.str());
     }
     return res;
   }
 
-  FatMemValTy storeValueToMem(Expr _val, FatPtrTy ptr, FatMemValTy mem,
+  FatMemValTy storeValueToMem(Expr _val, FatPtrTy ptr, FatMemValTy memIn,
                               const llvm::Type &ty, uint32_t align) {
     assert(ptr.v());
     Expr val = _val;
@@ -395,7 +393,7 @@ public:
       if (ty.getScalarSizeInBits() < byteSz * 8) {
         val = m_ctx.alu().doZext(val, byteSz * 8, ty.getScalarSizeInBits());
       }
-       res = storeIntToMem(val, ptr, mem, byteSz, align);
+      res = storeIntToMem(val, ptr, memIn, byteSz, align);
       break;
     case Type::FloatTyID:
     case Type::DoubleTyID:
@@ -406,7 +404,7 @@ public:
     case Type::VectorTyID:
       errs() << "Error: store of vectors is not supported\n";
     case Type::PointerTyID:
-      res = storePtrToMem(val, ptr, mem, byteSz, align);
+      res = storePtrToMem(val, ptr, memIn, byteSz, align);
       break;
     case Type::StructTyID:
       WARN << "Storing struct type " << ty << " is not supported\n";

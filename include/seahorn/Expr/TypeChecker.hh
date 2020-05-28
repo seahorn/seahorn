@@ -49,7 +49,7 @@ static inline bool correctType(Expr exp, TypeChecker &tc) {
 }
 
 template <> static inline bool correctType<ANY_TY>(Expr exp, TypeChecker &tc) {
-  return true;
+  return !isOp<ERROR_TY>(tc.typeOf(exp));
 }
 
 // returns true if the type of the expression matches any of the passed types

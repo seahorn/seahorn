@@ -26,15 +26,58 @@ struct SCOPE_PS {
   }
 };
 struct FAPP_PS;
+Expr rangeTy(Expr);
+Expr typeOf(Expr);
 } // namespace bind
+
+namespace typeCheck {
+namespace bindType {
+struct Bind;
+struct Fdecl;
+struct Fapp;
+} // namespace bindType
+} // namespace typeCheck
+
 enum class BindOpKind { BIND, FDECL, FAPP };
 NOP_BASE(BindOp)
 
-NOP(BIND, ":", INFIX, BindOp)
+NOP_TYPECHECK(BIND, ":", INFIX, BindOp, typeCheck::bindType::Bind)
 /** Function declaration */
-NOP(FDECL, "fdecl", PREFIX, BindOp)
+NOP_TYPECHECK(FDECL, "fdecl", PREFIX, BindOp, typeCheck::bindType::Fdecl)
+
 /** Function application */
-NOP(FAPP, "fapp", bind::FAPP_PS, BindOp)
+NOP_TYPECHECK(FAPP, "fapp", bind::FAPP_PS, BindOp, typeCheck::bindType::Fapp)
+
+namespace typeCheck {
+namespace bindType {
+
+struct Bind {
+  static inline Expr inferType(Expr exp, TypeChecker &tc) {
+    if (checkNumChildren<Equal, 2>(exp))
+      return tc.typeOf(exp->arg(1));
+    else
+      return sort::errorTy(exp->efac());
+  }
+};
+struct Fdecl {
+  static inline Expr inferType(Expr exp, TypeChecker &tc) {
+    if (checkNumChildren<Equal, 2>(exp))
+      return bind::rangeTy(exp);
+    else
+      return sort::errorTy(exp->efac());
+  }
+};
+
+struct Fapp {
+  static inline Expr inferType(Expr exp, TypeChecker &tc) {
+    if (checkNumChildren<Equal, 1> && isOp<FDECL>(exp->first()))
+      return bind::rangeTy(exp->first());
+    else
+      return sort::errorTy(exp->efac());
+  }
+};
+} // namespace bindType
+} // namespace typeCheck
 
 namespace bind {
 inline Expr bind(Expr name, Expr value) { return mk<BIND>(name, value); }

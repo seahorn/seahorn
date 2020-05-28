@@ -28,7 +28,8 @@ class TCVR {
 
   bool isConst(Expr exp) {
     return bind::isBoolConst(exp) || bind::isIntConst(exp) ||
-           bind::isRealConst(exp) || bind::isUnintConst(exp) || bv::isBvConst (exp);
+           bind::isRealConst(exp) || bind::isUnintConst(exp) ||
+           bv::isBvConst(exp);
   }
 
   bool isValue(Expr exp) { return isOpX<TRUE>(exp) || isOpX<FALSE>(exp); }
@@ -38,17 +39,7 @@ class TCVR {
   }
 
   Expr inferType(Expr exp, TypeChecker &tc) {
-    if (bind::isBoolConst(exp))
-      return sort::boolTy(exp->efac());
-    else if (bind::isIntConst(exp))
-      return sort::intTy(exp->efac());
-    else if (bind::isRealConst(exp))
-      return sort::realTy(exp->efac());
-    else if (bind::isUnintConst(exp))
-      return sort::unintTy(exp->efac());
-    else if (bv::isBvConst(exp))
-      return bv::bvsort(bv::widthBvConst(exp), exp->efac());
-    else if (bv::isBvNum(exp))
+    if (bv::isBvNum(exp))
       return bv::bvsort(bv::widthBvNum(exp), exp->efac());
     else if (isOp<BVSORT>(exp))
       return exp;

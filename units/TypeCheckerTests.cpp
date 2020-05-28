@@ -445,3 +445,77 @@ error[10] = mk<BSEXT>(a10, bvSort, b10);
 e[10] = error[10];
 checkNotWellFormed(e,error, size);
 }
+TEST_CASE("bvDifReturnTypeWellFormed.test") {
+  seahorn::SeaEnableLog("tc");
+  // -- manages expressions
+  ExprFactory efac;
+
+Expr bvSort = bv::bvsort(10, efac);
+Expr boolSort = sort::boolTy(efac);
+Expr intSort = sort::intTy(efac);
+
+Expr a10 = bvConst ("a10", efac, 10);
+Expr b10 = bvConst ("b10", efac, 10);
+Expr c10 = bvConst ("c10", efac, 10);
+
+Expr a8 = bvConst ("a8", efac, 8);
+
+Expr aBool = boolConst("aBool", efac);
+Expr aInt = intConst("aInt", efac);
+
+int size = 4;
+Expr e [size];
+
+e[0] = mk<SADD_NO_OVERFLOW>(a10, b10);
+
+e[1] = mk <AND> (mk<UADD_NO_OVERFLOW>(a10, b10), aBool);
+
+e[2] = mk <SSUB_NO_UNDERFLOW>(a10, a10, mk<BASHR>(b10, c10));
+
+e[3] = mk<UMUL_NO_OVERFLOW>(bv::zext(a8, 2), mk<BSUB>(b10,c10));
+
+checkWellFormed(e, size, boolSort);
+
+int size2 = 3;
+Expr e2 [size2];
+
+e2[0] = mk<BV2INT>(a10);
+
+e2[1] = mk<BV2INT>(mk <BSLE>(a10, b10));
+
+e2[2] = mk<PLUS>(mk<BV2INT>(mk <BUREM>(a10, b10)), aInt);
+
+checkWellFormed(e2, size2, intSort);
+}
+TEST_CASE("bvDifReturnTypeNotWellFormed.test") {
+  seahorn::SeaEnableLog("tc");
+  // -- manages expressions
+  ExprFactory efac;
+
+Expr aInt = intConst("aInt", efac);
+Expr bInt = intConst("bInt", efac);
+
+Expr a10 = bvConst ("a10", efac, 10);
+Expr b10 = bvConst ("b10", efac, 10);
+Expr c10 = bvConst ("c10", efac, 10);
+
+Expr a5 = bvConst ("a5", efac, 5);
+
+int size = 4;
+Expr e[size];
+Expr error[size];
+
+error[0] = mk<SMUL_NO_OVERFLOW>(a5); //not enough arguments
+e[0] = mk<NEG>(error[0]);
+
+error[1] = mk <SMUL_NO_UNDERFLOW>(mk<BV2INT>(a10), aInt); //wrong type
+e[1] = error[1];
+
+error [2] = mk<BV2INT>(c10, b10); //too many arguments
+e[2] = mk<NEQ>(error[2], mk<BV2INT>(a10));
+
+error[3] = mk <BV2INT>(aInt); // wrong type
+e[3] = mk<REM>(mk<ABS>(error[3], bInt));
+
+checkNotWellFormed(e, error, size);
+}

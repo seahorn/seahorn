@@ -36,6 +36,8 @@ public:
 
   ~RawMemManager() override = default;
 
+  const std::unique_ptr<OpSemAllocator> &getMAllocator() const;
+
   /// Right now everything is an expression. In the future, we might have
   /// other types for PtrTy, such as a tuple of expressions
   using PtrTy = OpSemMemManager::PtrTy;

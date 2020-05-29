@@ -390,7 +390,7 @@ int main(int argc, char **argv) {
     // -- cut loops to turn a program into loop-free program
     pm_wrapper.add(llvm::createLoopSimplifyPass());
     pm_wrapper.add(llvm::createLoopSimplifyCFGPass());
-    pm_wrapper.add(llvm::createLoopRotatePass(1024));
+    pm_wrapper.add(llvm_seahorn::createLoopRotatePass(/*1023*/));
     pm_wrapper.add(llvm::createLCSSAPass());
     if (PeelLoops > 0)
       pm_wrapper.add(seahorn::createLoopPeelerPass(PeelLoops));

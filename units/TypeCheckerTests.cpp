@@ -12,8 +12,8 @@
 #include "seahorn/Expr/Expr.hh"
 #include "seahorn/Expr/ExprGmp.hh"
 #include "seahorn/Expr/ExprLlvm.hh"
-#include "seahorn/Expr/TypeChecker.hh"
 #include "seahorn/Expr/ExprOpBv.hh"
+#include "seahorn/Expr/TypeChecker.hh"
 
 #include "seahorn/Support/SeaDebug.h"
 
@@ -240,7 +240,8 @@ TEST_CASE("unintWellFormed.test") {
 
   // e[1] =  aUnint - (aUnint * cUnint) - (aUnint * cUnint)
   e[1] =
-      mk<UN_MINUS>(aUnint, mk<MULT>(aUnint, cUnint), mk<MULT>(aUnint, cUnint));
+      mk<UN_MINUS>(aUnint, mk<MULT>(aUnint, cUnint), mk<MULT>(aUnint,
+      cUnint));
 
   checkWellFormed(e, size, unintSort);
 }
@@ -366,7 +367,7 @@ Expr a5 = bvConst ("a5", efac, 5);
 Expr b5 = bvConst ("b5", efac, 5);
 Expr c5 = bvConst ("c5", efac, 5);
 
-int size = 6;
+int size = 12;
   Expr e[size];
 
   e[0] = mk<BNOT>(mk<BOR>(a10,b10));
@@ -380,6 +381,18 @@ int size = 6;
   e[4] = mk <BADD>(mk<BNAND>(a10, b10), mk<BSHL>(c10, c10));
 
   e[5] = mk<BSHL> (bv::sext(a5, 5), a10);
+
+  e[6] = bv::extract (12, 3, mk<BCONCAT>(a10, b5));
+
+  e[7] = bv::zext(bv::extract (5, 1, b10), 5);
+
+  e[8] = mk<BROTATE_LEFT> (mkTerm<unsigned>(5, efac), a10);
+
+  e[9] = mk<BREPEAT> (mkTerm<unsigned> (1, efac), mk<BROTATE_RIGHT> (mkTerm<unsigned>(2, efac), b10));
+
+  e[10] = mk<BUGE> (e[9], mk<BEXT_ROTATE_RIGHT> (mkTerm<unsigned>(2, efac), e[8]));
+
+  e[11] = mk<INT2BV>(mkTerm<unsigned>(10, efac), aInt);
 
   checkWellFormed(e, size, bvSort);
 
@@ -407,7 +420,7 @@ Expr a5 = bvConst ("a5", efac, 5);
 Expr b5 = bvConst ("b5", efac, 5);
 Expr c5 = bvConst ("c5", efac, 5);
 
-int size = 11;
+int size = 19;
 Expr e[size];
 Expr error[size];
 
@@ -432,7 +445,7 @@ e[5] = mk<BNAND>(a10, mk<BREDOR>(error[5]));
 error [6] =  mk<BCONCAT>(a7);//not enough arguments : concat
 e[6] = error[6];//mk<BCONCAT>(error[6], a3);
 
-error [7] = mk <BCONCAT>(a5, aReal);//wrong type of arugment 
+error [7] = mk <BCONCAT>(a5, aReal);//wrong type of arugment
 e[7] = mk<BNOT>(error[7]);
 
 error[8] = mk<BUGT>(a10, mk<BCONCAT>(a5, a10)); //widths do not match
@@ -443,7 +456,40 @@ e[9] = mk<BCONCAT>(error[9], a5);
 
 error[10] = mk<BSEXT>(a10, bvSort, b10);
 e[10] = error[10];
+
+error[11] = bv::extract(5, 9, a10); // high is lower than low
+e[11] = mk <BUREM>(mk<BNEG>(a5), b5, error[11]);
+
+error [12] = bv::extract (6, 4, c5); // high is higher than width
+e[12] = error[12];
+
+std::vector<Expr> args;
+args.push_back(mkTerm<unsigned>(9, efac));
+args.push_back(mkTerm<unsigned>(8,efac));
+args.push_back(mkTerm<unsigned>(0, efac));
+args.push_back(a10);
+error [13] = mknary <BEXTRACT> (args.rbegin(), args.rend()); // too many arguemtns
+e[13] = bv::sext(error[13], 8);
+
+error [14] = mk <BEXTRACT>(mkTerm<std::string>("5", efac), mkTerm<unsigned>(1, efac), a10); //wrong type of argument
+e[14] = error[14];
+
+error [15] = bv::extract(3,1, aInt); //wrong type of argument
+e[15] =mk<BXNOR>(mk<BCONCAT>(a7, error[15]), b10);
+
+error [16] = mk<BROTATE_LEFT>(mkTerm<unsigned>(11, efac));//not enough arguments
+e[16] = mk <BXOR>(mk<BNOT>(error[16]), error[16]);
+
+Expr uintA = mkTerm<unsigned>(5, efac);
+Expr uintB = mkTerm<unsigned>(7, efac);
+error [17] = mk<BSHL> (mk<BREPEAT>(uintA, a5), mk<BEXT_ROTATE_RIGHT>(uintB, a7)); // mismatching widths
+e[17] = error[17];
+
+error [18] = mk<BOR> (mk<INT2BV>(mkTerm<unsigned>(7, efac), aInt), b5); //mismatching widths
+e[18] = mk<BCONCAT>(error[18], error[18]);
+
 checkNotWellFormed(e,error, size);
+
 }
 TEST_CASE("bvDifReturnTypeWellFormed.test") {
   seahorn::SeaEnableLog("tc");

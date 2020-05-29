@@ -537,6 +537,9 @@ TEST_CASE("bvDifReturnTypeNotWellFormed.test") {
   seahorn::SeaEnableLog("tc");
   // -- manages expressions
   ExprFactory efac;
+Expr bvSort = bv::bvsort(10, efac);
+Expr boolSort = sort::boolTy(efac);
+Expr intSort = sort::intTy(efac);
 
 Expr aInt = intConst("aInt", efac);
 Expr bInt = intConst("bInt", efac);
@@ -564,4 +567,65 @@ error[3] = mk <BV2INT>(aInt); // wrong type
 e[3] = mk<REM>(mk<ABS>(error[3], bInt));
 
 checkNotWellFormed(e, error, size);
+}
+TEST_CASE("variantWellFormed.test") {
+  seahorn::SeaEnableLog("tc");
+  ExprFactory efac;
+
+  Expr intSort = sort::intTy(efac);
+
+  Expr aInt = intConst("aInt", efac);
+  Expr bInt = intConst("bInt", efac);
+
+  Expr a10 = bvConst ("a10", efac, 10);
+  Expr b10 = bvConst ("b10", efac, 10);
+  Expr c10 = bvConst ("c10", efac, 10);
+
+  int size = 4;
+  Expr e[size];
+
+  e[0] = variant::variant(0, aInt);
+
+  e[1] = mk <MULT>(aInt, variant::variant(1, aInt));
+  
+  e[2] = mk<BV2INT>(mk <BAND>(a10, variant::variant(3, mk<INT2BV>( mkTerm<unsigned>(10, efac) ,aInt))));
+
+  e[3] = mk <ABS>(variant::tag(aInt, a10));
+
+  checkWellFormed(e, size, intSort);
+
+}
+TEST_CASE("variantNotWellFormed.test") {
+  seahorn::SeaEnableLog("tc");
+  // -- manages expressions
+  ExprFactory efac;
+
+  Expr bvSort = bv::bvsort(10, efac);
+  Expr boolSort = sort::boolTy(efac);
+  Expr intSort = sort::intTy(efac);
+
+  Expr aInt = intConst("aInt", efac);
+  Expr bInt = intConst("bInt", efac);
+
+  Expr aBool = boolConst("aBool", efac);
+
+  Expr a10 = bvConst ("a10", efac, 10);
+  Expr b10 = bvConst ("b10", efac, 10);
+  Expr c10 = bvConst ("c10", efac, 10);
+
+  int size = 3;
+  Expr e[size];
+  Expr error[size];
+
+  error[0] = mk<VARIANT>(mkTerm<unsigned>(5, efac), aBool, aInt);
+  e[0] = mk<PLUS>(mk<ABS>(error[0]), mk<PLUS>(aInt, error[0]));
+  
+  error[1] = mk<SMUL_NO_OVERFLOW>(variant::variant(3, bInt), b10);
+  e [1] = mk<AND>(mk<GEQ>(aInt, bInt), error[1]);
+
+  error[2] = mk <XOR>(variant::tag(aInt, "tag"), aBool);
+  e[2] = error[2];
+
+  checkNotWellFormed(e, error, size);
+
 }

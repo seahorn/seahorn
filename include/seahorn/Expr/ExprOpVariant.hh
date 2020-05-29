@@ -33,9 +33,33 @@ struct PS_TAG {
 } // namespace variant
 
 enum class VariantOpKind { VARIANT, TAG };
+
+namespace typeCheck {
+namespace variantType {
+
+struct Variant {
+  static inline Expr inferType(Expr exp, TypeChecker &tc) {
+    if (checkNumChildren<Equal, 2>(exp) && isOp<UINT>(exp->first()))
+      return tc.typeOf(exp->right());
+    else
+      return sort::errorTy(exp->efac());
+  }
+};
+
+struct Tag {
+  static inline Expr inferType(Expr exp, TypeChecker &tc) {
+    if (checkNumChildren<Equal, 2>(exp))
+      return tc.typeOf(exp->right());
+    else
+      return sort::errorTy(exp->efac());
+  }
+};
+} // namespace variantType
+} // namespace typeCheck
+
 NOP_BASE(VariantOp)
-NOP(VARIANT, "variant", variant::PS, VariantOp)
-NOP(TAG, "tag", variant::PS_TAG, VariantOp)
+NOP_TYPECHECK(VARIANT, "variant", variant::PS, VariantOp, typeCheck::variantType::Variant)
+NOP_TYPECHECK(TAG, "tag", variant::PS_TAG, VariantOp, typeCheck::variantType::Tag)
 
 namespace variant {
 /** Creates a variant of an expression. For example,
@@ -70,4 +94,4 @@ inline Expr getTag(Expr e) { return e->left(); }
 inline std::string getTagStr(Expr e) { return getTerm<std::string>(getTag(e)); }
 } // namespace variant
 } // namespace op
-}
+} // namespace expr

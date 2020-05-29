@@ -124,8 +124,8 @@ public:
            llvm::cast<TerminalBase>(op)->m_kind == terminal_type::getKind();
   }
 
-  // TODO
-  Expr inferType(Expr exp, TypeChecker &tc) const override { return typeChecker_type::inferType(exp, tc); }
+ // TODO
+  Expr inferType(Expr exp, TypeChecker &tc) const override {return exp; } 
 };
 
 /// \brief Terminal traits for std::string

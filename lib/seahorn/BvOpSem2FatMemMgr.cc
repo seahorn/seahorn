@@ -240,10 +240,10 @@ public:
   Expr mkPtrRegisterSort(const GlobalVariable &gv) const { return ptrSort(); }
 
   /// \brief Returns sort of memory-holding register for an instruction
-  Expr mkMemRegisterSort(const Instruction &inst) const {
-    return sort::structTy(m_main.mkMemRegisterSort(inst),
-                          m_slot0.mkMemRegisterSort(inst),
-                          m_slot1.mkMemRegisterSort(inst));
+  Expr mkMemRegisterSort(const Value &value) const {
+    return sort::structTy(m_main.mkMemRegisterSort(value),
+                          m_slot0.mkMemRegisterSort(value),
+                          m_slot1.mkMemRegisterSort(value));
   }
 
   /// \brief Returns a fresh aligned pointer value

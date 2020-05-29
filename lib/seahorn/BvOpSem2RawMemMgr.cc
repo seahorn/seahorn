@@ -98,7 +98,7 @@ Expr RawMemManager::mkPtrRegisterSort(const Function &fn) const {
 }
 
 /// \brief Returns sort of memory-holding register for an instruction
-Expr RawMemManager::mkMemRegisterSort(const Instruction &inst) const {
+Expr RawMemManager::mkMemRegisterSort(const Value &value) const {
   Expr valTy = m_ctx.alu().intTy(wordSzInBits());
   return sort::arrayTy(ptrSort(), valTy);
 }

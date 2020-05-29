@@ -7,6 +7,7 @@
 #include "llvm/Support/MathExtras.h"
 #include "llvm/Support/Regex.h"
 
+#include "seadsa/SeaMemorySSA.hh"
 #include "seahorn/CallUtils.hh"
 #include "seahorn/Support/CFG.hh"
 #include "seahorn/Support/SeaDebug.h"
@@ -80,6 +81,11 @@ static llvm::cl::list<std::string> IgnoreExternalFunctions2(
 static llvm::cl::opt<bool> SimplifyOnWrite(
     "horn-bv2-simplify",
     llvm::cl::desc("Simplify expressions as they are written to memory"),
+    llvm::cl::init(false));
+
+static llvm::cl::opt<bool> UseMemSSA(
+    "horn-mem-ssa",
+    llvm::cl::desc("Use MemSSA for load/store instead of Shadow memory"),
     llvm::cl::init(false));
 
 namespace {
@@ -595,119 +601,234 @@ public:
 
   void visitShadowMemCall(CallSite CS) {
     const Instruction &inst = *CS.getInstruction();
+    const Function &F = *getCalledFunction(CS);
 
-    const auto &F = *getCalledFunction(CS);
     if (F.getName().equals("shadow.mem.init")) {
-      unsigned id = shadow_dsa::getShadowId(CS);
-      assert(id >= 0);
-      setValue(inst, havoc(inst));
+      if (UseMemSSA) {
+        seadsa::SeaMemoryAccess *ma =
+            m_sem.getSeaMemSSA().getMemoryAccessForShadow(&inst);
+        LOG("opsem", errs() << "NewDef access ID:" << ma->getID() << "\n");
+        setValue(*ma, havoc(*ma));
+      } else {
+        unsigned id = shadow_dsa::getShadowId(CS);
+        assert(id >= 0);
+        setValue(inst, havoc(inst));
+      }
       return;
     }
 
     if (F.getName().equals("shadow.mem.load")) {
-      const Value &v = *CS.getArgument(1);
-      Expr reg = m_ctx.mkRegister(v);
-      m_ctx.read(reg);
-      m_ctx.setMemReadRegister(reg);
-      m_ctx.setMemScalar(extractUniqueScalar(CS) != nullptr);
+      if (UseMemSSA) {
+        seadsa::SeaMemoryAccess *ma =
+            m_sem.getSeaMemSSA().getMemoryAccessForShadow(&inst);
+        if (auto *pMemUse = dyn_cast<seadsa::SeaMemoryUse>(ma)) {
+          auto *pDefAccess = pMemUse->getDefiningAccess();
+          Expr reg = m_ctx.mkRegister(*pDefAccess);
+          m_ctx.read(reg);
+          m_ctx.setMemReadRegister(reg);
+          m_ctx.setMemScalar(false /* TODO: Make this work */);
+        } else {
+          LOG("opsem", errs() << "Expected load but sea-dsa does not agree!\n");
+        }
+      } else {
+        const Value &v = *CS.getArgument(1);
+        Expr reg = m_ctx.mkRegister(v);
+        m_ctx.read(reg);
+        m_ctx.setMemReadRegister(reg);
+        m_ctx.setMemScalar(extractUniqueScalar(CS) != nullptr);
+      }
       return;
     }
 
     if (F.getName().equals("shadow.mem.trsfr.load")) {
-      const Value &v = *CS.getArgument(1);
-      Expr reg = m_ctx.mkRegister(v);
-      m_ctx.read(reg);
-      m_ctx.setMemTrsfrReadReg(reg);
-      if (extractUniqueScalar(CS) != nullptr) {
-        WARN << "unexpected unique scalar in mem.trsfr.load: " << inst;
-        llvm_unreachable(nullptr);
+      if (UseMemSSA) {
+        seadsa::SeaMemoryAccess *ma =
+            m_sem.getSeaMemSSA().getMemoryAccessForShadow(&inst);
+        if (seadsa::SeaMemoryUse *pMemUse =
+                dyn_cast<seadsa::SeaMemoryUse>(ma)) {
+          auto *pDefAccess = pMemUse->getDefiningAccess();
+          Expr reg = m_ctx.mkRegister(*pDefAccess);
+          m_ctx.read(reg);
+          m_ctx.setMemTrsfrReadReg(reg);
+          m_ctx.setMemScalar(false /* TODO: Make this work */);
+        } else {
+          LOG("opsem", errs() << "Expected load but sea-dsa does not agree!\n");
+        }
+      } else {
+        const Value &v = *CS.getArgument(1);
+        Expr reg = m_ctx.mkRegister(v);
+        m_ctx.read(reg);
+        m_ctx.setMemTrsfrReadReg(reg);
+        if (extractUniqueScalar(CS) != nullptr) {
+          WARN << "unexpected unique scalar in mem.trsfr.load: " << inst;
+          llvm_unreachable(nullptr);
+        }
       }
       return;
     }
 
     if (F.getName().equals("shadow.mem.store")) {
-      Expr memOut = m_ctx.mkRegister(inst);
-      Expr memIn = m_ctx.getRegister(*CS.getArgument(1));
-      m_ctx.read(memIn);
-      setValue(inst, havoc(inst));
+      if (UseMemSSA) {
+        seadsa::SeaMemoryAccess *ma =
+            m_sem.getSeaMemSSA().getMemoryAccessForShadow(&inst);
+        LOG("opsem", errs() << "NewDef access ID:" << ma->getID() << "\n");
+        if (seadsa::SeaMemoryDef *pMemDef =
+                dyn_cast<seadsa::SeaMemoryDef>(ma)) {
+          Expr memOut = m_ctx.mkRegister(*ma);
+          auto *pDefAccess = pMemDef->getDefiningAccess();
+          Expr memIn = m_ctx.mkRegister(*pDefAccess);
+          m_ctx.read(memIn);
+          m_ctx.setMemReadRegister(memIn);
+          m_ctx.setMemWriteRegister(memOut);
+          m_ctx.setMemScalar(false /* TODO: Make this work */);
+        } else {
+          LOG("opsem", errs()
+                           << "Expected store but sea-dsa does not agree!\n");
+        }
+      } else {
+        Expr memOut = m_ctx.mkRegister(inst);
+        Expr memIn = m_ctx.getRegister(*CS.getArgument(1));
+        m_ctx.read(memIn);
+        setValue(inst, havoc(inst));
 
-      m_ctx.setMemReadRegister(memIn);
-      m_ctx.setMemWriteRegister(memOut);
-      m_ctx.setMemScalar(extractUniqueScalar(CS) != nullptr);
+        m_ctx.setMemReadRegister(memIn);
+        m_ctx.setMemWriteRegister(memOut);
+        m_ctx.setMemScalar(extractUniqueScalar(CS) != nullptr);
 
-      LOG("opsem.mem.store", errs() << "mem.store: " << inst << "\n";
-          errs() << "arg1: " << *CS.getArgument(1) << "\n";
-          errs() << "mem.store: memIn is " << *memIn << " memOut is " << *memOut
-                 << "\n";);
+        LOG("opsem.mem.store", errs() << "mem.store: " << inst << "\n";
+            errs() << "arg1: " << *CS.getArgument(1) << "\n";
+            errs() << "mem.store: memIn is " << *memIn << " memOut is "
+                   << *memOut << "\n";);
+      }
       return;
     }
 
     if (F.getName().equals("shadow.mem.arg.ref")) {
-      m_ctx.pushParameter(lookup(*CS.getArgument(1)));
+      if (UseMemSSA) {
+        LOG("opsem", errs() << "Unimplemented!\n");
+      } else {
+        m_ctx.pushParameter(lookup(*CS.getArgument(1)));
+      }
       return;
     }
 
     if (F.getName().equals("shadow.mem.arg.mod")) {
-      m_ctx.pushParameter(lookup(*CS.getArgument(1)));
-      Expr reg = m_ctx.mkRegister(inst);
-      assert(reg);
-      m_ctx.pushParameter(m_ctx.havoc(reg));
+      if (UseMemSSA) {
+        LOG("opsem", errs() << "Unimplemented!\n");
+      } else {
+        m_ctx.pushParameter(lookup(*CS.getArgument(1)));
+        Expr reg = m_ctx.mkRegister(inst);
+        assert(reg);
+        m_ctx.pushParameter(m_ctx.havoc(reg));
+      }
       return;
     }
 
     if (F.getName().equals("shadow.mem.arg.new")) {
-      Expr reg = m_ctx.mkRegister(inst);
-      m_ctx.pushParameter(m_ctx.havoc(reg));
+      if (UseMemSSA) {
+        LOG("opsem", errs() << "Unimplemented!\n");
+      } else {
+        Expr reg = m_ctx.mkRegister(inst);
+        m_ctx.pushParameter(m_ctx.havoc(reg));
+      }
       return;
     }
 
     const Function &PF = *inst.getParent()->getParent();
 
     if (F.getName().equals("shadow.mem.in")) {
-      if (PF.getName().equals("main"))
-        setValue(inst, havoc(inst));
-      else
-        lookup(*CS.getArgument(1));
+      if (UseMemSSA) {
+        LOG("opsem", errs() << "Unimplemented MemSSA  API!\n");
+      } else {
+        if (PF.getName().equals("main"))
+          setValue(inst, havoc(inst));
+        else
+          lookup(*CS.getArgument(1));
+      }
       return;
     }
 
     if (F.getName().equals("shadow.mem.out")) {
-      if (PF.getName().equals("main"))
-        setValue(inst, havoc(inst));
-      else
-        lookup(*CS.getArgument(1));
+      if (UseMemSSA) {
+        LOG("opsem", errs() << "Unimplemented MemSSA API!\n");
+      } else {
+        if (PF.getName().equals("main"))
+          setValue(inst, havoc(inst));
+        else
+          lookup(*CS.getArgument(1));
+      }
       return;
     }
 
     if (F.getName().equals("shadow.mem.arg.init")) {
-      if (PF.getName().equals("main"))
-        setValue(inst, havoc(inst));
+      if (PF.getName().equals("main")) {
+        if (UseMemSSA) {
+          seadsa::SeaMemoryAccess *ma =
+              m_sem.getSeaMemSSA().getMemoryAccessForShadow(&inst);
+          LOG("opsem", errs() << "NewDef access ID:" << ma->getID() << "\n");
+          setValue(*ma, havoc(*ma));
+        } else {
+          setValue(inst, havoc(inst));
+        }
+      }
       return;
     }
 
     if (F.getName().equals("shadow.mem.global.init")) {
-      Expr memOut = m_ctx.mkRegister(inst);
-      Expr memIn = m_ctx.getRegister(*CS.getArgument(1));
-      m_ctx.read(memIn);
-      setValue(inst, lookup(*CS.getArgument(1)));
+      if (UseMemSSA) {
+        seadsa::SeaMemoryAccess *ma =
+            m_sem.getSeaMemSSA().getMemoryAccessForShadow(&inst);
+        LOG("opsem", errs() << "NewDef access ID:" << ma->getID() << "\n");
+        if (seadsa::SeaMemoryDef *pMemDef =
+                dyn_cast<seadsa::SeaMemoryDef>(ma)) {
+          // TODO: is this setValue needed?
+          Expr memOut = m_ctx.mkRegister(*ma);
+          auto *pDefAccess = pMemDef->getDefiningAccess();
+          Expr memIn = m_ctx.getRegister(*pMemDef);
+          m_ctx.read(memIn);
+          setValue(*ma, lookup(*pMemDef));
 
-      m_ctx.setMemReadRegister(memIn);
-      m_ctx.setMemWriteRegister(memOut);
+          m_ctx.setMemReadRegister(memIn);
+          m_ctx.setMemWriteRegister(memOut);
 
-      LOG("opsem.mem.global.init", errs()
-                                       << "mem.global.init: " << inst << "\n";
-          errs() << "arg1: " << *CS.getArgument(1) << "\n";
-          errs() << "memIn: " << *memIn << ", memOut: " << *memOut << "\n";);
-
-      Value *gVal = (*CS.getArgument(2)).stripPointerCasts();
-      if (auto *gv = dyn_cast<llvm::GlobalVariable>(gVal)) {
-        auto gvVal = m_ctx.getGlobalVariableInitValue(*gv);
-        if (gvVal.first) {
-          m_ctx.MemFill(lookup(*gv), gvVal.first, gvVal.second);
+          Value *gVal = (*CS.getArgument(2)).stripPointerCasts();
+          if (auto *gv = dyn_cast<llvm::GlobalVariable>(gVal)) {
+            auto gvVal = m_ctx.getGlobalVariableInitValue(*gv);
+            if (gvVal.first) {
+              m_ctx.MemFill(lookup(*gv), gvVal.first, gvVal.second);
+            }
+          } else {
+            WARN << "skipping global var init of " << inst << " to " << *gVal
+                 << "\n";
+          }
+        } else {
+          LOG("opsem",
+              errs() << "Expected global_init but sea-dsa does not agree!\n");
         }
       } else {
-        WARN << "skipping global var init of " << inst << " to " << *gVal
-             << "\n";
+        Expr memOut = m_ctx.mkRegister(inst);
+        Expr memIn = m_ctx.getRegister(*CS.getArgument(1));
+        m_ctx.read(memIn);
+        setValue(inst, lookup(*CS.getArgument(1)));
+
+        m_ctx.setMemReadRegister(memIn);
+        m_ctx.setMemWriteRegister(memOut);
+
+        LOG("opsem.mem.global.init", errs()
+                                         << "mem.global.init: " << inst << "\n";
+            errs() << "arg1: " << *CS.getArgument(1) << "\n";
+            errs() << "memIn: " << *memIn << ", memOut: " << *memOut << "\n";);
+
+        Value *gVal = (*CS.getArgument(2)).stripPointerCasts();
+        if (auto *gv = dyn_cast<llvm::GlobalVariable>(gVal)) {
+          auto gvVal = m_ctx.getGlobalVariableInitValue(*gv);
+          if (gvVal.first) {
+            m_ctx.MemFill(lookup(*gv), gvVal.first, gvVal.second);
+          }
+        } else {
+          WARN << "skipping global var init of " << inst << " to " << *gVal
+               << "\n";
+        }
       }
       return;
     }
@@ -1938,8 +2059,24 @@ Expr Bv2OpSemContext::mkPtrRegisterSort(const GlobalVariable &gv) const {
   return mem().mkPtrRegisterSort(gv);
 }
 
-Expr Bv2OpSemContext::mkMemRegisterSort(const Instruction &inst) const {
-  return mem().mkMemRegisterSort(inst);
+Expr Bv2OpSemContext::mkMemRegisterSort(const Value &value) const {
+  return mem().mkMemRegisterSort(value);
+}
+
+// Load/store instructions may point to a global
+// or be a global. These are called scalars.
+Expr Bv2OpSemContext::mkRegister(const seadsa::SeaMemoryAccess &access) {
+  if (Expr r = getRegister(access)) {
+    return r;
+  }
+  Expr reg;
+  Expr v = mkTerm<const seadsa::SeaMemoryAccess *>(&access, efac());
+  reg = bind::mkConst(v, mkMemRegisterSort(access));
+  assert(reg);
+  declareRegister(reg);
+  m_valueToRegister.insert(std::make_pair(&access, reg));
+  return reg;
+  // LOG("opsem", WARN << "mkregister did not process an instruction.\n");
 }
 
 Expr Bv2OpSemContext::mkRegister(const llvm::Instruction &inst) {
@@ -2033,6 +2170,9 @@ Expr Bv2OpSemContext::mkRegister(const llvm::Value &v) {
   if (auto const *gv = dyn_cast<llvm::GlobalVariable>(&v)) {
     return mkRegister(*gv);
   }
+  if (auto const *ma = dyn_cast<seadsa::SeaMemoryAccess>(&v)) {
+    return mkRegister(*ma);
+  }
   ERR << "cannot make symbolic register for " << v << "\n";
   llvm_unreachable(nullptr);
 }
@@ -2090,10 +2230,10 @@ Bv2OpSemContext::getGlobalVariableInitValue(const llvm::GlobalVariable &gv) {
 }
 } // namespace details
 
-Bv2OpSem::Bv2OpSem(ExprFactory &efac, Pass &pass, const DataLayout &dl,
-                   TrackLevel trackLvl)
-    : OperationalSemantics(efac), m_pass(pass), m_trackLvl(trackLvl),
-      m_td(&dl) {
+Bv2OpSem::Bv2OpSem(ExprFactory &efac, Pass &pass, seadsa::SeaMemorySSA *smssa,
+                   const DataLayout &dl, TrackLevel trackLvl)
+    : OperationalSemantics(efac), m_pass(pass), m_trackLvl(trackLvl), m_td(&dl),
+      m_SMSSA(smssa) {
   m_canFail = pass.getAnalysisIfAvailable<CanFail>();
   auto *p = pass.getAnalysisIfAvailable<TargetLibraryInfoWrapperPass>();
   if (p)
@@ -2110,7 +2250,7 @@ OpSemContextPtr Bv2OpSem::mkContext(SymStore &values, ExprVector &side) {
 
 Bv2OpSem::Bv2OpSem(const Bv2OpSem &o)
     : OperationalSemantics(o), m_pass(o.m_pass), m_trackLvl(o.m_trackLvl),
-      m_td(o.m_td), m_canFail(o.m_canFail) {}
+      m_td(o.m_td), m_canFail(o.m_canFail), m_SMSSA(o.m_SMSSA) {}
 
 Expr Bv2OpSem::errorFlag(const BasicBlock &BB) {
   // -- if BB belongs to a function that cannot fail, errorFlag is always false

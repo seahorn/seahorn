@@ -41,11 +41,6 @@ declare void @seahorn.fn.enter() local_unnamed_addr
 ; Function Attrs: nounwind uwtable
 define i32 @main() local_unnamed_addr #2 {
 entry:
-  %sm2 = call i32 @shadow.mem.arg.init(i32 0, i8* null), !shadow.mem !4, !shadow.mem.def !4
-  %sm3 = call i32 @shadow.mem.init(i32 1, i8* null), !shadow.mem !4, !shadow.mem.def !4
-  %sm4 = call i32 @shadow.mem.init(i32 2, i8* null), !shadow.mem !4, !shadow.mem.def !4
-  %sm = call i32 @shadow.mem.global.init(i32 0, i32 %sm2, i8* getelementptr inbounds ([3 x i8], [3 x i8]* @main.a, i32 0, i32 0)), !shadow.mem !4, !shadow.mem.def !0
-  call void @shadow.mem.load(i32 1, i32 %sm3, i8* null), !shadow.mem !4, !shadow.mem.use !0
   %raw_ptr.i = alloca [3 x i8], align 1, !sea.dsa.allocsite !0
   %0 = bitcast [3 x i8]* %raw_ptr.i to i8*
   call void @llvm.lifetime.start.p0i8(i64 3, i8* %0)
@@ -54,11 +49,7 @@ entry:
   %2 = ptrtoint [3 x i8]* %raw_ptr.i to i64
   %3 = call i8* @__sea_set_extptr_slot0_hm(i8* %1, i64 %2) #3
   %4 = call i8* @__sea_set_extptr_slot1_hm(i8* %3, i64 3) #3
-  call void @llvm.lifetime.start.p0i8(i64 3, i8* %4) #3
   %5 = getelementptr inbounds [3 x i8], [3 x i8]* @main.a, i64 0, i64 0
-  call void @shadow.mem.trsfr.load(i32 0, i32 %sm, i8* null), !shadow.mem !4, !shadow.mem.use !0
-  %sm1 = call i32 @shadow.mem.store(i32 2, i32 %sm4, i8* null), !shadow.mem !4, !shadow.mem.def !0
-  call void @llvm.memcpy.p0i8.p0i8.i64(i8* %4, i8* %5, i64 3, i32 4, i1 false) #3
   %raw_ptr1.i = getelementptr inbounds i8, i8* %4, i64 1
   %6 = call i8* @__sea_copy_extptr_slots_hm(i8* %raw_ptr1.i, i8* %4) #3
   %7 = call i64 @__sea_get_extptr_slot0_hm(i8* %6) #3
@@ -81,7 +72,6 @@ verifier.error:                                   ; preds = %bound_overflow.i
   br label %verifier.error.split
 
 verifier.error.split:                             ; preds = %verifier.error
-  call void @shadow.mem.in(i32 0, i32 %sm2, i32 0, i8* null), !shadow.mem !4, !shadow.mem.def !4
   ret i32 42
 }
 

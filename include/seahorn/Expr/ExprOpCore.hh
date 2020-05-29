@@ -30,7 +30,9 @@ enum class TerminalKind {
   // llvm::BasicBlock
   LLVM_BASICBLOCK,
   // llvm::Function
-  LLVM_FUNCTION
+  LLVM_FUNCTION,
+  // seadsa::SeaMemoryAccess
+  SEA_MEMORY_ACCESS
 };
 
 // \brief Base class for implementing a Terminal

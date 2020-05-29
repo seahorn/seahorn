@@ -175,8 +175,10 @@ public:
     if (m_engine == BmcEngineKind::mono_bmc) {
 
       std::unique_ptr<OperationalSemantics> sem;
+      auto &sm = getAnalysis<seadsa::ShadowMemPass>().getShadowMem();
+      auto mem_ssa = sm.getMemorySSA(F);
       if (HornBv2)
-        sem = std::make_unique<Bv2OpSem>(efac, *this,
+        sem = std::make_unique<Bv2OpSem>(efac, *this, mem_ssa,
                                          F.getParent()->getDataLayout(), MEM);
       else
         sem = std::make_unique<BvOpSem>(efac, *this,

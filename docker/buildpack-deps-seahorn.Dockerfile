@@ -35,6 +35,7 @@ WORKDIR /tmp
 RUN wget https://apt.llvm.org/llvm.sh && \
   chmod +x llvm.sh && \
   ./llvm.sh 10 && \
+  apt-get install -y clang-format-10 && \
   wget https://github.com/Z3Prover/z3/releases/download/z3-4.8.7/z3-4.8.7-x64-ubuntu-16.04.zip && \
   unzip z3-4.8.7-x64-ubuntu-16.04.zip && \
   mv z3-4.8.7-x64-ubuntu-16.04 /opt/z3-4.8.7 && \

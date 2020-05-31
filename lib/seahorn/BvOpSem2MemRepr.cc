@@ -224,6 +224,12 @@ Expr OpSemMemLambdaRepr::MemFill(Expr dPtr, char *sPtr, unsigned len, Expr mem,
 
   return res;
 }
-
+Expr OpSemMemLambdaRepr::FilledMemory(Expr ptrSort, Expr v) {
+  Expr addr = bind::mkConst(mkTerm<std::string>("addr", m_efac), ptrSort);
+  Expr decl = bind::fname(addr);
+  // -- create constant lambda
+  // lambda addr :: v
+  return mk<LAMBDA>(decl, v);
+}
 } // namespace details
 } // namespace seahorn

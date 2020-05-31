@@ -16,7 +16,7 @@ OpSemMemManagerBase::OpSemMemManagerBase(Bv2OpSem &sem, Bv2OpSemContext &ctx,
   assert((m_wordSz == 1 || m_wordSz == 4 || m_wordSz == 8) &&
          "Untested word size");
   assert((m_ptrSz == 4 || m_ptrSz == 8) && "Untested pointer size");
-  assert((m_wordSz >= m_ptrSz) && "Word size is less than pointer size");
+  //assert((m_wordSz >= m_ptrSz) && "Word size is less than pointer size");
 }
 
 OpSemMemManager::OpSemMemManager(Bv2OpSem &sem, Bv2OpSemContext &ctx,

@@ -2,8 +2,8 @@
 #include "BvOpSem2Context.hh"
 
 #include "llvm/IR/GetElementPtrTypeIterator.h"
-#include "llvm/Support/Format.h"
 #include "llvm/Support/CommandLine.h"
+#include "llvm/Support/Format.h"
 
 #include "seahorn/Expr/ExprLlvm.hh"
 #include "seahorn/Support/SeaDebug.h"
@@ -556,8 +556,8 @@ Expr RawMemManager::MemCpy(PtrTy dPtr, PtrTy sPtr, unsigned len,
 }
 
 /// \brief Executes symbolic memcpy from physical memory with concrete length
-Expr RawMemManager::MemFill(PtrTy dPtr, char *sPtr, unsigned len,
-                            MemValTy mem, uint32_t align) {
+Expr RawMemManager::MemFill(PtrTy dPtr, char *sPtr, unsigned len, MemValTy mem,
+                            uint32_t align) {
   // same alignment behavior as galloc - default is word size of machine, can
   // only be increased
   return m_memRepr->MemFill(dPtr, sPtr, len, mem, wordSzInBytes(), ptrSort(),
@@ -672,8 +672,8 @@ void RawMemManager::onFunctionEntry(const Function &fn) {
 }
 
 Expr RawMemManager::zeroedMemory() const {
-  // XXX should be wordSort and word 0
-  return op::array::constArray(ptrSort(), nullPtr());
+  return m_memRepr->FilledMemory(ptrSort, m_ctx.alu().si(0, wordSzInBits()));
 }
+
 } // namespace details
 } // namespace seahorn

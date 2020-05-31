@@ -467,7 +467,7 @@ protected:
   /// Must be divisible by \t m_wordSz
   uint32_t m_alignment;
   OpSemMemManagerBase(Bv2OpSem &sem, Bv2OpSemContext &ctx, unsigned ptrSz,
-                  unsigned wordSz);
+                      unsigned wordSz);
 
   virtual ~OpSemMemManagerBase() = default;
 
@@ -480,7 +480,6 @@ public:
   unsigned wordSzInBytes() const { return m_wordSz; }
   unsigned wordSzInBits() const { return m_wordSz * 8; }
   uint32_t getAlignment(const llvm::Value &v) const { return m_alignment; }
-
 };
 /// \brief Memory manager for OpSem machine
 class OpSemMemManager : public OpSemMemManagerBase {
@@ -676,7 +675,6 @@ public:
   /// \brief Calculates an offset of a pointer from its base.
   Expr ptrOffsetFromBase(PtrTy base, PtrTy ptr) { return ptrSub(ptr, base); }
 
-
   /// \brief returns Expr after getting data.
   virtual Expr getFatData(PtrTy p, unsigned SlotIdx) = 0;
 
@@ -717,6 +715,7 @@ public:
   virtual Expr MemFill(Expr dPtr, char *sPtr, unsigned len, Expr mem,
                        unsigned wordSzInBytes, Expr ptrSort,
                        uint32_t align) = 0;
+  virtual Expr FilledMemory(Expr ptrSort, Expr val) = 0;
 };
 
 /// \brief Represent memory regions by logical arrays
@@ -743,6 +742,9 @@ public:
               unsigned wordSzInBytes, Expr ptrSort, uint32_t align) override;
   Expr MemFill(Expr dPtr, char *sPtr, unsigned len, Expr mem,
                unsigned wordSzInBytes, Expr ptrSort, uint32_t align) override;
+  Expr FilledMemory(Expr ptrSort, Expr val) override {
+    return op::array::constArray(ptrSort, val);
+  }
 };
 
 /// \brief Represent memory regions by lambda functions
@@ -767,6 +769,7 @@ public:
               unsigned wordSzInBytes, Expr ptrSort, uint32_t align) override;
   Expr MemFill(Expr dPtr, char *sPtr, unsigned len, Expr mem,
                unsigned wordSzInBytes, Expr ptrSort, uint32_t align) override;
+  Expr FilledMemory(Expr ptrSort, Expr v) override;
 
 private:
   Expr coerceArrayToLambda(Expr arrVal);

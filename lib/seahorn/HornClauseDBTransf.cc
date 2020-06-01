@@ -61,14 +61,10 @@ void normalizeHornClauseHeads(HornClauseDB &db) {
 }
 
 template <typename Set, typename Predicate>
-void erase_if(Set &s, Predicate shouldRemove) {
-  for (auto it = s.begin(); it != s.end();) {
-    if (shouldRemove(*it)) {
-      it = s.erase(it);
-    } else {
-      ++it;
-    }
-  }
+void copy_if(Set &src, Set &dst, Predicate shouldCopy) {
+  for (auto it : src)
+    if (shouldCopy(it))
+      dst.insert(it);
 }
 
 // -- tdb is an empty db that will contain db after transformation
@@ -99,11 +95,6 @@ void removeFiniteMapsHornClausesTransf(HornClauseDB &db, HornClauseDB &tdb) {
     DagVisitCache dvc; // TODO: same for all the clauses?
     FiniteMapArgsVisitor fmav(allVars, predDeclTransf, efac);
     Expr newRule = visit(fmav, rule.get(), dvc);
-
-    erase_if(allVars, [](Expr expr) {
-      return isOpX<FINITE_MAP_TY>(bind::rangeTy(bind::fname(expr)));
-    });
-
     tdb.addRule(allVars, newRule);
   }
 
@@ -122,11 +113,14 @@ void removeFiniteMapsHornClausesTransf(HornClauseDB &db, HornClauseDB &tdb) {
     DagVisitCache dvc; // same for all the clauses?
     FiniteMapBodyVisitor fmv(allVars, efac);
 
-    erase_if(allVars, [](Expr expr) {
-      return isOpX<FINITE_MAP_TY>(bind::rangeTy(bind::fname(expr)));
+    Expr body = visit(fmv, rule.body(), dvc);
+
+    ExprSet newVars;
+    copy_if(allVars, newVars, [](Expr expr) { // not finite map
+      return !isOpX<FINITE_MAP_TY>(bind::rangeTy(bind::fname(expr)));
     });
 
-    HornRule new_rule(allVars, rule.head(), visit(fmv, rule.body(), dvc));
+    HornRule new_rule(newVars, rule.head(), body);
 
     tdb.removeRule(rule);
     tdb.addRule(new_rule);

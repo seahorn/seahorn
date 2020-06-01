@@ -108,8 +108,8 @@ public:
     return base().mkPtrRegisterSort(gv);
   }
 
-  MemSortTy mkMemRegisterSort(const Instruction &inst) const override {
-    return base().mkMemRegisterSort(inst);
+  MemSortTy mkMemRegisterSort(const Value &value) const override {
+    return base().mkMemRegisterSort(value);
   }
 
   PtrTy freshPtr() override {

@@ -222,6 +222,7 @@ public:
   /// \brief Returns true if \p is a known register
   bool isKnownRegister(Expr v);
 
+  Expr mkRegister(const seadsa::SeaMemoryAccess &access);
   /// \brief Create a register of the correct sort to hold the value returned by
   /// the instruction
   Expr mkRegister(const llvm::Instruction &inst);
@@ -248,7 +249,7 @@ public:
   /// \brief Return a sort for a pointer
   Expr mkPtrRegisterSort(const Instruction &inst) const;
   /// \brief Return a sort for a memory register
-  Expr mkMemRegisterSort(const Instruction &inst) const;
+  Expr mkMemRegisterSort(const Value &value) const;
 
   /// \brief Returns symbolic value of a constant expression \p c
   Expr getConstantValue(const llvm::Constant &c);
@@ -552,7 +553,7 @@ public:
   virtual PtrSortTy mkPtrRegisterSort(const GlobalVariable &gv) const = 0;
 
   /// \brief Returns sort of memory-holding register for an instruction
-  virtual MemSortTy mkMemRegisterSort(const Instruction &inst) const = 0;
+  virtual Expr mkMemRegisterSort(const Value &value) const = 0;
 
   /// \brief Returns a fresh aligned pointer value
   virtual PtrTy freshPtr() = 0;

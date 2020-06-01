@@ -92,7 +92,7 @@ public:
   Expr mkPtrRegisterSort(const GlobalVariable &gv) const override { return ptrSort(); }
 
   /// \brief Returns sort of memory-holding register for an instruction
-  Expr mkMemRegisterSort(const Instruction &inst) const;
+  Expr mkMemRegisterSort(const Value &value) const;
 
   /// \brief Returns a fresh aligned pointer value
   PtrTy freshPtr() override;

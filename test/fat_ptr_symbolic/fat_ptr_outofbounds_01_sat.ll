@@ -1,231 +1,387 @@
 ; RUN: %seabmc_fatptr  "%s" 2>&1 | %oc %s
 
 ; CHECK: ^sat$
-; ModuleID = '/tmp/fat/bitcode.fat.pp.ms.o.ul.cut.o.bc'
+; ModuleID = '/tmp/fat/bitcode.fat.pp.ms.o.ul.cut.bc'
 source_filename = "fat_ptr_outofbounds.01.c"
-target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
+target datalayout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128"
 target triple = "x86_64-pc-linux-gnu"
 
 %struct.bounded_array = type { i8*, i64 }
 
-@main.base_a = private unnamed_addr constant [6 x i8] c"aaaaa\00", align 1, !sea.dsa.allocsite !0
-@llvm.used = appending global [12 x i8*] [i8* bitcast (void ()* @seahorn.fail to i8*), i8* bitcast (void (i1)* @verifier.assume to i8*), i8* bitcast (void (i1)* @verifier.assume.not to i8*), i8* bitcast (void ()* @verifier.error to i8*), i8* bitcast (void (i1)* @verifier.assume to i8*), i8* bitcast (void (i1)* @verifier.assume.not to i8*), i8* bitcast (void ()* @verifier.error to i8*), i8* bitcast (void ()* @seahorn.fail to i8*), i8* bitcast (void (i1)* @verifier.assume to i8*), i8* bitcast (void (i1)* @verifier.assume.not to i8*), i8* bitcast (void ()* @verifier.error to i8*), i8* bitcast (void ()* @seahorn.fail to i8*)], section "llvm.metadata", !sea.dsa.allocsite !1
+@__const.main.base_a = private unnamed_addr constant [6 x i8] c"aaaaa\00", align 1
+@llvm.used = appending global [8 x i8*] [i8* bitcast (void ()* @seahorn.fail to i8*), i8* bitcast (void (i1)* @verifier.assume to i8*), i8* bitcast (void (i1)* @verifier.assume.not to i8*), i8* bitcast (void ()* @verifier.error to i8*), i8* bitcast (void (i1)* @verifier.assume to i8*), i8* bitcast (void (i1)* @verifier.assume.not to i8*), i8* bitcast (void ()* @verifier.error to i8*), i8* bitcast (void ()* @seahorn.fail to i8*)], section "llvm.metadata"
 
-; Function Attrs: argmemonly nounwind
-declare void @llvm.lifetime.start.p0i8(i64, i8* nocapture) #0
+; Function Attrs: nounwind uwtable
+define private i32 @orig.main() local_unnamed_addr #0 {
+  call void @seahorn.fn.enter() #5
+  %1 = alloca i32, align 4
+  %2 = bitcast i32* %1 to i8*
+  %3 = ptrtoint i32* %1 to i64
+  %4 = call i8* @__sea_set_extptr_slot0_hm(i8* nonnull %2, i64 %3)
+  %5 = call i8* @__sea_set_extptr_slot1_hm(i8* %4, i64 4)
+  call void @sea_dsa_alias(i8* nonnull %2, i8* %4) #5
+  call void @sea_dsa_alias(i8* %4, i8* %5) #5
+  %6 = alloca [6 x i8], align 1
+  %7 = getelementptr inbounds [6 x i8], [6 x i8]* %6, i64 0, i64 0
+  %8 = ptrtoint [6 x i8]* %6 to i64
+  %9 = call i8* @__sea_set_extptr_slot0_hm(i8* nonnull %7, i64 %8)
+  %10 = call i8* @__sea_set_extptr_slot1_hm(i8* %9, i64 6)
+  call void @sea_dsa_alias(i8* nonnull %7, i8* %9) #5
+  call void @sea_dsa_alias(i8* %9, i8* %10) #5
+  %11 = alloca %struct.bounded_array, align 8
+  %12 = bitcast %struct.bounded_array* %11 to i8*
+  %13 = ptrtoint %struct.bounded_array* %11 to i64
+  %14 = call i8* @__sea_set_extptr_slot0_hm(i8* nonnull %12, i64 %13)
+  %15 = call i8* @__sea_set_extptr_slot1_hm(i8* %14, i64 16)
+  call void @sea_dsa_alias(i8* nonnull %12, i8* %14) #5
+  call void @sea_dsa_alias(i8* %14, i8* %15) #5
+  %16 = call i8* @__sea_recover_pointer_hm(i8* %5)
+  call void @sea_dsa_alias(i8* %5, i8* %16) #5
+  %17 = call i64 @__sea_get_extptr_slot0_hm(i8* %5)
+  %18 = call i64 @__sea_get_extptr_slot1_hm(i8* %5)
+  %19 = ptrtoint i8* %16 to i64
+  %20 = icmp ugt i64 %17, %19
+  %21 = add i64 %19, 4
+  %22 = add i64 %17, %18
+  %23 = icmp ult i64 %22, %21
+  %24 = or i1 %20, %23
+  br i1 %24, label %bound_overflow, label %25
 
-; Function Attrs: argmemonly nounwind
-declare void @llvm.memcpy.p0i8.p0i8.i64(i8* nocapture writeonly, i8* nocapture readonly, i64, i32, i1) #0
+25:                                               ; preds = %0
+  %26 = bitcast i8* %16 to i32*
+  store i32 0, i32* %26, align 4
+  call void @llvm.lifetime.start.p0i8(i64 6, i8* %10) #5
+  call void @llvm.memcpy.p0i8.p0i8.i64(i8* nonnull align 1 dereferenceable(6) %10, i8* nonnull align 1 dereferenceable(6) getelementptr inbounds ([6 x i8], [6 x i8]* @__const.main.base_a, i64 0, i64 0), i64 6, i1 false)
+  call void @llvm.lifetime.start.p0i8(i64 16, i8* %15) #5
+  %27 = call i8* @__sea_recover_pointer_hm(i8* %15)
+  call void @sea_dsa_alias(i8* %15, i8* %27) #5
+  %28 = call i8* @__sea_copy_extptr_slots_hm(i8* %27, i8* %15)
+  call void @sea_dsa_alias(i8* %27, i8* %28) #5
+  %29 = call i8* @__sea_recover_pointer_hm(i8* %10)
+  call void @sea_dsa_alias(i8* %10, i8* %29) #5
+  %30 = call i8* @__sea_copy_extptr_slots_hm(i8* %29, i8* %10)
+  call void @sea_dsa_alias(i8* %29, i8* %30) #5
+  %31 = call i8* @__sea_recover_pointer_hm(i8* %28)
+  call void @sea_dsa_alias(i8* %28, i8* %31) #5
+  %32 = call i64 @__sea_get_extptr_slot0_hm(i8* %28)
+  %33 = call i64 @__sea_get_extptr_slot1_hm(i8* %28)
+  %34 = ptrtoint i8* %31 to i64
+  %35 = icmp ugt i64 %32, %34
+  %36 = add i64 %34, 8
+  %37 = add i64 %32, %33
+  %38 = icmp ult i64 %37, %36
+  %39 = or i1 %35, %38
+  br i1 %39, label %bound_overflow, label %40
 
-declare i64 @__sea_get_extptr_slot0_hm(i8*) local_unnamed_addr
+40:                                               ; preds = %25
+  %41 = bitcast i8* %31 to i8**
+  store i8* %30, i8** %41, align 8, !tbaa !2
+  %42 = call i8* @__sea_recover_pointer_hm(i8* %15)
+  call void @sea_dsa_alias(i8* %15, i8* %42) #5
+  %43 = getelementptr inbounds i8, i8* %42, i64 8
+  %44 = call i8* @__sea_copy_extptr_slots_hm(i8* nonnull %43, i8* %15)
+  call void @sea_dsa_alias(i8* nonnull %43, i8* %44) #5
+  %45 = call i8* @__sea_recover_pointer_hm(i8* %44)
+  call void @sea_dsa_alias(i8* %44, i8* %45) #5
+  %46 = call i64 @__sea_get_extptr_slot0_hm(i8* %44)
+  %47 = call i64 @__sea_get_extptr_slot1_hm(i8* %44)
+  %48 = ptrtoint i8* %45 to i64
+  %49 = icmp ugt i64 %46, %48
+  %50 = add i64 %48, 8
+  %51 = add i64 %46, %47
+  %52 = icmp ult i64 %51, %50
+  %53 = or i1 %49, %52
+  br i1 %53, label %bound_overflow, label %54
 
-declare i64 @__sea_get_extptr_slot1_hm(i8*) local_unnamed_addr
+54:                                               ; preds = %40
+  %55 = bitcast i8* %45 to i64*
+  store i64 6, i64* %55, align 8, !tbaa !8
+  %56 = call i8* @__sea_recover_pointer_hm(i8* %15)
+  call void @sea_dsa_alias(i8* %15, i8* %56) #5
+  %57 = call i8* @__sea_copy_extptr_slots_hm(i8* %56, i8* %15)
+  call void @sea_dsa_alias(i8* %56, i8* %57) #5
+  %58 = call i8* @__sea_recover_pointer_hm(i8* %57)
+  call void @sea_dsa_alias(i8* %57, i8* %58) #5
+  %59 = call i64 @__sea_get_extptr_slot0_hm(i8* %57)
+  %60 = call i64 @__sea_get_extptr_slot1_hm(i8* %57)
+  %61 = ptrtoint i8* %58 to i64
+  %62 = icmp ugt i64 %59, %61
+  %63 = add i64 %61, 8
+  %64 = add i64 %59, %60
+  %65 = icmp ult i64 %64, %63
+  %66 = or i1 %62, %65
+  br i1 %66, label %bound_overflow, label %67
 
-declare i8* @__sea_set_extptr_slot0_hm(i8*, i64) local_unnamed_addr
+67:                                               ; preds = %54
+  %68 = bitcast i8* %58 to i8**
+  %69 = load i8*, i8** %68, align 8, !tbaa !2
+  %70 = call i8* @__sea_recover_pointer_hm(i8* %15)
+  call void @sea_dsa_alias(i8* %15, i8* %70) #5
+  %71 = getelementptr inbounds i8, i8* %70, i64 8
+  %72 = call i8* @__sea_copy_extptr_slots_hm(i8* nonnull %71, i8* %15)
+  call void @sea_dsa_alias(i8* nonnull %71, i8* %72) #5
+  %73 = call i8* @__sea_recover_pointer_hm(i8* %72)
+  call void @sea_dsa_alias(i8* %72, i8* %73) #5
+  %74 = call i64 @__sea_get_extptr_slot0_hm(i8* %72)
+  %75 = call i64 @__sea_get_extptr_slot1_hm(i8* %72)
+  %76 = ptrtoint i8* %73 to i64
+  %77 = icmp ugt i64 %74, %76
+  %78 = add i64 %76, 8
+  %79 = add i64 %74, %75
+  %80 = icmp ult i64 %79, %78
+  %81 = or i1 %77, %80
+  br i1 %81, label %bound_overflow, label %82
 
-declare i8* @__sea_set_extptr_slot1_hm(i8*, i64) local_unnamed_addr
+82:                                               ; preds = %67
+  %83 = bitcast i8* %73 to i64*
+  %84 = load i64, i64* %83, align 8, !tbaa !8
+  %85 = call i8* @__sea_recover_pointer_hm(i8* %69)
+  call void @sea_dsa_alias(i8* %69, i8* %85) #5
+  %86 = getelementptr inbounds i8, i8* %85, i64 %84
+  %87 = call i8* @__sea_copy_extptr_slots_hm(i8* %86, i8* %69)
+  call void @sea_dsa_alias(i8* %86, i8* %87) #5
+  %88 = call i8* @__sea_recover_pointer_hm(i8* %87)
+  call void @sea_dsa_alias(i8* %87, i8* %88) #5
+  %89 = call i64 @__sea_get_extptr_slot0_hm(i8* %87)
+  %90 = call i64 @__sea_get_extptr_slot1_hm(i8* %87)
+  %91 = ptrtoint i8* %88 to i64
+  %92 = icmp ugt i64 %89, %91
+  %93 = add i64 %91, 1
+  %94 = add i64 %89, %90
+  %95 = icmp ult i64 %94, %93
+  %96 = or i1 %92, %95
+  br i1 %96, label %bound_overflow, label %97
 
-declare i8* @__sea_copy_extptr_slots_hm(i8*, i8*) local_unnamed_addr
+97:                                               ; preds = %82
+  store i8 100, i8* %88, align 1, !tbaa !9
+  call void @llvm.lifetime.end.p0i8(i64 16, i8* %15) #5
+  call void @llvm.lifetime.end.p0i8(i64 6, i8* %10) #5
+  ret i32 0
 
-declare i8* @__sea_recover_pointer_hm(i8*) local_unnamed_addr
+bound_overflow:                                   ; preds = %82, %67, %54, %40, %25, %0
+  call void @verifier.error()
+  unreachable
+}
 
-declare void @verifier.assume(i1)
+; Function Attrs: argmemonly nounwind willreturn
+declare void @llvm.lifetime.start.p0i8(i64 immarg, i8* nocapture) #1
 
-declare void @verifier.assume.not(i1)
+; Function Attrs: argmemonly nounwind willreturn
+declare void @llvm.memcpy.p0i8.p0i8.i64(i8* noalias nocapture writeonly, i8* noalias nocapture readonly, i64, i1 immarg) #1
 
-declare void @seahorn.fail()
+; Function Attrs: argmemonly nounwind willreturn
+declare void @llvm.lifetime.end.p0i8(i64 immarg, i8* nocapture) #1
 
-; Function Attrs: noreturn
-declare void @verifier.error() #1
+; Function Attrs: nounwind writeonly
+declare i64 @__sea_get_extptr_slot0_hm(i8* nocapture) local_unnamed_addr #2
+
+; Function Attrs: nounwind writeonly
+declare i64 @__sea_get_extptr_slot1_hm(i8* nocapture) local_unnamed_addr #2
+
+; Function Attrs: nounwind writeonly
+declare i8* @__sea_set_extptr_slot0_hm(i8*, i64) local_unnamed_addr #2
+
+; Function Attrs: nounwind writeonly
+declare i8* @__sea_set_extptr_slot1_hm(i8*, i64) local_unnamed_addr #2
+
+; Function Attrs: nounwind writeonly
+declare i8* @__sea_copy_extptr_slots_hm(i8*, i8* nocapture) local_unnamed_addr #2
+
+; Function Attrs: nounwind writeonly
+declare i8* @__sea_recover_pointer_hm(i8*) local_unnamed_addr #2
+
+declare void @sea_dsa_alias(i8*, i8*) local_unnamed_addr
+
+; Function Attrs: inaccessiblememonly nofree norecurse nounwind
+declare void @verifier.assume(i1) #3
+
+; Function Attrs: inaccessiblememonly nofree norecurse nounwind
+declare void @verifier.assume.not(i1) #3
+
+; Function Attrs: inaccessiblememonly nofree norecurse nounwind
+declare void @seahorn.fail() #3
+
+; Function Attrs: inaccessiblememonly nofree norecurse noreturn nounwind
+declare void @verifier.error() #4
 
 declare void @seahorn.fn.enter() local_unnamed_addr
 
 ; Function Attrs: nounwind uwtable
-define i32 @main() local_unnamed_addr #2 {
+define dso_local i32 @main() local_unnamed_addr #0 {
 entry:
-  %sm4 = call i32 @shadow.mem.arg.init(i32 0, i8* null), !shadow.mem !4, !shadow.mem.def !4
-  %sm5 = call i32 @shadow.mem.init(i32 1, i8* null), !shadow.mem !4, !shadow.mem.def !4
-  %sm6 = call i32 @shadow.mem.init(i32 2, i8* null), !shadow.mem !4, !shadow.mem.def !4
-  %sm7 = call i32 @shadow.mem.init(i32 3, i8* null), !shadow.mem !4, !shadow.mem.def !4
-  %sm8 = call i32 @shadow.mem.init(i32 4, i8* null), !shadow.mem !4, !shadow.mem.def !4
-  %sm9 = call i32 @shadow.mem.init(i32 12, i8* null), !shadow.mem !4, !shadow.mem.def !4
-  %sm10 = call i32 @shadow.mem.init(i32 20, i8* null), !shadow.mem !4, !shadow.mem.def !4
-  %sm11 = call i32 @shadow.mem.init(i32 28, i8* null), !shadow.mem !4, !shadow.mem.def !4
-  %sm = call i32 @shadow.mem.global.init(i32 0, i32 %sm4, i8* getelementptr inbounds ([6 x i8], [6 x i8]* @main.base_a, i32 0, i32 0)), !shadow.mem !4, !shadow.mem.def !0
-  call void @shadow.mem.load(i32 1, i32 %sm5, i8* null), !shadow.mem !4, !shadow.mem.use !0
-  %raw_ptr.i = alloca [6 x i8], align 1, !sea.dsa.allocsite !0
-  call void @shadow.mem.load(i32 2, i32 %sm6, i8* null), !shadow.mem !4, !shadow.mem.use !5
-  %raw_ptr1.i = alloca %struct.bounded_array, align 8, !sea.dsa.allocsite !5
-  %0 = bitcast [6 x i8]* %raw_ptr.i to i8*
-  call void @llvm.lifetime.start.p0i8(i64 6, i8* %0)
-  %1 = bitcast %struct.bounded_array* %raw_ptr1.i to i8*
-  call void @llvm.lifetime.start.p0i8(i64 16, i8* %1)
-  call void @seahorn.fn.enter() #3
-  %2 = getelementptr inbounds [6 x i8], [6 x i8]* %raw_ptr.i, i64 0, i64 0
-  %3 = ptrtoint [6 x i8]* %raw_ptr.i to i64
-  %4 = call i8* @__sea_set_extptr_slot0_hm(i8* %2, i64 %3) #3
-  call void @sea_dsa_alias(i8* %4, i8* %2)
-  %5 = call i8* @__sea_set_extptr_slot1_hm(i8* %4, i64 6) #3
-  call void @sea_dsa_alias(i8* %5, i8* %4)
-  %6 = bitcast %struct.bounded_array* %raw_ptr1.i to i8*
-  %7 = ptrtoint %struct.bounded_array* %raw_ptr1.i to i64
-  %8 = call i8* @__sea_set_extptr_slot0_hm(i8* %6, i64 %7) #3
-  call void @sea_dsa_alias(i8* %8, i8* %6)
-  %9 = call i8* @__sea_set_extptr_slot1_hm(i8* %8, i64 16) #3
-  call void @sea_dsa_alias(i8* %9, i8* %8)
-  call void @llvm.lifetime.start.p0i8(i64 6, i8* %5) #3
-  %10 = getelementptr inbounds [6 x i8], [6 x i8]* @main.base_a, i64 0, i64 0
-  call void @shadow.mem.trsfr.load(i32 0, i32 %sm, i8* null), !shadow.mem !4, !shadow.mem.use !0
-  %sm1 = call i32 @shadow.mem.store(i32 3, i32 %sm7, i8* null), !shadow.mem !4, !shadow.mem.def !0
-  call void @llvm.memcpy.p0i8.p0i8.i64(i8* %5, i8* %10, i64 6, i32 4, i1 false) #3
-  call void @llvm.lifetime.start.p0i8(i64 16, i8* %9) #3
-  %11 = call i8* @__sea_copy_extptr_slots_hm(i8* %9, i8* %9) #3
-  call void @sea_dsa_alias(i8* %11, i8* %9)
-  %12 = call i8* @__sea_copy_extptr_slots_hm(i8* %5, i8* %5) #3
-  call void @sea_dsa_alias(i8* %12, i8* %5)
-  %13 = call i64 @__sea_get_extptr_slot0_hm(i8* %11) #3
-  %14 = call i64 @__sea_get_extptr_slot1_hm(i8* %11) #3
-  %15 = call i8* @__sea_recover_pointer_hm(i8* %11) #3
-  call void @sea_dsa_alias(i8* %15, i8* %11)
-  %16 = ptrtoint i8* %15 to i64
-  %17 = icmp ugt i64 %13, %16
-  %18 = add i64 %16, 8
-  %19 = add i64 %13, %14
-  %20 = icmp ult i64 %19, %18
-  %21 = or i1 %17, %20
-  br i1 %21, label %bound_overflow.i, label %22
+  %0 = alloca i32, align 4
+  %1 = alloca [6 x i8], align 1
+  %2 = alloca %struct.bounded_array, align 8
+  %3 = bitcast i32* %0 to i8*
+  call void @llvm.lifetime.start.p0i8(i64 4, i8* %3)
+  %4 = bitcast [6 x i8]* %1 to i8*
+  call void @llvm.lifetime.start.p0i8(i64 6, i8* %4)
+  %5 = bitcast %struct.bounded_array* %2 to i8*
+  call void @llvm.lifetime.start.p0i8(i64 16, i8* %5)
+  call void @seahorn.fn.enter() #5
+  %6 = bitcast i32* %0 to i8*
+  %7 = ptrtoint i32* %0 to i64
+  %8 = call i8* @__sea_set_extptr_slot0_hm(i8* nonnull %6, i64 %7) #5
+  %9 = call i8* @__sea_set_extptr_slot1_hm(i8* %8, i64 4) #5
+  call void @sea_dsa_alias(i8* nonnull %6, i8* %8) #5
+  call void @sea_dsa_alias(i8* %8, i8* %9) #5
+  %10 = getelementptr inbounds [6 x i8], [6 x i8]* %1, i64 0, i64 0
+  %11 = ptrtoint [6 x i8]* %1 to i64
+  %12 = call i8* @__sea_set_extptr_slot0_hm(i8* nonnull %10, i64 %11) #5
+  %13 = call i8* @__sea_set_extptr_slot1_hm(i8* %12, i64 6) #5
+  call void @sea_dsa_alias(i8* nonnull %10, i8* %12) #5
+  call void @sea_dsa_alias(i8* %12, i8* %13) #5
+  %14 = bitcast %struct.bounded_array* %2 to i8*
+  %15 = ptrtoint %struct.bounded_array* %2 to i64
+  %16 = call i8* @__sea_set_extptr_slot0_hm(i8* nonnull %14, i64 %15) #5
+  %17 = call i8* @__sea_set_extptr_slot1_hm(i8* %16, i64 16) #5
+  call void @sea_dsa_alias(i8* nonnull %14, i8* %16) #5
+  call void @sea_dsa_alias(i8* %16, i8* %17) #5
+  %18 = call i8* @__sea_recover_pointer_hm(i8* %9) #5
+  call void @sea_dsa_alias(i8* %9, i8* %18) #5
+  %19 = call i64 @__sea_get_extptr_slot0_hm(i8* %9) #5
+  %20 = call i64 @__sea_get_extptr_slot1_hm(i8* %9) #5
+  %21 = ptrtoint i8* %18 to i64
+  %22 = icmp ugt i64 %19, %21
+  %23 = add i64 %21, 4
+  %24 = add i64 %19, %20
+  %25 = icmp ult i64 %24, %23
+  %26 = or i1 %22, %25
+  br i1 %26, label %bound_overflow.i, label %27
 
-; <label>:22:                                     ; preds = %entry
-  %23 = bitcast i8* %15 to i8**
-  %sm2 = call i32 @shadow.mem.store(i32 4, i32 %sm8, i8* null), !shadow.mem !4, !shadow.mem.def !6
-  store i8* %12, i8** %23, align 8, !tbaa !7
-  %raw_ptr4.i = getelementptr inbounds i8, i8* %9, i64 8
-  %24 = call i8* @__sea_copy_extptr_slots_hm(i8* %raw_ptr4.i, i8* %9) #3
-  call void @sea_dsa_alias(i8* %24, i8* %raw_ptr4.i)
-  %25 = call i64 @__sea_get_extptr_slot0_hm(i8* %24) #3
-  %26 = call i64 @__sea_get_extptr_slot1_hm(i8* %24) #3
-  %27 = call i8* @__sea_recover_pointer_hm(i8* %24) #3
-  call void @sea_dsa_alias(i8* %27, i8* %24)
-  %28 = ptrtoint i8* %27 to i64
-  %29 = icmp ugt i64 %25, %28
-  %30 = add i64 %28, 8
-  %31 = add i64 %25, %26
-  %32 = icmp ult i64 %31, %30
-  %33 = or i1 %29, %32
-  br i1 %33, label %bound_overflow.i, label %34
+27:                                               ; preds = %entry
+  %28 = bitcast i8* %18 to i32*
+  store i32 0, i32* %28, align 4
+  call void @llvm.lifetime.start.p0i8(i64 6, i8* %13) #5
+  call void @llvm.memcpy.p0i8.p0i8.i64(i8* nonnull align 4 dereferenceable(6) %13, i8* nonnull align 4 dereferenceable(6) getelementptr inbounds ([6 x i8], [6 x i8]* @__const.main.base_a, i64 0, i64 0), i64 6, i1 false) #5
+  call void @llvm.lifetime.start.p0i8(i64 16, i8* %17) #5
+  %29 = call i8* @__sea_recover_pointer_hm(i8* %17) #5
+  call void @sea_dsa_alias(i8* %17, i8* %29) #5
+  %30 = call i8* @__sea_copy_extptr_slots_hm(i8* %29, i8* %17) #5
+  call void @sea_dsa_alias(i8* %29, i8* %30) #5
+  %31 = call i8* @__sea_recover_pointer_hm(i8* %13) #5
+  call void @sea_dsa_alias(i8* %13, i8* %31) #5
+  %32 = call i8* @__sea_copy_extptr_slots_hm(i8* %31, i8* %13) #5
+  call void @sea_dsa_alias(i8* %31, i8* %32) #5
+  %33 = call i8* @__sea_recover_pointer_hm(i8* %30) #5
+  call void @sea_dsa_alias(i8* %30, i8* %33) #5
+  %34 = call i64 @__sea_get_extptr_slot0_hm(i8* %30) #5
+  %35 = call i64 @__sea_get_extptr_slot1_hm(i8* %30) #5
+  %36 = ptrtoint i8* %33 to i64
+  %37 = icmp ugt i64 %34, %36
+  %38 = add i64 %36, 8
+  %39 = add i64 %34, %35
+  %40 = icmp ult i64 %39, %38
+  %41 = or i1 %37, %40
+  br i1 %41, label %bound_overflow.i, label %42
 
-; <label>:34:                                     ; preds = %22
-  %35 = bitcast i8* %27 to i64*
-  %sm3 = call i32 @shadow.mem.store(i32 12, i32 %sm9, i8* null), !shadow.mem !4, !shadow.mem.def !6
-  store i64 6, i64* %35, align 8, !tbaa !13
-  %36 = call i8* @__sea_copy_extptr_slots_hm(i8* %9, i8* %9) #3
-  call void @sea_dsa_alias(i8* %36, i8* %9)
-  %37 = call i64 @__sea_get_extptr_slot0_hm(i8* %36) #3
-  %38 = call i64 @__sea_get_extptr_slot1_hm(i8* %36) #3
-  %39 = call i8* @__sea_recover_pointer_hm(i8* %36) #3
-  call void @sea_dsa_alias(i8* %39, i8* %36)
-  %40 = ptrtoint i8* %39 to i64
-  %41 = icmp ugt i64 %37, %40
-  %42 = add i64 %40, 8
-  %43 = add i64 %37, %38
-  %44 = icmp ult i64 %43, %42
-  %45 = or i1 %41, %44
-  br i1 %45, label %bound_overflow.i, label %46
+42:                                               ; preds = %27
+  %43 = bitcast i8* %33 to i8**
+  store i8* %32, i8** %43, align 8, !tbaa !2
+  %44 = call i8* @__sea_recover_pointer_hm(i8* %17) #5
+  call void @sea_dsa_alias(i8* %17, i8* %44) #5
+  %45 = getelementptr inbounds i8, i8* %44, i64 8
+  %46 = call i8* @__sea_copy_extptr_slots_hm(i8* nonnull %45, i8* %17) #5
+  call void @sea_dsa_alias(i8* nonnull %45, i8* %46) #5
+  %47 = call i8* @__sea_recover_pointer_hm(i8* %46) #5
+  call void @sea_dsa_alias(i8* %46, i8* %47) #5
+  %48 = call i64 @__sea_get_extptr_slot0_hm(i8* %46) #5
+  %49 = call i64 @__sea_get_extptr_slot1_hm(i8* %46) #5
+  %50 = ptrtoint i8* %47 to i64
+  %51 = icmp ugt i64 %48, %50
+  %52 = add i64 %50, 8
+  %53 = add i64 %48, %49
+  %54 = icmp ult i64 %53, %52
+  %55 = or i1 %51, %54
+  br i1 %55, label %bound_overflow.i, label %56
 
-; <label>:46:                                     ; preds = %34
-  %47 = bitcast i8* %39 to i8**
-  call void @shadow.mem.load(i32 20, i32 %sm10, i8* null), !shadow.mem !4, !shadow.mem.use !6
-  %48 = load i8*, i8** %47, align 8, !tbaa !7
-  %raw_ptr6.i = getelementptr inbounds i8, i8* %9, i64 8
-  %49 = call i8* @__sea_copy_extptr_slots_hm(i8* %raw_ptr6.i, i8* %9) #3
-  call void @sea_dsa_alias(i8* %49, i8* %raw_ptr6.i)
-  %50 = call i64 @__sea_get_extptr_slot0_hm(i8* %49) #3
-  %51 = call i64 @__sea_get_extptr_slot1_hm(i8* %49) #3
-  %52 = call i8* @__sea_recover_pointer_hm(i8* %49) #3
-  call void @sea_dsa_alias(i8* %52, i8* %49)
-  %53 = ptrtoint i8* %52 to i64
-  %54 = icmp ugt i64 %50, %53
-  %55 = add i64 %53, 8
-  %56 = add i64 %50, %51
-  %57 = icmp ult i64 %56, %55
-  %58 = or i1 %54, %57
-  br i1 %58, label %bound_overflow.i, label %59
+56:                                               ; preds = %42
+  %57 = bitcast i8* %47 to i64*
+  store i64 6, i64* %57, align 8, !tbaa !8
+  %58 = call i8* @__sea_recover_pointer_hm(i8* %17) #5
+  call void @sea_dsa_alias(i8* %17, i8* %58) #5
+  %59 = call i8* @__sea_copy_extptr_slots_hm(i8* %58, i8* %17) #5
+  call void @sea_dsa_alias(i8* %58, i8* %59) #5
+  %60 = call i8* @__sea_recover_pointer_hm(i8* %59) #5
+  call void @sea_dsa_alias(i8* %59, i8* %60) #5
+  %61 = call i64 @__sea_get_extptr_slot0_hm(i8* %59) #5
+  %62 = call i64 @__sea_get_extptr_slot1_hm(i8* %59) #5
+  %63 = ptrtoint i8* %60 to i64
+  %64 = icmp ugt i64 %61, %63
+  %65 = add i64 %63, 8
+  %66 = add i64 %61, %62
+  %67 = icmp ult i64 %66, %65
+  %68 = or i1 %64, %67
+  br i1 %68, label %bound_overflow.i, label %69
 
-; <label>:59:                                     ; preds = %46
-  %60 = bitcast i8* %52 to i64*
-  call void @shadow.mem.load(i32 28, i32 %sm11, i8* null), !shadow.mem !4, !shadow.mem.use !6
-  %61 = load i64, i64* %60, align 8, !tbaa !13
-  %raw_ptr7.i = getelementptr inbounds i8, i8* %48, i64 %61
-  %62 = call i8* @__sea_copy_extptr_slots_hm(i8* %raw_ptr7.i, i8* %48) #3
-  call void @sea_dsa_alias(i8* %62, i8* %raw_ptr7.i)
-  %63 = call i64 @__sea_get_extptr_slot0_hm(i8* %62) #3
-  %64 = call i64 @__sea_get_extptr_slot1_hm(i8* %62) #3
-  %65 = call i8* @__sea_recover_pointer_hm(i8* %62) #3
-  call void @sea_dsa_alias(i8* %65, i8* %62)
-  %66 = ptrtoint i8* %65 to i64
-  %67 = icmp ugt i64 %63, %66
-  %68 = add i64 %66, 1
-  %69 = add i64 %63, %64
-  %70 = icmp ult i64 %69, %68
-  %71 = or i1 %67, %70
-  call void @verifier.assume(i1 %71)
+69:                                               ; preds = %56
+  %70 = bitcast i8* %60 to i8**
+  %71 = load i8*, i8** %70, align 8, !tbaa !2
+  %72 = call i8* @__sea_recover_pointer_hm(i8* %17) #5
+  call void @sea_dsa_alias(i8* %17, i8* %72) #5
+  %73 = getelementptr inbounds i8, i8* %72, i64 8
+  %74 = call i8* @__sea_copy_extptr_slots_hm(i8* nonnull %73, i8* %17) #5
+  call void @sea_dsa_alias(i8* nonnull %73, i8* %74) #5
+  %75 = call i8* @__sea_recover_pointer_hm(i8* %74) #5
+  call void @sea_dsa_alias(i8* %74, i8* %75) #5
+  %76 = call i64 @__sea_get_extptr_slot0_hm(i8* %74) #5
+  %77 = call i64 @__sea_get_extptr_slot1_hm(i8* %74) #5
+  %78 = ptrtoint i8* %75 to i64
+  %79 = icmp ugt i64 %76, %78
+  %80 = add i64 %78, 8
+  %81 = add i64 %76, %77
+  %82 = icmp ult i64 %81, %80
+  %83 = or i1 %79, %82
+  br i1 %83, label %bound_overflow.i, label %84
+
+84:                                               ; preds = %69
+  %85 = bitcast i8* %75 to i64*
+  %86 = load i64, i64* %85, align 8, !tbaa !8
+  %87 = call i8* @__sea_recover_pointer_hm(i8* %71) #5
+  call void @sea_dsa_alias(i8* %71, i8* %87) #5
+  %88 = getelementptr inbounds i8, i8* %87, i64 %86
+  %89 = call i8* @__sea_copy_extptr_slots_hm(i8* %88, i8* %71) #5
+  call void @sea_dsa_alias(i8* %88, i8* %89) #5
+  %90 = call i8* @__sea_recover_pointer_hm(i8* %89) #5
+  call void @sea_dsa_alias(i8* %89, i8* %90) #5
+  %91 = call i64 @__sea_get_extptr_slot0_hm(i8* %89) #5
+  %92 = call i64 @__sea_get_extptr_slot1_hm(i8* %89) #5
+  %93 = ptrtoint i8* %90 to i64
+  %94 = icmp ugt i64 %91, %93
+  %95 = add i64 %93, 1
+  %96 = add i64 %91, %92
+  %97 = icmp ult i64 %96, %95
+  %98 = or i1 %94, %97
+  call void @verifier.assume(i1 %98)
   br label %bound_overflow.i
 
-bound_overflow.i:                                 ; preds = %59, %46, %34, %22, %entry
+bound_overflow.i:                                 ; preds = %84, %69, %56, %42, %27, %entry
   br label %verifier.error
 
 verifier.error:                                   ; preds = %bound_overflow.i
   call void @seahorn.fail()
-  br label %verifier.error.split
-
-verifier.error.split:                             ; preds = %verifier.error
-  call void @shadow.mem.in(i32 0, i32 %sm4, i32 0, i8* null), !shadow.mem !4, !shadow.mem.def !4
   ret i32 42
 }
 
-declare void @shadow.mem.load(i32, i32, i8*)
+declare i1 @nondet.bool()
 
-declare void @shadow.mem.trsfr.load(i32, i32, i8*)
+attributes #0 = { nounwind uwtable "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "frame-pointer"="none" "less-precise-fpmad"="false" "min-legal-vector-width"="0" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="x86-64" "target-features"="+cx8,+fxsr,+mmx,+sse,+sse2,+x87" "unsafe-fp-math"="false" "use-soft-float"="false" }
+attributes #1 = { argmemonly nounwind willreturn }
+attributes #2 = { nounwind writeonly }
+attributes #3 = { inaccessiblememonly nofree norecurse nounwind }
+attributes #4 = { inaccessiblememonly nofree norecurse noreturn nounwind }
+attributes #5 = { nounwind }
 
-declare i32 @shadow.mem.store(i32, i32, i8*)
+!llvm.module.flags = !{!0}
+!llvm.ident = !{!1}
 
-declare i32 @shadow.mem.global.init(i32, i32, i8*)
-
-declare i32 @shadow.mem.init(i32, i8*)
-
-declare i32 @shadow.mem.arg.init(i32, i8*)
-
-declare void @shadow.mem.arg.ref(i32, i32, i32, i8*)
-
-declare i32 @shadow.mem.arg.mod(i32, i32, i32, i8*)
-
-declare i32 @shadow.mem.arg.new(i32, i32, i32, i8*)
-
-declare void @shadow.mem.in(i32, i32, i32, i8*)
-
-declare void @shadow.mem.out(i32, i32, i32, i8*)
-
-declare void @sea_dsa_alias(i8*, i8*)
-
-attributes #0 = { argmemonly nounwind }
-attributes #1 = { noreturn }
-attributes #2 = { nounwind uwtable "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "no-frame-pointer-elim"="false" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="x86-64" "target-features"="+fxsr,+mmx,+sse,+sse2,+x87" "unsafe-fp-math"="false" "use-soft-float"="false" }
-attributes #3 = { nounwind }
-
-!llvm.module.flags = !{!2}
-!llvm.ident = !{!3}
-
-!0 = !{i64 6}
-!1 = !{i64 96}
-!2 = !{i32 1, !"wchar_size", i32 4}
-!3 = !{!"clang version 6.0.0-1ubuntu2 (tags/RELEASE_600/final)"}
-!4 = !{}
-!5 = !{i64 16}
-!6 = !{i64 8}
-!7 = !{!8, !9, i64 0}
-!8 = !{!"bounded_array", !9, i64 0, !12, i64 8}
-!9 = !{!"any pointer", !10, i64 0}
-!10 = !{!"omnipotent char", !11, i64 0}
-!11 = !{!"Simple C/C++ TBAA"}
-!12 = !{!"long", !10, i64 0}
-!13 = !{!8, !12, i64 8}
+!0 = !{i32 1, !"wchar_size", i32 4}
+!1 = !{!"clang version 10.0.1-++20200507062652+bab8d1790a3-1~exp1~20200507163249.158 "}
+!2 = !{!3, !4, i64 0}
+!3 = !{!"bounded_array", !4, i64 0, !7, i64 8}
+!4 = !{!"any pointer", !5, i64 0}
+!5 = !{!"omnipotent char", !6, i64 0}
+!6 = !{!"Simple C/C++ TBAA"}
+!7 = !{!"long", !5, i64 0}
+!8 = !{!3, !7, i64 8}
+!9 = !{!5, !5, i64 0}

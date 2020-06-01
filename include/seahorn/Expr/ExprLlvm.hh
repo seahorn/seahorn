@@ -12,6 +12,7 @@
 #include "llvm/Support/raw_ostream.h"
 
 #include <boost/lexical_cast.hpp>
+#include <seadsa/SeaMemorySSA.hh>
 
 namespace expr {
 using namespace llvm;
@@ -72,6 +73,33 @@ template <> struct TerminalTrait<const BasicBlock *> {
   static std::string name() {return "llvm::BasicBlock";}
 };
 
+template <> struct TerminalTrait<const seadsa::SeaMemoryAccess *> {
+  static inline void print(std::ostream &OS, const seadsa::SeaMemoryAccess *s,
+                           int depth, bool brkt) {
+    assert(!isa<seadsa::SeaMemoryUse>(s));
+    // to print: func_name + "@" + sea_mem_access_id
+    OS << s->getBlock()->getParent()->getName().str() << "@"
+       << "M_" << s->getID();
+  }
+
+  static inline bool less(const seadsa::SeaMemoryAccess *s1,
+                          const seadsa::SeaMemoryAccess *s2) {
+    return s1 < s2;
+  }
+
+  static inline bool equal_to(const seadsa::SeaMemoryAccess *b1,
+                              const seadsa::SeaMemoryAccess *b2) {
+    return b1 == b2;
+  }
+
+  static inline size_t hash(const seadsa::SeaMemoryAccess *b) {
+    boost::hash<const seadsa::SeaMemoryAccess *> hasher;
+    return hasher(b);
+  }
+
+  static TerminalKind getKind() { return TerminalKind::SEA_MEMORY_ACCESS; }
+  static std::string name() { return "seadsa::SeaMemoryAccess"; }
+};
 
 template <> struct TerminalTrait<const Value *> {
   static inline void print(std::ostream &OS, const Value *s, int depth,
@@ -123,6 +151,7 @@ template <> struct TerminalTrait<const Value *> {
 };
 
 using BB = expr::Terminal<const llvm::BasicBlock *>;
+using SMA = expr::Terminal<const seadsa::SeaMemoryAccess *>;
 using VALUE = expr::Terminal<const llvm::Value *>;
 using FUNCTION = expr::Terminal<const llvm::Function *>;
 

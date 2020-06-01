@@ -9,6 +9,7 @@
 #include "llvm/Pass.h"
 
 #include <boost/container/flat_set.hpp>
+#include <seadsa/SeaMemorySSA.hh>
 
 namespace llvm {
 class GetElementPtrInst;
@@ -29,16 +30,17 @@ Bv2OpSemContext &ctx(OpSemContext &_ctx);
    Memory is modelled by arrays.
  */
 class Bv2OpSem : public OperationalSemantics {
-  Pass &m_pass;
+  const Pass &m_pass;
   TrackLevel m_trackLvl;
 
   const DataLayout *m_td;
   const TargetLibraryInfoWrapperPass *m_tliWrapper;
   const CanFail *m_canFail;
+  const seadsa::SeaMemorySSA *m_SMSSA;
 
 public:
-  Bv2OpSem(ExprFactory &efac, Pass &pass, const DataLayout &dl,
-           TrackLevel trackLvl = MEM);
+  Bv2OpSem(ExprFactory &efac, const Pass &pass, seadsa::SeaMemorySSA *smssa,
+           const DataLayout &dl, TrackLevel trackLvl = MEM);
 
   Bv2OpSem(const Bv2OpSem &o);
 
@@ -46,7 +48,12 @@ public:
     assert(m_td);
     return *m_td;
   }
-  const DataLayout& getDataLayout() {return getTD();}
+  const DataLayout &getDataLayout() { return getTD(); }
+
+  const seadsa::SeaMemorySSA &getSeaMemSSA() {
+    assert(m_SMSSA);
+    return *m_SMSSA;
+  };
 
   /// \brief Creates a new context
   OpSemContextPtr mkContext(SymStore &values, ExprVector &side) override;

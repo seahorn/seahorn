@@ -188,18 +188,16 @@ static Expr mkEqCore(Expr m1, Expr lks1, Expr m2, Expr lks2,
   if ((is_var_m2 = bind::isFiniteMapConst(m2)) == false)
     m2 = mkFMapPrimitiveArgCore(m2, fmei);
 
-  ExprSet &evars = fmei.m_vars;
-
   for (auto k : keys) {
     if (is_var_m1) {
       e_m1 = mkVarGet(m1, k, vTy);
-      evars.insert(e_m1);
+      fmei.m_vars.insert(e_m1);
     } else
       e_m1 = finite_map::mkGetVal(m1, lks1, k);
 
     if (is_var_m2) {
       e_m2 = mkVarGet(m2, k, vTy);
-      evars.insert(e_m2);
+      fmei.m_vars.insert(e_m2);
     } else
       e_m2 = finite_map::mkGetVal(m2, lks2, k);
     conj.push_back(mk<EQ>(e_m1, e_m2));

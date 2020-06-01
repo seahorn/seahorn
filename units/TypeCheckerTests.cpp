@@ -40,11 +40,11 @@ Expr bvConst(const std::string &n, ExprFactory &efac, unsigned width) {
   return bv::bvConst(mkTerm<std::string>(n, efac), width);
 }
 
-void checkNotWellFormed(Expr e[], Expr error[], int size) {
+void checkNotWellFormed(std::vector<Expr> e, std::vector<Expr> error) {
   Expr errorSort = sort::errorTy(e[0]->efac());
   TypeChecker tc;
 
-  for (int i = 0; i < size; i++) {
+  for (int i = 0; i < e.size(); i++) {
     llvm::errs() << "Expression: " << *e[i] << "\n";
     Expr ty = tc.typeOf(e[i]);
 
@@ -57,10 +57,10 @@ void checkNotWellFormed(Expr e[], Expr error[], int size) {
   }
 }
 
-void checkWellFormed(Expr e[], int size, Expr type) {
+void checkWellFormed(std::vector<Expr> e, Expr type) {
   TypeChecker tc;
 
-  for (int i = 0; i < size; i++) {
+  for (int i = 0; i < e.size(); i++) {
     llvm::errs() << "Expression: " << *e[i] << "\n";
     Expr ty = tc.typeOf(e[i]);
 
@@ -117,25 +117,32 @@ TEST_CASE("boolWellFormed.test") {
 
   Expr boolSort = sort::boolTy(efac);
 
-  int size = 5;
-  Expr e[size];
+  std::vector<Expr> e;
+  Expr temp;
 
-  // e[0] = (!x && y)|| (x || z)
-  e[0] = boolop::land(boolop::lneg(x), y);
-  e[0] = boolop::lor(e[0], boolop::lor(x, z));
+  // (!x && y)|| (x || z)
+  temp = boolop::land(boolop::lneg(x), y);
+  e.push_back(temp);
+  temp = boolop::lor(e[0], boolop::lor(x, z));
+  e.push_back(temp);
 
-  // e[1] = !(x -> y) && z
-  e[1] = boolop::lneg(boolop::limp(x, y));
-  e[1] = boolop::land(e[1], z);
+  //!(x -> y) && z
+  temp = boolop::lneg(boolop::limp(x, y));
+  e.push_back(temp);
+  temp = boolop::land(e[1], z);
+  e.push_back(temp);
 
-  // e[2] =  ((!x && y)|| (x || z)) <-> (!(x -> y) && z )
-  e[2] = mk<IFF>(e[0], e[1]);
+  // ((!x && y)|| (x || z)) <-> (!(x -> y) && z )
+  temp = mk<IFF>(e[0], e[1]);
+  e.push_back(temp);
 
-  e[3] = mk<ITE>(y, x, mk<XOR>(x, y));
+  temp = mk<ITE>(y, x, mk<XOR>(x, y));
+  e.push_back(temp);
 
-  e[4] = boolop::limp(mk<TRUE>(efac), mk<FALSE>(efac));
+  temp = boolop::limp(mk<TRUE>(efac), mk<FALSE>(efac));
+  e.push_back(temp);
 
-  checkWellFormed(e, size, boolSort);
+  checkWellFormed(e, boolSort);
 }
 TEST_CASE("notWellFormed.test") {
   seahorn::SeaEnableLog("tc");
@@ -149,23 +156,30 @@ TEST_CASE("notWellFormed.test") {
 
   Expr errorSort = sort::errorTy(efac);
 
-  int size = 3;
-  Expr e[size];
-  Expr error[size];
+  std::vector<Expr> e;
+  Expr temp;
+  std::vector<Expr> error;
+  Expr tempError;
 
   // yBool && (zBool && xInt)
-  error[0] = boolop::land(zBool, xInt);
-  e[0] = boolop::land(yBool, error[0]);
+  tempError = boolop::land(zBool, xInt);
+  error.push_back(tempError);
+  temp = boolop::land(yBool, error.back());
+  e.push_back(temp);
 
   // (yBool -> zBool) -> !xInt
-  error[1] = boolop::lneg(xInt);
-  e[1] = boolop::limp(boolop::limp(yBool, zBool), error[1]);
+  tempError = boolop::lneg(xInt);
+  error.push_back(tempError);
+  temp = boolop::limp(boolop::limp(yBool, zBool), error.back());
+  e.push_back(temp);
 
   // (zBool || xInt ) && (yBool -> zBool)
-  error[2] = boolop::lor(zBool, xInt);
-  e[2] = boolop::land(error[2], boolop::limp(yBool, zBool));
+  tempError = boolop::lor(zBool, xInt);
+  error.push_back(tempError);
+  temp = boolop::land(error.back(), boolop::limp(yBool, zBool));
+  e.push_back(temp);
 
-  checkNotWellFormed(e, error, size);
+  checkNotWellFormed(e, error);
 }
 
 TEST_CASE("intWellFormed.test") {
@@ -179,17 +193,18 @@ TEST_CASE("intWellFormed.test") {
 
   Expr intSort = sort::intTy(efac);
 
-  int size = 2;
-  Expr e[size];
+  std::vector<Expr> e;
   Expr temp;
 
-  e[0] = mk<PLUS>(x, y, z);
+  temp = mk<PLUS>(x, y, z);
+  e.push_back(temp);
 
-  e[1] = mk<PLUS>(mk<MINUS>(x, y), y, z);
+  temp = mk<PLUS>(mk<MINUS>(x, y), y, z);
+  e.push_back(temp);
 
   TypeChecker tc;
 
-  checkWellFormed(e, size, intSort);
+  checkWellFormed(e, intSort);
 }
 
 TEST_CASE("realWellFormed.test") {
@@ -206,16 +221,18 @@ TEST_CASE("realWellFormed.test") {
 
   TypeChecker tc;
 
-  int size = 2;
-  Expr e[size];
+  std::vector<Expr> e;
+  Expr temp;
 
-  // e[0] = (aReal / bReal) * aReal * (aReal - bReal)
-  e[0] = mk<MULT>(mk<DIV>(aReal, bReal), aReal, mk<UN_MINUS>(aReal, bReal));
+  //(aReal / bReal) * aReal * (aReal - bReal)
+  temp = mk<MULT>(mk<DIV>(aReal, bReal), aReal, mk<UN_MINUS>(aReal, bReal));
+  e.push_back(temp);
 
-  // e[1] = abs ((aReal / bReal) * aReal * (aReal - bReal)) % cReal
-  e[1] = mk<REM>(mk<ABS>(e[0]), aReal);
+  // abs ((aReal / bReal) * aReal * (aReal - bReal)) % cReal
+  temp = mk<REM>(mk<ABS>(e[0]), aReal);
+  e.push_back(temp);
 
-  checkWellFormed(e, size, realSort);
+  checkWellFormed(e, realSort);
 }
 
 TEST_CASE("unintWellFormed.test") {
@@ -232,18 +249,19 @@ TEST_CASE("unintWellFormed.test") {
 
   TypeChecker tc;
 
-  int size = 2;
-  Expr e[size];
+  std::vector<Expr> e;
+  Expr temp;
 
-  // e[0] = aUnint mod (bUnint / cUnint)
-  e[0] = mk<MOD>(aUnint, mk<IDIV>(bUnint, cUnint));
+  // aUnint mod (bUnint / cUnint)
+  temp = mk<MOD>(aUnint, mk<IDIV>(bUnint, cUnint));
+  e.push_back(temp);
 
-  // e[1] =  aUnint - (aUnint * cUnint) - (aUnint * cUnint)
-  e[1] =
-      mk<UN_MINUS>(aUnint, mk<MULT>(aUnint, cUnint), mk<MULT>(aUnint,
-      cUnint));
+  //  aUnint - (aUnint * cUnint) - (aUnint * cUnint)
+  temp =
+      mk<UN_MINUS>(aUnint, mk<MULT>(aUnint, cUnint), mk<MULT>(aUnint, cUnint));
+  e.push_back(temp);
 
-  checkWellFormed(e, size, unintSort);
+  checkWellFormed(e, unintSort);
 }
 
 TEST_CASE("numNotWellFormed.test") {
@@ -258,20 +276,27 @@ TEST_CASE("numNotWellFormed.test") {
   Expr dUnint = unintConst("dUnint", efac);
   Expr eBool = boolConst("eBool", efac);
 
-  int size = 3;
-  Expr e[size];
-  Expr error[size];
+  std::vector<Expr> e;
+  Expr temp;
+  std::vector<Expr> error;
+  Expr tempError;
 
-  e[0] = mk<ABS>(eBool);
-  error[0] = e[0];
+  temp = mk<ABS>(eBool);
+  e.push_back(temp);
+  tempError = e.back();
+  error.push_back(tempError);
 
-  e[1] = mk<ABS>(aInt, bInt);
-  error[1] = e[1];
+  temp = mk<ABS>(aInt, bInt);
+  e.push_back(temp);
+  tempError = e.back();
+  error.push_back(tempError);
 
-  e[2] = mk<DIV>(dUnint, mk<PLUS>(cReal, cReal), mk<MULT>(dUnint, dUnint));
-  error[2] = e[2];
+  temp = mk<DIV>(dUnint, mk<PLUS>(cReal, cReal), mk<MULT>(dUnint, dUnint));
+  e.push_back(temp);
+  tempError = e.back();
+  error.push_back(tempError);
 
-  checkNotWellFormed(e, error, size);
+  checkNotWellFormed(e, error);
 }
 TEST_CASE("compareWellFormed.test") {
   seahorn::SeaEnableLog("tc");
@@ -290,22 +315,26 @@ TEST_CASE("compareWellFormed.test") {
 
   Expr boolSort = sort::boolTy(efac);
 
-  int size = 4;
-  Expr e[size];
+  std::vector<Expr> e;
+  Expr temp;
 
   // (xBool && yBool && !xBool)= yBool
-  e[0] = mk<EQ>(mk<AND>(xBool, yBool, mk<NEG>(xBool)), yBool);
+  temp = mk<EQ>(mk<AND>(xBool, yBool, mk<NEG>(xBool)), yBool);
+  e.push_back(temp);
 
   // ((xInt-yInt)+ yInt) <= abs(zInt)
-  e[1] = mk<LEQ>(mk<PLUS>(mk<MINUS>(xInt, yInt), yInt), mk<ABS>(zInt));
+  temp = mk<LEQ>(mk<PLUS>(mk<MINUS>(xInt, yInt), yInt), mk<ABS>(zInt));
+  e.push_back(temp);
 
   // (xReal >= yReal) != xBool
-  e[2] = mk<NEQ>(mk<GEQ>(xReal, yReal), xBool);
+  temp = mk<NEQ>(mk<GEQ>(xReal, yReal), xBool);
+  e.push_back(temp);
 
   //  (xReal mod yReal ) < xRreal
-  e[3] = mk<LT>(mk<MOD>(xReal, yReal), xReal);
+  temp = mk<LT>(mk<MOD>(xReal, yReal), xReal);
+  e.push_back(temp);
 
-  checkWellFormed(e, size, boolSort);
+  checkWellFormed(e, boolSort);
 }
 TEST_CASE("compareNotWellFormed.test") {
   seahorn::SeaEnableLog("tc");
@@ -322,251 +351,333 @@ TEST_CASE("compareNotWellFormed.test") {
   Expr xBool = boolConst("xBool", efac);
   Expr yBool = boolConst("yBool", efac);
 
-  int size = 4;
-  Expr e[size];
-  Expr error[size];
+  std::vector<Expr> e;
+  Expr temp;
+  std::vector<Expr> error;
+  Expr tempError;
 
-  error[0] = mk<LT>(xBool, yBool);
+  tempError = mk<LT>(xBool, yBool);
+  error.push_back(tempError);
 
   // xBool && (xBool < yBool )
-  e[0] = mk<AND>(xBool, error[0]);
+  temp = mk<AND>(xBool, error.back());
+  e.push_back(temp);
 
-  error[1] = mk<GEQ>(xReal, xReal, yReal);
+  tempError = mk<GEQ>(xReal, xReal, yReal);
+  error.push_back(tempError);
 
   // yBool != [>=(xReal, xReal, yReal)]
-  e[1] = mk<NEQ>(yBool, error[1]);
+  temp = mk<NEQ>(yBool, error.back());
+  e.push_back(temp);
 
-  error[2] = mk<EQ>(xReal, xInt);
+  tempError = mk<EQ>(xReal, xInt);
+  error.push_back(tempError);
 
   // ((xReal == xInt) > xReal )|| yBool
-  e[2] = mk<OR>(mk<GT>(error[2], xReal), yBool);
+  temp = mk<OR>(mk<GT>(error.back(), xReal), yBool);
+  e.push_back(temp);
 
-  error[3] = mk<EQ>(mk<IMPL>(xBool, yBool), xReal);
+  tempError = mk<EQ>(mk<IMPL>(xBool, yBool), xReal);
+  error.push_back(tempError);
 
   // (xBool -> yBool ) == xReal
-  e[3] = error[3];
+  temp = error.back();
+  e.push_back(temp);
 
-  checkNotWellFormed(e, error, size);
+  checkNotWellFormed(e, error);
 }
 TEST_CASE("bvWellFormed.test") {
   seahorn::SeaEnableLog("tc");
   // -- manages expressions
   ExprFactory efac;
 
-Expr aInt = intConst ("aInt", efac);
+  Expr aInt = intConst("aInt", efac);
 
-Expr bvSort = bv::bvsort(10, efac);
-Expr bvSort5 = bv::bvsort(5, efac);
+  Expr bvSort = bv::bvsort(10, efac);
+  Expr bvSort5 = bv::bvsort(5, efac);
 
-Expr a10 = bvConst ("a10", efac, 10);
-Expr b10 = bvConst ("b10", efac, 10);
-Expr c10 = bvConst ("c10", efac, 10);
-// Expr d10 = bv::bvnum(aInt, bvSort); //TODO
+  Expr a10 = bvConst("a10", efac, 10);
+  Expr b10 = bvConst("b10", efac, 10);
+  Expr c10 = bvConst("c10", efac, 10);
+  // Expr d10 = bv::bvnum(aInt, bvSort); //TODO
 
-Expr a5 = bvConst ("a5", efac, 5);
-Expr b5 = bvConst ("b5", efac, 5);
-Expr c5 = bvConst ("c5", efac, 5);
+  Expr a5 = bvConst("a5", efac, 5);
+  Expr b5 = bvConst("b5", efac, 5);
+  Expr c5 = bvConst("c5", efac, 5);
 
-int size = 12;
-  Expr e[size];
+  std::vector<Expr> e;
+  Expr temp;
 
-  e[0] = mk<BNOT>(mk<BOR>(a10,b10));
+  temp = mk<BNOT>(mk<BOR>(a10, b10));
+  e.push_back(temp);
 
-  e[1] = mk <BAND>(mk<BREDAND>(a10), b10);
+  temp = mk<BAND>(mk<BREDAND>(a10), b10);
+  e.push_back(temp);
 
-  e[2] = mk <BREDOR>(mk<BXNOR> (mk<BNEG>(a10), mk<BOR>(b10,c10)));
+  temp = mk<BREDOR>(mk<BXNOR>(mk<BNEG>(a10), mk<BOR>(b10, c10)));
+  e.push_back(temp);
 
-  e[3] = mk <BSUB>(mk<BCONCAT>(a5, b5), a10);
+  temp = mk<BSUB>(mk<BCONCAT>(a5, b5), a10);
+  e.push_back(temp);
 
-  e[4] = mk <BADD>(mk<BNAND>(a10, b10), mk<BSHL>(c10, c10));
+  temp = mk<BADD>(mk<BNAND>(a10, b10), mk<BSHL>(c10, c10));
+  e.push_back(temp);
 
-  e[5] = mk<BSHL> (bv::sext(a5, 5), a10);
+  temp = mk<BSHL>(bv::sext(a5, 5), a10);
+  e.push_back(temp);
 
-  e[6] = bv::extract (12, 3, mk<BCONCAT>(a10, b5));
+  temp = bv::extract(12, 3, mk<BCONCAT>(a10, b5));
+  e.push_back(temp);
 
-  e[7] = bv::zext(bv::extract (5, 1, b10), 5);
+  temp = bv::zext(bv::extract(5, 1, b10), 5);
+  e.push_back(temp);
 
-  e[8] = mk<BROTATE_LEFT> (mkTerm<unsigned>(5, efac), a10);
+  temp = mk<BROTATE_LEFT>(mkTerm<unsigned>(5, efac), a10);
+  e.push_back(temp);
 
-  e[9] = mk<BREPEAT> (mkTerm<unsigned> (1, efac), mk<BROTATE_RIGHT> (mkTerm<unsigned>(2, efac), b10));
+  temp = mk<BREPEAT>(mkTerm<unsigned>(1, efac),
+                     mk<BROTATE_RIGHT>(mkTerm<unsigned>(2, efac), b10));
+  e.push_back(temp);
 
-  e[10] = mk<BUGE> (e[9], mk<BEXT_ROTATE_RIGHT> (mkTerm<unsigned>(2, efac), e[8]));
+  temp = mk<BUGE>(e.back(),
+                  mk<BEXT_ROTATE_RIGHT>(mkTerm<unsigned>(2, efac), e.back()));
+  e.push_back(temp);
 
-  e[11] = mk<INT2BV>(mkTerm<unsigned>(10, efac), aInt);
+  temp = mk<INT2BV>(mkTerm<unsigned>(10, efac), aInt);
+  e.push_back(temp);
 
-  checkWellFormed(e, size, bvSort);
-
+  checkWellFormed(e, bvSort);
 }
 TEST_CASE("bvNotWellFormed.test") {
   seahorn::SeaEnableLog("tc");
   // -- manages expressions
   ExprFactory efac;
 
-Expr aInt = intConst("aInt", efac);
-Expr aUnint = unintConst("aUnint", efac);
-Expr aReal = realConst("aReal", efac);
+  Expr aInt = intConst("aInt", efac);
+  Expr aUnint = unintConst("aUnint", efac);
+  Expr aReal = realConst("aReal", efac);
 
-Expr bvSort = bv::bvsort(10, efac);
-Expr bvSort5 = bv::bvsort(5, efac);
-Expr bvSort3 = bv::bvsort(3, efac);
+  Expr bvSort = bv::bvsort(10, efac);
+  Expr bvSort5 = bv::bvsort(5, efac);
+  Expr bvSort3 = bv::bvsort(3, efac);
 
-Expr a10 = bvConst ("a10", efac, 10);
-Expr b10 = bvConst ("b10", efac, 10);
-Expr c10 = bvConst ("c10", efac, 10);
+  Expr a10 = bvConst("a10", efac, 10);
+  Expr b10 = bvConst("b10", efac, 10);
+  Expr c10 = bvConst("c10", efac, 10);
 
-Expr a7 = bvConst ("a7", efac, 7);
+  Expr a7 = bvConst("a7", efac, 7);
 
-Expr a5 = bvConst ("a5", efac, 5);
-Expr b5 = bvConst ("b5", efac, 5);
-Expr c5 = bvConst ("c5", efac, 5);
+  Expr a5 = bvConst("a5", efac, 5);
+  Expr b5 = bvConst("b5", efac, 5);
+  Expr c5 = bvConst("c5", efac, 5);
 
-int size = 19;
-Expr e[size];
-Expr error[size];
+  std::vector<Expr> e;
+  Expr temp;
+  std::vector<Expr> error;
+  Expr tempError;
 
-error[0] = mk<BNOT> (a10, a10); //too many arguments: Unary
-e[0] = error[0];
+  tempError = mk<BNOT>(a10, a10); // too many arguments: Unary
+  error.push_back(tempError);
+  temp = error.back();
+  e.push_back(temp);
 
-error [1] = mk <BREDAND>(aInt); // wrong type of argument Unary
-e[1] = mk<BMUL>(mk<BSLE>(error[1], a10), b10);
+  tempError = mk<BREDAND>(aInt); // wrong type of argument Unary
+  error.push_back(tempError);
+  temp = mk<BMUL>(mk<BSLE>(error.back(), a10), b10);
+  e.push_back(temp);
 
-error [2] = mk <BSDIV> (a10); // not enough arguments Nary
-e[2] = mk<BSGT>(error[2], a10);
+  tempError = mk<BSDIV>(a10); // not enough arguments Nary
+  error.push_back(tempError);
+  temp = mk<BSGT>(error.back(), a10);
+  e.push_back(temp);
 
-error [3] = mk <BSGT> (a10, aUnint); // wrong type of argument: Nary
-e[3] = mk<BSHL>(b10, error[3]);
+  tempError = mk<BSGT>(a10, aUnint); // wrong type of argument: Nary
+  error.push_back(tempError);
+  temp = mk<BSHL>(b10, error.back());
+  e.push_back(temp);
 
-error [4] =  mk <BASHR>(a5);//not enough arguments : binary
-e[4] = error[4];
+  tempError = mk<BASHR>(a5); // not enough arguments : binary
+  error.push_back(tempError);
+  temp = error.back();
+  e.push_back(temp);
 
-error [5] = mk <BSHL>(a10, b10, c10); //too many arguments : binary
-e[5] = mk<BNAND>(a10, mk<BREDOR>(error[5]));
+  tempError = mk<BSHL>(a10, b10, c10); // too many arguments : binary
+  error.push_back(tempError);
+  temp = mk<BNAND>(a10, mk<BREDOR>(error.back()));
+  e.push_back(temp);
 
-error [6] =  mk<BCONCAT>(a7);//not enough arguments : concat
-e[6] = error[6];//mk<BCONCAT>(error[6], a3);
+  tempError = mk<BCONCAT>(a7); // not enough arguments : concat
+  error.push_back(tempError);
+  temp = error.back(); // mk<BCONCAT>(error[6], a3);
+  e.push_back(temp);
 
-error [7] = mk <BCONCAT>(a5, aReal);//wrong type of arugment
-e[7] = mk<BNOT>(error[7]);
+  tempError = mk<BCONCAT>(a5, aReal); // wrong type of arugment
+  error.push_back(tempError);
+  temp = mk<BNOT>(error.back());
+  e.push_back(temp);
 
-error[8] = mk<BUGT>(a10, mk<BCONCAT>(a5, a10)); //widths do not match
-e[8] = error[8];
+  tempError = mk<BUGT>(a10, mk<BCONCAT>(a5, a10)); // widths do not match
+  error.push_back(tempError);
+  temp = error.back();
+  e.push_back(temp);
 
-error[9] = mk<BSEXT>(a10, b10); // should be {bv, bvsort}
-e[9] = mk<BCONCAT>(error[9], a5);
+  tempError = mk<BSEXT>(a10, b10); // should be {bv, bvsort}
+  error.push_back(tempError);
+  temp = mk<BCONCAT>(error.back(), a5);
+  e.push_back(temp);
 
-error[10] = mk<BSEXT>(a10, bvSort, b10);
-e[10] = error[10];
+  tempError = mk<BSEXT>(a10, bvSort, b10);
+  error.push_back(tempError);
+  temp = error.back();
+  e.push_back(temp);
 
-error[11] = bv::extract(5, 9, a10); // high is lower than low
-e[11] = mk <BUREM>(mk<BNEG>(a5), b5, error[11]);
+  tempError = bv::extract(5, 9, a10); // high is lower than low
+  error.push_back(tempError);
+  temp = mk<BUREM>(mk<BNEG>(a5), b5, error.back());
+  e.push_back(temp);
 
-error [12] = bv::extract (6, 4, c5); // high is higher than width
-e[12] = error[12];
+  tempError = bv::extract(6, 4, c5); // high is higher than width
+  error.push_back(tempError);
+  temp = error.back();
+  e.push_back(temp);
 
-std::vector<Expr> args;
-args.push_back(mkTerm<unsigned>(9, efac));
-args.push_back(mkTerm<unsigned>(8,efac));
-args.push_back(mkTerm<unsigned>(0, efac));
-args.push_back(a10);
-error [13] = mknary <BEXTRACT> (args.rbegin(), args.rend()); // too many arguemtns
-e[13] = bv::sext(error[13], 8);
+  std::vector<Expr> args;
+  args.push_back(mkTerm<unsigned>(9, efac));
+  args.push_back(mkTerm<unsigned>(8, efac));
+  args.push_back(mkTerm<unsigned>(0, efac));
+  args.push_back(a10);
+  tempError =
+      mknary<BEXTRACT>(args.rbegin(), args.rend()); // too many arguemtns
+  error.push_back(tempError);
+  temp = bv::sext(error.back(), 8);
+  e.push_back(temp);
 
-error [14] = mk <BEXTRACT>(mkTerm<std::string>("5", efac), mkTerm<unsigned>(1, efac), a10); //wrong type of argument
-e[14] = error[14];
+  tempError =
+      mk<BEXTRACT>(mkTerm<std::string>("5", efac), mkTerm<unsigned>(1, efac),
+                   a10); // wrong type of argument
+  error.push_back(tempError);
+  temp = error.back();
+  e.push_back(temp);
 
-error [15] = bv::extract(3,1, aInt); //wrong type of argument
-e[15] =mk<BXNOR>(mk<BCONCAT>(a7, error[15]), b10);
+  tempError = bv::extract(3, 1, aInt); // wrong type of argument
+  error.push_back(tempError);
+  temp = mk<BXNOR>(mk<BCONCAT>(a7, error.back()), b10);
+  e.push_back(temp);
 
-error [16] = mk<BROTATE_LEFT>(mkTerm<unsigned>(11, efac));//not enough arguments
-e[16] = mk <BXOR>(mk<BNOT>(error[16]), error[16]);
+  tempError =
+      mk<BROTATE_LEFT>(mkTerm<unsigned>(11, efac)); // not enough arguments
+  error.push_back(tempError);
+  temp = mk<BXOR>(mk<BNOT>(error.back()), error.back());
+  e.push_back(temp);
 
-Expr uintA = mkTerm<unsigned>(5, efac);
-Expr uintB = mkTerm<unsigned>(7, efac);
-error [17] = mk<BSHL> (mk<BREPEAT>(uintA, a5), mk<BEXT_ROTATE_RIGHT>(uintB, a7)); // mismatching widths
-e[17] = error[17];
+  Expr uintA = mkTerm<unsigned>(5, efac);
+  Expr uintB = mkTerm<unsigned>(7, efac);
+  tempError = mk<BSHL>(mk<BREPEAT>(uintA, a5),
+                       mk<BEXT_ROTATE_RIGHT>(uintB, a7)); // mismatching widths
+  error.push_back(tempError);
+  temp = error.back();
+  e.push_back(temp);
 
-error [18] = mk<BOR> (mk<INT2BV>(mkTerm<unsigned>(7, efac), aInt), b5); //mismatching widths
-e[18] = mk<BCONCAT>(error[18], error[18]);
+  tempError = mk<BOR>(mk<INT2BV>(mkTerm<unsigned>(7, efac), aInt),
+                      b5); // mismatching widths
+  error.push_back(tempError);
+  temp = mk<BCONCAT>(error.back(), error.back());
+  e.push_back(temp);
 
-checkNotWellFormed(e,error, size);
-
+  checkNotWellFormed(e, error);
 }
 TEST_CASE("bvDifReturnTypeWellFormed.test") {
   seahorn::SeaEnableLog("tc");
   // -- manages expressions
   ExprFactory efac;
 
-Expr bvSort = bv::bvsort(10, efac);
-Expr boolSort = sort::boolTy(efac);
-Expr intSort = sort::intTy(efac);
+  Expr bvSort = bv::bvsort(10, efac);
+  Expr boolSort = sort::boolTy(efac);
+  Expr intSort = sort::intTy(efac);
 
-Expr a10 = bvConst ("a10", efac, 10);
-Expr b10 = bvConst ("b10", efac, 10);
-Expr c10 = bvConst ("c10", efac, 10);
+  Expr a10 = bvConst("a10", efac, 10);
+  Expr b10 = bvConst("b10", efac, 10);
+  Expr c10 = bvConst("c10", efac, 10);
 
-Expr a8 = bvConst ("a8", efac, 8);
+  Expr a8 = bvConst("a8", efac, 8);
 
-Expr aBool = boolConst("aBool", efac);
-Expr aInt = intConst("aInt", efac);
+  Expr aBool = boolConst("aBool", efac);
+  Expr aInt = intConst("aInt", efac);
 
-int size = 4;
-Expr e [size];
+  Expr temp;
+  std::vector<Expr> e;
 
-e[0] = mk<SADD_NO_OVERFLOW>(a10, b10);
+  temp = mk<SADD_NO_OVERFLOW>(a10, b10);
+  e.push_back(temp);
 
-e[1] = mk <AND> (mk<UADD_NO_OVERFLOW>(a10, b10), aBool);
+  temp = mk<AND>(mk<UADD_NO_OVERFLOW>(a10, b10), aBool);
+  e.push_back(temp);
 
-e[2] = mk <SSUB_NO_UNDERFLOW>(a10, a10, mk<BASHR>(b10, c10));
+  temp = mk<SSUB_NO_UNDERFLOW>(a10, a10, mk<BASHR>(b10, c10));
+  e.push_back(temp);
 
-e[3] = mk<UMUL_NO_OVERFLOW>(bv::zext(a8, 2), mk<BSUB>(b10,c10));
+  temp = mk<UMUL_NO_OVERFLOW>(bv::zext(a8, 2), mk<BSUB>(b10, c10));
+  e.push_back(temp);
 
-checkWellFormed(e, size, boolSort);
+  checkWellFormed(e, boolSort);
 
-int size2 = 3;
-Expr e2 [size2];
+  int size2 = 3;
+  std::vector<Expr> e2;
 
-e2[0] = mk<BV2INT>(a10);
+  temp = mk<BV2INT>(a10);
+  e2.push_back(temp);
 
-e2[1] = mk<BV2INT>(mk <BSLE>(a10, b10));
+  temp = mk<BV2INT>(mk<BSLE>(a10, b10));
+  e2.push_back(temp);
 
-e2[2] = mk<PLUS>(mk<BV2INT>(mk <BUREM>(a10, b10)), aInt);
+  temp = mk<PLUS>(mk<BV2INT>(mk<BUREM>(a10, b10)), aInt);
+  e2.push_back(temp);
 
-checkWellFormed(e2, size2, intSort);
+  checkWellFormed(e2, intSort);
 }
 TEST_CASE("bvDifReturnTypeNotWellFormed.test") {
   seahorn::SeaEnableLog("tc");
   // -- manages expressions
   ExprFactory efac;
-Expr bvSort = bv::bvsort(10, efac);
-Expr boolSort = sort::boolTy(efac);
-Expr intSort = sort::intTy(efac);
+  Expr bvSort = bv::bvsort(10, efac);
+  Expr boolSort = sort::boolTy(efac);
+  Expr intSort = sort::intTy(efac);
 
-Expr aInt = intConst("aInt", efac);
-Expr bInt = intConst("bInt", efac);
+  Expr aInt = intConst("aInt", efac);
+  Expr bInt = intConst("bInt", efac);
 
-Expr a10 = bvConst ("a10", efac, 10);
-Expr b10 = bvConst ("b10", efac, 10);
-Expr c10 = bvConst ("c10", efac, 10);
+  Expr a10 = bvConst("a10", efac, 10);
+  Expr b10 = bvConst("b10", efac, 10);
+  Expr c10 = bvConst("c10", efac, 10);
 
-Expr a5 = bvConst ("a5", efac, 5);
+  Expr a5 = bvConst("a5", efac, 5);
 
-int size = 4;
-Expr e[size];
-Expr error[size];
+  std::vector<Expr> e;
+  Expr temp;
+  std::vector<Expr> error;
+  Expr tempError;
 
-error[0] = mk<SMUL_NO_OVERFLOW>(a5); //not enough arguments
-e[0] = mk<NEG>(error[0]);
+  tempError = mk<SMUL_NO_OVERFLOW>(a5); // not enough arguments
+  error.push_back(tempError);
+  temp = mk<NEG>(error.back());
+  e.push_back(temp);
 
-error[1] = mk <SMUL_NO_UNDERFLOW>(mk<BV2INT>(a10), aInt); //wrong type
-e[1] = error[1];
+  tempError = mk<SMUL_NO_UNDERFLOW>(mk<BV2INT>(a10), aInt); // wrong type
+  error.push_back(tempError);
+  temp = error.back();
+  e.push_back(temp);
 
-error [2] = mk<BV2INT>(c10, b10); //too many arguments
-e[2] = mk<NEQ>(error[2], mk<BV2INT>(a10));
+  tempError = mk<BV2INT>(c10, b10); // too many arguments
+  error.push_back(tempError);
+  temp = mk<NEQ>(error.back(), mk<BV2INT>(a10));
+  e.push_back(temp);
 
-error[3] = mk <BV2INT>(aInt); // wrong type
-e[3] = mk<REM>(mk<ABS>(error[3], bInt));
+  tempError = mk<BV2INT>(aInt); // wrong type
+  error.push_back(tempError);
+  temp = mk<REM>(mk<ABS>(error.back(), bInt));
+  e.push_back(temp);
 
-checkNotWellFormed(e, error, size);
+  checkNotWellFormed(e, error);
 }
 TEST_CASE("variantWellFormed.test") {
   seahorn::SeaEnableLog("tc");
@@ -577,23 +688,27 @@ TEST_CASE("variantWellFormed.test") {
   Expr aInt = intConst("aInt", efac);
   Expr bInt = intConst("bInt", efac);
 
-  Expr a10 = bvConst ("a10", efac, 10);
-  Expr b10 = bvConst ("b10", efac, 10);
-  Expr c10 = bvConst ("c10", efac, 10);
+  Expr a10 = bvConst("a10", efac, 10);
+  Expr b10 = bvConst("b10", efac, 10);
+  Expr c10 = bvConst("c10", efac, 10);
 
-  int size = 4;
-  Expr e[size];
+  std::vector<Expr> e;
+  Expr temp;
 
-  e[0] = variant::variant(0, aInt);
+  temp = variant::variant(0, aInt);
+  e.push_back(temp);
 
-  e[1] = mk <MULT>(aInt, variant::variant(1, aInt));
-  
-  e[2] = mk<BV2INT>(mk <BAND>(a10, variant::variant(3, mk<INT2BV>( mkTerm<unsigned>(10, efac) ,aInt))));
+  temp = mk<MULT>(aInt, variant::variant(1, aInt));
+  e.push_back(temp);
 
-  e[3] = mk <ABS>(variant::tag(aInt, a10));
+  temp = mk<BV2INT>(mk<BAND>(
+      a10, variant::variant(3, mk<INT2BV>(mkTerm<unsigned>(10, efac), aInt))));
+  e.push_back(temp);
 
-  checkWellFormed(e, size, intSort);
+  temp = mk<ABS>(variant::tag(aInt, a10));
+  e.push_back(temp);
 
+  checkWellFormed(e, intSort);
 }
 TEST_CASE("variantNotWellFormed.test") {
   seahorn::SeaEnableLog("tc");
@@ -609,23 +724,29 @@ TEST_CASE("variantNotWellFormed.test") {
 
   Expr aBool = boolConst("aBool", efac);
 
-  Expr a10 = bvConst ("a10", efac, 10);
-  Expr b10 = bvConst ("b10", efac, 10);
-  Expr c10 = bvConst ("c10", efac, 10);
+  Expr a10 = bvConst("a10", efac, 10);
+  Expr b10 = bvConst("b10", efac, 10);
+  Expr c10 = bvConst("c10", efac, 10);
 
-  int size = 3;
-  Expr e[size];
-  Expr error[size];
+  std::vector<Expr> e;
+  Expr temp;
+  std::vector<Expr> error;
+  Expr tempError;
 
-  error[0] = mk<VARIANT>(mkTerm<unsigned>(5, efac), aBool, aInt);
-  e[0] = mk<PLUS>(mk<ABS>(error[0]), mk<PLUS>(aInt, error[0]));
-  
-  error[1] = mk<SMUL_NO_OVERFLOW>(variant::variant(3, bInt), b10);
-  e [1] = mk<AND>(mk<GEQ>(aInt, bInt), error[1]);
+  tempError = mk<VARIANT>(mkTerm<unsigned>(5, efac), aBool, aInt);
+  error.push_back(tempError);
+  temp = mk<PLUS>(mk<ABS>(error.back()), mk<PLUS>(aInt, error.back()));
+  e.push_back(temp);
 
-  error[2] = mk <XOR>(variant::tag(aInt, "tag"), aBool);
-  e[2] = error[2];
+  tempError = mk<SMUL_NO_OVERFLOW>(variant::variant(3, bInt), b10);
+  error.push_back(tempError);
+  temp = mk<AND>(mk<GEQ>(aInt, bInt), error.back());
+  e.push_back(temp);
 
-  checkNotWellFormed(e, error, size);
+  tempError = mk<XOR>(variant::tag(aInt, "tag"), aBool);
+  error.push_back(tempError);
+  temp = error.back();
+  e.push_back(temp);
 
+  checkNotWellFormed(e, error);
 }

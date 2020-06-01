@@ -96,6 +96,16 @@ const Value *extractUniqueScalar(CallSite &cs) {
     return shadow_dsa::extractUniqueScalar(cs);
 }
 
+const Value *extractUniqueScalar(seadsa::SeaMemoryAccess &ma) {
+  auto &c = ma.getDsaCell();
+  const seadsa::Node *n = c.getNode();
+  if (n && c.getOffset() == 0) {
+    Value *v = const_cast<Value *>(n->getUniqueScalar());
+    return v;
+  }
+  return nullptr;
+}
+
 const Value *extractUniqueScalar(const CallInst *ci) {
   if (!EnableUniqueScalars2)
     return nullptr;
@@ -621,16 +631,14 @@ public:
       if (UseMemSSA) {
         seadsa::SeaMemoryAccess *ma =
             m_sem.getSeaMemSSA().getMemoryAccessForShadow(&inst);
-        if (auto *pMemUse = dyn_cast<seadsa::SeaMemoryUse>(ma)) {
-          auto *pDefAccess = pMemUse->getDefiningAccess();
-          Expr reg = m_ctx.mkRegister(*pDefAccess);
-          m_ctx.read(reg);
-          m_ctx.setMemReadRegister(reg);
-          m_ctx.setMemScalar(false /* TODO: Make this work */);
-        } else {
-          LOG("opsem", errs() << "Expected load but sea-dsa does not agree!\n");
-        }
-      } else {
+        assert(isa<seadsa::SeaMemoryUse>(ma));
+        auto *pMemUse = dyn_cast<seadsa::SeaMemoryUse>(ma);
+        auto *pDefAccess = pMemUse->getDefiningAccess();
+        Expr reg = m_ctx.mkRegister(*pDefAccess);
+        m_ctx.read(reg);
+        m_ctx.setMemReadRegister(reg);
+        m_ctx.setMemScalar(extractUniqueScalar(*ma) != nullptr);
+    } else {
         const Value &v = *CS.getArgument(1);
         Expr reg = m_ctx.mkRegister(v);
         m_ctx.read(reg);
@@ -644,16 +652,13 @@ public:
       if (UseMemSSA) {
         seadsa::SeaMemoryAccess *ma =
             m_sem.getSeaMemSSA().getMemoryAccessForShadow(&inst);
-        if (seadsa::SeaMemoryUse *pMemUse =
-                dyn_cast<seadsa::SeaMemoryUse>(ma)) {
-          auto *pDefAccess = pMemUse->getDefiningAccess();
-          Expr reg = m_ctx.mkRegister(*pDefAccess);
-          m_ctx.read(reg);
-          m_ctx.setMemTrsfrReadReg(reg);
-          m_ctx.setMemScalar(false /* TODO: Make this work */);
-        } else {
-          LOG("opsem", errs() << "Expected load but sea-dsa does not agree!\n");
-        }
+        assert(isa<seadsa::SeaMemoryUse>(ma));
+        auto *pMemUse = dyn_cast<seadsa::SeaMemoryUse>(ma);
+        auto *pDefAccess = pMemUse->getDefiningAccess();
+        Expr reg = m_ctx.mkRegister(*pDefAccess);
+        m_ctx.read(reg);
+        m_ctx.setMemTrsfrReadReg(reg);
+        m_ctx.setMemScalar(extractUniqueScalar(*ma) != nullptr);
       } else {
         const Value &v = *CS.getArgument(1);
         Expr reg = m_ctx.mkRegister(v);
@@ -672,19 +677,16 @@ public:
         seadsa::SeaMemoryAccess *ma =
             m_sem.getSeaMemSSA().getMemoryAccessForShadow(&inst);
         LOG("opsem", errs() << "NewDef access ID:" << ma->getID() << "\n");
-        if (seadsa::SeaMemoryDef *pMemDef =
-                dyn_cast<seadsa::SeaMemoryDef>(ma)) {
+        assert(isa<seadsa::SeaMemoryDef>(ma));
+        auto *pMemDef =
+                dyn_cast<seadsa::SeaMemoryDef>(ma);
           Expr memOut = m_ctx.mkRegister(*ma);
           auto *pDefAccess = pMemDef->getDefiningAccess();
           Expr memIn = m_ctx.mkRegister(*pDefAccess);
           m_ctx.read(memIn);
           m_ctx.setMemReadRegister(memIn);
           m_ctx.setMemWriteRegister(memOut);
-          m_ctx.setMemScalar(false /* TODO: Make this work */);
-        } else {
-          LOG("opsem", errs()
-                           << "Expected store but sea-dsa does not agree!\n");
-        }
+          m_ctx.setMemScalar(extractUniqueScalar(*ma) != nullptr);
       } else {
         Expr memOut = m_ctx.mkRegister(inst);
         Expr memIn = m_ctx.getRegister(*CS.getArgument(1));
@@ -779,31 +781,27 @@ public:
         seadsa::SeaMemoryAccess *ma =
             m_sem.getSeaMemSSA().getMemoryAccessForShadow(&inst);
         LOG("opsem", errs() << "NewDef access ID:" << ma->getID() << "\n");
-        if (seadsa::SeaMemoryDef *pMemDef =
-                dyn_cast<seadsa::SeaMemoryDef>(ma)) {
-          // TODO: is this setValue needed?
-          Expr memOut = m_ctx.mkRegister(*ma);
-          auto *pDefAccess = pMemDef->getDefiningAccess();
-          Expr memIn = m_ctx.getRegister(*pMemDef);
-          m_ctx.read(memIn);
-          setValue(*ma, lookup(*pMemDef));
+        assert(isa<seadsa::SeaMemoryDef>(ma));
+        auto *pMemDef = dyn_cast<seadsa::SeaMemoryDef>(ma);
+        Expr memOut = m_ctx.mkRegister(*ma);
+        auto *pDefAccess = pMemDef->getDefiningAccess();
+        Expr memIn = m_ctx.getRegister(*pMemDef);
+        m_ctx.read(memIn);
+        // TODO: is this setValue needed?
+        setValue(*ma, lookup(*pMemDef));
 
-          m_ctx.setMemReadRegister(memIn);
-          m_ctx.setMemWriteRegister(memOut);
+        m_ctx.setMemReadRegister(memIn);
+        m_ctx.setMemWriteRegister(memOut);
 
-          Value *gVal = (*CS.getArgument(2)).stripPointerCasts();
-          if (auto *gv = dyn_cast<llvm::GlobalVariable>(gVal)) {
-            auto gvVal = m_ctx.getGlobalVariableInitValue(*gv);
-            if (gvVal.first) {
-              m_ctx.MemFill(lookup(*gv), gvVal.first, gvVal.second);
-            }
-          } else {
-            WARN << "skipping global var init of " << inst << " to " << *gVal
-                 << "\n";
+        Value *gVal = (*CS.getArgument(2)).stripPointerCasts();
+        if (auto *gv = dyn_cast<llvm::GlobalVariable>(gVal)) {
+          auto gvVal = m_ctx.getGlobalVariableInitValue(*gv);
+          if (gvVal.first) {
+            m_ctx.MemFill(lookup(*gv), gvVal.first, gvVal.second);
           }
         } else {
-          LOG("opsem",
-              errs() << "Expected global_init but sea-dsa does not agree!\n");
+          WARN << "skipping global var init of " << inst << " to " << *gVal
+               << "\n";
         }
       } else {
         Expr memOut = m_ctx.mkRegister(inst);
@@ -2230,7 +2228,7 @@ Bv2OpSemContext::getGlobalVariableInitValue(const llvm::GlobalVariable &gv) {
 }
 } // namespace details
 
-Bv2OpSem::Bv2OpSem(ExprFactory &efac, Pass &pass, seadsa::SeaMemorySSA *smssa,
+Bv2OpSem::Bv2OpSem(ExprFactory &efac, const Pass &pass, seadsa::SeaMemorySSA *smssa,
                    const DataLayout &dl, TrackLevel trackLvl)
     : OperationalSemantics(efac), m_pass(pass), m_trackLvl(trackLvl), m_td(&dl),
       m_SMSSA(smssa) {

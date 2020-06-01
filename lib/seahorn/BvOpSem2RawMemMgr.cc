@@ -672,7 +672,7 @@ void RawMemManager::onFunctionEntry(const Function &fn) {
 }
 
 Expr RawMemManager::zeroedMemory() const {
-  return m_memRepr->FilledMemory(ptrSort, m_ctx.alu().si(0, wordSzInBits()));
+  return m_memRepr->FilledMemory(ptrSort(), m_ctx.alu().si(0, wordSzInBits()));
 }
 
 } // namespace details

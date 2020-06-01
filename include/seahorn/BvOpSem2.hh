@@ -30,7 +30,7 @@ Bv2OpSemContext &ctx(OpSemContext &_ctx);
    Memory is modelled by arrays.
  */
 class Bv2OpSem : public OperationalSemantics {
-  Pass &m_pass;
+  const Pass &m_pass;
   TrackLevel m_trackLvl;
 
   const DataLayout *m_td;
@@ -39,7 +39,7 @@ class Bv2OpSem : public OperationalSemantics {
   const seadsa::SeaMemorySSA *m_SMSSA;
 
 public:
-  Bv2OpSem(ExprFactory &efac, Pass &pass, seadsa::SeaMemorySSA *smssa,
+  Bv2OpSem(ExprFactory &efac, const Pass &pass, seadsa::SeaMemorySSA *smssa,
            const DataLayout &dl, TrackLevel trackLvl = MEM);
 
   Bv2OpSem(const Bv2OpSem &o);

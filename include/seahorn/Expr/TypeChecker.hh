@@ -17,14 +17,11 @@ public:
 
 namespace op {
 namespace typeCheck {
-enum Comparison {
-  Equal,
-  GreaterEqual
-};
+enum Comparison { Equal, GreaterEqual };
 
 template <Comparison compareType, unsigned int numChildren>
 static inline bool checkNumChildren(Expr exp) {
-  if (compareType == Equal) 
+  if (compareType == Equal)
     return exp->arity() == numChildren;
   else if (compareType == GreaterEqual)
     return exp->arity() >= numChildren;
@@ -32,14 +29,26 @@ static inline bool checkNumChildren(Expr exp) {
   return false;
 }
 
-// returns true if all children share the same type
-static inline bool sameType(Expr exp, TypeChecker &tc) {
-  Expr type = tc.typeOf(exp->first());
+static inline bool sameType( std::vector<ENode *>::const_iterator begin,
+                            std::vector<ENode *>::const_iterator end,
+                            TypeChecker &tc) {
+  Expr type = nullptr;
+  bool first = true;
 
-  auto isSameType = [&tc, &type](Expr exp) {
+  auto isSameType = [&tc, &type, &first](Expr exp) {
+    if (first) {
+      type = tc.typeOf(exp);
+      first = false;
+      return true;
+    }
     return type != nullptr && tc.typeOf(exp) == type;
   };
-  return std::all_of(exp->args_begin(), exp->args_end(), isSameType);
+  return std::all_of(begin, end, isSameType);
+}
+
+// returns true if all children share the same type
+static inline bool sameType(Expr exp, TypeChecker &tc) {
+  return sameType(exp->args_begin(), exp->args_end(), tc);
 }
 
 // return true if the expression is of type T
@@ -61,19 +70,22 @@ static inline bool correctType(Expr exp, TypeChecker &tc) {
   return correctType<T2, types...>(exp, tc);
 }
 
-// returns true if 1. the type of the expression matches any of the passed types,
-//and 2. all children are of the same type
+// returns true if 1. the type of the expression matches any of the passed
+// types,
+// and 2. all children are of the same type
 template <typename T, typename... types>
 static inline bool checkType(Expr exp, TypeChecker &tc) {
-  return correctType<T, types ...>(exp->first(), tc) && sameType(exp, tc);
+  return correctType<T, types...>(exp->first(), tc) && sameType(exp, tc);
 }
 
 // ensures: 1. correct number of children, 2. all children are the same type, 3.
 // all children are of the correct type
-template <Comparison compareType, unsigned int numChildren, typename returnType, typename T, typename... types>
+template <Comparison compareType, unsigned int numChildren, typename returnType,
+          typename T, typename... types>
 static inline Expr checkChildren(Expr exp, TypeChecker &tc) {
 
-  if (checkNumChildren <compareType, numChildren>(exp) && checkType<T, types ...> (exp, tc))
+  if (checkNumChildren<compareType, numChildren>(exp) &&
+      checkType<T, types...>(exp, tc))
     return mk<returnType>(exp->efac());
   else
     return sort::errorTy(exp->efac());

@@ -750,3 +750,104 @@ TEST_CASE("variantNotWellFormed.test") {
 
   checkNotWellFormed(e, error);
 }
+TEST_CASE("arrayWellFormed.test") {
+  seahorn::SeaEnableLog("tc");
+  ExprFactory efac;
+
+  Expr intSort = sort::intTy(efac);
+  Expr boolSort = sort::boolTy(efac);
+  Expr arraySort1 = sort::arrayTy(intSort, intSort);
+
+  Expr aInt = intConst("aInt", efac);
+  Expr bInt = intConst("bInt", efac);
+
+  Expr aBool = boolConst("aBool", efac);
+  Expr bBool = boolConst("bBool", efac);
+
+  Expr aAr = bind::mkConst(mkTerm<std::string> ("aAr", efac), arraySort1);
+
+  std::vector<Expr> e;
+  Expr temp;
+
+  temp = array::select(aAr, aInt);
+  e.push_back(temp);
+
+  temp = mk <ABS>(array::select(aAr, mk<PLUS>(bInt, aInt)));
+  e.push_back(temp);
+
+  temp = array::aDefault(aAr);
+  e.push_back(temp);
+
+  temp = array::aDefault(array::constArray(intSort, bInt));
+  e.push_back(temp);
+
+  checkWellFormed(e, intSort); 
+  e.clear();
+
+
+  Expr arraySort2 = sort::arrayTy(intSort, boolSort);
+  Expr aAr2 = bind::mkConst(mkTerm<std::string> ("aAr", efac), arraySort2);
+
+  temp = array::store(aAr2, aInt, aBool);
+  e.push_back(temp);
+
+  temp = array::store(aAr2, mk<PLUS>(aInt, bInt), mk<NEQ>(aBool, bBool));
+  e.push_back(temp);
+
+  checkWellFormed(e, arraySort2); 
+  e.clear();
+
+
+  temp = array::constArray(intSort, aBool);
+  e.push_back(temp);
+
+  temp = array::store(array::constArray(intSort, aBool), aInt, aBool);
+  e.push_back(temp);
+
+  checkWellFormed(e, arraySort2); 
+  e.clear();
+}
+TEST_CASE("arrayNotWellFormed.test") {
+  seahorn::SeaEnableLog("tc");
+  ExprFactory efac;
+
+  Expr intSort = sort::intTy(efac);
+  Expr boolSort = sort::boolTy(efac);
+  Expr arraySort1 = sort::arrayTy(intSort, intSort);
+
+  Expr aInt = intConst("aInt", efac);
+  Expr bInt = intConst("bInt", efac);
+
+  Expr aBool = boolConst("aBool", efac);
+  Expr bBool = boolConst("bBool", efac);
+
+  Expr aAr1 = bind::mkConst(mkTerm<std::string> ("aAr", efac), arraySort1);
+
+  std::vector<Expr> e;
+  Expr temp;
+  std::vector<Expr> error;
+  Expr tempError;
+
+  tempError = array::select(aAr1, aBool); // aBool is wrong type, should be int
+  error.push_back(tempError);
+  e.push_back(error.back());
+
+  tempError = array::store(aInt, bInt, bInt); //aInt is wrong type, should be an array
+  error.push_back(tempError);
+  e.push_back(error.back());
+
+  tempError = array::select (array::constArray(intSort, aBool), aBool); //wrong type: the const array has index type int, not bool
+  error.push_back(tempError);
+  temp = mk<PLUS>(bInt, error.back(), aInt);
+  e.push_back(temp);
+
+  tempError = array::aDefault(aInt); // wrong type of argument, should be an array
+  error.push_back(tempError);
+  e.push_back(error.back());
+
+  tempError = array::select(array::constArray(boolSort, aBool), array::aDefault(aAr1)); //wrong type: constArray has bool domain, but aDefault is int type
+  error.push_back(tempError);
+  e.push_back(error.back());
+
+  checkNotWellFormed(e, error);
+}

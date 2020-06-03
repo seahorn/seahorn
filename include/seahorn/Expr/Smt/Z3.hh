@@ -726,17 +726,20 @@ public:
           out << "(Array ";
           if (isOpX<INT_TY>(sort::arrayIndexTy(ty)))
             out << "Int ";
-          else
+          else {
             out << "UfoUnknownSort ";
+          }
           if (isOpX<INT_TY>(sort::arrayValTy(ty)))
             out << "Int";
-          else
+          else {
             out << "UfoUnknownSort";
+          }
           out << ") ";
         }
 
-        else
+        else {
           out << "UfoUnknownSort ";
+        }
       }
       out << "))\n";
     }

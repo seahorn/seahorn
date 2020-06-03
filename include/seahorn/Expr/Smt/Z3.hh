@@ -235,23 +235,29 @@ protected:
   typedef std::unordered_set<Z3_ast> Z3_ast_set;
 
   void allDecls(Z3_ast a, Z3_func_decl_set &seen, Z3_ast_set &visited) {
-    if (Z3_get_ast_kind(ctx, a) != Z3_APP_AST)
+    if (Z3_get_ast_kind(ctx, a) != Z3_APP_AST &&
+        Z3_get_ast_kind(ctx, a) != Z3_QUANTIFIER_AST)
       return;
 
     if (visited.count(a) > 0)
       return;
     visited.insert(a);
 
-    Z3_app app = Z3_to_app(ctx, a);
-    Z3_func_decl fdecl = Z3_get_app_decl(ctx, app);
-    if (seen.count(fdecl) > 0)
-      return;
+    if (Z3_get_ast_kind(ctx, a) == Z3_APP_AST) {
+      Z3_app app = Z3_to_app(ctx, a);
+      Z3_func_decl fdecl = Z3_get_app_decl(ctx, app);
+      if (seen.count(fdecl) > 0)
+        return;
 
-    if (Z3_get_decl_kind(ctx, fdecl) == Z3_OP_UNINTERPRETED)
-      seen.insert(fdecl);
+      if (Z3_get_decl_kind(ctx, fdecl) == Z3_OP_UNINTERPRETED)
+        seen.insert(fdecl);
 
-    for (unsigned i = 0; i < Z3_get_app_num_args(ctx, app); i++)
-      allDecls(Z3_get_app_arg(ctx, app, i), seen, visited);
+      for (unsigned i = 0; i < Z3_get_app_num_args(ctx, app); i++)
+        allDecls(Z3_get_app_arg(ctx, app, i), seen, visited);
+    } else if (Z3_get_ast_kind(ctx, a) == Z3_QUANTIFIER_AST) {
+      Z3_ast body = Z3_get_quantifier_body(ctx, a);
+      allDecls(body, seen, visited);
+    }
   }
 
 public:

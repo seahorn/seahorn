@@ -22,6 +22,7 @@
 #include "seahorn/Expr/Expr.hh"
 #include "seahorn/Expr/ExprInterp.hh"
 #include "seahorn/Expr/ExprLlvm.hh"
+#include "seahorn/Expr/ExprOpBv.hh"
 
 namespace z3 {
 struct ast_ptr_hash : public std::unary_function<ast, std::size_t> {
@@ -726,19 +727,26 @@ public:
           out << "(Array ";
           if (isOpX<INT_TY>(sort::arrayIndexTy(ty)))
             out << "Int ";
-          else {
+          else if (isOpX<BVSORT>(sort::arrayIndexTy(ty))) {
+            out << "(_ BitVec " << bv::width(sort::arrayIndexTy(ty)) << ") ";
+          } else {
             out << "UfoUnknownSort ";
+            llvm::errs() << "u1: " << *sort::arrayIndexTy(ty) << "\n";
           }
           if (isOpX<INT_TY>(sort::arrayValTy(ty)))
             out << "Int";
-          else {
+          else if (isOpX<BVSORT>(sort::arrayValTy(ty))) {
+            out << "(_ BitVec " << bv::width(sort::arrayValTy(ty)) << ") ";
+          } else {
             out << "UfoUnknownSort";
+            llvm::errs() << "u2: " << *sort::arrayValTy(ty) << "\n";
           }
           out << ") ";
-        }
-
-        else {
+        } else if (isOpX<BVSORT>(ty)) {
+          out << "(_ BitVec " << bv::width(ty) << ") ";
+        } else {
           out << "UfoUnknownSort ";
+          llvm::errs() << "u3: " << *ty << "\n";
         }
       }
       out << "))\n";
@@ -761,13 +769,19 @@ public:
         out << "(Array ";
         if (isOpX<INT_TY>(sort::arrayIndexTy(ty)))
           out << "Int ";
-        else
+        else if (isOpX<BVSORT>(sort::arrayIndexTy(ty))) {
+          out << "(_ BitVec " << bv::width(sort::arrayIndexTy(ty)) << ") ";
+        } else
           out << "UfoUnknownSort ";
         if (isOpX<INT_TY>(sort::arrayValTy(ty)))
           out << "Int";
-        else
+        else if (isOpX<BVSORT>(sort::arrayValTy(ty))) {
+          out << "(_ BitVec " << bv::width(sort::arrayValTy(ty)) << ") ";
+        } else
           out << "UfoUnknownSort";
         out << ") ";
+      } else if (isOpX<BVSORT>(ty)) {
+        out << "(_ BitVec " << bv::width(ty) << ") ";
       } else
         out << "UfoUnknownSort ";
       out << ")\n";

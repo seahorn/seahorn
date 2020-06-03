@@ -26,8 +26,8 @@
 
 #include "seahorn/Analysis/CanFail.hh"
 #include "seahorn/Analysis/CutPointGraph.hh"
-#include "seahorn/Support/Stats.hh"
 #include "seahorn/Expr/Smt/EZ3.hh"
+#include "seahorn/Support/Stats.hh"
 
 #include "seahorn/FlatHornifyFunction.hh"
 #include "seahorn/HornifyFunction.hh"
@@ -105,7 +105,7 @@ namespace seahorn {
 // counters for copying the new inter-proc vcgen
 // only updated if the log "inter_mem_counters" is active
 extern InterMemStats g_im_stats;
-}
+} // namespace seahorn
 
 namespace seahorn {
 char HornifyModule::ID = 0;
@@ -158,10 +158,11 @@ bool HornifyModule::runOnModule(Module &M) {
       Step == hm_detail::CLP_FLAT_SMALL_STEP)
     m_sem.reset(new ClpOpSem(m_efac, *this, M.getDataLayout(), TL));
   else if (InterProcMem) {
-    ShadowMemPass * smp = getAnalysisIfAvailable<seadsa::ShadowMemPass>();
+    ShadowMemPass *smp = getAnalysisIfAvailable<seadsa::ShadowMemPass>();
     assert(smp);
     ShadowMem &shadowmem_analysis = smp->getShadowMem();
-    CompleteCallGraph *ccg = getAnalysisIfAvailable<seadsa::CompleteCallGraph>();
+    CompleteCallGraph *ccg =
+        getAnalysisIfAvailable<seadsa::CompleteCallGraph>();
     assert(ccg);
     std::shared_ptr<InterMemPreProc> preproc =
         std::make_shared<InterMemPreProc>(*ccg, shadowmem_analysis);
@@ -170,10 +171,9 @@ bool HornifyModule::runOnModule(Module &M) {
 
     m_sem.reset(new MemUfoOpSem(m_efac, *this, M.getDataLayout(), preproc, TL,
                                 abs_fns, &shadowmem_analysis));
-  }
-  else
+  } else {
     m_sem.reset(new UfoOpSem(m_efac, *this, M.getDataLayout(), TL, abs_fns));
-
+  }
   Function *main = M.getFunction("main");
   if (!main) { // if not main found then program trivially safe
     errs()
@@ -315,10 +315,10 @@ bool HornifyModule::runOnModule(Module &M) {
   }
 
   // DEBUG: printing clauses
-  LOG("print_clauses", errs() << "------- PRINTING CLAUSE DB ------\n";
-      for (auto &cl : m_db.getRules()) {
-        cl.get()->dump();
-      });
+  LOG(
+      "print_clauses", errs() << "------- PRINTING CLAUSE DB ------\n";
+      for (auto &cl
+           : m_db.getRules()) { cl.get()->dump(); });
 
   LOG("inter_mem_counters", if (InterProcMem) g_im_stats.print(););
 
@@ -380,8 +380,8 @@ bool HornifyModule::runOnFunction(Function &F) {
   // -- skip functions without a body
   if (F.isDeclaration() || F.empty())
     return false;
-  LOG("horn-step", errs() << "HornifyModule: runOnFunction: " << F.getName()
-                          << "\n");
+  LOG("horn-step",
+      errs() << "HornifyModule: runOnFunction: " << F.getName() << "\n");
 
   // XXX: between we run LiveSymbols and hornify function (see
   // below) the CFG can change because the construction of the

@@ -918,7 +918,6 @@ TEST_CASE("structNotWellFormed.test") {
   Expr temp;
   std::vector<Expr> error;
   Expr tempError;
-  ;
 
   tempError = mk<PLUS>(aInt);
   error.push_back(tempError);
@@ -944,6 +943,66 @@ TEST_CASE("structNotWellFormed.test") {
 
   tempError =
       mk<EXTRACT_VALUE>(mk<ANY_TY>(aInt), aInt); // a int is wrong argument type
+
+  checkNotWellFormed(e, error);
+}
+TEST_CASE("gateWellFormed.test") {
+  seahorn::SeaEnableLog("tc");
+  // -- manages expressions
+  ExprFactory efac;
+
+  Expr x = boolConst("x", efac);
+  Expr y = boolConst("y", efac);
+  Expr z = boolConst("z", efac);
+
+  Expr t = mk<TRUE>(efac);
+  Expr f = mk<FALSE>(efac);
+
+  Expr boolSort = sort::boolTy(efac);
+
+  std::vector<Expr> e;
+  Expr temp;
+
+  temp = gate::land(gate::lneg(x), f);
+  e.push_back(temp);
+
+  temp = gate::lor(x, boolop::lor(x, t));
+  e.push_back(temp);
+
+  checkWellFormed(e, boolSort);
+}
+TEST_CASE("gateNotWellFormed.test") {
+  seahorn::SeaEnableLog("tc");
+  // -- manages expressions
+  ExprFactory efac;
+
+  Expr x = boolConst("x", efac);
+  Expr y = boolConst("y", efac);
+  Expr z = boolConst("z", efac);
+
+  Expr aInt = intConst("xInt", efac);
+
+  Expr t = mk<TRUE>(efac);
+  Expr f = mk<FALSE>(efac);
+
+  Expr boolSort = sort::boolTy(efac);
+
+  std::vector<Expr> e;
+  Expr temp;
+  std::vector<Expr> error;
+  Expr tempError;
+
+  tempError = gate::lneg(aInt);
+  error.push_back(tempError);
+  e.push_back(gate::lor(tempError, y));
+
+  tempError = mk<AND_G>(x);
+  error.push_back(tempError);
+  e.push_back(tempError);
+
+  tempError = mk<NEG_G>(x, y);
+  error.push_back(tempError);
+  e.push_back(tempError);
 
   checkNotWellFormed(e, error);
 }

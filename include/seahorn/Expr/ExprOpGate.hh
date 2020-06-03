@@ -20,9 +20,9 @@ struct GateOp : public expr::Operator {
 
 /// an output gate
 NOP(OUT_G, "OUT_G", PREFIX, GateOp)
-NOP(AND_G, "/\\", INFIX, GateOp);
-NOP(OR_G, "\\/", INFIX, GateOp);
-NOP(NEG_G, "~", PREFIX, GateOp);
+NOP_TYPECHECK(AND_G, "/\\", INFIX, GateOp, typeCheck::boolType::Nary);
+NOP_TYPECHECK(OR_G, "\\/", INFIX, GateOp, typeCheck::boolType::Nary);
+NOP_TYPECHECK(NEG_G, "~", PREFIX, GateOp, typeCheck::boolType::Unary);
 
 namespace gate {
 inline Expr land(Expr e1, Expr e2) {

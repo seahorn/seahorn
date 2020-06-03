@@ -6,9 +6,8 @@
 #include "llvm/IR/DebugLoc.h"
 
 #include "boost/container/flat_set.hpp"
-#include "seahorn/Support/SeaDebug.h"
 #include "seahorn/Expr/ExprLlvm.hh"
-
+#include "seahorn/Support/SeaDebug.h"
 
 namespace seahorn {
 void BmcEngine::addCutPoint(const CutPoint &cp) {
@@ -192,7 +191,8 @@ template <> raw_ostream &BmcTrace::print(raw_ostream &out) {
     for (auto &I : BB) {
       if (const DbgValueInst *dvi = dyn_cast<DbgValueInst>(&I)) {
         if (dvi->getValue() && dvi->getVariable()) {
-          out.changeColor(raw_ostream::RED);
+          if (out.has_colors())
+            out.changeColor(raw_ostream::RED);
           DILocalVariable *var = dvi->getVariable();
           out << "  " << var->getName() << " = ";
           if (dvi->getValue()->hasName())
@@ -219,7 +219,8 @@ template <> raw_ostream &BmcTrace::print(raw_ostream &out) {
 #if 0
           // disabling since this is not supported by non-legacy
           // OperationalSemantics
-          out.changeColor(raw_ostream::RED);
+          if (out.has_color())
+            out.changeColor(raw_ostream::RED);
           int64_t id = shadow_dsa::getShadowId(ci);
           assert(id >= 0);
           Expr memStart = m_bmc.sem().memStart(id);
@@ -244,11 +245,13 @@ template <> raw_ostream &BmcTrace::print(raw_ostream &out) {
       if (!v)
         continue;
 
-      out.changeColor(raw_ostream::RED);
+      if (out.has_colors())
+        out.changeColor(raw_ostream::RED);
       out << "  %" << I.getName() << " " << *v;
       const DebugLoc &dloc = I.getDebugLoc();
       if (dloc) {
-        out.changeColor(raw_ostream::BLACK);
+        if (out.has_colors())
+          out.changeColor(raw_ostream::CYAN);
         out << " [" << (*dloc).getFilename() << ":" << dloc.getLine() << "]";
       }
       out << "\n";
@@ -315,8 +318,8 @@ void get_model_implicant(const ExprVector &f, ZModel<EZ3> &model,
   }
 }
 
-void unsat_core(ZSolver<EZ3> &solver, const ExprVector &f,
-                bool simplify, ExprVector &out) {
+void unsat_core(ZSolver<EZ3> &solver, const ExprVector &f, bool simplify,
+                ExprVector &out) {
   solver.reset();
   ExprVector assumptions;
   assumptions.reserve(f.size());

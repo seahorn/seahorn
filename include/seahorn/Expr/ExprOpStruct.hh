@@ -6,15 +6,76 @@
 #include "seahorn/Expr/ExprOpCore.hh"
 
 #include "llvm/ADT/SmallVector.h"
- 
+
 namespace expr {
 namespace op {
 enum class StructOpKind { MK_STRUCT, EXTRACT_VALUE, INSERT_VALUE };
+
+namespace typeCheck {
+namespace structType {
+struct Struct {
+  static inline Expr inferType(Expr exp, TypeChecker &tc) {
+    ExprVector args;
+    bool wellFormed = true;
+
+    for (auto b = exp->args_begin(), e = exp->args_end(); wellFormed && b != e;
+         b++) {
+      args.push_back(tc.typeOf(*b));
+      wellFormed = correctType<ANY_TY>(*b, tc);
+    }
+
+    return wellFormed ? sort::structTy(args) : sort::errorTy(exp->efac());
+  }
+};
+
+struct Insert {
+  static inline Expr inferType(Expr exp, TypeChecker &tc) {
+    if (!(checkNumChildren<Equal, 3> && isOp<MPZ>(exp->arg(1))))
+      return sort::errorTy(exp->efac());
+
+    Expr st = exp->arg(0);
+    mpz_class idxZ = (getTerm<expr::mpz_class>(exp->arg(1)));
+    unsigned idx = idxZ.get_ui();
+    Expr v = exp->arg(2);
+
+    if (!(idx < st->arity()))
+      return sort::errorTy(exp->efac());
+
+    ExprVector kids(st->args_begin(), st->args_end());
+    kids[idx] = v;
+
+    Expr copy = st->efac().mkNary(st->op(), kids.begin(), kids.end());
+
+    return tc.typeOf(copy);
+  }
+};
+
+struct Extract {
+  static inline Expr inferType(Expr exp, TypeChecker &tc) {
+    if (!(checkNumChildren<Equal, 2> && isOp<MPZ>(exp->arg(1))))
+      return sort::errorTy(exp->efac());
+
+    Expr st = exp->arg(0);
+    mpz_class idxZ = (getTerm<expr::mpz_class>(exp->arg(1)));
+    unsigned idx = idxZ.get_ui();
+
+    if (!(idx < st->arity()))
+      return sort::errorTy(exp->efac());
+
+    return tc.typeOf(st->arg(idx));
+  }
+};
+} // namespace structType
+} // namespace typeCheck
+
 NOP_BASE(StructOp)
 
-NOP(MK_STRUCT, "struct", FUNCTIONAL, StructOp)
-NOP(EXTRACT_VALUE, "extract-value", FUNCTIONAL, StructOp)
-NOP(INSERT_VALUE, "insert-value", FUNCTIONAL, StructOp)
+NOP_TYPECHECK(MK_STRUCT, "struct", FUNCTIONAL, StructOp,
+              typeCheck::structType::Struct)
+NOP_TYPECHECK(EXTRACT_VALUE, "extract-value", FUNCTIONAL, StructOp,
+              typeCheck::structType::Extract)
+NOP_TYPECHECK(INSERT_VALUE, "insert-value", FUNCTIONAL, StructOp,
+              typeCheck::structType::Insert)
 } // namespace op
 namespace op {
 namespace strct {
@@ -73,7 +134,7 @@ inline Expr push_ite_struct(Expr c, Expr lhs, Expr rhs) {
 inline Expr mkEq(Expr lhs, Expr rhs) {
   if (isStructVal(lhs) && isStructVal(rhs) && lhs->arity() == rhs->arity()) {
     llvm::SmallVector<Expr, 8> kids;
-    for(unsigned i = 0, sz = lhs->arity(); i < sz; ++i) {
+    for (unsigned i = 0, sz = lhs->arity(); i < sz; ++i) {
       kids.push_back(mkEq(lhs->arg(i), rhs->arg(i)));
     }
     return mknary<AND>(mk<TRUE>(lhs->efac()), kids.begin(), kids.end());
@@ -84,6 +145,4 @@ inline Expr mkEq(Expr lhs, Expr rhs) {
 } // namespace strct
 } // namespace op
 
-
-
-}
+} // namespace expr

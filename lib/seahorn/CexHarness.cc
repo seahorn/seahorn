@@ -165,7 +165,7 @@ std::unique_ptr<Module> createCexHarness(BmcTraceWrapper &trace,
           continue;
         }
 
-        LOG("cex",
+        LOG("cex_verbose",
             errs() << "Considering harness for: " << CF->getName() << "\n";);
 
         if (CF->getName().equals("shadow.mem.init")) {

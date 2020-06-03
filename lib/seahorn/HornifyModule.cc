@@ -38,6 +38,7 @@
 
 #include "seahorn/ClpOpSem.hh"
 #include "seahorn/UfoOpSem.hh"
+#include "seahorn/BvOpSem.hh"
 
 using namespace llvm;
 using namespace seahorn;
@@ -84,6 +85,10 @@ static llvm::cl::opt<bool>
     AbortOnRecursion("horn-abort-on-recursion",
                      llvm::cl::desc("Abort if program has a recursive call"),
                      cl::init(false));
+
+static llvm::cl::opt<bool> BitPrecise("horn-chc-bv",
+                                      llvm::cl::desc("Bit precise CHC"),
+                                      llvm::cl::init(false));
 
 static llvm::cl::opt<bool> NoVerification(
     "horn-no-verif",
@@ -171,9 +176,12 @@ bool HornifyModule::runOnModule(Module &M) {
 
     m_sem.reset(new MemUfoOpSem(m_efac, *this, M.getDataLayout(), preproc, TL,
                                 abs_fns, &shadowmem_analysis));
+  } else if (BitPrecise) {
+    m_sem.reset(new BvOpSem(m_efac, *this, M.getDataLayout(), TL));
   } else {
     m_sem.reset(new UfoOpSem(m_efac, *this, M.getDataLayout(), TL, abs_fns));
   }
+
   Function *main = M.getFunction("main");
   if (!main) { // if not main found then program trivially safe
     errs()

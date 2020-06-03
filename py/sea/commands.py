@@ -975,6 +975,8 @@ class Seahorn(sea.LimitedCmd):
                          default=None, metavar='FILE')
         ap.add_argument ('--bv-cex', dest='bv_cex', help='Generate bit-precise counterexamples',
                          default=False, action='store_true')
+        ap.add_argument ('--bv-chc', dest='bv_chc', help='Bit-precise CHC encoding',
+                         default=False, action='store_true')
         ap.add_argument ('--solve', dest='solve', action='store_true',
                          help='Solve', default=self.solve)
         ap.add_argument ('--ztrace', dest='ztrace', metavar='STR',
@@ -1063,6 +1065,11 @@ class Seahorn(sea.LimitedCmd):
 
         if args.mem_dot:
             argv.append ('--mem-dot')
+
+        if args.bv_chc:
+            argv.append('--horn-chc-bv')
+            # bit-precise CHC implies bit-precise cex
+            args.bv_cex = True
 
         if args.solve:
             argv.append ('--horn-solve')

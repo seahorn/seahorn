@@ -21,68 +21,61 @@ namespace typeCheck {
 namespace arrayType {
 struct Select {
   static inline Expr inferType(Expr exp, TypeChecker &tc) {
-    if (!checkNumChildren<Equal, 2>)
-      return sort::errorTy(exp->efac());
+    auto returnTypeFn = [](Expr exp, TypeChecker &tc) {
+      Expr arrayType = tc.typeOf(exp->left());
+      Expr indexTy = sort::arrayIndexTy(arrayType);
+      Expr valTy = sort::arrayValTy(arrayType);
 
-    if (!correctType<ARRAY_TY>(exp->left(), tc))
-      return sort::errorTy(exp->efac());
-
-    Expr arrayType = tc.typeOf(exp->left());
-    Expr indexTy = sort::arrayIndexTy(arrayType);
-    Expr valTy = sort::arrayValTy(arrayType);
-
-    if (indexTy == tc.typeOf(exp->right()))
-      return valTy;
-    else
-      return sort::errorTy(exp->efac());
+      if (indexTy == tc.typeOf(exp->right()))
+        return valTy;
+      else
+        return sort::errorTy(exp->efac());
+    };
+    return typeCheck::checkChildrenSpecific<Equal, 2, ARRAY_TY, ANY_TY>(
+        exp, tc, returnTypeFn);
   }
 };
 
 struct Store {
   static inline Expr inferType(Expr exp, TypeChecker &tc) {
-    if (!checkNumChildren<Equal, 3>)
-      return sort::errorTy(exp->efac());
+    auto returnTypeFn = [](Expr exp, TypeChecker &tc) {
+      Expr arrayType = tc.typeOf(exp->arg(0));
+      Expr indexTy = sort::arrayIndexTy(arrayType);
+      Expr valTy = sort::arrayValTy(arrayType);
 
-    if (!correctType<ARRAY_TY>(exp->arg(0), tc))
-      return sort::errorTy(exp->efac());
-
-    Expr arrayType = tc.typeOf(exp->arg(0));
-    Expr indexTy = sort::arrayIndexTy(arrayType);
-    Expr valTy = sort::arrayValTy(arrayType);
-
-    if (indexTy == tc.typeOf(exp->arg(1)) && valTy == tc.typeOf(exp->arg(2)))
-      return arrayType;
-    else
-      return sort::errorTy(exp->efac());
+      if (indexTy == tc.typeOf(exp->arg(1)) && valTy == tc.typeOf(exp->arg(2)))
+        return arrayType;
+      else
+        return sort::errorTy(exp->efac());
+    };
+    return typeCheck::checkChildrenSpecific<Equal, 3, ARRAY_TY, ANY_TY, ANY_TY>(
+        exp, tc, returnTypeFn);
   }
 };
 
 struct Const {
   static inline Expr inferType(Expr exp, TypeChecker &tc) {
-    if (!checkNumChildren<Equal, 2>)
-      return sort::errorTy(exp->efac());
+    auto returnTypeFn = [](Expr exp, TypeChecker &tc) {
+      Expr domain = exp->left();
+      Expr value = exp->right();
 
-    Expr domain = exp->left();
-    Expr value = exp->right();
-
-    if (correctType<ANY_TY>(domain, tc) && correctType<ANY_TY>(value, tc))
       return sort::arrayTy(tc.typeOf(domain), tc.typeOf(value));
-    else
-      return sort::errorTy(exp->efac());
+    };
+
+    return typeCheck::checkChildrenSpecific<Equal, 2, ANY_TY, ANY_TY>(
+        exp, tc, returnTypeFn);
   }
 };
 
 struct Default {
   static inline Expr inferType(Expr exp, TypeChecker &tc) {
-    if (!checkNumChildren<Equal, 1>)
-      return sort::errorTy(exp->efac());
+    auto returnTypeFn = [](Expr exp, TypeChecker &tc) {
+      Expr array = exp->first();
 
-    Expr array = exp->first();
-
-    if (!correctType<ARRAY_TY>(array, tc))
-      return sort::errorTy(exp->efac());
-
-    return sort::arrayValTy(tc.typeOf(array));
+      return sort::arrayValTy(tc.typeOf(array));
+    };
+    return typeCheck::checkChildrenSpecific<Equal, 1, ARRAY_TY>(exp, tc,
+                                                                returnTypeFn);
   }
 };
 } // namespace arrayType

@@ -241,7 +241,7 @@ struct Extend {
       return sort::errorTy(exp->efac());
 
     Expr bv = exp->left();
-    Expr bvSort = exp->right(); //NOTE: bvSort should be the BVSORT operator, so we don't need to take the typeOf it
+    Expr bvSort = exp->right(); //NOTE: bvSort should be the BVSORT operator, so we shouldn't do tc.typeOf() on it
 
     if (isOp<BVSORT>(tc.typeOf(bv)) && isOp<BVSORT>(bvSort))
       return getExtendReturnType(bv, bvSort, tc);

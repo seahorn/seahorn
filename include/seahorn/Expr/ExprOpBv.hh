@@ -190,11 +190,9 @@ static inline Expr checkChildren(Expr exp, TypeChecker &tc) {
     return sort::errorTy(exp->efac());
 }
 
-static inline std::function<Expr(Expr, TypeChecker &)> getReturnTypeFn () {
-    return [] (Expr exp, TypeChecker &tc) {
-      return tc.typeOf(exp->first());
-    };
-  }
+static inline std::function<Expr(Expr, TypeChecker &)> getReturnTypeFn() {
+  return [](Expr exp, TypeChecker &tc) { return tc.typeOf(exp->first()); };
+}
 
 struct Unary {
   static inline Expr inferType(Expr exp, TypeChecker &tc) {
@@ -220,60 +218,57 @@ struct NaryBool {
   }
 };
 
-static inline unsigned totalWidth(Expr exp1, Expr exp2, TypeChecker &tc) {
+static inline Expr getExtendReturnType(Expr exp1, Expr exp2, TypeChecker &tc) {
   unsigned width1 = bv::width(tc.typeOf(exp1));
   unsigned width2 = bv::width(tc.typeOf(exp2));
-  return width1 + width2;
+
+  return bv::bvsort( (width1 + width2), exp1->efac());
 }
 
-static inline Expr extend(Expr exp, TypeChecker &tc) {
-  if (checkNumChildren<Equal, 2>(exp) && correctType<BVSORT>(exp->left(), tc) &&
-      correctType<BVSORT>(exp->right(),
-                          tc)) // note: they can have different widths
-    return bv::bvsort(totalWidth(exp->left(), exp->right(), tc), exp->efac());
-  else
-    return sort::errorTy(exp->efac());
-}
+
 struct Concat {
   static inline Expr inferType(Expr exp, TypeChecker &tc) {
-    return extend(exp, tc);
+    auto returnTypeFn = [](Expr exp, TypeChecker &tc) {
+      return getExtendReturnType(exp->left(), exp->right(), tc);
+    };
+    return typeCheck::checkChildrenSpecific<Equal, 2, BVSORT, BVSORT>(exp, tc, returnTypeFn);
   }
 };
 
 struct Extend {
   static inline Expr inferType(Expr exp, TypeChecker &tc) {
-    Expr type = extend(exp, tc);
+    if (exp->arity() != 2)
+      return sort::errorTy(exp->efac());
 
-    if (!isOp<ERROR_TY>(type) &&
-        isOp<BVSORT>(
-            exp->right())) // expected children: 1. bit vector 2. bvsort
-      return type;
+    Expr bv = exp->left();
+    Expr bvSort = exp->right(); //NOTE: bvSort should be the BVSORT operator, so we don't need to take the typeOf it
+
+    if (isOp<BVSORT>(tc.typeOf(bv)) && isOp<BVSORT>(bvSort))
+      return getExtendReturnType(bv, bvSort, tc);
     else
       return sort::errorTy(exp->efac());
+    
   }
 };
 
 struct Extract {
   static inline Expr inferType(Expr exp, TypeChecker &tc) {
-    if (!checkNumChildren<Equal, 3>(exp))
-      return sort::errorTy(exp->efac());
+    auto returnTypeFn = [](Expr exp, TypeChecker &tc) {
+      Expr high = exp->arg(0);
+      Expr low = exp->arg(1);
+      Expr bv = exp->arg(2);
 
-    Expr high = exp->arg(0);
-    Expr low = exp->arg(1);
-    Expr bv = exp->arg(2);
+      unsigned width = bv::width(tc.typeOf(bv));
+      unsigned highValue = getTerm<unsigned>(high);
+      unsigned lowValue = getTerm<unsigned>(low);
 
-    if (!(isOp<UINT>(tc.typeOf(high)) && isOp<UINT>(tc.typeOf(low)) &&
-          isOp<BVSORT>(tc.typeOf(bv))))
-      return sort::errorTy(exp->efac());
+      if ((highValue >= lowValue) && (highValue < width))
+        return bv::bvsort(highValue - lowValue + 1, exp->efac());
+      else
+        return sort::errorTy(exp->efac());
+    };
 
-    unsigned width = bv::width(tc.typeOf(bv));
-    unsigned highValue = getTerm<unsigned >(high);
-    unsigned lowValue = getTerm<unsigned >(low);
-
-    if ((highValue >= lowValue) && (highValue < width))
-      return bv::bvsort(highValue - lowValue + 1, exp->efac());
-    else
-      return sort::errorTy(exp->efac());
+    return typeCheck::checkChildrenSpecific<Equal, 3, UINT, UINT, BVSORT>(exp, tc, returnTypeFn);
   }
 };
 
@@ -282,30 +277,26 @@ struct Bv2Int {
     return typeCheck::unary<INT_TY, BVSORT>(exp, tc);
   }
 };
-
-template <typename T> bool uIntChildType(Expr exp, TypeChecker &tc) {
-  return exp->arity()==2 && isOp<UINT>(tc.typeOf(exp->left())) &&
-      isOp<T>(tc.typeOf(exp->right()));
-}
-
 struct Int2Bv {
   static inline Expr inferType(Expr exp, TypeChecker &tc) {
-    if (uIntChildType<INT_TY>(exp, tc)) {
+    auto returnTypeFn = [](Expr exp, TypeChecker &tc) {
       unsigned width = getTerm<unsigned>(exp->left());
       return bv::bvsort(width, exp->efac());
-    }
-    else {
-      return sort::errorTy(exp->efac());
-    }
+    };
+
+    return typeCheck::checkChildrenSpecific<Equal, 2, UINT, INT_TY>(
+        exp, tc, returnTypeFn);
   }
 };
 
 struct Rotate {
   static inline Expr inferType(Expr exp, TypeChecker &tc) {
-    if (uIntChildType<BVSORT>(exp, tc))
+    auto returnTypeFn = [](Expr exp, TypeChecker &tc) {
       return tc.typeOf(exp->right());
-    else
-      return sort::errorTy(exp->efac());
+    };
+
+    return typeCheck::checkChildrenSpecific<Equal, 2, UINT, BVSORT>(
+        exp, tc, returnTypeFn);
   }
 };
 

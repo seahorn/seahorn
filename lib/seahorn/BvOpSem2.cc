@@ -1,4 +1,5 @@
 #include "seahorn/BvOpSem2.hh"
+#include "BvOpSem2RawMemMgr.hh"
 
 #include "llvm/CodeGen/IntrinsicLowering.h"
 #include "llvm/IR/GetElementPtrTypeIterator.h"

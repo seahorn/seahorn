@@ -37,14 +37,29 @@ namespace details {
 OpSemMemManager *mkRawMemManager(Bv2OpSem &sem, Bv2OpSemContext &ctx,
                                  unsigned ptrSz, unsigned wordSz,
                                  bool useLambdas) {
-  return new RawMemManager(sem, ctx, ptrSz, wordSz, useLambdas);
+  return new RawMemManager(
+      sem, ctx, ptrSz, wordSz, useLambdas,
+      IgnoreAlignmentOpt /* use flag if user did not provide this value */);
+};
+
+OpSemMemManager *mkRawMemManager(Bv2OpSem &sem, Bv2OpSemContext &ctx,
+                                 unsigned ptrSz, unsigned wordSz,
+                                 bool useLambdas, bool ignoreAlignment) {
+  return new RawMemManager(sem, ctx, ptrSz, wordSz, useLambdas,
+                           ignoreAlignment);
 };
 
 using PtrTy = RawMemManager::PtrTy;
 
 RawMemManager::RawMemManager(Bv2OpSem &sem, Bv2OpSemContext &ctx,
                              unsigned ptrSz, unsigned wordSz, bool useLambdas)
-    : OpSemMemManager(sem, ctx, ptrSz, wordSz),
+    : RawMemManager::RawMemManager(sem, ctx, ptrSz, wordSz, useLambdas,
+                                   IgnoreAlignmentOpt) {}
+
+RawMemManager::RawMemManager(Bv2OpSem &sem, Bv2OpSemContext &ctx,
+                             unsigned ptrSz, unsigned wordSz, bool useLambdas,
+                             bool ignoreAlignment)
+    : OpSemMemManager(sem, ctx, ptrSz, wordSz, ignoreAlignment),
       m_freshPtrName(mkTerm<std::string>("sea.ptr", m_efac)), m_id(0) {
   if (MemAllocatorOpt == MemAllocatorKind::NORMAL_ALLOCATOR)
     m_allocator = mkNormalOpSemAllocator(*this);
@@ -301,7 +316,7 @@ Expr RawMemManager::loadIntFromMem(PtrTy ptr, MemValTy mem, unsigned byteSz,
                                    uint64_t align) {
   SmallVector<Expr, 16> words;
   unsigned offsetBits = getByteAlignmentBits();
-  if (!IgnoreAlignmentOpt && offsetBits != 0 && align % wordSzInBytes() != 0) {
+  if (!m_ignoreAlignment && offsetBits != 0 && align % wordSzInBytes() != 0) {
     for (unsigned i = 0; i < byteSz; i++) {
       Expr byteOfWord = extractUnalignedByte(mem, ptrAdd(ptr, i), offsetBits);
       words.push_back(byteOfWord);
@@ -368,7 +383,7 @@ Expr RawMemManager::storeIntToMem(Expr _val, PtrTy ptr, MemValTy mem,
 
   unsigned offsetBits = getByteAlignmentBits();
   bool wordAligned = offsetBits == 0 || align % wordSzInBytes() == 0;
-  if (!IgnoreAlignmentOpt && !wordAligned) {
+  if (!m_ignoreAlignment && !wordAligned) {
     return storeUnalignedIntToMem(val, ptr, mem, byteSz);
   }
 
@@ -677,5 +692,6 @@ Expr RawMemManager::zeroedMemory() const {
 const std::unique_ptr<OpSemAllocator> &RawMemManager::getMAllocator() const {
   return m_allocator;
 }
+bool RawMemManager::ignoreAlignment() const { return m_ignoreAlignment; }
 } // namespace details
 } // namespace seahorn

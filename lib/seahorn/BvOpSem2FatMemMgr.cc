@@ -548,7 +548,9 @@ public:
 
 FatMemManager::FatMemManager(Bv2OpSem &sem, Bv2OpSemContext &ctx,
                              unsigned ptrSz, unsigned wordSz, bool useLambdas)
-    : OpSemMemManagerBase(sem, ctx, ptrSz, wordSz),
+    : OpSemMemManagerBase(
+          sem, ctx, ptrSz, wordSz,
+          false /* this is a nop since we delegate to RawMemMgr */),
       m_main(sem, ctx, ptrSz, wordSz, useLambdas),
       m_nullPtr(mkFatPtr(m_main.nullPtr())),
       m_slot0(sem, ctx, ptrSz, g_slotByteWidth, useLambdas),

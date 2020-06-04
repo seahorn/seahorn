@@ -469,8 +469,12 @@ protected:
   ///
   /// Must be divisible by \t m_wordSz
   uint32_t m_alignment;
-  OpSemMemManagerBase(Bv2OpSem &sem, Bv2OpSemContext &ctx, unsigned ptrSz,
-                      unsigned wordSz);
+
+  /// \brief ignore alignment for memory accesses
+  const bool m_ignoreAlignment;
+
+  OpSemMemManagerBase(Bv2OpSem &sem, Bv2OpSemContext &ctx, unsigned int ptrSz,
+                      unsigned int wordSz, bool ignoreAlignment);
 
   virtual ~OpSemMemManagerBase() = default;
 
@@ -483,6 +487,7 @@ public:
   unsigned wordSzInBytes() const { return m_wordSz; }
   unsigned wordSzInBits() const { return m_wordSz * 8; }
   uint32_t getAlignment(const llvm::Value &v) const { return m_alignment; }
+  bool isIgnoreAlignment() const { return m_ignoreAlignment; }
 };
 /// \brief Memory manager for OpSem machine
 class OpSemMemManager : public OpSemMemManagerBase {
@@ -499,7 +504,7 @@ public:
 
 public:
   OpSemMemManager(Bv2OpSem &sem, Bv2OpSemContext &ctx, unsigned ptrSz,
-                  unsigned wordSz);
+                  unsigned wordSz, bool ignoreAlignment);
 
   virtual ~OpSemMemManager() = default;
 

@@ -40,7 +40,7 @@ public:
   OpSemMemManagerMixin(Ts &&... Args)
       : BaseT(std::forward<Ts>(Args)...),
         OpSemMemManager(base().sem(), base().ctx(), base().ptrSzInBytes(),
-                        base().wordSzInBytes()) {}
+                        base().wordSzInBytes(), base().isIgnoreAlignment()) {}
   virtual ~OpSemMemManagerMixin() = default;
 
   PtrSortTy ptrSort() const override {

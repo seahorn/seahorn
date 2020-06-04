@@ -31,12 +31,17 @@ class RawMemManager : public OpSemMemManager {
   Expr m_nullPtr;
 
 public:
+  RawMemManager(Bv2OpSem &sem, Bv2OpSemContext &ctx, unsigned int ptrSz,
+                unsigned int wordSz, bool useLambdas);
+
   RawMemManager(Bv2OpSem &sem, Bv2OpSemContext &ctx, unsigned ptrSz,
-                unsigned wordSz, bool useLambdas = false);
+                unsigned wordSz, bool useLambdas, bool ignoreAlignment);
 
   ~RawMemManager() override = default;
 
   const std::unique_ptr<OpSemAllocator> &getMAllocator() const;
+
+  bool ignoreAlignment() const;
 
   /// Right now everything is an expression. In the future, we might have
   /// other types for PtrTy, such as a tuple of expressions

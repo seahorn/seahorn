@@ -26,23 +26,20 @@ enum class NumericOpKind {
 
 namespace typeCheck {
 namespace numType {
-  template <Comparison compareType, unsigned int numChildren>
-  static inline Expr checkChildren(Expr exp, TypeChecker &tc) {
-    if (checkNumChildren<compareType, numChildren>(exp) && checkType<INT_TY, REAL_TY, UNINT_TY>(exp, tc)) 
+  static inline std::function<Expr(Expr, TypeChecker &)> getReturnTypeFn () {
+    return [] (Expr exp, TypeChecker &tc) {
       return tc.typeOf(exp->first());
-    else
-      return sort::errorTy(exp->efac());
+    };
   }
-
 struct Unary {
   static inline Expr inferType(Expr exp, TypeChecker &tc) {
-    return checkChildren<Equal, 1> (exp, tc);
+    return typeCheck::unary<INT_TY, REAL_TY, UNINT_TY>(exp, tc, getReturnTypeFn());
   }
 };
 
 struct Nary {
   static inline Expr inferType(Expr exp, TypeChecker &tc) {
-    return checkChildren<GreaterEqual, 2> (exp, tc);
+    return typeCheck::nary<INT_TY, REAL_TY, UNINT_TY>(exp, tc, getReturnTypeFn());
   }
 };
 } // namespace numType

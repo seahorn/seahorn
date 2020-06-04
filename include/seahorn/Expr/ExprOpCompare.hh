@@ -15,12 +15,12 @@ namespace compareType {
 
 struct Equality {
   static inline Expr inferType(Expr exp, TypeChecker &tc) {
-    return checkChildren<Equal, 2, BOOL_TY, ANY_TY>(exp, tc);
+    return typeCheck::binary<BOOL_TY, ANY_TY>(exp, tc);
   }
 };
 struct Inequality {
   static inline Expr inferType(Expr exp, TypeChecker &tc) {
-    return checkChildren<Equal, 2, BOOL_TY, INT_TY, REAL_TY, UNINT_TY>(exp, tc);
+    return typeCheck::binary<BOOL_TY, INT_TY, REAL_TY, UNINT_TY>(exp, tc);
   }
 };
 } // namespace compareType

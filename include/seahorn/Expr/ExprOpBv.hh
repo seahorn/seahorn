@@ -190,27 +190,33 @@ static inline Expr checkChildren(Expr exp, TypeChecker &tc) {
     return sort::errorTy(exp->efac());
 }
 
+static inline std::function<Expr(Expr, TypeChecker &)> getReturnTypeFn () {
+    return [] (Expr exp, TypeChecker &tc) {
+      return tc.typeOf(exp->first());
+    };
+  }
+
 struct Unary {
   static inline Expr inferType(Expr exp, TypeChecker &tc) {
-    return checkChildren<Equal, 1, BVSORT>(exp, tc);
+    return typeCheck::unary<BVSORT>(exp, tc, getReturnTypeFn());
   }
 };
 
 struct Binary {
   static inline Expr inferType(Expr exp, TypeChecker &tc) {
-    return checkChildren<Equal, 2, BVSORT>(exp, tc);
+    return typeCheck::binary<BVSORT>(exp, tc, getReturnTypeFn());
   }
 };
 
 struct Nary {
   static inline Expr inferType(Expr exp, TypeChecker &tc) {
-    return checkChildren<GreaterEqual, 2, BVSORT>(exp, tc);
+    return typeCheck::nary<BVSORT>(exp, tc, getReturnTypeFn());
   }
 };
 
 struct NaryBool {
   static inline Expr inferType(Expr exp, TypeChecker &tc) {
-    return typeCheck::checkChildren<GreaterEqual, 2, BOOL_TY, BVSORT>(exp, tc);
+    return typeCheck::nary<BOOL_TY, BVSORT>(exp, tc);
   }
 };
 
@@ -256,8 +262,8 @@ struct Extract {
     Expr low = exp->arg(1);
     Expr bv = exp->arg(2);
 
-    if (!(correctType<UINT>(high, tc) && correctType<UINT>(low, tc) &&
-          correctType<BVSORT>(bv, tc)))
+    if (!(isOp<UINT>(tc.typeOf(high)) && isOp<UINT>(tc.typeOf(low)) &&
+          isOp<BVSORT>(tc.typeOf(bv))))
       return sort::errorTy(exp->efac());
 
     unsigned width = bv::width(tc.typeOf(bv));
@@ -273,13 +279,13 @@ struct Extract {
 
 struct Bv2Int {
   static inline Expr inferType(Expr exp, TypeChecker &tc) {
-    return typeCheck::checkChildren<Equal, 1, INT_TY, BVSORT>(exp, tc);
+    return typeCheck::unary<INT_TY, BVSORT>(exp, tc);
   }
 };
 
 template <typename T> bool uIntChildType(Expr exp, TypeChecker &tc) {
-  return checkNumChildren<Equal, 2>(exp) && correctType<UINT>(exp->left(), tc) &&
-      correctType<T>(exp->right(), tc);
+  return exp->arity()==2 && isOp<UINT>(tc.typeOf(exp->left())) &&
+      isOp<T>(tc.typeOf(exp->right()));
 }
 
 struct Int2Bv {

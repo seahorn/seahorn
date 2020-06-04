@@ -15,19 +15,19 @@ namespace boolType {
 
 struct Unary {
   static inline Expr inferType(Expr exp, TypeChecker &tc) {
-    return checkChildren<Equal, 1, BOOL_TY, BOOL_TY>(exp, tc);
+    return typeCheck::unary<BOOL_TY, BOOL_TY>(exp, tc);
   }
 };
 
 struct Binary {
   static inline Expr inferType(Expr exp, TypeChecker &tc) {
-    return checkChildren<Equal, 2, BOOL_TY, BOOL_TY>(exp, tc);
+    return typeCheck::binary<BOOL_TY, BOOL_TY>(exp, tc);
   }
 };
 
 struct Nary {
   static inline Expr inferType(Expr exp, TypeChecker &tc) {
-    return checkChildren<GreaterEqual, 2, BOOL_TY, BOOL_TY>(exp, tc);
+    return typeCheck::nary<BOOL_TY, BOOL_TY>(exp, tc);
   }
 };
 

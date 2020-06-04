@@ -29,7 +29,7 @@ static inline bool checkNumChildren(Expr exp) {
   return false;
 }
 
-static inline bool sameType( std::vector<ENode *>::const_iterator begin,
+static inline bool sameType(std::vector<ENode *>::const_iterator begin,
                             std::vector<ENode *>::const_iterator end,
                             TypeChecker &tc) {
   Expr type = nullptr;
@@ -80,16 +80,60 @@ static inline bool checkType(Expr exp, TypeChecker &tc) {
 
 // ensures: 1. correct number of children, 2. all children are the same type, 3.
 // all children are of the correct type
-template <Comparison compareType, unsigned int numChildren, typename returnType,
+template <Comparison compareType, unsigned int numChildren,
           typename T, typename... types>
-static inline Expr checkChildren(Expr exp, TypeChecker &tc) {
+static inline Expr checkChildren(Expr exp, TypeChecker &tc, std::function<Expr(Expr, TypeChecker &)> returnType) {
 
   if (checkNumChildren<compareType, numChildren>(exp) &&
       checkType<T, types...>(exp, tc))
-    return mk<returnType>(exp->efac());
+      return returnType(exp, tc);
   else
     return sort::errorTy(exp->efac());
 }
+
+// ensures: 1. correct number of children, 2. all children are the same type, 3.
+// all children are of the correct type
+template <Comparison compareType, unsigned int numChildren, typename returnType,
+          typename T, typename... types>
+static inline Expr checkChildren(Expr exp, TypeChecker &tc) {
+  auto returnTypeFn = [](Expr exp, TypeChecker &tc) {
+    return mk<returnType>(exp->efac());
+  };
+
+  return checkChildren<compareType, numChildren, T, types ...>(exp, tc, returnTypeFn);
+}
+
+
+template <typename T, typename... types>
+static inline Expr unary(Expr exp, TypeChecker &tc, std::function<Expr(Expr, TypeChecker &)> returnTypeFn) {
+  return checkChildren<Equal, 1, T, types ...>(exp, tc, returnTypeFn);
+}
+
+template <typename returnType, typename T, typename... types>
+static inline Expr unary(Expr exp, TypeChecker &tc) {
+  return checkChildren<Equal, 1, returnType, T, types ...>(exp, tc);
+}
+
+template <typename T, typename... types>
+static inline Expr binary(Expr exp, TypeChecker &tc, std::function<Expr(Expr, TypeChecker &)> returnTypeFn) {
+  return checkChildren<Equal, 2, T, types ...>(exp, tc, returnTypeFn);
+}
+
+template <typename returnType, typename T, typename... types>
+static inline Expr binary(Expr exp, TypeChecker &tc) {
+  return checkChildren<Equal, 2, returnType, T, types ...>(exp, tc);
+}
+
+template <typename T, typename... types>
+static inline Expr nary(Expr exp, TypeChecker &tc, std::function<Expr(Expr, TypeChecker &)> returnTypeFn) {
+  return checkChildren<GreaterEqual, 2, T, types ...>(exp, tc, returnTypeFn);
+}
+
+template <typename returnType, typename T, typename... types>
+static inline Expr nary(Expr exp, TypeChecker &tc) {
+  return checkChildren<GreaterEqual, 2, returnType, T, types ...>(exp, tc);
+}
+
 struct Any {
   static inline Expr inferType(Expr exp, TypeChecker &tc) {
     return sort::anyTy(exp->efac());

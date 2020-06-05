@@ -22,9 +22,9 @@ namespace arrayType {
 struct Select {
   static inline Expr inferType(Expr exp, TypeChecker &tc) {
     auto returnTypeFn = [](Expr exp, TypeChecker &tc) {
-      Expr arrayType = tc.typeOf(exp->left());
-      Expr indexTy = sort::arrayIndexTy(arrayType);
-      Expr valTy = sort::arrayValTy(arrayType);
+      Expr arrayTy = tc.typeOf(exp->left());
+      Expr indexTy = sort::arrayIndexTy(arrayTy);
+      Expr valTy = sort::arrayValTy(arrayTy);
 
       if (indexTy == tc.typeOf(exp->right()))
         return valTy;
@@ -39,12 +39,12 @@ struct Select {
 struct Store {
   static inline Expr inferType(Expr exp, TypeChecker &tc) {
     auto returnTypeFn = [](Expr exp, TypeChecker &tc) {
-      Expr arrayType = tc.typeOf(exp->arg(0));
-      Expr indexTy = sort::arrayIndexTy(arrayType);
-      Expr valTy = sort::arrayValTy(arrayType);
+      Expr arrayTy = tc.typeOf(exp->arg(0));
+      Expr indexTy = sort::arrayIndexTy(arrayTy);
+      Expr valTy = sort::arrayValTy(arrayTy);
 
       if (indexTy == tc.typeOf(exp->arg(1)) && valTy == tc.typeOf(exp->arg(2)))
-        return arrayType;
+        return arrayTy;
       else
         return sort::errorTy(exp->efac());
     };

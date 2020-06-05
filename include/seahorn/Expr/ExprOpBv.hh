@@ -182,33 +182,25 @@ enum class BvOpKind {
 namespace typeCheck {
 namespace bvType {
 
-template <Comparison compareType, unsigned int numChildren, typename T>
-static inline Expr checkChildren(Expr exp, TypeChecker &tc) {
-  if (checkNumChildren<compareType, numChildren>(exp) && checkType<T>(exp, tc))
-    return tc.typeOf(exp->first());
-  else
-    return sort::errorTy(exp->efac());
-}
-
-static inline std::function<Expr(Expr, TypeChecker &)> getReturnTypeFn() {
-  return [](Expr exp, TypeChecker &tc) { return tc.typeOf(exp->first()); };
+static inline Expr returnType(Expr exp, TypeChecker &tc) { 
+  return tc.typeOf(exp->first()); 
 }
 
 struct Unary {
   static inline Expr inferType(Expr exp, TypeChecker &tc) {
-    return typeCheck::unary<BVSORT>(exp, tc, getReturnTypeFn());
+    return typeCheck::unary<BVSORT>(exp, tc, returnType);
   }
 };
 
 struct Binary {
   static inline Expr inferType(Expr exp, TypeChecker &tc) {
-    return typeCheck::binary<BVSORT>(exp, tc, getReturnTypeFn());
+    return typeCheck::binary<BVSORT>(exp, tc, returnType);
   }
 };
 
 struct Nary {
   static inline Expr inferType(Expr exp, TypeChecker &tc) {
-    return typeCheck::nary<BVSORT>(exp, tc, getReturnTypeFn());
+    return typeCheck::nary<BVSORT>(exp, tc, returnType); 
   }
 };
 

@@ -26,20 +26,19 @@ enum class NumericOpKind {
 
 namespace typeCheck {
 namespace numType {
-  static inline std::function<Expr(Expr, TypeChecker &)> getReturnTypeFn () {
-    return [] (Expr exp, TypeChecker &tc) {
+
+  static inline Expr returnType (Expr exp, TypeChecker &tc) {
       return tc.typeOf(exp->first());
-    };
   }
 struct Unary {
   static inline Expr inferType(Expr exp, TypeChecker &tc) {
-    return typeCheck::unary<INT_TY, REAL_TY, UNINT_TY>(exp, tc, getReturnTypeFn());
+    return typeCheck::unary<INT_TY, REAL_TY, UNINT_TY>(exp, tc, returnType);
   }
 };
 
 struct Nary {
   static inline Expr inferType(Expr exp, TypeChecker &tc) {
-    return typeCheck::nary<INT_TY, REAL_TY, UNINT_TY>(exp, tc, getReturnTypeFn());
+    return typeCheck::nary<INT_TY, REAL_TY, UNINT_TY>(exp, tc, returnType);
   }
 };
 } // namespace numType

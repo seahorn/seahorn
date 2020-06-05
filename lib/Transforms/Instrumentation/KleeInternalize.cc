@@ -107,6 +107,9 @@ class KleeInternalize : public ModulePass {
 
   void defineFunction(Function &F) {
     LOG("verbose", errs() << "Defining: " << F.getName() << "\n";);
+    // clear all metadata since definitions and declarations have different
+    // metadata formats
+    F.clearMetadata();
     BasicBlock *bb = BasicBlock::Create(F.getContext(), "entry", &F);
     IRBuilder<> Builder(bb);
 

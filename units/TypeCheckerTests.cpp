@@ -12,6 +12,7 @@
 #include "seahorn/Expr/Expr.hh"
 #include "seahorn/Expr/ExprGmp.hh"
 #include "seahorn/Expr/ExprLlvm.hh"
+#include "seahorn/Expr/ExprOpBinder.hh"
 #include "seahorn/Expr/ExprOpBv.hh"
 #include "seahorn/Expr/TypeChecker.hh"
 
@@ -1001,6 +1002,72 @@ TEST_CASE("gateNotWellFormed.test") {
   e.push_back(tempError);
 
   tempError = mk<NEG_G>(x, y);
+  error.push_back(tempError);
+  e.push_back(tempError);
+
+  checkNotWellFormed(e, error);
+}
+TEST_CASE("quantifierWellFormed.test") {
+  seahorn::SeaEnableLog("tc");
+  // -- manages expressions
+  ExprFactory efac;
+
+  Expr aBool = boolConst("aBool", efac);
+  Expr bBool = boolConst("bBool", efac);
+
+  Expr aUnint = unintConst("aUnint", efac);
+  Expr bUnint = unintConst("bUnint", efac);
+
+  Expr t = mk<TRUE>(efac);
+  Expr f = mk<FALSE>(efac);
+
+  Expr boolSort = sort::boolTy(efac);
+  Expr unintSort = sort::boolTy(efac);
+
+  std::vector<Expr> e;
+  Expr temp;
+  Expr body;
+
+  body = mk<EQ>(aUnint, bUnint);
+  temp = mk<FORALL>(aUnint, bUnint, body);
+  e.push_back(temp);
+
+  body = boolop::limp(aBool, bBool);
+   e.push_back(temp);
+ temp = mk<EXISTS>(aBool, bBool, body);
+
+  checkWellFormed(e, boolSort);
+}
+TEST_CASE("quantifierNotWellFormed.test") {
+  seahorn::SeaEnableLog("tc");
+  // -- manages expressions
+  ExprFactory efac;
+
+  Expr aBool = boolConst("aBool", efac);
+  Expr bBool = boolConst("bBool", efac);
+
+  Expr aUnint = unintConst("aUnint", efac);
+  Expr bUnint = unintConst("bUnint", efac);
+
+  Expr t = mk<TRUE>(efac);
+  Expr f = mk<FALSE>(efac);
+
+  Expr boolSort = sort::boolTy(efac);
+  Expr unintSort = sort::boolTy(efac);
+
+  std::vector<Expr> e;
+  Expr temp;
+  std::vector<Expr> error;
+  Expr tempError;
+  Expr body;
+
+  tempError = mk<EQ>(aUnint, bBool); // mismatching types
+  error.push_back(tempError);
+  body = tempError;
+  temp = mk<FORALL>(aUnint, bUnint, body);
+  e.push_back(temp);
+
+ tempError = mk<EXISTS>(aBool, bBool, aUnint); // body is not bool type
   error.push_back(tempError);
   e.push_back(tempError);
 

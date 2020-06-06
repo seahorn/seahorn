@@ -13,6 +13,7 @@ public:
   Expr sortOf(Expr e) { return this->typeOf(e); }
   Expr typeOf(Expr e);
   Expr getErrorExp(); // to be called after typeOf() or sortOf()
+  ExprSet getEndExps(Expr e); // to be called after typeOf() or sortOf()
 };
 
 namespace op {
@@ -40,6 +41,7 @@ static inline bool correctTypeAny<ANY_TY>(Expr exp, TypeChecker &tc) {
 }
 
 // returns true if the type of the expression matches any of the passed types
+// Note: checks the expression directly, not its children
 template <typename T, typename T2, typename... types>
 static inline bool correctTypeAny(Expr exp, TypeChecker &tc) {
   if (correctTypeAny<T>(exp, tc))
@@ -47,6 +49,16 @@ static inline bool correctTypeAny(Expr exp, TypeChecker &tc) {
 
   return correctTypeAny<T2, types...>(exp, tc);
 }
+
+//returns true if the all children are of the passed type
+template <typename T>
+static inline bool correctTypeAll(Expr exp, TypeChecker &tc) {
+  auto correctType = [&tc] (Expr exp) {
+    return correctTypeAny<T>(exp, tc);
+  };
+  return std::all_of(exp->args_begin(), exp->args_end(), correctType);
+}
+
 
 template <typename T>
 static inline bool correctTypeOrder(Expr exp, TypeChecker &tc, unsigned idx) {
@@ -60,14 +72,18 @@ static inline bool correctTypeOrder(Expr exp, TypeChecker &tc, unsigned idx) {
          correctTypeOrder<T2, types...>(exp, tc, idx + 1);
 }
 
-// returns true if all children share the same type
-static inline bool sameType(Expr exp, TypeChecker &tc) {
-  Expr type = tc.typeOf(exp->first());
+static inline bool sameType(std::vector<ENode *>::const_iterator begin, std::vector<ENode *>::const_iterator end, TypeChecker &tc) {
+  Expr type = tc.typeOf(*begin);
 
   auto isSameType = [&tc, &type](Expr exp) {
     return type != nullptr && tc.typeOf(exp) == type;
   };
-  return std::all_of(exp->args_begin(), exp->args_end(), isSameType);
+  return std::all_of(begin, end, isSameType);
+}
+
+// returns true if all children share the same type
+static inline bool sameType(Expr exp, TypeChecker &tc) {
+  return sameType(exp->args_begin(), exp->args_end(), tc);
 }
 
 // ensures: 1. correct number of children, 

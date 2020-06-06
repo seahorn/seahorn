@@ -94,7 +94,6 @@ template <typename Range> Expr absConstants(const Range &r, Expr e);
 template <typename Range> Expr subBndVars(const Range &r, Expr e);
 } // namespace details
 
-
 namespace op {
 
 /**
@@ -126,12 +125,39 @@ struct BINDER {
 };
 } // namespace bind
 
+namespace typeCheck {
+namespace bindType {
+struct Quantifier {
+  static inline Expr inferType(Expr exp, TypeChecker &tc) {
+    Expr body = exp->last();
+    if (!(exp->arity() >= 2 && correctTypeAll<ANY_TY>(exp, tc) &&
+        isOp<BOOL_TY>(tc.typeOf(body))))
+        return sort::errorTy(exp->efac());
+    
+    ExprSet bodyEndExps = tc.getEndExps(body);
+    ExprSet args (exp->args_begin(), exp->args_end() -1);
+
+    auto contains = [&args] (Expr exp)->bool { 
+      return args.count(exp);
+    };
+
+    if(std::all_of(bodyEndExps.begin(), bodyEndExps.end(), contains))
+      return sort::boolTy(exp->efac());
+    else
+      return sort::errorTy(exp->efac());
+  }
+};
+} // namespace bindType
+} // namespace typeCheck
+
 enum class BinderOpKind { FORALL, EXISTS, LAMBDA };
 NOP_BASE(BinderOp)
 /** Forall quantifier */
-NOP(FORALL, "forall", bind::BINDER, BinderOp)
+NOP_TYPECHECK(FORALL, "forall", bind::BINDER, BinderOp,
+              typeCheck::bindType::Quantifier)
 /** Exists */
-NOP(EXISTS, "exists", bind::BINDER, BinderOp)
+NOP_TYPECHECK(EXISTS, "exists", bind::BINDER, BinderOp,
+              typeCheck::bindType::Quantifier)
 /** Lambda */
 NOP(LAMBDA, "lambda", bind::BINDER, BinderOp)
 
@@ -292,7 +318,7 @@ inline Expr betaReduce(Expr lambda, Expr v0, Expr v1, Expr v2, Expr v3) {
 }
 } // namespace bind
 } // namespace op
-}
+} // namespace expr
 
 namespace expr {
 namespace details {

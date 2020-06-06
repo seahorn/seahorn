@@ -8,10 +8,11 @@
 using namespace expr;
 namespace {
 // local code in this namespace
-
 //==-- main implementation goes here --==//
 class TCVR {
+
   ExprMap m_cache;
+  std::map<Expr, ExprSet> m_endExpr;
   bool m_isWellFormed;
   Expr m_errorExp;
   TypeChecker *const m_tc;
@@ -47,6 +48,23 @@ class TCVR {
     return exp->inferType(exp, tc);
   }
 
+  void mapEndTypes(Expr exp) {
+    ExprSet set;
+
+    if (exp->arity() == 0){
+      set.insert(exp);
+    }
+
+    std::for_each(exp->args_begin(), exp->args_end(), [this, &exp, &set](Expr child) {
+      if (this ->m_endExpr.count(child)) {
+        ExprSet childSet = this->m_endExpr.at(child);
+        set.insert(childSet.begin(), childSet.end());
+      }
+    });
+
+    m_endExpr.insert({exp, set});
+  }
+
   /// Called after children have been visited
   Expr postVisit(Expr exp) {
     LOG("tc", llvm::errs() << "post visiting expression: " << *exp << "\n";);
@@ -54,6 +72,8 @@ class TCVR {
     Expr type = inferType(exp, *m_tc);
 
     m_cache.insert({exp, type});
+    mapEndTypes(exp);
+
     if (isOp<ERROR_TY>(type)) {
       LOG("tc", llvm::errs()
                     << "Expression is not well-formed: " << *exp << "\n";);
@@ -84,6 +104,10 @@ public:
       return false;
     } else if (isSimpleType(exp)) {
       m_cache.insert({exp, inferType(exp, *m_tc)});
+
+      ExprSet set;
+      set.insert (exp);
+      m_endExpr.insert({exp, set});
       return false;
     }
     return true;
@@ -101,6 +125,8 @@ public:
   }
 
   Expr getErrorExp() { return m_errorExp; }
+
+  ExprSet getEndExps(Expr e) { return m_endExpr.at(e); }
 };
 
 //==-- Adapts visitor for pre- and post- traversal --==/
@@ -121,6 +147,8 @@ public:
   Expr knownTypeOf(Expr e) { return m_rw->knownTypeOf(e); }
 
   Expr getErrorExp() { return m_rw->getErrorExp(); }
+
+  ExprSet getEndExps(Expr e) { return m_rw->getEndExps(e); }
 };
 } // namespace
 
@@ -138,6 +166,8 @@ public:
   }
 
   Expr getErrorExp() { return m_visitor.getErrorExp(); }
+
+  ExprSet getEndExps(Expr e) { return m_visitor.getEndExps(e); }
 };
 
 TypeChecker::TypeChecker() : m_impl(new TypeChecker::Impl(this)) {}
@@ -146,4 +176,7 @@ Expr TypeChecker::typeOf(Expr e) { return m_impl->typeOf(e); }
 Expr TypeChecker::getErrorExp() { // to be called after typeOf() or sortOf()
   return m_impl->getErrorExp();
 }
+
+ // to be called after typeOf() or sortOf()
+ExprSet TypeChecker::getEndExps(Expr e) { return m_impl->getEndExps(e);}
 } // namespace expr

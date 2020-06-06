@@ -636,6 +636,11 @@ Expr RawMemManager::setFatData(PtrTy p, unsigned SlotIdx, Expr data) {
   return Expr();
 }
 
+Expr RawMemManager::isDereferenceable(PtrTy p, Expr byteSz) {
+  LOG("opsem", ERR << "isDeferenceable() not implemented");
+  return Expr();
+}
+
 /// \brief Executes ptrtoint conversion
 Expr RawMemManager::ptrtoint(PtrTy ptr, const Type &ptrTy,
                              const Type &intTy) const {
@@ -689,9 +694,7 @@ void RawMemManager::onFunctionEntry(const Function &fn) {
 Expr RawMemManager::zeroedMemory() const {
   return m_memRepr->FilledMemory(ptrSort(), m_ctx.alu().si(0, wordSzInBits()));
 }
-const std::unique_ptr<OpSemAllocator> &RawMemManager::getMAllocator() const {
-  return m_allocator;
-}
+OpSemAllocator &RawMemManager::getMAllocator() const { return *m_allocator; }
 bool RawMemManager::ignoreAlignment() const { return m_ignoreAlignment; }
 } // namespace details
 } // namespace seahorn

@@ -495,7 +495,9 @@ public:
                              f->getName().startswith("verifier.nondet") ||
                              f->getName().startswith("__VERIFIER_nondet")))
         visitNondetCall(CS);
-      else if (fatptr_intrnsc_re.match(f->getName())) {
+      else if (f->getName().startswith("sea.is_dereferenceable")) {
+        visitIsDereferenceable(CS);
+      } else if (fatptr_intrnsc_re.match(f->getName())) {
         visitFatPointerInstr(CS);
       } else
         visitExternalCall(CS);
@@ -508,6 +510,13 @@ public:
 
     ERR << "unhandled call instruction: " << *CS.getInstruction();
     llvm_unreachable(nullptr);
+  }
+
+  void visitIsDereferenceable(CallSite CS) {
+    Expr ptr = lookup(*CS.getArgument(0));
+    Expr byteSz = lookup(*CS.getArgument(1));
+    Expr res = m_ctx.mem().isDereferenceable(ptr, byteSz);
+    setValue(*CS.getInstruction(), res);
   }
 
   void visitFatPointerInstr(CallSite CS) {

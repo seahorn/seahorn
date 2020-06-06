@@ -155,10 +155,12 @@ public:
   PtrTy salloc(unsigned int bytes, uint32_t align) {
     assert(isa<AllocaInst>(m_ctx.getCurrentInst()));
     align = std::max(align, m_alignment);
-    auto region = m_main.getMAllocator()->salloc(bytes, align);
-    assert(region.first - region.second > 0);
-    return PtrTy(mkStackPtr(region.second).getRaw(),
-                 bytesToSlotExpr(region.first - region.second));
+    auto region = m_main.getMAllocator().salloc(bytes, align);
+    assert(region.second > region.first);
+    // The size is min(alloc_size, requested_size)
+    return PtrTy(
+        mkStackPtr(region.second).getRaw(),
+        bytesToSlotExpr(std::min(region.second - region.first, bytes)));
   }
 
   PtrTy salloc(Expr elmts, unsigned int typeSz, uint32_t align) {
@@ -173,10 +175,10 @@ public:
     }
 
     // allocate
-    auto region = m_main.getMAllocator()->salloc(bytes, align);
+    auto region = m_main.getMAllocator().salloc(bytes, align);
 
     // -- if allocation failed, return some pointer
-    if (m_main.getMAllocator()->isBadAddrInterval(region)) {
+    if (m_main.getMAllocator().isBadAddrInterval(region)) {
       LOG("opsem", WARN << "imprecise handling of dynamically "
                         << "sized stack allocation of " << *elmts
                         << " elements of size" << typeSz << " bytes\n";);
@@ -209,13 +211,13 @@ public:
   PtrTy galloc(const GlobalVariable &gv, uint32_t align) {
     uint64_t gvSz = m_sem.getTD().getTypeAllocSize(gv.getValueType());
     auto range =
-        m_main.getMAllocator()->galloc(gv, gvSz, std::max(align, m_alignment));
+        m_main.getMAllocator().galloc(gv, gvSz, std::max(align, m_alignment));
     return PtrTy(m_ctx.alu().si(range.first, ptrSzInBits()),
                  bytesToSlotExpr(range.second - range.first));
   }
 
   PtrTy falloc(const Function &fn) {
-    auto range = m_main.getMAllocator()->falloc(fn, m_alignment);
+    auto range = m_main.getMAllocator().falloc(fn, m_alignment);
     return PtrTy(m_ctx.alu().si(range.first, ptrSzInBits()),
                  bytesToSlotExpr(range.second - range.first));
   }
@@ -223,10 +225,10 @@ public:
   // TODO: What is the right size to return here?
   PtrTy getPtrToFunction(const Function &F) {
     auto rawPtr = m_ctx.alu().si(
-        m_main.getMAllocator()->getFunctionAddrAndSize(F, m_alignment).first,
+        m_main.getMAllocator().getFunctionAddrAndSize(F, m_alignment).first,
         ptrSzInBits());
     auto size = m_ctx.alu().si(
-        m_main.getMAllocator()->getFunctionAddrAndSize(F, m_alignment).second,
+        m_main.getMAllocator().getFunctionAddrAndSize(F, m_alignment).second,
         g_slotBitWidth);
     return PtrTy(rawPtr, size);
   }
@@ -235,7 +237,7 @@ public:
     // TODO: Add a map of ptr to AllocInfo in allocator so that given any ptr,
     // we can get size of allocation.
     uint64_t gvSz = m_sem.getTD().getTypeAllocSize(gv.getValueType());
-    return PtrTy(m_ctx.alu().si(m_main.getMAllocator()->getGlobalVariableAddr(
+    return PtrTy(m_ctx.alu().si(m_main.getMAllocator().getGlobalVariableAddr(
                                     gv, gvSz, m_alignment),
                                 ptrSzInBits()),
                  bytesToSlotExpr(gvSz));
@@ -314,10 +316,7 @@ public:
       return ptrAdd(ptr, _offset.get_si());
     }
     auto address = m_ctx.alu().doAdd(ptr.getRaw(), offset, ptrSzInBits());
-    auto new_size = m_ctx.alu().doSub(
-        ptr.getSize(),
-        m_ctx.alu().doZext(offset, g_slotBitWidth, m_main.wordSzInBits()),
-        g_slotBitWidth);
+    auto new_size = m_ctx.alu().doSub(ptr.getSize(), offset, g_slotBitWidth);
 
     return PtrTy(address, new_size);
   }
@@ -504,10 +503,7 @@ public:
   PtrTy gep(PtrTy ptr, gep_type_iterator it, gep_type_iterator end) const {
     RawPtrTy rawPtr = m_main.gep(ptr.getRaw(), it, end);
     auto offset = m_main.ptrSub(rawPtr, ptr.getRaw());
-    auto new_size = m_ctx.alu().doSub(
-        ptr.getSize(),
-        m_ctx.alu().doZext(offset, g_slotBitWidth, m_main.wordSzInBits()),
-        g_slotBitWidth);
+    auto new_size = m_ctx.alu().doSub(ptr.getSize(), offset, g_slotBitWidth);
 
     return PtrTy(rawPtr, new_size);
   }
@@ -541,6 +537,20 @@ public:
   PtrTy setFatData(PtrTy p, unsigned SlotIdx, Expr data) {
     LOG("opsem", WARN << "setFatData() not implemented!\n");
     return nullPtr();
+  }
+
+  Expr isDereferenceable(PtrTy p, Expr byteSz) {
+    // size should be >= byteSz
+    if (m_ctx.alu().isNum(byteSz) && m_ctx.alu().isNum(p.getSize())) {
+      signed numBytes = m_ctx.alu().toNum(byteSz).get_si();
+      signed conc_size = m_ctx.alu().toNum(p.getSize()).get_si();
+      return conc_size >= numBytes ? m_ctx.alu().getTrue()
+                                   : m_ctx.alu().getFalse();
+    } else {
+      // auto numBytes = m_ctx.alu().si(m_ctx.alu().toNum(byteSz),
+      // g_slotBitWidth);
+      return m_ctx.alu().doUge(p.getSize(), byteSz, g_slotBitWidth);
+    }
   }
 };
 

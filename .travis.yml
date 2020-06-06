@@ -25,6 +25,8 @@ matrix:
         if [ "$TRAVIS_EVENT_TYPE" = "cron" ]; then
           travis_wait 120 sleep infinity &
           docker run -v $(pwd):/host -it seahorn_container /bin/bash -c "cd seahorn/share/seahorn && lit -a --time-tests --max-time=1200 test/opsem " &&
+          docker run -v $(pwd):/host -it seahorn_container /bin/bash -c "cd seahorn/share/seahorn && lit -a --time-tests --max-time=1200 -D opsem-opts=--horn-bv2-widemem test/opsem " &&
+          docker run -v $(pwd):/host -it seahorn_container /bin/bash -c "cd seahorn/share/seahorn && lit -a --time-tests --max-time=1200 test/opsem/widemem " &&
           docker run -v $(pwd):/host -it seahorn_container /bin/bash -c "cd seahorn/share/seahorn && lit -a --time-tests --max-time=1200 test/mcfuzz" &&
           docker login -u "$DOCKER_USER" -p "$DOCKER_PWD" &&
           docker tag seahorn_container seahorn/seahorn-llvm10:nightly &&
@@ -33,6 +35,8 @@ matrix:
           ## generate something for travis to see
           travis_wait 120 sleep infinity &
           docker run -v $(pwd):/host -it seahorn_container /bin/bash -c "cd seahorn/share/seahorn && lit -a --time-tests --max-time=1200 test/opsem " &&
+          docker run -v $(pwd):/host -it seahorn_container /bin/bash -c "cd seahorn/share/seahorn && lit -a --time-tests --max-time=1200 -D opsem-opts=--horn-bv2-widemem test/opsem " &&
+          docker run -v $(pwd):/host -it seahorn_container /bin/bash -c "cd seahorn/share/seahorn && lit -a --time-tests --max-time=1200 test/opsem/widemem " &&
           docker run -v $(pwd):/host -it seahorn_container /bin/bash -c "cd seahorn/share/seahorn && lit -a --time-tests --max-time=1200 test/mcfuzz" && 
           docker run -v $(pwd):/host -it seahorn_container /bin/bash -c "cd seahorn/share/seahorn && lit -a --time-tests --max-time=1200 test/smc" 
         fi

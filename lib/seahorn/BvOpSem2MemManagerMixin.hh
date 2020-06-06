@@ -299,5 +299,9 @@ public:
     auto res = base().setFatData(BasePtrTy(std::move(p)), SlotIdx, data);
     return toPtrTy(std::move(res));
   }
+
+  Expr isDereferenceable(PtrTy p, Expr byteSz) {
+    return base().isDereferenceable(BasePtrTy(std::move(p)), byteSz);
+  }
 };
 } // namespace seahorn

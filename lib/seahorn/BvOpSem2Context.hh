@@ -346,6 +346,10 @@ public:
   virtual Expr IsSmulNoOverflow(Expr op0, Expr op1, unsigned bitWidth) = 0;
   virtual Expr IsUmulNoOverflow(Expr op0, Expr op1, unsigned bitWidth) = 0;
   virtual Expr IsBmulNoUnderflow(Expr op0, Expr op1, unsigned bitWidth) = 0;
+
+  // get true and false expressions
+  virtual Expr getFalse() = 0;
+  virtual Expr getTrue() = 0;
 };
 
 std::unique_ptr<OpSemAlu> mkBvOpSemAlu(Bv2OpSemContext &ctx);
@@ -688,6 +692,10 @@ public:
 
   /// \brief returns Expr after setting data.
   virtual PtrTy setFatData(PtrTy p, unsigned SlotIdx, Expr data) = 0;
+
+  /// \brief return True expr if number of bytes(byteSz) is within allocated
+  /// bounds, False expr otherwise.
+  virtual Expr isDereferenceable(PtrTy p, Expr byteSz) = 0;
 };
 
 OpSemMemManager *mkRawMemManager(Bv2OpSem &sem, Bv2OpSemContext &ctx,

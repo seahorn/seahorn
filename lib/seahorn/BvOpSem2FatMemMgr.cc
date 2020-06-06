@@ -544,6 +544,11 @@ public:
     assert(SlotIdx < g_maxFatSlots);
     return strct::insertVal(p.v(), 1 + SlotIdx, data);
   }
+
+  Expr isDereferenceable(FatPtrTy p, Expr byteSz) {
+    LOG("opsem", WARN << "isDereferenceable() not implemented!\n");
+    return m_ctx.alu().getFalse();
+  }
 };
 
 FatMemManager::FatMemManager(Bv2OpSem &sem, Bv2OpSemContext &ctx,

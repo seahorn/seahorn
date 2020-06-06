@@ -208,6 +208,10 @@ public:
       return m_falseE;
     return mk<EQ>(bv, m_trueBv1);
   }
+
+  Expr getFalse() { return m_falseE; }
+
+  Expr getTrue() { return m_trueE; }
 };
 
 std::unique_ptr<OpSemAlu> mkBvOpSemAlu(Bv2OpSemContext &ctx) {

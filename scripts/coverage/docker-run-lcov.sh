@@ -10,6 +10,8 @@
 # XXX limit to tests that succeed currently, re-enable when all test pass
 # lit /seahorn/test
 lit /seahorn/test/opsem
+lit -D opsem-opts=--horn-bv2-widemem /seahorn/test/opsem 
+lit /seahorn/test/opsem/widemem
 lit /seahorn/test/mcfuzz
 lit /seahorn/test/simple
 

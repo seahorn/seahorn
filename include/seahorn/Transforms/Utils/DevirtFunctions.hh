@@ -57,7 +57,7 @@ public:
   CallSiteResolverKind get_kind() const { return m_kind; }
 
   /* Return all the possible callees for CS.
-     It can return nullptr if not callees found. 
+     It can return nullptr if not callees found.
      If isComplete is true then all the possible callees are known.
   */
   virtual const AliasSet *getTargets(llvm::CallSite &CS, bool &isComplete) = 0;
@@ -124,7 +124,8 @@ public:
   using AliasSetId = CallSiteResolverByTypes::AliasSetId;
   using AliasSet = CallSiteResolverByTypes::AliasSet;
 
-  CallSiteResolverByDsa(llvm::Module &M, seadsa::CompleteCallGraphAnalysis &dsa);
+  CallSiteResolverByDsa(llvm::Module &M,
+                        seadsa::CompleteCallGraphAnalysis &dsa);
 
   ~CallSiteResolverByDsa() = default;
 
@@ -133,7 +134,8 @@ public:
 #ifdef USE_BOUNCE_FUNCTIONS
   llvm::Function *getBounceFunction(llvm::CallSite &CS) override;
 
-  void cacheBounceFunction(llvm::CallSite &CS, llvm::Function *bounceFunction) override;
+  void cacheBounceFunction(llvm::CallSite &CS,
+                           llvm::Function *bounceFunction) override;
 #endif
 
 private:

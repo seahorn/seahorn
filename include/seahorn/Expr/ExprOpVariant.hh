@@ -37,21 +37,24 @@ enum class VariantOpKind { VARIANT, TAG };
 namespace typeCheck {
 namespace variantType {
 
+template <typename T>
+static inline Expr checkVariant(Expr exp, TypeChecker &tc) {
+  if (exp->arity() == 2 && correctTypeAny<T>(exp ->first(), tc))
+    return tc.typeOf(exp->right());
+  else
+    return sort::errorTy(exp->efac());
+
+}
+
 struct Variant {
   static inline Expr inferType(Expr exp, TypeChecker &tc) {
-    if (checkNumChildren<Equal, 2>(exp) && isOp<UINT>(exp->first()))
-      return tc.typeOf(exp->right());
-    else
-      return sort::errorTy(exp->efac());
+    return checkVariant <UINT> (exp, tc);
   }
 };
 
 struct Tag {
   static inline Expr inferType(Expr exp, TypeChecker &tc) {
-    if (checkNumChildren<Equal, 2>(exp))
-      return tc.typeOf(exp->right());
-    else
-      return sort::errorTy(exp->efac());
+    return checkVariant <ANY_TY>(exp, tc);
   }
 };
 } // namespace variantType

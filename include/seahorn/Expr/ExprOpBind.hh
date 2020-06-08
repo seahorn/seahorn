@@ -53,7 +53,7 @@ namespace bindType {
 
 struct Bind {
   static inline Expr inferType(Expr exp, TypeChecker &tc) {
-    if (checkNumChildren<Equal, 2>(exp))
+    if (exp->arity() == 2)
       return tc.typeOf(exp->arg(1));
     else
       return sort::errorTy(exp->efac());
@@ -61,7 +61,7 @@ struct Bind {
 };
 struct Fdecl {
   static inline Expr inferType(Expr exp, TypeChecker &tc) {
-    if (checkNumChildren<Equal, 2>(exp))
+    if (exp->arity() == 2)
       return bind::rangeTy(exp);
     else
       return sort::errorTy(exp->efac());
@@ -70,7 +70,7 @@ struct Fdecl {
 
 struct Fapp {
   static inline Expr inferType(Expr exp, TypeChecker &tc) {
-    if (checkNumChildren<Equal, 1> && isOp<FDECL>(exp->first()))
+    if (exp->arity() == 1 && isOp<FDECL>(exp->first()))
       return bind::rangeTy(exp->first());
     else
       return sort::errorTy(exp->efac());

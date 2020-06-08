@@ -13,8 +13,10 @@ class TCVR {
 
   ExprMap m_cache;
   std::map<Expr, ExprSet> m_endExpr;
+
   bool m_isWellFormed;
   Expr m_errorExp;
+
   TypeChecker *const m_tc;
   Expr m_topMost;
 
@@ -30,6 +32,7 @@ class TCVR {
   bool isConst(Expr exp) {
     return bind::isBoolConst(exp) || bind::isIntConst(exp) ||
            bind::isRealConst(exp) || bind::isUnintConst(exp) ||
+           bind::isArrayConst(exp) || bind::isStructConst(exp) ||
            bv::isBvConst(exp);
   }
 
@@ -39,24 +42,15 @@ class TCVR {
     return isConst(exp) || isValue(exp) || bv::is_bvnum(exp);
   }
 
-  Expr inferType(Expr exp, TypeChecker &tc) {
-    if (bv::isBvNum(exp))
-      return bv::bvsort(bv::widthBvNum(exp), exp->efac());
-    else if (isOp<BVSORT>(exp))
-      return exp;
-
-    return exp->inferType(exp, tc);
-  }
-
   void mapEndTypes(Expr exp) {
     ExprSet set;
 
-    if (exp->arity() == 0){
+    if (exp->arity() == 0) {
       set.insert(exp);
     }
 
-    std::for_each(exp->args_begin(), exp->args_end(), [this, &exp, &set](Expr child) {
-      if (this ->m_endExpr.count(child)) {
+    std::for_each(exp->args_begin(), exp->args_end(), [this, &set](Expr child) {
+      if (this->m_endExpr.count(child)) {
         ExprSet childSet = this->m_endExpr.at(child);
         set.insert(childSet.begin(), childSet.end());
       }
@@ -69,7 +63,7 @@ class TCVR {
   Expr postVisit(Expr exp) {
     LOG("tc", llvm::errs() << "post visiting expression: " << *exp << "\n";);
 
-    Expr type = inferType(exp, *m_tc);
+    Expr type = exp->inferType(exp, *m_tc);
 
     m_cache.insert({exp, type});
     mapEndTypes(exp);
@@ -103,10 +97,10 @@ public:
     if (m_cache.count(exp) || !m_isWellFormed) {
       return false;
     } else if (isSimpleType(exp)) {
-      m_cache.insert({exp, inferType(exp, *m_tc)});
+      m_cache.insert({exp, exp->inferType(exp, *m_tc)});
 
       ExprSet set;
-      set.insert (exp);
+      set.insert(exp);
       m_endExpr.insert({exp, set});
       return false;
     }
@@ -173,10 +167,10 @@ public:
 TypeChecker::TypeChecker() : m_impl(new TypeChecker::Impl(this)) {}
 TypeChecker::~TypeChecker() { delete m_impl; }
 Expr TypeChecker::typeOf(Expr e) { return m_impl->typeOf(e); }
-Expr TypeChecker::getErrorExp() { // to be called after typeOf() or sortOf()
-  return m_impl->getErrorExp();
-}
 
- // to be called after typeOf() or sortOf()
-ExprSet TypeChecker::getEndExps(Expr e) { return m_impl->getEndExps(e);}
+// to be called after typeOf() or sortOf()
+Expr TypeChecker::getErrorExp() { return m_impl->getErrorExp(); }
+
+// to be called after typeOf() or sortOf()
+ExprSet TypeChecker::getEndExps(Expr e) { return m_impl->getEndExps(e); }
 } // namespace expr

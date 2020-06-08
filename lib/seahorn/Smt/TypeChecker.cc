@@ -110,7 +110,12 @@ public:
   Expr operator()(Expr exp) { return postVisit(exp); }
 
   Expr knownTypeOf(Expr e) {
-    Expr knownType = e ? m_cache.at(e) : Expr();
+    Expr knownType;
+
+    if (m_isWellFormed) 
+      knownType = e ? m_cache.at(e) : Expr();
+    else
+      knownType = sort::errorTy(e->efac());
 
     if (e == m_topMost) // done traversing entire expression
       reset(e);

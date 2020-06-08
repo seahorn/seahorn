@@ -127,21 +127,41 @@ struct BINDER {
 
 namespace typeCheck {
 namespace bindType {
+
+template <typename T> static inline bool checkBody(Expr exp, TypeChecker &tc) {
+  Expr body = exp->last();
+
+  if (!(exp->arity() >= 2 && correctTypeAny<T>(body, tc)))
+    return false;
+
+  ExprSet bodyEndExps = tc.getEndExps(body);
+  ExprSet boundVars(exp->args_begin(), exp->args_end() - 1);
+
+  auto contains = [&boundVars](Expr exp) -> bool {
+    return boundVars.count(exp);
+  };
+
+  return std::all_of(bodyEndExps.begin(), bodyEndExps.end(), contains);
+}
+
+struct Lambda {
+  static inline Expr inferType(Expr exp, TypeChecker &tc) {
+    if (checkBody<ANY_TY>(exp, tc)) {
+      ExprVector types;
+      for (auto b = exp->args_begin(), e = exp->args_end(); b != e; b++) {
+        types.push_back(tc.typeOf(*b));
+      }
+
+      return mknary<ARRAY_TY>(types);
+    } else {
+      return sort::errorTy(exp->efac());
+    }
+  }
+};
+
 struct Quantifier {
   static inline Expr inferType(Expr exp, TypeChecker &tc) {
-    Expr body = exp->last();
-    if (!(exp->arity() >= 2 && correctTypeAll<ANY_TY>(exp, tc) &&
-        isOp<BOOL_TY>(tc.typeOf(body))))
-        return sort::errorTy(exp->efac());
-    
-    ExprSet bodyEndExps = tc.getEndExps(body);
-    ExprSet args (exp->args_begin(), exp->args_end() -1);
-
-    auto contains = [&args] (Expr exp)->bool { 
-      return args.count(exp);
-    };
-
-    if(std::all_of(bodyEndExps.begin(), bodyEndExps.end(), contains))
+    if (checkBody<BOOL_TY>(exp, tc))
       return sort::boolTy(exp->efac());
     else
       return sort::errorTy(exp->efac());
@@ -159,7 +179,8 @@ NOP_TYPECHECK(FORALL, "forall", bind::BINDER, BinderOp,
 NOP_TYPECHECK(EXISTS, "exists", bind::BINDER, BinderOp,
               typeCheck::bindType::Quantifier)
 /** Lambda */
-NOP(LAMBDA, "lambda", bind::BINDER, BinderOp)
+NOP_TYPECHECK(LAMBDA, "lambda", bind::BINDER, BinderOp,
+              typeCheck::bindType::Lambda)
 
 namespace bind {
 inline unsigned numBound(Expr e) {

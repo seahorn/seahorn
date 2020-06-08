@@ -1022,7 +1022,7 @@ TEST_CASE("quantifierWellFormed.test") {
   Expr f = mk<FALSE>(efac);
 
   Expr boolSort = sort::boolTy(efac);
-  Expr unintSort = sort::boolTy(efac);
+  Expr unintSort = sort::unintTy(efac);
 
   std::vector<Expr> e;
   Expr temp;
@@ -1033,8 +1033,8 @@ TEST_CASE("quantifierWellFormed.test") {
   e.push_back(temp);
 
   body = boolop::limp(aBool, bBool);
-   e.push_back(temp);
  temp = mk<EXISTS>(aBool, bBool, body);
+   e.push_back(temp);
 
   checkWellFormed(e, boolSort);
 }
@@ -1053,7 +1053,7 @@ TEST_CASE("quantifierNotWellFormed.test") {
   Expr f = mk<FALSE>(efac);
 
   Expr boolSort = sort::boolTy(efac);
-  Expr unintSort = sort::boolTy(efac);
+  Expr unintSort = sort::unintTy(efac);
 
   std::vector<Expr> e;
   Expr temp;
@@ -1068,6 +1068,79 @@ TEST_CASE("quantifierNotWellFormed.test") {
   e.push_back(temp);
 
  tempError = mk<EXISTS>(aBool, bBool, aUnint); // body is not bool type
+  error.push_back(tempError);
+  e.push_back(tempError);
+
+  body = mk<EQ>(aUnint, bUnint);
+  tempError = mk<FORALL>(aUnint, bBool, body); // bUnint in the body is not bound by the quantifier
+  error.push_back(tempError);
+  e.push_back(tempError);
+
+  checkNotWellFormed(e, error);
+}
+TEST_CASE("lambdaWellFormed.test") {
+  seahorn::SeaEnableLog("tc");
+  // -- manages expressions
+  ExprFactory efac;
+
+  Expr aBool = boolConst("aBool", efac);
+  Expr bBool = boolConst("bBool", efac);
+
+  Expr aUnint = unintConst("aUnint", efac);
+  Expr bUnint = unintConst("bUnint", efac);
+
+  Expr boolSort = sort::boolTy(efac);
+  Expr unintSort = sort::unintTy(efac);
+
+  Expr arraySort = mk<ARRAY_TY>(boolSort, unintSort, unintSort);
+
+  std::vector<Expr> e;
+  Expr temp;
+  Expr body;
+
+  body = mk<PLUS>(aUnint, aUnint);
+  temp = mk<LAMBDA>(aBool, aUnint, body);
+  e.push_back(temp);
+
+  checkWellFormed(e, arraySort);
+  e.clear();
+
+  ExprVector sorts = {boolSort, unintSort, unintSort, boolSort};
+  Expr arraySort2 = mknary<ARRAY_TY>(sorts);
+
+  body = mk<AND>(mk<GT>(aUnint, bUnint), aBool);
+  ExprVector args = {aBool, aUnint, bUnint, body};
+  temp = mknary<LAMBDA>(args);
+  e.push_back(temp);
+
+  checkWellFormed(e, arraySort2);
+}
+TEST_CASE("lambdaNotWellFormed.test") {
+  seahorn::SeaEnableLog("tc");
+  // -- manages expressions
+  ExprFactory efac;
+
+  Expr aBool = boolConst("aBool", efac);
+  Expr bBool = boolConst("bBool", efac);
+
+  Expr aUnint = unintConst("aUnint", efac);
+  Expr bUnint = unintConst("bUnint", efac);
+
+  Expr boolSort = sort::boolTy(efac);
+  Expr unintSort = sort::unintTy(efac);
+
+  std::vector<Expr> e;
+  Expr temp;
+  std::vector<Expr> error;
+  Expr tempError;
+  Expr body;
+
+  body = mk <IFF>(aBool, bBool);
+  tempError = mk<LAMBDA>(aBool, body); // bBool is not bound
+  error.push_back(tempError);
+  e.push_back(tempError);
+
+  tempError = mk<LAMBDA>(aUnint); // not enough arguments
   error.push_back(tempError);
   e.push_back(tempError);
 

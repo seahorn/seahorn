@@ -351,6 +351,10 @@ class Seapp(sea.LimitedCmd):
                          "Use --devirt-function to devirtualize other calls",
                          dest='devirt_funcs_cha', default=False,
                          action='store_true')
+        ap.add_argument ('--devirt-functions-allow-indirect-calls',
+                         help="Keep original indirect call if all callees might not be known",
+                         dest='devirt_allow_indirect', default=False,
+                         action='store_true')
         ap.add_argument ('--lower-assert',
                          help='Replace assertions with assumptions',
                          dest='lower_assert', default=False,
@@ -437,6 +441,8 @@ class Seapp(sea.LimitedCmd):
 
             if args.devirt_funcs_cha or args.devirt_funcs != 'none':
                 argv.append ('--devirt-functions')
+                if args.devirt_allow_indirect:
+                    argv.append('--devirt-functions-allow-indirect-calls')
             if args.devirt_funcs != 'none':
                 argv.append ('--devirt-functions-method={0}'.format(args.devirt_funcs))
             if args.devirt_funcs_cha:

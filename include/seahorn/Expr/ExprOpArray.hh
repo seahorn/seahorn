@@ -22,7 +22,7 @@ namespace arrayType {
 
 template <unsigned NumChildren>
 static inline bool checkArray(Expr exp, TypeChecker &tc) {
-  return exp->arity() == NumChildren && isOp<ARRAY_TY>(tc.typeOf(exp->first()));
+  return exp->arity() == NumChildren && correctTypeAny<ARRAY_TY>(exp->first(), tc);
 }
 
 struct Select {

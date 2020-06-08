@@ -57,8 +57,10 @@ public:
   CallSiteResolverKind get_kind() const { return m_kind; }
 
   /* Return all the possible callees for CS.
-     It can return nullptr if not callees found. */
-  virtual const AliasSet *getTargets(llvm::CallSite &CS) = 0;
+     It can return nullptr if not callees found. 
+     If isComplete is true then all the possible callees are known.
+  */
+  virtual const AliasSet *getTargets(llvm::CallSite &CS, bool &isComplete) = 0;
 
 #ifdef USE_BOUNCE_FUNCTIONS
   /* Return a bounce function that resolves CS. It can return null if
@@ -87,7 +89,7 @@ public:
 
   virtual ~CallSiteResolverByTypes();
 
-  const AliasSet *getTargets(llvm::CallSite &CS) override;
+  const AliasSet *getTargets(llvm::CallSite &CS, bool &isComplete) override;
 
 #ifdef USE_BOUNCE_FUNCTIONS
   llvm::Function *getBounceFunction(llvm::CallSite &CS) override;
@@ -122,12 +124,11 @@ public:
   using AliasSetId = CallSiteResolverByTypes::AliasSetId;
   using AliasSet = CallSiteResolverByTypes::AliasSet;
 
-  CallSiteResolverByDsa(llvm::Module &M, seadsa::CompleteCallGraphAnalysis &dsa,
-                        bool incomplete);
+  CallSiteResolverByDsa(llvm::Module &M, seadsa::CompleteCallGraphAnalysis &dsa);
 
   ~CallSiteResolverByDsa() = default;
 
-  const AliasSet *getTargets(llvm::CallSite &CS) override;
+  const AliasSet *getTargets(llvm::CallSite &CS, bool &isComplete) override;
 
 #ifdef USE_BOUNCE_FUNCTIONS
   llvm::Function *getBounceFunction(llvm::CallSite &CS) override;
@@ -147,8 +148,6 @@ private:
   llvm::Module &m_M;
   // -- the pointer analysis to resolve function pointers
   seadsa::CompleteCallGraphAnalysis &m_dsa;
-  // -- Resolve incomplete nodes (unsound, in general)
-  bool m_allow_incomplete;
   // -- map from callsite to the corresponding alias set
   TargetsMap m_targets_map;
 #ifdef USE_BOUNCE_FUNCTIONS
@@ -169,7 +168,7 @@ public:
 
   ~CallSiteResolverByCHA();
 
-  const AliasSet *getTargets(llvm::CallSite &CS) override;
+  const AliasSet *getTargets(llvm::CallSite &CS, bool &isComplete) override;
 
 #ifdef USE_BOUNCE_FUNCTIONS
   llvm::Function *getBounceFunction(llvm::CallSite &CS) override;

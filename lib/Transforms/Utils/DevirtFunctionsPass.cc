@@ -44,12 +44,6 @@ static llvm::cl::opt<bool>
                                       "(required for soundness)"),
                        llvm::cl::Hidden, llvm::cl::init(false));
 
-static llvm::cl::opt<bool> AllowIncompleteDsaNodes(
-    "devirt-functions-allow-incomplete",
-    llvm::cl::desc("Allow the use of incomplete dsa nodes to resolve calls. "
-                   "This is potentially unsound."),
-    llvm::cl::Hidden, llvm::cl::init(false));
-
 namespace seahorn {
 
 using namespace llvm;
@@ -94,7 +88,7 @@ public:
       seadsa::CompleteCallGraphAnalysis ccga(dl, tli, allocInfo, cg, true);
       ccga.runOnModule(M);
       LOG("devirt-dsa-cg", ccga.printStats(M, errs()));
-      CSR.reset(new CallSiteResolverByDsa(M, ccga, AllowIncompleteDsaNodes));
+      CSR.reset(new CallSiteResolverByDsa(M, ccga));
       res |= DF.resolveCallSites(M, &*CSR);
       break;
     }

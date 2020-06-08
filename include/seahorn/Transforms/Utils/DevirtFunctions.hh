@@ -87,12 +87,12 @@ public:
 
   virtual ~CallSiteResolverByTypes();
 
-  const AliasSet *getTargets(llvm::CallSite &CS);
+  const AliasSet *getTargets(llvm::CallSite &CS) override;
 
 #ifdef USE_BOUNCE_FUNCTIONS
-  llvm::Function *getBounceFunction(llvm::CallSite &CS);
+  llvm::Function *getBounceFunction(llvm::CallSite &CS) override;
 
-  void cacheBounceFunction(llvm::CallSite &CS, llvm::Function *bounce);
+  void cacheBounceFunction(llvm::CallSite &CS, llvm::Function *bounce) override;
 #endif
 
 private:
@@ -127,12 +127,12 @@ public:
 
   ~CallSiteResolverByDsa() = default;
 
-  const AliasSet *getTargets(llvm::CallSite &CS);
+  const AliasSet *getTargets(llvm::CallSite &CS) override;
 
 #ifdef USE_BOUNCE_FUNCTIONS
-  llvm::Function *getBounceFunction(llvm::CallSite &CS);
+  llvm::Function *getBounceFunction(llvm::CallSite &CS) override;
 
-  void cacheBounceFunction(llvm::CallSite &CS, llvm::Function *bounceFunction);
+  void cacheBounceFunction(llvm::CallSite &CS, llvm::Function *bounceFunction) override;
 #endif
 
 private:
@@ -169,12 +169,12 @@ public:
 
   ~CallSiteResolverByCHA();
 
-  const AliasSet *getTargets(llvm::CallSite &CS);
+  const AliasSet *getTargets(llvm::CallSite &CS) override;
 
 #ifdef USE_BOUNCE_FUNCTIONS
-  llvm::Function *getBounceFunction(llvm::CallSite &CS);
+  llvm::Function *getBounceFunction(llvm::CallSite &CS) override;
 
-  void cacheBounceFunction(llvm::CallSite &CS, llvm::Function *bounce);
+  void cacheBounceFunction(llvm::CallSite &CS, llvm::Function *bounce) override;
 #endif
 
 private:

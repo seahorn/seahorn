@@ -20,42 +20,42 @@ struct Struct {
     ExprVector childrenTypes;
     bool wellFormed = true;
 
-    // create a vector with the types of the struct's children 
-    // if any of the children are error types then leave and return an error type 
+    // create a vector with the types of the struct's children
+    // if any of the children are error types then leave and return an error
+    // type
     for (auto b = exp->args_begin(), e = exp->args_end(); wellFormed && b != e;
          b++) {
       childrenTypes.push_back(tc.typeOf(*b));
       wellFormed = correctTypeAny<ANY_TY>(*b, tc);
     }
 
-    return wellFormed ? sort::structTy(childrenTypes) : sort::errorTy(exp->efac());
+    return wellFormed ? sort::structTy(childrenTypes)
+                      : sort::errorTy(exp->efac());
   }
 };
 
-static inline Expr getStruct (Expr exp){
-  return exp->arg(0);
-}
+static inline Expr getStruct(Expr exp) { return exp->arg(0); }
 
-static inline unsigned getIndex (Expr exp) {
+static inline unsigned getIndex(Expr exp) {
   mpz_class idxZ = (getTerm<expr::mpz_class>(exp->arg(1)));
   return idxZ.get_ui();
 }
 
-template <unsigned numChildren>
-static inline bool structCheck (Expr exp) {
-  return exp->arity() == numChildren && isOp<MPZ>(exp->arg(1)) && getIndex(exp) < getStruct(exp)->arity();
+static inline bool structCheck(Expr exp, unsigned numChildren) {
+  return exp->arity() == numChildren && isOp<MPZ>(exp->arg(1)) &&
+         getIndex(exp) < getStruct(exp)->arity();
 }
 
 struct Insert {
   static inline Expr inferType(Expr exp, TypeChecker &tc) {
-    if (!structCheck<3>(exp))
+    if (!structCheck(exp, 3))
       return sort::errorTy(exp->efac());
 
     Expr st = getStruct(exp);
     unsigned idx = getIndex(exp);
     Expr v = exp->arg(2);
 
-    // Create a copy of the struct exp with the value v insert into 
+    // Create a copy of the struct exp with the value v insert into
     // the correct spot
     ExprVector kids(st->args_begin(), st->args_end());
     kids[idx] = v;
@@ -68,7 +68,7 @@ struct Insert {
 
 struct Extract {
   static inline Expr inferType(Expr exp, TypeChecker &tc) {
-    if (!structCheck<2>(exp))
+    if (!structCheck(exp, 2))
       return sort::errorTy(exp->efac());
 
     Expr st = getStruct(exp);

@@ -20,15 +20,14 @@ enum class ArrayOpKind {
 namespace typeCheck {
 namespace arrayType {
 
-template <unsigned NumChildren>
-static inline bool checkArray(Expr exp, TypeChecker &tc) {
-  return exp->arity() == NumChildren &&
+static inline bool checkArray(Expr exp, TypeChecker &tc, unsigned numChildren) {
+  return exp->arity() == numChildren &&
          correctTypeAny<ARRAY_TY>(exp->first(), tc);
 }
 
 struct Select {
   static inline Expr inferType(Expr exp, TypeChecker &tc) {
-    if (!checkArray<2>(exp, tc))
+    if (!checkArray(exp, tc, 2))
       return sort::errorTy(exp->efac());
 
     Expr arrayTy = tc.typeOf(exp->left());
@@ -43,7 +42,7 @@ struct Select {
 };
 struct Store {
   static inline Expr inferType(Expr exp, TypeChecker &tc) {
-    if (!checkArray<3>(exp, tc))
+    if (!checkArray(exp, tc, 3))
       return sort::errorTy(exp->efac());
 
     Expr arrayTy = tc.typeOf(exp->left());
@@ -69,14 +68,13 @@ struct Const {
       return sort::arrayTy(domain, tc.typeOf(value));
 
     return sort::errorTy(exp->efac());
-
   }
 };
 
 struct Default {
   static inline Expr inferType(Expr exp, TypeChecker &tc) {
 
-    if (!checkArray<1>(exp, tc))
+    if (!checkArray(exp, tc, 1))
       return sort::errorTy(exp->efac());
 
     Expr array = exp->first();

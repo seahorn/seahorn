@@ -183,8 +183,8 @@ enum class BvOpKind {
 namespace typeCheck {
 namespace bvType {
 
-static inline Expr returnType(Expr exp, TypeChecker &tc) { 
-  return tc.typeOf(exp->first()); 
+static inline Expr returnType(Expr exp, TypeChecker &tc) {
+  return tc.typeOf(exp->first());
 }
 
 struct Unary {
@@ -201,7 +201,7 @@ struct Binary {
 
 struct Nary {
   static inline Expr inferType(Expr exp, TypeChecker &tc) {
-    return typeCheck::nary<BVSORT>(exp, tc, returnType); 
+    return typeCheck::nary<BVSORT>(exp, tc, returnType);
   }
 };
 
@@ -214,20 +214,20 @@ struct BinaryBool {
 static inline Expr getExtendReturnType(Expr exp, TypeChecker &tc) {
   unsigned width = 0;
 
-  for (auto b=exp->args_begin(), e=exp->args_end(); b!=e; b++) {
+  for (auto b = exp->args_begin(), e = exp->args_end(); b != e; b++) {
     width += bv::width(tc.typeOf(*b));
   }
 
-  return bv::bvsort( width, exp->efac());
+  return bv::bvsort(width, exp->efac());
 }
-
 
 struct Concat {
   static inline Expr inferType(Expr exp, TypeChecker &tc) {
     auto returnTypeFn = [](Expr exp, TypeChecker &tc) {
       return getExtendReturnType(exp, tc);
     };
-    return typeCheck::checkChildrenAll<GreaterEqual, 2, BVSORT>(exp, tc, returnTypeFn);
+    return typeCheck::checkChildrenAll<GreaterEqual, BVSORT>(exp, tc, 2,
+                                                             returnTypeFn);
   }
 };
 
@@ -237,13 +237,13 @@ struct Extend {
       return sort::errorTy(exp->efac());
 
     Expr bv = exp->left();
-    Expr bvSort = exp->right(); //NOTE: bvSort should be the BVSORT operator, so we shouldn't do tc.typeOf() on it
+    Expr bvSort = exp->right(); // NOTE: bvSort should be the BVSORT operator,
+                                // so we shouldn't do tc.typeOf() on it
 
     if (isOp<BVSORT>(tc.typeOf(bv)) && isOp<BVSORT>(bvSort))
       return getExtendReturnType(exp, tc);
 
     return sort::errorTy(exp->efac());
-    
   }
 };
 
@@ -264,7 +264,8 @@ struct Extract {
       return sort::errorTy(exp->efac());
     };
 
-    return typeCheck::checkChildrenSpecific<Equal, 3, UINT, UINT, BVSORT>(exp, tc, returnTypeFn);
+    return typeCheck::checkChildrenSpecific<Equal, UINT, UINT, BVSORT>(
+        exp, tc, 3, returnTypeFn);
   }
 };
 
@@ -280,8 +281,8 @@ struct Int2Bv {
       return bv::bvsort(width, exp->efac());
     };
 
-    return typeCheck::checkChildrenSpecific<Equal, 2, UINT, INT_TY>(
-        exp, tc, returnTypeFn);
+    return typeCheck::checkChildrenSpecific<Equal, UINT, INT_TY>(exp, tc, 2,
+                                                                 returnTypeFn);
   }
 };
 
@@ -291,8 +292,8 @@ struct Rotate {
       return tc.typeOf(exp->right());
     };
 
-    return typeCheck::checkChildrenSpecific<Equal, 2, UINT, BVSORT>(
-        exp, tc, returnTypeFn);
+    return typeCheck::checkChildrenSpecific<Equal, UINT, BVSORT>(exp, tc, 2,
+                                                                 returnTypeFn);
   }
 };
 

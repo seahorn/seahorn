@@ -456,6 +456,9 @@ TEST_CASE("bvWellFormed.test") {
                      mk<BROTATE_RIGHT>(mkTerm<unsigned>(2, efac), b10));
   e.push_back(temp);
 
+  temp = mk<BREPEAT>(mkTerm<unsigned>(2, efac), a5);
+  e.push_back(temp);
+
   temp = mk<BUGE>(e.back(),
                   mk<BEXT_ROTATE_RIGHT>(mkTerm<unsigned>(2, efac), e.back()));
   e.push_back(temp);

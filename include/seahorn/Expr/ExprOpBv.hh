@@ -222,6 +222,7 @@ static inline Expr getExtendReturnType(Expr exp, TypeChecker &tc) {
 }
 
 struct Concat {
+
   static inline Expr inferType(Expr exp, TypeChecker &tc) {
     auto returnTypeFn = [](Expr exp, TypeChecker &tc) {
       return getExtendReturnType(exp, tc);
@@ -297,6 +298,20 @@ struct Rotate {
   }
 };
 
+struct Repeat {
+  static inline Expr inferType(Expr exp, TypeChecker &tc) {
+    auto returnTypeFn = [](Expr exp, TypeChecker &tc) {
+      unsigned timesRepeated = getTerm<unsigned>(exp->left());
+      unsigned width = bv::width(tc.typeOf(exp->right()));
+
+      return bv::bvsort(width * timesRepeated, exp->efac());
+    };
+
+    return typeCheck::checkChildrenSpecific<Equal, UINT, BVSORT>(exp, tc, 2,
+                                                                 returnTypeFn);
+  }
+};
+
 } // namespace bvType
 } // namespace typeCheck
 
@@ -331,7 +346,7 @@ NOP_TYPECHECK(BCONCAT, "concat", FUNCTIONAL, BvOp, typeCheck::bvType::Concat)
 NOP_TYPECHECK(BEXTRACT, "extract", FUNCTIONAL, BvOp, typeCheck::bvType::Extract)
 NOP_TYPECHECK(BSEXT, "bvsext", FUNCTIONAL, BvOp, typeCheck::bvType::Extend)
 NOP_TYPECHECK(BZEXT, "bvzext", FUNCTIONAL, BvOp, typeCheck::bvType::Extend)
-NOP_TYPECHECK(BREPEAT, "bvrepeat", FUNCTIONAL, BvOp, typeCheck::bvType::Rotate)
+NOP_TYPECHECK(BREPEAT, "bvrepeat", FUNCTIONAL, BvOp, typeCheck::bvType::Repeat)
 NOP_TYPECHECK(BSHL, "bvshl", FUNCTIONAL, BvOp, typeCheck::bvType::Binary)
 NOP_TYPECHECK(BLSHR, "bvlshr", FUNCTIONAL, BvOp, typeCheck::bvType::Binary)
 NOP_TYPECHECK(BASHR, "bvashr", FUNCTIONAL, BvOp, typeCheck::bvType::Binary)

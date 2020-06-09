@@ -5,6 +5,7 @@
 #include "seahorn/Expr/ExprOpCore.hh"
 #include "seahorn/Expr/ExprOpSort.hh"
 #include "seahorn/Expr/TypeChecker.hh"
+#include "seahorn/Expr/TypeCheckerUtils.hh"
 
 namespace expr {
 namespace op {
@@ -13,19 +14,33 @@ enum class BoolOpKind { TRUE, FALSE, AND, OR, XOR, NEG, IMPL, ITE, IFF };
 namespace typeCheck {
 namespace boolType {
 
+struct OneOrMore {
+  // Return type: BOOL_TY
+  // Possible types of children: BOOL_TY
+  static inline Expr inferType(Expr exp, TypeChecker &tc) {
+    return typeCheck::oneOrMore<BOOL_TY, BOOL_TY>(exp, tc);
+  }
+};
+
 struct Unary {
+  // Return type: BOOL_TY
+  // Possible types of children: BOOL_TY
   static inline Expr inferType(Expr exp, TypeChecker &tc) {
     return typeCheck::unary<BOOL_TY, BOOL_TY>(exp, tc);
   }
 };
 
 struct Binary {
+  // Return type: BOOL_TY
+  // Possible types of children: BOOL_TY
   static inline Expr inferType(Expr exp, TypeChecker &tc) {
     return typeCheck::binary<BOOL_TY, BOOL_TY>(exp, tc);
   }
 };
 
 struct Nary {
+  // Return type: BOOL_TY
+  // Possible types of children: BOOL_TY
   static inline Expr inferType(Expr exp, TypeChecker &tc) {
     return typeCheck::nary<BOOL_TY, BOOL_TY>(exp, tc);
   }
@@ -37,9 +52,9 @@ struct ITE {
     // ite(a,b,c) : a is bool type, b and c are the same type
     if (exp->arity() == 3 && isOp<BOOL_TY>(tc.typeOf(exp->arg(0))) &&
         (tc.typeOf(exp->arg(1)) == tc.typeOf(exp->arg(2))))
-      return sort::boolTy(exp->efac());
-    else
-      return sort::errorTy(exp->efac());
+      return tc.typeOf(exp->arg(1));
+
+    return sort::errorTy(exp->efac());
   }
 };
 

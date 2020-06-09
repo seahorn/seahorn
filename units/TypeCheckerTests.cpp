@@ -116,7 +116,10 @@ TEST_CASE("boolWellFormed.test") {
   Expr y = boolConst("y", efac);
   Expr z = boolConst("z", efac);
 
+  Expr aInt = intConst("aInt", efac);
+
   Expr boolSort = sort::boolTy(efac);
+  Expr intSort = sort::intTy(efac);
 
   std::vector<Expr> e;
   Expr temp;
@@ -144,6 +147,12 @@ TEST_CASE("boolWellFormed.test") {
   e.push_back(temp);
 
   checkWellFormed(e, boolSort);
+  e.clear();
+
+  temp = mk<ITE>(y, x, aInt);
+
+  checkWellFormed(e, intSort);
+
 }
 TEST_CASE("notWellFormed.test") {
   seahorn::SeaEnableLog("tc");
@@ -406,6 +415,10 @@ TEST_CASE("bvWellFormed.test") {
   Expr b5 = bvConst("b5", efac, 5);
   Expr c5 = bvConst("c5", efac, 5);
 
+  Expr a2 = bvConst("a2", efac, 2);
+
+  Expr a3 = bvConst("a3", efac, 3);
+
   std::vector<Expr> e;
   Expr temp;
 
@@ -419,6 +432,9 @@ TEST_CASE("bvWellFormed.test") {
   e.push_back(temp);
 
   temp = mk<BSUB>(mk<BCONCAT>(a5, b5), a10);
+  e.push_back(temp);
+
+  temp = mk<BCONCAT>(a5, a3, a2);
   e.push_back(temp);
 
   temp = mk<BADD>(mk<BNAND>(a10, b10), mk<BSHL>(c10, c10));
@@ -492,7 +508,7 @@ TEST_CASE("bvNotWellFormed.test") {
   temp = mk<BSGT>(error.back(), a10);
   e.push_back(temp);
 
-  tempError = mk<BSGT>(a10, aUnint); // wrong type of argument: Nary
+  tempError = mk<BSGT>(a10, aUnint); // wrong type of argument
   error.push_back(tempError);
   temp = mk<BSHL>(b10, error.back());
   e.push_back(temp);
@@ -585,6 +601,10 @@ TEST_CASE("bvNotWellFormed.test") {
   temp = mk<BCONCAT>(error.back(), error.back());
   e.push_back(temp);
 
+  tempError = mk <BSGT>(a10, b10, c10); // too many arguments
+  error.push_back(tempError);
+  e.push_back(tempError);
+
   checkNotWellFormed(e, error);
 }
 TEST_CASE("bvDifReturnTypeWellFormed.test") {
@@ -614,7 +634,7 @@ TEST_CASE("bvDifReturnTypeWellFormed.test") {
   temp = mk<AND>(mk<UADD_NO_OVERFLOW>(a10, b10), aBool);
   e.push_back(temp);
 
-  temp = mk<SSUB_NO_UNDERFLOW>(a10, a10, mk<BASHR>(b10, c10));
+  temp = mk<SSUB_NO_UNDERFLOW>(a10, mk<BASHR>(b10, c10));
   e.push_back(temp);
 
   temp = mk<UMUL_NO_OVERFLOW>(bv::zext(a8, 2), mk<BSUB>(b10, c10));
@@ -684,7 +704,7 @@ TEST_CASE("variantWellFormed.test") {
   seahorn::SeaEnableLog("tc");
   ExprFactory efac;
 
-  Expr intSort = sort::intTy(efac);
+  Expr anySort = sort::anyTy(efac);
 
   Expr aInt = intConst("aInt", efac);
   Expr bInt = intConst("bInt", efac);
@@ -699,17 +719,13 @@ TEST_CASE("variantWellFormed.test") {
   temp = variant::variant(0, aInt);
   e.push_back(temp);
 
-  temp = mk<MULT>(aInt, variant::variant(1, aInt));
+  temp = variant::variant(1, mk<MULT>(aInt, bInt));
   e.push_back(temp);
 
-  temp = mk<BV2INT>(mk<BAND>(
-      a10, variant::variant(3, mk<INT2BV>(mkTerm<unsigned>(10, efac), aInt))));
+  temp = variant::tag(aInt, mk<BNEG>(a10));
   e.push_back(temp);
 
-  temp = mk<ABS>(variant::tag(aInt, a10));
-  e.push_back(temp);
-
-  checkWellFormed(e, intSort);
+  checkWellFormed(e, anySort);
 }
 TEST_CASE("variantNotWellFormed.test") {
   seahorn::SeaEnableLog("tc");
@@ -739,12 +755,7 @@ TEST_CASE("variantNotWellFormed.test") {
   temp = mk<PLUS>(mk<ABS>(error.back()), mk<PLUS>(aInt, error.back()));
   e.push_back(temp);
 
-  tempError = mk<SMUL_NO_OVERFLOW>(variant::variant(3, bInt), b10);
-  error.push_back(tempError);
-  temp = mk<AND>(mk<GEQ>(aInt, bInt), error.back());
-  e.push_back(temp);
-
-  tempError = mk<XOR>(variant::tag(aInt, "tag"), aBool);
+  tempError = mk <TAG> (aInt, bInt , bInt);
   error.push_back(tempError);
   temp = error.back();
   e.push_back(temp);
@@ -970,6 +981,9 @@ TEST_CASE("gateWellFormed.test") {
   temp = gate::lor(x, boolop::lor(x, t));
   e.push_back(temp);
 
+  ExprVector args (e.begin(), e.end());
+  temp = mknary<OUT_G>(args);
+
   checkWellFormed(e, boolSort);
 }
 TEST_CASE("gateNotWellFormed.test") {
@@ -1002,6 +1016,10 @@ TEST_CASE("gateNotWellFormed.test") {
   e.push_back(tempError);
 
   tempError = mk<NEG_G>(x, y);
+  error.push_back(tempError);
+  e.push_back(tempError);
+
+  tempError = mk<OUT_G>(aInt);
   error.push_back(tempError);
   e.push_back(tempError);
 

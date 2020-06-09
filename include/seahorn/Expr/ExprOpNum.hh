@@ -5,6 +5,7 @@
 #include "seahorn/Expr/ExprOpBool.hh"
 #include "seahorn/Expr/ExprOpCore.hh"
 #include "seahorn/Expr/TypeChecker.hh"
+#include "seahorn/Expr/TypeCheckerUtils.hh"
 
 namespace expr {
 
@@ -27,16 +28,20 @@ enum class NumericOpKind {
 namespace typeCheck {
 namespace numType {
 
-  static inline Expr returnType (Expr exp, TypeChecker &tc) {
-      return tc.typeOf(exp->first());
-  }
+static inline Expr returnType(Expr exp, TypeChecker &tc) {
+  return tc.typeOf(exp->first());
+}
 struct Unary {
+  // Return type: type of children
+  // Possible types of children: INT_TY, REAL_TY, UNINT_TY
   static inline Expr inferType(Expr exp, TypeChecker &tc) {
     return typeCheck::unary<INT_TY, REAL_TY, UNINT_TY>(exp, tc, returnType);
   }
 };
 
 struct Nary {
+  // Return type: type of children
+  // Possible types of children: INT_TY, REAL_TY, UNINT_TY
   static inline Expr inferType(Expr exp, TypeChecker &tc) {
     return typeCheck::nary<INT_TY, REAL_TY, UNINT_TY>(exp, tc, returnType);
   }

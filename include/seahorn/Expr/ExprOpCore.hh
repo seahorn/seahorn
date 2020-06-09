@@ -53,8 +53,8 @@ struct TerminalBase : public expr::Operator {
 
 /// \brief Terminal Operator
 /// \p T is the type wrapped by the terminal, and \p P is the implementation of
-/// terminal traits for \p T , C is the tyepChecker
-template <typename T, typename P = TerminalTrait<T>, typename C = typeCheck::Any>
+/// terminal traits for \p T 
+template <typename T, typename P = TerminalTrait<T>>
 class Terminal : public TerminalBase {
 protected:
   T val;
@@ -63,7 +63,6 @@ public:
   using base_type = T;
   using terminal_type = P;
   using this_type = Terminal<T, P>;
-  using typeChecker_type = C;
 
   Terminal(const base_type &v)
       : TerminalBase(terminal_type::getKind()), val(v) {}
@@ -365,7 +364,7 @@ struct DefOp : public B {
   using base_type = B;
   using op_type = T;
   using ps_type = P;
-  using typeChecker_type = C;
+  using checker_type = C;
 
   DefOp() : B(kind) {}
   DefOp(DefOp const &) = default;
@@ -408,7 +407,7 @@ struct DefOp : public B {
   }
 
   Expr inferType(Expr exp, TypeChecker &tc) const override {
-    return typeChecker_type::inferType(exp, tc);
+    return checker_type::inferType(exp, tc);
   }
 };
 

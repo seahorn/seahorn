@@ -19,7 +19,7 @@ struct GateOp : public expr::Operator {
 };
 
 /// an output gate
-NOP(OUT_G, "OUT_G", PREFIX, GateOp)
+NOP_TYPECHECK(OUT_G, "OUT_G", PREFIX, GateOp, typeCheck::boolType::OneOrMore)
 NOP_TYPECHECK(AND_G, "/\\", INFIX, GateOp, typeCheck::boolType::Nary);
 NOP_TYPECHECK(OR_G, "\\/", INFIX, GateOp, typeCheck::boolType::Nary);
 NOP_TYPECHECK(NEG_G, "~", PREFIX, GateOp, typeCheck::boolType::Unary);

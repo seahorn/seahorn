@@ -87,6 +87,7 @@ public:
   /// \brief Returns heap-allocted copy of the operator
   virtual Operator *clone(ExprFactoryAllocator &allocator) const = 0;
   virtual std::string name() const = 0;
+  /// \brief Returns the type of the expression 
   virtual Expr inferType(Expr exp, TypeChecker &tc) const = 0;
 };
 

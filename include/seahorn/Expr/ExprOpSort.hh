@@ -21,14 +21,20 @@ enum class SimpleTypeOpKind {
   FINITE_MAP_TY,
   FINITE_MAP_KEYS_TY,
   ANY_TY,
-  ERROR_TY
+  ERROR_TY,
+  TYPE_TY
 };
+
+namespace sort {
+
+inline Expr typeTy(ExprFactory &efac);
+}
 
 namespace typeCheck {
   namespace simpleType {
 struct Simple {
   static inline Expr inferType(Expr exp, TypeChecker &tc) {
-    return exp;
+    return sort::typeTy(exp->efac());
   }
 };
   } // simpleType
@@ -59,6 +65,8 @@ NOP(FINITE_MAP_KEYS_TY, "FINITE_MAP_KS", PREFIX, SimpleTypeOp, typeCheck::simple
 NOP_TYPECHECK(ANY_TY, "ANY", PREFIX, SimpleTypeOp, typeCheck::simpleType::Simple)
 /// \brief Error type
 NOP_TYPECHECK(ERROR_TY, "ERROR", PREFIX, SimpleTypeOp, typeCheck::simpleType::Simple)
+/// \brief TYPE type,
+NOP_TYPECHECK(TYPE_TY, "TYPE", PREFIX, SimpleTypeOp, typeCheck::simpleType::Simple)
 } // namespace op
 
 namespace op {
@@ -69,6 +77,7 @@ inline Expr realTy(ExprFactory &efac) { return mk<REAL_TY>(efac); }
 inline Expr unintTy(ExprFactory &efac) { return mk<UNINT_TY>(efac); }
 inline Expr anyTy(ExprFactory &efac) { return mk<ANY_TY>(efac); }
 inline Expr errorTy(ExprFactory &efac) { return mk<ERROR_TY>(efac); }
+inline Expr typeTy(ExprFactory &efac) { return mk<TYPE_TY>(efac); }
 inline Expr arrayTy(Expr indexTy, Expr valTy) {
   return mk<ARRAY_TY>(indexTy, valTy);
 }

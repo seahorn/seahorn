@@ -4,6 +4,8 @@
 #include "seahorn/Expr/ExprCore.hh"
 #include "seahorn/Expr/ExprOpBool.hh"
 #include "seahorn/Expr/ExprOpCore.hh"
+#include "seahorn/Expr/TypeChecker.hh"
+#include "seahorn/Expr/TypeCheckerUtils.hh"
 
 #include "llvm/ADT/SmallVector.h"
 
@@ -15,16 +17,18 @@ namespace typeCheck {
 namespace structType {
 struct Struct {
   static inline Expr inferType(Expr exp, TypeChecker &tc) {
-    ExprVector args;
+    ExprVector childrenTypes;
     bool wellFormed = true;
 
+    // create a vector with the types of the struct's children 
+    // if any of the children are error types then leave and return an error type 
     for (auto b = exp->args_begin(), e = exp->args_end(); wellFormed && b != e;
          b++) {
-      args.push_back(tc.typeOf(*b));
+      childrenTypes.push_back(tc.typeOf(*b));
       wellFormed = correctTypeAny<ANY_TY>(*b, tc);
     }
 
-    return wellFormed ? sort::structTy(args) : sort::errorTy(exp->efac());
+    return wellFormed ? sort::structTy(childrenTypes) : sort::errorTy(exp->efac());
   }
 };
 
@@ -51,6 +55,8 @@ struct Insert {
     unsigned idx = getIndex(exp);
     Expr v = exp->arg(2);
 
+    // Create a copy of the struct exp with the value v insert into 
+    // the correct spot
     ExprVector kids(st->args_begin(), st->args_end());
     kids[idx] = v;
 

@@ -37,8 +37,8 @@ struct Select {
 
     if (indexTy == tc.typeOf(exp->right()))
       return valTy;
-    else
-      return sort::errorTy(exp->efac());
+
+    return sort::errorTy(exp->efac());
   }
 };
 struct Store {
@@ -52,8 +52,8 @@ struct Store {
 
     if (indexTy == tc.typeOf(exp->arg(1)) && valTy == tc.typeOf(exp->arg(2)))
       return arrayTy;
-    else
-      return sort::errorTy(exp->efac());
+
+    return sort::errorTy(exp->efac());
   }
 };
 
@@ -65,7 +65,11 @@ struct Const {
     Expr domain = exp->left();
     Expr value = exp->right();
 
-    return sort::arrayTy(tc.typeOf(domain), tc.typeOf(value));
+    if (isOp<TYPE_TY>(tc.typeOf(domain)))
+      return sort::arrayTy(domain, tc.typeOf(value));
+
+    return sort::errorTy(exp->efac());
+
   }
 };
 

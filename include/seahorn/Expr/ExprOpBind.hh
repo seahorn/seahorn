@@ -55,16 +55,16 @@ struct Bind {
   static inline Expr inferType(Expr exp, TypeChecker &tc) {
     if (exp->arity() == 2)
       return tc.typeOf(exp->arg(1));
-    else
-      return sort::errorTy(exp->efac());
+
+    return sort::errorTy(exp->efac());
   }
 };
 struct Fdecl {
   static inline Expr inferType(Expr exp, TypeChecker &tc) {
     if (exp->arity() == 2)
       return bind::rangeTy(exp);
-    else
-      return sort::errorTy(exp->efac());
+
+    return sort::errorTy(exp->efac());
   }
 };
 
@@ -72,8 +72,8 @@ struct Fapp {
   static inline Expr inferType(Expr exp, TypeChecker &tc) {
     if (exp->arity() == 1 && isOp<FDECL>(exp->first()))
       return bind::rangeTy(exp->first());
-    else
-      return sort::errorTy(exp->efac());
+
+    return sort::errorTy(exp->efac());
   }
 };
 } // namespace bindType

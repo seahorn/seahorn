@@ -5,6 +5,8 @@
 #include "seahorn/Expr/ExprCore.hh"
 #include "seahorn/Expr/ExprOpBool.hh"
 #include "seahorn/Expr/ExprOpCore.hh"
+#include "seahorn/Expr/TypeChecker.hh"
+#include "seahorn/Expr/TypeCheckerUtils.hh"
 
 #include <iostream>
 
@@ -40,9 +42,9 @@ namespace variantType {
 template <typename T>
 static inline Expr checkVariant(Expr exp, TypeChecker &tc) {
   if (exp->arity() == 2 && correctTypeAny<T>(exp ->first(), tc))
-    return tc.typeOf(exp->right());
-  else
-    return sort::errorTy(exp->efac());
+    return sort::anyTy(exp->efac());
+
+  return sort::errorTy(exp->efac());
 
 }
 

@@ -153,9 +153,9 @@ struct Lambda {
       }
 
       return mknary<ARRAY_TY>(types);
-    } else {
-      return sort::errorTy(exp->efac());
-    }
+    } 
+
+    return sort::errorTy(exp->efac());
   }
 };
 
@@ -163,8 +163,8 @@ struct Quantifier {
   static inline Expr inferType(Expr exp, TypeChecker &tc) {
     if (checkBody<BOOL_TY>(exp, tc))
       return sort::boolTy(exp->efac());
-    else
-      return sort::errorTy(exp->efac());
+
+    return sort::errorTy(exp->efac());
   }
 };
 } // namespace bindType

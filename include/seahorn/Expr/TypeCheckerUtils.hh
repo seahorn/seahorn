@@ -30,6 +30,7 @@ static inline bool correctTypeAny<ANY_TY>(Expr exp, TypeChecker &tc) {
 
 // returns true if the type of the expression matches any of the passed types
 // Note: checks the expression directly, not its children
+// Note: ANY_TY is used as a generic type, not specifically the ANY_TY type
 template <typename T, typename T2, typename... Types>
 static inline bool correctTypeAny(Expr exp, TypeChecker &tc) {
   if (correctTypeAny<T>(exp, tc))

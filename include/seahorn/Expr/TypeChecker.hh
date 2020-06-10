@@ -10,9 +10,26 @@ class TypeChecker {
 public:
   TypeChecker();
   ~TypeChecker();
+
+  /*
+  See typeOf(Expr e);
+  */
   Expr sortOf(Expr e) { return this->typeOf(e); }
+
+  /*
+  Returns the type of the passed expression. If an error is found (ie. the
+  expression is not well-formed) in any subexpression, it will
+  return an expression of type ERROR_TY. To get the error, call getErrorExp()
+  */
   Expr typeOf(Expr e);
-  Expr getErrorExp();         // to be called after typeOf() or sortOf()
-  ExprSet getEndExps(Expr e); // to be called after typeOf() or sortOf()
+
+  /*
+ - To be called after sortOf() or typeOf().
+ - Returns the expression that is not well-formed if an error was found,
+  otherwise it returns nullptr.
+  - The error expression is reset everytime sorOf() or typeOf() is called
+
+  */
+  Expr getErrorExp();
 };
 } // namespace expr

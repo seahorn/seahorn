@@ -56,6 +56,7 @@ template <> struct TerminalTrait<const op::bv::BvSort> {
 
   static TerminalKind getKind() { return TerminalKind::BVSORT; }
   static std::string name() { return "op::bv::BvSort"; }
+  static inline Expr inferType(Expr exp, TypeChecker &tc) { return sort::typeTy(exp->efac()); }
 };
 
 namespace op {
@@ -211,11 +212,12 @@ struct BinaryBool {
   }
 };
 
+//Returns bvsort with a width of the sum of all the children's widths
 static inline Expr getExtendReturnType(Expr exp, TypeChecker &tc) {
   unsigned width = 0;
-
   for (auto b = exp->args_begin(), e = exp->args_end(); b != e; b++) {
-    width += bv::width(tc.typeOf(*b));
+    Expr bvsort = isOp<BVSORT>(*b) ? *b : tc.typeOf(*b);
+    width += bv::width(bvsort);
   }
 
   return bv::bvsort(width, exp->efac());

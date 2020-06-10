@@ -86,12 +86,9 @@ struct Fapp {
   //Checks that the first child is FDECL type and that the rest of its children's types match the fdecl's arguments
   //Return type: type of the body of fdecl
   static inline Expr inferType(Expr exp, TypeChecker &tc) {
-    if (exp->arity() == 0)
-      return sort::errorTy(exp->efac());
-
     Expr fdecl = exp->first();
 
-    if (!(isOp<FDECL>(fdecl) && (exp->arity() == (fdecl->arity() - 1))))
+    if (!(fdecl && isOp<FDECL>(fdecl) && (exp->arity() == (fdecl->arity() - 1))))
       return sort::errorTy(exp->efac());
 
     Expr fdeclType = tc.typeOf(fdecl);

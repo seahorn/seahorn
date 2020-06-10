@@ -52,6 +52,7 @@ template <> struct TerminalTrait<op::bind::BoundVar> {
 
   static TerminalKind getKind() { return TerminalKind::BVAR; }
   static std::string name() { return "bind::BoundVar"; }
+  static inline Expr inferType(Expr exp, TypeChecker &tc) { return exp; }
 };
 
 namespace op {

@@ -123,8 +123,8 @@ public:
            llvm::cast<TerminalBase>(op)->m_kind == terminal_type::getKind();
   }
 
- // TODO
-  Expr inferType(Expr exp, TypeChecker &tc) const override {return exp; } 
+  Expr inferType(Expr exp, TypeChecker &tc) const override {
+    return terminal_type::inferType(exp, tc); } 
 };
 
 /// \brief Terminal traits for std::string
@@ -145,6 +145,7 @@ template <> struct TerminalTrait<std::string> {
   }
   static TerminalKind getKind() { return TerminalKind::STRING; }
   static std::string name() { return "std::string"; }
+  static inline Expr inferType(Expr exp, TypeChecker &tc) { return exp; }///////////////TODO
 };
 
 /// \brief Terminal traits for unsigned int
@@ -165,6 +166,7 @@ template <> struct TerminalTrait<unsigned int> {
   }
   static TerminalKind getKind() { return TerminalKind::UINT; }
   static std::string name() { return "unsigned int"; }
+  static inline Expr inferType(Expr exp, TypeChecker &tc) { return exp; }///////////////TODO
 };
 
 /// \brief Termianl traits for GMP integers
@@ -195,6 +197,7 @@ template <> struct TerminalTrait<expr::mpz_class> {
 
   static TerminalKind getKind() { return TerminalKind::MPZ; }
   static std::string name() { return "expr::mpz_class"; }
+  static inline Expr inferType(Expr exp, TypeChecker &tc) { return exp; }///////////////TODO
 };
 
 /// \brief Terminal traits for GMP rationals
@@ -221,6 +224,7 @@ template <> struct TerminalTrait<expr::mpq_class> {
 
   static TerminalKind getKind() { return TerminalKind::MPQ; }
   static std::string name() { return "expr::mpq_class"; }
+  static inline Expr inferType(Expr exp, TypeChecker &tc) { return exp; }///////////////TODO
 };
 
 // Define concise names for terminal operators

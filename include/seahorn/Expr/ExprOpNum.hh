@@ -62,8 +62,8 @@ NOP_TYPECHECK(REM, "%", INFIX, NumericOp, typeCheck::numType::Nary)
 NOP_TYPECHECK(UN_MINUS, "-", PREFIX, NumericOp, typeCheck::numType::Nary)
 NOP_TYPECHECK(ABS, "abs", FUNCTIONAL, NumericOp, typeCheck::numType::Unary)
 
-NOP(PINFTY, "oo", PREFIX, NumericOp)
-NOP(NINFTY, "-oo", PREFIX, NumericOp)
+NOP_TYPECHECK(PINFTY, "oo", PREFIX, NumericOp, typeCheck::Any)
+NOP_TYPECHECK(NINFTY, "-oo", PREFIX, NumericOp, typeCheck::Any)
 
 namespace numeric {
 struct ITV_PS {
@@ -78,6 +78,6 @@ struct ITV_PS {
   }
 };
 } // namespace numeric
-NOP(ITV, "itv", numeric::ITV_PS, NumericOp)
+NOP_TYPECHECK(ITV, "itv", numeric::ITV_PS, NumericOp, typeCheck::Any)
 } // namespace op
 } // namespace expr

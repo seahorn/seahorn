@@ -430,7 +430,3 @@ struct DefOp : public B {
   };                                                                           \
   using NAME =                                                                 \
       DefOp<__##NAME, BASE, STYLE, BASE##Kind, BASE##Kind::NAME, TYPECHECK>;
-
-/// macro for defining a class for a single operator
-#define NOP(NAME, TEXT, STYLE, BASE)                                           \
-  NOP_TYPECHECK(NAME, TEXT, STYLE, BASE, typeCheck::Any)

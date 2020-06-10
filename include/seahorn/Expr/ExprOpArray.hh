@@ -93,10 +93,10 @@ NOP_TYPECHECK(SELECT, "select", FUNCTIONAL, ArrayOp,
 NOP_TYPECHECK(STORE, "store", FUNCTIONAL, ArrayOp, typeCheck::arrayType::Store)
 NOP_TYPECHECK(CONST_ARRAY, "const-array", FUNCTIONAL, ArrayOp,
               typeCheck::arrayType::Const)
-NOP(ARRAY_MAP, "array-map", FUNCTIONAL, ArrayOp)
+NOP_TYPECHECK(ARRAY_MAP, "array-map", FUNCTIONAL, ArrayOp, typeCheck::Any)
 NOP_TYPECHECK(ARRAY_DEFAULT, "array-default", FUNCTIONAL, ArrayOp,
               typeCheck::arrayType::Default)
-NOP(AS_ARRAY, "as-array", FUNCTIONAL, ArrayOp)
+NOP_TYPECHECK(AS_ARRAY, "as-array", FUNCTIONAL, ArrayOp, typeCheck::Any)
 } // namespace op
 
 namespace op {

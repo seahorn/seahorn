@@ -128,40 +128,49 @@ struct BINDER {
 namespace typeCheck {
 namespace bindType {
 
-template <typename T> static inline bool checkBody(Expr exp, TypeChecker &tc) {
-  Expr body = exp->last();
-
-  if (!(exp->arity() >= 2 && correctTypeAny<T>(body, tc)))
-    return false;
-
-  ExprSet bodyEndExps = tc.getEndExps(body);
-  ExprSet boundVars(exp->args_begin(), exp->args_end() - 1);
-
-  auto contains = [&boundVars](Expr exp) -> bool {
-    return boundVars.count(exp);
-  };
-
-  return std::all_of(bodyEndExps.begin(), bodyEndExps.end(), contains);
-}
-
 struct Lambda {
+  // Checks that all children except for last are bound variables
+  // Return Type: FUNCTIONAL_TY
+  // for example, for the expression lambda a, b, c ... :: body, the return type is
+  // FUNCTIONAL_TY(typeOf(a), typeOf(b), ... , typeOf(body))
   static inline Expr inferType(Expr exp, TypeChecker &tc) {
-    if (checkBody<ANY_TY>(exp, tc)) {
-      ExprVector types;
-      for (auto b = exp->args_begin(), e = exp->args_end(); b != e; b++) {
-        types.push_back(tc.typeOf(*b));
-      }
+    if (exp->arity() < 2)
+      return sort::errorTy(exp->efac());
 
-      return mknary<ARRAY_TY>(types);
-    } 
+    ExprVector types;
 
-    return sort::errorTy(exp->efac());
+    // store types of bound variables
+    for (auto b = exp->args_begin(), e = exp->args_end() - 1; b != e; b++) {
+
+      if (!bind::isBVar(*b))
+        return sort::errorTy(exp->efac());
+
+      types.push_back(tc.typeOf(*b));
+    }
+
+    Expr body = exp->last();
+    types.push_back(tc.typeOf(body));
+
+    return mknary<FUNCTIONAL_TY>(types);
   }
 };
 
 struct Quantifier {
+  // Check sthat all children except for last are bound variables and the last
+  // child(the body) is bool
+  // Return type: bool
   static inline Expr inferType(Expr exp, TypeChecker &tc) {
-    if (checkBody<BOOL_TY>(exp, tc))
+    if (exp->arity() == 0)
+      return sort::errorTy(exp->efac());
+
+    for (auto b = exp->args_begin(), e = exp->args_end() - 1; b != e; b++) {
+      if (!bind::isBVar(*b))
+        return sort::errorTy(exp->efac());
+    }
+
+    Expr body = exp->last();
+
+    if (isOp<BOOL_TY>(tc.typeOf(body)))
       return sort::boolTy(exp->efac());
 
     return sort::errorTy(exp->efac());

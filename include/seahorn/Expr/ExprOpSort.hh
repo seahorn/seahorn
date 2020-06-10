@@ -22,7 +22,8 @@ enum class SimpleTypeOpKind {
   FINITE_MAP_KEYS_TY,
   ANY_TY,
   ERROR_TY,
-  TYPE_TY
+  TYPE_TY,
+  FUNCTIONAL_TY
 };
 
 namespace sort {
@@ -67,6 +68,8 @@ NOP_TYPECHECK(ANY_TY, "ANY", PREFIX, SimpleTypeOp, typeCheck::simpleType::Simple
 NOP_TYPECHECK(ERROR_TY, "ERROR", PREFIX, SimpleTypeOp, typeCheck::simpleType::Simple)
 /// \brief TYPE type,
 NOP_TYPECHECK(TYPE_TY, "TYPE", PREFIX, SimpleTypeOp, typeCheck::simpleType::Simple)
+/// \brief TYPE type,
+NOP_TYPECHECK(FUNCTIONAL_TY, "FUNCTIONAL", PREFIX, SimpleTypeOp, typeCheck::simpleType::Simple)
 } // namespace op
 
 namespace op {

@@ -54,26 +54,67 @@ namespace bindType {
 struct Bind {
   static inline Expr inferType(Expr exp, TypeChecker &tc) {
     if (exp->arity() == 2)
-      return tc.typeOf(exp->arg(1));
+      return exp->right();
 
     return sort::errorTy(exp->efac());
   }
 };
 struct Fdecl {
+  // Return type: FUNCTIONAL_TY
+  // For example, fdecl(name, arg1Type, arg2Type, ..., returnType) will return
+  // an expression of the following format: (arg1Type, arg2Type, ...) ->
+  // returnType
   static inline Expr inferType(Expr exp, TypeChecker &tc) {
-    if (exp->arity() == 2)
-      return bind::rangeTy(exp);
+    if (exp->arity() < 2)
+      return sort::errorTy(exp->efac());
+
+    auto isType = [&tc](Expr exp) -> bool {
+      return isOp<TYPE_TY>(tc.typeOf(exp));
+    };
+
+    auto begin = exp->args_begin() + 1; // note: name is the first child
+    auto end = exp->args_end();     
+
+    if (std::all_of(begin, end, isType))
+      return mknary<FUNCTIONAL_TY>(begin, end);
 
     return sort::errorTy(exp->efac());
   }
 };
 
 struct Fapp {
+  //Checks that the first child is FDECL type and that the rest of its children's types match the fdecl's arguments
+  //Return type: type of the body of fdecl
   static inline Expr inferType(Expr exp, TypeChecker &tc) {
-    if (exp->arity() == 1 && isOp<FDECL>(exp->first()))
-      return bind::rangeTy(exp->first());
+    if (exp->arity() == 0)
+      return sort::errorTy(exp->efac());
 
-    return sort::errorTy(exp->efac());
+    Expr fdecl = exp->first();
+
+    if (!(isOp<FDECL>(fdecl) && (exp->arity() == (fdecl->arity() - 1))))
+      return sort::errorTy(exp->efac());
+
+    Expr fdeclType = tc.typeOf(fdecl);
+
+    if (isOp<ERROR_TY>(fdeclType))
+      return sort::errorTy(exp->efac());
+
+    auto fappArgs = exp->args_begin() + 1; // note: the first child is the fdecl
+    auto fdeclArgs = fdeclType->args_begin();
+
+    // Check that each fapp argument type matches fdecl arguments
+    while (fappArgs != exp->args_end()) {
+      Expr fappArgType = tc.typeOf(*fappArgs);
+      Expr fdeclArgType = *fdeclArgs;
+
+      if (fappArgType != fdeclArgType)
+        return sort::errorTy(exp->efac());
+
+      fappArgs++;
+      fdeclArgs++;
+    }
+
+    return fdeclType->last(); // type of body of fdecl
   }
 };
 } // namespace bindType

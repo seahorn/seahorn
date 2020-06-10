@@ -1,8 +1,8 @@
 #include "seahorn/Transforms/Instrumentation/MixedSemantics.hh"
 #include "seahorn/Analysis/CanFail.hh"
+#include "seahorn/Analysis/SeaBuiltinsInfo.hh"
 #include "seahorn/Transforms/Scalar/PromoteVerifierCalls.hh"
 #include "seahorn/Transforms/Utils/Local.hh"
-#include "seahorn/Analysis/SeaBuiltinsInfo.hh"
 
 #include "llvm/ADT/PostOrderIterator.h"
 #include "llvm/ADT/SCCIterator.h"
@@ -24,6 +24,11 @@ static llvm::cl::opt<bool>
     ReduceMain("ms-reduce-main", llvm::cl::desc("Reduce main to return paths"),
                llvm::cl::init(false));
 
+static llvm::cl::opt<bool> KeepOrigMain(
+    "keep-orig-main",
+    llvm::cl::desc("Keep original main() function under main.orig() name"),
+    llvm::cl::init(false));
+
 namespace seahorn {
 using namespace llvm;
 
@@ -41,7 +46,8 @@ static void removeError(Function &F, SeaBuiltinsInfo &SBI) {
       if (!cf->getName().equals("verifier.error"))
         continue;
 
-      auto* assumeFn = SBI.mkSeaBuiltinFn(SeaBuiltinsOp::ASSUME, *F.getParent());
+      auto *assumeFn =
+          SBI.mkSeaBuiltinFn(SeaBuiltinsOp::ASSUME, *F.getParent());
       ReplaceInstWithInst(ci, CallInst::Create(assumeFn, ConstantInt::getFalse(
                                                              F.getContext())));
       // does not matter what verifier.error() call is followed by in this bb
@@ -90,7 +96,6 @@ bool MixedSemantics::runOnModule(Module &M) {
     return false;
   }
   LOG("mixed-sem", errs() << "main() can fail, reducing\n";);
-
 
   main->setName("orig.main");
   FunctionType *mainTy = main->getFunctionType();
@@ -228,10 +233,15 @@ bool MixedSemantics::runOnModule(Module &M) {
     Builder.CreateCall(failureFn);
   }
 
-  reduceToAncestors(*newM, SmallVector<const BasicBlock *, 4>(errBlocks.begin(),
-                                                              errBlocks.end()), SBI);
+  reduceToAncestors(
+      *newM,
+      SmallVector<const BasicBlock *, 4>(errBlocks.begin(), errBlocks.end()),
+      SBI);
 
   ExternalizeDeclarations(M);
+
+  if (!KeepOrigMain)
+    main->eraseFromParent();
 
   return true;
 }

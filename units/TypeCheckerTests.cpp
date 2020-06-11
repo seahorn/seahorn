@@ -425,6 +425,9 @@ TEST_CASE("bvWellFormed.test") {
   temp = mk<BNOT>(mk<BOR>(a10, b10));
   e.push_back(temp);
 
+  temp = mk<BREDAND>(a10);
+  e.push_back(temp);
+
   temp = mk<BAND>(mk<BREDAND>(a10), b10);
   e.push_back(temp);
 
@@ -950,7 +953,7 @@ TEST_CASE("structNotWellFormed.test") {
   error.push_back(tempError);
   temp = strct::insertVal(mk<EQ>(aInt, bInt), 0,
                           bBool); // bBool is wrong type, should be int
-  e.push_back(tempError);
+  e.push_back(temp);
 
   tempError = strct::extractVal(mk<ANY_TY>(aBool, bBool), 2); // index too high
   error.push_back(tempError);
@@ -1043,19 +1046,23 @@ TEST_CASE("quantifierWellFormed.test") {
   Expr f = mk<FALSE>(efac);
 
   Expr boolSort = sort::boolTy(efac);
+  Expr intSort = sort::intTy(efac);
   Expr unintSort = sort::unintTy(efac);
 
   std::vector<Expr> e;
-  Expr temp;
   Expr body;
+  std::vector<Expr> args;
 
-  body = mk<EQ>(aUnint, bUnint);
-  temp = mk<FORALL>(aUnint, bUnint, body);
-  e.push_back(temp);
+  args.push_back(bind::bvar(0, boolSort));
+  args.push_back(bind::bvar(1, unintSort));
+  args.push_back(mk<EQ>(aUnint, bUnint));
+  e.push_back(mknary<FORALL>(args.begin(), args.end()));
 
+  args.clear();
+  args.push_back(bind::bvar(0, intSort));
   body = boolop::limp(aBool, bBool);
- temp = mk<EXISTS>(aBool, bBool, body);
-   e.push_back(temp);
+  args.push_back(body);
+  e.push_back(mknary<EXISTS>(args.begin(), args.end()));
 
   checkWellFormed(e, boolSort);
 }
@@ -1085,15 +1092,15 @@ TEST_CASE("quantifierNotWellFormed.test") {
   tempError = mk<EQ>(aUnint, bBool); // mismatching types
   error.push_back(tempError);
   body = tempError;
-  temp = mk<FORALL>(aUnint, bUnint, body);
+  temp = mk<FORALL>(bind::bvar(0, unintSort), body);
   e.push_back(temp);
 
- tempError = mk<EXISTS>(aBool, bBool, aUnint); // body is not bool type
+ tempError = mk<EXISTS>(bind::bvar(0, boolSort), aUnint); // body is not bool type
   error.push_back(tempError);
   e.push_back(tempError);
 
   body = mk<EQ>(aUnint, bUnint);
-  tempError = mk<FORALL>(aUnint, bBool, body); // bUnint in the body is not bound by the quantifier
+  tempError = mk<FORALL>(bind::bvar(0, unintSort), bBool, body); // bBool is not a bound variable 
   error.push_back(tempError);
   e.push_back(tempError);
 
@@ -1112,29 +1119,35 @@ TEST_CASE("lambdaWellFormed.test") {
 
   Expr boolSort = sort::boolTy(efac);
   Expr unintSort = sort::unintTy(efac);
+  Expr functionalSort = mk<FUNCTIONAL_TY>(boolSort, unintSort, unintSort);
 
-  Expr arraySort = mk<ARRAY_TY>(boolSort, unintSort, unintSort);
+  Expr boolBound0 = bind::bvar(0, boolSort);
+  Expr boolBound1 = bind::bvar(1, boolSort);
+
+  Expr unintBound0 = bind::bvar(0, unintSort);
+  Expr unintBound1 = bind::bvar(1, unintSort);
+
 
   std::vector<Expr> e;
   Expr temp;
   Expr body;
 
   body = mk<PLUS>(aUnint, aUnint);
-  temp = mk<LAMBDA>(aBool, aUnint, body);
+  temp = mk<LAMBDA>(boolBound0, unintBound1, body);
   e.push_back(temp);
 
-  checkWellFormed(e, arraySort);
+  checkWellFormed(e, functionalSort);
   e.clear();
 
-  ExprVector sorts = {boolSort, unintSort, unintSort, boolSort};
-  Expr arraySort2 = mknary<ARRAY_TY>(sorts);
+  ExprVector sorts = {boolSort, unintSort, boolSort, boolSort};
+  Expr functionalSort2 = mknary<FUNCTIONAL_TY>(sorts);
 
   body = mk<AND>(mk<GT>(aUnint, bUnint), aBool);
-  ExprVector args = {aBool, aUnint, bUnint, body};
+  ExprVector args = {boolBound0, unintBound1, boolBound1, body};
   temp = mknary<LAMBDA>(args);
   e.push_back(temp);
 
-  checkWellFormed(e, arraySort2);
+  checkWellFormed(e, functionalSort2);
 }
 TEST_CASE("lambdaNotWellFormed.test") {
   seahorn::SeaEnableLog("tc");
@@ -1149,6 +1162,12 @@ TEST_CASE("lambdaNotWellFormed.test") {
 
   Expr boolSort = sort::boolTy(efac);
   Expr unintSort = sort::unintTy(efac);
+
+  Expr boolBound0 = bind::bvar(0, boolSort);
+  Expr boolBound1 = bind::bvar(1, boolSort);
+
+  Expr unintBound0 = bind::bvar(0, unintSort);
+  Expr unintBound1 = bind::bvar(1, unintSort);
 
   std::vector<Expr> e;
   Expr temp;

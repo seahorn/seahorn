@@ -1186,3 +1186,118 @@ TEST_CASE("lambdaNotWellFormed.test") {
 
   checkNotWellFormed(e, error);
 }
+TEST_CASE("fappWellFormed.test") {
+  seahorn::SeaEnableLog("tc");
+  // -- manages expressions
+  ExprFactory efac;
+
+  Expr aBool = boolConst("aBool", efac);
+  Expr bBool = boolConst("bBool", efac);
+
+  Expr aInt = intConst("aInt", efac);
+  Expr bInt = intConst("bInt", efac);
+
+  Expr boolSort = sort::boolTy(efac);
+  Expr intSort = sort::intTy(efac);
+  Expr functionalSort = mk<FUNCTIONAL_TY>(boolSort, intSort, intSort);
+
+  Expr boolBound0 = bind::bvar(0, boolSort);
+  Expr boolBound1 = bind::bvar(1, boolSort);
+
+  Expr intBound0 = bind::bvar(0, intSort);
+  Expr intBound1 = bind::bvar(1, intSort);
+
+  std::vector<Expr> e;
+  Expr temp;
+
+
+  Expr name = mkTerm<std::string>("name", efac);
+  std::vector <Expr> args = {name, boolSort, intSort, intSort};
+
+  Expr fdecl = mknary<FDECL>(args.begin(), args.end()); // BOOL, INT -> INT
+  e.push_back(fdecl);
+
+  Expr lambda = mk<LAMBDA> (boolBound0, intBound0, mk<MINUS>(aInt, bInt)); // boolBound0, intBound -> (aInt - bInt)
+  e.push_back(lambda);
+
+  checkWellFormed(e, functionalSort);
+  e.clear();
+
+
+  temp = mk <FAPP> (fdecl, aBool, aInt);
+  e.push_back(temp);
+
+  temp = mk <FAPP> (lambda, aBool, aInt);
+  e.push_back(temp);
+
+  temp = mk<FAPP> (lambda, mk<AND>(aBool, aBool), e[0]);
+  e.push_back(temp);
+
+  checkWellFormed(e, intSort);
+}
+TEST_CASE("fappNotWellFormed.test") {
+  seahorn::SeaEnableLog("tc");
+  // -- manages expressions
+  ExprFactory efac;
+
+  Expr aBool = boolConst("aBool", efac);
+  Expr bBool = boolConst("bBool", efac);
+
+  Expr aInt = intConst("aInt", efac);
+  Expr bInt = intConst("bInt", efac);
+
+  Expr boolSort = sort::boolTy(efac);
+  Expr intSort = sort::intTy(efac);
+  Expr functionalSort = mk<FUNCTIONAL_TY>(boolSort, intSort, intSort);
+
+  Expr boolBound0 = bind::bvar(0, boolSort);
+  Expr boolBound1 = bind::bvar(1, boolSort);
+
+  Expr intBound0 = bind::bvar(0, intSort);
+  Expr intBound1 = bind::bvar(1, intSort);
+
+  std::vector<Expr> e;
+  Expr temp;
+  std::vector<Expr> error;
+  Expr tempError;
+  Expr body;
+
+
+  Expr name = mkTerm<std::string>("name", efac);
+  std::vector <Expr> args = {name, boolSort, intSort, intSort};
+
+  Expr fdecl = mknary<FDECL>(args.begin(), args.end()); // BOOL, INT -> INT
+  e.push_back(fdecl);
+
+  Expr lambda = mk<LAMBDA> (boolBound0, intBound0, mk<MINUS>(aInt, bInt)); // boolBound0, intBound -> (aInt - bInt)
+  e.push_back(lambda);
+
+  checkWellFormed(e, functionalSort);
+  e.clear();
+
+
+  tempError = mk <FAPP> (fdecl, aBool); // number of argumetns doesn't match 
+  error.push_back(tempError);
+  e.push_back(tempError);
+
+ tempError= mk <FAPP> (lambda, bInt, aInt);// type of arguments doesn't match (should be BOOL INT)
+  error.push_back(tempError);
+  e.push_back(tempError);
+
+ tempError= mk <FAPP> (bInt, aBool, aInt);// first parameter should be a functional type
+  error.push_back(tempError);
+  e.push_back(tempError);
+
+  tempError = error.back();
+  error.push_back(tempError);
+  temp = mk<FAPP> (lambda, mk<AND>(aBool, aBool), tempError);
+  e.push_back(temp);
+
+  tempError = mk<PLUS>(aInt); // not enough arguments
+  error.push_back(tempError);
+  temp = mk<FAPP> (lambda, mk<AND>(aBool, aBool),tempError );
+  e.push_back(temp);
+
+  checkNotWellFormed(e, error);
+
+}

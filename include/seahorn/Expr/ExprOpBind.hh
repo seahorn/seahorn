@@ -73,7 +73,7 @@ struct Fdecl {
     };
 
     auto begin = exp->args_begin() + 1; // note: name is the first child
-    auto end = exp->args_end();     
+    auto end = exp->args_end();
 
     if (std::all_of(begin, end, isType))
       return mknary<FUNCTIONAL_TY>(begin, end);
@@ -83,35 +83,38 @@ struct Fdecl {
 };
 
 struct Fapp {
-  //Checks that the first child is FDECL type and that the rest of its children's types match the fdecl's arguments
-  //Return type: type of the body of fdecl
+  // Checks that the first child is FUNCTIONAL_TY type and its remaining
+  // types match the Functional's argument types
+  // Return type: type of the Functional's body
   static inline Expr inferType(Expr exp, TypeChecker &tc) {
-    Expr fdecl = exp->first();
-
-    if (!(fdecl && isOp<FDECL>(fdecl) && (exp->arity() == (fdecl->arity() - 1))))
+    if (exp->arity() == 0)
       return sort::errorTy(exp->efac());
 
-    Expr fdeclType = tc.typeOf(fdecl);
+    Expr functionalType =
+        tc.typeOf(exp->first()); // functional types should be of the form :
+                                 // arg1Type, arg2Type ... -> returnType
 
-    if (isOp<ERROR_TY>(fdeclType))
+    if (!(isOp<FUNCTIONAL_TY>(functionalType) &&
+          exp->arity() == functionalType->arity()))
       return sort::errorTy(exp->efac());
 
     auto fappArgs = exp->args_begin() + 1; // note: the first child is the fdecl
-    auto fdeclArgs = fdeclType->args_begin();
+    auto functionalArgs = functionalType->args_begin();
 
-    // Check that each fapp argument type matches fdecl arguments
+    // Check that each fapp argument type matches its corresponding functional
+    // arguments
     while (fappArgs != exp->args_end()) {
       Expr fappArgType = tc.typeOf(*fappArgs);
-      Expr fdeclArgType = *fdeclArgs;
+      Expr functionalArgType = *functionalArgs;
 
-      if (fappArgType != fdeclArgType)
+      if (fappArgType != functionalArgType)
         return sort::errorTy(exp->efac());
 
       fappArgs++;
-      fdeclArgs++;
+      functionalArgs++;
     }
 
-    return fdeclType->last(); // type of body of fdecl
+    return functionalType->last(); // type of the functional's body
   }
 };
 } // namespace bindType

@@ -2081,6 +2081,7 @@ Expr Bv2OpSemContext::getConstantValue(const llvm::Constant &c) {
     }
   } else if (c.getType()->isStructTy()) {
     ConstantExprEvaluator ce(m_sem.getDataLayout());
+    ce.setContext(*this);
     auto GVO = ce.evaluate(&c);
     if (GVO.hasValue()) {
       GenericValue gv = GVO.getValue();

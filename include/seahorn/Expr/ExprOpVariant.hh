@@ -5,6 +5,7 @@
 #include "seahorn/Expr/ExprCore.hh"
 #include "seahorn/Expr/ExprOpBool.hh"
 #include "seahorn/Expr/ExprOpCore.hh"
+#include "seahorn/Expr/ExprOpTerminalSort.hh"
 #include "seahorn/Expr/TypeChecker.hh"
 #include "seahorn/Expr/TypeCheckerUtils.hh"
 
@@ -50,7 +51,7 @@ static inline Expr checkVariant(Expr exp, TypeChecker &tc) {
 
 struct Variant {
   static inline Expr inferType(Expr exp, TypeChecker &tc) {
-    return checkVariant <UINT> (exp, tc);
+    return checkVariant <UINT_TERMINAL_TY> (exp, tc);
   }
 };
 

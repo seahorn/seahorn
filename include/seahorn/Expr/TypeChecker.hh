@@ -28,7 +28,6 @@ public:
  - Returns the expression that is not well-formed if an error was found,
   otherwise it returns nullptr.
   - The error expression is reset everytime sorOf() or typeOf() is called
-
   */
   Expr getErrorExp();
 };

@@ -52,7 +52,9 @@ template <> struct TerminalTrait<op::bind::BoundVar> {
 
   static TerminalKind getKind() { return TerminalKind::BVAR; }
   static std::string name() { return "bind::BoundVar"; }
-  static inline Expr inferType(Expr exp, TypeChecker &tc) { return exp; }
+  static inline Expr inferType(Expr exp, TypeChecker &tc) {
+    return sort::bvarTerminalTy(exp->efac());
+  }
 };
 
 namespace op {
@@ -132,8 +134,8 @@ namespace bindType {
 struct Lambda {
   // Checks that all children except for last are bound variables
   // Return Type: FUNCTIONAL_TY
-  // for example, for the expression lambda a, b, c ... :: body, the return type is
-  // FUNCTIONAL_TY(typeOf(a), typeOf(b), ... , typeOf(body))
+  // for example, for the expression lambda a, b, c ... :: body, the return type
+  // is FUNCTIONAL_TY(typeOf(a), typeOf(b), ... , typeOf(body))
   static inline Expr inferType(Expr exp, TypeChecker &tc) {
     if (exp->arity() < 2)
       return sort::errorTy(exp->efac());
@@ -183,14 +185,11 @@ struct Quantifier {
 enum class BinderOpKind { FORALL, EXISTS, LAMBDA };
 NOP_BASE(BinderOp)
 /** Forall quantifier */
-NOP(FORALL, "forall", bind::BINDER, BinderOp,
-              typeCheck::bindType::Quantifier)
+NOP(FORALL, "forall", bind::BINDER, BinderOp, typeCheck::bindType::Quantifier)
 /** Exists */
-NOP(EXISTS, "exists", bind::BINDER, BinderOp,
-              typeCheck::bindType::Quantifier)
+NOP(EXISTS, "exists", bind::BINDER, BinderOp, typeCheck::bindType::Quantifier)
 /** Lambda */
-NOP(LAMBDA, "lambda", bind::BINDER, BinderOp,
-              typeCheck::bindType::Lambda)
+NOP(LAMBDA, "lambda", bind::BINDER, BinderOp, typeCheck::bindType::Lambda)
 
 namespace bind {
 inline unsigned numBound(Expr e) {

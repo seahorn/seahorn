@@ -32,14 +32,14 @@ inline Expr typeTy(ExprFactory &efac);
 }
 
 namespace typeCheck {
-  namespace simpleType {
+namespace simpleType {
 struct Simple {
   static inline Expr inferType(Expr exp, TypeChecker &tc) {
     return sort::typeTy(exp->efac());
   }
 };
-  } // simpleType
-} // typeCheck
+} // namespace simpleType
+} // namespace typeCheck
 
 NOP_BASE(SimpleTypeOp)
 
@@ -66,10 +66,11 @@ NOP(FINITE_MAP_KEYS_TY, "FINITE_MAP_KS", PREFIX, SimpleTypeOp, typeCheck::simple
 NOP(ANY_TY, "ANY", PREFIX, SimpleTypeOp, typeCheck::simpleType::Simple)
 /// \brief Error type
 NOP(ERROR_TY, "ERROR", PREFIX, SimpleTypeOp, typeCheck::simpleType::Simple)
-/// \brief TYPE type,
-NOP(TYPE_TY, "TYPE", PREFIX, SimpleTypeOp, typeCheck::simpleType::Simple)
-/// \brief TYPE type,
-NOP(FUNCTIONAL_TY, "FUNCTIONAL", PREFIX, SimpleTypeOp, typeCheck::simpleType::Simple)
+/// \brief Type type,
+NOP(TYPE_TY, "TYPE", PREFIX, SimpleTypeOp, typeCheck::Any)
+/// \brief Functional type,
+NOP(FUNCTIONAL_TY, "FUNCTIONAL", PREFIX, SimpleTypeOp,
+    typeCheck::simpleType::Simple)
 } // namespace op
 
 namespace op {

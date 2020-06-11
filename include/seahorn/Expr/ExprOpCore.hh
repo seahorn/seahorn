@@ -11,6 +11,13 @@ namespace op {
 namespace typeCheck {
 struct Any;
 } // namespace typeCheck
+namespace sort {
+Expr terminalTy(ExprFactory &efac);
+Expr stringTerminalTy(ExprFactory &efac);
+Expr uintTerminalTy(ExprFactory &efac);
+Expr mpzTerminalTy(ExprFactory &efac);
+Expr mpqTerminalTy(ExprFactory &efac);
+} // namespace sort
 } // namespace op
 
 /// \brief A trait that must be impelemnted by a type \ T to be a terminal
@@ -53,7 +60,7 @@ struct TerminalBase : public expr::Operator {
 
 /// \brief Terminal Operator
 /// \p T is the type wrapped by the terminal, and \p P is the implementation of
-/// terminal traits for \p T 
+/// terminal traits for \p T
 template <typename T, typename P = TerminalTrait<T>>
 class Terminal : public TerminalBase {
 protected:
@@ -124,7 +131,8 @@ public:
   }
 
   Expr inferType(Expr exp, TypeChecker &tc) const override {
-    return terminal_type::inferType(exp, tc); } 
+    return terminal_type::inferType(exp, tc);
+  }
 };
 
 /// \brief Terminal traits for std::string
@@ -145,7 +153,9 @@ template <> struct TerminalTrait<std::string> {
   }
   static TerminalKind getKind() { return TerminalKind::STRING; }
   static std::string name() { return "std::string"; }
-  static inline Expr inferType(Expr exp, TypeChecker &tc) { return exp; }///////////////TODO
+  static inline Expr inferType(Expr exp, TypeChecker &tc) {
+    return sort::stringTerminalTy(exp->efac());
+  }
 };
 
 /// \brief Terminal traits for unsigned int
@@ -166,7 +176,9 @@ template <> struct TerminalTrait<unsigned int> {
   }
   static TerminalKind getKind() { return TerminalKind::UINT; }
   static std::string name() { return "unsigned int"; }
-  static inline Expr inferType(Expr exp, TypeChecker &tc) { return exp; }///////////////TODO
+  static inline Expr inferType(Expr exp, TypeChecker &tc) {
+    return sort::uintTerminalTy(exp->efac());
+  }
 };
 
 /// \brief Termianl traits for GMP integers
@@ -197,7 +209,9 @@ template <> struct TerminalTrait<expr::mpz_class> {
 
   static TerminalKind getKind() { return TerminalKind::MPZ; }
   static std::string name() { return "expr::mpz_class"; }
-  static inline Expr inferType(Expr exp, TypeChecker &tc) { return exp; }///////////////TODO
+  static inline Expr inferType(Expr exp, TypeChecker &tc) {
+    return sort::mpzTerminalTy(exp->efac());
+  }
 };
 
 /// \brief Terminal traits for GMP rationals
@@ -224,7 +238,9 @@ template <> struct TerminalTrait<expr::mpq_class> {
 
   static TerminalKind getKind() { return TerminalKind::MPQ; }
   static std::string name() { return "expr::mpq_class"; }
-  static inline Expr inferType(Expr exp, TypeChecker &tc) { return exp; }///////////////TODO
+  static inline Expr inferType(Expr exp, TypeChecker &tc) {
+    return sort::mpqTerminalTy(exp->efac());
+  }
 };
 
 // Define concise names for terminal operators
@@ -428,7 +444,7 @@ struct DefOp : public B {
   };
 
 /// macro for defining a class for a single operator
-#define NOP(NAME, TEXT, STYLE, BASE, TYPECHECK)                      \
+#define NOP(NAME, TEXT, STYLE, BASE, TYPECHECK)                                \
   struct __##NAME {                                                            \
     static inline std::string name() { return TEXT; }                          \
   };                                                                           \

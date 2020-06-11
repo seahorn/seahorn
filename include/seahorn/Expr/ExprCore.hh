@@ -46,6 +46,7 @@ enum class OpFamilyId {
   NumericOp,
   MiscOp,
   SimpleTypeOp,
+  TerminalTypeOp,
   ArrayOp,
   StructOp,
   FiniteMapOp,

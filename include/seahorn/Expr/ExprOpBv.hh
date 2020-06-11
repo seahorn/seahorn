@@ -4,6 +4,7 @@
 #include "seahorn/Expr/ExprCore.hh"
 #include "seahorn/Expr/ExprOpBool.hh"
 #include "seahorn/Expr/ExprOpCore.hh"
+#include "seahorn/Expr/ExprOpTerminalSort.hh"
 #include "seahorn/Expr/TypeChecker.hh"
 #include "seahorn/Expr/TypeCheckerUtils.hh"
 
@@ -267,7 +268,7 @@ struct Extract {
       return sort::errorTy(exp->efac());
     };
 
-    return typeCheck::checkChildrenSpecific<Equal, UINT, UINT, BVSORT>(
+    return typeCheck::checkChildrenSpecific<Equal, UINT_TERMINAL_TY, UINT_TERMINAL_TY, BVSORT>(
         exp, tc, 3, returnTypeFn);
   }
 };
@@ -284,7 +285,7 @@ struct Int2Bv {
       return bv::bvsort(width, exp->efac());
     };
 
-    return typeCheck::checkChildrenSpecific<Equal, UINT, INT_TY>(exp, tc, 2,
+    return typeCheck::checkChildrenSpecific<Equal, UINT_TERMINAL_TY, INT_TY>(exp, tc, 2,
                                                                  returnTypeFn);
   }
 };
@@ -295,7 +296,7 @@ struct Rotate {
       return tc.typeOf(exp->right());
     };
 
-    return typeCheck::checkChildrenSpecific<Equal, UINT, BVSORT>(exp, tc, 2,
+    return typeCheck::checkChildrenSpecific<Equal, UINT_TERMINAL_TY, BVSORT>(exp, tc, 2,
                                                                  returnTypeFn);
   }
 };
@@ -309,7 +310,7 @@ struct Repeat {
       return bv::bvsort(width * timesRepeated, exp->efac());
     };
 
-    return typeCheck::checkChildrenSpecific<Equal, UINT, BVSORT>(exp, tc, 2,
+    return typeCheck::checkChildrenSpecific<Equal, UINT_TERMINAL_TY, BVSORT>(exp, tc, 2,
                                                                  returnTypeFn);
   }
 };

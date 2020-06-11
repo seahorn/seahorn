@@ -24,6 +24,15 @@ class TCVR {
   // reset
   Expr m_topMost;
 
+  void foundError (Expr exp) {
+    ERR << "Expression is not well-formed: " << *exp << "\n";
+
+    if (m_isWellFormed)
+      m_errorExp = exp;
+
+    m_isWellFormed = false;
+  }
+
   void reset(Expr exp) {
     if (m_isWellFormed)
       m_errorExp = Expr();
@@ -40,14 +49,8 @@ class TCVR {
 
     m_cache.insert({exp, type});
 
-    if (isOp<ERROR_TY>(type)) {
-      ERR << "Expression is not well-formed: " << *exp << "\n";
-
-      if (m_isWellFormed)
-        m_errorExp = exp;
-
-      m_isWellFormed = false;
-    }
+    if (isOp<ERROR_TY>(type))
+      foundError(exp);
 
     return exp;
   }
@@ -65,8 +68,18 @@ public:
       m_topMost = exp;
     }
 
-    if (m_cache.count(exp) || !m_isWellFormed)
+
+    if (!m_isWellFormed) 
       return false;
+
+    if (m_cache.count(exp)) {
+      Expr type = m_cache.at(exp);
+
+      if (isOp<ERROR_TY>(type))
+        foundError(exp);
+
+      return false;
+    }
 
     return true;
   }
@@ -84,6 +97,7 @@ public:
     if (e == m_topMost) // done traversing entire expression
       reset(e);
 
+    LOG("tc", llvm::errs() << "known type of " << *e << "is "<< *knownType <<"\n";);
     return knownType;
   }
 

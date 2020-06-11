@@ -19,10 +19,10 @@ struct GateOp : public expr::Operator {
 };
 
 /// an output gate
-NOP_TYPECHECK(OUT_G, "OUT_G", PREFIX, GateOp, typeCheck::boolType::OneOrMore)
-NOP_TYPECHECK(AND_G, "/\\", INFIX, GateOp, typeCheck::boolType::Nary);
-NOP_TYPECHECK(OR_G, "\\/", INFIX, GateOp, typeCheck::boolType::Nary);
-NOP_TYPECHECK(NEG_G, "~", PREFIX, GateOp, typeCheck::boolType::Unary);
+NOP(OUT_G, "OUT_G", PREFIX, GateOp, typeCheck::boolType::OneOrMore)
+NOP(AND_G, "/\\", INFIX, GateOp, typeCheck::boolType::Nary);
+NOP(OR_G, "\\/", INFIX, GateOp, typeCheck::boolType::Nary);
+NOP(NEG_G, "~", PREFIX, GateOp, typeCheck::boolType::Unary);
 
 namespace gate {
 inline Expr land(Expr e1, Expr e2) {

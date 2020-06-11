@@ -82,11 +82,11 @@ struct Extract {
 
 NOP_BASE(StructOp)
 
-NOP_TYPECHECK(MK_STRUCT, "struct", FUNCTIONAL, StructOp,
+NOP(MK_STRUCT, "struct", FUNCTIONAL, StructOp,
               typeCheck::structType::Struct)
-NOP_TYPECHECK(EXTRACT_VALUE, "extract-value", FUNCTIONAL, StructOp,
+NOP(EXTRACT_VALUE, "extract-value", FUNCTIONAL, StructOp,
               typeCheck::structType::Extract)
-NOP_TYPECHECK(INSERT_VALUE, "insert-value", FUNCTIONAL, StructOp,
+NOP(INSERT_VALUE, "insert-value", FUNCTIONAL, StructOp,
               typeCheck::structType::Insert)
 } // namespace op
 namespace op {

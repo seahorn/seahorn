@@ -52,18 +52,18 @@ struct Nary {
 // -- Numeric operators
 NOP_BASE(NumericOp)
 
-NOP_TYPECHECK(PLUS, "+", INFIX, NumericOp, typeCheck::numType::Nary)
-NOP_TYPECHECK(MINUS, "-", INFIX, NumericOp, typeCheck::numType::Nary)
-NOP_TYPECHECK(MULT, "*", INFIX, NumericOp, typeCheck::numType::Nary)
-NOP_TYPECHECK(DIV, "/", INFIX, NumericOp, typeCheck::numType::Nary)
-NOP_TYPECHECK(IDIV, "/", INFIX, NumericOp, typeCheck::numType::Nary)
-NOP_TYPECHECK(MOD, "mod", INFIX, NumericOp, typeCheck::numType::Nary)
-NOP_TYPECHECK(REM, "%", INFIX, NumericOp, typeCheck::numType::Nary)
-NOP_TYPECHECK(UN_MINUS, "-", PREFIX, NumericOp, typeCheck::numType::Nary)
-NOP_TYPECHECK(ABS, "abs", FUNCTIONAL, NumericOp, typeCheck::numType::Unary)
+NOP(PLUS, "+", INFIX, NumericOp, typeCheck::numType::Nary)
+NOP(MINUS, "-", INFIX, NumericOp, typeCheck::numType::Nary)
+NOP(MULT, "*", INFIX, NumericOp, typeCheck::numType::Nary)
+NOP(DIV, "/", INFIX, NumericOp, typeCheck::numType::Nary)
+NOP(IDIV, "/", INFIX, NumericOp, typeCheck::numType::Nary)
+NOP(MOD, "mod", INFIX, NumericOp, typeCheck::numType::Nary)
+NOP(REM, "%", INFIX, NumericOp, typeCheck::numType::Nary)
+NOP(UN_MINUS, "-", PREFIX, NumericOp, typeCheck::numType::Nary)
+NOP(ABS, "abs", FUNCTIONAL, NumericOp, typeCheck::numType::Unary)
 
-NOP_TYPECHECK(PINFTY, "oo", PREFIX, NumericOp, typeCheck::Any)
-NOP_TYPECHECK(NINFTY, "-oo", PREFIX, NumericOp, typeCheck::Any)
+NOP(PINFTY, "oo", PREFIX, NumericOp, typeCheck::Any)
+NOP(NINFTY, "-oo", PREFIX, NumericOp, typeCheck::Any)
 
 namespace numeric {
 struct ITV_PS {
@@ -78,6 +78,6 @@ struct ITV_PS {
   }
 };
 } // namespace numeric
-NOP_TYPECHECK(ITV, "itv", numeric::ITV_PS, NumericOp, typeCheck::Any)
+NOP(ITV, "itv", numeric::ITV_PS, NumericOp, typeCheck::Any)
 } // namespace op
 } // namespace expr

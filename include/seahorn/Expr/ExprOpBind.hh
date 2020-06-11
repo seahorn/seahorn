@@ -41,12 +41,12 @@ struct Fapp;
 enum class BindOpKind { BIND, FDECL, FAPP };
 NOP_BASE(BindOp)
 
-NOP_TYPECHECK(BIND, ":", INFIX, BindOp, typeCheck::bindType::Bind)
+NOP(BIND, ":", INFIX, BindOp, typeCheck::bindType::Bind)
 /** Function declaration */
-NOP_TYPECHECK(FDECL, "fdecl", PREFIX, BindOp, typeCheck::bindType::Fdecl)
+NOP(FDECL, "fdecl", PREFIX, BindOp, typeCheck::bindType::Fdecl)
 
 /** Function application */
-NOP_TYPECHECK(FAPP, "fapp", bind::FAPP_PS, BindOp, typeCheck::bindType::Fapp)
+NOP(FAPP, "fapp", bind::FAPP_PS, BindOp, typeCheck::bindType::Fapp)
 
 namespace typeCheck {
 namespace bindType {

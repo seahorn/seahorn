@@ -34,11 +34,11 @@ struct Inequality {
 // -- Compare operators
 NOP_BASE(CompareOp)
 
-NOP_TYPECHECK(EQ, "=", INFIX, CompareOp, typeCheck::compareType::Equality)
-NOP_TYPECHECK(NEQ, "!=", INFIX, CompareOp, typeCheck::compareType::Equality)
-NOP_TYPECHECK(LEQ, "<=", INFIX, CompareOp, typeCheck::compareType::Inequality)
-NOP_TYPECHECK(GEQ, ">=", INFIX, CompareOp, typeCheck::compareType::Inequality)
-NOP_TYPECHECK(LT, "<", INFIX, CompareOp, typeCheck::compareType::Inequality)
-NOP_TYPECHECK(GT, ">", INFIX, CompareOp, typeCheck::compareType::Inequality)
+NOP(EQ, "=", INFIX, CompareOp, typeCheck::compareType::Equality)
+NOP(NEQ, "!=", INFIX, CompareOp, typeCheck::compareType::Equality)
+NOP(LEQ, "<=", INFIX, CompareOp, typeCheck::compareType::Inequality)
+NOP(GEQ, ">=", INFIX, CompareOp, typeCheck::compareType::Inequality)
+NOP(LT, "<", INFIX, CompareOp, typeCheck::compareType::Inequality)
+NOP(GT, ">", INFIX, CompareOp, typeCheck::compareType::Inequality)
 } // namespace op
 } // namespace expr

@@ -88,15 +88,15 @@ struct Default {
 /// Array operators
 NOP_BASE(ArrayOp)
 
-NOP_TYPECHECK(SELECT, "select", FUNCTIONAL, ArrayOp,
+NOP(SELECT, "select", FUNCTIONAL, ArrayOp,
               typeCheck::arrayType::Select)
-NOP_TYPECHECK(STORE, "store", FUNCTIONAL, ArrayOp, typeCheck::arrayType::Store)
-NOP_TYPECHECK(CONST_ARRAY, "const-array", FUNCTIONAL, ArrayOp,
+NOP(STORE, "store", FUNCTIONAL, ArrayOp, typeCheck::arrayType::Store)
+NOP(CONST_ARRAY, "const-array", FUNCTIONAL, ArrayOp,
               typeCheck::arrayType::Const)
-NOP_TYPECHECK(ARRAY_MAP, "array-map", FUNCTIONAL, ArrayOp, typeCheck::Any)
-NOP_TYPECHECK(ARRAY_DEFAULT, "array-default", FUNCTIONAL, ArrayOp,
+NOP(ARRAY_MAP, "array-map", FUNCTIONAL, ArrayOp, typeCheck::Any)
+NOP(ARRAY_DEFAULT, "array-default", FUNCTIONAL, ArrayOp,
               typeCheck::arrayType::Default)
-NOP_TYPECHECK(AS_ARRAY, "as-array", FUNCTIONAL, ArrayOp, typeCheck::Any)
+NOP(AS_ARRAY, "as-array", FUNCTIONAL, ArrayOp, typeCheck::Any)
 } // namespace op
 
 namespace op {

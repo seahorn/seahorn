@@ -428,7 +428,7 @@ struct DefOp : public B {
   };
 
 /// macro for defining a class for a single operator
-#define NOP_TYPECHECK(NAME, TEXT, STYLE, BASE, TYPECHECK)                      \
+#define NOP(NAME, TEXT, STYLE, BASE, TYPECHECK)                      \
   struct __##NAME {                                                            \
     static inline std::string name() { return TEXT; }                          \
   };                                                                           \

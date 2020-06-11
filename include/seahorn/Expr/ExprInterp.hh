@@ -68,8 +68,8 @@ struct FENT_PS {
 };
 } // namespace mdl
 
-NOP_TYPECHECK(FTABLE, "ftab", mdl::FTAB_PS, MutModelOp, typeCheck::Any);
-NOP_TYPECHECK(FENTRY, "fent", mdl::FENT_PS, MutModelOp, typeCheck::Any);
+NOP(FTABLE, "ftab", mdl::FTAB_PS, MutModelOp, typeCheck::Any);
+NOP(FENTRY, "fent", mdl::FENT_PS, MutModelOp, typeCheck::Any);
 
 namespace mdl {
 template <typename Range> Expr fentry(const Range &args, Expr value) {

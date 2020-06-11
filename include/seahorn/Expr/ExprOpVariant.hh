@@ -63,8 +63,8 @@ struct Tag {
 } // namespace typeCheck
 
 NOP_BASE(VariantOp)
-NOP_TYPECHECK(VARIANT, "variant", variant::PS, VariantOp, typeCheck::variantType::Variant)
-NOP_TYPECHECK(TAG, "tag", variant::PS_TAG, VariantOp, typeCheck::variantType::Tag)
+NOP(VARIANT, "variant", variant::PS, VariantOp, typeCheck::variantType::Variant)
+NOP(TAG, "tag", variant::PS_TAG, VariantOp, typeCheck::variantType::Tag)
 
 namespace variant {
 /** Creates a variant of an expression. For example,

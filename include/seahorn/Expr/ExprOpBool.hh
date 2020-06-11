@@ -71,15 +71,15 @@ struct TrueFalse {
 NOP_BASE(BoolOp)
 
 /* operator definitions */
-NOP_TYPECHECK(TRUE, "true", PREFIX, BoolOp, typeCheck::boolType::TrueFalse)
-NOP_TYPECHECK(FALSE, "false", PREFIX, BoolOp, typeCheck::boolType::TrueFalse)
-NOP_TYPECHECK(AND, "&&", INFIX, BoolOp, typeCheck::boolType::Nary)
-NOP_TYPECHECK(OR, "||", INFIX, BoolOp, typeCheck::boolType::Nary)
-NOP_TYPECHECK(XOR, "^", INFIX, BoolOp, typeCheck::boolType::Nary)
-NOP_TYPECHECK(NEG, "!", PREFIX, BoolOp, typeCheck::boolType::Unary)
-NOP_TYPECHECK(IMPL, "->", INFIX, BoolOp, typeCheck::boolType::Binary)
-NOP_TYPECHECK(ITE, "ite", FUNCTIONAL, BoolOp, typeCheck::boolType::ITE)
-NOP_TYPECHECK(IFF, "<->", INFIX, BoolOp, typeCheck::boolType::Binary)
+NOP(TRUE, "true", PREFIX, BoolOp, typeCheck::boolType::TrueFalse)
+NOP(FALSE, "false", PREFIX, BoolOp, typeCheck::boolType::TrueFalse)
+NOP(AND, "&&", INFIX, BoolOp, typeCheck::boolType::Nary)
+NOP(OR, "||", INFIX, BoolOp, typeCheck::boolType::Nary)
+NOP(XOR, "^", INFIX, BoolOp, typeCheck::boolType::Nary)
+NOP(NEG, "!", PREFIX, BoolOp, typeCheck::boolType::Unary)
+NOP(IMPL, "->", INFIX, BoolOp, typeCheck::boolType::Binary)
+NOP(ITE, "ite", FUNCTIONAL, BoolOp, typeCheck::boolType::ITE)
+NOP(IFF, "<->", INFIX, BoolOp, typeCheck::boolType::Binary)
 
 namespace boolop {
 // -- logical AND. Applies simplifications

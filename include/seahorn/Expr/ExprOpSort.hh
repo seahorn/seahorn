@@ -44,32 +44,32 @@ struct Simple {
 NOP_BASE(SimpleTypeOp)
 
 /// \brief Int type
-NOP_TYPECHECK(INT_TY, "INT", PREFIX, SimpleTypeOp, typeCheck::simpleType::Simple)
+NOP(INT_TY, "INT", PREFIX, SimpleTypeOp, typeCheck::simpleType::Simple)
 /// \brief Char type (UNUSED)
-NOP_TYPECHECK(CHAR_TY, "CHAR", PREFIX, SimpleTypeOp, typeCheck::simpleType::Simple)
+NOP(CHAR_TY, "CHAR", PREFIX, SimpleTypeOp, typeCheck::simpleType::Simple)
 /// \brief Real type
-NOP_TYPECHECK(REAL_TY, "REAL", PREFIX, SimpleTypeOp, typeCheck::simpleType::Simple)
+NOP(REAL_TY, "REAL", PREFIX, SimpleTypeOp, typeCheck::simpleType::Simple)
 /// \brief Void type
-NOP_TYPECHECK(VOID_TY, "VOID", PREFIX, SimpleTypeOp, typeCheck::simpleType::Simple)
+NOP(VOID_TY, "VOID", PREFIX, SimpleTypeOp, typeCheck::simpleType::Simple)
 /// \biref Boolean type
-NOP_TYPECHECK(BOOL_TY, "BOOL", PREFIX, SimpleTypeOp, typeCheck::simpleType::Simple)
+NOP(BOOL_TY, "BOOL", PREFIX, SimpleTypeOp, typeCheck::simpleType::Simple)
 /// \brief Uninterpreted type
-NOP_TYPECHECK(UNINT_TY, "UNINT", PREFIX, SimpleTypeOp, typeCheck::simpleType::Simple)
+NOP(UNINT_TY, "UNINT", PREFIX, SimpleTypeOp, typeCheck::simpleType::Simple)
 /// \brief Array type
-NOP_TYPECHECK(ARRAY_TY, "ARRAY", PREFIX, SimpleTypeOp, typeCheck::simpleType::Simple)
+NOP(ARRAY_TY, "ARRAY", PREFIX, SimpleTypeOp, typeCheck::simpleType::Simple)
 /// \biref Struct type
 NOP(STRUCT_TY, "STRUCT", PREFIX, SimpleTypeOp, typeCheck::simpleType::Simple)
 /// \biref FiniteMap type
 NOP(FINITE_MAP_TY, "FINITE_MAP", PREFIX, SimpleTypeOp, typeCheck::simpleType::Simple)
 NOP(FINITE_MAP_KEYS_TY, "FINITE_MAP_KS", PREFIX, SimpleTypeOp, typeCheck::simpleType::Simple)
 /// \brief ANY type
-NOP_TYPECHECK(ANY_TY, "ANY", PREFIX, SimpleTypeOp, typeCheck::simpleType::Simple)
+NOP(ANY_TY, "ANY", PREFIX, SimpleTypeOp, typeCheck::simpleType::Simple)
 /// \brief Error type
-NOP_TYPECHECK(ERROR_TY, "ERROR", PREFIX, SimpleTypeOp, typeCheck::simpleType::Simple)
+NOP(ERROR_TY, "ERROR", PREFIX, SimpleTypeOp, typeCheck::simpleType::Simple)
 /// \brief TYPE type,
-NOP_TYPECHECK(TYPE_TY, "TYPE", PREFIX, SimpleTypeOp, typeCheck::simpleType::Simple)
+NOP(TYPE_TY, "TYPE", PREFIX, SimpleTypeOp, typeCheck::simpleType::Simple)
 /// \brief TYPE type,
-NOP_TYPECHECK(FUNCTIONAL_TY, "FUNCTIONAL", PREFIX, SimpleTypeOp, typeCheck::simpleType::Simple)
+NOP(FUNCTIONAL_TY, "FUNCTIONAL", PREFIX, SimpleTypeOp, typeCheck::simpleType::Simple)
 } // namespace op
 
 namespace op {

@@ -318,70 +318,70 @@ struct Repeat {
 } // namespace typeCheck
 
 NOP_BASE(BvOp)
-NOP_TYPECHECK(BNOT, "bvnot", FUNCTIONAL, BvOp, typeCheck::bvType::Unary)
-NOP_TYPECHECK(BREDAND, "bvredand", FUNCTIONAL, BvOp, typeCheck::bvType::Unary)
-NOP_TYPECHECK(BREDOR, "bvredor", FUNCTIONAL, BvOp, typeCheck::bvType::Unary)
-NOP_TYPECHECK(BAND, "bvand", FUNCTIONAL, BvOp, typeCheck::bvType::Nary)
-NOP_TYPECHECK(BOR, "bvor", FUNCTIONAL, BvOp, typeCheck::bvType::Nary)
-NOP_TYPECHECK(BXOR, "bvxor", FUNCTIONAL, BvOp, typeCheck::bvType::Nary)
-NOP_TYPECHECK(BNAND, "bvnand", FUNCTIONAL, BvOp, typeCheck::bvType::Nary)
-NOP_TYPECHECK(BNOR, "bvnor", FUNCTIONAL, BvOp, typeCheck::bvType::Nary)
-NOP_TYPECHECK(BXNOR, "bvxnor", FUNCTIONAL, BvOp, typeCheck::bvType::Nary)
-NOP_TYPECHECK(BNEG, "bvneg", FUNCTIONAL, BvOp, typeCheck::bvType::Unary)
-NOP_TYPECHECK(BADD, "bvadd", FUNCTIONAL, BvOp, typeCheck::bvType::Nary)
-NOP_TYPECHECK(BSUB, "bvsub", FUNCTIONAL, BvOp, typeCheck::bvType::Nary)
-NOP_TYPECHECK(BMUL, "bvmul", FUNCTIONAL, BvOp, typeCheck::bvType::Nary)
-NOP_TYPECHECK(BUDIV, "bvudiv", FUNCTIONAL, BvOp, typeCheck::bvType::Nary)
-NOP_TYPECHECK(BSDIV, "bvsdiv", FUNCTIONAL, BvOp, typeCheck::bvType::Nary)
-NOP_TYPECHECK(BUREM, "bvurem", FUNCTIONAL, BvOp, typeCheck::bvType::Nary)
-NOP_TYPECHECK(BSREM, "bvsrem", FUNCTIONAL, BvOp, typeCheck::bvType::Nary)
-NOP_TYPECHECK(BSMOD, "bvsmod", FUNCTIONAL, BvOp, typeCheck::bvType::Nary)
-NOP_TYPECHECK(BULT, "bvult", FUNCTIONAL, BvOp, typeCheck::bvType::Binary)
-NOP_TYPECHECK(BSLT, "bvslt", FUNCTIONAL, BvOp, typeCheck::bvType::Binary)
-NOP_TYPECHECK(BULE, "bvule", FUNCTIONAL, BvOp, typeCheck::bvType::Binary)
-NOP_TYPECHECK(BSLE, "bvsle", FUNCTIONAL, BvOp, typeCheck::bvType::Binary)
-NOP_TYPECHECK(BUGE, "bvuge", FUNCTIONAL, BvOp, typeCheck::bvType::Binary)
-NOP_TYPECHECK(BSGE, "bvsge", FUNCTIONAL, BvOp, typeCheck::bvType::Binary)
-NOP_TYPECHECK(BUGT, "bvugt", FUNCTIONAL, BvOp, typeCheck::bvType::Binary)
-NOP_TYPECHECK(BSGT, "bvsgt", FUNCTIONAL, BvOp, typeCheck::bvType::Binary)
-NOP_TYPECHECK(BCONCAT, "concat", FUNCTIONAL, BvOp, typeCheck::bvType::Concat)
-NOP_TYPECHECK(BEXTRACT, "extract", FUNCTIONAL, BvOp, typeCheck::bvType::Extract)
-NOP_TYPECHECK(BSEXT, "bvsext", FUNCTIONAL, BvOp, typeCheck::bvType::Extend)
-NOP_TYPECHECK(BZEXT, "bvzext", FUNCTIONAL, BvOp, typeCheck::bvType::Extend)
-NOP_TYPECHECK(BREPEAT, "bvrepeat", FUNCTIONAL, BvOp, typeCheck::bvType::Repeat)
-NOP_TYPECHECK(BSHL, "bvshl", FUNCTIONAL, BvOp, typeCheck::bvType::Binary)
-NOP_TYPECHECK(BLSHR, "bvlshr", FUNCTIONAL, BvOp, typeCheck::bvType::Binary)
-NOP_TYPECHECK(BASHR, "bvashr", FUNCTIONAL, BvOp, typeCheck::bvType::Binary)
-NOP_TYPECHECK(BROTATE_LEFT, "bvrotleft", FUNCTIONAL, BvOp,
+NOP(BNOT, "bvnot", FUNCTIONAL, BvOp, typeCheck::bvType::Unary)
+NOP(BREDAND, "bvredand", FUNCTIONAL, BvOp, typeCheck::bvType::Unary)
+NOP(BREDOR, "bvredor", FUNCTIONAL, BvOp, typeCheck::bvType::Unary)
+NOP(BAND, "bvand", FUNCTIONAL, BvOp, typeCheck::bvType::Nary)
+NOP(BOR, "bvor", FUNCTIONAL, BvOp, typeCheck::bvType::Nary)
+NOP(BXOR, "bvxor", FUNCTIONAL, BvOp, typeCheck::bvType::Nary)
+NOP(BNAND, "bvnand", FUNCTIONAL, BvOp, typeCheck::bvType::Nary)
+NOP(BNOR, "bvnor", FUNCTIONAL, BvOp, typeCheck::bvType::Nary)
+NOP(BXNOR, "bvxnor", FUNCTIONAL, BvOp, typeCheck::bvType::Nary)
+NOP(BNEG, "bvneg", FUNCTIONAL, BvOp, typeCheck::bvType::Unary)
+NOP(BADD, "bvadd", FUNCTIONAL, BvOp, typeCheck::bvType::Nary)
+NOP(BSUB, "bvsub", FUNCTIONAL, BvOp, typeCheck::bvType::Nary)
+NOP(BMUL, "bvmul", FUNCTIONAL, BvOp, typeCheck::bvType::Nary)
+NOP(BUDIV, "bvudiv", FUNCTIONAL, BvOp, typeCheck::bvType::Nary)
+NOP(BSDIV, "bvsdiv", FUNCTIONAL, BvOp, typeCheck::bvType::Nary)
+NOP(BUREM, "bvurem", FUNCTIONAL, BvOp, typeCheck::bvType::Nary)
+NOP(BSREM, "bvsrem", FUNCTIONAL, BvOp, typeCheck::bvType::Nary)
+NOP(BSMOD, "bvsmod", FUNCTIONAL, BvOp, typeCheck::bvType::Nary)
+NOP(BULT, "bvult", FUNCTIONAL, BvOp, typeCheck::bvType::Binary)
+NOP(BSLT, "bvslt", FUNCTIONAL, BvOp, typeCheck::bvType::Binary)
+NOP(BULE, "bvule", FUNCTIONAL, BvOp, typeCheck::bvType::Binary)
+NOP(BSLE, "bvsle", FUNCTIONAL, BvOp, typeCheck::bvType::Binary)
+NOP(BUGE, "bvuge", FUNCTIONAL, BvOp, typeCheck::bvType::Binary)
+NOP(BSGE, "bvsge", FUNCTIONAL, BvOp, typeCheck::bvType::Binary)
+NOP(BUGT, "bvugt", FUNCTIONAL, BvOp, typeCheck::bvType::Binary)
+NOP(BSGT, "bvsgt", FUNCTIONAL, BvOp, typeCheck::bvType::Binary)
+NOP(BCONCAT, "concat", FUNCTIONAL, BvOp, typeCheck::bvType::Concat)
+NOP(BEXTRACT, "extract", FUNCTIONAL, BvOp, typeCheck::bvType::Extract)
+NOP(BSEXT, "bvsext", FUNCTIONAL, BvOp, typeCheck::bvType::Extend)
+NOP(BZEXT, "bvzext", FUNCTIONAL, BvOp, typeCheck::bvType::Extend)
+NOP(BREPEAT, "bvrepeat", FUNCTIONAL, BvOp, typeCheck::bvType::Repeat)
+NOP(BSHL, "bvshl", FUNCTIONAL, BvOp, typeCheck::bvType::Binary)
+NOP(BLSHR, "bvlshr", FUNCTIONAL, BvOp, typeCheck::bvType::Binary)
+NOP(BASHR, "bvashr", FUNCTIONAL, BvOp, typeCheck::bvType::Binary)
+NOP(BROTATE_LEFT, "bvrotleft", FUNCTIONAL, BvOp,
               typeCheck::bvType::Rotate)
-NOP_TYPECHECK(BROTATE_RIGHT, "bvrotright", FUNCTIONAL, BvOp,
+NOP(BROTATE_RIGHT, "bvrotright", FUNCTIONAL, BvOp,
               typeCheck::bvType::Rotate)
-NOP_TYPECHECK(BEXT_ROTATE_LEFT, "bvextrotleft", FUNCTIONAL, BvOp,
+NOP(BEXT_ROTATE_LEFT, "bvextrotleft", FUNCTIONAL, BvOp,
               typeCheck::bvType::Rotate)
-NOP_TYPECHECK(BEXT_ROTATE_RIGHT, "bvextrotright", FUNCTIONAL, BvOp,
+NOP(BEXT_ROTATE_RIGHT, "bvextrotright", FUNCTIONAL, BvOp,
               typeCheck::bvType::Rotate)
-NOP_TYPECHECK(INT2BV, "int2bv", FUNCTIONAL, BvOp, typeCheck::bvType::Int2Bv)
-NOP_TYPECHECK(BV2INT, "bv2int", FUNCTIONAL, BvOp, typeCheck::bvType::Bv2Int)
+NOP(INT2BV, "int2bv", FUNCTIONAL, BvOp, typeCheck::bvType::Int2Bv)
+NOP(BV2INT, "bv2int", FUNCTIONAL, BvOp, typeCheck::bvType::Bv2Int)
 // Add w Overflow
-NOP_TYPECHECK(SADD_NO_OVERFLOW, "bvsadd_no_overflow", FUNCTIONAL, BvOp,
+NOP(SADD_NO_OVERFLOW, "bvsadd_no_overflow", FUNCTIONAL, BvOp,
               typeCheck::bvType::BinaryBool)
-NOP_TYPECHECK(UADD_NO_OVERFLOW, "bvuadd_no_overflow", FUNCTIONAL, BvOp,
+NOP(UADD_NO_OVERFLOW, "bvuadd_no_overflow", FUNCTIONAL, BvOp,
               typeCheck::bvType::BinaryBool)
-NOP_TYPECHECK(SADD_NO_UNDERFLOW, "bvbadd_no_underflow", FUNCTIONAL, BvOp,
+NOP(SADD_NO_UNDERFLOW, "bvbadd_no_underflow", FUNCTIONAL, BvOp,
               typeCheck::bvType::BinaryBool)
 // Sub w Overflow
-NOP_TYPECHECK(SSUB_NO_OVERFLOW, "bvbsub_no_overflow", FUNCTIONAL, BvOp,
+NOP(SSUB_NO_OVERFLOW, "bvbsub_no_overflow", FUNCTIONAL, BvOp,
               typeCheck::bvType::BinaryBool)
-NOP_TYPECHECK(SSUB_NO_UNDERFLOW, "bvssub_no_underflow", FUNCTIONAL, BvOp,
+NOP(SSUB_NO_UNDERFLOW, "bvssub_no_underflow", FUNCTIONAL, BvOp,
               typeCheck::bvType::BinaryBool)
-NOP_TYPECHECK(USUB_NO_UNDERFLOW, "bvusub_no_underflow", FUNCTIONAL, BvOp,
+NOP(USUB_NO_UNDERFLOW, "bvusub_no_underflow", FUNCTIONAL, BvOp,
               typeCheck::bvType::BinaryBool)
 // Mul w Overflow
-NOP_TYPECHECK(SMUL_NO_OVERFLOW, "bvsmul_no_overflow", FUNCTIONAL, BvOp,
+NOP(SMUL_NO_OVERFLOW, "bvsmul_no_overflow", FUNCTIONAL, BvOp,
               typeCheck::bvType::BinaryBool)
-NOP_TYPECHECK(UMUL_NO_OVERFLOW, "bvumul_no_overflow", FUNCTIONAL, BvOp,
+NOP(UMUL_NO_OVERFLOW, "bvumul_no_overflow", FUNCTIONAL, BvOp,
               typeCheck::bvType::BinaryBool)
-NOP_TYPECHECK(SMUL_NO_UNDERFLOW, "bvbmul_no_underflow", FUNCTIONAL, BvOp,
+NOP(SMUL_NO_UNDERFLOW, "bvbmul_no_underflow", FUNCTIONAL, BvOp,
               typeCheck::bvType::BinaryBool)
 namespace bv {
 /* XXX Add helper methods as needed */

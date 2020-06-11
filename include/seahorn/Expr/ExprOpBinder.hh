@@ -183,13 +183,13 @@ struct Quantifier {
 enum class BinderOpKind { FORALL, EXISTS, LAMBDA };
 NOP_BASE(BinderOp)
 /** Forall quantifier */
-NOP_TYPECHECK(FORALL, "forall", bind::BINDER, BinderOp,
+NOP(FORALL, "forall", bind::BINDER, BinderOp,
               typeCheck::bindType::Quantifier)
 /** Exists */
-NOP_TYPECHECK(EXISTS, "exists", bind::BINDER, BinderOp,
+NOP(EXISTS, "exists", bind::BINDER, BinderOp,
               typeCheck::bindType::Quantifier)
 /** Lambda */
-NOP_TYPECHECK(LAMBDA, "lambda", bind::BINDER, BinderOp,
+NOP(LAMBDA, "lambda", bind::BINDER, BinderOp,
               typeCheck::bindType::Lambda)
 
 namespace bind {

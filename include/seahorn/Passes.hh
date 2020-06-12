@@ -137,4 +137,5 @@ inline llvm::Pass *createStripShadowMemPass() {
 llvm::ImmutablePass *createSeaBuiltinsWrapperPass();
 llvm::Pass* createLoopPeelerPass(unsigned Num = 1);
 llvm::Pass* createBackEdgeCutterPass();
+llvm::Pass* createLowerIsDerefPass();
 } // namespace seahorn

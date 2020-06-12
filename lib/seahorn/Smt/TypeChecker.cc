@@ -17,14 +17,18 @@ class TCVR {
   bool m_isWellFormed;
   Expr m_errorExp;
 
+ // keeps track of every error's first/bottom-most sub expression
+ // for example, (bool && (int || int )) will map to (int || int)
+  ExprMap m_errorMap;
+
   TypeChecker *const m_tc;
 
-  // m_topMost keeps track of the expression that you call the typechecker with.
-  // The typechecker knows that it is done when it reaches m_topMost so it can
-  // reset
+  // Keeps track of the expression that the typechecker is called with.
+  // The expression is done traversing when it reaches the top most expression
+  // so it can reset
   Expr m_topMost;
 
-  void foundError (Expr exp) {
+  void foundError(Expr exp) {
     ERR << "Expression is not well-formed: " << *exp << "\n";
 
     if (m_isWellFormed)
@@ -45,12 +49,15 @@ class TCVR {
   Expr postVisit(Expr exp) {
     LOG("tc", llvm::errs() << "post visiting expression: " << *exp << "\n";);
 
-    Expr type = exp->inferType(exp, *m_tc);
+    Expr type = m_isWellFormed ? exp->inferType(exp, *m_tc)
+                               : sort::errorTy(exp->efac());
 
     m_cache.insert({exp, type});
 
-    if (isOp<ERROR_TY>(type))
+    if (isOp<ERROR_TY>(type)) {
       foundError(exp);
+      m_errorMap.insert({exp, m_errorExp});
+    }
 
     return exp;
   }
@@ -68,15 +75,14 @@ public:
       m_topMost = exp;
     }
 
-
-    if (!m_isWellFormed) 
+    if (!m_isWellFormed)
       return false;
 
     if (m_cache.count(exp)) {
       Expr type = m_cache.at(exp);
 
       if (isOp<ERROR_TY>(type))
-        foundError(exp);
+        foundError(m_errorMap.at(exp));
 
       return false;
     }
@@ -87,17 +93,13 @@ public:
   Expr operator()(Expr exp) { return postVisit(exp); }
 
   Expr knownTypeOf(Expr e) {
-    Expr knownType;
-
-    if (m_isWellFormed)
-      knownType = e ? m_cache.at(e) : Expr();
-    else
-      knownType = sort::errorTy(e->efac());
+    Expr knownType = e ? m_cache.at(e) : Expr();
 
     if (e == m_topMost) // done traversing entire expression
       reset(e);
 
-    LOG("tc", llvm::errs() << "known type of " << *e << "is "<< *knownType <<"\n";);
+    LOG("tc",
+        llvm::errs() << "known type of " << *e << "is " << *knownType << "\n";);
     return knownType;
   }
 

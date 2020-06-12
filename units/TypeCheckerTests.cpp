@@ -1301,3 +1301,37 @@ TEST_CASE("fappNotWellFormed.test") {
   checkNotWellFormed(e, error);
 
 }
+TEST_CASE("generalNotWellFormed.test") {// make sure that the cache works correctly when partially reusing expressions
+  seahorn::SeaEnableLog("tc");
+  // -- manages expressions
+  ExprFactory efac;
+
+  Expr aBool = boolConst("aBool", efac);
+  Expr bBool = boolConst("bBool", efac);
+
+  Expr aInt = intConst("aInt", efac);
+  Expr bInt = intConst("bInt", efac);
+
+  Expr boolSort = sort::boolTy(efac);
+  Expr intSort = sort::intTy(efac);
+
+  std::vector<Expr> e;
+  Expr temp;
+  std::vector<Expr> error;
+  Expr tempError;
+  Expr body;
+
+  TypeChecker tc;
+
+  error.push_back(mk<AND>(aBool));
+  temp = mk <OR>(mk <NEG>(error.back()), bBool);
+  e.push_back(temp);
+
+  error.push_back(mk<PLUS>(aBool));
+  e.push_back(error.back());
+
+  error.push_back(error[0]);
+  e.push_back(e[0]);
+
+  checkNotWellFormed(e, error);
+}

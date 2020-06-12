@@ -60,10 +60,8 @@ struct Bind {
   }
 };
 struct Fdecl {
+  // Checks that all arguments and return expression are types
   // Return type: FUNCTIONAL_TY
-  // For example, fdecl(name, arg1Type, arg2Type, ..., returnType) will return
-  // an expression of the following format: (arg1Type, arg2Type, ...) ->
-  // returnType
   static inline Expr inferType(Expr exp, TypeChecker &tc) {
     if (exp->arity() < 2)
       return sort::errorTy(exp->efac());

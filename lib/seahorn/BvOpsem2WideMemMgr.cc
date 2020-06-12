@@ -394,8 +394,8 @@ public:
     const unsigned byteSz =
         m_sem.getTD().getTypeStoreSize(const_cast<llvm::Type *>(&ty));
     ExprFactory &efac = ptr.v()->efac();
-
-    MemValTy res(nullPtr().getRaw(), m_uninit_size);
+    // init memval to a default value
+    MemValTy res(m_ctx.alu().si(0UL, wordSzInBits()), m_uninit_size);
     switch (ty.getTypeID()) {
     case Type::IntegerTyID:
       if (ty.getScalarSizeInBits() < byteSz * 8) {
@@ -549,7 +549,7 @@ public:
     } else {
       // auto numBytes = m_ctx.alu().si(m_ctx.alu().toNum(byteSz),
       // g_slotBitWidth);
-      return m_ctx.alu().doUge(p.getSize(), byteSz, g_slotBitWidth);
+      return m_ctx.alu().doSge(p.getSize(), byteSz, g_slotBitWidth);
     }
   }
 };

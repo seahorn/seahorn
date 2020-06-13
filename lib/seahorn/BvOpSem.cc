@@ -594,6 +594,20 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
         side(m_outMem,
              op::array::constArray(bv::bvsort(ptrSz(), m_efac), nullBv));
       }
+    } else if (F.getName().startswith("smt.extract.")) {
+
+      auto *arg0 = dyn_cast<ConstantInt>(CS.getArgument(0));
+      auto *arg1 = dyn_cast<ConstantInt>(CS.getArgument(1));
+      auto *val = CS.getArgument(2);
+      Expr symVal = lookup(*val);
+      if (arg0 && arg1 && symVal) {
+        Expr res = bv::extract(arg1->getZExtValue(), arg0->getZExtValue(), symVal);
+        if (I.getType()->getScalarSizeInBits() == 1){
+          res = bvToBool(res);
+        } 
+        write(I, res);
+      }
+
     }
 
     else if (m_sem.hasFunctionInfo(F)) {

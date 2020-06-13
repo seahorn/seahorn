@@ -497,6 +497,8 @@ public:
         visitNondetCall(CS);
       else if (f->getName().startswith("sea.is_dereferenceable")) {
         visitIsDereferenceable(CS);
+      } else if (f->getName().startswith("smt.")) {
+        visitSmtCall(CS);
       } else if (fatptr_intrnsc_re.match(f->getName())) {
         visitFatPointerInstr(CS);
       } else
@@ -510,6 +512,29 @@ public:
 
     ERR << "unhandled call instruction: " << *CS.getInstruction();
     llvm_unreachable(nullptr);
+  }
+
+  void visitSmtCall(CallSite CS) {
+
+    auto *f = getCalledFunction(CS);
+    Expr res;
+    if (f->getName().startswith("smt.extract.")) {
+      auto *arg0 = dyn_cast<ConstantInt>(CS.getArgument(0));
+      auto *arg1 = dyn_cast<ConstantInt>(CS.getArgument(1));
+      auto *val = CS.getArgument(2);
+      Expr symVal = lookup(*val);
+      if (symVal && arg0 && arg1) {
+        res = m_ctx.alu().Extract({symVal, val->getType()->getScalarSizeInBits()}, arg0->getZExtValue(), arg1->getZExtValue());
+      }
+    } else if (f->getName().startswith("smt.concat.")) {
+      LOG("opsem", WARN << "Not implemented yet";);
+      assert(false);
+    } else {
+      LOG("opsem", ERR << "Unsupported smt. function: " << f->getName(););
+      assert(false);
+    }
+
+    setValue(*CS.getInstruction(), res);
   }
 
   void visitIsDereferenceable(CallSite CS) {

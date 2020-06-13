@@ -457,17 +457,21 @@ private:
   z3::context &ctx;
   ExprFactory &efac;
 
+  ZParams<Z> m_params;
   expr_ast_map m_expr_to_ast;
   ast_expr_map m_ast_to_expr;
   std::unordered_map<Expr, Expr> m_cache;
 
 public:
   using this_type = ZSimplifier<Z>;
-  ZSimplifier(Z &z) : z3(z), ctx(z.get_ctx()), efac(z.get_efac()) {}
+  ZSimplifier(Z &z)
+      : z3(z), ctx(z.get_ctx()), efac(z.get_efac()), m_params(z) {}
 
   ZSimplifier(const ZSimplifier &) = delete;
 
   Z &getContext() { return z3; }
+
+  ZParams<Z> &params() { return m_params; }
 
   Expr simplify(Expr e) {
     auto it = m_cache.find(e);
@@ -475,7 +479,8 @@ public:
       return it->second;
 
     z3::ast ast(z3.toAst(e, m_expr_to_ast));
-    Expr res = z3.toExpr(z3::ast(ctx, Z3_simplify(ctx, ast)), m_ast_to_expr);
+    Expr res = z3.toExpr(z3::ast(ctx, Z3_simplify_ex(ctx, ast, m_params)),
+                         m_ast_to_expr);
     m_cache.insert({e, res});
     return res;
   }

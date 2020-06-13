@@ -1791,14 +1791,15 @@ void Bv2OpSemContext::write(Expr v, Expr u) {
     if (!m_z3) {
       m_z3.reset(new EZ3(efac()));
       m_z3_simplifier.reset(new ZSimplifier<EZ3>(*m_z3));
+      auto &params = m_z3_simplifier->params();
+      params.set("ctrl_c", true);
+      // params.set("local_ctx", true);
+      // params.set("elim_ite", false);
+      // params.set("timeout", 10000U /*ms*/);
+      // params.set("flat", false);
+      // params.set("ite_extra_rules", false /*default=false*/);
+      // Expr _u = z3_simplify(*m_z3, u, params);
     }
-
-    ZParams<EZ3> params(*m_z3);
-    params.set("ctrl_c", true);
-    // params.set("timeout", 10000U /*ms*/);
-    // params.set("flat", false);
-    // params.set("ite_extra_rules", false /*default=false*/);
-    // Expr _u = z3_simplify(*m_z3, u, params);
 
     Expr _u;
 

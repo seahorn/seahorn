@@ -138,7 +138,9 @@ PtrTy RawMemManager::salloc(unsigned bytes, uint32_t align) {
 
 /// \brief Returns a pointer value for a given stack allocation
 PtrTy RawMemManager::mkStackPtr(unsigned offset) {
-  PtrTy res = m_ctx.read(m_sp0);
+  PtrTy res = m_sp0;
+  if (m_ctx.isKnownRegister(res))
+    res = m_ctx.read(m_sp0);
   res = m_ctx.alu().doSub(
       res, m_ctx.alu().si((unsigned long)offset, ptrSzInBits()), ptrSzInBits());
   return res;
@@ -671,7 +673,9 @@ void RawMemManager::onModuleEntry(const Module &M) {
 void RawMemManager::onFunctionEntry(const Function &fn) {
   m_allocator->onFunctionEntry(fn);
 
-  Expr res = m_ctx.read(m_sp0);
+  Expr res = m_sp0;
+  if (m_ctx.isKnownRegister(res))
+    res = m_ctx.read(m_sp0);
 
   // align of semantic_word_size, or 4 if it's less than 4
   unsigned offsetBits = 2;

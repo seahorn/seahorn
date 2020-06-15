@@ -17,49 +17,49 @@ namespace boolType {
 struct OneOrMore {
   // Return type: BOOL_TY
   // Possible types of children: BOOL_TY
-  static inline Expr inferType(Expr exp, TypeChecker &tc) {
-    return typeCheck::oneOrMore<BOOL_TY, BOOL_TY>(exp, tc);
+  static inline Expr inferType(Expr exp, TypeCheckerHelper &helper) {
+    return typeCheck::oneOrMore<BOOL_TY, BOOL_TY>(exp, helper);
   }
 };
 
 struct Unary {
   // Return type: BOOL_TY
   // Possible types of children: BOOL_TY
-  static inline Expr inferType(Expr exp, TypeChecker &tc) {
-    return typeCheck::unary<BOOL_TY, BOOL_TY>(exp, tc);
+  static inline Expr inferType(Expr exp, TypeCheckerHelper &helper) {
+    return typeCheck::unary<BOOL_TY, BOOL_TY>(exp, helper);
   }
 };
 
 struct Binary {
   // Return type: BOOL_TY
   // Possible types of children: BOOL_TY
-  static inline Expr inferType(Expr exp, TypeChecker &tc) {
-    return typeCheck::binary<BOOL_TY, BOOL_TY>(exp, tc);
+  static inline Expr inferType(Expr exp, TypeCheckerHelper &helper) {
+    return typeCheck::binary<BOOL_TY, BOOL_TY>(exp, helper);
   }
 };
 
 struct Nary {
   // Return type: BOOL_TY
   // Possible types of children: BOOL_TY
-  static inline Expr inferType(Expr exp, TypeChecker &tc) {
-    return typeCheck::nary<BOOL_TY, BOOL_TY>(exp, tc);
+  static inline Expr inferType(Expr exp, TypeCheckerHelper &helper) {
+    return typeCheck::nary<BOOL_TY, BOOL_TY>(exp, helper);
   }
 };
 
 struct ITE {
-  static inline Expr inferType(Expr exp, TypeChecker &tc) {
+  static inline Expr inferType(Expr exp, TypeCheckerHelper &helper) {
 
     // ite(a,b,c) : a is bool type, b and c are the same type
-    if (exp->arity() == 3 && isOp<BOOL_TY>(tc.typeOf(exp->arg(0))) &&
-        (tc.typeOf(exp->arg(1)) == tc.typeOf(exp->arg(2))))
-      return tc.typeOf(exp->arg(1));
+    if (exp->arity() == 3 && isOp<BOOL_TY>(helper.typeOf(exp->arg(0))) &&
+        (helper.typeOf(exp->arg(1)) == helper.typeOf(exp->arg(2))))
+      return helper.typeOf(exp->arg(1));
 
     return sort::errorTy(exp->efac());
   }
 };
 
 struct TrueFalse {
-  static inline Expr inferType(Expr exp, TypeChecker &tc) {
+  static inline Expr inferType(Expr exp, TypeCheckerHelper &helper) {
     return sort::boolTy(exp->efac());
   }
 };

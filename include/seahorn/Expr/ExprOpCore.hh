@@ -6,7 +6,7 @@
 
 namespace expr {
 
-class TypeChecker;
+class TypeCheckerHelper;
 namespace op {
 namespace typeCheck {
 struct Any;
@@ -130,8 +130,8 @@ public:
            llvm::cast<TerminalBase>(op)->m_kind == terminal_type::getKind();
   }
 
-  Expr inferType(Expr exp, TypeChecker &tc) const override {
-    return terminal_type::inferType(exp, tc);
+  Expr inferType(Expr exp, TypeCheckerHelper &helper) const override {
+    return terminal_type::inferType(exp, helper);
   }
 };
 
@@ -153,7 +153,7 @@ template <> struct TerminalTrait<std::string> {
   }
   static TerminalKind getKind() { return TerminalKind::STRING; }
   static std::string name() { return "std::string"; }
-  static inline Expr inferType(Expr exp, TypeChecker &tc) {
+  static inline Expr inferType(Expr exp, TypeCheckerHelper &helper) {
     return sort::stringTerminalTy(exp->efac());
   }
 };
@@ -176,7 +176,7 @@ template <> struct TerminalTrait<unsigned int> {
   }
   static TerminalKind getKind() { return TerminalKind::UINT; }
   static std::string name() { return "unsigned int"; }
-  static inline Expr inferType(Expr exp, TypeChecker &tc) {
+  static inline Expr inferType(Expr exp, TypeCheckerHelper &helper) {
     return sort::uintTerminalTy(exp->efac());
   }
 };
@@ -209,7 +209,7 @@ template <> struct TerminalTrait<expr::mpz_class> {
 
   static TerminalKind getKind() { return TerminalKind::MPZ; }
   static std::string name() { return "expr::mpz_class"; }
-  static inline Expr inferType(Expr exp, TypeChecker &tc) {
+  static inline Expr inferType(Expr exp, TypeCheckerHelper &helper) {
     return sort::mpzTerminalTy(exp->efac());
   }
 };
@@ -238,7 +238,7 @@ template <> struct TerminalTrait<expr::mpq_class> {
 
   static TerminalKind getKind() { return TerminalKind::MPQ; }
   static std::string name() { return "expr::mpq_class"; }
-  static inline Expr inferType(Expr exp, TypeChecker &tc) {
+  static inline Expr inferType(Expr exp, TypeCheckerHelper &helper) {
     return sort::mpqTerminalTy(exp->efac());
   }
 };
@@ -426,8 +426,8 @@ struct DefOp : public B {
            llvm::cast<base_type>(op)->m_kind == kind;
   }
 
-  Expr inferType(Expr exp, TypeChecker &tc) const override {
-    return checker_type::inferType(exp, tc);
+  Expr inferType(Expr exp, TypeCheckerHelper &helper) const override {
+    return checker_type::inferType(exp, helper);
   }
 };
 

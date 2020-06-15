@@ -20,36 +20,36 @@ enum class ArrayOpKind {
 namespace typeCheck {
 namespace arrayType {
 
-static inline bool checkArray(Expr exp, TypeChecker &tc, unsigned numChildren) {
+static inline bool checkArray(Expr exp, TypeCheckerHelper &helper, unsigned numChildren) {
   return exp->arity() == numChildren &&
-         correctTypeAny<ARRAY_TY>(exp->first(), tc);
+         correctTypeAny<ARRAY_TY>(exp->first(), helper);
 }
 
 struct Select {
-  static inline Expr inferType(Expr exp, TypeChecker &tc) {
-    if (!checkArray(exp, tc, 2))
+  static inline Expr inferType(Expr exp, TypeCheckerHelper &helper) {
+    if (!checkArray(exp, helper, 2))
       return sort::errorTy(exp->efac());
 
-    Expr arrayTy = tc.typeOf(exp->left());
+    Expr arrayTy = helper.typeOf(exp->left());
     Expr indexTy = sort::arrayIndexTy(arrayTy);
     Expr valTy = sort::arrayValTy(arrayTy);
 
-    if (indexTy == tc.typeOf(exp->right()))
+    if (indexTy == helper.typeOf(exp->right()))
       return valTy;
 
     return sort::errorTy(exp->efac());
   }
 };
 struct Store {
-  static inline Expr inferType(Expr exp, TypeChecker &tc) {
-    if (!checkArray(exp, tc, 3))
+  static inline Expr inferType(Expr exp, TypeCheckerHelper &helper) {
+    if (!checkArray(exp, helper, 3))
       return sort::errorTy(exp->efac());
 
-    Expr arrayTy = tc.typeOf(exp->left());
+    Expr arrayTy = helper.typeOf(exp->left());
     Expr indexTy = sort::arrayIndexTy(arrayTy);
     Expr valTy = sort::arrayValTy(arrayTy);
 
-    if (indexTy == tc.typeOf(exp->arg(1)) && valTy == tc.typeOf(exp->arg(2)))
+    if (indexTy == helper.typeOf(exp->arg(1)) && valTy == helper.typeOf(exp->arg(2)))
       return arrayTy;
 
     return sort::errorTy(exp->efac());
@@ -57,29 +57,29 @@ struct Store {
 };
 
 struct Const {
-  static inline Expr inferType(Expr exp, TypeChecker &tc) {
+  static inline Expr inferType(Expr exp, TypeCheckerHelper &helper) {
     if (exp->arity() != 2)
       return sort::errorTy(exp->efac());
 
     Expr domain = exp->left();
     Expr value = exp->right();
 
-    if (isOp<TYPE_TY>(tc.typeOf(domain)))
-      return sort::arrayTy(domain, tc.typeOf(value));
+    if (isOp<TYPE_TY>(helper.typeOf(domain)))
+      return sort::arrayTy(domain, helper.typeOf(value));
 
     return sort::errorTy(exp->efac());
   }
 };
 
 struct Default {
-  static inline Expr inferType(Expr exp, TypeChecker &tc) {
+  static inline Expr inferType(Expr exp, TypeCheckerHelper &helper) {
 
-    if (!checkArray(exp, tc, 1))
+    if (!checkArray(exp, helper, 1))
       return sort::errorTy(exp->efac());
 
     Expr array = exp->first();
 
-    return sort::arrayValTy(tc.typeOf(array));
+    return sort::arrayValTy(helper.typeOf(array));
   }
 };
 } // namespace arrayType

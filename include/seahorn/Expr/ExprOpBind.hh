@@ -52,8 +52,8 @@ namespace typeCheck {
 namespace bindType {
 
 struct Bind {
-  static inline Expr inferType(Expr exp, TypeChecker &tc) {
-    if (exp->arity() == 2)
+  static inline Expr inferType(Expr exp, TypeCheckerHelper &helper) {
+    if (exp->arity() == 2 && isOp<TYPE_TY>(helper.typeOf(exp->right())))
       return exp->right();
 
     return sort::errorTy(exp->efac());
@@ -62,12 +62,12 @@ struct Bind {
 struct Fdecl {
   // Checks that all arguments and return expression are types
   // Return type: FUNCTIONAL_TY
-  static inline Expr inferType(Expr exp, TypeChecker &tc) {
+  static inline Expr inferType(Expr exp, TypeCheckerHelper &helper) {
     if (exp->arity() < 2)
       return sort::errorTy(exp->efac());
 
-    auto isType = [&tc](Expr exp) -> bool {
-      return isOp<TYPE_TY>(tc.typeOf(exp));
+    auto isType = [&helper](Expr exp) -> bool {
+      return isOp<TYPE_TY>(helper.typeOf(exp));
     };
 
     auto begin = exp->args_begin() + 1; // note: name is the first child
@@ -84,12 +84,12 @@ struct Fapp {
   // Checks that the first child is FUNCTIONAL_TY type and its remaining
   // types match the Functional's argument types
   // Return type: type of the Functional's body
-  static inline Expr inferType(Expr exp, TypeChecker &tc) {
+  static inline Expr inferType(Expr exp, TypeCheckerHelper &helper) {
     if (exp->arity() == 0)
       return sort::errorTy(exp->efac());
 
     Expr functionalType =
-        tc.typeOf(exp->first()); // functional types should be of the form :
+        helper.typeOf(exp->first()); // functional types should be of the form :
                                  // arg1Type, arg2Type ... -> returnType
 
     if (!(isOp<FUNCTIONAL_TY>(functionalType) &&
@@ -102,7 +102,7 @@ struct Fapp {
     // Check that each fapp argument type matches its corresponding functional
     // arguments
     while (fappArgs != exp->args_end()) {
-      Expr fappArgType = tc.typeOf(*fappArgs);
+      Expr fappArgType = helper.typeOf(*fappArgs);
       Expr functionalArgType = *functionalArgs;
 
       if (fappArgType != functionalArgType)

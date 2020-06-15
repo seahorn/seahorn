@@ -21,12 +21,14 @@ class TCVR {
  // for example, (bool && (int || int )) will map to (int || int)
   ExprMap m_errorMap;
 
-  TypeChecker *const m_tc;
+  TypeCheckerHelper *const m_helper;
 
   // Keeps track of the expression that the typechecker is called with.
   // The expression is done traversing when it reaches the top most expression
   // so it can reset
   Expr m_topMost;
+
+  std::vector<ExprVector> m_boundTypesStack;
 
   void foundError(Expr exp) {
     ERR << "Expression is not well-formed: " << *exp << "\n";
@@ -49,7 +51,7 @@ class TCVR {
   Expr postVisit(Expr exp) {
     LOG("tc", llvm::errs() << "post visiting expression: " << *exp << "\n";);
 
-    Expr type = m_isWellFormed ? exp->inferType(exp, *m_tc)
+    Expr type = m_isWellFormed ? exp->op().inferType(exp, *m_helper)
                                : sort::errorTy(exp->efac());
 
     m_cache.insert({exp, type});
@@ -63,7 +65,7 @@ class TCVR {
   }
 
 public:
-  TCVR(TypeChecker *tc) : m_isWellFormed(true), m_tc(tc), m_topMost(Expr()) {}
+  TCVR(TypeCheckerHelper *helper) : m_isWellFormed(true), m_helper(helper), m_topMost(Expr()) {}
 
   /// Called before children are visited
   /// Returns false to skip visiting children
@@ -104,6 +106,10 @@ public:
   }
 
   Expr getErrorExp() { return m_errorExp; }
+
+  void boundTypesPush(ExprVector boundTypes) { m_boundTypesStack.push_back(boundTypes); }
+
+  void boundTypesPop() { m_boundTypesStack.pop_back(); }
 };
 
 //==-- Adapts visitor for pre- and post- traversal --==/
@@ -111,7 +117,7 @@ class TCV : public std::unary_function<Expr, VisitAction> {
   std::shared_ptr<TCVR> m_rw;
 
 public:
-  TCV(TypeChecker *tc) : m_rw(std::make_shared<TCVR>(tc)) {}
+  TCV(TypeCheckerHelper *helper) : m_rw(std::make_shared<TCVR>(helper)) {}
   VisitAction operator()(Expr exp) {
     if (m_rw->preVisit(exp))
       return VisitAction::changeDoKidsRewrite(exp, m_rw);
@@ -124,15 +130,19 @@ public:
   Expr knownTypeOf(Expr e) { return m_rw->knownTypeOf(e); }
 
   Expr getErrorExp() { return m_rw->getErrorExp(); }
+
+  void boundTypesPush(ExprVector boundTypes) { m_rw->boundTypesPush(boundTypes); }
+
+  void boundTypesPop() { m_rw->boundTypesPop(); }
 };
 } // namespace
 
 namespace expr {
-class TypeChecker::Impl {
+class TypeCheckerHelper::Impl {
   TCV m_visitor;
 
 public:
-  Impl(TypeChecker *tc) : m_visitor(tc) {}
+  Impl(TypeCheckerHelper *helper) : m_visitor(helper) {}
 
   Expr typeOf(Expr e) {
     Expr v = visit(m_visitor, e);
@@ -141,13 +151,23 @@ public:
   }
 
   Expr getErrorExp() { return m_visitor.getErrorExp(); }
+
+void boundTypesPush(ExprVector boundTypes) { m_visitor.boundTypesPush(boundTypes); }
+
+void boundTypesPop() { m_visitor.boundTypesPop(); }
 };
 
-TypeChecker::TypeChecker() : m_impl(new TypeChecker::Impl(this)) {}
-TypeChecker::~TypeChecker() { delete m_impl; }
-Expr TypeChecker::typeOf(Expr e) { return m_impl->typeOf(e); }
+TypeCheckerHelper::TypeCheckerHelper() : m_impl(new TypeCheckerHelper::Impl(this)) {}
+TypeCheckerHelper::~TypeCheckerHelper() { delete m_impl; }
+Expr TypeCheckerHelper::typeOf(Expr e) { return m_impl->typeOf(e); }
+Expr TypeCheckerHelper::getErrorExp() { return m_impl->getErrorExp(); }
+void TypeCheckerHelper::boundTypesPush(ExprVector boundTypes) { m_impl->boundTypesPush(boundTypes); }
+void TypeCheckerHelper::boundTypesPop() { m_impl->boundTypesPop(); }
+
+TypeChecker::TypeChecker() {}
+Expr TypeChecker::typeOf(Expr e) { return m_helper.typeOf(e); }
 
 // to be called after typeOf() or sortOf()
-Expr TypeChecker::getErrorExp() { return m_impl->getErrorExp(); }
+Expr TypeChecker::getErrorExp() { return m_helper.getErrorExp(); }
 
 } // namespace expr

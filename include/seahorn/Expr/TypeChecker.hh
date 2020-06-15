@@ -3,13 +3,32 @@
 #include "seahorn/Expr/ExprOpSort.hh"
 
 namespace expr {
-class TypeChecker {
+
+class TypeChecker;
+
+class TypeCheckerHelper {
+  friend class TypeChecker;
+
   class Impl;
   Impl *m_impl;
 
+  TypeCheckerHelper();
+  ~TypeCheckerHelper();
+
+public:
+
+  Expr typeOf(Expr e);
+  Expr getErrorExp();
+  void boundTypesPush(ExprVector boundTypes);
+  void boundTypesPop();
+  // bool isProperBound(unsigned num, Expr type);
+};
+
+class TypeChecker {
+  TypeCheckerHelper m_helper;
+
 public:
   TypeChecker();
-  ~TypeChecker();
 
   /*
   See typeOf(Expr e);
@@ -31,4 +50,5 @@ public:
   */
   Expr getErrorExp();
 };
+
 } // namespace expr

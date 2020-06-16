@@ -131,53 +131,68 @@ struct BINDER {
 namespace typeCheck {
 namespace bindType {
 
+static inline bool binderCheck(Expr exp, TypeCheckerHelper &helper,
+                               ExprVector &boundTypes) {
+  if (exp->arity() == 0)
+    return false;
+
+  // makes sure that all of the binders arguments are constants and store their
+  // types
+  for (auto b = exp->args_begin(), e = exp->args_end() - 1; b != e; b++) {
+    if (!op::bind::IsConst()(*b))
+      return false;
+
+    Expr type = helper.typeOf(*b);
+    boundTypes.push_back(type);
+  }
+
+  Expr body = exp->last();
+  ExprSet boundVars = helper.getBoundVars(body);
+
+  if (!boundVars.empty()) {
+
+    // makes sure that all of the body's bound vars match their expected types
+    for (auto b = boundVars.begin(), e = boundVars.end(); b != e; b++) {
+      unsigned idx = bind::bvarId(*b);
+      if (!(idx < boundTypes.size() && helper.typeOf(*b) == boundTypes.at(idx)))
+        return false;
+    }
+  }
+
+  return true;
+}
+
 struct Lambda {
-  // Checks that all children except for last are bound variables
+  // ensures that: 1. all children except for the last (the body) are constants
+  //  2. all bound variables in the body match their expected type
   // Return Type: FUNCTIONAL_TY
   // for example, for the expression lambda a, b, c ... :: body, the return type
   // is FUNCTIONAL_TY(typeOf(a), typeOf(b), ... , typeOf(body))
   static inline Expr inferType(Expr exp, TypeCheckerHelper &helper) {
-    if (exp->arity() < 2)
+    ExprVector boundTypes;
+    if (!binderCheck(exp, helper, boundTypes))
       return sort::errorTy(exp->efac());
 
-    ExprVector types;
-
-    // store types of bound variables
-    for (auto b = exp->args_begin(), e = exp->args_end() - 1; b != e; b++) {
-
-      if (!isOp<BIND>(*b) || isOp<ERROR_TY>(helper.typeOf(*b)))
-        return sort::errorTy(exp->efac());
-
-      types.push_back(helper.typeOf(*b));
-    }
-
     Expr body = exp->last();
-    types.push_back(helper.typeOf(body));
+    boundTypes.push_back(helper.typeOf(body));
 
-    return mknary<FUNCTIONAL_TY>(types);
+    return mknary<FUNCTIONAL_TY>(boundTypes);
   }
 };
 
 struct Quantifier {
-  // Check sthat all children except for last are bound variables and the last
-  // child(the body) is bool
-  // Return type: bool
+  // ensures that: 1. all children except for the last (the body) are constants
+  //  2. all bound variables in the body match their expected type
+  //  3. the body is of bool type
+  // Return type: BOOL_TY
   static inline Expr inferType(Expr exp, TypeCheckerHelper &helper) {
-    if (exp->arity() == 0)
+    ExprVector boundTypes;
+    Expr body = exp->last();
+    if (!(binderCheck(exp, helper, boundTypes) &&
+          isOp<BOOL_TY>(helper.typeOf(body))))
       return sort::errorTy(exp->efac());
 
-    // make sure that all arguments are bound
-    for (auto b = exp->args_begin(), e = exp->args_end() - 1; b != e; b++) {
-      if (!isOp<BIND>(*b) || isOp<ERROR_TY>(helper.typeOf(*b)))
-        return sort::errorTy(exp->efac());
-    }
-
-    Expr body = exp->last();
-
-    if (isOp<BOOL_TY>(helper.typeOf(body)))
-      return sort::boolTy(exp->efac());
-
-    return sort::errorTy(exp->efac());
+    return sort::boolTy(exp->efac());
   }
 };
 } // namespace bindType

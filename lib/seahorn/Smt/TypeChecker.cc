@@ -17,8 +17,8 @@ class TCVR {
   bool m_isWellFormed;
   Expr m_errorExp;
 
- // keeps track of every error's first/bottom-most sub expression
- // for example, (bool && (int || int )) will map to (int || int)
+  // keeps track of every error's first/bottom-most sub expression
+  // for example, (bool && (int || int )) will map to (int || int)
   ExprMap m_errorMap;
 
   TypeCheckerHelper *const m_helper;
@@ -28,7 +28,8 @@ class TCVR {
   // so it can reset
   Expr m_topMost;
 
-  std::vector<ExprVector> m_boundTypesStack;
+
+  std::map<Expr, ExprSet> m_boundVarMap;
 
   void foundError(Expr exp) {
     ERR << "Expression is not well-formed: " << *exp << "\n";
@@ -47,6 +48,26 @@ class TCVR {
     m_isWellFormed = true;
   }
 
+  // maps the current expression to a set of all the bound variables that is
+  // uses (any bound variables that are used in its sub expressions)
+  void mapBoundVars(Expr exp) {
+    ExprSet set;
+
+    // Get a copy of all children sets merged into one
+    for (auto b = exp->args_begin(), e = exp->args_end(); b != e; b++) {
+      if (m_boundVarMap.count(
+              *b)) { // if the child expression has any bound variables
+        set.insert(m_boundVarMap.at(*b).begin(), m_boundVarMap.at(*b).end());
+      }
+    }
+
+    if (!set.empty()) {
+      m_boundVarMap.insert({exp, set});
+    }
+
+  
+  }
+
   /// Called after children have been visited
   Expr postVisit(Expr exp) {
     LOG("tc", llvm::errs() << "post visiting expression: " << *exp << "\n";);
@@ -59,13 +80,16 @@ class TCVR {
     if (isOp<ERROR_TY>(type)) {
       foundError(exp);
       m_errorMap.insert({exp, m_errorExp});
+    } else {
+      mapBoundVars(exp);
     }
 
     return exp;
   }
 
 public:
-  TCVR(TypeCheckerHelper *helper) : m_isWellFormed(true), m_helper(helper), m_topMost(Expr()) {}
+  TCVR(TypeCheckerHelper *helper)
+      : m_isWellFormed(true), m_helper(helper), m_topMost(Expr()) {}
 
   /// Called before children are visited
   /// Returns false to skip visiting children
@@ -107,9 +131,15 @@ public:
 
   Expr getErrorExp() { return m_errorExp; }
 
-  void boundTypesPush(ExprVector boundTypes) { m_boundTypesStack.push_back(boundTypes); }
+  void mapBoundVar(Expr bVar) {
+    ExprSet set;
+    set.insert(bVar);
+    m_boundVarMap.insert({bVar, set});
+  }
 
-  void boundTypesPop() { m_boundTypesStack.pop_back(); }
+  ExprSet getBoundVars(Expr exp) { 
+    ExprSet emptySet ;
+    return m_boundVarMap.count(exp) ? m_boundVarMap.at(exp) : emptySet;}
 };
 
 //==-- Adapts visitor for pre- and post- traversal --==/
@@ -131,9 +161,9 @@ public:
 
   Expr getErrorExp() { return m_rw->getErrorExp(); }
 
-  void boundTypesPush(ExprVector boundTypes) { m_rw->boundTypesPush(boundTypes); }
+  void mapBoundVar(Expr bVar) { m_rw->mapBoundVar(bVar); }
 
-  void boundTypesPop() { m_rw->boundTypesPop(); }
+  ExprSet getBoundVars(Expr exp) { return m_rw->getBoundVars(exp);}
 };
 } // namespace
 
@@ -152,17 +182,18 @@ public:
 
   Expr getErrorExp() { return m_visitor.getErrorExp(); }
 
-void boundTypesPush(ExprVector boundTypes) { m_visitor.boundTypesPush(boundTypes); }
+  void mapBoundVar(Expr bVar) { m_visitor.mapBoundVar(bVar); }
 
-void boundTypesPop() { m_visitor.boundTypesPop(); }
+  ExprSet getBoundVars(Expr exp) { return m_visitor.getBoundVars(exp);}
 };
 
-TypeCheckerHelper::TypeCheckerHelper() : m_impl(new TypeCheckerHelper::Impl(this)) {}
+TypeCheckerHelper::TypeCheckerHelper()
+    : m_impl(new TypeCheckerHelper::Impl(this)) {}
 TypeCheckerHelper::~TypeCheckerHelper() { delete m_impl; }
 Expr TypeCheckerHelper::typeOf(Expr e) { return m_impl->typeOf(e); }
 Expr TypeCheckerHelper::getErrorExp() { return m_impl->getErrorExp(); }
-void TypeCheckerHelper::boundTypesPush(ExprVector boundTypes) { m_impl->boundTypesPush(boundTypes); }
-void TypeCheckerHelper::boundTypesPop() { m_impl->boundTypesPop(); }
+void TypeCheckerHelper::mapBoundVar(Expr bVar) { m_impl->mapBoundVar(bVar); }
+ExprSet TypeCheckerHelper::getBoundVars(Expr exp) { return m_impl->getBoundVars(exp);}
 
 TypeChecker::TypeChecker() {}
 Expr TypeChecker::typeOf(Expr e) { return m_helper.typeOf(e); }

@@ -19,9 +19,9 @@ public:
 
   Expr typeOf(Expr e);
   Expr getErrorExp();
-  void boundTypesPush(ExprVector boundTypes);
-  void boundTypesPop();
-  // bool isProperBound(unsigned num, Expr type);
+
+  void mapBoundVar(Expr bVar);
+  ExprSet getBoundVars(Expr exp);
 };
 
 class TypeChecker {

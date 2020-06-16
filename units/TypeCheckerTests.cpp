@@ -1039,30 +1039,38 @@ TEST_CASE("quantifierWellFormed.test") {
   Expr aBool = boolConst("aBool", efac);
   Expr bBool = boolConst("bBool", efac);
 
-  Expr aUnint = unintConst("aUnint", efac);
-  Expr bUnint = unintConst("bUnint", efac);
+  Expr aInt = intConst("aInt", efac);
+  Expr bInt = intConst("bInt", efac);
 
   Expr t = mk<TRUE>(efac);
   Expr f = mk<FALSE>(efac);
 
   Expr boolSort = sort::boolTy(efac);
   Expr intSort = sort::intTy(efac);
-  Expr unintSort = sort::unintTy(efac);
 
   std::vector<Expr> e;
   Expr body;
   std::vector<Expr> args;
 
-  args.push_back(bind::bvar(0, boolSort));
-  args.push_back(bind::bvar(1, unintSort));
-  args.push_back(mk<EQ>(aUnint, bUnint));
+  body = bind::bvar(0, boolSort);
+  e.push_back(mk<FORALL>(aBool, body));
+
+
+  args.push_back(aInt);
+  args.push_back(aInt);
+  body = mk<EQ>(bind::bvar(0, intSort), bind::bvar(1, intSort));
+  args.push_back(body); 
   e.push_back(mknary<FORALL>(args.begin(), args.end()));
 
+
   args.clear();
-  args.push_back(bind::bvar(0, intSort));
-  body = boolop::limp(aBool, bBool);
+  args.push_back(aBool);
+  body = mk<IMPL>(bind::bvar(0, boolSort), bind::bvar(0, boolSort));
   args.push_back(body);
   e.push_back(mknary<EXISTS>(args.begin(), args.end()));
+
+  body = mk <NEQ>(aInt, aInt);
+  e.push_back(mk<EXISTS>(aBool, body));
 
   checkWellFormed(e, boolSort);
 }
@@ -1074,33 +1082,47 @@ TEST_CASE("quantifierNotWellFormed.test") {
   Expr aBool = boolConst("aBool", efac);
   Expr bBool = boolConst("bBool", efac);
 
-  Expr aUnint = unintConst("aUnint", efac);
-  Expr bUnint = unintConst("bUnint", efac);
+  Expr aInt = intConst("aInt", efac);
+  Expr bInt = intConst("bInt", efac);
 
   Expr t = mk<TRUE>(efac);
   Expr f = mk<FALSE>(efac);
 
   Expr boolSort = sort::boolTy(efac);
-  Expr unintSort = sort::unintTy(efac);
+  Expr intSort = sort::intTy(efac);
 
   std::vector<Expr> e;
   Expr temp;
   std::vector<Expr> error;
   Expr tempError;
   Expr body;
+  std::vector<Expr> args;
 
-  tempError = mk<EQ>(aUnint, bBool); // mismatching types
+  tempError = mk<EQ>(bind::bvar(0, intSort), bind::bvar(1, boolSort)); // mismatching types
   error.push_back(tempError);
   body = tempError;
-  temp = mk<FORALL>(bind::bvar(0, unintSort), body);
+  temp = mk<FORALL>(aInt, body);
   e.push_back(temp);
 
- tempError = mk<EXISTS>(bind::bvar(0, boolSort), aUnint); // body is not bool type
+ tempError = mk<EXISTS>(aBool, aInt); // body is not bool type
   error.push_back(tempError);
   e.push_back(tempError);
 
-  body = mk<EQ>(aUnint, bUnint);
-  tempError = mk<FORALL>(bind::bvar(0, unintSort), bBool, body); // bBool is not a bound variable 
+  body = mk<EQ>(aInt, bInt);
+  tempError = mk<FORALL>(bind::bvar(0, intSort), bBool, body); // the first argument is not a constant
+  error.push_back(tempError);
+  e.push_back(tempError);
+
+  tempError = mk<FORALL>(aInt, bInt, bind::bvar(2, intSort)); // the bound variable's index is too high
+  error.push_back(tempError);
+  e.push_back(tempError);
+
+  body = mk <AND> (bind::bvar(2, boolSort), bind::bvar(1, boolSort));
+  args.push_back(aBool);
+  args.push_back(aInt);
+  args.push_back(aBool);
+  args.push_back(body);
+  tempError = mknary<FORALL>(args.begin(), args.end()); // the bound var with index 1 does does have the correct type
   error.push_back(tempError);
   e.push_back(tempError);
 
@@ -1132,8 +1154,8 @@ TEST_CASE("lambdaWellFormed.test") {
   Expr temp;
   Expr body;
 
-  body = mk<PLUS>(aUnint, aUnint);
-  temp = mk<LAMBDA>(boolBound0, unintBound1, body);
+  body = mk<PLUS>(unintBound1, unintBound1);
+  temp = mk<LAMBDA>(aBool, bUnint, body);
   e.push_back(temp);
 
   checkWellFormed(e, functionalSort);
@@ -1142,8 +1164,8 @@ TEST_CASE("lambdaWellFormed.test") {
   ExprVector sorts = {boolSort, unintSort, boolSort, boolSort};
   Expr functionalSort2 = mknary<FUNCTIONAL_TY>(sorts);
 
-  body = mk<AND>(mk<GT>(aUnint, bUnint), aBool);
-  ExprVector args = {boolBound0, unintBound1, boolBound1, body};
+  body = mk<AND>(mk<GT>(aUnint, bUnint), boolBound0);
+  ExprVector args = {aBool, bUnint, aBool, body};
   temp = mknary<LAMBDA>(args);
   e.push_back(temp);
 
@@ -1175,12 +1197,12 @@ TEST_CASE("lambdaNotWellFormed.test") {
   Expr tempError;
   Expr body;
 
-  body = mk <IFF>(aBool, bBool);
-  tempError = mk<LAMBDA>(aBool, body); // bBool is not bound
+  body = mk <IFF>(aBool, boolBound1);
+  tempError = mk<LAMBDA>(aBool, body); // boolBound1's index is too high
   error.push_back(tempError);
   e.push_back(tempError);
 
-  tempError = mk<LAMBDA>(aUnint); // not enough arguments
+  tempError = mk<LAMBDA>(aBool, unintBound0); // the bound variables type does not match
   error.push_back(tempError);
   e.push_back(tempError);
 
@@ -1217,7 +1239,7 @@ TEST_CASE("fappWellFormed.test") {
   Expr fdecl = mknary<FDECL>(args.begin(), args.end()); // BOOL, INT -> INT
   e.push_back(fdecl);
 
-  Expr lambda = mk<LAMBDA> (boolBound0, intBound0, mk<MINUS>(aInt, bInt)); // boolBound0, intBound -> (aInt - bInt)
+  Expr lambda = mk<LAMBDA> (aBool, aInt, mk<MINUS>(intBound1, intBound1)); // boolBound0, intBound -> (aInt - bInt)
   e.push_back(lambda);
 
   checkWellFormed(e, functionalSort);
@@ -1269,7 +1291,7 @@ TEST_CASE("fappNotWellFormed.test") {
   Expr fdecl = mknary<FDECL>(args.begin(), args.end()); // BOOL, INT -> INT
   e.push_back(fdecl);
 
-  Expr lambda = mk<LAMBDA> (boolBound0, intBound0, mk<MINUS>(aInt, bInt)); // boolBound0, intBound -> (aInt - bInt)
+  Expr lambda = mk<LAMBDA> (aBool, aInt, mk<MINUS>(intBound1, bInt)); // boolBound0, intBound -> (aInt - bInt)
   e.push_back(lambda);
 
   checkWellFormed(e, functionalSort);

@@ -28,6 +28,7 @@ struct SCOPE_PS {
 struct FAPP_PS;
 Expr rangeTy(Expr);
 Expr typeOf(Expr);
+inline bool isBVar(Expr e);
 } // namespace bind
 
 namespace typeCheck {
@@ -53,10 +54,14 @@ namespace bindType {
 
 struct Bind {
   static inline Expr inferType(Expr exp, TypeCheckerHelper &helper) {
-    if (exp->arity() == 2 && isOp<TYPE_TY>(helper.typeOf(exp->right())))
-      return exp->right();
+    if (!(exp->arity() == 2 && isOp<TYPE_TY>(helper.typeOf(exp->right()))))
+      return sort::errorTy(exp->efac());
 
-    return sort::errorTy(exp->efac());
+    if (bind::isBVar(exp)) { // bound variable
+      helper.mapBoundVar(exp);
+    }
+
+    return exp->right();
   }
 };
 struct Fdecl {
@@ -90,7 +95,7 @@ struct Fapp {
 
     Expr functionalType =
         helper.typeOf(exp->first()); // functional types should be of the form :
-                                 // arg1Type, arg2Type ... -> returnType
+                                     // arg1Type, arg2Type ... -> returnType
 
     if (!(isOp<FUNCTIONAL_TY>(functionalType) &&
           exp->arity() == functionalType->arity()))
@@ -223,7 +228,7 @@ inline bool isBoolConst(Expr v) { return isConst<BOOL_TY>(v); }
 inline bool isIntConst(Expr v) { return isConst<INT_TY>(v); }
 inline bool isRealConst(Expr v) { return isConst<REAL_TY>(v); }
 inline bool isArrayConst(Expr v) { return isConst<ARRAY_TY>(v); }
-inline bool isStructConst(Expr v) { return isConst<STRUCT_TY>(v);}
+inline bool isStructConst(Expr v) { return isConst<STRUCT_TY>(v); }
 inline bool isFiniteMapConst(Expr v) { return isConst<FINITE_MAP_TY>(v); }
 inline bool isUnintConst(Expr v) { return isConst<UNINT_TY>(v); }
 

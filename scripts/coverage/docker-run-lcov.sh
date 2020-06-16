@@ -11,7 +11,7 @@
 # lit /seahorn/test
 lit /seahorn/test/opsem
 lit -D opsem-opts=--horn-bv2-widemem /seahorn/test/opsem 
-lit /seahorn/test/opsem/widemem
+lit -D opsem-opts=--horn-bv2-extra-widemem /seahorn/test/opsem
 lit /seahorn/test/mcfuzz
 lit /seahorn/test/simple
 

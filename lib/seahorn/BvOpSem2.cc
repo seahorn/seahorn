@@ -44,7 +44,13 @@ static llvm::cl::opt<bool> UseFatMemory(
 
 static llvm::cl::opt<bool> UseWideMemory(
     "horn-bv2-widemem",
-    llvm::cl::desc("Use wide-memory model with pointers and object sizes"),
+    llvm::cl::desc("Use wide-memory model with pointer and object size"),
+    cl::init(false));
+
+static llvm::cl::opt<bool> UseExtraWideMemory(
+    "horn-bv2-extra-widemem",
+    llvm::cl::desc(
+        "Use extra wide memory model with base, offset and object size"),
     cl::init(false));
 
 static llvm::cl::opt<unsigned>
@@ -1765,6 +1771,8 @@ Bv2OpSemContext::Bv2OpSemContext(Bv2OpSem &sem, SymStore &values,
     mem = mkFatMemManager(m_sem, *this, PtrSize, WordSize, UseLambdas);
   else if (UseWideMemory) {
     mem = mkWideMemManager(m_sem, *this, PtrSize, WordSize, UseLambdas);
+  } else if (UseExtraWideMemory) {
+    mem = mkExtraWideMemManager(m_sem, *this, PtrSize, WordSize, UseLambdas);
   } else {
     mem = mkRawMemManager(m_sem, *this, PtrSize, WordSize, UseLambdas);
   }

@@ -1,7 +1,7 @@
 #include "BvOpSem2Context.hh"
 #include "BvOpSem2RawMemMgr.hh"
 
-#include "BvOpSem2MemManagerMixin.hh"
+#include "BvOpSem2WideMemManagerMixin.hh"
 
 #include "seahorn/Expr/ExprOpStruct.hh"
 #include "seahorn/Support/SeaDebug.h"
@@ -67,7 +67,7 @@ public:
 
     RawPtrTy getRaw() { return strct::extractVal(m_v, 0); }
 
-    RawPtrTy getSize() { return strct::extractVal(m_v, 1); }
+    Expr getSize() { return strct::extractVal(m_v, 1); }
   };
 
   struct MemValTyImpl {
@@ -77,7 +77,7 @@ public:
       m_v = strct::mk(std::move(raw_val), std::move(size_val));
     }
 
-    MemValTyImpl(const RawPtrTy &raw_val, const RawMemValTy &size_val) {
+    MemValTyImpl(const RawPtrTy &raw_val, const Expr &size_val) {
       m_v = strct::mk(raw_val, size_val);
     }
 
@@ -104,8 +104,8 @@ public:
       m_ptr_sort = sort::structTy(std::move(ptr_sort), std::move(size_sort));
     }
 
-    PtrSortTyImpl(const RawPtrSortTy &ptr_sort, const Expr &size) {
-      m_ptr_sort = sort::structTy(ptr_sort, size);
+    PtrSortTyImpl(const RawPtrSortTy &ptr_sort, const Expr &size_sort) {
+      m_ptr_sort = sort::structTy(ptr_sort, size_sort);
     }
 
     Expr v() const { return m_ptr_sort; }
@@ -315,6 +315,7 @@ public:
       expr::mpz_class _offset = m_ctx.alu().toNum(offset);
       return ptrAdd(ptr, _offset.get_si());
     }
+    // TODO: What is the bitwidth of offset here?
     auto address = m_ctx.alu().doAdd(ptr.getRaw(), offset, ptrSzInBits());
     auto new_size = m_ctx.alu().doSub(ptr.getSize(), offset, g_slotBitWidth);
 
@@ -455,68 +456,24 @@ public:
     return m_main.ptrtoint(ptr.getRaw(), ptrTy, intTy);
   }
 
-  Expr ptrUlt(PtrTy p1, PtrTy p2) const {
-    return m_main.ptrUlt(p1.getRaw(), p2.getRaw());
-  }
-
-  Expr ptrSlt(PtrTy p1, PtrTy p2) const {
-    return m_main.ptrSlt(p1.getRaw(), p2.getRaw());
-  }
-
-  Expr ptrUle(PtrTy p1, PtrTy p2) const {
-    return m_main.ptrUle(p1.getRaw(), p2.getRaw());
-  }
-
-  Expr ptrSle(PtrTy p1, PtrTy p2) const {
-    return m_main.ptrSle(p1.getRaw(), p2.getRaw());
-  }
-
-  Expr ptrUgt(PtrTy p1, PtrTy p2) const {
-    return m_main.ptrUgt(p1.getRaw(), p2.getRaw());
-  }
-
-  Expr ptrSgt(PtrTy p1, PtrTy p2) const {
-    return m_main.ptrSgt(p1.getRaw(), p2.getRaw());
-  }
-
-  Expr ptrUge(PtrTy p1, PtrTy p2) const {
-    return m_main.ptrUge(p1.getRaw(), p2.getRaw());
-  }
-
-  Expr ptrSge(PtrTy p1, PtrTy p2) const {
-    return m_main.ptrSge(p1.getRaw(), p2.getRaw());
-  }
-
   /// \brief Checks if two pointers are equal considering only the raw part.
   Expr ptrEq(PtrTy p1, PtrTy p2) const {
     return m_main.ptrEq(p1.getRaw(), p2.getRaw());
   }
 
-  Expr ptrNe(PtrTy p1, PtrTy p2) const {
-    return m_main.ptrNe(p1.getRaw(), p2.getRaw());
-  }
-
-  Expr ptrSub(PtrTy p1, PtrTy p2) const {
-    return m_main.ptrSub(p1.getRaw(), p2.getRaw());
-  }
-
   PtrTy gep(PtrTy ptr, gep_type_iterator it, gep_type_iterator end) const {
     RawPtrTy rawPtr = m_main.gep(ptr.getRaw(), it, end);
+    // offset bitwidth is ptrSz
     auto offset = m_main.ptrSub(rawPtr, ptr.getRaw());
-    auto new_size = m_ctx.alu().doSub(ptr.getSize(), offset, g_slotBitWidth);
+    auto new_size = m_ctx.alu().doSub(ptr.getSize(), castPtrSzToSlotSz(offset),
+                                      g_slotBitWidth);
 
     return PtrTy(rawPtr, new_size);
   }
 
-  void onFunctionEntry(const Function &fn) {
-    m_main.onFunctionEntry(fn);
-    // m_size.onFunctionEntry(fn);
-  }
+  void onFunctionEntry(const Function &fn) { m_main.onFunctionEntry(fn); }
 
-  void onModuleEntry(const Module &M) {
-    m_main.onModuleEntry(M);
-    // m_size.onModuleEntry(M);
-  }
+  void onModuleEntry(const Module &M) { m_main.onModuleEntry(M); }
 
   void dumpGlobalsMap() { m_main.dumpGlobalsMap(); }
 
@@ -529,16 +486,6 @@ public:
     return MemValTy(m_main.zeroedMemory(), m_size.zeroedMemory());
   }
 
-  Expr getFatData(PtrTy p, unsigned SlotIdx) {
-    LOG("opsem", WARN << "getFatData() not implemented!\n");
-    return Expr();
-  }
-
-  PtrTy setFatData(PtrTy p, unsigned SlotIdx, Expr data) {
-    LOG("opsem", WARN << "setFatData() not implemented!\n");
-    return nullPtr();
-  }
-
   Expr isDereferenceable(PtrTy p, Expr byteSz) {
     // size should be >= byteSz
     if (m_ctx.alu().isNum(byteSz) && m_ctx.alu().isNum(p.getSize())) {
@@ -547,9 +494,25 @@ public:
       return conc_size >= numBytes ? m_ctx.alu().getTrue()
                                    : m_ctx.alu().getFalse();
     } else {
-      // auto numBytes = m_ctx.alu().si(m_ctx.alu().toNum(byteSz),
-      // g_slotBitWidth);
       return m_ctx.alu().doSge(p.getSize(), byteSz, g_slotBitWidth);
+    }
+  }
+
+  RawPtrTy getAddressable(PtrTy p) const { return p.getRaw(); }
+
+  Expr getSize(PtrTy p) const { return p.getSize(); }
+
+  const OpSemMemManager &getMainMemMgr() const { return m_main; }
+
+  Expr castPtrSzToSlotSz(const Expr val) const {
+    if (ptrSzInBits() == g_slotBitWidth) {
+      return val;
+    } else if (g_slotBitWidth > ptrSzInBits()) {
+      return m_ctx.alu().doSext(val, g_slotBitWidth, ptrSzInBits());
+    } else {
+      LOG("opsem", WARN << "widemem: Casting ptrSz to slotSz - information may "
+                           "be lost!\n");
+      return m_ctx.alu().doTrunc(val, g_slotBitWidth);
     }
   }
 };
@@ -567,8 +530,8 @@ WideMemManager::WideMemManager(Bv2OpSem &sem, Bv2OpSemContext &ctx,
 OpSemMemManager *mkWideMemManager(Bv2OpSem &sem, Bv2OpSemContext &ctx,
                                   unsigned ptrSz, unsigned wordSz,
                                   bool useLambdas) {
-  return new OpSemMemManagerMixin<WideMemManager>(sem, ctx, ptrSz, wordSz,
-                                                  useLambdas);
+  return new OpSemWideMemManagerMixin<WideMemManager>(sem, ctx, ptrSz, wordSz,
+                                                      useLambdas);
 }
 } // namespace details
 } // namespace seahorn

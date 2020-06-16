@@ -1,4 +1,4 @@
-; RUN: %seabmc --horn-bv2-widemem --horn-bv2-ptr-size=8 --horn-bv2-word-size=8 "%s" 2>&1 | %oc %s
+; RUN: %seabmc --horn-bv2-ptr-size=8 --horn-bv2-word-size=8 "%s" 2>&1 | %oc %s
 ; CHECK: ^unsat$
 
 ; ModuleID = '/tmp/fat/bitcode.fat.pp.ms.o.ul.cut.bc'

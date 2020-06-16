@@ -28,9 +28,10 @@ add_lit_testsuite(test-fat-ptr-sym "Run fat ptr symbolic tests"
   DEPENDS seahorn
   )
 
-add_lit_testsuite(test-widemem "Run wide memory symbolic tests"
+add_lit_testsuite(test-opsem-extra-widemem "Run opsem tests using extra wide memory manager"
+   -D opsem_opts="--horn-bv2-extra-widemem"
   -v
-  ${CMAKE_CURRENT_SOURCE_DIR}/opsem/widemem
+  ${CMAKE_CURRENT_SOURCE_DIR}/opsem
   ARGS
   --path=${CMAKE_INSTALL_PREFIX}/bin
   DEPENDS seahorn
@@ -215,14 +216,13 @@ if (CMAKE_GENERATOR STREQUAL "Ninja")
   add_dependencies(test-cex install)
   add_dependencies(test-inter-mem install)
   add_dependencies(test-fat-ptr-sym install)
-  add_dependencies(test-widemem install)
+  add_dependencies(test-opsem-extra-widemem install)
 
 endif()
 install (DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/simple DESTINATION share/seahorn/test)
 install (DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/solve DESTINATION share/seahorn/test)
 install (DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/smc DESTINATION share/seahorn/test)
 install (DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/opsem DESTINATION share/seahorn/test)
-install (DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/opsem/widemem DESTINATION share/seahorn/test)
 install (DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/abc DESTINATION share/seahorn/test)
 install (DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/bmc DESTINATION share/seahorn/test)
 install (DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/gsa DESTINATION share/seahorn/test)

@@ -710,6 +710,10 @@ OpSemMemManager *mkWideMemManager(Bv2OpSem &sem, Bv2OpSemContext &ctx,
                                   unsigned ptrSz, unsigned wordSz,
                                   bool useLambdas = false);
 
+OpSemMemManager *mkExtraWideMemManager(Bv2OpSem &sem, Bv2OpSemContext &ctx,
+                                       unsigned ptrSz, unsigned wordSz,
+                                       bool useLambdas = false);
+
 /// \Brief Base class for memory representation
 class OpSemMemRepr {
 protected:

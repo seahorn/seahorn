@@ -43,7 +43,8 @@ add_llvm_library (seahorn.LIB DISABLE_LLVM_LINK_LLVM_DYLIB
   BvOpSem2ConstEval.cc
   BvOpSem2RawMemMgr.cc
   BvOpSem2FatMemMgr.cc
-  BvOpsem2WideMemMgr.cc
+  BvOpSem2WideMemMgr.cc
+  BvOpSem2ExtraWideMemMgr.cc
   VCGen.cc
   DfCoiAnalysis.cc
   )

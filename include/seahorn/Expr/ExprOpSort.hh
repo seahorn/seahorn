@@ -107,6 +107,8 @@ Expr finiteMapTy(Expr valTy, const Range &ks) {
   // The keys already contain a type
   return mk<FINITE_MAP_TY>(valTy, mknary<FINITE_MAP_KEYS_TY>(ks));
 }
+inline Expr finiteMapKeyTy(Expr fmapTy) { return fmapTy->right(); }
+inline Expr finiteMapValTy(Expr fmapTy) { return fmapTy->left(); }
 
 } // namespace sort
 } // namespace op

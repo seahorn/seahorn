@@ -4,6 +4,7 @@
 #include "seahorn/Expr/ExprCore.hh"
 #include "seahorn/Expr/ExprOpBool.hh"
 #include "seahorn/Expr/ExprOpCore.hh"
+#include "seahorn/Expr/TypeCheckerMapUtils.hh"
 
 namespace expr {
 
@@ -25,34 +26,20 @@ static inline bool checkArray(Expr exp, TypeCheckerHelper &helper, unsigned numC
          correctTypeAny<ARRAY_TY>(exp->first(), helper);
 }
 
+static inline void getArrayTypes(Expr exp, TypeCheckerHelper &helper, Expr &mapTy, Expr &indexTy, Expr &valTy) {
+  mapTy = helper.typeOf(exp->left());
+  indexTy = sort::arrayIndexTy(mapTy);
+  valTy = sort::arrayValTy(mapTy);
+}
+
 struct Select {
   static inline Expr inferType(Expr exp, TypeCheckerHelper &helper) {
-    if (!checkArray(exp, helper, 2))
-      return sort::errorTy(exp->efac());
-
-    Expr arrayTy = helper.typeOf(exp->left());
-    Expr indexTy = sort::arrayIndexTy(arrayTy);
-    Expr valTy = sort::arrayValTy(arrayTy);
-
-    if (indexTy == helper.typeOf(exp->right()))
-      return valTy;
-
-    return sort::errorTy(exp->efac());
+    return typeCheck::mapType::select<ARRAY_TY>(exp, helper, getArrayTypes);
   }
 };
 struct Store {
   static inline Expr inferType(Expr exp, TypeCheckerHelper &helper) {
-    if (!checkArray(exp, helper, 3))
-      return sort::errorTy(exp->efac());
-
-    Expr arrayTy = helper.typeOf(exp->left());
-    Expr indexTy = sort::arrayIndexTy(arrayTy);
-    Expr valTy = sort::arrayValTy(arrayTy);
-
-    if (indexTy == helper.typeOf(exp->arg(1)) && valTy == helper.typeOf(exp->arg(2)))
-      return arrayTy;
-
-    return sort::errorTy(exp->efac());
+    return typeCheck::mapType::store<ARRAY_TY>(exp, helper, getArrayTypes);
   }
 };
 

@@ -14,6 +14,7 @@
 #include "seahorn/Expr/ExprLlvm.hh"
 #include "seahorn/Expr/ExprOpBinder.hh"
 #include "seahorn/Expr/ExprOpBv.hh"
+#include "seahorn/Expr/ExprOpFiniteMap.hh"
 #include "seahorn/Expr/TypeChecker.hh"
 
 #include "seahorn/Support/SeaDebug.h"
@@ -1366,4 +1367,156 @@ TEST_CASE("generalNotWellFormed.test") {// make sure that the cache works correc
   e.push_back(e[0]);
 
   checkNotWellFormed(e, error);
+}
+TEST_CASE("finiteMapWellFormed.test") {
+  seahorn::SeaEnableLog("tc");
+  // -- manages expressions
+  ExprFactory efac;
+
+  Expr aBool = boolConst("aBool", efac);
+  Expr bBool = boolConst("bBool", efac);
+
+  Expr aBoolKey = boolConst("k_aBool", efac);
+  Expr bBoolKey = boolConst("k_bBool", efac);
+
+  Expr aInt = intConst("aInt", efac);
+  Expr bInt = intConst("bInt", efac);
+
+  Expr aIntKey = intConst("k_aInt", efac);
+  Expr bIntKey = intConst("k_bInt", efac);
+
+  Expr boolSort = sort::boolTy(efac);
+  Expr intSort = sort::intTy(efac);
+
+  
+
+  std::vector<Expr> e;
+  std::vector<Expr> args;
+  std::vector<Expr> keys;
+  std::vector<Expr> vals;
+  Expr temp;
+
+  keys.push_back(aIntKey);
+  keys.push_back(bIntKey);
+
+
+  temp = finite_map::constFiniteMap(keys, aBool); //const finite map: default value
+  e.push_back(temp);
+
+  Expr finiteMapSort = sort::finiteMapTy(boolSort, keys);
+  checkWellFormed(e, finiteMapSort);
+  e.clear();
+
+  vals.push_back(aInt);
+  vals.push_back(bInt);
+  temp = finite_map::constFiniteMap(keys, vals); 
+  e.push_back(temp);
+
+  Expr finiteMapSort2 = sort::finiteMapTy(intSort, keys);
+  checkWellFormed(e, finiteMapSort2);
+  e.clear();
+
+
+  temp = finite_map::constFiniteMap(keys, aInt); //const finite map: default value
+  temp = mk<GET>(temp, bIntKey);
+  e.push_back(temp);
+
+  checkWellFormed(e, intSort);
+  e.clear();
+
+
+  temp = finite_map::constFiniteMap(keys, vals);
+  temp = mk<SET>(temp, bIntKey, aInt);
+  e.push_back(temp);
+
+  checkWellFormed(e, finiteMapSort2);
+
+}
+TEST_CASE("finiteMapNotWellFormed.test") {
+  seahorn::SeaEnableLog("tc");
+  // -- manages expressions
+  ExprFactory efac;
+
+  Expr aBool = boolConst("aBool", efac);
+  Expr bBool = boolConst("bBool", efac);
+
+  Expr aBoolKey = boolConst("k_aBool", efac);
+  Expr bBoolKey = boolConst("k_bBool", efac);
+
+  Expr aInt = intConst("aInt", efac);
+  Expr bInt = intConst("bInt", efac);
+
+  Expr aIntKey = intConst("k_aInt", efac);
+  Expr bIntKey = intConst("k_bInt", efac);
+
+  Expr boolSort = sort::boolTy(efac);
+  Expr intSort = sort::intTy(efac);
+  
+
+  std::vector<Expr> e;
+  std::vector<Expr> args;
+  std::vector<Expr> keys;
+  std::vector<Expr> vals;
+  Expr temp;
+
+  std::vector<Expr> error;
+  Expr tempError;
+
+  //mismatching key types
+  keys.push_back(aIntKey);
+  keys.push_back(aBoolKey);
+
+  tempError = mknary<CONST_FINITE_MAP_KEYS>(keys); //mismatching key types
+  error.push_back(tempError);
+  temp = mk <CONST_FINITE_MAP>(tempError, mk<FINITE_MAP_VAL_DEFAULT>(aBool));
+  e.push_back(temp);
+
+  keys.clear();
+  keys.push_back(aIntKey);
+  keys.push_back(bIntKey);
+
+//mismatching val types
+  vals.clear();
+  vals.push_back(aInt);
+  vals.push_back(aBool);
+
+
+  tempError = mknary<CONST_FINITE_MAP_VALUES>(vals.begin(), vals.end()); //mismatching value types
+  error.push_back(tempError);
+  temp = mk <CONST_FINITE_MAP>(mknary<CONST_FINITE_MAP_KEYS>(keys.begin(), keys.end()), tempError);
+  e.push_back(temp);
+
+
+  vals.clear();
+  vals.push_back(aInt);
+  tempError = finite_map::constFiniteMap(keys, vals); // keys and vals are of different sizes
+  error.push_back(tempError);
+  e.push_back(tempError);
+
+  error.push_back(error.back());
+  temp = mk<SET>(error.back(), aBoolKey, aInt);
+  e.push_back(temp);
+
+  
+  keys.clear();
+  keys.push_back(aBoolKey);
+  keys.push_back(bBoolKey);
+  vals.clear();
+  vals.push_back(aInt);
+  vals.push_back(bInt);
+  tempError = mk<SET>(finite_map::constFiniteMap(keys, vals), aIntKey, aInt); // key type does not match the maps key type
+  error.push_back(tempError);
+  e.push_back(tempError);
+
+  tempError = mk<SET>(finite_map::constFiniteMap(keys, vals), aBoolKey, aBool); // val type does not match the maps key type
+  error.push_back(tempError);
+  e.push_back(tempError);
+
+  tempError = mk<GET>(finite_map::constFiniteMap(keys, vals), aIntKey); // key type does not match the maps key type
+  error.push_back(tempError);
+  e.push_back(tempError);
+
+
+  checkNotWellFormed(e, error);
+
 }

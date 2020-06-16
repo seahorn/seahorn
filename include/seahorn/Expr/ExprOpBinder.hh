@@ -159,6 +159,8 @@ static inline bool binderCheck(Expr exp, TypeCheckerHelper &helper,
     }
   }
 
+  helper.mapBinder(exp);
+
   return true;
 }
 

@@ -28,8 +28,8 @@ class TCVR {
   // so it can reset
   Expr m_topMost;
 
-
   std::map<Expr, ExprSet> m_boundVarMap;
+  ExprSet m_binders;
 
   void foundError(Expr exp) {
     ERR << "Expression is not well-formed: " << *exp << "\n";
@@ -51,6 +51,11 @@ class TCVR {
   // maps the current expression to a set of all the bound variables that is
   // uses (any bound variables that are used in its sub expressions)
   void mapBoundVars(Expr exp) {
+    // if the expression is a binder, then its bound variables will not be
+    // withing its parents scope, so don't map them
+    if (m_binders.count(exp))
+      return;
+
     ExprSet set;
 
     // Get a copy of all children sets merged into one
@@ -61,11 +66,8 @@ class TCVR {
       }
     }
 
-    if (!set.empty()) {
+    if (!set.empty())
       m_boundVarMap.insert({exp, set});
-    }
-
-  
   }
 
   /// Called after children have been visited
@@ -137,9 +139,12 @@ public:
     m_boundVarMap.insert({bVar, set});
   }
 
-  ExprSet getBoundVars(Expr exp) { 
-    ExprSet emptySet ;
-    return m_boundVarMap.count(exp) ? m_boundVarMap.at(exp) : emptySet;}
+  ExprSet getBoundVars(Expr exp) {
+    ExprSet emptySet;
+    return m_boundVarMap.count(exp) ? m_boundVarMap.at(exp) : emptySet;
+  }
+
+  void mapBinder(Expr binder) { m_binders.insert(binder); }
 };
 
 //==-- Adapts visitor for pre- and post- traversal --==/
@@ -163,7 +168,9 @@ public:
 
   void mapBoundVar(Expr bVar) { m_rw->mapBoundVar(bVar); }
 
-  ExprSet getBoundVars(Expr exp) { return m_rw->getBoundVars(exp);}
+  ExprSet getBoundVars(Expr exp) { return m_rw->getBoundVars(exp); }
+
+  void mapBinder(Expr binder) { m_rw->mapBinder(binder); }
 };
 } // namespace
 
@@ -184,7 +191,9 @@ public:
 
   void mapBoundVar(Expr bVar) { m_visitor.mapBoundVar(bVar); }
 
-  ExprSet getBoundVars(Expr exp) { return m_visitor.getBoundVars(exp);}
+  ExprSet getBoundVars(Expr exp) { return m_visitor.getBoundVars(exp); }
+
+  void mapBinder(Expr binder) { m_visitor.mapBinder(binder); }
 };
 
 TypeCheckerHelper::TypeCheckerHelper()
@@ -193,7 +202,10 @@ TypeCheckerHelper::~TypeCheckerHelper() { delete m_impl; }
 Expr TypeCheckerHelper::typeOf(Expr e) { return m_impl->typeOf(e); }
 Expr TypeCheckerHelper::getErrorExp() { return m_impl->getErrorExp(); }
 void TypeCheckerHelper::mapBoundVar(Expr bVar) { m_impl->mapBoundVar(bVar); }
-ExprSet TypeCheckerHelper::getBoundVars(Expr exp) { return m_impl->getBoundVars(exp);}
+ExprSet TypeCheckerHelper::getBoundVars(Expr exp) {
+  return m_impl->getBoundVars(exp);
+}
+void TypeCheckerHelper::mapBinder(Expr binder) { m_impl->mapBinder(binder); }
 
 TypeChecker::TypeChecker() {}
 Expr TypeChecker::typeOf(Expr e) { return m_helper.typeOf(e); }

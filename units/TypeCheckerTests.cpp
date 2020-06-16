@@ -1072,6 +1072,16 @@ TEST_CASE("quantifierWellFormed.test") {
   body = mk <NEQ>(aInt, aInt);
   e.push_back(mk<EXISTS>(aBool, body));
 
+  args.clear();
+  args.push_back(aBool);
+  args.push_back(bBool);
+  body = mk <OR>(bind::bvar(0, boolSort), bind::bvar(1, boolSort));
+  args.push_back(body);
+  e.push_back(mknary<FORALL>(args.begin(), args.end()));
+  body = mk <GT>(aInt, bind::bvar(0, intSort));
+  body = mk<OR>(body, e.back());
+  e.push_back(mk<EXISTS>(aInt, body));
+
   checkWellFormed(e, boolSort);
 }
 TEST_CASE("quantifierNotWellFormed.test") {

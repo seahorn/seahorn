@@ -22,6 +22,7 @@ public:
 
   void mapBoundVar(Expr bVar);
   ExprSet getBoundVars(Expr exp);
+  void mapBinder(Expr binder);
 };
 
 class TypeChecker {

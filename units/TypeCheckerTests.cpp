@@ -153,7 +153,6 @@ TEST_CASE("boolWellFormed.test") {
   temp = mk<ITE>(y, x, aInt);
 
   checkWellFormed(e, intSort);
-
 }
 TEST_CASE("boolNotWellFormed.test") {
   seahorn::SeaEnableLog("tc");
@@ -284,19 +283,19 @@ TEST_CASE("numWellFormed.test") {
   Expr mpqSort = sort::mpqTerminalTy(efac);
   Expr mpzSort = sort::mpzTerminalTy(efac);
 
-  Expr aUint = mkTerm <unsigned>(5, efac);
-  Expr bUint = mkTerm <unsigned>(20, efac);
+  Expr aUint = mkTerm<unsigned>(5, efac);
+  Expr bUint = mkTerm<unsigned>(20, efac);
 
-  Expr aMPQ = mkTerm <mpq_class>(11, efac);
-  Expr bMPQ = mkTerm <mpq_class>(12, efac);
+  Expr aMPQ = mkTerm<mpq_class>(11, efac);
+  Expr bMPQ = mkTerm<mpq_class>(12, efac);
 
-  Expr aMPZ = mkTerm <mpz_class>(20, efac);
-  Expr bMPZ = mkTerm <mpz_class>(99, efac);
+  Expr aMPZ = mkTerm<mpz_class>(20, efac);
+  Expr bMPZ = mkTerm<mpz_class>(99, efac);
 
   std::vector<Expr> e;
   Expr temp;
 
-  temp = mk<ABS>(mk <MOD>(aUint, bUint));
+  temp = mk<ABS>(mk<MOD>(aUint, bUint));
   e.push_back(temp);
 
   temp = mk<UN_MINUS>(bUint, bUint, e.back());
@@ -305,20 +304,19 @@ TEST_CASE("numWellFormed.test") {
   checkWellFormed(e, uintSort);
   e.clear();
 
-  temp = mk <ITV>(aMPQ, bMPQ);
+  temp = mk<ITV>(aMPQ, bMPQ);
   e.push_back(temp);
 
   checkWellFormed(e, mpqSort);
   e.clear();
 
-  temp = mk <REM>(aMPZ, bMPZ);
+  temp = mk<REM>(aMPZ, bMPZ);
   e.push_back(temp);
 
-  temp = mk <MULT>(e.back(), mk<ABS>(e.back()), mk<ABS>(e.back()));
+  temp = mk<MULT>(e.back(), mk<ABS>(e.back()), mk<ABS>(e.back()));
   e.push_back(temp);
 
   checkWellFormed(e, mpzSort);
-
 }
 
 TEST_CASE("numNotWellFormed.test") {
@@ -336,11 +334,11 @@ TEST_CASE("numNotWellFormed.test") {
 
   Expr aBool = boolConst("aBool", efac);
 
-  Expr aUint = mkTerm <unsigned>(5, efac);
+  Expr aUint = mkTerm<unsigned>(5, efac);
 
-  Expr aMPQ = mkTerm <mpq_class>(11, efac);
+  Expr aMPQ = mkTerm<mpq_class>(11, efac);
 
-  Expr aMPZ = mkTerm <mpz_class>(20, efac);
+  Expr aMPZ = mkTerm<mpz_class>(20, efac);
 
   std::vector<Expr> e;
   Expr temp;
@@ -362,10 +360,9 @@ TEST_CASE("numNotWellFormed.test") {
   tempError = e.back();
   error.push_back(tempError);
 
-  tempError = mk <MINUS>(aMPZ);
+  tempError = mk<MINUS>(aMPZ);
   error.push_back(tempError);
   e.push_back(tempError);
-
 
   checkNotWellFormed(e, error);
 }
@@ -668,7 +665,7 @@ TEST_CASE("bvNotWellFormed.test") {
   temp = mk<BCONCAT>(error.back(), error.back());
   e.push_back(temp);
 
-  tempError = mk <BSGT>(a10, b10, c10); // too many arguments
+  tempError = mk<BSGT>(a10, b10, c10); // too many arguments
   error.push_back(tempError);
   e.push_back(tempError);
 
@@ -822,7 +819,7 @@ TEST_CASE("variantNotWellFormed.test") {
   temp = mk<PLUS>(mk<ABS>(error.back()), mk<PLUS>(aInt, error.back()));
   e.push_back(temp);
 
-  tempError = mk <TAG> (aInt, bInt , bInt);
+  tempError = mk<TAG>(aInt, bInt, bInt);
   error.push_back(tempError);
   temp = error.back();
   e.push_back(temp);
@@ -1048,7 +1045,7 @@ TEST_CASE("gateWellFormed.test") {
   temp = gate::lor(x, boolop::lor(x, t));
   e.push_back(temp);
 
-  ExprVector args (e.begin(), e.end());
+  ExprVector args(e.begin(), e.end());
   temp = mknary<OUT_G>(args);
 
   checkWellFormed(e, boolSort);
@@ -1116,13 +1113,11 @@ TEST_CASE("quantifierWellFormed.test") {
   body = bind::bvar(0, boolSort);
   e.push_back(mk<FORALL>(aBool, body));
 
-
   args.push_back(aInt);
   args.push_back(aInt);
   body = mk<EQ>(bind::bvar(0, intSort), bind::bvar(1, intSort));
-  args.push_back(body); 
+  args.push_back(body);
   e.push_back(mknary<FORALL>(args.begin(), args.end()));
-
 
   args.clear();
   args.push_back(aBool);
@@ -1130,16 +1125,16 @@ TEST_CASE("quantifierWellFormed.test") {
   args.push_back(body);
   e.push_back(mknary<EXISTS>(args.begin(), args.end()));
 
-  body = mk <NEQ>(aInt, aInt);
+  body = mk<NEQ>(aInt, aInt);
   e.push_back(mk<EXISTS>(aBool, body));
 
   args.clear();
   args.push_back(aBool);
   args.push_back(bBool);
-  body = mk <OR>(bind::bvar(0, boolSort), bind::bvar(1, boolSort));
+  body = mk<OR>(bind::bvar(0, boolSort), bind::bvar(1, boolSort));
   args.push_back(body);
   e.push_back(mknary<FORALL>(args.begin(), args.end()));
-  body = mk <GT>(aInt, bind::bvar(0, intSort));
+  body = mk<GT>(aInt, bind::bvar(0, intSort));
   body = mk<OR>(body, e.back());
   e.push_back(mk<EXISTS>(aInt, body));
 
@@ -1169,31 +1164,37 @@ TEST_CASE("quantifierNotWellFormed.test") {
   Expr body;
   std::vector<Expr> args;
 
-  tempError = mk<EQ>(bind::bvar(0, intSort), bind::bvar(1, boolSort)); // mismatching types
+  tempError = mk<EQ>(bind::bvar(0, intSort),
+                     bind::bvar(1, boolSort)); // mismatching types
   error.push_back(tempError);
   body = tempError;
   temp = mk<FORALL>(aInt, body);
   e.push_back(temp);
 
- tempError = mk<EXISTS>(aBool, aInt); // body is not bool type
+  tempError = mk<EXISTS>(aBool, aInt); // body is not bool type
   error.push_back(tempError);
   e.push_back(tempError);
 
   body = mk<EQ>(aInt, bInt);
-  tempError = mk<FORALL>(bind::bvar(0, intSort), bBool, body); // the first argument is not a constant
+  tempError = mk<FORALL>(bind::bvar(0, intSort), bBool,
+                         body); // the first argument is not a constant
   error.push_back(tempError);
   e.push_back(tempError);
 
-  tempError = mk<FORALL>(aInt, bInt, bind::bvar(2, intSort)); // the bound variable's index is too high
+  tempError = mk<FORALL>(
+      aInt, bInt,
+      bind::bvar(2, intSort)); // the bound variable's index is too high
   error.push_back(tempError);
   e.push_back(tempError);
 
-  body = mk <AND> (bind::bvar(2, boolSort), bind::bvar(1, boolSort));
+  body = mk<AND>(bind::bvar(2, boolSort), bind::bvar(1, boolSort));
   args.push_back(aBool);
   args.push_back(aInt);
   args.push_back(aBool);
   args.push_back(body);
-  tempError = mknary<FORALL>(args.begin(), args.end()); // the bound var with index 1 does does have the correct type
+  tempError = mknary<FORALL>(
+      args.begin(),
+      args.end()); // the bound var with index 1 does does have the correct type
   error.push_back(tempError);
   e.push_back(tempError);
 
@@ -1219,7 +1220,6 @@ TEST_CASE("lambdaWellFormed.test") {
 
   Expr unintBound0 = bind::bvar(0, unintSort);
   Expr unintBound1 = bind::bvar(1, unintSort);
-
 
   std::vector<Expr> e;
   Expr temp;
@@ -1268,12 +1268,13 @@ TEST_CASE("lambdaNotWellFormed.test") {
   Expr tempError;
   Expr body;
 
-  body = mk <IFF>(aBool, boolBound1);
+  body = mk<IFF>(aBool, boolBound1);
   tempError = mk<LAMBDA>(aBool, body); // boolBound1's index is too high
   error.push_back(tempError);
   e.push_back(tempError);
 
-  tempError = mk<LAMBDA>(aBool, unintBound0); // the bound variables type does not match
+  tempError =
+      mk<LAMBDA>(aBool, unintBound0); // the bound variables type does not match
   error.push_back(tempError);
   e.push_back(tempError);
 
@@ -1303,27 +1304,27 @@ TEST_CASE("fappWellFormed.test") {
   std::vector<Expr> e;
   Expr temp;
 
-
   Expr name = mkTerm<std::string>("name", efac);
-  std::vector <Expr> args = {name, boolSort, intSort, intSort};
+  std::vector<Expr> args = {name, boolSort, intSort, intSort};
 
   Expr fdecl = mknary<FDECL>(args.begin(), args.end()); // BOOL, INT -> INT
   e.push_back(fdecl);
 
-  Expr lambda = mk<LAMBDA> (aBool, aInt, mk<MINUS>(intBound1, intBound1)); // boolBound0, intBound -> (aInt - bInt)
+  Expr lambda = mk<LAMBDA>(
+      aBool, aInt,
+      mk<MINUS>(intBound1, intBound1)); // boolBound0, intBound -> (aInt - bInt)
   e.push_back(lambda);
 
   checkWellFormed(e, functionalSort);
   e.clear();
 
-
-  temp = mk <FAPP> (fdecl, aBool, aInt);
+  temp = mk<FAPP>(fdecl, aBool, aInt);
   e.push_back(temp);
 
-  temp = mk <FAPP> (lambda, aBool, aInt);
+  temp = mk<FAPP>(lambda, aBool, aInt);
   e.push_back(temp);
 
-  temp = mk<FAPP> (lambda, mk<AND>(aBool, aBool), e[0]);
+  temp = mk<FAPP>(lambda, mk<AND>(aBool, aBool), e[0]);
   e.push_back(temp);
 
   checkWellFormed(e, intSort);
@@ -1355,46 +1356,50 @@ TEST_CASE("fappNotWellFormed.test") {
   Expr tempError;
   Expr body;
 
-
   Expr name = mkTerm<std::string>("name", efac);
-  std::vector <Expr> args = {name, boolSort, intSort, intSort};
+  std::vector<Expr> args = {name, boolSort, intSort, intSort};
 
   Expr fdecl = mknary<FDECL>(args.begin(), args.end()); // BOOL, INT -> INT
   e.push_back(fdecl);
 
-  Expr lambda = mk<LAMBDA> (aBool, aInt, mk<MINUS>(intBound1, bInt)); // boolBound0, intBound -> (aInt - bInt)
+  Expr lambda = mk<LAMBDA>(
+      aBool, aInt,
+      mk<MINUS>(intBound1, bInt)); // boolBound0, intBound -> (aInt - bInt)
   e.push_back(lambda);
 
   checkWellFormed(e, functionalSort);
   e.clear();
 
-
-  tempError = mk <FAPP> (fdecl, aBool); // number of argumetns doesn't match 
+  tempError = mk<FAPP>(fdecl, aBool); // number of argumetns doesn't match
   error.push_back(tempError);
   e.push_back(tempError);
 
- tempError= mk <FAPP> (lambda, bInt, aInt);// type of arguments doesn't match (should be BOOL INT)
+  tempError =
+      mk<FAPP>(lambda, bInt,
+               aInt); // type of arguments doesn't match (should be BOOL INT)
   error.push_back(tempError);
   e.push_back(tempError);
 
- tempError= mk <FAPP> (bInt, aBool, aInt);// first parameter should be a functional type
+  tempError = mk<FAPP>(bInt, aBool,
+                       aInt); // first parameter should be a functional type
   error.push_back(tempError);
   e.push_back(tempError);
 
   tempError = error.back();
   error.push_back(tempError);
-  temp = mk<FAPP> (lambda, mk<AND>(aBool, aBool), tempError);
+  temp = mk<FAPP>(lambda, mk<AND>(aBool, aBool), tempError);
   e.push_back(temp);
 
   tempError = mk<PLUS>(aInt); // not enough arguments
   error.push_back(tempError);
-  temp = mk<FAPP> (lambda, mk<AND>(aBool, aBool),tempError );
+  temp = mk<FAPP>(lambda, mk<AND>(aBool, aBool), tempError);
   e.push_back(temp);
 
   checkNotWellFormed(e, error);
-
 }
-TEST_CASE("generalNotWellFormed.test") {// make sure that the cache works correctly when partially reusing expressions
+TEST_CASE(
+    "generalNotWellFormed.test") { // make sure that the cache works correctly
+                                   // when partially reusing expressions
   seahorn::SeaEnableLog("tc");
   // -- manages expressions
   ExprFactory efac;
@@ -1417,7 +1422,7 @@ TEST_CASE("generalNotWellFormed.test") {// make sure that the cache works correc
   TypeChecker tc;
 
   error.push_back(mk<AND>(aBool));
-  temp = mk <OR>(mk <NEG>(error.back()), bBool);
+  temp = mk<OR>(mk<NEG>(error.back()), bBool);
   e.push_back(temp);
 
   error.push_back(mk<PLUS>(aBool));
@@ -1448,8 +1453,6 @@ TEST_CASE("finiteMapWellFormed.test") {
   Expr boolSort = sort::boolTy(efac);
   Expr intSort = sort::intTy(efac);
 
-  
-
   std::vector<Expr> e;
   std::vector<Expr> args;
   std::vector<Expr> keys;
@@ -1459,8 +1462,8 @@ TEST_CASE("finiteMapWellFormed.test") {
   keys.push_back(aIntKey);
   keys.push_back(bIntKey);
 
-
-  temp = finite_map::constFiniteMap(keys, aBool); //const finite map: default value
+  temp = finite_map::constFiniteMap(keys,
+                                    aBool); // const finite map: default value
   e.push_back(temp);
 
   Expr finiteMapSort = sort::finiteMapTy(boolSort, keys);
@@ -1469,28 +1472,26 @@ TEST_CASE("finiteMapWellFormed.test") {
 
   vals.push_back(aInt);
   vals.push_back(bInt);
-  temp = finite_map::constFiniteMap(keys, vals); 
+  temp = finite_map::constFiniteMap(keys, vals);
   e.push_back(temp);
 
   Expr finiteMapSort2 = sort::finiteMapTy(intSort, keys);
   checkWellFormed(e, finiteMapSort2);
   e.clear();
 
-
-  temp = finite_map::constFiniteMap(keys, aInt); //const finite map: default value
+  temp =
+      finite_map::constFiniteMap(keys, aInt); // const finite map: default value
   temp = mk<GET>(temp, bIntKey);
   e.push_back(temp);
 
   checkWellFormed(e, intSort);
   e.clear();
 
-
   temp = finite_map::constFiniteMap(keys, vals);
   temp = mk<SET>(temp, bIntKey, aInt);
   e.push_back(temp);
 
   checkWellFormed(e, finiteMapSort2);
-
 }
 TEST_CASE("finiteMapNotWellFormed.test") {
   seahorn::SeaEnableLog("tc");
@@ -1511,7 +1512,6 @@ TEST_CASE("finiteMapNotWellFormed.test") {
 
   Expr boolSort = sort::boolTy(efac);
   Expr intSort = sort::intTy(efac);
-  
 
   std::vector<Expr> e;
   std::vector<Expr> args;
@@ -1522,34 +1522,35 @@ TEST_CASE("finiteMapNotWellFormed.test") {
   std::vector<Expr> error;
   Expr tempError;
 
-  //mismatching key types
+  // mismatching key types
   keys.push_back(aIntKey);
   keys.push_back(aBoolKey);
 
-  tempError = mknary<CONST_FINITE_MAP_KEYS>(keys); //mismatching key types
+  tempError = mknary<CONST_FINITE_MAP_KEYS>(keys); // mismatching key types
   error.push_back(tempError);
-  temp = mk <CONST_FINITE_MAP>(tempError, mk<FINITE_MAP_VAL_DEFAULT>(aBool));
+  temp = mk<CONST_FINITE_MAP>(tempError, mk<FINITE_MAP_VAL_DEFAULT>(aBool));
   e.push_back(temp);
 
   keys.clear();
   keys.push_back(aIntKey);
   keys.push_back(bIntKey);
 
-//mismatching val types
+  // mismatching val types
   vals.clear();
   vals.push_back(aInt);
   vals.push_back(aBool);
 
-
-  tempError = mknary<CONST_FINITE_MAP_VALUES>(vals.begin(), vals.end()); //mismatching value types
+  tempError = mknary<CONST_FINITE_MAP_VALUES>(
+      vals.begin(), vals.end()); // mismatching value types
   error.push_back(tempError);
-  temp = mk <CONST_FINITE_MAP>(mknary<CONST_FINITE_MAP_KEYS>(keys.begin(), keys.end()), tempError);
+  temp = mk<CONST_FINITE_MAP>(
+      mknary<CONST_FINITE_MAP_KEYS>(keys.begin(), keys.end()), tempError);
   e.push_back(temp);
-
 
   vals.clear();
   vals.push_back(aInt);
-  tempError = finite_map::constFiniteMap(keys, vals); // keys and vals are of different sizes
+  tempError = finite_map::constFiniteMap(
+      keys, vals); // keys and vals are of different sizes
   error.push_back(tempError);
   e.push_back(tempError);
 
@@ -1557,26 +1558,26 @@ TEST_CASE("finiteMapNotWellFormed.test") {
   temp = mk<SET>(error.back(), aBoolKey, aInt);
   e.push_back(temp);
 
-  
   keys.clear();
   keys.push_back(aBoolKey);
   keys.push_back(bBoolKey);
   vals.clear();
   vals.push_back(aInt);
   vals.push_back(bInt);
-  tempError = mk<SET>(finite_map::constFiniteMap(keys, vals), aIntKey, aInt); // key type does not match the maps key type
+  tempError = mk<SET>(finite_map::constFiniteMap(keys, vals), aIntKey,
+                      aInt); // key type does not match the maps key type
   error.push_back(tempError);
   e.push_back(tempError);
 
-  tempError = mk<SET>(finite_map::constFiniteMap(keys, vals), aBoolKey, aBool); // val type does not match the maps key type
+  tempError = mk<SET>(finite_map::constFiniteMap(keys, vals), aBoolKey,
+                      aBool); // val type does not match the maps key type
   error.push_back(tempError);
   e.push_back(tempError);
 
-  tempError = mk<GET>(finite_map::constFiniteMap(keys, vals), aIntKey); // key type does not match the maps key type
+  tempError = mk<GET>(finite_map::constFiniteMap(keys, vals),
+                      aIntKey); // key type does not match the maps key type
   error.push_back(tempError);
   e.push_back(tempError);
-
 
   checkNotWellFormed(e, error);
-
 }

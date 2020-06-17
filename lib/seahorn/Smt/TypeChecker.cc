@@ -49,11 +49,12 @@ class TCVR {
     m_isWellFormed = true;
   }
 
-  // maps the current expression to a set of all the bound variables that it
-  // uses (any bound variables that are used in its sub expressions)
-  void mapBoundVars(Expr exp) {
+  // merges all of the expressions bound vars into one set and maps the
+  // expression to this set
+  void mapBoundVarsToParent(Expr exp) {
+
     // if the expression is a binder, then its bound variables will not be
-    // withing its parents scope, so don't map them
+    // within its parents scope, so don't map them
     if (m_binders.count(exp))
       return;
 
@@ -84,7 +85,7 @@ class TCVR {
       foundError(exp);
       m_errorMap.insert({exp, m_errorExp});
     } else {
-      mapBoundVars(exp);
+      mapBoundVarsToParent(exp);
     }
 
     return exp;
@@ -207,7 +208,6 @@ ExprSet TypeCheckerHelper::getBoundVars(Expr exp) {
   return m_impl->getBoundVars(exp);
 }
 void TypeCheckerHelper::mapBinder(Expr binder) { m_impl->mapBinder(binder); }
-
 
 TypeChecker::TypeChecker() {}
 Expr TypeChecker::typeOf(Expr e) { return m_helper.typeOf(e); }

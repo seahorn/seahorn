@@ -35,23 +35,23 @@ struct Unary {
   // Return type: type of children
   // Possible types of children: INT_TY, REAL_TY, UNINT_TY
   static inline Expr inferType(Expr exp, TypeCheckerHelper &helper) {
-    return typeCheck::unary<INT_TY, REAL_TY, UNINT_TY>(exp, helper, returnType);
+    return typeCheck::unary<NUM_TYPES>(exp, helper, returnType);
   }
 };
 
 struct Binary {
   // Return type: type of children
-  // Possible types of children: INT_TY, REAL_TY, UNINT_TY
+  // Possible types of children: any number type 
   static inline Expr inferType(Expr exp, TypeCheckerHelper &helper) {
-    return typeCheck::binary<INT_TY, REAL_TY, UNINT_TY>(exp, helper, returnType);
+    return typeCheck::binary<NUM_TYPES>(exp, helper, returnType);
   }
 };
 
 struct Nary {
   // Return type: type of children
-  // Possible types of children: INT_TY, REAL_TY, UNINT_TY
+  // Possible types of children: any number type
   static inline Expr inferType(Expr exp, TypeCheckerHelper &helper) {
-    return typeCheck::nary<INT_TY, REAL_TY, UNINT_TY>(exp, helper, returnType);
+    return typeCheck::nary<NUM_TYPES>(exp, helper, returnType);
   }
 };
 } // namespace numType
@@ -86,6 +86,6 @@ struct ITV_PS {
   }
 };
 } // namespace numeric
-NOP(ITV, "itv", numeric::ITV_PS, NumericOp, typeCheck::Any)
+NOP(ITV, "itv", numeric::ITV_PS, NumericOp, typeCheck::numType::Binary)
 } // namespace op
 } // namespace expr

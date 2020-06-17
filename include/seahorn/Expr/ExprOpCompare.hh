@@ -23,9 +23,9 @@ struct Equality {
 };
 struct Inequality {
   // Return type: BOOL_TY
-  // Possible types of children: INT_TY, REAL_TY, UNINT_TY
+  // Possible types of children: any number type 
   static inline Expr inferType(Expr exp, TypeCheckerHelper &helper) {
-    return typeCheck::binary<BOOL_TY, INT_TY, REAL_TY, UNINT_TY>(exp, helper);
+    return typeCheck::binary<BOOL_TY, NUM_TYPES>(exp, helper);
   }
 };
 } // namespace compareType

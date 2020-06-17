@@ -155,7 +155,7 @@ TEST_CASE("boolWellFormed.test") {
   checkWellFormed(e, intSort);
 
 }
-TEST_CASE("notWellFormed.test") {
+TEST_CASE("boolNotWellFormed.test") {
   seahorn::SeaEnableLog("tc");
   ExprFactory efac;
 
@@ -274,6 +274,52 @@ TEST_CASE("unintWellFormed.test") {
 
   checkWellFormed(e, unintSort);
 }
+TEST_CASE("numWellFormed.test") {
+
+  seahorn::SeaEnableLog("tc");
+  // -- manages expressions
+  ExprFactory efac;
+
+  Expr uintSort = sort::uintTerminalTy(efac);
+  Expr mpqSort = sort::mpqTerminalTy(efac);
+  Expr mpzSort = sort::mpzTerminalTy(efac);
+
+  Expr aUint = mkTerm <unsigned>(5, efac);
+  Expr bUint = mkTerm <unsigned>(20, efac);
+
+  Expr aMPQ = mkTerm <mpq_class>(11, efac);
+  Expr bMPQ = mkTerm <mpq_class>(12, efac);
+
+  Expr aMPZ = mkTerm <mpz_class>(20, efac);
+  Expr bMPZ = mkTerm <mpz_class>(99, efac);
+
+  std::vector<Expr> e;
+  Expr temp;
+
+  temp = mk<ABS>(mk <MOD>(aUint, bUint));
+  e.push_back(temp);
+
+  temp = mk<UN_MINUS>(bUint, bUint, e.back());
+  e.push_back(temp);
+
+  checkWellFormed(e, uintSort);
+  e.clear();
+
+  temp = mk <ITV>(aMPQ, bMPQ);
+  e.push_back(temp);
+
+  checkWellFormed(e, mpqSort);
+  e.clear();
+
+  temp = mk <REM>(aMPZ, bMPZ);
+  e.push_back(temp);
+
+  temp = mk <MULT>(e.back(), mk<ABS>(e.back()), mk<ABS>(e.back()));
+  e.push_back(temp);
+
+  checkWellFormed(e, mpzSort);
+
+}
 
 TEST_CASE("numNotWellFormed.test") {
 
@@ -283,16 +329,25 @@ TEST_CASE("numNotWellFormed.test") {
 
   Expr aInt = intConst("aint", efac);
   Expr bInt = intConst("bInt", efac);
-  Expr cReal = realConst("cReal", efac);
-  Expr dUnint = unintConst("dUnint", efac);
-  Expr eBool = boolConst("eBool", efac);
+
+  Expr aReal = realConst("aReal", efac);
+
+  Expr aUnint = unintConst("aUnint", efac);
+
+  Expr aBool = boolConst("aBool", efac);
+
+  Expr aUint = mkTerm <unsigned>(5, efac);
+
+  Expr aMPQ = mkTerm <mpq_class>(11, efac);
+
+  Expr aMPZ = mkTerm <mpz_class>(20, efac);
 
   std::vector<Expr> e;
   Expr temp;
   std::vector<Expr> error;
   Expr tempError;
 
-  temp = mk<ABS>(eBool);
+  temp = mk<ABS>(aBool);
   e.push_back(temp);
   tempError = e.back();
   error.push_back(tempError);
@@ -302,10 +357,15 @@ TEST_CASE("numNotWellFormed.test") {
   tempError = e.back();
   error.push_back(tempError);
 
-  temp = mk<DIV>(dUnint, mk<PLUS>(cReal, cReal), mk<MULT>(dUnint, dUnint));
+  temp = mk<DIV>(aUnint, mk<PLUS>(aReal, aReal), mk<MULT>(aUnint, aUnint));
   e.push_back(temp);
   tempError = e.back();
   error.push_back(tempError);
+
+  tempError = mk <MINUS>(aMPZ);
+  error.push_back(tempError);
+  e.push_back(tempError);
+
 
   checkNotWellFormed(e, error);
 }

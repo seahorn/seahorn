@@ -28,6 +28,7 @@ class TCVR {
   // so it can reset
   Expr m_topMost;
 
+  // Keeps track of all the bound variables that an expression uses
   std::map<Expr, ExprSet> m_boundVarMap;
   ExprSet m_binders;
 
@@ -48,7 +49,7 @@ class TCVR {
     m_isWellFormed = true;
   }
 
-  // maps the current expression to a set of all the bound variables that is
+  // maps the current expression to a set of all the bound variables that it
   // uses (any bound variables that are used in its sub expressions)
   void mapBoundVars(Expr exp) {
     // if the expression is a binder, then its bound variables will not be
@@ -123,8 +124,8 @@ public:
   Expr knownTypeOf(Expr e) {
     Expr knownType = e ? m_cache.at(e) : Expr();
 
-    if (e == m_topMost) // done traversing entire expression
-      reset(e);
+    if (e == m_topMost)
+      reset(e); // done traversing entire expression
 
     LOG("tc",
         llvm::errs() << "known type of " << *e << "is " << *knownType << "\n";);
@@ -206,6 +207,7 @@ ExprSet TypeCheckerHelper::getBoundVars(Expr exp) {
   return m_impl->getBoundVars(exp);
 }
 void TypeCheckerHelper::mapBinder(Expr binder) { m_impl->mapBinder(binder); }
+
 
 TypeChecker::TypeChecker() {}
 Expr TypeChecker::typeOf(Expr e) { return m_helper.typeOf(e); }

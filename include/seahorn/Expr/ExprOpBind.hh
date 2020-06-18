@@ -57,10 +57,6 @@ struct Bind {
     if (!(exp->arity() == 2 && isOp<TYPE_TY>(helper.typeOf(exp->right()))))
       return sort::errorTy(exp->efac());
 
-    if (bind::isBVar(exp)) { // bound variable
-      helper.mapBoundVar(exp);
-    }
-
     return exp->right();
   }
 };

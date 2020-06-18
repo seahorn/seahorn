@@ -19,21 +19,6 @@ public:
   Expr typeOf(Expr e);
   Expr getErrorExp();
 
-  /*
-  Used to keep track of which expressions are bound variables
-  */
-  void mapBoundVar(Expr bVar);
-
-  /*
-  Returns set of all the bound variables that the expressions has. This includes
-  any bound variables in any of its sub expressions
-  */
-  ExprSet getBoundVars(Expr exp);
-
-  /*
-  Used to keep track of which expressions are binders
-  */
-  void mapBinder(Expr binder);
 };
 
 /**

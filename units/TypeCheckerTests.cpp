@@ -1181,23 +1181,6 @@ TEST_CASE("quantifierNotWellFormed.test") {
   error.push_back(tempError);
   e.push_back(tempError);
 
-  tempError = mk<FORALL>(
-      aInt, bInt,
-      bind::bvar(2, intSort)); // the bound variable's index is too high
-  error.push_back(tempError);
-  e.push_back(tempError);
-
-  body = mk<AND>(bind::bvar(2, boolSort), bind::bvar(1, boolSort));
-  args.push_back(aBool);
-  args.push_back(aInt);
-  args.push_back(aBool);
-  args.push_back(body);
-  tempError = mknary<FORALL>(
-      args.begin(),
-      args.end()); // the bound var with index 1 does does have the correct type
-  error.push_back(tempError);
-  e.push_back(tempError);
-
   checkNotWellFormed(e, error);
 }
 TEST_CASE("lambdaWellFormed.test") {
@@ -1268,15 +1251,13 @@ TEST_CASE("lambdaNotWellFormed.test") {
   Expr tempError;
   Expr body;
 
-  body = mk<IFF>(aBool, boolBound1);
-  tempError = mk<LAMBDA>(aBool, body); // boolBound1's index is too high
-  error.push_back(tempError);
-  e.push_back(tempError);
+  body = mk <IFF>(boolBound0); // not enough arguments
+  error.push_back(body);
+  e.push_back(mk<LAMBDA>(aBool,body));
 
-  tempError =
-      mk<LAMBDA>(aBool, unintBound0); // the bound variables type does not match
-  error.push_back(tempError);
-  e.push_back(tempError);
+  error.push_back(error.back());
+  e.push_back(mk<FAPP>(error.back(),bBool));
+
 
   checkNotWellFormed(e, error);
 }

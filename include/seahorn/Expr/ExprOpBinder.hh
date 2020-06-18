@@ -146,30 +146,15 @@ static inline bool binderCheck(Expr exp, TypeCheckerHelper &helper,
     boundTypes.push_back(type);
   }
 
-  Expr body = exp->last();
-  ExprSet boundVars = helper.getBoundVars(body);
-
-  if (!boundVars.empty()) {
-
-    // makes sure that all of the body's bound vars match their expected types
-    for (auto b = boundVars.begin(), e = boundVars.end(); b != e; b++) {
-      unsigned idx = bind::bvarId(*b);
-      if (!(idx < boundTypes.size() && helper.typeOf(*b) == boundTypes.at(idx)))
-        return false;
-    }
-  }
-
-  helper.mapBinder(exp);
-
   return true;
 }
 
 struct Lambda {
-  // ensures that: 1. all children except for the last (the body) are constants
-  //  2. all bound variables in the body match their expected type
-  // Return Type: FUNCTIONAL_TY
-  // for example, for the expression lambda a, b, c ... :: body, the return type
-  // is FUNCTIONAL_TY(typeOf(a), typeOf(b), ... , typeOf(body))
+  /// ensures that all children except for the last (the body) are constants
+  /// \note does not check bound variables
+  /// \return FUNCTIONAL_TY
+  /// for example, for the expression lambda a, b, c ... :: body, the return
+  /// type is FUNCTIONAL_TY(typeOf(a), typeOf(b), ... , typeOf(body))
   static inline Expr inferType(Expr exp, TypeCheckerHelper &helper) {
     ExprVector boundTypes;
     if (!binderCheck(exp, helper, boundTypes))
@@ -183,10 +168,10 @@ struct Lambda {
 };
 
 struct Quantifier {
-  // ensures that: 1. all children except for the last (the body) are constants
-  //  2. all bound variables in the body match their expected type
-  //  3. the body is of bool type
-  // Return type: BOOL_TY
+  /// ensures that: 1. all children except for the last (the body) are constants
+  ///  2. the body type is BOOL_TY
+  /// \note does not check bound variables
+  /// \return BOOL_TY
   static inline Expr inferType(Expr exp, TypeCheckerHelper &helper) {
     ExprVector boundTypes;
     Expr body = exp->last();

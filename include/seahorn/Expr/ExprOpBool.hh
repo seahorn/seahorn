@@ -15,32 +15,32 @@ namespace typeCheck {
 namespace boolType {
 
 struct OneOrMore {
-  // Return type: BOOL_TY
-  // Possible types of children: BOOL_TY
+  /// \return BOOL_TY
+  /// Possible types of children: BOOL_TY
   static inline Expr inferType(Expr exp, TypeCheckerHelper &helper) {
     return typeCheck::oneOrMore<BOOL_TY, BOOL_TY>(exp, helper);
   }
 };
 
 struct Unary {
-  // Return type: BOOL_TY
-  // Possible types of children: BOOL_TY
+  /// \return BOOL_TY
+  /// Possible types of children: BOOL_TY
   static inline Expr inferType(Expr exp, TypeCheckerHelper &helper) {
     return typeCheck::unary<BOOL_TY, BOOL_TY>(exp, helper);
   }
 };
 
 struct Binary {
-  // Return type: BOOL_TY
-  // Possible types of children: BOOL_TY
+  /// \return BOOL_TY
+  /// Possible types of children: BOOL_TY
   static inline Expr inferType(Expr exp, TypeCheckerHelper &helper) {
     return typeCheck::binary<BOOL_TY, BOOL_TY>(exp, helper);
   }
 };
 
 struct Nary {
-  // Return type: BOOL_TY
-  // Possible types of children: BOOL_TY
+  /// \return BOOL_TY
+  /// Possible types of children: BOOL_TY
   static inline Expr inferType(Expr exp, TypeCheckerHelper &helper) {
     return typeCheck::nary<BOOL_TY, BOOL_TY>(exp, helper);
   }

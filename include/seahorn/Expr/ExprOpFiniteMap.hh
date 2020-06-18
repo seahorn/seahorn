@@ -48,8 +48,8 @@ namespace typeCheck {
 namespace finiteMapType {
 
 struct ValuesKeys {
-  // ensures that all children are the same type
-  // Return type: the type of its children
+  /// ensures that all children are the same type
+  /// \return the type of its children
   static inline Expr inferType(Expr exp, TypeCheckerHelper &helper) {
     auto returnFn = [](Expr exp, TypeCheckerHelper &helper) {
       return helper.typeOf(exp->first());
@@ -60,8 +60,8 @@ struct ValuesKeys {
   }
 };
 struct ValuesDefault {
-  // ensures that there is 1 child
-  // Return type: the type of its child
+  /// ensures that there is 1 child
+  /// \return the type of its child
   static inline Expr inferType(Expr exp, TypeCheckerHelper &helper) {
     auto returnFn = [](Expr exp, TypeCheckerHelper &helper) {
       return helper.typeOf(exp->first());
@@ -73,8 +73,8 @@ struct ValuesDefault {
 };
 
 struct FiniteMap {
-  // ensures that the left child is a valid key type, and right is a valid value
-  // type return type: FINITE_MAP_TY
+  /// ensures that the left child is a valid key type, and right is a valid value
+  /// \return: FINITE_MAP_TY
   static inline Expr inferType(Expr exp, TypeCheckerHelper &helper) {
     if (exp->arity() != 2)
       return sort::errorTy(exp->efac());
@@ -115,9 +115,10 @@ static inline void getFiniteMapTypes(Expr exp, TypeCheckerHelper &helper,
 }
 
 struct Get {
-  // note: this is the same as array select
-  // ensures that: the key type matches the map's key type
-  // Return type: the map's value type
+  /// ensures that the expression's index type matches the map's index type
+  /// checks for the following children (in order): map, index
+  /// \return the map's value type
+  /// \note this is the same as array select
   static inline Expr inferType(Expr exp, TypeCheckerHelper &helper) {
     return typeCheck::mapType::select<FINITE_MAP_TY>(exp, helper,
                                                      getFiniteMapTypes);
@@ -125,9 +126,10 @@ struct Get {
 };
 
 struct Set {
-  // note: this is the same as array store
-  // ensures that: the key type and value type match the map's key and value
-  // type Return type: FINITE_MAP_TY (the map's type)
+  /// ensures that the index type and value type match the map's index and value types
+  /// checks for the following children (in order): map, index, value
+  /// \return FINITE_MAP_TY
+  /// \note this is the same as array store
   static inline Expr inferType(Expr exp, TypeCheckerHelper &helper) {
     return typeCheck::mapType::store<FINITE_MAP_TY>(exp, helper,
                                                     getFiniteMapTypes);

@@ -32,16 +32,16 @@ static inline Expr returnType(Expr exp, TypeCheckerHelper &helper) {
   return helper.typeOf(exp->first());
 }
 struct Unary {
-  // Return type: type of children
-  // Possible types of children: INT_TY, REAL_TY, UNINT_TY
+  /// Possible types of children: any num type
+  /// \return: type of children
   static inline Expr inferType(Expr exp, TypeCheckerHelper &helper) {
     return typeCheck::unary<NUM_TYPES>(exp, helper, returnType);
   }
 };
 
 struct Binary {
-  // Return type: type of children
-  // Possible types of children: any number type 
+  /// Possible types of children: any num type
+  /// \return: type of children
   static inline Expr inferType(Expr exp, TypeCheckerHelper &helper) {
     return typeCheck::binary<NUM_TYPES>(exp, helper, returnType);
   }

@@ -65,8 +65,8 @@ struct Bind {
   }
 };
 struct Fdecl {
-  // Checks that all arguments and return expression are types
-  // Return type: FUNCTIONAL_TY
+  /// Checks that all arguments and return expression are types
+  /// \return FUNCTIONAL_TY
   static inline Expr inferType(Expr exp, TypeCheckerHelper &helper) {
     if (exp->arity() < 2)
       return sort::errorTy(exp->efac());
@@ -75,7 +75,8 @@ struct Fdecl {
       return isOp<TYPE_TY>(helper.typeOf(exp));
     };
 
-    auto begin = exp->args_begin() + 1; // note: name is the first child
+    auto begin = exp->args_begin();
+    std::advance(begin, 1); // note: name is the first child
     auto end = exp->args_end();
 
     if (std::all_of(begin, end, isType))
@@ -86,9 +87,9 @@ struct Fdecl {
 };
 
 struct Fapp {
-  // Checks that the first child is FUNCTIONAL_TY type and its remaining
-  // types match the Functional's argument types
-  // Return type: type of the Functional's body
+  /// Checks that the first child is FUNCTIONAL_TY type and its remaining
+  /// types match the Functional's argument types
+  /// \return type of the Functional's body
   static inline Expr inferType(Expr exp, TypeCheckerHelper &helper) {
     if (exp->arity() == 0)
       return sort::errorTy(exp->efac());
@@ -113,8 +114,8 @@ struct Fapp {
       if (fappArgType != functionalArgType)
         return sort::errorTy(exp->efac());
 
-      fappArgs++;
-      functionalArgs++;
+      ++fappArgs;
+      ++functionalArgs;
     }
 
     return functionalType->last(); // type of the functional's body

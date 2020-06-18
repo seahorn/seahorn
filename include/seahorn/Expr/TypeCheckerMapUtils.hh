@@ -9,14 +9,16 @@ namespace op {
 namespace typeCheck {
 namespace mapType {
 
+/// \return true if the map has correct layout
 template <typename T>
 static inline bool checkMap(Expr exp, TypeCheckerHelper &helper,
                             unsigned numChildren) {
   return exp->arity() == numChildren && correctTypeAny<T>(exp->first(), helper);
 }
 
-  //ensures that the expression's index type matches the map's key type
-  //Return type: the map's value type
+  /// ensures that the expression's index type matches the map's index type
+  /// checks for the following children (in order): map, index
+  /// \return the map's value type
 template <typename T>
 static inline Expr
 select(Expr exp, TypeCheckerHelper &helper,
@@ -38,8 +40,9 @@ select(Expr exp, TypeCheckerHelper &helper,
   return sort::errorTy(exp->efac());
 }
 
-  //ensures that: the index type and value type match the map's index and value types
-  //Return type: T (the map's type)
+  /// ensures that the index type and value type match the map's index and value types
+  /// checks for the following children (in order): map, index, value
+  /// \return T (the map's type)
 template <typename T>
 static inline Expr
 store(Expr exp, TypeCheckerHelper &helper,

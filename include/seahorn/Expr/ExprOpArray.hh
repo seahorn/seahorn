@@ -32,17 +32,26 @@ static inline void getArrayTypes(Expr exp, TypeCheckerHelper &helper, Expr &mapT
   valTy = sort::arrayValTy(mapTy);
 }
 
+  ///ensures that the expression's key type matches the arrays's key type
+  /// checks for the following children (in order): map, index
+  /// \return the array's value type
 struct Select {
   static inline Expr inferType(Expr exp, TypeCheckerHelper &helper) {
     return typeCheck::mapType::select<ARRAY_TY>(exp, helper, getArrayTypes);
   }
 };
+
+  /// ensures that the index type and value type match the array's index and value types
+  /// checks for the following children (in order): array, index, value
+  /// \return ARRAY_TY
 struct Store {
   static inline Expr inferType(Expr exp, TypeCheckerHelper &helper) {
     return typeCheck::mapType::store<ARRAY_TY>(exp, helper, getArrayTypes);
   }
 };
 
+  /// Expected Children types(in order): TYPE_TY, anything
+  /// \return: ARRAY_TY
 struct Const {
   static inline Expr inferType(Expr exp, TypeCheckerHelper &helper) {
     if (exp->arity() != 2)
@@ -58,6 +67,8 @@ struct Const {
   }
 };
 
+  /// Expected Children type: ARRAY_TY
+  /// \return: ARRAY_TY
 struct Default {
   static inline Expr inferType(Expr exp, TypeCheckerHelper &helper) {
 

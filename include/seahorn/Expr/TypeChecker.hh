@@ -36,30 +36,53 @@ public:
   void mapBinder(Expr binder);
 };
 
+/**
+ * \class TypeChecker checks if an expression is well-formed and finds the type
+ * of the expression
+ *
+ * Adding new operators (general): Override the Operator class's inferType
+ * method. It should return the type of the specific operator
+ *
+ * Adding new Normal operators (NOP, DefOp): The type checking is defined
+ * externally. Create a struct with an inferType(Expr, TypeChecker&) function
+ * and pass this struct to NOP/DefOp
+ *
+ * Adding new Terminal operators: The type checking is defined internally. Every
+ * terminal trait defines its own inferType(Expr, TypeChecker&) function
+ *
+ */
 class TypeChecker {
   TypeCheckerHelper m_helper;
 
 public:
   TypeChecker();
 
-  /*
-  See typeOf(Expr e);
-  */
+  /**
+   * \see typeOf(Expr e);
+   */
   Expr sortOf(Expr e) { return this->typeOf(e); }
 
-  /*
-  Returns the type of the passed expression. If an error is found (ie. the
-  expression is not well-formed) in any subexpression, it will
-  return an expression of type ERROR_TY. To get the error, call getErrorExp()
-  */
+  /**
+   * Finds the type of the passed expression
+   *
+   * \param e the expression that you wish to get the type of
+   *
+   * \return the type of the passed expression. ERROR_TY if it is an error
+   *
+   * \note if an error is found, call getErrorExp() to get it
+   */
   Expr typeOf(Expr e);
 
-  /*
- - To be called after sortOf() or typeOf().
- - Returns the expression that is not well-formed if an error was found,
-  otherwise it returns nullptr.
-  - The error expression is reset everytime sorOf() or typeOf() is called
-  */
+  /**
+   * \return the error expression if it is not well-formed, nullptr if it is
+   * well-formed
+   *
+   * \note should be called after typeOf() or sortOf()
+   * \note the error expression is reset everytime sortOf() or typeOf() is
+   * called
+   * \note only stores the first error that it finds (ie. the
+   * leftmost, bottom-most error)
+   */
   Expr getErrorExp();
 };
 

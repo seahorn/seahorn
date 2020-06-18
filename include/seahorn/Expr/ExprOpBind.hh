@@ -98,7 +98,8 @@ struct Fapp {
           exp->arity() == functionalType->arity()))
       return sort::errorTy(exp->efac());
 
-    auto fappArgs = exp->args_begin() + 1; // note: the first child is the fdecl
+    auto fappArgs = exp->args_begin();
+    std::advance(fappArgs, 1); // note: the first child is the fdecl
     auto functionalArgs = functionalType->args_begin();
 
     // Check that each fapp argument type matches its corresponding functional

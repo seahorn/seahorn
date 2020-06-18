@@ -1251,13 +1251,12 @@ TEST_CASE("lambdaNotWellFormed.test") {
   Expr tempError;
   Expr body;
 
-  body = mk <IFF>(boolBound0); // not enough arguments
+  body = mk<IFF>(boolBound0); // not enough arguments
   error.push_back(body);
-  e.push_back(mk<LAMBDA>(aBool,body));
+  e.push_back(mk<LAMBDA>(aBool, body));
 
   error.push_back(error.back());
-  e.push_back(mk<FAPP>(error.back(),bBool));
-
+  e.push_back(mk<FAPP>(error.back(), bBool));
 
   checkNotWellFormed(e, error);
 }

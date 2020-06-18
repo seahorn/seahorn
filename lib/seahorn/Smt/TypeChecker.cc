@@ -63,8 +63,7 @@ class TCVR {
   }
 
 public:
-  TCVR(TypeChecker *tc)
-      : m_isWellFormed(true), m_tc(tc), m_topMost(Expr()) {}
+  TCVR(TypeChecker *tc) : m_isWellFormed(true), m_tc(tc), m_topMost(Expr()) {}
 
   /// Called before children are visited
   /// Returns false to skip visiting children
@@ -144,8 +143,7 @@ public:
   Expr getErrorExp() { return m_visitor.getErrorExp(); }
 };
 
-TypeChecker::TypeChecker()
-    : m_impl(new TypeChecker::Impl(this)) {}
+TypeChecker::TypeChecker() : m_impl(new TypeChecker::Impl(this)) {}
 TypeChecker::~TypeChecker() { delete m_impl; }
 Expr TypeChecker::typeOf(Expr e) { return m_impl->typeOf(e); }
 Expr TypeChecker::getErrorExp() { return m_impl->getErrorExp(); }

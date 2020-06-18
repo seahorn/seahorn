@@ -41,8 +41,8 @@ namespace typeCheck {
 namespace variantType {
 
 template <typename T>
-static inline Expr checkVariant(Expr exp, TypeCheckerHelper &helper) {
-  if (exp->arity() == 2 && correctTypeAny<T>(exp ->first(), helper))
+static inline Expr checkVariant(Expr exp, TypeChecker &tc) {
+  if (exp->arity() == 2 && correctTypeAny<T>(exp ->first(), tc))
     return sort::anyTy(exp->efac());
 
   return sort::errorTy(exp->efac());
@@ -50,14 +50,14 @@ static inline Expr checkVariant(Expr exp, TypeCheckerHelper &helper) {
 }
 
 struct Variant {
-  static inline Expr inferType(Expr exp, TypeCheckerHelper &helper) {
-    return checkVariant <UINT_TERMINAL_TY> (exp, helper);
+  static inline Expr inferType(Expr exp, TypeChecker &tc) {
+    return checkVariant <UINT_TERMINAL_TY> (exp, tc);
   }
 };
 
 struct Tag {
-  static inline Expr inferType(Expr exp, TypeCheckerHelper &helper) {
-    return checkVariant <ANY_TY>(exp, helper);
+  static inline Expr inferType(Expr exp, TypeChecker &tc) {
+    return checkVariant <ANY_TY>(exp, tc);
   }
 };
 } // namespace variantType

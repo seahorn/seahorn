@@ -28,30 +28,30 @@ enum class NumericOpKind {
 namespace typeCheck {
 namespace numType {
 
-static inline Expr returnType(Expr exp, TypeCheckerHelper &helper) {
-  return helper.typeOf(exp->first());
+static inline Expr returnType(Expr exp, TypeChecker &tc) {
+  return tc.typeOf(exp->first());
 }
 struct Unary {
   /// Possible types of children: any num type
   /// \return: type of children
-  static inline Expr inferType(Expr exp, TypeCheckerHelper &helper) {
-    return typeCheck::unary<NUM_TYPES>(exp, helper, returnType);
+  static inline Expr inferType(Expr exp, TypeChecker &tc) {
+    return typeCheck::unary<NUM_TYPES>(exp, tc, returnType);
   }
 };
 
 struct Binary {
   /// Possible types of children: any num type
   /// \return: type of children
-  static inline Expr inferType(Expr exp, TypeCheckerHelper &helper) {
-    return typeCheck::binary<NUM_TYPES>(exp, helper, returnType);
+  static inline Expr inferType(Expr exp, TypeChecker &tc) {
+    return typeCheck::binary<NUM_TYPES>(exp, tc, returnType);
   }
 };
 
 struct Nary {
   // Return type: type of children
   // Possible types of children: any number type
-  static inline Expr inferType(Expr exp, TypeCheckerHelper &helper) {
-    return typeCheck::nary<NUM_TYPES>(exp, helper, returnType);
+  static inline Expr inferType(Expr exp, TypeChecker &tc) {
+    return typeCheck::nary<NUM_TYPES>(exp, tc, returnType);
   }
 };
 } // namespace numType

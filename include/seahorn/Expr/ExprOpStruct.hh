@@ -16,7 +16,7 @@ enum class StructOpKind { MK_STRUCT, EXTRACT_VALUE, INSERT_VALUE };
 namespace typeCheck {
 namespace structType {
 struct Struct {
-  static inline Expr inferType(Expr exp, TypeCheckerHelper &helper) {
+  static inline Expr inferType(Expr exp, TypeChecker &tc) {
     ExprVector childrenTypes;
     bool wellFormed = true;
 
@@ -25,8 +25,8 @@ struct Struct {
     // type
     for (auto b = exp->args_begin(), e = exp->args_end(); wellFormed && b != e;
          b++) {
-      childrenTypes.push_back(helper.typeOf(*b));
-      wellFormed = correctTypeAny<ANY_TY>(*b, helper);
+      childrenTypes.push_back(tc.typeOf(*b));
+      wellFormed = correctTypeAny<ANY_TY>(*b, tc);
     }
 
     return wellFormed ? sort::structTy(childrenTypes)
@@ -47,7 +47,7 @@ static inline bool structCheck(Expr exp, unsigned numChildren) {
 }
 
 struct Insert {
-  static inline Expr inferType(Expr exp, TypeCheckerHelper &helper) {
+  static inline Expr inferType(Expr exp, TypeChecker &tc) {
     if (!structCheck(exp, 3))
       return sort::errorTy(exp->efac());
 
@@ -62,19 +62,19 @@ struct Insert {
 
     Expr copy = st->efac().mkNary(st->op(), kids.begin(), kids.end());
 
-    return helper.typeOf(copy);
+    return tc.typeOf(copy);
   }
 };
 
 struct Extract {
-  static inline Expr inferType(Expr exp, TypeCheckerHelper &helper) {
+  static inline Expr inferType(Expr exp, TypeChecker &tc) {
     if (!structCheck(exp, 2))
       return sort::errorTy(exp->efac());
 
     Expr st = getStruct(exp);
     unsigned idx = getIndex(exp);
 
-    return helper.typeOf(st->arg(idx));
+    return tc.typeOf(st->arg(idx));
   }
 };
 } // namespace structType

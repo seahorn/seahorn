@@ -17,15 +17,15 @@ namespace compareType {
 struct Equality {
   /// \return BOOL_TY
   /// Possible types of children: any type except for ERROR_TY
-  static inline Expr inferType(Expr exp, TypeCheckerHelper &helper) {
-    return typeCheck::binary<BOOL_TY, ANY_TY>(exp, helper);
+  static inline Expr inferType(Expr exp, TypeChecker &tc) {
+    return typeCheck::binary<BOOL_TY, ANY_TY>(exp, tc);
   }
 };
 struct Inequality {
   /// \return BOOL_TY
   /// Possible types of children: any number type 
-  static inline Expr inferType(Expr exp, TypeCheckerHelper &helper) {
-    return typeCheck::binary<BOOL_TY, NUM_TYPES>(exp, helper);
+  static inline Expr inferType(Expr exp, TypeChecker &tc) {
+    return typeCheck::binary<BOOL_TY, NUM_TYPES>(exp, tc);
   }
 };
 } // namespace compareType

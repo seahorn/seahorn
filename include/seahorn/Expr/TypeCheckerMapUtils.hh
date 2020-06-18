@@ -11,9 +11,9 @@ namespace mapType {
 
 /// \return true if the map has correct layout
 template <typename T>
-static inline bool checkMap(Expr exp, TypeCheckerHelper &helper,
+static inline bool checkMap(Expr exp, TypeChecker &tc,
                             unsigned numChildren) {
-  return exp->arity() == numChildren && correctTypeAny<T>(exp->first(), helper);
+  return exp->arity() == numChildren && correctTypeAny<T>(exp->first(), tc);
 }
 
   /// ensures that the expression's index type matches the map's index type
@@ -21,20 +21,20 @@ static inline bool checkMap(Expr exp, TypeCheckerHelper &helper,
   /// \return the map's value type
 template <typename T>
 static inline Expr
-select(Expr exp, TypeCheckerHelper &helper,
-       std::function<void(Expr exp, TypeCheckerHelper &helper, Expr &mapTy,
+select(Expr exp, TypeChecker &tc,
+       std::function<void(Expr exp, TypeChecker &tc, Expr &mapTy,
                           Expr &indexTy, Expr &valTy)>
            getMapTypes) {
-  if (!checkMap<T>(exp, helper, 2))
+  if (!checkMap<T>(exp, tc, 2))
     return sort::errorTy(exp->efac());
 
   Expr mapTy;
   Expr indexTy;
   Expr valTy;
 
-  getMapTypes(exp, helper, mapTy, indexTy, valTy);
+  getMapTypes(exp, tc, mapTy, indexTy, valTy);
 
-  if (indexTy == helper.typeOf(exp->right()))
+  if (indexTy == tc.typeOf(exp->right()))
     return valTy;
 
   return sort::errorTy(exp->efac());
@@ -45,21 +45,21 @@ select(Expr exp, TypeCheckerHelper &helper,
   /// \return T (the map's type)
 template <typename T>
 static inline Expr
-store(Expr exp, TypeCheckerHelper &helper,
-      std::function<void(Expr exp, TypeCheckerHelper &helper, Expr &mapTy,
+store(Expr exp, TypeChecker &tc,
+      std::function<void(Expr exp, TypeChecker &tc, Expr &mapTy,
                          Expr &indexTy, Expr &valTy)>
           getMapTypes) {
-  if (!checkMap<T>(exp, helper, 3))
+  if (!checkMap<T>(exp, tc, 3))
     return sort::errorTy(exp->efac());
 
   Expr mapTy;
   Expr indexTy;
   Expr valTy;
 
-  getMapTypes(exp, helper, mapTy, indexTy, valTy);
+  getMapTypes(exp, tc, mapTy, indexTy, valTy);
 
-  if (indexTy == helper.typeOf(exp->arg(1)) &&
-      valTy == helper.typeOf(exp->arg(2)))
+  if (indexTy == tc.typeOf(exp->arg(1)) &&
+      valTy == tc.typeOf(exp->arg(2)))
     return mapTy;
 
   return sort::errorTy(exp->efac());

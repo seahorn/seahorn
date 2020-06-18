@@ -22,7 +22,7 @@ using namespace expr::op;
 class ENode;
 class ExprFactory;
 class ExprFactoryAllocator;
-class TypeCheckerHelper;
+class TypeChecker;
 
 using Expr = boost::intrusive_ptr<ENode>;
 using ExprSet = std::set<Expr>;
@@ -89,7 +89,7 @@ public:
   virtual Operator *clone(ExprFactoryAllocator &allocator) const = 0;
   virtual std::string name() const = 0;
   /// \brief Returns the type of the expression 
-  virtual Expr inferType(Expr exp, TypeCheckerHelper &helper) const = 0;
+  virtual Expr inferType(Expr exp, TypeChecker &tc) const = 0;
 };
 
 inline std::ostream &operator<<(std::ostream &OS, const Operator &V) {

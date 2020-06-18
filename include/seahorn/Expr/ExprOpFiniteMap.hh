@@ -50,24 +50,24 @@ namespace finiteMapType {
 struct ValuesKeys {
   /// ensures that all children are the same type
   /// \return the type of its children
-  static inline Expr inferType(Expr exp, TypeCheckerHelper &helper) {
-    auto returnFn = [](Expr exp, TypeCheckerHelper &helper) {
-      return helper.typeOf(exp->first());
+  static inline Expr inferType(Expr exp, TypeChecker &tc) {
+    auto returnFn = [](Expr exp, TypeChecker &tc) {
+      return tc.typeOf(exp->first());
     };
 
     return typeCheck::oneOrMore<ANY_TY>(
-        exp, helper, returnFn); // children can by of any type
+        exp, tc, returnFn); // children can by of any type
   }
 };
 struct ValuesDefault {
   /// ensures that there is 1 child
   /// \return the type of its child
-  static inline Expr inferType(Expr exp, TypeCheckerHelper &helper) {
-    auto returnFn = [](Expr exp, TypeCheckerHelper &helper) {
-      return helper.typeOf(exp->first());
+  static inline Expr inferType(Expr exp, TypeChecker &tc) {
+    auto returnFn = [](Expr exp, TypeChecker &tc) {
+      return tc.typeOf(exp->first());
     };
 
-    return typeCheck::unary<ANY_TY>(exp, helper,
+    return typeCheck::unary<ANY_TY>(exp, tc,
                                     returnFn); // children can by of any type
   }
 };
@@ -75,7 +75,7 @@ struct ValuesDefault {
 struct FiniteMap {
   /// ensures that the left child is a valid key type, and right is a valid value
   /// \return: FINITE_MAP_TY
-  static inline Expr inferType(Expr exp, TypeCheckerHelper &helper) {
+  static inline Expr inferType(Expr exp, TypeChecker &tc) {
     if (exp->arity() != 2)
       return sort::errorTy(exp->efac());
 
@@ -95,21 +95,21 @@ struct FiniteMap {
     }
 
     ExprVector keyVector(keys->args_begin(), keys->args_end());
-    return sort::finiteMapTy(helper.typeOf(vals), keyVector);
+    return sort::finiteMapTy(tc.typeOf(vals), keyVector);
   }
 };
 
-static inline bool checkMap(Expr exp, TypeCheckerHelper &helper,
+static inline bool checkMap(Expr exp, TypeChecker &tc,
                             unsigned numChildren) {
   return exp->arity() == numChildren &&
-         correctTypeAny<FINITE_MAP_TY>(exp->first(), helper);
+         correctTypeAny<FINITE_MAP_TY>(exp->first(), tc);
 }
 
-static inline void getFiniteMapTypes(Expr exp, TypeCheckerHelper &helper,
+static inline void getFiniteMapTypes(Expr exp, TypeChecker &tc,
                                      Expr &mapTy, Expr &indexTy, Expr &valTy) {
-  mapTy = helper.typeOf(exp->left());
+  mapTy = tc.typeOf(exp->left());
   indexTy =
-      helper.typeOf(sort::finiteMapKeyTy(mapTy)
+      tc.typeOf(sort::finiteMapKeyTy(mapTy)
                         ->first()); // type of: FINITE_MAP_KEYS_TY -> first key
   valTy = sort::finiteMapValTy(mapTy);
 }
@@ -119,8 +119,8 @@ struct Get {
   /// checks for the following children (in order): map, index
   /// \return the map's value type
   /// \note this is the same as array select
-  static inline Expr inferType(Expr exp, TypeCheckerHelper &helper) {
-    return typeCheck::mapType::select<FINITE_MAP_TY>(exp, helper,
+  static inline Expr inferType(Expr exp, TypeChecker &tc) {
+    return typeCheck::mapType::select<FINITE_MAP_TY>(exp, tc,
                                                      getFiniteMapTypes);
   }
 };
@@ -130,8 +130,8 @@ struct Set {
   /// checks for the following children (in order): map, index, value
   /// \return FINITE_MAP_TY
   /// \note this is the same as array store
-  static inline Expr inferType(Expr exp, TypeCheckerHelper &helper) {
-    return typeCheck::mapType::store<FINITE_MAP_TY>(exp, helper,
+  static inline Expr inferType(Expr exp, TypeChecker &tc) {
+    return typeCheck::mapType::store<FINITE_MAP_TY>(exp, tc,
                                                     getFiniteMapTypes);
   }
 };

@@ -21,7 +21,7 @@ class TCVR {
   // for example, (bool && (int || int )) will map to (int || int)
   ExprMap m_errorMap;
 
-  TypeCheckerHelper *const m_helper;
+  TypeChecker *const m_tc;
 
   // Keeps track of the expression that the typechecker is called with.
   // The expression is done traversing when it reaches the top most expression
@@ -49,7 +49,7 @@ class TCVR {
   Expr postVisit(Expr exp) {
     LOG("tc", llvm::errs() << "post visiting expression: " << *exp << "\n";);
 
-    Expr type = m_isWellFormed ? exp->op().inferType(exp, *m_helper)
+    Expr type = m_isWellFormed ? exp->op().inferType(exp, *m_tc)
                                : sort::errorTy(exp->efac());
 
     m_cache.insert({exp, type});
@@ -63,8 +63,8 @@ class TCVR {
   }
 
 public:
-  TCVR(TypeCheckerHelper *helper)
-      : m_isWellFormed(true), m_helper(helper), m_topMost(Expr()) {}
+  TCVR(TypeChecker *tc)
+      : m_isWellFormed(true), m_tc(tc), m_topMost(Expr()) {}
 
   /// Called before children are visited
   /// Returns false to skip visiting children
@@ -112,7 +112,7 @@ class TCV : public std::unary_function<Expr, VisitAction> {
   std::shared_ptr<TCVR> m_rw;
 
 public:
-  TCV(TypeCheckerHelper *helper) : m_rw(std::make_shared<TCVR>(helper)) {}
+  TCV(TypeChecker *tc) : m_rw(std::make_shared<TCVR>(tc)) {}
   VisitAction operator()(Expr exp) {
     if (m_rw->preVisit(exp))
       return VisitAction::changeDoKidsRewrite(exp, m_rw);
@@ -129,11 +129,11 @@ public:
 } // namespace
 
 namespace expr {
-class TypeCheckerHelper::Impl {
+class TypeChecker::Impl {
   TCV m_visitor;
 
 public:
-  Impl(TypeCheckerHelper *helper) : m_visitor(helper) {}
+  Impl(TypeChecker *tc) : m_visitor(tc) {}
 
   Expr typeOf(Expr e) {
     Expr v = visit(m_visitor, e);
@@ -144,16 +144,16 @@ public:
   Expr getErrorExp() { return m_visitor.getErrorExp(); }
 };
 
-TypeCheckerHelper::TypeCheckerHelper()
-    : m_impl(new TypeCheckerHelper::Impl(this)) {}
-TypeCheckerHelper::~TypeCheckerHelper() { delete m_impl; }
-Expr TypeCheckerHelper::typeOf(Expr e) { return m_impl->typeOf(e); }
-Expr TypeCheckerHelper::getErrorExp() { return m_impl->getErrorExp(); }
+TypeChecker::TypeChecker()
+    : m_impl(new TypeChecker::Impl(this)) {}
+TypeChecker::~TypeChecker() { delete m_impl; }
+Expr TypeChecker::typeOf(Expr e) { return m_impl->typeOf(e); }
+Expr TypeChecker::getErrorExp() { return m_impl->getErrorExp(); }
 
-TypeChecker::TypeChecker() {}
-Expr TypeChecker::typeOf(Expr e) { return m_helper.typeOf(e); }
+// TypeChecker::TypeChecker() {}
+// Expr TypeChecker::typeOf(Expr e) { return m_tc.typeOf(e); }
 
-// to be called after typeOf() or sortOf()
-Expr TypeChecker::getErrorExp() { return m_helper.getErrorExp(); }
+// // to be called after typeOf() or sortOf()
+// Expr TypeChecker::getErrorExp() { return m_tc.getErrorExp(); }
 
 } // namespace expr

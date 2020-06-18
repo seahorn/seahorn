@@ -52,7 +52,7 @@ template <> struct TerminalTrait<op::bind::BoundVar> {
 
   static TerminalKind getKind() { return TerminalKind::BVAR; }
   static std::string name() { return "bind::BoundVar"; }
-  static inline Expr inferType(Expr exp, TypeCheckerHelper &helper) {
+  static inline Expr inferType(Expr exp, TypeChecker &tc) {
     return sort::bvarTerminalTy(exp->efac());
   }
 };
@@ -131,7 +131,7 @@ struct BINDER {
 namespace typeCheck {
 namespace bindType {
 
-static inline bool binderCheck(Expr exp, TypeCheckerHelper &helper,
+static inline bool binderCheck(Expr exp, TypeChecker &tc,
                                ExprVector &boundTypes) {
   if (exp->arity() == 0)
     return false;
@@ -142,7 +142,7 @@ static inline bool binderCheck(Expr exp, TypeCheckerHelper &helper,
     if (!op::bind::IsConst()(*b))
       return false;
 
-    Expr type = helper.typeOf(*b);
+    Expr type = tc.typeOf(*b);
     boundTypes.push_back(type);
   }
 
@@ -155,13 +155,13 @@ struct Lambda {
   /// \return FUNCTIONAL_TY
   /// for example, for the expression lambda a, b, c ... :: body, the return
   /// type is FUNCTIONAL_TY(typeOf(a), typeOf(b), ... , typeOf(body))
-  static inline Expr inferType(Expr exp, TypeCheckerHelper &helper) {
+  static inline Expr inferType(Expr exp, TypeChecker &tc) {
     ExprVector boundTypes;
-    if (!binderCheck(exp, helper, boundTypes))
+    if (!binderCheck(exp, tc, boundTypes))
       return sort::errorTy(exp->efac());
 
     Expr body = exp->last();
-    boundTypes.push_back(helper.typeOf(body));
+    boundTypes.push_back(tc.typeOf(body));
 
     return mknary<FUNCTIONAL_TY>(boundTypes);
   }
@@ -172,11 +172,11 @@ struct Quantifier {
   ///  2. the body type is BOOL_TY
   /// \note does not check bound variables
   /// \return BOOL_TY
-  static inline Expr inferType(Expr exp, TypeCheckerHelper &helper) {
+  static inline Expr inferType(Expr exp, TypeChecker &tc) {
     ExprVector boundTypes;
     Expr body = exp->last();
-    if (!(binderCheck(exp, helper, boundTypes) &&
-          isOp<BOOL_TY>(helper.typeOf(body))))
+    if (!(binderCheck(exp, tc, boundTypes) &&
+          isOp<BOOL_TY>(tc.typeOf(body))))
       return sort::errorTy(exp->efac());
 
     return sort::boolTy(exp->efac());

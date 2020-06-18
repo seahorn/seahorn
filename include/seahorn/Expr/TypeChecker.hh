@@ -4,23 +4,6 @@
 
 namespace expr {
 
-class TypeChecker;
-
-class TypeCheckerHelper {
-  friend class TypeChecker;
-
-  class Impl;
-  Impl *m_impl;
-
-  TypeCheckerHelper();
-  ~TypeCheckerHelper();
-
-public:
-  Expr typeOf(Expr e);
-  Expr getErrorExp();
-
-};
-
 /**
  * \class TypeChecker checks if an expression is well-formed and finds the type
  * of the expression
@@ -37,10 +20,12 @@ public:
  *
  */
 class TypeChecker {
-  TypeCheckerHelper m_helper;
+  class Impl;
+  Impl *m_impl;
 
 public:
   TypeChecker();
+  ~TypeChecker();
 
   /**
    * \see typeOf(Expr e);

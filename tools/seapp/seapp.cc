@@ -345,6 +345,7 @@ int main(int argc, char **argv) {
   llvm::initializeCallGraphViewerPass(Registry);
   // XXX: not sure if needed anymore
   llvm::initializeGlobalsAAWrapperPassPass(Registry);
+  llvm::initializeAllocWrapInfoPass(Registry);
 
   llvm::initializeCompleteCallGraphPass(Registry);
 

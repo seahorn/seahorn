@@ -1,83 +1,92 @@
 #ifndef PREDICATE_ABSTRACTION__HH_
 #define PREDICATE_ABSTRACTION__HH_
 
-#include "llvm/Pass.h"
-#include "llvm/IR/Module.h"
+#include "seahorn/GuessCandidates.hh"
 #include "seahorn/HornClauseDB.hh"
-#include "seahorn/HornifyModule.hh"
 #include "seahorn/HornDbModel.hh"
 #include "seahorn/HornModelConverter.hh"
-#include "seahorn/GuessCandidates.hh"
+#include "seahorn/HornifyModule.hh"
+#include "llvm/IR/Module.h"
+#include "llvm/Pass.h"
 
 #include "seahorn/Expr/Expr.hh"
 #include "seahorn/Expr/Smt/EZ3.hh"
 #include "seahorn/HornClauseDBWto.hh"
 
-namespace seahorn
-{
-	using namespace llvm;
+namespace seahorn {
+using namespace llvm;
 
-	class PredAbsHornModelConverter : public HornModelConverter
-	{
-	private:
-		std::map<Expr, ExprMap> m_relToBoolToTermMap;
-		std::map<Expr, Expr> m_newToOldPredMap;
-		HornClauseDB* m_abs_db;
+class PredAbsHornModelConverter : public HornModelConverter {
+private:
+  std::map<Expr, ExprMap> m_relToBoolToTermMap;
+  std::map<Expr, Expr> m_newToOldPredMap;
+  HornClauseDB *m_abs_db;
 
-		std::map<Expr, ExprMap>& getRelToBoolToTermMap() {return m_relToBoolToTermMap;}
-	public:
-		PredAbsHornModelConverter() {}
-		virtual ~PredAbsHornModelConverter() {}
-		bool convert (HornDbModel &in, HornDbModel &out);
+  std::map<Expr, ExprMap> &getRelToBoolToTermMap() {
+    return m_relToBoolToTermMap;
+  }
 
-		void addRelToBoolToTerm(Expr rel, ExprMap &boolToTermMap) {m_relToBoolToTermMap.insert(std::make_pair(rel, boolToTermMap));}
-		void setNewToOldPredMap(std::map<Expr, Expr> &newToOldMap) {m_newToOldPredMap = newToOldMap;}
-		void setAbsDB(HornClauseDB &db) {m_abs_db = &db;}
-	};
+public:
+  PredAbsHornModelConverter() {}
+  virtual ~PredAbsHornModelConverter() {}
+  bool convert(HornDbModel &in, HornDbModel &out);
 
-	class PredicateAbstractionAnalysis
-	{
-	private:
-	    std::map<Expr, Expr> m_oldToNewPredMap;
-	    std::map<Expr, Expr> m_newToOldPredMap;
-	    std::map<Expr, ExprVector> m_currentCandidates;
+  void addRelToBoolToTerm(Expr rel, ExprMap &boolToTermMap) {
+    m_relToBoolToTermMap.insert(std::make_pair(rel, boolToTermMap));
+  }
+  void setNewToOldPredMap(std::map<Expr, Expr> &newToOldMap) {
+    m_newToOldPredMap = newToOldMap;
+  }
+  void setAbsDB(HornClauseDB &db) { m_abs_db = &db; }
+};
 
-	    HornifyModule& m_hm;
+class PredicateAbstractionAnalysis {
+private:
+  std::map<Expr, Expr> m_oldToNewPredMap;
+  std::map<Expr, Expr> m_newToOldPredMap;
+  std::map<Expr, ExprVector> m_currentCandidates;
 
-	public:
-	    PredicateAbstractionAnalysis(HornifyModule &hm) : m_hm(hm) {}
-	    ~PredicateAbstractionAnalysis() {}
+  HornifyModule &m_hm;
 
-		void guessCandidate(HornClauseDB &db);
+public:
+  PredicateAbstractionAnalysis(HornifyModule &hm) : m_hm(hm) {}
+  ~PredicateAbstractionAnalysis() {}
 
-		Expr applyArgsToBvars(Expr cand, Expr fapp, std::map<Expr, ExprVector> currentCandidates);
-		ExprMap getBvarsToArgsMap(Expr fapp, std::map<Expr, ExprVector> currentCandidates);
+  void guessCandidate(HornClauseDB &db);
 
-		void generateAbstractDB(HornClauseDB &db, HornClauseDB &new_DB, PredAbsHornModelConverter &converter);
-		void generateAbstractRelations(HornClauseDB &db, HornClauseDB &new_DB, PredAbsHornModelConverter &converter);
-		void generateAbstractRules(HornClauseDB &db, HornClauseDB &new_DB, PredAbsHornModelConverter &converter);
-		void generateAbstractQueries(HornClauseDB &db, HornClauseDB &new_DB);
-	};
+  Expr applyArgsToBvars(Expr cand, Expr fapp,
+                        std::map<Expr, ExprVector> currentCandidates);
+  ExprMap getBvarsToArgsMap(Expr fapp,
+                            std::map<Expr, ExprVector> currentCandidates);
 
-	class PredicateAbstraction : public llvm::ModulePass
-	{
-	public:
-	    static char ID;
+  void generateAbstractDB(HornClauseDB &db, HornClauseDB &new_DB,
+                          PredAbsHornModelConverter &converter);
+  void generateAbstractRelations(HornClauseDB &db, HornClauseDB &new_DB,
+                                 PredAbsHornModelConverter &converter);
+  void generateAbstractRules(HornClauseDB &db, HornClauseDB &new_DB,
+                             PredAbsHornModelConverter &converter);
+  void generateAbstractQueries(HornClauseDB &db, HornClauseDB &new_DB);
+};
 
-	    PredicateAbstraction() : ModulePass(ID) {}
-	    virtual ~PredicateAbstraction() {}
-	    void releaseMemory () {m_fp.reset (nullptr);}
-	    virtual bool runOnModule (Module &M);
-	    virtual void getAnalysisUsage (AnalysisUsage &AU) const;
-	    virtual StringRef getPassName () const {return "PredicateAbstraction";}
+class PredicateAbstraction : public llvm::ModulePass {
+public:
+  static char ID;
 
-	    ZFixedPoint<EZ3>& getZFixedPoint () {return *m_fp;}
+  PredicateAbstraction() : ModulePass(ID) {}
+  virtual ~PredicateAbstraction() {}
+  void releaseMemory() { m_fp.reset(nullptr); }
+  virtual bool runOnModule(Module &M);
+  virtual void getAnalysisUsage(AnalysisUsage &AU) const;
+  virtual StringRef getPassName() const { return "PredicateAbstraction"; }
 
-	    void printInvars(Function &F, HornDbModel &origModel);
-	    void printInvars(Module &M, HornDbModel &origModel);
-	private:
-	    std::unique_ptr<ZFixedPoint <EZ3> >  m_fp;
-	};
-}
+  ZFixedPoint<EZ3> &getZFixedPoint() { return *m_fp; }
+
+  void printInvars(Function &F, HornDbModel &origModel);
+  void printInvars(Module &M, HornDbModel &origModel);
+
+private:
+  std::unique_ptr<ZFixedPoint<EZ3>> m_fp;
+};
+} // namespace seahorn
 
 #endif

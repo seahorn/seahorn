@@ -36,9 +36,9 @@
 #include "seahorn/Support/SeaDebug.h"
 #include "seahorn/Support/SeaLog.hh"
 
+#include "seahorn/BvOpSem.hh"
 #include "seahorn/ClpOpSem.hh"
 #include "seahorn/UfoOpSem.hh"
-#include "seahorn/BvOpSem.hh"
 
 using namespace llvm;
 using namespace seahorn;

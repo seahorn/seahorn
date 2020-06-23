@@ -1,13 +1,13 @@
 #include "seahorn/HornifyFunction.hh"
+#include "seahorn/Expr/ExprLlvm.hh"
 #include "seahorn/LiveSymbols.hh"
 #include "seahorn/Support/CFG.hh"
-#include "seahorn/Expr/ExprLlvm.hh"
 #include "seahorn/Support/ExprSeahorn.hh"
 #include "seahorn/Support/Stats.hh"
 
+#include "seahorn/Support/SeaDebug.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/FileSystem.h"
-#include "seahorn/Support/SeaDebug.h"
 
 static llvm::cl::opt<bool>
     ReduceFalse("horn-reduce-constraints",
@@ -386,7 +386,8 @@ void LargeHornifyFunction::runOnFunction(Function &F) {
           if (!bind::isFapp(e) || isConst(e))
             smt.assertExpr(e);
         }
-        LOG("reduce",
+        LOG(
+            "reduce",
 
             std::error_code EC;
             raw_fd_ostream file("/tmp/edge.smt2", EC, sys::fs::F_Text);

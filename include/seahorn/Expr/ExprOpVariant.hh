@@ -51,7 +51,7 @@ static inline Expr checkVariant(Expr exp, TypeChecker &tc) {
 
 struct Variant {
   static inline Expr inferType(Expr exp, TypeChecker &tc) {
-    return checkVariant <UINT_TERMINAL_TY> (exp, tc);
+    return checkVariant <INT_TY> (exp, tc);
   }
 };
 

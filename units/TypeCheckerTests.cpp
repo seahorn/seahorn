@@ -279,9 +279,8 @@ TEST_CASE("numWellFormed.test") {
   // -- manages expressions
   ExprFactory efac;
 
-  Expr uintSort = sort::uintTerminalTy(efac);
-  Expr mpqSort = sort::mpqTerminalTy(efac);
-  Expr mpzSort = sort::mpzTerminalTy(efac);
+  Expr intSort = sort::intTy(efac);
+  Expr realSort = sort::realTy(efac);
 
   Expr aUint = mkTerm<unsigned>(5, efac);
   Expr bUint = mkTerm<unsigned>(20, efac);
@@ -292,6 +291,10 @@ TEST_CASE("numWellFormed.test") {
   Expr aMPZ = mkTerm<mpz_class>(20, efac);
   Expr bMPZ = mkTerm<mpz_class>(99, efac);
 
+  Expr aInt = intConst("aInt", efac);
+
+  Expr aReal = realConst("aReal", efac);
+
   std::vector<Expr> e;
   Expr temp;
 
@@ -301,22 +304,26 @@ TEST_CASE("numWellFormed.test") {
   temp = mk<UN_MINUS>(bUint, bUint, e.back());
   e.push_back(temp);
 
-  checkWellFormed(e, uintSort);
-  e.clear();
-
-  temp = mk<ITV>(aMPQ, bMPQ);
-  e.push_back(temp);
-
-  checkWellFormed(e, mpqSort);
-  e.clear();
-
   temp = mk<REM>(aMPZ, bMPZ);
   e.push_back(temp);
 
   temp = mk<MULT>(e.back(), mk<ABS>(e.back()), mk<ABS>(e.back()));
   e.push_back(temp);
 
-  checkWellFormed(e, mpzSort);
+  temp = mk<PLUS>(aUint, aMPZ, aInt);
+  e.push_back(temp);
+
+  checkWellFormed(e, intSort);
+  e.clear();
+
+  temp = mk<ITV>(aMPQ, bMPQ);
+  e.push_back(temp);
+
+  temp = mk<MINUS>(aMPQ, aReal);
+  e.push_back(temp);
+
+  checkWellFormed(e, realSort);
+  e.clear();
 }
 
 TEST_CASE("numNotWellFormed.test") {
@@ -361,6 +368,10 @@ TEST_CASE("numNotWellFormed.test") {
   error.push_back(tempError);
 
   tempError = mk<MINUS>(aMPZ);
+  error.push_back(tempError);
+  e.push_back(tempError);
+
+  tempError = mk<GT>(aMPQ, aMPZ); // REAL > INT, types do not match
   error.push_back(tempError);
   e.push_back(tempError);
 

@@ -180,4 +180,4 @@ struct Any {
 } // namespace op
 } // namespace expr
 
-#define NUM_TYPES INT_TY, REAL_TY, UNINT_TY, UINT_TERMINAL_TY, MPQ_TERMINAL_TY, MPZ_TERMINAL_TY
+#define NUM_TYPES INT_TY, REAL_TY, UNINT_TY

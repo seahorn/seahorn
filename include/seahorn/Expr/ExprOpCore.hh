@@ -12,11 +12,9 @@ namespace typeCheck {
 struct Any;
 } // namespace typeCheck
 namespace sort {
-Expr terminalTy(ExprFactory &efac);
 Expr stringTerminalTy(ExprFactory &efac);
-Expr uintTerminalTy(ExprFactory &efac);
-Expr mpzTerminalTy(ExprFactory &efac);
-Expr mpqTerminalTy(ExprFactory &efac);
+Expr intTy(ExprFactory &efac);
+Expr realTy(ExprFactory &efac);
 } // namespace sort
 } // namespace op
 
@@ -177,7 +175,7 @@ template <> struct TerminalTrait<unsigned int> {
   static TerminalKind getKind() { return TerminalKind::UINT; }
   static std::string name() { return "unsigned int"; }
   static inline Expr inferType(Expr exp, TypeChecker &tc) {
-    return sort::uintTerminalTy(exp->efac());
+    return sort::intTy(exp->efac());
   }
 };
 
@@ -210,7 +208,7 @@ template <> struct TerminalTrait<expr::mpz_class> {
   static TerminalKind getKind() { return TerminalKind::MPZ; }
   static std::string name() { return "expr::mpz_class"; }
   static inline Expr inferType(Expr exp, TypeChecker &tc) {
-    return sort::mpzTerminalTy(exp->efac());
+    return sort::intTy(exp->efac());
   }
 };
 
@@ -239,7 +237,7 @@ template <> struct TerminalTrait<expr::mpq_class> {
   static TerminalKind getKind() { return TerminalKind::MPQ; }
   static std::string name() { return "expr::mpq_class"; }
   static inline Expr inferType(Expr exp, TypeChecker &tc) {
-    return sort::mpqTerminalTy(exp->efac());
+    return sort::realTy(exp->efac());
   }
 };
 

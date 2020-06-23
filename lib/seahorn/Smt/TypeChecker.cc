@@ -148,10 +148,4 @@ TypeChecker::~TypeChecker() { delete m_impl; }
 Expr TypeChecker::typeOf(Expr e) { return m_impl->typeOf(e); }
 Expr TypeChecker::getErrorExp() { return m_impl->getErrorExp(); }
 
-// TypeChecker::TypeChecker() {}
-// Expr TypeChecker::typeOf(Expr e) { return m_tc.typeOf(e); }
-
-// // to be called after typeOf() or sortOf()
-// Expr TypeChecker::getErrorExp() { return m_tc.getErrorExp(); }
-
 } // namespace expr

@@ -11,6 +11,7 @@ static const unsigned int g_slotBitWidth = 64;
 static const unsigned int g_slotByteWidth = g_slotBitWidth / 8;
 
 static const unsigned int g_uninit = 0xDEADBEEF;
+static const unsigned int g_num_slots = 2;
 
 namespace seahorn {
 namespace details {
@@ -57,7 +58,7 @@ public:
     explicit PtrTyImpl(const Expr &e) {
       // Our ptr is a struct of two exprs
       assert(strct::isStructVal(e));
-      assert(e->arity() == 2);
+      assert(e->arity() == g_num_slots);
       m_v = e;
     }
 
@@ -84,7 +85,7 @@ public:
     explicit MemValTyImpl(const Expr &e) {
       // Our ptr is a struct of two exprs
       assert(strct::isStructVal(e));
-      assert(e->arity() == 2);
+      assert(e->arity() == g_num_slots);
       m_v = e;
     }
 
@@ -338,6 +339,26 @@ public:
 
   MemValTy storeIntToMem(Expr _val, PtrTy ptr, MemValTy mem,
                          unsigned int byteSz, uint64_t align) {
+    if (strct::isStructVal(_val)) {
+      // LLVM can sometimes cast a ptr to int without ptrtoint
+      // In such cases our VM will interpret the int rightly as a struct
+      if (_val->arity() == g_num_slots) {
+        LOG("opsem", WARN << "fixing: int is actually a struct, unpacking "
+                             "before store\n");
+        auto raw_val = strct::extractVal(_val, 0);
+        auto size_val = strct::extractVal(_val, 1);
+        return MemValTy(m_main.storeIntToMem(raw_val, ptr.getRaw(),
+                                             mem.getRaw(), byteSz, align),
+                        m_size.storeIntToMem(size_val, ptr.getRaw(),
+                                             mem.getSize(), g_slotByteWidth,
+                                             align));
+
+      } else {
+        LOG("opsem", ERR << "fixing: int is a struct: expected arity "
+                         << g_num_slots << " but got " << _val->arity()
+                         << ".\n");
+      }
+    }
     return MemValTy(
         m_main.storeIntToMem(_val, ptr.getRaw(), mem.getRaw(), byteSz, align),
         mem.getSize());
@@ -494,7 +515,8 @@ public:
       return conc_size >= numBytes ? m_ctx.alu().getTrue()
                                    : m_ctx.alu().getFalse();
     } else {
-      return m_ctx.alu().doSge(p.getSize(), byteSz, g_slotBitWidth);
+      return m_ctx.alu().doSge(p.getSize(), castWordSzToSlotSz(byteSz),
+                               g_slotBitWidth);
     }
   }
 
@@ -512,6 +534,19 @@ public:
     } else {
       LOG("opsem", WARN << "widemem: Casting ptrSz to slotSz - information may "
                            "be lost!\n");
+      return m_ctx.alu().doTrunc(val, g_slotBitWidth);
+    }
+  }
+
+  Expr castWordSzToSlotSz(const Expr val) const {
+    if (wordSzInBits() == g_slotBitWidth) {
+      return val;
+    } else if (g_slotBitWidth > wordSzInBits()) {
+      return m_ctx.alu().doSext(val, g_slotBitWidth, wordSzInBits());
+    } else {
+      LOG("opsem",
+          WARN << "widemem: Casting wordSz to slotSz - information may "
+                  "be lost!\n");
       return m_ctx.alu().doTrunc(val, g_slotBitWidth);
     }
   }

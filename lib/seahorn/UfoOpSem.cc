@@ -8,10 +8,10 @@
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/FileSystem.h"
 
-#include "seahorn/Support/SeaDebug.h"
-#include "seahorn/Support/Stats.hh"
 #include "seahorn/Expr/ExprLlvm.hh"
 #include "seahorn/Expr/Smt/EZ3.hh"
+#include "seahorn/Support/SeaDebug.h"
+#include "seahorn/Support/Stats.hh"
 
 #include "seadsa/Global.hh"
 
@@ -193,8 +193,9 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
     if (op0 == op1)
       return trueE;
     if (isOpX<MPZ>(op0) && isOpX<MPZ>(op1))
-      return getTerm<expr::mpz_class>(op0) >= getTerm<expr::mpz_class>(op1) ? trueE
-        : falseE;
+      return getTerm<expr::mpz_class>(op0) >= getTerm<expr::mpz_class>(op1)
+                 ? trueE
+                 : falseE;
 
     return mk<GEQ>(op0, op1);
   }
@@ -203,7 +204,9 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
     if (op0 == op1)
       return falseE;
     if (isOpX<MPZ>(op0) && isOpX<MPZ>(op1))
-      return getTerm<expr::mpz_class>(op0) < getTerm<expr::mpz_class>(op1) ? trueE : falseE;
+      return getTerm<expr::mpz_class>(op0) < getTerm<expr::mpz_class>(op1)
+                 ? trueE
+                 : falseE;
 
     return mk<LT>(op0, op1);
   }
@@ -351,8 +354,8 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
           Expr rhs;
           if (isMask_32(ci->getZExtValue())) {
             uint64_t v = ci->getZExtValue();
-            rhs = mk<MOD>(
-                op0, mkTerm<expr::mpz_class>((unsigned long int)(v + 1), m_efac));
+            rhs = mk<MOD>(op0, mkTerm<expr::mpz_class>(
+                                   (unsigned long int)(v + 1), m_efac));
           }
 
           if (UseWrite)
@@ -693,7 +696,8 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
                   dyn_cast<const ConstantInt>(MSI->getValue())) {
             // XXX This is potentially unsound if the corresponding DSA
             // XXX node corresponds to multiple allocation sites
-            Expr val = mkTerm<expr::mpz_class>(expr::toMpz(c->getValue()), m_efac);
+            Expr val =
+                mkTerm<expr::mpz_class>(expr::toMpz(c->getValue()), m_efac);
             errs() << "WARNING: initializing DSA node due to memset()\n";
             if (m_uniq) {
               side(m_outMem, val);
@@ -1006,7 +1010,8 @@ Expr UfoOpSem::ptrArith(SymStore &s, GetElementPtrInst &gep) {
     if (const StructType *st = GTI.getStructTypeOrNull()) {
       if (const ConstantInt *ci =
               dyn_cast<const ConstantInt>(GTI.getOperand())) {
-        Expr off = mkTerm<expr::mpz_class>((unsigned long)fieldOff(st, ci->getZExtValue()), m_efac);
+        Expr off = mkTerm<expr::mpz_class>(
+            (unsigned long)fieldOff(st, ci->getZExtValue()), m_efac);
         res = mk<PLUS>(res, off);
       } else {
         assert(false);
@@ -1014,7 +1019,8 @@ Expr UfoOpSem::ptrArith(SymStore &s, GetElementPtrInst &gep) {
     } else {
       // otherwise we have a sequential type like an array or vector.
       // Multiply the index by the size of the indexed type.
-      Expr sz = mkTerm<expr::mpz_class>((unsigned long)storageSize(GTI.getIndexedType()), m_efac);
+      Expr sz = mkTerm<expr::mpz_class>(
+          (unsigned long)storageSize(GTI.getIndexedType()), m_efac);
       res = mk<PLUS>(res, mk<MULT>(lookup(s, *GTI.getOperand()), sz));
     }
   }
@@ -1221,18 +1227,20 @@ void UfoOpSem::execCallSite(CallSiteInfo &csi, ExprVector &side, SymStore &s) {
   if (fi.ret)
     csi.m_fparams.push_back(s.havoc(symb(I)));
 
-  LOG("arg_error", if (csi.m_fparams.size() !=
-                       bind::domainSz(fi.sumPred)){printCS(csi, fi);});
+  LOG(
+      "arg_error", if (csi.m_fparams.size() != bind::domainSz(fi.sumPred)) {
+        printCS(csi, fi);
+      });
 
   assert(csi.m_fparams.size() == bind::domainSz(fi.sumPred));
   side.push_back(bind::fapp(fi.sumPred, csi.m_fparams));
 }
 
-
 // ------------------------------------------------------------
 // MemUfoOpSem
 
-void MemUfoOpSem::execCallSite(CallSiteInfo &csi, ExprVector &side, SymStore &s) {
+void MemUfoOpSem::execCallSite(CallSiteInfo &csi, ExprVector &side,
+                               SymStore &s) {
 
   const FunctionInfo &fi = getFunctionInfo(*csi.m_cs.getCalledFunction());
 
@@ -1244,7 +1252,7 @@ void MemUfoOpSem::execCallSite(CallSiteInfo &csi, ExprVector &side, SymStore &s)
       errs() << " caller: " << callerF->getGlobalIdentifier(); errs() << "\n";);
 
   if (!ga.hasSummaryGraph(*calleeF)) {
-    UfoOpSem::execCallSite(csi,side,s);
+    UfoOpSem::execCallSite(csi, side, s);
     return;
   }
   processShadowMemsCallSite(csi);
@@ -1290,7 +1298,8 @@ void MemUfoOpSem::execCallSite(CallSiteInfo &csi, ExprVector &side, SymStore &s)
 
   Instruction &I = *csi.m_cs.getInstruction();
 
-  if (fi.ret) csi.m_fparams.push_back(s.havoc(symb(I)));
+  if (fi.ret)
+    csi.m_fparams.push_back(s.havoc(symb(I)));
 
   // place the new array name according to the literals generated for the copy
   for (auto it : m_tmprep_out) {
@@ -1315,8 +1324,10 @@ void MemUfoOpSem::execCallSite(CallSiteInfo &csi, ExprVector &side, SymStore &s)
     }
   }
 
-  LOG("arg_error", if (csi.m_fparams.size() !=
-                       bind::domainSz(fi.sumPred)){printCS(csi, fi);});
+  LOG(
+      "arg_error", if (csi.m_fparams.size() != bind::domainSz(fi.sumPred)) {
+        printCS(csi, fi);
+      });
 
   assert(csi.m_fparams.size() == bind::domainSz(fi.sumPred));
 
@@ -1340,9 +1351,9 @@ Expr MemUfoOpSem::getOrigArraySymbol(const Cell &c, ArrayOpt ao) {
     map = &m_orig_array_out;
 
   auto it = map->find({c.getNode(), getOffset(c)});
-  LOG("inter_mem", errs()
-      << "--> getArraySymbol\n"
-      << " " << c.getNode() << " " << getOffset(c) << "\n";);
+  LOG("inter_mem", errs() << "--> getArraySymbol\n"
+                          << " " << c.getNode() << " " << getOffset(c)
+                          << "\n";);
   assert(it != map->end()); // there should be an entry for that always
   // LOG("inter_mem", it->getSecond()->dump(); errs() << "\n";);
   return it->getSecond();
@@ -1356,7 +1367,7 @@ void MemUfoOpSem::addCIArraySymbol(CallInst *CI, Expr A, ArrayOpt ao) {
 
   auto opt_c = m_shadowDsa->getShadowMemCell(*CI);
   assert(opt_c.hasValue());
-  addArraySymbol(opt_c.getValue(),A,ao);
+  addArraySymbol(opt_c.getValue(), A, ao);
 }
 
 void MemUfoOpSem::addArraySymbol(const Cell &c, Expr A, ArrayOpt ao) {
@@ -1368,7 +1379,7 @@ void MemUfoOpSem::addArraySymbol(const Cell &c, Expr A, ArrayOpt ao) {
 
   LOG("inter_mem", errs() << "<-- addArraySymbol "; A->dump();
       errs() << "\n"
-      << " " << c.getNode() << " " << getOffset(c) << "\n";);
+             << " " << c.getNode() << " " << getOffset(c) << "\n";);
   map->insert({{c.getNode(), getOffset(c)}, A});
 }
 
@@ -1439,11 +1450,10 @@ void MemUfoOpSem::newTmpArraySymbol(const Cell &c, Expr &currE, Expr &newE,
 }
 
 void MemUfoOpSem::VCgenArg(const Cell &c_arg_callee, Expr base_ptr,
-                              NodeSet &unsafeCallerNodes,
-                              SimulationMapper &sm, ExprVector &side) {
+                           NodeSet &unsafeCallerNodes, SimulationMapper &sm,
+                           ExprVector &side) {
   NodeSet explored;
-  recVCGenMem(c_arg_callee, base_ptr, unsafeCallerNodes, sm, explored,
-              side);
+  recVCGenMem(c_arg_callee, base_ptr, unsafeCallerNodes, sm, explored, side);
 }
 
 void MemUfoOpSem::recVCGenMem(const Cell &c_callee, Expr ptr,
@@ -1505,7 +1515,8 @@ void MemUfoOpSem::recVCGenMem(const Cell &c_callee, Expr ptr,
     const Node *next_n = next_c.getNode();
 
     // obtain the name of the array that represents the field
-    Expr origA = getOrigArraySymbol(Cell(c_caller, f.getOffset()), ArrayOpt::IN);
+    Expr origA =
+        getOrigArraySymbol(Cell(c_caller, f.getOffset()), ArrayOpt::IN);
 
     if (explored.find(next_n) == explored.end()) { // not explored yet
       Expr offset = mkTerm<expr::mpz_class>(f.getOffset(), m_efac);
@@ -1518,27 +1529,26 @@ void MemUfoOpSem::recVCGenMem(const Cell &c_callee, Expr ptr,
 
 // stores the name(s) of the array(s) that represents every cell involved in the
 // CallSite
-void MemUfoOpSem::processShadowMemsCallSite(CallSiteInfo &csi){
+void MemUfoOpSem::processShadowMemsCallSite(CallSiteInfo &csi) {
 
   unsigned i = csi.m_fparams.size() - 1;
   Instruction *I = csi.m_cs.getInstruction()->getPrevNode();
 
   // traversing backwards the "shadow.mem.arg." annotations
   while (I != nullptr) {
-    CallInst * ci = nullptr;
+    CallInst *ci = nullptr;
     ci = dyn_cast<CallInst>(I);
     if (ci == nullptr)
       break;
 
-    Function * f_callee = ci->getCalledFunction();
+    Function *f_callee = ci->getCalledFunction();
     if (f_callee->getName().equals("shadow.mem.arg.ref"))
       addCIArraySymbol(ci, csi.m_fparams[i], ArrayOpt::IN);
-    else if (f_callee->getName().equals("shadow.mem.arg.mod")){
+    else if (f_callee->getName().equals("shadow.mem.arg.mod")) {
       addCIArraySymbol(ci, csi.m_fparams[i], ArrayOpt::OUT);
       i--;
       addCIArraySymbol(ci, csi.m_fparams[i], ArrayOpt::IN);
-    }
-    else if (f_callee->getName().equals("shadow.mem.arg.new"))
+    } else if (f_callee->getName().equals("shadow.mem.arg.new"))
       addCIArraySymbol(ci, csi.m_fparams[i], ArrayOpt::IN);
     else
       break;

@@ -11,6 +11,8 @@ static const unsigned int g_slotBitWidth = 64;
 static const unsigned int g_slotByteWidth = g_slotBitWidth / 8;
 
 static const unsigned int g_uninit = 0xDEADBEEF;
+static const unsigned int g_uninit_small = 0xDEAD;
+static const unsigned int g_num_slots = 3;
 
 namespace seahorn {
 namespace details {
@@ -63,7 +65,7 @@ public:
     explicit PtrTyImpl(const Expr &e) {
       // Our base is a struct of three exprs
       assert(strct::isStructVal(e));
-      assert(e->arity() == 3);
+      assert(e->arity() == g_num_slots);
       m_v = e;
     }
 
@@ -94,7 +96,7 @@ public:
     explicit MemValTyImpl(const Expr &e) {
       // Our base is a struct of three exprs
       assert(strct::isStructVal(e));
-      assert(e->arity() == 3);
+      assert(e->arity() == g_num_slots);
       m_v = e;
     }
 
@@ -361,8 +363,8 @@ public:
                        uint64_t align) {
     RawMemValTy rawVal = m_main.loadPtrFromMem(getAddressable(base),
                                                mem.getRaw(), byteSz, align);
-    Expr offsetVal = m_size.loadIntFromMem(getAddressable(base),
-                                           mem.getOffset(), byteSz, align);
+    Expr offsetVal = m_offset.loadIntFromMem(getAddressable(base),
+                                             mem.getOffset(), byteSz, align);
     Expr sizeVal = m_size.loadIntFromMem(getAddressable(base), mem.getSize(),
                                          g_slotByteWidth, align);
     return PtrTy(rawVal, offsetVal, sizeVal);
@@ -370,6 +372,29 @@ public:
 
   MemValTy storeIntToMem(Expr _val, PtrTy base, MemValTy mem,
                          unsigned int byteSz, uint64_t align) {
+    if (strct::isStructVal(_val)) {
+      // LLVM can sometimes cast a ptr to int without ptrtoint
+      // In such cases our VM will interpret the int rightly as a struct
+      if (_val->arity() == g_num_slots) {
+        LOG("opsem", WARN << "fixing: int is actually a struct, unpacking "
+                             "before store\n");
+        auto base_val = strct::extractVal(_val, 0);
+        auto offset_val = strct::extractVal(_val, 1);
+        auto size_val = strct::extractVal(_val, 2);
+        return MemValTy(m_main.storeIntToMem(base_val, getAddressable(base),
+                                             mem.getRaw(), byteSz, align),
+                        m_offset.storeIntToMem(offset_val, getAddressable(base),
+                                               mem.getOffset(), byteSz, align),
+                        m_size.storeIntToMem(size_val, getAddressable(base),
+                                             mem.getSize(), g_slotByteWidth,
+                                             align));
+
+      } else {
+        LOG("opsem", ERR << "fixing: int is a struct: expected arity "
+                         << g_num_slots << " but got " << _val->arity()
+                         << ".\n");
+      }
+    }
     return MemValTy(m_main.storeIntToMem(_val, getAddressable(base),
                                          mem.getRaw(), byteSz, align),
                     mem.getOffset(), mem.getSize());
@@ -379,8 +404,8 @@ public:
                          unsigned int byteSz, uint64_t align) {
     RawMemValTy main = m_main.storePtrToMem(val.getBase(), getAddressable(base),
                                             mem.getRaw(), byteSz, align);
-    Expr offset = m_size.storeIntToMem(val.getOffset(), getAddressable(base),
-                                       mem.getSize(), byteSz, align);
+    Expr offset = m_offset.storeIntToMem(val.getOffset(), getAddressable(base),
+                                         mem.getOffset(), byteSz, align);
     Expr size = m_size.storeIntToMem(val.getSize(), getAddressable(base),
                                      mem.getSize(), g_slotByteWidth, align);
     return MemValTy(main, offset, size);
@@ -431,7 +456,7 @@ public:
     ExprFactory &efac = base.v()->efac();
     // init memval to a default value
     MemValTy res(m_ctx.alu().si(0UL, wordSzInBits()),
-                 m_ctx.alu().si(0UL, wordSzInBits()), m_uninit_size);
+                 m_ctx.alu().si(g_uninit_small, wordSzInBits()), m_uninit_size);
     switch (ty.getTypeID()) {
     case Type::IntegerTyID:
       if (ty.getScalarSizeInBits() < byteSz * 8) {
@@ -474,7 +499,7 @@ public:
     return MemValTy(m_main.MemCpy(getAddressable(dPtr), getAddressable(sPtr),
                                   len, memTrsfrRead.getRaw(), align),
                     m_offset.MemCpy(getAddressable(dPtr), getAddressable(sPtr),
-                                    len, memTrsfrRead.getRaw(), align),
+                                    len, memTrsfrRead.getOffset(), align),
                     m_size.MemCpy(getAddressable(dPtr), getAddressable(sPtr),
                                   len, memTrsfrRead.getSize(), align));
   }

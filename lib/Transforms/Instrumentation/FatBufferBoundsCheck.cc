@@ -189,7 +189,13 @@ bool FatBufferBoundsCheck::instrument(Value *Ptr, Value *InstVal,
   }
 
   if (!ObjSizeEval->bothKnown(SizeOffset)) {
-
+    if (auto *GV = dyn_cast<GlobalVariable>(Ptr)) {
+      // stderr is usually external and ObjSizeEval refuses to determine its size
+      if (GV->getName().equals("stderr")) {
+        LOG("fat-bnd-check", errs() << "not instrumenting access to stderr\n";);
+        return false;
+      }
+    }
     if (UseFatSlots) {
       // -- skip anything that is globally allocated
       if (isa<llvm::GlobalValue>(Ptr->stripPointerCastsAndInvariantGroups())) {

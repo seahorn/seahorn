@@ -99,6 +99,8 @@ private:
   std::shared_ptr<EZ3> m_z3;
   std::shared_ptr<ZSimplifier<EZ3>> m_z3_simplifier;
 
+  bool m_shouldSimplify = false;
+
 public:
   /// \brief Create a new context with given semantics, values, and side
   Bv2OpSemContext(Bv2OpSem &sem, SymStore &values, ExprVector &side);
@@ -110,6 +112,11 @@ public:
   ~Bv2OpSemContext() override = default;
 
   EZ3 *getZ3() const { return m_z3.get(); }
+  std::shared_ptr<ZSimplifier<EZ3>> getSimplifier() { 
+    return m_z3_simplifier; 
+  }
+
+  bool shouldSimplify() { return m_shouldSimplify; }
 
   /// \brief Writes value \p u into symbolic register \p v
   void write(Expr v, Expr u);

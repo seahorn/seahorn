@@ -6,6 +6,9 @@
 #include "seahorn/Expr/ExprOpStruct.hh"
 #include "seahorn/Support/SeaDebug.h"
 #include "seahorn/Support/SeaLog.hh"
+#include "seahorn/Support/Stats.hh"
+
+#include <fstream>
 
 static const unsigned int g_slotBitWidth = 64;
 static const unsigned int g_slotByteWidth = g_slotBitWidth / 8;
@@ -544,6 +547,11 @@ public:
 
   Expr isDereferenceable(PtrTy p, Expr byteSz) {
     // size should be >= byteSz + offset
+    if (m_ctx.shouldSimplify()) {
+      ScopedStats _st_("opsem.simplify");
+      p = PtrTy(m_ctx.getSimplifier()->simplify(p.toExpr()));
+      byteSz = m_ctx.getSimplifier()->simplify(byteSz);
+    }
     if (m_ctx.alu().isNum(byteSz) && m_ctx.alu().isNum(p.getSize()) &&
         m_ctx.alu().isNum(p.getOffset())) {
       signed numBytes = m_ctx.alu().toNum(byteSz).get_si();
@@ -552,7 +560,6 @@ public:
       return conc_size >= numBytes + conc_offset ? m_ctx.alu().getTrue()
                                                  : m_ctx.alu().getFalse();
     } else {
-      // TODO: this addition can be concrete
       auto lastBytePos =
           m_ctx.alu().doAdd(byteSz, p.getOffset(), ptrSzInBits());
       return m_ctx.alu().doSge(p.getSize(), castPtrSzToSlotSz(lastBytePos),

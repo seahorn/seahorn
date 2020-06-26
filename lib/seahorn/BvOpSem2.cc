@@ -89,7 +89,7 @@ static llvm::cl::list<std::string> IgnoreExternalFunctions2(
         "These functions are not modeled as uninterpreted functions"),
     llvm::cl::ZeroOrMore, llvm::cl::CommaSeparated);
 
-static llvm::cl::opt<bool> SimplifyOnWrite(
+static llvm::cl::opt<bool> SimplifyExpr(
     "horn-bv2-simplify",
     llvm::cl::desc("Simplify expressions as they are written to memory"),
     llvm::cl::init(false));
@@ -530,7 +530,9 @@ public:
       auto *val = CS.getArgument(2);
       Expr symVal = lookup(*val);
       if (symVal && arg0 && arg1) {
-        res = m_ctx.alu().Extract({symVal, val->getType()->getScalarSizeInBits()}, arg0->getZExtValue(), arg1->getZExtValue());
+        res =
+            m_ctx.alu().Extract({symVal, val->getType()->getScalarSizeInBits()},
+                                arg0->getZExtValue(), arg1->getZExtValue());
       }
     } else if (f->getName().startswith("smt.concat.")) {
       LOG("opsem", WARN << "Not implemented yet";);
@@ -1765,6 +1767,13 @@ Bv2OpSemContext::Bv2OpSemContext(Bv2OpSem &sem, SymStore &values,
   zeroE = mkTerm<expr::mpz_class>(0UL, efac());
   oneE = mkTerm<expr::mpz_class>(1UL, efac());
 
+  m_z3.reset(new EZ3(efac()));
+  m_z3_simplifier.reset(new ZSimplifier<EZ3>(*m_z3));
+  auto &params = m_z3_simplifier->params();
+  params.set("ctrl_c", true);
+  if (SimplifyExpr) {
+    m_shouldSimplify = true;
+  }
   m_alu = mkBvOpSemAlu(*this);
   OpSemMemManager *mem = nullptr;
   if (UseFatMemory)
@@ -1794,48 +1803,12 @@ Bv2OpSemContext::Bv2OpSemContext(SymStore &values, ExprVector &side,
 }
 
 void Bv2OpSemContext::write(Expr v, Expr u) {
-  if (SimplifyOnWrite) {
+  if (shouldSimplify()) {
     ScopedStats _st_("opsem.simplify");
-    if (!m_z3) {
-      m_z3.reset(new EZ3(efac()));
-      m_z3_simplifier.reset(new ZSimplifier<EZ3>(*m_z3));
-      auto &params = m_z3_simplifier->params();
-      params.set("ctrl_c", true);
-      // params.set("local_ctx", true);
-      // params.set("elim_ite", false);
-      // params.set("timeout", 10000U /*ms*/);
-      // params.set("flat", false);
-      // params.set("ite_extra_rules", false /*default=false*/);
-      // Expr _u = z3_simplify(*m_z3, u, params);
-    }
 
     Expr _u;
+    _u = m_z3_simplifier->simplify(u);
 
-    if (strct::isStructVal(u)) {
-      llvm::SmallVector<Expr, 8> kids;
-      for (unsigned i = 0, sz = u->arity(); i < sz; ++i)
-        kids.push_back(m_z3_simplifier->simplify(u->arg(i)));
-      _u = strct::mk(kids);
-    } else {
-      _u = m_z3_simplifier->simplify(u);
-    }
-
-    LOG(
-        "opsem.simplify",
-        //
-        if (!isOpX<LAMBDA>(_u) && !isOpX<ITE>(_u) && dagSize(_u) > 100) {
-          errs() << "Term after simplification:\n"
-                 << m_z3->toSmtLib(_u) << "\n";
-        });
-
-    LOG(
-        "opsem.dump.subformulae",
-        if ((isOpX<EQ>(_u) || isOpX<NEG>(_u)) && dagSize(_u) > 100) {
-          static unsigned cnt = 0;
-          std::ofstream file("assert." + std::to_string(++cnt) + ".smt2");
-          file << m_z3->toSmtLibDecls(_u) << "\n";
-          file << "(assert " << m_z3->toSmtLib(_u) << ")\n";
-        });
     u = _u;
   }
   OpSemContext::write(v, u);

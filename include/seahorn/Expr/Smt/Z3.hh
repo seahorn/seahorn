@@ -494,20 +494,7 @@ public:
     Expr res = z3.toExpr(z3::ast(ctx, Z3_simplify_ex(ctx, ast, m_params)),
                          m_ast_to_expr);
     m_cache.insert({e, res});
-    LOG(
-        "simplify",
-        if (!isOpX<LAMBDA>(res) && !isOpX<ITE>(res) && dagSize(res) > 100) {
-          errs() << "Term after simplification:\n" << z3.toSmtLib(res) << "\n";
-        });
 
-    LOG(
-        "simplify.dump.subformulae",
-        if ((isOpX<EQ>(res) || isOpX<NEG>(res)) && dagSize(res) > 100) {
-          static unsigned cnt = 0;
-          std::ofstream file("assert." + std::to_string(++cnt) + ".smt2");
-          file << z3.toSmtLibDecls(res) << "\n";
-          file << "(assert " << z3.toSmtLib(res) << ")\n";
-        });
     return res;
   }
 

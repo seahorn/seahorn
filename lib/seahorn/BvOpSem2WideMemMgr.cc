@@ -509,13 +509,18 @@ public:
 
   Expr isDereferenceable(PtrTy p, Expr byteSz) {
     // size should be >= byteSz
-    if (m_ctx.alu().isNum(byteSz) && m_ctx.alu().isNum(p.getSize())) {
+    auto ptr_size = p.getSize();
+    if (m_ctx.shouldSimplify()) {
+      ptr_size = m_ctx.simplify(p.getSize());
+      byteSz = m_ctx.simplify(byteSz);
+    }
+    if (m_ctx.alu().isNum(byteSz) && m_ctx.alu().isNum(ptr_size)) {
       signed numBytes = m_ctx.alu().toNum(byteSz).get_si();
-      signed conc_size = m_ctx.alu().toNum(p.getSize()).get_si();
+      signed conc_size = m_ctx.alu().toNum(ptr_size).get_si();
       return conc_size >= numBytes ? m_ctx.alu().getTrue()
                                    : m_ctx.alu().getFalse();
     } else {
-      return m_ctx.alu().doSge(p.getSize(), castWordSzToSlotSz(byteSz),
+      return m_ctx.alu().doSge(ptr_size, castWordSzToSlotSz(byteSz),
                                g_slotBitWidth);
     }
   }

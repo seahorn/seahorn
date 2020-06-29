@@ -547,22 +547,24 @@ public:
 
   Expr isDereferenceable(PtrTy p, Expr byteSz) {
     // size should be >= byteSz + offset
+    auto ptr_size = p.getSize();
+    auto ptr_offset = p.getOffset();
+
     if (m_ctx.shouldSimplify()) {
-      ScopedStats _st_("opsem.simplify");
-      p = PtrTy(m_ctx.getSimplifier()->simplify(p.toExpr()));
-      byteSz = m_ctx.getSimplifier()->simplify(byteSz);
+      ptr_size = m_ctx.simplify(p.getSize());
+      ptr_offset = m_ctx.simplify(p.getOffset());
+      byteSz = m_ctx.simplify(byteSz);
     }
-    if (m_ctx.alu().isNum(byteSz) && m_ctx.alu().isNum(p.getSize()) &&
-        m_ctx.alu().isNum(p.getOffset())) {
+    if (m_ctx.alu().isNum(byteSz) && m_ctx.alu().isNum(ptr_size) &&
+        m_ctx.alu().isNum(ptr_offset)) {
       signed numBytes = m_ctx.alu().toNum(byteSz).get_si();
-      signed conc_size = m_ctx.alu().toNum(p.getSize()).get_si();
-      signed conc_offset = m_ctx.alu().toNum(p.getOffset()).get_si();
+      signed conc_size = m_ctx.alu().toNum(ptr_size).get_si();
+      signed conc_offset = m_ctx.alu().toNum(ptr_offset).get_si();
       return conc_size >= numBytes + conc_offset ? m_ctx.alu().getTrue()
                                                  : m_ctx.alu().getFalse();
     } else {
-      auto lastBytePos =
-          m_ctx.alu().doAdd(byteSz, p.getOffset(), ptrSzInBits());
-      return m_ctx.alu().doSge(p.getSize(), castPtrSzToSlotSz(lastBytePos),
+      auto lastBytePos = m_ctx.alu().doAdd(byteSz, ptr_offset, ptrSzInBits());
+      return m_ctx.alu().doSge(ptr_size, castPtrSzToSlotSz(lastBytePos),
                                g_slotBitWidth);
     }
   }

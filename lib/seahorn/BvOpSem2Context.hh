@@ -112,9 +112,7 @@ public:
   ~Bv2OpSemContext() override = default;
 
   EZ3 *getZ3() const { return m_z3.get(); }
-  std::shared_ptr<ZSimplifier<EZ3>> getSimplifier() { 
-    return m_z3_simplifier; 
-  }
+  Expr simplify(Expr u);
 
   bool shouldSimplify() { return m_shouldSimplify; }
 

@@ -1771,9 +1771,7 @@ Bv2OpSemContext::Bv2OpSemContext(Bv2OpSem &sem, SymStore &values,
   m_z3_simplifier.reset(new ZSimplifier<EZ3>(*m_z3));
   auto &params = m_z3_simplifier->params();
   params.set("ctrl_c", true);
-  if (SimplifyExpr) {
-    m_shouldSimplify = true;
-  }
+  m_shouldSimplify = SimplifyExpr;
   m_alu = mkBvOpSemAlu(*this);
   OpSemMemManager *mem = nullptr;
   if (UseFatMemory)
@@ -1802,14 +1800,31 @@ Bv2OpSemContext::Bv2OpSemContext(SymStore &values, ExprVector &side,
   setPathCond(o.getPathCond());
 }
 
+Expr Bv2OpSemContext::simplify(Expr u) {
+  ScopedStats _st_("opsem.simplify");
+
+  Expr _u;
+  _u = m_z3_simplifier->simplify(u);
+  LOG(
+      "opsem.simplify",
+      if (!isOpX<LAMBDA>(_u) && !isOpX<ITE>(_u) && dagSize(_u) > 100) {
+        errs() << "Term after simplification:\n" << m_z3->toSmtLib(_u) << "\n";
+      });
+
+  LOG(
+      "opsem.dump.subformulae",
+      if ((isOpX<EQ>(_u) || isOpX<NEG>(_u)) && dagSize(_u) > 100) {
+        static unsigned cnt = 0;
+        std::ofstream file("assert." + std::to_string(++cnt) + ".smt2");
+        file << m_z3->toSmtLibDecls(_u) << "\n";
+        file << "(assert " << m_z3->toSmtLib(_u) << ")\n";
+      });
+  return _u;
+}
+
 void Bv2OpSemContext::write(Expr v, Expr u) {
   if (shouldSimplify()) {
-    ScopedStats _st_("opsem.simplify");
-
-    Expr _u;
-    _u = m_z3_simplifier->simplify(u);
-
-    u = _u;
+    u = simplify(u);
   }
   OpSemContext::write(v, u);
 }

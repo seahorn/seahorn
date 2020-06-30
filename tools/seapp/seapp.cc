@@ -200,6 +200,10 @@ static llvm::cl::opt<bool> FatBoundsCheck(
         "Instrument buffer bounds check  using extended pointer bits"),
     llvm::cl::init(false));
 
+static llvm::cl::opt<bool> LowerIsDeref("lower-is-deref",
+                                        llvm::cl::desc("Lower sea_is_dereferenceable() calls"),
+                                        llvm::cl::init(false));
+
 static llvm::cl::opt<bool>
     StripShadowMem("strip-shadow-mem",
                    llvm::cl::desc("Strip shadow memory functions"),
@@ -414,6 +418,8 @@ int main(int argc, char **argv) {
   } else if (FatBoundsCheck) {
     initializeFatBufferBoundsCheckPass(Registry);
     pm_wrapper.add(seahorn::createFatBufferBoundsCheckPass());
+  } else if (LowerIsDeref) {
+    pm_wrapper.add(seahorn::createLowerIsDerefPass());
   }
   // default pre-processing pipeline
   else {

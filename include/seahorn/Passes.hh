@@ -44,7 +44,7 @@ llvm::Pass *createLoadCrabPass();
 
 llvm::Pass *createCutLoopsPass();
 llvm::Pass *createMarkFnEntryPass();
-llvm::Pass *createPromoteVerifierClassPass();
+llvm::Pass *createPromoteVerifierCallsPass();
 llvm::Pass *createPromoteMallocPass();
 llvm::Pass *createKillVarArgFnPass();
 llvm::Pass *createLowerArithWithOverflowIntrinsicsPass();

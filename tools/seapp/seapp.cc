@@ -382,7 +382,7 @@ int main(int argc, char **argv) {
     // -- apply mixed semantics
     assert(LowerSwitch && "Lower switch must be enabled");
     pm_wrapper.add(llvm::createLowerSwitchPass());
-    pm_wrapper.add(seahorn::createPromoteVerifierClassPass());
+    pm_wrapper.add(seahorn::createPromoteVerifierCallsPass());
     pm_wrapper.add(seahorn::createCanFailPass());
     pm_wrapper.add(seahorn::createMixedSemanticsPass());
     pm_wrapper.add(seahorn::createRemoveUnreachableBlocksPass());
@@ -424,7 +424,7 @@ int main(int argc, char **argv) {
     pm_wrapper.add(seahorn::createDummyMainFunctionPass());
 
     // -- promote verifier specific functions to special names
-    pm_wrapper.add(seahorn::createPromoteVerifierClassPass());
+    pm_wrapper.add(seahorn::createPromoteVerifierCallsPass());
 
     // -- promote top-level mallocs to alloca
     pm_wrapper.add(seahorn::createPromoteMallocPass());

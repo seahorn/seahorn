@@ -27,8 +27,7 @@ bool PromoteVerifierCalls::runOnModule(Module &M) {
   m_assertFn = SBI.mkSeaBuiltinFn(SBIOp::ASSERT, M);
   m_failureFn = SBI.mkSeaBuiltinFn(SBIOp::FAIL, M);
   m_errorFn = SBI.mkSeaBuiltinFn(SBIOp::ERROR, M);
-
-
+  m_is_deref = SBI.mkSeaBuiltinFn(SBIOp::IS_DEREFERENCEABLE, M);
 
   // XXX DEPRECATED
   // Do not keep unused functions in llvm.used
@@ -136,8 +135,7 @@ bool PromoteVerifierCalls::runOnFunction(Function &F) {
 
       CallInst *ci = Builder.CreateCall(nfn, cond);
       if (cg)
-        (*cg)[&F]->addCalledFunction(ci,
-                                     (*cg)[ci->getCalledFunction()]);
+        (*cg)[&F]->addCalledFunction(ci, (*cg)[ci->getCalledFunction()]);
 
       toKill.push_back(&I);
     } else if (fn && fn->getName().equals("__VERIFIER_error")) {
@@ -146,8 +144,7 @@ bool PromoteVerifierCalls::runOnFunction(Function &F) {
       CallInst *ci = Builder.CreateCall(m_errorFn);
       ci->setDebugLoc(I.getDebugLoc());
       if (cg)
-        (*cg)[&F]->addCalledFunction(ci,
-                                     (*cg)[ci->getCalledFunction()]);
+        (*cg)[&F]->addCalledFunction(ci, (*cg)[ci->getCalledFunction()]);
 
       toKill.push_back(&I);
     } else if (fn && (fn->getName().equals("__SEAHORN_fail") ||
@@ -165,9 +162,18 @@ bool PromoteVerifierCalls::runOnFunction(Function &F) {
       CallInst *ci = Builder.CreateCall(m_failureFn);
       ci->setDebugLoc(I.getDebugLoc());
       if (cg)
-        (*cg)[&F]->addCalledFunction(ci,
-                                     (*cg)[ci->getCalledFunction()]);
+        (*cg)[&F]->addCalledFunction(ci, (*cg)[ci->getCalledFunction()]);
 
+      toKill.push_back(&I);
+    } else if (fn && (fn->getName().equals("sea_is_dereferenceable"))) {
+      IRBuilder<> Builder(F.getContext());
+      Builder.SetInsertPoint(&I);
+      CallInst *ci =
+          Builder.CreateCall(m_is_deref, {CS.getArgument(0), CS.getArgument(1)});
+      if (cg)
+        (*cg)[&F]->addCalledFunction(ci, (*cg)[ci->getCalledFunction()]);
+
+      I.replaceAllUsesWith(ci);
       toKill.push_back(&I);
     }
   }
@@ -185,7 +191,7 @@ void PromoteVerifierCalls::getAnalysisUsage(AnalysisUsage &AU) const {
 
 } // namespace seahorn
 namespace seahorn {
-Pass *createPromoteVerifierClassPass() { return new PromoteVerifierCalls(); }
+Pass *createPromoteVerifierCallsPass() { return new PromoteVerifierCalls(); }
 } // namespace seahorn
 
 static llvm::RegisterPass<seahorn::PromoteVerifierCalls>

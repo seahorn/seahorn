@@ -20,6 +20,7 @@ namespace seahorn
     Function *m_assertFn;
     Function *m_errorFn;
     Function *m_failureFn;  // to indicate failure. It can only appears in main.
+    Function *m_is_deref;
     
     PromoteVerifierCalls () : ModulePass (ID) {}
     

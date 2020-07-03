@@ -2,6 +2,7 @@
 #pragma once
 #include "seahorn/Expr/ExprApi.hh"
 #include "seahorn/Expr/ExprCore.hh"
+#include "seahorn/Expr/ExprOpBinder.hh"
 #include "seahorn/Expr/ExprOpBool.hh"
 #include "seahorn/Expr/ExprOpCore.hh"
 #include "seahorn/Expr/TypeChecker.hh"
@@ -82,12 +83,11 @@ struct Extract {
 
 NOP_BASE(StructOp)
 
-NOP(MK_STRUCT, "struct", FUNCTIONAL, StructOp,
-              typeCheck::structType::Struct)
+NOP(MK_STRUCT, "struct", FUNCTIONAL, StructOp, typeCheck::structType::Struct)
 NOP(EXTRACT_VALUE, "extract-value", FUNCTIONAL, StructOp,
-              typeCheck::structType::Extract)
+    typeCheck::structType::Extract)
 NOP(INSERT_VALUE, "insert-value", FUNCTIONAL, StructOp,
-              typeCheck::structType::Insert)
+    typeCheck::structType::Insert)
 } // namespace op
 namespace op {
 namespace strct {
@@ -138,7 +138,7 @@ inline Expr push_ite_struct(Expr c, Expr lhs, Expr rhs) {
 
   llvm::SmallVector<Expr, 8> vals;
   for (unsigned i = 0, sz = lhs->arity(); i < sz; ++i) {
-    vals.push_back(boolop::lite(c, lhs->arg(i), rhs->arg(i)));
+    vals.push_back(bind::lite(c, lhs->arg(i), rhs->arg(i)));
   }
   return strct::mk(vals);
 }

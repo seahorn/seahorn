@@ -31,6 +31,11 @@ static llvm::cl::opt<bool> IgnoreAlignmentOpt(
                    "operations are word aligned"),
     llvm::cl::init(false));
 
+static llvm::cl::opt<bool> ExplicitSp0(
+    "horn-explicit-sp0",
+    llvm::cl::desc(
+        "Set initial stack pointer (sp0) to an explicit numeric constant"),
+    llvm::cl::init(false));
 namespace seahorn {
 namespace details {
 
@@ -70,6 +75,9 @@ RawMemManager::RawMemManager(Bv2OpSem &sem, Bv2OpSemContext &ctx,
   m_nullPtr = m_ctx.alu().si(0UL, ptrSzInBits());
   m_sp0 = bind::mkConst(mkTerm<std::string>("sea.sp0", m_efac), ptrSort());
   m_ctx.declareRegister(m_sp0);
+
+  if (ExplicitSp0)
+    m_sp0 = m_ctx.alu().si(0xC0000000, this->ptrSzInBits());
 
   if (useLambdas)
     m_memRepr = std::make_unique<OpSemMemLambdaRepr>(*this, ctx);

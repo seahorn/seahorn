@@ -251,9 +251,9 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
         rhs = mk<GT>(op0, op1);
       break;
     case CmpInst::ICMP_UGE:
-      side(mk<OR>(mk<IFF>(lhs, mk<EQ>(op0, op1)),
-                  mk<IFF>(lhs, mkUnsignedLT(op1, op0))));
-      rhs = nullptr;
+      rhs = mk<ITE>(mk<EQ>(op0, op1),
+                    trueE,
+                    mkUnsignedLT(op1, op0));
       break;
     case CmpInst::ICMP_SGE:
       rhs = mk<GEQ>(op0, op1);
@@ -265,9 +265,9 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
       rhs = mk<LT>(op0, op1);
       break;
     case CmpInst::ICMP_ULE:
-      side(mk<OR>(mk<IFF>(lhs, mk<EQ>(op0, op1)),
-                  mk<IFF>(lhs, mkUnsignedLT(op0, op1))));
-      rhs = nullptr;
+      rhs = mk<ITE>(mk<EQ>(op0, op1),
+                    trueE,
+                    mkUnsignedLT(op0, op1));
       break;
     case CmpInst::ICMP_SLE:
       rhs = mk<LEQ>(op0, op1);

@@ -526,7 +526,9 @@ public:
   PtrTy gep(PtrTy base, gep_type_iterator it, gep_type_iterator end) const {
     // offset bitwidth is ptrSz
     Expr new_offset = m_sem.symbolicIndexedOffset(it, end, m_ctx);
-    return PtrTy(base.getBase(), new_offset, base.getSize());
+    return PtrTy(base.getBase(),
+                 m_ctx.alu().doAdd(base.getOffset(), new_offset, ptrSzInBits()),
+                 base.getSize());
   }
 
   void onFunctionEntry(const Function &fn) { m_main.onFunctionEntry(fn); }

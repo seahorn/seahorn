@@ -1440,6 +1440,8 @@ TEST_CASE("finiteMapWellFormed.test") {
 
   Expr aIntKey = intConst("k_aInt", efac);
   Expr bIntKey = intConst("k_bInt", efac);
+  Expr cIntKey = intConst("k_cInt", efac);
+  Expr dIntKey = intConst("k_dInt", efac);
 
   Expr boolSort = sort::boolTy(efac);
   Expr intSort = sort::intTy(efac);
@@ -1483,6 +1485,16 @@ TEST_CASE("finiteMapWellFormed.test") {
   e.push_back(temp);
 
   checkWellFormed(e, finiteMapSort2);
+  e.clear();
+
+  temp = finite_map::constFiniteMap(keys, vals);
+  keys.clear();
+  keys.push_back(cIntKey);
+  keys.push_back(dIntKey);
+  Expr temp2 = finite_map::constFiniteMap(keys, vals);
+  e.push_back(mk<EQ>(temp, temp2)); // keys have same type but different names
+
+  checkWellFormed(e, boolSort);
 }
 TEST_CASE("finiteMapNotWellFormed.test") {
   seahorn::SeaEnableLog("tc");

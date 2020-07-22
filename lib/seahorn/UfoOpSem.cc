@@ -251,9 +251,7 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
         rhs = mk<GT>(op0, op1);
       break;
     case CmpInst::ICMP_UGE:
-      rhs = mk<ITE>(mk<EQ>(op0, op1),
-                    trueE,
-                    mkUnsignedLT(op1, op0));
+      rhs = mk<ITE>(mk<EQ>(op0, op1), trueE, mkUnsignedLT(op1, op0));
       break;
     case CmpInst::ICMP_SGE:
       rhs = mk<GEQ>(op0, op1);
@@ -265,9 +263,7 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
       rhs = mk<LT>(op0, op1);
       break;
     case CmpInst::ICMP_ULE:
-      rhs = mk<ITE>(mk<EQ>(op0, op1),
-                    trueE,
-                    mkUnsignedLT(op0, op1));
+      rhs = mk<ITE>(mk<EQ>(op0, op1), trueE, mkUnsignedLT(op0, op1));
       break;
     case CmpInst::ICMP_SLE:
       rhs = mk<LEQ>(op0, op1);
@@ -663,7 +659,8 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
 
     if (F.getName().startswith("verifier.assume")) {
       if (isa<UndefValue>(CS.getArgument(0))) {
-        WARN << "`undef` in assumption: " << I << " in BB: " << BB.getName() << "\n";
+        WARN << "`undef` in assumption: " << I << " in BB: " << BB.getName()
+             << "\n";
         return;
       }
 
@@ -795,11 +792,11 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
           for (unsigned i = 0; i < m_inRegions.size(); i++) {
             addCondSide(mk<EQ>(m_inRegions[i], m_outRegions[i]));
           }
-          errs() << "WARNING: abstracted unsoundly a call to " << F.getName()
-                 << "\n";
+          WARN << "abstracted (unsoundly) a call to function " << F.getName()
+               << " by a noop";
         } else {
-          errs() << "WARNING: skipping a call to " << F.getName()
-                 << " (recursive call?)\n";
+          WARN << "skipping a call to " << F.getName()
+               << " (maybe a recursive call?)";
         }
 
         m_fparams.resize(3);

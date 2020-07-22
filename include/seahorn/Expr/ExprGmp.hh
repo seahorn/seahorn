@@ -76,6 +76,14 @@ public:
     return std::string(res.m_str);
   }
 
+  void mpzExport (void * rop , size_t *count, int order, size_t size, int endian, size_t nails) {
+    mpz_export (rop, count, order, size, endian, nails, m_num );
+  }
+
+  size_t sizeInBase (int base) {
+    return mpz_sizeinbase(m_num, base);
+  }
+
   bool operator<(unsigned long v) const { return mpz_cmp_ui(m_num, v) < 0; }
   bool operator<(signed long v) const { return mpz_cmp_si(m_num, v) < 0; }
   bool operator>(unsigned long v) const { return mpz_cmp_ui(m_num, v) > 0; }
@@ -100,6 +108,21 @@ public:
   bool operator==(const mpz_class &v) const {
     return mpz_cmp(m_num, v.m_num) == 0;
   }
+
+  mpz_class operator+(const mpz_class &v) {
+    mpz_class sum;
+    mpz_add(sum.m_num, m_num, v.m_num);
+
+    return sum;
+  }
+
+  mpz_class operator+ (unsigned v) {
+    mpz_class sum;
+    mpz_add_ui(sum.m_num, m_num, v);
+
+    return sum;
+  }
+
 };
 class mpq_class {
   mpq_t m_num;

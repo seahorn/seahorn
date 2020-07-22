@@ -144,6 +144,11 @@ static llvm::cl::opt<bool>
             "Use BMC. Currently restricted to intra-procedural analysis"),
         llvm::cl::init(false));
 
+static llvm::cl::opt<bool>
+    NondetInit("horn-nondet-undef",
+               llvm::cl::desc("Replace all undef with non-determinism"),
+               llvm::cl::init(false));
+
 // Available BMC engines
 enum class BmcEngineKind { mono_bmc, path_bmc };
 
@@ -331,6 +336,8 @@ int main(int argc, char **argv) {
   }
 
   pass_manager.add(seadsa::createRemovePtrToIntPass());
+  if (NondetInit)
+    pass_manager.add(seahorn::createNondetInitPass());
   pass_manager.add(seahorn::createSeaDsaShadowMemPass());
 
   pass_manager.add(new seahorn::RemoveUnreachableBlocksPass());

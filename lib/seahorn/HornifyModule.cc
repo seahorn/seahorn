@@ -19,6 +19,7 @@
 //#include "boost/range.hpp"
 #include "boost/scoped_ptr.hpp"
 
+#include "seahorn/CallUtils.hh"
 #include "seahorn/Support/SortTopo.hh"
 
 #include "seahorn/LiveSymbols.hh"
@@ -197,14 +198,12 @@ bool HornifyModule::runOnModule(Module &M) {
   //     seahorn.fail.
   Function *failureFn = M.getFunction("seahorn.fail");
   if (!canFail) {
-    for (auto &I :
-         boost::make_iterator_range(inst_begin(*main), inst_end(*main))) {
+    for (auto &I : instructions(*main)) {
       if (!isa<CallInst>(&I))
         continue;
+      auto &cb = llvm::cast<CallBase>(I);
       // -- look through pointer casts
-      Value *v = I.stripPointerCasts();
-      CallSite CS(const_cast<Value *>(v));
-      const Function *fn = CS.getCalledFunction();
+      const Function *fn = seahorn::getCalledFunction(cb);
       canFail |= (fn == failureFn);
     }
   }
@@ -235,8 +234,8 @@ bool HornifyModule::runOnModule(Module &M) {
       for (auto &I : llvm::make_range(inst_begin(fn), inst_end(fn))) {
         if (!isa<CallInst>(&I))
           continue;
-        CallSite CS(&I);
-        const Function *callee = CS.getCalledFunction();
+        auto &cb = llvm::cast<CallBase>(I);
+        const Function *callee = seahorn::getCalledFunction(cb);
         if (callee == errorFn) {
           // this happens when a function calls to verifier.error()
           // but it is not reachable from main and for some reason

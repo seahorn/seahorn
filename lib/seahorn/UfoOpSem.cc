@@ -662,6 +662,11 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
     }
 
     if (F.getName().startswith("verifier.assume")) {
+      if (isa<UndefValue>(CS.getArgument(0))) {
+        WARN << "`undef` in assumption: " << I << " in BB: " << BB.getName() << "\n";
+        return;
+      }
+
       Expr c = lookup(*CS.getArgument(0));
       if (F.getName().equals("verifier.assume.not"))
         c = boolop::lneg(c);

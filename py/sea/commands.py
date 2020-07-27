@@ -995,10 +995,10 @@ class Unroll(sea.LimitedCmd):
         return self.seaoptCmd.run (args, argv)
 
 def _is_seahorn_opt (x):
+    prefixes = ['horn-', 'crab', 'sea-', 'log']
     if x.startswith ('-'):
         y = x.strip ('-')
-        return y.startswith ('horn') or \
-            y.startswith ('crab') or y.startswith ('log')
+        return any((y.startswith(p) for p in prefixes))
     return False
 
 class Seahorn(sea.LimitedCmd):

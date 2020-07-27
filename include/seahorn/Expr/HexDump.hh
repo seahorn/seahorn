@@ -39,7 +39,9 @@ public:
   /// based off of the index
   bool operator<(KeyValue const &kv) const;
 
-  bool operator==(KeyValue const &kv) const = default;
+  bool operator==(KeyValue const &kv) const {
+    return (m_pair == kv.m_pair) && (m_isRepeated == kv.m_isRepeated);
+  }
 
   /// prints with ascii and no set width
   friend std::ostream &operator<<(std::ostream &OS, KeyValue const &kv);

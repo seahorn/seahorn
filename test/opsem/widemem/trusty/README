@@ -1,0 +1,8 @@
+The test(s) in this directory are a snapshot of trusty storage_ipc_msg_buffer_code at
+
+https://github.com/agurfinkel/verifyTrusty/commit/05afe29a1e4984b72bbfdf79daff882745151cfc
+
+These are integration 'catch-all' tests which exercise a large surface area of seahorn.
+If these tests fail, then it may be difficult to debug them as-is. It may be easier to
+recreate the original env using the commit above and using the verify-trusty.sh script
+at that commit.

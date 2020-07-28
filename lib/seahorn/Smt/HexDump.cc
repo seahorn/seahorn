@@ -274,6 +274,7 @@ protected:
 
 public:
   HD_BASE(unsigned addressesPerWord) : m_pairs(addressesPerWord) {}
+  virtual ~HD_BASE() = default;
 
   virtual VisitAction operator()(Expr exp) = 0;
   virtual void doneVisiting() {}
@@ -291,7 +292,6 @@ class HD_ITE : public HD_BASE {
 
 public:
   HD_ITE(unsigned addressesPerWord) : HD_BASE(addressesPerWord) {}
-
   VisitAction operator()(Expr exp) override {
     if (isOp<ITE>(exp)) {
       Expr condition = exp->arg(0);

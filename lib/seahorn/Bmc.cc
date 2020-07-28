@@ -4,10 +4,17 @@
 
 #include "llvm/IR/DebugInfo.h"
 #include "llvm/IR/DebugLoc.h"
+#include "llvm/Support/CommandLine.h"
 
 #include "boost/container/flat_set.hpp"
 #include "seahorn/Expr/ExprLlvm.hh"
+#include "seahorn/Expr/HexDump.hh"
 #include "seahorn/Support/SeaDebug.h"
+
+static llvm::cl::opt<bool>
+    DumpHex("horn-bmc-hexdump",
+            llvm::cl::desc("Dump memory state using hexdump"),
+            cl::init(false));
 
 namespace seahorn {
 void BmcEngine::addCutPoint(const CutPoint &cp) {
@@ -206,6 +213,7 @@ template <> raw_ostream &BmcTrace::print(raw_ostream &out) {
       }
 
       bool print_inst = true;
+      bool shadow_mem = false;
       if (const CallInst *ci = dyn_cast<CallInst>(&I)) {
         Function *f = ci->getCalledFunction();
         if (f && f->getName().equals("seahorn.fn.enter")) {
@@ -234,6 +242,9 @@ template <> raw_ostream &BmcTrace::print(raw_ostream &out) {
           out.resetColor();
 #endif
           print_inst = false;
+          shadow_mem = true;
+        } else if (f && f->getName().equals("shadow.mem.store")) {
+          shadow_mem = true;
         }
       }
 
@@ -247,7 +258,12 @@ template <> raw_ostream &BmcTrace::print(raw_ostream &out) {
 
       if (out.has_colors())
         out.changeColor(raw_ostream::RED);
-      out << "  %" << I.getName() << " " << *v;
+      if (DumpHex && shadow_mem) {
+        using HD = expr::hexDump::HexDump;
+        out << "  %" << I.getName() << "\n" << HD(v, 4);
+      }
+      else
+        out << "  %" << I.getName() << " " << *v;
       const DebugLoc &dloc = I.getDebugLoc();
       if (dloc) {
         if (out.has_colors())

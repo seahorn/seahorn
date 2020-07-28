@@ -350,6 +350,7 @@ int main(int argc, char **argv) {
   // XXX: not sure if needed anymore
   llvm::initializeGlobalsAAWrapperPassPass(Registry);
   llvm::initializeAllocWrapInfoPass(Registry);
+  llvm::initializeDsaLibFuncInfoPass(Registry);
 
   llvm::initializeCompleteCallGraphPass(Registry);
 

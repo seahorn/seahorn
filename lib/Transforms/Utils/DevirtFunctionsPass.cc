@@ -18,6 +18,7 @@
 
 #include "seadsa/AllocWrapInfo.hh"
 #include "seadsa/CompleteCallGraph.hh"
+#include "seadsa/DsaLibFuncInfo.hh"
 
 static llvm::cl::opt<seahorn::CallSiteResolverKind> Devirt(
     "devirt-functions-method",
@@ -84,8 +85,12 @@ public:
       auto &dl = M.getDataLayout();
       auto &tli = getAnalysis<TargetLibraryInfoWrapperPass>();
       auto &allocInfo = getAnalysis<seadsa::AllocWrapInfo>();
+      auto &dsaLibFuncInfo = getAnalysis<seadsa::DsaLibFuncInfo>();
       allocInfo.initialize(M, this);
-      seadsa::CompleteCallGraphAnalysis ccga(dl, tli, allocInfo, cg, true);
+      dsaLibFuncInfo.initialize(M);
+
+      seadsa::CompleteCallGraphAnalysis ccga(dl, tli, allocInfo, dsaLibFuncInfo,
+                                             cg, true);
       ccga.runOnModule(M);
       LOG("devirt-dsa-cg", ccga.printStats(M, errs()));
       CSR.reset(new CallSiteResolverByDsa(M, ccga));

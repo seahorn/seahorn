@@ -200,9 +200,10 @@ static llvm::cl::opt<bool> FatBoundsCheck(
         "Instrument buffer bounds check  using extended pointer bits"),
     llvm::cl::init(false));
 
-static llvm::cl::opt<bool> LowerIsDeref("lower-is-deref",
-                                        llvm::cl::desc("Lower sea_is_dereferenceable() calls"),
-                                        llvm::cl::init(false));
+static llvm::cl::opt<bool>
+    LowerIsDeref("lower-is-deref",
+                 llvm::cl::desc("Lower sea_is_dereferenceable() calls"),
+                 llvm::cl::init(false));
 
 static llvm::cl::opt<bool>
     StripShadowMem("strip-shadow-mem",

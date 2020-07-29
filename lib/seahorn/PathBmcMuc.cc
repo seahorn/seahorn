@@ -9,7 +9,7 @@ namespace path_bmc {
 
 using namespace expr;
 
-void muc_with_assumptions::unsat_core(const ExprVector &f, bool simplify,
+void MucWithAssumptions::unsat_core(const ExprVector &f, bool simplify,
                                       ExprVector &out) {
 
   m_solver.reset();
@@ -64,16 +64,16 @@ void muc_with_assumptions::unsat_core(const ExprVector &f, bool simplify,
     out.push_back(bind::fname(bind::fname(c))->arg(0));
 }
 
-muc_with_assumptions::muc_with_assumptions(solver::Solver &solver)
-    : minimal_unsat_core(solver) {}
+MucWithAssumptions::MucWithAssumptions(solver::Solver &solver)
+    : minimalUnsatCore(solver) {}
 
-void muc_with_assumptions::run(const ExprVector &f, ExprVector &core) {
+void MucWithAssumptions::run(const ExprVector &f, ExprVector &core) {
   const bool simplify = false;
   unsat_core(f, false, core);
 }
 
-solver::SolverResult deletion_muc::check(deletion_muc::const_iterator it,
-                                         deletion_muc::const_iterator et,
+solver::SolverResult MucDeletion::check(MucDeletion::const_iterator it,
+                                         MucDeletion::const_iterator et,
                                          const ExprVector &assumptions) {
   m_solver.reset();
   for (Expr e : assumptions) {
@@ -84,13 +84,13 @@ solver::SolverResult deletion_muc::check(deletion_muc::const_iterator it,
   }
   solver::SolverResult res;
   {
-    path_bmc::scoped_solver ss(m_solver, m_timeout);
+    path_bmc::scopedSolver ss(m_solver, m_timeout);
     res = ss.get().check();
   }
   return res;
 }
 
-void deletion_muc::run(const ExprVector &f, const ExprVector &assumptions,
+void MucDeletion::run(const ExprVector &f, const ExprVector &assumptions,
                        ExprVector &out) {
   assert(check(f.begin(), f.end(), assumptions) == solver::SolverResult::UNSAT);
 
@@ -111,10 +111,10 @@ void deletion_muc::run(const ExprVector &f, const ExprVector &assumptions,
   }
 }
 
-deletion_muc::deletion_muc(solver::Solver &solver, unsigned timeout)
-    : minimal_unsat_core(solver), m_timeout(timeout) {}
+MucDeletion::MucDeletion(solver::Solver &solver, unsigned timeout)
+    : minimalUnsatCore(solver), m_timeout(timeout) {}
 
-void deletion_muc::run(const ExprVector &f, ExprVector &out) {
+void MucDeletion::run(const ExprVector &f, ExprVector &out) {
   ExprVector assumptions;
   run(f, assumptions, out);
 }
@@ -135,10 +135,10 @@ void deletion_muc::run(const ExprVector &f, ExprVector &out) {
   }
   call qx(empty, formula, false);
 */
-void binary_search_muc::qx(const ExprVector &target, unsigned begin,
+void MucBinarySearch::qx(const ExprVector &target, unsigned begin,
                            unsigned end, bool skip, ExprVector &out) {
   if (!skip) {
-    path_bmc::scoped_solver ss(m_solver, m_timeout);
+    path_bmc::scopedSolver ss(m_solver, m_timeout);
     auto res = ss.get().check();
     if (res == solver::SolverResult::UNSAT) {
       return;
@@ -190,10 +190,10 @@ void binary_search_muc::qx(const ExprVector &target, unsigned begin,
 #endif
 }
 
-binary_search_muc::binary_search_muc(solver::Solver &solver, unsigned timeout)
-    : minimal_unsat_core(solver), m_timeout(timeout) {}
+MucBinarySearch::MucBinarySearch(solver::Solver &solver, unsigned timeout)
+    : minimalUnsatCore(solver), m_timeout(timeout) {}
 
-void binary_search_muc::run(const ExprVector &formula, ExprVector &out) {
+void MucBinarySearch::run(const ExprVector &formula, ExprVector &out) {
   unsigned i = 0;
   unsigned j = formula.size();
   bool skip = false;

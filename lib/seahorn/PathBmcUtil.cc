@@ -9,7 +9,7 @@
 namespace seahorn {
 namespace path_bmc {
 
-scoped_solver::scoped_solver(solver::Solver &solver, unsigned timeout /*sec*/)
+scopedSolver::scopedSolver(solver::Solver &solver, unsigned timeout /*sec*/)
     : m_solver(solver) {
   if (m_solver.get_kind() == solver::SolverKind::Z3) {
     solver::z3_solver_impl &z3 =
@@ -26,7 +26,7 @@ scoped_solver::scoped_solver(solver::Solver &solver, unsigned timeout /*sec*/)
   }
 }
 
-scoped_solver::~scoped_solver() {
+scopedSolver::~scopedSolver() {
   if (m_solver.get_kind() == solver::SolverKind::Z3) {
     solver::z3_solver_impl &z3 =
         static_cast<solver::z3_solver_impl &>(m_solver);

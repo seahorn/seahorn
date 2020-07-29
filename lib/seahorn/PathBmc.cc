@@ -73,10 +73,10 @@ seahorn::PathBmcTrace seahorn::PathBmcEngine::getTrace() {
  * 
  *  The current implementation is VCGen dependent. In particular, the
  *  functions:
- *  - gen_path_cond_from_ai_cex
- *  - bool_abstraction
+ *  - genPathCondFromCrabCex
+ *  - boolAbstraction
  * 
- *  Moreover, gen_path_cond_from_ai_cex also requires knowledge
+ *  Moreover, genPathCondFromCrabCex also requires knowledge
  *  about how the translation from LLVM bitcode to Crab is done.
  **/
 
@@ -189,7 +189,7 @@ static llvm::raw_ostream &get_os(bool show_time = false) {
   return *result;
 }
 
-void PathBmcEngine::initialize_ai() {
+void PathBmcEngine::initializeCrab() {
 
   // -- Compute live symbols so that invariant variables exclude
   //    dead variables.
@@ -220,7 +220,7 @@ void PathBmcEngine::initialize_ai() {
 
 // Run whole-program crab analysis and assert those invariants into
 // the solver that keeps the precise encoding.
-void PathBmcEngine::add_global_invariants(expr_invariants_map_t &invariants) {
+void PathBmcEngine::addGlobalCrabInvariants(expr_invariants_map_t &invariants) {
   if (UseCrabGlobalInvariants) {
     LOG("bmc", get_os(true) << "Begin running crab analysis\n";);
     Stats::resume("BMC path-based: whole-program crab analysis");
@@ -234,14 +234,14 @@ void PathBmcEngine::add_global_invariants(expr_invariants_map_t &invariants) {
 
     LOG("bmc", get_os(true) << "Begin loading of crab global invariants\n";);
     Stats::resume("BMC path-based: loading of crab global invariants");
-    load_invariants(crab_analysis, invariants);
+    loadCrabInvariants(crab_analysis, invariants);
     // Assumption: the program has been fully unrolled so there is
     // exactly two cutpoint nodes (entry and exit). We use the symbolic
     // store of the exit node.
     auto &states = getStates();
     if (states.size() == 2) {
       SymStore &s = states[1];
-      assert_invariants(invariants, s);
+      assertCrabInvariants(invariants, s);
     }
     Stats::stop("BMC path-based: loading of crab global invariants");
     LOG("bmc", get_os(true) << "End loading of crab invariants\n";);
@@ -249,7 +249,7 @@ void PathBmcEngine::add_global_invariants(expr_invariants_map_t &invariants) {
 }
 
 /* Load clam invariants into the out map */
-void PathBmcEngine::load_invariants(
+void PathBmcEngine::loadCrabInvariants(
     const clam::IntraClam &crab,
     DenseMap<const BasicBlock *, ExprVector> &out) {
 
@@ -312,7 +312,7 @@ void PathBmcEngine::load_invariants(
 }
 
 /* Assert the invariants as formulas in m_precise_side */
-void PathBmcEngine::assert_invariants(const expr_invariants_map_t &invariants,
+void PathBmcEngine::assertCrabInvariants(const expr_invariants_map_t &invariants,
                                       SymStore &s) {
 
   // s.print(errs());
@@ -387,7 +387,7 @@ static bool isCriticalEdge(const BasicBlock *src, const BasicBlock *dst) {
  *       - a PHI node is translated into bj and tuple(bi,bj) => x=y
  *       - a branch is translated into b and tuple(bb,bbi) => f
  */
-bool PathBmcEngine::gen_path_cond_from_ai_cex(
+bool PathBmcEngine::genPathCondFromCrabCex(
     PathBmcTrace &cex,    					      
     const std::vector<clam::statement_t*> &cex_stmts,
     ExprSet /*std::set<Expr, lessExpr>*/ &path_cond) {
@@ -580,7 +580,7 @@ Expr PathBmcEngine::eval(Expr e) {
  * Given a sequence of basic blocks, extract the crab invariants per
  * block and convert it to Expr format.
  */
-void PathBmcEngine::extract_post_conditions_from_ai_cex(
+void PathBmcEngine::extractPostConditionsFromCrabCex(
     const std::vector<const llvm::BasicBlock *> &cex,
     const crab_invariants_map_t &invariants,
     expr_invariants_map_t &out) {
@@ -636,7 +636,7 @@ void PathBmcEngine::extract_post_conditions_from_ai_cex(
 
    Modify m_path_cond.
  */
-bool PathBmcEngine::path_encoding_and_solve_with_ai(
+bool PathBmcEngine::pathEncodingAndSolveWithCrab(
       PathBmcTrace &cex,
       bool keep_path_constraints,
       crab_invariants_map_t &crab_path_constraints,
@@ -673,8 +673,8 @@ bool PathBmcEngine::path_encoding_and_solve_with_ai(
         m_crab_path_solver->pathAnalyze(params, cex_blocks, LayeredCrabSolving,
                                          cex_relevant_stmts, crab_invariants);
     // conversion from crab to Expr
-    extract_post_conditions_from_ai_cex(cex_blocks, crab_invariants,
-					path_constraints);
+    extractPostConditionsFromCrabCex(cex_blocks, crab_invariants,
+				     path_constraints);
   } else {
     res = m_crab_path_solver->pathAnalyze(
         params, cex_blocks, LayeredCrabSolving, cex_relevant_stmts);
@@ -718,7 +718,7 @@ bool PathBmcEngine::path_encoding_and_solve_with_ai(
     // -- Extract the path condition from the spurious cex.
     std::set<Expr> path_cond;
     assert(m_cfg_builder_man->has_cfg(*m_fn));
-    if (!gen_path_cond_from_ai_cex(cex, cex_relevant_stmts, path_cond)) {
+    if (!genPathCondFromCrabCex(cex, cex_relevant_stmts, path_cond)) {
       // By returning true we pretend the query was sat so we run
       // the SMT solver next.
       return true;
@@ -749,14 +749,14 @@ bool PathBmcEngine::path_encoding_and_solve_with_ai(
   NOTE: Currently, blocking clauses are Boolean since the only
   abstraction we handle is Boolean.
 */
-solver::SolverResult PathBmcEngine::path_encoding_and_solve_with_smt(
+solver::SolverResult PathBmcEngine::pathEncodingAndSolveWithSmt(
     const PathBmcTrace &cex, const expr_invariants_map_t & /*invariants*/,
     // extra constraints inferred by
     // crab for current implicant
     const expr_invariants_map_t & /*path_constraints*/) {
 
-  const ExprVector &path_formula = cex.get_implicant_formula();
-  const ExprMap &path_cond_map = cex.get_implicant_bools_map();
+  const ExprVector &path_formula = cex.getImplicantFormula();
+  const ExprMap &path_cond_map = cex.getImplicantBoolMap();
 
   LOG("bmc-details", errs() << "PATH FORMULA:\n";
       for (Expr e
@@ -764,7 +764,7 @@ solver::SolverResult PathBmcEngine::path_encoding_and_solve_with_smt(
 
   // For debugging
   // if (SmtOutDir != "") {
-  //   to_smt_lib(path_formula);
+  //   toSmtLib(path_formula);
   // }
 
   /*****************************************************************
@@ -782,13 +782,13 @@ solver::SolverResult PathBmcEngine::path_encoding_and_solve_with_smt(
 
   solver::SolverResult res;
   {
-    path_bmc::scoped_solver ss(*m_smt_path_solver, PathTimeout);
+    path_bmc::scopedSolver ss(*m_smt_path_solver, PathTimeout);
     res = ss.get().check();
   }
   if (res == solver::SolverResult::SAT) {
     m_model = m_smt_path_solver->get_model();
     if (SmtOutDir != "") {
-      to_smt_lib(path_formula, "sat");
+      toSmtLib(path_formula, "sat");
     }
   } else {
     // Stats::resume ("BMC path-based: SMT unsat core");
@@ -810,7 +810,7 @@ solver::SolverResult PathBmcEngine::path_encoding_and_solve_with_smt(
       m_unsolved_path_formulas.push(std::make_pair(m_num_paths, path_formula));
 
       if (SmtOutDir != "") {
-        to_smt_lib(path_formula, "unknown");
+        toSmtLib(path_formula, "unknown");
       }
     }
 
@@ -821,18 +821,18 @@ solver::SolverResult PathBmcEngine::path_encoding_and_solve_with_smt(
       break;
     }
     case path_bmc::MucMethodKind::MUC_DELETION: {
-      path_bmc::deletion_muc muc(*m_smt_path_solver, MucTimeout);
+      path_bmc::MucDeletion muc(*m_smt_path_solver, MucTimeout);
       muc.run(path_formula, unsat_core);
       break;
     }
     case path_bmc::MucMethodKind::MUC_BINARY_SEARCH: {
-      path_bmc::binary_search_muc muc(*m_smt_path_solver, MucTimeout);
+      path_bmc::MucBinarySearch muc(*m_smt_path_solver, MucTimeout);
       muc.run(path_formula, unsat_core);
       break;
     }
     case path_bmc::MucMethodKind::MUC_ASSUMPTIONS:
     default: {
-      path_bmc::muc_with_assumptions muc(*m_smt_path_solver);
+      path_bmc::MucWithAssumptions muc(*m_smt_path_solver);
       muc.run(path_formula, unsat_core);
       break;
     }
@@ -913,7 +913,7 @@ void PathBmcEngine::addCutPoint(const CutPoint &cp) {
 }
 
 // Print a path to a SMT-LIB file (for debugging purposes)
-void PathBmcEngine::to_smt_lib(const ExprVector &f, std::string prefix) {
+void PathBmcEngine::toSmtLib(const ExprVector &f, std::string prefix) {
   assert(SmtOutDir != "");
 
   std::error_code EC;
@@ -1007,7 +1007,7 @@ void PathBmcEngine::encode() {
   Stats::stop("BMC path-based: precise encoding");
 }
 
-void PathBmcEngine::solve_bool_abstraction() {
+void PathBmcEngine::solveBoolAbstraction() {
   Stats::resume("BMC path-based: enumeration path solver");
   m_result = m_boolean_solver->check();
   Stats::stop("BMC path-based: enumeration path solver");
@@ -1016,7 +1016,7 @@ void PathBmcEngine::solve_bool_abstraction() {
 solver::SolverResult PathBmcEngine::solve() {
   //*-------------------------------------------------------------------*//
   // FIXME: the generation of blocking clauses is not sound when they
-  // are generated from Clam (gen_path_cond_from_ai_cex). This is a
+  // are generated from Clam (genPathCondFromCrabCex). This is a
   // big limitation since it's one of key feature of this BMC
   // engine. It needs to be fixed.
   //*-------------------------------------------------------------------*//
@@ -1035,9 +1035,9 @@ solver::SolverResult PathBmcEngine::solve() {
 
   // -- Initialize AI and assert global invariants to refine the
   // -- precise encoding
-  initialize_ai();
+  initializeCrab();
   expr_invariants_map_t invariants /*currently unused*/;
-  add_global_invariants(invariants);
+  addGlobalCrabInvariants(invariants);
   
   LOG("bmc-details", for (Expr v
                           : m_precise_side) { errs() << "\t" << *v << "\n"; });
@@ -1046,7 +1046,7 @@ solver::SolverResult PathBmcEngine::solve() {
   LOG("bmc", get_os(true) << "Begin boolean abstraction\n";);
   Stats::resume("BMC path-based: initial boolean abstraction");
   ExprVector abs_side;
-  path_bmc::bool_abstraction(m_precise_side, abs_side);
+  path_bmc::boolAbstraction(m_precise_side, abs_side);
   // XXX: we use m_boolean_solver for keeping the abstraction.
   for (Expr v : abs_side) {
     LOG("bmc-details", errs() << "\t" << *v << "\n";);
@@ -1063,7 +1063,7 @@ solver::SolverResult PathBmcEngine::solve() {
    * path.
    **/
   while (true) {
-    solve_bool_abstraction();
+    solveBoolAbstraction();
     
     // keep going while we can generate a path from the boolean
     // abstraction
@@ -1090,8 +1090,8 @@ solver::SolverResult PathBmcEngine::solve() {
       crab_invariants_map_t crab_path_constraints /*unused*/;
       bool keep_path_constraints = false;
       Stats::resume("BMC path-based: solving path + learning clauses with AI");
-      bool res = path_encoding_and_solve_with_ai(cex, keep_path_constraints,
-						 crab_path_constraints, path_constraints);
+      bool res = pathEncodingAndSolveWithCrab(cex, keep_path_constraints,
+					      crab_path_constraints, path_constraints);
       Stats::stop("BMC path-based: solving path + learning clauses with AI");
 
       LOG("bmc-ai", if (!path_constraints.empty()) {
@@ -1111,7 +1111,7 @@ solver::SolverResult PathBmcEngine::solve() {
       });
 
       if (!res) {
-        bool ok = block_path();
+        bool ok = blockPath();
         if (ok) {
           Stats::count("BMC number symbolic paths discharged by AI");
           continue;
@@ -1127,7 +1127,7 @@ solver::SolverResult PathBmcEngine::solve() {
     // XXX: the semantics of invariants and path_constraints (e.g.,
     // linear integer arithmetic) might differ from the semantics used
     // by the smt (e.g., bitvectors).
-    solver::SolverResult res = path_encoding_and_solve_with_smt(
+    solver::SolverResult res = pathEncodingAndSolveWithSmt(
         cex, invariants, path_constraints /*unused*/);
     Stats::stop("BMC path-based: solving path + learning clauses with SMT");
     if (res == solver::SolverResult::SAT) {
@@ -1140,7 +1140,7 @@ solver::SolverResult PathBmcEngine::solve() {
     } else {
       // if res is unknown we still add a blocking clause to skip
       // the path.
-      bool ok = block_path();
+      bool ok = blockPath();
       if (!ok) {
         ERR << "Path-based BMC added the same blocking clause again";
         m_result = solver::SolverResult::UNKNOWN;
@@ -1181,13 +1181,13 @@ solver::SolverResult PathBmcEngine::solve() {
 
       solver::SolverResult res;
       {
-        path_bmc::scoped_solver ss(*m_smt_path_solver, timeout);
+        path_bmc::scopedSolver ss(*m_smt_path_solver, timeout);
         res = ss.get().check();
       }
       if (res == solver::SolverResult::SAT) {
         m_model = m_smt_path_solver->get_model();
         if (SmtOutDir != "") {
-          to_smt_lib(kv.second, "sat");
+          toSmtLib(kv.second, "sat");
         }
         LOG("bmc", get_os(true) << "Path " << kv.first << " proved sat!\n";);
         m_result = solver::SolverResult::SAT;
@@ -1219,7 +1219,7 @@ solver::SolverResult PathBmcEngine::solve() {
   return m_result;
 }
 
-bool PathBmcEngine::block_path() {
+bool PathBmcEngine::blockPath() {
   Stats::resume("BMC path-based: adding blocking clauses");
 
   // -- Refine the Boolean abstraction

@@ -94,21 +94,21 @@ struct BA : public std::unary_function<Expr, VisitAction> {
   }
 };
 
-static Expr pre_nnf(Expr exp) {
+static Expr preNNF(Expr exp) {
   op::boolop::BS<PreNNF> bs(new PreNNF());
   return dagVisit(bs, exp);
 }
 
-static Expr bool_abstraction(Expr exp) {
-  exp = pre_nnf(exp);
+static Expr boolAbstraction(Expr exp) {
+  exp = preNNF(exp);
   exp = op::boolop::nnf(exp);
   BA n(exp->efac());
   return dagVisit(n, exp);
 }
 
-void bool_abstraction(ExprVector &side, ExprVector &abs_side) {
+void boolAbstraction(ExprVector &side, ExprVector &abs_side) {
   for (auto exp : side) {
-    Expr bexp = bool_abstraction(exp);
+    Expr bexp = boolAbstraction(exp);
     abs_side.push_back(bexp);
   }
   abs_side.erase(std::remove_if(abs_side.begin(), abs_side.end(),

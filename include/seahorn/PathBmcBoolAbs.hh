@@ -6,7 +6,7 @@ namespace seahorn {
 
 namespace path_bmc {
 
-void bool_abstraction(ExprVector &side, ExprVector &abs_side);
+void boolAbstraction(ExprVector &side, ExprVector &abs_side);
 
 }
 } // namespace seahorn

@@ -285,7 +285,7 @@ public:
   HD_BASE(unsigned addressesPerWord) : m_pairs(addressesPerWord) {}
   virtual ~HD_BASE() = default;
 
-  virtual VisitAction operator()(Expr exp) = 0;
+  virtual VisitAction operator()(Expr exp){};
   virtual void doneVisiting() {}
 
   template <typename T> void print(T &OS, bool ascii) {
@@ -406,7 +406,7 @@ struct FindValid {
 };
 
 class HexDump::Impl {
-  std::unique_ptr<HD_BASE> m_visitor = nullptr;
+  std::unique_ptr<HD_BASE> m_visitor;
 
   void findType(Expr exp, unsigned addressesPerWord) {
 
@@ -432,6 +432,8 @@ class HexDump::Impl {
 
       if (find.foundValid) {
         findType(find.validExp, addressesPerWord);
+      } else {
+        m_visitor = std::make_unique<HD_BASE>(addressesPerWord);
       }
     }
   }
@@ -444,9 +446,7 @@ public:
   const_hd_iterator cend() const { return m_visitor->cend(); }
 
   template <typename T> void print(T &OS, bool ascii) {
-    if (m_visitor) {
-      m_visitor->print(OS, ascii);
-    }
+    m_visitor->print(OS, ascii);
   }
 };
 

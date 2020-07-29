@@ -86,28 +86,6 @@ TEST_CASE("hexDumpBvNum.test") {
 
   CHECK(outcome == expected);
   checkPairs(kvList.cbegin(), kvList.cend(), hd.cbegin(), hd.cend());
-
-  //-------------
-
-  kvList.clear();
-  Expr bvSort32 = bv::bvsort(32, efac);
-  e = array::constArray(bvSort32, bv::bvnum(0xa345ff22, 32, efac));
-  kvList.push_back(KeyValue(mkTerm<std::string>("*", efac),
-                            mkTerm<mpz_class>(0xa345ff22, efac)));
-
-  llvm::errs() << "Expression: " << *e;
-
-  HexDump hd2(e, 4);
-
-  llvm::errs() << hd2;
-
-  outcome = boost::lexical_cast<std::string>(hd2);
-  outcome = std::regex_replace(outcome, std::regex(" *\n *"), "");
-
-  expected = "*: a3 45 ff 22  |.E.\"|";
-
-  CHECK(outcome == expected);
-  checkPairs(kvList.cbegin(), kvList.cend(), hd2.cbegin(), hd2.cend());
 }
 
 TEST_CASE("num.test") {
@@ -211,27 +189,6 @@ TEST_CASE("finiteMap.test") {
                             mkTerm<mpz_class>(0xa, efac)));
 
   checkPairs(kvList.cbegin(), kvList.cend(), hd.cbegin(), hd.cend());
-
-  //--------------
-
-  keys.clear();
-  keys.push_back(mkTerm<mpz_class>(0, efac));
-
-  values.clear();
-  values.push_back(mkTerm<mpz_class>(0x12, efac));
-
-  e = finite_map::constFiniteMap(keys, values);
-
-  llvm::errs() << "Expression: " << *e;
-  HexDump hd2(e, 2);
-
-  llvm::errs() << hd2;
-
-  kvList.clear();
-  kvList.push_back(
-      KeyValue(mkTerm<mpz_class>(0, efac), mkTerm<mpz_class>(0x12, efac)));
-
-  checkPairs(kvList.cbegin(), kvList.cend(), hd2.cbegin(), hd2.cend());
 }
 
 TEST_CASE("ite.test") {
@@ -417,4 +374,77 @@ TEST_CASE("struct.test") {
 
   checkPairs(pairList2.begin(), pairList2.end(), ranges.at(1).begin(),
              ranges.at(1).end()); // child 2 : ite
+}
+TEST_CASE("specialCases.test") {
+  ExprFactory efac;
+  Expr intConst = bind::intConst(mkTerm<std::string>("intConst", efac));
+
+  Expr e = mk<AND>(intConst,
+                   intConst); // doesn't have anything that is supported by the
+                              // hex dump so the result should be emplty
+
+  llvm::errs() << "Expression: " << *e << "\n";
+
+  HexDump hd(e, 2);
+  llvm::errs() << hd;
+
+  std::string outcome = boost::lexical_cast<std::string>(hd);
+  std::string expected = "";
+
+  CHECK(outcome == expected);
+
+  CHECK(hd.cbegin() == hd.cend());
+
+  //-------------
+
+  std::vector<KeyValue> kvList;
+  Expr bvSort32 = bv::bvsort(32, efac);
+  e = array::constArray(
+      bvSort32,
+      bv::bvnum(0xa345ff22, 32,
+                efac)); // only has a const array (not wrapped with STORE)
+
+  kvList.push_back(KeyValue(mkTerm<std::string>("*", efac),
+                            mkTerm<mpz_class>(0xa345ff22, efac)));
+
+  llvm::errs() << "Expression: " << *e;
+
+  HexDump hd2(e, 4);
+
+  llvm::errs() << hd2;
+
+  outcome = boost::lexical_cast<std::string>(hd2);
+  outcome = std::regex_replace(outcome, std::regex(" *\n *"), "");
+
+  expected = "*: a3 45 ff 22  |.E.\"|";
+
+  CHECK(outcome == expected);
+  checkPairs(kvList.cbegin(), kvList.cend(), hd2.cbegin(), hd2.cend());
+
+  //-----
+
+  ExprVector keys;
+  keys.push_back(mkTerm<mpz_class>(0, efac));
+
+  ExprVector values;
+  values.push_back(mkTerm<mpz_class>(0x12, efac));
+
+  e = finite_map::constFiniteMap(
+      keys, values); // only has a const finite map (not wrapped in SET)
+
+  llvm::errs() << "Expression: " << *e;
+  HexDump hd3(e, 2);
+
+  llvm::errs() << hd3;
+
+  outcome = boost::lexical_cast<std::string>(hd3);
+  outcome = std::regex_replace(outcome, std::regex(" *\n *"), "");
+
+  expected = "0: 12  |.|";
+
+  kvList.clear();
+  kvList.push_back(
+      KeyValue(mkTerm<mpz_class>(0, efac), mkTerm<mpz_class>(0x12, efac)));
+
+  checkPairs(kvList.cbegin(), kvList.cend(), hd3.cbegin(), hd3.cend());
 }

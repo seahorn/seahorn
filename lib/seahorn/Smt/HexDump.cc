@@ -24,6 +24,10 @@ bool getNum(Expr exp, mpz_class &num) {
     num = mpz_class(unsignedNum);
 
     return true;
+  } else if (bv::is_bvnum(exp)) {
+    num = bv::toMpz(exp);
+
+    return true;
   }
 
   return false;
@@ -34,6 +38,15 @@ bool isNumeric(Expr exp) {
   return getNum(exp, placeholder);
 }
 
+Expr convertToMpz(Expr exp) {
+  mpz_class num = 0;
+  if (getNum(exp, num)) {
+    return mkTerm<mpz_class>(num, exp->efac());
+  }
+
+  return exp;
+}
+
 /// puts in a specified amount of characters to the stream
 void fillLeadingChars(char c, unsigned numChars,
                       llvm::raw_string_ostream &stream) {
@@ -41,12 +54,13 @@ void fillLeadingChars(char c, unsigned numChars,
 }
 
 /// puts formated index (correct width) into the stream
-void getIdxStr(Expr idx, unsigned width, llvm::raw_string_ostream &stream) {
+void getIdxStr(Expr idx, unsigned desiredNumBytes,
+               llvm::raw_string_ostream &stream) {
 
   mpz_class num = 0;
 
   if (getNum(idx, num)) {
-    unsigned desiredNumDigits = std::ceil((float)width / 4);
+    unsigned desiredNumDigits = desiredNumBytes * 2;
 
     unsigned numDigits = std::ceil((float)num.sizeInBase(16));
 
@@ -62,7 +76,7 @@ void getIdxStr(Expr idx, unsigned width, llvm::raw_string_ostream &stream) {
 }
 
 /// puts formated value (correct width and spacing) into the stream
-static void getValueStr(Expr value, unsigned width, bool includeAscii,
+static void getValueStr(Expr value, unsigned desiredNumBytes, bool includeAscii,
                         llvm::raw_string_ostream &stream) {
 
   mpz_class num = 0;
@@ -71,10 +85,6 @@ static void getValueStr(Expr value, unsigned width, bool includeAscii,
     unsigned numBytes =
         std::ceil((float)num.sizeInBase(16) /
                   2); // number of bytes that the value's number actually has
-
-    unsigned desiredNumBytes = std::ceil(
-        (float)width /
-        8); // number of bytes that the value should have - based on its width
 
     if (desiredNumBytes < numBytes) {
       desiredNumBytes = numBytes;
@@ -108,7 +118,8 @@ namespace expr {
 namespace hexDump {
 
 KeyValue::KeyValue(Expr idx, Expr value, bool isRepeated)
-    : m_pair(idx, value), m_isRepeated(isRepeated) {}
+    : m_pair(kvUtils::convertToMpz(idx), kvUtils::convertToMpz(value)),
+      m_isRepeated(isRepeated) {}
 
 bool KeyValue::isSortable() const { return kvUtils::isNumeric(m_pair.first); }
 
@@ -179,46 +190,40 @@ std::ostream &operator<<(std::ostream &OS, KeyValue const &kv) {
 class Pairs {
 
   std::set<KeyValue> m_set;
+  std::pair<unsigned, unsigned> m_widths;
 
   Expr m_defaultValue;
 
-  std::pair<unsigned, unsigned> m_widths;
-  unsigned m_addressesPerWord = 1;
+  unsigned m_bytesPerWord = 1;
 
-  static void store(Expr &exp, unsigned &widthDest) {
-    unsigned width = 0;
-    if (bv::isBvNum(exp, width)) { // note: isBvNum stores the width
-      exp = exp->first();
-    } else {
+  static void store(Expr exp, unsigned &widthDest) {
+    unsigned bits = 0;
+    if (!bv::isBvNum(exp, bits)) { // note: isBvNum stores the width
       mpz_class num = 0;
+
       if (kvUtils::getNum(exp, num)) {
-        width = num.sizeInBase(2);
+        bits = num.sizeInBase(2);
       }
     }
 
-    widthDest = std::max(width, widthDest);
+    unsigned bytes = std::ceil((float)bits / 8);
+
+    widthDest = std::max(bytes, widthDest);
   }
 
 public:
-  Pairs(unsigned addressesPerWord)
-      : m_addressesPerWord(addressesPerWord), m_widths(0, 0) {}
+  Pairs(unsigned bytesPerWord)
+      : m_bytesPerWord(bytesPerWord), m_widths(0, bytesPerWord) {}
 
   void insert(Expr idx, Expr value) {
 
     if (idx)
       store(idx, m_widths.first);
 
-    if (value)
-      store(value, m_widths.second);
-
     m_set.emplace(idx, value);
   }
 
-  void setDefault(Expr defaultValue) {
-    store(defaultValue, m_widths.second);
-
-    m_defaultValue = defaultValue;
-  }
+  void setDefault(Expr defaultValue) { m_defaultValue = defaultValue; }
 
   template <typename T> void print(T &OS, bool includeAscii) const {
     for (auto b = m_set.begin(), e = m_set.end(); b != e; b++) {
@@ -251,24 +256,20 @@ public:
       mpz_class idx2 = (*std::next(b)).getIdxNum();
 
       // if there is a gap in indices then fill the gap with the default value
-      if ((idx2 > (idx1 + m_addressesPerWord)) && !(*b).isRepeated()) {
+      if ((idx2 > (idx1 + m_bytesPerWord)) && !(*b).isRepeated()) {
 
         bool repeats =
-            idx2 > (idx1 + (m_addressesPerWord *
-                            2)); // if the gap is more than double, then
-                                 // the default value is repeated
+            idx2 >
+            (idx1 + (m_bytesPerWord * 2)); // if the gap is more than double,
+                                           // then the default value is repeated
 
-        Expr nextIdx = mkTerm<mpz_class>(idx1 + m_addressesPerWord,
-                                         (*b).getIdxExpr()->efac());
+        Expr nextIdx =
+            mkTerm<mpz_class>(idx1 + m_bytesPerWord, (*b).getIdxExpr()->efac());
 
         b = m_set.emplace_hint(std::next(b), nextIdx, m_defaultValue, repeats);
       }
     }
   }
-
-  std::pair<unsigned, unsigned> getWidths() const { return m_widths; }
-
-  void setWidths(std::pair<unsigned, unsigned> widths) { m_widths = widths; }
 
   const_hd_iterator cbegin() const { return m_set.cbegin(); }
 
@@ -282,11 +283,12 @@ protected:
   Pairs m_pairs;
 
 public:
-  HD_BASE(unsigned addressesPerWord) : m_pairs(addressesPerWord) {}
+  HD_BASE(unsigned bytesPerWord) : m_pairs(bytesPerWord) {}
   virtual ~HD_BASE() = default;
 
   virtual VisitAction operator()(Expr exp){};
-  virtual void doneVisiting() {}
+
+  void doneVisiting() { m_pairs.fillInGaps(); }
 
   template <typename T> void print(T &OS, bool ascii) {
     return m_pairs.print(OS, ascii);
@@ -300,7 +302,7 @@ public:
 class HD_ITE : public HD_BASE {
 
 public:
-  HD_ITE(unsigned addressesPerWord) : HD_BASE(addressesPerWord) {}
+  HD_ITE(unsigned bytesPerWord) : HD_BASE(bytesPerWord) {}
   VisitAction operator()(Expr exp) override {
     if (isOp<ITE>(exp)) {
       Expr condition = exp->arg(0);
@@ -326,10 +328,20 @@ public:
 
         m_pairs.insert(key, thenBranch);
 
+        // if there is not a nested ite
+        if (!isOp<ITE>(elseBranch)) {
+          m_pairs.setDefault(elseBranch);
+        }
+
       } else if (isOp<NEQ>(condition)) {
         assert(!isOp<ITE>(elseBranch));
 
         m_pairs.insert(key, elseBranch);
+
+        // if there is not a nested ite
+        if (!isOp<ITE>(thenBranch)) {
+          m_pairs.setDefault(thenBranch);
+        }
       }
     }
 
@@ -339,7 +351,7 @@ public:
 class HD_ARRAY : public HD_BASE {
 
 public:
-  HD_ARRAY(unsigned addressesPerWord) : HD_BASE(addressesPerWord) {}
+  HD_ARRAY(unsigned bytesPerWord) : HD_BASE(bytesPerWord) {}
 
   VisitAction operator()(Expr exp) override {
 
@@ -372,8 +384,6 @@ public:
 
     return VisitAction::doKids();
   }
-
-  void doneVisiting() override { m_pairs.fillInGaps(); }
 };
 } // namespace hexDump
 } // namespace expr
@@ -408,16 +418,16 @@ struct FindValid {
 class HexDump::Impl {
   std::unique_ptr<HD_BASE> m_visitor;
 
-  void findType(Expr exp, unsigned addressesPerWord) {
+  void findType(Expr exp, unsigned bytesPerWord) {
 
     if (isOp<ITE>(exp)) {
-      m_visitor = std::make_unique<HD_ITE>(addressesPerWord);
+      m_visitor = std::make_unique<HD_ITE>(bytesPerWord);
       visit(*m_visitor, exp); // note: HD_ITE has its own cache
 
       m_visitor->doneVisiting();
 
     } else if (isArray(exp) || isFiniteMap(exp)) {
-      m_visitor = std::make_unique<HD_ARRAY>(addressesPerWord);
+      m_visitor = std::make_unique<HD_ARRAY>(bytesPerWord);
 
       dagVisit(*m_visitor, exp);
 
@@ -431,15 +441,15 @@ class HexDump::Impl {
       dagVisit(find, exp);
 
       if (find.foundValid) {
-        findType(find.validExp, addressesPerWord);
+        findType(find.validExp, bytesPerWord);
       } else {
-        m_visitor = std::make_unique<HD_BASE>(addressesPerWord);
+        m_visitor = std::make_unique<HD_BASE>(bytesPerWord);
       }
     }
   }
 
 public:
-  Impl(Expr exp, unsigned addressesPerWord) { findType(exp, addressesPerWord); }
+  Impl(Expr exp, unsigned bytesPerWord) { findType(exp, bytesPerWord); }
 
   const_hd_iterator cbegin() const { return m_visitor->cbegin(); }
 
@@ -450,8 +460,8 @@ public:
   }
 };
 
-HexDump::HexDump(Expr exp, unsigned addressesPerWord)
-    : m_impl(new HexDump::Impl(exp, addressesPerWord)) {}
+HexDump::HexDump(Expr exp, unsigned bytesPerWord)
+    : m_impl(new HexDump::Impl(exp, bytesPerWord)) {}
 HexDump::~HexDump() { delete m_impl; }
 
 const_hd_iterator HexDump::cbegin() const { return m_impl->cbegin(); }
@@ -475,20 +485,18 @@ llvm::raw_ostream &operator<<(llvm::raw_ostream &OS, HexDump const &hd) {
 class StructHexDump::StructImpl {
   std::list<std::unique_ptr<HexDump>> hexDumps;
 
-  void init(Expr exp, unsigned addressesPerWord) {
+  void init(Expr exp, unsigned bytesPerWord) {
     assert(isOp<MK_STRUCT>(exp));
 
     // separate every child of the struct into
     // separate hex dumps
     for (auto b = exp->args_begin(), e = exp->args_end(); b != e; b++) {
-      hexDumps.push_back(std::make_unique<HexDump>((*b), addressesPerWord));
+      hexDumps.push_back(std::make_unique<HexDump>((*b), bytesPerWord));
     }
   }
 
 public:
-  StructImpl(Expr exp, unsigned addressesPerWord) {
-    init(exp, addressesPerWord);
-  }
+  StructImpl(Expr exp, unsigned bytesPerWord) { init(exp, bytesPerWord); }
 
   std::vector<const_hd_range> getRanges() const {
 
@@ -510,8 +518,8 @@ public:
   }
 };
 
-StructHexDump::StructHexDump(Expr exp, unsigned addressesPerWord)
-    : m_impl(new StructHexDump::StructImpl(exp, addressesPerWord)) {}
+StructHexDump::StructHexDump(Expr exp, unsigned bytesPerWord)
+    : m_impl(new StructHexDump::StructImpl(exp, bytesPerWord)) {}
 
 StructHexDump::~StructHexDump() { delete m_impl; }
 

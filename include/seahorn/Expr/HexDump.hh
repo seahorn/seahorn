@@ -10,7 +10,7 @@ namespace hexDump {
  * This is an individual cell in the hex dump. It stores a key and its
  * corresponding value
  *
- * \note bvnums are stored as MPZ expressions
+ * \note bvnums and UINT are stored as MPZ expressions
  */
 class KeyValue {
   std::pair<Expr, Expr> m_pair; // <key, value>
@@ -74,12 +74,15 @@ class HexDump {
   Impl *m_impl;
 
 public:
-  HexDump(Expr exp, unsigned addressesPerWord = 1);
+  HexDump(Expr exp, unsigned bytesPerWord = 1);
   ~HexDump();
 
   const_hd_iterator cbegin() const;
   const_hd_iterator cend() const;
 
+  /// \note the width of the index is based on the max number of bytes out of
+  /// all the indices
+  /// \note the width of the value is based on the bytesPerWord
   template <typename T> void print(T &OS, bool includeAscii = true) const;
 
   friend llvm::raw_ostream &operator<<(llvm::raw_ostream &OS,
@@ -98,7 +101,7 @@ class StructHexDump {
   StructImpl *m_impl;
 
 public:
-  StructHexDump(Expr exp, unsigned addressesPerWord = 1);
+  StructHexDump(Expr exp, unsigned bytesPerWord = 1);
   ~StructHexDump();
 
   std::vector<const_hd_range> getRanges() const;

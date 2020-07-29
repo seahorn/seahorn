@@ -717,7 +717,7 @@ bool PathBmcEngine::pathEncodingAndSolveWithCrab(
 
     // -- Extract the path condition from the spurious cex.
     std::set<Expr> path_cond;
-    assert(m_cfg_builder_man->has_cfg(*m_fn));
+    assert(m_cfg_builder_man->hasCfg(*m_fn));
     if (!genPathCondFromCrabCex(cex, cex_relevant_stmts, path_cond)) {
       // By returning true we pretend the query was sat so we run
       // the SMT solver next.

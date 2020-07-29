@@ -28,6 +28,18 @@ class TCVR {
   // so it can reset
   Expr m_topMost;
 
+  void inferType(Expr exp) {
+    Expr type = m_isWellFormed ? exp->op().inferType(exp, *m_tc)
+                               : sort::errorTy(exp->efac());
+
+    m_cache.insert({exp, type});
+
+    if (isOp<ERROR_TY>(type)) {
+      foundError(exp);
+      m_errorMap.insert({exp, m_errorExp});
+    }
+  }
+
   void foundError(Expr exp) {
     ERR << "Expression is not well-formed: " << *exp << "\n";
 
@@ -49,15 +61,7 @@ class TCVR {
   Expr postVisit(Expr exp) {
     LOG("tc", llvm::errs() << "post visiting expression: " << *exp << "\n";);
 
-    Expr type = m_isWellFormed ? exp->op().inferType(exp, *m_tc)
-                               : sort::errorTy(exp->efac());
-
-    m_cache.insert({exp, type});
-
-    if (isOp<ERROR_TY>(type)) {
-      foundError(exp);
-      m_errorMap.insert({exp, m_errorExp});
-    }
+    inferType(exp);
 
     return exp;
   }
@@ -83,6 +87,13 @@ public:
 
       if (isOp<ERROR_TY>(type))
         foundError(m_errorMap.at(exp));
+
+      return false;
+    }
+
+    if (exp->op().typeCheckTopDown()) {
+      LOG("tc", llvm::errs() << "Top down: " << *exp << "\n";);
+      inferType(exp);
 
       return false;
     }

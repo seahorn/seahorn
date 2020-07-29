@@ -52,18 +52,26 @@ NOP(FAPP, "fapp", bind::FAPP_PS, BindOp, typeCheck::bindType::Fapp)
 namespace typeCheck {
 namespace bindType {
 
-struct Bind {
-  static inline Expr inferType(Expr exp, TypeChecker &tc) {
+struct Bind : public TypeCheckBase {
+  inline Expr inferType(Expr exp, TypeChecker &tc) {
     if (!(exp->arity() == 2 && isOp<TYPE_TY>(tc.typeOf(exp->right()))))
       return sort::errorTy(exp->efac());
 
     return exp->right();
   }
 };
-struct Fdecl {
+struct Fdecl : public TypeCheckBase {
+
+  inline bool topDown() {
+    // want to skip over the name all together. If this expression was traversed
+    // bottom up, the name would have already been visited when the fdecl is
+    // reached
+    return true;
+  }
+
   /// Checks that all arguments and return expression are types
   /// \return FUNCTIONAL_TY
-  static inline Expr inferType(Expr exp, TypeChecker &tc) {
+  inline Expr inferType(Expr exp, TypeChecker &tc) {
     if (exp->arity() < 2)
       return sort::errorTy(exp->efac());
 
@@ -82,17 +90,17 @@ struct Fdecl {
   }
 };
 
-struct Fapp {
+struct Fapp : public TypeCheckBase {
   /// Checks that the first child is FUNCTIONAL_TY type and its remaining
   /// types match the Functional's argument types
   /// \return type of the Functional's body
-  static inline Expr inferType(Expr exp, TypeChecker &tc) {
+  inline Expr inferType(Expr exp, TypeChecker &tc) {
     if (exp->arity() == 0)
       return sort::errorTy(exp->efac());
 
     Expr functionalType =
         tc.typeOf(exp->first()); // functional types should be of the form :
-                                     // arg1Type, arg2Type ... -> returnType
+                                 // arg1Type, arg2Type ... -> returnType
 
     if (!(isOp<FUNCTIONAL_TY>(functionalType) &&
           exp->arity() == functionalType->arity()))

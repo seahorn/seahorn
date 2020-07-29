@@ -14,10 +14,10 @@ enum class CompareOpKind { EQ, NEQ, LEQ, GEQ, LT, GT };
 namespace typeCheck {
 namespace compareType {
 
-struct Equality {
+struct Equality  : public TypeCheckBase{
   /// \return BOOL_TY
   /// Possible types of children: any type except for ERROR_TY
-  static inline Expr inferType(Expr exp, TypeChecker &tc) {
+  inline Expr inferType(Expr exp, TypeChecker &tc) {
 
     // finite maps are a special case: the keys are stored directly, not as
     // their type
@@ -48,10 +48,10 @@ struct Equality {
     return typeCheck::binary<BOOL_TY, ANY_TY>(exp, tc);
   }
 };
-struct Inequality {
+struct Inequality  : public TypeCheckBase{
   /// \return BOOL_TY
   /// Possible types of children: any number type
-  static inline Expr inferType(Expr exp, TypeChecker &tc) {
+  inline Expr inferType(Expr exp, TypeChecker &tc) {
     return typeCheck::binary<BOOL_TY, NUM_TYPES>(exp, tc);
   }
 };

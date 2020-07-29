@@ -35,8 +35,8 @@ static inline void getArrayTypes(Expr exp, TypeChecker &tc, Expr &mapTy, Expr &i
   ///ensures that the expression's key type matches the arrays's key type
   /// checks for the following children (in order): map, index
   /// \return the array's value type
-struct Select {
-  static inline Expr inferType(Expr exp, TypeChecker &tc) {
+struct Select  : public TypeCheckBase{
+  inline Expr inferType(Expr exp, TypeChecker &tc) {
     return typeCheck::mapType::select<ARRAY_TY>(exp, tc, getArrayTypes);
   }
 };
@@ -44,16 +44,16 @@ struct Select {
   /// ensures that the index type and value type match the array's index and value types
   /// checks for the following children (in order): array, index, value
   /// \return ARRAY_TY
-struct Store {
-  static inline Expr inferType(Expr exp, TypeChecker &tc) {
+struct Store  : public TypeCheckBase{
+  inline Expr inferType(Expr exp, TypeChecker &tc) {
     return typeCheck::mapType::store<ARRAY_TY>(exp, tc, getArrayTypes);
   }
 };
 
   /// Expected Children types(in order): TYPE_TY, anything
   /// \return: ARRAY_TY
-struct Const {
-  static inline Expr inferType(Expr exp, TypeChecker &tc) {
+struct Const  : public TypeCheckBase{
+  inline Expr inferType(Expr exp, TypeChecker &tc) {
     if (exp->arity() != 2)
       return sort::errorTy(exp->efac());
 
@@ -69,8 +69,8 @@ struct Const {
 
   /// Expected Children type: ARRAY_TY
   /// \return: ARRAY_TY
-struct Default {
-  static inline Expr inferType(Expr exp, TypeChecker &tc) {
+struct Default  : public TypeCheckBase{
+  inline Expr inferType(Expr exp, TypeChecker &tc) {
 
     if (!checkArray(exp, tc, 1))
       return sort::errorTy(exp->efac());

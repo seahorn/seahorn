@@ -2,6 +2,7 @@
 
 #include "seahorn/Expr/ExprOpSort.hh"
 #include "seahorn/Expr/TypeChecker.hh"
+#include "seahorn/Expr/TypeCheckerBase.hh"
 
 namespace expr {
 namespace op {
@@ -171,8 +172,8 @@ static inline Expr nary(Expr exp, TypeChecker &tc) {
                                                   returnTypeFn<returnType>);
 }
 
-struct Any {
-  static inline Expr inferType(Expr exp, TypeChecker &tc) {
+struct Any : TypeCheckBase {
+  inline Expr inferType(Expr exp, TypeChecker &tc) {
     return sort::anyTy(exp->efac());
   }
 };

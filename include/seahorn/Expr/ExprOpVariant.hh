@@ -49,14 +49,14 @@ static inline Expr checkVariant(Expr exp, TypeChecker &tc) {
 
 }
 
-struct Variant {
-  static inline Expr inferType(Expr exp, TypeChecker &tc) {
+struct Variant : public TypeCheckBase {
+  inline Expr inferType(Expr exp, TypeChecker &tc) {
     return checkVariant <INT_TY> (exp, tc);
   }
 };
 
-struct Tag {
-  static inline Expr inferType(Expr exp, TypeChecker &tc) {
+struct Tag : public TypeCheckBase{
+  inline Expr inferType(Expr exp, TypeChecker &tc) {
     return checkVariant <ANY_TY>(exp, tc);
   }
 };

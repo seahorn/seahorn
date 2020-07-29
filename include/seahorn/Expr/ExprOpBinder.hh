@@ -6,6 +6,8 @@
 #include "seahorn/Expr/ExprOpBool.hh"
 #include "seahorn/Expr/ExprOpCore.hh"
 #include "seahorn/Expr/ExprVisitor.hh"
+#include "seahorn/Expr/TypeCheckerUtils.hh"
+
 namespace expr {
 namespace op {
 namespace bind {
@@ -149,13 +151,13 @@ static inline bool binderCheck(Expr exp, TypeChecker &tc,
   return true;
 }
 
-struct Lambda {
+struct Lambda : public TypeCheckBase{
   /// ensures that all children except for the last (the body) are constants
   /// \note does not check bound variables
   /// \return FUNCTIONAL_TY
   /// for example, for the expression lambda a, b, c ... :: body, the return
   /// type is FUNCTIONAL_TY(typeOf(a), typeOf(b), ... , typeOf(body))
-  static inline Expr inferType(Expr exp, TypeChecker &tc) {
+  inline Expr inferType(Expr exp, TypeChecker &tc) {
     ExprVector boundTypes;
     if (!binderCheck(exp, tc, boundTypes))
       return sort::errorTy(exp->efac());
@@ -167,12 +169,12 @@ struct Lambda {
   }
 };
 
-struct Quantifier {
+struct Quantifier : public TypeCheckBase{
   /// ensures that: 1. all children except for the last (the body) are constants
   ///  2. the body type is BOOL_TY
   /// \note does not check bound variables
   /// \return BOOL_TY
-  static inline Expr inferType(Expr exp, TypeChecker &tc) {
+  inline Expr inferType(Expr exp, TypeChecker &tc) {
     ExprVector boundTypes;
     Expr body = exp->last();
     if (!(binderCheck(exp, tc, boundTypes) &&

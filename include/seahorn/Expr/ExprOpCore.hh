@@ -128,6 +128,10 @@ public:
            llvm::cast<TerminalBase>(op)->m_kind == terminal_type::getKind();
   }
 
+  bool typeCheckTopDown() const override {
+    return false;
+  }
+
   Expr inferType(Expr exp, TypeChecker &tc) const override {
     return terminal_type::inferType(exp, tc);
   }
@@ -424,8 +428,12 @@ struct DefOp : public B {
            llvm::cast<base_type>(op)->m_kind == kind;
   }
 
+ bool typeCheckTopDown() const override {
+    return checker_type().topDown();
+  }
+
   Expr inferType(Expr exp, TypeChecker &tc) const override {
-    return checker_type::inferType(exp, tc);
+    return checker_type().inferType(exp, tc);
   }
 };
 

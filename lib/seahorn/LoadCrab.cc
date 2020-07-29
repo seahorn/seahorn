@@ -1,6 +1,6 @@
 #include "seahorn/LoadCrab.hh"
-#include "seahorn/config.h"
 #include "seahorn/Support/SeaDebug.h"
+#include "seahorn/config.h"
 
 #include "llvm/Support/raw_ostream.h"
 
@@ -33,8 +33,8 @@ bool LoadCrab::runOnFunction(llvm::Function &F) { return false; }
 #include "seahorn/HornifyModule.hh"
 #include "seahorn/Transforms/Instrumentation/ShadowMemDsa.hh"
 
-#include "clam/Clam.hh"
 #include "clam/CfgBuilder.hh"
+#include "clam/Clam.hh"
 #include "clam/HeapAbstraction.hh"
 
 #include "boost/unordered_map.hpp"
@@ -193,8 +193,9 @@ private:
       return nullptr;
     }
     const Value *V = *(v.get());
-    if (const Value *Gv = m_heap_abs.getRegion(m_func, nullptr, const_cast<Value *>(V))
-                              .getSingleton()) {
+    if (const Value *Gv =
+            m_heap_abs.getRegion(m_func, nullptr, const_cast<Value *>(V))
+                .getSingleton()) {
       /// -- The crab variable v corresponds to a global singleton
       ///    cell so we can grab a llvm Value from it. We search for
       ///    the seahorn shadow variable that matches it.
@@ -453,7 +454,8 @@ private:
   };
 
 public:
-  LinConToExprSem(LegacyOperationalSemantics &sem, BvWidthMap &map) : m_sem(sem), m_width_map(map) {}
+  LinConToExprSem(LegacyOperationalSemantics &sem, BvWidthMap &map)
+      : m_sem(sem), m_width_map(map) {}
 
   VisitAction operator()(Expr exp) {
     if (isOpX<FAPP>(exp)) {      /* variable */
@@ -486,9 +488,10 @@ public:
 
 class DisjunctiveLinConsToExpr {
   LinConsToExprImpl m_t;
+
 public:
   DisjunctiveLinConsToExpr(HeapAbstraction &heap_abs, const llvm::Function &f,
-			   const ExprVector &live)
+                           const ExprVector &live)
       : m_t(heap_abs, f, live) {}
 
   Expr toExpr(const disj_lin_cst_sys_t &csts, ExprFactory &efac) {
@@ -556,8 +559,8 @@ Expr LinConsToExpr::toExpr(lin_cst_t cst, LegacyOperationalSemantics &sem) {
   return dagVisit(LCES, e);
 }
 
-Expr CrabInvToExpr(llvm::BasicBlock *B, ClamPass *clam,
-                   const ExprVector &live, EZ3 &zctx, ExprFactory &efac) {
+Expr CrabInvToExpr(llvm::BasicBlock *B, ClamPass *clam, const ExprVector &live,
+                   EZ3 &zctx, ExprFactory &efac) {
 
   Expr e = mk<TRUE>(efac);
   llvm::Optional<clam_abstract_domain> absOpt = clam->getPre(B);
@@ -568,20 +571,19 @@ Expr CrabInvToExpr(llvm::BasicBlock *B, ClamPass *clam,
   auto abs = absOpt.getValue();
   const AnalysisParams &clamParams = clam->getAnalysisParams();
 
-  // Here we do project onto live variables before translation
-  #if 0
+// Here we do project onto live variables before translation
+#if 0
   std::vector<clam::var_t> vars = ExprVecToCrab(live, clam);
   abs.project(vars);
-  #endif 
-  
+#endif
+
   if (clamParams.dom.isDisjunctive()) {
     DisjunctiveLinConsToExpr t(clam->getCfgBuilderMan().getHeapAbstraction(),
-			       *(B->getParent()), live);
+                               *(B->getParent()), live);
     e = t.toExpr(abs.to_disjunctive_linear_constraint_system(), efac);
-  }  else {
+  } else {
     LinConsToExprImpl t(clam->getCfgBuilderMan().getHeapAbstraction(),
-			*(B->getParent()),
-                        live);
+                        *(B->getParent()), live);
     e = t.toExpr(abs.to_linear_constraint_system(), efac);
   }
 

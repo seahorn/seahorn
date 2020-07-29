@@ -155,7 +155,8 @@ Expr PathBmcTrace::eval(unsigned loc, Expr u, bool complete) {
     // HACK: s.eval does not traverse function declarations
     auto t = path_bmc::expr_utils::getEdge(u);
     if (store.isDefined(t.first) && store.isDefined(t.second)) {
-      v = path_bmc::expr_utils::mkEdge(store.eval(t.first), store.eval(t.second));
+      v = path_bmc::expr_utils::mkEdge(store.eval(t.first),
+                                       store.eval(t.second));
     }
   } else {
     v = store.eval(u);

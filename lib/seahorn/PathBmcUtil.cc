@@ -36,11 +36,9 @@ scopedSolver::~scopedSolver() {
   }
 }
 
-
 namespace expr_utils {
 bool isEdge(Expr e) {
-  return expr::op::bind::isFdecl(e->left()) &&
-    isOpX<TUPLE>(e->left()->left());
+  return expr::op::bind::isFdecl(e->left()) && isOpX<TUPLE>(e->left()->left());
 }
 
 std::pair<Expr, Expr> getEdge(Expr e) {
@@ -52,7 +50,7 @@ std::pair<Expr, Expr> getEdge(Expr e) {
 }
 
 expr::Expr mkEdge(expr::Expr e1, expr::Expr e2) {
-  return bind::boolConst(mk<TUPLE>(e1, e2)); 
+  return bind::boolConst(mk<TUPLE>(e1, e2));
 }
 
 // /*

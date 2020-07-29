@@ -23,7 +23,6 @@ public:
 } // namespace path_bmc
 } // namespace seahorn
 
-
 namespace seahorn {
 namespace path_bmc {
 namespace expr_utils {
@@ -33,6 +32,6 @@ bool isEdge(expr::Expr e);
 std::pair<expr::Expr, expr::Expr> getEdge(expr::Expr e);
 /* Make an edge */
 expr::Expr mkEdge(expr::Expr e1, expr::Expr e2);
-} 
-}
-}
+} // namespace expr_utils
+} // namespace path_bmc
+} // namespace seahorn

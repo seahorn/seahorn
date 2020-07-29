@@ -36,7 +36,6 @@ bool LoadCrab::runOnFunction(llvm::Function &F) { return false; }
 #include "clam/Clam.hh"
 #include "clam/CfgBuilder.hh"
 #include "clam/HeapAbstraction.hh"
-#include "clam/AbstractDomain.hh"
 
 #include "boost/unordered_map.hpp"
 
@@ -53,10 +52,7 @@ using namespace seahorn;
 // translated to true. For instance, Crab generates shadow variables
 // representing DSA nodes that are not translated with the exception
 // of global singletons.
-class DisIntervalToExpr;
 class LinConsToExprImpl {
-  friend class DisIntervalToExpr;
-
 public:
   // Crab does not distinguish between bools and the rest of
   // integers but SeaHorn does.
@@ -249,7 +245,7 @@ public:
     }
   }
 
-  Expr toExpr(lin_cst_t cst, ExprFactory &efac) {
+  Expr toExpr(const lin_cst_t &cst, ExprFactory &efac) {
     if (cst.is_tautology())
       return mk<TRUE>(efac);
 
@@ -488,19 +484,14 @@ public:
   }
 };
 
-// Conversion from boxes domain to Expr
-class BoxesToExpr {
-  typedef typename boxes_domain_t::varname_t varname_t;
-  typedef typename boxes_domain_t::number_t number_t;
+class DisjunctiveLinConsToExpr {
   LinConsToExprImpl m_t;
-
 public:
-  BoxesToExpr(HeapAbstraction &heap_abs, const llvm::Function &f,
-              const ExprVector &live)
+  DisjunctiveLinConsToExpr(HeapAbstraction &heap_abs, const llvm::Function &f,
+			   const ExprVector &live)
       : m_t(heap_abs, f, live) {}
 
-  Expr toExpr(boxes_domain_t inv, ExprFactory &efac) {
-    auto csts = inv.to_disjunctive_linear_constraint_system();
+  Expr toExpr(const disj_lin_cst_sys_t &csts, ExprFactory &efac) {
     if (csts.is_false())
       return mk<FALSE>(efac);
     else if (csts.size() == 0)
@@ -516,82 +507,6 @@ public:
   }
 };
 
-// Conversion from domain of disjunctive intervals to Expr
-class DisIntervalToExpr {
-  typedef typename dis_interval_domain_t::interval_t interval_t;
-  typedef typename dis_interval_domain_t::varname_t varname_t;
-  typedef typename dis_interval_domain_t::number_t number_t;
-
-  LinConsToExprImpl m_t;
-
-public:
-  DisIntervalToExpr(HeapAbstraction &heap_abs, const llvm::Function &f,
-                    const ExprVector &live)
-      : m_t(heap_abs, f, live) {}
-
-  Expr toExpr(dis_interval_domain_t inv, ExprFactory &efac) {
-    if (inv.is_top())
-      return mk<TRUE>(efac);
-
-    if (inv.is_bottom())
-      return mk<FALSE>(efac);
-
-    Expr e = mk<TRUE>(efac);
-    // bit ugly: dis_interval_domain_t is wrapped into array smashing.
-    // That's why we need to call first get_contain_domain().
-    auto &dis_intvs = inv.get_content_domain().second();
-    for (auto p :
-         boost::make_iterator_range(dis_intvs.begin(), dis_intvs.end())) {
-      Expr d = mk<FALSE>(efac);
-      for (auto i :
-           boost::make_iterator_range(p.second.begin(), p.second.end())) {
-        d = boolop::lor(d, intervalToExpr(p.first.name(), i, efac));
-      }
-      e = boolop::land(e, d);
-    }
-    return e;
-  }
-
-private:
-  Expr intervalToExpr(varname_t v, interval_t i, ExprFactory &efac) {
-
-    if (i.is_top())
-      return mk<TRUE>(efac);
-
-    if (i.is_bottom())
-      return mk<FALSE>(efac);
-
-    Expr e = m_t.exprFromIntVar(v, efac);
-    if (!e) {
-      // we could not translate the crab variable
-      return mk<TRUE>(efac);
-    }
-
-    if (i.lb().is_finite() && i.ub().is_finite()) {
-      auto lb = *(i.lb().number());
-      auto ub = *(i.ub().number());
-      if (lb == ub) {
-        return mk<EQ>(e, m_t.exprFromNum(lb, efac));
-      } else {
-        return mk<AND>(mk<GEQ>(e, m_t.exprFromNum(lb, efac)),
-                       mk<LEQ>(e, m_t.exprFromNum(ub, efac)));
-      }
-    }
-
-    if (i.lb().is_finite()) {
-      auto lb = *(i.lb().number());
-      return mk<GEQ>(e, m_t.exprFromNum(lb, efac));
-    }
-
-    if (i.ub().is_finite()) {
-      auto ub = *(i.ub().number());
-      return mk<LEQ>(e, m_t.exprFromNum(ub, efac));
-    }
-    // this should be unreachable
-    return mk<TRUE>(efac);
-  }
-};
-
 } // end namespace clam
 
 namespace seahorn {
@@ -599,10 +514,14 @@ using namespace llvm;
 using namespace clam;
 using namespace expr;
 
+#if 0
 // Translate a range of Expr variables to Crab variables but only
 // those that can be mapped to llvm value.
+
+// UPDATE: we are creating variables without types. This might cause
+// problems.
 template <typename Range>
-static std::vector<clam::var_t> ExprVecToCrab(const Range &live, ClamPass *Crab) {
+static std::vector<clam::var_t> ExprVecToCrab(const Range &live, ClamPass *clam) {
   std::vector<clam::var_t> res;
   for (auto l : live) {
     Expr u = bind::fname(bind::fname(l));
@@ -611,14 +530,14 @@ static std::vector<clam::var_t> ExprVecToCrab(const Range &live, ClamPass *Crab)
       if (isa<GlobalVariable>(v))
         continue;
 
-      // we need to create a typed variable
       res.push_back(
-	  clam::var_t(Crab->get_cfg_builder_man().
-		      get_var_factory()[v], crab::UNK_TYPE, 0));
+	  clam::var_t(clam->getCfgBuilderMan().
+		      getVarFactory()[v], crab::UNK_TYPE, 0));
     }
   }
   return res;
 }
+#endif
 
 LinConsToExpr::LinConsToExpr(HeapAbstraction &heap, const llvm::Function &f,
                              const ExprVector &live)
@@ -637,43 +556,33 @@ Expr LinConsToExpr::toExpr(lin_cst_t cst, LegacyOperationalSemantics &sem) {
   return dagVisit(LCES, e);
 }
 
-Expr CrabInvToExpr(llvm::BasicBlock *B, ClamPass *crab,
+Expr CrabInvToExpr(llvm::BasicBlock *B, ClamPass *clam,
                    const ExprVector &live, EZ3 &zctx, ExprFactory &efac) {
 
   Expr e = mk<TRUE>(efac);
-  auto abs = crab->get_pre(B);
-  if (!abs) {
+  llvm::Optional<clam_abstract_domain> absOpt = clam->getPre(B);
+  if (!absOpt.hasValue()) {
     return e;
   }
 
-  // TODO: note we don't project an arbitrary abstract domain onto
-  // live variables because some abstract domains might not have a
-  // precise implementation for it.
+  auto abs = absOpt.getValue();
+  const AnalysisParams &clamParams = clam->getAnalysisParams();
 
-  if (abs->getId() == GenericAbsDomWrapper::id_t::boxes) {
-    // --- special translation for boxes
-    boxes_domain_t boxes;
-    getAbsDomWrappee(abs, boxes);
-    // Here we do project onto live variables before translation
-    std::vector<clam::var_t> vars = ExprVecToCrab(live, crab);
-    boxes.project(vars);
-    BoxesToExpr t(crab->get_cfg_builder_man().get_heap_abstraction(),
-		  *(B->getParent()), live);
-    e = t.toExpr(boxes, efac);
-  } else if (abs->getId() == GenericAbsDomWrapper::id_t::dis_intv) {
-    // --- special translation of disjunctive interval constraints
-    dis_interval_domain_t inv;
-    getAbsDomWrappee(abs, inv);
-    DisIntervalToExpr t(crab->get_cfg_builder_man().get_heap_abstraction(),
+  // Here we do project onto live variables before translation
+  #if 0
+  std::vector<clam::var_t> vars = ExprVecToCrab(live, clam);
+  abs.project(vars);
+  #endif 
+  
+  if (clamParams.dom.isDisjunctive()) {
+    DisjunctiveLinConsToExpr t(clam->getCfgBuilderMan().getHeapAbstraction(),
+			       *(B->getParent()), live);
+    e = t.toExpr(abs.to_disjunctive_linear_constraint_system(), efac);
+  }  else {
+    LinConsToExprImpl t(clam->getCfgBuilderMan().getHeapAbstraction(),
 			*(B->getParent()),
                         live);
-    e = t.toExpr(inv, efac);
-  } else {
-    // --- rest of domains translated to convex linear constraints
-    LinConsToExprImpl t(crab->get_cfg_builder_man().get_heap_abstraction(),
-			*(B->getParent()),
-                        live);
-    e = t.toExpr(abs->to_linear_constraints(), efac);
+    e = t.toExpr(abs.to_linear_constraint_system(), efac);
   }
 
   if ((std::distance(live.begin(), live.end()) == 0) && (!isOpX<FALSE>(e))) {
@@ -692,7 +601,7 @@ bool LoadCrab::runOnModule(Module &M) {
 
 bool LoadCrab::runOnFunction(Function &F) {
   HornifyModule &hm = getAnalysis<HornifyModule>();
-  ClamPass &crab = getAnalysis<ClamPass>();
+  ClamPass &clam = getAnalysis<ClamPass>();
 
   auto &db = hm.getHornClauseDB();
 
@@ -704,7 +613,7 @@ bool LoadCrab::runOnFunction(Function &F) {
     const ExprVector &live = hm.live(BB);
 
     Expr exp =
-        CrabInvToExpr(&BB, &crab, live, hm.getZContext(), hm.getExprFactory());
+        CrabInvToExpr(&BB, &clam, live, hm.getZContext(), hm.getExprFactory());
 
     Expr pred = hm.bbPredicate(BB);
 

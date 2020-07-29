@@ -80,7 +80,6 @@ public:
 #include <unordered_set>
 
 namespace clam {
-class HeapAbstraction;
 class CrabBuilderManager;
 } // namespace clam
 
@@ -193,8 +192,7 @@ protected:
 
   /****************** Helpers ****************/
   using expr_invariants_map_t = DenseMap<const BasicBlock *, ExprVector>;
-  using crab_invariants_map_t = clam::IntraClam::invariant_map_t;
-  using crab_statement_t = crab::cfg::statement_wrapper;
+  using crab_invariants_map_t = clam::IntraClam::abs_dom_map_t;
   
   /// Construct the precise (monolithic) encoding
   void encode();
@@ -238,7 +236,7 @@ protected:
   /// abstract interpreter.
   bool gen_path_cond_from_ai_cex(
     PathBmcTrace &cex,				     
-    const std::vector<crab_statement_t> &cex_stmts, 
+    const std::vector<clam::statement_t*> &cex_stmts, 
     ExprSet &path_cond);
   
   /// Given a sequence of basic blocks, extract the invariants per

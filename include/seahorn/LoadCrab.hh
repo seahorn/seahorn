@@ -6,7 +6,7 @@
 #include "seahorn/Expr/Expr.hh"
 
 #ifdef HAVE_CLAM
-#include "clam/crab/crab_cfg.hh"
+#include "clam/Clam.hh"
 #include "seahorn/LegacyOperationalSemantics.hh"
 #endif 
 

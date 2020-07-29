@@ -12,7 +12,6 @@
 #include "seahorn/config.h"
 
 #ifdef HAVE_CLAM
-#include "clam/AbstractDomain.hh"
 #include "clam/Clam.hh"
 #include "seahorn/Analysis/CutPointGraph.hh"
 #endif
@@ -887,7 +886,7 @@ class BoogieWriterPass : public ModulePass {
   const DataLayout *m_dl;
   bool m_use_crab;
 #ifdef HAVE_CLAM
-  clam::ClamPass *m_crab;
+  clam::ClamPass *m_clam;
 
   static const Value *is_bool_cst(clam::lin_cst_t cst) {
     if (cst.is_disequation())
@@ -913,7 +912,7 @@ public:
         m_use_crab(use_crab)
 #ifdef HAVE_CLAM
         ,
-        m_crab(nullptr)
+        m_clam(nullptr)
 #endif
   {
   }
@@ -925,8 +924,8 @@ public:
 
 #ifdef HAVE_CLAM
     if (m_use_crab) {
-      m_crab = &getAnalysis<clam::ClamPass>();
-      std::string absdom = m_crab->get_analysis_params().abs_dom_to_str();
+      m_clam = &getAnalysis<clam::ClamPass>();
+      StringRef absdom = m_clam->getAnalysisParams().dom.name();
       *m_out << "// Used Crab to add invariants using the domain: " << absdom
              << "\n\n";
     }
@@ -968,16 +967,17 @@ public:
     DenseMap<const BasicBlock *, std::string> invariants;
 
 #ifdef HAVE_CLAM
-    if (m_crab) {
+    if (m_clam) {
       // FIXME: some crash happens when cpg is used.
       // const CutPointGraph &cpg = getAnalysis<CutPointGraph>(F);
       for (auto &B : F) {
         // if (!cpg.isCutPoint(B)) {
         //   continue;
         // }
-        if (auto dom_ptr = m_crab->get_pre(&B)) {
+	auto absDomOpt = m_clam->getPre(&B);
+        if (absDomOpt.hasValue()) {
           crab::crab_string_os out;
-          clam::lin_cst_sys_t csts = dom_ptr->to_linear_constraints();
+          clam::lin_cst_sys_t csts = absDomOpt.getValue().to_linear_constraint_system();
           typename clam::lin_cst_sys_t::iterator it = csts.begin();
           typename clam::lin_cst_sys_t::iterator et = csts.end();
           for (; it != et;) {

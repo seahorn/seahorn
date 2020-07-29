@@ -51,17 +51,18 @@ TEST_CASE("hexDumpBvNum.test") {
 
   std::vector<KeyValue> kvList;
   Expr defaultValue = bv::bvnum(0x1417, 16, efac);
+
   Expr e = array::constArray(bvSort, defaultValue);
-  defaultValue = defaultValue->first(); // MPZ term
+  Expr defaultValueNum = defaultValue->first(); // MPZ term
 
   populateBvNumArr(e, efac, kvList, 2, 84);
-  kvList.push_back(KeyValue(mkTerm<mpz_class>(4, efac), defaultValue,
+  kvList.push_back(KeyValue(mkTerm<mpz_class>(4, efac), defaultValueNum,
                             true)); // filler KeyValue
   populateBvNumArr(e, efac, kvList, 8, 101);
-  kvList.push_back(KeyValue(mkTerm<mpz_class>(10, efac), defaultValue,
+  kvList.push_back(KeyValue(mkTerm<mpz_class>(10, efac), defaultValueNum,
                             true)); // filler KeyValue
   populateBvNumArr(e, efac, kvList, 24, 115);
-  kvList.push_back(KeyValue(mkTerm<mpz_class>(26, efac), defaultValue,
+  kvList.push_back(KeyValue(mkTerm<mpz_class>(26, efac), defaultValueNum,
                             true)); // filler KeyValue
   populateBvNumArr(e, efac, kvList, 30, 116);
 
@@ -85,6 +86,28 @@ TEST_CASE("hexDumpBvNum.test") {
 
   CHECK(outcome == expected);
   checkPairs(kvList.cbegin(), kvList.cend(), hd.cbegin(), hd.cend());
+
+  //-------------
+
+  kvList.clear();
+  Expr bvSort32 = bv::bvsort(32, efac);
+  e = array::constArray(bvSort32, bv::bvnum(0xa345ff22, 32, efac));
+  kvList.push_back(KeyValue(mkTerm<std::string>("*", efac),
+                            mkTerm<mpz_class>(0xa345ff22, efac)));
+
+  llvm::errs() << "Expression: " << *e;
+
+  HexDump hd2(e, 4);
+
+  llvm::errs() << hd2;
+
+  outcome = boost::lexical_cast<std::string>(hd2);
+  outcome = std::regex_replace(outcome, std::regex(" *\n *"), "");
+
+  expected = "*: a3 45 ff 22  |.E.\"|";
+
+  CHECK(outcome == expected);
+  checkPairs(kvList.cbegin(), kvList.cend(), hd2.cbegin(), hd2.cend());
 }
 
 TEST_CASE("num.test") {
@@ -144,6 +167,8 @@ c: 02  |.|";
 TEST_CASE("finiteMap.test") {
   ExprFactory efac;
   ExprVector keys;
+  std::vector<KeyValue> kvList;
+
   keys.push_back(mkTerm<mpz_class>(0x50000a, efac));
   keys.push_back(mkTerm<mpz_class>(0x500000, efac));
   keys.push_back(mkTerm<mpz_class>(0x500002, efac));
@@ -175,6 +200,38 @@ TEST_CASE("finiteMap.test") {
 500010: 00 00 0a  |...|";
 
   CHECK(outcome == expected);
+
+  kvList.push_back(KeyValue(mkTerm<mpz_class>(0x500000, efac),
+                            mkTerm<mpz_class>(0x12345, efac)));
+  kvList.push_back(KeyValue(mkTerm<mpz_class>(0x500002, efac),
+                            mkTerm<mpz_class>(0xaaaa1, efac)));
+  kvList.push_back(KeyValue(mkTerm<mpz_class>(0x50000a, efac),
+                            mkTerm<mpz_class>(0xffffaa, efac)));
+  kvList.push_back(KeyValue(mkTerm<mpz_class>(0x500010, efac),
+                            mkTerm<mpz_class>(0xa, efac)));
+
+  checkPairs(kvList.cbegin(), kvList.cend(), hd.cbegin(), hd.cend());
+
+  //--------------
+
+  keys.clear();
+  keys.push_back(mkTerm<mpz_class>(0, efac));
+
+  values.clear();
+  values.push_back(mkTerm<mpz_class>(0x12, efac));
+
+  e = finite_map::constFiniteMap(keys, values);
+
+  llvm::errs() << "Expression: " << *e;
+  HexDump hd2(e, 2);
+
+  llvm::errs() << hd2;
+
+  kvList.clear();
+  kvList.push_back(
+      KeyValue(mkTerm<mpz_class>(0, efac), mkTerm<mpz_class>(0x12, efac)));
+
+  checkPairs(kvList.cbegin(), kvList.cend(), hd2.cbegin(), hd2.cend());
 }
 
 TEST_CASE("ite.test") {

@@ -57,7 +57,7 @@ void getIdxStr(Expr idx, unsigned width, llvm::raw_string_ostream &stream) {
     stream << num.to_string(16);
 
   } else {
-    stream << idx;
+    stream << *idx;
   }
 }
 
@@ -99,7 +99,7 @@ static void getValueStr(Expr value, unsigned width, bool includeAscii,
       stream << format_bytes(bytes, None, desiredNumBytes, 1, 0, false);
     }
   } else {
-    stream << value;
+    stream << *value;
   }
 }
 } // namespace kvUtils
@@ -234,7 +234,16 @@ public:
   /// fills in spaces between indices with the default value
   /// \note assumes that every KeyValue's index is numeric
   void fillInGaps() {
-    if (!(m_defaultValue && m_set.size() > 1 && (*m_set.begin()).isSortable()))
+    if (!m_defaultValue)
+      return;
+
+    // if there is a default value but nothing in the set, then put the default
+    // value into the set ( with a blank index)
+    if (m_set.size() == 0)
+      m_set.emplace(mkTerm<std::string>("*", m_defaultValue->efac()),
+                    m_defaultValue);
+
+    if (!(m_set.size() > 1 && (*m_set.begin()).isSortable()))
       return;
 
     for (auto b = m_set.begin(); b != (std::prev(m_set.end())); b++) {
@@ -371,13 +380,17 @@ public:
 
 namespace expr {
 namespace hexDump {
+bool isArray(Expr exp) { return isOp<STORE>(exp) || isOp<CONST_ARRAY>(exp); }
+bool isFiniteMap(Expr exp) {
+  return isOp<SET>(exp) || isOp<CONST_FINITE_MAP>(exp);
+}
 
 struct FindValid {
   bool foundValid = false;
   Expr validExp = nullptr;
 
   bool isValidType(Expr exp) {
-    return isOp<ITE>(exp) || isOp<STORE>(exp) || isOp<SET>(exp);
+    return isOp<ITE>(exp) || isArray(exp) || isFiniteMap(exp);
   }
 
   VisitAction operator()(Expr exp) {
@@ -393,7 +406,7 @@ struct FindValid {
 };
 
 class HexDump::Impl {
-  std::unique_ptr<HD_BASE> m_visitor;
+  std::unique_ptr<HD_BASE> m_visitor = nullptr;
 
   void findType(Expr exp, unsigned addressesPerWord) {
 
@@ -403,7 +416,7 @@ class HexDump::Impl {
 
       m_visitor->doneVisiting();
 
-    } else if (isOp<STORE>(exp) || isOp<SET>(exp)) {
+    } else if (isArray(exp) || isFiniteMap(exp)) {
       m_visitor = std::make_unique<HD_ARRAY>(addressesPerWord);
 
       dagVisit(*m_visitor, exp);
@@ -431,7 +444,9 @@ public:
   const_hd_iterator cend() const { return m_visitor->cend(); }
 
   template <typename T> void print(T &OS, bool ascii) {
-    m_visitor->print(OS, ascii);
+    if (m_visitor) {
+      m_visitor->print(OS, ascii);
+    }
   }
 };
 

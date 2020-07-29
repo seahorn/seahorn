@@ -1,13 +1,9 @@
-// RUN: %sea pf -O0  --max-depth=20 "%s" 2>&1 | OutputCheck %s
 // RUN: %sea pf -O0  --crab --max-depth=20 --horn-use-invs=inactive "%s" 2>&1 | OutputCheck %s
-// RUN: %sea pf -O0  --crab --max-depth=20 --horn-use-invs=always "%s" 2>&1 | OutputCheck %s
+// RUN: %sea pf -O0  --crab --crab-dom=int --max-depth=20 --horn-use-invs=always "%s" 2>&1 | OutputCheck %s
 // CHECK: ^unknown$
-// XFAIL: *
 
 // with --crab enabled and running with zones as default abstract
-// domain the property can be trivially proven. To see divergence,
-// need to compile with option -DALL_CRAB_DOMAINS and use a weaker
-// domain such as intervals.
+// domain the property can be trivially proven. 
 
 extern int nd(void);
 extern void print(int);

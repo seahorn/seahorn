@@ -1319,6 +1319,21 @@ TEST_CASE("fappWellFormed.test") {
   e.push_back(temp);
 
   checkWellFormed(e, intSort);
+  e.clear();
+
+  Expr errorName = mk<AND>(intBound0);
+
+  args.clear();
+  args.push_back(errorName);
+  args.push_back(boolSort);
+  args.push_back(intSort);
+  args.push_back(intSort);
+
+  temp = mknary<FDECL>(args.begin(),
+                       args.end()); // fdecl should skip over the name
+  e.push_back(temp);
+
+  checkWellFormed(e, functionalSort);
 }
 TEST_CASE("fappNotWellFormed.test") {
   seahorn::SeaEnableLog("tc");

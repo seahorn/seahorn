@@ -14,40 +14,40 @@ enum class BoolOpKind { TRUE, FALSE, AND, OR, XOR, NEG, IMPL, ITE, IFF };
 namespace typeCheck {
 namespace boolType {
 
-struct OneOrMore {
+struct OneOrMore  : public TypeCheckBase{
   /// \return BOOL_TY
   /// Possible types of children: BOOL_TY
-  static inline Expr inferType(Expr exp, TypeChecker &tc) {
+  inline Expr inferType(Expr exp, TypeChecker &tc) {
     return typeCheck::oneOrMore<BOOL_TY, BOOL_TY>(exp, tc);
   }
 };
 
-struct Unary {
+struct Unary  : public TypeCheckBase{
   /// \return BOOL_TY
   /// Possible types of children: BOOL_TY
-  static inline Expr inferType(Expr exp, TypeChecker &tc) {
+  inline Expr inferType(Expr exp, TypeChecker &tc) {
     return typeCheck::unary<BOOL_TY, BOOL_TY>(exp, tc);
   }
 };
 
-struct Binary {
+struct Binary  : public TypeCheckBase{
   /// \return BOOL_TY
   /// Possible types of children: BOOL_TY
-  static inline Expr inferType(Expr exp, TypeChecker &tc) {
+  inline Expr inferType(Expr exp, TypeChecker &tc) {
     return typeCheck::binary<BOOL_TY, BOOL_TY>(exp, tc);
   }
 };
 
-struct Nary {
+struct Nary  : public TypeCheckBase{
   /// \return BOOL_TY
   /// Possible types of children: BOOL_TY
-  static inline Expr inferType(Expr exp, TypeChecker &tc) {
+  inline Expr inferType(Expr exp, TypeChecker &tc) {
     return typeCheck::nary<BOOL_TY, BOOL_TY>(exp, tc);
   }
 };
 
-struct ITE {
-  static inline Expr inferType(Expr exp, TypeChecker &tc) {
+struct ITE  : public TypeCheckBase{
+  inline Expr inferType(Expr exp, TypeChecker &tc) {
 
     // ite(a,b,c) : a is bool type, b and c are the same type
     if (exp->arity() == 3 && isOp<BOOL_TY>(tc.typeOf(exp->arg(0))) &&
@@ -58,8 +58,8 @@ struct ITE {
   }
 };
 
-struct TrueFalse {
-  static inline Expr inferType(Expr exp, TypeChecker &tc) {
+struct TrueFalse  : public TypeCheckBase{
+  inline Expr inferType(Expr exp, TypeChecker &tc) {
     return sort::boolTy(exp->efac());
   }
 };

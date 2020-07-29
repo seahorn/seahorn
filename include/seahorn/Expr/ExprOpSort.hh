@@ -4,6 +4,7 @@
 #include "seahorn/Expr/ExprApi.hh"
 #include "seahorn/Expr/ExprCore.hh"
 #include "seahorn/Expr/ExprOpCore.hh"
+#include "seahorn/Expr/TypeCheckerBase.hh"
 #include <string>
 
 namespace expr {
@@ -33,8 +34,8 @@ inline Expr typeTy(ExprFactory &efac);
 
 namespace typeCheck {
 namespace simpleType {
-struct Simple {
-  static inline Expr inferType(Expr exp, TypeChecker &tc) {
+struct Simple : public TypeCheckBase{
+  inline Expr inferType(Expr exp, TypeChecker &tc) {
     return sort::typeTy(exp->efac());
   }
 };

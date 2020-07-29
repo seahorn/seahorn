@@ -88,7 +88,10 @@ public:
   /// \brief Returns heap-allocted copy of the operator
   virtual Operator *clone(ExprFactoryAllocator &allocator) const = 0;
   virtual std::string name() const = 0;
-  /// \brief Returns the type of the expression 
+  /// \return true for the typechecker to infer the type of the current
+  /// expression before visiting its children
+  virtual bool typeCheckTopDown() const = 0;
+  /// \brief Returns the type of the expression
   virtual Expr inferType(Expr exp, TypeChecker &tc) const = 0;
 };
 
@@ -183,7 +186,6 @@ public:
     Print(std::cerr, 0, false);
     std::cerr << std::endl;
   }
-
 
   friend class ExprFactory;
   friend struct std::less<expr::ENode *>;

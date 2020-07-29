@@ -12,8 +12,9 @@ namespace expr {
  * method. It should return the type of the specific operator
  *
  * Adding new Normal operators (NOP, DefOp): The type checking is defined
- * externally. Create a struct with an inferType(Expr, TypeChecker&) function
- * and pass this struct to NOP/DefOp
+ * externally. Create a struct that inherits TypeCheckBase (in TypeCheckBase.hh)
+ * with an inferType(Expr, TypeChecker&) function and pass this struct to
+ * NOP/DefOp
  *
  * Adding new Terminal operators: The type checking is defined internally. Every
  * terminal trait defines its own inferType(Expr, TypeChecker&) function

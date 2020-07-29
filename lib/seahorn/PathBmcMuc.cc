@@ -10,7 +10,7 @@ namespace path_bmc {
 using namespace expr;
 
 void MucWithAssumptions::unsat_core(const ExprVector &f, bool simplify,
-                                      ExprVector &out) {
+                                    ExprVector &out) {
 
   m_solver.reset();
   ExprVector assumptions;
@@ -73,8 +73,8 @@ void MucWithAssumptions::run(const ExprVector &f, ExprVector &core) {
 }
 
 solver::SolverResult MucDeletion::check(MucDeletion::const_iterator it,
-                                         MucDeletion::const_iterator et,
-                                         const ExprVector &assumptions) {
+                                        MucDeletion::const_iterator et,
+                                        const ExprVector &assumptions) {
   m_solver.reset();
   for (Expr e : assumptions) {
     m_solver.add(e);
@@ -91,7 +91,7 @@ solver::SolverResult MucDeletion::check(MucDeletion::const_iterator it,
 }
 
 void MucDeletion::run(const ExprVector &f, const ExprVector &assumptions,
-                       ExprVector &out) {
+                      ExprVector &out) {
   assert(check(f.begin(), f.end(), assumptions) == solver::SolverResult::UNSAT);
 
   out.insert(out.end(), f.begin(), f.end());
@@ -135,8 +135,8 @@ void MucDeletion::run(const ExprVector &f, ExprVector &out) {
   }
   call qx(empty, formula, false);
 */
-void MucBinarySearch::qx(const ExprVector &target, unsigned begin,
-                           unsigned end, bool skip, ExprVector &out) {
+void MucBinarySearch::qx(const ExprVector &target, unsigned begin, unsigned end,
+                         bool skip, ExprVector &out) {
   if (!skip) {
     path_bmc::scopedSolver ss(m_solver, m_timeout);
     auto res = ss.get().check();

@@ -974,10 +974,11 @@ public:
         // if (!cpg.isCutPoint(B)) {
         //   continue;
         // }
-	auto absDomOpt = m_clam->getPre(&B);
+        auto absDomOpt = m_clam->getPre(&B);
         if (absDomOpt.hasValue()) {
           crab::crab_string_os out;
-          clam::lin_cst_sys_t csts = absDomOpt.getValue().to_linear_constraint_system();
+          clam::lin_cst_sys_t csts =
+              absDomOpt.getValue().to_linear_constraint_system();
           typename clam::lin_cst_sys_t::iterator it = csts.begin();
           typename clam::lin_cst_sys_t::iterator et = csts.end();
           for (; it != et;) {

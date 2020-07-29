@@ -12,36 +12,36 @@ enum class MucMethodKind {
 };
 
 /** General API to compute unsat cores **/
-class minimal_unsat_core {
+class minimalUnsatCore {
 protected:
   solver::Solver &m_solver;
 
 public:
-  minimal_unsat_core(solver::Solver &solver) : m_solver(solver) {}
+  minimalUnsatCore(solver::Solver &solver) : m_solver(solver) {}
 
   virtual void run(const expr::ExprVector &f, expr::ExprVector &core) = 0;
 
-  virtual std::string get_name(void) const = 0;
+  virtual std::string getName(void) const = 0;
 };
 
-class muc_with_assumptions : public minimal_unsat_core {
+class MucWithAssumptions : public minimalUnsatCore {
 
   void unsat_core(const expr::ExprVector &f, bool simplify,
                   expr::ExprVector &out);
 
 public:
-  muc_with_assumptions(solver::Solver &solver);
+  MucWithAssumptions(solver::Solver &solver);
 
   void run(const expr::ExprVector &f, expr::ExprVector &core) override;
 
-  std::string get_name(void) const override { return "MUC with assumptions"; }
+  std::string getName(void) const override { return "MUC with assumptions"; }
 };
 
-class binary_search_muc;
+class MucBinarySearch;
 
-class deletion_muc : public minimal_unsat_core {
+class MucDeletion : public minimalUnsatCore {
 
-  friend class binary_search_muc;
+  friend class MucBinarySearch;
 
   typedef expr::ExprVector::const_iterator const_iterator;
 
@@ -54,14 +54,14 @@ class deletion_muc : public minimal_unsat_core {
   unsigned m_timeout; /*seconds*/
 
 public:
-  deletion_muc(solver::Solver &solver, unsigned timeout);
+  MucDeletion(solver::Solver &solver, unsigned timeout);
 
   void run(const expr::ExprVector &f, expr::ExprVector &out) override;
 
-  std::string get_name() const override { return "Deletion MUC"; }
+  std::string getName() const override { return "Deletion MUC"; }
 };
 
-class binary_search_muc : public minimal_unsat_core {
+class MucBinarySearch : public minimalUnsatCore {
 
   void qx(const expr::ExprVector &target, unsigned begin, unsigned end,
           bool skip, expr::ExprVector &out);
@@ -69,11 +69,11 @@ class binary_search_muc : public minimal_unsat_core {
   unsigned m_timeout; /*seconds*/
 
 public:
-  binary_search_muc(solver::Solver &solver, unsigned timeout);
+  MucBinarySearch(solver::Solver &solver, unsigned timeout);
 
   void run(const expr::ExprVector &formula, expr::ExprVector &out) override;
 
-  std::string get_name() const override { return "QuickXplain"; }
+  std::string getName() const override { return "QuickXplain"; }
 };
 
 } // end namespace path_bmc

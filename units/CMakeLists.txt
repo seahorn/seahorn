@@ -54,7 +54,7 @@ add_test(NAME Type_Checker_Tests COMMAND units_type_checker)
 add_executable(units_finite_map EXCLUDE_FROM_ALL units_finite_maps.cpp)
 llvm_config(units_finite_map ${LLVM_LINK_COMPONENTS})
 target_link_libraries(units_finite_map PRIVATE seahorn.LIB ${USED_LIBS_Z3_TESTS})
-add_custom_target(tests_finite_map units_finite_map DEPENDS units_finite_map)
+add_custom_target(test_finite_map units_finite_map DEPENDS units_finite_map)
 add_test(NAME Finite_Maps_Tests COMMAND units_finite_map)
 
 add_executable(units_hex_dump EXCLUDE_FROM_ALL HexDumpTests.cpp)

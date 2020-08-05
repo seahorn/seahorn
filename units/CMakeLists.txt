@@ -44,7 +44,7 @@ target_link_libraries(units_yices2 PRIVATE ${USED_LIBS_Z3_TESTS} SeaSmt)
 add_custom_target(test_yices2 units_yices2 DEPENDS units_yices2)
 add_test(NAME Smt_Solver_Tests COMMAND units_yices2)
 
-add_executable(units_type_checker TypeCheckerTests.cpp)
+add_executable(units_type_checker EXCLUDE_FROM_ALL TypeCheckerTests.cpp)
 llvm_config(units_type_checker ${LLVM_LINK_COMPONENTS})
 target_link_libraries(units_type_checker PRIVATE ${USED_LIBS_Z3_TESTS})
 add_custom_target(test_type_checker units_type_checker DEPENDS units_type_checker)
@@ -57,7 +57,7 @@ target_link_libraries(units_finite_map PRIVATE seahorn.LIB ${USED_LIBS_Z3_TESTS}
 add_custom_target(tests_finite_map units_finite_map DEPENDS units_finite_map)
 add_test(NAME Finite_Maps_Tests COMMAND units_finite_map)
 
-add_executable(units_hex_dump HexDumpTests.cpp)
+add_executable(units_hex_dump EXCLUDE_FROM_ALL HexDumpTests.cpp)
 llvm_config(units_hex_dump ${LLVM_LINK_COMPONENTS})
 target_link_libraries(units_hex_dump PRIVATE ${USED_LIBS_Z3_TESTS})
 add_custom_target(test_hex_dump units_hex_dump DEPENDS units_hex_dump)

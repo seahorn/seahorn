@@ -199,8 +199,11 @@ public:
   /// \brief Perform symbolic memset
   Expr MemSet(Expr ptr, Expr val, unsigned len, uint32_t align);
 
-  /// \brief Perform symbolic memcpy
+  /// \brief Perform symbolic memcpy with constant length
   Expr MemCpy(Expr dPtr, Expr sPtr, unsigned len, uint32_t align);
+
+  /// \brief Perform symbolic memcpy with symbolic length
+  Expr MemCpy(Expr dPtr, Expr sPtr, Expr len, uint32_t align);
 
   /// \brief Copy concrete memory into symbolic memory
   Expr MemFill(Expr dPtr, char *sPtr, unsigned len, uint32_t align = 0);
@@ -637,7 +640,16 @@ public:
 
   /// \brief Executes symbolic memcpy with concrete length
   virtual MemValTy MemCpy(PtrTy dPtr, PtrTy sPtr, unsigned len,
-                          MemValTy memTrsfrRead, uint32_t align) = 0;
+                          MemValTy memTrsfrRead, MemValTy memRead,
+                          uint32_t align) = 0;
+
+  /// \brief Executes symbolic memcpy with symbolic length
+  virtual MemValTy MemCpy(PtrTy dPtr, PtrTy sPtr, Expr len,
+                          MemValTy memTrsfrRead, MemValTy memRead,
+                          uint32_t align) {
+    LOG("opsem", WARN << "unsupported memcpy with symbolic length";);
+    return MemValTy();
+  }
 
   /// \brief Executes symbolic memcpy from physical memory with concrete length
   virtual MemValTy MemFill(PtrTy dPtr, char *sPtr, unsigned len, MemValTy mem,
@@ -740,7 +752,12 @@ public:
   virtual Expr MemSet(Expr ptr, Expr _val, unsigned len, Expr mem,
                       unsigned wordSzInBytes, Expr ptrSort, uint32_t align) = 0;
   virtual Expr MemCpy(Expr dPtr, Expr sPtr, unsigned len, Expr memTrsfrRead,
-                      unsigned wordSzInBytes, Expr ptrSort, uint32_t align) = 0;
+                      Expr memRead, unsigned wordSzInBytes, Expr ptrSort,
+                      uint32_t align) = 0;
+  virtual Expr MemCpy(Expr dPtr, Expr sPtr, Expr len, Expr memTrsfrRead,
+                      Expr memRead, unsigned wordSzInBytes, Expr ptrSort,
+                      uint32_t align) = 0;
+
   virtual Expr MemFill(Expr dPtr, char *sPtr, unsigned len, Expr mem,
                        unsigned wordSzInBytes, Expr ptrSort,
                        uint32_t align) = 0;
@@ -768,7 +785,17 @@ public:
   Expr MemSet(Expr ptr, Expr _val, unsigned len, Expr mem,
               unsigned wordSzInBytes, Expr ptrSort, uint32_t align) override;
   Expr MemCpy(Expr dPtr, Expr sPtr, unsigned len, Expr memTrsfrRead,
-              unsigned wordSzInBytes, Expr ptrSort, uint32_t align) override;
+              Expr memRead, unsigned wordSzInBytes, Expr ptrSort,
+              uint32_t align) override;
+
+  Expr MemCpy(Expr dPtr, Expr sPtr, Expr len, Expr memTrsfrRead, Expr memRead,
+              unsigned wordSzInBytes, Expr ptrSort, uint32_t align) override {
+    ERR << "Array-based memory representation does not support memcpy with "
+           "symbolic length. Try lambdas.";
+    assert(false && "Not supported");
+    return Expr();
+  }
+
   Expr MemFill(Expr dPtr, char *sPtr, unsigned len, Expr mem,
                unsigned wordSzInBytes, Expr ptrSort, uint32_t align) override;
   Expr FilledMemory(Expr ptrSort, Expr val) override {
@@ -795,6 +822,9 @@ public:
   Expr MemSet(Expr ptr, Expr _val, unsigned len, Expr mem,
               unsigned wordSzInBytes, Expr ptrSort, uint32_t align) override;
   Expr MemCpy(Expr dPtr, Expr sPtr, unsigned len, Expr memTrsfrRead,
+              Expr memRead, unsigned wordSzInBytes, Expr ptrSort,
+              uint32_t align) override;
+  Expr MemCpy(Expr dPtr, Expr sPtr, Expr len, Expr memTrsfrRead, Expr memRead,
               unsigned wordSzInBytes, Expr ptrSort, uint32_t align) override;
   Expr MemFill(Expr dPtr, char *sPtr, unsigned len, Expr mem,
                unsigned wordSzInBytes, Expr ptrSort, uint32_t align) override;

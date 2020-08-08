@@ -1610,8 +1610,9 @@ public:
     if (dstAddr && srcAddr) {
       if (const ConstantInt *ci = dyn_cast<const ConstantInt>(&length)) {
         res = m_ctx.MemCpy(dstAddr, srcAddr, ci->getZExtValue(), alignment);
-      } else
-        LOG("opsem", WARN << "unsupported memcpy with symbolic length";);
+      } else {
+        res = m_ctx.MemCpy(dstAddr, srcAddr, len, alignment);
+      }
     }
 
     if (!res)
@@ -1907,8 +1908,29 @@ Expr Bv2OpSemContext::MemCpy(Expr dPtr, Expr sPtr, unsigned len,
   assert(getMemReadRegister());
   assert(getMemWriteRegister());
   Expr mem = read(getMemTrsfrReadReg());
-  Expr res = m_memManager->MemCpy(dPtr, sPtr, len, mem, align);
-  write(getMemWriteRegister(), res);
+  Expr dstMemIn = read(getMemReadRegister());
+  Expr res = m_memManager->MemCpy(dPtr, sPtr, len, mem, dstMemIn, align);
+  if (res)
+    write(getMemWriteRegister(), res);
+  else {
+    LOG("opsem", WARN << "memcpy with concrete length treated as noop");
+  }
+  return res;
+}
+
+Expr Bv2OpSemContext::MemCpy(Expr dPtr, Expr sPtr, Expr len, uint32_t align) {
+  assert(m_memManager);
+  assert(getMemTrsfrReadReg());
+  assert(getMemReadRegister());
+  assert(getMemWriteRegister());
+  Expr mem = read(getMemTrsfrReadReg());
+  Expr dstMemIn = read(getMemReadRegister());
+  Expr res = m_memManager->MemCpy(dPtr, sPtr, len, mem, dstMemIn, align);
+  if (res) {
+    write(getMemWriteRegister(), res);
+  } else {
+    LOG("opsem", WARN << "memcpy with symbolic length treated as noop";);
+  }
   return res;
 }
 
@@ -2014,7 +2036,7 @@ Expr Bv2OpSemContext::mkRegister(const llvm::Instruction &inst) {
     // the pseudo-assignment
     else { //(true /*m_trackLvl >= MEM*/) {
       reg = bind::mkConst(v, mkMemRegisterSort(inst));
-    }
+  }
   } else {
     const Type &ty = *inst.getType();
     switch (ty.getTypeID()) {

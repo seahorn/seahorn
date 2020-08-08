@@ -204,10 +204,11 @@ public:
   }
 
   MemValTy MemCpy(PtrTy dPtr, PtrTy sPtr, unsigned len, MemValTy memTrsfrRead,
-                  uint32_t align) override {
+                  MemValTy memRead, uint32_t align) override {
     auto res =
         base().MemCpy(BasePtrTy(std::move(dPtr)), BasePtrTy(std::move(sPtr)),
-                      len, BaseMemValTy(std::move(memTrsfrRead)), align);
+                      len, BaseMemValTy(std::move(memTrsfrRead)),
+                      BaseMemValTy(std::move(memRead)), align);
     return toMemValTy(std::move(res));
   }
 

@@ -575,9 +575,17 @@ Expr RawMemManager::MemSet(PtrTy ptr, Expr _val, unsigned len, MemValTy mem,
 
 /// \brief Executes symbolic memcpy with concrete length
 Expr RawMemManager::MemCpy(PtrTy dPtr, PtrTy sPtr, unsigned len,
-                           MemValTy memTrsfrRead, uint32_t align) {
-  return m_memRepr->MemCpy(dPtr, sPtr, len, memTrsfrRead, wordSzInBytes(),
-                           ptrSort(), align);
+                           MemValTy memTrsfrRead, MemValTy memRead,
+                           uint32_t align) {
+  return m_memRepr->MemCpy(dPtr, sPtr, len, memTrsfrRead, memRead,
+                           wordSzInBytes(), ptrSort(), align);
+}
+
+Expr RawMemManager::MemCpy(PtrTy dPtr, PtrTy sPtr, Expr len,
+                           MemValTy memTrsfrRead, MemValTy memRead,
+                           uint32_t align) {
+  return m_memRepr->MemCpy(dPtr, sPtr, len, memTrsfrRead, memRead,
+                           wordSzInBytes(), ptrSort(), align);
 }
 
 /// \brief Executes symbolic memcpy from physical memory with concrete length

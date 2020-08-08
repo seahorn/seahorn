@@ -210,6 +210,9 @@ public:
 
   /// \brief Executes symbolic memcpy with concrete length
   Expr MemCpy(PtrTy dPtr, PtrTy sPtr, unsigned len, Expr memTrsfrRead,
+              Expr memRead, uint32_t align) override;
+
+  Expr MemCpy(PtrTy dPtr, PtrTy sPtr, Expr len, Expr memTrsfrRead, Expr memRead,
               uint32_t align) override;
 
   /// \brief Executes symbolic memcpy from physical memory with concrete

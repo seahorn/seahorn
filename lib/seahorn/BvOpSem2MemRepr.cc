@@ -36,8 +36,9 @@ Expr OpSemMemArrayRepr::MemSet(Expr ptr, Expr _val, unsigned len, Expr mem,
 }
 
 Expr OpSemMemArrayRepr::MemCpy(Expr dPtr, Expr sPtr, unsigned len,
-                               Expr memTrsfrRead, unsigned wordSzInBytes,
-                               Expr ptrSort, uint32_t align) {
+                               Expr memTrsfrRead, Expr memRead,
+                               unsigned wordSzInBytes, Expr ptrSort,
+                               uint32_t align) {
   (void)ptrSort;
 
   Expr res;
@@ -46,7 +47,7 @@ Expr OpSemMemArrayRepr::MemCpy(Expr dPtr, Expr sPtr, unsigned len,
       (wordSzInBytes == 8 && (align == 4 || align == 8)) ||
       m_memManager.isIgnoreAlignment()) {
     Expr srcMem = memTrsfrRead;
-    res = srcMem;
+    res = memRead;
     for (unsigned i = 0; i < len; i += wordSzInBytes) {
       Expr dIdx = m_memManager.ptrAdd(dPtr, i);
       Expr sIdx = m_memManager.ptrAdd(sPtr, i);
@@ -128,9 +129,51 @@ Expr OpSemMemLambdaRepr::MemSet(Expr ptr, Expr _val, unsigned len, Expr mem,
   return res;
 }
 
+Expr OpSemMemLambdaRepr::MemCpy(Expr dPtr, Expr sPtr, Expr len,
+                                Expr memTrsfrRead, Expr memRead,
+                                unsigned wordSzInBytes, Expr ptrSort,
+                                uint32_t align) {
+  Expr res;
+
+  if (wordSzInBytes == 1 || (wordSzInBytes == 4 && align == 4) ||
+      (wordSzInBytes == 8 && (align == 4 || align == 8)) ||
+      m_memManager.isIgnoreAlignment()) {
+    Expr srcMem = memTrsfrRead;
+
+    // address of the last word that is copied into dst
+    Expr dstLast =
+        m_memManager.ptrAdd(m_memManager.ptrAdd(dPtr, len), -wordSzInBytes);
+
+    Expr b0 = bind::bvar(0, ptrSort);
+    // -- dPtr <= b0 <= dstLast
+    Expr cmp = m_memManager.ptrInRangeCheck(dPtr, b0, dstLast);
+    // -- offset == dPtr - sPtr
+    Expr offset = m_memManager.ptrOffsetFromBase(dPtr, sPtr);
+    // -- maps ptr in dst to ptr in src
+    Expr readPtrInSrc = m_memManager.ptrAdd(b0, offset);
+
+    Expr readFromSrc = op::bind::fapp(srcMem, readPtrInSrc);
+    Expr readFromDst = op::bind::fapp(memRead, b0);
+
+    Expr ite = boolop::lite(cmp, readFromSrc, readFromDst);
+    Expr addr = bind::mkConst(mkTerm<std::string>("addr", m_efac), ptrSort);
+    Expr decl = bind::fname(addr);
+    res = mk<LAMBDA>(decl, ite);
+    LOG("opsem.lambda", errs() << "MemCpy " << *res << "\n");
+
+  } else {
+    LOG("opsem.lambda", errs() << "Word size and pointer are not aligned and "
+                                  "alignment is not ignored!"
+                               << "\n");
+    assert(false);
+  }
+  return res;
+}
+
 Expr OpSemMemLambdaRepr::MemCpy(Expr dPtr, Expr sPtr, unsigned len,
-                                Expr memTrsfrRead, unsigned wordSzInBytes,
-                                Expr ptrSort, uint32_t align) {
+                                Expr memTrsfrRead, Expr memRead,
+                                unsigned wordSzInBytes, Expr ptrSort,
+                                uint32_t align) {
   Expr res;
 
   if (wordSzInBytes == 1 || (wordSzInBytes == 4 && align == 4) ||
@@ -147,9 +190,8 @@ Expr OpSemMemLambdaRepr::MemCpy(Expr dPtr, Expr sPtr, unsigned len,
       Expr offset = m_memManager.ptrOffsetFromBase(dPtr, sPtr);
       Expr readPtrInSrc = m_memManager.ptrAdd(b0, offset);
 
-      // Both reads are from the same memory but must not overlap.
       Expr readFromSrc = op::bind::fapp(srcMem, readPtrInSrc);
-      Expr readFromDst = op::bind::fapp(srcMem, b0);
+      Expr readFromDst = op::bind::fapp(memRead, b0);
 
       Expr ite = boolop::lite(cmp, readFromSrc, readFromDst);
       Expr addr = bind::mkConst(mkTerm<std::string>("addr", m_efac), ptrSort);

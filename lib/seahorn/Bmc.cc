@@ -13,8 +13,7 @@
 
 static llvm::cl::opt<bool>
     DumpHex("horn-bmc-hexdump",
-            llvm::cl::desc("Dump memory state using hexdump"),
-            cl::init(false));
+            llvm::cl::desc("Dump memory state using hexdump"), cl::init(false));
 
 namespace seahorn {
 void BmcEngine::addCutPoint(const CutPoint &cp) {
@@ -260,9 +259,16 @@ template <> raw_ostream &BmcTrace::print(raw_ostream &out) {
         out.changeColor(raw_ostream::RED);
       if (DumpHex && shadow_mem) {
         using HD = expr::hexDump::HexDump;
-        out << "  %" << I.getName() << "\n" << HD(v, 4);
-      }
-      else
+        using SHD = expr::hexDump::StructHexDump;
+        out << "  %" << I.getName() << "\n";
+
+        if (isOp<MK_STRUCT>(v)) {
+          out << SHD(v, 4);
+        } else {
+          out << HD(v, 4);
+        }
+
+      } else
         out << "  %" << I.getName() << " " << *v;
       const DebugLoc &dloc = I.getDebugLoc();
       if (dloc) {

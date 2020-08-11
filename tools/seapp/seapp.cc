@@ -452,7 +452,7 @@ int main(int argc, char **argv) {
 
     // turn all functions internal so that we can inline them if requested
     auto PreserveMain = [=](const llvm::GlobalValue &GV) {
-      return GV.getName() == "main";
+      return GV.getName() == "main" || GV.getName() == "bcmp";
     };
     pm_wrapper.add(llvm::createInternalizePass(PreserveMain));
 

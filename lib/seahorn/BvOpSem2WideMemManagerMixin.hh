@@ -212,6 +212,15 @@ public:
     return toMemValTy(std::move(res));
   }
 
+  MemValTy MemCpy(PtrTy dPtr, PtrTy sPtr, Expr len, MemValTy memTrsfrRead,
+                  MemValTy memRead, uint32_t align) override {
+    auto res =
+        base().MemCpy(BasePtrTy(std::move(dPtr)), BasePtrTy(std::move(sPtr)),
+                      len, BaseMemValTy(std::move(memTrsfrRead)),
+                      BaseMemValTy(std::move(memRead)), align);
+    return toMemValTy(std::move(res));
+  }
+
   MemValTy MemFill(PtrTy dPtr, char *sPtr, unsigned len, MemValTy mem,
                    uint32_t align = 0) override {
     auto res = base().MemFill(BasePtrTy(std::move(dPtr)), sPtr, len,

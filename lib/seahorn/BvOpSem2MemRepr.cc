@@ -35,6 +35,39 @@ Expr OpSemMemArrayRepr::MemSet(Expr ptr, Expr _val, unsigned len, Expr mem,
   return res;
 }
 
+// TODO: This function is untested
+Expr OpSemMemArrayRepr::MemCpy(Expr dPtr, Expr sPtr, Expr len,
+                               Expr memTrsfrRead, Expr memRead,
+                               unsigned wordSzInBytes, Expr ptrSort,
+                               uint32_t align) {
+  (void)ptrSort;
+
+  Expr res;
+  Expr srcMem = memTrsfrRead;
+  if (wordSzInBytes == 1 || (wordSzInBytes == 4 && align == 4) ||
+      (wordSzInBytes == 8 && (align == 4 || align == 8)) ||
+      m_memManager.isIgnoreAlignment()) {
+    // TODO: make loop guard a configurable option
+    for (unsigned i = 0; i < m_memCpyUnrollCnt; i += wordSzInBytes) {
+      Expr dIdx = m_memManager.ptrAdd(dPtr, i);
+      Expr sIdx = m_memManager.ptrAdd(sPtr, i);
+      auto cmp =
+          m_ctx.alu().doUle(m_ctx.alu().si(i, m_memManager.ptrSzInBits()), len,
+                            m_memManager.ptrSzInBits());
+      auto ite = boolop::lite(cmp, op::array::select(srcMem, sIdx),
+                              op::array::select(memRead, dIdx));
+      res = op::array::store(memRead, dIdx, ite);
+    }
+
+  } else {
+    LOG("opsem.array", ERR << "Word size and pointer are not aligned and "
+                              "alignment is not ignored!"
+                           << "\n");
+    assert(false);
+  }
+  return res;
+}
+
 Expr OpSemMemArrayRepr::MemCpy(Expr dPtr, Expr sPtr, unsigned len,
                                Expr memTrsfrRead, Expr memRead,
                                unsigned wordSzInBytes, Expr ptrSort,
@@ -134,33 +167,42 @@ Expr OpSemMemLambdaRepr::MemCpy(Expr dPtr, Expr sPtr, Expr len,
                                 unsigned wordSzInBytes, Expr ptrSort,
                                 uint32_t align) {
   Expr res;
+  Expr srcMem = memTrsfrRead;
+  // address of the last word that is copied into dst
+  Expr dstLast =
+      m_memManager.ptrAdd(m_memManager.ptrAdd(dPtr, len), -wordSzInBytes);
+  res = createMemCpyExpr(dPtr, sPtr, memRead, ptrSort, srcMem, dstLast,
+                         wordSzInBytes, align);
+  return res;
+}
 
+// TODO: Call this from concrete LambdaRepr::MemCpy also to
+// remove duplicate code
+Expr OpSemMemLambdaRepr::createMemCpyExpr(
+    const Expr &dPtr, const Expr &sPtr, const Expr &memRead,
+    const Expr &ptrSort, const Expr &srcMem, const Expr &dstLast,
+    unsigned wordSzInBytes, uint32_t align) const {
+  Expr res;
   if (wordSzInBytes == 1 || (wordSzInBytes == 4 && align == 4) ||
       (wordSzInBytes == 8 && (align == 4 || align == 8)) ||
       m_memManager.isIgnoreAlignment()) {
-    Expr srcMem = memTrsfrRead;
-
-    // address of the last word that is copied into dst
-    Expr dstLast =
-        m_memManager.ptrAdd(m_memManager.ptrAdd(dPtr, len), -wordSzInBytes);
-
     Expr b0 = bind::bvar(0, ptrSort);
     // -- dPtr <= b0 <= dstLast
-    Expr cmp = m_memManager.ptrInRangeCheck(dPtr, b0, dstLast);
+    Expr cmp = this->m_memManager.ptrInRangeCheck(dPtr, b0, dstLast);
     // -- offset == dPtr - sPtr
-    Expr offset = m_memManager.ptrOffsetFromBase(dPtr, sPtr);
+    Expr offset = this->m_memManager.ptrOffsetFromBase(dPtr, sPtr);
     // -- maps ptr in dst to ptr in src
-    Expr readPtrInSrc = m_memManager.ptrAdd(b0, offset);
+    Expr readPtrInSrc = this->m_memManager.ptrAdd(b0, offset);
 
-    Expr readFromSrc = op::bind::fapp(srcMem, readPtrInSrc);
-    Expr readFromDst = op::bind::fapp(memRead, b0);
+    Expr readFromSrc = bind::fapp(srcMem, readPtrInSrc);
+    Expr readFromDst = bind::fapp(memRead, b0);
 
     Expr ite = boolop::lite(cmp, readFromSrc, readFromDst);
-    Expr addr = bind::mkConst(mkTerm<std::string>("addr", m_efac), ptrSort);
+    Expr addr =
+        bind::mkConst(mkTerm<std::string>("addr", this->m_efac), ptrSort);
     Expr decl = bind::fname(addr);
     res = mk<LAMBDA>(decl, ite);
     LOG("opsem.lambda", errs() << "MemCpy " << *res << "\n");
-
   } else {
     LOG("opsem.lambda", errs() << "Word size and pointer are not aligned and "
                                   "alignment is not ignored!"

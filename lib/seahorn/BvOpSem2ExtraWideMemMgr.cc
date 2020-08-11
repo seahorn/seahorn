@@ -508,6 +508,17 @@ public:
                       memTrsfrRead.getSize(), memRead.getSize(), align));
   }
 
+  MemValTy MemCpy(PtrTy dPtr, PtrTy sPtr, Expr len, MemValTy memTrsfrRead,
+                  MemValTy memRead, uint32_t align) {
+    return MemValTy(
+        m_main.MemCpy(getAddressable(dPtr), getAddressable(sPtr), len,
+                      memTrsfrRead.getRaw(), memRead.getRaw(), align),
+        m_offset.MemCpy(getAddressable(dPtr), getAddressable(sPtr), len,
+                        memTrsfrRead.getOffset(), memRead.getOffset(), align),
+        m_size.MemCpy(getAddressable(dPtr), getAddressable(sPtr), len,
+                      memTrsfrRead.getSize(), memRead.getSize(), align));
+  }
+
   MemValTy MemFill(PtrTy dPtr, char *sPtr, unsigned int len, MemValTy mem,
                    uint32_t align) {
     return MemValTy(

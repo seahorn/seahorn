@@ -36,6 +36,13 @@ static llvm::cl::opt<bool> ExplicitSp0(
     llvm::cl::desc(
         "Set initial stack pointer (sp0) to an explicit numeric constant"),
     llvm::cl::init(false));
+
+static llvm::cl::opt<unsigned> MemCpyUnrollCount(
+    "horn-array-sym-memcpy-unroll-count",
+    llvm::cl::desc("When using array repr of memory; this sets the loop unroll "
+                   "count for symbolic memcpy"),
+    llvm::cl::init(16));
+
 namespace seahorn {
 namespace details {
 
@@ -82,7 +89,8 @@ RawMemManager::RawMemManager(Bv2OpSem &sem, Bv2OpSemContext &ctx,
   if (useLambdas)
     m_memRepr = std::make_unique<OpSemMemLambdaRepr>(*this, ctx);
   else
-    m_memRepr = std::make_unique<OpSemMemArrayRepr>(*this, ctx);
+    m_memRepr =
+        std::make_unique<OpSemMemArrayRepr>(*this, ctx, MemCpyUnrollCount);
 }
 
 /// \brief Creates a non-deterministic pointer that is aligned

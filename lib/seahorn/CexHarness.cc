@@ -78,8 +78,12 @@ Constant *exprToLlvm(Type *ty, Expr e, LLVMContext &ctx, const DataLayout &dl) {
     }
     llvm_unreachable("Unhandled type");
   } else {
+    // HACK: in structures, first argument is usually the base value we are after
+    if (strct::isStructVal(e)) {
+      return exprToLlvm(ty, e->arg(0), ctx, dl);
+    }
     // if all fails, try 0
-    LOG("cex", errs() << "WARNING: Not handled value: " << *e << "\n";);
+    LOG("cex", WARN << "not handled value: " << *e;);
     return Constant::getNullValue(ty);
   }
   llvm_unreachable("Unhandled expression");
@@ -88,6 +92,10 @@ Constant *exprToLlvm(Type *ty, Expr e, LLVMContext &ctx, const DataLayout &dl) {
 // return true if success
 template <typename IndexToValueMap>
 bool extractArrayContents(Expr e, IndexToValueMap &out, Expr &default_value) {
+  // HACK: first field of a struct representing memory is the actual memory
+  if (strct::isStructVal(e)) {
+    e = e->arg(0);
+  }
   if (isOpX<CONST_ARRAY>(e)) {
     default_value = e->right();
     return true;
@@ -104,18 +112,18 @@ bool extractArrayContents(Expr e, IndexToValueMap &out, Expr &default_value) {
     if (it != out.end()) {
       // we assume that indexes cannot be overwritten during
       // initialization
-      errs() << "Warning: cannot extract array contents\n";
+      WARN << "cannot extract array contents";
       out.clear();
       return false;
     }
     out.insert(std::make_pair(index, val));
     return extractArrayContents(array, out, default_value);
   } else if (isOpX<LAMBDA>(e)) {
-    errs() << "Warning: Arrays are lambdas (wip): " << *e << "\n";
+    WARN << "arrays are lambdas (wip): " << *e;
     out.clear();
     return false;
   }
-  errs() << "Warning: unsupported array term " << *e << "\n";
+  WARN << "unsupported array term " << *e;
   out.clear();
   return false;
 }

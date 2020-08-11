@@ -55,11 +55,11 @@ static llvm::cl::opt<bool> UseExtraWideMemory(
 
 static llvm::cl::opt<unsigned>
     WordSize("horn-bv2-word-size",
-             llvm::cl::desc("Word size in bytes: 1, 4, 8"), cl::init(4));
+             llvm::cl::desc("Word size in bytes: 0 - auto, 1, 4, 8"), cl::init(0));
 
 static llvm::cl::opt<unsigned>
-    PtrSize("horn-bv2-ptr-size", llvm::cl::desc("Pointer size in bytes: 4, 8"),
-            cl::init(4), cl::Hidden);
+    PtrSize("horn-bv2-ptr-size", llvm::cl::desc("Pointer size in bytes: 0 - auto, 4, 8"),
+            cl::init(0), cl::Hidden);
 
 static llvm::cl::opt<bool> EnableUniqueScalars2(
     "horn-bv2-singleton-aliases",
@@ -1776,14 +1776,20 @@ Bv2OpSemContext::Bv2OpSemContext(Bv2OpSem &sem, SymStore &values,
   m_shouldSimplify = SimplifyExpr;
   m_alu = mkBvOpSemAlu(*this);
   OpSemMemManager *mem = nullptr;
+
+  unsigned ptrSize = PtrSize == 0 ? m_sem.getDataLayout().getPointerSize(0) : PtrSize;
+  unsigned wordSize = WordSize == 0 ? ptrSize : WordSize;
+
+  LOG("opsem", INFO << "pointer size: " << ptrSize << ", word size: " << wordSize;);
+
   if (UseFatMemory)
-    mem = mkFatMemManager(m_sem, *this, PtrSize, WordSize, UseLambdas);
+    mem = mkFatMemManager(m_sem, *this, ptrSize, wordSize, UseLambdas);
   else if (UseWideMemory) {
-    mem = mkWideMemManager(m_sem, *this, PtrSize, WordSize, UseLambdas);
+    mem = mkWideMemManager(m_sem, *this, ptrSize, wordSize, UseLambdas);
   } else if (UseExtraWideMemory) {
-    mem = mkExtraWideMemManager(m_sem, *this, PtrSize, WordSize, UseLambdas);
+    mem = mkExtraWideMemManager(m_sem, *this, ptrSize, wordSize, UseLambdas);
   } else {
-    mem = mkRawMemManager(m_sem, *this, PtrSize, WordSize, UseLambdas);
+    mem = mkRawMemManager(m_sem, *this, ptrSize, wordSize, UseLambdas);
   }
   assert(mem);
   setMemManager(mem);

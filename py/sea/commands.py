@@ -933,7 +933,7 @@ class FatBoundsCheck(sea.LimitedCmd):
         if args.log is not None:
             for l in args.log.split (':'): argv.extend (['-log', l])
 
-        return self.seappCmd.run (args, argv)    
+        return self.seappCmd.run (args, argv)
 
 
 class Unroll(sea.LimitedCmd):
@@ -995,7 +995,7 @@ class Unroll(sea.LimitedCmd):
         return self.seaoptCmd.run (args, argv)
 
 def _is_seahorn_opt (x):
-    prefixes = ['horn-', 'crab', 'sea-', 'log']
+    prefixes = ['horn-', 'crab', 'sea-opsem']
     if x.startswith ('-'):
         y = x.strip ('-')
         return any((y.startswith(p) for p in prefixes))
@@ -1051,7 +1051,7 @@ class Seahorn(sea.LimitedCmd):
                          'sea-flat (flat memory SeaHorn Dsa), '
                          'sea-ci (context-insensitive SeaHorn Dsa), and '
                          'sea-cs (context-sensitive SeaHorn Dsa)',
-                         choices=['sea-flat','sea-ci','sea-cs'],
+                         choices=['sea-flat','sea-ci','sea-cs', 'sea-ci-t', 'sea-cs-t'],
                          dest='dsa', default='sea-ci')
         ap.add_argument ('--mem-dot',
                          help='Print Dsa memory graphs of all functions to dot format',
@@ -1064,7 +1064,8 @@ class Seahorn(sea.LimitedCmd):
                          dest='crab', default=False, action='store_true')
         ap.add_argument ('--bmc',
                          help='Use BMC engine',
-                         choices=['none', 'mono', 'path'], dest='bmc', default='none')
+                         choices=['none', 'mono', 'path', 'opsem'],
+                         dest='bmc', default='none')
         ap.add_argument ('--max-depth',
                          help='Maximum depth of exploration',
                          dest='max_depth', default=sys.maxsize)
@@ -1088,6 +1089,10 @@ class Seahorn(sea.LimitedCmd):
             argv.append ('--horn-bmc')
             if args.bmc == 'path':
                 argv.append ('--horn-bmc-engine=path')
+            elif args.bmc.startswith('opsem'):
+                argv.append('--horn-bv2')
+                argv.append('-log=opsem')
+                argv.append('--lower-gv-init-struct=false')
 
         if args.crab:
             argv.append ('--horn-crab')
@@ -1103,13 +1108,17 @@ class Seahorn(sea.LimitedCmd):
         if "--dsa-stats" in extra:
             argv.append ('--sea-dsa-stats')
 
-        ## we select the sea-dsa variant
+        ## sea-dsa: select variant
         if args.dsa == 'sea-flat':
             argv.append ('--sea-dsa=flat')
-        elif args.dsa == 'sea-ci':
+        elif args.dsa == 'sea-ci' or args.dsa == 'sea-ci-t':
             argv.append ('--sea-dsa=ci')
         else:
             argv.append ('--sea-dsa=cs')
+
+        ## sea-dsa: enable type-awareness
+        if args.dsa == 'sea-cs-t' or args.dsa == 'sea-ci-t':
+           argv.append('--sea-dsa-type-aware')
 
         if args.mem_dot:
             argv.append ('--mem-dot')

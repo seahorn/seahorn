@@ -646,10 +646,7 @@ public:
   /// \brief Executes symbolic memcpy with symbolic length
   virtual MemValTy MemCpy(PtrTy dPtr, PtrTy sPtr, Expr len,
                           MemValTy memTrsfrRead, MemValTy memRead,
-                          uint32_t align) {
-    LOG("opsem", WARN << "unsupported memcpy with symbolic length";);
-    return MemValTy();
-  }
+                          uint32_t align) = 0;
 
   /// \brief Executes symbolic memcpy from physical memory with concrete length
   virtual MemValTy MemFill(PtrTy dPtr, char *sPtr, unsigned len, MemValTy mem,
@@ -767,8 +764,8 @@ public:
 /// \brief Represent memory regions by logical arrays
 class OpSemMemArrayRepr : public OpSemMemRepr {
 public:
-  OpSemMemArrayRepr(OpSemMemManager &memManager, Bv2OpSemContext &ctx)
-      : OpSemMemRepr(memManager, ctx) {}
+  OpSemMemArrayRepr(OpSemMemManager &memManager, Bv2OpSemContext &ctx, unsigned memCpyUnrollCnt)
+      : OpSemMemRepr(memManager, ctx), m_memCpyUnrollCnt(memCpyUnrollCnt) {}
 
   Expr coerce(Expr _, Expr val) override { return val; }
 
@@ -789,18 +786,16 @@ public:
               uint32_t align) override;
 
   Expr MemCpy(Expr dPtr, Expr sPtr, Expr len, Expr memTrsfrRead, Expr memRead,
-              unsigned wordSzInBytes, Expr ptrSort, uint32_t align) override {
-    ERR << "Array-based memory representation does not support memcpy with "
-           "symbolic length. Try lambdas.";
-    assert(false && "Not supported");
-    return Expr();
-  }
+              unsigned wordSzInBytes, Expr ptrSort, uint32_t align) override;
 
   Expr MemFill(Expr dPtr, char *sPtr, unsigned len, Expr mem,
                unsigned wordSzInBytes, Expr ptrSort, uint32_t align) override;
   Expr FilledMemory(Expr ptrSort, Expr val) override {
     return op::array::constArray(ptrSort, val);
   }
+
+private:
+  unsigned m_memCpyUnrollCnt;
 };
 
 /// \brief Represent memory regions by lambda functions
@@ -834,6 +829,11 @@ private:
   Expr coerceArrayToLambda(Expr arrVal);
   Expr makeLinearITE(Expr addr, const ExprVector &ptrKeys,
                      const ExprVector &vals, Expr fallback);
+  // address of the last word that is copied into dst
+  Expr createMemCpyExpr(const Expr &dPtr, const Expr &sPtr, const Expr &memRead,
+                        const Expr &ptrSort, const Expr &srcMem,
+                        const Expr &dstLast, unsigned wordSzInBytes,
+                        uint32_t align) const;
 };
 
 /// Evaluates constant expressions

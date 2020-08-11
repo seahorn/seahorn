@@ -429,13 +429,28 @@ public:
 
   /// \brief Executes symbolic memcpy with concrete length
   FatMemValTy MemCpy(FatPtrTy dPtr, FatPtrTy sPtr, unsigned len,
-                     FatMemValTy memTrsfrRead, FatMemValTy memRead, uint32_t align) {
-    return mkFatMem(m_main.MemCpy(mkRawPtr(dPtr), mkRawPtr(sPtr), len,
-                                  mkRawMem(memTrsfrRead), mkRawMem(memRead), align),
-                    m_slot0.MemCpy(mkRawPtr(dPtr), mkRawPtr(sPtr), len,
-                                   mkSlot0Mem(memTrsfrRead), mkSlot0Mem(memRead), align),
-                    m_slot1.MemCpy(mkRawPtr(dPtr), mkRawPtr(sPtr), len,
-                                   mkSlot1Mem(memTrsfrRead), mkSlot1Mem(memRead), align));
+                     FatMemValTy memTrsfrRead, FatMemValTy memRead,
+                     uint32_t align) {
+    return mkFatMem(
+        m_main.MemCpy(mkRawPtr(dPtr), mkRawPtr(sPtr), len,
+                      mkRawMem(memTrsfrRead), mkRawMem(memRead), align),
+        m_slot0.MemCpy(mkRawPtr(dPtr), mkRawPtr(sPtr), len,
+                       mkSlot0Mem(memTrsfrRead), mkSlot0Mem(memRead), align),
+        m_slot1.MemCpy(mkRawPtr(dPtr), mkRawPtr(sPtr), len,
+                       mkSlot1Mem(memTrsfrRead), mkSlot1Mem(memRead), align));
+  }
+
+  /// \brief Executes symbolic memcpy with concrete length
+  FatMemValTy MemCpy(FatPtrTy dPtr, FatPtrTy sPtr, Expr len,
+                     FatMemValTy memTrsfrRead, FatMemValTy memRead,
+                     uint32_t align) {
+    return mkFatMem(
+        m_main.MemCpy(mkRawPtr(dPtr), mkRawPtr(sPtr), len,
+                      mkRawMem(memTrsfrRead), mkRawMem(memRead), align),
+        m_slot0.MemCpy(mkRawPtr(dPtr), mkRawPtr(sPtr), len,
+                       mkSlot0Mem(memTrsfrRead), mkSlot0Mem(memRead), align),
+        m_slot1.MemCpy(mkRawPtr(dPtr), mkRawPtr(sPtr), len,
+                       mkSlot1Mem(memTrsfrRead), mkSlot1Mem(memRead), align));
   }
 
   /// \brief Executes symbolic memcpy from physical memory with concrete

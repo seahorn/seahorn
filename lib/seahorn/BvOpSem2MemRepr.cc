@@ -42,27 +42,31 @@ Expr OpSemMemArrayRepr::MemCpy(Expr dPtr, Expr sPtr, Expr len,
                                uint32_t align) {
   (void)ptrSort;
 
-  Expr res;
+  Expr res = memRead;
   Expr srcMem = memTrsfrRead;
   if (wordSzInBytes == 1 || (wordSzInBytes == 4 && align == 4) ||
       (wordSzInBytes == 8 && (align == 4 || align == 8)) ||
       m_memManager.isIgnoreAlignment()) {
-    // TODO: make loop guard a configurable option
+    // XXX assume that bit-width(len) == ptrSzInBits
+    auto bitWidth = m_memManager.ptrSzInBits();
+    Expr upperBound = m_ctx.alu().doAdd(
+        len, m_ctx.alu().si(-wordSzInBytes, bitWidth), bitWidth);
     for (unsigned i = 0; i < m_memCpyUnrollCnt; i += wordSzInBytes) {
       Expr dIdx = m_memManager.ptrAdd(dPtr, i);
       Expr sIdx = m_memManager.ptrAdd(sPtr, i);
       auto cmp =
-          m_ctx.alu().doUle(m_ctx.alu().si(i, m_memManager.ptrSzInBits()), len,
-                            m_memManager.ptrSzInBits());
+          m_ctx.alu().doUle(m_ctx.alu().si(i, m_memManager.ptrSzInBits()),
+                            upperBound, m_memManager.ptrSzInBits());
       auto ite = boolop::lite(cmp, op::array::select(srcMem, sIdx),
                               op::array::select(memRead, dIdx));
-      res = op::array::store(memRead, dIdx, ite);
+      res = op::array::store(res, dIdx, ite);
     }
+    LOG("opsem.array", INFO << "memcpy: " << *res << "\n";);
 
   } else {
-    LOG("opsem.array", ERR << "Word size and pointer are not aligned and "
-                              "alignment is not ignored!"
-                           << "\n");
+    LOG("opsem", ERR << "Word size and pointer are not aligned and "
+                        "alignment is not ignored!"
+                     << "\n");
     assert(false);
   }
   return res;
@@ -204,9 +208,7 @@ Expr OpSemMemLambdaRepr::createMemCpyExpr(
     res = mk<LAMBDA>(decl, ite);
     LOG("opsem.lambda", errs() << "MemCpy " << *res << "\n");
   } else {
-    LOG("opsem.lambda", errs() << "Word size and pointer are not aligned and "
-                                  "alignment is not ignored!"
-                               << "\n");
+    LOG("opsem", ERR << "unsupported memcpy due to size and/or alignment.";);
     assert(false);
   }
   return res;

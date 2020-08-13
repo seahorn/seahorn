@@ -64,25 +64,34 @@ using const_hd_range = llvm::iterator_range<const_hd_iterator>;
  *    else: the value if the condition is a NEQ expression. Can be a nested ITE
  *    if the condition is an EQ expression
  *
- *
  * If the given expression is not one of the supported expressions (ITE, STORE,
  * SET) above, it will search its children for the first supported expression
  * and use that.
+ *
+ * Widths:
+ *    bvnums: uses the width of the bvnum
+ *
+ *    UINT/MPZ : uses the max width of all the numbers
+ *
+ * Alignment:
+ *    bvnums: assumes the addresses are aligned based on the width of the value
+ *      unless it finds an index/key that is misaligned (not divisible by the
+ *      width (in bytes))
+ *
+ *    uint/mpz: assumes its not aligned
+
  */
 class HexDump {
   class Impl;
   Impl *m_impl;
 
 public:
-  HexDump(Expr exp, unsigned bytesPerWord = 1);
+  HexDump(Expr exp);
   ~HexDump();
 
   const_hd_iterator cbegin() const;
   const_hd_iterator cend() const;
 
-  /// \note the width of the index is based on the max number of bytes out of
-  /// all the indices
-  /// \note the width of the value is based on the bytesPerWord
   template <typename T> void print(T &OS, bool includeAscii = true) const;
 
   friend llvm::raw_ostream &operator<<(llvm::raw_ostream &OS,
@@ -101,7 +110,7 @@ class StructHexDump {
   StructImpl *m_impl;
 
 public:
-  StructHexDump(Expr exp, unsigned bytesPerWord = 1);
+  StructHexDump(Expr exp);
   ~StructHexDump();
 
   std::vector<const_hd_range> getRanges() const;

@@ -35,12 +35,12 @@ void checkPairs(ExpectedIt expectedBegin, ExpectedIt expectedEnd,
 }
 
 void populateBvNumArr(Expr &e, ExprFactory &efac, std::vector<KeyValue> &kvList,
-                      mpz_class idxNum, mpz_class valueNum,
-                      unsigned width = 16) {
+                      mpz_class idxNum, mpz_class valueNum, unsigned keyWidth,
+                      unsigned valueWidth) {
   kvList.push_back(KeyValue(mkTerm<mpz_class>(idxNum, efac),
                             mkTerm<mpz_class>(valueNum, efac)));
-  e = array::store(e, bv::bvnum(idxNum, width, efac),
-                   bv::bvnum(valueNum, width, efac));
+  e = array::store(e, bv::bvnum(idxNum, keyWidth, efac),
+                   bv::bvnum(valueNum, valueWidth, efac));
 }
 
 TEST_CASE("hexDumpBvNum.test") {
@@ -55,18 +55,18 @@ TEST_CASE("hexDumpBvNum.test") {
   Expr e = array::constArray(bvSort, defaultValue);
   Expr defaultValueNum = defaultValue->first(); // MPZ term
 
-  populateBvNumArr(e, efac, kvList, 2, 84);
+  populateBvNumArr(e, efac, kvList, 2, 84, 16, 16);
   kvList.push_back(KeyValue(mkTerm<mpz_class>(4, efac), defaultValueNum,
                             true)); // filler KeyValue
-  populateBvNumArr(e, efac, kvList, 8, 101);
+  populateBvNumArr(e, efac, kvList, 8, 101, 16, 16);
   kvList.push_back(KeyValue(mkTerm<mpz_class>(10, efac), defaultValueNum,
                             true)); // filler KeyValue
-  populateBvNumArr(e, efac, kvList, 24, 115);
+  populateBvNumArr(e, efac, kvList, 24, 115, 16, 16);
   kvList.push_back(KeyValue(mkTerm<mpz_class>(26, efac), defaultValueNum,
                             true)); // filler KeyValue
-  populateBvNumArr(e, efac, kvList, 30, 116);
+  populateBvNumArr(e, efac, kvList, 30, 116, 16, 16);
 
-  HexDump hd(e, 2); // value has a width of 2 bytes
+  HexDump hd(e);
   llvm::errs() << hd << "\n";
   // // std::cout<<hd;
   // hd.dump(std::cout, false);
@@ -93,47 +93,84 @@ TEST_CASE("hexDumpBvNum.test") {
   e = array::constArray(bvSort, defaultValue);
 
   kvList.clear();
-  populateBvNumArr(e, efac, kvList, 4, 12);
+  populateBvNumArr(e, efac, kvList, 4, 12, 32, 32);
   kvList.push_back(KeyValue(mkTerm<mpz_class>(8, efac), defaultValue,
                             false)); // filler KeyValue
-  populateBvNumArr(e, efac, kvList, 12, 84);
+  populateBvNumArr(e, efac, kvList, 12, 84, 32, 32);
 
-  HexDump hd2(e, 4); // value has a width of 4 bytes
+  HexDump hd2(e);
   llvm::errs() << hd2 << "\n";
   outcome = boost::lexical_cast<std::string>(hd2);
   outcome = std::regex_replace(outcome, std::regex(" *\n *"), "");
 
-  expected = "0004: 00 00 00 0c  |....|\
-0008: 00 00 00 14  |....|\
-000c: 00 00 00 54  |...T|";
+  expected = "00000004: 00 00 00 0c  |....|\
+00000008: 00 00 00 14  |....|\
+0000000c: 00 00 00 54  |...T|";
 
   CHECK(outcome == expected);
   checkPairs(kvList.cbegin(), kvList.cend(), hd2.cbegin(), hd2.cend());
 }
 
+TEST_CASE("bvNumNotAligned.test") {
+  ExprFactory efac;
+
+  Expr intSort = sort::intTy(efac);
+  Expr bvSort = bv::bvsort(16, efac);
+
+  std::vector<KeyValue> kvList;
+  Expr defaultValue = bv::bvnum(0xffff1234, 64, efac);
+
+  Expr e = array::constArray(bvSort, defaultValue);
+  Expr defaultValueNum = defaultValue->first(); // MPZ term
+
+  populateBvNumArr(e, efac, kvList, 3, 0x4567aabb, 32, 64);
+  kvList.push_back(KeyValue(mkTerm<mpz_class>(4, efac), defaultValueNum,
+                            true)); // filler KeyValue
+  populateBvNumArr(e, efac, kvList, 7, 0x656f, 32, 64);
+  kvList.push_back(KeyValue(mkTerm<mpz_class>(8, efac), defaultValueNum,
+                            true)); // filler KeyValue
+  populateBvNumArr(e, efac, kvList, 11, 115, 32, 64);
+
+  HexDump hd(e);
+  llvm::errs() << hd << "\n";
+  std::string outcome = boost::lexical_cast<std::string>(hd);
+  outcome = std::regex_replace(outcome, std::regex(" *\n *"), "");
+
+  std::string expected = "00000003: 00 00 00 00 45 67 aa bb  |....Eg..|\
+00000004: 00 00 00 00 ff ff 12 34  |.......4|\
+*\
+00000007: 00 00 00 00 00 00 65 6f  |......eo|\
+00000008: 00 00 00 00 ff ff 12 34  |.......4|\
+*\
+0000000b: 00 00 00 00 00 00 00 73  |.......s|";
+
+  CHECK(outcome == expected);
+  checkPairs(kvList.cbegin(), kvList.cend(), hd.cbegin(), hd.cend());
+}
 TEST_CASE("num.test") {
   ExprFactory efac;
 
   Expr intSort = sort::intTy(efac);
 
   Expr e = array::constArray(intSort, mkTerm<unsigned>(5, efac));
-  e = array::store(e, mkTerm<unsigned>(0, efac), mkTerm<unsigned>(16, efac));
-  e = array::store(e, mkTerm<unsigned>(4, efac), mkTerm<unsigned>(1, efac));
-  e = array::store(e, mkTerm<unsigned>(12, efac), mkTerm<unsigned>(2, efac));
+  e = array::store(e, mkTerm<unsigned>(0, efac),
+                   mkTerm<unsigned>(0xabcd1212, efac));
+  e = array::store(e, mkTerm<unsigned>(2, efac), mkTerm<unsigned>(1, efac));
+  e = array::store(e, mkTerm<unsigned>(3, efac), mkTerm<unsigned>(2, efac));
 
   llvm::errs() << "Expression: " << *e;
 
-  HexDump hd(e, 4);
-  // // std::cout<<hd;
+  HexDump hd(e);
+  // std::cout<<hd;
   llvm::errs() << hd << "\n";
 
   std::string outcome = boost::lexical_cast<std::string>(hd);
   outcome = std::regex_replace(outcome, std::regex(" *\n *"), "");
 
-  std::string expected = "00: 00 00 00 10  |....|\
-04: 00 00 00 01  |....|\
-08: 00 00 00 05  |....|\
-0c: 00 00 00 02  |....|";
+  std::string expected = "00: ab cd 12 12  |....|\
+01: 00 00 00 05  |....|\
+02: 00 00 00 01  |....|\
+03: 00 00 00 02  |....|";
 
   CHECK(outcome == expected);
 
@@ -149,16 +186,18 @@ TEST_CASE("num.test") {
 
   llvm::errs() << "Expression: " << *e;
 
-  HexDump hd2(e, 4);
+  HexDump hd2(e);
   llvm::errs() << hd2 << "\n";
 
   outcome = boost::lexical_cast<std::string>(hd2);
   outcome = std::regex_replace(outcome, std::regex(" *\n *"), "");
 
   expected = "100000: 00 11 11 11  |....|\
-100004: 12 34 56 78  |.4Vx|\
+100001: 12 34 56 78  |.4Vx|\
 *\
 10000c: 00 00 00 00  |....|\
+10000d: 12 34 56 78  |.4Vx|\
+*\
 100010: 00 33 44 55  |.3DU|";
 
   CHECK(outcome == expected);
@@ -188,7 +227,7 @@ TEST_CASE("finiteMap.test") {
 
   llvm::errs() << "Expression: " << *e;
 
-  HexDump hd(e, 2);
+  HexDump hd(e);
   llvm::errs() << hd;
 
   std::string outcome = boost::lexical_cast<std::string>(hd);
@@ -259,32 +298,32 @@ TEST_CASE("ite.test") {
   ite = mk<ITE>(eq1, mkTerm<mpz_class>(0x0, efac),
                 mkTerm<mpz_class>(0x12345, efac));
   ite = mk<ITE>(eq2, ite, mkTerm<mpz_class>(0x114232, efac));
-  ite = mk<ITE>(eq3, ite, mkTerm<mpz_class>(0xaa3fde, efac));
+  ite = mk<ITE>(eq3, ite, mkTerm<mpz_class>(0xaa3fde00, efac));
 
   llvm::errs() << "Expression: " << *ite;
   printIteTree(ite);
 
-  HexDump hd2(ite, 4);
+  HexDump hd2(ite);
   llvm::errs() << hd2;
 
   kvList.clear();
   kvList.push_back(
       KeyValue(mkTerm<unsigned>(4, efac), mkTerm<mpz_class>(0x114232, efac)));
   kvList.push_back(
-      KeyValue(mkTerm<unsigned>(8, efac), mkTerm<mpz_class>(0x0, efac), true));
+      KeyValue(mkTerm<unsigned>(5, efac), mkTerm<mpz_class>(0x0, efac), true));
   kvList.push_back(
       KeyValue(mkTerm<unsigned>(20, efac), mkTerm<mpz_class>(0x12345, efac)));
   kvList.push_back(
-      KeyValue(mkTerm<unsigned>(24, efac), mkTerm<mpz_class>(0x0, efac), true));
-  kvList.push_back(
-      KeyValue(mkTerm<unsigned>(40, efac), mkTerm<mpz_class>(0xaa3fde, efac)));
+      KeyValue(mkTerm<unsigned>(21, efac), mkTerm<mpz_class>(0x0, efac), true));
+  kvList.push_back(KeyValue(mkTerm<unsigned>(40, efac),
+                            mkTerm<mpz_class>(0xaa3fde00, efac)));
 
   checkPairs(kvList.begin(), kvList.end(), hd2.cbegin(), hd2.cend());
 
   // // -------------------
 
   eq1 = mk<NEQ>(mkTerm<mpz_class>(0x200000, efac), a);
-  eq2 = mk<EQ>(mkTerm<mpz_class>(0x200004, efac), a);
+  eq2 = mk<EQ>(mkTerm<mpz_class>(0x200001, efac), a);
 
   ite = mk<ITE>(eq1, mkTerm<mpz_class>(0x9, efac),
                 mkTerm<mpz_class>(0xaaaa1234, efac));
@@ -293,21 +332,21 @@ TEST_CASE("ite.test") {
   llvm::errs() << "Expression: " << *ite;
   printIteTree(ite);
 
-  HexDump hd3(ite, 4);
+  HexDump hd3(ite);
   llvm::errs() << hd3;
 
   kvList.clear();
   kvList.push_back(KeyValue(mkTerm<mpz_class>(0x200000, efac),
                             mkTerm<mpz_class>(0xaaaa1234, efac)));
-  kvList.push_back(KeyValue(mkTerm<mpz_class>(0x200004, efac),
+  kvList.push_back(KeyValue(mkTerm<mpz_class>(0x200001, efac),
                             mkTerm<mpz_class>(0xbbbb1111, efac)));
 
   checkPairs(kvList.begin(), kvList.end(), hd3.cbegin(), hd3.cend());
 
-  // //---------------
+  //---------------
 
-  eq1 = mk<EQ>(bv::bvnum(0x45, 32, efac), a);
-  eq2 = mk<EQ>(mkTerm<mpz_class>(0x77, efac), a);
+  eq1 = mk<EQ>(bv::bvnum(0x44, 32, efac), a);
+  eq2 = mk<EQ>(mkTerm<mpz_class>(0x78, efac), a);
 
   ite = mk<ITE>(eq1, bv::bvnum(0x6672, 32, efac), bv::bvnum(0x4444, 32, efac));
   ite = mk<ITE>(eq2, mkTerm<mpz_class>(0xbbbb, efac), ite);
@@ -315,16 +354,16 @@ TEST_CASE("ite.test") {
   llvm::errs() << "Expression: " << *ite;
   printIteTree(ite);
 
-  HexDump hd4(ite, 2);
+  HexDump hd4(ite);
   llvm::errs() << hd4;
 
   kvList.clear();
   kvList.push_back(
-      KeyValue(mkTerm<mpz_class>(0x45, efac), mkTerm<mpz_class>(0x6672, efac)));
-  kvList.push_back(KeyValue(mkTerm<mpz_class>(0x47, efac),
+      KeyValue(mkTerm<mpz_class>(0x44, efac), mkTerm<mpz_class>(0x6672, efac)));
+  kvList.push_back(KeyValue(mkTerm<mpz_class>(0x45, efac),
                             mkTerm<mpz_class>(0x4444, efac), true));
   kvList.push_back(
-      KeyValue(mkTerm<mpz_class>(0x77, efac), mkTerm<mpz_class>(0xbbbb, efac)));
+      KeyValue(mkTerm<mpz_class>(0x78, efac), mkTerm<mpz_class>(0xbbbb, efac)));
 
   checkPairs(kvList.begin(), kvList.end(), hd4.cbegin(), hd4.cend());
 }
@@ -343,8 +382,8 @@ TEST_CASE("lambda.test") {
   Expr eq1 = mk<EQ>(intBound0, mkTerm<mpz_class>(0, efac));
   Expr eq2 = mk<EQ>(mkTerm<mpz_class>(2, efac), intBound1);
 
-  Expr ite = mk<ITE>(eq1, bv::bvnum(0x2, 32, efac), bv::bvnum(0xff, 32, efac));
-  ite = mk<ITE>(eq2, bv::bvnum(0x4, 32, efac),
+  Expr ite = mk<ITE>(eq1, bv::bvnum(0x2, 8, efac), bv::bvnum(0xff, 8, efac));
+  ite = mk<ITE>(eq2, bv::bvnum(0x4, 8, efac),
                 ite); // only b and d are actually reachable
 
   Expr lambda = mk<LAMBDA>(intConst, intConst, ite);
@@ -352,7 +391,7 @@ TEST_CASE("lambda.test") {
   llvm::errs() << "Expression: " << *lambda << "\n";
   printIteTree(ite);
 
-  HexDump hd(ite, 1);
+  HexDump hd(ite);
   llvm::errs() << hd;
 
   std::vector<KeyValue> kvList;
@@ -378,11 +417,11 @@ TEST_CASE("struct.test") {
   Expr e1 = array::constArray(bvSort, defaultValue);
   defaultValue = defaultValue->first(); // MPZ term
 
-  populateBvNumArr(e1, efac, kvList, 0xa00000, 0x99, 32);
-  populateBvNumArr(e1, efac, kvList, 0xa00001, 116, 32);
+  populateBvNumArr(e1, efac, kvList, 0xa00000, 0x99, 32, 32);
+  populateBvNumArr(e1, efac, kvList, 0xa00001, 116, 32, 32);
   kvList.push_back(KeyValue(mkTerm<mpz_class>(0xa00002, efac), defaultValue,
                             false)); // filler KeyValue
-  populateBvNumArr(e1, efac, kvList, 0xa00003, 0x30, 32);
+  populateBvNumArr(e1, efac, kvList, 0xa00003, 0x30, 32, 32);
 
   //-----------------
 
@@ -436,15 +475,17 @@ TEST_CASE("struct.test") {
 TEST_CASE("specialCases.test") {
   ExprFactory efac;
   Expr intConst = bind::intConst(mkTerm<std::string>("intConst", efac));
+  Expr intConst2 = bind::intConst(mkTerm<std::string>("intConst2", efac));
+  Expr intConst3 = bind::intConst(mkTerm<std::string>("intConst3", efac));
   Expr intSort = sort::intTy(efac);
 
   Expr e = mk<AND>(intConst,
                    intConst); // doesn't have anything that is supported by the
-                              // hex dump so the result should be emplty
+                              // hex dump so the result should be empty
 
   llvm::errs() << "Expression: " << *e << "\n";
 
-  HexDump hd(e, 2);
+  HexDump hd(e);
   llvm::errs() << hd;
 
   std::string outcome = boost::lexical_cast<std::string>(hd);
@@ -468,7 +509,7 @@ TEST_CASE("specialCases.test") {
 
   llvm::errs() << "Expression: " << *e << "\n";
 
-  HexDump hd2(e, 4);
+  HexDump hd2(e);
 
   llvm::errs() << hd2;
 
@@ -492,14 +533,14 @@ TEST_CASE("specialCases.test") {
       keys, values); // only has a const finite map (not wrapped in SET)
 
   llvm::errs() << "Expression: " << *e << "\n";
-  HexDump hd3(e, 2);
+  HexDump hd3(e);
 
   llvm::errs() << hd3;
 
   outcome = boost::lexical_cast<std::string>(hd3);
   outcome = std::regex_replace(outcome, std::regex(" *\n *"), "");
 
-  expected = "00: 00 12  |..|";
+  expected = "00: 12  |.|";
 
   CHECK(outcome == expected);
 
@@ -509,19 +550,41 @@ TEST_CASE("specialCases.test") {
 
   checkPairs(kvList.cbegin(), kvList.cend(), hd3.cbegin(), hd3.cend());
 
-  //----------
+  //-----------
 
-  e = array::constArray(intSort, bv::bvnum(0xa345ff22, 32, efac));
+  e = array::constArray(bvSort32, intConst); // values are not numerical
+  e = array::store(e, bv::bvnum(0, 32, efac), intConst2);
+  e = array::store(e, bv::bvnum(4, 32, efac), intConst3);
 
   llvm::errs() << "Expression: " << *e << "\n";
-  HexDump hd4(e, 1); // actual width is larger than desired width
+  HexDump hd4(e);
 
   llvm::errs() << hd4;
 
-  outcome = boost::lexical_cast<std::string>(hd4);
-  outcome = std::regex_replace(outcome, std::regex(" *\n *"), "");
+  kvList.clear();
+  kvList.push_back(KeyValue(bv::bvnum(0, 32, efac), intConst2));
+  kvList.push_back(KeyValue(bv::bvnum(1, 32, efac), intConst, true));
+  kvList.push_back(KeyValue(bv::bvnum(4, 32, efac), intConst3));
 
-  expected = "*: a3 45 ff 22  |.E.\"|";
+  checkPairs(kvList.cbegin(), kvList.cend(), hd4.cbegin(), hd4.cend());
 
-  CHECK(outcome == expected);
+  //----------
+
+  e = array::constArray(
+      intSort, bv::bvnum(0x1234, 32, efac)); // indices are not numerical
+  e = array::store(e, intConst3, bv::bvnum(0x43, 32, efac));
+  e = array::store(e, intConst2, bv::bvnum(0xa, 32, efac));
+
+  llvm::errs() << "Expression: " << *e << "\n";
+  HexDump hd5(e);
+
+  llvm::errs() << hd5;
+
+  // note: indices are sorted alphanumerically. Indices are not numeric so no
+  // gaps are filled in
+  kvList.clear();
+  kvList.push_back(KeyValue(intConst2, bv::bvnum(0xa, 32, efac)));
+  kvList.push_back(KeyValue(intConst3, bv::bvnum(0x43, 32, efac)));
+
+  checkPairs(kvList.cbegin(), kvList.cend(), hd5.cbegin(), hd5.cend());
 }

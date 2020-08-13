@@ -504,6 +504,8 @@ public:
         visitNondetCall(CS);
       else if (f->getName().startswith("sea.is_dereferenceable")) {
         visitIsDereferenceable(CS);
+      } else if (f->getName().startswith(("sea.assert.if"))) {
+        visitAssertIf(CS);
       } else if (f->getName().startswith("smt.")) {
         visitSmtCall(CS);
       } else if (fatptr_intrnsc_re.match(f->getName())) {
@@ -551,6 +553,32 @@ public:
     Expr byteSz = lookup(*CS.getArgument(1));
     Expr res = m_ctx.mem().isDereferenceable(ptr, byteSz);
     setValue(*CS.getInstruction(), res);
+  }
+
+  void visitAssertIf(CallSite CS) {
+    Expr ante = lookup(*CS.getArgument(0));
+    Expr conseq = lookup(*CS.getArgument(1));
+    m_ctx.m_z3_solver->reset();
+    m_ctx.m_z3_solver->assertExpr(ante);
+    boost::tribool res = m_ctx.m_z3_solver->solveAssuming(m_ctx.side());
+    if (res == boost::tribool::true_value) {
+      LOG("opsem", INFO << "Antecedent is sat: " << *CS.getInstruction() << "\n");
+    } else if (res == boost::tribool::false_value) {
+      LOG("opsem", ERR << "Antecedent is unsat: " << *CS.getInstruction() << "\n");
+    } else if (res == boost::tribool::indeterminate_value) {
+      LOG("opsem", WARN << "Antecedent is indeterminate: " << *CS.getInstruction() << "\n");
+    }
+    m_ctx.m_z3_solver->reset();
+    m_ctx.m_z3_solver->assertExpr(conseq);
+    res = m_ctx.m_z3_solver->solveAssuming(m_ctx.side());
+    if (res == boost::tribool::true_value) {
+      LOG("opsem", INFO << "Consequent is sat: " << *CS.getInstruction() << "\n");
+    } else if (res == boost::tribool::false_value) {
+      LOG("opsem", ERR << "Consequent is unsat: " << *CS.getInstruction() << "\n");
+    } else if (res == boost::tribool::indeterminate_value) {
+      LOG("opsem", WARN << "Consequent is indeterminate: " << *CS.getInstruction() << "\n");
+    }
+    setValue(*CS.getInstruction(), m_ctx.alu().getTrue());
   }
 
   void visitFatPointerInstr(CallSite CS) {
@@ -1768,9 +1796,9 @@ Bv2OpSemContext::Bv2OpSemContext(Bv2OpSem &sem, SymStore &values,
       m_inst(nullptr), m_prev(nullptr), m_scalar(false) {
   zeroE = mkTerm<expr::mpz_class>(0UL, efac());
   oneE = mkTerm<expr::mpz_class>(1UL, efac());
-
   m_z3.reset(new EZ3(efac()));
   m_z3_simplifier.reset(new ZSimplifier<EZ3>(*m_z3));
+  m_z3_solver.reset(new ZSolver<EZ3>(*m_z3));
   auto &params = m_z3_simplifier->params();
   params.set("ctrl_c", true);
   m_shouldSimplify = SimplifyExpr;

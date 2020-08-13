@@ -28,6 +28,7 @@ bool PromoteVerifierCalls::runOnModule(Module &M) {
   m_failureFn = SBI.mkSeaBuiltinFn(SBIOp::FAIL, M);
   m_errorFn = SBI.mkSeaBuiltinFn(SBIOp::ERROR, M);
   m_is_deref = SBI.mkSeaBuiltinFn(SBIOp::IS_DEREFERENCEABLE, M);
+  m_assert_if = SBI.mkSeaBuiltinFn(SBIOp::ASSERT_IF, M);
 
   // XXX DEPRECATED
   // Do not keep unused functions in llvm.used
@@ -170,6 +171,18 @@ bool PromoteVerifierCalls::runOnFunction(Function &F) {
       Builder.SetInsertPoint(&I);
       CallInst *ci =
           Builder.CreateCall(m_is_deref, {CS.getArgument(0), CS.getArgument(1)});
+      if (cg)
+        (*cg)[&F]->addCalledFunction(ci, (*cg)[ci->getCalledFunction()]);
+
+      I.replaceAllUsesWith(ci);
+      toKill.push_back(&I);
+    } else if (fn && (fn->getName().equals("sea_assert_if"))) {  // sea_assert_if is the user facing name
+      IRBuilder<> Builder(F.getContext());
+      Builder.SetInsertPoint(&I);
+      // arg0: antecedent
+      // arg1: consequent
+      CallInst *ci =
+          Builder.CreateCall(m_assert_if, {CS.getArgument(0), CS.getArgument(1)});
       if (cg)
         (*cg)[&F]->addCalledFunction(ci, (*cg)[ci->getCalledFunction()]);
 

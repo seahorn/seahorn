@@ -109,6 +109,20 @@ public:
     return mpz_cmp(m_num, v.m_num) == 0;
   }
 
+  mpz_class operator%(const mpz_class &v) {
+    mpz_class mod;
+    mpz_mod(mod.m_num, m_num, v.m_num);
+
+    return mod;
+  }
+
+  mpz_class operator%(unsigned v) {
+    mpz_class mod;
+    mpz_mod_ui(mod.m_num, m_num, v);
+
+    return mod;
+  }
+
   mpz_class operator+(const mpz_class &v) {
     mpz_class sum;
     mpz_add(sum.m_num, m_num, v.m_num);

@@ -20,6 +20,8 @@ class OpSemVisitorBase;
 /// API to manipulate the machine.
 class Bv2OpSemContext : public OpSemContext {
   friend class OpSemVisitorBase;
+public:
+  std::shared_ptr<ZSolver<EZ3>> m_z3_solver;
 
 private:
   /// \brief Set memory manager to be used by the machine
@@ -95,7 +97,7 @@ private:
   /// \brief Numeric one
   Expr oneE;
 
-  /// \brief local simplifier
+  /// \brief local z3 objects
   std::shared_ptr<EZ3> m_z3;
   std::shared_ptr<ZSimplifier<EZ3>> m_z3_simplifier;
 

@@ -19,7 +19,7 @@ using namespace llvm;
 #define VERIFIER_ASSERT_FN "verifier.assert"
 #define VERIFIER_ASSERT_NOT_FN "verifier.assert.not"
 #define SEA_IS_DEREFERENCEABLE "sea.is_dereferenceable"
-
+#define SEA_ASSERT_IF "sea.assert.if"
 SeaBuiltinsOp
 seahorn::SeaBuiltinsInfo::getSeaBuiltinOp(const llvm::CallBase &cb) const {
   using SBIOp = SeaBuiltinsOp;
@@ -33,6 +33,7 @@ seahorn::SeaBuiltinsInfo::getSeaBuiltinOp(const llvm::CallBase &cb) const {
     .Case(VERIFIER_ASSUME_FN, SBIOp::ASSUME)
     .Case(VERIFIER_ASSUME_NOT_FN, SBIOp::ASSUME_NOT)
     .Case(SEA_IS_DEREFERENCEABLE, SBIOp::IS_DEREFERENCEABLE)
+    .Case(SEA_ASSERT_IF, SBIOp::ASSERT_IF)
     .Default(SBIOp::UNKNOWN);
 }
 
@@ -51,6 +52,8 @@ llvm::Function *SeaBuiltinsInfo::mkSeaBuiltinFn(SeaBuiltinsOp op,
     return mkAssertAssumeFn(M, op);
   case SBIOp::IS_DEREFERENCEABLE:
     return mkIsDereferenceable(M);
+  case SBIOp::ASSERT_IF:
+    return mkAssertIf(M);
   }
   llvm_unreachable(nullptr);
 }
@@ -128,6 +131,26 @@ Function *SeaBuiltinsInfo::mkIsDereferenceable(Module &M) {
     FN->setDoesNotFreeMemory();
     FN->setDoesNotRecurse();
     FN->addParamAttr(0, Attribute::NoCapture);
+    // XXX maybe even add the following
+    // FN->setDoesNotAccessMemory();
+  }
+  return FN;
+}
+
+Function *SeaBuiltinsInfo::mkAssertIf(llvm::Module &M) {
+  auto &C = M.getContext();
+  auto FC = M.getOrInsertFunction(SEA_ASSERT_IF, Type::getInt1Ty(C), Type::getInt1Ty(C), Type::getInt1Ty(C));
+  auto *FN = dyn_cast<Function>(FC.getCallee());
+  if (FN) {
+    FN->setOnlyAccessesInaccessibleMemory();
+    FN->setDoesNotThrow();
+    FN->setDoesNotFreeMemory();
+    FN->setDoesNotRecurse();
+    // TODO: why does nocapture work in sea_is_def and not here?
+    // According to
+    // https://llvm.org/docs/LangRef.html, NoCapture is not a valid attr for
+    // return values
+    // FN->addParamAttr(0, Attribute::NoCapture);
     // XXX maybe even add the following
     // FN->setDoesNotAccessMemory();
   }

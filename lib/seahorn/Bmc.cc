@@ -278,9 +278,9 @@ template <> raw_ostream &BmcTrace::print(raw_ostream &out) {
         out << "  %" << I.getName() << "\n";
 
         if (isOp<MK_STRUCT>(v)) {
-          out << SHD(v, 4);
+          out << SHD(v);
         } else {
-          out << HD(v, 4);
+          out << HD(v);
         }
 
       } else

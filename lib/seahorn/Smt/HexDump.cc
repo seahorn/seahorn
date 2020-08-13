@@ -191,12 +191,11 @@ class Pairs {
 
   std::set<KeyValue> m_set;
   std::pair<unsigned, unsigned> m_widths;
+  bool m_isAligned = true;
 
   Expr m_defaultValue;
 
-  unsigned m_bytesPerWord = 1;
-
-  static void store(Expr exp, unsigned &widthDest) {
+  static void storeWidth(Expr exp, unsigned &widthDest) {
     unsigned bits = 0;
     if (!bv::isBvNum(exp, bits)) { // note: isBvNum stores the width
       mpz_class num = 0;
@@ -212,18 +211,34 @@ class Pairs {
   }
 
 public:
-  Pairs(unsigned bytesPerWord)
-      : m_bytesPerWord(bytesPerWord), m_widths(0, bytesPerWord) {}
+  Pairs() : m_widths(0, 0) {}
 
   void insert(Expr idx, Expr value) {
-
     if (idx)
-      store(idx, m_widths.first);
+      storeWidth(idx, m_widths.first);
+
+    if (value)
+      storeWidth(value, m_widths.second);
+
+    if (!bv::is_bvnum(value)) {
+      m_isAligned = false;
+
+    } else if (m_isAligned && m_widths.second != 0 && kvUtils::isNumeric(idx)) {
+      // misaligned if the address is not divisble by the value's width
+
+      mpz_class idxNum;
+      kvUtils::getNum(idx, idxNum);
+      m_isAligned = (idxNum % m_widths.second) == 0;
+    }
 
     m_set.emplace(idx, value);
   }
 
-  void setDefault(Expr defaultValue) { m_defaultValue = defaultValue; }
+  void setDefault(Expr defaultValue) {
+    storeWidth(defaultValue, m_widths.second);
+
+    m_defaultValue = defaultValue;
+  }
 
   template <typename T> void print(T &OS, bool includeAscii) const {
     for (auto b = m_set.begin(), e = m_set.end(); b != e; b++) {
@@ -251,20 +266,21 @@ public:
     if (!(m_set.size() > 1 && (*m_set.begin()).isSortable()))
       return;
 
+    unsigned gapSize = m_isAligned ? m_widths.second : 1;
+
     for (auto b = m_set.begin(); b != (std::prev(m_set.end())); b++) {
       mpz_class idx1 = (*b).getIdxNum();
       mpz_class idx2 = (*std::next(b)).getIdxNum();
 
       // if there is a gap in indices then fill the gap with the default value
-      if ((idx2 > (idx1 + m_bytesPerWord)) && !(*b).isRepeated()) {
+      if ((idx2 > (idx1 + gapSize)) && !(*b).isRepeated()) {
 
         bool repeats =
-            idx2 >
-            (idx1 + (m_bytesPerWord * 2)); // if the gap is more than double,
+            idx2 > (idx1 + (gapSize * 2)); // if the gap is more than double,
                                            // then the default value is repeated
 
         Expr nextIdx =
-            mkTerm<mpz_class>(idx1 + m_bytesPerWord, (*b).getIdxExpr()->efac());
+            mkTerm<mpz_class>(idx1 + gapSize, (*b).getIdxExpr()->efac());
 
         b = m_set.emplace_hint(std::next(b), nextIdx, m_defaultValue, repeats);
       }
@@ -283,7 +299,7 @@ protected:
   Pairs m_pairs;
 
 public:
-  HD_BASE(unsigned bytesPerWord) : m_pairs(bytesPerWord) {}
+  HD_BASE() {}
   virtual ~HD_BASE() = default;
 
   virtual VisitAction operator()(Expr exp){};
@@ -302,7 +318,7 @@ public:
 class HD_ITE : public HD_BASE {
 
 public:
-  HD_ITE(unsigned bytesPerWord) : HD_BASE(bytesPerWord) {}
+  HD_ITE() : HD_BASE() {}
   VisitAction operator()(Expr exp) override {
     if (isOp<ITE>(exp)) {
       Expr condition = exp->arg(0);
@@ -351,7 +367,7 @@ public:
 class HD_ARRAY : public HD_BASE {
 
 public:
-  HD_ARRAY(unsigned bytesPerWord) : HD_BASE(bytesPerWord) {}
+  HD_ARRAY() : HD_BASE() {}
 
   VisitAction operator()(Expr exp) override {
 
@@ -418,16 +434,16 @@ struct FindValid {
 class HexDump::Impl {
   std::unique_ptr<HD_BASE> m_visitor;
 
-  void findType(Expr exp, unsigned bytesPerWord) {
+  void findType(Expr exp) {
 
     if (isOp<ITE>(exp)) {
-      m_visitor = std::make_unique<HD_ITE>(bytesPerWord);
+      m_visitor = std::make_unique<HD_ITE>();
       visit(*m_visitor, exp); // note: HD_ITE has its own cache
 
       m_visitor->doneVisiting();
 
     } else if (isArray(exp) || isFiniteMap(exp)) {
-      m_visitor = std::make_unique<HD_ARRAY>(bytesPerWord);
+      m_visitor = std::make_unique<HD_ARRAY>();
 
       dagVisit(*m_visitor, exp);
 
@@ -441,15 +457,15 @@ class HexDump::Impl {
       dagVisit(find, exp);
 
       if (find.foundValid) {
-        findType(find.validExp, bytesPerWord);
+        findType(find.validExp);
       } else {
-        m_visitor = std::make_unique<HD_BASE>(bytesPerWord);
+        m_visitor = std::make_unique<HD_BASE>();
       }
     }
   }
 
 public:
-  Impl(Expr exp, unsigned bytesPerWord) { findType(exp, bytesPerWord); }
+  Impl(Expr exp) { findType(exp); }
 
   const_hd_iterator cbegin() const { return m_visitor->cbegin(); }
 
@@ -460,8 +476,7 @@ public:
   }
 };
 
-HexDump::HexDump(Expr exp, unsigned bytesPerWord)
-    : m_impl(new HexDump::Impl(exp, bytesPerWord)) {}
+HexDump::HexDump(Expr exp) : m_impl(new HexDump::Impl(exp)) {}
 HexDump::~HexDump() { delete m_impl; }
 
 const_hd_iterator HexDump::cbegin() const { return m_impl->cbegin(); }
@@ -485,18 +500,18 @@ llvm::raw_ostream &operator<<(llvm::raw_ostream &OS, HexDump const &hd) {
 class StructHexDump::StructImpl {
   std::list<std::unique_ptr<HexDump>> hexDumps;
 
-  void init(Expr exp, unsigned bytesPerWord) {
+  void init(Expr exp) {
     assert(isOp<MK_STRUCT>(exp));
 
     // separate every child of the struct into
     // separate hex dumps
     for (auto b = exp->args_begin(), e = exp->args_end(); b != e; b++) {
-      hexDumps.push_back(std::make_unique<HexDump>((*b), bytesPerWord));
+      hexDumps.push_back(std::make_unique<HexDump>((*b)));
     }
   }
 
 public:
-  StructImpl(Expr exp, unsigned bytesPerWord) { init(exp, bytesPerWord); }
+  StructImpl(Expr exp) { init(exp); }
 
   std::vector<const_hd_range> getRanges() const {
 
@@ -518,8 +533,8 @@ public:
   }
 };
 
-StructHexDump::StructHexDump(Expr exp, unsigned bytesPerWord)
-    : m_impl(new StructHexDump::StructImpl(exp, bytesPerWord)) {}
+StructHexDump::StructHexDump(Expr exp)
+    : m_impl(new StructHexDump::StructImpl(exp)) {}
 
 StructHexDump::~StructHexDump() { delete m_impl; }
 

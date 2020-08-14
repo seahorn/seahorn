@@ -193,7 +193,6 @@ public:
     // -- compute number of bytes needed
     Expr bytes = elmts;
     if (typeSz > 1) {
-      // TODO: factor out multiplication and number creation
       bytes = m_ctx.alu().doMul(bytes, m_ctx.alu().si(typeSz, ptrSzInBits()),
                                 ptrSzInBits());
     }
@@ -212,7 +211,7 @@ public:
     // -- have a good region, return pointer to it
     return PtrTy(mkStackPtr(region.second).getBase(),
                  m_ctx.alu().si(0UL, ptrSzInBits()),
-                 m_ctx.alu().si(region.first - region.second, g_slotBitWidth));
+                 bytes);
   }
 
   PtrTy mkStackPtr(unsigned int offset) {

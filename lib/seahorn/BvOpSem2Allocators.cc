@@ -5,9 +5,9 @@
 #include "llvm/IR/Instructions.h"
 #include "llvm/Support/Format.h"
 
+#include "seahorn/Expr/ExprLlvm.hh"
 #include "seahorn/Support/SeaDebug.h"
 #include "seahorn/Support/SeaLog.hh"
-#include "seahorn/Expr/ExprLlvm.hh"
 
 namespace seahorn {
 namespace details {
@@ -147,8 +147,6 @@ char *OpSemAllocator::getGlobalVariableMem(const GlobalVariable &gv) const {
 
   return nullptr;
 }
-
-
 
 /// \brief Returns initial value of a global variable
 ///
@@ -319,8 +317,8 @@ public:
       for (auto &ai : m_allocas) {
         if (ai.m_inst == alloca) {
           Expr inRange;
-          // TODO: figure proper bit-width
-          inRange = mk<BULE>(bytes, bv::bvnum(4 * 1024UL, 32, bytes->efac()));
+          inRange = mk<BULE>(
+              bytes, bv::bvnum(4 * 1024UL, m_mem.ptrSzInBits(), bytes->efac()));
           LOG("opsem", errs()
                            << "Adding range condition: " << *inRange << "\n";);
           m_ctx.addScopedRely(inRange);

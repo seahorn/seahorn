@@ -72,9 +72,9 @@ struct OpSemAllocator::GlobalAllocInfo {
   char *getMemory() const { return m_mem; }
 };
 
-OpSemAllocator::OpSemAllocator(OpSemMemManager &mem)
+OpSemAllocator::OpSemAllocator(OpSemMemManager &mem, unsigned maxSymbAllocSz)
     : m_mem(mem), m_ctx(mem.ctx()), m_sem(mem.sem()),
-      m_efac(m_ctx.getExprFactory()) {}
+      m_efac(m_ctx.getExprFactory()), m_maxSymbAllocSz(maxSymbAllocSz) {}
 
 OpSemAllocator::~OpSemAllocator() = default;
 
@@ -181,7 +181,8 @@ void OpSemAllocator::dumpGlobalsMap() {
 
 class NormalOpSemAllocator : public OpSemAllocator {
 public:
-  NormalOpSemAllocator(OpSemMemManager &mem) : OpSemAllocator(mem) {}
+  NormalOpSemAllocator(OpSemMemManager &mem, unsigned maxSymbAllocSz)
+      : OpSemAllocator(mem, maxSymbAllocSz) {}
   ~NormalOpSemAllocator() = default;
 
   /// \brief Allocates memory on the stack and returns a pointer to it
@@ -201,11 +202,10 @@ public:
   }
 
   AddrInterval salloc(Expr bytes, uint32_t align) override {
-    const auto MAX_ALLOC = 4096;
-    auto addrIvl = this->salloc(MAX_ALLOC, align);
+    auto addrIvl = this->salloc(m_maxSymbAllocSz, align);
     auto width = m_mem.ptrSzInBits();
-    Expr inRange =
-        m_ctx.alu().doUle(bytes, m_ctx.alu().si(MAX_ALLOC, width), width);
+    Expr inRange = m_ctx.alu().doUle(
+        bytes, m_ctx.alu().si(m_maxSymbAllocSz, width), width);
     m_ctx.addScopedRely(inRange);
     return addrIvl;
   }
@@ -221,7 +221,8 @@ public:
 /// unsoundness depending on the use / expectations. Use with caution
 class StaticOpSemAllocator : public OpSemAllocator {
 public:
-  StaticOpSemAllocator(OpSemMemManager &mem) : OpSemAllocator(mem) {}
+  StaticOpSemAllocator(OpSemMemManager &mem, unsigned maxSymbAllocSz)
+      : OpSemAllocator(mem, maxSymbAllocSz) {}
 
   void onModuleEntry(const Module &M) override {
     // TODO: pre-allocate all globals of M
@@ -289,8 +290,8 @@ public:
       unsigned memSz = typeSz * nElts;
       preAlloc(inst, memSz, true);
     } else {
-      // -- allocate 4K for dynamically sized allocations
-      preAlloc(inst, 4 * 1024, false);
+      // -- allocate max allowed for dynamically sized allocations
+      preAlloc(inst, m_maxSymbAllocSz, false);
     }
   }
 
@@ -323,7 +324,7 @@ public:
         if (ai.m_inst == alloca) {
           auto width = m_mem.ptrSzInBits();
           Expr inRange = m_ctx.alu().doUle(
-              bytes, m_ctx.alu().si(4 * 1024UL, width), width);
+              bytes, m_ctx.alu().si(m_maxSymbAllocSz, width), width);
           LOG("opsem", errs()
                            << "Adding range condition: " << *inRange << "\n";);
           m_ctx.addScopedRely(inRange);
@@ -334,11 +335,13 @@ public:
     return {0, 0};
   }
 };
-std::unique_ptr<OpSemAllocator> mkNormalOpSemAllocator(OpSemMemManager &mem) {
-  return std::make_unique<NormalOpSemAllocator>(mem);
+std::unique_ptr<OpSemAllocator>
+mkNormalOpSemAllocator(OpSemMemManager &mem, unsigned maxSymbAllocSz) {
+  return std::make_unique<NormalOpSemAllocator>(mem, maxSymbAllocSz);
 }
-std::unique_ptr<OpSemAllocator> mkStaticOpSemAllocator(OpSemMemManager &mem) {
-  return std::make_unique<StaticOpSemAllocator>(mem);
+std::unique_ptr<OpSemAllocator>
+mkStaticOpSemAllocator(OpSemMemManager &mem, unsigned maxSymbAllocSz) {
+  return std::make_unique<StaticOpSemAllocator>(mem, maxSymbAllocSz);
 }
 
 } // namespace details

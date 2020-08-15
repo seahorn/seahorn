@@ -389,14 +389,17 @@ protected:
   /// \brief All known global allocations
   std::vector<GlobalAllocInfo> m_globals;
 
+  /// \brief Maximal assumed size of symbolic allocation
+  unsigned m_maxSymbAllocSz;
+
   // TODO: turn into user-controlled parameters
-  unsigned MAX_STACK_ADDR = 0xC0000000;
-  unsigned MIN_STACK_ADDR = (MAX_STACK_ADDR - 9437184);
-  unsigned TEXT_SEGMENT_START = 0x08048000;
+  const unsigned MAX_STACK_ADDR = 0xC0000000;
+  const unsigned MIN_STACK_ADDR = (MAX_STACK_ADDR - 9437184);
+  const unsigned TEXT_SEGMENT_START = 0x08048000;
 
 public:
   using AddrInterval = std::pair<unsigned, unsigned>;
-  OpSemAllocator(OpSemMemManager &mem);
+  OpSemAllocator(OpSemMemManager &mem, unsigned maxSymbAllocSz = 4096);
 
   virtual ~OpSemAllocator();
 
@@ -461,8 +464,10 @@ public:
 };
 
 /// \brief Creates an instance of OpSemAllocator
-std::unique_ptr<OpSemAllocator> mkNormalOpSemAllocator(OpSemMemManager &mem);
-std::unique_ptr<OpSemAllocator> mkStaticOpSemAllocator(OpSemMemManager &mem);
+std::unique_ptr<OpSemAllocator> mkNormalOpSemAllocator(OpSemMemManager &mem,
+                                                       unsigned maxSymbAllocSz = 4096);
+std::unique_ptr<OpSemAllocator> mkStaticOpSemAllocator(OpSemMemManager &mem,
+                                                       unsigned maxSymbAllocSz = 4096);
 
 class OpSemMemManagerBase {
 protected:
@@ -764,7 +769,8 @@ public:
 /// \brief Represent memory regions by logical arrays
 class OpSemMemArrayRepr : public OpSemMemRepr {
 public:
-  OpSemMemArrayRepr(OpSemMemManager &memManager, Bv2OpSemContext &ctx, unsigned memCpyUnrollCnt)
+  OpSemMemArrayRepr(OpSemMemManager &memManager, Bv2OpSemContext &ctx,
+                    unsigned memCpyUnrollCnt)
       : OpSemMemRepr(memManager, ctx), m_memCpyUnrollCnt(memCpyUnrollCnt) {}
 
   Expr coerce(Expr _, Expr val) override { return val; }

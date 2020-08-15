@@ -43,6 +43,10 @@ static llvm::cl::opt<unsigned> MemCpyUnrollCount(
                    "count for symbolic memcpy"),
     llvm::cl::init(16));
 
+static llvm::cl::opt<unsigned> MaxSymbAllocSz(
+    "horn-opsem-max-symb-alloc",
+    llvm::cl::desc("Maximum expected size of any symbolic allocation"),
+    llvm::cl::init(4096));
 namespace seahorn {
 namespace details {
 
@@ -74,9 +78,9 @@ RawMemManager::RawMemManager(Bv2OpSem &sem, Bv2OpSemContext &ctx,
     : OpSemMemManager(sem, ctx, ptrSz, wordSz, ignoreAlignment),
       m_freshPtrName(mkTerm<std::string>("sea.ptr", m_efac)), m_id(0) {
   if (MemAllocatorOpt == MemAllocatorKind::NORMAL_ALLOCATOR)
-    m_allocator = mkNormalOpSemAllocator(*this);
+    m_allocator = mkNormalOpSemAllocator(*this, MaxSymbAllocSz);
   else if (MemAllocatorOpt == MemAllocatorKind::STATIC_ALLOCATOR)
-    m_allocator = mkStaticOpSemAllocator(*this);
+    m_allocator = mkStaticOpSemAllocator(*this, MaxSymbAllocSz);
   assert(m_allocator);
 
   m_nullPtr = m_ctx.alu().si(0UL, ptrSzInBits());

@@ -201,8 +201,13 @@ public:
   }
 
   AddrInterval salloc(Expr bytes, uint32_t align) override {
-    /* not supported yet */
-    llvm_unreachable(nullptr);
+    const auto MAX_ALLOC = 4096;
+    auto addrIvl = this->salloc(MAX_ALLOC, align);
+    auto width = m_mem.ptrSzInBits();
+    Expr inRange =
+        m_ctx.alu().doUle(bytes, m_ctx.alu().si(MAX_ALLOC, width), width);
+    m_ctx.addScopedRely(inRange);
+    return addrIvl;
   }
 };
 
@@ -316,9 +321,9 @@ public:
     if (auto *alloca = dyn_cast<llvm::AllocaInst>(&m_ctx.getCurrentInst())) {
       for (auto &ai : m_allocas) {
         if (ai.m_inst == alloca) {
-          Expr inRange;
-          inRange = mk<BULE>(
-              bytes, bv::bvnum(4 * 1024UL, m_mem.ptrSzInBits(), bytes->efac()));
+          auto width = m_mem.ptrSzInBits();
+          Expr inRange = m_ctx.alu().doUle(
+              bytes, m_ctx.alu().si(4 * 1024UL, width), width);
           LOG("opsem", errs()
                            << "Adding range condition: " << *inRange << "\n";);
           m_ctx.addScopedRely(inRange);

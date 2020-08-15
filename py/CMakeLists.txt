@@ -4,6 +4,7 @@ set (SRC
   sea/__init__.py
   sea/__main__.py
   sea/commands.py
+  sea/yama.py
   )
 
 

@@ -7,6 +7,7 @@ import os.path
 def main (argv):
     import sea
     import sea.commands
+    import sea.yama
 
     cmds = [sea.commands.Bpf,
             sea.commands.BndFrontEnd,
@@ -44,6 +45,7 @@ def main (argv):
             sea.commands.SeaExeCex(),
             sea.commands.RemoveTargetFeatures(),
             sea.commands.Fpf,
+            sea.yama.Yama(),
     ]
 
     cmd = sea.AgregateCmd('sea', 'SeaHorn Verification Framework', cmds)

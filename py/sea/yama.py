@@ -3,15 +3,21 @@ import sea
 
 class Yama(sea.CliCmd):
     def __init__(self):
-        super().__init__('yama', 'Yama', allow_extra=True)
+        super().__init__('yama', 'Yama', allow_extra=False)
+        self._ignore_error = False
 
     def mk_arg_parser(self, argp):
-       argp = super().mk_arg_parser(argp)
+        import argparse
+        argp = super().mk_arg_parser(argp)
 
-       argp.add_argument("-y", dest='yconfig', action='append',
-                         help="Configuration file", nargs=1)
-       argp.add_argument('--dry-run', action='store_true', default=False)
-       return argp
+        argp.add_argument("-y", dest='yconfig', action='append',
+                          help="Configuration file", nargs=1)
+        argp.add_argument('--dry-run', action='store_true', default=False,
+                          help='do not execute final command')
+        argp.add_argument('--yforce', action='store_true', default=False,
+                          help='ignore all errors')
+        argp.add_argument('extra', nargs=argparse.REMAINDER)
+        return argp
 
     def parse_yaml_options(self, fname):
         import yaml
@@ -22,15 +28,26 @@ class Yama(sea.CliCmd):
             # common containers for options
             if 'verify_options' in data:
                 data = data['verify_options']
-            if 'sea_options' in data:
+            elif 'sea_options' in data:
                 data = data['sea_options']
-            if 'sea_arguments' in data:
+            elif 'sea_arguments' in data:
                 data = data['sea_arguments']
-            return data
-        except:
-            print("Error: could not parse", fname)
+            else:
+                data = None
+
+            if data is not None and isinstance(data, dict):
+                return data
+            if self._ignore_error:
+                return None
+
+            print("Error: no proper sea_options dictionary found in {0}".format(fname))
             sys.exit(1)
             return None
+        except:
+            if self._ignore_error:
+                return None
+            print("Error: could not parse", fname)
+            sys.exit(1)
 
     def mk_cli_from_key_value(self, _key, _value):
         """
@@ -73,14 +90,16 @@ class Yama(sea.CliCmd):
 
         return command, res
 
-    def run(self, args = None, extra = []):
+    def run(self, args = None, _extra = []):
         import sys
         import os
 
+        self._ignore_error = args.yforce
         # set default value
         if args.yconfig is None:
             args.yconfig = [['sea.yaml']]
 
+        extra = args.extra
         args_dict = None
         for f in args.yconfig:
             assert(len(f) == 1)

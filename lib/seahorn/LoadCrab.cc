@@ -194,7 +194,7 @@ private:
     }
     const Value *V = *(v.get());
     if (const Value *Gv =
-            m_heap_abs.getRegion(m_func, const_cast<Value *>(V))
+	m_heap_abs.getRegion(m_func, *(const_cast<Value *>(V)))
                 .getSingleton()) {
       /// -- The crab variable v corresponds to a global singleton
       ///    cell so we can grab a llvm Value from it. We search for

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "seahorn/BvOpSem2.hh"
+#include "seahorn/Expr/Smt/Z3.hh"
 #include "seahorn/Support/SeaDebug.h"
 #include "seahorn/Support/SeaLog.hh"
 
@@ -95,9 +96,10 @@ private:
   /// \brief Numeric one
   Expr oneE;
 
-  /// \brief local simplifier
+  /// \brief local z3 objects
   std::shared_ptr<EZ3> m_z3;
   std::shared_ptr<ZSimplifier<EZ3>> m_z3_simplifier;
+  std::shared_ptr<ZSolver<EZ3>> m_z3_solver;
 
   bool m_shouldSimplify = false;
 
@@ -142,6 +144,8 @@ public:
       return m_parent->alu();
     llvm_unreachable(nullptr);
   }
+
+  ZSolver<EZ3> &solver() const { return *m_z3_solver; }
 
   /// \brief Push parameter on a stack for a function call
   void pushParameter(Expr v) { m_fparams.push_back(v); }

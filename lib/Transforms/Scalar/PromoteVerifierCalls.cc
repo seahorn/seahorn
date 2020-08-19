@@ -10,6 +10,7 @@
 #include "llvm/Support/raw_ostream.h"
 
 #include "seahorn/Support/SeaDebug.h"
+#include "seahorn/Support/SeaLog.hh"
 
 #include "llvm/Analysis/CallGraph.h"
 using namespace llvm;
@@ -28,6 +29,7 @@ bool PromoteVerifierCalls::runOnModule(Module &M) {
   m_failureFn = SBI.mkSeaBuiltinFn(SBIOp::FAIL, M);
   m_errorFn = SBI.mkSeaBuiltinFn(SBIOp::ERROR, M);
   m_is_deref = SBI.mkSeaBuiltinFn(SBIOp::IS_DEREFERENCEABLE, M);
+  m_assert_if = SBI.mkSeaBuiltinFn(SBIOp::ASSERT_IF, M);
 
   // XXX DEPRECATED
   // Do not keep unused functions in llvm.used
@@ -99,6 +101,8 @@ bool PromoteVerifierCalls::runOnFunction(Function &F) {
       fn = dyn_cast<const Function>(CS.getCalledValue()->stripPointerCasts());
 
     if (fn && (fn->getName().equals("__VERIFIER_assume") ||
+               fn->getName().equals("__VERIFIER_assert") ||
+               fn->getName().equals("__VERIFIER_assert_not") ||
                fn->getName().equals("DISABLED__VERIFIER_assert") ||
                // CBMC
                fn->getName().equals("__CPROVER_assume") ||
@@ -120,19 +124,21 @@ bool PromoteVerifierCalls::runOnFunction(Function &F) {
       else
         continue;
 
+      IRBuilder<> Builder(F.getContext());
       Value *cond = CS.getArgument(0);
-
+      coerceToBool(cond, Builder, I);
+      /*
       // strip zext if there is one
       if (const ZExtInst *ze = dyn_cast<const ZExtInst>(cond))
         cond = ze->getOperand(0);
 
-      IRBuilder<> Builder(F.getContext());
+
       Builder.SetInsertPoint(&I);
 
       // -- convert to Boolean if needed
       if (!cond->getType()->isIntegerTy(1))
         cond = Builder.CreateICmpNE(cond, ConstantInt::get(cond->getType(), 0));
-
+*/
       CallInst *ci = Builder.CreateCall(nfn, cond);
       if (cg)
         (*cg)[&F]->addCalledFunction(ci, (*cg)[ci->getCalledFunction()]);
@@ -175,6 +181,24 @@ bool PromoteVerifierCalls::runOnFunction(Function &F) {
 
       I.replaceAllUsesWith(ci);
       toKill.push_back(&I);
+    } else if (fn && (fn->getName().equals(
+                         "__VERIFIER_assert_if"))) { // sea_assert_if is the
+                                                     // user facing name
+      IRBuilder<> Builder(F.getContext());
+      Builder.SetInsertPoint(&I);
+      // arg0: antecedent
+      // arg1: consequent
+      Value *arg0 = CS.getArgument(0);
+      coerceToBool(arg0, Builder, I);
+      Value *arg1 = CS.getArgument(1);
+      coerceToBool(arg0, Builder, I);
+
+      CallInst *ci = Builder.CreateCall(m_assert_if, {arg0, arg1});
+      if (cg)
+        (*cg)[&F]->addCalledFunction(ci, (*cg)[ci->getCalledFunction()]);
+
+      I.replaceAllUsesWith(ci);
+      toKill.push_back(&I);
     }
   }
 
@@ -182,6 +206,19 @@ bool PromoteVerifierCalls::runOnFunction(Function &F) {
     I->eraseFromParent();
 
   return Changed;
+}
+
+void PromoteVerifierCalls::coerceToBool(Value *arg, IRBuilder<> &builder,
+                                        Instruction &I) {
+  assert(arg);
+  // strip zext if there is one
+  if (const ZExtInst *ze = dyn_cast<const ZExtInst>(arg))
+    arg = ze->getOperand(0);
+
+  builder.SetInsertPoint(&I);
+  // -- convert to Boolean if needed
+  if (!arg->getType()->isIntegerTy(1))
+    arg = builder.CreateICmpNE(arg, ConstantInt::get(arg->getType(), 0));
 }
 
 void PromoteVerifierCalls::getAnalysisUsage(AnalysisUsage &AU) const {

@@ -19,6 +19,9 @@ extern void __VERIFIER_error(void);
 */
 extern void __VERIFIER_assume(bool);
 
+extern void __VERIFIER_assert(bool);
+extern void __VERIFIER_assert_not(bool);
+extern void __VERIFIER_assert_if(bool, bool);
 /**
    Returns TRUE if \p offset number of bytes of \p ptr are allocated
 
@@ -26,6 +29,8 @@ extern void __VERIFIER_assume(bool);
     return TRUE or FALSE if the memory manager does not support it.
  */
 extern bool sea_is_dereferenceable(void *ptr, intptr_t offset);
+extern bool sea_assert_if(bool, bool);
+
 #ifdef __cplusplus
 }
 #endif

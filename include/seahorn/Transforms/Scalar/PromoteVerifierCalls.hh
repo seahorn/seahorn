@@ -4,9 +4,10 @@
  * Promote and normalize verifier specific calls such that __VERIFIER_assume()
  */
 
-#include "llvm/Pass.h"
-#include "llvm/IR/Module.h"
 #include "llvm/IR/Function.h"
+#include "llvm/IR/IRBuilder.h"
+#include "llvm/IR/Module.h"
+#include "llvm/Pass.h"
 
 namespace seahorn
 {
@@ -21,11 +22,13 @@ namespace seahorn
     Function *m_errorFn;
     Function *m_failureFn;  // to indicate failure. It can only appears in main.
     Function *m_is_deref;
-    
+    Function *m_assert_if;
+
     PromoteVerifierCalls () : ModulePass (ID) {}
     
     bool runOnModule (Module &M);
     bool runOnFunction (Function &F);
+    void coerceToBool(Value *arg, IRBuilder<> &builder, Instruction &I);
     void getAnalysisUsage (AnalysisUsage &AU) const;
     virtual StringRef getPassName () const {return "PromoteVerifierCalls";}
   };

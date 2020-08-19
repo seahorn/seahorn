@@ -506,6 +506,11 @@ public:
         visitNondetCall(CS);
       else if (f->getName().startswith("sea.is_dereferenceable")) {
         visitIsDereferenceable(CS);
+      } else if (f->getName().startswith(("sea.assert.if"))) {
+        visitAssertIf(CS);
+      } else if (f->getName().startswith(("verifier.assert"))) {
+        // this deals with both assert and assert.not stmts
+        visitAssertStmt(CS);
       } else if (f->getName().startswith("smt.")) {
         visitSmtCall(CS);
       } else if (fatptr_intrnsc_re.match(f->getName())) {
@@ -553,6 +558,42 @@ public:
     Expr byteSz = lookup(*CS.getArgument(1));
     Expr res = m_ctx.mem().isDereferenceable(ptr, byteSz);
     setValue(*CS.getInstruction(), res);
+  }
+
+  // TODO: visit.assert.if.not is not supported
+  void visitAssertIf(CallSite CS) {
+    auto I = CS.getInstruction();
+    Expr ante = lookup(*CS.getArgument(0));
+    Expr conseq = lookup(*CS.getArgument(1));
+    tribool anteRes = solveWithConstraints(ante);
+    // if ante is unsat then report false and bail out
+    if (!anteRes) {
+      LOG("opsem", ERR << "Antecedent is unsat/undet: " << *I << "\n");
+      return; // return early
+    }
+    Expr e = boolop::land(ante, boolop::lneg(conseq));
+    tribool conseqRes = solveWithConstraints(e);
+    if (conseqRes) {
+      LOG("opsem", ERR << "Consequent is sat/undet: " << *I << "\n");
+    }
+  }
+
+  tribool solveWithConstraints(const Expr &solveFor) const {
+    m_ctx.solver().reset();
+    ExprVector conds(m_ctx.side());
+    conds.push_back(m_ctx.getPathCond());
+    for (auto e : conds) {
+      m_ctx.solver().assertExpr(e);
+    }
+    m_ctx.solver().assertExpr(solveFor);
+
+    boost::tribool res = m_ctx.solver().solve();
+    return res;
+  }
+
+  void visitAssertStmt(CallSite CS) {
+    LOG("opsem", INFO << "verifier.assert{.not} stmts ignored: "
+                      << *CS.getInstruction());
   }
 
   void visitFatPointerInstr(CallSite CS) {
@@ -1773,9 +1814,9 @@ Bv2OpSemContext::Bv2OpSemContext(Bv2OpSem &sem, SymStore &values,
       m_inst(nullptr), m_prev(nullptr), m_scalar(false) {
   zeroE = mkTerm<expr::mpz_class>(0UL, efac());
   oneE = mkTerm<expr::mpz_class>(1UL, efac());
-
   m_z3.reset(new EZ3(efac()));
   m_z3_simplifier.reset(new ZSimplifier<EZ3>(*m_z3));
+  m_z3_solver.reset(new ZSolver<EZ3>(*m_z3));
   auto &params = m_z3_simplifier->params();
   params.set("ctrl_c", true);
   m_shouldSimplify = SimplifyExpr;
@@ -1811,7 +1852,7 @@ Bv2OpSemContext::Bv2OpSemContext(SymStore &values, ExprVector &side,
       m_fparams(o.m_fparams), m_ignored(o.m_ignored),
       m_registers(o.m_registers), m_alu(nullptr), m_memManager(nullptr),
       m_parent(&o), zeroE(o.zeroE), oneE(o.oneE), m_z3(o.m_z3),
-      m_z3_simplifier(o.m_z3_simplifier) {
+      m_z3_simplifier(o.m_z3_simplifier), m_z3_solver(o.m_z3_solver) {
   setPathCond(o.getPathCond());
 }
 

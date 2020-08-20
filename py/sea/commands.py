@@ -761,7 +761,7 @@ class ExecHarness(sea.LimitedCmd):
         self.harnessCmd = sea.ExtCmd (eharness)
         if args.cpu is None: args.cpu = 10
 
-        retval = self.harnessCmd.run (args, [eharness], stdout=subprocess.PIPE)
+        retval = self.harnessCmd.run (args, [eharness], encoding='utf-8', errors='replace', stdout=subprocess.PIPE)
 
         if "[sea] __VERIFIER_error was executed" in self.harnessCmd.stdout:
             print ("__VERIFIER_error was executed")

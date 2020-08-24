@@ -203,6 +203,13 @@ public:
     return toMemValTy(std::move(res));
   }
 
+  MemValTy MemSet(PtrTy ptr, Expr _val, Expr len, MemValTy mem,
+                  uint32_t align) override {
+    auto res = base().MemSet(BasePtrTy(std::move(ptr)), _val, len,
+                             BaseMemValTy(std::move(mem)), align);
+    return toMemValTy(std::move(res));
+  }
+
   MemValTy MemCpy(PtrTy dPtr, PtrTy sPtr, unsigned len, MemValTy memTrsfrRead,
                   MemValTy memRead, uint32_t align) override {
     auto res =

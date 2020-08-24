@@ -196,8 +196,11 @@ public:
   Expr storeValueToMem(Expr val, Expr ptr, const llvm::Type &ty,
                        uint32_t align);
 
-  /// \brief Perform symbolic memset
+  /// \brief Symbolic memset with concrete length
   Expr MemSet(Expr ptr, Expr val, unsigned len, uint32_t align);
+
+  /// \brief Symbolic memset with symbolic length
+  Expr MemSet(Expr ptr, Expr val, Expr len, uint32_t align);
 
   /// \brief Perform symbolic memcpy with constant length
   Expr MemCpy(Expr dPtr, Expr sPtr, unsigned len, uint32_t align);
@@ -308,6 +311,7 @@ public:
   virtual Expr boolTy() = 0;
 
   virtual bool isNum(Expr v) = 0;
+  virtual bool isNum(Expr v, unsigned &bitWidth) = 0;
   virtual expr::mpz_class toNum(Expr v) = 0;
   virtual Expr si(expr::mpz_class k, unsigned bitWidth) = 0;
   virtual Expr doAdd(Expr op0, Expr op1, unsigned bitWidth) = 0;
@@ -643,6 +647,10 @@ public:
   virtual MemValTy MemSet(PtrTy ptr, Expr _val, unsigned len, MemValTy mem,
                           uint32_t align) = 0;
 
+  /// \brief Executes symbolic memset with symbolic length
+  virtual MemValTy MemSet(PtrTy ptr, Expr _val, Expr len, MemValTy mem,
+                          uint32_t align) = 0;
+
   /// \brief Executes symbolic memcpy with concrete length
   virtual MemValTy MemCpy(PtrTy dPtr, PtrTy sPtr, unsigned len,
                           MemValTy memTrsfrRead, MemValTy memRead,
@@ -753,6 +761,8 @@ public:
 
   virtual Expr MemSet(Expr ptr, Expr _val, unsigned len, Expr mem,
                       unsigned wordSzInBytes, Expr ptrSort, uint32_t align) = 0;
+  virtual Expr MemSet(Expr ptr, Expr _val, Expr len, Expr mem,
+                      unsigned wordSzInBytes, Expr ptrSort, uint32_t align) = 0;
   virtual Expr MemCpy(Expr dPtr, Expr sPtr, unsigned len, Expr memTrsfrRead,
                       Expr memRead, unsigned wordSzInBytes, Expr ptrSort,
                       uint32_t align) = 0;
@@ -786,6 +796,8 @@ public:
   }
 
   Expr MemSet(Expr ptr, Expr _val, unsigned len, Expr mem,
+              unsigned wordSzInBytes, Expr ptrSort, uint32_t align) override;
+  Expr MemSet(Expr ptr, Expr _val, Expr len, Expr mem,
               unsigned wordSzInBytes, Expr ptrSort, uint32_t align) override;
   Expr MemCpy(Expr dPtr, Expr sPtr, unsigned len, Expr memTrsfrRead,
               Expr memRead, unsigned wordSzInBytes, Expr ptrSort,
@@ -821,6 +833,8 @@ public:
   Expr storeAlignedWordToMem(Expr val, Expr ptr, Expr ptrSort,
                              Expr mem) override;
   Expr MemSet(Expr ptr, Expr _val, unsigned len, Expr mem,
+              unsigned wordSzInBytes, Expr ptrSort, uint32_t align) override;
+  Expr MemSet(Expr ptr, Expr _val, Expr len, Expr mem,
               unsigned wordSzInBytes, Expr ptrSort, uint32_t align) override;
   Expr MemCpy(Expr dPtr, Expr sPtr, unsigned len, Expr memTrsfrRead,
               Expr memRead, unsigned wordSzInBytes, Expr ptrSort,

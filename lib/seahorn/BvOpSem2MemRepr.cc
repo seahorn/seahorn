@@ -8,6 +8,8 @@ auto as_std_array(const T &t, const Rest &... rest) ->
 }
 } // namespace
 
+#define DEBUG_TYPE "opsem"
+
 namespace seahorn {
 namespace details {
 
@@ -32,6 +34,47 @@ Expr OpSemMemArrayRepr::MemSet(Expr ptr, Expr _val, unsigned len, Expr mem,
     return res;
   }
 
+  return res;
+}
+
+Expr OpSemMemArrayRepr::MemSet(Expr ptr, Expr _val, Expr len, Expr mem,
+                               unsigned wordSzInBytes, Expr ptrSort,
+                               uint32_t align) {
+  Expr res;
+
+  unsigned width;
+  Expr bvVal;
+  // extend _val to current word size
+  if (bv::isBvNum(_val, width)) {
+    assert(width == 8);
+    assert(wordSzInBytes <= sizeof(unsigned long));
+    int byte = bv::toMpz(_val).get_ui();
+    unsigned long val = 0;
+    memset(&val, byte, wordSzInBytes);
+    bvVal = bv::bvnum(val, wordSzInBytes * m_BitsPerByte, m_efac);
+  } else {
+    bvVal = _val;
+    for (unsigned i = 1; i < wordSzInBytes; ++i) {
+      bvVal = m_ctx.alu().Concat({bvVal, 8}, {bvVal, 8 * i});
+    }
+  }
+
+  // write into memory
+  res = mem;
+  // XXX assume that bit-width(len) == ptrSzInBits
+  auto bitWidth = m_memManager.ptrSzInBits();
+  Expr upperBound = m_ctx.alu().doAdd(
+      len, m_ctx.alu().si(-wordSzInBytes, bitWidth), bitWidth);
+
+  for (unsigned i = 0; i < m_memCpyUnrollCnt; i += wordSzInBytes) {
+    Expr idx = m_memManager.ptrAdd(ptr, i);
+    auto cmp = m_ctx.alu().doUle(m_ctx.alu().si(i, m_memManager.ptrSzInBits()),
+                                 upperBound, m_memManager.ptrSzInBits());
+    Expr ite = boolop::lite(cmp, bvVal, op::array::select(mem, idx));
+    res = op::array::store(res, idx, ite);
+  }
+
+  LOG("opsem.array", errs() << "memset: " << *res << "\n";);
   return res;
 }
 
@@ -64,9 +107,8 @@ Expr OpSemMemArrayRepr::MemCpy(Expr dPtr, Expr sPtr, Expr len,
     LOG("opsem.array", INFO << "memcpy: " << *res << "\n";);
 
   } else {
-    LOG("opsem", ERR << "Word size and pointer are not aligned and "
-                        "alignment is not ignored!"
-                     << "\n");
+    DOG(ERR << "Word size and pointer are not aligned and "
+               "alignment is not ignored!");
     assert(false);
   }
   return res;
@@ -139,29 +181,82 @@ Expr OpSemMemLambdaRepr::MemSet(Expr ptr, Expr _val, unsigned len, Expr mem,
                                 unsigned wordSzInBytes, Expr ptrSort,
                                 uint32_t align) {
   Expr res;
-
+  Expr bvVal;
   unsigned width;
-  if (bv::isBvNum(_val, width) && width == 8) {
+  // -- expected width of 8 bits
+  if (m_ctx.alu().isNum(_val, width)) {
+    assert(width == 8);
     assert(wordSzInBytes <= sizeof(unsigned long));
     int byte = bv::toMpz(_val).get_ui();
     unsigned long val = 0;
     memset(&val, byte, wordSzInBytes);
-
-    res = mem;
-
-    Expr last = m_memManager.ptrAdd(ptr, len - wordSzInBytes);
-    Expr bvVal = bv::bvnum(val, wordSzInBytes * m_BitsPerByte, m_efac);
-    Expr b0 = bind::bvar(0, ptrSort);
-
-    Expr cmp = m_memManager.ptrInRangeCheck(ptr, b0, last);
-    Expr fappl = op::bind::fapp(res, b0);
-    Expr ite = boolop::lite(cmp, bvVal, fappl);
-
-    Expr addr = bind::mkConst(mkTerm<std::string>("addr", m_efac), ptrSort);
-    Expr decl = bind::fname(addr);
-    res = mk<LAMBDA>(decl, ite);
-    LOG("opsem.lambda", errs() << "MemSet " << *res << "\n");
+    bvVal = bv::bvnum(val, wordSzInBytes * m_BitsPerByte, m_efac);
+  } else {
+    bvVal = _val;
+    for (unsigned i = 1; i < wordSzInBytes; ++i) {
+      bvVal = m_ctx.alu().Concat({bvVal, 8}, {bvVal, 8 * i});
+    }
   }
+
+  assert(bvVal);
+
+  res = mem;
+
+  Expr last = m_memManager.ptrAdd(ptr, len - wordSzInBytes);
+  Expr b0 = bind::bvar(0, ptrSort);
+
+  Expr cmp = m_memManager.ptrInRangeCheck(ptr, b0, last);
+  Expr fappl = op::bind::fapp(res, b0);
+  Expr ite = boolop::lite(cmp, bvVal, fappl);
+
+  Expr addr = bind::mkConst(mkTerm<std::string>("addr", m_efac), ptrSort);
+  Expr decl = bind::fname(addr);
+  res = mk<LAMBDA>(decl, ite);
+  LOG("opsem.lambda", errs() << "MemSet " << *res << "\n");
+
+  return res;
+}
+
+Expr OpSemMemLambdaRepr::MemSet(Expr ptr, Expr _val, Expr len, Expr mem,
+                                unsigned wordSzInBytes, Expr ptrSort,
+                                uint32_t align) {
+  Expr res;
+  Expr val;
+
+  DOG(if (wordSzInBytes != 1) WARN << "memset: untested word size: "
+                                   << wordSzInBytes);
+
+  unsigned width;
+  if (bv::isBvNum(_val, width)) {
+    assert(width == 8);
+    assert(wordSzInBytes <= sizeof(unsigned long));
+    int byte = bv::toMpz(_val).get_ui();
+    unsigned long uval = 0;
+    if (byte)
+      memset(&uval, byte, wordSzInBytes);
+    val = m_ctx.alu().si(uval, wordSzInBytes * 8);
+  } else {
+    val = _val;
+    for (unsigned i = 1; i < wordSzInBytes; ++i) {
+      val = m_ctx.alu().Concat({val, 8}, {val, 8 * i});
+    }
+  }
+  assert(val);
+
+  Expr last =
+      m_memManager.ptrAdd(m_memManager.ptrAdd(ptr, len), -wordSzInBytes);
+
+  Expr bvVal = val;
+  Expr b0 = bind::bvar(0, ptrSort);
+
+  Expr cmp = m_memManager.ptrInRangeCheck(ptr, b0, last);
+  Expr fappl = op::bind::fapp(mem, b0);
+  Expr ite = boolop::lite(cmp, bvVal, fappl);
+
+  Expr addr = bind::mkConst(mkTerm<std::string>("addr", m_efac), ptrSort);
+  Expr decl = bind::fname(addr);
+  res = mk<LAMBDA>(decl, ite);
+  LOG("opsem.lambda", errs() << "MemSet " << *res << "\n");
 
   return res;
 }
@@ -208,7 +303,7 @@ Expr OpSemMemLambdaRepr::createMemCpyExpr(
     res = mk<LAMBDA>(decl, ite);
     LOG("opsem.lambda", errs() << "MemCpy " << *res << "\n");
   } else {
-    LOG("opsem", ERR << "unsupported memcpy due to size and/or alignment.";);
+    DOG(ERR << "unsupported memcpy due to size and/or alignment.";);
     assert(false);
   }
   return res;

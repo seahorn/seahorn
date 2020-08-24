@@ -585,6 +585,13 @@ Expr RawMemManager::MemSet(PtrTy ptr, Expr _val, unsigned len, MemValTy mem,
                            align);
 }
 
+/// \brief Executes symbolic memset with a symbolic length
+Expr RawMemManager::MemSet(PtrTy ptr, Expr _val, Expr len, MemValTy mem,
+                           uint32_t align) {
+  return m_memRepr->MemSet(ptr, _val, len, mem, wordSzInBytes(), ptrSort(),
+                           align);
+}
+
 /// \brief Executes symbolic memcpy with concrete length
 Expr RawMemManager::MemCpy(PtrTy dPtr, PtrTy sPtr, unsigned len,
                            MemValTy memTrsfrRead, MemValTy memRead,

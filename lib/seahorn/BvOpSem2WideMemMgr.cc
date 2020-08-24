@@ -454,6 +454,13 @@ public:
                     mem.getSize());
   }
 
+  MemValTy MemSet(PtrTy ptr, Expr _val, Expr len, MemValTy mem,
+                  uint32_t align) {
+    return MemValTy(m_main.MemSet(ptr.getRaw(), _val, len, mem.getRaw(), align),
+                    mem.getSize());
+  }
+
+
   MemValTy MemCpy(PtrTy dPtr, PtrTy sPtr, unsigned int len,
                   MemValTy memTrsfrRead, MemValTy memRead, uint32_t align) {
     return MemValTy(

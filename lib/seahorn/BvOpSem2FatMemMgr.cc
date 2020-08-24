@@ -427,6 +427,13 @@ public:
         mkSlot0Mem(mem), mkSlot1Mem(mem));
   }
 
+  FatMemValTy MemSet(FatPtrTy ptr, Expr _val, Expr len, FatMemValTy mem,
+                     uint32_t align) {
+    return mkFatMem(
+        m_main.MemSet(mkRawPtr(ptr), _val, len, mkRawMem(mem), align),
+        mkSlot0Mem(mem), mkSlot1Mem(mem));
+  }
+
   /// \brief Executes symbolic memcpy with concrete length
   FatMemValTy MemCpy(FatPtrTy dPtr, FatPtrTy sPtr, unsigned len,
                      FatMemValTy memTrsfrRead, FatMemValTy memRead,

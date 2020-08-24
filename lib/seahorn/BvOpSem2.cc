@@ -55,10 +55,12 @@ static llvm::cl::opt<bool> UseExtraWideMemory(
 
 static llvm::cl::opt<unsigned>
     WordSize("horn-bv2-word-size",
-             llvm::cl::desc("Word size in bytes: 0 - auto, 1, 4, 8"), cl::init(0));
+             llvm::cl::desc("Word size in bytes: 0 - auto, 1, 4, 8"),
+             cl::init(0));
 
 static llvm::cl::opt<unsigned>
-    PtrSize("horn-bv2-ptr-size", llvm::cl::desc("Pointer size in bytes: 0 - auto, 4, 8"),
+    PtrSize("horn-bv2-ptr-size",
+            llvm::cl::desc("Pointer size in bytes: 0 - auto, 4, 8"),
             cl::init(0), cl::Hidden);
 
 static llvm::cl::opt<bool> EnableUniqueScalars2(
@@ -1574,8 +1576,9 @@ public:
     if (v && addr) {
       if (const ConstantInt *ci = dyn_cast<const ConstantInt>(&length)) {
         res = m_ctx.MemSet(addr, v, ci->getZExtValue(), alignment);
-      } else
-        LOG("opsem", ERR << "Unsupported memset with symbolic length";);
+      } else if (len) {
+        res = m_ctx.MemSet(addr, v, len, alignment);
+      }
     }
 
     if (!res)
@@ -1777,10 +1780,12 @@ Bv2OpSemContext::Bv2OpSemContext(Bv2OpSem &sem, SymStore &values,
   m_alu = mkBvOpSemAlu(*this);
   OpSemMemManager *mem = nullptr;
 
-  unsigned ptrSize = PtrSize == 0 ? m_sem.getDataLayout().getPointerSize(0) : PtrSize;
+  unsigned ptrSize =
+      PtrSize == 0 ? m_sem.getDataLayout().getPointerSize(0) : PtrSize;
   unsigned wordSize = WordSize == 0 ? ptrSize : WordSize;
 
-  LOG("opsem", INFO << "pointer size: " << ptrSize << ", word size: " << wordSize;);
+  LOG("opsem",
+      INFO << "pointer size: " << ptrSize << ", word size: " << wordSize;);
 
   if (UseFatMemory)
     mem = mkFatMemManager(m_sem, *this, ptrSize, wordSize, UseLambdas);
@@ -1898,6 +1903,16 @@ Expr Bv2OpSemContext::storeValueToMem(Expr val, Expr ptr, const llvm::Type &ty,
 }
 
 Expr Bv2OpSemContext::MemSet(Expr ptr, Expr val, unsigned len, uint32_t align) {
+  assert(m_memManager);
+  assert(getMemReadRegister());
+  assert(getMemWriteRegister());
+  Expr mem = read(getMemReadRegister());
+  Expr res = m_memManager->MemSet(ptr, val, len, mem, align);
+  write(getMemWriteRegister(), res);
+  return res;
+}
+
+Expr Bv2OpSemContext::MemSet(Expr ptr, Expr val, Expr len, uint32_t align) {
   assert(m_memManager);
   assert(getMemReadRegister());
   assert(getMemWriteRegister());
@@ -2042,7 +2057,7 @@ Expr Bv2OpSemContext::mkRegister(const llvm::Instruction &inst) {
     // the pseudo-assignment
     else { //(true /*m_trackLvl >= MEM*/) {
       reg = bind::mkConst(v, mkMemRegisterSort(inst));
-  }
+    }
   } else {
     const Type &ty = *inst.getType();
     switch (ty.getTypeID()) {

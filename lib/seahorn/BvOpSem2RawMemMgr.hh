@@ -208,6 +208,9 @@ public:
   Expr MemSet(PtrTy ptr, Expr _val, unsigned len, MemValTy mem,
               uint32_t align) override;
 
+  Expr MemSet(PtrTy ptr, Expr _val, Expr len, MemValTy mem,
+              uint32_t align) override;
+
   /// \brief Executes symbolic memcpy with concrete length
   Expr MemCpy(PtrTy dPtr, PtrTy sPtr, unsigned len, Expr memTrsfrRead,
               Expr memRead, uint32_t align) override;

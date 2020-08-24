@@ -1575,7 +1575,7 @@ public:
       if (const ConstantInt *ci = dyn_cast<const ConstantInt>(&length)) {
         res = m_ctx.MemSet(addr, v, ci->getZExtValue(), alignment);
       } else
-        llvm_unreachable("Unsupported memset with symbolic length");
+        LOG("opsem", ERR << "Unsupported memset with symbolic length";);
     }
 
     if (!res)

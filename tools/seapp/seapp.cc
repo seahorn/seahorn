@@ -93,6 +93,11 @@ static llvm::cl::opt<bool> SymbolizeLoops(
     llvm::cl::desc("Convert constant loop bounds into symbolic bounds"),
     llvm::cl::init(false));
 
+static llvm::cl::opt<bool> KeepArithOverflow(
+    "horn-keep-arith-overflow",
+    llvm::cl::desc("Keep arithmetic overflow intrinsics."),
+    llvm::cl::init(false));
+
 static llvm::cl::opt<bool> SimplifyPointerLoops(
     "simplify-pointer-loops",
     llvm::cl::desc("Simplify loops that iterate over pointers"),
@@ -518,8 +523,9 @@ int main(int argc, char **argv) {
     pm_wrapper.add(llvm::createDeadInstEliminationPass());
     pm_wrapper.add(seahorn::createRemoveUnreachableBlocksPass());
 
-    // lower arithmetic with overflow intrinsics
-    pm_wrapper.add(seahorn::createLowerArithWithOverflowIntrinsicsPass());
+    if (!KeepArithOverflow)
+      // lower arithmetic with overflow intrinsics
+      pm_wrapper.add(seahorn::createLowerArithWithOverflowIntrinsicsPass());
     // lower libc++abi functions
     pm_wrapper.add(seahorn::createLowerLibCxxAbiFunctionsPass());
 

@@ -374,6 +374,9 @@ class Seapp(sea.LimitedCmd):
                          metavar='STR', help='Log level')
         ap.add_argument ('--sea-dsa-log', dest='dsa_log', default=None,
                          metavar='STR', help='Log level for sea-dsa')
+
+        self.add_llvm_bool_arg(ap, 'with-arith-overflow', dest='with_arith_overflow',
+                               help='Allow arithmetic overflow intrinsics')
         add_in_out_args (ap)
         _add_S_arg (ap)
         return ap
@@ -471,6 +474,11 @@ class Seapp(sea.LimitedCmd):
                 argv.append('--kill-vaarg=true')
             else:
                 argv.append('--kill-vaarg=false')
+
+            if args.with_arith_overflow:
+                argv.append('--horn-keep-arith-overflow=true')
+            else:
+                argv.append('--horn-keep-arith-overflow=false')
 
         if args.log is not None:
             for l in args.log.split (':'): argv.extend (['-log', l])

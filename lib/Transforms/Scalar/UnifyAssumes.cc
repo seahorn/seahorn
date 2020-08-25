@@ -8,6 +8,7 @@
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/Module.h"
 #include "llvm/Pass.h"
+#include "llvm/Transforms/Utils/BasicBlockUtils.h"
 #include "llvm/Transforms/Utils/PromoteMemToReg.h"
 #include "llvm/Transforms/Utils/UnifyFunctionExitNodes.h"
 
@@ -18,6 +19,9 @@ using namespace llvm;
 
 namespace {
 class UnifyAssumesPass : public ModulePass {
+
+private:
+  seahorn::SeaBuiltinsInfo *m_SBI;
 
 public:
   static char ID;
@@ -33,7 +37,11 @@ public:
   bool runOnFunction(Function &F);
 
   void processCallInst(CallInst &CI, AllocaInst &flag);
-
+  void processAssertInst(CallInst &CI, AllocaInst &flag);
+  bool isAssumeCall(const CallInst &ci);
+  bool isAssertCall(const CallInst &ci);
+  llvm::BasicBlock *findExitBlock(llvm::Function &F);
+  CallInst *findSeahornFail(llvm::Function &F);
   void getAnalysisUsage(AnalysisUsage &AU) const {
     AU.addRequired<seahorn::SeaBuiltinsInfoWrapperPass>();
     AU.addRequired<llvm::CallGraphWrapperPass>();
@@ -48,28 +56,41 @@ public:
 
 char UnifyAssumesPass::ID = 0;
 
-bool isAssumeCall(const CallInst &ci, seahorn::SeaBuiltinsInfo &SBI) {
+bool UnifyAssumesPass::isAssumeCall(const CallInst &ci) {
   using namespace seahorn;
-  switch(SBI.getSeaBuiltinOp(ci)) {
+  switch (m_SBI->getSeaBuiltinOp(ci)) {
   default: return false;
   case SeaBuiltinsOp::ASSUME:
   case SeaBuiltinsOp::ASSUME_NOT:
     return true;
   }
 }
+
+bool UnifyAssumesPass::isAssertCall(const CallInst &ci) {
+  using namespace seahorn;
+  switch (m_SBI->getSeaBuiltinOp(ci)) {
+  default:
+    return false;
+  case SeaBuiltinsOp::ASSERT:
+  case SeaBuiltinsOp::ASSERT_NOT:
+    return true;
+  }
+}
+
 /// Find a function exit basic block.  Assumes that the function has
 /// a unique block with return instruction
-llvm::BasicBlock *findExitBlock(llvm::Function &F) {
+llvm::BasicBlock *UnifyAssumesPass::findExitBlock(llvm::Function &F) {
   for (llvm::BasicBlock &bb : F)
     if (llvm::isa<llvm::ReturnInst>(bb.getTerminator()))
       return &bb;
   return nullptr;
 }
 
-CallInst *findSeahornFail(llvm::Function &F, seahorn::SeaBuiltinsInfo &SBI) {
+CallInst *UnifyAssumesPass::findSeahornFail(llvm::Function &F) {
   for (auto &inst : instructions(F)) {
     if (auto *CI = dyn_cast<CallInst>(&inst)) {
-      if (SBI.getSeaBuiltinOp(*CI) == seahorn::SeaBuiltinsOp::FAIL) return CI;
+      if (m_SBI->getSeaBuiltinOp(*CI) == seahorn::SeaBuiltinsOp::FAIL)
+        return CI;
     }
   }
   return nullptr;
@@ -77,19 +98,26 @@ CallInst *findSeahornFail(llvm::Function &F, seahorn::SeaBuiltinsInfo &SBI) {
 
 bool UnifyAssumesPass::runOnFunction(Function &F) {
   Module &M = *F.getParent();
-  auto &SBI = getAnalysis<seahorn::SeaBuiltinsInfoWrapperPass>().getSBI();
-  auto *assumeFn = SBI.mkSeaBuiltinFn(seahorn::SeaBuiltinsOp::ASSUME, M);
+  m_SBI = &getAnalysis<seahorn::SeaBuiltinsInfoWrapperPass>().getSBI();
+  assert(m_SBI);
+  auto *assumeFn = m_SBI->mkSeaBuiltinFn(seahorn::SeaBuiltinsOp::ASSUME, M);
 
   SmallVector<CallInst *, 16> assumes;
+  SmallVector<CallInst *, 16> asserts;
   for (auto &inst : instructions(F)) {
     if (auto *ci = dyn_cast<CallInst>(&inst)) {
-      if (isAssumeCall(*ci, SBI))
+      if (isAssumeCall(*ci)) {
         assumes.push_back(ci);
+      } else if (isAssertCall(*ci)) {
+        asserts.push_back(ci);
+      }
     }
   }
-  // -- nothing to unify if there is only one assume already
-  if (assumes.size() <= 1)
+  if (assumes.size() < 1) {
+    INFO << "Zero `Assume(s)` found, No verifier.asserts will be processed. "
+            "Exiting early!";
     return false;
+  }
 
   // -- make sure there is an exit block to insert the final assume
   BasicBlock *exitBlock = findExitBlock(F);
@@ -106,16 +134,20 @@ bool UnifyAssumesPass::runOnFunction(Function &F) {
   B.CreateStore(B.getTrue(), assumeFlag);
 
   // -- process all assumes
-  for (auto ci : assumes)
+  for (auto ci : assumes) {
     processCallInst(*ci, *assumeFlag);
+  }
 
   // -- delete all assumes
   for (auto ci : assumes)
     ci->eraseFromParent();
 
+  for (auto ci : asserts) {
+    processAssertInst(*ci, *assumeFlag);
+  }
   // insert call to assume before the last instructions of the exit block
   // (maybe before seahorn.fail)
-  CallInst *seaFailCall = findSeahornFail(F, SBI);
+  CallInst *seaFailCall = findSeahornFail(F);
   if (seaFailCall) {
     B.SetInsertPoint(seaFailCall);
   } else {
@@ -133,6 +165,33 @@ bool UnifyAssumesPass::runOnFunction(Function &F) {
   PromoteMemToReg(assumeFlag, DT, &AC);
 
   return false;
+}
+
+void UnifyAssumesPass::processAssertInst(CallInst &CI, AllocaInst &flag) {
+  BasicBlock *bb = CI.getParent();
+  Module *M = bb->getParent()->getParent();
+  assert(bb);
+  assert(M);
+
+  llvm::CallSite CS(&CI);
+  IRBuilder<> B(bb);
+  B.SetInsertPoint(&CI);
+  auto ante = B.CreateLoad(&flag);
+  // negate condition if verifier.assert.not seen
+  bool isNot = m_SBI->getSeaBuiltinOp(CI) == seahorn::SeaBuiltinsOp::ASSERT_NOT;
+  Value *conseq = CS.getArgument(0);
+  if (isNot) {
+    conseq = B.CreateNot(conseq);
+  }
+  // transform verifier.assert(cond) into sea.assert.if(flag, cond)
+  Function *assertIfFn =
+      m_SBI->mkSeaBuiltinFn(seahorn::SeaBuiltinsOp::ASSERT_IF, *M);
+  CallInst *NewCI = CallInst::Create(assertIfFn, {ante, conseq});
+  NewCI->setCallingConv(assertIfFn->getCallingConv());
+  if (!CI.use_empty())
+    CI.replaceAllUsesWith(NewCI);
+  ReplaceInstWithInst(&CI, NewCI);
+  return;
 }
 
 void UnifyAssumesPass::processCallInst(CallInst &CI, AllocaInst &flag) {

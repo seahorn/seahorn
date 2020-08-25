@@ -26,6 +26,7 @@ bool PromoteVerifierCalls::runOnModule(Module &M) {
   m_assumeFn = SBI.mkSeaBuiltinFn(SBIOp::ASSUME, M);
   Function *assumeNotFn = SBI.mkSeaBuiltinFn(SBIOp::ASSUME_NOT, M);
   m_assertFn = SBI.mkSeaBuiltinFn(SBIOp::ASSERT, M);
+  m_assertNotFn = SBI.mkSeaBuiltinFn(SBIOp::ASSERT_NOT, M);
   m_failureFn = SBI.mkSeaBuiltinFn(SBIOp::FAIL, M);
   m_errorFn = SBI.mkSeaBuiltinFn(SBIOp::ERROR, M);
   m_is_deref = SBI.mkSeaBuiltinFn(SBIOp::IS_DEREFERENCEABLE, M);
@@ -69,6 +70,7 @@ bool PromoteVerifierCalls::runOnModule(Module &M) {
     cg->getOrInsertFunction(m_assumeFn);
     cg->getOrInsertFunction(assumeNotFn);
     cg->getOrInsertFunction(m_assertFn);
+    cg->getOrInsertFunction(m_assertNotFn);
     cg->getOrInsertFunction(m_errorFn);
     cg->getOrInsertFunction(m_failureFn);
   }
@@ -119,6 +121,8 @@ bool PromoteVerifierCalls::runOnFunction(Function &F) {
         nfn = m_assumeFn;
       else if (fn->getName().equals("__VERIFIER_assert"))
         nfn = m_assertFn;
+      else if (fn->getName().equals("__VERIFIER_assert_not"))
+        nfn = m_assertNotFn;
       else if (fn->getName().equals("__CPROVER_assume"))
         nfn = m_assumeFn;
       else
@@ -127,18 +131,6 @@ bool PromoteVerifierCalls::runOnFunction(Function &F) {
       IRBuilder<> Builder(F.getContext());
       Value *cond = CS.getArgument(0);
       coerceToBool(cond, Builder, I);
-      /*
-      // strip zext if there is one
-      if (const ZExtInst *ze = dyn_cast<const ZExtInst>(cond))
-        cond = ze->getOperand(0);
-
-
-      Builder.SetInsertPoint(&I);
-
-      // -- convert to Boolean if needed
-      if (!cond->getType()->isIntegerTy(1))
-        cond = Builder.CreateICmpNE(cond, ConstantInt::get(cond->getType(), 0));
-*/
       CallInst *ci = Builder.CreateCall(nfn, cond);
       if (cg)
         (*cg)[&F]->addCalledFunction(ci, (*cg)[ci->getCalledFunction()]);
@@ -185,7 +177,6 @@ bool PromoteVerifierCalls::runOnFunction(Function &F) {
                          "__VERIFIER_assert_if"))) { // sea_assert_if is the
                                                      // user facing name
       IRBuilder<> Builder(F.getContext());
-      Builder.SetInsertPoint(&I);
       // arg0: antecedent
       // arg1: consequent
       Value *arg0 = CS.getArgument(0);

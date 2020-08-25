@@ -37,5 +37,13 @@ extern bool sea_assert_if(bool, bool);
 
 /* Convenience macros */
 #define assume __VERIFIER_assume
+
+/* See https://github.com/seahorn/seahorn/projects/5 for details */
+#ifdef VACCHECK
+#define sassert(X)                                                             \
+  (void)((__VERIFIER_assert(X), (X)) || (__VERIFIER_error(), 0))
+#else
 #define sassert(X) (void)((X) || (__VERIFIER_error(), 0))
+#endif
+
 #endif

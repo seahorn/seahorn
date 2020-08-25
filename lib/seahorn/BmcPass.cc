@@ -334,33 +334,27 @@ public:
   void computeCoi(Function &F, OperationalSemantics &sem) {
     DfCoiAnalysis dfCoi;
 
+    auto computeDependence = [&](Function *f) {
+      if (f) {
+        for (auto *u : f->users()) {
+          if (auto *CI = dyn_cast<CallInst>(u)) {
+            CallSite CS(CI);
+            if (CS.getCaller() != &F)
+              continue;
+            dfCoi.analyze(*CI);
+          }
+        }
+      }
+    };
+
     Module *m = F.getParent();
     assert(m);
-    // -- compute dependnece of verifier.assume()
-    Function *assumeFn = m->getFunction("verifier.assume");
-    if (assumeFn) {
-      for (auto *u : assumeFn->users()) {
-        if (auto *CI = dyn_cast<CallInst>(u)) {
-          CallSite CS(CI);
-          if (CS.getCaller() != &F)
-            continue;
-          dfCoi.analyze(*CI);
-        }
-      }
-    }
-
-    // -- compute dependence of verifier.assume.not()
-    assumeFn = m->getFunction("verifier.assume.not");
-    if (assumeFn) {
-      for (auto *u : assumeFn->users()) {
-        if (auto *CI = dyn_cast<CallInst>(u)) {
-          CallSite CS(CI);
-          if (CS.getCaller() != &F)
-            continue;
-          dfCoi.analyze(*CI);
-        }
-      }
-    }
+    // -- compute dependence of the following `intrinsics`
+    computeDependence(m->getFunction("verifier.assume"));
+    computeDependence(m->getFunction("verifier.assume.not"));
+    computeDependence(m->getFunction("sea.assert.if"));
+    computeDependence(m->getFunction("verifier.assert.not"));
+    computeDependence(m->getFunction("verifier.assert"));
 
     // install dependence filter in operational semantics
     auto &filter = dfCoi.getCoi();

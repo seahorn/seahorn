@@ -20,14 +20,17 @@ namespace eval {
 template <typename T> struct BvNum {
   T num = 0;
   unsigned width = 0;
+  
+  std::function <unsigned()> getWidth;
+
 
   /// \brief empty constructor
-  BvNum() : num(0), width(0) {}
+  BvNum() : num(0), width(0), getWidth([]()->unsigned{return 0;}) {}
 
   /// \brief bool constructor.
-  BvNum(bool a) : num(a), width(1) {}
+  BvNum(bool a) : num(a), width(1), getWidth([]()->unsigned{return 1;}) {}
 
-  BvNum(T numArg, unsigned widthArg) : num(numArg), width(widthArg) {}
+  BvNum(T numArg, unsigned widthArg) : num(numArg), width(widthArg), getWidth([widthArg](){return widthArg;}) {}
 
   bool operator<(const BvNum<T> &bnum) const { return num < bnum.num; }
 
@@ -37,7 +40,13 @@ template <typename T> struct BvNum {
 };
 
 /**
- * Holds the data for an array.
+ * Holds the data for an indivdual array.
+ *
+ * Maps indices of the array to their corresponding value.
+ *
+ * If there IS a default value, then it is assumed that every index not in the
+ * map has the default value. If there is NOT a default value, then values
+ * will need to be generated as needed
  *
  * In EvalModel, the array expressions are mapped to this struct
  *
@@ -46,7 +55,7 @@ template <typename T> struct Arr {
   bool m_hasDefaultVal = false;
   BvNum<T> m_defaultVal;
 
-  unsigned m_valWidth = 0;
+  unsigned m_valWidth = 0; ///< used when generating new values
 
   std::map<BvNum<T>, BvNum<T>> m_map; ///< index, value
 
@@ -59,8 +68,8 @@ template <typename T> struct Arr {
 /**
  * Holds the data for a lambda. Maps bound vars to their value
  *
- * The purpose of this is to keep bound vars within the scope of the lambda. The
- * same bound var expression could have different values in different lambdas
+ * The purpose of this is to keep bound vars within the scope of the individual
+ * lambda.
  *
  * In EvalModel, lambda expressions are mapped to this struct
  *
@@ -78,21 +87,21 @@ template <typename T> struct Lambda {
  * \note the get methods generate a value if one does not already exist
  *
  *  To create a new model, extend EvalModel, and override generateNum(). See
- *  EvalModel_Rand for an example
+ *  EvalModelRand for an example
  */
 template <typename Type> class EvalModel {
 
 protected:
   /// maps the constants/bvars to their values
-  std::map<Expr, BvNum<Type>> m_cache;
+  std::map<Expr, BvNum<Type>> m_data;
 
   /// maps the base of the array struct that holds their data
   /// The base of the array is the inner most array expressions (array const,
   /// CONST_ARRAY)
-  std::map<Expr, Arr<Type>> m_arrayCache;
+  std::map<Expr, Arr<Type>> m_arrayData;
 
   /// maps lambdas to the struct that holds their data
-  std::map<Expr, Lambda<Type>> m_lambdaCache;
+  std::map<Expr, Lambda<Type>> m_lambdaData;
 
   /// create a number of the given width. To be overriden by derived classes
   virtual BvNum<Type> generateNum(unsigned width) = 0;
@@ -140,7 +149,7 @@ public:
 
   /// maps the given constnat to the given value
   void setConstantValue(Expr constant, BvNum<Type> value) {
-    m_cache[constant] = value; // overwrite if key already exists
+    m_data[constant] = value; // overwrite if key already exists
   }
 
   /// \return the constant's value. A value is generated if it does not already
@@ -148,8 +157,8 @@ public:
   BvNum<Type> getConstantValue(Expr constant) {
     assert(bind::IsConst()(exp));
 
-    if (m_cache.count(constant)) {
-      return m_cache.at(constant);
+    if (m_data.count(constant)) {
+      return m_data.at(constant);
     }
 
     BvNum<Type> result;
@@ -164,7 +173,7 @@ public:
       assert(false);
     }
 
-    m_cache.insert({constant, result});
+    m_data.insert({constant, result});
 
     return result;
   }
@@ -174,9 +183,9 @@ public:
   /// \return the value at the given index. A value is generated if
   /// it does not already have one
   BvNum<Type> getArrayValue(Expr array, BvNum<Type> idx) {
-    assert(m_arrayCache.count(array)); // newArray() should be called first
+    assert(m_arrayData.count(array)); // newArray() should be called first
 
-    Arr<Type> &arr = m_arrayCache.at(array);
+    Arr<Type> &arr = m_arrayData.at(array);
 
     if (arr.m_map.count(idx)) {
       return arr.m_map.at(idx);
@@ -196,9 +205,9 @@ public:
   /// \param idx index of the array that will have its value set
   /// \param value the value that the index should have
   void setArrayValue(Expr array, BvNum<Type> idx, BvNum<Type> value) {
-    assert(m_arrayCache.count(array)); // newArray() should be called first
+    assert(m_arrayData.count(array)); // newArray() should be called first
 
-    Arr<Type> &arr = m_arrayCache.at(array);
+    Arr<Type> &arr = m_arrayData.at(array);
 
     arr.m_map[idx] = value; // override existing value
   }
@@ -222,7 +231,7 @@ public:
       assert(false);
     }
 
-    m_arrayCache.emplace(array, width);
+    m_arrayData.emplace(array, width);
   }
 
   /// create a new array
@@ -231,16 +240,16 @@ public:
   /// exprsession)
   void newArray(Expr array, BvNum<Type> defaultVal) {
     assert(isOp<CONST_ARRAY>(array));
-    m_arrayCache.emplace(array, defaultVal);
+    m_arrayData.emplace(array, defaultVal);
   }
 
   /// \param lambda the lambda expression that the bound var is in the scope of
   /// \return the value of the boundVar. A value is generated if
   /// it does not already have one
   BvNum<Type> getBoundValue(Expr lambda, Expr boundVar) {
-    assert(m_lambdaCache.count(array)); // newLambda() should be called first
+    assert(m_lambdaData.count(array)); // newLambda() should be called first
 
-    Lambda<Type> &l = m_lambdaCache.at(lambda);
+    Lambda<Type> &l = m_lambdaData.at(lambda);
 
     if (l.m_map.count(boundVar)) {
       return l.m_map.at(boundVar);
@@ -258,9 +267,9 @@ public:
   /// \param boundVar the bound var that will have its value set
   /// \param value the value that the bound var should have
   void setBoundValue(Expr lambda, Expr boundVar, BvNum<Type> value) {
-    assert(m_lambdaCache.count(lambda)); // newLambda() should be called first
+    assert(m_lambdaData.count(lambda)); // newLambda() should be called first
 
-    Lambda<Type> &l = m_lambdaCache.at(lambda);
+    Lambda<Type> &l = m_lambdaData.at(lambda);
 
     l.m_map[boundVar] = value; // override existing value
   }
@@ -269,31 +278,31 @@ public:
   void newLambda(Expr lambda) {
     assert(isOp<LAMDBA>(lambda));
     Lambda<Type> l;
-    m_lambdaCache.insert({lambda, l});
+    m_lambdaData.insert({lambda, l});
   }
 };
 
 /**
  * \brief Eval model to generate numbers randomly
  */
-template <typename T> class EvalModel_Rand : public EvalModel<T> {
+template <typename T> class EvalModelRand : public EvalModel<T> {
 
   mpz_rand m_rand;
 
 public:
-  EvalModel_Rand(unsigned seed = time(nullptr)) : m_rand(seed) { srand(seed); }
+  EvalModelRand(unsigned seed = time(nullptr)) : m_rand(seed) { srand(seed); }
 
-  ~EvalModel_Rand() = default;
+  ~EvalModelRand() = default;
 
   /// \brief creates a random number of the given width
   BvNum<T> generateNum(unsigned width) override {
-    T num = evalUtils::overflow<T>(rand(), width);
+    T num = evalUtils::zeroUpperBits<T>(rand(), width);
     return BvNum<T>(num, width);
   }
 };
 
 template <>
-BvNum<mpz_class> EvalModel_Rand<mpz_class>::generateNum(unsigned width) {
+BvNum<mpz_class> EvalModelRand<mpz_class>::generateNum(unsigned width) {
   mpz_class num = m_rand.urandomb(width);
 
   return BvNum<mpz_class>(num, width);

@@ -13,8 +13,7 @@ namespace expr {
 namespace eval {
 namespace evalUtils {
 
-/// removes upper bits
-template <typename T> T overflow(const T &num, unsigned numBits) {
+template <typename T> T zeroUpperBits(const T &num, unsigned numBits) {
   T mask = 0;
 
   for (int i = 0; i < numBits; i++) {
@@ -24,8 +23,7 @@ template <typename T> T overflow(const T &num, unsigned numBits) {
   return num & mask;
 }
 
-/// removes lower bits
-template <typename T> T maskLowerBits(const T &num, unsigned numBits) {
+template <typename T> T zeroLowerBits(const T &num, unsigned numBits) {
   return (num >> numBits) << numBits;
 }
 

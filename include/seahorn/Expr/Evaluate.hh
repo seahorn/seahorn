@@ -22,7 +22,7 @@ template <typename T> class EVR {
     BvNum<T> child = m_cache.at(exp->first());
 
     T result = value(child.num);
-    result = evalUtils::overflow<T>(result, child.width);
+    result = evalUtils::zeroUpperBits<T>(result, child.width);
 
     return BvNum<T>(result, child.width);
   }
@@ -35,7 +35,7 @@ template <typename T> class EVR {
 
     for (auto b = ++(exp->args_begin()), e = exp->args_end(); b != e; b++) {
       result = value(result, m_cache.at(*b).num);
-      result = evalUtils::overflow<T>(result, width);
+      result = evalUtils::zeroUpperBits<T>(result, width);
     }
 
     return BvNum<T>(result, width);
@@ -103,8 +103,8 @@ template <typename T> class EVR {
     unsigned occWidth = evalUtils::occupiedWidth<T>(bnum.num);
     unsigned width = bnum.width + bv::width(bvsort);
 
-    T mask = evalUtils::overflow<T>(~0, width);
-    mask = evalUtils::maskLowerBits<T>(mask, occWidth);
+    T mask = evalUtils::zeroUpperBits<T>(~0, width);
+    mask = evalUtils::zeroLowerBits<T>(mask, occWidth);
 
     return BvNum<T>(bnum.num | mask, width);
   }

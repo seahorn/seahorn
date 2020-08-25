@@ -1103,21 +1103,23 @@ public:
   }
 
   void visitMemMoveInst(MemMoveInst &I) {
-    LOG("opsem", errs() << "Skipping memmove: " << I << "\n";);
+    // -- our implementation of memcpy is actually memmove
+    executeMemCpyInst(*I.getDest(), *I.getSource(), *I.getLength(),
+                      I.getDestAlignment(), m_ctx);
   }
   void visitMemTransferInst(MemTransferInst &I) {
     LOG("opsem", errs() << "Unknown memtransfer: " << I << "\n";);
-    llvm_unreachable(nullptr);
+    assert(0);
   }
 
   void visitMemIntrinsic(MemIntrinsic &I) {
     LOG("opsem", errs() << "Unknown memory intrinsic: " << I << "\n";);
-    llvm_unreachable(nullptr);
+    assert(0);
   }
 
-  void visitVAStartInst(VAStartInst &I) { llvm_unreachable(nullptr); }
-  void visitVAEndInst(VAEndInst &I) { llvm_unreachable(nullptr); }
-  void visitVACopyInst(VACopyInst &I) { llvm_unreachable(nullptr); }
+  void visitVAStartInst(VAStartInst &I) { assert(0); }
+  void visitVAEndInst(VAEndInst &I) { assert(0); }
+  void visitVACopyInst(VACopyInst &I) { assert(0); }
 
   void visitUnreachableInst(UnreachableInst &I) { /* do nothing */
   }

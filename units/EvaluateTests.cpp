@@ -44,7 +44,7 @@ template <> void print<mpz_class>(mpz_class a) {
 template <typename T> void check(ExprVector e, std::vector<T> expected) {
 
   for (int i = 0; i < e.size(); i++) {
-    EvalModel_Rand<T> evalModel;
+    EvalModelRand<T> evalModel;
 
     Evaluate<T> eval(&evalModel);
 
@@ -367,7 +367,7 @@ TEST_CASE("lambda.test") {
   e.push_back(temp);
   expectedResults32.push_back(0x2e6d6f63);
 
-  EvalModel_Rand<uint32_t> evalModel(1);
+  EvalModelRand<uint32_t> evalModel(1);
   evalModel.newLambda(temp);
   evalModel.setBoundValue(temp, bvarBound0, BvNum<uint32_t>(0x8048014, 32));
 
@@ -388,7 +388,7 @@ TEST_CASE("lambda.test") {
   Expr lambda2 =
       mk<LAMBDA>(bBv, mk<BOR>(bvarBound0, bv::bvnum(0x81, 32, efac)));
 
-  EvalModel_Rand<uint32_t> evalModel2(1);
+  EvalModelRand<uint32_t> evalModel2(1);
 
   evalModel2.newLambda(lambda);
   evalModel2.setBoundValue(lambda, bvarBound0, BvNum<uint32_t>(0x1111, 32));
@@ -439,7 +439,7 @@ TEST_CASE("array.test") {
 
   check<mpz_class>(e, expectedResults);
 }
-TEST_CASE("EvalModel_RandArray.test") {
+TEST_CASE("EvalModelRandArray.test") {
   seahorn::SeaEnableLog("ev");
   ExprFactory efac;
 
@@ -448,7 +448,7 @@ TEST_CASE("EvalModel_RandArray.test") {
 
   Expr arr = bind::mkConst(mkTerm<std::string>("aAr", efac), arraySort);
 
-  EvalModel_Rand<mpz_class> evalModel(1);
+  EvalModelRand<mpz_class> evalModel(1);
 
   evalModel.newArray(arr);
 
@@ -492,7 +492,7 @@ TEST_CASE("EvalModel_RandArray.test") {
   CHECK(result == BvNum<mpz_class>(true));
 }
 
-TEST_CASE("EvalModel_RandLambda.test") {
+TEST_CASE("EvalModelRandLambda.test") {
   seahorn::SeaEnableLog("ev");
   ExprFactory efac;
 
@@ -512,7 +512,7 @@ TEST_CASE("EvalModel_RandLambda.test") {
 
   Expr lambda = mk<LAMBDA>(aBv, body);
 
-  EvalModel_Rand<mpz_class> evalModel(1);
+  EvalModelRand<mpz_class> evalModel(1);
 
   evalModel.newLambda(lambda);
 

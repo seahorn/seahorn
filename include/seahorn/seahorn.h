@@ -29,7 +29,7 @@ extern void __VERIFIER_assert_if(bool, bool);
     return TRUE or FALSE if the memory manager does not support it.
  */
 extern bool sea_is_dereferenceable(void *ptr, intptr_t offset);
-extern bool sea_assert_if(bool, bool);
+extern void sea_assert_if(bool, bool);
 
 #ifdef __cplusplus
 }

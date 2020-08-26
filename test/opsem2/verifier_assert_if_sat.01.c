@@ -1,4 +1,4 @@
-// RUN: %sea "%s" 2>&1 | OutputCheck %s
+//; RUN: %sea "%s" 2>&1 | OutputCheck %s
 // CHECK: ^Error: Consequent is sat
 // CHECK: ^sat$
 

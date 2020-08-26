@@ -84,6 +84,14 @@ add_lit_testsuite(test-opsem "Regression tests for Operational Semantics"
   --path=${CMAKE_INSTALL_PREFIX}/bin
   DEPENDS seahorn 
   )
+add_lit_testsuite(test-opsem2 "Regression tests for Operational Semantics"
+  -v
+  ${CMAKE_CURRENT_SOURCE_DIR}/opsem2
+  ARGS
+  --path=${CMAKE_INSTALL_PREFIX}/bin
+  DEPENDS seahorn 
+  )
+
 
 add_lit_testsuite(test-opsem-widemem "Regression tests for Operational Semantics using wide memory manager"
   -D opsem_opts="--horn-bv2-widemem"
@@ -197,6 +205,7 @@ if (CMAKE_GENERATOR STREQUAL "Ninja")
   # Depending on install target does not work with make
   add_dependencies(test-all install)
   add_dependencies(test-opsem install)
+  add_dependencies(test-opsem2 install)
   add_dependencies(test-opsem-widemem install)
   add_dependencies(test-tutorial install)
   add_dependencies(test-dsa install)
@@ -223,6 +232,7 @@ install (DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/simple DESTINATION share/seahorn/
 install (DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/solve DESTINATION share/seahorn/test)
 install (DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/smc DESTINATION share/seahorn/test)
 install (DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/opsem DESTINATION share/seahorn/test)
+install (DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/opsem2 DESTINATION share/seahorn/test)
 install (DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/abc DESTINATION share/seahorn/test)
 install (DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/bmc DESTINATION share/seahorn/test)
 install (DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/gsa DESTINATION share/seahorn/test)

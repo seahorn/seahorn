@@ -105,7 +105,6 @@ bool PromoteVerifierCalls::runOnFunction(Function &F) {
     if (fn && (fn->getName().equals("__VERIFIER_assume") ||
                fn->getName().equals("__VERIFIER_assert") ||
                fn->getName().equals("__VERIFIER_assert_not") ||
-               fn->getName().equals("DISABLED__VERIFIER_assert") ||
                // CBMC
                fn->getName().equals("__CPROVER_assume") ||
                /** pagai embedded invariants */

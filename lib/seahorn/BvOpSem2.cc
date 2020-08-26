@@ -28,6 +28,12 @@ using namespace seahorn;
 using namespace seahorn::details;
 using gep_type_iterator = generic_gep_type_iterator<>;
 
+namespace seahorn {
+namespace details {
+static enum class VacCheckOptions { NONE, ANTE, ALL };
+}
+} // namespace seahorn
+
 static const llvm::Regex
     fatptr_intrnsc_re("^__sea_([A-Za-z]|_)*(extptr|recover).*");
 
@@ -96,7 +102,20 @@ static llvm::cl::opt<bool> SimplifyExpr(
     llvm::cl::desc("Simplify expressions as they are written to memory"),
     llvm::cl::init(false));
 
+static llvm::cl::opt<enum seahorn::details::VacCheckOptions> VacuityCheckOpt(
+    "horn-bv2-vacuity-check",
+    llvm::cl::desc("A choice for levels of vacuity check"),
+    llvm::cl::values(clEnumValN(seahorn::details::VacCheckOptions::NONE, "none",
+                                "Don't perform any check"),
+                     clEnumValN(seahorn::details::VacCheckOptions::ANTE,
+                                "antecedent",
+                                "Only perform check for antecedent"),
+                     clEnumValN(seahorn::details::VacCheckOptions::ALL, "all",
+                                "Perform check for antecedent and consequent")),
+    llvm::cl::init(seahorn::details::VacCheckOptions::ALL));
+
 namespace {
+
 const Value *extractUniqueScalar(CallSite &cs) {
   if (!EnableUniqueScalars2)
     return nullptr;
@@ -560,25 +579,32 @@ public:
     setValue(*CS.getInstruction(), res);
   }
 
-  // TODO: visit.assert.if.not is not supported
   void visitAssertIf(CallSite CS) {
+    // NOTE: assert.if.not is not supported
+    if (VacuityCheckOpt == VacCheckOptions::NONE) {
+      return;
+    }
     auto I = CS.getInstruction();
     Expr ante = lookup(*CS.getArgument(0));
-    Expr conseq = lookup(*CS.getArgument(1));
     tribool anteRes = solveWithConstraints(ante);
     // if ante is unsat then report false and bail out
     if (!anteRes) {
-      LOG("opsem", ERR << "Antecedent is unsat/undet: " << *I << "\n");
-      return; // return early
+      LOG("opsem", ERR << "Antecedent is unsat/unknown: " << *I << "\n");
+      return; // return early since conseq is unreachable
     }
+    if (VacuityCheckOpt == VacCheckOptions::ANTE) {
+      return; // don't need to process conseq
+    }
+    Expr conseq = lookup(*CS.getArgument(1));
     Expr e = boolop::land(ante, boolop::lneg(conseq));
     tribool conseqRes = solveWithConstraints(e);
     if (conseqRes) {
-      LOG("opsem", ERR << "Consequent is sat/undet: " << *I << "\n");
+      LOG("opsem", ERR << "Consequent is sat/unknown: " << *I << "\n");
     }
   }
 
   tribool solveWithConstraints(const Expr &solveFor) const {
+    // OPTIMIZE: Solver need not be reset
     m_ctx.solver().reset();
     ExprVector conds(m_ctx.side());
     conds.push_back(m_ctx.getPathCond());
@@ -592,6 +618,10 @@ public:
   }
 
   void visitAssertStmt(CallSite CS) {
+    // This is called when UnifyAssumes does not replace
+    // verifier.assert with sea.assert.if e.g.
+    // when no assumes is found, as a workaround do the following
+    // TODO: add logic to delegate to sea.assert.if(true, conseq)
     LOG("opsem", INFO << "verifier.assert{.not} stmts ignored: "
                       << *CS.getInstruction());
   }

@@ -40,7 +40,6 @@ public:
   void processAssertInst(CallInst &CI, AllocaInst &flag);
   bool isAssumeCall(const CallInst &ci);
   bool isAssertCall(const CallInst &ci);
-  llvm::BasicBlock *findExitBlock(llvm::Function &F);
   CallInst *findSeahornFail(llvm::Function &F);
   void getAnalysisUsage(AnalysisUsage &AU) const {
     AU.addRequired<seahorn::SeaBuiltinsInfoWrapperPass>();
@@ -79,7 +78,7 @@ bool UnifyAssumesPass::isAssertCall(const CallInst &ci) {
 
 /// Find a function exit basic block.  Assumes that the function has
 /// a unique block with return instruction
-llvm::BasicBlock *UnifyAssumesPass::findExitBlock(llvm::Function &F) {
+llvm::BasicBlock *findExitBlock(llvm::Function &F) {
   for (llvm::BasicBlock &bb : F)
     if (llvm::isa<llvm::ReturnInst>(bb.getTerminator()))
       return &bb;
@@ -99,7 +98,6 @@ CallInst *UnifyAssumesPass::findSeahornFail(llvm::Function &F) {
 bool UnifyAssumesPass::runOnFunction(Function &F) {
   Module &M = *F.getParent();
   m_SBI = &getAnalysis<seahorn::SeaBuiltinsInfoWrapperPass>().getSBI();
-  assert(m_SBI);
   auto *assumeFn = m_SBI->mkSeaBuiltinFn(seahorn::SeaBuiltinsOp::ASSUME, M);
 
   SmallVector<CallInst *, 16> assumes;
@@ -113,9 +111,7 @@ bool UnifyAssumesPass::runOnFunction(Function &F) {
       }
     }
   }
-  if (assumes.size() < 1) {
-    INFO << "Zero `Assume(s)` found, No verifier.asserts will be processed. "
-            "Exiting early!";
+  if (assumes.empty()) {
     return false;
   }
 

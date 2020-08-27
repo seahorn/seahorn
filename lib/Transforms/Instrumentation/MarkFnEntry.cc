@@ -41,6 +41,9 @@ public:
 
     m_mark = M.getOrInsertFunction("seahorn.fn.enter",
                                    Type::getVoidTy(M.getContext()));
+    assert(isa<Function>(m_mark.getCallee()));
+    cast<Function>(m_mark.getCallee())->setOnlyAccessesInaccessibleMemory();
+
     for (auto &F : M)
       runOnFunction(F);
     return true;

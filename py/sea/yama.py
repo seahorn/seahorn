@@ -1,6 +1,7 @@
 import sys
 import sea
 
+
 class Yama(sea.CliCmd):
     def __init__(self):
         super().__init__('yama', 'Yama', allow_extra=False)
@@ -40,10 +41,11 @@ class Yama(sea.CliCmd):
             if self._ignore_error:
                 return None
 
-            print("Error: no proper sea_options dictionary found in {0}".format(fname))
+            print("Error: no proper sea_options " +
+                  "dictionary found in {0}".format(fname))
             sys.exit(1)
             return None
-        except:
+        except Exception:
             if self._ignore_error:
                 return None
             print("Error: could not parse", fname)
@@ -62,7 +64,8 @@ class Yama(sea.CliCmd):
             key = '--' + str(_key)
             short_arg = False
 
-        # convert value to a string or None if it is not used (including empty string)
+        # convert value to a string or None if it is not used (including empty
+        # string)
         value = str(_value) if _value is not None else None
         if value is not None and len(value) == 0:
             value = None
@@ -90,7 +93,7 @@ class Yama(sea.CliCmd):
 
         return command, res
 
-    def run(self, args = None, _extra = []):
+    def run(self, args=None, _extra=[]):
         import sys
         import os
 
@@ -137,4 +140,3 @@ class Yama(sea.CliCmd):
         os.execl(sys.executable, sys.executable, *cmd_args)
         # unreachable, unless there is an error
         return 1
-

@@ -22,16 +22,16 @@ template <typename T> class EVR {
     BvNum<T> child = m_cache.at(exp->first());
 
     T result = value(child.num);
-    result = evalUtils::zeroUpperBits<T>(result, child.width);
+    result = evalUtils::zeroUpperBits<T>(result, child.getWidth());
 
-    return BvNum<T>(result, child.width);
+    return BvNum<T>(result, child.getWidth());
   }
 
   BvNum<T> bvNary(Expr exp, std::function<T(T, T)> value) const {
     BvNum<T> child1 = m_cache.at(exp->left());
 
     T result = child1.num;
-    unsigned width = child1.width;
+    unsigned width = child1.getWidth();
 
     for (auto b = ++(exp->args_begin()), e = exp->args_end(); b != e; b++) {
       result = value(result, m_cache.at(*b).num);
@@ -64,9 +64,9 @@ template <typename T> class EVR {
     for (auto b = exp->args_begin(), e = exp->args_end(); b != e; b++) {
       BvNum<T> BvNum = m_cache.at(*b);
 
-      totalWidth += BvNum.width;
+      totalWidth += BvNum.getWidth();
 
-      concatNum = (concatNum << BvNum.width) | BvNum.num;
+      concatNum = (concatNum << BvNum.getWidth()) | BvNum.num;
     }
 
     return BvNum<T>(concatNum, totalWidth);
@@ -90,7 +90,7 @@ template <typename T> class EVR {
     BvNum<T> bnum = m_cache.at(exp->left());
     Expr bvsort = exp->right();
 
-    unsigned width = bnum.width + bv::width(bvsort);
+    unsigned width = bnum.getWidth() + bv::width(bvsort);
 
     return BvNum<T>(bnum.num, width);
   }
@@ -101,7 +101,7 @@ template <typename T> class EVR {
     Expr bvsort = exp->right();
 
     unsigned occWidth = evalUtils::occupiedWidth<T>(bnum.num);
-    unsigned width = bnum.width + bv::width(bvsort);
+    unsigned width = bnum.getWidth() + bv::width(bvsort);
 
     T mask = evalUtils::zeroUpperBits<T>(~0, width);
     mask = evalUtils::zeroLowerBits<T>(mask, occWidth);
@@ -129,8 +129,8 @@ template <typename T> class EVR {
       return result;
     }
 
-    bool signBit1 = (bool)(child1.num >> (child1.width - 1));
-    bool signBit2 = (bool)(child2.num >> (child2.width - 1));
+    bool signBit1 = (bool)(child1.num >> (child1.getWidth() - 1));
+    bool signBit2 = (bool)(child2.num >> (child2.getWidth() - 1));
 
     bool flipRes =
         signBit1 || signBit2; // flip result if any of the numbers are negative
@@ -170,18 +170,31 @@ template <typename T> class EVR {
     return m_evalModel->getArrayValue(array, m_cache.at(exp->right()));
   }
 
-  template <typename A> BvNum<A> convert(Expr exp) {
+  template <typename A> static A convertMpz(const mpz_class &mpz) {
+    return (A)(mpz.get_ui());
+  }
+
+  template <> static mpz_class convertMpz(const mpz_class &mpz) { return mpz; }
+
+  BvNum<T> convert(Expr exp) {
     if (isOp<TRUE>(exp)) {
-      return 1;
+      return true;
     } else if (isOp<FALSE>(exp)) {
-      return 0;
+      return false;
     }
 
     assert(bv::isBvNum(exp));
 
-    mpz_class num = bv::toMpz(exp);
+    mpz_class mpz = bv::toMpz(exp);
     unsigned width = bv::widthBvNum(exp);
-    return BvNum<A>((A)(num.get_ui()), width);
+
+    if (mpz < (unsigned long)0) {
+      // 2s complement
+      mpz = evalUtils::zeroUpperBits(mpz, width);
+    }
+
+    T num = convertMpz<T>(mpz);
+    return BvNum<T>(num, width);
   }
 
   void find(Expr exp) {
@@ -353,7 +366,7 @@ public:
       m_evalModel->newLambda(exp);
       m_lambdaStack.push_back(exp);
     } else if (bv::is_bvnum(exp) || isOp<TRUE>(exp) || isOp<FALSE>(exp)) {
-      m_cache.insert({exp, convert<T>(exp)});
+      m_cache.insert({exp, convert(exp)});
 
       return false;
     } else if (isOp<UINT>(exp) || isOp<MPZ>(exp) || isOp<BVSORT>(exp)) {

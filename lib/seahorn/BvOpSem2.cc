@@ -580,16 +580,16 @@ public:
   }
 
   void visitAssertIf(CallSite CS) {
-    SEA_MEASURE_FN;
+    ScopedStats __stats__("opsem.assert.if");
     // NOTE: assert.if.not is not supported
     if (VacuityCheckOpt == VacCheckOptions::NONE) {
       return;
     }
     auto I = CS.getInstruction();
     Expr ante = lookup(*CS.getArgument(0));
-    Stats::resume("Vacuity");
+    Stats::resume("opsem.vacuity");
     tribool anteRes = solveWithConstraints(ante);
-    Stats::stop("Vacuity");
+    Stats::stop("opsem.vacuity");
     // if ante is unsat then report false and bail out
     if (!anteRes) {
       LOG("opsem", ERR << "Antecedent is unsat/unknown: " << *I << "\n");
@@ -601,9 +601,9 @@ public:
     }
     Expr conseq = lookup(*CS.getArgument(1));
     Expr e = boolop::land(ante, boolop::lneg(conseq));
-    Stats::resume("IncBmc");
+    Stats::resume("opsem.incbmc");
     tribool conseqRes = solveWithConstraints(e);
-    Stats::stop("IncBmc");
+    Stats::stop("opsem.incbmc");
     if (conseqRes) {
       LOG("opsem", ERR << "Consequent is sat/unknown: " << *I << "\n");
     } else {

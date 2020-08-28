@@ -2,6 +2,8 @@
 #include "BvOpSem2RawMemMgr.hh"
 
 #include "llvm/CodeGen/IntrinsicLowering.h"
+#include "llvm/IR/DebugInfo.h"
+#include "llvm/IR/DebugLoc.h"
 #include "llvm/IR/GetElementPtrTypeIterator.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Format.h"
@@ -578,59 +580,91 @@ public:
     setValue(*CS.getInstruction(), res);
   }
 
-  void visitAssertIf(CallSite CS) {
-    ScopedStats __stats__("opsem.assert.if");
-    // NOTE: assert.if.not is not supported
+  void visitAssert(Expr ante, Expr conseq, const DebugLoc &dloc) {
+    ScopedStats __stats__("opsem.assert");
     if (VacuityCheckOpt == VacCheckOptions::NONE) {
       return;
     }
-    auto I = CS.getInstruction();
-    Expr ante = lookup(*CS.getArgument(0));
     Stats::resume("opsem.vacuity");
+    // The solving is done incrementally. We only
+    // reset the solver once per assert instruction.
+    // We then add expressions incrementally.
+    // This works because this check never needs to
+    // remove an expression from the solver.
     tribool anteRes = solveWithConstraints(ante);
     Stats::stop("opsem.vacuity");
     // if ante is unsat then report false and bail out
     if (!anteRes) {
-      LOG("opsem", ERR << "Antecedent is unsat/unknown: " << *I << "\n");
+      LOG(
+          "opsem",
+          if (dloc) {
+            ERR << "Antecedent is unsat/unknown: "
+                << "[" << (*dloc).getFilename() << ":" << dloc.getLine() << "]";
+          } else { ERR << "Antecedent is unsat/unknown"; });
       return; // return early since conseq is unreachable
+    } else {
+      LOG(
+          "opsem",
+          if (dloc) {
+            INFO << "Vacuity passed: "
+                 << "[" << (*dloc).getFilename() << ":" << dloc.getLine()
+                 << "]";
+          } else { INFO << "Vacuity passed"; });
     }
-    LOG("opsem", INFO << "Vacuity passed: " << *I << "\n";);
     if (VacuityCheckOpt == VacCheckOptions::ANTE) {
       return; // don't need to process conseq
     }
-    Expr conseq = lookup(*CS.getArgument(1));
-    Expr e = boolop::land(ante, boolop::lneg(conseq));
+    Expr e = boolop::lneg(conseq);
     Stats::resume("opsem.incbmc");
-    tribool conseqRes = solveWithConstraints(e);
+    tribool conseqRes = solveWithConstraints(e, true /* incremental */);
     Stats::stop("opsem.incbmc");
     if (conseqRes) {
-      LOG("opsem", ERR << "Consequent is sat/unknown: " << *I << "\n");
+      LOG(
+          "opsem",
+          if (dloc) {
+            ERR << "Consequent is sat: "
+                << "[" << (*dloc).getFilename() << ":" << dloc.getLine() << "]";
+          } else { ERR << "Consequent is sat"; });
     } else {
-      LOG("opsem", INFO << "Assertion passed: " << *I << "\n";);
+      LOG(
+          "opsem",
+          if (dloc) {
+            INFO << "Assertion passed: "
+                 << "[" << (*dloc).getFilename() << ":" << dloc.getLine()
+                 << "]";
+          } else { INFO << "Assertion passed"; });
     }
   }
 
-  tribool solveWithConstraints(const Expr &solveFor) const {
-    // OPTIMIZE: Solver need not be reset
-    m_ctx.solver().reset();
-    ExprVector conds(m_ctx.side());
-    conds.push_back(m_ctx.getPathCond());
-    for (auto e : conds) {
-      m_ctx.solver().assertExpr(e);
-    }
-    m_ctx.solver().assertExpr(solveFor);
+  void visitAssertIf(CallSite CS) {
+    // NOTE: sea.assert.if.not is not supported
+    auto I = CS.getInstruction();
+    Expr ante = lookup(*CS.getArgument(0));
+    Expr conseq = lookup(*CS.getArgument(1));
+    const llvm::DebugLoc &dloc = I->getDebugLoc();
+    visitAssert(ante, conseq, dloc);
+  }
 
-    boost::tribool res = m_ctx.solver().solve();
-    return res;
+  boost::tribool solveWithConstraints(const Expr &solveFor,
+                                      bool incremental = false) const {
+    // if incremental is true then use existing constraints in solver
+    // else reset solver
+    if (!incremental) {
+      m_ctx.resetSolver();
+    }
+    for (auto e : m_ctx.side()) {
+      m_ctx.addToSolver(e);
+    }
+    m_ctx.addToSolver(m_ctx.getPathCond());
+    m_ctx.addToSolver(solveFor);
+
+    return m_ctx.solve();
   }
 
   void visitAssertStmt(CallSite CS) {
-    // This is called when UnifyAssumes does not replace
-    // verifier.assert with sea.assert.if e.g.
-    // when no assumes is found, as a workaround do the following
-    // TODO: add logic to delegate to sea.assert.if(true, conseq)
-    LOG("opsem", INFO << "verifier.assert{.not} stmts ignored: "
-                      << *CS.getInstruction());
+    Expr conseq = lookup(*CS.getArgument(0));
+    const DebugLoc &dloc = CS.getInstruction()->getDebugLoc();
+    visitAssert(m_ctx.alu().getTrue(), conseq, dloc);
   }
 
   void visitFatPointerInstr(CallSite CS) {
@@ -2253,6 +2287,22 @@ std::pair<char *, unsigned>
 Bv2OpSemContext::getGlobalVariableInitValue(const llvm::GlobalVariable &gv) {
   return m_memManager->getGlobalVariableInitValue(gv);
 }
+
+void Bv2OpSemContext::resetSolver() {
+  m_z3_solver->reset();
+  m_addedToSolver.clear();
+}
+
+void Bv2OpSemContext::addToSolver(const Expr e) {
+  if (!m_addedToSolver.count(e)) {
+    // if not found, add to solver and keep track
+    m_z3_solver->assertExpr(e);
+    m_addedToSolver.insert(e);
+  }
+}
+
+boost::tribool Bv2OpSemContext::solve() { return m_z3_solver->solve(); }
+
 } // namespace details
 
 Bv2OpSem::Bv2OpSem(ExprFactory &efac, Pass &pass, const DataLayout &dl,

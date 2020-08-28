@@ -20,22 +20,21 @@ namespace eval {
 template <typename T> struct BvNum {
   T num = 0;
   unsigned width = 0;
-  
-  std::function <unsigned()> getWidth;
 
+  unsigned getWidth() const { return width; }
 
   /// \brief empty constructor
-  BvNum() : num(0), width(0), getWidth([]()->unsigned{return 0;}) {}
+  BvNum() : num(0), width(0) {}
 
   /// \brief bool constructor.
-  BvNum(bool a) : num(a), width(1), getWidth([]()->unsigned{return 1;}) {}
+  BvNum(bool a) : num(a), width(1) {}
 
-  BvNum(T numArg, unsigned widthArg) : num(numArg), width(widthArg), getWidth([widthArg](){return widthArg;}) {}
+  BvNum(T numArg, unsigned widthArg) : num(numArg), width(widthArg) {}
 
   bool operator<(const BvNum<T> &bnum) const { return num < bnum.num; }
 
   bool operator==(const BvNum<T> &bnum) const {
-    return (num == bnum.num) && (width == bnum.width);
+    return (num == bnum.num) && (getWidth() == bnum.getWidth());
   }
 };
 
@@ -61,7 +60,7 @@ template <typename T> struct Arr {
 
   Arr(BvNum<T> defaultVal)
       : m_hasDefaultVal(true), m_defaultVal(defaultVal),
-        m_valWidth(defaultVal.width) {}
+        m_valWidth(defaultVal.getWidth()) {}
   Arr(unsigned valWidth) : m_hasDefaultVal(false), m_valWidth(valWidth) {}
 };
 

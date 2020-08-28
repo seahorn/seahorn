@@ -284,6 +284,14 @@ TEST_CASE("bvGeneral.test") {
   e.push_back(temp);
   expectedResults.push_back(0);
 
+  temp = bv::bvnum(-4, 16, efac); // result should be the 2s complement
+  e.push_back(temp);
+  expectedResults.push_back(0xfffc);
+
+  temp = bv::bvnum(-7, 10, efac); // result should be the 2s complement
+  e.push_back(temp);
+  expectedResults.push_back(0x3f9);
+
   check<mpz_class>(e, expectedResults);
 }
 
@@ -472,7 +480,7 @@ TEST_CASE("EvalModelRandArray.test") {
       evalModel.getArrayValue(arr, BvNum<mpz_class>(2, 32));
   result = evalModel.getArrayValue(arr, BvNum<mpz_class>(2, 32));
   CHECK(result == oldResult); // value was randomly generated
-  CHECK(result.width == 32);
+  CHECK(result.getWidth() == 32);
 
   result = evalModel.getArrayValue(arr, BvNum<mpz_class>(7, 32));
   CHECK(result == BvNum<mpz_class>(34, 32));

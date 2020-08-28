@@ -207,8 +207,7 @@ struct OpSemVisitorBase {
     if (m_sem.isSkipped(v))
       return Expr();
 
-    assert(m_ctx.getMemManager());
-    OpSemMemManager &memManager = *m_ctx.getMemManager();
+    OpSemMemManager &memManager = m_ctx.mem();
 
     Expr reg;
     if (reg = m_ctx.getRegister(v)) {
@@ -1764,7 +1763,7 @@ public:
           continue;
         Expr symReg = m_ctx.mkRegister(fn);
         assert(symReg);
-        setValue(fn, m_ctx.getMemManager()->falloc(fn));
+        setValue(fn, m_ctx.mem().falloc(fn));
       }
     }
 
@@ -1780,7 +1779,7 @@ public:
       }
       Expr symReg = m_ctx.mkRegister(gv);
       assert(symReg);
-      setValue(gv, m_ctx.getMemManager()->galloc(gv));
+      setValue(gv, m_ctx.mem().galloc(gv));
     }
 
     // initialize globals
@@ -1793,7 +1792,7 @@ public:
       m_ctx.mem().initGlobalVariable(gv);
     }
 
-    LOG("opsem", m_ctx.getMemManager()->dumpGlobalsMap());
+    LOG("opsem", m_ctx.mem().dumpGlobalsMap());
   }
 
   void visitBasicBlock(BasicBlock &BB) {

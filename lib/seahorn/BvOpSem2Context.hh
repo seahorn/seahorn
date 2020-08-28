@@ -128,13 +128,15 @@ public:
   unsigned ptrSzInBits() const;
 
   /// \brief Returns the memory manager
-  OpSemMemManager *getMemManager() const { return m_memManager.get(); }
   OpSemMemManager &mem() const {
+    // exactly one of m_memManager or m_parent are set
+    assert(m_memManager || m_parent);
     assert(!m_parent || !m_memManager);
     if (m_memManager)
       return *m_memManager;
     if (m_parent)
       return m_parent->mem();
+    llvm_unreachable("must have a memory manager");
   }
 
   OpSemAlu &alu() const {

@@ -220,7 +220,10 @@ public:
         return false;
       }
 
+      Stats::resume("BMC.solve");
       auto res = bmc.solve();
+      Stats::stop("BMC.solve");
+
       Stats::stop("BMC");
 
       if (res)

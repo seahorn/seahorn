@@ -7,6 +7,7 @@
 
 #include "seahorn/Expr/ExprLlvm.hh"
 #include "seahorn/Expr/Smt/EZ3.hh"
+#include <unordered_set>
 
 namespace seahorn {
 namespace details {
@@ -102,6 +103,7 @@ private:
   std::shared_ptr<ZSolver<EZ3>> m_z3_solver;
 
   bool m_shouldSimplify = false;
+  std::unordered_set<Expr> m_addedToSolver;
 
 public:
   /// \brief Create a new context with given semantics, values, and side
@@ -144,8 +146,6 @@ public:
       return m_parent->alu();
     llvm_unreachable(nullptr);
   }
-
-  ZSolver<EZ3> &solver() const { return *m_z3_solver; }
 
   /// \brief Push parameter on a stack for a function call
   void pushParameter(Expr v) { m_fparams.push_back(v); }
@@ -284,6 +284,10 @@ public:
   OpSemContextPtr fork(SymStore &values, ExprVector &side) {
     return OpSemContextPtr(new Bv2OpSemContext(values, side, *this));
   }
+
+  void resetSolver();
+  void addToSolver(const Expr e);
+  boost::tribool solve();
 
 private:
   static Bv2OpSemContext &ctx(OpSemContext &ctx) {

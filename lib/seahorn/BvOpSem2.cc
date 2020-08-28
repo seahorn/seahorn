@@ -580,26 +580,34 @@ public:
   }
 
   void visitAssertIf(CallSite CS) {
+    SEA_MEASURE_FN;
     // NOTE: assert.if.not is not supported
     if (VacuityCheckOpt == VacCheckOptions::NONE) {
       return;
     }
     auto I = CS.getInstruction();
     Expr ante = lookup(*CS.getArgument(0));
+    Stats::resume("Vacuity");
     tribool anteRes = solveWithConstraints(ante);
+    Stats::stop("Vacuity");
     // if ante is unsat then report false and bail out
     if (!anteRes) {
       LOG("opsem", ERR << "Antecedent is unsat/unknown: " << *I << "\n");
       return; // return early since conseq is unreachable
     }
+    LOG("opsem", INFO << "Vacuity passed: " << *I << "\n";);
     if (VacuityCheckOpt == VacCheckOptions::ANTE) {
       return; // don't need to process conseq
     }
     Expr conseq = lookup(*CS.getArgument(1));
     Expr e = boolop::land(ante, boolop::lneg(conseq));
+    Stats::resume("IncBmc");
     tribool conseqRes = solveWithConstraints(e);
+    Stats::stop("IncBmc");
     if (conseqRes) {
       LOG("opsem", ERR << "Consequent is sat/unknown: " << *I << "\n");
+    } else {
+      LOG("opsem", INFO << "Assertion passed: " << *I << "\n";);
     }
   }
 

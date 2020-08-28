@@ -112,7 +112,7 @@ static llvm::cl::opt<enum seahorn::details::VacCheckOptions> VacuityCheckOpt(
                                 "Only perform check for antecedent"),
                      clEnumValN(seahorn::details::VacCheckOptions::ALL, "all",
                                 "Perform check for antecedent and consequent")),
-    llvm::cl::init(seahorn::details::VacCheckOptions::ALL));
+    llvm::cl::init(seahorn::details::VacCheckOptions::NONE));
 
 namespace {
 

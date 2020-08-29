@@ -338,8 +338,8 @@ Expr OpSemMemLambdaRepr::MemCpy(Expr dPtr, Expr sPtr, unsigned len,
       res = mk<LAMBDA>(decl, ite);
       LOG("opsem.lambda", errs() << "MemCpy " << *res << "\n");
     } else {
-      // result is the same as source
-      res = memTrsfrRead;
+      // no-op
+      res = memRead;
     }
   } else {
     LOG("opsem.lambda", errs() << "Word size and pointer are not aligned and "

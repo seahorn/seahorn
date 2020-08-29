@@ -586,11 +586,12 @@ public:
     setValue(*CS.getInstruction(), res);
   }
 
-  void doAssert(Expr ante, Expr conseq, const DebugLoc &dloc) {
+  void doAssert(Expr ante, Expr conseq, const Instruction &I) {
     ScopedStats __stats__("opsem.assert");
     if (VacuityCheckOpt == VacCheckOptions::NONE) {
       return;
     }
+    const llvm::DebugLoc &dloc = I.getDebugLoc();
     Stats::resume("opsem.vacuity");
     // The solving is done incrementally. We only
     // reset the solver once per assert instruction.
@@ -603,17 +604,17 @@ public:
     if (anteRes) {
       if (dloc) {
         INFO << "Vacuity passed: "
-             << "[" << (*dloc).getFilename() << ":" << dloc.getLine() << "]";
+             << "[" << (*dloc).getFilename() << ": " << dloc.getLine() << "]";
       } else {
-        INFO << "Vacuity passed";
+        INFO << "Vacuity passed: " << I;
       };
     } else {
       auto msg = !anteRes ? "unsat" : "unknown";
       if (dloc) {
         ERR << "Antecedent is " << msg << ": "
-            << "[" << (*dloc).getFilename() << ":" << dloc.getLine() << "]";
+            << "[" << (*dloc).getFilename() << ": " << dloc.getLine() << "]";
       } else {
-        ERR << "Antecedent is " << msg;
+        ERR << "Antecedent is " << msg << ": " << I;
       };
       return; // return early since conseq is unreachable
     }
@@ -637,7 +638,7 @@ public:
             INFO << "Assertion passed: "
                  << "[" << (*dloc).getFilename() << ":" << dloc.getLine()
                  << "]";
-          } else { INFO << "Assertion passed"; });
+          } else { INFO << "Assertion passed: " << I; });
     } else {
       auto msg = conseqRes ? "sat" : "unknown";
       LOG(
@@ -645,17 +646,15 @@ public:
           if (dloc) {
             ERR << "Consequent is " << msg << ": "
                 << "[" << (*dloc).getFilename() << ":" << dloc.getLine() << "]";
-          } else { ERR << "Consequent is " << msg; });
+          } else { ERR << "Consequent is " << msg << " :" << I; });
     }
   }
 
   void visitAssertIf(CallSite CS) {
     // NOTE: sea.assert.if.not is not supported
-    auto I = CS.getInstruction();
     Expr ante = lookup(*CS.getArgument(0));
     Expr conseq = lookup(*CS.getArgument(1));
-    const llvm::DebugLoc &dloc = I->getDebugLoc();
-    doAssert(ante, conseq, dloc);
+    doAssert(ante, conseq, *CS.getInstruction());
   }
 
   boost::tribool solveWithConstraints(const Expr &solveFor,
@@ -676,8 +675,7 @@ public:
 
   void visitAssertStmt(CallSite CS) {
     Expr conseq = lookup(*CS.getArgument(0));
-    const DebugLoc &dloc = CS.getInstruction()->getDebugLoc();
-    doAssert(m_ctx.alu().getTrue(), conseq, dloc);
+    doAssert(m_ctx.alu().getTrue(), conseq, *CS.getInstruction());
   }
 
   void visitFatPointerInstr(CallSite CS) {

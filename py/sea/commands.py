@@ -480,6 +480,7 @@ class Seapp(sea.LimitedCmd):
             else:
                 argv.append('--horn-keep-arith-overflow=false')
 
+
         if args.log is not None:
             for l in args.log.split (':'): argv.extend (['-log', l])
         if args.dsa_log is not None:
@@ -797,6 +798,12 @@ class CutLoops(sea.LimitedCmd):
                          metavar='STR', help='Log level')
         ap.add_argument('--peel', dest='peel', default=0, metavar='NUM',
                         type=int, help='Number of iterations to peel loops')
+        ap.add_argument('--assert-on-backedge',
+                        dest='assert_backedge',
+                        default=False,
+                        action='store_true',
+                        help='Add verifier assert on backedge to confirm loop unrolling is adequate')
+
         add_in_out_args (ap)
         _add_S_arg (ap)
         return ap
@@ -818,6 +825,12 @@ class CutLoops(sea.LimitedCmd):
 
         if args.log is not None:
             for l in args.log.split (':'): argv.extend (['-log', l])
+        if args.assert_backedge:
+            print('assert back edge = true')
+            argv.append('--verifier-assert-on-backedge=true')
+        else:
+            print('assert back edge = false')
+            argv.append('--verifier-assert-on-backedge=false')
 
         return self.seappCmd.run (args, argv)
 
@@ -1534,7 +1547,7 @@ class InspectBitcode(sea.LimitedCmd):
                 argv.extend(['-mem-dot'])
             if args.mem_cg_dot:
                 argv.extend(['-mem-callgraph-dot'])
-            if args.dot_outdir is not "":
+            if args.dot_outdir != "":
                 argv.extend(['-sea-dsa-dot-outdir={0}'.format(args.dot_outdir)])
 
         if args.cha: argv.extend (['-cha'])

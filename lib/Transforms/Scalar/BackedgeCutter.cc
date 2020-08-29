@@ -7,6 +7,7 @@
 #include "llvm/ADT/Statistic.h"
 #include "llvm/Analysis/CFG.h"
 #include "llvm/IR/Module.h"
+#include "llvm/Support/CommandLine.h"
 #include "llvm/Transforms/Utils/Local.h"
 
 // void FindFunctionBackedges(
@@ -17,6 +18,12 @@
 #define DEBUG_TYPE "back-edge-cutter"
 STATISTIC(NumBackEdges, "Number of back-edges");
 STATISTIC(NumBackEdgesUncut, "Number of back-edges not cut");
+
+static llvm::cl::opt<bool> VerifierAssertOnBackEdgeOpt(
+    "verifier-assert-on-backedge",
+    llvm::cl::desc("Add verifier assert on backedge to confirm loop unrolling "
+                   "is adequate"),
+    llvm::cl::init(false));
 
 using namespace llvm;
 using namespace seahorn;
@@ -73,6 +80,14 @@ static bool cutBackEdge(BasicBlock *src, BasicBlock *dst, Function &F,
                                             ? SeaBuiltinsOp::ASSUME_NOT
                                             : SeaBuiltinsOp::ASSUME,
                                         *F.getParent());
+    if (VerifierAssertOnBackEdgeOpt) {
+      // insert verifier.assert{.not} function
+      auto *assertFn = SBI.mkSeaBuiltinFn(TI->getSuccessor(0) == dst
+                                              ? SeaBuiltinsOp::ASSERT_NOT
+                                              : SeaBuiltinsOp::ASSERT,
+                                          *F.getParent());
+      CallInst::Create(assertFn, TI->getCondition(), "", TI);
+    }
     CallInst::Create(assumeFn, TI->getCondition(), "", TI);
 
     llvm::for_each(dst->phis(),

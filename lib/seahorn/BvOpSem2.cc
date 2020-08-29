@@ -116,6 +116,12 @@ static llvm::cl::opt<enum seahorn::details::VacCheckOptions> VacuityCheckOpt(
                                 "Perform check for antecedent and consequent")),
     llvm::cl::init(seahorn::details::VacCheckOptions::NONE));
 
+static llvm::cl::opt<bool> UseIncVacSat(
+    "horn-bv2-vacuity-check-inc",
+    llvm::cl::desc(
+        "Use incremental solver to check for vacuity and assertions"),
+    llvm::cl::init(false));
+
 namespace {
 
 const Value *extractUniqueScalar(CallSite &cs) {
@@ -580,7 +586,7 @@ public:
     setValue(*CS.getInstruction(), res);
   }
 
-  void visitAssert(Expr ante, Expr conseq, const DebugLoc &dloc) {
+  void doAssert(Expr ante, Expr conseq, const DebugLoc &dloc) {
     ScopedStats __stats__("opsem.assert");
     if (VacuityCheckOpt == VacCheckOptions::NONE) {
       return;
@@ -591,41 +597,40 @@ public:
     // We then add expressions incrementally.
     // This works because this check never needs to
     // remove an expression from the solver.
-    tribool anteRes = solveWithConstraints(ante);
+    auto anteRes = solveWithConstraints(ante);
     Stats::stop("opsem.vacuity");
     // if ante is unsat then report false and bail out
-    if (!anteRes) {
-      LOG(
-          "opsem",
-          if (dloc) {
-            ERR << "Antecedent is unsat/unknown: "
-                << "[" << (*dloc).getFilename() << ":" << dloc.getLine() << "]";
-          } else { ERR << "Antecedent is unsat/unknown"; });
-      return; // return early since conseq is unreachable
+    if (anteRes) {
+      if (dloc) {
+        INFO << "Vacuity passed: "
+             << "[" << (*dloc).getFilename() << ":" << dloc.getLine() << "]";
+      } else {
+        INFO << "Vacuity passed";
+      };
     } else {
-      LOG(
-          "opsem",
-          if (dloc) {
-            INFO << "Vacuity passed: "
-                 << "[" << (*dloc).getFilename() << ":" << dloc.getLine()
-                 << "]";
-          } else { INFO << "Vacuity passed"; });
+      auto msg = !anteRes ? "unsat" : "unknown";
+      if (dloc) {
+        ERR << "Antecedent is " << msg << ": "
+            << "[" << (*dloc).getFilename() << ":" << dloc.getLine() << "]";
+      } else {
+        ERR << "Antecedent is " << msg;
+      };
+      return; // return early since conseq is unreachable
     }
+
     if (VacuityCheckOpt == VacCheckOptions::ANTE) {
       return; // don't need to process conseq
     }
-    Expr e = boolop::lneg(conseq);
+
+    Expr nconseq = boolop::lneg(conseq);
+    if (!UseIncVacSat) {
+      nconseq = boolop::land(ante, nconseq);
+    }
     Stats::resume("opsem.incbmc");
-    tribool conseqRes = solveWithConstraints(e, true /* incremental */);
+    auto conseqRes =
+        solveWithConstraints(nconseq, UseIncVacSat /* incremental */);
     Stats::stop("opsem.incbmc");
-    if (conseqRes) {
-      LOG(
-          "opsem",
-          if (dloc) {
-            ERR << "Consequent is sat: "
-                << "[" << (*dloc).getFilename() << ":" << dloc.getLine() << "]";
-          } else { ERR << "Consequent is sat"; });
-    } else {
+    if (!conseqRes) {
       LOG(
           "opsem",
           if (dloc) {
@@ -633,6 +638,14 @@ public:
                  << "[" << (*dloc).getFilename() << ":" << dloc.getLine()
                  << "]";
           } else { INFO << "Assertion passed"; });
+    } else {
+      auto msg = conseqRes ? "sat" : "unknown";
+      LOG(
+          "opsem",
+          if (dloc) {
+            ERR << "Consequent is " << msg << ": "
+                << "[" << (*dloc).getFilename() << ":" << dloc.getLine() << "]";
+          } else { ERR << "Consequent is " << msg; });
     }
   }
 
@@ -642,7 +655,7 @@ public:
     Expr ante = lookup(*CS.getArgument(0));
     Expr conseq = lookup(*CS.getArgument(1));
     const llvm::DebugLoc &dloc = I->getDebugLoc();
-    visitAssert(ante, conseq, dloc);
+    doAssert(ante, conseq, dloc);
   }
 
   boost::tribool solveWithConstraints(const Expr &solveFor,
@@ -664,7 +677,7 @@ public:
   void visitAssertStmt(CallSite CS) {
     Expr conseq = lookup(*CS.getArgument(0));
     const DebugLoc &dloc = CS.getInstruction()->getDebugLoc();
-    visitAssert(m_ctx.alu().getTrue(), conseq, dloc);
+    doAssert(m_ctx.alu().getTrue(), conseq, dloc);
   }
 
   void visitFatPointerInstr(CallSite CS) {

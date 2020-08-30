@@ -533,10 +533,10 @@ public:
       else if (f->getName().startswith("sea.is_dereferenceable")) {
         visitIsDereferenceable(CS);
       } else if (f->getName().startswith(("sea.assert.if"))) {
-        visitAssertIf(CS);
+        visitVerifierAssertIfCall(CS);
       } else if (f->getName().startswith(("verifier.assert"))) {
         // this deals with both assert and assert.not stmts
-        visitAssertStmt(CS);
+        visitVerifierAssertCall(CS);
       } else if (f->getName().startswith("smt.")) {
         visitSmtCall(CS);
       } else if (fatptr_intrnsc_re.match(f->getName())) {
@@ -603,18 +603,18 @@ public:
     // if ante is unsat then report false and bail out
     if (anteRes) {
       if (dloc) {
-        INFO << "Vacuity passed: "
+        INFO << "vacuity passed: "
              << "[" << (*dloc).getFilename() << ": " << dloc.getLine() << "]";
       } else {
-        INFO << "Vacuity passed: " << I;
+        INFO << "vacuity passed: " << I;
       };
     } else {
       auto msg = !anteRes ? "unsat" : "unknown";
       if (dloc) {
-        ERR << "Antecedent is " << msg << ": "
+        ERR << "vacuity failed with " << msg << ": "
             << "[" << (*dloc).getFilename() << ": " << dloc.getLine() << "]";
       } else {
-        ERR << "Antecedent is " << msg << ": " << I;
+        ERR << "vacuity failed with " << msg << ": " << I;
       };
       return; // return early since conseq is unreachable
     }
@@ -635,22 +635,22 @@ public:
       LOG(
           "opsem",
           if (dloc) {
-            INFO << "Assertion passed: "
+            INFO << "assertion passed: "
                  << "[" << (*dloc).getFilename() << ":" << dloc.getLine()
                  << "]";
-          } else { INFO << "Assertion passed: " << I; });
+          } else { INFO << "assertion passed: " << I; });
     } else {
       auto msg = conseqRes ? "sat" : "unknown";
       LOG(
           "opsem",
           if (dloc) {
-            ERR << "Consequent is " << msg << ": "
+            ERR << "assertion failed with " << msg << ": "
                 << "[" << (*dloc).getFilename() << ":" << dloc.getLine() << "]";
-          } else { ERR << "Consequent is " << msg << " :" << I; });
+          } else { ERR << "assertion failed with " << msg << " :" << I; });
     }
   }
 
-  void visitAssertIf(CallSite CS) {
+  void visitVerifierAssertIfCall(CallSite CS) {
     // NOTE: sea.assert.if.not is not supported
     Expr ante = lookup(*CS.getArgument(0));
     Expr conseq = lookup(*CS.getArgument(1));
@@ -673,9 +673,13 @@ public:
     return m_ctx.solve();
   }
 
-  void visitAssertStmt(CallSite CS) {
-    Expr conseq = lookup(*CS.getArgument(0));
-    doAssert(m_ctx.alu().getTrue(), conseq, *CS.getInstruction());
+  void visitVerifierAssertCall(CallSite CS) {
+    auto &f = *getCalledFunction(CS);
+
+    Expr op = lookup(*CS.getArgument(0));
+    if (f.getName().equals("verifier.assert.assert.not"))
+      op = boolop::lneg(op);
+    doAssert(m_ctx.alu().getTrue(), op, *CS.getInstruction());
   }
 
   void visitFatPointerInstr(CallSite CS) {

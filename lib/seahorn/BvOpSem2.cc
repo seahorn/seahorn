@@ -632,21 +632,23 @@ public:
         solveWithConstraints(nconseq, UseIncVacSat /* incremental */);
     Stats::stop("opsem.incbmc");
     if (!conseqRes) {
-      LOG(
-          "opsem",
-          if (dloc) {
-            INFO << "assertion passed: "
-                 << "[" << (*dloc).getFilename() << ":" << dloc.getLine()
-                 << "]";
-          } else { INFO << "assertion passed: " << I; });
+      if (dloc) {
+        INFO << "assertion passed: "
+             << "[" << (*dloc).getFilename() << ":" << dloc.getLine() << "]";
+      } else {
+        INFO << "assertion passed: " << I;
+      }
     } else {
       auto msg = conseqRes ? "sat" : "unknown";
-      LOG(
-          "opsem",
-          if (dloc) {
-            ERR << "assertion failed with " << msg << ": "
-                << "[" << (*dloc).getFilename() << ":" << dloc.getLine() << "]";
-          } else { ERR << "assertion failed with " << msg << " :" << I; });
+      bool isBackEdge = I.hasMetadata("backedge_assert");
+      if (dloc) {
+        ERR << "assertion failed with " << msg << ": "
+            << "[" << (*dloc).getFilename() << ":" << dloc.getLine() << "]"
+            << (isBackEdge ? " backedge!!" : "");
+      } else {
+        ERR << "assertion failed with " << msg << " :" << I
+            << (isBackEdge ? " backedge!!" : "");
+      }
     }
   }
 

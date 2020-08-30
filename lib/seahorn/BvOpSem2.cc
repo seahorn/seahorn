@@ -677,7 +677,7 @@ public:
     auto &f = *getCalledFunction(CS);
 
     Expr op = lookup(*CS.getArgument(0));
-    if (f.getName().equals("verifier.assert.assert.not"))
+    if (f.getName().equals("verifier.assert.not"))
       op = boolop::lneg(op);
     doAssert(m_ctx.alu().getTrue(), op, *CS.getInstruction());
   }

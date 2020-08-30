@@ -826,10 +826,8 @@ class CutLoops(sea.LimitedCmd):
         if args.log is not None:
             for l in args.log.split (':'): argv.extend (['-log', l])
         if args.assert_backedge:
-            print('assert back edge = true')
             argv.append('--verifier-assert-on-backedge=true')
         else:
-            print('assert back edge = false')
             argv.append('--verifier-assert-on-backedge=false')
 
         return self.seappCmd.run (args, argv)

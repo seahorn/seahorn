@@ -1900,7 +1900,7 @@ Bv2OpSemContext::Bv2OpSemContext(Bv2OpSem &sem, SymStore &values,
   oneE = mkTerm<expr::mpz_class>(1UL, efac());
   m_z3.reset(new EZ3(efac()));
   m_z3_simplifier.reset(new ZSimplifier<EZ3>(*m_z3));
-  m_z3_solver.reset(new ZSolver<EZ3>(*m_z3));
+  m_z3_solver.reset(new ZSolver<EZ3>(*m_z3, "QF_ABV"));
   auto &params = m_z3_simplifier->params();
   params.set("ctrl_c", true);
   m_shouldSimplify = SimplifyExpr;

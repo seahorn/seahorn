@@ -592,22 +592,29 @@ public:
       return;
     }
     const llvm::DebugLoc &dloc = I.getDebugLoc();
+    bool isBackEdge = I.hasMetadata("backedge_assert");
     Stats::resume("opsem.vacuity");
     // The solving is done incrementally. We only
     // reset the solver once per assert instruction.
     // We then add expressions incrementally.
     // This works because this check never needs to
     // remove an expression from the solver.
-    auto anteRes = solveWithConstraints(ante);
+    boost::tribool anteRes = true;
+    if (isBackEdge)
+      // -- skip vacuity check for instrumented assertions
+      anteRes = solveWithConstraints(ante);
+
     Stats::stop("opsem.vacuity");
     // if ante is unsat then report false and bail out
     if (anteRes) {
-      if (dloc) {
-        INFO << "vacuity passed: "
-             << "[" << (*dloc).getFilename() << ":" << dloc.getLine() << "]";
-      } else {
-        INFO << "vacuity passed: " << I;
-      };
+      if (!isBackEdge) {
+        if (dloc) {
+          INFO << "vacuity passed: "
+               << "[" << (*dloc).getFilename() << ":" << dloc.getLine() << "]";
+        } else {
+          INFO << "vacuity passed: " << I;
+        };
+      }
     } else {
       auto msg = !anteRes ? "unsat" : "unknown";
       if (dloc) {
@@ -640,7 +647,6 @@ public:
       }
     } else {
       auto msg = conseqRes ? "sat" : "unknown";
-      bool isBackEdge = I.hasMetadata("backedge_assert");
       if (dloc) {
         ERR << "assertion failed with " << msg << ": "
             << "[" << (*dloc).getFilename() << ":" << dloc.getLine() << "]"

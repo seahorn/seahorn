@@ -19,10 +19,10 @@
 STATISTIC(NumBackEdges, "Number of back-edges");
 STATISTIC(NumBackEdgesUncut, "Number of back-edges not cut");
 
-static llvm::cl::opt<bool> VerifierAssertOnBackEdgeOpt(
-    "verifier-assert-on-backedge",
-    llvm::cl::desc("Add verifier assert on backedge to confirm loop unrolling "
-                   "is adequate"),
+static llvm::cl::opt<bool> AddAssertOnBackEdgeOpt(
+    "back-edge-cutter-with-asserts",
+    llvm::cl::desc("Add calls to verifier.assert on back-edge to confirm loop "
+                   "unrolling is adequate"),
     llvm::cl::init(false));
 
 using namespace llvm;
@@ -73,16 +73,21 @@ static bool cutBackEdge(BasicBlock *src, BasicBlock *dst, Function &F,
     // -- change branch to unreachable because assume(false) above
     llvm::changeToUnreachable(const_cast<llvm::BranchInst *>(TI), false, false,
                               nullptr, nullptr);
+    if (AddAssertOnBackEdgeOpt)
+      WARN << "skipping a call to verifier.assert() on an unconditional branch";
     return true;
   } else {
     assert(TI->getSuccessor(0) == dst || TI->getSuccessor(1) == dst);
-    if (VerifierAssertOnBackEdgeOpt) {
+    if (AddAssertOnBackEdgeOpt) {
       // insert verifier.assert{.not} function
       auto *assertFn = SBI.mkSeaBuiltinFn(TI->getSuccessor(0) == dst
                                               ? SeaBuiltinsOp::ASSERT_NOT
                                               : SeaBuiltinsOp::ASSERT,
                                           *F.getParent());
-      CallInst::Create(assertFn, TI->getCondition(), "", TI);
+      auto ci = CallInst::Create(assertFn, TI->getCondition(), "", TI);
+      MDNode *meta = MDNode::get(F.getContext(), None);
+      ci->setMetadata("backedge_assert", meta);
+      DOG(INFO << "add unwinding assert for a conditional back edge");
     }
 
     auto *assumeFn = SBI.mkSeaBuiltinFn(TI->getSuccessor(0) == dst

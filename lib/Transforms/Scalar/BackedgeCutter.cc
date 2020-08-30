@@ -54,6 +54,7 @@ char BackedgeCutter::ID = 0;
 /// taken.
 static bool cutBackEdge(BasicBlock *src, BasicBlock *dst, Function &F,
                         SeaBuiltinsInfo &SBI) {
+  DOG(INFO << "Cutting back-edge in " << F.getName() << "\n";);
   DOG(llvm::errs() << "Cutting back-edge:\n"
                    << *src << "\n\n to \n\n"
                    << *dst << "\n";);

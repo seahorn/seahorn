@@ -604,7 +604,7 @@ public:
     if (anteRes) {
       if (dloc) {
         INFO << "vacuity passed: "
-             << "[" << (*dloc).getFilename() << ": " << dloc.getLine() << "]";
+             << "[" << (*dloc).getFilename() << ":" << dloc.getLine() << "]";
       } else {
         INFO << "vacuity passed: " << I;
       };
@@ -612,7 +612,7 @@ public:
       auto msg = !anteRes ? "unsat" : "unknown";
       if (dloc) {
         ERR << "vacuity failed with " << msg << ": "
-            << "[" << (*dloc).getFilename() << ": " << dloc.getLine() << "]";
+            << "[" << (*dloc).getFilename() << ":" << dloc.getLine() << "]";
       } else {
         ERR << "vacuity failed with " << msg << ": " << I;
       };

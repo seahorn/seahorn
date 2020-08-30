@@ -184,6 +184,7 @@ void UnifyAssumesPass::processAssertInst(CallInst &CI, AllocaInst &flag) {
       m_SBI->mkSeaBuiltinFn(seahorn::SeaBuiltinsOp::ASSERT_IF, *M);
   CallInst *NewCI = CallInst::Create(assertIfFn, {ante, conseq});
   NewCI->setCallingConv(assertIfFn->getCallingConv());
+  NewCI->copyMetadata(CI);
   if (!CI.use_empty())
     CI.replaceAllUsesWith(NewCI);
   ReplaceInstWithInst(&CI, NewCI);

@@ -533,7 +533,7 @@ public:
       else if (f->getName().startswith("sea.is_dereferenceable")) {
         visitIsDereferenceable(CS);
       } else if (f->getName().startswith(("sea.assert.if"))) {
-        visitVerifierAssertIfCall(CS);
+        visitSeaAssertIfCall(CS);
       } else if (f->getName().startswith(("verifier.assert"))) {
         // this deals with both assert and assert.not stmts
         visitVerifierAssertCall(CS);
@@ -650,7 +650,7 @@ public:
     }
   }
 
-  void visitVerifierAssertIfCall(CallSite CS) {
+  void visitSeaAssertIfCall(CallSite CS) {
     // NOTE: sea.assert.if.not is not supported
     Expr ante = lookup(*CS.getArgument(0));
     Expr conseq = lookup(*CS.getArgument(1));

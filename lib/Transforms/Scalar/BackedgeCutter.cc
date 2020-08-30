@@ -88,6 +88,7 @@ static bool cutBackEdge(BasicBlock *src, BasicBlock *dst, Function &F,
       auto ci = CallInst::Create(assertFn, TI->getCondition(), "", TI);
       MDNode *meta = MDNode::get(F.getContext(), None);
       ci->setMetadata("backedge_assert", meta);
+      ci->setDebugLoc(TI->getDebugLoc());
       DOG(INFO << "add unwinding assert for a conditional back edge");
     }
 

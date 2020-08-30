@@ -10,6 +10,25 @@ import atexit
 import tempfile
 import shutil
 
+
+def add_bool_argument(parser, name, default=False,
+                      help=None, dest=None, **kwargs):
+    """
+    Add boolean option that can be turned on and off
+    """
+    import argparse
+    dest_name = dest if dest else name
+    mutex_group = parser.add_mutually_exclusive_group(required=False)
+    mutex_group.add_argument('--' + name, dest=dest_name, type=str2bool,
+                             nargs='?', const=True, help=help,
+                             metavar='BOOL', **kwargs)
+    mutex_group.add_argument('--no-' + name, dest=dest_name,
+                             type=lambda v: not(str2bool(v)),
+                             nargs='?', const=False,
+                             help=argparse.SUPPRESS, **kwargs)
+    parser.set_defaults(dest_name=default)
+
+
 def isexec (fpath):
     if fpath == None: return False
     return os.path.isfile(fpath) and os.access(fpath, os.X_OK)
@@ -149,14 +168,6 @@ class CliCmd (object):
         if work_dir is not None:
             out_file = os.path.join (work_dir, out_file)
         return out_file
-
-    def add_llvm_bool_arg(self, parser, name, default=False, help=None, dest=None):
-        dest_name = dest if dest else name
-        mutex_group = parser.add_mutually_exclusive_group(required=False)
-        mutex_group.add_argument('--' + name, dest=dest_name, type=str2bool, nargs='?', const=True, help=help)
-        mutex_group.add_argument('--no-' + name, dest=dest_name, type=lambda v:not(str2bool(v)),
-                                     nargs='?', const=False, help=help)
-        parser.set_defaults(**{dest_name:default})
 
     def main (self, argv):
         import argparse

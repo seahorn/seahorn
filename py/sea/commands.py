@@ -6,7 +6,7 @@ import shutil
 
 import subprocess
 
-from sea import add_in_args, add_in_out_args, add_tmp_dir_args, which, createWorkDir
+from sea import add_in_args, add_in_out_args, add_tmp_dir_args, add_bool_argument, which, createWorkDir
 
 # To disable printing of commands and some warnings
 quiet=False
@@ -375,8 +375,8 @@ class Seapp(sea.LimitedCmd):
         ap.add_argument ('--sea-dsa-log', dest='dsa_log', default=None,
                          metavar='STR', help='Log level for sea-dsa')
 
-        self.add_llvm_bool_arg(ap, 'with-arith-overflow', dest='with_arith_overflow',
-                               help='Allow arithmetic overflow intrinsics')
+        add_bool_argument(ap, 'with-arith-overflow', dest='with_arith_overflow',
+                          help='Allow arithmetic overflow intrinsics')
         add_in_out_args (ap)
         _add_S_arg (ap)
         return ap
@@ -683,7 +683,7 @@ class RemoveTargetFeatures(sea.LimitedCmd):
 
     def mk_arg_parser (self, ap):
         ap = super(RemoveTargetFeatures, self).mk_arg_parser (ap)
-        self.add_llvm_bool_arg(ap, 'rmtf', dest='rm_tar_feat', help='Remove target-features from attributes')
+        add_bool_argument(ap, 'rmtf', dest='rm_tar_feat', help='Remove target-features from attributes')
         add_in_out_args(ap)
         return ap
 
@@ -726,7 +726,7 @@ class WrapMem(sea.LimitedCmd):
         ap = super (WrapMem, self).mk_arg_parser (ap)
         ap.add_argument ('--no-wmem', dest='wmem_skip', help='Skipped wrap-mem pass',
                          default=False, action='store_true')
-        # self.add_llvm_bool_arg(ap, 'skip-wmem', dest='wmem_skip', help='Skipped wrap-mem pass')
+        # add_bool_argument(ap, 'skip-wmem', dest='wmem_skip', help='Skipped wrap-mem pass')
         add_in_out_args (ap)
         _add_S_arg (ap)
         return ap
@@ -798,11 +798,9 @@ class CutLoops(sea.LimitedCmd):
                          metavar='STR', help='Log level')
         ap.add_argument('--peel', dest='peel', default=0, metavar='NUM',
                         type=int, help='Number of iterations to peel loops')
-        ap.add_argument('--assert-on-backedge',
-                        dest='assert_backedge',
-                        default=False,
-                        action='store_true',
-                        help='Add verifier assert on backedge to confirm loop unrolling is adequate')
+        add_bool_argument(ap, 'assert-on-backedge', dest='assert_backedge',
+                          default=False,
+                          help='Add verifier.assert to check completeness of loop unrolling')
 
         add_in_out_args (ap)
         _add_S_arg (ap)
@@ -821,15 +819,17 @@ class CutLoops(sea.LimitedCmd):
 
         argv.append ('--horn-cut-loops')
         if args.llvm_asm: argv.append ('-S')
-        argv.extend (args.in_files)
+
+        if args.assert_backedge:
+            argv.append('--back-edge-cutter-with-asserts=true')
+        else:
+            argv.append('--back-edge-cutter-with-asserts=false')
+
 
         if args.log is not None:
             for l in args.log.split (':'): argv.extend (['-log', l])
-        if args.assert_backedge:
-            argv.append('--verifier-assert-on-backedge=true')
-        else:
-            argv.append('--verifier-assert-on-backedge=false')
 
+        argv.extend (args.in_files)
         return self.seappCmd.run (args, argv)
 
 

@@ -76,10 +76,6 @@ static bool cutBackEdge(BasicBlock *src, BasicBlock *dst, Function &F,
     return true;
   } else {
     assert(TI->getSuccessor(0) == dst || TI->getSuccessor(1) == dst);
-    auto *assumeFn = SBI.mkSeaBuiltinFn(TI->getSuccessor(0) == dst
-                                            ? SeaBuiltinsOp::ASSUME_NOT
-                                            : SeaBuiltinsOp::ASSUME,
-                                        *F.getParent());
     if (VerifierAssertOnBackEdgeOpt) {
       // insert verifier.assert{.not} function
       auto *assertFn = SBI.mkSeaBuiltinFn(TI->getSuccessor(0) == dst
@@ -88,6 +84,11 @@ static bool cutBackEdge(BasicBlock *src, BasicBlock *dst, Function &F,
                                           *F.getParent());
       CallInst::Create(assertFn, TI->getCondition(), "", TI);
     }
+
+    auto *assumeFn = SBI.mkSeaBuiltinFn(TI->getSuccessor(0) == dst
+                                            ? SeaBuiltinsOp::ASSUME_NOT
+                                            : SeaBuiltinsOp::ASSUME,
+                                        *F.getParent());
     CallInst::Create(assumeFn, TI->getCondition(), "", TI);
 
     llvm::for_each(dst->phis(),

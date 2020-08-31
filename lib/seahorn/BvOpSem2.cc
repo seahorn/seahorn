@@ -586,6 +586,42 @@ public:
     setValue(*CS.getInstruction(), res);
   }
 
+  /// Report outcome of vacuity and incremental assertion checking
+  void reportDoAssert(char *tag, const Instruction &I, boost::tribool res,
+                      bool expected) {
+
+    llvm::SmallString<256> msg;
+    llvm::raw_svector_ostream out(msg);
+
+    bool isGood = false;
+
+    if (res) {
+      isGood = expected == true;
+    } else if (!res) {
+      isGood = expected == false;
+    } else {
+      isGood = false;
+    }
+
+    out << tag;
+    out << (isGood ? " passed " : " failed ");
+
+    out << "(" << (res ? "sat" : (!res ? "unsat" : "unknown")) << ") ";
+
+    auto dloc = I.getDebugLoc();
+    if (dloc) {
+      out << dloc->getFilename() << ":" << dloc->getLine() << "]";
+    } else {
+      out << I;
+    }
+
+    if (I.hasMetadata("backedge_assert")) {
+      out << " backedge!!";
+    }
+
+    (isGood ? INFO : ERR) << out.str();
+  }
+
   void doAssert(Expr ante, Expr conseq, const Instruction &I) {
     ScopedStats __stats__("opsem.assert");
     if (VacuityCheckOpt == VacCheckOptions::NONE) {
@@ -608,21 +644,10 @@ public:
     // if ante is unsat then report false and bail out
     if (anteRes) {
       if (!isBackEdge) {
-        if (dloc) {
-          INFO << "vacuity passed: "
-               << "[" << (*dloc).getFilename() << ":" << dloc.getLine() << "]";
-        } else {
-          INFO << "vacuity passed: " << I;
-        };
+        reportDoAssert("vacuity", I, anteRes, true);
       }
     } else {
-      auto msg = !anteRes ? "unsat" : "unknown";
-      if (dloc) {
-        ERR << "vacuity failed with " << msg << ": "
-            << "[" << (*dloc).getFilename() << ":" << dloc.getLine() << "]";
-      } else {
-        ERR << "vacuity failed with " << msg << ": " << I;
-      };
+      reportDoAssert("vacuity", I, anteRes, true);
       return; // return early since conseq is unreachable
     }
 
@@ -634,28 +659,12 @@ public:
     if (!UseIncVacSat) {
       nconseq = boolop::land(ante, nconseq);
     }
+
     Stats::resume("opsem.incbmc");
     auto conseqRes =
-        solveWithConstraints(nconseq, UseIncVacSat /* incremental */);
+        solveWithConstraints(nconseq, !isBackEdge && UseIncVacSat /* incremental */);
     Stats::stop("opsem.incbmc");
-    if (!conseqRes) {
-      if (dloc) {
-        INFO << "assertion passed: "
-             << "[" << (*dloc).getFilename() << ":" << dloc.getLine() << "]";
-      } else {
-        INFO << "assertion passed: " << I;
-      }
-    } else {
-      auto msg = conseqRes ? "sat" : "unknown";
-      if (dloc) {
-        ERR << "assertion failed with " << msg << ": "
-            << "[" << (*dloc).getFilename() << ":" << dloc.getLine() << "]"
-            << (isBackEdge ? " backedge!!" : "");
-      } else {
-        ERR << "assertion failed with " << msg << " :" << I
-            << (isBackEdge ? " backedge!!" : "");
-      }
-    }
+    reportDoAssert("assertion", I, conseqRes, false);
   }
 
   void visitSeaAssertIfCall(CallSite CS) {

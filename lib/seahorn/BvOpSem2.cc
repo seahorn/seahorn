@@ -600,7 +600,7 @@ public:
     // This works because this check never needs to
     // remove an expression from the solver.
     boost::tribool anteRes = true;
-    if (isBackEdge)
+    if (!isBackEdge)
       // -- skip vacuity check for instrumented assertions
       anteRes = solveWithConstraints(ante);
 

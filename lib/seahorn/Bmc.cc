@@ -19,12 +19,13 @@ static llvm::cl::opt<std::string>
                  cl::init("default"));
 static llvm::cl::opt<std::string>
     BmcSmtLogic("horn-bmc-logic", llvm::cl::desc("SMT-LIB logic to pass to Z3"),
-                 cl::init("ALL"));
+                cl::init("ALL"));
 
 namespace seahorn {
 BmcEngine::BmcEngine(OperationalSemantics &sem, EZ3 &zctx)
     : m_sem(sem), m_efac(sem.efac()), m_result(boost::indeterminate),
-      m_cpg(nullptr), m_fn(nullptr), m_smt_solver(zctx, BmcSmtLogic.c_str()), m_ctxState(m_efac) {
+      m_cpg(nullptr), m_fn(nullptr), m_smt_solver(zctx, BmcSmtLogic.c_str()),
+      m_ctxState(m_efac) {
 
   z3n_set_param(":model.compact", false);
   if (BmcSmtTactic != "default")
@@ -102,6 +103,14 @@ void BmcEngine::reset() {
 void BmcEngine::unsatCore(ExprVector &out) {
   const bool simplify = true;
   bmc_impl::unsat_core(m_smt_solver, m_side, simplify, out);
+}
+
+/// output current path condition in SMT-LIB2 format
+raw_ostream &BmcEngine::toSmtLib(raw_ostream &out) {
+  if (BmcSmtLogic != "ALL")
+    out << "(set-logic " << BmcSmtLogic << ")\n";
+  encode();
+  return m_smt_solver.toSmtLib(out);
 }
 
 BmcTrace BmcEngine::getTrace() {

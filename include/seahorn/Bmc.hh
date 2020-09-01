@@ -93,10 +93,7 @@ public:
   virtual void unsatCore(ExprVector &out);
 
   /// output current path condition in SMT-LIB2 format
-  virtual raw_ostream &toSmtLib(raw_ostream &out) {
-    encode();
-    return m_smt_solver.toSmtLib(out);
-  }
+  virtual raw_ostream &toSmtLib(raw_ostream &out); 
 
   /// returns the latest result from solve()
   boost::tribool result() { return m_result; }

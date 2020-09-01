@@ -1105,6 +1105,19 @@ public:
                         getCarryBitPadWidth(I)));
       }
     } break;
+    case Intrinsic::uadd_sat: {
+      Type *ty = I.getOperand(0)->getType();
+      Expr op0, op1;
+      GetOpExprs(I, op0, op1);
+      assert(op0 && op1);
+      Expr addRes = m_ctx.alu().doAdd(op0, op1, ty->getScalarSizeInBits());
+      Expr isNoOverflow = m_ctx.alu().IsUaddNoOverflow(op0, op1, ty->getScalarSizeInBits());
+      assert(addRes && isNoOverflow);
+      Expr maxVal = m_ctx.alu().si(~0UL, ty->getScalarSizeInBits());
+      Expr res = boolop::lite(isNoOverflow, addRes, maxVal);
+      ERR << "Got value of " << I << " as " << *res << "\n";
+      setValue(I, res);
+    } break;
     case Intrinsic::ssub_with_overflow: {
       Type *ty = I.getOperand(0)->getType();
       Expr op0;

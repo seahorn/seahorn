@@ -264,6 +264,8 @@ template <> raw_ostream &BmcTrace::print(raw_ostream &out) {
         } else if (f && f->getName().equals("shadow.mem.store")) {
           shadow_mem = true;
         }
+      } else if (isa<PHINode>(I)) {
+        shadow_mem = I.hasMetadata("shadow.mem");
       }
 
       if (print_inst) {

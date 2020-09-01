@@ -1115,7 +1115,6 @@ public:
       assert(addRes && isNoOverflow);
       Expr maxVal = m_ctx.alu().si(~0UL, ty->getScalarSizeInBits());
       Expr res = boolop::lite(isNoOverflow, addRes, maxVal);
-      ERR << "Got value of " << I << " as " << *res << "\n";
       setValue(I, res);
     } break;
     case Intrinsic::ssub_with_overflow: {

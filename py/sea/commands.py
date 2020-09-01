@@ -931,6 +931,8 @@ class FatBoundsCheck(sea.LimitedCmd):
         ap = super (FatBoundsCheck, self).mk_arg_parser (ap)
         ap.add_argument('--log', dest='log', default=None,
                         metavar='STR', help='Log level')
+        ap.add_argument('--no-fat-fns', dest='no_fat_fns', default=None,
+                        type=str, metavar='STR,STR,...', help='List of functions to NOT instrument')
         add_in_out_args (ap)
         _add_S_arg (ap)
         return ap
@@ -944,6 +946,10 @@ class FatBoundsCheck(sea.LimitedCmd):
         if args.out_file is not None: argv.extend (['-o', args.out_file])
 
         argv.append ('-fat-bnd-check')
+
+        if args.no_fat_fns is not None:
+            argv.append('--no-bound-check-fns={fns}'.format(fns=args.no_fat_fns));
+
         # slots=false ==> use is_dereferenceable(...) instrumentation
         argv.append('--horn-bnd-chk-slots=false')
         if args.llvm_asm: argv.append ('-S')

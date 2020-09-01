@@ -42,6 +42,11 @@ Based on BufferBoundsCheck from LLVM project
 #include "seahorn/config.h"
 using namespace llvm;
 
+static llvm::cl::list<std::string> NoInstrumentFunctionNames(
+    "no-bound-check-fns",
+    llvm::cl::desc("Functions for which to skip bound check"),
+    llvm::cl::ZeroOrMore, llvm::cl::CommaSeparated);
+
 #define DEBUG_TYPE "sea-bounds-checking"
 
 #define SEA_DSA_ALIAS "sea_dsa_alias"
@@ -190,7 +195,8 @@ bool FatBufferBoundsCheck::instrument(Value *Ptr, Value *InstVal,
 
   if (!ObjSizeEval->bothKnown(SizeOffset)) {
     if (auto *GV = dyn_cast<GlobalVariable>(Ptr)) {
-      // stderr is usually external and ObjSizeEval refuses to determine its size
+      // stderr is usually external and ObjSizeEval refuses to determine its
+      // size
       if (GV->getName().equals("stderr")) {
         LOG("fat-bnd-check", errs() << "not instrumenting access to stderr\n";);
         return false;
@@ -380,6 +386,13 @@ bool FatBufferBoundsCheck::instrumentGep(GetElementPtrInst *Ptr,
 }
 
 bool FatBufferBoundsCheck::runOnFunction(Function &F) {
+  if (std::find(std::begin(NoInstrumentFunctionNames),
+                std::end(NoInstrumentFunctionNames),
+                F.getName()) != std::end(NoInstrumentFunctionNames)) {
+    DOG(INFO << "skipping instrumentation of " << F.getName(););
+    return false;
+  }
+
   auto *M = F.getParent();
   auto &C = F.getContext();
 

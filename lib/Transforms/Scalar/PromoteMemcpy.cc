@@ -61,6 +61,9 @@ bool PromoteMemcpy::simplifyMemCpy(MemCpyInst *MI) {
   auto DstAlign = getKnownAlignment(MI->getDest(), *m_DL, MI, m_AC, m_DT);
   auto SrcAlign = getKnownAlignment(MI->getSource(), *m_DL, MI, m_AC, m_DT);
 
+#if 0
+  // -- alignment on memcpy should be trusted, alignment on arguments is not important
+  // -- at most should check that alignment of src and dst is the same
   if (MI->getSourceAlignment() != SrcAlign) {
     PMCPY_LOG(WARN << "unhandled SOURCE alignment. Skipping memcpy: " << *MI;);
     return false;
@@ -69,6 +72,7 @@ bool PromoteMemcpy::simplifyMemCpy(MemCpyInst *MI) {
     PMCPY_LOG(WARN << "unhandled DEST alignment. Skipping memcpy: " << *MI;);
     return false;
   }
+#endif
 
   // skip non-constant length memcpy()
   ConstantInt *MemOpLength = dyn_cast<ConstantInt>(MI->getLength());

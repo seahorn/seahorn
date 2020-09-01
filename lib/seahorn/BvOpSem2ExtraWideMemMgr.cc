@@ -210,8 +210,7 @@ public:
 
     // -- have a good region, return pointer to it
     return PtrTy(mkStackPtr(region.second).getBase(),
-                 m_ctx.alu().si(0UL, ptrSzInBits()),
-                 bytes);
+                 m_ctx.alu().si(0UL, ptrSzInBits()), bytes);
   }
 
   PtrTy mkStackPtr(unsigned int offset) {
@@ -491,16 +490,28 @@ public:
 
   MemValTy MemSet(PtrTy base, Expr _val, unsigned int len, MemValTy mem,
                   uint32_t align) {
+    Expr offsetMem = mem.getOffset();
+
+    // -- memset(0) is a common idiom to override everything, including pointers, with 0
+    // -- Thus, we must clear an offset field as well
+    if (m_ctx.alu().isNum(_val) && m_ctx.alu().toNum(_val) == 0)
+      offsetMem =
+        m_offset.MemSet(getAddressable(base), _val, len, offsetMem, align);
     return MemValTy(
         m_main.MemSet(getAddressable(base), _val, len, mem.getRaw(), align),
-        mem.getOffset(), mem.getSize());
+        offsetMem, mem.getSize());
   }
 
   MemValTy MemSet(PtrTy base, Expr _val, Expr len, MemValTy mem,
                   uint32_t align) {
+    Expr offsetMem = mem.getOffset();
+    if (m_ctx.alu().isNum(_val) && m_ctx.alu().toNum(_val) == 0)
+      offsetMem =
+          m_offset.MemSet(getAddressable(base), _val, len, offsetMem, align);
+
     return MemValTy(
         m_main.MemSet(getAddressable(base), _val, len, mem.getRaw(), align),
-        mem.getOffset(), mem.getSize());
+        offsetMem, mem.getSize());
   }
 
   MemValTy MemCpy(PtrTy dPtr, PtrTy sPtr, unsigned int len,

@@ -585,6 +585,10 @@ int main(int argc, char **argv) {
           llvm::createGlobalDCEPass()); // kill unused internal global
       pm_wrapper.add(seahorn::createPromoteMallocPass());
       pm_wrapper.add(seahorn::createRemoveUnreachableBlocksPass());
+
+      // -- Promote memcpy to loads-and-stores for easier alias analysis.
+      // -- inline can help with alignment which will help this pass
+      pm_wrapper.add(seahorn::createPromoteMemcpyPass());
     }
 
     // -- EVERYTHING IS MORE EXPENSIVE AFTER INLINING

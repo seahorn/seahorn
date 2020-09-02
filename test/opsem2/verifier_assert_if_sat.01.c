@@ -1,5 +1,5 @@
 //; RUN: %sea "%s" 2>&1 | OutputCheck %s
-// CHECK: ^Error: Consequent is sat
+// CHECK: ^Error: assertion failed
 // CHECK: ^sat$
 
 #include "seahorn/seahorn.h"

@@ -492,11 +492,12 @@ public:
                   uint32_t align) {
     Expr offsetMem = mem.getOffset();
 
-    // -- memset(0) is a common idiom to override everything, including pointers, with 0
+    // -- memset(0) is a common idiom to override everything, including
+    // pointers, with 0
     // -- Thus, we must clear an offset field as well
     if (m_ctx.alu().isNum(_val) && m_ctx.alu().toNum(_val) == 0)
       offsetMem =
-        m_offset.MemSet(getAddressable(base), _val, len, offsetMem, align);
+          m_offset.MemSet(getAddressable(base), _val, len, offsetMem, align);
     return MemValTy(
         m_main.MemSet(getAddressable(base), _val, len, mem.getRaw(), align),
         offsetMem, mem.getSize());

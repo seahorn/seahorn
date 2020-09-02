@@ -112,6 +112,7 @@ public:
       AU.addRequired<TargetLibraryInfoWrapperPass>();
       AU.addRequired<LoopInfoWrapperPass>(); // used by AllocWrapInfo
       AU.addRequired<seadsa::AllocWrapInfo>();
+      AU.addRequired<seadsa::DsaLibFuncInfo>();
     }
   }
 

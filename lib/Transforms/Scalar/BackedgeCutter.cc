@@ -47,6 +47,37 @@ char BackedgeCutter::ID = 0;
 
 } // namespace
 
+static void createConditionalAssert(BranchInst &TI, Function &F,
+                                    BasicBlock &dst, SeaBuiltinsInfo &SBI) {
+  // insert verifier.assert{.not} function
+  auto *assertFn =
+      SBI.mkSeaBuiltinFn(TI.getSuccessor(0) == &dst ? SeaBuiltinsOp::ASSERT_NOT
+                                                    : SeaBuiltinsOp::ASSERT,
+                         *F.getParent());
+  auto ci = CallInst::Create(assertFn, TI.getCondition(), "", &TI);
+  MDNode *meta = MDNode::get(F.getContext(), None);
+  ci->setMetadata("backedge_assert", meta);
+  // -- a hack to locate a near-by debug location
+  if (TI.getDebugLoc())
+    ci->setDebugLoc(TI.getDebugLoc());
+  else if (auto condInst = dyn_cast<Instruction>(TI.getCondition())) {
+    ci->setDebugLoc(condInst->getDebugLoc());
+  }
+}
+
+static void createUnconditionalAssert(BranchInst &TI, Function &F,
+                                      BasicBlock &dst, SeaBuiltinsInfo &SBI) {
+  // insert verifier.assert function
+  auto *assertFn = SBI.mkSeaBuiltinFn(SeaBuiltinsOp::ASSERT, *F.getParent());
+  auto ci = CallInst::Create(assertFn, ConstantInt::getFalse(F.getContext()),
+                             "", &TI);
+  MDNode *meta = MDNode::get(F.getContext(), None);
+  ci->setMetadata("backedge_assert", meta);
+  // -- a hack to locate a near-by debug location
+  if (TI.getDebugLoc())
+    ci->setDebugLoc(TI.getDebugLoc());
+}
+
 /// Remove a back-edge
 ///
 /// If the backe-edge is unconditional, replace with assume(false). If the
@@ -67,6 +98,10 @@ static bool cutBackEdge(BasicBlock *src, BasicBlock *dst, Function &F,
   }
 
   if (TI->isUnconditional()) {
+    if (AddAssertOnBackEdgeOpt) {
+      createUnconditionalAssert(*TI, F, *dst, SBI);
+      DOG(INFO << "add unwinding assert for a (un)conditional back edge");
+    }
     // -- call assume(false) which will get stuck
     auto *assumeFn = SBI.mkSeaBuiltinFn(SeaBuiltinsOp::ASSUME, *F.getParent());
     CallInst::Create(assumeFn, ConstantInt::getFalse(F.getContext()), "",
@@ -74,26 +109,11 @@ static bool cutBackEdge(BasicBlock *src, BasicBlock *dst, Function &F,
     // -- change branch to unreachable because assume(false) above
     llvm::changeToUnreachable(const_cast<llvm::BranchInst *>(TI), false, false,
                               nullptr, nullptr);
-    if (AddAssertOnBackEdgeOpt)
-      WARN << "skipping a call to verifier.assert() on an unconditional branch";
     return true;
   } else {
     assert(TI->getSuccessor(0) == dst || TI->getSuccessor(1) == dst);
     if (AddAssertOnBackEdgeOpt) {
-      // insert verifier.assert{.not} function
-      auto *assertFn = SBI.mkSeaBuiltinFn(TI->getSuccessor(0) == dst
-                                              ? SeaBuiltinsOp::ASSERT_NOT
-                                              : SeaBuiltinsOp::ASSERT,
-                                          *F.getParent());
-      auto ci = CallInst::Create(assertFn, TI->getCondition(), "", TI);
-      MDNode *meta = MDNode::get(F.getContext(), None);
-      ci->setMetadata("backedge_assert", meta);
-      // -- a hack to locate a near-by debug location
-      if (TI->getDebugLoc())
-        ci->setDebugLoc(TI->getDebugLoc());
-      else if (auto condInst = dyn_cast<Instruction>(TI->getCondition())) {
-        ci->setDebugLoc(condInst->getDebugLoc());
-      }
+      createConditionalAssert(*TI, F, *dst, SBI);
       DOG(INFO << "add unwinding assert for a conditional back edge");
     }
 

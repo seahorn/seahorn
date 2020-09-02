@@ -661,8 +661,8 @@ public:
     }
 
     Stats::resume("opsem.incbmc");
-    auto conseqRes =
-        solveWithConstraints(nconseq, !isBackEdge && UseIncVacSat /* incremental */);
+    auto conseqRes = solveWithConstraints(
+        nconseq, !isBackEdge && UseIncVacSat /* incremental */);
     Stats::stop("opsem.incbmc");
     reportDoAssert("assertion", I, conseqRes, false);
   }
@@ -1047,7 +1047,32 @@ public:
 
   void visitIntrinsicInst(IntrinsicInst &I) {
     switch (I.getIntrinsicID()) {
-    case Intrinsic::bswap: {
+    case Intrinsic::bswap:
+    case Intrinsic::expect:
+    case Intrinsic::ctpop:
+    case Intrinsic::ctlz:
+    case Intrinsic::cttz:
+
+      // -- unsupported intrinsics
+    case Intrinsic::stacksave:
+    case Intrinsic::stackrestore:
+    case Intrinsic::get_dynamic_area_offset:
+    case Intrinsic::returnaddress:
+    case Intrinsic::frameaddress:
+    case Intrinsic::prefetch:
+
+    case Intrinsic::pcmarker:
+    case Intrinsic::readcyclecounter:
+
+    case Intrinsic::eh_typeid_for:
+
+    case Intrinsic::flt_rounds:
+
+    case Intrinsic::lifetime_start:
+    case Intrinsic::lifetime_end: {
+      // -- use existing LLVM codegen to lower intrinsics into simpler
+      // instructions that we support
+
       BasicBlock::iterator me(&I);
       auto *parent = I.getParent();
       bool atBegin(parent->begin() == me);
@@ -1111,7 +1136,8 @@ public:
       GetOpExprs(I, op0, op1);
       assert(op0 && op1);
       Expr addRes = m_ctx.alu().doAdd(op0, op1, ty->getScalarSizeInBits());
-      Expr isNoOverflow = m_ctx.alu().IsUaddNoOverflow(op0, op1, ty->getScalarSizeInBits());
+      Expr isNoOverflow =
+          m_ctx.alu().IsUaddNoOverflow(op0, op1, ty->getScalarSizeInBits());
       assert(addRes && isNoOverflow);
       Expr maxVal = m_ctx.alu().si(~0UL, ty->getScalarSizeInBits());
       Expr res = boolop::lite(isNoOverflow, addRes, maxVal);

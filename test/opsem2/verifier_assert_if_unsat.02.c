@@ -1,6 +1,6 @@
 // RUN: %sea "%s" 2>&1 | OutputCheck %s
-// CHECK-NOT: ^Error: Antecedent is unsat
-// CHECK-NOT: ^Error: Consequent is sat
+// CHECK-NOT: ^Error: vacuity failed
+// CHECK-NOT: ^Error: assertion failed
 // CHECK: ^unsat$
 
 #include "seahorn/seahorn.h"

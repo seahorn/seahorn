@@ -1,8 +1,8 @@
 #pragma once
 
 #include "seahorn/Expr/Expr.hh"
-#include "seahorn/Expr/ExprOpBinder.hh"
 #include "seahorn/Expr/ExprLlvm.hh"
+#include "seahorn/Expr/ExprOpBinder.hh"
 #include "seahorn/Expr/Smt/ExprToZ.hh"
 #include "seahorn/Support/SeaDebug.h"
 #include "seahorn/Support/SeaLog.hh"
@@ -189,10 +189,26 @@ inline Z3_ast mk_bvop_core(z3::context &ctx, const expr::Operator &op,
     assert(in_width < out_width);
     return Z3_mk_zero_ext(ctx, out_width - in_width, zargs[0]);
   }
-  case BvOpKind::BAND:
-    return Z3_mk_bvand(ctx, zargs[0], zargs[1]);
-  case BvOpKind::BOR:
-    return Z3_mk_bvor(ctx, zargs[0], zargs[1]);
+  case BvOpKind::BAND: {
+    if (arity == 2)
+      return Z3_mk_bvand(ctx, zargs[0], zargs[1]);
+    Z3_ast res = zargs.back();
+    for (unsigned i = 1, sz = zargs.size(); i < sz; i++){
+      res = Z3_mk_bvand(ctx, zargs[sz - 1 - i], res);
+      assert(res && "Creating bvand failed");
+    }
+    return res;
+  }
+  case BvOpKind::BOR: {
+    if (arity == 2)
+      return Z3_mk_bvor(ctx, zargs[0], zargs[1]);
+    Z3_ast res = zargs.back();
+    for (unsigned i = 1, sz = zargs.size(); i < sz; i++) {
+      res = Z3_mk_bvor(ctx, zargs[sz - 1 - i], res);
+      assert(res && "Creating bvor failed");
+    }
+    return res;
+  }
   case BvOpKind::BMUL:
     return Z3_mk_bvmul(ctx, zargs[0], zargs[1]);
   case BvOpKind::BSUB:
@@ -248,7 +264,8 @@ inline Z3_ast mk_bvop_core(z3::context &ctx, const expr::Operator &op,
   case BvOpKind::SSUB_NO_UNDERFLOW:
     return Z3_mk_bvsub_no_underflow(ctx, zargs[0], zargs[1], true /* signed */);
   case BvOpKind::USUB_NO_UNDERFLOW:
-    return Z3_mk_bvsub_no_underflow(ctx, zargs[0], zargs[1], false /* signed */);
+    return Z3_mk_bvsub_no_underflow(ctx, zargs[0], zargs[1],
+                                    false /* signed */);
   case BvOpKind::SMUL_NO_OVERFLOW:
     return Z3_mk_bvmul_no_overflow(ctx, zargs[0], zargs[1], true /* signed */);
   case BvOpKind::UMUL_NO_OVERFLOW:
@@ -259,8 +276,8 @@ inline Z3_ast mk_bvop_core(z3::context &ctx, const expr::Operator &op,
     if (arity == 2)
       return Z3_mk_concat(ctx, zargs[0], zargs[1]);
     Z3_ast res = zargs.back();
-    for (unsigned sz = zargs.size(), i = sz - 2; i < sz; --i) {
-      res = Z3_mk_concat(ctx, zargs[i], res);
+    for (unsigned i = 1, sz = zargs.size(); i < sz; i++) {
+      res = Z3_mk_concat(ctx, zargs[sz - 1 - i], res);
       assert(res && "Creating concat failed");
     }
     return res;
@@ -269,14 +286,14 @@ inline Z3_ast mk_bvop_core(z3::context &ctx, const expr::Operator &op,
     if (arity == 2)
       return Z3_mk_bvadd(ctx, zargs[0], zargs[1]);
     Z3_ast res = zargs.back();
-    for (unsigned sz = zargs.size(), i = sz - 2; i < sz; --i) {
-      res = Z3_mk_bvadd(ctx, zargs[i], res);
-      assert(res && "Creating bvadd failed");
-    }
+    for (unsigned i = 1, sz = zargs.size(); i < sz; i++) {
+        res = Z3_mk_bvadd(ctx, zargs[sz - i - 1], res);
+        assert(res && "Creating bvadd failed");
+      }
     return res;
   }
   }
-return nullptr;
+  return nullptr;
 }
 
 } // namespace
@@ -371,9 +388,8 @@ z3::ast ExprToZ::marshal(const expr::Expr &_e, z3::context &ctx, C &cache,
           pinned_args.resize(e->arity());
 
           unsigned pos = 0;
-        for (auto it = ++(e->args_begin()),
-                                  end = e->args_end();
-               it != end; ++it) {
+          for (auto it = ++(e->args_begin()), end = e->args_end(); it != end;
+               ++it) {
             z3::ast a(marshal(*it, ctx, cache, seen));
             pinned_args.push_back(a);
             args[pos++] = a;
@@ -402,7 +418,8 @@ z3::ast ExprToZ::marshal(const expr::Expr &_e, z3::context &ctx, C &cache,
       auto v = cache.insert({e, ast});
       // global cache is one-to-one, but mapping from Expr to z3::ast is not!
       // we keep extra mappings in local cache
-      if (!v.second) seen.insert({e, ast});
+      if (!v.second)
+        seen.insert({e, ast});
       continue;
     }
 
@@ -486,7 +503,8 @@ z3::ast ExprToZ::marshal(const expr::Expr &_e, z3::context &ctx, C &cache,
       todo.push_back(arg);
     }
     if (todo.size() > sz) {
-      LOG("expr2z", errs() << "TODO arguments are: \n";
+      LOG(
+          "expr2z", errs() << "TODO arguments are: \n";
           for (unsigned i = sz; i < todo.size();
                ++i) { errs() << i << ": " << *todo[i] << "\n"; });
       continue;

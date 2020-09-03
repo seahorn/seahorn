@@ -350,6 +350,11 @@ int main(int argc, char **argv) {
     pass_manager.add(seahorn::createNondetInitPass());
   pass_manager.add(seahorn::createSeaDsaShadowMemPass());
 
+  // Preceding passes may introduce overflow intrinsics. This is undesirable if
+  // we are not in BMC mode.
+  if (!Bmc)
+    pass_manager.add(seahorn::createLowerArithWithOverflowIntrinsicsPass());
+
   pass_manager.add(new seahorn::RemoveUnreachableBlocksPass());
   pass_manager.add(seahorn::createStripLifetimePass());
   pass_manager.add(seahorn::createDeadNondetElimPass());

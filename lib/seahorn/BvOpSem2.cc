@@ -1073,18 +1073,28 @@ public:
       // -- use existing LLVM codegen to lower intrinsics into simpler
       // instructions that we support
 
+      bool isInFilter = m_sem.isInFilter(I);
       BasicBlock::iterator me(&I);
+      // -- remember the following instruction
+      auto nextInst = me;
+      ++nextInst;
+
       auto *parent = I.getParent();
       bool atBegin(parent->begin() == me);
       if (!atBegin)
         --me;
       IntrinsicLowering IL(m_sem.getDataLayout());
       IL.LowerIntrinsicCall(&I);
-      if (atBegin) {
-        m_ctx.setInstruction(*parent->begin());
-      } else {
-        m_ctx.setInstruction(*me);
+      auto top = atBegin ? &*parent->begin() : &*me;
+      m_ctx.setInstruction(*top);
+
+      // -- add newly inserted instructions to COI, if I was in COI
+      if (isInFilter) {
+        for (auto it = BasicBlock::iterator(top); it != nextInst; ++it) {
+          m_sem.addToFilter(*it);
+        }
       }
+
     } break;
     case Intrinsic::sadd_with_overflow: {
       Type *ty = I.getOperand(0)->getType();

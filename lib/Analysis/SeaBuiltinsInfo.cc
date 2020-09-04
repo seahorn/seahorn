@@ -20,6 +20,8 @@ using namespace llvm;
 #define VERIFIER_ASSERT_NOT_FN "verifier.assert.not"
 #define SEA_IS_DEREFERENCEABLE "sea.is_dereferenceable"
 #define SEA_ASSERT_IF "sea.assert.if"
+#define SEA_BRANCH_SENTINEL "sea.branch_sentinel"
+
 SeaBuiltinsOp
 seahorn::SeaBuiltinsInfo::getSeaBuiltinOp(const llvm::CallBase &cb) const {
   using SBIOp = SeaBuiltinsOp;
@@ -36,6 +38,7 @@ seahorn::SeaBuiltinsInfo::getSeaBuiltinOp(const llvm::CallBase &cb) const {
       .Case(SEA_ASSERT_IF, SBIOp::ASSERT_IF)
       .Case(VERIFIER_ASSERT_FN, SBIOp::ASSERT)
       .Case(VERIFIER_ASSERT_NOT_FN, SBIOp::ASSERT_NOT)
+      .Case(SEA_BRANCH_SENTINEL, SBIOp::BRANCH_SENTINEL)
       .Default(SBIOp::UNKNOWN);
 }
 
@@ -59,6 +62,8 @@ llvm::Function *SeaBuiltinsInfo::mkSeaBuiltinFn(SeaBuiltinsOp op,
   case SBIOp::ASSERT:
   case SBIOp::ASSERT_NOT:
     return mkAssertFn(M, op);
+  case SBIOp::BRANCH_SENTINEL:
+    return mkBranchSentinelFn(M);
   }
   llvm_unreachable(nullptr);
 }
@@ -165,6 +170,20 @@ Function *SeaBuiltinsInfo::mkAssertFn(llvm::Module &M, SeaBuiltinsOp op) {
   }
   auto &C = M.getContext();
   auto FC = M.getOrInsertFunction(name, Type::getVoidTy(C), Type::getInt1Ty(C));
+  auto *FN = dyn_cast<Function>(FC.getCallee());
+  if (FN) {
+    FN->setOnlyAccessesInaccessibleMemory();
+    FN->setDoesNotThrow();
+    FN->setDoesNotFreeMemory();
+    FN->setDoesNotRecurse();
+  }
+  return FN;
+}
+
+Function *SeaBuiltinsInfo::mkBranchSentinelFn(llvm::Module &M) {
+  auto &C = M.getContext();
+  auto FC = M.getOrInsertFunction(SEA_BRANCH_SENTINEL, Type::getVoidTy(C),
+                                  Type::getInt1Ty(C));
   auto *FN = dyn_cast<Function>(FC.getCallee());
   if (FN) {
     FN->setOnlyAccessesInaccessibleMemory();

@@ -192,6 +192,7 @@ public:
     m_externalNames.insert("__VERIFIER_assume");
     m_externalNames.insert("__VERIFIER_error");
 
+    m_externalNames.insert("__seahorn_get_value_i1");
     m_externalNames.insert("__seahorn_get_value_i8");
     m_externalNames.insert("__seahorn_get_value_i16");
     m_externalNames.insert("__seahorn_get_value_i32");

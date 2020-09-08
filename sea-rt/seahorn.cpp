@@ -29,6 +29,16 @@ void __VERIFIER_assume(bool x) {
   assert(x);
 }
 
+bool __seahorn_get_value_i1(int ctr, bool *g_arr, int g_arr_sz) {
+  sealog("[sea] __seahorn_get_value_i1(%d, %d)\n", ctr, g_arr_sz);
+  if (ctr >= g_arr_sz) {
+    sealog("\tout-of-bounds index\n");
+    return 0;
+  } else {
+    return g_arr[ctr];
+  }
+}
+
 #define get_value_helper(ctype, llvmtype)                               \
   ctype __seahorn_get_value_ ## llvmtype (int ctr, ctype *g_arr, int g_arr_sz) { \
     sealog("[sea] __seahorn_get_value_(" #llvmtype ", %d, %d)\n", ctr, g_arr_sz); \

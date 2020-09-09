@@ -581,9 +581,7 @@ public:
     setValue(*CS.getInstruction(), res);
   }
 
-  void visitBranchSentinel(CallSite CS) {
-    // do nothing
-  }
+  void visitBranchSentinel(CallSite CS) {}
 
   void visitIsDereferenceable(CallSite CS) {
     Expr ptr = lookup(*CS.getArgument(0));

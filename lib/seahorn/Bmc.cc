@@ -30,10 +30,6 @@ BmcEngine::BmcEngine(OperationalSemantics &sem, EZ3 &zctx)
   z3n_set_param(":model.compact", false);
   if (BmcSmtTactic != "default")
     z3n_set_param(":tactic.default_tactic", BmcSmtTactic.c_str());
-
-  // ZParams<EZ3> params(zctx);
-  // params.set("tactic.default_tactic", "smtfd");
-  // m_smt_solver.set(params);
 }
 
 void BmcEngine::addCutPoint(const CutPoint &cp) {

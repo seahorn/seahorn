@@ -977,8 +977,8 @@ class AddBranchSentinel(sea.LimitedCmd):
         ap = super (AddBranchSentinel, self).mk_arg_parser (ap)
         ap.add_argument('--log', dest='log', default=None,
                         metavar='STR', help='Log level')
-        ap.add_argument('--add-branch-sentinel', dest='add_sentinel', default=False,
-                action='store_true', help='add branch sentinel for every conditional branch')
+        add_bool_argument(ap, 'add-branch-sentinel', dest='add_sentinel', 
+                          help='add branch sentinel for every conditional branch')
 
         add_in_out_args (ap)
         _add_S_arg (ap)

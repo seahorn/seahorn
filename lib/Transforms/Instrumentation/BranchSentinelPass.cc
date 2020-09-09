@@ -1,17 +1,7 @@
 /**
-SeaHorn Verification Framework
-Copyright (c) 2020 Arie Gurfinkel
-All Rights Reserved.
-
-Released under a modified BSD license, please see license.txt for full
-terms.
-
-*/
-
-//===----------------------------------------------------------------------===//
-//
-// TODO: Add desc
-//===----------------------------------------------------------------------===//
+ * This pass adds a branch sentinel call instruction(intrinsic) before
+ * every conditional branch.
+ */
 #include "seahorn/Analysis/SeaBuiltinsInfo.hh"
 #include "seahorn/InitializePasses.hh"
 #include "seahorn/Support/SeaDebug.h"
@@ -31,8 +21,7 @@ terms.
 
 using namespace llvm;
 
-// FIXME: add stats
-// STATISTIC(SentinelsAdded, "Branch sentinels added");
+// TODO: add stats if useful
 
 namespace {
 struct AddBranchSentinelPass : public FunctionPass {

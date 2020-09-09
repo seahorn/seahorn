@@ -254,6 +254,12 @@ static llvm::cl::opt<bool> VerifyAfterAll(
     llvm::cl::desc("Run the verification pass after each transformation"),
     llvm::cl::init(false));
 
+static llvm::cl::opt<bool> AddBranchSentinelOpt(
+    "add-branch-sentinel",
+    llvm::cl::desc(
+        "Add a branch sentinel instruction before every branch instruction"),
+    llvm::cl::init(false));
+
 // removes extension from filename if there is one
 std::string getFileName(const std::string &str) {
   std::string filename = str;
@@ -427,6 +433,9 @@ int main(int argc, char **argv) {
     pm_wrapper.add(seahorn::createFatBufferBoundsCheckPass());
   } else if (LowerIsDeref) {
     pm_wrapper.add(seahorn::createLowerIsDerefPass());
+  } else if (AddBranchSentinelOpt) {
+    initializeAddBranchSentinelPassPass(Registry);
+    pm_wrapper.add(seahorn::createAddBranchSentinelPassPass());
   }
   // default pre-processing pipeline
   else {

@@ -7,4 +7,5 @@ void initializeFatBufferBoundsCheckPass(PassRegistry &);
 void initializeSeaBuiltinsInfoWrapperPassPass(PassRegistry &);
 void initializeLoopPeelerPassPass(PassRegistry &);
 void initializeAddBranchSentinelPassPass(PassRegistry &);
+void initializeEvalBranchSentinelPassPass(PassRegistry &);
 }

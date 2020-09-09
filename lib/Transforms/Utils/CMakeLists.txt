@@ -7,6 +7,7 @@ add_llvm_library(SeaTransformsUtils DISABLE_LLVM_LINK_LLVM_DYLIB
   NameValues.cc
   RemoveUnreachableBlocksPass.cc
   DummyMainFunction.cc
+  EvalBranchSentinelPass.cc
   ExternalizeAddressTakenFunctions.cc
   ExternalizeFunctions.cc
   DevirtFunctions.cc

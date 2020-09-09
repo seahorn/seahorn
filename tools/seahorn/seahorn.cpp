@@ -27,6 +27,7 @@
 #include "seahorn/HornWrite.hh"
 #include "seahorn/HornifyModule.hh"
 #include "seahorn/Houdini.hh"
+#include "seahorn/InitializePasses.hh"
 #include "seahorn/Passes.hh"
 #include "seahorn/PredicateAbstraction.hh"
 #include "seahorn/Support/SeaLog.hh"
@@ -196,6 +197,11 @@ static llvm::cl::opt<bool>
     LowerGlobalInitializers("lower-gv-init",
                             llvm::cl::desc("Lower some global initializers"),
                             llvm::cl::init(true));
+
+static llvm::cl::opt<bool> EvalBranchSentinelOpt(
+    "eval-branch-sentinel",
+    llvm::cl::desc("Evaluate intrinsics added by AddBranchSentinel pass."),
+    llvm::cl::init(false));
 
 // removes extension from filename if there is one
 std::string getFileName(const std::string &str) {
@@ -378,7 +384,10 @@ int main(int argc, char **argv) {
 
   // --- verify if an undefined value can be read
   pass_manager.add(seahorn::createCanReadUndefPass());
-
+  if (EvalBranchSentinelOpt) {
+    initializeEvalBranchSentinelPassPass(Registry);
+    pass_manager.add(seahorn::createEvalBranchSentinelPassPass());
+  }
   // Z3_open_log("log.txt");
 
   if (!Bmc && !BoogieOutput) {

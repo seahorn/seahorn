@@ -960,7 +960,50 @@ class FatBoundsCheck(sea.LimitedCmd):
 
         return self.seappCmd.run (args, argv)
 
+class AddBranchSentinel(sea.LimitedCmd):
+    def __init__(self, quiet=False):
+        super(AddBranchSentinel, self).__init__('add-branch-sentinel', 'Add branch sentinel instrumentation',
+                                       allow_extra=True)
 
+    @property
+    def stdout (self):
+        return self.seappCmd.stdout
+
+    def name_out_file (self, in_files, args=None, work_dir=None):
+        ext = '.se.bc'
+        return _remap_file_name (in_files[0], ext, work_dir)
+
+    def mk_arg_parser (self, ap):
+        ap = super (AddBranchSentinel, self).mk_arg_parser (ap)
+        ap.add_argument('--log', dest='log', default=None,
+                        metavar='STR', help='Log level')
+        ap.add_argument('--add-branch-sentinel', dest='add_sentinel', default=False,
+                action='store_true', help='add branch sentinel for every conditional branch')
+
+        add_in_out_args (ap)
+        _add_S_arg (ap)
+        return ap
+
+    def run (self, args, extra):
+        cmd_name = which ('seapp')
+        if cmd_name is None: raise IOError ('seapp not found')
+        self.seappCmd = sea.ExtCmd (cmd_name,'',quiet)
+
+        argv = list()
+        if args.out_file is not None: argv.extend (['-o', args.out_file])
+
+        if args.add_sentinel:
+            argv.append ('--add-branch-sentinel')
+   
+        if args.llvm_asm: argv.append ('-S')
+        argv.extend (args.in_files)
+
+        if args.log is not None:
+            for l in args.log.split (':'): argv.extend (['-log', l])
+
+        return self.seappCmd.run (args, argv)
+
+    
 class Unroll(sea.LimitedCmd):
     def __init__(self, quiet=False):
         super(Unroll, self).__init__('unroll', 'Unroll loops', allow_extra=True)
@@ -1099,6 +1142,12 @@ class Seahorn(sea.LimitedCmd):
                         help='Do not lower global initializers',
                         default=False,
                         action='store_true')
+        ap.add_argument('--eval-branch-sentinel',
+                        dest='eval_branch_sentinel',
+                        help='Eval branch sentinel instrinsic',
+                        default=False,
+                        action='store_true')
+
         return ap
 
     def run (self, args, extra):
@@ -1187,6 +1236,8 @@ class Seahorn(sea.LimitedCmd):
 
         if args.no_lower_gv_init:
             argv.append('--lower-gv-init=false')
+        if args.eval_branch_sentinel:
+            argv.append('--eval-branch-sentinel')
 
         argv.extend (args.in_files)
 
@@ -1708,5 +1759,6 @@ Inspect = sea.SeqCmd ('inspect', 'alias for fe + inspect-bitcode', FrontEnd.cmds
 Smc = sea.SeqCmd ('smc', 'alias for fe|opt|smc',
                    [Clang(), Seapp(), SimpleMemoryChecks(), MixedSem(),
                     Seaopt(), Seahorn(solve=True)])
+# run clang before anything else so that we accept high level source and bitcode.
 Fpf = sea.SeqCmd('fpf', 'fat-bnd-check|fe|unroll|cut-loops|opt|horn --solve', 
-                 [FatBoundsCheck()] + FrontEnd.cmds + [Unroll(), CutLoops(), Seaopt(), Seahorn(solve=True)])
+                 [Clang(), AddBranchSentinel(), FatBoundsCheck()] + FrontEnd.cmds + [Unroll(), CutLoops(), Seaopt(), Seahorn(solve=True)])

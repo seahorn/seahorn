@@ -204,9 +204,7 @@ llvm::ImmutablePass *seahorn::createSeaBuiltinsWrapperPass() {
   return new SeaBuiltinsInfoWrapperPass();
 }
 
-namespace llvm {
 using namespace seahorn;
 INITIALIZE_PASS(SeaBuiltinsInfoWrapperPass, "sea-builtins",
                 "Information and construciton of builtin seahorn functions",
                 false, true)
-} // namespace llvm

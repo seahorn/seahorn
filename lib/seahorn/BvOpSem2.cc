@@ -32,7 +32,7 @@ using gep_type_iterator = generic_gep_type_iterator<>;
 
 namespace seahorn {
 namespace details {
-static enum class VacCheckOptions { NONE, ANTE, ALL };
+enum class VacCheckOptions { NONE, ANTE, ALL };
 }
 } // namespace seahorn
 

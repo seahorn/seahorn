@@ -977,9 +977,6 @@ class AddBranchSentinel(sea.LimitedCmd):
         ap = super (AddBranchSentinel, self).mk_arg_parser (ap)
         ap.add_argument('--log', dest='log', default=None,
                         metavar='STR', help='Log level')
-        add_bool_argument(ap, 'add-branch-sentinel', dest='add_sentinel', 
-                          help='add branch sentinel for every conditional branch')
-
         add_in_out_args (ap)
         _add_S_arg (ap)
         return ap
@@ -992,9 +989,8 @@ class AddBranchSentinel(sea.LimitedCmd):
         argv = list()
         if args.out_file is not None: argv.extend (['-o', args.out_file])
 
-        if args.add_sentinel:
-            argv.append ('--add-branch-sentinel')
-   
+        argv.append ('--add-branch-sentinel')
+
         if args.llvm_asm: argv.append ('-S')
         argv.extend (args.in_files)
 
@@ -1759,6 +1755,8 @@ Inspect = sea.SeqCmd ('inspect', 'alias for fe + inspect-bitcode', FrontEnd.cmds
 Smc = sea.SeqCmd ('smc', 'alias for fe|opt|smc',
                    [Clang(), Seapp(), SimpleMemoryChecks(), MixedSem(),
                     Seaopt(), Seahorn(solve=True)])
-# run clang before anything else so that we accept high level source and bitcode.
-Fpf = sea.SeqCmd('fpf', 'fat-bnd-check|fe|unroll|cut-loops|opt|horn --solve', 
+# run clang before anything else so that we accept both high level source and bitcode.
+Fpf = sea.SeqCmd('fpf', 'clang|fat-bnd-check|fe|unroll|cut-loops|opt|horn --solve', 
+                 [Clang(), FatBoundsCheck()] + FrontEnd.cmds + [Unroll(), CutLoops(), Seaopt(), Seahorn(solve=True)])
+Spf = sea.SeqCmd('spf', 'clang|add-branch-sentinel|fat-bnd-check|fe|unroll|cut-loops|opt|horn --solve', 
                  [Clang(), AddBranchSentinel(), FatBoundsCheck()] + FrontEnd.cmds + [Unroll(), CutLoops(), Seaopt(), Seahorn(solve=True)])

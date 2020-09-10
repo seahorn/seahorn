@@ -10,7 +10,7 @@ namespace typeCheck {
 enum Comparison { Equal, GreaterEqual };
 
 template <Comparison compareType>
-static inline bool checkNumChildren(Expr exp, unsigned numChildren) {
+bool checkNumChildren(Expr exp, unsigned numChildren) {
   if (compareType == Equal)
     return exp->arity() == numChildren;
   else if (compareType == GreaterEqual)
@@ -19,13 +19,11 @@ static inline bool checkNumChildren(Expr exp, unsigned numChildren) {
   return false;
 }
 
-template <typename T>
-static inline bool correctTypeAny(Expr exp, TypeChecker &tc) {
+template <typename T> bool correctTypeAny(Expr exp, TypeChecker &tc) {
   return isOp<T>(tc.typeOf(exp));
 }
 
-template <>
-static inline bool correctTypeAny<ANY_TY>(Expr exp, TypeChecker &tc) {
+template <> inline bool correctTypeAny<ANY_TY>(Expr exp, TypeChecker &tc) {
   return !isOp<ERROR_TY>(tc.typeOf(exp));
 }
 
@@ -33,7 +31,7 @@ static inline bool correctTypeAny<ANY_TY>(Expr exp, TypeChecker &tc) {
 // Note: checks the expression directly, not its children
 // Note: ANY_TY is used as a generic type, not specifically the ANY_TY type
 template <typename T, typename T2, typename... Types>
-static inline bool correctTypeAny(Expr exp, TypeChecker &tc) {
+bool correctTypeAny(Expr exp, TypeChecker &tc) {
   if (correctTypeAny<T>(exp, tc))
     return true;
 
@@ -41,27 +39,26 @@ static inline bool correctTypeAny(Expr exp, TypeChecker &tc) {
 }
 
 // returns true if the all children are of the passed type
-template <typename T>
-static inline bool correctTypeAll(Expr exp, TypeChecker &tc) {
+template <typename T> bool correctTypeAll(Expr exp, TypeChecker &tc) {
   auto correctType = [&tc](Expr exp) { return correctTypeAny<T>(exp, tc); };
   return std::all_of(exp->args_begin(), exp->args_end(), correctType);
 }
 
 template <typename T>
-static inline bool correctTypeOrder(Expr exp, TypeChecker &tc, unsigned idx) {
+bool correctTypeOrder(Expr exp, TypeChecker &tc, unsigned idx) {
   return correctTypeAny<T>(exp->arg(idx), tc);
 }
 
 // returns true if child1 is of type T, child2 is of type T2 etc.
 template <typename T, typename T2, typename... Types>
-static inline bool correctTypeOrder(Expr exp, TypeChecker &tc, unsigned idx) {
+bool correctTypeOrder(Expr exp, TypeChecker &tc, unsigned idx) {
   return correctTypeAny<T>(exp->arg(idx), tc) &&
          correctTypeOrder<T2, Types...>(exp, tc, idx + 1);
 }
 
-static inline bool sameType(std::vector<ENode *>::const_iterator begin,
-                            std::vector<ENode *>::const_iterator end,
-                            TypeChecker &tc) {
+inline bool sameType(std::vector<ENode *>::const_iterator begin,
+                     std::vector<ENode *>::const_iterator end,
+                     TypeChecker &tc) {
   Expr type = tc.typeOf(*begin);
 
   auto isSameType = [&tc, &type](Expr exp) {
@@ -71,16 +68,15 @@ static inline bool sameType(std::vector<ENode *>::const_iterator begin,
 }
 
 // returns true if all children share the same type
-static inline bool sameType(Expr exp, TypeChecker &tc) {
+inline bool sameType(Expr exp, TypeChecker &tc) {
   return sameType(exp->args_begin(), exp->args_end(), tc);
 }
 
 // ensures: 1. correct number of children,
 // 2. all children are of type T
 template <Comparison compareType, typename T>
-static inline Expr
-checkChildrenAll(Expr exp, TypeChecker &tc, unsigned numChildren,
-                 std::function<Expr(Expr, TypeChecker &)> returnType) {
+Expr checkChildrenAll(Expr exp, TypeChecker &tc, unsigned numChildren,
+                      std::function<Expr(Expr, TypeChecker &)> returnType) {
   if (checkNumChildren<compareType>(exp, numChildren) &&
       correctTypeAll<T>(exp, tc))
     return returnType(exp, tc);
@@ -91,9 +87,9 @@ checkChildrenAll(Expr exp, TypeChecker &tc, unsigned numChildren,
 // ensures: 1. correct number of children,
 // 2. child1 is of type T, child 2 is the second type etc.
 template <Comparison compareType, typename T, typename... Types>
-static inline Expr
-checkChildrenSpecific(Expr exp, TypeChecker &tc, unsigned numChildren,
-                      std::function<Expr(Expr, TypeChecker &)> returnType) {
+Expr checkChildrenSpecific(
+    Expr exp, TypeChecker &tc, unsigned numChildren,
+    std::function<Expr(Expr, TypeChecker &)> returnType) {
   if (checkNumChildren<compareType>(exp, numChildren) &&
       correctTypeOrder<T, Types...>(exp, tc, 0))
     return returnType(exp, tc);
@@ -105,9 +101,8 @@ checkChildrenSpecific(Expr exp, TypeChecker &tc, unsigned numChildren,
 // 2. the children are of any of the passed types,
 // 3. all children are the same type
 template <Comparison CompareType, typename T, typename... Types>
-static inline Expr
-checkChildren(Expr exp, TypeChecker &tc, unsigned numChildren,
-              std::function<Expr(Expr, TypeChecker &)> returnType) {
+Expr checkChildren(Expr exp, TypeChecker &tc, unsigned numChildren,
+                   std::function<Expr(Expr, TypeChecker &)> returnType) {
 
   if (checkNumChildren<CompareType>(exp, numChildren) &&
       correctTypeAny<T, Types...>(exp->first(), tc) && sameType(exp, tc))
@@ -116,58 +111,54 @@ checkChildren(Expr exp, TypeChecker &tc, unsigned numChildren,
   return sort::errorTy(exp->efac());
 }
 
-template <typename T>
-static inline Expr returnTypeFn(Expr exp, TypeChecker &tc) {
+template <typename T> Expr returnTypeFn(Expr exp, TypeChecker &tc) {
   return mk<T>(exp->efac());
 }
 
 template <typename T, typename... Types>
-static inline Expr
-oneOrMore(Expr exp, TypeChecker &tc,
-          std::function<Expr(Expr, TypeChecker &)> returnTypeFn) {
+Expr oneOrMore(Expr exp, TypeChecker &tc,
+               std::function<Expr(Expr, TypeChecker &)> returnTypeFn) {
   return checkChildren<GreaterEqual, T, Types...>(exp, tc, 1, returnTypeFn);
 }
 
 template <typename returnType, typename T, typename... Types>
-static inline Expr oneOrMore(Expr exp, TypeChecker &tc) {
+Expr oneOrMore(Expr exp, TypeChecker &tc) {
   return checkChildren<GreaterEqual, T, Types...>(exp, tc, 1,
                                                   returnTypeFn<returnType>);
 }
 
 template <typename T, typename... Types>
-static inline Expr
-unary(Expr exp, TypeChecker &tc,
-      std::function<Expr(Expr, TypeChecker &)> returnTypeFn) {
+Expr unary(Expr exp, TypeChecker &tc,
+           std::function<Expr(Expr, TypeChecker &)> returnTypeFn) {
   return checkChildren<Equal, T, Types...>(exp, tc, 1, returnTypeFn);
 }
 
 template <typename returnType, typename T, typename... Types>
-static inline Expr unary(Expr exp, TypeChecker &tc) {
+Expr unary(Expr exp, TypeChecker &tc) {
   return checkChildren<Equal, T, Types...>(exp, tc, 1,
                                            returnTypeFn<returnType>);
 }
 
 template <typename T, typename... Types>
-static inline Expr
-binary(Expr exp, TypeChecker &tc,
-       std::function<Expr(Expr, TypeChecker &)> returnTypeFn) {
+Expr binary(Expr exp, TypeChecker &tc,
+            std::function<Expr(Expr, TypeChecker &)> returnTypeFn) {
   return checkChildren<Equal, T, Types...>(exp, tc, 2, returnTypeFn);
 }
 
 template <typename returnType, typename T, typename... Types>
-static inline Expr binary(Expr exp, TypeChecker &tc) {
+Expr binary(Expr exp, TypeChecker &tc) {
   return checkChildren<Equal, T, Types...>(exp, tc, 2,
                                            returnTypeFn<returnType>);
 }
 
 template <typename T, typename... Types>
-static inline Expr nary(Expr exp, TypeChecker &tc,
-                        std::function<Expr(Expr, TypeChecker &)> returnTypeFn) {
+Expr nary(Expr exp, TypeChecker &tc,
+          std::function<Expr(Expr, TypeChecker &)> returnTypeFn) {
   return checkChildren<GreaterEqual, T, Types...>(exp, tc, 2, returnTypeFn);
 }
 
 template <typename returnType, typename T, typename... Types>
-static inline Expr nary(Expr exp, TypeChecker &tc) {
+Expr nary(Expr exp, TypeChecker &tc) {
   return checkChildren<GreaterEqual, T, Types...>(exp, tc, 2,
                                                   returnTypeFn<returnType>);
 }

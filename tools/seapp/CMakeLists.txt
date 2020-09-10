@@ -3,6 +3,7 @@ set (USED_LIBS
   SeaTransformsScalar
   SeaTransformsUtils
   SeaAnalysis
+  SeaSmt
   ${SEA_DSA_LIBS}  
   SeaSupport
   ${LLVM_SEAHORN_LIBS}

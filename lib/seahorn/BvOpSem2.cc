@@ -5,6 +5,7 @@
 #include "llvm/IR/DebugInfo.h"
 #include "llvm/IR/DebugLoc.h"
 #include "llvm/IR/GetElementPtrTypeIterator.h"
+#include "llvm/IR/InlineAsm.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Format.h"
 #include "llvm/Support/MathExtras.h"
@@ -491,6 +492,11 @@ public:
                        "are not supported and must be lowered");
     }
 
+    if (CS.isInlineAsm()) {
+      visitInlineAsmCall(CS);
+      return;
+    }
+
     auto *f = getCalledFunction(CS);
     if (!f) {
       visitIndirectCall(CS);
@@ -579,6 +585,39 @@ public:
     }
 
     setValue(*CS.getInstruction(), res);
+  }
+
+  void visitInlineAsmCall(CallSite CS) {
+    // We only care about handling simple cases e.g. which are used to
+    // thwart optimization by obfuscating code.
+    // Specifically, we ONLY handle the following kinds of inline assembly:
+    // 1) %_57 = call i64 asm sideeffect "",
+    // "=r,0,~{dirflag},~{fpsr},~{flags}"(i64 %_14) #7, !dbg !504, !srcloc !505
+    // @ _55 in main
+    // 2) call void asm sideeffect "",
+    // "r,~{memory},~{dirflag},~{fpsr},~{flags}"(i8* %7) #5, !dbg !102, !srcloc
+    // !103
+
+    InlineAsm *IA = cast<InlineAsm>(CS.getCalledValue());
+    const std::string &AsmStr = IA->getAsmString();
+    // only handle "" instruction template and one argument
+    if (!AsmStr.empty() || CS.getNumArgOperands() > 1) {
+      LOG("opsem",
+          ERR << "Cannot handle inline assembly: " << *CS.getInstruction());
+      return;
+    }
+
+    if (IA->getConstraintString().compare(0, 5, "=r,0,") == 0) {
+      // copy input to output
+      Expr readVal = lookup(*CS.getArgument(0));
+      setValue(*CS.getInstruction(), readVal);
+    } else if (IA->getConstraintString().compare(0, 2, "r,") == 0) {
+      // This code is only used to stop optimization
+      // Since there is no computation, do nothing
+    } else {
+      LOG("opsem",
+          ERR << "Cannot handle inline assembly: " << *CS.getInstruction());
+    }
   }
 
   void visitBranchSentinel(CallSite CS) {}

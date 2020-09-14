@@ -23,6 +23,7 @@
 #include "seahorn/CexHarness.hh"
 #include "seahorn/DfCoiAnalysis.hh"
 #include "seahorn/PathBmc.hh"
+#include "seahorn/SolverBmc.hh"
 #include "seahorn/Support/SeaDebug.h"
 #include "seahorn/Support/SeaLog.hh"
 #include "seahorn/Support/Stats.hh"
@@ -48,6 +49,18 @@ static llvm::cl::opt<bool> HornGSA("horn-gsa",
 static llvm::cl::opt<bool>
     ComputeCoi("horn-bmc-coi", llvm::cl::desc("Compute DataFlow-based COI"),
                llvm::cl::init(false), llvm::cl::Hidden);
+
+enum class BmcSolverKind { Z3, SMT_Z3, SMT_YICES2 };
+
+static llvm::cl::opt<BmcSolverKind> BmcSolver(
+    "horn-bmc-solver",
+    llvm::cl::desc("SMT Solver to use for Solver BMC engine"),
+    llvm::cl::values(clEnumValN(BmcSolverKind::Z3, "z3", "Use Z3 directly"),
+                     clEnumValN(BmcSolverKind::SMT_Z3, "smt-z3",
+                                "Use Z3 interface"),
+                     clEnumValN(BmcSolverKind::SMT_YICES2, "smt-yices2",
+                                "Use Yices2 interface")),
+    llvm::cl::init(BmcSolverKind::Z3), llvm::cl::Hidden);
 
 namespace {
 using namespace llvm;
@@ -173,7 +186,6 @@ public:
     ExprFactory efac;
 
     if (m_engine == BmcEngineKind::mono_bmc) {
-
       std::unique_ptr<OperationalSemantics> sem;
       if (HornBv2)
         sem = std::make_unique<Bv2OpSem>(efac, *this,
@@ -185,95 +197,43 @@ public:
       if (ComputeCoi) {
         computeCoi(F, *sem);
       }
+      if (BmcSolver == BmcSolverKind::Z3) {
 
-      EZ3 zctx(efac);
-      // XXX: uses OperationalSemantics but trace generation still depends on
-      // LegacyOperationalSemantics
-      BmcEngine bmc(*sem, zctx);
+        EZ3 zctx(efac);
+        // XXX: uses OperationalSemantics but trace generation still depends on
+        // LegacyOperationalSemantics
+        BmcEngine bmc(*sem, zctx);
 
-      bmc.addCutPoint(src);
-      bmc.addCutPoint(*dst);
-      LOG("bmc", errs() << "BMC from: " << src.bb().getName() << " to "
-                        << dst->bb().getName() << "\n";);
+        bmc.addCutPoint(src);
+        bmc.addCutPoint(*dst);
+        LOG("bmc", errs() << "BMC from: " << src.bb().getName() << " to "
+                          << dst->bb().getName() << "\n";);
+        runBmcEngine(bmc, F);
+      } else {
 
-      Stats::resume("BMC");
-      bmc.encode();
-
-      Stats::uset("bmc.dag_sz", dagSize(bmc.getFormula()));
-      Stats::uset("bmc.circ_sz", boolop::circSize(bmc.getFormula()));
-
-      LOG("bmc.simplify",
-          // --
-          Expr vc = mknary<AND>(bmc.getFormula());
-          Expr vc_simpl = z3_simplify(bmc.zctx(), vc);
-          llvm::errs() << "VC:\n"
-                       << z3_to_smtlib(bmc.zctx(), vc) << "\n~~~~\n"
-                       << "Simplified VC:\n"
-                       << z3_to_smtlib(bmc.zctx(), vc_simpl) << "\n");
-
-      if (m_out)
-        bmc.toSmtLib(*m_out);
-
-      if (!m_solve) {
-        LOG("bmc", errs() << "Stopping before solving\n";);
-        Stats::stop("BMC");
-        return false;
-      }
-
-      Stats::resume("BMC.solve");
-      auto res = bmc.solve();
-      Stats::stop("BMC.solve");
-
-      Stats::stop("BMC");
-
-      if (res)
-        outs() << "sat";
-      else if (!res)
-        outs() << "unsat";
-      else
-        outs() << "unknown";
-      outs() << "\n";
-
-      if (res)
-        Stats::sset("Result", "FALSE");
-      else if (!res)
-        Stats::sset("Result", "TRUE");
-
-      LOG(
-          "bmc_core",
-          // producing bmc core is expensive. Enable only if specifically
-          // requested
-          if (!res) {
-            ExprVector core;
-            bmc.unsatCore(core);
-            errs() << "CORE BEGIN\n";
-            for (auto c : core)
-              errs() << *c << "\n";
-            errs() << "CORE END\n";
-          });
-
-      LOG(
-          "cex", if (res) {
-            errs() << "Analyzed Function:\n" << F << "\n";
-            errs() << "Trace \n";
-            BmcTrace trace(bmc.getTrace());
-            trace.print(errs());
-          });
-
-      if (res) {
-        StringRef CexFileRef(HornCexFile);
-        if (CexFileRef != "") {
-          if (CexFileRef.endswith(".ll") || CexFileRef.endswith(".bc")) {
-            auto &tli = getAnalysis<TargetLibraryInfoWrapperPass>();
-            auto const &dl = F.getParent()->getDataLayout();
-            BmcTrace trace(bmc.getTrace());
-            BmcTraceWrapper trace_wrapper(trace);
-            dumpLLVMCex(trace_wrapper, CexFileRef, dl, tli.getTLI(F),
-                        F.getContext());
-          } else {
-            WARN << "The Bmc engine only generates harnesses in bitcode format";
-          }
+        // XXX: uses OperationalSemantics but trace generation still depends on
+        // LegacyOperationalSemantics
+        solver::SolverKind solver_kind;
+        switch (BmcSolver) {
+        case BmcSolverKind::SMT_Z3:
+          solver_kind = solver::SolverKind::Z3;
+          break;
+        case BmcSolverKind::SMT_YICES2:
+          solver_kind = solver::SolverKind::YICES2;
+          break;
+        default:
+          LOG("bmc", errs()
+                         << "Unkown solver kind; use either Z3 or Yices2 \n";);
+          Stats::stop("BMC");
+          return false;
         }
+        SolverBmcEngine bmc(*sem, solver_kind);
+
+        bmc.addCutPoint(src);
+        bmc.addCutPoint(*dst);
+        LOG("bmc", errs() << "BMC from: " << src.bb().getName() << " to "
+                          << dst->bb().getName() << "\n";);
+        runSolverBmcEngine(bmc, F);
       }
     } else if (m_engine == BmcEngineKind::path_bmc) {
 
@@ -294,40 +254,7 @@ public:
       bmc.addCutPoint(*dst);
       LOG("bmc", errs() << "Path BMC from: " << src.bb().getName() << " to "
                         << dst->bb().getName() << "\n";);
-
-      Stats::resume("BMC");
-
-      if (!m_solve) {
-        LOG("bmc", errs() << "Stopping before solving\n";);
-        Stats::stop("BMC");
-        return false;
-      }
-
-      auto res = bmc.solve();
-      Stats::stop("BMC");
-
-      if (res == solver::SolverResult::SAT)
-        outs() << "sat";
-      else if (res == solver::SolverResult::UNSAT)
-        outs() << "unsat";
-      else
-        outs() << "unknown";
-      outs() << "\n";
-
-      if (res == solver::SolverResult::SAT)
-        Stats::sset("Result", "FALSE");
-      else if (res == solver::SolverResult::UNSAT)
-        Stats::sset("Result", "TRUE");
-
-      LOG(
-          "cex", if (res == solver::SolverResult::SAT) {
-            errs() << "Analyzed Function:\n" << F << "\n";
-            PathBmcTrace trace(bmc.getTrace());
-            errs() << "Trace \n";
-            trace.print(errs());
-          });
-
-      // TODO: generate a harness from PathBmcTrace
+      runPathBmcEngine(bmc, F);
     }
     return false;
   }
@@ -362,6 +289,171 @@ public:
     // install dependence filter in operational semantics
     auto &filter = dfCoi.getCoi();
     sem.addToFilter(filter.begin(), filter.end());
+  }
+
+  void runBmcEngine(BmcEngine &bmc, Function &F) {
+    Stats::resume("BMC");
+    bmc.encode();
+
+    Stats::uset("bmc.dag_sz", dagSize(bmc.getFormula()));
+    Stats::uset("bmc.circ_sz", boolop::circSize(bmc.getFormula()));
+
+    LOG("bmc.simplify",
+        // --
+        Expr vc = mknary<AND>(bmc.getFormula());
+        Expr vc_simpl = z3_simplify(bmc.zctx(), vc);
+        llvm::errs() << "VC:\n"
+                     << z3_to_smtlib(bmc.zctx(), vc) << "\n~~~~\n"
+                     << "Simplified VC:\n"
+                     << z3_to_smtlib(bmc.zctx(), vc_simpl) << "\n");
+
+    if (m_out)
+      bmc.toSmtLib(*m_out);
+
+    if (!m_solve) {
+      LOG("bmc", errs() << "Stopping before solving\n";);
+      Stats::stop("BMC");
+      return;
+    }
+
+    Stats::resume("BMC.solve");
+    auto res = bmc.solve();
+    Stats::stop("BMC.solve");
+
+    Stats::stop("BMC");
+
+    if (res)
+      outs() << "sat";
+    else if (!res)
+      outs() << "unsat";
+    else
+      outs() << "unknown";
+    outs() << "\n";
+
+    if (res)
+      Stats::sset("Result", "FALSE");
+    else if (!res)
+      Stats::sset("Result", "TRUE");
+
+    LOG(
+        "bmc_core",
+        // producing bmc core is expensive. Enable only if specifically
+        // requested
+        if (!res) {
+          ExprVector core;
+          bmc.unsatCore(core);
+          errs() << "CORE BEGIN\n";
+          for (auto c : core)
+            errs() << *c << "\n";
+          errs() << "CORE END\n";
+        });
+
+    LOG(
+        "cex", if (res) {
+          errs() << "Analyzed Function:\n" << F << "\n";
+          errs() << "Trace \n";
+          BmcTrace trace(bmc.getTrace());
+          trace.print(errs());
+        });
+
+    if (res) {
+      StringRef CexFileRef(HornCexFile);
+      if (CexFileRef != "") {
+        if (CexFileRef.endswith(".ll") || CexFileRef.endswith(".bc")) {
+          auto &tli = getAnalysis<TargetLibraryInfoWrapperPass>();
+          auto const &dl = F.getParent()->getDataLayout();
+          BmcTrace trace(bmc.getTrace());
+          BmcTraceWrapper trace_wrapper(trace);
+          dumpLLVMCex(trace_wrapper, CexFileRef, dl, tli.getTLI(F),
+                      F.getContext());
+        } else {
+          WARN << "The Bmc engine only generates harnesses in bitcode "
+                  "format";
+        }
+      }
+    }
+  }
+
+  void runSolverBmcEngine(SolverBmcEngine &bmc, Function &F) {
+
+    Stats::resume("BMC");
+    bmc.encode();
+
+    Stats::uset("bmc.dag_sz", dagSize(bmc.getFormula()));
+    Stats::uset("bmc.circ_sz", boolop::circSize(bmc.getFormula()));
+
+    if (m_out)
+      bmc.toSmtLib(*m_out);
+
+    if (!m_solve) {
+      LOG("bmc", errs() << "Stopping before solving\n";);
+      Stats::stop("BMC");
+      return;
+    }
+
+    Stats::resume("BMC.solve");
+    auto res = bmc.solve();
+    Stats::stop("BMC.solve");
+
+    Stats::stop("BMC");
+
+    if (res == solver::SolverResult::SAT)
+      outs() << "sat";
+    else if (res == solver::SolverResult::UNSAT)
+      outs() << "unsat";
+    else
+      outs() << "unknown";
+    outs() << "\n";
+
+    if (res == solver::SolverResult::SAT)
+      Stats::sset("Result", "FALSE");
+    else if (res == solver::SolverResult::UNSAT)
+      Stats::sset("Result", "TRUE");
+
+    LOG(
+        "cex", if (res == solver::SolverResult::SAT) {
+          errs() << "Analyzed Function:\n" << F << "\n";
+          errs() << "Trace \n";
+          SolverBmcTrace trace(bmc.getTrace());
+          trace.print(errs());
+        });
+    // todo: support --cex mode (generate harness)
+  }
+
+  void runPathBmcEngine(PathBmcEngine &bmc, Function &F) {
+    Stats::resume("BMC");
+
+    if (!m_solve) {
+      LOG("bmc", errs() << "Stopping before solving\n";);
+      Stats::stop("BMC");
+      return;
+    }
+
+    auto res = bmc.solve();
+    Stats::stop("BMC");
+
+    if (res == solver::SolverResult::SAT)
+      outs() << "sat";
+    else if (res == solver::SolverResult::UNSAT)
+      outs() << "unsat";
+    else
+      outs() << "unknown";
+    outs() << "\n";
+
+    if (res == solver::SolverResult::SAT)
+      Stats::sset("Result", "FALSE");
+    else if (res == solver::SolverResult::UNSAT)
+      Stats::sset("Result", "TRUE");
+
+    LOG(
+        "cex", if (res == solver::SolverResult::SAT) {
+          errs() << "Analyzed Function:\n" << F << "\n";
+          PathBmcTrace trace(bmc.getTrace());
+          errs() << "Trace \n";
+          trace.print(errs());
+        });
+
+    // TODO: generate a harness from PathBmcTrace
   }
 };
 

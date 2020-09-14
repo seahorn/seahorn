@@ -1,6 +1,6 @@
 /**
 SeaHorn Verification Framework
-Copyright (c) 2020 Arie Gurfinkel 
+Copyright (c) 2020 Arie Gurfinkel
 All Rights Reserved.
 
 THIS SOFTWARE IS PROVIDED "AS IS," WITH NO WARRANTIES

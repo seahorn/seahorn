@@ -1,4 +1,4 @@
-#include "seahorn/Bmc.hh"
+#include "seahorn/SolverBmc.hh"
 #include "seahorn/Transforms/Instrumentation/ShadowMemDsa.hh"
 #include "seahorn/UfoOpSem.hh"
 
@@ -12,34 +12,39 @@
 #include "seahorn/Support/SeaDebug.h"
 
 namespace seahorn {
-std::string BmcSmtLogic;
-std::string BmcSmtTactic;
+/* use options from Bmc.cc*/
+extern std::string BmcSmtLogic;
+extern std::string BmcSmtTactic;
 } // namespace seahorn
 
-static llvm::cl::opt<bool>
-    DumpHex("horn-bmc-hexdump",
-            llvm::cl::desc("Dump memory state using hexdump"), cl::init(false));
-static llvm::cl::opt<std::string, true>
-    XBmcSmtTactic("horn-bmc-tactic", llvm::cl::desc("Z3 tactic to use for BMC"),
-                  llvm::cl::location(seahorn::BmcSmtTactic),
-                  cl::init("default"));
-static llvm::cl::opt<std::string, true>
-    XBmcSmtLogic("horn-bmc-logic",
-                 llvm::cl::desc("SMT-LIB logic to pass to smt solver"),
-                 llvm::cl::location(seahorn::BmcSmtLogic), cl::init("ALL"));
-
 namespace seahorn {
-BmcEngine::BmcEngine(OperationalSemantics &sem, EZ3 &zctx)
-    : m_sem(sem), m_efac(sem.efac()), m_result(boost::indeterminate),
-      m_cpg(nullptr), m_fn(nullptr), m_smt_solver(zctx, BmcSmtLogic.c_str()),
-      m_ctxState(m_efac) {
+SolverBmcEngine::SolverBmcEngine(OperationalSemantics &sem,
+                                 solver::SolverKind solver_kind)
+    : m_sem(sem), m_efac(sem.efac()), m_result(solver::SolverResult::UNKNOWN),
+      m_cpg(nullptr), m_fn(nullptr), m_ctxState(m_efac),
+      m_solver_kind(solver_kind) {
 
-  z3n_set_param(":model.compact", false);
-  if (BmcSmtTactic != "default")
-    z3n_set_param(":tactic.default_tactic", BmcSmtTactic.c_str());
+  if (m_solver_kind == solver::SolverKind::Z3) {
+    LOG("bmc", INFO << "bmc using Z3";);
+    z3n_set_param(":model.compact", false);
+    if (BmcSmtTactic != "default")
+      z3n_set_param(":tactic.default_tactic", BmcSmtTactic.c_str());
+    m_new_smt_solver = std::make_unique<solver::z3_solver_impl>(sem.efac());
+  } else if (m_solver_kind == solver::SolverKind::YICES2) {
+    LOG("bmc", INFO << "bmc using Yices2";);
+#ifdef WITH_YICES2
+    const char *logic = (BmcSmtLogic == "ALL") ? nullptr : BmcSmtLogic.c_str();
+    m_new_smt_solver =
+        std::make_unique<solver::yices_solver_impl>(sem.efac(), logic);
+#else
+    assert(false && "Compile with YICES2_HOME option");
+#endif
+  } else {
+    assert(false && "Unsupported smt solver");
+  }
 }
 
-void BmcEngine::addCutPoint(const CutPoint &cp) {
+void SolverBmcEngine::addCutPoint(const CutPoint &cp) {
   if (m_cps.empty()) {
     m_cpg = &cp.parent();
     m_fn = cp.bb().getParent();
@@ -49,13 +54,13 @@ void BmcEngine::addCutPoint(const CutPoint &cp) {
   m_cps.push_back(&cp);
 }
 
-boost::tribool BmcEngine::solve() {
+solver::SolverResult SolverBmcEngine::solve() {
   encode();
-  m_result = m_smt_solver.solve();
+  m_result = m_new_smt_solver->check();
   return m_result;
 }
 
-void BmcEngine::encode(bool assert_formula) {
+void SolverBmcEngine::encode(bool assert_formula) {
 
   // -- only run the encoding once
   if (m_semCtx)
@@ -88,41 +93,36 @@ void BmcEngine::encode(bool assert_formula) {
 
   if (assert_formula) {
     for (Expr v : m_side)
-      m_smt_solver.assertExpr(v);
+      m_new_smt_solver->add(v);
   }
 }
 
-void BmcEngine::reset() {
+void SolverBmcEngine::reset() {
   m_cps.clear();
   m_cpg = nullptr;
   m_fn = nullptr;
-  m_smt_solver.reset();
+  m_new_smt_solver->reset();
 
   m_side.clear();
   m_states.clear();
   m_edges.clear();
 }
 
-void BmcEngine::unsatCore(ExprVector &out) {
-  const bool simplify = true;
-  bmc_impl::unsat_core(m_smt_solver, m_side, simplify, out);
-}
-
 /// output current path condition in SMT-LIB2 format
-raw_ostream &BmcEngine::toSmtLib(raw_ostream &out) {
-  if (BmcSmtLogic != "ALL")
-    out << "(set-logic " << BmcSmtLogic << ")\n";
+raw_ostream &SolverBmcEngine::toSmtLib(raw_ostream &out) {
   encode();
-  return m_smt_solver.toSmtLib(out);
+  m_new_smt_solver->to_smt_lib(out);
+  return out;
 }
 
-BmcTrace BmcEngine::getTrace() {
-  assert((bool)m_result);
-  auto model = m_smt_solver.getModel();
-  return BmcTrace(*this, model);
+SolverBmcTrace SolverBmcEngine::getTrace() {
+  assert(m_result == solver::SolverResult::SAT);
+  auto model = m_new_smt_solver->get_model();
+  return SolverBmcTrace(*this, model);
 }
 
-BmcTrace::BmcTrace(BmcEngine &bmc, ZModel<EZ3> &model)
+SolverBmcTrace::SolverBmcTrace(SolverBmcEngine &bmc,
+                               solver::Solver::model_ref model)
     : m_bmc(bmc), m_model(model /*m_bmc.zctx()*/) {
   // assert ((bool)bmc.result ());
   // m_model = bmc.getModel ();
@@ -130,8 +130,8 @@ BmcTrace::BmcTrace(BmcEngine &bmc, ZModel<EZ3> &model)
   // construct an implicant of the side condition
   m_trace.reserve(m_bmc.getFormula().size());
   ExprMap bool_map /*unused*/;
-  bmc_impl::get_model_implicant(m_bmc.getFormula(), m_model, m_trace,
-                                m_bool_map);
+  solver_bmc_impl::get_model_implicant(m_bmc.getFormula(), m_model, m_trace,
+                                       m_bool_map);
   boost::container::flat_set<Expr> implicant(m_trace.begin(), m_trace.end());
 
   // construct the trace
@@ -176,12 +176,13 @@ BmcTrace::BmcTrace(BmcEngine &bmc, ZModel<EZ3> &model)
   }
 }
 
-Expr BmcTrace::symb(unsigned loc, const llvm::Value &val) {
+Expr SolverBmcTrace::symb(unsigned loc, const llvm::Value &val) {
   // assert (cast<Instruction>(&val)->getParent () == bb(loc));
 
   if (!m_bmc.sem().isTracked(val))
     return Expr();
-  if (isa<Instruction>(val) && bmc_impl::isCallToVoidFn(cast<Instruction>(val)))
+  if (isa<Instruction>(val) &&
+      solver_bmc_impl::isCallToVoidFn(cast<Instruction>(val)))
     return Expr();
   Expr u = m_bmc.getSymbReg(val);
 
@@ -198,14 +199,14 @@ Expr BmcTrace::symb(unsigned loc, const llvm::Value &val) {
   return store.eval(u);
 }
 
-Expr BmcTrace::eval(unsigned loc, const llvm::Value &val, bool complete) {
+Expr SolverBmcTrace::eval(unsigned loc, const llvm::Value &val, bool complete) {
   Expr v = symb(loc, val);
   if (v)
-    v = m_model.eval(v, complete);
+    v = m_model->eval(v, complete);
   return v;
 }
 
-Expr BmcTrace::eval(unsigned loc, Expr u, bool complete) {
+Expr SolverBmcTrace::eval(unsigned loc, Expr u, bool complete) {
 
   unsigned stateidx = cpid(loc);
   stateidx++;
@@ -215,11 +216,11 @@ Expr BmcTrace::eval(unsigned loc, Expr u, bool complete) {
 
   SymStore &store = m_bmc.getStates()[stateidx];
   Expr v = store.eval(u);
-  return m_model.eval(v, complete);
+  return m_model->eval(v, complete);
 }
 
-// template <typename Out> Out &BmcTrace::print (Out &out)
-template <> raw_ostream &BmcTrace::print(raw_ostream &out) {
+// template <typename Out> Out &SolverBmcTrace::print (Out &out)
+template <> raw_ostream &SolverBmcTrace::print(raw_ostream &out) {
   out << "Begin trace \n";
   for (unsigned loc = 0; loc < size(); ++loc) {
     const BasicBlock &BB = *bb(loc);
@@ -290,19 +291,7 @@ template <> raw_ostream &BmcTrace::print(raw_ostream &out) {
 
       if (out.has_colors())
         out.changeColor(raw_ostream::RED);
-      if (DumpHex && shadow_mem) {
-        using HD = expr::hexDump::HexDump;
-        using SHD = expr::hexDump::StructHexDump;
-        out << "  %" << I.getName() << "\n";
-
-        if (isOp<MK_STRUCT>(v)) {
-          out << SHD(v);
-        } else {
-          out << HD(v);
-        }
-
-      } else
-        out << "  %" << I.getName() << " " << *v;
+      out << "  %" << I.getName() << " " << *v;
       const DebugLoc &dloc = I.getDebugLoc();
       if (dloc) {
         if (out.has_colors())
@@ -317,7 +306,7 @@ template <> raw_ostream &BmcTrace::print(raw_ostream &out) {
   return out;
 }
 
-namespace bmc_impl {
+namespace solver_bmc_impl {
 
 bool isCallToVoidFn(const llvm::Instruction &I) {
   if (const CallInst *ci = dyn_cast<const CallInst>(&I))
@@ -327,7 +316,7 @@ bool isCallToVoidFn(const llvm::Instruction &I) {
   return false;
 }
 
-void get_model_implicant(const ExprVector &f, ZModel<EZ3> &model,
+void get_model_implicant(const ExprVector &f, solver::Solver::model_ref model,
                          ExprVector &out, ExprMap &active_bool_map) {
   // XXX This is a partial implementation. Specialized to the
   // constraints expected to occur in m_side.
@@ -339,7 +328,7 @@ void get_model_implicant(const ExprVector &f, ZModel<EZ3> &model,
     // -- single disjunct into an AND
     if (isOpX<IMPL>(v)) {
       assert(v->arity() == 2);
-      Expr v0 = model(v->arg(0));
+      Expr v0 = model->eval(v->arg(0), false);
       Expr a0 = v->arg(0);
       if (isOpX<FALSE>(v0))
         continue;
@@ -353,7 +342,7 @@ void get_model_implicant(const ExprVector &f, ZModel<EZ3> &model,
 
     if (isOpX<OR>(v)) {
       for (unsigned i = 0; i < v->arity(); ++i)
-        if (isOpX<TRUE>(model(v->arg(i)))) {
+        if (isOpX<TRUE>(model->eval(v->arg(i), false))) {
           v = v->arg(i);
           break;
         }
@@ -373,58 +362,6 @@ void get_model_implicant(const ExprVector &f, ZModel<EZ3> &model,
   }
 }
 
-void unsat_core(ZSolver<EZ3> &solver, const ExprVector &f, bool simplify,
-                ExprVector &out) {
-  solver.reset();
-  ExprVector assumptions;
-  assumptions.reserve(f.size());
-  for (Expr v : f) {
-    Expr a = bind::boolConst(mk<ASM>(v));
-    assumptions.push_back(a);
-    solver.assertExpr(mk<IMPL>(a, v));
-  }
-
-  ExprVector core;
-  solver.push();
-  boost::tribool res = solver.solveAssuming(assumptions);
-  if (!res)
-    solver.unsatCore(std::back_inserter(core));
-  solver.pop();
-  if (res)
-    return;
-
-  if (simplify) {
-    // simplify core
-    while (core.size() < assumptions.size()) {
-      assumptions.assign(core.begin(), core.end());
-      core.clear();
-      solver.push();
-      res = solver.solveAssuming(assumptions);
-      assert(!res ? 1 : 0);
-      solver.unsatCore(std::back_inserter(core));
-      solver.pop();
-    }
-
-    // minimize simplified core
-    for (unsigned i = 0; i < core.size();) {
-      Expr saved = core[i];
-      core[i] = core.back();
-      res = solver.solveAssuming(
-          boost::make_iterator_range(core.begin(), core.end() - 1));
-      if (res)
-        core[i++] = saved;
-      else if (!res)
-        core.pop_back();
-      else
-        assert(0);
-    }
-  }
-
-  // unwrap the core from ASM to corresponding expressions
-  for (Expr c : core)
-    out.push_back(bind::fname(bind::fname(c))->arg(0));
-}
-
-} // end namespace bmc_impl
+} // end namespace solver_bmc_impl
 
 } // namespace seahorn

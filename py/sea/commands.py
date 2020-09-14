@@ -999,7 +999,7 @@ class AddBranchSentinel(sea.LimitedCmd):
 
         return self.seappCmd.run (args, argv)
 
-    
+
 class Unroll(sea.LimitedCmd):
     def __init__(self, quiet=False):
         super(Unroll, self).__init__('unroll', 'Unroll loops', allow_extra=True)
@@ -1166,7 +1166,7 @@ class Seahorn(sea.LimitedCmd):
                 argv.append ('--horn-bmc-engine=path')
             elif args.bmc.startswith('opsem'):
                 argv.append('--horn-bv2')
-                argv.append('-log=opsem')
+                argv.append('--log=opsem')
                 argv.append('--lower-gv-init-struct=false')
 
         if args.crab:
@@ -1761,7 +1761,7 @@ Smc = sea.SeqCmd ('smc', 'alias for fe|opt|smc',
                    [Clang(), Seapp(), SimpleMemoryChecks(), MixedSem(),
                     Seaopt(), Seahorn(solve=True)])
 # run clang before anything else so that we accept both high level source and bitcode.
-Fpf = sea.SeqCmd('fpf', 'clang|fat-bnd-check|fe|unroll|cut-loops|opt|horn --solve', 
+Fpf = sea.SeqCmd('fpf', 'clang|fat-bnd-check|fe|unroll|cut-loops|opt|horn --solve',
                  [Clang(), FatBoundsCheck()] + FrontEnd.cmds + [Unroll(), CutLoops(), Seaopt(), Seahorn(solve=True)])
-Spf = sea.SeqCmd('spf', 'clang|add-branch-sentinel|fat-bnd-check|fe|unroll|cut-loops|opt|horn --solve', 
+Spf = sea.SeqCmd('spf', 'clang|add-branch-sentinel|fat-bnd-check|fe|unroll|cut-loops|opt|horn --solve',
                  [Clang(), AddBranchSentinel(), FatBoundsCheck()] + FrontEnd.cmds + [Unroll(), CutLoops(), Seaopt(), Seahorn(solve=True)])

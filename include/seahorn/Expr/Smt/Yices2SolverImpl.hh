@@ -1,8 +1,10 @@
 #ifdef WITH_YICES2
 #pragma once
 
-#include "yices.h"
 #include "seahorn/Expr/Smt/Solver.hh"
+#include "seahorn/Support/SeaLog.hh"
+#include "yices.h"
+
 #include <map>
 
 namespace llvm {
@@ -48,8 +50,8 @@ private:
   assumptions_map_t d_last_assumptions;
   
 public:
-  
-  yices_solver_impl(expr::ExprFactory &efac, solver_options opts = solver_options());
+  yices_solver_impl(expr::ExprFactory &efac, const char *logic = nullptr,
+                    solver_options opts = solver_options());
 
   ~yices_solver_impl();
 

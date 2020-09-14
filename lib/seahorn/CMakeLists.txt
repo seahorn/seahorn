@@ -23,11 +23,12 @@ add_llvm_library (seahorn.LIB DISABLE_LLVM_LINK_LLVM_DYLIB
   HornClauseDBTransf.cc
   FiniteMapTransf.cc
   PathBmc.cc
-  PathBmcBoolAbs.cc  
+  PathBmcBoolAbs.cc
   PathBmcMuc.cc
   PathBmcTrace.cc
-  PathBmcUtil.cc  
+  PathBmcUtil.cc
   Bmc.cc
+  SolverBmc.cc
   BmcPass.cc
   BvOpSem.cc
   # BvInt.cc

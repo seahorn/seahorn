@@ -605,7 +605,8 @@ public:
     // do concrete computation if possible
     // NOTE: This is needed in ConstantEvaluator
     if (m_ctx.alu().isNum(p.getBase()) && m_ctx.alu().isNum(p.getOffset())) {
-      signed ptrBase = m_ctx.alu().toNum(p.getBase()).get_si();
+      // -- base pointer is unsigned, but offset can be negative
+      unsigned ptrBase = m_ctx.alu().toNum(p.getBase()).get_ui();
       signed offset = m_ctx.alu().toNum(p.getOffset()).get_si();
       return m_ctx.alu().si(ptrBase + offset, ptrSzInBits());
     }

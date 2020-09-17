@@ -49,7 +49,7 @@ inline expr::Expr memStartVar(unsigned id, expr::Expr sort) {
   using namespace expr;
   ExprFactory &efac = sort->efac();
   return bind::mkConst(
-      variant::variant(id, mkTerm<std::string>("mem_start", efac)), sort);
+      expr::op::variant::variant(id, mkTerm<std::string>("mem_start", efac)), sort);
 }
 
 /// variable to represent end of a memory region with a given id
@@ -57,7 +57,7 @@ inline expr::Expr memEndVar(unsigned id, expr::Expr sort) {
   using namespace expr;
   ExprFactory &efac = sort->efac();
   return bind::mkConst(
-      variant::variant(id, mkTerm<std::string>("mem_end", efac)), sort);
+      expr::op::variant::variant(id, mkTerm<std::string>("mem_end", efac)), sort);
 }
 
 inline bool isShadowMem(const Value &V, const Value **out) {

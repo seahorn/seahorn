@@ -1014,19 +1014,19 @@ class Unroll(sea.LimitedCmd):
 
     def mk_arg_parser (self, ap):
         ap = super (Unroll, self).mk_arg_parser (ap)
-        ap.add_argument ('--threshold', type=int, help='Unrolling threshold. ' +
+        ap.add_argument('--threshold', type=int, help='Unrolling threshold. ' +
                          'Loops of larger size than this value will not ' +
                          'be unrolled (-unroll-threshold)',
                          default=131072, metavar='T')
-        ap.add_argument ('--bound', default=0, type=int,
+        ap.add_argument('--bound', default=0, type=int,
                          help='Unroll bound (-unroll-count)', metavar='B')
-        ap.add_argument ('--enable-runtime', dest='enable_runtime',
-                         default=False, action='store_true',
+        add_bool_argument(ap, '--enable-runtime', dest='enable_runtime',
                          help='Allow unrolling loops with runtime trip count ' +
                          '(-unroll-runtime)')
-        ap.add_argument ('--enable-partial', dest='enable_partial',
-                         default=False, action='store_true',
+        add_bool_argument(ap, '--enable-partial', dest='enable_partial',
                          help='Enable partial unrolling (-unroll-allow-partial)')
+        add_bool_argument(ap, 'use-llvm-unroll', default=False, dest='use_llvm_unroll',
+                          help='If true  use LLVM to unroll loops instead of SeaHorn')
         add_in_out_args (ap)
         _add_S_arg (ap)
         return ap
@@ -1045,14 +1045,19 @@ class Unroll(sea.LimitedCmd):
         # fake loops to be in the form suitable for loop-unroll
         argv.append ('-fake-latch-exit')
 
-        argv.append ('-loop-unroll')
-        if args.enable_runtime:
-            argv.append ('-unroll-runtime')
-        if args.enable_partial:
-            argv.append ('-unroll-allow-partial')
+        if args.use_llvm_unroll:
+            argv.append ('-loop-unroll')
+            # the options below are support by LLVM unroller only
+            if args.enable_runtime:
+                argv.append ('-unroll-runtime')
+            if args.enable_partial:
+                argv.append ('-unroll-allow-partial')
+            argv.append ('-unroll-threshold={t}'.format(t=args.threshold))
+        else:
+            argv.append('-sea-loop-unroll')
+
         if args.bound > 0:
             argv.append ('-unroll-count={b}'.format(b=args.bound))
-        argv.append ('-unroll-threshold={t}'.format(t=args.threshold))
 
         argv.extend (args.in_files)
         if args.llvm_asm: argv.append ('-S')

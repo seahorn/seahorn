@@ -13,6 +13,7 @@
 
 namespace seahorn {
 /* use options from Bmc.cc*/
+extern bool DumpHex;
 extern std::string BmcSmtLogic;
 extern std::string BmcSmtTactic;
 } // namespace seahorn
@@ -291,7 +292,19 @@ template <> raw_ostream &SolverBmcTrace::print(raw_ostream &out) {
 
       if (out.has_colors())
         out.changeColor(raw_ostream::RED);
-      out << "  %" << I.getName() << " " << *v;
+      if (DumpHex && shadow_mem) {
+        using HD = expr::hexDump::HexDump;
+        using SHD = expr::hexDump::StructHexDump;
+        out << "  %" << I.getName() << "\n";
+
+        if (isOp<MK_STRUCT>(v)) {
+          out << SHD(v);
+        } else {
+          out << HD(v);
+        }
+
+      } else
+        out << "  %" << I.getName() << " " << *v;
       const DebugLoc &dloc = I.getDebugLoc();
       if (dloc) {
         if (out.has_colors())

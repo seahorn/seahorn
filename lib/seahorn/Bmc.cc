@@ -14,11 +14,13 @@
 namespace seahorn {
 std::string BmcSmtLogic;
 std::string BmcSmtTactic;
+bool DumpHex;
 } // namespace seahorn
 
-static llvm::cl::opt<bool>
-    DumpHex("horn-bmc-hexdump",
-            llvm::cl::desc("Dump memory state using hexdump"), cl::init(false));
+static llvm::cl::opt<bool, true>
+    XDumpHex("horn-bmc-hexdump",
+             llvm::cl::desc("Dump memory state using hexdump"),
+             llvm::cl::location(seahorn::DumpHex), cl::init(false));
 static llvm::cl::opt<std::string, true>
     XBmcSmtTactic("horn-bmc-tactic", llvm::cl::desc("Z3 tactic to use for BMC"),
                   llvm::cl::location(seahorn::BmcSmtTactic),

@@ -58,7 +58,7 @@ static llvm::cl::opt<BmcSolverKind> BmcSolver(
     llvm::cl::values(clEnumValN(BmcSolverKind::Z3, "z3", "Use Z3 directly"),
                      clEnumValN(BmcSolverKind::SMT_Z3, "smt-z3",
                                 "Use Z3 interface"),
-                     clEnumValN(BmcSolverKind::SMT_YICES2, "smt-yices2",
+                     clEnumValN(BmcSolverKind::SMT_YICES2, "smt-y2",
                                 "Use Yices2 interface")),
     llvm::cl::init(BmcSolverKind::Z3), llvm::cl::Hidden);
 

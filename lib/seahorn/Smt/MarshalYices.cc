@@ -414,7 +414,7 @@ term_t marshal_yices::encode_term(Expr e, ycache_t &cache) {
     else if (isOp<BCONCAT>(e))
       res = yices_bvconcat(args.size(), &args[0]);
     else if (isOp<BADD>(e)) {
-      assert(e->arity > 2);
+      assert(e->arity() > 2);
       res = args.back();
       for (size_t i = 1, sz = args.size(); i < sz; i++) {
         res = yices_bvadd(args[sz - 1 - i], res);

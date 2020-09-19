@@ -634,10 +634,8 @@ Expr marshal_yices::eval(Expr expr, ExprFactory &efac, ycache_t &cache,
   Expr domain = nullptr;
   Expr range = nullptr;
 
-  if (bind::isBoolConst(expr) || bind::isIntConst(expr) ||
-      bind::isRealConst(expr) || op::bv::isBvConst(expr)) {
-    // do nothing
-  } else if (bind::isConst<ARRAY_TY>(expr)) {
+  /* special handling for const array*/
+  if (bind::isConst<ARRAY_TY>(expr)) {
     if (bind::isFdecl(expr->left())) {
       is_array = true;
       Expr expr_type = expr->left()->right();
@@ -646,27 +644,6 @@ Expr marshal_yices::eval(Expr expr, ExprFactory &efac, ycache_t &cache,
     } else {
       decode_term_fail("eval failed with array constant");
     }
-  } else {
-    if (isOpX<NEG>(expr)) {
-      return op::boolop::lneg(eval(expr->left(), efac, cache, complete, model));
-    }
-
-    if (isOpX<AND>(expr) && expr->arity() == 2) {
-      return op::boolop::land(
-          eval(expr->left(), efac, cache, complete, model),
-          eval(expr->right(), efac, cache, complete, model));
-    } else if (isOpX<AND>(expr) && expr->arity() > 2) {
-      ExprVector r;
-      for (auto it = expr->args_begin(), end = expr->args_end(); it != end;
-           ++it) {
-        r.push_back(eval(*it, efac, cache, complete, model));
-      }
-      return op::boolop::land(r);
-    }
-
-    errs() << *expr << "\n";
-    decode_term_fail("eval failed: expecting only binary conjunction of "
-                     "constant expressions");
   }
 
   Expr res =

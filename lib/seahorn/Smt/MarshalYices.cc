@@ -4,6 +4,7 @@
 #include "seahorn/Expr/ExprInterp.hh"
 #include "seahorn/Expr/ExprOpBinder.hh"
 #include "seahorn/Expr/Smt/Yices2SolverImpl.hh"
+
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/raw_ostream.h"
 
@@ -608,6 +609,13 @@ Expr marshal_yices::decode_yval(yval_t &yval, ExprFactory &efac, model_t *model,
 // uninterpreted function)
 Expr marshal_yices::eval(Expr expr, ExprFactory &efac, ycache_t &cache,
                          bool complete, model_t *model) {
+  if (isOp<MK_STRUCT>(expr)) {
+    ExprVector kids;
+    for (auto arg : *expr) {
+      kids.push_back(eval(arg, efac, cache, complete, model));
+    }
+    return strct::mk(kids);
+  }
 
   term_t yt_var = encode_term(expr, cache);
   if (yt_var == NULL_TERM) {

@@ -615,6 +615,8 @@ Expr marshal_yices::eval(Expr expr, ExprFactory &efac, ycache_t &cache,
       kids.push_back(eval(arg, efac, cache, complete, model));
     }
     return strct::mk(kids);
+  } else if (op::bv::isBvNum(expr) || isOpX<MPZ>(expr) || isOpX<MPQ>(expr)) {
+    return expr;
   }
 
   term_t yt_var = encode_term(expr, cache);

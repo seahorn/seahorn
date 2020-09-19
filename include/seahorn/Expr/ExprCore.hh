@@ -169,6 +169,9 @@ public:
   args_const_iterator args_begin() const { return args.begin(); }
   args_const_iterator args_end() const { return args.end(); }
 
+  args_const_iterator begin() const { return args_begin(); }
+  args_const_iterator end() const { return args_end(); }
+
   template <typename iterator> void renew_args(iterator b, iterator e);
 
   void push_back(ENode *a) {

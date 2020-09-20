@@ -411,31 +411,30 @@ bool isFiniteMap(Expr exp) {
   return isOp<SET>(exp) || isOp<CONST_FINITE_MAP>(exp);
 }
 
-struct FindValid {
-  bool foundValid = false;
-  Expr validExp = nullptr;
+struct FindValidProc {
+  bool m_found = false;
+  Expr m_exp = nullptr;
 
   bool isValidType(Expr exp) {
     return isOp<ITE>(exp) || isArray(exp) || isFiniteMap(exp);
   }
 
   VisitAction operator()(Expr exp) {
-    if (isValidType(exp)) {
-      foundValid = true;
-      validExp = exp;
-
-      return VisitAction::skipKids();
+    if (!m_found && isValidType(exp)) {
+      m_found = true;
+      m_exp = exp;
     }
-
-    return VisitAction::doKids();
+    return m_found ? VisitAction::skipKids() : VisitAction::doKids();
   }
 };
 
 class HexDump::Impl {
   std::unique_ptr<HD_BASE> m_visitor;
+  Expr m_exp;
+  bool m_noHexDumpFound = false;
+  ;
 
   void findType(Expr exp) {
-
     if (isOp<ITE>(exp)) {
       m_visitor = std::make_unique<HD_ITE>();
       visit(*m_visitor, exp); // note: HD_ITE has its own cache
@@ -452,32 +451,39 @@ class HexDump::Impl {
       // if the expression is not a supported type, then this searches its
       // children for the first supported type
       Expr validType;
-      FindValid find;
+      FindValidProc find;
 
       dagVisit(find, exp);
 
-      if (find.foundValid) {
-        findType(find.validExp);
+      if (find.m_found) {
+        findType(find.m_exp);
       } else {
         m_visitor = std::make_unique<HD_BASE>();
+        m_noHexDumpFound = true;
       }
     }
   }
 
 public:
-  Impl(Expr exp) { findType(exp); }
+  Impl(Expr exp) : m_exp(exp) { findType(m_exp); }
 
   const_hd_iterator cbegin() const { return m_visitor->cbegin(); }
-
   const_hd_iterator cend() const { return m_visitor->cend(); }
 
+  bool isValid() { return !m_noHexDumpFound; }
+
   template <typename T> void print(T &OS, bool ascii) {
-    m_visitor->print(OS, ascii);
+    if (!isValid()) {
+      OS << *m_exp;
+    } else {
+      m_visitor->print(OS, ascii);
+    }
   }
 };
 
 HexDump::HexDump(Expr exp) : m_impl(new HexDump::Impl(exp)) {}
 HexDump::~HexDump() { delete m_impl; }
+bool HexDump::isValid() const { return m_impl->isValid(); }
 
 const_hd_iterator HexDump::cbegin() const { return m_impl->cbegin(); }
 
@@ -493,41 +499,43 @@ std::ostream &operator<<(std::ostream &OS, HexDump const &hd) {
 }
 
 llvm::raw_ostream &operator<<(llvm::raw_ostream &OS, HexDump const &hd) {
-  OS << boost::lexical_cast<std::string>(hd);
+  hd.print(OS, true);
   return OS;
 }
 
 class StructHexDump::StructImpl {
-  std::list<std::unique_ptr<HexDump>> hexDumps;
+  Expr m_exp;
+  std::vector<std::unique_ptr<HexDump>> hexDumps;
 
   void init(Expr exp) {
     assert(isOp<MK_STRUCT>(exp));
 
     // separate every child of the struct into
     // separate hex dumps
-    for (auto b = exp->args_begin(), e = exp->args_end(); b != e; b++) {
-      hexDumps.push_back(std::make_unique<HexDump>((*b)));
-    }
+    for (auto *b : *exp)
+      hexDumps.push_back(std::make_unique<HexDump>(b));
   }
 
 public:
-  StructImpl(Expr exp) { init(exp); }
+  StructImpl(Expr exp) : m_exp(exp) { init(exp); }
 
   std::vector<const_hd_range> getRanges() const {
-
     std::vector<const_hd_range> ranges;
-
     for (auto b = hexDumps.begin(), e = hexDumps.end(); b != e; b++) {
       const_hd_range r((*b)->cbegin(), (*b)->cend());
       ranges.push_back(r);
     }
-
     return ranges;
   }
 
   template <typename T> void print(T &OS, bool ascii) {
-    for (auto b = hexDumps.begin(), e = hexDumps.end(); b != e; b++) {
-      (*b)->print(OS, ascii);
+    if (!hexDumps.front()->isValid()) {
+      OS << *m_exp;
+      return;
+    }
+
+    for (auto &b : hexDumps) {
+      b->print(OS, ascii);
       OS << "\n";
     }
   }
@@ -553,7 +561,7 @@ std::ostream &operator<<(std::ostream &OS, StructHexDump const &hd) {
 }
 
 llvm::raw_ostream &operator<<(llvm::raw_ostream &OS, StructHexDump const &hd) {
-  OS << boost::lexical_cast<std::string>(hd);
+  hd.print(OS, true);
   return OS;
 }
 

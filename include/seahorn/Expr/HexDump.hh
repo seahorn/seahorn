@@ -89,6 +89,7 @@ public:
   HexDump(Expr exp);
   ~HexDump();
 
+  bool isValid() const;
   const_hd_iterator cbegin() const;
   const_hd_iterator cend() const;
 
@@ -96,7 +97,6 @@ public:
 
   friend llvm::raw_ostream &operator<<(llvm::raw_ostream &OS,
                                        HexDump const &hd);
-
   friend std::ostream &operator<<(std::ostream &OS, HexDump const &hd);
 };
 

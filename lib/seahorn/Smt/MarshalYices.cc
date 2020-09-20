@@ -4,6 +4,8 @@
 #include "seahorn/Expr/ExprInterp.hh"
 #include "seahorn/Expr/ExprOpBinder.hh"
 #include "seahorn/Expr/Smt/Yices2SolverImpl.hh"
+#include "seahorn/Support/SeaLog.hh"
+#include "seahorn/Support/SeaDebug.h"
 
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/raw_ostream.h"
@@ -634,15 +636,19 @@ Expr marshal_yices::eval(Expr expr, ExprFactory &efac, ycache_t &cache,
   Expr domain = nullptr;
   Expr range = nullptr;
 
-  /* special handling for const array*/
-  if (bind::isConst<ARRAY_TY>(expr)) {
-    if (bind::isFdecl(expr->left())) {
+  /* special handling for array */
+  if (bind::isConst<ARRAY_TY>(expr) || isOpX<STORE>(expr) || isOpX<ITE>(expr) ||
+      isOpX<CONST_ARRAY>(expr)) {
+    TypeChecker tc;
+    Expr sort = tc.sortOf(expr);
+    if (isOpX<ARRAY_TY>(sort)) {
       is_array = true;
-      Expr expr_type = expr->left()->right();
-      domain = op::sort::arrayIndexTy(expr_type);
-      range = op::sort::arrayValTy(expr_type);
+      domain = op::sort::arrayIndexTy(sort);
+      range = op::sort::arrayValTy(sort);
     } else {
-      decode_term_fail("eval failed with array constant");
+      LOG("yices", WARN << "Unexpected term of non-array sort: " << *sort
+                        << "\n"
+                        << *expr);
     }
   }
 

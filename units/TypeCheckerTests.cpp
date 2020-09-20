@@ -531,10 +531,6 @@ TEST_CASE("bvWellFormed.test") {
   temp = mk<BREPEAT>(mkTerm<unsigned>(2, efac), a5);
   e.push_back(temp);
 
-  temp = mk<BUGE>(e.back(),
-                  mk<BEXT_ROTATE_RIGHT>(mkTerm<unsigned>(2, efac), e.back()));
-  e.push_back(temp);
-
   temp = mk<INT2BV>(mkTerm<unsigned>(10, efac), aInt);
   e.push_back(temp);
 
@@ -721,9 +717,6 @@ TEST_CASE("bvDifReturnTypeWellFormed.test") {
   std::vector<Expr> e2;
 
   temp = mk<BV2INT>(a10);
-  e2.push_back(temp);
-
-  temp = mk<BV2INT>(mk<BSLE>(a10, b10));
   e2.push_back(temp);
 
   temp = mk<PLUS>(mk<BV2INT>(mk<BUREM>(a10, b10)), aInt);

@@ -479,9 +479,9 @@ TEST_CASE("specialCases.test") {
   Expr intConst3 = bind::intConst(mkTerm<std::string>("intConst3", efac));
   Expr intSort = sort::intTy(efac);
 
-  Expr e = mk<AND>(intConst,
-                   intConst); // doesn't have anything that is supported by the
-                              // hex dump so the result should be empty
+  // doesn't have anything that is supported by the
+  // hex dump so the result should be same as input
+  Expr e = mk<AND>(intConst, intConst);
 
   llvm::errs() << "Expression: " << *e << "\n";
 
@@ -489,7 +489,7 @@ TEST_CASE("specialCases.test") {
   llvm::errs() << hd;
 
   std::string outcome = boost::lexical_cast<std::string>(hd);
-  std::string expected = "";
+  std::string expected = boost::lexical_cast<std::string>(*e);
 
   CHECK(outcome == expected);
 

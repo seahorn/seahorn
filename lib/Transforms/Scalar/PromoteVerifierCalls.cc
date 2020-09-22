@@ -15,6 +15,24 @@
 #include "llvm/Analysis/CallGraph.h"
 using namespace llvm;
 
+namespace {
+
+/// Converts \p arg to Boolean (i.e., i1) type
+///
+/// If necessary, inserts additional instructions before the given instruction
+Value *coerceToBool(Value *arg, IRBuilder<> &builder, Instruction &I) {
+  assert(arg);
+  // strip zext if there is one
+  if (const ZExtInst *ze = dyn_cast<const ZExtInst>(arg))
+    arg = ze->getOperand(0);
+
+  builder.SetInsertPoint(&I);
+  // -- convert to Boolean if needed
+  if (!arg->getType()->isIntegerTy(1))
+    arg = builder.CreateICmpNE(arg, ConstantInt::get(arg->getType(), 0));
+  return arg;
+}
+} // namespace
 namespace seahorn {
 char PromoteVerifierCalls::ID = 0;
 
@@ -128,8 +146,7 @@ bool PromoteVerifierCalls::runOnFunction(Function &F) {
         continue;
 
       IRBuilder<> Builder(F.getContext());
-      Value *cond = CS.getArgument(0);
-      coerceToBool(cond, Builder, I);
+      auto *cond = coerceToBool(CS.getArgument(0), Builder, I);
       CallInst *ci = Builder.CreateCall(nfn, cond);
       if (cg)
         (*cg)[&F]->addCalledFunction(ci, (*cg)[ci->getCalledFunction()]);
@@ -165,8 +182,8 @@ bool PromoteVerifierCalls::runOnFunction(Function &F) {
     } else if (fn && (fn->getName().equals("sea_is_dereferenceable"))) {
       IRBuilder<> Builder(F.getContext());
       Builder.SetInsertPoint(&I);
-      CallInst *ci =
-          Builder.CreateCall(m_is_deref, {CS.getArgument(0), CS.getArgument(1)});
+      CallInst *ci = Builder.CreateCall(m_is_deref,
+                                        {CS.getArgument(0), CS.getArgument(1)});
       if (cg)
         (*cg)[&F]->addCalledFunction(ci, (*cg)[ci->getCalledFunction()]);
 
@@ -178,10 +195,8 @@ bool PromoteVerifierCalls::runOnFunction(Function &F) {
       IRBuilder<> Builder(F.getContext());
       // arg0: antecedent
       // arg1: consequent
-      Value *arg0 = CS.getArgument(0);
-      coerceToBool(arg0, Builder, I);
-      Value *arg1 = CS.getArgument(1);
-      coerceToBool(arg0, Builder, I);
+      auto *arg0 = coerceToBool(CS.getArgument(0), Builder, I);
+      auto *arg1 = coerceToBool(CS.getArgument(1), Builder, I);
 
       CallInst *ci = Builder.CreateCall(m_assert_if, {arg0, arg1});
       if (cg)
@@ -196,19 +211,6 @@ bool PromoteVerifierCalls::runOnFunction(Function &F) {
     I->eraseFromParent();
 
   return Changed;
-}
-
-void PromoteVerifierCalls::coerceToBool(Value *arg, IRBuilder<> &builder,
-                                        Instruction &I) {
-  assert(arg);
-  // strip zext if there is one
-  if (const ZExtInst *ze = dyn_cast<const ZExtInst>(arg))
-    arg = ze->getOperand(0);
-
-  builder.SetInsertPoint(&I);
-  // -- convert to Boolean if needed
-  if (!arg->getType()->isIntegerTy(1))
-    arg = builder.CreateICmpNE(arg, ConstantInt::get(arg->getType(), 0));
 }
 
 void PromoteVerifierCalls::getAnalysisUsage(AnalysisUsage &AU) const {

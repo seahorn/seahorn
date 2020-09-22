@@ -29,7 +29,6 @@ namespace seahorn
     
     bool runOnModule (Module &M);
     bool runOnFunction (Function &F);
-    void coerceToBool(Value *arg, IRBuilder<> &builder, Instruction &I);
     void getAnalysisUsage (AnalysisUsage &AU) const;
     virtual StringRef getPassName () const {return "PromoteVerifierCalls";}
   };

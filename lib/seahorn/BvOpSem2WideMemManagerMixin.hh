@@ -296,9 +296,7 @@ public:
   }
 
   Expr ptrEq(PtrTy p1, PtrTy p2) const override {
-    return base().getMainMemMgr().ptrEq(
-        base().getAddressable(BasePtrTy(std::move(p1))),
-        base().getAddressable(BasePtrTy(std::move(p2))));
+    return base().ptrEq(BasePtrTy(std::move(p1)), BasePtrTy(std::move(p2)));
   }
 
   Expr ptrNe(PtrTy p1, PtrTy p2) const override {

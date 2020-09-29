@@ -628,6 +628,11 @@ public:
       return m_ctx.alu().doTrunc(val, g_slotBitWidth);
     }
   }
+
+  Expr ptrEq(PtrTy p1, PtrTy p2) const {
+    return mk<AND>(m_main.ptrEq(p1.getBase(), p2.getBase()),
+                   m_offset.ptrEq(p1.getOffset(), p2.getOffset()));
+  }
 };
 
 ExtraWideMemManager::ExtraWideMemManager(Bv2OpSem &sem, Bv2OpSemContext &ctx,

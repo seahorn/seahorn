@@ -1,5 +1,6 @@
 /* Externalize functions selected by command line */
 
+#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/CallSite.h"
@@ -12,15 +13,13 @@
 #include "llvm/IR/Value.h"
 #include "llvm/IR/Verifier.h"
 #include "llvm/Pass.h"
-#include "llvm/Support/Debug.h"
-#include "llvm/Support/raw_ostream.h"
-#include "llvm/Support/Regex.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/Support/CommandLine.h"
+#include "llvm/Support/Debug.h"
+#include "llvm/Support/Regex.h"
+#include "llvm/Support/raw_ostream.h"
 
 #include "seahorn/Support/SeaDebug.h"
 #include "seahorn/Support/SeaLog.hh"
-
 
 using namespace llvm;
 
@@ -30,6 +29,11 @@ static llvm::cl::list<std::string>
     ExternalizeFunctionNames("externalize-function",
                              llvm::cl::desc("Set the linkage to external"),
                              llvm::cl::ZeroOrMore, llvm::cl::CommaSeparated);
+
+static llvm::cl::opt<bool>
+    RemoveBodies("externalize-functions-delete",
+                 llvm::cl::desc("Delete bodies of externalized functions"),
+                 llvm::cl::init(true));
 
 namespace seahorn {
 
@@ -68,10 +72,6 @@ public:
         externalizeFunctions.insert(F);
 #else
       MatchRegex filter(name);
-      if (name == "_Z14Initialize_Mapv") {
-        errs() << "NAME MATCHES\n";
-      } else
-        errs() << "name:\t" << name << "\n";
       for (auto &F : M) {
         if (filter(&F)) {
           externalizeFunctions.insert(&F);
@@ -86,10 +86,18 @@ public:
       if (F.isDeclaration() || externalizeFunctions.count(&F) == 0)
         continue;
       LOG("extern", errs() << "EXTERNALIZED " << F.getName() << "\n");
-      F.deleteBody();
-      F.setComdat(nullptr);
       Change = true;
+
+      if (!RemoveBodies && F.hasLocalLinkage()) {
+        F.setLinkage(GlobalValue::ExternalLinkage);
+        LOG("extern", errs() << "linkage of " << F.getName() << "is set to external: " << F.hasExternalLinkage() << "\n";);
+      } else {
+        F.deleteBody();
+        F.setComdat(nullptr);
+      }
     }
+
+    // get rid of aliases, even if the function has not been removed
 
     // Delete global aliases: aliases cannot point to a function
     // declaration so if there is an alias to an external function
@@ -109,9 +117,9 @@ public:
       }
     }
 
-    errs() << "Externalize before verify\n\n";
+    LOG("extern", errs() << "Externalize before verify\n\n";);
     llvm::verifyModule(M, &(errs()), nullptr);
-    errs() << "Externalize after verify\n\n";
+    LOG("extern", errs() << "Externalize after verify\n\n";);
 
     return Change;
   }

@@ -93,10 +93,10 @@ static llvm::cl::opt<bool> SymbolizeLoops(
     llvm::cl::desc("Convert constant loop bounds into symbolic bounds"),
     llvm::cl::init(false));
 
-static llvm::cl::opt<bool> KeepArithOverflow(
-    "horn-keep-arith-overflow",
-    llvm::cl::desc("Keep arithmetic overflow intrinsics."),
-    llvm::cl::init(false));
+static llvm::cl::opt<bool>
+    KeepArithOverflow("horn-keep-arith-overflow",
+                      llvm::cl::desc("Keep arithmetic overflow intrinsics."),
+                      llvm::cl::init(false));
 
 static llvm::cl::opt<bool> SimplifyPointerLoops(
     "simplify-pointer-loops",
@@ -204,6 +204,11 @@ static llvm::cl::opt<bool> FatBoundsCheck(
     llvm::cl::desc(
         "Instrument buffer bounds check  using extended pointer bits"),
     llvm::cl::init(false));
+
+static llvm::cl::opt<bool>
+    ExternalizeFns("externalize-fns",
+                   llvm::cl::desc("Run externalize functions pass"),
+                   llvm::cl::init(false));
 
 static llvm::cl::opt<bool>
     LowerIsDeref("lower-is-deref",
@@ -436,6 +441,9 @@ int main(int argc, char **argv) {
   } else if (AddBranchSentinelOpt) {
     initializeAddBranchSentinelPassPass(Registry);
     pm_wrapper.add(seahorn::createAddBranchSentinelPassPass());
+  } else if (ExternalizeFns) {
+    // -- Externalize some user-selected functions
+    pm_wrapper.add(seahorn::createExternalizeFunctionsPass());
   }
   // default pre-processing pipeline
   else {

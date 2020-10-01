@@ -32,7 +32,7 @@ protected:
 
   const DataLayout *m_td;
   const CanFail *m_canFail;
-  boost::scoped_ptr<LegacyOperationalSemantics> m_sem;
+  std::unique_ptr<LegacyOperationalSemantics> m_sem;
 
   LiveSymbolsMap m_ls;
   PredDeclMap m_bbPreds;

@@ -20,6 +20,10 @@ static llvm::cl::opt<std::string> ChcEngine("horn-pdr-engine",
                                             cl::init("spacer"), cl::Hidden);
 
 static llvm::cl::opt<bool>
+    LocalContext("horn-solver-local-ctx", cl::init(false),
+                 cl::desc("Whether to use local z3 context"));
+
+static llvm::cl::opt<bool>
     PrintAnswer("horn-answer", cl::desc("Print Horn answer"), cl::init(false));
 
 static llvm::cl::opt<bool> EstimateSizeInvars(
@@ -38,14 +42,18 @@ static llvm::cl::opt<bool>
 static llvm::cl::opt<bool> FlexTrace("horn-flex-trace", cl::Hidden,
                                      cl::init(false));
 
-static llvm::cl::opt<bool> HornChildren("horn-child-order", cl::Hidden,
-                                        cl::init(true));
+static llvm::cl::opt<unsigned> HornChildren("horn-solver-child-order",
+                                            cl::Hidden, cl::init(2));
 
 static llvm::cl::opt<unsigned> PdrContexts("horn-pdr-contexts", cl::Hidden,
                                            cl::init(500));
 
 static llvm::cl::opt<bool> WeakAbs("horn-weak-abs", cl::Hidden, cl::init(false),
                                    cl::desc("Perform weak abstraction"));
+
+static llvm::cl::opt<bool>
+    GroundPobs("horn-solver-ground-pobs", cl::Hidden, cl::init(true),
+               cl::desc("Ground proof obligations to ensure QF"));
 
 static llvm::cl::opt<bool>
     UseMbqi("horn-use-mbqi", cl::Hidden, cl::init(false),
@@ -108,7 +116,12 @@ bool HornSolver::runOnModule(Module &M) {
   // Load the Horn clause database
   auto &db = hm.getHornClauseDB();
 
-  m_fp.reset(new ZFixedPoint<EZ3>(hm.getZContext()));
+  if (LocalContext) {
+    m_local_ctx.reset(new EZ3(hm.getExprFactory()));
+    m_fp.reset(new ZFixedPoint<EZ3>(*m_local_ctx));
+  } else {
+    m_fp.reset(new ZFixedPoint<EZ3>(hm.getZContext()));
+  }
   ZFixedPoint<EZ3> &fp = *m_fp;
 
   ZParams<EZ3> params(hm.getZContext());
@@ -122,7 +135,7 @@ bool HornSolver::runOnModule(Module &M) {
   // -- disable propagate_variable_equivalences in tail_simplifier
   params.set(":xform.tail_simplifier_pve", false);
   params.set(":xform.subsumption_checker", Subsumption);
-  params.set(":spacer.order_children", HornChildren ? 1U : 0U);
+  params.set(":spacer.order_children", HornChildren);
   params.set(":spacer.max_num_contexts", PdrContexts);
   params.set(":spacer.elim_aux", true);
   params.set(":spacer.reach_dnf", true);
@@ -136,7 +149,7 @@ bool HornSolver::runOnModule(Module &M) {
   // -- less incremental but constraints are popped after pushed in
   //    the solver
   params.set(":spacer.keep_proxy", KeepProxy);
-  params.set(":spacer.ground_pobs", false);
+  params.set(":spacer.ground_pobs", GroundPobs);
   params.set(":spacer.use_euf_gen", UseEufGen);
   params.set(":spacer.max_level", HornMaxDepth);
   fp.set(params);

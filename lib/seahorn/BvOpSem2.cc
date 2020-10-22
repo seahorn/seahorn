@@ -1,4 +1,5 @@
 #include "seahorn/BvOpSem2.hh"
+#include "BvOpSem2ExtraWideMemMgr.hh"
 #include "BvOpSem2RawMemMgr.hh"
 
 #include "llvm/CodeGen/IntrinsicLowering.h"
@@ -60,6 +61,11 @@ static llvm::cl::opt<bool> UseExtraWideMemory(
     "horn-bv2-extra-widemem",
     llvm::cl::desc(
         "Use extra wide memory model with base, offset and object size"),
+    cl::init(false));
+
+static llvm::cl::opt<bool> UseTrackingMemory(
+    "horn-bv2-tracking-mem",
+    llvm::cl::desc("Use Memory which stores metadata about Def and Use"),
     cl::init(false));
 
 static llvm::cl::opt<unsigned>
@@ -2029,7 +2035,12 @@ Bv2OpSemContext::Bv2OpSemContext(Bv2OpSem &sem, SymStore &values,
   else if (UseWideMemory) {
     mem = mkWideMemManager(m_sem, *this, ptrSize, wordSize, UseLambdas);
   } else if (UseExtraWideMemory) {
-    mem = mkExtraWideMemManager(m_sem, *this, ptrSize, wordSize, UseLambdas);
+    if (UseTrackingMemory) {
+      mem = mkTrackingExtraWideMemManager(m_sem, *this, ptrSize, wordSize,
+                                          UseLambdas);
+    } else {
+      mem = mkExtraWideMemManager(m_sem, *this, ptrSize, wordSize, UseLambdas);
+    }
   } else {
     mem = mkRawMemManager(m_sem, *this, ptrSize, wordSize, UseLambdas);
   }

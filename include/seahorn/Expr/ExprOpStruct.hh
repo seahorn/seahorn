@@ -132,13 +132,15 @@ inline Expr extractVal(Expr st, unsigned idx) {
 inline bool isStructVal(Expr st) { return isOp<MK_STRUCT>(st); }
 
 inline Expr push_ite_struct(Expr c, Expr lhs, Expr rhs) {
+  if (!isStructVal(lhs) && !isStructVal(rhs)) {
+    return bind::lite(c, lhs, rhs);
+  }
   assert(isStructVal(lhs));
   assert(isStructVal(rhs));
   assert(lhs->arity() == rhs->arity());
-
   llvm::SmallVector<Expr, 8> vals;
   for (unsigned i = 0, sz = lhs->arity(); i < sz; ++i) {
-    vals.push_back(bind::lite(c, lhs->arg(i), rhs->arg(i)));
+    vals.push_back(push_ite_struct(c, lhs->arg(i), rhs->arg(i)));
   }
   return strct::mk(vals);
 }

@@ -1,6 +1,8 @@
+#pragma once
+
 #include "BvOpSem2Context.hh"
 #include "BvOpSem2RawMemMgr.hh"
-
+#include "BvOpSem2TrackingRawMemMgr.hh"
 #include "BvOpSem2WideMemManagerMixin.hh"
 
 #include "seahorn/Expr/ExprOpStruct.hh"
@@ -10,16 +12,9 @@
 
 #include <fstream>
 
-static const unsigned int g_slotBitWidth = 64;
-static const unsigned int g_slotByteWidth = g_slotBitWidth / 8;
-
-static const unsigned int g_uninit = 0xDEADBEEF;
-static const unsigned int g_uninit_small = 0xDEAD;
-static const unsigned int g_num_slots = 3;
-
 namespace seahorn {
 namespace details {
-class ExtraWideMemManager : public OpSemMemManagerBase {
+template <class T> class ExtraWideMemManager : public OpSemMemManagerBase {
 
   /// \brief Knows the memory representation and how to access it
   std::unique_ptr<OpSemMemRepr> m_memRepr;
@@ -36,8 +31,15 @@ class ExtraWideMemManager : public OpSemMemManagerBase {
 
   const Expr m_uninit_size;
 
+  static const unsigned int g_slotBitWidth = 64;
+  static const unsigned int g_slotByteWidth = g_slotBitWidth / 8;
+
+  static const unsigned int g_uninit = 0xDEADBEEF;
+  static const unsigned int g_uninit_small = 0xDEAD;
+  static const unsigned int g_num_slots = 3;
+
   /// \brief Memory manager for raw pointers
-  RawMemManager m_main;
+  T m_main;
   /// \brief Memory manager for pointer offset
 
   // NOTE: offset bitwidth is same as ptr bitwidth since we need to
@@ -47,10 +49,11 @@ class ExtraWideMemManager : public OpSemMemManagerBase {
   RawMemManager m_size;
 
 public:
-  using RawPtrTy = OpSemMemManager::PtrTy;
-  using RawMemValTy = OpSemMemManager::MemValTy;
-  using RawPtrSortTy = OpSemMemManager::PtrSortTy;
-  using RawMemSortTy = OpSemMemManager::MemSortTy;
+  using RawPtrTy = typename T::PtrTy;
+  using RawMemValTy = typename T::MemValTy;
+  using RawPtrSortTy = typename T::PtrSortTy;
+  using RawMemSortTy = typename T::MemSortTy;
+
   using MemRegTy = OpSemMemManager::MemRegTy;
 
   // size = size in bits
@@ -87,18 +90,23 @@ public:
     Expr m_v;
 
     MemValTyImpl(RawMemValTy &&raw_val, Expr &&offset_val, Expr &&size_val) {
+      assert(!strct::isStructVal(size_val));
       m_v = strct::mk(std::move(raw_val), std::move(offset_val),
                       std::move(size_val));
     }
 
     MemValTyImpl(const RawPtrTy &raw_val, const Expr &offset_val,
                  const Expr &size_val) {
+      assert(!strct::isStructVal(size_val));
       m_v = strct::mk(raw_val, offset_val, size_val);
     }
 
     explicit MemValTyImpl(const Expr &e) {
       // Our base is a struct of three exprs
       assert(strct::isStructVal(e));
+      assert(!strct::isStructVal(e->arg(1)));
+      assert(!strct::isStructVal(e->arg(2)));
+
       assert(e->arity() == g_num_slots);
       m_v = e;
     }
@@ -309,17 +317,21 @@ public:
 
   PtrTy nullPtr() const { return m_nullPtr; }
 
+  // We expect to get ONLY the following sorts:
+  // 1. MemSortTy, PtrSortTy - each is a struct with three members
+  // 2. Expr which is not a struct
   Expr coerce(Expr sort, Expr val) {
     if (strct::isStructVal(val)) {
       // recursively coerce struct-ty
-      llvm::SmallVector<Expr, 8> kids;
+      llvm::SmallVector<Expr, g_num_slots> kids;
       assert(isOp<STRUCT_TY>(sort));
       assert(sort->arity() == val->arity());
-      for (unsigned i = 0, sz = val->arity(); i < sz; ++i)
-        kids.push_back(coerce(sort->arg(i), val->arg(i)));
+      assert(sort->arity() == g_num_slots);
+      kids.push_back(m_main.coerce(sort->arg(0), val->arg(0)));
+      kids.push_back(m_offset.coerce(sort->arg(1), val->arg(1)));
+      kids.push_back(m_size.coerce(sort->arg(2), val->arg(2)));
       return strct::mk(kids);
     }
-
     return m_main.coerce(sort, val);
   }
 
@@ -362,8 +374,8 @@ public:
 
   PtrTy loadPtrFromMem(PtrTy base, MemValTy mem, unsigned int byteSz,
                        uint64_t align) {
-    RawMemValTy rawVal = m_main.loadPtrFromMem(getAddressable(base),
-                                               mem.getRaw(), byteSz, align);
+    RawPtrTy rawVal = m_main.loadPtrFromMem(getAddressable(base), mem.getRaw(),
+                                            byteSz, align);
     Expr offsetVal = m_offset.loadIntFromMem(getAddressable(base),
                                              mem.getOffset(), byteSz, align);
     Expr sizeVal = m_size.loadIntFromMem(getAddressable(base), mem.getSize(),
@@ -456,7 +468,7 @@ public:
         m_sem.getTD().getTypeStoreSize(const_cast<llvm::Type *>(&ty));
     ExprFactory &efac = base.v()->efac();
     // init memval to a default value
-    MemValTy res(m_ctx.alu().si(0UL, wordSzInBits()),
+    MemValTy res(m_main.zeroedMemory(),
                  m_ctx.alu().si(g_uninit_small, wordSzInBits()), m_uninit_size);
     switch (ty.getTypeID()) {
     case Type::IntegerTyID:
@@ -635,9 +647,10 @@ public:
   }
 };
 
-ExtraWideMemManager::ExtraWideMemManager(Bv2OpSem &sem, Bv2OpSemContext &ctx,
-                                         unsigned ptrSz, unsigned wordSz,
-                                         bool useLambdas)
+template <class T>
+ExtraWideMemManager<T>::ExtraWideMemManager(Bv2OpSem &sem, Bv2OpSemContext &ctx,
+                                            unsigned ptrSz, unsigned wordSz,
+                                            bool useLambdas)
     : OpSemMemManagerBase(
           sem, ctx, ptrSz, wordSz,
           false /* this is a nop since we delegate to RawMemMgr */),
@@ -646,13 +659,26 @@ ExtraWideMemManager::ExtraWideMemManager(Bv2OpSem &sem, Bv2OpSemContext &ctx,
       m_size(sem, ctx, ptrSz, g_slotByteWidth, useLambdas, true),
       m_uninit_size(m_ctx.alu().si(g_uninit, g_slotBitWidth)),
       m_nullPtr(PtrTy(m_main.nullPtr(), m_ctx.alu().si(0UL, ptrSzInBits()),
-                      m_uninit_size)) {}
+                      m_uninit_size)) {
+  // Currently, we only support RawMemManager or subclasses of it.
+  static_assert(std::is_base_of<OpSemMemManagerBase, T>::value,
+                "T not derived from OpSemMemManagerBase");
+}
 
 OpSemMemManager *mkExtraWideMemManager(Bv2OpSem &sem, Bv2OpSemContext &ctx,
                                        unsigned ptrSz, unsigned wordSz,
                                        bool useLambdas) {
-  return new OpSemWideMemManagerMixin<ExtraWideMemManager>(sem, ctx, ptrSz,
-                                                           wordSz, useLambdas);
+  return new OpSemWideMemManagerMixin<ExtraWideMemManager<RawMemManager>>(
+      sem, ctx, ptrSz, wordSz, useLambdas);
+}
+
+OpSemMemManager *mkTrackingExtraWideMemManager(Bv2OpSem &sem,
+                                               Bv2OpSemContext &ctx,
+                                               unsigned ptrSz, unsigned wordSz,
+                                               bool useLambdas) {
+  return new OpSemWideMemManagerMixin<
+      ExtraWideMemManager<OpSemWideMemManagerMixin<TrackingRawMemManager>>>(
+      sem, ctx, ptrSz, wordSz, useLambdas);
 }
 } // namespace details
 } // namespace seahorn

@@ -1,3 +1,5 @@
+#pragma once
+
 #include "BvOpSem2Context.hh"
 
 #include "llvm/IR/GetElementPtrTypeIterator.h"
@@ -46,6 +48,10 @@ public:
   /// Right now everything is an expression. In the future, we might have
   /// other types for PtrTy, such as a tuple of expressions
   using PtrTy = OpSemMemManager::PtrTy;
+  using MemValTy = OpSemMemManager::MemValTy;
+  using PtrSortTy = OpSemMemManager::PtrSortTy;
+  using MemSortTy = OpSemMemManager::MemSortTy;
+  using MemRegTy = OpSemMemManager::MemRegTy;
 
   PtrTy ptrSort() const override { return m_ctx.alu().intTy(ptrSzInBits()); }
 

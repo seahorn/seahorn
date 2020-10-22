@@ -37,6 +37,7 @@ Expr OpSemMemArrayRepr::MemSet(Expr ptr, Expr _val, unsigned len, Expr mem,
   return res;
 }
 
+// len is in bytes
 Expr OpSemMemArrayRepr::MemSet(Expr ptr, Expr _val, Expr len, Expr mem,
                                unsigned wordSzInBytes, Expr ptrSort,
                                uint32_t align) {
@@ -177,6 +178,7 @@ Expr OpSemMemLambdaRepr::storeAlignedWordToMem(Expr val, Expr ptr, Expr ptrSort,
   return mk<LAMBDA>(decl, ite);
 }
 
+// len is in bytes
 Expr OpSemMemLambdaRepr::MemSet(Expr ptr, Expr _val, unsigned len, Expr mem,
                                 unsigned wordSzInBytes, Expr ptrSort,
                                 uint32_t align) {

@@ -13,11 +13,32 @@
 #include "boost/algorithm/string/replace.hpp"
 #include "seahorn/Expr/ExprLlvm.hh"
 #include "seahorn/Expr/ExprOpBinder.hh"
+#include "seahorn/Expr/HexDump.hh"
 #include "seahorn/Support/SeaDebug.h"
 #include <memory>
 
 using namespace llvm;
 namespace seahorn {
+
+// borrowed from kvUtils
+bool getNum(Expr exp, expr::mpz_class &num) {
+  if (isOp<MPZ>(exp)) {
+    num = getTerm<expr::mpz_class>(exp);
+
+    return true;
+  } else if (isOp<UINT>(exp)) {
+    unsigned unsignedNum = getTerm<unsigned>(exp);
+    num = expr::mpz_class(unsignedNum);
+
+    return true;
+  } else if (bv::is_bvnum(exp)) {
+    num = bv::toMpz(exp);
+
+    return true;
+  }
+
+  return false;
+}
 
 Expr BmcTraceWrapper::eval(unsigned loc, const llvm::Instruction &inst,
                            bool complete) {
@@ -89,6 +110,87 @@ Constant *exprToLlvm(Type *ty, Expr e, LLVMContext &ctx, const DataLayout &dl) {
   llvm_unreachable("Unhandled expression");
 }
 
+/* Given Expr of a shadow.mem segment and pre-recorded size Value
+   use HexDump to extract const array with item size of current
+   word size from Expr
+*/
+Constant *exprToMemSegment(Expr segment, Expr startAddr, Expr size,
+                           llvm::LLVMContext &ctx, const llvm::DataLayout &dl) {
+  if (isOp<MK_STRUCT>(segment)) {
+    // first child should contain memory content
+    return exprToMemSegment(segment->arg(0), startAddr, size, ctx, dl);
+  }
+
+  SmallVector<Constant *, 20> LLVMValueSegment;
+
+  // total block size in bytes;
+  expr::mpz_class sizeMpz;
+  size_t blockWidth = 0;
+  if (getNum(size, sizeMpz)) {
+    blockWidth = sizeMpz.get_ui();
+  } else {
+    LOG("cex",
+        errs() << "memhavoc: cannot get concrete size (" << *size << ")\n");
+    ArrayType *placeholderT = ArrayType::get(Type::getInt8PtrTy(ctx), 0);
+    return ConstantArray::get(placeholderT, LLVMValueSegment);
+  }
+
+  // starting address
+  expr::mpz_class startAddrMpz;
+  size_t startAddrInt = 0;
+  if (getNum(startAddr, startAddrMpz)) {
+    startAddrInt = startAddrMpz.get_ui();
+  } else {
+    LOG("cex", errs() << "memhavoc: cannot get concrete starting address: "
+                      << *startAddr << "\n");
+    ArrayType *placeholderT = ArrayType::get(Type::getInt8PtrTy(ctx), 0);
+    return ConstantArray::get(placeholderT, LLVMValueSegment);
+  }
+
+  using ValueExtractor = expr::hexDump::HexDump;
+  const ValueExtractor kv(segment);
+  size_t elmWidth = kv.valueWidthInBytes();
+  size_t blocks = std::ceil((float)blockWidth / (float)elmWidth);
+  auto *segmentElmTy = IntegerType::get(ctx, elmWidth * 8);
+  ArrayType *segmentAT = ArrayType::get(segmentElmTy, blocks);
+
+  Expr defaultE = kv.getDefault();
+  // get default value or use 0 as fallback
+  Constant *defaultConst;
+  if (defaultE) {
+    defaultConst = exprToLlvm(segmentElmTy, defaultE, ctx, dl);
+  } else {
+    LOG("cex", errs() << "havocing mem with default 0 \n");
+    defaultConst = Constant::getIntegerValue(
+        segmentElmTy, APInt(dl.getTypeStoreSizeInBits(segmentElmTy), 0));
+  }
+
+  // fill with default values
+  for (size_t i = 0; i < blocks; i++) {
+    LLVMValueSegment.push_back(defaultConst);
+  }
+
+  // fill special value indicated by ID
+  for (auto begin = kv.cbegin(), end = kv.cend(); begin != end; begin++) {
+    Expr segmentID = begin->getIdxExpr();
+    expr::mpz_class idE = 0;
+    if (getNum(segmentID, idE)) {
+      size_t curAddrInt = idE.get_ui();
+      size_t index = (curAddrInt - startAddrInt) / elmWidth;
+      if (index >= blocks) {
+        LOG("cex", errs() << "memhavoc: out of bound index: [" << index
+                          << "] with only " << blocks << " blocks \n");
+        continue;
+      }
+      Expr segmentE = begin->getValueExpr();
+      auto *segmentConst = exprToLlvm(segmentElmTy, segmentE, ctx, dl);
+      LLVMValueSegment[index] = segmentConst;
+    } else
+      continue;
+  }
+  return ConstantArray::get(segmentAT, LLVMValueSegment);
+}
+
 // return true if success
 template <typename IndexToValueMap>
 bool extractArrayContents(Expr e, IndexToValueMap &out, Expr &default_value) {
@@ -157,6 +259,8 @@ std::unique_ptr<Module> createCexHarness(BmcTraceWrapper &trace,
   // map a dsa node to its contents (as a pair of a default value
   // and a map from index to value)
   std::map<unsigned, std::pair<Expr, std::map<Expr, Expr>>> DsaContentMap;
+  // store initialized mem size for memhavoc
+  std::vector<std::pair<Expr, Expr>> HavocPtrs;
 
   // Look for calls in the trace
   for (unsigned loc = 0; loc < trace.size(); loc++) {
@@ -201,6 +305,60 @@ std::unique_ptr<Module> createCexHarness(BmcTraceWrapper &trace,
           // array contents
           LOG("cex", errs()
                          << "Producing harness for " << CF->getName() << "\n";);
+          continue;
+        }
+        if (CF->getName().equals("memhavoc")) {
+          LOG("cex", errs()
+                         << "Producing harness for " << CF->getName() << "\n";);
+          // previous instruction should be
+          // shadow.mem.load(i32 x, i32 %sm_n, i8* null)
+          if (I.getPrevNonDebugInstruction() == nullptr)
+            continue;
+          const Instruction *prevI = I.getPrevNonDebugInstruction();
+          if (const CallInst *prevCi = dyn_cast<CallInst>(prevI)) {
+            ImmutableCallSite prevCS(prevCi);
+            const Value *prevCV = prevCS.getCalledValue();
+            const Function *prevCF =
+                dyn_cast<Function>(prevCV->stripPointerCasts());
+            if (!(prevCF && prevCF->getName().equals("shadow.mem.load"))) {
+              LOG("cex", errs()
+                             << "Skipping harness for " << CF->getName()
+                             << " because shadow.mem.load cannot be found\n");
+              continue;
+            }
+            // get memhavoc content from second operand of shadow.mem.load
+            const Value *shadowMemPtr = prevCS.getArgOperand(1);
+            const Instruction *shadowMemI = dyn_cast<Instruction>(shadowMemPtr);
+            if (!shadowMemI)
+              continue;
+            Expr shadowMemV = trace.eval(loc, *shadowMemI, true);
+            // get memhavoc size from second operand of memhavoc
+            const Value *size = CS.getArgOperand(1);
+            Expr sizeE;
+            if (auto *sizeI = dyn_cast<Instruction>(size)) {
+              sizeE = trace.eval(loc, *sizeI, true);
+            } else if (auto *sizeConst = dyn_cast<ConstantInt>(size)) {
+              expr::mpz_class sz_mpz = sizeConst->getZExtValue();
+              sizeE = expr::mkTerm<expr::mpz_class>(sz_mpz, trace.efac());
+            } else {
+              LOG("cex", errs() << "unhandled Value of memhavoc size: " << *size
+                                << "\n");
+              continue;
+            }
+            // get info of ptr to havoc
+            const Value *hPtr = CS.getArgOperand(0)->stripPointerCasts();
+            Expr hPtrE;
+            if (auto *hPtrAllocInst = dyn_cast<Instruction>(hPtr)) {
+              hPtrE = trace.eval(loc, *hPtrAllocInst, true);
+            } else {
+              LOG("cex", errs() << "unhandled Value of memhavoc ptr: " << *hPtr
+                                << "\n");
+              continue;
+            }
+
+            FuncValueMap[CF].push_back(shadowMemV);
+            HavocPtrs.push_back(std::make_pair(hPtrE->arg(0), sizeE));
+          }
           continue;
         }
 
@@ -263,14 +421,34 @@ std::unique_ptr<Module> createCexHarness(BmcTraceWrapper &trace,
     else
       pRT = Type::getInt8PtrTy(TheContext);
 
-    ArrayType *AT = ArrayType::get(RT, values.size());
+    ArrayType *AT = nullptr;
 
     // Convert Expr to LLVM constants
     SmallVector<Constant *, 20> LLVMarray;
-    std::transform(values.begin(), values.end(), std::back_inserter(LLVMarray),
-                   [&RT, &dl, &TheContext](Expr e) {
-                     return exprToLlvm(RT, e, TheContext, dl);
-                   });
+    if (RT->isVoidTy()) {
+      if (!CF->getName().equals("memhavoc")) {
+        continue;
+      }
+
+      // one nested array for segments
+      for (size_t i = 0; i < values.size(); i++) {
+        auto havocPtr = HavocPtrs[i];
+        Constant *segmentCA = exprToMemSegment(values[i], havocPtr.first,
+                                               havocPtr.second, TheContext, dl);
+        GlobalVariable *segmentGA =
+            new GlobalVariable(*Harness, segmentCA->getType(), true,
+                               GlobalValue::PrivateLinkage, segmentCA);
+        LLVMarray.push_back(ConstantExpr::getBitCast(segmentGA, pRT));
+      }
+      AT = ArrayType::get(pRT, LLVMarray.size());
+    } else {
+      std::transform(values.begin(), values.end(),
+                     std::back_inserter(LLVMarray),
+                     [&RT, &dl, &TheContext](Expr e) {
+                       return exprToLlvm(RT, e, TheContext, dl);
+                     });
+      AT = ArrayType::get(RT, values.size());
+    }
 
     // This is an array containing the values to be returned
     GlobalVariable *CA =
@@ -304,10 +482,14 @@ std::unique_ptr<Module> createCexHarness(BmcTraceWrapper &trace,
 
       name = Twine("__seahorn_get_value_").concat(RSO.str()).str();
     } else if (RT->isPointerTy() ||
-               RT->getTypeID() == llvm::ArrayType::ArrayTyID) {
+               RT->getTypeID() == llvm::ArrayType::ArrayTyID ||
+               RT->isVoidTy() /* memhavoc */) {
       Type *elmTy = nullptr;
       if (RT->isPointerTy())
         elmTy = RT->getPointerElementType();
+      else if (RT->isVoidTy())
+        elmTy =
+            Type::getVoidTy(TheContext); // not interested in ebits for memhavoc
       else
         elmTy = RT->getSequentialElementType();
 
@@ -325,13 +507,23 @@ std::unique_ptr<Module> createCexHarness(BmcTraceWrapper &trace,
       errs() << "WARNING: Unknown type: " << *RT << "\n";
       assert(false && "Unknown return type");
     }
-
+    Type *GetType = RT->isVoidTy() ? pRT : RT;
     FunctionCallee GetValue = Harness->getOrInsertFunction(
-        name, FunctionType::get(RT, makeArrayRef(ArgTypes), false));
+        name, FunctionType::get(GetType, makeArrayRef(ArgTypes), false));
     assert(GetValue);
     Value *RetValue = Builder.CreateCall(GetValue, makeArrayRef(Args));
 
-    Builder.CreateRet(RetValue);
+    if (RT->isVoidTy()) {
+      // void memcpy(i8* dst, i8* src, size_t block_len)
+      FunctionCallee memCpy = Harness->getOrInsertFunction(
+          "memcpy", Type::getVoidTy(TheContext), pRT, pRT,
+          dl.getIntPtrType(TheContext, 0));
+      Builder.CreateCall(memCpy,
+                         {Builder.CreateBitCast(HF->getArg(0), pRT),
+                          Builder.CreateBitCast(RetValue, pRT), HF->getArg(1)});
+      Builder.CreateRetVoid();
+    } else
+      Builder.CreateRet(RetValue);
   }
 
   {

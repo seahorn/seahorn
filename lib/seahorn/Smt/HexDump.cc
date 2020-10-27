@@ -240,6 +240,8 @@ public:
     m_defaultValue = defaultValue;
   }
 
+  unsigned valueWidthInBytes(void) { return m_widths.second; }
+
   template <typename T> void print(T &OS, bool includeAscii) const {
     for (auto b = m_set.begin(), e = m_set.end(); b != e; b++) {
       (*b).print(OS, m_widths, includeAscii);
@@ -290,6 +292,8 @@ public:
   const_hd_iterator cbegin() const { return m_set.cbegin(); }
 
   const_hd_iterator cend() const { return m_set.cend(); }
+
+  Expr getDefault() { return m_defaultValue; }
 };
 
 /// classes that derive HD_BASE are visitors that find KeyValues and store them
@@ -310,9 +314,13 @@ public:
     return m_pairs.print(OS, ascii);
   }
 
+  unsigned valueWidthInBytes() { return m_pairs.valueWidthInBytes(); }
+
   const_hd_iterator cbegin() const { return m_pairs.cbegin(); }
 
   const_hd_iterator cend() const { return m_pairs.cend(); }
+
+  Expr getDefault() { return m_pairs.getDefault(); }
 };
 
 class HD_ITE : public HD_BASE {
@@ -432,7 +440,6 @@ class HexDump::Impl {
   std::unique_ptr<HD_BASE> m_visitor;
   Expr m_exp;
   bool m_noHexDumpFound = false;
-  ;
 
   void findType(Expr exp) {
     if (isOp<ITE>(exp)) {
@@ -472,6 +479,10 @@ public:
 
   bool isValid() { return !m_noHexDumpFound; }
 
+  unsigned valueWidthInBytes() { return m_visitor->valueWidthInBytes(); }
+
+  Expr getDefault() { return m_visitor->getDefault(); }
+
   template <typename T> void print(T &OS, bool ascii) {
     if (!isValid()) {
       OS << *m_exp;
@@ -488,6 +499,12 @@ bool HexDump::isValid() const { return m_impl->isValid(); }
 const_hd_iterator HexDump::cbegin() const { return m_impl->cbegin(); }
 
 const_hd_iterator HexDump::cend() const { return m_impl->cend(); }
+
+unsigned HexDump::valueWidthInBytes() const {
+  return m_impl->valueWidthInBytes();
+}
+
+Expr HexDump::getDefault() const { return m_impl->getDefault(); }
 
 template <typename T> void HexDump::print(T &OS, bool includeAscii) const {
   m_impl->print(OS, includeAscii);

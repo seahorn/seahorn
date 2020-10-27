@@ -26,6 +26,11 @@ static llvm::cl::opt<bool>
 static llvm::cl::opt<bool>
     PrintAnswer("horn-answer", cl::desc("Print Horn answer"), cl::init(false));
 
+static llvm::cl::opt<bool>
+    SimplifierPve("horn-tail-simplifier-pve",
+                  cl::desc("Set fp.xform.tail_simplifier_pve"),
+                  cl::init(false));
+
 static llvm::cl::opt<bool> EstimateSizeInvars(
     "horn-estimate-size-invars",
     cl::desc("Give an estimation about the size of all inferred invariants"),
@@ -124,7 +129,7 @@ bool HornSolver::runOnModule(Module &M) {
   }
   ZFixedPoint<EZ3> &fp = *m_fp;
 
-  ZParams<EZ3> params(hm.getZContext());
+  ZParams<EZ3> params(fp.getContext());
   params.set(":engine", ChcEngine);
   // -- disable slicing so that we can use cover
   params.set(":xform.slice", false);
@@ -133,7 +138,7 @@ bool HornSolver::runOnModule(Module &M) {
   params.set(":xform.inline-linear", false);
   params.set(":xform.inline-eager", false);
   // -- disable propagate_variable_equivalences in tail_simplifier
-  params.set(":xform.tail_simplifier_pve", false);
+  params.set(":xform.tail_simplifier_pve", SimplifierPve);
   params.set(":xform.subsumption_checker", Subsumption);
   params.set(":spacer.order_children", HornChildren);
   params.set(":spacer.max_num_contexts", PdrContexts);

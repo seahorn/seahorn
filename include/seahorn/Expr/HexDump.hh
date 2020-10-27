@@ -95,6 +95,10 @@ public:
 
   template <typename T> void print(T &OS, bool includeAscii = true) const;
 
+  unsigned valueWidthInBytes() const;
+
+  Expr getDefault() const;
+
   friend llvm::raw_ostream &operator<<(llvm::raw_ostream &OS,
                                        HexDump const &hd);
   friend std::ostream &operator<<(std::ostream &OS, HexDump const &hd);

@@ -6,8 +6,9 @@
 #include "seahorn/Expr/ExprOpStruct.hh"
 #include "llvm/IR/DebugInfo.h"
 #include "llvm/IR/DebugLoc.h"
+
 #include "llvm/Support/MathExtras.h"
-#include <bits/stdint-uintn.h>
+#include <cstdint>
 
 namespace seahorn {
 namespace details {

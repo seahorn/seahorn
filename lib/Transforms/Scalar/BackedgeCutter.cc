@@ -2,6 +2,7 @@
 #include "seahorn/Passes.hh"
 #include "seahorn/Support/SeaDebug.h"
 #include "seahorn/Support/SeaLog.hh"
+#include "seahorn/Transforms/Utils/Local.hh"
 
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/Statistic.h"
@@ -147,6 +148,16 @@ bool BackedgeCutter::runOnFunction(Function &F) {
     Changed |= cutBackEdge(const_cast<BasicBlock *>(edge.first),
                            const_cast<BasicBlock *>(edge.second), F, SBI);
   }
+
+  if (Changed) {
+    // -- Clean up after cutting an unconditional back-edge. Such a cut creates
+    // -- an unreachable basic block that has to be removed.
+
+    // XXX This only needs to run when an unconditional back-edge was removed,
+    // XXX but currently scheduling it if any change has been done at all.
+    reduceToReturnPaths(F, SBI);
+  }
+
   return Changed;
 }
 

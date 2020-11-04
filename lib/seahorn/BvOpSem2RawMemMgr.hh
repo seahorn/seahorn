@@ -276,6 +276,16 @@ public:
   Expr setFatData(PtrTy p, unsigned SlotIdx, Expr data) override;
 
   Expr isDereferenceable(PtrTy p, Expr byteSz) override;
+
+  Expr memsetMetaData(PtrTy ptr, unsigned int len, MemValTy memIn,
+                      uint32_t align, unsigned int val) override;
+
+  Expr memsetMetaData(PtrTy ptr, Expr len, MemValTy memIn, uint32_t align,
+                      unsigned int val) override;
+
+  Expr getMetaData(PtrTy ptr, MemValTy memIn, unsigned int byteSz,
+                   uint32_t align) override;
+  unsigned int getMetaDataMemWordSzInBits() override;
 };
 } // namespace details
 } // namespace seahorn

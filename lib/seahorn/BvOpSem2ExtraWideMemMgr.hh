@@ -278,6 +278,22 @@ public:
 
   Expr isDereferenceable(PtrTy p, Expr byteSz);
 
+  RawMemValTy setModified(ExtraWideMemManager::PtrTy ptr,
+                          ExtraWideMemManager::MemValTy mem, uint64_t align);
+
+  Expr isModified(ExtraWideMemManager::PtrTy ptr,
+                  ExtraWideMemManager::MemValTy mem, uint64_t align);
+
+  MemValTy memsetMetaData(PtrTy ptr, unsigned int len, MemValTy memIn,
+                          uint32_t align, unsigned int val);
+
+  MemValTy memsetMetaData(PtrTy ptr, Expr len, MemValTy memIn, uint32_t align,
+                          unsigned int val);
+  Expr getMetaData(PtrTy ptr, MemValTy memIn, unsigned int byteSz,
+                   uint32_t align);
+
+  unsigned int getMetaDataMemWordSzInBits();
+
   RawPtrTy getAddressable(PtrTy p) const;
 
   Expr getSize(PtrTy p) const;

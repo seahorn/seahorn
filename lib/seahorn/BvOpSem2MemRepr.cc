@@ -13,6 +13,12 @@ auto as_std_array(const T &t, const Rest &... rest) ->
 namespace seahorn {
 namespace details {
 
+// MemSet operates at word level.
+// _val must fit within a byte
+// _val is converted to a byte.
+// byte is converted to a word
+// e.g. _val = 0x1, len = 0x1, wordSzInBytes = 0x4 => 0x00000001
+// e.g. _val = 0x1, len = 0x4, wordSzInBytes = 0x4 => 0x00000001
 Expr OpSemMemArrayRepr::MemSet(Expr ptr, Expr _val, unsigned len, Expr mem,
                                unsigned wordSzInBytes, Expr ptrSort,
                                uint32_t align) {
@@ -38,6 +44,7 @@ Expr OpSemMemArrayRepr::MemSet(Expr ptr, Expr _val, unsigned len, Expr mem,
 }
 
 // len is in bytes
+// _val must fit within a byte
 Expr OpSemMemArrayRepr::MemSet(Expr ptr, Expr _val, Expr len, Expr mem,
                                unsigned wordSzInBytes, Expr ptrSort,
                                uint32_t align) {

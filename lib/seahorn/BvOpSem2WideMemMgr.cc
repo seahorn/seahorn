@@ -435,6 +435,29 @@ WideMemManager::PtrSortTy WideMemManager::ptrSort() const {
 Expr WideMemManager::bytesToSlotExpr(unsigned int bytes) {
   return m_ctx.alu().si(bytes, g_slotBitWidth);
 }
+WideMemManager::MemValTy
+WideMemManager::memsetMetaData(PtrTy ptr, unsigned int len,
+                               WideMemManager::MemValTy memIn, uint32_t align,
+                               unsigned int val) {
+  LOG("opsem", WARN << "memsetMetadata() not implemented!\n");
+  return memIn;
+}
+WideMemManager::MemValTy
+WideMemManager::memsetMetaData(PtrTy ptr, Expr len,
+                               WideMemManager::MemValTy memIn, uint32_t align,
+                               unsigned int val) {
+  LOG("opsem", WARN << "memsetMetadata() not implemented!\n");
+  return memIn;
+}
+Expr WideMemManager::getMetaData(PtrTy ptr, MemValTy memIn, unsigned int byteSz,
+                                 uint32_t align) {
+  LOG("opsem", WARN << "getMetadata() not implemented!\n");
+  return Expr();
+}
+unsigned int WideMemManager::getMetaDataMemWordSzInBits() {
+  LOG("opsem", WARN << "getMetaDataWordSzInBits() not implemented!\n");
+  return 0;
+}
 
 OpSemMemManager *mkWideMemManager(Bv2OpSem &sem, Bv2OpSemContext &ctx,
                                   unsigned ptrSz, unsigned wordSz,

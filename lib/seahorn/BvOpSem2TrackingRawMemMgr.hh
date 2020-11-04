@@ -146,16 +146,16 @@ public:
 
   PtrTy ptrAdd(PtrTy ptr, Expr offset) const;
 
-  RawMemValTy memsetMetaData(const PtrTy ptr, unsigned int len, MemValTy memIn,
-                             uint32_t align, unsigned int val);
+  MemValTy memsetMetaData(PtrTy ptr, unsigned int len, MemValTy memIn,
+                          uint32_t align, unsigned int val);
 
-  RawMemValTy memsetMetaData(const PtrTy ptr, Expr len, MemValTy memIn,
-                             uint32_t align, unsigned int val);
+  MemValTy memsetMetaData(PtrTy ptr, Expr len, MemValTy memIn, uint32_t align,
+                          unsigned int val);
 
-  // This function reports a warning if there is a possibily for the
-  // passed value to not be equal to 1.
-  // This implies we tried to load memory that was never stored into.
-  void CheckDefBeforeUse(Expr val);
+  Expr getMetaData(PtrTy ptr, MemValTy memIn, unsigned int byteSz,
+                   uint32_t align);
+
+  unsigned int getMetaDataMemWordSzInBits();
 
   Expr loadIntFromMem(PtrTy ptr, MemValTy mem, unsigned int byteSz,
                       uint64_t align);

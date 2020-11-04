@@ -478,10 +478,10 @@ public:
 };
 
 /// \brief Creates an instance of OpSemAllocator
-std::unique_ptr<OpSemAllocator> mkNormalOpSemAllocator(OpSemMemManager &mem,
-                                                       unsigned maxSymbAllocSz = 4096);
-std::unique_ptr<OpSemAllocator> mkStaticOpSemAllocator(OpSemMemManager &mem,
-                                                       unsigned maxSymbAllocSz = 4096);
+std::unique_ptr<OpSemAllocator>
+mkNormalOpSemAllocator(OpSemMemManager &mem, unsigned maxSymbAllocSz = 4096);
+std::unique_ptr<OpSemAllocator>
+mkStaticOpSemAllocator(OpSemMemManager &mem, unsigned maxSymbAllocSz = 4096);
 
 class OpSemMemManagerBase {
 protected:
@@ -733,6 +733,29 @@ public:
   /// \brief return True expr if number of bytes(byteSz) is within allocated
   /// bounds, False expr otherwise.
   virtual Expr isDereferenceable(PtrTy p, Expr byteSz) = 0;
+
+  /// \brief memset metadata memory associated with a Tracking Memory
+  /// manager and return resulting memory. The 'raw' portion of memory is
+  /// untouched.
+  virtual MemValTy memsetMetaData(PtrTy p, unsigned int len, MemValTy memIn,
+                                  uint32_t align, unsigned int val) = 0;
+
+  /// \brief memset metadata memory associated with a Tracking Memory
+  /// manager and return resulting memory. The 'raw' portion of memory is
+  /// untouched.
+  virtual MemValTy memsetMetaData(PtrTy ptr, Expr len, MemValTy memIn,
+                                  uint32_t align, unsigned int val) = 0;
+
+  /// \brief get metadata stored in metadata memory, associated with a
+  /// Tracking memory manager.
+  virtual Expr getMetaData(PtrTy ptr, MemValTy memIn, unsigned int byteSz,
+                           uint32_t align) = 0;
+
+  /// \brief get word size (in bits) of Metadata memory, associated with a
+  /// Tracking memory manager.
+  // TODO: This should be replaced by a general way to query memory properties
+  // from a memory manager.
+  virtual unsigned int getMetaDataMemWordSzInBits() = 0;
 };
 
 OpSemMemManager *mkRawMemManager(Bv2OpSem &sem, Bv2OpSemContext &ctx,
@@ -807,8 +830,8 @@ public:
 
   Expr MemSet(Expr ptr, Expr _val, unsigned len, Expr mem,
               unsigned wordSzInBytes, Expr ptrSort, uint32_t align) override;
-  Expr MemSet(Expr ptr, Expr _val, Expr len, Expr mem,
-              unsigned wordSzInBytes, Expr ptrSort, uint32_t align) override;
+  Expr MemSet(Expr ptr, Expr _val, Expr len, Expr mem, unsigned wordSzInBytes,
+              Expr ptrSort, uint32_t align) override;
   Expr MemCpy(Expr dPtr, Expr sPtr, unsigned len, Expr memTrsfrRead,
               Expr memRead, unsigned wordSzInBytes, Expr ptrSort,
               uint32_t align) override;
@@ -844,8 +867,8 @@ public:
                              Expr mem) override;
   Expr MemSet(Expr ptr, Expr _val, unsigned len, Expr mem,
               unsigned wordSzInBytes, Expr ptrSort, uint32_t align) override;
-  Expr MemSet(Expr ptr, Expr _val, Expr len, Expr mem,
-              unsigned wordSzInBytes, Expr ptrSort, uint32_t align) override;
+  Expr MemSet(Expr ptr, Expr _val, Expr len, Expr mem, unsigned wordSzInBytes,
+              Expr ptrSort, uint32_t align) override;
   Expr MemCpy(Expr dPtr, Expr sPtr, unsigned len, Expr memTrsfrRead,
               Expr memRead, unsigned wordSzInBytes, Expr ptrSort,
               uint32_t align) override;

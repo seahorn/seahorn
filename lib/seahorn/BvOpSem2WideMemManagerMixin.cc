@@ -25,6 +25,32 @@ Expr OpSemWideMemManagerMixin<BaseT>::isDereferenceable(
   return base().isDereferenceable(BasePtrTy(std::move(p)), byteSz);
 }
 template <typename BaseT>
+typename OpSemWideMemManagerMixin<BaseT>::MemValTy
+OpSemWideMemManagerMixin<BaseT>::memsetMetaData(PtrTy p, unsigned int len,
+                                                MemValTy memIn, uint32_t align,
+                                                unsigned int val) {
+  auto res = base().memsetMetaData(BasePtrTy(std::move(p)), len,
+                                   BaseMemValTy(std::move(memIn)), align, val);
+  return toMemValTy(std::move(res));
+}
+template <typename BaseT>
+typename OpSemWideMemManagerMixin<BaseT>::MemValTy
+OpSemWideMemManagerMixin<BaseT>::memsetMetaData(PtrTy p, Expr len,
+                                                MemValTy memIn, uint32_t align,
+                                                unsigned int val) {
+  auto res = base().memsetMetaData(BasePtrTy(std::move(p)), len,
+                                   BaseMemValTy(std::move(memIn)), align, val);
+  return toMemValTy(std::move(res));
+}
+template <typename BaseT>
+Expr OpSemWideMemManagerMixin<BaseT>::getMetaData(PtrTy p, MemValTy memIn,
+                                                  unsigned int byteSz,
+                                                  uint32_t align) {
+  return base().getMetaData(BasePtrTy(std::move(p)),
+                            BaseMemValTy(std::move(memIn)), byteSz, align);
+}
+
+template <typename BaseT>
 std::pair<char *, unsigned>
 OpSemWideMemManagerMixin<BaseT>::getGlobalVariableInitValue(
     const GlobalVariable &gv) {
@@ -399,6 +425,10 @@ typename OpSemWideMemManagerMixin<BaseT>::PtrSortTy
 OpSemWideMemManagerMixin<BaseT>::ptrSort() const {
   auto res = base().ptrSort();
   return toPtrSortTy(std::move(res));
+}
+template <typename BaseT>
+unsigned int OpSemWideMemManagerMixin<BaseT>::getMetaDataMemWordSzInBits() {
+  return base().getMetaDataMemWordSzInBits();
 }
 
 template class OpSemWideMemManagerMixin<WideMemManager>;

@@ -66,7 +66,7 @@ TrackingRawMemManager::MemValTy TrackingRawMemManager::MemFill(
     TrackingRawMemManager::PtrTy dPtr, char *sPtr, unsigned int len,
     TrackingRawMemManager::MemValTy mem, uint32_t align) {
   RawMemValTy rawVal = m_main.MemFill(dPtr, sPtr, len, mem.getRaw(), align);
-  return MemValTy(rawVal, memsetMetaData(dPtr, len, mem, align, 1U));
+  return MemValTy(rawVal, mem.getMetadata());
 }
 TrackingRawMemManager::MemValTy TrackingRawMemManager::MemCpy(
     TrackingRawMemManager::PtrTy dPtr, TrackingRawMemManager::PtrTy sPtr,
@@ -74,7 +74,7 @@ TrackingRawMemManager::MemValTy TrackingRawMemManager::MemCpy(
     TrackingRawMemManager::MemValTy memRead, uint32_t align) {
   RawMemValTy rawVal = m_main.MemCpy(dPtr, sPtr, len, memTrsfrRead.getRaw(),
                                      memRead.getRaw(), align);
-  return MemValTy(rawVal, memsetMetaData(dPtr, len, memTrsfrRead, align, 1U));
+  return MemValTy(rawVal, memRead.getMetadata());
 }
 TrackingRawMemManager::MemValTy TrackingRawMemManager::MemCpy(
     TrackingRawMemManager::PtrTy dPtr, TrackingRawMemManager::PtrTy sPtr,
@@ -82,20 +82,20 @@ TrackingRawMemManager::MemValTy TrackingRawMemManager::MemCpy(
     TrackingRawMemManager::MemValTy memRead, uint32_t align) {
   RawMemValTy rawVal = m_main.MemCpy(dPtr, sPtr, len, memTrsfrRead.getRaw(),
                                      memRead.getRaw(), align);
-  return MemValTy(rawVal, memsetMetaData(dPtr, len, memTrsfrRead, align, 1U));
+  return MemValTy(rawVal, memRead.getMetadata());
 }
 TrackingRawMemManager::MemValTy
 TrackingRawMemManager::MemSet(TrackingRawMemManager::PtrTy ptr, Expr _val,
                               Expr len, TrackingRawMemManager::MemValTy mem,
                               uint32_t align) {
   RawMemValTy rawVal = m_main.MemSet(ptr, _val, len, mem.getRaw(), align);
-  return MemValTy(rawVal, memsetMetaData(ptr, len, mem, align, 1U));
+  return MemValTy(rawVal, mem.getMetadata());
 }
 TrackingRawMemManager::MemValTy TrackingRawMemManager::MemSet(
     TrackingRawMemManager::PtrTy ptr, Expr _val, unsigned int len,
     TrackingRawMemManager::MemValTy mem, uint32_t align) {
   RawMemValTy rawVal = m_main.MemSet(ptr, _val, len, mem.getRaw(), align);
-  return MemValTy(rawVal, memsetMetaData(ptr, len, mem, align, 1U));
+  return MemValTy(rawVal, mem.getMetadata());
 }
 TrackingRawMemManager::MemValTy TrackingRawMemManager::storeValueToMem(
     Expr _val, TrackingRawMemManager::PtrTy ptr,
@@ -179,11 +179,7 @@ TrackingRawMemManager::MemValTy TrackingRawMemManager::storePtrToMem(
     TrackingRawMemManager::MemValTy mem, unsigned int byteSz, uint64_t align) {
   RawMemValTy rawVal =
       m_main.storePtrToMem(val, ptr, mem.getRaw(), byteSz, align);
-  // Number of slots to fill with '1' depends on slot size i.e
-  // g_MetadataByteWidth
-  unsigned int len = byteSz / g_MetadataByteWidth;
-  RawMemValTy metadataVal = memsetMetaData(ptr, len, mem, align, 1U);
-  return MemValTy(rawVal, metadataVal);
+  return MemValTy(rawVal, mem.getMetadata());
 }
 TrackingRawMemManager::MemValTy TrackingRawMemManager::storeIntToMem(
     Expr _val, TrackingRawMemManager::PtrTy ptr,
@@ -192,20 +188,13 @@ TrackingRawMemManager::MemValTy TrackingRawMemManager::storeIntToMem(
   assert(!strct::isStructVal(_val));
   RawMemValTy rawVal =
       m_main.storeIntToMem(_val, ptr, mem.getRaw(), byteSz, align);
-  // Number of slots to fill with '1' depends on slot size i.e
-  // g_MetadataByteWidth
-  unsigned int len = byteSz / g_MetadataByteWidth;
-  RawMemValTy metadataVal = memsetMetaData(ptr, len, mem, align, 1U);
-  return MemValTy(rawVal, metadataVal);
+  return MemValTy(rawVal, mem.getMetadata());
 }
 TrackingRawMemManager::PtrTy
 TrackingRawMemManager::loadPtrFromMem(TrackingRawMemManager::PtrTy ptr,
                                       TrackingRawMemManager::MemValTy mem,
                                       unsigned int byteSz, uint64_t align) {
   PtrTy rawPtr = m_main.loadPtrFromMem(ptr, mem.getRaw(), byteSz, align);
-  Expr metadata =
-      m_metadata.loadIntFromMem(ptr, mem.getMetadata(), byteSz, align);
-  CheckDefBeforeUse(metadata);
   return rawPtr;
 }
 Expr TrackingRawMemManager::loadIntFromMem(TrackingRawMemManager::PtrTy ptr,
@@ -213,51 +202,32 @@ Expr TrackingRawMemManager::loadIntFromMem(TrackingRawMemManager::PtrTy ptr,
                                            unsigned int byteSz,
                                            uint64_t align) {
   Expr res = m_main.loadIntFromMem(ptr, mem.getRaw(), byteSz, align);
-  Expr metadata = m_metadata.loadIntFromMem(ptr, mem.getMetadata(),
-                                            g_MetadataByteWidth, align);
-  CheckDefBeforeUse(metadata);
   return res;
 }
-void TrackingRawMemManager::CheckDefBeforeUse(Expr val) {
-  // assert(toCheck == 1)
-  Expr toCheck = mk<NEQ>(val, m_ctx.alu().si(1, g_MetadataBitWidth));
-  // We need to reset the solver everytime since two checks will
-  // need to remove expressions from the solver.
-  m_ctx.resetSolver();
-
-  for (auto e : m_ctx.side()) {
-    m_ctx.addToSolver(e);
-  }
-  m_ctx.addToSolver(m_ctx.getPathCond());
-  m_ctx.addToSolver(toCheck);
-  auto result = m_ctx.solve();
-  if (result) {
-    const Instruction &I = m_ctx.getCurrentInst();
-    auto dloc = I.getDebugLoc();
-    if (dloc) {
-      WARN << "Found Use before Def!"
-           << "[" << dloc->getFilename() << ":" << dloc->getLine() << "]";
-    } else {
-      WARN << "Found Use before Def!"
-           << "[" << I << "]";
-    }
-  }
-}
-TrackingRawMemManager::RawMemValTy TrackingRawMemManager::memsetMetaData(
-    const TrackingRawMemManager::PtrTy ptr, Expr len,
-    TrackingRawMemManager::MemValTy memIn, uint32_t align, unsigned int val) {
+TrackingRawMemManager::MemValTy
+TrackingRawMemManager::memsetMetaData(PtrTy ptr, Expr len, MemValTy memIn,
+                                      uint32_t align, unsigned int val) {
   // make sure we can fit the supplied value in metadata memory slot
   assert(llvm::Log2_64(val) + 1 <= g_MetadataBitWidth);
-  return m_metadata.MemSet(ptr, m_ctx.alu().si(val, g_MetadataBitWidth), len,
-                           memIn.getMetadata(), align);
+  return MemValTy(memIn.getRaw(),
+                  m_metadata.MemSet(ptr,
+                                    m_ctx.alu().si(val, g_MetadataBitWidth),
+                                    len, memIn.getMetadata(), align));
 }
-TrackingRawMemManager::RawMemValTy TrackingRawMemManager::memsetMetaData(
-    const TrackingRawMemManager::PtrTy ptr, unsigned int len,
-    TrackingRawMemManager::MemValTy memIn, uint32_t align, unsigned int val) {
+TrackingRawMemManager::MemValTy
+TrackingRawMemManager::memsetMetaData(PtrTy ptr, unsigned int len,
+                                      MemValTy memIn, uint32_t align,
+                                      unsigned int val) {
   // make sure we can fit the supplied value in metadata memory slot
   assert(llvm::Log2_64(val) + 1 <= g_MetadataBitWidth);
-  return m_metadata.MemSet(ptr, m_ctx.alu().si(val, g_MetadataBitWidth), len,
-                           memIn.getMetadata(), align);
+  return MemValTy(memIn.getRaw(),
+                  m_metadata.MemSet(ptr,
+                                    m_ctx.alu().si(val, g_MetadataBitWidth),
+                                    len, memIn.getMetadata(), align));
+}
+Expr TrackingRawMemManager::getMetaData(PtrTy ptr, MemValTy memIn,
+                                        unsigned int byteSz, uint32_t align) {
+  return m_metadata.loadIntFromMem(ptr, memIn.getMetadata(), byteSz, align);
 }
 TrackingRawMemManager::PtrTy
 TrackingRawMemManager::ptrAdd(TrackingRawMemManager::PtrTy ptr,
@@ -345,6 +315,9 @@ TrackingRawMemManager::salloc(Expr elmts, unsigned int typeSz, uint32_t align) {
 TrackingRawMemManager::PtrTy
 TrackingRawMemManager::mkStackPtr(unsigned int offset) {
   return m_main.mkStackPtr(offset);
+}
+unsigned int TrackingRawMemManager::getMetaDataMemWordSzInBits() {
+  return m_metadata.wordSzInBits();
 }
 
 } // namespace details

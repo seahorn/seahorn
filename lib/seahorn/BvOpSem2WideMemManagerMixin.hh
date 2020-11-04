@@ -1,6 +1,9 @@
 #pragma once
 
 #include "BvOpSem2Context.hh"
+#include "BvOpSem2TrackingRawMemMgr.hh"
+
+#include <type_traits>
 
 namespace seahorn {
 
@@ -169,8 +172,31 @@ public:
   /// \brief returns Expr after setting data.
   PtrTy setFatData(PtrTy p, unsigned SlotIdx, Expr data) override;
 
-  Expr isDereferenceable(PtrTy p, Expr byteSz);
+  Expr isDereferenceable(PtrTy p, Expr byteSz) override;
+
+  MemValTy memsetMetaData(PtrTy ptr, unsigned int len, MemValTy memIn,
+                          uint32_t align, unsigned int val) override;
+
+  MemValTy memsetMetaData(PtrTy ptr, Expr len, MemValTy memIn, uint32_t align,
+                          unsigned int val) override;
+
+  Expr getMetaData(PtrTy ptr, PtrTy memIn, unsigned int byteSz,
+                   uint32_t align) override;
+  unsigned int getMetaDataMemWordSzInBits() override;
 };
+
+// 'HasTracking' is a solution for conditionally compiling in memory tracking
+// code only when needed. It utilizes C++ metaprogramming and LLVM optimization.
+// FIXME: It suffers from the shortcoming that unneeded calls cannot be
+// completely removed by C++ metaprogramming which leads functions declared in
+// OpSemMemManager being defined in *all* mem managers. Once we move to a SFINAE
+// solution we will only need to define functions when they are
+// used - faster to iterate through changes.
+template <typename T> struct HasTracking : std::false_type {};
+
+template <>
+struct HasTracking<OpSemWideMemManagerMixin<TrackingRawMemManager>>
+    : std::true_type {};
 
 } // namespace details
 } // namespace seahorn

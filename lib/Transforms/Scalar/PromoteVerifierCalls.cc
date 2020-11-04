@@ -49,6 +49,8 @@ bool PromoteVerifierCalls::runOnModule(Module &M) {
   m_errorFn = SBI.mkSeaBuiltinFn(SBIOp::ERROR, M);
   m_is_deref = SBI.mkSeaBuiltinFn(SBIOp::IS_DEREFERENCEABLE, M);
   m_assert_if = SBI.mkSeaBuiltinFn(SBIOp::ASSERT_IF, M);
+  m_is_modified = SBI.mkSeaBuiltinFn(SBIOp::IS_MODIFIED, M);
+  m_reset_modified = SBI.mkSeaBuiltinFn(SBIOp::RESET_MODIFIED, M);
 
   // XXX DEPRECATED
   // Do not keep unused functions in llvm.used
@@ -184,6 +186,24 @@ bool PromoteVerifierCalls::runOnFunction(Function &F) {
       Builder.SetInsertPoint(&I);
       CallInst *ci = Builder.CreateCall(m_is_deref,
                                         {CS.getArgument(0), CS.getArgument(1)});
+      if (cg)
+        (*cg)[&F]->addCalledFunction(ci, (*cg)[ci->getCalledFunction()]);
+
+      I.replaceAllUsesWith(ci);
+      toKill.push_back(&I);
+    } else if (fn && (fn->getName().equals("sea_is_modified"))) {
+      IRBuilder<> Builder(F.getContext());
+      Builder.SetInsertPoint(&I);
+      CallInst *ci = Builder.CreateCall(m_is_modified, {CS.getArgument(0)});
+      if (cg)
+        (*cg)[&F]->addCalledFunction(ci, (*cg)[ci->getCalledFunction()]);
+
+      I.replaceAllUsesWith(ci);
+      toKill.push_back(&I);
+    } else if (fn && (fn->getName().equals("sea_reset_modified"))) {
+      IRBuilder<> Builder(F.getContext());
+      Builder.SetInsertPoint(&I);
+      CallInst *ci = Builder.CreateCall(m_reset_modified, {CS.getArgument(0)});
       if (cg)
         (*cg)[&F]->addCalledFunction(ci, (*cg)[ci->getCalledFunction()]);
 

@@ -19,6 +19,8 @@ enum class SeaBuiltinsOp {
   IS_DEREFERENCEABLE, /* sea.is_dereferenceable */
   ASSERT_IF,          /* sea.assert.if */
   BRANCH_SENTINEL,    /* sea.branch_sentinel */
+  IS_MODIFIED,        /* sea.is_modified */
+  RESET_MODIFIED,     /* sea.reset_modified */
   UNKNOWN
 };
 
@@ -31,6 +33,8 @@ class SeaBuiltinsInfo {
   llvm::Function *mkAssertIfFn(llvm::Module &M);
   llvm::Function *mkAssertFn(llvm::Module &M, SeaBuiltinsOp);
   llvm::Function *mkBranchSentinelFn(llvm::Module &M);
+  llvm::Function *mkIsModifiedFn(llvm::Module &M);
+  llvm::Function *mkResetModifiedFn(llvm::Module &M);
 
 public:
   SeaBuiltinsOp getSeaBuiltinOp(const llvm::CallBase &cb) const;

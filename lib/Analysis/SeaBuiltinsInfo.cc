@@ -21,6 +21,8 @@ using namespace llvm;
 #define SEA_IS_DEREFERENCEABLE "sea.is_dereferenceable"
 #define SEA_ASSERT_IF "sea.assert.if"
 #define SEA_BRANCH_SENTINEL "sea.branch_sentinel"
+#define SEA_IS_MODIFIED "sea.is_modified"
+#define SEA_RESET_MODIFIED "sea.reset_modified"
 
 SeaBuiltinsOp
 seahorn::SeaBuiltinsInfo::getSeaBuiltinOp(const llvm::CallBase &cb) const {
@@ -39,6 +41,8 @@ seahorn::SeaBuiltinsInfo::getSeaBuiltinOp(const llvm::CallBase &cb) const {
       .Case(VERIFIER_ASSERT_FN, SBIOp::ASSERT)
       .Case(VERIFIER_ASSERT_NOT_FN, SBIOp::ASSERT_NOT)
       .Case(SEA_BRANCH_SENTINEL, SBIOp::BRANCH_SENTINEL)
+      .Case(SEA_IS_MODIFIED, SBIOp::IS_MODIFIED)
+      .Case(SEA_RESET_MODIFIED, SBIOp::RESET_MODIFIED)
       .Default(SBIOp::UNKNOWN);
 }
 
@@ -64,6 +68,10 @@ llvm::Function *SeaBuiltinsInfo::mkSeaBuiltinFn(SeaBuiltinsOp op,
     return mkAssertFn(M, op);
   case SBIOp::BRANCH_SENTINEL:
     return mkBranchSentinelFn(M);
+  case SBIOp::IS_MODIFIED:
+    return mkIsModifiedFn(M);
+  case SBIOp::RESET_MODIFIED:
+    return mkResetModifiedFn(M);
   }
   llvm_unreachable(nullptr);
 }
@@ -124,10 +132,44 @@ Function *SeaBuiltinsInfo::mkAssertAssumeFn(Module &M, SeaBuiltinsOp op) {
   return FN;
 }
 
+Function *SeaBuiltinsInfo::mkIsModifiedFn(Module &M) {
+  auto &C = M.getContext();
+  auto FC = M.getOrInsertFunction(SEA_IS_MODIFIED, Type::getInt1Ty(C),
+                                  Type::getInt8PtrTy(C));
+  auto *FN = dyn_cast<Function>(FC.getCallee());
+  if (FN) {
+    FN->setOnlyReadsMemory();
+    FN->setDoesNotThrow();
+    FN->setDoesNotFreeMemory();
+    FN->setDoesNotRecurse();
+    FN->addParamAttr(0, Attribute::NoCapture);
+    // XXX maybe even add the following
+    // FN->setDoesNotAccessMemory();
+  }
+  return FN;
+}
+
+Function *SeaBuiltinsInfo::mkResetModifiedFn(Module &M) {
+  auto &C = M.getContext();
+  auto FC = M.getOrInsertFunction(SEA_RESET_MODIFIED, Type::getVoidTy(C),
+                                  Type::getInt8PtrTy(C));
+  auto *FN = dyn_cast<Function>(FC.getCallee());
+  if (FN) {
+    FN->setDoesNotThrow();
+    FN->setDoesNotFreeMemory();
+    FN->setDoesNotRecurse();
+    FN->addParamAttr(0, Attribute::NoCapture);
+    // XXX maybe even add the following
+    // FN->setDoesNotAccessMemory();
+  }
+  return FN;
+}
+
 Function *SeaBuiltinsInfo::mkIsDereferenceable(Module &M) {
   auto &C = M.getContext();
   auto *IntPtrTy = M.getDataLayout().getIntPtrType(C);
-  auto FC = M.getOrInsertFunction(SEA_IS_DEREFERENCEABLE, Type::getInt1Ty(C), Type::getInt8PtrTy(C), IntPtrTy);
+  auto FC = M.getOrInsertFunction(SEA_IS_DEREFERENCEABLE, Type::getInt1Ty(C),
+                                  Type::getInt8PtrTy(C), IntPtrTy);
   auto *FN = dyn_cast<Function>(FC.getCallee());
   if (FN) {
     FN->setOnlyAccessesInaccessibleMemory();

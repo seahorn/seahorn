@@ -41,6 +41,17 @@ void DfCoiAnalysis::analyze(User &user) {
           ++it;
           assert(it != CI->getParent()->end());
           workList.push_back(&*it);
+        } else if (CS.getCalledFunction()->getName().equals(
+                       "sea.is_modified")) {
+          //  instruction that precedes has to be
+          //  1. shadowmem.load load
+          BasicBlock::iterator it(CI);
+          --it;
+          if (auto *CI = dyn_cast<CallInst>(&*it)) {
+            CallSite CS(CI);
+            assert(CS.getCalledFunction()->getName().equals("shadow.mem.load"));
+            workList.push_back(&*it);
+          }
         }
       }
     }

@@ -544,6 +544,10 @@ public:
         visitNondetCall(CS);
       else if (f->getName().startswith("sea.is_dereferenceable")) {
         visitIsDereferenceable(CS);
+      } else if (f->getName().startswith("sea.is_modified")) {
+        visitIsModified(CS);
+      } else if (f->getName().startswith("sea.reset_modified")) {
+        // TODO: process reset modified instruction
       } else if (f->getName().startswith(("sea.assert.if"))) {
         visitSeaAssertIfCall(CS);
       } else if (f->getName().startswith(("verifier.assert"))) {
@@ -633,6 +637,27 @@ public:
     Expr byteSz = lookup(*CS.getArgument(1));
     Expr res = m_ctx.mem().isDereferenceable(ptr, byteSz);
     setValue(*CS.getInstruction(), res);
+  }
+
+  void visitIsModified(CallSite CS) {
+    if (!m_ctx.getMemReadRegister()) {
+      LOG("opsem", ERR << "No read register found - check if corresponding "
+                          "shadow instruction is present.");
+      return;
+    }
+    // TODO: move logic to MemManager
+    Expr ptr = lookup(*CS.getArgument(0));
+    auto memIn = m_ctx.read(m_ctx.getMemReadRegister());
+    OpSemMemManager &memManager = m_ctx.mem();
+    // TODO: remove alignment formal arg since it is set by Metadatamemory
+    // internally
+    auto val =
+        memManager.getMetaData(ptr, memIn, 1, 0 /* alignment don't care */);
+    auto sentinel = m_ctx.alu().si(1, memManager.getMetaDataMemWordSzInBits());
+    auto res = m_ctx.alu().doEq(val, sentinel,
+                                memManager.getMetaDataMemWordSzInBits());
+    setValue(*CS.getInstruction(), res);
+    m_ctx.setMemReadRegister(Expr());
   }
 
   /// Report outcome of vacuity and incremental assertion checking

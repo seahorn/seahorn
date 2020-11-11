@@ -678,21 +678,8 @@ Expr RawMemManager::isDereferenceable(PtrTy p, Expr byteSz) {
   return Expr();
 }
 
-Expr RawMemManager::memsetMetaData(Expr ptr, unsigned int len, Expr memIn,
-                                   uint32_t align, unsigned int val) {
-  LOG("opsem", ERR << "memsetMetaData() not implemented");
-  return Expr();
-}
-
-Expr RawMemManager::memsetMetaData(Expr ptr, Expr len, Expr memIn,
-                                   uint32_t align, unsigned int val) {
-  LOG("opsem", ERR << "memsetMetaData() not implemented");
-  return Expr();
-}
-
-Expr RawMemManager::getMetaData(PtrTy ptr, MemValTy memIn, unsigned int byteSz,
-                                uint32_t align) {
-  LOG("opsem", ERR << "getMetaData() not implemented");
+Expr RawMemManager::isModified(PtrTy p, MemValTy mem) {
+  LOG("opsem", ERR << "()isModified() not implemented");
   return Expr();
 }
 
@@ -753,9 +740,5 @@ Expr RawMemManager::zeroedMemory() const {
 }
 OpSemAllocator &RawMemManager::getMAllocator() const { return *m_allocator; }
 bool RawMemManager::ignoreAlignment() const { return m_ignoreAlignment; }
-unsigned int RawMemManager::getMetaDataMemWordSzInBits() {
-  LOG("opsem", ERR << "getMetaDataMemWordSzInBits() not implemented");
-  return 0;
-}
 } // namespace details
 } // namespace seahorn

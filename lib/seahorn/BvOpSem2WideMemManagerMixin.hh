@@ -13,6 +13,7 @@ template <typename BaseT>
 class OpSemWideMemManagerMixin : public BaseT, public OpSemMemManager {
 
 public:
+  using TrackingTag = typename BaseT::TrackingTag;
   using Base = BaseT;
   using PtrTy = Expr;
   using MemRegTy = Expr;
@@ -174,29 +175,18 @@ public:
 
   Expr isDereferenceable(PtrTy p, Expr byteSz) override;
 
-  MemValTy memsetMetaData(PtrTy ptr, unsigned int len, MemValTy memIn,
-                          uint32_t align, unsigned int val) override;
+  Expr isModified(PtrTy p, MemValTy mem) override;
 
-  MemValTy memsetMetaData(PtrTy ptr, Expr len, MemValTy memIn, uint32_t align,
-                          unsigned int val) override;
+  typename OpSemWideMemManagerMixin<BaseT>::MemValTy
+  memsetMetaData(PtrTy ptr, unsigned int len, MemValTy memIn, unsigned int val);
 
-  Expr getMetaData(PtrTy ptr, PtrTy memIn, unsigned int byteSz,
-                   uint32_t align) override;
-  unsigned int getMetaDataMemWordSzInBits() override;
+  typename OpSemWideMemManagerMixin<BaseT>::MemValTy
+  memsetMetaData(PtrTy ptr, Expr len, MemValTy memIn, unsigned int val);
+
+  Expr getMetaData(PtrTy ptr, PtrTy memIn, unsigned int byteSz);
+
+  unsigned int getMetaDataMemWordSzInBits();
 };
-
-// 'HasTracking' is a solution for conditionally compiling in memory tracking
-// code only when needed. It utilizes C++ metaprogramming and LLVM optimization.
-// FIXME: It suffers from the shortcoming that unneeded calls cannot be
-// completely removed by C++ metaprogramming which leads functions declared in
-// OpSemMemManager being defined in *all* mem managers. Once we move to a SFINAE
-// solution we will only need to define functions when they are
-// used - faster to iterate through changes.
-template <typename T> struct HasTracking : std::false_type {};
-
-template <>
-struct HasTracking<OpSemWideMemManagerMixin<TrackingRawMemManager>>
-    : std::true_type {};
 
 } // namespace details
 } // namespace seahorn

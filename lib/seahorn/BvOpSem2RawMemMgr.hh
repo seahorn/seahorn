@@ -52,6 +52,8 @@ public:
   using PtrSortTy = OpSemMemManager::PtrSortTy;
   using MemSortTy = OpSemMemManager::MemSortTy;
   using MemRegTy = OpSemMemManager::MemRegTy;
+  // setting TrackingTag to int disqualifies this class as having tracking
+  using TrackingTag = int;
 
   PtrTy ptrSort() const override { return m_ctx.alu().intTy(ptrSzInBits()); }
 
@@ -277,15 +279,7 @@ public:
 
   Expr isDereferenceable(PtrTy p, Expr byteSz) override;
 
-  Expr memsetMetaData(PtrTy ptr, unsigned int len, MemValTy memIn,
-                      uint32_t align, unsigned int val) override;
-
-  Expr memsetMetaData(PtrTy ptr, Expr len, MemValTy memIn, uint32_t align,
-                      unsigned int val) override;
-
-  Expr getMetaData(PtrTy ptr, MemValTy memIn, unsigned int byteSz,
-                   uint32_t align) override;
-  unsigned int getMetaDataMemWordSzInBits() override;
+  Expr isModified(PtrTy p, MemValTy mem) override;
 };
 } // namespace details
 } // namespace seahorn

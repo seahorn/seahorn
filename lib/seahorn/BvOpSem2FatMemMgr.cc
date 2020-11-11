@@ -571,23 +571,6 @@ public:
     LOG("opsem", WARN << "isDereferenceable() not implemented!\n");
     return m_ctx.alu().getFalse();
   }
-
-  Expr memsetMetaData(Expr ptr, unsigned int len, Expr memIn, uint32_t align,
-                      unsigned int val) {
-    LOG("opsem", ERR << "memsetMetaData() not implemented");
-    return Expr();
-  }
-
-  Expr memsetMetaData(Expr ptr, Expr len, Expr memIn, uint32_t align,
-                      unsigned int val) {
-    LOG("opsem", ERR << "memsetMetaData() not implemented");
-    return Expr();
-  }
-
-  unsigned int getMetaDataMemWordSzInBits() {
-    LOG("opsem", ERR << "getMetaDataMemWordSzInBits() not implemented");
-    return 0;
-  }
 };
 
 FatMemManager::FatMemManager(Bv2OpSem &sem, Bv2OpSemContext &ctx,

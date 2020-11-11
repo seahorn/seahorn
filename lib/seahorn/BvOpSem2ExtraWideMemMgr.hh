@@ -14,6 +14,7 @@
 
 namespace seahorn {
 namespace details {
+
 template <class T> class ExtraWideMemManager : public OpSemMemManagerBase {
 
   /// \brief Knows the memory representation and how to access it
@@ -49,6 +50,7 @@ template <class T> class ExtraWideMemManager : public OpSemMemManagerBase {
   RawMemManager m_size;
 
 public:
+  using TrackingTag = typename T::TrackingTag;
   using RawPtrTy = typename T::PtrTy;
   using RawMemValTy = typename T::MemValTy;
   using RawPtrSortTy = typename T::PtrSortTy;
@@ -278,19 +280,22 @@ public:
 
   Expr isDereferenceable(PtrTy p, Expr byteSz);
 
-  RawMemValTy setModified(ExtraWideMemManager::PtrTy ptr,
-                          ExtraWideMemManager::MemValTy mem, uint64_t align);
+  typename ExtraWideMemManager<T>::RawMemValTy
+  setModified(ExtraWideMemManager::PtrTy ptr,
+              ExtraWideMemManager::MemValTy mem);
 
   Expr isModified(ExtraWideMemManager::PtrTy ptr,
-                  ExtraWideMemManager::MemValTy mem, uint64_t align);
+                  ExtraWideMemManager::MemValTy mem);
 
-  MemValTy memsetMetaData(PtrTy ptr, unsigned int len, MemValTy memIn,
-                          uint32_t align, unsigned int val);
+  typename ExtraWideMemManager<T>::MemValTy
+  memsetMetaData(ExtraWideMemManager::PtrTy ptr, unsigned int len,
+                 ExtraWideMemManager::MemValTy memIn, unsigned int val);
 
-  MemValTy memsetMetaData(PtrTy ptr, Expr len, MemValTy memIn, uint32_t align,
-                          unsigned int val);
-  Expr getMetaData(PtrTy ptr, MemValTy memIn, unsigned int byteSz,
-                   uint32_t align);
+  typename ExtraWideMemManager<T>::MemValTy
+  memsetMetaData(ExtraWideMemManager::PtrTy ptr, Expr len,
+                 ExtraWideMemManager::MemValTy memIn, unsigned int val);
+
+  Expr getMetaData(PtrTy ptr, MemValTy memIn, unsigned int byteSz);
 
   unsigned int getMetaDataMemWordSzInBits();
 

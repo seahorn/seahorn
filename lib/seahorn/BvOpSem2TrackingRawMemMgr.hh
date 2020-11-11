@@ -30,6 +30,8 @@ private:
   static const unsigned int g_num_slots = 2;
 
 public:
+  // This memory manager supports tracking
+  using TrackingTag = MemoryFeatures::Tracking_tag;
   using PtrTy = OpSemMemManager::PtrTy;
   using PtrSortTy = OpSemMemManager::PtrSortTy;
   using MemRegTy = OpSemMemManager::MemRegTy;
@@ -146,15 +148,18 @@ public:
 
   PtrTy ptrAdd(PtrTy ptr, Expr offset) const;
 
-  MemValTy memsetMetaData(PtrTy ptr, unsigned int len, MemValTy memIn,
-                          uint32_t align, unsigned int val);
+  TrackingRawMemManager::MemValTy
+  memsetMetaData(PtrTy ptr, unsigned int len, MemValTy memIn, unsigned int val);
 
-  MemValTy memsetMetaData(PtrTy ptr, Expr len, MemValTy memIn, uint32_t align,
-                          unsigned int val);
+  TrackingRawMemManager::MemValTy
+  memsetMetaData(PtrTy ptr, Expr len, MemValTy memIn, unsigned int val);
 
-  Expr getMetaData(PtrTy ptr, MemValTy memIn, unsigned int byteSz,
-                   uint32_t align);
+  Expr getMetaData(PtrTy ptr, MemValTy memIn, unsigned int byteSz);
 
+  /// \brief get word size (in bits) of Metadata memory, associated with a
+  /// Tracking memory manager.
+  // TODO: This should be replaced by a general way to query memory properties
+  // from a memory manager.
   unsigned int getMetaDataMemWordSzInBits();
 
   Expr loadIntFromMem(PtrTy ptr, MemValTy mem, unsigned int byteSz,
@@ -175,9 +180,15 @@ public:
   MemValTy storeValueToMem(Expr _val, PtrTy ptr, MemValTy memIn, const Type &ty,
                            uint32_t align);
 
+  /// \brief memset metadata memory associated with a Tracking Memory
+  /// manager and return resulting memory. The 'raw' portion of memory is
+  /// untouched.
   MemValTy MemSet(PtrTy ptr, Expr _val, unsigned int len, MemValTy mem,
                   uint32_t align);
 
+  /// \brief memset metadata memory associated with a Tracking Memory
+  /// manager and return resulting memory. The 'raw' portion of memory is
+  /// untouched.
   MemValTy MemSet(PtrTy ptr, Expr _val, Expr len, MemValTy mem, uint32_t align);
 
   MemValTy MemCpy(PtrTy dPtr, PtrTy sPtr, unsigned int len,
@@ -209,6 +220,8 @@ public:
   Expr isDereferenceable(PtrTy p, Expr byteSz);
 
   PtrTy getAddressable(PtrTy p) const;
+
+  Expr isModified(PtrTy p, MemValTy Mem);
 };
 
 } // namespace details

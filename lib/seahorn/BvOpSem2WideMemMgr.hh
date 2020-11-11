@@ -34,6 +34,8 @@ class WideMemManager : public OpSemMemManagerBase {
   static const unsigned int g_num_slots = 2;
 
 public:
+  // setting TrackingTag to int disqualifies this class as having tracking
+  using TrackingTag = int;
   using RawPtrTy = OpSemMemManager::PtrTy;
   using RawMemValTy = OpSemMemManager::MemValTy;
   using RawPtrSortTy = OpSemMemManager::PtrSortTy;
@@ -243,16 +245,6 @@ public:
   MemValTy zeroedMemory() const;
 
   Expr isDereferenceable(PtrTy p, Expr byteSz);
-
-  MemValTy memsetMetaData(PtrTy ptr, unsigned int len, MemValTy memIn,
-                          uint32_t align, unsigned int val);
-
-  MemValTy memsetMetaData(PtrTy ptr, Expr len, MemValTy memIn, uint32_t align,
-                          unsigned int val);
-  Expr getMetaData(PtrTy ptr, MemValTy memIn, unsigned int byteSz,
-                   uint32_t align);
-
-  unsigned int getMetaDataMemWordSzInBits();
 
   RawPtrTy getAddressable(PtrTy p) const;
 

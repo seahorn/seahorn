@@ -206,28 +206,28 @@ Expr TrackingRawMemManager::loadIntFromMem(TrackingRawMemManager::PtrTy ptr,
 }
 TrackingRawMemManager::MemValTy
 TrackingRawMemManager::memsetMetaData(PtrTy ptr, Expr len, MemValTy memIn,
-                                      uint32_t align, unsigned int val) {
-  // make sure we can fit the supplied value in metadata memory slot
-  assert(llvm::Log2_64(val) + 1 <= g_MetadataBitWidth);
-  return MemValTy(memIn.getRaw(),
-                  m_metadata.MemSet(ptr,
-                                    m_ctx.alu().si(val, g_MetadataBitWidth),
-                                    len, memIn.getMetadata(), align));
-}
-TrackingRawMemManager::MemValTy
-TrackingRawMemManager::memsetMetaData(PtrTy ptr, unsigned int len,
-                                      MemValTy memIn, uint32_t align,
                                       unsigned int val) {
   // make sure we can fit the supplied value in metadata memory slot
   assert(llvm::Log2_64(val) + 1 <= g_MetadataBitWidth);
-  return MemValTy(memIn.getRaw(),
-                  m_metadata.MemSet(ptr,
-                                    m_ctx.alu().si(val, g_MetadataBitWidth),
-                                    len, memIn.getMetadata(), align));
+  return MemValTy(
+      memIn.getRaw(),
+      m_metadata.MemSet(ptr, m_ctx.alu().si(val, g_MetadataBitWidth), len,
+                        memIn.getMetadata(), m_metadata.wordSzInBytes()));
+}
+TrackingRawMemManager::MemValTy
+TrackingRawMemManager::memsetMetaData(PtrTy ptr, unsigned int len,
+                                      MemValTy memIn, unsigned int val) {
+  // make sure we can fit the supplied value in metadata memory slot
+  assert(llvm::Log2_64(val) + 1 <= g_MetadataBitWidth);
+  return MemValTy(
+      memIn.getRaw(),
+      m_metadata.MemSet(ptr, m_ctx.alu().si(val, g_MetadataBitWidth), len,
+                        memIn.getMetadata(), m_metadata.wordSzInBytes()));
 }
 Expr TrackingRawMemManager::getMetaData(PtrTy ptr, MemValTy memIn,
-                                        unsigned int byteSz, uint32_t align) {
-  return m_metadata.loadIntFromMem(ptr, memIn.getMetadata(), byteSz, align);
+                                        unsigned int byteSz) {
+  return m_metadata.loadIntFromMem(ptr, memIn.getMetadata(), byteSz,
+                                   0 /* TODO: fix */);
 }
 TrackingRawMemManager::PtrTy
 TrackingRawMemManager::ptrAdd(TrackingRawMemManager::PtrTy ptr,
@@ -318,6 +318,10 @@ TrackingRawMemManager::mkStackPtr(unsigned int offset) {
 }
 unsigned int TrackingRawMemManager::getMetaDataMemWordSzInBits() {
   return m_metadata.wordSzInBits();
+}
+Expr TrackingRawMemManager::isModified(PtrTy p, MemValTy Mem) {
+  LOG("opsem", WARN << "isModified() not implemented!\n");
+  return Expr();
 }
 
 } // namespace details

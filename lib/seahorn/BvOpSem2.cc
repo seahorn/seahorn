@@ -641,21 +641,14 @@ public:
 
   void visitIsModified(CallSite CS) {
     if (!m_ctx.getMemReadRegister()) {
-      LOG("opsem", ERR << "No read register found - check if corresponding "
+      LOG("opsem", ERR << "No read register found - check if corresponding"
                           "shadow instruction is present.");
       return;
     }
-    // TODO: move logic to MemManager
     Expr ptr = lookup(*CS.getArgument(0));
     auto memIn = m_ctx.read(m_ctx.getMemReadRegister());
     OpSemMemManager &memManager = m_ctx.mem();
-    // TODO: remove alignment formal arg since it is set by Metadatamemory
-    // internally
-    auto val =
-        memManager.getMetaData(ptr, memIn, 1, 0 /* alignment don't care */);
-    auto sentinel = m_ctx.alu().si(1, memManager.getMetaDataMemWordSzInBits());
-    auto res = m_ctx.alu().doEq(val, sentinel,
-                                memManager.getMetaDataMemWordSzInBits());
+    auto res = memManager.isModified(ptr, memIn);
     setValue(*CS.getInstruction(), res);
     m_ctx.setMemReadRegister(Expr());
   }

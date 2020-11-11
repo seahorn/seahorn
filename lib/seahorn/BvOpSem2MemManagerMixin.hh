@@ -319,28 +319,7 @@ public:
     return base().isDereferenceable(BasePtrTy(std::move(p)), byteSz);
   }
 
-  Expr memsetMetaData(PtrTy ptr, unsigned int len, MemValTy memIn,
-                      uint32_t align, unsigned int val) {
-    LOG("opsem", ERR << "memsetMetaData() not implemented");
-    return Expr();
-  }
-
-  Expr memsetMetaData(PtrTy ptr, Expr len, MemValTy memIn, uint32_t align,
-                      unsigned int val) {
-    LOG("opsem", ERR << "memsetMetaData() not implemented");
-    return Expr();
-  }
-
-  Expr getMetaData(PtrTy ptr, MemValTy memIn, unsigned int byteSz,
-                   uint32_t align) {
-    LOG("opsem", ERR << "getMetaData() not implemented");
-    return Expr();
-  }
-
-  unsigned int getMetaDataMemWordSzInBits() {
-    LOG("opsem", ERR << "getMetaDataMemWordSzInBits() not implemented");
-    return 0;
-  }
+  Expr isModified(PtrTy p, MemValTy Mem) { return Expr(); }
 };
 } // namespace details
 } // namespace seahorn

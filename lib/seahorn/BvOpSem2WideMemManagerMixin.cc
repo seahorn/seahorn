@@ -1,7 +1,10 @@
 #include "BvOpSem2WideMemManagerMixin.hh"
+#include "BvOpSem2Context.hh"
 #include "BvOpSem2ExtraWideMemMgr.hh"
 #include "BvOpSem2TrackingRawMemMgr.hh"
 #include "BvOpSem2WideMemMgr.hh"
+
+#include <boost/hana.hpp>
 
 namespace seahorn {
 
@@ -27,27 +30,42 @@ Expr OpSemWideMemManagerMixin<BaseT>::isDereferenceable(
 template <typename BaseT>
 typename OpSemWideMemManagerMixin<BaseT>::MemValTy
 OpSemWideMemManagerMixin<BaseT>::memsetMetaData(PtrTy p, unsigned int len,
-                                                MemValTy memIn, uint32_t align,
+                                                MemValTy memIn,
                                                 unsigned int val) {
-  auto res = base().memsetMetaData(BasePtrTy(std::move(p)), len,
-                                   BaseMemValTy(std::move(memIn)), align, val);
-  return toMemValTy(std::move(res));
+  return hana::eval_if(
+      MemoryFeatures::has_tracking(hana::type<BaseT>{}),
+      [&](auto _) {
+        auto r = _(base()).memsetMetaData(BasePtrTy(std::move(p)), len,
+                                          BaseMemValTy(std::move(memIn)), 0);
+        return toMemValTy(std::move(r));
+      },
+      [&] { return memIn; });
 }
 template <typename BaseT>
 typename OpSemWideMemManagerMixin<BaseT>::MemValTy
 OpSemWideMemManagerMixin<BaseT>::memsetMetaData(PtrTy p, Expr len,
-                                                MemValTy memIn, uint32_t align,
+                                                MemValTy memIn,
                                                 unsigned int val) {
-  auto res = base().memsetMetaData(BasePtrTy(std::move(p)), len,
-                                   BaseMemValTy(std::move(memIn)), align, val);
-  return toMemValTy(std::move(res));
+  return hana::eval_if(
+      MemoryFeatures::has_tracking(hana::type<BaseT>{}),
+      [&](auto _) {
+        auto r = _(base()).memsetMetaData(BasePtrTy(std::move(p)), len,
+                                          BaseMemValTy(std::move(memIn)), 0);
+        return toMemValTy(std::move(r));
+      },
+      [&] { return memIn; });
 }
 template <typename BaseT>
 Expr OpSemWideMemManagerMixin<BaseT>::getMetaData(PtrTy p, MemValTy memIn,
-                                                  unsigned int byteSz,
-                                                  uint32_t align) {
-  return base().getMetaData(BasePtrTy(std::move(p)),
-                            BaseMemValTy(std::move(memIn)), byteSz, align);
+                                                  unsigned int byteSz) {
+
+  return hana::eval_if(
+      MemoryFeatures::has_tracking(hana::type<BaseT>{}),
+      [&](auto _) {
+        return _(base()).getMetaData(BasePtrTy(std::move(p)),
+                                     BaseMemValTy(std::move(memIn)), byteSz);
+      },
+      [&] { return Expr(); });
 }
 
 template <typename BaseT>
@@ -428,7 +446,24 @@ OpSemWideMemManagerMixin<BaseT>::ptrSort() const {
 }
 template <typename BaseT>
 unsigned int OpSemWideMemManagerMixin<BaseT>::getMetaDataMemWordSzInBits() {
-  return base().getMetaDataMemWordSzInBits();
+  return hana::eval_if(
+      MemoryFeatures::has_tracking(hana::type<BaseT>{}),
+      [&](auto _) { return _(base()).getMetaDataMemWordSzInBits(); },
+      [&] { return 0; });
+}
+template <typename BaseT>
+Expr OpSemWideMemManagerMixin<BaseT>::isModified(
+    OpSemWideMemManagerMixin::PtrTy p, OpSemWideMemManagerMixin::MemValTy mem) {
+  return hana::eval_if(
+      MemoryFeatures::has_tracking(hana::type<BaseT>{}),
+      [&](auto _) {
+        return _(base()).isModified(BasePtrTy(std::move(p)),
+                                    BaseMemValTy(std::move(mem)));
+      },
+      [&] {
+        LOG("opsem", WARN << "isModified() not implemented!\n");
+        return Expr();
+      });
 }
 
 template class OpSemWideMemManagerMixin<WideMemManager>;

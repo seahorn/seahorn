@@ -7,10 +7,26 @@
 
 #include "seahorn/Expr/ExprLlvm.hh"
 #include "seahorn/Expr/Smt/EZ3.hh"
+
+#include <boost/hana.hpp>
+#include <type_traits>
 #include <unordered_set>
 
 namespace seahorn {
 namespace details {
+
+namespace MemoryFeatures {
+auto tag_of =
+    [](auto t) -> hana::type<typename decltype(t)::type::TrackingTag> {
+  return {};
+};
+// This empty class is used as a 'tag' to mark containing classes as enabling
+// tracking.
+struct Tracking_tag {};
+auto has_tracking = [](auto t) {
+  return hana::sfinae(tag_of)(t) == hana::just(hana::type<Tracking_tag>{});
+};
+} // namespace MemoryFeatures
 
 class OpSemAlu;
 class OpSemMemManager;
@@ -734,28 +750,7 @@ public:
   /// bounds, False expr otherwise.
   virtual Expr isDereferenceable(PtrTy p, Expr byteSz) = 0;
 
-  /// \brief memset metadata memory associated with a Tracking Memory
-  /// manager and return resulting memory. The 'raw' portion of memory is
-  /// untouched.
-  virtual MemValTy memsetMetaData(PtrTy p, unsigned int len, MemValTy memIn,
-                                  uint32_t align, unsigned int val) = 0;
-
-  /// \brief memset metadata memory associated with a Tracking Memory
-  /// manager and return resulting memory. The 'raw' portion of memory is
-  /// untouched.
-  virtual MemValTy memsetMetaData(PtrTy ptr, Expr len, MemValTy memIn,
-                                  uint32_t align, unsigned int val) = 0;
-
-  /// \brief get metadata stored in metadata memory, associated with a
-  /// Tracking memory manager.
-  virtual Expr getMetaData(PtrTy ptr, MemValTy memIn, unsigned int byteSz,
-                           uint32_t align) = 0;
-
-  /// \brief get word size (in bits) of Metadata memory, associated with a
-  /// Tracking memory manager.
-  // TODO: This should be replaced by a general way to query memory properties
-  // from a memory manager.
-  virtual unsigned int getMetaDataMemWordSzInBits() = 0;
+  virtual Expr isModified(PtrTy p, MemValTy mem) = 0;
 };
 
 OpSemMemManager *mkRawMemManager(Bv2OpSem &sem, Bv2OpSemContext &ctx,

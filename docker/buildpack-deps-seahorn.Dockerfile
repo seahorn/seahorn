@@ -12,12 +12,14 @@ FROM buildpack-deps:$BASE_IMAGE
 ARG DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && \
   apt-get install -yqq software-properties-common && \
+  add-apt-repository -y ppa:mhier/libboost-latest && \  
   apt-get update && \
   apt-get upgrade -yqq && \
+  apt-get remove -yqq libboost1.65-dev && \
   apt-get install -yqq cmake cmake-data unzip \
       ninja-build libgraphviz-dev \
       libgmp-dev libmpfr-dev \
-      libboost-all-dev \
+      libboost1.74-dev \
       python3-pip \
       less vim \
       gcc-multilib \

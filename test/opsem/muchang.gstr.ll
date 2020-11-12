@@ -1,9 +1,9 @@
 ; RUN: %seabmc "%s" --horn-bv2-word-size=1 2>&1 | %oc %s
 ; RUN: %seabmc "%s" --horn-bv2-word-size=4 2>&1 | %oc %s
-; RUN: %seabmc "%s" --horn-bv2-word-size=8 2>&1 | %oc %s
-; RUN: %seabmc --horn-bv2-lambdas --horn-gsa --log=opsem3 "%s" 2>&1 | %oc %s
-; RUN: %seabmc --horn-bv2-lambdas --horn-vcgen-use-ite --log=opsem3 "%s" 2>&1 | %oc %s
-; RUN: %seabmc --horn-bv2-lambdas --horn-gsa --horn-vcgen-use-ite --log=opsem3 "%s" 2>&1 | %oc %s
+; RUN: %seabmc "%s" --horn-bv2-word-size=8 --horn-bmc-tactic=smtfd 2>&1 | %oc %s
+; RUN: %seabmc --horn-bv2-lambdas --horn-gsa "%s" 2>&1 | %oc %s
+; RUN: %seabmc --horn-bv2-lambdas --horn-vcgen-use-ite "%s" 2>&1 | %oc %s
+; RUN: %seabmc --horn-bv2-lambdas --horn-gsa --horn-vcgen-use-ite "%s" 2>&1 | %oc %s
 
 ; CHECK: ^unsat$
 ;; ModuleID = '/tmp/sea-E9l3Jc/ggg.pp.ms.o.ul.cut.bc'

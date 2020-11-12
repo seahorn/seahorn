@@ -20,7 +20,7 @@ ARG BUILD_TYPE=RelWithDebInfo
 # Build configuration
 RUN cmake .. -GNinja \
   -DCMAKE_BUILD_TYPE=${BUILD_TYPE} \
-  -DZ3_ROOT=/opt/z3-4.8.7 \
+  -DZ3_ROOT=/opt/z3-4.8.9 \
   -DYICES2_HOME=/opt/yices-2.6.1 \
   -DCMAKE_INSTALL_PREFIX=run \
   -DCMAKE_CXX_COMPILER=clang++-10 \

@@ -17,6 +17,7 @@ RUN apt-get update && \
   apt-get upgrade -yqq && \
   apt-get remove -yqq libboost1.65-dev && \
   apt-get install -yqq cmake cmake-data unzip \
+      zlib1g-dev \
       ninja-build libgraphviz-dev \
       libgmp-dev libmpfr-dev \
       libboost1.74-dev \

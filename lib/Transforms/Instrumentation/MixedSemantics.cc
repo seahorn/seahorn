@@ -82,6 +82,8 @@ bool MixedSemantics::runOnModule(Module &M) {
   if (!main)
     return false;
 
+  removeUnreachableBlocks(*main);
+
   auto &SBI = getAnalysis<SeaBuiltinsInfoWrapperPass>().getSBI();
 
   CanFail &CF = getAnalysis<CanFail>();
@@ -115,7 +117,7 @@ bool MixedSemantics::runOnModule(Module &M) {
   Builder.SetInsertPoint(entry, entry->begin());
 
   SmallVector<Value *, 16> fargs;
-  for (auto &a : boost::make_iterator_range(newM->arg_begin(), newM->arg_end()))
+  for (auto &a : newM->args())
     fargs.push_back(&a);
 
   InlineFunctionInfo IFI;

@@ -101,9 +101,19 @@ void reduceToRegion(Function &F, DenseSet<const BasicBlock *> &region,
 }
 
 /// Reduce the function to only the BasicBlocks that are ancestors of exits
-void reduceToAncestors(Function &F, ArrayRef<const BasicBlock *> exits,
+void reduceToAncestors(Function &F, ArrayRef<const BasicBlock *> _exits,
                        SeaBuiltinsInfo &SBI) {
+
+  // -- filter out any blocks that have no predecessors
+  llvm::SmallVector<const BasicBlock *, 8> exits;
+  for (auto *bb : _exits) {
+    if (bb->hasNPredecessorsOrMore(1))
+      exits.push_back(bb);
+  }
+
   removeUnreachableBlocks(F);
+
+  // XXX blocks in exits could have been removed
   DenseSet<const BasicBlock *> region;
   markAncestorBlocks(exits, region);
   reduceToRegion(F, region, SBI);

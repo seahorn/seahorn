@@ -115,8 +115,15 @@ void BmcEngine::unsatCore(ExprVector &out) {
 
 /// output current path condition in SMT-LIB2 format
 raw_ostream &BmcEngine::toSmtLib(raw_ostream &out) {
-  if (BmcSmtLogic != "ALL")
+  if (BmcSmtLogic != "ALL") {
     out << "(set-logic " << BmcSmtLogic << ")\n";
+    if (BmcSmtLogic == "QF_AUFBV") {
+      // -- provide definition of mul with overflow
+      // XXX 64 bit definition because we don't know the current register size
+      out << "(define-fun bvumul_noovfl ((x (_ BitVec 64)) (y (_ BitVec 64))) Bool\n"
+          << "(ite (= x #x0000000000000000) true (= (bvudiv (bvmul x y) x) y)) )\n";
+    }
+  }
   encode();
   return m_smt_solver.toSmtLib(out);
 }

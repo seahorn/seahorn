@@ -35,8 +35,9 @@ OpSemWideMemManagerMixin<BaseT>::memsetMetaData(PtrTy p, unsigned int len,
   return hana::eval_if(
       MemoryFeatures::has_tracking(hana::type<BaseT>{}),
       [&](auto _) {
-        auto r = _(base()).memsetMetaData(BasePtrTy(std::move(p)), len,
-                                          BaseMemValTy(std::move(memIn)), 0);
+        auto r =
+            _(base()).memsetMetaData(BasePtrTy(std::move(p)), len,
+                                     BaseMemValTy(std::move(memIn)), val = val);
         return toMemValTy(std::move(r));
       },
       [&] { return memIn; });
@@ -49,8 +50,9 @@ OpSemWideMemManagerMixin<BaseT>::memsetMetaData(PtrTy p, Expr len,
   return hana::eval_if(
       MemoryFeatures::has_tracking(hana::type<BaseT>{}),
       [&](auto _) {
-        auto r = _(base()).memsetMetaData(BasePtrTy(std::move(p)), len,
-                                          BaseMemValTy(std::move(memIn)), 0);
+        auto r =
+            _(base()).memsetMetaData(BasePtrTy(std::move(p)), len,
+                                     BaseMemValTy(std::move(memIn)), val = val);
         return toMemValTy(std::move(r));
       },
       [&] { return memIn; });
@@ -463,6 +465,21 @@ Expr OpSemWideMemManagerMixin<BaseT>::isModified(
       [&] {
         LOG("opsem", WARN << "isModified() not implemented!\n");
         return Expr();
+      });
+}
+template <typename BaseT>
+typename OpSemWideMemManagerMixin<BaseT>::MemValTy
+OpSemWideMemManagerMixin<BaseT>::resetModified(
+    OpSemWideMemManagerMixin::PtrTy p, OpSemWideMemManagerMixin::MemValTy mem) {
+  return hana::eval_if(
+      MemoryFeatures::has_tracking(hana::type<BaseT>{}),
+      [&](auto _) {
+        return toMemValTy(std::move(_(base()).resetModified(
+            BasePtrTy(std::move(p)), BaseMemValTy(std::move(mem)))));
+      },
+      [&] {
+        LOG("opsem", WARN << "resetModified() not implemented!\n");
+        return mem;
       });
 }
 

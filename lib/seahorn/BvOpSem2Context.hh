@@ -750,7 +750,12 @@ public:
   /// bounds, False expr otherwise.
   virtual Expr isDereferenceable(PtrTy p, Expr byteSz) = 0;
 
+  /// \brief return True expr if memory has been modified since resetModified
+  // or allocation, whichever is later.
   virtual Expr isModified(PtrTy p, MemValTy mem) = 0;
+
+  /// \brief reset memory modified state; used in conjuction with isModified
+  virtual MemValTy resetModified(PtrTy p, MemValTy mem) = 0;
 };
 
 OpSemMemManager *mkRawMemManager(Bv2OpSem &sem, Bv2OpSemContext &ctx,

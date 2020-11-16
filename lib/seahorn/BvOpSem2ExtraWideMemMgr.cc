@@ -22,6 +22,10 @@ ExtraWideMemManager<T>::ExtraWideMemManager(Bv2OpSem &sem, Bv2OpSemContext &ctx,
   // Currently, we only support RawMemManager or subclasses of it.
   static_assert(std::is_base_of<OpSemMemManagerBase, T>::value,
                 "T not derived from OpSemMemManagerBase");
+  LOG("opsem", INFO << hana::eval_if(
+                   MemoryFeatures::has_tracking(hana::type<T>{}),
+                   [&] { return "Memory tracking on"; },
+                   [&] { return "Memory tracking off"; }));
 }
 
 template <class T>
@@ -583,7 +587,7 @@ ExtraWideMemManager<T>::memsetMetaData(ExtraWideMemManager::PtrTy ptr,
       MemoryFeatures::has_tracking(hana::type<T>{}),
       [&](auto _) {
         return _(m_main).memsetMetaData(ptr.getBase(), len, memIn.getRaw(),
-                                        val);
+                                        val = val);
       },
       [&] { return memIn.getRaw(); });
   return MemValTy(rawOut, memIn.getOffset(), memIn.getSize());
@@ -624,6 +628,12 @@ unsigned int ExtraWideMemManager<T>::getMetaDataMemWordSzInBits() {
       [&](auto _) { return _(m_main).getMetaDataMemWordSzInBits(); },
       [&] { return 0; });
 }
+template <class T>
+typename ExtraWideMemManager<T>::MemValTy
+ExtraWideMemManager<T>::resetModified(ExtraWideMemManager::PtrTy ptr,
+                                      ExtraWideMemManager::MemValTy mem) {
+  return memsetMetaData(ptr, 1 /* len */, mem, 0U /* val */);
+}
 
 OpSemMemManager *mkExtraWideMemManager(Bv2OpSem &sem, Bv2OpSemContext &ctx,
                                        unsigned int ptrSz, unsigned int wordSz,
@@ -644,5 +654,6 @@ OpSemMemManager *mkTrackingExtraWideMemManager(Bv2OpSem &sem,
 template class ExtraWideMemManager<RawMemManager>;
 template class ExtraWideMemManager<
     OpSemWideMemManagerMixin<TrackingRawMemManager>>;
+
 } // namespace details
 } // namespace seahorn

@@ -319,7 +319,12 @@ public:
     return base().isDereferenceable(BasePtrTy(std::move(p)), byteSz);
   }
 
-  Expr isModified(PtrTy p, MemValTy Mem) { return Expr(); }
+  Expr isModified(PtrTy p, MemValTy mem) { return Expr(); }
+
+  MemValTy resetModified(PtrTy p, MemValTy mem) {
+    LOG("opsem", WARN << "resetModified() not implemented!\n");
+    return mem;
+  }
 };
 } // namespace details
 } // namespace seahorn

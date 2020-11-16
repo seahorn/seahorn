@@ -280,6 +280,8 @@ public:
   Expr isDereferenceable(PtrTy p, Expr byteSz) override;
 
   Expr isModified(PtrTy p, MemValTy mem) override;
+
+  MemValTy resetModified(PtrTy p, MemValTy mem) override;
 };
 } // namespace details
 } // namespace seahorn

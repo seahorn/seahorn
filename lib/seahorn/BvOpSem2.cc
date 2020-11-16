@@ -547,7 +547,7 @@ public:
       } else if (f->getName().startswith("sea.is_modified")) {
         visitIsModified(CS);
       } else if (f->getName().startswith("sea.reset_modified")) {
-        // TODO: process reset modified instruction
+        visitResetModified(CS);
       } else if (f->getName().startswith(("sea.assert.if"))) {
         visitSeaAssertIfCall(CS);
       } else if (f->getName().startswith(("verifier.assert"))) {
@@ -643,6 +643,7 @@ public:
     if (!m_ctx.getMemReadRegister()) {
       LOG("opsem", ERR << "No read register found - check if corresponding"
                           "shadow instruction is present.");
+      m_ctx.setMemReadRegister(Expr());
       return;
     }
     Expr ptr = lookup(*CS.getArgument(0));
@@ -651,6 +652,25 @@ public:
     auto res = memManager.isModified(ptr, memIn);
     setValue(*CS.getInstruction(), res);
     m_ctx.setMemReadRegister(Expr());
+  }
+
+  void visitResetModified(CallSite CS) {
+    if (!m_ctx.getMemReadRegister() || !m_ctx.getMemWriteRegister()) {
+      LOG("opsem",
+          ERR << "No read/write register found - check if corresponding"
+                 "shadow instruction is present.");
+      m_ctx.setMemReadRegister(Expr());
+      m_ctx.setMemWriteRegister(Expr());
+      return;
+    }
+    Expr ptr = lookup(*CS.getArgument(0));
+    auto memIn = m_ctx.read(m_ctx.getMemReadRegister());
+    OpSemMemManager &memManager = m_ctx.mem();
+    auto res = memManager.resetModified(ptr, memIn);
+    m_ctx.write(m_ctx.getMemWriteRegister(), res);
+
+    m_ctx.setMemReadRegister(Expr());
+    m_ctx.setMemWriteRegister(Expr());
   }
 
   /// Report outcome of vacuity and incremental assertion checking

@@ -319,10 +319,15 @@ TrackingRawMemManager::mkStackPtr(unsigned int offset) {
 unsigned int TrackingRawMemManager::getMetaDataMemWordSzInBits() {
   return m_metadata.wordSzInBits();
 }
-Expr TrackingRawMemManager::isModified(PtrTy p, MemValTy Mem) {
+Expr TrackingRawMemManager::isModified(PtrTy p, MemValTy mem) {
   LOG("opsem", WARN << "isModified() not implemented!\n");
   return Expr();
 }
-
+TrackingRawMemManager::MemValTy
+TrackingRawMemManager::resetModified(TrackingRawMemManager::PtrTy p,
+                                     TrackingRawMemManager::MemValTy mem) {
+  LOG("opsem", WARN << "resetModified() not implemented!\n");
+  return mem;
+}
 } // namespace details
 } // namespace seahorn

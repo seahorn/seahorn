@@ -37,8 +37,11 @@ BmcEngine::BmcEngine(OperationalSemantics &sem, EZ3 &zctx)
       m_ctxState(m_efac) {
 
   z3n_set_param(":model.compact", false);
-  if (BmcSmtTactic != "default")
+  if (BmcSmtTactic != "default") {
     z3n_set_param(":tactic.default_tactic", BmcSmtTactic.c_str());
+    if (BmcSmtTactic == "sat" || llvm::StringRef(BmcSmtTactic).endswith("sat)"))
+      z3n_set_param(":sat.euf", true);
+  }
 }
 
 void BmcEngine::addCutPoint(const CutPoint &cp) {

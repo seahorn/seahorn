@@ -288,6 +288,10 @@ public:
                   ExtraWideMemManager::MemValTy mem);
 
   typename ExtraWideMemManager<T>::MemValTy
+  resetModified(ExtraWideMemManager::PtrTy ptr,
+                ExtraWideMemManager::MemValTy mem);
+
+  typename ExtraWideMemManager<T>::MemValTy
   memsetMetaData(ExtraWideMemManager::PtrTy ptr, unsigned int len,
                  ExtraWideMemManager::MemValTy memIn, unsigned int val);
 

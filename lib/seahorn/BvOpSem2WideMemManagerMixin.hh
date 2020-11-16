@@ -186,6 +186,8 @@ public:
   Expr getMetaData(PtrTy ptr, PtrTy memIn, unsigned int byteSz);
 
   unsigned int getMetaDataMemWordSzInBits();
+
+  MemValTy resetModified(PtrTy p, MemValTy mem);
 };
 
 } // namespace details

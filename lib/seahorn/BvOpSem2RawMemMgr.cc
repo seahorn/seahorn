@@ -740,5 +740,11 @@ Expr RawMemManager::zeroedMemory() const {
 }
 OpSemAllocator &RawMemManager::getMAllocator() const { return *m_allocator; }
 bool RawMemManager::ignoreAlignment() const { return m_ignoreAlignment; }
+
+RawMemManager::MemValTy
+RawMemManager::resetModified(PtrTy p, RawMemManager::MemValTy mem) {
+  LOG("opsem", WARN << "resetModified() not implemented!\n");
+  return mem;
+}
 } // namespace details
 } // namespace seahorn

@@ -221,7 +221,9 @@ public:
 
   PtrTy getAddressable(PtrTy p) const;
 
-  Expr isModified(PtrTy p, MemValTy Mem);
+  Expr isModified(PtrTy p, MemValTy mem);
+
+  MemValTy resetModified(PtrTy p, MemValTy mem);
 };
 
 } // namespace details

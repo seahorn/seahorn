@@ -35,9 +35,8 @@ OpSemWideMemManagerMixin<BaseT>::memsetMetaData(PtrTy p, unsigned int len,
   return hana::eval_if(
       MemoryFeatures::has_tracking(hana::type<BaseT>{}),
       [&](auto _) {
-        auto r =
-            _(base()).memsetMetaData(BasePtrTy(std::move(p)), len,
-                                     BaseMemValTy(std::move(memIn)), val = val);
+        auto r = _(base()).memsetMetaData(BasePtrTy(std::move(p)), len,
+                                          BaseMemValTy(std::move(memIn)), val);
         return toMemValTy(std::move(r));
       },
       [&] { return memIn; });
@@ -50,9 +49,8 @@ OpSemWideMemManagerMixin<BaseT>::memsetMetaData(PtrTy p, Expr len,
   return hana::eval_if(
       MemoryFeatures::has_tracking(hana::type<BaseT>{}),
       [&](auto _) {
-        auto r =
-            _(base()).memsetMetaData(BasePtrTy(std::move(p)), len,
-                                     BaseMemValTy(std::move(memIn)), val = val);
+        auto r = _(base()).memsetMetaData(BasePtrTy(std::move(p)), len,
+                                          BaseMemValTy(std::move(memIn)), val);
         return toMemValTy(std::move(r));
       },
       [&] { return memIn; });

@@ -120,8 +120,10 @@ raw_ostream &BmcEngine::toSmtLib(raw_ostream &out) {
     if (BmcSmtLogic == "QF_AUFBV") {
       // -- provide definition of mul with overflow
       // XXX 64 bit definition because we don't know the current register size
-      out << "(define-fun bvumul_noovfl ((x (_ BitVec 64)) (y (_ BitVec 64))) Bool\n"
-          << "(ite (= x #x0000000000000000) true (= (bvudiv (bvmul x y) x) y)) )\n";
+      out << "(define-fun bvumul_noovfl ((x (_ BitVec 64)) (y (_ BitVec 64))) "
+             "Bool\n"
+          << "(ite (= x #x0000000000000000) true (= (bvudiv (bvmul x y) x) y)) "
+             ")\n";
     }
   }
   encode();

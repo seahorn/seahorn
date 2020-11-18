@@ -587,7 +587,7 @@ ExtraWideMemManager<T>::memsetMetaData(ExtraWideMemManager::PtrTy ptr,
       MemoryFeatures::has_tracking(hana::type<T>{}),
       [&](auto _) {
         return _(m_main).memsetMetaData(ptr.getBase(), len, memIn.getRaw(),
-                                        val = val);
+                                        val);
       },
       [&] { return memIn.getRaw(); });
   return MemValTy(rawOut, memIn.getOffset(), memIn.getSize());

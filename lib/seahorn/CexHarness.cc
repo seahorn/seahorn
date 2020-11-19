@@ -188,6 +188,10 @@ std::unique_ptr<Module> createCexHarness(BmcTraceWrapper &trace,
           // 2) Get the contents of the lhs of shadow.mem.init
           //    list of (offset,value) plus default value ?
           Expr arrayE = trace.eval(loc, *ci, true);
+          if (!arrayE) {
+            DsaContentMap.erase(id);
+            continue;
+          }
           auto &p = DsaContentMap[id];
           bool res = extractArrayContents(arrayE, p.second, p.first);
           if (!res) {

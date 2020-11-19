@@ -13,32 +13,12 @@
 #include "boost/algorithm/string/replace.hpp"
 #include "seahorn/Expr/ExprLlvm.hh"
 #include "seahorn/Expr/ExprOpBinder.hh"
-#include "seahorn/Expr/HexDump.hh"
+#include "seahorn/Expr/ExprMemMap.hh"
 #include "seahorn/Support/SeaDebug.h"
 #include <memory>
 
 using namespace llvm;
 namespace seahorn {
-
-// borrowed from kvUtils
-bool getNum(Expr exp, expr::mpz_class &num) {
-  if (isOp<MPZ>(exp)) {
-    num = getTerm<expr::mpz_class>(exp);
-
-    return true;
-  } else if (isOp<UINT>(exp)) {
-    unsigned unsignedNum = getTerm<unsigned>(exp);
-    num = expr::mpz_class(unsignedNum);
-
-    return true;
-  } else if (bv::is_bvnum(exp)) {
-    num = bv::toMpz(exp);
-
-    return true;
-  }
-
-  return false;
-}
 
 Expr BmcTraceWrapper::eval(unsigned loc, const llvm::Instruction &inst,
                            bool complete) {
@@ -126,7 +106,7 @@ Constant *exprToMemSegment(Expr segment, Expr startAddr, Expr size,
   // total block size in bytes;
   expr::mpz_class sizeMpz;
   size_t blockWidth = 0;
-  if (getNum(size, sizeMpz)) {
+  if (expr::numeric::getNum(size, sizeMpz)) {
     blockWidth = sizeMpz.get_ui();
   } else {
     LOG("cex",
@@ -138,7 +118,7 @@ Constant *exprToMemSegment(Expr segment, Expr startAddr, Expr size,
   // starting address
   expr::mpz_class startAddrMpz;
   size_t startAddrInt = 0;
-  if (getNum(startAddr, startAddrMpz)) {
+  if (expr::numeric::getNum(startAddr, startAddrMpz)) {
     startAddrInt = startAddrMpz.get_ui();
   } else {
     LOG("cex", errs() << "memhavoc: cannot get concrete starting address: "
@@ -147,14 +127,14 @@ Constant *exprToMemSegment(Expr segment, Expr startAddr, Expr size,
     return ConstantArray::get(placeholderT, LLVMValueSegment);
   }
 
-  using ValueExtractor = expr::hexDump::HexDump;
-  const ValueExtractor kv(segment);
-  size_t elmWidth = kv.valueWidthInBytes();
+  using MemMap = expr::exprMemMap::ExprMemMap;
+  const MemMap m_map(segment);
+  size_t elmWidth = m_map.getContentWidth();
   size_t blocks = std::ceil((float)blockWidth / (float)elmWidth);
   auto *segmentElmTy = IntegerType::get(ctx, elmWidth * 8);
   ArrayType *segmentAT = ArrayType::get(segmentElmTy, blocks);
 
-  Expr defaultE = kv.getDefault();
+  Expr defaultE = m_map.getDefault();
   // get default value or use 0 as fallback
   Constant *defaultConst;
   if (defaultE) {
@@ -171,10 +151,10 @@ Constant *exprToMemSegment(Expr segment, Expr startAddr, Expr size,
   }
 
   // fill special value indicated by ID
-  for (auto begin = kv.cbegin(), end = kv.cend(); begin != end; begin++) {
+  for (auto begin = m_map.cbegin(), end = m_map.cend(); begin != end; begin++) {
     Expr segmentID = begin->getIdxExpr();
     expr::mpz_class idE = 0;
-    if (getNum(segmentID, idE)) {
+    if (expr::numeric::getNum(segmentID, idE)) {
       size_t curAddrInt = idE.get_ui();
       size_t index = (curAddrInt - startAddrInt) / elmWidth;
       if (index >= blocks) {
@@ -303,13 +283,13 @@ std::unique_ptr<Module> createCexHarness(BmcTraceWrapper &trace,
           }
           // we generate the harness even if we fail extracting the
           // array contents
-          LOG("cex", errs()
-                         << "Producing harness for " << CF->getName() << "\n";);
+          LOG("cex",
+              errs() << "Producing harness for " << CF->getName() << "\n";);
           continue;
         }
         if (CF->getName().equals("memhavoc")) {
-          LOG("cex", errs()
-                         << "Producing harness for " << CF->getName() << "\n";);
+          LOG("cex",
+              errs() << "Producing harness for " << CF->getName() << "\n";);
           // previous instruction should be
           // shadow.mem.load(i32 x, i32 %sm_n, i8* null)
           if (I.getPrevNonDebugInstruction() == nullptr)
@@ -321,9 +301,9 @@ std::unique_ptr<Module> createCexHarness(BmcTraceWrapper &trace,
             const Function *prevCF =
                 dyn_cast<Function>(prevCV->stripPointerCasts());
             if (!(prevCF && prevCF->getName().equals("shadow.mem.load"))) {
-              LOG("cex", errs()
-                             << "Skipping harness for " << CF->getName()
-                             << " because shadow.mem.load cannot be found\n");
+              LOG("cex",
+                  errs() << "Skipping harness for " << CF->getName()
+                         << " because shadow.mem.load cannot be found\n");
               continue;
             }
             // get memhavoc content from second operand of shadow.mem.load

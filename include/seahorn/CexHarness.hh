@@ -29,8 +29,8 @@ std::unique_ptr<llvm::Module> createCexHarness(BmcTraceWrapper &trace,
                                                llvm::LLVMContext &context);
 
 void dumpLLVMCex(BmcTraceWrapper &trace, llvm::StringRef CexFile,
-		 const llvm::DataLayout &dl, const llvm::TargetLibraryInfo &tli,
-		 llvm::LLVMContext &context);
+                 const llvm::DataLayout &dl, const llvm::TargetLibraryInfo &tli,
+                 llvm::LLVMContext &context);
 
 } // end namespace seahorn
 

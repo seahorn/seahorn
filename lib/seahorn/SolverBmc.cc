@@ -38,10 +38,12 @@ SolverBmcEngine::SolverBmcEngine(OperationalSemantics &sem,
     m_new_smt_solver =
         std::make_unique<solver::yices_solver_impl>(sem.efac(), logic);
 #else
-    assert(false && "Compile with YICES2_HOME option");
+    ERR << "No yices2 fiound. Compile SeaHorn with YICES2_HOME option!";
+    std::exit(1);
 #endif
   } else {
-    assert(false && "Unsupported smt solver");
+    ERR << "Unsupported SMT solver requested\n";
+    std::exit(1);
   }
 }
 

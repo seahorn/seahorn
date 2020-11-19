@@ -1168,12 +1168,16 @@ public:
 
       auto *parent = I.getParent();
       bool atBegin(parent->begin() == me);
+      // -- save instruction before the one being lowered
       if (!atBegin)
         --me;
       IntrinsicLowering IL(m_sem.getDataLayout());
       IL.LowerIntrinsicCall(&I);
-      auto top = atBegin ? &*parent->begin() : &*me;
+
+      // -- restore instruction pointer to the new lowered instructions
+      auto top = atBegin ? &*parent->begin() : &*(++me);
       m_ctx.setInstruction(*top);
+      m_ctx.setInstruction(*top, true);
 
       // -- add newly inserted instructions to COI, if I was in COI
       if (isInFilter) {
@@ -2738,6 +2742,8 @@ bool Bv2OpSem::intraStep(seahorn::details::Bv2OpSemContext &C) {
   if (C.isAtBbEnd())
     return false;
 
+  // -- repeat flag can be set during intraStep and must be reset at the end
+  assert(!C.isRepeatInstruction());
   const Instruction &inst = C.getCurrentInst();
 
   // -- non-branch terminators are executed elsewhere
@@ -2755,6 +2761,11 @@ bool Bv2OpSem::intraStep(seahorn::details::Bv2OpSemContext &C) {
   }
 
   // -- advance instruction pointer if needed
+  if (C.isRepeatInstruction()) {
+    C.resetRepeatInstruction();
+    return true;
+  }
+
   if (!inst.isTerminator()) {
     ++C;
     return true;

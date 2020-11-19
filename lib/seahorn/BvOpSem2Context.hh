@@ -55,6 +55,9 @@ private:
   /// \brief Current instruction to be executed
   BasicBlock::const_iterator m_inst;
 
+  /// \brief True if the current instructions has to be repeated
+  bool m_repeat{false};
+
   /// \brief Previous basic block (or null if not known)
   const BasicBlock *m_prev;
 
@@ -185,9 +188,17 @@ public:
   /// \brief Currently executed instruction
   const Instruction &getCurrentInst() const { return *m_inst; }
   /// \brief Set instruction to be executed next
-  void setInstruction(const Instruction &inst) {
+  void setInstruction(const Instruction &inst, bool repeat = false) {
     m_inst = BasicBlock::const_iterator(&inst);
+    m_repeat = repeat;
   }
+
+  /// \brief True if the current instruction has to be executed again
+  bool isRepeatInstruction() const { return m_repeat; }
+
+  /// \brief Reset repeat instruction flag
+  void resetRepeatInstruction() { m_repeat = false; }
+
   /// \brief True if executing the last instruction in the current basic block
   bool isAtBbEnd() const { return m_inst == m_bb->end(); }
   /// \brief Move to next instructions in the basic block to execute

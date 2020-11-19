@@ -2,11 +2,13 @@
 #include "seahorn/Transforms/Instrumentation/ShadowMemDsa.hh"
 #include "seahorn/UfoOpSem.hh"
 
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/IR/DebugInfo.h"
 #include "llvm/IR/DebugLoc.h"
 #include "llvm/Support/CommandLine.h"
 
 #include "boost/container/flat_set.hpp"
+#include "seahorn/CallUtils.hh"
 #include "seahorn/Expr/ExprLlvm.hh"
 #include "seahorn/Expr/HexDump.hh"
 #include "seahorn/Support/SeaDebug.h"
@@ -240,6 +242,11 @@ template <> raw_ostream &SolverBmcTrace::print(raw_ostream &out) {
             out << dvi->getValue()->getName();
           else
             out << *dvi->getValue();
+
+          auto val = eval(loc, *dvi->getValue());
+          if (val)
+            out << " " << *val;
+
           out << "\n";
           out.resetColor();
         }
@@ -248,8 +255,8 @@ template <> raw_ostream &SolverBmcTrace::print(raw_ostream &out) {
 
       bool print_inst = true;
       bool shadow_mem = false;
-      if (const CallInst *ci = dyn_cast<CallInst>(&I)) {
-        Function *f = ci->getCalledFunction();
+      if (auto *ci = dyn_cast<CallInst>(&I)) {
+        const Function *f = getCalledFunction(*ci);
         if (f && f->getName().equals("seahorn.fn.enter")) {
           if (ci->getDebugLoc()) {
             if (DISubprogram *fnScope =
@@ -258,27 +265,31 @@ template <> raw_ostream &SolverBmcTrace::print(raw_ostream &out) {
           }
           continue;
         } else if (f && f->getName().equals("shadow.mem.init")) {
-#if 0
-          // disabling since this is not supported by non-legacy
-          // OperationalSemantics
-          if (out.has_color())
-            out.changeColor(raw_ostream::RED);
-          int64_t id = shadow_dsa::getShadowId(ci);
-          assert(id >= 0);
-          Expr memStart = m_bmc.sem().memStart(id);
-          Expr u = eval(loc, memStart);
-          if (u)
-            out << "  " << *memStart << " " << *u << "\n";
-          Expr memEnd = m_bmc.sem().memEnd(id);
-          u = eval(loc, memEnd);
-          if (u)
-            out << "  " << *memEnd << " " << *u << "\n";
-          out.resetColor();
-#endif
           print_inst = false;
           shadow_mem = true;
         } else if (f && f->getName().equals("shadow.mem.store")) {
           shadow_mem = true;
+        } else if (f && f->getName().equals("sea_printf")) {
+          if (out.has_colors())
+            out.changeColor(raw_ostream::GREEN);
+
+          if (auto *gep = dyn_cast<GetElementPtrInst>(&*ci->arg_begin())) {
+            out << "  " << *gep->getPointerOperand() << "\n";
+          }
+          for (auto &arg :
+               llvm::make_range(ci->arg_begin() + 1, ci->arg_end())) {
+            if (arg->hasName()) {
+              out << "  " << arg->getName() << " ";
+              auto val = eval(loc, *arg);
+              if (val)
+                out << *val;
+              else
+                out << *arg;
+              out << "\n";
+            }
+          }
+          if (out.has_colors())
+            out.resetColor();
         }
       } else if (isa<PHINode>(I)) {
         shadow_mem = I.hasMetadata("shadow.mem");

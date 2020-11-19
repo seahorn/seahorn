@@ -1,5 +1,6 @@
 /// All Expr utilitiies.
 #include "seahorn/Expr/Expr.hh"
+#include "seahorn/Expr/ExprNumericUtils.hh"
 #include "seahorn/Expr/ExprSimplifier.hh"
 #include "seahorn/Expr/ExprVisitor.hh"
 /// yet to be refactored
@@ -448,4 +449,38 @@ Expr nnf(Expr exp) {
 Expr pp(Expr exp) { return gather(nnf(exp)); }
 } // namespace boolop
 } // namespace op
+namespace numeric {
+
+bool getNum(Expr exp, mpz_class &num) {
+  if (isOp<MPZ>(exp)) {
+    num = getTerm<mpz_class>(exp);
+
+    return true;
+  } else if (isOp<UINT>(exp)) {
+    unsigned unsignedNum = getTerm<unsigned>(exp);
+    num = mpz_class(unsignedNum);
+
+    return true;
+  } else if (bv::is_bvnum(exp)) {
+    num = bv::toMpz(exp);
+
+    return true;
+  }
+
+  return false;
+}
+
+bool isNumeric(Expr exp) {
+  return isOp<MPZ>(exp) || isOp<UINT>(exp) || bv::is_bvnum(exp);
+}
+
+Expr convertToMpz(Expr exp) {
+  mpz_class num = 0;
+  if (getNum(exp, num)) {
+    return mkTerm<mpz_class>(num, exp->efac());
+  }
+
+  return exp;
+}
+} // namespace numeric
 } // namespace expr

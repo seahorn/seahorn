@@ -7,6 +7,7 @@ add_llvm_library (SeaSmt DISABLE_LLVM_LINK_LLVM_DYLIB
   ExprUtil.cc
   TypeChecker.cc
   HexDump.cc
+  ExprMemMap.cc
   )
 
 target_link_libraries(SeaSmt PRIVATE ${Z3_LIBRARY})

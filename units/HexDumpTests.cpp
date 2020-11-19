@@ -20,6 +20,7 @@
 using namespace expr;
 using namespace llvm;
 using namespace hexDump;
+using namespace exprMemMap;
 
 template <class ExpectedIt, class ActualIt>
 void checkPairs(ExpectedIt expectedBegin, ExpectedIt expectedEnd,
@@ -34,11 +35,11 @@ void checkPairs(ExpectedIt expectedBegin, ExpectedIt expectedEnd,
   }
 }
 
-void populateBvNumArr(Expr &e, ExprFactory &efac, std::vector<KeyValue> &kvList,
+void populateBvNumArr(Expr &e, ExprFactory &efac, std::vector<MemCell> &kvList,
                       mpz_class idxNum, mpz_class valueNum, unsigned keyWidth,
                       unsigned valueWidth) {
-  kvList.push_back(KeyValue(mkTerm<mpz_class>(idxNum, efac),
-                            mkTerm<mpz_class>(valueNum, efac)));
+  kvList.push_back(MemCell(mkTerm<mpz_class>(idxNum, efac),
+                           mkTerm<mpz_class>(valueNum, efac)));
   e = array::store(e, bv::bvnum(idxNum, keyWidth, efac),
                    bv::bvnum(valueNum, valueWidth, efac));
 }
@@ -49,21 +50,21 @@ TEST_CASE("hexDumpBvNum.test") {
   Expr intSort = sort::intTy(efac);
   Expr bvSort = bv::bvsort(16, efac);
 
-  std::vector<KeyValue> kvList;
+  std::vector<MemCell> kvList;
   Expr defaultValue = bv::bvnum(0x1417, 16, efac);
 
   Expr e = array::constArray(bvSort, defaultValue);
   Expr defaultValueNum = defaultValue->first(); // MPZ term
 
   populateBvNumArr(e, efac, kvList, 2, 84, 16, 16);
-  kvList.push_back(KeyValue(mkTerm<mpz_class>(4, efac), defaultValueNum,
-                            true)); // filler KeyValue
+  kvList.push_back(MemCell(mkTerm<mpz_class>(4, efac), defaultValueNum,
+                           true)); // filler MemCell
   populateBvNumArr(e, efac, kvList, 8, 101, 16, 16);
-  kvList.push_back(KeyValue(mkTerm<mpz_class>(10, efac), defaultValueNum,
-                            true)); // filler KeyValue
+  kvList.push_back(MemCell(mkTerm<mpz_class>(10, efac), defaultValueNum,
+                           true)); // filler MemCell
   populateBvNumArr(e, efac, kvList, 24, 115, 16, 16);
-  kvList.push_back(KeyValue(mkTerm<mpz_class>(26, efac), defaultValueNum,
-                            true)); // filler KeyValue
+  kvList.push_back(MemCell(mkTerm<mpz_class>(26, efac), defaultValueNum,
+                           true)); // filler MemCell
   populateBvNumArr(e, efac, kvList, 30, 116, 16, 16);
 
   HexDump hd(e);
@@ -94,8 +95,8 @@ TEST_CASE("hexDumpBvNum.test") {
 
   kvList.clear();
   populateBvNumArr(e, efac, kvList, 4, 12, 32, 32);
-  kvList.push_back(KeyValue(mkTerm<mpz_class>(8, efac), defaultValue,
-                            false)); // filler KeyValue
+  kvList.push_back(MemCell(mkTerm<mpz_class>(8, efac), defaultValue,
+                           false)); // filler MemCell
   populateBvNumArr(e, efac, kvList, 12, 84, 32, 32);
 
   HexDump hd2(e);
@@ -117,18 +118,18 @@ TEST_CASE("bvNumNotAligned.test") {
   Expr intSort = sort::intTy(efac);
   Expr bvSort = bv::bvsort(16, efac);
 
-  std::vector<KeyValue> kvList;
+  std::vector<MemCell> kvList;
   Expr defaultValue = bv::bvnum(0xffff1234, 64, efac);
 
   Expr e = array::constArray(bvSort, defaultValue);
   Expr defaultValueNum = defaultValue->first(); // MPZ term
 
   populateBvNumArr(e, efac, kvList, 3, 0x4567aabb, 32, 64);
-  kvList.push_back(KeyValue(mkTerm<mpz_class>(4, efac), defaultValueNum,
-                            true)); // filler KeyValue
+  kvList.push_back(MemCell(mkTerm<mpz_class>(4, efac), defaultValueNum,
+                           true)); // filler MemCell
   populateBvNumArr(e, efac, kvList, 7, 0x656f, 32, 64);
-  kvList.push_back(KeyValue(mkTerm<mpz_class>(8, efac), defaultValueNum,
-                            true)); // filler KeyValue
+  kvList.push_back(MemCell(mkTerm<mpz_class>(8, efac), defaultValueNum,
+                           true)); // filler MemCell
   populateBvNumArr(e, efac, kvList, 11, 115, 32, 64);
 
   HexDump hd(e);
@@ -206,7 +207,7 @@ TEST_CASE("num.test") {
 TEST_CASE("finiteMap.test") {
   ExprFactory efac;
   ExprVector keys;
-  std::vector<KeyValue> kvList;
+  std::vector<MemCell> kvList;
 
   keys.push_back(mkTerm<mpz_class>(0x50000a, efac));
   keys.push_back(mkTerm<mpz_class>(0x500000, efac));
@@ -240,14 +241,14 @@ TEST_CASE("finiteMap.test") {
 
   CHECK(outcome == expected);
 
-  kvList.push_back(KeyValue(mkTerm<mpz_class>(0x500000, efac),
-                            mkTerm<mpz_class>(0x2345, efac)));
-  kvList.push_back(KeyValue(mkTerm<mpz_class>(0x500002, efac),
-                            mkTerm<mpz_class>(0xaaa1, efac)));
-  kvList.push_back(KeyValue(mkTerm<mpz_class>(0x50000a, efac),
-                            mkTerm<mpz_class>(0xffaa, efac)));
-  kvList.push_back(KeyValue(mkTerm<mpz_class>(0x500010, efac),
-                            mkTerm<mpz_class>(0xa, efac)));
+  kvList.push_back(MemCell(mkTerm<mpz_class>(0x500000, efac),
+                           mkTerm<mpz_class>(0x2345, efac)));
+  kvList.push_back(MemCell(mkTerm<mpz_class>(0x500002, efac),
+                           mkTerm<mpz_class>(0xaaa1, efac)));
+  kvList.push_back(MemCell(mkTerm<mpz_class>(0x50000a, efac),
+                           mkTerm<mpz_class>(0xffaa, efac)));
+  kvList.push_back(
+      MemCell(mkTerm<mpz_class>(0x500010, efac), mkTerm<mpz_class>(0xa, efac)));
 
   checkPairs(kvList.cbegin(), kvList.cend(), hd.cbegin(), hd.cend());
 }
@@ -269,13 +270,13 @@ TEST_CASE("ite.test") {
   HexDump hd(ite);
   llvm::errs() << hd;
 
-  std::vector<KeyValue> kvList;
+  std::vector<MemCell> kvList;
   kvList.push_back(
-      KeyValue(mkTerm<mpz_class>(2, efac), mkTerm<mpz_class>(0x5a, efac)));
-  kvList.push_back(KeyValue(mkTerm<mpz_class>(3, efac),
-                            mkTerm<mpz_class>(0x01, efac), true));
+      MemCell(mkTerm<mpz_class>(2, efac), mkTerm<mpz_class>(0x5a, efac)));
   kvList.push_back(
-      KeyValue(mkTerm<mpz_class>(0xa, efac), mkTerm<mpz_class>(3, efac)));
+      MemCell(mkTerm<mpz_class>(3, efac), mkTerm<mpz_class>(0x01, efac), true));
+  kvList.push_back(
+      MemCell(mkTerm<mpz_class>(0xa, efac), mkTerm<mpz_class>(3, efac)));
 
   checkPairs(kvList.begin(), kvList.end(), hd.cbegin(), hd.cend());
 
@@ -308,15 +309,15 @@ TEST_CASE("ite.test") {
 
   kvList.clear();
   kvList.push_back(
-      KeyValue(mkTerm<unsigned>(4, efac), mkTerm<mpz_class>(0x114232, efac)));
+      MemCell(mkTerm<unsigned>(4, efac), mkTerm<mpz_class>(0x114232, efac)));
   kvList.push_back(
-      KeyValue(mkTerm<unsigned>(5, efac), mkTerm<mpz_class>(0x0, efac), true));
+      MemCell(mkTerm<unsigned>(5, efac), mkTerm<mpz_class>(0x0, efac), true));
   kvList.push_back(
-      KeyValue(mkTerm<unsigned>(20, efac), mkTerm<mpz_class>(0x12345, efac)));
+      MemCell(mkTerm<unsigned>(20, efac), mkTerm<mpz_class>(0x12345, efac)));
   kvList.push_back(
-      KeyValue(mkTerm<unsigned>(21, efac), mkTerm<mpz_class>(0x0, efac), true));
-  kvList.push_back(KeyValue(mkTerm<unsigned>(40, efac),
-                            mkTerm<mpz_class>(0xaa3fde00, efac)));
+      MemCell(mkTerm<unsigned>(21, efac), mkTerm<mpz_class>(0x0, efac), true));
+  kvList.push_back(
+      MemCell(mkTerm<unsigned>(40, efac), mkTerm<mpz_class>(0xaa3fde00, efac)));
 
   checkPairs(kvList.begin(), kvList.end(), hd2.cbegin(), hd2.cend());
 
@@ -336,10 +337,10 @@ TEST_CASE("ite.test") {
   llvm::errs() << hd3;
 
   kvList.clear();
-  kvList.push_back(KeyValue(mkTerm<mpz_class>(0x200000, efac),
-                            mkTerm<mpz_class>(0xaaaa1234, efac)));
-  kvList.push_back(KeyValue(mkTerm<mpz_class>(0x200001, efac),
-                            mkTerm<mpz_class>(0xbbbb1111, efac)));
+  kvList.push_back(MemCell(mkTerm<mpz_class>(0x200000, efac),
+                           mkTerm<mpz_class>(0xaaaa1234, efac)));
+  kvList.push_back(MemCell(mkTerm<mpz_class>(0x200001, efac),
+                           mkTerm<mpz_class>(0xbbbb1111, efac)));
 
   checkPairs(kvList.begin(), kvList.end(), hd3.cbegin(), hd3.cend());
 
@@ -359,11 +360,11 @@ TEST_CASE("ite.test") {
 
   kvList.clear();
   kvList.push_back(
-      KeyValue(mkTerm<mpz_class>(0x44, efac), mkTerm<mpz_class>(0x6672, efac)));
-  kvList.push_back(KeyValue(mkTerm<mpz_class>(0x45, efac),
-                            mkTerm<mpz_class>(0x4444, efac), true));
+      MemCell(mkTerm<mpz_class>(0x44, efac), mkTerm<mpz_class>(0x6672, efac)));
+  kvList.push_back(MemCell(mkTerm<mpz_class>(0x45, efac),
+                           mkTerm<mpz_class>(0x4444, efac), true));
   kvList.push_back(
-      KeyValue(mkTerm<mpz_class>(0x78, efac), mkTerm<mpz_class>(0xbbbb, efac)));
+      MemCell(mkTerm<mpz_class>(0x78, efac), mkTerm<mpz_class>(0xbbbb, efac)));
 
   checkPairs(kvList.begin(), kvList.end(), hd4.cbegin(), hd4.cend());
 }
@@ -394,13 +395,13 @@ TEST_CASE("lambda.test") {
   HexDump hd(ite);
   llvm::errs() << hd;
 
-  std::vector<KeyValue> kvList;
+  std::vector<MemCell> kvList;
   kvList.push_back(
-      KeyValue(mkTerm<mpz_class>(0, efac), mkTerm<mpz_class>(0x2, efac)));
+      MemCell(mkTerm<mpz_class>(0, efac), mkTerm<mpz_class>(0x2, efac)));
   kvList.push_back(
-      KeyValue(mkTerm<mpz_class>(1, efac), mkTerm<mpz_class>(0xff, efac)));
+      MemCell(mkTerm<mpz_class>(1, efac), mkTerm<mpz_class>(0xff, efac)));
   kvList.push_back(
-      KeyValue(mkTerm<mpz_class>(2, efac), mkTerm<mpz_class>(4, efac)));
+      MemCell(mkTerm<mpz_class>(2, efac), mkTerm<mpz_class>(4, efac)));
 
   checkPairs(kvList.begin(), kvList.end(), hd.cbegin(), hd.cend());
 }
@@ -412,20 +413,20 @@ TEST_CASE("struct.test") {
   Expr intSort = sort::intTy(efac);
   Expr bvSort = bv::bvsort(16, efac);
 
-  std::vector<KeyValue> kvList;
+  std::vector<MemCell> kvList;
   Expr defaultValue = bv::bvnum(0x61, 32, efac);
   Expr e1 = array::constArray(bvSort, defaultValue);
   defaultValue = defaultValue->first(); // MPZ term
 
   populateBvNumArr(e1, efac, kvList, 0xa00000, 0x99, 32, 32);
   populateBvNumArr(e1, efac, kvList, 0xa00001, 116, 32, 32);
-  kvList.push_back(KeyValue(mkTerm<mpz_class>(0xa00002, efac), defaultValue,
-                            false)); // filler KeyValue
+  kvList.push_back(MemCell(mkTerm<mpz_class>(0xa00002, efac), defaultValue,
+                           false)); // filler MemCell
   populateBvNumArr(e1, efac, kvList, 0xa00003, 0x30, 32, 32);
 
   //-----------------
 
-  std::vector<KeyValue> pairList2;
+  std::vector<MemCell> pairList2;
 
   Expr intConst = bind::intConst(mkTerm<std::string>("intConst", efac));
 
@@ -442,11 +443,11 @@ TEST_CASE("struct.test") {
   ite = mk<ITE>(eq3, mkTerm<mpz_class>(0x90, efac), ite);
 
   pairList2.push_back(
-      KeyValue(mkTerm<mpz_class>(0, efac), mkTerm<mpz_class>(0x43, efac)));
+      MemCell(mkTerm<mpz_class>(0, efac), mkTerm<mpz_class>(0x43, efac)));
   pairList2.push_back(
-      KeyValue(mkTerm<mpz_class>(1, efac), mkTerm<mpz_class>(0x90, efac)));
+      MemCell(mkTerm<mpz_class>(1, efac), mkTerm<mpz_class>(0x90, efac)));
   pairList2.push_back(
-      KeyValue(mkTerm<mpz_class>(2, efac), mkTerm<mpz_class>(0x67, efac)));
+      MemCell(mkTerm<mpz_class>(2, efac), mkTerm<mpz_class>(0x67, efac)));
 
   Expr e2 = mk<LAMBDA>(intConst, intConst, ite);
 
@@ -462,7 +463,7 @@ TEST_CASE("struct.test") {
   StructHexDump hd(strct);
   llvm::errs() << hd;
 
-  std::vector<const_hd_range> ranges = hd.getRanges();
+  std::vector<const_mc_range> ranges = hd.getRanges();
 
   CHECK(ranges.size() == 2);
 
@@ -497,15 +498,15 @@ TEST_CASE("specialCases.test") {
 
   //-------------
 
-  std::vector<KeyValue> kvList;
+  std::vector<MemCell> kvList;
   Expr bvSort32 = bv::bvsort(32, efac);
   e = array::constArray(
       bvSort32,
       bv::bvnum(0xa345ff22, 32,
                 efac)); // only has a const array (not wrapped with STORE)
 
-  kvList.push_back(KeyValue(mkTerm<std::string>("*", efac),
-                            mkTerm<mpz_class>(0xa345ff22, efac)));
+  kvList.push_back(MemCell(mkTerm<std::string>("*", efac),
+                           mkTerm<mpz_class>(0xa345ff22, efac)));
 
   llvm::errs() << "Expression: " << *e << "\n";
 
@@ -546,7 +547,7 @@ TEST_CASE("specialCases.test") {
 
   kvList.clear();
   kvList.push_back(
-      KeyValue(mkTerm<mpz_class>(0, efac), mkTerm<mpz_class>(0x12, efac)));
+      MemCell(mkTerm<mpz_class>(0, efac), mkTerm<mpz_class>(0x12, efac)));
 
   checkPairs(kvList.cbegin(), kvList.cend(), hd3.cbegin(), hd3.cend());
 
@@ -562,9 +563,9 @@ TEST_CASE("specialCases.test") {
   llvm::errs() << hd4;
 
   kvList.clear();
-  kvList.push_back(KeyValue(bv::bvnum(0, 32, efac), intConst2));
-  kvList.push_back(KeyValue(bv::bvnum(1, 32, efac), intConst, true));
-  kvList.push_back(KeyValue(bv::bvnum(4, 32, efac), intConst3));
+  kvList.push_back(MemCell(bv::bvnum(0, 32, efac), intConst2));
+  kvList.push_back(MemCell(bv::bvnum(1, 32, efac), intConst, true));
+  kvList.push_back(MemCell(bv::bvnum(4, 32, efac), intConst3));
 
   checkPairs(kvList.cbegin(), kvList.cend(), hd4.cbegin(), hd4.cend());
 
@@ -583,8 +584,8 @@ TEST_CASE("specialCases.test") {
   // note: indices are sorted alphanumerically. Indices are not numeric so no
   // gaps are filled in
   kvList.clear();
-  kvList.push_back(KeyValue(intConst2, bv::bvnum(0xa, 32, efac)));
-  kvList.push_back(KeyValue(intConst3, bv::bvnum(0x43, 32, efac)));
+  kvList.push_back(MemCell(intConst2, bv::bvnum(0xa, 32, efac)));
+  kvList.push_back(MemCell(intConst3, bv::bvnum(0x43, 32, efac)));
 
   checkPairs(kvList.cbegin(), kvList.cend(), hd5.cbegin(), hd5.cend());
 }

@@ -1,14 +1,21 @@
 #pragma once
 
+#include "llvm/ADT/STLExtras.h"
+#include "llvm/IR/DebugInfo.h"
+#include "llvm/IR/DebugLoc.h"
 #include "llvm/IR/Function.h"
+#include "llvm/Support/CommandLine.h"
 #include "llvm/Support/raw_ostream.h"
 
-#include "boost/logic/tribool.hpp"
-
+#include "seahorn/Bmc.hh"
+#include "seahorn/CallUtils.hh"
 #include "seahorn/Expr/Expr.hh"
+#include "seahorn/Expr/ExprLlvm.hh"
+#include "seahorn/Expr/HexDump.hh"
 #include "seahorn/Expr/Smt/EZ3.hh"
 #include "seahorn/Expr/Smt/Solver.hh"
 #include "seahorn/Expr/Smt/Z3SolverImpl.hh"
+
 #ifdef WITH_YICES2
 #include "seahorn/Expr/Smt/Yices2SolverImpl.hh"
 #endif
@@ -18,17 +25,8 @@
 
 namespace seahorn {
 using namespace expr;
+using namespace solver;
 
-namespace solver_bmc_impl {
-/// true if I is a call to a void function
-bool isCallToVoidFn(const llvm::Instruction &I);
-/// computes an implicant of f (interpreted as a conjunction) that
-/// contains the given model
-void get_model_implicant(const ExprVector &f, solver::Solver::model_ref model,
-                         ExprVector &out, ExprMap &active_bool_map);
-} // namespace solver_bmc_impl
-
-class SolverBmcTrace;
 class SolverBmcEngine {
 protected:
   /// symbolic operational semantics
@@ -40,7 +38,7 @@ protected:
   ExprFactory &m_efac;
 
   /// last result
-  solver::SolverResult m_result;
+  SolverResult m_result;
 
   /// cut-point trace
   SmallVector<const CutPoint *, 8> m_cps;
@@ -54,10 +52,10 @@ protected:
   const llvm::Function *m_fn;
 
   // main solver
-  solver::SolverKind m_solver_kind;
-  std::unique_ptr<solver::Solver> m_new_smt_solver;
+  SolverKind m_solver_kind;
+  std::unique_ptr<Solver> m_new_smt_solver;
   // simplifying solver that only relies on z3
-  // std::unique_ptr<solver::Solver> m_simp_smt_solver;
+  // std::unique_ptr<Solver> m_simp_smt_solver;
 
   SymStore m_ctxState;
   /// path-condition for m_cps
@@ -65,7 +63,7 @@ protected:
 
 public:
   SolverBmcEngine(OperationalSemantics &sem,
-                  solver::SolverKind solver_kind = solver::SolverKind::Z3);
+                  SolverKind solver_kind = SolverKind::Z3);
   void addCutPoint(const CutPoint &cp);
 
   virtual OperationalSemantics &sem() { return m_sem; }
@@ -74,16 +72,17 @@ public:
   virtual void encode(bool assert_formula = true);
 
   /// checks satisfiability of the path condition
-  virtual solver::SolverResult solve();
+  virtual SolverResult solve();
 
   /// get model if side condition evaluated to sat.
-  virtual solver::Solver::model_ref getModel() {
+  virtual Solver::model_ref getModel() {
     assert((bool)result());
     return m_new_smt_solver->get_model();
   }
 
   /// Returns the BMC trace (if available)
-  virtual SolverBmcTrace getTrace();
+  template <class Engine, class Model>
+  BmcTrace<Engine, Model> getTrace();
 
   Expr getSymbReg(const llvm::Value &v) {
     Expr reg;
@@ -97,7 +96,7 @@ public:
   virtual raw_ostream &toSmtLib(raw_ostream &out);
 
   /// returns the latest result from solve()
-  solver::SolverResult result() { return m_result; }
+  SolverResult result() { return m_result; }
 
   /// access to expression factory
   ExprFactory &efac() { return m_efac; }
@@ -116,58 +115,5 @@ public:
 
   /// get symbolic states corresponding to the cutpoint trace
   std::vector<SymStore> &getStates() { return m_states; }
-};
-
-class SolverBmcTrace {
-  SolverBmcEngine &m_bmc;
-
-  // ZModel<EZ3> m_model;
-  solver::Solver::model_ref m_model;
-
-  // for trace specific implicant
-  ExprVector m_trace;
-  ExprMap m_bool_map;
-
-  /// the trace of basic blocks
-  SmallVector<const BasicBlock *, 8> m_bbs;
-
-  /// a map from an index of a basic block on a trace to the index
-  /// of the corresponding cutpoint in SolverBmcEngine
-  SmallVector<unsigned, 8> m_cpId;
-
-  /// cutpoint id corresponding to the given location
-  unsigned cpid(unsigned loc) const { return m_cpId[loc]; }
-
-  /// true if loc is the first location on a cutpoint edge
-  bool isFirstOnEdge(unsigned loc) const {
-    return loc == 0 || cpid(loc - 1) != cpid(loc);
-  }
-
-public:
-  SolverBmcTrace(SolverBmcEngine &bmc, solver::Solver::model_ref model);
-
-  SolverBmcTrace(const SolverBmcTrace &other)
-      : m_bmc(other.m_bmc), m_model(other.m_model), m_bbs(other.m_bbs),
-        m_cpId(other.m_cpId) {}
-
-  /// underlying BMC engine
-  SolverBmcEngine &engine() { return m_bmc; }
-  /// The number of basic blocks in the trace
-  unsigned size() const { return m_bbs.size(); }
-
-  /// The basic block at a given location
-  const llvm::BasicBlock *bb(unsigned loc) const { return m_bbs[loc]; }
-
-  /// The value of the instruction at the given location
-  Expr symb(unsigned loc, const llvm::Value &inst);
-  Expr eval(unsigned loc, const llvm::Value &inst, bool complete = false);
-  Expr eval(unsigned loc, Expr v, bool complete = false);
-  template <typename Out> Out &print(Out &out);
-
-  ExprVector &get_implicant_formula() { return m_trace; }
-  ExprMap &get_implicant_bools_map() { return m_bool_map; }
-
-  const ExprVector &get_implicant_formula() const { return m_trace; }
-  const ExprMap &get_implicant_bools_map() const { return m_bool_map; }
 };
 } // namespace seahorn

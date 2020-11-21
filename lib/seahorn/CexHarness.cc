@@ -12,8 +12,8 @@
 
 #include "boost/algorithm/string/replace.hpp"
 #include "seahorn/Expr/ExprLlvm.hh"
-#include "seahorn/Expr/ExprOpBinder.hh"
 #include "seahorn/Expr/ExprMemMap.hh"
+#include "seahorn/Expr/ExprOpBinder.hh"
 #include "seahorn/Support/SeaDebug.h"
 #include <memory>
 
@@ -283,13 +283,13 @@ std::unique_ptr<Module> createCexHarness(BmcTraceWrapper &trace,
           }
           // we generate the harness even if we fail extracting the
           // array contents
-          LOG("cex",
-              errs() << "Producing harness for " << CF->getName() << "\n";);
+          LOG("cex", errs()
+                         << "Producing harness for " << CF->getName() << "\n";);
           continue;
         }
         if (CF->getName().equals("memhavoc")) {
-          LOG("cex",
-              errs() << "Producing harness for " << CF->getName() << "\n";);
+          LOG("cex", errs()
+                         << "Producing harness for " << CF->getName() << "\n";);
           // previous instruction should be
           // shadow.mem.load(i32 x, i32 %sm_n, i8* null)
           if (I.getPrevNonDebugInstruction() == nullptr)
@@ -301,9 +301,9 @@ std::unique_ptr<Module> createCexHarness(BmcTraceWrapper &trace,
             const Function *prevCF =
                 dyn_cast<Function>(prevCV->stripPointerCasts());
             if (!(prevCF && prevCF->getName().equals("shadow.mem.load"))) {
-              LOG("cex",
-                  errs() << "Skipping harness for " << CF->getName()
-                         << " because shadow.mem.load cannot be found\n");
+              LOG("cex", errs()
+                             << "Skipping harness for " << CF->getName()
+                             << " because shadow.mem.load cannot be found\n");
               continue;
             }
             // get memhavoc content from second operand of shadow.mem.load

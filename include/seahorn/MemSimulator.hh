@@ -31,20 +31,20 @@ class MemSimulator {
   // -- start of internally allocated memory
   unsigned m_intMemStart;
 
-  BmcTrace &m_trace;
+  BmcTrace<BmcEngine, ZModel_ref> &m_trace;
   ZModel<EZ3> m_model;
 
   EZ3 &zctx() { return m_trace.engine().zctx(); }
 
 public:
-  MemSimulator(BmcTrace &bmc_trace, const DataLayout &dl,
+  MemSimulator(BmcTrace<BmcEngine, ZModel_ref> &bmc_trace, const DataLayout &dl,
                const TargetLibraryInfo &tli)
       : m_dl(dl), m_tli(tli), m_intMemStart(10 * 1024 * 1024),
         m_trace(bmc_trace), m_model(zctx()) {}
 
   const AllocInfo &alloc(unsigned sz);
 
-  BmcTrace &trace() { return m_trace; }
+  BmcTrace<BmcEngine, ZModel_ref> &trace() { return m_trace; }
 
   // -- run simulation
   bool simulate();

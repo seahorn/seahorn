@@ -992,7 +992,7 @@ bool SimpleMemoryCheck::runOnModule(llvm::Module &M) {
   m_SDSA = std::make_unique<SeaDsa>(this);
   m_PTA = m_SDSA.get();
 
-  SMC_LOG(errs() << " ========== SMC (" << (seadsa::IsTypeAware ? "" : "Not ")
+  SMC_LOG(errs() << " ========== SMC (" << (seadsa::FieldType::IsNotTypeAware() ? "Not" : "")
                  << "Type-aware) ==========\n");
   LOG("smc-dsa", if (m_SDSA) m_SDSA->viewGraph(*main));
 
@@ -1119,7 +1119,7 @@ bool SimpleMemoryCheck::runOnModule(llvm::Module &M) {
   emitMemoryInstInstrumentation(Check);
   emitAllocSiteInstrumentation(Check, AllocSiteId);
 
-  SMC_LOG(errs() << " ========== SMC (" << (seadsa::IsTypeAware ? "" : "Not ")
+  SMC_LOG(errs() << " ========== SMC (" << (seadsa::FieldType::IsNotTypeAware() ? "Not" : "")
                  << "Type-aware) ==========\n");
   return true;
 }

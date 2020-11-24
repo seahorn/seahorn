@@ -9,7 +9,6 @@ on:
     branches: dev10
   pull_request:
     branches: dev10
-  workflow_dispatch:  # Allows you to run this workflow manually from the Actions tab
   schedule:
     - cron: 0 0 * * *  # run every day at UTC 00:00
 
@@ -47,3 +46,8 @@ jobs:
         run: docker run -v $(pwd):/host seahorn_container /bin/bash -c "cd seahorn/share/seahorn && lit -a --time-tests --max-time=1200 test/mcfuzz"
       - name: Run smc tests
         run: docker run -v $(pwd):/host seahorn_container /bin/bash -c "cd seahorn/share/seahorn && lit -a --time-tests --max-time=1200 test/smc" 
+      - name: tag and push seahorn (nightly)
+        if: ${{ github.event_name == 'schedule' }}  # only push if nightly run
+        run: |
+          docker tag seahorn_container seahorn/seahorn-llvm10:nightly
+          docker push seahorn/seahorn-llvm10:nightly 

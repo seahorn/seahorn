@@ -118,11 +118,10 @@ raw_ostream &SolverBmcEngine::toSmtLib(raw_ostream &out) {
   return out;
 }
 
-template <>
-BmcTrace<SolverBmcEngine, Solver::model_ref> SolverBmcEngine::getTrace() {
+SolverBmcTraceTy SolverBmcEngine::getTrace() {
   assert(m_result == solver::SolverResult::SAT);
   auto model = m_new_smt_solver->get_model();
-  return BmcTrace<SolverBmcEngine, Solver::model_ref>(*this, model);
+  return SolverBmcTraceTy(*this, model);
 }
 
 } // namespace seahorn

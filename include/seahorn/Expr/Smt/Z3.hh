@@ -378,6 +378,10 @@ public:
     return *this;
   }
 
+  const this_type *operator->() const { return this; }
+
+  this_type *operator->() { return this; }
+
   friend void swap(this_type &src, this_type &dst) {
     // -- only allow swap between models from the same context
     assert(&src.z3 == &dst.z3);

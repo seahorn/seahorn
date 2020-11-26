@@ -129,11 +129,10 @@ raw_ostream &BmcEngine::toSmtLib(raw_ostream &out) {
   return m_smt_solver.toSmtLib(out);
 }
 
-template <> BmcTrace<BmcEngine, ZModel_ref> BmcEngine::getTrace() {
+ZBmcTraceTy BmcEngine::getTrace() {
   assert((bool)m_result);
   auto model = m_smt_solver.getModel();
-  return BmcTrace<BmcEngine, ZModel_ref>(
-      *this, std::make_shared<ZModel<EZ3>>(model));
+  return ZBmcTraceTy(*this, model);
 }
 
 namespace bmc_impl {
@@ -198,6 +197,7 @@ void unsat_core(ZSolver<EZ3> &solver, const ExprVector &f, bool simplify,
     out.push_back(bind::fname(bind::fname(c))->arg(0));
 }
 
+/* specialization for llvm::raw_ostream */
 template <>
 void dump_evaluated_inst(const Instruction &inst, Expr v, raw_ostream &out,
                          bool shadow_mem) {

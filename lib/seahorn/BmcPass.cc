@@ -348,31 +348,28 @@ public:
           errs() << "CORE END\n";
         });
 
-    if (res) {
-      BmcTrace<BmcEngine, ZModel_ref> trace(
-          bmc.getTrace<BmcEngine, ZModel_ref>());
-      LOG(
-          "cex", if (res) {
-            errs() << "Analyzed Function:\n" << F << "\n";
-            errs() << "Trace \n";
-            trace.print(errs());
-          });
-
-      // dump to harness file
-      StringRef CexFileRef(HornCexFile);
-      if (CexFileRef != "") {
-        if (CexFileRef.endswith(".ll") || CexFileRef.endswith(".bc")) {
-          auto &tli = getAnalysis<TargetLibraryInfoWrapperPass>();
-          auto const &dl = F.getParent()->getDataLayout();
-          BmcTraceWrapper trace_wrapper(trace);
-          dumpLLVMCex(trace_wrapper, CexFileRef, dl, tli.getTLI(F),
-                      F.getContext());
-        } else {
-          WARN << "The Bmc engine only generates harnesses in bitcode "
-                  "format";
+    LOG("cex", {
+      if (res) {
+        errs() << "Analyzed Function:\n" << F << "\n";
+        errs() << "Trace \n";
+        ZBmcTraceTy trace(bmc.getTrace());
+        trace.print(errs());
+        // dump to harness file
+        StringRef CexFileRef(HornCexFile);
+        if (CexFileRef != "") {
+          if (CexFileRef.endswith(".ll") || CexFileRef.endswith(".bc")) {
+            auto &tli = getAnalysis<TargetLibraryInfoWrapperPass>();
+            auto const &dl = F.getParent()->getDataLayout();
+            BmcTraceWrapper<ZBmcTraceTy> trace_wrapper(trace);
+            dumpLLVMCex(trace_wrapper, CexFileRef, dl, tli.getTLI(F),
+                        F.getContext());
+          } else {
+            WARN << "The Bmc engine only generates harnesses in bitcode "
+                    "format";
+          }
         }
       }
-    }
+    });
   }
 
   void runSolverBmcEngine(SolverBmcEngine &bmc, Function &F) {
@@ -411,33 +408,27 @@ public:
     else if (res == SolverResult::UNSAT)
       Stats::sset("Result", "TRUE");
 
-    if (res == SolverResult::SAT) {
-      BmcTrace<SolverBmcEngine, Solver::model_ref> trace(
-          bmc.getTrace<SolverBmcEngine, Solver::model_ref>());
-      LOG(
-          "cex", if (res == SolverResult::SAT) {
-            errs() << "Analyzed Function:\n" << F << "\n";
-            errs() << "Trace \n";
-            trace.print(errs());
-          });
-    }
-    // todo: support --cex mode (generate harness)
-    // if (res == SolverResult::SAT) {
-    //   StringRef CexFileRef(HornCexFile);
-    //   if (CexFileRef != "") {
-    //     if (CexFileRef.endswith(".ll") || CexFileRef.endswith(".bc")) {
-    //       auto &tli = getAnalysis<TargetLibraryInfoWrapperPass>();
-    //       auto const &dl = F.getParent()->getDataLayout();
-    //       SolverBmcTrace trace(bmc.getTrace());
-    //       BmcTraceWrapper<SolverBmcTrace> trace_wrapper(trace);
-    //       dumpLLVMCex(trace_wrapper, CexFileRef, dl, tli.getTLI(F),
-    //                   F.getContext());
-    //     } else {
-    //       WARN << "The Bmc engine only generates harnesses in bitcode "
-    //               "format";
-    //     }
-    //   }
-    // }
+    LOG("cex", {
+      if (res == SolverResult::SAT) {
+        errs() << "Analyzed Function:\n" << F << "\n";
+        errs() << "Trace \n";
+        SolverBmcTraceTy trace(bmc.getTrace());
+        trace.print(errs());
+        StringRef CexFileRef(HornCexFile);
+        if (CexFileRef != "") {
+          if (CexFileRef.endswith(".ll") || CexFileRef.endswith(".bc")) {
+            auto &tli = getAnalysis<TargetLibraryInfoWrapperPass>();
+            auto const &dl = F.getParent()->getDataLayout();
+            BmcTraceWrapper<SolverBmcTraceTy> trace_wrapper(trace);
+            dumpLLVMCex(trace_wrapper, CexFileRef, dl, tli.getTLI(F),
+                        F.getContext());
+          } else {
+            WARN << "The Bmc engine only generates harnesses in bitcode "
+                    "format";
+          }
+        }
+      }
+    });
   }
 
   void runPathBmcEngine(PathBmcEngine &bmc, Function &F) {

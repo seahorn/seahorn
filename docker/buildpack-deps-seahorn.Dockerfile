@@ -26,7 +26,7 @@ RUN apt-get update && \
       gcc-multilib \
       sudo \
       graphviz libgraphviz-dev python3-pygraphviz \
-      lcov ggcov && \
+      lcov ggcov rsync && \
   pip3 install lit OutputCheck && \
   pip3 install networkx && \
   mkdir seahorn

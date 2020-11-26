@@ -24,6 +24,8 @@ jobs:
       # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
       - name: Check Out Repo 
         uses: actions/checkout@v2
+        with:
+          ref: dev10  # only checkout dev10
       # Logging in using this mechanism prints the following warning
       # WARNING! Your password will be stored unencrypted in /home/runner/.docker/config.json.
       # There does not seem to be an easy way around it though using docker actions may mitigate

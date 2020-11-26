@@ -350,6 +350,7 @@ public:
   virtual bool isNum(Expr v) = 0;
   virtual bool isNum(Expr v, unsigned &bitWidth) = 0;
   virtual expr::mpz_class toNum(Expr v) = 0;
+  virtual Expr si(int k, unsigned bitWidth) = 0;
   virtual Expr si(expr::mpz_class k, unsigned bitWidth) = 0;
   virtual Expr doAdd(Expr op0, Expr op1, unsigned bitWidth) = 0;
   virtual Expr doSub(Expr op0, Expr op1, unsigned bitWidth) = 0;

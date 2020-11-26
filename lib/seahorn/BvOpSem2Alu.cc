@@ -2,9 +2,9 @@
 
 #include "llvm/Support/Format.h"
 
+#include "seahorn/Expr/ExprLlvm.hh"
 #include "seahorn/Support/SeaDebug.h"
 #include "seahorn/Support/SeaLog.hh"
-#include "seahorn/Expr/ExprLlvm.hh"
 
 namespace seahorn {
 namespace details {
@@ -32,8 +32,18 @@ public:
   Expr boolTy() override { return sort::boolTy(efac()); }
 
   bool isNum(Expr v) override { return bv::isBvNum(v); }
-  bool isNum(Expr v, unsigned &bitWidth) { return bv::isBvNum(v, bitWidth);}
+  bool isNum(Expr v, unsigned &bitWidth) { return bv::isBvNum(v, bitWidth); }
   expr::mpz_class toNum(Expr v) override { return bv::toMpz(v); }
+
+  Expr si(int v, unsigned bitWidth) override {
+    switch (bitWidth) {
+    case 1:
+      return v == 1 ? m_trueE : m_falseE;
+    default:
+      return v < 0 ? si(expr::mpz_class(-v).neg(), bitWidth)
+                   : si(expr::mpz_class(v), bitWidth);
+    }
+  }
 
   /// \brief Converts a signed integer to an ALU expression
   Expr si(expr::mpz_class v, unsigned bitWidth) override {
@@ -188,7 +198,6 @@ public:
   Expr IsBmulNoUnderflow(Expr op0, Expr op1, unsigned bidWidth) {
     return mk<SMUL_NO_UNDERFLOW>(op0, op1);
   }
-
 
   Expr doNot(Expr op0, unsigned bitWidth) {
     return bitWidth == 1 ? mk<NEG>(op0) : bv::bvnot(op0);

@@ -26,12 +26,6 @@ jobs:
         uses: actions/checkout@v2
         with:
           ref: dev10  # only checkout dev10
-      # Logging in using this mechanism prints the following warning
-      # WARNING! Your password will be stored unencrypted in /home/runner/.docker/config.json.
-      # There does not seem to be an easy way around it though using docker actions may mitigate
-      # it.
-      - name: Login to DockerHub Registry
-        run: echo ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }} | docker login -u ${{ secrets.DOCKER_HUB_USERNAME }} --password-stdin
       - name: Build seahorn builder
         run: docker build . --file docker/seahorn-builder.Dockerfile --tag seahorn/seahorn-builder:bionic-llvm10
       - name: Copy build out to /host

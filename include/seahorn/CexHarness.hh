@@ -5,6 +5,7 @@
 
 #include "seahorn/Bmc.hh"
 #include "seahorn/MemSimulator.hh"
+#include "seahorn/SolverBmc.hh"
 
 namespace llvm {
 class TargetLibraryInfo;
@@ -15,7 +16,16 @@ class Module;
 
 namespace seahorn {
 
-class BmcTraceWrapper;
+template <class Trace> class BmcTraceWrapper;
+
+Constant *exprToLlvm(Type *ty, Expr e, LLVMContext &ctx, const DataLayout &dl);
+
+/* Given Expr of a shadow.mem segment and pre-recorded size Value
+   use HexDump to extract const array with item size of current
+   word size from Expr
+*/
+Constant *exprToMemSegment(Expr segment, Expr startAddr, Expr size,
+                           llvm::LLVMContext &ctx, const llvm::DataLayout &dl);
 
 /**
  * createCexHarness: given a BMC trace (cex) it produces a harness
@@ -23,17 +33,21 @@ class BmcTraceWrapper;
  * implementation of all external calls visited by the
  * counterexample.
  **/
-std::unique_ptr<llvm::Module> createCexHarness(BmcTraceWrapper &trace,
-                                               const llvm::DataLayout &dl,
-                                               const llvm::TargetLibraryInfo &tli,
-                                               llvm::LLVMContext &context);
+template <class Trace>
+std::unique_ptr<llvm::Module>
+createCexHarness(BmcTraceWrapper<Trace> &trace, const llvm::DataLayout &dl,
+                 const llvm::TargetLibraryInfo &tli,
+                 llvm::LLVMContext &context);
 
-void dumpLLVMCex(BmcTraceWrapper &trace, llvm::StringRef CexFile,
+template <class Trace>
+void dumpLLVMCex(BmcTraceWrapper<Trace> &trace, llvm::StringRef CexFile,
                  const llvm::DataLayout &dl, const llvm::TargetLibraryInfo &tli,
                  llvm::LLVMContext &context);
 
 } // end namespace seahorn
 
+template <typename IndexToValueMap>
+bool extractArrayContents(Expr e, IndexToValueMap &out, Expr &default_value);
 
 namespace seahorn {
 
@@ -42,11 +56,11 @@ namespace seahorn {
 // Both are defined wrt to the same BmcTrace but they can have
 // different models associated (accessed via the virtual method
 // eval).
-class BmcTraceWrapper {
-  BmcTrace &m_trace;
+template <class Trace> class BmcTraceWrapper {
+  Trace &m_trace;
 
 public:
-  BmcTraceWrapper(BmcTrace &trace) : m_trace(trace) {}
+  BmcTraceWrapper(Trace &trace) : m_trace(trace) {}
 
   /// access to expression factory
   ExprFactory &efac() { return m_trace.engine().efac(); }
@@ -64,7 +78,7 @@ public:
   virtual Expr eval(unsigned loc, Expr v, bool complete);
 };
 
-class BmcTraceMemSim : public BmcTraceWrapper {
+class BmcTraceMemSim : public BmcTraceWrapper<ZBmcTraceTy> {
   MemSimulator &m_mem_sim;
 
 public:
@@ -77,5 +91,7 @@ public:
 };
 
 } // namespace seahorn
+
+#include "seahorn/CexHarnessImpl.hh"
 
 #endif

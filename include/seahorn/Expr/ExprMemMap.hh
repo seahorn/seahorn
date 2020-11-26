@@ -58,7 +58,6 @@ public:
   bool operator==(MemCell const &other) const {
     return (m_pair == other.m_pair) && (m_isRepeated == other.m_isRepeated);
   }
-
 };
 
 using const_mc_iterator = std::set<MemCell>::const_iterator;

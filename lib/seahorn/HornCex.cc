@@ -95,8 +95,7 @@ using namespace llvm;
 namespace seahorn {
 
 template <typename O> class SvCompCex;
-static void dumpSvCompCex(BmcTrace<BmcEngine, ZModel_ref> &trace,
-                          std::string CexFile);
+static void dumpSvCompCex(ZBmcTraceTy &trace, std::string CexFile);
 static void dumpLLVMBitcode(const Module &M, StringRef BcFile);
 
 char HornCex::ID = 0;
@@ -303,7 +302,7 @@ bool HornCex::runOnFunction(Module &M, Function &F) {
   LOG("cex", errs() << "Validated CEX by BMC engine.\n";);
 
   // get bmc trace
-  BmcTrace<BmcEngine, ZModel_ref> trace(bmc.getTrace<BmcEngine, ZModel_ref>());
+  ZBmcTraceTy trace(bmc.getTrace());
   LOG("cex", trace.print(errs()));
   std::unique_ptr<MemSimulator> memSim = nullptr;
 
@@ -328,7 +327,8 @@ bool HornCex::runOnFunction(Module &M, Function &F) {
   StringRef HornCexFileRef(HornCexFile);
   if (HornCexFileRef.endswith(".ll") || HornCexFileRef.endswith(".bc")) {
     const DataLayout &dl = M.getDataLayout();
-    std::unique_ptr<BmcTraceWrapper> traceW(new BmcTraceWrapper(trace));
+    std::unique_ptr<BmcTraceWrapper<ZBmcTraceTy>> traceW(
+        new BmcTraceWrapper<ZBmcTraceTy>(trace));
     if (memSim) {
       traceW.reset(new BmcTraceMemSim(*memSim));
     }
@@ -484,8 +484,7 @@ static void debugLocToSvComp(const Instruction &inst, SvCompCex<O> &svcomp) {
   svcomp.edge(file, (int)dloc.getLine(), "");
 }
 
-static void dumpSvCompCex(BmcTrace<BmcEngine, ZModel_ref> &trace,
-                          std::string CexFile) {
+static void dumpSvCompCex(ZBmcTraceTy &trace, std::string CexFile) {
   std::error_code ec;
   llvm::ToolOutputFile out(CexFile.c_str(), ec, llvm::sys::fs::F_Text);
   if (ec) {

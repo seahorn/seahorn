@@ -1,17 +1,10 @@
 #pragma once
 
-#include "llvm/ADT/STLExtras.h"
-#include "llvm/IR/DebugInfo.h"
-#include "llvm/IR/DebugLoc.h"
 #include "llvm/IR/Function.h"
-#include "llvm/Support/CommandLine.h"
 #include "llvm/Support/raw_ostream.h"
 
 #include "seahorn/Bmc.hh"
-#include "seahorn/CallUtils.hh"
 #include "seahorn/Expr/Expr.hh"
-#include "seahorn/Expr/ExprLlvm.hh"
-#include "seahorn/Expr/HexDump.hh"
 #include "seahorn/Expr/Smt/EZ3.hh"
 #include "seahorn/Expr/Smt/Solver.hh"
 #include "seahorn/Expr/Smt/Z3SolverImpl.hh"
@@ -26,6 +19,9 @@
 namespace seahorn {
 using namespace expr;
 using namespace solver;
+
+class SolverBmcEngine;
+using SolverBmcTraceTy = BmcTrace<SolverBmcEngine, Solver::model_ref>;
 
 class SolverBmcEngine {
 protected:
@@ -81,8 +77,7 @@ public:
   }
 
   /// Returns the BMC trace (if available)
-  template <class Engine, class Model>
-  BmcTrace<Engine, Model> getTrace();
+  SolverBmcTraceTy getTrace();
 
   Expr getSymbReg(const llvm::Value &v) {
     Expr reg;

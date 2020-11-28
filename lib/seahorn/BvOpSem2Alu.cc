@@ -131,6 +131,8 @@ public:
   }
 
   Expr doZext(Expr op, unsigned bitWidth, unsigned opBitWidth) override {
+    // TODO: change signature to ({op, opBitWith}, bitWidth) for consistent API
+    // TODO: optimize by considering that op can be a 1 bit number.
     Expr res = op;
     switch (opBitWidth) {
     case 1:

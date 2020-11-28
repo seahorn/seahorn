@@ -1,6 +1,7 @@
 #pragma once
 
 #include "BvOpSem2Context.hh"
+#include "BvOpSem2MemManagerMixin.hh"
 #include "BvOpSem2RawMemMgr.hh"
 
 #include "seahorn/Expr/ExprOpStruct.hh"
@@ -20,14 +21,10 @@ namespace details {
 // Currently this implementation has a metadata memory word size of 1 byte.
 // For every byte written to conventional memory, we set the corresponding
 // metadata memory address to value 1.
-class TrackingRawMemManager : public OpSemMemManagerBase {
+class TrackingRawMemManager : public MemManagerCore {
 private:
   RawMemManager m_main;
   RawMemManager m_metadata;
-
-  static const unsigned int g_MetadataBitWidth = 8;
-  static const unsigned int g_MetadataByteWidth = g_MetadataBitWidth / 8;
-  static const unsigned int g_num_slots = 2;
 
 public:
   // This memory manager supports tracking
@@ -58,7 +55,6 @@ public:
       assert(strct::isStructVal(e));
       assert(!strct::isStructVal(e->arg(0)));
       assert(!strct::isStructVal(e->arg(1)));
-      assert(e->arity() == g_num_slots);
       m_v = e;
     }
 

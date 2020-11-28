@@ -37,8 +37,8 @@ public:
   template <typename... Ts>
   OpSemMemManagerMixin(Ts &&... Args)
       : BaseT(std::forward<Ts>(Args)...),
-        OpSemMemManager(base().sem(), base().ctx(), base().ptrSzInBytes(),
-                        base().wordSzInBytes(), base().isIgnoreAlignment()) {}
+        OpSemMemManager(base().sem(), base().ctx(), base().ptrSizeInBytes(),
+                        base().wordSizeInBytes(), base().isIgnoreAlignment()) {}
   virtual ~OpSemMemManagerMixin() = default;
 
   PtrSortTy ptrSort() const override {
@@ -179,6 +179,7 @@ public:
     return toMemValTy(std::move(res));
   }
 
+  // TODO: move common logic from memmgr to mixin.
   Expr loadValueFromMem(PtrTy ptr, MemValTy mem, const llvm::Type &ty,
                         uint64_t align) override {
     auto res = base().loadValueFromMem(BasePtrTy(std::move(ptr)),

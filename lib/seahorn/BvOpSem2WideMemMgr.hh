@@ -1,15 +1,13 @@
 #pragma once
 
 #include "BvOpSem2Context.hh"
+#include "BvOpSem2MemManagerMixin.hh"
 #include "BvOpSem2RawMemMgr.hh"
 
 namespace seahorn {
 namespace details {
 
-class WideMemManager : public OpSemMemManagerBase {
-
-  /// \brief Knows the memory representation and how to access it
-  std::unique_ptr<OpSemMemRepr> m_memRepr;
+class WideMemManager : public MemManagerCore {
 
   /// \brief Base name for non-deterministic pointer
   Expr m_freshPtrName;
@@ -26,12 +24,6 @@ class WideMemManager : public OpSemMemManagerBase {
   /// \brief Memory manager for raw pointers
   RawMemManager m_main;
   RawMemManager m_size;
-
-  static const unsigned int g_slotBitWidth = 64;
-  static const unsigned int g_slotByteWidth = g_slotBitWidth / 8;
-
-  static const unsigned int g_uninit = 0xDEADBEEF;
-  static const unsigned int g_num_slots = 2;
 
 public:
   // setting TrackingTag to int disqualifies this class as having tracking
@@ -57,7 +49,6 @@ public:
     explicit PtrTyImpl(const Expr &e) {
       // Our ptr is a struct of two exprs
       assert(strct::isStructVal(e));
-      assert(e->arity() == g_num_slots);
       m_v = e;
     }
 
@@ -84,7 +75,6 @@ public:
     explicit MemValTyImpl(const Expr &e) {
       // Our ptr is a struct of two exprs
       assert(strct::isStructVal(e));
-      assert(e->arity() == g_num_slots);
       m_v = e;
     }
 

@@ -44,8 +44,8 @@ public:
   template <typename... Ts>
   OpSemWideMemManagerMixin(Ts &&... Args)
       : BaseT(std::forward<Ts>(Args)...),
-        OpSemMemManager(base().sem(), base().ctx(), base().ptrSzInBytes(),
-                        base().wordSzInBytes(), base().isIgnoreAlignment()) {}
+        OpSemMemManager(base().sem(), base().ctx(), base().ptrSizeInBytes(),
+                        base().wordSizeInBytes(), base().isIgnoreAlignment()) {}
   virtual ~OpSemWideMemManagerMixin() = default;
 
   PtrSortTy ptrSort() const override;

@@ -3,13 +3,16 @@
 namespace seahorn {
 namespace details {
 
+static const unsigned int g_MetadataBitWidth = 8;
+static const unsigned int g_MetadataByteWidth = g_MetadataBitWidth / 8;
+static const unsigned int g_num_slots = 2;
+
 TrackingRawMemManager::TrackingRawMemManager(Bv2OpSem &sem,
                                              Bv2OpSemContext &ctx,
                                              unsigned ptrSz, unsigned wordSz,
                                              bool useLambdas)
-    : OpSemMemManagerBase(
-          sem, ctx, ptrSz, wordSz,
-          false /* this is a nop since we delegate to RawMemMgr */),
+    : MemManagerCore(sem, ctx, ptrSz, wordSz,
+                     false /* this is a nop since we delegate to RawMemMgr */),
       m_main(sem, ctx, ptrSz, wordSz, useLambdas),
       m_metadata(sem, ctx, ptrSz, g_MetadataByteWidth, useLambdas, true) {}
 
@@ -18,9 +21,8 @@ TrackingRawMemManager::TrackingRawMemManager(Bv2OpSem &sem,
                                              unsigned ptrSz, unsigned wordSz,
                                              bool useLambdas,
                                              bool ignoreAlignment)
-    : OpSemMemManagerBase(
-          sem, ctx, ptrSz, wordSz,
-          false /* this is a nop since we delegate to RawMemMgr */),
+    : MemManagerCore(sem, ctx, ptrSz, wordSz,
+                     false /* this is a nop since we delegate to RawMemMgr */),
       m_main(sem, ctx, ptrSz, wordSz, useLambdas, ignoreAlignment),
       m_metadata(sem, ctx, ptrSz, g_MetadataByteWidth, useLambdas, true) {}
 TrackingRawMemManager::PtrTy
@@ -107,7 +109,7 @@ TrackingRawMemManager::MemValTy TrackingRawMemManager::storeValueToMem(
   ExprFactory &efac = ptr->efac();
   // TODO: use zeroed memory on m_main, m_metadata instead of explicit
   // init
-  MemValTy res(m_ctx.alu().si(0UL, wordSzInBits()),
+  MemValTy res(m_ctx.alu().si(0UL, wordSizeInBits()),
                m_ctx.alu().si(0UL, g_MetadataBitWidth));
   switch (ty.getTypeID()) {
   case Type::IntegerTyID:

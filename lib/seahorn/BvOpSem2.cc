@@ -2061,6 +2061,7 @@ Bv2OpSemContext::Bv2OpSemContext(Bv2OpSem &sem, SymStore &values,
   m_z3_solver.reset(new ZSolver<EZ3>(*m_z3, "QF_ABV"));
   auto &params = m_z3_simplifier->params();
   params.set("ctrl_c", true);
+  params.set(":rewriter.flat", false);
   m_shouldSimplify = SimplifyExpr;
   m_alu = mkBvOpSemAlu(*this);
   OpSemMemManager *mem = nullptr;
@@ -2129,6 +2130,8 @@ void Bv2OpSemContext::write(Expr v, Expr u) {
   if (shouldSimplify()) {
     u = simplify(u);
   }
+
+  LOG("opsem.verbose", llvm::errs() << "W: " << *u << "\n";);
   OpSemContext::write(v, u);
 }
 unsigned Bv2OpSemContext::ptrSzInBits() const {

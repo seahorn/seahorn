@@ -185,8 +185,8 @@ createCexHarness(BmcTraceWrapper<Trace> &trace, const DataLayout &dl,
             if (auto *sizeI = dyn_cast<Instruction>(size)) {
               sizeE = trace.eval(loc, *sizeI, true);
             } else if (auto *sizeConst = dyn_cast<ConstantInt>(size)) {
-              expr::mpz_class sz_mpz = sizeConst->getZExtValue();
-              sizeE = expr::mkTerm<expr::mpz_class>(sz_mpz, trace.efac());
+              expr::mpz_class sz = toMpz(sizeConst);
+              sizeE = expr::mkTerm<expr::mpz_class>(sz, trace.efac());
             } else {
               LOG("cex", errs() << "unhandled Value of memhavoc size: " << *size
                                 << "\n");

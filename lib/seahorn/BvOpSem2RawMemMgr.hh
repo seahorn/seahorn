@@ -1,7 +1,7 @@
 #pragma once
 
 #include "BvOpSem2Context.hh"
-
+#include "BvOpSem2MemManagerMixin.hh"
 #include "llvm/IR/GetElementPtrTypeIterator.h"
 #include "llvm/Support/Format.h"
 
@@ -12,7 +12,10 @@
 namespace seahorn {
 namespace details {
 
-class RawMemManager : public OpSemMemManager {
+class OpSemMemRepr;
+class OpSemAllocator;
+
+class RawMemManagerCore : public MemManagerCore {
   /// \brief Allocates memory regions in virtual memory
   std::unique_ptr<OpSemAllocator> m_allocator;
 
@@ -22,71 +25,141 @@ class RawMemManager : public OpSemMemManager {
   /// \brief Base name for non-deterministic pointer
   Expr m_freshPtrName;
 
-  /// \brief Register that contains the value of the stack pointer on
-  /// function entry
-  Expr m_sp0;
-
   /// \brief Source of unique identifiers
   mutable unsigned m_id;
 
-  /// \brief A null pointer expression (cache)
-  Expr m_nullPtr;
-
 public:
-  RawMemManager(Bv2OpSem &sem, Bv2OpSemContext &ctx, unsigned int ptrSz,
-                unsigned int wordSz, bool useLambdas);
+  RawMemManagerCore(Bv2OpSem &sem, Bv2OpSemContext &ctx, unsigned int ptrSz,
+                    unsigned int wordSz, bool useLambdas);
 
-  RawMemManager(Bv2OpSem &sem, Bv2OpSemContext &ctx, unsigned ptrSz,
-                unsigned wordSz, bool useLambdas, bool ignoreAlignment);
+  RawMemManagerCore(Bv2OpSem &sem, Bv2OpSemContext &ctx, unsigned ptrSz,
+                    unsigned wordSz, bool useLambdas, bool ignoreAlignment);
 
-  ~RawMemManager() override = default;
+  ~RawMemManagerCore();
 
   OpSemAllocator &getMAllocator() const;
 
   bool ignoreAlignment() const;
 
+  struct MemValTyImpl {
+    Expr m_v;
+
+    explicit MemValTyImpl(Expr &&raw_val) {
+      assert(!raw_val || !strct::isStructVal(raw_val));
+      m_v = std::move(raw_val);
+    }
+
+    explicit MemValTyImpl(const Expr &raw_val) {
+      assert(!raw_val || !strct::isStructVal(raw_val));
+      m_v = raw_val;
+    }
+
+    Expr v() const { return m_v; }
+    Expr toExpr() const { return v(); }
+    explicit operator Expr() const { return toExpr(); }
+
+    Expr getRaw() { return m_v; }
+  };
+
+  struct PtrTyImpl {
+    Expr p_v;
+
+    explicit PtrTyImpl(Expr &&raw_val) {
+      assert(!raw_val || !strct::isStructVal(raw_val));
+      p_v = std::move(raw_val);
+    }
+
+    explicit PtrTyImpl(const Expr &raw_val) {
+      assert(!raw_val || !strct::isStructVal(raw_val));
+      p_v = raw_val;
+    }
+
+    Expr v() const { return p_v; }
+    Expr toExpr() const { return v(); }
+    explicit operator Expr() const { return toExpr(); }
+
+    Expr getRaw() { return p_v; }
+  };
+
+  struct MemSortTyImpl {
+    Expr m_mem_sort;
+
+    explicit MemSortTyImpl(Expr &&mem_sort) {
+      m_mem_sort = std::move(mem_sort);
+    }
+
+    explicit MemSortTyImpl(const Expr &mem_sort) { m_mem_sort = mem_sort; }
+
+    Expr v() const { return m_mem_sort; }
+    Expr toExpr() const { return v(); }
+    explicit operator Expr() const { return toExpr(); }
+  };
+
+  struct PtrSortTyImpl {
+    Expr m_ptr_sort;
+
+    explicit PtrSortTyImpl(Expr &&ptr_sort) {
+      m_ptr_sort = std::move(ptr_sort);
+    }
+
+    explicit PtrSortTyImpl(const Expr &ptr_sort) { m_ptr_sort = ptr_sort; }
+
+    Expr v() const { return m_ptr_sort; }
+    Expr toExpr() const { return v(); }
+    explicit operator Expr() const { return toExpr(); }
+  };
+
   /// Right now everything is an expression. In the future, we might have
   /// other types for PtrTy, such as a tuple of expressions
-  using PtrTy = OpSemMemManager::PtrTy;
-  using MemValTy = OpSemMemManager::MemValTy;
-  using PtrSortTy = OpSemMemManager::PtrSortTy;
-  using MemSortTy = OpSemMemManager::MemSortTy;
-  using MemRegTy = OpSemMemManager::MemRegTy;
+  using PtrTy = PtrTyImpl;
+  using MemValTy = MemValTyImpl;
+  using PtrSortTy = PtrSortTyImpl;
+  using MemSortTy = MemSortTyImpl;
+  using MemRegTy = Expr;
   // setting TrackingTag to int disqualifies this class as having tracking
   using TrackingTag = int;
 
-  PtrTy ptrSort() const override { return m_ctx.alu().intTy(ptrSzInBits()); }
+  /// \brief A null pointer expression (cache)
+  PtrTy m_nullPtr;
+
+  /// \brief Register that contains the value of the stack pointer on
+  /// function entry
+  PtrTy m_sp0;
+
+  PtrSortTy ptrSort() const {
+    return PtrSortTy(m_ctx.alu().intTy(ptrSizeInBits()));
+  }
 
   /// \brief Allocates memory on the stack and returns a pointer to it
   /// \param align is requested alignment. If 0, default alignment is used
-  PtrTy salloc(unsigned bytes, uint32_t align = 0) override;
+  PtrTy salloc(unsigned bytes, uint32_t align = 0);
 
   /// \brief Allocates memory on the stack and returns a pointer to it
-  PtrTy salloc(Expr elmts, unsigned typeSz, uint32_t align = 0) override;
+  PtrTy salloc(Expr elmts, unsigned typeSz, uint32_t align = 0);
 
   /// \brief Returns a pointer value for a given stack allocation
-  PtrTy mkStackPtr(unsigned offset) override;
+  PtrTy mkStackPtr(unsigned offset);
 
   /// \brief Pointer to start of the heap
-  PtrTy brk0Ptr() override;
+  PtrTy brk0Ptr();
 
   /// \brief Allocates memory on the heap and returns a pointer to it
-  PtrTy halloc(unsigned _bytes, uint32_t align = 0) override;
+  PtrTy halloc(unsigned _bytes, uint32_t align = 0);
 
   /// \brief Allocates memory on the heap and returns pointer to it
-  PtrTy halloc(Expr bytes, uint32_t align = 0) override;
+  PtrTy halloc(Expr bytes, uint32_t align = 0);
 
   /// \brief Allocates memory in global (data/bss) segment for given global
-  PtrTy galloc(const GlobalVariable &gv, uint32_t align = 0) override;
+  PtrTy galloc(const GlobalVariable &gv, uint32_t align = 0);
 
   /// \brief Allocates memory in code segment for the code of a given function
-  PtrTy falloc(const Function &fn) override;
+  PtrTy falloc(const Function &fn);
 
   /// \brief Returns a function pointer value for a given function
-  PtrTy getPtrToFunction(const Function &F) override;
+  PtrTy getPtrToFunction(const Function &F);
 
   /// \brief Returns a pointer to a global variable
-  PtrTy getPtrToGlobalVariable(const GlobalVariable &gv) override;
+  PtrTy getPtrToGlobalVariable(const GlobalVariable &gv);
 
   /// \brief Initialize memory used by the global variable
   void initGlobalVariable(const GlobalVariable &gv) const;
@@ -98,21 +171,21 @@ public:
   PtrTy mkAlignedPtr(Expr name, uint32_t align) const;
 
   /// \brief Returns sort of a pointer register for an instruction
-  Expr mkPtrRegisterSort(const Instruction &inst) const;
+  PtrSortTy mkPtrRegisterSort(const Instruction &inst) const;
 
   /// \brief Returns sort of a pointer register for a function pointer
-  Expr mkPtrRegisterSort(const Function &fn) const;
+  PtrSortTy mkPtrRegisterSort(const Function &fn) const;
 
   /// \brief Returns sort of a pointer register for a global pointer
-  Expr mkPtrRegisterSort(const GlobalVariable &gv) const override {
+  PtrSortTy mkPtrRegisterSort(const GlobalVariable &gv) const {
     return ptrSort();
   }
 
   /// \brief Returns sort of memory-holding register for an instruction
-  Expr mkMemRegisterSort(const Instruction &inst) const;
+  MemSortTy mkMemRegisterSort(const Instruction &inst) const;
 
   /// \brief Returns a fresh aligned pointer value
-  PtrTy freshPtr() override;
+  PtrTy freshPtr();
 
   /// \brief Returns a null ptr
   PtrTy nullPtr() const;
@@ -129,7 +202,7 @@ public:
   /// \param sort
   /// \param val
   /// \return the coerced value.
-  Expr coerce(Expr sort, Expr val) override;
+  Expr coerce(Expr sort, Expr val);
 
   /// \brief Symbolic instructions to load a byte from memory, using word
   /// address and byte address
@@ -140,7 +213,8 @@ public:
   /// byte
   ///            address
   /// \return symbolic value of the byte at the specified address
-  Expr extractUnalignedByte(Expr mem, PtrTy address, unsigned offsetBits);
+  Expr extractUnalignedByte(MemValTy mem, const PtrTy &address,
+                            unsigned offsetBits);
 
   /// \brief Loads an integer of a given size from memory register
   ///
@@ -149,38 +223,38 @@ public:
   /// \param[in] byteSz size of the integer in bytes
   /// \param[in] align known alignment of \p ptr
   /// \return symbolic value of the read integer
-  Expr loadIntFromMem(PtrTy ptr, MemValTy mem, unsigned byteSz,
-                      uint64_t align) override;
+  Expr loadIntFromMem(const PtrTy &ptr, const MemValTy &mem, unsigned byteSz,
+                      uint64_t align);
 
   /// \brief Loads a pointer stored in memory
   /// \sa loadIntFromMem
-  PtrTy loadPtrFromMem(PtrTy ptr, MemValTy mem, unsigned byteSz,
-                       uint64_t align) override;
+  PtrTy loadPtrFromMem(const PtrTy &ptr, const MemValTy &mem, unsigned byteSz,
+                       uint64_t align);
 
   /// \brief Stores an integer into memory
   ///
   /// Returns an expression describing the state of memory in \c memReadReg
   /// after the store
   /// \sa loadIntFromMem
-  Expr storeIntToMem(Expr _val, PtrTy ptr, MemValTy mem, unsigned byteSz,
-                     uint64_t align) override;
+  MemValTy storeIntToMem(Expr _val, const PtrTy &ptr, MemValTy mem,
+                         unsigned byteSz, uint64_t align);
 
   /// \brief stores integer into memory, address is not word aligned
   ///
   /// \sa storeIntToMem
-  Expr storeUnalignedIntToMem(Expr val, PtrTy ptr, MemValTy mem,
-                              unsigned byteSz);
+  MemValTy storeUnalignedIntToMem(const Expr &val, const PtrTy &ptr,
+                                  MemValTy mem, unsigned byteSz);
 
   /// \brief Stores a pointer into memory
   /// \sa storeIntToMem
-  Expr storePtrToMem(PtrTy val, PtrTy ptr, MemValTy mem, unsigned byteSz,
-                     uint64_t align) override;
+  MemValTy storePtrToMem(const PtrTy &val, const PtrTy ptr, MemValTy mem,
+                         unsigned byteSz, uint64_t align);
 
   /// \brief Pointer addition with numeric offset
   PtrTy ptrAdd(PtrTy ptr, int32_t _offset) const;
 
   /// \brief Pointer addition with symbolic offset
-  PtrTy ptrAdd(PtrTy ptr, Expr offset) const;
+  PtrTy ptrAdd(const PtrTy &ptr, const Expr offset) const;
 
   /// \brief Given a word, updates a byte
   ///
@@ -188,7 +262,7 @@ public:
   /// \param byteData updated byte
   /// \param byteOffset symbolic pointer indicating which byte to update
   /// \return updated word
-  Expr setByteOfWord(Expr word, Expr byteData, PtrTy byteOffset);
+  Expr setByteOfWord(Expr word, Expr byteData, Expr byteOffset);
 
   /// \brief Creates bit-vector of a given width filled with 0
   Expr mkZeroE(unsigned width, ExprFactory &efac) {
@@ -206,30 +280,29 @@ public:
   /// \param[in] mem is the memory value being read from
   /// \param[in] ty is the type of value being loaded
   /// \param[in] align is the known alignment of the load
-  Expr loadValueFromMem(PtrTy ptr, MemValTy mem, const llvm::Type &ty,
-                        uint64_t align) override;
+  Expr loadValueFromMem(const PtrTy &ptr, const MemValTy &mem,
+                        const llvm::Type &ty, uint64_t align);
 
-  Expr storeValueToMem(Expr _val, PtrTy ptr, MemValTy memIn,
-                       const llvm::Type &ty, uint32_t align) override;
+  MemValTy storeValueToMem(Expr _val, PtrTy ptr, MemValTy mem,
+                           const llvm::Type &ty, uint32_t align);
 
   /// \brief Executes symbolic memset with a concrete length
-  Expr MemSet(PtrTy ptr, Expr _val, unsigned len, MemValTy mem,
-              uint32_t align) override;
+  MemValTy MemSet(PtrTy ptr, Expr _val, unsigned len, MemValTy mem,
+                  uint32_t align);
 
-  Expr MemSet(PtrTy ptr, Expr _val, Expr len, MemValTy mem,
-              uint32_t align) override;
+  MemValTy MemSet(PtrTy ptr, Expr _val, Expr len, MemValTy mem, uint32_t align);
 
   /// \brief Executes symbolic memcpy with concrete length
-  Expr MemCpy(PtrTy dPtr, PtrTy sPtr, unsigned len, Expr memTrsfrRead,
-              Expr memRead, uint32_t align) override;
+  MemValTy MemCpy(PtrTy dPtr, PtrTy sPtr, unsigned len, MemValTy memTrsfrRead,
+                  MemValTy memRead, uint32_t align);
 
-  Expr MemCpy(PtrTy dPtr, PtrTy sPtr, Expr len, Expr memTrsfrRead, Expr memRead,
-              uint32_t align) override;
+  MemValTy MemCpy(PtrTy dPtr, PtrTy sPtr, Expr len, MemValTy memTrsfrRead,
+                  MemValTy memRead, uint32_t align);
 
   /// \brief Executes symbolic memcpy from physical memory with concrete
   /// length
-  Expr MemFill(PtrTy dPtr, char *sPtr, unsigned len, MemValTy mem,
-               uint32_t align = 0) override;
+  RawMemManagerCore::MemValTy MemFill(PtrTy dPtr, char *sPtr, unsigned len,
+                                      MemValTy mem, uint32_t align = 0);
 
   /// \brief Executes inttoptr conversion
   PtrTy inttoptr(Expr intVal, const Type &intTy, const Type &ptrTy) const;
@@ -252,36 +325,65 @@ public:
 
   Expr ptrSub(PtrTy p1, PtrTy p2) const;
 
+  /// \brief Checks if \p a <= b <= c.
+  Expr ptrInRangeCheck(PtrTy a, PtrTy b, PtrTy c) {
+    return mk<AND>(ptrUle(a, b), ptrUle(b, c));
+  }
+
+  /// \brief Calculates an offset of a pointer from its base.
+  Expr ptrOffsetFromBase(PtrTy base, PtrTy ptr) { return ptrSub(ptr, base); }
+
   /// \brief Computes a pointer corresponding to the gep instruction
   PtrTy gep(PtrTy ptr, gep_type_iterator it, gep_type_iterator end) const;
 
   /// \brief Called when a function is entered for the first time
-  void onFunctionEntry(const Function &fn) override;
+  void onFunctionEntry(const Function &fn);
 
   /// \brief Called when a module entered for the first time
-  void onModuleEntry(const Module &M) override;
+  void onModuleEntry(const Module &M);
 
   /// \brief Debug helper
-  void dumpGlobalsMap() override { return m_allocator->dumpGlobalsMap(); }
+  void dumpGlobalsMap();
 
   std::pair<char *, unsigned>
-  getGlobalVariableInitValue(const llvm::GlobalVariable &gv) override {
-    return m_allocator->getGlobalVariableInitValue(gv);
-  }
+  getGlobalVariableInitValue(const llvm::GlobalVariable &gv);
 
-  Expr zeroedMemory() const override;
+  MemValTy zeroedMemory() const;
 
   /// \brief Get the data for a given slot of a fat pointer
-  Expr getFatData(PtrTy p, unsigned SlotIdx) override;
+  Expr getFatData(PtrTy p, unsigned SlotIdx);
 
   /// \brief Set the data for a given slot of a fat pointer
-  Expr setFatData(PtrTy p, unsigned SlotIdx, Expr data) override;
+  RawMemManagerCore::PtrTy setFatData(PtrTy p, unsigned SlotIdx, Expr data);
 
-  Expr isDereferenceable(PtrTy p, Expr byteSz) override;
+  Expr isDereferenceable(PtrTy p, Expr byteSz);
 
-  Expr isModified(PtrTy p, MemValTy mem) override;
+  Expr isModified(PtrTy p, MemValTy mem);
 
-  MemValTy resetModified(PtrTy p, MemValTy mem) override;
+  MemValTy resetModified(PtrTy p, MemValTy mem);
+
+  PtrTy getAddressable(PtrTy p);
+
+  Bv2OpSem &sem() const { return m_sem; }
+  Bv2OpSemContext &ctx() const { return m_ctx; }
 };
+
+inline std::ostream &operator<<(std::ostream &OS,
+                                const RawMemManagerCore::MemValTyImpl &V) {
+  V.m_v->Print(OS);
+  return OS;
+}
+
+inline std::ostream &operator<<(std::ostream &OS,
+                                const RawMemManagerCore::MemValTyImpl *v) {
+  if (v == nullptr)
+    OS << "nullptr";
+  else
+    OS << *(v->m_v);
+  return OS;
+}
+
+using RawMemManager = OpSemMemManagerMixin<RawMemManagerCore>;
+
 } // namespace details
 } // namespace seahorn

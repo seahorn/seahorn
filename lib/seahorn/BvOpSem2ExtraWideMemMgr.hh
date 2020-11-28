@@ -1,9 +1,9 @@
 #pragma once
 
 #include "BvOpSem2Context.hh"
+#include "BvOpSem2MemManagerMixin.hh"
 #include "BvOpSem2RawMemMgr.hh"
 #include "BvOpSem2TrackingRawMemMgr.hh"
-#include "BvOpSem2WideMemManagerMixin.hh"
 
 #include "seahorn/Expr/ExprOpStruct.hh"
 #include "seahorn/Support/SeaDebug.h"
@@ -15,10 +15,7 @@
 namespace seahorn {
 namespace details {
 
-template <class T> class ExtraWideMemManager : public OpSemMemManagerBase {
-
-  /// \brief Knows the memory representation and how to access it
-  std::unique_ptr<OpSemMemRepr> m_memRepr;
+template <class T> class ExtraWideMemManager : public MemManagerCore {
 
   /// \brief Base name for non-deterministic pointer
   Expr m_freshPtrName;
@@ -31,13 +28,6 @@ template <class T> class ExtraWideMemManager : public OpSemMemManagerBase {
   mutable unsigned m_id;
 
   const Expr m_uninit_size;
-
-  static const unsigned int g_slotBitWidth = 64;
-  static const unsigned int g_slotByteWidth = g_slotBitWidth / 8;
-
-  static const unsigned int g_uninit = 0xDEADBEEF;
-  static const unsigned int g_uninit_small = 0xDEAD;
-  static const unsigned int g_num_slots = 3;
 
   /// \brief Memory manager for raw pointers
   T m_main;
@@ -73,7 +63,6 @@ public:
     explicit PtrTyImpl(const Expr &e) {
       // Our base is a struct of three exprs
       assert(strct::isStructVal(e));
-      assert(e->arity() == g_num_slots);
       m_v = e;
     }
 
@@ -108,8 +97,6 @@ public:
       assert(strct::isStructVal(e));
       assert(!strct::isStructVal(e->arg(1)));
       assert(!strct::isStructVal(e->arg(2)));
-
-      assert(e->arity() == g_num_slots);
       m_v = e;
     }
 

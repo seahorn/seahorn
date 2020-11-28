@@ -1,6 +1,6 @@
 #include "BvOpSem2WideMemMgr.hh"
+#include "BvOpSem2Allocators.hh"
 #include "BvOpSem2Context.hh"
-
 #include "BvOpSem2WideMemManagerMixin.hh"
 
 #include "seahorn/Expr/ExprOpStruct.hh"
@@ -11,21 +11,26 @@
 namespace seahorn {
 namespace details {
 
+static const unsigned int g_slotBitWidth = 64;
+static const unsigned int g_slotByteWidth = g_slotBitWidth / 8;
+
+static const unsigned int g_uninit = 0xDEADBEEF;
+static const unsigned int g_num_slots = 2;
+
 WideMemManager::WideMemManager(Bv2OpSem &sem, Bv2OpSemContext &ctx,
                                unsigned ptrSz, unsigned wordSz, bool useLambdas)
-    : OpSemMemManagerBase(
-          sem, ctx, ptrSz, wordSz,
-          false /* this is a nop since we delegate to RawMemMgr */),
+    : MemManagerCore(sem, ctx, ptrSz, wordSz,
+                     false /* this is a nop since we delegate to RawMemMgr */),
       m_main(sem, ctx, ptrSz, wordSz, useLambdas),
       m_size(sem, ctx, ptrSz, g_slotByteWidth, useLambdas, true),
       m_uninit_size(m_ctx.alu().si(g_uninit, g_slotBitWidth)),
       m_nullPtr(PtrTy(m_main.nullPtr(), m_uninit_size)) {}
 
 Expr WideMemManager::castWordSzToSlotSz(const Expr val) const {
-  if (wordSzInBits() == g_slotBitWidth) {
+  if (wordSizeInBits() == g_slotBitWidth) {
     return val;
-  } else if (g_slotBitWidth > wordSzInBits()) {
-    return m_ctx.alu().doSext(val, g_slotBitWidth, wordSzInBits());
+  } else if (g_slotBitWidth > wordSizeInBits()) {
+    return m_ctx.alu().doSext(val, g_slotBitWidth, wordSizeInBits());
   } else {
     LOG("opsem", WARN << "widemem: Casting wordSz to slotSz - information may "
                          "be lost!\n");
@@ -33,10 +38,10 @@ Expr WideMemManager::castWordSzToSlotSz(const Expr val) const {
   }
 }
 Expr WideMemManager::castPtrSzToSlotSz(const Expr val) const {
-  if (ptrSzInBits() == g_slotBitWidth) {
+  if (ptrSizeInBits() == g_slotBitWidth) {
     return val;
-  } else if (g_slotBitWidth > ptrSzInBits()) {
-    return m_ctx.alu().doSext(val, g_slotBitWidth, ptrSzInBits());
+  } else if (g_slotBitWidth > ptrSizeInBits()) {
+    return m_ctx.alu().doSext(val, g_slotBitWidth, ptrSizeInBits());
   } else {
     LOG("opsem", WARN << "widemem: Casting ptrSz to slotSz - information may "
                          "be lost!\n");
@@ -152,7 +157,7 @@ WideMemManager::storeValueToMem(Expr _val, WideMemManager::PtrTy ptr,
       m_sem.getTD().getTypeStoreSize(const_cast<llvm::Type *>(&ty));
   ExprFactory &efac = ptr.v()->efac();
   // init memval to a default value
-  MemValTy res(m_ctx.alu().si(0UL, wordSzInBits()), m_uninit_size);
+  MemValTy res(m_ctx.alu().si(0UL, wordSizeInBits()), m_uninit_size);
   switch (ty.getTypeID()) {
   case Type::IntegerTyID:
     if (ty.getScalarSizeInBits() < byteSz * 8) {
@@ -276,7 +281,7 @@ WideMemManager::PtrTy WideMemManager::ptrAdd(WideMemManager::PtrTy ptr,
     return ptrAdd(ptr, _offset.get_si());
   }
   // TODO: What is the bitwidth of offset here?
-  auto address = m_ctx.alu().doAdd(ptr.getRaw(), offset, ptrSzInBits());
+  auto address = m_ctx.alu().doAdd(ptr.getRaw(), offset, ptrSizeInBits());
   auto new_size = m_ctx.alu().doSub(ptr.getSize(), offset, g_slotBitWidth);
 
   return PtrTy(address, new_size);
@@ -287,7 +292,7 @@ WideMemManager::PtrTy WideMemManager::ptrAdd(WideMemManager::PtrTy ptr,
     return ptr;
   expr::mpz_class offset((signed long)_offset);
   auto address = m_ctx.alu().doAdd(
-      ptr.getRaw(), m_ctx.alu().si(offset, ptrSzInBits()), ptrSzInBits());
+      ptr.getRaw(), m_ctx.alu().si(offset, ptrSizeInBits()), ptrSizeInBits());
   Expr new_size;
   // do concrete computation if possible.
   if (m_ctx.alu().isNum(ptr.getSize())) {
@@ -350,13 +355,13 @@ WideMemManager::getPtrToGlobalVariable(const GlobalVariable &gv) {
   uint64_t gvSz = m_sem.getTD().getTypeAllocSize(gv.getValueType());
   return PtrTy(m_ctx.alu().si(m_main.getMAllocator().getGlobalVariableAddr(
                                   gv, gvSz, m_alignment),
-                              ptrSzInBits()),
+                              ptrSizeInBits()),
                bytesToSlotExpr(gvSz));
 }
 WideMemManager::PtrTy WideMemManager::getPtrToFunction(const Function &F) {
   auto rawPtr = m_ctx.alu().si(
       m_main.getMAllocator().getFunctionAddrAndSize(F, m_alignment).first,
-      ptrSzInBits());
+      ptrSizeInBits());
   auto size = m_ctx.alu().si(
       m_main.getMAllocator().getFunctionAddrAndSize(F, m_alignment).second,
       g_slotBitWidth);
@@ -364,7 +369,7 @@ WideMemManager::PtrTy WideMemManager::getPtrToFunction(const Function &F) {
 }
 WideMemManager::PtrTy WideMemManager::falloc(const Function &fn) {
   auto range = m_main.getMAllocator().falloc(fn, m_alignment);
-  return PtrTy(m_ctx.alu().si(range.first, ptrSzInBits()),
+  return PtrTy(m_ctx.alu().si(range.first, ptrSizeInBits()),
                bytesToSlotExpr(range.second - range.first));
 }
 WideMemManager::PtrTy WideMemManager::galloc(const GlobalVariable &gv,
@@ -372,7 +377,7 @@ WideMemManager::PtrTy WideMemManager::galloc(const GlobalVariable &gv,
   uint64_t gvSz = m_sem.getTD().getTypeAllocSize(gv.getValueType());
   auto range =
       m_main.getMAllocator().galloc(gv, gvSz, std::max(align, m_alignment));
-  return PtrTy(m_ctx.alu().si(range.first, ptrSzInBits()),
+  return PtrTy(m_ctx.alu().si(range.first, ptrSizeInBits()),
                bytesToSlotExpr(range.second - range.first));
 }
 WideMemManager::PtrTy WideMemManager::halloc(Expr bytes, uint32_t align) {
@@ -400,8 +405,8 @@ WideMemManager::PtrTy WideMemManager::salloc(Expr elmts, unsigned int typeSz,
   Expr bytes = elmts;
   if (typeSz > 1) {
     // TODO: factor out multiplication and number creation
-    bytes = m_ctx.alu().doMul(bytes, m_ctx.alu().si(typeSz, ptrSzInBits()),
-                              ptrSzInBits());
+    bytes = m_ctx.alu().doMul(bytes, m_ctx.alu().si(typeSz, ptrSizeInBits()),
+                              ptrSizeInBits());
   }
 
   // allocate

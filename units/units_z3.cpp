@@ -46,9 +46,9 @@ TEST_CASE("expr.neg") {
   Expr x = mkBvConst("x", efac, 64);
   Expr one = bv::bvnum(1, 64, efac);
 
-  // Does not work as expected
-  //Expr mone = bv::bvnum(-w, 64, efac);
-  Expr mone =  bv::bvnum(mpz_class(w).neg(), 64, efac);
+  // multiplication by -1 requires cast to signed
+  Expr mone = bv::bvnum(-static_cast<signed>(w), 64, efac);
+  // Expr mone =  bv::bvnum(mpz_class(w).neg(), 64, efac);
   Expr y = mk<BADD>(x, mone);
   Expr z = mk<BULE>(one, y);
 

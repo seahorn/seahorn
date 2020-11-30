@@ -35,18 +35,21 @@ public:
   bool isNum(Expr v, unsigned &bitWidth) { return bv::isBvNum(v, bitWidth); }
   expr::mpz_class toNum(Expr v) override { return bv::toMpz(v); }
 
+  Expr ui(unsigned v, unsigned bitWidth) override {
+    return num(mpz_class(v), bitWidth);
+  }
+
   Expr si(int v, unsigned bitWidth) override {
     switch (bitWidth) {
     case 1:
       return v == 1 ? m_trueE : m_falseE;
     default:
-      return v < 0 ? si(expr::mpz_class(-v).neg(), bitWidth)
-                   : si(expr::mpz_class(v), bitWidth);
+      return num(static_cast<signed long int>(v), bitWidth);
     }
   }
 
   /// \brief Converts a signed integer to an ALU expression
-  Expr si(expr::mpz_class v, unsigned bitWidth) override {
+  Expr num(expr::mpz_class v, unsigned bitWidth) override {
     switch (bitWidth) {
     case 1:
       return v == 1U ? m_trueE : m_falseE;
@@ -54,6 +57,7 @@ public:
       return bv::bvnum(v, bitWidth, efac());
     }
   }
+
   Expr doAdd(Expr op0, Expr op1, unsigned bitWidth) override {
     return mk<BADD>(op0, op1);
   }
@@ -137,10 +141,10 @@ public:
     switch (opBitWidth) {
     case 1:
       if (isOpX<TRUE>(op))
-        return si(1U, bitWidth);
+        return ui(1U, bitWidth);
       else if (isOpX<FALSE>(op))
-        return si(0U, bitWidth);
-      return mk<ITE>(op, si(1U, bitWidth), si(0U, bitWidth));
+        return ui(0U, bitWidth);
+      return mk<ITE>(op, ui(1U, bitWidth), ui(0U, bitWidth));
     default:
       return bv::zext(op, bitWidth);
     }

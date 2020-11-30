@@ -109,8 +109,8 @@ TrackingRawMemManager::MemValTy TrackingRawMemManager::storeValueToMem(
   ExprFactory &efac = ptr->efac();
   // TODO: use zeroed memory on m_main, m_metadata instead of explicit
   // init
-  MemValTy res(m_ctx.alu().si(0UL, wordSizeInBits()),
-               m_ctx.alu().si(0UL, g_MetadataBitWidth));
+  MemValTy res(m_ctx.alu().ui(0UL, wordSizeInBits()),
+               m_ctx.alu().ui(0UL, g_MetadataBitWidth));
   switch (ty.getTypeID()) {
   case Type::IntegerTyID:
     if (ty.getScalarSizeInBits() < byteSz * 8) {
@@ -213,7 +213,7 @@ TrackingRawMemManager::memsetMetaData(PtrTy ptr, Expr len, MemValTy memIn,
   assert(llvm::Log2_64(val) + 1 <= g_MetadataBitWidth);
   return MemValTy(
       memIn.getRaw(),
-      m_metadata.MemSet(ptr, m_ctx.alu().si(val, g_MetadataBitWidth), len,
+      m_metadata.MemSet(ptr, m_ctx.alu().ui(val, g_MetadataBitWidth), len,
                         memIn.getMetadata(), m_metadata.wordSzInBytes()));
 }
 TrackingRawMemManager::MemValTy
@@ -223,7 +223,7 @@ TrackingRawMemManager::memsetMetaData(PtrTy ptr, unsigned int len,
   assert(llvm::Log2_64(val) + 1 <= g_MetadataBitWidth);
   return MemValTy(
       memIn.getRaw(),
-      m_metadata.MemSet(ptr, m_ctx.alu().si(val, g_MetadataBitWidth), len,
+      m_metadata.MemSet(ptr, m_ctx.alu().ui(val, g_MetadataBitWidth), len,
                         memIn.getMetadata(), m_metadata.wordSzInBytes()));
 }
 Expr TrackingRawMemManager::getMetaData(PtrTy ptr, MemValTy memIn,

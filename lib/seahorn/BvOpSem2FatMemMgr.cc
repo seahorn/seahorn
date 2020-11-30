@@ -77,8 +77,8 @@ private:
 
   /// \brief Converts a raw ptr to fat ptr with default value for fat
   FatPtrTy mkFatPtr(RawPtrTy rawPtr) const {
-    return strct::mk(rawPtr, m_ctx.alu().si(0, g_slotBitWidth),
-                     m_ctx.alu().si(1, g_slotBitWidth));
+    return strct::mk(rawPtr, m_ctx.alu().ui(0, g_slotBitWidth),
+                     m_ctx.alu().ui(1, g_slotBitWidth));
   }
 
   /// \brief Converts a raw ptr to fat ptr with default value for fat

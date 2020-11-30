@@ -77,12 +77,13 @@ OpSemMemRepr::MemValTy OpSemMemArrayRepr::MemSet(PtrTy ptr, Expr _val, Expr len,
   // XXX assume that bit-width(len) == ptrSizeInBits
   auto bitWidth = m_memManager.ptrSizeInBits();
   Expr upperBound = m_ctx.alu().doAdd(
-      len, m_ctx.alu().si(-wordSzInBytes, bitWidth), bitWidth);
+      len, m_ctx.alu().si(-static_cast<signed>(wordSzInBytes), bitWidth),
+      bitWidth);
 
   for (unsigned i = 0; i < m_memCpyUnrollCnt; i += wordSzInBytes) {
     Expr idx = m_memManager.ptrAdd(ptr, i).toExpr();
     auto cmp =
-        m_ctx.alu().doUle(m_ctx.alu().si(i, m_memManager.ptrSizeInBits()),
+        m_ctx.alu().doUle(m_ctx.alu().ui(i, m_memManager.ptrSizeInBits()),
                           upperBound, m_memManager.ptrSizeInBits());
     Expr ite = boolop::lite(cmp, bvVal, op::array::select(mem.toExpr(), idx));
     res = op::array::store(res, idx, ite);
@@ -106,12 +107,13 @@ OpSemMemRepr::MemValTy OpSemMemArrayRepr::MemCpy(
     // XXX assume that bit-width(len) == ptrSizeInBits
     auto bitWidth = m_memManager.ptrSizeInBits();
     Expr upperBound = m_ctx.alu().doAdd(
-        len, m_ctx.alu().si(-wordSzInBytes, bitWidth), bitWidth);
+        len, m_ctx.alu().si(-static_cast<signed>(wordSzInBytes), bitWidth),
+        bitWidth);
     for (unsigned i = 0; i < m_memCpyUnrollCnt; i += wordSzInBytes) {
       Expr dIdx = m_memManager.ptrAdd(dPtr, i).toExpr();
       Expr sIdx = m_memManager.ptrAdd(sPtr, i).toExpr();
       auto cmp =
-          m_ctx.alu().doUle(m_ctx.alu().si(i, m_memManager.ptrSizeInBits()),
+          m_ctx.alu().doUle(m_ctx.alu().ui(i, m_memManager.ptrSizeInBits()),
                             upperBound, m_memManager.ptrSizeInBits());
       auto ite = boolop::lite(cmp, op::array::select(srcMem, sIdx),
                               op::array::select(memRead.toExpr(), dIdx));
@@ -258,7 +260,7 @@ OpSemMemRepr::MemValTy OpSemMemLambdaRepr::MemSet(PtrTy ptr, Expr _val,
     unsigned long uval = 0;
     if (byte)
       memset(&uval, byte, wordSzInBytes);
-    val = m_ctx.alu().si(uval, wordSzInBytes * 8);
+    val = m_ctx.alu().num(mpz_class(uval), wordSzInBytes * 8);
   } else {
     val = _val;
     for (unsigned i = 1; i < wordSzInBytes; ++i) {
@@ -267,8 +269,8 @@ OpSemMemRepr::MemValTy OpSemMemLambdaRepr::MemSet(PtrTy ptr, Expr _val,
   }
   assert(val);
 
-  PtrTy last =
-      m_memManager.ptrAdd(m_memManager.ptrAdd(ptr, len), -wordSzInBytes);
+  PtrTy last = m_memManager.ptrAdd(m_memManager.ptrAdd(ptr, len),
+                                   -static_cast<signed>(wordSzInBytes));
 
   Expr bvVal = val;
   PtrTy b0 = PtrTy(bind::bvar(0, ptrSort.toExpr()));
@@ -291,8 +293,8 @@ OpSemMemRepr::MemValTy OpSemMemLambdaRepr::MemCpy(
     unsigned wordSzInBytes, PtrSortTy ptrSort, uint32_t align) {
   MemValTy srcMem = memTrsfrRead;
   // address of the last word that is copied into dst
-  PtrTy dstLast =
-      m_memManager.ptrAdd(m_memManager.ptrAdd(dPtr, len), -wordSzInBytes);
+  PtrTy dstLast = m_memManager.ptrAdd(m_memManager.ptrAdd(dPtr, len),
+                                      -static_cast<signed>(wordSzInBytes));
   return createMemCpyExpr(dPtr, sPtr, memRead, ptrSort, srcMem, dstLast,
                           wordSzInBytes, align);
 }

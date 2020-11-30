@@ -25,8 +25,8 @@ ExtraWideMemManager<T>::ExtraWideMemManager(Bv2OpSem &sem, Bv2OpSemContext &ctx,
       m_main(sem, ctx, ptrSz, wordSz, useLambdas),
       m_offset(sem, ctx, ptrSz, ptrSz, useLambdas, true),
       m_size(sem, ctx, ptrSz, g_slotByteWidth, useLambdas, true),
-      m_uninit_size(m_ctx.alu().si(g_uninit, g_slotBitWidth)),
-      m_nullPtr(PtrTy(m_main.nullPtr(), m_ctx.alu().si(0UL, ptrSizeInBits()),
+      m_uninit_size(m_ctx.alu().ui(g_uninit, g_slotBitWidth)),
+      m_nullPtr(PtrTy(m_main.nullPtr(), m_ctx.alu().ui(0UL, ptrSizeInBits()),
                       m_uninit_size)) {
   // Currently, we only support RawMemManagerCore or subclasses of it.
   static_assert(std::is_base_of<OpSemMemManagerBase, T>::value,
@@ -52,7 +52,7 @@ Expr ExtraWideMemManager<T>::isModified(ExtraWideMemManager::PtrTy ptr,
   if (val == Expr()) {
     return m_ctx.alu().getTrue();
   }
-  auto sentinel = m_ctx.alu().si(1, getMetaDataMemWordSzInBits());
+  auto sentinel = m_ctx.alu().ui(1, getMetaDataMemWordSzInBits());
   return m_ctx.alu().doEq(val, sentinel, getMetaDataMemWordSzInBits());
 }
 template <class T>
@@ -93,7 +93,7 @@ ExtraWideMemManager<T>::getAddressable(ExtraWideMemManager::PtrTy p) const {
     // -- base pointer is unsigned, but offset can be negative
     unsigned ptrBase = m_ctx.alu().toNum(p.getBase()).get_ui();
     signed offset = m_ctx.alu().toNum(p.getOffset()).get_si();
-    return m_ctx.alu().si(ptrBase + offset, ptrSizeInBits());
+    return m_ctx.alu().ui(ptrBase + offset, ptrSizeInBits());
   }
   return m_ctx.alu().doAdd(p.getBase(), p.getOffset(), ptrSizeInBits());
 }
@@ -164,7 +164,7 @@ typename ExtraWideMemManager<T>::PtrTy
 ExtraWideMemManager<T>::inttoptr(Expr intVal, const Type &intTy,
                                  const Type &ptrTy) const {
   return PtrTy(m_main.inttoptr(intVal, intTy, ptrTy),
-               m_ctx.alu().si(0UL, ptrSizeInBits()), m_uninit_size);
+               m_ctx.alu().ui(0UL, ptrSizeInBits()), m_uninit_size);
 }
 template <class T>
 typename ExtraWideMemManager<T>::MemValTy ExtraWideMemManager<T>::MemFill(
@@ -248,7 +248,7 @@ ExtraWideMemManager<T>::storeValueToMem(Expr _val,
   ExprFactory &efac = base.v()->efac();
   // init memval to a default value
   MemValTy res(m_main.zeroedMemory(),
-               m_ctx.alu().si(g_uninit_small, wordSizeInBits()), m_uninit_size);
+               m_ctx.alu().ui(g_uninit_small, wordSizeInBits()), m_uninit_size);
   switch (ty.getTypeID()) {
   case Type::IntegerTyID:
     if (ty.getScalarSizeInBits() < byteSz * 8) {
@@ -406,13 +406,12 @@ ExtraWideMemManager<T>::ptrAdd(ExtraWideMemManager::PtrTy base,
   Expr new_offset;
   // do concrete computation if possible
   if (m_ctx.alu().isNum(base.getOffset())) {
-    signed conc_offset = m_ctx.alu().toNum(base.getSize()).get_si() + _offset;
+    signed conc_offset = m_ctx.alu().toNum(base.getOffset()).get_si() + _offset;
     new_offset = m_ctx.alu().si(conc_offset, ptrSizeInBits());
   } else {
-    expr::mpz_class offset((signed long)_offset);
-    auto new_offset = m_ctx.alu().doAdd(base.getOffset(),
-                                        m_ctx.alu().si(offset, ptrSizeInBits()),
-                                        ptrSizeInBits());
+    auto new_offset = m_ctx.alu().doAdd(
+        base.getOffset(), m_ctx.alu().si(_offset, ptrSizeInBits()),
+        ptrSizeInBits());
   }
   return PtrTy(base.getBase(), new_offset, base.getSize());
 }
@@ -457,7 +456,7 @@ typename ExtraWideMemManager<T>::PtrTy
 ExtraWideMemManager<T>::mkAlignedPtr(Expr name, uint32_t align) const {
   m_size.mkAlignedPtr(name, align);
   return PtrTy(m_main.mkAlignedPtr(name, align),
-               m_ctx.alu().si(0UL, ptrSizeInBits()), m_uninit_size);
+               m_ctx.alu().ui(0UL, ptrSizeInBits()), m_uninit_size);
 }
 template <class T>
 typename ExtraWideMemManager<T>::PtrSortTy
@@ -477,10 +476,10 @@ ExtraWideMemManager<T>::getPtrToGlobalVariable(const GlobalVariable &gv) {
   // TODO: Add a map of base to AllocInfo in allocator so that given any base,
   // we can get size of allocation.
   uint64_t gvSz = m_sem.getTD().getTypeAllocSize(gv.getValueType());
-  return PtrTy(m_ctx.alu().si(m_main.getMAllocator().getGlobalVariableAddr(
+  return PtrTy(m_ctx.alu().ui(m_main.getMAllocator().getGlobalVariableAddr(
                                   gv, gvSz, m_alignment),
                               ptrSizeInBits()),
-               m_ctx.alu().si(0UL, ptrSizeInBits()), bytesToSlotExpr(gvSz));
+               m_ctx.alu().ui(0UL, ptrSizeInBits()), bytesToSlotExpr(gvSz));
 }
 template <class T>
 void ExtraWideMemManager<T>::initGlobalVariable(
@@ -490,20 +489,20 @@ void ExtraWideMemManager<T>::initGlobalVariable(
 template <class T>
 typename ExtraWideMemManager<T>::PtrTy
 ExtraWideMemManager<T>::getPtrToFunction(const Function &F) {
-  auto rawPtr = m_ctx.alu().si(
+  auto rawPtr = m_ctx.alu().ui(
       m_main.getMAllocator().getFunctionAddrAndSize(F, m_alignment).first,
       ptrSizeInBits());
-  auto size = m_ctx.alu().si(
+  auto size = m_ctx.alu().ui(
       m_main.getMAllocator().getFunctionAddrAndSize(F, m_alignment).second,
       g_slotBitWidth);
-  return PtrTy(rawPtr, m_ctx.alu().si(0UL, ptrSizeInBits()), size);
+  return PtrTy(rawPtr, m_ctx.alu().ui(0UL, ptrSizeInBits()), size);
 }
 template <class T>
 typename ExtraWideMemManager<T>::PtrTy
 ExtraWideMemManager<T>::falloc(const Function &fn) {
   auto range = m_main.getMAllocator().falloc(fn, m_alignment);
-  return PtrTy(m_ctx.alu().si(range.first, ptrSizeInBits()),
-               m_ctx.alu().si(0UL, ptrSizeInBits()),
+  return PtrTy(m_ctx.alu().ui(range.first, ptrSizeInBits()),
+               m_ctx.alu().ui(0UL, ptrSizeInBits()),
                bytesToSlotExpr(range.second - range.first));
 }
 template <class T>
@@ -512,8 +511,8 @@ ExtraWideMemManager<T>::galloc(const GlobalVariable &gv, uint32_t align) {
   uint64_t gvSz = m_sem.getTD().getTypeAllocSize(gv.getValueType());
   auto range =
       m_main.getMAllocator().galloc(gv, gvSz, std::max(align, m_alignment));
-  return PtrTy(m_ctx.alu().si(range.first, ptrSizeInBits()),
-               m_ctx.alu().si(0UL, ptrSizeInBits()),
+  return PtrTy(m_ctx.alu().ui(range.first, ptrSizeInBits()),
+               m_ctx.alu().ui(0UL, ptrSizeInBits()),
                bytesToSlotExpr(range.second - range.first));
 }
 template <class T>
@@ -532,13 +531,13 @@ ExtraWideMemManager<T>::halloc(unsigned int _bytes, uint32_t align) {
 }
 template <class T>
 typename ExtraWideMemManager<T>::PtrTy ExtraWideMemManager<T>::brk0Ptr() {
-  return PtrTy(m_main.brk0Ptr(), m_ctx.alu().si(0UL, ptrSizeInBits()),
+  return PtrTy(m_main.brk0Ptr(), m_ctx.alu().ui(0UL, ptrSizeInBits()),
                m_uninit_size);
 }
 template <class T>
 typename ExtraWideMemManager<T>::PtrTy
 ExtraWideMemManager<T>::mkStackPtr(unsigned int offset) {
-  return PtrTy(m_main.mkStackPtr(offset), m_ctx.alu().si(0UL, ptrSizeInBits()),
+  return PtrTy(m_main.mkStackPtr(offset), m_ctx.alu().ui(0UL, ptrSizeInBits()),
                m_uninit_size);
 }
 template <class T>
@@ -550,7 +549,7 @@ ExtraWideMemManager<T>::salloc(Expr elmts, unsigned int typeSz,
   // -- compute number of bytes needed
   Expr bytes = elmts;
   if (typeSz > 1) {
-    bytes = m_ctx.alu().doMul(bytes, m_ctx.alu().si(typeSz, ptrSizeInBits()),
+    bytes = m_ctx.alu().doMul(bytes, m_ctx.alu().ui(typeSz, ptrSizeInBits()),
                               ptrSizeInBits());
   }
 
@@ -567,7 +566,7 @@ ExtraWideMemManager<T>::salloc(Expr elmts, unsigned int typeSz,
 
   // -- have a good region, return pointer to it
   return PtrTy(mkStackPtr(region.second).getBase(),
-               m_ctx.alu().si(0UL, ptrSizeInBits()), bytes);
+               m_ctx.alu().ui(0UL, ptrSizeInBits()), bytes);
 }
 template <class T>
 typename ExtraWideMemManager<T>::PtrTy
@@ -578,7 +577,7 @@ ExtraWideMemManager<T>::salloc(unsigned int bytes, uint32_t align) {
   assert(region.second > region.first);
   // The size is min(alloc_size, requested_size)
   return PtrTy(mkStackPtr(region.second).getBase(),
-               m_ctx.alu().si(0UL, ptrSizeInBits()),
+               m_ctx.alu().ui(0UL, ptrSizeInBits()),
                bytesToSlotExpr(std::min(region.second - region.first, bytes)));
 }
 template <class T>
@@ -589,7 +588,7 @@ ExtraWideMemManager<T>::ptrSort() const {
 }
 template <class T>
 Expr ExtraWideMemManager<T>::bytesToSlotExpr(unsigned int bytes) {
-  return m_ctx.alu().si(bytes, g_slotBitWidth);
+  return m_ctx.alu().ui(bytes, g_slotBitWidth);
 }
 template <class T>
 typename ExtraWideMemManager<T>::MemValTy

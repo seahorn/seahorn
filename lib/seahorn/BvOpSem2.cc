@@ -1240,7 +1240,11 @@ public:
       Expr isNoOverflow =
           m_ctx.alu().IsUaddNoOverflow(op0, op1, ty->getScalarSizeInBits());
       assert(addRes && isNoOverflow);
-      Expr maxVal = m_ctx.alu().si(~0UL, ty->getScalarSizeInBits());
+      mpz_class maxValZ;
+      for (unsigned i = 0; i < ty->getScalarSizeInBits(); ++i) {
+        maxValZ.setbit(i);
+      }
+      Expr maxVal = m_ctx.alu().num(maxValZ, ty->getScalarSizeInBits());
       Expr res = boolop::lite(isNoOverflow, addRes, maxVal);
       setValue(I, res);
     } break;
@@ -1361,7 +1365,7 @@ public:
                                           unsigned opResultBitWidth,
                                           unsigned carryBitPadwidth) {
     Expr carry = m_ctx.alu().Concat(
-        {m_ctx.alu().si(0U, carryBitPadwidth), carryBitPadwidth},
+        {m_ctx.alu().ui(0U, carryBitPadwidth), carryBitPadwidth},
         {carryBit, 1});
     return m_ctx.alu().Concat({carry, carryBitPadwidth},
                               {opResult, opResultBitWidth});
@@ -2420,14 +2424,14 @@ Expr Bv2OpSemContext::getConstantValue(const llvm::Constant &c) {
     return mem().nullPtr();
   } else if (const ConstantInt *ci = dyn_cast<const ConstantInt>(&c)) {
     if (ci->getType()->isIntegerTy(1))
-      return ci->isOne() ? alu().si(1U, 1) : alu().si(0U, 1);
+      return ci->isOne() ? alu().ui(1U, 1) : alu().ui(0U, 1);
     else if (ci->isZero())
-      return alu().si(0U, m_sem.sizeInBits(c));
+      return alu().ui(0U, m_sem.sizeInBits(c));
     else if (ci->isOne())
-      return alu().si(1U, m_sem.sizeInBits(c));
+      return alu().ui(1U, m_sem.sizeInBits(c));
 
     expr::mpz_class k = toMpz(ci->getValue());
-    return alu().si(k, m_sem.sizeInBits(c));
+    return alu().num(k, m_sem.sizeInBits(c));
   }
 
   if (c.getType()->isIntegerTy()) {
@@ -2436,7 +2440,7 @@ Expr Bv2OpSemContext::getConstantValue(const llvm::Constant &c) {
     if (GVO.hasValue()) {
       GenericValue gv = GVO.getValue();
       expr::mpz_class k = toMpz(gv.IntVal);
-      return alu().si(k, m_sem.sizeInBits(c));
+      return alu().num(k, m_sem.sizeInBits(c));
     }
   } else if (c.getType()->isStructTy()) {
     ConstantExprEvaluator ce(m_sem.getDataLayout());
@@ -2449,7 +2453,7 @@ Expr Bv2OpSemContext::getConstantValue(const llvm::Constant &c) {
         if (aggBvO.hasValue()) {
           const APInt &aggBv = aggBvO.getValue();
           expr::mpz_class k = toMpz(aggBv);
-          return alu().si(k, aggBv.getBitWidth());
+          return alu().num(k, aggBv.getBitWidth());
         }
       }
     }

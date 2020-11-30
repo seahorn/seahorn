@@ -37,11 +37,10 @@ public:
     mpz_init(v.m_num);
   }
 
-  mpz_class(mpz_srcptr v) { mpz_init_set(m_num, v); }
-  mpz_class(int v) { mpz_init_set_si(m_num, v); }
-  mpz_class(unsigned v) { mpz_init_set_ui(m_num, v); }
-  mpz_class(unsigned long v) { mpz_init_set_ui(m_num, v); }
-  mpz_class(signed long v) { mpz_init_set_si(m_num, v); }
+  explicit mpz_class(mpz_srcptr v) { mpz_init_set(m_num, v); }
+  explicit mpz_class(unsigned int v) { mpz_init_set_ui(m_num, v); }
+  explicit mpz_class(unsigned long int v) { mpz_init_set_ui(m_num, v); }
+  mpz_class(signed long int v) { mpz_init_set_si(m_num, v); }
 
   mpz_class(const std::string &v, int base = 10) {
     if (mpz_init_set_str(m_num, v.c_str(), base) != 0) {
@@ -51,6 +50,15 @@ public:
   }
 
   int sgn() const { return mpz_sgn(m_num); }
+
+  mpz_class &setbit(mp_bitcnt_t bit) {
+    mpz_setbit(m_num, bit);
+    return *this;
+  }
+  mpz_class &clrbit(mp_bitcnt_t bit) {
+    mpz_clrbit(m_num, bit);
+    return *this;
+  }
 
   mpz_class &operator=(const mpz_class &v) {
     mpz_set(m_num, v.m_num);

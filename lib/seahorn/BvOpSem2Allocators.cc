@@ -206,7 +206,7 @@ public:
     auto addrIvl = this->salloc(m_maxSymbAllocSz, align);
     auto width = m_mem.ptrSizeInBits();
     Expr inRange = m_ctx.alu().doUle(
-        bytes, m_ctx.alu().si(m_maxSymbAllocSz, width), width);
+        bytes, m_ctx.alu().ui(m_maxSymbAllocSz, width), width);
     m_ctx.addScopedRely(inRange);
     return addrIvl;
   }
@@ -325,7 +325,7 @@ public:
         if (ai.m_inst == alloca) {
           auto width = m_mem.ptrSizeInBits();
           Expr inRange = m_ctx.alu().doUle(
-              bytes, m_ctx.alu().si(m_maxSymbAllocSz, width), width);
+              bytes, m_ctx.alu().ui(m_maxSymbAllocSz, width), width);
           LOG("opsem", errs()
                            << "Adding range condition: " << *inRange << "\n";);
           m_ctx.addScopedRely(inRange);

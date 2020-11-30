@@ -80,7 +80,7 @@ RawMemManagerCore::RawMemManagerCore(Bv2OpSem &sem, Bv2OpSemContext &ctx,
                                      bool useLambdas, bool ignoreAlignment)
     : MemManagerCore(sem, ctx, ptrSz, wordSz, ignoreAlignment),
       m_freshPtrName(mkTerm<std::string>("sea.ptr", m_efac)), m_id(0),
-      m_nullPtr(PtrTy(m_ctx.alu().si(0UL, ptrSizeInBits()))),
+      m_nullPtr(PtrTy(m_ctx.alu().ui(0UL, ptrSizeInBits()))),
       m_sp0(PtrTy(bind::mkConst(mkTerm<std::string>("sea.sp0", m_efac),
                                 ptrSort().toExpr()))) {
   if (MemAllocatorOpt == MemAllocatorKind::NORMAL_ALLOCATOR)
@@ -91,7 +91,7 @@ RawMemManagerCore::RawMemManagerCore(Bv2OpSem &sem, Bv2OpSemContext &ctx,
   m_ctx.declareRegister(m_sp0.toExpr());
 
   if (ExplicitSp0)
-    m_sp0 = PtrTy(m_ctx.alu().si(0xC0000000, this->ptrSizeInBits()));
+    m_sp0 = PtrTy(m_ctx.alu().ui(0xC0000000, this->ptrSizeInBits()));
 
   if (useLambdas)
     m_memRepr = std::make_unique<OpSemMemLambdaRepr>(*this, ctx);
@@ -171,9 +171,8 @@ PtrTy RawMemManagerCore::mkStackPtr(unsigned offset) {
   Expr res = m_sp0.toExpr();
   if (m_ctx.isKnownRegister(res))
     res = m_ctx.read(m_sp0.toExpr());
-  res = m_ctx.alu().doSub(
-      res, m_ctx.alu().si((unsigned long)offset, ptrSizeInBits()),
-      ptrSizeInBits());
+  res = m_ctx.alu().doSub(res, m_ctx.alu().ui(offset, ptrSizeInBits()),
+                          ptrSizeInBits());
   return PtrTy(res);
 }
 
@@ -185,7 +184,7 @@ PtrTy RawMemManagerCore::salloc(Expr elmts, unsigned typeSz, unsigned align) {
   Expr bytes = elmts;
   if (typeSz > 1) {
     // TODO: factor out multiplication and number creation
-    bytes = m_ctx.alu().doMul(bytes, m_ctx.alu().si(typeSz, ptrSizeInBits()),
+    bytes = m_ctx.alu().doMul(bytes, m_ctx.alu().ui(typeSz, ptrSizeInBits()),
                               ptrSizeInBits());
   }
 
@@ -206,7 +205,7 @@ PtrTy RawMemManagerCore::salloc(Expr elmts, unsigned typeSz, unsigned align) {
 
 /// \brief Pointer to start of the heap
 PtrTy RawMemManagerCore::brk0Ptr() {
-  return PtrTy(m_ctx.alu().si(m_allocator->brk0Addr(), ptrSizeInBits()));
+  return PtrTy(m_ctx.alu().ui(m_allocator->brk0Addr(), ptrSizeInBits()));
 }
 
 /// \brief Allocates memory on the heap and returns a pointer to it
@@ -218,7 +217,7 @@ PtrTy RawMemManagerCore::halloc(unsigned _bytes, unsigned align) {
   auto stackRange = m_allocator->getStackRange();
   // -- pointer is in the heap: between brk at the beginning and end of stack
   m_ctx.addSide(ptrUlt(
-      res, PtrTy(m_ctx.alu().si(stackRange.first - bytes, ptrSizeInBits()))));
+      res, PtrTy(m_ctx.alu().ui(stackRange.first - bytes, ptrSizeInBits()))));
   m_ctx.addSide(ptrUgt(res, brk0Ptr()));
   return res;
 }
@@ -241,18 +240,18 @@ PtrTy RawMemManagerCore::halloc(Expr bytes, unsigned align) {
 PtrTy RawMemManagerCore::galloc(const GlobalVariable &gv, unsigned align) {
   uint64_t gvSz = m_sem.getTD().getTypeAllocSize(gv.getValueType());
   auto range = m_allocator->galloc(gv, gvSz, std::max(align, m_alignment));
-  return PtrTy(m_ctx.alu().si(range.first, ptrSizeInBits()));
+  return PtrTy(m_ctx.alu().ui(range.first, ptrSizeInBits()));
 }
 
 /// \brief Allocates memory in code segment for the code of a given function
 PtrTy RawMemManagerCore::falloc(const Function &fn) {
   auto range = m_allocator->falloc(fn, m_alignment);
-  return PtrTy(m_ctx.alu().si(range.first, ptrSizeInBits()));
+  return PtrTy(m_ctx.alu().ui(range.first, ptrSizeInBits()));
 }
 
 /// \brief Returns a function pointer value for a given function
 PtrTy RawMemManagerCore::getPtrToFunction(const Function &F) {
-  return PtrTy(m_ctx.alu().si(m_allocator->getFunctionAddr(F, m_alignment),
+  return PtrTy(m_ctx.alu().ui(m_allocator->getFunctionAddr(F, m_alignment),
                               ptrSizeInBits()));
 }
 
@@ -260,7 +259,7 @@ PtrTy RawMemManagerCore::getPtrToFunction(const Function &F) {
 PtrTy RawMemManagerCore::getPtrToGlobalVariable(const GlobalVariable &gv) {
   uint64_t gvSz = m_sem.getTD().getTypeAllocSize(gv.getValueType());
   return PtrTy(
-      m_ctx.alu().si(m_allocator->getGlobalVariableAddr(gv, gvSz, m_alignment),
+      m_ctx.alu().ui(m_allocator->getGlobalVariableAddr(gv, gvSz, m_alignment),
                      ptrSizeInBits()));
 }
 
@@ -400,10 +399,9 @@ PtrTy RawMemManagerCore::loadPtrFromMem(const PtrTy &ptr, const MemValTy &mem,
 }
 
 /// \brief Pointer addition with numeric offset
-PtrTy RawMemManagerCore::ptrAdd(PtrTy ptr, int32_t _offset) const {
-  if (_offset == 0)
+PtrTy RawMemManagerCore::ptrAdd(PtrTy ptr, int32_t offset) const {
+  if (offset == 0)
     return ptr;
-  expr::mpz_class offset((signed long)_offset);
   return PtrTy(m_ctx.alu().doAdd(
       ptr.toExpr(), m_ctx.alu().si(offset, ptrSizeInBits()), ptrSizeInBits()));
 }
@@ -791,15 +789,15 @@ void RawMemManagerCore::onFunctionEntry(const Function &fn) {
   // XXX Currently hard coded for typical 32bit system
   // -- 3GB upper limit
   m_ctx.addSide(ptrUle(
-      PtrTy(res), PtrTy(m_ctx.alu().si(stackRange.second, ptrSizeInBits()))));
+      PtrTy(res), PtrTy(m_ctx.alu().ui(stackRange.second, ptrSizeInBits()))));
   // -- 9MB stack
   m_ctx.addSide(ptrUge(
-      PtrTy(res), PtrTy(m_ctx.alu().si(stackRange.first, ptrSizeInBits()))));
+      PtrTy(res), PtrTy(m_ctx.alu().ui(stackRange.first, ptrSizeInBits()))));
 }
 
 RawMemManagerCore::MemValTy RawMemManagerCore::zeroedMemory() const {
   return MemValTy(
-      m_memRepr->FilledMemory(ptrSort(), m_ctx.alu().si(0, wordSizeInBits())));
+      m_memRepr->FilledMemory(ptrSort(), m_ctx.alu().ui(0, wordSizeInBits())));
 }
 OpSemAllocator &RawMemManagerCore::getMAllocator() const {
   return *m_allocator;

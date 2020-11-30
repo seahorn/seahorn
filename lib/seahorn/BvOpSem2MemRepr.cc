@@ -143,9 +143,9 @@ Expr OpSemMemArrayRepr::MemCpy(Expr dPtr, Expr sPtr, unsigned len,
       res = op::array::store(res, dIdx, val);
     }
   } else {
-    LOG("opsem.array", ERR << "Word size and pointer are not aligned and "
-                              "alignment is not ignored!"
-                           << "\n");
+    DOG(ERR << "Word size and pointer are not aligned and "
+               "alignment is not ignored!"
+            << "\n");
     assert(false);
   }
   return res;

@@ -113,7 +113,7 @@ public:
     return mpz_cmp(m_num, v.m_num) != 0;
   }
 
-  explicit operator bool() const { return (*this) != 0; }
+  explicit operator bool() const { return mpz_cmp_ui(m_num, 0) != 0; }
 
   mpz_class operator%(const mpz_class &v) {
     mpz_class mod;

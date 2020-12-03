@@ -18,4 +18,5 @@ jobs:
       - script: docker build -t seahorn/seahorn-builder:bionic-llvm10 -f docker/seahorn-builder.Dockerfile .
       - script: docker run -v $(pwd):/host -i seahorn/seahorn-builder:bionic-llvm10 /bin/sh -c "cp build/SeaHorn*.tar.gz /host/"
       - script: docker build -t seahorn_container -f docker/seahorn.Dockerfile .
-      - script: docker run -v $(pwd):/host -i seahorn_container /bin/bash -c "cd seahorn/share/seahorn && lit test/opsem test/opsem2"
+      - script: docker run -v $(pwd):/host -i seahorn_container /bin/bash -c "cd seahorn/share/seahorn && lit -a --time-tests --max-time=1200 test/opsem"
+      - script: docker run -v $(pwd):/host -i seahorn_container /bin/bash -c "cd seahorn/share/seahorn && lit -a --time-tests --max-time=1200 test/opsem2"

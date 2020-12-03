@@ -9,8 +9,6 @@ on:
     branches: dev10
   pull_request:
     branches: dev10
-  schedule:
-    - cron: 0 0 * * *  # run every day at UTC 00:00
 
 # A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:
@@ -24,8 +22,6 @@ jobs:
       # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
       - name: Check Out Repo 
         uses: actions/checkout@v2
-        with:
-          ref: dev10  # only checkout dev10
       - name: Build seahorn builder
         run: docker build . --file docker/seahorn-builder.Dockerfile --tag seahorn/seahorn-builder:bionic-llvm10
       - name: Copy build out to /host
@@ -42,15 +38,4 @@ jobs:
         run: docker run -v $(pwd):/host seahorn_container /bin/bash -c "cd seahorn/share/seahorn && lit -a --time-tests --max-time=1200 test/mcfuzz"
       - name: Run smc tests
         run: docker run -v $(pwd):/host seahorn_container /bin/bash -c "cd seahorn/share/seahorn && lit -a --time-tests --max-time=1200 test/smc" 
-      # Logging in using this mechanism prints the following warning
-      # WARNING! Your password will be stored unencrypted in /home/runner/.docker/config.json.
-      # There does not seem to be an easy way around it though using docker actions may mitigate
-      # it.
-      - name: Login to DockerHub Registry
-        if: ${{ github.event_name == 'schedule' }}  # only push if nightly run
-        run: echo ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }} | docker login -u ${{ secrets.DOCKER_HUB_USERNAME }} --password-stdin
-      - name: tag and push seahorn (nightly)
-        if: ${{ github.event_name == 'schedule' }}  # only push if nightly run
-        run: |
-          docker tag seahorn_container seahorn/seahorn-llvm10:nightly
-          docker push seahorn/seahorn-llvm10:nightly 
+

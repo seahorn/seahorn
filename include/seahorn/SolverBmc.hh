@@ -87,6 +87,13 @@ public:
     return reg;
   }
 
+  // given an Expr encoding of pointer, return only addressable part
+  Expr getPtrAddressable(Expr e) {
+    if (!m_semCtx)
+      return Expr();
+    return m_semCtx->ptrToAddr(e);
+  }
+
   /// output current path condition in SMT-LIB2 format
   virtual raw_ostream &toSmtLib(raw_ostream &out);
 

@@ -149,6 +149,10 @@ public:
   virtual OpSemContextPtr fork(SymStore &values, ExprVector &side) {
     return OpSemContextPtr(new OpSemContext(values, side, *this));
   }
+
+  /// \brief Given Expr encoding of a ptr \p p, extract and return addressable
+  /// part only
+  virtual Expr ptrToAddr(Expr p) { return p; }
 };
 
 /// \brief Tracks information about a function

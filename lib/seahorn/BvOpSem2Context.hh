@@ -331,6 +331,8 @@ public:
     return OpSemContextPtr(new Bv2OpSemContext(values, side, *this));
   }
 
+  Expr ptrToAddr(Expr p) override;
+
   void resetSolver();
   void addToSolver(const Expr e);
   boost::tribool solve();
@@ -719,6 +721,14 @@ public:
 
   /// \brief reset memory modified state; used in conjuction with isModified
   virtual MemValTy resetModified(PtrTy p, MemValTy mem) = 0;
+
+  /// \brief given an Expression \p e , return true if \p e has expected
+  /// encoding of a PtrTyImpl
+  virtual bool isPtrTyVal(Expr e) = 0;
+
+  /// \brief given a properly encoded pointer Expr \p p , return the raw
+  /// expression representing memory address only
+  virtual Expr ptrToAddr(Expr p) = 0;
 };
 
 OpSemMemManager *mkRawMemManager(Bv2OpSem &sem, Bv2OpSemContext &ctx,
@@ -736,8 +746,6 @@ OpSemMemManager *mkWideMemManager(Bv2OpSem &sem, Bv2OpSemContext &ctx,
 OpSemMemManager *mkExtraWideMemManager(Bv2OpSem &sem, Bv2OpSemContext &ctx,
                                        unsigned ptrSz, unsigned wordSz,
                                        bool useLambdas = false);
-
-
 
 /// Evaluates constant expressions
 class ConstantExprEvaluator {

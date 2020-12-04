@@ -29,6 +29,12 @@ TrackingRawMemManager::PtrTy
 TrackingRawMemManager::getAddressable(TrackingRawMemManager::PtrTy p) const {
   return p;
 }
+
+bool TrackingRawMemManager::isPtrTyVal(Expr e) const {
+  // same PtrTy as RawMemManager
+  return !e || !strct::isStructVal(e);
+}
+
 Expr TrackingRawMemManager::isDereferenceable(TrackingRawMemManager::PtrTy p,
                                               Expr byteSz) {
   // isDereferenceable should never be called in a 'RawMemMgr'

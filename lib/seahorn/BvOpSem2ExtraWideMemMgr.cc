@@ -104,6 +104,11 @@ ExtraWideMemManager<T>::getAddressable(ExtraWideMemManager::PtrTy p) const {
   }
   return m_ctx.alu().doAdd(p.getBase(), p.getOffset(), ptrSizeInBits());
 }
+
+template <class T> bool ExtraWideMemManager<T>::isPtrTyVal(Expr e) const {
+  return strct::isStructVal(e) && e->arity() == g_num_slots;
+}
+
 template <class T>
 Expr ExtraWideMemManager<T>::isDereferenceable(ExtraWideMemManager::PtrTy p,
                                                Expr byteSz) {

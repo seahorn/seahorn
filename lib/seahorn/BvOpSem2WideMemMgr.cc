@@ -478,6 +478,11 @@ Expr WideMemManager::ptrSub(WideMemManager::PtrTy p1,
                             WideMemManager::PtrTy p2) const {
   return m_main.ptrSub(getAddressable(p1), getAddressable(p2));
 }
+
+bool WideMemManager::isPtrTyVal(Expr e) const {
+  return strct::isStructVal(e) && e->arity() == g_num_slots;
+}
+
 OpSemMemManager *mkWideMemManager(Bv2OpSem &sem, Bv2OpSemContext &ctx,
                                   unsigned ptrSz, unsigned wordSz,
                                   bool useLambdas) {

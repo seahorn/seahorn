@@ -20,6 +20,7 @@
 #include "seahorn/BvOpSem.hh"
 #include "seahorn/BvOpSem2.hh"
 #include "seahorn/CallUtils.hh"
+#include "seahorn/CexExeGenerator.hh"
 #include "seahorn/CexHarness.hh"
 #include "seahorn/DfCoiAnalysis.hh"
 #include "seahorn/PathBmc.hh"
@@ -49,6 +50,11 @@ static llvm::cl::opt<bool> HornGSA("horn-gsa",
 static llvm::cl::opt<bool>
     ComputeCoi("horn-bmc-coi", llvm::cl::desc("Compute DataFlow-based COI"),
                llvm::cl::init(false), llvm::cl::Hidden);
+
+static llvm::cl::opt<bool>
+    BmcCexGen("horn-bmc-cexgen",
+              llvm::cl::desc("Use new CexExeGenerator for bmc"),
+              llvm::cl::init(false), llvm::cl::Hidden);
 
 enum class BmcSolverKind { Z3, SMT_Z3, SMT_YICES2 };
 
@@ -360,9 +366,15 @@ public:
           if (CexFileRef.endswith(".ll") || CexFileRef.endswith(".bc")) {
             auto &tli = getAnalysis<TargetLibraryInfoWrapperPass>();
             auto const &dl = F.getParent()->getDataLayout();
-            BmcTraceWrapper<ZBmcTraceTy> trace_wrapper(trace);
-            dumpLLVMCex(trace_wrapper, CexFileRef, dl, tli.getTLI(F),
-                        F.getContext());
+            if (BmcCexGen) {
+              cexGen::CexExeGenerator<ZBmcTraceTy> cex(trace, dl, tli.getTLI(F),
+                                                       F.getContext());
+              cex.saveCexModuleToFile(CexFileRef);
+            } else {
+              BmcTraceWrapper<ZBmcTraceTy> trace_wrapper(trace);
+              dumpLLVMCex(trace_wrapper, CexFileRef, dl, tli.getTLI(F),
+                          F.getContext());
+            }
           } else {
             WARN << "The Bmc engine only generates harnesses in bitcode "
                     "format";
@@ -419,9 +431,15 @@ public:
           if (CexFileRef.endswith(".ll") || CexFileRef.endswith(".bc")) {
             auto &tli = getAnalysis<TargetLibraryInfoWrapperPass>();
             auto const &dl = F.getParent()->getDataLayout();
-            BmcTraceWrapper<SolverBmcTraceTy> trace_wrapper(trace);
-            dumpLLVMCex(trace_wrapper, CexFileRef, dl, tli.getTLI(F),
-                        F.getContext());
+            if (BmcCexGen) {
+              cexGen::CexExeGenerator<SolverBmcTraceTy> cex(
+                  trace, dl, tli.getTLI(F), F.getContext());
+              cex.saveCexModuleToFile(CexFileRef);
+            } else {
+              BmcTraceWrapper<SolverBmcTraceTy> trace_wrapper(trace);
+              dumpLLVMCex(trace_wrapper, CexFileRef, dl, tli.getTLI(F),
+                          F.getContext());
+            }
           } else {
             WARN << "The Bmc engine only generates harnesses in bitcode "
                     "format";

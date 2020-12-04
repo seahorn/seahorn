@@ -2486,6 +2486,8 @@ void Bv2OpSemContext::addToSolver(const Expr e) {
 
 boost::tribool Bv2OpSemContext::solve() { return m_z3_solver->solve(); }
 
+Expr Bv2OpSemContext::ptrToAddr(Expr p) { return mem().ptrToAddr(p); }
+
 } // namespace details
 
 Bv2OpSem::Bv2OpSem(ExprFactory &efac, Pass &pass, const DataLayout &dl,

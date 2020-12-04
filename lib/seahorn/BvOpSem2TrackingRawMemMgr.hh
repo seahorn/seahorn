@@ -229,6 +229,8 @@ public:
 
   PtrTy getAddressable(PtrTy p) const;
 
+  bool isPtrTyVal(Expr e) const;
+
   Expr isModified(PtrTy p, MemValTy mem);
 
   MemValTy resetModified(PtrTy p, MemValTy mem);

@@ -574,6 +574,13 @@ public:
     LOG("opsem", WARN << "isDereferenceable() not implemented!\n");
     return m_ctx.alu().getFalse();
   }
+
+  RawPtrTy getAddressable(FatPtrTy p) const { return mkRawPtr(p); }
+
+  bool isPtrTyVal(Expr e) const {
+    // struct with raw ptr + fat slots
+    return strct::isStructVal(e) && e->arity() <= (1 + g_maxFatSlots);
+  }
 };
 
 FatMemManager::FatMemManager(Bv2OpSem &sem, Bv2OpSemContext &ctx,

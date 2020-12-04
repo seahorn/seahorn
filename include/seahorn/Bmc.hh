@@ -103,6 +103,14 @@ public:
     }
     return reg;
   }
+
+  // given an Expr encoding of pointer, return only addressable part
+  Expr getPtrAddressable(Expr e) {
+    if (!m_semCtx)
+      return Expr();
+    return m_semCtx->ptrToAddr(e);
+  }
+
   /// Dump unsat core
   /// Exposes internal details. Intendent to be used for debugging only
   virtual void unsatCore(ExprVector &out);

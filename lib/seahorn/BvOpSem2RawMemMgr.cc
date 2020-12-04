@@ -812,5 +812,10 @@ std::pair<char *, unsigned>
 RawMemManagerCore::getGlobalVariableInitValue(const GlobalVariable &gv) {
   return m_allocator->getGlobalVariableInitValue(gv);
 }
+
+bool RawMemManagerCore::isPtrTyVal(Expr e) {
+  return (!e || !strct::isStructVal(e));
+}
+
 } // namespace details
 } // namespace seahorn

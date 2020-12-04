@@ -355,6 +355,8 @@ public:
 
   Expr isModified(PtrTy p, MemValTy mem);
 
+  bool isPtrTyVal(Expr e);
+
   MemValTy resetModified(PtrTy p, MemValTy mem);
 
   PtrTy getAddressable(PtrTy p);

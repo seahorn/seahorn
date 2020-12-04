@@ -407,6 +407,14 @@ public:
         },
         [&] { return memIn; });
   }
+
+  bool isPtrTyVal(Expr e) { return base().isPtrTyVal(e); }
+
+  Expr ptrToAddr(Expr p) {
+    if (!isPtrTyVal(p))
+      return Expr();
+    return Expr(base().getAddressable(BasePtrTy(p)));
+  }
 };
 } // namespace details
 } // namespace seahorn

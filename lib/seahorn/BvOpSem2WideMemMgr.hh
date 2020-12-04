@@ -250,6 +250,8 @@ public:
 
   RawPtrTy getAddressable(PtrTy p) const;
 
+  bool isPtrTyVal(Expr e) const;
+
   Expr getSize(PtrTy p);
 
   const OpSemMemManager &getMainMemMgr() const;

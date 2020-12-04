@@ -28,6 +28,8 @@ class WideMemManager : public MemManagerCore {
 public:
   // setting TrackingTag to int disqualifies this class as having tracking
   using TrackingTag = int;
+  using FatMemTag = int;
+
   using RawPtrTy = OpSemMemManager::PtrTy;
   using RawMemValTy = OpSemMemManager::MemValTy;
   using RawPtrSortTy = OpSemMemManager::PtrSortTy;
@@ -220,6 +222,16 @@ public:
 
   /// \brief Checks if two pointers are equal considering only the raw part.
   Expr ptrEq(PtrTy p1, PtrTy p2) const;
+  Expr ptrUlt(PtrTy p1, PtrTy p2) const;
+  Expr ptrSlt(PtrTy p1, PtrTy p2) const;
+  Expr ptrUle(PtrTy p1, PtrTy p2) const;
+  Expr ptrSle(PtrTy p1, PtrTy p2) const;
+  Expr ptrUgt(PtrTy p1, PtrTy p2) const;
+  Expr ptrSgt(PtrTy p1, PtrTy p2) const;
+  Expr ptrUge(PtrTy p1, PtrTy p2) const;
+  Expr ptrSge(PtrTy p1, PtrTy p2) const;
+  Expr ptrNe(PtrTy p1, PtrTy p2) const;
+  Expr ptrSub(PtrTy p1, PtrTy p2) const;
 
   PtrTy gep(PtrTy ptr, gep_type_iterator it, gep_type_iterator end) const;
 

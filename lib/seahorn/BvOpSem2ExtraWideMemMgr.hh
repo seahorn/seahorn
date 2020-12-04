@@ -41,6 +41,9 @@ template <class T> class ExtraWideMemManager : public MemManagerCore {
 
 public:
   using TrackingTag = typename T::TrackingTag;
+  // We don't support composing ExtraWideMemManager using FatMemManager
+  using FatMemTag = int;
+
   using RawPtrTy = typename T::PtrTy;
   using RawMemValTy = typename T::MemValTy;
   using RawPtrSortTy = typename T::PtrSortTy;
@@ -299,6 +302,16 @@ public:
   Expr castPtrSzToSlotSz(const Expr val) const;
 
   Expr ptrEq(PtrTy p1, PtrTy p2) const;
+  Expr ptrUlt(PtrTy p1, PtrTy p2) const;
+  Expr ptrSlt(PtrTy p1, PtrTy p2) const;
+  Expr ptrUle(PtrTy p1, PtrTy p2) const;
+  Expr ptrSle(PtrTy p1, PtrTy p2) const;
+  Expr ptrUgt(PtrTy p1, PtrTy p2) const;
+  Expr ptrSgt(PtrTy p1, PtrTy p2) const;
+  Expr ptrUge(PtrTy p1, PtrTy p2) const;
+  Expr ptrSge(PtrTy p1, PtrTy p2) const;
+  Expr ptrNe(PtrTy p1, PtrTy p2) const;
+  Expr ptrSub(PtrTy p1, PtrTy p2) const;
 };
 
 OpSemMemManager *mkExtraWideMemManager(Bv2OpSem &sem, Bv2OpSemContext &ctx,

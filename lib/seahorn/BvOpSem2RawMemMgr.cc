@@ -721,17 +721,6 @@ Expr RawMemManagerCore::ptrSub(PtrTy p1, PtrTy p2) const {
   return m_ctx.alu().doSub(p1.toExpr(), p2.toExpr(), ptrSizeInBits());
 }
 
-Expr RawMemManagerCore::getFatData(PtrTy p, unsigned SlotIdx) {
-  LOG("opsem", WARN << "getFatData() not implemented");
-  return Expr();
-}
-
-RawMemManagerCore::PtrTy
-RawMemManagerCore::setFatData(PtrTy p, unsigned SlotIdx, Expr data) {
-  LOG("opsem", WARN << "setFatData() not implemented");
-  return PtrTy(Expr());
-}
-
 Expr RawMemManagerCore::isDereferenceable(PtrTy p, Expr byteSz) {
   LOG("opsem", ERR << "isDeferenceable() not implemented");
   return Expr();

@@ -1,7 +1,7 @@
 #include "BvOpSem2ExtraWideMemMgr.hh"
 #include "BvOpSem2Allocators.hh"
 #include "BvOpSem2Context.hh"
-#include "BvOpSem2WideMemManagerMixin.hh"
+#include "BvOpSem2MemManagerMixin.hh"
 
 #include <boost/hana.hpp>
 #include <type_traits>
@@ -597,13 +597,7 @@ ExtraWideMemManager<T>::memsetMetaData(ExtraWideMemManager::PtrTy ptr,
                                        unsigned int len,
                                        ExtraWideMemManager::MemValTy memIn,
                                        unsigned int val) {
-  RawMemValTy rawOut = hana::eval_if(
-      MemoryFeatures::has_tracking(hana::type<T>{}),
-      [&](auto _) {
-        return _(m_main).memsetMetaData(ptr.getBase(), len, memIn.getRaw(),
-                                        val);
-      },
-      [&] { return memIn.getRaw(); });
+  auto rawOut = m_main.memsetMetaData(ptr.getBase(), len, memIn.getRaw(), val);
   return MemValTy(rawOut, memIn.getOffset(), memIn.getSize());
 }
 template <class T>
@@ -611,13 +605,7 @@ typename ExtraWideMemManager<T>::MemValTy
 ExtraWideMemManager<T>::memsetMetaData(ExtraWideMemManager::PtrTy ptr, Expr len,
                                        ExtraWideMemManager::MemValTy memIn,
                                        unsigned int val) {
-  RawMemValTy rawOut = hana::eval_if(
-      MemoryFeatures::has_tracking(hana::type<T>{}),
-      [&](auto _) {
-        return _(m_main).memsetMetaData(ptr.getBase(), len, memIn.getRaw(),
-                                        val);
-      },
-      [&] { return memIn.getRaw(); });
+  auto rawOut = m_main.memsetMetaData(ptr.getBase(), len, memIn.getRaw(), val);
   return MemValTy(rawOut, memIn.getOffset(), memIn.getSize());
 }
 
@@ -625,22 +613,12 @@ template <class T>
 Expr ExtraWideMemManager<T>::getMetaData(ExtraWideMemManager::PtrTy ptr,
                                          ExtraWideMemManager::MemValTy memIn,
                                          unsigned int byteSz) {
-  return hana::eval_if(
-      MemoryFeatures::has_tracking(hana::type<T>{}),
-      [&](auto _) {
-        return _(m_main).getMetaData(ptr.getBase(), memIn.getRaw(), byteSz);
-      },
-      [&] { return Expr(); }
-
-  );
+  return m_main.getMetaData(ptr.getBase(), memIn.getRaw(), byteSz);
 }
 
 template <class T>
 unsigned int ExtraWideMemManager<T>::getMetaDataMemWordSzInBits() {
-  return hana::eval_if(
-      MemoryFeatures::has_tracking(hana::type<T>{}),
-      [&](auto _) { return _(m_main).getMetaDataMemWordSzInBits(); },
-      [&] { return 0; });
+  return m_main.getMetaDataMemWordSzInBits();
 }
 template <class T>
 typename ExtraWideMemManager<T>::MemValTy
@@ -648,11 +626,62 @@ ExtraWideMemManager<T>::resetModified(ExtraWideMemManager::PtrTy ptr,
                                       ExtraWideMemManager::MemValTy mem) {
   return memsetMetaData(ptr, 1 /* len */, mem, 0U /* val */);
 }
+template <class T>
+Expr ExtraWideMemManager<T>::ptrUlt(ExtraWideMemManager::PtrTy p1,
+                                    ExtraWideMemManager::PtrTy p2) const {
+  return m_main.ptrUlt(getAddressable(p1), getAddressable(p2));
+}
+
+template <class T>
+Expr ExtraWideMemManager<T>::ptrSlt(ExtraWideMemManager::PtrTy p1,
+                                    ExtraWideMemManager::PtrTy p2) const {
+  return m_main.ptrSlt(getAddressable(p1), getAddressable(p2));
+}
+template <class T>
+Expr ExtraWideMemManager<T>::ptrUle(ExtraWideMemManager::PtrTy p1,
+                                    ExtraWideMemManager::PtrTy p2) const {
+  return m_main.ptrUle(getAddressable(p1), getAddressable(p2));
+}
+template <class T>
+Expr ExtraWideMemManager<T>::ptrSle(ExtraWideMemManager::PtrTy p1,
+                                    ExtraWideMemManager::PtrTy p2) const {
+  return m_main.ptrSle(getAddressable(p1), getAddressable(p2));
+}
+template <class T>
+Expr ExtraWideMemManager<T>::ptrUgt(ExtraWideMemManager::PtrTy p1,
+                                    ExtraWideMemManager::PtrTy p2) const {
+  return m_main.ptrUgt(getAddressable(p1), getAddressable(p2));
+}
+template <class T>
+Expr ExtraWideMemManager<T>::ptrSgt(ExtraWideMemManager::PtrTy p1,
+                                    ExtraWideMemManager::PtrTy p2) const {
+  return m_main.ptrSgt(getAddressable(p1), getAddressable(p2));
+}
+template <class T>
+Expr ExtraWideMemManager<T>::ptrUge(ExtraWideMemManager::PtrTy p1,
+                                    ExtraWideMemManager::PtrTy p2) const {
+  return m_main.ptrUge(getAddressable(p1), getAddressable(p2));
+}
+template <class T>
+Expr ExtraWideMemManager<T>::ptrSge(ExtraWideMemManager::PtrTy p1,
+                                    ExtraWideMemManager::PtrTy p2) const {
+  return m_main.ptrSge(getAddressable(p1), getAddressable(p2));
+}
+template <class T>
+Expr ExtraWideMemManager<T>::ptrNe(ExtraWideMemManager::PtrTy p1,
+                                   ExtraWideMemManager::PtrTy p2) const {
+  return m_main.ptrNe(getAddressable(p1), getAddressable(p2));
+}
+template <class T>
+Expr ExtraWideMemManager<T>::ptrSub(ExtraWideMemManager::PtrTy p1,
+                                    ExtraWideMemManager::PtrTy p2) const {
+  return m_main.ptrSub(getAddressable(p1), getAddressable(p2));
+}
 
 OpSemMemManager *mkExtraWideMemManager(Bv2OpSem &sem, Bv2OpSemContext &ctx,
                                        unsigned int ptrSz, unsigned int wordSz,
                                        bool useLambdas) {
-  return new OpSemWideMemManagerMixin<ExtraWideMemManager<RawMemManager>>(
+  return new OpSemMemManagerMixin<ExtraWideMemManager<RawMemManager>>(
       sem, ctx, ptrSz, wordSz, useLambdas);
 }
 OpSemMemManager *mkTrackingExtraWideMemManager(Bv2OpSem &sem,
@@ -660,14 +689,13 @@ OpSemMemManager *mkTrackingExtraWideMemManager(Bv2OpSem &sem,
                                                unsigned int ptrSz,
                                                unsigned int wordSz,
                                                bool useLambdas) {
-  return new OpSemWideMemManagerMixin<
-      ExtraWideMemManager<OpSemWideMemManagerMixin<TrackingRawMemManager>>>(
+  return new OpSemMemManagerMixin<
+      ExtraWideMemManager<OpSemMemManagerMixin<TrackingRawMemManager>>>(
       sem, ctx, ptrSz, wordSz, useLambdas);
 }
 
 template class ExtraWideMemManager<RawMemManager>;
-template class ExtraWideMemManager<
-    OpSemWideMemManagerMixin<TrackingRawMemManager>>;
+template class ExtraWideMemManager<OpSemMemManagerMixin<TrackingRawMemManager>>;
 
 } // namespace details
 } // namespace seahorn

@@ -47,6 +47,9 @@ public:
     explicit operator Expr() const { return toExpr(); }
   };
 
+  using FatMemTag = MemoryFeatures::FatMem_tag;
+  using TrackingTag = int;
+
   /// Right now everything is an expression. In the future, we might have
   /// other types for PtrTy, such as a tuple of expressions
   using BasePtrTy = OpSemMemManager::PtrTy;

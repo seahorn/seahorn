@@ -118,6 +118,7 @@ public:
   using MemRegTy = Expr;
   // setting TrackingTag to int disqualifies this class as having tracking
   using TrackingTag = int;
+  using FatMemTag = int;
 
   /// \brief A null pointer expression (cache)
   PtrTy m_nullPtr;
@@ -349,12 +350,6 @@ public:
   getGlobalVariableInitValue(const llvm::GlobalVariable &gv);
 
   MemValTy zeroedMemory() const;
-
-  /// \brief Get the data for a given slot of a fat pointer
-  Expr getFatData(PtrTy p, unsigned SlotIdx);
-
-  /// \brief Set the data for a given slot of a fat pointer
-  RawMemManagerCore::PtrTy setFatData(PtrTy p, unsigned SlotIdx, Expr data);
 
   Expr isDereferenceable(PtrTy p, Expr byteSz);
 

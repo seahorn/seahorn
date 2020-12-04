@@ -29,6 +29,8 @@ private:
 public:
   // This memory manager supports tracking
   using TrackingTag = MemoryFeatures::Tracking_tag;
+  using FatMemTag = int;
+
   using PtrTy = OpSemMemManager::PtrTy;
   using PtrSortTy = OpSemMemManager::PtrSortTy;
   using MemRegTy = OpSemMemManager::MemRegTy;
@@ -201,6 +203,16 @@ public:
   Expr ptrtoint(PtrTy ptr, const Type &ptrTy, const Type &intTy) const;
 
   Expr ptrEq(PtrTy p1, PtrTy p2) const;
+  Expr ptrUlt(PtrTy p1, PtrTy p2) const;
+  Expr ptrSlt(PtrTy p1, PtrTy p2) const;
+  Expr ptrUle(PtrTy p1, PtrTy p2) const;
+  Expr ptrSle(PtrTy p1, PtrTy p2) const;
+  Expr ptrUgt(PtrTy p1, PtrTy p2) const;
+  Expr ptrSgt(PtrTy p1, PtrTy p2) const;
+  Expr ptrUge(PtrTy p1, PtrTy p2) const;
+  Expr ptrSge(PtrTy p1, PtrTy p2) const;
+  Expr ptrNe(PtrTy p1, PtrTy p2) const;
+  Expr ptrSub(PtrTy p1, PtrTy p2) const;
 
   PtrTy gep(PtrTy ptr, gep_type_iterator it, gep_type_iterator end) const;
   void onFunctionEntry(const Function &fn);

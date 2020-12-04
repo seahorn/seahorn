@@ -16,16 +16,30 @@ namespace seahorn {
 namespace details {
 
 namespace MemoryFeatures {
-auto tag_of =
+auto tracking_tag_of =
     [](auto t) -> hana::type<typename decltype(t)::type::TrackingTag> {
   return {};
 };
-// This empty class is used as a 'tag' to mark containing classes as enabling
-// tracking.
-struct Tracking_tag {};
-auto has_tracking = [](auto t) {
-  return hana::sfinae(tag_of)(t) == hana::just(hana::type<Tracking_tag>{});
+
+auto fatmem_tag_of =
+    [](auto t) -> hana::type<typename decltype(t)::type::FatMemTag> {
+  return {};
 };
+// This empty class is used as a 'tag' to mark containing classes as enabling
+// features feature: tracking.
+struct Tracking_tag {};
+// feature: Fat Memory.
+struct FatMem_tag {};
+
+auto has_tracking = [](auto t) {
+  return hana::sfinae(tracking_tag_of)(t) ==
+         hana::just(hana::type<Tracking_tag>{});
+};
+
+auto has_fatmem = [](auto t) {
+  return hana::sfinae(fatmem_tag_of)(t) == hana::just(hana::type<FatMem_tag>{});
+};
+
 } // namespace MemoryFeatures
 
 class OpSemAlu;

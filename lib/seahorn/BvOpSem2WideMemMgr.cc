@@ -1,7 +1,7 @@
 #include "BvOpSem2WideMemMgr.hh"
 #include "BvOpSem2Allocators.hh"
 #include "BvOpSem2Context.hh"
-#include "BvOpSem2WideMemManagerMixin.hh"
+#include "BvOpSem2MemManagerMixin.hh"
 
 #include "seahorn/Expr/ExprOpStruct.hh"
 #include "seahorn/Support/SeaDebug.h"
@@ -438,11 +438,51 @@ WideMemManager::PtrSortTy WideMemManager::ptrSort() const {
 Expr WideMemManager::bytesToSlotExpr(unsigned int bytes) {
   return m_ctx.alu().ui(bytes, g_slotBitWidth);
 }
+Expr WideMemManager::ptrUlt(WideMemManager::PtrTy p1,
+                            WideMemManager::PtrTy p2) const {
+  return m_main.ptrUlt(getAddressable(p1), getAddressable(p2));
+}
+Expr WideMemManager::ptrSlt(WideMemManager::PtrTy p1,
+                            WideMemManager::PtrTy p2) const {
+  return m_main.ptrSlt(getAddressable(p1), getAddressable(p2));
+}
+Expr WideMemManager::ptrUle(WideMemManager::PtrTy p1,
+                            WideMemManager::PtrTy p2) const {
+  return m_main.ptrUle(getAddressable(p1), getAddressable(p2));
+}
+Expr WideMemManager::ptrSle(WideMemManager::PtrTy p1,
+                            WideMemManager::PtrTy p2) const {
+  return m_main.ptrSle(getAddressable(p1), getAddressable(p2));
+}
+Expr WideMemManager::ptrUgt(WideMemManager::PtrTy p1,
+                            WideMemManager::PtrTy p2) const {
+  return m_main.ptrUgt(getAddressable(p1), getAddressable(p2));
+}
+Expr WideMemManager::ptrSgt(WideMemManager::PtrTy p1,
+                            WideMemManager::PtrTy p2) const {
+  return m_main.ptrSgt(getAddressable(p1), getAddressable(p2));
+}
+Expr WideMemManager::ptrUge(WideMemManager::PtrTy p1,
+                            WideMemManager::PtrTy p2) const {
+  return m_main.ptrUge(getAddressable(p1), getAddressable(p2));
+}
+Expr WideMemManager::ptrSge(WideMemManager::PtrTy p1,
+                            WideMemManager::PtrTy p2) const {
+  return m_main.ptrSge(getAddressable(p1), getAddressable(p2));
+}
+Expr WideMemManager::ptrNe(WideMemManager::PtrTy p1,
+                           WideMemManager::PtrTy p2) const {
+  return m_main.ptrNe(getAddressable(p1), getAddressable(p2));
+}
+Expr WideMemManager::ptrSub(WideMemManager::PtrTy p1,
+                            WideMemManager::PtrTy p2) const {
+  return m_main.ptrSub(getAddressable(p1), getAddressable(p2));
+}
 OpSemMemManager *mkWideMemManager(Bv2OpSem &sem, Bv2OpSemContext &ctx,
                                   unsigned ptrSz, unsigned wordSz,
                                   bool useLambdas) {
-  return new OpSemWideMemManagerMixin<WideMemManager>(sem, ctx, ptrSz, wordSz,
-                                                      useLambdas);
+  return new OpSemMemManagerMixin<WideMemManager>(sem, ctx, ptrSz, wordSz,
+                                                  useLambdas);
 }
 } // namespace details
 } // namespace seahorn

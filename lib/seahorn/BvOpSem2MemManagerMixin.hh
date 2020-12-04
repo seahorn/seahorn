@@ -7,6 +7,9 @@ template <typename BaseT>
 class OpSemMemManagerMixin : public BaseT, public OpSemMemManager {
 
 public:
+  using TrackingTag = typename BaseT::TrackingTag;
+  using FatMemTag = typename BaseT::FatMemTag;
+
   using Base = BaseT;
   using PtrTy = Expr;
   using MemRegTy = Expr;
@@ -306,25 +309,103 @@ public:
   }
 
   Expr getFatData(PtrTy p, unsigned SlotIdx) override {
-    auto res = base().getFatData(BasePtrTy(std::move(p)), SlotIdx);
-    return res;
+    return hana::eval_if(
+        MemoryFeatures::has_fatmem(hana::type<BaseT>{}),
+        [&](auto _) {
+          auto res = _(base()).getFatData(BasePtrTy(std::move(p)), SlotIdx);
+          return res;
+        },
+        [&] {
+          LOG("opsem", WARN << "getFatData() not implemented!\n");
+          return Expr();
+        });
   }
 
   /// \brief returns Expr after setting data.
   PtrTy setFatData(PtrTy p, unsigned SlotIdx, Expr data) override {
-    auto res = base().setFatData(BasePtrTy(std::move(p)), SlotIdx, data);
-    return toPtrTy(std::move(res));
+    return hana::eval_if(
+        MemoryFeatures::has_fatmem(hana::type<BaseT>{}),
+        [&](auto _) {
+          auto res =
+              _(base()).setFatData(BasePtrTy(std::move(p)), SlotIdx, data);
+          return toPtrTy(std::move(res));
+        },
+        [&] {
+          LOG("opsem", WARN << "setFatData() not implemented!\n");
+          return p;
+        });
   }
 
   Expr isDereferenceable(PtrTy p, Expr byteSz) {
     return base().isDereferenceable(BasePtrTy(std::move(p)), byteSz);
   }
 
-  Expr isModified(PtrTy p, MemValTy mem) { return Expr(); }
-
   MemValTy resetModified(PtrTy p, MemValTy mem) {
-    LOG("opsem", WARN << "resetModified() not implemented!\n");
-    return mem;
+    return hana::eval_if(
+        MemoryFeatures::has_tracking(hana::type<BaseT>{}),
+        [&](auto _) {
+          return toMemValTy(std::move(_(base()).resetModified(
+              BasePtrTy(std::move(p)), BaseMemValTy(std::move(mem)))));
+        },
+        [&] {
+          LOG("opsem", WARN << "resetModified() not implemented!\n");
+          return mem;
+        });
+  }
+
+  unsigned int getMetaDataMemWordSzInBits() {
+    return hana::eval_if(
+        MemoryFeatures::has_tracking(hana::type<BaseT>{}),
+        [&](auto _) { return _(base()).getMetaDataMemWordSzInBits(); },
+        [&] { return 0; });
+  }
+
+  Expr isModified(PtrTy p, MemValTy mem) {
+    return hana::eval_if(
+        MemoryFeatures::has_tracking(hana::type<BaseT>{}),
+        [&](auto _) {
+          return _(base()).isModified(BasePtrTy(std::move(p)),
+                                      BaseMemValTy(std::move(mem)));
+        },
+        [&] {
+          LOG("opsem", WARN << "isModified() not implemented!\n");
+          return Expr();
+        });
+  }
+
+  Expr getMetaData(PtrTy p, MemValTy memIn, unsigned int byteSz) {
+    return hana::eval_if(
+        MemoryFeatures::has_tracking(hana::type<BaseT>{}),
+        [&](auto _) {
+          return _(base()).getMetaData(BasePtrTy(std::move(p)),
+                                       BaseMemValTy(std::move(memIn)), byteSz);
+        },
+        [&] { return Expr(); });
+  }
+
+  MemValTy memsetMetaData(PtrTy p, Expr len, MemValTy memIn, unsigned int val) {
+    return hana::eval_if(
+        MemoryFeatures::has_tracking(hana::type<BaseT>{}),
+        [&](auto _) {
+          auto r =
+              _(base()).memsetMetaData(BasePtrTy(std::move(p)), len,
+                                       BaseMemValTy(std::move(memIn)), val);
+          return toMemValTy(std::move(r));
+        },
+        [&] { return memIn; });
+  }
+
+  MemValTy memsetMetaData(PtrTy p, unsigned int len, MemValTy memIn,
+                          unsigned int val) {
+    return hana::eval_if(
+        MemoryFeatures::has_tracking(hana::type<BaseT>{}),
+        [&](auto _) {
+          auto r =
+              _(base()).memsetMetaData(BasePtrTy(std::move(p)), len,
+                                       BaseMemValTy(std::move(memIn)), val);
+          return toMemValTy(std::move(r));
+        },
+        [&] { return memIn; });
   }
 };
 } // namespace details

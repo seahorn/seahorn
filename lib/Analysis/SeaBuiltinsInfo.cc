@@ -23,6 +23,8 @@ using namespace llvm;
 #define SEA_BRANCH_SENTINEL "sea.branch_sentinel"
 #define SEA_IS_MODIFIED "sea.is_modified"
 #define SEA_RESET_MODIFIED "sea.reset_modified"
+#define SEA_TRACKING_ON "sea.tracking_on"
+#define SEA_TRACKING_OFF "sea.tracking_off"
 
 SeaBuiltinsOp
 seahorn::SeaBuiltinsInfo::getSeaBuiltinOp(const llvm::CallBase &cb) const {
@@ -43,6 +45,8 @@ seahorn::SeaBuiltinsInfo::getSeaBuiltinOp(const llvm::CallBase &cb) const {
       .Case(SEA_BRANCH_SENTINEL, SBIOp::BRANCH_SENTINEL)
       .Case(SEA_IS_MODIFIED, SBIOp::IS_MODIFIED)
       .Case(SEA_RESET_MODIFIED, SBIOp::RESET_MODIFIED)
+      .Case(SEA_TRACKING_ON, SBIOp::TRACKING_ON)
+      .Case(SEA_TRACKING_OFF, SBIOp::TRACKING_OFF)
       .Default(SBIOp::UNKNOWN);
 }
 
@@ -72,6 +76,10 @@ llvm::Function *SeaBuiltinsInfo::mkSeaBuiltinFn(SeaBuiltinsOp op,
     return mkIsModifiedFn(M);
   case SBIOp::RESET_MODIFIED:
     return mkResetModifiedFn(M);
+  case SBIOp::TRACKING_ON:
+    return mkTrackingOnFn(M);
+  case SBIOp::TRACKING_OFF:
+    return mkTrackingOffFn(M);
   }
   llvm_unreachable(nullptr);
 }
@@ -229,6 +237,32 @@ Function *SeaBuiltinsInfo::mkBranchSentinelFn(llvm::Module &M) {
   auto *FN = dyn_cast<Function>(FC.getCallee());
   if (FN) {
     FN->setOnlyAccessesInaccessibleMemory();
+    FN->setDoesNotThrow();
+    FN->setDoesNotFreeMemory();
+    FN->setDoesNotRecurse();
+  }
+  return FN;
+}
+
+Function *SeaBuiltinsInfo::mkTrackingOnFn(Module &M) {
+  auto &C = M.getContext();
+  auto FC = M.getOrInsertFunction(SEA_TRACKING_ON, Type::getVoidTy(C));
+  auto *FN = dyn_cast<Function>(FC.getCallee());
+  if (FN) {
+    FN->setDoesNotReadMemory();
+    FN->setDoesNotThrow();
+    FN->setDoesNotFreeMemory();
+    FN->setDoesNotRecurse();
+  }
+  return FN;
+}
+
+Function *SeaBuiltinsInfo::mkTrackingOffFn(Module &M) {
+  auto &C = M.getContext();
+  auto FC = M.getOrInsertFunction(SEA_TRACKING_OFF, Type::getVoidTy(C));
+  auto *FN = dyn_cast<Function>(FC.getCallee());
+  if (FN) {
+    FN->setDoesNotReadMemory();
     FN->setDoesNotThrow();
     FN->setDoesNotFreeMemory();
     FN->setDoesNotRecurse();

@@ -25,6 +25,8 @@ namespace seahorn
     Function *m_assert_if;
     Function *m_is_modified;
     Function *m_reset_modified;
+    Function *m_tracking_on;
+    Function *m_tracking_off;
 
     PromoteVerifierCalls() : ModulePass(ID) {}
 

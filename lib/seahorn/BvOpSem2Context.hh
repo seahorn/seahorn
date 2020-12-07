@@ -138,6 +138,8 @@ private:
   bool m_shouldSimplify = false;
   std::unordered_set<Expr> m_addedToSolver;
 
+  bool m_trackingOn = false;
+
 public:
   /// \brief Create a new context with given semantics, values, and side
   Bv2OpSemContext(Bv2OpSem &sem, SymStore &values, ExprVector &side);
@@ -152,6 +154,10 @@ public:
   Expr simplify(Expr u);
 
   bool shouldSimplify() { return m_shouldSimplify; }
+
+  bool isTrackingOn() { return m_trackingOn; }
+
+  void setTracking(bool shouldTrack) { m_trackingOn = shouldTrack; }
 
   /// \brief Writes value \p u into symbolic register \p v
   void write(Expr v, Expr u);

@@ -548,6 +548,12 @@ public:
         visitIsModified(CS);
       } else if (f->getName().startswith("sea.reset_modified")) {
         visitResetModified(CS);
+      } else if (f->getName().startswith("sea.reset_modified")) {
+        visitResetModified(CS);
+      } else if (f->getName().startswith("sea.tracking_on")) {
+        visitSetTrackingOn(CS);
+      } else if (f->getName().startswith(("sea.tracking_off"))) {
+        visitSetTrackingOff(CS);
       } else if (f->getName().startswith(("sea.assert.if"))) {
         visitSeaAssertIfCall(CS);
       } else if (f->getName().startswith(("verifier.assert"))) {
@@ -672,6 +678,10 @@ public:
     m_ctx.setMemReadRegister(Expr());
     m_ctx.setMemWriteRegister(Expr());
   }
+
+  void visitSetTrackingOn(CallSite CS) { m_ctx.setTracking(true); }
+
+  void visitSetTrackingOff(CallSite CS) { m_ctx.setTracking(false); }
 
   /// Report outcome of vacuity and incremental assertion checking
   void reportDoAssert(char *tag, const Instruction &I, boost::tribool res,

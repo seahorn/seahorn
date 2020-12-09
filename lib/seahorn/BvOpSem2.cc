@@ -1168,28 +1168,53 @@ public:
     case Intrinsic::lifetime_start:
     case Intrinsic::lifetime_end: {
       // -- use existing LLVM codegen to lower intrinsics into simpler
-      // instructions that we support
+      // -- instructions that we support
 
+      // -- The code is tricky because we must update
+      // -- (a) instruction iterator inside m_ctx to point to newly expanded
+      // --     instruction
+      // -- (b) COI filter to include new instructions if they came from marked instruction
+
+      // -- remember if the current instruction is in the COI (cone of
+      // -- influence). filter. If it is, we need to mark expanded instructions
+      // -- to be in the cone as well
       bool isInFilter = m_sem.isInFilter(I);
+      // -- get an iterator to the current instruction so that we can access
+      // -- prev and next instructions
       BasicBlock::iterator me(&I);
+
       // -- remember the following instruction
       auto nextInst = me;
+      // -- advance iterator to point to the next instruction from I
       ++nextInst;
 
-      auto *parent = I.getParent();
+      // -- check whether the current instruction is the first instruction of
+      // -- the basic block and has no predecessor
+      BasicBlock *parent = I.getParent();
       bool atBegin(parent->begin() == me);
-      // -- save instruction before the one being lowered
+
+      // -- if I is not the first instruction, make `me` point to the
+      // predecessor of I
       if (!atBegin)
         --me;
+
+      // -- expand I by lowering it into 0 or more other instructions
       IntrinsicLowering IL(m_sem.getDataLayout());
       IL.LowerIntrinsicCall(&I);
 
       // -- restore instruction pointer to the new lowered instructions
+      // -- the instruction pointer is either the first instruction of the basic
+      // -- block or the instruction currently following `me`
       auto top = atBegin ? &*parent->begin() : &*(++me);
-      m_ctx.setInstruction(*top);
+      // -- tell context that next instruction to execute is top, and that
+      // -- execution of current instruction must be repeated (because the
+      // -- current instruction has changed)
       m_ctx.setInstruction(*top, true);
 
-      // -- add newly inserted instructions to COI, if I was in COI
+      // -- update COI filter. New instructions introduced by lowering, if any,
+      // -- are the instructions between current top, and whatever instruction
+      // was
+      // -- following I
       if (isInFilter) {
         for (auto it = BasicBlock::iterator(top); it != nextInst; ++it) {
           m_sem.addToFilter(*it);

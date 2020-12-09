@@ -280,8 +280,7 @@ void GateAnalysisImpl::processPhi(PHINode *PN, Instruction *insertionPt) {
   assert(flowingValues.count(IDomBlock));
 
   Value *gamma = flowingValues[IDomBlock];
-  Twine newName = gamma->getName() + ".y." + PN->getName();
-  gamma->setName(newName);
+  gamma->setName(gamma->getName() + ".y." + PN->getName());
   m_gammas[PN] = gamma;
 
   GSA_LOG(errs() << "Gamma for phi: " << PN->getName() << "\n\t");

@@ -254,7 +254,9 @@ Expr TrackingRawMemManager::coerce(Expr sort, Expr val) {
     assert(sort->arity() == val->arity());
     assert(sort->arity() == g_num_slots);
     kids.push_back(m_main.coerce(sort->arg(0), val->arg(0)));
-    kids.push_back(m_metadata.coerce(sort->arg(1), val->arg(1)));
+    // when havocing a value; don't havoc(ignore) value for metadata memory,
+    // instead use 'zeroed' memory.
+    kids.push_back(m_metadata.zeroedMemory());
     return strct::mk(kids);
   }
   return m_main.coerce(sort, val);

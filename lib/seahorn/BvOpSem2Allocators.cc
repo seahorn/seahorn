@@ -67,7 +67,7 @@ struct OpSemAllocator::GlobalAllocInfo {
                   unsigned sz)
       : m_gv(&gv), m_start(start), m_end(end), m_sz(sz) {
 
-    m_mem = static_cast<char *>(::operator new(sz));
+    m_mem = static_cast<char *>(::operator new(end - start));
   }
 
   char *getMemory() const { return m_mem; }

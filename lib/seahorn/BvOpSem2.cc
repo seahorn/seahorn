@@ -129,6 +129,10 @@ static llvm::cl::opt<bool> UseIncVacSat(
         "Use incremental solver to check for vacuity and assertions"),
     llvm::cl::init(false));
 
+static llvm::cl::opt<unsigned>
+    MaxSizeGlobalVarInit("horn-bv2-max-gv-init-size",
+                         llvm::cl::desc("Maximum size for global initializers"),
+                         llvm::cl::init(0));
 namespace {
 
 const Value *extractUniqueScalar(CallSite &cs) {
@@ -994,12 +998,13 @@ public:
       Value *gVal = (*CS.getArgument(2)).stripPointerCasts();
       if (auto *gv = dyn_cast<llvm::GlobalVariable>(gVal)) {
         auto gvVal = m_ctx.getGlobalVariableInitValue(*gv);
-        if (gvVal.first) {
+        if (gvVal.first && (MaxSizeGlobalVarInit == 0 ||
+                            gvVal.second <= MaxSizeGlobalVarInit)) {
           m_ctx.MemFill(lookup(*gv), gvVal.first, gvVal.second);
+        } else {
+          WARN << "skipping global var init of " << inst << " to " << *gVal
+               << "\n";
         }
-      } else {
-        WARN << "skipping global var init of " << inst << " to " << *gVal
-             << "\n";
       }
       return;
     }

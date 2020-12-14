@@ -276,6 +276,23 @@ struct OpSemVisitorBase {
   }
 };
 
+static bool
+clobbersFlagRegisters(const llvm::SmallVector<llvm::StringRef, 4> &AsmPieces) {
+
+  if (AsmPieces.size() == 3 || AsmPieces.size() == 4) {
+    if (std::count(AsmPieces.begin(), AsmPieces.end(), "~{cc}") &&
+        std::count(AsmPieces.begin(), AsmPieces.end(), "~{flags}") &&
+        std::count(AsmPieces.begin(), AsmPieces.end(), "~{fpsr}")) {
+
+      if (AsmPieces.size() == 3)
+        return true;
+      else if (std::count(AsmPieces.begin(), AsmPieces.end(), "~{dirflag}"))
+        return true;
+    }
+  }
+  return false;
+}
+
 class OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemVisitorBase {
 public:
   OpSemVisitor(Bv2OpSemContext &ctx, Bv2OpSem &sem)
@@ -617,20 +634,42 @@ public:
     // 2) call void asm sideeffect "",
     // "r,~{memory},~{dirflag},~{fpsr},~{flags}"(i8* %7) #5, !dbg !102, !srcloc
     // !103
+    // 3) %_72 = call i16 asm "rorw $$8, ${0:w}",
+    // "=r,0,~{cc},~{dirflag},~{fpsr},~{flags}"(i16 %_69) #11, !dbg !731,
+    // !srcloc !733
 
     InlineAsm *IA = cast<InlineAsm>(CS.getCalledValue());
     const std::string &AsmStr = IA->getAsmString();
     // only handle "" instruction template and one argument
-    if (!AsmStr.empty() || CS.getNumArgOperands() > 1) {
+    // or "rorw $$8, ${0:w}" and one argument
+    if ((!AsmStr.empty() && AsmStr.compare(0, 16, "rorw $$8, ${0:w}") != 0) ||
+        CS.getNumArgOperands() > 1) {
       LOG("opsem",
           ERR << "Cannot handle inline assembly: " << *CS.getInstruction());
       return;
     }
 
     if (IA->getConstraintString().compare(0, 5, "=r,0,") == 0) {
-      // copy input to output
-      Expr readVal = lookup(*CS.getArgument(0));
-      setValue(*CS.getInstruction(), readVal);
+      if (AsmStr.compare(0, 16, "rorw $$8, ${0:w}") == 0) {
+        // Check Flag resgisters
+        llvm::SmallVector<llvm::StringRef, 4> AsmPieces;
+        llvm::SplitString(StringRef(IA->getConstraintString()).substr(5),
+                          AsmPieces, ",");
+        // Try to replace a call instruction with a call to a bswap intrinsic
+        if (!clobbersFlagRegisters(AsmPieces) ||
+            !expandCallInst(*cast<CallInst>(CS.getInstruction()),
+                            [](CallInst &CI) {
+                              return IntrinsicLowering::LowerToByteSwap(&CI);
+                            })) {
+          LOG("opsem", ERR << "Cannot handle inline assembly of integer swap: "
+                           << *CS.getInstruction());
+          return;
+        }
+      } else {
+        // Copy input to output
+        Expr readVal = lookup(*CS.getArgument(0));
+        setValue(*CS.getInstruction(), readVal);
+      }
     } else if (IA->getConstraintString().compare(0, 2, "r,") == 0) {
       // This code is only used to stop optimization
       // Since there is no computation, do nothing

@@ -76,6 +76,11 @@ static void removeMetadataIfFunctionIsEmpty(Function &f) {
     f.clearMetadata();
 }
 
+static void removePersonalityIfFunctionIsEmpty(Function &f) {
+  if (f.empty() && f.hasPersonalityFn())
+    f.setPersonalityFn(nullptr);
+}
+
 bool MixedSemantics::runOnModule(Module &M) {
   LOG("mixed-sem", errs() << "Starting MixedSemantics\n";);
   Function *main = M.getFunction("main");
@@ -137,8 +142,10 @@ bool MixedSemantics::runOnModule(Module &M) {
     if (&F == main || &F == newM)
       continue;
     if (!CF.canFail(&F)) {
-      if (!F.isDeclaration())
+      if (!F.isDeclaration()) {
         reduceToReturnPaths(F, SBI);
+        removePersonalityIfFunctionIsEmpty(F);
+      }
       continue;
     }
 
@@ -160,6 +167,7 @@ bool MixedSemantics::runOnModule(Module &M) {
       InlineFunction(fcall, IFI);
       removeError(F, SBI);
       reduceToReturnPaths(F, SBI);
+      removePersonalityIfFunctionIsEmpty(F);
     } else {
       Builder.CreateRet(Builder.getInt32(42));
       errBlocks.push_back(bb);

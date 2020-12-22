@@ -51,8 +51,12 @@ bool PromoteVerifierCalls::runOnModule(Module &M) {
   m_assert_if = SBI.mkSeaBuiltinFn(SBIOp::ASSERT_IF, M);
   m_is_modified = SBI.mkSeaBuiltinFn(SBIOp::IS_MODIFIED, M);
   m_reset_modified = SBI.mkSeaBuiltinFn(SBIOp::RESET_MODIFIED, M);
+  m_is_read = SBI.mkSeaBuiltinFn(SBIOp::IS_READ, M);
+  m_reset_read = SBI.mkSeaBuiltinFn(SBIOp::RESET_READ, M);
+  m_is_alloc = SBI.mkSeaBuiltinFn(SBIOp::IS_ALLOC, M);
   m_tracking_on = SBI.mkSeaBuiltinFn(SBIOp::TRACKING_ON, M);
   m_tracking_off = SBI.mkSeaBuiltinFn(SBIOp::TRACKING_OFF, M);
+  m_free = SBI.mkSeaBuiltinFn(SBIOp::FREE, M);
 
   // XXX DEPRECATED
   // Do not keep unused functions in llvm.used
@@ -211,6 +215,33 @@ bool PromoteVerifierCalls::runOnFunction(Function &F) {
 
       I.replaceAllUsesWith(ci);
       toKill.push_back(&I);
+    } else if (fn && (fn->getName().equals("sea_is_read"))) {
+      IRBuilder<> Builder(F.getContext());
+      Builder.SetInsertPoint(&I);
+      CallInst *ci = Builder.CreateCall(m_is_read, {CS.getArgument(0)});
+      if (cg)
+        (*cg)[&F]->addCalledFunction(ci, (*cg)[ci->getCalledFunction()]);
+
+      I.replaceAllUsesWith(ci);
+      toKill.push_back(&I);
+    } else if (fn && (fn->getName().equals("sea_reset_read"))) {
+      IRBuilder<> Builder(F.getContext());
+      Builder.SetInsertPoint(&I);
+      CallInst *ci = Builder.CreateCall(m_reset_read, {CS.getArgument(0)});
+      if (cg)
+        (*cg)[&F]->addCalledFunction(ci, (*cg)[ci->getCalledFunction()]);
+
+      I.replaceAllUsesWith(ci);
+      toKill.push_back(&I);
+    } else if (fn && (fn->getName().equals("sea_is_alloc"))) {
+      IRBuilder<> Builder(F.getContext());
+      Builder.SetInsertPoint(&I);
+      CallInst *ci = Builder.CreateCall(m_is_alloc, {CS.getArgument(0)});
+      if (cg)
+        (*cg)[&F]->addCalledFunction(ci, (*cg)[ci->getCalledFunction()]);
+
+      I.replaceAllUsesWith(ci);
+      toKill.push_back(&I);
     } else if (fn && (fn->getName().equals("sea_tracking_on"))) {
       IRBuilder<> Builder(F.getContext());
       Builder.SetInsertPoint(&I);
@@ -224,6 +255,15 @@ bool PromoteVerifierCalls::runOnFunction(Function &F) {
       IRBuilder<> Builder(F.getContext());
       Builder.SetInsertPoint(&I);
       CallInst *ci = Builder.CreateCall(m_tracking_off);
+      if (cg)
+        (*cg)[&F]->addCalledFunction(ci, (*cg)[ci->getCalledFunction()]);
+
+      I.replaceAllUsesWith(ci);
+      toKill.push_back(&I);
+    } else if (fn && (fn->getName().equals("free"))) {
+      IRBuilder<> Builder(F.getContext());
+      Builder.SetInsertPoint(&I);
+      CallInst *ci = Builder.CreateCall(m_free, {CS.getArgument(0)});
       if (cg)
         (*cg)[&F]->addCalledFunction(ci, (*cg)[ci->getCalledFunction()]);
 

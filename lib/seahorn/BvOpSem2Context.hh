@@ -15,6 +15,14 @@
 namespace seahorn {
 namespace details {
 
+// This enumerates the different kinds of metadata memory used in Tracking
+// memory.
+enum MetadataKind {
+  READ = 0,
+  WRITE = 1,
+  ALLOC = 2,
+};
+
 namespace MemoryFeatures {
 auto tracking_tag_of =
     [](auto t) -> hana::type<typename decltype(t)::type::TrackingTag> {
@@ -698,6 +706,9 @@ public:
   /// \brief returns a constant that represents zero-initialized memory region
   virtual MemValTy zeroedMemory() const = 0;
 
+  /// \brief returns a constant that represents zero-initialized memory region
+  virtual MemValTy setMemory(unsigned int val) const = 0;
+
   /// \brief Checks if \p a <= b <= c.
   Expr ptrInRangeCheck(PtrTy a, PtrTy b, PtrTy c) {
     return mk<AND>(ptrUle(a, b), ptrUle(b, c));
@@ -715,12 +726,12 @@ public:
   /// bounds, False expr otherwise.
   virtual Expr isDereferenceable(PtrTy p, Expr byteSz) = 0;
 
-  /// \brief return True expr if memory has been modified since resetModified
+  /// \brief return True expr if memory has been modified since resetMetadata
   // or allocation, whichever is later.
-  virtual Expr isModified(PtrTy p, MemValTy mem) = 0;
+  virtual Expr isMetadataSet(MetadataKind kind, PtrTy p, MemValTy mem) = 0;
 
-  /// \brief reset memory modified state; used in conjuction with isModified
-  virtual MemValTy resetModified(PtrTy p, MemValTy mem) = 0;
+  /// \brief reset memory modified state; used in conjuction with isMetadataSet
+  virtual MemValTy resetMetadata(MetadataKind kind, PtrTy p, MemValTy mem) = 0;
 
   /// \brief given an Expression \p e , return true if \p e has expected
   /// encoding of a PtrTyImpl

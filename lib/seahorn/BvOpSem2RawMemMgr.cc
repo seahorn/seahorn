@@ -725,7 +725,7 @@ Expr RawMemManagerCore::isDereferenceable(PtrTy p, Expr byteSz) {
 }
 
 Expr RawMemManagerCore::isModified(PtrTy p, MemValTy mem) {
-  LOG("opsem", ERR << "()isModified() not implemented");
+  LOG("opsem", ERR << "()isMetadataSet() not implemented");
   return Expr();
 }
 
@@ -795,7 +795,7 @@ bool RawMemManagerCore::ignoreAlignment() const { return m_ignoreAlignment; }
 
 RawMemManagerCore::MemValTy
 RawMemManagerCore::resetModified(PtrTy p, RawMemManagerCore::MemValTy mem) {
-  LOG("opsem", WARN << "resetModified() not implemented!\n");
+  LOG("opsem", WARN << "resetMetadata() not implemented!\n");
   return mem;
 }
 
@@ -815,6 +815,12 @@ RawMemManagerCore::getGlobalVariableInitValue(const GlobalVariable &gv) {
 
 bool RawMemManagerCore::isPtrTyVal(Expr e) {
   return (!e || !strct::isStructVal(e));
+}
+RawMemManagerCore::MemValTy
+RawMemManagerCore::setMemory(unsigned int val) const {
+  assert(llvm::Log2_64(val) + 1 <= wordSizeInBits());
+  return MemValTy(m_memRepr->FilledMemory(
+      ptrSort(), m_ctx.alu().ui(val, wordSizeInBits())));
 }
 
 } // namespace details

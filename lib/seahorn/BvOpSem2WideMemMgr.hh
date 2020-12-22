@@ -246,6 +246,8 @@ public:
 
   MemValTy zeroedMemory() const;
 
+  MemValTy setMemory(unsigned int val) const;
+
   Expr isDereferenceable(PtrTy p, Expr byteSz);
 
   RawPtrTy getAddressable(PtrTy p) const;

@@ -558,6 +558,11 @@ public:
                     m_slot1.zeroedMemory());
   }
 
+  FatMemValTy setMemory(unsigned int val) const {
+    return mkFatMem(m_main.setMemory(val), m_slot0.setMemory(val),
+                    m_slot1.setMemory(val));
+  }
+
   Expr getFatData(FatPtrTy p, unsigned SlotIdx) {
     assert(strct::isStructVal(p.v()));
     assert(SlotIdx < g_maxFatSlots);

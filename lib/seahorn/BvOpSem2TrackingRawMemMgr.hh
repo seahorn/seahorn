@@ -24,7 +24,12 @@ namespace details {
 class TrackingRawMemManager : public MemManagerCore {
 private:
   RawMemManager m_main;
-  RawMemManager m_metadata;
+  RawMemManager m_w_metadata;
+  RawMemManager m_r_metadata;
+  RawMemManager m_a_metadata;
+
+  // All accesses to metadata memory managers should be through this map
+  std::map<MetadataKind, RawMemManager *> m_metadata_map;
 
 public:
   // This memory manager supports tracking
@@ -40,23 +45,53 @@ public:
   struct MemValTyImpl {
     Expr m_v;
 
-    MemValTyImpl(RawMemValTy &&raw_val, Expr &&metadata_val) {
+    MemValTyImpl(RawMemValTy &&raw_val, RawMemValTy &&r_metadata_val,
+                 RawMemValTy &&w_metadata_val, RawMemValTy &&a_metadata_val) {
       assert(!strct::isStructVal(raw_val));
-      assert(!strct::isStructVal(metadata_val));
-      m_v = strct::mk(std::move(raw_val), std::move(metadata_val));
+      assert(!strct::isStructVal(r_metadata_val));
+      assert(!strct::isStructVal(w_metadata_val));
+      assert(!strct::isStructVal(a_metadata_val));
+      llvm::SmallVector<RawMemValTy, 4> kids;
+      kids.push_back(std::move(raw_val));
+      kids.push_back(std::move(r_metadata_val));
+      kids.push_back(std::move(w_metadata_val));
+      kids.push_back(std::move(a_metadata_val));
+
+      m_v = strct::mk(kids);
     }
 
-    MemValTyImpl(const RawMemValTy &raw_val, const RawMemValTy &metadata_val) {
+    MemValTyImpl(const RawMemValTy &raw_val, const RawMemValTy &r_metadata_val,
+                 const RawMemValTy &w_metadata_val,
+                 const RawMemValTy &a_metadata_val) {
       assert(!strct::isStructVal(raw_val));
-      assert(!strct::isStructVal(metadata_val));
-      m_v = strct::mk(raw_val, metadata_val);
+      assert(!strct::isStructVal(r_metadata_val));
+      assert(!strct::isStructVal(w_metadata_val));
+      assert(!strct::isStructVal(a_metadata_val));
+      llvm::SmallVector<RawMemValTy, 4> kids;
+      kids.push_back(std::move(raw_val));
+      kids.push_back(std::move(r_metadata_val));
+      kids.push_back(std::move(w_metadata_val));
+      kids.push_back(std::move(a_metadata_val));
+
+      m_v = strct::mk(kids);
+    }
+
+    MemValTyImpl(MetadataKind kind, const MemValTyImpl &orig_val,
+                 const RawMemValTy &raw_val) {
+      llvm::SmallVector<RawMemValTy, 4> kids;
+      for (auto i = 0; i < orig_val.toExpr()->arity(); i++) {
+        kids.push_back(i == kind + 1 ? raw_val : orig_val.toExpr()->arg(i));
+      }
+      m_v = strct::mk(kids);
     }
 
     explicit MemValTyImpl(const Expr &e) {
-      // Our base is a struct of two exprs
+      // Our base is a struct of four exprs
       assert(strct::isStructVal(e));
       assert(!strct::isStructVal(e->arg(0)));
       assert(!strct::isStructVal(e->arg(1)));
+      assert(!strct::isStructVal(e->arg(2)));
+      assert(!strct::isStructVal(e->arg(3)));
       m_v = e;
     }
 
@@ -66,19 +101,36 @@ public:
 
     RawMemValTy getRaw() { return strct::extractVal(m_v, 0); }
 
-    Expr getMetadata() { return strct::extractVal(m_v, 1); }
+    Expr getMetadata(MetadataKind kind) {
+      return strct::extractVal(m_v, kind + 1);
+    }
   };
 
   struct MemSortTyImpl {
     Expr m_mem_sort;
 
-    MemSortTyImpl(RawMemSortTy &&mem_sort, Expr &&metadata_sort) {
-      m_mem_sort =
-          sort::structTy(std::move(mem_sort), std::move(metadata_sort));
+    MemSortTyImpl(RawMemSortTy &&mem_sort, RawMemSortTy &&r_metadata_sort,
+                  RawMemSortTy &&w_metadata_sort,
+                  RawMemSortTy &&a_metadata_sort) {
+      llvm::SmallVector<RawMemSortTy, 4> kids;
+      kids.push_back(std::move(mem_sort));
+      kids.push_back(std::move(r_metadata_sort));
+      kids.push_back(std::move(w_metadata_sort));
+      kids.push_back(std::move(a_metadata_sort));
+      m_mem_sort = sort::structTy(kids);
     }
 
-    MemSortTyImpl(const RawMemSortTy &mem_sort, Expr &metadata_sort) {
-      m_mem_sort = sort::structTy(mem_sort, metadata_sort);
+    MemSortTyImpl(const RawMemSortTy &mem_sort,
+                  const RawMemSortTy &r_metadata_sort,
+                  const RawMemSortTy &w_metadata_sort,
+                  const RawMemSortTy &a_metadata_sort) {
+      llvm::SmallVector<RawMemSortTy, 4> kids;
+      kids.push_back(mem_sort);
+      kids.push_back(r_metadata_sort);
+      kids.push_back(w_metadata_sort);
+      kids.push_back(a_metadata_sort);
+
+      m_mem_sort = sort::structTy(kids);
     }
     Expr v() const { return m_mem_sort; }
     Expr toExpr() const { return v(); }
@@ -146,18 +198,23 @@ public:
 
   PtrTy ptrAdd(PtrTy ptr, Expr offset) const;
 
-  TrackingRawMemManager::MemValTy
-  memsetMetaData(PtrTy ptr, unsigned int len, MemValTy memIn, unsigned int val);
+  TrackingRawMemManager::MemValTy memsetMetaData(MetadataKind kind, PtrTy ptr,
+                                                 unsigned int len,
+                                                 MemValTy memIn,
+                                                 unsigned int val);
 
-  TrackingRawMemManager::MemValTy
-  memsetMetaData(PtrTy ptr, Expr len, MemValTy memIn, unsigned int val);
+  TrackingRawMemManager::MemValTy memsetMetaData(MetadataKind kind, PtrTy ptr,
+                                                 Expr len, MemValTy memIn,
+                                                 unsigned int val);
 
-  Expr getMetaData(PtrTy ptr, MemValTy memIn, unsigned int byteSz);
+  Expr getMetaData(MetadataKind kind, PtrTy ptr, MemValTy memIn,
+                   unsigned int byteSz);
 
   /// \brief get word size (in bits) of Metadata memory, associated with a
   /// Tracking memory manager.
   // TODO: This should be replaced by a general way to query memory properties
   // from a memory manager.
+  // All metadata memory will have the same word size.
   unsigned int getMetaDataMemWordSzInBits();
 
   Expr loadIntFromMem(PtrTy ptr, MemValTy mem, unsigned int byteSz,
@@ -225,15 +282,19 @@ public:
 
   MemValTy zeroedMemory() const;
 
+  MemValTy setMemory(unsigned int val) const;
+
   Expr isDereferenceable(PtrTy p, Expr byteSz);
 
   PtrTy getAddressable(PtrTy p) const;
 
   bool isPtrTyVal(Expr e) const;
 
-  Expr isModified(PtrTy p, MemValTy mem);
+  Expr isMetadataSet(MetadataKind kind, PtrTy p, MemValTy mem);
 
-  MemValTy resetModified(PtrTy p, MemValTy mem);
+  TrackingRawMemManager::MemValTy
+  resetMetadata(MetadataKind kind, TrackingRawMemManager::PtrTy p,
+                TrackingRawMemManager::MemValTy mem);
 };
 
 } // namespace details

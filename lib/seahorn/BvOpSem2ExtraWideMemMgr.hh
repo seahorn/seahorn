@@ -20,10 +20,6 @@ template <class T> class ExtraWideMemManager : public MemManagerCore {
   /// \brief Base name for non-deterministic pointer
   Expr m_freshPtrName;
 
-  /// \brief Register that contains the value of the stack pointer on
-  /// function entry
-  Expr m_sp0;
-
   /// \brief Source of unique identifiers
   mutable unsigned m_id;
 
@@ -268,28 +264,32 @@ public:
 
   MemValTy zeroedMemory() const;
 
+  MemValTy setMemory(unsigned int val) const;
+
   Expr isDereferenceable(PtrTy p, Expr byteSz);
 
   typename ExtraWideMemManager<T>::RawMemValTy
   setModified(ExtraWideMemManager::PtrTy ptr,
               ExtraWideMemManager::MemValTy mem);
 
-  Expr isModified(ExtraWideMemManager::PtrTy ptr,
-                  ExtraWideMemManager::MemValTy mem);
+  Expr isMetadataSet(MetadataKind kind, ExtraWideMemManager::PtrTy ptr,
+                     ExtraWideMemManager::MemValTy mem);
 
   typename ExtraWideMemManager<T>::MemValTy
-  resetModified(ExtraWideMemManager::PtrTy ptr,
+  resetMetadata(MetadataKind kind, ExtraWideMemManager::PtrTy ptr,
                 ExtraWideMemManager::MemValTy mem);
 
   typename ExtraWideMemManager<T>::MemValTy
-  memsetMetaData(ExtraWideMemManager::PtrTy ptr, unsigned int len,
-                 ExtraWideMemManager::MemValTy memIn, unsigned int val);
+  memsetMetaData(MetadataKind kind, ExtraWideMemManager::PtrTy ptr,
+                 unsigned int len, ExtraWideMemManager::MemValTy memIn,
+                 unsigned int val);
 
   typename ExtraWideMemManager<T>::MemValTy
-  memsetMetaData(ExtraWideMemManager::PtrTy ptr, Expr len,
+  memsetMetaData(MetadataKind kind, ExtraWideMemManager::PtrTy ptr, Expr len,
                  ExtraWideMemManager::MemValTy memIn, unsigned int val);
 
-  Expr getMetaData(PtrTy ptr, MemValTy memIn, unsigned int byteSz);
+  Expr getMetaData(MetadataKind kind, PtrTy ptr, MemValTy memIn,
+                   unsigned int byteSz);
 
   unsigned int getMetaDataMemWordSzInBits();
 

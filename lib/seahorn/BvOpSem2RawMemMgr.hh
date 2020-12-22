@@ -351,6 +351,8 @@ public:
 
   MemValTy zeroedMemory() const;
 
+  MemValTy setMemory(unsigned int val) const;
+
   Expr isDereferenceable(PtrTy p, Expr byteSz);
 
   Expr isModified(PtrTy p, MemValTy mem);

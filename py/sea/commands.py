@@ -1,11 +1,8 @@
-import sea
-
 import os.path
-import sys
+import sea
 import shutil
-
 import subprocess
-
+import sys
 from sea import add_in_args, add_in_out_args, add_tmp_dir_args, add_bool_argument, which, createWorkDir
 
 # To disable printing of commands and some warnings
@@ -116,7 +113,7 @@ class Clang(sea.LimitedCmd):
         self.clangCmd = sea.ExtCmd (cmd_name,'',quiet)
 
         if not all (_bc_or_ll_file (f) for f  in args.in_files):
-            argv = ['-c', '-emit-llvm', '-D__SEAHORN__']
+            argv = ['-c', '-emit-llvm', '-D__SEAHORN__', '-fdeclspec']
 
             # in clang-5.0 to ensure that compilation is done without
             # optimizations and also does not mark produced bitcode
@@ -1366,7 +1363,6 @@ class LegacyFrontEnd (sea.LimitedCmd):
             print ('Only supported on Linux')
             return 1
 
-        import subprocess
         self.lfeCmd = sea.ExtCmd (cmd_name,'',quiet)
 
         argv = ['--no-seahorn', '-o', args.out_file]

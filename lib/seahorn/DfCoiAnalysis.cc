@@ -42,9 +42,10 @@ void DfCoiAnalysis::analyze(User &user) {
           assert(it != CI->getParent()->end());
           workList.push_back(&*it);
         } else if (CS.getCalledFunction()->getName().equals(
-                       "sea.is_modified")) {
+                       "sea.is_modified") ||
+                   (CS.getCalledFunction()->getName().equals("sea.is_alloc"))) {
           //  instruction that precedes has to be
-          //  1. shadowmem.load load
+          //  1. shadowmem.load
           BasicBlock::iterator it(CI);
           --it;
           if (auto *CI = dyn_cast<CallInst>(&*it)) {
@@ -52,9 +53,10 @@ void DfCoiAnalysis::analyze(User &user) {
             assert(CS.getCalledFunction()->getName().equals("shadow.mem.load"));
             workList.push_back(&*it);
           } else if (CS.getCalledFunction()->getName().equals(
-                         "sea.reset_modified")) {
+                         "sea.reset_modified") ||
+                     (CS.getCalledFunction()->getName().equals("sea.free"))) {
             //  instruction that precedes has to be
-            //  1. shadowmem.store load
+            //  1. shadowmem.store
             BasicBlock::iterator it(CI);
             --it;
             if (auto *CI = dyn_cast<CallInst>(&*it)) {

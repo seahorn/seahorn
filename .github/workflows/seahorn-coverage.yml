@@ -1,0 +1,29 @@
+# workflow to run coverage tests
+name: Coverage
+# Controls when the action will run
+on:
+  schedule:
+    - cron: 0 0 * * *  # run every day at UTC 00:00
+
+jobs:
+  coverage:
+    runs-on: ubuntu-latest
+    env:
+      BUILD_TYPE: Coverage
+    steps:
+      - name: Check Out Repo
+        uses: actions/checkout@v2
+        with:
+          ref: dev10  # only checkout dev10
+      - name: Build seahorn builder
+        run: docker build . --file docker/seahorn-builder.Dockerfile --tag seahorn/seahorn-builder:bionic-llvm10 --build-arg BUILD_TYPE=$BUILD_TYPE
+      - name: Collect coverage report
+        run:  docker run -v $(pwd):/host seahorn/seahorn-builder:bionic-llvm10 /bin/bash -c "/seahorn/scripts/coverage/docker-run-lcov.sh && mv /seahorn/all.info /host"
+      - name: Upload coverage report
+        uses: codecov/codecov-action@v1
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          file: ./all.info
+          name: codecov-seahorn
+          fail_ci_if_error: true
+          verbose: true

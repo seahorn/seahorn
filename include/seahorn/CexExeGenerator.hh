@@ -13,6 +13,7 @@
 #include "boost/algorithm/string/replace.hpp"
 
 #include "seahorn/Bmc.hh"
+#include "seahorn/CallUtils.hh"
 #include "seahorn/Expr/ExprLlvm.hh"
 #include "seahorn/Expr/ExprMemMap.hh"
 #include "seahorn/Expr/ExprOpBinder.hh"
@@ -59,12 +60,8 @@ template <class Trace> class CexExeGenerator {
 
   // map function calls to return value(s)
   ValueMap<const Function *, ExprVector> m_func_val_map;
-  // list of <start addr, size> of havoc pointers
-  std::vector<std::pair<Expr, Expr>> m_memhavoc_args;
-
-  /// \brief fills m_memhavoc_args and m_func_val_map
-  void storeMemHavoc(unsigned loc, const Function *func, ImmutableCallSite cs,
-                     ImmutableCallSite prevCS);
+  // list of <start addr, size> of havoc non det pointers
+  SmallVector<std::pair<Expr, Expr>, 20> m_nondet_ptrs;
 
   /// \brief fills func val map, dsa data and memhavoc ptr info
   void storeDataFromTrace();
@@ -98,6 +95,24 @@ public:
   }
 
   void saveCexModuleToFile(llvm::StringRef CexFile);
+
+  const DataLayout &getDataLayout() { return m_dl; }
+
+  const TargetLibraryInfo &getTargetLibraryInfo() { return m_tli; }
+
+  Trace &trace() { return m_trace; }
+
+  /// \brief Add int or pointer value \p val to list of return values of
+  /// Function \p func
+  void addValueToFunc(const Function *func, Expr val) {
+    m_func_val_map[func].push_back(val);
+  }
+
+  /// \brief Add pointer with starting address \p start and size of \p size to
+  /// list of pointers with non-det content
+  void addNonDetPtr(Expr start, Expr size) {
+    m_nondet_ptrs.emplace_back(std::make_pair(start, size));
+  }
 };
 
 } // namespace cexGen

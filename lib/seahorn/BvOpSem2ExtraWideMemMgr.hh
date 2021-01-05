@@ -39,6 +39,7 @@ public:
   using TrackingTag = typename T::TrackingTag;
   // We don't support composing ExtraWideMemManager using FatMemManager
   using FatMemTag = int;
+  using WideMemTag = MemoryFeatures::WideMem_tag;
 
   using RawPtrTy = typename T::PtrTy;
   using RawMemValTy = typename T::MemValTy;
@@ -264,8 +265,6 @@ public:
 
   MemValTy zeroedMemory() const;
 
-  MemValTy setMemory(unsigned int val) const;
-
   Expr isDereferenceable(PtrTy p, Expr byteSz);
 
   typename ExtraWideMemManager<T>::RawMemValTy
@@ -276,8 +275,8 @@ public:
                      ExtraWideMemManager::MemValTy mem);
 
   typename ExtraWideMemManager<T>::MemValTy
-  resetMetadata(MetadataKind kind, ExtraWideMemManager::PtrTy ptr,
-                ExtraWideMemManager::MemValTy mem);
+  setMetadata(MetadataKind kind, ExtraWideMemManager::PtrTy ptr,
+              ExtraWideMemManager::MemValTy mem, unsigned val);
 
   typename ExtraWideMemManager<T>::MemValTy
   memsetMetaData(MetadataKind kind, ExtraWideMemManager::PtrTy ptr,

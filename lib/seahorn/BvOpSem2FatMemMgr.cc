@@ -49,6 +49,7 @@ public:
 
   using FatMemTag = MemoryFeatures::FatMem_tag;
   using TrackingTag = int;
+  using WideMemTag = int;
 
   /// Right now everything is an expression. In the future, we might have
   /// other types for PtrTy, such as a tuple of expressions
@@ -558,11 +559,6 @@ public:
                     m_slot1.zeroedMemory());
   }
 
-  FatMemValTy setMemory(unsigned int val) const {
-    return mkFatMem(m_main.setMemory(val), m_slot0.setMemory(val),
-                    m_slot1.setMemory(val));
-  }
-
   Expr getFatData(FatPtrTy p, unsigned SlotIdx) {
     assert(strct::isStructVal(p.v()));
     assert(SlotIdx < g_maxFatSlots);
@@ -573,11 +569,6 @@ public:
     assert(strct::isStructVal(p.v()));
     assert(SlotIdx < g_maxFatSlots);
     return strct::insertVal(p.v(), 1 + SlotIdx, data);
-  }
-
-  Expr isDereferenceable(FatPtrTy p, Expr byteSz) {
-    LOG("opsem", WARN << "isDereferenceable() not implemented!\n");
-    return m_ctx.alu().getFalse();
   }
 
   RawPtrTy getAddressable(FatPtrTy p) const { return mkRawPtr(p); }

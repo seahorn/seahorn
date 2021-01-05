@@ -17,6 +17,7 @@ namespace details {
 
 // This enumerates the different kinds of metadata memory used in Tracking
 // memory.
+// TODO: move to enum class when int value is not needed.
 enum MetadataKind {
   READ = 0,
   WRITE = 1,
@@ -33,11 +34,20 @@ auto fatmem_tag_of =
     [](auto t) -> hana::type<typename decltype(t)::type::FatMemTag> {
   return {};
 };
+
+auto widemem_tag_of =
+    [](auto t) -> hana::type<typename decltype(t)::type::WideMemTag> {
+  return {};
+};
+
 // This empty class is used as a 'tag' to mark containing classes as enabling
-// features feature: tracking.
+// features
+// feature: tracking.
 struct Tracking_tag {};
 // feature: Fat Memory.
 struct FatMem_tag {};
+// feature: Wide Memory.
+struct WideMem_tag {};
 
 auto has_tracking = [](auto t) {
   return hana::sfinae(tracking_tag_of)(t) ==
@@ -46,6 +56,11 @@ auto has_tracking = [](auto t) {
 
 auto has_fatmem = [](auto t) {
   return hana::sfinae(fatmem_tag_of)(t) == hana::just(hana::type<FatMem_tag>{});
+};
+
+auto has_widemem = [](auto t) {
+  return hana::sfinae(widemem_tag_of)(t) ==
+         hana::just(hana::type<WideMem_tag>{});
 };
 
 } // namespace MemoryFeatures
@@ -706,9 +721,6 @@ public:
   /// \brief returns a constant that represents zero-initialized memory region
   virtual MemValTy zeroedMemory() const = 0;
 
-  /// \brief returns a constant that represents zero-initialized memory region
-  virtual MemValTy setMemory(unsigned int val) const = 0;
-
   /// \brief Checks if \p a <= b <= c.
   Expr ptrInRangeCheck(PtrTy a, PtrTy b, PtrTy c) {
     return mk<AND>(ptrUle(a, b), ptrUle(b, c));
@@ -726,12 +738,13 @@ public:
   /// bounds, False expr otherwise.
   virtual Expr isDereferenceable(PtrTy p, Expr byteSz) = 0;
 
-  /// \brief return True expr if memory has been modified since resetMetadata
+  /// \brief return True expr if memory has been modified since setMetadata
   // or allocation, whichever is later.
   virtual Expr isMetadataSet(MetadataKind kind, PtrTy p, MemValTy mem) = 0;
 
   /// \brief reset memory modified state; used in conjuction with isMetadataSet
-  virtual MemValTy resetMetadata(MetadataKind kind, PtrTy p, MemValTy mem) = 0;
+  virtual MemValTy setMetadata(MetadataKind kind, PtrTy p, MemValTy mem,
+                               unsigned val) = 0;
 
   /// \brief given an Expression \p e , return true if \p e has expected
   /// encoding of a PtrTyImpl

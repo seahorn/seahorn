@@ -9,6 +9,7 @@ class OpSemMemManagerMixin : public BaseT, public OpSemMemManager {
 public:
   using TrackingTag = typename BaseT::TrackingTag;
   using FatMemTag = typename BaseT::FatMemTag;
+  using WideMemTag = typename BaseT::WideMemTag;
 
   using Base = BaseT;
   using PtrTy = Expr;
@@ -308,11 +309,6 @@ public:
     return toMemValTy(std::move(res));
   }
 
-  MemValTy setMemory(unsigned int val) const override {
-    auto res = base().setMemory(val);
-    return toMemValTy(std::move(res));
-  }
-
   Expr getFatData(PtrTy p, unsigned SlotIdx) override {
     return hana::eval_if(
         MemoryFeatures::has_fatmem(hana::type<BaseT>{}),
@@ -342,18 +338,28 @@ public:
   }
 
   Expr isDereferenceable(PtrTy p, Expr byteSz) override {
-    return base().isDereferenceable(BasePtrTy(std::move(p)), byteSz);
+    return hana::eval_if(
+        MemoryFeatures::has_widemem(hana::type<BaseT>{}),
+        [&](auto _) {
+          return _(base()).isDereferenceable(BasePtrTy(std::move(p)), byteSz);
+        },
+        [&] {
+          LOG("opsem", WARN << "isDerefernceable() not implemented!\n");
+          return Expr();
+        });
   }
 
-  MemValTy resetMetadata(MetadataKind kind, PtrTy p, MemValTy mem) override {
+  MemValTy setMetadata(MetadataKind kind, PtrTy p, MemValTy mem,
+                       unsigned val) override {
     return hana::eval_if(
         MemoryFeatures::has_tracking(hana::type<BaseT>{}),
         [&](auto _) {
-          return toMemValTy(std::move(_(base()).resetMetadata(
-              kind, BasePtrTy(std::move(p)), BaseMemValTy(std::move(mem)))));
+          return toMemValTy(std::move(
+              _(base()).setMetadata(kind, BasePtrTy(std::move(p)),
+                                    BaseMemValTy(std::move(mem)), val)));
         },
         [&] {
-          LOG("opsem", WARN << "resetMetadata() not implemented!\n");
+          LOG("opsem", WARN << "setMetadata() not implemented!\n");
           return mem;
         });
   }

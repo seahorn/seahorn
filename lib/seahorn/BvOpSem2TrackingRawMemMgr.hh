@@ -9,6 +9,7 @@
 #include "llvm/IR/DebugLoc.h"
 
 #include "llvm/Support/MathExtras.h"
+#include <array>
 #include <cstdint>
 
 namespace seahorn {
@@ -35,6 +36,7 @@ public:
   // This memory manager supports tracking
   using TrackingTag = MemoryFeatures::Tracking_tag;
   using FatMemTag = int;
+  using WideMemTag = int;
 
   using PtrTy = OpSemMemManager::PtrTy;
   using PtrSortTy = OpSemMemManager::PtrSortTy;
@@ -43,6 +45,8 @@ public:
   using RawMemSortTy = OpSemMemManager::MemSortTy;
 
   struct MemValTyImpl {
+    // The order of metadata in a struct expr is expected to be the same as
+    // the order in the enum MetadataKind
     Expr m_v;
 
     MemValTyImpl(RawMemValTy &&raw_val, RawMemValTy &&r_metadata_val,
@@ -51,12 +55,9 @@ public:
       assert(!strct::isStructVal(r_metadata_val));
       assert(!strct::isStructVal(w_metadata_val));
       assert(!strct::isStructVal(a_metadata_val));
-      llvm::SmallVector<RawMemValTy, 4> kids;
-      kids.push_back(std::move(raw_val));
-      kids.push_back(std::move(r_metadata_val));
-      kids.push_back(std::move(w_metadata_val));
-      kids.push_back(std::move(a_metadata_val));
-
+      std::array<RawMemValTy, 4> kids = {
+          std::move(raw_val), std::move(r_metadata_val),
+          std::move(w_metadata_val), std::move(a_metadata_val)};
       m_v = strct::mk(kids);
     }
 
@@ -67,18 +68,17 @@ public:
       assert(!strct::isStructVal(r_metadata_val));
       assert(!strct::isStructVal(w_metadata_val));
       assert(!strct::isStructVal(a_metadata_val));
-      llvm::SmallVector<RawMemValTy, 4> kids;
-      kids.push_back(std::move(raw_val));
-      kids.push_back(std::move(r_metadata_val));
-      kids.push_back(std::move(w_metadata_val));
-      kids.push_back(std::move(a_metadata_val));
-
+      std::array<RawMemValTy, 4> kids = {raw_val, r_metadata_val,
+                                         w_metadata_val, a_metadata_val};
       m_v = strct::mk(kids);
     }
 
+    // Create a new MemValTyImpl object by copying from an existing object
+    // except the metadata field given by 'kind'. Use raw_val for this field.
     MemValTyImpl(MetadataKind kind, const MemValTyImpl &orig_val,
                  const RawMemValTy &raw_val) {
       llvm::SmallVector<RawMemValTy, 4> kids;
+      // Copy all fields from the original object one by one.
       for (auto i = 0; i < orig_val.toExpr()->arity(); i++) {
         kids.push_back(i == kind + 1 ? raw_val : orig_val.toExpr()->arg(i));
       }
@@ -112,11 +112,10 @@ public:
     MemSortTyImpl(RawMemSortTy &&mem_sort, RawMemSortTy &&r_metadata_sort,
                   RawMemSortTy &&w_metadata_sort,
                   RawMemSortTy &&a_metadata_sort) {
-      llvm::SmallVector<RawMemSortTy, 4> kids;
-      kids.push_back(std::move(mem_sort));
-      kids.push_back(std::move(r_metadata_sort));
-      kids.push_back(std::move(w_metadata_sort));
-      kids.push_back(std::move(a_metadata_sort));
+      std::array<RawMemSortTy, 4> kids = {
+          std::move(mem_sort), std::move(r_metadata_sort),
+          std::move(w_metadata_sort), std::move(a_metadata_sort)};
+
       m_mem_sort = sort::structTy(kids);
     }
 
@@ -124,11 +123,8 @@ public:
                   const RawMemSortTy &r_metadata_sort,
                   const RawMemSortTy &w_metadata_sort,
                   const RawMemSortTy &a_metadata_sort) {
-      llvm::SmallVector<RawMemSortTy, 4> kids;
-      kids.push_back(mem_sort);
-      kids.push_back(r_metadata_sort);
-      kids.push_back(w_metadata_sort);
-      kids.push_back(a_metadata_sort);
+      std::array<RawMemSortTy, 4> kids = {mem_sort, r_metadata_sort,
+                                          w_metadata_sort, a_metadata_sort};
 
       m_mem_sort = sort::structTy(kids);
     }
@@ -282,8 +278,6 @@ public:
 
   MemValTy zeroedMemory() const;
 
-  MemValTy setMemory(unsigned int val) const;
-
   Expr isDereferenceable(PtrTy p, Expr byteSz);
 
   PtrTy getAddressable(PtrTy p) const;
@@ -293,8 +287,8 @@ public:
   Expr isMetadataSet(MetadataKind kind, PtrTy p, MemValTy mem);
 
   TrackingRawMemManager::MemValTy
-  resetMetadata(MetadataKind kind, TrackingRawMemManager::PtrTy p,
-                TrackingRawMemManager::MemValTy mem);
+  setMetadata(MetadataKind kind, TrackingRawMemManager::PtrTy p,
+              TrackingRawMemManager::MemValTy mem, unsigned val);
 };
 
 } // namespace details

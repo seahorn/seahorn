@@ -315,7 +315,6 @@ Function *SeaBuiltinsInfo::mkTrackingOnFn(Module &M) {
   auto FC = M.getOrInsertFunction(SEA_TRACKING_ON, Type::getVoidTy(C));
   auto *FN = dyn_cast<Function>(FC.getCallee());
   if (FN) {
-    FN->setDoesNotReadMemory();
     FN->setDoesNotThrow();
     FN->setDoesNotFreeMemory();
     FN->setDoesNotRecurse();
@@ -328,7 +327,6 @@ Function *SeaBuiltinsInfo::mkTrackingOffFn(Module &M) {
   auto FC = M.getOrInsertFunction(SEA_TRACKING_OFF, Type::getVoidTy(C));
   auto *FN = dyn_cast<Function>(FC.getCallee());
   if (FN) {
-    FN->setDoesNotReadMemory();
     FN->setDoesNotThrow();
     FN->setDoesNotFreeMemory();
     FN->setDoesNotRecurse();
@@ -344,6 +342,9 @@ Function *SeaBuiltinsInfo::mkFreeFn(Module &M) {
   if (FN) {
     FN->setDoesNotThrow();
     FN->setDoesNotRecurse();
+    // This only marks the memory as freed an does not have the semantics for
+    // actually freeing memory.
+    FN->setDoesNotFreeMemory();
     FN->addParamAttr(0, Attribute::NoCapture);
     // XXX maybe even add the following
     // FN->setDoesNotAccessMemory();

@@ -141,12 +141,7 @@ ExtraWideMemManager<T>::zeroedMemory() const {
   return MemValTy(m_main.zeroedMemory(), m_offset.zeroedMemory(),
                   m_size.zeroedMemory());
 }
-template <class T>
-typename ExtraWideMemManager<T>::MemValTy
-ExtraWideMemManager<T>::setMemory(unsigned int val) const {
-  return MemValTy(m_main.setMemory(val), m_offset.setMemory(val),
-                  m_size.setMemory(val));
-}
+
 template <class T>
 std::pair<char *, unsigned int>
 ExtraWideMemManager<T>::getGlobalVariableInitValue(const GlobalVariable &gv) {
@@ -642,17 +637,16 @@ unsigned int ExtraWideMemManager<T>::getMetaDataMemWordSzInBits() {
   return m_main.getMetaDataMemWordSzInBits();
 }
 template <class T>
-typename ExtraWideMemManager<T>::MemValTy
-ExtraWideMemManager<T>::resetMetadata(MetadataKind kind,
-                                      ExtraWideMemManager::PtrTy ptr,
-                                      ExtraWideMemManager::MemValTy mem) {
-  if (!m_ctx.isTrackingOn()) {
+typename ExtraWideMemManager<T>::MemValTy ExtraWideMemManager<T>::setMetadata(
+    MetadataKind kind, ExtraWideMemManager::PtrTy ptr,
+    ExtraWideMemManager::MemValTy mem, unsigned val) {
+  if (!m_ctx.isTrackingOn() && kind != ALLOC) {
     LOG("opsem.memtrack.verbose",
-        errs() << "Ignoring resetMetadata();Memory tracking is off"
+        errs() << "Ignoring setMetadata();Memory tracking is off"
                << "\n";);
     return mem;
   }
-  return memsetMetaData(kind, ptr, 1 /* len */, mem, 0U /* val */);
+  return memsetMetaData(kind, ptr, 1 /* len */, mem, val);
 }
 template <class T>
 Expr ExtraWideMemManager<T>::ptrUlt(ExtraWideMemManager::PtrTy p1,

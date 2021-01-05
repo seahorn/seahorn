@@ -64,13 +64,6 @@ TrackingRawMemManager::MemValTy TrackingRawMemManager::zeroedMemory() const {
                   m_metadata_map.at(ALLOC)->zeroedMemory());
 }
 
-TrackingRawMemManager::MemValTy
-TrackingRawMemManager::setMemory(unsigned int val) const {
-  return MemValTy(m_main.setMemory(val),
-                  m_metadata_map.at(READ)->setMemory(val),
-                  m_metadata_map.at(WRITE)->setMemory(val),
-                  m_metadata_map.at(ALLOC)->setMemory(val));
-}
 std::pair<char *, unsigned int>
 TrackingRawMemManager::getGlobalVariableInitValue(const GlobalVariable &gv) {
   return m_main.getGlobalVariableInitValue(gv);
@@ -146,8 +139,6 @@ TrackingRawMemManager::MemValTy TrackingRawMemManager::storeValueToMem(
   const unsigned byteSz =
       m_sem.getTD().getTypeStoreSize(const_cast<llvm::Type *>(&ty));
   ExprFactory &efac = ptr->efac();
-  // TODO: use zeroed memory on m_main, m_w_metadata instead of explicit
-  // init
   MemValTy res(m_ctx.alu().ui(0UL, wordSizeInBits()),
                m_ctx.alu().ui(0UL, g_MetadataBitWidth),
                m_ctx.alu().ui(0UL, g_MetadataBitWidth),
@@ -274,8 +265,9 @@ TrackingRawMemManager::memsetMetaData(MetadataKind kind, PtrTy ptr,
 }
 Expr TrackingRawMemManager::getMetaData(MetadataKind kind, PtrTy ptr,
                                         MemValTy memIn, unsigned int byteSz) {
-  return m_metadata_map.at(kind)->loadIntFromMem(ptr, memIn.getMetadata(kind),
-                                                 byteSz, 0 /* TODO: fix */);
+  return m_metadata_map.at(kind)->loadIntFromMem(
+      ptr, memIn.getMetadata(kind), byteSz,
+      m_metadata_map.at(kind)->wordSizeInBytes());
 }
 TrackingRawMemManager::PtrTy
 TrackingRawMemManager::ptrAdd(TrackingRawMemManager::PtrTy ptr,
@@ -298,7 +290,7 @@ Expr TrackingRawMemManager::coerce(Expr sort, Expr val) {
     // instead intialize memory to a constant value.
     kids.push_back(m_metadata_map.at(READ)->zeroedMemory());
     kids.push_back(m_metadata_map.at(WRITE)->zeroedMemory());
-    kids.push_back(m_metadata_map.at(ALLOC)->setMemory(1U));
+    kids.push_back(m_metadata_map.at(ALLOC)->zeroedMemory());
     return strct::mk(kids);
   }
   return m_main.coerce(sort, val);
@@ -379,14 +371,13 @@ unsigned int TrackingRawMemManager::getMetaDataMemWordSzInBits() {
 }
 Expr TrackingRawMemManager::isMetadataSet(MetadataKind kind, PtrTy p,
                                           MemValTy mem) {
-  LOG("opsem", WARN << "isMetadataSet() not implemented!\n");
+  LOG("opsem", ERR << "isMetadataSet() not implemented!\n");
   return Expr();
 }
-TrackingRawMemManager::MemValTy
-TrackingRawMemManager::resetMetadata(MetadataKind kind,
-                                     TrackingRawMemManager::PtrTy p,
-                                     TrackingRawMemManager::MemValTy mem) {
-  LOG("opsem", WARN << "resetMetadata() not implemented!\n");
+TrackingRawMemManager::MemValTy TrackingRawMemManager::setMetadata(
+    MetadataKind kind, TrackingRawMemManager::PtrTy p,
+    TrackingRawMemManager::MemValTy mem, unsigned val) {
+  LOG("opsem", ERR << "setMetadata() not implemented!\n");
   return mem;
 }
 Expr TrackingRawMemManager::ptrUlt(TrackingRawMemManager::PtrTy p1,

@@ -74,10 +74,6 @@ WideMemManager::MemValTy WideMemManager::zeroedMemory() const {
   return MemValTy(m_main.zeroedMemory(), m_size.zeroedMemory());
 }
 
-WideMemManager::MemValTy WideMemManager::setMemory(unsigned int val) const {
-  return MemValTy(m_main.setMemory(val), m_size.setMemory(val));
-}
-
 std::pair<char *, unsigned int>
 WideMemManager::getGlobalVariableInitValue(const GlobalVariable &gv) {
   return m_main.getGlobalVariableInitValue(gv);

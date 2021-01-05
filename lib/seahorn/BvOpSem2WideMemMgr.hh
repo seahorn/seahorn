@@ -29,6 +29,7 @@ public:
   // setting TrackingTag to int disqualifies this class as having tracking
   using TrackingTag = int;
   using FatMemTag = int;
+  using WideMemTag = MemoryFeatures::WideMem_tag;
 
   using RawPtrTy = OpSemMemManager::PtrTy;
   using RawMemValTy = OpSemMemManager::MemValTy;
@@ -245,8 +246,6 @@ public:
   getGlobalVariableInitValue(const GlobalVariable &gv);
 
   MemValTy zeroedMemory() const;
-
-  MemValTy setMemory(unsigned int val) const;
 
   Expr isDereferenceable(PtrTy p, Expr byteSz);
 

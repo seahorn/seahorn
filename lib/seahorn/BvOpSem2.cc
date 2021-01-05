@@ -453,6 +453,24 @@ public:
     }
 
     setValue(I, addr);
+
+    if (!m_ctx.getMemReadRegister() || !m_ctx.getMemWriteRegister()) {
+      LOG("opsem",
+          ERR << "No read/write register found - check if corresponding"
+                 " shadow instruction is present.");
+      m_ctx.setMemReadRegister(Expr());
+      m_ctx.setMemWriteRegister(Expr());
+      return;
+    }
+
+    // TODO: check that addr is valid
+    auto memIn = m_ctx.read(m_ctx.getMemReadRegister());
+    OpSemMemManager &memManager = m_ctx.mem();
+    auto res = memManager.setMetadata(ALLOC, addr, memIn, 1);
+    m_ctx.write(m_ctx.getMemWriteRegister(), res);
+
+    m_ctx.setMemReadRegister(Expr());
+    m_ctx.setMemWriteRegister(Expr());
   }
 
   void visitLoadInst(LoadInst &I) {
@@ -750,7 +768,7 @@ public:
     Expr ptr = lookup(*CS.getArgument(0));
     auto memIn = m_ctx.read(m_ctx.getMemReadRegister());
     OpSemMemManager &memManager = m_ctx.mem();
-    auto res = memManager.resetMetadata(WRITE, ptr, memIn);
+    auto res = memManager.setMetadata(WRITE, ptr, memIn, 0);
     m_ctx.write(m_ctx.getMemWriteRegister(), res);
 
     m_ctx.setMemReadRegister(Expr());
@@ -792,7 +810,7 @@ public:
     Expr ptr = lookup(*CS.getArgument(0));
     auto memIn = m_ctx.read(m_ctx.getMemReadRegister());
     OpSemMemManager &memManager = m_ctx.mem();
-    auto res = memManager.resetMetadata(ALLOC, ptr, memIn);
+    auto res = memManager.setMetadata(ALLOC, ptr, memIn, 0);
     m_ctx.write(m_ctx.getMemWriteRegister(), res);
 
     m_ctx.setMemReadRegister(Expr());

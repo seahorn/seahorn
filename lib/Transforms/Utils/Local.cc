@@ -103,11 +103,10 @@ void reduceToRegion(Function &F, DenseSet<const BasicBlock *> &region,
 /// Reduce the function to only the BasicBlocks that are ancestors of exits
 void reduceToAncestors(Function &F, ArrayRef<const BasicBlock *> _exits,
                        SeaBuiltinsInfo &SBI) {
-
-  // -- filter out any blocks that have no predecessors
+  // -- filter out any blocks that have no predecessors and are not entry blocks
   llvm::SmallVector<const BasicBlock *, 8> exits;
   for (auto *bb : _exits) {
-    if (bb->hasNPredecessorsOrMore(1))
+    if (bb->hasNPredecessorsOrMore(1) || bb == &F.getEntryBlock())
       exits.push_back(bb);
   }
 

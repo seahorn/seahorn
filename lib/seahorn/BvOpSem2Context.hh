@@ -18,7 +18,7 @@ namespace details {
 // This enumerates the different kinds of metadata memory used in Tracking
 // memory.
 // TODO: move to enum class when int value is not needed.
-enum MetadataKind {
+enum class MetadataKind {
   READ = 0,
   WRITE = 1,
   ALLOC = 2,

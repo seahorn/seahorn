@@ -55,8 +55,7 @@ public:
         if (!nv)
           nv = new AllocaInst(v->getType()->getPointerElementType(), addrSpace,
                               CS.getArgument(0), "malloc", &I);
-        IRBuilder<> Builder(F.getContext());
-        Builder.SetInsertPoint(&I);
+
         v->replaceAllUsesWith(nv);
 
         changed = true;

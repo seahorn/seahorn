@@ -38,6 +38,10 @@ public:
   using FatMemTag = int;
   using WideMemTag = int;
 
+  static const unsigned int g_MetadataBitWidth;
+  static const unsigned int g_MetadataByteWidth;
+  static const unsigned int g_num_slots;
+
   using PtrTy = OpSemMemManager::PtrTy;
   using PtrSortTy = OpSemMemManager::PtrSortTy;
   using MemRegTy = OpSemMemManager::MemRegTy;
@@ -79,19 +83,22 @@ public:
                  const RawMemValTy &raw_val) {
       llvm::SmallVector<RawMemValTy, 4> kids;
       // Copy all fields from the original object one by one.
-      for (auto i = 0; i < orig_val.toExpr()->arity(); i++) {
-        kids.push_back(i == kind + 1 ? raw_val : orig_val.toExpr()->arg(i));
+      for (unsigned i = 0, sz = orig_val.toExpr()->arity(); i < sz; ++i) {
+        // kind + 1 indexes the intended kind in a compound expression.
+        kids.push_back(i == (static_cast<std::size_t>(kind) + 1)
+                           ? raw_val
+                           : orig_val.toExpr()->arg(i));
       }
       m_v = strct::mk(kids);
     }
 
     explicit MemValTyImpl(const Expr &e) {
       // Our base is a struct of four exprs
-      assert(strct::isStructVal(e));
-      assert(!strct::isStructVal(e->arg(0)));
-      assert(!strct::isStructVal(e->arg(1)));
-      assert(!strct::isStructVal(e->arg(2)));
-      assert(!strct::isStructVal(e->arg(3)));
+      assert(!e || strct::isStructVal(e));
+      assert(strct::isStructVal(e) && !strct::isStructVal(e->arg(0)));
+      assert(strct::isStructVal(e) && !strct::isStructVal(e->arg(1)));
+      assert(strct::isStructVal(e) && !strct::isStructVal(e->arg(2)));
+      assert(strct::isStructVal(e) && !strct::isStructVal(e->arg(3)));
       m_v = e;
     }
 
@@ -102,7 +109,7 @@ public:
     RawMemValTy getRaw() { return strct::extractVal(m_v, 0); }
 
     Expr getMetadata(MetadataKind kind) {
-      return strct::extractVal(m_v, kind + 1);
+      return strct::extractVal(m_v, static_cast<std::size_t>(kind) + 1);
     }
   };
 

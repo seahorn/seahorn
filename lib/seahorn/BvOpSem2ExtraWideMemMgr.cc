@@ -42,13 +42,7 @@ template <class T>
 typename ExtraWideMemManager<T>::RawMemValTy
 ExtraWideMemManager<T>::setModified(ExtraWideMemManager::PtrTy ptr,
                                     ExtraWideMemManager::MemValTy mem) {
-  if (!m_ctx.isTrackingOn()) {
-    LOG("opsem.memtrack.verbose",
-        errs() << "Ignoring setModified(); Memory tracking is off"
-               << "\n";);
-    return mem.getRaw();
-  }
-  return memsetMetaData(WRITE, ptr, 1 /* len */, mem, 1U /* val */).getRaw();
+  return setMetadata(MetadataKind::WRITE, ptr, mem, 1U /* val */).getRaw();
 }
 
 template <class T>
@@ -640,10 +634,10 @@ template <class T>
 typename ExtraWideMemManager<T>::MemValTy ExtraWideMemManager<T>::setMetadata(
     MetadataKind kind, ExtraWideMemManager::PtrTy ptr,
     ExtraWideMemManager::MemValTy mem, unsigned val) {
-  if (!m_ctx.isTrackingOn() && kind != ALLOC) {
+  if (!m_ctx.isTrackingOn() && kind != MetadataKind::ALLOC) {
     LOG("opsem.memtrack.verbose",
-        errs() << "Ignoring setMetadata();Memory tracking is off"
-               << "\n";);
+        WARN << "Ignoring setMetadata();Memory tracking is off"
+             << "\n";);
     return mem;
   }
   return memsetMetaData(kind, ptr, 1 /* len */, mem, val);

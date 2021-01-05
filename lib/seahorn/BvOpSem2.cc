@@ -466,7 +466,7 @@ public:
     // TODO: check that addr is valid
     auto memIn = m_ctx.read(m_ctx.getMemReadRegister());
     OpSemMemManager &memManager = m_ctx.mem();
-    auto res = memManager.setMetadata(ALLOC, addr, memIn, 1);
+    auto res = memManager.setMetadata(MetadataKind::ALLOC, addr, memIn, 1);
     m_ctx.write(m_ctx.getMemWriteRegister(), res);
 
     m_ctx.setMemReadRegister(Expr());
@@ -751,7 +751,7 @@ public:
     Expr ptr = lookup(*CS.getArgument(0));
     auto memIn = m_ctx.read(m_ctx.getMemReadRegister());
     OpSemMemManager &memManager = m_ctx.mem();
-    auto res = memManager.isMetadataSet(WRITE, ptr, memIn);
+    auto res = memManager.isMetadataSet(MetadataKind::WRITE, ptr, memIn);
     setValue(*CS.getInstruction(), res);
     m_ctx.setMemReadRegister(Expr());
   }
@@ -768,7 +768,7 @@ public:
     Expr ptr = lookup(*CS.getArgument(0));
     auto memIn = m_ctx.read(m_ctx.getMemReadRegister());
     OpSemMemManager &memManager = m_ctx.mem();
-    auto res = memManager.setMetadata(WRITE, ptr, memIn, 0);
+    auto res = memManager.setMetadata(MetadataKind::WRITE, ptr, memIn, 0);
     m_ctx.write(m_ctx.getMemWriteRegister(), res);
 
     m_ctx.setMemReadRegister(Expr());
@@ -789,7 +789,7 @@ public:
     Expr ptr = lookup(*CS.getArgument(0));
     auto memIn = m_ctx.read(m_ctx.getMemReadRegister());
     OpSemMemManager &memManager = m_ctx.mem();
-    auto res = memManager.isMetadataSet(ALLOC, ptr, memIn);
+    auto res = memManager.isMetadataSet(MetadataKind::ALLOC, ptr, memIn);
     setValue(*CS.getInstruction(), res);
     m_ctx.setMemReadRegister(Expr());
   }
@@ -810,7 +810,7 @@ public:
     Expr ptr = lookup(*CS.getArgument(0));
     auto memIn = m_ctx.read(m_ctx.getMemReadRegister());
     OpSemMemManager &memManager = m_ctx.mem();
-    auto res = memManager.setMetadata(ALLOC, ptr, memIn, 0);
+    auto res = memManager.setMetadata(MetadataKind::ALLOC, ptr, memIn, 0);
     m_ctx.write(m_ctx.getMemWriteRegister(), res);
 
     m_ctx.setMemReadRegister(Expr());

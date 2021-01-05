@@ -316,8 +316,8 @@ int main(int argc, char **argv) {
   }
   pass_manager.add(new seahorn::RemoveUnreachableBlocksPass());
 
-  pass_manager.add(seahorn::createPromoteVerifierCallsPass());
   pass_manager.add(seahorn::createPromoteMallocPass());
+  pass_manager.add(seahorn::createPromoteVerifierCallsPass());
 
   // -- attempt to lower any left sea.is_dereferenceable()
   // -- they might be preventing some register promotion

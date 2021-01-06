@@ -231,6 +231,8 @@ public:
 
   bool isPtrTyVal(Expr e) const;
 
+  bool isMemVal(Expr e) const;
+
   Expr isModified(PtrTy p, MemValTy mem);
 
   MemValTy resetModified(PtrTy p, MemValTy mem);

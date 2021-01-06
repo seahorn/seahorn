@@ -297,6 +297,8 @@ public:
 
   bool isPtrTyVal(Expr e) const;
 
+  bool isMemVal(Expr e) const;
+
   Expr getSize(PtrTy p) const;
 
   const OpSemMemManager &getMainMemMgr() const;

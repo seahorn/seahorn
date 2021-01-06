@@ -817,5 +817,9 @@ bool RawMemManagerCore::isPtrTyVal(Expr e) {
   return (!e || !strct::isStructVal(e));
 }
 
+bool RawMemManagerCore::isMemVal(Expr e) {
+  return (!e || !strct::isStructVal(e));
+}
+
 } // namespace details
 } // namespace seahorn

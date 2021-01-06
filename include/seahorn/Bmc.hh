@@ -111,6 +111,13 @@ public:
     return m_semCtx->ptrToAddr(e);
   }
 
+  // given an Expr encoding of memory map, return only the raw mem part
+  Expr getRawMem(Expr e) {
+    if (!m_semCtx)
+      return Expr();
+    return m_semCtx->getRawMem(e);
+  }
+
   /// Dump unsat core
   /// Exposes internal details. Intendent to be used for debugging only
   virtual void unsatCore(ExprVector &out);

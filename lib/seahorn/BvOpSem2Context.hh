@@ -333,6 +333,8 @@ public:
 
   Expr ptrToAddr(Expr p) override;
 
+  Expr getRawMem(Expr p) override;
+
   void resetSolver();
   void addToSolver(const Expr e);
   boost::tribool solve();
@@ -729,6 +731,14 @@ public:
   /// \brief given a properly encoded pointer Expr \p p , return the raw
   /// expression representing memory address only
   virtual Expr ptrToAddr(Expr p) = 0;
+
+  /// \brief given an Expression \p e , return true if \p e has expected
+  /// encoding of a MemValTy
+  virtual bool isMemVal(Expr e) = 0;
+
+  /// \brief given a properly encoded memory map Expr \p p , return the base
+  /// expression representing raw memory only
+  virtual Expr getRawMem(Expr p) = 0;
 };
 
 OpSemMemManager *mkRawMemManager(Bv2OpSem &sem, Bv2OpSemContext &ctx,

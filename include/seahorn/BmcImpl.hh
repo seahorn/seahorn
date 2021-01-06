@@ -126,6 +126,10 @@ Expr BmcTrace<Engine, Model>::symb(unsigned loc, const llvm::Value &val) {
 template <class Engine, class Model>
 Expr BmcTrace<Engine, Model>::eval(unsigned loc, const llvm::Value &inst,
                                    bool complete) {
+  if (auto *constInt = dyn_cast<ConstantInt>(&inst)) {
+    expr::mpz_class constIntVal = toMpz(constInt);
+    return expr::mkTerm<expr::mpz_class>(constIntVal, engine().efac());
+  }
   Expr v = symb(loc, inst);
   if (v)
     v = m_model->eval(v, complete);

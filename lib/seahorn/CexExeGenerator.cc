@@ -77,11 +77,8 @@ public:
       // get memhavoc size from second operand of memhavoc
       const Value *sizeArg = CS.getArgOperand(1);
       Expr size;
-      if (auto *sizeI = dyn_cast<Instruction>(sizeArg)) {
-        size = m_cex.trace().eval(m_loc, *sizeI, true);
-      } else if (auto *sizeConst = dyn_cast<ConstantInt>(sizeArg)) {
-        expr::mpz_class sz = toMpz(sizeConst);
-        size = expr::mkTerm<expr::mpz_class>(sz, m_cex.trace().engine().efac());
+      if (isa<Instruction>(sizeArg) || isa<ConstantInt>(sizeArg)) {
+        size = m_cex.trace().eval(m_loc, *sizeArg, true);
       } else {
         LOG("cex",
             ERR << "unhandled Value of memhavoc size: " << *sizeArg << "\n");

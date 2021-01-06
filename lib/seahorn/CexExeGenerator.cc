@@ -80,10 +80,16 @@ public:
       if (auto *sizeI = dyn_cast<Instruction>(sizeArg)) {
         size = m_cex.trace().eval(m_loc, *sizeI, true);
       } else if (auto *sizeConst = dyn_cast<ConstantInt>(sizeArg)) {
-        size = m_cex.trace().eval(m_loc, *sizeConst, true);
+        expr::mpz_class sz = toMpz(sizeConst);
+        size = expr::mkTerm<expr::mpz_class>(sz, m_cex.trace().engine().efac());
       } else {
         LOG("cex",
             ERR << "unhandled Value of memhavoc size: " << *sizeArg << "\n");
+        return;
+      }
+      if (!size) {
+        LOG("cex",
+            ERR << "Skipping harness for memhavoc due to lacking size \n");
         return;
       }
       // get info of ptr to havoc
@@ -96,11 +102,16 @@ public:
             ERR << "unhandled Value of memhavoc ptr: " << *hPtrAlloc << "\n");
         return;
       }
-      Expr shadowMemRaw = m_cex.trace().engine().getPtrAddressable(shadowMem);
-      Expr hPtrStartRaw = m_cex.trace().engine().getPtrAddressable(hPtrStart);
-      if (!shadowMemRaw || !hPtrStartRaw || !size) {
+      Expr shadowMemRaw = m_cex.trace().engine().getRawMem(shadowMem);
+      if (!shadowMemRaw) {
         LOG("cex",
-            ERR << "Skipping harness for memhavoc due to lacking info \n");
+            ERR << "Skipping harness for memhavoc, no raw mem extracted \n");
+        return;
+      }
+      Expr hPtrStartRaw = m_cex.trace().engine().getPtrAddressable(hPtrStart);
+      if (!hPtrStartRaw) {
+        LOG("cex",
+            ERR << "Skipping harness for memhavoc, no start ptr extracted \n");
         return;
       }
       LOG("cex", INFO << "Producing harness for " << CF->getName() << "\n";);

@@ -109,6 +109,11 @@ template <class T> bool ExtraWideMemManager<T>::isPtrTyVal(Expr e) const {
   return strct::isStructVal(e) && e->arity() == g_num_slots;
 }
 
+template <class T> bool ExtraWideMemManager<T>::isMemVal(Expr e) const {
+  // Our base is a struct of three exprs
+  return strct::isStructVal(e) && e->arity() == 3;
+}
+
 template <class T>
 Expr ExtraWideMemManager<T>::isDereferenceable(ExtraWideMemManager::PtrTy p,
                                                Expr byteSz) {

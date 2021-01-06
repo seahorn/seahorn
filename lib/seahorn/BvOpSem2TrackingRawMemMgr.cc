@@ -35,6 +35,11 @@ bool TrackingRawMemManager::isPtrTyVal(Expr e) const {
   return !e || !strct::isStructVal(e);
 }
 
+bool TrackingRawMemManager::isMemVal(Expr e) const {
+  // raw and metadata
+  return strct::isStructVal(e) && e->arity() == 2;
+}
+
 Expr TrackingRawMemManager::isDereferenceable(TrackingRawMemManager::PtrTy p,
                                               Expr byteSz) {
   // isDereferenceable should never be called in a 'RawMemMgr'

@@ -45,6 +45,7 @@ public:
     Expr v() const { return m_v; }
     Expr toExpr() const { return v(); }
     explicit operator Expr() const { return toExpr(); }
+    Expr getRaw() { return strct::extractVal(m_v, 0); }
   };
 
   using FatMemTag = MemoryFeatures::FatMem_tag;
@@ -580,6 +581,11 @@ public:
   bool isPtrTyVal(Expr e) const {
     // struct with raw ptr + fat slots
     return strct::isStructVal(e) && e->arity() <= (1 + g_maxFatSlots);
+  }
+
+  bool isMemVal(Expr e) const {
+    // struct with 3 fields
+    return (strct::isStructVal(e) && e->arity() == 3);
   }
 };
 

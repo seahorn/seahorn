@@ -580,7 +580,7 @@ public:
 
   bool isPtrTyVal(Expr e) const {
     // struct with raw ptr + fat slots
-    return e && strct::isStructVal(e) && e->arity() <= (1 + g_maxFatSlots);
+    return e && strct::isStructVal(e) && e->arity() == (1 + g_maxFatSlots);
   }
 
   bool isMemVal(Expr e) const {

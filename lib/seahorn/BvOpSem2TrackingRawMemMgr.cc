@@ -257,7 +257,8 @@ TrackingRawMemManager::MemValTy
 TrackingRawMemManager::memsetMetaData(MetadataKind kind, PtrTy ptr, Expr len,
                                       MemValTy memIn, unsigned int val) {
   // make sure we can fit the supplied value in metadata memory slot
-  assert(llvm::Log2_64(val) + 1 <= g_MetadataBitWidth);
+  assert(llvm::Log2_64(val) + 1 <= g_MetadataBitWidth &&
+         "Metadata cannot fit!");
   return MemValTy(
       kind, memIn,
       m_metadata_map[kind]->MemSet(ptr, m_ctx.alu().ui(val, g_MetadataBitWidth),
@@ -269,7 +270,8 @@ TrackingRawMemManager::memsetMetaData(MetadataKind kind, PtrTy ptr,
                                       unsigned int len, MemValTy memIn,
                                       unsigned int val) {
   // make sure we can fit the supplied value in metadata memory slot
-  assert(llvm::Log2_64(val) + 1 <= g_MetadataBitWidth);
+  assert(llvm::Log2_64(val) + 1 <= g_MetadataBitWidth &&
+         "Metadata cannot fit!");
   return MemValTy(
       kind, memIn,
       m_metadata_map[kind]->MemSet(ptr, m_ctx.alu().ui(val, g_MetadataBitWidth),
@@ -278,6 +280,7 @@ TrackingRawMemManager::memsetMetaData(MetadataKind kind, PtrTy ptr,
 }
 Expr TrackingRawMemManager::getMetaData(MetadataKind kind, PtrTy ptr,
                                         MemValTy memIn, unsigned int byteSz) {
+  // TODO: expose a method in OpSemMemManager to loadAlignedWordFromMem
   return m_metadata_map.at(kind)->loadIntFromMem(
       ptr, memIn.getMetadata(kind), byteSz,
       m_metadata_map.at(kind)->wordSizeInBytes());

@@ -1,11 +1,8 @@
-import sea
-
 import os.path
-import sys
+import sea
 import shutil
-
 import subprocess
-
+import sys
 from sea import add_in_args, add_in_out_args, add_tmp_dir_args, add_bool_argument, which, createWorkDir
 
 # To disable printing of commands and some warnings
@@ -1168,7 +1165,7 @@ class Seahorn(sea.LimitedCmd):
                 argv.append('--horn-bv2')
                 argv.append('--log=opsem')
                 argv.append('--lower-gv-init-struct=false')
-
+                argv.append('--horn-shadow-mem-alloc-is-def')
         if args.crab:
             argv.append ('--horn-crab')
 
@@ -1366,7 +1363,6 @@ class LegacyFrontEnd (sea.LimitedCmd):
             print ('Only supported on Linux')
             return 1
 
-        import subprocess
         self.lfeCmd = sea.ExtCmd (cmd_name,'',quiet)
 
         argv = ['--no-seahorn', '-o', args.out_file]

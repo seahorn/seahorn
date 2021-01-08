@@ -122,7 +122,7 @@ bool PromoteVerifierCalls::runOnFunction(Function &F) {
       {"sea_is_alloc", {m_is_alloc, 1}},
       {"sea_tracking_on", {m_tracking_on, 0}},
       {"sea_tracking_off", {m_tracking_off, 0}},
-      {"free", {m_free, 1}}};
+      {"sea_free", {m_free, 1}}};
 
   auto replaceFnWithOneArg = [](Instruction &I,
                                 std::pair<Function *, unsigned> f, Function &F,

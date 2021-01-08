@@ -359,7 +359,8 @@ public:
                                     BaseMemValTy(std::move(mem)), val)));
         },
         [&] {
-          LOG("opsem", WARN << "setMetadata() not implemented!\n");
+          LOG("opsem.memtrack.verbose",
+              WARN << "setMetadata() not implemented!\n");
           return mem;
         });
   }
@@ -379,7 +380,8 @@ public:
                                          BaseMemValTy(std::move(mem)));
         },
         [&] {
-          LOG("opsem", WARN << "isMetadataSet() not implemented!\n");
+          LOG("opsem.memtrack.verbose",
+              WARN << "isMetadataSet() not implemented!\n");
           return Expr();
         });
   }

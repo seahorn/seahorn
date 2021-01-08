@@ -480,12 +480,12 @@ Expr WideMemManager::ptrSub(WideMemManager::PtrTy p1,
 }
 
 bool WideMemManager::isPtrTyVal(Expr e) const {
-  return strct::isStructVal(e) && e->arity() == g_num_slots;
+  return e && strct::isStructVal(e) && e->arity() == g_num_slots;
 }
 
 bool WideMemManager::isMemVal(Expr e) const {
   // struct of raw and size
-  return strct::isStructVal(e) && e->arity() == 2;
+  return e && strct::isStructVal(e) && e->arity() == g_num_slots;
 }
 
 OpSemMemManager *mkWideMemManager(Bv2OpSem &sem, Bv2OpSemContext &ctx,

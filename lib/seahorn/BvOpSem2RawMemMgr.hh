@@ -119,6 +119,7 @@ public:
   // setting TrackingTag to int disqualifies this class as having tracking
   using TrackingTag = int;
   using FatMemTag = int;
+  using WideMemTag = int;
 
   /// \brief A null pointer expression (cache)
   PtrTy m_nullPtr;
@@ -351,15 +352,9 @@ public:
 
   MemValTy zeroedMemory() const;
 
-  Expr isDereferenceable(PtrTy p, Expr byteSz);
-
-  Expr isModified(PtrTy p, MemValTy mem);
-
   bool isPtrTyVal(Expr e);
 
   bool isMemVal(Expr e);
-
-  MemValTy resetModified(PtrTy p, MemValTy mem);
 
   PtrTy getAddressable(PtrTy p);
 

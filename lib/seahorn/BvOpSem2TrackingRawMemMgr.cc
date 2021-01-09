@@ -3,9 +3,10 @@
 namespace seahorn {
 namespace details {
 
-static const unsigned int g_MetadataBitWidth = 8;
-static const unsigned int g_MetadataByteWidth = g_MetadataBitWidth / 8;
-static const unsigned int g_num_slots = 2;
+const unsigned int TrackingRawMemManager::g_MetadataBitWidth = 8;
+const unsigned int TrackingRawMemManager::g_MetadataByteWidth =
+    TrackingRawMemManager::g_MetadataBitWidth / 8;
+const unsigned int TrackingRawMemManager::g_num_slots = 4;
 
 TrackingRawMemManager::TrackingRawMemManager(Bv2OpSem &sem,
                                              Bv2OpSemContext &ctx,
@@ -14,7 +15,18 @@ TrackingRawMemManager::TrackingRawMemManager(Bv2OpSem &sem,
     : MemManagerCore(sem, ctx, ptrSz, wordSz,
                      false /* this is a nop since we delegate to RawMemMgr */),
       m_main(sem, ctx, ptrSz, wordSz, useLambdas),
-      m_metadata(sem, ctx, ptrSz, g_MetadataByteWidth, useLambdas, true) {}
+      m_w_metadata(sem, ctx, ptrSz, TrackingRawMemManager::g_MetadataByteWidth,
+                   useLambdas, true),
+      m_r_metadata(sem, ctx, ptrSz, TrackingRawMemManager::g_MetadataByteWidth,
+                   useLambdas, true),
+      m_a_metadata(sem, ctx, ptrSz, TrackingRawMemManager::g_MetadataByteWidth,
+                   useLambdas, true) {
+  m_metadata_map = {
+      {MetadataKind::READ, &m_r_metadata},
+      {MetadataKind::WRITE, &m_w_metadata},
+      {MetadataKind::ALLOC, &m_a_metadata},
+  };
+}
 
 TrackingRawMemManager::TrackingRawMemManager(Bv2OpSem &sem,
                                              Bv2OpSemContext &ctx,
@@ -24,7 +36,19 @@ TrackingRawMemManager::TrackingRawMemManager(Bv2OpSem &sem,
     : MemManagerCore(sem, ctx, ptrSz, wordSz,
                      false /* this is a nop since we delegate to RawMemMgr */),
       m_main(sem, ctx, ptrSz, wordSz, useLambdas, ignoreAlignment),
-      m_metadata(sem, ctx, ptrSz, g_MetadataByteWidth, useLambdas, true) {}
+      m_w_metadata(sem, ctx, ptrSz, TrackingRawMemManager::g_MetadataByteWidth,
+                   useLambdas, true),
+      m_r_metadata(sem, ctx, ptrSz, TrackingRawMemManager::g_MetadataByteWidth,
+                   useLambdas, true),
+      m_a_metadata(sem, ctx, ptrSz, TrackingRawMemManager::g_MetadataByteWidth,
+                   useLambdas, true) {
+  m_metadata_map = {
+      {MetadataKind::READ, &m_r_metadata},
+      {MetadataKind::WRITE, &m_w_metadata},
+      {MetadataKind::ALLOC, &m_a_metadata},
+  };
+}
+
 TrackingRawMemManager::PtrTy
 TrackingRawMemManager::getAddressable(TrackingRawMemManager::PtrTy p) const {
   return p;
@@ -46,8 +70,12 @@ Expr TrackingRawMemManager::isDereferenceable(TrackingRawMemManager::PtrTy p,
   return m_ctx.alu().getFalse();
 }
 TrackingRawMemManager::MemValTy TrackingRawMemManager::zeroedMemory() const {
-  return MemValTy(m_main.zeroedMemory(), m_metadata.zeroedMemory());
+  return MemValTy(m_main.zeroedMemory(),
+                  m_metadata_map.at(MetadataKind::READ)->zeroedMemory(),
+                  m_metadata_map.at(MetadataKind::WRITE)->zeroedMemory(),
+                  m_metadata_map.at(MetadataKind::ALLOC)->zeroedMemory());
 }
+
 std::pair<char *, unsigned int>
 TrackingRawMemManager::getGlobalVariableInitValue(const GlobalVariable &gv) {
   return m_main.getGlobalVariableInitValue(gv);
@@ -79,7 +107,9 @@ TrackingRawMemManager::MemValTy TrackingRawMemManager::MemFill(
     TrackingRawMemManager::PtrTy dPtr, char *sPtr, unsigned int len,
     TrackingRawMemManager::MemValTy mem, uint32_t align) {
   RawMemValTy rawVal = m_main.MemFill(dPtr, sPtr, len, mem.getRaw(), align);
-  return MemValTy(rawVal, mem.getMetadata());
+  return MemValTy(rawVal, mem.getMetadata(MetadataKind::READ),
+                  mem.getMetadata(MetadataKind::WRITE),
+                  mem.getMetadata(MetadataKind::ALLOC));
 }
 TrackingRawMemManager::MemValTy TrackingRawMemManager::MemCpy(
     TrackingRawMemManager::PtrTy dPtr, TrackingRawMemManager::PtrTy sPtr,
@@ -87,7 +117,9 @@ TrackingRawMemManager::MemValTy TrackingRawMemManager::MemCpy(
     TrackingRawMemManager::MemValTy memRead, uint32_t align) {
   RawMemValTy rawVal = m_main.MemCpy(dPtr, sPtr, len, memTrsfrRead.getRaw(),
                                      memRead.getRaw(), align);
-  return MemValTy(rawVal, memRead.getMetadata());
+  return MemValTy(rawVal, memRead.getMetadata(MetadataKind::READ),
+                  memRead.getMetadata(MetadataKind::WRITE),
+                  memRead.getMetadata(MetadataKind::ALLOC));
 }
 TrackingRawMemManager::MemValTy TrackingRawMemManager::MemCpy(
     TrackingRawMemManager::PtrTy dPtr, TrackingRawMemManager::PtrTy sPtr,
@@ -95,21 +127,29 @@ TrackingRawMemManager::MemValTy TrackingRawMemManager::MemCpy(
     TrackingRawMemManager::MemValTy memRead, uint32_t align) {
   RawMemValTy rawVal = m_main.MemCpy(dPtr, sPtr, len, memTrsfrRead.getRaw(),
                                      memRead.getRaw(), align);
-  return MemValTy(rawVal, memRead.getMetadata());
+  return MemValTy(rawVal, memRead.getMetadata(MetadataKind::READ),
+                  memRead.getMetadata(MetadataKind::WRITE),
+                  memRead.getMetadata(MetadataKind::ALLOC));
 }
 TrackingRawMemManager::MemValTy
 TrackingRawMemManager::MemSet(TrackingRawMemManager::PtrTy ptr, Expr _val,
                               Expr len, TrackingRawMemManager::MemValTy mem,
                               uint32_t align) {
   RawMemValTy rawVal = m_main.MemSet(ptr, _val, len, mem.getRaw(), align);
-  return MemValTy(rawVal, mem.getMetadata());
+  return MemValTy(rawVal, mem.getMetadata(MetadataKind::READ),
+                  mem.getMetadata(MetadataKind::WRITE),
+                  mem.getMetadata(MetadataKind::ALLOC));
 }
 TrackingRawMemManager::MemValTy TrackingRawMemManager::MemSet(
     TrackingRawMemManager::PtrTy ptr, Expr _val, unsigned int len,
     TrackingRawMemManager::MemValTy mem, uint32_t align) {
   RawMemValTy rawVal = m_main.MemSet(ptr, _val, len, mem.getRaw(), align);
-  return MemValTy(rawVal, mem.getMetadata());
+  return MemValTy(rawVal, mem.getMetadata(MetadataKind::READ),
+                  mem.getMetadata(MetadataKind::WRITE),
+                  mem.getMetadata(MetadataKind::ALLOC));
 }
+
+// TODO: refactor this dispatch function in Mixin class
 TrackingRawMemManager::MemValTy TrackingRawMemManager::storeValueToMem(
     Expr _val, TrackingRawMemManager::PtrTy ptr,
     TrackingRawMemManager::MemValTy memIn, const Type &ty, uint32_t align) {
@@ -118,10 +158,7 @@ TrackingRawMemManager::MemValTy TrackingRawMemManager::storeValueToMem(
   const unsigned byteSz =
       m_sem.getTD().getTypeStoreSize(const_cast<llvm::Type *>(&ty));
   ExprFactory &efac = ptr->efac();
-  // TODO: use zeroed memory on m_main, m_metadata instead of explicit
-  // init
-  MemValTy res(m_ctx.alu().ui(0UL, wordSizeInBits()),
-               m_ctx.alu().ui(0UL, g_MetadataBitWidth));
+  MemValTy res = MemValTy(Expr());
   switch (ty.getTypeID()) {
   case Type::IntegerTyID:
     if (ty.getScalarSizeInBits() < byteSz * 8) {
@@ -192,7 +229,9 @@ TrackingRawMemManager::MemValTy TrackingRawMemManager::storePtrToMem(
     TrackingRawMemManager::MemValTy mem, unsigned int byteSz, uint64_t align) {
   RawMemValTy rawVal =
       m_main.storePtrToMem(val, ptr, mem.getRaw(), byteSz, align);
-  return MemValTy(rawVal, mem.getMetadata());
+  return MemValTy(rawVal, mem.getMetadata(MetadataKind::READ),
+                  mem.getMetadata(MetadataKind::WRITE),
+                  mem.getMetadata(MetadataKind::ALLOC));
 }
 TrackingRawMemManager::MemValTy TrackingRawMemManager::storeIntToMem(
     Expr _val, TrackingRawMemManager::PtrTy ptr,
@@ -201,7 +240,9 @@ TrackingRawMemManager::MemValTy TrackingRawMemManager::storeIntToMem(
   assert(!strct::isStructVal(_val));
   RawMemValTy rawVal =
       m_main.storeIntToMem(_val, ptr, mem.getRaw(), byteSz, align);
-  return MemValTy(rawVal, mem.getMetadata());
+  return MemValTy(rawVal, mem.getMetadata(MetadataKind::READ),
+                  mem.getMetadata(MetadataKind::WRITE),
+                  mem.getMetadata(MetadataKind::ALLOC));
 }
 TrackingRawMemManager::PtrTy
 TrackingRawMemManager::loadPtrFromMem(TrackingRawMemManager::PtrTy ptr,
@@ -218,29 +259,36 @@ Expr TrackingRawMemManager::loadIntFromMem(TrackingRawMemManager::PtrTy ptr,
   return res;
 }
 TrackingRawMemManager::MemValTy
-TrackingRawMemManager::memsetMetaData(PtrTy ptr, Expr len, MemValTy memIn,
-                                      unsigned int val) {
-  // make sure we can fit the supplied value in metadata memory slot
-  assert(llvm::Log2_64(val) + 1 <= g_MetadataBitWidth);
-  return MemValTy(
-      memIn.getRaw(),
-      m_metadata.MemSet(ptr, m_ctx.alu().ui(val, g_MetadataBitWidth), len,
-                        memIn.getMetadata(), m_metadata.wordSzInBytes()));
-}
-TrackingRawMemManager::MemValTy
-TrackingRawMemManager::memsetMetaData(PtrTy ptr, unsigned int len,
+TrackingRawMemManager::memsetMetaData(MetadataKind kind, PtrTy ptr, Expr len,
                                       MemValTy memIn, unsigned int val) {
   // make sure we can fit the supplied value in metadata memory slot
-  assert(llvm::Log2_64(val) + 1 <= g_MetadataBitWidth);
+  assert(llvm::Log2_64(val) + 1 <= g_MetadataBitWidth &&
+         "Metadata cannot fit!");
   return MemValTy(
-      memIn.getRaw(),
-      m_metadata.MemSet(ptr, m_ctx.alu().ui(val, g_MetadataBitWidth), len,
-                        memIn.getMetadata(), m_metadata.wordSzInBytes()));
+      kind, memIn,
+      m_metadata_map[kind]->MemSet(ptr, m_ctx.alu().ui(val, g_MetadataBitWidth),
+                                   len, memIn.getMetadata(kind),
+                                   m_metadata_map[kind]->wordSzInBytes()));
 }
-Expr TrackingRawMemManager::getMetaData(PtrTy ptr, MemValTy memIn,
-                                        unsigned int byteSz) {
-  return m_metadata.loadIntFromMem(ptr, memIn.getMetadata(), byteSz,
-                                   0 /* TODO: fix */);
+TrackingRawMemManager::MemValTy
+TrackingRawMemManager::memsetMetaData(MetadataKind kind, PtrTy ptr,
+                                      unsigned int len, MemValTy memIn,
+                                      unsigned int val) {
+  // make sure we can fit the supplied value in metadata memory slot
+  assert(llvm::Log2_64(val) + 1 <= g_MetadataBitWidth &&
+         "Metadata cannot fit!");
+  return MemValTy(
+      kind, memIn,
+      m_metadata_map[kind]->MemSet(ptr, m_ctx.alu().ui(val, g_MetadataBitWidth),
+                                   len, memIn.getMetadata(kind),
+                                   m_metadata_map[kind]->wordSzInBytes()));
+}
+Expr TrackingRawMemManager::getMetaData(MetadataKind kind, PtrTy ptr,
+                                        MemValTy memIn, unsigned int byteSz) {
+  // TODO: expose a method in OpSemMemManager to loadAlignedWordFromMem
+  return m_metadata_map.at(kind)->loadIntFromMem(
+      ptr, memIn.getMetadata(kind), byteSz,
+      m_metadata_map.at(kind)->wordSizeInBytes());
 }
 TrackingRawMemManager::PtrTy
 TrackingRawMemManager::ptrAdd(TrackingRawMemManager::PtrTy ptr,
@@ -260,8 +308,10 @@ Expr TrackingRawMemManager::coerce(Expr sort, Expr val) {
     assert(sort->arity() == g_num_slots);
     kids.push_back(m_main.coerce(sort->arg(0), val->arg(0)));
     // when havocing a value; don't havoc(ignore) value for metadata memory,
-    // instead use 'zeroed' memory.
-    kids.push_back(m_metadata.zeroedMemory());
+    // instead intialize memory to a constant value.
+    kids.push_back(m_metadata_map.at(MetadataKind::READ)->zeroedMemory());
+    kids.push_back(m_metadata_map.at(MetadataKind::WRITE)->zeroedMemory());
+    kids.push_back(m_metadata_map.at(MetadataKind::ALLOC)->zeroedMemory());
     return strct::mk(kids);
   }
   return m_main.coerce(sort, val);
@@ -274,8 +324,11 @@ TrackingRawMemManager::PtrTy TrackingRawMemManager::freshPtr() {
 }
 TrackingRawMemManager::MemSortTy
 TrackingRawMemManager::mkMemRegisterSort(const Instruction &inst) const {
-  return MemSortTy(m_main.mkMemRegisterSort(inst),
-                   m_metadata.mkMemRegisterSort(inst));
+  return MemSortTy(
+      m_main.mkMemRegisterSort(inst),
+      m_metadata_map.at(MetadataKind::READ)->mkMemRegisterSort(inst),
+      m_metadata_map.at(MetadataKind::WRITE)->mkMemRegisterSort(inst),
+      m_metadata_map.at(MetadataKind::ALLOC)->mkMemRegisterSort(inst));
 }
 TrackingRawMemManager::PtrSortTy
 TrackingRawMemManager::mkPtrRegisterSort(const GlobalVariable &gv) const {
@@ -332,16 +385,21 @@ TrackingRawMemManager::mkStackPtr(unsigned int offset) {
   return m_main.mkStackPtr(offset);
 }
 unsigned int TrackingRawMemManager::getMetaDataMemWordSzInBits() {
-  return m_metadata.wordSzInBits();
+  assert(m_metadata_map.at(MetadataKind::READ)->wordSzInBits() ==
+         m_metadata_map.at(MetadataKind::WRITE)->wordSzInBits());
+  assert(m_metadata_map.at(MetadataKind::READ)->wordSzInBits() ==
+         m_metadata_map.at(MetadataKind::ALLOC)->wordSzInBits());
+  return m_metadata_map.at(MetadataKind::READ)->wordSzInBits();
 }
-Expr TrackingRawMemManager::isModified(PtrTy p, MemValTy mem) {
-  LOG("opsem", WARN << "isModified() not implemented!\n");
+Expr TrackingRawMemManager::isMetadataSet(MetadataKind kind, PtrTy p,
+                                          MemValTy mem) {
+  LOG("opsem", ERR << "isMetadataSet() not implemented!\n");
   return Expr();
 }
-TrackingRawMemManager::MemValTy
-TrackingRawMemManager::resetModified(TrackingRawMemManager::PtrTy p,
-                                     TrackingRawMemManager::MemValTy mem) {
-  LOG("opsem", WARN << "resetModified() not implemented!\n");
+TrackingRawMemManager::MemValTy TrackingRawMemManager::setMetadata(
+    MetadataKind kind, TrackingRawMemManager::PtrTy p,
+    TrackingRawMemManager::MemValTy mem, unsigned val) {
+  LOG("opsem", ERR << "setMetadata() not implemented!\n");
   return mem;
 }
 Expr TrackingRawMemManager::ptrUlt(TrackingRawMemManager::PtrTy p1,

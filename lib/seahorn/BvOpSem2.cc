@@ -453,6 +453,24 @@ public:
     }
 
     setValue(I, addr);
+
+    if (!m_ctx.getMemReadRegister() || !m_ctx.getMemWriteRegister()) {
+      LOG("opsem",
+          ERR << "No read/write register found - check if corresponding"
+                 " shadow instruction is present.");
+      m_ctx.setMemReadRegister(Expr());
+      m_ctx.setMemWriteRegister(Expr());
+      return;
+    }
+
+    // TODO: check that addr is valid
+    auto memIn = m_ctx.read(m_ctx.getMemReadRegister());
+    OpSemMemManager &memManager = m_ctx.mem();
+    auto res = memManager.setMetadata(MetadataKind::ALLOC, addr, memIn, 1);
+    m_ctx.write(m_ctx.getMemWriteRegister(), res);
+
+    m_ctx.setMemReadRegister(Expr());
+    m_ctx.setMemWriteRegister(Expr());
   }
 
   void visitLoadInst(LoadInst &I) {
@@ -569,12 +587,20 @@ public:
         visitIsModified(CS);
       } else if (f->getName().startswith("sea.reset_modified")) {
         visitResetModified(CS);
+      } else if (f->getName().startswith("sea.is_read")) {
+        visitIsRead(CS);
+      } else if (f->getName().startswith("sea.reset_read")) {
+        visitResetRead(CS);
+      } else if (f->getName().startswith("sea.is_alloc")) {
+        visitIsAlloc(CS);
       } else if (f->getName().startswith("sea.reset_modified")) {
         visitResetModified(CS);
       } else if (f->getName().startswith("sea.tracking_on")) {
         visitSetTrackingOn(CS);
       } else if (f->getName().startswith(("sea.tracking_off"))) {
         visitSetTrackingOff(CS);
+      } else if (f->getName().startswith("sea.free")) {
+        visitFree(CS);
       } else if (f->getName().startswith(("sea.assert.if"))) {
         visitSeaAssertIfCall(CS);
       } else if (f->getName().startswith(("verifier.assert"))) {
@@ -725,7 +751,7 @@ public:
     Expr ptr = lookup(*CS.getArgument(0));
     auto memIn = m_ctx.read(m_ctx.getMemReadRegister());
     OpSemMemManager &memManager = m_ctx.mem();
-    auto res = memManager.isModified(ptr, memIn);
+    auto res = memManager.isMetadataSet(MetadataKind::WRITE, ptr, memIn);
     setValue(*CS.getInstruction(), res);
     m_ctx.setMemReadRegister(Expr());
   }
@@ -742,16 +768,54 @@ public:
     Expr ptr = lookup(*CS.getArgument(0));
     auto memIn = m_ctx.read(m_ctx.getMemReadRegister());
     OpSemMemManager &memManager = m_ctx.mem();
-    auto res = memManager.resetModified(ptr, memIn);
+    auto res = memManager.setMetadata(MetadataKind::WRITE, ptr, memIn, 0);
     m_ctx.write(m_ctx.getMemWriteRegister(), res);
 
     m_ctx.setMemReadRegister(Expr());
     m_ctx.setMemWriteRegister(Expr());
   }
 
+  void visitIsRead(CallSite CS) {}
+
+  void visitResetRead(CallSite CS) {}
+
+  void visitIsAlloc(CallSite CS) {
+    if (!m_ctx.getMemReadRegister()) {
+      LOG("opsem", ERR << "No read register found - check if corresponding"
+                          "shadow instruction is present.");
+      m_ctx.setMemReadRegister(Expr());
+      return;
+    }
+    Expr ptr = lookup(*CS.getArgument(0));
+    auto memIn = m_ctx.read(m_ctx.getMemReadRegister());
+    OpSemMemManager &memManager = m_ctx.mem();
+    auto res = memManager.isMetadataSet(MetadataKind::ALLOC, ptr, memIn);
+    setValue(*CS.getInstruction(), res);
+    m_ctx.setMemReadRegister(Expr());
+  }
+
   void visitSetTrackingOn(CallSite CS) { m_ctx.setTracking(true); }
 
   void visitSetTrackingOff(CallSite CS) { m_ctx.setTracking(false); }
+
+  void visitFree(CallSite &CS) {
+    if (!m_ctx.getMemReadRegister() || !m_ctx.getMemWriteRegister()) {
+      LOG("opsem",
+          ERR << "No read/write register found - check if corresponding"
+                 "shadow instruction is present.");
+      m_ctx.setMemReadRegister(Expr());
+      m_ctx.setMemWriteRegister(Expr());
+      return;
+    }
+    Expr ptr = lookup(*CS.getArgument(0));
+    auto memIn = m_ctx.read(m_ctx.getMemReadRegister());
+    OpSemMemManager &memManager = m_ctx.mem();
+    auto res = memManager.setMetadata(MetadataKind::ALLOC, ptr, memIn, 0);
+    m_ctx.write(m_ctx.getMemWriteRegister(), res);
+
+    m_ctx.setMemReadRegister(Expr());
+    m_ctx.setMemWriteRegister(Expr());
+  }
 
   /// Report outcome of vacuity and incremental assertion checking
   void reportDoAssert(char *tag, const Instruction &I, boost::tribool res,

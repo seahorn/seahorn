@@ -53,8 +53,8 @@ public:
         }
 
         if (!nv)
-          nv = new AllocaInst(v->getType()->getPointerElementType(),
-                              addrSpace, CS.getArgument(0), "malloc", &I);
+          nv = new AllocaInst(v->getType()->getPointerElementType(), addrSpace,
+                              CS.getArgument(0), "malloc", &I);
 
         v->replaceAllUsesWith(nv);
 

@@ -73,6 +73,7 @@ Expr WideMemManager::isDereferenceable(WideMemManager::PtrTy p, Expr byteSz) {
 WideMemManager::MemValTy WideMemManager::zeroedMemory() const {
   return MemValTy(m_main.zeroedMemory(), m_size.zeroedMemory());
 }
+
 std::pair<char *, unsigned int>
 WideMemManager::getGlobalVariableInitValue(const GlobalVariable &gv) {
   return m_main.getGlobalVariableInitValue(gv);

@@ -50,6 +50,7 @@ public:
 
   using FatMemTag = MemoryFeatures::FatMem_tag;
   using TrackingTag = int;
+  using WideMemTag = int;
 
   /// Right now everything is an expression. In the future, we might have
   /// other types for PtrTy, such as a tuple of expressions
@@ -569,11 +570,6 @@ public:
     assert(strct::isStructVal(p.v()));
     assert(SlotIdx < g_maxFatSlots);
     return strct::insertVal(p.v(), 1 + SlotIdx, data);
-  }
-
-  Expr isDereferenceable(FatPtrTy p, Expr byteSz) {
-    LOG("opsem", WARN << "isDereferenceable() not implemented!\n");
-    return m_ctx.alu().getFalse();
   }
 
   RawPtrTy getAddressable(FatPtrTy p) const { return mkRawPtr(p); }

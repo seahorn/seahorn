@@ -1134,7 +1134,7 @@ class Seahorn(sea.LimitedCmd):
                 argv.append('--horn-bv2')
                 argv.append('--log=opsem')
                 argv.append('--lower-gv-init-struct=false')
-
+                argv.append('--horn-shadow-mem-alloc-is-def')
         if args.crab:
             argv.append ('--horn-crab')
 

@@ -353,7 +353,7 @@ Expr RawMemManagerCore::extractUnalignedByte(MemValTy mem, const PtrTy &address,
 /// \param[in] ptr pointer being accessed
 /// \param[in] memReg memory register into which \p ptr points
 /// \param[in] byteSz size of the integer in bytes
-/// \param[in] align known alignment of \p ptr
+/// \param[in] align known alignment of \p ptr (in bytes)
 /// \return symbolic value of the read integer
 Expr RawMemManagerCore::loadIntFromMem(const PtrTy &ptr, const MemValTy &mem,
                                        unsigned byteSz, uint64_t align) {
@@ -719,16 +719,6 @@ Expr RawMemManagerCore::ptrSub(PtrTy p1, PtrTy p2) const {
   return m_ctx.alu().doSub(p1.toExpr(), p2.toExpr(), ptrSizeInBits());
 }
 
-Expr RawMemManagerCore::isDereferenceable(PtrTy p, Expr byteSz) {
-  LOG("opsem", ERR << "isDeferenceable() not implemented");
-  return Expr();
-}
-
-Expr RawMemManagerCore::isModified(PtrTy p, MemValTy mem) {
-  LOG("opsem", ERR << "()isModified() not implemented");
-  return Expr();
-}
-
 /// \brief Executes ptrtoint conversion
 Expr RawMemManagerCore::ptrtoint(PtrTy ptr, const Type &ptrTy,
                                  const Type &intTy) const {
@@ -792,12 +782,6 @@ OpSemAllocator &RawMemManagerCore::getMAllocator() const {
   return *m_allocator;
 }
 bool RawMemManagerCore::ignoreAlignment() const { return m_ignoreAlignment; }
-
-RawMemManagerCore::MemValTy
-RawMemManagerCore::resetModified(PtrTy p, RawMemManagerCore::MemValTy mem) {
-  LOG("opsem", WARN << "resetModified() not implemented!\n");
-  return mem;
-}
 
 PtrTy RawMemManagerCore::getAddressable(PtrTy p) { return p; }
 

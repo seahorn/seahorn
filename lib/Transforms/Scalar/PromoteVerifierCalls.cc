@@ -34,6 +34,7 @@ Value *coerceToBool(Value *arg, IRBuilder<> &builder, Instruction &I) {
 }
 } // namespace
 namespace seahorn {
+
 char PromoteVerifierCalls::ID = 0;
 
 bool PromoteVerifierCalls::runOnModule(Module &M) {
@@ -51,8 +52,12 @@ bool PromoteVerifierCalls::runOnModule(Module &M) {
   m_assert_if = SBI.mkSeaBuiltinFn(SBIOp::ASSERT_IF, M);
   m_is_modified = SBI.mkSeaBuiltinFn(SBIOp::IS_MODIFIED, M);
   m_reset_modified = SBI.mkSeaBuiltinFn(SBIOp::RESET_MODIFIED, M);
+  m_is_read = SBI.mkSeaBuiltinFn(SBIOp::IS_READ, M);
+  m_reset_read = SBI.mkSeaBuiltinFn(SBIOp::RESET_READ, M);
+  m_is_alloc = SBI.mkSeaBuiltinFn(SBIOp::IS_ALLOC, M);
   m_tracking_on = SBI.mkSeaBuiltinFn(SBIOp::TRACKING_ON, M);
   m_tracking_off = SBI.mkSeaBuiltinFn(SBIOp::TRACKING_OFF, M);
+  m_free = SBI.mkSeaBuiltinFn(SBIOp::FREE, M);
 
   // XXX DEPRECATED
   // Do not keep unused functions in llvm.used
@@ -107,6 +112,39 @@ bool PromoteVerifierCalls::runOnFunction(Function &F) {
   CallGraph *cg = cgwp ? &cgwp->getCallGraph() : nullptr;
 
   SmallVector<Instruction *, 16> toKill;
+
+  std::map<StringRef, std::pair<Function *, unsigned>> functionMap = {
+      {"sea_is_dereferenceable", {m_is_deref, 2}},
+      {"sea_is_modified", {m_is_modified, 1}},
+      {"sea_reset_modified", {m_reset_modified, 1}},
+      {"sea_is_read", {m_is_read, 1}},
+      {"sea_reset_read", {m_reset_read, 1}},
+      {"sea_is_alloc", {m_is_alloc, 1}},
+      {"sea_tracking_on", {m_tracking_on, 0}},
+      {"sea_tracking_off", {m_tracking_off, 0}},
+      {"sea_free", {m_free, 1}}};
+
+  auto replaceFnWithOneArg = [](Instruction &I,
+                                std::pair<Function *, unsigned> f, Function &F,
+                                SmallVector<Instruction *, 16> &toKill,
+                                CallGraph *cg) {
+    IRBuilder<> Builder(F.getContext());
+    Builder.SetInsertPoint(&I);
+    CallSite CS(&I);
+    CallInst *ci;
+    if (f.second == 0) {
+      ci = Builder.CreateCall(f.first);
+    } else if (f.second == 1) {
+      ci = Builder.CreateCall(f.first, {CS.getArgument(0)});
+    } else if (f.second == 2) {
+      ci = Builder.CreateCall(f.first, {CS.getArgument(0), CS.getArgument(1)});
+    }
+    assert(ci);
+    if (cg)
+      (*cg)[&F]->addCalledFunction(ci, (*cg)[ci->getCalledFunction()]);
+    I.replaceAllUsesWith(ci);
+    toKill.push_back(&I);
+  };
 
   bool Changed = false;
   for (auto &I : boost::make_iterator_range(inst_begin(F), inst_end(F))) {
@@ -183,52 +221,8 @@ bool PromoteVerifierCalls::runOnFunction(Function &F) {
         (*cg)[&F]->addCalledFunction(ci, (*cg)[ci->getCalledFunction()]);
 
       toKill.push_back(&I);
-    } else if (fn && (fn->getName().equals("sea_is_dereferenceable"))) {
-      IRBuilder<> Builder(F.getContext());
-      Builder.SetInsertPoint(&I);
-      CallInst *ci = Builder.CreateCall(m_is_deref,
-                                        {CS.getArgument(0), CS.getArgument(1)});
-      if (cg)
-        (*cg)[&F]->addCalledFunction(ci, (*cg)[ci->getCalledFunction()]);
-
-      I.replaceAllUsesWith(ci);
-      toKill.push_back(&I);
-    } else if (fn && (fn->getName().equals("sea_is_modified"))) {
-      IRBuilder<> Builder(F.getContext());
-      Builder.SetInsertPoint(&I);
-      CallInst *ci = Builder.CreateCall(m_is_modified, {CS.getArgument(0)});
-      if (cg)
-        (*cg)[&F]->addCalledFunction(ci, (*cg)[ci->getCalledFunction()]);
-
-      I.replaceAllUsesWith(ci);
-      toKill.push_back(&I);
-    } else if (fn && (fn->getName().equals("sea_reset_modified"))) {
-      IRBuilder<> Builder(F.getContext());
-      Builder.SetInsertPoint(&I);
-      CallInst *ci = Builder.CreateCall(m_reset_modified, {CS.getArgument(0)});
-      if (cg)
-        (*cg)[&F]->addCalledFunction(ci, (*cg)[ci->getCalledFunction()]);
-
-      I.replaceAllUsesWith(ci);
-      toKill.push_back(&I);
-    } else if (fn && (fn->getName().equals("sea_tracking_on"))) {
-      IRBuilder<> Builder(F.getContext());
-      Builder.SetInsertPoint(&I);
-      CallInst *ci = Builder.CreateCall(m_tracking_on);
-      if (cg)
-        (*cg)[&F]->addCalledFunction(ci, (*cg)[ci->getCalledFunction()]);
-
-      I.replaceAllUsesWith(ci);
-      toKill.push_back(&I);
-    } else if (fn && (fn->getName().equals("sea_tracking_off"))) {
-      IRBuilder<> Builder(F.getContext());
-      Builder.SetInsertPoint(&I);
-      CallInst *ci = Builder.CreateCall(m_tracking_off);
-      if (cg)
-        (*cg)[&F]->addCalledFunction(ci, (*cg)[ci->getCalledFunction()]);
-
-      I.replaceAllUsesWith(ci);
-      toKill.push_back(&I);
+    } else if (fn && functionMap.count(fn->getName())) {
+      replaceFnWithOneArg(I, functionMap.at(fn->getName()), F, toKill, cg);
     } else if (fn && (fn->getName().equals(
                          "__VERIFIER_assert_if"))) { // sea_assert_if is the
                                                      // user facing name

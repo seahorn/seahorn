@@ -15,6 +15,14 @@
 namespace seahorn {
 namespace details {
 
+// This enumerates the different kinds of metadata memory used in Tracking
+// memory.
+enum class MetadataKind {
+  READ = 0,
+  WRITE = 1,
+  ALLOC = 2,
+};
+
 namespace MemoryFeatures {
 auto tracking_tag_of =
     [](auto t) -> hana::type<typename decltype(t)::type::TrackingTag> {
@@ -25,11 +33,20 @@ auto fatmem_tag_of =
     [](auto t) -> hana::type<typename decltype(t)::type::FatMemTag> {
   return {};
 };
+
+auto widemem_tag_of =
+    [](auto t) -> hana::type<typename decltype(t)::type::WideMemTag> {
+  return {};
+};
+
 // This empty class is used as a 'tag' to mark containing classes as enabling
-// features feature: tracking.
+// features
+// feature: tracking.
 struct Tracking_tag {};
 // feature: Fat Memory.
 struct FatMem_tag {};
+// feature: Wide Memory.
+struct WideMem_tag {};
 
 auto has_tracking = [](auto t) {
   return hana::sfinae(tracking_tag_of)(t) ==
@@ -38,6 +55,11 @@ auto has_tracking = [](auto t) {
 
 auto has_fatmem = [](auto t) {
   return hana::sfinae(fatmem_tag_of)(t) == hana::just(hana::type<FatMem_tag>{});
+};
+
+auto has_widemem = [](auto t) {
+  return hana::sfinae(widemem_tag_of)(t) ==
+         hana::just(hana::type<WideMem_tag>{});
 };
 
 } // namespace MemoryFeatures
@@ -717,12 +739,13 @@ public:
   /// bounds, False expr otherwise.
   virtual Expr isDereferenceable(PtrTy p, Expr byteSz) = 0;
 
-  /// \brief return True expr if memory has been modified since resetModified
+  /// \brief return True expr if memory has been modified since setMetadata
   // or allocation, whichever is later.
-  virtual Expr isModified(PtrTy p, MemValTy mem) = 0;
+  virtual Expr isMetadataSet(MetadataKind kind, PtrTy p, MemValTy mem) = 0;
 
-  /// \brief reset memory modified state; used in conjuction with isModified
-  virtual MemValTy resetModified(PtrTy p, MemValTy mem) = 0;
+  /// \brief reset memory modified state; used in conjuction with isMetadataSet
+  virtual MemValTy setMetadata(MetadataKind kind, PtrTy p, MemValTy mem,
+                               unsigned val) = 0;
 
   /// \brief given a properly encoded pointer Expr \p p , return the raw
   /// expression representing memory address only

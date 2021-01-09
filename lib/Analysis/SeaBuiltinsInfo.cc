@@ -23,8 +23,12 @@ using namespace llvm;
 #define SEA_BRANCH_SENTINEL "sea.branch_sentinel"
 #define SEA_IS_MODIFIED "sea.is_modified"
 #define SEA_RESET_MODIFIED "sea.reset_modified"
+#define SEA_IS_READ "sea.is_read"
+#define SEA_RESET_READ "sea.reset_read"
+#define SEA_IS_ALLOC "sea.is_alloc"
 #define SEA_TRACKING_ON "sea.tracking_on"
 #define SEA_TRACKING_OFF "sea.tracking_off"
+#define SEA_FREE "sea.free"
 
 SeaBuiltinsOp
 seahorn::SeaBuiltinsInfo::getSeaBuiltinOp(const llvm::CallBase &cb) const {
@@ -45,8 +49,12 @@ seahorn::SeaBuiltinsInfo::getSeaBuiltinOp(const llvm::CallBase &cb) const {
       .Case(SEA_BRANCH_SENTINEL, SBIOp::BRANCH_SENTINEL)
       .Case(SEA_IS_MODIFIED, SBIOp::IS_MODIFIED)
       .Case(SEA_RESET_MODIFIED, SBIOp::RESET_MODIFIED)
+      .Case(SEA_IS_READ, SBIOp::IS_READ)
+      .Case(SEA_RESET_READ, SBIOp::RESET_READ)
+      .Case(SEA_IS_ALLOC, SBIOp::IS_ALLOC)
       .Case(SEA_TRACKING_ON, SBIOp::TRACKING_ON)
       .Case(SEA_TRACKING_OFF, SBIOp::TRACKING_OFF)
+      .Case(SEA_FREE, SBIOp::FREE)
       .Default(SBIOp::UNKNOWN);
 }
 
@@ -76,10 +84,18 @@ llvm::Function *SeaBuiltinsInfo::mkSeaBuiltinFn(SeaBuiltinsOp op,
     return mkIsModifiedFn(M);
   case SBIOp::RESET_MODIFIED:
     return mkResetModifiedFn(M);
+  case SBIOp::IS_READ:
+    return mkIsReadFn(M);
+  case SBIOp::RESET_READ:
+    return mkResetReadFn(M);
+  case SBIOp::IS_ALLOC:
+    return mkIsAllocFn(M);
   case SBIOp::TRACKING_ON:
     return mkTrackingOnFn(M);
   case SBIOp::TRACKING_OFF:
     return mkTrackingOffFn(M);
+  case SBIOp::FREE:
+    return mkFreeFn(M);
   }
   llvm_unreachable(nullptr);
 }
@@ -173,6 +189,56 @@ Function *SeaBuiltinsInfo::mkResetModifiedFn(Module &M) {
   return FN;
 }
 
+Function *SeaBuiltinsInfo::mkIsReadFn(Module &M) {
+  auto &C = M.getContext();
+  auto FC = M.getOrInsertFunction(SEA_IS_READ, Type::getInt1Ty(C),
+                                  Type::getInt8PtrTy(C));
+  auto *FN = dyn_cast<Function>(FC.getCallee());
+  if (FN) {
+    FN->setOnlyReadsMemory();
+    FN->setDoesNotThrow();
+    FN->setDoesNotFreeMemory();
+    FN->setDoesNotRecurse();
+    FN->addParamAttr(0, Attribute::NoCapture);
+    // XXX maybe even add the following
+    // FN->setDoesNotAccessMemory();
+  }
+  return FN;
+}
+
+Function *SeaBuiltinsInfo::mkResetReadFn(Module &M) {
+  auto &C = M.getContext();
+  auto FC = M.getOrInsertFunction(SEA_RESET_READ, Type::getVoidTy(C),
+                                  Type::getInt8PtrTy(C));
+  auto *FN = dyn_cast<Function>(FC.getCallee());
+  if (FN) {
+    FN->setDoesNotThrow();
+    FN->setDoesNotFreeMemory();
+    FN->setDoesNotRecurse();
+    FN->addParamAttr(0, Attribute::NoCapture);
+    // XXX maybe even add the following
+    // FN->setDoesNotAccessMemory();
+  }
+  return FN;
+}
+
+Function *SeaBuiltinsInfo::mkIsAllocFn(Module &M) {
+  auto &C = M.getContext();
+  auto FC = M.getOrInsertFunction(SEA_IS_ALLOC, Type::getInt1Ty(C),
+                                  Type::getInt8PtrTy(C));
+  auto *FN = dyn_cast<Function>(FC.getCallee());
+  if (FN) {
+    FN->setOnlyReadsMemory();
+    FN->setDoesNotThrow();
+    FN->setDoesNotFreeMemory();
+    FN->setDoesNotRecurse();
+    FN->addParamAttr(0, Attribute::NoCapture);
+    // XXX maybe even add the following
+    // FN->setDoesNotAccessMemory();
+  }
+  return FN;
+}
+
 Function *SeaBuiltinsInfo::mkIsDereferenceable(Module &M) {
   auto &C = M.getContext();
   auto *IntPtrTy = M.getDataLayout().getIntPtrType(C);
@@ -249,7 +315,6 @@ Function *SeaBuiltinsInfo::mkTrackingOnFn(Module &M) {
   auto FC = M.getOrInsertFunction(SEA_TRACKING_ON, Type::getVoidTy(C));
   auto *FN = dyn_cast<Function>(FC.getCallee());
   if (FN) {
-    FN->setDoesNotReadMemory();
     FN->setDoesNotThrow();
     FN->setDoesNotFreeMemory();
     FN->setDoesNotRecurse();
@@ -262,10 +327,27 @@ Function *SeaBuiltinsInfo::mkTrackingOffFn(Module &M) {
   auto FC = M.getOrInsertFunction(SEA_TRACKING_OFF, Type::getVoidTy(C));
   auto *FN = dyn_cast<Function>(FC.getCallee());
   if (FN) {
-    FN->setDoesNotReadMemory();
     FN->setDoesNotThrow();
     FN->setDoesNotFreeMemory();
     FN->setDoesNotRecurse();
+  }
+  return FN;
+}
+
+Function *SeaBuiltinsInfo::mkFreeFn(Module &M) {
+  auto &C = M.getContext();
+  auto FC = M.getOrInsertFunction(SEA_FREE, Type::getVoidTy(C),
+                                  Type::getInt8PtrTy(C));
+  auto *FN = dyn_cast<Function>(FC.getCallee());
+  if (FN) {
+    FN->setDoesNotThrow();
+    FN->setDoesNotRecurse();
+    // This only marks the memory as freed an does not have the semantics for
+    // actually freeing memory.
+    FN->setDoesNotFreeMemory();
+    FN->addParamAttr(0, Attribute::NoCapture);
+    // XXX maybe even add the following
+    // FN->setDoesNotAccessMemory();
   }
   return FN;
 }

@@ -354,6 +354,8 @@ public:
 
   bool isPtrTyVal(Expr e);
 
+  bool isMemVal(Expr e);
+
   PtrTy getAddressable(PtrTy p);
 
   Bv2OpSem &sem() const { return m_sem; }

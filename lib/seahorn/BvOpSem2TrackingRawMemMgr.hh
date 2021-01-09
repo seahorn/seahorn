@@ -293,6 +293,8 @@ public:
 
   Expr isMetadataSet(MetadataKind kind, PtrTy p, MemValTy mem);
 
+  bool isMemVal(Expr e) const;
+
   TrackingRawMemManager::MemValTy
   setMetadata(MetadataKind kind, TrackingRawMemManager::PtrTy p,
               TrackingRawMemManager::MemValTy mem, unsigned val);

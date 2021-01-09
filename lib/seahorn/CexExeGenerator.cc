@@ -37,122 +37,137 @@ bool extractArrayContents(Expr e, kv &out, Expr &defaultValue) {
   }
   return true;
 }
+
+/* InstVisitor that visits all CallSites in a Bmc Trace;
+  if the CallSite calls an external non-deterministic function that needs to
+  be synthesized, push evaluated function return value or modifed pointer value
+  into Cex generator
+ */
+template <class Trace>
+class BmcTraceVisitor : public InstVisitor<BmcTraceVisitor<Trace>> {
+  CexExeGenerator<Trace> &m_cex;
+  unsigned m_loc;
+
+public:
+  BmcTraceVisitor(CexExeGenerator<Trace> &cex) : m_cex(cex) {}
+
+  void setLoc(unsigned loc) { m_loc = loc; }
+
+  void visitMemhavoc(CallSite CS) {
+    Instruction &I = *CS.getInstruction();
+    auto *CF = getCalledFunction(CS);
+    // previous instruction should be
+    // shadow.mem.load(i32 x, i32 %sm_n, i8* null)
+    auto *prevI = I.getPrevNonDebugInstruction();
+    if (!prevI)
+      return;
+    if (const CallInst *prevCI = dyn_cast<CallInst>(prevI)) {
+      ImmutableCallSite prevCS(prevCI);
+      const Function *prevF = prevCS.getCalledFunction();
+      if (!(prevF && prevF->getName().equals("shadow.mem.load"))) {
+        LOG("cex", ERR << "Skipping harness for memhavoc"
+                       << " because shadow.mem.load cannot be found\n");
+        return;
+      }
+      // get memhavoc content from corresponding shadow mem region
+      auto *shadowMemI = dyn_cast<Instruction>(prevCS.getArgOperand(1));
+      if (!shadowMemI)
+        return;
+      Expr shadowMem = m_cex.trace().eval(m_loc, *shadowMemI, true);
+      // get memhavoc size from second operand of memhavoc
+      const Value *sizeArg = CS.getArgOperand(1);
+      Expr size;
+      if (isa<Instruction>(sizeArg) || isa<ConstantInt>(sizeArg)) {
+        size = m_cex.trace().eval(m_loc, *sizeArg, true);
+      } else {
+        LOG("cex",
+            ERR << "unhandled Value of memhavoc size: " << *sizeArg << "\n");
+        return;
+      }
+      if (!size) {
+        LOG("cex",
+            ERR << "Skipping harness for memhavoc due to lacking size \n");
+        return;
+      }
+      // get info of ptr to havoc
+      const Value *hPtrAlloc = CS.getArgOperand(0)->stripPointerCasts();
+      Expr hPtrStart;
+      if (auto *hPtrAllocInst = dyn_cast<Instruction>(hPtrAlloc)) {
+        hPtrStart = m_cex.trace().eval(m_loc, *hPtrAllocInst, true);
+      } else {
+        LOG("cex",
+            ERR << "unhandled Value of memhavoc ptr: " << *hPtrAlloc << "\n");
+        return;
+      }
+      Expr shadowMemRaw = m_cex.trace().engine().getRawMem(shadowMem);
+      if (!shadowMemRaw) {
+        LOG("cex",
+            ERR << "Skipping harness for memhavoc, no raw mem extracted \n");
+        return;
+      }
+      Expr hPtrStartRaw = m_cex.trace().engine().getPtrAddressable(hPtrStart);
+      if (!hPtrStartRaw) {
+        LOG("cex",
+            ERR << "Skipping harness for memhavoc, no start ptr extracted \n");
+        return;
+      }
+      LOG("cex", INFO << "Producing harness for " << CF->getName() << "\n";);
+      m_cex.addValueToFunc(CF, shadowMemRaw);
+      m_cex.addNonDetPtr(hPtrStartRaw, size);
+    }
+  }
+
+  void visitCallSite(CallSite CS) {
+    Instruction &I = *CS.getInstruction();
+    const Function *CF = getCalledFunction(CS);
+
+    if (!CF->hasName())
+      return;
+
+    if (CF->getName().equals("memhavoc")) {
+      visitMemhavoc(CS);
+      return;
+    }
+
+    if (CF->isIntrinsic())
+      return;
+    // We want to ignore seahorn functions, but not nondet
+    // functions created by strip-extern or dummyMainFunction
+    if (CF->getName().find_first_of('.') != StringRef::npos &&
+        !CF->getName().startswith("verifier.nondet"))
+      return;
+    if (!CF->isExternalLinkage(CF->getLinkage()))
+      return;
+    if (!CF->getReturnType()->isIntegerTy() &&
+        !CF->getReturnType()->isPointerTy()) {
+      return;
+    }
+
+    // KleeInternalize
+    if (CF->getName().equals("calloc"))
+      return;
+
+    // -- known library function
+    LibFunc libfn;
+    if (m_cex.getTargetLibraryInfo().getLibFunc(CF->getName(), libfn))
+      return;
+
+    Expr V = m_cex.trace().eval(m_loc, I, true);
+    if (!V)
+      return;
+    LOG("cex", INFO << "Producing harness for " << CF->getName() << "\n";);
+    m_cex.addValueToFunc(CF, V);
+  }
+};
+
 } // namespace utils
 
-template <class Trace>
-void CexExeGenerator<Trace>::storeMemHavoc(unsigned loc, const Function *func,
-                                           ImmutableCallSite cs,
-                                           ImmutableCallSite prevCS) {
-  const Value *prevCV = prevCS.getCalledValue();
-  const Function *prevF = dyn_cast<Function>(prevCV->stripPointerCasts());
-  if (!(prevF && prevF->getName().equals("shadow.mem.load"))) {
-    LOG("cex", errs() << "Skipping harness for memhavoc"
-                      << " because shadow.mem.load cannot be found\n");
-    return;
-  }
-  // get memhavoc content from corresponding shadow mem region
-  auto *shadowMemI = dyn_cast<Instruction>(prevCS.getArgOperand(1));
-  if (!shadowMemI)
-    return;
-  Expr shadowMem = m_trace.eval(loc, *shadowMemI, true);
-  // get memhavoc size from second operand of memhavoc
-  const Value *sizeArg = cs.getArgOperand(1);
-  Expr size;
-  if (auto *sizeI = dyn_cast<Instruction>(sizeArg)) {
-    size = m_trace.eval(loc, *sizeI, true);
-  } else if (auto *sizeConst = dyn_cast<ConstantInt>(sizeArg)) {
-    expr::mpz_class sz = toMpz(sizeConst);
-    size = expr::mkTerm<expr::mpz_class>(sz, m_trace.engine().efac());
-  } else {
-    LOG("cex",
-        errs() << "unhandled Value of memhavoc size: " << *sizeArg << "\n");
-    return;
-  }
-  // get info of ptr to havoc
-  const Value *hPtrAlloc = cs.getArgOperand(0)->stripPointerCasts();
-  Expr hPtrStart;
-  if (auto *hPtrAllocInst = dyn_cast<Instruction>(hPtrAlloc)) {
-    hPtrStart = m_trace.eval(loc, *hPtrAllocInst, true);
-  } else {
-    LOG("cex",
-        errs() << "unhandled Value of memhavoc ptr: " << *hPtrAlloc << "\n");
-    return;
-  }
-  Expr shadowMemRaw = m_trace.engine().getPtrAddressable(shadowMem);
-  Expr hPtrStartRaw = m_trace.engine().getPtrAddressable(hPtrStart);
-  if (!shadowMemRaw || !hPtrStartRaw || !size) {
-    LOG("cex", errs() << "Skipping harness for memhavoc due to lacking info");
-    return;
-  }
-  LOG("cex", errs() << "Producing harness for " << func->getName() << "\n";);
-  m_func_val_map[func].push_back(shadowMemRaw);
-  m_memhavoc_args.push_back(std::make_pair(hPtrStartRaw, size));
-}
-
 template <class Trace> void CexExeGenerator<Trace>::storeDataFromTrace() {
+  utils::BmcTraceVisitor<Trace> v(*this);
   for (unsigned loc = 0; loc < m_trace.size(); loc++) {
     const BasicBlock &BB = *m_trace.bb(loc);
-    for (auto &I : BB) {
-      if (const CallInst *ci = dyn_cast<CallInst>(&I)) {
-        ImmutableCallSite CS(ci);
-        // Go through bitcasts
-        const Value *CV = CS.getCalledValue();
-        const Function *CF = dyn_cast<Function>(CV->stripPointerCasts());
-        if (!CF) {
-          LOG("cex", errs() << "Skipping harness for " << *ci
-                            << " because callee cannot be resolved\n");
-          continue;
-        }
-
-        LOG("cex_verbose",
-            errs() << "Considering harness for: " << CF->getName() << "\n";);
-
-        if (CF->getName().equals("memhavoc")) {
-          // previous instruction should be
-          // shadow.mem.load(i32 x, i32 %sm_n, i8* null)
-          if (I.getPrevNonDebugInstruction() == nullptr)
-            continue;
-          const Instruction *prevI = I.getPrevNonDebugInstruction();
-          if (const CallInst *prevCi = dyn_cast<CallInst>(prevI)) {
-            ImmutableCallSite prevCS(prevCi);
-            storeMemHavoc(loc, CF, CS, prevCS);
-          }
-          continue;
-        }
-
-        if (!CF->hasName())
-          continue;
-        if (CF->isIntrinsic())
-          continue;
-        // We want to ignore seahorn functions, but not nondet
-        // functions created by strip-extern or dummyMainFunction
-        if (CF->getName().find_first_of('.') != StringRef::npos &&
-            !CF->getName().startswith("verifier.nondet"))
-          continue;
-        if (!CF->isExternalLinkage(CF->getLinkage()))
-          continue;
-        if (!CF->getReturnType()->isIntegerTy() &&
-            !CF->getReturnType()->isPointerTy()) {
-          continue;
-        }
-
-        // KleeInternalize
-        if (CF->getName().equals("calloc"))
-          continue;
-
-        // -- known library function
-        LibFunc libfn;
-        if (m_tli.getLibFunc(CF->getName(), libfn))
-          continue;
-
-        Expr V = m_trace.eval(loc, I, true);
-        if (!V)
-          continue;
-        LOG("cex",
-            errs() << "Producing harness for " << CF->getName() << "\n";);
-        m_func_val_map[CF].push_back(V);
-      }
-    }
+    v.setLoc(loc);
+    v.visit(const_cast<BasicBlock &>(BB));
   }
 }
 
@@ -221,7 +236,7 @@ void CexExeGenerator<Trace>::buildNonDetFunction(const Function *func,
     else
       Args.push_back(ConstantInt::get(Type::getInt32Ty(m_context), 0));
   } else {
-    errs() << "WARNING: Unknown type: " << *RT << "\n";
+    WARN << "Unknown type: " << *RT << "\n";
     assert(false && "Unknown return type");
   }
   FunctionCallee GetValue = m_harness->getOrInsertFunction(
@@ -240,7 +255,7 @@ void CexExeGenerator<Trace>::buildMemhavoc(const Function *func,
                                 cast<FunctionType>(func->getFunctionType()))
           .getCallee());
   if (!func->getReturnType()->isVoidTy()) {
-    LOG("cex", errs() << "memhavoc has non-void return type. Skipping...\n";);
+    LOG("cex", WARN << "memhavoc has non-void return type. Skipping...\n";);
     return;
   }
   Type *i8PtrTy = Type::getInt8PtrTy(m_context);
@@ -248,9 +263,9 @@ void CexExeGenerator<Trace>::buildMemhavoc(const Function *func,
   SmallVector<Constant *, 20> LLVMarray;
   // one nested array for segments
   for (size_t i = 0; i < values.size(); i++) {
-    auto havocPtr = m_memhavoc_args[i];
+    auto ndPtr = m_nondet_ptrs[i];
     Constant *segmentCA =
-        exprToMemSegment(values[i], havocPtr.first, havocPtr.second);
+        exprToMemSegment(values[i], ndPtr.first, ndPtr.second);
     GlobalVariable *segmentGA =
         new GlobalVariable(*m_harness, segmentCA->getType(), true,
                            GlobalValue::PrivateLinkage, segmentCA);
@@ -303,7 +318,6 @@ template <class Trace> void CexExeGenerator<Trace>::buildCexModule() {
   m_harness = std::make_unique<Module>("harness", m_context);
   m_harness->setDataLayout(m_dl);
   for (auto CFV : m_func_val_map) {
-
     auto CF = CFV.first;
     auto &values = CFV.second;
     if (CF->getName().equals("memhavoc")) {
@@ -388,8 +402,7 @@ Constant *CexExeGenerator<Trace>::exprToMemSegment(Expr segment, Expr startAddr,
   if (expr::numeric::getNum(size, sizeMpz)) {
     blockWidth = sizeMpz.get_ui();
   } else {
-    LOG("cex",
-        errs() << "memhavoc: cannot get concrete size (" << *size << ")\n");
+    LOG("cex", ERR << "memhavoc: cannot get concrete size (" << *size << ")\n");
     ArrayType *placeholderT = ArrayType::get(Type::getInt8PtrTy(m_context), 0);
     return ConstantArray::get(placeholderT, LLVMValueSegment);
   }
@@ -400,16 +413,16 @@ Constant *CexExeGenerator<Trace>::exprToMemSegment(Expr segment, Expr startAddr,
   if (expr::numeric::getNum(startAddr, startAddrMpz)) {
     startAddrInt = startAddrMpz.get_ui();
   } else {
-    LOG("cex", errs() << "memhavoc: cannot get concrete starting address: "
-                      << *startAddr << "\n");
+    LOG("cex", ERR << "memhavoc: cannot get concrete starting address: "
+                   << *startAddr << "\n");
     ArrayType *placeholderT = ArrayType::get(Type::getInt8PtrTy(m_context), 0);
     return ConstantArray::get(placeholderT, LLVMValueSegment);
   }
 
   const MemMap m_map(segment);
   if (!m_map.isValid()) {
-    LOG("cex", errs() << "memhavoc: cannot extract content from: " << *segment
-                      << "\n");
+    LOG("cex",
+        ERR << "memhavoc: cannot extract content from: " << *segment << "\n");
     ArrayType *placeholderT = ArrayType::get(Type::getInt8PtrTy(m_context), 0);
     return ConstantArray::get(placeholderT, LLVMValueSegment);
   }
@@ -424,7 +437,7 @@ Constant *CexExeGenerator<Trace>::exprToMemSegment(Expr segment, Expr startAddr,
   if (defaultE) {
     defaultConst = exprToConstant(segmentElmTy, defaultE);
   } else {
-    LOG("cex", errs() << "havocing mem with default 0 \n");
+    LOG("cex", WARN << "havocing mem with default 0 \n");
     defaultConst = Constant::getIntegerValue(
         segmentElmTy, APInt(m_dl.getTypeStoreSizeInBits(segmentElmTy), 0));
   }
@@ -442,8 +455,8 @@ Constant *CexExeGenerator<Trace>::exprToMemSegment(Expr segment, Expr startAddr,
       size_t curAddrInt = idE.get_ui();
       size_t index = (curAddrInt - startAddrInt) / elmWidth;
       if (index >= blocks) {
-        LOG("cex", errs() << "memhavoc: out of bound index: [" << index
-                          << "] with only " << blocks << " blocks \n");
+        LOG("cex", ERR << "memhavoc: out of bound index: [" << index
+                       << "] with only " << blocks << " blocks \n");
         continue;
       }
       Expr segmentE = begin->getValueExpr();

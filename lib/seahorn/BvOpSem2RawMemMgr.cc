@@ -798,7 +798,11 @@ RawMemManagerCore::getGlobalVariableInitValue(const GlobalVariable &gv) {
 }
 
 bool RawMemManagerCore::isPtrTyVal(Expr e) {
-  return (!e || !strct::isStructVal(e));
+  return (e && !strct::isStructVal(e));
+}
+
+bool RawMemManagerCore::isMemVal(Expr e) {
+  return (e && !strct::isStructVal(e));
 }
 
 } // namespace details

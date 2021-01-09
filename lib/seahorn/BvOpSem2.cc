@@ -2667,6 +2667,8 @@ boost::tribool Bv2OpSemContext::solve() { return m_z3_solver->solve(); }
 
 Expr Bv2OpSemContext::ptrToAddr(Expr p) { return mem().ptrToAddr(p); }
 
+Expr Bv2OpSemContext::getRawMem(Expr p) { return mem().getRawMem(p); }
+
 } // namespace details
 
 Bv2OpSem::Bv2OpSem(ExprFactory &efac, Pass &pass, const DataLayout &dl,

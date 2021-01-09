@@ -430,6 +430,14 @@ public:
       return Expr();
     return Expr(base().getAddressable(BasePtrTy(p)));
   }
+
+  bool isMemVal(Expr e) { return base().isMemVal(e); }
+
+  Expr getRawMem(Expr e) {
+    if (!isMemVal(e))
+      return Expr();
+    return Expr(BaseMemValTy(e).getRaw());
+  }
 };
 } // namespace details
 } // namespace seahorn

@@ -94,6 +94,12 @@ public:
     return m_semCtx->ptrToAddr(e);
   }
 
+  Expr getRawMem(Expr e) {
+    if (!m_semCtx)
+      return Expr();
+    return m_semCtx->getRawMem(e);
+  }
+
   /// output current path condition in SMT-LIB2 format
   virtual raw_ostream &toSmtLib(raw_ostream &out);
 

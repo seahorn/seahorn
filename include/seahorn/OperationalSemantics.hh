@@ -153,6 +153,9 @@ public:
   /// \brief Given Expr encoding of a ptr \p p, extract and return addressable
   /// part only
   virtual Expr ptrToAddr(Expr p) { return p; }
+
+  /// \brief Given Expr encoding of a mem map \p p, extract raw mem part only
+  virtual Expr getRawMem(Expr p) { return p; }
 };
 
 /// \brief Tracks information about a function

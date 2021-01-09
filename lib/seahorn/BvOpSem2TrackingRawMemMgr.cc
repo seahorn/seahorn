@@ -56,7 +56,12 @@ TrackingRawMemManager::getAddressable(TrackingRawMemManager::PtrTy p) const {
 
 bool TrackingRawMemManager::isPtrTyVal(Expr e) const {
   // same PtrTy as RawMemManager
-  return !e || !strct::isStructVal(e);
+  return e && !strct::isStructVal(e);
+}
+
+bool TrackingRawMemManager::isMemVal(Expr e) const {
+  // raw and metadata
+  return e && strct::isStructVal(e) && e->arity() == g_num_slots;
 }
 
 Expr TrackingRawMemManager::isDereferenceable(TrackingRawMemManager::PtrTy p,

@@ -1929,6 +1929,21 @@ public:
   Expr executeStoreInst(const Value &val, const Value &addr, unsigned alignment,
                         Bv2OpSemContext &ctx) {
 
+    if (val.getType()->isDoubleTy() || val.getType()->isFloatTy()) {
+      if (ctx.getMemReadRegister() && ctx.getMemWriteRegister()) {
+        LOG("opsem", WARN << "treating double/float store as noop: *" << addr
+                          << " := " << val << "\n";);
+
+        Expr res = ctx.read(ctx.getMemReadRegister());
+        ctx.write(ctx.getMemWriteRegister(), res);
+        ctx.setMemReadRegister(Expr());
+        ctx.setMemWriteRegister(Expr());
+        return res;
+      }
+      // if anything above fails, continue as usual. Exceptional cases are
+      // treated as memhavoc below.
+    }
+
     if (!ctx.getMemReadRegister() || !ctx.getMemWriteRegister() ||
         m_sem.isSkipped(val)) {
       LOG("opsem",

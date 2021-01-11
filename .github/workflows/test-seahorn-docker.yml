@@ -28,7 +28,7 @@ jobs:
 
     # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
-      - name: tag and push seahorn (nightly)
+      - name: Log manual trigger info
         if: ${{ github.event_name == 'workflow_dispatch' }}  # only if triggered manually
         run: |
           echo "Triggered manually by: ${{ github.event.inputs.Triggerer }}"

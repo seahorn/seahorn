@@ -11,6 +11,13 @@ on:
     branches: dev10
   schedule:
     - cron: 0 0 * * *  # run every day at UTC 00:00
+  workflow_dispatch:
+    branches: dev10
+    inputs:
+      Triggerer:
+        description: 'Triggered by:'
+        required: true
+        default: ''     
 
 # A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:
@@ -21,6 +28,10 @@ jobs:
 
     # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
+      - name: tag and push seahorn (nightly)
+        if: ${{ github.event_name == 'workflow_dispatch' }}  # only if triggered manually
+        run: |
+          echo "Triggered manually by: ${{ github.event.inputs.Triggerer }}"
       # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
       - name: Check Out Repo 
         uses: actions/checkout@v2

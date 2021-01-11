@@ -60,8 +60,8 @@ jobs:
       - name: Login to DockerHub Registry
         if: ${{ github.event_name == 'schedule' }}  # only push if nightly run
         run: echo ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }} | docker login -u ${{ secrets.DOCKER_HUB_USERNAME }} --password-stdin
-      - name: tag and push seahorn (nightly)
-        if: ${{ github.event_name == 'schedule' }}  # only push if nightly run
+      - name: tag and push seahorn (nightly/manual)
+        if: ${{ github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' }}  # only push if nightly or manual run
         run: |
           docker tag seahorn_container seahorn/seahorn-llvm10:nightly
           docker push seahorn/seahorn-llvm10:nightly 

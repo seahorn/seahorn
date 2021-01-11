@@ -666,14 +666,13 @@ public:
 
     IntegerType *Ty =
         dyn_cast<IntegerType>(cast<CallInst>(CS.getInstruction())->getType());
-    InlineAsm *IA = cast<InlineAsm>(CS.getCalledValue());
-    const std::string &AsmStr = IA->getAsmString();
-    if (CS.getNumArgOperands() > 1 ||
-        (Ty && (AsmStr.empty() || Ty->getBitWidth() % 16 != 0))) {
+    if ((Ty && Ty->getBitWidth() % 16 != 0) || CS.getNumArgOperands() > 1) {
       LOG("opsem",
           ERR << "Cannot handle inline assembly: " << *CS.getInstruction());
       return;
     }
+    InlineAsm *IA = cast<InlineAsm>(CS.getCalledValue());
+    const std::string &AsmStr = IA->getAsmString();
     llvm::SmallVector<llvm::StringRef, 4> AsmPieces;
     llvm::SplitString(AsmStr, AsmPieces, ";\n");
     switch (AsmPieces.size()) {
@@ -684,7 +683,7 @@ public:
     case 0:
       // This part handles the following type of inline assembly
       // The other switch cases are handling integer bswap only
-      // 1. read memory value (data)
+      // 1. read memory value (data), the type of value is not restricted
       if (IA->getConstraintString().compare(0, 5, "=r,0,") == 0) {
         // Copy input to output
         Expr readVal = lookup(*CS.getArgument(0));

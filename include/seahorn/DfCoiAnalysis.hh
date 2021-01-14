@@ -10,6 +10,7 @@ namespace llvm {
 class LoadInst;
 class CallInst;
 class MemTransferInst;
+class AllocaInst;
 } // namespace llvm
 
 namespace seahorn {
@@ -19,6 +20,7 @@ class DfCoiAnalysis {
 
   llvm::CallInst *analyzeLoad(llvm::LoadInst &LI);
   llvm::CallInst *analyzeMemTransfer(llvm::MemTransferInst &MI);
+  llvm::CallInst *analyzeAllocaInst(llvm::AllocaInst &AI);
 
 public:
   DfCoiAnalysis() {}

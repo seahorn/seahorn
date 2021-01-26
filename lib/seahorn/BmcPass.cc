@@ -291,6 +291,9 @@ public:
     computeDependence(m->getFunction("sea.assert.if"));
     computeDependence(m->getFunction("verifier.assert.not"));
     computeDependence(m->getFunction("verifier.assert"));
+    // add opsem control commands to filter
+    computeDependence(m->getFunction("sea.tracking_on"));
+    computeDependence(m->getFunction("sea.tracking_off"));
 
     // install dependence filter in operational semantics
     auto &filter = dfCoi.getCoi();

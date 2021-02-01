@@ -53,7 +53,8 @@ namespace
 
         if (name.startswith ("seahorn.") ||
             name.startswith ("__seahorn") ||
-            name.startswith ("verifier.")) return false;
+            name.startswith ("verifier.") ||
+	    name.startswith ("sea_dsa")) return false;
 
         if (name.startswith ("__VERIFIER")) return false;
 

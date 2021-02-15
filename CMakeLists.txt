@@ -422,12 +422,6 @@ endif()
 
 if (IS_DIRECTORY ${CMAKE_SOURCE_DIR}/clam AND
     EXISTS ${CMAKE_SOURCE_DIR}/clam/CMakeLists.txt)
-  if (NOT CLAM_ALL_DOMAINS)
-    set(CLAM_ALL_DOMAINS OFF CACHE BOOL "Include all crab abstract domains" FORCE)
-  endif()
-  if (NOT CLAM_ENABLE_INTER)
-    set(CLAM_ENABLE_INTER OFF CACHE BOOL "Include crab inter-procedural analysis" FORCE)
-  endif()
   add_subdirectory(${CMAKE_SOURCE_DIR}/clam)
   set(HAVE_CLAM TRUE)
   include_directories (BEFORE ${CLAM_INCLUDE_DIRS})

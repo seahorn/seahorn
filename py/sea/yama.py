@@ -1,7 +1,6 @@
 import sys
 import sea
 
-
 class Yama(sea.CliCmd):
     def __init__(self):
         super().__init__('yama', 'Yama', allow_extra=False)
@@ -96,6 +95,7 @@ class Yama(sea.CliCmd):
     def run(self, args=None, _extra=[]):
         import sys
         import os
+        import os.path
 
         self._ignore_error = args.yforce
         # set default value
@@ -105,7 +105,7 @@ class Yama(sea.CliCmd):
         extra = args.extra
         args_dict = None
         for f in args.yconfig:
-            assert(len(f) == 1)
+            assert len(f) == 1
             yaml_args = self.parse_yaml_options(f[0])
             if yaml_args is None:
                 continue
@@ -119,7 +119,8 @@ class Yama(sea.CliCmd):
             command, cli = self.mk_cli_from_dict(args_dict)
 
         # override command if specified on command line
-        if len(extra) > 0 and not extra[0].startswith('-'):
+        # but ignore files
+        if len(extra) > 0 and not extra[0].startswith('-') and not os.path.isfile(extra[0]):
             command = extra[0]
             extra = extra[1:]
 

@@ -299,7 +299,7 @@ class ExtCmd (LimitedCmd):
         argv = [self.name]
         argv.extend (extra)
 
-        if not self.quiet: print(' '.join (argv))
+        if not self.quiet: print(' '.join (argv), flush=True)
 
         self.cmd = TimeLimitedExec (argv, args.cpu, args.mem, **popen_args)
         return self.cmd.Run ()

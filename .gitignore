@@ -22,3 +22,6 @@
 .vscode/launch.json
 .vscode/settings.json
 /.clangd/
+/.cache/
+.ccls
+.ccls-root

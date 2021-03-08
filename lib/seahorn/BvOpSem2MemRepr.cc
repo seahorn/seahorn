@@ -3,7 +3,7 @@
 
 namespace {
 template <typename T, typename... Rest>
-auto as_std_array(const T &t, const Rest &... rest) ->
+auto as_std_array(const T &t, const Rest &...rest) ->
     typename std::array<T, sizeof...(Rest) + 1> {
   return {t, rest...};
 }
@@ -347,8 +347,20 @@ OpSemMemLambdaRepr::MemCpy(PtrTy dPtr, PtrTy sPtr, unsigned len,
     MemValTy srcMem = memTrsfrRead;
 
     if (len > 0) {
-      unsigned bytesToCpy = len - wordSzInBytes;
-      PtrTy dstLast = m_memManager.ptrAdd(dPtr, bytesToCpy);
+      unsigned lastByteToCopy;
+      unsigned remainderBytes;
+      if (m_memManager.isIgnoreAlignment()) {
+        // if alignment is ignored, we treat it as alignment of 1
+        lastByteToCopy = len - 1;
+        remainderBytes = 0;
+      } else {
+        unsigned wordsToCopy = (len / wordSzInBytes);
+        // -- -1 because ptrInRangeCheck is inclusive
+        lastByteToCopy = (wordsToCopy - 1) * wordSzInBytes;
+        remainderBytes = len % wordSzInBytes;
+      }
+
+      PtrTy dstLast = m_memManager.ptrAdd(dPtr, lastByteToCopy);
 
       PtrTy b0 = PtrTy(bind::bvar(0, ptrSort.toExpr()));
       Expr cmp = m_memManager.ptrInRangeCheck(dPtr, b0, dstLast);
@@ -358,12 +370,50 @@ OpSemMemLambdaRepr::MemCpy(PtrTy dPtr, PtrTy sPtr, unsigned len,
       Expr readFromSrc = op::bind::fapp(srcMem.toExpr(), readPtrInSrc.toExpr());
       Expr readFromDst = op::bind::fapp(memRead.toExpr(), b0.toExpr());
 
-      Expr ite = boolop::lite(cmp, readFromSrc, readFromDst);
+      // -- body of the new lambda function
+      Expr body;
+      if (remainderBytes) {
+        LOG("opsem.lambda",
+            WARN << "memcpy of incomplete words. potential bottleneck.");
+        // -- if there are remainder bytes, stitch the last word together
+
+        // -- address of last word in destination is after the last word copied
+        PtrTy lastWordAddr =
+            m_memManager.ptrAdd(dPtr, lastByteToCopy + wordSzInBytes);
+        Expr isLastWordCmp = m_memManager.ptrEq(b0, lastWordAddr);
+
+        // -- after compare, B0 is the same as last address
+        Expr lastWordValDst = op::bind::fapp(memRead.toExpr(), b0.toExpr());
+        // -- readPtrInSrc is an address in src that is at the corresponding
+        // offset from B0
+        Expr lastWordValSrc =
+            op::bind::fapp(srcMem.toExpr(), readPtrInSrc.toExpr());
+
+        // -- compute the last word by taking chunks of source and destination
+        // -- words. source word comes first
+        unsigned wordSzInBits = wordSzInBytes * 8;
+        unsigned remainderBits = remainderBytes * 8;
+        auto &alu = m_ctx.alu();
+        Expr srcChunk =
+            alu.Extract({lastWordValSrc, wordSzInBits}, 0, remainderBits - 1);
+        Expr dstChunk = alu.Extract({lastWordValDst, wordSzInBits},
+                                    remainderBits, wordSzInBits - 1);
+        Expr lastWordVal = alu.Concat({dstChunk, wordSzInBits - remainderBits},
+                                      {srcChunk, remainderBits});
+
+        // -- construct the big ITE
+        body = boolop::lite(isLastWordCmp, lastWordVal, readFromDst);
+        body = boolop::lite(cmp, readFromSrc, body);
+      } else {
+        body = boolop::lite(cmp, readFromSrc, readFromDst);
+      }
+
+      // -- create lambda function by binding B0 to be the function argument
       Expr addr =
           bind::mkConst(mkTerm<std::string>("addr", m_efac), ptrSort.toExpr());
       Expr decl = bind::fname(addr);
-      res = MemValTy(mk<LAMBDA>(decl, ite));
-      LOG("opsem.lambda", errs() << "MemCpy " << &res << "\n");
+      res = MemValTy(mk<LAMBDA>(decl, body));
+      LOG("opsem.lambda", errs() << "MemCpy " << *res.v() << "\n");
     } else {
       // no-op
       res = memRead;

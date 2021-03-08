@@ -325,7 +325,7 @@ OpSemMemRepr::MemValTy OpSemMemLambdaRepr::createMemCpyExpr(
                               ptrSort.toExpr());
     Expr decl = bind::fname(addr);
     res = MemValTy(mk<LAMBDA>(decl, ite));
-    LOG("opsem.lambda", errs() << "MemCpy " << &res << "\n");
+    LOG("opsem.lambda", errs() << "MemCpy " << *res.v() << "\n");
   } else {
     DOG(ERR << "unsupported memcpy due to size and/or alignment.";);
     DOG(WARN << "Interpreting memcpy as noop");

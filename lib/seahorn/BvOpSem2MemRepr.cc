@@ -3,7 +3,7 @@
 
 namespace {
 template <typename T, typename... Rest>
-auto as_std_array(const T &t, const Rest &...rest) ->
+auto as_std_array(const T &t, const Rest &... rest) ->
     typename std::array<T, sizeof...(Rest) + 1> {
   return {t, rest...};
 }
@@ -347,20 +347,20 @@ OpSemMemLambdaRepr::MemCpy(PtrTy dPtr, PtrTy sPtr, unsigned len,
     MemValTy srcMem = memTrsfrRead;
 
     if (len > 0) {
-      unsigned lastByteToCopy;
+      unsigned lastAlignedBytePosToCopy;
       unsigned remainderBytes;
       if (m_memManager.isIgnoreAlignment()) {
         // if alignment is ignored, we treat it as alignment of 1
-        lastByteToCopy = len - 1;
+        lastAlignedBytePosToCopy = len - 1;
         remainderBytes = 0;
       } else {
         unsigned wordsToCopy = (len / wordSzInBytes);
         // -- -1 because ptrInRangeCheck is inclusive
-        lastByteToCopy = (wordsToCopy - 1) * wordSzInBytes;
+        lastAlignedBytePosToCopy = (wordsToCopy - 1) * wordSzInBytes;
         remainderBytes = len % wordSzInBytes;
       }
 
-      PtrTy dstLast = m_memManager.ptrAdd(dPtr, lastByteToCopy);
+      PtrTy dstLast = m_memManager.ptrAdd(dPtr, lastAlignedBytePosToCopy);
 
       PtrTy b0 = PtrTy(bind::bvar(0, ptrSort.toExpr()));
       Expr cmp = m_memManager.ptrInRangeCheck(dPtr, b0, dstLast);
@@ -379,7 +379,7 @@ OpSemMemLambdaRepr::MemCpy(PtrTy dPtr, PtrTy sPtr, unsigned len,
 
         // -- address of last word in destination is after the last word copied
         PtrTy lastWordAddr =
-            m_memManager.ptrAdd(dPtr, lastByteToCopy + wordSzInBytes);
+            m_memManager.ptrAdd(dPtr, lastAlignedBytePosToCopy + wordSzInBytes);
         Expr isLastWordCmp = m_memManager.ptrEq(b0, lastWordAddr);
 
         // -- after compare, B0 is the same as last address

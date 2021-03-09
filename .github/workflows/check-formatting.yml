@@ -10,7 +10,7 @@ jobs:
     steps:
       - name: Setup environment
         run: |
-          sudo apt-get install -yqq clang-format-9
+          sudo apt-get install -yqq clang-format-10
       - name: Checkout
         run: |
           git clone https://github.com/${{ github.repository }}.git .
@@ -20,7 +20,7 @@ jobs:
       - name: Run clang-format
         run: |
           git diff ${{ github.base_ref }} -U0 --no-color -- '**/*.cpp' '**/*.cc' '**/*.h' '**/*.hh' \
-            | clang-format-diff-9 -p1 >not-formatted.diff 2>&1
+            | clang-format-diff-10 -p1 >not-formatted.diff 2>&1
       - name: Check formatting
         run: |
           if ! grep -q '[^[:space:]]' not-formatted.diff ; then

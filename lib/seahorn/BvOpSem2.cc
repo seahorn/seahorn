@@ -1997,16 +1997,21 @@ public:
   Expr executeStoreInst(const Value &val, const Value &addr, unsigned alignment,
                         Bv2OpSemContext &ctx) {
 
+    // -- fn to update ctx in case the store operation is treated as a noop
+    auto noop = [&ctx]() {
+      Expr res = ctx.read(ctx.getMemReadRegister());
+      ctx.write(ctx.getMemWriteRegister(), res);
+      ctx.setMemReadRegister(Expr());
+      ctx.setMemWriteRegister(Expr());
+      return res;
+    };
+
     if (val.getType()->isDoubleTy() || val.getType()->isFloatTy()) {
       if (ctx.getMemReadRegister() && ctx.getMemWriteRegister()) {
         LOG("opsem", WARN << "treating double/float store as noop: *" << addr
                           << " := " << val << "\n";);
 
-        Expr res = ctx.read(ctx.getMemReadRegister());
-        ctx.write(ctx.getMemWriteRegister(), res);
-        ctx.setMemReadRegister(Expr());
-        ctx.setMemWriteRegister(Expr());
-        return res;
+        return noop();
       }
       // if anything above fails, continue as usual. Exceptional cases are
       // treated as memhavoc below.
@@ -2019,6 +2024,12 @@ public:
       ctx.setMemReadRegister(Expr());
       ctx.setMemWriteRegister(Expr());
       return Expr();
+    }
+
+    if (isa<UndefValue>(val)) {
+      // from LLVM Lang Ref:
+      // A store of an undefined value can be assumed to not have any effect;
+      return noop();
     }
 
     Expr v = lookup(val);
@@ -2618,7 +2629,10 @@ Expr Bv2OpSemContext::mkRegister(const llvm::Value &v) {
 
 Expr Bv2OpSemContext::getConstantValue(const llvm::Constant &c) {
   // -- easy common cases
-  if (isa<ConstantPointerNull>(&c)) {
+  if (isa<const UndefValue>(c)) {
+    // -- `undef` is an arbitrary bit-pattern, so we treat it as 0
+    return alu().ui(0U, m_sem.sizeInBits(c));
+  } else if (isa<ConstantPointerNull>(&c)) {
     return mem().nullPtr();
   } else if (const ConstantInt *ci = dyn_cast<const ConstantInt>(&c)) {
     if (ci->getType()->isIntegerTy(1))

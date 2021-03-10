@@ -250,6 +250,11 @@ static llvm::cl::opt<bool>
                      llvm::cl::desc("Promote bool loads to sgt"),
                      llvm::cl::init(true));
 
+static llvm::cl::opt<bool>
+    NondetInit("promote-nondet-undef",
+               llvm::cl::desc("Replace all undef with non-determinism"),
+               llvm::cl::init(true));
+
 static llvm::cl::opt<bool> StripDebug("strip-debug",
                                       llvm::cl::desc("Strip debug info"),
                                       llvm::cl::init(false));
@@ -507,8 +512,10 @@ int main(int argc, char **argv) {
 
     // -- SSA
     pm_wrapper.add(llvm::createPromoteMemoryToRegisterPass());
-    // -- Turn undef into nondet
-    pm_wrapper.add(seahorn::createNondetInitPass());
+
+    if (NondetInit)
+      // -- Turn undef into nondet
+      pm_wrapper.add(seahorn::createNondetInitPass());
 
     // -- Promote memcpy to loads-and-stores for easier alias analysis.
     pm_wrapper.add(seahorn::createPromoteMemcpyPass());
@@ -523,9 +530,10 @@ int main(int argc, char **argv) {
     //     SROA_Threshold, true, SROA_StructMemThreshold,
     //     SROA_ArrayElementThreshold, SROA_ScalarLoadThreshold));
     pm_wrapper.add(llvm::createSROAPass());
-    // -- Turn undef into nondet (undef are created by SROA when it calls
-    //     mem2reg)
-    pm_wrapper.add(seahorn::createNondetInitPass());
+    if (NondetInit)
+      // -- Turn undef into nondet (undef are created by SROA when it calls
+      //     mem2reg)
+      pm_wrapper.add(seahorn::createNondetInitPass());
 
     // -- cleanup after break aggregates
     pm_wrapper.add(seahorn::createInstCombine());

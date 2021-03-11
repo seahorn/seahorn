@@ -219,6 +219,9 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
   }
 
   void visitCmpInst(CmpInst &I) {
+    if (!m_sem.isTracked(I))
+      return;
+
     Expr lhs = havoc(I);
 
     const Value &v0 = *I.getOperand(0);
@@ -551,6 +554,9 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
   }
 
   void visitReturnInst(ReturnInst &I) {
+    if (!m_sem.isTracked(I))
+      return;
+
     // -- skip return argument of main
     if (I.getParent()->getParent()->getName().equals("main"))
       return;
@@ -560,6 +566,9 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
   }
 
   void visitBranchInst(BranchInst &I) {
+    if (!m_sem.isTracked(I))
+      return;
+
     if (I.isConditional())
       lookup(*I.getCondition());
   }
@@ -610,6 +619,9 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
   }
 
   void doExtCast(CastInst &I, bool is_signed = false) {
+    if (!m_sem.isTracked(I))
+      return;
+
     Expr lhs = havoc(I);
     const Value &v0 = *I.getOperand(0);
     Expr op0 = lookup(v0);
@@ -639,6 +651,9 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
 
     Instruction &I = *CS.getInstruction();
     BasicBlock &BB = *I.getParent();
+
+    if (!m_sem.isTracked(I))
+      return;
 
     // -- unknown/indirect function call
     if (!f) {
@@ -1112,6 +1127,9 @@ const Value &UfoOpSem::conc(Expr v) const {
 bool UfoOpSem::isTracked(const Value &v) const {
   const Value *scalar = nullptr;
 
+  if (!OperationalSemantics::isTracked(v))
+    return false;
+
   if (isa<UndefValue>(v))
     return false;
 
@@ -1137,8 +1155,8 @@ bool UfoOpSem::isTracked(const Value &v) const {
     return m_trackLvl >= PTR;
   }
 
-  // -- always track integer registers
-  return v.getType()->isIntegerTy();
+  // -- always track integer registers and void functions
+  return v.getType()->isIntegerTy() || v.getType()->isVoidTy();
 }
 
 bool UfoOpSem::isAbstracted(const Function &fn) {
@@ -1216,9 +1234,11 @@ static void printCS(const CallSiteInfo &csi, const FunctionInfo &fi) {
 
 void UfoOpSem::execCallSite(CallSiteInfo &csi, ExprVector &side, SymStore &s) {
 
-  const FunctionInfo &fi = getFunctionInfo(*csi.m_cs.getCalledFunction());
-
   Instruction &I = *csi.m_cs.getInstruction();
+  if (!isTracked(I))
+    return;
+
+  const FunctionInfo &fi = getFunctionInfo(*csi.m_cs.getCalledFunction());
 
   for (const Argument *arg : fi.args)
     csi.m_fparams.push_back(
@@ -1243,6 +1263,10 @@ void UfoOpSem::execCallSite(CallSiteInfo &csi, ExprVector &side, SymStore &s) {
 
 void MemUfoOpSem::execCallSite(CallSiteInfo &csi, ExprVector &side,
                                SymStore &s) {
+
+  Instruction &I = *csi.m_cs.getInstruction();
+  if (!isTracked(I))
+    return;
 
   const FunctionInfo &fi = getFunctionInfo(*csi.m_cs.getCalledFunction());
 
@@ -1297,8 +1321,6 @@ void MemUfoOpSem::execCallSite(CallSiteInfo &csi, ExprVector &side,
   LOG("inter_mem_counters", g_im_stats.m_n_callsites++;
       if (init_params < g_im_stats.m_params_copied)
           g_im_stats.m_callsites_copied++;);
-
-  Instruction &I = *csi.m_cs.getInstruction();
 
   if (fi.ret)
     csi.m_fparams.push_back(s.havoc(symb(I)));

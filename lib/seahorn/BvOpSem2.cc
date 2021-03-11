@@ -2629,7 +2629,8 @@ Expr Bv2OpSemContext::mkRegister(const llvm::Value &v) {
 
 Expr Bv2OpSemContext::getConstantValue(const llvm::Constant &c) {
   // -- easy common cases
-  if (isa<const UndefValue>(c)) {
+  if (false && isa<const UndefValue>(c)) {
+    // XXX causes issues with structures, disable for now
     // -- `undef` is an arbitrary bit-pattern, so we treat it as 0
     return alu().ui(0U, m_sem.sizeInBits(c));
   } else if (isa<ConstantPointerNull>(&c)) {

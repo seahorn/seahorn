@@ -2633,7 +2633,8 @@ Expr Bv2OpSemContext::getConstantValue(const llvm::Constant &c) {
     // XXX causes issues with structures, disable for now
     // -- `undef` is an arbitrary bit-pattern, so we treat it as 0
     return alu().ui(0U, m_sem.sizeInBits(c));
-  } else if (isa<ConstantPointerNull>(c) || isa<UndefValue>(c)) {
+  } else if (isa<ConstantPointerNull>(c) ||
+             (c.getType()->isPointerTy() && isa<UndefValue>(c))) {
     return mem().nullPtr();
   } else if (const ConstantInt *ci = dyn_cast<const ConstantInt>(&c)) {
     if (ci->getType()->isIntegerTy(1))

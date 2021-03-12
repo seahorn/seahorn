@@ -106,6 +106,7 @@ llvm::Pass *createBoogieWriterPass(llvm::raw_ostream *out, bool use_crab);
 
 llvm::ModulePass *createControlDependenceAnalysisPass();
 llvm::ModulePass *createGateAnalysisPass();
+llvm::Pass *createGeneratePartialFnPass();
 llvm::Pass *createCHAPass();
 llvm::ModulePass *createDebugVerifierPass(int instanceID, llvm::StringRef name);
 llvm::Pass *createUnifyAssumesPass();

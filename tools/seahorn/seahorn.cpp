@@ -5,6 +5,8 @@
 // This file is distributed under the MIT License. See LICENSE for details.
 //
 
+#include "llvm_seahorn/InitializePasses.h"
+#include "llvm_seahorn/Transforms/IPO.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/LegacyPassManager.h"
 #include "llvm/IR/Module.h"
@@ -291,6 +293,8 @@ int main(int argc, char **argv) {
   llvm::initializeDsaInfoPassPass(Registry);
   llvm::initializeAllocSiteInfoPass(Registry);
   llvm::initializeCompleteCallGraphPass(Registry);
+  llvm::initializeAnnotation2MetadataLegacyPass(Registry);
+  llvm::initializeGeneratePartialFnPassPass(Registry);
   // add an appropriate DataLayout instance for the module
   const llvm::DataLayout *dl = &module->getDataLayout();
   if (!dl && !DefaultDataLayout.empty()) {
@@ -300,6 +304,7 @@ int main(int argc, char **argv) {
 
   assert(dl && "Could not find Data Layout for the module");
 
+  pass_manager.add(llvm_seahorn::createAnnotation2MetadataLegacyPass());
   pass_manager.add(seahorn::createSeaBuiltinsWrapperPass());
   // turn all functions internal so that we can inline them if requested
   auto PreserveMain = [=](const llvm::GlobalValue &GV) {
@@ -307,6 +312,7 @@ int main(int argc, char **argv) {
   };
   pass_manager.add(llvm::createInternalizePass(PreserveMain));
   pass_manager.add(llvm::createGlobalDCEPass()); // kill unused internal global
+  pass_manager.add(seahorn::createGeneratePartialFnPass());
 
   if (InlineAll) {
     pass_manager.add(seahorn::createMarkInternalInlinePass());

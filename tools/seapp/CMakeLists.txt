@@ -8,6 +8,7 @@ set (USED_LIBS
   SeaSupport
   ${LLVM_SEAHORN_LIBS}
   ${Boost_SYSTEM_LIBRARY}
+  SeaLlvmIpo
   ${GMP_LIB}
   ${RT_LIB})
 

@@ -19,6 +19,8 @@ namespace seahorn
     Function *m_assumeFn;
     Function *m_assertFn;
     Function *m_assertNotFn;
+    Function *m_synthAssumeFn;
+    Function *m_synthAssertFn;
     Function *m_errorFn;
     Function *m_failureFn; // to indicate failure. It can only appears in main.
     Function *m_is_deref;

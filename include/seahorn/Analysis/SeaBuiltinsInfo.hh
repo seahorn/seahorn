@@ -16,6 +16,8 @@ enum class SeaBuiltinsOp {
   ASSUME_NOT,         /* verifier.assume.not */
   ASSERT,             /* verifier.assert */
   ASSERT_NOT,         /* verifier.assert.not */
+  SYNTH_ASSUME,       /* sea.synth.assume */
+  SYNTH_ASSERT,       /* sea.synth.assert */
   IS_DEREFERENCEABLE, /* sea.is_dereferenceable */
   ASSERT_IF,          /* sea.assert.if */
   BRANCH_SENTINEL,    /* sea.branch_sentinel */
@@ -38,6 +40,8 @@ class SeaBuiltinsInfo {
   llvm::Function *mkIsDereferenceable(llvm::Module &M);
   llvm::Function *mkAssertIfFn(llvm::Module &M);
   llvm::Function *mkAssertFn(llvm::Module &M, SeaBuiltinsOp);
+  llvm::Function *mkSynthAssume(llvm::Module &M);
+  llvm::Function *mkSynthAssert(llvm::Module &M);
   llvm::Function *mkBranchSentinelFn(llvm::Module &M);
   llvm::Function *mkIsModifiedFn(llvm::Module &M);
   llvm::Function *mkResetModifiedFn(llvm::Module &M);

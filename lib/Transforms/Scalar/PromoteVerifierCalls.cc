@@ -1,5 +1,7 @@
 #include "seahorn/Transforms/Scalar/PromoteVerifierCalls.hh"
+
 #include "seahorn/Analysis/SeaBuiltinsInfo.hh"
+#include "seahorn/Transforms/Instrumentation/GeneratePartialFnPass.hh"
 
 #include "llvm/IR/CallSite.h"
 #include "llvm/IR/InstIterator.h"
@@ -32,6 +34,35 @@ Value *coerceToBool(Value *arg, IRBuilder<> &builder, Instruction &I) {
     arg = builder.CreateICmpNE(arg, ConstantInt::get(arg->getType(), 0));
   return arg;
 }
+
+/// Determines if \p v represents a partial function call. If so, then the
+/// function call is returned.
+Value *extractPartialFnCall(Value *v) {
+  // The partial call may be cast to bool by comparison to 0.
+  if (auto cmp = dyn_cast<ICmpInst>(v)) {
+    auto *lhs = cmp->getOperand(0);
+    auto *rhs = cmp->getOperand(1);
+    v = isa<CallInst>(lhs) ? lhs : rhs;
+  }
+
+  // Strips zext if applicable.
+  if (auto *ze = dyn_cast<ZExtInst>(v))
+    v = ze->getOperand(0);
+
+  // The value must now be a CallInst.
+  auto CI = dyn_cast<CallInst>(v);
+  if (!CI)
+    return nullptr;
+
+  // Ensures that fn is a Boolean function with a "partial" annotation.
+  const Function &F = (*CI->getCalledFunction());
+  if (!F.getReturnType() || !F.getReturnType()->isIntegerTy(1))
+    return nullptr;
+  if (!seahorn::isPartialFn(F))
+    return nullptr;
+  return v;
+}
+
 } // namespace
 namespace seahorn {
 
@@ -50,6 +81,8 @@ bool PromoteVerifierCalls::runOnModule(Module &M) {
   m_errorFn = SBI.mkSeaBuiltinFn(SBIOp::ERROR, M);
   m_is_deref = SBI.mkSeaBuiltinFn(SBIOp::IS_DEREFERENCEABLE, M);
   m_assert_if = SBI.mkSeaBuiltinFn(SBIOp::ASSERT_IF, M);
+  m_synthAssumeFn = SBI.mkSeaBuiltinFn(SBIOp::SYNTH_ASSUME, M);
+  m_synthAssertFn = SBI.mkSeaBuiltinFn(SBIOp::SYNTH_ASSERT, M);
   m_is_modified = SBI.mkSeaBuiltinFn(SBIOp::IS_MODIFIED, M);
   m_reset_modified = SBI.mkSeaBuiltinFn(SBIOp::RESET_MODIFIED, M);
   m_is_read = SBI.mkSeaBuiltinFn(SBIOp::IS_READ, M);
@@ -171,28 +204,55 @@ bool PromoteVerifierCalls::runOnFunction(Function &F) {
                fn->getName().equals("llvm.invariant") ||
                /** my suggested name for pagai invariants */
                fn->getName().equals("pagai.invariant"))) {
-      Function *nfn;
-      if (fn->getName().equals("__VERIFIER_assume"))
-        nfn = m_assumeFn;
-      else if (fn->getName().equals("llvm.invariant"))
-        nfn = m_assumeFn;
-      else if (fn->getName().equals("pagai.invariant"))
-        nfn = m_assumeFn;
-      else if (fn->getName().equals("__VERIFIER_assert"))
-        nfn = m_assertFn;
-      else if (fn->getName().equals("__VERIFIER_assert_not"))
-        nfn = m_assertNotFn;
-      else if (fn->getName().equals("__CPROVER_assume"))
-        nfn = m_assumeFn;
-      else
-        continue;
+      auto arg0 = CS.getArgument(0);
 
-      IRBuilder<> Builder(F.getContext());
-      auto *cond = coerceToBool(CS.getArgument(0), Builder, I);
-      CallInst *ci = Builder.CreateCall(nfn, cond);
-      if (cg)
-        (*cg)[&F]->addCalledFunction(ci, (*cg)[ci->getCalledFunction()]);
+      CallInst *nfnCi = nullptr, *chkCi = nullptr;
+      if (auto partialFn = extractPartialFnCall(arg0)) {
+        // Selects proper synthesis call.
+        Function *nfn;
+        if (fn->getName().equals("__VERIFIER_assume"))
+          nfn = m_synthAssumeFn;
+        else if (fn->getName().equals("__VERIFIER_assert"))
+          nfn = m_synthAssertFn;
+        else
+          assert(0);
 
+        // Generates code.
+        IRBuilder<> Builder(F.getContext());
+        Builder.SetInsertPoint(&I);
+        chkCi = Builder.CreateCall(m_assumeFn, partialFn);
+        nfnCi = Builder.CreateCall(nfn, partialFn);
+      } else {
+        // Selects proper verification call.
+        Function *nfn;
+        if (fn->getName().equals("__VERIFIER_assume"))
+          nfn = m_assumeFn;
+        else if (fn->getName().equals("llvm.invariant"))
+          nfn = m_assumeFn;
+        else if (fn->getName().equals("pagai.invariant"))
+          nfn = m_assumeFn;
+        else if (fn->getName().equals("__VERIFIER_assert"))
+          nfn = m_assertFn;
+        else if (fn->getName().equals("__VERIFIER_assert_not"))
+          nfn = m_assertNotFn;
+        else if (fn->getName().equals("__CPROVER_assume"))
+          nfn = m_assumeFn;
+        else
+          assert(0);
+
+        // Generates code.
+        IRBuilder<> Builder(F.getContext());
+        auto *cond = coerceToBool(arg0, Builder, I);
+        nfnCi = Builder.CreateCall(nfn, cond);
+      }
+
+      // Updates call graph witth added functions.
+      if (cg && nfnCi)
+        (*cg)[&F]->addCalledFunction(nfnCi, (*cg)[nfnCi->getCalledFunction()]);
+      if (cg && chkCi)
+        (*cg)[&F]->addCalledFunction(chkCi, (*cg)[chkCi->getCalledFunction()]);
+
+      // Remove the original instruction.
       toKill.push_back(&I);
     } else if (fn && fn->getName().equals("__VERIFIER_error")) {
       IRBuilder<> Builder(F.getContext());

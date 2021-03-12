@@ -104,7 +104,7 @@ void HornifyFunction::extractFunctionInfo(const BasicBlock &BB) {
   /// --- Performs argument extraction.
 
   FunctionInfo &fi = m_sem.getFunctionInfo(F);
-  fi.isInferable = GeneratePartialFnPass::isInferable(F);
+  fi.isInferable = isInferable(F);
 
   // reserved arguments:
   //  1. enabled flag
@@ -176,6 +176,113 @@ void HornifyFunction::extractFunctionInfo(const BasicBlock &BB) {
   };
   if (!fi.isInferable)
     addRuleForBasicSummaryProperties();
+}
+
+llvm::SmallVector<llvm::Instruction *, 8>
+HornifyFunction::getPartialFnsToSynth(Function &F) {
+  // Gets reference to sea.synth.assert.
+  if (!m_synthAssertFn) {
+    auto &SBI = m_parent.getSBI();
+    auto &M = (*F.getParent());
+    m_synthAssertFn = SBI.mkSeaBuiltinFn(SeaBuiltinsOp::SYNTH_ASSERT, M);
+  }
+
+  // Records all functions passed to sea.synth.assert within BB.
+  llvm::SmallVector<llvm::Instruction *, 8> partials;
+  for (auto user : m_synthAssertFn->users()) {
+    if (auto CI = dyn_cast<CallBase>(user)) {
+      // Filters out calls that are in other blocks from the module.
+      if (CI->getParent()->getParent() == &F) {
+        auto *partial = dyn_cast<CallInst>(CI->getArgOperand(0));
+        partials.push_back(partial);
+        assert(partial);
+        assert(partial->getCalledFunction()->getReturnType());
+        assert(partial->getCalledFunction()->getReturnType()->isIntegerTy(1));
+      }
+    }
+  }
+
+  return partials;
+}
+
+void HornifyFunction::expandEdgeFilter(llvm::Instruction &I) {
+  m_sem.addToFilter(I);
+  if (!isa<PHINode>(&I)) {
+    // An instruction can depend on instructions from prior blocks. If the prior
+    // instructions are not added to the filter, then the operation semantics
+    // may encounter an undefined value. Therefore, they are added to the
+    // filter.
+    //
+    // Note that it is not safe to include the operands of PHI nodes, and that
+    // omitting PHI nodes is safe. If a block is recursive, then the PHI node
+    // may depend on a "future" instruction from further into the block.
+    // Furthermore, a PHI node is implemented using argument passing within the
+    // CHCs, and therefore, the operands do not appear in the edge's transition
+    // relation.
+    for (auto &operand : I.operands()) {
+      auto v = operand.get();
+      if (isa<Instruction>(v))
+        m_sem.addToFilter(*v);
+    }
+  }
+}
+
+void SmallHornifyFunction::mkBBSynthRules(const LiveSymbols &ls, Function &F,
+                                          SymStore &store) {
+  // Finds all instances of sea.synth.assert in F. Only the basis blocks that
+  // make use of sea.synth.assert will be analyzed.
+  auto partials = getPartialFnsToSynth(F);
+  if (partials.empty())
+    return;
+
+  // Generates a rule for each assertion. Note that the order of instructions in
+  // partials may not agree with the order of instructions in BB. This is due to
+  // the order of users returned by Value::users().
+  for (auto *partial : partials) {
+    auto &BB = (*partial->getParent());
+
+    // Searches for a matching instruction.
+    bool found = false;
+    for (auto &I : BB) {
+      expandEdgeFilter(I);
+
+      found = (partial == &I);
+      if (found) {
+        const ExprVector &live = ls.live(&BB);
+
+        ExprSet vars;
+        for (const Expr &v : live)
+          vars.insert(store.read(v));
+
+        Expr pre = store.eval(bind::fapp(m_parent.bbPredicate(BB), live));
+
+        ExprVector side;
+        side.push_back(boolop::lneg((store.read(m_sem.errorFlag(BB)))));
+        m_sem.exec(store, BB, side, mk<TRUE>(m_efac));
+
+        // The last instruction is the partial function.
+        Expr post = side.back();
+        side.pop_back();
+
+        // Assume a-priori that the partial function call returns true.
+        auto rv = m_sem.lookup(store, I);
+        side.push_back(mk<EQ>(rv, mk<TRUE>(m_efac)));
+        Expr tau = mknary<AND>(mk<TRUE>(m_efac), side);
+
+        expr::filter(tau, bind::IsConst(), std::inserter(vars, vars.begin()));
+        expr::filter(post, bind::IsConst(), std::inserter(vars, vars.begin()));
+
+        auto rule = boolop::limp(boolop::land(pre, tau), post);
+        LOG("seahorn", errs() << "Adding synthesis rule: " << (*rule) << "\n";);
+        m_db.addRule(vars, rule);
+
+        store.clear();
+        m_sem.resetFilter();
+        break;
+      }
+    }
+    assert(found);
+  }
 }
 
 void SmallHornifyFunction::runOnFunction(Function &F) {
@@ -266,6 +373,9 @@ void SmallHornifyFunction::runOnFunction(Function &F) {
   allVars.clear();
   side.clear();
   s.reset();
+
+  // Generates rules for synthesis.
+  mkBBSynthRules(ls, F, s);
 
   // Add error flag exit rules
   // bb (err, V) & err -> bb_exit (err , V)

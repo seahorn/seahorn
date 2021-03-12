@@ -14,6 +14,7 @@
 
 #include "seahorn/Analysis/CanFail.hh"
 #include "seahorn/Analysis/CutPointGraph.hh"
+#include "seahorn/Analysis/SeaBuiltinsInfo.hh"
 #include "seahorn/HornClauseDB.hh"
 
 namespace seahorn {
@@ -78,6 +79,10 @@ public:
   LegacyOperationalSemantics &symExec() { return *m_sem; }
 
   CutPointGraph &getCpg(Function &F) { return getAnalysis<CutPointGraph>(F); }
+
+  SeaBuiltinsInfo &getSBI() {
+    return getAnalysis<SeaBuiltinsInfoWrapperPass>().getSBI();
+  }
 };
 } // namespace seahorn
 

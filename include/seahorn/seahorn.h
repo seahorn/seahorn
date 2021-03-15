@@ -50,6 +50,9 @@ extern void sea_reset_modified(char *);
 /* Convenience macros */
 #define assume __VERIFIER_assume
 
+#define PARTIAL_FN                                                             \
+  __attribute__((annotate("partial"))) __attribute__((noinline))
+
 /* See https://github.com/seahorn/seahorn/projects/5 for details */
 #ifdef VACCHECK
 #define sassert(X)                                                             \

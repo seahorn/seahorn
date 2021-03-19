@@ -899,6 +899,8 @@ class FatBoundsCheck(sea.LimitedCmd):
                         metavar='STR', help='Log level')
         ap.add_argument('--no-fat-fns', dest='no_fat_fns', default=None,
                         type=str, metavar='STR,STR,...', help='List of functions to NOT instrument')
+        add_bool_argument(ap, 'enable-fat-vacuity-check', dest='enable_fat_vacuity_check', default=False,
+                         help='Enable vacuity check for fat bound checks')
         add_in_out_args (ap)
         _add_S_arg (ap)
         return ap
@@ -918,6 +920,10 @@ class FatBoundsCheck(sea.LimitedCmd):
 
         # slots=false ==> use is_dereferenceable(...) instrumentation
         argv.append('--horn-bnd-chk-slots=false')
+        if args.enable_fat_vacuity_check:
+            argv.append('--horn-bnd-chk-vac=true')
+        else:
+            argv.append('--horn-bnd-chk-vac=false')
         if args.llvm_asm: argv.append ('-S')
         argv.extend (args.in_files)
 

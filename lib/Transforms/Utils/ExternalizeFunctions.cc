@@ -2,6 +2,7 @@
 
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/SmallPtrSet.h"
+#include "llvm/Demangle/Demangle.h"
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/CallSite.h"
 #include "llvm/IR/Function.h"
@@ -85,12 +86,24 @@ public:
     for (Function &F : M) {
       if (F.isDeclaration() || externalizeFunctions.count(&F) == 0)
         continue;
-      LOG("extern", errs() << "EXTERNALIZED " << F.getName() << "\n");
+      LOG("extern",
+          errs() << "EXTERNALIZING " << llvm::demangle(F.getName()) << "\n");
       Change = true;
 
       if (!RemoveBodies && F.hasLocalLinkage()) {
+        // in C++ local names are mangled with _ZL prefix, as we make functions
+        // external, also rename
+        auto name = F.getName();
+        if (name.startswith("_ZL") && name.size() > 3) {
+          F.setName("_Z" + name.substr(3));
+          LOG("extern",
+              errs() << "Renaming: " << name << " to " << F.getName() << "\n";);
+        }
+        // -- change linkage to external
         F.setLinkage(GlobalValue::ExternalLinkage);
-        LOG("extern", errs() << "linkage of " << F.getName() << "is set to external: " << F.hasExternalLinkage() << "\n";);
+        LOG("extern", errs() << "linkage of " << F.getName()
+                             << " is set to external: "
+                             << F.hasExternalLinkage() << "\n";);
       } else {
         F.deleteBody();
         F.setComdat(nullptr);
@@ -117,9 +130,9 @@ public:
       }
     }
 
-    LOG("extern", errs() << "Externalize before verify\n\n";);
+    LOG("extern-debug", errs() << "Externalize before verify\n\n";);
     llvm::verifyModule(M, &(errs()), nullptr);
-    LOG("extern", errs() << "Externalize after verify\n\n";);
+    LOG("extern-debug", errs() << "Externalize after verify\n\n";);
 
     return Change;
   }

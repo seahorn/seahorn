@@ -71,6 +71,10 @@ static cl::opt<bool>
                 cl::desc("Use instrumentation based on fat slots"),
                 cl::init(true));
 
+static cl::opt<bool> UseFatVac("horn-bnd-chk-vac",
+                               cl::desc("Use vacuity check for bounds checks"),
+                               cl::init(true));
+
 STATISTIC(ChecksAdded, "Bounds checks added");
 STATISTIC(ChecksSkipped, "Bounds checks skipped");
 STATISTIC(ChecksUnable, "Bounds checks unable to add");
@@ -108,6 +112,7 @@ private:
   Function *m_seaDsaAlias;   // sea_dsa_alias
 
   Function *m_seaIsDereferenceable; // sea.is_dereferenceable
+  Function *m_verifierAssert;       // verifier.assert
 
   BasicBlock *getErrorBB();
   void emitBranchToTrap(Value *Cmp = nullptr);
@@ -161,6 +166,14 @@ void FatBufferBoundsCheck::emitBranchToTrap(Value *Cmp) {
 
   BasicBlock::iterator Inst = Builder->GetInsertPoint();
   BasicBlock *OldBB = Inst->getParent();
+  if (UseFatVac && Cmp) {
+    // verifier.assert(!cmp)
+    // The cmp is the overflowing condition
+    // The assertion call must be created under OldBB
+    // llvm::errs() << *Cmp << "\n";
+    Value *NotCmp = Builder->CreateNot(Cmp);
+    Builder->CreateCall(m_verifierAssert, {NotCmp});
+  }
   BasicBlock *Cont = OldBB->splitBasicBlock(Inst);
   OldBB->getTerminator()->eraseFromParent();
 
@@ -412,6 +425,8 @@ bool FatBufferBoundsCheck::runOnFunction(Function &F) {
 
   m_seaIsDereferenceable =
       SBI->mkSeaBuiltinFn(seahorn::SeaBuiltinsOp::IS_DEREFERENCEABLE, *M);
+
+  m_verifierAssert = SBI->mkSeaBuiltinFn(seahorn::SeaBuiltinsOp::ASSERT, *M);
 
   if (UseFatSlots) {
     m_getFatSlot0 =

@@ -74,7 +74,10 @@ void reduceToRegion(Function &F, DenseSet<const BasicBlock *> &region,
   }
 
   for (auto BB : dead) {
-    BB->dropAllReferences();
+    if (BB->hasNUses(0)) {
+      // only drop if has no uses
+      BB->dropAllReferences();
+    }
   }
 
   for (auto *bb : dead) {

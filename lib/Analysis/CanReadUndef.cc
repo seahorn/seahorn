@@ -10,6 +10,9 @@
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/CommandLine.h"
 
+#include "seahorn/Support/SeaDebug.h"
+#include "seahorn/Support/SeaLog.hh"
+
 using namespace llvm;
 
 static llvm::cl::opt<bool>
@@ -108,6 +111,11 @@ namespace seahorn {
           
           // -- the normal case
           for (unsigned i = 0; i < u.getNumOperands (); i++) {
+            if (u.getOperand(i) == NULL) {
+              LOG("read-undef",
+                  WARN << "User of " << b.getName() << " is mal-formed!\n";);
+              continue;
+            }
             if (isa <UndefValue> (u.getOperand (i))) {
               m_undef_num++;
 	      if (hasDebugLoc(dyn_cast<Instruction>(&u))) {

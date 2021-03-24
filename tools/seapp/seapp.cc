@@ -416,6 +416,8 @@ int main(int argc, char **argv) {
     pm_wrapper.add(seahorn::createPromoteMallocPass());
   } else if (CutLoops || PeelLoops > 0) {
     // -- cut loops to turn a program into loop-free program
+    assert(LowerSwitch && "Lower switch must be enabled");
+    pm_wrapper.add(llvm::createLowerSwitchPass());
     pm_wrapper.add(llvm::createLoopSimplifyPass());
     pm_wrapper.add(llvm::createLoopSimplifyCFGPass());
     pm_wrapper.add(llvm_seahorn::createLoopRotatePass(/*1023*/));

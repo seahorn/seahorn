@@ -1,6 +1,7 @@
 #include "seahorn/Transforms/Utils/Local.hh"
 
 #include "seahorn/Analysis/SeaBuiltinsInfo.hh"
+#include "seahorn/Support/SeaLog.hh"
 
 #include "llvm/IR/CFG.h"
 #include "llvm/IR/IRBuilder.h"
@@ -73,28 +74,28 @@ void reduceToRegion(Function &F, DenseSet<const BasicBlock *> &region,
     }
   }
 
+  // -- drop all references to allow dropping basic blocks with circular
+  // dependencies
   for (auto BB : dead) {
-    if (BB->hasNUses(0)) {
-      // only drop if has no uses
-      BB->dropAllReferences();
-    }
+    BB->dropAllReferences();
   }
 
+  // -- actually drop blocks
   for (auto *bb : dead) {
     if (bb->hasNUses(0))
       bb->eraseFromParent();
     else {
-      errs()
-          << "WARNING: attempt to delete a basic block that is still in use.\n"
+      // -- this is unexpected, print debug info
+      ERR << "An attempt to delete a basic block that is still in use.\n"
           << "Perhaps the user is an invoke instructions with an out-of-region"
-          << " landing block. Consider lowering invoke instructions.\n";
+          << " landing block. Consider lowering invoke instructions.";
 
-      errs() << "bb: " << bb->getName() << "\n";
-      errs() << "Users:\n";
-      auto UI = bb->user_begin();
-      auto E = bb->user_end();
-      for (; UI != E; ++UI)
-        errs() << *(*UI) << "\n";
+      ERR << "bb: " << bb->getName() << "\n"
+          << *bb << "\n"
+          << "Users:\n";
+
+      for (auto UI = bb->user_begin(), E = bb->user_end(); UI != E; ++UI)
+        ERR << *(*UI);
     }
   }
 

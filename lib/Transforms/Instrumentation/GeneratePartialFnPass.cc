@@ -44,8 +44,11 @@ bool isInferable(const Function &F) {
 // Delcared in GeneratePartialFnPass.h
 bool isPartialFn(const Function &F) {
   // Conservative check: Is the first instruction marked as partial?
-  auto &I = F.getEntryBlock().front();
-  return hasPartialAnnotation(I);
+  if (!F.empty()) {
+    auto &I = F.getEntryBlock().front();
+    return hasPartialAnnotation(I);
+  }
+  return false;
 }
 
 namespace {

@@ -219,7 +219,7 @@ CallSiteResolverByDsa::CallSiteResolverByDsa(Module &M,
           DOG(WARN << "Devirt(dsa) no DSA call target for "
                    << "\n\t" << *CS.getInstruction() << "\n"
                    << " in @" << F.getName(););
-          continue;
+          // continue;
         }
         std::sort(dsa_targets.begin(), dsa_targets.end());
 
@@ -248,7 +248,9 @@ CallSiteResolverByDsa::CallSiteResolverByDsa(Module &M,
                                 std::back_inserter(refined_dsa_targets));
           if (refined_dsa_targets.empty()) {
             DOG(WARN << "Devirt (dsa): empty intersection of DSA- and "
-                        "TYPE-targets for "
+                        "TYPE-targets "
+                     << "D:" << dsa_targets.size()
+                     << ", T:" << types_targets->size() << " for \n\t"
                      << *(CS.getInstruction()););
           } else {
             num_resolved_calls++;

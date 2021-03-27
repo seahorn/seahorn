@@ -45,6 +45,11 @@ static llvm::cl::opt<unsigned> MemCpyUnrollCount(
                    "count for symbolic memcpy"),
     llvm::cl::init(16));
 
+static llvm::cl::opt<bool>
+    UseHybridArray("horn-hybrid-array",
+             llvm::cl::desc("Use optimized hybrid array mem repr"),
+             llvm::cl::init(false));
+
 static llvm::cl::opt<unsigned> MaxSymbAllocSz(
     "horn-opsem-max-symb-alloc",
     llvm::cl::desc("Maximum expected size of any symbolic allocation"),
@@ -95,9 +100,15 @@ RawMemManagerCore::RawMemManagerCore(Bv2OpSem &sem, Bv2OpSemContext &ctx,
 
   if (useLambdas)
     m_memRepr = std::make_unique<OpSemMemLambdaRepr>(*this, ctx);
-  else
-    m_memRepr =
-        std::make_unique<OpSemMemArrayRepr>(*this, ctx, MemCpyUnrollCount);
+  else {
+    if (UseHybridArray) {
+      m_memRepr =
+          std::make_unique<OpSemMemHybridRepr>(*this, ctx, MemCpyUnrollCount);
+    } else {
+      m_memRepr =
+          std::make_unique<OpSemMemArrayRepr>(*this, ctx, MemCpyUnrollCount);
+    }
+  }
 }
 
 /// \brief Creates a non-deterministic pointer that is aligned

@@ -76,7 +76,10 @@ public:
   Expr getExpr() { return m_expr; }
 
   static inline VisitAction skipKids() { return VisitAction(true); }
-  static inline VisitAction doKids() { return VisitAction(false); }
+  static inline VisitAction doKids() {
+    return VisitAction(false);
+  }
+
   static inline VisitAction changeTo(Expr e) {
     return VisitAction(e, true, std::make_shared<IdentityRewriter>());
   }
@@ -86,7 +89,8 @@ public:
   }
 
   template <typename R>
-  static inline VisitAction changeDoKidsRewrite(Expr e, std::shared_ptr<R> r) {
+  static inline VisitAction
+  changeDoKidsRewrite(Expr e, std::shared_ptr<R> r) {
     return VisitAction(e, false, r);
   }
 };

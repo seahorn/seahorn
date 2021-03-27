@@ -3,6 +3,7 @@
 #include "seahorn/Transforms/Utils/DevirtFunctions.hh"
 #include "seahorn/Analysis/ClassHierarchyAnalysis.hh"
 #include "seahorn/Support/SeaDebug.h"
+#include "seahorn/Support/SeaLog.hh"
 #include "seahorn/Transforms/Utils/Local.hh"
 
 #include "llvm/Analysis/CallGraph.h"
@@ -10,6 +11,8 @@
 #include "llvm/Transforms/Utils/CallPromotionUtils.h"
 
 #include "seadsa/CompleteCallGraph.hh"
+
+#define DEBUG_TYPE "devirt"
 
 using namespace llvm;
 using namespace seadsa;
@@ -213,31 +216,30 @@ CallSiteResolverByDsa::CallSiteResolverByDsa(Module &M,
         AliasSet dsa_targets;
         dsa_targets.append(m_dsa.begin(CS), m_dsa.end(CS));
         if (dsa_targets.empty()) {
-          LOG("devirt",
-              errs() << "WARNING Devirt (dsa): does not have any target for "
-                     << *(CS.getInstruction()) << "\n";);
+          DOG(WARN << "Devirt(dsa) no DSA call target for "
+                   << "\n\t" << *CS.getInstruction() << "\n"
+                   << " in @" << F.getName(););
           continue;
         }
         std::sort(dsa_targets.begin(), dsa_targets.end());
 
-        LOG(
-            "devirt", errs() << "\nDsa-based targets: \n"; for (auto F
-                                                                : dsa_targets) {
-              errs() << "\t" << F->getName() << "::" << *(F->getType()) << "\n";
-            });
+        DOG({
+          INFO << "DSA targets:";
+          for (auto F : dsa_targets) {
+            INFO << "\t@" << F->getName() << " :: " << *(F->getType());
+          }
+        });
 
         bool isComplete; /*unused*/
         const AliasSet *types_targets =
             CallSiteResolverByTypes::getTargets(CS, isComplete);
         if (types_targets && !types_targets->empty()) {
-
-          LOG(
-              "devirt", errs() << "Type-based targets: \n";
-              for (auto F
-                   : *types_targets) {
-                errs() << "\t" << F->getName() << "::" << *(F->getType())
-                       << "\n";
-              });
+          DOG({
+            INFO << "TYPE targets:";
+            for (auto F : *types_targets) {
+              INFO << "\t" << F->getName() << "::" << *(F->getType());
+            }
+          });
 
           // --- We filter out those dsa targets whose signature do not match.
           AliasSet refined_dsa_targets;
@@ -245,28 +247,24 @@ CallSiteResolverByDsa::CallSiteResolverByDsa(Module &M,
                                 types_targets->begin(), types_targets->end(),
                                 std::back_inserter(refined_dsa_targets));
           if (refined_dsa_targets.empty()) {
-            LOG("devirt",
-                errs() << "WARNING Devirt (dsa): cannot resolve "
-                       << *(CS.getInstruction())
-                       << " after refining dsa targets with callsite type\n";);
+            DOG(WARN << "Devirt (dsa): empty intersection of DSA- and "
+                        "TYPE-targets for "
+                     << *(CS.getInstruction()););
           } else {
             num_resolved_calls++;
             m_targets_map.insert({CS.getInstruction(), refined_dsa_targets});
-            LOG(
-                "devirt", errs()
-                              << "Devirt (dsa) resolved "
-                              << *(CS.getInstruction()) << " with targets: \n";
-                for (auto F
-                     : refined_dsa_targets) {
-                  errs() << "\t" << F->getName() << "::" << *(F->getType())
-                         << "\n";
-                });
+            DOG({
+              INFO << "Devirt (dsa): resolved " << *(CS.getInstruction())
+                   << " with targets:";
+              for (auto F : refined_dsa_targets) {
+                INFO << "\t@" << F->getName();
+              }
+            });
           }
         } else {
-          LOG("devirt", errs() << "WARNING Devirt (dsa): cannot resolve "
-                               << *(CS.getInstruction())
-                               << " because there is no function with same "
-                               << "callsite type\n";);
+          DOG(WARN << "Devirt (dsa): no TYPE-targets for call site. Not "
+                      "resolving "
+                   << *CS.getInstruction(););
         }
       }
     }
@@ -321,8 +319,7 @@ CallSiteResolverByCHA::CallSiteResolverByCHA(Module &M)
       m_cha(std::make_unique<ClassHierarchyAnalysis>(M)) {
   m_cha->calculate();
 
-  LOG("devirt", m_cha->printClassHierarchy(errs());
-      m_cha->printVtables(errs()););
+  DOG(m_cha->printClassHierarchy(errs()); m_cha->printVtables(errs()););
 }
 
 CallSiteResolverByCHA::~CallSiteResolverByCHA() = default;
@@ -406,10 +403,9 @@ Function *DevirtualizeFunctions::mkBounceFn(CallSite &CS,
   }
 
   if (Function *bounce = CSR->getBounceFunction(CS)) {
-    LOG("devirt", errs() << "Reusing bounce function for "
-                         << *(CS.getInstruction()) << "\n\t"
-                         << bounce->getName() << "::" << *(bounce->getType())
-                         << "\n";);
+    DOG(errs() << "Reusing bounce function for " << *(CS.getInstruction())
+               << "\n\t" << bounce->getName() << "::" << *(bounce->getType())
+               << "\n";);
     return bounce;
   }
 
@@ -420,13 +416,13 @@ Function *DevirtualizeFunctions::mkBounceFn(CallSite &CS,
     return nullptr;
   }
 
-  LOG(
-      "devirt", errs() << "Building a bounce for call site:\n"
-                       << *CS.getInstruction() << " using:\n";
-      for (auto &f
-           : *Targets) {
-        errs() << "\t" << f->getName() << " :: " << *(f->getType()) << "\n";
-      });
+  DOG({
+    errs() << "Building a bounce for call site:\n"
+           << *CS.getInstruction() << " using:\n";
+    for (auto &f : *Targets) {
+      errs() << "\t" << f->getName() << " :: " << *(f->getType()) << "\n";
+    }
+  });
 
   // Create a bounce function that has a function signature almost
   // identical to the function being called.  The only difference is
@@ -585,13 +581,13 @@ void DevirtualizeFunctions::mkDirectCall(CallSite CS, CallSiteResolver *CSR) {
     return;
   }
 
-  LOG(
-      "devirt", errs() << "Resolving indirect call site:\n"
-                       << *CS.getInstruction() << " using:\n";
-      for (auto &f
-           : *Targets) {
-        errs() << "\t" << f->getName() << " :: " << *(f->getType()) << "\n";
-      });
+  DOG({
+    errs() << "Resolving indirect call site:\n"
+           << *CS.getInstruction() << " using:\n";
+    for (auto &f : *Targets) {
+      errs() << "\t" << f->getName() << " :: " << *(f->getType()) << "\n";
+    }
+  });
 
   // HACK: remove constness
   std::vector<Function *> Callees;
@@ -603,8 +599,10 @@ void DevirtualizeFunctions::mkDirectCall(CallSite CS, CallSiteResolver *CSR) {
 #else
   const Function *bounceFn = mkBounceFn(CS, CSR);
   // -- something failed
-  LOG("devirt", if (!bounceFn) errs() << "No bounce function for: "
-                                      << *CS.getInstruction() << "\n";);
+  DOG({
+    if (!bounceFn)
+      errs() << "No bounce function for: " << *CS.getInstruction() << "\n";
+  });
 
   if (!bounceFn)
     return;
@@ -620,7 +618,7 @@ void DevirtualizeFunctions::mkDirectCall(CallSite CS, CallSiteResolver *CSR) {
     CallInst *CN =
         CallInst::Create(const_cast<Function *>(bounceFn), Params, name, CI);
 
-    LOG("devirt", errs() << "Call to bounce function: \n" << *CN << "\n";);
+    DOG(errs() << "Call to bounce function: \n" << *CN << "\n";);
 
     // update call graph
     if (m_cg) {
@@ -646,7 +644,7 @@ void DevirtualizeFunctions::mkDirectCall(CallSite CS, CallSiteResolver *CSR) {
                                         CI->getNormalDest(),
                                         CI->getUnwindDest(), Params, name, CI);
 
-    LOG("devirt", errs() << "Call to bounce function: \n" << *CN << "\n";);
+    DOG(errs() << "Call to bounce function: \n" << *CN << "\n";);
 
     // update call graph
     if (m_cg) {

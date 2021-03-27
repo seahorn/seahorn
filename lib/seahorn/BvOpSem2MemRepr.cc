@@ -1,5 +1,6 @@
 #include "BvOpSem2MemRepr.hh"
 #include "seahorn/Expr/ExprOpBinder.hh"
+#include "seahorn/Expr/ExprVisitor.hh"
 
 namespace {
 template <typename T, typename... Rest>
@@ -14,7 +15,78 @@ auto as_std_array(const T &t, const Rest &... rest) ->
 namespace seahorn {
 namespace details {
 
-OpSemMemRepr::MemValTy OpSemMemArrayRepr::MemSet(PtrTy ptr, Expr _val,
+/**
+ * rewriter for store expr:
+ * e = store A idx val -> { return ite( (idx == ptr), val, rewrite(A) )}
+ * e is not store (const array or terminal register) ->
+ * { return select(e, m_ptr) }
+ **/
+struct ArrayStoreRewriter : public std::unary_function<Expr, Expr> {
+  Expr m_ptr;
+  OpSemAlu &m_alu;
+  unsigned m_ptrSz;
+  ArrayStoreRewriter(Expr ptr, OpSemAlu &alu, unsigned ptrSz)
+      : m_ptr(ptr), m_alu(alu), m_ptrSz(ptrSz) {}
+
+  Expr doPtrEq(Expr p1, Expr p2) { return m_alu.doEq(p1, p2, m_ptrSz); }
+
+  Expr operator()(Expr e) {
+    if (isOp<STORE>(e)) {
+      Expr arr = e->arg(0);
+      Expr idx = e->arg(1);
+      Expr val = e->arg(2);
+      Expr cond = doPtrEq(m_ptr, idx);
+      Expr res = boolop::lite(cond, val,
+                              arr // has been rewritten further
+      );
+      return res;
+    } else {
+      return op::array::select(e, m_ptr);
+    }
+  }
+};
+
+// post visitor
+template <typename RW>
+Expr arrayStoreVisit(RW &rewriter, Expr e) {
+  Expr res = e->getFactory().mkNary(e->op(), e->args_begin(), e->args_end()); // make copy always
+  if (isOp<STORE>(res)) {
+    // recurse to rewrite 1st argument
+    std::vector<Expr> new_kids;
+    Expr rw_arr = arrayStoreVisit(rewriter, res->arg(0));
+    new_kids.push_back(rw_arr);
+    for (auto b = e->args_begin() + 1; b != e->args_end(); ++b) {
+      new_kids.push_back(*b);
+    }
+    res = res->getFactory().mkNary(res->op(), new_kids.begin(), new_kids.end());
+  }
+  return rewriter(res);
+}
+
+/**
+ * recursively visits first arugment of store expr only (array)
+ * store(array, idex, value)
+ **/
+template <typename T>
+struct ArrayStoreVisitor : public std::unary_function<Expr, VisitAction> {
+  std::shared_ptr<T> _r;
+
+  typedef ArrayStoreVisitor<T> this_type;
+
+  ArrayStoreVisitor(const this_type &o) : _r(o._r) {}
+  ArrayStoreVisitor(std::shared_ptr<T> r) : _r(r) {}
+
+  VisitAction operator()(Expr exp) {
+    ExprSet *selectedKids = new ExprSet();
+    if (isOp<STORE>(exp)) {
+      // only visit 1st argument
+      selectedKids->insert(exp->arg(0));
+    }
+    return VisitAction::changeDoKidsRewrite(exp, _r, selectedKids);
+  }
+};
+
+OpSemMemRepr::MemValTy OpSemMemArrayReprBase::MemSet(PtrTy ptr, Expr _val,
                                                  unsigned len, MemValTy mem,
                                                  unsigned wordSzInBytes,
                                                  PtrSortTy ptrSort,
@@ -48,7 +120,7 @@ OpSemMemRepr::MemValTy OpSemMemArrayRepr::MemSet(PtrTy ptr, Expr _val,
 
 // len is in bytes
 // _val must fit within a byte
-OpSemMemRepr::MemValTy OpSemMemArrayRepr::MemSet(PtrTy ptr, Expr _val, Expr len,
+OpSemMemRepr::MemValTy OpSemMemArrayReprBase::MemSet(PtrTy ptr, Expr _val, Expr len,
                                                  MemValTy mem,
                                                  unsigned wordSzInBytes,
                                                  PtrSortTy ptrSort,
@@ -94,7 +166,7 @@ OpSemMemRepr::MemValTy OpSemMemArrayRepr::MemSet(PtrTy ptr, Expr _val, Expr len,
 }
 
 // TODO: This function is untested
-OpSemMemRepr::MemValTy OpSemMemArrayRepr::MemCpy(
+OpSemMemRepr::MemValTy OpSemMemArrayReprBase::MemCpy(
     PtrTy dPtr, PtrTy sPtr, Expr len, MemValTy memTrsfrRead, MemValTy memRead,
     unsigned wordSzInBytes, PtrSortTy ptrSort, uint32_t align) {
   (void)ptrSort;
@@ -130,7 +202,7 @@ OpSemMemRepr::MemValTy OpSemMemArrayRepr::MemCpy(
 }
 
 OpSemMemRepr::MemValTy
-OpSemMemArrayRepr::MemCpy(PtrTy dPtr, PtrTy sPtr, unsigned len,
+OpSemMemArrayReprBase::MemCpy(PtrTy dPtr, PtrTy sPtr, unsigned len,
                           MemValTy memTrsfrRead, MemValTy memRead,
                           unsigned wordSzInBytes, PtrSortTy ptrSort,
                           uint32_t align) {
@@ -159,7 +231,7 @@ OpSemMemArrayRepr::MemCpy(PtrTy dPtr, PtrTy sPtr, unsigned len,
   return MemValTy(res);
 }
 
-OpSemMemRepr::MemValTy OpSemMemArrayRepr::MemFill(PtrTy dPtr, char *sPtr,
+OpSemMemRepr::MemValTy OpSemMemArrayReprBase::MemFill(PtrTy dPtr, char *sPtr,
                                                   unsigned len, MemValTy mem,
                                                   unsigned wordSzInBytes,
                                                   PtrSortTy ptrSort,
@@ -181,6 +253,18 @@ OpSemMemRepr::MemValTy OpSemMemArrayRepr::MemFill(PtrTy dPtr, char *sPtr,
     res = op::array::store(res, dIdx, val);
   }
   return MemValTy(res);
+}
+
+Expr OpSemMemHybridRepr::loadAlignedWordFromMem(PtrTy ptr, MemValTy mem) {
+  LOG("opsem-hybrid", INFO << "Load ptr " << *ptr.toExpr() << "\n");
+  LOG("opsem-hybrid", INFO << "From ptr " << *mem.toExpr() << "\n");
+  ArrayStoreRewriter rw(ptr.toExpr(), m_ctx.alu(),
+                        m_memManager.ptrSizeInBits());
+  Expr rewritten = arrayStoreVisit(rw, mem.toExpr());
+  LOG("opsem-hybrid", INFO << "Rewritten: " << *rewritten << "\n");
+  // XXX: TODO would be to optimize rewritten ite
+
+  return rewritten;
 }
 
 OpSemMemRepr::MemValTy
@@ -438,6 +522,7 @@ Expr OpSemMemLambdaRepr::coerceArrayToLambda(Expr arrVal) {
   Expr bvAddr = bind::mkConst(mkTerm<std::string>("addr", m_efac), idxTy);
   Expr sel = op::array::select(arrVal, bvAddr);
 
+  /** lambda sel : arrVal[sel] **/
   return bind::abs<LAMBDA>(as_std_array(bvAddr), sel);
 }
 

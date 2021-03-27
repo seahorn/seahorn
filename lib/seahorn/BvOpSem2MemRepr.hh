@@ -51,17 +51,13 @@ public:
 };
 
 /// \brief Represent memory regions by logical arrays
-class OpSemMemArrayRepr : public OpSemMemRepr {
+class OpSemMemArrayReprBase : public OpSemMemRepr {
 public:
-  OpSemMemArrayRepr(RawMemManagerCore &memManager, Bv2OpSemContext &ctx,
+  OpSemMemArrayReprBase(RawMemManagerCore &memManager, Bv2OpSemContext &ctx,
                     unsigned memCpyUnrollCnt)
       : OpSemMemRepr(memManager, ctx), m_memCpyUnrollCnt(memCpyUnrollCnt) {}
 
   Expr coerce(Expr _, Expr val) override { return val; }
-
-  Expr loadAlignedWordFromMem(PtrTy ptr, MemValTy mem) override {
-    return op::array::select(mem.toExpr(), ptr.toExpr());
-  }
 
   MemValTy storeAlignedWordToMem(Expr val, PtrTy ptr, PtrSortTy ptrSort,
                                  MemValTy mem) override {
@@ -92,6 +88,42 @@ public:
 
 private:
   unsigned m_memCpyUnrollCnt;
+};
+
+/// \brief default un-optmized array mem repr
+class OpSemMemArrayRepr : public OpSemMemArrayReprBase {
+public:
+  OpSemMemArrayRepr(RawMemManagerCore &memManager, Bv2OpSemContext &ctx,
+                    unsigned memCpyUnrollCnt)
+      : OpSemMemArrayReprBase(memManager, ctx, memCpyUnrollCnt) {}
+
+  /** load(mem, ptr) -> select(mem, ptr) **/
+  Expr loadAlignedWordFromMem(PtrTy ptr, MemValTy mem) override {
+    return op::array::select(mem.toExpr(), ptr.toExpr());
+  }
+};
+
+/// \brief Represent memory regions by:
+/// store: array
+/// load: optimized ITE
+class OpSemMemHybridRepr : public OpSemMemArrayReprBase {
+public:
+  OpSemMemHybridRepr(RawMemManagerCore &memManager, Bv2OpSemContext &ctx,
+                     unsigned memCpyUnrollCnt)
+      : OpSemMemArrayReprBase(memManager, ctx, memCpyUnrollCnt) {}
+
+    /**
+     * mem: 1. array const i.e. A (uninitialized)
+     *      2. store expr i.e. store(mem, idx, val)
+     *      3. ITE of array expr i.e. ite(cond, mem1, mem2)
+     * MemValTy = ArrayConst A | Store A id val | ITE cond mem1 mem2
+     * match mem with
+     *      ArrayConst A -> { return select(A, ptr) (A[ptr]) }
+     *      Store A idx val -> { return ite( (idx == ptr), val, A[ptr] )}
+     *      ITE cond mem1 mem2 -> { return ite(cond, mem1[ptr], mem2[ptr]) }
+     * **/
+  Expr loadAlignedWordFromMem(PtrTy ptr, MemValTy mem) override;
+
 };
 
 /// \brief Represent memory regions by lambda functions

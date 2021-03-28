@@ -35,6 +35,9 @@
 #include "seahorn/InitializePasses.hh"
 #include "seahorn/Passes.hh"
 
+#include "seadsa/InitializePasses.hh"
+#include "seadsa/support/RemovePtrToInt.hh"
+
 #ifdef HAVE_LLVM_SEAHORN
 #include "llvm_seahorn/Transforms/Scalar.h"
 #endif
@@ -380,6 +383,8 @@ int main(int argc, char **argv) {
   llvm::initializeCompleteCallGraphPass(Registry);
   llvm::initializeAnnotation2MetadataLegacyPass(Registry);
 
+  llvm::initializeRemovePtrToIntPass(Registry);
+
   // add an appropriate DataLayout instance for the module
   const llvm::DataLayout *dl = &module->getDataLayout();
   if (!dl && !DefaultDataLayout.empty()) {
@@ -499,6 +504,7 @@ int main(int argc, char **argv) {
 
     // -- resolve indirect calls
     if (DevirtualizeFuncs) {
+      pm_wrapper.add(seadsa::createRemovePtrToIntPass());
       pm_wrapper.add(llvm::createWholeProgramDevirtPass(nullptr, nullptr));
       pm_wrapper.add(seahorn::createDevirtualizeFunctionsPass());
     }

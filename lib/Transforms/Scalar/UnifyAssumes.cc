@@ -138,9 +138,14 @@ bool UnifyAssumesPass::runOnFunction(Function &F) {
   for (auto ci : assumes)
     ci->eraseFromParent();
 
+  // -- process all asserts
   for (auto ci : asserts) {
     processAssertInst(*ci, *assumeFlag);
   }
+
+  // -- cleanup the asserts vector
+  asserts.clear();
+
   // insert call to assume before the last instructions of the exit block
   // (maybe before seahorn.fail)
   CallInst *seaFailCall = findSeahornFail(F);
@@ -172,10 +177,17 @@ void UnifyAssumesPass::processAssertInst(CallInst &CI, AllocaInst &flag) {
   llvm::CallSite CS(&CI);
   IRBuilder<> B(bb);
   B.SetInsertPoint(&CI);
+  Value *conseq = CS.getArgument(0);
+  // remove instruction if verifier.assert(true)
+  if (auto *conseq_const = dyn_cast<llvm::ConstantInt>(conseq)) {
+    if (!conseq_const->isZero()) {
+      CI.eraseFromParent();
+      return;
+    }
+  }
   auto ante = B.CreateLoad(&flag);
   // negate condition if verifier.assert.not seen
   bool isNot = m_SBI->getSeaBuiltinOp(CI) == seahorn::SeaBuiltinsOp::ASSERT_NOT;
-  Value *conseq = CS.getArgument(0);
   if (isNot) {
     conseq = B.CreateNot(conseq);
   }

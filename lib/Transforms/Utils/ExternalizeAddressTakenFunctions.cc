@@ -70,7 +70,7 @@ public:
           RetTy, ArrayRef<llvm::Type *>(ParamsTy), FTy->isVarArg());
       // create new function
       Function *NF = Function::Create(NFTy, GlobalValue::ExternalLinkage,
-                                      F.getName() + ".stub");
+                                      F.getName() + ".addr");
       NF->copyAttributesFrom(&F);
       // -- stub is a declaration and has no personality
       NF->setPersonalityFn(nullptr);
@@ -98,7 +98,17 @@ public:
             // solution that we adopt here is to replace all uses of
             // the alias with the new external function and remove
             // the alias.
-            a->replaceAllUsesWith(NF);
+            bool AliasUsedInCall = false;
+            for (auto *u : a->users()) {
+              if (auto *CI = dyn_cast<CallInst>(u)) {
+                // if alias is used in a call, replace all uses with F
+                a->replaceAllUsesWith(&F);
+                AliasUsedInCall = true;
+                break;
+              }
+            }
+            if (!AliasUsedInCall)
+              a->replaceAllUsesWith(NF);
             a->eraseFromParent();
             Changed = true;
           } else if (Constant *c = dyn_cast<Constant>(FU)) {

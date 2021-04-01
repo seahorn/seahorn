@@ -1206,6 +1206,17 @@ void UfoOpSem::execBr(SymStore &s, const BasicBlock &src, const BasicBlock &dst,
   }
 }
 
+void UfoOpSem::execRange(SymStore &s, const llvm::BasicBlock::iterator begin,
+                         const llvm::BasicBlock::iterator end, ExprVector &side,
+                         Expr act) {
+  OpSemVisitor v(s, *this, side);
+  v.setActiveLit(act);
+  for (const auto &I : llvm::make_range(begin, end)) {
+    v.visit(const_cast<Instruction &>(I));
+  }
+  v.resetActiveLit();
+}
+
 // internal function only for debugging (avoids duplication of code)
 static void printCS(const CallSiteInfo &csi, const FunctionInfo &fi) {
   errs() << "Call instruction: " << *csi.m_cs.getInstruction() << "\n";

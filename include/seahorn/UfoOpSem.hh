@@ -76,6 +76,10 @@ public:
   void execBr(SymStore &s, const BasicBlock &src, const BasicBlock &dst,
               ExprVector &side, Expr act) override;
 
+  void execRange(SymStore &s, const llvm::BasicBlock::iterator begin,
+                 const llvm::BasicBlock::iterator end, ExprVector &side,
+                 Expr act) override;
+
   Expr symb(const Value &v) override;
   const Value &conc(Expr v) const override;
   bool isTracked(const Value &v) const override;

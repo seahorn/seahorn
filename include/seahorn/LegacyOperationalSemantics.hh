@@ -1,8 +1,8 @@
 #pragma once
 
+#include "seahorn/Expr/Expr.hh"
 #include "seahorn/OperationalSemantics.hh"
 #include "seahorn/SymStore.hh"
-#include "seahorn/Expr/Expr.hh"
 #include "llvm/IR/InstVisitor.h"
 
 namespace seahorn {
@@ -54,6 +54,11 @@ public:
     execBr(ctx.values(), src, dst, ctx.side(), ctx.getPathCond());
   }
 
+  void execRange(const llvm::BasicBlock::iterator begin,
+                 const llvm::BasicBlock::iterator end, OpSemContext &ctx) {
+    execRange(ctx.values(), begin, end, ctx.side(), ctx.getPathCond());
+  }
+
   /// Deprecated old interface
   virtual void exec(SymStore &s, const BasicBlock &bb, ExprVector &side,
                     Expr act) = 0;
@@ -66,6 +71,12 @@ public:
 
   virtual void execBr(SymStore &s, const BasicBlock &src, const BasicBlock &dst,
                       ExprVector &side, Expr act) = 0;
+
+  virtual void execRange(SymStore &s, const llvm::BasicBlock::iterator begin,
+                         const llvm::BasicBlock::iterator end, ExprVector &side,
+                         Expr act) {
+    assert(false);
+  }
 };
 
 /// \brief Evaluate (read) all arguments of \p fi in store \p s

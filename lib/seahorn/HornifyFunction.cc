@@ -243,8 +243,8 @@ void SmallHornifyFunction::mkBBSynthRules(const LiveSymbols &ls, Function &F,
 
     // Searches for a matching instruction.
     bool found = false;
-    for (auto &I : BB) {
-      expandEdgeFilter(I);
+    for (auto itr = BB.begin(); itr != BB.end(); ++itr) {
+      auto &I = (*itr);
 
       found = (partial == &I);
       if (found) {
@@ -256,18 +256,26 @@ void SmallHornifyFunction::mkBBSynthRules(const LiveSymbols &ls, Function &F,
 
         Expr pre = store.eval(bind::fapp(m_parent.bbPredicate(BB), live));
 
-        ExprVector side;
-        side.push_back(boolop::lneg((store.read(m_sem.errorFlag(BB)))));
-        m_sem.exec(store, BB, side, mk<TRUE>(m_efac));
+        // Generates the VC for all instructions up to, but not including, I.
+        // Remark: If I == BB.begin(), then the filter is empty.
+        ExprVector lhs;
+        lhs.push_back(boolop::lneg((store.read(m_sem.errorFlag(BB)))));
+        if (itr != BB.begin())
+          m_sem.exec(store, BB, lhs, mk<TRUE>(m_efac));
 
-        // The last instruction is the partial function.
-        Expr post = side.back();
-        side.pop_back();
+        // Assembles the function call associated with I.
+        // TODO: improve robustness; exec on I must produce a single term.
+        ExprVector rhs;
+        expandEdgeFilter(I);
+        m_sem.execRange(store, itr, std::next(itr), rhs, mk<TRUE>(m_efac));
+        assert(rhs.size() == 1);
+        Expr post = rhs.back();
 
         // Assume a-priori that the partial function call returns true.
+        // This must came after rhs, else there can be two rv's for I.
         auto rv = m_sem.lookup(store, I);
-        side.push_back(mk<EQ>(rv, mk<TRUE>(m_efac)));
-        Expr tau = mknary<AND>(mk<TRUE>(m_efac), side);
+        lhs.push_back(mk<EQ>(rv, mk<TRUE>(m_efac)));
+        Expr tau = mknary<AND>(mk<TRUE>(m_efac), lhs);
 
         expr::filter(tau, bind::IsConst(), std::inserter(vars, vars.begin()));
         expr::filter(post, bind::IsConst(), std::inserter(vars, vars.begin()));
@@ -280,6 +288,8 @@ void SmallHornifyFunction::mkBBSynthRules(const LiveSymbols &ls, Function &F,
         m_sem.resetFilter();
         break;
       }
+
+      expandEdgeFilter(I);
     }
     assert(found);
   }

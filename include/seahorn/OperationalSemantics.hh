@@ -206,11 +206,10 @@ public:
   ExprFactory &getExprFactory() const { return m_efac; }
   ExprFactory &efac() const { return m_efac; }
 
-  void resetFilter() {m_filter.clear();}
-  bool isInFilter(const llvm::Value &v) const {return m_filter.count(&v);}
-  void addToFilter(const llvm::Value& v) {m_filter.insert(&v);}
-  template <typename Iterator>
-  void addToFilter(Iterator begin, Iterator end) {
+  void resetFilter() { m_filter.clear(); }
+  bool isInFilter(const llvm::Value &v) const { return m_filter.count(&v); }
+  void addToFilter(const llvm::Value &v) { m_filter.insert(&v); }
+  template <typename Iterator> void addToFilter(Iterator begin, Iterator end) {
     m_filter.insert(begin, end);
   }
 
@@ -240,6 +239,14 @@ public:
   virtual void execBr(const llvm::BasicBlock &src, const llvm::BasicBlock &dst,
                       OpSemContext &ctx) = 0;
 
+  /// \brief Executes the instructions (except for PHINode) from \p begin, up to
+  /// \p end assuming that \p begin preceeds \p end in some block.
+  virtual void execRange(const llvm::BasicBlock::iterator begin,
+                         const llvm::BasicBlock::iterator end,
+                         OpSemContext &ctx) {
+    assert(false);
+  }
+
   /// \brief Returns a symbolic register correspond to llvm::Value \p v
   ///
   /// Creates a new register if one does not exists
@@ -262,7 +269,6 @@ public:
   virtual bool isTracked(const llvm::Value &v) const {
     return m_filter.empty() || m_filter.count(&v);
   }
-
 
   /// \brief Returns a symbolic value of \p v in the given store \p s
   /// \p v is either a constant or has a corresponding symbolic

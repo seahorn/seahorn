@@ -8,6 +8,7 @@
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/Module.h"
 #include "llvm/Pass.h"
+#include "llvm/Support/CommandLine.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 #include "llvm/Transforms/Utils/PromoteMemToReg.h"
 #include "llvm/Transforms/Utils/UnifyFunctionExitNodes.h"
@@ -16,6 +17,10 @@
 #include "seahorn/Support/SeaDebug.h"
 #include "seahorn/Support/SeaLog.hh"
 using namespace llvm;
+
+static cl::opt<bool> DeleteAssertTrue("delete-assert-true",
+                                      cl::desc("Remove verifier.assert(true)"),
+                                      cl::init(false));
 
 namespace {
 class UnifyAssumesPass : public ModulePass {
@@ -179,10 +184,12 @@ void UnifyAssumesPass::processAssertInst(CallInst &CI, AllocaInst &flag) {
   B.SetInsertPoint(&CI);
   Value *conseq = CS.getArgument(0);
   // remove instruction if verifier.assert(true)
-  if (auto *conseq_const = dyn_cast<llvm::ConstantInt>(conseq)) {
-    if (!conseq_const->isZero()) {
-      CI.eraseFromParent();
-      return;
+  if (DeleteAssertTrue) {
+    if (auto *conseq_const = dyn_cast<llvm::ConstantInt>(conseq)) {
+      if (!conseq_const->isZero()) {
+        CI.eraseFromParent();
+        return;
+      }
     }
   }
   auto ante = B.CreateLoad(&flag);

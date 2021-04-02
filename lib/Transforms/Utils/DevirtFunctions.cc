@@ -19,6 +19,15 @@ using namespace seadsa;
 
 namespace seahorn {
 
+static bool isIndirectCall(CallBase &CB) {
+  Value *v = CB.getCalledOperand();
+  if (!v)
+    return false;
+
+  v = v->stripPointerCastsAndAliases();
+  return !isa<Function>(v);
+}
+
 static bool isIndirectCall(CallSite &CS) {
   Value *v = CS.getCalledValue();
   if (!v)
@@ -206,15 +215,19 @@ CallSiteResolverByDsa::CallSiteResolverByDsa(Module &M,
   unsigned num_resolved_calls = 0;
 
   for (auto &F : m_M) {
-    for (auto &I : llvm::make_range(inst_begin(&F), inst_end(&F))) {
+    for (auto &I : instructions(&F)) {
       if (!isa<CallInst>(&I) && !isa<InvokeInst>(&I))
         continue;
+      auto &CB = *dyn_cast<CallBase>(&I);
       CallSite CS(&I);
-      if (isIndirectCall(CS)) {
+      if (isIndirectCall(CB)) {
         num_indirect_calls++;
         num_complete_calls += m_dsa.isComplete(CS);
+
         AliasSet dsa_targets;
+
         dsa_targets.append(m_dsa.begin(CS), m_dsa.end(CS));
+
         if (dsa_targets.empty()) {
           DOG(WARN << "Devirt(dsa) no DSA call target for "
                    << "\n\t" << *CS.getInstruction() << "\n"

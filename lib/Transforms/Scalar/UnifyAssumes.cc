@@ -18,9 +18,10 @@
 #include "seahorn/Support/SeaLog.hh"
 using namespace llvm;
 
-static cl::opt<bool> DeleteAssertTrue("delete-assert-true",
-                                      cl::desc("Remove verifier.assert(true)"),
-                                      cl::init(false));
+static cl::opt<bool> EnableDae(
+    "enable-dae",
+    cl::desc("Enabled eliminating dead asserts, i.e.,  verifier.assert(true)"),
+    cl::init(false));
 
 namespace {
 class UnifyAssumesPass : public ModulePass {
@@ -63,7 +64,8 @@ char UnifyAssumesPass::ID = 0;
 bool UnifyAssumesPass::isAssumeCall(const CallInst &ci) {
   using namespace seahorn;
   switch (m_SBI->getSeaBuiltinOp(ci)) {
-  default: return false;
+  default:
+    return false;
   case SeaBuiltinsOp::ASSUME:
   case SeaBuiltinsOp::ASSUME_NOT:
     return true;
@@ -184,7 +186,7 @@ void UnifyAssumesPass::processAssertInst(CallInst &CI, AllocaInst &flag) {
   B.SetInsertPoint(&CI);
   Value *conseq = CS.getArgument(0);
   // remove instruction if verifier.assert(true)
-  if (DeleteAssertTrue) {
+  if (EnableDae) {
     if (auto *conseq_const = dyn_cast<llvm::ConstantInt>(conseq)) {
       if (!conseq_const->isZero()) {
         CI.eraseFromParent();

@@ -468,6 +468,88 @@ filterCpEdgesByBB(const CutPoint &cp, llvm::BasicBlock &target) {
 
 } // namespace
 
+bool LargeHornifyFunction::mkEdgeSynthRules(const LiveSymbols &ls,
+                                            const CallInst &partial,
+                                            const CpEdge &edge,
+                                            BasicBlock &target, VCGen &vcgen,
+                                            SymStore &store) {
+  for (auto &BB : edge) {
+    if (&BB == &target)
+      break;
+    for (auto &I : BB)
+      expandEdgeFilter(I);
+  }
+
+  // Uses iterators rather than `for (auto I : target)` since an iterator is
+  // required by execRange.
+  const BasicBlock &source = edge.source().bb();
+  const ExprVector &live = ls.live(&source);
+  for (auto itr = target.begin(), end = target.end(); itr != end; ++itr) {
+    auto &I = (*itr);
+
+    if (&partial == &I) {
+      // The cut points `src` and `dst` should not appear in `cpg` as they are
+      // temporary. For this reason, the CP's are minimally initialized for use
+      // by `genVcForCpEdgeLegacy`. Note that at the time of writing this code,
+      // `genVcForCpEdgeLegacy` relies only on `src.id()`, `src.bb()`, and
+      // `dst.bb()`.
+      CutPoint src(edge.parent(), edge.source().id(), source);
+      CutPoint dst(edge.parent(), 0, target);
+      CpEdge truncatedEdge(src, dst);
+      for (auto &BB : edge) {
+        truncatedEdge.push_back(&BB);
+        if (&BB == &dst.bb())
+          break;
+      }
+
+      ExprSet vars;
+      ExprVector args;
+      for (const Expr &v : live)
+        args.push_back(store.read(v));
+      vars.insert(args.begin(), args.end());
+
+      Expr pre = bind::fapp(m_parent.bbPredicate(source), args);
+
+      // Generates the VC for all instructions up to, but not including, I.
+      ExprVector lhs;
+      bool isFirstBlock = (&*truncatedEdge.begin() == &target);
+      lhs.push_back(boolop::lneg((store.read(m_sem.errorFlag(source)))));
+      if (!isFirstBlock || (itr != target.begin()))
+        vcgen.genVcForCpEdgeLegacy(store, truncatedEdge, lhs);
+
+      // Assembles the function call associated with I.
+      ExprVector rhs;
+      expandEdgeFilter(I);
+      m_sem.execRange(store, itr, std::next(itr), rhs, mk<TRUE>(m_efac));
+      assert(rhs.size() == 1);
+      Expr post = rhs.back();
+
+      // Asserts that the intermediate block is reached.
+      if (!isFirstBlock)
+        lhs.push_back(store.read(m_sem.symb(target)));
+
+      // Assume a-priori that the partial function call returns true.
+      // This must came after rhs, else there can be two rv's for I.
+      auto rv = m_sem.lookup(store, I);
+      lhs.push_back(mk<EQ>(rv, mk<TRUE>(m_efac)));
+      Expr tau = mknary<AND>(mk<TRUE>(m_efac), lhs);
+
+      expr::filter(tau, bind::IsConst(), std::inserter(vars, vars.begin()));
+      expr::filter(post, bind::IsConst(), std::inserter(vars, vars.begin()));
+
+      auto rule = boolop::limp(boolop::land(pre, tau), post);
+      LOG("seahorn", errs() << "Adding synthesis rule: " << (*rule) << "\n";);
+      m_db.addRule(vars, rule);
+
+      return true;
+    }
+
+    expandEdgeFilter(I);
+  }
+
+  return false;
+}
+
 void LargeHornifyFunction::runOnFunction(Function &F) {
   ScopedStats _st_("LargeHornifyFunction");
 

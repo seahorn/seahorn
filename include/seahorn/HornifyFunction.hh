@@ -44,8 +44,8 @@ protected:
 
   void extractFunctionInfo(const BasicBlock &BB);
 
-  llvm::SmallVector<llvm::Instruction *, 8> getPartialFnsToSynth(Function &F);
-  void expandEdgeFilter(llvm::Instruction &I);
+  llvm::SmallVector<llvm::CallInst *, 8> getPartialFnsToSynth(Function &F);
+  void expandEdgeFilter(const llvm::Instruction &I);
 
 public:
   HornifyFunction(HornifyModule &parent, bool interproc = false)

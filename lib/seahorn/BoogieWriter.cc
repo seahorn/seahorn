@@ -157,7 +157,7 @@ public:
   instruction_t mk_return();
   instruction_t mk_unreachable();
   instruction_t mk_error();
-  instruction_t mk_call(CallSite CS);
+  instruction_t mk_call(CallBase &CB);
   static instruction_t mk_nop();
 
   // iterate over cached terms
@@ -417,13 +417,13 @@ instruction_t instruction_factory::mk_unreachable() { return " assume false;"; }
 
 instruction_t instruction_factory::mk_error() { return " assert false;"; }
 
-instruction_t instruction_factory::mk_call(CallSite CS) {
-  const Value *calleeV = CS.getCalledValue();
+instruction_t instruction_factory::mk_call(CallBase &CB) {
+  const Value *calleeV = CB.getCalledValue();
   const Function *callee = dyn_cast<Function>(calleeV);
   assert(callee);
 
   std::vector<term_t> targs;
-  for (auto &a : CS.args()) {
+  for (auto &a : CB.args()) {
     Value *v = a.get();
     // XXX: untracked actual parameters are ignored
     //     this change the arity of the function
@@ -434,7 +434,7 @@ instruction_t instruction_factory::mk_call(CallSite CS) {
 
   instruction_t i("call ");
   // lhs
-  Instruction *lhs = CS.getInstruction();
+  Instruction *lhs = &CB;
   if (lhs) {
     if (instruction_factory::opt_term_t tlhs = get_value(*lhs)) {
       i = i + *tlhs + " := ";
@@ -602,8 +602,7 @@ public:
   }
 
   void visitCallInst(CallInst &I) {
-    CallSite CS(&I);
-    const Value *calleeV = CS.getCalledValue();
+    const Value *calleeV = I.getCalledOperand();
     const Function *callee = dyn_cast<Function>(calleeV);
     if (!callee) {
       if (I.isInlineAsm()) {
@@ -619,7 +618,7 @@ public:
     } else {
       // -- direct call
       if (isAssertFn(callee) || isAssumeFn(callee) || isNotAssumeFn(callee)) {
-        Value &c = *(CS.getArgument(0));
+        Value &c = *(I.getOperand(0));
         if (instruction_factory::opt_term_t tc = m_ifac.get_value(c)) {
           if (isAssertFn(callee))
             m_bb += m_ifac.mk_assert(*tc);
@@ -633,7 +632,7 @@ public:
       } else {
         // -- ignore shadow memory functions created by seahorn
         if (!callee->getName().startswith("shadow.mem"))
-          m_bb += m_ifac.mk_call(CS);
+          m_bb += m_ifac.mk_call(I);
       }
     }
   }

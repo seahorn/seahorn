@@ -1,7 +1,6 @@
 /* Externalize uses of functions whose address have been taken */
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/IR/BasicBlock.h"
-#include "llvm/IR/CallSite.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/GlobalValue.h"
 #include "llvm/IR/IRBuilder.h"
@@ -87,8 +86,8 @@ public:
           continue;
 
         if (isa<CallInst>(FU) || isa<InvokeInst>(FU)) {
-          ImmutableCallSite CS(dyn_cast<Instruction>(FU));
-          if (!CS.isCallee(U)) {
+          auto &CB = cast<CallBase>(*FU);
+          if (!CB.isCallee(U)) {
             U->set(NF);
             Changed = true;
           }

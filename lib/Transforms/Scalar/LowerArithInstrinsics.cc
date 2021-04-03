@@ -1,6 +1,5 @@
 #include "llvm/ADT/Statistic.h"
 #include "llvm/Pass.h"
-#include "llvm/IR/CallSite.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/InstIterator.h"
 #include "llvm/IR/InstrTypes.h"
@@ -32,7 +31,6 @@ namespace
       bool changed = false;
       SmallVector<ExtractValueInst*, 16> uses;
       bool canbe_lowered = true;
-      CallSite CS (I);
       for (Use &U : I->uses ()) {
         if (ExtractValueInst* EV = dyn_cast<ExtractValueInst> (U.getUser())) {
           if (EV->getNumIndices () == 1) {
@@ -46,9 +44,8 @@ namespace
       if (canbe_lowered) 
       {
         changed = true;
-        Value *nv = BinaryOperator::Create (Op, 
-                                            CS.getArgument (0), CS.getArgument (1), 
-                                            Name, cast<Instruction> (I)); 
+        Value *nv = BinaryOperator::Create(Op, I->getOperand(0), I->getOperand(1),
+                                           Name, I);
         
         for (auto EV: uses) 
         {
@@ -71,15 +68,15 @@ namespace
       bool changed = false;
 
       LLVMContext& ctx = F.getContext ();
-      for (auto &I : boost::make_iterator_range (inst_begin (F), inst_end (F)))
+      for (auto &I : instructions(F))
       {
         if (!isa<CallInst> (&I)) continue;
 
-        CallSite CS (&I);
+        CallInst &CI = cast<CallInst>(I);
         
-        const Function *fn = CS.getCalledFunction ();
-        if (!fn && CS.getCalledValue ())
-          fn = dyn_cast<const Function> (CS.getCalledValue ()->stripPointerCasts ());
+        const Function *fn = CI.getCalledFunction ();
+        if (!fn && CI.getCalledOperand())
+          fn = dyn_cast<const Function> (CI.getCalledOperand()->stripPointerCasts ());
 
         if (!fn) continue;
 

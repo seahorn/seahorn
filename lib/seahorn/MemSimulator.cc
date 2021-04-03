@@ -1,6 +1,6 @@
 #include "seahorn/MemSimulator.hh"
-#include "seahorn/Support/SeaDebug.h"
 #include "seahorn/Expr/ExprLlvm.hh"
+#include "seahorn/Support/SeaDebug.h"
 #include "llvm/IR/InstVisitor.h"
 
 #include "llvm/Analysis/MemoryBuiltins.h"
@@ -98,7 +98,9 @@ struct MemSimVisitor : public InstVisitor<MemSimVisitor> {
       add(mk<EQ>(mk<BSUB>(gep, base), ptrVal(diff)));
   }
 
-  Expr ptrVal(const expr::mpz_class &v) { return bv::bvnum(v, ptrSz(), efac()); }
+  Expr ptrVal(const expr::mpz_class &v) {
+    return bv::bvnum(v, ptrSz(), efac());
+  }
   Expr symb(const Value &V) { return m_sim.trace().symb(m_loc, V); }
   Expr oidE(Expr e) { return bind::fapp(m_oidFn, e); }
   Expr startE(Expr e) { return bind::fapp(m_oidStartFn, oidE(e)); }
@@ -204,7 +206,7 @@ struct MemSimVisitor : public InstVisitor<MemSimVisitor> {
         addEq(gepPtr, basePtr);
       else {
         assert(0 && "Dead broken code in comment below");
-        addPtrDiff(gepPtr, basePtr, expr::mpz_class()/*gepZ - baseZ*/);
+        addPtrDiff(gepPtr, basePtr, expr::mpz_class() /*gepZ - baseZ*/);
         add(mk<EQ>(oidE(gepPtr), oidE(basePtr)));
       }
     }
@@ -212,16 +214,14 @@ struct MemSimVisitor : public InstVisitor<MemSimVisitor> {
     visitInstruction(I);
   }
 
-  void visitCallSite(CallSite CS) {
+  void visitCallBase(CallBase &CB) {
     // if instruction is an allocation, update size and pointer values
-    if (llvm::isAllocationFn(CS.getInstruction(), &m_sim.getTargetLibraryInfo(),
-                             true)) {
+    if (llvm::isAllocationFn(&CB, &m_sim.getTargetLibraryInfo(), true)) {
 
       LOG("memsim", errs() << "  ALLOCATION: ";);
 
-      Instruction &I = *CS.getInstruction();
       uint64_t sz = 0;
-      if (llvm::getObjectSize(&I, sz, m_sim.getDataLayout(),
+      if (llvm::getObjectSize(&CB, sz, m_sim.getDataLayout(),
                               &m_sim.getTargetLibraryInfo())) {
         LOG("memsim", errs() << sz;);
       } else {
@@ -234,12 +234,12 @@ struct MemSimVisitor : public InstVisitor<MemSimVisitor> {
       LOG("memsim", errs() << "\n";);
 
       auto &chunk = m_sim.alloc(sz);
-      addEq(oidE(symb(I)), bv::bvnum(chunk.id, ptrSz(), efac()));
-      addEq(startE(symb(I)), bv::bvnum(chunk.start, ptrSz(), efac()));
-      addEq(endE(symb(I)), bv::bvnum(chunk.end, ptrSz(), efac()));
+      addEq(oidE(symb(CB)), bv::bvnum(chunk.id, ptrSz(), efac()));
+      addEq(startE(symb(CB)), bv::bvnum(chunk.start, ptrSz(), efac()));
+      addEq(endE(symb(CB)), bv::bvnum(chunk.end, ptrSz(), efac()));
     }
 
-    visitInstruction(*CS.getInstruction());
+    visitInstruction(CB);
   }
 
   void visitAllocaInst(AllocaInst &I) {
@@ -362,11 +362,12 @@ bool MemSimulator::simulate() {
   }
 
   ZSolver<EZ3> solver(zctx());
-  LOG("memsim", errs() << "Constraints begin\n"; for (auto v
+  LOG(
+      "memsim", errs() << "Constraints begin\n"; for (auto v
                                                       : side) {
-    errs() << *v << "\n";
-    solver.assertExpr(v);
-  } errs() << "Constrains end\n";);
+        errs() << *v << "\n";
+        solver.assertExpr(v);
+      } errs() << "Constrains end\n";);
 
   for (auto v : side)
     solver.assertExpr(v);

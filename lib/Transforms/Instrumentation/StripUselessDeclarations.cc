@@ -11,7 +11,6 @@ terms.
 #include "llvm/Pass.h"
 #include "llvm/Transforms/Utils/Local.h"
 #include "seahorn/Transforms/Utils/Local.hh"
-#include "llvm/IR/CallSite.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/raw_ostream.h"
@@ -89,7 +88,7 @@ namespace
     void strip (Function &F)
     {
       SmallVector<Value*, 16> args;
-      SmallVector<Instruction*, 32> ToRemove;
+      SmallVector<CallBase*, 32> ToRemove;
       
       Value::use_iterator UI = F.use_begin (), E = F.use_end ();
       for (; UI != E;)
@@ -108,12 +107,12 @@ namespace
 	}
         if (isa<CallInst> (FU) || isa<InvokeInst> (FU))
         {
-          CallSite CS (dyn_cast<Instruction> (FU));
-          if (!CS.isCallee (&U)) continue;
+          auto &CB = *cast<CallBase>(FU);
+          if (!CB.isCallee (&U)) continue;
 
           // -- do not delete functions that take no arguments,
           // -- they are treated as non-deterministic anyhow
-          if (CS.arg_empty ()) continue;
+          if (CB.data_operands_empty ()) continue;
 
           if (!F.getReturnType ()->isVoidTy ())
           {
@@ -126,32 +125,32 @@ namespace
                                                          *F.getReturnType (), 1,
                                                          newName);
             IRBuilder<> Builder (F.getContext ());
-            Builder.SetInsertPoint (CS.getInstruction ());
+            Builder.SetInsertPoint (&CB);
             CallInst *call = Builder.CreateCall (&ndfn);
-            call->setDebugLoc (CS.getInstruction ()->getDebugLoc ());
+            call->setDebugLoc (CB.getDebugLoc ());
 
             // -- replace old call with nondet one
-            CS.getInstruction ()->replaceAllUsesWith (call);
+            CB.replaceAllUsesWith (call);
           }
 
           // -- push the old call instruction in the queue to be
           // -- removed. Otherwise, we might invalidate iterators when
           // -- calling RecursivelyDeleteTriviallyDeadInstructions.
           if (FU->use_empty ()) {
-	    ToRemove.push_back(CS.getInstruction());
+            ToRemove.push_back(&CB);
           }
         }
       }
-      
+
       while (!ToRemove.empty()) {
-	CallSite CS(ToRemove.back());
-	ToRemove.pop_back();
-	args.insert (args.end(), CS.arg_begin(), CS.arg_end ());
-	CS.getInstruction()->eraseFromParent();
-	for (auto &a : args) {
-	  seahorn::RecursivelyDeleteTriviallyDeadInstructions (a);
-	}
-	args.clear ();
+        auto *CB = ToRemove.back();
+        ToRemove.pop_back();
+        args.insert(args.end(), CB->data_operands_begin(), CB->data_operands_end());
+        CB->eraseFromParent();
+        for (auto &a : args) {
+          seahorn::RecursivelyDeleteTriviallyDeadInstructions(a);
+        }
+        args.clear();
       }
     }
 
@@ -174,14 +173,13 @@ namespace
 
         for (auto *call : dead)
         {
-          CallSite CS(call);
-          args.insert (args.end (), CS.arg_begin (), CS.arg_end ());
+          args.insert (args.end (), call->data_operands_begin (), call->data_operands_end ());
 
           if (!call->use_empty ())
           {
             std::string fName = "nondet.asm.";
             Function &ndfn = seahorn::createNewNondetFn (*F.getParent (),
-                                                         *CS.getInstruction()->getType (),
+                                                         *call->getType (),
                                                          m_count++,
                                                          fName);
             IRBuilder<> Builder (F.getContext ());

@@ -69,12 +69,11 @@ void HornifyFunction::extractFunctionInfo(const BasicBlock &BB) {
   auto computeArgumentsFromMemoryRegions = [&](FunctionInfo &fi,
                                                ExprVector &sorts) {
     for (const Instruction &inst : BB) {
-      if (const CallInst *ci = dyn_cast<const CallInst>(&inst)) {
-        CallSite CS(const_cast<CallInst *>(ci));
-        const Function *cf = CS.getCalledFunction();
+      if (auto *ci = dyn_cast<CallInst>(&inst)) {
+        const Function *cf = ci->getCalledFunction();
         if (cf && (cf->getName().equals("shadow.mem.in") ||
                    cf->getName().equals("shadow.mem.out"))) {
-          const Value &v = *CS.getArgument(1);
+          auto &v = *ci->getOperand(1);
           Expr r = m_sem.symb(v);
           if (!r)
             continue;

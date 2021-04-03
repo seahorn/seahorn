@@ -1,4 +1,4 @@
-#include "llvm/IR/CallSite.h"
+#include "llvm/Pass.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/InstIterator.h"
 #include "llvm/Pass.h"
@@ -33,11 +33,11 @@ public:
       if (!isa<CallInst>(v))
         continue;
 
-      CallSite CS(v);
+      auto &CI = cast<CallInst>(*v);
 
-      const Function *fn = CS.getCalledFunction();
-      if (!fn && CS.getCalledValue())
-        fn = dyn_cast<const Function>(CS.getCalledValue()->stripPointerCasts());
+      const Function *fn = CI.getCalledFunction();
+      if (!fn && CI.getCalledOperand())
+        fn = dyn_cast<const Function>(CI.getCalledOperand()->stripPointerCasts());
 
       if (fn && (fn->getName().equals("malloc") ||
                  fn->getName().equals("_Znwj" /* new */) ||
@@ -45,16 +45,16 @@ public:
 
         unsigned addrSpace = 0;
         Value *nv = nullptr;
-        if (auto *ci = dyn_cast<Constant>(CS.getArgument(0))) {
+        if (auto *ci = dyn_cast<Constant>(CI.getOperand(0))) {
           // malloc(0) == nullptr
           if (fn->getName().equals("malloc") && ci->isZeroValue()) {
-            nv = Constant::getNullValue(CS.getType());
+            nv = Constant::getNullValue(CI.getType());
           }
         }
 
         if (!nv) {
           auto ai = new AllocaInst(v->getType()->getPointerElementType(),
-                                   addrSpace, CS.getArgument(0), "malloc", &I);
+                                   addrSpace, CI.getOperand(0), "malloc", &I);
           // -- set alignment based on stack, not alignment of the type
           ai->setAlignment(F.getParent()->getDataLayout().getStackAlignment());
           nv = ai;

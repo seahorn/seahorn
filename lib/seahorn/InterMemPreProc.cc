@@ -211,17 +211,21 @@ bool InterMemPreProc::runOnModule(Module &M) {
         const Graph &callerG = ga.getGraph(*f_caller);
         const Graph &calleeG = ga.getSummaryGraph(*f_callee);
 
-        const Instruction *I = dsaCS.getInstruction();
+        //const CallBase &CB = dsaCS.getCallBase();
+	const CallBase *CB = dyn_cast<CallBase>(dsaCS.getInstruction());
+	if (!CB) {
+	  continue;
+	}
 
         // creating the SimulationMapper object
-        SimulationMapper &simMap = m_smCS[I];
+        SimulationMapper &simMap = m_smCB[CB];
 
         Graph::computeCalleeCallerMapping(
             dsaCS, *(const_cast<Graph *>(&calleeG)),
             *(const_cast<Graph *>(&callerG)), simMap);
 
-        NodeSet &safeCallee = getSafeNodesCalleeCS(I); // creates it
-        NodeSet &safeCaller = getSafeNodesCallerCS(I); // creates it
+        NodeSet &safeCallee = getSafeNodesCalleeCB(*CB); // creates it
+        NodeSet &safeCaller = getSafeNodesCallerCB(*CB); // creates it
         computeSafeNodesSimulation(*(const_cast<Graph *>(&calleeG)), *f_callee,
                                    safeCallee, safeCaller, simMap);
       }
@@ -231,14 +235,12 @@ bool InterMemPreProc::runOnModule(Module &M) {
   return false;
 }
 
-NodeSet &InterMemPreProc::getSafeNodesCallerCS(const Instruction *I) {
-  assert(dyn_cast<const CallInst>(I));
-  return m_safen_cs_caller[I];
+NodeSet &InterMemPreProc::getSafeNodesCallerCB(const CallBase &cb) {
+  return m_safen_cs_caller[&cb];
 }
 
-NodeSet &InterMemPreProc::getSafeNodesCalleeCS(const Instruction *I) {
-  assert(dyn_cast<const CallInst>(I));
-  return m_safen_cs_callee[I];
+NodeSet &InterMemPreProc::getSafeNodesCalleeCB(const CallBase &cb) {
+  return m_safen_cs_callee[&cb];
 }
 
 bool InterMemPreProc::isSafeNode(NodeSet &unsafe, const Node *n) {
@@ -373,32 +375,31 @@ void InterMemPreProc::recProcessNode(const Cell &cFrom,
     recProcessNode(*links.second, fromSafeNodes, toSafeNodes, smCS, smCI, cim);
 }
 
-ExprVector &InterMemPreProc::getKeysCellCS(const Cell &cCallee,
-                                           const Instruction *i) {
-  assert(m_icim.count(i) > 0);
-  const Cell &cCaller = m_smCS[i].get(cCallee);
-  return m_icim[i][cellToPair(cCaller)].m_ks;
+ExprVector &InterMemPreProc::getKeysCellCB(const Cell &cCallee,
+                                           const CallBase &cb) {
+  assert(m_icim.count(&cb) > 0);
+  const Cell &cCaller = m_smCB[&cb].get(cCallee);
+  return m_icim[&cb][cellToPair(cCaller)].m_ks;
 }
 
-void InterMemPreProc::precomputeFiniteMapTypes(const CallSite &CS,
+void InterMemPreProc::precomputeFiniteMapTypes(const CallBase &CB,
                                                const NodeSet &safeCe,
                                                const NodeSet &safeCr) {
 
   GlobalAnalysis &ga = m_shadowDsa.getDsaAnalysis();
 
-  const Function *f_callee = CS.getCalledFunction();
+  const Function *f_callee = CB.getCalledFunction();
   if (!ga.hasSummaryGraph(*f_callee))
     return;
 
-  const Instruction *i = CS.getInstruction();
   Graph &calleeG = ga.getSummaryGraph(*f_callee);
 
-  SimulationMapper &smCS = getSimulationCS(CS); // for aliasing info in types
+  SimulationMapper &smCS = getSimulationCB(CB); // for aliasing info in types
   SimulationMapper &smCI =
-      getSimulationF(CS.getCaller()); // for checking bounded mem
+      getSimulationF(CB.getCaller()); // for checking bounded mem
 
   // -- compute number of accesses to safe nodes
-  CellInfoMap &cim = m_icim[i];
+  CellInfoMap &cim = m_icim[&CB];
   cim.clear();
 
   for (const Argument &a : f_callee->args())
@@ -475,7 +476,7 @@ void InterMemPreProc::recCollectAPsFunction(
   // -- follow the links of the node
   for (auto &links : nBU->getLinks()) {
     const Cell &nextCBU = *links.second;
-    const Cell &nextCSAS = sm.get(nextCBU);
+    const Cell &nextCBAS = sm.get(nextCBU);
     const Field &f = links.first;
     const Cell &cSASField = sm.get(Cell(cBU, f.getOffset()));
 

@@ -122,8 +122,9 @@ public:
       for (Instruction &inst : bb) {
         if (!isa<CallInst>(inst) && !isa<InvokeInst>(inst))
           continue;
-        CallSite CS(&inst);
-        Function *fn = CS.getCalledFunction();
+
+        auto &CB = cast<CallBase>(inst); 
+        Function *fn = CB.getCalledFunction();
         if (!fn)
           continue;
 

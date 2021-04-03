@@ -2,8 +2,8 @@
 
 #include "seahorn/config.h"
 #include "llvm/ADT/DenseSet.h"
-#include "llvm/IR/CallSite.h"
 #include "llvm/IR/Constants.h"
+#include "llvm/IR/Instructions.h"
 #include "llvm/IR/Module.h"
 #include "llvm/Pass.h"
 
@@ -17,12 +17,12 @@ namespace shadow_dsa {
 using namespace llvm;
 
 /// extracts unique scalar from a call to shadow.mem functions
-inline const Value *extractUniqueScalar(ImmutableCallSite cs) {
-  if (cs.getCalledFunction()->getName().equals("shadow.mem.global.init"))
+inline const Value *extractUniqueScalar(const CallBase &CB) {
+  if (CB.getCalledFunction()->getName().equals("shadow.mem.global.init"))
     return nullptr;
-  assert(cs.arg_size() > 0);
+  assert(CB.data_operands_size() > 0);
   // -- last argument
-  const Value *v = cs.getArgument(cs.arg_size() - 1);
+  const Value *v = CB.getOperand(CB.data_operands_size() - 1);
 
   if (const Instruction *inst = dyn_cast<Instruction>(v)) {
     assert(inst);
@@ -35,10 +35,10 @@ inline const Value *extractUniqueScalar(ImmutableCallSite cs) {
   return v;
 }
 
-inline int64_t getShadowId(const ImmutableCallSite &cs) {
-  assert(cs.arg_size() > 0);
+inline int64_t getShadowId(const CallBase &CB) {
+  assert(CB.data_operands_size() > 0);
 
-  if (const ConstantInt *id = dyn_cast<ConstantInt>(cs.getArgument(0)))
+  if (const ConstantInt *id = dyn_cast<ConstantInt>(CB.getOperand(0)))
     return id->getZExtValue();
 
   return -1;
@@ -75,12 +75,12 @@ inline bool isShadowMem(const Value &V, const Value **out) {
       continue;
     visited.insert(val);
 
-    if (const CallInst *ci = dyn_cast<const CallInst>(val)) {
+    if (auto *ci = dyn_cast<const CallInst>(val)) {
       if (const Function *fn = ci->getCalledFunction()) {
         if (!fn->getName().startswith("shadow.mem"))
           return false;
         if (out)
-          *out = extractUniqueScalar(ci);
+          *out = extractUniqueScalar(*ci);
         return true;
       }
 

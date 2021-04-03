@@ -113,10 +113,9 @@ createCexHarness(BmcTraceWrapper<Trace> &trace, const DataLayout &dl,
   for (unsigned loc = 0; loc < trace.size(); loc++) {
     const BasicBlock &BB = *trace.bb(loc);
     for (auto &I : BB) {
-      if (const CallInst *ci = dyn_cast<CallInst>(&I)) {
-        ImmutableCallSite CS(ci);
+      if (auto *ci = dyn_cast<CallInst>(&I)) {
         // Go through bitcasts
-        const Value *CV = CS.getCalledValue();
+        const Value *CV = ci->getCalledOperand();
         const Function *CF = dyn_cast<Function>(CV->stripPointerCasts());
         if (!CF) {
           LOG("cex", errs() << "Skipping harness for " << *ci
@@ -128,7 +127,7 @@ createCexHarness(BmcTraceWrapper<Trace> &trace, const DataLayout &dl,
             errs() << "Considering harness for: " << CF->getName() << "\n";);
 
         if (CF->getName().equals("shadow.mem.init")) {
-          unsigned id = shadow_dsa::getShadowId(CS);
+          unsigned id = shadow_dsa::getShadowId(*ci);
           ExprFactory &efac = trace.efac();
           Expr sort = bv::bvsort(dl.getPointerSizeInBits(), efac);
           Expr startE = shadow_dsa::memStartVar(id, sort);
@@ -163,8 +162,7 @@ createCexHarness(BmcTraceWrapper<Trace> &trace, const DataLayout &dl,
             continue;
           const Instruction *prevI = I.getPrevNonDebugInstruction();
           if (const CallInst *prevCi = dyn_cast<CallInst>(prevI)) {
-            ImmutableCallSite prevCS(prevCi);
-            const Value *prevCV = prevCS.getCalledValue();
+            const Value *prevCV = prevCi->getCalledOperand();
             const Function *prevCF =
                 dyn_cast<Function>(prevCV->stripPointerCasts());
             if (!(prevCF && prevCF->getName().equals("shadow.mem.load"))) {
@@ -174,13 +172,13 @@ createCexHarness(BmcTraceWrapper<Trace> &trace, const DataLayout &dl,
               continue;
             }
             // get memhavoc content from second operand of shadow.mem.load
-            const Value *shadowMemPtr = prevCS.getArgOperand(1);
+            const Value *shadowMemPtr = prevCi->getOperand(1);
             const Instruction *shadowMemI = dyn_cast<Instruction>(shadowMemPtr);
             if (!shadowMemI)
               continue;
             Expr shadowMemV = trace.eval(loc, *shadowMemI, true);
             // get memhavoc size from second operand of memhavoc
-            const Value *size = CS.getArgOperand(1);
+            const Value *size = ci->getOperand(1);
             Expr sizeE;
             if (auto *sizeI = dyn_cast<Instruction>(size)) {
               sizeE = trace.eval(loc, *sizeI, true);
@@ -193,7 +191,7 @@ createCexHarness(BmcTraceWrapper<Trace> &trace, const DataLayout &dl,
               continue;
             }
             // get info of ptr to havoc
-            const Value *hPtr = CS.getArgOperand(0)->stripPointerCasts();
+            const Value *hPtr = ci->getOperand(0)->stripPointerCasts();
             Expr hPtrE;
             if (auto *hPtrAllocInst = dyn_cast<Instruction>(hPtr)) {
               hPtrE = trace.eval(loc, *hPtrAllocInst, true);

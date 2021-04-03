@@ -276,8 +276,7 @@ public:
       if (f) {
         for (auto *u : f->users()) {
           if (auto *CI = dyn_cast<CallInst>(u)) {
-            CallSite CS(CI);
-            if (CS.getCaller() != &F)
+            if (CI->getCaller() != &F)
               continue;
             dfCoi.analyze(*CI);
           }

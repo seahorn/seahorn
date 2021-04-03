@@ -18,12 +18,11 @@ namespace seahorn {
 
 using ValueVector = std::vector<llvm::Value *>;
 
-struct CallSiteInfo {
+struct CallBaseInfo {
+  CallBaseInfo(CallBase &cb, ExprVector &fparams, ValueVector &regionValues)
+    : m_cb(cb), m_fparams(fparams), m_regionValues(regionValues) {}
 
-  CallSiteInfo(CallSite &cs, ExprVector &fparams, ValueVector &regionValues)
-      : m_cs(cs), m_fparams(fparams), m_regionValues(regionValues) {}
-
-  CallSite &m_cs;
+  CallBase &m_cb;
   ExprVector &m_fparams;
   ValueVector &m_regionValues;
 };
@@ -92,9 +91,9 @@ public:
   unsigned storageSize(const llvm::Type *t);
   unsigned fieldOff(const StructType *t, unsigned field);
 
-  virtual void execCallSite(CallSiteInfo &csi, ExprVector &side, SymStore &s);
-  virtual void execMemInit(CallSite &CS, Expr mem, ExprVector &side,
-                           SymStore &s){}; // do nothing
+  virtual void execMemInit(CallBase &CS, Expr mem, ExprVector &side,
+                           SymStore &s){}; // do nothing    
+  virtual void execCallBase(CallBaseInfo &csi, ExprVector &side, SymStore &s);
 };
 
 enum class MemOpt { IN, OUT };
@@ -133,7 +132,7 @@ public:
       : UfoOpSem(efac, pass, dl, trackLvl, abs_fns), m_shadowDsa(dsa),
         m_preproc(preproc) {}
 
-  void execCallSite(CallSiteInfo &CS, ExprVector &side, SymStore &s) override;
+  void execCallBase(CallBaseInfo &CS, ExprVector &side, SymStore &s) override;
 
 protected:
   unsigned getOffset(const Cell &c);
@@ -141,6 +140,9 @@ protected:
   // creates the variant of an expression using m_copy_count
   Expr arrayVariant(Expr origE);
 
+  // generates the literals to copy of a call site
+  bool VCgenCallBase(CallBaseInfo &csi, const FunctionInfo &fi,
+                     ExprVector &side, SymStore &s);
   // generates the literals to copy of an argument
   void recVCGenMem(const seadsa::Cell &c_callee, Expr ptr,
                    const NodeSet &safeNodesCe, const NodeSet &safeNodesCr,
@@ -159,9 +161,9 @@ protected:
   // copy
   void newTmpMemS(const seadsa::Cell &c, Expr &currE, Expr &newE, MemOpt ao);
 
-  // processes the shadow mem instructions prior to a callsite to obtain the
+  // processes the shadow mem instructions prior to a call site to obtain the
   // expressions that correspond to each of the cells involved.
-  virtual void processShadowMemsCallSite(CallSiteInfo &csi);
+  virtual void processShadowMemsCallBase(CallBaseInfo &csi);
   bool hasExprCell(const CellExprMap &nim, const Cell &c);
   Expr getExprCell(const CellExprMap &nim, const Cell &c);
   Expr getExprCell(const CellExprMap &nim, const Node *n, unsigned offset);
@@ -192,13 +194,13 @@ public:
 
   Expr symb(const Value &v) override;
   void onFunctionEntry(const llvm::Function &fn) override;
-  void execCallSite(CallSiteInfo &CS, ExprVector &side, SymStore &s) override;
+  void execCallBase(CallBaseInfo &CS, ExprVector &side, SymStore &s) override;
 
-  void execMemInit(CallSite &CS, Expr mem, ExprVector &side,
+  void execMemInit(CallBase &CS, Expr mem, ExprVector &side,
                    SymStore &s) override;
 
 protected:
-  void processShadowMemsCallSite(CallSiteInfo &csi) override;
+  void processShadowMemsCallBase(CallBaseInfo &csi) override;
   void addMemS(const seadsa::Cell &c, Expr A, MemOpt ao) override;
 
 private:

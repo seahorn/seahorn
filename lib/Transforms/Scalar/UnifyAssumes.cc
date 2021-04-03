@@ -1,6 +1,5 @@
 #include "llvm/Analysis/AssumptionCache.h"
 #include "llvm/Analysis/CallGraph.h"
-#include "llvm/IR/CallSite.h"
 #include "llvm/IR/Dominators.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/IRBuilder.h"
@@ -199,10 +198,9 @@ void UnifyAssumesPass::processAssertInst(CallInst &CI, AllocaInst &flag) {
   assert(bb);
   assert(M);
 
-  llvm::CallSite CS(&CI);
   IRBuilder<> B(bb);
   B.SetInsertPoint(&CI);
-  Value *conseq = CS.getArgument(0);
+  Value *conseq = CI.getOperand(0);
   // remove instruction if verifier.assert(true)
   if (EnableDae) {
     if (auto *conseq_const = dyn_cast<llvm::ConstantInt>(conseq)) {
@@ -238,9 +236,8 @@ void UnifyAssumesPass::processCallInst(CallInst &CI, AllocaInst &flag) {
   B.SetInsertPoint(&CI);
 
   bool isNot = CI.getCalledFunction()->getName().equals("verifier.assume.not");
-  llvm::CallSite CS(&CI);
 
-  Value *cond = CS.getArgument(0);
+  Value *cond = CI.getOperand(0);
   if (isNot)
     cond = B.CreateNot(cond);
 

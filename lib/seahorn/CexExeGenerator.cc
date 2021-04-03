@@ -1,4 +1,5 @@
 #include "seahorn/CexExeGenerator.hh"
+#include "llvm/IR/Instructions.h"
 
 namespace seahorn {
 namespace cexGen {
@@ -38,8 +39,8 @@ bool extractArrayContents(Expr e, kv &out, Expr &defaultValue) {
   return true;
 }
 
-/* InstVisitor that visits all CallSites in a Bmc Trace;
-  if the CallSite calls an external non-deterministic function that needs to
+/* InstVisitor that visits all call sites in a Bmc Trace;
+  if the call site calls an external non-deterministic function that needs to
   be synthesized, push evaluated function return value or modifed pointer value
   into Cex generator
  */
@@ -53,29 +54,27 @@ public:
 
   void setLoc(unsigned loc) { m_loc = loc; }
 
-  void visitMemhavoc(CallSite CS) {
-    Instruction &I = *CS.getInstruction();
-    auto *CF = getCalledFunction(CS);
+  void visitMemhavoc(CallBase &I) {
+    auto *CF = getCalledFunction(I);
     // previous instruction should be
     // shadow.mem.load(i32 x, i32 %sm_n, i8* null)
     auto *prevI = I.getPrevNonDebugInstruction();
     if (!prevI)
       return;
-    if (const CallInst *prevCI = dyn_cast<CallInst>(prevI)) {
-      ImmutableCallSite prevCS(prevCI);
-      const Function *prevF = prevCS.getCalledFunction();
+    if (const auto *prevCI = dyn_cast<CallInst>(prevI)) {
+      const Function *prevF = prevCI->getCalledFunction();
       if (!(prevF && prevF->getName().equals("shadow.mem.load"))) {
         LOG("cex", ERR << "Skipping harness for memhavoc"
                        << " because shadow.mem.load cannot be found\n");
         return;
       }
       // get memhavoc content from corresponding shadow mem region
-      auto *shadowMemI = dyn_cast<Instruction>(prevCS.getArgOperand(1));
+      auto *shadowMemI = dyn_cast<Instruction>(prevCI->getOperand(1));
       if (!shadowMemI)
         return;
       Expr shadowMem = m_cex.trace().eval(m_loc, *shadowMemI, true);
       // get memhavoc size from second operand of memhavoc
-      const Value *sizeArg = CS.getArgOperand(1);
+      const Value *sizeArg = I.getOperand(1);
       Expr size;
       if (isa<Instruction>(sizeArg) || isa<ConstantInt>(sizeArg)) {
         size = m_cex.trace().eval(m_loc, *sizeArg, true);
@@ -90,7 +89,7 @@ public:
         return;
       }
       // get info of ptr to havoc
-      const Value *hPtrAlloc = CS.getArgOperand(0)->stripPointerCasts();
+      const Value *hPtrAlloc = I.getOperand(0)->stripPointerCasts();
       Expr hPtrStart;
       if (auto *hPtrAllocInst = dyn_cast<Instruction>(hPtrAlloc)) {
         hPtrStart = m_cex.trace().eval(m_loc, *hPtrAllocInst, true);
@@ -117,15 +116,14 @@ public:
     }
   }
 
-  void visitCallSite(CallSite CS) {
-    Instruction &I = *CS.getInstruction();
-    const Function *CF = getCalledFunction(CS);
+  void visitCallBase(CallBase &I) {
+    const Function *CF = getCalledFunction(I);
 
     if (!CF->hasName())
       return;
 
     if (CF->getName().equals("memhavoc")) {
-      visitMemhavoc(CS);
+      visitMemhavoc(I);
       return;
     }
 

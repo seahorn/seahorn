@@ -3,7 +3,6 @@
 #include "seahorn/Analysis/SeaBuiltinsInfo.hh"
 #include "seahorn/Transforms/Instrumentation/GeneratePartialFnPass.hh"
 
-#include "llvm/IR/CallSite.h"
 #include "llvm/IR/InstIterator.h"
 
 #include "llvm/IR/IRBuilder.h"
@@ -166,17 +165,16 @@ bool PromoteVerifierCalls::runOnFunction(Function &F) {
                       CallGraph *cg) {
     IRBuilder<> Builder(F.getContext());
     Builder.SetInsertPoint(&I);
-    CallSite CS(&I);
     CallInst *ci;
     if (f.second == 0) {
       ci = Builder.CreateCall(f.first);
     } else if (f.second == 1) {
-      ci = Builder.CreateCall(f.first, {CS.getArgument(0)});
+      ci = Builder.CreateCall(f.first, {I.getOperand(0)});
     } else if (f.second == 2) {
-      ci = Builder.CreateCall(f.first, {CS.getArgument(0), CS.getArgument(1)});
+      ci = Builder.CreateCall(f.first, {I.getOperand(0), I.getOperand(1)});
     } else if (f.second == 3) {
       ci = Builder.CreateCall(
-          f.first, {CS.getArgument(0), CS.getArgument(1), CS.getArgument(2)});
+          f.first, {I.getOperand(0), I.getOperand(1), I.getOperand(2)});
     }
     assert(ci);
     if (cg)
@@ -192,14 +190,13 @@ bool PromoteVerifierCalls::runOnFunction(Function &F) {
 
     // // -- look through pointer casts
     // Value *v = I.stripPointerCasts ();
-    // CallSite CS (const_cast<Value*> (v));
 
-    CallSite CS(&I);
-    const Function *fn = CS.getCalledFunction();
+    CallInst &CI = cast<CallInst>(I);
+    const Function *fn = CI.getCalledFunction();
 
     // -- check if this is a call through a pointer cast
-    if (!fn && CS.getCalledValue())
-      fn = dyn_cast<const Function>(CS.getCalledValue()->stripPointerCasts());
+    if (!fn && CI.getCalledOperand())
+      fn = dyn_cast<const Function>(CI.getCalledOperand()->stripPointerCasts());
 
     // -- expect functions we promote to not be defined in the module,
     // -- if they are defined, then do not promote and treat as regular
@@ -217,7 +214,7 @@ bool PromoteVerifierCalls::runOnFunction(Function &F) {
                fn->getName().equals("llvm.invariant") ||
                /** my suggested name for pagai invariants */
                fn->getName().equals("pagai.invariant"))) {
-      auto arg0 = CS.getArgument(0);
+      auto arg0 = CI.getOperand(0);
 
       CallInst *nfnCi = nullptr, *chkCi = nullptr;
       if (auto partialFn = extractPartialFnCall(arg0)) {
@@ -311,8 +308,8 @@ bool PromoteVerifierCalls::runOnFunction(Function &F) {
       IRBuilder<> Builder(F.getContext());
       // arg0: antecedent
       // arg1: consequent
-      auto *arg0 = coerceToBool(CS.getArgument(0), Builder, I);
-      auto *arg1 = coerceToBool(CS.getArgument(1), Builder, I);
+      auto *arg0 = coerceToBool(CI.getOperand(0), Builder, I);
+      auto *arg1 = coerceToBool(CI.getOperand(1), Builder, I);
 
       CallInst *ci = Builder.CreateCall(m_assert_if, {arg0, arg1});
       if (cg)

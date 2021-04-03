@@ -326,25 +326,25 @@ namespace
       { write (I, op0); }
     }
 
-    void visitCallSite (CallSite CS)
+    void visitCallBase (CallBase &CB)
     {
-      assert (CS.isCall ());
-      const Function *f = CS.getCalledFunction ();
+      auto &I = CB;
+      assert (isa<CallInst>(CB));
+      const Function *f = CB.getCalledFunction ();
 
-      Instruction &I = *CS.getInstruction ();
-      BasicBlock &BB = *I.getParent ();
+      BasicBlock &BB = *CB.getParent ();
 
       // -- unknown/indirect function call
       if (!f)
       {
         // XXX Use DSA and/or Devirt to handle better
         assert (m_fparams.size () == 3);
-        visitInstruction (I);
+        visitInstruction (CB);
         return;
       }
 
       const Function &F = *f;
-      const Function &PF = *I.getParent ()->getParent ();
+      const Function &PF = *CB.getParent ()->getParent ();
 
       // skip intrinsic functions
       if (F.isIntrinsic ()) { assert (m_fparams.size () == 3); return;}
@@ -355,13 +355,13 @@ namespace
         assert (m_fparams.size () == 3);
         // -- assumption is only active when error flag is false
         m_side.push_back (boolop::lor (m_s.read (m_sem.errorFlag (BB)),
-                                       lookup (*CS.getArgument (0))));
+                                       lookup (*CB.getOperand (0))));
       }
       // else if (F.getName ().equals ("verifier.assert"))
       // {
       //   Expr ein = m_s.read (m_sem.errorFlag ());
       //   Expr eout = m_s.havoc (m_sem.errorFlag ());
-      //   Expr cond = lookup (*CS.getArgument (0));
+      //   Expr cond = lookup (*CB.getOperand (0));
       //   m_side.push_back (boolop::limp (cond,
       //                                   mk<EQ> (ein, eout)));
       //   m_side.push_back (boolop::limp (boolop::lneg (cond), eout));
@@ -372,7 +372,7 @@ namespace
       {
         assert (m_fparams.size () == 3);
         m_side.push_back (boolop::lor (m_s.read (m_sem.errorFlag (BB)),
-                                       boolop::lneg (lookup (*CS.getArgument (0)))));
+                                       boolop::lneg (lookup (*CB.getOperand (0)))));
       }
       else if (m_sem.hasFunctionInfo (F))
       {
@@ -385,7 +385,7 @@ namespace
         // error flag out
         m_fparams [2] = (m_s.havoc (m_sem.errorFlag (BB)));
         for (const Argument *arg : fi.args)
-          m_fparams.push_back (m_s.read (symb (*CS.getArgument (arg->getArgNo ()))));
+          m_fparams.push_back (m_s.read (symb (*CB.getOperand (arg->getArgNo ()))));
         for (const GlobalVariable *gv : fi.globals)
           m_fparams.push_back (m_s.read (symb (*gv)));
 
@@ -431,19 +431,19 @@ namespace
           m_s.havoc (symb(I));
         else if (F.getName ().equals ("shadow.mem.load"))
         {
-          const Value &v = *CS.getArgument (1);
+          const Value &v = *CB.getOperand (1);
           m_inMem = m_s.read (symb (v));
         }
         else if (F.getName ().equals ("shadow.mem.store"))
         {
-          m_inMem = m_s.read (symb (*CS.getArgument (1)));
+          m_inMem = m_s.read (symb (*CB.getOperand (1)));
           m_outMem = m_s.havoc (symb (I));
         }
         else if (F.getName ().equals ("shadow.mem.arg.ref"))
-          m_fparams.push_back (m_s.read (symb (*CS.getArgument (1))));
+          m_fparams.push_back (m_s.read (symb (*CB.getOperand (1))));
         else if (F.getName ().equals ("shadow.mem.arg.mod"))
         {
-          m_fparams.push_back (m_s.read (symb (*CS.getArgument (1))));
+          m_fparams.push_back (m_s.read (symb (*CB.getOperand (1))));
           m_fparams.push_back (m_s.havoc (symb (I)));
         }
         else if (F.getName ().equals ("shadow.mem.arg.new"))
@@ -451,12 +451,12 @@ namespace
         else if (!PF.getName ().equals ("main") &&
                  F.getName ().equals ("shadow.mem.in"))
         {
-          m_s.read (symb (*CS.getArgument (1)));
+          m_s.read (symb (*CB.getOperand (1)));
         }
         else if (!PF.getName ().equals ("main") &&
                  F.getName ().equals ("shadow.mem.out"))
         {
-          m_s.read (symb (*CS.getArgument (1)));
+          m_s.read (symb (*CB.getOperand (1)));
         }
         else if (!PF.getName ().equals ("main") &&
                  F.getName ().equals ("shadow.mem.arg.init"))
@@ -475,7 +475,7 @@ namespace
                   << " (recursive call?)\n";
         }
 
-        visitInstruction (*CS.getInstruction ());
+        visitInstruction (CB);
       }
 
     }

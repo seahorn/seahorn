@@ -441,7 +441,7 @@ bool HornifyModule::runOnFunction(Function &F) {
   auto r = m_ls.insert(std::make_pair(&F, LiveSymbols(F, m_efac, *m_sem)));
   assert(r.second);
 
-  // HACK because reset counters because "run()" calls VisitCallSite
+  // HACK because reset counters because "run()" calls VisitCallBase
   // TODO: store part of what is computed by LiveSymbols?
   InterMemStats tmp_im_stats;
   InterMemFMStats tmp_imfm_stats;

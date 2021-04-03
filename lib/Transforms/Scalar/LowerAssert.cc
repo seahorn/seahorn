@@ -1,7 +1,6 @@
 #include "seahorn/Support/SeaDebug.h"
 #include "llvm/Analysis/CallGraph.h"
 #include "llvm/IR/CFG.h"
-#include "llvm/IR/CallSite.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Module.h"
@@ -201,8 +200,7 @@ bool LowerAssert::runOnFunction(Function &F) {
     Function *CF = CI->getCalledFunction();
 
     if (SBI.getSeaBuiltinOp(*CI) == SeaBuiltinsOp::ASSERT) {
-      CallSite CS(CI);
-      Value *Cond = CS.getArgument(0);
+      Value *Cond = CI->getOperand(0);
       CallInst *NCI = CallInst::Create(
           assumeFn, B.CreateZExtOrTrunc(Cond, Type::getInt1Ty(F.getContext())));
       NCI->setDebugLoc(CI->getDebugLoc());

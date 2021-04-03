@@ -1,5 +1,4 @@
 #include "llvm/Analysis/CallGraph.h"
-#include "llvm/IR/CallSite.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/InstIterator.h"
@@ -68,22 +67,21 @@ struct LowerLibCxxAbiFunctions : public ModulePass {
 
       // // -- look through pointer casts
       // Value *v = I.stripPointerCasts ();
-      // CallSite CS (const_cast<Value*> (v));
-      CallSite CS(&I);
-      const Function *fn = CS.getCalledFunction();
+      auto &CI = cast<CallInst>(I);
+      const Function *fn = CI.getCalledFunction();
 
       // -- check if this is a call through a pointer cast
-      if (!fn && CS.getCalledValue())
-        fn = dyn_cast<const Function>(CS.getCalledValue()->stripPointerCasts());
+      if (!fn && CI.getCalledOperand())
+        fn = dyn_cast<const Function>(CI.getCalledOperand()->stripPointerCasts());
 
       if (fn && (fn->getName().equals("__cxa_allocate_exception") ||
                  fn->getName().equals("__cxa_allocate_dependent_exception"))) {
-        if (CS.doesNotReturn() || CS.arg_size() != 1)
+        if (CI.doesNotReturn() || CI.data_operands_size() != 1)
           continue;
 
         IRBuilder<> Builder(F.getContext());
         Builder.SetInsertPoint(&I);
-        CallInst *ci = Builder.CreateCall(m_mallocFn, CS.getArgument(0));
+        CallInst *ci = Builder.CreateCall(m_mallocFn, CI.getOperand(0));
         ci->setDebugLoc(I.getDebugLoc());
         if (cg)
           (*cg)[&F]->addCalledFunction(ci,
@@ -98,12 +96,12 @@ struct LowerLibCxxAbiFunctions : public ModulePass {
       } else if (fn &&
                  (fn->getName().equals("__cxa_free_exception") ||
                   fn->getName().equals("__cxa_free_dependent_exception"))) {
-        if (!CS.doesNotReturn() || CS.arg_size() != 1)
+        if (!CI.doesNotReturn() || CI.arg_size() != 1)
           continue;
 
         IRBuilder<> Builder(F.getContext());
         Builder.SetInsertPoint(&I);
-        CallInst *ci = Builder.CreateCall(m_freeFn, CS.getArgument(0));
+        CallInst *ci = Builder.CreateCall(m_freeFn, CI.getOperand(0));
         ci->setDebugLoc(I.getDebugLoc());
 
         LOG("lower-libc++abi",

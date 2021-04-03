@@ -249,8 +249,8 @@ public:
       for (Instruction &inst : bb) {
         if (!isa<CallInst>(inst) && !isa<InvokeInst>(inst))
           continue;
-        CallSite CS(&inst);
-        Function *fn = CS.getCalledFunction();
+        auto &CB = cast<CallBase>(inst);
+        Function *fn = CB.getCalledFunction();
         if (!fn)
           continue;
 
@@ -260,11 +260,11 @@ public:
         if (fn->getName().equals("verifier.assume")) {
           ninst = Builder.CreateCall(
               m_kleeAssumeFn,
-              Builder.CreateZExtOrTrunc(CS.getArgument(0), m_intptrTy));
+              Builder.CreateZExtOrTrunc(CB.getOperand(0), m_intptrTy));
         } else if (fn->getName().equals("verifier.assume.not")) {
           ninst = Builder.CreateCall(
               m_kleeAssumeFn,
-              Builder.CreateZExtOrTrunc(Builder.CreateNot(CS.getArgument(0)),
+              Builder.CreateZExtOrTrunc(Builder.CreateNot(CB.getOperand(0)),
                                         m_intptrTy));
         } else if (fn->getName().equals("seahorn.fail") ||
                    fn->getName().equals("verifier.error")) {

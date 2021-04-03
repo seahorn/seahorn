@@ -1,5 +1,4 @@
 #include "llvm/Pass.h"
-#include "llvm/IR/CallSite.h"
 #include "llvm/IR/InstIterator.h"
 #include "llvm/IR/Module.h"
 
@@ -45,18 +44,20 @@ public:
     LLVMContext &ctx = F.getContext();
     IRBuilder<> Builder(ctx);
 
-    for (auto &I : boost::make_iterator_range(inst_begin(F), inst_end(F))) {
+    for (auto &I : instructions(F)) {
       if (!isa<CallInst>(&I))
         continue;
+      // XXX this is a noop, since if this succeeds I is not a CallInst
       Value *v = I.stripPointerCasts();
-      CallSite CS(v);
-      const Function *fn = CS.getCalledFunction();
-      if (!fn && CS.getCalledValue())
-        fn = dyn_cast<const Function>(CS.getCalledValue()->stripPointerCasts());
+      assert(isa<CallInst>(v));
+      auto &CI = cast<CallInst>(*v);
+      const Function *fn = CI.getCalledFunction();
+      if (!fn && CI.getCalledOperand())
+        fn = dyn_cast<const Function>(CI.getCalledOperand()->stripPointerCasts());
 
       if (fn && (fn->getName().equals("verifier.assume") ||
                  fn->getName().equals("verifier.assume.not"))) {
-        Value *arg = CS.getArgument(0);
+        Value *arg = CI.getOperand(0);
         // already used in llvm.assume. skip it.
         if (hasAssumeUsers(*arg))
           continue;

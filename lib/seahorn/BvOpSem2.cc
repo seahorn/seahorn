@@ -171,18 +171,18 @@ static llvm::cl::opt<bool> UseLVIInferRng(
     llvm::cl::init(false));
 namespace {
 
-const Value *extractUniqueScalar(CallSite &cs) {
+const Value *extractUniqueScalar(const CallBase &CB) {
   if (!EnableUniqueScalars2)
     return nullptr;
   else
-    return shadow_dsa::extractUniqueScalar(cs);
+    return shadow_dsa::extractUniqueScalar(CB);
 }
 
-const Value *extractUniqueScalar(const CallInst *ci) {
+const Value *extractUniqueScalar(const CallBase *cb) {
   if (!EnableUniqueScalars2)
     return nullptr;
   else
-    return shadow_dsa::extractUniqueScalar(ci);
+    return cb ? extractUniqueScalar(*cb) : nullptr;
 }
 
 bool isShadowMem(const Value &V, const Value **out) {
@@ -569,20 +569,20 @@ public:
     setValue(I, res);
   }
 
-  void visitCallSite(CallSite CS) {
-    if (!CS.isCall()) {
+  void visitCallBase(CallBase &CB) {
+    if (!isa<CallInst>(CB)) {
       llvm_unreachable("invoke instructions "
                        "are not supported and must be lowered");
     }
 
-    if (CS.isInlineAsm()) {
-      visitInlineAsmCall(CS);
+    if (CB.isInlineAsm()) {
+      visitInlineAsmCall(CB);
       return;
     }
 
-    auto *f = getCalledFunction(CS);
+    auto *f = getCalledFunction(CB);
     if (!f) {
-      visitIndirectCall(CS);
+      visitIndirectCall(CB);
       return;
     }
 
@@ -590,17 +590,17 @@ public:
     assert(!f->isIntrinsic());
 
     if (f->getName().startswith("verifier.assume")) {
-      visitVerifierAssumeCall(CS);
+      visitVerifierAssumeCall(CB);
       return;
     }
 
     if (f->getName().equals("calloc")) {
-      visitCallocCall(CS);
+      visitCallocCall(CB);
       return;
     }
 
-    if (CS.getInstruction()->getMetadata("shadow.mem")) {
-      visitShadowMemCall(CS);
+    if (CB.getMetadata("shadow.mem")) {
+      visitShadowMemCall(CB);
       return;
     }
 
@@ -608,7 +608,7 @@ public:
       WARN << "missing metadata on shadow.mem functions. "
               "Probably using old ShadowMem pass. "
               "Some features might not work as expected";
-      visitShadowMemCall(CS);
+      visitShadowMemCall(CB);
       return;
     }
 
@@ -652,7 +652,7 @@ public:
       hana::for_each(hana::keys(funDeclStartsWithVisitorMap), [&](auto key) {
         if (candidate.startswith(key.c_str()) && !found) {
           auto fnPtr = funDeclStartsWithVisitorMap[key];
-          (this->*fnPtr)(CS);
+          (this->*fnPtr)(CB);
           found = true;
           return;
         }
@@ -665,33 +665,60 @@ public:
                              f->getName().startswith("nondet.") ||
                              f->getName().endswith("nondet") ||
                              f->getName().startswith("verifier.nondet") ||
-                             f->getName().startswith("__VERIFIER_nondet"))) {
-        visitNondetCall(CS);
-      } else if (visitFunDecl(f->getName())) {
-        return;
+                             f->getName().startswith("__VERIFIER_nondet")))
+        visitNondetCall(CB);
+      else if (f->getName().startswith("sea.is_dereferenceable")) {
+        visitIsDereferenceable(CB);
+      } else if (f->getName().startswith("sea.is_modified")) {
+        visitIsModified(CB);
+      } else if (f->getName().startswith("sea.reset_modified")) {
+        visitResetModified(CB);
+      } else if (f->getName().startswith("sea.is_read")) {
+        visitIsRead(CB);
+      } else if (f->getName().startswith("sea.reset_read")) {
+        visitResetRead(CB);
+      } else if (f->getName().startswith("sea.is_alloc")) {
+        visitIsAlloc(CB);
+      } else if (f->getName().startswith("sea.reset_modified")) {
+        visitResetModified(CB);
+      } else if (f->getName().startswith("sea.tracking_on")) {
+        visitSetTrackingOn(CB);
+      } else if (f->getName().startswith(("sea.tracking_off"))) {
+        visitSetTrackingOff(CB);
+      } else if (f->getName().startswith("sea.free")) {
+        visitFree(CB);
+      } else if (f->getName().startswith(("sea.assert.if"))) {
+        visitSeaAssertIfCall(CB);
+      } else if (f->getName().startswith(("verifier.assert"))) {
+        // this deals with both assert and assert.not stmts
+        visitVerifierAssertCall(CB);
+      } else if (f->getName().startswith("sea.branch_sentinel")) {
+        visitBranchSentinel(CB);
+      } else if (f->getName().startswith("smt.")) {
+        visitSmtCall(CB);
       } else if (fatptr_intrnsc_re.match(f->getName())) {
-        visitFatPointerInstr(CS);
+        visitFatPointerInstr(CB);
       } else
-        visitExternalCall(CS);
+        visitExternalCall(CB);
       return;
     }
 
     if (m_sem.hasFunctionInfo(*f)) {
-      visitKnownFunctionCall(CS);
+      visitKnownFunctionCall(CB);
     }
 
-    ERR << "unhandled call instruction: " << *CS.getInstruction();
+    ERR << "unhandled call instruction: " << CB;
     llvm_unreachable(nullptr);
   }
 
-  void visitSmtCall(CallSite CS) {
+  void visitSmtCall(CallBase &CB) {
 
-    auto *f = getCalledFunction(CS);
+    auto *f = getCalledFunction(CB);
     Expr res;
     if (f->getName().startswith("smt.extract.")) {
-      auto *arg0 = dyn_cast<ConstantInt>(CS.getArgument(0));
-      auto *arg1 = dyn_cast<ConstantInt>(CS.getArgument(1));
-      auto *val = CS.getArgument(2);
+      auto *arg0 = dyn_cast<ConstantInt>(CB.getOperand(0));
+      auto *arg1 = dyn_cast<ConstantInt>(CB.getOperand(1));
+      auto *val = CB.getOperand(2);
       Expr symVal = lookup(*val);
       if (symVal && arg0 && arg1) {
         res =
@@ -706,10 +733,10 @@ public:
       assert(false);
     }
 
-    setValue(*CS.getInstruction(), res);
+    setValue(CB, res);
   }
 
-  void visitInlineAsmCall(CallSite CS) {
+  void visitInlineAsmCall(CallBase &CB) {
     // We only care about handling simple cases e.g. which are used to
     // thwart optimization by obfuscating code.
     // Inline assembly format:
@@ -723,21 +750,20 @@ public:
     // !103
     // 3) Single instruction of bswap asm
 
-    IntegerType *Ty =
-        dyn_cast<IntegerType>(cast<CallInst>(CS.getInstruction())->getType());
-    if ((Ty && Ty->getBitWidth() % 16 != 0) || CS.getNumArgOperands() > 1) {
+    IntegerType *Ty = dyn_cast<IntegerType>(CB.getType());
+    if ((Ty && Ty->getBitWidth() % 16 != 0) || CB.getNumArgOperands() > 1) {
       LOG("opsem",
-          ERR << "Cannot handle inline assembly: " << *CS.getInstruction());
+          ERR << "Cannot handle inline assembly: " << CB);
       return;
     }
-    InlineAsm *IA = cast<InlineAsm>(CS.getCalledValue());
+    InlineAsm *IA = cast<InlineAsm>(CB.getCalledValue());
     const std::string &AsmStr = IA->getAsmString();
     llvm::SmallVector<llvm::StringRef, 4> AsmPieces;
     llvm::SplitString(AsmStr, AsmPieces, ";\n");
     switch (AsmPieces.size()) {
     default:
       LOG("opsem",
-          ERR << "Cannot handle inline assembly: " << *CS.getInstruction());
+          ERR << "Cannot handle inline assembly: " << CB);
       break;
     case 0:
       // This part handles the following type of inline assembly
@@ -745,15 +771,15 @@ public:
       // 1. read memory value (data), the type of value is not restricted
       if (IA->getConstraintString().compare(0, 5, "=r,0,") == 0) {
         // Copy input to output
-        Expr readVal = lookup(*CS.getArgument(0));
-        setValue(*CS.getInstruction(), readVal);
+        Expr readVal = lookup(*CB.getOperand(0));
+        setValue(CB, readVal);
       } else if (IA->getConstraintString().compare(0, 2, "r,") == 0) {
         // This code is only used to stop optimization
         // Since there is no computation, do nothing
       } else {
         LOG("opsem",
             ERR << "Cannot handle inline assembly with empty asm string: "
-                << *CS.getInstruction());
+                << CB);
       }
       break;
     case 1:
@@ -766,13 +792,12 @@ public:
           AsmStr.compare(0, 13, "bswapl ${0:q}") == 0 ||
           AsmStr.compare(0, 13, "bswapq ${0:q}") == 0) {
         // No need to check constraints
-        isAsmHandled = expandCallInst(
-            *cast<CallInst>(CS.getInstruction()), [](CallInst &CI) {
+        isAsmHandled = expandCallInst(cast<CallInst>(CB), [](CallInst &CI) {
               return IntrinsicLowering::LowerToByteSwap(&CI);
             });
       }
       // llvm.bswap.i16
-      if (cast<CallInst>(CS.getInstruction())->getType()->isIntegerTy(16) &&
+      if (CB.getType()->isIntegerTy(16) &&
           IA->getConstraintString().compare(0, 5, "=r,0,") == 0 &&
           (AsmStr.compare(0, 16, "rorw $$8, ${0:w}") == 0 ||
            AsmStr.compare(0, 16, "rolw $$8, ${0:w}") == 0)) {
@@ -783,28 +808,28 @@ public:
         // Try to replace a call instruction with a call to a bswap intrinsic
         isAsmHandled =
             clobbersFlagRegisters(AsmPieces) &&
-            expandCallInst(*cast<CallInst>(CS.getInstruction()),
+            expandCallInst(cast<CallInst>(CB),
                            [](CallInst &CI) {
                              return IntrinsicLowering::LowerToByteSwap(&CI);
                            });
       }
       if (!isAsmHandled)
         LOG("opsem", ERR << "Cannot handle inline assembly of integer swap: "
-                         << *CS.getInstruction());
+                         << CB);
       break;
     }
   }
 
-  void visitBranchSentinel(CallSite CS) {}
+  void visitBranchSentinel(CallBase &CB) {}
 
-  void visitGetShadowMem(CallSite CS) {
+  void visitGetShadowMem(CallBase &CB) {
     if (!m_ctx.getMemReadRegister()) {
       LOG("opsem", ERR << "No read register found - check if corresponding"
                           "shadow instruction is present.");
       m_ctx.setMemReadRegister(Expr());
       return;
     }
-    Expr slot = lookup(*CS.getArgument(0));
+    Expr slot = lookup(*CB.getOperand(0));
     if (!m_ctx.alu().isNum(slot)) {
       LOG("opsem", ERR << "Metadata slot should resolve to a number.");
       assert(false);
@@ -814,18 +839,18 @@ public:
       LOG("opsem", ERR << "Metadata slot exceeds number of available slots.");
       assert(false);
     }
-    Expr ptr = lookup(*CS.getArgument(1));
+    Expr ptr = lookup(*CB.getOperand(1));
     auto memIn = m_ctx.read(m_ctx.getMemReadRegister());
     OpSemMemManager &memManager = m_ctx.mem();
     auto res =
         memManager.getMetadata(static_cast<MetadataKind>(slotNum), ptr, memIn,
                                memManager.getMetadataMemWordSzInBits() / 8);
-    setValue(*CS.getInstruction(), res);
+    setValue(CB, res);
     m_ctx.setMemReadRegister(Expr());
   };
 
-  void visitSetShadowMem(CallSite CS) {
-    Expr slot = lookup(*CS.getArgument(0));
+  void visitSetShadowMem(CallBase &CB) {
+    Expr slot = lookup(*CB.getOperand(0));
     if (!m_ctx.alu().isNum(slot)) {
       LOG("opsem", ERR << "Metadata slot should resolve to a number.");
       assert(false);
@@ -835,8 +860,8 @@ public:
       LOG("opsem", ERR << "Metadata slot exceeds number of available slots.");
       assert(false);
     }
-    Expr ptr = lookup(*CS.getArgument(1));
-    Expr exprToSet = lookup(*CS.getArgument(2));
+    Expr ptr = lookup(*CB.getOperand(1));
+    Expr exprToSet = lookup(*CB.getOperand(2));
     auto memIn = m_ctx.read(m_ctx.getMemReadRegister());
     Expr res = m_ctx.mem().setMetadata(static_cast<MetadataKind>(slotNum), ptr,
                                        memIn, exprToSet);
@@ -846,15 +871,14 @@ public:
     m_ctx.setMemWriteRegister(Expr());
   };
 
-  void visitIsDereferenceable(CallSite CS) {
-    Expr ptr = lookup(*CS.getArgument(0));
-    Expr byteSz = lookup(*CS.getArgument(1));
+  void visitIsDereferenceable(CallBase &CB) {
+    Expr ptr = lookup(*CB.getOperand(0));
+    Expr byteSz = lookup(*CB.getOperand(1));
     Expr res;
     bool crabSolved = false;
     if (UseCrabLowerIsDeref || UseCrabCheckIsDeref) {
       // if crab is used, infer the result of sea.is_deref
-      Instruction *inst = CS.getInstruction();
-      auto derefInfoFromCrab = m_sem.getCrabInstRng(*inst);
+      auto derefInfoFromCrab = m_sem.getCrabInstRng(CB);
       if (derefInfoFromCrab.isEmptySet()) {
         // Crab skips is_deref due to invariant inferred along the path is
         // bottom
@@ -871,35 +895,35 @@ public:
         crabSolved = true;
       } else {
         Stats::count("crab.isderef.not.solve");
-        LOG("opsem-crab", const llvm::DebugLoc &dloc = inst->getDebugLoc();
+        LOG("opsem-crab", const llvm::DebugLoc &dloc = CB.getDebugLoc();
             unsigned Line = dloc.getLine(); unsigned Col = dloc.getCol();
             const std::string &File = (*dloc).getFilename();
-            MSG << "crab cannot solve: " << *inst << " at File=" << File
+            MSG << "crab cannot solve: " << CB << " at File=" << File
                 << " Line=" << Line << " col=" << Col;);
       }
     }
     if (!crabSolved) {
       res = m_ctx.mem().isDereferenceable(ptr, byteSz);
     }
-    setValue(*CS.getInstruction(), res);
+    setValue(CB, res);
   }
 
-  void visitIsModified(CallSite CS) {
+  void visitIsModified(CallBase &CB) {
     if (!m_ctx.getMemReadRegister()) {
       LOG("opsem", ERR << "No read register found - check if corresponding"
                           "shadow instruction is present.");
       m_ctx.setMemReadRegister(Expr());
       return;
     }
-    Expr ptr = lookup(*CS.getArgument(0));
+    Expr ptr = lookup(*CB.getOperand(0));
     auto memIn = m_ctx.read(m_ctx.getMemReadRegister());
     OpSemMemManager &memManager = m_ctx.mem();
     auto res = memManager.isMetadataSet(MetadataKind::WRITE, ptr, memIn);
-    setValue(*CS.getInstruction(), res);
+    setValue(CB, res);
     m_ctx.setMemReadRegister(Expr());
   }
 
-  void visitResetModified(CallSite CS) {
+  void visitResetModified(CallBase &CB) {
     if (!m_ctx.getMemReadRegister() || !m_ctx.getMemWriteRegister()) {
       LOG("opsem",
           ERR << "No read/write register found - check if corresponding"
@@ -908,7 +932,7 @@ public:
       m_ctx.setMemWriteRegister(Expr());
       return;
     }
-    Expr ptr = lookup(*CS.getArgument(0));
+    Expr ptr = lookup(*CB.getOperand(0));
     auto memIn = m_ctx.read(m_ctx.getMemReadRegister());
     OpSemMemManager &memManager = m_ctx.mem();
     auto res = memManager.setMetadata(
@@ -920,30 +944,30 @@ public:
     m_ctx.setMemWriteRegister(Expr());
   }
 
-  void visitIsRead(CallSite CS) {}
+  void visitIsRead(CallBase &CB) {}
 
-  void visitResetRead(CallSite CS) {}
+  void visitResetRead(CallBase &CB) {}
 
-  void visitIsAlloc(CallSite CS) {
+  void visitIsAlloc(CallBase &CB) {
     if (!m_ctx.getMemReadRegister()) {
       LOG("opsem", ERR << "No read register found - check if corresponding"
                           "shadow instruction is present.");
       m_ctx.setMemReadRegister(Expr());
       return;
     }
-    Expr ptr = lookup(*CS.getArgument(0));
+    Expr ptr = lookup(*CB.getOperand(0));
     auto memIn = m_ctx.read(m_ctx.getMemReadRegister());
     OpSemMemManager &memManager = m_ctx.mem();
     auto res = memManager.isMetadataSet(MetadataKind::ALLOC, ptr, memIn);
-    setValue(*CS.getInstruction(), res);
+    setValue(CB, res);
     m_ctx.setMemReadRegister(Expr());
   }
 
-  void visitSetTrackingOn(CallSite CS) { m_ctx.setTracking(true); }
+  void visitSetTrackingOn(CallBase &CB) { m_ctx.setTracking(true); }
 
-  void visitSetTrackingOff(CallSite CS) { m_ctx.setTracking(false); }
+  void visitSetTrackingOff(CallBase &CB) { m_ctx.setTracking(false); }
 
-  void visitFree(CallSite &CS) {
+  void visitFree(CallBase &CB) {
     if (!m_ctx.getMemReadRegister() || !m_ctx.getMemWriteRegister()) {
       LOG("opsem",
           ERR << "No read/write register found - check if corresponding"
@@ -952,7 +976,7 @@ public:
       m_ctx.setMemWriteRegister(Expr());
       return;
     }
-    Expr ptr = lookup(*CS.getArgument(0));
+    Expr ptr = lookup(*CB.getOperand(0));
     auto memIn = m_ctx.read(m_ctx.getMemReadRegister());
     OpSemMemManager &memManager = m_ctx.mem();
     auto res = memManager.setMetadata(
@@ -1045,11 +1069,11 @@ public:
     reportDoAssert("assertion", I, conseqRes, false);
   }
 
-  void visitSeaAssertIfCall(CallSite CS) {
+  void visitSeaAssertIfCall(CallBase &CB) {
     // NOTE: sea.assert.if.not is not supported
-    Expr ante = lookup(*CS.getArgument(0));
-    Expr conseq = lookup(*CS.getArgument(1));
-    doAssert(ante, conseq, *CS.getInstruction());
+    Expr ante = lookup(*CB.getOperand(0));
+    Expr conseq = lookup(*CB.getOperand(1));
+    doAssert(ante, conseq, CB);
   }
 
   boost::tribool solveWithConstraints(const Expr &solveFor,
@@ -1082,71 +1106,69 @@ public:
     return r;
   }
 
-  void visitVerifierAssertCall(CallSite CS) {
-    auto &f = *getCalledFunction(CS);
+  void visitVerifierAssertCall(CallBase &CB) {
+    auto &f = *getCalledFunction(CB);
 
-    Expr op = lookup(*CS.getArgument(0));
+    Expr op = lookup(*CB.getOperand(0));
     if (f.getName().equals("verifier.assert.not"))
       op = boolop::lneg(op);
-    doAssert(m_ctx.alu().getTrue(), op, *CS.getInstruction());
+    doAssert(m_ctx.alu().getTrue(), op, CB);
   }
 
-  void visitFatPointerInstr(CallSite CS) {
-    auto *f = getCalledFunction(CS);
+  void visitFatPointerInstr(CallBase &CB) {
+    auto *f = getCalledFunction(CB);
     assert(f);
-    const Instruction &I = *CS.getInstruction();
 
     if (f->getName().equals("__sea_set_extptr_slot0_hm")) {
-      Expr ptr = lookup(*CS.getArgument(0));
-      Expr data = lookup(*CS.getArgument(1));
+      Expr ptr = lookup(*CB.getOperand(0));
+      Expr data = lookup(*CB.getOperand(1));
       Expr res = m_ctx.mem().setFatData(ptr, 0 /*slot */, data);
-      setValue(I, res);
+      setValue(CB, res);
     } else if (f->getName().equals("__sea_set_extptr_slot1_hm")) {
-      Expr ptr = lookup(*CS.getArgument(0));
-      Expr data = lookup(*CS.getArgument(1));
+      Expr ptr = lookup(*CB.getOperand(0));
+      Expr data = lookup(*CB.getOperand(1));
       Expr res = m_ctx.mem().setFatData(ptr, 1 /*slot */, data);
-      setValue(I, res);
+      setValue(CB, res);
     } else if (f->getName().equals("__sea_get_extptr_slot0_hm")) {
-      Expr ptr = lookup(*CS.getArgument(0));
+      Expr ptr = lookup(*CB.getOperand(0));
       Expr res = m_ctx.mem().getFatData(ptr, 0 /*slot */);
-      setValue(I, res);
+      setValue(CB, res);
     } else if (f->getName().equals("__sea_get_extptr_slot1_hm")) {
-      Expr ptr = lookup(*CS.getArgument(0));
+      Expr ptr = lookup(*CB.getOperand(0));
       Expr res = m_ctx.mem().getFatData(ptr, 1 /*slot */);
-      setValue(I, res);
+      setValue(CB, res);
     } else if (f->getName().equals("__sea_copy_extptr_slots_hm")) {
       // convention is copy(dst, src)
-      Expr dst = lookup(*CS.getArgument(0));
-      Expr src = lookup(*CS.getArgument(1));
+      Expr dst = lookup(*CB.getOperand(0));
+      Expr src = lookup(*CB.getOperand(1));
 
       Expr slot0_data = m_ctx.mem().getFatData(src, 0 /*slot */);
       Expr slot1_data = m_ctx.mem().getFatData(src, 1 /*slot */);
       Expr res = m_ctx.mem().setFatData(dst, 0 /*slot */, slot0_data);
       res = m_ctx.mem().setFatData(res, 1 /*slot */, slot1_data);
-      setValue(I, res);
+      setValue(CB, res);
     } else if (f->getName().equals("__sea_recover_pointer_hm")) {
-      Expr fat_ptr = lookup(*CS.getArgument(0));
-      setValue(I, fat_ptr);
+      Expr fat_ptr = lookup(*CB.getOperand(0));
+      setValue(CB, fat_ptr);
     }
   }
 
-  void visitIndirectCall(CallSite CS) {
-    if (CS.getInstruction()->getType()->isVoidTy()) {
+  void visitIndirectCall(CallBase &CB) {
+    if (CB.getType()->isVoidTy()) {
       LOG("opsem", WARN << "Interpreting indirect call as noop: "
-                        << *CS.getInstruction() << "\n";);
+                        << CB << "\n";);
       return;
     }
     // treat as non-det and issue a warning
-    setValue(*CS.getInstruction(), Expr());
+    setValue(CB, Expr());
   }
 
-  void visitVerifierAssumeCall(CallSite CS) {
-    // ignore assume with metadata: unified.assume
-    if (CS.getInstruction() && isUnifiedAssume(*CS.getInstruction()))
-      return;
-    auto &f = *getCalledFunction(CS);
+  void visitVerifierAssumeCall(CallBase &CB) {
+    // ignore assumes annotaed with "unified.assume"
+    if (isUnifiedAssume(CB)) return;
+    auto &f = *getCalledFunction(CB);
 
-    Expr op = lookup(*CS.getArgument(0));
+    Expr op = lookup(*CB.getOperand(0));
     assert(op);
 
     if (f.getName().equals("verifier.assume.not"))
@@ -1154,12 +1176,12 @@ public:
 
     if (!isOpX<TRUE>(op)) {
       m_ctx.addScopedSide(boolop::lor(
-          m_ctx.read(m_sem.errorFlag(*(CS.getInstruction()->getParent()))),
+          m_ctx.read(m_sem.errorFlag(*(CB.getParent()))),
           op));
     }
   }
 
-  void visitCallocCall(CallSite CS) {
+  void visitCallocCall(CallBase &CB) {
     if (!m_ctx.getMemReadRegister() || !m_ctx.getMemReadRegister()) {
       LOG("opsem", WARN << "treating calloc() as nop";);
       return;
@@ -1179,152 +1201,146 @@ public:
     }
 
     // get a fresh pointer
-    const Instruction &inst = *CS.getInstruction();
-    setValue(inst, havoc(inst));
+    setValue(CB, havoc(CB));
   }
 
-  void visitShadowMemCall(CallSite CS) {
-    const Instruction &inst = *CS.getInstruction();
-
-    const auto &F = *getCalledFunction(CS);
+  void visitShadowMemCall(CallBase &CB) {
+    const auto &F = *getCalledFunction(CB);
     if (F.getName().equals("shadow.mem.init")) {
-      unsigned id = shadow_dsa::getShadowId(CS);
+      unsigned id = shadow_dsa::getShadowId(CB);
       assert(id >= 0);
-      setValue(inst, havoc(inst));
+      setValue(CB, havoc(CB));
       return;
     }
 
     if (F.getName().equals("shadow.mem.load")) {
-      const Value &v = *CS.getArgument(1);
+      const Value &v = *CB.getOperand(1);
       Expr reg = m_ctx.mkRegister(v);
       m_ctx.read(reg);
       m_ctx.setMemReadRegister(reg);
-      m_ctx.setMemScalar(extractUniqueScalar(CS) != nullptr);
+      m_ctx.setMemScalar(extractUniqueScalar(CB) != nullptr);
       return;
     }
 
     if (F.getName().equals("shadow.mem.trsfr.load")) {
-      const Value &v = *CS.getArgument(1);
+      const Value &v = *CB.getOperand(1);
       Expr reg = m_ctx.mkRegister(v);
       m_ctx.read(reg);
       m_ctx.setMemTrsfrReadReg(reg);
-      if (extractUniqueScalar(CS) != nullptr) {
-        WARN << "unexpected unique scalar in mem.trsfr.load: " << inst;
+      if (extractUniqueScalar(CB) != nullptr) {
+        WARN << "unexpected unique scalar in mem.trsfr.load: " << CB;
         llvm_unreachable(nullptr);
       }
       return;
     }
 
     if (F.getName().equals("shadow.mem.store")) {
-      Expr memOut = m_ctx.mkRegister(inst);
-      Expr memIn = m_ctx.getRegister(*CS.getArgument(1));
+      Expr memOut = m_ctx.mkRegister(CB);
+      Expr memIn = m_ctx.getRegister(*CB.getOperand(1));
       m_ctx.read(memIn);
-      setValue(inst, havoc(inst));
+      setValue(CB, havoc(CB));
 
       m_ctx.setMemReadRegister(memIn);
       m_ctx.setMemWriteRegister(memOut);
-      m_ctx.setMemScalar(extractUniqueScalar(CS) != nullptr);
+      m_ctx.setMemScalar(extractUniqueScalar(CB) != nullptr);
 
-      LOG("opsem.mem.store", errs() << "mem.store: " << inst << "\n";
-          errs() << "arg1: " << *CS.getArgument(1) << "\n";
+      LOG("opsem.mem.store", errs() << "mem.store: " << CB << "\n";
+          errs() << "arg1: " << *CB.getOperand(1) << "\n";
           errs() << "mem.store: memIn is " << *memIn << " memOut is " << *memOut
                  << "\n";);
       return;
     }
 
     if (F.getName().equals("shadow.mem.arg.ref")) {
-      m_ctx.pushParameter(lookup(*CS.getArgument(1)));
+      m_ctx.pushParameter(lookup(*CB.getOperand(1)));
       return;
     }
 
     if (F.getName().equals("shadow.mem.arg.mod")) {
-      m_ctx.pushParameter(lookup(*CS.getArgument(1)));
-      Expr reg = m_ctx.mkRegister(inst);
+      m_ctx.pushParameter(lookup(*CB.getOperand(1)));
+      Expr reg = m_ctx.mkRegister(CB);
       assert(reg);
       m_ctx.pushParameter(m_ctx.havoc(reg));
       return;
     }
 
     if (F.getName().equals("shadow.mem.arg.new")) {
-      Expr reg = m_ctx.mkRegister(inst);
+      Expr reg = m_ctx.mkRegister(CB);
       m_ctx.pushParameter(m_ctx.havoc(reg));
       return;
     }
 
-    const Function &PF = *inst.getParent()->getParent();
+    const Function &PF = *CB.getParent()->getParent();
 
     if (F.getName().equals("shadow.mem.in")) {
       if (PF.getName().equals("main"))
-        setValue(inst, havoc(inst));
+        setValue(CB, havoc(CB));
       else
-        lookup(*CS.getArgument(1));
+        lookup(*CB.getOperand(1));
       return;
     }
 
     if (F.getName().equals("shadow.mem.out")) {
       if (PF.getName().equals("main"))
-        setValue(inst, havoc(inst));
+        setValue(CB, havoc(CB));
       else
-        lookup(*CS.getArgument(1));
+        lookup(*CB.getOperand(1));
       return;
     }
 
     if (F.getName().equals("shadow.mem.arg.init")) {
       if (PF.getName().equals("main"))
-        setValue(inst, havoc(inst));
+        setValue(CB, havoc(CB));
       return;
     }
 
     if (F.getName().equals("shadow.mem.global.init")) {
-      Expr memOut = m_ctx.mkRegister(inst);
-      Expr memIn = m_ctx.getRegister(*CS.getArgument(1));
+      Expr memOut = m_ctx.mkRegister(CB);
+      Expr memIn = m_ctx.getRegister(*CB.getOperand(1));
       m_ctx.read(memIn);
-      setValue(inst, lookup(*CS.getArgument(1)));
+      setValue(CB, lookup(*CB.getOperand(1)));
 
       m_ctx.setMemReadRegister(memIn);
       m_ctx.setMemWriteRegister(memOut);
 
       LOG("opsem.mem.global.init", errs()
-                                       << "mem.global.init: " << inst << "\n";
-          errs() << "arg1: " << *CS.getArgument(1) << "\n";
+                                       << "mem.global.init: " << CB << "\n";
+          errs() << "arg1: " << *CB.getOperand(1) << "\n";
           errs() << "memIn: " << *memIn << ", memOut: " << *memOut << "\n";);
 
-      Value *gVal = (*CS.getArgument(2)).stripPointerCasts();
+      Value *gVal = (*CB.getOperand(2)).stripPointerCasts();
       if (auto *gv = dyn_cast<llvm::GlobalVariable>(gVal)) {
         auto gvVal = m_ctx.getGlobalVariableInitValue(*gv);
         if (gvVal.first && (MaxSizeGlobalVarInit == 0 ||
                             gvVal.second <= MaxSizeGlobalVarInit)) {
           m_ctx.MemFill(lookup(*gv), gvVal.first, gvVal.second);
         } else {
-          WARN << "skipping global var init of " << inst << " to " << *gVal
+          WARN << "skipping global var init of " << CB << " to " << *gVal
                << "\n";
         }
       }
       return;
     }
 
-    WARN << "unknown shadow.mem call: " << inst;
+    WARN << "unknown shadow.mem call: " << CB;
     llvm_unreachable(nullptr);
   }
 
-  void visitNondetCall(CallSite CS) {
-    const Instruction &inst = *CS.getInstruction();
-    if (!inst.getType()->isVoidTy()) {
-      setValue(inst, m_ctx.havoc(m_ctx.mkRegister(inst)));
+  void visitNondetCall(CallBase &CB) {
+    if (!CB.getType()->isVoidTy()) {
+      setValue(CB, m_ctx.havoc(m_ctx.mkRegister(CB)));
     }
   }
-  void visitExternalCall(CallSite CS) {
-    auto &F = *getCalledFunction(CS);
+  void visitExternalCall(CallBase &CB) {
+    auto &F = *getCalledFunction(CB);
     if (F.getFunctionType()->getReturnType()->isVoidTy())
       return;
-
-    const Instruction &inst = *CS.getInstruction();
 
     if (!EnableModelExternalCalls2 ||
         std::find(IgnoreExternalFunctions2.begin(),
                   IgnoreExternalFunctions2.end(),
                   F.getName()) != IgnoreExternalFunctions2.end()) {
-      setValue(inst, Expr());
+      setValue(CB, Expr());
       return;
     }
 
@@ -1332,11 +1348,11 @@ public:
     Expr res;
     ExprVector fargs;
     ExprVector sorts;
-    fargs.reserve(CS.arg_size());
-    sorts.reserve(CS.arg_size());
+    fargs.reserve(CB.data_operands_size());
+    sorts.reserve(CB.data_operands_size());
 
     bool is_typed = true;
-    for (auto &a : CS.args()) {
+    for (auto &a : CB.data_ops()) {
       if (m_sem.isSkipped(*a))
         continue;
 
@@ -1355,7 +1371,7 @@ public:
 
     if (is_typed) {
       // return type of the function
-      Expr symReg = m_ctx.mkRegister(inst);
+      Expr symReg = m_ctx.mkRegister(CB);
       Expr ty = bind::typeOf(symReg);
       if (!ty) {
         is_typed = false;
@@ -1365,21 +1381,20 @@ public:
     }
 
     if (is_typed) {
-      LOG("opsem", errs() << "Modelling " << inst
+      LOG("opsem", errs() << "Modelling " << CB
                           << " with an uninterpreted function\n";);
-      Expr name = mkTerm<const Function *>(getCalledFunction(CS), m_efac);
+      Expr name = mkTerm<const Function *>(getCalledFunction(CB), m_efac);
       Expr d = bind::fdecl(name, sorts);
       res = bind::fapp(d, fargs);
     }
 
-    setValue(inst, res);
+    setValue(CB, res);
   }
 
-  void visitKnownFunctionCall(CallSite CS) {
-    const Function &F = *getCalledFunction(CS);
+  void visitKnownFunctionCall(CallBase &CB) {
+    const Function &F = *getCalledFunction(CB);
     const FunctionInfo &fi = m_sem.getFunctionInfo(F);
-    const Instruction &inst = *CS.getInstruction();
-    const BasicBlock &BB = *inst.getParent();
+    const BasicBlock &BB = *CB.getParent();
 
     // enabled
     m_ctx.setParameter(0, m_ctx.getPathCond()); // path condition
@@ -1388,14 +1403,14 @@ public:
     // error flag out
     m_ctx.setParameter(2, m_ctx.havoc(m_sem.errorFlag(BB)));
     for (const Argument *arg : fi.args)
-      m_ctx.pushParameter(lookup(*CS.getArgument(arg->getArgNo())));
+      m_ctx.pushParameter(lookup(*CB.getOperand(arg->getArgNo())));
     for (const GlobalVariable *gv : fi.globals)
       m_ctx.pushParameter(lookup(*gv));
 
     if (fi.ret) {
-      Expr reg = m_ctx.mkRegister(inst);
+      Expr reg = m_ctx.mkRegister(CB);
       Expr v = m_ctx.havoc(reg);
-      setValue(inst, v);
+      setValue(CB, v);
       m_ctx.pushParameter(v);
     }
 
@@ -1403,9 +1418,8 @@ public:
         "arg_error",
 
         if (m_ctx.getParameters().size() != bind::domainSz(fi.sumPred)) {
-          const Instruction &I = *CS.getInstruction();
           const Function &PF = *BB.getParent();
-          errs() << "Call instruction: " << I << "\n";
+          errs() << "Call instruction: " << CB << "\n";
           errs() << "Caller: " << PF << "\n";
           errs() << "Callee: " << F << "\n";
           // errs () << "Sum predicate: " << *fi.sumPred << "\n";

@@ -2,7 +2,6 @@
 
 #include "seahorn/Support/SeaLog.hh"
 #include "llvm/IR/BasicBlock.h"
-#include "llvm/IR/CallSite.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/IntrinsicInst.h"
 #include <cassert>
@@ -46,34 +45,33 @@ void DfCoiAnalysis::analyze(User &user) {
         workList.push_back(v);
       }
     } else if (auto *CI = dyn_cast<CallInst>(&u)) {
-      CallSite CS(CI);
-      if (CS.getCalledFunction()) {
-        if (CS.getCalledFunction()->getName().equals("shadow.mem.store")) {
+      if (CI->getCalledFunction()) {
+        if (CI->getCalledFunction()->getName().equals("shadow.mem.store")) {
           // insert store instruction that follows
           BasicBlock::iterator it(CI);
           ++it;
           assert(it != CI->getParent()->end());
           workList.push_back(&*it);
-        } else if (hana::contains(shadowLoadSucc,
-                                  CS.getCalledFunction()->getName())) {
+        } else if (CI->getCalledFunction()->getName().equals(
+                       "sea.is_modified") ||
+                   (CI->getCalledFunction()->getName().equals("sea.is_alloc"))) {
           //  instruction that precedes has to be
           //  1. shadowmem.load
           BasicBlock::iterator it(CI);
           --it;
           if (auto *CI = dyn_cast<CallInst>(&*it)) {
-            CallSite CS(CI);
-            assert(CS.getCalledFunction()->getName().equals("shadow.mem.load"));
+            assert(CI->getCalledFunction()->getName().equals("shadow.mem.load"));
             workList.push_back(&*it);
-          } else if (boost::hana::contains(shadowStoreSucc,
-                                           CS.getCalledFunction()->getName())) {
+          } else if (CI->getCalledFunction()->getName().equals(
+                         "sea.reset_modified") ||
+                     (CI->getCalledFunction()->getName().equals("sea.free"))) {
             //  instruction that precedes has to be
             //  1. shadowmem.store
             BasicBlock::iterator it(CI);
             --it;
             if (auto *CI = dyn_cast<CallInst>(&*it)) {
-              CallSite CS(CI);
               assert(
-                  CS.getCalledFunction()->getName().equals("shadow.mem.store"));
+                  CI->getCalledFunction()->getName().equals("shadow.mem.store"));
               workList.push_back(&*it);
             }
           }
@@ -99,8 +97,7 @@ CallInst *DfCoiAnalysis::analyzeLoad(LoadInst &LI) {
 
   --it;
   if (auto *CI = dyn_cast<CallInst>(&*it)) {
-    CallSite CS(CI);
-    assert(CS.getCalledFunction()->getName().equals("shadow.mem.load"));
+    assert(CI->getCalledFunction()->getName().equals("shadow.mem.load"));
     return CI;
   }
   return nullptr;
@@ -117,8 +114,7 @@ CallInst *DfCoiAnalysis::analyzeMemTransfer(MemTransferInst &MI) {
     return nullptr;
   --it;
   if (auto *CI = dyn_cast<CallInst>(&*it)) {
-    CallSite CS(CI);
-    assert(CS.getCalledFunction()->getName().equals("shadow.mem.trsfr.load"));
+    assert(CI->getCalledFunction()->getName().equals("shadow.mem.trsfr.load"));
     return CI;
   }
   return nullptr;
@@ -133,9 +129,8 @@ CallInst *DfCoiAnalysis::analyzeAllocaInst(AllocaInst &AI) {
 
   --it;
   if (auto *CI = dyn_cast<CallInst>(&*it)) {
-    CallSite CS(CI);
-    assert(CS.getCalledFunction()->getName().equals("shadow.mem.load") ||
-           CS.getCalledFunction()->getName().equals("shadow.mem.store"));
+    assert(CI->getCalledFunction()->getName().equals("shadow.mem.load") ||
+           CI->getCalledFunction()->getName().equals("shadow.mem.store"));
     return CI;
   }
   return nullptr;

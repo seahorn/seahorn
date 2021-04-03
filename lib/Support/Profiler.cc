@@ -210,8 +210,8 @@ namespace seahorn {
         ++TotalJoins;
     }
 
-    void visitCallSite(CallSite &CS) {
-      Function* callee = CS.getCalledFunction ();
+    void visitCallBase(CallBase &CB) {
+      Function* callee = CB.getCalledFunction ();
       if (callee) {
         ++TotalDirectCalls;
         if (callee->isDeclaration ()) {
@@ -223,7 +223,7 @@ namespace seahorn {
         ++TotalIndirectCalls;
 
       // new, malloc, calloc, realloc, and strdup.
-      if (isAllocationFn (CS.getInstruction(), TLI, true)) 
+      if (isAllocationFn (&CB, TLI, true)) 
         ++TotalAllocations;
     }
 
@@ -309,12 +309,10 @@ namespace seahorn {
          processMemIntrPointerOperand (MSI->getDest(), MSI->getLength ()); \
       }                                                             \
       if (CallInst* CI = dyn_cast<CallInst>(&I)) {                  \
-         CallSite CS (CI);                                          \
-         visitCallSite (CS);                                        \
+         visitCallBase (*CI);                                        \
       }                                                             \
       else if (InvokeInst* II = dyn_cast<InvokeInst>(&I)) {         \
-         CallSite CS (II);                                          \
-         visitCallSite (CS);                                        \
+         visitCallBase (*II);                                        \
       }                                                             \
       else if (BinaryOperator* BI = dyn_cast<BinaryOperator>(&I)) { \
          visitBinaryOperator (BI);                                  \

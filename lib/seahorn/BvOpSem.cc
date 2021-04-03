@@ -66,18 +66,18 @@ static llvm::cl::list<std::string> IgnoreExternalFunctions(
         "These functions are not modeled as uninterpreted functions"),
     llvm::cl::ZeroOrMore, llvm::cl::CommaSeparated);
 
-static const Value *extractUniqueScalar(CallSite &cs) {
+static const Value *extractUniqueScalar(const CallBase &CB) {
   if (!EnableUniqueScalars)
     return nullptr;
   else
-    return seahorn::shadow_dsa::extractUniqueScalar(cs);
+    return seahorn::shadow_dsa::extractUniqueScalar(CB);
 }
 
-static const Value *extractUniqueScalar(const CallInst *ci) {
+static const Value *extractUniqueScalar(const CallBase *cb) {
   if (!EnableUniqueScalars)
     return nullptr;
   else
-    return seahorn::shadow_dsa::extractUniqueScalar(ci);
+    return seahorn::shadow_dsa::extractUniqueScalar(*cb);
 }
 
 static bool isShadowMem(const Value &V, const Value **out) {
@@ -546,23 +546,23 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
     }
   }
 
-  void visitCallSite(CallSite CS) {
-    assert(CS.isCall());
-    const Function *f = CS.getCalledFunction();
+  void visitCallBase(CallBase &CB) {
+    assert(isa<CallInst>(CB));
+    const Function *f = CB.getCalledFunction();
 
-    Instruction &I = *CS.getInstruction();
-    BasicBlock &BB = *I.getParent();
+    BasicBlock &BB = *CB.getParent();
+    Instruction &I = CB;
 
     // -- unknown/indirect function call
     if (!f) {
       // XXX Use DSA and/or Devirt to handle better
       assert(m_fparams.size() == 3);
-      visitInstruction(I);
+      visitInstruction(CB);
       return;
     }
 
     const Function &F = *f;
-    const Function &PF = *I.getParent()->getParent();
+    const Function &PF = *CB.getParent()->getParent();
 
     // skip intrinsic functions
     if (F.isIntrinsic()) {
@@ -571,7 +571,7 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
     }
 
     if (F.getName().startswith("verifier.assume")) {
-      Expr c = lookup(*CS.getArgument(0));
+      Expr c = lookup(*CB.getOperand(0));
       if (F.getName().equals("verifier.assume.not"))
         c = boolop::lneg(c);
 
@@ -596,9 +596,9 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
       }
     } else if (F.getName().startswith("smt.extract.")) {
 
-      auto *arg0 = dyn_cast<ConstantInt>(CS.getArgument(0));
-      auto *arg1 = dyn_cast<ConstantInt>(CS.getArgument(1));
-      auto *val = CS.getArgument(2);
+      auto *arg0 = dyn_cast<ConstantInt>(CB.getOperand(0));
+      auto *arg1 = dyn_cast<ConstantInt>(CB.getOperand(1));
+      auto *val = CB.getOperand(2);
       Expr symVal = lookup(*val);
       if (arg0 && arg1 && symVal) {
         Expr res = bv::extract(arg1->getZExtValue(), arg0->getZExtValue(), symVal);
@@ -620,7 +620,7 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
       // error flag out
       m_fparams[2] = (m_s.havoc(m_sem.errorFlag(BB)));
       for (const Argument *arg : fi.args)
-        m_fparams.push_back(m_s.read(symb(*CS.getArgument(arg->getArgNo()))));
+        m_fparams.push_back(m_s.read(symb(*CB.getOperand(arg->getArgNo()))));
       for (const GlobalVariable *gv : fi.globals)
         m_fparams.push_back(m_s.read(symb(*gv)));
 
@@ -664,7 +664,7 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
     } else if (F.getName().startswith("shadow.mem") && m_sem.isTracked(I)) {
       if (F.getName().equals("shadow.mem.init")) {
         m_s.havoc(symb(I));
-        unsigned id = shadow_dsa::getShadowId(CS);
+        unsigned id = shadow_dsa::getShadowId(CB);
         assert(id >= 0);
 
         // -- add constraints only if asked
@@ -703,42 +703,42 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
         }
 
       } else if (F.getName().equals("shadow.mem.load")) {
-        const Value &v = *CS.getArgument(1);
+        const Value &v = *CB.getOperand(1);
         m_inMem = m_s.read(symb(v));
-        m_uniq = extractUniqueScalar(CS) != nullptr;
+        m_uniq = extractUniqueScalar(CB) != nullptr;
         if (PartMem) {
-          m_cur_startMem = memStart(shadow_dsa::getShadowId(CS));
-          m_cur_endMem = memEnd(shadow_dsa::getShadowId(CS));
+          m_cur_startMem = memStart(shadow_dsa::getShadowId(CB));
+          m_cur_endMem = memEnd(shadow_dsa::getShadowId(CB));
         }
       } else if (F.getName().equals("shadow.mem.store")) {
-        m_inMem = m_s.read(symb(*CS.getArgument(1)));
+        m_inMem = m_s.read(symb(*CB.getOperand(1)));
         m_outMem = m_s.havoc(symb(I));
-        m_uniq = extractUniqueScalar(CS) != nullptr;
+        m_uniq = extractUniqueScalar(CB) != nullptr;
         if (PartMem) {
-          m_cur_startMem = memStart(shadow_dsa::getShadowId(CS));
-          m_cur_endMem = memEnd(shadow_dsa::getShadowId(CS));
+          m_cur_startMem = memStart(shadow_dsa::getShadowId(CB));
+          m_cur_endMem = memEnd(shadow_dsa::getShadowId(CB));
         }
       } else if (F.getName().equals("shadow.mem.global.init")) {
-        m_inMem = m_s.read(symb(*CS.getArgument(1)));
+        m_inMem = m_s.read(symb(*CB.getOperand(1)));
         m_outMem = m_s.havoc(symb(I));
         if (PartMem) {
-          m_cur_startMem = memStart(shadow_dsa::getShadowId(CS));
-          m_cur_endMem = memEnd(shadow_dsa::getShadowId(CS));
+          m_cur_startMem = memStart(shadow_dsa::getShadowId(CB));
+          m_cur_endMem = memEnd(shadow_dsa::getShadowId(CB));
         }
         m_side.push_back(mk<EQ>(m_outMem, m_inMem));
       } else if (F.getName().equals("shadow.mem.arg.ref"))
-        m_fparams.push_back(m_s.read(symb(*CS.getArgument(1))));
+        m_fparams.push_back(m_s.read(symb(*CB.getOperand(1))));
       else if (F.getName().equals("shadow.mem.arg.mod")) {
-        m_fparams.push_back(m_s.read(symb(*CS.getArgument(1))));
+        m_fparams.push_back(m_s.read(symb(*CB.getOperand(1))));
         m_fparams.push_back(m_s.havoc(symb(I)));
       } else if (F.getName().equals("shadow.mem.arg.new"))
         m_fparams.push_back(m_s.havoc(symb(I)));
       else if (!PF.getName().equals("main") &&
                F.getName().equals("shadow.mem.in")) {
-        m_s.read(symb(*CS.getArgument(1)));
+        m_s.read(symb(*CB.getOperand(1)));
       } else if (!PF.getName().equals("main") &&
                  F.getName().equals("shadow.mem.out")) {
-        m_s.read(symb(*CS.getArgument(1)));
+        m_s.read(symb(*CB.getOperand(1)));
       } else if (!PF.getName().equals("main") &&
                  F.getName().equals("shadow.mem.arg.init")) {
         // regions initialized in main are global. We want them to
@@ -760,10 +760,10 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
         Expr lhs = havoc(I);
         ExprVector fargs;
         ExprVector sorts;
-        fargs.reserve(CS.arg_size());
-        sorts.reserve(CS.arg_size());
+        fargs.reserve(CB.data_operands_size());
+        sorts.reserve(CB.data_operands_size());
         bool cannot_infer_types = false;
-        for (auto &a : CS.args()) {
+        for (auto &a : CB.data_ops()) {
           if (!m_sem.isTracked(*a)) {
             continue;
           }
@@ -790,7 +790,7 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
         if (cannot_infer_types) {
           fargs.clear();
           sorts.clear();
-          visitInstruction(*CS.getInstruction());
+          visitInstruction(CB);
         } else {
           errs() << "Modeling " << I << " with an uninterpreted function\n";
           Expr name = mkTerm<const Function *>(f, m_efac);
@@ -807,7 +807,7 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
 		 << "option --inline was not added, or "
 		 << F.getName() << " has \"optnone\" attribute.\n";
         }
-        visitInstruction(*CS.getInstruction());
+        visitInstruction(CB);
       }
     }
   }

@@ -23,7 +23,7 @@ using CellExprMap = DenseMap<std::pair<const seadsa::Node *, unsigned>, Expr>;
 
 // preprocesor for vcgen with memory copies
 class InterMemPreProc {
-  /*! \brief Keeps for each CallSite of a module the simulation relation
+  /*! \brief Keeps for each CallBase of a module the simulation relation
    * between the caller and the callee (context sensitive), the nodes that
    * unsafe to copy per callee, caller and function (context insensitive).
    */
@@ -31,18 +31,18 @@ private:
   seadsa::CompleteCallGraph &m_ccg;
   seadsa::ShadowMem &m_shadowDsa;
 
-  using SimMapperCSMap =
-      llvm::DenseMap<const llvm::Instruction *, seadsa::SimulationMapper>;
-  SimMapperCSMap m_smCS;
+  using SimMapperCBMap =
+      llvm::DenseMap<const llvm::CallBase *, seadsa::SimulationMapper>;
+  SimMapperCBMap m_smCB;
 
   using SimMapperFMap =
       llvm::DenseMap<const llvm::Function *, seadsa::SimulationMapper>;
   // simulation of BU graph vs SAS graph of the same Function
   SimMapperFMap m_smF;
 
-  using NodesCSMap = llvm::DenseMap<const llvm::Instruction *, NodeSet>;
-  NodesCSMap m_safen_cs_callee; // set of unsafe nodes in the callee of callsite
-  NodesCSMap m_safen_cs_caller; // set of unsafe nodes in the caller of callsite
+  using NodesCBMap = llvm::DenseMap<const llvm::CallBase *, NodeSet>;
+  NodesCBMap m_safen_cs_callee; // set of unsafe nodes in the callee of callsite
+  NodesCBMap m_safen_cs_caller; // set of unsafe nodes in the caller of callsite
 
   using NodeFMap = llvm::DenseMap<const llvm::Function *, NodeSet>;
   NodeFMap m_safeSASF;
@@ -51,7 +51,7 @@ private:
   using CellInfoMap =
       llvm::DenseMap<std::pair<const seadsa::Node *, unsigned>, CellInfo>;
   llvm::DenseMap<const llvm::Function *, CellInfoMap> m_fcim;
-  llvm::DenseMap<const llvm::Instruction *, CellInfoMap> m_icim; // callsites
+  llvm::DenseMap<const llvm::CallBase *, CellInfoMap> m_icim; // callsites
 
   expr::ExprFactory &m_efac;
   // -- constant base for keys
@@ -61,14 +61,14 @@ public:
   InterMemPreProc(seadsa::CompleteCallGraph &ccg, seadsa::ShadowMem &shadowDsa,
                   expr::ExprFactory &efac);
 
-  /*! \brief For each CallSite of a module, it obtains the simulation relation
+  /*! \brief For each CallBase of a module, it obtains the simulation relation
    *   between the caller and the callee (context sensitive) and stores it.
    * This is used to compute which nodes are unsafe to copy.
    */
   bool runOnModule(llvm::Module &M);
 
-  NodeSet &getSafeNodesCallerCS(const Instruction *I);
-  NodeSet &getSafeNodesCalleeCS(const Instruction *I);
+  NodeSet &getSafeNodesCallerCB(const CallBase &cb);
+  NodeSet &getSafeNodesCalleeCB(const CallBase &cb);
 
   unsigned getOffset(const Cell &c) {
     return m_shadowDsa.splitDsaNodes() ? c.getOffset() : 0;
@@ -84,8 +84,8 @@ public:
     return m_smF[f];
   }
 
-  seadsa::SimulationMapper &getSimulationCS(const CallSite &cs) {
-    return m_smCS[cs.getInstruction()];
+  seadsa::SimulationMapper &getSimulationCB(const CallBase &cs) {
+    return m_smCB[&cs];
   }
 
   NodeSet &getSafeNodes(const Function *f) { return m_safeSASF[f]; }
@@ -120,9 +120,9 @@ public:
 
   expr::ExprVector &getKeysCell(const Cell &c, const Function *f);
   expr::ExprVector &getKeysCellSummary(const Cell &c, const Function *f);
-  expr::ExprVector &getKeysCellCS(const Cell &cCallee, const Instruction *i);
+  expr::ExprVector &getKeysCellCB(const Cell &cCallee, const CallBase &cb);
 
-  void precomputeFiniteMapTypes(const CallSite &CS, const NodeSet &safeBU,
+  void precomputeFiniteMapTypes(const CallBase &CB, const NodeSet &safeBU,
                                 const NodeSet &safeSAS);
 
   inline std::pair<const Node *, unsigned> cellToPair(const Cell &c) {
@@ -136,7 +136,7 @@ public:
 
 private:
   void recProcessNode(const Cell &cFrom, const NodeSet &fromSafeNodes,
-                      const NodeSet &toSafeNodes, SimulationMapper &smCS,
+                      const NodeSet &toSafeNodes, SimulationMapper &smCB,
                       SimulationMapper &smCI, CellInfoMap &cim);
   template <typename ValueT>
   ValueT &findCellMap(DenseMap<std::pair<const Node *, unsigned>, ValueT> &map,

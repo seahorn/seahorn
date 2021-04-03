@@ -214,11 +214,10 @@ bool MixedSemantics::runOnModule(Module &M) {
 
     Builder.SetInsertPoint(argBb);
 
-    CallSite CS(ci);
     auto &params = entryPrms[ci->getCalledFunction()];
 
     for (unsigned i = 0; i < params.size(); ++i) {
-      StoreInst *si = Builder.CreateStore(CS.getArgument(i), params[i]);
+      StoreInst *si = Builder.CreateStore(ci->getOperand(i), params[i]);
       si->setDebugLoc(ci->getDebugLoc());
     }
 

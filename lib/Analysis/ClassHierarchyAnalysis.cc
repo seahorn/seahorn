@@ -1,15 +1,15 @@
 #include "seahorn/Analysis/ClassHierarchyAnalysis.hh"
-#include "llvm/Pass.h"
 #include "seahorn/Support/SeaDebug.h"
 #include "seahorn/Support/SeaLog.hh"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/ADT/SmallVector.h"
-#include "llvm/IR/CallSite.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/InstIterator.h"
+#include "llvm/IR/Instructions.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/Value.h"
+#include "llvm/Pass.h"
 
 #include <boost/algorithm/string/find.hpp>
 #include <boost/algorithm/string/predicate.hpp>
@@ -224,10 +224,10 @@ public:
 
   void calculate(void);
 
-  bool isVCallResolved(const llvm::ImmutableCallSite &CS) const;
+  bool isVCallResolved(const llvm::CallBase &CS) const;
 
-  const function_vector_t& getVCallCallees(const llvm::ImmutableCallSite &CS);
-  
+  const function_vector_t &getVCallCallees(const llvm::CallBase &CS);
+
   void printVtables(raw_ostream &o) const;
 
   void printClassHierarchy(raw_ostream &o) const;
@@ -239,15 +239,15 @@ private:
       DenseMap<const StructType *, SmallSet<const StructType *, 16>>;
   using vtable_t = SmallVector<Function *, 16>;
   using vtable_map_t = DenseMap<const StructType *, vtable_t>;
-  using resolution_table_t = DenseMap<const Instruction*, function_vector_t>;
-  
+  using resolution_table_t = DenseMap<const Instruction *, function_vector_t>;
+
   Module &m_module;
   // -- class hierarchy graph (CHG)
   graph_t m_graph;
   // -- vtables
   vtable_map_t m_vtables;
   // -- remember resolved callsites that look like virtual calls
-  DenseSet<const Instruction*> m_resolved_virtual_calls;
+  DenseSet<const Instruction *> m_resolved_virtual_calls;
   // -- map a callsite to the set of all possible callees if the
   // -- callsite is a virtual call.
   resolution_table_t m_resolution_table;
@@ -284,10 +284,9 @@ private:
                             SmallSet<Function *, 16> &out) const;
 
   // it's not const because it updates some counters for stats
-  bool resolveVirtualCall(const llvm::ImmutableCallSite &CS,
-                          function_vector_t &out);
-  
-  static int getVtableIndex(const ImmutableCallSite &CS);
+  bool resolveVirtualCall(const CallBase &CB, function_vector_t &out);
+
+  static int getVtableIndex(const CallBase &CB);
 
   static bool matchVirtualSignature(const llvm::FunctionType *type_call,
                                     const llvm::FunctionType *type_candidate);
@@ -335,7 +334,7 @@ bool ClassHierarchyAnalysis_Impl::hasCHGEdge(const StructType *src,
   }
 }
 
-int ClassHierarchyAnalysis_Impl::getVtableIndex(const ImmutableCallSite &CS) {
+int ClassHierarchyAnalysis_Impl::getVtableIndex(const CallBase &CB) {
   /*
     Assume the virtual call looks exactly like this:
 
@@ -345,7 +344,7 @@ int ClassHierarchyAnalysis_Impl::getVtableIndex(const ImmutableCallSite &CS) {
 
    */
   if (const LoadInst *LI =
-          dyn_cast<LoadInst>(CS.getCalledValue()->stripPointerCasts())) {
+          dyn_cast<LoadInst>(CB.getCalledValue()->stripPointerCasts())) {
     if (const GetElementPtrInst *GEP =
             dyn_cast<GetElementPtrInst>(LI->getPointerOperand())) {
       if (ConstantInt *CI = dyn_cast<ConstantInt>(GEP->getOperand(1))) {
@@ -377,7 +376,8 @@ void ClassHierarchyAnalysis_Impl::closureCHG(void) {
     ++i;
   }
 
-  LOG("cha-closure", errs() << "Boolean adjacency matrix before closure\n";
+  LOG(
+      "cha-closure", errs() << "Boolean adjacency matrix before closure\n";
       for (unsigned i = 0; i < num_nodes; ++i) {
         for (unsigned j = 0; j < num_nodes; ++j) {
           errs() << "(" << i << "," << j << ")=" << m[i][j] << " ";
@@ -394,7 +394,8 @@ void ClassHierarchyAnalysis_Impl::closureCHG(void) {
     }
   }
 
-  LOG("cha-closure", errs() << "Boolean adjacency matrix after closure\n";
+  LOG(
+      "cha-closure", errs() << "Boolean adjacency matrix after closure\n";
       for (unsigned i = 0; i < num_nodes; ++i) {
         for (unsigned j = 0; j < num_nodes; ++j) {
           errs() << "(" << i << "," << j << ")=" << m[i][j] << " ";
@@ -568,15 +569,15 @@ void ClassHierarchyAnalysis_Impl::calculate(void) {
   buildVtables();
   closureCHG();
 
-  for (auto &F: m_module) {
-    for (auto &I: llvm::make_range(inst_begin(&F), inst_end(&F))) {
-      if (!isa<CallInst>(&I) && !isa<InvokeInst>(&I))
-	continue;
-      ImmutableCallSite CS(&I);
+  for (auto &F : m_module) {
+    for (auto &I : instructions(F)) {
+      if (!isa<CallInst>(I) && !isa<InvokeInst>(I))
+        continue;
+      auto &CB = cast<CallBase>(I);
       function_vector_t callees;
-      if (resolveVirtualCall(CS, callees)) {
-	m_resolved_virtual_calls.insert(CS.getInstruction());
-	m_resolution_table.insert(std::make_pair(CS.getInstruction(), callees));
+      if (resolveVirtualCall(CB, callees)) {
+        m_resolved_virtual_calls.insert(&CB);
+        m_resolution_table.insert({&CB, callees});
       }
     }
   }
@@ -628,25 +629,25 @@ void ClassHierarchyAnalysis_Impl::addCandidateFunction(
 
 // Return the type of the first actual parameter if the call looks
 // virtual. (temporary for stats)
-bool mayBeVirtualCall(const ImmutableCallSite &CS) {
+bool mayBeVirtualCall(const CallBase &CB) {
 
   // if not indirect call then we bail out ...
-  if (CS.getCalledFunction()) {
+  if (CB.getCalledFunction()) {
     return false;
   }
 
   // If the callee is not a pointer to a function then we bail out ...
-  if (!CS.getCalledValue()->getType()->isPointerTy()) {
+  if (!CB.getCalledValue()->getType()->isPointerTy()) {
     return false;
   }
 
-  const FunctionType *CS_type = dyn_cast<FunctionType>(
-      CS.getCalledValue()->getType()->getPointerElementType());
-  if (!CS_type) {
+  const FunctionType *CB_type = dyn_cast<FunctionType>(
+      CB.getCalledOperand()->getType()->getPointerElementType());
+  if (!CB_type) {
     return false;
   }
-  // Assume the first argument of CS is this, otherwise we bail out ...
-  const Value *this_ = CS.getArgOperand(0);
+  // Assume the first argument of CB is this, otherwise we bail out ...
+  const Value *this_ = CB.getOperand(0);
   if (this_->getType()->isPointerTy()) {
     if (const StructType *this_type =
             dyn_cast<StructType>(this_->getType()->getPointerElementType())) {
@@ -656,36 +657,36 @@ bool mayBeVirtualCall(const ImmutableCallSite &CS) {
   return false;
 }
 
-bool ClassHierarchyAnalysis_Impl::resolveVirtualCall(
-    const ImmutableCallSite &CS, function_vector_t &out) {
+bool ClassHierarchyAnalysis_Impl::resolveVirtualCall(const CallBase &CB,
+                                                     function_vector_t &out) {
 
   // if not indirect call then we bail out ...
-  if (CS.getCalledFunction()) {
+  if (CB.getCalledFunction()) {
     return false;
   }
 
   // If the callee is not a pointer to a function then we bail out ...
-  if (!CS.getCalledValue()->getType()->isPointerTy()) {
+  if (!CB.getCalledValue()->getType()->isPointerTy()) {
     return false;
   }
 
-  const FunctionType *CS_type = dyn_cast<FunctionType>(
-      CS.getCalledValue()->getType()->getPointerElementType());
-  if (!CS_type) {
+  const FunctionType *CB_type = dyn_cast<FunctionType>(
+      CB.getCalledOperand()->getType()->getPointerElementType());
+  if (!CB_type) {
     return false;
   }
   // Assume the first argument of CS is this, otherwise we bail out ...
-  const Value *this_ = CS.getArgOperand(0);
+  const Value *this_ = CB.getOperand(0);
   if (this_->getType()->isPointerTy()) {
     if (const StructType *this_type =
             dyn_cast<StructType>(this_->getType()->getPointerElementType())) {
 
       m_num_potential_virtual_calls++;
 
-      int vtable_index = getVtableIndex(CS);
+      int vtable_index = getVtableIndex(CB);
       if (vtable_index < 0) {
         WARN << "Cannot find vtable index for indirect call:\n "
-             << "\t" << *(CS.getInstruction());
+             << "\t" << CB;
         return false;
       }
 
@@ -698,14 +699,14 @@ bool ClassHierarchyAnalysis_Impl::resolveVirtualCall(
         // class hierarchy graph.
         auto &reachable_types = it->second;
         for (const StructType *type : reachable_types) {
-          addCandidateFunction(type, vtable_index, CS_type, out_set);
+          addCandidateFunction(type, vtable_index, CB_type, out_set);
         }
       }
 
       // We need to add also this_type. If this_type defines the
       // method as pure virtual then the method won't be added since
       // we won't find an internal function in the LLVM module.
-      addCandidateFunction(this_type, vtable_index, CS_type, out_set);
+      addCandidateFunction(this_type, vtable_index, CB_type, out_set);
 
       std::copy(out_set.begin(), out_set.end(), std::back_inserter(out));
 
@@ -717,7 +718,7 @@ bool ClassHierarchyAnalysis_Impl::resolveVirtualCall(
     }
   }
 
-  WARN << "Cannot resolve virtual call " << *CS.getInstruction()
+  WARN << "Cannot resolve virtual call " << CB
        << " because first argument is not StructType\n";
 
   return false;
@@ -755,14 +756,14 @@ void ClassHierarchyAnalysis_Impl::printClassHierarchy(raw_ostream &o) const {
   }
 }
 
-bool ClassHierarchyAnalysis_Impl::
-isVCallResolved(const llvm::ImmutableCallSite &CS) const {
-  return m_resolved_virtual_calls.count(CS.getInstruction()) > 0;
+bool ClassHierarchyAnalysis_Impl::isVCallResolved(
+    const llvm::CallBase &CB) const {
+  return m_resolved_virtual_calls.count(&CB) > 0;
 }
 
-const ClassHierarchyAnalysis_Impl::function_vector_t&
-ClassHierarchyAnalysis_Impl::getVCallCallees(const llvm::ImmutableCallSite &CS) {
-  return m_resolution_table[CS.getInstruction()];
+const ClassHierarchyAnalysis_Impl::function_vector_t &
+ClassHierarchyAnalysis_Impl::getVCallCallees(const llvm::CallBase &CB) {
+  return m_resolution_table[&CB];
 }
 
 void ClassHierarchyAnalysis_Impl::printStats(raw_ostream &o) const {
@@ -781,22 +782,18 @@ void ClassHierarchyAnalysis_Impl::printStats(raw_ostream &o) const {
 
 /** ClassHierarchyAnalysis methods **/
 ClassHierarchyAnalysis::ClassHierarchyAnalysis(Module &M)
-  : m_cha_impl(std::make_unique<ClassHierarchyAnalysis_Impl>(M)) {}
+    : m_cha_impl(std::make_unique<ClassHierarchyAnalysis_Impl>(M)) {}
 
-ClassHierarchyAnalysis::~ClassHierarchyAnalysis(void) {
-}
+ClassHierarchyAnalysis::~ClassHierarchyAnalysis(void) {}
 
-void ClassHierarchyAnalysis::calculate(void) {
-  m_cha_impl->calculate();
-}
+void ClassHierarchyAnalysis::calculate(void) { m_cha_impl->calculate(); }
 
-bool ClassHierarchyAnalysis::
-isVCallResolved(const llvm::ImmutableCallSite &CS) const {
+bool ClassHierarchyAnalysis::isVCallResolved(const llvm::CallBase &CS) const {
   return m_cha_impl->isVCallResolved(CS);
 }
 
-const ClassHierarchyAnalysis::function_vector_t&
-ClassHierarchyAnalysis::getVCallCallees(const llvm::ImmutableCallSite &CS) {
+const ClassHierarchyAnalysis::function_vector_t &
+ClassHierarchyAnalysis::getVCallCallees(const llvm::CallBase &CS) {
   return m_cha_impl->getVCallCallees(CS);
 }
 
@@ -817,8 +814,7 @@ class ClassHierarchyAnalysisPass : public ModulePass {
 public:
   static char ID;
 
-  ClassHierarchyAnalysisPass()
-    : ModulePass(ID), m_cha(nullptr) {}
+  ClassHierarchyAnalysisPass() : ModulePass(ID), m_cha(nullptr) {}
 
   ~ClassHierarchyAnalysisPass() = default;
 
@@ -832,25 +828,25 @@ public:
     m_cha->printVtables(errs());
     errs() << "\n=== Devirtualization===\n";
     for (auto &F : M) {
-      for (auto &I: llvm::make_range(inst_begin(&F), inst_end(&F))) {
-	if (!isa<CallInst>(&I) && !isa<InvokeInst>(&I))
-	  continue;
-	ImmutableCallSite CS(&I);
-	if (!m_cha->isVCallResolved(CS)) {
-	  continue;
-	}
-	auto const& callees = m_cha->getVCallCallees(CS);
-	errs() << "** Found virtual call " << I << "\n";
-	if (callees.empty()) {
-	  errs() << "\tno found callees\n";
-	} else {
-	  errs() << "\tpossible callees:\n";
-	  for (unsigned i = 0, e = callees.size(); i < e; ++i) {
-	    auto f = callees[i];
-	    errs() << "\t\t" << cxx_demangle(f->getName().str()) << " "
-		   << *(f->getType()) << "\n";
-	  }
-	}
+      for (auto &I : llvm::make_range(inst_begin(&F), inst_end(&F))) {
+        if (!isa<CallInst>(&I) && !isa<InvokeInst>(&I))
+          continue;
+        auto &CS = *dyn_cast<CallBase>(&I);
+        if (!m_cha->isVCallResolved(CS)) {
+          continue;
+        }
+        auto const &callees = m_cha->getVCallCallees(CS);
+        errs() << "** Found virtual call " << I << "\n";
+        if (callees.empty()) {
+          errs() << "\tno found callees\n";
+        } else {
+          errs() << "\tpossible callees:\n";
+          for (unsigned i = 0, e = callees.size(); i < e; ++i) {
+            auto f = callees[i];
+            errs() << "\t\t" << cxx_demangle(f->getName().str()) << " "
+                   << *(f->getType()) << "\n";
+          }
+        }
       }
     }
 
@@ -859,14 +855,10 @@ public:
     return false;
   }
 
-  void getAnalysisUsage(AnalysisUsage &AU) const {
-    AU.setPreservesAll();
-  }
+  void getAnalysisUsage(AnalysisUsage &AU) const { AU.setPreservesAll(); }
 
-  const ClassHierarchyAnalysis& getCHA() const {
-    return *m_cha;
-  }
-  
+  const ClassHierarchyAnalysis &getCHA() const { return *m_cha; }
+
 private:
   std::unique_ptr<ClassHierarchyAnalysis> m_cha;
 };

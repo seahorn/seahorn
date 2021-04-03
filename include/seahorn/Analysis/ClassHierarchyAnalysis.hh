@@ -8,7 +8,7 @@
 namespace llvm {
 class Module;
 class Function;
-class ImmutableCallSite;
+class CallBase;
 class raw_ostream;
 } // namespace llvm
 
@@ -31,13 +31,12 @@ public:
 
   /* Return true if the callsite is a virtual call which has been
      resolved */
-  bool isVCallResolved(const llvm::ImmutableCallSite &CS) const;
+  bool isVCallResolved(const llvm::CallBase &CS) const;
 
   /* Return all possible callees for the C++ virtual call.
    *  If CS is not a virtual call then it returns an empty set.
    */
-  const function_vector_t& getVCallCallees(const llvm::ImmutableCallSite &CS);
-  
+  const function_vector_t &getVCallCallees(const llvm::CallBase &CS);
   /*
    * Print the class hierarchy graph
    */

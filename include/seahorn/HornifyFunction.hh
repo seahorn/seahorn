@@ -70,6 +70,10 @@ public:
 };
 
 class LargeHornifyFunction : public HornifyFunction {
+  bool mkEdgeSynthRules(const LiveSymbols &ls, const CallInst &partial,
+                        const CpEdge &edge, BasicBlock &target, VCGen &vcgen,
+                        SymStore &store);
+
 public:
   LargeHornifyFunction(HornifyModule &parent, bool interproc = false)
       : HornifyFunction(parent, interproc) {}

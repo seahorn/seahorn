@@ -448,6 +448,26 @@ void SmallHornifyFunction::runOnFunction(Function &F) {
     assert(0);
 }
 
+namespace {
+
+/// \brief Returns all successor edges of \p cp that contain the basic block
+/// \c target between the source and destination (inclusively).
+llvm::SmallVector<const CpEdge *, 8>
+filterCpEdgesByBB(const CutPoint &cp, llvm::BasicBlock &target) {
+  llvm::SmallVector<const CpEdge *, 8> matchingEdges;
+  for (auto *e : llvm::make_range(cp.succ_begin(), cp.succ_end())) {
+    for (auto &BB : *e) {
+      if (&BB == &target) {
+        matchingEdges.push_back(e);
+        break;
+      }
+    }
+  }
+  return matchingEdges;
+}
+
+} // namespace
+
 void LargeHornifyFunction::runOnFunction(Function &F) {
   ScopedStats _st_("LargeHornifyFunction");
 

@@ -206,8 +206,8 @@ void CallSiteResolverByTypes::cacheBounceFunction(CallSite &CS,
 /** begin Resolver by dsa+types */
 CallSiteResolverByDsa::CallSiteResolverByDsa(Module &M,
                                              CompleteCallGraphAnalysis &dsa)
-    : CallSiteResolver(CallSiteResolverKind::RESOLVER_SEADSA),
-      m_M(M), m_dsa(dsa) {
+    : CallSiteResolver(CallSiteResolverKind::RESOLVER_SEADSA), m_M(M),
+      m_dsa(dsa) {
 
   CallSiteResolver::m_kind = CallSiteResolverKind::RESOLVER_SEADSA;
   // build the target map
@@ -235,15 +235,15 @@ CallSiteResolverByDsa::CallSiteResolverByDsa(Module &M,
           continue;
         }
         std::sort(dsa_targets.begin(), dsa_targets.end());
-	num_resolved_calls++;
-	m_targets_map.insert({CS.getInstruction(), dsa_targets});
-	DOG({
-	    INFO << "Devirt (dsa): resolved " << *(CS.getInstruction())
-		 << " with targets:";
-	    for (auto F : dsa_targets) {
-	      INFO << "\t@" << F->getName();
-	    }
-	  });
+        num_resolved_calls++;
+        m_targets_map.insert({CS.getInstruction(), dsa_targets});
+        DOG({
+          INFO << "Devirt (dsa): resolved " << *(CS.getInstruction())
+               << " with targets:";
+          for (auto F : dsa_targets) {
+            INFO << "\t@" << F->getName();
+          }
+        });
       }
     }
   }

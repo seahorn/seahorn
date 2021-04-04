@@ -206,7 +206,8 @@ void CallSiteResolverByTypes::cacheBounceFunction(CallSite &CS,
 /** begin Resolver by dsa+types */
 CallSiteResolverByDsa::CallSiteResolverByDsa(Module &M,
                                              CompleteCallGraphAnalysis &dsa)
-    : CallSiteResolverByTypes(M), m_M(M), m_dsa(dsa) {
+    : CallSiteResolver(CallSiteResolverKind::RESOLVER_SEADSA),
+      m_M(M), m_dsa(dsa) {
 
   CallSiteResolver::m_kind = CallSiteResolverKind::RESOLVER_SEADSA;
   // build the target map
@@ -225,62 +226,24 @@ CallSiteResolverByDsa::CallSiteResolverByDsa(Module &M,
         num_complete_calls += m_dsa.isComplete(CS);
 
         AliasSet dsa_targets;
-
         dsa_targets.append(m_dsa.begin(CS), m_dsa.end(CS));
 
         if (dsa_targets.empty()) {
           DOG(WARN << "Devirt(dsa) no DSA call target for "
                    << "\n\t" << *CS.getInstruction() << "\n"
                    << " in @" << F.getName(););
-          // continue;
+          continue;
         }
         std::sort(dsa_targets.begin(), dsa_targets.end());
-
-        DOG({
-          INFO << "DSA targets:";
-          for (auto F : dsa_targets) {
-            INFO << "\t@" << F->getName() << " :: " << *(F->getType());
-          }
-        });
-
-        bool isComplete; /*unused*/
-        const AliasSet *types_targets =
-            CallSiteResolverByTypes::getTargets(CS, isComplete);
-        if (types_targets && !types_targets->empty()) {
-          DOG({
-            INFO << "TYPE targets:";
-            for (auto F : *types_targets) {
-              INFO << "\t" << F->getName() << "::" << *(F->getType());
-            }
-          });
-
-          // --- We filter out those dsa targets whose signature do not match.
-          AliasSet refined_dsa_targets;
-          std::set_intersection(dsa_targets.begin(), dsa_targets.end(),
-                                types_targets->begin(), types_targets->end(),
-                                std::back_inserter(refined_dsa_targets));
-          if (refined_dsa_targets.empty()) {
-            DOG(WARN << "Devirt (dsa): empty intersection of DSA- and "
-                        "TYPE-targets "
-                     << "D:" << dsa_targets.size()
-                     << ", T:" << types_targets->size() << " for \n\t"
-                     << *(CS.getInstruction()););
-          } else {
-            num_resolved_calls++;
-            m_targets_map.insert({CS.getInstruction(), refined_dsa_targets});
-            DOG({
-              INFO << "Devirt (dsa): resolved " << *(CS.getInstruction())
-                   << " with targets:";
-              for (auto F : refined_dsa_targets) {
-                INFO << "\t@" << F->getName();
-              }
-            });
-          }
-        } else {
-          DOG(WARN << "Devirt (dsa): no TYPE-targets for call site. Not "
-                      "resolving "
-                   << *CS.getInstruction(););
-        }
+	num_resolved_calls++;
+	m_targets_map.insert({CS.getInstruction(), dsa_targets});
+	DOG({
+	    INFO << "Devirt (dsa): resolved " << *(CS.getInstruction())
+		 << " with targets:";
+	    for (auto F : dsa_targets) {
+	      INFO << "\t@" << F->getName();
+	    }
+	  });
       }
     }
   }

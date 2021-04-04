@@ -119,7 +119,7 @@ private:
  * Resolve indirect call by using sea-dsa pointer analysis refined
  * with types.
  */
-class CallSiteResolverByDsa final : public CallSiteResolverByTypes {
+class CallSiteResolverByDsa final : public CallSiteResolver {
 public:
   using AliasSetId = CallSiteResolverByTypes::AliasSetId;
   using AliasSet = CallSiteResolverByTypes::AliasSet;

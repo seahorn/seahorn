@@ -1,6 +1,6 @@
 #pragma once
-#include "seahorn/OperationalSemantics.hh"
 #include "seahorn/Expr/Smt/EZ3.hh"
+#include "seahorn/OperationalSemantics.hh"
 
 namespace seahorn {
 class CpEdge;
@@ -22,8 +22,7 @@ class VCGen {
                                 const BasicBlock &bb, bool last = false);
 
   /// \brief Initialize SMT solver for eager VC checking
-  void initSmt(std::unique_ptr<EZ3> &zctx,
-               std::unique_ptr<ZSolver<EZ3>> &smt);
+  void initSmt(std::unique_ptr<EZ3> &zctx, std::unique_ptr<ZSolver<EZ3>> &smt);
 
   /// \brief Check consistency of side-condition up-to a given basic block
   ///
@@ -43,8 +42,7 @@ class VCGen {
   ///
   /// If the side-condition is unsat, FALSE is added to the
   /// side-condition
-  void checkSideAtEnd(unsigned &head, ExprVector &side,
-                      ZSolver<EZ3> &smt);
+  void checkSideAtEnd(unsigned &head, ExprVector &side, ZSolver<EZ3> &smt);
 
 public:
   VCGen(OperationalSemantics &sem) : m_sem(sem) {
@@ -60,7 +58,7 @@ public:
   /// Modifies symbolic store \p s to represent the state at the end
   /// of the edge.
   virtual void genVcForCpEdgeLegacy(SymStore &s, const CpEdge &edge,
-                              ExprVector &side);
+                                    ExprVector &side);
 
   /// \brief Computes VC for an edge in a cut-point graph
   ///

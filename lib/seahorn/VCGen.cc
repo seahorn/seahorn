@@ -69,7 +69,8 @@ void VCGen::checkSideAtBb(unsigned &head, ExprVector &side, Expr pathCond,
   ScopedStats __st__("VCGen.smt");
   Expr a[1] = {pathCond};
 
-  LOG("pedge", std::error_code EC;
+  LOG(
+      "pedge", std::error_code EC;
       raw_fd_ostream file("/tmp/p-edge.smt2", EC, sys::fs::F_Text); if (!EC) {
         file << "(set-info :original \"" << edge.source().bb().getName()
              << " --> " << bb.getName() << " --> "

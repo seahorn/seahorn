@@ -47,8 +47,8 @@ static llvm::cl::opt<unsigned> MemCpyUnrollCount(
 
 static llvm::cl::opt<bool>
     UseHybridArray("horn-hybrid-array",
-             llvm::cl::desc("Use optimized hybrid array mem repr"),
-             llvm::cl::init(false));
+                   llvm::cl::desc("Use optimized hybrid array mem repr"),
+                   llvm::cl::init(false));
 
 static llvm::cl::opt<unsigned> MaxSymbAllocSz(
     "horn-opsem-max-symb-alloc",

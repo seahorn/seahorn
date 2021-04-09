@@ -47,9 +47,9 @@ struct ArrayStoreRewriter : public std::unary_function<Expr, Expr> {
 };
 
 // post visitor
-template <typename RW>
-Expr arrayStoreVisit(RW &rewriter, Expr e) {
-  Expr res = e->getFactory().mkNary(e->op(), e->args_begin(), e->args_end()); // make copy always
+template <typename RW> Expr arrayStoreVisit(RW &rewriter, Expr e) {
+  Expr res = e->getFactory().mkNary(e->op(), e->args_begin(),
+                                    e->args_end()); // make copy always
   if (isOp<STORE>(res)) {
     // recurse to rewrite 1st argument
     std::vector<Expr> new_kids;
@@ -87,10 +87,10 @@ struct ArrayStoreVisitor : public std::unary_function<Expr, VisitAction> {
 };
 
 OpSemMemRepr::MemValTy OpSemMemArrayReprBase::MemSet(PtrTy ptr, Expr _val,
-                                                 unsigned len, MemValTy mem,
-                                                 unsigned wordSzInBytes,
-                                                 PtrSortTy ptrSort,
-                                                 uint32_t align) {
+                                                     unsigned len, MemValTy mem,
+                                                     unsigned wordSzInBytes,
+                                                     PtrSortTy ptrSort,
+                                                     uint32_t align) {
   // MemSet operates at word level.
   // _val must fit within a byte
   // _val is converted to a byte.
@@ -120,11 +120,11 @@ OpSemMemRepr::MemValTy OpSemMemArrayReprBase::MemSet(PtrTy ptr, Expr _val,
 
 // len is in bytes
 // _val must fit within a byte
-OpSemMemRepr::MemValTy OpSemMemArrayReprBase::MemSet(PtrTy ptr, Expr _val, Expr len,
-                                                 MemValTy mem,
-                                                 unsigned wordSzInBytes,
-                                                 PtrSortTy ptrSort,
-                                                 uint32_t align) {
+OpSemMemRepr::MemValTy OpSemMemArrayReprBase::MemSet(PtrTy ptr, Expr _val,
+                                                     Expr len, MemValTy mem,
+                                                     unsigned wordSzInBytes,
+                                                     PtrSortTy ptrSort,
+                                                     uint32_t align) {
   Expr res;
 
   unsigned width;
@@ -204,9 +204,9 @@ OpSemMemRepr::MemValTy OpSemMemArrayReprBase::MemCpy(
 
 OpSemMemRepr::MemValTy
 OpSemMemArrayReprBase::MemCpy(PtrTy dPtr, PtrTy sPtr, unsigned len,
-                          MemValTy memTrsfrRead, MemValTy memRead,
-                          unsigned wordSzInBytes, PtrSortTy ptrSort,
-                          uint32_t align) {
+                              MemValTy memTrsfrRead, MemValTy memRead,
+                              unsigned wordSzInBytes, PtrSortTy ptrSort,
+                              uint32_t align) {
   (void)ptrSort;
 
   Expr res;
@@ -232,11 +232,10 @@ OpSemMemArrayReprBase::MemCpy(PtrTy dPtr, PtrTy sPtr, unsigned len,
   return MemValTy(res);
 }
 
-OpSemMemRepr::MemValTy OpSemMemArrayReprBase::MemFill(PtrTy dPtr, char *sPtr,
-                                                  unsigned len, MemValTy mem,
-                                                  unsigned wordSzInBytes,
-                                                  PtrSortTy ptrSort,
-                                                  uint32_t align) {
+OpSemMemRepr::MemValTy
+OpSemMemArrayReprBase::MemFill(PtrTy dPtr, char *sPtr, unsigned len,
+                               MemValTy mem, unsigned wordSzInBytes,
+                               PtrSortTy ptrSort, uint32_t align) {
   Expr res = mem.toExpr();
   const unsigned sem_word_sz = wordSzInBytes;
 
@@ -259,13 +258,19 @@ OpSemMemRepr::MemValTy OpSemMemArrayReprBase::MemFill(PtrTy dPtr, char *sPtr,
 Expr OpSemMemHybridRepr::loadAlignedWordFromMem(PtrTy ptr, MemValTy mem) {
   LOG("opsem-hybrid", INFO << "Load ptr " << *ptr.toExpr() << "\n");
   LOG("opsem-hybrid", INFO << "From ptr " << *mem.toExpr() << "\n");
+
+  /** rewrite store into ITE **/
   ArrayStoreRewriter rw(ptr.toExpr(), m_ctx.alu(),
                         m_memManager.ptrSizeInBits());
   Expr rewritten = arrayStoreVisit(rw, mem.toExpr());
   LOG("opsem-hybrid", INFO << "Rewritten: " << *rewritten << "\n");
-  // XXX: TODO would be to optimize rewritten ite
 
-  return rewritten;
+  /** simplify **/
+  EZ3 zctx(rewritten->efac());
+  Expr simp = z3_simplify(zctx, rewritten);
+  LOG("opsem-hybrid", INFO << "Simplified: " << *simp << "\n");
+
+  return simp;
 }
 
 OpSemMemRepr::MemValTy

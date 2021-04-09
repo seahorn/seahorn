@@ -1,5 +1,6 @@
 ; RUN: %seabmc "%s" 2>&1 | %oc %s
 ; RUN: %seabmc --horn-bv2-lambdas --log=opsem3 "%s" 2>&1 | %oc %s
+; RUN: %seabmc --horn-hybrid-array --log=opsem3 "%s" 2>&1 | %oc %s
 
 ; CHECK: ^sat$
 ; ModuleID = 'alloca.01.ll'

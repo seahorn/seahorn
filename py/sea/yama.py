@@ -1,5 +1,7 @@
 import sys
+
 import sea
+
 
 class Yama(sea.CliCmd):
     def __init__(self):
@@ -50,6 +52,25 @@ class Yama(sea.CliCmd):
             print("Error: could not parse", fname)
             sys.exit(1)
 
+    def parse_extra_options(self, extra):
+        args = dict()
+        positional = list(filter(lambda x: not x.startswith('-'), extra))
+        flags = list(filter(lambda x: x.startswith('-'), extra))
+
+        for kv in flags:
+            # strip '--' if present
+            if kv.startswith('--'):
+                kv = kv[2:]
+            # attempt to split into key, value pair
+            kvs = kv.split('=')
+            # use pair if successful, and original option otherwise
+            if len(kvs) == 2:
+                args[kvs[0]] = kvs[1]
+            else:
+                args[kv] = ''
+
+        return args, positional
+
     def mk_cli_from_key_value(self, _key, _value):
         """
         Convert (key, value) pair into a command line option
@@ -93,9 +114,9 @@ class Yama(sea.CliCmd):
         return command, res
 
     def run(self, args=None, _extra=[]):
-        import sys
         import os
         import os.path
+        import sys
 
         self._ignore_error = args.yforce
         # set default value
@@ -114,13 +135,20 @@ class Yama(sea.CliCmd):
             else:
                 args_dict.update(yaml_args)
 
+        extra_cli_args, extra = self.parse_extra_options(extra)
+        if args_dict is None:
+            args_dict = extra_cli_args
+        else:
+            args_dict.update(extra_cli_args)
+
         cli = list()
         if args_dict is not None:
             command, cli = self.mk_cli_from_dict(args_dict)
 
         # override command if specified on command line
         # but ignore files
-        if len(extra) > 0 and not extra[0].startswith('-') and not os.path.isfile(extra[0]):
+        if len(extra) > 0 and not extra[0].startswith('-') and \
+           not os.path.isfile(extra[0]):
             command = extra[0]
             extra = extra[1:]
 

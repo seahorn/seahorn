@@ -3,6 +3,8 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#define SEA_NONDET_FN_ATTR __declspec(noalias)
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -43,6 +45,7 @@ extern void sea_tracking_on(void);
 extern void sea_tracking_off(void);
 /* reset modified metadata for memory pointed to by arg */
 extern void sea_reset_modified(char *);
+
 #ifdef __cplusplus
 }
 #endif

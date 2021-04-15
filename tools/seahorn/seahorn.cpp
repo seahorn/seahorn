@@ -345,6 +345,7 @@ int main(int argc, char **argv) {
   // -- initialize any global variables that are left
   if (LowerGlobalInitializers) {
     pass_manager.add(new seahorn::LowerGvInitializers());
+    pass_manager.add(llvm::createFunctionInliningPass());
   }
 
   pass_manager.add(seadsa::createRemovePtrToIntPass());

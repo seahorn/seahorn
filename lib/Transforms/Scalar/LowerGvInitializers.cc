@@ -3,17 +3,23 @@
 #include "boost/format.hpp"
 
 #include "llvm/IR/IRBuilder.h"
+#include "llvm/Support/CommandLine.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Transforms/Utils/GlobalStatus.h"
-#include "llvm/Support/CommandLine.h"
 
 #include "seahorn/Support/SeaDebug.h"
 #include "seahorn/Support/SeaLog.hh"
 
 static llvm::cl::opt<bool>
-LowerGvStruct("lower-gv-init-struct",
-              llvm::cl::desc("Lower initializers of structs"),
-              llvm::cl::init(true));
+    LowerGvStruct("lower-gv-init-struct",
+                  llvm::cl::desc("Lower initializers of structs"),
+                  llvm::cl::init(true));
+
+static llvm::cl::opt<bool>
+    LowerGlobalCtors("lower-gv-global-ctors",
+                     llvm::cl::desc("Lower constructors in llvm.global_ctors"),
+                     llvm::cl::init(true));
+
 namespace seahorn {
 char LowerGvInitializers::ID = 0;
 
@@ -80,7 +86,8 @@ static Function &makeNewNondetFn(Module &m, Type &type, unsigned num,
   do
     name = boost::str(boost::format(prefix + "%d") % (c++));
   while (m.getNamedValue(name));
-  Function *res = dyn_cast<Function>(m.getOrInsertFunction(name, &type).getCallee());
+  Function *res =
+      dyn_cast<Function>(m.getOrInsertFunction(name, &type).getCallee());
   assert(res);
   return *res;
 }
@@ -212,34 +219,36 @@ bool LowerGvInitializers::runOnModule(Module &M) {
           errs() << "LowerGvInitializers: created a store " << *SI << "\n");
       change = true;
     } else if (ety->isStructTy())
-      WARN << "not lowering an initializer for a global struct:  " << gv->getName();
+      WARN << "not lowering an initializer for a global struct:  "
+           << gv->getName();
   }
 
-  // Iterate over global constructors
-  if (GlobalVariable *GlobalCtors = findGlobalCtors(M)) {
-    auto CtorFns = parseGlobalCtors(GlobalCtors);
-    if (!CtorFns.empty())
-      change = true;
+  if (LowerGlobalCtors) {
+    // Iterate over global constructors
+    if (GlobalVariable *GlobalCtors = findGlobalCtors(M)) {
+      auto CtorFns = parseGlobalCtors(GlobalCtors);
+      if (!CtorFns.empty())
+        change = true;
 
-    for (auto Fn : CtorFns) {
-      // -- create a call with non-deterministic parameters
-      SmallVector<Value *, 16> Args;
-      for (auto &A : Fn->args()) {
-        Constant *ndf = getNondetFn(A.getType(), M);
-        Args.push_back(Builder.CreateCall(ndf));
+      for (auto Fn : CtorFns) {
+        // -- create a call with non-deterministic parameters
+        SmallVector<Value *, 16> Args;
+        for (auto &A : Fn->args()) {
+          Constant *ndf = getNondetFn(A.getType(), M);
+          Args.push_back(Builder.CreateCall(ndf));
+        }
+        CallInst *CI = Builder.CreateCall(Fn, Args);
+        CallingConv::ID cc = Fn->getCallingConv();
+        CI->setCallingConv(cc);
+        LOG("lower-gv-init",
+            errs() << "LowerGvInitializers: created a call " << *CI << "\n");
       }
-      CallInst *CI = Builder.CreateCall(Fn, Args);
-      CallingConv::ID cc = Fn->getCallingConv();
-      CI->setCallingConv(cc);
-      LOG("lower-gv-init",
-          errs() << "LowerGvInitializers: created a call " << *CI << "\n");
     }
   }
-
   return change;
 }
 
-    Pass *createLowerGvInitializersPass(){return new LowerGvInitializers();}
+Pass *createLowerGvInitializersPass() { return new LowerGvInitializers(); }
 } // namespace seahorn
 
 static llvm::RegisterPass<seahorn::LowerGvInitializers>

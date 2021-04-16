@@ -22,10 +22,19 @@ class Yama(sea.CliCmd):
         return argp
 
     def parse_yaml_options(self, fname):
+        import urllib.request
+        import urllib.parse
         import yaml
         try:
-            with open(fname) as f:
-                data = yaml.load(f, Loader=yaml.SafeLoader)
+            data = dict()
+
+            url = urllib.parse.urlparse(fname)
+            if url.scheme is not None and len(url.scheme) > 0:
+                with urllib.request.urlopen(fname) as f:
+                    data = yaml.load(f, Loader=yaml.SafeLoader)
+            else:
+                with open(fname, 'r') as f:
+                    data = yaml.load(f, Loader=yaml.SafeLoader)
 
             # common containers for options
             if 'verify_options' in data:

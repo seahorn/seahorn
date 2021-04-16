@@ -22,8 +22,9 @@ class Yama(sea.CliCmd):
         return argp
 
     def parse_yaml_options(self, fname):
-        import urllib.request
         import urllib.parse
+        import urllib.request
+
         import yaml
         try:
             data = dict()
@@ -160,6 +161,11 @@ class Yama(sea.CliCmd):
            not os.path.isfile(extra[0]):
             command = extra[0]
             extra = extra[1:]
+
+        if command is None:
+            print('Error: no sea sub-command specified. Use pf, bpf, ...',
+                  file=sys.stderr)
+            return 1
 
         cmd_args = []
         cmd_args.append(sys.argv[0])

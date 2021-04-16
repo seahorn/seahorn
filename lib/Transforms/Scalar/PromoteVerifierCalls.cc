@@ -197,6 +197,7 @@ bool PromoteVerifierCalls::runOnFunction(Function &F) {
 
     if (fn && (fn->getName().equals("__VERIFIER_assume") ||
                fn->getName().equals("__VERIFIER_assert") ||
+               fn->getName().equals("__SEA_assume") ||
                fn->getName().equals("__VERIFIER_assert_not") ||
                // CBMC
                fn->getName().equals("__CPROVER_assume") ||
@@ -210,7 +211,8 @@ bool PromoteVerifierCalls::runOnFunction(Function &F) {
       if (auto partialFn = extractPartialFnCall(arg0)) {
         // Selects proper synthesis call.
         Function *nfn;
-        if (fn->getName().equals("__VERIFIER_assume"))
+        if (fn->getName().equals("__VERIFIER_assume") ||
+            fn->getName().equals("__SEA_assume"))
           nfn = m_synthAssumeFn;
         else if (fn->getName().equals("__VERIFIER_assert"))
           nfn = m_synthAssertFn;
@@ -225,7 +227,9 @@ bool PromoteVerifierCalls::runOnFunction(Function &F) {
       } else {
         // Selects proper verification call.
         Function *nfn;
-        if (fn->getName().equals("__VERIFIER_assume"))
+        if (fn->getName().equals("__SEA_assume"))
+          nfn = m_assumeFn;
+        else if (fn->getName().equals("__VERIFIER_assume"))
           nfn = m_assumeFn;
         else if (fn->getName().equals("llvm.invariant"))
           nfn = m_assumeFn;

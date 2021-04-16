@@ -19,7 +19,8 @@ extern void __VERIFIER_error(void);
  A condition to be assumed to be true by the verifier
 
 */
-extern void __VERIFIER_assume(bool);
+extern void __VERIFIER_assume(int);
+extern void __SEA_assume(bool);
 
 extern void __VERIFIER_assert(bool);
 extern void __VERIFIER_assert_not(bool);
@@ -51,7 +52,7 @@ extern void sea_reset_modified(char *);
 #endif
 
 /* Convenience macros */
-#define assume __VERIFIER_assume
+#define assume __SEA_assume
 
 #define PARTIAL_FN                                                             \
   __attribute__((annotate("partial"))) __attribute__((noinline))

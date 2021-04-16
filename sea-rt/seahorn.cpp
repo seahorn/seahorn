@@ -25,7 +25,11 @@ void __VERIFIER_error() {
   exit(1);
 }
 
-void __VERIFIER_assume(bool x) {
+void __VERIFIER_assume(int x) {
+  assert(x);
+}
+
+void __SEA_assume(bool x) {
   assert(x);
 }
 

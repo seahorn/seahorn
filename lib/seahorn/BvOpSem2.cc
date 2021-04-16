@@ -2840,6 +2840,18 @@ Expr Bv2OpSem::getOperandValue(const Value &v,
       res = ctx.read(reg);
     } else
       res = ctx.getConstantValue(*gv);
+  } else if (auto *ce = dyn_cast<ConstantExpr>(&v)) {
+    // HACK: handle bitcast of a global variable
+    if (ce->getType()->isPointerTy() && ce->getOpcode() == Instruction::BitCast) {
+      if (auto *gv = dyn_cast<GlobalVariable>(ce->getOperand(0))) {
+        if (Expr reg = ctx.getRegister(*gv))
+          res = ctx.read(reg);
+      }
+    }
+    if (!res) {
+      res = ctx.getConstantValue(*ce);
+      LOG("opsem", if (!res) WARN << "Failed to evaluate constant expression " << v;);
+    }
   } else if (auto *cv = dyn_cast<Constant>(&v)) {
     res = ctx.getConstantValue(*cv);
     LOG("opsem", if (!res) WARN << "Failed to evaluate a constant " << v;);

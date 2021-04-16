@@ -2195,6 +2195,10 @@ public:
                           << gv.getName(););
         continue;
       }
+      if (gv.getName().equals("llvm.global_ctors") ||
+          gv.getName().equals("llvm.global_dtors")) {
+        continue;
+      }
       Expr symReg = m_ctx.mkRegister(gv);
       assert(symReg);
       setValue(gv, m_ctx.mem().galloc(gv));
@@ -2207,6 +2211,10 @@ public:
         continue;
       if (gv.getSection().equals("llvm.metadata"))
         continue;
+      if (gv.getName().equals("llvm.global_ctors") ||
+          gv.getName().equals("llvm.global_dtors")) {
+        continue;
+      }
       m_ctx.mem().initGlobalVariable(gv);
     }
 
@@ -2842,7 +2850,8 @@ Expr Bv2OpSem::getOperandValue(const Value &v,
       res = ctx.getConstantValue(*gv);
   } else if (auto *ce = dyn_cast<ConstantExpr>(&v)) {
     // HACK: handle bitcast of a global variable
-    if (ce->getType()->isPointerTy() && ce->getOpcode() == Instruction::BitCast) {
+    if (ce->getType()->isPointerTy() &&
+        ce->getOpcode() == Instruction::BitCast) {
       if (auto *gv = dyn_cast<GlobalVariable>(ce->getOperand(0))) {
         if (Expr reg = ctx.getRegister(*gv))
           res = ctx.read(reg);
@@ -2850,7 +2859,8 @@ Expr Bv2OpSem::getOperandValue(const Value &v,
     }
     if (!res) {
       res = ctx.getConstantValue(*ce);
-      LOG("opsem", if (!res) WARN << "Failed to evaluate constant expression " << v;);
+      LOG("opsem",
+          if (!res) WARN << "Failed to evaluate constant expression " << v;);
     }
   } else if (auto *cv = dyn_cast<Constant>(&v)) {
     res = ctx.getConstantValue(*cv);

@@ -247,6 +247,10 @@ public:
       if (gv.getSection().equals("llvm.metadata")) {
         continue;
       }
+      if (gv.getName().equals("llvm.global_ctors") ||
+          gv.getName().equals("llvm.global_dtors")) {
+        continue;
+      }
       uint64_t bytes = m_sem.getTD().getTypeAllocSize(gv.getValueType());
       OpSemAllocator::galloc(gv, bytes, m_mem.getAlignment(gv));
     }

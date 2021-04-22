@@ -180,7 +180,7 @@ bool PromoteVerifierCalls::runOnFunction(Function &F) {
   };
 
   bool Changed = false;
-  for (auto &I : boost::make_iterator_range(inst_begin(F), inst_end(F))) {
+  for (auto &I : instructions(F)) {
     if (!isa<CallInst>(&I))
       continue;
 
@@ -194,6 +194,12 @@ bool PromoteVerifierCalls::runOnFunction(Function &F) {
     // -- check if this is a call through a pointer cast
     if (!fn && CS.getCalledValue())
       fn = dyn_cast<const Function>(CS.getCalledValue()->stripPointerCasts());
+
+    // -- expect functions we promote to not be defined in the module,
+    // -- if they are defined, then do not promote and treat as regular
+    // -- functions
+    if (fn && !fn->empty())
+      continue;
 
     if (fn && (fn->getName().equals("__VERIFIER_assume") ||
                fn->getName().equals("__VERIFIER_assert") ||

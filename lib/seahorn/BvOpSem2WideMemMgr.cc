@@ -156,8 +156,8 @@ WideMemManager::storeValueToMem(Expr _val, WideMemManager::PtrTy ptr,
   const unsigned byteSz =
       m_sem.getTD().getTypeStoreSize(const_cast<llvm::Type *>(&ty));
   ExprFactory &efac = ptr.v()->efac();
-  // init memval to a default value
-  MemValTy res(m_ctx.alu().ui(0UL, wordSizeInBits()), m_uninit_size);
+  // init memval to a non det value
+  MemValTy res = MemValTy(Expr());
   switch (ty.getTypeID()) {
   case Type::IntegerTyID:
     if (ty.getScalarSizeInBits() < byteSz * 8) {

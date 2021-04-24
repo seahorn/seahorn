@@ -77,7 +77,7 @@ public:
 
     explicit MemValTyImpl(const Expr &e) {
       // Our ptr is a struct of two exprs
-      assert(strct::isStructVal(e));
+      assert(!e || strct::isStructVal(e));
       m_v = e;
     }
 
@@ -85,9 +85,9 @@ public:
     Expr toExpr() const { return v(); }
     explicit operator Expr() const { return toExpr(); }
 
-    RawMemValTy getRaw() { return strct::extractVal(m_v, 0); }
+    RawMemValTy getRaw() { return !m_v ? m_v : strct::extractVal(m_v, 0); }
 
-    RawMemValTy getSize() { return strct::extractVal(m_v, 1); }
+    RawMemValTy getSize() { return !m_v ? m_v : strct::extractVal(m_v, 1); }
   };
 
   struct PtrSortTyImpl {

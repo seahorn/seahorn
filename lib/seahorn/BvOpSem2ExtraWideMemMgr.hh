@@ -93,10 +93,10 @@ public:
     }
 
     explicit MemValTyImpl(const Expr &e) {
-      // Our base is a struct of three exprs
-      assert(strct::isStructVal(e));
-      assert(!strct::isStructVal(e->arg(1)));
-      assert(!strct::isStructVal(e->arg(2)));
+      // Our base is Expr() or a struct of three exprs
+      assert(!e || strct::isStructVal(e));
+      assert(!e || !strct::isStructVal(e->arg(1)));
+      assert(!e || !strct::isStructVal(e->arg(2)));
       m_v = e;
     }
 
@@ -104,11 +104,11 @@ public:
     Expr toExpr() const { return v(); }
     explicit operator Expr() const { return toExpr(); }
 
-    RawMemValTy getRaw() { return strct::extractVal(m_v, 0); }
+    RawMemValTy getRaw() { return !m_v ? m_v : strct::extractVal(m_v, 0); }
 
-    Expr getOffset() { return strct::extractVal(m_v, 1); }
+    Expr getOffset() { return !m_v ? m_v : strct::extractVal(m_v, 1); }
 
-    Expr getSize() { return strct::extractVal(m_v, 2); }
+    Expr getSize() { return !m_v ? m_v : strct::extractVal(m_v, 2); }
   };
 
   struct PtrSortTyImpl {

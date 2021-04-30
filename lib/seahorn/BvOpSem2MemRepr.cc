@@ -46,45 +46,56 @@ struct ArrayStoreRewriter : public std::unary_function<Expr, Expr> {
   }
 };
 
-// post visitor
-template <typename RW> Expr arrayStoreVisit(RW &rewriter, Expr e) {
-  Expr res = e->getFactory().mkNary(e->op(), e->args_begin(),
-                                    e->args_end()); // make copy always
-  if (isOp<STORE>(res)) {
-    // recurse to rewrite 1st argument
-    std::vector<Expr> new_kids;
-    Expr rw_arr = arrayStoreVisit(rewriter, res->arg(0));
-    new_kids.push_back(rw_arr);
-    for (auto b = e->args_begin() + 1; b != e->args_end(); ++b) {
-      new_kids.push_back(*b);
-    }
-    res = res->getFactory().mkNary(res->op(), new_kids.begin(), new_kids.end());
+// Non-recursive rewrite of expr e
+template <typename RW> Expr arrayStoreRewrite(RW &rewriter, Expr e) {
+  Expr cur = e;
+
+  // build rewrite stack
+  ExprVector worklist = {cur};
+  while (isOp<STORE>(cur)) {
+    worklist.push_back(cur->arg(0));
+    cur = cur->arg(0);
   }
-  return rewriter(res);
+
+  DagVisitCache cache;
+
+  // rewrite from top of stack
+  Expr res;
+  while (!worklist.empty()) {
+    Expr top = worklist.back();
+    worklist.pop_back();
+    Expr rw; // rewritten expr of top
+
+    // first try find in cache
+    DagVisitCache::const_iterator cit = cache.find(&*top);
+    if (cit != cache.end()) {
+      res = cit->second;
+      continue;
+    }
+
+    if (isOp<STORE>(top)) {
+      // make new store expr with rewritten array argument
+      llvm::SmallVector<Expr, 4> new_kids = {res};
+      for (auto b = top->args_begin() + 1; b != top->args_end(); ++b) {
+        new_kids.push_back(*b);
+      }
+      rw =
+          top->getFactory().mkNary(top->op(), new_kids.begin(), new_kids.end());
+    } else {
+      rw = top->getFactory().mkNary(top->op(), top->args_begin(),
+                                    top->args_end());
+    }
+
+    // rewrite into ITE
+    rw = rewriter(rw);
+    // save to cache
+    cache[&*top] = rw;
+    // save for next level
+    res = rw;
+  }
+
+  return res;
 }
-
-/**
- * recursively visits first arugment of store expr only (array)
- * store(array, idex, value)
- **/
-template <typename T>
-struct ArrayStoreVisitor : public std::unary_function<Expr, VisitAction> {
-  std::shared_ptr<T> _r;
-
-  typedef ArrayStoreVisitor<T> this_type;
-
-  ArrayStoreVisitor(const this_type &o) : _r(o._r) {}
-  ArrayStoreVisitor(std::shared_ptr<T> r) : _r(r) {}
-
-  VisitAction operator()(Expr exp) {
-    ExprSet *selectedKids = new ExprSet();
-    if (isOp<STORE>(exp)) {
-      // only visit 1st argument
-      selectedKids->insert(exp->arg(0));
-    }
-    return VisitAction::changeDoKidsRewrite(exp, _r, selectedKids);
-  }
-};
 
 OpSemMemRepr::MemValTy OpSemMemArrayReprBase::MemSet(PtrTy ptr, Expr _val,
                                                      unsigned len, MemValTy mem,
@@ -262,7 +273,7 @@ Expr OpSemMemHybridRepr::loadAlignedWordFromMem(PtrTy ptr, MemValTy mem) {
   /** rewrite store into ITE **/
   ArrayStoreRewriter rw(ptr.toExpr(), m_ctx.alu(),
                         m_memManager.ptrSizeInBits());
-  Expr rewritten = arrayStoreVisit(rw, mem.toExpr());
+  Expr rewritten = arrayStoreRewrite(rw, mem.toExpr());
   LOG("opsem-hybrid", INFO << "Rewritten: " << *rewritten << "\n");
 
   /** simplify **/

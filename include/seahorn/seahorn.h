@@ -31,6 +31,7 @@ extern void __VERIFIER_assert_if(bool, bool);
     Requires support from the memory manager. Might be interpreted to always
     return TRUE or FALSE if the memory manager does not support it.
  */
+#define sea_is_deref sea_is_dereferenceable
 extern bool sea_is_dereferenceable(const void *ptr, intptr_t offset);
 extern void sea_assert_if(bool, bool);
 /* returns true if memory pointed to by arg has been modified from

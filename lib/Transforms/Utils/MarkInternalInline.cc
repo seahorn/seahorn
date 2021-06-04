@@ -7,6 +7,7 @@
 
 #include "boost/range.hpp"
 #include "seahorn/Support/SeaDebug.h"
+#include "seahorn/Transforms/Instrumentation/GeneratePartialFnPass.hh"
 
 using namespace llvm;
 
@@ -16,6 +17,7 @@ static llvm::cl::list<std::string>
                llvm::cl::ZeroOrMore, llvm::cl::CommaSeparated);
 
 namespace seahorn {
+
 /// marks all internal functions with AlwaysInline attribute
 struct MarkInternalInline : public ModulePass {
   static char ID;
@@ -37,12 +39,17 @@ struct MarkInternalInline : public ModulePass {
     for (Function &F : M) {
       if (!F.isDeclaration() && F.hasLocalLinkage()) {
         if (selectedFn.empty() || selectedFn.count(&F) > 0) {
-          LOG("inline", errs() << "INLINED " << F.getName() << "\n");
+          if (!isPartialFn(F)) {
+            LOG("inline", errs() << "INLINED " << F.getName() << "\n");
 
-          if (F.hasFnAttribute(Attribute::NoInline)) {
-            F.removeFnAttr(Attribute::NoInline);
+            if (F.hasFnAttribute(Attribute::NoInline)) {
+              F.removeFnAttr(Attribute::NoInline);
+            }
+            F.addFnAttr(Attribute::AlwaysInline);
+          } else {
+            LOG("inline",
+                errs() << "Did not inline partial fn: " << F.getName() << "\n");
           }
-          F.addFnAttr(Attribute::AlwaysInline);
         }
       }
     }

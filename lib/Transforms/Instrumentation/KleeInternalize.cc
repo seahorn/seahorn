@@ -189,6 +189,8 @@ public:
     m_externalNames.insert("seahorn.fail");
     m_externalNames.insert("verifier.error");
 
+    m_externalNames.insert("__SEA_assume");
+
     m_externalNames.insert("__VERIFIER_assume");
     m_externalNames.insert("__VERIFIER_error");
 

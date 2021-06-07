@@ -18,36 +18,33 @@
 extern int nd1();
 extern int nd2();
 extern int nd3();
-extern int nd4();
 
-// Loop invariant.
-extern bool infer(int x, int n);
-bool PARTIAL_FN inv(int x, int n) { return infer(x, n); }
+extern bool infer(int x);
+bool PARTIAL_FN inv(int x)
+{
+    if (x == 0) return true;
+    return infer(x);
+}
 
-// Test.
-int main(void) {
-  // See 03_loop.unsat.c.
-  //
-  // The inductive invariant is now restricted to x and n. It is impossible to
-  // say that x == y. Therefore, there is no solution that satisfies the
-  // property. Hence, the problem is SAT.
-
-  int x1 = 0;
-  int y1 = 0;
-  int n1 = nd1();
-  assume(n1 > 0);
-
-  sassert(inv(x1, n1));
-
-  int x2 = nd2();
-  int y2 = nd3();
-  int n2 = nd4();
-  assume(inv(x2, n2));
-  if (x2 < n2) {
-    x2 += 1; y2 += 1;
-    sassert(inv(x2, n2));
-    assume(0);
-  }
-
-  sassert(y2 == n2);
+// This program has two distinct paths.
+// Along the first path, a synthesis assertion is made.
+// Along the second path, a safety assertion is made.
+// A solution to the first path is an invariant such that (x >= 0) => inv(x).
+// The second path if safe if and only if inv(x) => (x < 5).
+// Consequently, the program is unsafe.
+int main(void)
+{
+    if (nd1())
+    {
+        int x = nd2();
+        assume(inv(x));
+	    x = x + 1;
+	    sassert(inv(x));
+    }
+    else
+    {
+        int x = nd3();
+	    assume(inv(x));
+	    sassert(x < 5);
+    }
 }

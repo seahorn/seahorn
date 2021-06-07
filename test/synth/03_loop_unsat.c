@@ -12,6 +12,7 @@
 //
 // CHECK: ^unsat$
 
+#define SEA_SYNTH
 #include "seahorn/seahorn.h"
 
 extern int nd1();
@@ -45,7 +46,7 @@ int main(void) {
   assume(n1 > 0);
 
   // Pre => Inv
-  __VERIFIER_assert(inv(x1, y1, n1));
+  sassert(inv(x1, y1, n1));
 
   // Inv && cond && Tr => Inv'
   int x2 = nd2();
@@ -54,7 +55,7 @@ int main(void) {
   assume(inv(x2, y2, n2));
   if (x2 < n2) {
     x2 += 1; y2 += 1;
-    __VERIFIER_assert(inv(x2, y2, n2));
+    sassert(inv(x2, y2, n2));
     assume(0);
   }
 

@@ -12,6 +12,7 @@
 //
 // CHECK: ^unsat$
 
+#define SEA_SYNTH
 #include "seahorn/seahorn.h"
 
 extern int nd1();
@@ -72,8 +73,8 @@ int main(void) {
     sassert(v <= sum);
 
     // END_TX[
-    __VERIFIER_assert(inv(owner, sum, i, v));
-    __VERIFIER_assert(inv(owner, sum, j, v_j));
+    sassert(inv(owner, sum, i, v));
+    sassert(inv(owner, sum, j, v_j));
     // ]END
   }
 }

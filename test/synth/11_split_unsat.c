@@ -12,6 +12,7 @@
 //
 // CHECK: ^unsat$
 
+#define SEA_SYNTH
 #include "seahorn/seahorn.h"
 
 extern int nd1();
@@ -59,10 +60,10 @@ int main(void) {
     sassert(v <= sum);
 
     // END_TX[
-    if (i == owner) __VERIFIER_assert(inv1(sum, v));
-    else __VERIFIER_assert(inv2(sum, v));
-    if (j == owner) __VERIFIER_assert(inv1(sum, v_j));
-    else __VERIFIER_assert(inv2(sum, v_j));
+    if (i == owner) sassert(inv1(sum, v));
+    else sassert(inv2(sum, v));
+    if (j == owner) sassert(inv1(sum, v_j));
+    else sassert(inv2(sum, v_j));
     // ]END
   }
 }

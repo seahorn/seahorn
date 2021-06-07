@@ -55,14 +55,18 @@ extern void sea_reset_modified(char *);
 /* Convenience macros */
 #define assume __SEA_assume
 
+#ifdef VACCHECK
+/* See https://github.com/seahorn/seahorn/projects/5 for details */
+#define sassert(X)                                                             \
+  (void)((__VERIFIER_assert(X), (X)) || (__VERIFIER_error(), 0))
+#elif defined(SEA_SYNTH)
+/* See test/synth/ for use cases */
 #define PARTIAL_FN                                                             \
   __attribute__((annotate("partial"))) __attribute__((noinline))
-
-/* See https://github.com/seahorn/seahorn/projects/5 for details */
-#ifdef VACCHECK
 #define sassert(X)                                                             \
   (void)((__VERIFIER_assert(X), (X)) || (__VERIFIER_error(), 0))
 #else
+/* Default semantics of sassert */
 #define sassert(X) (void)((X) || (__VERIFIER_error(), 0))
 #endif
 

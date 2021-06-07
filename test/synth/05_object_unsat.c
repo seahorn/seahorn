@@ -12,6 +12,7 @@
 //
 // CHECK: ^unsat$
 
+#define SEA_SYNTH
 #include "seahorn/seahorn.h"
 
 extern int nd1();
@@ -71,7 +72,7 @@ int main(void) {
   int count1 = 0;
   int max1 = nd1();
   assume(max1 > 0);
-  __VERIFIER_assert(inv(count1, max1));
+  sassert(inv(count1, max1));
 
   // inv && op => inv'
   int count2 = nd2();
@@ -81,7 +82,7 @@ int main(void) {
   else if (nd5()) decr(&count2, &max2);
   else if (nd6()) set(&count2, &max2, nd7());
   else check(&count2, &max2);
-  __VERIFIER_assert(inv(count2, max2));
+  sassert(inv(count2, max2));
 
   // inv => safe
   int count3 = nd8();

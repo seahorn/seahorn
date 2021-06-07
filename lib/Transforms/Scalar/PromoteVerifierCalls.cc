@@ -217,18 +217,24 @@ bool PromoteVerifierCalls::runOnFunction(Function &F) {
       if (auto partialFn = extractPartialFnCall(arg0)) {
         // Selects proper synthesis call.
         Function *nfn;
+        bool insert_assume;
         if (fn->getName().equals("__VERIFIER_assume") ||
-            fn->getName().equals("__SEA_assume"))
+            fn->getName().equals("__SEA_assume")) {
           nfn = m_synthAssumeFn;
-        else if (fn->getName().equals("__VERIFIER_assert"))
+          insert_assume = true;
+        } else if (fn->getName().equals("__VERIFIER_assert")) {
           nfn = m_synthAssertFn;
-        else
+          insert_assume = false;
+        } else {
           assert(0);
+        }
 
         // Generates code.
         IRBuilder<> Builder(F.getContext());
         Builder.SetInsertPoint(&I);
-        chkCi = Builder.CreateCall(m_assumeFn, partialFn);
+        if (insert_assume) {
+          chkCi = Builder.CreateCall(m_assumeFn, partialFn);
+        }
         nfnCi = Builder.CreateCall(nfn, partialFn);
       } else {
         // Selects proper verification call.

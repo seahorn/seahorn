@@ -1,8 +1,4 @@
-// RUN: %sea smt %s --step=small -o %t.sm.smt2
-// RUN: %z3 %t.sm.smt2 fp.spacer.order_children=2 2>&1 | OutputCheck %s
-//
-// RUN: %sea smt %s --step=small --inline -o %t.sm.inline.smt2
-// RUN: %z3 %t.sm.inline.smt2 fp.spacer.order_children=2 2>&1 | OutputCheck %s
+// This test struggles on small step.
 //
 // RUN: %sea smt %s --step=large -o %t.lg.smt2
 // RUN: %z3 %t.lg.smt2 fp.spacer.order_children=2 2>&1 | OutputCheck %s
@@ -12,6 +8,7 @@
 //
 // CHECK: ^unsat$
 
+#define SEA_SYNTH
 #include "seahorn/seahorn.h"
 
 extern int nd1();
@@ -35,8 +32,8 @@ int main(void) {
   int n1 = nd1();
   assume(n1 > 0);
 
-  if (nd2()) __VERIFIER_assert(inv1(x1, y1));
-  else __VERIFIER_assert(inv2(x1, n1));
+  sassert(inv1(x1, y1));
+  sassert(inv2(x1, n1));
 
   int x2 = nd3();
   int y2 = nd4();
@@ -45,8 +42,8 @@ int main(void) {
   assume(inv2(x2, n2));
   if (x2 < n2) {
     x2 += 1; y2 += 1;
-    if (nd6()) __VERIFIER_assert(inv1(x2, y2));
-    else __VERIFIER_assert(inv2(x2, n2));
+    sassert(inv1(x2, y2));
+    sassert(inv2(x2, n2));
     assume(0);
   }
 

@@ -6,6 +6,7 @@
 //
 // CHECK: ^sat$
 
+#define SEA_SYNTH
 #include "seahorn/seahorn.h"
 
 extern int nd1();
@@ -116,8 +117,8 @@ int main(void)
     assume(inv(fork_1, representative, fork_2));
     assume(inv(fork_2, interference, fork_1));
     tr(&fork_1, &representative, &fork_2);
-    __VERIFIER_assert(inv(fork_1, representative, fork_2));
-    __VERIFIER_assert(inv(fork_2, interference, fork_1));
+    sassert(inv(fork_1, representative, fork_2));
+    sassert(inv(fork_2, interference, fork_1));
 
     // Checks property.
     int left_fork = nd6();

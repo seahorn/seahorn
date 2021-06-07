@@ -12,14 +12,13 @@
 //
 // CHECK: ^sat$
 
+#define SEA_SYNTH
 #include "seahorn/seahorn.h"
 
 extern int nd1();
 extern int nd2();
 extern int nd3();
 extern int nd4();
-extern int nd5();
-extern int nd6();
 
 // Loop invariant.
 extern bool infer(int a, int b);
@@ -35,8 +34,8 @@ int main(void) {
   int n1 = nd1();
   assume(n1 > 0);
 
-  if (nd2()) __VERIFIER_assert(inv1(x1, n1));
-  else __VERIFIER_assert(inv2(y1, n1));
+  sassert(inv1(x1, n1));
+  sassert(inv2(y1, n1));
 
   int x2 = nd2();
   int y2 = nd3();
@@ -45,8 +44,8 @@ int main(void) {
   assume(inv2(y2, n2));
   if (x2 < n2) {
     x2 += 1; y2 += 1;
-    if (nd6()) __VERIFIER_assert(inv1(x2, n2));
-    else __VERIFIER_assert(inv2(y2, n2));
+    sassert(inv1(x2, n2));
+    sassert(inv2(y2, n2));
     assume(0);
   }
 

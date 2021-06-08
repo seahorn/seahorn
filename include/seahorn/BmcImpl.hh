@@ -150,6 +150,21 @@ Expr BmcTrace<Engine, Model>::eval(unsigned loc, Expr u, bool complete) {
   return m_model->eval(v, complete);
 }
 
+template <typename Out> Out &printLineno(Out &out, const llvm::Instruction &I) {
+  const DebugLoc &dloc = I.getDebugLoc();
+
+  if (dloc) {
+    if (out.has_colors())
+      out.changeColor(raw_ostream::CYAN);
+
+    out << "[" << (*dloc).getFilename() << ":" << dloc.getLine() << "]";
+
+    if (out.has_colors())
+      out.resetColor();
+  }
+  return out;
+}
+
 template <class Engine, class Model>
 template <typename Out>
 Out &BmcTrace<Engine, Model>::print(Out &out) {
@@ -181,6 +196,7 @@ Out &BmcTrace<Engine, Model>::print(Out &out) {
       }
 
       bool print_inst = true;
+      bool print_lineno = false;
       bool shadow_mem = false;
       if (auto *ci = dyn_cast<CallInst>(&I)) {
         const Function *f = getCalledFunction(*ci);
@@ -217,13 +233,20 @@ Out &BmcTrace<Engine, Model>::print(Out &out) {
           }
           if (out.has_colors())
             out.resetColor();
+        } else if (f && f->getName().equals("verifier.assert")) {
+          print_lineno = true;
         }
       } else if (isa<PHINode>(I)) {
         shadow_mem = I.hasMetadata("shadow.mem");
       }
 
       if (print_inst) {
-        out << I << "\n";
+        out << I;
+        if (print_lineno) {
+          out << " ";
+          printLineno(out, I);
+        }
+        out << "\n";
       }
 
       Expr v = eval(loc, I);

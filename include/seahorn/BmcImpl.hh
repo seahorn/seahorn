@@ -139,6 +139,18 @@ Expr BmcTrace<Engine, Model>::eval(unsigned loc, const llvm::Value &inst,
 template <class Engine, class Model>
 Expr BmcTrace<Engine, Model>::eval(unsigned loc, Expr u, bool complete) {
 
+  auto isTuple = [](Expr e) {
+      return expr::op::bind::isFdecl(e->left()) && isOpX<TUPLE>(e->left()->left());
+  };
+
+  auto extractTupleAsPair = [](Expr e) {
+      assert(isTuple(e));
+      Expr tuple = e->left()->left();
+      Expr src = tuple->left();
+      Expr dst = tuple->right();
+      return std::make_pair(src, dst);
+  };
+  
   unsigned stateidx = cpid(loc);
   stateidx++;
   // -- out of bounds, no value in the model
@@ -146,7 +158,20 @@ Expr BmcTrace<Engine, Model>::eval(unsigned loc, Expr u, bool complete) {
     return Expr();
 
   SymStore &store = m_bmc.getStates()[stateidx];
-  Expr v = store.eval(u);
+
+  Expr v;
+  if (isTuple(u)) {
+    // This is needed because s.eval does not traverse function
+    // declarations
+    auto pair = extractTupleAsPair(u);
+    if (store.isDefined(pair.first) && store.isDefined(pair.second)) {
+      v = bind::boolConst(mk<TUPLE>(store.eval(pair.first),
+				    store.eval(pair.second)));
+    }
+  }
+  if (!v) {
+    v = store.eval(u);
+  }
   return m_model->eval(v, complete);
 }
 

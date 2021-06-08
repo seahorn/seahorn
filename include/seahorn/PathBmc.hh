@@ -7,6 +7,7 @@
 #include "seahorn/LegacyOperationalSemantics.hh"
 #include "seahorn/Support/SeaAssert.h"
 #include "seahorn/Support/SeaLog.hh"
+#include "seahorn/Bmc.hh"
 
 #include "llvm/ADT/SmallVector.h"
 #include <vector>
@@ -22,14 +23,16 @@ class ShadowMem;
 }
 
 namespace seahorn {
+class PathBmcEngine;
+using PathBmcTrace = BmcTrace<PathBmcEngine, solver::Solver::model_ref>;
 namespace solver {
 class Model;
-}
-} // namespace seahorn
+} // end namespace solver
+} // end namespace seahorn
 
 #ifndef HAVE_CLAM
 namespace seahorn {
-class PathBmcTrace;
+
 /* Dummy class for PathBmcEngine */
 class PathBmcEngine {
   LegacyOperationalSemantics &m_sem;
@@ -59,6 +62,8 @@ public:
 
   LegacyOperationalSemantics &sem() { return m_sem; }
 
+  ExprFactory &efac() { return m_sem.efac(); }
+  
   const SmallVector<const CutPoint *, 8> &getCps() const { return m_cps; }
 
   const SmallVector<const CpEdge *, 8> &getEdges() const { return m_cp_edges; }
@@ -67,7 +72,7 @@ public:
 
   Expr getSymbReg(const llvm::Value &v) { return Expr(); }
 
-  const ExprVector &getPreciseEncoding() const { return m_side; }
+  const ExprVector &getFormula() const { return m_side; }
 };
 } // namespace seahorn
 #else
@@ -91,7 +96,6 @@ class CrabBuilderManager;
  */
 namespace seahorn {
 
-class PathBmcTrace;
 class PathBmcEngine {
 public:
   PathBmcEngine(LegacyOperationalSemantics &sem,
@@ -120,6 +124,9 @@ public:
     return static_cast<LegacyOperationalSemantics &>(m_sem);
   }
 
+  /// return Expression factory
+  ExprFactory &efac() { return m_sem.efac(); }
+
   /// get cut-point trace
   const SmallVector<const CutPoint *, 8> &getCps() const { return m_cps; }
 
@@ -137,8 +144,9 @@ public:
     return reg;
   }
 
-  const ExprVector &getPreciseEncoding() const { return m_precise_side; }
+  const ExprVector &getFormula() const { return m_precise_side; }
 
+  
 protected:
   /// symbolic operational semantics
   OperationalSemantics &m_sem;
@@ -263,70 +271,3 @@ protected:
 
 } // end namespace seahorn
 #endif
-
-namespace seahorn {
-// Copy-and-paste version of BmcTrace in Bmc.hh
-class PathBmcTrace {
-
-  friend class PathBmcEngine;
-
-  PathBmcEngine &m_bmc;
-
-  solver::Solver::model_ref m_model;
-
-  // for trace specific implicant
-  ExprVector m_trace;
-
-  ExprMap m_bool_map;
-
-  /// the trace of basic blocks
-  SmallVector<const BasicBlock *, 8> m_bbs;
-
-  /// a map from an index of a basic block on a trace to the index
-  /// of the corresponding cutpoint in BmcEngine
-  SmallVector<unsigned, 8> m_cpId;
-
-  /// cutpoint id corresponding to the given location
-  unsigned cpid(unsigned loc) const { return m_cpId[loc]; }
-
-  /// true if loc is the first location on a cutpoint edge
-  bool isFirstOnEdge(unsigned loc) const {
-    return loc == 0 || cpid(loc - 1) != cpid(loc);
-  }
-
-  /// computes an implicant of f (interpreted as a conjunction) that
-  /// contains the given model
-  void getModelImplicant(const ExprVector &f);
-
-  // Only PathBmcEngine calls the constructor
-  PathBmcTrace(PathBmcEngine &bmc, solver::Solver::model_ref model);
-
-public:
-  PathBmcTrace(const PathBmcTrace &other)
-      : m_bmc(other.m_bmc), m_model(other.m_model), m_bbs(other.m_bbs),
-        m_cpId(other.m_cpId) {}
-
-  /// underlying BMC engine
-  PathBmcEngine &engine() { return m_bmc; }
-
-  /// The number of basic blocks in the trace
-  unsigned size() const { return m_bbs.size(); }
-
-  /// The basic block at a given location
-  const llvm::BasicBlock *bb(unsigned loc) const { return m_bbs[loc]; }
-
-  /// The value of the instruction at the given location
-  Expr symb(unsigned loc, const llvm::Value &inst);
-  Expr eval(unsigned loc, const llvm::Value &inst, bool complete = false);
-  Expr eval(unsigned loc, Expr v, bool complete = false);
-
-  void print(llvm::raw_ostream &o);
-
-  ExprVector &getImplicantFormula() { return m_trace; }
-  const ExprVector &getImplicantFormula() const { return m_trace; }
-
-  ExprMap &getImplicantBoolMap() { return m_bool_map; }
-  const ExprMap &getImplicantBoolMap() const { return m_bool_map; }
-};
-
-} // namespace seahorn

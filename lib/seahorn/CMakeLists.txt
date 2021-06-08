@@ -26,7 +26,6 @@ add_llvm_library (seahorn.LIB DISABLE_LLVM_LINK_LLVM_DYLIB
   PathBmc.cc
   PathBmcBoolAbs.cc
   PathBmcMuc.cc
-  PathBmcTrace.cc
   PathBmcUtil.cc
   Bmc.cc
   SolverBmc.cc

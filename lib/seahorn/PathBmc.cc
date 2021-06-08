@@ -755,8 +755,8 @@ solver::SolverResult PathBmcEngine::pathEncodingAndSolveWithSmt(
     // crab for current implicant
     const expr_invariants_map_t & /*path_constraints*/) {
 
-  const ExprVector &path_formula = cex.getImplicantFormula();
-  const ExprMap &path_cond_map = cex.getImplicantBoolMap();
+  const ExprVector &path_formula = cex.get_implicant_formula();
+  const ExprMap &path_cond_map = cex.get_implicant_bools_map();
 
   LOG(
       "bmc-details", errs() << "PATH FORMULA:\n";

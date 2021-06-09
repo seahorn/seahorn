@@ -144,7 +144,6 @@ Expr BmcTrace<Engine, Model>::eval(unsigned loc, Expr u, bool complete) {
   };
 
   auto extractTupleAsPair = [](Expr e) {
-      assert(isTuple(e));
       Expr tuple = e->left()->left();
       Expr src = tuple->left();
       Expr dst = tuple->right();

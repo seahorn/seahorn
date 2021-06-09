@@ -157,15 +157,11 @@ find_package(Yices2 2.6.0)
 if (YICES2_FOUND)
   add_definitions(-DWITH_YICES2)
   include_directories(${YICES2_INCLUDE_DIR})
-  message("Found Yices2 at ${YICES2_HOME}")
+  ## ${YICES_HOME} can be empty but yices2 can still be found.
+  message("Found Yices2 library: ${YICES2_LIBRARY}")
   install(PROGRAMS ${YICES2_EXECUTABLE} DESTINATION bin)
-  if (YICES2_HOME)
-    file(GLOB _YICES2_LIBRARIES ${YICES2_HOME}/lib/* *.dylib *.so *.a)
-    install(FILES ${_YICES2_LIBRARIES} DESTINATION lib)
-  else()
-    # this may copy only the symbolic link
-    install(FILES ${YICES2_LIBRARY} DESTINATION lib)
-  endif()
+  # this may copy only the symbolic link
+  install(FILES ${YICES2_LIBRARY} DESTINATION lib)
 endif()  
 
 find_package (LLVM 10 CONFIG)

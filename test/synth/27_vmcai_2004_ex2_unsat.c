@@ -9,8 +9,7 @@
 // This set of tests is inspired by "Automatic Inference of Class Invariants" by Francesco Logozzo in VMCAI 2014.
 // This test case encodes the StackWithUndo class given by Fig. 2.
 
-#define SEA_SYNTH
-#include "seahorn/seahorn.h"
+#include "seahorn/seasynth.h"
 
 // In this example, exceptions are encoded as implicit arguments passed between throwing methods.
 // Since only the exception type matters in this example, each exception is encoded by a unique integer.

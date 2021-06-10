@@ -6,8 +6,7 @@
 //
 // CHECK: ^unsat$
 
-#define SEA_SYNTH
-#include "seahorn/seahorn.h"
+#include "seahorn/seasynth.h"
 
 #define ALLOC_L1 0
 #define ALLOC_L2 1

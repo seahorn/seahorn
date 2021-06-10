@@ -6,8 +6,7 @@
 //
 // CHECK: ^sat$
 
-#define SEA_SYNTH
-#include "seahorn/seahorn.h"
+#include "seahorn/seasynth.h"
 
 extern int nd1();
 extern int nd2();

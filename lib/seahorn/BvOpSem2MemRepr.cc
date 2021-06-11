@@ -1,6 +1,7 @@
 #include "BvOpSem2MemRepr.hh"
 #include "seahorn/Expr/ExprOpBinder.hh"
 #include "seahorn/Expr/ExprVisitor.hh"
+#include "seahorn/Expr/ExprOpBool.hh"
 
 namespace {
 template <typename T, typename... Rest>
@@ -27,6 +28,8 @@ struct ArrayStoreRewriter : public std::unary_function<Expr, Expr> {
   unsigned m_ptrSz;
   ArrayStoreRewriter(Expr ptr, OpSemAlu &alu, unsigned ptrSz)
       : m_ptr(ptr), m_alu(alu), m_ptrSz(ptrSz) {}
+  ArrayStoreRewriter(const ArrayStoreRewriter& other)
+    : m_ptr(other.m_ptr), m_alu(other.m_alu), m_ptrSz(other.m_ptrSz) {}
 
   Expr doPtrEq(Expr p1, Expr p2) { return m_alu.doEq(p1, p2, m_ptrSz); }
 
@@ -268,7 +271,7 @@ OpSemMemArrayReprBase::MemFill(PtrTy dPtr, char *sPtr, unsigned len,
 
 Expr OpSemMemHybridRepr::loadAlignedWordFromMem(PtrTy ptr, MemValTy mem) {
   LOG("opsem-hybrid", INFO << "Load ptr " << *ptr.toExpr() << "\n");
-  LOG("opsem-hybrid", INFO << "From ptr " << *mem.toExpr() << "\n");
+  LOG("opsem-hybrid", INFO << "From mem " << *mem.toExpr() << "\n");
 
   /** rewrite store into ITE **/
   ArrayStoreRewriter rw(ptr.toExpr(), m_ctx.alu(),
@@ -276,10 +279,15 @@ Expr OpSemMemHybridRepr::loadAlignedWordFromMem(PtrTy ptr, MemValTy mem) {
   Expr rewritten = arrayStoreRewrite(rw, mem.toExpr());
   LOG("opsem-hybrid", INFO << "Rewritten: " << *rewritten << "\n");
 
-  /** simplify **/
+  /** simplify with custom ITE simplifier **/
+
+  Expr cus_simp = boolop::simplifyIte(rewritten);
+  LOG("opsem-hybrid", INFO << "Custom simplified: " << *cus_simp << "\n");
+
+  /** simplify with z3 **/
   EZ3 zctx(rewritten->efac());
-  Expr simp = z3_simplify(zctx, rewritten);
-  LOG("opsem-hybrid", INFO << "Simplified: " << *simp << "\n");
+  Expr simp = z3_simplify(zctx, cus_simp);
+  LOG("opsem-hybrid", INFO << "Z3 Simplified: " << *simp << "\n");
 
   return simp;
 }

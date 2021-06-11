@@ -166,6 +166,21 @@ Expr simplify(Expr exp) {
   return dagVisit(bs, exp);
 }
 
+Expr simplifyIte(Expr exp) {
+  BoolCompSV<ITESimplifier> simp(std::make_shared<ITESimplifier>(exp->efac()));
+  return dagVisit(simp, exp);
+}
+
+bool areNegations(Expr lhs, Expr rhs) {
+  /** a negates !a**/
+  if (isOpX<NEG>(lhs) && lhs->left() == rhs)
+    return true;
+  if (isOpX<NEG>(rhs) && rhs->left() == lhs)
+    return true;
+
+  return false;
+}
+
 namespace {
 /** Rewriter that normalizes AND/OR operators */
 struct NormalizeOps : public std::unary_function<Expr, Expr> {

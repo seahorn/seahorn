@@ -201,6 +201,9 @@ Expr nnf(Expr exp);
 /** Makes an expression pretty for printing */
 Expr pp(Expr exp);
 
+/** Basic simplification for ITE expressions **/
+Expr simplifyIte(Expr exp);
+
 } // namespace boolop
 } // namespace op
 } // namespace expr

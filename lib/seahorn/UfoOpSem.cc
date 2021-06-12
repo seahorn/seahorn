@@ -1423,7 +1423,8 @@ Expr MemUfoOpSem::createVariant(Expr origE) {
   Expr name = bind::fname(origE);
   Expr rTy = bind::rangeTy(name);
 
-  return bind::mkConst(variant::variant(m_copy_count++, origE), rTy);
+  namespace op_variant = expr::op::variant;
+  return bind::mkConst(op_variant::variant(m_copy_count++, origE), rTy);
 }
 
 Expr MemUfoOpSem::getFreshArraySymbol(const Cell &c, ArrayOpt ao) {

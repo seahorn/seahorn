@@ -35,7 +35,7 @@ bool CalleePermissions(int xf_acc_0, int yf_acc_0, int xf_acc_n, int yf_acc_n)
   return true;
 }
 
-#include "./viper_client.h"
+#include "./viper_client.inc"
 
 // Verification.
 int main(void) {

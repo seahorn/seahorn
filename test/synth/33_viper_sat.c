@@ -65,7 +65,7 @@ int main(void) {
     int yf_acc = nd11();
     int xf_acc_n = nd12();
     int yf_acc_n = nd13();
-    assume(CallerPermissions(xf_acc, yf_acc, xf_acc_n, yf_acc_n));
+    assume(CalleePermissions(xf_acc, yf_acc, xf_acc_n, yf_acc_n));
     sassert(xf_acc + yf_acc <= ACC_FULL);
   }
   return 0;

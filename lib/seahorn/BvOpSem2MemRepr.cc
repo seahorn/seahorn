@@ -1,7 +1,7 @@
 #include "BvOpSem2MemRepr.hh"
 #include "seahorn/Expr/ExprOpBinder.hh"
-#include "seahorn/Expr/ExprVisitor.hh"
 #include "seahorn/Expr/ExprOpBool.hh"
+#include "seahorn/Expr/ExprVisitor.hh"
 
 namespace {
 template <typename T, typename... Rest>
@@ -28,8 +28,8 @@ struct ArrayStoreRewriter : public std::unary_function<Expr, Expr> {
   unsigned m_ptrSz;
   ArrayStoreRewriter(Expr ptr, OpSemAlu &alu, unsigned ptrSz)
       : m_ptr(ptr), m_alu(alu), m_ptrSz(ptrSz) {}
-  ArrayStoreRewriter(const ArrayStoreRewriter& other)
-    : m_ptr(other.m_ptr), m_alu(other.m_alu), m_ptrSz(other.m_ptrSz) {}
+  ArrayStoreRewriter(const ArrayStoreRewriter &other)
+      : m_ptr(other.m_ptr), m_alu(other.m_alu), m_ptrSz(other.m_ptrSz) {}
 
   Expr doPtrEq(Expr p1, Expr p2) { return m_alu.doEq(p1, p2, m_ptrSz); }
 
@@ -50,8 +50,10 @@ struct ArrayStoreRewriter : public std::unary_function<Expr, Expr> {
 };
 
 // Non-recursive rewrite of expr e
-template <typename RW> Expr arrayStoreRewrite(RW &rewriter, Expr e) {
-  Expr cur = e;
+template <typename RW>
+Expr arrayStoreRewrite(RW &rewriter, Expr ptr, Expr mem,
+                       DagVisitMemCache &cache) {
+  Expr cur = mem;
 
   // build rewrite stack
   ExprVector worklist = {cur};
@@ -59,8 +61,6 @@ template <typename RW> Expr arrayStoreRewrite(RW &rewriter, Expr e) {
     worklist.push_back(cur->arg(0));
     cur = cur->arg(0);
   }
-
-  DagVisitCache cache;
 
   // rewrite from top of stack
   Expr res;
@@ -70,10 +70,15 @@ template <typename RW> Expr arrayStoreRewrite(RW &rewriter, Expr e) {
     Expr rw; // rewritten expr of top
 
     // first try find in cache
-    DagVisitCache::const_iterator cit = cache.find(&*top);
+    DagVisitMemCache::const_iterator cit = cache.find(&*top);
     if (cit != cache.end()) {
-      res = cit->second;
-      continue;
+      LOG("opsem-hybrid", INFO << "hit with: " << *top << "\n");
+      ExprPair cached = cit->second;
+      if (ptr == cached.first) {
+        LOG("opsem-hybrid", INFO << "use cached: " << *cached.second << "\n");
+        res = cached.second;
+        continue;
+      }
     }
 
     if (isOp<STORE>(top)) {
@@ -92,7 +97,7 @@ template <typename RW> Expr arrayStoreRewrite(RW &rewriter, Expr e) {
     // rewrite into ITE
     rw = rewriter(rw);
     // save to cache
-    cache[&*top] = rw;
+    cache[&*top] = ExprPair(ptr, rw);
     // save for next level
     res = rw;
   }
@@ -276,7 +281,7 @@ Expr OpSemMemHybridRepr::loadAlignedWordFromMem(PtrTy ptr, MemValTy mem) {
   /** rewrite store into ITE **/
   ArrayStoreRewriter rw(ptr.toExpr(), m_ctx.alu(),
                         m_memManager.ptrSizeInBits());
-  Expr rewritten = arrayStoreRewrite(rw, mem.toExpr());
+  Expr rewritten = arrayStoreRewrite(rw, ptr.toExpr(), mem.toExpr(), m_cache);
   LOG("opsem-hybrid", INFO << "Rewritten: " << *rewritten << "\n");
 
   /** simplify with custom ITE simplifier **/

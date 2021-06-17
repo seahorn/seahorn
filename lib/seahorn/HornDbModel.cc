@@ -7,33 +7,28 @@
 
 #include "seahorn/Support/Stats.hh"
 
-namespace seahorn
-{
-  void HornDbModel::addDef(Expr fapp, Expr lemma)
-  {
-	Expr lemma_def;
+namespace seahorn {
+namespace op_variant = expr::op::variant;
+void HornDbModel::addDef(Expr fapp, Expr lemma) {
+  Expr lemma_def;
 
-    if (isOpX<TRUE> (lemma) || isOpX<FALSE> (lemma))
-    {
-    	lemma_def = lemma;
+  if (isOpX<TRUE>(lemma) || isOpX<FALSE>(lemma)) {
+    lemma_def = lemma;
+  } else {
+    assert(bind::isFapp(fapp));
+    Expr fdecl = bind::fname(fapp);
+    ExprMap actual_arg_to_bvar_map;
+    for (int i = 0; i < bind::domainSz(fdecl); i++) {
+      Expr arg_i = fapp->arg(i + 1);
+      Expr arg_i_type = bind::domainTy(fdecl, i);
+      Expr bvar_i = bind::bvar(i, arg_i_type);
+      actual_arg_to_bvar_map.insert(std::make_pair(arg_i, bvar_i));
     }
-    else
-    {
-		assert (bind::isFapp (fapp));
-		Expr fdecl = bind::fname(fapp);
-		ExprMap actual_arg_to_bvar_map;
-		for(int i=0; i<bind::domainSz(fdecl); i++)
-		{
-		  Expr arg_i = fapp->arg(i+1);
-		  Expr arg_i_type = bind::domainTy(fdecl, i);
-		  Expr bvar_i = bind::bvar(i, arg_i_type);
-		  actual_arg_to_bvar_map.insert(std::make_pair(arg_i, bvar_i));
-		}
-		lemma_def = replace(lemma, actual_arg_to_bvar_map);
-    }
-
-    m_defs[bind::fname(fapp)] = lemma_def;
+    lemma_def = replace(lemma, actual_arg_to_bvar_map);
   }
+
+  m_defs[bind::fname(fapp)] = lemma_def;
+}
 
   Expr HornDbModel::getDef(Expr fapp)
   {
@@ -75,7 +70,8 @@ namespace seahorn
         Expr V = mkTerm<std::string> ("V", rel->efac ());
         Expr arg_i_type = bind::domainTy(rel, i);
         // XXX use bvars instead of constants
-        Expr var = bind::fapp(bind::constDecl(variant::variant(i, V), arg_i_type));
+        Expr var =
+            bind::fapp(bind::constDecl(op_variant::variant(i, V), arg_i_type));
         actual_args.push_back (var);
       }
       Expr fapp = bind::fapp(rel, actual_args);
@@ -83,4 +79,4 @@ namespace seahorn
       dbModel.addDef(fapp, def_app);
     }
   }
-}
+  } // namespace seahorn

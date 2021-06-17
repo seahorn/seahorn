@@ -10,6 +10,7 @@ using namespace expr;
 using namespace expr::op;
 
 namespace seahorn {
+namespace op_variant = expr::op::variant;
 // ----------------------------------------------------------------------
 //  FiniteMapArgsVisitor
 // ----------------------------------------------------------------------
@@ -18,7 +19,8 @@ namespace seahorn {
 // also used in FinteMapBodyVisitor
 static Expr mkVarGet(Expr mapConst, Expr k, Expr vTy) {
   assert(bind::isFiniteMapConst(mapConst));
-  return bind::mkConst(variant::variant(0, finite_map::get(mapConst, k)), vTy);
+  return bind::mkConst(op_variant::variant(0, finite_map::get(mapConst, k)),
+                       vTy);
 }
 
 // \brief rewrites a map into separate scalar variables. New variables are added
@@ -67,7 +69,8 @@ static Expr mkFappArgsCore(Expr fapp, Expr newFdecl, ExprVector &extraUnifs,
       if (bind::isFiniteMapConst(arg)) {
         map_var_name = arg;
       } else {
-        map_var_name = bind::mkConst(variant::variant(arg_count, fname), argTy);
+        map_var_name =
+            bind::mkConst(op_variant::variant(arg_count, fname), argTy);
         // if there is no name, we create a variant with the name of the
         // function, make new variable (same as normalization)
       }

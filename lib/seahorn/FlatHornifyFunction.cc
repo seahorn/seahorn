@@ -7,6 +7,7 @@
 #include "seahorn/Support/SeaDebug.h"
 
 namespace seahorn {
+namespace op_variant = expr::op::variant;
 
 void FlatSmallHornifyFunction::runOnFunction(Function &F) {
 
@@ -52,7 +53,7 @@ void FlatSmallHornifyFunction::runOnFunction(Function &F) {
     Expr name = mkTerm<const Function *>(&F, m_efac);
     // avoid clash with the names of summaries
     if (m_interproc)
-      name = variant::prime(name);
+      name = op_variant::prime(name);
 
     step = bind::fdecl(name, sorts);
     m_db.registerRelation(step);
@@ -259,7 +260,7 @@ void FlatLargeHornifyFunction::runOnFunction(Function &F) {
     Expr name = mkTerm<const Function *>(&F, m_efac);
     // avoid clash with the names of summaries
     if (m_interproc)
-      name = variant::prime(name);
+      name = op_variant::prime(name);
 
     step = bind::fdecl(name, sorts);
     m_db.registerRelation(step);

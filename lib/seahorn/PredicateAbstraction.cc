@@ -29,93 +29,95 @@ UserCandidatesFile ("pa-candidates-file",
 
 namespace seahorn
 {
-  char PredicateAbstraction::ID = 0;
+namespace op_variant = expr::op::variant;
+char PredicateAbstraction::ID = 0;
 
-  bool PredicateAbstraction::runOnModule (Module &M)
-  {
-    HornifyModule &hm = getAnalysis<HornifyModule> ();
-    PredicateAbstractionAnalysis pabs(hm);
-    Stats::resume ("Pabs solve");
-    
-    //load the Horn clause database
-    auto &db = hm.getHornClauseDB ();
-    if (db.hasQuery ()) {
-      bool all_true = true;
-      bool any_false= false;
+bool PredicateAbstraction::runOnModule(Module &M) {
+  HornifyModule &hm = getAnalysis<HornifyModule>();
+  PredicateAbstractionAnalysis pabs(hm);
+  Stats::resume("Pabs solve");
 
-      // check for trivial queries
-      for (auto q: db.getQueries ()) {
-	if (!isOpX<TRUE>(q)) all_true = false;
-	if (isOpX<FALSE>(q)) any_false = true;
-      }
+  // load the Horn clause database
+  auto &db = hm.getHornClauseDB();
+  if (db.hasQuery()) {
+    bool all_true = true;
+    bool any_false = false;
 
-      if (all_true) {
-	//outs () << "sat";
-      } else if (any_false) {
-	//outs () << "unsat";
-      } else {
-	db.buildIndexes ();
-	
-	//guess candidates
-	pabs.guessCandidate(db);
-	
-	HornDbModel oldModel;
-	
-	PredAbsHornModelConverter converter;
-	
-	//run main algorithm
-	HornClauseDB new_db(db.getExprFactory());
-	pabs.generateAbstractDB(db, new_db, converter);
-	
-	//initialize spacer based on new DB
-	m_fp.reset (new ZFixedPoint<EZ3> (hm.getZContext ()));
-	ZFixedPoint<EZ3> &fp = *m_fp;
-	ZParams<EZ3> params (hm.getZContext ());
-	params.set (":engine", "spacer");
-	// -- disable slicing so that we can use cover
-	params.set (":xform.slice", false);
-	params.set (":use_heavy_mev", true);
-	params.set (":reset_obligation_queue", true);
-	params.set (":pdr.flexible_trace", false);
-	params.set (":xform.inline-linear", false);
-	params.set (":xform.inline-eager", false);
-	// -- disable utvpi. It is unstable.
-	params.set (":pdr.utvpi", false);
-	// -- disable propagate_variable_equivalences in tail_simplifier
-	params.set (":xform.tail_simplifier_pve", false);
-	params.set (":xform.subsumption_checker", true);
-	//		params.set (":order_children", true);
-	//		params.set (":pdr.max_num_contexts", "500");
-	fp.set (params);
-	new_db.loadZFixedPoint (fp, false);
-	boost::tribool result = fp.query ();
-	
-	LOG("pabs-smt2", outs() << "SMT2: " << fp << "\n";);
-	
-	if (result) {
-	  outs () << "sat";
-	} else if (!result) {
-	  outs() << "unsat\n";
-	  HornDbModel absModel;
-	  initDBModelFromFP(absModel, new_db, fp);
-	  
-	  converter.convert(absModel, oldModel);
-	  LOG("pabs-debug", outs() << "FINAL RESULT:\n";);
-	  //Print invariants
-	  printInvars(M, oldModel);
-	} else {
-	  outs () << "unknown";
-	}
-      }
-    } else {
-      // no query so trivially unsat
-      //outs () << "unsat";      
+    // check for trivial queries
+    for (auto q : db.getQueries()) {
+      if (!isOpX<TRUE>(q))
+        all_true = false;
+      if (isOpX<FALSE>(q))
+        any_false = true;
     }
-    outs () << "\n";
-    Stats::stop("Pabs solve");
-    return false;
+
+    if (all_true) {
+      // outs () << "sat";
+    } else if (any_false) {
+      // outs () << "unsat";
+    } else {
+      db.buildIndexes();
+
+      // guess candidates
+      pabs.guessCandidate(db);
+
+      HornDbModel oldModel;
+
+      PredAbsHornModelConverter converter;
+
+      // run main algorithm
+      HornClauseDB new_db(db.getExprFactory());
+      pabs.generateAbstractDB(db, new_db, converter);
+
+      // initialize spacer based on new DB
+      m_fp.reset(new ZFixedPoint<EZ3>(hm.getZContext()));
+      ZFixedPoint<EZ3> &fp = *m_fp;
+      ZParams<EZ3> params(hm.getZContext());
+      params.set(":engine", "spacer");
+      // -- disable slicing so that we can use cover
+      params.set(":xform.slice", false);
+      params.set(":use_heavy_mev", true);
+      params.set(":reset_obligation_queue", true);
+      params.set(":pdr.flexible_trace", false);
+      params.set(":xform.inline-linear", false);
+      params.set(":xform.inline-eager", false);
+      // -- disable utvpi. It is unstable.
+      params.set(":pdr.utvpi", false);
+      // -- disable propagate_variable_equivalences in tail_simplifier
+      params.set(":xform.tail_simplifier_pve", false);
+      params.set(":xform.subsumption_checker", true);
+      //		params.set (":order_children", true);
+      //		params.set (":pdr.max_num_contexts", "500");
+      fp.set(params);
+      new_db.loadZFixedPoint(fp, false);
+      boost::tribool result = fp.query();
+
+      LOG("pabs-smt2", outs() << "SMT2: " << fp << "\n";);
+
+      if (result) {
+        outs() << "sat";
+      } else if (!result) {
+        outs() << "unsat\n";
+        HornDbModel absModel;
+        initDBModelFromFP(absModel, new_db, fp);
+
+        converter.convert(absModel, oldModel);
+        LOG("pabs-debug", outs() << "FINAL RESULT:\n";);
+        // Print invariants
+        printInvars(M, oldModel);
+      } else {
+        outs() << "unknown";
+      }
+    }
+  } else {
+    // no query so trivially unsat
+    // outs () << "unsat";
   }
-  
+  outs() << "\n";
+  Stats::stop("Pabs solve");
+  return false;
+}
+
   void PredicateAbstraction::getAnalysisUsage (AnalysisUsage &AU) const
   {
     AU.addRequired<HornifyModule> ();
@@ -186,7 +188,7 @@ namespace seahorn
       Expr old_fdecl_name = bind::fname(rel);
       //new pred name
       std::string postfix = "pabs";
-      Expr new_fdecl_name = variant::tag(old_fdecl_name, postfix);
+      Expr new_fdecl_name = op_variant::tag(old_fdecl_name, postfix);
       new_args.push_back(new_fdecl_name);
       //Push boolean types
       ExprVector term_vec = m_currentCandidates.find(rel)->second;
@@ -279,7 +281,13 @@ namespace seahorn
 
         for(int i=0; i<bind::domainSz(new_rule_body_rel); i++)
         {
-          Expr var_tag = variant::variant(pred_order, variant::variant(i, variant::tag(bind::fname(new_rule_body_rel), mkTerm<std::string> ("p", new_rule_body_rel->efac ())))); //noprime
+          Expr var_tag = op_variant::variant(
+              pred_order,
+              op_variant::variant(
+                  i, op_variant::tag(
+                         bind::fname(new_rule_body_rel),
+                         mkTerm<std::string>(
+                             "p", new_rule_body_rel->efac())))); // noprime
           Expr boolVar = bind::boolConst(var_tag);
           rule_vars.push_back(boolVar);
           new_rule_body_args.push_back(boolVar);
@@ -320,7 +328,13 @@ namespace seahorn
       relOccurrenceTimesMap[bind::fname(rule_head)] += 1;
       for(int i=0; i<bind::domainSz(new_rule_head_rel); i++)
       {
-        Expr var_tag = variant::variant(pred_order, variant::variant(i, variant::tag(bind::fname(new_rule_head_rel), mkTerm<std::string> ("p", new_rule_head_rel->efac ())))); //prime
+        Expr var_tag = op_variant::variant(
+            pred_order,
+            op_variant::variant(
+                i,
+                op_variant::tag(bind::fname(new_rule_head_rel),
+                                mkTerm<std::string>(
+                                    "p", new_rule_head_rel->efac())))); // prime
         Expr boolVar = bind::boolConst(var_tag);
         rule_vars.push_back(boolVar);
         new_rule_head_args.push_back(boolVar);
@@ -438,7 +452,8 @@ namespace seahorn
       ExprVector abs_arg_list;
       for(int i=0; i<bind::domainSz(abs_rel); i++)
       {
-        Expr boolVar = bind::boolConst(variant::variant(i, mkTerm<std::string>("b", orig_rel->efac())));
+        Expr boolVar = bind::boolConst(
+            op_variant::variant(i, mkTerm<std::string>("b", orig_rel->efac())));
         abs_arg_list.push_back(boolVar);
       }
       Expr abs_rel_app = bind::fapp(abs_rel, abs_arg_list);
@@ -452,7 +467,9 @@ namespace seahorn
       get_all_booleans(abs_def_app, std::back_inserter(bools));
       for(Expr boolvar: bools)
       {
-        Expr bool_bvar = bind::boolBVar(variant::variantNum(bind::fname(bind::fname(boolvar))), boolvar->efac());
+        Expr bool_bvar = bind::boolBVar(
+            op_variant::variantNum(bind::fname(bind::fname(boolvar))),
+            boolvar->efac());
         boolVarToBvarMap.insert(std::make_pair(boolvar, bool_bvar));
       }
       Expr abs_def = replace(abs_def_app, boolVarToBvarMap);
@@ -481,7 +498,9 @@ namespace seahorn
       for(int i=0; i<bind::domainSz(orig_rel); i++)
       {
         Expr arg_i_type = bind::domainTy(orig_rel, i);
-        Expr var = bind::fapp(bind::constDecl(variant::variant(i, mkTerm<std::string> ("V", orig_rel->efac ())), arg_i_type));
+        Expr var = bind::fapp(bind::constDecl(
+            op_variant::variant(i, mkTerm<std::string>("V", orig_rel->efac())),
+            arg_i_type));
         orig_fapp_args.push_back(var);
       }
       Expr orig_fapp = bind::fapp(orig_rel, orig_fapp_args);
@@ -494,7 +513,10 @@ namespace seahorn
       {
         int bvar_id = bind::bvarId(bvar);
         Expr bvar_type = bind::typeOf(bvar);
-        Expr var = bind::fapp(bind::constDecl(variant::variant(bvar_id, mkTerm<std::string> ("V", bvar->efac ())), bvar_type));
+        Expr var = bind::fapp(bind::constDecl(
+            op_variant::variant(bvar_id,
+                                mkTerm<std::string>("V", bvar->efac())),
+            bvar_type));
         bvarIdMap.insert(std::make_pair(bvar, var));
       }
       Expr orig_def_app = replace(orig_def, bvarIdMap);

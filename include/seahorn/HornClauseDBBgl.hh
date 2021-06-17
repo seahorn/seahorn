@@ -101,9 +101,10 @@ namespace boost
   inline std::pair<out_eit,out_eit> out_edges (expr::Expr e, const seahorn::HornClauseDBCallGraph &callgraph)
   {
     auto const &callees = callgraph.callees(e);
-    return std::make_pair
-        (make_transform_iterator (callees.begin(), seahorn::bgl::MkOutEdgePair (e)),
-         make_transform_iterator (callees.end(), seahorn::bgl::MkOutEdgePair (e)));
+    return std::make_pair(iterators::make_transform_iterator(
+                              callees.begin(), seahorn::bgl::MkOutEdgePair(e)),
+                          iterators::make_transform_iterator(
+                              callees.end(), seahorn::bgl::MkOutEdgePair(e)));
   }
   
   inline size_t out_degree (expr::Expr e, const seahorn::HornClauseDBCallGraph &callgraph)
@@ -112,9 +113,10 @@ namespace boost
   inline std::pair<in_eit, in_eit> in_edges (expr::Expr e, const seahorn::HornClauseDBCallGraph &callgraph)
   {
     auto const &callers = callgraph.callers(e);
-    return std::make_pair
-        (make_transform_iterator (callers.begin(), seahorn::bgl::MkInEdgePair (e)),
-         make_transform_iterator (callers.end(), seahorn::bgl::MkInEdgePair (e)));
+    return std::make_pair(iterators::make_transform_iterator(
+                              callers.begin(), seahorn::bgl::MkInEdgePair(e)),
+                          iterators::make_transform_iterator(
+                              callers.end(), seahorn::bgl::MkInEdgePair(e)));
   }
   
   inline size_t in_degree (expr::Expr e, const seahorn::HornClauseDBCallGraph &callgraph)

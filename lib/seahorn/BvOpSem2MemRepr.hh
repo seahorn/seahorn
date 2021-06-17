@@ -110,7 +110,8 @@ class OpSemMemHybridRepr : public OpSemMemArrayReprBase {
 public:
   OpSemMemHybridRepr(RawMemManagerCore &memManager, Bv2OpSemContext &ctx,
                      unsigned memCpyUnrollCnt)
-      : OpSemMemArrayReprBase(memManager, ctx, memCpyUnrollCnt) {}
+      : OpSemMemArrayReprBase(memManager, ctx, memCpyUnrollCnt),
+        m_cache(DagVisitMemCache()) {}
 
   /**
    * mem: 1. array const i.e. A (uninitialized)
@@ -123,6 +124,9 @@ public:
    *      ITE cond mem1 mem2 -> { return ite(cond, mem1[ptr], mem2[ptr]) }
    * **/
   Expr loadAlignedWordFromMem(PtrTy ptr, MemValTy mem) override;
+
+private:
+  DagVisitMemCache m_cache;
 };
 
 /// \brief Represent memory regions by lambda functions

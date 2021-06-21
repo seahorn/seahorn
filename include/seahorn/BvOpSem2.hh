@@ -10,9 +10,16 @@
 
 #include <boost/container/flat_set.hpp>
 
+// forward declarations
 namespace llvm {
 class GetElementPtrInst;
-}
+class LazyValueInfoWrapperPass;
+} // namespace llvm
+
+namespace clam {
+class CrabBuilderManager;
+class InterGlobalClam;
+} // namespace clam
 
 namespace seahorn {
 namespace details {
@@ -36,11 +43,23 @@ class Bv2OpSem : public OperationalSemantics {
   const TargetLibraryInfoWrapperPass *m_tliWrapper;
   const CanFail *m_canFail;
 
+  /// \brief lvi's map used for analysis
+  using lvi_func_map_t =
+      DenseMap<const llvm::Function *, LazyValueInfoWrapperPass *>;
+  std::unique_ptr<lvi_func_map_t> m_lvi_map;
+
+  //// \brief crab's cfg builder manager
+  std::unique_ptr<clam::CrabBuilderManager> m_cfg_builder_man;
+  //// \brief crab instance to solve alloc bounds
+  std::unique_ptr<clam::InterGlobalClam> m_crab_rng_solver;
+
 public:
   Bv2OpSem(ExprFactory &efac, Pass &pass, const DataLayout &dl,
            TrackLevel trackLvl = MEM);
 
   Bv2OpSem(const Bv2OpSem &o);
+
+  ~Bv2OpSem();
 
   const DataLayout &getTD() {
     assert(m_td);
@@ -148,5 +167,16 @@ public:
   void unhandledInst(const Instruction &inst,
                      seahorn::details::Bv2OpSemContext &ctx);
   void unhandledValue(const Value &v, seahorn::details::Bv2OpSemContext &ctx);
+
+  /// \brief Creates a crab's cfg builder manager
+  void initCrabAnalysis(const llvm::Module &M);
+  /// \brief Run crab analysis
+  void runCrabAnalysis();
+  /// \brief Get the range of an instruction by crab
+  const llvm::ConstantRange getCrabInstRng(const llvm::Instruction &I);
+  /// \brief Run LVI analysis
+  void runLVIAnalysis(const llvm::Function &F);
+  /// \brief Get the range of an instruction by LVI
+  const llvm::ConstantRange getLVIInstRng(llvm::Instruction &I);
 };
 } // namespace seahorn

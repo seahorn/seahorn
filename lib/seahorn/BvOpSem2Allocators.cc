@@ -10,6 +10,8 @@
 #include "seahorn/Support/SeaDebug.h"
 #include "seahorn/Support/SeaLog.hh"
 
+#include "clam/Clam.hh"
+
 namespace seahorn {
 namespace details {
 
@@ -296,7 +298,24 @@ public:
       preAlloc(inst, memSz, true);
     } else {
       // -- allocate max allowed for dynamically sized allocations
-      preAlloc(inst, m_maxSymbAllocSz, false);
+      // -- use inferred upper bound if crab analysis is performed
+      auto operand_inst = dyn_cast<llvm::Instruction>(inst.getOperand(0));
+      auto rangeValCrab = m_sem.getCrabInstRng(*operand_inst);
+      auto rangeValLVI = m_sem.getLVIInstRng(*operand_inst);
+      uint64_t ub_crab = rangeValCrab.getUpper().getLimitedValue();
+      uint64_t ub_lvi = rangeValLVI.getUpper().getLimitedValue();
+      // Choose the precise result
+      uint64_t ub_inferred = ub_crab <= ub_lvi ? ub_crab : ub_lvi;
+      LOG("opsem-rng", MSG << "Inferred upper bound for " << *operand_inst
+                           << ", Crab: " << ub_crab << ", LVI: " << ub_lvi;);
+      if (rangeValCrab.isFullSet() || ub_inferred >= UINT_MAX) {
+        // unkown memory size for allocation
+        // use max allowed size
+        preAlloc(inst, m_maxSymbAllocSz, false);
+      } else {
+        // use inferred (upper bound) size for allocation
+        preAlloc(inst, (unsigned)ub_inferred, true);
+      }
     }
   }
 

@@ -2,6 +2,8 @@
 #include "BvOpSem2ExtraWideMemMgr.hh"
 #include "BvOpSem2RawMemMgr.hh"
 
+#include "llvm/Analysis/LazyValueInfo.h"
+#include "llvm/Analysis/TargetLibraryInfo.h"
 #include "llvm/CodeGen/IntrinsicLowering.h"
 #include "llvm/IR/DebugInfo.h"
 #include "llvm/IR/DebugLoc.h"
@@ -24,6 +26,13 @@
 
 #include "BvOpSem2Context.hh"
 
+#include "clam/CfgBuilder.hh"
+#include "clam/Clam.hh"
+#include "clam/ClamQueryAPI.hh"
+#include "clam/SeaDsaHeapAbstraction.hh"
+
+#include "seadsa/ShadowMem.hh"
+
 #include <fstream>
 #include <memory>
 
@@ -33,6 +42,7 @@ using namespace seahorn::details;
 using gep_type_iterator = generic_gep_type_iterator<>;
 
 namespace seahorn {
+extern bool isUnifiedAssume(const Instruction &CI);
 namespace details {
 enum class VacCheckOptions { NONE, ANTE, ALL };
 }
@@ -133,6 +143,16 @@ static llvm::cl::opt<unsigned>
     MaxSizeGlobalVarInit("horn-bv2-max-gv-init-size",
                          llvm::cl::desc("Maximum size for global initializers"),
                          llvm::cl::init(0));
+
+static llvm::cl::opt<bool>
+    UseCrabInferRng("horn-bv2-crab-rng",
+                    llvm::cl::desc("Use crab to infer rng invariants"),
+                    llvm::cl::init(false));
+
+static llvm::cl::opt<bool> UseLVIInferRng(
+    "horn-bv2-lvi-rng",
+    llvm::cl::desc("Use LVI (LazyValueInfo) to infer rng invariants"),
+    llvm::cl::init(false));
 namespace {
 
 const Value *extractUniqueScalar(CallSite &cs) {
@@ -2166,6 +2186,11 @@ public:
 
   void visitModule(Module &M) {
     LOG("opsem.module", errs() << M << "\n";);
+    if (UseCrabInferRng) {
+      m_sem.initCrabAnalysis(M);
+      m_sem.runCrabAnalysis();
+    }
+
     m_ctx.onModuleEntry(M);
 
     for (const Function &fn : M.functions()) {
@@ -2496,6 +2521,8 @@ Expr Bv2OpSemContext::gep(Expr ptr, gep_type_iterator it,
 }
 
 void Bv2OpSemContext::onFunctionEntry(const Function &fn) {
+  if (UseLVIInferRng)
+    m_sem.runLVIAnalysis(fn);
   mem().onFunctionEntry(fn);
 }
 void Bv2OpSemContext::onModuleEntry(const Module &M) {
@@ -2719,6 +2746,7 @@ Bv2OpSem::Bv2OpSem(ExprFactory &efac, Pass &pass, const DataLayout &dl,
     : OperationalSemantics(efac), m_pass(pass), m_trackLvl(trackLvl),
       m_td(&dl) {
   m_canFail = pass.getAnalysisIfAvailable<CanFail>();
+  m_lvi_map = UseLVIInferRng ? std::make_unique<lvi_func_map_t>() : nullptr;
   auto *p = pass.getAnalysisIfAvailable<TargetLibraryInfoWrapperPass>();
   if (p)
     m_tliWrapper = p;
@@ -2742,6 +2770,8 @@ Expr Bv2OpSem::errorFlag(const BasicBlock &BB) {
     return falseE;
   return this->OperationalSemantics::errorFlag(BB);
 }
+
+Bv2OpSem::~Bv2OpSem() = default;
 
 void Bv2OpSem::exec(const BasicBlock &bb,
                     seahorn::details::Bv2OpSemContext &ctx) {
@@ -3180,6 +3210,76 @@ Optional<APInt> Bv2OpSem::agg(Type *aggTy,
   if (res.getBitWidth() < aggSize)
     res = res.zext(aggSize); // padding for last element
   return res;
+}
+
+void Bv2OpSem::initCrabAnalysis(const llvm::Module &M) {
+  // Get seadsa -- pointer analysis
+  auto &dsa_pass = m_pass.getAnalysis<seadsa::ShadowMemPass>().getShadowMem();
+  auto &dsa = dsa_pass.getDsaAnalysis();
+
+  // XXX: use of legacy operational semantics
+  auto &tli = m_pass.getAnalysis<TargetLibraryInfoWrapperPass>();
+
+  std::unique_ptr<clam::HeapAbstraction> heap_abs =
+      std::make_unique<clam::SeaDsaHeapAbstraction>(M, dsa);
+
+  // -- Set parameters for CFG
+  clam::CrabBuilderParams cfg_builder_params;
+  LOG("opsem-rng", cfg_builder_params.print_cfg = true;);
+  cfg_builder_params.setPrecision(clam::CrabBuilderPrecision::MEM);
+  cfg_builder_params.interprocedural = true;
+
+  m_cfg_builder_man = std::make_unique<clam::CrabBuilderManager>(
+      cfg_builder_params, tli, std::move(heap_abs));
+  // -- Initialize crab for solving ranges
+  m_crab_rng_solver =
+      std::make_unique<clam::InterGlobalClam>(M, *m_cfg_builder_man);
+}
+
+void Bv2OpSem::runCrabAnalysis() {
+  /// Set Crab parameters
+  clam::AnalysisParams aparams;
+  aparams.dom = clam::CrabDomain::INTERVALS;
+  aparams.run_inter = true;
+  aparams.check = clam::CheckerKind::NOCHECKS;
+  /// Run the Crab analysis
+  clam::ClamGlobalAnalysis::abs_dom_map_t assumptions;
+  LOG("opsem-rng", aparams.print_invars = true;);
+  m_crab_rng_solver->analyze(aparams, assumptions);
+}
+
+void Bv2OpSem::runLVIAnalysis(const Function &F) {
+  if (m_lvi_map) {
+    Function &fn = const_cast<Function &>(F);
+    LazyValueInfoWrapperPass *m_lvi =
+        &m_pass.getAnalysis<LazyValueInfoWrapperPass>(fn);
+    if (m_lvi) {
+      m_lvi_map->insert({&F, m_lvi});
+      LOG("opsem-rng", MSG << "Running LVI on function: " << F.getName(););
+    }
+  }
+}
+
+const llvm::ConstantRange Bv2OpSem::getCrabInstRng(const llvm::Instruction &I) {
+  unsigned IntWidth = I.getType()->getIntegerBitWidth();
+  if (!m_crab_rng_solver)
+    return llvm::ConstantRange::getFull(IntWidth);
+  return m_crab_rng_solver->range(I);
+}
+
+const llvm::ConstantRange Bv2OpSem::getLVIInstRng(llvm::Instruction &I) {
+  unsigned IntWidth = getDataLayout().getTypeSizeInBits(I.getType());
+  if (m_lvi_map) {
+    Function *fn = I.getFunction();
+    if (fn) {
+      auto it = m_lvi_map->find(fn);
+      if (it != m_lvi_map->end()) {
+        return it->second->getLVI().getConstantRange(dyn_cast<Value>(&I),
+                                                     I.getParent(), &I);
+      }
+    }
+  }
+  return llvm::ConstantRange::getFull(IntWidth);
 }
 
 } // namespace seahorn

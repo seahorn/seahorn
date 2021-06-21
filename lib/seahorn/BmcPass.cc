@@ -1,3 +1,4 @@
+#include "llvm/Analysis/LazyValueInfo.h"
 #include "llvm/Analysis/PostDominators.h"
 #include "llvm/Analysis/TargetLibraryInfo.h"
 #include "llvm/Bitcode/BitcodeWriter.h"
@@ -120,6 +121,8 @@ public:
   void getAnalysisUsage(AnalysisUsage &AU) const {
     AU.addRequired<TargetLibraryInfoWrapperPass>();
     AU.addRequired<seadsa::ShadowMemPass>();
+    AU.addRequired<LazyValueInfoWrapperPass>();
+    AU.addRequired<DominatorTreeWrapperPass>();
 
     AU.addRequired<CanFail>();
     AU.addRequired<NameValues>();

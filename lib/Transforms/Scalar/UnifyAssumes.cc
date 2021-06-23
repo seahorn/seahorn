@@ -23,6 +23,11 @@ static cl::opt<bool> EnableDae(
     cl::desc("Enabled eliminating dead asserts, i.e.,  verifier.assert(true)"),
     cl::init(false));
 
+static cl::opt<bool>
+    RMUnifiedAssumes("remove-unified-assumes",
+                     cl::desc("Deleting verifier.assume calls"),
+                     cl::init(true));
+
 namespace {
 class UnifyAssumesPass : public ModulePass {
 
@@ -31,6 +36,7 @@ private:
 
 public:
   static char ID;
+  static llvm::StringRef s_assumeUnifiedTag;
   UnifyAssumesPass() : ModulePass(ID) {}
 
   bool runOnModule(Module &M) override {
@@ -47,6 +53,7 @@ public:
   bool isAssumeCall(const CallInst &ci);
   bool isAssertCall(const CallInst &ci);
   CallInst *findSeahornFail(llvm::Function &F);
+  void markAssumeAsUnified(CallInst &CI);
   void getAnalysisUsage(AnalysisUsage &AU) const {
     AU.addRequired<seahorn::SeaBuiltinsInfoWrapperPass>();
     AU.addRequired<llvm::CallGraphWrapperPass>();
@@ -60,6 +67,7 @@ public:
 };
 
 char UnifyAssumesPass::ID = 0;
+llvm::StringRef UnifyAssumesPass::s_assumeUnifiedTag = "unified.assume";
 
 bool UnifyAssumesPass::isAssumeCall(const CallInst &ci) {
   using namespace seahorn;
@@ -141,9 +149,14 @@ bool UnifyAssumesPass::runOnFunction(Function &F) {
     processCallInst(*ci, *assumeFlag);
   }
 
-  // -- delete all assumes
-  for (auto ci : assumes)
-    ci->eraseFromParent();
+  // -- delete all assumes or
+  // -- distinguish assume by metadata
+  for (auto ci : assumes) {
+    if (!RMUnifiedAssumes)
+      markAssumeAsUnified(*ci);
+    else
+      ci->eraseFromParent();
+  }
 
   // -- process all asserts
   for (auto ci : asserts) {
@@ -173,6 +186,11 @@ bool UnifyAssumesPass::runOnFunction(Function &F) {
   PromoteMemToReg(assumeFlag, DT, &AC);
 
   return false;
+}
+
+void UnifyAssumesPass::markAssumeAsUnified(CallInst &CI) {
+  MDNode *meta = MDNode::get(CI.getContext(), None);
+  CI.setMetadata(s_assumeUnifiedTag, meta);
 }
 
 void UnifyAssumesPass::processAssertInst(CallInst &CI, AllocaInst &flag) {
@@ -234,4 +252,7 @@ void UnifyAssumesPass::processCallInst(CallInst &CI, AllocaInst &flag) {
 
 namespace seahorn {
 Pass *createUnifyAssumesPass() { return new UnifyAssumesPass(); };
+bool isUnifiedAssume(const Instruction &I) {
+  return I.hasMetadata(UnifyAssumesPass::s_assumeUnifiedTag);
+}
 } // namespace seahorn

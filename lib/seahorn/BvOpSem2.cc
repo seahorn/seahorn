@@ -1004,6 +1004,9 @@ public:
   }
 
   void visitVerifierAssumeCall(CallSite CS) {
+    // ignore assume with metadata: unified.assume
+    if (CS.getInstruction() && isUnifiedAssume(*CS.getInstruction()))
+      return;
     auto &f = *getCalledFunction(CS);
 
     Expr op = lookup(*CS.getArgument(0));

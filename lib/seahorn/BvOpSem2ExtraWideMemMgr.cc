@@ -16,10 +16,12 @@ static const unsigned int g_uninit_size = 0;
 static const unsigned int g_uninit_small = 0xDEAD;
 static const unsigned int g_num_slots = 3;
 
-template <class T>
-ExtraWideMemManager<T>::ExtraWideMemManager(Bv2OpSem &sem, Bv2OpSemContext &ctx,
-                                            unsigned ptrSz, unsigned wordSz,
-                                            bool useLambdas)
+template <class T, class W>
+ExtraWideMemManagerCore<T, W>::ExtraWideMemManagerCore(Bv2OpSem &sem,
+                                                       Bv2OpSemContext &ctx,
+                                                       unsigned ptrSz,
+                                                       unsigned wordSz,
+                                                       bool useLambdas)
     : MemManagerCore(sem, ctx, ptrSz, wordSz,
                      false /* this is a nop since we delegate to RawMemMgr */),
       m_main(sem, ctx, ptrSz, wordSz, useLambdas),
@@ -31,6 +33,12 @@ ExtraWideMemManager<T>::ExtraWideMemManager(Bv2OpSem &sem, Bv2OpSemContext &ctx,
   // Currently, we only support RawMemManagerCore or subclasses of it.
   static_assert(std::is_base_of<OpSemMemManagerBase, T>::value,
                 "T not derived from OpSemMemManagerBase");
+  static_assert(std::is_base_of<OpSemMemManagerBase, W>::value,
+                "W not derived from OpSemMemManagerBase");
+  BOOST_HANA_CONSTANT_ASSERT_MSG(
+      hana::equal(MemoryFeatures::has_objectmem(hana::type<T>{}),
+                  MemoryFeatures::has_objectmem(hana::type<W>{})),
+      "T and W should either both use ObjectMemory or both should not");
   LOG("opsem",
       INFO << "Trackable memory is "
            << hana::eval_if(
@@ -38,17 +46,17 @@ ExtraWideMemManager<T>::ExtraWideMemManager(Bv2OpSem &sem, Bv2OpSemContext &ctx,
                   [&] { return "present"; }, [&] { return "not present"; }));
 }
 
-template <class T>
-typename ExtraWideMemManager<T>::RawMemValTy
-ExtraWideMemManager<T>::setModified(ExtraWideMemManager::PtrTy ptr,
-                                    ExtraWideMemManager::MemValTy mem) {
+template <class T, class W>
+typename ExtraWideMemManagerCore<T, W>::RawMemValTy
+ExtraWideMemManagerCore<T, W>::setModified(
+    ExtraWideMemManagerCore::PtrTy ptr, ExtraWideMemManagerCore::MemValTy mem) {
   return setMetadata(MetadataKind::WRITE, ptr, mem, 1U /* val */).getRaw();
 }
 
-template <class T>
-Expr ExtraWideMemManager<T>::isMetadataSet(MetadataKind kind,
-                                           ExtraWideMemManager::PtrTy ptr,
-                                           ExtraWideMemManager::MemValTy mem) {
+template <class T, class W>
+Expr ExtraWideMemManagerCore<T, W>::isMetadataSet(
+    MetadataKind kind, ExtraWideMemManagerCore::PtrTy ptr,
+    ExtraWideMemManagerCore::MemValTy mem) {
   // The width of the value will be wordSz
   Expr val = getMetaData(kind, ptr, mem, 1);
   if (val == Expr()) {
@@ -57,14 +65,15 @@ Expr ExtraWideMemManager<T>::isMetadataSet(MetadataKind kind,
   auto sentinel = m_ctx.alu().ui(1, getMetaDataMemWordSzInBits());
   return m_ctx.alu().doEq(val, sentinel, getMetaDataMemWordSzInBits());
 }
-template <class T>
-Expr ExtraWideMemManager<T>::ptrEq(ExtraWideMemManager::PtrTy p1,
-                                   ExtraWideMemManager::PtrTy p2) const {
+template <class T, class W>
+Expr ExtraWideMemManagerCore<T, W>::ptrEq(
+    ExtraWideMemManagerCore::PtrTy p1,
+    ExtraWideMemManagerCore::PtrTy p2) const {
   return mk<AND>(m_main.ptrEq(p1.getBase(), p2.getBase()),
                  m_offset.ptrEq(p1.getOffset(), p2.getOffset()));
 }
-template <class T>
-Expr ExtraWideMemManager<T>::castPtrSzToSlotSz(const Expr val) const {
+template <class T, class W>
+Expr ExtraWideMemManagerCore<T, W>::castPtrSzToSlotSz(const Expr val) const {
   if (ptrSizeInBits() == g_slotBitWidth) {
     return val;
   } else if (g_slotBitWidth > ptrSizeInBits()) {
@@ -75,43 +84,57 @@ Expr ExtraWideMemManager<T>::castPtrSzToSlotSz(const Expr val) const {
     return m_ctx.alu().doTrunc(val, g_slotBitWidth);
   }
 }
-template <class T>
-const OpSemMemManager &ExtraWideMemManager<T>::getMainMemMgr() const {
+template <class T, class W>
+const OpSemMemManager &ExtraWideMemManagerCore<T, W>::getMainMemMgr() const {
   return m_main;
 }
-template <class T>
-Expr ExtraWideMemManager<T>::getSize(ExtraWideMemManager::PtrTy p) const {
+template <class T, class W>
+Expr ExtraWideMemManagerCore<T, W>::getSize(
+    ExtraWideMemManagerCore::PtrTy p) const {
   return p.getSize();
 }
-template <class T>
-typename ExtraWideMemManager<T>::RawPtrTy
-ExtraWideMemManager<T>::getAddressable(ExtraWideMemManager::PtrTy p) const {
-  // do concrete computation if possible
-  // NOTE: This is needed in ConstantEvaluator
-  // TODO: This computation will be incorrect if base ptr type is not a raw expr
-  // Alternative is for each mem mgr to have a getAddressable and to delegate
-  // to that manager rather than assuming a raw expr.
-  if (m_ctx.alu().isNum(p.getBase()) && m_ctx.alu().isNum(p.getOffset())) {
-    // -- base pointer is unsigned, but offset can be negative
-    unsigned ptrBase = m_ctx.alu().toNum(p.getBase()).get_ui();
-    signed offset = m_ctx.alu().toNum(p.getOffset()).get_si();
-    return m_ctx.alu().ui(ptrBase + offset, ptrSizeInBits());
-  }
-  return m_ctx.alu().doAdd(p.getBase(), p.getOffset(), ptrSizeInBits());
+
+template <class T, class W>
+typename ExtraWideMemManagerCore<T, W>::SubPtrTy
+ExtraWideMemManagerCore<T, W>::getAddressable(PtrTy p) const {
+  // TODO: Alternative is for each mem mgr to have a getAddressable and to
+  // delegate to that manager rather than assuming a raw expr. I don't want to
+  // go down that path because in that design I want to separate MemMgrs and
+  // PtrMgrs so that getAddressable: PtrTy(container) -> PtrTy(contained) can
+  // be done in a clean way. For now, I want to keep it simple.
+
+  // check that T has objectmem
+  return hana::eval_if(
+      MemoryFeatures::has_objectmem(hana::type<T>{}),
+      [&] { return strct::mk(p.getBase(), p.getOffset()); },
+      [&] {
+        // do concrete computation if possible
+        // NOTE: This is needed in ConstantEvaluator
+        if (m_ctx.alu().isNum(p.getBase()) &&
+            m_ctx.alu().isNum(p.getOffset())) {
+          // -- base pointer is unsigned, but offset can be negative
+          unsigned ptrBase = m_ctx.alu().toNum(p.getBase()).get_ui();
+          signed offset = m_ctx.alu().toNum(p.getOffset()).get_si();
+          return m_ctx.alu().ui(ptrBase + offset, ptrSizeInBits());
+        }
+        return m_ctx.alu().doAdd(p.getBase(), p.getOffset(), ptrSizeInBits());
+      });
 }
 
-template <class T> bool ExtraWideMemManager<T>::isPtrTyVal(Expr e) const {
+template <class T, class W>
+bool ExtraWideMemManagerCore<T, W>::isPtrTyVal(Expr e) const {
   return e && strct::isStructVal(e) && e->arity() == g_num_slots;
 }
 
-template <class T> bool ExtraWideMemManager<T>::isMemVal(Expr e) const {
+template <class T, class W>
+bool ExtraWideMemManagerCore<T, W>::isMemVal(Expr e) const {
   // Our base is a struct of three exprs
   return e && strct::isStructVal(e) && e->arity() == g_num_slots;
 }
 
-template <class T>
-Expr ExtraWideMemManager<T>::isDereferenceable(ExtraWideMemManager::PtrTy p,
-                                               Expr byteSz) {
+template <class T, class W>
+Expr ExtraWideMemManagerCore<T, W>::isDereferenceable(
+    ExtraWideMemManagerCore::PtrTy p, Expr byteSz) {
   // size should be >= byteSz + offset
   auto ptr_size = p.getSize();
   auto ptr_offset = p.getOffset();
@@ -134,64 +157,71 @@ Expr ExtraWideMemManager<T>::isDereferenceable(ExtraWideMemManager::PtrTy p,
                              g_slotBitWidth);
   }
 }
-template <class T>
-typename ExtraWideMemManager<T>::MemValTy
-ExtraWideMemManager<T>::zeroedMemory() const {
+template <class T, class W>
+typename ExtraWideMemManagerCore<T, W>::MemValTy
+ExtraWideMemManagerCore<T, W>::zeroedMemory() const {
   return MemValTy(m_main.zeroedMemory(), m_offset.zeroedMemory(),
                   m_size.zeroedMemory());
 }
 
-template <class T>
+template <class T, class W>
 std::pair<char *, unsigned int>
-ExtraWideMemManager<T>::getGlobalVariableInitValue(const GlobalVariable &gv) {
+ExtraWideMemManagerCore<T, W>::getGlobalVariableInitValue(
+    const GlobalVariable &gv) {
   return m_main.getGlobalVariableInitValue(gv);
 }
-template <class T> void ExtraWideMemManager<T>::dumpGlobalsMap() {
+template <class T, class W>
+void ExtraWideMemManagerCore<T, W>::dumpGlobalsMap() {
   m_main.dumpGlobalsMap();
 }
-template <class T> void ExtraWideMemManager<T>::onModuleEntry(const Module &M) {
+template <class T, class W>
+void ExtraWideMemManagerCore<T, W>::onModuleEntry(const Module &M) {
   m_main.onModuleEntry(M);
 }
-template <class T>
-void ExtraWideMemManager<T>::onFunctionEntry(const Function &fn) {
+template <class T, class W>
+void ExtraWideMemManagerCore<T, W>::onFunctionEntry(const Function &fn) {
   m_main.onFunctionEntry(fn);
 }
-template <class T>
-typename ExtraWideMemManager<T>::PtrTy
-ExtraWideMemManager<T>::gep(ExtraWideMemManager::PtrTy base,
-                            gep_type_iterator it, gep_type_iterator end) const {
+template <class T, class W>
+typename ExtraWideMemManagerCore<T, W>::PtrTy
+ExtraWideMemManagerCore<T, W>::gep(ExtraWideMemManagerCore::PtrTy base,
+                                   gep_type_iterator it,
+                                   gep_type_iterator end) const {
   // offset bitwidth is ptrSz
   Expr new_offset = m_sem.symbolicIndexedOffset(it, end, m_ctx);
   return PtrTy(base.getBase(),
                m_ctx.alu().doAdd(base.getOffset(), new_offset, ptrSizeInBits()),
                base.getSize());
 }
-template <class T>
-Expr ExtraWideMemManager<T>::ptrtoint(ExtraWideMemManager::PtrTy base,
-                                      const Type &ptrTy,
-                                      const Type &intTy) const {
+template <class T, class W>
+Expr ExtraWideMemManagerCore<T, W>::ptrtoint(
+    ExtraWideMemManagerCore::PtrTy base, const Type &ptrTy,
+    const Type &intTy) const {
   return m_main.ptrtoint(getAddressable(base), ptrTy, intTy);
 }
-template <class T>
-typename ExtraWideMemManager<T>::PtrTy
-ExtraWideMemManager<T>::inttoptr(Expr intVal, const Type &intTy,
-                                 const Type &ptrTy) const {
+template <class T, class W>
+typename ExtraWideMemManagerCore<T, W>::PtrTy
+ExtraWideMemManagerCore<T, W>::inttoptr(Expr intVal, const Type &intTy,
+                                        const Type &ptrTy) const {
   return PtrTy(m_main.inttoptr(intVal, intTy, ptrTy),
                m_ctx.alu().ui(0UL, ptrSizeInBits()), m_uninit_size);
 }
-template <class T>
-typename ExtraWideMemManager<T>::MemValTy ExtraWideMemManager<T>::MemFill(
-    ExtraWideMemManager::PtrTy dPtr, char *sPtr, unsigned int len,
-    ExtraWideMemManager::MemValTy mem, uint32_t align) {
+template <class T, class W>
+typename ExtraWideMemManagerCore<T, W>::MemValTy
+ExtraWideMemManagerCore<T, W>::MemFill(ExtraWideMemManagerCore::PtrTy dPtr,
+                                       char *sPtr, unsigned int len,
+                                       ExtraWideMemManagerCore::MemValTy mem,
+                                       uint32_t align) {
   RawMemValTy rawIn = setModified(dPtr, mem);
   return MemValTy(m_main.MemFill(getAddressable(dPtr), sPtr, len, rawIn, align),
                   mem.getOffset(), mem.getSize());
 }
-template <class T>
-typename ExtraWideMemManager<T>::MemValTy ExtraWideMemManager<T>::MemCpy(
-    ExtraWideMemManager::PtrTy dPtr, ExtraWideMemManager::PtrTy sPtr, Expr len,
-    ExtraWideMemManager::MemValTy memTrsfrRead,
-    ExtraWideMemManager::MemValTy memRead, uint32_t align) {
+template <class T, class W>
+typename ExtraWideMemManagerCore<T, W>::MemValTy
+ExtraWideMemManagerCore<T, W>::MemCpy(
+    ExtraWideMemManagerCore::PtrTy dPtr, ExtraWideMemManagerCore::PtrTy sPtr,
+    Expr len, ExtraWideMemManagerCore::MemValTy memTrsfrRead,
+    ExtraWideMemManagerCore::MemValTy memRead, uint32_t align) {
   // set metadata of dest memory
   RawMemValTy rawIn = setModified(dPtr, memRead);
   return MemValTy(
@@ -202,11 +232,12 @@ typename ExtraWideMemManager<T>::MemValTy ExtraWideMemManager<T>::MemCpy(
       m_size.MemCpy(getAddressable(dPtr), getAddressable(sPtr), len,
                     memTrsfrRead.getSize(), memRead.getSize(), align));
 }
-template <class T>
-typename ExtraWideMemManager<T>::MemValTy ExtraWideMemManager<T>::MemCpy(
-    ExtraWideMemManager::PtrTy dPtr, ExtraWideMemManager::PtrTy sPtr,
-    unsigned int len, ExtraWideMemManager::MemValTy memTrsfrRead,
-    ExtraWideMemManager::MemValTy memRead, uint32_t align) {
+template <class T, class W>
+typename ExtraWideMemManagerCore<T, W>::MemValTy
+ExtraWideMemManagerCore<T, W>::MemCpy(
+    ExtraWideMemManagerCore::PtrTy dPtr, ExtraWideMemManagerCore::PtrTy sPtr,
+    unsigned int len, ExtraWideMemManagerCore::MemValTy memTrsfrRead,
+    ExtraWideMemManagerCore::MemValTy memRead, uint32_t align) {
   // set metadata of dest memory
   RawMemValTy rawIn = setModified(dPtr, memRead);
   return MemValTy(
@@ -217,11 +248,12 @@ typename ExtraWideMemManager<T>::MemValTy ExtraWideMemManager<T>::MemCpy(
       m_size.MemCpy(getAddressable(dPtr), getAddressable(sPtr), len,
                     memTrsfrRead.getSize(), memRead.getSize(), align));
 }
-template <class T>
-typename ExtraWideMemManager<T>::MemValTy
-ExtraWideMemManager<T>::MemSet(ExtraWideMemManager::PtrTy base, Expr _val,
-                               Expr len, ExtraWideMemManager::MemValTy mem,
-                               uint32_t align) {
+template <class T, class W>
+typename ExtraWideMemManagerCore<T, W>::MemValTy
+ExtraWideMemManagerCore<T, W>::MemSet(ExtraWideMemManagerCore::PtrTy base,
+                                      Expr _val, Expr len,
+                                      ExtraWideMemManagerCore::MemValTy mem,
+                                      uint32_t align) {
   Expr offsetMem = mem.getOffset();
   if (m_ctx.alu().isNum(_val) && m_ctx.alu().toNum(_val) == 0) {
     offsetMem =
@@ -231,10 +263,12 @@ ExtraWideMemManager<T>::MemSet(ExtraWideMemManager::PtrTy base, Expr _val,
   return MemValTy(m_main.MemSet(getAddressable(base), _val, len, rawIn, align),
                   offsetMem, mem.getSize());
 }
-template <class T>
-typename ExtraWideMemManager<T>::MemValTy ExtraWideMemManager<T>::MemSet(
-    ExtraWideMemManager::PtrTy base, Expr _val, unsigned int len,
-    ExtraWideMemManager::MemValTy mem, uint32_t align) {
+template <class T, class W>
+typename ExtraWideMemManagerCore<T, W>::MemValTy
+ExtraWideMemManagerCore<T, W>::MemSet(ExtraWideMemManagerCore::PtrTy base,
+                                      Expr _val, unsigned int len,
+                                      ExtraWideMemManagerCore::MemValTy mem,
+                                      uint32_t align) {
   Expr offsetMem = mem.getOffset();
 
   // -- memset(0) is a common idiom to override everything, including
@@ -248,12 +282,11 @@ typename ExtraWideMemManager<T>::MemValTy ExtraWideMemManager<T>::MemSet(
   return MemValTy(m_main.MemSet(getAddressable(base), _val, len, rawIn, align),
                   offsetMem, mem.getSize());
 }
-template <class T>
-typename ExtraWideMemManager<T>::MemValTy
-ExtraWideMemManager<T>::storeValueToMem(Expr _val,
-                                        ExtraWideMemManager::PtrTy base,
-                                        ExtraWideMemManager::MemValTy memIn,
-                                        const Type &ty, uint32_t align) {
+template <class T, class W>
+typename ExtraWideMemManagerCore<T, W>::MemValTy
+ExtraWideMemManagerCore<T, W>::storeValueToMem(
+    Expr _val, ExtraWideMemManagerCore::PtrTy base,
+    ExtraWideMemManagerCore::MemValTy memIn, const Type &ty, uint32_t align) {
   assert(base.v());
   Expr val = _val;
   const unsigned byteSz =
@@ -290,10 +323,10 @@ ExtraWideMemManager<T>::storeValueToMem(Expr _val,
   }
   return res;
 }
-template <class T>
-Expr ExtraWideMemManager<T>::loadValueFromMem(ExtraWideMemManager::PtrTy base,
-                                              ExtraWideMemManager::MemValTy mem,
-                                              const Type &ty, uint64_t align) {
+template <class T, class W>
+Expr ExtraWideMemManagerCore<T, W>::loadValueFromMem(
+    ExtraWideMemManagerCore::PtrTy base, ExtraWideMemManagerCore::MemValTy mem,
+    const Type &ty, uint64_t align) {
   const unsigned byteSz =
       m_sem.getTD().getTypeStoreSize(const_cast<llvm::Type *>(&ty));
   ExprFactory &efac = base.getBase()->efac();
@@ -327,10 +360,12 @@ Expr ExtraWideMemManager<T>::loadValueFromMem(ExtraWideMemManager::PtrTy base,
   }
   return res;
 }
-template <class T>
-typename ExtraWideMemManager<T>::MemValTy ExtraWideMemManager<T>::storePtrToMem(
-    ExtraWideMemManager::PtrTy val, ExtraWideMemManager::PtrTy base,
-    ExtraWideMemManager::MemValTy mem, unsigned int byteSz, uint64_t align) {
+template <class T, class W>
+typename ExtraWideMemManagerCore<T, W>::MemValTy
+ExtraWideMemManagerCore<T, W>::storePtrToMem(
+    ExtraWideMemManagerCore::PtrTy val, ExtraWideMemManagerCore::PtrTy base,
+    ExtraWideMemManagerCore::MemValTy mem, unsigned int byteSz,
+    uint64_t align) {
   RawMemValTy rawIn = setModified(base, mem);
   RawMemValTy main = m_main.storePtrToMem(val.getBase(), getAddressable(base),
                                           rawIn, byteSz, align);
@@ -340,10 +375,12 @@ typename ExtraWideMemManager<T>::MemValTy ExtraWideMemManager<T>::storePtrToMem(
                                    mem.getSize(), g_slotByteWidth, align);
   return MemValTy(main, offset, size);
 }
-template <class T>
-typename ExtraWideMemManager<T>::MemValTy ExtraWideMemManager<T>::storeIntToMem(
-    Expr _val, ExtraWideMemManager::PtrTy base,
-    ExtraWideMemManager::MemValTy mem, unsigned int byteSz, uint64_t align) {
+template <class T, class W>
+typename ExtraWideMemManagerCore<T, W>::MemValTy
+ExtraWideMemManagerCore<T, W>::storeIntToMem(
+    Expr _val, ExtraWideMemManagerCore::PtrTy base,
+    ExtraWideMemManagerCore::MemValTy mem, unsigned int byteSz,
+    uint64_t align) {
   if (strct::isStructVal(_val)) {
     // LLVM can sometimes cast a ptr to int without ptrtoint
     // In such cases our VM will interpret the int rightly as a struct
@@ -372,12 +409,12 @@ typename ExtraWideMemManager<T>::MemValTy ExtraWideMemManager<T>::storeIntToMem(
       m_main.storeIntToMem(_val, getAddressable(base), rawIn, byteSz, align),
       mem.getOffset(), mem.getSize());
 }
-template <class T>
-typename ExtraWideMemManager<T>::PtrTy
-ExtraWideMemManager<T>::loadPtrFromMem(ExtraWideMemManager::PtrTy base,
-                                       ExtraWideMemManager::MemValTy mem,
-                                       unsigned int byteSz, uint64_t align) {
-  RawPtrTy rawVal =
+template <class T, class W>
+typename ExtraWideMemManagerCore<T, W>::PtrTy
+ExtraWideMemManagerCore<T, W>::loadPtrFromMem(
+    ExtraWideMemManagerCore::PtrTy base, ExtraWideMemManagerCore::MemValTy mem,
+    unsigned int byteSz, uint64_t align) {
+  SubPtrTy rawVal =
       m_main.loadPtrFromMem(getAddressable(base), mem.getRaw(), byteSz, align);
   Expr offsetVal = m_offset.loadIntFromMem(getAddressable(base),
                                            mem.getOffset(), byteSz, align);
@@ -385,18 +422,17 @@ ExtraWideMemManager<T>::loadPtrFromMem(ExtraWideMemManager::PtrTy base,
                                        g_slotByteWidth, align);
   return PtrTy(rawVal, offsetVal, sizeVal);
 }
-template <class T>
-Expr ExtraWideMemManager<T>::loadIntFromMem(ExtraWideMemManager::PtrTy base,
-                                            ExtraWideMemManager::MemValTy mem,
-                                            unsigned int byteSz,
-                                            uint64_t align) {
+template <class T, class W>
+Expr ExtraWideMemManagerCore<T, W>::loadIntFromMem(
+    ExtraWideMemManagerCore::PtrTy base, ExtraWideMemManagerCore::MemValTy mem,
+    unsigned int byteSz, uint64_t align) {
   return m_main.loadIntFromMem(getAddressable(base), mem.getRaw(), byteSz,
                                align);
 }
-template <class T>
-typename ExtraWideMemManager<T>::PtrTy
-ExtraWideMemManager<T>::ptrAdd(ExtraWideMemManager::PtrTy base,
-                               Expr offset) const {
+template <class T, class W>
+typename ExtraWideMemManagerCore<T, W>::PtrTy
+ExtraWideMemManagerCore<T, W>::ptrAdd(ExtraWideMemManagerCore::PtrTy base,
+                                      Expr offset) const {
   if (m_ctx.alu().isNum(offset)) {
     expr::mpz_class _offset = m_ctx.alu().toNum(offset);
     return ptrAdd(base, _offset.get_si());
@@ -407,10 +443,10 @@ ExtraWideMemManager<T>::ptrAdd(ExtraWideMemManager::PtrTy base,
 
   return PtrTy(base.getBase(), new_offset, base.getSize());
 }
-template <class T>
-typename ExtraWideMemManager<T>::PtrTy
-ExtraWideMemManager<T>::ptrAdd(ExtraWideMemManager::PtrTy base,
-                               int32_t _offset) const {
+template <class T, class W>
+typename ExtraWideMemManagerCore<T, W>::PtrTy
+ExtraWideMemManagerCore<T, W>::ptrAdd(ExtraWideMemManagerCore::PtrTy base,
+                                      int32_t _offset) const {
   // add offset to existing offset
   // base, size remain unchanged
   if (_offset == 0)
@@ -427,7 +463,8 @@ ExtraWideMemManager<T>::ptrAdd(ExtraWideMemManager::PtrTy base,
   }
   return PtrTy(base.getBase(), new_offset, base.getSize());
 }
-template <class T> Expr ExtraWideMemManager<T>::coerce(Expr sort, Expr val) {
+template <class T, class W>
+Expr ExtraWideMemManagerCore<T, W>::coerce(Expr sort, Expr val) {
   if (strct::isStructVal(val)) {
     // recursively coerce struct-ty
     llvm::SmallVector<Expr, g_num_slots> kids;
@@ -441,50 +478,56 @@ template <class T> Expr ExtraWideMemManager<T>::coerce(Expr sort, Expr val) {
   }
   return m_main.coerce(sort, val);
 }
-template <class T>
-typename ExtraWideMemManager<T>::PtrTy ExtraWideMemManager<T>::nullPtr() const {
+template <class T, class W>
+typename ExtraWideMemManagerCore<T, W>::PtrTy
+ExtraWideMemManagerCore<T, W>::nullPtr() const {
   return m_nullPtr;
 }
-template <class T>
-typename ExtraWideMemManager<T>::PtrTy ExtraWideMemManager<T>::freshPtr() {
+template <class T, class W>
+typename ExtraWideMemManagerCore<T, W>::PtrTy
+ExtraWideMemManagerCore<T, W>::freshPtr() {
   Expr name = op::variant::variant(m_id++, m_freshPtrName);
   return mkAlignedPtr(name, m_alignment);
 }
-template <class T>
-typename ExtraWideMemManager<T>::MemSortTy
-ExtraWideMemManager<T>::mkMemRegisterSort(const Instruction &inst) const {
+template <class T, class W>
+typename ExtraWideMemManagerCore<T, W>::MemSortTy
+ExtraWideMemManagerCore<T, W>::mkMemRegisterSort(
+    const Instruction &inst) const {
   RawMemSortTy mainSort = m_main.mkMemRegisterSort(inst);
   RawMemSortTy offsetSort = m_offset.mkMemRegisterSort(inst);
   RawMemSortTy sizeSort = m_size.mkMemRegisterSort(inst);
   return MemSortTy(mainSort, offsetSort, sizeSort);
 }
-template <class T>
-typename ExtraWideMemManager<T>::PtrSortTy
-ExtraWideMemManager<T>::mkPtrRegisterSort(const Function &fn) const {
+template <class T, class W>
+typename ExtraWideMemManagerCore<T, W>::PtrSortTy
+ExtraWideMemManagerCore<T, W>::mkPtrRegisterSort(const Function &fn) const {
   return ptrSort();
 }
-template <class T>
-typename ExtraWideMemManager<T>::PtrTy
-ExtraWideMemManager<T>::mkAlignedPtr(Expr name, uint32_t align) const {
+template <class T, class W>
+typename ExtraWideMemManagerCore<T, W>::PtrTy
+ExtraWideMemManagerCore<T, W>::mkAlignedPtr(Expr name, uint32_t align) const {
   m_size.mkAlignedPtr(name, align);
   return PtrTy(m_main.mkAlignedPtr(name, align),
                m_ctx.alu().ui(0UL, ptrSizeInBits()), m_uninit_size);
 }
-template <class T>
-typename ExtraWideMemManager<T>::PtrSortTy
-ExtraWideMemManager<T>::mkPtrRegisterSort(const Instruction &inst) const {
+template <class T, class W>
+typename ExtraWideMemManagerCore<T, W>::PtrSortTy
+ExtraWideMemManagerCore<T, W>::mkPtrRegisterSort(
+    const Instruction &inst) const {
   return PtrSortTy(m_main.mkPtrRegisterSort(inst),
                    m_offset.mkPtrRegisterSort(inst),
                    m_ctx.alu().intTy(g_slotBitWidth));
 }
-template <class T>
-typename ExtraWideMemManager<T>::PtrSortTy
-ExtraWideMemManager<T>::mkPtrRegisterSort(const GlobalVariable &gv) const {
+template <class T, class W>
+typename ExtraWideMemManagerCore<T, W>::PtrSortTy
+ExtraWideMemManagerCore<T, W>::mkPtrRegisterSort(
+    const GlobalVariable &gv) const {
   return ptrSort();
 }
-template <class T>
-typename ExtraWideMemManager<T>::PtrTy
-ExtraWideMemManager<T>::getPtrToGlobalVariable(const GlobalVariable &gv) {
+template <class T, class W>
+typename ExtraWideMemManagerCore<T, W>::PtrTy
+ExtraWideMemManagerCore<T, W>::getPtrToGlobalVariable(
+    const GlobalVariable &gv) {
   // TODO: Add a map of base to AllocInfo in allocator so that given any base,
   // we can get size of allocation.
   uint64_t gvSz = m_sem.getTD().getTypeAllocSize(gv.getValueType());
@@ -493,14 +536,14 @@ ExtraWideMemManager<T>::getPtrToGlobalVariable(const GlobalVariable &gv) {
                               ptrSizeInBits()),
                m_ctx.alu().ui(0UL, ptrSizeInBits()), bytesToSlotExpr(gvSz));
 }
-template <class T>
-void ExtraWideMemManager<T>::initGlobalVariable(
+template <class T, class W>
+void ExtraWideMemManagerCore<T, W>::initGlobalVariable(
     const GlobalVariable &gv) const {
   m_main.initGlobalVariable(gv);
 }
-template <class T>
-typename ExtraWideMemManager<T>::PtrTy
-ExtraWideMemManager<T>::getPtrToFunction(const Function &F) {
+template <class T, class W>
+typename ExtraWideMemManagerCore<T, W>::PtrTy
+ExtraWideMemManagerCore<T, W>::getPtrToFunction(const Function &F) {
   auto rawPtr = m_ctx.alu().ui(
       m_main.getMAllocator().getFunctionAddrAndSize(F, m_alignment).first,
       ptrSizeInBits());
@@ -509,17 +552,18 @@ ExtraWideMemManager<T>::getPtrToFunction(const Function &F) {
       g_slotBitWidth);
   return PtrTy(rawPtr, m_ctx.alu().ui(0UL, ptrSizeInBits()), size);
 }
-template <class T>
-typename ExtraWideMemManager<T>::PtrTy
-ExtraWideMemManager<T>::falloc(const Function &fn) {
+template <class T, class W>
+typename ExtraWideMemManagerCore<T, W>::PtrTy
+ExtraWideMemManagerCore<T, W>::falloc(const Function &fn) {
   auto range = m_main.getMAllocator().falloc(fn, m_alignment);
   return PtrTy(m_ctx.alu().ui(range.first, ptrSizeInBits()),
                m_ctx.alu().ui(0UL, ptrSizeInBits()),
                bytesToSlotExpr(range.second - range.first));
 }
-template <class T>
-typename ExtraWideMemManager<T>::PtrTy
-ExtraWideMemManager<T>::galloc(const GlobalVariable &gv, uint32_t align) {
+template <class T, class W>
+typename ExtraWideMemManagerCore<T, W>::PtrTy
+ExtraWideMemManagerCore<T, W>::galloc(const GlobalVariable &gv,
+                                      uint32_t align) {
   uint64_t gvSz = m_sem.getTD().getTypeAllocSize(gv.getValueType());
   auto range =
       m_main.getMAllocator().galloc(gv, gvSz, std::max(align, m_alignment));
@@ -527,35 +571,36 @@ ExtraWideMemManager<T>::galloc(const GlobalVariable &gv, uint32_t align) {
                m_ctx.alu().ui(0UL, ptrSizeInBits()),
                bytesToSlotExpr(range.second - range.first));
 }
-template <class T>
-typename ExtraWideMemManager<T>::PtrTy
-ExtraWideMemManager<T>::halloc(Expr bytes, uint32_t align) {
+template <class T, class W>
+typename ExtraWideMemManagerCore<T, W>::PtrTy
+ExtraWideMemManagerCore<T, W>::halloc(Expr bytes, uint32_t align) {
   PtrTy res = freshPtr();
   LOG("opsem", WARN << "halloc() not implemented!\n");
   return res;
 }
-template <class T>
-typename ExtraWideMemManager<T>::PtrTy
-ExtraWideMemManager<T>::halloc(unsigned int _bytes, uint32_t align) {
+template <class T, class W>
+typename ExtraWideMemManagerCore<T, W>::PtrTy
+ExtraWideMemManagerCore<T, W>::halloc(unsigned int _bytes, uint32_t align) {
   PtrTy res = freshPtr();
   LOG("opsem", WARN << "halloc() not implemented!\n");
   return res;
 }
-template <class T>
-typename ExtraWideMemManager<T>::PtrTy ExtraWideMemManager<T>::brk0Ptr() {
+template <class T, class W>
+typename ExtraWideMemManagerCore<T, W>::PtrTy
+ExtraWideMemManagerCore<T, W>::brk0Ptr() {
   return PtrTy(m_main.brk0Ptr(), m_ctx.alu().ui(0UL, ptrSizeInBits()),
                m_uninit_size);
 }
-template <class T>
-typename ExtraWideMemManager<T>::PtrTy
-ExtraWideMemManager<T>::mkStackPtr(unsigned int offset) {
+template <class T, class W>
+typename ExtraWideMemManagerCore<T, W>::PtrTy
+ExtraWideMemManagerCore<T, W>::mkStackPtr(unsigned int offset) {
   return PtrTy(m_main.mkStackPtr(offset), m_ctx.alu().ui(0UL, ptrSizeInBits()),
                m_uninit_size);
 }
-template <class T>
-typename ExtraWideMemManager<T>::PtrTy
-ExtraWideMemManager<T>::salloc(Expr elmts, unsigned int typeSz,
-                               uint32_t align) {
+template <class T, class W>
+typename ExtraWideMemManagerCore<T, W>::PtrTy
+ExtraWideMemManagerCore<T, W>::salloc(Expr elmts, unsigned int typeSz,
+                                      uint32_t align) {
   align = std::max(align, m_alignment);
 
   // -- compute number of bytes needed
@@ -580,9 +625,9 @@ ExtraWideMemManager<T>::salloc(Expr elmts, unsigned int typeSz,
   return PtrTy(mkStackPtr(region.second).getBase(),
                m_ctx.alu().ui(0UL, ptrSizeInBits()), bytes);
 }
-template <class T>
-typename ExtraWideMemManager<T>::PtrTy
-ExtraWideMemManager<T>::salloc(unsigned int bytes, uint32_t align) {
+template <class T, class W>
+typename ExtraWideMemManagerCore<T, W>::PtrTy
+ExtraWideMemManagerCore<T, W>::salloc(unsigned int bytes, uint32_t align) {
   assert(isa<AllocaInst>(m_ctx.getCurrentInst()));
   align = std::max(align, m_alignment);
   auto region = m_main.getMAllocator().salloc(bytes, align);
@@ -592,52 +637,51 @@ ExtraWideMemManager<T>::salloc(unsigned int bytes, uint32_t align) {
                m_ctx.alu().ui(0UL, ptrSizeInBits()),
                bytesToSlotExpr(std::min(region.second - region.first, bytes)));
 }
-template <class T>
-typename ExtraWideMemManager<T>::PtrSortTy
-ExtraWideMemManager<T>::ptrSort() const {
+template <class T, class W>
+typename ExtraWideMemManagerCore<T, W>::PtrSortTy
+ExtraWideMemManagerCore<T, W>::ptrSort() const {
   return PtrSortTy(m_main.ptrSort(), m_offset.ptrSort(),
                    m_ctx.alu().intTy(g_slotBitWidth));
 }
-template <class T>
-Expr ExtraWideMemManager<T>::bytesToSlotExpr(unsigned int bytes) {
+template <class T, class W>
+Expr ExtraWideMemManagerCore<T, W>::bytesToSlotExpr(unsigned int bytes) {
   return m_ctx.alu().ui(bytes, g_slotBitWidth);
 }
-template <class T>
-typename ExtraWideMemManager<T>::MemValTy
-ExtraWideMemManager<T>::memsetMetaData(MetadataKind kind,
-                                       ExtraWideMemManager::PtrTy ptr,
-                                       unsigned int len,
-                                       ExtraWideMemManager::MemValTy memIn,
-                                       unsigned int val) {
+template <class T, class W>
+typename ExtraWideMemManagerCore<T, W>::MemValTy
+ExtraWideMemManagerCore<T, W>::memsetMetaData(MetadataKind kind, PtrTy ptr,
+                                              unsigned int len, MemValTy memIn,
+                                              unsigned int val) {
   auto rawOut =
       m_main.memsetMetaData(kind, ptr.getBase(), len, memIn.getRaw(), val);
   return MemValTy(rawOut, memIn.getOffset(), memIn.getSize());
 }
-template <class T>
-typename ExtraWideMemManager<T>::MemValTy
-ExtraWideMemManager<T>::memsetMetaData(MetadataKind kind,
-                                       ExtraWideMemManager::PtrTy ptr, Expr len,
-                                       ExtraWideMemManager::MemValTy memIn,
-                                       unsigned int val) {
+template <class T, class W>
+typename ExtraWideMemManagerCore<T, W>::MemValTy
+ExtraWideMemManagerCore<T, W>::memsetMetaData(MetadataKind kind, PtrTy ptr,
+                                              Expr len, MemValTy memIn,
+                                              unsigned int val) {
   auto rawOut =
       m_main.memsetMetaData(kind, ptr.getBase(), len, memIn.getRaw(), val);
   return MemValTy(rawOut, memIn.getOffset(), memIn.getSize());
 }
 
-template <class T>
-Expr ExtraWideMemManager<T>::getMetaData(MetadataKind kind, PtrTy ptr,
-                                         MemValTy memIn, unsigned int byteSz) {
+template <class T, class W>
+Expr ExtraWideMemManagerCore<T, W>::getMetaData(MetadataKind kind, PtrTy ptr,
+                                                MemValTy memIn,
+                                                unsigned int byteSz) {
   return m_main.getMetaData(kind, ptr.getBase(), memIn.getRaw(), byteSz);
 }
 
-template <class T>
-unsigned int ExtraWideMemManager<T>::getMetaDataMemWordSzInBits() {
+template <class T, class W>
+unsigned int ExtraWideMemManagerCore<T, W>::getMetaDataMemWordSzInBits() {
   return m_main.getMetaDataMemWordSzInBits();
 }
-template <class T>
-typename ExtraWideMemManager<T>::MemValTy ExtraWideMemManager<T>::setMetadata(
-    MetadataKind kind, ExtraWideMemManager::PtrTy ptr,
-    ExtraWideMemManager::MemValTy mem, unsigned val) {
+template <class T, class W>
+typename ExtraWideMemManagerCore<T, W>::MemValTy
+ExtraWideMemManagerCore<T, W>::setMetadata(
+    MetadataKind kind, ExtraWideMemManagerCore::PtrTy ptr,
+    ExtraWideMemManagerCore::MemValTy mem, unsigned val) {
   if (!m_ctx.isTrackingOn() && kind != MetadataKind::ALLOC) {
     LOG("opsem.memtrack.verbose",
         WARN << "Ignoring setMetadata();Memory tracking is off"
@@ -646,62 +690,73 @@ typename ExtraWideMemManager<T>::MemValTy ExtraWideMemManager<T>::setMetadata(
   }
   return memsetMetaData(kind, ptr, 1 /* len */, mem, val);
 }
-template <class T>
-Expr ExtraWideMemManager<T>::ptrUlt(ExtraWideMemManager::PtrTy p1,
-                                    ExtraWideMemManager::PtrTy p2) const {
+template <class T, class W>
+Expr ExtraWideMemManagerCore<T, W>::ptrUlt(
+    ExtraWideMemManagerCore::PtrTy p1,
+    ExtraWideMemManagerCore::PtrTy p2) const {
   return m_main.ptrUlt(getAddressable(p1), getAddressable(p2));
 }
 
-template <class T>
-Expr ExtraWideMemManager<T>::ptrSlt(ExtraWideMemManager::PtrTy p1,
-                                    ExtraWideMemManager::PtrTy p2) const {
+template <class T, class W>
+Expr ExtraWideMemManagerCore<T, W>::ptrSlt(
+    ExtraWideMemManagerCore::PtrTy p1,
+    ExtraWideMemManagerCore::PtrTy p2) const {
   return m_main.ptrSlt(getAddressable(p1), getAddressable(p2));
 }
-template <class T>
-Expr ExtraWideMemManager<T>::ptrUle(ExtraWideMemManager::PtrTy p1,
-                                    ExtraWideMemManager::PtrTy p2) const {
+template <class T, class W>
+Expr ExtraWideMemManagerCore<T, W>::ptrUle(
+    ExtraWideMemManagerCore::PtrTy p1,
+    ExtraWideMemManagerCore::PtrTy p2) const {
   return m_main.ptrUle(getAddressable(p1), getAddressable(p2));
 }
-template <class T>
-Expr ExtraWideMemManager<T>::ptrSle(ExtraWideMemManager::PtrTy p1,
-                                    ExtraWideMemManager::PtrTy p2) const {
+template <class T, class W>
+Expr ExtraWideMemManagerCore<T, W>::ptrSle(
+    ExtraWideMemManagerCore::PtrTy p1,
+    ExtraWideMemManagerCore::PtrTy p2) const {
   return m_main.ptrSle(getAddressable(p1), getAddressable(p2));
 }
-template <class T>
-Expr ExtraWideMemManager<T>::ptrUgt(ExtraWideMemManager::PtrTy p1,
-                                    ExtraWideMemManager::PtrTy p2) const {
+template <class T, class W>
+Expr ExtraWideMemManagerCore<T, W>::ptrUgt(
+    ExtraWideMemManagerCore::PtrTy p1,
+    ExtraWideMemManagerCore::PtrTy p2) const {
   return m_main.ptrUgt(getAddressable(p1), getAddressable(p2));
 }
-template <class T>
-Expr ExtraWideMemManager<T>::ptrSgt(ExtraWideMemManager::PtrTy p1,
-                                    ExtraWideMemManager::PtrTy p2) const {
+template <class T, class W>
+Expr ExtraWideMemManagerCore<T, W>::ptrSgt(
+    ExtraWideMemManagerCore::PtrTy p1,
+    ExtraWideMemManagerCore::PtrTy p2) const {
   return m_main.ptrSgt(getAddressable(p1), getAddressable(p2));
 }
-template <class T>
-Expr ExtraWideMemManager<T>::ptrUge(ExtraWideMemManager::PtrTy p1,
-                                    ExtraWideMemManager::PtrTy p2) const {
+template <class T, class W>
+Expr ExtraWideMemManagerCore<T, W>::ptrUge(
+    ExtraWideMemManagerCore::PtrTy p1,
+    ExtraWideMemManagerCore::PtrTy p2) const {
   return m_main.ptrUge(getAddressable(p1), getAddressable(p2));
 }
-template <class T>
-Expr ExtraWideMemManager<T>::ptrSge(ExtraWideMemManager::PtrTy p1,
-                                    ExtraWideMemManager::PtrTy p2) const {
+template <class T, class W>
+Expr ExtraWideMemManagerCore<T, W>::ptrSge(
+    ExtraWideMemManagerCore::PtrTy p1,
+    ExtraWideMemManagerCore::PtrTy p2) const {
   return m_main.ptrSge(getAddressable(p1), getAddressable(p2));
 }
-template <class T>
-Expr ExtraWideMemManager<T>::ptrNe(ExtraWideMemManager::PtrTy p1,
-                                   ExtraWideMemManager::PtrTy p2) const {
+template <class T, class W>
+Expr ExtraWideMemManagerCore<T, W>::ptrNe(
+    ExtraWideMemManagerCore::PtrTy p1,
+    ExtraWideMemManagerCore::PtrTy p2) const {
   return m_main.ptrNe(getAddressable(p1), getAddressable(p2));
 }
-template <class T>
-Expr ExtraWideMemManager<T>::ptrSub(ExtraWideMemManager::PtrTy p1,
-                                    ExtraWideMemManager::PtrTy p2) const {
+template <class T, class W>
+Expr ExtraWideMemManagerCore<T, W>::ptrSub(
+    ExtraWideMemManagerCore::PtrTy p1,
+    ExtraWideMemManagerCore::PtrTy p2) const {
   return m_main.ptrSub(getAddressable(p1), getAddressable(p2));
 }
 
 OpSemMemManager *mkExtraWideMemManager(Bv2OpSem &sem, Bv2OpSemContext &ctx,
                                        unsigned int ptrSz, unsigned int wordSz,
                                        bool useLambdas) {
-  return new OpSemMemManagerMixin<ExtraWideMemManager<RawMemManager>>(
+  return new OpSemMemManagerMixin<
+      ExtraWideMemManagerCore<RawMemManager, RawMemManager>>(
       sem, ctx, ptrSz, wordSz, useLambdas);
 }
 OpSemMemManager *mkTrackingExtraWideMemManager(Bv2OpSem &sem,
@@ -710,12 +765,12 @@ OpSemMemManager *mkTrackingExtraWideMemManager(Bv2OpSem &sem,
                                                unsigned int wordSz,
                                                bool useLambdas) {
   return new OpSemMemManagerMixin<
-      ExtraWideMemManager<OpSemMemManagerMixin<TrackingRawMemManager>>>(
+      ExtraWideMemManagerCore<TrackingRawMemManager, RawMemManager>>(
       sem, ctx, ptrSz, wordSz, useLambdas);
 }
 
-template class ExtraWideMemManager<RawMemManager>;
-template class ExtraWideMemManager<OpSemMemManagerMixin<TrackingRawMemManager>>;
+template class ExtraWideMemManagerCore<RawMemManager, RawMemManager>;
+template class ExtraWideMemManagerCore<TrackingRawMemManager, RawMemManager>;
 
 } // namespace details
 } // namespace seahorn

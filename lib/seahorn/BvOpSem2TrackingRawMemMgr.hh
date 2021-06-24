@@ -22,19 +22,21 @@ namespace details {
 // Currently this implementation has a metadata memory word size of 1 byte.
 // For every byte written to conventional memory, we set the corresponding
 // metadata memory address to value 1.
-class TrackingRawMemManager : public MemManagerCore {
+template <class T> class TrackingMemManagerCore : public MemManagerCore {
 private:
-  RawMemManager m_main;
-  RawMemManager m_w_metadata;
-  RawMemManager m_r_metadata;
-  RawMemManager m_a_metadata;
+  T m_main;
+  T m_w_metadata;
+  T m_r_metadata;
+  T m_a_metadata;
 
   // All accesses to metadata memory managers should be through this map
-  std::map<MetadataKind, RawMemManager *> m_metadata_map;
+  std::map<MetadataKind, T *> m_metadata_map;
 
 public:
   // This memory manager supports tracking
   using TrackingTag = MemoryFeatures::Tracking_tag;
+  using ObjectMemTag = typename T::ObjectMemTag;
+
   using FatMemTag = int;
   using WideMemTag = int;
 
@@ -42,11 +44,11 @@ public:
   static const unsigned int g_MetadataByteWidth;
   static const unsigned int g_num_slots;
 
-  using PtrTy = OpSemMemManager::PtrTy;
-  using PtrSortTy = OpSemMemManager::PtrSortTy;
-  using MemRegTy = OpSemMemManager::MemRegTy;
-  using RawMemValTy = OpSemMemManager::MemValTy;
-  using RawMemSortTy = OpSemMemManager::MemSortTy;
+  using PtrTy = typename T::PtrTy;
+  using PtrSortTy = typename T::PtrSortTy;
+  using MemRegTy = typename T::MemRegTy;
+  using RawMemValTy = typename T::MemValTy;
+  using RawMemSortTy = typename T::MemSortTy;
 
   struct MemValTyImpl {
     // The order of metadata in a struct expr is expected to be the same as
@@ -143,13 +145,14 @@ public:
   using MemValTy = MemValTyImpl;
   using MemSortTy = MemSortTyImpl;
 
-  TrackingRawMemManager(Bv2OpSem &sem, Bv2OpSemContext &ctx, unsigned ptrSz,
-                        unsigned wordSz, bool useLambdas);
+  TrackingMemManagerCore(Bv2OpSem &sem, Bv2OpSemContext &ctx, unsigned ptrSz,
+                         unsigned wordSz, bool useLambdas);
 
-  TrackingRawMemManager(Bv2OpSem &sem, Bv2OpSemContext &ctx, unsigned ptrSz,
-                        unsigned wordSz, bool useLambdas, bool ignoreAlignment);
+  TrackingMemManagerCore(Bv2OpSem &sem, Bv2OpSemContext &ctx, unsigned ptrSz,
+                         unsigned wordSz, bool useLambdas,
+                         bool ignoreAlignment);
 
-  ~TrackingRawMemManager() = default;
+  ~TrackingMemManagerCore() = default;
 
   OpSemAllocator &getMAllocator() const { return m_main.getMAllocator(); }
 
@@ -201,14 +204,14 @@ public:
 
   PtrTy ptrAdd(PtrTy ptr, Expr offset) const;
 
-  TrackingRawMemManager::MemValTy memsetMetaData(MetadataKind kind, PtrTy ptr,
-                                                 unsigned int len,
-                                                 MemValTy memIn,
-                                                 unsigned int val);
+  TrackingMemManagerCore::MemValTy memsetMetaData(MetadataKind kind, PtrTy ptr,
+                                                  unsigned int len,
+                                                  MemValTy memIn,
+                                                  unsigned int val);
 
-  TrackingRawMemManager::MemValTy memsetMetaData(MetadataKind kind, PtrTy ptr,
-                                                 Expr len, MemValTy memIn,
-                                                 unsigned int val);
+  TrackingMemManagerCore::MemValTy memsetMetaData(MetadataKind kind, PtrTy ptr,
+                                                  Expr len, MemValTy memIn,
+                                                  unsigned int val);
 
   Expr getMetaData(MetadataKind kind, PtrTy ptr, MemValTy memIn,
                    unsigned int byteSz);
@@ -295,10 +298,17 @@ public:
 
   bool isMemVal(Expr e) const;
 
-  TrackingRawMemManager::MemValTy
-  setMetadata(MetadataKind kind, TrackingRawMemManager::PtrTy p,
-              TrackingRawMemManager::MemValTy mem, unsigned val);
+  TrackingMemManagerCore::MemValTy
+  setMetadata(MetadataKind kind, TrackingMemManagerCore::PtrTy p,
+              TrackingMemManagerCore::MemValTy mem, unsigned val);
 };
+
+OpSemMemManager *mkTrackingRawMemManager(Bv2OpSem &sem, Bv2OpSemContext &ctx,
+                                         unsigned ptrSz, unsigned wordSz,
+                                         bool useLambdas);
+
+using TrackingRawMemManager =
+    OpSemMemManagerMixin<TrackingMemManagerCore<RawMemManager>>;
 
 } // namespace details
 } // namespace seahorn

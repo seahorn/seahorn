@@ -3,146 +3,187 @@
 namespace seahorn {
 namespace details {
 
-const unsigned int TrackingRawMemManager::g_MetadataBitWidth = 8;
-const unsigned int TrackingRawMemManager::g_MetadataByteWidth =
-    TrackingRawMemManager::g_MetadataBitWidth / 8;
-const unsigned int TrackingRawMemManager::g_num_slots = 4;
+template <class T>
+const unsigned int TrackingMemManagerCore<T>::g_MetadataBitWidth = 8;
 
-TrackingRawMemManager::TrackingRawMemManager(Bv2OpSem &sem,
-                                             Bv2OpSemContext &ctx,
-                                             unsigned ptrSz, unsigned wordSz,
-                                             bool useLambdas)
+template <class T>
+const unsigned int TrackingMemManagerCore<T>::g_MetadataByteWidth =
+    TrackingRawMemManager::g_MetadataBitWidth / 8;
+
+template <class T>
+const unsigned int TrackingMemManagerCore<T>::g_num_slots = 4;
+
+template <class T>
+TrackingMemManagerCore<T>::TrackingMemManagerCore(Bv2OpSem &sem,
+                                                  Bv2OpSemContext &ctx,
+                                                  unsigned ptrSz,
+                                                  unsigned wordSz,
+                                                  bool useLambdas)
     : MemManagerCore(sem, ctx, ptrSz, wordSz,
                      false /* this is a nop since we delegate to RawMemMgr */),
       m_main(sem, ctx, ptrSz, wordSz, useLambdas),
-      m_w_metadata(sem, ctx, ptrSz, TrackingRawMemManager::g_MetadataByteWidth,
+      m_w_metadata(sem, ctx, ptrSz, TrackingMemManagerCore::g_MetadataByteWidth,
                    useLambdas, true),
-      m_r_metadata(sem, ctx, ptrSz, TrackingRawMemManager::g_MetadataByteWidth,
+      m_r_metadata(sem, ctx, ptrSz, TrackingMemManagerCore::g_MetadataByteWidth,
                    useLambdas, true),
-      m_a_metadata(sem, ctx, ptrSz, TrackingRawMemManager::g_MetadataByteWidth,
+      m_a_metadata(sem, ctx, ptrSz, TrackingMemManagerCore::g_MetadataByteWidth,
                    useLambdas, true) {
   m_metadata_map = {
       {MetadataKind::READ, &m_r_metadata},
       {MetadataKind::WRITE, &m_w_metadata},
       {MetadataKind::ALLOC, &m_a_metadata},
   };
+  // Currently, we only support RawMemManagerCore or subclasses of it.
+  static_assert(std::is_base_of<OpSemMemManagerBase, T>::value,
+                "T not derived from OpSemMemManagerBase");
 }
 
-TrackingRawMemManager::TrackingRawMemManager(Bv2OpSem &sem,
-                                             Bv2OpSemContext &ctx,
-                                             unsigned ptrSz, unsigned wordSz,
-                                             bool useLambdas,
-                                             bool ignoreAlignment)
+template <class T>
+TrackingMemManagerCore<T>::TrackingMemManagerCore(
+    Bv2OpSem &sem, Bv2OpSemContext &ctx, unsigned ptrSz, unsigned wordSz,
+    bool useLambdas, bool ignoreAlignment)
     : MemManagerCore(sem, ctx, ptrSz, wordSz,
                      false /* this is a nop since we delegate to RawMemMgr */),
       m_main(sem, ctx, ptrSz, wordSz, useLambdas, ignoreAlignment),
-      m_w_metadata(sem, ctx, ptrSz, TrackingRawMemManager::g_MetadataByteWidth,
-                   useLambdas, true),
-      m_r_metadata(sem, ctx, ptrSz, TrackingRawMemManager::g_MetadataByteWidth,
-                   useLambdas, true),
-      m_a_metadata(sem, ctx, ptrSz, TrackingRawMemManager::g_MetadataByteWidth,
-                   useLambdas, true) {
+      m_w_metadata(sem, ctx, ptrSz,
+                   TrackingMemManagerCore<T>::g_MetadataByteWidth, useLambdas,
+                   true),
+      m_r_metadata(sem, ctx, ptrSz,
+                   TrackingMemManagerCore<T>::g_MetadataByteWidth, useLambdas,
+                   true),
+      m_a_metadata(sem, ctx, ptrSz,
+                   TrackingMemManagerCore<T>::g_MetadataByteWidth, useLambdas,
+                   true) {
   m_metadata_map = {
       {MetadataKind::READ, &m_r_metadata},
       {MetadataKind::WRITE, &m_w_metadata},
       {MetadataKind::ALLOC, &m_a_metadata},
   };
+  // Currently, we only support RawMemManagerCore or subclasses of it.
+  static_assert(std::is_base_of<OpSemMemManagerBase, T>::value,
+                "T not derived from OpSemMemManagerBase");
 }
 
-TrackingRawMemManager::PtrTy
-TrackingRawMemManager::getAddressable(TrackingRawMemManager::PtrTy p) const {
+template <class T>
+typename TrackingMemManagerCore<T>::PtrTy
+TrackingMemManagerCore<T>::getAddressable(PtrTy p) const {
   return p;
 }
 
-bool TrackingRawMemManager::isPtrTyVal(Expr e) const {
+template <class T> bool TrackingMemManagerCore<T>::isPtrTyVal(Expr e) const {
   // same PtrTy as RawMemManager
   return e && !strct::isStructVal(e);
 }
 
-bool TrackingRawMemManager::isMemVal(Expr e) const {
+template <class T> bool TrackingMemManagerCore<T>::isMemVal(Expr e) const {
   // raw and metadata
   return e && strct::isStructVal(e) && e->arity() == g_num_slots;
 }
 
-Expr TrackingRawMemManager::isDereferenceable(TrackingRawMemManager::PtrTy p,
-                                              Expr byteSz) {
+template <class T>
+Expr TrackingMemManagerCore<T>::isDereferenceable(PtrTy p, Expr byteSz) {
   // isDereferenceable should never be called in a 'RawMemMgr'
   return m_ctx.alu().getFalse();
 }
-TrackingRawMemManager::MemValTy TrackingRawMemManager::zeroedMemory() const {
+
+template <class T>
+typename TrackingMemManagerCore<T>::MemValTy
+TrackingMemManagerCore<T>::zeroedMemory() const {
   return MemValTy(m_main.zeroedMemory(),
                   m_metadata_map.at(MetadataKind::READ)->zeroedMemory(),
                   m_metadata_map.at(MetadataKind::WRITE)->zeroedMemory(),
                   m_metadata_map.at(MetadataKind::ALLOC)->zeroedMemory());
 }
 
+template <class T>
 std::pair<char *, unsigned int>
-TrackingRawMemManager::getGlobalVariableInitValue(const GlobalVariable &gv) {
+TrackingMemManagerCore<T>::getGlobalVariableInitValue(
+    const GlobalVariable &gv) {
   return m_main.getGlobalVariableInitValue(gv);
 }
-void TrackingRawMemManager::dumpGlobalsMap() { m_main.dumpGlobalsMap(); }
-void TrackingRawMemManager::onFunctionEntry(const Function &fn) {
+
+template <class T> void TrackingMemManagerCore<T>::dumpGlobalsMap() {
+  m_main.dumpGlobalsMap();
+}
+
+template <class T>
+void TrackingMemManagerCore<T>::onFunctionEntry(const Function &fn) {
   m_main.onFunctionEntry(fn);
 }
-TrackingRawMemManager::PtrTy
-TrackingRawMemManager::gep(TrackingRawMemManager::PtrTy ptr,
-                           gep_type_iterator it, gep_type_iterator end) const {
+
+template <class T>
+typename TrackingMemManagerCore<T>::PtrTy
+TrackingMemManagerCore<T>::gep(PtrTy ptr, gep_type_iterator it,
+                               gep_type_iterator end) const {
   return m_main.gep(ptr, it, end);
 }
-Expr TrackingRawMemManager::ptrEq(TrackingRawMemManager::PtrTy p1,
-                                  TrackingRawMemManager::PtrTy p2) const {
+
+template <class T>
+Expr TrackingMemManagerCore<T>::ptrEq(PtrTy p1, PtrTy p2) const {
   return m_main.ptrEq(p1, p2);
 }
-Expr TrackingRawMemManager::ptrtoint(TrackingRawMemManager::PtrTy ptr,
-                                     const Type &ptrTy,
-                                     const Type &intTy) const {
+
+template <class T>
+Expr TrackingMemManagerCore<T>::ptrtoint(PtrTy ptr, const Type &ptrTy,
+                                         const Type &intTy) const {
   return m_main.ptrtoint(ptr, ptrTy, intTy);
 }
-TrackingRawMemManager::PtrTy
-TrackingRawMemManager::inttoptr(Expr intVal, const Type &intTy,
-                                const Type &ptrTy) const {
+
+template <class T>
+typename TrackingMemManagerCore<T>::PtrTy
+TrackingMemManagerCore<T>::inttoptr(Expr intVal, const Type &intTy,
+                                    const Type &ptrTy) const {
   return m_main.inttoptr(intVal, intTy, ptrTy);
 }
-TrackingRawMemManager::MemValTy TrackingRawMemManager::MemFill(
-    TrackingRawMemManager::PtrTy dPtr, char *sPtr, unsigned int len,
-    TrackingRawMemManager::MemValTy mem, uint32_t align) {
+
+template <class T>
+typename TrackingMemManagerCore<T>::MemValTy
+TrackingMemManagerCore<T>::MemFill(PtrTy dPtr, char *sPtr, unsigned int len,
+                                   MemValTy mem, uint32_t align) {
   RawMemValTy rawVal = m_main.MemFill(dPtr, sPtr, len, mem.getRaw(), align);
   return MemValTy(rawVal, mem.getMetadata(MetadataKind::READ),
                   mem.getMetadata(MetadataKind::WRITE),
                   mem.getMetadata(MetadataKind::ALLOC));
 }
-TrackingRawMemManager::MemValTy TrackingRawMemManager::MemCpy(
-    TrackingRawMemManager::PtrTy dPtr, TrackingRawMemManager::PtrTy sPtr,
-    Expr len, TrackingRawMemManager::MemValTy memTrsfrRead,
-    TrackingRawMemManager::MemValTy memRead, uint32_t align) {
+
+template <class T>
+typename TrackingMemManagerCore<T>::MemValTy
+TrackingMemManagerCore<T>::MemCpy(PtrTy dPtr, PtrTy sPtr, Expr len,
+                                  MemValTy memTrsfrRead, MemValTy memRead,
+                                  uint32_t align) {
   RawMemValTy rawVal = m_main.MemCpy(dPtr, sPtr, len, memTrsfrRead.getRaw(),
                                      memRead.getRaw(), align);
   return MemValTy(rawVal, memRead.getMetadata(MetadataKind::READ),
                   memRead.getMetadata(MetadataKind::WRITE),
                   memRead.getMetadata(MetadataKind::ALLOC));
 }
-TrackingRawMemManager::MemValTy TrackingRawMemManager::MemCpy(
-    TrackingRawMemManager::PtrTy dPtr, TrackingRawMemManager::PtrTy sPtr,
-    unsigned int len, TrackingRawMemManager::MemValTy memTrsfrRead,
-    TrackingRawMemManager::MemValTy memRead, uint32_t align) {
+
+template <class T>
+typename TrackingMemManagerCore<T>::MemValTy
+TrackingMemManagerCore<T>::MemCpy(PtrTy dPtr, PtrTy sPtr, unsigned int len,
+                                  MemValTy memTrsfrRead, MemValTy memRead,
+                                  uint32_t align) {
   RawMemValTy rawVal = m_main.MemCpy(dPtr, sPtr, len, memTrsfrRead.getRaw(),
                                      memRead.getRaw(), align);
   return MemValTy(rawVal, memRead.getMetadata(MetadataKind::READ),
                   memRead.getMetadata(MetadataKind::WRITE),
                   memRead.getMetadata(MetadataKind::ALLOC));
 }
-TrackingRawMemManager::MemValTy
-TrackingRawMemManager::MemSet(TrackingRawMemManager::PtrTy ptr, Expr _val,
-                              Expr len, TrackingRawMemManager::MemValTy mem,
-                              uint32_t align) {
+
+template <class T>
+typename TrackingMemManagerCore<T>::MemValTy
+TrackingMemManagerCore<T>::MemSet(PtrTy ptr, Expr _val, Expr len, MemValTy mem,
+                                  uint32_t align) {
   RawMemValTy rawVal = m_main.MemSet(ptr, _val, len, mem.getRaw(), align);
   return MemValTy(rawVal, mem.getMetadata(MetadataKind::READ),
                   mem.getMetadata(MetadataKind::WRITE),
                   mem.getMetadata(MetadataKind::ALLOC));
 }
-TrackingRawMemManager::MemValTy TrackingRawMemManager::MemSet(
-    TrackingRawMemManager::PtrTy ptr, Expr _val, unsigned int len,
-    TrackingRawMemManager::MemValTy mem, uint32_t align) {
+
+template <class T>
+typename TrackingMemManagerCore<T>::MemValTy
+TrackingMemManagerCore<T>::MemSet(PtrTy ptr, Expr _val, unsigned int len,
+                                  MemValTy mem, uint32_t align) {
   RawMemValTy rawVal = m_main.MemSet(ptr, _val, len, mem.getRaw(), align);
   return MemValTy(rawVal, mem.getMetadata(MetadataKind::READ),
                   mem.getMetadata(MetadataKind::WRITE),
@@ -150,9 +191,10 @@ TrackingRawMemManager::MemValTy TrackingRawMemManager::MemSet(
 }
 
 // TODO: refactor this dispatch function in Mixin class
-TrackingRawMemManager::MemValTy TrackingRawMemManager::storeValueToMem(
-    Expr _val, TrackingRawMemManager::PtrTy ptr,
-    TrackingRawMemManager::MemValTy memIn, const Type &ty, uint32_t align) {
+template <class T>
+typename TrackingMemManagerCore<T>::MemValTy
+TrackingMemManagerCore<T>::storeValueToMem(Expr _val, PtrTy ptr, MemValTy memIn,
+                                           const Type &ty, uint32_t align) {
   assert(ptr);
   Expr val = _val;
   const unsigned byteSz =
@@ -188,9 +230,11 @@ TrackingRawMemManager::MemValTy TrackingRawMemManager::storeValueToMem(
   }
   return res;
 }
-Expr TrackingRawMemManager::loadValueFromMem(
-    TrackingRawMemManager::PtrTy ptr, TrackingRawMemManager::MemValTy mem,
-    const Type &ty, uint64_t align) {
+
+template <class T>
+Expr TrackingMemManagerCore<T>::loadValueFromMem(PtrTy ptr, MemValTy mem,
+                                                 const Type &ty,
+                                                 uint64_t align) {
   const unsigned byteSz =
       m_sem.getTD().getTypeStoreSize(const_cast<llvm::Type *>(&ty));
   ExprFactory &efac = ptr->efac();
@@ -224,18 +268,22 @@ Expr TrackingRawMemManager::loadValueFromMem(
   }
   return res;
 }
-TrackingRawMemManager::MemValTy TrackingRawMemManager::storePtrToMem(
-    TrackingRawMemManager::PtrTy val, TrackingRawMemManager::PtrTy ptr,
-    TrackingRawMemManager::MemValTy mem, unsigned int byteSz, uint64_t align) {
+
+template <class T>
+typename TrackingMemManagerCore<T>::MemValTy
+TrackingMemManagerCore<T>::storePtrToMem(PtrTy val, PtrTy ptr, MemValTy mem,
+                                         unsigned int byteSz, uint64_t align) {
   RawMemValTy rawVal =
       m_main.storePtrToMem(val, ptr, mem.getRaw(), byteSz, align);
   return MemValTy(rawVal, mem.getMetadata(MetadataKind::READ),
                   mem.getMetadata(MetadataKind::WRITE),
                   mem.getMetadata(MetadataKind::ALLOC));
 }
-TrackingRawMemManager::MemValTy TrackingRawMemManager::storeIntToMem(
-    Expr _val, TrackingRawMemManager::PtrTy ptr,
-    TrackingRawMemManager::MemValTy mem, unsigned int byteSz, uint64_t align) {
+
+template <class T>
+typename TrackingMemManagerCore<T>::MemValTy
+TrackingMemManagerCore<T>::storeIntToMem(Expr _val, PtrTy ptr, MemValTy mem,
+                                         unsigned int byteSz, uint64_t align) {
   // We expect _val to be a primitive rather than a container
   assert(!strct::isStructVal(_val));
   RawMemValTy rawVal =
@@ -244,23 +292,28 @@ TrackingRawMemManager::MemValTy TrackingRawMemManager::storeIntToMem(
                   mem.getMetadata(MetadataKind::WRITE),
                   mem.getMetadata(MetadataKind::ALLOC));
 }
-TrackingRawMemManager::PtrTy
-TrackingRawMemManager::loadPtrFromMem(TrackingRawMemManager::PtrTy ptr,
-                                      TrackingRawMemManager::MemValTy mem,
-                                      unsigned int byteSz, uint64_t align) {
+
+template <class T>
+typename TrackingMemManagerCore<T>::PtrTy
+TrackingMemManagerCore<T>::loadPtrFromMem(PtrTy ptr, MemValTy mem,
+                                          unsigned int byteSz, uint64_t align) {
   PtrTy rawPtr = m_main.loadPtrFromMem(ptr, mem.getRaw(), byteSz, align);
   return rawPtr;
 }
-Expr TrackingRawMemManager::loadIntFromMem(TrackingRawMemManager::PtrTy ptr,
-                                           TrackingRawMemManager::MemValTy mem,
-                                           unsigned int byteSz,
-                                           uint64_t align) {
+
+template <class T>
+Expr TrackingMemManagerCore<T>::loadIntFromMem(PtrTy ptr, MemValTy mem,
+                                               unsigned int byteSz,
+                                               uint64_t align) {
   Expr res = m_main.loadIntFromMem(ptr, mem.getRaw(), byteSz, align);
   return res;
 }
-TrackingRawMemManager::MemValTy
-TrackingRawMemManager::memsetMetaData(MetadataKind kind, PtrTy ptr, Expr len,
-                                      MemValTy memIn, unsigned int val) {
+
+template <class T>
+typename TrackingMemManagerCore<T>::MemValTy
+TrackingMemManagerCore<T>::memsetMetaData(MetadataKind kind, PtrTy ptr,
+                                          Expr len, MemValTy memIn,
+                                          unsigned int val) {
   // make sure we can fit the supplied value in metadata memory slot
   assert(llvm::Log2_64(val) + 1 <= g_MetadataBitWidth &&
          "Metadata cannot fit!");
@@ -270,10 +323,12 @@ TrackingRawMemManager::memsetMetaData(MetadataKind kind, PtrTy ptr, Expr len,
                                    len, memIn.getMetadata(kind),
                                    m_metadata_map[kind]->wordSzInBytes()));
 }
-TrackingRawMemManager::MemValTy
-TrackingRawMemManager::memsetMetaData(MetadataKind kind, PtrTy ptr,
-                                      unsigned int len, MemValTy memIn,
-                                      unsigned int val) {
+
+template <class T>
+typename TrackingMemManagerCore<T>::MemValTy
+TrackingMemManagerCore<T>::memsetMetaData(MetadataKind kind, PtrTy ptr,
+                                          unsigned int len, MemValTy memIn,
+                                          unsigned int val) {
   // make sure we can fit the supplied value in metadata memory slot
   assert(llvm::Log2_64(val) + 1 <= g_MetadataBitWidth &&
          "Metadata cannot fit!");
@@ -283,24 +338,32 @@ TrackingRawMemManager::memsetMetaData(MetadataKind kind, PtrTy ptr,
                                    len, memIn.getMetadata(kind),
                                    m_metadata_map[kind]->wordSzInBytes()));
 }
-Expr TrackingRawMemManager::getMetaData(MetadataKind kind, PtrTy ptr,
-                                        MemValTy memIn, unsigned int byteSz) {
+
+template <class T>
+Expr TrackingMemManagerCore<T>::getMetaData(MetadataKind kind, PtrTy ptr,
+                                            MemValTy memIn,
+                                            unsigned int byteSz) {
   // TODO: expose a method in OpSemMemManager to loadAlignedWordFromMem
   return m_metadata_map.at(kind)->loadIntFromMem(
       ptr, memIn.getMetadata(kind), byteSz,
       m_metadata_map.at(kind)->wordSizeInBytes());
 }
-TrackingRawMemManager::PtrTy
-TrackingRawMemManager::ptrAdd(TrackingRawMemManager::PtrTy ptr,
-                              Expr offset) const {
+
+template <class T>
+typename TrackingMemManagerCore<T>::PtrTy
+TrackingMemManagerCore<T>::ptrAdd(TrackingMemManagerCore<T>::PtrTy ptr,
+                                  Expr offset) const {
   return m_main.ptrAdd(ptr, offset);
 }
-TrackingRawMemManager::PtrTy
-TrackingRawMemManager::ptrAdd(TrackingRawMemManager::PtrTy ptr,
-                              int32_t _offset) const {
+
+template <class T>
+typename TrackingMemManagerCore<T>::PtrTy
+TrackingMemManagerCore<T>::ptrAdd(TrackingMemManagerCore<T>::PtrTy ptr,
+                                  int32_t _offset) const {
   return m_main.ptrAdd(ptr, _offset);
 }
-Expr TrackingRawMemManager::coerce(Expr sort, Expr val) {
+
+template <class T> Expr TrackingMemManagerCore<T>::coerce(Expr sort, Expr val) {
   if (strct::isStructVal(val)) {
     llvm::SmallVector<Expr, g_num_slots> kids;
     assert(isOp<STRUCT_TY>(sort));
@@ -316,131 +379,215 @@ Expr TrackingRawMemManager::coerce(Expr sort, Expr val) {
   }
   return m_main.coerce(sort, val);
 }
-TrackingRawMemManager::PtrTy TrackingRawMemManager::nullPtr() const {
+
+template <class T>
+typename TrackingMemManagerCore<T>::PtrTy
+TrackingMemManagerCore<T>::nullPtr() const {
   return m_main.nullPtr();
 }
-TrackingRawMemManager::PtrTy TrackingRawMemManager::freshPtr() {
+
+template <class T>
+typename TrackingMemManagerCore<T>::PtrTy
+TrackingMemManagerCore<T>::freshPtr() {
   return m_main.freshPtr();
 }
-TrackingRawMemManager::MemSortTy
-TrackingRawMemManager::mkMemRegisterSort(const Instruction &inst) const {
+
+template <class T>
+typename TrackingMemManagerCore<T>::MemSortTy
+TrackingMemManagerCore<T>::mkMemRegisterSort(const Instruction &inst) const {
   return MemSortTy(
       m_main.mkMemRegisterSort(inst),
       m_metadata_map.at(MetadataKind::READ)->mkMemRegisterSort(inst),
       m_metadata_map.at(MetadataKind::WRITE)->mkMemRegisterSort(inst),
       m_metadata_map.at(MetadataKind::ALLOC)->mkMemRegisterSort(inst));
 }
-TrackingRawMemManager::PtrSortTy
-TrackingRawMemManager::mkPtrRegisterSort(const GlobalVariable &gv) const {
+
+template <class T>
+typename TrackingMemManagerCore<T>::PtrSortTy
+TrackingMemManagerCore<T>::mkPtrRegisterSort(const GlobalVariable &gv) const {
   return m_main.mkPtrRegisterSort(gv);
 }
-TrackingRawMemManager::PtrSortTy
-TrackingRawMemManager::mkPtrRegisterSort(const Function &fn) const {
+
+template <class T>
+typename TrackingMemManagerCore<T>::PtrSortTy
+TrackingMemManagerCore<T>::mkPtrRegisterSort(const Function &fn) const {
   return m_main.mkPtrRegisterSort(fn);
 }
-TrackingRawMemManager::PtrSortTy
-TrackingRawMemManager::mkPtrRegisterSort(const Instruction &inst) const {
+
+template <class T>
+typename TrackingMemManagerCore<T>::PtrSortTy
+TrackingMemManagerCore<T>::mkPtrRegisterSort(const Instruction &inst) const {
   return m_main.mkPtrRegisterSort(inst);
 }
-TrackingRawMemManager::PtrTy
-TrackingRawMemManager::mkAlignedPtr(Expr name, uint32_t align) const {
+
+template <class T>
+typename TrackingMemManagerCore<T>::PtrTy
+TrackingMemManagerCore<T>::mkAlignedPtr(Expr name, uint32_t align) const {
   return m_main.mkAlignedPtr(name, align);
 }
-void TrackingRawMemManager::initGlobalVariable(const GlobalVariable &gv) const {
+
+template <class T>
+void TrackingMemManagerCore<T>::initGlobalVariable(
+    const GlobalVariable &gv) const {
   return m_main.initGlobalVariable(gv);
 }
-TrackingRawMemManager::PtrTy
-TrackingRawMemManager::getPtrToGlobalVariable(const GlobalVariable &gv) {
+
+template <class T>
+typename TrackingMemManagerCore<T>::PtrTy
+TrackingMemManagerCore<T>::getPtrToGlobalVariable(const GlobalVariable &gv) {
   return m_main.getPtrToGlobalVariable(gv);
 }
-TrackingRawMemManager::PtrTy TrackingRawMemManager::falloc(const Function &fn) {
+
+template <class T>
+typename TrackingMemManagerCore<T>::PtrTy
+TrackingMemManagerCore<T>::falloc(const Function &fn) {
   return m_main.falloc(fn);
 }
-TrackingRawMemManager::PtrTy
-TrackingRawMemManager::galloc(const GlobalVariable &gv, uint32_t align) {
+
+template <class T>
+typename TrackingMemManagerCore<T>::PtrTy
+TrackingMemManagerCore<T>::galloc(const GlobalVariable &gv, uint32_t align) {
   return m_main.galloc(gv, align);
 }
-TrackingRawMemManager::PtrTy TrackingRawMemManager::halloc(Expr bytes,
-                                                           uint32_t align) {
+
+template <class T>
+typename TrackingMemManagerCore<T>::PtrTy
+TrackingMemManagerCore<T>::halloc(Expr bytes, uint32_t align) {
   return m_main.halloc(bytes, align);
 }
-TrackingRawMemManager::PtrTy TrackingRawMemManager::halloc(unsigned int _bytes,
-                                                           uint32_t align) {
+
+template <class T>
+typename TrackingMemManagerCore<T>::PtrTy
+TrackingMemManagerCore<T>::halloc(unsigned int _bytes, uint32_t align) {
   return m_main.halloc(_bytes, align);
 }
-TrackingRawMemManager::PtrTy TrackingRawMemManager::salloc(unsigned int bytes,
-                                                           uint32_t align) {
+
+template <class T>
+typename TrackingMemManagerCore<T>::PtrTy
+TrackingMemManagerCore<T>::salloc(unsigned int bytes, uint32_t align) {
   return m_main.salloc(bytes, align);
 }
-TrackingRawMemManager::PtrTy
-TrackingRawMemManager::getPtrToFunction(const Function &F) {
+
+template <class T>
+typename TrackingMemManagerCore<T>::PtrTy
+TrackingMemManagerCore<T>::getPtrToFunction(const Function &F) {
   return m_main.getPtrToFunction(F);
 }
-TrackingRawMemManager::PtrTy
-TrackingRawMemManager::salloc(Expr elmts, unsigned int typeSz, uint32_t align) {
+
+template <class T>
+typename TrackingMemManagerCore<T>::PtrTy
+TrackingMemManagerCore<T>::salloc(Expr elmts, unsigned int typeSz,
+                                  uint32_t align) {
   return m_main.salloc(elmts, typeSz, align);
 }
-TrackingRawMemManager::PtrTy
-TrackingRawMemManager::mkStackPtr(unsigned int offset) {
+
+template <class T>
+typename TrackingMemManagerCore<T>::PtrTy
+TrackingMemManagerCore<T>::mkStackPtr(unsigned int offset) {
   return m_main.mkStackPtr(offset);
 }
-unsigned int TrackingRawMemManager::getMetaDataMemWordSzInBits() {
+
+template <class T>
+unsigned int TrackingMemManagerCore<T>::getMetaDataMemWordSzInBits() {
   assert(m_metadata_map.at(MetadataKind::READ)->wordSzInBits() ==
          m_metadata_map.at(MetadataKind::WRITE)->wordSzInBits());
   assert(m_metadata_map.at(MetadataKind::READ)->wordSzInBits() ==
          m_metadata_map.at(MetadataKind::ALLOC)->wordSzInBits());
   return m_metadata_map.at(MetadataKind::READ)->wordSzInBits();
 }
-Expr TrackingRawMemManager::isMetadataSet(MetadataKind kind, PtrTy p,
-                                          MemValTy mem) {
+
+template <class T>
+Expr TrackingMemManagerCore<T>::isMetadataSet(MetadataKind kind, PtrTy p,
+                                              MemValTy mem) {
   LOG("opsem", ERR << "isMetadataSet() not implemented!\n");
   return Expr();
 }
-TrackingRawMemManager::MemValTy TrackingRawMemManager::setMetadata(
-    MetadataKind kind, TrackingRawMemManager::PtrTy p,
-    TrackingRawMemManager::MemValTy mem, unsigned val) {
+
+template <class T>
+typename TrackingMemManagerCore<T>::MemValTy
+TrackingMemManagerCore<T>::setMetadata(MetadataKind kind,
+                                       TrackingMemManagerCore<T>::PtrTy p,
+                                       TrackingMemManagerCore<T>::MemValTy mem,
+                                       unsigned val) {
   LOG("opsem", ERR << "setMetadata() not implemented!\n");
   return mem;
 }
-Expr TrackingRawMemManager::ptrUlt(TrackingRawMemManager::PtrTy p1,
-                                   TrackingRawMemManager::PtrTy p2) const {
+
+template <class T>
+Expr TrackingMemManagerCore<T>::ptrUlt(TrackingMemManagerCore::PtrTy p1,
+                                       TrackingMemManagerCore::PtrTy p2) const {
   return m_main.ptrUlt(getAddressable(p1), getAddressable(p2));
 }
-Expr TrackingRawMemManager::ptrSlt(TrackingRawMemManager::PtrTy p1,
-                                   TrackingRawMemManager::PtrTy p2) const {
+
+template <class T>
+Expr TrackingMemManagerCore<T>::ptrSlt(
+    TrackingMemManagerCore<T>::PtrTy p1,
+    TrackingMemManagerCore<T>::PtrTy p2) const {
   return m_main.ptrSlt(getAddressable(p1), getAddressable(p2));
 }
-Expr TrackingRawMemManager::ptrUle(TrackingRawMemManager::PtrTy p1,
-                                   TrackingRawMemManager::PtrTy p2) const {
+
+template <class T>
+Expr TrackingMemManagerCore<T>::ptrUle(
+    TrackingMemManagerCore<T>::PtrTy p1,
+    TrackingMemManagerCore<T>::PtrTy p2) const {
   return m_main.ptrUle(getAddressable(p1), getAddressable(p2));
 }
-Expr TrackingRawMemManager::ptrSle(TrackingRawMemManager::PtrTy p1,
-                                   TrackingRawMemManager::PtrTy p2) const {
+
+template <class T>
+Expr TrackingMemManagerCore<T>::ptrSle(
+    TrackingMemManagerCore<T>::PtrTy p1,
+    TrackingMemManagerCore<T>::PtrTy p2) const {
   return m_main.ptrSle(getAddressable(p1), getAddressable(p2));
 }
-Expr TrackingRawMemManager::ptrUgt(TrackingRawMemManager::PtrTy p1,
-                                   TrackingRawMemManager::PtrTy p2) const {
+
+template <class T>
+Expr TrackingMemManagerCore<T>::ptrUgt(
+    TrackingMemManagerCore<T>::PtrTy p1,
+    TrackingMemManagerCore<T>::PtrTy p2) const {
   return m_main.ptrUgt(getAddressable(p1), getAddressable(p2));
 }
-Expr TrackingRawMemManager::ptrSgt(TrackingRawMemManager::PtrTy p1,
-                                   TrackingRawMemManager::PtrTy p2) const {
+
+template <class T>
+Expr TrackingMemManagerCore<T>::ptrSgt(
+    TrackingMemManagerCore<T>::PtrTy p1,
+    TrackingMemManagerCore<T>::PtrTy p2) const {
   return m_main.ptrSgt(getAddressable(p1), getAddressable(p2));
 }
-Expr TrackingRawMemManager::ptrUge(TrackingRawMemManager::PtrTy p1,
-                                   TrackingRawMemManager::PtrTy p2) const {
+
+template <class T>
+Expr TrackingMemManagerCore<T>::ptrUge(
+    TrackingMemManagerCore<T>::PtrTy p1,
+    TrackingMemManagerCore<T>::PtrTy p2) const {
   return m_main.ptrUge(getAddressable(p1), getAddressable(p2));
 }
-Expr TrackingRawMemManager::ptrSge(TrackingRawMemManager::PtrTy p1,
-                                   TrackingRawMemManager::PtrTy p2) const {
+
+template <class T>
+Expr TrackingMemManagerCore<T>::ptrSge(
+    TrackingMemManagerCore<T>::PtrTy p1,
+    TrackingMemManagerCore<T>::PtrTy p2) const {
   return expr::Expr();
 }
-Expr TrackingRawMemManager::ptrNe(TrackingRawMemManager::PtrTy p1,
-                                  TrackingRawMemManager::PtrTy p2) const {
+
+template <class T>
+Expr TrackingMemManagerCore<T>::ptrNe(
+    TrackingMemManagerCore<T>::PtrTy p1,
+    TrackingMemManagerCore<T>::PtrTy p2) const {
   return m_main.ptrNe(getAddressable(p1), getAddressable(p2));
 }
-Expr TrackingRawMemManager::ptrSub(TrackingRawMemManager::PtrTy p1,
-                                   TrackingRawMemManager::PtrTy p2) const {
+
+template <class T>
+Expr TrackingMemManagerCore<T>::ptrSub(
+    TrackingMemManagerCore<T>::PtrTy p1,
+    TrackingMemManagerCore<T>::PtrTy p2) const {
   return m_main.ptrSub(getAddressable(p1), getAddressable(p2));
 }
+OpSemMemManager *mkTrackingRawMemManager(Bv2OpSem &sem, Bv2OpSemContext &ctx,
+                                         unsigned int ptrSz,
+                                         unsigned int wordSz, bool useLambdas) {
+  return new TrackingRawMemManager(sem, ctx, ptrSz, wordSz, useLambdas);
+}
+
+template class TrackingMemManagerCore<RawMemManager>;
+
 } // namespace details
 } // namespace seahorn

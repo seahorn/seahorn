@@ -120,6 +120,7 @@ public:
   using TrackingTag = int;
   using FatMemTag = int;
   using WideMemTag = int;
+  using ObjectMemTag = int;
 
   /// \brief A null pointer expression (cache)
   PtrTy m_nullPtr;

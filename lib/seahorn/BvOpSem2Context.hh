@@ -274,8 +274,9 @@ public:
   /// \f setMemReadRegister
   Expr loadValueFromMem(Expr ptr, const llvm::Type &ty, uint32_t align);
 
-  /// \brief join two memories according to semantics of memory manager
-  Expr joinMemories(Expr mem1, Expr mem2);
+  /// \brief join two memories according to semantics of memory manager using
+  /// \cond to make the join.
+  Expr joinMemories(Expr cond, Expr mem1, Expr mem2);
 
   /// \brief Store a value \val to symbolic memory at address \p ptr
   ///
@@ -674,7 +675,7 @@ public:
   virtual MemValTy storeValueToMem(Expr _val, PtrTy ptr, MemValTy memIn,
                                    const llvm::Type &ty, uint32_t align) = 0;
 
-  virtual MemValTy joinMemories(Expr mem1, Expr mem2) = 0;
+  virtual MemValTy joinMemories(Expr cond, Expr mem1, Expr mem2) = 0;
 
   /// \brief Executes symbolic memset with a concrete length
   virtual MemValTy MemSet(PtrTy ptr, Expr _val, unsigned len, MemValTy mem,

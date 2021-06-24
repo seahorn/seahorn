@@ -2713,8 +2713,8 @@ Expr Bv2OpSemContext::ptrToAddr(Expr p) { return mem().ptrToAddr(p); }
 
 Expr Bv2OpSemContext::getRawMem(Expr p) { return mem().getRawMem(p); }
 
-Expr Bv2OpSemContext::joinMemories(Expr mem1, Expr mem2) {
-  return m_memManager->joinMemories(mem1, mem2);
+Expr Bv2OpSemContext::joinMemories(Expr cond, Expr mem1, Expr mem2) {
+  return m_memManager->joinMemories(expr::Expr(), cond, mem1);
 }
 
 } // namespace details

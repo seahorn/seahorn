@@ -284,14 +284,8 @@ Expr OpSemMemHybridRepr::loadAlignedWordFromMem(PtrTy ptr, MemValTy mem) {
   LOG("opsem-hybrid", INFO << "Rewritten: " << *rewritten << "\n");
 
   /** simplify with custom ITE simplifier **/
-
-  Expr cus_simp = boolop::simplifyIte(rewritten);
-  LOG("opsem-hybrid", INFO << "Custom simplified: " << *cus_simp << "\n");
-
-  /** simplify with z3 **/
-  EZ3 zctx(rewritten->efac());
-  Expr simp = z3_simplify(zctx, cus_simp);
-  LOG("opsem-hybrid", INFO << "Z3 Simplified: " << *simp << "\n");
+  Expr simp = boolop::simplifyIte(rewritten);
+  LOG("opsem-hybrid", INFO << "my simplified: " << *simp << "\n");
 
   return simp;
 }

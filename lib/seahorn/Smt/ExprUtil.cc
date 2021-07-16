@@ -33,6 +33,13 @@ struct CIRCSIZE : public std::unary_function<Expr, VisitAction> {
 
 namespace op {
 namespace boolop {
+
+// using namespace expr;
+
+bool shouldRewriteAsITE(Expr exp) {
+  return (isOp<BoolOp>(exp) || isOp<CompareOp>(exp));
+}
+
 /// size of an expression in terms of ANDs, ORs, and inputs.
 /// NEG is not counted, other BoolOps are treated as inputs.
 unsigned circSize(Expr e) {
@@ -164,6 +171,75 @@ namespace boolop {
 Expr simplify(Expr exp) {
   BS<TrivialSimplifier> bs(std::make_shared<TrivialSimplifier>(exp->efac()));
   return dagVisit(bs, exp);
+}
+
+bool areNegations(Expr lhs, Expr rhs) {
+  /** a negates !a**/
+  if (isOpX<NEG>(lhs) && lhs->left() == rhs)
+    return true;
+  if (isOpX<NEG>(rhs) && rhs->left() == lhs)
+    return true;
+
+  return false;
+}
+
+Expr simplifyIte(Expr expr) {
+  DagVisitCache cache;
+  ITESimplifier simp(expr->efac());
+  /* build post-order worklist*/
+  ExprVector preStack = {expr};
+  ExprVector postStack = {};
+  while (!preStack.empty()) {
+    Expr cur = preStack.back();
+    preStack.pop_back();
+    postStack.push_back(cur);
+
+    if (!shouldRewriteAsITE(cur)) {
+      continue;
+    }
+    for (auto b = cur->args_begin(), e = cur->args_end(); b != e; b++) {
+      preStack.push_back(*b);
+    }
+  }
+
+  /* visit post-order */
+  Expr res;
+  while (!postStack.empty()) {
+    Expr top = postStack.back();
+    postStack.pop_back();
+
+    res = top;
+    if (findInDagVisitCache(cache, top) != top) {
+      continue;
+    }
+    if (res->arity() > 0) {
+      ExprVector kids;
+      bool changed = false;
+      for (auto b = top->args_begin(); b != top->args_end(); ++b) {
+        // children already rewritten, get from cache
+        Expr k = findInDagVisitCache(cache, *b);
+        kids.push_back(k);
+        changed = (changed || k.get() != *b);
+      }
+      if (changed) {
+        if (!res->isMutable())
+          res = res->getFactory().mkNary(res->op(), kids.begin(), kids.end());
+        else
+          res->renew_args(kids.begin(), kids.end());
+      }
+    }
+    res = simp(res);
+    rewrite_status st = simp.status();
+    cache[&*top] = res;
+    if (st != rewrite_status::RW_DONE) {
+      postStack.push_back(res);
+      /* TODO: figure out RWN where N > 1 */
+      for (auto b = res->args_begin(), e = res->args_end(); b != e; b++) {
+        postStack.push_back(*b);
+      }
+    }
+  }
+  return res;
 }
 
 namespace {

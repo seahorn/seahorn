@@ -1,15 +1,106 @@
 #pragma once
+#include "seahorn/Expr/Expr.hh"
 #include "seahorn/Expr/ExprCore.hh"
 #include "seahorn/Expr/ExprOpCore.hh"
 #include "seahorn/Expr/ExprVisitor.hh"
-
-#include "seahorn/Expr/Expr.hh"
+#include "seahorn/Expr/Smt/EZ3.hh"
+#include "seahorn/Expr/Smt/Z3.hh"
 
 namespace expr {
 
+enum rewrite_status { RW_DONE, RW1, RW2, RW_FULL };
+
 namespace op {
 namespace boolop {
-/** trivial simplifier for Boolean Operators */
+
+bool shouldRewriteAsITE(Expr exp);
+
+/** lhs == a and rhs == !a
+ *  or:
+ *  lhs == !a and rhs == a
+ **/
+bool areNegations(Expr lhs, Expr rhs);
+
+struct ITESimplifier : public std::unary_function<Expr, Expr> {
+  ExprFactory &efac;
+
+  Expr trueE;
+  Expr falseE;
+
+  rewrite_status m_rwStatus;
+  seahorn::EZ3 m_zctx;
+
+  ITESimplifier(ExprFactory &efac)
+      : efac(efac), trueE(mk<TRUE>(efac)), falseE(mk<FALSE>(efac)),
+        m_rwStatus(rewrite_status::RW_DONE), m_zctx(efac) {}
+  ITESimplifier(const ITESimplifier &o)
+      : efac(o.efac), trueE(o.trueE), falseE(o.falseE),
+        m_rwStatus(o.m_rwStatus), m_zctx(o.efac) {}
+
+  rewrite_status status(void) { return m_rwStatus; }
+
+  Expr operator()(Expr exp) {
+    // skip if not ITE or CompOp
+    if (!isOpX<ITE>(exp) && !isOp<CompareOp>(exp)) {
+      m_rwStatus = rewrite_status::RW_DONE;
+      return exp;
+    }
+
+    if (isOpX<ITE>(exp)) {
+      Expr i = exp->arg(0);
+      Expr t = exp->arg(1);
+      Expr e = exp->arg(2);
+      // ite(a, true, false) => a
+      if (t == trueE && e == falseE) {
+        m_rwStatus = rewrite_status::RW_DONE;
+        return i;
+      }
+      // ite(a, false, true) => !a
+      if (t == falseE && e == trueE) {
+        m_rwStatus = rewrite_status::RW_DONE;
+        return mk<NEG>(i);
+      }
+      // ite(a, b, ite(!a, c, d)) => ite(a, b, c)
+      if (isOpX<ITE>(e)) {
+        Expr e_i = e->arg(0);
+        Expr e_t = e->arg(1);
+        if (areNegations(i, e_i)) {
+          m_rwStatus = rewrite_status::RW_DONE;
+          return boolop::lite(i, t, e_t);
+        }
+      }
+    }
+
+    if (isOp<CompareOp>(exp)) {
+      Expr lhs = exp->left();
+      Expr rhs = exp->right();
+      if (lhs->arity() <= 2 && rhs->arity() <= 2) {
+        // use z3 for smaller compare expressions
+        m_rwStatus = rewrite_status::RW_DONE;
+        Expr simped = z3_simplify(m_zctx, exp);
+        return simped;
+      }
+      // [k comp ite(a, b, c)] => [ite(a, b comp k, c comp k)]
+      if (isOpX<ITE>(lhs)) {
+        Expr new_i = lhs->arg(0);
+        Expr new_t = efac.mkBin(exp->op(), lhs->arg(1), rhs);
+        Expr new_e = efac.mkBin(exp->op(), lhs->arg(2), rhs);
+        m_rwStatus = rewrite_status::RW1;
+        return lite(new_i, new_t, new_e);
+      } else if (isOpX<ITE>(rhs)) {
+        Expr new_i = rhs->arg(0);
+        Expr new_t = efac.mkBin(exp->op(), rhs->arg(1), lhs);
+        Expr new_e = efac.mkBin(exp->op(), rhs->arg(2), lhs);
+        m_rwStatus = rewrite_status::RW1;
+        return lite(new_i, new_t, new_e);
+      }
+    }
+    m_rwStatus = rewrite_status::RW_DONE;
+    return exp;
+  }
+};
+
+/** trivial simplifier for Boolean and Compare Operators */
 struct TrivialSimplifier : public std::unary_function<Expr, Expr> {
   ExprFactory &efac;
 
@@ -95,12 +186,10 @@ struct TrivialSimplifier : public std::unary_function<Expr, Expr> {
           return rhs;
         if (falseE == rhs)
           return lhs;
-        // (!a || a)
-        if (isOpX<NEG>(lhs) && lhs->left() == rhs)
+        // (!a || a) or (a || !a)
+        if (areNegations(lhs, rhs)) {
           return trueE;
-        // (a || !a)
-        if (isOpX<NEG>(rhs) && rhs->left() == lhs)
-          return trueE;
+        }
 
         return exp;
       }
@@ -130,10 +219,10 @@ struct TrivialSimplifier : public std::unary_function<Expr, Expr> {
           return rhs;
         if (trueE == rhs)
           return lhs;
-        if (isOpX<NEG>(lhs) && lhs->left() == rhs)
+        // (!a && a) or (a && !a)
+        if (areNegations(lhs, rhs)) {
           return falseE;
-        if (isOpX<NEG>(rhs) && rhs->left() == lhs)
-          return falseE;
+        }
 
         return exp;
       }
@@ -148,7 +237,7 @@ struct TrivialSimplifier : public std::unary_function<Expr, Expr> {
     return exp;
   }
 };
-}
+} // namespace boolop
 } // namespace op
 
 namespace {
@@ -202,6 +291,24 @@ template <typename T> struct BS {
     return VisitAction::skipKids();
   }
 };
+
+// simplifying visitor for boolop and compareop
+template <typename T> struct BoolCompSV {
+  std::shared_ptr<T> _r;
+
+  BoolCompSV(std::shared_ptr<T> r) : _r(r) {}
+  BoolCompSV(T *r) : _r(r) {}
+
+  VisitAction operator()(Expr exp) {
+    // -- apply the rewriter
+    if (isOp<BoolOp>(exp) || isOp<CompareOp>(exp))
+      return VisitAction::changeDoKidsRewrite(exp, _r);
+
+    // -- do not descend into non-boolean, non-compare operators
+    return VisitAction::skipKids();
+  }
+};
+
 } // namespace boolop
 } // namespace op
 } // namespace expr

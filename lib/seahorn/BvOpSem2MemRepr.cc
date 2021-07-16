@@ -1,5 +1,7 @@
 #include "BvOpSem2MemRepr.hh"
 #include "seahorn/Expr/ExprOpBinder.hh"
+#include "seahorn/Expr/ExprOpBool.hh"
+#include "seahorn/Expr/ExprVisitor.hh"
 
 namespace {
 template <typename T, typename... Rest>
@@ -14,11 +16,100 @@ auto as_std_array(const T &t, const Rest &... rest) ->
 namespace seahorn {
 namespace details {
 
-OpSemMemRepr::MemValTy OpSemMemArrayRepr::MemSet(PtrTy ptr, Expr _val,
-                                                 unsigned len, MemValTy mem,
-                                                 unsigned wordSzInBytes,
-                                                 PtrSortTy ptrSort,
-                                                 uint32_t align) {
+/**
+ * rewriter for store expr:
+ * e = store A idx val -> { return ite( (idx == ptr), val, rewrite(A) )}
+ * e is not store (const array or terminal register) ->
+ * { return select(e, m_ptr) }
+ **/
+struct ArrayStoreRewriter : public std::unary_function<Expr, Expr> {
+  Expr m_ptr;
+  OpSemAlu &m_alu;
+  unsigned m_ptrSz;
+  ArrayStoreRewriter(Expr ptr, OpSemAlu &alu, unsigned ptrSz)
+      : m_ptr(ptr), m_alu(alu), m_ptrSz(ptrSz) {}
+  ArrayStoreRewriter(const ArrayStoreRewriter &other)
+      : m_ptr(other.m_ptr), m_alu(other.m_alu), m_ptrSz(other.m_ptrSz) {}
+
+  Expr doPtrEq(Expr p1, Expr p2) { return m_alu.doEq(p1, p2, m_ptrSz); }
+
+  Expr operator()(Expr e) {
+    if (isOp<STORE>(e)) {
+      Expr arr = e->arg(0);
+      Expr idx = e->arg(1);
+      Expr val = e->arg(2);
+      Expr cond = doPtrEq(m_ptr, idx);
+      Expr res = boolop::lite(cond, val,
+                              arr // has been rewritten further
+      );
+      return res;
+    } else {
+      return op::array::select(e, m_ptr);
+    }
+  }
+};
+
+// Non-recursive rewrite of expr e
+template <typename RW>
+Expr arrayStoreRewrite(RW &rewriter, Expr ptr, Expr mem,
+                       DagVisitMemCache &cache) {
+  Expr cur = mem;
+
+  // build rewrite stack
+  ExprVector worklist = {cur};
+  while (isOp<STORE>(cur)) {
+    worklist.push_back(cur->arg(0));
+    cur = cur->arg(0);
+  }
+
+  // rewrite from top of stack
+  Expr res;
+  while (!worklist.empty()) {
+    Expr top = worklist.back();
+    worklist.pop_back();
+    Expr rw; // rewritten expr of top
+
+    // first try find in cache
+    DagVisitMemCache::const_iterator cit = cache.find(&*top);
+    if (cit != cache.end()) {
+      LOG("opsem-hybrid", INFO << "hit with: " << *top << "\n");
+      ExprPair cached = cit->second;
+      if (ptr == cached.first) {
+        LOG("opsem-hybrid", INFO << "use cached: " << *cached.second << "\n");
+        res = cached.second;
+        continue;
+      }
+    }
+
+    if (isOp<STORE>(top)) {
+      // make new store expr with rewritten array argument
+      llvm::SmallVector<Expr, 4> new_kids = {res};
+      for (auto b = top->args_begin() + 1; b != top->args_end(); ++b) {
+        new_kids.push_back(*b);
+      }
+      rw =
+          top->getFactory().mkNary(top->op(), new_kids.begin(), new_kids.end());
+    } else {
+      rw = top->getFactory().mkNary(top->op(), top->args_begin(),
+                                    top->args_end());
+    }
+
+    // rewrite into ITE
+    rw = rewriter(rw);
+    // save to cache
+    cache[&*top] = ExprPair(ptr, rw);
+    // save for next level
+    res = rw;
+  }
+
+  return res;
+}
+
+OpSemMemRepr::MemValTy OpSemMemArrayReprBase::MemSet(PtrTy ptr, Expr _val,
+                                                     unsigned len, MemValTy mem,
+                                                     unsigned wordSzInBytes,
+                                                     PtrSortTy ptrSort,
+                                                     uint32_t align) {
   // MemSet operates at word level.
   // _val must fit within a byte
   // _val is converted to a byte.
@@ -48,11 +139,11 @@ OpSemMemRepr::MemValTy OpSemMemArrayRepr::MemSet(PtrTy ptr, Expr _val,
 
 // len is in bytes
 // _val must fit within a byte
-OpSemMemRepr::MemValTy OpSemMemArrayRepr::MemSet(PtrTy ptr, Expr _val, Expr len,
-                                                 MemValTy mem,
-                                                 unsigned wordSzInBytes,
-                                                 PtrSortTy ptrSort,
-                                                 uint32_t align) {
+OpSemMemRepr::MemValTy OpSemMemArrayReprBase::MemSet(PtrTy ptr, Expr _val,
+                                                     Expr len, MemValTy mem,
+                                                     unsigned wordSzInBytes,
+                                                     PtrSortTy ptrSort,
+                                                     uint32_t align) {
   Expr res;
 
   unsigned width;
@@ -94,7 +185,7 @@ OpSemMemRepr::MemValTy OpSemMemArrayRepr::MemSet(PtrTy ptr, Expr _val, Expr len,
 }
 
 // TODO: This function is untested
-OpSemMemRepr::MemValTy OpSemMemArrayRepr::MemCpy(
+OpSemMemRepr::MemValTy OpSemMemArrayReprBase::MemCpy(
     PtrTy dPtr, PtrTy sPtr, Expr len, MemValTy memTrsfrRead, MemValTy memRead,
     unsigned wordSzInBytes, PtrSortTy ptrSort, uint32_t align) {
   (void)ptrSort;
@@ -130,10 +221,10 @@ OpSemMemRepr::MemValTy OpSemMemArrayRepr::MemCpy(
 }
 
 OpSemMemRepr::MemValTy
-OpSemMemArrayRepr::MemCpy(PtrTy dPtr, PtrTy sPtr, unsigned len,
-                          MemValTy memTrsfrRead, MemValTy memRead,
-                          unsigned wordSzInBytes, PtrSortTy ptrSort,
-                          uint32_t align) {
+OpSemMemArrayReprBase::MemCpy(PtrTy dPtr, PtrTy sPtr, unsigned len,
+                              MemValTy memTrsfrRead, MemValTy memRead,
+                              unsigned wordSzInBytes, PtrSortTy ptrSort,
+                              uint32_t align) {
   (void)ptrSort;
 
   Expr res;
@@ -159,11 +250,10 @@ OpSemMemArrayRepr::MemCpy(PtrTy dPtr, PtrTy sPtr, unsigned len,
   return MemValTy(res);
 }
 
-OpSemMemRepr::MemValTy OpSemMemArrayRepr::MemFill(PtrTy dPtr, char *sPtr,
-                                                  unsigned len, MemValTy mem,
-                                                  unsigned wordSzInBytes,
-                                                  PtrSortTy ptrSort,
-                                                  uint32_t align) {
+OpSemMemRepr::MemValTy
+OpSemMemArrayReprBase::MemFill(PtrTy dPtr, char *sPtr, unsigned len,
+                               MemValTy mem, unsigned wordSzInBytes,
+                               PtrSortTy ptrSort, uint32_t align) {
   Expr res = mem.toExpr();
   const unsigned sem_word_sz = wordSzInBytes;
 
@@ -181,6 +271,23 @@ OpSemMemRepr::MemValTy OpSemMemArrayRepr::MemFill(PtrTy dPtr, char *sPtr,
     res = op::array::store(res, dIdx, val);
   }
   return MemValTy(res);
+}
+
+Expr OpSemMemHybridRepr::loadAlignedWordFromMem(PtrTy ptr, MemValTy mem) {
+  LOG("opsem-hybrid", INFO << "Load ptr " << *ptr.toExpr() << "\n");
+  LOG("opsem-hybrid", INFO << "From mem " << *mem.toExpr() << "\n");
+
+  /** rewrite store into ITE **/
+  ArrayStoreRewriter rw(ptr.toExpr(), m_ctx.alu(),
+                        m_memManager.ptrSizeInBits());
+  Expr rewritten = arrayStoreRewrite(rw, ptr.toExpr(), mem.toExpr(), m_cache);
+  LOG("opsem-hybrid", INFO << "Rewritten: " << *rewritten << "\n");
+
+  /** simplify with custom ITE simplifier **/
+  Expr simp = boolop::simplifyIte(rewritten);
+  LOG("opsem-hybrid", INFO << "my simplified: " << *simp << "\n");
+
+  return simp;
 }
 
 OpSemMemRepr::MemValTy
@@ -438,6 +545,7 @@ Expr OpSemMemLambdaRepr::coerceArrayToLambda(Expr arrVal) {
   Expr bvAddr = bind::mkConst(mkTerm<std::string>("addr", m_efac), idxTy);
   Expr sel = op::array::select(arrVal, bvAddr);
 
+  /** lambda sel : arrVal[sel] **/
   return bind::abs<LAMBDA>(as_std_array(bvAddr), sel);
 }
 

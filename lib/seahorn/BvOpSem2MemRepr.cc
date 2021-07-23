@@ -1,6 +1,7 @@
 #include "BvOpSem2MemRepr.hh"
 #include "seahorn/Expr/ExprOpBinder.hh"
 #include "seahorn/Expr/ExprOpBool.hh"
+#include "seahorn/Expr/ExprRewriter.hh"
 #include "seahorn/Expr/ExprVisitor.hh"
 
 namespace {
@@ -285,7 +286,8 @@ Expr OpSemMemHybridRepr::loadAlignedWordFromMem(PtrTy ptr, MemValTy mem) {
   LOG("opsem-hybrid", INFO << "Rewritten: " << *rewritten << "\n");
 
   /** simplify with custom ITE simplifier **/
-  Expr simp = boolop::simplifyIte(rewritten);
+  // Expr simp = boolop::simplifyIte(rewritten);
+  Expr simp = rewriteITEComp(rewritten);
   LOG("opsem-hybrid", INFO << "my simplified: " << *simp << "\n");
 
   return simp;

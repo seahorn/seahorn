@@ -389,6 +389,64 @@ static bool isCriticalEdge(const BasicBlock *src, const BasicBlock *dst) {
  *       - a PHI node is translated into bj and tuple(bi,bj) => x=y
  *       - a branch is translated into b and tuple(bb,bbi) => f
  */
+
+static bool encodeEdge(const BasicBlock &src, const BasicBlock &dst,
+		       LegacyOperationalSemantics &sem,
+		       std::function<Expr(Expr)> eval,
+		       ExprSet &bool_path) {
+  Expr srcE = sem.symb(src);
+  Expr dstE = sem.symb(dst);
+  Expr edge;
+  if (isCriticalEdge(&src, &dst)) {
+    edge = path_bmc::expr_utils::mkEdge(srcE, dstE);
+    LOG("bmc-crab-blocking-clause",
+	errs() << "\tCritical edge for branch between "
+	<< src.getName() << " and " << dst.getName()
+	<< ": " << *edge << "\n";);
+    bool_path.insert(eval(srcE));
+  } else {
+    edge = mk<AND>(srcE, dstE);
+    LOG("bmc-crab-blocking-clause",
+	errs() << "\tNon-critical edge for branch between "
+	<< src.getName() << " and " << dst.getName()
+	<< ": " << *edge << "\n";);
+  }
+  bool_path.insert(eval(edge));
+  return true;
+}
+
+static bool encodeBasicBlock(const BasicBlock &bb,
+			     LegacyOperationalSemantics &sem,
+			     std::function<Expr(Expr)> eval,
+			     ExprSet &bool_path) {
+  bool_path.insert(eval(sem.symb(bb)));
+  LOG("bmc-crab-blocking-clause", errs() << "\tbasic block "
+      << bb.getName() << ": "
+      << *(sem.symb(bb)) << "\n";);
+  return true;
+}
+
+// s is the Crab statement originated from PHI
+static bool encodePHI(clam::statement_t &s, const PHINode &PHI,
+		      LegacyOperationalSemantics &sem,
+		      std::function<Expr(Expr)> eval,
+		      ExprSet &bool_path) {
+  const BasicBlock *dst = PHI.getParent();
+  const BasicBlock *src = s.get_parent()->label().get_basic_block();
+  if (!src) {
+    src = s.get_parent()->label().get_edge().first;
+    assert(src);
+  }
+
+  if (src && dst) {
+    encodeEdge(*src, *dst, sem, eval, bool_path);
+    return true;
+  } else {
+    ERR << "encodePHI failed unexpectedly";
+    return false;
+  }
+}
+
 template<class BmcTrace>
 bool PathBmcEngine::encodeBoolPathFromCrabCex(
     BmcTrace &cex, const std::vector<clam::statement_t *> &cex_stmts,
@@ -397,16 +455,18 @@ bool PathBmcEngine::encodeBoolPathFromCrabCex(
   LOG("bmc-crab-blocking-clause",
       errs() << "\nGenerating blocking clause from Crab cex ...\n";);
 
-  const clam::CfgBuilder &cfg_builder =
-      *m_cfg_builder_man->getCfgBuilder(*m_fn);
+  const clam::CfgBuilder &cfg_builder = *m_cfg_builder_man->getCfgBuilder(*m_fn);
+  
   for (auto it = cex_stmts.begin(); it != cex_stmts.end(); ++it) {
     auto s = *it;
+    bool encodingOK = false;
     LOG("bmc-crab-blocking-clause", crab::outs() << *s << "\n";);
+    
     if (s->is_havoc()) {
       // The only reason a havoc statement is relevant is if we have something
       // like x:=*; assume(cond(x)); assert(cond(x)) Therefore, we can skip
       // it.
-      continue;
+      encodingOK = true;
     } else if ( // enumerate all statements here so that we can know if we
                 // miss one
         s->is_bin_op() || s->is_int_cast() || s->is_select() ||
@@ -420,33 +480,13 @@ bool PathBmcEngine::encodeBoolPathFromCrabCex(
         s->is_arr_init()) {
       if (s->get_parent()->label().is_edge()) {
         auto p = s->get_parent()->label().get_edge();
-        Expr src = sem().symb(*p.first);
-        Expr dst = sem().symb(*p.second);
-
-        Expr edge;
-        if (isCriticalEdge(p.first, p.second)) {
-          edge = path_bmc::expr_utils::mkEdge(src, dst);
-          LOG("bmc-crab-blocking-clause",
-              errs() << "\tCritical edge for branch between "
-                     << p.first->getName() << " and " << p.second->getName()
-                     << ": " << *edge << "\n";);
-          bool_path.insert(eval(src));
-        } else {
-          edge = mk<AND>(src, dst);
-          LOG("bmc-crab-blocking-clause",
-              errs() << "\tNon-critical edge for branch between "
-                     << p.first->getName() << " and " << p.second->getName()
-                     << ": " << *edge << "\n";);
-        }
-        bool_path.insert(eval(edge));
-      } else {
-        const BasicBlock *BB = s->get_parent()->label().get_basic_block();
-        bool_path.insert(eval(sem().symb(*BB)));
-        LOG("bmc-crab-blocking-clause", errs() << "\tbasic block "
-                                               << BB->getName() << ": "
-                                               << *(sem().symb(*BB)) << "\n";);
-      }
-      continue;
+	encodingOK = encodeEdge(*(p.first), *(p.second), sem(),
+				[this](Expr e){return eval(e);},
+				bool_path);
+      } else{
+	encodingOK = encodeBasicBlock(*(s->get_parent()->label().get_basic_block()),				      
+				      sem(), [this](Expr e){return eval(e);}, bool_path);
+      } 
     } else if (s->is_assign() || s->is_bool_assign_var() ||
                s->is_arr_assign()) {
       /*
@@ -456,97 +496,43 @@ bool PathBmcEngine::encodeBoolPathFromCrabCex(
        * to include the edge from the PHI's incoming block to bb.
        */
 
-      // To record the edge
-      const BasicBlock *src_BB = nullptr;
-      const BasicBlock *dst_BB = nullptr;
-
+      const PHINode *PHI = nullptr;
       if (s->is_assign()) {
-        typedef typename clam::cfg_ref_t::basic_block_t::assign_t assign_t;
+        using assign_t = typename clam::cfg_ref_t::basic_block_t::assign_t;
         auto assign = static_cast<const assign_t *>(s);
-        if (boost::optional<const llvm::Value *> lhs =
-                assign->lhs().name().get()) {
-          // The crab assignment is in the incoming block of PHI
-          if (const PHINode *PHI = dyn_cast<PHINode>(*lhs)) {
-            src_BB = s->get_parent()->label().get_basic_block();
-            if (!src_BB) {
-              src_BB = s->get_parent()->label().get_edge().first;
-              assert(src_BB);
-            }
-            dst_BB = PHI->getParent();
-          }
+        if (boost::optional<const llvm::Value *> lhs = assign->lhs().name().get()) {
+	  PHI = dyn_cast<PHINode>(*lhs);
         }
       } else if (s->is_bool_assign_var()) {
-        typedef typename clam::cfg_ref_t::basic_block_t::bool_assign_var_t
-            bool_assign_var_t;
+        using bool_assign_var_t = typename clam::cfg_ref_t::basic_block_t::bool_assign_var_t;
         auto assign = static_cast<const bool_assign_var_t *>(s);
-        if (boost::optional<const llvm::Value *> lhs =
-                assign->lhs().name().get()) {
-          if (const PHINode *PHI = dyn_cast<PHINode>(*lhs)) {
-            // The crab assignment is in the incoming block of PHI
-            src_BB = s->get_parent()->label().get_basic_block();
-            if (!src_BB) {
-              src_BB = s->get_parent()->label().get_edge().first;
-              assert(src_BB);
-            }
-            dst_BB = PHI->getParent();
-          }
+        if (boost::optional<const llvm::Value *> lhs = assign->lhs().name().get()) {
+	  PHI = dyn_cast<PHINode>(*lhs);
         }
       } else if (s->is_arr_assign()) {
-        typedef
-            typename clam::cfg_ref_t::basic_block_t::arr_assign_t arr_assign_t;
+        using arr_assign_t = typename clam::cfg_ref_t::basic_block_t::arr_assign_t ;
         auto assign = static_cast<const arr_assign_t *>(s);
-        if (boost::optional<const llvm::Value *> lhs =
-                assign->lhs().name().get()) {
-          if (const PHINode *PHI = dyn_cast<PHINode>(*lhs)) {
-            // The crab array assignment is in the incoming block of PHI
-            src_BB = s->get_parent()->label().get_basic_block();
-            if (!src_BB) {
-              src_BB = s->get_parent()->label().get_edge().first;
-              assert(src_BB);
-            }
-            dst_BB = PHI->getParent();
-          }
+        if (boost::optional<const llvm::Value *> lhs = assign->lhs().name().get()) {
+	  PHI = dyn_cast<PHINode>(*lhs);
         }
       }
 
-      if (src_BB && dst_BB) {
-        // XXX assignments originated from PHI nodes
-        Expr src = sem().symb(*src_BB);
-        Expr dst = sem().symb(*dst_BB);
-        Expr edge;
-        if (isCriticalEdge(src_BB, dst_BB)) {
-          edge = path_bmc::expr_utils::mkEdge(src, dst);
-          LOG("bmc-crab-blocking-clause",
-              errs() << "\tCritical edge for PHI Node between "
-                     << src_BB->getName() << " and " << dst_BB->getName()
-                     << ": " << *edge << "\n";);
-          bool_path.insert(eval(src));
-        } else {
-          edge = mk<AND>(src, dst);
-          LOG("bmc-crab-blocking-clause",
-              errs() << "\tNon-critical edge for PHI Node between "
-                     << src_BB->getName() << " and " << dst_BB->getName()
-                     << ": " << *edge << "\n";);
-        }
-        bool_path.insert(eval(edge));
-        continue;
+      if (PHI) {
+	encodingOK = encodePHI(*s, *PHI, sem(), [this](Expr e){return eval(e);}, bool_path);
       } else {
         // XXX assignment not originated from a PHI node
         assert(!s->get_parent()->label().is_edge());
         const BasicBlock *BB = s->get_parent()->label().get_basic_block();
         assert(BB);
-        bool_path.insert(eval(sem().symb(*BB)));
-        LOG("bmc-crab-blocking-clause",
-            errs() << "\tbasic block for assignment " << BB->getName() << ": "
-                   << *(sem().symb(*BB)) << "\n";);
-        continue;
+	encodingOK = encodeBasicBlock(*BB, sem(), [this](Expr e){return eval(e);}, bool_path);
       }
     }
 
-    // sanity check: this should not happen.
-    // crab::outs() << *s << "\n";
-    ERR << "PathBmc::encodeBoolPathFromCrabCex: unsupported crab statement";
-    return false;
+    if (!encodingOK) {
+      crab::outs() << *s << "\n";
+      ERR << "PathBmc::encodeBoolPathFromCrabCex: unsupported crab statement";
+      return false;
+    }
   } // end for
   return true;
 }

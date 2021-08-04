@@ -55,28 +55,31 @@ seahorn::PathBmcTrace seahorn::PathBmcEngine::getTrace() {
  *
  * Assume all functions have been inlined so we have only main.
  *
- * 1. Generate precise encoding of main using BvOpSem semantics. The
+ * 1. Generate precise encoding (`encode`) of main using BvOpSem semantics. The
  *    implementation should be parametric in terms of the semantics.
  * 2. Optionally, add crab invariants
- * 3. Generate boolean abstraction
- * 4. For each model M of the boolean abstraction:
+ * 3. Generate boolean abstraction (`addGlobalCrabInvariants`)
+ * 4. For each model M (`solveBoolAbstraction`) of the boolean abstraction:
  *    4.1 Reconstruct program path from M
- *    4.2 Solve path with Crab:
+ *    4.2 Solve path with Crab (`solvePathWithCrab`):
  *        4.2.1 If sat then goto 4.3
- *        4.2.2 Otherwise, compute blocking clause to refine the
- *              boolean abstraction and go to 4.
- *    4.3 Solve path with SMT solver:
+ *        4.2.2 Otherwise, compute blocking clause
+ *              (`encodeBoolPathFromCrabCex`) to refine
+ *              (`refineBoolAbstraction`) the boolean abstraction and
+ *              go to 4.
+ *    4.3 Solve path with SMT solver (`solvePathWithSmt`):
  *        4.3.1 If sat then return "SAT"
- *        4.3.2 Otherwise, compute blocking clause to refine the boolean
- *              abstraction and go to 4.
+ *        4.3.2 Otherwise, compute blocking clause (done by
+ *              `SolvePathWithSmt`) to refine the boolean abstraction
+ *              and go to 4.
  * 5. return "UNSAT"
  *
  *  The current implementation is VCGen dependent. In particular, the
  *  functions:
- *  - genPathCondFromCrabCex
+ *  - encodeBoolPathFromCrabCex
  *  - boolAbstraction
  *
- *  Moreover, genPathCondFromCrabCex also requires knowledge
+ *  Moreover, encodeBoolPathFromCrabCex also requires knowledge
  *  about how the translation from LLVM bitcode to Crab is done.
  **/
 
@@ -217,7 +220,7 @@ void PathBmcEngine::initializeCrab() {
 
 // Run whole-program crab analysis and assert those invariants into
 // the solver that keeps the precise encoding.
-void PathBmcEngine::addGlobalCrabInvariants(expr_invariants_map_t &invariants) {
+void PathBmcEngine::addWholeProgramCrabInvariants(expr_invariants_map_t &invariants) {
   if (UseCrabGlobalInvariants) {
     LOG("bmc", get_os(true) << "Begin running crab analysis\n";);
     Stats::resume("BMC path-based: whole-program crab analysis");
@@ -387,9 +390,9 @@ static bool isCriticalEdge(const BasicBlock *src, const BasicBlock *dst) {
  *       - a branch is translated into b and tuple(bb,bbi) => f
  */
 template<class BmcTrace>
-bool PathBmcEngine::genPathCondFromCrabCex(
+bool PathBmcEngine::encodeBoolPathFromCrabCex(
     BmcTrace &cex, const std::vector<clam::statement_t *> &cex_stmts,
-    ExprSet /*std::set<Expr, lessExpr>*/ &path_cond) {
+    ExprSet &bool_path) {
 
   LOG("bmc-crab-blocking-clause",
       errs() << "\nGenerating blocking clause from Crab cex ...\n";);
@@ -427,7 +430,7 @@ bool PathBmcEngine::genPathCondFromCrabCex(
               errs() << "\tCritical edge for branch between "
                      << p.first->getName() << " and " << p.second->getName()
                      << ": " << *edge << "\n";);
-          path_cond.insert(eval(src));
+          bool_path.insert(eval(src));
         } else {
           edge = mk<AND>(src, dst);
           LOG("bmc-crab-blocking-clause",
@@ -435,10 +438,10 @@ bool PathBmcEngine::genPathCondFromCrabCex(
                      << p.first->getName() << " and " << p.second->getName()
                      << ": " << *edge << "\n";);
         }
-        path_cond.insert(eval(edge));
+        bool_path.insert(eval(edge));
       } else {
         const BasicBlock *BB = s->get_parent()->label().get_basic_block();
-        path_cond.insert(eval(sem().symb(*BB)));
+        bool_path.insert(eval(sem().symb(*BB)));
         LOG("bmc-crab-blocking-clause", errs() << "\tbasic block "
                                                << BB->getName() << ": "
                                                << *(sem().symb(*BB)) << "\n";);
@@ -517,7 +520,7 @@ bool PathBmcEngine::genPathCondFromCrabCex(
               errs() << "\tCritical edge for PHI Node between "
                      << src_BB->getName() << " and " << dst_BB->getName()
                      << ": " << *edge << "\n";);
-          path_cond.insert(eval(src));
+          bool_path.insert(eval(src));
         } else {
           edge = mk<AND>(src, dst);
           LOG("bmc-crab-blocking-clause",
@@ -525,14 +528,14 @@ bool PathBmcEngine::genPathCondFromCrabCex(
                      << src_BB->getName() << " and " << dst_BB->getName()
                      << ": " << *edge << "\n";);
         }
-        path_cond.insert(eval(edge));
+        bool_path.insert(eval(edge));
         continue;
       } else {
         // XXX assignment not originated from a PHI node
         assert(!s->get_parent()->label().is_edge());
         const BasicBlock *BB = s->get_parent()->label().get_basic_block();
         assert(BB);
-        path_cond.insert(eval(sem().symb(*BB)));
+        bool_path.insert(eval(sem().symb(*BB)));
         LOG("bmc-crab-blocking-clause",
             errs() << "\tbasic block for assignment " << BB->getName() << ": "
                    << *(sem().symb(*BB)) << "\n";);
@@ -542,7 +545,7 @@ bool PathBmcEngine::genPathCondFromCrabCex(
 
     // sanity check: this should not happen.
     // crab::outs() << *s << "\n";
-    ERR << "PathBmc::gen_path_cond_from_cex: unsupported crab statement";
+    ERR << "PathBmc::encodeBoolPathFromCrabCex: unsupported crab statement";
     return false;
   } // end for
   return true;
@@ -634,10 +637,10 @@ void PathBmcEngine::extractPostConditionsFromCrabCex(
    bottom. If bottom then it computes a blocking clause for that
    path.
 
-   Modify m_path_cond.
+   Modify m_gen_path.
  */
 template<class BmcTrace>
-bool PathBmcEngine::pathEncodingAndSolveWithCrab(
+bool PathBmcEngine::solvePathWithCrab(
     BmcTrace &cex, bool keep_path_constraints,
     crab_invariants_map_t &crab_path_constraints,
     expr_invariants_map_t &path_constraints) {
@@ -717,22 +720,22 @@ bool PathBmcEngine::pathEncodingAndSolveWithCrab(
           crab::outs() << "\t" << *s << "\n";
         });
 
-    // -- Extract the path condition from the spurious cex.
-    std::set<Expr> path_cond;
+    // -- Extract the path from the spurious cex.
+    std::set<Expr> gen_path;
     assert(m_cfg_builder_man->hasCfg(*m_fn));
-    if (!genPathCondFromCrabCex(cex, cex_relevant_stmts, path_cond)) {
+    if (!encodeBoolPathFromCrabCex(cex, cex_relevant_stmts, gen_path)) {
       // By returning true we pretend the query was sat so we run
       // the SMT solver next.
       return true;
     }
-    m_path_cond.clear();
-    m_path_cond.assign(path_cond.begin(), path_cond.end());
+    m_gen_path.clear();
+    m_gen_path.assign(gen_path.begin(), gen_path.end());
 
 #if 0
     //// DEBUGGING    
-    Expr crab_bc = op::boolop::lneg(op::boolop::land(m_path_cond));
+    Expr crab_bc = op::boolop::lneg(op::boolop::land(m_gen_path));
     llvm::errs() << "Blocking clause using crab: " << *crab_bc << "\n";
-    m_path_cond.clear();
+    m_gen_path.clear();
     return true;
 #endif
   }
@@ -746,20 +749,20 @@ bool PathBmcEngine::pathEncodingAndSolveWithCrab(
   it produces a blocking clause for that path. Otherwise, it
   produces a model.
 
-  Modify: m_smt_path_solver, m_path_cond, and m_model.
+  Modify: m_smt_path_solver, m_gen_path, and m_model.
 
   NOTE: Currently, blocking clauses are Boolean since the only
   abstraction we handle is Boolean.
 */
 template<class BmcTrace>
-solver::SolverResult PathBmcEngine::pathEncodingAndSolveWithSmt(
+solver::SolverResult PathBmcEngine::solvePathWithSmt(
     const BmcTrace &cex, const expr_invariants_map_t & /*invariants*/,
     // extra constraints inferred by
     // crab for current implicant
     const expr_invariants_map_t & /*path_constraints*/) {
 
   const ExprVector &path_formula = cex.get_implicant_formula();
-  const ExprMap &path_cond_map = cex.get_implicant_bools_map();
+  const ExprMap &implicant_bools_map = cex.get_implicant_bools_map();
 
   LOG(
       "bmc-details", errs() << "PATH FORMULA:\n";
@@ -846,23 +849,23 @@ solver::SolverResult PathBmcEngine::pathEncodingAndSolveWithSmt(
     LOG("bmc", get_os() << "Size of unsat core=" << unsat_core.size() << "\n";);
 
     LOG(
-        "bmc-details", errs() << "unsat core=\n";
+        "bmc-details-uc", errs() << "unsat core=\n";
         for (auto e
              : unsat_core) { errs() << *e << "\n"; });
 
     // Stats::resume ("BMC path-based: blocking clause");
     // -- Refine the Boolean abstraction using the unsat core
-    ExprSet path_cond_set;
+    ExprSet gen_path;
     for (Expr e : unsat_core) {
-      auto it = path_cond_map.find(e);
+      auto it = implicant_bools_map.find(e);
       // It's possible that an implicant has no active booleans.
       // For instance, corner cases where the whole program is a
       // single block.
-      if (it != path_cond_map.end()) {
-        path_cond_set.insert(it->second);
+      if (it != implicant_bools_map.end()) {
+        gen_path.insert(it->second);
       }
     }
-    m_path_cond.assign(path_cond_set.begin(), path_cond_set.end());
+    m_gen_path.assign(gen_path.begin(), gen_path.end());
     // Stats::stop ("BMC path-based: blocking clause");
   }
 
@@ -1017,7 +1020,7 @@ void PathBmcEngine::solveBoolAbstraction() {
 solver::SolverResult PathBmcEngine::solve() {
   //*-------------------------------------------------------------------*//
   // FIXME: the generation of blocking clauses is not sound when they
-  // are generated from Clam (genPathCondFromCrabCex). This is a
+  // are generated from Clam (encodeBoolPathFromCrabCex). This is a
   // big limitation since it's one of key feature of this BMC
   // engine. It needs to be fixed.
   //*-------------------------------------------------------------------*//
@@ -1038,7 +1041,7 @@ solver::SolverResult PathBmcEngine::solve() {
   // -- precise encoding
   initializeCrab();
   expr_invariants_map_t invariants /*currently unused*/;
-  addGlobalCrabInvariants(invariants);
+  addWholeProgramCrabInvariants(invariants);
 
   LOG(
       "bmc-details", for (Expr v
@@ -1092,7 +1095,7 @@ solver::SolverResult PathBmcEngine::solve() {
       crab_invariants_map_t crab_path_constraints /*unused*/;
       bool keep_path_constraints = false;
       Stats::resume("BMC path-based: solving path + learning clauses with AI");
-      bool res = pathEncodingAndSolveWithCrab(
+      bool res = solvePathWithCrab(
           cex, keep_path_constraints, crab_path_constraints, path_constraints);
       Stats::stop("BMC path-based: solving path + learning clauses with AI");
 
@@ -1114,7 +1117,7 @@ solver::SolverResult PathBmcEngine::solve() {
           });
 
       if (!res) {
-        bool ok = blockPath();
+        bool ok = refineBoolAbstraction();
         if (ok) {
           Stats::count("BMC number symbolic paths discharged by AI");
           continue;
@@ -1130,7 +1133,7 @@ solver::SolverResult PathBmcEngine::solve() {
     // XXX: the semantics of invariants and path_constraints (e.g.,
     // linear integer arithmetic) might differ from the semantics used
     // by the smt (e.g., bitvectors).
-    solver::SolverResult res = pathEncodingAndSolveWithSmt(
+    solver::SolverResult res = solvePathWithSmt(
         cex, invariants, path_constraints /*unused*/);
     Stats::stop("BMC path-based: solving path + learning clauses with SMT");
     if (res == solver::SolverResult::SAT) {
@@ -1143,7 +1146,7 @@ solver::SolverResult PathBmcEngine::solve() {
     } else {
       // if res is unknown we still add a blocking clause to skip
       // the path.
-      bool ok = blockPath();
+      bool ok = refineBoolAbstraction();
       if (!ok) {
         ERR << "Path-based BMC added the same blocking clause again";
         m_result = solver::SolverResult::UNKNOWN;
@@ -1222,17 +1225,18 @@ solver::SolverResult PathBmcEngine::solve() {
   return m_result;
 }
 
-bool PathBmcEngine::blockPath() {
+// The (generalized) path to be excluded is already stored in m_gen_path.
+bool PathBmcEngine::refineBoolAbstraction() {
   Stats::resume("BMC path-based: adding blocking clauses");
 
   // -- Refine the Boolean abstraction
   Expr bc = mk<FALSE>(sem().efac());
-  if (m_path_cond.empty()) {
+  if (m_gen_path.empty()) {
     WARN << "No path condition generated. Trivially unsat ...";
   } else {
-    bc = op::boolop::lneg(op::boolop::land(m_path_cond));
+    bc = op::boolop::lneg(op::boolop::land(m_gen_path));
   }
-  LOG("bmc-details",
+  LOG("bmc-details-bc",
       errs() << "Added blocking clause to refine Boolean abstraction: " << *bc
              << "\n";);
 

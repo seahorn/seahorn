@@ -30,7 +30,7 @@ struct ExprRewriteRule : public std::unary_function<Expr, rewrite_result> {
   ExprRewriteRule(const ExprRewriteRule &o)
       : efac(o.efac), trueE(o.trueE), falseE(o.falseE), m_zctx(o.m_zctx) {}
 
-  rewrite_result operator()(Expr exp) { return { exp, rewrite_status::RW_DONE }; }
+  rewrite_result operator()(Expr exp) { return {exp, rewrite_status::RW_DONE}; }
 };
 
 struct ITERewriteRule : public ExprRewriteRule {
@@ -40,7 +40,7 @@ struct ITERewriteRule : public ExprRewriteRule {
 
   rewrite_result operator()(Expr exp) {
     if (!isOpX<ITE>(exp)) {
-      return { exp, rewrite_status::RW_DONE };
+      return {exp, rewrite_status::RW_DONE};
     }
 
     Expr i = exp->arg(0);
@@ -48,7 +48,7 @@ struct ITERewriteRule : public ExprRewriteRule {
     Expr e = exp->arg(2);
     // ite(a, true, false) => a
     if (t == trueE && e == falseE) {
-      return { i, rewrite_status::RW_DONE };
+      return {i, rewrite_status::RW_DONE};
     }
     // ite(a, false, true) => !a
     if (t == falseE && e == trueE) {

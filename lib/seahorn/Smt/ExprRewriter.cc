@@ -9,7 +9,7 @@ namespace expr {
 Expr rewriteITEComp(Expr exp) {
   seahorn::EZ3 zctx(exp->efac());
   ExprRewriter<ITECompRewriteConfig> rewriter(exp->efac(), zctx);
-  return rewriter.processExpr(exp);
+  return rewriter.rewriteExpr(exp);
 }
 
 bool ITECompRewriteConfig::shouldRewrite(Expr exp) {

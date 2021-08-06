@@ -73,10 +73,11 @@ Expr arrayStoreRewrite(RW &rewriter, Expr ptr, Expr mem,
     // first try find in cache
     DagVisitMemCache::const_iterator cit = cache.find(&*top);
     if (cit != cache.end()) {
-      LOG("opsem-hybrid", INFO << "hit with: " << *top << "\n");
+      // LOG("opsem-hybrid", INFO << "hit with: " << *top << "\n");
       ExprPair cached = cit->second;
       if (ptr == cached.first) {
-        LOG("opsem-hybrid", INFO << "use cached: " << *cached.second << "\n");
+        // LOG("opsem-hybrid", INFO << "use cached: " << *cached.second <<
+        // "\n");
         res = cached.second;
         continue;
       }

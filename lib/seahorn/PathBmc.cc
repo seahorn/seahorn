@@ -39,7 +39,14 @@ seahorn::PathBmcTrace seahorn::PathBmcEngine::getTrace() {
 #include "clam/CrabDomainParser.hh"
 #include "clam/HeapAbstraction.hh"
 #include "clam/SeaDsaHeapAbstraction.hh"
+
+#include "seadsa/SeaMemorySSA.hh"
+#include "seadsa/Global.hh"
+
 #include "llvm/ADT/STLExtras.h"
+#include "llvm/ADT/SmallSet.h"
+#include "llvm/ADT/SmallVector.h"
+#include "llvm/ADT/DenseMap.h"
 #include "llvm/Analysis/CallGraph.h"
 #include "llvm/Analysis/TargetLibraryInfo.h"
 #include "llvm/Support/CommandLine.h"
@@ -55,21 +62,23 @@ seahorn::PathBmcTrace seahorn::PathBmcEngine::getTrace() {
  *
  * Assume all functions have been inlined so we have only main.
  *
- * 1. Generate precise encoding (`encode`) of main using BvOpSem semantics. The
- *    implementation should be parametric in terms of the semantics.
- * 2. Optionally, add crab invariants
+ * 1. Generate precise encoding (`encode`) of main using
+ *    BvOpSem/BvOpSem2 semantics. The implementation should be
+ *    parametric in terms of the semantics althought it hasn't been
+ *    tested on BvOpSem2.
+ * 2. Optionally, add crab invariants.
  * 3. Generate boolean abstraction (`addGlobalCrabInvariants`)
  * 4. For each model M (`solveBoolAbstraction`) of the boolean abstraction:
  *    4.1 Reconstruct program path from M
  *    4.2 Solve path with Crab (`solvePathWithCrab`):
  *        4.2.1 If sat then goto 4.3
- *        4.2.2 Otherwise, compute blocking clause
+ *        4.2.2 Otherwise, compute (generalized) blocking path
  *              (`encodeBoolPathFromCrabCex`) to refine
  *              (`refineBoolAbstraction`) the boolean abstraction and
  *              go to 4.
  *    4.3 Solve path with SMT solver (`solvePathWithSmt`):
  *        4.3.1 If sat then return "SAT"
- *        4.3.2 Otherwise, compute blocking clause (done by
+ *        4.3.2 Otherwise, compute (generalized) blocking path (done by
  *              `SolvePathWithSmt`) to refine the boolean abstraction
  *              and go to 4.
  * 5. return "UNSAT"
@@ -101,33 +110,33 @@ static llvm::cl::opt<seahorn::solver::SolverKind, true>
                llvm::cl::values(clEnumValN(seahorn::solver::SolverKind::Z3,
                                            "z3", "z3 SMT solver"),
                                 clEnumValN(seahorn::solver::SolverKind::YICES2,
-                                           "yices2", "Yices2 SMT solver")),
-               llvm::cl::desc("Choose SMT solver used for the Path Bmc engine"),
+                                           "y2", "Yices2 SMT solver")),
+               llvm::cl::desc("Choose SMT solver used by path-bmc"),
                llvm::cl::location(seahorn::SmtSolver),
                llvm::cl::init(seahorn::solver::SolverKind::Z3));
 
 static llvm::cl::opt<bool, true> XUseCrabGlobalInvariants(
     "horn-bmc-crab-invariants",
-    llvm::cl::desc("Load crab invariants into the Path Bmc engine"),
+    llvm::cl::desc("Load whole-program crab invariants in path-bmc"),
     llvm::cl::location(seahorn::UseCrabGlobalInvariants), llvm::cl::init(true));
 
 static llvm::cl::opt<bool, true> XUseCrabForSolvingPaths(
     "horn-bmc-crab",
-    llvm::cl::desc("Use of Crab to solve paths in Path Bmc engine"),
+    llvm::cl::desc("Use of Crab to solve paths in path-bmc"),
     llvm::cl::location(seahorn::UseCrabForSolvingPaths), llvm::cl::init(false));
 
 static llvm::cl::opt<clam::CrabDomain::Type, true, clam::CrabDomainParser>
     XCrabDom("horn-bmc-crab-dom",
-             llvm::cl::desc("Crab Domain used by the Path Bmc engine"),
+             llvm::cl::desc("Crab abstract domain used in path-bmc"),
              llvm::cl::values(
                  clEnumValN(clam::CrabDomain::INTERVALS, "int",
                             "Classical interval domain (default)"),
                  clEnumValN(clam::CrabDomain::ZONES_SPLIT_DBM, "zones",
-                            "Zones domain."),
+                            "Zones domain"),
                  clEnumValN(clam::CrabDomain::TERMS_INTERVALS, "term-int",
-                            "Intervals with uninterpreted functions."),
+                            "Intervals with uninterpreted functions"),
                  clEnumValN(clam::CrabDomain::TERMS_ZONES, "rtz",
-                            "Reduced product of term-dis-int and zones."),
+                            "Reduced product of term-dis-int and zones"),
                  clEnumValN(clam::CrabDomain::WRAPPED_INTERVALS, "w-int",
                             "Wrapped interval domain")),
              llvm::cl::location(seahorn::CrabDom),
@@ -142,8 +151,7 @@ static llvm::cl::opt<bool, true> XLayeredCrabSolving(
 
 static llvm::cl::opt<enum seahorn::path_bmc::MucMethodKind, true> XMucMethod(
     "horn-bmc-muc",
-    llvm::cl::desc("Method used to compute minimal unsatisfiable cores in Path "
-                   "Bmc engine"),
+    llvm::cl::desc("Method used to compute minimal unsatisfiable cores in path-bmc"),
     llvm::cl::values(
         clEnumValN(seahorn::path_bmc::MucMethodKind::MUC_NONE, "none", "None"),
         clEnumValN(seahorn::path_bmc::MucMethodKind::MUC_ASSUMPTIONS, "assume",
@@ -155,15 +163,17 @@ static llvm::cl::opt<enum seahorn::path_bmc::MucMethodKind, true> XMucMethod(
     llvm::cl::location(seahorn::MucMethod),
     llvm::cl::init(seahorn::path_bmc::MucMethodKind::MUC_ASSUMPTIONS));
 
+// Only if z3
 static llvm::cl::opt<unsigned, true> XPathTimeout(
     "horn-bmc-path-timeout",
     llvm::cl::desc(
-        "Timeout (sec) for SMT solving a path formula in Path Bmc engine"),
+        "Timeout (sec) for SMT solving a path formula in path-bmc"),
     llvm::cl::location(seahorn::PathTimeout), llvm::cl::init(1800u));
 
+// Only if z3
 static llvm::cl::opt<unsigned, true> XMucTimeout(
     "horn-bmc-muc-timeout",
-    llvm::cl::desc("Timeout (sec) for SMT query during MUC in Path Bmc engine"),
+    llvm::cl::desc("Timeout (sec) for SMT query during MUC in path-bmc"),
     llvm::cl::location(seahorn::MucTimeout), llvm::cl::init(5u));
 
 static llvm::cl::opt<std::string, true> XSmtOutDir(
@@ -207,7 +217,9 @@ void PathBmcEngine::initializeCrab() {
   const Module &M = *(m_fn->getParent());
   std::unique_ptr<clam::HeapAbstraction> heap_abs =
       std::make_unique<clam::SeaDsaHeapAbstraction>(M, m_sm.getDsaAnalysis());
-
+  m_mem_ssa = m_sm.getMemorySSA(*const_cast<Function*>(m_fn));
+  assert(m_mem_ssa);
+  
   // -- Create a CFG manager
   m_cfg_builder_man.reset(new clam::CrabBuilderManager(
       cfg_builder_params, m_tli, std::move(heap_abs)));
@@ -369,126 +381,268 @@ static bool isCriticalEdge(const BasicBlock *src, const BasicBlock *dst) {
 }
 
 /*
- * Extract which boolean literals from the boolean abstraction must be
- * true to witness the spurious counterexample found by Crab.
+ * encodeBoolPathFromCrabCex(cex, cex_stmts, bool_path)
+ * 
+ * Extract/reconstruct which literals from the boolean abstraction
+ * must be true to witness the spurious counterexample found by Crab.
  *
- * The extraction depends on the particular VCGen encoding and how
+ * The reconstruction depends on the particular VCGen encoding and how
  * LLVM bitcode is translated into Crab CFGs. These are the current
  * assumptions:
  *
- *   1) A binary operation or array read/write s at bb is translated by VCGen
- *      to (bb => s)
- *   2) Most Crab assignments "x=y" at bj are coming from PHI nodes.
+ *   1) Most Crab assignments "x=y" at bj are coming from PHI nodes.
  *      Given "bi: x = PHI (y, bj) (...)" VCGen encodes it into:
  *        ((bj and (bj and bi)) => x=y)
- *   3) Crab "assume(cst)" at bbi is coming from "f = ICMP cst at bb, BR f bbi,
+ *   2) Crab "assume(cst)" at bbi is coming from "f = ICMP cst at bb, BR f bbi,
  *      bbj", VCGen produces:
  *        ((bb and (bb and bbi)) => f)
+ * 
+ *   3) Memory accesses must be treated carefully since Crab does not
+ *      preserve memory SSA form.
+ *      OLD: A binary operation or array read/write s at bb is translated by VCGen
+ *           to (bb => s)
  *
  *   We need to take special care if an edge is critical:
  *       - a PHI node is translated into bj and tuple(bi,bj) => x=y
  *       - a branch is translated into b and tuple(bb,bbi) => f
  */
-
-static bool encodeEdge(const BasicBlock &src, const BasicBlock &dst,
+static Expr encodeEdge(const BasicBlock &src, const BasicBlock &dst,
 		       LegacyOperationalSemantics &sem,
-		       std::function<Expr(Expr)> eval,
-		       ExprSet &bool_path) {
+		       std::function<Expr(Expr)> eval) {
   Expr srcE = sem.symb(src);
   Expr dstE = sem.symb(dst);
-  Expr edge;
+  Expr res;
   if (isCriticalEdge(&src, &dst)) {
-    edge = path_bmc::expr_utils::mkEdge(srcE, dstE);
-    LOG("bmc-crab-blocking-clause",
-	errs() << "\tCritical edge for branch between "
-	<< src.getName() << " and " << dst.getName()
-	<< ": " << *edge << "\n";);
-    bool_path.insert(eval(srcE));
+    Expr edge = eval(path_bmc::expr_utils::mkEdge(srcE, dstE));
+    res = mk<AND>(eval(srcE), edge);    
   } else {
-    edge = mk<AND>(srcE, dstE);
-    LOG("bmc-crab-blocking-clause",
-	errs() << "\tNon-critical edge for branch between "
-	<< src.getName() << " and " << dst.getName()
-	<< ": " << *edge << "\n";);
+    res = mk<AND>(eval(srcE), eval(dstE));
   }
-  bool_path.insert(eval(edge));
-  return true;
+  return res;
 }
 
-static bool encodeBasicBlock(const BasicBlock &bb,
+static Expr encodeBasicBlock(const BasicBlock &bb,
 			     LegacyOperationalSemantics &sem,
-			     std::function<Expr(Expr)> eval,
-			     ExprSet &bool_path) {
-  bool_path.insert(eval(sem.symb(bb)));
-  LOG("bmc-crab-blocking-clause", errs() << "\tbasic block "
-      << bb.getName() << ": "
-      << *(sem.symb(bb)) << "\n";);
-  return true;
+			     std::function<Expr(Expr)> eval) {
+  return eval(sem.symb(bb));
 }
 
 // s is the Crab statement originated from PHI
-static bool encodePHI(clam::statement_t &s, const PHINode &PHI,
+static Expr encodePHI(clam::statement_t &s, const PHINode &PHI,
 		      LegacyOperationalSemantics &sem,
-		      std::function<Expr(Expr)> eval,
-		      ExprSet &bool_path) {
+		      std::function<Expr(Expr)> eval) {
   const BasicBlock *dst = PHI.getParent();
   const BasicBlock *src = s.get_parent()->label().get_basic_block();
   if (!src) {
     src = s.get_parent()->label().get_edge().first;
     assert(src);
   }
-
   if (src && dst) {
-    encodeEdge(*src, *dst, sem, eval, bool_path);
-    return true;
+    return encodeEdge(*src, *dst, sem, eval);
   } else {
-    ERR << "encodePHI failed unexpectedly";
-    return false;
+    WARN << "encodePHI did not succeed";
+    return Expr();
   }
 }
 
+static bool isMemRead(const clam::statement_t &s) {
+  // TODO: consider region statements
+  return s.is_arr_read();
+}
+
+static bool isMemWrite(const clam::statement_t &s) {
+  // TODO: consider region statements  
+  return s.is_arr_write();
+}
+
+static void getMemoryDefs(const std::vector<clam::statement_t *> stmts,
+			  seadsa::SeaMemorySSA &memSSA,
+			  const clam::CfgBuilder &cfgBuilder,
+			  SmallSet<seadsa::SeaMemoryDef*, 8> &out) {
+
+  LOG("bmc-crab-bc",errs() << "Memory definitions={";);
+  for (auto s: stmts) {
+    if (isMemWrite(*s)) {
+      if (const Instruction * I = cfgBuilder.getInstruction(*s)) {
+	if (seadsa::SeaMemoryDef *def =
+	    dyn_cast<seadsa::SeaMemoryDef>(memSSA.getMemoryAccess(I))) {
+	  LOG("bmc-crab-bc", errs() << *def << ";";);
+	  out.insert(def);
+	}
+      }
+    }
+  }
+  LOG("bmc-crab-bc", errs() << "}\n";);
+}
+
+// out maps each PHI node to the incoming block executed in cex.
+template<class BmcTrace>
+static void getExecutedPHIIncomingBlocks(BmcTrace &cex,
+					 seadsa::SeaMemorySSA &memSSA,
+					 DenseMap<const seadsa::SeaMemoryPhi*,
+					          SmallVector<unsigned, 4>> &out) {
+  SmallSet<const BasicBlock*, 16> reachable_bbs;
+  for(unsigned i=0, sz=cex.size();i <sz; ++i) {
+    reachable_bbs.insert(cex.bb(i));
+  }
+
+  for(unsigned i=0, sz=cex.size();i <sz; ++i) {
+    const BasicBlock *bb = cex.bb(i);
+    for (const seadsa::SeaMemoryPhi& memPhi: memSSA.getMemoryAccesses(bb)) {
+      // IMPROVE: all the memPhi should have been reachable from the
+      // same incoming block
+      for (unsigned j=0; j < memPhi.getNumIncomingValues(); ++j) {
+	const BasicBlock *IncBB = memPhi.getIncomingBlock(j);
+	if (reachable_bbs.count(IncBB) > 0) {
+	  // A memory PHI can have more than one reachable incoming blocks
+	  // E.g., A -> B -> C and A -> C. If a memory PHI is placed
+	  // at C then both A and B are reachable incoming blocks.
+	  out[&memPhi].push_back(j);
+	}
+      }
+    }
+  }
+}
+
+// Encode the PHI nodes that connect the memory use with its
+// definition. Return true iff the definition is found.
+static Expr encodeUseDefChain(clam::statement_t &s,
+			      const DenseMap<const seadsa::SeaMemoryPhi*,
+			                     SmallVector<unsigned, 4>> &memPHIInfo,
+			      seadsa::SeaMemorySSA &memSSA,
+			      const clam::CfgBuilder &cfgBuilder,
+			      const SmallSet<seadsa::SeaMemoryDef*, 8> &defs,
+			      LegacyOperationalSemantics &sem,
+			      std::function<Expr(Expr)> eval) {
+
+  seadsa::SeaMemoryUse *use = nullptr;
+  if (isMemRead(s)) {
+    if (const Instruction * I = cfgBuilder.getInstruction(s)) {
+      use = dyn_cast<seadsa::SeaMemoryUse>(memSSA.getMemoryAccess(I));
+    }
+  }
+  if (!use) {
+    WARN << "encodeUseDefChain did not succeed";    
+    return Expr();
+  }
+
+  LOG("bmc-crab-bc",
+      errs() << "Computing use-def chain from " << *use << "\n";);
+  seadsa::SeaMemoryAccess *cur = use->getDefiningAccess();
+  ExprVector res{mk<TRUE>(sem.efac())};
+  while(true) {
+    LOG("bmc-crab-bc", errs() << "\t" << *cur << "\n";);
+    
+    if (seadsa::SeaMemoryDef *memDef = dyn_cast<seadsa::SeaMemoryDef>(cur)) {
+      if (defs.count(memDef) > 0) {
+	LOG("bmc-crab-bc",	
+	    errs() << "\tFinished successfully at definition " << *memDef << "\n";);
+	return op::boolop::land(res);
+      }
+    }
+    
+    if (seadsa::SeaMemoryPhi *memPhi = dyn_cast<seadsa::SeaMemoryPhi>(cur)) {
+      auto it = memPHIInfo.find(memPhi);
+      if (it != memPHIInfo.end()) {
+	auto reachIncomingOpIdxs =  it->second;
+	LOG("bmc-crab-bc",
+	    errs() << "\tThe MemoryPhi has " << reachIncomingOpIdxs.size()
+	           << " live incoming blocks\n";);
+	ExprVector PhiE;
+	// If there are more than one reachable incoming operand then
+	// we need to encode them as a disjunction.
+	seadsa::SeaMemoryAccess *phiIncMem = nullptr;
+	for (unsigned incOpIdx :reachIncomingOpIdxs) {
+	  if (!phiIncMem) {
+	    phiIncMem = memPhi->getIncomingValue(incOpIdx);
+	  } else {
+	    if (phiIncMem != memPhi->getIncomingValue(incOpIdx)) {
+	      // TODO: we should keep chasing both regions.
+	      // For now, we bail out and resort to SMT.
+	      WARN << "encodeUseDefChain: aborted with " << *memPhi
+		   << " because two incoming operands with different memory regions\n"
+		   << "\t" << *phiIncMem << "\n\t" << *(memPhi->getIncomingValue(incOpIdx));
+	      return Expr();
+	    }
+	  }
+	  if (Expr incOpE = encodeEdge(*(memPhi->getIncomingBlock(incOpIdx)),
+				       *(memPhi->getBlock()), sem, eval)) {
+	    PhiE.push_back(incOpE); 
+	  } else {
+	    WARN << "encodeUseDefChain: failed while encoding incoming op " << incOpIdx
+		 << " in " << *memPhi;
+	    return Expr();
+	  }
+	}
+	cur = phiIncMem;
+	assert(!PhiE.empty());
+	if (PhiE.size() == 1) {
+	  res.push_back(PhiE[0]);	  
+	} else if (PhiE.size() == 2) {
+	  res.push_back(op::boolop::lor(PhiE[0], PhiE[1]));
+	} else {
+	  res.push_back(mknary<OR>(PhiE));
+	}
+      } else {
+	WARN << "encodeUseDefChain: does not know which incoming op to follow in " << *memPhi;
+	return Expr();
+      } 
+    } else {
+      WARN << "encodeUseDefChain: unsupported memory instruction " << *cur;
+      return Expr();
+    }
+  }
+  return Expr();
+}
+
+  
 template<class BmcTrace>
 bool PathBmcEngine::encodeBoolPathFromCrabCex(
     BmcTrace &cex, const std::vector<clam::statement_t *> &cex_stmts,
-    ExprSet &bool_path) {
+    ExprSet &boolPath) {
 
-  LOG("bmc-crab-blocking-clause",
-      errs() << "\nGenerating blocking clause from Crab cex ...\n";);
+  using assign_t = typename clam::cfg_ref_t::basic_block_t::assign_t;
+  using bool_assign_var_t = typename clam::cfg_ref_t::basic_block_t::bool_assign_var_t;
+  using arr_assign_t = typename clam::cfg_ref_t::basic_block_t::arr_assign_t ;
+  auto evalE = [this](Expr e){return eval(e);};
+    
+  LOG("bmc-crab-bc",
+      errs() << "\nGenerating blocking path from Crab cex ...\n";);
 
-  const clam::CfgBuilder &cfg_builder = *m_cfg_builder_man->getCfgBuilder(*m_fn);
+  const clam::CfgBuilder &cfgBuilder = *m_cfg_builder_man->getCfgBuilder(*m_fn);
+  SmallSet<seadsa::SeaMemoryDef*, 8> mem_defs;
+  DenseMap<const seadsa::SeaMemoryPhi*, SmallVector<unsigned, 4>> mem_phis_exec_inc_block;
+  
+  getMemoryDefs(cex_stmts, *m_mem_ssa, cfgBuilder, mem_defs);
+  getExecutedPHIIncomingBlocks(cex, *m_mem_ssa, mem_phis_exec_inc_block);
+  
   
   for (auto it = cex_stmts.begin(); it != cex_stmts.end(); ++it) {
     auto s = *it;
-    bool encodingOK = false;
-    LOG("bmc-crab-blocking-clause", crab::outs() << *s << "\n";);
-    
+    LOG("bmc-crab-bc", crab::outs() << *s << "\n";);    
+    Expr sE; // the encoding of s
     if (s->is_havoc()) {
-      // The only reason a havoc statement is relevant is if we have something
-      // like x:=*; assume(cond(x)); assert(cond(x)) Therefore, we can skip
-      // it.
-      encodingOK = true;
-    } else if ( // enumerate all statements here so that we can know if we
-                // miss one
+      // do nothing
+      continue;
+    } else if (// enumerate all statements so we don't miss one.
         s->is_bin_op() || s->is_int_cast() || s->is_select() ||
         s->is_bool_bin_op() || s->is_bool_assign_cst() || s->is_assume() ||
         s->is_bool_assume() ||
-        // array writes
-        s->is_arr_write() ||
-        // array reads
-        s->is_arr_read() ||
-        // array initializations are not coming from branches
-        s->is_arr_init()) {
-      if (s->get_parent()->label().is_edge()) {
-        auto p = s->get_parent()->label().get_edge();
-	encodingOK = encodeEdge(*(p.first), *(p.second), sem(),
-				[this](Expr e){return eval(e);},
-				bool_path);
-      } else{
-	encodingOK = encodeBasicBlock(*(s->get_parent()->label().get_basic_block()),				      
-				      sem(), [this](Expr e){return eval(e);}, bool_path);
-      } 
-    } else if (s->is_assign() || s->is_bool_assign_var() ||
-               s->is_arr_assign()) {
+        s->is_arr_write() || s->is_arr_read() || s->is_arr_init()) {
+
+      if (isMemRead(*s)) {
+	sE = encodeUseDefChain(*s, mem_phis_exec_inc_block, *m_mem_ssa,
+			       cfgBuilder, mem_defs, sem(), evalE);
+      } else {
+	if (s->get_parent()->label().is_edge()) {
+	  auto p = s->get_parent()->label().get_edge();
+	  sE = encodeEdge(*(p.first), *(p.second), sem(), evalE);
+	} else{
+	  sE = encodeBasicBlock(*(s->get_parent()->label().get_basic_block()),
+				sem(), evalE);
+	}
+      }
+    } else if (s->is_assign() || s->is_bool_assign_var() || s->is_arr_assign()) {
       /*
        * If there is an assignment then it might be originated from a
        * PHI node.  In that case, it's not sound just to consider the
@@ -498,19 +652,16 @@ bool PathBmcEngine::encodeBoolPathFromCrabCex(
 
       const PHINode *PHI = nullptr;
       if (s->is_assign()) {
-        using assign_t = typename clam::cfg_ref_t::basic_block_t::assign_t;
         auto assign = static_cast<const assign_t *>(s);
         if (boost::optional<const llvm::Value *> lhs = assign->lhs().name().get()) {
 	  PHI = dyn_cast<PHINode>(*lhs);
         }
       } else if (s->is_bool_assign_var()) {
-        using bool_assign_var_t = typename clam::cfg_ref_t::basic_block_t::bool_assign_var_t;
         auto assign = static_cast<const bool_assign_var_t *>(s);
         if (boost::optional<const llvm::Value *> lhs = assign->lhs().name().get()) {
 	  PHI = dyn_cast<PHINode>(*lhs);
         }
       } else if (s->is_arr_assign()) {
-        using arr_assign_t = typename clam::cfg_ref_t::basic_block_t::arr_assign_t ;
         auto assign = static_cast<const arr_assign_t *>(s);
         if (boost::optional<const llvm::Value *> lhs = assign->lhs().name().get()) {
 	  PHI = dyn_cast<PHINode>(*lhs);
@@ -518,21 +669,23 @@ bool PathBmcEngine::encodeBoolPathFromCrabCex(
       }
 
       if (PHI) {
-	encodingOK = encodePHI(*s, *PHI, sem(), [this](Expr e){return eval(e);}, bool_path);
+	sE = encodePHI(*s, *PHI, sem(), evalE);
       } else {
-        // XXX assignment not originated from a PHI node
         assert(!s->get_parent()->label().is_edge());
         const BasicBlock *BB = s->get_parent()->label().get_basic_block();
         assert(BB);
-	encodingOK = encodeBasicBlock(*BB, sem(), [this](Expr e){return eval(e);}, bool_path);
+	sE = encodeBasicBlock(*BB, sem(), evalE);
       }
+    } else {
+      crab::outs() << *s << "\n";
+      ERR << "PathBmc::encodeBoolPathFromCrabCex: unsupported crab statement";      
     }
 
-    if (!encodingOK) {
-      crab::outs() << *s << "\n";
-      ERR << "PathBmc::encodeBoolPathFromCrabCex: unsupported crab statement";
+    if (!sE) {
       return false;
     }
+       
+    boolPath.insert(sE);
   } // end for
   return true;
 }
@@ -633,13 +786,13 @@ bool PathBmcEngine::solvePathWithCrab(
 
   using namespace clam;
   std::vector<const llvm::BasicBlock *> cex_blocks;
-  LOG("bmc-details", errs() << "Trace=";);
+  LOG("bmc-details-crab", errs() << "Trace=";);
   for (unsigned i = 0, sz = cex.size(); i < sz; i++) {
     cex_blocks.push_back(cex.bb(i));
-    LOG("bmc-details", errs() << cex.bb(i)->getName() << "  ";);
+    LOG("bmc-details-crab", errs() << cex.bb(i)->getName() << "  ";);
   }
 
-  LOG("bmc-details", errs() << "\n";);
+  LOG("bmc-details-crab", errs() << "\n";);
 
   // -- crab parameters
   AnalysisParams params;
@@ -689,11 +842,11 @@ bool PathBmcEngine::solvePathWithCrab(
         unsigned num_stmts = 0;
         for (auto BB
              : cex_blocks) { num_stmts += BB->size(); } get_os()
-        << " #Relevant statements " << cex_relevant_stmts.size() << "/"
+        << " |minimized crab cex|=" << cex_relevant_stmts.size() << " |total crab cex|="
         << num_stmts << ".\n";);
 
     LOG(
-        "bmc-crab", errs() << "\nRelevant Crab statements:\n";
+        "bmc-crab", errs() << "\nCrab cex:\n";
         for (auto &s
              : cex_relevant_stmts) {
           errs() << s->get_parent()->label().get_name();
@@ -720,7 +873,7 @@ bool PathBmcEngine::solvePathWithCrab(
 #if 0
     //// DEBUGGING    
     Expr crab_bc = op::boolop::lneg(op::boolop::land(m_gen_path));
-    llvm::errs() << "Blocking clause using crab: " << *crab_bc << "\n";
+    llvm::errs() << "Blocking path using crab: " << *crab_bc << "\n";
     m_gen_path.clear();
     return true;
 #endif
@@ -839,7 +992,6 @@ solver::SolverResult PathBmcEngine::solvePathWithSmt(
         for (auto e
              : unsat_core) { errs() << *e << "\n"; });
 
-    // Stats::resume ("BMC path-based: blocking clause");
     // -- Refine the Boolean abstraction using the unsat core
     ExprSet gen_path;
     for (Expr e : unsat_core) {
@@ -852,7 +1004,6 @@ solver::SolverResult PathBmcEngine::solvePathWithSmt(
       }
     }
     m_gen_path.assign(gen_path.begin(), gen_path.end());
-    // Stats::stop ("BMC path-based: blocking clause");
   }
 
   return res;
@@ -864,7 +1015,7 @@ PathBmcEngine::PathBmcEngine(LegacyOperationalSemantics &sem,
     : m_sem(sem), m_cpg(nullptr), m_fn(nullptr), m_ls(nullptr),
       m_ctxState(sem.efac()), m_boolean_solver(nullptr),
       m_smt_path_solver(nullptr), m_model(nullptr), m_num_paths(0), m_tli(tli),
-      m_sm(sm), m_cfg_builder_man(nullptr), m_crab_path_solver(nullptr) {
+      m_sm(sm), m_mem_ssa(nullptr), m_cfg_builder_man(nullptr), m_crab_path_solver(nullptr) {
 
   if (SmtSolver == solver::SolverKind::Z3) {
     m_boolean_solver = std::make_unique<solver::z3_solver_impl>(sem.efac());
@@ -1004,18 +1155,6 @@ void PathBmcEngine::solveBoolAbstraction() {
 }
 
 solver::SolverResult PathBmcEngine::solve() {
-  //*-------------------------------------------------------------------*//
-  // FIXME: the generation of blocking clauses is not sound when they
-  // are generated from Clam (encodeBoolPathFromCrabCex). This is a
-  // big limitation since it's one of key feature of this BMC
-  // engine. It needs to be fixed.
-  //*-------------------------------------------------------------------*//
-  if (UseCrabForSolvingPaths) {
-    UseCrabForSolvingPaths = false;
-    WARN << "Disabling --horn-bmc-crab";
-  }
-  //*-------------------------------------------------------------------*//
-
   LOG("bmc", get_os(true) << "Starting path-based BMC \n";);
 
   // -- Precise encoding
@@ -1023,7 +1162,7 @@ solver::SolverResult PathBmcEngine::solve() {
   encode();
   LOG("bmc", get_os(true) << "End precise encoding\n";);
 
-  // -- Initialize AI and assert global invariants to refine the
+  // -- Initialize Crab and assert global invariants to refine the
   // -- precise encoding
   initializeCrab();
   expr_invariants_map_t invariants /*currently unused*/;
@@ -1080,14 +1219,14 @@ solver::SolverResult PathBmcEngine::solve() {
     if (UseCrabForSolvingPaths) {
       crab_invariants_map_t crab_path_constraints /*unused*/;
       bool keep_path_constraints = false;
-      Stats::resume("BMC path-based: solving path + learning clauses with AI");
+      Stats::resume("BMC path-based: solving path + generalized blocking path with Crab");
       bool res = solvePathWithCrab(
           cex, keep_path_constraints, crab_path_constraints, path_constraints);
-      Stats::stop("BMC path-based: solving path + learning clauses with AI");
+      Stats::stop("BMC path-based: solving path + generalized blocking path with Crab");
 
       LOG(
           "bmc-ai", if (!path_constraints.empty()) {
-            errs() << "\nPath constraints (post-conditions) inferred by AI\n";
+            errs() << "\nPath constraints (post-conditions) inferred by Crab\n";
             for (auto &kv : path_constraints) {
               errs() << "\t" << kv.first->getName() << ": ";
               if (kv.second.empty()) {
@@ -1105,23 +1244,23 @@ solver::SolverResult PathBmcEngine::solve() {
       if (!res) {
         bool ok = refineBoolAbstraction();
         if (ok) {
-          Stats::count("BMC number symbolic paths discharged by AI");
+          Stats::count("BMC number symbolic paths discharged by Crab");
           continue;
         } else {
-          ERR << "Path-based BMC added the same blocking clause again";
+          ERR << "Path-based BMC added the same blocking path again";
           m_result = solver::SolverResult::UNKNOWN;
           return m_result;
         }
       }
     }
 
-    Stats::resume("BMC path-based: solving path + learning clauses with SMT");
+    Stats::resume("BMC path-based: solving path + generalized blocking path with SMT");
     // XXX: the semantics of invariants and path_constraints (e.g.,
     // linear integer arithmetic) might differ from the semantics used
     // by the smt (e.g., bitvectors).
     solver::SolverResult res = solvePathWithSmt(
         cex, invariants, path_constraints /*unused*/);
-    Stats::stop("BMC path-based: solving path + learning clauses with SMT");
+    Stats::stop("BMC path-based: solving path + generalized blocking path with SMT");
     if (res == solver::SolverResult::SAT) {
       if (UseCrabForSolvingPaths) {
         // Temporary: for profiling crab
@@ -1130,11 +1269,9 @@ solver::SolverResult PathBmcEngine::solve() {
       m_result = res;
       return res;
     } else {
-      // if res is unknown we still add a blocking clause to skip
-      // the path.
       bool ok = refineBoolAbstraction();
       if (!ok) {
-        ERR << "Path-based BMC added the same blocking clause again";
+        ERR << "Path-based BMC added the same blocking path again";
         m_result = solver::SolverResult::UNKNOWN;
         return m_result;
       }

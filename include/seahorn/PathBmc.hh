@@ -20,6 +20,7 @@ class raw_ostream;
 } // namespace llvm
 namespace seadsa {
 class ShadowMem;
+class SeaMemorySSA;
 }
 
 namespace seahorn {
@@ -101,6 +102,8 @@ public:
   PathBmcEngine(LegacyOperationalSemantics &sem,
                 llvm::TargetLibraryInfoWrapperPass &tli, seadsa::ShadowMem &sm);
 
+  PathBmcEngine(const PathBmcEngine &engine) = delete;
+  
   virtual ~PathBmcEngine();
 
   void addCutPoint(const CutPoint &cp);
@@ -192,6 +195,7 @@ protected:
   llvm::TargetLibraryInfoWrapperPass &m_tli;
   // shadow mem pass
   seadsa::ShadowMem &m_sm;
+  seadsa::SeaMemorySSA *m_mem_ssa;
   // crab's cfg builder manager
   std::unique_ptr<clam::CrabBuilderManager> m_cfg_builder_man;
   // crab instance to solve paths

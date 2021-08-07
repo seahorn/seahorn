@@ -726,20 +726,20 @@ Expr PathBmcEngine::eval(Expr e) {
 }
 
 /*
- * Given a sequence of basic blocks, extract the crab invariants per
- * block and convert it to Expr format.
+ * Given a sequence of basic blocks, extract the crab post-conditions
+ * per block and convert it to Expr format.
  */
 void PathBmcEngine::extractPostConditionsFromCrabCex(
     const std::vector<const llvm::BasicBlock *> &cex,
-    const crab_invariants_map_t &invariants, expr_invariants_map_t &out) {
+    const crab_invariants_map_t &postconditions, expr_invariants_map_t &out) {
 
   const LiveSymbols &ls = *m_ls;
   const Function &fn = *m_fn;
   ExprFactory &efac = sem().efac();
 
-  auto get_crab_linear_constraints = [&invariants](const BasicBlock *b) {
-    auto it = invariants.find(b);
-    if (it != invariants.end()) {
+  auto get_crab_linear_constraints = [&postconditions](const BasicBlock *b) {
+    auto it = postconditions.find(b);
+    if (it != postconditions.end()) {
       return it->second.to_linear_constraint_system();
     } else {
       // if the block is not found then the value is assumed to be
@@ -778,17 +778,18 @@ void PathBmcEngine::extractPostConditionsFromCrabCex(
    interpretation on it. This sliced CFG should correspond to a path
    in the original CFG.
 
-   Return false iff the abstract interpretation of path is
-   bottom. If bottom then it computes a blocking clause for that
-   path.
+   Return false iff the abstract interpretation of path is bottom. If
+   bottom then it computes a blocking clause for that path. Otherwise,
+   crab_postconditions contains the strongest postconditions
+   computed by Crab. 
 
    Modify m_gen_path.
  */
 template <class BmcTrace>
 bool PathBmcEngine::solvePathWithCrab(
-    BmcTrace &cex, bool keep_path_constraints,
-    crab_invariants_map_t &crab_path_constraints,
-    expr_invariants_map_t &path_constraints) {
+    BmcTrace &cex, bool compute_sp,
+    crab_invariants_map_t &crab_postconditions,
+    expr_invariants_map_t &expr_postconditions) {
 
   using namespace clam;
   std::vector<const llvm::BasicBlock *> cex_blocks;
@@ -809,20 +810,16 @@ bool PathBmcEngine::solvePathWithCrab(
   //    statements along the path that still implies bottom.
   std::vector<clam::statement_t *> cex_relevant_stmts;
 
-  LOG("bmc-crab", keep_path_constraints = true;);
+  LOG("bmc-crab", compute_sp = true;);
   bool res;
-  // currently enabled only for debugging because path_constraints is
-  // unused.
-  if (keep_path_constraints) {
-    // crab_invariants contains the forward invariants for the cex:
-    // one abstract state per cex's block
-    crab_invariants_map_t crab_invariants;
+  if (compute_sp) {
     res =
         m_crab_path_solver->pathAnalyze(params, cex_blocks, LayeredCrabSolving,
-                                        cex_relevant_stmts, crab_invariants);
+                                        cex_relevant_stmts, crab_postconditions);
     // conversion from crab to Expr
-    extractPostConditionsFromCrabCex(cex_blocks, crab_invariants,
-                                     path_constraints);
+    extractPostConditionsFromCrabCex(cex_blocks, crab_postconditions,
+				     expr_postconditions);
+                                     
   } else {
     res = m_crab_path_solver->pathAnalyze(
         params, cex_blocks, LayeredCrabSolving, cex_relevant_stmts);
@@ -833,8 +830,8 @@ bool PathBmcEngine::solvePathWithCrab(
         "bmc-crab", errs() << "Crab cannot prove unsat.\n"
                            << "Post-conditions computed by crab:\n";
         for (unsigned i = 0, sz = cex_blocks.size(); i < sz; ++i) {
-          auto it = path_constraints.find(cex_blocks[i]);
-          if (it != path_constraints.end()) {
+          auto it = expr_postconditions.find(cex_blocks[i]);
+          if (it != expr_postconditions.end()) {
             errs() << cex_blocks[i]->getName() << ":\n";
             for (auto e : it->second) {
               errs() << "\t" << *e << "\n";
@@ -903,7 +900,7 @@ solver::SolverResult PathBmcEngine::solvePathWithSmt(
     const BmcTrace &cex, const expr_invariants_map_t & /*invariants*/,
     // extra constraints inferred by
     // crab for current implicant
-    const expr_invariants_map_t & /*path_constraints*/) {
+    const expr_invariants_map_t & /*postconditions*/) {
 
   const ExprVector &path_formula = cex.get_implicant_formula();
   const ExprMap &implicant_bools_map = cex.get_implicant_bools_map();
@@ -926,7 +923,7 @@ solver::SolverResult PathBmcEngine::solvePathWithSmt(
    * consistent with the invariants.
    *****************************************************************/
   m_smt_path_solver->reset();
-  // TODO: add here path_constraints to help
+  // TODO: add here postconditions to help
   for (Expr e : path_formula) {
     m_smt_path_solver->add(e);
   }
@@ -1221,21 +1218,21 @@ solver::SolverResult PathBmcEngine::solve() {
     PathBmcTrace cex(*this, model);
     Stats::stop("BMC path-based: create a cex");
 
-    expr_invariants_map_t path_constraints;
+    expr_invariants_map_t expr_postconditions;
     if (UseCrabForSolvingPaths) {
-      crab_invariants_map_t crab_path_constraints /*unused*/;
-      bool keep_path_constraints = false;
+      crab_invariants_map_t crab_postconditions /*unused*/;
+      bool compute_sp = false;
       Stats::resume(
           "BMC path-based: solving path + generalized blocking path with Crab");
-      bool res = solvePathWithCrab(cex, keep_path_constraints,
-                                   crab_path_constraints, path_constraints);
+      bool res = solvePathWithCrab(cex, compute_sp,
+                                   crab_postconditions, expr_postconditions);
       Stats::stop(
           "BMC path-based: solving path + generalized blocking path with Crab");
 
       LOG(
-          "bmc-ai", if (!path_constraints.empty()) {
+          "bmc-ai", if (!expr_postconditions.empty()) {
             errs() << "\nPath constraints (post-conditions) inferred by Crab\n";
-            for (auto &kv : path_constraints) {
+            for (auto &kv : expr_postconditions) {
               errs() << "\t" << kv.first->getName() << ": ";
               if (kv.second.empty()) {
                 errs() << "true\n";
@@ -1264,11 +1261,11 @@ solver::SolverResult PathBmcEngine::solve() {
 
     Stats::resume(
         "BMC path-based: solving path + generalized blocking path with SMT");
-    // XXX: the semantics of invariants and path_constraints (e.g.,
+    // XXX: the semantics of invariants and expr_postconditions (e.g.,
     // linear integer arithmetic) might differ from the semantics used
     // by the smt (e.g., bitvectors).
     solver::SolverResult res =
-        solvePathWithSmt(cex, invariants, path_constraints /*unused*/);
+        solvePathWithSmt(cex, invariants, expr_postconditions /*unused*/);
     Stats::stop(
         "BMC path-based: solving path + generalized blocking path with SMT");
     if (res == solver::SolverResult::SAT) {

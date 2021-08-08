@@ -1,6 +1,7 @@
 // RUN: %sea bpf -O0 --bmc=mono --bound=10  --horn-stats --inline "%s" 2>&1 | OutputCheck %s
 // RUN: %sea bpf -O0 --horn-bmc-crab=false  --bmc=path --horn-bmc-muc=assume --bound=10  --horn-stats --inline "%s" 2>&1 | OutputCheck %s
-// RUN: %sea bpf -O0 --horn-bmc-crab=false  --bmc=path --horn-bmc-muc=quickXplain --bound=10  --horn-stats --inline "%s" 2>&1 | OutputCheck %s
+// -- Disabled because it takes too long
+// %sea bpf -O0 --horn-bmc-crab=false  --bmc=path --horn-bmc-muc=quickXplain --bound=10  --horn-stats --inline "%s" 2>&1 | OutputCheck %s
 // RUN: %sea bpf -O0 --horn-bmc-crab=true  --bmc=path --bound=10  --horn-stats --inline "%s" 2>&1 | OutputCheck %s
 // RUN: %sea bpf -O0 --horn-gsa --bmc=mono --bound=10  --horn-stats --inline "%s" 2>&1 | OutputCheck %s
 // CHECK: ^sat$

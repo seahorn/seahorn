@@ -4,7 +4,7 @@
 #include "seahorn/Analysis/CutPointGraph.hh"
 #include "seahorn/Expr/Expr.hh"
 #include "seahorn/Expr/Smt/Solver.hh"
-#include "seahorn/LegacyOperationalSemantics.hh"
+#include "seahorn/OperationalSemantics.hh"
 #include "seahorn/Support/SeaAssert.h"
 #include "seahorn/Support/SeaLog.hh"
 #include "seahorn/Bmc.hh"
@@ -36,14 +36,14 @@ namespace seahorn {
 
 /* Dummy class for PathBmcEngine */
 class PathBmcEngine {
-  LegacyOperationalSemantics &m_sem;
+  OperationalSemantics &m_sem;
   llvm::SmallVector<const CutPoint *, 8> m_cps;
   llvm::SmallVector<const CpEdge *, 8> m_cp_edges;
   std::vector<SymStore> m_states;
   ExprVector m_side;
 
 public:
-  PathBmcEngine(seahorn::LegacyOperationalSemantics &sem,
+  PathBmcEngine(seahorn::OperationalSemantics &sem,
                 llvm::TargetLibraryInfoWrapperPass &tli, seadsa::ShadowMem &sm)
       : m_sem(sem) {}
 
@@ -61,7 +61,7 @@ public:
 
   solver::SolverResult result() { return solver::SolverResult::UNKNOWN; }
 
-  LegacyOperationalSemantics &sem() { return m_sem; }
+  OperationalSemantics &sem() { return m_sem; }
 
   ExprFactory &efac() { return m_sem.efac(); }
   
@@ -99,7 +99,7 @@ namespace seahorn {
 
 class PathBmcEngine {
 public:
-  PathBmcEngine(LegacyOperationalSemantics &sem,
+  PathBmcEngine(OperationalSemantics &sem,
                 llvm::TargetLibraryInfoWrapperPass &tli, seadsa::ShadowMem &sm);
 
   PathBmcEngine(const PathBmcEngine &engine) = delete;
@@ -123,10 +123,15 @@ public:
   solver::SolverResult result() { return m_result; }
 
   /// return the operational semantics
-  LegacyOperationalSemantics &sem() {
-    return static_cast<LegacyOperationalSemantics &>(m_sem);
+  OperationalSemantics &sem() {
+    return static_cast<OperationalSemantics &>(m_sem);
   }
 
+  /// return the context of the operational semantics
+  OpSemContext &semCtx() {
+    return *m_semCtx;
+  }
+  
   /// return Expression factory
   ExprFactory &efac() { return m_sem.efac(); }
 

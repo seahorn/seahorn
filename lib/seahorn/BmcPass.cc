@@ -256,8 +256,7 @@ public:
 
       // XXX: use of legacy operational semantics
       auto &tli = getAnalysis<TargetLibraryInfoWrapperPass>();
-      PathBmcEngine bmc(static_cast<LegacyOperationalSemantics &>(*sem), tli,
-                        sm);
+      PathBmcEngine bmc(*sem, tli, sm);
 
       bmc.addCutPoint(src);
       bmc.addCutPoint(*dst);

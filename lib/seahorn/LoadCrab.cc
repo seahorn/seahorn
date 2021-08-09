@@ -339,7 +339,8 @@ public:
   typedef boost::unordered_map<Expr, unsigned> BvWidthMap;
 
 private:
-  LegacyOperationalSemantics &m_sem;
+  OperationalSemantics &m_sem;
+  OpSemContext &m_semCtx;
   BvWidthMap &m_width_map;
 
   class AdjustType : public std::unary_function<Expr, Expr> {
@@ -454,8 +455,8 @@ private:
   };
 
 public:
-  LinConToExprSem(LegacyOperationalSemantics &sem, BvWidthMap &map)
-      : m_sem(sem), m_width_map(map) {}
+  LinConToExprSem(OperationalSemantics &sem, OpSemContext &semCtx, BvWidthMap &map)
+    : m_sem(sem), m_semCtx(semCtx), m_width_map(map) {}
 
   VisitAction operator()(Expr exp) {
     if (isOpX<FAPP>(exp)) {      /* variable */
@@ -463,7 +464,7 @@ public:
       u = bind::fname(u);        // name of the fdecl
       assert(isOpX<VALUE>(u));
       const Value &v = *getTerm<const Value *>(u);
-      Expr remap_exp = m_sem.symb(v);
+      Expr remap_exp = m_sem.mkSymbReg(v, m_semCtx);
       return VisitAction::changeTo(remap_exp);
     }
 
@@ -552,10 +553,10 @@ Expr LinConsToExpr::toExpr(lin_cst_t cst, ExprFactory &efac) {
   return m_impl->toExpr(cst, efac);
 }
 
-Expr LinConsToExpr::toExpr(lin_cst_t cst, LegacyOperationalSemantics &sem) {
+Expr LinConsToExpr::toExpr(lin_cst_t cst, OperationalSemantics &sem, OpSemContext &semCtx) {
   Expr e = m_impl->toExpr(cst, sem.getExprFactory());
   LinConToExprSem::BvWidthMap m;
-  LinConToExprSem LCES(sem, m);
+  LinConToExprSem LCES(sem, semCtx, m);
   return dagVisit(LCES, e);
 }
 

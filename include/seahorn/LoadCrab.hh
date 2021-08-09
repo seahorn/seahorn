@@ -7,7 +7,7 @@
 
 #ifdef HAVE_CLAM
 #include "clam/Clam.hh"
-#include "seahorn/LegacyOperationalSemantics.hh"
+#include "seahorn/OperationalSemantics.hh"
 #endif
 
 namespace seahorn {
@@ -47,7 +47,7 @@ public:
   expr::Expr toExpr(clam::lin_cst_t cst, expr::ExprFactory &efac);
 
   /* Convert a crab linear expression into Expr using sem's semantics */
-  expr::Expr toExpr(clam::lin_cst_t cst, LegacyOperationalSemantics &sem);
+  expr::Expr toExpr(clam::lin_cst_t cst, OperationalSemantics &sem, OpSemContext &semCtx);
 
 private:
   clam::LinConsToExprImpl *m_impl;

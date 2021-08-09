@@ -295,7 +295,7 @@ void PathBmcEngine::loadCrabInvariants(
           // different bitwidths.
           continue;
         }
-        e = conv.toExpr(cst, sem());
+        e = conv.toExpr(cst, sem(), semCtx());
       } else {
         e = it->second;
       }
@@ -336,7 +336,7 @@ void PathBmcEngine::assertCrabInvariants(
     const BasicBlock *bb = kv.first;
     const ExprVector &inv = kv.second;
 
-    Expr sym_bb = s.at(sem().symb(*bb));
+    Expr sym_bb = s.at(sem().mkSymbReg(*bb, *m_semCtx));
     if (!sym_bb)
       continue;
 
@@ -407,10 +407,10 @@ static bool isCriticalEdge(const BasicBlock *src, const BasicBlock *dst) {
  *       - a branch is translated into b and tuple(bb,bbi) => f
  */
 static Expr encodeEdge(const BasicBlock &src, const BasicBlock &dst,
-                       LegacyOperationalSemantics &sem,
+                       OperationalSemantics &sem, OpSemContext& semCtx,
                        std::function<Expr(Expr)> eval) {
-  Expr srcE = sem.symb(src);
-  Expr dstE = sem.symb(dst);
+  Expr srcE = sem.mkSymbReg(src, semCtx);
+  Expr dstE = sem.mkSymbReg(dst, semCtx);
   Expr res;
   if (isCriticalEdge(&src, &dst)) {
     Expr edge = eval(path_bmc::expr_utils::mkEdge(srcE, dstE));
@@ -422,14 +422,14 @@ static Expr encodeEdge(const BasicBlock &src, const BasicBlock &dst,
 }
 
 static Expr encodeBasicBlock(const BasicBlock &bb,
-                             LegacyOperationalSemantics &sem,
+                             OperationalSemantics &sem, OpSemContext& semCtx,
                              std::function<Expr(Expr)> eval) {
-  return eval(sem.symb(bb));
+  return eval(sem.mkSymbReg(bb, semCtx));
 }
 
 // s is the Crab statement originated from PHI
 static Expr encodePHI(clam::statement_t &s, const PHINode &PHI,
-                      LegacyOperationalSemantics &sem,
+                      OperationalSemantics &sem, OpSemContext& semCtx,
                       std::function<Expr(Expr)> eval) {
   const BasicBlock *dst = PHI.getParent();
   const BasicBlock *src = s.get_parent()->label().get_basic_block();
@@ -438,7 +438,7 @@ static Expr encodePHI(clam::statement_t &s, const PHINode &PHI,
     assert(src);
   }
   if (src && dst) {
-    return encodeEdge(*src, *dst, sem, eval);
+    return encodeEdge(*src, *dst, sem, semCtx, eval);
   } else {
     WARN << "encodePHI did not succeed";
     return Expr();
@@ -509,7 +509,7 @@ static Expr encodeUseDefChain(
         &memPHIInfo,
     seadsa::SeaMemorySSA &memSSA, const clam::CfgBuilder &cfgBuilder,
     const SmallSet<seadsa::SeaMemoryDef *, 8> &defs,
-    LegacyOperationalSemantics &sem, std::function<Expr(Expr)> eval) {
+    OperationalSemantics &sem, OpSemContext& semCtx, std::function<Expr(Expr)> eval) {
 
   seadsa::SeaMemoryUse *use = nullptr;
   if (isMemRead(s)) {
@@ -564,7 +564,7 @@ static Expr encodeUseDefChain(
             }
           }
           if (Expr incOpE = encodeEdge(*(memPhi->getIncomingBlock(incOpIdx)),
-                                       *(memPhi->getBlock()), sem, eval)) {
+                                       *(memPhi->getBlock()), sem, semCtx, eval)) {
             PhiE.push_back(incOpE);
           } else {
             WARN << "encodeUseDefChain: failed while encoding incoming op "
@@ -641,14 +641,14 @@ bool PathBmcEngine::encodeBoolPathFromCrabCex(
       
       if (isMemRead(*s)) {
         sE = encodeUseDefChain(*s, mem_phis_exec_inc_block, *m_mem_ssa,
-                               cfgBuilder, mem_defs, sem(), evalE);
+                               cfgBuilder, mem_defs, sem(), semCtx(), evalE);
       } else {
         if (s->get_parent()->label().is_edge()) {
           auto p = s->get_parent()->label().get_edge();
-          sE = encodeEdge(*(p.first), *(p.second), sem(), evalE);
+          sE = encodeEdge(*(p.first), *(p.second), sem(), semCtx(), evalE);
         } else {
           sE = encodeBasicBlock(*(s->get_parent()->label().get_basic_block()),
-                                sem(), evalE);
+                                sem(), semCtx(), evalE);
         }
       }
     } else if (s->is_assign() || s->is_bool_assign_var() || s->is_arr_assign()) {
@@ -681,12 +681,12 @@ bool PathBmcEngine::encodeBoolPathFromCrabCex(
       }
 
       if (PHI) {
-        sE = encodePHI(*s, *PHI, sem(), evalE);
+        sE = encodePHI(*s, *PHI, sem(), semCtx(), evalE);
       } else {
         assert(!s->get_parent()->label().is_edge());
         const BasicBlock *BB = s->get_parent()->label().get_basic_block();
         assert(BB);
-        sE = encodeBasicBlock(*BB, sem(), evalE);
+        sE = encodeBasicBlock(*BB, sem(), semCtx(), evalE);
       }
     } else {
       crab::outs() << *s << "\n";
@@ -1017,7 +1017,7 @@ solver::SolverResult PathBmcEngine::solvePathWithSmt(
   return res;
 }
 
-PathBmcEngine::PathBmcEngine(LegacyOperationalSemantics &sem,
+PathBmcEngine::PathBmcEngine(OperationalSemantics &sem,
                              llvm::TargetLibraryInfoWrapperPass &tli,
                              seadsa::ShadowMem &sm)
     : m_sem(sem), m_cpg(nullptr), m_fn(nullptr), m_ls(nullptr),

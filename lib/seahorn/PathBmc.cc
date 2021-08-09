@@ -207,7 +207,7 @@ void PathBmcEngine::initializeCrab() {
   // -- Set parameters for CFG
   clam::CrabBuilderParams cfg_builder_params;
   cfg_builder_params.simplify = false;
-  cfg_builder_params.setPrecision(clam::CrabBuilderPrecision::SINGLETON_MEM);
+  cfg_builder_params.setPrecision(clam::CrabBuilderPrecision::MEM);
   LOG("bmc-crab-cfg", cfg_builder_params.print_cfg = true;);
   // TODO/FIXME: it should be sync with horn-bv-singleton-aliases
   cfg_builder_params.lower_singleton_aliases = true;
@@ -446,13 +446,11 @@ static Expr encodePHI(clam::statement_t &s, const PHINode &PHI,
 }
 
 static bool isMemRead(const clam::statement_t &s) {
-  // TODO: consider region statements
-  return s.is_arr_read();
+  return s.is_arr_read() || s.is_ref_load() || s.is_ref_arr_load();
 }
 
 static bool isMemWrite(const clam::statement_t &s) {
-  // TODO: consider region statements
-  return s.is_arr_write();
+  return s.is_arr_write() || s.is_ref_store() || s.is_ref_arr_store();
 }
 
 static void getMemoryDefs(const std::vector<clam::statement_t *> stmts,
@@ -627,11 +625,20 @@ bool PathBmcEngine::encodeBoolPathFromCrabCex(
       // do nothing
       continue;
     } else if ( // enumerate all statements so we don't miss one.
+	/*integer operations*/
         s->is_bin_op() || s->is_int_cast() || s->is_select() ||
+	/* boolean operations */
         s->is_bool_bin_op() || s->is_bool_assign_cst() || s->is_assume() ||
-        s->is_bool_assume() || s->is_arr_write() || s->is_arr_read() ||
-        s->is_arr_init()) {
-
+        s->is_bool_assume() || s->is_bool_select() || 
+	/* array operations */
+	s->is_arr_write() || s->is_arr_read() || s->is_arr_init() ||
+	/* region and reference operations */
+	s->is_region_init() || s->is_region_cast() || s->is_region_copy() ||
+	s->is_ref_load() || s->is_ref_arr_load() ||
+	s->is_ref_store() || s->is_ref_arr_store() ||
+	s->is_ref_make() || s->is_ref_remove() || s->is_ref_gep() ||
+	s->is_ref_assume()) {
+      
       if (isMemRead(*s)) {
         sE = encodeUseDefChain(*s, mem_phis_exec_inc_block, *m_mem_ssa,
                                cfgBuilder, mem_defs, sem(), evalE);
@@ -644,8 +651,7 @@ bool PathBmcEngine::encodeBoolPathFromCrabCex(
                                 sem(), evalE);
         }
       }
-    } else if (s->is_assign() || s->is_bool_assign_var() ||
-               s->is_arr_assign()) {
+    } else if (s->is_assign() || s->is_bool_assign_var() || s->is_arr_assign()) {
       /*
        * If there is an assignment then it might be originated from a
        * PHI node.  In that case, it's not sound just to consider the

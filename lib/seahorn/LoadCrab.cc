@@ -5,39 +5,34 @@
 #include "llvm/Support/raw_ostream.h"
 
 namespace seahorn {
-char LoadCrab::ID = 0;
-llvm::Pass *createLoadCrabPass() { return new LoadCrab(); }
+char LoadCrabPass::ID = 0;
+llvm::Pass *createLoadCrabPass() { return new LoadCrabPass(); }
 } // namespace seahorn
 
 #ifndef HAVE_CLAM
 /// Dummy implementation when Crab is not compiled in
 namespace seahorn {
-void LoadCrab::getAnalysisUsage(llvm::AnalysisUsage &AU) const {
+void LoadCrabPass::getAnalysisUsage(llvm::AnalysisUsage &AU) const {
   AU.setPreservesAll();
 }
 
-bool LoadCrab::runOnModule(llvm::Module &M) {
+bool LoadCrabPass::runOnModule(llvm::Module &M) {
   llvm::errs()
       << "WARNING: Not loading invariants. Compiled without Crab support.\n";
   return false;
 }
-bool LoadCrab::runOnFunction(llvm::Function &F) { return false; }
 } // namespace seahorn
 #else
 /// Real implementation starts here
-#include "llvm/ADT/DenseSet.h"
+#include "llvm/ADT/DenseMap.h"
 
-#include "seahorn/Expr/Expr.hh"
 #include "seahorn/Expr/ExprLlvm.hh"
-
 #include "seahorn/HornifyModule.hh"
-#include "seahorn/Transforms/Instrumentation/ShadowMemDsa.hh"
 
 #include "clam/CfgBuilder.hh"
 #include "clam/Clam.hh"
-#include "clam/HeapAbstraction.hh"
 
-#include "boost/unordered_map.hpp"
+#include <unordered_map>
 
 namespace clam {
 
@@ -48,15 +43,11 @@ using namespace seahorn;
 // Conversion from linear constraints to Expr.
 //
 // A linear constraint is precisely translated only if all its
-// variables can be mapped to llvm Value. Otherwise, it is
-// translated to true. For instance, Crab generates shadow variables
-// representing DSA nodes that are not translated with the exception
-// of global singletons.
+// variables can be mapped to a llvm Value. Otherwise, it is
+// translated to true. Therefore, constraints involving ghost
+// variables might be translated to `true`.
 class LinConsToExprImpl {
-public:
-  // Crab does not distinguish between bools and the rest of
-  // integers but SeaHorn does.
-
+public:  
   // A normalizer for Boolean constraints
   class BoolCst {
     typedef enum { T_TRUE, T_FALSE, T_TOP } tribool_t;
@@ -155,7 +146,8 @@ public:
 
     bool isUnknown() const { return m_val == T_TOP; }
 
-    Expr toExpr(ExprFactory &efac) const {
+    Expr toExpr(ExprFactory &efac,
+		const DenseSet<const Value*> *live /*unused*/) const {
       if (isUnknown())
         return mk<TRUE>(efac);
 
@@ -168,91 +160,59 @@ public:
     }
   };
 
+  
+  
 private:
-  typedef DenseMap<const Value *, BoolCst> bool_map_t;
-
-  HeapAbstraction &m_heap_abs;
+  
   const llvm::Function &m_func;
-  const ExprVector &m_live;
-  DenseSet<const Value *> m_live_values; // for fast queries
-  bool_map_t bool_map;
-
+  DenseMap<const Value *, BoolCst> bool_map;
+  
   // Defined only for z_number
   Expr exprFromNum(ikos::z_number n, ExprFactory &efac) {
     const expr::mpz_class z(n.get_mpz_t());
     return mkTerm(z, efac);
   }
 
-  Expr exprFromIntVar(varname_t v, ExprFactory &efac) {
+  Expr exprFromIntVar(varname_t v, ExprFactory &efac,
+		      const DenseSet<const Value*> *live) {
+    LOG("load-crab-details",
+	crab::outs() << "\texprFromIntVar(" << v << ")=";);
     if (!(v.get())) {
-      // Skip for now crab shadow variables.
-
-      // TODO: v.get() method only returns a non-null value if v
-      // contains a const Value*. Otherwise, it means that v refers
-      // to a shadow variable which is not currently translated.
+      // Skip ghost variables.
+      // 
+      // v.get() method only returns a non-null value if v contains a
+      // const Value*. Otherwise, it means that v refers to a shadow
+      // variable which is not currently translated.
+      LOG("load-crab-details",crab::outs() << "null\n";);
       return nullptr;
     }
     const Value *V = *(v.get());
-    if (const Value *Gv =
-	m_heap_abs.getRegion(m_func, *(const_cast<Value *>(V)))
-                .getSingleton()) {
-      /// -- The crab variable v corresponds to a global singleton
-      ///    cell so we can grab a llvm Value from it. We search for
-      ///    the seahorn shadow variable that matches it.
-      for (auto l : m_live) {
-        Expr u = bind::fname(bind::fname(l));
-        if (isOpX<VALUE>(u)) {
-          // u is a constant
-          const Value *U = getTerm<const Value *>(u);
-          const Value *Scalar;
-          if (shadow_dsa::isShadowMem(*U, &Scalar)) {
-            if (Scalar == Gv) {
-              return bind::intConst(mkTerm<const Value *>(U, efac));
-            }
-          }
-        } else if (isOpX<op::SELECT>(u)) {
-          // u is a constant with name v[scalar]
-          Expr idx = u->right();
-          if (isOpX<VALUE>(idx)) {
-            const Value *Idx = getTerm<const Value *>(idx);
-            if (Idx == Gv)
-              return bind::intConst(u);
-          }
-        }
-      }
-      // We could not translate the global singleton cell
-      return nullptr;
+    assert(V);
+    if (!live || live->count(V) > 0) {
+      Expr e = bind::intConst(mkTerm<const Value *>(V, efac));
+      LOG("load-crab-details", llvm::errs() << *e << "\n";);
+      return e;
     } else {
-      // -- If here then v can be mapped directly to a llvm value
-      //    after we check v is live. This is needed because we do
-      //    not currently project the abstract domain onto the live
-      //    variables before translation.
-      if (m_live_values.count(V) > 0) {
-        return bind::intConst(mkTerm<const Value *>(V, efac));
-      } else {
-        return nullptr;
-      }
+      LOG("load-crab-details", llvm::errs() << "null\n";);	
+      return nullptr;
     }
   }
 
 public:
-  LinConsToExprImpl(HeapAbstraction &heap_abs, const llvm::Function &f,
-                    const ExprVector &live)
-      : m_heap_abs(heap_abs), m_func(f), m_live(live) {
-    for (auto v : m_live) {
-      Expr u = bind::fname(bind::fname(v));
-      if (isOpX<VALUE>(u))
-        m_live_values.insert(getTerm<const Value *>(u));
-    }
-  }
-
-  Expr toExpr(const lin_cst_t &cst, ExprFactory &efac) {
-    if (cst.is_tautology())
+  LinConsToExprImpl(const CfgBuilder *cfgBuilder /*unused*/, const llvm::Function &func)
+    : m_func(func) {}
+  
+  Expr toExpr(const lin_cst_t &cst, ExprFactory &efac,
+	      const DenseSet<const Value*> *live) {
+    
+    if (cst.is_tautology()) 
       return mk<TRUE>(efac);
 
     if (cst.is_contradiction())
       return mk<FALSE>(efac);
 
+    LOG("load-crab-details", crab::outs() << "toExpr(" << cst << ")\n";);
+    
     // booleans
     if (const Value *v = BoolCst::isBoolCst(cst)) {
       BoolCst b2(cst);
@@ -263,7 +223,7 @@ public:
       } else {
         bool_map.insert(std::make_pair(v, b2));
       }
-
+      LOG("load-crab-details", llvm::errs() << "True\n";);
       return mk<TRUE>(efac); // we ignore cst for now
     }
 
@@ -275,9 +235,10 @@ public:
       if (n == 0)
         continue;
 
-      Expr v = exprFromIntVar(t.second.name(), efac);
+      Expr v = exprFromIntVar(t.second.name(), efac, live);
       if (!v) {
         // We could not translate Crab variable.
+	LOG("load-crab-details", llvm::errs() << "True\n";);	
         return mk<TRUE>(efac);
       }
 
@@ -292,27 +253,32 @@ public:
 
     number_t c = -cst.expression().constant();
     Expr cc = exprFromNum(c, efac);
-    if (cst.is_inequality())
-      return mk<LEQ>(ee, cc);
-    else if (cst.is_equality())
-      return mk<EQ>(ee, cc);
-    else
-      return mk<NEQ>(ee, cc);
+    Expr res;
+    if (cst.is_inequality()) {
+      res = mk<LEQ>(ee, cc);
+    } else if (cst.is_equality()) {
+      res = mk<EQ>(ee, cc);
+    } else {
+      res = mk<NEQ>(ee, cc);
+    }
+    
+    LOG("load-crab-details", llvm::errs() << *res << "\n";);	    
+    return res;
   }
 
-  Expr toExpr(lin_cst_sys_t csts, ExprFactory &efac) {
+  Expr toExpr(lin_cst_sys_t csts, ExprFactory &efac, const DenseSet<const Value*> *live) {
     Expr e = mk<TRUE>(efac);
 
     // integers
     for (auto cst : csts) {
-      e = boolop::land(e, toExpr(cst, efac));
+      e = boolop::land(e, toExpr(cst, efac, live));
     }
 
     // booleans
     for (auto p : bool_map) {
       auto b = p.second;
       if (!b.isUnknown()) {
-        e = boolop::land(e, b.toExpr(efac));
+        e = boolop::land(e, b.toExpr(efac, live));
       }
     }
 
@@ -336,7 +302,7 @@ public:
  **/
 class LinConToExprSem : public std::unary_function<Expr, VisitAction> {
 public:
-  typedef boost::unordered_map<Expr, unsigned> BvWidthMap;
+  using BvWidthMap = std::unordered_map<Expr, unsigned>;
 
 private:
   OperationalSemantics &m_sem;
@@ -485,32 +451,7 @@ public:
     // -- descent kids
     return VisitAction::doKids();
   }
-};
-
-class DisjunctiveLinConsToExpr {
-  LinConsToExprImpl m_t;
-
-public:
-  DisjunctiveLinConsToExpr(HeapAbstraction &heap_abs, const llvm::Function &f,
-                           const ExprVector &live)
-      : m_t(heap_abs, f, live) {}
-
-  Expr toExpr(const disj_lin_cst_sys_t &csts, ExprFactory &efac) {
-    if (csts.is_false())
-      return mk<FALSE>(efac);
-    else if (csts.size() == 0)
-      return mk<TRUE>(efac);
-    else {
-      assert(csts.size() > 0);
-      Expr e = mk<FALSE>(efac);
-      for (auto cst : csts) {
-        e = boolop::lor(e, m_t.toExpr(cst, efac));
-      }
-      return e;
-    }
-  }
-};
-
+};// end LinConToExprSem
 } // end namespace clam
 
 namespace seahorn {
@@ -518,120 +459,127 @@ using namespace llvm;
 using namespace clam;
 using namespace expr;
 
-#if 0
-// Translate a range of Expr variables to Crab variables but only
-// those that can be mapped to llvm value.
 
-// UPDATE: we are creating variables without types. This might cause
-// problems.
-template <typename Range>
-static std::vector<clam::var_t> ExprVecToCrab(const Range &live, ClamPass *clam) {
-  std::vector<clam::var_t> res;
-  for (auto l : live) {
-    Expr u = bind::fname(bind::fname(l));
-    if (isOpX<VALUE>(u)) {
-      const Value *v = getTerm<const Value *>(u);
-      if (isa<GlobalVariable>(v))
-        continue;
+LinConsToExpr::LinConsToExpr(const CfgBuilder *cfgBuilder, const llvm::Function &func)
+    : m_impl(new LinConsToExprImpl(cfgBuilder, func)) {}
 
-      res.push_back(
-	  clam::var_t(clam->getCfgBuilderMan().
-		      getVarFactory()[v], crab::UNK_TYPE, 0));
-    }
-  }
-  return res;
-}
-#endif
+LinConsToExpr::~LinConsToExpr(){}
 
-LinConsToExpr::LinConsToExpr(HeapAbstraction &heap, const llvm::Function &f,
-                             const ExprVector &live)
-    : m_impl(new LinConsToExprImpl(heap, f, live)) {}
-
-LinConsToExpr::~LinConsToExpr() { delete m_impl; }
-
-Expr LinConsToExpr::toExpr(lin_cst_t cst, ExprFactory &efac) {
-  return m_impl->toExpr(cst, efac);
+Expr LinConsToExpr::toExpr(const lin_cst_t &cst, ExprFactory &efac,
+			   const DenseSet<const Value*> *live) {
+  return m_impl->toExpr(cst, efac, live);
 }
 
-Expr LinConsToExpr::toExpr(lin_cst_t cst, OperationalSemantics &sem, OpSemContext &semCtx) {
-  Expr e = m_impl->toExpr(cst, sem.getExprFactory());
+Expr LinConsToExpr::toExpr(const lin_cst_t &cst,
+			   OperationalSemantics &sem, OpSemContext &semCtx,
+			   const DenseSet<const Value*> *live) {
+  Expr e = m_impl->toExpr(cst, sem.getExprFactory(), live);
   LinConToExprSem::BvWidthMap m;
   LinConToExprSem LCES(sem, semCtx, m);
   return dagVisit(LCES, e);
 }
 
-Expr CrabInvToExpr(llvm::BasicBlock *B, ClamPass *clam, const ExprVector &live,
-                   EZ3 &zctx, ExprFactory &efac) {
+DisjunctiveLinConsToExpr::
+DisjunctiveLinConsToExpr(const CfgBuilder *cfgBuilder, const llvm::Function &func)			 
+  : m_e(new LinConsToExprImpl(cfgBuilder, func)) {}
 
+DisjunctiveLinConsToExpr::~DisjunctiveLinConsToExpr(){}
+
+Expr DisjunctiveLinConsToExpr::toExpr(const disj_lin_cst_sys_t &csts, ExprFactory &efac,
+				      const DenseSet<const Value*> *live) {
+  if (csts.is_false())
+    return mk<FALSE>(efac);
+  else if (csts.size() == 0)
+    return mk<TRUE>(efac);
+  else {
+    assert(csts.size() > 0);
+    Expr e = mk<FALSE>(efac);
+    for (auto cst_sys : csts) {
+      e = boolop::lor(e, m_e->toExpr(cst_sys, efac, live));
+    }
+    return e;
+  }
+}
+
+LoadCrab::LoadCrab(const clam::ClamGlobalAnalysis &clam,
+		   const clam::AnalysisParams &params,
+		   HornifyModule &hm)
+  : m_clam(clam), m_params(params), m_hm(hm) {}
+
+Expr LoadCrab::CrabInvToExpr(llvm::BasicBlock &B, const CfgBuilder *cfgBuilder,
+			     const DenseSet<const Value*> *live) {
+  ExprFactory &efac = m_hm.getExprFactory();
+  llvm::Function &fn = *(B.getParent());
   Expr e = mk<TRUE>(efac);
-  llvm::Optional<clam_abstract_domain> absOpt = clam->getPre(B);
+  
+  llvm::Optional<clam_abstract_domain> absOpt = m_clam.getPre(&B, false);
   if (!absOpt.hasValue()) {
     return e;
   }
 
   auto abs = absOpt.getValue();
-  const AnalysisParams &clamParams = clam->getAnalysisParams();
-
-// Here we do project onto live variables before translation
-#if 0
-  std::vector<clam::var_t> vars = ExprVecToCrab(live, clam);
-  abs.project(vars);
-#endif
-
-  if (clamParams.dom.isDisjunctive()) {
-    DisjunctiveLinConsToExpr t(clam->getCfgBuilderMan().getHeapAbstraction(),
-                               *(B->getParent()), live);
-    e = t.toExpr(abs.to_disjunctive_linear_constraint_system(), efac);
+  if (m_params.dom.isDisjunctive()) {
+    DisjunctiveLinConsToExpr t(cfgBuilder, fn);
+    e = t.toExpr(abs.to_disjunctive_linear_constraint_system(), efac, live);
   } else {
-    LinConsToExprImpl t(clam->getCfgBuilderMan().getHeapAbstraction(),
-                        *(B->getParent()), live);
-    e = t.toExpr(abs.to_linear_constraint_system(), efac);
+    LinConsToExprImpl t(cfgBuilder, fn);
+    e = t.toExpr(abs.to_linear_constraint_system(), efac, live);
   }
 
-  if ((std::distance(live.begin(), live.end()) == 0) && (!isOpX<FALSE>(e))) {
+  if (live->empty() && (!isOpX<FALSE>(e))) {
     e = mk<TRUE>(efac);
   }
 
   return e;
 }
 
+
 bool LoadCrab::runOnModule(Module &M) {
+  auto &db = m_hm.getHornClauseDB();
+  auto const&cfgBuilderMan = m_clam.getCfgBuilderMan();
+  
   for (auto &F : M) {
-    runOnFunction(F);
+    if (F.empty()) {
+      continue;
+    }
+
+    const CfgBuilder *cfgBuilder = cfgBuilderMan.getCfgBuilder(F);
+    for (auto &BB : F) {
+      // skip all basic blocks that HornifyModule does not know
+      if (!m_hm.hasBbPredicate(BB)) {
+	continue;
+      }
+      
+      
+      const ExprVector &liveE = m_hm.live(BB);
+      DenseSet<const Value*> liveV;
+      for (auto e : liveE) {
+	Expr u = bind::fname(bind::fname(e));
+	if (isOpX<VALUE>(u)) {
+	  liveV.insert(getTerm<const Value *>(u));
+	}
+      }
+      
+      Expr exp = CrabInvToExpr(BB, cfgBuilder, &liveV);
+      Expr pred = m_hm.bbPredicate(BB);
+      LOG("crab", errs() << "Loading invariant " << *bind::fname(pred);
+	  errs() << "("; for (auto v : liveE) errs() << *v << " ";
+	  errs() << ")  " << *exp << "\n";);
+      
+      db.addInvariant(bind::fapp(pred, liveE), exp);
+    }
   }
   return false;
 }
 
-bool LoadCrab::runOnFunction(Function &F) {
+bool LoadCrabPass::runOnModule(Module &M) {
   HornifyModule &hm = getAnalysis<HornifyModule>();
   ClamPass &clam = getAnalysis<ClamPass>();
-
-  auto &db = hm.getHornClauseDB();
-
-  for (auto &BB : F) {
-    // skip all basic blocks that HornifyModule does not know
-    if (!hm.hasBbPredicate(BB))
-      continue;
-
-    const ExprVector &live = hm.live(BB);
-
-    Expr exp =
-        CrabInvToExpr(&BB, &clam, live, hm.getZContext(), hm.getExprFactory());
-
-    Expr pred = hm.bbPredicate(BB);
-
-    LOG("crab", errs() << "Loading invariant " << *bind::fname(pred);
-        errs() << "("; for (auto v
-                            : live) errs()
-                       << *v << " ";
-        errs() << ")  " << *exp << "\n";);
-
-    db.addInvariant(bind::fapp(pred, live), exp);
-  }
-  return false;
+  LoadCrab LC(clam.getClamGlobalAnalysis(), clam.getAnalysisParams(), hm);
+  return LC.runOnModule(M);
 }
 
-void LoadCrab::getAnalysisUsage(AnalysisUsage &AU) const {
+void LoadCrabPass::getAnalysisUsage(AnalysisUsage &AU) const {
   AU.setPreservesAll();
   AU.addRequired<HornifyModule>();
   AU.addRequired<ClamPass>();

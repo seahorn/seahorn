@@ -79,7 +79,6 @@ public:
 #else
 
 #include "clam/Clam.hh"
-#include "seahorn/LiveSymbols.hh"
 
 #include <memory>
 #include <queue>
@@ -170,8 +169,6 @@ protected:
   const CutPointGraph *m_cpg;
   // the function
   const llvm::Function *m_fn;
-  // live symbols
-  std::unique_ptr<LiveSymbols> m_ls;
   // symbolic store
   SymStore m_ctxState;
   /// precise encoding of m_cps

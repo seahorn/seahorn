@@ -198,12 +198,6 @@ static llvm::raw_ostream &get_os(bool show_time = false) {
 }
 
 void PathBmcEngine::initializeCrab() {
-
-  // -- Compute live symbols so that invariant variables exclude
-  //    dead variables.
-  m_ls.reset(new LiveSymbols(*m_fn, sem().efac(), sem()));
-  m_ls->run();
-
   // -- Set parameters for CFG
   clam::CrabBuilderParams cfg_builder_params;
   cfg_builder_params.simplify = false;
@@ -223,9 +217,18 @@ void PathBmcEngine::initializeCrab() {
   m_cfg_builder_man.reset(new clam::CrabBuilderManager(
       cfg_builder_params, m_tli, std::move(heap_abs)));
 
-  // -- Initialize crab for solving paths
+  
   if (UseCrabForSolvingPaths) {
+    // -- Create Crab CFG for m_fn and initialize crab for solving paths
     m_crab_path_solver.reset(new clam::IntraClam(*m_fn, *m_cfg_builder_man));
+  } else if(UseCrabGlobalInvariants) {
+    // -- Create Crab CFG for m_fn
+    m_cfg_builder_man->mkCfgBuilder(*m_fn);
+  }
+
+  // -- Run liveness analysis 
+  if (clam::CfgBuilder *cfgBuilder = m_cfg_builder_man->getCfgBuilder(*m_fn)) {
+    cfgBuilder->computeLiveSymbols();
   }
 }
 
@@ -265,10 +268,11 @@ void PathBmcEngine::loadCrabInvariants(
     const clam::IntraClam &crab,
     DenseMap<const BasicBlock *, ExprVector> &out) {
 
+  auto cfgBuilder = m_cfg_builder_man->getCfgBuilder(*m_fn);
   clam::lin_cst_unordered_map<Expr> cache;
   for (const BasicBlock &bb : *m_fn) {
 
-    // -- Get invariants from crab as crab linear constraints
+    // -- Get crab invariants 
     llvm::Optional<clam::clam_abstract_domain> preOpt = crab.getPre(&bb);
     if (!preOpt.hasValue()) {
       continue;
@@ -276,15 +280,24 @@ void PathBmcEngine::loadCrabInvariants(
     if (preOpt.getValue().is_top()) {
       continue;
     }
-    // -- Translate crab linear constraints to ExprVector
-    const ExprVector &live = m_ls->live(&bb);
-    LinConsToExpr conv(m_cfg_builder_man->getHeapAbstraction(), *m_fn, live);
+    clam::clam_abstract_domain pre = preOpt.getValue();
 
+    // -- Cleanup of the crab invariants by removing dead variables.
+    llvm::Optional<clam::varset_t> live_vars = cfgBuilder->getLiveSymbols(&bb);
+    if (live_vars.hasValue()) {
+      std::vector<clam::var_t> proj_vars(live_vars.getValue().begin(),
+					 live_vars.getValue().end());
+      pre.project(proj_vars);
+    }
+
+    // -- Get a conjunction of linear constraints from crab
+    //    invariants.  This will lose precision if the domain is not
+    //    convex or contain array/region constraints.
+    clam::lin_cst_sys_t inv_csts = pre.to_linear_constraint_system();
+    
+    // -- Translate crab linear constraints to ExprVector
+    LinConsToExpr conv(cfgBuilder, *m_fn);
     ExprVector res;
-    // XXX: this will lose precision if the domain is not convex or
-    // contain array constraints
-    clam::lin_cst_sys_t inv_csts =
-        preOpt.getValue().to_linear_constraint_system();
     for (auto cst : inv_csts) {
       // XXX: will convert from crab semantics to BMC semantics.
       auto it = cache.find(cst);
@@ -315,7 +328,7 @@ void PathBmcEngine::loadCrabInvariants(
     if (!res.empty()) {
       out.insert({&bb, res});
       LOG(
-          "bmc-ai", errs() << "Global invariants at " << bb.getName() << ":\n";
+          "bmc-crab-load", errs() << "Global invariants at " << bb.getName() << ":\n";
           if (res.empty()) { errs() << "\ttrue\n"; } else {
             for (auto e : res) {
               errs() << "\t" << *e << "\n";
@@ -739,7 +752,6 @@ void PathBmcEngine::extractPostConditionsFromCrabCex(
     const std::vector<const llvm::BasicBlock *> &cex,
     const crab_invariants_map_t &postconditions, expr_invariants_map_t &out) {
 
-  const LiveSymbols &ls = *m_ls;
   const Function &fn = *m_fn;
   ExprFactory &efac = sem().efac();
 
@@ -755,13 +767,16 @@ void PathBmcEngine::extractPostConditionsFromCrabCex(
     }
   };
 
+  auto cfgBuilder = m_cfg_builder_man->getCfgBuilder(fn);
   for (const BasicBlock *b : cex) {
-    const ExprVector &live = ls.live(b);
     // XXX: this will lose precision if the domain is not convex or
     // contain array constraints
     clam::lin_cst_sys_t csts = get_crab_linear_constraints(b);
     ExprVector f;
-    LinConsToExpr conv(m_cfg_builder_man->getHeapAbstraction(), fn, live);
+
+    // TODO: we can use live symbols from CfgBuilder to make more
+    //       concise invariants.    
+    LinConsToExpr conv(cfgBuilder, fn);
     for (auto cst : csts) {
       // XXX: Convert to Expr using Crab semantics (linear integer
       // arithmetic).
@@ -1020,7 +1035,7 @@ solver::SolverResult PathBmcEngine::solvePathWithSmt(
 PathBmcEngine::PathBmcEngine(OperationalSemantics &sem,
                              llvm::TargetLibraryInfoWrapperPass &tli,
                              seadsa::ShadowMem &sm)
-    : m_sem(sem), m_cpg(nullptr), m_fn(nullptr), m_ls(nullptr),
+    : m_sem(sem), m_cpg(nullptr), m_fn(nullptr),
       m_ctxState(sem.efac()), m_boolean_solver(nullptr),
       m_smt_path_solver(nullptr), m_model(nullptr), m_num_paths(0), m_tli(tli),
       m_sm(sm), m_mem_ssa(nullptr), m_cfg_builder_man(nullptr),

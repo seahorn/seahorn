@@ -640,9 +640,10 @@ bool PathBmcEngine::encodeBoolPathFromCrabCex(
     } else if ( // enumerate all statements so we don't miss one.
 	/*integer operations*/
         s->is_bin_op() || s->is_int_cast() || s->is_select() ||
+	s->is_assume() || s->is_assert() ||
 	/* boolean operations */
-        s->is_bool_bin_op() || s->is_bool_assign_cst() || s->is_assume() ||
-        s->is_bool_assume() || s->is_bool_select() || 
+        s->is_bool_bin_op() || s->is_bool_assign_cst() || 
+        s->is_bool_assume() || s->is_bool_select() || s->is_bool_assert() ||
 	/* array operations */
 	s->is_arr_write() || s->is_arr_read() || s->is_arr_init() ||
 	/* region and reference operations */
@@ -650,7 +651,7 @@ bool PathBmcEngine::encodeBoolPathFromCrabCex(
 	s->is_ref_load() || s->is_ref_arr_load() ||
 	s->is_ref_store() || s->is_ref_arr_store() ||
 	s->is_ref_make() || s->is_ref_remove() || s->is_ref_gep() ||
-	s->is_ref_assume()) {
+	s->is_ref_assume() || s->is_ref_assert()) {
       
       if (isMemRead(*s)) {
         sE = encodeUseDefChain(*s, mem_phis_exec_inc_block, *m_mem_ssa,

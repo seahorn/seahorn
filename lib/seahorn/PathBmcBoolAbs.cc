@@ -22,8 +22,14 @@ struct PreNNF : public std::unary_function<Expr, Expr> {
     }
 
     if (isOpX<XOR>(exp)) {
-      assert(false && "TODO");
+      #if 0
+      // If we keep it then it will be abstracted to true later by BA.
       return exp;
+      #else
+      return op::boolop::lor(
+      	  op::boolop::land(exp->left(), op::boolop::lneg(exp->right())),
+          op::boolop::land(op::boolop::lneg(exp->left()), exp->right()));
+      #endif 
     } else if (isOpX<IMPL>(exp)) {
       return op::boolop::lor(op::boolop::lneg(exp->left()), exp->right());
     } else if (isOpX<ITE>(exp)) {

@@ -120,8 +120,15 @@ bool PromoteMemcpy::simplifyMemCpy(MemCpyInst *MI) {
 
   auto *BufferTy = dyn_cast<StructType>(SrcPtrTy->getPointerElementType());
   // require src to be a struct
-  if (!BufferTy)
+  if (!BufferTy) {
+    PMCPY_LOG(WARN << "memcpy on non-struct types: " << *MI;);
     return false;
+  }
+  // require constant length argument equal to struct size
+  if (m_DL->getTypeStoreSize(BufferTy) != Size) {
+    PMCPY_LOG(WARN << "memcpy length not equal to struct size: " << *MI;);
+    return false;
+  }
 
   IRBuilder<> Builder(MI);
   auto *I64Ty = IntegerType::getInt64Ty(*m_Ctx);

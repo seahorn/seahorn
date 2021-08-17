@@ -537,23 +537,39 @@ public:
     return toSmtLibAssuming(out, v);
   }
 
+  // same as toSmtLibAssuming but using native printer
+  template <typename OutputStream, typename Range>
+  OutputStream &toSmtLibAssuming_native(OutputStream &out, const Range &rng) {
+    Z3_set_ast_print_mode(ctx, Z3_PRINT_SMTLIB2_COMPLIANT);
+    out << ";; Produced with Z3_solver_to_string()\n";
+    out << Z3_solver_to_string(ctx, solver) << "\n";
+
+    out << "(check-sat";
+    for (const Expr &a : rng)
+      out << " " << *a;
+    out << ")\n";
+
+    return out;
+  }
   template <typename OutputStream, typename Range>
   OutputStream &toSmtLibAssuming(OutputStream &out, const Range &rng) {
+#ifdef ZSOLVER_NATIVE_PRINT
+    return toSmtLibAssuming_native(out, rng);
+#else
     ExprVector asserts;
     assertions(std::back_inserter(asserts));
     out << z3.toSmtLibDecls(asserts);
     out << "\n";
-
 #ifdef ZSOLVER_PRETTY_PRINT
     // -- inefficient due to lack of sharing between expressions
     for (const Expr &a : asserts)
       out << "(assert " << z3.toSmtLib(a) << ")\n";
 #else
-    Z3_set_ast_print_mode(z3.get_ctx(), Z3_PRINT_SMTLIB2_COMPLIANT);
+    Z3_set_ast_print_mode(ctx, Z3_PRINT_SMTLIB2_COMPLIANT);
     out << "(assert " << z3.toSmtLib(mknary<AND>(mk<TRUE>(efac), asserts))
         << ")\n";
 #endif
-
+#endif
     out << "(check-sat";
     for (const Expr &a : rng)
       out << " " << *a;

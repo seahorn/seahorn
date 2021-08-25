@@ -6,9 +6,12 @@
 
 namespace expr {
 
+namespace utils {
+bool shouldCache(Expr e) { return e->use_count() > 1; }
+} // namespace utils
+
 Expr rewriteITEComp(Expr exp) {
-  seahorn::EZ3 zctx(exp->efac());
-  ExprRewriter<ITECompRewriteConfig> rewriter(exp->efac(), zctx);
+  ExprRewriter<ITECompRewriteConfig> rewriter(exp->efac());
   return rewriter.rewriteExpr(exp);
 }
 

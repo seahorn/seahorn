@@ -10,7 +10,14 @@
 
 namespace expr {
 
-enum rewrite_status { RW_DONE = 0, RW_1 = 1, RW_2 = 2, RW_FULL = 4 };
+enum rewrite_status {
+  RW_DONE = 0,
+  RW_1 = 1,
+  RW_2 = 2,
+  RW_FULL = 4,
+  RW_SKIP = 5
+};
+
 struct rewrite_result {
   Expr rewritten;
   rewrite_status status;
@@ -22,25 +29,21 @@ struct ExprRewriteRule : public std::unary_function<Expr, rewrite_result> {
   Expr trueE;
   Expr falseE;
 
-  seahorn::EZ3 &m_zctx; // for z3 simplifier if needed
-
-  ExprRewriteRule(ExprFactory &efac, seahorn::EZ3 &zctx)
-      : efac(efac), trueE(mk<TRUE>(efac)), falseE(mk<FALSE>(efac)),
-        m_zctx(zctx) {}
+  ExprRewriteRule(ExprFactory &efac)
+      : efac(efac), trueE(mk<TRUE>(efac)), falseE(mk<FALSE>(efac)) {}
   ExprRewriteRule(const ExprRewriteRule &o)
-      : efac(o.efac), trueE(o.trueE), falseE(o.falseE), m_zctx(o.m_zctx) {}
+      : efac(o.efac), trueE(o.trueE), falseE(o.falseE) {}
 
   rewrite_result operator()(Expr exp) { return {exp, rewrite_status::RW_DONE}; }
 };
 
 struct ITERewriteRule : public ExprRewriteRule {
-  ITERewriteRule(ExprFactory &efac, seahorn::EZ3 &zctx)
-      : ExprRewriteRule(efac, zctx) {}
+  ITERewriteRule(ExprFactory &efac) : ExprRewriteRule(efac) {}
   ITERewriteRule(const ITERewriteRule &o) : ExprRewriteRule(o) {}
 
   rewrite_result operator()(Expr exp) {
     if (!isOpX<ITE>(exp)) {
-      return {exp, rewrite_status::RW_DONE};
+      return {exp, rewrite_status::RW_SKIP};
     }
 
     Expr i = exp->arg(0);
@@ -62,18 +65,20 @@ struct ITERewriteRule : public ExprRewriteRule {
         return {mk<ITE>(i, t, e_t), rewrite_status::RW_DONE};
       }
     }
-    return {exp, rewrite_status::RW_DONE};
+    return {exp, rewrite_status::RW_SKIP};
   }
 };
 
 struct CompareRewriteRule : public ExprRewriteRule {
-  CompareRewriteRule(ExprFactory &efac, seahorn::EZ3 &zctx)
-      : ExprRewriteRule(efac, zctx) {}
-  CompareRewriteRule(const CompareRewriteRule &o) : ExprRewriteRule(o) {}
+  seahorn::EZ3 m_zctx; // for z3 simplifier
+
+  CompareRewriteRule(ExprFactory &efac) : ExprRewriteRule(efac), m_zctx(efac) {}
+  CompareRewriteRule(const CompareRewriteRule &o)
+      : ExprRewriteRule(o), m_zctx(o.efac) {}
 
   rewrite_result operator()(Expr exp) {
     if (!isOpX<CompareOp>(exp)) {
-      return {exp, rewrite_status::RW_DONE};
+      return {exp, rewrite_status::RW_SKIP};
     }
     Expr lhs = exp->left();
     Expr rhs = exp->right();
@@ -94,7 +99,7 @@ struct CompareRewriteRule : public ExprRewriteRule {
       Expr new_e = efac.mkBin(exp->op(), rhs->arg(2), lhs);
       return {mk<ITE>(new_i, new_t, new_e), rewrite_status::RW_2};
     }
-    return {exp, rewrite_status::RW_DONE};
+    return {exp, rewrite_status::RW_SKIP};
   }
 };
 

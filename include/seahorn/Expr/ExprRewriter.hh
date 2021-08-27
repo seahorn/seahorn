@@ -2,6 +2,8 @@
 #include "seahorn/Expr/Expr.hh"
 #include "seahorn/Expr/ExprCore.hh"
 #include "seahorn/Expr/ExprRewriteRule.hh"
+#include "seahorn/Support/SeaDebug.h"
+#include "seahorn/Support/SeaLog.hh"
 
 namespace expr {
 using namespace seahorn;
@@ -59,7 +61,6 @@ protected:
   RewriteFrameVector m_rewriteStack;
   ExprVector m_resultStack;
   DagVisitCache m_cache;
-  ExprVisitedMap m_visited;
 
   /* visit e, return true if any of the following is true:
     1. e has been cached, or
@@ -71,22 +72,15 @@ protected:
   bool visit(Expr e, size_t depth) {
     if (depth == 0 || !m_config.shouldRewrite(e)) {
       m_resultStack.push_back(e);
-      m_visited[&*e] = true;
       return true;
     }
     if (utils::shouldCache(e)) {
       DagVisitCache::const_iterator cit = m_cache.find(&*e);
       if (cit != m_cache.end()) {
         m_resultStack.push_back(cit->second);
-        m_visited[&*e] = true;
         return true;
       }
     }
-    if (m_visited.find(&*e) != m_visited.end()) {
-      m_resultStack.push_back(e);
-      return true;
-    }
-    m_visited[&*e] = true;
     size_t nextDepth = (depth == rewrite_status::RW_FULL) ? depth : depth - 1;
     m_rewriteStack.push_back(RewriteFrame(e, nextDepth, 0));
     return false;

@@ -13,7 +13,7 @@ Expr rewriteITEComp(Expr exp) {
 }
 
 bool ITECompRewriteConfig::shouldRewrite(Expr exp) {
-  return isOpX<ITE>(exp) || isOpX<CompareOp>(exp);
+  return isOpX<ITE>(exp) || isOpX<CompareOp>(exp) || isOpX<BoolOp>(exp);
 }
 
 rewrite_result ITECompRewriteConfig::applyRewriteRules(Expr exp) {
@@ -22,6 +22,8 @@ rewrite_result ITECompRewriteConfig::applyRewriteRules(Expr exp) {
     res = m_iteRule(exp);
   } else if (isOpX<CompareOp>(exp)) {
     res = m_compRule(exp);
+  } else if (isOpX<BoolOp>(exp)) {
+    res = m_boolRule(exp);
   }
   return res;
 }

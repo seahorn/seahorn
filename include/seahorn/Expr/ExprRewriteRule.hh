@@ -110,7 +110,7 @@ struct CompareRewriteRule : public ExprRewriteRule {
     // normalize neq: a != b ==> !(a=b)
     if (isOpX<NEQ>(exp)) {
       Expr negation = mk<EQ>(lhs, rhs);
-      return {mk<NEG>(negation), rewrite_status::RW_DONE};
+      return {mk<NEG>(negation), rewrite_status::RW_2};
     }
 
     // [k comp ite(a, b, c)] => [ite(a, b comp k, c comp k)]
@@ -124,6 +124,27 @@ struct CompareRewriteRule : public ExprRewriteRule {
       Expr new_t = efac.mkBin(exp->op(), rhs->arg(1), lhs);
       Expr new_e = efac.mkBin(exp->op(), rhs->arg(2), lhs);
       return {mk<ITE>(new_i, new_t, new_e), rewrite_status::RW_2};
+    }
+    return {exp, rewrite_status::RW_SKIP};
+  }
+};
+
+struct BoolOpRewriteRule : public ExprRewriteRule {
+  BoolOpRewriteRule(ExprFactory &efac) : ExprRewriteRule(efac) {}
+  BoolOpRewriteRule(const CompareRewriteRule &o) : ExprRewriteRule(o) {}
+
+  rewrite_result operator()(Expr exp) {
+    if (!isOpX<BoolOp>(exp)) {
+      return {exp, rewrite_status::RW_SKIP};
+    }
+
+    // double neg => truthy
+    // e.g. !(!a) ==> a
+    if (isOpX<NEG>(exp)) {
+      Expr neg = exp->arg(0);
+      if (isOpX<NEG>(neg)) {
+        return {neg->arg(0), rewrite_status::RW_2};
+      }
     }
     return {exp, rewrite_status::RW_SKIP};
   }

@@ -43,10 +43,12 @@ class ITECompRewriteConfig : public ExprRewriterConfig {
 private:
   ITERewriteRule m_iteRule;
   CompareRewriteRule m_compRule;
+  BoolOpRewriteRule m_boolRule;
 
 public:
   ITECompRewriteConfig(ExprFactory &efac)
-      : m_iteRule(efac), m_compRule(efac), ExprRewriterConfig(efac) {}
+      : m_iteRule(efac), m_compRule(efac), m_boolRule(efac),
+        ExprRewriterConfig(efac) {}
 
   rewrite_result applyRewriteRules(Expr exp);
 

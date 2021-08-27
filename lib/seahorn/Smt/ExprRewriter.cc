@@ -1,8 +1,5 @@
 #include "seahorn/Expr/ExprRewriter.hh"
 #include "seahorn/Expr/ExprVisitor.hh"
-#include "seahorn/Support/SeaDebug.h"
-#include "seahorn/Support/SeaLog.hh"
-#include <unordered_map>
 
 namespace expr {
 
@@ -20,12 +17,12 @@ bool ITECompRewriteConfig::shouldRewrite(Expr exp) {
 }
 
 rewrite_result ITECompRewriteConfig::applyRewriteRules(Expr exp) {
+  rewrite_result res = {exp, rewrite_status::RW_SKIP};
   if (isOpX<ITE>(exp)) {
-    return m_iteRule(exp);
+    res = m_iteRule(exp);
   } else if (isOpX<CompareOp>(exp)) {
-    return m_compRule(exp);
-  } else {
-    return {exp, rewrite_status::RW_DONE};
+    res = m_compRule(exp);
   }
+  return res;
 }
 } // namespace expr

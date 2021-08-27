@@ -1,6 +1,7 @@
 #pragma once
 #include "seahorn/Expr/Expr.hh"
 #include "seahorn/Expr/ExprCore.hh"
+#include "seahorn/Expr/ExprOpBv.hh"
 #include "seahorn/Expr/ExprOpCore.hh"
 #include "seahorn/Expr/ExprSimplifier.hh"
 #include "seahorn/Expr/Smt/EZ3.hh"
@@ -50,11 +51,11 @@ struct ITERewriteRule : public ExprRewriteRule {
     Expr t = exp->arg(1);
     Expr e = exp->arg(2);
     // ite(a, true, false) => a
-    if (t == trueE && e == falseE) {
+    if (isOpX<TRUE>(t) && isOpX<FALSE>(e)) {
       return {i, rewrite_status::RW_DONE};
     }
     // ite(a, false, true) => !a
-    if (t == falseE && e == trueE) {
+    if (isOpX<FALSE>(t) && isOpX<TRUE>(e)) {
       return {mk<NEG>(i), rewrite_status::RW_2}; // simp dbl negation
     }
     // ite(a, b, ite(!a, c, d)) => ite(a, b, c)
@@ -70,11 +71,9 @@ struct ITERewriteRule : public ExprRewriteRule {
 };
 
 struct CompareRewriteRule : public ExprRewriteRule {
-  seahorn::EZ3 m_zctx; // for z3 simplifier
 
-  CompareRewriteRule(ExprFactory &efac) : ExprRewriteRule(efac), m_zctx(efac) {}
-  CompareRewriteRule(const CompareRewriteRule &o)
-      : ExprRewriteRule(o), m_zctx(o.efac) {}
+  CompareRewriteRule(ExprFactory &efac) : ExprRewriteRule(efac) {}
+  CompareRewriteRule(const CompareRewriteRule &o) : ExprRewriteRule(o) {}
 
   rewrite_result operator()(Expr exp) {
     if (!isOpX<CompareOp>(exp)) {
@@ -82,11 +81,38 @@ struct CompareRewriteRule : public ExprRewriteRule {
     }
     Expr lhs = exp->left();
     Expr rhs = exp->right();
-    if (lhs->arity() <= 2 && rhs->arity() <= 2) {
-      // use z3 for smaller compare expressions
-      Expr simped = z3_simplify(m_zctx, exp);
-      return {simped, rewrite_status::RW_DONE};
+
+    /* a op b comp a op c ==> b comp c
+      e.g. (a - b) == (a - c) ==> b == c
+    */
+    if (isOpX<BvOp>(lhs) && lhs->op() == rhs->op() &&
+        lhs->arity() == rhs->arity() && lhs->arity() == 2) {
+      if (lhs->arg(0) == rhs->arg(0)) {
+        Expr res = efac.mkBin(exp->op(), lhs->arg(1), rhs->arg(1));
+        return {res, rewrite_status::RW_1};
+      }
+      if (lhs->arg(1) == rhs->arg(1)) {
+        Expr res = efac.mkBin(exp->op(), lhs->arg(0), rhs->arg(0));
+        return {res, rewrite_status::RW_1};
+      }
     }
+    // a == a => true, only works if a is constant bvnum
+    if (isOpX<EQ>(exp)) {
+      if (op::bv::is_bvnum(lhs) && op::bv::is_bvnum(rhs)) {
+        if (lhs->arg(0) == rhs->arg(0)) {
+          return {trueE, rewrite_status::RW_DONE};
+        } else {
+          return {falseE, rewrite_status::RW_DONE};
+        }
+      }
+    }
+
+    // normalize neq: a != b ==> !(a=b)
+    if (isOpX<NEQ>(exp)) {
+      Expr negation = mk<EQ>(lhs, rhs);
+      return {mk<NEG>(negation), rewrite_status::RW_DONE};
+    }
+
     // [k comp ite(a, b, c)] => [ite(a, b comp k, c comp k)]
     if (isOpX<ITE>(lhs)) {
       Expr new_i = lhs->arg(0);

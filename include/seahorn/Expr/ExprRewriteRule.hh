@@ -1,6 +1,7 @@
 #pragma once
 #include "seahorn/Expr/Expr.hh"
 #include "seahorn/Expr/ExprCore.hh"
+#include "seahorn/Expr/ExprOpArray.hh"
 #include "seahorn/Expr/ExprOpBv.hh"
 #include "seahorn/Expr/ExprOpCore.hh"
 #include "seahorn/Expr/ExprSimplifier.hh"
@@ -151,7 +152,45 @@ struct BoolOpRewriteRule : public ExprRewriteRule {
     if (isOpX<NEG>(exp)) {
       Expr neg = exp->arg(0);
       if (isOpX<NEG>(neg)) {
-        return {neg->arg(0), rewrite_status::RW_2};
+        return {neg->arg(0), rewrite_status::RW_1};
+      }
+    }
+    return {exp, rewrite_status::RW_SKIP};
+  }
+};
+
+// for select and store
+struct ArrayRewriteRule : public ExprRewriteRule {
+  ArrayRewriteRule(ExprFactory &efac) : ExprRewriteRule(efac) {}
+  ArrayRewriteRule(const ArrayRewriteRule &o) : ExprRewriteRule(o) {}
+
+  rewrite_result operator()(Expr exp) {
+    if (!isOpX<STORE>(exp) && !isOpX<SELECT>(exp)) {
+      return {exp, rewrite_status::RW_SKIP};
+    }
+    if (isOpX<SELECT>(exp)) {
+      Expr arr = exp->arg(0);
+      Expr idx = exp->arg(1);
+      // select(ite(i, a, b), v) => ite(i, select(a, v), select(b, v))
+      if (isOpX<ITE>(arr)) {
+        Expr i = arr->arg(0);
+        Expr t = arr->arg(1);
+        Expr e = arr->arg(2);
+        Expr new_t = op::array::select(t, idx);
+        Expr new_e = op::array::select(e, idx);
+        return {mk<ITE>(i, new_t, new_e), rewrite_status::RW_2};
+      }
+      /** Read-over-write: select(store(arr_w, idx_w, val), idx_r)
+          ==> ite(idx_w == idx_x, val, select(arr_w, idx_r))
+       **/
+      if (isOpX<STORE>(arr)) {
+        Expr arr_w = arr->arg(0);
+        Expr idx_w = arr->arg(1);
+        Expr val = arr->arg(2);
+
+        Expr idx_comp = mk<EQ>(idx, idx_w);
+        Expr sel = op::array::select(arr_w, idx);
+        return {mk<ITE>(idx_comp, val, sel), rewrite_status::RW_2};
       }
     }
     return {exp, rewrite_status::RW_SKIP};

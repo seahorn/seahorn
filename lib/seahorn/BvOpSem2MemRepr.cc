@@ -19,9 +19,9 @@ namespace details {
 
 /**
  * rewriter for store expr:
- * e = store A idx val -> { return ite( (idx == ptr), val, rewrite(A) )}
- * e is not store (const array or terminal register) ->
- * { return select(e, m_ptr) }
+ * e = select(store(A idx val), ptr) -> { return ite( (idx == ptr), val,
+ *rewrite(A) )} e is not store (const array or terminal register) -> { return
+ *select(e, m_ptr) }
  **/
 struct ArrayStoreRewriter : public std::unary_function<Expr, Expr> {
   Expr m_ptr;

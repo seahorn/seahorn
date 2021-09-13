@@ -44,10 +44,11 @@ private:
   ITERewriteRule m_iteRule;
   CompareRewriteRule m_compRule;
   BoolOpRewriteRule m_boolRule;
+  ArrayRewriteRule m_arrayRule;
 
 public:
   ITECompRewriteConfig(ExprFactory &efac)
-      : m_iteRule(efac), m_compRule(efac), m_boolRule(efac),
+      : m_iteRule(efac), m_compRule(efac), m_boolRule(efac), m_arrayRule(efac),
         ExprRewriterConfig(efac) {}
 
   rewrite_result applyRewriteRules(Expr exp);

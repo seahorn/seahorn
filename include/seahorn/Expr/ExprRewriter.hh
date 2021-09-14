@@ -45,11 +45,12 @@ private:
   CompareRewriteRule m_compRule;
   BoolOpRewriteRule m_boolRule;
   ArrayRewriteRule m_arrayRule;
+  ArithmeticRule m_arithRule;
 
 public:
   ITECompRewriteConfig(ExprFactory &efac)
       : m_iteRule(efac), m_compRule(efac), m_boolRule(efac), m_arrayRule(efac),
-        ExprRewriterConfig(efac) {}
+        m_arithRule(efac), ExprRewriterConfig(efac) {}
 
   rewrite_result applyRewriteRules(Expr exp);
 

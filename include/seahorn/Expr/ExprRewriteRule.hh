@@ -1,4 +1,5 @@
 #pragma once
+#include <algorithm>
 #include "seahorn/Expr/Expr.hh"
 #include "seahorn/Expr/ExprCore.hh"
 #include "seahorn/Expr/ExprOpArray.hh"
@@ -69,11 +70,11 @@ struct ITERewriteRule : public ExprRewriteRule {
     }
     // ite(true, a, b) => a
     if (isOpX<TRUE>(i)) {
-      return {t, rewrite_status::RW_1};
+      return {t, rewrite_status::RW_DONE};
     }
     // ite(false, a, b) => b
     if (isOpX<FALSE>(i)) {
-      return {e, rewrite_status::RW_1};
+      return {e, rewrite_status::RW_DONE};
     }
     return {exp, rewrite_status::RW_SKIP};
   }
@@ -152,7 +153,7 @@ struct BoolOpRewriteRule : public ExprRewriteRule {
     if (isOpX<NEG>(exp)) {
       Expr neg = exp->arg(0);
       if (isOpX<NEG>(neg)) {
-        return {neg->arg(0), rewrite_status::RW_1};
+        return {neg->arg(0), rewrite_status::RW_DONE};
       }
     }
     return {exp, rewrite_status::RW_SKIP};
@@ -191,6 +192,48 @@ struct ArrayRewriteRule : public ExprRewriteRule {
         Expr idx_comp = mk<EQ>(idx, idx_w);
         Expr sel = op::array::select(arr_w, idx);
         return {mk<ITE>(idx_comp, val, sel), rewrite_status::RW_2};
+      }
+    }
+    return {exp, rewrite_status::RW_SKIP};
+  }
+};
+
+struct ArithmeticRule : public ExprRewriteRule {
+  ArithmeticRule(ExprFactory &efac) : ExprRewriteRule(efac) {}
+  ArithmeticRule(const ArithmeticRule &o) : ExprRewriteRule(o) {}
+
+  rewrite_result operator()(Expr exp) {
+    if (!isOpX<BADD>(exp)) {
+      return {exp, rewrite_status::RW_SKIP};
+    }
+    /** add(add(a, b), c) =>
+     * add(a, b + c) if b and c are constant
+     * add(b, a + c) if a and c are constant
+     * **/
+    Expr lhs = exp->arg(0);
+    Expr rhs = exp->arg(1);
+    if (isOpX<BADD>(lhs)) {
+      if (op::bv::is_bvnum(rhs)) {
+        mpz_class rhs_num = op::bv::toMpz(rhs);
+        Expr l_lhs = lhs->arg(0);
+        Expr l_rhs = lhs->arg(1);
+        // a and c are constant
+        if (op::bv::is_bvnum(l_lhs)) {
+          mpz_class l_lhs_num = op::bv::toMpz(l_lhs);
+          mpz_class sum = rhs_num + l_lhs_num;
+          unsigned width = std::max(op::bv::widthBvNum(rhs), op::bv::widthBvNum(l_lhs));
+          Expr sum_e = op::bv::bvnum(sum, width, efac);
+          return {mk<BADD>(l_rhs, sum_e), rewrite_status::RW_2};
+        }
+        // b and c are constant
+        if (op::bv::is_bvnum(l_rhs)) {
+          mpz_class l_rhs_num = op::bv::toMpz(l_rhs);
+          mpz_class sum = rhs_num + l_rhs_num;
+          unsigned width =
+              std::max(op::bv::widthBvNum(rhs), op::bv::widthBvNum(l_rhs));
+          Expr sum_e = op::bv::bvnum(sum, width, efac);
+          return {mk<BADD>(l_lhs, sum_e), rewrite_status::RW_2};
+        }
       }
     }
     return {exp, rewrite_status::RW_SKIP};

@@ -1,5 +1,4 @@
 #pragma once
-#include <algorithm>
 #include "seahorn/Expr/Expr.hh"
 #include "seahorn/Expr/ExprCore.hh"
 #include "seahorn/Expr/ExprOpArray.hh"
@@ -8,10 +7,22 @@
 #include "seahorn/Expr/ExprSimplifier.hh"
 #include "seahorn/Expr/Smt/EZ3.hh"
 #include "seahorn/Expr/Smt/Z3.hh"
+#include <algorithm>
 
 /* Simplifying rewrite rules for different Exprewrite_status */
 
 namespace expr {
+
+namespace utils {
+/**
+ * If arr is one of:
+ * 1) store, or
+ * 2) ITE,
+ * then push select(..., idx) down the expression tree;
+ * for nested, we presume the tree is biased towards "then" side (arg[1])
+ **/
+Expr pushSelectDownStoreITE(Expr arr, Expr idx, ExprFactory &efac);
+} // end of namespace utils
 
 enum rewrite_status {
   RW_DONE = 0,
@@ -160,39 +171,22 @@ struct BoolOpRewriteRule : public ExprRewriteRule {
   }
 };
 
-// for select and store
+// for select
 struct ArrayRewriteRule : public ExprRewriteRule {
   ArrayRewriteRule(ExprFactory &efac) : ExprRewriteRule(efac) {}
   ArrayRewriteRule(const ArrayRewriteRule &o) : ExprRewriteRule(o) {}
 
   rewrite_result operator()(Expr exp) {
-    if (!isOpX<STORE>(exp) && !isOpX<SELECT>(exp)) {
+    if (!isOpX<SELECT>(exp)) {
       return {exp, rewrite_status::RW_SKIP};
     }
-    if (isOpX<SELECT>(exp)) {
-      Expr arr = exp->arg(0);
-      Expr idx = exp->arg(1);
-      // select(ite(i, a, b), v) => ite(i, select(a, v), select(b, v))
-      if (isOpX<ITE>(arr)) {
-        Expr i = arr->arg(0);
-        Expr t = arr->arg(1);
-        Expr e = arr->arg(2);
-        Expr new_t = op::array::select(t, idx);
-        Expr new_e = op::array::select(e, idx);
-        return {mk<ITE>(i, new_t, new_e), rewrite_status::RW_2};
-      }
-      /** Read-over-write: select(store(arr_w, idx_w, val), idx_r)
-          ==> ite(idx_w == idx_x, val, select(arr_w, idx_r))
-       **/
-      if (isOpX<STORE>(arr)) {
-        Expr arr_w = arr->arg(0);
-        Expr idx_w = arr->arg(1);
-        Expr val = arr->arg(2);
-
-        Expr idx_comp = mk<EQ>(idx, idx_w);
-        Expr sel = op::array::select(arr_w, idx);
-        return {mk<ITE>(idx_comp, val, sel), rewrite_status::RW_2};
-      }
+    Expr arr = exp->arg(0);
+    Expr idx = exp->arg(1);
+    /** Read-over-write/ite: push select down to leaves
+     **/
+    if (isOpX<STORE>(arr) || isOpX<ITE>(arr)) {
+      Expr res = utils::pushSelectDownStoreITE(arr, idx, efac);
+      return {res, rewrite_status::RW_2};
     }
     return {exp, rewrite_status::RW_SKIP};
   }
@@ -206,37 +200,43 @@ struct ArithmeticRule : public ExprRewriteRule {
     if (!isOpX<BADD>(exp)) {
       return {exp, rewrite_status::RW_SKIP};
     }
-    /** add(add(a, b), c) =>
-     * add(a, b + c) if b and c are constant
-     * add(b, a + c) if a and c are constant
+    /** In general these two rules:
+     * 1) flatten n-ary bvadd:
+     * bvadd(a, bvadd(b, c), d...) => bvadd(a, b, c, d);
+     * 2) consolidate all bvnum operands into one:
+     * bvadd(a, 1, 2, d) => bvadd(a, d, 3)
      * **/
-    Expr lhs = exp->arg(0);
-    Expr rhs = exp->arg(1);
-    if (isOpX<BADD>(lhs)) {
-      if (op::bv::is_bvnum(rhs)) {
-        mpz_class rhs_num = op::bv::toMpz(rhs);
-        Expr l_lhs = lhs->arg(0);
-        Expr l_rhs = lhs->arg(1);
-        // a and c are constant
-        if (op::bv::is_bvnum(l_lhs)) {
-          mpz_class l_lhs_num = op::bv::toMpz(l_lhs);
-          mpz_class sum = rhs_num + l_lhs_num;
-          unsigned width = std::max(op::bv::widthBvNum(rhs), op::bv::widthBvNum(l_lhs));
-          Expr sum_e = op::bv::bvnum(sum, width, efac);
-          return {mk<BADD>(l_rhs, sum_e), rewrite_status::RW_2};
+    llvm::SmallVector<Expr, 2> args;
+    mpz_class sum = 0;
+    unsigned width = 0;
+    for (auto b = exp->args_begin(), e = exp->args_end(); b != e; ++b) {
+      Expr arg = *b;
+      if (op::bv::is_bvnum(arg)) {
+        mpz_class argNum = op::bv::toMpz(arg);
+        sum = argNum + sum;
+        width = std::max(op::bv::widthBvNum(arg), width);
+      } else if (isOpX<BADD>(arg)) {
+        for (auto bKid = arg->args_begin(); bKid != arg->args_end(); ++bKid) {
+          Expr kid = *bKid;
+          if (op::bv::is_bvnum(kid)) {
+            mpz_class kidNum = op::bv::toMpz(kid);
+            sum = kidNum + sum;
+            width = std::max(op::bv::widthBvNum(kid), width);
+          } else {
+            /** children has already been flattened **/
+            args.push_back(kid);
+          }
         }
-        // b and c are constant
-        if (op::bv::is_bvnum(l_rhs)) {
-          mpz_class l_rhs_num = op::bv::toMpz(l_rhs);
-          mpz_class sum = rhs_num + l_rhs_num;
-          unsigned width =
-              std::max(op::bv::widthBvNum(rhs), op::bv::widthBvNum(l_rhs));
-          Expr sum_e = op::bv::bvnum(sum, width, efac);
-          return {mk<BADD>(l_lhs, sum_e), rewrite_status::RW_2};
-        }
+      } else {
+        args.push_back(arg);
       }
     }
-    return {exp, rewrite_status::RW_SKIP};
+    // bv num always at the back
+    if (width > 0) {
+      args.push_back(op::bv::bvnum(sum, width, efac));
+    }
+    Expr res = mknary<BADD>(args.begin(), args.end());
+    return {res, rewrite_status::RW_DONE};
   }
 };
 

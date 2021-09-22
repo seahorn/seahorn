@@ -159,12 +159,25 @@ struct BoolOpRewriteRule : public ExprRewriteRule {
       return {exp, rewrite_status::RW_SKIP};
     }
 
-    // double neg => truthy
-    // e.g. !(!a) ==> a
     if (isOpX<NEG>(exp)) {
       Expr neg = exp->arg(0);
+      // double neg => truthy
+      // e.g. !(!a) ==> a
       if (isOpX<NEG>(neg)) {
         return {neg->arg(0), rewrite_status::RW_DONE};
+      }
+      // !ite(c, a, b) => ite(c, !a, !b)
+      if (isOpX<ITE>(neg)) {
+        return {
+            mk<ITE>(neg->arg(0), mk<NEG>(neg->arg(1)), mk<NEG>(neg->arg(2))),
+            rewrite_status::RW_2};
+      }
+      // negate trivial constants: !true => false; !false => true
+      if (isOpX<TRUE>(neg)) {
+        return {falseE, rewrite_status::RW_DONE};
+      }
+      if (isOpX<FALSE>(neg)) {
+        return {trueE, rewrite_status::RW_DONE};
       }
     }
     return {exp, rewrite_status::RW_SKIP};

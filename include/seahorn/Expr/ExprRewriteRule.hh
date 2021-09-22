@@ -21,7 +21,7 @@ namespace utils {
  * then push select(..., idx) down the expression tree;
  * for nested, we presume the tree is biased towards "then" side (arg[1])
  **/
-Expr pushSelectDownStoreITE(Expr arr, Expr idx, ExprFactory &efac);
+Expr pushSelectDownStoreITE(Expr arr, Expr idx);
 } // end of namespace utils
 
 enum rewrite_status {
@@ -185,7 +185,7 @@ struct ArrayRewriteRule : public ExprRewriteRule {
     /** Read-over-write/ite: push select down to leaves
      **/
     if (isOpX<STORE>(arr) || isOpX<ITE>(arr)) {
-      Expr res = utils::pushSelectDownStoreITE(arr, idx, efac);
+      Expr res = utils::pushSelectDownStoreITE(arr, idx);
       return {res, rewrite_status::RW_2};
     }
     return {exp, rewrite_status::RW_SKIP};

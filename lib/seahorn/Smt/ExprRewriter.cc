@@ -6,7 +6,7 @@ namespace expr {
 namespace utils {
 bool shouldCache(Expr e) { return e->use_count() > 1; }
 
-Expr pushSelectDownStoreITE(Expr arr, Expr idx, ExprFactory &efac) {
+Expr pushSelectDownStoreITE(Expr arr, Expr idx) {
   if (!isOpX<STORE>(arr) && !isOpX<ITE>(arr)) {
     return op::array::select(arr, idx);
   }
@@ -36,7 +36,13 @@ Expr pushSelectDownStoreITE(Expr arr, Expr idx, ExprFactory &efac) {
     Expr iN = back->arg(0);
     Expr tN = back->arg(1);
     Expr eN = back->arg(2);
-    res = mk<ITE>(iN, op::array::select(tN, idx), op::array::select(eN, idx));
+    Expr newE;
+    if (isOpX<STORE>(eN) || isOpX<ITE>(eN)) {
+      newE = pushSelectDownStoreITE(eN, idx);
+    } else {
+      newE = op::array::select(eN, idx);
+    }
+    res = mk<ITE>(iN, op::array::select(tN, idx), newE);
   }
   nested.pop_back();
   // construct ITE from btm up
@@ -51,7 +57,14 @@ Expr pushSelectDownStoreITE(Expr arr, Expr idx, ExprFactory &efac) {
        * node case: ite(iN, rewritten, eN) =>
        * ite(iN, rewritten, select(eN, idx))
        **/
-      res = mk<ITE>(back->arg(0), res, op::array::select(back->arg(2), idx));
+      Expr eN = back->arg(2);
+      Expr newE;
+      if (isOpX<STORE>(eN) || isOpX<ITE>(eN)) {
+        newE = pushSelectDownStoreITE(eN, idx);
+      } else {
+        newE = op::array::select(eN, idx);
+      }
+      res = mk<ITE>(back->arg(0), res, newE);
     }
     nested.pop_back();
   }
@@ -66,7 +79,7 @@ Expr rewriteITEComp(Expr exp) {
 
 bool ITECompRewriteConfig::shouldRewrite(Expr exp) {
   return isOpX<ITE>(exp) || isOpX<CompareOp>(exp) || isOpX<BoolOp>(exp) ||
-         isOpX<SELECT>(exp) || isOpX<BADD>(exp);
+         isOpX<SELECT>(exp) || isOpX<STORE>(exp) || isOpX<BADD>(exp);
 }
 
 rewrite_result ITECompRewriteConfig::applyRewriteRules(Expr exp) {

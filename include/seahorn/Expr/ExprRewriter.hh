@@ -109,9 +109,9 @@ public:
     SmallVector<Expr, 4> new_kids;
     size_t end = m_resultStack.size();
     size_t begin = end - arity;
-    for (size_t i = begin; i < end; i++) {
+    for (size_t i = begin, j = 0; i < end; i++, j++) {
       new_kids.push_back(m_resultStack[i]);
-      changed = changed || (m_resultStack[i] != exp->arg(i));
+      changed = changed || (m_resultStack[i] != exp->arg(j));
     }
     Expr new_exp = changed ? exp->getFactory().mkNary(
                                  exp->op(), new_kids.begin(), new_kids.end())

@@ -137,7 +137,10 @@ static llvm::cl::opt<clam::CrabDomain::Type, true, clam::CrabDomainParser>
                  clEnumValN(clam::CrabDomain::TERMS_ZONES, "rtz",
                             "Reduced product of term-dis-int and zones"),
                  clEnumValN(clam::CrabDomain::WRAPPED_INTERVALS, "w-int",
-                            "Wrapped interval domain")),
+                            "Wrapped interval domain"),
+                 clEnumValN(clam::CrabDomain::OCT, "oct", "Octagon domain"),
+                 clEnumValN(clam::CrabDomain::PK, "pk",
+                            "Convex Polyhedra and Linear Equalities domains")),
              llvm::cl::location(seahorn::CrabDom),
              llvm::cl::init(clam::CrabDomain::ZONES_SPLIT_DBM));
 

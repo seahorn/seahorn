@@ -43,6 +43,7 @@ using gep_type_iterator = generic_gep_type_iterator<>;
 
 namespace seahorn {
 extern bool isUnifiedAssume(const Instruction &CI);
+extern clam::CrabDomain::Type CrabDom;
 namespace details {
 enum class VacCheckOptions { NONE, ANTE, ALL };
 }
@@ -148,6 +149,11 @@ static llvm::cl::opt<bool>
     UseCrabInferRng("horn-bv2-crab-rng",
                     llvm::cl::desc("Use crab to infer rng invariants"),
                     llvm::cl::init(false));
+
+static llvm::cl::opt<bool> UseCrabLowerIsDeref(
+    "horn-bv2-crab-lower-is-deref",
+    llvm::cl::desc("Use crab to lower sea.is_dereferenceable"),
+    llvm::cl::init(false));
 
 static llvm::cl::opt<bool> UseLVIInferRng(
     "horn-bv2-lvi-rng",
@@ -761,7 +767,34 @@ public:
   void visitIsDereferenceable(CallSite CS) {
     Expr ptr = lookup(*CS.getArgument(0));
     Expr byteSz = lookup(*CS.getArgument(1));
-    Expr res = m_ctx.mem().isDereferenceable(ptr, byteSz);
+    Expr res;
+    bool crabSolved = false;
+    if (UseCrabLowerIsDeref) { // if crab is used, infer the result of
+                               // sea.is_deref
+      Instruction *inst = CS.getInstruction();
+      auto derefInfoFromCrab = m_sem.getCrabInstRng(*inst);
+      if (derefInfoFromCrab.isEmptySet()) {
+        // Crab skips is_deref due to invariant inferred along the path is
+        // bottom
+        Stats::count("crab.isderef.solve");
+        // Remove this is_deref checks
+        res = m_ctx.alu().getTrue();
+      } else if (derefInfoFromCrab.isSingleElement()) {
+        // Crab inferred is_deref call is either true or false
+        // Set the value for res expression
+        Stats::count("crab.isderef.solve");
+        res = derefInfoFromCrab.getSingleElement()->getBoolValue()
+                  ? m_ctx.alu().getTrue()
+                  : m_ctx.alu().getFalse();
+        crabSolved = true;
+      } else {
+        Stats::count("crab.isderef.not.solve");
+        LOG("opsem-crab", MSG << "crab cannot solve: " << *inst;);
+      }
+    }
+    if (!crabSolved) {
+      res = m_ctx.mem().isDereferenceable(ptr, byteSz);
+    }
     setValue(*CS.getInstruction(), res);
   }
 
@@ -2189,7 +2222,7 @@ public:
 
   void visitModule(Module &M) {
     LOG("opsem.module", errs() << M << "\n";);
-    if (UseCrabInferRng) {
+    if (UseCrabInferRng || UseCrabLowerIsDeref) {
       m_sem.initCrabAnalysis(M);
       m_sem.runCrabAnalysis();
     }
@@ -3228,9 +3261,15 @@ void Bv2OpSem::initCrabAnalysis(const llvm::Module &M) {
 
   // -- Set parameters for CFG
   clam::CrabBuilderParams cfg_builder_params;
-  LOG("opsem-rng", cfg_builder_params.print_cfg = true;);
+  LOG("opsem-crab", cfg_builder_params.print_cfg = true;);
   cfg_builder_params.setPrecision(clam::CrabBuilderPrecision::MEM);
   cfg_builder_params.interprocedural = true;
+  if (UseCrabLowerIsDeref) {
+    // Use CrabIR instrumentation for offset/size of ptr
+    // cfg_builder_params.add_is_deref = true;
+  }
+  cfg_builder_params.lowerUnsignedICmpIntoSigned();
+  cfg_builder_params.lower_arithmetic_with_overflow_intrinsics = true;
 
   m_cfg_builder_man = std::make_unique<clam::CrabBuilderManager>(
       cfg_builder_params, tli, std::move(heap_abs));
@@ -3242,12 +3281,12 @@ void Bv2OpSem::initCrabAnalysis(const llvm::Module &M) {
 void Bv2OpSem::runCrabAnalysis() {
   /// Set Crab parameters
   clam::AnalysisParams aparams;
-  aparams.dom = clam::CrabDomain::INTERVALS;
+  aparams.dom = CrabDom;
   aparams.run_inter = true;
   aparams.check = clam::CheckerKind::NOCHECKS;
   /// Run the Crab analysis
   clam::ClamGlobalAnalysis::abs_dom_map_t assumptions;
-  LOG("opsem-rng", aparams.print_invars = true;);
+  LOG("opsem-crab", aparams.print_invars = true;);
   m_crab_rng_solver->analyze(aparams, assumptions);
 }
 

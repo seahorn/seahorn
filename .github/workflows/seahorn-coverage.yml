@@ -20,10 +20,11 @@ jobs:
       - name: Collect coverage report
         run:  docker run -v $(pwd):/host seahorn/seahorn-builder:bionic-llvm10 /bin/bash -c "/seahorn/scripts/coverage/docker-run-lcov.sh && mv /seahorn/all.info /host"
       - name: Upload coverage report
-        uses: codecov/codecov-action@v1
+        uses: codecov/codecov-action@v2
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
-          file: ./all.info
+          files: ./all.info
           name: codecov-seahorn
+          override_branch: dev10
           fail_ci_if_error: true
           verbose: true

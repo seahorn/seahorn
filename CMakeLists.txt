@@ -193,7 +193,7 @@ else()
   if (NOT LLVM_BUILD_TYPE STREQUAL CMAKE_BUILD_TYPE)
     message(WARNING
       "LLVM_BUILD_TYPE and CMAKE_BUILD_TYPE differ:\n"
-      "\tLLMV_BUILD_TYPE=${LLVM_BUILD_TYPE}\n"
+      "\tLLVM_BUILD_TYPE=${LLVM_BUILD_TYPE}\n"
       "\tCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}\n"
       "Runtime errors might occur.")
     if (LLVM_BUILD_TYPE MATCHES "Release|RelWithDebInfo" AND 

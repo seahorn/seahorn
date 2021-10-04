@@ -26,6 +26,7 @@ typedef struct {
   int data[MAX_LIST];
 } List;
 
+__attribute__((noinline))
 void init_list(List * l) {
 
   l->sz=l->data;
@@ -33,6 +34,7 @@ void init_list(List * l) {
 }
 
 //bounded memory written and read
+__attribute__((noinline))
 int push_elem(List * l, int data) {
 
   if(l->sz < l->cap){

@@ -26,16 +26,7 @@ typedef struct List {
   LElem * e;
 } List;
 
-List * new_list() {
-  List * l = (List *) malloc(sizeof(List));
-
-  l->cap=MAX_LIST;
-  l->sz=0;
-  l->e=NULL;
-
-  return l;
-}
-
+__attribute__((noinline))
 void init_list(List * l) {
   l->cap=MAX_LIST;
   l->sz=0;
@@ -43,6 +34,7 @@ void init_list(List * l) {
 }
 
 //bounded memory written and read
+__attribute__((noinline))
 int push_elem(List * l, int data) {
 
   if(l->sz < l->cap){

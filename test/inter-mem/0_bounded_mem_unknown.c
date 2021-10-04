@@ -18,18 +18,22 @@ typedef struct Struct {
   int y;
 } Struct;
 
+__attribute__((noinline))
 void modify_x(Struct *s, int v) {
   s->x = v;
 }
 
+__attribute__((noinline))
 void modify_y(Struct *s, int v) {
   s->y = v;
 }
 
+__attribute__((noinline))
 int read_x(Struct *s) {
   return s->x;
 }
 
+__attribute__((noinline))
 int read_y(Struct *s) {
   return s->y;
 }

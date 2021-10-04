@@ -31,30 +31,37 @@ typedef struct Struct1 {
   Struct2 * t;
 } Struct1;
 
+__attribute__((noinline))
 void modify_x(Struct1 *s, int v) {
   s->x = v;
 }
 
+__attribute__((noinline))
 void modify_y(Struct1 *s, int v) {
   s->y = v;
 }
 
+__attribute__((noinline))
 int read_x(Struct1 *s) {
   return s->x;
 }
 
+__attribute__((noinline))
 int read_y(Struct1 *s) {
   return s->y;
 }
 
+__attribute__((noinline))
 int read_t_s(Struct1 *s) {
   return s->t->s;
 }
 
+__attribute__((noinline))
 void modify_r(Struct2 *s, int v) {
   s->r = v;
 }
 
+__attribute__((noinline))
 void modify_t_r(Struct1 *s, int v) {
   modify_r(s->t,v);
 }

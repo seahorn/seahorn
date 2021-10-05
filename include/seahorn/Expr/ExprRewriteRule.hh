@@ -21,7 +21,7 @@ namespace utils {
  * then push select(..., idx) down the expression tree;
  * for nested, we presume the tree is biased towards "then" side (arg[1])
  **/
-Expr pushSelectDownStoreITE(Expr arr, Expr idx);
+Expr pushSelectDownStoreITE(Expr arr, Expr idx, DagVisitCache &cache);
 } // end of namespace utils
 
 enum rewrite_status {
@@ -38,21 +38,24 @@ struct rewrite_result {
 };
 
 struct ExprRewriteRule : public std::unary_function<Expr, rewrite_result> {
-  ExprFactory &efac; // for making expr
+  ExprFactory &efac;    // for making expr
+  DagVisitCache &cache; // for deep rewrite using rewriter
 
   Expr trueE;
   Expr falseE;
 
-  ExprRewriteRule(ExprFactory &efac)
-      : efac(efac), trueE(mk<TRUE>(efac)), falseE(mk<FALSE>(efac)) {}
+  ExprRewriteRule(ExprFactory &efac, DagVisitCache &cache)
+      : efac(efac), trueE(mk<TRUE>(efac)), falseE(mk<FALSE>(efac)),
+        cache(cache) {}
   ExprRewriteRule(const ExprRewriteRule &o)
-      : efac(o.efac), trueE(o.trueE), falseE(o.falseE) {}
+      : efac(o.efac), trueE(o.trueE), falseE(o.falseE), cache(o.cache) {}
 
   rewrite_result operator()(Expr exp) { return {exp, rewrite_status::RW_DONE}; }
 };
 
 struct ITERewriteRule : public ExprRewriteRule {
-  ITERewriteRule(ExprFactory &efac) : ExprRewriteRule(efac) {}
+  ITERewriteRule(ExprFactory &efac, DagVisitCache &cache)
+      : ExprRewriteRule(efac, cache) {}
   ITERewriteRule(const ITERewriteRule &o) : ExprRewriteRule(o) {}
 
   rewrite_result operator()(Expr exp) {
@@ -70,6 +73,14 @@ struct ITERewriteRule : public ExprRewriteRule {
     // ite(a, false, true) => !a
     if (isOpX<FALSE>(t) && isOpX<TRUE>(e)) {
       return {mk<NEG>(i), rewrite_status::RW_1}; // simp dbl negation
+    }
+    // ite(i, false, false) => false
+    if (isOpX<FALSE>(t) && isOpX<FALSE>(e)) {
+      return {falseE, rewrite_status::RW_DONE};
+    }
+    // ite(i, true, true) => true
+    if (isOpX<TRUE>(t) && isOpX<TRUE>(e)) {
+      return {trueE, rewrite_status::RW_DONE};
     }
     // ite(a, b, ite(!a, c, d)) => ite(a, b, c)
     if (isOpX<ITE>(e)) {
@@ -93,7 +104,8 @@ struct ITERewriteRule : public ExprRewriteRule {
 
 struct CompareRewriteRule : public ExprRewriteRule {
 
-  CompareRewriteRule(ExprFactory &efac) : ExprRewriteRule(efac) {}
+  CompareRewriteRule(ExprFactory &efac, DagVisitCache &cache)
+      : ExprRewriteRule(efac, cache) {}
   CompareRewriteRule(const CompareRewriteRule &o) : ExprRewriteRule(o) {}
 
   rewrite_result operator()(Expr exp) {
@@ -151,7 +163,8 @@ struct CompareRewriteRule : public ExprRewriteRule {
 };
 
 struct BoolOpRewriteRule : public ExprRewriteRule {
-  BoolOpRewriteRule(ExprFactory &efac) : ExprRewriteRule(efac) {}
+  BoolOpRewriteRule(ExprFactory &efac, DagVisitCache &cache)
+      : ExprRewriteRule(efac, cache) {}
   BoolOpRewriteRule(const CompareRewriteRule &o) : ExprRewriteRule(o) {}
 
   rewrite_result operator()(Expr exp) {
@@ -186,7 +199,8 @@ struct BoolOpRewriteRule : public ExprRewriteRule {
 
 // for select
 struct ArrayRewriteRule : public ExprRewriteRule {
-  ArrayRewriteRule(ExprFactory &efac) : ExprRewriteRule(efac) {}
+  ArrayRewriteRule(ExprFactory &efac, DagVisitCache &cache)
+      : ExprRewriteRule(efac, cache) {}
   ArrayRewriteRule(const ArrayRewriteRule &o) : ExprRewriteRule(o) {}
 
   rewrite_result operator()(Expr exp) {
@@ -198,7 +212,7 @@ struct ArrayRewriteRule : public ExprRewriteRule {
     /** Read-over-write/ite: push select down to leaves
      **/
     if (isOpX<STORE>(arr) || isOpX<ITE>(arr)) {
-      Expr res = utils::pushSelectDownStoreITE(arr, idx);
+      Expr res = utils::pushSelectDownStoreITE(arr, idx, cache);
       return {res, rewrite_status::RW_2};
     }
     return {exp, rewrite_status::RW_SKIP};
@@ -206,7 +220,8 @@ struct ArrayRewriteRule : public ExprRewriteRule {
 };
 
 struct ArithmeticRule : public ExprRewriteRule {
-  ArithmeticRule(ExprFactory &efac) : ExprRewriteRule(efac) {}
+  ArithmeticRule(ExprFactory &efac, DagVisitCache &cache)
+      : ExprRewriteRule(efac, cache) {}
   ArithmeticRule(const ArithmeticRule &o) : ExprRewriteRule(o) {}
 
   rewrite_result operator()(Expr exp) {
@@ -248,7 +263,11 @@ struct ArithmeticRule : public ExprRewriteRule {
     if (width > 0) {
       args.push_back(op::bv::bvnum(sum, width, efac));
     }
-    Expr res = mknary<BADD>(args.begin(), args.end());
+    Expr res;
+    if (args.size() > 1) {
+      res = mknary<BADD>(args.begin(), args.end());
+    } else
+      res = *args.begin();
     return {res, rewrite_status::RW_DONE};
   }
 };

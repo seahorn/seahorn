@@ -22,16 +22,18 @@ struct RewriteFrame {
       : m_exp(exp), m_depth(depth), m_i(i) {}
 };
 
-using ExprVisitedMap = std::unordered_map<ENode *, bool>;
+// using ExprVisitedMap = std::unordered_map<ENode *, bool>;
 using RewriteFrameVector = std::vector<RewriteFrame>;
 
 class ExprRewriterConfig {
   /* apply rewrite rules */
 protected:
-  ExprFactory &m_efac; // for making expr
+  ExprFactory &m_efac;    // for making expr
+  DagVisitCache &m_cache; // for accessing cached rewrite results
 
 public:
-  ExprRewriterConfig(ExprFactory &efac) : m_efac(efac) {}
+  ExprRewriterConfig(ExprFactory &efac, DagVisitCache &cache)
+      : m_efac(efac), m_cache(cache) {}
 
   rewrite_result applyRewriteRules(Expr exp);
 
@@ -48,9 +50,10 @@ private:
   ArithmeticRule m_arithRule;
 
 public:
-  ITECompRewriteConfig(ExprFactory &efac)
-      : m_iteRule(efac), m_compRule(efac), m_boolRule(efac), m_arrayRule(efac),
-        m_arithRule(efac), ExprRewriterConfig(efac) {}
+  ITECompRewriteConfig(ExprFactory &efac, DagVisitCache &cache)
+      : m_iteRule(efac, cache), m_compRule(efac, cache),
+        m_boolRule(efac, cache), m_arrayRule(efac, cache),
+        m_arithRule(efac, cache), ExprRewriterConfig(efac, cache) {}
 
   rewrite_result applyRewriteRules(Expr exp);
 
@@ -64,7 +67,7 @@ protected:
 
   RewriteFrameVector m_rewriteStack;
   ExprVector m_resultStack;
-  DagVisitCache m_cache;
+  DagVisitCache &m_cache;
 
   /* visit e, return true if any of the following is true:
     1. e has been cached, or
@@ -91,7 +94,10 @@ protected:
   }
 
 public:
-  ExprRewriter(ExprFactory &efac) : m_efac(efac), m_config(efac) {}
+  // ExprRewriter(ExprFactory &efac) : m_efac(efac), m_config(efac), m_cache()
+  // {}
+  ExprRewriter(ExprFactory &efac, DagVisitCache &cache)
+      : m_efac(efac), m_config(efac, cache), m_cache(cache) {}
 
   void processFrame(RewriteFrame &frame) {
     Expr exp = frame.m_exp;
@@ -142,5 +148,11 @@ public:
     return m_resultStack.back();
   }
 };
+
+template <typename Config>
+Expr rewriteExprWithCache(Expr exp, DagVisitCache &cache) {
+  ExprRewriter<Config> rw(exp->efac(), cache);
+  return rw.rewriteExpr(exp);
+}
 
 } // end of namespace expr

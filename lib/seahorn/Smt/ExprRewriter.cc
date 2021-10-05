@@ -6,7 +6,7 @@ namespace expr {
 namespace utils {
 bool shouldCache(Expr e) { return e->use_count() > 1; }
 
-Expr pushSelectDownStoreITE(Expr arr, Expr idx) {
+Expr pushSelectDownStoreITE(Expr arr, Expr idx, DagVisitCache &cache) {
   if (!isOpX<STORE>(arr) && !isOpX<ITE>(arr)) {
     return op::array::select(arr, idx);
   }
@@ -27,7 +27,15 @@ Expr pushSelectDownStoreITE(Expr arr, Expr idx) {
     Expr arrN = back->arg(0);
     Expr idxN = back->arg(1);
     Expr valN = back->arg(2);
-    res = mk<ITE>(mk<EQ>(idx, idxN), valN, op::array::select(arrN, idx));
+    Expr compE = mk<EQ>(idx, idxN);
+    Expr simpCompE = rewriteExprWithCache<ITECompRewriteConfig>(compE, cache);
+    if (isOpX<TRUE>(simpCompE)) {
+      res = valN;
+    } else if (isOpX<FALSE>(simpCompE)) {
+      res = op::array::select(arrN, idx);
+    } else {
+      res = mk<ITE>(simpCompE, valN, op::array::select(arrN, idx));
+    }
   } else {
     /** must be ITE.
      * leaf case for *back* is ite(iN, tN, eN):
@@ -38,11 +46,18 @@ Expr pushSelectDownStoreITE(Expr arr, Expr idx) {
     Expr eN = back->arg(2);
     Expr newE;
     if (isOpX<STORE>(eN) || isOpX<ITE>(eN)) {
-      newE = pushSelectDownStoreITE(eN, idx);
+      newE = pushSelectDownStoreITE(eN, idx, cache);
     } else {
       newE = op::array::select(eN, idx);
     }
-    res = mk<ITE>(iN, op::array::select(tN, idx), newE);
+    Expr simpIN = rewriteExprWithCache<ITECompRewriteConfig>(iN, cache);
+    if (isOpX<TRUE>(simpIN)) {
+      res = op::array::select(tN, idx);
+    } else if (isOpX<FALSE>(simpIN)) {
+      res = newE;
+    } else {
+      res = mk<ITE>(iN, op::array::select(tN, idx), newE);
+    }
   }
   nested.pop_back();
   // construct ITE from btm up
@@ -51,20 +66,36 @@ Expr pushSelectDownStoreITE(Expr arr, Expr idx) {
     if (isOpX<STORE>(back)) {
       /** node case: store(rewritten, idxN, valN) =>
        * ite(idx == idxN, valN, rewritten) **/
-      res = mk<ITE>(mk<EQ>(idx, back->arg(1)), back->arg(2), res);
+      Expr compE = mk<EQ>(idx, back->arg(1));
+      Expr simpCompE = rewriteExprWithCache<ITECompRewriteConfig>(compE, cache);
+      if (isOpX<TRUE>(simpCompE)) {
+        res = back->arg(2);
+      } else if (isOpX<FALSE>(simpCompE)) {
+        /* res = res */
+      } else {
+        res = mk<ITE>(simpCompE, back->arg(2), res);
+      }
     } else {
       /** must be ITE.
        * node case: ite(iN, rewritten, eN) =>
        * ite(iN, rewritten, select(eN, idx))
        **/
+      Expr iN = back->arg(0);
+      Expr simpIN = rewriteExprWithCache<ITECompRewriteConfig>(iN, cache);
       Expr eN = back->arg(2);
       Expr newE;
       if (isOpX<STORE>(eN) || isOpX<ITE>(eN)) {
-        newE = pushSelectDownStoreITE(eN, idx);
+        newE = pushSelectDownStoreITE(eN, idx, cache);
       } else {
         newE = op::array::select(eN, idx);
       }
-      res = mk<ITE>(back->arg(0), res, newE);
+      if (isOpX<TRUE>(simpIN)) {
+        /* res = res */
+      } else if (isOpX<FALSE>(simpIN)) {
+        res = newE;
+      } else {
+        res = mk<ITE>(simpIN, res, newE);
+      }
     }
     nested.pop_back();
   }
@@ -73,8 +104,8 @@ Expr pushSelectDownStoreITE(Expr arr, Expr idx) {
 } // namespace utils
 
 Expr rewriteITEComp(Expr exp) {
-  ExprRewriter<ITECompRewriteConfig> rewriter(exp->efac());
-  return rewriter.rewriteExpr(exp);
+  DagVisitCache newCache;
+  return rewriteExprWithCache<ITECompRewriteConfig>(exp, newCache);
 }
 
 bool ITECompRewriteConfig::shouldRewrite(Expr exp) {

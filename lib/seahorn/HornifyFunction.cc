@@ -1,5 +1,6 @@
 #include "seahorn/HornifyFunction.hh"
 #include "seahorn/Expr/ExprLlvm.hh"
+#include "seahorn/FiniteMapTransf.hh"
 #include "seahorn/LiveSymbols.hh"
 #include "seahorn/Support/CFG.hh"
 #include "seahorn/Support/ExprSeahorn.hh"
@@ -590,7 +591,12 @@ void LargeHornifyFunction::runOnFunction(Function &F) {
   SymStore s(m_efac);
   for (const Expr &v : ls.live(&entry))
     args.push_back(s.read(v));
-  allVars.insert(args.begin(), args.end());
+
+  for (auto &a : args)
+    if (bind::IsConst()(a))
+      allVars.insert(a);
+    else // fmap definition
+      fmap_transf::insertVarsVal(a, allVars);
 
   Expr rule = bind::fapp(m_parent.bbPredicate(entry), args);
   rule = boolop::limp(boolop::lneg(s.read(m_sem.errorFlag(entry))), rule);
@@ -625,7 +631,13 @@ void LargeHornifyFunction::runOnFunction(Function &F) {
 
       for (const Expr &v : live)
         args.push_back(s.read(v));
-      allVars.insert(args.begin(), args.end());
+
+      // allVars.insert(args.begin(), args.end());
+      for (auto &a : args)
+        if (bind::IsConst()(a))
+          allVars.insert(a);
+        else // fmap definition
+          fmap_transf::insertVarsVal(a, allVars);
 
       Expr pre = bind::fapp(m_parent.bbPredicate(cp.bb()), args);
 
@@ -772,7 +784,14 @@ void LargeHornifyFunction::runOnFunction(Function &F) {
     const ExprVector &live = ls.live(exit);
     for (const Expr &v : live)
       args.push_back(s.read(v));
-    allVars.insert(args.begin(), args.end());
+
+    // allVars.insert(args.begin(), args.end());
+    for (auto &a : args) // TODO: can be avoided if the head is included in the
+                         // filter later
+      if (bind::IsConst()(a))
+        allVars.insert(a);
+      else // fmap definition
+        fmap_transf::insertVarsVal(a, allVars);
 
     Expr pre = bind::fapp(m_parent.bbPredicate(*exit), args);
     pre = boolop::land(pre, boolop::lneg(s.read(m_sem.errorFlag(*exit))));

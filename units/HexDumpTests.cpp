@@ -218,11 +218,11 @@ TEST_CASE("finiteMap.test") {
   values.push_back(mkTerm<mpz_class>(0x2345, efac));
   values.push_back(mkTerm<mpz_class>(0xaaa1, efac));
 
-  Expr e = finite_map::constFiniteMap(keys, values);
-  e = finite_map::set(e, mkTerm<mpz_class>(0x500010, efac),
-                      mkTerm<mpz_class>(4, efac));
-  e = finite_map::set(e, mkTerm<mpz_class>(0x500010, efac),
-                      mkTerm<mpz_class>(10, efac));
+  Expr e = fmap::constFiniteMap(keys, values[0], values);
+  e = fmap::set(e, mkTerm<mpz_class>(0x500010, efac),
+                mkTerm<mpz_class>(4, efac));
+  e = fmap::set(e, mkTerm<mpz_class>(0x500010, efac),
+                mkTerm<mpz_class>(10, efac));
   // note: e does not have a default value so the hex dumper will not fill in
   // any gaps
 
@@ -530,7 +530,7 @@ TEST_CASE("specialCases.test") {
   ExprVector values;
   values.push_back(mkTerm<mpz_class>(0x12, efac));
 
-  e = finite_map::constFiniteMap(
+  e = fmap::constFiniteMap(
       keys, values); // only has a const finite map (not wrapped in SET)
 
   llvm::errs() << "Expression: " << *e << "\n";

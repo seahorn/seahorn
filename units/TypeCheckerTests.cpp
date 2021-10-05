@@ -1463,43 +1463,44 @@ TEST_CASE("finiteMapWellFormed.test") {
   keys.push_back(aIntKey);
   keys.push_back(bIntKey);
 
-  temp = finite_map::constFiniteMap(keys,
-                                    aBool); // const finite map: default value
+  vals.push_back(aBool);
+  vals.push_back(bBool);
+
+  temp = fmap::constFiniteMap(keys, vals[0], vals);
   e.push_back(temp);
 
   Expr finiteMapSort = sort::finiteMapTy(boolSort, keys);
   checkWellFormed(e, finiteMapSort);
   e.clear();
+  vals.clear();
 
   vals.push_back(aInt);
   vals.push_back(bInt);
-  temp = finite_map::constFiniteMap(keys, vals);
+  temp = fmap::constFiniteMap(keys, vals[0], vals);
   e.push_back(temp);
 
   Expr finiteMapSort2 = sort::finiteMapTy(intSort, keys);
   checkWellFormed(e, finiteMapSort2);
   e.clear();
 
-  temp =
-      finite_map::constFiniteMap(keys, aInt); // const finite map: default value
+  temp = fmap::constFiniteMap(keys, vals[0], vals);
   temp = mk<GET>(temp, bIntKey);
   e.push_back(temp);
 
   checkWellFormed(e, intSort);
   e.clear();
 
-  temp = finite_map::constFiniteMap(keys, vals);
+  temp = fmap::constFiniteMap(keys, vals[0], vals);
   temp = mk<SET>(temp, bIntKey, aInt);
   e.push_back(temp);
-
   checkWellFormed(e, finiteMapSort2);
   e.clear();
 
-  temp = finite_map::constFiniteMap(keys, vals);
+  temp = fmap::constFiniteMap(keys, vals[0], vals);
   keys.clear();
   keys.push_back(cIntKey);
   keys.push_back(dIntKey);
-  Expr temp2 = finite_map::constFiniteMap(keys, vals);
+  Expr temp2 = fmap::constFiniteMap(keys, vals[0], vals);
   e.push_back(mk<EQ>(temp, temp2)); // keys have same type but different names
 
   checkWellFormed(e, boolSort);
@@ -1560,8 +1561,8 @@ TEST_CASE("finiteMapNotWellFormed.test") {
 
   vals.clear();
   vals.push_back(aInt);
-  tempError = finite_map::constFiniteMap(
-      keys, vals); // keys and vals are of different sizes
+  tempError = fmap::constFiniteMap(
+      keys, vals[0], vals); // keys and vals are of different sizes
   error.push_back(tempError);
   e.push_back(tempError);
 
@@ -1575,17 +1576,17 @@ TEST_CASE("finiteMapNotWellFormed.test") {
   vals.clear();
   vals.push_back(aInt);
   vals.push_back(bInt);
-  tempError = mk<SET>(finite_map::constFiniteMap(keys, vals), aIntKey,
+  tempError = mk<SET>(fmap::constFiniteMap(keys, vals[0], vals), aIntKey,
                       aInt); // key type does not match the maps key type
   error.push_back(tempError);
   e.push_back(tempError);
 
-  tempError = mk<SET>(finite_map::constFiniteMap(keys, vals), aBoolKey,
+  tempError = mk<SET>(fmap::constFiniteMap(keys, vals[0], vals), aBoolKey,
                       aBool); // val type does not match the maps key type
   error.push_back(tempError);
   e.push_back(tempError);
 
-  tempError = mk<GET>(finite_map::constFiniteMap(keys, vals),
+  tempError = mk<GET>(fmap::constFiniteMap(keys, vals[0], vals),
                       aIntKey); // key type does not match the maps key type
   error.push_back(tempError);
   e.push_back(tempError);

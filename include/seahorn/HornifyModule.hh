@@ -17,6 +17,8 @@
 #include "seahorn/Analysis/SeaBuiltinsInfo.hh"
 #include "seahorn/HornClauseDB.hh"
 
+#include "seahorn/InterMemPreProc.hh"
+
 namespace seahorn {
 using namespace expr;
 using namespace llvm;
@@ -37,6 +39,8 @@ protected:
 
   LiveSymbolsMap m_ls;
   PredDeclMap m_bbPreds;
+
+  std::shared_ptr<InterMemPreProc> m_imPreProc = nullptr;
 
 public:
   static char ID;
@@ -79,6 +83,10 @@ public:
   LegacyOperationalSemantics &symExec() { return *m_sem; }
 
   CutPointGraph &getCpg(Function &F) { return getAnalysis<CutPointGraph>(F); }
+  InterMemPreProc &getInterMemPP() {
+    assert(m_imPreProc);
+    return *m_imPreProc;
+  }
 
   SeaBuiltinsInfo &getSBI() {
     return getAnalysis<SeaBuiltinsInfoWrapperPass>().getSBI();

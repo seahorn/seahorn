@@ -361,7 +361,6 @@ int main(int argc, char **argv) {
 
   if (NondetInit)
     pass_manager.add(seahorn::createNondetInitPass());
-  pass_manager.add(seahorn::createSeaDsaShadowMemPass());
 
   // Preceding passes may introduce overflow intrinsics. This is undesirable if
   // we are not in BMC mode.
@@ -376,6 +375,10 @@ int main(int argc, char **argv) {
     // -- it must be called after all the cfg simplifications
     pass_manager.add(seahorn::createOneAssumePerBlockPass());
   }
+
+  // -- called after DeadNondetElimPass so that the graphs do not contain
+  // -- values that have been freed
+  pass_manager.add(seahorn::createSeaDsaShadowMemPass());
 
   if (UnifyAssumes) {
     pass_manager.add(seahorn::createUnifyAssumesPass());

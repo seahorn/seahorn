@@ -12,7 +12,11 @@ namespace utils {
 bool shouldCache(Expr e);
 } // end of namespace utils
 
-Expr rewriteITEComp(Expr exp);
+/** rewrite hybrid memory expr in ITE structure
+ * loadMem: Expr tree that represents value loaded from current memory state
+ * ptr: address Expr tree
+ **/
+Expr rewriteHybridLoadMemExpr(Expr loadMem, Expr ptr, MemAddrRangeMap &arm);
 
 struct RewriteFrame {
   Expr m_exp;     // the Expr node (subtree) under rewrite
@@ -22,7 +26,6 @@ struct RewriteFrame {
       : m_exp(exp), m_depth(depth), m_i(i) {}
 };
 
-// using ExprVisitedMap = std::unordered_map<ENode *, bool>;
 using RewriteFrameVector = std::vector<RewriteFrame>;
 
 class ExprRewriterConfig {
@@ -32,7 +35,8 @@ protected:
   DagVisitCache &m_cache; // for accessing cached rewrite results
 
 public:
-  ExprRewriterConfig(ExprFactory &efac, DagVisitCache &cache)
+  ExprRewriterConfig(ExprFactory &efac, DagVisitCache &cache,
+                     MemAddrRangeMap &arm)
       : m_efac(efac), m_cache(cache) {}
 
   rewrite_result applyRewriteRules(Expr exp);
@@ -50,10 +54,26 @@ private:
   ArithmeticRule m_arithRule;
 
 public:
-  ITECompRewriteConfig(ExprFactory &efac, DagVisitCache &cache)
+  ITECompRewriteConfig(ExprFactory &efac, DagVisitCache &cache,
+                       MemAddrRangeMap &arm)
       : m_iteRule(efac, cache), m_compRule(efac, cache),
-        m_boolRule(efac, cache), m_arrayRule(efac, cache),
-        m_arithRule(efac, cache), ExprRewriterConfig(efac, cache) {}
+        m_boolRule(efac, cache), m_arrayRule(efac, cache, arm),
+        m_arithRule(efac, cache), ExprRewriterConfig(efac, cache, arm) {}
+
+  rewrite_result applyRewriteRules(Expr exp);
+
+  bool shouldRewrite(Expr exp);
+};
+
+/* config for normalising pointer bvadd */
+class PointerArithmeticConfig : public ExprRewriterConfig {
+private:
+  ArithmeticRule m_arithRule;
+
+public:
+  PointerArithmeticConfig(ExprFactory &efac, DagVisitCache &cache,
+                          MemAddrRangeMap &arm)
+      : m_arithRule(efac, cache, true), ExprRewriterConfig(efac, cache, arm) {}
 
   rewrite_result applyRewriteRules(Expr exp);
 
@@ -94,10 +114,8 @@ protected:
   }
 
 public:
-  // ExprRewriter(ExprFactory &efac) : m_efac(efac), m_config(efac), m_cache()
-  // {}
-  ExprRewriter(ExprFactory &efac, DagVisitCache &cache)
-      : m_efac(efac), m_config(efac, cache), m_cache(cache) {}
+  ExprRewriter(ExprFactory &efac, MemAddrRangeMap &arm, DagVisitCache &cache)
+      : m_efac(efac), m_config(efac, cache, arm), m_cache(cache) {}
 
   void processFrame(RewriteFrame &frame) {
     Expr exp = frame.m_exp;
@@ -150,9 +168,10 @@ public:
 };
 
 template <typename Config>
-Expr rewriteExprWithCache(Expr exp, DagVisitCache &cache) {
-  ExprRewriter<Config> rw(exp->efac(), cache);
-  return rw.rewriteExpr(exp);
+Expr rewriteMemExprWithCache(Expr mem, MemAddrRangeMap &arm,
+                             DagVisitCache &cache) {
+  ExprRewriter<Config> rw(mem->efac(), arm, cache);
+  return rw.rewriteExpr(mem);
 }
 
 } // end of namespace expr

@@ -1,8 +1,10 @@
 #include "BvOpSem2MemRepr.hh"
+#include "seahorn/Expr/ExprMemUtils.h"
 #include "seahorn/Expr/ExprOpBinder.hh"
 #include "seahorn/Expr/ExprOpBool.hh"
 #include "seahorn/Expr/ExprRewriter.hh"
 #include "seahorn/Expr/ExprVisitor.hh"
+#include "seahorn/Support/Stats.hh"
 
 namespace {
 template <typename T, typename... Rest>
@@ -73,11 +75,8 @@ Expr arrayStoreRewrite(RW &rewriter, Expr ptr, Expr mem,
     // first try find in cache
     DagVisitMemCache::const_iterator cit = cache.find(&*top);
     if (cit != cache.end()) {
-      // LOG("opsem-hybrid", INFO << "hit with: " << *top << "\n");
       ExprPair cached = cit->second;
       if (ptr == cached.first) {
-        // LOG("opsem-hybrid", INFO << "use cached: " << *cached.second <<
-        // "\n");
         res = cached.second;
         continue;
       }
@@ -281,13 +280,33 @@ Expr OpSemMemHybridRepr::loadAlignedWordFromMem(PtrTy ptr, MemValTy mem) {
   LOG("opsem-hybrid", INFO << "From mem " << *mem.toExpr() << "\n");
 
   /** rewrite store into ITE **/
+  Stats::resume("hybrid-mem-rewrite");
   ArrayStoreRewriter rw(ptr.toExpr(), m_ctx.alu(),
                         m_memManager.ptrSizeInBits());
   Expr rewritten = arrayStoreRewrite(rw, ptr.toExpr(), mem.toExpr(), m_cache);
   LOG("opsem-hybrid", INFO << "Rewritten: " << *rewritten << "\n");
 
+  // push bvadd down in ptr expr
+  MemAddrRangeMap ptrArm;
+  DagVisitCache ptrCache;
+  Expr ptrSimp = rewriteMemExprWithCache<PointerArithmeticConfig>(
+      ptr.toExpr(), ptrArm, ptrCache);
+  LOG("opsem-hybrid", INFO << "Rewritten ptr: " << *ptrSimp << "\n");
+
   /** simplify with custom ITE simplifier **/
-  Expr simp = rewriteITEComp(rewritten);
+  MemAddrRangeMap arm;
+  expr::mem::buildAddressRange(ptrSimp, arm);
+  LOG("opsem-hybrid", {
+    INFO << "built addr range map:";
+    for (const auto &ar : arm) {
+      auto &range = ar.second;
+      INFO << *ar.first << " : (" << range.low << ", " << range.high
+           << ")\n";
+    }
+  });
+
+  Expr simp = rewriteHybridLoadMemExpr(rewritten, ptr.toExpr(), arm);
+  Stats::stop("hybrid-mem-rewrite");
   LOG("opsem-hybrid", INFO << "my simplified: " << *simp << "\n");
 
   return simp;

@@ -8,6 +8,7 @@
 #include "seahorn/Support/SeaLog.hh"
 
 namespace seahorn {
+extern bool BasedPtrObj;
 namespace details {
 
 static const unsigned int g_slotBitWidth = 64;
@@ -402,6 +403,16 @@ WideMemManager::PtrTy WideMemManager::brk0Ptr() {
 WideMemManager::PtrTy WideMemManager::mkStackPtr(unsigned int offset) {
   return PtrTy(m_main.mkStackPtr(offset), m_uninit_size);
 }
+
+WideMemManager::PtrTy WideMemManager::mkBasedPtr(Expr base,
+                                                 unsigned int offset) {
+  return PtrTy(m_main.mkBasedPtr(base, offset), m_uninit_size);
+}
+
+WideMemManager::PtrTy WideMemManager::mkBasedStackPtr(unsigned int offset) {
+  return PtrTy(m_main.mkBasedStackPtr(offset), m_uninit_size);
+}
+
 WideMemManager::PtrTy WideMemManager::salloc(Expr elmts, unsigned int typeSz,
                                              uint32_t align) {
   align = std::max(align, m_alignment);
@@ -424,10 +435,15 @@ WideMemManager::PtrTy WideMemManager::salloc(Expr elmts, unsigned int typeSz,
                       << " elements of size" << typeSz << " bytes\n";);
     return freshPtr();
   }
-
+  PtrTy sp = mkStackPtr(region.second);
+  Expr width = m_ctx.alu().ui(region.first - region.second, g_slotBitWidth);
+  if (seahorn::BasedPtrObj) {
+    PtrTy basedSp = mkBasedStackPtr(region.second);
+    m_ctx.addSide(ptrEq(sp, basedSp));
+    return PtrTy(basedSp.getRaw(), width);
+  }
   // -- have a good region, return pointer to it
-  return PtrTy(mkStackPtr(region.second).getRaw(),
-               m_ctx.alu().ui(region.first - region.second, g_slotBitWidth));
+  return PtrTy(sp.getRaw(), width);
 }
 WideMemManager::PtrTy WideMemManager::salloc(unsigned int bytes,
                                              uint32_t align) {
@@ -436,8 +452,14 @@ WideMemManager::PtrTy WideMemManager::salloc(unsigned int bytes,
   auto region = m_main.getMAllocator().salloc(bytes, align);
   assert(region.second > region.first);
   // The size is min(alloc_size, requested_size)
-  return PtrTy(mkStackPtr(region.second).getRaw(),
-               bytesToSlotExpr(std::min(region.second - region.first, bytes)));
+  PtrTy sp = mkStackPtr(region.second);
+  Expr width = bytesToSlotExpr(std::min(region.second - region.first, bytes));
+  if (seahorn::BasedPtrObj) {
+    PtrTy basedSp = mkBasedStackPtr(region.second);
+    m_ctx.addSide(ptrEq(sp, basedSp));
+    return PtrTy(basedSp.getRaw(), width);
+  }
+  return PtrTy(sp.getRaw(), width);
 }
 WideMemManager::PtrSortTy WideMemManager::ptrSort() const {
   return PtrSortTy(m_main.ptrSort(), m_ctx.alu().intTy(g_slotBitWidth));

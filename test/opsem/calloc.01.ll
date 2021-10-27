@@ -1,6 +1,6 @@
 ; RUN: %seabmc "%s" 2>&1 | %oc %s
 ; RUN: %seabmc --horn-bv2-lambdas --log=opsem3 "%s" 2>&1 | %oc %s
-; RUN: %seabmc --horn-hybrid-array --log=opsem3 "%s" 2>&1 | %oc %s
+; RUN: %seabmc --horn-based-ptr-obj --horn-hybrid-array --log=opsem3 "%s" 2>&1 | %oc %s
 
 ;; test calloc initializing memory to 0
 ; CHECK: ^sat$

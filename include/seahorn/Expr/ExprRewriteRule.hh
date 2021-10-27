@@ -1,18 +1,19 @@
 #pragma once
 #include "seahorn/Expr/Expr.hh"
 #include "seahorn/Expr/ExprCore.hh"
+#include "seahorn/Expr/ExprMemUtils.h"
 #include "seahorn/Expr/ExprOpArray.hh"
 #include "seahorn/Expr/ExprOpBv.hh"
 #include "seahorn/Expr/ExprOpCore.hh"
 #include "seahorn/Expr/ExprSimplifier.hh"
 #include "seahorn/Expr/Smt/EZ3.hh"
 #include "seahorn/Expr/Smt/Z3.hh"
+#include "seahorn/Support/Stats.hh"
 #include <algorithm>
 
 /* Simplifying rewrite rules for different Exprewrite_status */
 
 namespace expr {
-
 namespace utils {
 /**
  * If arr is one of:
@@ -21,7 +22,10 @@ namespace utils {
  * then push select(..., idx) down the expression tree;
  * for nested, we presume the tree is biased towards "then" side (arg[1])
  **/
-Expr pushSelectDownStoreITE(Expr arr, Expr idx, DagVisitCache &cache);
+Expr pushSelectDownStoreITE(Expr arr, Expr idx, MemAddrRangeMap &arm,
+                            DagVisitCache &cache);
+
+bool inAddrRange(Expr ptr, MemAddrRangeMap &arm);
 } // end of namespace utils
 
 enum rewrite_status {
@@ -131,7 +135,9 @@ struct CompareRewriteRule : public ExprRewriteRule {
     }
     // a == a => true, only works if a is constant bvnum
     if (isOpX<EQ>(exp)) {
-      if (op::bv::is_bvnum(lhs) && op::bv::is_bvnum(rhs)) {
+      bool bothNum = op::bv::is_bvnum(lhs) && op::bv::is_bvnum(rhs);
+      bool bothAddr = expr::mem::isBaseAddr(lhs) && expr::mem::isBaseAddr(rhs);
+      if (bothNum || bothAddr) {
         if (lhs->arg(0) == rhs->arg(0)) {
           return {trueE, rewrite_status::RW_DONE};
         } else {
@@ -199,9 +205,12 @@ struct BoolOpRewriteRule : public ExprRewriteRule {
 
 // for select
 struct ArrayRewriteRule : public ExprRewriteRule {
-  ArrayRewriteRule(ExprFactory &efac, DagVisitCache &cache)
-      : ExprRewriteRule(efac, cache) {}
-  ArrayRewriteRule(const ArrayRewriteRule &o) : ExprRewriteRule(o) {}
+  MemAddrRangeMap &addrRange;
+  ArrayRewriteRule(ExprFactory &efac, DagVisitCache &cache,
+                   MemAddrRangeMap &arm)
+      : addrRange(arm), ExprRewriteRule(efac, cache) {}
+  ArrayRewriteRule(const ArrayRewriteRule &o)
+      : addrRange(o.addrRange), ExprRewriteRule(o) {}
 
   rewrite_result operator()(Expr exp) {
     if (!isOpX<SELECT>(exp)) {
@@ -212,7 +221,10 @@ struct ArrayRewriteRule : public ExprRewriteRule {
     /** Read-over-write/ite: push select down to leaves
      **/
     if (isOpX<STORE>(arr) || isOpX<ITE>(arr)) {
-      Expr res = utils::pushSelectDownStoreITE(arr, idx, cache);
+      seahorn::Stats::resume("hybrid-mem-push");
+      Expr res = utils::pushSelectDownStoreITE(arr, idx, addrRange, cache);
+      seahorn::Stats::stop("hybrid-mem-push");
+
       return {res, rewrite_status::RW_2};
     }
     return {exp, rewrite_status::RW_SKIP};
@@ -220,13 +232,36 @@ struct ArrayRewriteRule : public ExprRewriteRule {
 };
 
 struct ArithmeticRule : public ExprRewriteRule {
-  ArithmeticRule(ExprFactory &efac, DagVisitCache &cache)
-      : ExprRewriteRule(efac, cache) {}
+
+  bool m_deepIte;
+  ArithmeticRule(ExprFactory &efac, DagVisitCache &cache, bool deepIte = false)
+      : ExprRewriteRule(efac, cache), m_deepIte(deepIte) {}
   ArithmeticRule(const ArithmeticRule &o) : ExprRewriteRule(o) {}
 
   rewrite_result operator()(Expr exp) {
     if (!isOpX<BADD>(exp)) {
       return {exp, rewrite_status::RW_SKIP};
+    }
+    if (m_deepIte) {
+      /**
+      pushing add down ite is expensive(exponential), so only use with shallow
+      expressions;
+      bvadd(ite(i, a, b), c) ==> ite(i, bvadd(a, c), bvadd(b, c))
+      bvadd(c, ite(i, a, b)) ==> ite(i, bvadd(a, c), bvadd(b, c))
+      **/
+      Expr lhs = exp->left();
+      Expr rhs = exp->right();
+      if (isOpX<ITE>(lhs)) {
+        Expr i = lhs->first();
+        Expr addL = mk<BADD>(lhs->arg(1), rhs);
+        Expr addR = mk<BADD>(lhs->arg(2), rhs);
+        return {mk<ITE>(i, addL, addR), rewrite_status::RW_2};
+      } else if (isOpX<ITE>(rhs)) {
+        Expr i = rhs->first();
+        Expr addL = mk<BADD>(rhs->arg(1), lhs);
+        Expr addR = mk<BADD>(rhs->arg(2), lhs);
+        return {mk<ITE>(i, addL, addR), rewrite_status::RW_2};
+      }
     }
     /** In general these two rules:
      * 1) flatten n-ary bvadd:

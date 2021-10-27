@@ -7,6 +7,7 @@
 #include <type_traits>
 
 namespace seahorn {
+extern bool BasedPtrObj;
 namespace details {
 
 static const unsigned int g_slotBitWidth = 64;
@@ -560,6 +561,21 @@ ExtraWideMemManager<T>::mkStackPtr(unsigned int offset) {
   return PtrTy(m_main.mkStackPtr(offset), m_ctx.alu().ui(0UL, ptrSizeInBits()),
                m_uninit_size);
 }
+
+template <class T>
+typename ExtraWideMemManager<T>::PtrTy
+ExtraWideMemManager<T>::mkBasedPtr(Expr base, unsigned int offset) {
+  return PtrTy(m_main.mkBasedPtr(base, offset),
+               m_ctx.alu().ui(0UL, ptrSizeInBits()), m_uninit_size);
+}
+
+template <class T>
+typename ExtraWideMemManager<T>::PtrTy
+ExtraWideMemManager<T>::mkBasedStackPtr(unsigned int offset) {
+  return PtrTy(m_main.mkBasedStackPtr(offset),
+               m_ctx.alu().ui(0UL, ptrSizeInBits()), m_uninit_size);
+}
+
 template <class T>
 typename ExtraWideMemManager<T>::PtrTy
 ExtraWideMemManager<T>::salloc(Expr elmts, unsigned int typeSz,
@@ -583,11 +599,16 @@ ExtraWideMemManager<T>::salloc(Expr elmts, unsigned int typeSz,
                       << " elements of size" << typeSz << " bytes\n";);
     return freshPtr();
   }
-
+  PtrTy sp = mkStackPtr(region.second);
+  if (BasedPtrObj) {
+    PtrTy basedSp = mkBasedStackPtr(region.second);
+    m_ctx.addSide(ptrEq(sp, basedSp));
+    return PtrTy(basedSp.getBase(), m_ctx.alu().ui(0UL, ptrSizeInBits()),
+                 castPtrSzToSlotSz(bytes));
+  }
   // -- have a good region, return pointer to it
   // Note that sort of bytes is PtrSort so we need cast to sort of SlotExpr
-  return PtrTy(mkStackPtr(region.second).getBase(),
-               m_ctx.alu().ui(0UL, ptrSizeInBits()), castPtrSzToSlotSz(bytes));
+  return PtrTy(sp.getBase(), m_ctx.alu().ui(0UL, ptrSizeInBits()), castPtrSzToSlotSz(bytes));
 }
 template <class T>
 typename ExtraWideMemManager<T>::PtrTy
@@ -597,9 +618,15 @@ ExtraWideMemManager<T>::salloc(unsigned int bytes, uint32_t align) {
   auto region = m_main.getMAllocator().salloc(bytes, align);
   assert(region.second > region.first);
   // The size is min(alloc_size, requested_size)
-  return PtrTy(mkStackPtr(region.second).getBase(),
-               m_ctx.alu().ui(0UL, ptrSizeInBits()),
-               bytesToSlotExpr(std::min(region.second - region.first, bytes)));
+  PtrTy sp = mkStackPtr(region.second);
+  Expr width = bytesToSlotExpr(std::min(region.second - region.first, bytes));
+  if (seahorn::BasedPtrObj) {
+    PtrTy basedSp = mkBasedStackPtr(region.second);
+    m_ctx.addSide(ptrEq(sp, basedSp));
+    return PtrTy(basedSp.getBase(), m_ctx.alu().ui(0UL, ptrSizeInBits()),
+                 width);
+  }
+  return PtrTy(sp.getBase(), m_ctx.alu().ui(0UL, ptrSizeInBits()), width);
 }
 template <class T>
 typename ExtraWideMemManager<T>::PtrSortTy

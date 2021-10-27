@@ -167,6 +167,14 @@ public:
     return mkFatPtr(m_main.mkStackPtr(offset));
   }
 
+  FatPtrTy mkBasedPtr(Expr base, unsigned int offset) {
+    return mkFatPtr(m_main.mkBasedPtr(base, offset));
+  }
+
+  FatPtrTy mkBasedStackPtr(unsigned int offset) {
+    return mkFatPtr(m_main.mkBasedStackPtr(offset));
+  }
+
   /// \brief Pointer to start of the heap
   FatPtrTy brk0Ptr() { return mkFatPtr(m_main.brk0Ptr()); }
 

@@ -209,6 +209,10 @@ public:
 
   PtrTy mkStackPtr(unsigned int offset);
 
+  PtrTy mkBasedPtr(Expr base, unsigned offset);
+
+  PtrTy mkBasedStackPtr(unsigned int offset);
+
   PtrTy brk0Ptr() { return MAIN_MEM_MGR.brk0Ptr(); }
 
   PtrTy halloc(unsigned int _bytes, uint32_t align);

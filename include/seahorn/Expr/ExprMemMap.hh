@@ -168,6 +168,8 @@ public:
   const_mc_iterator cbegin() const { return m_cells.cbegin(); }
 
   const_mc_iterator cend() const { return m_cells.cend(); }
+
+  Expr getRawExpr() const { return m_expr; }
 };
 } // namespace exprMemMap
 } // namespace expr

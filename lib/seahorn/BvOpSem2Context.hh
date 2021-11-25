@@ -359,6 +359,8 @@ public:
 
   void resetSolver();
   void addToSolver(const Expr e);
+  // dump solver state
+  void toSmtLib(llvm::raw_ostream &o);
   boost::tribool solve();
 
 private:

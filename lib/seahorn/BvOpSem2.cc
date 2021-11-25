@@ -975,7 +975,21 @@ public:
     m_ctx.addToSolver(m_ctx.getPathCond());
     m_ctx.addToSolver(solveFor);
 
-    return m_ctx.solve();
+    auto r = m_ctx.solve();
+    // if the solver returns unknown then dump smt2 formula to file for analysis
+    LOG("opsem.dump.incassert", {
+      if (r || !r) {
+      } else { // indeterminate case
+        std::error_code EC;
+        static unsigned cnt = 0;
+        auto filename = "incassert." + std::to_string(++cnt) + ".smt2";
+        errs() << "Writing increment assert formula to '" << filename << "'..."
+               << "\n";
+        raw_fd_ostream File(filename, EC, sys::fs::F_Text);
+        m_ctx.toSmtLib(File);
+      }
+    });
+    return r;
   }
 
   void visitVerifierAssertCall(CallSite CS) {
@@ -2767,6 +2781,10 @@ void Bv2OpSemContext::addToSolver(const Expr e) {
     m_z3_solver->assertExpr(e);
     m_addedToSolver.insert(e);
   }
+}
+
+void Bv2OpSemContext::toSmtLib(llvm::raw_ostream &o) {
+  m_z3_solver->toSmtLib(o);
 }
 
 boost::tribool Bv2OpSemContext::solve() { return m_z3_solver->solve(); }

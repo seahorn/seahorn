@@ -1851,6 +1851,7 @@ public:
 
   Expr executeSelectInst(Expr cond, Expr op0, Expr op1, Type *ty,
                          Bv2OpSemContext &ctx) {
+    // TODO: move this logic to mem manager
     if (ty->isVectorTy()) {
       llvm_unreachable(nullptr);
     }
@@ -2792,6 +2793,10 @@ boost::tribool Bv2OpSemContext::solve() { return m_z3_solver->solve(); }
 Expr Bv2OpSemContext::ptrToAddr(Expr p) { return mem().ptrToAddr(p); }
 
 Expr Bv2OpSemContext::getRawMem(Expr p) { return mem().getRawMem(p); }
+
+Expr Bv2OpSemContext::joinMemories(Expr cond, Expr mem1, Expr mem2) {
+  return m_memManager->joinMemories(expr::Expr(), cond, mem1);
+}
 
 } // namespace details
 

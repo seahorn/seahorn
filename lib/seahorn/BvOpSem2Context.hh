@@ -39,6 +39,11 @@ auto widemem_tag_of =
   return {};
 };
 
+auto objectmem_tag_of =
+    [](auto t) -> hana::type<typename decltype(t)::type::ObjectMemTag> {
+  return {};
+};
+
 // This empty class is used as a 'tag' to mark containing classes as enabling
 // features
 // feature: tracking.
@@ -47,6 +52,9 @@ struct Tracking_tag {};
 struct FatMem_tag {};
 // feature: Wide Memory.
 struct WideMem_tag {};
+
+// feature: Object Memory.
+struct ObjectMem_tag {};
 
 auto has_tracking = [](auto t) {
   return hana::sfinae(tracking_tag_of)(t) ==
@@ -60,6 +68,11 @@ auto has_fatmem = [](auto t) {
 auto has_widemem = [](auto t) {
   return hana::sfinae(widemem_tag_of)(t) ==
          hana::just(hana::type<WideMem_tag>{});
+};
+
+auto has_objectmem = [](auto t) {
+  return hana::sfinae(objectmem_tag_of)(t) ==
+         hana::just(hana::type<ObjectMem_tag>{});
 };
 
 } // namespace MemoryFeatures
@@ -260,6 +273,10 @@ public:
   /// symbolic pointer \ptr. Memory register being read from must be set via
   /// \f setMemReadRegister
   Expr loadValueFromMem(Expr ptr, const llvm::Type &ty, uint32_t align);
+
+  /// \brief join two memories according to semantics of memory manager using
+  /// \cond to make the join.
+  Expr joinMemories(Expr cond, Expr mem1, Expr mem2);
 
   /// \brief Store a value \val to symbolic memory at address \p ptr
   ///
@@ -659,6 +676,8 @@ public:
 
   virtual MemValTy storeValueToMem(Expr _val, PtrTy ptr, MemValTy memIn,
                                    const llvm::Type &ty, uint32_t align) = 0;
+
+  virtual MemValTy joinMemories(Expr cond, Expr mem1, Expr mem2) = 0;
 
   /// \brief Executes symbolic memset with a concrete length
   virtual MemValTy MemSet(PtrTy ptr, Expr _val, unsigned len, MemValTy mem,

@@ -15,7 +15,8 @@
 namespace seahorn {
 namespace details {
 
-template <class T> class ExtraWideMemManager : public MemManagerCore {
+template <class T, class W>
+class ExtraWideMemManagerCore : public MemManagerCore {
 
   /// \brief Base name for non-deterministic pointer
   Expr m_freshPtrName;
@@ -31,19 +32,21 @@ template <class T> class ExtraWideMemManager : public MemManagerCore {
 
   // NOTE: offset bitwidth is same as ptr bitwidth since we need to
   // do arithmetic operations between them often.
-  RawMemManager m_offset;
+  W m_offset;
   /// \brief Memory manager for size
-  RawMemManager m_size;
+  W m_size;
 
 public:
   using TrackingTag = typename T::TrackingTag;
-  // We don't support composing ExtraWideMemManager using FatMemManager
+  using ObjectMemTag = typename T::ObjectMemTag;
+
+  // We don't support composing ExtraWideMemManagerCore using FatMemManager
   using FatMemTag = int;
   using WideMemTag = MemoryFeatures::WideMem_tag;
 
-  using RawPtrTy = typename T::PtrTy;
+  using SubPtrTy = typename T::PtrTy;
   using RawMemValTy = typename T::MemValTy;
-  using RawPtrSortTy = typename T::PtrSortTy;
+  using SubPtrSortTy = typename T::PtrSortTy;
   using RawMemSortTy = typename T::MemSortTy;
 
   using MemRegTy = OpSemMemManager::MemRegTy;
@@ -52,11 +55,11 @@ public:
   struct PtrTyImpl {
     Expr m_v;
 
-    PtrTyImpl(RawPtrTy &&base, Expr &&offset, Expr &&size) {
+    PtrTyImpl(SubPtrTy &&base, Expr &&offset, Expr &&size) {
       m_v = strct::mk(std::move(base), std::move(offset), std::move(size));
     }
 
-    PtrTyImpl(const RawPtrTy &base, const Expr offset, const Expr &size) {
+    PtrTyImpl(const SubPtrTy &base, const Expr offset, const Expr &size) {
       m_v = strct::mk(base, offset, size);
     }
 
@@ -70,7 +73,7 @@ public:
     Expr toExpr() const { return v(); }
     explicit operator Expr() const { return toExpr(); }
 
-    RawPtrTy getBase() { return strct::extractVal(m_v, 0); }
+    SubPtrTy getBase() { return strct::extractVal(m_v, 0); }
 
     Expr getOffset() { return strct::extractVal(m_v, 1); }
 
@@ -86,7 +89,7 @@ public:
                       std::move(size_val));
     }
 
-    MemValTyImpl(const RawPtrTy &raw_val, const Expr &offset_val,
+    MemValTyImpl(const SubPtrTy &raw_val, const Expr &offset_val,
                  const Expr &size_val) {
       assert(!strct::isStructVal(size_val));
       m_v = strct::mk(raw_val, offset_val, size_val);
@@ -114,13 +117,13 @@ public:
   struct PtrSortTyImpl {
     Expr m_ptr_sort;
 
-    PtrSortTyImpl(RawPtrSortTy &&ptr_sort, Expr &&offset_sort,
+    PtrSortTyImpl(SubPtrSortTy &&ptr_sort, Expr &&offset_sort,
                   Expr &&size_sort) {
       m_ptr_sort = sort::structTy(std::move(ptr_sort), std::move(offset_sort),
                                   std::move(size_sort));
     }
 
-    PtrSortTyImpl(const RawPtrSortTy &ptr_sort, const Expr &offset_sort,
+    PtrSortTyImpl(const SubPtrSortTy &ptr_sort, const Expr &offset_sort,
                   const Expr &size_sort) {
       m_ptr_sort = sort::structTy(ptr_sort, offset_sort, size_sort);
     }
@@ -129,7 +132,7 @@ public:
     Expr toExpr() const { return v(); }
     explicit operator Expr() const { return toExpr(); }
 
-    RawPtrSortTy getBaseSort() { return m_ptr_sort->arg(0); }
+    SubPtrSortTy getBaseSort() { return m_ptr_sort->arg(0); }
   };
 
   struct MemSortTyImpl {
@@ -159,10 +162,10 @@ public:
   /// \brief A null pointer expression (cache)
   PtrTy m_nullPtr;
 
-  ExtraWideMemManager(Bv2OpSem &sem, Bv2OpSemContext &ctx, unsigned ptrSz,
-                      unsigned wordSz, bool useLambdas = false);
+  ExtraWideMemManagerCore(Bv2OpSem &sem, Bv2OpSemContext &ctx, unsigned ptrSz,
+                          unsigned wordSz, bool useLambdas = false);
 
-  ~ExtraWideMemManager() = default;
+  ~ExtraWideMemManagerCore() = default;
 
   Expr bytesToSlotExpr(unsigned bytes);
 
@@ -267,32 +270,26 @@ public:
 
   Expr isDereferenceable(PtrTy p, Expr byteSz);
 
-  typename ExtraWideMemManager<T>::RawMemValTy
-  setModified(ExtraWideMemManager::PtrTy ptr,
-              ExtraWideMemManager::MemValTy mem);
+  RawMemValTy setModified(PtrTy ptr, MemValTy mem);
 
-  Expr isMetadataSet(MetadataKind kind, ExtraWideMemManager::PtrTy ptr,
-                     ExtraWideMemManager::MemValTy mem);
+  Expr isMetadataSet(MetadataKind kind, PtrTy ptr, MemValTy mem);
 
-  typename ExtraWideMemManager<T>::MemValTy
-  setMetadata(MetadataKind kind, ExtraWideMemManager::PtrTy ptr,
-              ExtraWideMemManager::MemValTy mem, unsigned val);
+  MemValTy setMetadata(MetadataKind kind, ExtraWideMemManagerCore::PtrTy ptr,
+                       ExtraWideMemManagerCore::MemValTy mem, unsigned val);
 
-  typename ExtraWideMemManager<T>::MemValTy
-  memsetMetaData(MetadataKind kind, ExtraWideMemManager::PtrTy ptr,
-                 unsigned int len, ExtraWideMemManager::MemValTy memIn,
-                 unsigned int val);
+  MemValTy memsetMetaData(MetadataKind kind, PtrTy ptr, unsigned int len,
+                          MemValTy memIn, unsigned int val);
 
-  typename ExtraWideMemManager<T>::MemValTy
-  memsetMetaData(MetadataKind kind, ExtraWideMemManager::PtrTy ptr, Expr len,
-                 ExtraWideMemManager::MemValTy memIn, unsigned int val);
+  MemValTy memsetMetaData(MetadataKind kind, ExtraWideMemManagerCore::PtrTy ptr,
+                          Expr len, ExtraWideMemManagerCore::MemValTy memIn,
+                          unsigned int val);
 
   Expr getMetaData(MetadataKind kind, PtrTy ptr, MemValTy memIn,
                    unsigned int byteSz);
 
   unsigned int getMetaDataMemWordSzInBits();
 
-  RawPtrTy getAddressable(PtrTy p) const;
+  SubPtrTy getAddressable(PtrTy p) const;
 
   bool isPtrTyVal(Expr e) const;
 

@@ -199,6 +199,18 @@ public:
     return toMemValTy(std::move(res));
   }
 
+  MemValTy joinMemories(Expr cond, Expr mem1, Expr mem2) {
+    // TODO: remove this since every memory mgr will impl
+    // join mem
+    return hana::eval_if(
+        MemoryFeatures::has_objectmem(hana::type<BaseT>{}),
+        [&](auto _) { return _(base()).joinMemories(cond, mem1, mem2); },
+        [&] {
+          LOG("opsem", WARN << "joinMemories() not implemented!\n");
+          return Expr();
+        });
+  }
+
   MemValTy MemSet(PtrTy ptr, Expr _val, unsigned len, MemValTy mem,
                   uint32_t align) override {
     auto res = base().MemSet(BasePtrTy(std::move(ptr)), _val, len,

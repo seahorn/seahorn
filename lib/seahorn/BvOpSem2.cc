@@ -2386,11 +2386,42 @@ Bv2OpSemContext::Bv2OpSemContext(SymStore &values, ExprVector &side,
   setPathCond(o.getPathCond());
 }
 
+// If running in lambda mode,
+// convert constant arrays returned by Z3 simplifier to a lambda.
+//
+// Details: When Z3 is given a lambda of the form lambda x: 0 to simplify, a
+// constant array is returned. If running in lambda mode, this will cause the
+// formula to have both lambdas and constant arrays which is not supported
+// (fully) by Z3 and y2.
+// This workaround fixes the issue by converting constant arrays gotten from
+// Z3 back to lambda x: 0.
+Expr coerceConstArrayToLambda(Expr e, ExprFactory &efac) {
+  // go into structs until a non struct is found; convert to lambda if needed.
+  if (strct::isStructVal(e)) {
+    llvm::SmallVector<Expr, 8> kids;
+    for (unsigned i = 0, sz = e->arity(); i < sz; ++i) {
+
+      kids.push_back(coerceConstArrayToLambda(e->arg(i), efac));
+    }
+    return strct::mk(kids);
+  } else if (isOpX<CONST_ARRAY>(e)) {
+    Expr dom = e->arg(0); // get domain
+    Expr val = e->arg(1); // get value
+    Expr addr = bind::mkConst(mkTerm<std::string>("addr", efac), dom);
+    Expr decl = bind::fname(addr);
+    Expr res = mk<LAMBDA>(decl, val);
+    return res;
+  } else {
+    return e;
+  }
+}
+
 Expr Bv2OpSemContext::simplify(Expr u) {
   ScopedStats _st_("opsem.simplify");
 
-  Expr _u;
-  _u = m_z3_simplifier->simplify(u);
+  Expr _u, _u_simp;
+  _u_simp = m_z3_simplifier->simplify(u);
+  _u = UseLambdas ? coerceConstArrayToLambda(_u_simp, efac()) : _u_simp;
   LOG(
       "opsem.simplify",
       if (!isOpX<LAMBDA>(_u) && !isOpX<ITE>(_u) && dagSize(_u) > 100) {

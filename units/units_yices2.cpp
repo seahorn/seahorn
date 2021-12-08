@@ -261,4 +261,41 @@ TEST_CASE("yices2-int-bv.test") {
   CHECK(true);
 }
 
+TEST_CASE("yices2-const-array.test") {
+  using namespace std;
+  using namespace expr;
+  using namespace seahorn;
+
+  expr::ExprFactory efac;
+
+  size_t BV_SZ = 32;
+  size_t IDX_SZ = 8;
+  // index variables
+  Expr i = op::bv::bvConst(mkTerm<string>("i", efac), IDX_SZ);
+  // arr variables
+  Expr iTy = op::bv::bvsort(IDX_SZ, efac);
+  Expr y = op::bv::bvConst(mkTerm<string>("y", efac), BV_SZ);
+  Expr arr = op::array::constArray(iTy, y);
+
+  // testing marshaling so UNSAT is fine, yices2 has problem extracting
+  // assignments from lambda terms
+  Expr e = mk<NEQ>(op::array::select(arr, i), y);
+
+  errs() << "Asserting " << *e << "\n";
+
+  errs() << "==== Yices2\n";
+  seahorn::solver::yices_solver_impl yices_solver(efac);
+  errs() << "Result: ";
+  run(&yices_solver, e, {arr, y, i});
+
+  errs() << "==== Z3\n";
+  seahorn::solver::z3_solver_impl z3_solver(efac);
+  errs() << "Result: ";
+  run(&z3_solver, e, {arr, y, i});
+
+  errs() << "FINISHED\n";
+
+  CHECK(true);
+}
+
 #endif

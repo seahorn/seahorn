@@ -30,6 +30,7 @@
 #include "clam/Clam.hh"
 #include "clam/ClamQueryAPI.hh"
 #include "clam/SeaDsaHeapAbstraction.hh"
+#include "crab/domains/abstract_domain_params.hpp"
 
 #include "seadsa/ShadowMem.hh"
 
@@ -150,9 +151,18 @@ static llvm::cl::opt<bool>
                     llvm::cl::desc("Use crab to infer rng invariants"),
                     llvm::cl::init(false));
 
+// Crab does not understand sea.is_dereferenceable but the intrinsics
+// is lowered into instructions that Crab can understand.
 static llvm::cl::opt<bool> UseCrabLowerIsDeref(
     "horn-bv2-crab-lower-is-deref",
     llvm::cl::desc("Use crab to lower sea.is_dereferenceable"),
+    llvm::cl::init(false));
+
+// Crab reason natively about sea.is_dereferenceable without any
+// lowering.
+static llvm::cl::opt<bool> UseCrabCheckIsDeref(
+    "horn-bv2-crab-check-is-deref",
+    llvm::cl::desc("Use crab to check sea.is_dereferenceable"),
     llvm::cl::init(false));
 
 static llvm::cl::opt<bool> UseLVIInferRng(
@@ -769,8 +779,8 @@ public:
     Expr byteSz = lookup(*CS.getArgument(1));
     Expr res;
     bool crabSolved = false;
-    if (UseCrabLowerIsDeref) { // if crab is used, infer the result of
-                               // sea.is_deref
+    if (UseCrabLowerIsDeref || UseCrabCheckIsDeref) {
+      // if crab is used, infer the result of sea.is_deref
       Instruction *inst = CS.getInstruction();
       auto derefInfoFromCrab = m_sem.getCrabInstRng(*inst);
       if (derefInfoFromCrab.isEmptySet()) {
@@ -2236,7 +2246,7 @@ public:
 
   void visitModule(Module &M) {
     LOG("opsem.module", errs() << M << "\n";);
-    if (UseCrabInferRng || UseCrabLowerIsDeref) {
+    if (UseCrabInferRng || UseCrabLowerIsDeref || UseCrabCheckIsDeref) {
       m_sem.initCrabAnalysis(M);
       m_sem.runCrabAnalysis();
     }
@@ -3333,6 +3343,11 @@ void Bv2OpSem::runCrabAnalysis() {
   aparams.dom = CrabDom;
   aparams.run_inter = true;
   aparams.check = clam::CheckerKind::NOCHECKS;
+
+  if (UseCrabCheckIsDeref) {
+    crab::domains::crab_domain_params_man::get().
+      set_param("region.is_dereferenceable", "true");
+  }
   /// Run the Crab analysis
   clam::ClamGlobalAnalysis::abs_dom_map_t assumptions;
   LOG("opsem-crab", aparams.print_invars = true;);

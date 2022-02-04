@@ -101,8 +101,8 @@ OpSemMemRepr::MemValTy OpSemMemArrayRepr::MemCpy(
 
   Expr res = memRead.toExpr();
   Expr srcMem = memTrsfrRead.toExpr();
-  if (wordSzInBytes == 1 || (wordSzInBytes == 4 && align == 4) ||
-      (wordSzInBytes == 8 && (align == 4 || align == 8)) ||
+  if (wordSzInBytes == 1 || (wordSzInBytes == 4 && align % 4 == 0) ||
+      (wordSzInBytes == 8 && align % 4 == 0) ||
       m_memManager.isIgnoreAlignment()) {
     // XXX assume that bit-width(len) == ptrSizeInBits
     auto bitWidth = m_memManager.ptrSizeInBits();
@@ -138,8 +138,8 @@ OpSemMemArrayRepr::MemCpy(PtrTy dPtr, PtrTy sPtr, unsigned len,
 
   Expr res;
 
-  if (wordSzInBytes == 1 || (wordSzInBytes == 4 && align == 4) ||
-      (wordSzInBytes == 8 && (align == 4 || align == 8)) ||
+  if (wordSzInBytes == 1 || (wordSzInBytes == 4 && align % 4 == 0) ||
+      (wordSzInBytes == 8 && align %  4 == 0) ||
       m_memManager.isIgnoreAlignment()) {
     Expr srcMem = memTrsfrRead.toExpr();
     res = memRead.toExpr();
@@ -306,8 +306,8 @@ OpSemMemRepr::MemValTy OpSemMemLambdaRepr::createMemCpyExpr(
     const PtrSortTy &ptrSort, const MemValTy &srcMem, const PtrTy &dstLast,
     unsigned wordSzInBytes, uint32_t align) const {
   MemValTy res = MemValTy(Expr());
-  if (wordSzInBytes == 1 || (wordSzInBytes == 4 && align == 4) ||
-      (wordSzInBytes == 8 && (align == 4 || align == 8)) ||
+  if (wordSzInBytes == 1 || (wordSzInBytes == 4 && align % 4 == 0) ||
+      (wordSzInBytes == 8 && align % 4 == 0) ||
       m_memManager.isIgnoreAlignment()) {
     PtrTy b0 = PtrTy(bind::bvar(0, ptrSort.toExpr()));
     // -- dPtr <= b0 <= dstLast
@@ -341,8 +341,8 @@ OpSemMemLambdaRepr::MemCpy(PtrTy dPtr, PtrTy sPtr, unsigned len,
                            uint32_t align) {
   MemValTy res = MemValTy(Expr());
 
-  if (wordSzInBytes == 1 || (wordSzInBytes == 4 && align == 4) ||
-      (wordSzInBytes == 8 && (align == 4 || align == 8)) ||
+  if (wordSzInBytes == 1 || (wordSzInBytes == 4 && align % 4 == 0) ||
+      (wordSzInBytes == 8 && align % 4 == 0) ||
       m_memManager.isIgnoreAlignment()) {
     MemValTy srcMem = memTrsfrRead;
 

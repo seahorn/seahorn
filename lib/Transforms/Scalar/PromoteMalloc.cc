@@ -1,7 +1,7 @@
-#include "llvm/Pass.h"
 #include "llvm/IR/CallSite.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/InstIterator.h"
+#include "llvm/Pass.h"
 #include "llvm/Support/raw_ostream.h"
 
 #include "boost/range.hpp"
@@ -52,10 +52,13 @@ public:
           }
         }
 
-        if (!nv)
-          nv = new AllocaInst(v->getType()->getPointerElementType(), addrSpace,
-                              CS.getArgument(0), "malloc", &I);
-
+        if (!nv) {
+          auto ai = new AllocaInst(v->getType()->getPointerElementType(),
+                                   addrSpace, CS.getArgument(0), "malloc", &I);
+          // -- set alignment based on stack, not alignment of the type
+          ai->setAlignment(F.getParent()->getDataLayout().getStackAlignment());
+          nv = ai;
+        }
         v->replaceAllUsesWith(nv);
 
         changed = true;

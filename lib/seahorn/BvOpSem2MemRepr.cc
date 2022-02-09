@@ -1,4 +1,5 @@
 #include "BvOpSem2MemRepr.hh"
+#include "seahorn/Expr/ExprAddrRangeMap.hh"
 #include "seahorn/Expr/ExprMemUtils.h"
 #include "seahorn/Expr/ExprOpBinder.hh"
 #include "seahorn/Expr/ExprOpBool.hh"
@@ -276,9 +277,9 @@ OpSemMemArrayReprBase::MemFill(PtrTy dPtr, char *sPtr, unsigned len,
 }
 
 Expr OpSemMemHybridRepr::loadAlignedWordFromMem(PtrTy ptr, MemValTy mem) {
+  LOG("opsem-hybrid", INFO << "load inst: " << m_ctx.getCurrentInst() << "\n");
   LOG("opsem-hybrid", INFO << "Load ptr " << *ptr.toExpr() << "\n");
   LOG("opsem-hybrid", INFO << "From mem " << *mem.toExpr() << "\n");
-
   /** rewrite store into ITE **/
   Stats::resume("hybrid-mem-rewrite");
   ArrayStoreRewriter rw(ptr.toExpr(), m_ctx.alu(),
@@ -287,28 +288,19 @@ Expr OpSemMemHybridRepr::loadAlignedWordFromMem(PtrTy ptr, MemValTy mem) {
   LOG("opsem-hybrid", INFO << "Rewritten: " << *rewritten << "\n");
 
   // push bvadd down in ptr expr
-  MemAddrRangeMap ptrArm;
+  AddrRangeMap ptrArm;
   DagVisitCache ptrCache;
   Expr ptrSimp = rewriteMemExprWithCache<PointerArithmeticConfig>(
       ptr.toExpr(), ptrArm, ptrCache);
-  LOG("opsem-hybrid", INFO << "Rewritten ptr: " << *ptrSimp << "\n");
+  LOG("opsem-hybrid", INFO << "Simp ptr: " << *ptrSimp << "\nbuilding ARM...");
 
   /** simplify with custom ITE simplifier **/
-  MemAddrRangeMap arm;
-  expr::mem::buildAddressRange(ptrSimp, arm);
-  LOG("opsem-hybrid", {
-    INFO << "built addr range map:";
-    for (const auto &ar : arm) {
-      auto &range = ar.second;
-      INFO << *ar.first << " : (" << range.low << ", " << range.high
-           << ")\n";
-    }
-  });
+  AddrRangeMap arm = expr::mem::addrRangeMapOf(ptrSimp);
+  LOG("opsem-hybrid", { INFO << "built addr range map: \n" << arm; });
 
   Expr simp = rewriteHybridLoadMemExpr(rewritten, ptr.toExpr(), arm);
   Stats::stop("hybrid-mem-rewrite");
-  LOG("opsem-hybrid", INFO << "my simplified: " << *simp << "\n");
-
+  LOG("opsem-hybrid", INFO << "hybrid simplified: " << *simp << "\n");
   return simp;
 }
 

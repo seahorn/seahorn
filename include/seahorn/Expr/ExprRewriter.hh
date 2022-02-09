@@ -7,6 +7,7 @@
 
 namespace expr {
 using namespace seahorn;
+using namespace mem;
 
 namespace utils {
 bool shouldCache(Expr e);
@@ -16,7 +17,7 @@ bool shouldCache(Expr e);
  * loadMem: Expr tree that represents value loaded from current memory state
  * ptr: address Expr tree
  **/
-Expr rewriteHybridLoadMemExpr(Expr loadMem, Expr ptr, MemAddrRangeMap &arm);
+Expr rewriteHybridLoadMemExpr(Expr loadMem, Expr ptr, AddrRangeMap &arm);
 
 struct RewriteFrame {
   Expr m_exp;     // the Expr node (subtree) under rewrite
@@ -35,8 +36,7 @@ protected:
   DagVisitCache &m_cache; // for accessing cached rewrite results
 
 public:
-  ExprRewriterConfig(ExprFactory &efac, DagVisitCache &cache,
-                     MemAddrRangeMap &arm)
+  ExprRewriterConfig(ExprFactory &efac, DagVisitCache &cache, AddrRangeMap &arm)
       : m_efac(efac), m_cache(cache) {}
 
   rewrite_result applyRewriteRules(Expr exp);
@@ -55,7 +55,7 @@ private:
 
 public:
   ITECompRewriteConfig(ExprFactory &efac, DagVisitCache &cache,
-                       MemAddrRangeMap &arm)
+                       AddrRangeMap &arm)
       : m_iteRule(efac, cache), m_compRule(efac, cache),
         m_boolRule(efac, cache), m_arrayRule(efac, cache, arm),
         m_arithRule(efac, cache), ExprRewriterConfig(efac, cache, arm) {}
@@ -72,7 +72,7 @@ private:
 
 public:
   PointerArithmeticConfig(ExprFactory &efac, DagVisitCache &cache,
-                          MemAddrRangeMap &arm)
+                          AddrRangeMap &arm)
       : m_arithRule(efac, cache, true), ExprRewriterConfig(efac, cache, arm) {}
 
   rewrite_result applyRewriteRules(Expr exp);
@@ -114,7 +114,7 @@ protected:
   }
 
 public:
-  ExprRewriter(ExprFactory &efac, MemAddrRangeMap &arm, DagVisitCache &cache)
+  ExprRewriter(ExprFactory &efac, AddrRangeMap &arm, DagVisitCache &cache)
       : m_efac(efac), m_config(efac, cache, arm), m_cache(cache) {}
 
   void processFrame(RewriteFrame &frame) {
@@ -168,7 +168,7 @@ public:
 };
 
 template <typename Config>
-Expr rewriteMemExprWithCache(Expr mem, MemAddrRangeMap &arm,
+Expr rewriteMemExprWithCache(Expr mem, AddrRangeMap &arm,
                              DagVisitCache &cache) {
   ExprRewriter<Config> rw(mem->efac(), arm, cache);
   return rw.rewriteExpr(mem);

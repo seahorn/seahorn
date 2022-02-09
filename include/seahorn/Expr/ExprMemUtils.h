@@ -1,4 +1,5 @@
 #pragma once
+#include "seahorn/Expr/ExprAddrRangeMap.hh"
 #include "seahorn/Expr/ExprLlvm.hh"
 #include "seahorn/Expr/ExprOpCore.hh"
 #include "seahorn/Support/SeaDebug.h"
@@ -6,99 +7,44 @@
 
 /** Util functions and visitors for Expr trees representing memory **/
 
-using namespace expr;
-
-struct AddrRange
-{
-  unsigned low;
-  unsigned high;
-  bool isTop;
-  AddrRange() : low(0), high(0), isTop(false) {}
-  AddrRange(unsigned low, unsigned high, bool top=false) : low(low), high(high), isTop(top) {}
-  AddrRange(const AddrRange &o) : low(o.low), high(o.high), isTop(o.isTop) {}
-
-  bool contains(unsigned offset) {
-    return isTop || (offset >= low && offset <= high);
-  }
-};
-
-
-/** Given a base addr a, store upper and lower range being queried from.
- * E.g. ptr is ite(i, bvadd(a, u), bvsub(a, l)) =>
- * map => {a => (u, l)} **/
-using MemAddrRangeMap = std::map<Expr, AddrRange>;
-
 namespace expr {
+using namespace addrRangeMap;
 namespace mem {
-/** Returns true if e is either:
+/** Adhoc heuristic: Returns true if e is either:
  * bvnum larger than 0xbf000000, or
- * terminal string starting with sea.sp0
+ * terminal string starting with sea.sp0;
+ * With `BasedPtrObj` on: match "sea.obj_n" objects
  **/
 bool isBaseAddr(Expr e);
 
-namespace { /** building range of addresses from an expr tree **/
-struct AR : public std::unary_function<Expr, VisitAction> {
-  MemAddrRangeMap &arm;
-  AR(MemAddrRangeMap &arm) : arm(arm) {}
+/**
+ * @brief recursively check whether e would resolve to an address
+ *
+ * @param e target Expr expression tree
+ * @return true Any leaf contains BasePtr
+ * @return false None of the leaves is BasePtr
+ */
+bool isPtrExpr(Expr e);
 
-  VisitAction operator()(Expr exp) {
-    // reaching terminal, usually in explicit sp0
-    if (isBaseAddr(exp)) {
-      MemAddrRangeMap::const_iterator entry = arm.find(exp);
-      if (entry == arm.end()) {
-        arm.emplace(exp, AddrRange());
-      }
-      return VisitAction::skipKids();
-    }
-    // simple ptr arithmetics: add/sub(ptr, offset)
-    // assume badd is flattened: bvadd(a, b, ..., n), where a, b, ... are
-    // symbolic, n is numeric
-    if (isOpX<BADD>(exp)) {
-      Expr base, offset;
-      for (auto b = exp->args_begin(), e = exp->args_end(); b != e; ++b) {
-        /* try to find a base and an offset */
-        if (base != NULL && offset != NULL)
-          break;
-        if (isBaseAddr(*b)) {
-          base = *b;
-          continue;
-        }
-        if (op::bv::is_bvnum(*b)) {
-          offset = *b;
-          continue;
-        }
-      }
-      if (base == NULL || offset == NULL) {
-        return VisitAction::doKids();
-      }
-      mpz_class offsetMpz = op::bv::toMpz(offset);
-      auto offsetNum = offsetMpz.get_ui();
-      MemAddrRangeMap::const_iterator entry = arm.find(base);
-      if (entry != arm.end()) { /* already exist entry */
-        auto range = entry->second;
-        if (range.low == 0 && range.high == 0) {
-          /* set first min and max */
-          range.low = offsetNum;
-          range.high = offsetNum;
-        } else {
-          /* attempt to update min and max */
-          range.low = std::min((unsigned)offsetNum, range.low);
-          range.high = std::max((unsigned)offsetNum, range.high);
-        }
-        arm[base] = range;
-      } else {
-        arm[base] = AddrRange(offsetNum, offsetNum, false);
-      }
-      return VisitAction::skipKids();
-    }
-    return VisitAction::doKids();
-  }
-};
-} // end of namespace
+/**
+ * @brief Given a ptr expression pE, build MemAddrRangeMap according to
+ * type of pE:
+ * - base addr: {pE => (0, 0)}
+ * - bvadd(x, y): addrRangeMapOf(x) + addrRangeMapOf(y)
+ * - ITE(c, x, y): addrRangeMapOf(x) | addrRangeMapOf(y), replace collidding
+ * elements with larger range
+ */
+AddrRangeMap addrRangeMapOf(Expr pE);
 
-inline void buildAddressRange(Expr mem, MemAddrRangeMap &arm) {
-  AR ar(arm);
-  dagVisit(ar, mem);
-}
+/**
+ * @brief Given a num expression nE, build AddrRange according to
+ * type of nE:
+ * - num(n): {nE => (n, n)}
+ * - sym(x): {nE => any} XXX: could use contextual infer
+ * - bvadd(x, y): addrRangeOf(x) + addrRangeOf(y)
+ * - ITE(c, x, y): addrRangeOf(x).join(addrRangeOf(y))
+ */
+AddrRange addrRangeOf(Expr nE);
+
 } // end of namespace mem
 } // end of namespace expr

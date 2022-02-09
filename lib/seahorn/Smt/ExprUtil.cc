@@ -498,6 +498,7 @@ Expr convertToMpz(Expr exp) {
 }
 } // namespace numeric
 namespace mem {
+using namespace addrRangeMap;
 inline bool isBasedObjAddr(Expr e) {
   if (op::bv::isBvConst(e)) {
     // strip fdecl
@@ -545,6 +546,95 @@ bool isBaseAddr(Expr e) {
   }
   return false;
 }
+
+bool isPtrExpr(Expr e) {
+  if (isBaseAddr(e)) {
+    return true;
+  }
+  if (op::bv::isBvConst(e) || op::bv::is_bvnum(e)) {
+    return false;
+  } /* num */
+  if (isOpX<ITE>(e)) {
+    Expr a = e->arg(1);
+    Expr b = e->arg(2);
+    return (isPtrExpr(a) || isPtrExpr(b));
+  }
+  for (auto b = e->args_begin(); b != e->args_end(); ++b) {
+    if (isPtrExpr(*b)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+AddrRange addrRangeOf(Expr e) {
+  if (op::bv::is_bvnum(e)) {
+    mpz_class offsetMpz = op::bv::toMpz(e);
+    auto offsetNum = offsetMpz.get_ui();
+    return AddrRange(offsetNum, offsetNum, false);
+  }
+  if (isOpX<BADD>(e)) {
+    AddrRange res;
+    for (auto b = e->args_begin(); b != e->args_end(); ++b) {
+      AddrRange range = addrRangeOf(*b);
+      res = res + range;
+    }
+    return res;
+  }
+  if (isOpX<ITE>(e)) {
+    AddrRange tRange = addrRangeOf(e->arg(1));
+    AddrRange eRange = addrRangeOf(e->arg(2));
+    return tRange | eRange;
+  }
+  /* assume is symbolic */
+  return AddrRange(0, 0, true);
+}
+
+AddrRangeMap addrRangeMapOf(Expr e) {
+  if (isBaseAddr(e)) {
+    return AddrRangeMap({{e, AddrRange(0, 0)}});
+  }
+  if (isOpX<BADD>(e)) {
+    Expr base;
+    llvm::SmallVector<Expr, 2> offsets;
+    for (auto b = e->args_begin(); b != e->args_end(); ++b) {
+      /* try to find a base and offsets */
+      if (isPtrExpr(*b)) {
+        base = *b;
+      } else {
+        offsets.push_back(*b);
+      }
+    }
+    if (base == NULL) {
+      return AddrRangeMap({{}}, true); // Fallback to { all => any }
+    }
+    AddrRangeMap res = addrRangeMapOf(base);
+    for (auto o : offsets) {
+      AddrRange oRange = addrRangeOf(o);
+      res.addRange(oRange);
+    }
+    return res;
+  }
+  if (isOpX<ITE>(e)) {
+    AddrRangeMap a = addrRangeMapOf(e->arg(1));
+    AddrRangeMap b = addrRangeMapOf(e->arg(2));
+    /* merge t e into t*/
+    return a.unionWith(b);
+  }
+  // when pointer is not aligned
+  // concat(extract(high, low, PE), n)
+  if (isOpX<BCONCAT>(e)) {
+    Expr lhs = e->arg(0);
+    Expr rhs = e->arg(1);
+    if (isOpX<BEXTRACT>(lhs) && op::bv::is_bvnum(rhs)) {
+      return addrRangeMapOf(lhs->arg(2));
+    }
+  }
+
+  // fallback: {all => any}
+  return AddrRangeMap({{}}, true);
+}
+
 } // namespace mem
 
 } // namespace expr

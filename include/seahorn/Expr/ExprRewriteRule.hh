@@ -1,5 +1,6 @@
 #pragma once
 #include "seahorn/Expr/Expr.hh"
+#include "seahorn/Expr/ExprAddrRangeMap.hh"
 #include "seahorn/Expr/ExprCore.hh"
 #include "seahorn/Expr/ExprMemUtils.h"
 #include "seahorn/Expr/ExprOpArray.hh"
@@ -12,8 +13,9 @@
 #include <algorithm>
 
 /* Simplifying rewrite rules for different Exprewrite_status */
-
 namespace expr {
+using namespace mem;
+using namespace addrRangeMap; /* addrRangeMap */
 namespace utils {
 /**
  * If arr is one of:
@@ -22,10 +24,10 @@ namespace utils {
  * then push select(..., idx) down the expression tree;
  * for nested, we presume the tree is biased towards "then" side (arg[1])
  **/
-Expr pushSelectDownStoreITE(Expr arr, Expr idx, MemAddrRangeMap &arm,
+Expr pushSelectDownStoreITE(Expr arr, Expr idx, AddrRangeMap &arm,
                             DagVisitCache &cache);
 
-bool inAddrRange(Expr ptr, MemAddrRangeMap &arm);
+bool inAddrRange(Expr ptr, AddrRangeMap &arm);
 } // end of namespace utils
 
 enum rewrite_status {
@@ -205,9 +207,8 @@ struct BoolOpRewriteRule : public ExprRewriteRule {
 
 // for select
 struct ArrayRewriteRule : public ExprRewriteRule {
-  MemAddrRangeMap &addrRange;
-  ArrayRewriteRule(ExprFactory &efac, DagVisitCache &cache,
-                   MemAddrRangeMap &arm)
+  AddrRangeMap &addrRange;
+  ArrayRewriteRule(ExprFactory &efac, DagVisitCache &cache, AddrRangeMap &arm)
       : addrRange(arm), ExprRewriteRule(efac, cache) {}
   ArrayRewriteRule(const ArrayRewriteRule &o)
       : addrRange(o.addrRange), ExprRewriteRule(o) {}

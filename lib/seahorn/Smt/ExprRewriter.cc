@@ -6,18 +6,17 @@ extern bool BasedPtrObj; // from BvOpSem2RawMemMgr.cc
 }
 
 namespace expr {
-
+using namespace addrRangeMap;
 namespace utils {
 bool shouldCache(Expr e) { return e->use_count() > 1; }
 
-bool inAddrRange(Expr ptr, MemAddrRangeMap &arm) {
+bool inAddrRange(Expr ptr, AddrRangeMap &arm) {
   if (!BasedPtrObj)
     return true;
   if (expr::mem::isBaseAddr(ptr)) {
     return arm.count(ptr) > 0;
   }
   if ((isOpX<BADD>(ptr) /*|| isOpX<BSUB>(ptr)*/) && ptr->arity() == 2) {
-    /// XXX: consider added value for higher precision
     Expr lhs = ptr->arg(0);
     Expr rhs = ptr->arg(1);
     Expr base, offset;
@@ -34,16 +33,12 @@ bool inAddrRange(Expr ptr, MemAddrRangeMap &arm) {
       return true; // offset is symbolic, over-approx
     mpz_class offsetMpz = op::bv::toMpz(offset);
     auto offsetNum = offsetMpz.get_ui();
-    MemAddrRangeMap::const_iterator entry = arm.find(base);
-    if (entry == arm.end()) /* base not found */
-      return false;
-    auto range = entry->second;
-    return range.contains(offsetNum);
+    return arm.contains(base, offsetNum);
   }
   return true; // over-approx
 }
 
-Expr pushSelectDownStoreITE(Expr arr, Expr idx, MemAddrRangeMap &arm,
+Expr pushSelectDownStoreITE(Expr arr, Expr idx, AddrRangeMap &arm,
                             DagVisitCache &cache) {
   if (!isOpX<STORE>(arr) && !isOpX<ITE>(arr)) {
     return op::array::select(arr, idx);
@@ -156,7 +151,7 @@ Expr pushSelectDownStoreITE(Expr arr, Expr idx, MemAddrRangeMap &arm,
 }
 } // namespace utils
 
-Expr rewriteHybridLoadMemExpr(Expr loadMem, Expr ptr, MemAddrRangeMap &arm) {
+Expr rewriteHybridLoadMemExpr(Expr loadMem, Expr ptr, AddrRangeMap &arm) {
   DagVisitCache newCache;
   return rewriteMemExprWithCache<ITECompRewriteConfig>(loadMem, arm, newCache);
 }

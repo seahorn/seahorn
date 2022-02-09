@@ -105,6 +105,13 @@ RawMemManagerCore::RawMemManagerCore(Bv2OpSem &sem, Bv2OpSemContext &ctx,
   if (ExplicitSp0)
     m_sp0 = PtrTy(m_ctx.alu().ui(0xC0000000, this->ptrSizeInBits()));
 
+  if (BasedPtrObj) {
+    PtrTy rawNullPtr = m_nullPtr;
+    m_nullPtr = PtrTy(bind::mkConst(mkTerm<std::string>("sea.obj.null", m_efac),
+                                    ptrSort().toExpr()));
+    m_ctx.addSide(ptrEq(m_nullPtr, rawNullPtr));
+  }
+
   if (useLambdas)
     m_memRepr = std::make_unique<OpSemMemLambdaRepr>(*this, ctx);
   else {

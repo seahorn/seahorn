@@ -557,7 +557,13 @@ bool isPtrExpr(Expr e) {
   if (isOpX<ITE>(e)) {
     Expr a = e->arg(1);
     Expr b = e->arg(2);
-    return (isPtrExpr(a) || isPtrExpr(b));
+    return isPtrExpr(a) || isPtrExpr(b);
+  }
+  if (isOpX<BCONCAT>(e)) {
+    return isPtrExpr(e->arg(0)) || isPtrExpr(e->arg(1));
+  }
+  if (isOpX<BEXTRACT>(e)) {
+    return isPtrExpr(op::bv::earg(e));
   }
   for (auto b = e->args_begin(); b != e->args_end(); ++b) {
     if (isPtrExpr(*b)) {
@@ -621,13 +627,20 @@ AddrRangeMap addrRangeMapOf(Expr e) {
     /* merge t e into t*/
     return a.unionWith(b);
   }
-  // when pointer is not aligned
-  // concat(extract(high, low, PE), n)
+  // Align pointer
+  // concat(extract(high, low, PE), 0)
   if (isOpX<BCONCAT>(e)) {
     Expr lhs = e->arg(0);
     Expr rhs = e->arg(1);
     if (isOpX<BEXTRACT>(lhs) && op::bv::is_bvnum(rhs)) {
-      return addrRangeMapOf(lhs->arg(2));
+      mpz_class rhsMpz = op::bv::toMpz(rhs);
+      if (rhsMpz.get_ui() == 0) {
+        unsigned lowBits = op::bv::low(lhs);
+        unsigned wordSz = 1 << lowBits; // 2 ^ lowBits
+        AddrRangeMap res = addrRangeMapOf(lhs->arg(2));
+        res.alignTo(wordSz);
+        return res;
+      }
     }
   }
 

@@ -1,11 +1,17 @@
 #include "seahorn/Expr/ExprAddrRangeMap.hh"
 
-namespace expr{
-namespace addrRangeMap{
+namespace expr {
+namespace addrRangeMap {
 
 void AddrRangeMap::addRange(const AddrRange &range) {
   for (auto b = begin(); b != end(); b++) {
     m_rangeMap[b->first] = b->second + range;
+  }
+}
+
+void AddrRangeMap::alignTo(size_t wordSz) {
+  for (auto b = begin(); b != end(); b++) {
+    m_rangeMap[b->first] = alignRange(b->second, wordSz);
   }
 }
 
@@ -36,7 +42,7 @@ bool AddrRangeMap::contains(Expr base, unsigned offset) {
 
 template <typename T> void AddrRangeMap::print(T &OS) const {
   if (m_isAllTop) {
-      OS << "{ all => top } \n";
+    OS << "{ all => top } \n";
   } else {
     OS << "{\n";
     for (auto m = m_rangeMap.begin(); m != m_rangeMap.end(); m++) {
@@ -51,8 +57,7 @@ template <typename T> void AddrRangeMap::print(T &OS) const {
   }
 }
 
-llvm::raw_ostream &operator<<(llvm::raw_ostream &OS,
-                                       AddrRangeMap const &arm) {
+llvm::raw_ostream &operator<<(llvm::raw_ostream &OS, AddrRangeMap const &arm) {
   arm.print(OS);
   return OS;
 }
@@ -61,5 +66,12 @@ std::ostream &operator<<(std::ostream &OS, AddrRangeMap const &arm) {
   arm.print(OS);
   return OS;
 }
-}; // nmspc addrRangeMap
-}; // nmspc expr
+
+AddrRange alignRange(AddrRange &r, size_t wordSz) {
+  unsigned new_low = r.low - (r.low % wordSz);
+  unsigned new_high = r.high - (r.high % wordSz);
+  return AddrRange(new_low, new_high, r.isTop);
+}
+
+}; // namespace addrRangeMap
+}; // namespace expr

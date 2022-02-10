@@ -3,9 +3,8 @@
 #include "seahorn/Expr/ExprLlvm.hh"
 #include "seahorn/Expr/ExprOpCore.hh"
 
-
-namespace expr{
-namespace addrRangeMap{
+namespace expr {
+namespace addrRangeMap {
 
 struct AddrRange {
   unsigned low;
@@ -21,11 +20,11 @@ struct AddrRange {
   }
 
   /**
- * @brief Return new AddrRange that is aggregate of a and b
- * @param a(low_a, hi_a, isTop_a)
- * @param b(low_b, hi_b. isTop_b)
- * @return AddrRange(low_a + low_b, hi_a + hi_b, isTop_a|isTop_b)
- */
+   * @brief Return new AddrRange that is aggregate of a and b
+   * @param a(low_a, hi_a, isTop_a)
+   * @param b(low_b, hi_b. isTop_b)
+   * @return AddrRange(low_a + low_b, hi_a + hi_b, isTop_a|isTop_b)
+   */
   AddrRange add(const AddrRange &o) {
     return AddrRange(low + o.low, high + o.high, isTop | o.isTop);
   }
@@ -34,12 +33,12 @@ struct AddrRange {
   AddrRange operator+(const AddrRange &o) { return add(o); }
 
   /**
- * @brief Return new AddrRange that "joins" the ranges of a and b
- * to create a larger range
- * @param a(low_a, hi_a, isTop_a)
- * @param b(low_b, hi_b. isTop_b)
- * @return AddrRange(min(low_a, low_b), max(hi_a, hi_b), isTop_a|isTop_b)
- */
+   * @brief Return new AddrRange that "joins" the ranges of a and b
+   * to create a larger range
+   * @param a(low_a, hi_a, isTop_a)
+   * @param b(low_b, hi_b. isTop_b)
+   * @return AddrRange(min(low_a, low_b), max(hi_a, hi_b), isTop_a|isTop_b)
+   */
   AddrRange join(const AddrRange &o) {
     return AddrRange(std::min(low, o.low), std::max(high, o.high),
                      isTop | o.isTop);
@@ -48,6 +47,15 @@ struct AddrRange {
   /** shorthand for join **/
   AddrRange operator|(const AddrRange &o) { return join(o); }
 };
+
+/**
+ * @brief Align r to wordSz
+ *
+ * @param r range to align
+ * @param wordSz word size
+ * @return AddrRange with both low and high divisible by wordSz, rouding down
+ */
+AddrRange alignRange(AddrRange &r, size_t wordSz);
 
 /** Given a base addr a, store upper and lower range being queried from.
  * E.g. ptr is ite(i, bvadd(a, u), bvsub(a, l)) =>
@@ -85,21 +93,28 @@ public:
   /**
    * @brief Add range to all entries in arm
    * @param range
-  */
+   */
   void addRange(const AddrRange &range);
 
   /**
-  * @brief Return the union with o; colliding keys would take the min
-  * and max of lower and uppper range
-  * @param o
-  * @return AddrRangeMap containing union of keys in both this and o with
-  * updated ranges where necessary
-  */
+   * @brief Align all ranges to wordSz
+   *
+   * @param wordSz word size under current config
+   */
+  void alignTo(size_t wordSz);
+
+  /**
+   * @brief Return the union with o; colliding keys would take the min
+   * and max of lower and uppper range
+   * @param o
+   * @return AddrRangeMap containing union of keys in both this and o with
+   * updated ranges where necessary
+   */
   AddrRangeMap unionWith(AddrRangeMap &o);
 
   /**
    * @brief returns whether (base, offset) is in current ARM
-   * 
+   *
    * @param base: ptr base
    * @param offset: unsigned offset
    * @return true if this ARM is { all => top } or: base is a key in m_rangeMap

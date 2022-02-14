@@ -292,7 +292,7 @@ Expr OpSemMemHybridRepr::loadAlignedWordFromMem(PtrTy ptr, MemValTy mem) {
   DagVisitCache ptrCache;
   Expr ptrSimp = rewriteMemExprWithCache<PointerArithmeticConfig>(
       ptr.toExpr(), ptrArm, ptrCache);
-  LOG("opsem-hybrid", INFO << "Simp ptr: " << *ptrSimp << "\nbuilding ARM...");
+  LOG("opsem-hybrid", INFO << "Simp ptr: " << *ptrSimp << "\n building ARM...");
 
   /** simplify with custom ITE simplifier **/
   AddrRangeMap arm = expr::mem::addrRangeMapOf(ptrSimp);

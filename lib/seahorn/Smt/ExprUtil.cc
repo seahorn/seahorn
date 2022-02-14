@@ -596,6 +596,23 @@ AddrRange addrRangeOf(Expr e) {
   return AddrRange(0, 0, true);
 }
 
+bool isZeroBits(Expr e, PtrBitsZeroed &p) {
+  if (isOpX<BCONCAT>(e)) {
+    Expr lhs = e->arg(0);
+    Expr rhs = e->arg(1);
+    if (isOpX<BEXTRACT>(lhs) && op::bv::is_bvnum(rhs)) {
+      mpz_class rhsMpz = op::bv::toMpz(rhs);
+      if (rhsMpz.get_ui() == 0) {
+        unsigned lowBits = op::bv::low(lhs);
+        p.first = op::bv::earg(lhs);
+        p.second = lowBits;
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
 AddrRangeMap addrRangeMapOf(Expr e) {
   if (isBaseAddr(e)) {
     return AddrRangeMap({{e, AddrRange(0, 0)}});
@@ -628,20 +645,12 @@ AddrRangeMap addrRangeMapOf(Expr e) {
     return a.unionWith(b);
   }
   // Align pointer
-  // concat(extract(high, low, PE), 0)
-  if (isOpX<BCONCAT>(e)) {
-    Expr lhs = e->arg(0);
-    Expr rhs = e->arg(1);
-    if (isOpX<BEXTRACT>(lhs) && op::bv::is_bvnum(rhs)) {
-      mpz_class rhsMpz = op::bv::toMpz(rhs);
-      if (rhsMpz.get_ui() == 0) {
-        unsigned lowBits = op::bv::low(lhs);
-        unsigned wordSz = 1 << lowBits; // 2 ^ lowBits
-        AddrRangeMap res = addrRangeMapOf(lhs->arg(2));
-        res.alignTo(wordSz);
-        return res;
-      }
-    }
+  // any known operation that zeroes out last k bits
+  PtrBitsZeroed ptrBits;
+  if (isZeroBits(e, ptrBits)) {
+    AddrRangeMap res = addrRangeMapOf(ptrBits.first);
+    res.zeroBits(ptrBits.second);
+    return res;
   }
 
   // fallback: {all => any}

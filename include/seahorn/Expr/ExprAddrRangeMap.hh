@@ -49,13 +49,13 @@ struct AddrRange {
 };
 
 /**
- * @brief Align r to wordSz
+ * @brief zero the last n bits of low and high
  *
- * @param r range to align
- * @param wordSz word size
- * @return AddrRange with both low and high divisible by wordSz, rouding down
+ * @param r range to zero bits
+ * @param n number of bits to zero out
+ * @return AddrRange with both low and high last n bits zeroed
  */
-AddrRange alignRange(AddrRange &r, size_t wordSz);
+AddrRange zeroBitsRange(AddrRange &r, size_t n);
 
 /** Given a base addr a, store upper and lower range being queried from.
  * E.g. ptr is ite(i, bvadd(a, u), bvsub(a, l)) =>
@@ -97,11 +97,11 @@ public:
   void addRange(const AddrRange &range);
 
   /**
-   * @brief Align all ranges to wordSz
+   * @brief zero last n bits for all range in arm
    *
-   * @param wordSz word size under current config
+   * @param n number of bits to zero
    */
-  void alignTo(size_t wordSz);
+  void zeroBits(size_t n);
 
   /**
    * @brief Return the union with o; colliding keys would take the min

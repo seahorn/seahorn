@@ -46,5 +46,9 @@ AddrRangeMap addrRangeMapOf(Expr pE);
  */
 AddrRange addrRangeOf(Expr nE);
 
+using PtrBitsZeroed = std::pair<Expr, size_t>;
+
+bool isZeroBits(Expr e, PtrBitsZeroed &pbz);
+
 } // end of namespace mem
 } // end of namespace expr

@@ -9,14 +9,14 @@ void AddrRangeMap::addRange(const AddrRange &range) {
   }
 }
 
-void AddrRangeMap::alignTo(size_t wordSz) {
+void AddrRangeMap::zeroBits(size_t n) {
   for (auto b = begin(); b != end(); b++) {
-    m_rangeMap[b->first] = alignRange(b->second, wordSz);
+    m_rangeMap[b->first] = zeroBitsRange(b->second, n);
   }
 }
 
 AddrRangeMap AddrRangeMap::unionWith(AddrRangeMap &b) {
-  AddrRangeMap res(m_rangeMap, m_isAllTop | b.isAllTop());
+  AddrRangeMap res(m_rangeMap, m_isAllTop || b.isAllTop());
   for (auto bEntry = b.cbegin(); bEntry != b.cend(); bEntry++) {
     auto aEntry = m_rangeMap.find(bEntry->first);
     if (aEntry != m_rangeMap.end()) {
@@ -67,9 +67,11 @@ std::ostream &operator<<(std::ostream &OS, AddrRangeMap const &arm) {
   return OS;
 }
 
-AddrRange alignRange(AddrRange &r, size_t wordSz) {
-  unsigned new_low = r.low - (r.low % wordSz);
-  unsigned new_high = r.high - (r.high % wordSz);
+AddrRange zeroBitsRange(AddrRange &r, size_t bits) {
+  unsigned new_low = r.low >> bits;
+  new_low = new_low << bits;
+  unsigned new_high = r.high >> bits;
+  new_high = new_high << bits;
   return AddrRange(new_low, new_high, r.isTop);
 }
 

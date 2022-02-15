@@ -100,7 +100,27 @@ NOP(AS_ARRAY, "as-array", FUNCTIONAL, ArrayOp, typeCheck::Any)
 namespace op {
 namespace array {
 inline Expr select(Expr a, Expr idx) { return mk<SELECT>(a, idx); }
+inline Expr selectArray(Expr sel) {
+  assert(isOpX<SELECT>(sel));
+  return sel->arg(0);
+}
+inline Expr selectIdx(Expr sel) {
+  assert(isOpX<SELECT>(sel));
+  return sel->arg(1);
+}
 inline Expr store(Expr a, Expr idx, Expr v) { return mk<STORE>(a, idx, v); }
+inline Expr storeArray(Expr st) {
+  assert(isOpX<STORE>(st));
+  return st->arg(0);
+}
+inline Expr storeIdx(Expr st) {
+  assert(isOpX<STORE>(st));
+  return st->arg(1);
+}
+inline Expr storeVal(Expr st) {
+  assert(isOpX<STORE>(st));
+  return st->arg(2);
+}
 inline Expr constArray(Expr domain, Expr v) {
   return mk<CONST_ARRAY>(domain, v);
 }

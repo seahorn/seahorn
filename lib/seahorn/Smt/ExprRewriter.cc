@@ -60,7 +60,7 @@ Expr pushSelectDownStoreITE(Expr arr, Expr idx, AddrRangeMap &arm,
     Expr arrN = back->arg(0);
     Expr idxN = back->arg(1);
     if (!utils::inAddrRange(idxN, arm)) { /* idx != idxN must be true */
-      LOG("opsem-hybrid", WARN << *idxN << " is not in range \n");
+      LOG("opsem.hybrid", WARN << *idxN << " is not in range \n");
       res = op::array::select(arrN, idx);
     } else {
       Expr valN = back->arg(2);
@@ -107,7 +107,7 @@ Expr pushSelectDownStoreITE(Expr arr, Expr idx, AddrRangeMap &arm,
        * ite(idx == idxN, valN, rewritten) **/
       Expr idxN = back->arg(1);
       if (!utils::inAddrRange(idxN, arm)) { /* idx != idxN must be true */
-        LOG("opsem-hybrid", WARN << *idxN << " is not in range \n");
+        LOG("opsem.hybrid", WARN << *idxN << " is not in range \n");
         nested.pop_back();
         continue;
       }

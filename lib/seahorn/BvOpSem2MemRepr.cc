@@ -20,103 +20,6 @@ auto as_std_array(const T &t, const Rest &... rest) ->
 namespace seahorn {
 namespace details {
 
-/**
- * rewriter for store expr:
- * e = select(store(A idx val), ptr) -> { return ite( (idx == ptr), val,
- *rewrite(A) )} e is not store (const array or terminal register) -> { return
- *select(e, m_ptr) }
- **/
-struct ArrayStoreRewriter : public std::unary_function<Expr, Expr> {
-  Expr m_ptr;
-  OpSemAlu &m_alu;
-  unsigned m_ptrSz;
-  ArrayStoreRewriter(Expr ptr, OpSemAlu &alu, unsigned ptrSz)
-      : m_ptr(ptr), m_alu(alu), m_ptrSz(ptrSz) {}
-  ArrayStoreRewriter(const ArrayStoreRewriter &other)
-      : m_ptr(other.m_ptr), m_alu(other.m_alu), m_ptrSz(other.m_ptrSz) {}
-
-  Expr doPtrEq(Expr p1, Expr p2) { return m_alu.doEq(p1, p2, m_ptrSz); }
-
-  Expr operator()(Expr e) {
-    if (isOp<STORE>(e)) {
-      Expr arr = e->arg(0);
-      Expr idx = e->arg(1);
-      Expr val = e->arg(2);
-      Expr cond = doPtrEq(m_ptr, idx);
-      Expr res = boolop::lite(cond, val,
-                              arr // has been rewritten further
-      );
-      return res;
-    } else {
-      return op::array::select(e, m_ptr);
-    }
-  }
-};
-
-// Non-recursive rewrite of expr e
-template <typename RW>
-Expr arrayStoreRewrite(RW &rewriter, Expr ptr, Expr mem,
-                       DagVisitMemCache &cache) {
-  Expr cur = mem;
-
-  // build rewrite stack
-  ExprVector worklist = {cur};
-  while (isOp<STORE>(cur)) {
-    worklist.push_back(cur->arg(0));
-    cur = cur->arg(0);
-  }
-
-  // rewrite from top of stack
-  Expr res;
-  while (!worklist.empty()) {
-    Expr top = worklist.back();
-    worklist.pop_back();
-    Expr rw; // rewritten expr of top
-
-    // first try find in cache
-    DagVisitMemCache::const_iterator cit = cache.find(&*top);
-    if (cit != cache.end()) {
-      ExprPair cached = cit->second;
-      if (ptr == cached.first) {
-        res = cached.second;
-        continue;
-      }
-    }
-
-    if (isOp<STORE>(top)) {
-      // make new store expr with rewritten array argument
-      /* store(rewrittenArr, idx, val) */
-      llvm::SmallVector<Expr, 4> new_kids = {res};
-      new_kids.push_back(op::array::storeIdx(top));
-      Expr val = op::array::storeVal(top);
-      /* reading from another chunk of memory */
-      if (isOpX<SELECT>(val)) {
-        Expr m = op::array::selectArray(val);
-        Expr p = op::array::selectIdx(val);
-        RW r(p, rewriter.m_alu, rewriter.m_ptrSz);
-        Expr rwVal = arrayStoreRewrite(r, p, m, cache);
-        new_kids.push_back(rwVal);
-      } else {
-        new_kids.push_back(val);
-      }
-      rw =
-          top->getFactory().mkNary(top->op(), new_kids.begin(), new_kids.end());
-    } else {
-      rw = top->getFactory().mkNary(top->op(), top->args_begin(),
-                                    top->args_end());
-    }
-
-    // rewrite into ITE
-    rw = rewriter(rw);
-    // save to cache
-    cache[&*top] = ExprPair(ptr, rw);
-    // save for next level
-    res = rw;
-  }
-
-  return res;
-}
-
 OpSemMemRepr::MemValTy OpSemMemArrayReprBase::MemSet(PtrTy ptr, Expr _val,
                                                      unsigned len, MemValTy mem,
                                                      unsigned wordSzInBytes,
@@ -291,23 +194,22 @@ Expr OpSemMemHybridRepr::loadAlignedWordFromMem(PtrTy ptr, MemValTy mem) {
   LOG("opsem.hybrid", INFO << "From mem " << *mem.toExpr() << "\n");
   /** rewrite store into ITE **/
   Stats::resume("hybrid-mem-rewrite");
-  ArrayStoreRewriter rw(ptr.toExpr(), m_ctx.alu(),
-                        m_memManager.ptrSizeInBits());
-  Expr rewritten = arrayStoreRewrite(rw, ptr.toExpr(), mem.toExpr(), m_cache);
-  LOG("opsem.hybrid", INFO << "Rewritten: " << *rewritten << "\n");
-
   // push bvadd down in ptr expr
   AddrRangeMap ptrArm;
   DagVisitCache ptrCache;
   Expr ptrSimp = rewriteMemExprWithCache<PointerArithmeticConfig>(
       ptr.toExpr(), ptrArm, ptrCache);
   LOG("opsem.hybrid", INFO << "Simp ptr: " << *ptrSimp << "\n building ARM...");
-
+  /** build arm for ptr access range **/
+  expr::addrRangeMap::ARMCache armCache;
+  AddrRangeMap arm = expr::addrRangeMap::addrRangeMapOf(ptrSimp, armCache);
+  assert(arm.isValid());
+  LOG("opsem.hybrid", INFO << "built addr range map: \n" << arm);
   /** simplify with custom ITE simplifier **/
-  AddrRangeMap arm = expr::mem::addrRangeMapOf(ptrSimp);
-  LOG("opsem.hybrid", { INFO << "built addr range map: \n" << arm; });
-
-  Expr simp = rewriteHybridLoadMemExpr(rewritten, ptr.toExpr(), arm);
+  Expr rewritten =
+      expr::utils::pushSelectDownStoreITE(mem.toExpr(), ptrSimp, arm, m_cache);
+  LOG("opsem.hybrid", INFO << "rw into ITE: " << *rewritten << "\n");
+  Expr simp = rewriteHybridLoadExpr(rewritten, arm);
   Stats::stop("hybrid-mem-rewrite");
   LOG("opsem.hybrid", INFO << "hybrid simplified: " << *simp << "\n");
   return simp;

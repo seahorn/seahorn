@@ -46,6 +46,8 @@ struct AddrRange {
 
   /** shorthand for join **/
   AddrRange operator|(const AddrRange &o) { return join(o); }
+
+  bool isValid() { return isTop || (low <= high); }
 };
 
 /**
@@ -87,6 +89,8 @@ public:
   const_arm_iterator cend() { return m_rangeMap.cend(); }
 
   size_t count(Expr base) { return m_rangeMap.count(base); };
+
+  bool isValid();
 
   /* modification and utility */
 
@@ -136,6 +140,29 @@ public:
 
   friend std::ostream &operator<<(std::ostream &OS, AddrRangeMap const &arm);
 };
+
+using ARMCache = std::unordered_map<ENode *, AddrRangeMap>;
+
+/**
+ * @brief Given a ptr expression pE, build MemAddrRangeMap according to
+ * type of pE:
+ * - base addr: {pE => (0, 0)}
+ * - bvadd(x, y): addrRangeMapOf(x) + addrRangeMapOf(y)
+ * - ITE(c, x, y): addrRangeMapOf(x) | addrRangeMapOf(y), replace collidding
+ * elements with larger range
+ */
+AddrRangeMap addrRangeMapOf(Expr pE, ARMCache &cache);
+
+/**
+ * @brief Given a num expression nE, build AddrRange according to
+ * type of nE:
+ * - num(n): {nE => (n, n)}
+ * - sym(x): {nE => any} XXX: could use contextual infer
+ * - bvadd(x, y): addrRangeOf(x) + addrRangeOf(y)
+ * - ITE(c, x, y): addrRangeOf(x).join(addrRangeOf(y))
+ */
+AddrRange addrRangeOf(Expr nE);
+
 } // namespace addrRangeMap
 
 } // namespace expr

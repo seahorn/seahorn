@@ -26,28 +26,16 @@ bool isBaseAddr(Expr e);
  */
 bool isPtrExpr(Expr e);
 
-/**
- * @brief Given a ptr expression pE, build MemAddrRangeMap according to
- * type of pE:
- * - base addr: {pE => (0, 0)}
- * - bvadd(x, y): addrRangeMapOf(x) + addrRangeMapOf(y)
- * - ITE(c, x, y): addrRangeMapOf(x) | addrRangeMapOf(y), replace collidding
- * elements with larger range
- */
-AddrRangeMap addrRangeMapOf(Expr pE);
-
-/**
- * @brief Given a num expression nE, build AddrRange according to
- * type of nE:
- * - num(n): {nE => (n, n)}
- * - sym(x): {nE => any} XXX: could use contextual infer
- * - bvadd(x, y): addrRangeOf(x) + addrRangeOf(y)
- * - ITE(c, x, y): addrRangeOf(x).join(addrRangeOf(y))
- */
-AddrRange addrRangeOf(Expr nE);
-
 using PtrBitsZeroed = std::pair<Expr, size_t>;
 
+/**
+ * @brief if expr e is sematically zeroing out some bits @ end of a number
+ *
+ * @param e expression in question
+ * @param pbz None if e is not zeroing out bits; (number, # of bits) otherwise
+ * @return true e is zeroing out bit of a number
+ * @return false e is zeroing out bit of a number
+ */
 bool isZeroBits(Expr e, PtrBitsZeroed &pbz);
 
 } // end of namespace mem

@@ -17,7 +17,7 @@ bool shouldCache(Expr e);
  * loadMem: Expr tree that represents value loaded from current memory state
  * ptr: address Expr tree
  **/
-Expr rewriteHybridLoadMemExpr(Expr loadMem, Expr ptr, AddrRangeMap &arm);
+Expr rewriteHybridLoadExpr(Expr loadE, AddrRangeMap &arm);
 
 struct RewriteFrame {
   Expr m_exp;     // the Expr node (subtree) under rewrite

@@ -1,4 +1,5 @@
 #include "seahorn/Expr/ExprAddrRangeMap.hh"
+#include "seahorn/Expr/ExprMemUtils.h"
 
 namespace expr {
 namespace addrRangeMap {
@@ -57,6 +58,18 @@ template <typename T> void AddrRangeMap::print(T &OS) const {
   }
 }
 
+bool AddrRangeMap::isValid() {
+  if (m_isAllTop)
+    return true;
+  for (auto b : m_rangeMap) {
+    if (!expr::mem::isBaseAddr(b.first))
+      return false;
+    if (!b.second.isValid())
+      return false;
+  }
+  return true;
+}
+
 llvm::raw_ostream &operator<<(llvm::raw_ostream &OS, AddrRangeMap const &arm) {
   arm.print(OS);
   return OS;
@@ -73,6 +86,95 @@ AddrRange zeroBitsRange(AddrRange &r, size_t bits) {
   unsigned new_high = r.high >> bits;
   new_high = new_high << bits;
   return AddrRange(new_low, new_high, r.isTop);
+}
+
+AddrRange addrRangeOf(Expr e) {
+  if (op::bv::is_bvnum(e)) {
+    mpz_class offsetMpz = op::bv::toMpz(e);
+    auto offsetNum = offsetMpz.get_ui();
+    return AddrRange(offsetNum, offsetNum, false);
+  }
+  if (isOpX<BADD>(e)) {
+    AddrRange res;
+    for (auto b = e->args_begin(); b != e->args_end(); ++b) {
+      AddrRange range = addrRangeOf(*b);
+      res = res + range;
+    }
+    return res;
+  }
+  if (isOpX<ITE>(e)) {
+    AddrRange tRange = addrRangeOf(e->arg(1));
+    AddrRange eRange = addrRangeOf(e->arg(2));
+    return tRange | eRange;
+  }
+  /* assume is symbolic */
+  return AddrRange(0, 0, true);
+}
+
+inline void updateARMCache(ARMCache &cache, Expr e, AddrRangeMap arm) {
+  if (e->use_count() > 1) {
+    // expr->Ref();
+    cache[&*e] = arm;
+  }
+}
+
+AddrRangeMap addrRangeMapOf(Expr e, ARMCache &cache) {
+  if (e->use_count() > 1) {
+    ARMCache::const_iterator cit = cache.find(&*e);
+    if (cit != cache.end())
+      return cit->second;
+  }
+  if (mem::isBaseAddr(e)) {
+    AddrRangeMap res = AddrRangeMap({{e, AddrRange(0, 0)}});
+    updateARMCache(cache, e, res);
+    return res;
+  }
+  if (isOpX<BADD>(e)) {
+    Expr base;
+    llvm::SmallVector<Expr, 2> offsets;
+    for (auto b = e->args_begin(); b != e->args_end(); ++b) {
+      /* try to find a base and offsets */
+      if (mem::isPtrExpr(*b)) {
+        base = *b;
+      } else {
+        offsets.push_back(*b);
+      }
+    }
+    if (base == NULL) {
+      AddrRangeMap res = AddrRangeMap({{}}, true); // Fallback to { all => any }
+      updateARMCache(cache, e, res);
+      return res;
+    }
+    AddrRangeMap res = addrRangeMapOf(base, cache);
+    for (auto o : offsets) {
+      AddrRange oRange = addrRangeOf(o);
+      res.addRange(oRange);
+    }
+    updateARMCache(cache, e, res);
+    return res;
+  }
+  if (isOpX<ITE>(e)) {
+    AddrRangeMap a = addrRangeMapOf(e->arg(1), cache);
+    AddrRangeMap b = addrRangeMapOf(e->arg(2), cache);
+    /* merge t e into t*/
+    AddrRangeMap res = a.unionWith(b);
+    updateARMCache(cache, e, res);
+    return res;
+  }
+  // Align pointer
+  // any known operation that zeroes out last k bits
+  mem::PtrBitsZeroed ptrBits;
+  if (mem::isZeroBits(e, ptrBits)) {
+    AddrRangeMap res = addrRangeMapOf(ptrBits.first, cache);
+    res.zeroBits(ptrBits.second);
+    updateARMCache(cache, e, res);
+    return res;
+  }
+
+  // fallback: {all => any}
+  AddrRangeMap res = AddrRangeMap({{}}, true);
+  updateARMCache(cache, e, res);
+  return res;
 }
 
 }; // namespace addrRangeMap

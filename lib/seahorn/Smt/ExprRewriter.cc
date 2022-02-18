@@ -60,10 +60,18 @@ Expr pushSelectDownStoreITE(Expr arr, Expr idx, AddrRangeMap &arm,
     Expr arrN = back->arg(0);
     Expr idxN = back->arg(1);
     if (!utils::inAddrRange(idxN, arm)) { /* idx != idxN must be true */
-      LOG("opsem.hybrid", WARN << *idxN << " is not in range \n");
+      LOG("opsem.hybrid", WARN << *idxN << " is not in range(leaf) \n");
       res = op::array::select(arrN, idx);
     } else {
       Expr valN = back->arg(2);
+      if (isOpX<SELECT>(valN)) {
+        expr::addrRangeMap::ARMCache c;
+        Expr branchIdx = op::array::selectIdx(valN);
+        AddrRangeMap branchArm =
+            expr::addrRangeMap::addrRangeMapOf(branchIdx, c);
+        valN = pushSelectDownStoreITE(op::array::selectArray(valN), branchIdx,
+                                      branchArm, cache);
+      }
       Expr compE = mk<EQ>(idx, idxN);
       Expr simpCompE =
           rewriteMemExprWithCache<ITECompRewriteConfig>(compE, arm, cache);
@@ -105,13 +113,21 @@ Expr pushSelectDownStoreITE(Expr arr, Expr idx, AddrRangeMap &arm,
     if (isOpX<STORE>(back)) {
       /** node case: store(rewritten, idxN, valN) =>
        * ite(idx == idxN, valN, rewritten) **/
-      Expr idxN = back->arg(1);
+      Expr idxN = op::array::storeIdx(back);
       if (!utils::inAddrRange(idxN, arm)) { /* idx != idxN must be true */
         LOG("opsem.hybrid", WARN << *idxN << " is not in range \n");
         nested.pop_back();
         continue;
       }
-      Expr valN = back->arg(2);
+      Expr valN = op::array::storeVal(back);
+      if (isOpX<SELECT>(valN)) {
+        expr::addrRangeMap::ARMCache c;
+        Expr branchIdx = op::array::selectIdx(valN);
+        AddrRangeMap branchArm =
+            expr::addrRangeMap::addrRangeMapOf(branchIdx, c);
+        valN = pushSelectDownStoreITE(op::array::selectArray(valN), branchIdx,
+                                      branchArm, cache);
+      }
       Expr compE = mk<EQ>(idx, idxN);
       Expr simpCompE =
           rewriteMemExprWithCache<ITECompRewriteConfig>(compE, arm, cache);
@@ -151,9 +167,9 @@ Expr pushSelectDownStoreITE(Expr arr, Expr idx, AddrRangeMap &arm,
 }
 } // namespace utils
 
-Expr rewriteHybridLoadMemExpr(Expr loadMem, Expr ptr, AddrRangeMap &arm) {
+Expr rewriteHybridLoadExpr(Expr loadE, AddrRangeMap &arm) {
   DagVisitCache newCache;
-  return rewriteMemExprWithCache<ITECompRewriteConfig>(loadMem, arm, newCache);
+  return rewriteMemExprWithCache<ITECompRewriteConfig>(loadE, arm, newCache);
 }
 
 bool ITECompRewriteConfig::shouldRewrite(Expr exp) {

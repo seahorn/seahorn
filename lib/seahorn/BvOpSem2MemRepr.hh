@@ -111,7 +111,7 @@ public:
   OpSemMemHybridRepr(RawMemManagerCore &memManager, Bv2OpSemContext &ctx,
                      unsigned memCpyUnrollCnt)
       : OpSemMemArrayReprBase(memManager, ctx, memCpyUnrollCnt),
-        m_cache(DagVisitMemCache()) {}
+        m_memCache(DagVisitMemCache()), m_cache(DagVisitCache()) {}
 
   /**
    * mem: 1. array const i.e. A (uninitialized)
@@ -126,7 +126,8 @@ public:
   Expr loadAlignedWordFromMem(PtrTy ptr, MemValTy mem) override;
 
 private:
-  DagVisitMemCache m_cache;
+  DagVisitMemCache m_memCache;
+  DagVisitCache m_cache;
 };
 
 /// \brief Represent memory regions by lambda functions

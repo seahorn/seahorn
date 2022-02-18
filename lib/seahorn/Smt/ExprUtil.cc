@@ -573,29 +573,6 @@ bool isPtrExpr(Expr e) {
   return false;
 }
 
-AddrRange addrRangeOf(Expr e) {
-  if (op::bv::is_bvnum(e)) {
-    mpz_class offsetMpz = op::bv::toMpz(e);
-    auto offsetNum = offsetMpz.get_ui();
-    return AddrRange(offsetNum, offsetNum, false);
-  }
-  if (isOpX<BADD>(e)) {
-    AddrRange res;
-    for (auto b = e->args_begin(); b != e->args_end(); ++b) {
-      AddrRange range = addrRangeOf(*b);
-      res = res + range;
-    }
-    return res;
-  }
-  if (isOpX<ITE>(e)) {
-    AddrRange tRange = addrRangeOf(e->arg(1));
-    AddrRange eRange = addrRangeOf(e->arg(2));
-    return tRange | eRange;
-  }
-  /* assume is symbolic */
-  return AddrRange(0, 0, true);
-}
-
 bool isZeroBits(Expr e, PtrBitsZeroed &p) {
   if (isOpX<BCONCAT>(e)) {
     Expr lhs = e->arg(0);
@@ -612,51 +589,6 @@ bool isZeroBits(Expr e, PtrBitsZeroed &p) {
   }
   return false;
 }
-
-AddrRangeMap addrRangeMapOf(Expr e) {
-  if (isBaseAddr(e)) {
-    return AddrRangeMap({{e, AddrRange(0, 0)}});
-  }
-  if (isOpX<BADD>(e)) {
-    Expr base;
-    llvm::SmallVector<Expr, 2> offsets;
-    for (auto b = e->args_begin(); b != e->args_end(); ++b) {
-      /* try to find a base and offsets */
-      if (isPtrExpr(*b)) {
-        base = *b;
-      } else {
-        offsets.push_back(*b);
-      }
-    }
-    if (base == NULL) {
-      return AddrRangeMap({{}}, true); // Fallback to { all => any }
-    }
-    AddrRangeMap res = addrRangeMapOf(base);
-    for (auto o : offsets) {
-      AddrRange oRange = addrRangeOf(o);
-      res.addRange(oRange);
-    }
-    return res;
-  }
-  if (isOpX<ITE>(e)) {
-    AddrRangeMap a = addrRangeMapOf(e->arg(1));
-    AddrRangeMap b = addrRangeMapOf(e->arg(2));
-    /* merge t e into t*/
-    return a.unionWith(b);
-  }
-  // Align pointer
-  // any known operation that zeroes out last k bits
-  PtrBitsZeroed ptrBits;
-  if (isZeroBits(e, ptrBits)) {
-    AddrRangeMap res = addrRangeMapOf(ptrBits.first);
-    res.zeroBits(ptrBits.second);
-    return res;
-  }
-
-  // fallback: {all => any}
-  return AddrRangeMap({{}}, true);
-}
-
 } // namespace mem
 
 } // namespace expr

@@ -447,7 +447,7 @@ typename ExtraWideMemManager<T>::PtrTy ExtraWideMemManager<T>::nullPtr() const {
 }
 template <class T>
 typename ExtraWideMemManager<T>::PtrTy ExtraWideMemManager<T>::freshPtr() {
-  Expr name = op::variant::variant(m_id++, m_freshPtrName);
+  Expr name = m_main.freshPtr();
   return mkAlignedPtr(name, m_alignment);
 }
 template <class T>

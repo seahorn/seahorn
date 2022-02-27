@@ -317,7 +317,7 @@ Expr WideMemManager::coerce(Expr sort, Expr val) {
   return m_main.coerce(sort, val);
 }
 WideMemManager::PtrTy WideMemManager::freshPtr() {
-  Expr name = op::variant::variant(m_id++, m_freshPtrName);
+  Expr name = m_main.freshPtr();
   return mkAlignedPtr(name, m_alignment);
 }
 WideMemManager::MemSortTy

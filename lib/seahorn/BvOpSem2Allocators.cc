@@ -210,6 +210,8 @@ public:
     Expr inRange = m_ctx.alu().doUle(
         bytes, m_ctx.alu().ui(m_maxSymbAllocSz, width), width);
     m_ctx.addScopedRely(inRange);
+    LOG("opsem", errs() << "Adding allocation interval: " << addrIvl.first
+                        << " to " << addrIvl.second << "\n";);
     return addrIvl;
   }
 };

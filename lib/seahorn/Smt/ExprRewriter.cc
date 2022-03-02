@@ -38,89 +38,42 @@ bool inAddrRange(Expr ptr, AddrRangeMap &arm) {
   return true; // over-approx
 }
 
+bool isMemWriteOp(Expr e) {
+  return isOpX<STORE>(e) || isOpX<ITE>(e) || isOpX<MEMSET_WORDS>(e) ||
+         isOpX<MEMCPY_WORDS>(e);
+}
+
 Expr pushSelectDownStoreITE(Expr arr, Expr idx, AddrRangeMap &arm,
                             DagVisitCache &cache) {
-  if (!isOpX<STORE>(arr) && !isOpX<ITE>(arr)) {
+  if (!isMemWriteOp(arr)) {
     return op::array::select(arr, idx);
   }
   Expr res;          // final rewritten ITE
   ExprVector nested; // nested store/ITEs being selected from
   Expr child = arr;
-  while (isOpX<STORE>(child) || isOpX<ITE>(child)) {
+  while (isMemWriteOp(child)) {
     nested.push_back(child);
-    size_t childIdx = isOpX<STORE>(child) ? 0 : 1;
+    // store/memset/memcpy all use 1st argument
+    size_t childIdx = isOpX<ITE>(child) ? 1 : 0;
     child = child->arg(childIdx);
   }
-  /** special handling for leaf **/
-  Expr back = nested.back();
-  if (isOpX<STORE>(back)) {
-    /** leaf case for *back* is store(arrn, idxn, valn):
-     * ite(idx == idxn, valn, select(arrn, idx))
-     **/
-    Expr arrN = back->arg(0);
-    Expr idxN = back->arg(1);
-    if (!utils::inAddrRange(idxN, arm)) { /* idx != idxN must be true */
-      LOG("opsem.hybrid", WARN << *idxN << " is not in range(leaf) \n");
-      res = op::array::select(arrN, idx);
-    } else {
-      Expr valN = back->arg(2);
-      if (isOpX<SELECT>(valN)) {
-        expr::addrRangeMap::ARMCache c;
-        Expr branchIdx = op::array::selectIdx(valN);
-        AddrRangeMap branchArm =
-            expr::addrRangeMap::addrRangeMapOf(branchIdx, c);
-        valN = pushSelectDownStoreITE(op::array::selectArray(valN), branchIdx,
-                                      branchArm, cache);
-      }
-      Expr compE = mk<EQ>(idx, idxN);
-      Expr simpCompE =
-          rewriteMemExprWithCache<ITECompRewriteConfig>(compE, arm, cache);
-      if (isOpX<TRUE>(simpCompE)) {
-        res = valN;
-      } else if (isOpX<FALSE>(simpCompE)) {
-        res = op::array::select(arrN, idx);
-      } else {
-        res = mk<ITE>(simpCompE, valN, op::array::select(arrN, idx));
-      }
-    }
-  } else {
-    /** must be ITE.
-     * leaf case for *back* is ite(iN, tN, eN):
-     * ite(iN, select(tN, idx), select(eN, idx))
-     **/
-    Expr iN = back->arg(0);
-    Expr tN = back->arg(1);
-    Expr eN = back->arg(2);
-    Expr newE;
-    if (isOpX<STORE>(eN) || isOpX<ITE>(eN)) {
-      newE = pushSelectDownStoreITE(eN, idx, arm, cache);
-    } else {
-      newE = op::array::select(eN, idx);
-    }
-    Expr simpIN = rewriteMemExprWithCache<ITECompRewriteConfig>(iN, arm, cache);
-    if (isOpX<TRUE>(simpIN)) {
-      res = op::array::select(tN, idx);
-    } else if (isOpX<FALSE>(simpIN)) {
-      res = newE;
-    } else {
-      res = mk<ITE>(iN, op::array::select(tN, idx), newE);
-    }
-  }
-  nested.pop_back();
   // construct ITE from btm up
+  Expr back = nested.back();
   while (!nested.empty()) {
     back = nested.back();
     if (isOpX<STORE>(back)) {
       /** node case: store(rewritten, idxN, valN) =>
        * ite(idx == idxN, valN, rewritten) **/
+      Expr arrN = back->arg(0);
       Expr idxN = op::array::storeIdx(back);
       if (!utils::inAddrRange(idxN, arm)) { /* idx != idxN must be true */
         LOG("opsem.hybrid", WARN << *idxN << " is not in range \n");
+        res = op::array::select(arrN, idx);
         nested.pop_back();
         continue;
       }
       Expr valN = op::array::storeVal(back);
-      if (isOpX<SELECT>(valN)) {
+      if (isOpX<SELECT>(valN)) { // XXX: remove selects here
         expr::addrRangeMap::ARMCache c;
         Expr branchIdx = op::array::selectIdx(valN);
         AddrRangeMap branchArm =
@@ -131,6 +84,8 @@ Expr pushSelectDownStoreITE(Expr arr, Expr idx, AddrRangeMap &arm,
       Expr compE = mk<EQ>(idx, idxN);
       Expr simpCompE =
           rewriteMemExprWithCache<ITECompRewriteConfig>(compE, arm, cache);
+      if (!res)
+        res = op::array::select(arrN, idx);
       if (isOpX<TRUE>(simpCompE)) {
         res = valN;
       } else if (isOpX<FALSE>(simpCompE)) {
@@ -138,20 +93,24 @@ Expr pushSelectDownStoreITE(Expr arr, Expr idx, AddrRangeMap &arm,
       } else {
         res = mk<ITE>(simpCompE, valN, res);
       }
-    } else {
+    } else if (isOpX<ITE>(back)) {
       /** must be ITE.
        * node case: ite(iN, rewritten, eN) =>
        * ite(iN, rewritten, select(eN, idx))
        **/
       Expr iN = back->arg(0);
+      Expr tN = back->arg(1);
       Expr simpIN =
           rewriteMemExprWithCache<ITECompRewriteConfig>(iN, arm, cache);
       Expr eN = back->arg(2);
       Expr newE;
-      if (isOpX<STORE>(eN) || isOpX<ITE>(eN)) {
+      if (isMemWriteOp(eN)) {
         newE = pushSelectDownStoreITE(eN, idx, arm, cache);
       } else {
         newE = op::array::select(eN, idx);
+      }
+      if (!res) {
+        res = op::array::select(tN, idx);
       }
       if (isOpX<TRUE>(simpIN)) {
         /* res = res */

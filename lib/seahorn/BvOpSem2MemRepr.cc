@@ -3,6 +3,7 @@
 #include "seahorn/Expr/ExprMemUtils.h"
 #include "seahorn/Expr/ExprOpBinder.hh"
 #include "seahorn/Expr/ExprOpBool.hh"
+#include "seahorn/Expr/ExprOpMem.hh"
 #include "seahorn/Expr/ExprRewriter.hh"
 #include "seahorn/Expr/ExprVisitor.hh"
 #include "seahorn/Support/Stats.hh"
@@ -142,7 +143,6 @@ OpSemMemArrayReprBase::MemCpy(PtrTy dPtr, PtrTy sPtr, unsigned len,
                               unsigned wordSzInBytes, PtrSortTy ptrSort,
                               uint32_t align) {
   (void)ptrSort;
-
   Expr res;
 
   if (wordSzInBytes == 1 || (wordSzInBytes == 4 && align % 4 == 0) ||
@@ -207,8 +207,7 @@ Expr OpSemMemHybridRepr::loadAlignedWordFromMem(PtrTy ptr, MemValTy mem) {
   assert(arm.isValid());
   LOG("opsem.hybrid", INFO << "built addr range map: \n" << arm);
   /** simplify with custom ITE simplifier **/
-  Expr rewritten =
-      expr::utils::pushSelectDownStoreITE(mem.toExpr(), ptrSimp, arm, m_cache);
+  Expr rewritten = this->createHybridReadWord(mem.toExpr(), ptrSimp, arm);
   LOG("opsem.hybrid", INFO << "rw into ITE: " << *rewritten << "\n");
   Expr simp = rewriteHybridLoadExpr(rewritten, arm);
   Stats::stop("hybrid-mem-rewrite");
@@ -542,5 +541,280 @@ OpSemMemRepr::MemValTy OpSemMemLambdaRepr::FilledMemory(PtrSortTy ptrSort,
   // lambda addr :: v
   return MemValTy(mk<LAMBDA>(decl, v));
 }
+
+OpSemMemRepr::MemValTy OpSemMemHybridRepr::MemSet(PtrTy ptr, Expr _val,
+                                                  unsigned len, MemValTy mem,
+                                                  unsigned wordSzInBytes,
+                                                  PtrSortTy ptrSort,
+                                                  uint32_t align) {
+  Expr res;
+  Expr wordVal;
+  if (len == 0) // no-op
+    return mem;
+  if (wordSzInBytes == 1 || (wordSzInBytes == 4 && align % 4 == 0) ||
+      (wordSzInBytes == 8 && align % 4 == 0) ||
+      m_memManager.isIgnoreAlignment()) {
+    // make word val
+    unsigned width;
+    if (bv::isBvNum(_val, width)) {
+      assert(width == 8);
+      assert(wordSzInBytes <= sizeof(unsigned long));
+      int byte = bv::toMpz(_val).get_ui();
+      unsigned long uval = 0;
+      if (byte)
+        memset(&uval, byte, wordSzInBytes);
+      wordVal = m_ctx.alu().num(mpz_class(uval), wordSzInBytes * 8);
+    } else {
+      wordVal = _val;
+      for (unsigned i = 1; i < wordSzInBytes; ++i) {
+        wordVal = m_ctx.alu().Concat({wordVal, 8}, {wordVal, 8 * i});
+      }
+    }
+    assert(wordVal);
+    Expr lenE = op::bv::bvnum(len, m_memManager.ptrSizeInBits(), m_efac);
+    res = op::memwords::setWords(mem.v(), ptr.v(), lenE, wordVal);
+  } else {
+    LOG("opsem.hybrid", errs() << "Word size and pointer are not aligned and "
+                                  "alignment is not ignored!"
+                               << "\n");
+    DOG(WARN << "Interpreting memcpy as noop");
+    res = mem.v();
+  }
+  LOG("opsem.hybrid", INFO << "memset: " << *res << "\n");
+  return MemValTy(res);
+}
+
+OpSemMemRepr::MemValTy OpSemMemHybridRepr::MemSet(PtrTy ptr, Expr _val,
+                                                  Expr len, MemValTy mem,
+                                                  unsigned wordSzInBytes,
+                                                  PtrSortTy ptrSort,
+                                                  uint32_t align) {
+  Expr res;
+  Expr wordVal;
+  if (wordSzInBytes == 1 || (wordSzInBytes == 4 && align % 4 == 0) ||
+      (wordSzInBytes == 8 && align % 4 == 0) ||
+      m_memManager.isIgnoreAlignment()) {
+    // make word val
+    unsigned width;
+    if (bv::isBvNum(_val, width)) {
+      assert(width == 8);
+      assert(wordSzInBytes <= sizeof(unsigned long));
+      int byte = bv::toMpz(_val).get_ui();
+      unsigned long uval = 0;
+      if (byte)
+        memset(&uval, byte, wordSzInBytes);
+      wordVal = m_ctx.alu().num(mpz_class(uval), wordSzInBytes * 8);
+    } else {
+      wordVal = _val;
+      for (unsigned i = 1; i < wordSzInBytes; ++i) {
+        wordVal = m_ctx.alu().Concat({wordVal, 8}, {wordVal, 8 * i});
+      }
+    }
+    assert(wordVal);
+    res = op::memwords::setWords(mem.v(), ptr.v(), len, wordVal);
+  } else {
+    LOG("opsem.hybrid", errs() << "Word size and pointer are not aligned and "
+                                  "alignment is not ignored!"
+                               << "\n");
+    DOG(WARN << "Interpreting memcpy as noop");
+    res = mem.v();
+  }
+  LOG("opsem.hybrid", INFO << "memset: " << *res << "\n");
+  return MemValTy(res);
+}
+
+/** assume copy length is word sized **/
+OpSemMemRepr::MemValTy
+OpSemMemHybridRepr::MemCpy(PtrTy dPtr, PtrTy sPtr, unsigned len,
+                           MemValTy memTrsfrRead, MemValTy memRead,
+                           unsigned wordSzInBytes, PtrSortTy ptrSort,
+                           uint32_t align) {
+  Expr res;
+  if (len == 0)
+    return memRead; // no-op
+  if (wordSzInBytes == 1 || (wordSzInBytes == 4 && align % 4 == 0) ||
+      (wordSzInBytes == 8 && align % 4 == 0) ||
+      m_memManager.isIgnoreAlignment()) {
+    Expr lenE = op::bv::bvnum(len, m_memManager.ptrSizeInBits(), m_efac);
+    res = op::memwords::cpyWords(memRead.v(), memTrsfrRead.v(), dPtr.v(),
+                                 sPtr.v(), lenE);
+  } else {
+    LOG("opsem.hybrid", errs() << "Word size and pointer are not aligned and "
+                                  "alignment is not ignored!"
+                               << "\n");
+    DOG(WARN << "Interpreting memcpy as noop");
+    res = memRead.v();
+  }
+  LOG("opsem.hybrid", INFO << "memcpy: " << *res << "\n");
+  return MemValTy(res);
+}
+
+/** assume copy length is word sized **/
+OpSemMemRepr::MemValTy OpSemMemHybridRepr::MemCpy(
+    PtrTy dPtr, PtrTy sPtr, Expr len, MemValTy memTrsfrRead, MemValTy memRead,
+    unsigned wordSzInBytes, PtrSortTy ptrSort, uint32_t align) {
+  Expr res;
+  if (len == 0)
+    return memRead; // no-op
+  if (wordSzInBytes == 1 || (wordSzInBytes == 4 && align % 4 == 0) ||
+      (wordSzInBytes == 8 && align % 4 == 0) ||
+      m_memManager.isIgnoreAlignment()) {
+    res = op::memwords::cpyWords(memRead.v(), memTrsfrRead.v(), dPtr.v(),
+                                 sPtr.v(), len);
+  } else {
+    LOG("opsem.hybrid", errs() << "Word size and pointer are not aligned and "
+                                  "alignment is not ignored!"
+                               << "\n");
+    DOG(WARN << "Interpreting memcpy as noop");
+    res = memRead.v();
+  }
+  LOG("opsem.hybrid.verbose", INFO << "memset: " << *res << "\n");
+  return MemValTy(res);
+}
+
+using namespace expr::addrRangeMap;
+
+Expr OpSemMemHybridRepr::createHybridReadWord(Expr arr, Expr idx,
+                                              AddrRangeMap &arm) {
+  if (!expr::utils::isMemWriteOp(arr)) {
+    return op::array::select(arr, idx);
+  }
+  Expr res;          // final rewritten ITE
+  ExprVector nested; // nested store/ITEs being selected from
+  Expr child = arr;
+  while (expr::utils::isMemWriteOp(child)) {
+    nested.push_back(child);
+    // store/memset/memcpy all use 1st argument
+    size_t childIdx = isOpX<ITE>(child) ? 1 : 0;
+    child = child->arg(childIdx);
+  }
+  // construct ITE from btm up
+  Expr back = nested.back();
+  while (!nested.empty()) {
+    back = nested.back();
+    if (isOpX<STORE>(back)) {
+      /** node case: store(rewritten, idxN, valN) =>
+       * ite(idx == idxN, valN, rewritten) **/
+      Expr arrN = back->arg(0);
+      Expr idxN = op::array::storeIdx(back);
+      if (!utils::inAddrRange(idxN, arm)) { /* idx != idxN must be true */
+        LOG("opsem.hybrid", WARN << *idxN << " is not in range \n");
+        res = op::array::select(arrN, idx);
+        nested.pop_back();
+        continue;
+      }
+      Expr valN = op::array::storeVal(back);
+      if (isOpX<SELECT>(valN)) { // XXX: remove selects here
+        ARMCache c;
+        Expr branchIdx = op::array::selectIdx(valN);
+        AddrRangeMap branchArm = addrRangeMapOf(branchIdx, c);
+        valN = createHybridReadWord(op::array::selectArray(valN), branchIdx,
+                                    branchArm);
+      }
+      Expr compE = m_memManager.ptrEq(PtrTy(idx), PtrTy(idxN));
+      if (!res)
+        res = op::array::select(arrN, idx);
+
+      res = mk<ITE>(compE, valN, res);
+    } else if (isOpX<ITE>(back)) {
+      /** must be ITE.
+       * node case: ite(iN, rewritten, eN) =>
+       * ite(iN, rewritten, select(eN, idx))
+       **/
+      Expr iN = back->arg(0);
+      Expr tN = back->arg(1);
+      Expr eN = back->arg(2);
+      Expr newE;
+      if (expr::utils::isMemWriteOp(eN)) {
+        newE = createHybridReadWord(eN, idx, arm);
+      } else {
+        newE = op::array::select(eN, idx);
+      }
+      if (!res)
+        res = op::array::select(tN, idx);
+
+      res = mk<ITE>(iN, res, newE);
+    } else if (isOpX<MEMSET_WORDS>(back)) {
+      Expr inMem = back->arg(0);
+      Expr idxN = back->arg(1);
+      Expr len = back->arg(2);
+      Expr val = back->arg(3);
+      if (op::bv::is_bvnum(len)) {
+        ARMCache c;
+        AddrRangeMap msArm = addrRangeMapOf(idxN, c);
+        unsigned cLen =
+            bv::toMpz(len).get_ui() - m_memManager.wordSizeInBytes();
+        msArm.addRange({cLen, cLen});
+        if (!msArm.isAllTop() && utils::inAddrRange(idx, msArm)) {
+          res = val;
+        } else {
+          PtrTy last = m_memManager.ptrAdd(
+              PtrTy(idxN), cLen - m_memManager.wordSizeInBytes());
+          // idxN <= idx <= idxN + sz
+          Expr cmp =
+              m_memManager.ptrInRangeCheck(PtrTy(idxN), PtrTy(idx), last);
+          Expr prevMem = (!res) ? op::array::select(inMem, idx) : res;
+          res = mk<ITE>(cmp, val, prevMem);
+        }
+      } else {
+        PtrTy last = m_memManager.ptrAdd(
+            m_memManager.ptrAdd(PtrTy(idxN), len),
+            -static_cast<signed>(m_memManager.wordSizeInBytes()));
+        // idxN <= idx <= idxN + sz
+        Expr cmp = m_memManager.ptrInRangeCheck(PtrTy(idxN), PtrTy(idx), last);
+        Expr prevMem = (!res) ? op::array::select(inMem, idx) : res;
+        res = mk<ITE>(cmp, val, prevMem);
+      }
+    } else if (isOpX<MEMCPY_WORDS>(back)) {
+      /** select(copy(a, p, b, q, s), i) =>
+       * ITE(p ≤ i < p + s, read(b, q + (i − p)), read(a, i)) **/
+      Expr dstMem = back->arg(0);
+      Expr srcMem = back->arg(1);
+      Expr dstIdx = back->arg(2);
+      Expr srcIdx = back->arg(3);
+      Expr len = back->arg(4);
+      // dstIdx - srcIdx + idx
+      Expr dsOffset =
+          m_memManager.ptrOffsetFromBase(PtrTy(dstIdx), PtrTy(srcIdx));
+      PtrTy cpyIdx = m_memManager.ptrAdd(PtrTy(idx), dsOffset);
+      ARMCache cpyArmC;
+      AddrRangeMap cpyArm = addrRangeMapOf(cpyIdx.toExpr(), cpyArmC);
+      // select(srcMem, dstIdx - srcIdx + idx)
+      Expr cpyVal = createHybridReadWord(srcMem, cpyIdx.toExpr(), cpyArm);
+      if (op::bv::is_bvnum(len)) {
+        unsigned cLen =
+            bv::toMpz(len).get_ui() - m_memManager.wordSizeInBytes();
+        expr::addrRangeMap::ARMCache c;
+        AddrRangeMap dstArm = addrRangeMapOf(dstIdx, c);
+        dstArm.addRange({cLen, cLen});
+        if (!dstArm.isAllTop() && expr::utils::inAddrRange(idx, dstArm)) {
+          res = cpyVal;
+        } else {
+          PtrTy dstLast = m_memManager.ptrAdd(
+              PtrTy(dstIdx), cLen - m_memManager.wordSizeInBytes());
+          // dstIdx <= idx <= dstIdx + sz
+          Expr cmp =
+              m_memManager.ptrInRangeCheck(PtrTy(dstIdx), PtrTy(idx), dstLast);
+          // select(dstMem, idx)
+          Expr prevMem = !res ? op::array::select(dstMem, idx) : res;
+          res = mk<ITE>(cmp, cpyVal, prevMem);
+        }
+      } else {
+        PtrTy dstLast = m_memManager.ptrAdd(
+            m_memManager.ptrAdd(PtrTy(dstIdx), len),
+            -static_cast<signed>(m_memManager.wordSizeInBytes()));
+        // dstIdx <= idx <= dstIdx + sz
+        Expr cmp =
+            m_memManager.ptrInRangeCheck(PtrTy(dstIdx), PtrTy(idx), dstLast);
+        // select(dstMem, idx)
+        Expr prevMem = !res ? op::array::select(dstMem, idx) : res;
+        res = mk<ITE>(cmp, cpyVal, prevMem);
+      }
+    }
+    nested.pop_back();
+  }
+  return res;
+}
+
 } // namespace details
 } // namespace seahorn

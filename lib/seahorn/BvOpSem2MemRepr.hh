@@ -1,6 +1,7 @@
 #pragma once
 
 #include "BvOpSem2RawMemMgr.hh"
+#include "seahorn/Expr/ExprAddrRangeMap.hh"
 #include "seahorn/Expr/ExprLlvm.hh"
 #include "seahorn/Expr/Smt/EZ3.hh"
 
@@ -125,9 +126,34 @@ public:
    * **/
   Expr loadAlignedWordFromMem(PtrTy ptr, MemValTy mem) override;
 
+  MemValTy MemSet(PtrTy ptr, Expr _val, unsigned len, MemValTy mem,
+                  unsigned wordSzInBytes, PtrSortTy ptrSort,
+                  uint32_t align) override;
+  MemValTy MemSet(PtrTy ptr, Expr _val, Expr len, MemValTy mem,
+                  unsigned wordSzInBytes, PtrSortTy ptrSort,
+                  uint32_t align) override;
+  MemValTy MemCpy(PtrTy dPtr, PtrTy sPtr, unsigned len, MemValTy memTrsfrRead,
+                  MemValTy memRead, unsigned wordSzInBytes, PtrSortTy ptrSort,
+                  uint32_t align) override;
+
+  MemValTy MemCpy(PtrTy dPtr, PtrTy sPtr, Expr len, MemValTy memTrsfrRead,
+                  MemValTy memRead, unsigned wordSzInBytes, PtrSortTy ptrSort,
+                  uint32_t align) override;
+
 private:
   DagVisitMemCache m_memCache;
   DagVisitCache m_cache;
+
+  /**
+   * @brief Create Hybrid repr expressions for read/select (a word) from
+   * [arr] at [idx]
+   * @param arr Memory (ME) being read from
+   * @param idx Pointer (PE) to access
+   * @param arm AddrRangeMap simplifying away some stores
+   * @return Expr
+   */
+  Expr createHybridReadWord(Expr arr, Expr idx,
+                            expr::addrRangeMap::AddrRangeMap &arm);
 };
 
 /// \brief Represent memory regions by lambda functions

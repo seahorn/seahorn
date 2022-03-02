@@ -6,6 +6,7 @@
 #include "seahorn/Expr/ExprOpArray.hh"
 #include "seahorn/Expr/ExprOpBv.hh"
 #include "seahorn/Expr/ExprOpCore.hh"
+#include "seahorn/Expr/ExprOpMem.hh"
 #include "seahorn/Expr/ExprSimplifier.hh"
 #include "seahorn/Expr/Smt/EZ3.hh"
 #include "seahorn/Expr/Smt/Z3.hh"
@@ -17,6 +18,7 @@ namespace expr {
 using namespace mem;
 using namespace addrRangeMap; /* addrRangeMap */
 namespace utils {
+/// XXX: belongs in memory specific modules (mem repr)?
 /**
  * If arr is one of:
  * 1) store, or
@@ -28,6 +30,8 @@ Expr pushSelectDownStoreITE(Expr arr, Expr idx, AddrRangeMap &arm,
                             DagVisitCache &cache);
 
 bool inAddrRange(Expr ptr, AddrRangeMap &arm);
+
+bool isMemWriteOp(Expr);
 } // end of namespace utils
 
 enum rewrite_status {

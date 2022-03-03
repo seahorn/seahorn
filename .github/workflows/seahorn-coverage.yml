@@ -4,6 +4,12 @@ name: Coverage
 on:
   schedule:
     - cron: 0 0 * * *  # run every day at UTC 00:00
+  workflow_dispatch:
+    inputs:
+      Triggerer:
+        description: 'Triggered by:'
+        required: true
+        default: ''
 
 jobs:
   coverage:
@@ -15,6 +21,9 @@ jobs:
         uses: actions/checkout@v2
         with:
           ref: dev10  # only checkout dev10
+      - name: Set dev10 commit SHA
+        run: | # set dev10 last commit SHA
+          echo "COMMIT_SHA=$(git log -1 --format='%H')" >> $GITHUB_ENV
       - name: Build seahorn builder
         run: docker build . --file docker/seahorn-builder.Dockerfile --tag seahorn/seahorn-builder:bionic-llvm10 --build-arg BUILD_TYPE=$BUILD_TYPE
       - name: Collect coverage report
@@ -26,5 +35,6 @@ jobs:
           files: ./all.info
           name: codecov-seahorn
           override_branch: dev10
+          override_commit: ${{ env.COMMIT_SHA }}
           fail_ci_if_error: true
           verbose: true

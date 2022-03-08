@@ -739,22 +739,14 @@ Expr OpSemMemHybridRepr::createHybridReadWord(Expr arr, Expr idx,
       Expr len = back->arg(2);
       Expr val = back->arg(3);
       if (op::bv::is_bvnum(len)) {
-        ARMCache c;
-        AddrRangeMap msArm = addrRangeMapOf(idxN, c);
         unsigned cLen =
             bv::toMpz(len).get_ui() - m_memManager.wordSizeInBytes();
-        msArm.addRange({cLen, cLen});
-        if (!msArm.isAllTop() && utils::inAddrRange(idx, msArm)) {
-          res = val;
-        } else {
-          PtrTy last = m_memManager.ptrAdd(
-              PtrTy(idxN), cLen - m_memManager.wordSizeInBytes());
-          // idxN <= idx <= idxN + sz
-          Expr cmp =
-              m_memManager.ptrInRangeCheck(PtrTy(idxN), PtrTy(idx), last);
-          Expr prevMem = (!res) ? op::array::select(inMem, idx) : res;
-          res = mk<ITE>(cmp, val, prevMem);
-        }
+        PtrTy last = m_memManager.ptrAdd(PtrTy(idxN), cLen);
+        // idxN <= idx <= idxN + sz
+        Expr cmp = m_memManager.ptrInRangeCheck(PtrTy(idxN), PtrTy(idx), last);
+        Expr prevMem = (!res) ? op::array::select(inMem, idx) : res;
+        res = mk<ITE>(cmp, val, prevMem);
+        // }
       } else {
         PtrTy last = m_memManager.ptrAdd(
             m_memManager.ptrAdd(PtrTy(idxN), len),
@@ -783,21 +775,13 @@ Expr OpSemMemHybridRepr::createHybridReadWord(Expr arr, Expr idx,
       if (op::bv::is_bvnum(len)) {
         unsigned cLen =
             bv::toMpz(len).get_ui() - m_memManager.wordSizeInBytes();
-        expr::addrRangeMap::ARMCache c;
-        AddrRangeMap dstArm = addrRangeMapOf(dstIdx, c);
-        dstArm.addRange({cLen, cLen});
-        if (!dstArm.isAllTop() && expr::utils::inAddrRange(idx, dstArm)) {
-          res = cpyVal;
-        } else {
-          PtrTy dstLast = m_memManager.ptrAdd(
-              PtrTy(dstIdx), cLen - m_memManager.wordSizeInBytes());
-          // dstIdx <= idx <= dstIdx + sz
-          Expr cmp =
-              m_memManager.ptrInRangeCheck(PtrTy(dstIdx), PtrTy(idx), dstLast);
-          // select(dstMem, idx)
-          Expr prevMem = !res ? op::array::select(dstMem, idx) : res;
-          res = mk<ITE>(cmp, cpyVal, prevMem);
-        }
+        PtrTy dstLast = m_memManager.ptrAdd(PtrTy(dstIdx), cLen);
+        // dstIdx <= idx <= dstIdx + sz
+        Expr cmp =
+            m_memManager.ptrInRangeCheck(PtrTy(dstIdx), PtrTy(idx), dstLast);
+        // select(dstMem, idx)
+        Expr prevMem = !res ? op::array::select(dstMem, idx) : res;
+        res = mk<ITE>(cmp, cpyVal, prevMem);
       } else {
         PtrTy dstLast = m_memManager.ptrAdd(
             m_memManager.ptrAdd(PtrTy(dstIdx), len),

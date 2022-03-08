@@ -29,6 +29,8 @@ namespace utils {
 Expr pushSelectDownStoreITE(Expr arr, Expr idx, AddrRangeMap &arm,
                             DagVisitCache &cache);
 
+// over-approximates whether ptr pointer is in arm; only returns False
+// when ptr is well-formed PE and is for sure not in arm
 bool inAddrRange(Expr ptr, AddrRangeMap &arm);
 
 bool isMemWriteOp(Expr);

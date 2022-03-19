@@ -462,11 +462,11 @@ static Expr encodePHI(clam::statement_t &s, const PHINode &PHI,
 }
 
 static bool isMemRead(const clam::statement_t &s) {
-  return s.is_arr_read() || s.is_ref_load() || s.is_ref_arr_load();
+  return s.is_arr_read() || s.is_ref_load();
 }
 
 static bool isMemWrite(const clam::statement_t &s) {
-  return s.is_arr_write() || s.is_ref_store() || s.is_ref_arr_store();
+  return s.is_arr_write() || s.is_ref_store();
 }
 
 static void getMemoryDefs(const std::vector<clam::statement_t *> stmts,
@@ -651,8 +651,7 @@ bool PathBmcEngine::encodeBoolPathFromCrabCex(
 	s->is_arr_write() || s->is_arr_read() || s->is_arr_init() ||
 	/* region and reference operations */
 	s->is_region_init() || s->is_region_cast() || s->is_region_copy() ||
-	s->is_ref_load() || s->is_ref_arr_load() ||
-	s->is_ref_store() || s->is_ref_arr_store() ||
+	s->is_ref_load() ||  s->is_ref_store() || 
 	s->is_ref_make() || s->is_ref_remove() || s->is_ref_gep() ||
 	s->is_ref_assume() || s->is_ref_assert()) {
       

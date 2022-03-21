@@ -189,8 +189,16 @@ OpSemMemArrayReprBase::MemFill(PtrTy dPtr, char *sPtr, unsigned len,
 }
 
 Expr OpSemMemHybridRepr::loadAlignedWordFromMem(PtrTy ptr, MemValTy mem) {
+  auto cit = m_memCache.find(&*mem.toExpr());
+  if (cit != m_memCache.end()) {
+    DagVisitCache cc = cit->second;
+    auto ccit = cc.find(&*ptr.toExpr());
+    if (ccit != cc.end()) {
+      return ccit->second;
+    }
+  }
   LOG("opsem.hybrid", INFO << "load inst: " << m_ctx.getCurrentInst() << "\n");
-  LOG("opsem.hybrid", INFO << "Load ptr " << *ptr.toExpr() << "\n");
+  LOG("opsem.hybrid", INFO << "Load ptr: " << *ptr.toExpr() << "\n");
   LOG("opsem.hybrid", INFO << "From mem " << *mem.toExpr() << "\n");
   /** rewrite store into ITE **/
   Stats::resume("hybrid-mem-rewrite");
@@ -205,13 +213,15 @@ Expr OpSemMemHybridRepr::loadAlignedWordFromMem(PtrTy ptr, MemValTy mem) {
   AddrRangeMap arm = expr::addrRangeMap::addrRangeMapOf(ptrSimp, armCache);
   assert(arm.isValid());
   LOG("opsem.hybrid", INFO << "built addr range map: \n" << arm);
-  /** simplify with custom ITE simplifier **/
-  Expr rewritten = this->createHybridReadWord(mem.toExpr(), ptrSimp, arm);
-  LOG("opsem.hybrid", INFO << "rw into ITE: " << *rewritten << "\n");
-  Expr simp = rewriteHybridLoadExpr(rewritten, arm);
+  /** rewrite into ITE format **/
+  Expr res = this->createHybridReadWord(mem.toExpr(), ptrSimp, arm);
   Stats::stop("hybrid-mem-rewrite");
-  LOG("opsem.hybrid", INFO << "hybrid simplified: " << *simp << "\n");
-  return simp;
+  LOG("opsem.hybrid", INFO << "rw into ITE: " << *res << "\n");
+  /** simplify with custom ITE simplifier **/
+  // Stats::resume("hybrid-mem-simp");
+  // Expr simp = rewriteHybridLoadExpr(res, arm);
+  // Stats::stop("hybrid-mem-simp");
+  return res;
 }
 
 OpSemMemRepr::MemValTy
@@ -691,6 +701,18 @@ Expr OpSemMemHybridRepr::createHybridReadWord(Expr arr, Expr idx,
   Expr back = nested.back();
   while (!nested.empty()) {
     back = nested.back();
+    if (utils::shouldCache(back)) {
+      auto cit = m_memCache.find(&*back);
+      if (cit != m_memCache.end()) {
+        DagVisitCache cc = cit->second;
+        auto ccit = cc.find(&*idx);
+        if (ccit != cc.end()) {
+          res = ccit->second;
+          nested.pop_back();
+          continue;
+        }
+      }
+    }
     if (isOpX<STORE>(back)) {
       /** node case: store(rewritten, idxN, valN) =>
        * ite(idx == idxN, valN, rewritten) **/
@@ -700,6 +722,10 @@ Expr OpSemMemHybridRepr::createHybridReadWord(Expr arr, Expr idx,
         LOG("opsem.hybrid", WARN << *idxN << " is not in range \n");
         res = op::array::select(arrN, idx);
         nested.pop_back();
+        if (utils::shouldCache(back)) {
+          back->Ref();
+          m_memCache[&*back][&*idx] = res;
+        }
         continue;
       }
       Expr valN = op::array::storeVal(back);
@@ -793,6 +819,10 @@ Expr OpSemMemHybridRepr::createHybridReadWord(Expr arr, Expr idx,
         Expr prevMem = !res ? op::array::select(dstMem, idx) : res;
         res = mk<ITE>(cmp, cpyVal, prevMem);
       }
+    }
+    if (utils::shouldCache(back)) {
+      back->Ref();
+      m_memCache[&*back][&*idx] = res;
     }
     nested.pop_back();
   }

@@ -133,7 +133,7 @@ Expr rewriteHybridLoadExpr(Expr loadE, AddrRangeMap &arm) {
 
 bool ITECompRewriteConfig::shouldRewrite(Expr exp) {
   return isOpX<ITE>(exp) || isOpX<CompareOp>(exp) || isOpX<BoolOp>(exp) ||
-         isOpX<SELECT>(exp) || isOpX<STORE>(exp) || isOpX<BADD>(exp);
+         isOpX<SELECT>(exp) || isOpX<BADD>(exp);
 }
 
 rewrite_result ITECompRewriteConfig::applyRewriteRules(Expr exp) {

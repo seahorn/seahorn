@@ -161,16 +161,27 @@ struct CompareRewriteRule : public ExprRewriteRule {
     }
 
     // [k comp ite(a, b, c)] => [ite(a, b comp k, c comp k)]
+    // if b, c, or k is ITE, we could have size explosion
     if (isOpX<ITE>(lhs)) {
+      rewrite_status st = rewrite_status::RW_2;
+      if (isOpX<ITE>(rhs) || isOpX<ITE>(lhs->arg(1)) ||
+          isOpX<ITE>(lhs->arg(2))) {
+        st = rewrite_status::RW_DONE;
+      }
       Expr new_i = lhs->arg(0);
       Expr new_t = efac.mkBin(exp->op(), lhs->arg(1), rhs);
       Expr new_e = efac.mkBin(exp->op(), lhs->arg(2), rhs);
-      return {mk<ITE>(new_i, new_t, new_e), rewrite_status::RW_2};
+      return {mk<ITE>(new_i, new_t, new_e), st};
     } else if (isOpX<ITE>(rhs)) {
+      rewrite_status st = rewrite_status::RW_2;
+      if (isOpX<ITE>(lhs) || isOpX<ITE>(rhs->arg(1)) ||
+          isOpX<ITE>(rhs->arg(2))) {
+        st = rewrite_status::RW_DONE;
+      }
       Expr new_i = rhs->arg(0);
       Expr new_t = efac.mkBin(exp->op(), rhs->arg(1), lhs);
       Expr new_e = efac.mkBin(exp->op(), rhs->arg(2), lhs);
-      return {mk<ITE>(new_i, new_t, new_e), rewrite_status::RW_2};
+      return {mk<ITE>(new_i, new_t, new_e), st};
     }
     return {exp, rewrite_status::RW_SKIP};
   }
@@ -232,7 +243,7 @@ struct ArrayRewriteRule : public ExprRewriteRule {
       Expr res = utils::pushSelectDownStoreITE(arr, idx, addrRange, cache);
       seahorn::Stats::stop("hybrid-mem-push");
 
-      return {res, rewrite_status::RW_2};
+      return {res, rewrite_status::RW_1};
     }
     return {exp, rewrite_status::RW_SKIP};
   }

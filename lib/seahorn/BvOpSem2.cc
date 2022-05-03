@@ -45,6 +45,7 @@ using gep_type_iterator = generic_gep_type_iterator<>;
 namespace seahorn {
 extern bool isUnifiedAssume(const Instruction &CI);
 extern clam::CrabDomain::Type CrabDom;
+extern bool HybridArrayRepr; // from BvOpSem2RawMemMgr.cc
 namespace details {
 enum class VacCheckOptions { NONE, ANTE, ALL };
 }
@@ -2464,7 +2465,7 @@ Expr Bv2OpSemContext::simplify(Expr u) {
 }
 
 void Bv2OpSemContext::write(Expr v, Expr u) {
-  if (shouldSimplify()) {
+  if (shouldSimplify() && !seahorn::HybridArrayRepr) {
     u = simplify(u);
   }
 

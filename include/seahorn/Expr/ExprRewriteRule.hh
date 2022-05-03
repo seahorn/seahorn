@@ -208,7 +208,7 @@ struct BoolOpRewriteRule : public ExprRewriteRule {
       if (isOpX<ITE>(neg)) {
         return {
             mk<ITE>(neg->arg(0), mk<NEG>(neg->arg(1)), mk<NEG>(neg->arg(2))),
-            rewrite_status::RW_2};
+            rewrite_status::RW_1};
       }
       // negate trivial constants: !true => false; !false => true
       if (isOpX<TRUE>(neg)) {

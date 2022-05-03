@@ -13,6 +13,7 @@
 
 namespace seahorn {
 bool BasedPtrObj;
+bool HybridArrayRepr;
 namespace details {
 enum class MemAllocatorKind { NORMAL_ALLOCATOR, STATIC_ALLOCATOR };
 }
@@ -46,10 +47,9 @@ static llvm::cl::opt<unsigned> MemCpyUnrollCount(
                    "count for symbolic memcpy"),
     llvm::cl::init(16));
 
-static llvm::cl::opt<bool>
-    UseHybridArray("horn-hybrid-array",
-                   llvm::cl::desc("Use optimized hybrid array mem repr"),
-                   llvm::cl::init(false));
+static llvm::cl::opt<bool, true> UseHybridArray(
+    "horn-hybrid-array", llvm::cl::desc("Use optimized hybrid array mem repr"),
+    llvm::cl::location(seahorn::HybridArrayRepr), llvm::cl::init(false));
 
 static llvm::cl::opt<unsigned> MaxSymbAllocSz(
     "horn-opsem-max-symb-alloc",

@@ -7,6 +7,7 @@
 #include "seahorn/Expr/ExprRewriter.hh"
 #include "seahorn/Expr/ExprVisitor.hh"
 #include "seahorn/Support/Stats.hh"
+#include "llvm/Support/CommandLine.h"
 
 namespace {
 template <typename T, typename... Rest>
@@ -17,6 +18,11 @@ auto as_std_array(const T &t, const Rest &... rest) ->
 } // namespace
 
 #define DEBUG_TYPE "opsem"
+
+static llvm::cl::opt<bool>
+    HybridSimp("horn-hybrid-simp",
+               llvm::cl::desc("Use custom simplifier for hybrid repr"),
+               llvm::cl::init(false));
 
 namespace seahorn {
 namespace details {
@@ -202,7 +208,7 @@ Expr OpSemMemHybridRepr::loadAlignedWordFromMem(PtrTy ptr, MemValTy mem) {
   LOG("opsem.hybrid", INFO << "Load ptr: " << *ptr.toExpr() << "\n");
   LOG("opsem.hybrid", INFO << "From mem " << *mem.toExpr() << "\n");
   /** rewrite store into ITE **/
-  Stats::resume("hybrid-mem-rewrite");
+  Stats::resume("opsem.simplify");
   // push bvadd down in ptr expr
   AddrRangeMap ptrArm;
   DagVisitCache ptrCache;
@@ -216,13 +222,18 @@ Expr OpSemMemHybridRepr::loadAlignedWordFromMem(PtrTy ptr, MemValTy mem) {
   LOG("opsem.hybrid", INFO << "built addr range map: \n" << arm);
   /** rewrite into ITE format **/
   Expr res = this->createHybridReadWord(mem.toExpr(), ptrSimp, arm);
-  Stats::stop("hybrid-mem-rewrite");
   LOG("opsem.hybrid", INFO << "rw into ITE: " << *res << "\n");
   /** simplify with custom ITE simplifier **/
-  // Stats::resume("hybrid-mem-simp");
-  // Expr simp = rewriteHybridLoadExpr(res, arm);
-  // Stats::stop("hybrid-mem-simp");
-  return res;
+  Expr simp = res;
+  if (HybridSimp) {
+    LOG("opsem.hybrid", INFO << "simplify with custom rewriter.\n");
+    simp = rewriteMemExprWithCache<ITECompRewriteConfig>(res, arm, m_cache);
+  }
+  Stats::stop("opsem.simplify");
+  /** simplify with z3 **/
+  simp = m_ctx.simplify(simp);
+  LOG("opsem.hybrid", INFO << "final: " << *simp << "\n");
+  return simp;
 }
 
 OpSemMemRepr::MemValTy

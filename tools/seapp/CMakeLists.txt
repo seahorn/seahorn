@@ -1,7 +1,7 @@
 set (USED_LIBS 
-  SeaInstrumentation
   SeaTransformsScalar
   SeaTransformsUtils
+  SeaInstrumentation  
   SeaAnalysis
   SeaSmt
   ${SEA_DSA_LIBS}  

@@ -577,8 +577,9 @@ ExtraWideMemManager<T>::salloc(Expr elmts, unsigned int typeSz,
   }
 
   // -- have a good region, return pointer to it
+  // Note that sort of bytes is PtrSort so we need cast to sort of SlotExpr
   return PtrTy(mkStackPtr(region.second).getBase(),
-               m_ctx.alu().ui(0UL, ptrSizeInBits()), bytes);
+               m_ctx.alu().ui(0UL, ptrSizeInBits()), castPtrSzToSlotSz(bytes));
 }
 template <class T>
 typename ExtraWideMemManager<T>::PtrTy

@@ -47,17 +47,18 @@ public:
 /* example config for ITE */
 class ITECompRewriteConfig : public ExprRewriterConfig {
 private:
-  ITERewriteRule m_iteRule;
-  CompareRewriteRule m_compRule;
-  BoolOpRewriteRule m_boolRule;
-  ArrayRewriteRule m_arrayRule;
-  ArithmeticRule m_arithRule;
+  ITERewriteRule m_iteRule;      // Fig 1
+  CompareRewriteRule m_compRule; // Fig 3
+  BoolOpRewriteRule m_boolRule;  // Fig 4
+  ArrayRewriteRule m_arrayRule;  // Fig 2
+  ArithmeticRule m_arithRule;    // Fig 5
 
 public:
   ITECompRewriteConfig(ExprFactory &efac, DagVisitCache &cache,
-                       AddrRangeMap &arm)
+                       AddrRangeMap &arm, unsigned wordSize, unsigned ptrWidth)
       : m_iteRule(efac, cache), m_compRule(efac, cache),
-        m_boolRule(efac, cache), m_arrayRule(efac, cache, arm),
+        m_boolRule(efac, cache),
+        m_arrayRule(efac, cache, arm, wordSize, ptrWidth),
         m_arithRule(efac, cache), ExprRewriterConfig(efac, cache, arm) {}
 
   rewrite_result applyRewriteRules(Expr exp);
@@ -82,7 +83,7 @@ public:
 
 template <typename Config> class ExprRewriter {
 protected:
-  Config m_config;
+  Config &m_config;
   ExprFactory &m_efac; // for making expr
 
   RewriteFrameVector m_rewriteStack;
@@ -114,8 +115,8 @@ protected:
   }
 
 public:
-  ExprRewriter(ExprFactory &efac, AddrRangeMap &arm, DagVisitCache &cache)
-      : m_efac(efac), m_config(efac, cache, arm), m_cache(cache) {}
+  ExprRewriter(ExprFactory &efac, Config &config, DagVisitCache &cache)
+      : m_efac(efac), m_config(config), m_cache(cache) {}
 
   void processFrame(RewriteFrame &frame) {
     Expr exp = frame.m_exp;
@@ -168,9 +169,17 @@ public:
 };
 
 template <typename Config>
-Expr rewriteMemExprWithCache(Expr mem, AddrRangeMap &arm,
-                             DagVisitCache &cache) {
-  ExprRewriter<Config> rw(mem->efac(), arm, cache);
+Expr rewriteExprWithCache(Expr mem, AddrRangeMap &arm, DagVisitCache &cache) {
+  Config c(mem->efac(), cache, arm);
+  ExprRewriter<Config> rw(mem->efac(), c, cache);
+  return rw.rewriteExpr(mem);
+}
+
+template <typename Config>
+Expr rewriteMemExprWithCache(Expr mem, AddrRangeMap &arm, DagVisitCache &cache,
+                             unsigned wordSize, unsigned ptrWidth) {
+  Config c(mem->efac(), cache, arm, wordSize, ptrWidth);
+  ExprRewriter<Config> rw(mem->efac(), c, cache);
   return rw.rewriteExpr(mem);
 }
 

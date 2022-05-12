@@ -18,22 +18,22 @@ namespace expr {
 using namespace mem;
 using namespace addrRangeMap; /* addrRangeMap */
 namespace utils {
-/// XXX: belongs in memory specific modules (mem repr)?
-/**
- * If arr is one of:
- * 1) store, or
- * 2) ITE,
- * then push select(..., idx) down the expression tree;
- * for nested, we presume the tree is biased towards "then" side (arg[1])
- **/
-Expr pushSelectDownStoreITE(Expr arr, Expr idx, AddrRangeMap &arm,
-                            DagVisitCache &cache);
-
 // over-approximates whether ptr pointer is in arm; only returns False
 // when ptr is well-formed PE and is for sure not in arm
 bool inAddrRange(Expr ptr, AddrRangeMap &arm);
 
 bool isMemWriteOp(Expr);
+
+inline Expr ptrAdd(Expr a, Expr b) { return mk<BADD>(a, b); }
+
+inline Expr ptrSub(Expr a, Expr b) { return mk<BSUB>(a, b); }
+
+inline Expr ptrUle(Expr a, Expr b) { return mk<BULE>(a, b); }
+/** begin <= i <= end **/
+inline Expr ptrInRangeCheck(Expr begin, Expr i, Expr end) {
+  return mk<AND>(ptrUle(begin, i), ptrUle(i, end));
+}
+
 } // end of namespace utils
 
 enum rewrite_status {
@@ -225,10 +225,15 @@ struct BoolOpRewriteRule : public ExprRewriteRule {
 // for select
 struct ArrayRewriteRule : public ExprRewriteRule {
   AddrRangeMap &addrRange;
-  ArrayRewriteRule(ExprFactory &efac, DagVisitCache &cache, AddrRangeMap &arm)
-      : addrRange(arm), ExprRewriteRule(efac, cache) {}
+  unsigned wordSize; // in bytes
+  unsigned ptrWidth; // ptr size in bits
+  ArrayRewriteRule(ExprFactory &efac, DagVisitCache &cache, AddrRangeMap &arm,
+                   unsigned wordSz, unsigned ptrWidth)
+      : addrRange(arm), ExprRewriteRule(efac, cache), wordSize(wordSz),
+        ptrWidth(ptrWidth) {}
   ArrayRewriteRule(const ArrayRewriteRule &o)
-      : addrRange(o.addrRange), ExprRewriteRule(o) {}
+      : addrRange(o.addrRange), ExprRewriteRule(o), wordSize(o.wordSize),
+        ptrWidth(o.ptrWidth) {}
 
   rewrite_result operator()(Expr exp) {
     if (!isOpX<SELECT>(exp)) {
@@ -238,14 +243,76 @@ struct ArrayRewriteRule : public ExprRewriteRule {
     Expr idx = exp->arg(1);
     /** Read-over-write/ite: push select down to leaves
      **/
-    if (isOpX<STORE>(arr) || isOpX<ITE>(arr)) {
-      seahorn::Stats::resume("hybrid-mem-push");
-      Expr res = utils::pushSelectDownStoreITE(arr, idx, addrRange, cache);
-      seahorn::Stats::stop("hybrid-mem-push");
-
-      return {res, rewrite_status::RW_1};
+    if (isOpX<STORE>(arr)) {
+      Expr res = mk<ITE>(mk<EQ>(idx, op::array::storeIdx(arr)),
+                         op::array::storeVal(arr),
+                         op::array::select(op::array::storeArray(arr), idx));
+      return {res, rewrite_status::RW_2};
+    } else if (isOpX<ITE>(arr)) {
+      Expr i = arr->arg(0);
+      Expr t = arr->arg(1);
+      Expr e = arr->arg(2);
+      Expr res =
+          mk<ITE>(i, op::array::select(t, idx), op::array::select(e, idx));
+      return {res, rewrite_status::RW_2};
+    } else if (isOpX<MEMSET_WORDS>(arr)) {
+      Expr inMem = arr->arg(0);
+      Expr idxN = arr->arg(1);
+      Expr len = arr->arg(2);
+      Expr val = arr->arg(3);
+      Expr res;
+      if (op::bv::is_bvnum(len)) {
+        unsigned cLen = bv::toMpz(len).get_ui() - wordSize;
+        Expr offset = op::bv::bvnum(cLen, op::bv::widthBvNum(len), len->efac());
+        Expr last = utils::ptrAdd(idxN, offset);
+        // idxN <= idx <= idxN + sz
+        Expr cmp = utils::ptrInRangeCheck(idxN, idx, last);
+        res = mk<ITE>(cmp, val, op::array::select(inMem, idx));
+      } else {
+        Expr wordSzE = op::bv::bvnum(wordSize, ptrWidth, len->efac());
+        Expr last = utils::ptrSub(utils::ptrAdd(idxN, len), wordSzE);
+        // idxN <= idx <= idxN + sz
+        Expr cmp = utils::ptrInRangeCheck(idxN, idx, last);
+        Expr fallback = op::array::select(inMem, idx);
+        res = mk<ITE>(cmp, val, fallback);
+      }
+      return {res, rewrite_status::RW_2};
+    } else if (isOpX<MEMCPY_WORDS>(arr)) {
+      /** select(copy(a, p, b, q, s), i) =>
+       * ITE(p ≤ i < p + s, read(b, q + (i − p)), read(a, i)) **/
+      Expr res;
+      Expr dstMem = arr->arg(0);
+      Expr srcMem = arr->arg(1);
+      Expr dstIdx = arr->arg(2);
+      Expr srcIdx = arr->arg(3);
+      Expr len = arr->arg(4);
+      // dstIdx - srcIdx + idx
+      Expr dsOffset = utils::ptrSub(srcIdx, dstIdx);
+      Expr cpyIdx = utils::ptrAdd(idx, dsOffset);
+      // select(srcMem, dstIdx - srcIdx + idx)
+      Expr cpyVal = op::array::select(srcMem, cpyIdx);
+      if (op::bv::is_bvnum(len)) {
+        unsigned cLen = bv::toMpz(len).get_ui() - wordSize;
+        Expr offset = op::bv::bvnum(cLen, op::bv::widthBvNum(len), len->efac());
+        Expr dstLast = utils::ptrAdd(dstIdx, offset);
+        // dstIdx <= idx <= dstIdx + sz
+        Expr cmp = utils::ptrInRangeCheck(dstIdx, idx, dstLast);
+        // select(dstMem, idx)
+        Expr prevMem = op::array::select(dstMem, idx);
+        res = mk<ITE>(cmp, cpyVal, prevMem);
+      } else {
+        Expr wordSzE = op::bv::bvnum(wordSize, ptrWidth, len->efac());
+        Expr dstLast = utils::ptrSub(utils::ptrAdd(dstIdx, len), wordSzE);
+        // dstIdx <= idx <= dstIdx + sz
+        Expr cmp = utils::ptrInRangeCheck(dstIdx, idx, dstLast);
+        // select(dstMem, idx)
+        Expr prevMem = op::array::select(dstMem, idx);
+        res = mk<ITE>(cmp, cpyVal, prevMem);
+      }
+      return {res, rewrite_status::RW_2};
+    } else {
+      return {exp, rewrite_status::RW_DONE};
     }
-    return {exp, rewrite_status::RW_SKIP};
   }
 };
 

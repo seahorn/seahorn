@@ -112,7 +112,7 @@ public:
   OpSemMemHybridRepr(RawMemManagerCore &memManager, Bv2OpSemContext &ctx,
                      unsigned memCpyUnrollCnt)
       : OpSemMemArrayReprBase(memManager, ctx, memCpyUnrollCnt),
-        m_memCache(DagVisitMemCache()), m_cache(DagVisitCache()) {}
+        m_cache(DagVisitCache()) {}
 
   /**
    * mem: 1. array const i.e. A (uninitialized)
@@ -141,19 +141,7 @@ public:
                   uint32_t align) override;
 
 private:
-  DagVisitMemCache m_memCache;
   DagVisitCache m_cache;
-
-  /**
-   * @brief Create Hybrid repr expressions for read/select (a word) from
-   * [arr] at [idx]
-   * @param arr Memory (ME) being read from
-   * @param idx Pointer (PE) to access
-   * @param arm AddrRangeMap simplifying away some stores
-   * @return Expr
-   */
-  Expr createHybridReadWord(Expr arr, Expr idx,
-                            expr::addrRangeMap::AddrRangeMap &arm);
 };
 
 /// \brief Represent memory regions by lambda functions

@@ -112,7 +112,7 @@ public:
   OpSemMemHybridRepr(RawMemManagerCore &memManager, Bv2OpSemContext &ctx,
                      unsigned memCpyUnrollCnt)
       : OpSemMemArrayReprBase(memManager, ctx, memCpyUnrollCnt),
-        m_cache(DagVisitCache()) {}
+        m_memCache(DagVisitMemCache()), m_cache(DagVisitCache()) {}
 
   /**
    * mem: 1. array const i.e. A (uninitialized)
@@ -142,6 +142,9 @@ public:
 
 private:
   DagVisitCache m_cache;
+  DagVisitMemCache m_memCache;
+  Expr createHybridReadWord(Expr arr, Expr idx,
+                            expr::addrRangeMap::AddrRangeMap &arm);
 };
 
 /// \brief Represent memory regions by lambda functions

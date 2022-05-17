@@ -28,7 +28,6 @@ bool inAddrRange(Expr ptr, AddrRangeMap &arm) {
       offset = lhs;
     } else
       return true; // over-approx
-    // return arm.count(base) > 0;
     if (!op::bv::is_bvnum(offset))
       return true; // offset is symbolic, over-approx
     mpz_class offsetMpz = op::bv::toMpz(offset);

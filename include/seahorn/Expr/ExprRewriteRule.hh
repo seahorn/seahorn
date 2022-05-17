@@ -224,15 +224,15 @@ struct BoolOpRewriteRule : public ExprRewriteRule {
 
 // for select
 struct ArrayRewriteRule : public ExprRewriteRule {
-  AddrRangeMap &addrRange;
+  ARMCache &m_armCache;
   unsigned wordSize; // in bytes
   unsigned ptrWidth; // ptr size in bits
-  ArrayRewriteRule(ExprFactory &efac, DagVisitCache &cache, AddrRangeMap &arm,
+  ArrayRewriteRule(ExprFactory &efac, DagVisitCache &cache, ARMCache &armCache,
                    unsigned wordSz, unsigned ptrWidth)
-      : addrRange(arm), ExprRewriteRule(efac, cache), wordSize(wordSz),
+      : m_armCache(armCache), ExprRewriteRule(efac, cache), wordSize(wordSz),
         ptrWidth(ptrWidth) {}
   ArrayRewriteRule(const ArrayRewriteRule &o)
-      : addrRange(o.addrRange), ExprRewriteRule(o), wordSize(o.wordSize),
+      : m_armCache(o.m_armCache), ExprRewriteRule(o), wordSize(o.wordSize),
         ptrWidth(o.ptrWidth) {}
 
   rewrite_result operator()(Expr exp) {
@@ -241,13 +241,22 @@ struct ArrayRewriteRule : public ExprRewriteRule {
     }
     Expr arr = exp->arg(0);
     Expr idx = exp->arg(1);
+    AddrRangeMap arm = addrRangeMapOf(idx, m_armCache);
     /** Read-over-write/ite: push select down to leaves
      **/
     if (isOpX<STORE>(arr)) {
-      Expr res = mk<ITE>(mk<EQ>(idx, op::array::storeIdx(arr)),
-                         op::array::storeVal(arr),
-                         op::array::select(op::array::storeArray(arr), idx));
-      return {res, rewrite_status::RW_2};
+      Expr arrN = op::array::storeArray(arr);
+      Expr idxN = op::array::storeIdx(arr);
+      Expr res;
+      rewrite_status st = rewrite_status::RW_2;
+      if (!utils::inAddrRange(idxN, arm)) { /* idx!=idxN must be true*/
+        res = op::array::select(arrN, idx);
+        st = rewrite_status::RW_1;
+      } else {
+        res = mk<ITE>(mk<EQ>(idx, idxN), op::array::storeVal(arr),
+                      op::array::select(arrN, idx));
+      }
+      return {res, st};
     } else if (isOpX<ITE>(arr)) {
       Expr i = arr->arg(0);
       Expr t = arr->arg(1);

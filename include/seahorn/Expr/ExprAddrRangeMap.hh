@@ -62,17 +62,18 @@ AddrRange zeroBitsRange(AddrRange &r, size_t n);
 /** Given a base addr a, store upper and lower range being queried from.
  * E.g. ptr is ite(i, bvadd(a, u), bvsub(a, l)) =>
  * map => {a => (u, l)} **/
-using const_arm_iterator = std::map<Expr, AddrRange>::const_iterator;
-using arm_iterator = std::map<Expr, AddrRange>::iterator;
+using arm_range_map_t = std::unordered_map<Expr, AddrRange>;
+using const_arm_iterator = arm_range_map_t::const_iterator;
+using arm_iterator = arm_range_map_t::iterator;
 
 /** Given a base addr a, store upper and lower range being queried from.
  * E.g. ptr is ite(i, bvadd(a, u), bvsub(a, l)) =>
  * map => {a => (u, l)} **/
 class AddrRangeMap {
-  std::map<Expr, AddrRange> m_rangeMap;
+  arm_range_map_t m_rangeMap;
   bool m_isAllTop; /* {all => any} */
 public:
-  AddrRangeMap(std::map<Expr, AddrRange> rangeMap = {{}}, bool isAllTop = false)
+  AddrRangeMap(arm_range_map_t rangeMap = {{}}, bool isAllTop = false)
       : m_rangeMap(rangeMap), m_isAllTop(isAllTop) {}
   AddrRangeMap(const AddrRangeMap &o)
       : m_rangeMap(o.m_rangeMap), m_isAllTop(o.m_isAllTop) {}

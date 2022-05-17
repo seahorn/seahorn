@@ -104,6 +104,7 @@ public:
   }
 };
 
+using namespace expr::addrRangeMap;
 /// \brief Represent memory regions by:
 /// store: array
 /// load: optimized ITE
@@ -112,7 +113,8 @@ public:
   OpSemMemHybridRepr(RawMemManagerCore &memManager, Bv2OpSemContext &ctx,
                      unsigned memCpyUnrollCnt)
       : OpSemMemArrayReprBase(memManager, ctx, memCpyUnrollCnt),
-        m_cache(DagVisitCache()) {}
+        m_memCache(DagVisitMemCache()), m_cache(DagVisitCache()),
+        m_armCache(ARMCache()) {}
 
   /**
    * mem: 1. array const i.e. A (uninitialized)
@@ -142,6 +144,10 @@ public:
 
 private:
   DagVisitCache m_cache;
+  DagVisitMemCache m_memCache;
+  ARMCache m_armCache;
+  Expr createHybridReadWord(Expr arr, Expr idx,
+                            expr::addrRangeMap::AddrRangeMap &arm);
 };
 
 /// \brief Represent memory regions by lambda functions

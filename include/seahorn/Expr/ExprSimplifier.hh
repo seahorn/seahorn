@@ -1,15 +1,22 @@
 #pragma once
+#include "seahorn/Expr/Expr.hh"
 #include "seahorn/Expr/ExprCore.hh"
 #include "seahorn/Expr/ExprOpCore.hh"
 #include "seahorn/Expr/ExprVisitor.hh"
-
-#include "seahorn/Expr/Expr.hh"
+#include "seahorn/Expr/Smt/EZ3.hh"
+#include "seahorn/Expr/Smt/Z3.hh"
 
 namespace expr {
-
 namespace op {
 namespace boolop {
-/** trivial simplifier for Boolean Operators */
+
+/** lhs == a and rhs == !a
+ *  or:
+ *  lhs == !a and rhs == a
+ **/
+bool areNegations(Expr lhs, Expr rhs);
+
+/** trivial simplifier for Boolean and Compare Operators */
 struct TrivialSimplifier : public std::unary_function<Expr, Expr> {
   ExprFactory &efac;
 
@@ -95,12 +102,10 @@ struct TrivialSimplifier : public std::unary_function<Expr, Expr> {
           return rhs;
         if (falseE == rhs)
           return lhs;
-        // (!a || a)
-        if (isOpX<NEG>(lhs) && lhs->left() == rhs)
+        // (!a || a) or (a || !a)
+        if (areNegations(lhs, rhs)) {
           return trueE;
-        // (a || !a)
-        if (isOpX<NEG>(rhs) && rhs->left() == lhs)
-          return trueE;
+        }
 
         return exp;
       }
@@ -130,10 +135,10 @@ struct TrivialSimplifier : public std::unary_function<Expr, Expr> {
           return rhs;
         if (trueE == rhs)
           return lhs;
-        if (isOpX<NEG>(lhs) && lhs->left() == rhs)
+        // (!a && a) or (a && !a)
+        if (areNegations(lhs, rhs)) {
           return falseE;
-        if (isOpX<NEG>(rhs) && rhs->left() == lhs)
-          return falseE;
+        }
 
         return exp;
       }
@@ -148,7 +153,7 @@ struct TrivialSimplifier : public std::unary_function<Expr, Expr> {
     return exp;
   }
 };
-}
+} // namespace boolop
 } // namespace op
 
 namespace {
@@ -202,6 +207,24 @@ template <typename T> struct BS {
     return VisitAction::skipKids();
   }
 };
+
+// simplifying visitor for boolop and compareop
+template <typename T> struct BoolCompSV {
+  std::shared_ptr<T> _r;
+
+  BoolCompSV(std::shared_ptr<T> r) : _r(r) {}
+  BoolCompSV(T *r) : _r(r) {}
+
+  VisitAction operator()(Expr exp) {
+    // -- apply the rewriter
+    if (isOp<BoolOp>(exp) || isOp<CompareOp>(exp))
+      return VisitAction::changeDoKidsRewrite(exp, _r);
+
+    // -- do not descend into non-boolean, non-compare operators
+    return VisitAction::skipKids();
+  }
+};
+
 } // namespace boolop
 } // namespace op
 } // namespace expr

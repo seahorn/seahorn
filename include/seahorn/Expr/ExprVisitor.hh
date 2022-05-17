@@ -72,6 +72,7 @@ public:
 
   static inline VisitAction skipKids() { return VisitAction(true); }
   static inline VisitAction doKids() { return VisitAction(false); }
+
   static inline VisitAction changeTo(Expr e) {
     return VisitAction(e, true, std::make_shared<IdentityRewriter>());
   }
@@ -84,10 +85,12 @@ public:
   static inline VisitAction changeDoKidsRewrite(Expr e, std::shared_ptr<R> r) {
     return VisitAction(e, false, r);
   }
-
 };
 
 using DagVisitCache = std::unordered_map<ENode *, Expr>;
+
+/* Map[mem][ptr] */
+using DagVisitMemCache = std::unordered_map<ENode *, DagVisitCache>;
 
 template <typename ExprVisitor>
 Expr visit(ExprVisitor &v, Expr expr, DagVisitCache &cache) {

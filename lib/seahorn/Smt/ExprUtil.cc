@@ -1,10 +1,13 @@
 /// All Expr utilitiies.
 #include "seahorn/Expr/Expr.hh"
+#include "seahorn/Expr/ExprMemUtils.h"
 #include "seahorn/Expr/ExprNumericUtils.hh"
 #include "seahorn/Expr/ExprSimplifier.hh"
 #include "seahorn/Expr/ExprVisitor.hh"
 /// yet to be refactored
-
+namespace seahorn {
+extern bool BasedPtrObj; // from BvOpSem2RawMemMgr.cc
+}
 namespace expr {
 
 namespace {
@@ -33,6 +36,7 @@ struct CIRCSIZE : public std::unary_function<Expr, VisitAction> {
 
 namespace op {
 namespace boolop {
+
 /// size of an expression in terms of ANDs, ORs, and inputs.
 /// NEG is not counted, other BoolOps are treated as inputs.
 unsigned circSize(Expr e) {
@@ -164,6 +168,16 @@ namespace boolop {
 Expr simplify(Expr exp) {
   BS<TrivialSimplifier> bs(std::make_shared<TrivialSimplifier>(exp->efac()));
   return dagVisit(bs, exp);
+}
+
+bool areNegations(Expr lhs, Expr rhs) {
+  /** a negates !a**/
+  if (isOpX<NEG>(lhs) && lhs->left() == rhs)
+    return true;
+  if (isOpX<NEG>(rhs) && rhs->left() == lhs)
+    return true;
+
+  return false;
 }
 
 namespace {
@@ -483,4 +497,98 @@ Expr convertToMpz(Expr exp) {
   return exp;
 }
 } // namespace numeric
+namespace mem {
+using namespace addrRangeMap;
+inline bool isBasedObjAddr(Expr e) {
+  if (op::bv::isBvConst(e)) {
+    // strip fdecl
+    Expr name = op::bind::fname(e);
+    if (op::bind::isFdecl(name)) {
+      name = op::bind::fname(name);
+    }
+    // strip variant
+    if (isOpX<VARIANT>(name)) {
+      name = op::variant::mainVariant(name);
+    }
+    if (isOpX<STRING>(name)) {
+      std::string term = getTerm<std::string>(name);
+      if (term.rfind("sea.obj", 0) == 0)
+        return true;
+    }
+  }
+  return false;
+}
+bool isBaseAddr(Expr e) {
+  if (seahorn::BasedPtrObj) {
+    return isBasedObjAddr(e);
+  }
+  // adhoc matcher
+  if (op::bv::is_bvnum(e)) {
+    mpz_class val = op::bv::toMpz(e);
+    if (val >= 0xbf000000UL && val <= 0xc0000000UL)
+      return true;
+  }
+  if (op::bv::isBvConst(e)) {
+    // strip fdecl
+    Expr name = op::bind::fname(e);
+    if (op::bind::isFdecl(name)) {
+      name = op::bind::fname(name);
+    }
+    // strip variant
+    if (isOpX<VARIANT>(name)) {
+      name = op::variant::mainVariant(name);
+    }
+    if (isOpX<STRING>(name)) {
+      std::string term = getTerm<std::string>(name);
+      if (term.rfind("sea.sp0", 0) == 0)
+        return true;
+    }
+  }
+  return false;
+}
+
+bool isPtrExpr(Expr e) {
+  if (isBaseAddr(e)) {
+    return true;
+  }
+  if (op::bv::isBvConst(e) || op::bv::is_bvnum(e)) {
+    return false;
+  } /* num */
+  if (isOpX<ITE>(e)) {
+    Expr a = e->arg(1);
+    Expr b = e->arg(2);
+    return isPtrExpr(a) || isPtrExpr(b);
+  }
+  if (isOpX<BCONCAT>(e)) {
+    return isPtrExpr(e->arg(0)) || isPtrExpr(e->arg(1));
+  }
+  if (isOpX<BEXTRACT>(e)) {
+    return isPtrExpr(op::bv::earg(e));
+  }
+  for (auto b = e->args_begin(); b != e->args_end(); ++b) {
+    if (isPtrExpr(*b)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+bool isZeroBits(Expr e, PtrBitsZeroed &p) {
+  if (isOpX<BCONCAT>(e)) {
+    Expr lhs = e->arg(0);
+    Expr rhs = e->arg(1);
+    if (isOpX<BEXTRACT>(lhs) && op::bv::is_bvnum(rhs)) {
+      mpz_class rhsMpz = op::bv::toMpz(rhs);
+      if (rhsMpz.get_ui() == 0) {
+        unsigned lowBits = op::bv::low(lhs);
+        p.first = op::bv::earg(lhs);
+        p.second = lowBits;
+        return true;
+      }
+    }
+  }
+  return false;
+}
+} // namespace mem
+
 } // namespace expr

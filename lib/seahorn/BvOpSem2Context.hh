@@ -558,6 +558,13 @@ public:
   /// \brief Returns a pointer value for a given stack allocation
   virtual PtrTy mkStackPtr(unsigned offset) = 0;
 
+  /// \brief Create based ptr expression given \a base and \a offset :
+  /// eg: base=sea.obj, offset=16 => sea.obj.16
+  virtual PtrTy mkBasedPtr(Expr base, unsigned offset) = 0;
+
+  /// \brief Create based ptr obj for a given stack allocation
+  virtual PtrTy mkBasedStackPtr(unsigned offset) = 0;
+
   /// \brief Pointer to start of the heap
   virtual PtrTy brk0Ptr() = 0;
 

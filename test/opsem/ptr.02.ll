@@ -1,6 +1,7 @@
 ; Confuse pointers to the stack. Write to them. Expect possible aliasing.
 ; RUN: %seabmc "%s" 2>&1 | %oc %s
 ; RUN: %seabmc --horn-bv2-lambdas --log=opsem3 "%s" 2>&1 | %oc %s
+; RUN: %seabmc --horn-based-ptr-obj --horn-hybrid-array --horn-bv2-lambdas=false --log=opsem3 "%s" 2>&1 | %oc %s
 
 ; CHECK: ^sat$
 ; ModuleID = 'ptr.01.ll'

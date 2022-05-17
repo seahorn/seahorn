@@ -12,6 +12,8 @@
 #include "seahorn/Support/SeaLog.hh"
 
 namespace seahorn {
+bool BasedPtrObj;
+bool HybridArrayRepr;
 namespace details {
 enum class MemAllocatorKind { NORMAL_ALLOCATOR, STATIC_ALLOCATOR };
 }
@@ -45,10 +47,19 @@ static llvm::cl::opt<unsigned> MemCpyUnrollCount(
                    "count for symbolic memcpy"),
     llvm::cl::init(16));
 
+static llvm::cl::opt<bool, true> UseHybridArray(
+    "horn-hybrid-array", llvm::cl::desc("Use optimized hybrid array mem repr"),
+    llvm::cl::location(seahorn::HybridArrayRepr), llvm::cl::init(false));
+
 static llvm::cl::opt<unsigned> MaxSymbAllocSz(
     "horn-opsem-max-symb-alloc",
     llvm::cl::desc("Maximum expected size of any symbolic allocation"),
     llvm::cl::init(4096));
+
+static llvm::cl::opt<bool, true> XBasedPtrObj(
+    "horn-based-ptr-obj",
+    llvm::cl::desc("Use ptr object expression semantics with base"),
+    llvm::cl::location(seahorn::BasedPtrObj), llvm::cl::init(false));
 namespace seahorn {
 namespace details {
 
@@ -82,7 +93,8 @@ RawMemManagerCore::RawMemManagerCore(Bv2OpSem &sem, Bv2OpSemContext &ctx,
       m_freshPtrName(mkTerm<std::string>("sea.ptr", m_efac)), m_id(0),
       m_nullPtr(PtrTy(m_ctx.alu().ui(0UL, ptrSizeInBits()))),
       m_sp0(PtrTy(bind::mkConst(mkTerm<std::string>("sea.sp0", m_efac),
-                                ptrSort().toExpr()))) {
+                                ptrSort().toExpr()))),
+      m_spObjName(mkTerm<std::string>("sea.obj", m_efac)) {
   if (MemAllocatorOpt == MemAllocatorKind::NORMAL_ALLOCATOR)
     m_allocator = mkNormalOpSemAllocator(*this, MaxSymbAllocSz);
   else if (MemAllocatorOpt == MemAllocatorKind::STATIC_ALLOCATOR)
@@ -93,11 +105,24 @@ RawMemManagerCore::RawMemManagerCore(Bv2OpSem &sem, Bv2OpSemContext &ctx,
   if (ExplicitSp0)
     m_sp0 = PtrTy(m_ctx.alu().ui(0xC0000000, this->ptrSizeInBits()));
 
+  if (BasedPtrObj) {
+    PtrTy rawNullPtr = m_nullPtr;
+    m_nullPtr = PtrTy(bind::mkConst(mkTerm<std::string>("sea.obj.null", m_efac),
+                                    ptrSort().toExpr()));
+    m_ctx.addSide(ptrEq(m_nullPtr, rawNullPtr));
+  }
+
   if (useLambdas)
     m_memRepr = std::make_unique<OpSemMemLambdaRepr>(*this, ctx);
-  else
-    m_memRepr =
-        std::make_unique<OpSemMemArrayRepr>(*this, ctx, MemCpyUnrollCount);
+  else {
+    if (UseHybridArray) {
+      m_memRepr =
+          std::make_unique<OpSemMemHybridRepr>(*this, ctx, MemCpyUnrollCount);
+    } else {
+      m_memRepr =
+          std::make_unique<OpSemMemArrayRepr>(*this, ctx, MemCpyUnrollCount);
+    }
+  }
 }
 
 /// \brief Creates a non-deterministic pointer that is aligned
@@ -162,8 +187,13 @@ PtrTy RawMemManagerCore::salloc(unsigned bytes, uint32_t align) {
   assert(isa<AllocaInst>(m_ctx.getCurrentInst()));
   align = std::max(align, m_alignment);
   auto region = m_allocator->salloc(bytes, align);
-
-  return mkStackPtr(region.second);
+  PtrTy sPtr = mkStackPtr(region.second);
+  if (seahorn::BasedPtrObj) {
+    PtrTy basedPtr = mkBasedPtr(m_spObjName, region.second);
+    m_ctx.addSide(ptrEq(sPtr, basedPtr));
+    return basedPtr;
+  }
+  return sPtr;
 }
 
 /// \brief Returns a pointer value for a given stack allocation
@@ -200,7 +230,13 @@ PtrTy RawMemManagerCore::salloc(Expr elmts, unsigned typeSz, unsigned align) {
   }
 
   // -- have a good region, return pointer to it
-  return mkStackPtr(region.second);
+  PtrTy sPtr = mkStackPtr(region.second);
+  if (seahorn::BasedPtrObj) {
+    PtrTy basedPtr = mkBasedPtr(m_spObjName, region.second);
+    m_ctx.addSide(ptrEq(sPtr, basedPtr));
+    return basedPtr;
+  }
+  return sPtr;
 }
 
 /// \brief Pointer to start of the heap

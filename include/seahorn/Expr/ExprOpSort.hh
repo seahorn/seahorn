@@ -21,6 +21,7 @@ enum class SimpleTypeOpKind {
   STRUCT_TY,
   FINITE_MAP_TY,
   FINITE_MAP_KEYS_TY,
+  MEM_TY,
   ANY_TY,
   ERROR_TY,
   TYPE_TY,
@@ -74,6 +75,8 @@ NOP(TYPE_TY, "TYPE", PREFIX, SimpleTypeOp, typeCheck::Any)
 /// \brief Functional type,
 NOP(FUNCTIONAL_TY, "FUNCTIONAL", PREFIX, SimpleTypeOp,
     typeCheck::simpleType::Simple)
+/// \brief MEM operation type
+NOP(MEM_TY, "MEM", PREFIX, SimpleTypeOp, typeCheck::simpleType::Simple)
 } // namespace op
 
 namespace op {
@@ -112,6 +115,9 @@ template <typename Range> Expr finiteMapTy(Expr valTy, const Range &ks) {
 inline Expr finiteMapKeyTy(Expr fmapTy) { return fmapTy->right(); }
 inline Expr finiteMapValTy(Expr fmapTy) { return fmapTy->left(); }
 
+template <typename Range> Expr memTy(const Range &ty) {
+  return mknary<MEM_TY>(ty);
+}
 } // namespace sort
 } // namespace op
 } // namespace expr

@@ -65,6 +65,16 @@ public:
     return toPtrTy(std::move(res));
   }
 
+  PtrTy mkBasedPtr(Expr b, unsigned offset) override {
+    auto res = base().mkBasedPtr(b, offset);
+    return toPtrTy(std::move(res));
+  }
+
+  PtrTy mkBasedStackPtr(unsigned offset) override {
+    auto res = base().mkBasedStackPtr(offset);
+    return toPtrTy(std::move(res));
+  }
+
   PtrTy brk0Ptr() override {
     auto res = base().brk0Ptr();
     return toPtrTy(std::move(res));

@@ -1,5 +1,7 @@
 ; RUN: %seabmc --sea-opsem-allocator=static "%s" 2>&1 | %oc %s
 ; RUN: %seabmc --sea-opsem-allocator=static --horn-bv2-lambdas "%s" 2>&1 | %oc %s
+; RUN: %seabmc --sea-opsem-allocator=static --horn-based-ptr-obj --horn-hybrid-array --horn-bv2-lambdas=false "%s" 2>&1 | %oc %s
+
 
 ; CHECK: ^sat$
 ;; dynamic allocation of larger size than handled by static allocator

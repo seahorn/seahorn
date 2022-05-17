@@ -384,6 +384,14 @@ TrackingRawMemManager::PtrTy
 TrackingRawMemManager::mkStackPtr(unsigned int offset) {
   return m_main.mkStackPtr(offset);
 }
+TrackingRawMemManager::PtrTy
+TrackingRawMemManager::mkBasedPtr(Expr base, unsigned int offset) {
+  return m_main.mkBasedPtr(base, offset);
+}
+TrackingRawMemManager::PtrTy
+TrackingRawMemManager::mkBasedStackPtr(unsigned int offset) {
+  return m_main.mkBasedStackPtr(offset);
+}
 unsigned int TrackingRawMemManager::getMetaDataMemWordSzInBits() {
   assert(m_metadata_map.at(MetadataKind::READ)->wordSzInBits() ==
          m_metadata_map.at(MetadataKind::WRITE)->wordSzInBits());

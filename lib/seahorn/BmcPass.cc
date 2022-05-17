@@ -312,7 +312,9 @@ public:
     LOG("bmc.simplify",
         // --
         Expr vc = mknary<AND>(bmc.getFormula());
+        Stats::resume("BMC.simplify");
         Expr vc_simpl = z3_simplify(bmc.zctx(), vc);
+        Stats::stop("BMC.simplify");
         llvm::errs() << "VC:\n"
                      << z3_to_smtlib(bmc.zctx(), vc) << "\n~~~~\n"
                      << "Simplified VC:\n"

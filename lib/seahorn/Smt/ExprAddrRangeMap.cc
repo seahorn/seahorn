@@ -1,5 +1,6 @@
 #include "seahorn/Expr/ExprAddrRangeMap.hh"
 #include "seahorn/Expr/ExprMemUtils.h"
+#include "seahorn/Support/Stats.hh"
 
 namespace expr {
 namespace addrRangeMap {
@@ -118,7 +119,7 @@ inline void updateARMCache(ARMCache &cache, Expr e, AddrRangeMap arm) {
   }
 }
 
-AddrRangeMap addrRangeMapOf(Expr e, ARMCache &cache) {
+static AddrRangeMap s_addrRangeMapOf(Expr e, ARMCache &cache) {
   if (e->use_count() > 1) {
     ARMCache::const_iterator cit = cache.find(&*e);
     if (cit != cache.end())
@@ -145,7 +146,7 @@ AddrRangeMap addrRangeMapOf(Expr e, ARMCache &cache) {
       updateARMCache(cache, e, res);
       return res;
     }
-    AddrRangeMap res = addrRangeMapOf(base, cache);
+    AddrRangeMap res = s_addrRangeMapOf(base, cache);
     for (auto o : offsets) {
       AddrRange oRange = addrRangeOf(o);
       res.addRange(oRange);
@@ -154,8 +155,8 @@ AddrRangeMap addrRangeMapOf(Expr e, ARMCache &cache) {
     return res;
   }
   if (isOpX<ITE>(e)) {
-    AddrRangeMap a = addrRangeMapOf(e->arg(1), cache);
-    AddrRangeMap b = addrRangeMapOf(e->arg(2), cache);
+    AddrRangeMap a = s_addrRangeMapOf(e->arg(1), cache);
+    AddrRangeMap b = s_addrRangeMapOf(e->arg(2), cache);
     /* merge t e into t*/
     AddrRangeMap res = a.unionWith(b);
     updateARMCache(cache, e, res);
@@ -165,7 +166,7 @@ AddrRangeMap addrRangeMapOf(Expr e, ARMCache &cache) {
   // any known operation that zeroes out last k bits
   mem::PtrBitsZeroed ptrBits;
   if (mem::isZeroBits(e, ptrBits)) {
-    AddrRangeMap res = addrRangeMapOf(ptrBits.first, cache);
+    AddrRangeMap res = s_addrRangeMapOf(ptrBits.first, cache);
     res.zeroBits(ptrBits.second);
     updateARMCache(cache, e, res);
     return res;
@@ -175,6 +176,11 @@ AddrRangeMap addrRangeMapOf(Expr e, ARMCache &cache) {
   AddrRangeMap res = AddrRangeMap({{}}, true);
   updateARMCache(cache, e, res);
   return res;
+}
+
+AddrRangeMap addrRangeMapOf(Expr e, ARMCache &cache) {
+  seahorn::ScopedStats _st_("hybrid.build-arm");
+  return s_addrRangeMapOf(e, cache);
 }
 
 }; // namespace addrRangeMap

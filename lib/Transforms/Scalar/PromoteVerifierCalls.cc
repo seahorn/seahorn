@@ -91,6 +91,8 @@ bool PromoteVerifierCalls::runOnModule(Module &M) {
   m_tracking_on = SBI.mkSeaBuiltinFn(SBIOp::TRACKING_ON, M);
   m_tracking_off = SBI.mkSeaBuiltinFn(SBIOp::TRACKING_OFF, M);
   m_free = SBI.mkSeaBuiltinFn(SBIOp::FREE, M);
+  m_set_shadowmem = SBI.mkSeaBuiltinFn(SBIOp::SET_SHADOWMEM, M);
+  m_get_shadowmem = SBI.mkSeaBuiltinFn(SBIOp::GET_SHADOWMEM, M);
 
   // XXX DEPRECATED
   // Do not keep unused functions in llvm.used
@@ -155,12 +157,13 @@ bool PromoteVerifierCalls::runOnFunction(Function &F) {
       {"sea_is_alloc", {m_is_alloc, 1}},
       {"sea_tracking_on", {m_tracking_on, 0}},
       {"sea_tracking_off", {m_tracking_off, 0}},
-      {"sea_free", {m_free, 1}}};
+      {"sea_free", {m_free, 1}},
+      {"sea_set_shadowmem", {m_set_shadowmem, 3}},
+      {"sea_get_shadowmem", {m_get_shadowmem, 2}}};
 
-  auto replaceFnWithOneArg = [](Instruction &I,
-                                std::pair<Function *, unsigned> f, Function &F,
-                                SmallVector<Instruction *, 16> &toKill,
-                                CallGraph *cg) {
+  auto replaceFn = [](Instruction &I, std::pair<Function *, unsigned> f,
+                      Function &F, SmallVector<Instruction *, 16> &toKill,
+                      CallGraph *cg) {
     IRBuilder<> Builder(F.getContext());
     Builder.SetInsertPoint(&I);
     CallSite CS(&I);
@@ -171,6 +174,9 @@ bool PromoteVerifierCalls::runOnFunction(Function &F) {
       ci = Builder.CreateCall(f.first, {CS.getArgument(0)});
     } else if (f.second == 2) {
       ci = Builder.CreateCall(f.first, {CS.getArgument(0), CS.getArgument(1)});
+    } else if (f.second == 3) {
+      ci = Builder.CreateCall(
+          f.first, {CS.getArgument(0), CS.getArgument(1), CS.getArgument(2)});
     }
     assert(ci);
     if (cg)
@@ -298,7 +304,7 @@ bool PromoteVerifierCalls::runOnFunction(Function &F) {
 
       toKill.push_back(&I);
     } else if (fn && functionMap.count(fn->getName())) {
-      replaceFnWithOneArg(I, functionMap.at(fn->getName()), F, toKill, cg);
+      replaceFn(I, functionMap.at(fn->getName()), F, toKill, cg);
     } else if (fn && (fn->getName().equals(
                          "__VERIFIER_assert_if"))) { // sea_assert_if is the
                                                      // user facing name

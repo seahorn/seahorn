@@ -11,6 +11,12 @@ using namespace llvm;
 namespace seahorn {
 
 void DfCoiAnalysis::analyze(User &user) {
+  constexpr auto shadowStoreSucc =
+      hana::make_set("sea.reset_modified", "sea.free", "sea.set_shadowmem");
+
+  constexpr auto shadowLoadSucc =
+      hana::make_set("sea.is_modified", "sea.is_alloc", "sea.get_shadowmem");
+
   if (m_coi.count(&user))
     return;
 
@@ -48,9 +54,8 @@ void DfCoiAnalysis::analyze(User &user) {
           ++it;
           assert(it != CI->getParent()->end());
           workList.push_back(&*it);
-        } else if (CS.getCalledFunction()->getName().equals(
-                       "sea.is_modified") ||
-                   (CS.getCalledFunction()->getName().equals("sea.is_alloc"))) {
+        } else if (hana::contains(shadowLoadSucc,
+                                  CS.getCalledFunction()->getName())) {
           //  instruction that precedes has to be
           //  1. shadowmem.load
           BasicBlock::iterator it(CI);
@@ -59,9 +64,8 @@ void DfCoiAnalysis::analyze(User &user) {
             CallSite CS(CI);
             assert(CS.getCalledFunction()->getName().equals("shadow.mem.load"));
             workList.push_back(&*it);
-          } else if (CS.getCalledFunction()->getName().equals(
-                         "sea.reset_modified") ||
-                     (CS.getCalledFunction()->getName().equals("sea.free"))) {
+          } else if (boost::hana::contains(shadowStoreSucc,
+                                           CS.getCalledFunction()->getName())) {
             //  instruction that precedes has to be
             //  1. shadowmem.store
             BasicBlock::iterator it(CI);

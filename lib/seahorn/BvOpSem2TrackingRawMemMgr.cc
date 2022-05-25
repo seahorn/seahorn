@@ -6,7 +6,8 @@ namespace details {
 const unsigned int TrackingRawMemManager::g_MetadataBitWidth = 8;
 const unsigned int TrackingRawMemManager::g_MetadataByteWidth =
     TrackingRawMemManager::g_MetadataBitWidth / 8;
-const unsigned int TrackingRawMemManager::g_num_slots = 4;
+const unsigned int TrackingRawMemManager::g_num_slots =
+    TrackingMemoryTuple::GetTupleSize();
 
 TrackingMemoryTuple::TrackingMemoryTuple(Bv2OpSem &sem, Bv2OpSemContext &ctx,
                                          unsigned ptrSz, unsigned wordSz,
@@ -17,7 +18,9 @@ TrackingMemoryTuple::TrackingMemoryTuple(Bv2OpSem &sem, Bv2OpSemContext &ctx,
       m_r_metadata(sem, ctx, ptrSz, TrackingRawMemManager::g_MetadataByteWidth,
                    useLambdas, true),
       m_a_metadata(sem, ctx, ptrSz, TrackingRawMemManager::g_MetadataByteWidth,
-                   useLambdas, true) {}
+                   useLambdas, true),
+      m_c0_metadata(sem, ctx, ptrSz, TrackingRawMemManager::g_MetadataByteWidth,
+                    useLambdas, true) {}
 
 TrackingMemoryTuple::TrackingMemoryTuple(Bv2OpSem &sem, Bv2OpSemContext &ctx,
                                          unsigned ptrSz, unsigned wordSz,
@@ -28,7 +31,9 @@ TrackingMemoryTuple::TrackingMemoryTuple(Bv2OpSem &sem, Bv2OpSemContext &ctx,
       m_r_metadata(sem, ctx, ptrSz, TrackingRawMemManager::g_MetadataByteWidth,
                    useLambdas, true),
       m_a_metadata(sem, ctx, ptrSz, TrackingRawMemManager::g_MetadataByteWidth,
-                   useLambdas, true) {}
+                   useLambdas, true),
+      m_c0_metadata(sem, ctx, ptrSz, TrackingRawMemManager::g_MetadataByteWidth,
+                    useLambdas, true) {}
 
 TrackingRawMemManager::TrackingRawMemManager(Bv2OpSem &sem,
                                              Bv2OpSemContext &ctx,
@@ -254,7 +259,7 @@ Expr TrackingRawMemManager::loadIntFromMem(TrackingRawMemManager::PtrTy ptr,
 // compile time because we can't use compile time constants across virtual
 // functions. Thus, we need to check whether kind equals ith element for each i.
 TrackingRawMemManager::MemValTy
-TrackingRawMemManager::memsetMetaData(MetadataKind kind, PtrTy ptr, Expr len,
+TrackingRawMemManager::memsetMetadata(MetadataKind kind, PtrTy ptr, Expr len,
                                       MemValTy memIn, unsigned int val) {
   // make sure we can fit the supplied value in metadata memory slot
   assert(llvm::Log2_64(val) + 1 <= g_MetadataBitWidth &&
@@ -279,7 +284,7 @@ TrackingRawMemManager::memsetMetaData(MetadataKind kind, PtrTy ptr, Expr len,
   return MemValTy(c);
 }
 TrackingRawMemManager::MemValTy
-TrackingRawMemManager::memsetMetaData(MetadataKind kind, PtrTy ptr,
+TrackingRawMemManager::memsetMetadata(MetadataKind kind, PtrTy ptr,
                                       unsigned int len, MemValTy memIn,
                                       unsigned int val) {
   // make sure we can fit the supplied value in metadata memory slot
@@ -304,7 +309,7 @@ TrackingRawMemManager::memsetMetaData(MetadataKind kind, PtrTy ptr,
   });
   return MemValTy(c);
 }
-Expr TrackingRawMemManager::getMetaData(MetadataKind kind, PtrTy ptr,
+Expr TrackingRawMemManager::getMetadata(MetadataKind kind, PtrTy ptr,
                                         MemValTy memIn, unsigned int byteSz) {
   // TODO: expose a method in OpSemMemManager to loadAlignedWordFromMem
   auto index = static_cast<size_t>(kind) + 1;
@@ -416,7 +421,7 @@ TrackingRawMemManager::PtrTy
 TrackingRawMemManager::mkStackPtr(unsigned int offset) {
   return MAIN_MEM_MGR.mkStackPtr(offset);
 }
-unsigned int TrackingRawMemManager::getMetaDataMemWordSzInBits() {
+unsigned int TrackingRawMemManager::getMetadataMemWordSzInBits() {
   // slice of metadata keys 2nd metadata key onwards
   auto sec_metadata_keys = hana::slice(
       hana::keys(m_submgrs),
@@ -429,6 +434,10 @@ unsigned int TrackingRawMemManager::getMetaDataMemWordSzInBits() {
   }));
   return wordSz;
 }
+size_t TrackingRawMemManager::getNumOfMetadataSlots() {
+  // first slot is main mem, so don't count that
+  return TrackingMemoryTuple::GetTupleSize() - hana::size_c<1>;
+}
 Expr TrackingRawMemManager::isMetadataSet(MetadataKind kind, PtrTy p,
                                           MemValTy mem) {
   LOG("opsem", ERR << "isMetadataSet() not implemented!\n");
@@ -436,9 +445,24 @@ Expr TrackingRawMemManager::isMetadataSet(MetadataKind kind, PtrTy p,
 }
 TrackingRawMemManager::MemValTy TrackingRawMemManager::setMetadata(
     MetadataKind kind, TrackingRawMemManager::PtrTy p,
-    TrackingRawMemManager::MemValTy mem, unsigned val) {
-  LOG("opsem", ERR << "setMetadata() not implemented!\n");
-  return mem;
+    TrackingRawMemManager::MemValTy mem, Expr val) {
+  auto index = static_cast<size_t>(kind) + 1;
+  auto r =
+      hana::make_range(hana::int_c<0>, TrackingMemoryTuple::GetTupleSize());
+  auto r_t = hana::to_tuple(r);
+  auto z_t = hana::zip(r_t, hana::keys(m_submgrs));
+  auto c = hana::transform(z_t, [&](auto pair) {
+    auto current = hana::at(pair, hana::size_c<0>);
+    auto key = hana::at(pair, hana::size_c<1>);
+    if (current == index) {
+      return hana::at_key(m_submgrs, key)
+          .storeIntToMem(val, p, mem.getElementVal(index), g_MetadataByteWidth,
+                         0);
+    } else {
+      return mem.getElementVal(current);
+    }
+  });
+  return MemValTy(c);
 }
 Expr TrackingRawMemManager::ptrUlt(TrackingRawMemManager::PtrTy p1,
                                    TrackingRawMemManager::PtrTy p2) const {

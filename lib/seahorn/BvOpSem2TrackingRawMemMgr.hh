@@ -29,7 +29,8 @@ struct TrackingMemoryTuple {
   BOOST_HANA_DEFINE_STRUCT(TrackingMemoryTuple, (RawMemManager, m_main),
                            (RawMemManager, m_r_metadata),
                            (RawMemManager, m_w_metadata),
-                           (RawMemManager, m_a_metadata));
+                           (RawMemManager, m_a_metadata),
+                           (RawMemManager, m_c0_metadata));
 
   /// \brief A helper function to get number of memory elements in tuple
   static constexpr auto GetTupleSize() {
@@ -232,16 +233,16 @@ public:
 
   PtrTy ptrAdd(PtrTy ptr, Expr offset) const;
 
-  TrackingRawMemManager::MemValTy memsetMetaData(MetadataKind kind, PtrTy ptr,
+  TrackingRawMemManager::MemValTy memsetMetadata(MetadataKind kind, PtrTy ptr,
                                                  unsigned int len,
                                                  MemValTy memIn,
                                                  unsigned int val);
 
-  TrackingRawMemManager::MemValTy memsetMetaData(MetadataKind kind, PtrTy ptr,
+  TrackingRawMemManager::MemValTy memsetMetadata(MetadataKind kind, PtrTy ptr,
                                                  Expr len, MemValTy memIn,
                                                  unsigned int val);
 
-  Expr getMetaData(MetadataKind kind, PtrTy ptr, MemValTy memIn,
+  Expr getMetadata(MetadataKind kind, PtrTy ptr, MemValTy memIn,
                    unsigned int byteSz);
 
   /// \brief get word size (in bits) of Metadata memory, associated with a
@@ -249,7 +250,7 @@ public:
   // TODO: This should be replaced by a general way to query memory properties
   // from a memory manager.
   // All metadata memory will have the same word size.
-  unsigned int getMetaDataMemWordSzInBits();
+  unsigned int getMetadataMemWordSzInBits();
 
   Expr loadIntFromMem(PtrTy ptr, MemValTy mem, unsigned int byteSz,
                       uint64_t align);
@@ -326,9 +327,9 @@ public:
 
   bool isMemVal(Expr e) const;
 
-  TrackingRawMemManager::MemValTy
-  setMetadata(MetadataKind kind, TrackingRawMemManager::PtrTy p,
-              TrackingRawMemManager::MemValTy mem, unsigned val);
+  MemValTy setMetadata(MetadataKind kind, TrackingRawMemManager::PtrTy p,
+                       TrackingRawMemManager::MemValTy mem, Expr val);
+  size_t getNumOfMetadataSlots();
 };
 
 } // namespace details

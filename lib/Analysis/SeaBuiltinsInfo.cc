@@ -31,6 +31,8 @@ using namespace llvm;
 #define SEA_TRACKING_ON "sea.tracking_on"
 #define SEA_TRACKING_OFF "sea.tracking_off"
 #define SEA_FREE "sea.free"
+#define SEA_SET_SHADOWMEM "sea.set_shadowmem"
+#define SEA_GET_SHADOWMEM "sea.get_shadowmem"
 
 SeaBuiltinsOp
 seahorn::SeaBuiltinsInfo::getSeaBuiltinOp(const llvm::CallBase &cb) const {
@@ -59,6 +61,8 @@ seahorn::SeaBuiltinsInfo::getSeaBuiltinOp(const llvm::CallBase &cb) const {
       .Case(SEA_TRACKING_ON, SBIOp::TRACKING_ON)
       .Case(SEA_TRACKING_OFF, SBIOp::TRACKING_OFF)
       .Case(SEA_FREE, SBIOp::FREE)
+      .Case(SEA_SET_SHADOWMEM, SBIOp::SET_SHADOWMEM)
+      .Case(SEA_GET_SHADOWMEM, SBIOp::GET_SHADOWMEM)
       .Default(SBIOp::UNKNOWN);
 }
 
@@ -104,6 +108,10 @@ llvm::Function *SeaBuiltinsInfo::mkSeaBuiltinFn(SeaBuiltinsOp op,
     return mkTrackingOffFn(M);
   case SBIOp::FREE:
     return mkFreeFn(M);
+  case SBIOp::SET_SHADOWMEM:
+    return mkSetShadowMem(M);
+  case SBIOp::GET_SHADOWMEM:
+    return mkGetShadowMem(M);
   }
   llvm_unreachable(nullptr);
 }
@@ -226,6 +234,42 @@ Function *SeaBuiltinsInfo::mkResetReadFn(Module &M) {
     FN->addParamAttr(0, Attribute::NoCapture);
     // XXX maybe even add the following
     // FN->setDoesNotAccessMemory();
+  }
+  return FN;
+}
+
+Function *SeaBuiltinsInfo::mkGetShadowMem(llvm::Module &M) {
+  auto &C = M.getContext();
+  auto FC = M.getOrInsertFunction(SEA_GET_SHADOWMEM,
+                                  Type::getInt8Ty(C),   // return type
+                                  Type::getInt8Ty(C),   // slot number 0..255
+                                  Type::getInt8PtrTy(C) // address int8_t*
+  );
+  auto *FN = dyn_cast<Function>(FC.getCallee());
+  if (FN) {
+    FN->setOnlyReadsMemory();
+    FN->setDoesNotThrow();
+    FN->setDoesNotFreeMemory();
+    FN->setDoesNotRecurse();
+    FN->addParamAttr(1, Attribute::NoCapture);
+  }
+  return FN;
+}
+
+Function *SeaBuiltinsInfo::mkSetShadowMem(llvm::Module &M) {
+  auto &C = M.getContext();
+  auto FC = M.getOrInsertFunction(SEA_SET_SHADOWMEM,
+                                  Type::getVoidTy(C),    // return type
+                                  Type::getInt8Ty(C),    // slot number 0..255
+                                  Type::getInt8PtrTy(C), // address int8_t*
+                                  Type::getInt8Ty(C)     // value to set
+  );
+  auto *FN = dyn_cast<Function>(FC.getCallee());
+  if (FN) {
+    FN->setDoesNotThrow();
+    FN->setDoesNotFreeMemory();
+    FN->setDoesNotRecurse();
+    FN->addParamAttr(1, Attribute::NoCapture);
   }
   return FN;
 }

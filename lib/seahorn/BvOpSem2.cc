@@ -502,7 +502,9 @@ public:
     // TODO: check that addr is valid
     auto memIn = m_ctx.read(m_ctx.getMemReadRegister());
     OpSemMemManager &memManager = m_ctx.mem();
-    auto res = memManager.setMetadata(MetadataKind::ALLOC, addr, memIn, 1);
+    auto res = memManager.setMetadata(
+        MetadataKind::ALLOC, addr, memIn,
+        m_ctx.alu().num(1, memManager.getMetadataMemWordSzInBits()));
     m_ctx.write(m_ctx.getMemWriteRegister(), res);
 
     m_ctx.setMemReadRegister(Expr());
@@ -610,42 +612,63 @@ public:
       return;
     }
 
+    auto funDeclStartsWithVisitorMap = hana::make_map(
+        hana::make_pair(BOOST_HANA_STRING("sea.is_dereferenceable"),
+                        &OpSemVisitor::visitIsDereferenceable),
+        hana::make_pair(BOOST_HANA_STRING("sea.is_modified"),
+                        &OpSemVisitor::visitIsModified),
+        hana::make_pair(BOOST_HANA_STRING("sea.reset_modified"),
+                        &OpSemVisitor::visitResetModified),
+        hana::make_pair(BOOST_HANA_STRING("sea.is_read"),
+                        &OpSemVisitor::visitIsRead),
+        hana::make_pair(BOOST_HANA_STRING("sea.reset_read"),
+                        &OpSemVisitor::visitResetRead),
+        hana::make_pair(BOOST_HANA_STRING("sea.is_alloc"),
+                        &OpSemVisitor::visitIsAlloc),
+        hana::make_pair(BOOST_HANA_STRING("sea.tracking_on"),
+                        &OpSemVisitor::visitSetTrackingOn),
+        hana::make_pair(BOOST_HANA_STRING("sea.tracking_off"),
+                        &OpSemVisitor::visitSetTrackingOff),
+        hana::make_pair(BOOST_HANA_STRING("sea.free"),
+                        &OpSemVisitor::visitFree),
+        hana::make_pair(BOOST_HANA_STRING("sea.assert.if"),
+                        &OpSemVisitor::visitSeaAssertIfCall),
+        hana::make_pair(BOOST_HANA_STRING("verifier.assert"),
+                        &OpSemVisitor::visitVerifierAssertCall),
+        hana::make_pair(BOOST_HANA_STRING("sea.branch_sentinel"),
+                        &OpSemVisitor::visitBranchSentinel),
+        hana::make_pair(BOOST_HANA_STRING("smt."), &OpSemVisitor::visitSmtCall),
+        hana::make_pair(BOOST_HANA_STRING("sea.set_shadowmem"),
+                        &OpSemVisitor::visitSetShadowMem),
+        hana::make_pair(BOOST_HANA_STRING("sea.get_shadowmem"),
+                        &OpSemVisitor::visitGetShadowMem));
+
+    auto visitFunDecl = [&](StringRef candidate) {
+      auto found = false;
+      // Note: not efficient to loop through all keys.
+      // There is no way to break a hana::for_each loop
+      // The ease of adding a new instrinsic outweighs the cost of looping --
+      // since the number of entries is small and not likely to grow 2x
+      hana::for_each(hana::keys(funDeclStartsWithVisitorMap), [&](auto key) {
+        if (candidate.startswith(key.c_str()) && !found) {
+          auto fnPtr = funDeclStartsWithVisitorMap[key];
+          (this->*fnPtr)(CS);
+          found = true;
+          return;
+        }
+      });
+      return found;
+    };
+
     if (f->isDeclaration()) {
       if (f->arg_empty() && (f->getName().startswith("nd") ||
                              f->getName().startswith("nondet.") ||
                              f->getName().endswith("nondet") ||
                              f->getName().startswith("verifier.nondet") ||
-                             f->getName().startswith("__VERIFIER_nondet")))
+                             f->getName().startswith("__VERIFIER_nondet"))) {
         visitNondetCall(CS);
-      else if (f->getName().startswith("sea.is_dereferenceable")) {
-        visitIsDereferenceable(CS);
-      } else if (f->getName().startswith("sea.is_modified")) {
-        visitIsModified(CS);
-      } else if (f->getName().startswith("sea.reset_modified")) {
-        visitResetModified(CS);
-      } else if (f->getName().startswith("sea.is_read")) {
-        visitIsRead(CS);
-      } else if (f->getName().startswith("sea.reset_read")) {
-        visitResetRead(CS);
-      } else if (f->getName().startswith("sea.is_alloc")) {
-        visitIsAlloc(CS);
-      } else if (f->getName().startswith("sea.reset_modified")) {
-        visitResetModified(CS);
-      } else if (f->getName().startswith("sea.tracking_on")) {
-        visitSetTrackingOn(CS);
-      } else if (f->getName().startswith(("sea.tracking_off"))) {
-        visitSetTrackingOff(CS);
-      } else if (f->getName().startswith("sea.free")) {
-        visitFree(CS);
-      } else if (f->getName().startswith(("sea.assert.if"))) {
-        visitSeaAssertIfCall(CS);
-      } else if (f->getName().startswith(("verifier.assert"))) {
-        // this deals with both assert and assert.not stmts
-        visitVerifierAssertCall(CS);
-      } else if (f->getName().startswith("sea.branch_sentinel")) {
-        visitBranchSentinel(CS);
-      } else if (f->getName().startswith("smt.")) {
-        visitSmtCall(CS);
+      } else if (visitFunDecl(f->getName())) {
+        return;
       } else if (fatptr_intrnsc_re.match(f->getName())) {
         visitFatPointerInstr(CS);
       } else
@@ -774,6 +797,55 @@ public:
 
   void visitBranchSentinel(CallSite CS) {}
 
+  void visitGetShadowMem(CallSite CS) {
+    if (!m_ctx.getMemReadRegister()) {
+      LOG("opsem", ERR << "No read register found - check if corresponding"
+                          "shadow instruction is present.");
+      m_ctx.setMemReadRegister(Expr());
+      return;
+    }
+    Expr slot = lookup(*CS.getArgument(0));
+    if (!m_ctx.alu().isNum(slot)) {
+      LOG("opsem", ERR << "Metadata slot should resolve to a number.");
+      assert(false);
+    }
+    size_t slotNum = m_ctx.alu().toNum(slot).get_ui();
+    if (slotNum >= m_ctx.mem().getNumOfMetadataSlots()) {
+      LOG("opsem", ERR << "Metadata slot exceeds number of available slots.");
+      assert(false);
+    }
+    Expr ptr = lookup(*CS.getArgument(1));
+    auto memIn = m_ctx.read(m_ctx.getMemReadRegister());
+    OpSemMemManager &memManager = m_ctx.mem();
+    auto res =
+        memManager.getMetadata(static_cast<MetadataKind>(slotNum), ptr, memIn,
+                               memManager.getMetadataMemWordSzInBits() / 8);
+    setValue(*CS.getInstruction(), res);
+    m_ctx.setMemReadRegister(Expr());
+  };
+
+  void visitSetShadowMem(CallSite CS) {
+    Expr slot = lookup(*CS.getArgument(0));
+    if (!m_ctx.alu().isNum(slot)) {
+      LOG("opsem", ERR << "Metadata slot should resolve to a number.");
+      assert(false);
+    }
+    size_t slotNum = m_ctx.alu().toNum(slot).get_ui();
+    if (slotNum >= m_ctx.mem().getNumOfMetadataSlots()) {
+      LOG("opsem", ERR << "Metadata slot exceeds number of available slots.");
+      assert(false);
+    }
+    Expr ptr = lookup(*CS.getArgument(1));
+    Expr exprToSet = lookup(*CS.getArgument(2));
+    auto memIn = m_ctx.read(m_ctx.getMemReadRegister());
+    Expr res = m_ctx.mem().setMetadata(static_cast<MetadataKind>(slotNum), ptr,
+                                       memIn, exprToSet);
+    m_ctx.write(m_ctx.getMemWriteRegister(), res);
+    // clear hidden mem reg for next instruction
+    m_ctx.setMemReadRegister(Expr());
+    m_ctx.setMemWriteRegister(Expr());
+  };
+
   void visitIsDereferenceable(CallSite CS) {
     Expr ptr = lookup(*CS.getArgument(0));
     Expr byteSz = lookup(*CS.getArgument(1));
@@ -835,7 +907,9 @@ public:
     Expr ptr = lookup(*CS.getArgument(0));
     auto memIn = m_ctx.read(m_ctx.getMemReadRegister());
     OpSemMemManager &memManager = m_ctx.mem();
-    auto res = memManager.setMetadata(MetadataKind::WRITE, ptr, memIn, 0);
+    auto res = memManager.setMetadata(
+        MetadataKind::WRITE, ptr, memIn,
+        m_ctx.alu().num(0, memManager.getMetadataMemWordSzInBits()));
     m_ctx.write(m_ctx.getMemWriteRegister(), res);
 
     m_ctx.setMemReadRegister(Expr());
@@ -877,7 +951,9 @@ public:
     Expr ptr = lookup(*CS.getArgument(0));
     auto memIn = m_ctx.read(m_ctx.getMemReadRegister());
     OpSemMemManager &memManager = m_ctx.mem();
-    auto res = memManager.setMetadata(MetadataKind::ALLOC, ptr, memIn, 0);
+    auto res = memManager.setMetadata(
+        MetadataKind::ALLOC, ptr, memIn,
+        m_ctx.alu().num(0, memManager.getMetadataMemWordSzInBits()));
     m_ctx.write(m_ctx.getMemWriteRegister(), res);
 
     m_ctx.setMemReadRegister(Expr());

@@ -42,7 +42,9 @@ template <class T>
 typename ExtraWideMemManager<T>::RawMemValTy
 ExtraWideMemManager<T>::setModified(ExtraWideMemManager::PtrTy ptr,
                                     ExtraWideMemManager::MemValTy mem) {
-  return setMetadata(MetadataKind::WRITE, ptr, mem, 1U /* val */).getRaw();
+  return setMetadata(MetadataKind::WRITE, ptr, mem,
+                     m_ctx.alu().num(1U, getMetadataMemWordSzInBits()))
+      .getRaw();
 }
 
 template <class T>
@@ -50,12 +52,12 @@ Expr ExtraWideMemManager<T>::isMetadataSet(MetadataKind kind,
                                            ExtraWideMemManager::PtrTy ptr,
                                            ExtraWideMemManager::MemValTy mem) {
   // The width of the value will be wordSz
-  Expr val = getMetaData(kind, ptr, mem, 1);
+  Expr val = getMetadata(kind, ptr, mem, 1);
   if (val == Expr()) {
     return m_ctx.alu().getTrue();
   }
-  auto sentinel = m_ctx.alu().ui(1, getMetaDataMemWordSzInBits());
-  return m_ctx.alu().doEq(val, sentinel, getMetaDataMemWordSzInBits());
+  auto sentinel = m_ctx.alu().ui(1, getMetadataMemWordSzInBits());
+  return m_ctx.alu().doEq(val, sentinel, getMetadataMemWordSzInBits());
 }
 template <class T>
 Expr ExtraWideMemManager<T>::ptrEq(ExtraWideMemManager::PtrTy p1,
@@ -605,47 +607,52 @@ Expr ExtraWideMemManager<T>::bytesToSlotExpr(unsigned int bytes) {
 }
 template <class T>
 typename ExtraWideMemManager<T>::MemValTy
-ExtraWideMemManager<T>::memsetMetaData(MetadataKind kind,
+ExtraWideMemManager<T>::memsetMetadata(MetadataKind kind,
                                        ExtraWideMemManager::PtrTy ptr,
                                        unsigned int len,
                                        ExtraWideMemManager::MemValTy memIn,
                                        unsigned int val) {
   auto rawOut =
-      m_main.memsetMetaData(kind, ptr.getBase(), len, memIn.getRaw(), val);
+      m_main.memsetMetadata(kind, ptr.getBase(), len, memIn.getRaw(), val);
   return MemValTy(rawOut, memIn.getOffset(), memIn.getSize());
 }
 template <class T>
 typename ExtraWideMemManager<T>::MemValTy
-ExtraWideMemManager<T>::memsetMetaData(MetadataKind kind,
+ExtraWideMemManager<T>::memsetMetadata(MetadataKind kind,
                                        ExtraWideMemManager::PtrTy ptr, Expr len,
                                        ExtraWideMemManager::MemValTy memIn,
                                        unsigned int val) {
   auto rawOut =
-      m_main.memsetMetaData(kind, ptr.getBase(), len, memIn.getRaw(), val);
+      m_main.memsetMetadata(kind, ptr.getBase(), len, memIn.getRaw(), val);
   return MemValTy(rawOut, memIn.getOffset(), memIn.getSize());
 }
 
 template <class T>
-Expr ExtraWideMemManager<T>::getMetaData(MetadataKind kind, PtrTy ptr,
+Expr ExtraWideMemManager<T>::getMetadata(MetadataKind kind, PtrTy ptr,
                                          MemValTy memIn, unsigned int byteSz) {
-  return m_main.getMetaData(kind, ptr.getBase(), memIn.getRaw(), byteSz);
+  return m_main.getMetadata(kind, ptr.getBase(), memIn.getRaw(), byteSz);
 }
 
 template <class T>
-unsigned int ExtraWideMemManager<T>::getMetaDataMemWordSzInBits() {
-  return m_main.getMetaDataMemWordSzInBits();
+unsigned int ExtraWideMemManager<T>::getMetadataMemWordSzInBits() {
+  return m_main.getMetadataMemWordSzInBits();
+}
+template <class T> size_t ExtraWideMemManager<T>::getNumOfMetadataSlots() {
+  return m_main.getNumOfMetadataSlots();
 }
 template <class T>
 typename ExtraWideMemManager<T>::MemValTy ExtraWideMemManager<T>::setMetadata(
     MetadataKind kind, ExtraWideMemManager::PtrTy ptr,
-    ExtraWideMemManager::MemValTy mem, unsigned val) {
+    ExtraWideMemManager::MemValTy mem, Expr val) {
   if (!m_ctx.isTrackingOn() && kind != MetadataKind::ALLOC) {
     LOG("opsem.memtrack.verbose",
         WARN << "Ignoring setMetadata();Memory tracking is off"
              << "\n";);
     return mem;
   }
-  return memsetMetaData(kind, ptr, 1 /* len */, mem, val);
+  auto rawOut = m_main.setMetadata(kind, ptr.getBase(), mem.getRaw(), val);
+  return MemValTy(rawOut, mem.getOffset(), mem.getSize());
+  ;
 }
 template <class T>
 Expr ExtraWideMemManager<T>::ptrUlt(ExtraWideMemManager::PtrTy p1,

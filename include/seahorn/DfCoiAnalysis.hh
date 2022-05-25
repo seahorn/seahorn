@@ -5,6 +5,7 @@ Computes DataFlow Cone of Influence for a given instruction
 
 #include "llvm/ADT/DenseSet.h"
 #include "llvm/IR/Instruction.h"
+#include <boost/hana.hpp>
 
 namespace llvm {
 class LoadInst;
@@ -14,6 +15,8 @@ class AllocaInst;
 } // namespace llvm
 
 namespace seahorn {
+namespace hana = boost::hana;
+
 class DfCoiAnalysis {
 
   llvm::DenseSet<llvm::Value *> m_coi;

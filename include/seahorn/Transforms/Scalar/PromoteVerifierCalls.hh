@@ -33,6 +33,8 @@ namespace seahorn
     Function *m_tracking_on;
     Function *m_tracking_off;
     Function *m_free;
+    Function *m_set_shadowmem;
+    Function *m_get_shadowmem;
 
     PromoteVerifierCalls() : ModulePass(ID) {}
 

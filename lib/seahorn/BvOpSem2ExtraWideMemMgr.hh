@@ -276,21 +276,23 @@ public:
 
   typename ExtraWideMemManager<T>::MemValTy
   setMetadata(MetadataKind kind, ExtraWideMemManager::PtrTy ptr,
-              ExtraWideMemManager::MemValTy mem, unsigned val);
+              ExtraWideMemManager::MemValTy mem, Expr val);
 
   typename ExtraWideMemManager<T>::MemValTy
-  memsetMetaData(MetadataKind kind, ExtraWideMemManager::PtrTy ptr,
+  memsetMetadata(MetadataKind kind, ExtraWideMemManager::PtrTy ptr,
                  unsigned int len, ExtraWideMemManager::MemValTy memIn,
                  unsigned int val);
 
   typename ExtraWideMemManager<T>::MemValTy
-  memsetMetaData(MetadataKind kind, ExtraWideMemManager::PtrTy ptr, Expr len,
+  memsetMetadata(MetadataKind kind, ExtraWideMemManager::PtrTy ptr, Expr len,
                  ExtraWideMemManager::MemValTy memIn, unsigned int val);
 
-  Expr getMetaData(MetadataKind kind, PtrTy ptr, MemValTy memIn,
+  Expr getMetadata(MetadataKind kind, PtrTy ptr, MemValTy memIn,
                    unsigned int byteSz);
 
-  unsigned int getMetaDataMemWordSzInBits();
+  unsigned int getMetadataMemWordSzInBits();
+
+  size_t getNumOfMetadataSlots();
 
   RawPtrTy getAddressable(PtrTy p) const;
 

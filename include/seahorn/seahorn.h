@@ -47,7 +47,17 @@ extern void sea_tracking_on(void);
 extern void sea_tracking_off(void);
 /* reset modified metadata for memory pointed to by arg */
 extern void sea_reset_modified(char *);
-
+/* Set a shadow memory slot S at addr A with value V.
+ * arg0 - S. Note that 0 is main memory and should not be used.
+ * arg1 - A
+ * arg2 - V
+ */
+extern void sea_set_shadowmem(char, char *, char);
+/* Get a value from shadow memory slot S at address A.
+ * arg0 - S. Note that 0 is main memory and should not be used.
+ * arg1 - A
+ */
+extern char sea_get_shadowmem(char, char *);
 #ifdef __cplusplus
 }
 #endif

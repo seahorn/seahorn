@@ -8,7 +8,12 @@ extern bool BasedPtrObj; // from BvOpSem2RawMemMgr.cc
 namespace expr {
 using namespace addrRangeMap;
 namespace utils {
-bool shouldCache(Expr e) { return e->use_count() > 1; }
+bool shouldCache(Expr e) {
+  if (isOpX<SELECT>(e)) {
+    return op::array::selectArray(e)->use_count() > 1;
+  }
+  return e->use_count() > 1;
+}
 
 bool inAddrRange(Expr ptr, AddrRangeMap &arm) {
   if (!BasedPtrObj)
@@ -42,13 +47,6 @@ bool isMemWriteOp(Expr e) {
          isOpX<MEMCPY_WORDS>(e);
 }
 } // namespace utils
-
-Expr rewriteHybridLoadExpr(Expr loadE, AddrRangeMap &arm, unsigned wordSize,
-                           unsigned ptrWidth) {
-  DagVisitCache newCache;
-  return rewriteMemExprWithCache<ITECompRewriteConfig>(loadE, arm, newCache,
-                                                       wordSize, ptrWidth);
-}
 
 bool ITECompRewriteConfig::shouldRewrite(Expr exp) {
   return isOpX<ITE>(exp) || isOpX<CompareOp>(exp) || isOpX<BoolOp>(exp) ||

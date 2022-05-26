@@ -20,11 +20,12 @@ bool shouldCache(Expr e);
 // Expr rewriteHybridLoadExpr(Expr loadE, AddrRangeMap &arm);
 
 struct RewriteFrame {
-  Expr m_exp;     // the Expr node (subtree) under rewrite
-  size_t m_depth; // number of levels to rewrite from this node
-  size_t m_i;     // up to m_i th children have been rewritten
-  RewriteFrame(Expr exp, size_t depth, size_t i)
-      : m_exp(exp), m_depth(depth), m_i(i) {}
+  Expr m_exp;       // the Expr node (subtree) under rewrite
+  size_t m_depth;   // number of levels to rewrite from this node
+  size_t m_i;       // up to m_i th children have been rewritten
+  bool m_rewriting; // this frame is currently under further rewrite
+  RewriteFrame(Expr exp, size_t depth, size_t i, bool rw = false)
+      : m_exp(exp), m_depth(depth), m_i(i), m_rewriting(rw) {}
 };
 
 using RewriteFrameVector = std::vector<RewriteFrame>;
@@ -113,6 +114,13 @@ protected:
     return false;
   }
 
+  void addToCache(Expr src, Expr rw) {
+    if (utils::shouldCache(src)) {
+      src->Ref();
+      m_cache[&*src] = rw;
+    }
+  }
+
 public:
   ExprRewriter(ExprFactory &efac, Config &config, DagVisitCache &cache)
       : m_efac(efac), m_config(config), m_cache(cache) {}
@@ -145,20 +153,36 @@ public:
     rewrite_result rwRes = m_config.applyRewriteRules(new_exp);
     if (rwRes.status == rewrite_status::RW_SKIP) {
       m_resultStack.push_back(rwRes.rewritten);
-    } else if (rwRes.status == rewrite_status::RW_DONE) {
-      m_resultStack.push_back(rwRes.rewritten);
-      if (utils::shouldCache(exp)) {
-        exp->Ref();
-        m_cache[&*exp] = rwRes.rewritten;
+      /* cache multi-step */
+      if (!m_rewriteStack.empty() && m_rewriteStack.back().m_rewriting) {
+        auto &original = m_rewriteStack.back();
+        Expr key = original.m_exp;
+        m_rewriteStack.pop_back();
+        addToCache(key, rwRes.rewritten);
       }
+    } else if (rwRes.status == rewrite_status::RW_DONE) {
+      Expr key = exp;
+      /* cache multi-step */
+      if (!m_rewriteStack.empty() && m_rewriteStack.back().m_rewriting) {
+        auto &original = m_rewriteStack.back();
+        key = original.m_exp;
+        m_rewriteStack.pop_back();
+      }
+      addToCache(key, rwRes.rewritten);
+      m_resultStack.push_back(rwRes.rewritten);
     } else {
+      /* current frame is the base of a multi-step rewrite, keep in rw stack */
+      if (m_rewriteStack.empty() || !m_rewriteStack.back().m_rewriting) {
+        frame.m_rewriting = true;
+        m_rewriteStack.push_back(frame);
+      }
       m_rewriteStack.push_back(RewriteFrame(rwRes.rewritten, rwRes.status, 0));
     }
   }
 
   Expr rewriteExpr(Expr root) {
     if (visit(root, rewrite_status::RW_FULL)) {
-      return root;
+      return m_resultStack.back();
     }
     while (!m_rewriteStack.empty()) {
       processFrame(m_rewriteStack.back());

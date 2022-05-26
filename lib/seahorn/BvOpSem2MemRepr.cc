@@ -219,8 +219,7 @@ Expr OpSemMemHybridRepr::loadAlignedWordFromMem(PtrTy ptr, MemValTy mem) {
   ExprRewriter<PointerArithmeticConfig> pRw(ptr.toExpr()->efac(), paC, m_cache);
   Expr ptrSimp = pRw.rewriteExpr(ptr.toExpr());
   Stats::stop("hybrid.ptr-norm");
-  LOG("opsem.hybrid.debug",
-      INFO << "Simp ptr: " << *ptrSimp << "\n building ARM...");
+  LOG("opsem.hybrid.debug", INFO << "Simp ptr: " << *ptrSimp << "\n");
   Stats::resume("hybrid.rw-ite");
   /** rewrite into ITE format **/
   Expr res;
@@ -236,7 +235,7 @@ Expr OpSemMemHybridRepr::loadAlignedWordFromMem(PtrTy ptr, MemValTy mem) {
     res = rowRw.rewriteExpr(res);
   }
   Stats::stop("hybrid.rw-ite");
-  LOG("opsem.hybrid", INFO << "rw into ITE: \n" << *res << "\n");
+  LOG("opsem.hybrid.debug", INFO << "rw into ITE: \n" << *res << "\n");
   /** simplify with z3 **/
   Expr simp = m_ctx.simplify(res);
   LOG("opsem.hybrid", INFO << "final: " << *simp << "\n");

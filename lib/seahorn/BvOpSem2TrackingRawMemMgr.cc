@@ -340,17 +340,20 @@ TrackingRawMemManager::ptrAdd(TrackingRawMemManager::PtrTy ptr,
 }
 Expr TrackingRawMemManager::coerce(Expr sort, Expr val) {
   if (strct::isStructVal(val)) {
-    llvm::SmallVector<Expr, g_num_slots> kids;
     assert(isOp<STRUCT_TY>(sort));
     assert(sort->arity() == val->arity());
     assert(sort->arity() == g_num_slots);
-    kids.push_back(MAIN_MEM_MGR.coerce(sort->arg(0), val->arg(0)));
-    // when havocing a value; don't havoc(ignore) value for metadata memory,
-    // instead intialize memory to a constant value.
-    hana::for_each(hana::keys(m_submgrs), [&](auto key) {
-      kids.push_back(hana::at_key(m_submgrs, key).zeroedMemory());
+    auto c = hana::transform(
+        hana::slice_c<hana::size_c<1>, TrackingMemoryTuple::GetTupleSize()>(
+            hana::keys(m_submgrs)),
+        [&](auto key) { return hana::at_key(m_submgrs, key).zeroedMemory(); });
+    auto r = hana::prepend(c, MAIN_MEM_MGR.coerce(sort->arg(0), val->arg(0)));
+    BOOST_HANA_CONSTANT_ASSERT(hana::size(r) ==
+                               TrackingMemoryTuple::GetTupleSize());
+    auto a = hana::unpack(r, [](auto... i) {
+      return std::array<RawMemValTy, sizeof...(i)>{{i...}};
     });
-    return strct::mk(kids);
+    return strct::mk(a);
   }
   return MAIN_MEM_MGR.coerce(sort, val);
 }
@@ -494,7 +497,7 @@ Expr TrackingRawMemManager::ptrUge(TrackingRawMemManager::PtrTy p1,
 }
 Expr TrackingRawMemManager::ptrSge(TrackingRawMemManager::PtrTy p1,
                                    TrackingRawMemManager::PtrTy p2) const {
-  return expr::Expr();
+  return MAIN_MEM_MGR.ptrSge(getAddressable(p1), getAddressable(p2));
 }
 Expr TrackingRawMemManager::ptrNe(TrackingRawMemManager::PtrTy p1,
                                   TrackingRawMemManager::PtrTy p2) const {

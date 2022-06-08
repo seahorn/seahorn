@@ -590,7 +590,7 @@ class CrabPP(sea.LimitedCmd):
             argv.append('--crab-check-is-deref')
             argv.append('--crab-lower-is-deref')
         
-        if args.crab_dom is not None: argv.extend (['--crab-dom', args.crab_dom])
+        if args.crab_dom is not None: argv.extend (['--set-crab-dom', args.crab_dom])
 
         if args.log is not None:
             for l in args.log.split (':'): argv.extend (['-log', l])
@@ -1643,7 +1643,9 @@ class InspectBitcode(sea.LimitedCmd):
 
 
 ## SeaHorn aliases
-FrontEnd = sea.SeqCmd ('fe', 'Front end: alias for clang|pp|ms|crabpp|opt',
+FrontEnd = sea.SeqCmd ('fe', 'Front end: alias for clang|pp|ms|opt',
+                       [Clang(), Seapp(), MixedSem(), Seaopt ()])
+FECrab = sea.SeqCmd ('fec', 'Front end: alias for clang|pp|ms|crabpp|opt',
                        [Clang(), Seapp(), MixedSem(), CrabPP(), Seaopt ()])
 Smt = sea.SeqCmd ('smt', 'alias for fe|horn', FrontEnd.cmds + [Seahorn()])
 Clp = sea.SeqCmd ('clp', 'alias for fe|horn-clp', FrontEnd.cmds + [SeahornClp()])
@@ -1678,5 +1680,7 @@ Smc = sea.SeqCmd ('smc', 'alias for fe|opt|smc',
 # run clang before anything else so that we accept both high level source and bitcode.
 Fpf = sea.SeqCmd('fpf', 'clang|fat-bnd-check|fe|unroll|cut-loops|opt|horn --solve',
                  [Clang(), FatBoundsCheck()] + FrontEnd.cmds + [Unroll(), CutLoops(), Seaopt(), Seahorn(solve=True)])
+Fpcf = sea.SeqCmd('fpcf', 'clang|fat-bnd-check|fec|unroll|cut-loops|opt|horn --solve',
+                 [Clang(), FatBoundsCheck()] + FECrab.cmds + [Unroll(), CutLoops(), Seaopt(), Seahorn(solve=True)])
 Spf = sea.SeqCmd('spf', 'clang|add-branch-sentinel|fat-bnd-check|fe|unroll|cut-loops|opt|horn --solve',
                  [Clang(), AddBranchSentinel(), FatBoundsCheck()] + FrontEnd.cmds + [Unroll(), CutLoops(), Seaopt(), Seahorn(solve=True)])

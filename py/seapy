@@ -45,6 +45,7 @@ def main (argv):
             sea.commands.Smc,
             sea.commands.RemoveTargetFeatures(),
             sea.commands.Fpf,
+            sea.commands.Fpcf,
             sea.commands.Spf,
             sea.yama.Yama(),
             sea.cex.CexGen(),

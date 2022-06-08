@@ -16,12 +16,36 @@
 #include "seahorn/Support/SeaDebug.h"
 #include "seahorn/Support/Stats.hh"
 
+namespace {
+  clam::CrabDomain::Type CrabDom;
+}
+
 // Crab reason natively about sea.is_dereferenceable without any
 // lowering.
 static llvm::cl::opt<bool> UseCrabCheckIsDeref(
     "crab-check-is-deref",
     llvm::cl::desc("Use crab to check sea.is_dereferenceable"),
     llvm::cl::init(false));
+
+static llvm::cl::opt<clam::CrabDomain::Type, true, clam::CrabDomainParser>
+    XCrabDom("set-crab-dom",
+             llvm::cl::desc("set Crab abstract domain"),
+             llvm::cl::values(
+                 clEnumValN(clam::CrabDomain::INTERVALS, "int",
+                            "Classical interval domain (default)"),
+                 clEnumValN(clam::CrabDomain::ZONES_SPLIT_DBM, "zones",
+                            "Zones domain"),
+                 clEnumValN(clam::CrabDomain::TERMS_INTERVALS, "term-int",
+                            "Intervals with uninterpreted functions"),
+                 clEnumValN(clam::CrabDomain::TERMS_ZONES, "rtz",
+                            "Reduced product of term-dis-int and zones"),
+                 clEnumValN(clam::CrabDomain::WRAPPED_INTERVALS, "w-int",
+                            "Wrapped interval domain"),
+                 clEnumValN(clam::CrabDomain::OCT, "oct", "Octagon domain"),
+                 clEnumValN(clam::CrabDomain::PK, "pk",
+                            "Convex Polyhedra and Linear Equalities domains")),
+             llvm::cl::location(CrabDom),
+             llvm::cl::init(clam::CrabDomain::ZONES_SPLIT_DBM));
 
 namespace seahorn {
 using namespace llvm;
@@ -53,7 +77,7 @@ void CrabAnalysis::runCrabAnalysis() {
   aparams.run_inter = true;
   aparams.check = clam::CheckerKind::NOCHECKS;
   aparams.widening_delay = 2; // set to delay widening
-  // Note that the abstract domain is set by using clam option
+  aparams.dom = CrabDom; // set Crab abstract domain
 
   if (UseCrabCheckIsDeref) {
     crab::domains::crab_domain_params_man::get().set_param(

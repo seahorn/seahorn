@@ -91,6 +91,10 @@ public:
                   void, typename std::enable_if<std::is_same<
                             Args, RawMemValTy>::value>::type...>::type>
     explicit MemValTyImpl(hana::tuple<Args &&...> args) {
+      BOOST_HANA_CONSTANT_ASSERT(hana::size(args) ==
+                                 TrackingMemoryTuple::GetTupleSize());
+      hana::for_each(
+          args, [&](auto element) { assert(!strct::isStructVal(element)); });
       auto a = hana::unpack(args, [](auto... i) {
         return std::array<RawMemValTy, sizeof...(i)>{{std::move(i)...}};
       });
@@ -102,6 +106,10 @@ public:
                   void, typename std::enable_if<std::is_same<
                             Args, RawMemValTy>::value>::type...>::type>
     explicit MemValTyImpl(hana::tuple<Args...> args) {
+      BOOST_HANA_CONSTANT_ASSERT(hana::size(args) ==
+                                 TrackingMemoryTuple::GetTupleSize());
+      hana::for_each(
+          args, [&](auto element) { assert(!strct::isStructVal(element)); });
       auto a = hana::unpack(args, [](auto... i) {
         return std::array<RawMemValTy, sizeof...(i)>{{i...}};
       });
@@ -109,12 +117,14 @@ public:
     }
 
     explicit MemValTyImpl(const Expr &e) {
-      // Our base is a struct of four exprs
+      // Our base is a struct of primitive(non-struct) exprs
       assert(!e || strct::isStructVal(e));
-      assert(strct::isStructVal(e) && !strct::isStructVal(e->arg(0)));
-      assert(strct::isStructVal(e) && !strct::isStructVal(e->arg(1)));
-      assert(strct::isStructVal(e) && !strct::isStructVal(e->arg(2)));
-      assert(strct::isStructVal(e) && !strct::isStructVal(e->arg(3)));
+      auto range =
+          hana::range_c<size_t, 0, TrackingMemoryTuple::GetTupleSize()>;
+      auto indices_tuple = hana::to_tuple(range);
+      hana::for_each(indices_tuple, [&](auto element) {
+        assert(!strct::isStructVal(e->arg(element)));
+      });
       m_v = e;
     }
 
@@ -150,6 +160,8 @@ public:
                   void, typename std::enable_if<std::is_same<
                             Args, RawMemSortTy>::value>::type...>::type>
     explicit MemSortTyImpl(hana::tuple<Args &&...> args) {
+      BOOST_HANA_CONSTANT_ASSERT(hana::size(args) ==
+                                 TrackingMemoryTuple::GetTupleSize());
       auto a = hana::unpack(args, [](auto... i) {
         return std::array<RawMemSortTy, sizeof...(i)>{{std::move(i)...}};
       });
@@ -161,6 +173,8 @@ public:
                   void, typename std::enable_if<std::is_same<
                             Args, RawMemSortTy>::value>::type...>::type>
     explicit MemSortTyImpl(hana::tuple<Args...> args) {
+      BOOST_HANA_CONSTANT_ASSERT(hana::size(args) ==
+                                 TrackingMemoryTuple::GetTupleSize());
       auto a = hana::unpack(args, [](auto... i) {
         return std::array<RawMemSortTy, sizeof...(i)>{{i...}};
       });

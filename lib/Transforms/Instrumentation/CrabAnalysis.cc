@@ -17,7 +17,7 @@
 #include "seahorn/Support/Stats.hh"
 
 namespace {
-  clam::CrabDomain::Type CrabDom;
+clam::CrabDomain::Type CrabDom;
 }
 
 // Crab reason natively about sea.is_dereferenceable without any
@@ -28,8 +28,7 @@ static llvm::cl::opt<bool> UseCrabCheckIsDeref(
     llvm::cl::init(false));
 
 static llvm::cl::opt<clam::CrabDomain::Type, true, clam::CrabDomainParser>
-    XCrabDom("set-crab-dom",
-             llvm::cl::desc("set Crab abstract domain"),
+    XCrabDom("set-crab-dom", llvm::cl::desc("set Crab abstract domain"),
              llvm::cl::values(
                  clEnumValN(clam::CrabDomain::INTERVALS, "int",
                             "Classical interval domain (default)"),
@@ -77,7 +76,7 @@ void CrabAnalysis::runCrabAnalysis() {
   aparams.run_inter = true;
   aparams.check = clam::CheckerKind::NOCHECKS;
   aparams.widening_delay = 2; // set to delay widening
-  aparams.dom = CrabDom; // set Crab abstract domain
+  aparams.dom = CrabDom;      // set Crab abstract domain
 
   if (UseCrabCheckIsDeref) {
     crab::domains::crab_domain_params_man::get().set_param(

@@ -8,7 +8,7 @@ class TargetLibraryInfoWrapperPass;
 } // namespace llvm
 
 namespace seadsa {
-class ShadowMem;
+class GlobalAnalysis;
 } // namespace seadsa
 
 namespace clam {
@@ -26,7 +26,7 @@ class CrabAnalysis {
   std::shared_ptr<clam::InterGlobalClam> m_crab;
 
   /// \brief Creates a crab's cfg builder manager
-  void initCrabAnalysis(const llvm::Module &M, seadsa::ShadowMem &dsaPass,
+  void initCrabAnalysis(const llvm::Module &M, seadsa::GlobalAnalysis &dsa,
                         llvm::TargetLibraryInfoWrapperPass &tliPass);
   /// \brief Run crab analysis
   void runCrabAnalysis();
@@ -34,7 +34,7 @@ class CrabAnalysis {
 public:
   CrabAnalysis() {}
   void runCrabAnalysisOnModule(const llvm::Module &M,
-                               seadsa::ShadowMem &dsaPass,
+                               seadsa::GlobalAnalysis &dsa,
                                llvm::TargetLibraryInfoWrapperPass &tliPass);
   std::shared_ptr<clam::InterGlobalClam> getCrab() { return m_crab; }
 };

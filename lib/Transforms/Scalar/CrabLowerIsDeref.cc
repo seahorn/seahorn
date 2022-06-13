@@ -5,11 +5,15 @@
 #include "seahorn/Support/Stats.hh"
 #include "seahorn/Transforms/Instrumentation/CrabAnalysis.hh"
 
+#include "llvm/Analysis/CallGraph.h"
 #include "llvm/Analysis/TargetLibraryInfo.h"
 #include "llvm/IR/DebugInfo.h"
 #include "llvm/IR/DebugLoc.h"
 
-#include "seadsa/ShadowMem.hh"
+#include "seadsa/AllocWrapInfo.hh"
+#include "seadsa/DsaLibFuncInfo.hh"
+#include "seadsa/Global.hh"
+#include "seadsa/Graph.hh"
 
 #include "clam/CfgBuilder.hh"
 #include "clam/Clam.hh"
@@ -33,8 +37,10 @@ public:
 
   bool runOnModule(Module &M) override;
   void getAnalysisUsage(AnalysisUsage &AU) const override {
-    AU.addRequired<seadsa::ShadowMemPass>();
-    AU.addRequired<TargetLibraryInfoWrapperPass>();
+    AU.addRequired<llvm::CallGraphWrapperPass>();
+    AU.addRequired<llvm::TargetLibraryInfoWrapperPass>();
+    AU.addRequired<seadsa::AllocWrapInfo>();
+    AU.addRequired<seadsa::DsaLibFuncInfo>();
     AU.addRequired<SeaBuiltinsInfoWrapperPass>();
     AU.setPreservesAll();
   }
@@ -48,11 +54,24 @@ bool CrabLowerIsDeref::runOnModule(Module &M) {
   LOG("crab-isderef", errs()
                           << "Start Running Crab lowering is_deref checks\n";);
   CrabAnalysis crab = CrabAnalysis();
-  // Get seadsa -- pointer analysis
-  auto &dsaPass = getAnalysis<seadsa::ShadowMemPass>().getShadowMem();
+  const llvm::DataLayout &dl = M.getDataLayout();
+  // Get dependent LLVM Passes
+  auto &allocInfo = getAnalysis<seadsa::AllocWrapInfo>();
+  auto &dsaLibFuncInfo = getAnalysis<seadsa::DsaLibFuncInfo>();
+  auto &cg = getAnalysis<CallGraphWrapperPass>().getCallGraph();
   // Get target library info pass
   auto &tliPass = getAnalysis<TargetLibraryInfoWrapperPass>();
-  crab.runCrabAnalysisOnModule(M, dsaPass, tliPass);
+  seadsa::Graph::SetFactory setFactory;
+
+  // Get seadsa -- pointer analysis
+  seadsa::ContextSensitiveGlobalAnalysis dsa(
+      dl, tliPass, allocInfo, dsaLibFuncInfo, cg, setFactory,
+      true /* always store summary graphs*/);
+  // Run dsa analysis on current module
+  dsa.runOnModule(M);
+  // Crab required to compute memory info by a DSA-like analysis
+  // Sea-DSA is the most common use.
+  crab.runCrabAnalysisOnModule(M, dsa, tliPass);
   m_crab_ptr = crab.getCrab();
   if (!m_crab_ptr) {
     ERR << "Error: failed to run crab analysis.";

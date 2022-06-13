@@ -11,8 +11,6 @@
 #include "crab/domains/abstract_domain_params.hpp"
 #include "crab/support/stats.hpp"
 
-#include "seadsa/ShadowMem.hh"
-
 #include "seahorn/Support/SeaDebug.h"
 #include "seahorn/Support/Stats.hh"
 
@@ -50,10 +48,9 @@ namespace seahorn {
 using namespace llvm;
 
 void CrabAnalysis::initCrabAnalysis(
-    const llvm::Module &M, seadsa::ShadowMem &dsaPass,
+    const llvm::Module &M, seadsa::GlobalAnalysis &dsa,
     llvm::TargetLibraryInfoWrapperPass &tliPass) {
 
-  auto &dsa = dsaPass.getDsaAnalysis();
   std::unique_ptr<clam::HeapAbstraction> heap_abs =
       std::make_unique<clam::SeaDsaHeapAbstraction>(M, dsa);
 
@@ -91,12 +88,12 @@ void CrabAnalysis::runCrabAnalysis() {
 }
 
 void CrabAnalysis::runCrabAnalysisOnModule(
-    const llvm::Module &M, seadsa::ShadowMem &dsaPass,
+    const llvm::Module &M, seadsa::GlobalAnalysis &dsa,
     llvm::TargetLibraryInfoWrapperPass &tliPass) {
   LOG("crab-analysis", errs() << "Start Running Crab Analysis\n";);
 
   // Step 1. Set up crab analysis
-  initCrabAnalysis(M, dsaPass, tliPass);
+  initCrabAnalysis(M, dsa, tliPass);
   // Step 2. Run crab analysis
   runCrabAnalysis();
   LOG("crab-analysis", errs() << "Crab Analysis Complete\n";);

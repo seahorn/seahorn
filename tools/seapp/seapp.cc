@@ -471,15 +471,7 @@ int main(int argc, char **argv) {
     // -- Externalize some user-selected functions
     pm_wrapper.add(seahorn::createExternalizeFunctionsPass());
   } else if (CrabLowerIsDeref) {
-    // -- prerequisite 1 : Sea-DSA analysis
-    llvm::initializeRemovePtrToIntPass(Registry);
-    llvm::initializeDsaAnalysisPass(Registry);
-    llvm::initializeAllocWrapInfoPass(Registry);
-    llvm::initializeDsaLibFuncInfoPass(Registry);
-    llvm::initializeAllocSiteInfoPass(Registry);
-    llvm::initializeCompleteCallGraphPass(Registry);
-    pm_wrapper.add(seahorn::createSeaDsaShadowMemPass());
-    // -- prerequisite 2 : Run Name Values Pass
+    // -- prerequisite 1 : Run Name Values Pass
     pm_wrapper.add(seahorn::createNameValuesPass());
     // -- attempt to lower any left sea.is_dereferenceable()
     // First pass is attempted by using LLVM Memory Builtins to compute
@@ -487,6 +479,8 @@ int main(int argc, char **argv) {
     pm_wrapper.add(seahorn::createLowerIsDerefPass());
     // Second pass is using Crab Analysis to compute size and offset
     // invariants for each pointer.
+    // Note that, another prerequisite: Sea-DSA analysis is run inside
+    // the below LLVM pass.
     pm_wrapper.add(seahorn::createCrabLowerIsDerefPass());
   }
   // default pre-processing pipeline

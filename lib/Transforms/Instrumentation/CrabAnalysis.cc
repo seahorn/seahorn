@@ -26,7 +26,7 @@ static llvm::cl::opt<bool> UseCrabCheckIsDeref(
     llvm::cl::init(false));
 
 static llvm::cl::opt<clam::CrabDomain::Type, true, clam::CrabDomainParser>
-    XCrabDom("set-crab-dom", llvm::cl::desc("set Crab abstract domain"),
+    XCrabDom("sea-crab-dom", llvm::cl::desc("set Crab abstract domain"),
              llvm::cl::values(
                  clEnumValN(clam::CrabDomain::INTERVALS, "int",
                             "Classical interval domain (default)"),
@@ -64,7 +64,7 @@ void CrabAnalysis::initCrabAnalysis(
   m_cfg_builder_man = std::make_unique<clam::CrabBuilderManager>(
       cfg_builder_params, tliPass, std::move(heap_abs));
   // -- Initialize crab for solving ranges
-  m_crab = std::make_shared<clam::InterGlobalClam>(M, *m_cfg_builder_man);
+  m_crab = std::make_unique<clam::InterGlobalClam>(M, *m_cfg_builder_man);
 }
 
 void CrabAnalysis::runCrabAnalysis() {

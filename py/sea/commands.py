@@ -590,7 +590,7 @@ class CrabPP(sea.LimitedCmd):
             argv.append('--crab-check-is-deref')
             argv.append('--crab-lower-is-deref')
         
-        if args.crab_dom is not None: argv.extend (['--set-crab-dom', args.crab_dom])
+        if args.crab_dom is not None: argv.extend (['--sea-crab-dom', args.crab_dom])
 
         if args.log is not None:
             for l in args.log.split (':'): argv.extend (['-log', l])

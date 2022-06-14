@@ -799,12 +799,11 @@ public:
         crabSolved = true;
       } else {
         Stats::count("crab.isderef.not.solve");
-        const llvm::DebugLoc &dloc = inst->getDebugLoc();
-        unsigned Line = dloc.getLine();
-        unsigned Col = dloc.getCol();
-        const std::string &File = (*dloc).getFilename();
-        LOG("opsem-crab", MSG << "crab cannot solve: " << *inst << " at File="
-                              << File << " Line=" << Line << " col=" << Col;);
+        LOG("opsem-crab", const llvm::DebugLoc &dloc = inst->getDebugLoc();
+            unsigned Line = dloc.getLine(); unsigned Col = dloc.getCol();
+            const std::string &File = (*dloc).getFilename();
+            MSG << "crab cannot solve: " << *inst << " at File=" << File
+                << " Line=" << Line << " col=" << Col;);
       }
     }
     if (!crabSolved) {

@@ -22,8 +22,8 @@ using namespace llvm;
 class CrabAnalysis {
   //// \brief crab's cfg builder manager
   std::unique_ptr<clam::CrabBuilderManager> m_cfg_builder_man;
-  //// \brief crab instance to solve alloc bounds
-  std::shared_ptr<clam::InterGlobalClam> m_crab;
+  //// \brief crab instance
+  std::unique_ptr<clam::InterGlobalClam> m_crab;
 
   /// \brief Creates a crab's cfg builder manager
   void initCrabAnalysis(const llvm::Module &M, seadsa::GlobalAnalysis &dsa,
@@ -36,7 +36,7 @@ public:
   void runCrabAnalysisOnModule(const llvm::Module &M,
                                seadsa::GlobalAnalysis &dsa,
                                llvm::TargetLibraryInfoWrapperPass &tliPass);
-  std::shared_ptr<clam::InterGlobalClam> getCrab() { return m_crab; }
+  clam::InterGlobalClam &getCrab() { return *m_crab; }
 };
 } // namespace seahorn
 

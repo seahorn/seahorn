@@ -28,7 +28,7 @@ private:
   Value *crabLowerIsDereferenceable(CallBase *IsDerefCall);
   const llvm::ConstantRange getCrabInstRng(const llvm::Instruction &I);
 
-  std::shared_ptr<clam::InterGlobalClam> m_crab_ptr;
+  clam::InterGlobalClam *m_crab_ptr;
 
 public:
   static char ID;
@@ -57,7 +57,9 @@ bool CrabLowerIsDeref::runOnModule(Module &M) {
   const llvm::DataLayout &dl = M.getDataLayout();
   // Get dependent LLVM Passes
   auto &allocInfo = getAnalysis<seadsa::AllocWrapInfo>();
+  allocInfo.initialize(M, this);
   auto &dsaLibFuncInfo = getAnalysis<seadsa::DsaLibFuncInfo>();
+  dsaLibFuncInfo.initialize(M);
   auto &cg = getAnalysis<CallGraphWrapperPass>().getCallGraph();
   // Get target library info pass
   auto &tliPass = getAnalysis<TargetLibraryInfoWrapperPass>();
@@ -72,7 +74,7 @@ bool CrabLowerIsDeref::runOnModule(Module &M) {
   // Crab required to compute memory info by a DSA-like analysis
   // Sea-DSA is the most common use.
   crab.runCrabAnalysisOnModule(M, dsa, tliPass);
-  m_crab_ptr = crab.getCrab();
+  m_crab_ptr = &crab.getCrab();
   if (!m_crab_ptr) {
     ERR << "Error: failed to run crab analysis.";
   }
@@ -132,14 +134,12 @@ Value *CrabLowerIsDeref::crabLowerIsDereferenceable(CallBase *IsDerefCall) {
                : ConstantInt::getFalse(C);
   } else {
     // Crab cannot know the is_deref result
-    const llvm::DebugLoc &dloc = IsDerefCall->getDebugLoc();
-    unsigned Line = dloc.getLine();
-    unsigned Col = dloc.getCol();
-    const std::string &File = (*dloc).getFilename();
     Stats::count("crab.pp.isderef.not.solve");
-    LOG("seapp-crab", MSG << "crab cannot solve: " << *IsDerefCall
-                          << " at File=" << File << " Line=" << Line
-                          << " col=" << Col;);
+    LOG("seapp-crab", const llvm::DebugLoc &dloc = IsDerefCall->getDebugLoc();
+        unsigned Line = dloc.getLine(); unsigned Col = dloc.getCol();
+        const std::string &File = (*dloc).getFilename();
+        MSG << "crab cannot solve: " << *IsDerefCall << " at File=" << File
+            << " Line=" << Line << " col=" << Col;);
     return nullptr;
   }
 }

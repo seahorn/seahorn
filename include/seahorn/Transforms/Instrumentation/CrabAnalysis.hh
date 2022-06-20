@@ -36,7 +36,8 @@ public:
   void runCrabAnalysisOnModule(const llvm::Module &M,
                                seadsa::GlobalAnalysis &dsa,
                                llvm::TargetLibraryInfoWrapperPass &tliPass);
-  clam::InterGlobalClam &getCrab() { return *m_crab; }
+  const clam::InterGlobalClam &getCrab() const;
+  clam::InterGlobalClam &getCrab();
 };
 } // namespace seahorn
 

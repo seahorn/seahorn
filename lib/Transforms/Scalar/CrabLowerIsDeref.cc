@@ -26,7 +26,7 @@ namespace {
 struct CrabLowerIsDeref : public ModulePass {
 private:
   Value *crabLowerIsDereferenceable(CallBase *IsDerefCall);
-  const llvm::ConstantRange getCrabInstRng(const llvm::Instruction &I);
+  const llvm::ConstantRange getCrabInstRng(const llvm::Instruction &I) const;
 
   clam::InterGlobalClam *m_crab_ptr;
 
@@ -75,9 +75,6 @@ bool CrabLowerIsDeref::runOnModule(Module &M) {
   // Sea-DSA is the most common use.
   crab.runCrabAnalysisOnModule(M, dsa, tliPass);
   m_crab_ptr = &crab.getCrab();
-  if (!m_crab_ptr) {
-    ERR << "Error: failed to run crab analysis.";
-  }
   auto &SBI = getAnalysis<SeaBuiltinsInfoWrapperPass>().getSBI();
 
   bool Changed = false;
@@ -110,10 +107,8 @@ bool CrabLowerIsDeref::runOnModule(Module &M) {
 }
 
 const llvm::ConstantRange
-CrabLowerIsDeref::getCrabInstRng(const llvm::Instruction &I) {
+CrabLowerIsDeref::getCrabInstRng(const llvm::Instruction &I) const {
   unsigned IntWidth = I.getType()->getIntegerBitWidth();
-  if (!m_crab_ptr)
-    return llvm::ConstantRange::getFull(IntWidth);
   return m_crab_ptr->range(I);
 }
 

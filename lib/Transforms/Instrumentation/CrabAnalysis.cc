@@ -12,6 +12,7 @@
 #include "crab/support/stats.hpp"
 
 #include "seahorn/Support/SeaDebug.h"
+#include "seahorn/Support/SeaLog.hh"
 #include "seahorn/Support/Stats.hh"
 
 namespace {
@@ -97,6 +98,20 @@ void CrabAnalysis::runCrabAnalysisOnModule(
   // Step 2. Run crab analysis
   runCrabAnalysis();
   LOG("crab-analysis", errs() << "Crab Analysis Complete\n";);
+}
+
+const clam::InterGlobalClam &CrabAnalysis::getCrab() const {
+  if (!m_crab) {
+    ERR << "Error: failed to run crab analysis.";
+  }
+  return *m_crab;
+}
+
+clam::InterGlobalClam &CrabAnalysis::getCrab() {
+  if (!m_crab) {
+    ERR << "Error: failed to run crab analysis.";
+  }
+  return *m_crab;
 }
 
 } // namespace seahorn

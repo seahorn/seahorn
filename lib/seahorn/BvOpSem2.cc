@@ -871,7 +871,11 @@ public:
         crabSolved = true;
       } else {
         Stats::count("crab.isderef.not.solve");
-        LOG("opsem-crab", MSG << "crab cannot solve: " << *inst;);
+        LOG("opsem-crab", const llvm::DebugLoc &dloc = inst->getDebugLoc();
+            unsigned Line = dloc.getLine(); unsigned Col = dloc.getCol();
+            const std::string &File = (*dloc).getFilename();
+            MSG << "crab cannot solve: " << *inst << " at File=" << File
+                << " Line=" << Line << " col=" << Col;);
       }
     }
     if (!crabSolved) {
@@ -3419,6 +3423,7 @@ void Bv2OpSem::runCrabAnalysis() {
   aparams.dom = CrabDom;
   aparams.run_inter = true;
   aparams.check = clam::CheckerKind::NOCHECKS;
+  aparams.widening_delay = 2; // set to delay widening
 
   if (UseCrabCheckIsDeref) {
     crab::domains::crab_domain_params_man::get().
@@ -3427,7 +3432,9 @@ void Bv2OpSem::runCrabAnalysis() {
   /// Run the Crab analysis
   clam::ClamGlobalAnalysis::abs_dom_map_t assumptions;
   LOG("opsem-crab", aparams.print_invars = true;);
+  Stats::resume("opsem.crab");
   m_crab_rng_solver->analyze(aparams, assumptions);
+  Stats::stop("opsem.crab");
 }
 
 void Bv2OpSem::runLVIAnalysis(const Function &F) {

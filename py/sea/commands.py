@@ -548,6 +548,59 @@ class MixedSem(sea.LimitedCmd):
         argv.extend (args.in_files)
         return self.seappCmd.run (args, argv)
 
+class CrabPP(sea.LimitedCmd):
+    def __init__(self, quiet=False):
+        super(CrabPP, self).__init__('crabpp', 'Crab analysis in Seapp',
+                                       allow_extra=True)
+
+    @property
+    def stdout (self):
+        return self.seappCmd.stdout
+
+    def name_out_file (self, in_files, args=None, work_dir=None):
+        ext = '.crab.bc'
+        # if args.llvm_asm: ext = '.crab.ll'
+        return _remap_file_name (in_files[0], ext, work_dir)
+
+    def mk_arg_parser (self, ap):
+        ap = super (CrabPP, self).mk_arg_parser (ap)
+        ap.add_argument ('--log', dest='log', default=None,
+                         metavar='STR', help='Log level')
+        ap.add_argument ('--seapp-crab-dom', dest='crab_dom', default=None,
+                         metavar='STR', help='Crab numerical abstract domain')
+        add_bool_argument(ap, 'seapp-crab-lower-is-deref', dest='crab_lower_is_deref',
+                            default=False, help='Use Crab to lower is_deref')
+        add_bool_argument(ap, 'seapp-crab-stats', dest='crab_stats',
+                            default=False, help='Print Crab Statistics')
+
+        add_in_out_args (ap)
+        _add_S_arg (ap)
+        return ap
+
+    def run (self, args, extra):
+        cmd_name = which ('seapp')
+        if cmd_name is None: raise IOError ('seapp not found')
+        self.seappCmd = sea.ExtCmd (cmd_name,'',quiet)
+
+        argv = list()
+        if args.out_file is not None: argv.extend (['-o', args.out_file])
+        if args.llvm_asm: argv.append ('-S')
+
+        if args.crab_lower_is_deref:
+            argv.append('--crab-check-is-deref')
+            argv.append('--crab-lower-is-deref')
+        
+        if args.crab_dom is not None: argv.extend (['--sea-crab-dom', args.crab_dom])
+
+        if args.log is not None:
+            for l in args.log.split (':'): argv.extend (['-log', l])
+
+        if args.crab_stats:
+            argv.append('--seapp-stats')
+
+        argv.extend (args.in_files)
+        return self.seappCmd.run(args, argv)
+
 class NdcInst(sea.LimitedCmd):
     def __init__(self, quiet=False):
         super(NdcInst, self).__init__('ndc-inst',
@@ -1592,6 +1645,8 @@ class InspectBitcode(sea.LimitedCmd):
 ## SeaHorn aliases
 FrontEnd = sea.SeqCmd ('fe', 'Front end: alias for clang|pp|ms|opt',
                        [Clang(), Seapp(), MixedSem(), Seaopt ()])
+FECrab = sea.SeqCmd ('fec', 'Front end: alias for clang|pp|ms|crabpp|opt',
+                       [Clang(), Seapp(), MixedSem(), CrabPP(), Seaopt ()])
 Smt = sea.SeqCmd ('smt', 'alias for fe|horn', FrontEnd.cmds + [Seahorn()])
 Clp = sea.SeqCmd ('clp', 'alias for fe|horn-clp', FrontEnd.cmds + [SeahornClp()])
 Boogie= sea.SeqCmd ('boogie', 'alias for fe|horn --boogie',
@@ -1625,5 +1680,7 @@ Smc = sea.SeqCmd ('smc', 'alias for fe|opt|smc',
 # run clang before anything else so that we accept both high level source and bitcode.
 Fpf = sea.SeqCmd('fpf', 'clang|fat-bnd-check|fe|unroll|cut-loops|opt|horn --solve',
                  [Clang(), FatBoundsCheck()] + FrontEnd.cmds + [Unroll(), CutLoops(), Seaopt(), Seahorn(solve=True)])
+Fpcf = sea.SeqCmd('fpcf', 'clang|fat-bnd-check|fec|unroll|cut-loops|opt|horn --solve',
+                 [Clang(), FatBoundsCheck()] + FECrab.cmds + [Unroll(), CutLoops(), Seaopt(), Seahorn(solve=True)])
 Spf = sea.SeqCmd('spf', 'clang|add-branch-sentinel|fat-bnd-check|fe|unroll|cut-loops|opt|horn --solve',
                  [Clang(), AddBranchSentinel(), FatBoundsCheck()] + FrontEnd.cmds + [Unroll(), CutLoops(), Seaopt(), Seahorn(solve=True)])

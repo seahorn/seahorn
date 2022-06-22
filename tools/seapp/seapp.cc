@@ -276,6 +276,15 @@ static llvm::cl::opt<bool> AddBranchSentinelOpt(
         "Add a branch sentinel instruction before every branch instruction"),
     llvm::cl::init(false));
 
+static llvm::cl::opt<bool> CrabLowerIsDeref(
+    "crab-lower-is-deref",
+    llvm::cl::desc("Lower sea_is_dereferenceable() calls by Running Crab"),
+    llvm::cl::init(false));
+
+static llvm::cl::opt<bool> PrintStats("seapp-stats",
+                                      llvm::cl::desc("Print statistics"),
+                                      llvm::cl::init(false));
+
 // removes extension from filename if there is one
 std::string getFileName(const std::string &str) {
   std::string filename = str;
@@ -461,6 +470,18 @@ int main(int argc, char **argv) {
   } else if (ExternalizeFns) {
     // -- Externalize some user-selected functions
     pm_wrapper.add(seahorn::createExternalizeFunctionsPass());
+  } else if (CrabLowerIsDeref) {
+    // -- prerequisite 1 : Run Name Values Pass
+    pm_wrapper.add(seahorn::createNameValuesPass());
+    // -- attempt to lower any left sea.is_dereferenceable()
+    // First pass is attempted by using LLVM Memory Builtins to compute
+    // the requested size of access <= object size.
+    pm_wrapper.add(seahorn::createLowerIsDerefPass());
+    // Second pass is using Crab Analysis to compute size and offset
+    // invariants for each pointer.
+    // Note that, another prerequisite: Sea-DSA analysis is run inside
+    // the below LLVM pass.
+    pm_wrapper.add(seahorn::createCrabLowerIsDerefPass());
   }
   // default pre-processing pipeline
   else {
@@ -684,6 +705,9 @@ int main(int argc, char **argv) {
   }
 
   pm_wrapper.run(*module.get());
+
+  if (PrintStats)
+    seahorn::Stats::PrintBrunch(llvm::outs());
 
   if (!OutputFilename.empty())
     output->keep();

@@ -22,6 +22,6 @@ add_llvm_library (SeaTransformsScalar DISABLE_LLVM_LINK_LLVM_DYLIB
   CrabLowerIsDeref.cc
   )
 
-if (HAVE_CLAM)
-  target_link_libraries (SeaTransformsScalar PRIVATE ${CLAM_LIBS})
-endif()
+# if (HAVE_CLAM)
+#   target_link_libraries (SeaTransformsScalar PRIVATE ${CLAM_LIBS})
+# endif()

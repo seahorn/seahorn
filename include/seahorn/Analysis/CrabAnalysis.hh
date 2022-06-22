@@ -1,5 +1,4 @@
-#ifndef _CRAB_ANALYSIS_HH_
-#define _CRAB_ANALYSIS_HH_
+#pragma once
 
 #include "llvm/IR/Module.h"
 
@@ -17,8 +16,6 @@ class InterGlobalClam;
 } // namespace clam
 
 namespace seahorn {
-using namespace llvm;
-
 class CrabAnalysis {
   //// \brief crab's cfg builder manager
   std::unique_ptr<clam::CrabBuilderManager> m_cfg_builder_man;
@@ -41,4 +38,3 @@ public:
 };
 } // namespace seahorn
 
-#endif /* _CRAB_ANALYSIS_HH_ */

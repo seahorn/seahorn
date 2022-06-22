@@ -1,5 +1,3 @@
-#include "seahorn/Transforms/Instrumentation/CrabAnalysis.hh"
-
 #include "llvm/Analysis/TargetLibraryInfo.h"
 #include "llvm/Support/CommandLine.h"
 
@@ -11,6 +9,7 @@
 #include "crab/domains/abstract_domain_params.hpp"
 #include "crab/support/stats.hpp"
 
+#include "seahorn/Analysis/CrabAnalysis.hh"
 #include "seahorn/Support/SeaDebug.h"
 #include "seahorn/Support/SeaLog.hh"
 #include "seahorn/Support/Stats.hh"

@@ -225,104 +225,19 @@ struct BoolOpRewriteRule : public ExprRewriteRule {
 // for select
 struct ArrayRewriteRule : public ExprRewriteRule {
   ARMCache &m_armCache;
-  unsigned wordSize; // in bytes
-  unsigned ptrWidth; // ptr size in bits
+  PtrTypeCheckCache &m_ptCache;
+  unsigned m_wordSize; // in bytes
+  unsigned m_ptrWidth; // ptr size in bits
   ArrayRewriteRule(ExprFactory &efac, DagVisitCache &cache, ARMCache &armCache,
-                   unsigned wordSz, unsigned ptrWidth)
-      : m_armCache(armCache), ExprRewriteRule(efac, cache), wordSize(wordSz),
-        ptrWidth(ptrWidth) {}
+                   expr::PtrTypeCheckCache &ptCache, unsigned wordSz,
+                   unsigned ptrWidth)
+      : m_armCache(armCache), m_ptCache(ptCache), ExprRewriteRule(efac, cache),
+        m_wordSize(wordSz), m_ptrWidth(ptrWidth) {}
   ArrayRewriteRule(const ArrayRewriteRule &o)
-      : m_armCache(o.m_armCache), ExprRewriteRule(o), wordSize(o.wordSize),
-        ptrWidth(o.ptrWidth) {}
+      : m_armCache(o.m_armCache), m_ptCache(o.m_ptCache), ExprRewriteRule(o),
+        m_wordSize(o.m_wordSize), m_ptrWidth(o.m_ptrWidth) {}
 
-  rewrite_result operator()(Expr exp) {
-    if (!isOpX<SELECT>(exp)) {
-      return {exp, rewrite_status::RW_SKIP};
-    }
-    Expr arr = exp->arg(0);
-    Expr idx = exp->arg(1);
-    AddrRangeMap arm = addrRangeMapOf(idx, m_armCache);
-    /** Read-over-write/ite: push select down to leaves
-     **/
-    if (isOpX<STORE>(arr)) {
-      Expr arrN = op::array::storeArray(arr);
-      Expr idxN = op::array::storeIdx(arr);
-      Expr res;
-      rewrite_status st = rewrite_status::RW_2;
-      if (!utils::inAddrRange(idxN, arm)) { /* idx!=idxN must be true*/
-        res = op::array::select(arrN, idx);
-        st = rewrite_status::RW_1;
-      } else {
-        res = mk<ITE>(mk<EQ>(idx, idxN), op::array::storeVal(arr),
-                      op::array::select(arrN, idx));
-      }
-      return {res, st};
-    } else if (isOpX<ITE>(arr)) {
-      Expr i = arr->arg(0);
-      Expr t = arr->arg(1);
-      Expr e = arr->arg(2);
-      Expr res =
-          mk<ITE>(i, op::array::select(t, idx), op::array::select(e, idx));
-      return {res, rewrite_status::RW_2};
-    } else if (isOpX<MEMSET_WORDS>(arr)) {
-      Expr inMem = arr->arg(0);
-      Expr idxN = arr->arg(1);
-      Expr len = arr->arg(2);
-      Expr val = arr->arg(3);
-      Expr res;
-      if (op::bv::is_bvnum(len)) {
-        unsigned cLen = bv::toMpz(len).get_ui() - wordSize;
-        Expr offset = op::bv::bvnum(cLen, op::bv::widthBvNum(len), len->efac());
-        Expr last = utils::ptrAdd(idxN, offset);
-        // idxN <= idx <= idxN + sz
-        Expr cmp = utils::ptrInRangeCheck(idxN, idx, last);
-        res = mk<ITE>(cmp, val, op::array::select(inMem, idx));
-      } else {
-        Expr wordSzE = op::bv::bvnum(wordSize, ptrWidth, len->efac());
-        Expr last = utils::ptrSub(utils::ptrAdd(idxN, len), wordSzE);
-        // idxN <= idx <= idxN + sz
-        Expr cmp = utils::ptrInRangeCheck(idxN, idx, last);
-        Expr fallback = op::array::select(inMem, idx);
-        res = mk<ITE>(cmp, val, fallback);
-      }
-      return {res, rewrite_status::RW_2};
-    } else if (isOpX<MEMCPY_WORDS>(arr)) {
-      /** select(copy(a, p, b, q, s), i) =>
-       * ITE(p ≤ i < p + s, read(b, q + (i − p)), read(a, i)) **/
-      Expr res;
-      Expr dstMem = arr->arg(0);
-      Expr srcMem = arr->arg(1);
-      Expr dstIdx = arr->arg(2);
-      Expr srcIdx = arr->arg(3);
-      Expr len = arr->arg(4);
-      // dstIdx - srcIdx + idx
-      Expr dsOffset = utils::ptrSub(srcIdx, dstIdx);
-      Expr cpyIdx = utils::ptrAdd(idx, dsOffset);
-      // select(srcMem, dstIdx - srcIdx + idx)
-      Expr cpyVal = op::array::select(srcMem, cpyIdx);
-      if (op::bv::is_bvnum(len)) {
-        unsigned cLen = bv::toMpz(len).get_ui() - wordSize;
-        Expr offset = op::bv::bvnum(cLen, op::bv::widthBvNum(len), len->efac());
-        Expr dstLast = utils::ptrAdd(dstIdx, offset);
-        // dstIdx <= idx <= dstIdx + sz
-        Expr cmp = utils::ptrInRangeCheck(dstIdx, idx, dstLast);
-        // select(dstMem, idx)
-        Expr prevMem = op::array::select(dstMem, idx);
-        res = mk<ITE>(cmp, cpyVal, prevMem);
-      } else {
-        Expr wordSzE = op::bv::bvnum(wordSize, ptrWidth, len->efac());
-        Expr dstLast = utils::ptrSub(utils::ptrAdd(dstIdx, len), wordSzE);
-        // dstIdx <= idx <= dstIdx + sz
-        Expr cmp = utils::ptrInRangeCheck(dstIdx, idx, dstLast);
-        // select(dstMem, idx)
-        Expr prevMem = op::array::select(dstMem, idx);
-        res = mk<ITE>(cmp, cpyVal, prevMem);
-      }
-      return {res, rewrite_status::RW_2};
-    } else {
-      return {exp, rewrite_status::RW_DONE};
-    }
-  }
+  rewrite_result operator()(Expr exp);
 };
 
 struct ArithmeticRule : public ExprRewriteRule {

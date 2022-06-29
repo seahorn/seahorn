@@ -5,6 +5,19 @@
 namespace expr {
 namespace addrRangeMap {
 
+bool AddrRange::isValid() {
+  if (isTop && isBot)
+    return false;
+  if (isTop)
+    return low == std::numeric_limits<unsigned>::min() &&
+           high == std::numeric_limits<unsigned>::max();
+  if (isBot)
+    return high == std::numeric_limits<unsigned>::min() &&
+           low == std::numeric_limits<unsigned>::max();
+
+  return low <= high;
+}
+
 void AddrRangeMap::addRange(const AddrRange &range) {
   for (auto b = begin(); b != end(); b++) {
     m_rangeMap[b->first] = b->second + range;
@@ -17,11 +30,17 @@ void AddrRangeMap::zeroBits(size_t n) {
   }
 }
 
-AddrRangeMap AddrRangeMap::unionWith(AddrRangeMap &b) {
-  AddrRangeMap res(m_rangeMap, m_isAllTop || b.isAllTop());
+AddrRangeMap addrRangeMapUnion(AddrRangeMap &a, AddrRangeMap &b) {
+  if (a.isAllBot())
+    return b;
+  if (b.isAllBot())
+    return a;
+  if (a.isAllTop() || b.isAllTop())
+    return mkARMTop();
+  AddrRangeMap res(a);
   for (auto bEntry = b.cbegin(); bEntry != b.cend(); bEntry++) {
-    auto aEntry = m_rangeMap.find(bEntry->first);
-    if (aEntry != m_rangeMap.end()) {
+    auto aEntry = a.find(bEntry->first);
+    if (aEntry != a.end()) {
       AddrRange bRange = bEntry->second;
       AddrRange aRange = aEntry->second;
       res[bEntry->first] = aRange | bRange;
@@ -32,9 +51,42 @@ AddrRangeMap AddrRangeMap::unionWith(AddrRangeMap &b) {
   return res;
 }
 
+AddrRangeMap addrRangeMapIntersect(AddrRangeMap &a, AddrRangeMap &b) {
+  /* appropriate to timer here since intersect is only used for compare*/
+  seahorn::ScopedStats _st_("hybrid.arm_compare");
+  if (a.isAllTop())
+    return b;
+  if (b.isAllTop())
+    return a;
+  if (a.isAllBot() || b.isAllBot())
+    return mkARMBot();
+  AddrRangeMap res;
+  bool isBot = true;
+  for (auto bEntry = b.cbegin(); bEntry != b.cend(); bEntry++) {
+    auto aEntry = a.find(bEntry->first);
+    if (aEntry != a.end()) {
+      AddrRange bRange = bEntry->second;
+      AddrRange aRange = aEntry->second;
+      AddrRange nRange = aRange & bRange;
+      if (!nRange.isBot) {
+        res[bEntry->first] = nRange;
+        isBot = false;
+      }
+    }
+  }
+  if (isBot) {
+    res.setBot(true);
+    res.setTop(false); // sanity check
+  }
+  return res;
+}
+
 bool AddrRangeMap::contains(Expr base, unsigned offset) {
-  if (m_isAllTop)
+  if (this->m_isTop)
     return true;
+
+  if (this->m_isBot)
+    return false;
 
   auto entry = m_rangeMap.find(base);
   if (entry == m_rangeMap.end())
@@ -43,15 +95,20 @@ bool AddrRangeMap::contains(Expr base, unsigned offset) {
 }
 
 template <typename T> void AddrRangeMap::print(T &OS) const {
-  if (m_isAllTop) {
+  if (m_isTop) {
     OS << "{ all => top } \n";
+  } else if (m_isBot) {
+    OS << "{ all => bot } \n";
   } else {
+    OS << "size: " << m_rangeMap.size() << "\n";
     OS << "{\n";
     for (auto m = m_rangeMap.begin(); m != m_rangeMap.end(); m++) {
       auto range = m->second;
       OS << "  " << *m->first << " => ";
       if (range.isTop)
         OS << "any\n";
+      else if (range.isBot)
+        OS << "none\n";
       else
         OS << "(" << range.low << ", " << range.high << ")\n";
     }
@@ -60,7 +117,9 @@ template <typename T> void AddrRangeMap::print(T &OS) const {
 }
 
 bool AddrRangeMap::isValid() {
-  if (m_isAllTop)
+  if (m_isBot && m_isTop)
+    return false;
+  if (m_isBot || m_isTop)
     return true;
   for (auto b : m_rangeMap) {
     if (!expr::mem::isBaseAddr(b.first))
@@ -81,19 +140,31 @@ std::ostream &operator<<(std::ostream &OS, AddrRangeMap const &arm) {
   return OS;
 }
 
+AddrRange mkAddrRangeBot(void) {
+  return AddrRange(std::numeric_limits<unsigned>::max(),
+                   std::numeric_limits<unsigned>::min(), false, true);
+}
+
+AddrRange mkAddrRangeTop() {
+  return AddrRange(std::numeric_limits<unsigned>::min(),
+                   std::numeric_limits<unsigned>::max(), true, false);
+}
+
 AddrRange zeroBitsRange(AddrRange &r, size_t bits) {
+  if (r.isBot || r.isTop)
+    return r;
   unsigned new_low = r.low >> bits;
   new_low = new_low << bits;
   unsigned new_high = r.high >> bits;
   new_high = new_high << bits;
-  return AddrRange(new_low, new_high, r.isTop);
+  return AddrRange(new_low, new_high, r.isTop, r.isBot);
 }
 
 AddrRange addrRangeOf(Expr e) {
   if (op::bv::is_bvnum(e)) {
     mpz_class offsetMpz = op::bv::toMpz(e);
     auto offsetNum = offsetMpz.get_ui();
-    return AddrRange(offsetNum, offsetNum, false);
+    return AddrRange(offsetNum, offsetNum);
   }
   if (isOpX<BADD>(e)) {
     AddrRange res;
@@ -103,13 +174,17 @@ AddrRange addrRangeOf(Expr e) {
     }
     return res;
   }
+  if (isOpX<BSUB>(e)) {
+    // not covered in intervals domain
+    return mkAddrRangeTop();
+  }
   if (isOpX<ITE>(e)) {
     AddrRange tRange = addrRangeOf(e->arg(1));
     AddrRange eRange = addrRangeOf(e->arg(2));
     return tRange | eRange;
   }
   /* assume is symbolic */
-  return AddrRange(0, 0, true);
+  return mkAddrRangeTop();
 }
 
 inline void updateARMCache(ARMCache &cache, Expr e, AddrRangeMap arm) {
@@ -119,11 +194,13 @@ inline void updateARMCache(ARMCache &cache, Expr e, AddrRangeMap arm) {
   }
 }
 
-static AddrRangeMap s_addrRangeMapOf(Expr e, ARMCache &cache) {
+static AddrRangeMap s_addrRangeMapOf(Expr e, ARMCache &cache,
+                                     expr::PtrTypeCheckCache &ptCache) {
   if (e->use_count() > 1) {
     ARMCache::const_iterator cit = cache.find(&*e);
-    if (cit != cache.end())
+    if (cit != cache.end()) {
       return cit->second;
+    }
   }
   if (mem::isBaseAddr(e)) {
     AddrRangeMap res = AddrRangeMap({{e, AddrRange(0, 0)}});
@@ -133,32 +210,39 @@ static AddrRangeMap s_addrRangeMapOf(Expr e, ARMCache &cache) {
   if (isOpX<BADD>(e)) {
     Expr base;
     llvm::SmallVector<Expr, 2> offsets;
+    bool baseFound = false;
     for (auto b = e->args_begin(); b != e->args_end(); ++b) {
       /* try to find a base and offsets */
-      if (mem::isPtrExpr(*b)) {
+      if (!baseFound && mem::isPtrExpr(*b, ptCache)) {
         base = *b;
+        baseFound = true;
       } else {
         offsets.push_back(*b);
       }
     }
     if (base == NULL) {
-      AddrRangeMap res = AddrRangeMap({{}}, true); // Fallback to { all => any }
+      AddrRangeMap res = mkARMTop(); // Fallback to { all => any }
       updateARMCache(cache, e, res);
       return res;
     }
-    AddrRangeMap res = s_addrRangeMapOf(base, cache);
+    AddrRangeMap res = s_addrRangeMapOf(base, cache, ptCache);
+    AddrRange r = mkAddrRangeBot(); // bot + anything = anything
     for (auto o : offsets) {
       AddrRange oRange = addrRangeOf(o);
-      res.addRange(oRange);
+      r = r + oRange;
     }
+    res.addRange(r);
     updateARMCache(cache, e, res);
     return res;
   }
   if (isOpX<ITE>(e)) {
-    AddrRangeMap a = s_addrRangeMapOf(e->arg(1), cache);
-    AddrRangeMap b = s_addrRangeMapOf(e->arg(2), cache);
+    AddrRangeMap a = s_addrRangeMapOf(e->arg(1), cache, ptCache);
+    AddrRangeMap b = s_addrRangeMapOf(e->arg(2), cache, ptCache);
     /* merge t e into t*/
-    AddrRangeMap res = a.unionWith(b);
+    if (a.size() < b.size()) {
+      std::swap(a, b); // make sure join small (b) into big (a)
+    }
+    AddrRangeMap res = addrRangeMapUnion(a, b);
     updateARMCache(cache, e, res);
     return res;
   }
@@ -166,21 +250,49 @@ static AddrRangeMap s_addrRangeMapOf(Expr e, ARMCache &cache) {
   // any known operation that zeroes out last k bits
   mem::PtrBitsZeroed ptrBits;
   if (mem::isZeroBits(e, ptrBits)) {
-    AddrRangeMap res = s_addrRangeMapOf(ptrBits.first, cache);
+    AddrRangeMap res = s_addrRangeMapOf(ptrBits.first, cache, ptCache);
     res.zeroBits(ptrBits.second);
     updateARMCache(cache, e, res);
     return res;
   }
 
   // fallback: {all => any}
-  AddrRangeMap res = AddrRangeMap({{}}, true);
+  AddrRangeMap res = mkARMTop();
   updateARMCache(cache, e, res);
   return res;
 }
 
-AddrRangeMap addrRangeMapOf(Expr e, ARMCache &cache) {
-  seahorn::ScopedStats _st_("hybrid.build-arm");
-  return s_addrRangeMapOf(e, cache);
+AddrRangeMap addrRangeMapOf(Expr e, ARMCache &cache,
+                            expr::PtrTypeCheckCache &ptCache) {
+  seahorn::ScopedStats _st("hybrid.arm_build");
+  return s_addrRangeMapOf(e, cache, ptCache);
+}
+
+AddrRangeMap mkARMBot() { return AddrRangeMap({}, false, true); }
+
+AddrRangeMap mkARMTop() { return AddrRangeMap({}, true, false); }
+
+bool approxPtrInRangeCheck(Expr p, unsigned s, Expr q, ARMCache &c,
+                           expr::PtrTypeCheckCache &ptc) {
+  AddrRangeMap pA = addrRangeMapOf(p, c, ptc);
+  AddrRangeMap psA = pA;
+  psA.addRange(AddrRange(s, s));
+  AddrRangeMap qA = addrRangeMapOf(q, c, ptc);
+
+  AddrRangeMap ppsA = addrRangeMapUnion(pA, psA);
+  return !addrRangeMapIntersect(qA, ppsA).isAllBot();
+}
+
+bool approxPtrEq(Expr p, Expr q, ARMCache &c, PtrTypeCheckCache &ptc) {
+  AddrRangeMap armP = addrRangeMapOf(p, c, ptc);
+  AddrRangeMap armQ = addrRangeMapOf(q, c, ptc);
+  AddrRangeMap intrs = addrRangeMapIntersect(armP, armQ);
+  bool res = !intrs.isAllBot();
+  if (!res) {
+    LOG("hybrid.skip", WARN << *p << " != " << *q << "\n";);
+    LOG("hybrid.skip", INFO << armP << " != \n" << armQ << "\n";);
+  }
+  return res;
 }
 
 }; // namespace addrRangeMap

@@ -56,10 +56,11 @@ private:
 
 public:
   ITECompRewriteConfig(ExprFactory &efac, DagVisitCache &cache, ARMCache &armC,
-                       unsigned wordSize, unsigned ptrWidth)
+                       PtrTypeCheckCache &ptCache, unsigned wordSize,
+                       unsigned ptrWidth)
       : m_iteRule(efac, cache), m_compRule(efac, cache),
         m_boolRule(efac, cache),
-        m_arrayRule(efac, cache, armC, wordSize, ptrWidth),
+        m_arrayRule(efac, cache, armC, ptCache, wordSize, ptrWidth),
         m_arithRule(efac, cache), ExprRewriterConfig(efac, cache) {}
 
   rewrite_result applyRewriteRules(Expr exp);

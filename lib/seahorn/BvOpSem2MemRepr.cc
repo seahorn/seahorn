@@ -19,11 +19,6 @@ auto as_std_array(const T &t, const Rest &... rest) ->
 
 #define DEBUG_TYPE "opsem"
 
-static llvm::cl::opt<bool>
-    HybridSimp("horn-hybrid-recursive",
-               llvm::cl::desc("Use recursive rewriter for hybrid repr"),
-               llvm::cl::init(false));
-
 namespace seahorn {
 namespace details {
 
@@ -196,14 +191,6 @@ OpSemMemArrayReprBase::MemFill(PtrTy dPtr, char *sPtr, unsigned len,
 }
 
 Expr OpSemMemHybridRepr::loadAlignedWordFromMem(PtrTy ptr, MemValTy mem) {
-  auto cit = m_memCache.find(&*mem.toExpr());
-  if (cit != m_memCache.end()) {
-    DagVisitCache cc = cit->second;
-    auto ccit = cc.find(&*ptr.toExpr());
-    if (ccit != cc.end()) {
-      return ccit->second;
-    }
-  }
   ScopedStats _st_("hybrid.load");
   unsigned wordSize = m_memManager.wordSizeInBytes();
   unsigned ptrWidth = m_memManager.ptrSizeInBits();
@@ -222,24 +209,24 @@ Expr OpSemMemHybridRepr::loadAlignedWordFromMem(PtrTy ptr, MemValTy mem) {
   LOG("opsem.hybrid.debug", INFO << "Simp ptr: " << *ptrSimp << "\n");
   Stats::resume("hybrid.rw-ite");
   /** rewrite into ITE format **/
-  Expr res;
-  if (HybridSimp) {
-    AddrRangeMap arm = addrRangeMap::addrRangeMapOf(ptrSimp, m_armCache);
-    res = createHybridReadWord(mem.toExpr(), ptrSimp, arm);
-  } else {
-    res = op::array::select(mem.toExpr(), ptrSimp);
-    ITECompRewriteConfig memC(mem.toExpr()->efac(), m_cache, m_armCache,
-                              wordSize, ptrWidth);
-    ExprRewriter<ITECompRewriteConfig> rowRw(mem.toExpr()->efac(), memC,
-                                             m_cache);
-    res = rowRw.rewriteExpr(res);
-  }
+  Expr res = op::array::select(mem.toExpr(), ptrSimp);
+  ITECompRewriteConfig memC(mem.toExpr()->efac(), m_cache, m_armCache,
+                            m_ptCache, wordSize, ptrWidth);
+  ExprRewriter<ITECompRewriteConfig> rowRw(mem.toExpr()->efac(), memC, m_cache);
+  res = rowRw.rewriteExpr(res);
   Stats::stop("hybrid.rw-ite");
   LOG("opsem.hybrid.debug", INFO << "rw into ITE: \n" << *res << "\n");
   /** simplify with z3 **/
   Expr simp = m_ctx.simplify(res);
   LOG("opsem.hybrid", INFO << "final: " << *simp << "\n");
   return simp;
+}
+
+Expr OpSemMemHybridRepr::normalizePtr(Expr ptrE) {
+  seahorn::ScopedStats _st("hybrid.ptr-norm");
+  PointerArithmeticConfig paC(ptrE->efac(), m_cache);
+  ExprRewriter<PointerArithmeticConfig> pRw(ptrE->efac(), paC, m_cache);
+  return pRw.rewriteExpr(ptrE);
 }
 
 OpSemMemRepr::MemValTy
@@ -698,154 +685,5 @@ OpSemMemRepr::MemValTy OpSemMemHybridRepr::MemCpy(
   LOG("opsem.hybrid.verbose", INFO << "memset: " << *res << "\n");
   return MemValTy(res);
 }
-
-using namespace expr::addrRangeMap;
-
-Expr OpSemMemHybridRepr::createHybridReadWord(Expr arr, Expr idx,
-                                              AddrRangeMap &arm) {
-  if (!expr::utils::isMemWriteOp(arr)) {
-    return op::array::select(arr, idx);
-  }
-  Expr res;          // final rewritten ITE
-  ExprVector nested; // nested store/ITEs being selected from
-  Expr child = arr;
-  while (expr::utils::isMemWriteOp(child)) {
-    nested.push_back(child);
-    // store/memset/memcpy all use 1st argument
-    size_t childIdx = isOpX<ITE>(child) ? 1 : 0;
-    child = child->arg(childIdx);
-  }
-  // construct ITE from btm up
-  Expr back = nested.back();
-  while (!nested.empty()) {
-    back = nested.back();
-    if (utils::shouldCache(back)) {
-      auto cit = m_memCache.find(&*back);
-      if (cit != m_memCache.end()) {
-        DagVisitCache cc = cit->second;
-        auto ccit = cc.find(&*idx);
-        if (ccit != cc.end()) {
-          res = ccit->second;
-          nested.pop_back();
-          continue;
-        }
-      }
-    }
-    if (isOpX<STORE>(back)) {
-      /** node case: store(rewritten, idxN, valN) =>
-       * ite(idx == idxN, valN, rewritten) **/
-      Expr arrN = back->arg(0);
-      Expr idxN = op::array::storeIdx(back);
-      if (!utils::inAddrRange(idxN, arm)) { /* idx != idxN must be true */
-        LOG("opsem.hybrid.verbose", WARN << *idxN << " is not in range \n");
-        res = op::array::select(arrN, idx);
-        nested.pop_back();
-        if (utils::shouldCache(back)) {
-          back->Ref();
-          m_memCache[&*back][&*idx] = res;
-        }
-        continue;
-      }
-      Expr valN = op::array::storeVal(back);
-      if (isOpX<SELECT>(valN)) { // XXX: remove selects here
-        ARMCache c;
-        Expr branchIdx = op::array::selectIdx(valN);
-        AddrRangeMap branchArm = addrRangeMapOf(branchIdx, c);
-        valN = createHybridReadWord(op::array::selectArray(valN), branchIdx,
-                                    branchArm);
-      }
-      Expr compE = m_memManager.ptrEq(PtrTy(idx), PtrTy(idxN));
-      if (!res)
-        res = op::array::select(arrN, idx);
-
-      res = mk<ITE>(compE, valN, res);
-    } else if (isOpX<ITE>(back)) {
-      /** must be ITE.
-       * node case: ite(iN, rewritten, eN) =>
-       * ite(iN, rewritten, select(eN, idx))
-       **/
-      Expr iN = back->arg(0);
-      Expr tN = back->arg(1);
-      Expr eN = back->arg(2);
-      Expr newE;
-      if (expr::utils::isMemWriteOp(eN)) {
-        newE = createHybridReadWord(eN, idx, arm);
-      } else {
-        newE = op::array::select(eN, idx);
-      }
-      if (!res)
-        res = op::array::select(tN, idx);
-
-      res = mk<ITE>(iN, res, newE);
-    } else if (isOpX<MEMSET_WORDS>(back)) {
-      Expr inMem = back->arg(0);
-      Expr idxN = back->arg(1);
-      Expr len = back->arg(2);
-      Expr val = back->arg(3);
-      if (op::bv::is_bvnum(len)) {
-        unsigned cLen =
-            bv::toMpz(len).get_ui() - m_memManager.wordSizeInBytes();
-        PtrTy last = m_memManager.ptrAdd(PtrTy(idxN), cLen);
-        // idxN <= idx <= idxN + sz
-        Expr cmp = m_memManager.ptrInRangeCheck(PtrTy(idxN), PtrTy(idx), last);
-        Expr prevMem = (!res) ? op::array::select(inMem, idx) : res;
-        res = mk<ITE>(cmp, val, prevMem);
-        // }
-      } else {
-        PtrTy last = m_memManager.ptrAdd(
-            m_memManager.ptrAdd(PtrTy(idxN), len),
-            -static_cast<signed>(m_memManager.wordSizeInBytes()));
-        // idxN <= idx <= idxN + sz
-        Expr cmp = m_memManager.ptrInRangeCheck(PtrTy(idxN), PtrTy(idx), last);
-        Expr prevMem = (!res) ? op::array::select(inMem, idx) : res;
-        res = mk<ITE>(cmp, val, prevMem);
-      }
-    } else if (isOpX<MEMCPY_WORDS>(back)) {
-      /** select(copy(a, p, b, q, s), i) =>
-       * ITE(p ≤ i < p + s, read(b, q + (i − p)), read(a, i)) **/
-      Expr dstMem = back->arg(0);
-      Expr srcMem = back->arg(1);
-      Expr dstIdx = back->arg(2);
-      Expr srcIdx = back->arg(3);
-      Expr len = back->arg(4);
-      // dstIdx - srcIdx + idx
-      Expr dsOffset =
-          m_memManager.ptrOffsetFromBase(PtrTy(dstIdx), PtrTy(srcIdx));
-      PtrTy cpyIdx = m_memManager.ptrAdd(PtrTy(idx), dsOffset);
-      ARMCache cpyArmC;
-      AddrRangeMap cpyArm = addrRangeMapOf(cpyIdx.toExpr(), cpyArmC);
-      // select(srcMem, dstIdx - srcIdx + idx)
-      Expr cpyVal = createHybridReadWord(srcMem, cpyIdx.toExpr(), cpyArm);
-      if (op::bv::is_bvnum(len)) {
-        unsigned cLen =
-            bv::toMpz(len).get_ui() - m_memManager.wordSizeInBytes();
-        PtrTy dstLast = m_memManager.ptrAdd(PtrTy(dstIdx), cLen);
-        // dstIdx <= idx <= dstIdx + sz
-        Expr cmp =
-            m_memManager.ptrInRangeCheck(PtrTy(dstIdx), PtrTy(idx), dstLast);
-        // select(dstMem, idx)
-        Expr prevMem = !res ? op::array::select(dstMem, idx) : res;
-        res = mk<ITE>(cmp, cpyVal, prevMem);
-      } else {
-        PtrTy dstLast = m_memManager.ptrAdd(
-            m_memManager.ptrAdd(PtrTy(dstIdx), len),
-            -static_cast<signed>(m_memManager.wordSizeInBytes()));
-        // dstIdx <= idx <= dstIdx + sz
-        Expr cmp =
-            m_memManager.ptrInRangeCheck(PtrTy(dstIdx), PtrTy(idx), dstLast);
-        // select(dstMem, idx)
-        Expr prevMem = !res ? op::array::select(dstMem, idx) : res;
-        res = mk<ITE>(cmp, cpyVal, prevMem);
-      }
-    }
-    if (utils::shouldCache(back)) {
-      back->Ref();
-      m_memCache[&*back][&*idx] = res;
-    }
-    nested.pop_back();
-  }
-  return res;
-}
-
 } // namespace details
 } // namespace seahorn

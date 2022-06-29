@@ -104,6 +104,7 @@ public:
   }
 };
 
+using namespace expr;
 using namespace expr::addrRangeMap;
 /// \brief Represent memory regions by:
 /// store: array
@@ -113,8 +114,8 @@ public:
   OpSemMemHybridRepr(RawMemManagerCore &memManager, Bv2OpSemContext &ctx,
                      unsigned memCpyUnrollCnt)
       : OpSemMemArrayReprBase(memManager, ctx, memCpyUnrollCnt),
-        m_memCache(DagVisitMemCache()), m_cache(DagVisitCache()),
-        m_armCache(ARMCache()) {}
+        m_cache(DagVisitCache()), m_armCache(ARMCache()),
+        m_memCache(DagVisitMemCache()), m_ptCache(PtrTypeCheckCache()) {}
 
   /**
    * mem: 1. array const i.e. A (uninitialized)
@@ -127,6 +128,14 @@ public:
    *      ITE cond mem1 mem2 -> { return ite(cond, mem1[ptr], mem2[ptr]) }
    * **/
   Expr loadAlignedWordFromMem(PtrTy ptr, MemValTy mem) override;
+
+  MemValTy storeAlignedWordToMem(Expr val, PtrTy ptr, PtrSortTy ptrSort,
+                                 MemValTy mem) override {
+    (void)ptrSort;
+    /* simplify pointer */
+    return MemValTy(
+        op::array::store(mem.toExpr(), normalizePtr(ptr.toExpr()), val));
+  }
 
   MemValTy MemSet(PtrTy ptr, Expr _val, unsigned len, MemValTy mem,
                   unsigned wordSzInBytes, PtrSortTy ptrSort,
@@ -146,8 +155,9 @@ private:
   DagVisitCache m_cache;
   DagVisitMemCache m_memCache;
   ARMCache m_armCache;
-  Expr createHybridReadWord(Expr arr, Expr idx,
-                            expr::addrRangeMap::AddrRangeMap &arm);
+  PtrTypeCheckCache m_ptCache;
+
+  Expr normalizePtr(Expr ptr);
 };
 
 /// \brief Represent memory regions by lambda functions

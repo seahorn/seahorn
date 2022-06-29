@@ -5,9 +5,6 @@
 #include "seahorn/Expr/ExprSimplifier.hh"
 #include "seahorn/Expr/ExprVisitor.hh"
 /// yet to be refactored
-namespace seahorn {
-extern bool BasedPtrObj; // from BvOpSem2RawMemMgr.cc
-}
 namespace expr {
 
 namespace {
@@ -518,8 +515,8 @@ inline bool isBasedObjAddr(Expr e) {
   }
   return false;
 }
-bool isBaseAddr(Expr e) {
-  if (seahorn::BasedPtrObj) {
+bool isBaseAddr(Expr e, bool basedPtr) {
+  if (basedPtr) { /* in case someone wants to use ad hoc? */
     return isBasedObjAddr(e);
   }
   // adhoc matcher
@@ -547,30 +544,48 @@ bool isBaseAddr(Expr e) {
   return false;
 }
 
-bool isPtrExpr(Expr e) {
+void updatePtrTCCache(Expr e, bool isPtr, PtrTypeCheckCache &cache) {
+  if (e->use_count() > 1) {
+    cache[&*e] = isPtr;
+  }
+}
+
+bool isPtrExpr(Expr e, PtrTypeCheckCache &cache) {
   if (isBaseAddr(e)) {
     return true;
+  }
+  if (isOpX<BSUB>(e)) {
+    return false; // even if two ptrs subtract, will yield offset
   }
   if (op::bv::isBvConst(e) || op::bv::is_bvnum(e)) {
     return false;
   } /* num */
+  /* do not go into any of the recursive parts if visited */
+  if (e->use_count() > 1) {
+    auto cit = cache.find(&*e);
+    if (cit != cache.end()) {
+      return cit->second;
+    }
+  }
+  bool res = false;
   if (isOpX<ITE>(e)) {
     Expr a = e->arg(1);
     Expr b = e->arg(2);
-    return isPtrExpr(a) || isPtrExpr(b);
-  }
-  if (isOpX<BCONCAT>(e)) {
-    return isPtrExpr(e->arg(0)) || isPtrExpr(e->arg(1));
-  }
-  if (isOpX<BEXTRACT>(e)) {
-    return isPtrExpr(op::bv::earg(e));
-  }
-  for (auto b = e->args_begin(); b != e->args_end(); ++b) {
-    if (isPtrExpr(*b)) {
-      return true;
+    res = isPtrExpr(a, cache) || isPtrExpr(b, cache);
+  } else if (isOpX<BCONCAT>(e)) {
+    res = isPtrExpr(e->arg(0), cache) || isPtrExpr(e->arg(1), cache);
+  } else if (isOpX<BEXTRACT>(e)) {
+    res = isPtrExpr(op::bv::earg(e), cache);
+  } else {
+    for (auto it = e->args_begin(); it != e->args_end(); it++) {
+      if (isPtrExpr(*it, cache)) {
+        res = true;
+        break;
+      }
     }
   }
-  return false;
+  updatePtrTCCache(e, res, cache);
+  return res;
 }
 
 bool isZeroBits(Expr e, PtrBitsZeroed &p) {

@@ -15,7 +15,9 @@ namespace mem {
  * terminal string starting with sea.sp0;
  * With `BasedPtrObj` on: match "sea.obj_n" objects
  **/
-bool isBaseAddr(Expr e);
+bool isBaseAddr(Expr e, bool basedPtr = true);
+
+void updatePtrTCCache(Expr e, bool isPtr, PtrTypeCheckCache &cache);
 
 /**
  * @brief recursively check whether e would resolve to an address
@@ -24,7 +26,7 @@ bool isBaseAddr(Expr e);
  * @return true Any leaf contains BasePtr
  * @return false None of the leaves is BasePtr
  */
-bool isPtrExpr(Expr e);
+bool isPtrExpr(Expr e, PtrTypeCheckCache &c);
 
 using PtrBitsZeroed = std::pair<Expr, size_t>;
 

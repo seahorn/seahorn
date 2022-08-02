@@ -110,6 +110,7 @@ llvm::Pass *createGeneratePartialFnPass();
 llvm::Pass *createCHAPass();
 llvm::ModulePass *createDebugVerifierPass(int instanceID, llvm::StringRef name);
 llvm::Pass *createUnifyAssumesPass();
+llvm::Pass *createCrabLowerIsDerefPass();
 } // namespace seahorn
 
 #ifdef HAVE_LLVM_SEAHORN

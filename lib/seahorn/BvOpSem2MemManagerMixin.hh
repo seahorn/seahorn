@@ -350,7 +350,7 @@ public:
   }
 
   MemValTy setMetadata(MetadataKind kind, PtrTy p, MemValTy mem,
-                       unsigned val) override {
+                       Expr val) override {
     return hana::eval_if(
         MemoryFeatures::has_tracking(hana::type<BaseT>{}),
         [&](auto _) {
@@ -365,10 +365,17 @@ public:
         });
   }
 
-  unsigned int getMetaDataMemWordSzInBits() {
+  unsigned int getMetadataMemWordSzInBits() override {
     return hana::eval_if(
         MemoryFeatures::has_tracking(hana::type<BaseT>{}),
-        [&](auto _) { return _(base()).getMetaDataMemWordSzInBits(); },
+        [&](auto _) { return _(base()).getMetadataMemWordSzInBits(); },
+        [&] { return 0; });
+  }
+
+  size_t getNumOfMetadataSlots() override {
+    return hana::eval_if(
+        MemoryFeatures::has_tracking(hana::type<BaseT>{}),
+        [&](auto _) { return _(base()).getNumOfMetadataSlots(); },
         [&] { return 0; });
   }
 
@@ -386,37 +393,37 @@ public:
         });
   }
 
-  Expr getMetaData(MetadataKind kind, PtrTy p, MemValTy memIn,
-                   unsigned int byteSz) {
+  Expr getMetadata(MetadataKind kind, PtrTy p, MemValTy memIn,
+                   unsigned int byteSz) override {
     return hana::eval_if(
         MemoryFeatures::has_tracking(hana::type<BaseT>{}),
         [&](auto _) {
-          return _(base()).getMetaData(kind, BasePtrTy(std::move(p)),
+          return _(base()).getMetadata(kind, BasePtrTy(std::move(p)),
                                        BaseMemValTy(std::move(memIn)), byteSz);
         },
         [&] { return Expr(); });
   }
 
-  MemValTy memsetMetaData(MetadataKind kind, PtrTy p, Expr len, MemValTy memIn,
+  MemValTy memsetMetadata(MetadataKind kind, PtrTy p, Expr len, MemValTy memIn,
                           unsigned int val) {
     return hana::eval_if(
         MemoryFeatures::has_tracking(hana::type<BaseT>{}),
         [&](auto _) {
           auto r =
-              _(base()).memsetMetaData(kind, BasePtrTy(std::move(p)), len,
+              _(base()).memsetMetadata(kind, BasePtrTy(std::move(p)), len,
                                        BaseMemValTy(std::move(memIn)), val);
           return toMemValTy(std::move(r));
         },
         [&] { return memIn; });
   }
 
-  MemValTy memsetMetaData(MetadataKind kind, PtrTy p, unsigned int len,
+  MemValTy memsetMetadata(MetadataKind kind, PtrTy p, unsigned int len,
                           MemValTy memIn, unsigned int val) {
     return hana::eval_if(
         MemoryFeatures::has_tracking(hana::type<BaseT>{}),
         [&](auto _) {
           auto r =
-              _(base()).memsetMetaData(kind, BasePtrTy(std::move(p)), len,
+              _(base()).memsetMetadata(kind, BasePtrTy(std::move(p)), len,
                                        BaseMemValTy(std::move(memIn)), val);
           return toMemValTy(std::move(r));
         },

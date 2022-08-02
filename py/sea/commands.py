@@ -1,4 +1,5 @@
 import os.path
+import platform
 import sea
 import shutil
 import subprocess
@@ -134,7 +135,13 @@ class Clang(sea.LimitedCmd):
 
             if args.llvm_asm: argv.append ('-S')
             argv.append ('-m{0}'.format (args.machine))
-
+            # To avoid the error:
+            # "unknown target triple 'unknown-apple-macosx10.17.0', please use -triple or -arch"
+            if args.machine == 64 and platform.processor() == 'arm' and \
+               platform.system() == 'Darwin':
+                # Not sure if we need to add this line for other OS.
+                argv.extend(['-arch', 'arm64'])
+        
             if args.include_dir is not None:
                 if ':' in args.include_dir:
                     idirs = ["-I{}".format(x.strip())  \
@@ -150,16 +157,12 @@ class Clang(sea.LimitedCmd):
 
             if args.debug_info: argv.append ('-g')
 
-            ## Hack for OSX Mojave that no longer exposes libc and libstd headers by default
-            osx_sdk_dirs = ['/Applications/Xcode.app/Contents/Developer/Platforms/' + \
-                            'MacOSX.platform/Developer/SDKs/MacOSX10.14.sdk',
-                            '/Applications/Xcode.app/Contents/Developer/Platforms/' + \
-                            'MacOSX.platform/Developer/SDKs/MacOSX10.15.sdk']
-
-            for osx_sdk_dir in osx_sdk_dirs:
-                if os.path.isdir(osx_sdk_dir):
-                    argv.append('--sysroot=' + osx_sdk_dir)
-                    break
+            # Since Mojave, OSX does not longer exposes libc and libstd headers by default.
+            if platform.system() == 'Darwin':
+                osx_sdk_path = subprocess.run(
+                    ["xcrun","--show-sdk-path"], text=True, stdout=subprocess.PIPE)
+                if osx_sdk_path.returncode == 0:
+                    argv.append('--sysroot=' + osx_sdk_path.stdout.strip())                        
 
             for in_file, out_file in zip(args.in_files, out_files):
                 if _bc_or_ll_file (in_file): continue
@@ -544,6 +547,59 @@ class MixedSem(sea.LimitedCmd):
         if args.llvm_asm: argv.append ('-S')
         argv.extend (args.in_files)
         return self.seappCmd.run (args, argv)
+
+class CrabPP(sea.LimitedCmd):
+    def __init__(self, quiet=False):
+        super(CrabPP, self).__init__('crabpp', 'Crab analysis in Seapp',
+                                       allow_extra=True)
+
+    @property
+    def stdout (self):
+        return self.seappCmd.stdout
+
+    def name_out_file (self, in_files, args=None, work_dir=None):
+        ext = '.crab.bc'
+        # if args.llvm_asm: ext = '.crab.ll'
+        return _remap_file_name (in_files[0], ext, work_dir)
+
+    def mk_arg_parser (self, ap):
+        ap = super (CrabPP, self).mk_arg_parser (ap)
+        ap.add_argument ('--log', dest='log', default=None,
+                         metavar='STR', help='Log level')
+        ap.add_argument ('--seapp-crab-dom', dest='crab_dom', default=None,
+                         metavar='STR', help='Crab numerical abstract domain')
+        add_bool_argument(ap, 'seapp-crab-lower-is-deref', dest='crab_lower_is_deref',
+                            default=False, help='Use Crab to lower is_deref')
+        add_bool_argument(ap, 'seapp-crab-stats', dest='crab_stats',
+                            default=False, help='Print Crab Statistics')
+
+        add_in_out_args (ap)
+        _add_S_arg (ap)
+        return ap
+
+    def run (self, args, extra):
+        cmd_name = which ('seapp')
+        if cmd_name is None: raise IOError ('seapp not found')
+        self.seappCmd = sea.ExtCmd (cmd_name,'',quiet)
+
+        argv = list()
+        if args.out_file is not None: argv.extend (['-o', args.out_file])
+        if args.llvm_asm: argv.append ('-S')
+
+        if args.crab_lower_is_deref:
+            argv.append('--crab-check-is-deref')
+            argv.append('--crab-lower-is-deref')
+        
+        if args.crab_dom is not None: argv.extend (['--sea-crab-dom', args.crab_dom])
+
+        if args.log is not None:
+            for l in args.log.split (':'): argv.extend (['-log', l])
+
+        if args.crab_stats:
+            argv.append('--seapp-stats')
+
+        argv.extend (args.in_files)
+        return self.seappCmd.run(args, argv)
 
 class NdcInst(sea.LimitedCmd):
     def __init__(self, quiet=False):
@@ -1589,6 +1645,8 @@ class InspectBitcode(sea.LimitedCmd):
 ## SeaHorn aliases
 FrontEnd = sea.SeqCmd ('fe', 'Front end: alias for clang|pp|ms|opt',
                        [Clang(), Seapp(), MixedSem(), Seaopt ()])
+FECrab = sea.SeqCmd ('fec', 'Front end: alias for clang|pp|ms|crabpp|opt',
+                       [Clang(), Seapp(), MixedSem(), CrabPP(), Seaopt ()])
 Smt = sea.SeqCmd ('smt', 'alias for fe|horn', FrontEnd.cmds + [Seahorn()])
 Clp = sea.SeqCmd ('clp', 'alias for fe|horn-clp', FrontEnd.cmds + [SeahornClp()])
 Boogie= sea.SeqCmd ('boogie', 'alias for fe|horn --boogie',
@@ -1622,5 +1680,7 @@ Smc = sea.SeqCmd ('smc', 'alias for fe|opt|smc',
 # run clang before anything else so that we accept both high level source and bitcode.
 Fpf = sea.SeqCmd('fpf', 'clang|fat-bnd-check|fe|unroll|cut-loops|opt|horn --solve',
                  [Clang(), FatBoundsCheck()] + FrontEnd.cmds + [Unroll(), CutLoops(), Seaopt(), Seahorn(solve=True)])
+Fpcf = sea.SeqCmd('fpcf', 'clang|fat-bnd-check|fec|unroll|cut-loops|opt|horn --solve',
+                 [Clang(), FatBoundsCheck()] + FECrab.cmds + [Unroll(), CutLoops(), Seaopt(), Seahorn(solve=True)])
 Spf = sea.SeqCmd('spf', 'clang|add-branch-sentinel|fat-bnd-check|fe|unroll|cut-loops|opt|horn --solve',
                  [Clang(), AddBranchSentinel(), FatBoundsCheck()] + FrontEnd.cmds + [Unroll(), CutLoops(), Seaopt(), Seahorn(solve=True)])

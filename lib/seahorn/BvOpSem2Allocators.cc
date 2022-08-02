@@ -210,6 +210,8 @@ public:
     Expr inRange = m_ctx.alu().doUle(
         bytes, m_ctx.alu().ui(m_maxSymbAllocSz, width), width);
     m_ctx.addScopedRely(inRange);
+    LOG("opsem", errs() << "Adding allocation interval: " << addrIvl.first
+                        << " to " << addrIvl.second << "\n";);
     return addrIvl;
   }
 };
@@ -303,19 +305,22 @@ public:
       auto rangeValCrab = m_sem.getCrabInstRng(*operand_inst);
       auto rangeValLVI = m_sem.getLVIInstRng(*operand_inst);
       uint64_t ub_crab = rangeValCrab.getUpper().getLimitedValue();
+      if (rangeValCrab.isFullSet() || rangeValCrab.isEmptySet()) {
+        // not useful range inferred by crab
+        ub_crab = m_maxSymbAllocSz; // take max allocation size as default
+      }
       uint64_t ub_lvi = rangeValLVI.getUpper().getLimitedValue();
+      if (rangeValLVI.isFullSet() || rangeValLVI.isEmptySet()) {
+        // not useful range inferred by LVI
+        ub_lvi = m_maxSymbAllocSz; // take max allocation size as default
+      }
       // Choose the precise result
       uint64_t ub_inferred = ub_crab <= ub_lvi ? ub_crab : ub_lvi;
-      LOG("opsem-rng", MSG << "Inferred upper bound for " << *operand_inst
-                           << ", Crab: " << ub_crab << ", LVI: " << ub_lvi;);
-      if (rangeValCrab.isFullSet() || ub_inferred >= UINT_MAX) {
-        // unkown memory size for allocation
-        // use max allowed size
-        preAlloc(inst, m_maxSymbAllocSz, false);
-      } else {
-        // use inferred (upper bound) size for allocation
-        preAlloc(inst, (unsigned)ub_inferred, true);
-      }
+      // if size is unknown, use the maximum allowed size for allocation
+      // otherwise, choose the most precise value inferred by crab / LVI
+      LOG("opsem-rng", MSG << "Allocation size for " << *operand_inst
+                           << " is: " << ub_inferred;);
+      preAlloc(inst, (unsigned)ub_inferred, true);
     }
   }
 

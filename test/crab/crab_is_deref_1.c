@@ -1,4 +1,5 @@
 // RUN: %sea -O3 fpf --inline --horn-bv2-crab-lower-is-deref --horn-bmc-crab-dom=zones --dsa=sea-cs-t --bmc=opsem --horn-vcgen-use-ite --horn-vcgen-only-dataflow=false --horn-bmc-coi=false --horn-stats=true --sea-opsem-allocator=static "%s" 2>&1 | OutputCheck %s
+// RUN: %sea -O3 fpf --inline --horn-bv2-crab-check-is-deref --horn-bmc-crab-dom=zones --dsa=sea-cs-t --bmc=opsem --horn-vcgen-use-ite --horn-vcgen-only-dataflow=false --horn-bmc-coi=false --horn-stats=true --sea-opsem-allocator=static "%s" 2>&1 | OutputCheck %s
 // CHECK: ^sat$
 // CHECK: crab.isderef.solve 2
 

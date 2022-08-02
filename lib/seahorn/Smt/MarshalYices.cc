@@ -218,7 +218,7 @@ term_t marshal_yices::encode_term(Expr e, ycache_t &cache) {
       encode_term_fail(e, nullptr);
     }
   } else if (isOpX<FORALL>(e) || isOpX<EXISTS>(e) || isOpX<LAMBDA>(e)) {
-    encode_term_fail(e, nullptr);
+    encode_term_fail(e, "quantifiers and lambdas not suppported in yices");
   }
 
   // -- cache the result for unmarshaling
@@ -258,20 +258,26 @@ term_t marshal_yices::encode_term(Expr e, ycache_t &cache) {
       encode_term_fail(e, "unhandled arity 1 case");
     }
   } else if (arity == 2) {
-
+    term_t t1, t2;
     if (isOpX<REM>(e)) {
       encode_term_fail(e, "Integer remainder not supported in yices");
-    } else if (isOpX<CONST_ARRAY>(e)) {
-      encode_term_fail(e, "const-array term not supported in yices");
     }
-
-    term_t t1 = encode_term(e->left(), cache);
-    term_t t2;
+    if (!isOpX<CONST_ARRAY>(e)) {
+      t1 = encode_term(e->left(), cache);
+    }
     if (!isOpX<BSEXT>(e) && !isOpX<BZEXT>(e)) {
       t2 = encode_term(e->right(), cache);
     }
 
-    if (isOpX<AND>(e))
+    if (isOpX<CONST_ARRAY>(e)) {
+      // (const-array sort v) --> lambda i:sort :: v
+      // idea from:
+      // https://github.com/SRI-CSL/yices2/issues/271#issuecomment-664726905
+      type_t indexType = encode_type(e->left());
+      term_t i = yices_new_variable(indexType);
+      term_t v = encode_term(e->right(), cache);
+      res = yices_lambda(1, &i, v);
+    } else if (isOpX<AND>(e))
       res = yices_and2(t1, t2);
     else if (isOpX<OR>(e))
       res = yices_or2(t1, t2);

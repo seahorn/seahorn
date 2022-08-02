@@ -69,7 +69,7 @@ Constant *exprToLlvm(Type *ty, Expr e, LLVMContext &ctx, const DataLayout &dl) {
 }
 
 /* Given Expr of a shadow.mem segment and pre-recorded size Value
-   use HexDump to extract const array with item size of current
+   use MemMap to extract const array with item size of current
    word size from Expr
 */
 Constant *exprToMemSegment(Expr segment, Expr startAddr, Expr size,
@@ -104,10 +104,16 @@ Constant *exprToMemSegment(Expr segment, Expr startAddr, Expr size,
     ArrayType *placeholderT = ArrayType::get(Type::getInt8PtrTy(ctx), 0);
     return ConstantArray::get(placeholderT, LLVMValueSegment);
   }
-
+  // use MemMap to extract mem segment info
   using MemMap = expr::exprMemMap::ExprMemMap;
   const MemMap m_map(segment);
   size_t elmWidth = m_map.getContentWidth();
+  if (!m_map.isValid() || elmWidth < IntegerType::MIN_INT_BITS) {
+    LOG("cex_verbose", WARN << "memhavoc: invalid memory expression: "
+                            << *m_map.getRawExpr() << "\n");
+    ArrayType *placeholderT = ArrayType::get(Type::getInt8PtrTy(ctx), 0);
+    return ConstantArray::get(placeholderT, LLVMValueSegment);
+  }
   size_t blocks = std::ceil((float)blockWidth / (float)elmWidth);
   auto *segmentElmTy = IntegerType::get(ctx, elmWidth * 8);
   ArrayType *segmentAT = ArrayType::get(segmentElmTy, blocks);

@@ -29,6 +29,8 @@ enum class SeaBuiltinsOp {
   TRACKING_ON,        /* sea.tracking_on */
   TRACKING_OFF,       /* sea.tracking_off */
   FREE,               /* sea.free */
+  SET_SHADOWMEM,      /* sea.set_shadowmem */
+  GET_SHADOWMEM,      /* sea.get_shadowmem */
   UNKNOWN
 };
 
@@ -51,6 +53,8 @@ class SeaBuiltinsInfo {
   llvm::Function *mkResetReadFn(llvm::Module &M);
   llvm::Function *mkIsAllocFn(llvm::Module &M);
   llvm::Function *mkFreeFn(llvm::Module &M);
+  llvm::Function *mkSetShadowMem(llvm::Module &M);
+  llvm::Function *mkGetShadowMem(llvm::Module &M);
 
 public:
   SeaBuiltinsOp getSeaBuiltinOp(const llvm::CallBase &cb) const;

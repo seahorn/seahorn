@@ -108,8 +108,10 @@ void addLemma(LemmaMap &m, const ExprSet &rels, Expr pred, Expr lemma) {
 
   ExprMap sub;
   unsigned idx = 0;
-  for (auto it = ++pred->args_begin(), end = pred->args_end(); it != end; ++it)
-    sub[*it] = bind::bvar(idx++, bind::typeOf(*it));
+  auto tyIt = ++reln->args_begin();
+  for (auto it = ++pred->args_begin(), end = pred->args_end(); it != end;
+       ++it, ++tyIt)
+    sub[*it] = bind::bvar(idx++, *tyIt);
 
   m[reln].push_back(replace(lemma, sub));
 }
@@ -128,9 +130,10 @@ Expr getLemmas(const LemmaMap &m, const ExprSet &rels, Expr pred) {
       mknary<AND>(mk<TRUE>(pred->efac()), m.at(reln).begin(), m.at(reln).end());
   ExprMap sub;
   unsigned idx = 0;
+  auto tyIt = ++reln->args_begin();
   for (auto it = ++pred->args_begin(), end = pred->args_end(); it != end;
-       ++it) {
-    Expr k = bind::bvar(idx++, bind::typeOf(*it));
+       ++it, ++tyIt) {
+    Expr k = bind::bvar(idx++, *tyIt);
     sub[k] = pred->arg(idx);
   }
 

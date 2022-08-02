@@ -21,6 +21,7 @@ enum class MetadataKind {
   READ = 0,
   WRITE = 1,
   ALLOC = 2,
+  CUSTOM0 = 3,
 };
 
 namespace MemoryFeatures {
@@ -359,6 +360,8 @@ public:
 
   void resetSolver();
   void addToSolver(const Expr e);
+  // dump solver state
+  void toSmtLib(llvm::raw_ostream &o);
   boost::tribool solve();
 
 private:
@@ -745,8 +748,10 @@ public:
 
   /// \brief reset memory modified state; used in conjuction with isMetadataSet
   virtual MemValTy setMetadata(MetadataKind kind, PtrTy p, MemValTy mem,
-                               unsigned val) = 0;
-
+                               Expr val) = 0;
+  virtual Expr getMetadata(MetadataKind kind, PtrTy p, MemValTy memIn,
+                           unsigned int byteSz) = 0;
+  virtual unsigned int getMetadataMemWordSzInBits() = 0;
   /// \brief given a properly encoded pointer Expr \p p , return the raw
   /// expression representing memory address only
   virtual Expr ptrToAddr(Expr p) = 0;
@@ -754,6 +759,8 @@ public:
   /// \brief given a properly encoded memory map Expr \p p , return the base
   /// expression representing raw memory only
   virtual Expr getRawMem(Expr p) = 0;
+
+  virtual size_t getNumOfMetadataSlots() = 0;
 };
 
 OpSemMemManager *mkRawMemManager(Bv2OpSem &sem, Bv2OpSemContext &ctx,

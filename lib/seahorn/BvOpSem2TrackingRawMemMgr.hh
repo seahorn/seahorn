@@ -12,25 +12,49 @@
 #include <array>
 #include <cstdint>
 
+#include <boost/hana/ext/std/integral_constant.hpp>
+
+#define MAIN_MEM_MGR hana::at_key(m_submgrs, BOOST_HANA_STRING("m_main"))
+
 namespace seahorn {
 namespace details {
+
+/// \brief Container for sub memory managers to be passed to TrackingRawMemMgr
+//
+// Adding a new element (shadow slot) involves adding a new memory manager
+// inside this and in MetadataKind Use of MetadataKind is still needed because
+// setMetadata and getMetadata methods are virtual and thus calls to specific
+// metadata sub managers cannot be resolved at compile-time.
+struct TrackingMemoryTuple {
+  BOOST_HANA_DEFINE_STRUCT(TrackingMemoryTuple, (RawMemManager, m_main),
+                           (RawMemManager, m_r_metadata),
+                           (RawMemManager, m_w_metadata),
+                           (RawMemManager, m_a_metadata),
+                           (RawMemManager, m_c0_metadata));
+
+  /// \brief A helper function to get number of memory elements in tuple
+  static constexpr auto GetTupleSize() {
+    constexpr auto accessors = hana::accessors<TrackingMemoryTuple>();
+    return hana::size(accessors);
+  }
+
+  TrackingMemoryTuple(Bv2OpSem &sem, Bv2OpSemContext &ctx, unsigned ptrSz,
+                      unsigned wordSz, bool useLambdas);
+
+  TrackingMemoryTuple(Bv2OpSem &sem, Bv2OpSemContext &ctx, unsigned ptrSz,
+                      unsigned wordSz, bool useLambdas, bool ignoreAlignment);
+
+  ~TrackingMemoryTuple() = default;
+};
 
 // This memory manager adds a metadata memory(backed by raw memory) sitting side
 // by side to conventional memory(backed by raw memory). The word size for
 // conventional memory can be greater than metadata memory.
 //
 // Currently this implementation has a metadata memory word size of 1 byte.
-// For every byte written to conventional memory, we set the corresponding
-// metadata memory address to value 1.
 class TrackingRawMemManager : public MemManagerCore {
 private:
-  RawMemManager m_main;
-  RawMemManager m_w_metadata;
-  RawMemManager m_r_metadata;
-  RawMemManager m_a_metadata;
-
-  // All accesses to metadata memory managers should be through this map
-  std::map<MetadataKind, RawMemManager *> m_metadata_map;
+  TrackingMemoryTuple m_submgrs;
 
 public:
   // This memory manager supports tracking
@@ -49,56 +73,58 @@ public:
   using RawMemSortTy = OpSemMemManager::MemSortTy;
 
   struct MemValTyImpl {
-    // The order of metadata in a struct expr is expected to be the same as
-    // the order in the enum MetadataKind
     Expr m_v;
 
-    MemValTyImpl(RawMemValTy &&raw_val, RawMemValTy &&r_metadata_val,
-                 RawMemValTy &&w_metadata_val, RawMemValTy &&a_metadata_val) {
-      assert(!strct::isStructVal(raw_val));
-      assert(!strct::isStructVal(r_metadata_val));
-      assert(!strct::isStructVal(w_metadata_val));
-      assert(!strct::isStructVal(a_metadata_val));
-      std::array<RawMemValTy, 4> kids = {
-          std::move(raw_val), std::move(r_metadata_val),
-          std::move(w_metadata_val), std::move(a_metadata_val)};
-      m_v = strct::mk(kids);
+    // Dummy function to typecheck the args passed to MemValTyImpl ctor
+    template <typename R, typename...> struct fst { typedef R type; };
+
+    /// \Brief Construct only with a tuple of RawMemValTy elements
+    //
+    // The second template param can be interpreted as follows
+    // 1. If each element of the passed tuple is_same as RawMemValTy, then
+    // 2. set enable_if to true and consequently the second template parameter
+    // in
+    //    fst to void..., finally
+    // 3. fst::type is the second template param
+    template <typename... Args,
+              typename = typename fst<
+                  void, typename std::enable_if<std::is_same<
+                            Args, RawMemValTy>::value>::type...>::type>
+    explicit MemValTyImpl(hana::tuple<Args &&...> args) {
+      BOOST_HANA_CONSTANT_ASSERT(hana::size(args) ==
+                                 TrackingMemoryTuple::GetTupleSize());
+      hana::for_each(
+          args, [&](auto element) { assert(!strct::isStructVal(element)); });
+      auto a = hana::unpack(args, [](auto... i) {
+        return std::array<RawMemValTy, sizeof...(i)>{{std::move(i)...}};
+      });
+      m_v = strct::mk(a);
     }
 
-    MemValTyImpl(const RawMemValTy &raw_val, const RawMemValTy &r_metadata_val,
-                 const RawMemValTy &w_metadata_val,
-                 const RawMemValTy &a_metadata_val) {
-      assert(!strct::isStructVal(raw_val));
-      assert(!strct::isStructVal(r_metadata_val));
-      assert(!strct::isStructVal(w_metadata_val));
-      assert(!strct::isStructVal(a_metadata_val));
-      std::array<RawMemValTy, 4> kids = {raw_val, r_metadata_val,
-                                         w_metadata_val, a_metadata_val};
-      m_v = strct::mk(kids);
-    }
-
-    // Create a new MemValTyImpl object by copying from an existing object
-    // except the metadata field given by 'kind'. Use raw_val for this field.
-    MemValTyImpl(MetadataKind kind, const MemValTyImpl &orig_val,
-                 const RawMemValTy &raw_val) {
-      llvm::SmallVector<RawMemValTy, 4> kids;
-      // Copy all fields from the original object one by one.
-      for (unsigned i = 0, sz = orig_val.toExpr()->arity(); i < sz; ++i) {
-        // kind + 1 indexes the intended kind in a compound expression.
-        kids.push_back(i == (static_cast<std::size_t>(kind) + 1)
-                           ? raw_val
-                           : orig_val.toExpr()->arg(i));
-      }
-      m_v = strct::mk(kids);
+    template <typename... Args,
+              typename = typename fst<
+                  void, typename std::enable_if<std::is_same<
+                            Args, RawMemValTy>::value>::type...>::type>
+    explicit MemValTyImpl(hana::tuple<Args...> args) {
+      BOOST_HANA_CONSTANT_ASSERT(hana::size(args) ==
+                                 TrackingMemoryTuple::GetTupleSize());
+      hana::for_each(
+          args, [&](auto element) { assert(!strct::isStructVal(element)); });
+      auto a = hana::unpack(args, [](auto... i) {
+        return std::array<RawMemValTy, sizeof...(i)>{{i...}};
+      });
+      m_v = strct::mk(a);
     }
 
     explicit MemValTyImpl(const Expr &e) {
-      // Our base is a struct of four exprs
+      // Our base is a struct of primitive(non-struct) exprs
       assert(!e || strct::isStructVal(e));
-      assert(strct::isStructVal(e) && !strct::isStructVal(e->arg(0)));
-      assert(strct::isStructVal(e) && !strct::isStructVal(e->arg(1)));
-      assert(strct::isStructVal(e) && !strct::isStructVal(e->arg(2)));
-      assert(strct::isStructVal(e) && !strct::isStructVal(e->arg(3)));
+      auto range =
+          hana::range_c<size_t, 0, TrackingMemoryTuple::GetTupleSize()>;
+      auto indices_tuple = hana::to_tuple(range);
+      hana::for_each(indices_tuple, [&](auto element) {
+        assert(!strct::isStructVal(e->arg(element)));
+      });
       m_v = e;
     }
 
@@ -108,34 +134,54 @@ public:
 
     RawMemValTy getRaw() { return strct::extractVal(m_v, 0); }
 
-    Expr getMetadata(MetadataKind kind) {
-      return strct::extractVal(m_v, static_cast<std::size_t>(kind) + 1);
+    Expr getElementVal(size_t index) { return strct::extractVal(m_v, index); }
+
+    auto tail() {
+      auto indices =
+          hana::make_range(hana::int_c<1>, TrackingMemoryTuple::GetTupleSize());
+      auto indices_t = hana::to_tuple(indices);
+      auto exprs = hana::transform(
+          indices_t, [this](size_t i) { return this->getElementVal(i); });
+      return exprs;
     }
   };
 
   struct MemSortTyImpl {
-    Expr m_mem_sort;
+    Expr m_sort_v;
 
-    MemSortTyImpl(RawMemSortTy &&mem_sort, RawMemSortTy &&r_metadata_sort,
-                  RawMemSortTy &&w_metadata_sort,
-                  RawMemSortTy &&a_metadata_sort) {
-      std::array<RawMemSortTy, 4> kids = {
-          std::move(mem_sort), std::move(r_metadata_sort),
-          std::move(w_metadata_sort), std::move(a_metadata_sort)};
+    // Dummy function to typecheck the args passed to MemSortTyImpl ctor
+    template <typename R, typename...> struct fst { typedef R type; };
 
-      m_mem_sort = sort::structTy(kids);
+    /// \Brief Construct only with a tuple of RawMemValTy elements
+    //
+    // See MemValTyImpl ctor for details.
+    template <typename... Args,
+              typename = typename fst<
+                  void, typename std::enable_if<std::is_same<
+                            Args, RawMemSortTy>::value>::type...>::type>
+    explicit MemSortTyImpl(hana::tuple<Args &&...> args) {
+      BOOST_HANA_CONSTANT_ASSERT(hana::size(args) ==
+                                 TrackingMemoryTuple::GetTupleSize());
+      auto a = hana::unpack(args, [](auto... i) {
+        return std::array<RawMemSortTy, sizeof...(i)>{{std::move(i)...}};
+      });
+      m_sort_v = sort::structTy(a);
     }
 
-    MemSortTyImpl(const RawMemSortTy &mem_sort,
-                  const RawMemSortTy &r_metadata_sort,
-                  const RawMemSortTy &w_metadata_sort,
-                  const RawMemSortTy &a_metadata_sort) {
-      std::array<RawMemSortTy, 4> kids = {mem_sort, r_metadata_sort,
-                                          w_metadata_sort, a_metadata_sort};
-
-      m_mem_sort = sort::structTy(kids);
+    template <typename... Args,
+              typename = typename fst<
+                  void, typename std::enable_if<std::is_same<
+                            Args, RawMemSortTy>::value>::type...>::type>
+    explicit MemSortTyImpl(hana::tuple<Args...> args) {
+      BOOST_HANA_CONSTANT_ASSERT(hana::size(args) ==
+                                 TrackingMemoryTuple::GetTupleSize());
+      auto a = hana::unpack(args, [](auto... i) {
+        return std::array<RawMemSortTy, sizeof...(i)>{{i...}};
+      });
+      m_sort_v = sort::structTy(a);
     }
-    Expr v() const { return m_mem_sort; }
+
+    Expr v() const { return m_sort_v; }
     Expr toExpr() const { return v(); }
     explicit operator Expr() const { return toExpr(); }
   };
@@ -151,11 +197,11 @@ public:
 
   ~TrackingRawMemManager() = default;
 
-  OpSemAllocator &getMAllocator() const { return m_main.getMAllocator(); }
+  OpSemAllocator &getMAllocator() const { return MAIN_MEM_MGR.getMAllocator(); }
 
-  const OpSemMemManager &getMainMemMgr() const { return m_main; }
+  const OpSemMemManager &getMainMemMgr() const { return MAIN_MEM_MGR; }
 
-  PtrSortTy ptrSort() const { return m_main.ptrSort(); }
+  PtrSortTy ptrSort() const { return MAIN_MEM_MGR.ptrSort(); }
 
   PtrTy salloc(unsigned int bytes, uint32_t align);
 
@@ -163,7 +209,7 @@ public:
 
   PtrTy mkStackPtr(unsigned int offset);
 
-  PtrTy brk0Ptr() { return m_main.brk0Ptr(); }
+  PtrTy brk0Ptr() { return MAIN_MEM_MGR.brk0Ptr(); }
 
   PtrTy halloc(unsigned int _bytes, uint32_t align);
 
@@ -201,16 +247,16 @@ public:
 
   PtrTy ptrAdd(PtrTy ptr, Expr offset) const;
 
-  TrackingRawMemManager::MemValTy memsetMetaData(MetadataKind kind, PtrTy ptr,
+  TrackingRawMemManager::MemValTy memsetMetadata(MetadataKind kind, PtrTy ptr,
                                                  unsigned int len,
                                                  MemValTy memIn,
                                                  unsigned int val);
 
-  TrackingRawMemManager::MemValTy memsetMetaData(MetadataKind kind, PtrTy ptr,
+  TrackingRawMemManager::MemValTy memsetMetadata(MetadataKind kind, PtrTy ptr,
                                                  Expr len, MemValTy memIn,
                                                  unsigned int val);
 
-  Expr getMetaData(MetadataKind kind, PtrTy ptr, MemValTy memIn,
+  Expr getMetadata(MetadataKind kind, PtrTy ptr, MemValTy memIn,
                    unsigned int byteSz);
 
   /// \brief get word size (in bits) of Metadata memory, associated with a
@@ -218,7 +264,7 @@ public:
   // TODO: This should be replaced by a general way to query memory properties
   // from a memory manager.
   // All metadata memory will have the same word size.
-  unsigned int getMetaDataMemWordSzInBits();
+  unsigned int getMetadataMemWordSzInBits();
 
   Expr loadIntFromMem(PtrTy ptr, MemValTy mem, unsigned int byteSz,
                       uint64_t align);
@@ -276,7 +322,7 @@ public:
 
   PtrTy gep(PtrTy ptr, gep_type_iterator it, gep_type_iterator end) const;
   void onFunctionEntry(const Function &fn);
-  void onModuleEntry(const Module &M) { m_main.onModuleEntry(M); }
+  void onModuleEntry(const Module &M) { MAIN_MEM_MGR.onModuleEntry(M); }
 
   void dumpGlobalsMap();
 
@@ -295,9 +341,9 @@ public:
 
   bool isMemVal(Expr e) const;
 
-  TrackingRawMemManager::MemValTy
-  setMetadata(MetadataKind kind, TrackingRawMemManager::PtrTy p,
-              TrackingRawMemManager::MemValTy mem, unsigned val);
+  MemValTy setMetadata(MetadataKind kind, TrackingRawMemManager::PtrTy p,
+                       TrackingRawMemManager::MemValTy mem, Expr val);
+  size_t getNumOfMetadataSlots();
 };
 
 } // namespace details

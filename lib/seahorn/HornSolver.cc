@@ -293,12 +293,9 @@ static Expr processFmaps(Expr bbfapp, HornDbModel &model) {
   if (bbPredDecl == bbPredTDecl)
     return model.getDef(bbfapp);
 
-  ExprMap predDeclTransf;
-  ExprSet allVars; // not really necessary
-  predDeclTransf[bbPredDecl] = bbPredTDecl;
-  FiniteMapArgsVisitor fmav(allVars, predDeclTransf, bbfapp->efac());
-
-  return model.getDef(visit(fmav, bbfapp));
+  ExprMap predDeclTMap;
+  predDeclTMap[bbPredDecl] = bbPredTDecl;
+  return model.getDef(rewriteFiniteMapArgs(bbfapp, predDeclTMap));
 }
 
 void HornSolver::printInvars(Function &F, HornDbModel &model) {

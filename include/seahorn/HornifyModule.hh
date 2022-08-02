@@ -40,7 +40,9 @@ protected:
   LiveSymbolsMap m_ls;
   PredDeclMap m_bbPreds;
 
+  // TODO: make private?
   std::shared_ptr<InterMemPreProc> m_imPreProc = nullptr;
+  ShadowMem *m_shadowMem = nullptr;
 
 public:
   static char ID;
@@ -86,6 +88,11 @@ public:
   InterMemPreProc &getInterMemPP() {
     assert(m_imPreProc);
     return *m_imPreProc;
+  }
+
+  ShadowMem &getShadowMem() {
+    assert(m_shadowMem);
+    return *m_shadowMem;
   }
 
   SeaBuiltinsInfo &getSBI() {

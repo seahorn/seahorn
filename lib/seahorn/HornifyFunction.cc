@@ -26,6 +26,10 @@ static llvm::cl::opt<bool>
                llvm::cl::init(true));
 
 namespace seahorn {
+extern bool InterMemArrayConstraints;
+} // namespace seahorn
+
+namespace seahorn {
 
 void HornifyFunction::extractFunctionInfo(const BasicBlock &BB) {
   // --- Checks if the function requires a summary.
@@ -44,6 +48,23 @@ void HornifyFunction::extractFunctionInfo(const BasicBlock &BB) {
   // following lambdas factor out routines for argument extraction so that they
   // can be conditionally enabled, based on BB.
 
+  // -- initialized only if `InterMemArrayConstraints`
+  CellExprMap inMemMap, outMemMap;
+  InterMemPreProc *impp = nullptr;
+  ShadowMem *shadowMem = nullptr;
+
+  if (InterMemArrayConstraints) {
+    impp = &m_parent.getInterMemPP();
+    shadowMem = &m_parent.getShadowMem();
+  }
+
+  SymStore s(m_efac);
+  auto addCellSymb = [&](CellExprMap &m, const CallInst &ci, Expr e) {
+    auto opt_c = shadowMem->getShadowMemCell(ci);
+    assert(opt_c.hasValue());
+    m.insert({impp->cellToPair(opt_c.getValue()), s.read(e)});
+  };
+
   // Appends arguments to sorts for memory regions in fi.
   auto computeArgumentsFromMemoryRegions = [&](FunctionInfo &fi,
                                                ExprVector &sorts) {
@@ -59,6 +80,14 @@ void HornifyFunction::extractFunctionInfo(const BasicBlock &BB) {
             continue;
           fi.regions.push_back(&v);
           sorts.push_back(bind::typeOf(r));
+
+          // collect expression information for later
+          if (InterMemArrayConstraints) {
+            if (cf->getName().equals("shadow.mem.in"))
+              addCellSymb(inMemMap, *ci, r);
+            else
+              addCellSymb(outMemMap, *ci, r);
+          }
         }
       }
     }
@@ -146,7 +175,6 @@ void HornifyFunction::extractFunctionInfo(const BasicBlock &BB) {
   //   S (false, true, true, V).
   // if S is disabled, error.flag is unchanged
   //   S (false, false, false, V).
-  SymStore s(m_efac);
   ExprSet allVars;
   Expr trueE = mk<TRUE>(m_efac);
   Expr falseE = mk<FALSE>(m_efac);
@@ -177,6 +205,12 @@ void HornifyFunction::extractFunctionInfo(const BasicBlock &BB) {
   };
   if (!fi.isInferable)
     addRuleForBasicSummaryProperties();
+
+  if (InterMemArrayConstraints) {
+    m_db.addConstraint(
+        bind::fapp(fi.sumPred, postArgs),
+        impp->constraintsMemFunction(&F, fi, inMemMap, outMemMap, m_sem, s));
+  }
 }
 
 llvm::SmallVector<llvm::CallInst *, 8>

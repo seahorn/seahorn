@@ -74,7 +74,7 @@ void removeFiniteMapsHornClausesTransf(HornClauseDB &db, HornClauseDB &tdb) {
   ScopedStats _st_("HornFmaps");
 
   ExprFactory &efac = tdb.getExprFactory();
-  ExprMap predDeclTransf;
+  ExprMap predDeclTMap;
 
   Stats::start("FiniteMapTransfArgs");
   for (auto &predIt : db.getRelations()) {
@@ -86,17 +86,41 @@ void removeFiniteMapsHornClausesTransf(HornClauseDB &db, HornClauseDB &tdb) {
       newPredDecl = fmap::mkMapsDecl(predIt);
 
       if (newPredDecl != predIt)
-        predDeclTransf[predIt] = newPredDecl;
+        predDeclTMap[predIt] = newPredDecl;
     }
     tdb.registerRelation(newPredDecl);
   }
 
-  for (const auto &rule : db.getRules()) {
-    const ExprVector &vars = rule.vars();
-    ExprSet allVars(vars.begin(), vars.end());
-    DagVisitCache dvc;
-    FiniteMapArgsVisitor fmav(allVars, predDeclTransf, efac);
+  auto transformLemmas = [&](std::map<Expr, ExprVector> &lMap,
+                             std::map<Expr, ExprVector> &lMapT) {
+    for (auto &pair : lMap) {
+      Expr pred = pair.first;
+      ExprVector &lemmas = pair.second;
 
+      // skip if the predicate does not need to be translated: assuming that an
+      // invariant does not refer to other predicates in the program
+      if (predDeclTMap.count(bind::name(pred)) == 0) {
+        auto &lemmasT = lMapT[pred];
+        lemmasT.insert(lemmasT.end(), lemmas.begin(), lemmas.end());
+      } else {
+        Expr predT = rewriteFiniteMapArgs(pred, predDeclTMap);
+
+        for (auto &l : lemmas) {
+          lMapT[predT].push_back(rewriteFiniteMapArgs(l, predDeclTMap));
+        }
+      }
+    }
+  };
+
+  auto oconstraints = db.getAllConstraints();
+  auto tconstraints = tdb.getAllConstraints();
+  transformLemmas(oconstraints, tconstraints);
+
+  auto oinvars = db.getAllInvariants();
+  auto tinvars = tdb.getAllInvariants();
+  transformLemmas(oinvars, tinvars);
+
+  for (const auto &rule : db.getRules()) {
     Expr ruleE;
     if (isOpX<TRUE>(rule.body()))
       // HACK for the transformation (forcing not simplifying implication)
@@ -104,8 +128,10 @@ void removeFiniteMapsHornClausesTransf(HornClauseDB &db, HornClauseDB &tdb) {
     else
       ruleE = rule.get();
 
-    Expr newRuleE = visit(fmav, ruleE, dvc);
-    HornRule newRule(allVars, newRuleE);
+    const ExprVector &vars = rule.vars();
+    ExprSet allVars(vars.begin(), vars.end());
+    HornRule newRule(allVars,
+                     rewriteFiniteMapArgs(ruleE, allVars, predDeclTMap));
     tdb.addRule(newRule);
   }
 

@@ -101,7 +101,6 @@ enum class MemOpt { IN, OUT };
 
 // map to store the correspondence between node ids and their correspondent
 // expression
-using CellExprMap = DenseMap<std::pair<const seadsa::Node *, unsigned>, Expr>;
 
 class MemUfoOpSem : public UfoOpSem {
 protected:
@@ -109,8 +108,8 @@ protected:
   seadsa::ShadowMem *m_shadowDsa = nullptr;
 
   // original arrays names of a cell
-  CellExprMap m_orig_array_in;
-  CellExprMap m_orig_array_out;
+  CellExprMap m_origMemIn;
+  CellExprMap m_origMemOut;
   // current number to generate intermediate array names for the copies
   int m_copy_count = 0;
 
@@ -148,18 +147,17 @@ protected:
                    seadsa::SimulationMapper &simMap, ExprVector &side);
 
   // Internal methods to handle array expressions and cells.
-  void addCIMemSymbol(CallInst *CI, Expr A, MemOpt ao);
-  virtual void addMemSymbol(const seadsa::Cell &c, Expr A, MemOpt ao);
-  Expr getOrigMemSymbol(const seadsa::Cell &c, MemOpt ao);
-  bool hasOrigMemSymbol(const seadsa::Cell &c, MemOpt ao);
+  void addCIMemS(CallInst *CI, Expr A, MemOpt ao);
+  virtual void addMemS(const seadsa::Cell &c, Expr A, MemOpt ao);
+  Expr getOrigMemS(const seadsa::Cell &c, MemOpt ao);
+  bool hasOrigMemS(const seadsa::Cell &c, MemOpt ao);
   // creates a new array symbol for array origE if it was not created already
-  Expr getFreshMemSymbol(const seadsa::Cell &c, MemOpt ao);
+  Expr getFreshMemS(const seadsa::Cell &c, MemOpt ao);
 
   // creates a new array symbol for intermediate copies of an original array
   // origE. currE is the current intermediate name and newE is the new value to
   // copy
-  void newTmpMemSymbol(const seadsa::Cell &c, Expr &currE, Expr &newE,
-                       MemOpt ao);
+  void newTmpMemS(const seadsa::Cell &c, Expr &currE, Expr &newE, MemOpt ao);
 
   // processes the shadow mem instructions prior to a callsite to obtain the
   // expressions that correspond to each of the cells involved.
@@ -176,7 +174,7 @@ protected:
 
 private:
   CellExprMap &getOrigMap(MemOpt ao) {
-    return ao == MemOpt::IN ? m_orig_array_in : m_orig_array_out;
+    return ao == MemOpt::IN ? m_origMemIn : m_origMemOut;
   }
 };
 
@@ -201,22 +199,13 @@ public:
 
 protected:
   void processShadowMemsCallSite(CallSiteInfo &csi) override;
-  void addMemSymbol(const seadsa::Cell &c, Expr A, MemOpt ao) override;
+  void addMemS(const seadsa::Cell &c, Expr A, MemOpt ao) override;
 
 private:
   const Function *m_ctxf = nullptr;
 
-  // hides how the memory is split
-  using FMapExprMap = std::map<Expr, ExprVector>;
-  // -- Expr needs to be replaced by a map with the keys in this std::map
-  FMapExprMap m_fmKeys;
-  // -- Expr needs to be replaced by a map with the values in this std::map
-  FMapExprMap m_fmValues;
-
   // -- Additional store operations for the out memories (copy back)
   ExprMap m_fmOut;
-  // -- Additional store operations for the parameters to be replaced
-  // ExprMap m_replace;
 
   // -- to replace in terms of cells in the SAS graph of the callee
   CellExprMap m_cellReplaceIn;
@@ -255,8 +244,8 @@ private:
   Expr fmVariant(Expr e, const Cell &c, const ExprVector &keys);
   void addKeyValCell(const Cell &cCr, const Cell &cCe, Expr basePtr,
                      unsigned offset);
-  void storeVal(const Cell &cCr, const Cell &cSAS, Expr readFrom, Expr basePtr,
-                unsigned offset);
+  void storeVal(const Cell &cCr, const Cell &cCeSAS, const Function &F,
+                Expr readFrom, Expr index);
 
   // -- creates an ExprVector if not initialized already
   ExprVector &getCellKeys(std::pair<const seadsa::Node *, unsigned> &cp,
@@ -281,8 +270,8 @@ private:
     return getCellValues(cp, ao);
   }
 
-  Expr memObtainValue(Expr mem, Expr offset);
-  Expr memSetValue(Expr mem, Expr offset, Expr v);
+  Expr memGetVal(Expr mem, Expr offset);
+  Expr memSetVal(Expr mem, Expr offset, Expr v);
   Expr getFreshMapSymbol(const Cell &cCr, const Cell &cCe, const Function &F,
                          MemOpt ao);
   void recCollectReachableKeys(const Cell &c, const Function &F, Expr basePtr,
@@ -299,10 +288,22 @@ private:
   }
 
   CellExprMap &getNodeSymFunction(const Function &F) {
-    return m_fInitSymNodes[&F]; // creates it if it
-                                // doesn't exist
+    return m_fInitSymNodes[&F]; // creates it if it doesn't exist
   }
   Cell getCellValue(const Value *v);
+
+  void resetStateMemCallsite() {
+    m_origMemIn.clear();
+    m_origMemOut.clear();
+    m_fmOut.clear();
+    m_exprCell.clear();
+    m_cellReplaceIn.clear();
+    m_cellReplaceOut.clear();
+    m_cellKeysIn.clear();
+    m_cellKeysOut.clear();
+    m_cellValuesOut.clear();
+    m_cellValuesIn.clear();
+  }
 };
 
 } // namespace seahorn

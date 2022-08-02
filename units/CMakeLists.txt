@@ -64,7 +64,7 @@ add_test(NAME Finite_Maps_CHCs_Tests COMMAND units_fmap_chc)
 
 add_executable(units_hex_dump EXCLUDE_FROM_ALL HexDumpTests.cpp)
 llvm_config(units_hex_dump ${LLVM_LINK_COMPONENTS})
-target_link_libraries(units_hex_dump PRIVATE ${USED_LIBS_Z3_TESTS})
+target_link_libraries(units_hex_dump PRIVATE seahorn.LIB ${USED_LIBS_Z3_TESTS})
 add_custom_target(test_hex_dump units_hex_dump DEPENDS units_hex_dump)
 add_test(NAME Hex_Dump_Tests COMMAND units_hex_dump)
 

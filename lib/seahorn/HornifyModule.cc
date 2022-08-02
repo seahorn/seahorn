@@ -110,12 +110,19 @@ static llvm::cl::opt<bool>
 
 namespace seahorn {
 bool InterProcMemFmaps;
-}
+bool InterMemArrayConstraints;
+} // namespace seahorn
 
 static llvm::cl::opt<bool, true> XInterProcMemFmaps(
     "horn-inter-proc-mem-fmaps",
     llvm::cl::desc("Use inter-procedural encoding with fmaps as memory"),
     llvm::cl::location(seahorn::InterProcMemFmaps), llvm::cl::init(false));
+
+static llvm::cl::opt<bool, true> XInterMemArrayConstraints(
+    "horn-constrain-inter-mem",
+    llvm::cl::desc(
+        "Generate constraints for memory modification in inter proc encoding"),
+    llvm::cl::location(seahorn::InterMemArrayConstraints), cl::init(false));
 
 namespace seahorn {
 // counters for copying the new inter-proc vcgen
@@ -174,22 +181,25 @@ bool HornifyModule::runOnModule(Module &M) {
   if (Step == hm_detail::CLP_SMALL_STEP ||
       Step == hm_detail::CLP_FLAT_SMALL_STEP)
     m_sem.reset(new ClpOpSem(m_efac, *this, M.getDataLayout(), TL));
-  else if (InterProcMem || InterProcMemFmaps) {
+  else if (InterProcMem || InterProcMemFmaps || InterMemArrayConstraints) {
     ShadowMemPass *smp = getAnalysisIfAvailable<seadsa::ShadowMemPass>();
     assert(smp);
-    ShadowMem &shadowMem = smp->getShadowMem();
+    m_shadowMem = &smp->getShadowMem();
     CompleteCallGraph *ccg =
         getAnalysisIfAvailable<seadsa::CompleteCallGraph>();
     assert(ccg);
-    m_imPreProc = std::make_shared<InterMemPreProc>(*ccg, shadowMem, m_efac);
+    m_imPreProc = std::make_shared<InterMemPreProc>(*ccg, *m_shadowMem, m_efac);
 
     m_imPreProc->runOnModule(M);
     if (InterProcMem)
       m_sem.reset(new MemUfoOpSem(m_efac, *this, M.getDataLayout(), m_imPreProc,
-                                  TL, abs_fns, &shadowMem));
-    else
+                                  TL, abs_fns, m_shadowMem));
+    else if (InterProcMemFmaps)
       m_sem.reset(new FMapUfoOpSem(m_efac, *this, M.getDataLayout(),
-                                   m_imPreProc, TL, abs_fns, &shadowMem));
+                                   m_imPreProc, TL, abs_fns, m_shadowMem));
+    else // regular UfoOpSem but we add invariants about memory modification
+         // in `HornifyFunction`
+      m_sem.reset(new UfoOpSem(m_efac, *this, M.getDataLayout(), TL, abs_fns));
   } else if (BitPrecise) {
     m_sem.reset(new BvOpSem(m_efac, *this, M.getDataLayout(), TL));
   } else {
@@ -465,7 +475,7 @@ void HornifyModule::getAnalysisUsage(llvm::AnalysisUsage &AU) const {
   AU.addRequired<seahorn::TopologicalOrder>();
   AU.addRequired<seahorn::CutPointGraph>();
 
-  if (InterProcMem || InterProcMemFmaps) {
+  if (InterProcMem || InterProcMemFmaps || InterMemArrayConstraints) {
     AU.addRequired<seadsa::CompleteCallGraph>();
     AU.addRequired<seadsa::ShadowMemPass>();
   }

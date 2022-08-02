@@ -369,8 +369,7 @@ int main(int argc, char **argv) {
 
   pass_manager.add(new seahorn::RemoveUnreachableBlocksPass());
   pass_manager.add(seahorn::createStripLifetimePass());
-  pass_manager.add(
-      seahorn::createDeadNondetElimPass()); // TODO: fix for ShadowMem
+  pass_manager.add(seahorn::createDeadNondetElimPass());
 
   if (OneAssumePerBlock) {
     // -- it must be called after all the cfg simplifications

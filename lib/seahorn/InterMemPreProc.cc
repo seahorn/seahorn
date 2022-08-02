@@ -15,6 +15,16 @@
 #include "seahorn/Expr/ExprOpFiniteMap.hh"
 #include "seahorn/Expr/ExprOpVariant.hh"
 
+static llvm::cl::opt<bool> FMapNotReadOnly(
+    "horn-fmap-not-read-only",
+    llvm::cl::desc("Do not encode with finite maps read-only dsa nodes"),
+    cl::init(true));
+
+namespace seahorn {
+extern unsigned FmapsMaxKeys;
+extern unsigned FmapsMaxAlias;
+} // namespace seahorn
+
 namespace {
 
 using namespace seadsa;
@@ -144,7 +154,7 @@ static void computeSafeNodesSimulation(Graph &fromG, const Function &F,
     assert(nFrom->isModified() || nFrom->isRead());
     const Node *nTo = sm.get(*nFrom).getNode();
     // do not encode with fms read-only nodes
-    if (!(nTo->isRead() && !nTo->isModified())) {
+    if (!FMapNotReadOnly || !(nTo->isRead() && !nTo->isModified())) {
       if (isSafeNode(toUnsafe, nTo))
         toSafe.insert(nTo);
       if (isSafeNode(fromUnsafe, nFrom))
@@ -402,6 +412,137 @@ void InterMemPreProc::precomputeFiniteMapTypes(const CallSite &CS,
     const Cell &c = calleeG.getRetCell(*f_callee);
     recProcessNode(c, safeCe, safeCr, smCS, smCI, cim);
   }
+}
+
+// TODO: dup from UfoOpSem
+static Expr addOffset(Expr ptr, unsigned offset) {
+  if (offset == 0)
+    return ptr;
+
+  return mk<PLUS>(ptr, mkTerm<expr::mpz_class>(offset, ptr->efac()));
+}
+
+// TODO: dup from UfoOpSem
+bool InterMemPreProc::hasExprCell(const CellExprMap &nim, const Cell &c) {
+  return nim.count(cellToPair(c)) > 0;
+}
+
+// TODO: dup from UfoOpSem
+Expr InterMemPreProc::getExprCell(const CellExprMap &nim, const Cell &c) {
+  auto it = nim.find(cellToPair(c));
+  assert(it != nim.end());
+  return it->getSecond();
+}
+
+// TODO: dup from UfoOpSem
+Expr InterMemPreProc::getExprCell(const CellExprMap &nim, const Node *n,
+                                  unsigned o) {
+  auto it = nim.find({n, o});
+  assert(it != nim.end());
+  return it->getSecond();
+}
+
+void InterMemPreProc::recCollectAPsFunction(
+    const Cell &cBU, const NodeSet &safeBU, const NodeSet &safeSAS,
+    const CellExprMap &mout, SimulationMapper &sm, const Function *F,
+    Expr basePtr, CellKeysMap &ckm) {
+
+  const Node *nBU = cBU.getNode();
+  if (nBU->types().empty() || !isSafeNode(safeBU, nBU))
+    return;
+
+  const Cell &cSAS = sm.get(cBU);
+  // no constraints over newly allocated nodes
+  if (nBU->isModified() &&
+      isSafeNode(safeSAS, cSAS.getNode()) && // probably we can remove this
+      (getNumKeys(cSAS, F) <= FmapsMaxKeys) &&
+      (getMaxAlias(cSAS, F) <= FmapsMaxAlias))
+    for (auto field : cBU.getNode()->types()) {
+      unsigned offset = field.getFirst();
+      const Cell cBUField(cBU, offset);
+      // -- if the field is represented with a
+      // scalar, or it has 0 accesses skip the field
+      if (getCINumKeysSummary(cBUField, F) == 0)
+        continue;
+
+      const Cell &cSASField = sm.get(cBUField);
+      ExprVector &keysN = ckm[cSASField.getNode()][getOffset(cSASField)];
+      keysN.push_back(addOffset(basePtr, offset));
+    }
+  if (nBU->getLinks().empty())
+    return;
+
+  // -- follow the links of the node
+  for (auto &links : nBU->getLinks()) {
+    const Cell &nextCBU = *links.second;
+    const Cell &nextCSAS = sm.get(nextCBU);
+    const Field &f = links.first;
+    const Cell &cSASField = sm.get(Cell(cBU, f.getOffset()));
+
+    if (mout.count(cellToPair(cSASField)) == 0) // !hasExprCell(nim, cSASField)
+      continue;
+
+    Expr memS = getExprCell(mout, cSASField);
+    Expr nextPtr = op::array::select(memS, addOffset(basePtr, f.getOffset()));
+    recCollectAPsFunction(nextCBU, safeBU, safeSAS, mout, sm, F, nextPtr, ckm);
+  }
+}
+
+// we actually only need m_sem.symb(v) -> pass function pointer?
+Expr InterMemPreProc::constraintsMemFunction(
+    const Function *f, const FunctionInfo &fi, const CellExprMap &min,
+    const CellExprMap &mout, LegacyOperationalSemantics &sem, SymStore &s) {
+
+  GlobalAnalysis &ga = m_shadowDsa.getDsaAnalysis();
+  SimulationMapper &smCI = getSimulationF(f);
+
+  Graph &summG = ga.getSummaryGraph(*f);
+
+  const NodeSet &safeBu = getSafeNodesBU(f);
+  const NodeSet &safeSAS = getSafeNodes(f);
+
+  CellKeysMap ckm;
+
+  auto procCell = [&](const Cell &c, Expr e) {
+    recCollectAPsFunction(c, safeBu, safeSAS, mout, smCI, f, e, ckm);
+  };
+
+  for (const Argument &a : f->args())
+    if (summG.hasCell(a))
+      procCell(summG.getCell(a), s.read(sem.symb(a)));
+
+  for (auto &kv : summG.globals())
+    procCell(*kv.second, s.read(sem.symb(*kv.first)));
+
+  if (summG.hasRetCell(*f)) {
+    const Cell &c = summG.getRetCell(*f);
+    procCell(c, s.read(sem.symb(*fi.ret))); // TODO: obtain from fi
+  }
+
+  ExprVector arrayCs;
+  for (auto kv : ckm) {
+    auto offsetMap = kv.second;
+    const Node *n = kv.first;
+
+    // there may be more than one array per node
+    for (auto cellKs : offsetMap) {
+      unsigned offset = cellKs.first;
+      if (min.count({n, offset}) == 0)
+        continue;
+
+      Expr arrayOut = getExprCell(mout, n, offset);
+      Expr partEq = getExprCell(min, n, offset); // arrayIn
+      // if no keys are used, input = output ?
+      for (auto key : cellKs.second)
+        partEq =
+            op::array::store(partEq, key, op::array::select(arrayOut, key));
+
+      arrayCs.push_back(mk<EQ>(arrayOut, partEq));
+    }
+  }
+
+  return arrayCs.size() == 0 ? mk<TRUE>(sem.efac())
+                             : expr::boolop::land(arrayCs);
 }
 
 } // namespace seahorn

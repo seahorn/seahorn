@@ -65,9 +65,11 @@ public:
       : m_evars(evars), m_pred_decl_t(pred_decl_t), m_efac(efac) {
     m_rw = std::make_shared<FiniteMapArgRewriter>(evars, m_pred_decl_t, efac);
   }
-
   VisitAction operator()(Expr exp);
 };
+
+Expr rewriteFiniteMapArgs(Expr e, const ExprMap &predDeclMap);
+Expr rewriteFiniteMapArgs(Expr e, ExprSet &evars, const ExprMap &predDeclMap);
 
 // Rewrites a finite map operation to remove finite map terms. The arguments
 // of the operation are assumed to be already rewritten (no finite map

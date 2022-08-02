@@ -286,7 +286,7 @@ TEST_CASE("expr.finite_map.transf_body") {
   HornClauseDB tdb(efac), tdb2(efac);
   EZ3 z3(efac);
 
-  removeFiniteMapsHornClausesTransf(db, tdb, z3);
+  removeFiniteMapsHornClausesTransf(db, tdb);
   removeFiniteMapsBodyHornClausesTransf(tdb, tdb2, z3);
 
   errs() << "HornClauseDB without fmaps\n";
@@ -335,7 +335,7 @@ TEST_CASE("expr.finite_map.transf_body_fmapvars") {
   HornClauseDB tdb(efac), tdb2(efac);
   EZ3 z3(efac);
 
-  removeFiniteMapsHornClausesTransf(db, tdb, z3);
+  removeFiniteMapsHornClausesTransf(db, tdb);
   removeFiniteMapsBodyHornClausesTransf(tdb, tdb2, z3);
   errs() << "HornClauseDB without fmaps\n";
   errs() << tdb2 << "\n";
@@ -381,7 +381,7 @@ TEST_CASE("expr.finite_map.trans_fmap_args") {
   HornClauseDB tdb(efac), tdb2(efac);
   EZ3 z3(efac);
 
-  removeFiniteMapsHornClausesTransf(db, tdb, z3);
+  removeFiniteMapsHornClausesTransf(db, tdb);
   removeFiniteMapsBodyHornClausesTransf(tdb, tdb2, z3);
 
   errs() << "HornClauseDB without fmaps\n" << tdb2 << "\n";
@@ -566,7 +566,7 @@ TEST_CASE("expr.finite_map.full_transf_1key") {
   HornClauseDB tdb(efac), tdb2(efac);
   EZ3 z3(efac);
 
-  removeFiniteMapsHornClausesTransf(db, tdb, z3);
+  removeFiniteMapsHornClausesTransf(db, tdb);
   removeFiniteMapsBodyHornClausesTransf(tdb, tdb2, z3);
 
   errs() << "HornClauseDB without fmaps\n";
@@ -594,7 +594,7 @@ TEST_CASE("expr.finite_map.full_transf_2ks") {
   HornClauseDB tdb(efac), tdb2(efac);
   EZ3 z3(efac);
 
-  removeFiniteMapsHornClausesTransf(db, tdb, z3);
+  removeFiniteMapsHornClausesTransf(db, tdb);
   removeFiniteMapsBodyHornClausesTransf(tdb, tdb2, z3);
 
   // Intermediate output:

@@ -4,8 +4,8 @@
 #include "seadsa/DsaColor.hh"
 #include "seadsa/Mapper.hh"
 #include "seadsa/ShadowMem.hh"
-
 #include "seahorn/Expr/ExprCore.hh"
+#include "seahorn/LegacyOperationalSemantics.hh"
 
 namespace seahorn {
 
@@ -18,6 +18,8 @@ struct CellInfo {
 using CellKeysMap =
     llvm::DenseMap<const seadsa::Node *,
                    std::unordered_map<unsigned, expr::ExprVector>>;
+
+using CellExprMap = DenseMap<std::pair<const seadsa::Node *, unsigned>, Expr>;
 
 // preprocesor for vcgen with memory copies
 class InterMemPreProc {
@@ -78,14 +80,10 @@ public:
 
   void runOnFunction(const Function *f);
 
-  bool hasSimulationF(const Function *f) { m_smF.count(f) > 0; }
   seadsa::SimulationMapper &getSimulationF(const Function *f) {
     return m_smF[f];
   }
 
-  bool hasSimulationCS(const CallSite &cs) {
-    m_smCS.count(cs.getInstruction()) > 0;
-  }
   seadsa::SimulationMapper &getSimulationCS(const CallSite &cs) {
     return m_smCS[cs.getInstruction()];
   }
@@ -93,6 +91,8 @@ public:
   NodeSet &getSafeNodes(const Function *f) { return m_safeSASF[f]; }
   NodeSet &getSafeNodesBU(const Function *f) { return m_safeBUF[f]; }
 
+  // \brief obtains the potential maximum number of cells encoded by `c` in `f`.
+  // `c` must be in the SAS graph.
   unsigned getNumKeys(const Cell &c, const Function *f) {
     assert(m_fcim.count(f) > 0);
     if (m_fcim[f].count({c.getNode(), getOffset(c)}) == 0)
@@ -101,15 +101,18 @@ public:
       return m_fcim[f][{c.getNode(), getOffset(c)}].m_nks;
   }
 
+  // \brief obtains the potential maximum number pointers that alias in `c` in
+  // `f`. `c` must be in the SAS graph.
+  unsigned getMaxAlias(const Cell &c, const Function *f) {
+    return getMaxAlias(c.getNode(), getOffset(c), f);
+  }
+  // \brief same as `getMaxAlias(const Cell &c, const Function *f)`
   unsigned getMaxAlias(const Node *n, unsigned offset, const Function *f) {
     assert(m_fcim.count(f) > 0);
     if (m_fcim[f].count({n, offset}) == 0)
       return 0;
     else
       return m_fcim[f][{n, offset}].m_nacss;
-  }
-  unsigned getMaxAlias(const Cell &c, const Function *f) {
-    return getMaxAlias(c.getNode(), getOffset(c), f);
   }
 
   unsigned getCINumKeysSummary(const Cell &c, const Function *f);
@@ -125,6 +128,11 @@ public:
   inline std::pair<const Node *, unsigned> cellToPair(const Cell &c) {
     return std::make_pair(c.getNode(), getOffset(c));
   }
+  expr::Expr constraintsMemFunction(const Function *f, const FunctionInfo &fi,
+                                    const CellExprMap &min,
+                                    const CellExprMap &mout,
+                                    LegacyOperationalSemantics &sem,
+                                    SymStore &s);
 
 private:
   void recProcessNode(const Cell &cFrom, const NodeSet &fromSafeNodes,
@@ -134,5 +142,16 @@ private:
   ValueT &findCellMap(DenseMap<std::pair<const Node *, unsigned>, ValueT> &map,
                       const Cell &c);
   expr::ExprVector &findKeysCellMap(CellKeysMap &map, const Cell &c);
+
+  // !brief collects the keys that are modified per cell in `ckm`
+  void recCollectAPsFunction(const Cell &cBU, const NodeSet &safeBU,
+                             const NodeSet &safeSAS, const CellExprMap &mout,
+                             SimulationMapper &sm, const Function *f,
+                             Expr basePtr, CellKeysMap &ckm);
+
+  // TODO: copied from UfoOpSem, merge
+  bool hasExprCell(const CellExprMap &nim, const Cell &c);
+  Expr getExprCell(const CellExprMap &nim, const Cell &c);
+  Expr getExprCell(const CellExprMap &nim, const Node *n, unsigned offset);
 };
 } // namespace seahorn

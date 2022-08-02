@@ -359,7 +359,7 @@ static Expr mkSetValCore(Expr fmv, Expr key, Expr v) {
 
   ExprVector nvalues(ks->arity());
   auto ov_it = vs->begin();
-  if (matches.size() == 1) { // replace only that one
+  if (matches.size() == 1) { // replace the value of the only matched key
     int nextCh = matches[0];
     for (int i = 0; i < ks->arity(); i++, ov_it++)
       if (i == nextCh)
@@ -369,7 +369,7 @@ static Expr mkSetValCore(Expr fmv, Expr key, Expr v) {
   } else {
     LOG("inter_mem_counters", g_imfm_stats.newAlias(matches.size()););
     int mit = 0;
-    int nextCh = matches[0]; // TODO: use iterator over conds?
+    int nextCh = matches[0];
     for (int i = 0; i < ks->arity(); i++, ov_it++) {
       if ((mit < matches.size()) && (i == nextCh)) {
         nvalues[i] = fmap_transf::mkFMIte(conds[mit], v, *ov_it);
@@ -519,9 +519,6 @@ static Expr mkEqCoreBody(Expr ml, Expr mr, FMapExprsInfo &fmei) {
 
 // -- processes a fmap value, building the type and the lmdkeys
 // term is of the form:
-//
-// defmap(ks(keys), fmap-default(defval)))
-//      or
 // defmap(ks(keys), fmap-default(defval), defv(values)))
 static Expr mkValFMapCoreBody(Expr map, FMapExprsInfo &fmei) {
 
@@ -720,6 +717,17 @@ VisitAction FiniteMapBodyVisitor::operator()(Expr exp) {
   }
 
   return VisitAction::doKids();
+}
+
+Expr rewriteFiniteMapArgs(Expr e, const ExprMap &predDeclMap) {
+  ExprSet evars;
+  return rewriteFiniteMapArgs(e, evars, predDeclMap);
+}
+
+Expr rewriteFiniteMapArgs(Expr e, ExprSet &evars, const ExprMap &predDeclMap) {
+  DagVisitCache dvc;
+  FiniteMapArgsVisitor fmav(evars, predDeclMap, e->efac());
+  return visit(fmav, e, dvc);
 }
 
 namespace fmap_transf {

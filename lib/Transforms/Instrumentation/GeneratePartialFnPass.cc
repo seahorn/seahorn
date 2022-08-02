@@ -36,12 +36,12 @@ bool hasPartialAnnotation(const llvm::Instruction &I) {
 
 namespace seahorn {
 
-// Delcared in GeneratePartialFnPass.h
+// Declared in GeneratePartialFnPass.h
 bool isInferable(const Function &F) {
   return F.getName().startswith(PARTIAL_FN_STUB_PREFIX);
 }
 
-// Delcared in GeneratePartialFnPass.h
+// Declared in GeneratePartialFnPass.h
 bool isPartialFn(const Function &F) {
   // Conservative check: Is the first instruction marked as partial?
   if (!F.empty()) {

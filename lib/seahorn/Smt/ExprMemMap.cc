@@ -156,20 +156,16 @@ VisitAction ArrayVisitor::operator()(Expr exp) {
   } else if (isOp<CONST_ARRAY>(exp)) {
     m_cells->setDefault(exp->right());
 
-  } else if (isOp<CONST_FINITE_MAP>(exp)) {
+  } else if (fmap::isFmapVal(exp)) {
 
-    if (isOp<FINITE_MAP_VAL_DEFAULT>(exp->right())) {
-      m_cells->setDefault(exp->right()->first());
-    } else {
-      Expr keys = exp->left();
-      Expr values = exp->right();
+    Expr keys = fmap::fmapValKeys(exp);
+    Expr values = fmap::fmapValValues(exp);
 
-      // maps every key in the finite set to its corresponding value
-      for (auto bKey = keys->args_begin(), bVal = values->args_begin();
-           bKey != keys->args_end() && bVal != values->args_end();
-           bKey++, bVal++) {
-        m_cells->insert(*bKey, *bVal);
-      }
+    // maps every key in the finite set to its corresponding value
+    for (auto bKey = keys->args_begin(), bVal = values->args_begin();
+         bKey != keys->args_end() && bVal != values->args_end();
+         bKey++, bVal++) {
+      m_cells->insert(*bKey, *bVal);
     }
   }
 

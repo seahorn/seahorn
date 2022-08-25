@@ -218,15 +218,15 @@ TEST_CASE("finiteMap.test") {
   values.push_back(mkTerm<mpz_class>(0x2345, efac));
   values.push_back(mkTerm<mpz_class>(0xaaa1, efac));
 
-  Expr e = finite_map::constFiniteMap(keys, values);
-  e = finite_map::set(e, mkTerm<mpz_class>(0x500010, efac),
-                      mkTerm<mpz_class>(4, efac));
-  e = finite_map::set(e, mkTerm<mpz_class>(0x500010, efac),
-                      mkTerm<mpz_class>(10, efac));
+  Expr e = fmap::constFiniteMap(keys, values[0], values);
+  e = fmap::set(e, mkTerm<mpz_class>(0x500010, efac),
+                mkTerm<mpz_class>(4, efac));
+  e = fmap::set(e, mkTerm<mpz_class>(0x500010, efac),
+                mkTerm<mpz_class>(10, efac));
   // note: e does not have a default value so the hex dumper will not fill in
   // any gaps
 
-  llvm::errs() << "Expression: " << *e;
+  llvm::errs() << "Expression: " << *e << "\n";
 
   HexDump hd(e);
   llvm::errs() << hd;
@@ -235,20 +235,17 @@ TEST_CASE("finiteMap.test") {
   outcome = std::regex_replace(outcome, std::regex(" *\n *"), "");
 
   std::string expected = "500000: 23 45  |#E|\
-500002: aa a1  |..|\
-50000a: ff aa  |..|\
-500010: 00 0a  |..|";
+500002: 00 0a  |..|\
+50000a: ff aa  |..|";
 
   CHECK(outcome == expected);
 
   kvList.push_back(MemCell(mkTerm<mpz_class>(0x500000, efac),
                            mkTerm<mpz_class>(0x2345, efac)));
   kvList.push_back(MemCell(mkTerm<mpz_class>(0x500002, efac),
-                           mkTerm<mpz_class>(0xaaa1, efac)));
+                           mkTerm<mpz_class>(0x000a, efac)));
   kvList.push_back(MemCell(mkTerm<mpz_class>(0x50000a, efac),
                            mkTerm<mpz_class>(0xffaa, efac)));
-  kvList.push_back(
-      MemCell(mkTerm<mpz_class>(0x500010, efac), mkTerm<mpz_class>(0xa, efac)));
 
   checkPairs(kvList.cbegin(), kvList.cend(), hd.cbegin(), hd.cend());
 }
@@ -530,8 +527,9 @@ TEST_CASE("specialCases.test") {
   ExprVector values;
   values.push_back(mkTerm<mpz_class>(0x12, efac));
 
-  e = finite_map::constFiniteMap(
-      keys, values); // only has a const finite map (not wrapped in SET)
+  e = fmap::constFiniteMap(
+      keys, values[0],
+      values); // only has a const finite map (not wrapped in SET)
 
   llvm::errs() << "Expression: " << *e << "\n";
   HexDump hd3(e);

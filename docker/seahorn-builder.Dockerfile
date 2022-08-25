@@ -34,7 +34,6 @@ RUN cmake .. -GNinja \
   cmake --build . --target units_z3 && \
   cmake --build . --target units_yices2 && \
   cmake --build . --target test_type_checker && \
-  cmake --build . --target test_finite_map && \
   cmake --build . --target test_hex_dump && \
   cmake --build . --target package && \
   units/units_z3 && \

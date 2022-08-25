@@ -16,6 +16,10 @@
 
 <a href="http://seahorn.github.io/">SeaHorn</a> is an automated analysis framework for LLVM-based languages. This version supports LLVM 5.0.
 
+**This `master` branch is obsolete and not maintained anymore. We plan to replace it soon. 
+Meanwhile, the development/active branch is `dev10` which supports LLVM 10**. 
+
+
 # License #
 
 <a href="http://seahorn.github.io/">SeaHorn</a> is distributed under a modified BSD license. See [license.txt](license.txt) for details.

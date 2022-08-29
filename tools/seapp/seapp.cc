@@ -471,7 +471,10 @@ int main(int argc, char **argv) {
     // -- Externalize some user-selected functions
     pm_wrapper.add(seahorn::createExternalizeFunctionsPass());
   } else if (CrabLowerIsDeref) {
-    // -- prerequisite 1 : Run Name Values Pass
+    // -- prerequisite 1 : Lower constant expressions to instructions
+    pm_wrapper.add(seahorn::createLowerCstExprPass());
+    pm_wrapper.add(llvm::createDeadCodeEliminationPass());
+    // -- prerequisite 2 : Run Name Values Pass
     pm_wrapper.add(seahorn::createNameValuesPass());
     // -- attempt to lower any left sea.is_dereferenceable()
     // First pass is attempted by using LLVM Memory Builtins to compute

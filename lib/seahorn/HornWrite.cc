@@ -8,6 +8,10 @@
 
 #include "llvm/Support/CommandLine.h"
 
+namespace seahorn {
+extern bool InterProcMemFmaps;
+}
+
 static llvm::cl::opt<bool> InternalWriter(
     "horn-fp-internal-writer",
     llvm::cl::desc("Use internal writer for Horn SMT2 format. (Default)"),
@@ -40,7 +44,13 @@ void setInfo(Out &out, Key &key, Value &val) {
 bool HornWrite::runOnModule(Module &M) {
   ScopedStats _st_("HornWrite");
   HornifyModule &hm = getAnalysis<HornifyModule>();
-  HornClauseDB &db = hm.getHornClauseDB();
+
+  HornClauseDB &origdb = hm.getHornClauseDB();
+  HornClauseDB tdb(origdb.getExprFactory());
+  if (InterProcMemFmaps) { // rewrite finite maps
+    removeFiniteMapsHornClausesTransf(origdb, tdb);
+  }
+  HornClauseDB &db = InterProcMemFmaps ? tdb : origdb;
   ExprFactory &efac = hm.getExprFactory();
 
   if (HornClauseFormat == CLP) {

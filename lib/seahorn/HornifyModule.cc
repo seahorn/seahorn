@@ -39,6 +39,7 @@
 
 #include "seahorn/BvOpSem.hh"
 #include "seahorn/ClpOpSem.hh"
+#include "seahorn/FiniteMapTransf.hh"
 #include "seahorn/UfoOpSem.hh"
 
 using namespace llvm;
@@ -108,9 +109,26 @@ static llvm::cl::opt<bool>
                  llvm::cl::init(false));
 
 namespace seahorn {
+bool InterProcMemFmaps;
+bool InterMemArrayConstraints;
+} // namespace seahorn
+
+static llvm::cl::opt<bool, true> XInterProcMemFmaps(
+    "horn-inter-proc-mem-fmaps",
+    llvm::cl::desc("Use inter-procedural encoding with fmaps as memory"),
+    llvm::cl::location(seahorn::InterProcMemFmaps), llvm::cl::init(false));
+
+static llvm::cl::opt<bool, true> XInterMemArrayConstraints(
+    "horn-constrain-inter-mem",
+    llvm::cl::desc(
+        "Generate constraints for memory modification in inter proc encoding"),
+    llvm::cl::location(seahorn::InterMemArrayConstraints), cl::init(false));
+
+namespace seahorn {
 // counters for copying the new inter-proc vcgen
 // only updated if the log "inter_mem_counters" is active
 extern InterMemStats g_im_stats;
+extern InterMemFMStats g_imfm_stats;
 } // namespace seahorn
 
 namespace seahorn {
@@ -163,20 +181,25 @@ bool HornifyModule::runOnModule(Module &M) {
   if (Step == hm_detail::CLP_SMALL_STEP ||
       Step == hm_detail::CLP_FLAT_SMALL_STEP)
     m_sem.reset(new ClpOpSem(m_efac, *this, M.getDataLayout(), TL));
-  else if (InterProcMem) {
+  else if (InterProcMem || InterProcMemFmaps || InterMemArrayConstraints) {
     ShadowMemPass *smp = getAnalysisIfAvailable<seadsa::ShadowMemPass>();
     assert(smp);
-    ShadowMem &shadowmem_analysis = smp->getShadowMem();
+    m_shadowMem = &smp->getShadowMem();
     CompleteCallGraph *ccg =
         getAnalysisIfAvailable<seadsa::CompleteCallGraph>();
     assert(ccg);
-    std::shared_ptr<InterMemPreProc> preproc =
-        std::make_shared<InterMemPreProc>(*ccg, shadowmem_analysis);
+    m_imPreProc = std::make_shared<InterMemPreProc>(*ccg, *m_shadowMem, m_efac);
 
-    preproc->runOnModule(M);
-
-    m_sem.reset(new MemUfoOpSem(m_efac, *this, M.getDataLayout(), preproc, TL,
-                                abs_fns, &shadowmem_analysis));
+    m_imPreProc->runOnModule(M);
+    if (InterProcMem)
+      m_sem.reset(new MemUfoOpSem(m_efac, *this, M.getDataLayout(), m_imPreProc,
+                                  TL, abs_fns, m_shadowMem));
+    else if (InterProcMemFmaps)
+      m_sem.reset(new FMapUfoOpSem(m_efac, *this, M.getDataLayout(),
+                                   m_imPreProc, TL, abs_fns, m_shadowMem));
+    else // regular UfoOpSem but we add invariants about memory modification
+         // in `HornifyFunction`
+      m_sem.reset(new UfoOpSem(m_efac, *this, M.getDataLayout(), TL, abs_fns));
   } else if (BitPrecise) {
     m_sem.reset(new BvOpSem(m_efac, *this, M.getDataLayout(), TL));
   } else {
@@ -322,12 +345,13 @@ bool HornifyModule::runOnModule(Module &M) {
   }
 
   // DEBUG: printing clauses
-  LOG(
-      "print_clauses", errs() << "------- PRINTING CLAUSE DB ------\n";
+  LOG("print_clauses", errs() << "------- PRINTING CLAUSE DB ------\n";
       for (auto &cl
-           : m_db.getRules()) { cl.get()->dump(); });
+           : m_db.getRules()) cl.get()
+          ->dump(););
 
-  LOG("inter_mem_counters", if (InterProcMem) g_im_stats.print(););
+  LOG("inter_mem_counters", if (InterProcMem) g_im_stats.print();
+      else if (InterProcMemFmaps) g_imfm_stats.print(););
 
   /**
      TODO:
@@ -404,7 +428,7 @@ bool HornifyModule::runOnFunction(Function &F) {
   boost::scoped_ptr<HornifyFunction> hf(
       new SmallHornifyFunction(*this, InterProc));
   if (Step == hm_detail::LARGE_STEP)
-    hf.reset(new LargeHornifyFunction(*this, InterProc));
+    hf.reset(new LargeHornifyFunction(*this, InterProc, InterProcMemFmaps));
   else if (Step == hm_detail::FLAT_SMALL_STEP ||
            Step == hm_detail::CLP_FLAT_SMALL_STEP)
     hf.reset(new FlatSmallHornifyFunction(*this, InterProc));
@@ -420,13 +444,16 @@ bool HornifyModule::runOnFunction(Function &F) {
   // HACK because reset counters because "run()" calls VisitCallSite
   // TODO: store part of what is computed by LiveSymbols?
   InterMemStats tmp_im_stats;
+  InterMemFMStats tmp_imfm_stats;
 
-  LOG("inter_mem_counters", g_im_stats.copyTo(tmp_im_stats););
+  LOG("inter_mem_counters", if (InterProcMem) g_im_stats.copyTo(tmp_im_stats);
+      else g_imfm_stats.copyTo(tmp_imfm_stats););
 
   /// -- run LiveSymbols
   r.first->second.run();
 
-  LOG("inter_mem_counters", tmp_im_stats.copyTo(g_im_stats));
+  LOG("inter_mem_counters", if (InterProcMem) tmp_im_stats.copyTo(g_im_stats);
+      else g_imfm_stats.copyTo(tmp_imfm_stats););
 
   /// -- hornify function
   hf->runOnFunction(F);
@@ -448,7 +475,7 @@ void HornifyModule::getAnalysisUsage(llvm::AnalysisUsage &AU) const {
   AU.addRequired<seahorn::TopologicalOrder>();
   AU.addRequired<seahorn::CutPointGraph>();
 
-  if (InterProcMem) {
+  if (InterProcMem || InterProcMemFmaps || InterMemArrayConstraints) {
     AU.addRequired<seadsa::CompleteCallGraph>();
     AU.addRequired<seadsa::ShadowMemPass>();
   }

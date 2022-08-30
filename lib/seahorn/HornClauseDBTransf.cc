@@ -1,4 +1,6 @@
 #include "seahorn/HornClauseDBTransf.hh"
+
+#include "seahorn/Expr/ExprOpFiniteMap.hh"
 #include "seahorn/FiniteMapTransf.hh"
 
 namespace seahorn {
@@ -69,62 +71,110 @@ void copy_if(Set &src, Set &dst, Predicate shouldCopy) {
 
 // -- tdb is an empty db that will contain db after transformation
 void removeFiniteMapsHornClausesTransf(HornClauseDB &db, HornClauseDB &tdb) {
+  ScopedStats _st_("HornFmaps");
 
   ExprFactory &efac = tdb.getExprFactory();
-  ExprMap predDeclTransf;
+  ExprMap predDeclTMap;
 
-  // Remove Finite Maps arguments
+  Stats::start("FiniteMapTransfArgs");
   for (auto &predIt : db.getRelations()) {
 
     Expr newPredDecl;
     if (predIt->arity() < 2) // just return type?, is this assumption correct?
       newPredDecl = predIt;
     else {
-      // create new relation declaration
-      newPredDecl = finite_map::mkMapsDecl(predIt, efac);
+      newPredDecl = fmap::mkMapsDecl(predIt);
 
       if (newPredDecl != predIt)
-        predDeclTransf[predIt] = newPredDecl;
+        predDeclTMap[predIt] = newPredDecl;
     }
-    tdb.registerRelation(newPredDecl); // register relation in transformed db
+    tdb.registerRelation(newPredDecl);
   }
 
+  auto transformLemmas = [&](std::map<Expr, ExprVector> &lMap,
+                             std::map<Expr, ExprVector> &lMapT) {
+    for (auto &pair : lMap) {
+      Expr pred = pair.first;
+      ExprVector &lemmas = pair.second;
+
+      // skip if the predicate does not need to be translated: assuming that an
+      // invariant does not refer to other predicates in the program
+      if (predDeclTMap.count(bind::name(pred)) == 0) {
+        auto &lemmasT = lMapT[pred];
+        lemmasT.insert(lemmasT.end(), lemmas.begin(), lemmas.end());
+      } else {
+        Expr predT = rewriteFiniteMapArgs(pred, predDeclTMap);
+
+        for (auto &l : lemmas) {
+          lMapT[predT].push_back(rewriteFiniteMapArgs(l, predDeclTMap));
+        }
+      }
+    }
+  };
+
+  auto oconstraints = db.getAllConstraints();
+  auto tconstraints = tdb.getAllConstraints();
+  transformLemmas(oconstraints, tconstraints);
+
+  auto oinvars = db.getAllInvariants();
+  auto tinvars = tdb.getAllInvariants();
+  transformLemmas(oinvars, tinvars);
+
   for (const auto &rule : db.getRules()) {
+    Expr ruleE;
+    if (isOpX<TRUE>(rule.body()))
+      // HACK for the transformation (forcing not simplifying implication)
+      ruleE = mk<IMPL>(rule.body(), rule.head());
+    else
+      ruleE = rule.get();
+
     const ExprVector &vars = rule.vars();
     ExprSet allVars(vars.begin(), vars.end());
-    DagVisitCache dvc; // TODO: same for all the clauses?
-    FiniteMapArgsVisitor fmav(allVars, predDeclTransf, efac);
-    Expr newRule = visit(fmav, rule.get(), dvc);
-    tdb.addRule(allVars, newRule);
+    HornRule newRule(allVars,
+                     rewriteFiniteMapArgs(ruleE, allVars, predDeclTMap));
+    tdb.addRule(newRule);
   }
 
   // copy queries
   for (auto &q : db.getQueries())
     tdb.addQuery(q);
 
-  // Remove Finite Maps from Bodies
-  std::vector<HornRule> worklist;
-  boost::copy(tdb.getRules(), std::back_inserter(worklist));
+  Stats::stop("FiniteMapTransfArgs");
+}
 
-  for (auto rule : worklist) {
-    ExprVector vars = rule.vars();
+void removeFiniteMapsBodyHornClausesTransf(HornClauseDB &db, HornClauseDB &tdb,
+                                           EZ3 &zctx) {
+
+  ZSimplifier<EZ3> zsimp(zctx);
+  ExprFactory &efac = tdb.getExprFactory();
+
+  for (const auto &rule : db.getRules()) {
+    const ExprVector &vars = rule.vars();
     ExprSet allVars(vars.begin(), vars.end());
+    DagVisitCache dvc;
+    FiniteMapBodyVisitor fmbv(allVars, efac, zsimp);
 
-    DagVisitCache dvc; // same for all the clauses?
-    FiniteMapBodyVisitor fmv(allVars, efac);
+    if (isOpX<TRUE>(rule.body()))
+      tdb.addRule(rule);
+    else {
+      Expr body = visit(fmbv, rule.body(), dvc);
 
-    Expr body = visit(fmv, rule.body(), dvc);
-
-    ExprSet newVars;
-    copy_if(allVars, newVars, [](Expr expr) { // not finite map
-      return !isOpX<FINITE_MAP_TY>(bind::rangeTy(bind::fname(expr)));
-    });
-
-    HornRule new_rule(newVars, rule.head(), body);
-
-    tdb.removeRule(rule);
-    tdb.addRule(new_rule);
+      ExprSet newVars;
+      copy_if(allVars, newVars, [](Expr expr) { // not finite map
+        return !isOpX<FINITE_MAP_TY>(bind::rangeTy(bind::fname(expr)));
+      });
+      HornRule newRule(newVars, boolop::limp(body, rule.head()));
+      tdb.addRule(newRule);
+    }
   }
+
+  // copy predicates
+  for (auto &predIt : db.getRelations())
+    tdb.registerRelation(predIt);
+
+  // copy queries
+  for (auto &q : db.getQueries())
+    tdb.addQuery(q);
 }
 
 } // namespace seahorn

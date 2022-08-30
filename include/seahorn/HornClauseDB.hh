@@ -207,6 +207,9 @@ public:
   /// Returns the current invariants for the predicate
   Expr getInvariants(Expr pred) const;
 
+  std::map<Expr, ExprVector> &getAllConstraints() { return m_constraints; }
+  std::map<Expr, ExprVector> &getAllInvariants() { return m_invariants; }
+
   raw_ostream &write(raw_ostream &o) const;
 
   /// load current HornClauseDB to a given FixedPoint object

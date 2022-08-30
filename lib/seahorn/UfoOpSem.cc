@@ -771,6 +771,18 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
           }
         }
       }
+    } else if (MemCpyInst *MCI = dyn_cast<MemCpyInst>(&I)) {
+      if (m_inMem != nullptr)
+        if (fmap::isFiniteMap(m_inMem))
+          write(*m_outValue, m_inMem);
+        else
+          m_side.push_back(mk<EQ>(m_outMem, m_inMem));
+    } else if (MemMoveInst *MMI = dyn_cast<MemMoveInst>(&I)) {
+      if (m_inMem != nullptr)
+        if (fmap::isFiniteMap(m_inMem))
+          write(*m_outValue, m_inMem);
+        else
+          m_side.push_back(mk<EQ>(m_outMem, m_inMem));
     }
     // else if (F.getName ().equals ("verifier.assert"))
     // {
@@ -973,8 +985,15 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
       }
     }
 
-    if (!m_inMem || !m_outMem || !m_sem.isTracked(*I.getOperand(0)))
+    if (!m_inMem || !m_outMem)
       return;
+    else if (!m_sem.isTracked(*I.getOperand(0))) { // treated as noop
+      if (fmap::isFiniteMap(m_inMem))
+        write(*m_outValue, m_inMem);
+      else
+        m_side.push_back(mk<EQ>(m_outMem, m_inMem));
+      return;
+    }
 
     Expr act = GlobalConstraints ? trueE : m_activeLit;
     Expr v = lookup(*I.getOperand(0));
@@ -993,6 +1012,11 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
           Expr store = op::array::store(m_inMem, idx, v);
           side(m_outMem, store, !ArrayGlobalConstraints);
         }
+      } else { // treat unknown memory accesses as noop
+        if (fmap::isFiniteMap(m_inMem))
+          write(*m_outValue, m_inMem);
+        else
+          m_side.push_back(mk<EQ>(m_outMem, m_inMem));
       }
     }
 

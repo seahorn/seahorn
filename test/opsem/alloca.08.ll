@@ -1,6 +1,6 @@
 ; RUN: %seabmc --sea-opsem-allocator=static "%s" 2>&1 | %oc %s
 ; RUN: %seabmc --sea-opsem-allocator=static --horn-bv2-lambdas "%s" 2>&1 | %oc %s
-; RUN: %seabmc --sea-opsem-allocator=static --horn-based-ptr-obj --horn-hybrid-array --horn-bv2-lambdas=false "%s" 2>&1 | %oc %s
+; RUN: %seabmc --sea-opsem-allocator=static --horn-based-ptr-obj --horn-hybrid-array --horn-hybrid-use-arm --horn-hybrid-compress-stores --horn-bv2-lambdas=false "%s" 2>&1 | %oc %s
 
 ; CHECK: ^unsat$
 ; ModuleID = 'alloca.01.ll'

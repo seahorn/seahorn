@@ -1,6 +1,6 @@
 ; RUN: %seabmc --lower-gv-init=false "%s" 2>&1 | %oc %s
 ; RUN: %seabmc --lower-gv-init=false --horn-bv2-lambdas --log=opsem3 "%s" 2>&1 | %oc %s
-; RUN: %seabmc --lower-gv-init=false --horn-based-ptr-obj --horn-hybrid-array --log=opsem3 "%s" 2>&1 | %oc %s
+; RUN: %seabmc --lower-gv-init=false --horn-based-ptr-obj --horn-hybrid-array --horn-hybrid-use-arm --horn-hybrid-compress-stores --log=opsem3 "%s" 2>&1 | %oc %s
 
 ; CHECK: ^sat$
 ; ModuleID = 'tmp_bc/code.pp.ms.o.ul.cut.bc'

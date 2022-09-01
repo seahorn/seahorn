@@ -79,3 +79,10 @@ llvm_config(units_arm ${LLVM_LINK_COMPONENTS})
 target_link_libraries(units_arm PRIVATE ${USED_LIBS_Z3_TESTS})
 add_custom_target(test_arm units_arm DEPENDS units_arm)
 add_test(NAME ARM_tests COMMAND units_arm)
+
+
+add_executable(units_store_map EXCLUDE_FROM_ALL units_store_map.cpp)
+llvm_config(units_store_map ${LLVM_LINK_COMPONENTS})
+target_link_libraries(units_store_map PRIVATE ${USED_LIBS_Z3_TESTS})
+add_custom_target(test_store_map units_store_map DEPENDS units_store_map)
+add_test(NAME Store_Map_Tests COMMAND units_store_map)

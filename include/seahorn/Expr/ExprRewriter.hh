@@ -51,7 +51,7 @@ private:
   ITERewriteRule m_iteRule;      // Fig 1
   CompareRewriteRule m_compRule; // Fig 3
   BoolOpRewriteRule m_boolRule;  // Fig 4
-  ArrayRewriteRule m_arrayRule;  // Fig 2
+  ReadOverWriteRule m_arrayRule; // Fig 2
   ArithmeticRule m_arithRule;    // Fig 5
 
 public:
@@ -76,6 +76,23 @@ private:
 public:
   PointerArithmeticConfig(ExprFactory &efac, DagVisitCache &cache)
       : m_arithRule(efac, cache, true), ExprRewriterConfig(efac, cache) {}
+
+  rewrite_result applyRewriteRules(Expr exp);
+
+  bool shouldRewrite(Expr exp);
+};
+
+/* config for eager-rewriting store */
+class WriteOverWriteConfig : public ExprRewriterConfig {
+private:
+  ArithmeticRule m_arithRule;
+  WriteOverWriteRule m_wowRule;
+
+public:
+  WriteOverWriteConfig(ExprFactory &efac, DagVisitCache &cache,
+                       unsigned ptrWidth)
+      : m_arithRule(efac, cache, true), m_wowRule(efac, cache, ptrWidth),
+        ExprRewriterConfig(efac, cache) {}
 
   rewrite_result applyRewriteRules(Expr exp);
 

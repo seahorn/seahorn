@@ -15,7 +15,8 @@ enum class ArrayOpKind {
   CONST_ARRAY,
   ARRAY_MAP,
   ARRAY_DEFAULT,
-  AS_ARRAY
+  AS_ARRAY,
+  STORE_MAP
 };
 
 namespace typeCheck {
@@ -80,6 +81,13 @@ struct Default  : public TypeCheckBase{
     return sort::arrayValTy(tc.typeOf(array));
   }
 };
+
+struct StoreMap : public TypeCheckBase {
+  inline Expr inferType(Expr exp, TypeChecker &tc) {
+    /* store-map(array, base, list of structs) */
+    return typeCheck::mapType::store_map<ARRAY_TY>(exp, tc, getArrayTypes);
+  }
+};
 } // namespace arrayType
 } // namespace typeCheck
 
@@ -95,6 +103,7 @@ NOP(ARRAY_MAP, "array-map", FUNCTIONAL, ArrayOp, typeCheck::Any)
 NOP(ARRAY_DEFAULT, "array-default", FUNCTIONAL, ArrayOp,
               typeCheck::arrayType::Default)
 NOP(AS_ARRAY, "as-array", FUNCTIONAL, ArrayOp, typeCheck::Any)
+NOP(STORE_MAP, "store-map", FUNCTIONAL, ArrayOp, typeCheck::arrayType::StoreMap)
 } // namespace op
 
 namespace op {
@@ -109,6 +118,26 @@ inline Expr selectIdx(Expr sel) {
   return sel->arg(1);
 }
 inline Expr store(Expr a, Expr idx, Expr v) { return mk<STORE>(a, idx, v); }
+
+bool ovCmp(const Expr a, const Expr b);
+
+/* Container should be nary node type, usually struct */
+template <typename R, typename Container>
+inline Expr storeMap(Expr a, Expr base, R &map) {
+  std::sort(map.begin(), map.end(), ovCmp); // usually only 2 elements
+  return mk<STORE_MAP>(a, base, mknary<Container>(map));
+}
+
+/** @brief get offset-value map of storeMap **/
+inline Expr storeMapGetMap(Expr stm) {
+  assert(isOpX<STORE_MAP>);
+  return stm->arg(2);
+}
+
+Expr storeMapInsert(Expr stm, Expr ov);
+
+Expr storeMapFind(Expr stm, Expr o);
+
 inline Expr storeArray(Expr st) {
   assert(isOpX<STORE>(st));
   return st->arg(0);

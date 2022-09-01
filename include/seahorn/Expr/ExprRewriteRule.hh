@@ -18,9 +18,6 @@ namespace expr {
 using namespace mem;
 using namespace addrRangeMap; /* addrRangeMap */
 namespace utils {
-// over-approximates whether ptr pointer is in arm; only returns False
-// when ptr is well-formed PE and is for sure not in arm
-bool inAddrRange(Expr ptr, AddrRangeMap &arm);
 
 bool isMemWriteOp(Expr);
 
@@ -223,21 +220,49 @@ struct BoolOpRewriteRule : public ExprRewriteRule {
 };
 
 // for select
-struct ArrayRewriteRule : public ExprRewriteRule {
+struct ReadOverWriteRule : public ExprRewriteRule {
   ARMCache &m_armCache;
   PtrTypeCheckCache &m_ptCache;
   unsigned m_wordSize; // in bytes
   unsigned m_ptrWidth; // ptr size in bits
-  ArrayRewriteRule(ExprFactory &efac, DagVisitCache &cache, ARMCache &armCache,
-                   expr::PtrTypeCheckCache &ptCache, unsigned wordSz,
-                   unsigned ptrWidth)
+  ReadOverWriteRule(ExprFactory &efac, DagVisitCache &cache, ARMCache &armCache,
+                    expr::PtrTypeCheckCache &ptCache, unsigned wordSz,
+                    unsigned ptrWidth)
       : m_armCache(armCache), m_ptCache(ptCache), ExprRewriteRule(efac, cache),
         m_wordSize(wordSz), m_ptrWidth(ptrWidth) {}
-  ArrayRewriteRule(const ArrayRewriteRule &o)
+  ReadOverWriteRule(const ReadOverWriteRule &o)
       : m_armCache(o.m_armCache), m_ptCache(o.m_ptCache), ExprRewriteRule(o),
         m_wordSize(o.m_wordSize), m_ptrWidth(o.m_ptrWidth) {}
 
   rewrite_result operator()(Expr exp);
+
+private:
+  rewrite_result rewriteReadOverStore(Expr arr, Expr idx);
+
+  rewrite_result rewriteReadOverIte(Expr arr, Expr idx);
+
+  rewrite_result rewriteReadOverMemset(Expr arr, Expr idx);
+
+  rewrite_result rewriteReadOverMemcpy(Expr arr, Expr idx);
+
+  rewrite_result rewriteReadOverStoreMap(Expr arr, Expr idx);
+
+  /* Given select(storemap(arr, base, smap), idx), revert into ite form
+  return true if select(arr) is already rewritten and stored in cache */
+  bool revertSMapToIte(Expr arr, Expr base, Expr smap, Expr idx, Expr &res);
+};
+
+// for eager pre-processing stores during storeWord
+struct WriteOverWriteRule : public ExprRewriteRule {
+  unsigned m_ptrWidth;
+  WriteOverWriteRule(ExprFactory &efac, DagVisitCache &cache, unsigned ptrWidth)
+      : m_ptrWidth(ptrWidth), ExprRewriteRule(efac, cache) {}
+  WriteOverWriteRule(const WriteOverWriteRule &o)
+      : m_ptrWidth(o.m_ptrWidth), ExprRewriteRule(o) {}
+
+  rewrite_result operator()(Expr exp);
+
+  rewrite_result rewriteStore(Expr exp);
 };
 
 struct ArithmeticRule : public ExprRewriteRule {

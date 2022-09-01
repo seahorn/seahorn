@@ -28,6 +28,22 @@ void updatePtrTCCache(Expr e, bool isPtr, PtrTypeCheckCache &cache);
  */
 bool isPtrExpr(Expr e, PtrTypeCheckCache &c);
 
+/**
+ * @brief Return true if e is ptr with single base, either:
+ * sea.obj_N or
+ * bvadd(sea.obj_N, o...)
+ * in which case set base := sea.obj_N and offset := o
+ */
+bool isSingleBasePtr(Expr e, size_t ptrWidth, Expr &base, Expr &offset);
+
+/**
+ * @brief given sea.obj_N, return N
+ *
+ * @param e should be a
+ * @return int
+ */
+int getBasedAddrSerial(Expr e);
+
 using PtrBitsZeroed = std::pair<Expr, size_t>;
 
 /**

@@ -9,6 +9,11 @@
 #include "seahorn/Support/Stats.hh"
 #include "llvm/Support/CommandLine.h"
 
+static llvm::cl::opt<bool>
+    UseStoreMap("horn-hybrid-compress-stores",
+                llvm::cl::desc("Use store map to cmopress stores"),
+                llvm::cl::init(false));
+
 namespace {
 template <typename T, typename... Rest>
 auto as_std_array(const T &t, const Rest &... rest) ->
@@ -684,5 +689,21 @@ OpSemMemRepr::MemValTy OpSemMemHybridRepr::MemCpy(
   LOG("opsem.hybrid.verbose", INFO << "memset: " << *res << "\n");
   return MemValTy(res);
 }
+
+OpSemMemRepr::MemValTy OpSemMemHybridRepr::storeAlignedWordToMem(
+    Expr val, PtrTy ptr, PtrSortTy ptrSort, OpSemMemRepr::MemValTy mem) {
+  (void)ptrSort;
+  /* simplify pointer */
+  Expr res = op::array::store(mem.toExpr(), normalizePtr(ptr.toExpr()), val);
+  if (UseStoreMap) {
+    WriteOverWriteConfig conf(res->efac(), m_cache,
+                              m_memManager.ptrSizeInBits());
+    ExprRewriter<WriteOverWriteConfig> rw(res->efac(), conf, m_cache);
+    res = rw.rewriteExpr(res);
+  }
+
+  return OpSemMemRepr::MemValTy(res);
+}
+
 } // namespace details
 } // namespace seahorn

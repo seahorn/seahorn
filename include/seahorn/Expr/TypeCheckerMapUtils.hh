@@ -65,6 +65,32 @@ store(Expr exp, TypeChecker &tc,
   return sort::errorTy(exp->efac());
 }
 
+template <typename T>
+static inline Expr
+store_map(Expr exp, TypeChecker &tc,
+          std::function<void(Expr exp, TypeChecker &tc, Expr &mapTy,
+                             Expr &indexTy, Expr &valTy)>
+              getMapTypes) {
+  if (!checkMap<T>(exp, tc, 3))
+    return sort::errorTy(exp->efac());
+
+  Expr mapTy;
+  Expr indexTy;
+  Expr valTy;
+
+  getMapTypes(exp, tc, mapTy, indexTy, valTy);
+  /* store-map(arr, base, struct(struct(o1, v1), struct(o2, v2)....))*/
+
+  Expr map = exp->arg(2); // struct of binary structs
+  Expr offsetVal = map->arg(0);
+
+  if (indexTy == tc.typeOf(exp->arg(1)) &&
+      valTy == tc.typeOf(offsetVal->arg(1)))
+    return mapTy;
+
+  return sort::errorTy(exp->efac());
+}
+
 } // namespace mapType
 } // namespace typeCheck
 } // namespace op

@@ -48,6 +48,48 @@ unsigned circSize(const ExprVector &vec) {
   return csz.size();
 }
 } // namespace boolop
+
+namespace array {
+bool ovCmp(const Expr a, const Expr b) {
+  // both a and b are struct(offset, val)
+  ENode *oA = a->arg(0);
+  ENode *oB = b->arg(0);
+  assert(op::bv::is_bvnum(oA));
+  assert(op::bv::is_bvnum(oB));
+  return op::bv::toMpz(oA).get_ui() < op::bv::toMpz(oB).get_ui();
+}
+
+Expr storeMapInsert(Expr stm, Expr ov) {
+  Expr smap = storeMapGetMap(stm);
+  ExprVector kids(smap->args_begin(), smap->args_end());
+  ExprVector::iterator it =
+      std::upper_bound(kids.begin(), kids.end(), ov, ovCmp);
+  ExprVector::iterator itPrv = it == kids.begin() ? it : it - 1;
+  if (op::bv::toMpz(ov->arg(0)) == op::bv::toMpz((*itPrv)->arg(0))) {
+    *itPrv = ov;
+  } else {
+    kids.insert(it, ov);
+  }
+  smap = smap->getFactory().mkNary(smap->op(), kids.begin(), kids.end());
+  return stm->getFactory().mkTern(stm->op(), stm->arg(0), stm->arg(1), smap);
+}
+
+Expr storeMapFind(Expr stm, Expr o) {
+  Expr res;
+  Expr dummyOv = op::strct::mk(o);
+  Expr smap = storeMapGetMap(stm);
+  auto it =
+      std::lower_bound(smap->args_begin(), smap->args_end(), dummyOv, ovCmp);
+  if (it != smap->args_end()) {
+    Expr ov = *it;
+    if (op::bv::toMpz(o) == op::bv::toMpz(ov->arg(0))) {
+      res = ov->arg(1);
+    }
+  }
+  return res;
+}
+} // namespace array
+
 } // namespace op
 
 namespace {
@@ -515,6 +557,20 @@ inline bool isBasedObjAddr(Expr e) {
   }
   return false;
 }
+
+int getBasedAddrSerial(Expr e) {
+  assert(isBasedObjAddr(e));
+  Expr name = op::bind::fname(e);
+  if (op::bind::isFdecl(name)) {
+    name = op::bind::fname(name);
+  }
+  // strip variant
+  if (isOpX<VARIANT>(name)) {
+    return op::variant::variantNum(name);
+  }
+  return -1;
+}
+
 bool isBaseAddr(Expr e, bool basedPtr) {
   if (basedPtr) { /* in case someone wants to use ad hoc? */
     return isBasedObjAddr(e);
@@ -540,6 +596,37 @@ bool isBaseAddr(Expr e, bool basedPtr) {
       if (term.rfind("sea.sp0", 0) == 0)
         return true;
     }
+  }
+  return false;
+}
+
+bool isSingleBasePtr(Expr e, size_t ptrWidth, Expr &base, Expr &offset) {
+  if (isBaseAddr(e)) {
+    base = e;
+    offset = op::bv::bvnum(0UL, ptrWidth, e->efac());
+    return true;
+  }
+  if (isOpX<BADD>(e)) {
+    Expr b;
+    ExprVector offsets;
+    for (auto it = e->args_begin(); it != e->end(); it++) {
+      if (isBaseAddr(*it)) {
+        b = *it;
+      } else {
+        offsets.push_back(*it);
+      }
+    }
+    if (!b)
+      return false;
+    base = b;
+    if (offsets.size() == 1) {
+      offset = offsets[0];
+    } else if (offsets.empty()) {
+      offset = op::bv::bvnum(0UL, ptrWidth, e->efac());
+    } else {
+      offset = mknary<BADD>(offsets.begin(), offsets.end());
+    }
+    return true;
   }
   return false;
 }

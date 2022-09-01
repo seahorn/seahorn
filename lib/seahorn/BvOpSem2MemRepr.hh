@@ -115,7 +115,7 @@ public:
                      unsigned memCpyUnrollCnt)
       : OpSemMemArrayReprBase(memManager, ctx, memCpyUnrollCnt),
         m_cache(DagVisitCache()), m_armCache(ARMCache()),
-        m_memCache(DagVisitMemCache()), m_ptCache(PtrTypeCheckCache()) {}
+        m_smapCache(DagVisitCache()), m_ptCache(PtrTypeCheckCache()) {}
 
   /**
    * mem: 1. array const i.e. A (uninitialized)
@@ -130,12 +130,7 @@ public:
   Expr loadAlignedWordFromMem(PtrTy ptr, MemValTy mem) override;
 
   MemValTy storeAlignedWordToMem(Expr val, PtrTy ptr, PtrSortTy ptrSort,
-                                 MemValTy mem) override {
-    (void)ptrSort;
-    /* simplify pointer */
-    return MemValTy(
-        op::array::store(mem.toExpr(), normalizePtr(ptr.toExpr()), val));
-  }
+                                 MemValTy mem) override;
 
   MemValTy MemSet(PtrTy ptr, Expr _val, unsigned len, MemValTy mem,
                   unsigned wordSzInBytes, PtrSortTy ptrSort,
@@ -153,7 +148,8 @@ public:
 
 private:
   DagVisitCache m_cache;
-  DagVisitMemCache m_memCache;
+  DagVisitCache
+      m_smapCache; // build normal store-chain, cache store-map => store-chain
   ARMCache m_armCache;
   PtrTypeCheckCache m_ptCache;
 

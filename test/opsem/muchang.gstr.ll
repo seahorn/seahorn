@@ -5,9 +5,9 @@
 ; RUN: %seabmc --horn-bv2-lambdas --horn-vcgen-use-ite "%s" 2>&1 | %oc %s
 ; RUN: %seabmc --horn-bv2-lambdas --horn-gsa --horn-vcgen-use-ite "%s" 2>&1 | %oc %s
 
-; RUN: %seabmc --horn-based-ptr-obj --horn-hybrid-array --horn-gsa "%s" 2>&1 | %oc %s
-; RUN: %seabmc --horn-based-ptr-obj --horn-hybrid-array --horn-vcgen-use-ite "%s" 2>&1 | %oc %s
-; RUN: %seabmc --horn-based-ptr-obj --horn-hybrid-array --horn-gsa --horn-vcgen-use-ite "%s" 2>&1 | %oc %s
+; RUN: %seabmc --horn-based-ptr-obj --horn-hybrid-array --horn-hybrid-use-arm --horn-hybrid-compress-stores --horn-gsa "%s" 2>&1 | %oc %s
+; RUN: %seabmc --horn-based-ptr-obj --horn-hybrid-array --horn-hybrid-use-arm --horn-hybrid-compress-stores --horn-vcgen-use-ite "%s" 2>&1 | %oc %s
+; RUN: %seabmc --horn-based-ptr-obj --horn-hybrid-array --horn-hybrid-use-arm --horn-hybrid-compress-stores --horn-gsa --horn-vcgen-use-ite "%s" 2>&1 | %oc %s
 
 ; CHECK: ^unsat$
 ;; ModuleID = '/tmp/sea-E9l3Jc/ggg.pp.ms.o.ul.cut.bc'

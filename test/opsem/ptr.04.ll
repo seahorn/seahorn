@@ -1,7 +1,7 @@
 ; if result implies aliasing then pointers alias
 ; RUN: %seabmc "%s" 2>&1 | %oc %s
 ; RUN: %seabmc --horn-bv2-lambdas --log=opsem3 "%s" 2>&1 | %oc %s
-; RUN: %seabmc --horn-based-ptr-obj --horn-hybrid-array --horn-bv2-lambdas=false --log=opsem3 "%s" 2>&1 | %oc %s
+; RUN: %seabmc --horn-based-ptr-obj --horn-hybrid-array --horn-hybrid-use-arm --horn-hybrid-compress-stores --horn-bv2-lambdas=false --log=opsem3 "%s" 2>&1 | %oc %s
 
 ; CHECK: ^unsat$
 ; ModuleID = 'ptr.01.ll'

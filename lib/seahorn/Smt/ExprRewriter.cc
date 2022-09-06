@@ -20,20 +20,20 @@ bool shouldCache(Expr e) {
 
 bool isMemWriteOp(Expr e) {
   return isOpX<STORE>(e) || isOpX<ITE>(e) || isOpX<MEMSET_WORDS>(e) ||
-         isOpX<MEMCPY_WORDS>(e);
+         isOpX<MEMCPY_WORDS>(e) || isOpX<STORE_MAP>(e);
 }
 } // namespace utils
 
 bool ITECompRewriteConfig::shouldRewrite(Expr exp) {
   // return isOpX<ITE>(exp) || isOpX<CompareOp>(exp) || isOpX<BoolOp>(exp) ||
   //        isOpX<SELECT>(exp) || isOpX<BADD>(exp);
-  return isOpX<ITE>(exp) || isOpX<SELECT>(exp);
+  return isOpX<ITE>(exp) || isOpX<SELECT>(exp) || isOpX<CompareOp>(exp);
 }
 
 rewrite_result ITECompRewriteConfig::applyRewriteRules(Expr exp) {
   rewrite_result res = {exp, rewrite_status::RW_DONE};
   if (isOpX<ITE>(exp)) {
-    // res = m_iteRule(exp);
+    res = m_iteRule(exp);
   } else if (isOpX<CompareOp>(exp)) {
     res = m_compRule(exp);
   } else if (isOpX<BoolOp>(exp)) {
@@ -100,13 +100,13 @@ rewrite_result ReadOverWriteRule::rewriteReadOverStore(Expr arr, Expr idx) {
   seahorn::ScopedStats _st("rw_ro_store");
   Expr arrN = op::array::storeArray(arr);
   Expr idxN = op::array::storeIdx(arr);
-  if (UseArm) {
-    if (!approxPtrEq(idx, idxN, m_armCache,
-                     m_ptCache)) { /* idx!=idxN must be true*/
-      seahorn::Stats::count("hybrid.arm_skip_store");
-      return {op::array::select(arrN, idx), rewrite_status::RW_1};
-    }
-  }
+  // if (UseArm) {
+  //   if (!approxPtrEq(idx, idxN, m_armCache,
+  //                    m_ptCache)) { /* idx!=idxN must be true*/
+  //     seahorn::Stats::count("hybrid.arm_skip_store");
+  //     return {op::array::select(arrN, idx), rewrite_status::RW_1};
+  //   }
+  // }
   Expr res = mk<ITE>(mk<EQ>(idx, idxN), op::array::storeVal(arr),
                      op::array::select(arrN, idx));
   return {res, rewrite_status::RW_2};
@@ -173,11 +173,11 @@ bool ReadOverWriteRule::revertSMapToIte(Expr arr, Expr base, Expr smap,
   for (auto it = smap->args_begin(); it != smap->args_end(); it++) {
     Expr ov = *it;
     Expr oIdx = mk<BADD>(base, ov->arg(0));
-    if (UseArm && !approxPtrEq(oIdx, idx, m_armCache, m_ptCache)) {
-      Stats::count("hybrid.arm_skip_store");
-      continue; // idx!=oIdx
-    }
-    res = mk<ITE>(mk<EQ>(oIdx, idx), ov->arg(1), res);
+    // if (UseArm && !approxPtrEq(oIdx, idx, m_armCache, m_ptCache)) {
+    //   Stats::count("hybrid.arm_skip_store");
+    //   continue; // idx!=oIdx
+    // }
+    res = mk<ITE>(mk<EQ>(idx, oIdx), ov->arg(1), res);
   }
   return canSkipFullRw;
 }
@@ -345,6 +345,104 @@ rewrite_result WriteOverWriteRule::operator()(Expr e) {
   } else { // all handled during store
     return {e, rewrite_status::RW_DONE};
   }
+}
+
+rewrite_result CompareRewriteRule::operator()(Expr exp) {
+  seahorn::ScopedStats _st("rw_comp");
+  if (!isOpX<CompareOp>(exp)) {
+    return {exp, rewrite_status::RW_SKIP};
+  }
+  Expr lhs = exp->left();
+  Expr rhs = exp->right();
+
+  /* a op b comp a op c ==> b comp c
+    e.g. (a - b) == (a - c) ==> b == c
+  */
+  if (isOpX<BvOp>(lhs) && lhs->op() == rhs->op() &&
+      lhs->arity() == rhs->arity() && lhs->arity() == 2) {
+    if (lhs->arg(0) == rhs->arg(0)) {
+      Expr res = efac.mkBin(exp->op(), lhs->arg(1), rhs->arg(1));
+      return {res, rewrite_status::RW_1};
+    }
+    if (lhs->arg(1) == rhs->arg(1)) {
+      Expr res = efac.mkBin(exp->op(), lhs->arg(0), rhs->arg(0));
+      return {res, rewrite_status::RW_1};
+    }
+  }
+  // a == a => true, only works if a is constant bvnum
+  if (isOpX<EQ>(exp)) {
+    bool bothNum = op::bv::is_bvnum(lhs) && op::bv::is_bvnum(rhs);
+    if (bothNum) {
+      return {op::bv::toMpz(lhs) == op::bv::toMpz(rhs) ? trueE : falseE,
+              rewrite_status::RW_DONE};
+    }
+    Expr rBase, rOffset, lBase, lOffset;
+    bool rHasBase = isSingleBasePtr(rhs, m_ptrWidth, rBase, rOffset);
+    bool lHasBase = isSingleBasePtr(lhs, m_ptrWidth, lBase, lOffset);
+    if (rHasBase && lHasBase) {
+      if (rBase == lBase) {
+        // compare offset
+        return {mk<EQ>(lOffset, rOffset), rewrite_status::RW_1};
+      } else {
+        // diff base => diff pointer
+        seahorn::Stats::count("hybrid.thm_skip_store");
+        return {falseE, rewrite_status::RW_DONE};
+      }
+    }
+    if (UseArm && isPtrExpr(lhs, m_ptcCache) && isPtrExpr(rhs, m_ptcCache)) {
+      if (!approxPtrEq(lhs, rhs, m_armCache, m_ptcCache)) {
+        seahorn::Stats::count("hybrid.arm_skip_store");
+        return {falseE, rewrite_status::RW_DONE};
+      }
+    }
+  }
+
+  // normalize neq: a != b ==> !(a=b)
+  if (isOpX<NEQ>(exp)) {
+    Expr negation = mk<EQ>(lhs, rhs);
+    return {mk<NEG>(negation), rewrite_status::RW_2};
+  }
+  return {exp, rewrite_status::RW_DONE};
+}
+
+rewrite_result ITERewriteRule::operator()(Expr exp) {
+  seahorn::ScopedStats _st("rw_ite");
+  if (!isOpX<ITE>(exp)) {
+    return {exp, rewrite_status::RW_SKIP};
+  }
+
+  Expr i = exp->arg(0);
+  Expr t = exp->arg(1);
+  Expr e = exp->arg(2);
+  // ite(a, true, false) => a
+  if (isOpX<TRUE>(t) && isOpX<FALSE>(e)) {
+    return {i, rewrite_status::RW_DONE};
+  }
+  // ite(a, false, true) => !a
+  if (isOpX<FALSE>(t) && isOpX<TRUE>(e)) {
+    return {mk<NEG>(i), rewrite_status::RW_1}; // simp dbl negation
+  }
+  // ite(i, a, a) => a
+  if (t == e) {
+    return {t, rewrite_status::RW_DONE};
+  }
+  // ite(a, b, ite(!a, c, d)) => ite(a, b, c)
+  if (isOpX<ITE>(e)) {
+    Expr e_i = e->arg(0);
+    Expr e_t = e->arg(1);
+    if (op::boolop::areNegations(i, e_i)) {
+      return {mk<ITE>(i, t, e_t), rewrite_status::RW_1};
+    }
+  }
+  // ite(true, a, b) => a
+  if (isOpX<TRUE>(i)) {
+    return {t, rewrite_status::RW_DONE};
+  }
+  // ite(false, a, b) => b
+  if (isOpX<FALSE>(i)) {
+    return {e, rewrite_status::RW_DONE};
+  }
+  return {exp, rewrite_status::RW_DONE};
 }
 
 } // namespace expr

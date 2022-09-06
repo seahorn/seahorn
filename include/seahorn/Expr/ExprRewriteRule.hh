@@ -67,121 +67,23 @@ struct ITERewriteRule : public ExprRewriteRule {
       : ExprRewriteRule(efac, cache) {}
   ITERewriteRule(const ITERewriteRule &o) : ExprRewriteRule(o) {}
 
-  rewrite_result operator()(Expr exp) {
-    if (!isOpX<ITE>(exp)) {
-      return {exp, rewrite_status::RW_SKIP};
-    }
-
-    Expr i = exp->arg(0);
-    Expr t = exp->arg(1);
-    Expr e = exp->arg(2);
-    // ite(a, true, false) => a
-    if (isOpX<TRUE>(t) && isOpX<FALSE>(e)) {
-      return {i, rewrite_status::RW_DONE};
-    }
-    // ite(a, false, true) => !a
-    if (isOpX<FALSE>(t) && isOpX<TRUE>(e)) {
-      return {mk<NEG>(i), rewrite_status::RW_1}; // simp dbl negation
-    }
-    // ite(i, false, false) => false
-    if (isOpX<FALSE>(t) && isOpX<FALSE>(e)) {
-      return {falseE, rewrite_status::RW_DONE};
-    }
-    // ite(i, true, true) => true
-    if (isOpX<TRUE>(t) && isOpX<TRUE>(e)) {
-      return {trueE, rewrite_status::RW_DONE};
-    }
-    // ite(a, b, ite(!a, c, d)) => ite(a, b, c)
-    if (isOpX<ITE>(e)) {
-      Expr e_i = e->arg(0);
-      Expr e_t = e->arg(1);
-      if (op::boolop::areNegations(i, e_i)) {
-        return {mk<ITE>(i, t, e_t), rewrite_status::RW_1};
-      }
-    }
-    // ite(true, a, b) => a
-    if (isOpX<TRUE>(i)) {
-      return {t, rewrite_status::RW_DONE};
-    }
-    // ite(false, a, b) => b
-    if (isOpX<FALSE>(i)) {
-      return {e, rewrite_status::RW_DONE};
-    }
-    return {exp, rewrite_status::RW_SKIP};
-  }
+  rewrite_result operator()(Expr exp);
 };
 
 struct CompareRewriteRule : public ExprRewriteRule {
+  unsigned m_ptrWidth;
+  PtrTypeCheckCache &m_ptcCache;
+  ARMCache &m_armCache;
+  CompareRewriteRule(ExprFactory &efac, DagVisitCache &cache,
+                     PtrTypeCheckCache &ptcCache, ARMCache &armCache,
+                     unsigned ptrWidth)
+      : m_ptrWidth(ptrWidth), m_ptcCache(ptcCache), m_armCache(armCache),
+        ExprRewriteRule(efac, cache) {}
+  CompareRewriteRule(const CompareRewriteRule &o)
+      : m_ptrWidth(o.m_ptrWidth), m_ptcCache(o.m_ptcCache),
+        m_armCache(o.m_armCache), ExprRewriteRule(o) {}
 
-  CompareRewriteRule(ExprFactory &efac, DagVisitCache &cache)
-      : ExprRewriteRule(efac, cache) {}
-  CompareRewriteRule(const CompareRewriteRule &o) : ExprRewriteRule(o) {}
-
-  rewrite_result operator()(Expr exp) {
-    if (!isOpX<CompareOp>(exp)) {
-      return {exp, rewrite_status::RW_SKIP};
-    }
-    Expr lhs = exp->left();
-    Expr rhs = exp->right();
-
-    /* a op b comp a op c ==> b comp c
-      e.g. (a - b) == (a - c) ==> b == c
-    */
-    if (isOpX<BvOp>(lhs) && lhs->op() == rhs->op() &&
-        lhs->arity() == rhs->arity() && lhs->arity() == 2) {
-      if (lhs->arg(0) == rhs->arg(0)) {
-        Expr res = efac.mkBin(exp->op(), lhs->arg(1), rhs->arg(1));
-        return {res, rewrite_status::RW_1};
-      }
-      if (lhs->arg(1) == rhs->arg(1)) {
-        Expr res = efac.mkBin(exp->op(), lhs->arg(0), rhs->arg(0));
-        return {res, rewrite_status::RW_1};
-      }
-    }
-    // a == a => true, only works if a is constant bvnum
-    if (isOpX<EQ>(exp)) {
-      bool bothNum = op::bv::is_bvnum(lhs) && op::bv::is_bvnum(rhs);
-      bool bothAddr = expr::mem::isBaseAddr(lhs) && expr::mem::isBaseAddr(rhs);
-      if (bothNum || bothAddr) {
-        if (lhs->arg(0) == rhs->arg(0)) {
-          return {trueE, rewrite_status::RW_DONE};
-        } else {
-          return {falseE, rewrite_status::RW_DONE};
-        }
-      }
-    }
-
-    // normalize neq: a != b ==> !(a=b)
-    if (isOpX<NEQ>(exp)) {
-      Expr negation = mk<EQ>(lhs, rhs);
-      return {mk<NEG>(negation), rewrite_status::RW_2};
-    }
-
-    // [k comp ite(a, b, c)] => [ite(a, b comp k, c comp k)]
-    // if b, c, or k is ITE, we could have size explosion
-    if (isOpX<ITE>(lhs)) {
-      rewrite_status st = rewrite_status::RW_2;
-      if (isOpX<ITE>(rhs) || isOpX<ITE>(lhs->arg(1)) ||
-          isOpX<ITE>(lhs->arg(2))) {
-        st = rewrite_status::RW_DONE;
-      }
-      Expr new_i = lhs->arg(0);
-      Expr new_t = efac.mkBin(exp->op(), lhs->arg(1), rhs);
-      Expr new_e = efac.mkBin(exp->op(), lhs->arg(2), rhs);
-      return {mk<ITE>(new_i, new_t, new_e), st};
-    } else if (isOpX<ITE>(rhs)) {
-      rewrite_status st = rewrite_status::RW_2;
-      if (isOpX<ITE>(lhs) || isOpX<ITE>(rhs->arg(1)) ||
-          isOpX<ITE>(rhs->arg(2))) {
-        st = rewrite_status::RW_DONE;
-      }
-      Expr new_i = rhs->arg(0);
-      Expr new_t = efac.mkBin(exp->op(), rhs->arg(1), lhs);
-      Expr new_e = efac.mkBin(exp->op(), rhs->arg(2), lhs);
-      return {mk<ITE>(new_i, new_t, new_e), st};
-    }
-    return {exp, rewrite_status::RW_SKIP};
-  }
+  rewrite_result operator()(Expr exp);
 };
 
 struct BoolOpRewriteRule : public ExprRewriteRule {

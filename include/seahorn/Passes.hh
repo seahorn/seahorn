@@ -115,17 +115,17 @@ llvm::Pass *createCrabLowerIsDerefPass();
 
 #ifdef HAVE_LLVM_SEAHORN
 llvm::FunctionPass *
-createSeaInstructionCombiningPass(bool ExpensiveCombines = true);
+createSeaInstructionCombiningPass();
 
 namespace seahorn {
-inline llvm::FunctionPass *createInstCombine(bool ExpensiveCombines = true) {
-  return createSeaInstructionCombiningPass(ExpensiveCombines);
+inline llvm::FunctionPass *createInstCombine() {
+  return createSeaInstructionCombiningPass();
 }
 } // namespace seahorn
 #else
 namespace seahorn {
-inline llvm::FunctionPass *createInstCombine(bool ExpensiveCombines = true) {
-  return llvm::createInstructionCombiningPass(ExpensiveCombines);
+inline llvm::FunctionPass *createInstCombine() {
+  return llvm::createInstructionCombiningPass();
 }
 } // namespace seahorn
 #endif

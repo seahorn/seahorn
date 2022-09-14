@@ -28,8 +28,8 @@ namespace seahorn
     // Call graph of the program
     CallGraph * CG;    
 
-    BasicBlock* createErrorBlock (Function &F, IRBuilder<> B);
-    void insertNullCheck (Value *Ptr, IRBuilder<> B, Instruction* I);
+    BasicBlock* createErrorBlock (Function &F, IRBuilder<> &B);
+    void insertNullCheck (Value *Ptr, IRBuilder<> &B, Instruction* I);
 
    public:
     

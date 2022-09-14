@@ -667,35 +667,8 @@ public:
                              f->getName().startswith("verifier.nondet") ||
                              f->getName().startswith("__VERIFIER_nondet")))
         visitNondetCall(CB);
-      else if (f->getName().startswith("sea.is_dereferenceable")) {
-        visitIsDereferenceable(CB);
-      } else if (f->getName().startswith("sea.is_modified")) {
-        visitIsModified(CB);
-      } else if (f->getName().startswith("sea.reset_modified")) {
-        visitResetModified(CB);
-      } else if (f->getName().startswith("sea.is_read")) {
-        visitIsRead(CB);
-      } else if (f->getName().startswith("sea.reset_read")) {
-        visitResetRead(CB);
-      } else if (f->getName().startswith("sea.is_alloc")) {
-        visitIsAlloc(CB);
-      } else if (f->getName().startswith("sea.reset_modified")) {
-        visitResetModified(CB);
-      } else if (f->getName().startswith("sea.tracking_on")) {
-        visitSetTrackingOn(CB);
-      } else if (f->getName().startswith(("sea.tracking_off"))) {
-        visitSetTrackingOff(CB);
-      } else if (f->getName().startswith("sea.free")) {
-        visitFree(CB);
-      } else if (f->getName().startswith(("sea.assert.if"))) {
-        visitSeaAssertIfCall(CB);
-      } else if (f->getName().startswith(("verifier.assert"))) {
-        // this deals with both assert and assert.not stmts
-        visitVerifierAssertCall(CB);
-      } else if (f->getName().startswith("sea.branch_sentinel")) {
-        visitBranchSentinel(CB);
-      } else if (f->getName().startswith("smt.")) {
-        visitSmtCall(CB);
+      else if (visitFunDecl(f->getName())) {
+        return;
       } else if (fatptr_intrnsc_re.match(f->getName())) {
         visitFatPointerInstr(CB);
       } else
@@ -756,7 +729,7 @@ public:
           ERR << "Cannot handle inline assembly: " << CB);
       return;
     }
-    InlineAsm *IA = cast<InlineAsm>(CB.getCalledValue());
+    InlineAsm *IA = cast<InlineAsm>(CB.getCalledOperand());
     const std::string &AsmStr = IA->getAsmString();
     llvm::SmallVector<llvm::StringRef, 4> AsmPieces;
     llvm::SplitString(AsmStr, AsmPieces, ";\n");
@@ -897,7 +870,7 @@ public:
         Stats::count("crab.isderef.not.solve");
         LOG("opsem-crab", const llvm::DebugLoc &dloc = CB.getDebugLoc();
             unsigned Line = dloc.getLine(); unsigned Col = dloc.getCol();
-            const std::string &File = (*dloc).getFilename();
+            StringRef File = (*dloc).getFilename();
             MSG << "crab cannot solve: " << CB << " at File=" << File
                 << " Line=" << Line << " col=" << Col;);
       }
@@ -2302,8 +2275,7 @@ public:
   Expr executeBitCastInst(const Value &op, Type *ty, Bv2OpSemContext &ctx) {
     Type *opTy = op.getType();
 
-    if (opTy->getTypeID() == Type::VectorTyID ||
-        ty->getTypeID() == Type::VectorTyID)
+    if (opTy->isVectorTy() || ty->isVectorTy())
       llvm_unreachable("Vector types are unsupported");
 
     Expr res = lookup(op);
@@ -3191,7 +3163,8 @@ bool Bv2OpSem::isSkipped(const Value &v) const {
   case Type::PointerTyID:
     // -- pointers are handled earlier in the procedure
     llvm_unreachable(nullptr);
-  case Type::VectorTyID:
+  case Type::FixedVectorTyID:
+  case Type::ScalableVectorTyID:  
     LOG("opsem", WARN << "Unsupported vector type\n";);
     return true;
   default:

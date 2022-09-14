@@ -42,8 +42,8 @@ std::string IncHornifyFunction::extractInfo(const BasicBlock &BB, unsigned crumb
     unsigned line = dloc.getLine ();
     std::string file, dir;
     if (dloc.get ()) {
-      file = dloc.get ()->getFilename ();
-      dir = dloc.get ()->getDirectory ();
+      file = dloc.get ()->getFilename ().str();
+      dir = dloc.get ()->getDirectory ().str();
     }
     else {
       file = "unknown file";

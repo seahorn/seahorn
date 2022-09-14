@@ -197,9 +197,9 @@ void unsat_core(ZSolver<EZ3> &solver, const ExprVector &f, bool simplify,
     out.push_back(bind::fname(bind::fname(c))->arg(0));
 }
 
-/* specialization for llvm::raw_ostream */
+/* specialization for llvm::raw_fd_ostream */
 template <>
-void dump_evaluated_inst(const Instruction &inst, Expr v, raw_ostream &out,
+void dump_evaluated_inst(const Instruction &inst, Expr v, raw_fd_ostream &out,
                          bool shadow_mem) {
   if (out.has_colors())
     out.changeColor(raw_ostream::RED);

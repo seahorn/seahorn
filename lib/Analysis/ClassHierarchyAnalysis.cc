@@ -344,7 +344,7 @@ int ClassHierarchyAnalysis_Impl::getVtableIndex(const CallBase &CB) {
 
    */
   if (const LoadInst *LI =
-          dyn_cast<LoadInst>(CB.getCalledValue()->stripPointerCasts())) {
+          dyn_cast<LoadInst>(CB.getCalledOperand()->stripPointerCasts())) {
     if (const GetElementPtrInst *GEP =
             dyn_cast<GetElementPtrInst>(LI->getPointerOperand())) {
       if (ConstantInt *CI = dyn_cast<ConstantInt>(GEP->getOperand(1))) {
@@ -637,7 +637,7 @@ bool mayBeVirtualCall(const CallBase &CB) {
   }
 
   // If the callee is not a pointer to a function then we bail out ...
-  if (!CB.getCalledValue()->getType()->isPointerTy()) {
+  if (!CB.getCalledOperand()->getType()->isPointerTy()) {
     return false;
   }
 
@@ -666,7 +666,7 @@ bool ClassHierarchyAnalysis_Impl::resolveVirtualCall(const CallBase &CB,
   }
 
   // If the callee is not a pointer to a function then we bail out ...
-  if (!CB.getCalledValue()->getType()->isPointerTy()) {
+  if (!CB.getCalledOperand()->getType()->isPointerTy()) {
     return false;
   }
 

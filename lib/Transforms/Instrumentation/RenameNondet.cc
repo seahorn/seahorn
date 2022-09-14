@@ -56,7 +56,7 @@ class RenameNondet : public ModulePass {
     if (m_tli && m_tli->getLibFunc(GV.getName(), F))
       return false;
 
-    if (m_externalNames.count(GV.getName()) > 0)
+    if (m_externalNames.count(GV.getName().str()) > 0)
       return false;
 
     return true;

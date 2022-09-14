@@ -171,7 +171,8 @@ TrackingRawMemManager::MemValTy TrackingRawMemManager::storeValueToMem(
     errs() << "Error: store of float/double is not supported\n";
     llvm_unreachable(nullptr);
     break;
-  case Type::VectorTyID:
+  case Type::FixedVectorTyID:
+  case Type::ScalableVectorTyID:      
     errs() << "Error: store of vectors is not supported\n";
   case Type::PointerTyID:
     res = storePtrToMem(val, ptr, memIn, byteSz, align);
@@ -207,7 +208,8 @@ Expr TrackingRawMemManager::loadValueFromMem(
     errs() << "Error: load of float/double is not supported\n";
     llvm_unreachable(nullptr);
     break;
-  case Type::VectorTyID:
+  case Type::FixedVectorTyID:
+  case Type::ScalableVectorTyID:      
     errs() << "Error: load of vectors is not supported\n";
   case Type::PointerTyID:
     res = loadPtrFromMem(ptr, mem, byteSz, align);

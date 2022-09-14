@@ -24,7 +24,7 @@ bool StaticTaint::runOnBasicBlock(BasicBlock &B) {
     if (CallInst *CI = dyn_cast<CallInst>(I)) {
       Function *f = CI->getCalledFunction();
       if (!f) {
-        f = dyn_cast<Function>(CI->getCalledValue()->stripPointerCasts());
+        f = dyn_cast<Function>(CI->getCalledOperand()->stripPointerCasts());
       }
 
       if (!f) {

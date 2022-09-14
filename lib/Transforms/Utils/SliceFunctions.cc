@@ -121,11 +121,10 @@ namespace seahorn {
        info << "\t NUM_FUNCS: " << std::to_string(std::distance(M.begin(), M.end())) << ",\n";
        for (auto &F : M) {
 	 unsigned numInsts = std::distance(inst_begin(&F), inst_end(&F));
-	 std::string fn = F.getName();
 	 errs() << "INC | " << F.getName()
 		<< " | " << std::distance(F.begin(), F.end())
 		<< " | " << numInsts << "\n";
-	 info << "\t" << fn
+	 info << "\t" << F.getName().str()
 	      << ":{ BLOCKS: " << std::to_string(std::distance(F.begin(), F.end()))
 	      << ", INST: " << std::to_string(numInsts) + "},\n";
        }

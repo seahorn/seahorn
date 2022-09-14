@@ -12,9 +12,6 @@
 
 #include "seadsa/CompleteCallGraph.hh"
 
-// used by llvm::promoteCall() that takes llvm::CallSite in llvm10
-#include "llvm/IR/CallSite.h"
-
 #define DEBUG_TYPE "devirt"
 
 using namespace llvm;
@@ -90,12 +87,11 @@ static inline Value *castTo(Value *V, Type *Ty, std::string Name,
 static void promoteIndirectCall(CallBase &CB,
                                 const std::vector<Function *> &Callees,
                                 bool keepOriginalCall) {
-  llvm::CallSite CS(&CB);
   for (unsigned i = 0, numCallees = Callees.size(); i < numCallees; ++i) {
     if (i == numCallees - 1 && !keepOriginalCall) {
-      llvm::promoteCall(CS, Callees[i]);
+      llvm::promoteCall(CB, Callees[i]);
     } else {
-      llvm::promoteCallWithIfThenElse(CS, Callees[i]);
+      llvm::promoteCallWithIfThenElse(CB, Callees[i]);
     }
   }
 }

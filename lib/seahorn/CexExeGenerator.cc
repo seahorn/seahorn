@@ -221,7 +221,7 @@ void CexExeGenerator<Trace>::buildNonDetFunction(const Function *func,
   } else if (RT->isPointerTy() ||
              RT->getTypeID() == llvm::ArrayType::ArrayTyID) {
     Type *elmTy = (RT->isPointerTy()) ? RT->getPointerElementType()
-                                      : RT->getSequentialElementType();
+                                      : RT->getArrayElementType();
 
     name = "__seahorn_get_value_ptr";
     ArgTypes.push_back(Type::getInt32Ty(m_context));

@@ -79,10 +79,9 @@ namespace seahorn {
       //if (dloc.get()Scope) File = Scope.getFilename ();
       //else File = "unknown file";
 
-      // llvm 3.8
-      std::string File = dloc.get()->getFilename ();
+      StringRef File = dloc.get()->getFilename ();
       
-      msg += "--- File: " + File + "\n"
+      msg += "--- File: " + File.str() + "\n"
           + "--- Line: " + std::to_string(Line)  + "\n" 
           + "--- Column: " + std::to_string(Col) + "\n";
       

@@ -105,13 +105,13 @@ void EvalBranchSentinelPass::processSentinels(
         }
         if (isFalse) {
           if (dloc) {
-            m_condFalse.insert(out.str());
+            m_condFalse.insert(out.str().str());
           } else {
             m_unknown.insert({sentinel, false});
           }
         } else { // isTrue
           if (dloc) {
-            m_condTrue.insert(out.str());
+            m_condTrue.insert(out.str().str());
           } else {
             m_unknown.insert({sentinel, true});
           }
@@ -123,7 +123,7 @@ void EvalBranchSentinelPass::processSentinels(
           raw_svector_ostream out(key);
           out << dloc->getFilename() << ":" << dloc->getLine() << ":"
               << dloc->getColumn();
-          m_unlowered.insert(out.str());
+          m_unlowered.insert(out.str().str());
         } else {
           WARN << "Not handling unlowered sentinel without debugloc!";
         }

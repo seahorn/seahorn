@@ -62,7 +62,7 @@ class SymbolizeConstantLoopBounds : public FunctionPass {
     return nullptr;
   }
 
-  bool SymbolizeInst(Instruction *I, IRBuilder<> B) {
+  bool SymbolizeInst(Instruction *I, IRBuilder<> &B) {
 
     if (I->getOpcode() == BinaryOperator::And ||
         I->getOpcode() == BinaryOperator::Or ||
@@ -119,7 +119,7 @@ class SymbolizeConstantLoopBounds : public FunctionPass {
     return false;
   }
 
-  bool SymbolizeLoop(Loop *L, IRBuilder<> B) {
+  bool SymbolizeLoop(Loop *L, IRBuilder<> &B) {
     LOG("sym-bound", errs() << "STC:" << *L << "\n");
     bool Change = false;
     SmallVector<BasicBlock *, 16> ExitingBlocks;

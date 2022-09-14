@@ -127,7 +127,7 @@ namespace llvm {
     }
     
     static std::string getEdgeSourceLabel(const BasicBlock *Node,
-                                          succ_const_iterator I) {
+                                          const_succ_iterator I) {
       // Label source of conditional branches with "T" or "F"
       if (const BranchInst *BI = dyn_cast<BranchInst>(Node->getTerminator()))
         if (BI->isConditional())

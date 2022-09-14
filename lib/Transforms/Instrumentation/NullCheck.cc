@@ -72,7 +72,10 @@ Value *getBasePtr(Value *V) {
   return getBasePtr(V, SeenInsts);
 }
 
-void NullCheck::insertNullCheck(Value *Ptr, IRBuilder<> B, Instruction *I) {
+void NullCheck::insertNullCheck(Value *Ptr, IRBuilder<> &B, Instruction *I) {
+  // save old insertion point
+  auto oldIP = B.saveIP();
+  
   B.SetInsertPoint(I);
   Value *isNull = B.CreateIsNull(Ptr);
   isNull->setName("null_check");
@@ -112,9 +115,14 @@ void NullCheck::insertNullCheck(Value *Ptr, IRBuilder<> B, Instruction *I) {
 
   BasicBlock *ErrorBB = createErrorBlock(*I->getParent()->getParent(), B);
   BI->setSuccessor(0, ErrorBB);
+
+  // restore insertion point before this function was called.
+  B.restoreIP(oldIP);  
 }
 
-BasicBlock *NullCheck::createErrorBlock(Function &F, IRBuilder<> B) {
+BasicBlock *NullCheck::createErrorBlock(Function &F, IRBuilder<> &B) {
+  // save old insertion point
+  auto oldIP = B.saveIP();
 
   BasicBlock *errBB = BasicBlock::Create(B.getContext(), "NullError", &F);
   B.SetInsertPoint(errBB);
@@ -128,6 +136,8 @@ BasicBlock *NullCheck::createErrorBlock(Function &F, IRBuilder<> B) {
     f1->addCalledFunction(CI, f2);
   }
 
+  // restore insertion point before this function was called.
+  B.restoreIP(oldIP);  
   return errBB;
 }
 

@@ -336,7 +336,7 @@ createCexHarness(BmcTraceWrapper<Trace> &trace, const DataLayout &dl,
         elmTy =
             Type::getVoidTy(TheContext); // not interested in ebits for memhavoc
       else
-        elmTy = RT->getSequentialElementType();
+        elmTy = RT->getArrayElementType();
 
       name = "__seahorn_get_value_ptr";
       ArgTypes.push_back(Type::getInt32Ty(TheContext));

@@ -79,51 +79,46 @@ private:
     }
   }
 
-  Function &makeNewNondetFn(Module &m, Type &type, unsigned num,
-                            std::string prefix) {
+  FunctionCallee makeNewNondetFn(Module &m, Type &type, unsigned num,
+				 std::string prefix) {
     std::string name;
     unsigned c = num;
     do
       name = boost::str(boost::format(prefix + "%d") % (c++));
     while (m.getNamedValue(name));
-    Function *res =
-        dyn_cast<Function>(m.getOrInsertFunction(name, &type).getCallee());
-    assert(res);
-    return *res;
+    FunctionCallee res = m.getOrInsertFunction(name, &type);
+    return res;
   }
 
   // create an external function "Type f(void)"
-  Constant *getNondetFn(Type *type, Module &m, std::string prefix) {
+  FunctionCallee getNondetFn(Type *type, Module &m, std::string prefix) {
     // XXX: at each call create a new function name.
-    Constant *res =
-        &makeNewNondetFn(m, *type, m_ndfn.size(), "verifier.nondet." + prefix);
+    FunctionCallee res = makeNewNondetFn(m, *type, m_ndfn.size(), "verifier.nondet." + prefix);
     m_ndfn.push_back(res);
     return res;
   }
 
-  Function &makeNewExternalFn(Module &m, Type &type, unsigned num,
-                              std::string prefix) {
+  FunctionCallee makeNewExternalFn(Module &m, Type &type, unsigned num,
+				   std::string prefix) {
     std::string name;
     unsigned c = num;
     do
       name = boost::str(boost::format(prefix + "%d") % (c++));
     while (m.getNamedValue(name));
-    Function *res = dyn_cast<Function>(
-        m.getOrInsertFunction(name, Type::getVoidTy(m.getContext()), &type)
-            .getCallee());
-    assert(res);
-    return *res;
+    FunctionCallee res = m.getOrInsertFunction(name, Type::getVoidTy(m.getContext()), &type);
+    return res;
   }
 
   // create an external function "void f(Type)"
-  Constant *getExternalFn(Type *type, Module &m, std::string prefix) {
-    Constant *res = m_extfn[type];
-    if (!res) {
-      res = &makeNewExternalFn(m, *type, m_extfn.size(),
-                               "verifier.external." + prefix);
-
-      m_extfn[type] = res;
-    }
+  FunctionCallee getExternalFn(Type *type, Module &m, std::string prefix) {
+    auto it = m_extfn.find(type);
+    if (it != m_extfn.end()) {
+      return it->second;
+      }
+    
+    FunctionCallee res = makeNewExternalFn(m, *type, m_extfn.size(),
+					   "verifier.external." + prefix);
+    m_extfn[type] = res;
     return res;
   }
 
@@ -271,10 +266,10 @@ private:
   // the same type than v.
   CallInst *mkNondetCall(Value &v, Module &m, IRBuilder<> &B,
                          Instruction *insPt, std::string prefix) {
-    Constant *fn = getNondetFn(v.getType(), m, prefix);
+    FunctionCallee fn = getNondetFn(v.getType(), m, prefix);
     B.SetInsertPoint(insPt);
     CallInst *ni = B.CreateCall(fn);
-    updateCg(cast<Function>(fn), ni);
+    updateCg(cast<Function>(fn.getCallee()), ni);
     ni->setDebugLoc(insPt->getDebugLoc());
     return ni;
   }
@@ -288,14 +283,14 @@ private:
 
   // Create a call to an external function that uses v
   void mkOneUse(Value &v, Instruction *I, Module &m, IRBuilder<> &B) {
-    Constant *fn = getExternalFn(v.getType(), m, v.getName().str());
+    FunctionCallee fn = getExternalFn(v.getType(), m, v.getName().str());
     // XXX: insert external call one instruction after I
     B.SetInsertPoint(I);
     auto insPt = B.GetInsertPoint();
     insPt++;
     B.SetInsertPoint(&*insPt);
     Instruction *ni = B.CreateCall(fn, &v);
-    updateCg(cast<Function>(fn), cast<CallInst>(ni));
+    updateCg(cast<Function>(fn.getCallee()), cast<CallInst>(ni));
     ni->setDebugLoc(I->getDebugLoc());
   }
 
@@ -454,9 +449,8 @@ public:
 private:
   TargetLibraryInfo *m_tli;
   CallGraph *m_cg;
-  std::vector<Constant *> m_ndfn;
-  // DenseMap<const Type*, Constant*> m_ndfn;
-  DenseMap<const Type *, Constant *> m_extfn;
+  std::vector<FunctionCallee> m_ndfn;
+  DenseMap<const Type *, FunctionCallee> m_extfn;
   std::unordered_set<const Value *> m_seen;
 
   // --- counters for stats
@@ -540,7 +534,7 @@ public:
     // for (auto &ndfn: m_ndfn)
     // 	MergedVars.push_back (ConstantExpr::getBitCast(ndfn, i8PTy));
     for (auto &kv : m_extfn)
-      MergedVars.push_back(ConstantExpr::getBitCast(kv.second, i8PTy));
+      MergedVars.push_back(ConstantExpr::getBitCast(cast<Function>(kv.second.getCallee()), i8PTy));
 
     // Recreate llvm.used.
     ArrayType *ATy = ArrayType::get(i8PTy, MergedVars.size());

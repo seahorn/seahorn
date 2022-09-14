@@ -11,6 +11,7 @@
 #include "llvm/Analysis/MemoryBuiltins.h"
 #include "llvm/Analysis/TargetLibraryInfo.h"
 #include "llvm/IR/DataLayout.h"
+#include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/Pass.h"
 #include "llvm/Support/CommandLine.h"
@@ -430,7 +431,7 @@ static void FlattenTy(Type *ATy, LLVMContext *Ctx,
       continue;
     }
 
-    if (!isa<CompositeType>(Ty)) {
+    if (!Ty->isArrayTy() && !Ty->isVectorTy() && !Ty->isStructTy()) {
       TempRes.push_back({Ty, 1});
       continue;
     }
@@ -442,8 +443,8 @@ static void FlattenTy(Type *ATy, LLVMContext *Ctx,
     }
 
     if (Ty->isVectorTy()) {
-      for (size_t i = 0, e = Ty->getVectorNumElements(); i != e; ++i)
-        Worklist.push_back(Ty->getVectorElementType());
+      for (size_t i = 0, e = cast<VectorType>(Ty)->getNumElements(); i != e; ++i)
+        Worklist.push_back(cast<VectorType>(Ty)->getElementType());
       continue;
     }
 

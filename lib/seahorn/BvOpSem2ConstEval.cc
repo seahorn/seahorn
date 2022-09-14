@@ -40,9 +40,9 @@ Optional<GenericValue> ConstantExprEvaluator::evaluate(const Constant *C) {
         }
       }
     } break;
-    case Type::VectorTyID:
+    case Type::FixedVectorTyID:      
       // if the whole vector is 'undef' just reserve memory for the value.
-      auto *VTy = dyn_cast<VectorType>(C->getType());
+      auto *VTy = dyn_cast<FixedVectorType>(C->getType());
       Type *ElemTy = VTy->getElementType();
       unsigned int elemNum = VTy->getNumElements();
       Result.AggregateVal.resize(elemNum);
@@ -410,7 +410,7 @@ Optional<GenericValue> ConstantExprEvaluator::evaluate(const Constant *C) {
     } else
       llvm_unreachable("Unknown constant pointer type!");
     break;
-  case Type::VectorTyID: {
+  case Type::FixedVectorTyID: {
     unsigned elemNum;
     Type *ElemTy;
     const ConstantDataVector *CDV = dyn_cast<ConstantDataVector>(C);
@@ -421,7 +421,7 @@ Optional<GenericValue> ConstantExprEvaluator::evaluate(const Constant *C) {
       elemNum = CDV->getNumElements();
       ElemTy = CDV->getElementType();
     } else if (CV || CAZ) {
-      VectorType *VTy = dyn_cast<VectorType>(C->getType());
+      FixedVectorType *VTy = dyn_cast<FixedVectorType>(C->getType());
       elemNum = VTy->getNumElements();
       ElemTy = VTy->getElementType();
     } else {

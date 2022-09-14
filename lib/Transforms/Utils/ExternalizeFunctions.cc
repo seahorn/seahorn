@@ -86,7 +86,7 @@ public:
       if (F.isDeclaration() || externalizeFunctions.count(&F) == 0)
         continue;
       LOG("extern",
-          errs() << "EXTERNALIZING " << llvm::demangle(F.getName()) << "\n");
+          errs() << "EXTERNALIZING " << llvm::demangle(F.getName().str()) << "\n");
       Change = true;
 
       if (!RemoveBodies && F.hasLocalLinkage()) {

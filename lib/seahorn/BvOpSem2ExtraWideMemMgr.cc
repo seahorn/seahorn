@@ -276,7 +276,8 @@ ExtraWideMemManager<T>::storeValueToMem(Expr _val,
     errs() << "Error: store of float/double is not supported\n";
     llvm_unreachable(nullptr);
     break;
-  case Type::VectorTyID:
+  case Type::FixedVectorTyID:
+  case Type::ScalableVectorTyID:      
     errs() << "Error: store of vectors is not supported\n";
   case Type::PointerTyID:
     res = storePtrToMem(PtrTy(val), base, memIn, byteSz, align);
@@ -313,7 +314,8 @@ Expr ExtraWideMemManager<T>::loadValueFromMem(ExtraWideMemManager::PtrTy base,
     errs() << "Error: load of float/double is not supported\n";
     llvm_unreachable(nullptr);
     break;
-  case Type::VectorTyID:
+  case Type::FixedVectorTyID:
+  case Type::ScalableVectorTyID:      
     errs() << "Error: load of vectors is not supported\n";
   case Type::PointerTyID:
     res = loadPtrFromMem(base, mem, byteSz, align).v();

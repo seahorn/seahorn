@@ -128,7 +128,7 @@ bool MixedSemantics::runOnModule(Module &M) {
   InlineFunctionInfo IFI;
   CallInst *mcall = Builder.CreateCall(main, fargs);
   Builder.CreateUnreachable();
-  InlineFunction(mcall, IFI);
+  InlineFunction(*mcall, IFI);
 
   DenseMap<const Function *, BasicBlock *> entryBlocks;
   DenseMap<const Function *, SmallVector<Value *, 16>> entryPrms;
@@ -164,7 +164,7 @@ bool MixedSemantics::runOnModule(Module &M) {
 
       CallInst *fcall = Builder.CreateCall(&F, fargs);
       Builder.CreateUnreachable();
-      InlineFunction(fcall, IFI);
+      InlineFunction(*fcall, IFI);
       removeError(F, SBI);
       reduceToReturnPaths(F, SBI);
       removePersonalityIfFunctionIsEmpty(F);

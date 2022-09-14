@@ -28,26 +28,27 @@ namespace seahorn
 
   class DummyMainFunction : public ModulePass
   {
-    DenseMap<const Type*, Constant*> m_ndfn;
+    DenseMap<const Type*, FunctionCallee> m_ndfn;
 
-    Function& makeNewNondetFn (Module &m, Type &type, unsigned num, std::string prefix)
+    FunctionCallee makeNewNondetFn (Module &m, Type &type, unsigned num, std::string prefix)
     {
       std::string name;
       unsigned c = num;
       do
         name = boost::str (boost::format (prefix + "%d") % (c++));
       while (m.getNamedValue (name));
-      Function *res = dyn_cast<Function>(m.getOrInsertFunction (name, &type).getCallee());
-      assert (res);
-      return *res;
+      FunctionCallee res = m.getOrInsertFunction (name, &type);
+      return res;
     }
     
-    Constant* getNondetFn (Type *type, Module& M) {
-      Constant* res = m_ndfn [type];
-      if (!res) {
-        res = &makeNewNondetFn (M, *type, m_ndfn.size (), "verifier.nondet.");
-        m_ndfn[type] = res;
+    FunctionCallee getNondetFn (Type *type, Module& M) {
+      auto it = m_ndfn.find(type);
+      if (it != m_ndfn.end()) {
+	return it->second;
       }
+      
+      FunctionCallee res = makeNewNondetFn (M, *type, m_ndfn.size (), "verifier.nondet.");
+      m_ndfn[type] = res;
       return res;
     }
  
@@ -104,7 +105,7 @@ namespace seahorn
         // -- create a call with non-deterministic actual parameters
         SmallVector<Value*, 16> Args;
         for (auto &A : F->args ()) {
-          Constant *ndf = getNondetFn (A.getType (), M);
+          FunctionCallee ndf = getNondetFn (A.getType (), M);
           Args.push_back (B.CreateCall (ndf));
         }
         CallInst* CI = B.CreateCall (F, Args);

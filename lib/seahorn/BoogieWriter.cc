@@ -207,7 +207,9 @@ instruction_factory::opt_term_t instruction_factory::get_value(const Value &v) {
     } else if (!llvm::isa<llvm::ConstantExpr>(v)) {
       term_t tv;
       if (v.hasName()) {
-        if (m_reserved_names.find(v.getName()) != m_reserved_names.end()) {
+	// Converting here StringRef to std::string is not ideal.
+	// Perhaps use StringSet?
+        if (m_reserved_names.find(v.getName().str()) != m_reserved_names.end()) {
           report_fatal_error(v.getName() + " is a reserved named.");
         }
         tv = v.getName().str();
@@ -418,7 +420,7 @@ instruction_t instruction_factory::mk_unreachable() { return " assume false;"; }
 instruction_t instruction_factory::mk_error() { return " assert false;"; }
 
 instruction_t instruction_factory::mk_call(CallBase &CB) {
-  const Value *calleeV = CB.getCalledValue();
+  const Value *calleeV = CB.getCalledOperand();
   const Function *callee = dyn_cast<Function>(calleeV);
   assert(callee);
 
@@ -792,7 +794,7 @@ template <typename Out> Out &BoogieWriter::write(Out &out) {
   // -- process the cfg
   for (auto &cur : m_func) {
     // translate the block ignoring branches and phi-nodes
-    block &gcur = bfac[cur.getName()];
+    block &gcur = bfac[cur.getName().str()];
     boogieInstVisitor v(gcur, ifac, m_dl, m_tli);
     v.visit(&cur);
 
@@ -802,7 +804,7 @@ template <typename Out> Out &BoogieWriter::write(Out &out) {
 
       if (const BranchInst *br =
               dyn_cast<const BranchInst>(cur.getTerminator())) {
-        block &gdst = bfac[dst->getName()];
+        block &gdst = bfac[dst->getName().str()];
         if (br->isConditional()) {
           // -- move branch condition in cur to a new block,
           //    called mid, inserted between bb and dst
@@ -864,7 +866,7 @@ template <typename Out> Out &BoogieWriter::write(Out &out) {
       }
     }
     // basic blocks (make sure we write first the entry block)
-    block &entry = bfac[m_func.getEntryBlock().getName()];
+    block &entry = bfac[m_func.getEntryBlock().getName().str()];
     entry.write(out);
     for (auto &kv : boost::make_iterator_range(bfac.begin(), bfac.end())) {
       if (kv.first == m_func.getEntryBlock().getName())

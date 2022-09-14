@@ -36,8 +36,9 @@ STATISTIC(NumReplaced, "Number of undef made nondet");
 STATISTIC(NumKilled, "Number of nondet calls killed");
 
 namespace seahorn {
-Function &createNewNondetFn(Module &m, Type &type, unsigned num,
-                            std::string prefix) {
+
+Function& createNewNondetFn(Module &m, Type &type, unsigned num,
+			    std::string prefix) {
   std::string name;
   unsigned c = num;
 
@@ -49,28 +50,23 @@ Function &createNewNondetFn(Module &m, Type &type, unsigned num,
   return *res;
 }
 
+
 class NondetInit : public ModulePass {
 
 private:
   /** map for nondet functions */
-  DenseMap<const Type *, Constant *> m_ndfn;
+  DenseMap<const Type *, Function*> m_ndfn;
   unsigned last;
   Module *m;
 
-  Constant *getNondetFn(Type *type) {
-    Constant *res = m_ndfn[type];
-    if (res == NULL) {
-      res = &createNewNondetFn(*m, *type, m_ndfn.size(), "verifier.nondet.");
-
-      // -- say that f does not access memory will make llvm
-      // -- assume that all calls to it return the same value
-      // if (Function *f = dyn_cast<Function>(res))
-      // {
-      //   // f->setDoesNotAccessMemory (true);
-      //   // f->setDoesNotAlias (0);
-      // }
-      m_ndfn[type] = res;
+  Function* getNondetFn(Type *type) {
+    auto it = m_ndfn.find(type);
+    if (it != m_ndfn.end()) {
+      return it->second;
     }
+
+    Function* res = &createNewNondetFn(*m, *type, m_ndfn.size(), "verifier.nondet.");    
+    m_ndfn[type] = res;
     return res;
   }
 
@@ -101,7 +97,7 @@ public:
           for (unsigned i = 0; i < phi->getNumIncomingValues(); i++) {
             if (UndefValue *uv =
                     dyn_cast<UndefValue>(phi->getIncomingValue(i))) {
-              Constant *ndf = getNondetFn(uv->getType());
+              Function* ndf = getNondetFn(uv->getType());
               IRBuilder<> Builder(F.getContext());
               Builder.SetInsertPoint(&F.getEntryBlock(),
                                      F.getEntryBlock().begin());
@@ -117,7 +113,7 @@ public:
         // -- the normal case
         for (unsigned i = 0; i < u.getNumOperands(); i++) {
           if (UndefValue *uv = dyn_cast<UndefValue>(u.getOperand(i))) {
-            Constant *ndf = getNondetFn(uv->getType());
+            Function* ndf = getNondetFn(uv->getType());
             IRBuilder<> Builder(F.getContext());
             Builder.SetInsertPoint(&F.getEntryBlock(),
                                    F.getEntryBlock().begin());

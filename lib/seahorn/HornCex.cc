@@ -95,7 +95,7 @@ using namespace llvm;
 namespace seahorn {
 
 template <typename O> class SvCompCex;
-static void dumpSvCompCex(ZBmcTraceTy &trace, std::string CexFile);
+static void dumpSvCompCex(ZBmcTraceTy &trace, StringRef CexFile);
 static void dumpLLVMBitcode(const Module &M, StringRef BcFile);
 
 char HornCex::ID = 0;
@@ -455,13 +455,13 @@ static void debugLocToSvComp(const Instruction &inst, SvCompCex<O> &svcomp) {
   const DebugLoc &dloc = inst.getDebugLoc();
   if (!(dloc.get()))
     return;
-  std::string file;
+ 
 
   // DIScope Scope (dloc.getScope ());
   // if (Scope) file = Scope.getFilename ();
   // else file = "<unknown>";
   // XXX: porting to llvm 3.8
-  file = dloc.get()->getFilename();
+  StringRef file = dloc.get()->getFilename();
 
   // TODO: port to llvm 3.8
   //
@@ -481,12 +481,12 @@ static void debugLocToSvComp(const Instruction &inst, SvCompCex<O> &svcomp) {
   //          errs () << "in: " << dname << "\n";
   //      });
 
-  svcomp.edge(file, (int)dloc.getLine(), "");
+  svcomp.edge(file.str(), (int)dloc.getLine(), "");
 }
 
-static void dumpSvCompCex(ZBmcTraceTy &trace, std::string CexFile) {
+static void dumpSvCompCex(ZBmcTraceTy &trace, StringRef CexFile) {
   std::error_code ec;
-  llvm::ToolOutputFile out(CexFile.c_str(), ec, llvm::sys::fs::F_Text);
+  llvm::ToolOutputFile out(CexFile, ec, llvm::sys::fs::F_Text);
   if (ec) {
     errs() << "ERROR: Cannot open CEX file: " << ec.message() << "\n";
     return;

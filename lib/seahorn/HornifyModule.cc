@@ -316,7 +316,7 @@ bool HornifyModule::runOnModule(Module &M) {
     const std::vector<CallGraphNode *> &scc = *it;
     CallGraphNode *cgn = scc.front();
     Function *f = cgn->getFunction();
-    if (it.hasLoop() || scc.size() > 1) {
+    if (it.hasCycle() || scc.size() > 1) {
       errs() << "WARNING RECURSION at " << (f ? f->getName() : "nil") << "\n";
       errs() << "SCC is: ";
       for (auto sccn : scc) {
@@ -332,7 +332,7 @@ bool HornifyModule::runOnModule(Module &M) {
       }
     }
 
-    // assert (!it.hasLoop () && "Recursion not yet supported");
+    // assert (!it.hasCycle () && "Recursion not yet supported");
     // assert (scc.size () == 1 && "Recursion not supported");
     if (f)
       Changed = (runOnFunction(*f) || Changed);

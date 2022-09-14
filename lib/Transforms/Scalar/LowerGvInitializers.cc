@@ -79,17 +79,15 @@ static GlobalVariable *findGlobalCtors(Module &M) {
 }
 
 // XXX: From DummyMainFunction.cpp
-static Function &makeNewNondetFn(Module &m, Type &type, unsigned num,
-                                 std::string prefix) {
+static FunctionCallee makeNewNondetFn(Module &m, Type &type, unsigned num,
+				      std::string prefix) {
   std::string name;
   unsigned c = num;
   do
     name = boost::str(boost::format(prefix + "%d") % (c++));
   while (m.getNamedValue(name));
-  Function *res =
-      dyn_cast<Function>(m.getOrInsertFunction(name, &type).getCallee());
-  assert(res);
-  return *res;
+  FunctionCallee res = m.getOrInsertFunction(name, &type);
+  return res;
 }
 
 /// C may have non-instruction users. Can all of those users be turned into
@@ -147,12 +145,14 @@ static void makeAllConstantUsesInstructions(Constant *C) {
   }
 }
 
-Constant *LowerGvInitializers::getNondetFn(Type *type, Module &M) {
-  Constant *res = m_ndfn[type];
-  if (!res) {
-    res = &makeNewNondetFn(M, *type, m_ndfn.size(), "verifier.nondet.");
-    m_ndfn[type] = res;
+FunctionCallee LowerGvInitializers::getNondetFn(Type *type, Module &M) {
+  auto it = m_ndfn.find(type);
+  if (it != m_ndfn.end()) {
+    return it->second;
   }
+  
+  FunctionCallee res = makeNewNondetFn(M, *type, m_ndfn.size(), "verifier.nondet.");
+  m_ndfn[type] = res;
   return res;
 }
 
@@ -234,7 +234,7 @@ bool LowerGvInitializers::runOnModule(Module &M) {
         // -- create a call with non-deterministic parameters
         SmallVector<Value *, 16> Args;
         for (auto &A : Fn->args()) {
-          Constant *ndf = getNondetFn(A.getType(), M);
+          FunctionCallee ndf = getNondetFn(A.getType(), M);
           Args.push_back(Builder.CreateCall(ndf));
         }
         CallInst *CI = Builder.CreateCall(Fn, Args);

@@ -5,7 +5,7 @@
 #include "seahorn/Expr/ExprLlvm.hh"
 
 #include "seahorn/Support/SortTopo.hh"
-#include "llvm/Analysis/CFG.h"
+#include "llvm/IR/CFG.h"
 
 namespace seahorn {
 

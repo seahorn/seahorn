@@ -132,7 +132,7 @@ Value *CrabLowerIsDeref::crabLowerIsDereferenceable(CallBase *IsDerefCall) {
     Stats::count("crab.pp.isderef.not.solve");
     LOG("seapp-crab", const llvm::DebugLoc &dloc = IsDerefCall->getDebugLoc();
         unsigned Line = dloc.getLine(); unsigned Col = dloc.getCol();
-        const std::string &File = (*dloc).getFilename();
+        StringRef File = (*dloc).getFilename();
         MSG << "crab cannot solve: " << *IsDerefCall << " at File=" << File
             << " Line=" << Line << " col=" << Col;);
     return nullptr;

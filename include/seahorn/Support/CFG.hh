@@ -16,7 +16,7 @@ namespace seahorn
   {return boost::make_iterator_range (succ_begin (&bb), succ_end (&bb));}
   
 
-  inline boost::iterator_range<llvm::succ_const_iterator> 
+  inline boost::iterator_range<llvm::const_succ_iterator> 
   succs (const llvm::BasicBlock &bb) 
   {return boost::make_iterator_range (succ_begin (&bb), succ_end (&bb));}
 

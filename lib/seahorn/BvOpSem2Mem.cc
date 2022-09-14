@@ -38,13 +38,13 @@ void ConstantExprEvaluator::storeValueToMemory(const GenericValue &Val,
 
     *((PointerTy *)Ptr) = Val.PointerVal;
     break;
-  case Type::VectorTyID:
+  case Type::FixedVectorTyID:
     for (unsigned i = 0; i < Val.AggregateVal.size(); ++i) {
-      if (cast<VectorType>(Ty)->getElementType()->isDoubleTy())
+      if (cast<FixedVectorType>(Ty)->getElementType()->isDoubleTy())
         *(((double *)Ptr) + i) = Val.AggregateVal[i].DoubleVal;
-      if (cast<VectorType>(Ty)->getElementType()->isFloatTy())
+      if (cast<FixedVectorType>(Ty)->getElementType()->isFloatTy())
         *(((float *)Ptr) + i) = Val.AggregateVal[i].FloatVal;
-      if (cast<VectorType>(Ty)->getElementType()->isIntegerTy()) {
+      if (cast<FixedVectorType>(Ty)->getElementType()->isIntegerTy()) {
         unsigned numOfBytes =
             (Val.AggregateVal[i].IntVal.getBitWidth() + 7) / 8;
         StoreIntToMemory(Val.AggregateVal[i].IntVal,

@@ -1,15 +1,11 @@
-#include "llvm/IR/InstIterator.h"
-#include "llvm/IR/IRBuilder.h"
-#include "llvm/IR/DataLayout.h"
-#include "llvm/IR/IRBuilder.h"
-
 #include "llvm/ADT/Statistic.h"
 #include "llvm/Analysis/TargetLibraryInfo.h"
 #include "llvm/Analysis/LoopInfo.h"
 #include "llvm/Analysis/ScalarEvolution.h"
-#include "llvm/Analysis/ScalarEvolutionExpander.h"
 #include "llvm/Analysis/ScalarEvolutionExpressions.h"
-
+#include "llvm/IR/InstIterator.h"
+#include "llvm/IR/IRBuilder.h"
+#include "llvm/IR/DataLayout.h"
 #include "llvm/Support/raw_ostream.h"
 
 #include "boost/range.hpp"
@@ -211,10 +207,11 @@ namespace
           p = start;
           do { p'=p+step; } while (p'+step <= q);
     */
-    bool convertDisEqToIneqWithSlack (Loop* TheLoop, IRBuilder<> B) {
+    bool convertDisEqToIneqWithSlack (Loop* TheLoop, IRBuilder<> &B) {
       // This transformation makes the assumption that p' does not go
       // beyond to q. This assumption may not hold.
 
+      
       BasicBlock* ExitBB = TheLoop->getExitBlock ();
       if (!ExitBB) {
           // LOG ("simplify-pointer-loops" , 
@@ -307,7 +304,8 @@ namespace
  
       assert (LoopIndexGep);
       assert (End);
-      
+
+      auto oldIP = B.saveIP();
       B.SetInsertPoint (ExitCond);
       Type *intPtrTy = m_dl->getIntPtrType (B.getContext(), 0);
       Value* Stride = ConstantInt::get (intPtrTy, II.m_stride);
@@ -328,6 +326,7 @@ namespace
         NExitCond = B.CreateICmpSLE(Slack, End);
       } else {
         // Slack was already inserted
+	B.restoreIP(oldIP);  	
         return true;
       }
       
@@ -337,6 +336,7 @@ namespace
            errs () << "Replaced " << *ExitCond << " with " << *NExitCond << "\n");
 
       LoopsTransformed++;
+      B.restoreIP(oldIP);        
       return true;
     }
 

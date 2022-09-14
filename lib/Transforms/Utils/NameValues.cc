@@ -70,7 +70,7 @@ bool NameValues::runOnFunction(Function &F) {
 
       BB.setName("_" + bb_name);
     } else {
-      BB.setName(sanitizeName(BB.getName()));
+      BB.setName(sanitizeName(BB.getName().str()));
     }
 
     ++line_iter;
@@ -91,11 +91,11 @@ bool NameValues::runOnFunction(Function &F) {
         Value *val = dbgVal->getValue();
         if (val && isa<Argument>(val) && !val->hasName()) {
           auto *varInfo = dbgVal->getVariable();
-          if (varInfo) val->setName(sanitizeName(varInfo->getName()));
+          if (varInfo) val->setName(sanitizeName(varInfo->getName().str()));
         }
       } else {
         if (I.hasName() && !I.getType()->isVoidTy()) {
-          I.setName(sanitizeName(I.getName()));
+          I.setName(sanitizeName(I.getName().str()));
         }
       }
 

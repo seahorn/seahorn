@@ -16,9 +16,9 @@ namespace seahorn
   class LowerGvInitializers : public ModulePass
   {
 
-    DenseMap<const Type*, Constant*> m_ndfn;
+    DenseMap<const Type*, FunctionCallee> m_ndfn;
 
-    Constant* getNondetFn (Type *type, Module& M);
+    FunctionCallee getNondetFn (Type *type, Module& M);
       
   public:
     

@@ -38,8 +38,7 @@ namespace seahorn {
        const DebugLoc &dloc = inst->getDebugLoc ();
        unsigned Line = dloc.getLine ();
        unsigned Col = dloc.getCol ();
-       std::string File; 
-       File =  (*dloc).getFilename ();
+       StringRef File =  (*dloc).getFilename ();
        if (File == "")
 	 File = "unknown file";
 

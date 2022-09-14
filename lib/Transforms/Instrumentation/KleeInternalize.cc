@@ -99,7 +99,7 @@ class KleeInternalize : public ModulePass {
     if (m_tli && m_tli->getLibFunc(GV.getName(), F))
       return false;
 
-    if (m_externalNames.count(GV.getName()) > 0)
+    if (m_externalNames.count(GV.getName().str()) > 0)
       return false;
 
     return true;
@@ -149,7 +149,7 @@ class KleeInternalize : public ModulePass {
     for (Module::global_iterator I = M.global_begin(), E = M.global_end();
          I != E; ++I) {
       GlobalVariable *GV = &*I;
-      if (m_externalNames.count(GV->getName()))
+      if (m_externalNames.count(GV->getName().str()))
         continue;
       // We previously tested for isConstant here, but extern arrays
       // are considered constant.

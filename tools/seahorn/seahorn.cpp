@@ -330,7 +330,9 @@ int main(int argc, char **argv) {
   pass_manager.add(seahorn::createLowerIsDerefPass());
 
   pass_manager.add(llvm::createPromoteMemoryToRegisterPass());
-  pass_manager.add(llvm::createDeadInstEliminationPass());
+  pass_manager.add(llvm::createDeadCodeEliminationPass());
+  // Superseded by DCE in LLVM12      
+  // pass_manager.add(llvm::createDeadInstEliminationPass());
   pass_manager.add(llvm::createLowerSwitchPass());
   // lowers constant expressions to instructions
   pass_manager.add(new seahorn::LowerCstExprPass());

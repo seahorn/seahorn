@@ -10,7 +10,7 @@
 # About #
 
 [SeaHorn][seahorn-web] is an automated analysis framework for
- LLVM-based languages. This version compiles against LLVM 11.
+ LLVM-based languages. This version compiles against LLVM 12.
 
 Some of the supported features are
  
@@ -308,8 +308,8 @@ On Linux, we suggest the following `cmake` configuration:
 $ cd build
 $ cmake -DCMAKE_INSTALL_PREFIX=run \
       -DCMAKE_BUILD_TYPE=RelWithDebInfo \
-      -DCMAKE_CXX_COMPILER="clang++-11" \
-      -DCMAKE_C_COMPILER="clang-11" \
+      -DCMAKE_CXX_COMPILER="clang++-12" \
+      -DCMAKE_C_COMPILER="clang-12" \
       -DSEA_ENABLE_LLD=ON  \
       -DCMAKE_EXPORT_COMPILE_COMMANDS=1 \
       ../ \
@@ -360,7 +360,7 @@ SeaHorn.
 SeaHorn doesn't come with its own version of Clang and expects to find it
 either in the build directory (`run/bin`) or in PATH. Make sure that the
 version of Clang matches the version of LLVM that was used to compile 
-SeaHorn (currently llvm11). The easiest way to provide the right version of 
+SeaHorn (currently llvm12). The easiest way to provide the right version of 
 Clang is to download it from [llvm.org](http://releases.llvm.org/download.html),
 unpact it somewhere and create a symbolic link to `clang` and `clang++`
 in `run/bin`.

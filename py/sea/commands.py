@@ -78,7 +78,7 @@ class Clang(sea.LimitedCmd):
         def link_bc_files(bc_files, args):
             if len(bc_files) <= 1:
                 return 0
-            cmd_name = which (['llvm-link-mp-11', 'llvm-link-11', 'llvm-link'])
+            cmd_name = which (['llvm-link-mp-12', 'llvm-link-12', 'llvm-link'])
             if cmd_name is None: raise IOError ('llvm-link not found')
             self.linkCmd = sea.ExtCmd (cmd_name,'',quiet)
 
@@ -106,9 +106,9 @@ class Clang(sea.LimitedCmd):
             return link_bc_files(out_files, args)
 
         if self.plusplus:
-            cmd_name = which (['clang++-mp-11', 'clang++-11', 'clang++'])
+            cmd_name = which (['clang++-mp-12', 'clang++-12', 'clang++'])
         else:
-            cmd_name = which (['clang-mp-11', 'clang-11', 'clang'])
+            cmd_name = which (['clang-mp-12', 'clang-12', 'clang'])
 
         if cmd_name is None: raise IOError ('clang not found')
         self.clangCmd = sea.ExtCmd (cmd_name,'',quiet)
@@ -210,7 +210,7 @@ class LinkRt(sea.LimitedCmd):
 
     def run (self, args, extra):
 
-        cmd_name = which (['clang++-mp-11', 'clang++-11', 'clang++'])
+        cmd_name = which (['clang++-mp-12', 'clang++-12', 'clang++'])
 
         if cmd_name is None: raise IOError ('clang++ not found')
         self.clangCmd = sea.ExtCmd (cmd_name,'',quiet)
@@ -927,7 +927,7 @@ class Seaopt(sea.LimitedCmd):
                      '--unroll-partial-threshold=0'])
 
 
-        ### REVISIT: these flags are gone in LLVM11. See here some discussion
+        ### REVISIT: these flags are gone since LLVM11. See here some discussion
         ### https://reviews.llvm.org/D77989.
         ### It seems they were not having much effect anyway.
         # if not args.enable_vectorize:

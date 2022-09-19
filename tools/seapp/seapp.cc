@@ -582,7 +582,9 @@ int main(int argc, char **argv) {
     if (LowerSwitch)
       pm_wrapper.add(llvm::createLowerSwitchPass());
 
-    pm_wrapper.add(llvm::createDeadInstEliminationPass());
+    pm_wrapper.add(llvm::createDeadCodeEliminationPass());
+    // Superseded by DCE in LLVM12
+    //pm_wrapper.add(llvm::createDeadInstEliminationPass());
     pm_wrapper.add(seahorn::createRemoveUnreachableBlocksPass());
 
     if (!KeepArithOverflow)
@@ -615,7 +617,9 @@ int main(int argc, char **argv) {
       pm_wrapper.add(seahorn::createAbstractMemoryPass());
       // -- abstract memory pass generates a lot of dead load/store
       // -- instructions
-      pm_wrapper.add(llvm::createDeadInstEliminationPass());
+      pm_wrapper.add(llvm::createDeadCodeEliminationPass());
+      // Superseded by DCE in LLVM12
+      //pm_wrapper.add(llvm::createDeadInstEliminationPass());
     }
 
     // AG: Used for inconsistency analysis
@@ -623,7 +627,9 @@ int main(int argc, char **argv) {
     if (LowerAssert) {
       pm_wrapper.add(seahorn::createLowerAssertPass());
       // LowerAssert might generate some dead code
-      pm_wrapper.add(llvm::createDeadInstEliminationPass());
+      pm_wrapper.add(llvm::createDeadCodeEliminationPass());
+      // Superseded by DCE in LLVM12      
+      //pm_wrapper.add(llvm::createDeadInstEliminationPass());
     }
     pm_wrapper.add(seahorn::createRemoveUnreachableBlocksPass());
 
@@ -657,7 +663,9 @@ int main(int argc, char **argv) {
     // -- EVERYTHING IS MORE EXPENSIVE AFTER INLINING
     // -- BEFORE SCHEDULING PASSES HERE, THINK WHETHER THEY BELONG BEFORE
     // INLINE!
-    pm_wrapper.add(llvm::createDeadInstEliminationPass());
+    pm_wrapper.add(llvm::createDeadCodeEliminationPass());
+    // Superseded by DCE in LLVM12      
+    // pm_wrapper.add(llvm::createDeadInstEliminationPass());
     pm_wrapper.add(llvm::createGlobalDCEPass()); // kill unused internal global
     pm_wrapper.add(llvm::createUnifyFunctionExitNodesPass());
 

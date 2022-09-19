@@ -51,7 +51,8 @@ struct PromotePass : public FunctionPass {
     AU.addRequired<DominatorTreeWrapperPass>();
     AU.setPreservesCFG();
     // This is a cluster of orthogonal Transforms
-    AU.addPreserved<UnifyFunctionExitNodes>();
+    // REVISIT(PORT TO LLVM12)
+    // AU.addPreserved<UnifyFunctionExitNodesPass>();
     AU.addPreservedID(LowerSwitchID);
     AU.addPreservedID(LowerInvokePassID);
 

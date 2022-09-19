@@ -519,10 +519,10 @@ void ClassHierarchyAnalysis_Impl::buildVtables(void) {
                     // XXX: sometimes the compiler add the prefix
                     // "class." to the class name but not always.
                     std::string class_name = demangled_name.substr(pos + 1);
-                    class_typeinfo =
-                        m_module.getTypeByName("class." + class_name);
+                    class_typeinfo = StructType::getTypeByName(m_module.getContext(), 
+							       "class." + class_name);
                     if (!class_typeinfo) {
-                      class_typeinfo = m_module.getTypeByName(class_name);
+                      class_typeinfo = StructType::getTypeByName(m_module.getContext(), class_name);
                     }
 
                     if (old_class_typeinfo && class_typeinfo &&

@@ -63,15 +63,18 @@ namespace seahorn
       while (!workList.empty())  {
         CallInst* CI = workList.back();
         workList.pop_back();
-        llvm::SplitBlock(CI->getParent(), CI,
-			 nullptr/*DT*/, nullptr /*LI*/);
+	// REVISIT: we should pass DominatorTree, LoopInfo, and
+	// MemorySSAUpdater to avoid re-run analyses.
+        llvm::SplitBlock(CI->getParent(), CI);
       }
 
       return true;
     }
 
-    virtual void getAnalysisUsage (AnalysisUsage &AU) const
-    {AU.setPreservesAll ();}
+    virtual void getAnalysisUsage (AnalysisUsage &AU) const {
+      /// We don't preserve dominator trees, loop info, and memory ssa.
+      // AU.setPreservesAll ();
+    }
 
   };
 

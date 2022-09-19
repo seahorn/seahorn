@@ -3450,8 +3450,7 @@ const llvm::ConstantRange Bv2OpSem::getLVIInstRng(llvm::Instruction &I) {
     if (fn) {
       auto it = m_lvi_map->find(fn);
       if (it != m_lvi_map->end()) {
-        return it->second->getLVI().getConstantRange(dyn_cast<Value>(&I),
-                                                     I.getParent(), &I);
+        return it->second->getLVI().getConstantRange(dyn_cast<Value>(&I), &I);
       }
     }
   }

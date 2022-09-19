@@ -68,13 +68,13 @@ auto has_widemem = [](auto t) {
 class OpSemAlu;
 class OpSemMemManagerBase;
 class OpSemMemManager;
-class OpSemVisitorBase;
+struct OpSemVisitorBase;
 
 /// \brief Operational Semantics Context, a.k.a. Semantic Machine
 /// Keeps track of the state of the current semantic machine and provides
 /// API to manipulate the machine.
 class Bv2OpSemContext : public OpSemContext {
-  friend class OpSemVisitorBase;
+  friend struct OpSemVisitorBase;
 
 private:
   /// \brief Set memory manager to be used by the machine

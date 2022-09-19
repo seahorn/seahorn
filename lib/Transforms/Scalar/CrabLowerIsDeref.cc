@@ -9,6 +9,7 @@
 #include "llvm/Analysis/TargetLibraryInfo.h"
 #include "llvm/IR/DebugInfo.h"
 #include "llvm/IR/DebugLoc.h"
+#include "llvm/IR/Instructions.h"
 
 #include "seadsa/AllocWrapInfo.hh"
 #include "seadsa/DsaLibFuncInfo.hh"

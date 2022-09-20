@@ -13,9 +13,9 @@ TrackingMemoryTuple::TrackingMemoryTuple(Bv2OpSem &sem, Bv2OpSemContext &ctx,
                                          unsigned ptrSz, unsigned wordSz,
                                          bool useLambdas)
     : m_main(sem, ctx, ptrSz, wordSz, useLambdas),
-      m_w_metadata(sem, ctx, ptrSz, TrackingRawMemManager::g_MetadataByteWidth,
-                   useLambdas, true),
       m_r_metadata(sem, ctx, ptrSz, TrackingRawMemManager::g_MetadataByteWidth,
+                   useLambdas, true),
+      m_w_metadata(sem, ctx, ptrSz, TrackingRawMemManager::g_MetadataByteWidth,
                    useLambdas, true),
       m_a_metadata(sem, ctx, ptrSz, TrackingRawMemManager::g_MetadataByteWidth,
                    useLambdas, true),
@@ -26,9 +26,9 @@ TrackingMemoryTuple::TrackingMemoryTuple(Bv2OpSem &sem, Bv2OpSemContext &ctx,
                                          unsigned ptrSz, unsigned wordSz,
                                          bool useLambdas, bool ignoreAlignment)
     : m_main(sem, ctx, ptrSz, wordSz, useLambdas, ignoreAlignment),
-      m_w_metadata(sem, ctx, ptrSz, TrackingRawMemManager::g_MetadataByteWidth,
-                   useLambdas, true),
       m_r_metadata(sem, ctx, ptrSz, TrackingRawMemManager::g_MetadataByteWidth,
+                   useLambdas, true),
+      m_w_metadata(sem, ctx, ptrSz, TrackingRawMemManager::g_MetadataByteWidth,
                    useLambdas, true),
       m_a_metadata(sem, ctx, ptrSz, TrackingRawMemManager::g_MetadataByteWidth,
                    useLambdas, true),
@@ -156,7 +156,6 @@ TrackingRawMemManager::MemValTy TrackingRawMemManager::storeValueToMem(
   Expr val = _val;
   const unsigned byteSz =
       m_sem.getTD().getTypeStoreSize(const_cast<llvm::Type *>(&ty));
-  ExprFactory &efac = ptr->efac();
   MemValTy res = MemValTy(Expr());
   switch (ty.getTypeID()) {
   case Type::IntegerTyID:
@@ -174,6 +173,8 @@ TrackingRawMemManager::MemValTy TrackingRawMemManager::storeValueToMem(
   case Type::FixedVectorTyID:
   case Type::ScalableVectorTyID:      
     errs() << "Error: store of vectors is not supported\n";
+    llvm_unreachable(nullptr);
+    break;
   case Type::PointerTyID:
     res = storePtrToMem(val, ptr, memIn, byteSz, align);
     break;
@@ -193,7 +194,6 @@ Expr TrackingRawMemManager::loadValueFromMem(
     const Type &ty, uint64_t align) {
   const unsigned byteSz =
       m_sem.getTD().getTypeStoreSize(const_cast<llvm::Type *>(&ty));
-  ExprFactory &efac = ptr->efac();
 
   Expr res;
   switch (ty.getTypeID()) {
@@ -211,6 +211,8 @@ Expr TrackingRawMemManager::loadValueFromMem(
   case Type::FixedVectorTyID:
   case Type::ScalableVectorTyID:      
     errs() << "Error: load of vectors is not supported\n";
+    llvm_unreachable(nullptr);
+    break;
   case Type::PointerTyID:
     res = loadPtrFromMem(ptr, mem, byteSz, align);
     break;

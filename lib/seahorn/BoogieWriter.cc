@@ -69,7 +69,9 @@ static bool isBool(const Value &v) { return isBool(v.getType()); }
 static bool isInteger(const Type *t) {
   return (t->isIntegerTy() && !isBool(t));
 }
+#if 0
 static bool isInteger(const Value &v) { return isInteger(v.getType()); }
+#endif
 static boost::optional<int64_t> getIntConstant(const ConstantInt *CI) {
   if (CI->getType()->isIntegerTy(1)) {
     return (int64_t)CI->getZExtValue();
@@ -103,9 +105,11 @@ static bool isAssumeFn(const Function *F) {
 static bool isNotAssumeFn(const Function *F) {
   return (F->getName().equals("verifier.assume.not"));
 }
+#if 0
 static bool isVerifierCall(const Function *F) {
   return (isAssertFn(F) || isErrorFn(F) || isAssumeFn(F) || isNotAssumeFn(F));
 }
+#endif
 } // end namespace llvm
 
 using namespace llvm;
@@ -472,7 +476,7 @@ private:
   std::vector<label_t> m_goto;
 
 public:
-  block(const BasicBlock *b) : m_bb(b), m_name(b->getName()) {}
+  block(const BasicBlock *b) : m_bb(b), m_name(b->getName()) { (void)m_bb; }
   explicit block(std::string name) : m_bb(nullptr), m_name(name) {}
   block() : m_bb(nullptr), m_name("") {}
 
@@ -571,7 +575,7 @@ class boogieInstVisitor : public InstVisitor<boogieInstVisitor> {
 public:
   boogieInstVisitor(block &bb, instruction_factory &ifac, const DataLayout *dl,
                     const TargetLibraryInfo *tli)
-      : m_bb(bb), m_ifac(ifac), m_dl(dl), m_tli(tli) {}
+    : m_bb(bb), m_ifac(ifac), m_dl(dl), m_tli(tli) {(void)m_dl;(void)m_tli;}
 
   /// skip PHI nodes (processed elsewhere)
   void visitPHINode(PHINode &I) {}

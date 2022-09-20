@@ -49,7 +49,7 @@ private:
   HornifyModule &m_hm;
 
 public:
-  PredicateAbstractionAnalysis(HornifyModule &hm) : m_hm(hm) {}
+  PredicateAbstractionAnalysis(HornifyModule &hm) : m_hm(hm) {(void)m_hm;}
   ~PredicateAbstractionAnalysis() {}
 
   void guessCandidate(HornClauseDB &db);

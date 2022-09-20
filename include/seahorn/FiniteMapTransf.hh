@@ -56,14 +56,16 @@ private:
   ExprSet &m_evars;
   const ExprMap &m_pred_decl_t;
   ExprFactory &m_efac;
-  int m_optEq = 0;
+  unsigned m_optEq = 0;
   std::shared_ptr<FiniteMapArgRewriter> m_rw;
 
 public:
   FiniteMapArgsVisitor(ExprSet &evars, const ExprMap &pred_decl_t,
                        ExprFactory &efac)
       : m_evars(evars), m_pred_decl_t(pred_decl_t), m_efac(efac) {
-    m_rw = std::make_shared<FiniteMapArgRewriter>(evars, m_pred_decl_t, efac);
+    (void) m_evars;
+    (void) m_optEq;
+    m_rw = std::make_shared<FiniteMapArgRewriter>(evars, m_pred_decl_t, m_efac);
   }
   VisitAction operator()(Expr exp);
 };

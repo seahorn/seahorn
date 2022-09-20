@@ -178,13 +178,6 @@ const Value *extractUniqueScalar(const CallBase &CB) {
     return shadow_dsa::extractUniqueScalar(CB);
 }
 
-const Value *extractUniqueScalar(const CallBase *cb) {
-  if (!EnableUniqueScalars2)
-    return nullptr;
-  else
-    return cb ? extractUniqueScalar(*cb) : nullptr;
-}
-
 bool isShadowMem(const Value &V, const Value **out) {
   const Value *scalar;
   bool res = shadow_dsa::isShadowMem(V, &scalar);
@@ -235,7 +228,7 @@ struct OpSemVisitorBase {
       return Expr();
 
     Expr reg;
-    if (reg = m_ctx.getRegister(v))
+    if ((reg = m_ctx.getRegister(v)))
       return m_ctx.read(reg);
 
     if (const Constant *cv = dyn_cast<Constant>(&v)) {
@@ -265,14 +258,14 @@ struct OpSemVisitorBase {
     OpSemMemManager &memManager = m_ctx.mem();
 
     Expr reg;
-    if (reg = m_ctx.getRegister(v)) {
+    if ((reg = m_ctx.getRegister(v))) {
       Expr sort = bind::rangeTy(bind::fname(reg));
       Expr h = memManager.coerce(sort, m_ctx.havoc(reg));
       m_ctx.write(reg, h);
       return h;
     }
 
-    if (reg = m_ctx.mkRegister(v)) {
+    if ((reg = m_ctx.mkRegister(v))) {
       Expr sort = bind::rangeTy(bind::fname(reg));
       Expr h = memManager.coerce(sort, m_ctx.havoc(reg));
       m_ctx.write(reg, h);
@@ -288,7 +281,7 @@ struct OpSemVisitorBase {
       return;
 
     Expr reg;
-    if (reg = m_ctx.getRegister(v))
+    if ((reg = m_ctx.getRegister(v)))
       m_ctx.write(reg, val);
     else {
       assert(!isa<Constant>(v));
@@ -962,7 +955,7 @@ public:
   }
 
   /// Report outcome of vacuity and incremental assertion checking
-  void reportDoAssert(char *tag, const Instruction &I, boost::tribool res,
+  void reportDoAssert(const char *tag, const Instruction &I, boost::tribool res,
                       bool expected) {
 
     llvm::SmallString<256> msg;
@@ -1002,7 +995,7 @@ public:
     if (VacuityCheckOpt == VacCheckOptions::NONE) {
       return;
     }
-    const llvm::DebugLoc &dloc = I.getDebugLoc();
+    // const llvm::DebugLoc &dloc = I.getDebugLoc();
     bool isBackEdge = I.hasMetadata("backedge_assert");
     Stats::resume("opsem.vacuity");
     // The solving is done incrementally. We only
@@ -1181,6 +1174,7 @@ public:
     const auto &F = *getCalledFunction(CB);
     if (F.getName().equals("shadow.mem.init")) {
       unsigned id = shadow_dsa::getShadowId(CB);
+      (void)id;
       assert(id >= 0);
       setValue(CB, havoc(CB));
       return;
@@ -2470,7 +2464,7 @@ Bv2OpSemContext::Bv2OpSemContext(SymStore &values, ExprVector &side,
       m_readRegister(o.m_readRegister), m_writeRegister(o.m_writeRegister),
       m_scalar(o.m_scalar), m_trfrReadReg(o.m_trfrReadReg),
       m_fparams(o.m_fparams), m_ignored(o.m_ignored),
-      m_registers(o.m_registers), m_alu(nullptr), m_memManager(nullptr),
+      m_registers(o.m_registers), m_memManager(nullptr), m_alu(nullptr),
       m_parent(&o), zeroE(o.zeroE), oneE(o.oneE), m_z3(o.m_z3),
       m_z3_simplifier(o.m_z3_simplifier), m_z3_solver(o.m_z3_solver) {
   setPathCond(o.getPathCond());
@@ -3088,6 +3082,7 @@ bool Bv2OpSem::isSymReg(Expr v, seahorn::details::Bv2OpSemContext &C) {
     return true;
 
   errs() << "Unexpected symbolic value: " << *v << "\n";
+  llvm_unreachable();
 }
 
 const Value &Bv2OpSem::conc(Expr v) const {
@@ -3236,8 +3231,8 @@ void Bv2OpSem::intraBr(seahorn::details::Bv2OpSemContext &C,
       ConstantExprEvaluator ce(getDataLayout());
       auto gv = ce.evaluate(cv);
       assert(gv.hasValue());
-      if (gv->IntVal.isOneValue() && br->getSuccessor(0) != &dst ||
-          gv->IntVal.isNullValue() && br->getSuccessor(1) != &dst) {
+      if ((gv->IntVal.isOneValue() && br->getSuccessor(0) != &dst) ||
+          (gv->IntVal.isNullValue() && br->getSuccessor(1) != &dst)) {
         C.resetSide();
         C.addScopedSide(C.read(errorFlag(*C.getCurrBb())));
       }
@@ -3327,7 +3322,7 @@ Optional<APInt> Bv2OpSem::agg(Type *aggTy,
   if (!STy)
     llvm_unreachable("not supporting agg types other than struct");
   const StructLayout *SL = getDataLayout().getStructLayout(STy);
-  for (int i = 0; i < elements.size(); i++) {
+  for (size_t i = 0; i < elements.size(); i++) {
     const GenericValue element = elements[i];
     Type *ElmTy = STy->getElementType(i);
     if (element.AggregateVal.empty()) {
@@ -3361,7 +3356,7 @@ Optional<APInt> Bv2OpSem::agg(Type *aggTy,
       resWidth = elOffset;
     }
     // lower index => LSB; higher index => MSB
-    int combinedWidth = resWidth + next.getBitWidth();
+    size_t combinedWidth = resWidth + next.getBitWidth();
     res = combinedWidth > res.getBitWidth() ? res.zext(combinedWidth) : res;
     next = combinedWidth > next.getBitWidth() ? next.zext(combinedWidth) : next;
     next <<= resWidth;

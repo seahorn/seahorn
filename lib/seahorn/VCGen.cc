@@ -194,7 +194,6 @@ static Expr mkAtMostOne(ExprVector &vec) {
 
 namespace {
 bool hasTrackablePhiNode(const BasicBlock &bb, OperationalSemantics &sem) {
-  bool hasPhi = false;
   for (const Instruction &inst : bb) {
     if (!isa<PHINode>(&inst))
       break;

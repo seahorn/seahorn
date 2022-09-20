@@ -307,9 +307,7 @@ void CallSiteResolverByCHA::cacheBounceFunction(CallBase &CB,
 
 DevirtualizeFunctions::DevirtualizeFunctions(llvm::CallGraph *cg,
                                              bool allowIndirectCalls)
-    : m_cg(cg), m_allowIndirectCalls(allowIndirectCalls) {
-  (void)m_cg;
-}
+  : m_cg(cg), m_allowIndirectCalls(allowIndirectCalls) { (void)m_cg;}
 
 DevirtualizeFunctions::~DevirtualizeFunctions() {}
 

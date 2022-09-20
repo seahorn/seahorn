@@ -15,7 +15,7 @@ namespace seahorn {
 namespace solver {
 
 namespace yices {
-std::string error_string(){
+inline std::string error_string(){
   char* emsg = yices_error_string();
   std::string res(emsg);
   yices_free_string(emsg);

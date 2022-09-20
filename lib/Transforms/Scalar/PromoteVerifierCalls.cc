@@ -104,7 +104,7 @@ bool PromoteVerifierCalls::runOnModule(Module &M) {
     // functions
     ConstantArray *Inits = cast<ConstantArray>(LLVMUsed->getInitializer());
     for (unsigned I = 0, E = Inits->getNumOperands(); I != E; ++I) {
-      Value *V = Inits->getOperand(I)->stripPointerCasts();
+      // Value *V = Inits->getOperand(I)->stripPointerCasts();
       // XXX AG: should we use V?
       MergedVars.push_back(Inits->getOperand(I));
     }

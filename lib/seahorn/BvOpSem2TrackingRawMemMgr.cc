@@ -436,6 +436,7 @@ unsigned int TrackingRawMemManager::getMetadataMemWordSzInBits() {
   auto first_metadata_key = hana::keys(m_submgrs)[hana::size_c<1>];
   auto wordSz = hana::at_key(m_submgrs, first_metadata_key).wordSzInBits();
   // assert that all metadata has same word size
+  (void) sec_metadata_keys;
   BOOST_HANA_RUNTIME_ASSERT(hana::all_of(sec_metadata_keys, [&](auto key) {
     return hana::at_key(m_submgrs, key).wordSzInBits() == wordSz;
   }));

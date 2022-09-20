@@ -45,6 +45,7 @@ public:
       : m_vars(boost::begin(v), boost::end(v)), m_head(head), m_body(body) {}
 
   HornRule(const HornRule &r) = default;
+  HornRule& operator=(const HornRule &r) = default;
 
   size_t hash() const {
     size_t res = expr::hash_value(m_head);

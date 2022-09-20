@@ -706,5 +706,11 @@ OpSemMemRepr::MemValTy OpSemMemHybridRepr::storeAlignedWordToMem(
   return OpSemMemRepr::MemValTy(res);
 }
 
+OpSemMemHybridRepr::~OpSemMemHybridRepr() {
+  clearENodePtrCache(m_cache);
+  clearENodePtrCache(m_armCache);
+  clearENodePtrCache(m_ptCache);
+}
+
 } // namespace details
 } // namespace seahorn

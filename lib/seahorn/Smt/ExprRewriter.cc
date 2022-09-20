@@ -11,7 +11,7 @@ static llvm::cl::opt<bool>
 namespace expr {
 using namespace addrRangeMap;
 namespace utils {
-bool shouldCache(Expr e) {
+bool shouldCache(const Expr &e) {
   if (isOpX<SELECT>(e) || isOpX<STORE>(e) || isOpX<ITE>(e)) {
     return true; // aggressive cache row and wow
   }
@@ -92,7 +92,7 @@ rewrite_result ReadOverWriteRule::operator()(Expr exp) {
   } else if (isOpX<STORE_MAP>(arr)) {
     return rewriteReadOverStoreMap(arr, idx);
   } else {
-    return {exp, rewrite_status::RW_DONE};
+    return {exp, rewrite_status::RW_SKIP};
   }
 }
 
@@ -290,6 +290,7 @@ rewrite_result WriteOverWriteRule::rewriteStore(Expr e) {
           /* b + x, b + y can be merged */
           if (op::bv::toMpz(idxOffset) == op::bv::toMpz(idxNxtOffset)) {
             /* edge case: offset == offsetNxt */
+            seahorn::Stats::count("hybrid.store_erase");
             return {op::array::store(arrNxt, idx, val),
                     rewrite_status::RW_DONE};
           }
@@ -306,6 +307,7 @@ rewrite_result WriteOverWriteRule::rewriteStore(Expr e) {
             expr::mem::getBasedAddrSerial(idxNxtBase)) {
           Expr newNxtStore = op::array::store(arrNxt, idx, val);
           Expr newStore = op::array::store(newNxtStore, idxNxt, valNxt);
+          seahorn::Stats::count("hybrid.store_store_commute");
           return {newStore, rewrite_status::RW_2};
         }
       }
@@ -323,6 +325,7 @@ rewrite_result WriteOverWriteRule::rewriteStore(Expr e) {
       } else if (expr::mem::getBasedAddrSerial(idxBase) <
                  expr::mem::getBasedAddrSerial(sMapBase)) {
         /* SMAP-COMMUTE */
+        seahorn::Stats::count("hybrid.store_smap_commute");
         Expr sMapArr = arr->arg(0);
         Expr sMapBase = arr->arg(1);
         Expr sMap = storeMapGetMap(arr);

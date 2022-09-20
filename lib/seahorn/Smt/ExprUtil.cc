@@ -631,8 +631,9 @@ bool isSingleBasePtr(Expr e, size_t ptrWidth, Expr &base, Expr &offset) {
   return false;
 }
 
-void updatePtrTCCache(Expr e, bool isPtr, PtrTypeCheckCache &cache) {
+void updatePtrTCCache(const Expr &e, bool isPtr, PtrTypeCheckCache &cache) {
   if (e->use_count() > 1) {
+    e->Ref();
     cache[&*e] = isPtr;
   }
 }

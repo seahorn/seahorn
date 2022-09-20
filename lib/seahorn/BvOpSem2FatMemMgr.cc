@@ -309,7 +309,7 @@ public:
 
   /// \brief Pointer addition with symbolic offset
   FatPtrTy ptrAdd(FatPtrTy ptr, Expr offset) const {
-    BasePtrTy rawPtr = ptrAdd(mkRawPtr(ptr), offset).v();
+    BasePtrTy rawPtr = m_main.ptrAdd(mkRawPtr(ptr), offset);
     return mkFatPtr(rawPtr, ptr);
   }
 

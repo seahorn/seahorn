@@ -293,7 +293,7 @@ int main(int argc, char **argv) {
   llvm::initializeDsaInfoPassPass(Registry);
   llvm::initializeAllocSiteInfoPass(Registry);
   llvm::initializeCompleteCallGraphPass(Registry);
-  llvm::initializeAnnotation2MetadataLegacyPass(Registry);
+  llvm::initializeSeaAnnotation2MetadataLegacyPass(Registry);
   llvm::initializeGeneratePartialFnPassPass(Registry);
   // add an appropriate DataLayout instance for the module
   const llvm::DataLayout *dl = &module->getDataLayout();

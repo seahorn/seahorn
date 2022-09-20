@@ -390,7 +390,7 @@ int main(int argc, char **argv) {
   llvm::initializeDsaLibFuncInfoPass(Registry);
 
   llvm::initializeCompleteCallGraphPass(Registry);
-  llvm::initializeAnnotation2MetadataLegacyPass(Registry);
+  llvm::initializeSeaAnnotation2MetadataLegacyPass(Registry);
 
   llvm::initializeRemovePtrToIntPass(Registry);
 

@@ -24,9 +24,9 @@ class MemSimulator {
   const TargetLibraryInfo &m_tli;
 
   // -- start byte of external memory
-  unsigned m_extMemStart;
+  // unsigned m_extMemStart;
   // -- end byte of external memory
-  unsigned m_extMemEnd;
+  // unsigned m_extMemEnd;
 
   // -- start of internally allocated memory
   unsigned m_intMemStart;

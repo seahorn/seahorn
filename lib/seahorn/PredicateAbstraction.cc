@@ -192,14 +192,14 @@ namespace seahorn
       ExprVector term_vec = m_currentCandidates.find(rel)->second;
       if(term_vec.size() > 1 || (term_vec.size() == 1 && !isOpX<TRUE>(term_vec[0])))
       {
-        for(int i=0; i<term_vec.size(); i++)
+        for(unsigned i=0; i<term_vec.size(); i++)
         {
           new_args.push_back(mk<BOOL_TY>(rel->efac()));
         }
       }
       else // the candidate term is just 'true' or 'false'
       {
-        for (int i=1; i<=bind::domainSz(rel); i++ )
+        for (unsigned i=1; i<=bind::domainSz(rel); i++ )
         {
           new_args.push_back(bind::domainTy(rel, i));
         }
@@ -277,7 +277,7 @@ namespace seahorn
         ExprVector new_rule_body_args;
         //Push boolean variables into arguments of new predicate
 
-        for(int i=0; i<bind::domainSz(new_rule_body_rel); i++)
+        for(unsigned i=0; i<bind::domainSz(new_rule_body_rel); i++)
         {
           Expr var_tag = variant::variant(pred_order, variant::variant(i, variant::tag(bind::fname(new_rule_body_rel), mkTerm<std::string> ("p", new_rule_body_rel->efac ())))); //noprime
           Expr boolVar = bind::boolConst(var_tag);
@@ -318,7 +318,7 @@ namespace seahorn
       ExprVector new_rule_head_args;
       int pred_order = relOccurrenceTimesMap.find(bind::fname(rule_head))->second;
       relOccurrenceTimesMap[bind::fname(rule_head)] += 1;
-      for(int i=0; i<bind::domainSz(new_rule_head_rel); i++)
+      for(unsigned i=0; i<bind::domainSz(new_rule_head_rel); i++)
       {
         Expr var_tag = variant::variant(pred_order, variant::variant(i, variant::tag(bind::fname(new_rule_head_rel), mkTerm<std::string> ("p", new_rule_head_rel->efac ())))); //prime
         Expr boolVar = bind::boolConst(var_tag);
@@ -436,8 +436,7 @@ namespace seahorn
       LOG("pabs-debug", outs() << "ORIG REL: " << *orig_rel << "\n";);
 
       ExprVector abs_arg_list;
-      for(int i=0; i<bind::domainSz(abs_rel); i++)
-      {
+      for (unsigned i = 0; i < bind::domainSz(abs_rel); i++) {
         Expr boolVar = bind::boolConst(variant::variant(i, mkTerm<std::string>("b", orig_rel->efac())));
         abs_arg_list.push_back(boolVar);
       }
@@ -478,7 +477,7 @@ namespace seahorn
       LOG("pabs-debug", outs() << "ORIG DEF: " << *orig_def << "\n";);
 
       ExprVector orig_fapp_args;
-      for(int i=0; i<bind::domainSz(orig_rel); i++)
+      for(unsigned i=0; i<bind::domainSz(orig_rel); i++)
       {
         Expr arg_i_type = bind::domainTy(orig_rel, i);
         Expr var = bind::fapp(bind::constDecl(variant::variant(i, mkTerm<std::string> ("V", orig_rel->efac ())), arg_i_type));

@@ -288,9 +288,9 @@ public:
     llvm::initializeSimpleMemoryCheckPass(
         *llvm::PassRegistry::getPassRegistry());
   }
-  virtual bool runOnModule(llvm::Module &M);
-  virtual void getAnalysisUsage(llvm::AnalysisUsage &AU) const;
-  virtual llvm::StringRef getPassName() const { return "SimpleMemoryCheck"; }
+  virtual bool runOnModule(llvm::Module &M) override;
+  virtual void getAnalysisUsage(llvm::AnalysisUsage &AU) const override;
+  virtual llvm::StringRef getPassName() const override { return "SimpleMemoryCheck"; }
 
   /// Returns size of a known allocation
   llvm::Optional<size_t> getAllocSize(Value *Ptr);
@@ -618,7 +618,7 @@ CheckContext SimpleMemoryCheck::getUnsafeCandidates(Instruction *Inst,
       auto *BarrierPtrTy = Check.Barrier->getType();
       auto *AllocPtrTy = AS->getType();
       if (BarrierPtrTy->isPointerTy() && AllocPtrTy->isPointerTy()) {
-        auto *BarrierTy = BarrierPtrTy->getPointerElementType();
+        // auto *BarrierTy = BarrierPtrTy->getPointerElementType();
         auto *AllocTy = AllocPtrTy->getPointerElementType();
 
         // Temporary hack for CASS. Disabled for now.

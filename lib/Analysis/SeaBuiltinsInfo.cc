@@ -151,7 +151,7 @@ Function *SeaBuiltinsInfo::mkFailFn(Module &M) {
 
 Function *SeaBuiltinsInfo::mkAssertAssumeFn(Module &M, SeaBuiltinsOp op) {
   auto &C = M.getContext();
-  char *name = nullptr;
+  const char *name = nullptr;
   using SBIOp = SeaBuiltinsOp;
   switch (op) {
   default:
@@ -324,7 +324,7 @@ Function *SeaBuiltinsInfo::mkAssertIfFn(llvm::Module &M) {
 }
 
 Function *SeaBuiltinsInfo::mkAssertFn(llvm::Module &M, SeaBuiltinsOp op) {
-  char *name = nullptr;
+  const char *name = nullptr;
   switch (op) {
   default:
     assert(false);

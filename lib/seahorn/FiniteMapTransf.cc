@@ -162,6 +162,7 @@ static Expr getCellExprVariant(Expr e) {
   return cellE; // cell id
 }
 
+#if 0
 static Expr getCellExpr(Expr e) {
 
   // only supporting one level of +
@@ -170,6 +171,7 @@ static Expr getCellExpr(Expr e) {
 
   return getCellExprVariant(e);
 }
+#endif
 
 static unsigned getOffsetCellExpr(Expr e) {
 
@@ -188,10 +190,12 @@ static unsigned getOffsetCellExpr(Expr e) {
   return offset + getTerm<unsigned>(e->right());
 }
 
+#if 0
 // for debugging
 static bool sameNode(Expr e1, Expr e2) {
   return getCellExpr(e1)->left() == getCellExpr(e2)->left();
 }
+#endif
 
 static bool validDsaConst(Expr e) {
   if (!bind::IsConst()(e))
@@ -245,10 +249,9 @@ static Expr evalCondDsa(Expr cond) {
 // dsa-based ite simplifier
 class IteTopDownVisitor : public std::unary_function<Expr, VisitAction> {
 
-  ExprFactory &m_efac;
 
 public:
-  IteTopDownVisitor(ExprFactory &efac) : m_efac(efac) {}
+  IteTopDownVisitor() = default; 
 
   VisitAction operator()(Expr exp) {
     if (isOpX<ITE>(exp) && isOpX<EQ>(exp->left())) {
@@ -273,7 +276,7 @@ public:
 };
 
 static Expr dsaIteSimplify(Expr e) {
-  IteTopDownVisitor itdv(e->efac());
+  IteTopDownVisitor itdv;
   return visit(itdv, e);
 }
 
@@ -320,7 +323,7 @@ static Expr mkGetValCore(Expr fmv, Expr key) {
   return ite;
 }
 
-static template <typename Range>
+template <typename Range>
 Expr replaceValues(Expr fmv, const Range &values) {
   return fmap::constFiniteMap(fmap::fmapValKeys(fmv), fmap::fmapValDefault(fmv),
                               fmap::constFiniteMapValues(values));
@@ -343,7 +346,7 @@ static Expr mkSetValCore(Expr fmv, Expr key, Expr v) {
   ExprVector conds;
   Expr ks = fmap::fmapValKeys(fmv);
   auto k_it = ks->begin();
-  for (int i = 0; i < ks->arity(); i++, k_it++) { // find keys that match
+  for (unsigned i = 0; i < ks->arity(); i++, k_it++) { // find keys that match
     Expr cond = evalCondDsa(mk<EQ>(*k_it, key));
     if (!isOpX<FALSE>(cond)) {
       matches.push_back(i);
@@ -360,17 +363,17 @@ static Expr mkSetValCore(Expr fmv, Expr key, Expr v) {
   ExprVector nvalues(ks->arity());
   auto ov_it = vs->begin();
   if (matches.size() == 1) { // replace the value of the only matched key
-    int nextCh = matches[0];
-    for (int i = 0; i < ks->arity(); i++, ov_it++)
+    auto nextCh = matches[0];
+    for (unsigned i = 0; i < ks->arity(); i++, ov_it++)
       if (i == nextCh)
         nvalues[i] = v;
       else
         nvalues[i] = *ov_it;
   } else {
     LOG("inter_mem_counters", g_imfm_stats.newAlias(matches.size()););
-    int mit = 0;
-    int nextCh = matches[0];
-    for (int i = 0; i < ks->arity(); i++, ov_it++) {
+    unsigned mit = 0;
+    auto nextCh = matches[0];
+    for (unsigned i = 0; i < ks->arity(); i++, ov_it++) {
       if ((mit < matches.size()) && (i == nextCh)) {
         nvalues[i] = fmap_transf::mkFMIte(conds[mit], v, *ov_it);
         nextCh = matches[++mit];
@@ -499,7 +502,7 @@ static Expr mkEqCoreBody(Expr ml, Expr mr, FMapExprsInfo &fmei) {
   auto l_it = mlValk->begin();
   auto r_it = mrValk->begin();
 
-  for (int i = 0; l_it != mlValk->end(); i++, l_it++, r_it++) {
+  for (unsigned i = 0; l_it != mlValk->end(); i++, l_it++, r_it++) {
     // unify keys (from the definition)
     assert(r_it != mrValk->end() && "maps with a different number of keys");
 

@@ -255,6 +255,7 @@ namespace
             res = doLeftShift (op1, ci);
             break;
           }
+          break;
         default:
           break;
       }

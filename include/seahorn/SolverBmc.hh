@@ -60,6 +60,8 @@ protected:
 public:
   SolverBmcEngine(OperationalSemantics &sem,
                   SolverKind solver_kind = SolverKind::Z3);
+  virtual ~SolverBmcEngine() = default;
+
   void addCutPoint(const CutPoint &cp);
 
   virtual OperationalSemantics &sem() { return m_sem; }

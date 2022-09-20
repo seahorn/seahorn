@@ -146,7 +146,7 @@ public:
 
   SymbolizeConstantLoopBounds() : FunctionPass(ID) {}
 
-  bool runOnFunction(Function &F) {
+  bool runOnFunction(Function &F) override {
     if (F.isDeclaration() || F.empty())
       return false;
 
@@ -223,13 +223,13 @@ public:
     return Change;
   }
 
-  void getAnalysisUsage(AnalysisUsage &AU) const {
+  void getAnalysisUsage(AnalysisUsage &AU) const override {
     AU.setPreservesAll();
     AU.addRequired<LoopInfoWrapperPass>();
     AU.addRequired<llvm::CallGraphWrapperPass>();
   }
 
-  virtual StringRef getPassName() const {
+  virtual StringRef getPassName() const override {
     return "Convert constant loop bounds into symbolic bounds";
   }
 };

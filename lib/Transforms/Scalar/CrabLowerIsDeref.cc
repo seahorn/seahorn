@@ -109,7 +109,7 @@ bool CrabLowerIsDeref::runOnModule(Module &M) {
 
 const llvm::ConstantRange
 CrabLowerIsDeref::getCrabInstRng(const llvm::Instruction &I) const {
-  unsigned IntWidth = I.getType()->getIntegerBitWidth();
+  // unsigned IntWidth = I.getType()->getIntegerBitWidth();
   return m_crab_ptr->range(I);
 }
 

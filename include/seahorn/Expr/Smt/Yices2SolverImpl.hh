@@ -37,7 +37,7 @@ private:
   
   using assumptions_map_t = std::unordered_map<term_t, expr::Expr>;
 
-  ctx_config_t *d_cfg;
+  // ctx_config_t *d_cfg;
   
   /* the context */
   context_t *d_ctx;

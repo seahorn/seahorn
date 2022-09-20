@@ -69,7 +69,7 @@ MucWithAssumptions::MucWithAssumptions(solver::Solver &solver)
 
 void MucWithAssumptions::run(const ExprVector &f, ExprVector &core) {
   const bool simplify = false;
-  unsat_core(f, false, core);
+  unsat_core(f, simplify, core);
 }
 
 solver::SolverResult MucDeletion::check(MucDeletion::const_iterator it,

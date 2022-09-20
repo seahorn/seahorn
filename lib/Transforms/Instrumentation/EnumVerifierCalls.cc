@@ -24,7 +24,7 @@ public:
 
   EnumVerifierCalls() : ModulePass(ID), m_errorFn(nullptr), m_id(0) {}
 
-  virtual bool runOnModule(Module &M) {
+  virtual bool runOnModule(Module &M) override {
 
     m_errorFn =
         M.getOrInsertFunction("seahorn.error", Type::getVoidTy(M.getContext()),
@@ -71,8 +71,6 @@ public:
       CallInst *CI = Worklist.back();
       Worklist.pop_back();
 
-      Function *CF = CI->getCalledFunction();
-
       Builder.SetInsertPoint(CI);
       CallInst *call = Builder.CreateCall(
           m_errorFn,
@@ -86,7 +84,7 @@ public:
     return true;
   }
 
-  virtual void getAnalysisUsage(AnalysisUsage &AU) const {
+  virtual void getAnalysisUsage(AnalysisUsage &AU) const override {
     AU.setPreservesAll();
     AU.addRequired<CallGraphWrapperPass>();
   }

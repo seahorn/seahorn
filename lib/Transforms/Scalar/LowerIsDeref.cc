@@ -85,7 +85,6 @@ Value *seahorn::lowerIsDereferenceable(CallBase *IsDerefCall,
   ObjectSizeOpts EvalOptions;
   EvalOptions.EvalMode = ObjectSizeOpts::Mode::Exact;
   EvalOptions.NullIsUnknownSize = false;
-  auto *ResultType = IsDerefCall->getType();
 
   if (auto *CI = dyn_cast<ConstantInt>(IsDerefCall->getArgOperand(1))) {
     int64_t Requested = CI->getSExtValue();
@@ -98,8 +97,8 @@ Value *seahorn::lowerIsDereferenceable(CallBase *IsDerefCall,
     if (llvm::getObjectSize(IsDerefCall->getArgOperand(0), Size, DL, TLI,
                             EvalOptions)) {
       auto &C = IsDerefCall->getContext();
-      return Requested <= Size ? ConstantInt::getTrue(C)
-                               : ConstantInt::getFalse(C);
+      return (uint64_t)Requested <= Size ? ConstantInt::getTrue(C)
+                                         : ConstantInt::getFalse(C);
     }
   }
 

@@ -46,7 +46,7 @@ public:
   static char ID;
   WrapMem() : ModulePass(ID) {}
 
-  bool runOnModule(Module &M) {
+  bool runOnModule(Module &M) override {
     LLVMContext &C = M.getContext();
     m_dl = &M.getDataLayout();
     m_intPtrTy = m_dl->getIntPtrType(C, 0);
@@ -120,7 +120,7 @@ public:
     return true;
   }
 
-  void getAnalysisUsage(AnalysisUsage &AU) const { AU.setPreservesAll(); }
+  void getAnalysisUsage(AnalysisUsage &AU) const override { AU.setPreservesAll(); }
 };
 char WrapMem::ID = 0;
 } // namespace

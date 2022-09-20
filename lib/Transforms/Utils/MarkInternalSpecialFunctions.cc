@@ -24,12 +24,12 @@ struct MarkInternalAllocOrDeallocInline : public ModulePass {
   static char ID;
   MarkInternalAllocOrDeallocInline() : ModulePass(ID) {}
 
-  void getAnalysisUsage(AnalysisUsage &AU) const {
+  void getAnalysisUsage(AnalysisUsage &AU) const override {
     AU.setPreservesAll();
     AU.addRequired<llvm::TargetLibraryInfoWrapperPass>();
   }
 
-  virtual StringRef getPassName() const {
+  virtual StringRef getPassName() const override {
     return "Mark function that allocate or deallocate memory with AlwaysInline "
            "attribute";
   }
@@ -51,7 +51,7 @@ struct MarkInternalAllocOrDeallocInline : public ModulePass {
     return false;
   }
 
-  bool runOnModule(Module &M) {
+  bool runOnModule(Module &M) override {
     if (M.empty())
       return false;
 
@@ -85,13 +85,15 @@ public:
   static char ID;
   MarkInternalConstructOrDestructInline() : ModulePass(ID) {}
 
-  virtual StringRef getPassName() const {
+  virtual StringRef getPassName() const override {
     return "Mark C++ constructors/destructors with AlwaysInline attribute";
   }
 
-  void getAnalysisUsage(AnalysisUsage &AU) const { AU.setPreservesAll(); }
+  void getAnalysisUsage(AnalysisUsage &AU) const override {
+    AU.setPreservesAll();
+  }
 
-  bool runOnModule(Module &M) {
+  bool runOnModule(Module &M) override {
     bool Change = false;
     for (Function &F : M) {
       if (!F.isDeclaration() && F.hasLocalLinkage()) {

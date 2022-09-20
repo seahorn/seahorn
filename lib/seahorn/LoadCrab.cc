@@ -85,8 +85,8 @@ public:
     }
 
     BoolCst(lin_cst_t cst)
-        : m_val(T_TOP), m_coef(0), m_rhs(0), m_var(nullptr),
-          m_is_eq(cst.is_equality()) {
+        : m_val(T_TOP), m_coef(0), m_var(nullptr), m_is_eq(cst.is_equality()),
+          m_rhs(0) {
       assert(isBoolCst(cst));
 
       auto e = cst.expression() - cst.expression().constant();
@@ -164,7 +164,7 @@ public:
   
 private:
   
-  const llvm::Function &m_func;
+  // const llvm::Function &m_func;
   DenseMap<const Value *, BoolCst> bool_map;
   
   // Defined only for z_number
@@ -199,8 +199,7 @@ private:
   }
 
 public:
-  LinConsToExprImpl(const CfgBuilder *cfgBuilder /*unused*/, const llvm::Function &func)
-    : m_func(func) {}
+  LinConsToExprImpl(const CfgBuilder *cfgBuilder /*unused*/, const llvm::Function &func /* unused */) {}
   
   Expr toExpr(const lin_cst_t &cst, ExprFactory &efac,
 	      const DenseSet<const Value*> *live) {

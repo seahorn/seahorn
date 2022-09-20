@@ -338,39 +338,42 @@ namespace seahorn {
 
   public:
 
-    static char ID; 
+    static char ID;
 
-    Profiler() : 
-        ModulePass(ID),
-        DL (nullptr), TLI (nullptr),
-        TotalFuncs ("TotalFuncs", "Number of non-external functions"), 
-        TotalBlocks ("TotalBlocks", "Number of basic blocks"), 
-        TotalJoins ("TotalJoins","Number of basic blocks with more than one predecessor"), 
-        TotalInsts ("TotalInsts","Number of instructions"),
-        TotalDirectCalls ("TotalDirectCalls","Number of non-external direct callsites"), 
-        TotalExternalCalls ("TotalExternalCalls","Number of external direct callsites"), 
-        TotalIndirectCalls ("TotalIndirectCalls","Number of indirect callsites (unknown callee)"),
-        ////////
-        SafeIntDiv ("SafeIntDiv","Number of safe integer div/rem"), 
-        SafeFPDiv ("SafeFPDiv","Number of safe FP div/rem"), 
-        UnsafeIntDiv ("UnsafeIntDiv","Number of definite unsafe integer div/rem"), 
-        UnsafeFPDiv ("UnsafeFPDiv","Number of definite unsafe FP div/rem"), 
-        DivIntUnknown ("DivIntUnknown","Number of unknown integer div/rem"), 
-        DivFPUnknown ("DivFPUnknown","Number of unknown FP div/rem"),
-        /////////
-        TotalMemInst ("TotalMemInst","Number of memory instructions"),
-        MemUnknown ("MemUnknown","Unknown memory accesses"), 
-        SafeMemAccess ("SafeMemAccess","Statically known memory accesses"), 
-        TotalAllocations ("TotalAllocations","Malloc-like allocations"), 
-        InBoundGEP ("InBoundGEP","Inbound GetElementPtr"),
-        MemCpy ("MemCpy"),
-        MemMove ("MemMove"), 
-        MemSet ("MemSet"),
-        /////////
-        SafeLeftShift ("SafeLeftShift","Number of safe left shifts"), 
-        UnsafeLeftShift ("UnsafeLeftShift", "Number of definite unsafe left shifts"), 
-        UnknownLeftShift("UnknownLeftShift", "Number of unknown left shifts")
-    { }
+    Profiler()
+        : ModulePass(ID), DL(nullptr), TLI(nullptr),
+          TotalFuncs("TotalFuncs", "Number of non-external functions"),
+          TotalBlocks("TotalBlocks", "Number of basic blocks"),
+          TotalJoins("TotalJoins",
+                     "Number of basic blocks with more than one predecessor"),
+          TotalInsts("TotalInsts", "Number of instructions"),
+          TotalDirectCalls("TotalDirectCalls",
+                           "Number of non-external direct callsites"),
+          TotalIndirectCalls("TotalIndirectCalls",
+                             "Number of indirect callsites (unknown callee)"),
+          TotalExternalCalls("TotalExternalCalls",
+                             "Number of external direct callsites"),
+          ////////
+          SafeIntDiv("SafeIntDiv", "Number of safe integer div/rem"),
+          SafeFPDiv("SafeFPDiv", "Number of safe FP div/rem"),
+          UnsafeIntDiv("UnsafeIntDiv",
+                       "Number of definite unsafe integer div/rem"),
+          UnsafeFPDiv("UnsafeFPDiv", "Number of definite unsafe FP div/rem"),
+          DivIntUnknown("DivIntUnknown", "Number of unknown integer div/rem"),
+          DivFPUnknown("DivFPUnknown", "Number of unknown FP div/rem"),
+          /////////
+          TotalMemInst("TotalMemInst", "Number of memory instructions"),
+          MemUnknown("MemUnknown", "Unknown memory accesses"),
+          SafeMemAccess("SafeMemAccess", "Statically known memory accesses"),
+          TotalAllocations("TotalAllocations", "Malloc-like allocations"),
+          InBoundGEP("InBoundGEP", "Inbound GetElementPtr"), MemCpy("MemCpy"),
+          MemMove("MemMove"), MemSet("MemSet"),
+          /////////
+          SafeLeftShift("SafeLeftShift", "Number of safe left shifts"),
+          UnsafeLeftShift("UnsafeLeftShift",
+                          "Number of definite unsafe left shifts"),
+          UnknownLeftShift("UnknownLeftShift",
+                           "Number of unknown left shifts") {}
 
     bool runOnFunction(Function &F)  {
        visit(F);
@@ -559,7 +562,7 @@ namespace seahorn {
       }
     }
 
-    virtual StringRef getPassName () const {return "Profiler";}
+    virtual StringRef getPassName() const override { return "Profiler"; }
   };
 
   char Profiler::ID = 0;

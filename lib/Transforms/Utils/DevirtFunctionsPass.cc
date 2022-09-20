@@ -55,7 +55,7 @@ public:
 
   DevirtualizeFunctionsPass() : ModulePass(ID) {}
 
-  virtual bool runOnModule(Module &M) {
+  virtual bool runOnModule(Module &M) override  {
     // -- Get the call graph to update
     CallGraph &cg = getAnalysis<CallGraphWrapperPass>().getCallGraph();
     DevirtualizeFunctions DF(&cg, AllowIndirectCalls);
@@ -103,7 +103,7 @@ public:
     return res;
   }
 
-  virtual void getAnalysisUsage(AnalysisUsage &AU) const {
+  virtual void getAnalysisUsage(AnalysisUsage &AU) const override {
     AU.addRequired<CallGraphWrapperPass>();
     AU.setPreservesAll();
     AU.addPreserved<CallGraphWrapperPass>();
@@ -116,7 +116,7 @@ public:
     }
   }
 
-  StringRef getPassName() const { return "DevirtualizeFunctions"; }
+  StringRef getPassName() const override { return "DevirtualizeFunctions"; }
 };
 
 char DevirtualizeFunctionsPass::ID = 0;

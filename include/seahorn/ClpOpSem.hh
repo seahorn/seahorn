@@ -45,28 +45,29 @@ namespace seahorn
       m_td (o.m_td), m_canFail (o.m_canFail) {}
 
     Expr errorFlag (const BasicBlock &BB) override;
-    virtual Expr memStart (unsigned id) { assert (false); return Expr (); }
-    virtual Expr memEnd (unsigned id) { assert (false); return Expr (); }
+    virtual Expr memStart (unsigned id) override { assert (false); return Expr (); }
+    virtual Expr memEnd (unsigned id) override { assert (false); return Expr (); }
 
     virtual void exec (SymStore &s, const BasicBlock &bb,
-                       ExprVector &side, Expr act);
+                       ExprVector &side, Expr act) override;
 
+    using LegacyOperationalSemantics::exec;
     virtual void exec (SymStore &s, const Instruction &inst,
                        ExprVector &side);
 
     virtual void execPhi (SymStore &s, const BasicBlock &bb,
-                          const BasicBlock &from, ExprVector &side, Expr act);
+                          const BasicBlock &from, ExprVector &side, Expr act) override;
 
     virtual void execEdg (SymStore &s, const BasicBlock &src,
-                          const BasicBlock &dst, ExprVector &side);
+                          const BasicBlock &dst, ExprVector &side) override;
 
     virtual void execBr (SymStore &s, const BasicBlock &src, const BasicBlock &dst,
-                         ExprVector &side, Expr act);
+                         ExprVector &side, Expr act) override;
 
-    virtual Expr symb (const Value &v);
-    virtual const Value &conc (Expr v) const;
-    virtual bool isTracked (const Value &v) const;
-    virtual Expr lookup (SymStore &s, const Value &v);
+    virtual Expr symb (const Value &v) override;
+    virtual const Value &conc (Expr v) const override;
+    virtual bool isTracked (const Value &v) const override;
+    virtual Expr lookup (SymStore &s, const Value &v) override;
     Expr ptrArith (SymStore &s, llvm::GetElementPtrInst& gep);
     unsigned storageSize (const llvm::Type *t);
     unsigned fieldOff (const StructType *t, unsigned field);

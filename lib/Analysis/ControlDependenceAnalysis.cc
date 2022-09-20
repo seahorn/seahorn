@@ -92,14 +92,14 @@ void ControlDependenceAnalysisImpl::calculate(PostDominatorTree &PDT) {
 
     for (auto *CD : RDF) {
       CDA_LOG(errs() << "\t" << CD->getName());
-      m_cdInfo[&BB].push_back({CD});
+      m_cdInfo[&BB].push_back(CD);
     }
     CDA_LOG(errs() << "\n");
   }
 
   CDA_LOG(errs() << "\n");
 
-  BasicBlock *entry = &m_function.getEntryBlock();
+  // BasicBlock *entry = &m_function.getEntryBlock();
 
   for (auto &BBToVec : m_cdInfo) {
     SmallVectorImpl<BasicBlock *> &vec = BBToVec.second;

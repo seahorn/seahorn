@@ -35,7 +35,6 @@ using namespace llvm;
 namespace {
 class RenameNondet : public ModulePass {
   std::set<std::string> m_externalNames;
-  const DataLayout *m_dl;
   TargetLibraryInfo *m_tli;
   StringMap<int> m_functionId;
   Module *m_module;
@@ -64,7 +63,7 @@ class RenameNondet : public ModulePass {
 
 public:
   static char ID;
-  RenameNondet() : ModulePass(ID), m_dl(nullptr), m_tli(nullptr) {
+  RenameNondet() : ModulePass(ID),  m_tli(nullptr) {
 
     // functions that are replaced by internalizer
     m_externalNames.insert("verifier.assume");
@@ -100,7 +99,7 @@ public:
     AU.setPreservesAll();
   }
 
-  bool runOnModule(Module &M) {
+  bool runOnModule(Module &M) override {
     m_module = &M;
 
     for (Function &F : M)
@@ -114,7 +113,6 @@ public:
 
   bool runOnFunction(Function &F) {
     errs() << "Processing: " << F.getName() << "\n";
-    Value *fname = nullptr;
     LLVMContext &C = F.getContext();
     IRBuilder<> Builder(C);
     SmallVector<Instruction *, 16> killList;

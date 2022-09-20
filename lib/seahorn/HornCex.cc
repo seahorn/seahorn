@@ -342,7 +342,7 @@ bool HornCex::runOnFunction(Module &M, Function &F) {
 
   if (!BmcSliceOutputFile.empty()) {
     llvm::DenseSet<const llvm::BasicBlock *> region;
-    for (int i = 0; i < trace.size(); i++)
+    for (unsigned i = 0; i < trace.size(); i++)
       region.insert(trace.bb(i));
     reduceToRegion(F, region, SBI);
     dumpLLVMBitcode(M, BmcSliceOutputFile.c_str());
@@ -351,7 +351,7 @@ bool HornCex::runOnFunction(Module &M, Function &F) {
 
   if (!CpSliceOutputFile.empty()) {
     DenseSet<const BasicBlock *> region;
-    for (int i = 0; i < cpTrace.size(); i++) {
+    for (unsigned i = 0; i < cpTrace.size(); i++) {
       const CutPoint *cp = cpTrace[i];
       region.insert(&cp->bb());
       for (CutPoint::const_iterator it = cp->succ_begin(); it != cp->succ_end();

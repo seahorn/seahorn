@@ -43,7 +43,7 @@ struct EvalBranchSentinelPass : public FunctionPass {
   bool runOnFunction(Function &F) override;
   void processSentinels(SmallVector<CallInst *, 16> &sentinels);
   void printLoweredSentinels();
-  void getAnalysisUsage(AnalysisUsage &AU) const {
+  void getAnalysisUsage(AnalysisUsage &AU) const override {
     AU.addRequired<seahorn::SeaBuiltinsInfoWrapperPass>();
     AU.setPreservesAll();
   }

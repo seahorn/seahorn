@@ -549,7 +549,7 @@ Expr RawMemManagerCore::loadValueFromMem(const PtrTy &ptr, const MemValTy &mem,
                                          const llvm::Type &ty, uint64_t align) {
   const unsigned byteSz =
       m_sem.getTD().getTypeStoreSize(const_cast<llvm::Type *>(&ty));
-  ExprFactory &efac = ptr.toExpr()->efac();
+  // ExprFactory &efac = ptr.toExpr()->efac();
 
   Expr res;
   switch (ty.getTypeID()) {
@@ -567,6 +567,8 @@ Expr RawMemManagerCore::loadValueFromMem(const PtrTy &ptr, const MemValTy &mem,
   case Type::FixedVectorTyID:
   case Type::ScalableVectorTyID:      
     errs() << "Error: load of vectors is not supported\n";
+    llvm_unreachable(nullptr);
+    break;
   case Type::PointerTyID:
     res = loadPtrFromMem(ptr, mem, byteSz, align).toExpr();
     break;
@@ -590,7 +592,6 @@ RawMemManagerCore::storeValueToMem(Expr _val, PtrTy ptr, MemValTy mem,
   Expr val = _val;
   const unsigned byteSz =
       m_sem.getTD().getTypeStoreSize(const_cast<llvm::Type *>(&ty));
-  ExprFactory &efac = ptr.toExpr()->efac();
 
   MemValTy res = MemValTy(Expr());
   switch (ty.getTypeID()) {
@@ -609,6 +610,8 @@ RawMemManagerCore::storeValueToMem(Expr _val, PtrTy ptr, MemValTy mem,
   case Type::FixedVectorTyID:
   case Type::ScalableVectorTyID:      
     errs() << "Error: store of vectors is not supported\n";
+    llvm_unreachable(nullptr);
+    break;
   case Type::PointerTyID:
     res = storePtrToMem(PtrTy(val), ptr, mem, byteSz, align);
     break;

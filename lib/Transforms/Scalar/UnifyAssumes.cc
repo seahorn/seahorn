@@ -53,7 +53,7 @@ public:
   bool isAssertCall(const CallInst &ci);
   CallInst *findSeahornFail(llvm::Function &F);
   void markAssumeAsUnified(CallInst &CI);
-  void getAnalysisUsage(AnalysisUsage &AU) const {
+  void getAnalysisUsage(AnalysisUsage &AU) const override {
     AU.addRequired<seahorn::SeaBuiltinsInfoWrapperPass>();
     AU.addRequired<llvm::CallGraphWrapperPass>();
     AU.addRequired<llvm::DominatorTreeWrapperPass>();

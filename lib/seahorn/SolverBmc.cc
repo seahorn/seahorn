@@ -22,8 +22,8 @@ namespace seahorn {
 SolverBmcEngine::SolverBmcEngine(OperationalSemantics &sem,
                                  solver::SolverKind solver_kind)
     : m_sem(sem), m_efac(sem.efac()), m_result(solver::SolverResult::UNKNOWN),
-      m_cpg(nullptr), m_fn(nullptr), m_ctxState(m_efac),
-      m_solver_kind(solver_kind) {
+      m_cpg(nullptr), m_fn(nullptr),
+      m_solver_kind(solver_kind), m_ctxState(m_efac) {
 
   if (m_solver_kind == solver::SolverKind::Z3) {
     LOG("bmc", INFO << "bmc using Z3";);

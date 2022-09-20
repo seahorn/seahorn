@@ -129,8 +129,8 @@ public:
               TrackLevel trackLvl = MEM,
               FunctionPtrSet abs_fns = FunctionPtrSet(),
               seadsa::ShadowMem *dsa = NULL)
-      : UfoOpSem(efac, pass, dl, trackLvl, abs_fns), m_shadowDsa(dsa),
-        m_preproc(preproc) {}
+      : UfoOpSem(efac, pass, dl, trackLvl, abs_fns), m_preproc(preproc),
+        m_shadowDsa(dsa) {}
 
   void execCallBase(CallBaseInfo &CS, ExprVector &side, SymStore &s) override;
 

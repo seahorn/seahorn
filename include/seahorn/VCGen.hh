@@ -49,6 +49,8 @@ public:
     trueE = mk<TRUE>(m_sem.getExprFactory());
   }
 
+  virtual ~VCGen() = default;
+
   /// \brief Generate VC for a given edge in the CutPoint graph
   ///
   /// Constructs a logical formula \p side such that every satisfiable

@@ -98,7 +98,7 @@ public:
       : llvm::ModulePass(ID), m_engine(engine), m_out(out), m_solve(solve),
         m_failure_analysis(nullptr) {}
 
-  virtual bool runOnModule(Module &M) {
+  virtual bool runOnModule(Module &M) override {
     LOG("bmc-pass", errs() << "Start BmcPass\n";);
     m_failure_analysis = getAnalysisIfAvailable<CanFail>();
 
@@ -118,7 +118,7 @@ public:
     return runOnFunction(*main);
   }
 
-  void getAnalysisUsage(AnalysisUsage &AU) const {
+  void getAnalysisUsage(AnalysisUsage &AU) const override {
     AU.addRequired<TargetLibraryInfoWrapperPass>();
     AU.addRequired<seadsa::ShadowMemPass>();
     AU.addRequired<LazyValueInfoWrapperPass>();

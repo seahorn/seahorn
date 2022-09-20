@@ -32,7 +32,7 @@ public:
 
   PromoteMemcpy() : FunctionPass(ID) {}
 
-  bool runOnFunction(Function &F);
+  bool runOnFunction(Function &F) override;
 
   void getAnalysisUsage(AnalysisUsage &AU) const override {
     AU.setPreservesCFG();
@@ -56,11 +56,11 @@ char PromoteMemcpy::ID = 0;
 
 bool PromoteMemcpy::simplifyMemCpy(MemCpyInst *MI) {
   assert(MI);
+#if 0
 
   auto DstAlign = getKnownAlignment(MI->getDest(), *m_DL, MI, m_AC, m_DT);
   auto SrcAlign = getKnownAlignment(MI->getSource(), *m_DL, MI, m_AC, m_DT);
 
-#if 0
   // -- alignment on memcpy should be trusted, alignment on arguments is not important
   // -- at most should check that alignment of src and dst is the same
   if (MI->getSourceAlignment() != SrcAlign) {

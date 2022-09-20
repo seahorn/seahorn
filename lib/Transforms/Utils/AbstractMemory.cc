@@ -402,6 +402,7 @@ private:
           B.SetInsertPoint(I);
           StoreInst *NI = B.CreateAlignedStore(
               CI, I->getPointerOperand(), I->isVolatile(), I->getAlignment());
+          (void)NI;
           mkOneUse(v, I, m, B);
           I->eraseFromParent();
 
@@ -505,7 +506,7 @@ public:
     return Change;
   }
 
-  bool runOnModule(Module &M) {
+  bool runOnModule(Module &M) override {
     CallGraphWrapperPass *cgwp = getAnalysisIfAvailable<CallGraphWrapperPass>();
     m_cg = cgwp ? &cgwp->getCallGraph() : nullptr;
 
@@ -524,7 +525,7 @@ public:
       // Collect the existing members of llvm.used
       ConstantArray *Inits = cast<ConstantArray>(LLVMUsed->getInitializer());
       for (unsigned I = 0, E = Inits->getNumOperands(); I != E; ++I) {
-        Value *V = Inits->getOperand(I)->stripPointerCasts();
+        // Value *V = Inits->getOperand(I)->stripPointerCasts();
         MergedVars.push_back(Inits->getOperand(I));
       }
       LLVMUsed->eraseFromParent();
@@ -561,14 +562,14 @@ public:
     return Change;
   }
 
-  void getAnalysisUsage(AnalysisUsage &AU) const {
+  void getAnalysisUsage(AnalysisUsage &AU) const override {
     AU.setPreservesAll();
     AU.addRequired<llvm::TargetLibraryInfoWrapperPass>();
     AU.addRequired<llvm::CallGraphWrapperPass>();
     AU.addRequired<LoopInfoWrapperPass>();
   }
 
-  virtual StringRef getPassName() const {
+  virtual StringRef getPassName() const override {
     return "Abstract memory instructions";
   }
 };

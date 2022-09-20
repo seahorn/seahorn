@@ -132,14 +132,13 @@ BasicBlock *FatBufferBoundsCheck::getErrorBB() {
 
   Function *Fn = Inst->getParent()->getParent();
   Module &M = *Fn->getParent();
-  LLVMContext &ctx = M.getContext();
   IRBuilder<>::InsertPointGuard Guard(*Builder);
   ErrorBB = BasicBlock::Create(Fn->getContext(), "bound_overflow", Fn);
   Builder->SetInsertPoint(ErrorBB);
 
   AttrBuilder AB;
   AB.addAttribute(Attribute::NoReturn);
-  AttributeList as = AttributeList::get(ctx, AttributeList::FunctionIndex, AB);
+  // AttributeList as = AttributeList::get(ctx, AttributeList::FunctionIndex, AB);
   auto errorFn = SBI->mkSeaBuiltinFn(seahorn::SeaBuiltinsOp::ERROR, M);
   CallInst *TrapCall = Builder->CreateCall(errorFn);
   TrapCall->setDoesNotReturn();
@@ -510,7 +509,7 @@ bool FatBufferBoundsCheck::runOnFunction(Function &F) {
     for (Instruction *i : AllocaList) {
       Inst = i;
       if (AllocaInst *ALI = dyn_cast<AllocaInst>(Inst)) {
-        Type *allocTy = ALI->getAllocatedType();
+        // Type *allocTy = ALI->getAllocatedType();
         MadeChange |= instrumentAlloca(ALI, DL);
       } else {
         llvm_unreachable("unknown Instruction type");

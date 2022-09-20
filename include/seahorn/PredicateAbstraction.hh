@@ -29,7 +29,7 @@ private:
 public:
   PredAbsHornModelConverter() {}
   virtual ~PredAbsHornModelConverter() {}
-  bool convert(HornDbModel &in, HornDbModel &out);
+  bool convert(HornDbModel &in, HornDbModel &out) override;
 
   void addRelToBoolToTerm(Expr rel, ExprMap &boolToTermMap) {
     m_relToBoolToTermMap.insert(std::make_pair(rel, boolToTermMap));

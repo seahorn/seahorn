@@ -12,6 +12,7 @@
 
 #include "seadsa/CompleteCallGraph.hh"
 
+#undef DEBUG_TYPE
 #define DEBUG_TYPE "devirt"
 
 using namespace llvm;
@@ -26,27 +27,6 @@ static bool isIndirectCall(CallBase &CB) {
 
   v = v->stripPointerCastsAndAliases();
   return !isa<Function>(v);
-}
-
-static inline PointerType *getVoidPtrType(LLVMContext &C) {
-  Type *Int8Type = IntegerType::getInt8Ty(C);
-  return PointerType::getUnqual(Int8Type);
-}
-
-static inline Value *castTo(Value *V, Type *Ty, std::string Name,
-                            Instruction *InsertPt) {
-  // Don't bother creating a cast if it's already the correct type.
-  if (V->getType() == Ty)
-    return V;
-
-  // If it's a constant, just create a constant expression.
-  if (Constant *C = dyn_cast<Constant>(V)) {
-    Constant *CE = ConstantExpr::getZExtOrBitCast(C, Ty);
-    return CE;
-  }
-
-  // Otherwise, insert a cast instruction.
-  return CastInst::CreateZExtOrBitCast(V, Ty, Name, InsertPt);
 }
 
 ///
@@ -237,6 +217,7 @@ CallSiteResolverByDsa::CallSiteResolverByDsa(Module &M,
       }
     }
   }
+  (void)num_complete_calls;
 }
 
 const CallSiteResolverByDsa::AliasSet *

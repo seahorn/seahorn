@@ -61,7 +61,7 @@ namespace
       return changed;
     }
 
-    bool runOnFunction (Function &F)
+    bool runOnFunction (Function &F) override
     {
       if (F.empty ()) return false;
       
@@ -95,10 +95,10 @@ namespace
       return changed;
     }
 
-    void getAnalysisUsage (AnalysisUsage &AU) const
+    void getAnalysisUsage (AnalysisUsage &AU) const override
     {AU.setPreservesAll ();}
     
-    virtual StringRef getPassName () const 
+    virtual StringRef getPassName () const override 
     {return "Lower Arithmetic with Overflow Intrinsics";}
     
   };

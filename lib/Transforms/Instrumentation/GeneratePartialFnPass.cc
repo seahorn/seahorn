@@ -65,12 +65,12 @@ public:
 
   GeneratePartialFnPass() : ModulePass(ID) {}
 
-  virtual void getAnalysisUsage(llvm::AnalysisUsage &AU) const {
+  virtual void getAnalysisUsage(llvm::AnalysisUsage &AU) const override {
     AU.addRequired<SeaBuiltinsInfoWrapperPass>();
     AU.setPreservesAll();
   }
 
-  bool runOnModule(Module &M) {
+  bool runOnModule(Module &M) override {
     auto &SBI = getAnalysis<SeaBuiltinsInfoWrapperPass>().getSBI();
     m_assumeFn = SBI.mkSeaBuiltinFn(SeaBuiltinsOp::ASSUME, M);
 
@@ -145,7 +145,7 @@ public:
     return changed;
   }
 
-  virtual StringRef getPassName() const { return PASS_NAME; }
+  virtual StringRef getPassName() const override { return PASS_NAME; }
 };
 
 char GeneratePartialFnPass::ID = 0;

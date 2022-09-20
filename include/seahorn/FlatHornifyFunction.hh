@@ -22,7 +22,7 @@ namespace seahorn
                               bool interproc = false) :
       HornifyFunction (parent, interproc) {}
 
-    virtual void runOnFunction (Function &F);
+    virtual void runOnFunction (Function &F) override;
   };
 
   class FlatSmallHornifyFunction : public HornifyFunction
@@ -32,7 +32,7 @@ namespace seahorn
                               bool interproc = false) :
       HornifyFunction (parent, interproc) {}
 
-    virtual void runOnFunction (Function &F);
+    virtual void runOnFunction (Function &F) override;
   };
 
 }

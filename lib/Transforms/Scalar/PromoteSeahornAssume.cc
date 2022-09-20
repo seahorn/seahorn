@@ -35,7 +35,7 @@ public:
 
   PromoteSeahornAssume() : FunctionPass(ID) {}
 
-  bool runOnFunction(Function &F) {
+  bool runOnFunction(Function &F) override {
     if (F.empty())
       return false;
 
@@ -85,8 +85,10 @@ public:
     return Changed;
   }
 
-  void getAnalysisUsage(AnalysisUsage &AU) const { AU.setPreservesAll(); }
-  virtual StringRef getPassName() const { return "PromoteSeahornAssume"; }
+  void getAnalysisUsage(AnalysisUsage &AU) const override { AU.setPreservesAll(); }
+  virtual StringRef getPassName() const override {
+    return "PromoteSeahornAssume";
+  }
 };
 
 char PromoteSeahornAssume::ID = 0;

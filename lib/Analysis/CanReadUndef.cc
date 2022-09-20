@@ -58,7 +58,7 @@ namespace seahorn {
      
      CanReadUndef() : ModulePass(ID), m_undef_num(0), m_msg("") { }
     
-     virtual bool runOnModule(Module &M)  {
+     virtual bool runOnModule(Module &M)  override {
        
        bool Changed = false;
        
@@ -128,7 +128,7 @@ namespace seahorn {
     }
     
 
-    virtual void getAnalysisUsage (AnalysisUsage &AU) const  {
+    virtual void getAnalysisUsage (AnalysisUsage &AU) const  override {
       AU.setPreservesAll ();
     }
     

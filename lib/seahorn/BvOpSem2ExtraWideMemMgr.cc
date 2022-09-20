@@ -13,7 +13,7 @@ static const unsigned int g_slotBitWidth = 64;
 static const unsigned int g_slotByteWidth = g_slotBitWidth / 8;
 
 static const unsigned int g_uninit_size = 0;
-static const unsigned int g_uninit_small = 0xDEAD;
+// static const unsigned int g_uninit_small = 0xDEAD;
 static const unsigned int g_num_slots = 3;
 
 template <class T>
@@ -22,10 +22,10 @@ ExtraWideMemManager<T>::ExtraWideMemManager(Bv2OpSem &sem, Bv2OpSemContext &ctx,
                                             bool useLambdas)
     : MemManagerCore(sem, ctx, ptrSz, wordSz,
                      false /* this is a nop since we delegate to RawMemMgr */),
+      m_uninit_size(m_ctx.alu().ui(g_uninit_size, g_slotBitWidth)),
       m_main(sem, ctx, ptrSz, wordSz, useLambdas),
       m_offset(sem, ctx, ptrSz, ptrSz, useLambdas, true),
       m_size(sem, ctx, ptrSz, g_slotByteWidth, useLambdas, true),
-      m_uninit_size(m_ctx.alu().ui(g_uninit_size, g_slotBitWidth)),
       m_nullPtr(PtrTy(m_main.nullPtr(), m_ctx.alu().ui(0UL, ptrSizeInBits()),
                       m_uninit_size)) {
   // Currently, we only support RawMemManagerCore or subclasses of it.
@@ -260,7 +260,7 @@ ExtraWideMemManager<T>::storeValueToMem(Expr _val,
   Expr val = _val;
   const unsigned byteSz =
       m_sem.getTD().getTypeStoreSize(const_cast<llvm::Type *>(&ty));
-  ExprFactory &efac = base.v()->efac();
+  // ExprFactory &efac = base.v()->efac();
   // init memval to a non det value
   MemValTy res = MemValTy(Expr());
   switch (ty.getTypeID()) {
@@ -279,6 +279,8 @@ ExtraWideMemManager<T>::storeValueToMem(Expr _val,
   case Type::FixedVectorTyID:
   case Type::ScalableVectorTyID:      
     errs() << "Error: store of vectors is not supported\n";
+    llvm_unreachable(nullptr);
+    break;
   case Type::PointerTyID:
     res = storePtrToMem(PtrTy(val), base, memIn, byteSz, align);
     break;
@@ -299,7 +301,7 @@ Expr ExtraWideMemManager<T>::loadValueFromMem(ExtraWideMemManager::PtrTy base,
                                               const Type &ty, uint64_t align) {
   const unsigned byteSz =
       m_sem.getTD().getTypeStoreSize(const_cast<llvm::Type *>(&ty));
-  ExprFactory &efac = base.getBase()->efac();
+  // ExprFactory &efac = base.getBase()->efac();
 
   Expr res;
   switch (ty.getTypeID()) {
@@ -317,6 +319,8 @@ Expr ExtraWideMemManager<T>::loadValueFromMem(ExtraWideMemManager::PtrTy base,
   case Type::FixedVectorTyID:
   case Type::ScalableVectorTyID:      
     errs() << "Error: load of vectors is not supported\n";
+    llvm_unreachable(nullptr);
+    break;
   case Type::PointerTyID:
     res = loadPtrFromMem(base, mem, byteSz, align).v();
     break;

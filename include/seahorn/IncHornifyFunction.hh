@@ -57,7 +57,7 @@ public:
   IncSmallHornifyFunction(HornifyModule &parent, bool interproc = false)
       : IncHornifyFunction(parent, interproc) {}
 
-  virtual void runOnFunction(Function &F);
+  virtual void runOnFunction(Function &F) override;
 };
 }
 

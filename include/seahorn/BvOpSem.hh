@@ -50,28 +50,31 @@ namespace seahorn
 
     Expr errorFlag (const BasicBlock &BB) override;
 
-    virtual void exec (SymStore &s, const BasicBlock &bb,
-                       ExprVector &side, Expr act);
+    virtual void exec(SymStore &s, const BasicBlock &bb, ExprVector &side,
+                      Expr act) override;
 
-    virtual void exec (SymStore &s, const Instruction &inst,
-                       ExprVector &side);
+    // https://stackoverflow.com/questions/18515183/c-overloaded-virtual-function-warning-by-clang
+    using LegacyOperationalSemantics::exec;
+    virtual void exec(SymStore &s, const Instruction &inst,
+                      ExprVector &side);
 
-    virtual void execPhi (SymStore &s, const BasicBlock &bb,
-                          const BasicBlock &from, ExprVector &side, Expr act);
+    virtual void execPhi(SymStore &s, const BasicBlock &bb,
+                         const BasicBlock &from, ExprVector &side,
+                         Expr act) override;
 
-    virtual void execEdg (SymStore &s, const BasicBlock &src,
-                          const BasicBlock &dst, ExprVector &side);
+    virtual void execEdg(SymStore &s, const BasicBlock &src,
+                         const BasicBlock &dst, ExprVector &side) override;
 
     virtual void execBr (SymStore &s, const BasicBlock &src, const BasicBlock &dst,
-                         ExprVector &side, Expr act);
+                         ExprVector &side, Expr act) override;
 
-    virtual Expr memStart (unsigned id);
-    virtual Expr memEnd (unsigned id);
+    virtual Expr memStart (unsigned id) override;
+    virtual Expr memEnd (unsigned id) override;
 
-    virtual Expr symb (const Value &v);
-    virtual const Value &conc (Expr v) const;
-    virtual bool isTracked (const Value &v) const;
-    virtual Expr lookup (SymStore &s, const Value &v);
+    virtual Expr symb (const Value &v) override;
+    virtual const Value &conc (Expr v) const override;
+    virtual bool isTracked (const Value &v) const override;
+    virtual Expr lookup (SymStore &s, const Value &v) override;
 
     Expr symbolicIndexedOffset (SymStore &s, llvm::GetElementPtrInst& gep);
     unsigned storageSize (const llvm::Type *t) const;

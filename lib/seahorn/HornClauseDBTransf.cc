@@ -73,7 +73,7 @@ void copy_if(Set &src, Set &dst, Predicate shouldCopy) {
 void removeFiniteMapsHornClausesTransf(HornClauseDB &db, HornClauseDB &tdb) {
   ScopedStats _st_("HornFmaps");
 
-  ExprFactory &efac = tdb.getExprFactory();
+  // ExprFactory &efac = tdb.getExprFactory();
   ExprMap predDeclTMap;
 
   Stats::start("FiniteMapTransfArgs");

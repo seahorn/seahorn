@@ -201,6 +201,7 @@ static std::string cxx_demangle(const std::string &mangled_name) {
   return result;
 }
 
+#if 0
 static Type *getNonPointerType(Type *pointer) {
   auto next = dyn_cast<PointerType>(pointer);
   while (next) {
@@ -209,6 +210,7 @@ static Type *getNonPointerType(Type *pointer) {
   }
   return pointer;
 }
+#endif
 
 class ClassHierarchyAnalysis_Impl {
 public:
@@ -389,7 +391,7 @@ void ClassHierarchyAnalysis_Impl::closureCHG(void) {
   for (unsigned k = 0; k < num_nodes; ++k) {
     for (unsigned i = 0; i < num_nodes; ++i) {
       for (unsigned j = 0; j < num_nodes; ++j) {
-        m[i][j] = m[i][j] | (m[i][k] & m[k][j]);
+        m[i][j] = m[i][j] || (m[i][k] && m[k][j]);
       }
     }
   }
@@ -818,7 +820,7 @@ public:
 
   ~ClassHierarchyAnalysisPass() = default;
 
-  bool runOnModule(Module &M) {
+  bool runOnModule(Module &M) override {
     m_cha.reset(new ClassHierarchyAnalysis(M));
     m_cha->calculate();
 
@@ -855,7 +857,9 @@ public:
     return false;
   }
 
-  void getAnalysisUsage(AnalysisUsage &AU) const { AU.setPreservesAll(); }
+  void getAnalysisUsage(AnalysisUsage &AU) const override {
+    AU.setPreservesAll();
+  }
 
   const ClassHierarchyAnalysis &getCHA() const { return *m_cha; }
 

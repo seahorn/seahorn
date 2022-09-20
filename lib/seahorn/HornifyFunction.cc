@@ -650,7 +650,6 @@ void LargeHornifyFunction::runOnFunction(Function &F) {
   DenseSet<const BasicBlock *> reached;
   reached.insert(&cpg.begin()->bb());
 
-  unsigned rule_cnt = 0;
   for (const CutPoint &cp : cpg) {
     if (reached.count(&cp.bb()) <= 0)
       continue;
@@ -795,6 +794,7 @@ void LargeHornifyFunction::runOnFunction(Function &F) {
       auto &targetBB = (*partial->getParent());
       for (auto *e : filterCpEdgesByBB(cp, targetBB)) {
         bool success = mkEdgeSynthRules(ls, *partial, *e, targetBB, vcgen, s);
+        (void)success;
         assert(success);
         s.reset();
         m_sem.resetFilter();

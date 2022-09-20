@@ -13,7 +13,7 @@ public:
   static char ID;
   PromoteBoolLoads() : FunctionPass(ID) {}
 
-  bool runOnFunction(Function &F) {
+  bool runOnFunction(Function &F) override {
     if (F.isDeclaration())
       return false;
     IRBuilder<> B(F.getContext());
@@ -49,7 +49,7 @@ public:
     return changed;
   }
 
-  void getAnalysisUsage(AnalysisUsage &AU) const { AU.setPreservesAll(); }
+  void getAnalysisUsage(AnalysisUsage &AU) const override { AU.setPreservesAll(); }
 };
 
 char PromoteBoolLoads::ID = 0;

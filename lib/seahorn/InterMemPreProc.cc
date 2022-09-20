@@ -267,6 +267,7 @@ void InterMemPreProc::runOnFunction(const Function *F) {
 
   bool simulated = Graph::computeSimulationMapping(
       *(const_cast<Graph *>(&buG)), *(const_cast<Graph *>(&sasG)), sm);
+  (void)simulated;
   assert(simulated && "Summary graph could not be simulated with SAS graph");
 
   NodeSet &safeSAS = m_safeSASF[F]; // creates it
@@ -476,7 +477,7 @@ void InterMemPreProc::recCollectAPsFunction(
   // -- follow the links of the node
   for (auto &links : nBU->getLinks()) {
     const Cell &nextCBU = *links.second;
-    const Cell &nextCBAS = sm.get(nextCBU);
+    // const Cell &nextCBAS = sm.get(nextCBU);
     const Field &f = links.first;
     const Cell &cSASField = sm.get(Cell(cBU, f.getOffset()));
 

@@ -182,6 +182,7 @@ namespace seahorn {
       if (!EC) {
         errs() << "Writing '" << Filename << "'...";
         raw_ostream& fd = llvm::WriteGraph(File, (const FunctionWrapper*)&FW);
+        (void)&fd;
         errs() << "\n";
         return true;
       }

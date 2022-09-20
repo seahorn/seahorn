@@ -50,9 +50,6 @@ class KleeInternalize : public ModulePass {
   FunctionCallee m_kleeAssumeFn;
   FunctionCallee m_kleeMkSymbolicFn;
 
-  Value *m_failed;
-  Value *m_builtin;
-
   void declareKleeFunctions(Module &M) {
     LLVMContext &C = M.getContext();
     m_dl = &M.getDataLayout();
@@ -137,6 +134,7 @@ class KleeInternalize : public ModulePass {
                cast<PointerType>(fname->getType())->getElementType(), fname, 0,
                0)});
 
+      (void)mksym;
       Value *retValue = Builder.CreateLoad(v);
       if (storeTy != retTy)
         retValue = Builder.CreateZExtOrTrunc(retValue, retTy);
@@ -226,7 +224,7 @@ public:
     AU.setPreservesAll();
   }
 
-  bool runOnModule(Module &M) {
+  bool runOnModule(Module &M) override {
     declareKleeFunctions(M);
     internalizeVariables(M);
 
@@ -268,7 +266,6 @@ public:
                                         m_intptrTy));
         } else if (fn->getName().equals("seahorn.fail") ||
                    fn->getName().equals("verifier.error")) {
-          Value *nullV = ConstantPointerNull::get(Builder.getInt8PtrTy());
           // TODO: extract line number info from inst
           if (!fname)
             fname = Builder.CreateGlobalString(F.getName());

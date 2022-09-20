@@ -114,13 +114,6 @@ static const Value *extractUniqueScalar(llvm::CallBase &CB) {
     return seahorn::shadow_dsa::extractUniqueScalar(CB);
 }
 
-static const Value *extractUniqueScalar(const llvm::CallBase *ci) {
-  if (!EnableUniqueScalars)
-    return nullptr;
-  else
-    return seahorn::shadow_dsa::extractUniqueScalar(*ci);
-}
-
 static bool isShadowMem(const Value &V, const Value **out) {
   const Value *scalar;
   bool res = seahorn::shadow_dsa::isShadowMem(V, &scalar);
@@ -485,6 +478,7 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
         side(res);
         return;
       }
+      break;
     default:
       break;
     }
@@ -1456,7 +1450,7 @@ void MemUfoOpSem::execCallBase(CallBaseInfo &csi, ExprVector &side,
     LOG("inter_mem", errs() << "Replacing by "; replaceOutA->dump();
         errs() << "\n");
 
-    for (int i = 3; i < csi.m_fparams.size(); i++) { // we can skip the first 3
+    for (unsigned i = 3; i < csi.m_fparams.size(); i++) { // we can skip the first 3
       if (csi.m_fparams[i] == origInA) {
         side.push_back(mk<EQ>(csi.m_fparams[i + 1], replaceOutA));
         auto it2 = m_rep_out.find(pair);
@@ -1629,7 +1623,7 @@ void MemUfoOpSem::recVCGenMem(const Cell &cCe, Expr ptr,
   for (auto &links : nCe->getLinks()) {
     const Field &f = links.first;
     const Cell &next_c = *links.second;
-    const Node *next_n = next_c.getNode();
+    // const Node *next_n = next_c.getNode();
 
     // obtain the name of the array that represents the field
     Expr origA = getOrigMemS(Cell(cCr, f.getOffset()), MemOpt::IN);
@@ -1958,7 +1952,7 @@ void FMapUfoOpSem::execCallBase(CallBaseInfo &csi, ExprVector &side,
 
   auto r_it = fi.regions.begin();
   auto v_it = csi.m_regionValues.begin();
-  for (int i = 3; i < csi.m_fparams.size(); i++) {
+  for (unsigned i = 3; i < csi.m_fparams.size(); i++) {
     Expr param = csi.m_fparams[i];
 
     if (m_exprCell.count(param) == 0) // not a memory region
@@ -2316,7 +2310,7 @@ void FMapUfoOpSem::execMemInit(CallBase &CB, Expr memE, ExprVector &side,
   // add the constraints after processing all shadow.mem.arg.init and
   // shadow.mem.init
 
-  const FunctionInfo &fi = getFunctionInfo(F);
+  // const FunctionInfo &fi = getFunctionInfo(F);
 
   CellKeysMap &ckm = getCellKeysFunction(F);
   ckm.clear();
@@ -2325,7 +2319,7 @@ void FMapUfoOpSem::execMemInit(CallBase &CB, Expr memE, ExprVector &side,
   // obtain simulation
   SimulationMapper &sm = m_preproc->getSimulationF(&F);
   Graph &buG = ga.getSummaryGraph(F);
-  Graph &sasG = ga.getGraph(F);
+  // Graph &sasG = ga.getGraph(F);
   const NodeSet &safe = m_preproc->getSafeNodes(&F);
   const NodeSet &safeBU = m_preproc->getSafeNodesBU(&F);
 
@@ -2413,7 +2407,7 @@ void FMapUfoOpSem::recCollectReachableKeys(const Cell &cBU, const Function &F,
   // -- follow the links of the node
   for (auto &links : nBU->getLinks()) {
     const Cell &nextCBU = *links.second;
-    const Cell &nextCBAS = sm.get(nextCBU);
+    // const Cell &nextCBAS = sm.get(nextCBU);
     const Field &f = links.first;
     const Cell &cSASField = sm.get(Cell(cBU, f.getOffset()));
 

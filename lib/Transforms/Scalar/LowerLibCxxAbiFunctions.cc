@@ -21,7 +21,7 @@ struct LowerLibCxxAbiFunctions : public ModulePass {
 
   LowerLibCxxAbiFunctions() : ModulePass(ID) {}
 
-  bool runOnModule(Module &M) {
+  bool runOnModule(Module &M) override {
 
     LLVMContext &Context = M.getContext();
     AttrBuilder B;
@@ -125,12 +125,14 @@ struct LowerLibCxxAbiFunctions : public ModulePass {
     return Changed;
   }
 
-  void getAnalysisUsage(AnalysisUsage &AU) const {
+  void getAnalysisUsage(AnalysisUsage &AU) const override {
     AU.setPreservesAll();
     AU.addRequired<llvm::CallGraphWrapperPass>();
   }
 
-  virtual StringRef getPassName() const { return "Lower Libc++abi functions"; }
+  virtual StringRef getPassName() const override {
+    return "Lower Libc++abi functions";
+  }
 };
 
 char LowerLibCxxAbiFunctions::ID = 0;

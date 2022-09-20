@@ -64,8 +64,6 @@ bool isAssertionHandler(Function *F) {
 
 bool LowerAssert::runOnModule(Module &M) {
 
-  LLVMContext &Context = M.getContext();
-
   auto &SBI = getAnalysis<SeaBuiltinsInfoWrapperPass>().getSBI();
 
   assumeFn = SBI.mkSeaBuiltinFn(SeaBuiltinsOp::ASSUME, M);

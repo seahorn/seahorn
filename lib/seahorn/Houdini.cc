@@ -63,7 +63,7 @@ namespace seahorn
 	  for(Expr rel : db.getRelations())
 	  {
 		  ExprVector arg_list;
-		  for(int i=0; i<bind::domainSz(rel); i++)
+		  for (unsigned i=0; i<bind::domainSz(rel); i++)
 		  {
 			  Expr arg_i_type = bind::domainTy(rel, i);
 			  Expr arg_i = bind::fapp(bind::bvar(i, arg_i_type));
@@ -100,7 +100,7 @@ namespace seahorn
 	  {
 		  ExprMap bvarToArgMap;
 		  ExprVector arg_list;
-		  for(int i=0; i<bind::domainSz(rel); i++)
+		  for (unsigned i=0; i<bind::domainSz(rel); i++)
 		  {
 			  Expr arg_i_type = bind::domainTy(rel, i);
 			  Expr bvar_i = bind::bvar(i, arg_i_type);
@@ -458,7 +458,7 @@ namespace seahorn
 	  {
 			ExprVector head_cand_args;
 			head_cand_args.insert(head_cand_args.end(), ruleHead_cand_app->args_begin(), ruleHead_cand_app->args_end());
-			int num_of_lemmas = head_cand_args.size();
+			auto num_of_lemmas = head_cand_args.size();
 
 			for(ExprVector::iterator it = head_cand_args.begin(); it != head_cand_args.end(); ++it)
 			{
@@ -479,7 +479,7 @@ namespace seahorn
 			}
 
 			ExprMap bvarToArgMap;
-			for(int i=0; i<bind::domainSz(bind::fname(ruleHead_app)); i++)
+			for (unsigned i=0; i<bind::domainSz(bind::fname(ruleHead_app)); i++)
 			{
 				Expr arg_i = ruleHead_app->arg(i+1);
 				Expr bvar_i = bind::bvar(i, bind::typeOf(arg_i));
@@ -601,7 +601,7 @@ namespace seahorn
 		  }
 		  ZModel<EZ3> model = solver.getModel();
 		  ExprVector equations;
-		  for(int i=0; i<=bind::domainSz(r.head()); i++)
+		  for (unsigned i=0; i<=bind::domainSz(r.head()); i++)
 		  {
 			  Expr var = bind::domainTy(r.head(), i);
 			  Expr value = model.eval(var);

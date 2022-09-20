@@ -32,7 +32,7 @@ public:
   Expr boolTy() override { return sort::boolTy(efac()); }
 
   bool isNum(Expr v) override { return bv::isBvNum(v); }
-  bool isNum(Expr v, unsigned &bitWidth) { return bv::isBvNum(v, bitWidth); }
+  bool isNum(Expr v, unsigned &bitWidth) override { return bv::isBvNum(v, bitWidth); }
   expr::mpz_class toNum(Expr v) override { return bv::toMpz(v); }
 
   Expr ui(unsigned v, unsigned bitWidth) override {
@@ -157,59 +157,59 @@ public:
     return bv::sext(op, bitWidth);
   }
 
-  Expr Extract(std::pair<Expr, unsigned int> op, unsigned begin, unsigned end) {
+  Expr Extract(std::pair<Expr, unsigned int> op, unsigned begin, unsigned end) override {
     Expr res = bv::extract(end, begin, op.first);
     return (end == begin) ? bv1ToBool(res) : res;
   }
 
   Expr Concat(std::pair<Expr, unsigned int> opHigh,
-              std::pair<Expr, unsigned int> opLow) {
+              std::pair<Expr, unsigned int> opLow) override {
     Expr opHighBv = opHigh.second == 1 ? boolToBv1(opHigh.first) : opHigh.first;
     Expr opLowBv = opLow.second == 1 ? boolToBv1(opLow.first) : opLow.first;
     return bv::concat(opHighBv, opLowBv);
   }
 
-  Expr IsSaddNoOverflow(Expr op0, Expr op1, unsigned bitWidth) {
+  Expr IsSaddNoOverflow(Expr op0, Expr op1, unsigned bitWidth) override {
     return mk<SADD_NO_OVERFLOW>(op0, op1);
   }
 
-  Expr IsBaddNoUnderflow(Expr op0, Expr op1, unsigned bidWidth) {
+  Expr IsBaddNoUnderflow(Expr op0, Expr op1, unsigned bidWidth) override {
     return mk<SADD_NO_UNDERFLOW>(op0, op1);
   }
 
-  Expr IsUaddNoOverflow(Expr op0, Expr op1, unsigned bidWidth) {
+  Expr IsUaddNoOverflow(Expr op0, Expr op1, unsigned bidWidth) override {
     return mk<UADD_NO_OVERFLOW>(op0, op1);
   }
 
-  Expr IsBsubNoOverflow(Expr op0, Expr op1, unsigned bitWidth) {
+  Expr IsBsubNoOverflow(Expr op0, Expr op1, unsigned bitWidth) override {
     return mk<SSUB_NO_OVERFLOW>(op0, op1);
   }
 
-  Expr IsSsubNoUnderflow(Expr op0, Expr op1, unsigned bidWidth) {
+  Expr IsSsubNoUnderflow(Expr op0, Expr op1, unsigned bidWidth) override {
     return mk<SSUB_NO_UNDERFLOW>(op0, op1);
   }
 
-  Expr IsUsubNoUnderflow(Expr op0, Expr op1, unsigned bidWidth) {
+  Expr IsUsubNoUnderflow(Expr op0, Expr op1, unsigned bidWidth) override {
     return mk<USUB_NO_UNDERFLOW>(op0, op1);
   }
 
-  Expr IsSmulNoOverflow(Expr op0, Expr op1, unsigned bidWidth) {
+  Expr IsSmulNoOverflow(Expr op0, Expr op1, unsigned bidWidth) override {
     return mk<SMUL_NO_OVERFLOW>(op0, op1);
   }
 
-  Expr IsUmulNoOverflow(Expr op0, Expr op1, unsigned bidWidth) {
+  Expr IsUmulNoOverflow(Expr op0, Expr op1, unsigned bidWidth) override {
     return mk<UMUL_NO_OVERFLOW>(op0, op1);
   }
 
-  Expr IsBmulNoUnderflow(Expr op0, Expr op1, unsigned bidWidth) {
+  Expr IsBmulNoUnderflow(Expr op0, Expr op1, unsigned bidWidth) override {
     return mk<SMUL_NO_UNDERFLOW>(op0, op1);
   }
 
-  Expr doNot(Expr op0, unsigned bitWidth) {
+  Expr doNot(Expr op0, unsigned bitWidth) override {
     return bitWidth == 1 ? mk<NEG>(op0) : bv::bvnot(op0);
   }
 
-  Expr boolToBv1(Expr b) {
+  Expr boolToBv1(Expr b) override {
     if (isOpX<TRUE>(b))
       return m_trueBv1;
     if (isOpX<FALSE>(b))
@@ -217,7 +217,7 @@ public:
     return mk<ITE>(b, m_trueBv1, m_falseBv1);
   }
 
-  Expr bv1ToBool(Expr bv) {
+  Expr bv1ToBool(Expr bv) override {
     if (bv == m_trueBv1)
       return m_trueE;
     if (bv == m_falseBv1)
@@ -225,9 +225,9 @@ public:
     return mk<EQ>(bv, m_trueBv1);
   }
 
-  Expr getFalse() { return m_falseE; }
+  Expr getFalse() override { return m_falseE; }
 
-  Expr getTrue() { return m_trueE; }
+  Expr getTrue() override { return m_trueE; }
 };
 
 std::unique_ptr<OpSemAlu> mkBvOpSemAlu(Bv2OpSemContext &ctx) {

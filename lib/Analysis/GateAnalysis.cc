@@ -314,12 +314,16 @@ bool GateAnalysisPass::runOnModule(llvm::Module &M) {
 
   Stats::stop("Thinned Gate SSA transformation");
 
-  LOG("gsa", if (GsaReplacePhis) for (
-                 auto &F
-                 : M) if (!F.isDeclaration()) for (auto &BB
-                                                   : F) for (auto &I
-                                                             : BB)
-                 assert(!isa<PHINode>(I)));
+  LOG("gsa", {
+    if (GsaReplacePhis)
+      for (auto &F : M)
+        if (!F.isDeclaration())
+          for (auto &BB : F)
+            for (auto &I : BB) {
+              (void)&I;
+              assert(!isa<PHINode>(I));
+            }
+  });
 
   return changed;
 }

@@ -28,9 +28,9 @@ public:
   LoadCrabPass() : llvm::ModulePass(ID) {}
   virtual ~LoadCrabPass() {}
 
-  virtual bool runOnModule(llvm::Module &M);
-  virtual void getAnalysisUsage(llvm::AnalysisUsage &AU) const;
-  virtual llvm::StringRef getPassName() const { return "LoadCrab"; }
+  virtual bool runOnModule(llvm::Module &M) override;
+  virtual void getAnalysisUsage(llvm::AnalysisUsage &AU) const override;
+  virtual llvm::StringRef getPassName() const override { return "LoadCrab"; }
 };
 
 

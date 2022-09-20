@@ -74,7 +74,7 @@ public:
   SmallHornifyFunction(HornifyModule &parent, bool interproc = false)
       : HornifyFunction(parent, interproc) {}
 
-  virtual void runOnFunction(Function &F);
+  virtual void runOnFunction(Function &F) override;
 };
 
 class LargeHornifyFunction : public HornifyFunction {
@@ -87,7 +87,7 @@ public:
                        bool interprocFmaps = false)
       : HornifyFunction(parent, interproc, interprocFmaps) {}
 
-  virtual void runOnFunction(Function &F);
+  virtual void runOnFunction(Function &F) override;
 };
 
 } // namespace seahorn

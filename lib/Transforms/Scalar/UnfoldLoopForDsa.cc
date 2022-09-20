@@ -75,7 +75,7 @@ namespace {
       AU.addPreservedID(LCSSAID);
     }
     
-    virtual StringRef getPassName () const 
+    virtual StringRef getPassName () const override
     {return "Unfold first iteration of loops if useful for DSA";}
     
   };

@@ -36,7 +36,7 @@ namespace seahorn {
 
     SliceFunctions (): ModulePass (ID) {}
 
-    virtual bool runOnModule (Module &M) {
+    virtual bool runOnModule (Module &M) override {
 
       if (M.empty ())
         return false;
@@ -107,7 +107,7 @@ namespace seahorn {
       return Change;
     }
 
-    virtual void getAnalysisUsage (AnalysisUsage &AU){
+    virtual void getAnalysisUsage (AnalysisUsage &AU) const override {
       AU.setPreservesAll();
       //AU.addRequired<llvm::CallGraphWrapperPass>();
     }

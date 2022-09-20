@@ -56,7 +56,6 @@ class NondetInit : public ModulePass {
 private:
   /** map for nondet functions */
   DenseMap<const Type *, Function*> m_ndfn;
-  unsigned last;
   Module *m;
 
   Function* getNondetFn(Type *type) {
@@ -72,9 +71,9 @@ private:
 
 public:
   static char ID;
-  NondetInit() : ModulePass(ID), last(0), m(NULL) {}
+  NondetInit() : ModulePass(ID),  m(NULL) {}
 
-  virtual bool runOnModule(Module &M) {
+  virtual bool runOnModule(Module &M) override {
 
     m = &M;
     bool Changed = false;
@@ -86,7 +85,7 @@ public:
     return Changed;
   }
 
-  virtual void releaseMemory() { m_ndfn.clear(); }
+  virtual void releaseMemory() override { m_ndfn.clear(); }
 
   bool runOnFunction(Function &F) {
     bool Changed = false;
@@ -126,7 +125,7 @@ public:
     return Changed;
   }
 
-  virtual void getAnalysisUsage(AnalysisUsage &AU) const {
+  virtual void getAnalysisUsage(AnalysisUsage &AU) const override {
     AU.setPreservesAll();
   }
 };
@@ -141,7 +140,7 @@ public:
   static char ID;
   KillUnusedNondet() : FunctionPass(ID) {}
 
-  bool runOnFunction(Function &F) {
+  bool runOnFunction(Function &F) override {
     std::forward_list<CallInst *> toerase;
 
     for (Function::iterator b = F.begin(), be = F.end(); b != be; ++b)
@@ -169,7 +168,7 @@ public:
     return !toerase.empty();
   }
 
-  virtual void getAnalysisUsage(AnalysisUsage &AU) const {
+  virtual void getAnalysisUsage(AnalysisUsage &AU) const override {
     AU.setPreservesAll();
   }
 };

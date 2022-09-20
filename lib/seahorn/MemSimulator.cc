@@ -329,7 +329,7 @@ struct MemSimVisitor : public InstVisitor<MemSimVisitor> {
 
 const MemSimulator::AllocInfo &MemSimulator::alloc(unsigned sz) {
   unsigned start = m_allocs.empty() ? m_intMemStart : m_allocs.back().end;
-  AllocInfo *last = nullptr;
+  // AllocInfo *last = nullptr;
 
   m_allocs.push_back(AllocInfo());
   AllocInfo &n = m_allocs.back();

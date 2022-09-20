@@ -3082,7 +3082,7 @@ bool Bv2OpSem::isSymReg(Expr v, seahorn::details::Bv2OpSemContext &C) {
     return true;
 
   errs() << "Unexpected symbolic value: " << *v << "\n";
-  llvm_unreachable();
+  llvm_unreachable("unexpected");
 }
 
 const Value &Bv2OpSem::conc(Expr v) const {

@@ -73,12 +73,14 @@ static const Value *extractUniqueScalar(const CallBase &CB) {
     return seahorn::shadow_dsa::extractUniqueScalar(CB);
 }
 
+#if 0
 static const Value *extractUniqueScalar(const CallBase *cb) {
   if (!EnableUniqueScalars)
     return nullptr;
   else
     return seahorn::shadow_dsa::extractUniqueScalar(*cb);
 }
+#endif
 
 static bool isShadowMem(const Value &V, const Value **out) {
   const Value *scalar;

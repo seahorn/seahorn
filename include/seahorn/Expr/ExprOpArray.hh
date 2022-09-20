@@ -130,7 +130,7 @@ inline Expr storeMap(Expr a, Expr base, R &map) {
 
 /** @brief get offset-value map of storeMap **/
 inline Expr storeMapGetMap(Expr stm) {
-  assert(isOpX<STORE_MAP>);
+  assert(isOpX<STORE_MAP>(stm));
   return stm->arg(2);
 }
 

@@ -79,6 +79,16 @@ rewrite_result ReadOverWriteRule::operator()(Expr exp) {
   }
   Expr arr = exp->arg(0);
   Expr idx = exp->arg(1);
+  if (!isOpX<ITE>(arr) && m_cache.find(&*exp) == m_cache.end()) {
+    if (isOpX<STORE_MAP>(arr)) {
+      size_t nRows = op::array::storeMapGetMap(arr)->arity();
+      seahorn::Stats::uset("hybrid.read_over_writes",
+                           seahorn::Stats::get("hybrid.read_over_writes") +
+                               nRows);
+    } else {
+      seahorn::Stats::count("hybrid.read_over_writes");
+    }
+  }
   /** Read-over-write/ite: push select down to leaves
    **/
   if (isOpX<STORE>(arr)) {
@@ -92,7 +102,7 @@ rewrite_result ReadOverWriteRule::operator()(Expr exp) {
   } else if (isOpX<STORE_MAP>(arr)) {
     return rewriteReadOverStoreMap(arr, idx);
   } else {
-    return {exp, rewrite_status::RW_SKIP};
+    return {exp, rewrite_status::RW_DONE};
   }
 }
 
@@ -364,11 +374,11 @@ rewrite_result CompareRewriteRule::operator()(Expr exp) {
   if (isOpX<BvOp>(lhs) && lhs->op() == rhs->op() &&
       lhs->arity() == rhs->arity() && lhs->arity() == 2) {
     if (lhs->arg(0) == rhs->arg(0)) {
-      Expr res = efac.mkBin(exp->op(), lhs->arg(1), rhs->arg(1));
+      Expr res = m_efac.mkBin(exp->op(), lhs->arg(1), rhs->arg(1));
       return {res, rewrite_status::RW_1};
     }
     if (lhs->arg(1) == rhs->arg(1)) {
-      Expr res = efac.mkBin(exp->op(), lhs->arg(0), rhs->arg(0));
+      Expr res = m_efac.mkBin(exp->op(), lhs->arg(0), rhs->arg(0));
       return {res, rewrite_status::RW_1};
     }
   }

@@ -525,6 +525,11 @@ z3::ast ExprToZ::marshal(const expr::Expr &_e, z3::context &ctx, C &cache,
         res = mk_mpz_core(ctx, num);
         break;
       }
+      default:
+        ERR << "Not convertable to Z3: " << *e << "\n";
+        assert(false);
+        std::exit(1);
+        break;
       }
       break;
     case OpFamilyId::BoolOp:

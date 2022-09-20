@@ -47,17 +47,18 @@ struct rewrite_result {
 };
 
 struct ExprRewriteRule : public std::unary_function<Expr, rewrite_result> {
-  ExprFactory &efac;    // for making expr
-  DagVisitCache &cache; // for deep rewrite using rewriter
+  ExprFactory &m_efac;    // for making expr
+  DagVisitCache &m_cache; // for deep rewrite using rewriter
 
   Expr trueE;
   Expr falseE;
 
   ExprRewriteRule(ExprFactory &efac, DagVisitCache &cache)
-      : efac(efac), trueE(mk<TRUE>(efac)), falseE(mk<FALSE>(efac)),
-        cache(cache) {}
+      : m_efac(efac), trueE(mk<TRUE>(efac)), falseE(mk<FALSE>(efac)),
+        m_cache(cache) {}
   ExprRewriteRule(const ExprRewriteRule &o)
-      : efac(o.efac), trueE(o.trueE), falseE(o.falseE), cache(o.cache) {}
+      : m_efac(o.m_efac), trueE(o.trueE), falseE(o.falseE), m_cache(o.m_cache) {
+  }
 
   rewrite_result operator()(Expr exp) { return {exp, rewrite_status::RW_DONE}; }
 };
@@ -232,7 +233,7 @@ struct ArithmeticRule : public ExprRewriteRule {
     }
     // bv num always at the back
     if (width > 0) {
-      args.push_back(op::bv::bvnum(sum, width, efac));
+      args.push_back(op::bv::bvnum(sum, width, m_efac));
     }
     Expr res;
     if (args.size() > 1) {

@@ -27,7 +27,7 @@ public:
 
   ~z3_solver_impl() = default;
   
-  SolverKind get_kind() const { return SolverKind::Z3;}
+  SolverKind get_kind() const override { return SolverKind::Z3;}
 
   EZ3& get_context() { return *m_zctx;}
   

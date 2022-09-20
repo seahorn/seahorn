@@ -24,9 +24,9 @@ namespace seahorn
     HoudiniPass() : ModulePass(ID) {}
     virtual ~HoudiniPass() {}
 
-    virtual bool runOnModule (Module &M);
-    virtual void getAnalysisUsage (AnalysisUsage &AU) const;
-    virtual StringRef getPassName () const {return "Houdini";}
+    virtual bool runOnModule (Module &M) override;
+    virtual void getAnalysisUsage (AnalysisUsage &AU) const override;
+    virtual StringRef getPassName () const override {return "Houdini";}
   };
 
   class Houdini
@@ -66,6 +66,7 @@ namespace seahorn
   public:
 	  HoudiniContext(Houdini& houdini, HornClauseDBWto &db_wto, std::list<HornRule> &workList) :
 		  m_houdini(houdini), m_db_wto(db_wto), m_workList(workList) {}
+    virtual ~HoudiniContext() = default;
 	  virtual void run() = 0;
 	  virtual bool validateRule(HornRule r, ZSolver<EZ3> &solver) = 0;
 	  void weakenRuleHeadCand(HornRule r, ZModel<EZ3> m);
@@ -79,8 +80,8 @@ namespace seahorn
   public:
 	  Houdini_Naive(Houdini& houdini, HornClauseDBWto &db_wto, std::list<HornRule> &workList) :
 		  HoudiniContext(houdini, db_wto, workList), m_solver(houdini.getHornifyModule().getZContext()) {}
-	  void run();
-	  bool validateRule(HornRule r, ZSolver<EZ3> &solver);
+	  void run() override;
+	  bool validateRule(HornRule r, ZSolver<EZ3> &solver) override;
   };
 
   class Houdini_Each_Solver_Per_Rule : public HoudiniContext
@@ -90,20 +91,19 @@ namespace seahorn
   public:
   	  Houdini_Each_Solver_Per_Rule(Houdini& houdini, HornClauseDBWto &db_wto, std::list<HornRule> &workList) :
   		  HoudiniContext(houdini, db_wto, workList), m_ruleToSolverMap(assignEachRuleASolver()){}
-  	  void run();
-  	  bool validateRule(HornRule r, ZSolver<EZ3> &solver);
+  	  void run() override;
+  	  bool validateRule(HornRule r, ZSolver<EZ3> &solver) override;
   	  std::map<HornRule, ZSolver<EZ3>> assignEachRuleASolver();
   };
 
-  class Houdini_Each_Solver_Per_Relation : public HoudiniContext
-  {
+class Houdini_Each_Solver_Per_Relation : public HoudiniContext {
   private:
 	  std::map<Expr, ZSolver<EZ3>> m_relationToSolverMap;
   public:
 	  Houdini_Each_Solver_Per_Relation(Houdini& houdini, HornClauseDBWto &db_wto, std::list<HornRule> &workList) :
 		  HoudiniContext(houdini, db_wto, workList), m_relationToSolverMap(assignEachRelationASolver()){}
-	  void run();
-	  bool validateRule(HornRule r, ZSolver<EZ3> &solver);
+	  void run() override;
+	  bool validateRule(HornRule r, ZSolver<EZ3> &solver) override;
 	  std::map<Expr, ZSolver<EZ3>> assignEachRelationASolver();
   };
 }

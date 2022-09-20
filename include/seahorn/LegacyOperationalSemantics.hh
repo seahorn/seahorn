@@ -55,7 +55,7 @@ public:
   }
 
   void execRange(const llvm::BasicBlock::iterator begin,
-                 const llvm::BasicBlock::iterator end, OpSemContext &ctx) {
+                 const llvm::BasicBlock::iterator end, OpSemContext &ctx) override {
     execRange(ctx.values(), begin, end, ctx.side(), ctx.getPathCond());
   }
 

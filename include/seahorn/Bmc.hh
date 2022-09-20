@@ -75,6 +75,7 @@ protected:
 
 public:
   BmcEngine(OperationalSemantics &sem, EZ3 &zctx);
+  virtual ~BmcEngine() = default;
   void addCutPoint(const CutPoint &cp);
 
   virtual OperationalSemantics &sem() { return m_sem; }

@@ -12,7 +12,7 @@ enum class GateOpKind { OUT_G, AND_G, OR_G, NEG_G };
 struct GateOp : public expr::Operator {
   GateOpKind m_kind;
   GateOp(GateOpKind k) : expr::Operator(expr::OpFamilyId::GateOp), m_kind(k) {}
-  virtual bool isMutable() const { return true; }
+  virtual bool isMutable() const override { return true; }
   static bool classof(expr::Operator const *op) {
     return op->getFamilyId() == expr::OpFamilyId::GateOp;
   }

@@ -350,7 +350,7 @@ public:
 
   /// \brief Fork current context and update new copy with a given store and
   /// side condition
-  OpSemContextPtr fork(SymStore &values, ExprVector &side) {
+  OpSemContextPtr fork(SymStore &values, ExprVector &side) override {
     return OpSemContextPtr(new Bv2OpSemContext(values, side, *this));
   }
 

@@ -25,8 +25,8 @@ namespace seahorn
     
     CanFail () : ModulePass (ID) {}
     
-    virtual bool runOnModule (Module &M);
-    virtual void getAnalysisUsage (AnalysisUsage &AU) const;
+    virtual bool runOnModule (Module &M) override;
+    virtual void getAnalysisUsage (AnalysisUsage &AU) const override;
     bool canFail (const Function *f) const;
     bool mustFail (const Function *f) const
     {return m_must.count (f) > 0;}

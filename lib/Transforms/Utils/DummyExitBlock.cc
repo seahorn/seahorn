@@ -17,10 +17,10 @@ namespace seahorn
     static char ID;
     DummyExitBlock () : FunctionPass (ID) {}
 
-    virtual void getAnalysisUsage (AnalysisUsage &AU) const
+    virtual void getAnalysisUsage (AnalysisUsage &AU) const override
     {AU.setPreservesAll ();}
 
-    virtual bool runOnFunction (Function &F)
+    virtual bool runOnFunction (Function &F) override
     {
       // -- see if there is a return instruction already
       for (const BasicBlock &bb : F)

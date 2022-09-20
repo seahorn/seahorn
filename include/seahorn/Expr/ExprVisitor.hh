@@ -12,11 +12,11 @@ struct BoolExprFn {
 };
 
 struct TrueBoolExprFn : BoolExprFn {
-  bool apply(Expr e) { return true; }
+  bool apply(Expr e) override { return true; }
 };
 
 struct FalseBoolExprFn : BoolExprFn {
-  bool apply(Expr e) { return false; }
+  bool apply(Expr e) override { return false; }
 };
 
 struct IdentityRewriter {
@@ -37,7 +37,7 @@ template <typename T> struct ExprFunctionoid : public ExprFn {
 
   ExprFunctionoid(T *f) : fn_type(fn) {}
   ExprFunctionoid(fn_type f) : fn(f) {}
-  Expr apply(Expr e) { return (*fn)(e); }
+  Expr apply(Expr e) override { return (*fn)(e); }
 };
 } // namespace
 

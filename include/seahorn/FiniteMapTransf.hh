@@ -53,9 +53,9 @@ public:
 class FiniteMapArgsVisitor : public std::unary_function<Expr, VisitAction> {
 
 private:
+  ExprSet &m_evars;
   const ExprMap &m_pred_decl_t;
   ExprFactory &m_efac;
-  ExprSet &m_evars;
   int m_optEq = 0;
   std::shared_ptr<FiniteMapArgRewriter> m_rw;
 

@@ -51,13 +51,13 @@ namespace seahorn
     
     LoopUnhoist () : FunctionPass (ID) {}
     
-    virtual void getAnalysisUsage (AnalysisUsage &AU) const
+    virtual void getAnalysisUsage (AnalysisUsage &AU) const override
     {
       AU.setPreservesAll ();
       AU.addRequiredTransitive<LoopInfoWrapperPass> ();
     }
     
-    virtual bool runOnFunction (Function &F)
+    virtual bool runOnFunction (Function &F) override
     {
       bool Changed = false;
       

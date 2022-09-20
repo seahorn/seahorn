@@ -28,13 +28,13 @@ public:
   HornSolver() : ModulePass(ID), m_result(boost::indeterminate) {}
   virtual ~HornSolver() {}
 
-  virtual bool runOnModule(Module &M);
-  virtual void getAnalysisUsage(AnalysisUsage &AU) const;
-  virtual StringRef getPassName() const { return "HornSolver"; }
+  virtual bool runOnModule(Module &M) override;
+  virtual void getAnalysisUsage(AnalysisUsage &AU) const override;
+  virtual StringRef getPassName() const override { return "HornSolver"; }
   ZFixedPoint<EZ3> &getZFixedPoint() { return *m_fp; }
 
   boost::tribool getResult() { return m_result; }
-  void releaseMemory() {
+  void releaseMemory() override {
     m_fp.reset(nullptr);
     m_local_ctx.reset(nullptr);
   }

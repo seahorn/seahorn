@@ -9,6 +9,8 @@ namespace typeCheck {
 
 struct TypeCheckBase {
 
+  virtual ~TypeCheckBase() = default;
+
   /// \return true to infer the type of the current expression before visiting
   /// its children
   virtual inline bool topDown() { return false; };

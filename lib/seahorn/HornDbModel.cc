@@ -22,7 +22,7 @@ namespace seahorn
 		assert (bind::isFapp (fapp));
 		Expr fdecl = bind::fname(fapp);
 		ExprMap actual_arg_to_bvar_map;
-		for(int i=0; i<bind::domainSz(fdecl); i++)
+		for(unsigned i = 0, sz = bind::domainSz(fdecl); i < sz; i++)
 		{
 		  Expr arg_i = fapp->arg(i+1);
 		  Expr arg_i_type = bind::domainTy(fdecl, i);
@@ -47,8 +47,7 @@ namespace seahorn
 
     ExprMap bvar_to_actual_arg_map;
 
-    for(int i=0; i<bind::domainSz(fdecl); i++)
-    {
+    for (unsigned i = 0, sz = bind::domainSz(fdecl); i < sz; i++) {
       Expr arg_i = fapp->arg(i+1);
       Expr arg_i_type = bind::domainTy(fdecl, i);
       Expr bvar_i = bind::bvar(i, arg_i_type);
@@ -70,7 +69,7 @@ namespace seahorn
     for(Expr rel : db.getRelations ())
     {
       ExprVector actual_args;
-      for(int i=0; i<bind::domainSz(rel); i++)
+      for(unsigned i = 0, sz = bind::domainSz(rel); i < sz; i++)
       {
         Expr V = mkTerm<std::string> ("V", rel->efac ());
         Expr arg_i_type = bind::domainTy(rel, i);

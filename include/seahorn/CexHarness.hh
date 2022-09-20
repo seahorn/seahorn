@@ -61,6 +61,7 @@ template <class Trace> class BmcTraceWrapper {
 
 public:
   BmcTraceWrapper(Trace &trace) : m_trace(trace) {}
+  virtual ~BmcTraceWrapper() = default;
 
   /// access to expression factory
   ExprFactory &efac() { return m_trace.engine().efac(); }

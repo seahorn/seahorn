@@ -23,13 +23,15 @@ struct MarkInternalInline : public ModulePass {
   static char ID;
   MarkInternalInline() : ModulePass(ID) {}
 
-  virtual StringRef getPassName() const {
+  virtual StringRef getPassName() const override {
     return "Mark all internal functions with AlwaysInline attribute";
   }
 
-  void getAnalysisUsage(AnalysisUsage &AU) const { AU.setPreservesAll(); }
+  void getAnalysisUsage(AnalysisUsage &AU) const override {
+    AU.setPreservesAll();
+  }
 
-  bool runOnModule(Module &M) {
+  bool runOnModule(Module &M) override {
     SmallSet<Function *, 8> selectedFn;
     for (auto &fname :
          boost::make_iterator_range(InlineOnly.begin(), InlineOnly.end()))

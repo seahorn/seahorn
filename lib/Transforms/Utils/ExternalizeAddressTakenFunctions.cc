@@ -47,7 +47,7 @@ public:
 
   ExternalizeAddressTakenFunctions() : ModulePass(ID) {}
 
-  virtual bool runOnModule(Module &M) {
+  virtual bool runOnModule(Module &M) override {
     bool Changed = false;
     for (auto &F : M) {
 
@@ -153,9 +153,9 @@ public:
     }
     return Changed;
   }
-  void getAnalysisUsage(AnalysisUsage &AU) { AU.setPreservesAll(); }
+  void getAnalysisUsage(AnalysisUsage &AU) const  override { AU.setPreservesAll(); }
 
-  StringRef getPassName() const {
+  StringRef getPassName() const override {
     return "Externalize uses of address-taken functions";
   }
 };

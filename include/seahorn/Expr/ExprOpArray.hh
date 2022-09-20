@@ -36,7 +36,7 @@ static inline void getArrayTypes(Expr exp, TypeChecker &tc, Expr &mapTy, Expr &i
   /// checks for the following children (in order): map, index
   /// \return the array's value type
 struct Select  : public TypeCheckBase{
-  inline Expr inferType(Expr exp, TypeChecker &tc) {
+  inline Expr inferType(Expr exp, TypeChecker &tc) override {
     return typeCheck::mapType::select<ARRAY_TY>(exp, tc, getArrayTypes);
   }
 };
@@ -45,7 +45,7 @@ struct Select  : public TypeCheckBase{
   /// checks for the following children (in order): array, index, value
   /// \return ARRAY_TY
 struct Store  : public TypeCheckBase{
-  inline Expr inferType(Expr exp, TypeChecker &tc) {
+  inline Expr inferType(Expr exp, TypeChecker &tc) override {
     return typeCheck::mapType::store<ARRAY_TY>(exp, tc, getArrayTypes);
   }
 };
@@ -53,7 +53,7 @@ struct Store  : public TypeCheckBase{
   /// Expected Children types(in order): TYPE_TY, anything
   /// \return: ARRAY_TY
 struct Const  : public TypeCheckBase{
-  inline Expr inferType(Expr exp, TypeChecker &tc) {
+  inline Expr inferType(Expr exp, TypeChecker &tc) override {
     if (exp->arity() != 2)
       return sort::errorTy(exp->efac());
 
@@ -70,7 +70,7 @@ struct Const  : public TypeCheckBase{
   /// Expected Children type: ARRAY_TY
   /// \return: ARRAY_TY
 struct Default  : public TypeCheckBase{
-  inline Expr inferType(Expr exp, TypeChecker &tc) {
+  inline Expr inferType(Expr exp, TypeChecker &tc) override {
 
     if (!checkArray(exp, tc, 1))
       return sort::errorTy(exp->efac());

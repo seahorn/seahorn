@@ -13,7 +13,7 @@ namespace seahorn
     ExprVector lemmas;
 
     int bvar_count = 0;
-    for(int i=0; i<bind::domainSz(fdecl); i++)
+    for(unsigned i=0; i<bind::domainSz(fdecl); i++)
     {
       if(isOpX<INT_TY>(bind::domainTy(fdecl, i)))
       {
@@ -40,7 +40,7 @@ namespace seahorn
     }
     else
     {
-      for(int i=0; i<bvars.size(); i++)
+      for(unsigned i=0; i<bvars.size(); i++)
       {
         lemmas.push_back(mk<GEQ>(bvars[i], one));
         lemmas.push_back(mk<LEQ>(bvars[i], one));
@@ -185,7 +185,7 @@ namespace seahorn
     }
     else // bvar_count > 2
     {
-      for(int j=0; j<bvars.size()-1; j++)
+      for(unsigned j=0; j<bvars.size()-1; j++)
       {
         Expr lt = mk<LT>(bvars[j], bvars[j+1]);
         bins.push_back(lt);

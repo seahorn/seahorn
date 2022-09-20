@@ -22,8 +22,9 @@ namespace seahorn
     static char ID;
     MixedSemantics () : ModulePass (ID) {}
     
-    virtual bool runOnModule (Module &M);
-    virtual void getAnalysisUsage (AnalysisUsage &AU) const;
+    virtual bool runOnModule (Module &M) override;
+    virtual void getAnalysisUsage (AnalysisUsage &AU) const override;
+    virtual StringRef getPassName() const override { return "MixedSemantics"; }
   };
 }
 

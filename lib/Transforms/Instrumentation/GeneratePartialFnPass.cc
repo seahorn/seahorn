@@ -5,7 +5,6 @@
 #include "seahorn/Passes.hh"
 #include "seahorn/Support/SeaDebug.h"
 
-#include "llvm_seahorn/IR/LLVMContext.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/IRBuilder.h"
 
@@ -21,7 +20,7 @@ namespace {
 
 // Returns true if I is marked by the "partial" metadata.
 bool hasPartialAnnotation(const llvm::Instruction &I) {
-  if (auto *meta = I.getMetadata(llvm_seahorn::LLVMContext::MD_annotation)) {
+  if (auto *meta = I.getMetadata(LLVMContext::MD_annotation)) {
     auto *tuple = cast<MDTuple>(meta);
     for (auto &N : tuple->operands()) {
       if (cast<MDString>(N.get())->getString() == PARTIAL_FN_ANNOTATION) {

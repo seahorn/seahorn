@@ -27,7 +27,7 @@ namespace seahorn
 
     OneAssumePerBlock () : ModulePass (ID), m_assumeFn(nullptr) {}
 
-    bool runOnModule (Module &M) {
+    bool runOnModule(Module &M) override {
       if (M.empty()) return false;
 
       if (!(M.getFunction("verifier.assume"))) return false;
@@ -71,11 +71,10 @@ namespace seahorn
       return true;
     }
 
-    virtual void getAnalysisUsage (AnalysisUsage &AU) const {
+    virtual void getAnalysisUsage(AnalysisUsage &AU) const override {
       /// We don't preserve dominator trees, loop info, and memory ssa.
       // AU.setPreservesAll ();
     }
-
   };
 
   char OneAssumePerBlock::ID = 0;

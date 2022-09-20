@@ -30,9 +30,9 @@ namespace seahorn
     
     LowerCstExprPass(): ModulePass (ID) {  }
     
-    virtual bool runOnModule(Module &M);
+    virtual bool runOnModule(Module &M) override;
     
-    void getAnalysisUsage (AnalysisUsage &AU) const 
+    void getAnalysisUsage (AnalysisUsage &AU) const override 
     {AU.setPreservesAll ();}
 
     StringRef getPassName () const override {return "LowerCstExpr";}

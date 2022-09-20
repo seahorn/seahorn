@@ -17,7 +17,7 @@ namespace boolType {
 struct OneOrMore  : public TypeCheckBase{
   /// \return BOOL_TY
   /// Possible types of children: BOOL_TY
-  inline Expr inferType(Expr exp, TypeChecker &tc) {
+  inline Expr inferType(Expr exp, TypeChecker &tc) override {
     return typeCheck::oneOrMore<BOOL_TY, BOOL_TY>(exp, tc);
   }
 };
@@ -25,7 +25,7 @@ struct OneOrMore  : public TypeCheckBase{
 struct Unary  : public TypeCheckBase{
   /// \return BOOL_TY
   /// Possible types of children: BOOL_TY
-  inline Expr inferType(Expr exp, TypeChecker &tc) {
+  inline Expr inferType(Expr exp, TypeChecker &tc) override {
     return typeCheck::unary<BOOL_TY, BOOL_TY>(exp, tc);
   }
 };
@@ -33,7 +33,7 @@ struct Unary  : public TypeCheckBase{
 struct Binary  : public TypeCheckBase{
   /// \return BOOL_TY
   /// Possible types of children: BOOL_TY
-  inline Expr inferType(Expr exp, TypeChecker &tc) {
+  inline Expr inferType(Expr exp, TypeChecker &tc) override {
     return typeCheck::binary<BOOL_TY, BOOL_TY>(exp, tc);
   }
 };
@@ -41,13 +41,13 @@ struct Binary  : public TypeCheckBase{
 struct Nary  : public TypeCheckBase{
   /// \return BOOL_TY
   /// Possible types of children: BOOL_TY
-  inline Expr inferType(Expr exp, TypeChecker &tc) {
+  inline Expr inferType(Expr exp, TypeChecker &tc) override {
     return typeCheck::nary<BOOL_TY, BOOL_TY>(exp, tc);
   }
 };
 
 struct ITE  : public TypeCheckBase{
-  inline Expr inferType(Expr exp, TypeChecker &tc) {
+  inline Expr inferType(Expr exp, TypeChecker &tc) override {
 
     // ite(a,b,c) : a is bool type, b and c are the same type
     if (exp->arity() == 3 && isOp<BOOL_TY>(tc.typeOf(exp->arg(0))) &&
@@ -59,7 +59,7 @@ struct ITE  : public TypeCheckBase{
 };
 
 struct TrueFalse  : public TypeCheckBase{
-  inline Expr inferType(Expr exp, TypeChecker &tc) {
+  inline Expr inferType(Expr exp, TypeChecker &tc) override {
     return sort::boolTy(exp->efac());
   }
 };

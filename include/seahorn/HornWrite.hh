@@ -16,11 +16,11 @@ namespace seahorn
   public:
     static char ID;
     HornWrite (llvm::raw_fd_ostream &out) : llvm::ModulePass (ID), m_out (out) {}
-    virtual ~HornWrite () {} 
-    virtual StringRef getPassName () const {return "HornWrite";}
+    virtual ~HornWrite() = default;
+    virtual StringRef getPassName() const override {return "HornWrite";}
     
-    virtual bool runOnModule (Module &M);
-    virtual void getAnalysisUsage (AnalysisUsage &AU) const;
+    virtual bool runOnModule(Module &M) override;
+    virtual void getAnalysisUsage(AnalysisUsage &AU) const override;
   };
 }
 

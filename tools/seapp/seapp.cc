@@ -403,7 +403,7 @@ int main(int argc, char **argv) {
 
   assert(dl && "Could not find Data Layout for the module");
 
-  pm_wrapper.add(llvm_seahorn::createAnnotation2MetadataLegacyPass());
+  pm_wrapper.add(llvm_seahorn::createSeaAnnotation2MetadataLegacyPass());
   pm_wrapper.add(seahorn::createSeaBuiltinsWrapperPass());
 
   if (RenameNondet)
@@ -635,7 +635,7 @@ int main(int argc, char **argv) {
 
     // -- request seaopt to inline all functions
     if (InlineAll) {
-      pm_wrapper.add(llvm_seahorn::createAnnotation2MetadataLegacyPass());
+      pm_wrapper.add(llvm_seahorn::createSeaAnnotation2MetadataLegacyPass());
       pm_wrapper.add(seahorn::createMarkInternalInlinePass());
     } else {
       // mark memory allocator/deallocators to be inlined

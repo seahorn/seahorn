@@ -164,7 +164,7 @@ Expr nary(Expr exp, TypeChecker &tc) {
 }
 
 struct Any : TypeCheckBase {
-  inline Expr inferType(Expr exp, TypeChecker &tc) {
+  inline Expr inferType(Expr exp, TypeChecker &tc) override {
     return sort::anyTy(exp->efac());
   }
 };

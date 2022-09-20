@@ -23,9 +23,9 @@ public:
 
   TopologicalOrder() : FunctionPass(ID) {}
 
-  virtual void getAnalysisUsage(AnalysisUsage &AU) const;
-  virtual bool runOnFunction(Function &F);
-  virtual void releaseMemory() {
+  virtual void getAnalysisUsage(AnalysisUsage &AU)  const override;
+  virtual bool runOnFunction(Function &F) override;
+  virtual void releaseMemory() override {
     m_order.clear();
     m_backEdges.clear();
   }

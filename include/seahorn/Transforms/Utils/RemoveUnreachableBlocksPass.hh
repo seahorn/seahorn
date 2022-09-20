@@ -13,8 +13,8 @@ namespace seahorn
     static char ID;
     RemoveUnreachableBlocksPass () : FunctionPass (ID) {}
     
-    bool runOnFunction (Function &F);
-    void getAnalysisUsage (AnalysisUsage &AU) const;
+    bool runOnFunction (Function &F) override;
+    void getAnalysisUsage (AnalysisUsage &AU) const override;
 
     StringRef getPassName() const override {
       return "RemoveUnreachableBlockPass";

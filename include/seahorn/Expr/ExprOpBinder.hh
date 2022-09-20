@@ -3,10 +3,14 @@
 
 #include "seahorn/Expr/ExprApi.hh"
 #include "seahorn/Expr/ExprCore.hh"
+#include "seahorn/Expr/ExprOpBind.hh"
 #include "seahorn/Expr/ExprOpBool.hh"
 #include "seahorn/Expr/ExprOpCore.hh"
 #include "seahorn/Expr/ExprVisitor.hh"
 #include "seahorn/Expr/TypeCheckerUtils.hh"
+
+#include <array>
+#include <deque>
 
 namespace expr {
 namespace op {
@@ -157,7 +161,7 @@ struct Lambda : public TypeCheckBase{
   /// \return FUNCTIONAL_TY
   /// for example, for the expression lambda a, b, c ... :: body, the return
   /// type is FUNCTIONAL_TY(typeOf(a), typeOf(b), ... , typeOf(body))
-  inline Expr inferType(Expr exp, TypeChecker &tc) {
+  inline Expr inferType(Expr exp, TypeChecker &tc) override {
     ExprVector boundTypes;
     if (!binderCheck(exp, tc, boundTypes))
       return sort::errorTy(exp->efac());
@@ -174,7 +178,7 @@ struct Quantifier : public TypeCheckBase{
   ///  2. the body type is BOOL_TY
   /// \note does not check bound variables
   /// \return BOOL_TY
-  inline Expr inferType(Expr exp, TypeChecker &tc) {
+  inline Expr inferType(Expr exp, TypeChecker &tc) override {
     ExprVector boundTypes;
     Expr body = exp->last();
     if (!(binderCheck(exp, tc, boundTypes) &&

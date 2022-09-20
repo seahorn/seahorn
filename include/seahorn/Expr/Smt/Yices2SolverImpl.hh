@@ -15,7 +15,7 @@ namespace seahorn {
 namespace solver {
 
 namespace yices {
-static std::string error_string(){
+std::string error_string(){
   char* emsg = yices_error_string();
   std::string res(emsg);
   yices_free_string(emsg);
@@ -55,37 +55,36 @@ public:
 
   ~yices_solver_impl();
 
-  SolverKind get_kind() const { return SolverKind::YICES2;}
-  
-  bool add(expr::Expr exp);
-  
+  SolverKind get_kind() const override { return SolverKind::YICES2;}
+
+  bool add(expr::Expr exp) override;
+
   /** Check for satisfiability */
-  SolverResult check();
+  SolverResult check() override;
 
   /** Check with assumptions */
-  SolverResult check_with_assumptions(const expr_const_it_range& assumptions);
+  SolverResult
+  check_with_assumptions(const expr_const_it_range &assumptions) override;
 
   /** Return an unsatisfiable core */
-  void unsat_core(expr::ExprVector& out); 
+  void unsat_core(expr::ExprVector& out) override; 
   
   /** Push a context */
-  void push();
-  
+  void push() override;
+
   /** Pop a context */
-  void pop();
+  void pop() override;
   
   /** Get a model */
-  model_ref get_model();
+  model_ref get_model() override;
 
   /** Clear all assertions */
-  void reset();
+  void reset() override;
 
   /** Print asserted formulas to SMT-LIB format **/
-  void to_smt_lib(llvm::raw_ostream& o);
-  
-  ycache_t& get_cache(void);
-  
-  
+  void to_smt_lib(llvm::raw_ostream &o) override;
+
+  ycache_t &get_cache(void);
 };
 }
 }

@@ -16,7 +16,7 @@ public:
 
   PromoteMalloc() : FunctionPass(ID) {}
 
-  bool runOnFunction(Function &F) {
+  bool runOnFunction(Function &F) override {
     if (F.empty())
       return false;
 
@@ -76,9 +76,11 @@ public:
     return changed;
   }
 
-  void getAnalysisUsage(AnalysisUsage &AU) const { AU.setPreservesAll(); }
+  void getAnalysisUsage(AnalysisUsage &AU) const override {
+    AU.setPreservesAll();
+  }
 
-  virtual StringRef getPassName() const { return "PromoteMalloc"; }
+  virtual StringRef getPassName() const override { return "PromoteMalloc"; }
 };
 
 char PromoteMalloc::ID = 0;

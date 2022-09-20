@@ -50,13 +50,13 @@ static inline Expr checkVariant(Expr exp, TypeChecker &tc) {
 }
 
 struct Variant : public TypeCheckBase {
-  inline Expr inferType(Expr exp, TypeChecker &tc) {
+  inline Expr inferType(Expr exp, TypeChecker &tc) override {
     return checkVariant <INT_TY> (exp, tc);
   }
 };
 
 struct Tag : public TypeCheckBase{
-  inline Expr inferType(Expr exp, TypeChecker &tc) {
+  inline Expr inferType(Expr exp, TypeChecker &tc) override {
     return checkVariant <ANY_TY>(exp, tc);
   }
 };

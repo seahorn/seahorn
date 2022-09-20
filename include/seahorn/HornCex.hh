@@ -19,10 +19,10 @@ namespace seahorn
     HornCex () : ModulePass(ID) {}
     virtual ~HornCex () {}
     
-    virtual bool runOnModule (Module &M);
+    virtual bool runOnModule (Module &M) override;
     virtual bool runOnFunction (Module &M, Function &F);
-    virtual void getAnalysisUsage (AnalysisUsage &AU) const;
-    virtual StringRef getPassName () const {return "HornCex";}
+    virtual void getAnalysisUsage (AnalysisUsage &AU) const override;
+    virtual StringRef getPassName () const override {return "HornCex";}
   };
 }
 

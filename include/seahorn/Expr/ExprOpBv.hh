@@ -2,6 +2,7 @@
 
 #include "seahorn/Expr/ExprApi.hh"
 #include "seahorn/Expr/ExprCore.hh"
+#include "seahorn/Expr/ExprOpBind.hh"
 #include "seahorn/Expr/ExprOpBool.hh"
 #include "seahorn/Expr/ExprOpCore.hh"
 #include "seahorn/Expr/ExprOpTerminalSort.hh"
@@ -195,7 +196,7 @@ inline Expr returnType(Expr exp, TypeChecker &tc) {
 /// \return: type of children
 /// Possible types of children: BVSORT
 struct Unary : public TypeCheckBase {
-  inline Expr inferType(Expr exp, TypeChecker &tc) {
+  inline Expr inferType(Expr exp, TypeChecker &tc) override {
     return typeCheck::unary<BVSORT>(exp, tc, returnType);
   }
 };
@@ -203,7 +204,7 @@ struct Unary : public TypeCheckBase {
 /// \return: type of children
 /// Possible types of children: BVSORT
 struct Binary : public TypeCheckBase {
-  inline Expr inferType(Expr exp, TypeChecker &tc) {
+  inline Expr inferType(Expr exp, TypeChecker &tc) override {
     return typeCheck::binary<BVSORT>(exp, tc, returnType);
   }
 };
@@ -211,7 +212,7 @@ struct Binary : public TypeCheckBase {
 /// \return: type of children
 /// Possible types of children: BVSORT
 struct Nary : public TypeCheckBase {
-  inline Expr inferType(Expr exp, TypeChecker &tc) {
+  inline Expr inferType(Expr exp, TypeChecker &tc) override {
     return typeCheck::nary<BVSORT>(exp, tc, returnType);
   }
 };
@@ -219,7 +220,7 @@ struct Nary : public TypeCheckBase {
 /// \return: BOOL_TY
 /// Possible types of children: BVSORT
 struct BinaryBool : public TypeCheckBase {
-  inline Expr inferType(Expr exp, TypeChecker &tc) {
+  inline Expr inferType(Expr exp, TypeChecker &tc) override {
     return typeCheck::binary<BOOL_TY, BVSORT>(exp, tc);
   }
 };
@@ -239,7 +240,7 @@ struct Concat : public TypeCheckBase {
 
   /// \return: BVSORT with sum of children's width
   /// Possible types of children: BVSORT (children don't need matching widths)
-  inline Expr inferType(Expr exp, TypeChecker &tc) {
+  inline Expr inferType(Expr exp, TypeChecker &tc) override {
     auto returnTypeFn = [](Expr exp, TypeChecker &tc) {
       return getExtendReturnType(exp, tc);
     };
@@ -252,7 +253,7 @@ struct Extend : public TypeCheckBase {
   /// \return: BVSORT with sum of children's width
   /// Expected Children (in order): BVSORT type, and bvsort(the operator, not an
   /// expresion of this type)
-  inline Expr inferType(Expr exp, TypeChecker &tc) {
+  inline Expr inferType(Expr exp, TypeChecker &tc) override {
     if (exp->arity() != 2)
       return sort::errorTy(exp->efac());
 
@@ -274,7 +275,7 @@ template <typename LastType>
 Expr checkUnsignedChildren(
     Expr exp, TypeChecker &tc, unsigned numChildren,
     std::function<Expr(Expr, TypeChecker &)> returnTypeFn) {
-  auto isUint = [&tc](Expr exp) { return isOp<UINT>(exp); };
+  auto isUint = [](Expr exp) { return isOp<UINT>(exp); };
 
   if (exp->arity() == numChildren &&
       std::all_of(exp->args_begin(), --exp->args_end(), isUint) &&
@@ -288,7 +289,7 @@ struct Extract : public TypeCheckBase {
   /// \return: BVSORT with a width corresponding that specified in the
   /// expression Expected Children types(in order): UINT_TERMINAL_TY,
   /// UINT, BVSORT
-  inline Expr inferType(Expr exp, TypeChecker &tc) {
+  inline Expr inferType(Expr exp, TypeChecker &tc) override {
     auto returnTypeFn = [](Expr exp, TypeChecker &tc) {
       Expr high = exp->arg(0);
       Expr low = exp->arg(1);
@@ -311,7 +312,7 @@ struct Extract : public TypeCheckBase {
 /// \return: INT_TY
 /// Possible types of children: BVSORT
 struct Bv2Int : public TypeCheckBase {
-  inline Expr inferType(Expr exp, TypeChecker &tc) {
+  inline Expr inferType(Expr exp, TypeChecker &tc) override {
     return typeCheck::unary<INT_TY, BVSORT>(exp, tc);
   }
 };
@@ -319,7 +320,7 @@ struct Bv2Int : public TypeCheckBase {
 /// \return: BVSORT with a width corresponding that specified in the expression
 /// Expected Children types(in order): UINT, INT_TY
 struct Int2Bv : public TypeCheckBase {
-  inline Expr inferType(Expr exp, TypeChecker &tc) {
+  inline Expr inferType(Expr exp, TypeChecker &tc) override {
     auto returnTypeFn = [](Expr exp, TypeChecker &tc) {
       unsigned width = getTerm<unsigned>(exp->left());
       return bv::bvsort(width, exp->efac());
@@ -332,7 +333,7 @@ struct Int2Bv : public TypeCheckBase {
 /// \return: BVSORT with a width matching the passed bv expression
 /// Expected Children types(in order): UINT, BVSORT
 struct Rotate : public TypeCheckBase {
-  inline Expr inferType(Expr exp, TypeChecker &tc) {
+  inline Expr inferType(Expr exp, TypeChecker &tc) override {
     auto returnTypeFn = [](Expr exp, TypeChecker &tc) {
       return tc.typeOf(exp->right());
     };
@@ -344,7 +345,7 @@ struct Rotate : public TypeCheckBase {
 /// \return: BVSORT with a width multiplied by the number of times its repeated
 /// Expected Children types(in order): UINT_TERMINAL_TY, BVSORT
 struct Repeat : public TypeCheckBase {
-  inline Expr inferType(Expr exp, TypeChecker &tc) {
+  inline Expr inferType(Expr exp, TypeChecker &tc) override {
     auto returnTypeFn = [](Expr exp, TypeChecker &tc) {
       unsigned timesRepeated = getTerm<unsigned>(exp->left());
       unsigned width = bv::width(tc.typeOf(exp->right()));

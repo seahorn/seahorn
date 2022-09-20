@@ -122,7 +122,8 @@ public:
   MemExprVisitor(MemCellSet *cells) : m_cells(cells) {}
   virtual ~MemExprVisitor() = default;
 
-  virtual VisitAction operator()(Expr exp){};
+  // XXX AG: added doKids() to silence compiler warning. Not sure what this code does
+  virtual VisitAction operator()(Expr exp) { return VisitAction::doKids(); };
 
   void doneVisiting() { m_visiting_done = true; }
 };

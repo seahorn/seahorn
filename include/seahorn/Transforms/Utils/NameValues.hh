@@ -13,9 +13,9 @@ namespace seahorn
   {
     static char ID;
     NameValues () : ModulePass (ID) {}
-    bool runOnModule (Module &M);
+    bool runOnModule (Module &M) override;
     bool runOnFunction (Function &F);
-    void getAnalysisUsage (AnalysisUsage &AU) const { AU.setPreservesAll (); }
+    void getAnalysisUsage (AnalysisUsage &AU) const override { AU.setPreservesAll (); }
     StringRef getPassName() const override { return "NameValues"; }
   };
 

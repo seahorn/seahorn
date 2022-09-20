@@ -17,7 +17,7 @@ enum class StructOpKind { MK_STRUCT, EXTRACT_VALUE, INSERT_VALUE };
 namespace typeCheck {
 namespace structType {
 struct Struct  : public TypeCheckBase{
-  inline Expr inferType(Expr exp, TypeChecker &tc) {
+  inline Expr inferType(Expr exp, TypeChecker &tc) override {
     ExprVector childrenTypes;
     bool wellFormed = true;
 
@@ -48,7 +48,7 @@ static inline bool structCheck(Expr exp, unsigned numChildren) {
 }
 
 struct Insert  : public TypeCheckBase{
-  inline Expr inferType(Expr exp, TypeChecker &tc) {
+  inline Expr inferType(Expr exp, TypeChecker &tc) override {
     if (!structCheck(exp, 3))
       return sort::errorTy(exp->efac());
 
@@ -68,7 +68,7 @@ struct Insert  : public TypeCheckBase{
 };
 
 struct Extract  : public TypeCheckBase{
-  inline Expr inferType(Expr exp, TypeChecker &tc) {
+  inline Expr inferType(Expr exp, TypeChecker &tc) override {
     if (!structCheck(exp, 2))
       return sort::errorTy(exp->efac());
 

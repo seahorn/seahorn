@@ -35,7 +35,7 @@ inline Expr typeTy(ExprFactory &efac);
 namespace typeCheck {
 namespace simpleType {
 struct Simple : public TypeCheckBase {
-  inline Expr inferType(Expr exp, TypeChecker &tc) {
+  inline Expr inferType(Expr exp, TypeChecker &tc) override {
     return sort::typeTy(exp->efac());
   }
 };

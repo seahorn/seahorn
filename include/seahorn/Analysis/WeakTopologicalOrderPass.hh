@@ -20,9 +20,9 @@ public:
 
   WeakTopologicalOrderPass() : FunctionPass(ID), m_wto() {}
 
-  virtual void getAnalysisUsage(llvm::AnalysisUsage &AU) const;
+  virtual void getAnalysisUsage(llvm::AnalysisUsage &AU) const override;
 
-  virtual bool runOnFunction(llvm::Function &F);
+  virtual bool runOnFunction(llvm::Function &F) override;
 
   const_iterator begin() const { return m_wto.begin(); }
   const_iterator end() const { return m_wto.end(); }
@@ -31,7 +31,7 @@ public:
   // specially those to iterate over the nested components of a
   // given basic block.
 
-  virtual StringRef getPassName() const { return "WeakTopologicalOrder"; }
+  virtual StringRef getPassName() const override { return "WeakTopologicalOrder"; }
 };
 
 } // namespace seahorn

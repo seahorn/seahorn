@@ -309,7 +309,7 @@ public:
 
   /// \brief Pointer addition with symbolic offset
   FatPtrTy ptrAdd(FatPtrTy ptr, Expr offset) const {
-    BasePtrTy rawPtr = ptrAdd(mkRawPtr(ptr), offset).v();
+    BasePtrTy rawPtr = m_main.ptrAdd(mkRawPtr(ptr), offset);
     return mkFatPtr(rawPtr, ptr);
   }
 
@@ -352,7 +352,7 @@ public:
 
     const unsigned byteSz =
         m_sem.getTD().getTypeStoreSize(const_cast<llvm::Type *>(&ty));
-    ExprFactory &efac = ptr.v()->efac();
+    // ExprFactory &efac = ptr.v()->efac();
 
     Expr res;
     switch (ty.getTypeID()) {
@@ -370,6 +370,8 @@ public:
     case Type::FixedVectorTyID:
     case Type::ScalableVectorTyID:        
       errs() << "Error: load of fixed vectors is not supported\n";
+      llvm_unreachable(nullptr);
+      break;
     case Type::PointerTyID:
       res = loadPtrFromMem(ptr, mem, byteSz, align).v();
       break;
@@ -391,7 +393,7 @@ public:
     Expr val = _val;
     const unsigned byteSz =
         m_sem.getTD().getTypeStoreSize(const_cast<llvm::Type *>(&ty));
-    ExprFactory &efac = ptr.v()->efac();
+    // ExprFactory &efac = ptr.v()->efac();
 
     FatMemValTy res(Expr(nullptr));
     switch (ty.getTypeID()) {
@@ -410,6 +412,8 @@ public:
     case Type::FixedVectorTyID:
     case Type::ScalableVectorTyID:        
       errs() << "Error: store of vectors is not supported\n";
+      llvm_unreachable(nullptr);
+      break;
     case Type::PointerTyID:
       res = storePtrToMem(val, ptr, memIn, byteSz, align);
       break;
@@ -592,9 +596,9 @@ FatMemManager::FatMemManager(Bv2OpSem &sem, Bv2OpSemContext &ctx,
     : MemManagerCore(sem, ctx, ptrSz, wordSz,
                      false /* this is a nop since we delegate to RawMemMgr */),
       m_main(sem, ctx, ptrSz, wordSz, useLambdas),
-      m_nullPtr(mkFatPtr(m_main.nullPtr())),
       m_slot0(sem, ctx, ptrSz, g_slotByteWidth, useLambdas),
-      m_slot1(sem, ctx, ptrSz, g_slotByteWidth, useLambdas) {}
+      m_slot1(sem, ctx, ptrSz, g_slotByteWidth, useLambdas),
+      m_nullPtr(mkFatPtr(m_main.nullPtr())) {}
 
 OpSemMemManager *mkFatMemManager(Bv2OpSem &sem, Bv2OpSemContext &ctx,
                                  unsigned ptrSz, unsigned wordSz,

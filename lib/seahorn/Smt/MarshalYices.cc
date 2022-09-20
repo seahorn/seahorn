@@ -317,7 +317,7 @@ term_t marshal_yices::encode_term(Expr e, ycache_t &cache) {
     /** Bit-Vectors */
     else if (isOpX<BSEXT>(e) || isOpX<BZEXT>(e)) {
       assert(yices_term_is_bitvector(t1));
-      type_t bvt = yices_type_of_term(t1);
+      // type_t bvt = yices_type_of_term(t1);
       uint32_t t1_sz = yices_term_bitsize(t1);
       unsigned t2_sz = bv::width(e->arg(1));
       assert(t1_sz > 0);
@@ -526,12 +526,15 @@ Expr marshal_yices::decode_yval(yval_t &yval, ExprFactory &efac, model_t *model,
   }
   case YVAL_SCALAR: {
     decode_term_fail("Not expecting a scalar");
+    break;
   }
   case YVAL_ALGEBRAIC: {
     decode_term_fail("Not expecting an algebraic");
+    break;
   }
   case YVAL_TUPLE: {
     decode_term_fail("Not expecting an tuple");
+    break;
   }
   case YVAL_FUNCTION: {
     /*

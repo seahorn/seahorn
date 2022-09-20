@@ -25,7 +25,7 @@ void getContentStr(Expr value, unsigned desiredNumBytes, bool includeAscii,
     std::vector<uint8_t> bytes(desiredNumBytes);
 
     // fill in the leading zeroesi
-    for (int i = 0; i < (desiredNumBytes - numBytes); i++) {
+    for (unsigned i = 0; i < (desiredNumBytes - numBytes); i++) {
       bytes[i] = 0;
     }
 

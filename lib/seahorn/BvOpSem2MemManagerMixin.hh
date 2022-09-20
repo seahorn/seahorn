@@ -100,7 +100,7 @@ public:
     return toPtrTy(std::move(res));
   }
 
-  void initGlobalVariable(const GlobalVariable &gv) const {
+  void initGlobalVariable(const GlobalVariable &gv) const override {
     base().initGlobalVariable(gv);
   }
 
@@ -432,7 +432,7 @@ public:
 
   bool isPtrTyVal(Expr e) { return base().isPtrTyVal(e); }
 
-  Expr ptrToAddr(Expr p) {
+  Expr ptrToAddr(Expr p) override {
     if (!isPtrTyVal(p))
       return Expr();
     return Expr(base().getAddressable(BasePtrTy(p)));
@@ -440,7 +440,7 @@ public:
 
   bool isMemVal(Expr e) { return base().isMemVal(e); }
 
-  Expr getRawMem(Expr e) {
+  Expr getRawMem(Expr e) override {
     if (!isMemVal(e))
       return Expr();
     return Expr(BaseMemValTy(e).getRaw());

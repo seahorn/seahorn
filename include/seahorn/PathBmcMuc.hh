@@ -18,6 +18,7 @@ protected:
 
 public:
   minimalUnsatCore(solver::Solver &solver) : m_solver(solver) {}
+  virtual ~minimalUnsatCore() = default;
 
   virtual void run(const expr::ExprVector &f, expr::ExprVector &core) = 0;
 

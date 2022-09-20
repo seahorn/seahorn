@@ -74,10 +74,10 @@ public:
 
   PredicateAbstraction() : ModulePass(ID) {}
   virtual ~PredicateAbstraction() {}
-  void releaseMemory() { m_fp.reset(nullptr); }
-  virtual bool runOnModule(Module &M);
-  virtual void getAnalysisUsage(AnalysisUsage &AU) const;
-  virtual StringRef getPassName() const { return "PredicateAbstraction"; }
+  void releaseMemory() override { m_fp.reset(nullptr); }
+  virtual bool runOnModule(Module &M) override;
+  virtual void getAnalysisUsage(AnalysisUsage &AU) const override;
+  virtual StringRef getPassName() const override { return "PredicateAbstraction"; }
 
   ZFixedPoint<EZ3> &getZFixedPoint() { return *m_fp; }
 

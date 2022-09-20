@@ -38,10 +38,10 @@ namespace seahorn
 
     PromoteVerifierCalls() : ModulePass(ID) {}
 
-    bool runOnModule(Module &M);
+    bool runOnModule(Module &M) override;
     bool runOnFunction(Function &F);
-    void getAnalysisUsage(AnalysisUsage &AU) const;
-    virtual StringRef getPassName() const { return "PromoteVerifierCalls"; }
+    void getAnalysisUsage(AnalysisUsage &AU) const override;
+    virtual StringRef getPassName() const override { return "PromoteVerifierCalls"; }
   };
 }
 

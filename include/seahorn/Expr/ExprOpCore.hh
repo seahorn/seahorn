@@ -83,7 +83,7 @@ public:
     terminal_type::print(OS, val, depth, brkt);
   }
 
-  std::string name() const { return terminal_type::name(); }
+  std::string name() const override { return terminal_type::name(); }
 
   bool operator==(const this_type &rhs) const {
     return terminal_type::equal_to(val, rhs.val);

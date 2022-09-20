@@ -124,10 +124,10 @@ namespace boost
   { return callgraph.callees(e).size() + callgraph.callers(e).size(); }
   
   inline std::pair<vit,vit> vertices (const seahorn::HornClauseDBCallGraph &callgraph)
-  { return std::make_pair (callgraph.m_db.getRelations().begin(), callgraph.m_db.getRelations().end()); }
+  { return std::make_pair (callgraph.db().getRelations().begin(), callgraph.db().getRelations().end()); }
   
   inline size_t num_vertices (const seahorn::HornClauseDBCallGraph &callgraph)
-  { return callgraph.m_db.getRelations().size(); }
+  { return callgraph.db().getRelations().size(); }
 
 }
 #endif  /*  _HCDB_BOOST_GRAPH_TRAITS_HPP__ */

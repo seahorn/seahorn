@@ -51,10 +51,10 @@ public:
   ExprFactory &getExprFactory() { return m_efac; }
   EZ3 &getZContext() { return m_zctx; }
   HornClauseDB &getHornClauseDB() { return m_db; }
-  virtual bool runOnModule(Module &M);
+  virtual bool runOnModule(Module &M) override;
   virtual bool runOnFunction(Function &F);
-  virtual void getAnalysisUsage(AnalysisUsage &AU) const;
-  virtual StringRef getPassName() const { return "HornifyModule"; }
+  virtual void getAnalysisUsage(AnalysisUsage &AU) const override;
+  virtual StringRef getPassName() const override { return "HornifyModule"; }
 
   /// --- live symbols for a function
   const LiveSymbols &getLiveSybols(const Function &F) const;

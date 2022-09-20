@@ -26,12 +26,12 @@ namespace seahorn
     
     CanAccessMemory () : ModulePass (ID) {}
     
-    virtual bool runOnModule (Module &M);
-    virtual void getAnalysisUsage (AnalysisUsage &AU) const;
+    virtual bool runOnModule (Module &M) override;
+    virtual void getAnalysisUsage (AnalysisUsage &AU) const override ;
     bool canAccess (const Function *f) const;
     bool mustAccess (const Function *f) const
     {return m_must.count (f) > 0;}
-    virtual StringRef getPassName () const {return "CanAccessMemory";}
+    virtual StringRef getPassName () const override {return "CanAccessMemory";}
     
   };
 }

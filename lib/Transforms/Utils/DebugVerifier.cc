@@ -36,8 +36,8 @@ public:
         m_instanceName("DebugVerifierPass_" + std::to_string(m_instanceID)),
         m_passName(name) {}
 
-  bool runOnModule(Module &M);
-  void getAnalysisUsage(AnalysisUsage &AU) const { AU.setPreservesAll(); }
+  bool runOnModule(Module &M) override;
+  void getAnalysisUsage(AnalysisUsage &AU) const override { AU.setPreservesAll(); }
   StringRef getPassName() const override { return m_instanceName; }
 };
 

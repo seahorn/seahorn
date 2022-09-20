@@ -4,8 +4,13 @@
 
  */
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wsuggest-override"
+#pragma clang diagnostic ignored "-Wcast-qual"
 #include "z3++.h"
 #include "z3.h"
+
+#pragma clang diagnostic pop
 
 #include <sstream>
 

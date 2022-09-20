@@ -20,9 +20,9 @@ WideMemManager::WideMemManager(Bv2OpSem &sem, Bv2OpSemContext &ctx,
                                unsigned ptrSz, unsigned wordSz, bool useLambdas)
     : MemManagerCore(sem, ctx, ptrSz, wordSz,
                      false /* this is a nop since we delegate to RawMemMgr */),
+      m_uninit_size(m_ctx.alu().ui(g_uninit_size, g_slotBitWidth)),
       m_main(sem, ctx, ptrSz, wordSz, useLambdas),
       m_size(sem, ctx, ptrSz, g_slotByteWidth, useLambdas, true),
-      m_uninit_size(m_ctx.alu().ui(g_uninit_size, g_slotBitWidth)),
       m_nullPtr(PtrTy(m_main.nullPtr(), m_uninit_size)) {}
 
 Expr WideMemManager::castWordSzToSlotSz(const Expr val) const {
@@ -155,7 +155,7 @@ WideMemManager::storeValueToMem(Expr _val, WideMemManager::PtrTy ptr,
   Expr val = _val;
   const unsigned byteSz =
       m_sem.getTD().getTypeStoreSize(const_cast<llvm::Type *>(&ty));
-  ExprFactory &efac = ptr.v()->efac();
+  // ExprFactory &efac = ptr.v()->efac();
   // init memval to a non det value
   MemValTy res = MemValTy(Expr());
   switch (ty.getTypeID()) {
@@ -174,6 +174,8 @@ WideMemManager::storeValueToMem(Expr _val, WideMemManager::PtrTy ptr,
   case Type::FixedVectorTyID:
   case Type::ScalableVectorTyID:      
     errs() << "Error: store of vectors is not supported\n";
+    llvm_unreachable(nullptr);
+    break;
   case Type::PointerTyID:
     res = storePtrToMem(PtrTy(val), ptr, memIn, byteSz, align);
     break;
@@ -193,7 +195,7 @@ Expr WideMemManager::loadValueFromMem(WideMemManager::PtrTy ptr,
                                       const Type &ty, uint64_t align) {
   const unsigned byteSz =
       m_sem.getTD().getTypeStoreSize(const_cast<llvm::Type *>(&ty));
-  ExprFactory &efac = ptr.getRaw()->efac();
+  // ExprFactory &efac = ptr.getRaw()->efac();
 
   Expr res;
   switch (ty.getTypeID()) {
@@ -211,6 +213,8 @@ Expr WideMemManager::loadValueFromMem(WideMemManager::PtrTy ptr,
   case Type::FixedVectorTyID:
   case Type::ScalableVectorTyID:      
     errs() << "Error: load of vectors is not supported\n";
+    llvm_unreachable(nullptr);
+    break;
   case Type::PointerTyID:
     res = loadPtrFromMem(ptr, mem, byteSz, align).v();
     break;

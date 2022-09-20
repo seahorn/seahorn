@@ -81,12 +81,12 @@ namespace seahorn
           errs () << "WTO="; m_wto.write(errs()); errs () << "\n";);
 
       LOG("horn-wto",
-          for (auto fdecl: m_callgraph.m_db.getRelations ()) {
+          for (auto fdecl: m_callgraph.db().getRelations ()) {
             errs () << "Heads of the wto nested components for "
                     << *(bind::fname(fdecl)) << "={";
             auto it = heads_begin(fdecl);
             auto et = heads_end(fdecl);
-            for (; it!=et;) {
+            for (; it != et;) {
               auto head = *it;
               errs () << *(bind::fname(head));
               ++it;

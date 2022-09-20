@@ -31,9 +31,9 @@ public:
   ~yices_model_impl();
   
   //yices ignores the complete flag
-  expr::Expr eval(expr::Expr expr, bool complete);
+  expr::Expr eval(expr::Expr expr, bool complete) override;
   
-  void print(llvm::raw_ostream& o) const;
+  void print(llvm::raw_ostream& o) const override;
   
 };
 }

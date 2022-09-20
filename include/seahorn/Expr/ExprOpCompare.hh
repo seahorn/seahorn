@@ -17,7 +17,7 @@ namespace compareType {
 struct Equality  : public TypeCheckBase{
   /// \return BOOL_TY
   /// Possible types of children: any type except for ERROR_TY
-  inline Expr inferType(Expr exp, TypeChecker &tc) {
+  inline Expr inferType(Expr exp, TypeChecker &tc) override {
 
     // finite maps are a special case: the keys are stored directly, not as
     // their type
@@ -51,7 +51,7 @@ struct Equality  : public TypeCheckBase{
 struct Inequality  : public TypeCheckBase{
   /// \return BOOL_TY
   /// Possible types of children: any number type
-  inline Expr inferType(Expr exp, TypeChecker &tc) {
+  inline Expr inferType(Expr exp, TypeChecker &tc) override {
     return typeCheck::binary<BOOL_TY, NUM_TYPES>(exp, tc);
   }
 };

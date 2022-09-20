@@ -172,9 +172,9 @@ public:
 
   CutPointGraph() : FunctionPass(ID) {}
 
-  virtual void getAnalysisUsage(AnalysisUsage &AU) const;
-  virtual bool runOnFunction(Function &F);
-  virtual void releaseMemory() {
+  virtual void getAnalysisUsage(AnalysisUsage &AU) const override;
+  virtual bool runOnFunction(Function &F) override;
+  virtual void releaseMemory() override {
     m_cps.clear();
     m_edges.clear();
     m_bb.clear();

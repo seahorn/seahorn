@@ -138,7 +138,7 @@ public:
   /// \brief Returns the current symbolic value of \p v in the context \p ctx
   Expr getOperandValue(const Value &v, seahorn::details::Bv2OpSemContext &ctx);
   /// \brief Deprecated
-  Expr lookup(SymStore &s, const Value &v) { llvm_unreachable(nullptr); }
+  Expr lookup(SymStore &s, const Value &v) override { llvm_unreachable(nullptr); }
   /// Convert aggregate GenericValue to APInt
   Optional<APInt> agg(Type *ty, const std::vector<GenericValue> &elements,
       seahorn::details::Bv2OpSemContext &ctx);

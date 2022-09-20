@@ -10,11 +10,11 @@ using namespace llvm;
 namespace seahorn {
 
 void DfCoiAnalysis::analyze(User &user) {
-  constexpr auto shadowStoreSucc =
-      hana::make_set("sea.reset_modified", "sea.free", "sea.set_shadowmem");
+  // constexpr auto shadowStoreSucc =
+  //     hana::make_set("sea.reset_modified", "sea.free", "sea.set_shadowmem");
 
-  constexpr auto shadowLoadSucc =
-      hana::make_set("sea.is_modified", "sea.is_alloc", "sea.get_shadowmem");
+  // constexpr auto shadowLoadSucc =
+  //     hana::make_set("sea.is_modified", "sea.is_alloc", "sea.get_shadowmem");
 
   if (m_coi.count(&user))
     return;

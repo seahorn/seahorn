@@ -34,7 +34,7 @@ static inline Expr returnType(Expr exp, TypeChecker &tc) {
 struct Unary  : public TypeCheckBase{
   /// Possible types of children: any num type
   /// \return: type of children
-  inline Expr inferType(Expr exp, TypeChecker &tc) {
+  inline Expr inferType(Expr exp, TypeChecker &tc) override {
     return typeCheck::unary<NUM_TYPES>(exp, tc, returnType);
   }
 };
@@ -42,7 +42,7 @@ struct Unary  : public TypeCheckBase{
 struct Binary  : public TypeCheckBase{
   /// Possible types of children: any num type
   /// \return: type of children
-  inline Expr inferType(Expr exp, TypeChecker &tc) {
+  inline Expr inferType(Expr exp, TypeChecker &tc) override {
     return typeCheck::binary<NUM_TYPES>(exp, tc, returnType);
   }
 };
@@ -50,7 +50,7 @@ struct Binary  : public TypeCheckBase{
 struct Nary  : public TypeCheckBase{
   // Return type: type of children
   // Possible types of children: any number type
-  inline Expr inferType(Expr exp, TypeChecker &tc) {
+  inline Expr inferType(Expr exp, TypeChecker &tc) override {
     return typeCheck::nary<NUM_TYPES>(exp, tc, returnType);
   }
 };

@@ -44,8 +44,7 @@ public:
   HornRule(Range &v, Expr head, Expr body)
       : m_vars(boost::begin(v), boost::end(v)), m_head(head), m_body(body) {}
 
-  HornRule(const HornRule &r)
-      : m_vars(r.m_vars), m_head(r.m_head), m_body(r.m_body) {}
+  HornRule(const HornRule &r) = default;
 
   size_t hash() const {
     size_t res = expr::hash_value(m_head);
@@ -255,6 +254,7 @@ inline raw_ostream &operator<<(raw_ostream &o, const HornClauseDB &db) {
 }
 
 class HornClauseDBCallGraph {
+  HornClauseDB &m_db;
   /// callgraph
   typedef std::map<Expr, HornClauseDB::expr_set_type> callgraph_type;
   callgraph_type m_callers;
@@ -265,13 +265,13 @@ class HornClauseDBCallGraph {
   static HornClauseDB::expr_set_type m_expr_empty_set;
 
 public:
-  HornClauseDB &m_db;
   HornClauseDBCallGraph(HornClauseDB &db)
       : m_db(db), m_cg_entry(mk<FALSE>(db.getExprFactory())) {}
 
   /// -- build call graph
   void buildCallGraph();
 
+  const HornClauseDB& db() const { return m_db; }
   /// -- returns an entry point of the call graph.
   bool hasEntry() const { return !isOpX<FALSE>(m_cg_entry); }
   Expr entry() const {

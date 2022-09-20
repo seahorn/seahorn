@@ -37,7 +37,7 @@ public:
   static char ID;
   MarkFnEntry() : ModulePass(ID), m_mark(NULL) {}
 
-  virtual bool runOnModule(Module &M) {
+  virtual bool runOnModule(Module &M) override {
 
     m_mark = M.getOrInsertFunction("seahorn.fn.enter",
                                    Type::getVoidTy(M.getContext()));
@@ -74,7 +74,7 @@ public:
     return true;
   }
 
-  virtual void getAnalysisUsage(AnalysisUsage &AU) const {
+  virtual void getAnalysisUsage(AnalysisUsage &AU) const override {
     AU.setPreservesAll();
   }
 };

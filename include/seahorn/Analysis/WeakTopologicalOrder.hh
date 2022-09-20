@@ -80,9 +80,9 @@ public:
 
   E get() const { return m_singleton; }
 
-  void accept(wto_element_visitor_t *v) { v->visit(*this); }
+  void accept(wto_element_visitor_t *v) override { v->visit(*this); }
 
-  void write(llvm::raw_ostream &o) const {
+  void write(llvm::raw_ostream &o) const override {
     wto_impl::write_graph_vertex(o, m_singleton);
   }
 };
@@ -124,9 +124,9 @@ public:
 
   E head() const { return m_head; }
 
-  void accept(wto_element_visitor_t *v) { v->visit(*this); }
+  void accept(wto_element_visitor_t *v) override { v->visit(*this); }
 
-  void write(llvm::raw_ostream &o) const {
+  void write(llvm::raw_ostream &o) const override {
     o << "(";
     wto_impl::write_graph_vertex(o, m_head);
     if (!m_components.empty()) {
@@ -319,11 +319,11 @@ private:
     NestedComponentsVisitor(NestedComponentsTable &t)
         : wto_element_visitor_t(), m_nested_components_table(t) {}
 
-    virtual void visit(const wto_singleton_t &s) {
+    virtual void visit(const wto_singleton_t &s) override {
       m_nested_components_table[s.get()] = m_nested_components;
     }
 
-    virtual void visit(const wto_component_t &c) {
+    virtual void visit(const wto_component_t &c) override {
       m_nested_components.push_back(c);
       m_nested_components_table[c.head()] = m_nested_components;
       for (auto &e : c) {

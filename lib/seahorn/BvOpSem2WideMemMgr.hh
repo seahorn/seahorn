@@ -16,9 +16,6 @@ class WideMemManager : public MemManagerCore {
   /// function entry
   Expr m_sp0;
 
-  /// \brief Source of unique identifiers
-  mutable unsigned m_id;
-
   const Expr m_uninit_size;
 
   /// \brief Memory manager for raw pointers

@@ -12,7 +12,7 @@ enum class MutModelOpKind { FTABLE, FENTRY };
 struct MutModelOp : public expr::Operator {
   MutModelOpKind m_kind;
   MutModelOp(MutModelOpKind k) : Operator(expr::OpFamilyId::MutModelOp), m_kind(k) {}
-  virtual bool isMutable() const { return true; }
+  virtual bool isMutable() const override { return true; }
   static bool classof(expr::Operator const *op) {
     return op->getFamilyId() == expr::OpFamilyId::MutModelOp;
   }

@@ -10,7 +10,7 @@ using namespace seahorn;
 using namespace mem;
 
 namespace utils {
-bool shouldCache(Expr e);
+bool shouldCache(const Expr &e);
 } // end of namespace utils
 
 /** rewrite hybrid memory expr in ITE structure

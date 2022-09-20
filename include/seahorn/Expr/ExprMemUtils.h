@@ -17,7 +17,7 @@ namespace mem {
  **/
 bool isBaseAddr(Expr e, bool basedPtr = true);
 
-void updatePtrTCCache(Expr e, bool isPtr, PtrTypeCheckCache &cache);
+void updatePtrTCCache(const Expr &e, bool isPtr, PtrTypeCheckCache &cache);
 
 /**
  * @brief recursively check whether e would resolve to an address

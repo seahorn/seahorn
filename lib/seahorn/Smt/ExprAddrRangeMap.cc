@@ -187,9 +187,9 @@ AddrRange addrRangeOf(Expr e) {
   return mkAddrRangeTop();
 }
 
-inline void updateARMCache(ARMCache &cache, Expr e, AddrRangeMap arm) {
+inline void updateARMCache(ARMCache &cache, const Expr &e, AddrRangeMap arm) {
   if (e->use_count() > 1) {
-    // expr->Ref();
+    e->Ref();
     cache[&*e] = arm;
   }
 }

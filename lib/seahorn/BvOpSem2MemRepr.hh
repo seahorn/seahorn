@@ -117,6 +117,8 @@ public:
         m_cache(DagVisitCache()), m_armCache(ARMCache()),
         m_smapCache(DagVisitCache()), m_ptCache(PtrTypeCheckCache()) {}
 
+  ~OpSemMemHybridRepr() override;
+
   /**
    * mem: 1. array const i.e. A (uninitialized)
    *      2. store expr i.e. store(mem, idx, val)

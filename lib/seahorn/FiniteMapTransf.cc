@@ -162,7 +162,7 @@ static Expr getCellExprVariant(Expr e) {
   return cellE; // cell id
 }
 
-#if 0
+#ifndef NDEBUG
 static Expr getCellExpr(Expr e) {
 
   // only supporting one level of +
@@ -190,7 +190,7 @@ static unsigned getOffsetCellExpr(Expr e) {
   return offset + getTerm<unsigned>(e->right());
 }
 
-#if 0
+#ifndef NDEBUG
 // for debugging
 static bool sameNode(Expr e1, Expr e2) {
   return getCellExpr(e1)->left() == getCellExpr(e2)->left();

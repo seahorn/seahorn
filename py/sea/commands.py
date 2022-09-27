@@ -926,13 +926,11 @@ class Seaopt(sea.LimitedCmd):
         argv.extend(['--unroll-allow-partial=false',
                      '--unroll-partial-threshold=0'])
 
-
-        ### REVISIT: these flags are gone since LLVM11. See here some discussion
-        ### https://reviews.llvm.org/D77989.
-        ### It seems they were not having much effect anyway.
-        # if not args.enable_vectorize:
-        #     argv.extend ([  '--vectorize-loops=false'
-        #                   , '--disable-slp-vectorization=true'            
+        # LLVM 12 onwards we need to disable slp vectorization (vec instr not handled by sea-dsa and opsem)
+        # vectorization for loops is split into multiple options so not adding any here.
+        # See https://sourcegraph.com/github.com/llvm/llvm-project@release/12.x/-/blob/llvm/lib/Transforms/Vectorize/LoopVectorize.cpp
+        if not args.enable_vectorize:
+            argv.extend (['--vectorize-slp=false'])
                           
         argv.extend (args.in_files)
         if args.llvm_asm: argv.append ('-S')

@@ -10,7 +10,7 @@ jobs:
     steps:
       - name: Setup environment
         run: |
-          sudo apt-get install -yqq clang-format-10
+          sudo apt-get install -yqq clang-format-12
       - name: Checkout
         run: |
           git clone https://github.com/${{ github.repository }}.git .

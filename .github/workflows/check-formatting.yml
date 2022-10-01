@@ -20,7 +20,7 @@ jobs:
       - name: Run clang-format
         run: |
           git diff ${{ github.base_ref }} -U0 --no-color -- '**/*.cpp' '**/*.cc' '**/*.h' '**/*.hh' \
-            | clang-format-diff-10 -p1 >not-formatted.diff 2>&1
+            | clang-format-diff-12 -p1 >not-formatted.diff 2>&1
       - name: Check formatting
         run: |
           if ! grep -q '[^[:space:]]' not-formatted.diff ; then
@@ -28,7 +28,7 @@ jobs:
           else
             echo "Code not formatted."
             echo "Please run clang-format-diff on your changes and push again:"
-            echo "    git diff ${{ github.base_ref }} -U0 --no-color | clang-format-diff -p1 -i"
+            echo "    git diff ${{ github.base_ref }} -U0 --no-color | clang-format-diff-12 -p1 -i"
             echo ""
             echo "Tip: you can selectively disable clang-format checks. See https://clang.llvm.org/docs/ClangFormatStyleOptions.html#disabling-formatting-on-a-piece-of-code"
             echo ""

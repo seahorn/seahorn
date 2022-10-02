@@ -264,7 +264,7 @@ private:
       return false;
     }
 
-    Value *LoopIndexGep = nullptr;
+    GetElementPtrInst *LoopIndexGep = nullptr;
     Value *End = nullptr;
     InductionInfo II;
     bool IV_found = false;
@@ -302,7 +302,7 @@ private:
     B.SetInsertPoint(ExitCond);
     Type *intPtrTy = m_dl->getIntPtrType(B.getContext(), 0);
     Value *Stride = ConstantInt::get(intPtrTy, II.m_stride);
-    Value *Slack = B.CreateGEP(LoopIndexGep, Stride, "slack");
+    Value *Slack = B.CreateGEP(LoopIndexGep->getResultElementType(), LoopIndexGep, Stride, "slack");
 
     Value *NExitCond = nullptr;
     if (TrueDest == ExitBB && ExitCond->getPredicate() == CmpInst::ICMP_EQ) {

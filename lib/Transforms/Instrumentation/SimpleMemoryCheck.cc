@@ -687,16 +687,16 @@ Value *CreateIntCnst(Type *Ty, int64_t Val) {
   return ConstantInt::get(Ty, Val);
 }
 
-Value *CreateLoad(IRBuilder<> &B, Value *Ptr, const DataLayout *DL,
+Value *CreateLoad(IRBuilder<> &B, Type* Ty, Value *Ptr, const DataLayout *DL,
                   StringRef Name = "") {
-  return B.CreateAlignedLoad(Ptr, DL->getABITypeAlignment(Ptr->getType()),
+  return B.CreateAlignedLoad(Ty, Ptr, DL->getABITypeAlign(Ptr->getType()),
                              Name);
 }
 
 Value *CreateStore(IRBuilder<> &B, Value *Val, Value *Ptr,
                    const DataLayout *DL) {
   return B.CreateAlignedStore(Val, Ptr,
-                              DL->getABITypeAlignment(Ptr->getType()));
+                              DL->getABITypeAlign(Ptr->getType()));
 }
 
 Value *CreateNullptr(LLVMContext &Ctx) {
@@ -866,7 +866,7 @@ void SimpleMemoryCheck::emitMemoryInstInstrumentation(CheckContext &Candidate) {
 
   auto *BeginCandiate = IRB.CreateBitOrPointerCast(
       Candidate.Barrier, GetI8PtrTy(*m_Ctx), "begin_candidate");
-  auto *TrackedBegin = CreateLoad(IRB, m_trackedBegin, m_DL, "tracked_begin");
+  auto *TrackedBegin = CreateLoad(IRB, IRB.getInt8PtrTy(), m_trackedBegin, m_DL, "tracked_begin");
   auto *Cmp = IRB.CreateICmpEQ(TrackedBegin, BeginCandiate);
   auto *Active = IRB.CreateLoad(m_trackingEnabled, "active_tracking");
   auto *And = IRB.CreateAnd(Active, Cmp, "unsafe_condition");
@@ -909,7 +909,7 @@ void SimpleMemoryCheck::emitAllocSiteInstrumentation(CheckContext &Candidate,
                                        "inactive_tracking");
     auto *NDVal = getNDVal(32, CSFn, IRB);
     auto *NDBool = IRB.CreateICmpEQ(NDVal, CreateIntCnst(NDVal->getType(), 0));
-    auto *TrackedEnd = CreateLoad(IRB, m_trackedEnd, m_DL, "loaded_end");
+    auto *TrackedEnd = CreateLoad(IRB, IRB.getInt8PtrTy(), m_trackedEnd, m_DL, "loaded_end");
     auto *And = dyn_cast<Instruction>(IRB.CreateAnd(NotActive, NDBool));
     assert(And);
 
@@ -930,7 +930,7 @@ void SimpleMemoryCheck::emitAllocSiteInstrumentation(CheckContext &Candidate,
     // Start tracking.
     IRB.SetInsertPoint(ThenBB->getFirstNonPHI());
     CreateStore(IRB, ConstantInt::getTrue(*m_Ctx), m_trackingEnabled, m_DL);
-    auto *TrackedBegin = CreateLoad(IRB, m_trackedBegin, m_DL, "loaded_begin");
+    auto *TrackedBegin = CreateLoad(IRB, IRB.getInt8PtrTy(), m_trackedBegin, m_DL, "loaded_begin");
     auto *AllocIsBegin =
         IRB.CreateICmpEQ(AllocI8, TrackedBegin, "alloc.is.begin");
     createAssume(AllocIsBegin, CSFn, IRB);
@@ -956,7 +956,7 @@ void SimpleMemoryCheck::emitAllocSiteInstrumentation(CheckContext &Candidate,
     IRB.SetInsertPoint(GetNextInst(OtherAllocInst));
     auto *OAI8 =
         IRB.CreateBitCast(OtherAllocInst, GetI8PtrTy(*m_Ctx), "other.alloc.i8");
-    auto *TrackedEnd = CreateLoad(IRB, m_trackedEnd, m_DL, "loaded_end");
+    auto *TrackedEnd = CreateLoad(IRB, IRB.getInt8PtrTy(), m_trackedEnd, m_DL, "loaded_end");
     auto *GT = IRB.CreateICmpSGT(OAI8, TrackedEnd);
     createAssume(GT, OtherAllocInst->getFunction(), IRB);
 

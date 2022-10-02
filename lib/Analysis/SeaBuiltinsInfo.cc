@@ -118,7 +118,7 @@ llvm::Function *SeaBuiltinsInfo::mkSeaBuiltinFn(SeaBuiltinsOp op,
 
 void SeaBuiltinsInfo::setCommonAttrs(Function &F) {
   auto &C = F.getContext();
-  AttrBuilder B;
+  AttrBuilder B(C);
   B.addAttribute(Attribute::NoUnwind);
   B.addAttribute(Attribute::NoRecurse);
   B.addAttribute(Attribute::NoFree);

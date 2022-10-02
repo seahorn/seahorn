@@ -251,7 +251,7 @@ bool NullCheck::runOnModule(llvm::Module &M) {
 
   LLVMContext &ctx = M.getContext();
 
-  AttrBuilder B;
+  AttrBuilder B(ctx);
   AttributeList as = AttributeList::get(ctx, AttributeList::FunctionIndex, B);
 
   AssumeFn = dyn_cast<Function>(M.getOrInsertFunction("verifier.assume", as,

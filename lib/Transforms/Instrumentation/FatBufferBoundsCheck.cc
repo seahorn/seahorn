@@ -136,7 +136,7 @@ BasicBlock *FatBufferBoundsCheck::getErrorBB() {
   ErrorBB = BasicBlock::Create(Fn->getContext(), "bound_overflow", Fn);
   Builder->SetInsertPoint(ErrorBB);
 
-  AttrBuilder AB;
+  AttrBuilder AB(Fn->getContext());
   AB.addAttribute(Attribute::NoReturn);
   // AttributeList as = AttributeList::get(ctx, AttributeList::FunctionIndex, AB);
   auto errorFn = SBI->mkSeaBuiltinFn(seahorn::SeaBuiltinsOp::ERROR, M);

@@ -162,7 +162,7 @@ public:
     BasicBlock::iterator insertPt = F.getEntryBlock().getFirstInsertionPt();
     B.SetInsertPoint(&*insertPt);
 
-    AttrBuilder AB;
+    AttrBuilder AB(ctx);
     AttributeList as =
         AttributeList::get(ctx, AttributeList::FunctionIndex, AB);
 

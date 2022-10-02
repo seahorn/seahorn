@@ -998,7 +998,7 @@ bool SimpleMemoryCheck::runOnModule(llvm::Module &M) {
                  << "Type-aware) ==========\n");
   LOG("smc-dsa", if (m_SDSA) m_SDSA->viewGraph(*main));
 
-  AttrBuilder AB;
+  AttrBuilder AB(M.getContext());
   AB.addAttribute(Attribute::NoReturn);
   AttributeList AS =
       AttributeList::get(*m_Ctx, AttributeList::FunctionIndex, AB);

@@ -225,7 +225,7 @@ bool MixedSemantics::runOnModule(Module &M) {
     br->setDebugLoc(ci->getDebugLoc());
   }
 
-  AttrBuilder B;
+  AttrBuilder B(M.getContext());
 
   // --- make sure the optimizer does not remove it
   B.addAttribute(Attribute::OptimizeNone);

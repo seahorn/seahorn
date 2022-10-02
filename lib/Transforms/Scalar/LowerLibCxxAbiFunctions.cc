@@ -24,7 +24,7 @@ struct LowerLibCxxAbiFunctions : public ModulePass {
   bool runOnModule(Module &M) override {
 
     LLVMContext &Context = M.getContext();
-    AttrBuilder B;
+    AttrBuilder B(Context);
     AttributeList as =
         AttributeList::get(Context, AttributeList::FunctionIndex, B);
 

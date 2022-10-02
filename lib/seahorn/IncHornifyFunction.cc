@@ -121,7 +121,7 @@ void IncSmallHornifyFunction::runOnFunction(Function &F) {
   ExprVector rflags;
   std::error_code error_code;
   std::unique_ptr<llvm::ToolOutputFile> debug = std::make_unique<llvm::ToolOutputFile>
-    (DebugInfo.c_str(), error_code, llvm::sys::fs::F_None);
+    (DebugInfo.c_str(), error_code, llvm::sys::fs::OF_None);
 
   // llvm::raw_ostream *dinfo_out = &debug->os ();
 

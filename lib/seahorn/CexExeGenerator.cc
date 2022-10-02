@@ -329,7 +329,7 @@ template <class Trace> void CexExeGenerator<Trace>::buildCexModule() {
 template <class Trace>
 void CexExeGenerator<Trace>::saveCexModuleToFile(llvm::StringRef CexFile) {
   std::error_code error_code;
-  llvm::ToolOutputFile out(CexFile, error_code, sys::fs::F_None);
+  llvm::ToolOutputFile out(CexFile, error_code, sys::fs::OF_None);
   assert(!error_code);
   verifyModule(*m_harness, &errs());
   if (CexFile.endswith(".ll"))

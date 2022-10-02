@@ -271,7 +271,7 @@ bool HornCex::runOnFunction(Module &M, Function &F) {
 
   if (!HornCexSmtFilename.empty()) {
     std::error_code EC;
-    raw_fd_ostream file(HornCexSmtFilename, EC, sys::fs::F_Text);
+    raw_fd_ostream file(HornCexSmtFilename, EC, sys::fs::OF_Text);
     if (!EC)
       bmc.toSmtLib(file);
     else
@@ -486,7 +486,7 @@ static void debugLocToSvComp(const Instruction &inst, SvCompCex<O> &svcomp) {
 
 static void dumpSvCompCex(ZBmcTraceTy &trace, StringRef CexFile) {
   std::error_code ec;
-  llvm::ToolOutputFile out(CexFile, ec, llvm::sys::fs::F_Text);
+  llvm::ToolOutputFile out(CexFile, ec, llvm::sys::fs::OF_Text);
   if (ec) {
     errs() << "ERROR: Cannot open CEX file: " << ec.message() << "\n";
     return;
@@ -509,7 +509,7 @@ static void dumpSvCompCex(ZBmcTraceTy &trace, StringRef CexFile) {
 
 static void dumpLLVMBitcode(const Module &M, StringRef BcFile) {
   std::error_code error_code;
-  ToolOutputFile sliceOutput(BcFile, error_code, sys::fs::F_None);
+  ToolOutputFile sliceOutput(BcFile, error_code, sys::fs::OF_None);
   assert(!error_code);
   verifyModule(M, &errs());
   if (BcFile.endswith(".ll"))

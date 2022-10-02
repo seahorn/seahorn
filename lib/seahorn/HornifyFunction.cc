@@ -702,7 +702,7 @@ void LargeHornifyFunction::runOnFunction(Function &F) {
             "reduce",
 
             std::error_code EC;
-            raw_fd_ostream file("/tmp/edge.smt2", EC, sys::fs::F_Text);
+            raw_fd_ostream file("/tmp/edge.smt2", EC, sys::fs::OF_Text);
             if (!EC) {
               file << "(set-info :original \"" << edge->source().bb().getName()
                    << " --> " << edge->target().bb().getName() << "\")\n";

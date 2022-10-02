@@ -10,9 +10,11 @@
 #include "llvm/IR/GetElementPtrTypeIterator.h"
 #include "llvm/IR/InlineAsm.h"
 #include "llvm/Support/CommandLine.h"
+#include "llvm/Support/FileSystem.h"
 #include "llvm/Support/Format.h"
 #include "llvm/Support/MathExtras.h"
 #include "llvm/Support/Regex.h"
+
 
 #include "seahorn/CallUtils.hh"
 #include "seahorn/Support/CFG.hh"
@@ -1065,7 +1067,7 @@ public:
         auto filename = "incassert." + std::to_string(++cnt) + ".smt2";
         errs() << "Writing increment assert formula to '" << filename << "'..."
                << "\n";
-        raw_fd_ostream File(filename, EC, sys::fs::F_Text);
+        raw_fd_ostream File(filename, EC, sys::fs::OF_Text);
         m_ctx.toSmtLib(File);
       }
     });

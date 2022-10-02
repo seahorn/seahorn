@@ -1113,7 +1113,7 @@ void PathBmcEngine::toSmtLib(const ExprVector &f, std::string prefix) {
   Twine fullFilename(path);
 
   // create a file descriptor
-  raw_fd_ostream fd(fullFilename.toStringRef(path), EC, sys::fs::F_Text);
+  raw_fd_ostream fd(fullFilename.toStringRef(path), EC, sys::fs::OF_Text);
   if (EC) {
     ERR << "Could not open: " << Filename;
     return;

@@ -175,7 +175,7 @@ namespace seahorn {
 
     static bool writeGraph (Function&F, const LoopInfo& LI, std::string Filename) {
       std::error_code EC;
-      raw_fd_ostream File(Filename, EC, sys::fs::F_Text);
+      raw_fd_ostream File(Filename, EC, sys::fs::OF_Text);
 
       FunctionWrapper FW ((const Function*)&F, &LI, HideShadows);
 
@@ -213,7 +213,7 @@ namespace seahorn {
 
     static bool writeGraph(Function &F, const LoopInfo& LI, std::string Filename) {
       std::error_code EC;
-      raw_fd_ostream File(Filename, EC, sys::fs::F_Text);
+      raw_fd_ostream File(Filename, EC, sys::fs::OF_Text);
       FunctionWrapper FW ((const Function*)&F, &LI);
       if (!EC) {
         errs() << "Writing '" << Filename << "'...";

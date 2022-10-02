@@ -818,7 +818,7 @@ void SimpleMemoryCheck::emitGlobalInstrumentation(CheckContext &Candidate,
     Optional<size_t> AllocSize = getAllocSize(TrackedAlloc);
     assert(AllocSize);
 
-    auto *GlobalEnd = IRB.CreateGEP(
+    auto *GlobalEnd = IRB.CreateGEP(IRB.getInt8Ty(),
         I8GV,
         CreateIntCnst(IntegerType::getInt32Ty(*m_Ctx), int64_t(*AllocSize)),
         "global_end_ptr");
@@ -868,7 +868,7 @@ void SimpleMemoryCheck::emitMemoryInstInstrumentation(CheckContext &Candidate) {
       Candidate.Barrier, GetI8PtrTy(*m_Ctx), "begin_candidate");
   auto *TrackedBegin = CreateLoad(IRB, IRB.getInt8PtrTy(), m_trackedBegin, m_DL, "tracked_begin");
   auto *Cmp = IRB.CreateICmpEQ(TrackedBegin, BeginCandiate);
-  auto *Active = IRB.CreateLoad(m_trackingEnabled, "active_tracking");
+  auto *Active = IRB.CreateLoad(IRB.getInt1Ty(), m_trackingEnabled, "active_tracking");
   auto *And = IRB.CreateAnd(Active, Cmp, "unsafe_condition");
   auto *Term = SplitBlockAndInsertIfThen(And, Candidate.MI, true);
   IRB.SetInsertPoint(Term);
@@ -904,7 +904,7 @@ void SimpleMemoryCheck::emitAllocSiteInstrumentation(CheckContext &Candidate,
 
     IRB.SetInsertPoint(GetNextInst(AI));
     auto *AllocI8 = IRB.CreateBitCast(AI, GetI8PtrTy(*m_Ctx), "alloc.i8");
-    auto *Active = IRB.CreateLoad(m_trackingEnabled, "active_tracking");
+    auto *Active = IRB.CreateLoad(IRB.getInt1Ty(), m_trackingEnabled, "active_tracking");
     auto *NotActive = IRB.CreateICmpEQ(Active, ConstantInt::getFalse(*m_Ctx),
                                        "inactive_tracking");
     auto *NDVal = getNDVal(32, CSFn, IRB);
@@ -938,7 +938,7 @@ void SimpleMemoryCheck::emitAllocSiteInstrumentation(CheckContext &Candidate,
     Optional<size_t> AllocSize = getAllocSize(AI);
     assert(AllocSize);
 
-    auto *End = IRB.CreateGEP(
+    auto *End = IRB.CreateGEP(IRB.getInt8Ty(),
         AllocI8,
         CreateIntCnst(IntegerType::getInt32Ty(*m_Ctx), int64_t(*AllocSize)),
         "end_ptr");

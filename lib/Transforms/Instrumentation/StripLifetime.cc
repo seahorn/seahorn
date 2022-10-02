@@ -29,7 +29,7 @@ namespace
         while (!fn->use_empty ())
         {
           CallInst *ci = cast<CallInst> (fn->user_back ());
-          Value *last = ci->getArgOperand (ci->getNumArgOperands () - 1);
+          Value *last = *(ci->arg_end() - 1);
           ci->eraseFromParent ();
           RecursivelyDeleteTriviallyDeadInstructions (last);
         }

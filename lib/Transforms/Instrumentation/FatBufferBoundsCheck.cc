@@ -434,7 +434,7 @@ bool FatBufferBoundsCheck::runOnFunction(Function &F) {
                            .getCallee());
 
     m_getFatSlot0->setDoesNotThrow();
-    m_getFatSlot0->setDoesNotReadMemory();
+    m_getFatSlot0->setOnlyWritesMemory();
     m_getFatSlot0->addParamAttr(0, Attribute::NoCapture);
 
     m_getFatSlot1 =
@@ -442,7 +442,7 @@ bool FatBufferBoundsCheck::runOnFunction(Function &F) {
                                               Type::getInt8PtrTy(C, 0))
                            .getCallee());
     m_getFatSlot1->setDoesNotThrow();
-    m_getFatSlot1->setDoesNotReadMemory();
+    m_getFatSlot1->setOnlyWritesMemory();
     m_getFatSlot1->addParamAttr(0, Attribute::NoCapture);
 
     m_setFatSlot0 = cast<Function>(
@@ -450,7 +450,7 @@ bool FatBufferBoundsCheck::runOnFunction(Function &F) {
                                Type::getInt8PtrTy(C, 0), IntPtrTy)
             .getCallee());
     m_setFatSlot0->setDoesNotThrow();
-    m_setFatSlot0->setDoesNotReadMemory();
+    m_setFatSlot0->setOnlyWritesMemory();
     // m_setFatSlot0->addParamAttr(0, Attribute::Returned);
 
     m_setFatSlot1 = cast<Function>(
@@ -458,7 +458,7 @@ bool FatBufferBoundsCheck::runOnFunction(Function &F) {
                                Type::getInt8PtrTy(C, 0), IntPtrTy)
             .getCallee());
     m_setFatSlot1->setDoesNotThrow();
-    m_setFatSlot1->setDoesNotReadMemory();
+    m_setFatSlot1->setOnlyWritesMemory();
     // m_setFatSlot1->addParamAttr(0, Attribute::Returned);
 
     m_copyFatSlots =
@@ -467,7 +467,7 @@ bool FatBufferBoundsCheck::runOnFunction(Function &F) {
                             Type::getInt8PtrTy(C, 0), Type::getInt8PtrTy(C, 0))
                            .getCallee());
     m_copyFatSlots->setDoesNotThrow();
-    m_copyFatSlots->setDoesNotReadMemory();
+    m_copyFatSlots->setOnlyWritesMemory();
     // m_copyFatSlots->addParamAttr(0, Attribute::Returned);
     m_copyFatSlots->addParamAttr(1, Attribute::NoCapture);
 
@@ -476,7 +476,7 @@ bool FatBufferBoundsCheck::runOnFunction(Function &F) {
                                Type::getInt8PtrTy(C, 0))
             .getCallee());
     m_recoverFatPtr->setDoesNotThrow();
-    m_recoverFatPtr->setDoesNotReadMemory();
+    m_recoverFatPtr->setOnlyWritesMemory();
     // m_recoverFatPtr->addParamAttr(0, Attribute::Returned);
 
     m_seaDsaAlias =

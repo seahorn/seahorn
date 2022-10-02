@@ -17,6 +17,10 @@ using namespace expr;
 namespace seahorn {
 namespace solver {
 
+static void report_fatal_error(std::string const &s) {
+  llvm::report_fatal_error(llvm::StringRef(s));
+}
+
 static term_t encode_term_fail(Expr e, const char *error_msg) {
   if (!error_msg) {
     error_msg = yices::error_string().c_str();

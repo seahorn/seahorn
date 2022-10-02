@@ -15,6 +15,9 @@ using namespace expr;
 namespace seahorn {
 namespace solver {
 
+static void report_fatal_error(std::string const &s) {
+  llvm::report_fatal_error(llvm::StringRef(s)); 
+}
 
 /* flag to indicate library status; we are single threaded so we can be lazy. */
 static bool s_yices_lib_initialized = false;

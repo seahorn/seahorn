@@ -109,7 +109,7 @@ static bool cutBackEdge(BasicBlock *src, BasicBlock *dst, Function &F,
     CallInst::Create(assumeFn, ConstantInt::getFalse(F.getContext()), "",
                      const_cast<llvm::BranchInst *>(TI));
     // -- change branch to unreachable because assume(false) above
-    llvm::changeToUnreachable(const_cast<llvm::BranchInst *>(TI), false, false,
+    llvm::changeToUnreachable(const_cast<llvm::BranchInst *>(TI), false,
                               nullptr, nullptr);
     return true;
   } else {

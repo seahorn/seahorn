@@ -76,11 +76,11 @@ if (GIT_FOUND)
     CACHE STRING "clam repo")
   
   add_custom_target (llvm-seahorn-git
-    ${GIT_EXECUTABLE} clone ${SEAHORN_LLVM_REPO} ${CMAKE_SOURCE_DIR}/llvm-seahorn -b dev12)
+    ${GIT_EXECUTABLE} clone ${SEAHORN_LLVM_REPO} ${CMAKE_SOURCE_DIR}/llvm-seahorn -b dev13)
   add_custom_target (sea-dsa-git
-    ${GIT_EXECUTABLE} clone ${SEA_DSA_REPO} ${CMAKE_SOURCE_DIR}/sea-dsa -b dev12)
+    ${GIT_EXECUTABLE} clone ${SEA_DSA_REPO} ${CMAKE_SOURCE_DIR}/sea-dsa -b dev13)
   add_custom_target (clam-git
-    ${GIT_EXECUTABLE} clone ${CLAM_REPO} ${CMAKE_SOURCE_DIR}/clam -b dev12)
+    ${GIT_EXECUTABLE} clone ${CLAM_REPO} ${CMAKE_SOURCE_DIR}/clam -b dev13)
   add_custom_target (extra
     ${CMAKE_COMMAND} -E touch ${CMAKE_CURRENT_LIST_FILE}
     DEPENDS
@@ -164,13 +164,13 @@ if (YICES2_FOUND)
   install(FILES ${YICES2_LIBRARY} DESTINATION lib)
 endif()  
 
-find_package (LLVM 12 CONFIG)
+find_package (LLVM 13 CONFIG)
 if (NOT LLVM_FOUND)
   ExternalProject_Get_Property (llvm INSTALL_DIR)
   set (LLVM_ROOT ${INSTALL_DIR})
   set (LLVM_DIR ${LLVM_ROOT}/lib/cmake/llvm CACHE PATH
     "Forced location of LLVM cmake config" FORCE)
-  message (WARNING "No llvm found. Install LLVM 12.")
+  message (WARNING "No llvm found. Install LLVM 13.")
 else()
 
   message(STATUS "Found LLVM ${LLVM_PACKAGE_VERSION}")

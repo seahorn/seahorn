@@ -719,7 +719,7 @@ public:
     // 3) Single instruction of bswap asm
 
     IntegerType *Ty = dyn_cast<IntegerType>(CB.getType());
-    if ((Ty && Ty->getBitWidth() % 16 != 0) || CB.getNumArgOperands() > 1) {
+    if ((Ty && Ty->getBitWidth() % 16 != 0) || CB.arg_size() > 1) {
       LOG("opsem",
           ERR << "Cannot handle inline assembly: " << CB);
       return;

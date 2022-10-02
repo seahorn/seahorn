@@ -443,7 +443,8 @@ static void FlattenTy(Type *ATy, LLVMContext *Ctx,
     }
 
     if (Ty->isVectorTy()) {
-      for (size_t i = 0, e = cast<VectorType>(Ty)->getNumElements(); i != e; ++i)
+      // AG: only supports fixed width vectors
+      for (size_t i = 0, e = cast<VectorType>(Ty)->getElementCount().getFixedValue(); i != e; ++i)
         Worklist.push_back(cast<VectorType>(Ty)->getElementType());
       continue;
     }

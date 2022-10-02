@@ -159,7 +159,8 @@ bool MixedSemantics::runOnModule(Module &M) {
       auto &p = entryPrms[&F];
       for (auto &a : boost::make_iterator_range(F.arg_begin(), F.arg_end())) {
         p.push_back(enBldr.CreateAlloca(a.getType()));
-        fargs.push_back(Builder.CreateLoad(p.back()));
+        AllocaInst *alloca = cast<AllocaInst>(p.back());
+        fargs.push_back(Builder.CreateLoad(alloca->getAllocatedType(), alloca));
       }
 
       CallInst *fcall = Builder.CreateCall(&F, fargs);

@@ -130,7 +130,14 @@ bool LoopPeelerPass::runOnLoop(Loop *L, LPPassManager &LPM) {
     LoopsNotPeeled++;
     return false;
   }
-  auto res = peelLoop(L, m_Num, &LI, SE, DT, AC, false /* PreserveLCSSA */);
+
+  if (!DT) {
+    DOG(WARN << "Skipping loop peeling because no DominatorTree: " << *L);
+    LoopsNotPeeled++;
+    return false;
+  }
+
+  auto res = peelLoop(L, m_Num, &LI, SE, *DT, AC, false /* PreserveLCSSA */);
   if (res)
     LoopsPeeled++;
   else

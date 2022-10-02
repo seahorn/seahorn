@@ -84,7 +84,7 @@ static FunctionCallee makeNewNondetFn(Module &m, Type &type, unsigned num,
   std::string name;
   unsigned c = num;
   do
-    name = boost::str(boost::format(prefix + "%d") % (c++));
+    name = prefix + std::to_string(c++);
   while (m.getNamedValue(name));
   FunctionCallee res = m.getOrInsertFunction(name, &type);
   return res;
@@ -194,7 +194,7 @@ bool LowerGvInitializers::runOnModule(Module &M) {
         AllocaInst *Alloca =
             Builder.CreateAlloca(ElemTy, nullptr, gv->getName());
         Builder.CreateAlignedStore(gv->getInitializer(), Alloca,
-                                   DL->getABITypeAlignment(ElemTy));
+                                   DL->getABITypeAlign(ElemTy));
         makeAllConstantUsesInstructions(gv);
         gv->replaceAllUsesWith(Alloca);
         gv->eraseFromParent();
@@ -214,7 +214,7 @@ bool LowerGvInitializers::runOnModule(Module &M) {
     if (ety->isIntegerTy() || ety->isPointerTy() ||
         (LowerGvStruct && isa<ConstantStruct>(gv->getInitializer()))) {
       StoreInst *SI = Builder.CreateAlignedStore(gv->getInitializer(), gv,
-                                                 DL->getABITypeAlignment(ety));
+                                                 DL->getABITypeAlign(ety));
       LOG("lower-gv-init",
           errs() << "LowerGvInitializers: created a store " << *SI << "\n");
       change = true;

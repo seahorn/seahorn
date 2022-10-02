@@ -80,12 +80,12 @@ private:
   }
 
   FunctionCallee makeNewNondetFn(Module &m, Type &type, unsigned num,
-				 std::string prefix) {
+                                 std::string prefix) {
     std::string name;
     unsigned c = num;
-    do
-      name = boost::str(boost::format(prefix + "%d") % (c++));
-    while (m.getNamedValue(name));
+    do {
+      name = prefix + std::to_string(c++);
+    } while (m.getNamedValue(name));
     FunctionCallee res = m.getOrInsertFunction(name, &type);
     return res;
   }
@@ -93,19 +93,21 @@ private:
   // create an external function "Type f(void)"
   FunctionCallee getNondetFn(Type *type, Module &m, std::string prefix) {
     // XXX: at each call create a new function name.
-    FunctionCallee res = makeNewNondetFn(m, *type, m_ndfn.size(), "verifier.nondet." + prefix);
+    FunctionCallee res =
+        makeNewNondetFn(m, *type, m_ndfn.size(), "verifier.nondet." + prefix);
     m_ndfn.push_back(res);
     return res;
   }
 
   FunctionCallee makeNewExternalFn(Module &m, Type &type, unsigned num,
-				   std::string prefix) {
+                                   std::string prefix) {
     std::string name;
     unsigned c = num;
-    do
-      name = boost::str(boost::format(prefix + "%d") % (c++));
-    while (m.getNamedValue(name));
-    FunctionCallee res = m.getOrInsertFunction(name, Type::getVoidTy(m.getContext()), &type);
+    do {
+      name = prefix + std::to_string(c++);
+    } while (m.getNamedValue(name));
+    FunctionCallee res =
+        m.getOrInsertFunction(name, Type::getVoidTy(m.getContext()), &type);
     return res;
   }
 
@@ -114,10 +116,10 @@ private:
     auto it = m_extfn.find(type);
     if (it != m_extfn.end()) {
       return it->second;
-      }
-    
+    }
+
     FunctionCallee res = makeNewExternalFn(m, *type, m_extfn.size(),
-					   "verifier.external." + prefix);
+                                           "verifier.external." + prefix);
     m_extfn[type] = res;
     return res;
   }
@@ -400,8 +402,8 @@ private:
           CallInst *CI =
               mkNondetCall(v, m, B, insPt, "abstract.memory.store.value.");
           B.SetInsertPoint(I);
-          StoreInst *NI = B.CreateAlignedStore(
-              CI, I->getPointerOperand(), I->isVolatile(), I->getAlignment());
+          StoreInst *NI = B.CreateAlignedStore(CI, I->getPointerOperand(),
+                                               I->getAlign(), I->isVolatile());
           (void)NI;
           mkOneUse(v, I, m, B);
           I->eraseFromParent();
@@ -535,7 +537,8 @@ public:
     // for (auto &ndfn: m_ndfn)
     // 	MergedVars.push_back (ConstantExpr::getBitCast(ndfn, i8PTy));
     for (auto &kv : m_extfn)
-      MergedVars.push_back(ConstantExpr::getBitCast(cast<Function>(kv.second.getCallee()), i8PTy));
+      MergedVars.push_back(ConstantExpr::getBitCast(
+          cast<Function>(kv.second.getCallee()), i8PTy));
 
     // Recreate llvm.used.
     ArrayType *ATy = ArrayType::get(i8PTy, MergedVars.size());

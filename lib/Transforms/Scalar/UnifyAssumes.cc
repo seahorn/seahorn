@@ -173,7 +173,7 @@ bool UnifyAssumesPass::runOnFunction(Function &F) {
   } else {
     B.SetInsertPoint(exitBlock->getTerminator());
   }
-  B.CreateCall(assumeFn, B.CreateLoad(assumeFlag));
+  B.CreateCall(assumeFn, B.CreateLoad(B.getInt1Ty(), assumeFlag));
 
   LOG("unify.dump", errs() << F << "\n";);
 
@@ -210,7 +210,7 @@ void UnifyAssumesPass::processAssertInst(CallInst &CI, AllocaInst &flag) {
       }
     }
   }
-  auto ante = B.CreateLoad(&flag);
+  auto ante = B.CreateLoad(flag.getAllocatedType(), &flag);
   // negate condition if verifier.assert.not seen
   bool isNot = m_SBI->getSeaBuiltinOp(CI) == seahorn::SeaBuiltinsOp::ASSERT_NOT;
   if (isNot) {
@@ -242,7 +242,7 @@ void UnifyAssumesPass::processCallInst(CallInst &CI, AllocaInst &flag) {
     cond = B.CreateNot(cond);
 
   // transform verifier.assume(cond) into flag := flag && cond
-  B.CreateStore(B.CreateAnd(B.CreateLoad(&flag), cond), &flag);
+  B.CreateStore(B.CreateAnd(B.CreateLoad(flag.getAllocatedType(), &flag), cond), &flag);
   return;
 }
 } // namespace

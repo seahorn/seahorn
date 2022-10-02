@@ -102,6 +102,16 @@ if (CUSTOM_BOOST_ROOT)
   set (Boost_NO_SYSTEM_PATHS "ON")
 endif()
 
+find_package(Gmp REQUIRED)
+if (GMP_FOUND)
+  include_directories (${GMP_INCLUDE_DIR})
+else()
+  set(GMP_LIB "")
+endif()
+
+
+
+
 # put static libraries first
 set(CMAKE_FIND_LIBRARY_SUFFIXES ".a" ${CMAKE_FIND_LIBRARY_SUFFIXES})
 
@@ -321,13 +331,6 @@ endif()
 mark_as_advanced(RT_LIB)
 
 find_package(Curses)
-
-find_package(Gmp REQUIRED)
-if (GMP_FOUND)
-  include_directories (${GMP_INCLUDE_DIR})
-else()
-  set(GMP_LIB "")
-endif()
 
 find_package(OpenMP)
 if (OpenMP_FOUND OR OPENMP_FOUND)

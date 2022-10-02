@@ -135,7 +135,7 @@ class KleeInternalize : public ModulePass {
                0)});
 
       (void)mksym;
-      Value *retValue = Builder.CreateLoad(v);
+      Value *retValue = Builder.CreateLoad(v->getAllocatedType(), v);
       if (storeTy != retTy)
         retValue = Builder.CreateZExtOrTrunc(retValue, retTy);
 

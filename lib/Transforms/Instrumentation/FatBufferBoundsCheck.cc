@@ -216,7 +216,7 @@ bool FatBufferBoundsCheck::instrument(Value *Ptr, Value *InstVal,
     }
     if (UseFatSlots) {
       // -- skip anything that is globally allocated
-      if (isa<llvm::GlobalValue>(Ptr->stripPointerCastsAndInvariantGroups())) {
+      if (isa<llvm::GlobalValue>(Ptr->stripPointerCastsForAliasAnalysis())) {
         ++ChecksUnable;
         return false;
       }

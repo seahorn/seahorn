@@ -1,6 +1,4 @@
-#ifndef _CEXHARNESS__HH_
-#define _CEXHARNESS__HH_
-
+#pragma once
 #include "llvm/ADT/StringRef.h"
 
 #include "seahorn/Bmc.hh"
@@ -95,4 +93,3 @@ public:
 
 #include "seahorn/CexHarnessImpl.hh"
 
-#endif

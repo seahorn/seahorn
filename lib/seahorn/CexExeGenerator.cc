@@ -202,7 +202,7 @@ void CexExeGenerator<Trace>::buildNonDetFunction(const Function *func,
   GlobalVariable *Counter = new GlobalVariable(*m_harness, CountType, false,
                                                GlobalValue::PrivateLinkage,
                                                ConstantInt::get(CountType, 0));
-  Value *curCounter = Builder.CreateLoad(Counter);
+  Value *curCounter = Builder.CreateLoad(CountType, Counter);
   // increment counter
   Builder.CreateStore(
       Builder.CreateAdd(curCounter, ConstantInt::get(CountType, 1)), Counter);
@@ -283,7 +283,7 @@ void CexExeGenerator<Trace>::buildMemhavoc(const Function *func,
   GlobalVariable *Counter = new GlobalVariable(*m_harness, CountType, false,
                                                GlobalValue::PrivateLinkage,
                                                ConstantInt::get(CountType, 0));
-  Value *curCounter = Builder.CreateLoad(Counter);
+  Value *curCounter = Builder.CreateLoad(CountType, Counter);
   // increment counter
   Builder.CreateStore(
       Builder.CreateAdd(curCounter, ConstantInt::get(CountType, 1)), Counter);

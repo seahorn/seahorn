@@ -1,3 +1,4 @@
+#pragma once
 #include "seahorn/CexHarness.hh"
 
 #include "llvm/Bitcode/BitcodeWriter.h"
@@ -309,7 +310,7 @@ createCexHarness(BmcTraceWrapper<Trace> &trace, const DataLayout &dl,
         *Harness, CountType, false, GlobalValue::PrivateLinkage,
         ConstantInt::get(CountType, 0));
 
-    Value *LoadCounter = Builder.CreateLoad(Counter);
+    Value *LoadCounter = Builder.CreateLoad(CountType, Counter);
 
     Builder.CreateStore(
         Builder.CreateAdd(LoadCounter, ConstantInt::get(CountType, 1)),

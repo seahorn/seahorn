@@ -607,7 +607,7 @@ CheckContext SimpleMemoryCheck::getUnsafeCandidates(Instruction *Inst,
   }
 
   // Assume that alloc functions return fresh memory.
-  if (isAllocLikeFn(Check.Barrier, m_TLI, true))
+  if (isAllocLikeFn(Check.Barrier, m_TLI))
     return Check;
 
   assert(Origin.Ptr);

@@ -32,7 +32,7 @@ struct MarkInternalAllocationInline : public ModulePass {
     for (inst_iterator i = inst_begin(F), e = inst_end(F); i != e; ++i) {
       Instruction *I = &*i;
       if (CallInst *CI = dyn_cast<CallInst>(I)) {
-        if (isAllocationFn(CI, TLI, true)) {
+        if (isAllocationFn(CI, TLI)) {
           F.addFnAttr(Attribute::AlwaysInline);
           errs() << F.getName() << " marked as internal (level=1)\n";
           return true;

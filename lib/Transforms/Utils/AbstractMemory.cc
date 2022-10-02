@@ -208,7 +208,7 @@ private:
       return false;
 
     for (auto const &U : v.uses()) {
-      if (isAllocationFn(U.getUser(), m_tli, true) ||
+      if (isAllocationFn(U.getUser(), m_tli) ||
           isa<AllocaInst>(U.getUser()))
         return true;
 

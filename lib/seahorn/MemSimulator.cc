@@ -216,7 +216,7 @@ struct MemSimVisitor : public InstVisitor<MemSimVisitor> {
 
   void visitCallBase(CallBase &CB) {
     // if instruction is an allocation, update size and pointer values
-    if (llvm::isAllocationFn(&CB, &m_sim.getTargetLibraryInfo(), true)) {
+    if (llvm::isAllocationFn(&CB, &m_sim.getTargetLibraryInfo())) {
 
       LOG("memsim", errs() << "  ALLOCATION: ";);
 

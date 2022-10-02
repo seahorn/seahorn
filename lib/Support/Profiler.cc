@@ -222,7 +222,7 @@ namespace seahorn {
         ++TotalIndirectCalls;
 
       // new, malloc, calloc, realloc, and strdup.
-      if (isAllocationFn (&CB, TLI, true)) 
+      if (isAllocationFn (&CB, TLI)) 
         ++TotalAllocations;
     }
 
